@@ -1,13 +1,5 @@
 #!/bin/sh
 
-# These move most user processes to CPUs 0 and 2, but some kernel stuff still runs there.
-# Instead, boot the kernel with isolcpus=1,3 (press 'e' in GRUB).
-# Not setting the nohz option because that makes switches into kernelspace more expensive (and those happen on page fault).
-# sudo systemctl --runtime set-property system.slice AllowedCPUs=0,2
-# sudo systemctl --runtime set-property user.slice AllowedCPUs=0,2
-
-
-# Disable CPU 1
 echo -n "CPU 1 (1: online, 0: offline): "
 cat /sys/devices/system/cpu/cpu1/online
 

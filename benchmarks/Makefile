@@ -76,6 +76,7 @@ bin/allbenches: $(foreach backend,$(backends),$(bin)/$(backend)/allbenches)
 wide: FORCE bin/allbenches | $(results)/wide/
 	taskset -c 3 hyperfine -N --warmup 3 --min-runs 7 -L bench "$(subst :,$(space),$(subst $(space),"$(comma)",$(benches)))" -L backend $(subst $(space),$(comma),$(backends)) "bin/{backend}/{bench}" --export-json $(results)/wide/$(shell date +"%Y-%m-%dT%T").json
 
+# Generate data for a specific plot (Figure 2) in the thesis/internship report.
 qsort_single_scaling: FORCE $(foreach backend,malfunction-reference malfunction-sekarray malfunction-unsafearray,$(bin)/$(backend)/qsort_single) | $(results)/qsort_single_scaling/
 	taskset -c 3 hyperfine -N --warmup 3 --min-runs 7 -L n 0,1000,2000,5000,10000,20000,50000,100000 -L backend malfunction-reference,malfunction-sekarray,malfunction-unsafearray "bin/{backend}/qsort_single {n}" --export-json $(results)/qsort_single_scaling/$(shell date +"%Y-%m-%dT%T").json
 
