@@ -14,7 +14,8 @@ malfunction-unsafearray\
 malfunction-prune-nounbox\
 malfunction-noprune-unbox\
 malfunction-noprune-nounbox\
-malfunction-noinline
+malfunction-noinline\
+malfunction-ocaml4
 
 benches:=
 define register_test
@@ -27,6 +28,8 @@ benches+=$(testname):$(rest)
 endif
 )
 endef
+
+MALFUNCTION_OCAML4_SWITCH=coq-malfunction
 
 $(foreach testspec,$(shell cat TESTS),$(eval $(call register_test,$(testspec))))
 
@@ -68,6 +71,9 @@ $(bin)/malfunction-noprune-nounbox/%: FORCE | $(bin)/malfunction-noprune-nounbox
 $(bin)/malfunction-noinline/%: FORCE | $(bin)/malfunction-noinline/
 	INLINE_AXIOMS=0 OCAMLPARAM=_,O2=1 make -C via_malfunction bin/$* TARGETDIR=../$(bin)/malfunction-noinline
 
+$(bin)/malfunction-ocaml4/%: FORCE | $(bin)/malfunction-ocaml4/
+	OCAMLPARAM=_,O2=1 MALFUNCTION_FLAMBDA_SWITCH=$(MALFUNCTION_OCAML4_SWITCH) make ARRAYML=JCFArrayOCaml4.ml -C via_malfunction bin/$* TARGETDIR=../$(bin)/malfunction-ocaml4
+
 $(results)/%/:
 	mkdir -p $@
 
@@ -75,6 +81,10 @@ bin/allbenches: $(foreach backend,$(backends),$(bin)/$(backend)/allbenches)
 
 wide: FORCE bin/allbenches | $(results)/wide/
 	taskset -c 3 hyperfine -N --warmup 3 --min-runs 7 -L bench "$(subst :,$(space),$(subst $(space),"$(comma)",$(benches)))" -L backend $(subst $(space),$(comma),$(backends)) "bin/{backend}/{bench}" --export-json $(results)/wide/$(shell date +"%Y-%m-%dT%T").json
+
+ocamlbackends=malfunction-ocaml4 malfunction-reference lean
+ocamlver: FORCE $(foreach backend,$(ocamlbackends),$(bin)/$(backend)/allbenches) | $(results)/ocamlver/
+	taskset -c 3 hyperfine -N --warmup 3 --min-runs 7 -L bench "$(subst :,$(space),$(subst $(space),"$(comma)",$(benches)))" -L backend $(subst $(space),$(comma),$(ocamlbackends)) "bin/{backend}/{bench}" --export-json $(results)/ocamlver/$(shell date +"%Y-%m-%dT%T").json
 
 # Generate data for a specific plot (Figure 2) in the thesis/internship report.
 qsort_single_scaling: FORCE $(foreach backend,malfunction-reference malfunction-sekarray malfunction-unsafearray,$(bin)/$(backend)/qsort_single) | $(results)/qsort_single_scaling/

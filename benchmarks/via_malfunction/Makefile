@@ -1,7 +1,7 @@
-LBOX_NO_UNBOX_SWITCH=lambda-box-extraction
-LBOX_UNBOX_SWITCH=lbox-unbox
-MALFUNCTION_NO_FLAMBDA_SWITCH=malfunction
-MALFUNCTION_FLAMBDA_SWITCH=malfunction+flambda
+LBOX_NO_UNBOX_SWITCH?=lambda-box-extraction
+LBOX_UNBOX_SWITCH?=lbox-unbox
+MALFUNCTION_NO_FLAMBDA_SWITCH?=malfunction
+MALFUNCTION_FLAMBDA_SWITCH?=malfunction+flambda
 
 # 0 to make without flambda, 1 to use flambda; default is 1.
 FLAMBDA?=1
@@ -162,7 +162,7 @@ $(build)/LeanArray.mli: LeanArray.mli | $(build)
 $(build)/LeanArray.ml: $(ARRAYML) | $(build)
 	cp $< $@
 
-# LeanArray.cmi handled by generic rule (no prerLeanArrayuisites)
+# LeanArray.cmi handled by generic rule (no prerequisites)
 
 $(build)/LeanArray.cmx: $(build)/LeanArray.ml $(build)/LeanArray.cmi
 	$(OCAMLOPT) -I $(build) -c $<

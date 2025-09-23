@@ -23,3 +23,4 @@ qsort:natio:1000
 qsort_fin:natio:1000
 qsort_single:natio:100000
 unionfind:natio:100000
+unionfind_noinline:natio:100000

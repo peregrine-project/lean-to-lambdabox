@@ -9,6 +9,7 @@ import FromLeanCommon.rbmap_std
 import FromLeanCommon.rbmap_mono
 import FromLeanCommon.rbmap_raw
 import FromLeanCommon.unionfind
+import FromLeanCommon.unionfind_noinline
 
 /-
 Test programs to be used with the "runonce" or "repeat" runners.
