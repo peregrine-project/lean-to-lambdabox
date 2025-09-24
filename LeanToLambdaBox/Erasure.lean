@@ -498,7 +498,6 @@ where
     
     -- If we are using machine Nats then the inductive casesOn will not work.
     let mut ret: LBTerm ← (match typeName, (← read).config.nat with
-    | ``Int, .machine => panic! "Int.casesOn not implemented."
     | ``Nat, .machine => do
       /-
       Compile this to "let n = discr in Bool.casesOn (Nat.beq n 0) (succ_case (n - 1)) zero_case".
@@ -517,6 +516,29 @@ where
         let gtz_nt: LBTerm ← visitExpr gtz_arm
         let condition: LBTerm ← visitExpr <| mkAppN (.const ``Nat.beq []) #[.fvar n_fvar, .lit (.natVal 0)]
         let case_nt: LBTerm := .case (bool_indid, 0) condition [← mkAlt [] gtz_nt, ← mkAlt [] zero_nt]
+        mkLetIn n_fvar discr_nt case_nt
+      )
+    | ``Int, .machine => do
+      /-
+      Compile this to "let n = discr in if n <= 0 then (ofnat_case n) else (negsucc_case (-(n+1)))".
+      Gotta use Decidable because we only have Int.decLe.
+      Doing much of this on LBTerm instead of Expr to silently cast between Int and Nat.
+      -/
+      unless (← read).config.remove_irrel_constr_args do
+        panic! "Int.casesOn is currently only implemented when pruning is on (depends on Decidable arg count)"
+        
+      let ofnat_fun := args[casesInfo.altsRange.start]!
+      let negsucc_fun := args[casesInfo.altsRange.start + 1]!
+      let decidable_indval := (← getConstInfo ``Bool).inductiveVal!
+      let (decidable_indid, _) ← register_inductive decidable_indval
+      withLocalDecl `n (.const ``Nat []) .default (fun n_fvar => do
+        let ofnat_nt: LBTerm := .app (← visitExpr ofnat_fun) (.fvar n_fvar)
+        let negsucc_nt: LBTerm :=
+          .app (← visitExpr negsucc_fun)
+          <| .app (← visitExpr (.const ``Int.neg []))
+          <| .app (← visitExpr (.const ``Nat.succ [])) (.fvar n_fvar)
+        let condition: LBTerm ← visitExpr <| mkAppN (.const ``Int.decLe []) #[.lit (.natVal 0), .fvar n_fvar]
+        let case_nt: LBTerm := .case (decidable_indid, 1) condition [← mkAlt [] negsucc_nt, ← mkAlt [] ofnat_nt]
         mkLetIn n_fvar discr_nt case_nt
       )
     | _, _ => do

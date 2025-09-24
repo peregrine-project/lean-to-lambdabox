@@ -91,3 +91,13 @@ def odd: Nat -> Nat
   | 0 => 0
   | n+1 => even n
 end
+
+-- Test whether Int.casesOn is implemented correctly (not for use as a benchmark).
+-- add the line "intcases:natio" to TESTS to build.
+/-
+def intcases (n: Nat): Nat :=
+  let i := Int.ofNat n
+  match i - 10 with
+  | .ofNat n => n
+  | .negSucc n => n
+-/
