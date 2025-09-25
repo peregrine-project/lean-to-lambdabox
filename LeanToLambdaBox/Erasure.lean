@@ -520,25 +520,24 @@ where
       )
     | ``Int, .machine => do
       /-
-      Compile this to "let n = discr in if n <= 0 then (ofnat_case n) else (negsucc_case (-(n+1)))".
-      Gotta use Decidable because we only have Int.decLe.
-      Doing much of this on LBTerm instead of Expr to silently cast between Int and Nat.
+      Compile this to "let n = discr in Bool.casesOn (Nat.ble 0 n) (negsucc_case (-(n+1))) (ofnat_case n)".
+      The use of Nat.ble instead of using Int.decLE and Decidable.casesOn is possible because Int and Nat both become Z.t,
+      and Nat.ble becomes Z.leq.
+      We build `LBTerm`s directly instead of building expressions and using visitExpr because visitExpr assumes typability.
+      In effect, we can silently cast between Int and Nat.
       -/
-      unless (← read).config.remove_irrel_constr_args do
-        panic! "Int.casesOn is currently only implemented when pruning is on (depends on Decidable arg count)"
-        
       let ofnat_fun := args[casesInfo.altsRange.start]!
       let negsucc_fun := args[casesInfo.altsRange.start + 1]!
-      let decidable_indval := (← getConstInfo ``Bool).inductiveVal!
-      let (decidable_indid, _) ← register_inductive decidable_indval
+      let bool_indval := (← getConstInfo ``Bool).inductiveVal!
+      let (bool_indid, _) ← register_inductive bool_indval
       withLocalDecl `n (.const ``Nat []) .default (fun n_fvar => do
         let ofnat_nt: LBTerm := .app (← visitExpr ofnat_fun) (.fvar n_fvar)
         let negsucc_nt: LBTerm :=
           .app (← visitExpr negsucc_fun)
           <| .app (← visitExpr (.const ``Int.neg []))
           <| .app (← visitExpr (.const ``Nat.succ [])) (.fvar n_fvar)
-        let condition: LBTerm ← visitExpr <| mkAppN (.const ``Int.decLe []) #[.lit (.natVal 0), .fvar n_fvar]
-        let case_nt: LBTerm := .case (decidable_indid, 1) condition [← mkAlt [] negsucc_nt, ← mkAlt [] ofnat_nt]
+        let condition: LBTerm ← visitExpr <| mkAppN (.const ``Nat.ble []) #[.lit (.natVal 0), .fvar n_fvar]
+        let case_nt: LBTerm := .case (bool_indid, 0) condition [← mkAlt [] negsucc_nt, ← mkAlt [] ofnat_nt]
         mkLetIn n_fvar discr_nt case_nt
       )
     | _, _ => do
