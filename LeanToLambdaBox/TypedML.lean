@@ -1,83 +1,8 @@
 import LeanToLambdaBox.Config
+import LeanToLambdaBox.Contexts
+import LeanToLambdaBox.Utils
 
 namespace TypedML
-
-axiom TypeVarContext: Type
-axiom TypeVarContext.Id: TypeVarContext -> Type
-
-axiom TypeAliasContext: Type
-namespace TypeAliasContext
-axiom empty: TypeAliasContext
-axiom Id: TypeAliasContext -> Type
-axiom arity (ctx: TypeAliasContext): ctx.Id -> Nat
-axiom extension: TypeAliasContext -> TypeAliasContext -> Type
-end TypeAliasContext
-
-/-- A list of constructor arities. -/
-def OneInductiveSpec := List Nat
-def MutualInductiveSpec := List OneInductiveSpec
-
-axiom InductiveContext: Type
-namespace InductiveContext
-axiom empty: InductiveContext
-axiom InductiveId: InductiveContext -> Type
-axiom inductiveArity (ctx: InductiveContext) (iid: ctx.InductiveId): Nat
-axiom ConstructorId (ctx: InductiveContext) (iid: ctx.InductiveId): Type
-axiom constructorArity (ctx: InductiveContext) (iid: ctx.InductiveId) (cid: ctx.ConstructorId iid): Nat
-axiom multiExtension: InductiveContext -> InductiveContext -> MutualInductiveSpec -> Type
-end InductiveContext
-
-structure TypeFormerContext: Type where
-  mk ::
-  aliases: TypeAliasContext
-  inductives: InductiveContext
-namespace TypeFormerContext
-inductive Id (ctx: TypeFormerContext): Type where
-  | ialias (id: ctx.aliases.Id)
-  | iinductive (id: ctx.inductives.InductiveId)
--- noncomputable only because TypeAliasContext.arity and InductiveContext.inductiveArity are axioms atm
-noncomputable def arity (ctx: TypeFormerContext): ctx.Id -> Nat
-| .ialias id => ctx.aliases.arity id
-| .iinductive id => ctx.inductives.inductiveArity id
-end TypeFormerContext
-
-axiom GlobalValueContext: Type
-namespace GlobalValueContext
-axiom empty: GlobalValueContext
-axiom Id: GlobalValueContext -> Type
-axiom extension: GlobalValueContext -> GlobalValueContext -> Type
-end GlobalValueContext
-
-axiom LocalValueContext: Type
-namespace LocalValueContext
-axiom empty: LocalValueContext
-axiom Id: LocalValueContext -> Type
-axiom extension: LocalValueContext -> LocalValueContext -> Type
-axiom newId {ctx': LocalValueContext} (ext: ctx'.extension ctx): ctx'.Id
-axiom extend (ctx: LocalValueContext): (ctx': LocalValueContext) × (ctx'.extension ctx)
-/--
-If the concrete definition of LocalValueContext.Id is such that this can be replaced by a no-op in compiled code,
-hopefully the compiler will recognize that.
--/
-axiom weakenId {ctx ctx': LocalValueContext}:  ctx'.extension ctx -> ctx.Id -> ctx'.Id
-end LocalValueContext
-
-inductive SizedList (α: Type): (length: Nat) -> Type where
-  | nil: SizedList α 0
-  | cons: forall n, α -> SizedList α n -> SizedList α (n+1)
-
-namespace SizedList
-def map (f: α -> β): SizedList α n -> SizedList β n 
-| .nil => .nil
-| .cons n a as => .cons n (f a) (map f as)
-
-def rev (l: SizedList α n): SizedList α n := Nat.zero_add n ▸ revAcc .nil l
-where
-  revAcc {m n} (acc: SizedList α m): (l: SizedList α n) -> SizedList α (m+n)
-  | .nil => acc
-  | .cons n a as =>
-    Nat.succ_add_eq_add_succ m n ▸ revAcc (.cons m a acc) as
-end SizedList
 
 inductive TType (tvars: TypeVarContext) (formers: TypeFormerContext): Type where
   | typeVar (id: tvars.Id)
@@ -136,7 +61,6 @@ def ofSizedList {n}: SizedList (Expression cfg globals inductives locals) n -> E
 end ExpressionSizedList
 
 namespace LocalValueContext
-axiom pullback (base a b: LocalValueContext) (extA: a.extension base) (extB: b.extension base): (top: LocalValueContext) × (top.extension a) × (top.extension b)
 
 mutual
 -- Noncomputable because of pullback and weakenId
@@ -144,22 +68,19 @@ noncomputable def weakenExpression (ext: ctx'.extension ctx): Expression cfg glo
 | .global ctx id => .global ctx' id
 | .local ctx id => .local ctx' (ctx.weakenId ext id)
 | .constructorVal h ctx iid cid => .constructorVal h ctx' iid cid
-| .constructorApp h ctx iid cid args => .constructorApp h ctx' iid cid (ctx.weakenExpressions ext args)
-| .app ctx f x => .app ctx' (ctx.weakenExpression ext f) (ctx.weakenExpression ext x)
+| .constructorApp h ctx iid cid args => .constructorApp h ctx' iid cid (weakenExpressions ext args) -- `ctx.weakenExpressions` doesn't work but this does??
+| .app ctx f x => .app ctx' (weakenExpression ext f) (weakenExpression ext x)
 | .lambda ctx bodylocals bext body =>
-  let ⟨bodylocals', addprime, addb⟩ := pullback ctx bodylocals ctx' bext ext;
-  .lambda ctx' bodylocals' addb (bodylocals.weakenExpression addprime body)
+  let ⟨bodylocals', addprime, addb⟩ := ctx.pullback bodylocals ctx' bext ext;
+  .lambda ctx' bodylocals' addb (weakenExpression addprime body)
 
 /-- Here we do the mapping directly, instead of converting back and forth and using SizedList.map, so that the termination checker sees this is structural. -/
 noncomputable def weakenExpressions (ext: ctx'.extension ctx): ExpressionSizedList cfg globals inductives ctx n -> ExpressionSizedList cfg globals inductives ctx' n
   | .nil ctx => .nil ctx'
-  | .cons ctx n e es => .cons ctx' n (ctx.weakenExpression ext e) (ctx.weakenExpressions ext es)
+  | .cons ctx n e es => .cons ctx' n (weakenExpression ext e) (weakenExpressions ext es)
 end
-end LocalValueContext
 
-inductive DependentList (α: Type) (f: α -> Type): (List α) -> Type where
-  | unit: DependentList α f .nil
-  | pair: forall (a: α) (as: List α), f a -> DependentList α f as -> DependentList α f (.cons a as)
+end LocalValueContext
 
 structure ConstructorDecl (tvars: TypeVarContext) (formers: TypeFormerContext) (arity: Nat): Type where
   argTypes: SizedList (TType tvars formers) arity
