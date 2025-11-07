@@ -1,0 +1,10 @@
+* 0e8f767 Overview of what needs to be implemented
+* b624bb6 Bump toolchain to Lean 4.24
+* 039e298 Separate contexts and utility code into own files
+* 9f39b42 Proof of concept: fully apply constructors
+* 8e1cb5b Dependent abstract syntax for a typed ML-like language
+* 14943c0 Int.casesOn without Decidable, hence with or without pruning
+* b7ce7a5 Implemented Int.casesOn (only when pruning is activated)
+* 091ec63 Added backend for testing with OCaml 4
+* f7a4f88 Add READMEs documenting usage
+* 0ed1860 Remove unused GitHub action

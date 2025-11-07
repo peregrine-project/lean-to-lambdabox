@@ -1,60 +1,62 @@
-axiom TypeVarContext: Type
-axiom TypeVarContext.Id: TypeVarContext -> Type
+module
 
-axiom TypeAliasContext: Type
+public axiom TypeVarContext: Type
+public axiom TypeVarContext.Id: TypeVarContext -> Type
+
+public axiom TypeAliasContext: Type
 namespace TypeAliasContext
-axiom empty: TypeAliasContext
-axiom Id: TypeAliasContext -> Type
-axiom arity (ctx: TypeAliasContext): ctx.Id -> Nat
-axiom extension: TypeAliasContext -> TypeAliasContext -> Type
+public axiom empty: TypeAliasContext
+public axiom Id: TypeAliasContext -> Type
+public axiom arity (ctx: TypeAliasContext): ctx.Id -> Nat
+public axiom extension: TypeAliasContext -> TypeAliasContext -> Type
 end TypeAliasContext
 
 /-- A list of constructor arities. -/
-def OneInductiveSpec := List Nat
-def MutualInductiveSpec := List OneInductiveSpec
+@[expose] public def OneInductiveSpec := List Nat
+@[expose] public def MutualInductiveSpec := List OneInductiveSpec
 
-axiom InductiveContext: Type
+public axiom InductiveContext: Type
 namespace InductiveContext
-axiom empty: InductiveContext
-axiom InductiveId: InductiveContext -> Type
-axiom inductiveArity (ctx: InductiveContext) (iid: ctx.InductiveId): Nat
-axiom ConstructorId (ctx: InductiveContext) (iid: ctx.InductiveId): Type
-axiom constructorArity (ctx: InductiveContext) (iid: ctx.InductiveId) (cid: ctx.ConstructorId iid): Nat
-axiom multiExtension: InductiveContext -> InductiveContext -> MutualInductiveSpec -> Type
+public axiom empty: InductiveContext
+public axiom InductiveId: InductiveContext -> Type
+public axiom inductiveArity (ctx: InductiveContext) (iid: ctx.InductiveId): Nat
+public axiom ConstructorId (ctx: InductiveContext) (iid: ctx.InductiveId): Type
+public axiom constructorArity (ctx: InductiveContext) (iid: ctx.InductiveId) (cid: ctx.ConstructorId iid): Nat
+public axiom multiExtension: InductiveContext -> InductiveContext -> MutualInductiveSpec -> Type
 end InductiveContext
 
-structure TypeFormerContext: Type where
-  mk ::
+public structure TypeFormerContext: Type where
+  public mk ::
   aliases: TypeAliasContext
   inductives: InductiveContext
 namespace TypeFormerContext
-inductive Id (ctx: TypeFormerContext): Type where
-  | ialias (id: ctx.aliases.Id)
-  | iinductive (id: ctx.inductives.InductiveId)
+public inductive Id (ctx: TypeFormerContext): Type where
+  | private ialias (id: ctx.aliases.Id)
+  | private iinductive (id: ctx.inductives.InductiveId)
 -- noncomputable only because TypeAliasContext.arity and InductiveContext.inductiveArity are axioms atm
-noncomputable def arity (ctx: TypeFormerContext): ctx.Id -> Nat
+public noncomputable def arity (ctx: TypeFormerContext): ctx.Id -> Nat
 | .ialias id => ctx.aliases.arity id
 | .iinductive id => ctx.inductives.inductiveArity id
 end TypeFormerContext
 
-axiom GlobalValueContext: Type
+public axiom GlobalValueContext: Type
 namespace GlobalValueContext
-axiom empty: GlobalValueContext
-axiom Id: GlobalValueContext -> Type
-axiom extension: GlobalValueContext -> GlobalValueContext -> Type
+public axiom empty: GlobalValueContext
+public axiom Id: GlobalValueContext -> Type
+public axiom extension: GlobalValueContext -> GlobalValueContext -> Type
 end GlobalValueContext
 
-axiom LocalValueContext: Type
+public axiom LocalValueContext: Type
 namespace LocalValueContext
-axiom empty: LocalValueContext
-axiom Id: LocalValueContext -> Type
-axiom extension: LocalValueContext -> LocalValueContext -> Type
-axiom newId {ctx': LocalValueContext} (ext: ctx'.extension ctx): ctx'.Id
-axiom extend (ctx: LocalValueContext): (ctx': LocalValueContext) × (ctx'.extension ctx)
+public axiom empty: LocalValueContext
+public axiom Id: LocalValueContext -> Type
+public axiom extension: LocalValueContext -> LocalValueContext -> Type
+public axiom newId {ctx': LocalValueContext} (ext: ctx'.extension ctx): ctx'.Id
+public axiom extend (ctx: LocalValueContext): (ctx': LocalValueContext) × (ctx'.extension ctx)
 /--
 If the concrete definition of LocalValueContext.Id is such that this can be replaced by a no-op in compiled code,
 hopefully the compiler will recognize that.
 -/
-axiom weakenId {ctx ctx': LocalValueContext}:  ctx'.extension ctx -> ctx.Id -> ctx'.Id
-axiom pullback (base a b: LocalValueContext) (extA: a.extension base) (extB: b.extension base): (top: LocalValueContext) × (top.extension a) × (top.extension b)
+public axiom weakenId {ctx ctx': LocalValueContext}:  ctx'.extension ctx -> ctx.Id -> ctx'.Id
+public axiom pullback (base a b: LocalValueContext) (extA: a.extension base) (extB: b.extension base): (top: LocalValueContext) × (top.extension a) × (top.extension b)
 end LocalValueContext
