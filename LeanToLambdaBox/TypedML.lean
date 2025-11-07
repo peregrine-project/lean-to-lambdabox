@@ -35,7 +35,7 @@ public inductive Expression (cfg: Config) (globals: GlobalValueContext) (inducti
     : Expression cfg globals inductives locals
   | public lambda
       (locals bodylocals: LocalValueContext)
-      (ext: bodylocals.extension locals)
+      (ext: bodylocals.Extension locals)
       (body: Expression cfg globals inductives bodylocals)
     : Expression cfg globals inductives locals
 /--
@@ -64,7 +64,7 @@ namespace LocalValueContext
 
 mutual
 -- Noncomputable because of pullback and weakenId
-public noncomputable def weakenExpression (ext: ctx'.extension ctx): Expression cfg globals inductives ctx -> Expression cfg globals inductives ctx'
+public noncomputable def weakenExpression (ext: ctx'.Extension ctx): Expression cfg globals inductives ctx -> Expression cfg globals inductives ctx'
 | .global ctx id => .global ctx' id
 | .local ctx id => .local ctx' (ctx.weakenId ext id)
 | .constructorVal h ctx cid => .constructorVal h ctx' cid
@@ -75,7 +75,7 @@ public noncomputable def weakenExpression (ext: ctx'.extension ctx): Expression 
   .lambda ctx' bodylocals' addb (weakenExpression addprime body)
 
 /-- Here we do the mapping directly, instead of converting back and forth and using SizedList.map, so that the termination checker sees this is structural. -/
-public noncomputable def weakenExpressions (ext: ctx'.extension ctx): ExpressionSizedList cfg globals inductives ctx n -> ExpressionSizedList cfg globals inductives ctx' n
+public noncomputable def weakenExpressions (ext: ctx'.Extension ctx): ExpressionSizedList cfg globals inductives ctx n -> ExpressionSizedList cfg globals inductives ctx' n
   | .nil ctx => .nil ctx'
   | .cons ctx n e es => .cons ctx' n (weakenExpression ext e) (weakenExpressions ext es)
 end
@@ -103,7 +103,7 @@ public inductive Program (cfg: Config): TypeAliasContext -> GlobalValueContext -
       (tvars: TypeVarContext)
       (aliases: TypeAliasContext)
       (globals newglobals: GlobalValueContext)
-      (ext: newglobals.extension globals)
+      (ext: newglobals.Extension globals)
       (inductives: InductiveContext)
       (p: Program cfg aliases globals inductives)
       (val: Expression cfg globals inductives .empty)
@@ -112,7 +112,7 @@ public inductive Program (cfg: Config): TypeAliasContext -> GlobalValueContext -
   | typeAlias
       (tvars: TypeVarContext)
       (aliases newaliases: TypeAliasContext)
-      (ext: newaliases.extension aliases tvars.size)
+      (ext: newaliases.Extension aliases tvars.size)
       (globals: GlobalValueContext)
       (inductives: InductiveContext)
       (p: Program cfg aliases globals inductives)
@@ -124,7 +124,7 @@ public inductive Program (cfg: Config): TypeAliasContext -> GlobalValueContext -
       (globals: GlobalValueContext)
       (inductives newinductives: InductiveContext)
       (arities: MutualInductiveArities)
-      (ext: newinductives.extension inductives { typeVarCount := tvars.size, arities })
+      (ext: newinductives.Extension inductives { typeVarCount := tvars.size, arities })
       (p: Program cfg aliases globals inductives)
       (minds: MutualInductiveDecl tvars (.mk aliases newinductives) arities)
     : Program cfg aliases globals newinductives
