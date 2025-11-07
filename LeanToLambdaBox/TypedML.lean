@@ -66,12 +66,12 @@ mutual
 -- Noncomputable because of pullback and weakenId
 public noncomputable def weakenExpression (ext: ctx'.Extension ctx): Expression cfg globals inductives ctx -> Expression cfg globals inductives ctx'
 | .global ctx id => .global ctx' id
-| .local ctx id => .local ctx' (ctx.weakenId ext id)
+| .local ctx id => .local ctx' (ext.weakenId id)
 | .constructorVal h ctx cid => .constructorVal h ctx' cid
 | .constructorApp h ctx cid args => .constructorApp h ctx' cid (weakenExpressions ext args)
 | .app ctx f x => .app ctx' (weakenExpression ext f) (weakenExpression ext x)
-| .lambda ctx bodylocals bext body =>
-  let ⟨bodylocals', addprime, addb⟩ := ctx.pullback bodylocals ctx' bext ext;
+| .lambda _ _ bext body =>
+  let ⟨bodylocals', ⟨addprime, addb⟩⟩ := bext.pullback ext;
   .lambda ctx' bodylocals' addb (weakenExpression addprime body)
 
 /-- Here we do the mapping directly, instead of converting back and forth and using SizedList.map, so that the termination checker sees this is structural. -/

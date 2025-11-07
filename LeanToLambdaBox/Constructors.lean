@@ -47,7 +47,7 @@ noncomputable def etaIn
     -- This could be implemented as an unsafe cast if types are right. Or maybe, depending on implementation, the compiler can specialize enough.
     let brevargs: SizedList (Expression cfg globals inductives bodylocals) m := revargs.map (locals.weakenExpression ext);
     let whenDoneB := Nat.succ_add_eq_add_succ m n ▸ whenDone
-    let body: Expression cfg globals inductives bodylocals := etaIn (m+1) n (.cons m (.local bodylocals (locals.newId ext)) brevargs) whenDoneB;
+    let body: Expression cfg globals inductives bodylocals := etaIn (m+1) n (.cons m (.local bodylocals ext.newId) brevargs) whenDoneB;
     .lambda locals bodylocals ext body
 
 mutual
