@@ -1,6 +1,5 @@
 module
-import LeanToLambdaBox.TypedML
-import LeanToLambdaBox.Config
+public import LeanToLambdaBox.TypedML
 
 open TypedML
 
@@ -68,7 +67,7 @@ noncomputable def transformExpressionAux locals (e: Expression cfg globals induc
       let x' := transformExpression locals x;
       transformExpressionAux locals f (x' :: args)
     | .constructorVal _ locals iid cid =>
-      let arity := inductives.constructorArity iid cid;
+      let arity := inductives.constructorArity cid;
       let whenDone locals (revargs: SizedList _ arity): Expression cfg' globals inductives locals :=
         .constructorApp rfl locals iid cid (revargs.rev |> ExpressionSizedList.ofSizedList);
       match h: arity, collect args arity with

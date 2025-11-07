@@ -29,7 +29,7 @@ public inductive Expression (cfg: Config) (globals: GlobalValueContext) (inducti
       (locals: LocalValueContext)
       (iid: inductives.InductiveId)
       (cid: inductives.ConstructorId iid)
-      (args: ExpressionSizedList cfg globals inductives locals (inductives.constructorArity iid cid))
+      (args: ExpressionSizedList cfg globals inductives locals (inductives.constructorArity cid))
     : Expression cfg globals inductives locals
   | public app
       (locals: LocalValueContext)
