@@ -66,11 +66,10 @@ noncomputable def transformExpressionAux locals (e: Expression cfg globals induc
     | .app locals f x =>
       let x' := transformExpression locals x;
       transformExpressionAux locals f (x' :: args)
-    | .constructorVal _ locals iid cid =>
-      let arity := inductives.constructorArity cid;
-      let whenDone locals (revargs: SizedList _ arity): Expression cfg' globals inductives locals :=
-        .constructorApp rfl locals iid cid (revargs.rev |> ExpressionSizedList.ofSizedList);
-      match h: arity, collect args arity with
+    | .constructorVal _ locals cid =>
+      let whenDone locals (revargs: SizedList _ cid.arity): Expression cfg' globals inductives locals :=
+        .constructorApp rfl locals cid (revargs.rev |> ExpressionSizedList.ofSizedList);
+      match h: cid.arity, collect args cid.arity with
       | .(_), .enough _ revargs extra => mkApp (whenDone locals (h ▸ revargs)) extra
       | .(m+n), .missing m n revargs => etaIn m n revargs (h ▸ whenDone)
 

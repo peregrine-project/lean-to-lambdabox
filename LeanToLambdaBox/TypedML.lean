@@ -21,15 +21,13 @@ public inductive Expression (cfg: Config) (globals: GlobalValueContext) (inducti
   | public constructorVal
       (h: cfg.constructors = .value)
       (locals: LocalValueContext)
-      (iid: inductives.InductiveId)
-      (cid: inductives.ConstructorId iid)
+      (cid: @inductives.ConstructorId mid iid)
     : Expression cfg globals inductives locals
   | public constructorApp
       (h: cfg.constructors = .applied)
       (locals: LocalValueContext)
-      (iid: inductives.InductiveId)
-      (cid: inductives.ConstructorId iid)
-      (args: ExpressionSizedList cfg globals inductives locals (inductives.constructorArity cid))
+      (cid: @inductives.ConstructorId mid iid)
+      (args: ExpressionSizedList cfg globals inductives locals cid.arity)
     : Expression cfg globals inductives locals
   | public app
       (locals: LocalValueContext)
@@ -69,8 +67,8 @@ mutual
 public noncomputable def weakenExpression (ext: ctx'.extension ctx): Expression cfg globals inductives ctx -> Expression cfg globals inductives ctx'
 | .global ctx id => .global ctx' id
 | .local ctx id => .local ctx' (ctx.weakenId ext id)
-| .constructorVal h ctx iid cid => .constructorVal h ctx' iid cid
-| .constructorApp h ctx iid cid args => .constructorApp h ctx' iid cid (weakenExpressions ext args) -- `ctx.weakenExpressions` doesn't work but this does??
+| .constructorVal h ctx cid => .constructorVal h ctx' cid
+| .constructorApp h ctx cid args => .constructorApp h ctx' cid (weakenExpressions ext args)
 | .app ctx f x => .app ctx' (weakenExpression ext f) (weakenExpression ext x)
 | .lambda ctx bodylocals bext body =>
   let ⟨bodylocals', addprime, addb⟩ := ctx.pullback bodylocals ctx' bext ext;
@@ -87,11 +85,11 @@ end LocalValueContext
 public structure ConstructorDecl (tvars: TypeVarContext) (formers: TypeFormerContext) (arity: Nat): Type where
   argTypes: SizedList (TType tvars formers) arity
 
-public structure OneInductiveDecl (tvars: TypeVarContext) (formers: TypeFormerContext) (spec: OneInductiveSpec) where
-  constructors: DependentList Nat (ConstructorDecl tvars formers) spec
+public structure OneInductiveDecl (tvars: TypeVarContext) (formers: TypeFormerContext) (arities: OneInductiveArities) where
+  constructors: DependentList Nat (ConstructorDecl tvars formers) arities
 
-public structure MutualInductiveDecl (tvars: TypeVarContext) (formers: TypeFormerContext) (spec: MutualInductiveSpec) where
-  inductives: DependentList (OneInductiveSpec) (OneInductiveDecl tvars formers) spec
+public structure MutualInductiveDecl (tvars: TypeVarContext) (formers: TypeFormerContext) (arities: MutualInductiveArities) where
+  inductives: DependentList OneInductiveArities (OneInductiveDecl tvars formers) arities
 
 /--
 A program made up a sequence of type alias, global value, and inductive type declarations.
@@ -114,7 +112,7 @@ public inductive Program (cfg: Config): TypeAliasContext -> GlobalValueContext -
   | typeAlias
       (tvars: TypeVarContext)
       (aliases newaliases: TypeAliasContext)
-      (ext: newaliases.extension aliases)
+      (ext: newaliases.extension aliases tvars.size)
       (globals: GlobalValueContext)
       (inductives: InductiveContext)
       (p: Program cfg aliases globals inductives)
@@ -125,10 +123,10 @@ public inductive Program (cfg: Config): TypeAliasContext -> GlobalValueContext -
       (aliases: TypeAliasContext)
       (globals: GlobalValueContext)
       (inductives newinductives: InductiveContext)
-      (spec: MutualInductiveSpec)
-      (ext: newinductives.multiExtension inductives spec)
+      (arities: MutualInductiveArities)
+      (ext: newinductives.extension inductives { typeVarCount := tvars.size, arities })
       (p: Program cfg aliases globals inductives)
-      (minds: MutualInductiveDecl tvars (.mk aliases newinductives) spec)
+      (minds: MutualInductiveDecl tvars (.mk aliases newinductives) arities)
     : Program cfg aliases globals newinductives
 
 public structure BundledProgram (cfg: Config): Type where

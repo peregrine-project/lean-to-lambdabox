@@ -21,13 +21,13 @@ namespace GenericArrayContext
 def empty: GenericArrayContext α := Array.empty
 abbrev Id (ctx: GenericArrayContext α): Type := Fin (ctx.size)
 def get (ctx: GenericArrayContext α) (id: ctx.Id): α := ctx[id]
--- TODO: this should take an x as an argument! Or should it?
-def extension (ctx' ctx: GenericArrayContext α): Type := { x: α // ctx' = ctx.push x }
+def extension (ctx' ctx: GenericArrayContext α) (x: α): Type := PLift (ctx' = ctx.push x)
 end GenericArrayContext
 
 public def TypeVarContext: Type := GenericSizedContext
 namespace TypeVarContext
 public def Id: TypeVarContext -> Type := GenericSizedContext.Id
+public def size: TypeVarContext -> Nat := id
 end TypeVarContext
 
 structure TypeAliasInfo where
@@ -37,30 +37,37 @@ namespace TypeAliasContext
 public def empty: TypeAliasContext := GenericArrayContext.empty
 public def Id: TypeAliasContext -> Type := GenericArrayContext.Id
 public def arity (ctx: TypeAliasContext) (id: ctx.Id): Nat := ctx.get id |>.arity
--- this should take an arity as an argument!
-public def extension: TypeAliasContext -> TypeAliasContext -> Type := GenericArrayContext.extension
+/-- A witness of the fact that `ctx'` is an extension of `ctx` with an added type alias of arity `n`. -/
+public def extension (ctx ctx': TypeAliasContext) (n: Nat): Type := GenericArrayContext.extension ctx ctx' { arity := n }
 end TypeAliasContext
 
+public abbrev ConstructorArity := Nat
 /-- A list of constructor arities. -/
-public abbrev OneInductiveSpec := List Nat
-@[expose] public def MutualInductiveSpec := List OneInductiveSpec
+public abbrev OneInductiveArities := List ConstructorArity
+public abbrev MutualInductiveArities := List OneInductiveArities
+public structure MutualInductiveSpec where
+  typeVarCount: Nat
+  arities: MutualInductiveArities
 
-@[reducible] -- needed for the definition of constructorArity to typecheck
-public def InductiveContext: Type := GenericArrayContext OneInductiveSpec
+public def InductiveContext: Type := GenericArrayContext MutualInductiveSpec
 namespace InductiveContext
 public def empty: InductiveContext := GenericArrayContext.empty
-@[reducible] -- needed for the definition of constructorArity to typecheck
-public def InductiveId: InductiveContext -> Type := GenericArrayContext.Id
-public def inductiveArity (ctx: InductiveContext) (iid: ctx.InductiveId): Nat := ctx.get iid |>.length
-public def ConstructorId (ctx: InductiveContext) (iid: ctx.InductiveId): Type := Fin (ctx.inductiveArity iid)
-public def constructorArity (ctx: InductiveContext) {iid: ctx.InductiveId} (cid: ctx.ConstructorId iid): Nat := ctx[iid][cid.val]'cid.isLt
-
-def extensionP (ctx' ctx: InductiveContext) (spec: OneInductiveSpec): Prop := ctx' = ctx.push spec
-def multiExtensionP (ctx' ctx: InductiveContext) (mspec: MutualInductiveSpec): Prop :=
-  match mspec with
-  | [] => True
-  | spec::t => exists imd: InductiveContext, imd.extensionP ctx spec ∧ ctx'.multiExtensionP imd t
-public def multiExtension (ctx' ctx: InductiveContext) (mspec: MutualInductiveSpec): Type := PLift (ctx'.multiExtensionP ctx mspec)
+public def extension: (ctx' ctx: InductiveContext) -> (spec: MutualInductiveSpec) -> Type := GenericArrayContext.extension
+public def MutualInductiveId: InductiveContext -> Type := GenericArrayContext.Id
+namespace MutualInductiveId
+public def typeFormerArity (mid: MutualInductiveId ctx): Nat := ctx.get mid |>.typeVarCount
+abbrev inductiveArities (mid: MutualInductiveId ctx): List OneInductiveArities := ctx.get mid |>.arities
+public def InductiveId (mid: MutualInductiveId ctx): Type := Fin (mid.inductiveArities.length)
+namespace InductiveId
+abbrev constructorArities (iid: @InductiveId ctx mid): List ConstructorArity := mid.inductiveArities |>.get iid
+public def ConstructorId (iid: @InductiveId ctx mid): Type := Fin (iid.constructorArities.length)
+namespace ConstructorId
+public def arity (cid: @ConstructorId ctx mid iid): Nat := iid.constructorArities |>.get cid
+end ConstructorId
+end InductiveId
+export InductiveId (ConstructorId)
+end MutualInductiveId
+export MutualInductiveId (InductiveId ConstructorId)
 end InductiveContext
 
 public structure TypeFormerContext: Type where
@@ -70,10 +77,10 @@ public structure TypeFormerContext: Type where
 namespace TypeFormerContext
 public inductive Id (ctx: TypeFormerContext): Type where
   | private ialias (id: ctx.aliases.Id)
-  | private iinductive (id: ctx.inductives.InductiveId)
+  | private iinductive (iid: ctx.inductives.InductiveId mid)
 public def arity (ctx: TypeFormerContext): ctx.Id -> Nat
 | .ialias id => ctx.aliases.arity id
-| .iinductive id => ctx.inductives.inductiveArity id
+| @Id.iinductive _ mid _ => mid.typeFormerArity
 end TypeFormerContext
 
 public def GlobalValueContext: Type := GenericSizedContext
