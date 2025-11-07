@@ -33,8 +33,7 @@ where
   | c+1, h::t =>
     Nat.succ_add_eq_add_succ m c ▸ collectAux (m+1) (.cons m h collected) t c
 
-/-- Noncomputable because it depends on weakenExpression -/
-noncomputable def etaIn
+def etaIn
     (m n: Nat)
     (revargs: SizedList (Expression cfg globals inductives locals) m)
     (whenDone: (endlocals: LocalValueContext) -> SizedList (Expression cfg globals inductives endlocals) (m+n) -> Expression cfg globals inductives endlocals)
@@ -50,11 +49,10 @@ noncomputable def etaIn
     .lambda ext (etaIn (m+1) n (.cons m (.local ext.newId) brevargs) whenDoneB)
 
 mutual
--- noncomputable because of etaIn
-noncomputable def transformExpression (e: Expression cfg globals inductives locals): Expression cfg' globals inductives locals :=
+def transformExpression (e: Expression cfg globals inductives locals): Expression cfg' globals inductives locals :=
   transformExpressionAux e []
 
-noncomputable def transformExpressionAux (e: Expression cfg globals inductives locals) (args: List (Expression cfg' globals inductives locals)): Expression cfg' globals inductives locals :=
+def transformExpressionAux (e: Expression cfg globals inductives locals) (args: List (Expression cfg' globals inductives locals)): Expression cfg' globals inductives locals :=
     match e with
     | .global id => mkApp (.global id) args
     | .local id => mkApp (.local id) args
@@ -69,8 +67,7 @@ noncomputable def transformExpressionAux (e: Expression cfg globals inductives l
       | .(m+n), .missing m n revargs => etaIn m n revargs (h ▸ whenDone)
 
 -- This is in the mutual block because this allows the implicit parameter hvalue to transformExpression to be inferred for some reason
-/- Noncomputable because of transformExpression -/
-noncomputable def transformProgram (p: Program cfg aliases globals inductives): Program cfg' aliases globals inductives :=
+def transformProgram (p: Program cfg aliases globals inductives): Program cfg' aliases globals inductives :=
   match p with
   | .empty => .empty
   | .typeAlias p ext t => .typeAlias (transformProgram p) ext t

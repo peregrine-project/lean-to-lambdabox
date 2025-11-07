@@ -58,8 +58,7 @@ end ExpressionSizedList
 namespace LocalValueContext
 
 mutual
--- Noncomputable because of pullback and weakenId
-public noncomputable def weakenExpression (ext: ctx'.Extension ctx): Expression cfg globals inductives ctx -> Expression cfg globals inductives ctx'
+public def weakenExpression (ext: ctx'.Extension ctx): Expression cfg globals inductives ctx -> Expression cfg globals inductives ctx'
 | .global id => .global id
 | .local id => .local (ext.weakenId id)
 | .constructorVal h cid => .constructorVal h cid
@@ -70,7 +69,7 @@ public noncomputable def weakenExpression (ext: ctx'.Extension ctx): Expression 
   .lambda addb (weakenExpression addprime body)
 
 /-- Here we do the mapping directly, instead of converting back and forth and using SizedList.map, so that the termination checker sees this is structural. -/
-public noncomputable def weakenExpressions (ext: ctx'.Extension ctx): ExpressionSizedList cfg globals inductives ctx n -> ExpressionSizedList cfg globals inductives ctx' n
+public def weakenExpressions (ext: ctx'.Extension ctx): ExpressionSizedList cfg globals inductives ctx n -> ExpressionSizedList cfg globals inductives ctx' n
   | .nil => .nil
   | .cons n e es => .cons n (weakenExpression ext e) (weakenExpressions ext es)
 end
