@@ -75,10 +75,11 @@ export MutualInductiveId (InductiveId ConstructorId)
 end InductiveContext
 
 public structure TypeFormerContext: Type where
-  public mk ::
+  private mkPriv ::
   aliases: TypeAliasContext
   inductives: InductiveContext
 namespace TypeFormerContext
+public def mk: TypeAliasContext -> InductiveContext -> TypeFormerContext := mkPriv
 public inductive Id (ctx: TypeFormerContext): Type where
   | private ialias (id: ctx.aliases.Id)
   | private iinductive (iid: ctx.inductives.InductiveId mid)

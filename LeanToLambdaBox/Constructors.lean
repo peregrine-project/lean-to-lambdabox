@@ -18,7 +18,7 @@ def cfg' := { cfg with constructors := .applied }
 def mkApp (f: Expression c globals inductives locals) (args: List (Expression c globals inductives locals)) :=
   match args with
   | [] => f
-  | x::xs => mkApp (.app locals f x) xs
+  | x::xs => mkApp (.app f x) xs
 
 inductive CollectResult α: Nat -> Type where
   | enough n (revargs: SizedList α n) (extra: List α): CollectResult α n
@@ -37,38 +37,33 @@ where
 noncomputable def etaIn
     (m n: Nat)
     (revargs: SizedList (Expression cfg globals inductives locals) m)
-    (whenDone: forall locals, SizedList (Expression cfg globals inductives locals) (m+n) -> Expression cfg globals inductives locals)
+    (whenDone: (endlocals: LocalValueContext) -> SizedList (Expression cfg globals inductives endlocals) (m+n) -> Expression cfg globals inductives endlocals)
   : Expression cfg globals inductives locals
   :=
   match n with
   | 0 => whenDone locals revargs
   | n+1 =>
-    let ⟨bodylocals, ext⟩ := locals.extend;
-    -- This could be implemented as an unsafe cast if types are right. Or maybe, depending on implementation, the compiler can specialize enough.
-    let brevargs: SizedList (Expression cfg globals inductives bodylocals) m := revargs.map (locals.weakenExpression ext);
-    let whenDoneB := Nat.succ_add_eq_add_succ m n ▸ whenDone
-    let body: Expression cfg globals inductives bodylocals := etaIn (m+1) n (.cons m (.local bodylocals ext.newId) brevargs) whenDoneB;
-    .lambda locals bodylocals ext body
+    let ⟨_, ext⟩ := locals.extend;
+    -- WeakenExpression is a no-op, so this could be implemented as an unsafe cast if the compiler does not specialize enough.
+    let brevargs := revargs.map (locals.weakenExpression ext);
+    let whenDoneB := Nat.succ_add_eq_add_succ m n ▸ whenDone;
+    .lambda ext (etaIn (m+1) n (.cons m (.local ext.newId) brevargs) whenDoneB)
 
 mutual
 -- noncomputable because of etaIn
-noncomputable def transformExpression locals (e: Expression cfg globals inductives locals): Expression cfg' globals inductives locals :=
-  transformExpressionAux locals e []
+noncomputable def transformExpression (e: Expression cfg globals inductives locals): Expression cfg' globals inductives locals :=
+  transformExpressionAux e []
 
-noncomputable def transformExpressionAux locals (e: Expression cfg globals inductives locals) (args: List (Expression cfg' globals inductives locals)): Expression cfg' globals inductives locals :=
+noncomputable def transformExpressionAux (e: Expression cfg globals inductives locals) (args: List (Expression cfg' globals inductives locals)): Expression cfg' globals inductives locals :=
     match e with
-    | .global locals id => mkApp (.global locals id) args
-    | .local locals id => mkApp (.local locals id) args
-    | .lambda locals bodylocals ext e =>
-        let e' := transformExpression bodylocals e;
-        mkApp (.lambda locals bodylocals ext e') args
+    | .global id => mkApp (.global id) args
+    | .local id => mkApp (.local id) args
+    | .lambda ext e => mkApp (.lambda ext (transformExpression e)) args
+    | .app f x => transformExpressionAux f (transformExpression x :: args)
     | .constructorApp h .. => False.elim (@notApplied cfg hvalue h)
-    | .app locals f x =>
-      let x' := transformExpression locals x;
-      transformExpressionAux locals f (x' :: args)
-    | .constructorVal _ locals cid =>
-      let whenDone locals (revargs: SizedList _ cid.arity): Expression cfg' globals inductives locals :=
-        .constructorApp rfl locals cid (revargs.rev |> ExpressionSizedList.ofSizedList);
+    | .constructorVal _ cid =>
+      let whenDone endlocals (revargs: SizedList _ cid.arity): Expression cfg' globals inductives endlocals :=
+        .constructorApp rfl cid (revargs.rev |> ExpressionSizedList.ofSizedList);
       match h: cid.arity, collect args cid.arity with
       | .(_), .enough _ revargs extra => mkApp (whenDone locals (h ▸ revargs)) extra
       | .(m+n), .missing m n revargs => etaIn m n revargs (h ▸ whenDone)
@@ -78,16 +73,9 @@ noncomputable def transformExpressionAux locals (e: Expression cfg globals induc
 noncomputable def transformProgram (p: Program cfg aliases globals inductives): Program cfg' aliases globals inductives :=
   match p with
   | .empty => .empty
-  | .valueDecl tvars aliases globals newglobals ext inductives p e t =>
-    let p' := transformProgram p;
-    let e' := transformExpression .empty e;
-    .valueDecl tvars aliases globals newglobals ext inductives p' e' t
-  | .mutualInductiveDecl tvars aliases globals inductives newinductives spec ext p decl =>
-    let p' := transformProgram p;
-    .mutualInductiveDecl tvars aliases globals inductives newinductives spec ext p' decl 
-  | .typeAlias tvars aliases newaliases ext globals inductives p t =>
-    let p' := transformProgram p;
-    .typeAlias tvars aliases newaliases ext globals inductives p' t
+  | .typeAlias p ext t => .typeAlias (transformProgram p) ext t
+  | .mutualInductiveDecl p ext decl => .mutualInductiveDecl (transformProgram p) ext decl
+  | .valueDecl p ext e t =>.valueDecl (transformProgram p) ext (transformExpression e) t
 end
 
 end Constructors
