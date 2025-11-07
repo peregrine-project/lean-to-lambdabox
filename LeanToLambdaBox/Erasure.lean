@@ -506,9 +506,9 @@ where
       assumes expressions are well-typed, which wouldn't be the case naïvely as (n - 1).succ is not defeq to n.
       Using casts to make the dependent types typecheck would be an option now that Eq.rec is added to the axioms.
       -/
-      let zero_arm := args[casesInfo.altsRange.start]!
+      let zero_arm := args[casesInfo.altsRange.lower]!
       let zero_nt ← visitExpr zero_arm
-      let succ_arm := args[casesInfo.altsRange.start + 1]! -- a function with one argument of type Nat
+      let succ_arm := args[casesInfo.altsRange.lower + 1]! -- a function with one argument of type Nat
       let bool_indval := (← getConstInfo ``Bool).inductiveVal!
       let (bool_indid, _) ← register_inductive bool_indval
       withLocalDecl `n (.const ``Nat []) .default (fun n_fvar => do
@@ -526,8 +526,8 @@ where
       We build `LBTerm`s directly instead of building expressions and using visitExpr because visitExpr assumes typability.
       In effect, we can silently cast between Int and Nat.
       -/
-      let ofnat_fun := args[casesInfo.altsRange.start]!
-      let negsucc_fun := args[casesInfo.altsRange.start + 1]!
+      let ofnat_fun := args[casesInfo.altsRange.lower]!
+      let negsucc_fun := args[casesInfo.altsRange.lower + 1]!
       let bool_indval := (← getConstInfo ``Bool).inductiveVal!
       let (bool_indid, _) ← register_inductive bool_indval
       withLocalDecl `n (.const ``Nat []) .default (fun n_fvar => do
