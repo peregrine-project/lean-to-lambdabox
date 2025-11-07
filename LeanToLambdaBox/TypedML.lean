@@ -1,3 +1,5 @@
+import LeanToLambdaBox.Config
+
 namespace TypedML
 
 axiom TypeVarContext: Type
@@ -31,12 +33,12 @@ structure TypeFormerContext: Type where
   inductives: InductiveContext
 namespace TypeFormerContext
 inductive Id (ctx: TypeFormerContext): Type where
-  | alias (id: ctx.aliases.Id)
-  | inductive (id: ctx.inductives.InductiveId)
+  | ialias (id: ctx.aliases.Id)
+  | iinductive (id: ctx.inductives.InductiveId)
 -- noncomputable only because TypeAliasContext.arity and InductiveContext.inductiveArity are axioms atm
 noncomputable def arity (ctx: TypeFormerContext): ctx.Id -> Nat
-| .alias id => ctx.aliases.arity id
-| .inductive id => ctx.inductives.inductiveArity id
+| .ialias id => ctx.aliases.arity id
+| .iinductive id => ctx.inductives.inductiveArity id
 end TypeFormerContext
 
 axiom GlobalValueContext: Type
@@ -51,11 +53,31 @@ namespace LocalValueContext
 axiom empty: LocalValueContext
 axiom Id: LocalValueContext -> Type
 axiom extension: LocalValueContext -> LocalValueContext -> Type
+axiom newId {ctx': LocalValueContext} (ext: ctx'.extension ctx): ctx'.Id
+axiom extend (ctx: LocalValueContext): (ctx': LocalValueContext) × (ctx'.extension ctx)
+/--
+If the concrete definition of LocalValueContext.Id is such that this can be replaced by a no-op in compiled code,
+hopefully the compiler will recognize that.
+-/
+axiom weakenId {ctx ctx': LocalValueContext}:  ctx'.extension ctx -> ctx.Id -> ctx'.Id
 end LocalValueContext
 
 inductive SizedList (α: Type): (length: Nat) -> Type where
   | nil: SizedList α 0
   | cons: forall n, α -> SizedList α n -> SizedList α (n+1)
+
+namespace SizedList
+def map (f: α -> β): SizedList α n -> SizedList β n 
+| .nil => .nil
+| .cons n a as => .cons n (f a) (map f as)
+
+def rev (l: SizedList α n): SizedList α n := Nat.zero_add n ▸ revAcc .nil l
+where
+  revAcc {m n} (acc: SizedList α m): (l: SizedList α n) -> SizedList α (m+n)
+  | .nil => acc
+  | .cons n a as =>
+    Nat.succ_add_eq_add_succ m n ▸ revAcc (.cons m a acc) as
+end SizedList
 
 inductive TType (tvars: TypeVarContext) (formers: TypeFormerContext): Type where
   | typeVar (id: tvars.Id)
@@ -63,40 +85,77 @@ inductive TType (tvars: TypeVarContext) (formers: TypeFormerContext): Type where
   | arrow (dom codom: TType tvars formers)
 
 mutual
-inductive Expression (globals: GlobalValueContext) (inductives: InductiveContext): LocalValueContext -> Type where
-  | global (locals: LocalValueContext) (id: globals.Id): Expression globals inductives locals
+inductive Expression (cfg: Config) (globals: GlobalValueContext) (inductives: InductiveContext): LocalValueContext -> Type where
+  | global (locals: LocalValueContext) (id: globals.Id): Expression cfg globals inductives locals
   | local
       (locals: LocalValueContext)
       (varid: locals.Id)
-    : Expression globals inductives locals
-  | constructorApp
+    : Expression cfg globals inductives locals
+  | constructorVal
+      (h: cfg.constructors = .value)
       (locals: LocalValueContext)
       (iid: inductives.InductiveId)
       (cid: inductives.ConstructorId iid)
-      (args: ExpressionSizedList globals inductives locals (inductives.constructorArity iid cid))
-    : Expression globals inductives locals
+    : Expression cfg globals inductives locals
+  | constructorApp
+      (h: cfg.constructors = .applied)
+      (locals: LocalValueContext)
+      (iid: inductives.InductiveId)
+      (cid: inductives.ConstructorId iid)
+      (args: ExpressionSizedList cfg globals inductives locals (inductives.constructorArity iid cid))
+    : Expression cfg globals inductives locals
   | app
       (locals: LocalValueContext)
-      (f x: Expression globals inductives locals)
-    : Expression globals inductives locals
+      (f x: Expression cfg globals inductives locals)
+    : Expression cfg globals inductives locals
   | lambda
       (locals bodylocals: LocalValueContext)
       (ext: bodylocals.extension locals)
-      (body: Expression globals inductives bodylocals)
-    : Expression globals inductives locals
+      (body: Expression cfg globals inductives bodylocals)
+    : Expression cfg globals inductives locals
 /--
 This is equivalent to `SizedList (Expression globals inductive locals) length`.
 An explicit monomorphic mutual definition is necessary because of Lean's restrictions on nested inductive types.
 -/
-inductive ExpressionSizedList (globals: GlobalValueContext) (inductives: InductiveContext): (locals: LocalValueContext) -> (length: Nat) -> Type where
-  | nil (locals: LocalValueContext): ExpressionSizedList globals inductives locals 0
+inductive ExpressionSizedList (cfg: Config) (globals: GlobalValueContext) (inductives: InductiveContext): (locals: LocalValueContext) -> (length: Nat) -> Type where
+  | nil (locals: LocalValueContext): ExpressionSizedList cfg globals inductives locals 0
   | cons
       (locals: LocalValueContext)
       (n: Nat)
-      (e: Expression globals inductives locals)
-      (es: ExpressionSizedList globals inductives locals n)
-    : ExpressionSizedList globals inductives locals (n+1)
+      (e: Expression cfg globals inductives locals)
+      (es: ExpressionSizedList cfg globals inductives locals n)
+    : ExpressionSizedList cfg globals inductives locals (n+1)
 end
+namespace ExpressionSizedList
+def toSizedList {n} : ExpressionSizedList cfg globals inductives locals n -> SizedList (Expression cfg globals inductives locals) n 
+| .nil _ => .nil
+| .cons locals n a as => .cons n a (toSizedList as)
+def ofSizedList {n}: SizedList (Expression cfg globals inductives locals) n -> ExpressionSizedList cfg globals inductives locals n
+| .nil => .nil locals
+| .cons n a as => .cons locals n a (ofSizedList as)
+end ExpressionSizedList
+
+namespace LocalValueContext
+axiom pullback (base a b: LocalValueContext) (extA: a.extension base) (extB: b.extension base): (top: LocalValueContext) × (top.extension a) × (top.extension b)
+
+mutual
+-- Noncomputable because of pullback and weakenId
+noncomputable def weakenExpression (ext: ctx'.extension ctx): Expression cfg globals inductives ctx -> Expression cfg globals inductives ctx'
+| .global ctx id => .global ctx' id
+| .local ctx id => .local ctx' (ctx.weakenId ext id)
+| .constructorVal h ctx iid cid => .constructorVal h ctx' iid cid
+| .constructorApp h ctx iid cid args => .constructorApp h ctx' iid cid (ctx.weakenExpressions ext args)
+| .app ctx f x => .app ctx' (ctx.weakenExpression ext f) (ctx.weakenExpression ext x)
+| .lambda ctx bodylocals bext body =>
+  let ⟨bodylocals', addprime, addb⟩ := pullback ctx bodylocals ctx' bext ext;
+  .lambda ctx' bodylocals' addb (bodylocals.weakenExpression addprime body)
+
+/-- Here we do the mapping directly, instead of converting back and forth and using SizedList.map, so that the termination checker sees this is structural. -/
+noncomputable def weakenExpressions (ext: ctx'.extension ctx): ExpressionSizedList cfg globals inductives ctx n -> ExpressionSizedList cfg globals inductives ctx' n
+  | .nil ctx => .nil ctx'
+  | .cons ctx n e es => .cons ctx' n (ctx.weakenExpression ext e) (ctx.weakenExpressions ext es)
+end
+end LocalValueContext
 
 inductive DependentList (α: Type) (f: α -> Type): (List α) -> Type where
   | unit: DependentList α f .nil
@@ -117,27 +176,27 @@ The indices are the contexts *provided* by this program.
 (One could also define a Program by the contexts *in which* it is valid, like for types and expressions, but this is not what I chose.)
 The dependent typing ensures that all names are well-scoped and all constructors and type formers are applied to the right number of arguments.
 -/
-inductive Program: TypeAliasContext -> GlobalValueContext -> InductiveContext -> Type where 
-  | empty: Program .empty .empty .empty
+inductive Program (cfg: Config): TypeAliasContext -> GlobalValueContext -> InductiveContext -> Type where 
+  | empty: Program cfg .empty .empty .empty
   | valueDecl
       (tvars: TypeVarContext)
       (aliases: TypeAliasContext)
       (globals newglobals: GlobalValueContext)
       (ext: newglobals.extension globals)
       (inductives: InductiveContext)
-      (p: Program aliases globals inductives)
-      (val: Expression globals inductives .empty)
+      (p: Program cfg aliases globals inductives)
+      (val: Expression cfg globals inductives .empty)
       (type: TType tvars (.mk aliases inductives))
-    : Program aliases newglobals inductives 
+    : Program cfg aliases newglobals inductives 
   | typeAlias
       (tvars: TypeVarContext)
       (aliases newaliases: TypeAliasContext)
       (ext: newaliases.extension aliases)
       (globals: GlobalValueContext)
       (inductives: InductiveContext)
-      (p: Program aliases globals inductives)
+      (p: Program cfg aliases globals inductives)
       (t: TType tvars (.mk aliases inductives))
-    : Program newaliases globals inductives
+    : Program cfg newaliases globals inductives
   | mutualInductiveDecl
       (tvars: TypeVarContext)
       (aliases: TypeAliasContext)
@@ -145,7 +204,14 @@ inductive Program: TypeAliasContext -> GlobalValueContext -> InductiveContext ->
       (inductives newinductives: InductiveContext)
       (spec: MutualInductiveSpec)
       (ext: newinductives.multiExtension inductives spec)
-      (p: Program aliases globals inductives)
+      (p: Program cfg aliases globals inductives)
       (minds: MutualInductiveDecl tvars (.mk aliases newinductives) spec)
-    : Program aliases globals newinductives
+    : Program cfg aliases globals newinductives
+
+structure BundledProgram (cfg: Config): Type where
+  aliases: TypeAliasContext
+  globals: GlobalValueContext
+  inductives: InductiveContext
+  program: Program cfg aliases globals inductives
+
 end TypedML
