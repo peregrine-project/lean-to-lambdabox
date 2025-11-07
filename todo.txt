@@ -1,0 +1,22 @@
+Lean Expr
+- Prepare conversion:
+  - replaceUnsafeRecNames
+  - macroInline, inlineMatchers, macroInline
+Lean Expr
+- Convert to TypedML:
+  - csimp replacements at the leaf level (doing this before might break typing)
+  - read Lean inlining annotations
+  - read Lean extern annotations
+  - read Lean types and emit TypedML types
+  - erase logical content and types from expressions
+  Minimal structural modifications!
+TypedML (early)
+- Structural changes here:
+  - fully apply constructors [x]
+  - fully apply casesOn and emit match
+  - change Nat and Int literals, constructors, and match to use native integers
+  - mutual recursion to fixpoints
+TypedML (late)
+- Convert to lambdabox
+Lambdabox (typed)
+- Serialize to s-expression
