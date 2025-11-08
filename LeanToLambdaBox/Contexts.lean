@@ -2,15 +2,15 @@ private abbrev GenericSizedContext := Nat
 namespace GenericSizedContext
 private def empty: GenericSizedContext := 0
 private def Id: GenericSizedContext -> Type := Fin
-private def Extension (ctx' ctx: GenericSizedContext): Prop := (ctx' = ctx + 1)
-private def extend (ctx: GenericSizedContext): { ctx': GenericSizedContext // ctx'.Extension ctx } := ⟨ctx+1, rfl⟩
+private def Extension (ctx ctx': GenericSizedContext): Prop := (ctx' = ctx + 1)
+private def extend (ctx: GenericSizedContext): { ctx': GenericSizedContext // ctx.Extension ctx' } := ⟨ctx+1, rfl⟩
 namespace Extension
-private def newId (ext: @Extension ctx' ctx): ctx'.Id := ⟨ctx, ext ▸ Nat.lt_add_one ctx⟩
-private def weakenId (ext: @Extension ctx' ctx): ctx.Id -> ctx'.Id := ext ▸ Fin.castSucc
+private def newId (ext: @Extension ctx ctx'): ctx'.Id := ⟨ctx, ext ▸ Nat.lt_add_one ctx⟩
+private def weakenId (ext: @Extension ctx ctx'): ctx.Id -> ctx'.Id := ext ▸ Fin.castSucc
 private def pullback
-  (extA: a.Extension base)
-  (extB: b.Extension base)
-  : { top: GenericSizedContext // top.Extension a ∧ top.Extension b }
+  (extA: @Extension base a)
+  (extB: @Extension base b)
+  : { top: GenericSizedContext // a.Extension top ∧ b.Extension top }
   := ⟨a+1, rfl, (extA ▸ show _ = _ from extB) ▸ rfl⟩ -- this is the most codegolf way I've ever proved n + 1 + 1 = n + 1 + 1
 end Extension
 end GenericSizedContext
@@ -22,7 +22,7 @@ private abbrev Id (ctx: GenericArrayContext α): Type := Fin (ctx.size)
 namespace Id
 private def getInfo (id: @Id α ctx): α := ctx[id]
 end Id
-private def Extension (ctx' ctx: GenericArrayContext α) (x: α): Prop := ctx' = ctx.push x
+private def Extension (ctx ctx': GenericArrayContext α) (x: α): Prop := ctx' = ctx.push x
 end GenericArrayContext
 
 @[irreducible, local semireducible]
@@ -66,7 +66,7 @@ namespace InductiveContext
 @[irreducible]
 def empty: InductiveContext := GenericArrayContext.empty
 @[irreducible]
-def Extension: (ctx' ctx: InductiveContext) -> (spec: MutualInductiveSpec) -> Prop := GenericArrayContext.Extension
+def Extension: (ctx ctx': InductiveContext) -> (spec: MutualInductiveSpec) -> Prop := GenericArrayContext.Extension
 @[irreducible, local semireducible]
 def MutualInductiveId: InductiveContext -> Type := GenericArrayContext.Id
 namespace MutualInductiveId
@@ -118,7 +118,7 @@ def empty: GlobalValueContext := GenericSizedContext.empty
 @[irreducible]
 def Id: GlobalValueContext -> Type := GenericSizedContext.Id
 @[irreducible]
-def Extension: GlobalValueContext -> GlobalValueContext -> Prop := GenericSizedContext.Extension
+def Extension: (ctx ctx': GlobalValueContext) -> Prop := GenericSizedContext.Extension
 end GlobalValueContext
 
 @[irreducible, local semireducible]
@@ -129,22 +129,22 @@ def empty: LocalValueContext := GenericSizedContext.empty
 @[irreducible, local semireducible]
 def Id: LocalValueContext -> Type := GenericSizedContext.Id
 @[irreducible, local semireducible]
-def Extension: LocalValueContext -> LocalValueContext -> Prop := GenericSizedContext.Extension
+def Extension: (ctx ctx': LocalValueContext) -> Prop := GenericSizedContext.Extension
 @[irreducible]
-def extend: (ctx: LocalValueContext) -> { ctx': LocalValueContext // ctx'.Extension ctx } := GenericSizedContext.extend
+def extend: (ctx: LocalValueContext) -> { ctx': LocalValueContext // ctx.Extension ctx' } := GenericSizedContext.extend
 namespace Extension
 @[irreducible]
-def newId: {ctx': LocalValueContext} -> (ctx'.Extension ctx) -> ctx'.Id := GenericSizedContext.Extension.newId
+def newId: (@Extension ctx ctx') -> ctx'.Id := GenericSizedContext.Extension.newId
 /--
 The concrete definition is such that this can be replaced by a no-op in compiled code; hopefully the compiler will recognize that.
 -/
 @[irreducible]
-def weakenId: {ctx': LocalValueContext} -> (ctx'.Extension ctx) -> ctx.Id -> ctx'.Id := GenericSizedContext.Extension.weakenId
+def weakenId: (@Extension ctx ctx') -> ctx.Id -> ctx'.Id := GenericSizedContext.Extension.weakenId
 @[irreducible]
 def pullback:
-    (extA: a.Extension base) ->
-    (extB: b.Extension base) ->
-  { top: LocalValueContext // top.Extension a ∧ top.Extension b }
+    (extA: @Extension base a) ->
+    (extB: @Extension base b) ->
+  { top: LocalValueContext // a.Extension top ∧ b.Extension top }
   := GenericSizedContext.Extension.pullback
 end Extension
 end LocalValueContext

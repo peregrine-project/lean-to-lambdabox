@@ -24,7 +24,7 @@ inductive Expression (cfg: Config) (globals: GlobalValueContext) (inductives: In
     : Expression cfg globals inductives locals
   | public app (f x: Expression cfg globals inductives locals): Expression cfg globals inductives locals
   | public lambda
-      (ext: bodylocals.Extension locals)
+      (ext: locals.Extension bodylocals)
       (body: Expression cfg globals inductives bodylocals)
     : Expression cfg globals inductives locals
 
@@ -56,7 +56,7 @@ end ExpressionSizedList
 namespace LocalValueContext
 
 mutual
-def weakenExpression (ext: ctx'.Extension ctx): Expression cfg globals inductives ctx -> Expression cfg globals inductives ctx'
+def weakenExpression (ext: ctx.Extension ctx'): Expression cfg globals inductives ctx -> Expression cfg globals inductives ctx'
 | .global id => .global id
 | .local id => .local (ext.weakenId id)
 | .constructorVal h cid => .constructorVal h cid
@@ -67,7 +67,7 @@ def weakenExpression (ext: ctx'.Extension ctx): Expression cfg globals inductive
   .lambda addb (weakenExpression addprime body)
 
 /-- Here we do the mapping directly, instead of converting back and forth and using SizedList.map, so that the termination checker sees this is structural. -/
-def weakenExpressions (ext: ctx'.Extension ctx): ExpressionSizedList cfg globals inductives ctx n -> ExpressionSizedList cfg globals inductives ctx' n
+def weakenExpressions (ext: ctx.Extension ctx'): ExpressionSizedList cfg globals inductives ctx n -> ExpressionSizedList cfg globals inductives ctx' n
   | .nil => .nil
   | .cons n e es => .cons n (weakenExpression ext e) (weakenExpressions ext es)
 end
@@ -93,18 +93,18 @@ inductive Program (cfg: Config): TypeAliasContext -> GlobalValueContext -> Induc
   | empty: Program cfg .empty .empty .empty
   | valueDecl
       (p: Program cfg aliases globals inductives)
-      (ext: newglobals.Extension globals)
+      (ext: globals.Extension newglobals)
       (val: Expression cfg globals inductives .empty)
       (t: TType tvars (.mk aliases inductives))
     : Program cfg aliases newglobals inductives 
   | typeAlias
       (p: Program cfg aliases globals inductives)
-      (ext: newaliases.Extension aliases tvars.size)
+      (ext: aliases.Extension newaliases tvars.size)
       (t: TType tvars (.mk aliases inductives))
     : Program cfg newaliases globals inductives
   | mutualInductiveDecl
       (p: Program cfg aliases globals inductives)
-      (ext: newinductives.Extension inductives { typeVarCount := tvars.size, arities })
+      (ext: inductives.Extension newinductives { typeVarCount := tvars.size, arities })
       (minds: MutualInductiveDecl tvars (.mk aliases newinductives) arities)
     : Program cfg aliases globals newinductives
 
