@@ -3,95 +3,131 @@ import Lean.Meta
 
 import LeanToLambdaBox.Basic
 import LeanToLambdaBox.Printing
-import Std.Data
+import Std.Data.HashMap
+import LeanToLambdaBox.TypedML
+import Batteries.CodeAction
 
 open Lean
 open Lean.Compiler.LCNF
 
 namespace Erasure
 
-inductive ConstructorArgRelevance where
-  | erase
-  | keep
-deriving Repr, BEq
+def DepStateM (σ: Type) (α: σ -> Type): Type := σ -> (s': σ) × (α s')
+def bind (σ: Type) (α β: σ -> Type) (x: DepStateM σ α) (f: forall s': σ, α s' -> DepStateM σ β): DepStateM σ β :=
+  fun s =>
+    let ⟨s', a⟩ := x s;
+    f s' a s'
 
-/-- Used to reindex constructor arguments for removal of irrelevant fields. -/
-abbrev ConstructorArgMask := Array ConstructorArgRelevance
-abbrev InductiveArgMasks := List ConstructorArgMask
+def initialConfig: Config := { constructors := .value }
 
-def filter (mask: ConstructorArgMask) (arr: Array α): Array α :=
-  mask.zip arr |>.filterMap (fun (r, a) => match r with | .erase => .none | .keep => .some a)
-/--
-State carried by EraseM to handle constants and inductive types registered in the global environment.
--/
+structure ExprContext where
+  lctx: LocalContext
+  locals: LocalValueContext
+  lookup: Std.HashMap FVarId locals.Id
+
+def ExprContext.extend (ctx: ExprContext) (binderName: Name) (binderType: Expr) (binderInfo: BinderInfo): CoreM { ctx': ExprContext // ctx.locals.Extension ctx'.locals } := do
+  let fvarid ← mkFreshFVarId;
+  let lctx := ctx.lctx.mkLocalDecl fvarid binderName binderType binderInfo;
+  let ⟨locals, ext⟩ := ctx.locals.extend;
+  let lookup: Std.HashMap FVarId locals.Id := ctx.lookup.map (fun _ => ext.weakenId) |>.insert fvarid ext.newId;
+  return ⟨{ lctx, locals, lookup }, ext⟩
+
+abbrev Expression := TypedML.Expression initialConfig
+abbrev Program := TypedML.Program initialConfig
+
+structure EraseExprResult (aliases: TypeAliasContext) (globals: GlobalValueContext) (inductives: InductiveContext) (locals: LocalValueContext) where
+  newaliases: TypeAliasContext
+  aliasExt: aliases.MultiExtension newaliases
+  newglobals: GlobalValueContext
+  globalExt: globals.MultiExtension newglobals
+  newinductives: InductiveContext
+  inductiveExt: inductives.MultiExtension newinductives
+  p: Program newaliases newglobals newinductives
+  e: Expression newglobals newinductives locals
+
+def easyNow
+  (p: Program aliases globals inductives)
+  (e: Expression globals inductives locals)
+  : EraseExprResult aliases globals inductives locals :=
+  {
+    newaliases := aliases,
+    aliasExt := .trivial,
+    newglobals := globals,
+    globalExt := .trivial,
+    newinductives := inductives,
+    inductiveExt := .trivial,
+    p,
+    e,
+  }
+
+#check StateM
+
+abbrev M := ExceptT String <| CoreM
+
+def throw {α} := @throwThe String M _ α
+
+def eraseExpr
+  (e: Expr)
+  (p: Program aliases globals inductives)
+  (ectx: ExprContext)
+  : M (EraseExprResult aliases globals inductives ectx.locals)
+  := do
+  -- if (← liftMetaM <| isErasable e) then
+  --  return .box
+  match e with
+  | .sort u => throw "unexpected sort, should be erased"
+  | .forallE binderName binderType body binderInfo => throw "unexpected forall, should be erased"
+  | .mvar mvarId => throw "unexpected metavariable"
+  | .bvar deBruijnIndex => throw "the locally nameless invariant should ensure we never see this"
+  | .mdata _ expr => eraseExpr expr p ectx
+  | .lit _ => throw "literal not yet implemented"
+  | .proj typeName idx struct => throw "projections not yet implemented"
+  | .letE declName type value body nondep => throw "let not yet implemented"
+  | .const declName us => throw "const not yet implemented"
+  | .app fn arg => throw "app not yet implemented"
+  | .lam binderName binderType body binderInfo =>
+    let fvarid <- mkFreshFVarId;
+    let ⟨bodyectx, ext⟩ ← ectx.extend binderName binderType binderInfo;
+    let bodyres ← eraseExpr body p bodyectx;
+    return { bodyres with e := .lambda ext bodyres.e }
+
+  | .fvar fvarId =>
+    let id: ectx.locals.Id ← Option.getDM (ectx.lookup[fvarId]?) (throw "did not find fvarid");
+    let e := .local id;
+    return (easyNow p e)
+
+/-
 structure ErasureState: Type where
-  inductives: Std.HashMap Name (InductiveId × InductiveArgMasks) := ∅
-  constants: Std.HashMap Name Kername := ∅
-  /-- This field is only updated, not read. -/
-  gdecls: GlobalDeclarations := []
+  aliases: TypeAliasContext
+  globals: GlobalValueContext
+  inductives: InductiveContext
+  p: TypedML.Program initialConfig aliases globals inductives
+  aliasesMap: Std.HashMap Name aliases.Id
+  globalsMap: Std.HashMap Name globals.Id
+  inductivesMap: Std.HashMap Name ((mid: inductives.MutualInductiveId) × mid.InductiveId)
 
-namespace Config
-
-/--
-How to handle functions with the @[extern] attribute.
-Notably, this includes `Nat.add` et al., but also some constructors such as those of `Int`.
--/
-inductive Extern where
-  /-- If a Lean definition is present, use that one. -/
-  | preferLogical
-  /-- Ignore any Lean definitions and always treat as an axiom to be provided OCaml-side. -/
-  | preferAxiom
-deriving BEq
-
-/-- How to handle literals and constructors of `Nat`. -/
-inductive Nat
-  /-- Keep Nat as an inductive type and represent literals by using constructors. -/
-  | peano
-  /--
-  Turn Nat literals into lambdabox primitive i63 (panic on overflow),
-  translate .zero into literal 0 and .succ x into x + literal 1.
-  For this to work, config.extern must be set to .preferAxiom, so that
-  the usual functions on `Nat` (addition, multiplication etc) are treated as axioms
-  (and implemented by Zarith functions linked with the .cmx file from extraction),
-  instead of using the logical implementation in Lean.
-  -/
-  | machine
-
-end Config
-
-structure ErasureConfig: Type where
-  extern: Config.Extern := .preferAxiom
-  nat: Config.Nat := .machine
-  /-- Whether to perform csimp replacements before erasure. -/
-  csimp: Bool := true
-  /-- Whether to remove irrelevant arguments from constructors. -/
-  remove_irrel_constr_args: Bool := false
+def ErasureState.empty: ErasureState where
+  aliases := .empty
+  globals := .empty
+  inductives := .empty
+  p := .empty
+  aliasesMap := ∅
+  globalsMap := ∅
+  inductivesMap := ∅
 
 structure ErasureContext: Type where
   lctx: LocalContext := {}
-  fixvars: Option (Std.HashMap Name FVarId) := .none
-  config: ErasureConfig
 
-/-- The monad in ToLCNF has caches, a local context and toAny as a set of fvars, all as mutable state for some reason.
-    Here I just have a read-only local context, in order to be able to use MetaM's type inference, and keep the code complexity low.
-    If this is much too slow, try caching stuff again.
+abbrev EraseM := ReaderT ErasureContext <| StateT ErasureState CoreM
+-/
 
-    Above the local context there is also a state handling the global environment of the extracted program.
-    -/
-abbrev EraseM := StateT ErasureState <| ReaderT ErasureContext CoreM
-
-def run (x : EraseM α) (config: ErasureConfig): CoreM (α × ErasureState) :=
-  x |>.run {} |>.run { config }
+def run (x : EraseM α): CoreM α :=
+  x |>.run {} |>.run
 
 /-- Run an action of MetaM in EraseM using EraseM's local context of Lean types. -/
 @[inline] def liftMetaM (x : MetaM α) : EraseM α := do
   x.run' { lctx := (← read).lctx }
 
-/--
-TODO: The function ToLCNF.isTypeFormerType has an auxiliary function "quick"
-which I removed here because I didn't understand why it was correct.
-Maybe putting it back makes things faster.
--/
 def isErasable (e : Expr) : MetaM Bool := do
     let type ← Meta.inferType e
     -- Erase evidence of propositions
@@ -103,100 +139,14 @@ def isErasable (e : Expr) : MetaM Bool := do
       return true
     return false
 
-def addAxiom (name: Name): EraseM Unit := do
-  if (← get).constants.contains name then panic! s!"Constant {name} is already defined, cannot add axiom."
-  let kn := toKername name
-  modify (fun s => { s with constants := s.constants.insert name kn, gdecls := s.gdecls.cons (kn, .constantDecl ⟨.none⟩) })
-
-/--
-Get information about the inductive type, adding all its mutually-defined buddies to the context if necessary.
--/
-def register_inductive (indinfo: InductiveVal): EraseM (InductiveId × InductiveArgMasks) := do
-  if let .some iid := (← get).inductives.get? indinfo.name then
-    return iid
-  else
-    let names := indinfo.all
-    let mutualBlockName := indinfo.all |>.map toString |> String.join |> rootKername
-    -- Iterate through all the inductive types in the mutual definition
-    let ind_bodies: List OneInductiveBody ← names.zipIdx.mapM fun (ind_name, idx) => do
-      let .inductInfo inf ← getConstInfo ind_name | unreachable!
-      -- Iterate through all the constructors
-      let (ind_ctors, ind_argmasks) := List.unzip (← inf.ctors.mapM fun ctor_name => do
-        if isExtern (← getEnv) ctor_name && (← read).config.extern == .preferAxiom then
-          logInfo "Constructor {ctor_name} of type {ind_name} is marked @[extern], emitting axiom."
-          addAxiom ctor_name
-        let .ctorInfo ci ← getConstInfo ctor_name | unreachable!
-        -- Get an argmask to remember which fields are irrelevant.
-        let argmask: ConstructorArgMask ← if (← read).config.remove_irrel_constr_args
-        then
-          liftMetaM <| Meta.forallBoundedTelescope ci.type (.some <| ci.numParams + ci.numFields) fun vars _ =>
-            let fields := vars[ci.numParams:].toArray
-            let fields := if fields.size != ci.numFields
-            then panic! "unexpected field count"
-            else fields
-            do
-            let mask: ConstructorArgMask ← fields.mapM fun v => do
-              if ← isErasable v then pure .erase else pure .keep
-            if (mask.any (· == .erase)) then logInfo s!"Argmask for constructor {ctor_name}: {repr mask}"
-            pure mask
-        else
-          pure <| Array.replicate ci.numFields .keep
-        let nargs := Array.count .keep argmask
-        pure ({ name := toString ctor_name, nargs }, argmask)
-      )
-      -- If the type is a structure, add definitions for projections.
-      let is_struct := names.length == 1 && inf.ctors.length == 1 && !inf.isRec
-      let projs: List projection_body ←
-        if is_struct then
-          -- only generate projections for relevant fields
-          let _ := Expr
-          let num_fields := ind_argmasks[0]!.count .keep
-          -- These dummy names aren't semantically important, so it doesn't actually matter whether the index refers to
-          -- the field's position before or after removing irrelevant fields. Here, I chose the latter, because it was easier.
-          pure (List.range num_fields |>.map toString |>.map ProjectionBody.mk)
-        else
-          pure []
-
-      let ind_id: InductiveId := { mutualBlockName, idx }
-      modify (fun s => { s with inductives := s.inductives.insert ind_name (ind_id, ind_argmasks)})
-      pure { name := toString ind_name, ctors := ind_ctors, projs }
-    let mutual_body := { npars := indinfo.numParams, bodies := ind_bodies }
-    modify (fun s => { s with gdecls := s.gdecls.cons (mutualBlockName, .inductiveDecl mutual_body) })
-    return (← get).inductives[indinfo.name]!
-
 def fvar_to_name (x: FVarId): EraseM BinderName := do
   let n := (← read).lctx.fvarIdToDecl |>.find! x |>.userName
   let s: String := n.toString
   -- check if s is ASCII graphic, otherwise the λbox parser will complain
-  if s.all (fun c => 33 <= c.toNat /\ c.toNat < 127) then
+  if s.all (fun c => 33 <= c.toNat ∧ c.toNat < 127) then
     return .named n.toString
   else
     return .anon
-
-def mkLambda (x: FVarId) (body: LBTerm): EraseM LBTerm := do return .lambda (← fvar_to_name x) (abstract x body)
-
-def mkLetIn (x: FVarId) (val body: LBTerm): EraseM LBTerm := do return .letIn (← fvar_to_name x) val (abstract x body)
-
-/-- The order of variables here is what it is because the other way around led to segfaults. -/
-def mkAlt (xs: List FVarId) (body: LBTerm): EraseM (List BinderName × LBTerm) := do
-  let mut body := body
-  let names ← xs.mapM fvar_to_name
-  for (fvarid, i) in xs.reverse.zipIdx do
-    body := toBvar fvarid i body
-  return (names, body)
-
-/-
-def mkCase (indInfo: InductiveVal) (discr: LBTerm) (alts: List (List ppname × LBTerm)): EraseM LBTerm := do
-  let (indid, _) ←  register_inductive indInfo
-  return .case (indid, indInfo.numParams) discr alts
--/
-
-/-- Check binding order here as well, may be wrong. -/
-def mkDef (name: Name) (fixvarnames: List Name) (body: LBTerm): EraseM (@FixDef LBTerm) := do
-  let mut body := body
-  for (n, i) in fixvarnames.reverse.zipIdx do
-    body := toBvar ((← read).fixvars.get![n]!) i body
-  return { name := .named name.toString, body }
 
 /-- Similar to Meta.withLocalDecl, but in EraseM.
     k will be passed some fresh FVarId and run in a context in which it is bound. -/
@@ -238,65 +188,6 @@ Panics if applied to an expression which is not of the form .forallE ..
 def forallMonocular {α} [Inhabited α] (t: Expr) (k: FVarId -> Expr -> EraseM α) := do
   let Expr.forallE binderName type body bi := t | unreachable!
   withLocalDecl binderName type bi (fun fvarid => k fvarid <| body.instantiate1 <| .fvar fvarid)
-
-/--
-Given an expression `e` and its type, which is assumed to be of the form `∀ a:A, B`,
-run a continuation `k` in a context where a fvar `a` has type `A`.
-- if `e` is `fun a: A => body`, `k` will be run on the expression `body` directly.
-- if `e` is not of this form, `k` will be run on the expression `.app e (.fvar a)`, behaving as if `e` had been eta-expanded to `fun a => e a`.
-In both cases the second argument to `k` is `B`, the type of the first argument in the new context.
-Assumes that `type` is the type of `e` in the context where it is called.
-Panics if `type` is not a function type.
--/
-def lambdaMonocularOrIntro {α} [Inhabited α] (e type: Expr) (k: Expr -> Expr -> FVarId -> EraseM α): EraseM α :=
-  forallMonocular type fun fvarid bodytype => do
-    if let .lam _ _ body _ := e then
-      /-
-      Here I use the binder name and info from the type-level forall binder we are under.
-      It might be better to get it from the lambda binder.
-      -/
-      k (body.instantiate1 <| .fvar fvarid) bodytype fvarid
-    else
-      -- Here in any case I must use the binder name and info from the forall binder.
-      k (.app e (.fvar fvarid)) bodytype fvarid
-
-/--
-Given an expression `e` and its type, which is assumed to start with at least `arity` `∀` quantifiers,
-get the body of `e` after application to `arity` arguments.
-For example, if `e` is `fun a b => asdf` with type `A -> B -> C -> D`, applying `lambdaOrIntroToArity 3`
-will run the continuation in the context `a: A, b: B, c: C` on the expression `.app asdf (.fvar c)`
-with the fvars `#[a, b, c]`.
-I think I got the order of fvars right but thinking about continuations is hard.
-Writing the code in this way is suboptimal; there is a first phase in which we only descend through lambdas
-and a second phase in which we descend the remaining distance through the type by appending fvars,
-but here we check whether there is a lambda to go under each time.
-This is probably easily fixable using something like lambdaBoundedTelescope.
--/
-def lambdaOrIntroToArity {α} [Inhabited α] (e type: Expr) (arity: Nat) (k: Expr -> List FVarId -> EraseM α): EraseM α :=
-  match arity with
-  | 0 => k e []
-  | n+1 => lambdaMonocularOrIntro e type fun body bodytype fvarid =>
-      lambdaOrIntroToArity body bodytype n (fun e fvarids => k e (.cons fvarid fvarids))
-
-/--
-Given an expression, deconstruct it into an application to at least arity arguments,
-then build a LBTerm from it given the continuation.
-This will eta-expand if necessary, and close the lambdas after running `k`.
-For example: withAppEtaToMinArity "Nat.add 42" 2 k = mkLambda "y" (k "Nat.add" ["42", "y"])
-Panics if the type of e does not start with at least arity .forallE constructors.
--/
-partial def withAppEtaToMinArity (e: Expr) (arity: Nat) (k: Expr -> Array Expr -> EraseM LBTerm): EraseM LBTerm := do
-  let type ← liftMetaM do Meta.inferType e
-  e.withApp (fun f args => go type f args)
-where
-  -- Invariant: type is the type of f *args.
-  go (type f: Expr) (args: Array Expr): EraseM LBTerm :=
-    if args.size >= arity then
-      k f args
-    else
-      forallMonocular type fun fvarid bodytype => do
-        let res ← go bodytype f (args.push (.fvar fvarid))
-        mkLambda fvarid res
 
 /-- Remove the ._unsafe_rec suffix from a Name if it is present. -/
 def remove_unsafe_rec (n: Name): Name := Compiler.isUnsafeRecName? n |>.getD n
@@ -345,23 +236,22 @@ def prepare_erasure (e: Expr): EraseM Expr := do
   -- Just `ite` and `dite` are fine, their bodies are just a Decidable.casesOn.
   -- It's important to inline them because otherwise both arms of the conditional will be strictly evaluated.
   e ← macroInline e
-  if (← read).config.csimp then
-    -- This has to be done after _unsafe_rec name replacement.
-    e := Compiler.CSimp.replaceConstants (← getEnv) e
+  -- not doing csimp replacements here, do them at the leaf level.
   pure e
 
+def Program := TypedML.BundledProgram { constructors := .value }
 /--
 Copied over from toLCNF, then quite heavily pruned and modified.
 
 This not only erases the expression but also gives a context with all necessary global declarations of inductive types and top-level constants.
 -/
-partial def erase (e : Expr) (config: ErasureConfig): CoreM Program := do
-  let (t, s) ← run (do visitExpr (← prepare_erasure e)) config
-  return (s.gdecls, t)
+partial def erase (e : Expr): CoreM Program := do
+  let p ← run (do visitExpr (← prepare_erasure e))
+  return p
 
 where
   /- Proofs (terms whose type is of type Prop) and type formers/predicates are all erased. -/
-  visitExpr (e : Expr) : EraseM LBTerm := do
+  visitExpr (e : Expr) : EraseM Program := do
     if (← liftMetaM <| isErasable e) then
       return .box
     match e with

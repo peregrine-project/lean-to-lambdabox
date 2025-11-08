@@ -13,6 +13,10 @@ private def pullback
   : { top: GenericSizedContext // a.Extension top ∧ b.Extension top }
   := ⟨a+1, rfl, (extA ▸ show _ = _ from extB) ▸ rfl⟩ -- this is the most codegolf way I've ever proved n + 1 + 1 = n + 1 + 1
 end Extension
+private def MultiExtension (ctx ctx': GenericSizedContext): Prop := ctx ≤ ctx'
+namespace MultiExtension
+private def trivial: MultiExtension ctx ctx := Nat.le_refl _
+end MultiExtension
 end GenericSizedContext
 
 private abbrev GenericArrayContext α := Array α
@@ -23,6 +27,10 @@ namespace Id
 private def getInfo (id: @Id α ctx): α := ctx[id]
 end Id
 private def Extension (ctx ctx': GenericArrayContext α) (x: α): Prop := ctx' = ctx.push x
+private def MultiExtension (ctx ctx': GenericArrayContext α): Prop := ctx.toList.IsPrefix ctx'.toList
+namespace MultiExtension
+private def trivial: MultiExtension ctx ctx := ⟨[], List.append_nil _⟩
+end MultiExtension
 end GenericArrayContext
 
 @[irreducible, local semireducible]
@@ -50,6 +58,11 @@ end Id
 /-- A witness of the fact that `ctx'` is an extension of `ctx` with an added type alias of arity `n`. -/
 @[irreducible]
 def Extension: (ctx ctx': TypeAliasContext) -> (n: Nat) -> Prop := GenericArrayContext.Extension
+@[irreducible, local semireducible]
+def MultiExtension: (ctx ctx': TypeAliasContext) -> Prop := GenericArrayContext.MultiExtension
+namespace MultiExtension
+def trivial: MultiExtension ctx ctx := GenericArrayContext.MultiExtension.trivial
+end MultiExtension
 end TypeAliasContext
 
 abbrev ConstructorArity := Nat
@@ -67,6 +80,12 @@ namespace InductiveContext
 def empty: InductiveContext := GenericArrayContext.empty
 @[irreducible]
 def Extension: (ctx ctx': InductiveContext) -> (spec: MutualInductiveSpec) -> Prop := GenericArrayContext.Extension
+@[irreducible, local semireducible]
+def MultiExtension: (ctx ctx': InductiveContext) -> Prop := GenericArrayContext.MultiExtension
+namespace MultiExtension
+@[irreducible]
+def trivial: MultiExtension ctx ctx := GenericArrayContext.MultiExtension.trivial
+end MultiExtension
 @[irreducible, local semireducible]
 def MutualInductiveId: InductiveContext -> Type := GenericArrayContext.Id
 namespace MutualInductiveId
@@ -119,6 +138,12 @@ def empty: GlobalValueContext := GenericSizedContext.empty
 def Id: GlobalValueContext -> Type := GenericSizedContext.Id
 @[irreducible]
 def Extension: (ctx ctx': GlobalValueContext) -> Prop := GenericSizedContext.Extension
+@[irreducible, local semireducible]
+def MultiExtension: (ctx ctx': GlobalValueContext)-> Prop := GenericSizedContext.MultiExtension
+namespace MultiExtension
+@[irreducible]
+def trivial: MultiExtension ctx ctx := GenericSizedContext.MultiExtension.trivial
+end MultiExtension
 end GlobalValueContext
 
 @[irreducible, local semireducible]
