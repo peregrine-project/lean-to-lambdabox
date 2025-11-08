@@ -1,5 +1,4 @@
-module
-public import LeanToLambdaBox.TypedML
+import LeanToLambdaBox.TypedML
 
 open TypedML
 

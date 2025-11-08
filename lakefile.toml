@@ -1,7 +1,6 @@
 name = "lean_to_lambdabox"
 version = "0.1.0"
 defaultTargets = ["LeanToLambdaBox"]
-leanOptions = { experimental.module = true }
 
 [[lean_lib]]
 name = "LeanToLambdaBox"

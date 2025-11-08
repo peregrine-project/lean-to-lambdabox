@@ -1,11 +1,9 @@
-module
-
 /-- How constructors are represented in the expression tree. -/
-public inductive ConstructorStyle: Type where
+inductive ConstructorStyle: Type where
   /-- Constructors appear alone in the expression tree, and are applied to their arguments as functions. They may be underapplied. -/
   | value
   /-- Constructions appear in the expression tree in a node together with all their arguments. -/
   | applied
 
-public structure Config: Type where
+structure Config: Type where
   constructors: ConstructorStyle

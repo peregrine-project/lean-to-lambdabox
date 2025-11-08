@@ -1,18 +1,16 @@
-module
-
-public import LeanToLambdaBox.Config
-public import LeanToLambdaBox.Contexts
-public import LeanToLambdaBox.Utils
+import LeanToLambdaBox.Config
+import LeanToLambdaBox.Contexts
+import LeanToLambdaBox.Utils
 
 namespace TypedML
 
-public inductive TType (tvars: TypeVarContext) (formers: TypeFormerContext): Type where
+inductive TType (tvars: TypeVarContext) (formers: TypeFormerContext): Type where
   | typeVar (id: tvars.Id)
   | typeFormerApp (id: formers.Id) (args: SizedList (TType tvars formers) (formers.arity id))
   | arrow (dom codom: TType tvars formers)
 
 mutual
-public inductive Expression (cfg: Config) (globals: GlobalValueContext) (inductives: InductiveContext): LocalValueContext -> Type where
+inductive Expression (cfg: Config) (globals: GlobalValueContext) (inductives: InductiveContext): LocalValueContext -> Type where
   | public global (id: globals.Id): Expression cfg globals inductives locals
   | public local (varid: locals.Id): Expression cfg globals inductives locals
   | public constructorVal
@@ -34,7 +32,7 @@ public inductive Expression (cfg: Config) (globals: GlobalValueContext) (inducti
 This is equivalent to `SizedList (Expression globals inductive locals) length`.
 An explicit monomorphic mutual definition is necessary because of Lean's restrictions on nested inductive types.
 -/
-public inductive ExpressionSizedList (cfg: Config) (globals: GlobalValueContext) (inductives: InductiveContext): (locals: LocalValueContext) -> (length: Nat) -> Type where
+inductive ExpressionSizedList (cfg: Config) (globals: GlobalValueContext) (inductives: InductiveContext): (locals: LocalValueContext) -> (length: Nat) -> Type where
   | nil: ExpressionSizedList cfg globals inductives locals 0
   | cons
       (n: Nat)
@@ -45,11 +43,11 @@ end
 
 namespace ExpressionSizedList
 
-public def toSizedList: ExpressionSizedList cfg globals inductives locals n -> SizedList (Expression cfg globals inductives locals) n 
+def toSizedList: ExpressionSizedList cfg globals inductives locals n -> SizedList (Expression cfg globals inductives locals) n 
 | .nil => .nil
 | .cons n a as => .cons n a (toSizedList as)
 
-public def ofSizedList: SizedList (Expression cfg globals inductives locals) n -> ExpressionSizedList cfg globals inductives locals n
+def ofSizedList: SizedList (Expression cfg globals inductives locals) n -> ExpressionSizedList cfg globals inductives locals n
 | .nil => .nil
 | .cons n a as => .cons n a (ofSizedList as)
 
@@ -58,7 +56,7 @@ end ExpressionSizedList
 namespace LocalValueContext
 
 mutual
-public def weakenExpression (ext: ctx'.Extension ctx): Expression cfg globals inductives ctx -> Expression cfg globals inductives ctx'
+def weakenExpression (ext: ctx'.Extension ctx): Expression cfg globals inductives ctx -> Expression cfg globals inductives ctx'
 | .global id => .global id
 | .local id => .local (ext.weakenId id)
 | .constructorVal h cid => .constructorVal h cid
@@ -69,20 +67,20 @@ public def weakenExpression (ext: ctx'.Extension ctx): Expression cfg globals in
   .lambda addb (weakenExpression addprime body)
 
 /-- Here we do the mapping directly, instead of converting back and forth and using SizedList.map, so that the termination checker sees this is structural. -/
-public def weakenExpressions (ext: ctx'.Extension ctx): ExpressionSizedList cfg globals inductives ctx n -> ExpressionSizedList cfg globals inductives ctx' n
+def weakenExpressions (ext: ctx'.Extension ctx): ExpressionSizedList cfg globals inductives ctx n -> ExpressionSizedList cfg globals inductives ctx' n
   | .nil => .nil
   | .cons n e es => .cons n (weakenExpression ext e) (weakenExpressions ext es)
 end
 
 end LocalValueContext
 
-public structure ConstructorDecl (tvars: TypeVarContext) (formers: TypeFormerContext) (arity: Nat): Type where
+structure ConstructorDecl (tvars: TypeVarContext) (formers: TypeFormerContext) (arity: Nat): Type where
   argTypes: SizedList (TType tvars formers) arity
 
-public structure OneInductiveDecl (tvars: TypeVarContext) (formers: TypeFormerContext) (arities: OneInductiveArities) where
+structure OneInductiveDecl (tvars: TypeVarContext) (formers: TypeFormerContext) (arities: OneInductiveArities) where
   constructors: DependentList Nat (ConstructorDecl tvars formers) arities
 
-public structure MutualInductiveDecl (tvars: TypeVarContext) (formers: TypeFormerContext) (arities: MutualInductiveArities) where
+structure MutualInductiveDecl (tvars: TypeVarContext) (formers: TypeFormerContext) (arities: MutualInductiveArities) where
   inductives: DependentList OneInductiveArities (OneInductiveDecl tvars formers) arities
 
 /--
@@ -91,7 +89,7 @@ The indices are the contexts *provided* by this program.
 (One could also define a Program by the contexts *in which* it is valid, like for types and expressions, but this is not what I chose.)
 The dependent typing ensures that all names are well-scoped and all constructors and type formers are applied to the right number of arguments.
 -/
-public inductive Program (cfg: Config): TypeAliasContext -> GlobalValueContext -> InductiveContext -> Type where 
+inductive Program (cfg: Config): TypeAliasContext -> GlobalValueContext -> InductiveContext -> Type where 
   | empty: Program cfg .empty .empty .empty
   | valueDecl
       (p: Program cfg aliases globals inductives)
@@ -110,7 +108,7 @@ public inductive Program (cfg: Config): TypeAliasContext -> GlobalValueContext -
       (minds: MutualInductiveDecl tvars (.mk aliases newinductives) arities)
     : Program cfg aliases globals newinductives
 
-public structure BundledProgram (cfg: Config): Type where
+structure BundledProgram (cfg: Config): Type where
   aliases: TypeAliasContext
   globals: GlobalValueContext
   inductives: InductiveContext
