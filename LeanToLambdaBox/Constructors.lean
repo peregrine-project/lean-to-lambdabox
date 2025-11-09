@@ -43,7 +43,7 @@ def etaIn
   | n+1 =>
     let ⟨_, ext⟩ := locals.extend;
     -- WeakenExpression is a no-op, so this could be implemented as an unsafe cast if the compiler does not specialize enough.
-    let brevargs := revargs.map (locals.weakenExpression ext);
+    let brevargs := revargs.map ext.weakenExpression;
     let whenDoneB := Nat.succ_add_eq_add_succ m n ▸ whenDone;
     .lambda ext (etaIn (m+1) n (.cons m (.local ext.newId) brevargs) whenDoneB)
 

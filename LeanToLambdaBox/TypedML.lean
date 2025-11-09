@@ -53,27 +53,6 @@ def ofSizedList: SizedList (Expression cfg globals inductives locals) n -> Expre
 
 end ExpressionSizedList
 
-namespace LocalValueContext
-
-mutual
-def weakenExpression (ext: ctx.Extension ctx'): Expression cfg globals inductives ctx -> Expression cfg globals inductives ctx'
-| .global id => .global id
-| .local id => .local (ext.weakenId id)
-| .constructorVal h cid => .constructorVal h cid
-| .constructorApp h cid args => .constructorApp h cid (weakenExpressions ext args)
-| .app f x => .app (weakenExpression ext f) (weakenExpression ext x)
-| .lambda bext body =>
-  let ⟨_, ⟨addprime, addb⟩⟩ := bext.pullback ext;
-  .lambda addb (weakenExpression addprime body)
-
-/-- Here we do the mapping directly, instead of converting back and forth and using SizedList.map, so that the termination checker sees this is structural. -/
-def weakenExpressions (ext: ctx.Extension ctx'): ExpressionSizedList cfg globals inductives ctx n -> ExpressionSizedList cfg globals inductives ctx' n
-  | .nil => .nil
-  | .cons n e es => .cons n (weakenExpression ext e) (weakenExpressions ext es)
-end
-
-end LocalValueContext
-
 structure ConstructorDecl (tvars: TypeVarContext) (formers: TypeFormerContext) (arity: Nat): Type where
   argTypes: SizedList (TType tvars formers) arity
 
@@ -115,3 +94,45 @@ structure BundledProgram (cfg: Config): Type where
   program: Program cfg aliases globals inductives
 
 end TypedML
+
+namespace LocalValueContext.Extension
+open TypedML
+
+mutual
+def weakenExpression (ext: ctx.Extension ctx'): Expression cfg globals inductives ctx -> Expression cfg globals inductives ctx'
+| .global id => .global id
+| .local id => .local (ext.weakenId id)
+| .constructorVal h cid => .constructorVal h cid
+| .constructorApp h cid args => .constructorApp h cid (ext.weakenExpressions args)
+| .app f x => .app (weakenExpression ext f) (weakenExpression ext x)
+| .lambda bext body =>
+  let ⟨_, ⟨addprime, addb⟩⟩ := bext.pullback ext;
+  .lambda addb (weakenExpression addprime body)
+
+/-- Here we do the mapping directly, instead of converting back and forth and using SizedList.map, so that the termination checker sees this is structural. -/
+def weakenExpressions (ext: ctx.Extension ctx'): ExpressionSizedList cfg globals inductives ctx n -> ExpressionSizedList cfg globals inductives ctx' n
+  | .nil => .nil
+  | .cons n e es => .cons n (weakenExpression ext e) (weakenExpressions ext es)
+end
+
+end LocalValueContext.Extension
+
+namespace ProgramContext.MultiExtension
+open TypedML
+
+mutual
+def weakenExpression (ext: @MultiExtension pctx pctx'): Expression cfg pctx.globals pctx.inductives locals -> Expression cfg pctx'.globals pctx'.inductives locals
+| .global id => .global (ext.globals.weakenId id)
+| .local id => .local id
+| .constructorVal h cid => .constructorVal h (ext.inductives.weakenConstructorId cid)
+| .constructorApp h cid args =>
+  .constructorApp h (ext.inductives.weakenConstructorId cid) (InductiveContext.MultiExtension.weakenConstructorId_arity.symm ▸ ext.weakenExpressions args)
+| .app f x => .app (ext.weakenExpression f) (ext.weakenExpression x)
+| .lambda bext body => .lambda bext (ext.weakenExpression body)
+
+/-- Here we do the mapping directly, instead of converting back and forth and using SizedList.map, so that the termination checker sees this is structural. -/
+def weakenExpressions (ext: @MultiExtension pctx pctx'): ExpressionSizedList cfg pctx.globals pctx.inductives locals n -> ExpressionSizedList cfg pctx'.globals pctx'.inductives locals n
+  | .nil => .nil
+  | .cons n e es => .cons n (ext.weakenExpression e) (ext.weakenExpressions es)
+end
+end ProgramContext.MultiExtension

@@ -33,44 +33,27 @@ def ExprContext.extend (ctx: ExprContext) (binderName: Name) (binderType: Expr) 
   return ⟨{ lctx, locals, lookup }, ext⟩
 
 abbrev Expression := TypedML.Expression initialConfig
-abbrev Program := TypedML.Program initialConfig
+abbrev Program (pctx: ProgramContext) := TypedML.Program initialConfig pctx.aliases pctx.globals pctx.inductives
 
-structure EraseExprResult (aliases: TypeAliasContext) (globals: GlobalValueContext) (inductives: InductiveContext) (locals: LocalValueContext) where
-  newaliases: TypeAliasContext
-  aliasExt: aliases.MultiExtension newaliases
-  newglobals: GlobalValueContext
-  globalExt: globals.MultiExtension newglobals
-  newinductives: InductiveContext
-  inductiveExt: inductives.MultiExtension newinductives
-  p: Program newaliases newglobals newinductives
-  e: Expression newglobals newinductives locals
+structure EraseExprResult (oldpctx: ProgramContext) (locals: LocalValueContext) where
+  pctx: ProgramContext
+  ext: oldpctx.MultiExtension pctx
+  p: Program pctx
+  e: Expression pctx.globals pctx.inductives locals
 
-def easyNow
-  (p: Program aliases globals inductives)
-  (e: Expression globals inductives locals)
-  : EraseExprResult aliases globals inductives locals :=
-  {
-    newaliases := aliases,
-    aliasExt := .trivial,
-    newglobals := globals,
-    globalExt := .trivial,
-    newinductives := inductives,
-    inductiveExt := .trivial,
-    p,
-    e,
-  }
-
-#check StateM
+def easyNow (p: Program pctx) (e: Expression pctx.globals pctx.inductives locals): EraseExprResult pctx locals :=
+  { pctx, ext := .trivial, p, e }
 
 abbrev M := ExceptT String <| CoreM
 
 def throw {α} := @throwThe String M _ α
 
+set_option linter.unusedVariables false in
 def eraseExpr
   (e: Expr)
-  (p: Program aliases globals inductives)
+  (p: Program pctx)
   (ectx: ExprContext)
-  : M (EraseExprResult aliases globals inductives ectx.locals)
+  : M (EraseExprResult pctx ectx.locals)
   := do
   -- if (← liftMetaM <| isErasable e) then
   --  return .box
@@ -84,9 +67,16 @@ def eraseExpr
   | .proj typeName idx struct => throw "projections not yet implemented"
   | .letE declName type value body nondep => throw "let not yet implemented"
   | .const declName us => throw "const not yet implemented"
-  | .app fn arg => throw "app not yet implemented"
+  | .app fn arg =>
+    let fnres ← eraseExpr fn p ectx;
+    let argres ← eraseExpr arg fnres.p ectx;
+    return {
+      pctx := argres.pctx,
+      ext := fnres.ext.compose argres.ext,
+      p := argres.p,
+      e := .app (argres.ext.weakenExpression fnres.e) argres.e
+    }
   | .lam binderName binderType body binderInfo =>
-    let fvarid <- mkFreshFVarId;
     let ⟨bodyectx, ext⟩ ← ectx.extend binderName binderType binderInfo;
     let bodyres ← eraseExpr body p bodyectx;
     return { bodyres with e := .lambda ext bodyres.e }
@@ -121,6 +111,7 @@ structure ErasureContext: Type where
 abbrev EraseM := ReaderT ErasureContext <| StateT ErasureState CoreM
 -/
 
+/-
 def run (x : EraseM α): CoreM α :=
   x |>.run {} |>.run
 
@@ -574,4 +565,5 @@ def eraseElab: Elab.Command.CommandElab
 
   | _ => Elab.throwUnsupportedSyntax
 
+-/
 end Erasure
