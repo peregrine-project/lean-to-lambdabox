@@ -1,51 +1,7 @@
 import Lean
+import LeanToLambdaBox.Names
 
-open Lean (Name FVarId InductiveVal)
-
-abbrev Ident := String
-abbrev DirPath := List String
-
-inductive ModPath where
-| MPfile  (dp : DirPath)
-| MPdot   (mp : ModPath) (id : Ident)
--- MPBound is about functors (in the sense of ML module systems).
-deriving Inhabited, Repr
-
-structure Kername where
-  mp: ModPath
-  id: Ident
-deriving Inhabited, Repr
-
-def toModPath (n: Name): ModPath :=
-  match n with
-  | .str name s => .MPdot (toModPath name) s
-  | .num name nb => .MPdot (toModPath name) (nb.repr)
-  | .anonymous => .MPfile []
-
-/-- Clean up a string potentially coming from Lean's very permissive grammar to only use characters valid in OCaml identifiers. -/
-def cleanIdent (s : String) : String :=
-  let escapeChar (c : Char) : String :=
-    if c.isAlphanum || c == '_' then toString c
-    else "_u" ++ toString c.toNat
-
-  s.toList.map escapeChar |> String.join
-/--
-Ad hoc conversion function from `Name`s to MetaRocq kernames.
--/
-def toKername (n: Name): Kername :=
-  match n with
-  | .str name s =>  { mp := toModPath name, id := cleanIdent s }
-  | .num name nb =>  { mp := toModPath name, id := nb.repr }
-  | .anonymous =>  panic! "Cannot convert empty name to kername." -- This should not happen.
-
-def rootKername (s: String): Kername :=
-  { mp := .MPfile [], id := cleanIdent s }
-
-/-- A name used to pretty-print bound variables. -/
-inductive BinderName: Type where
-  | named (s: String)
-  | anon
-  deriving Inhabited, Repr
+open Lean (FVarId InductiveVal)
 
 structure InductiveId where
   mutualBlockName: Kername
@@ -60,7 +16,7 @@ structure ProjectionInfo where
   deriving Inhabited, Repr
 
 structure FixDef {term: Type} where
-  name: BinderName
+  name: LocalName
   /-- The body typically (necessarily?) starts with a certain number (at least rarg + 1) of lambda constructor applications, one for each argument. -/
   body: term
   /-- Principal/structural argument for recursion. -/
@@ -92,13 +48,13 @@ inductive LBTerm where
   /-- A bound variable, accessed as a de Bruijn index. -/
   | bvar: Nat -> LBTerm
   | fvar: FVarId -> LBTerm
-  | lambda: BinderName -> LBTerm -> LBTerm
-  | letIn: BinderName -> LBTerm -> LBTerm -> LBTerm
+  | lambda: LocalName -> LBTerm -> LBTerm
+  | letIn: LocalName -> LBTerm -> LBTerm -> LBTerm
   | app: LBTerm -> LBTerm -> LBTerm
   /-- A constant living in the environment. -/
   | const: Kername -> LBTerm
   | construct: InductiveId -> Nat /- index of the constructor used -/ -> List LBTerm -> LBTerm
-  | case: (InductiveId × Nat /- number of parameters -/) -> LBTerm -> List (List BinderName × LBTerm) -> LBTerm
+  | case: (InductiveId × Nat /- number of parameters -/) -> LBTerm -> List (List LocalName × LBTerm) -> LBTerm
   | proj: ProjectionInfo -> LBTerm -> LBTerm
   /-- Define some number of mutually inductive functions, then access one. -/
   | fix: List (@FixDef LBTerm) -> Nat /- index of the one mutually defined function we want to access -/ -> LBTerm

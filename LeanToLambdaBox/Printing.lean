@@ -22,7 +22,7 @@ def quote_atom (s: String): sexpr := "\"" ++ s ++ "\"" |> .atom
 instance : Serialize Nat where
   to_sexpr | n => .atom n.repr
 
-instance : Serialize BinderName where
+instance : Serialize LocalName where
   to_sexpr
   | .named name => .list [ .atom "nNamed", quote_atom name ]
   | .anon => .atom "nAnon"

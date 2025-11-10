@@ -1,10 +1,9 @@
 import LeanToLambdaBox.Config
 import LeanToLambdaBox.Contexts
 import LeanToLambdaBox.Utils
+import LeanToLambdaBox.Names
 
 namespace TypedML
-
-def Name: Type := Lean.Name
 
 inductive TType (tvars: TypeVarContext) (formers: TypeFormerContext): Type where
   | typeVar (id: tvars.Id)
@@ -26,7 +25,7 @@ inductive Expression (cfg: Config) (globals: GlobalValueContext) (inductives: In
     : Expression cfg globals inductives locals
   | public app (f x: Expression cfg globals inductives locals): Expression cfg globals inductives locals
   | public lambda
-      (name: Name)
+      (name: LocalName)
       (ext: locals.Extension bodylocals)
       (body: Expression cfg globals inductives bodylocals)
     : Expression cfg globals inductives locals
@@ -57,15 +56,15 @@ def ofSizedList: SizedList (Expression cfg globals inductives locals) n -> Expre
 end ExpressionSizedList
 
 structure ConstructorDecl (tvars: TypeVarContext) (formers: TypeFormerContext) (arity: Nat): Type where
-  name: Name
+  name: ConstructorName
   argTypes: SizedList (TType tvars formers) arity
 
 structure OneInductiveDecl (tvars: TypeVarContext) (formers: TypeFormerContext) (arities: OneInductiveArities) where
-  name: Name
+  name: InductiveName
   constructors: DependentList Nat (ConstructorDecl tvars formers) arities
 
 structure MutualInductiveDecl (tvars: TypeVarContext) (formers: TypeFormerContext) (arities: MutualInductiveArities) where
-  name: Name
+  name: MutualInductiveName
   inductives: DependentList OneInductiveArities (OneInductiveDecl tvars formers) arities
 
 /--
@@ -78,16 +77,16 @@ inductive Program (cfg: Config): TypeAliasContext -> GlobalValueContext -> Induc
   | empty: Program cfg .empty .empty .empty
   | valueDecl
       (p: Program cfg aliases globals inductives)
-      (name: Name)
+      (name: GlobalName)
       (ext: globals.Extension newglobals)
       (val: Expression cfg globals inductives .empty)
       (t: TType tvars (.mk aliases inductives))
     : Program cfg aliases newglobals inductives 
   | typeAlias
       (p: Program cfg aliases globals inductives)
-      (name: Name)
+      (name: TypeAliasName)
       (ext: aliases.Extension newaliases tvars.size)
-      (tvarnames: SizedList Name tvars.size)
+      (tvarnames: SizedList TypeVarName tvars.size)
       (t: TType tvars (.mk aliases inductives))
     : Program cfg newaliases globals inductives
   | mutualInductiveDecl

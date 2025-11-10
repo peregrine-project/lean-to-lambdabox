@@ -5,6 +5,7 @@ import LeanToLambdaBox.Basic
 import LeanToLambdaBox.Printing
 import Std.Data.HashMap
 import LeanToLambdaBox.TypedML
+import LeanToLambdaBox.Names
 import Batteries.CodeAction
 
 open Lean
@@ -79,7 +80,7 @@ def eraseExpr
   | .lam binderName binderType body binderInfo =>
     let ⟨bodyectx, ext⟩ ← ectx.extend binderName binderType binderInfo;
     let bodyres ← eraseExpr body p bodyectx;
-    return { bodyres with e := .lambda binderName ext bodyres.e }
+    return { bodyres with e := .lambda (← binderName.toLocalName) ext bodyres.e }
 
   | .fvar fvarId =>
     let id: ectx.locals.Id ← Option.getDM (ectx.lookup[fvarId]?) (throw "did not find fvarid");

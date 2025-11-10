@@ -35,7 +35,7 @@ def etaIn
     -- WeakenExpression is a no-op, so this could be implemented as an unsafe cast if the compiler does not specialize enough.
     let brevargs := revargs.map ext.weakenExpression;
     let whenDoneB := Nat.succ_add_eq_add_succ m n ▸ whenDone;
-    .lambda .anonymous ext (etaIn (m+1) n (.cons m (.local ext.newId) brevargs) whenDoneB)
+    .lambda .anon ext (etaIn (m+1) n (.cons m (.local ext.newId) brevargs) whenDoneB)
 
 variable {cfg: Config} {hvalue: cfg.constructors = .value}
 include cfg hvalue
