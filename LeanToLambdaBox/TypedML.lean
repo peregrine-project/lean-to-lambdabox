@@ -4,6 +4,8 @@ import LeanToLambdaBox.Utils
 
 namespace TypedML
 
+def Name: Type := Lean.Name
+
 inductive TType (tvars: TypeVarContext) (formers: TypeFormerContext): Type where
   | typeVar (id: tvars.Id)
   | typeFormerApp (id: formers.Id) (args: SizedList (TType tvars formers) (formers.arity id))
@@ -12,7 +14,7 @@ inductive TType (tvars: TypeVarContext) (formers: TypeFormerContext): Type where
 mutual
 inductive Expression (cfg: Config) (globals: GlobalValueContext) (inductives: InductiveContext): LocalValueContext -> Type where
   | public global (id: globals.Id): Expression cfg globals inductives locals
-  | public local (varid: locals.Id): Expression cfg globals inductives locals
+  | public local (id: locals.Id): Expression cfg globals inductives locals
   | public constructorVal
       (h: cfg.constructors = .value)
       (cid: @inductives.ConstructorId mid iid)
@@ -24,6 +26,7 @@ inductive Expression (cfg: Config) (globals: GlobalValueContext) (inductives: In
     : Expression cfg globals inductives locals
   | public app (f x: Expression cfg globals inductives locals): Expression cfg globals inductives locals
   | public lambda
+      (name: Name)
       (ext: locals.Extension bodylocals)
       (body: Expression cfg globals inductives bodylocals)
     : Expression cfg globals inductives locals
@@ -54,12 +57,15 @@ def ofSizedList: SizedList (Expression cfg globals inductives locals) n -> Expre
 end ExpressionSizedList
 
 structure ConstructorDecl (tvars: TypeVarContext) (formers: TypeFormerContext) (arity: Nat): Type where
+  name: Name
   argTypes: SizedList (TType tvars formers) arity
 
 structure OneInductiveDecl (tvars: TypeVarContext) (formers: TypeFormerContext) (arities: OneInductiveArities) where
+  name: Name
   constructors: DependentList Nat (ConstructorDecl tvars formers) arities
 
 structure MutualInductiveDecl (tvars: TypeVarContext) (formers: TypeFormerContext) (arities: MutualInductiveArities) where
+  name: Name
   inductives: DependentList OneInductiveArities (OneInductiveDecl tvars formers) arities
 
 /--
@@ -72,13 +78,16 @@ inductive Program (cfg: Config): TypeAliasContext -> GlobalValueContext -> Induc
   | empty: Program cfg .empty .empty .empty
   | valueDecl
       (p: Program cfg aliases globals inductives)
+      (name: Name)
       (ext: globals.Extension newglobals)
       (val: Expression cfg globals inductives .empty)
       (t: TType tvars (.mk aliases inductives))
     : Program cfg aliases newglobals inductives 
   | typeAlias
       (p: Program cfg aliases globals inductives)
+      (name: Name)
       (ext: aliases.Extension newaliases tvars.size)
+      (tvarnames: SizedList Name tvars.size)
       (t: TType tvars (.mk aliases inductives))
     : Program cfg newaliases globals inductives
   | mutualInductiveDecl
@@ -105,9 +114,9 @@ def weakenExpression (ext: ctx.Extension ctx'): Expression cfg globals inductive
 | .constructorVal h cid => .constructorVal h cid
 | .constructorApp h cid args => .constructorApp h cid (ext.weakenExpressions args)
 | .app f x => .app (weakenExpression ext f) (weakenExpression ext x)
-| .lambda bext body =>
+| .lambda name bext body =>
   let ⟨_, ⟨addprime, addb⟩⟩ := bext.pullback ext;
-  .lambda addb (weakenExpression addprime body)
+  .lambda name addb (weakenExpression addprime body)
 
 /-- Here we do the mapping directly, instead of converting back and forth and using SizedList.map, so that the termination checker sees this is structural. -/
 def weakenExpressions (ext: ctx.Extension ctx'): ExpressionSizedList cfg globals inductives ctx n -> ExpressionSizedList cfg globals inductives ctx' n
@@ -128,7 +137,7 @@ def weakenExpression (ext: @MultiExtension pctx pctx'): Expression cfg pctx.glob
 | .constructorApp h cid args =>
   .constructorApp h (ext.inductives.weakenConstructorId cid) (InductiveContext.MultiExtension.weakenConstructorId_arity.symm ▸ ext.weakenExpressions args)
 | .app f x => .app (ext.weakenExpression f) (ext.weakenExpression x)
-| .lambda bext body => .lambda bext (ext.weakenExpression body)
+| .lambda name bext body => .lambda name bext (ext.weakenExpression body)
 
 /-- Here we do the mapping directly, instead of converting back and forth and using SizedList.map, so that the termination checker sees this is structural. -/
 def weakenExpressions (ext: @MultiExtension pctx pctx'): ExpressionSizedList cfg pctx.globals pctx.inductives locals n -> ExpressionSizedList cfg pctx'.globals pctx'.inductives locals n

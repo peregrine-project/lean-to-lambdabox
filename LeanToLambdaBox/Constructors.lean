@@ -4,16 +4,6 @@ open TypedML
 
 namespace Constructors
 
-variable {cfg: Config} {hvalue: cfg.constructors = .value}
-include cfg hvalue
-
-theorem notApplied: ¬ (cfg.constructors = .applied) := by
-  intro
-  rewrite [hvalue] at *
-  contradiction
-
-def cfg' := { cfg with constructors := .applied }
-
 def mkApp (f: Expression c globals inductives locals) (args: List (Expression c globals inductives locals)) :=
   match args with
   | [] => f
@@ -45,17 +35,28 @@ def etaIn
     -- WeakenExpression is a no-op, so this could be implemented as an unsafe cast if the compiler does not specialize enough.
     let brevargs := revargs.map ext.weakenExpression;
     let whenDoneB := Nat.succ_add_eq_add_succ m n ▸ whenDone;
-    .lambda ext (etaIn (m+1) n (.cons m (.local ext.newId) brevargs) whenDoneB)
+    .lambda .anonymous ext (etaIn (m+1) n (.cons m (.local ext.newId) brevargs) whenDoneB)
+
+variable {cfg: Config} {hvalue: cfg.constructors = .value}
+include cfg hvalue
+
+theorem notApplied: ¬ (cfg.constructors = .applied) := by
+  intro
+  rewrite [hvalue] at *
+  contradiction
+
+def cfg' {cfg: Config} := { cfg with constructors := .applied }
 
 mutual
-def transformExpression (e: Expression cfg globals inductives locals): Expression cfg' globals inductives locals :=
+
+def transformExpression (e: Expression cfg globals inductives locals): Expression (@cfg' cfg) globals inductives locals :=
   transformExpressionAux e []
 
-def transformExpressionAux (e: Expression cfg globals inductives locals) (args: List (Expression cfg' globals inductives locals)): Expression cfg' globals inductives locals :=
+def transformExpressionAux (e: Expression cfg globals inductives locals) (args: List (Expression (@cfg' cfg) globals inductives locals)): Expression (@cfg' cfg) globals inductives locals :=
     match e with
     | .global id => mkApp (.global id) args
     | .local id => mkApp (.local id) args
-    | .lambda ext e => mkApp (.lambda ext (transformExpression e)) args
+    | .lambda name ext e => mkApp (.lambda name ext (transformExpression e)) args
     | .app f x => transformExpressionAux f (transformExpression x :: args)
     | .constructorApp h .. => False.elim (@notApplied cfg hvalue h)
     | .constructorVal _ cid =>
@@ -66,12 +67,12 @@ def transformExpressionAux (e: Expression cfg globals inductives locals) (args: 
       | .(m+n), .missing m n revargs => etaIn m n revargs (h ▸ whenDone)
 
 -- This is in the mutual block because this allows the implicit parameter hvalue to transformExpression to be inferred for some reason
-def transformProgram (p: Program cfg aliases globals inductives): Program cfg' aliases globals inductives :=
+def transformProgram (p: Program cfg aliases globals inductives): Program (@cfg' cfg) aliases globals inductives :=
   match p with
   | .empty => .empty
-  | .typeAlias p ext t => .typeAlias (transformProgram p) ext t
+  | .typeAlias p name ext tvarnames t => .typeAlias (transformProgram p) name ext tvarnames t
   | .mutualInductiveDecl p ext decl => .mutualInductiveDecl (transformProgram p) ext decl
-  | .valueDecl p ext e t =>.valueDecl (transformProgram p) ext (transformExpression e) t
+  | .valueDecl p name ext e t =>.valueDecl (transformProgram p) name ext (transformExpression e) t
 end
 
 end Constructors

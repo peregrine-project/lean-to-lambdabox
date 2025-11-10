@@ -5,5 +5,5 @@ inductive ConstructorStyle: Type where
   /-- Constructions appear in the expression tree in a node together with all their arguments. -/
   | applied
 
-structure Config: Type where
+structure Config: Type 1 where
   constructors: ConstructorStyle

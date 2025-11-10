@@ -79,7 +79,7 @@ def eraseExpr
   | .lam binderName binderType body binderInfo =>
     let ⟨bodyectx, ext⟩ ← ectx.extend binderName binderType binderInfo;
     let bodyres ← eraseExpr body p bodyectx;
-    return { bodyres with e := .lambda ext bodyres.e }
+    return { bodyres with e := .lambda binderName ext bodyres.e }
 
   | .fvar fvarId =>
     let id: ectx.locals.Id ← Option.getDM (ectx.lookup[fvarId]?) (throw "did not find fvarid");
