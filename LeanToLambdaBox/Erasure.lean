@@ -13,12 +13,6 @@ open Lean.Compiler.LCNF
 
 namespace Erasure
 
-def DepStateM (σ: Type) (α: σ -> Type): Type := σ -> (s': σ) × (α s')
-def bind (σ: Type) (α β: σ -> Type) (x: DepStateM σ α) (f: forall s': σ, α s' -> DepStateM σ β): DepStateM σ β :=
-  fun s =>
-    let ⟨s', a⟩ := x s;
-    f s' a s'
-
 def initialConfig: Config := { constructors := .value }
 
 structure ExprContext where
