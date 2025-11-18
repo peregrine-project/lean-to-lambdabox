@@ -9,6 +9,8 @@ inductive TType (tvars: TypeVarContext) (formers: TypeFormerContext): Type where
   | typeVar (id: tvars.Id)
   | typeFormerApp (id: formers.Id) (args: SizedList (TType tvars formers) (formers.arity id))
   | arrow (dom codom: TType tvars formers)
+  | logical
+  | unrepresentable
 
 mutual
 inductive Expression (cfg: Config) (globals: GlobalValueContext) (inductives: InductiveContext): LocalValueContext -> Type where

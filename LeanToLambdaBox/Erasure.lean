@@ -41,6 +41,9 @@ def ExprContext.extend
   let lookup: Std.HashMap FVarId locals.Id := ctx.lookup.map (fun _ => ext.weakenId) |>.insert fvarid ext.newId;
   return (⟨{ lctx, locals, lookup }, ext⟩, body.instantiate1 (.fvar fvarid))
 
+structure State (pctx: ProgramContext) where
+  lookupGlobals: Std.HashMap Name pctx.globals.Id := ∅
+
 abbrev Expression := TypedML.Expression initialConfig
 abbrev Program (pctx: ProgramContext) := TypedML.Program initialConfig pctx.aliases pctx.globals pctx.inductives
 
@@ -48,10 +51,11 @@ structure EraseExprResult (oldpctx: ProgramContext) (locals: LocalValueContext) 
   pctx: ProgramContext
   ext: oldpctx.MultiExtension pctx
   p: Program pctx
+  s: State pctx
   e: Expression pctx.globals pctx.inductives locals
 
-def easyNow (p: Program pctx) (e: Expression pctx.globals pctx.inductives locals): EraseExprResult pctx locals :=
-  { pctx, ext := .trivial, p, e }
+def easyNow (p: Program pctx) (s: State pctx) (e: Expression pctx.globals pctx.inductives locals): EraseExprResult pctx locals :=
+  { pctx, ext := .trivial, p, s, e }
 
 abbrev M := ExceptT String <| CoreM
 
@@ -69,43 +73,76 @@ def isErasable (e : Expr) : MetaM Bool := do
     return false
 
 set_option linter.unusedVariables false in
+mutual
+
 -- partial because when going under lambdas we rewrite the body to guarantee the locally nameless invariant
 partial def eraseExpr
   (e: Expr)
   (p: Program pctx)
+  (s: State pctx)
   (ectx: ExprContext)
   : M (EraseExprResult pctx ectx.locals)
   := do
   if (← (isErasable e).run { lctx := ectx.lctx }) |>.fst then
-    return easyNow p .box
+    return easyNow p s .box
   match e with
   | .sort u => throw "unexpected sort, should be erased"
   | .forallE binderName binderType body binderInfo => throw "unexpected forall, should be erased"
   | .mvar mvarId => throw "unexpected metavariable"
   | .bvar deBruijnIndex => throw "the locally nameless invariant should ensure we never see this"
-  | .mdata _ expr => eraseExpr expr p ectx
+  | .mdata _ expr => eraseExpr expr p s ectx
   | .lit _ => throw "literal not yet implemented"
   | .proj typeName idx struct => throw "projections not yet implemented"
   | .letE declName type value body nondep => throw "let not yet implemented"
-  | .const declName us => throw "const not yet implemented"
+  | .const declName us =>
+    if Lean.isCasesOnRecursor (← getEnv) declName then
+      throw "casesOn not yet implemented"
+    else match ← getConstInfo declName with
+    | .ctorInfo _ => throw "constructors not yet implemented"
+    | .recInfo _ => throw "recursors not implemented"
+    | .inductInfo _ => throw "unexpected inductive type, should be erased"
+    | .thmInfo _ => throw "unexpected theorem, should be erased"
+    | .quotInfo _ => throw "quotVal not (yet?) implemented"
+    | .opaqueInfo _ => throw  "opaque constants not yet implemented"
+    | .axiomInfo _ => throw  "axioms not yet implemented"
+    | .defnInfo val =>
+      let ⟨pctx, ext, p, s, gid⟩ ← getGlobal p s val;
+      return { pctx, ext, p, s, e := .global gid } 
   | .app fn arg =>
-    let fnres ← eraseExpr fn p ectx;
-    let argres ← eraseExpr arg fnres.p ectx;
+    let fnres ← eraseExpr fn p s ectx;
+    let argres ← eraseExpr arg fnres.p (fnres.s) ectx;
     return {
       pctx := argres.pctx,
       ext := fnres.ext.compose argres.ext,
       p := argres.p,
+      s := argres.s,
       e := .app (argres.ext.weakenExpression fnres.e) argres.e
     }
   | .lam binderName binderType body binderInfo =>
     let (⟨bodyectx, ext⟩, body) ← ectx.extend binderName binderType binderInfo body;
-    let bodyres ← eraseExpr body p bodyectx;
+    let bodyres ← eraseExpr body p s bodyectx;
     return { bodyres with e := .lambda (← binderName.toLocalName) ext bodyres.e }
 
   | .fvar fvarId =>
     let id: ectx.locals.Id ← Option.getDM (ectx.lookup[fvarId]?) (throw "did not find fvarid");
     let e := .local id;
-    return easyNow p e
+    return easyNow p s e
+
+where
+  -- TODO: handle recursion (check val.all)
+  getGlobal (p: Program pctx) (s: State pctx) (val: DefinitionVal): M ((pctx': ProgramContext) ×' pctx.MultiExtension pctx' ×' Program pctx' × State pctx' × pctx'.globals.Id) := do
+    match s.lookupGlobals[val.name]? with
+    | .some gid => return ⟨pctx, .trivial, p, s, gid⟩
+    | .none =>
+      let res ← eraseExpr val.value p s .empty; -- here we restart with an empty expression context since this is a new toplevel definition
+      let ⟨gctx', gext⟩ := res.pctx.globals.extend;
+      let pctx' := { res.pctx with globals := gctx' };
+      let ext' := { aliases := .trivial, inductives := .trivial, globals := gext.toMulti };
+      let p' := .valueDecl res.p (← val.name.toGlobalName) gext res.e .unrepresentable (tvars := .empty); -- TODO: actually process type
+      let gid := gext.newId;
+      let lookupGlobals := res.s.lookupGlobals.map (fun _ => gext.toMulti.weakenId) |>.insert val.name gid
+      return ⟨pctx', res.ext.compose ext', p', { res.s with lookupGlobals }, gid⟩
+end
 
 /-
 structure ErasureState: Type where
@@ -240,7 +277,6 @@ def prepare_erasure (e: Expr): EraseM Expr := do
   -- not doing csimp replacements here, do them at the leaf level.
   pure e
 
-def Program := TypedML.BundledProgram { constructors := .value }
 /--
 Copied over from toLCNF, then quite heavily pruned and modified.
 
@@ -557,13 +593,14 @@ def eraseElab: Elab.Command.CommandElab
     let e ← Lean.instantiateMVars e
 
     let sOrError := do
-      let res ← (@eraseExpr .empty e .empty .empty);
+      let res ← (@eraseExpr .empty e .empty {} .empty);
       let p := res.p;
       let e := res.e;
       let p' := Constructors.transformProgram p (hvalue := rfl);
       let e' := Constructors.transformExpression e (hvalue := rfl);
-      let lbp := (← programToLambdaBox p' rfl, ← expressionToLambdaBox e' rfl);
-      let s: String := lbp |> Serialize.to_sexpr |>.toString;
+      let (decls, names) ← programToLambdaBox p' rfl;
+      let e ← expressionToLambdaBox e' names rfl;
+      let s: String := (decls, e) |> Serialize.to_sexpr |>.toString;
       return s
 
     match ← sOrError.run with

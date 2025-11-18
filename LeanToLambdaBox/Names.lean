@@ -62,5 +62,6 @@ private def rootKername (s: String): Kername :=
 @[irreducible, local semireducible] def ConstructorName: Type := Ident
 
 namespace Lean.Name
-def toLocalName := _root_.toLocalName
+@[irreducible] def toLocalName: Lean.Name -> Except String LocalName := _root_.toLocalName
+@[irreducible] def toGlobalName: Lean.Name -> Except String GlobalName := toKername
 end Lean.Name

@@ -2,19 +2,31 @@ import LeanToLambdaBox.TypedML
 import LeanToLambdaBox.Basic
 import Batteries.CodeAction
 
+structure NameContext (aliases: TypeAliasContext) (globals: GlobalValueContext) (inductives: InductiveContext) where
+  aliases: aliases.Map TypeAliasName
+  globals: globals.Map GlobalName
+  inductives: inductives.Map MutualInductiveName
+
+def NameContext.empty: NameContext .empty .empty .empty where
+  aliases := .empty
+  globals := .empty
+  inductives := .empty
+
+unseal GlobalName in
 def expressionToLambdaBox
   (e: TypedML.Expression cfg globals inductives locals)
+  (names: NameContext aliases globals inductives)
   (hConstructors: cfg.constructors = .applied)
   : Except String LBTerm
   := do
   match e with
   | .box => return .box
-  | .global id => throw "globals not yet implemented"
+  | .global id => return .const (names.globals.get id)
   | .local id => return (.bvar id.deBruijnIndex)
   | .constructorVal h cid => (show False by rewrite [hConstructors] at h; contradiction).elim
   | .constructorApp h cid args => throw "constructors not yet implemented"
-  | .app f x => return .app (← expressionToLambdaBox f hConstructors) (← expressionToLambdaBox x hConstructors)
-  | .lambda name ext body => return .lambda name (← expressionToLambdaBox body hConstructors)
+  | .app f x => return .app (← expressionToLambdaBox f names hConstructors) (← expressionToLambdaBox x names hConstructors)
+  | .lambda name ext body => return .lambda name (← expressionToLambdaBox body names hConstructors)
 
 unseal ConstructorName in
 def constructorDeclToLambdaBox (decl: TypedML.ConstructorDecl tvars formers arity): ConstructorBody :=
@@ -38,10 +50,15 @@ unseal GlobalName in
 def programToLambdaBox
   (p: TypedML.Program cfg aliases globals inductives)
   (hConstructors: cfg.constructors = .applied)
-  : Except String GlobalDeclarations
+  : Except String (GlobalDeclarations × NameContext aliases globals inductives)
   := do
   match p with
-  | .empty => return []
-  | .valueDecl p name ext val t => return (name, .constantDecl ⟨.some (← expressionToLambdaBox val hConstructors)⟩) :: (← programToLambdaBox p hConstructors)
+  | .empty => return ([], .empty)
+  | .valueDecl p name ext val t =>
+    let (decls, names) ← programToLambdaBox p hConstructors;
+    let value ← expressionToLambdaBox val names hConstructors;
+    return ((name, .constantDecl ⟨.some value⟩) :: decls, { names with globals := names.globals.extend name ext })
   | .typeAlias _p _name ext tvarnames t => throw "type aliases not yet implemented"
-  | .mutualInductiveDecl p ext minds => return (mutualInductiveDeclToLambdaBox minds) :: (← programToLambdaBox p hConstructors)
+  | .mutualInductiveDecl p ext minds =>
+    let (decls, names) ← programToLambdaBox p hConstructors;
+    return ((mutualInductiveDeclToLambdaBox minds) :: decls, { names with inductives := names.inductives.extend minds.name ext })

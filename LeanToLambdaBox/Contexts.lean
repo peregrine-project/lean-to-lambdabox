@@ -1,3 +1,4 @@
+-- TODO: kill the boilerplate (or more likely change it into different boilerplate) using type classes?
 private abbrev GenericSizedContext := Nat
 namespace GenericSizedContext
 private def empty: GenericSizedContext := 0
@@ -5,11 +6,11 @@ private def Id: GenericSizedContext -> Type := Fin
 private def Extension (ctx ctx': GenericSizedContext): Prop := (ctx' = ctx + 1)
 private def extend (ctx: GenericSizedContext): { ctx': GenericSizedContext // ctx.Extension ctx' } := ⟨ctx+1, rfl⟩
 namespace Extension
-private def newId (ext: @Extension ctx ctx'): ctx'.Id := ⟨ctx, ext ▸ Nat.lt_add_one ctx⟩
-private def weakenId (ext: @Extension ctx ctx'): ctx.Id -> ctx'.Id := ext ▸ Fin.castSucc
+private def newId (ext: Extension ctx ctx'): ctx'.Id := ⟨ctx, ext ▸ Nat.lt_add_one ctx⟩
+private def weakenId (ext: Extension ctx ctx'): ctx.Id -> ctx'.Id := ext ▸ Fin.castSucc
 private def pullback
-  (extA: @Extension base a)
-  (extB: @Extension base b)
+  (extA: Extension base a)
+  (extB: Extension base b)
   : { top: GenericSizedContext // a.Extension top ∧ b.Extension top }
   := ⟨a+1, rfl, (extA ▸ show _ = _ from extB) ▸ rfl⟩ -- this is the most codegolf way I've ever proved n + 1 + 1 = n + 1 + 1
 end Extension
@@ -19,6 +20,16 @@ private def trivial: MultiExtension ctx ctx := Nat.le_refl _
 private def compose: (ext: MultiExtension ctx ctx') -> (ext': MultiExtension ctx' ctx'') -> MultiExtension ctx ctx'' := Nat.le_trans
 private def weakenId: MultiExtension ctx ctx' -> ctx.Id -> ctx'.Id := Fin.castLE
 end MultiExtension
+private def Extension.toMulti (ext: Extension ctx ctx'): MultiExtension ctx ctx' := ext ▸ Nat.le_succ _
+
+/-- Essentially a map from `ctx.Id` to `α`. -/
+-- should this be used to define GenericArrayContext?
+private def Map (ctx: GenericSizedContext) (α: Type): Type := Vector α ctx
+namespace Map
+private def empty: Map .empty α := #v[]
+private def extend (m: Map ctx α) (a: α) (ext: Extension ctx ctx'): Map ctx' α := ext ▸ m.push a
+private def get (m: Map ctx α) (i: ctx.Id): α := Vector.get m i
+end Map
 end GenericSizedContext
 
 private abbrev GenericArrayContext α := Array α
@@ -54,11 +65,24 @@ private theorem weakenId_getInfo: (@weakenId α ctx ctx' ext i).getInfo = i.getI
   apply List.getElem_append_left
 
 end MultiExtension
+
+private def Map (ctx: GenericArrayContext α) (β: Type): Type := Vector β ctx.size
+namespace Map
+private def empty: @Map α .empty β := #v[]
+private def extend (m: Map ctx β) (b: β) (ext: Extension ctx ctx' a): Map ctx' β := by
+  unfold Map
+  rewrite [ext]
+  rewrite [Array.size_push a]
+  exact m.push b
+private def get (m: Map ctx α) (i: ctx.Id): α := Vector.get m i
+end Map
 end GenericArrayContext
 
 @[irreducible, local semireducible]
 def TypeVarContext: Type := GenericSizedContext
 namespace TypeVarContext
+@[irreducible]
+def empty: TypeVarContext := GenericSizedContext.empty
 @[irreducible]
 def Id: TypeVarContext -> Type := GenericSizedContext.Id
 @[irreducible]
@@ -70,7 +94,7 @@ def TypeAliasInfo := Nat
 @[irreducible, local semireducible]
 def TypeAliasContext: Type := GenericArrayContext TypeAliasInfo
 namespace TypeAliasContext
-@[irreducible]
+@[irreducible, local semireducible]
 def empty: TypeAliasContext := GenericArrayContext.empty
 @[irreducible, local semireducible]
 def Id: TypeAliasContext -> Type := GenericArrayContext.Id
@@ -79,7 +103,7 @@ namespace Id
 def arity: (id: @Id ctx) -> Nat := GenericArrayContext.Id.getInfo
 end Id
 /-- A witness of the fact that `ctx'` is an extension of `ctx` with an added type alias of arity `n`. -/
-@[irreducible]
+@[irreducible, local semireducible]
 def Extension: (ctx ctx': TypeAliasContext) -> (n: Nat) -> Prop := GenericArrayContext.Extension
 @[irreducible, local semireducible]
 def MultiExtension: (ctx ctx': TypeAliasContext) -> Prop := GenericArrayContext.MultiExtension
@@ -89,6 +113,16 @@ def trivial: MultiExtension ctx ctx := GenericArrayContext.MultiExtension.trivia
 @[irreducible]
 def compose: MultiExtension ctx ctx' -> MultiExtension ctx' ctx'' -> MultiExtension ctx ctx'' := GenericArrayContext.MultiExtension.compose
 end MultiExtension
+@[irreducible, local semireducible]
+def Map: TypeAliasContext -> Type -> Type := GenericArrayContext.Map
+namespace Map
+@[irreducible]
+def empty: Map .empty α := GenericArrayContext.Map.empty
+@[irreducible]
+def extend: Map ctx β -> β -> Extension ctx ctx' a -> Map ctx' β := GenericArrayContext.Map.extend
+@[irreducible]
+def get: Map ctx α -> ctx.Id -> α := GenericArrayContext.Map.get
+end Map
 end TypeAliasContext
 
 abbrev ConstructorArity := Nat
@@ -102,7 +136,7 @@ structure MutualInductiveSpec where
 @[irreducible, local semireducible]
 def InductiveContext: Type := GenericArrayContext MutualInductiveSpec
 namespace InductiveContext
-@[irreducible]
+@[irreducible, local semireducible]
 def empty: InductiveContext := GenericArrayContext.empty
 @[irreducible, local semireducible]
 def MutualInductiveId: InductiveContext -> Type := GenericArrayContext.Id
@@ -126,7 +160,7 @@ end InductiveId
 export InductiveId (ConstructorId)
 end MutualInductiveId
 export MutualInductiveId (InductiveId ConstructorId)
-@[irreducible]
+@[irreducible, local semireducible]
 def Extension: (ctx ctx': InductiveContext) -> (spec: MutualInductiveSpec) -> Prop := GenericArrayContext.Extension
 @[irreducible, local semireducible]
 def MultiExtension: (ctx ctx': InductiveContext) -> Prop := GenericArrayContext.MultiExtension
@@ -162,6 +196,16 @@ theorem weakenConstructorId_arity: (@weakenConstructorId ctx ctx' mid iid ext ci
   List.get_of_eq weakenInductiveId_constructorArities _
 
 end MultiExtension
+@[irreducible, local semireducible]
+def Map: InductiveContext -> Type -> Type := GenericArrayContext.Map
+namespace Map
+@[irreducible]
+def empty: Map .empty α := GenericArrayContext.Map.empty
+@[irreducible]
+def extend: Map ctx β -> β -> Extension ctx ctx' a -> Map ctx' β := GenericArrayContext.Map.extend
+@[irreducible]
+def get: Map ctx α -> ctx.Id -> α := GenericArrayContext.Map.get
+end Map
 end InductiveContext
 
 structure TypeFormerContext: Type where
@@ -186,12 +230,10 @@ end TypeFormerContext
 @[irreducible, local semireducible]
 def GlobalValueContext: Type := GenericSizedContext
 namespace GlobalValueContext
-@[irreducible]
+@[irreducible, local semireducible]
 def empty: GlobalValueContext := GenericSizedContext.empty
 @[irreducible, local semireducible]
 def Id: GlobalValueContext -> Type := GenericSizedContext.Id
-@[irreducible]
-def Extension: (ctx ctx': GlobalValueContext) -> Prop := GenericSizedContext.Extension
 @[irreducible, local semireducible]
 def MultiExtension: (ctx ctx': GlobalValueContext)-> Prop := GenericSizedContext.MultiExtension
 namespace MultiExtension
@@ -202,6 +244,27 @@ def compose: MultiExtension ctx ctx' -> MultiExtension ctx' ctx'' -> MultiExtens
 @[irreducible]
 def weakenId: MultiExtension ctx ctx' -> ctx.Id -> ctx'.Id := GenericSizedContext.MultiExtension.weakenId
 end MultiExtension
+@[irreducible, local semireducible]
+def Extension: (ctx ctx': GlobalValueContext) -> Prop := GenericSizedContext.Extension
+namespace Extension
+@[irreducible]
+def toMulti: Extension ctx ctx' -> MultiExtension ctx ctx' := GenericSizedContext.Extension.toMulti
+@[irreducible]
+def newId: (Extension ctx ctx') -> ctx'.Id := GenericSizedContext.Extension.newId
+end Extension
+@[irreducible]
+def extend: (ctx: GlobalValueContext) -> { ctx': GlobalValueContext // ctx.Extension ctx' } := GenericSizedContext.extend
+
+@[irreducible, local semireducible]
+def Map: GlobalValueContext -> Type -> Type := GenericSizedContext.Map
+namespace Map
+@[irreducible]
+def empty: Map .empty α := GenericSizedContext.Map.empty
+@[irreducible]
+def extend: Map ctx α -> α -> Extension ctx ctx' -> Map ctx' α := GenericSizedContext.Map.extend
+@[irreducible]
+def get: Map ctx α -> ctx.Id -> α := GenericSizedContext.Map.get
+end Map
 end GlobalValueContext
 
 @[irreducible, local semireducible]
@@ -221,16 +284,16 @@ def Extension: (ctx ctx': LocalValueContext) -> Prop := GenericSizedContext.Exte
 def extend: (ctx: LocalValueContext) -> { ctx': LocalValueContext // ctx.Extension ctx' } := GenericSizedContext.extend
 namespace Extension
 @[irreducible]
-def newId: (@Extension ctx ctx') -> ctx'.Id := GenericSizedContext.Extension.newId
+def newId: (Extension ctx ctx') -> ctx'.Id := GenericSizedContext.Extension.newId
 /--
 The concrete definition is such that this can be replaced by a no-op in compiled code; hopefully the compiler will recognize that.
 -/
 @[irreducible]
-def weakenId: (@Extension ctx ctx') -> ctx.Id -> ctx'.Id := GenericSizedContext.Extension.weakenId
+def weakenId: (Extension ctx ctx') -> ctx.Id -> ctx'.Id := GenericSizedContext.Extension.weakenId
 @[irreducible]
 def pullback:
-    (extA: @Extension base a) ->
-    (extB: @Extension base b) ->
+    (extA: Extension base a) ->
+    (extB: Extension base b) ->
   { top: LocalValueContext // a.Extension top ∧ b.Extension top }
   := GenericSizedContext.Extension.pullback
 end Extension
