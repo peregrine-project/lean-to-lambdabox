@@ -35,7 +35,6 @@ private def toLocalName (n: Lean.Name): Except String LocalName :=
   | .anonymous => pure LocalName.anon
   | .str .anonymous str => pure <| .named (cleanIdent str)
   |  _ => throw ("Expected binder name to be anonymous or an atomic string, found " ++ reprStr n.toString)
-#check toLocalName
 
 -- TODO: clarify what lambdabox module paths are used for in `lbox`. Do these names matter? Should there be a sensible dirpath instead of the empty one?
 private def toModPath: Lean.Name -> ModPath

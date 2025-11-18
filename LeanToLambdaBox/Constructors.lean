@@ -54,6 +54,7 @@ def transformExpression (e: Expression cfg globals inductives locals): Expressio
 
 def transformExpressionAux (e: Expression cfg globals inductives locals) (args: List (Expression (@cfg' cfg) globals inductives locals)): Expression (@cfg' cfg) globals inductives locals :=
     match e with
+    | .box => .box
     | .global id => mkApp (.global id) args
     | .local id => mkApp (.local id) args
     | .lambda name ext e => mkApp (.lambda name ext (transformExpression e)) args

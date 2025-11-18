@@ -12,19 +12,20 @@ inductive TType (tvars: TypeVarContext) (formers: TypeFormerContext): Type where
 
 mutual
 inductive Expression (cfg: Config) (globals: GlobalValueContext) (inductives: InductiveContext): LocalValueContext -> Type where
-  | public global (id: globals.Id): Expression cfg globals inductives locals
-  | public local (id: locals.Id): Expression cfg globals inductives locals
-  | public constructorVal
+  | box: Expression cfg globals inductives locals
+  | global (id: globals.Id): Expression cfg globals inductives locals
+  | local (id: locals.Id): Expression cfg globals inductives locals
+  | constructorVal
       (h: cfg.constructors = .value)
       (cid: @inductives.ConstructorId mid iid)
     : Expression cfg globals inductives locals
-  | public constructorApp
+  | constructorApp
       (h: cfg.constructors = .applied)
       (cid: @inductives.ConstructorId mid iid)
       (args: ExpressionSizedList cfg globals inductives locals cid.arity)
     : Expression cfg globals inductives locals
-  | public app (f x: Expression cfg globals inductives locals): Expression cfg globals inductives locals
-  | public lambda
+  | app (f x: Expression cfg globals inductives locals): Expression cfg globals inductives locals
+  | lambda
       (name: LocalName)
       (ext: locals.Extension bodylocals)
       (body: Expression cfg globals inductives bodylocals)
@@ -108,6 +109,7 @@ open TypedML
 
 mutual
 def weakenExpression (ext: ctx.Extension ctx'): Expression cfg globals inductives ctx -> Expression cfg globals inductives ctx'
+| .box => .box
 | .global id => .global id
 | .local id => .local (ext.weakenId id)
 | .constructorVal h cid => .constructorVal h cid
@@ -130,6 +132,7 @@ open TypedML
 
 mutual
 def weakenExpression (ext: @MultiExtension pctx pctx'): Expression cfg pctx.globals pctx.inductives locals -> Expression cfg pctx'.globals pctx'.inductives locals
+| .box => .box
 | .global id => .global (ext.globals.weakenId id)
 | .local id => .local id
 | .constructorVal h cid => .constructorVal h (ext.inductives.weakenConstructorId cid)

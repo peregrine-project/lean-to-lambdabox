@@ -43,6 +43,17 @@ abbrev M := ExceptT String <| CoreM
 
 def throw {α} := @throwThe String M _ α
 
+def isErasable (e : Expr) : MetaM Bool := do
+    let type ← Meta.inferType e
+    -- Erase evidence of propositions
+    -- ToLCNF includes an explicit check for isLcProof, but I think the type information should be enough to erase those here.
+    if (← Meta.isProp type) then
+      return true
+    -- Erase types and type formers
+    if (← Meta.isTypeFormerType type) then
+      return true
+    return false
+
 set_option linter.unusedVariables false in
 def eraseExpr
   (e: Expr)
@@ -50,8 +61,8 @@ def eraseExpr
   (ectx: ExprContext)
   : M (EraseExprResult pctx ectx.locals)
   := do
-  -- if (← liftMetaM <| isErasable e) then
-  --  return .box
+  if (← (isErasable e).run { lctx := ectx.lctx }) |>.fst then
+    return easyNow p .box
   match e with
   | .sort u => throw "unexpected sort, should be erased"
   | .forallE binderName binderType body binderInfo => throw "unexpected forall, should be erased"
@@ -113,17 +124,6 @@ def run (x : EraseM α): CoreM α :=
 /-- Run an action of MetaM in EraseM using EraseM's local context of Lean types. -/
 @[inline] def liftMetaM (x : MetaM α) : EraseM α := do
   x.run' { lctx := (← read).lctx }
-
-def isErasable (e : Expr) : MetaM Bool := do
-    let type ← Meta.inferType e
-    -- Erase evidence of propositions
-    -- ToLCNF includes an explicit check for isLcProof, but I think the type information should be enough to erase those here.
-    if (← Meta.isProp type) then
-      return true
-    -- Erase types and type formers
-    if (← Meta.isTypeFormerType type) then
-      return true
-    return false
 
 def fvar_to_name (x: FVarId): EraseM BinderName := do
   let n := (← read).lctx.fvarIdToDecl |>.find! x |>.userName
