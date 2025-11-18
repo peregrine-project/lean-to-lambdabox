@@ -58,8 +58,8 @@ private def rootKername (s: String): Kername :=
 @[irreducible, local semireducible] def TypeAliasName: Type := Kername
 @[irreducible, local semireducible] def GlobalName: Type := Kername
 @[irreducible, local semireducible] def MutualInductiveName: Type := Kername
-@[irreducible, local semireducible] def InductiveName: Type := Kername
-@[irreducible, local semireducible] def ConstructorName: Type := Kername
+@[irreducible, local semireducible] def InductiveName: Type := Ident
+@[irreducible, local semireducible] def ConstructorName: Type := Ident
 
 namespace Lean.Name
 def toLocalName := _root_.toLocalName

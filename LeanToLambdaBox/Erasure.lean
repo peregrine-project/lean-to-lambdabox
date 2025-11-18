@@ -6,6 +6,8 @@ import LeanToLambdaBox.Printing
 import Std.Data.HashMap
 import LeanToLambdaBox.TypedML
 import LeanToLambdaBox.Names
+import LeanToLambdaBox.ToLambdaBox
+import LeanToLambdaBox.Constructors
 import Batteries.CodeAction
 
 open Lean
@@ -18,14 +20,26 @@ def initialConfig: Config := { constructors := .value }
 structure ExprContext where
   lctx: LocalContext
   locals: LocalValueContext
-  lookup: Std.HashMap FVarId locals.Id
+  lookup: Std.HashMap FVarId locals.Id -- invariant: every fvarid in the localcontext is mapped to a value. Include as proof?
 
-def ExprContext.extend (ctx: ExprContext) (binderName: Name) (binderType: Expr) (binderInfo: BinderInfo): CoreM { ctx': ExprContext // ctx.locals.Extension ctx'.locals } := do
+def ExprContext.empty: ExprContext where
+  lctx := .empty
+  locals := .empty
+  lookup := ∅
+
+def ExprContext.extend
+  (ctx: ExprContext)
+  (binderName: Name)
+  (binderType: Expr)
+  (binderInfo: BinderInfo)
+  (body: Expr)
+  : CoreM ({ ctx': ExprContext // ctx.locals.Extension ctx'.locals } × Expr)
+  := do
   let fvarid ← mkFreshFVarId;
   let lctx := ctx.lctx.mkLocalDecl fvarid binderName binderType binderInfo;
   let ⟨locals, ext⟩ := ctx.locals.extend;
   let lookup: Std.HashMap FVarId locals.Id := ctx.lookup.map (fun _ => ext.weakenId) |>.insert fvarid ext.newId;
-  return ⟨{ lctx, locals, lookup }, ext⟩
+  return (⟨{ lctx, locals, lookup }, ext⟩, body.instantiate1 (.fvar fvarid))
 
 abbrev Expression := TypedML.Expression initialConfig
 abbrev Program (pctx: ProgramContext) := TypedML.Program initialConfig pctx.aliases pctx.globals pctx.inductives
@@ -55,7 +69,8 @@ def isErasable (e : Expr) : MetaM Bool := do
     return false
 
 set_option linter.unusedVariables false in
-def eraseExpr
+-- partial because when going under lambdas we rewrite the body to guarantee the locally nameless invariant
+partial def eraseExpr
   (e: Expr)
   (p: Program pctx)
   (ectx: ExprContext)
@@ -83,14 +98,14 @@ def eraseExpr
       e := .app (argres.ext.weakenExpression fnres.e) argres.e
     }
   | .lam binderName binderType body binderInfo =>
-    let ⟨bodyectx, ext⟩ ← ectx.extend binderName binderType binderInfo;
+    let (⟨bodyectx, ext⟩, body) ← ectx.extend binderName binderType binderInfo body;
     let bodyres ← eraseExpr body p bodyectx;
     return { bodyres with e := .lambda (← binderName.toLocalName) ext bodyres.e }
 
   | .fvar fvarId =>
     let id: ectx.locals.Id ← Option.getDM (ectx.lookup[fvarId]?) (throw "did not find fvarid");
     let e := .local id;
-    return (easyNow p e)
+    return easyNow p e
 
 /-
 structure ErasureState: Type where
@@ -530,35 +545,36 @@ partial def to_ml_type (ty: Expr): MetaM MLType :=
     return varmltypes.foldr .arrow bodymltype
 
 def gen_mli (ty: Expr): MetaM String := do return s!"val main: {← to_ml_type ty}"
+-/
 
-syntax (name := erasestx) "#erase" ppSpace term (ppSpace "config" term)? (ppSpace "to" ppSpace str)? (ppSpace "mli" ppSpace str)?: command
+syntax (name := erasestx) "#erase" ppSpace term (ppSpace "to" ppSpace str)?: command
 
 @[command_elab erasestx]
 def eraseElab: Elab.Command.CommandElab
-  | `(command| #erase $t:term $[config $cfg?:term]? $[to $path?:str]? $[mli $mli?:str]?) => Elab.Command.liftTermElabM do
+  | `(command| #erase $t:term $[to $path?:str]?) => Elab.Command.liftTermElabM do
     let e: Expr ← Elab.Term.elabTerm t (expectedType? := .none)
     Elab.Term.synthesizeSyntheticMVarsNoPostponing
     let e ← Lean.instantiateMVars e
 
-    let cfg: ErasureConfig ← match cfg? with
-    | .none => pure {}
-    | .some cfg => unsafe Elab.Term.evalTerm ErasureConfig (.const ``Erasure.ErasureConfig []) cfg
+    let sOrError := do
+      let res ← (@eraseExpr .empty e .empty .empty);
+      let p := res.p;
+      let e := res.e;
+      let p' := Constructors.transformProgram p (hvalue := rfl);
+      let e' := Constructors.transformExpression e (hvalue := rfl);
+      let lbp := (← programToLambdaBox p' rfl, ← expressionToLambdaBox e' rfl);
+      let s: String := lbp |> Serialize.to_sexpr |>.toString;
+      return s
 
-    let p: Program ← erase e cfg
-    let s: String := p |> Serialize.to_sexpr |>.toString
-    -- logInfo s!"{repr p}"
-    match path? with
-    | .some path => do
-        IO.FS.writeFile path.getString s
-    | .none => logInfo s
-
-    let ty: Expr ← Meta.inferType e
-    let mlistr ← gen_mli ty
-    match mli? with
-    | .none => logInfo mlistr
-    | .some mlipath => IO.FS.writeFile mlipath.getString mlistr
+    match ← sOrError.run with
+    | .ok s =>
+      -- logInfo s!"{repr p}"
+      match path? with
+      | .some path =>
+          IO.FS.writeFile path.getString s
+      | .none => logInfo s
+    | .error e => throwThe Exception (.error t (.ofFormatWithInfos ↑e))
 
   | _ => Elab.throwUnsupportedSyntax
 
--/
 end Erasure

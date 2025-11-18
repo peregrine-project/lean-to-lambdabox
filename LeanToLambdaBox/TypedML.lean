@@ -66,6 +66,7 @@ structure OneInductiveDecl (tvars: TypeVarContext) (formers: TypeFormerContext) 
 
 structure MutualInductiveDecl (tvars: TypeVarContext) (formers: TypeFormerContext) (arities: MutualInductiveArities) where
   name: MutualInductiveName
+  npars: Nat
   inductives: DependentList OneInductiveArities (OneInductiveDecl tvars formers) arities
 
 /--

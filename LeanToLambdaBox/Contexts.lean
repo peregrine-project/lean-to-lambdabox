@@ -211,6 +211,10 @@ namespace LocalValueContext
 def empty: LocalValueContext := GenericSizedContext.empty
 @[irreducible, local semireducible]
 def Id: LocalValueContext -> Type := GenericSizedContext.Id
+namespace Id
+@[irreducible]
+def deBruijnIndex (i: Id locals): Nat := i.rev.val
+end Id
 @[irreducible, local semireducible]
 def Extension: (ctx ctx': LocalValueContext) -> Prop := GenericSizedContext.Extension
 @[irreducible]
@@ -238,6 +242,9 @@ structure ProgramContext where
   inductives: InductiveContext
 
 namespace ProgramContext
+
+def empty: ProgramContext := { aliases := .empty, globals := .empty, inductives := .empty }
+
 structure MultiExtension (ctx ctx': ProgramContext) where
   aliases: ctx.aliases.MultiExtension ctx'.aliases
   globals: ctx.globals.MultiExtension ctx'.globals

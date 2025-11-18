@@ -23,3 +23,15 @@ end SizedList
 inductive DependentList (α: Type) (f: α -> Type): (List α) -> Type where
   | unit: DependentList α f .nil
   | pair: forall (a: α) (as: List α), f a -> DependentList α f as -> DependentList α f (.cons a as)
+
+namespace DependentList
+def map {f g: α -> Type} (fn: forall a, f a -> g a) (l: DependentList α f as): DependentList α g as :=
+  match l with
+  | .unit => .unit
+  | .pair a as x t => .pair a as (fn a x) (t.map fn)
+
+def forget (l: DependentList α (fun _ => β) as): List β :=
+  match l with
+  | .unit => []
+  | .pair _ _ x t => x :: forget t
+end DependentList
