@@ -81,14 +81,26 @@ partial def toBvar (x: FVarId) (lvl: Nat) (e: LBTerm): LBTerm :=
 
 def abstract (x: FVarId) (e: LBTerm): LBTerm := toBvar x 0 e
 
+inductive LBType where
+| box
+| any
+| arr (dom codom: LBType)
+| app (fn arg: LBType)
+| var (i: Nat) -- index of type variable, think about whether this is forwards or backwards
+| ind (iid: InductiveId)
+| const (kn: Kername)
+deriving Inhabited, Repr
+
 structure ConstructorBody where
   name: Ident
-  nargs: Nat
+  args: List (LocalName × LBType)
+  originalArity: Nat -- apparently MetaRocq needs this for erases_one_inductive_body
 deriving Inhabited, Repr
 
 -- should be unused
 structure ProjectionBody where
   name: Ident
+  type: LBType
 deriving Repr
 
 inductive AllowedEliminations where
@@ -98,13 +110,21 @@ inductive AllowedEliminations where
   | IntoAny
 deriving Inhabited, Repr
 
+structure TypeVarInfo where
+  name: LocalName -- why is this a LocalName and not an ident?
+  isLogical: Bool
+  isArity: Bool
+  isSort: Bool
+deriving Repr
+
 structure OneInductiveBody where
-  name : Ident
+  name: Ident
   /-- True iff the inductive lives in Prop. -/
-  propositional : Bool := false -- I think, since erasure should remove anything which ends up in Prop
-  kelim : AllowedEliminations := .IntoAny
-  ctors : List ConstructorBody
-  projs : List ProjectionBody -- This is only about giving user-visible names to projections, but `lbox` complains about wellformedness if it is empty.
+  propositional: Bool := false -- I think, since erasure should remove anything which ends up in Prop
+  kelim: AllowedEliminations := .IntoAny
+  typeVars: List TypeVarInfo
+  ctors: List ConstructorBody
+  projs : List ProjectionBody -- This is mainly about giving user-visible names to projections, but `lbox` complains about wellformedness if this is empty.
 deriving Inhabited, Repr
 
 inductive RecursivityKind where
@@ -121,14 +141,20 @@ structure MutualInductiveBody where
 deriving Repr
 
 structure ConstantBody where
-  cst_body: Option LBTerm
+  type: List LocalName × LBType
+  body: Option LBTerm
 deriving Repr
 
 inductive GlobalDecl where
   | constantDecl (body: ConstantBody)
   | inductiveDecl (body: MutualInductiveBody)
+  | typeAliasDecl (body: Option (List TypeVarInfo × LBType))
 deriving Repr
 
 -- The first declarations to be added to the context are the deepest/first-consed in the list.
-abbrev GlobalDeclarations := List (Kername × GlobalDecl)
+
+-- comment from MetaRocq's ExAst.v: has_deps specifies whether the environment includes dependencies of this global
+-- I think this means it should just always be .true
+-- Watch out for the different associativity of × in Rocq and in Lean.
+abbrev GlobalDeclarations := List ((Kername × Bool /- has_deps -/) × GlobalDecl)
 abbrev Program: Type := GlobalDeclarations × LBTerm

@@ -66,35 +66,46 @@ instance: Serialize PrimVal where
 
 mutual
   partial def LBTerm.to_sexpr: LBTerm -> sexpr
-    | .box => .atom "tBox"
-    | .bvar n => .list [ .atom "tRel", to_sexpr n ]
-    | .lambda na t => .list [ .atom "tLambda", to_sexpr na, LBTerm.to_sexpr t ]
-    | .letIn na b t => .list [ .atom "tLetIn", to_sexpr na, LBTerm.to_sexpr b, LBTerm.to_sexpr t ]
-    | .app u v => .list [ .atom "tApp", LBTerm.to_sexpr u, LBTerm.to_sexpr v ]
-    | .const k => .list [ .atom "tConst", to_sexpr k ]
-    | .construct ind n args => .list [ .atom "tConstruct", to_sexpr ind, to_sexpr n, .list (args.map LBTerm.to_sexpr)  ]
-    | .case indn c brs => .list [
-        .atom "tCase",
-        to_sexpr indn,
-        LBTerm.to_sexpr c,
-        .list (brs.map fun (names, branch) => .list [ to_sexpr names, LBTerm.to_sexpr branch ])
-        ]
-    | .proj p c => .list [ .atom "tProj", to_sexpr p, LBTerm.to_sexpr c ]
-    | .fix mfix idx => .list [ .atom "tFix", .list (mfix.map edef.to_sexpr), to_sexpr idx ]
-    | .fvar .. => unreachable!
-    | .prim p => .list [ .atom "tPrim", to_sexpr p]
+  | .box => .atom "tBox"
+  | .bvar n => .list [ .atom "tRel", to_sexpr n ]
+  | .lambda na t => .list [ .atom "tLambda", to_sexpr na, t.to_sexpr ]
+  | .letIn na b t => .list [ .atom "tLetIn", to_sexpr na, b.to_sexpr, t.to_sexpr ]
+  | .app u v => .list [ .atom "tApp", u.to_sexpr, v.to_sexpr ]
+  | .const k => .list [ .atom "tConst", to_sexpr k ]
+  | .construct ind n args => .list [ .atom "tConstruct", to_sexpr ind, to_sexpr n, .list (args.map LBTerm.to_sexpr)  ]
+  | .case indn c brs => .list [
+      .atom "tCase",
+      to_sexpr indn,
+      c.to_sexpr,
+      .list (brs.map fun (names, branch) => .list [ to_sexpr names, LBTerm.to_sexpr branch ])
+      ]
+  | .proj p c => .list [ .atom "tProj", to_sexpr p, c.to_sexpr ]
+  | .fix mfix idx => .list [ .atom "tFix", .list (mfix.map edef.to_sexpr), to_sexpr idx ]
+  | .fvar .. => unreachable!
+  | .prim p => .list [ .atom "tPrim", to_sexpr p]
 
   partial def edef.to_sexpr: @FixDef LBTerm -> sexpr
-    | ⟨name, body, principal⟩ => .list [ .atom "def", to_sexpr name, LBTerm.to_sexpr body, to_sexpr principal ]
+  | ⟨name, body, principal⟩ => .list [ .atom "def", to_sexpr name, body.to_sexpr, to_sexpr principal ]
 end
 
 instance : Serialize LBTerm where to_sexpr := LBTerm.to_sexpr
 
+def LBType.to_sexpr: LBType -> sexpr
+| .box => .atom "TBox"
+| .any => .atom "TAny"
+| .arr dom codom => .list [.atom "TArr", dom.to_sexpr, codom.to_sexpr]
+| .var i => .list [.atom "TVar", Serialize.to_sexpr i]
+| .ind iid => .list [.atom "TInd", Serialize.to_sexpr iid]
+| .const kn => .list [.atom "TConst", Serialize.to_sexpr kn]
+| .app fn arg => .list [.atom "TApp", fn.to_sexpr, arg.to_sexpr]
+  
+instance: Serialize LBType where to_sexpr := LBType.to_sexpr
+
 instance : Serialize ConstructorBody where
-  to_sexpr | ⟨name, nargs⟩  => .list [ .atom "constructor_body", to_sexpr name, to_sexpr nargs ]
+  to_sexpr cb := to_sexpr ((cb.name, cb.args), cb.originalArity) -- tuples are not associative on the same side in Rocq and Lean.
 
 instance : Serialize ProjectionBody where
-  to_sexpr | ⟨proj_name⟩ => .list [ .atom "projection_body", to_sexpr proj_name ]
+  to_sexpr pb := to_sexpr (pb.name, pb.type)
 
 instance : Serialize AllowedEliminations where
   to_sexpr
@@ -108,8 +119,11 @@ instance : Serialize Bool where
   | .true => .atom "true"
   | .false => .atom "false"
 
+instance: Serialize TypeVarInfo where
+  to_sexpr inf := .list [.atom "type_var_info", to_sexpr inf.name, to_sexpr inf.isLogical, to_sexpr inf.isArity, to_sexpr inf.isSort]
+
 instance : Serialize OneInductiveBody where
-  to_sexpr | ⟨name, prop, kelim, ctors, projs⟩ => .list [ .atom "one_inductive_body", to_sexpr name, to_sexpr prop, to_sexpr kelim, to_sexpr ctors, to_sexpr projs ]
+  to_sexpr | ⟨name, prop, kelim, tvars, ctors, projs⟩ => .list [ .atom "one_inductive_body", to_sexpr name, to_sexpr prop, to_sexpr kelim, to_sexpr tvars, to_sexpr ctors, to_sexpr projs ]
 
 instance : Serialize RecursivityKind where
   to_sexpr
@@ -126,12 +140,13 @@ instance : [Serialize α] -> Serialize (Option α) where
   | .some a => .list [.atom "Some", to_sexpr a]
 
 instance : Serialize ConstantBody where
-  to_sexpr | ⟨cb⟩ => .list [.atom "constant_body", to_sexpr cb] 
+  to_sexpr cb := .list [.atom "constant_body", to_sexpr cb.type, to_sexpr cb.body] 
 
 instance : Serialize GlobalDecl where
   to_sexpr
   | .constantDecl cb => .list [ .atom "ConstantDecl", to_sexpr cb ]
   | .inductiveDecl mib => .list [ .atom "InductiveDecl", to_sexpr mib ]
+  | .typeAliasDecl body => .list [ .atom "TypeAliasDecl", to_sexpr body ]
 
 /-- The Rocq/Coq lexer expects `"` characters in string literals to be represented by the sequence `""`. This is cursed. -/
 def rocq_escape (s: String): String :=

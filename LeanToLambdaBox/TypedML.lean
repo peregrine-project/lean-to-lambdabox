@@ -5,11 +5,32 @@ import LeanToLambdaBox.Names
 
 namespace TypedML
 
-inductive TType (tvars: TypeVarContext) (formers: TypeFormerContext): Type where
+inductive TypeFormerId (aliases: TypeAliasContext) (inductives: InductiveContext): Type where
+  | «alias» (id: aliases.Id)
+  | «inductive» (id: inductives.InductiveId mid)
+
+namespace TypeFormerId
+
+def arity: TypeFormerId aliases inductives -> Nat
+| .alias id => id.arity
+| @TypeFormerId.inductive _ _ mid _ => mid.typeFormerArity
+
+def weaken (aext: aliases.MultiExtension aliases') (iext: inductives.MultiExtension inductives'): TypeFormerId aliases inductives -> TypeFormerId aliases' inductives'
+| .alias id => .alias (aext.weakenId id)
+| .inductive id => .inductive (iext.weakenInductiveId id)
+
+theorem weaken_arity: arity (i.weaken aext iext) = arity i :=
+  match i with
+  | .alias _ => TypeAliasContext.MultiExtension.weakenId_arity
+  | .inductive _ => InductiveContext.MultiExtension.weakenMutualInductiveId_typeFormerArity
+
+end TypeFormerId
+
+inductive TType (tvars: TypeVarContext) (aliases: TypeAliasContext) (inductives: InductiveContext): Type where
   | typeVar (id: tvars.Id)
-  | typeFormerApp (id: formers.Id) (args: SizedList (TType tvars formers) (formers.arity id))
-  | arrow (dom codom: TType tvars formers)
-  | logical
+  | typeFormerApp (id: TypeFormerId aliases inductives) (args: SizedList (TType tvars aliases inductives) id.arity)
+  | arrow (dom codom: TType tvars aliases inductives)
+  | erased
   | unrepresentable
 
 mutual
@@ -58,18 +79,18 @@ def ofSizedList: SizedList (Expression cfg globals inductives locals) n -> Expre
 
 end ExpressionSizedList
 
-structure ConstructorDecl (tvars: TypeVarContext) (formers: TypeFormerContext) (arity: Nat): Type where
+structure ConstructorDecl (tvars: TypeVarContext) (aliases: TypeAliasContext) (inductives: InductiveContext) (arity: Nat): Type where
   name: ConstructorName
-  argTypes: SizedList (TType tvars formers) arity
+  argTypes: SizedList (TType tvars aliases inductives) arity
 
-structure OneInductiveDecl (tvars: TypeVarContext) (formers: TypeFormerContext) (arities: OneInductiveArities) where
+structure OneInductiveDecl (tvars: TypeVarContext) (aliases: TypeAliasContext) (inductives: InductiveContext) (arities: OneInductiveArities) where
   name: InductiveName
-  constructors: DependentList Nat (ConstructorDecl tvars formers) arities
+  constructors: DependentList Nat (ConstructorDecl tvars aliases inductives) arities
 
-structure MutualInductiveDecl (tvars: TypeVarContext) (formers: TypeFormerContext) (arities: MutualInductiveArities) where
+structure MutualInductiveDecl (tvars: TypeVarContext) (aliases: TypeAliasContext) (inductives: InductiveContext) (arities: MutualInductiveArities) where
   name: MutualInductiveName
   npars: Nat
-  inductives: DependentList OneInductiveArities (OneInductiveDecl tvars formers) arities
+  inductives: DependentList OneInductiveArities (OneInductiveDecl tvars aliases inductives) arities
 
 /--
 A program made up a sequence of type alias, global value, and inductive type declarations.
@@ -84,19 +105,19 @@ inductive Program (cfg: Config): TypeAliasContext -> GlobalValueContext -> Induc
       (name: GlobalName)
       (ext: globals.Extension newglobals)
       (val: Expression cfg globals inductives .empty)
-      (t: TType tvars (.mk aliases inductives))
+      (t: TType tvars aliases inductives)
     : Program cfg aliases newglobals inductives 
   | typeAlias
       (p: Program cfg aliases globals inductives)
       (name: TypeAliasName)
       (ext: aliases.Extension newaliases tvars.size)
       (tvarnames: SizedList TypeVarName tvars.size)
-      (t: TType tvars (.mk aliases inductives))
+      (t: TType tvars aliases inductives)
     : Program cfg newaliases globals inductives
   | mutualInductiveDecl
       (p: Program cfg aliases globals inductives)
       (ext: inductives.Extension newinductives { typeVarCount := tvars.size, arities })
-      (minds: MutualInductiveDecl tvars (.mk aliases newinductives) arities)
+      (minds: MutualInductiveDecl tvars aliases newinductives arities)
     : Program cfg aliases globals newinductives
 
 structure BundledProgram (cfg: Config): Type where
@@ -134,7 +155,7 @@ namespace ProgramContext.MultiExtension
 open TypedML
 
 mutual
-def weakenExpression (ext: @MultiExtension pctx pctx'): Expression cfg pctx.globals pctx.inductives locals -> Expression cfg pctx'.globals pctx'.inductives locals
+def weakenExpression (ext: MultiExtension pctx pctx'): Expression cfg pctx.globals pctx.inductives locals -> Expression cfg pctx'.globals pctx'.inductives locals
 | .box => .box
 | .global id => .global (ext.globals.weakenId id)
 | .local id => .local id
@@ -145,8 +166,22 @@ def weakenExpression (ext: @MultiExtension pctx pctx'): Expression cfg pctx.glob
 | .lambda name bext body => .lambda name bext (ext.weakenExpression body)
 
 /-- Here we do the mapping directly, instead of converting back and forth and using SizedList.map, so that the termination checker sees this is structural. -/
-def weakenExpressions (ext: @MultiExtension pctx pctx'): ExpressionSizedList cfg pctx.globals pctx.inductives locals n -> ExpressionSizedList cfg pctx'.globals pctx'.inductives locals n
-  | .nil => .nil
-  | .cons n e es => .cons n (ext.weakenExpression e) (ext.weakenExpressions es)
+def weakenExpressions (ext: MultiExtension pctx pctx'): ExpressionSizedList cfg pctx.globals pctx.inductives locals n -> ExpressionSizedList cfg pctx'.globals pctx'.inductives locals n
+| .nil => .nil
+| .cons n e es => .cons n (ext.weakenExpression e) (ext.weakenExpressions es)
 end
+
+mutual
+def weakenType (pext: MultiExtension pctx pctx') (text: tvars.MultiExtension tvars'): TType tvars pctx.aliases pctx.inductives -> TType tvars' pctx'.aliases pctx'.inductives
+| .typeVar id => .typeVar (text.weakenId id)
+| .typeFormerApp id args => .typeFormerApp (id.weaken pext.aliases pext.inductives) (TypeFormerId.weaken_arity.symm ▸ weakenTypes pext text args)
+| .arrow dom codom => .arrow (pext.weakenType text dom) (pext.weakenType text codom)
+| .erased => .erased
+| .unrepresentable => .unrepresentable
+
+def weakenTypes (pext: MultiExtension pctx pctx') (text: tvars.MultiExtension tvars'): SizedList (TType tvars pctx.aliases pctx.inductives) n -> SizedList (TType tvars' pctx'.aliases pctx'.inductives) n
+| .nil => .nil
+| .cons _ t ts => .cons _ (weakenType pext text t) (weakenTypes pext text ts)
+end
+
 end ProgramContext.MultiExtension

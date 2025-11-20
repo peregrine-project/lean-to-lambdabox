@@ -41,8 +41,62 @@ def ExprContext.extend
   let lookup: Std.HashMap FVarId locals.Id := ctx.lookup.map (fun _ => ext.weakenId) |>.insert fvarid ext.newId;
   return (⟨{ lctx, locals, lookup }, ext⟩, body.instantiate1 (.fvar fvarid))
 
+/-- Information about an fvar in the context of conversion of a Lean Expr to a TypedML type. -/
+inductive TypeFVarKind (tvars: TypeVarContext): Type where
+  | lifted (id: tvars.Id)
+  /--
+  The binding of this fvar could not be lifted to a prenex type variable,
+  either because it is not a type or an arity
+  or because it is bound in a non-prenex position.
+  -/
+  | unrepresentable
+
+def TypeFVarKind.toType: TypeFVarKind tvars -> TypedML.TType tvars aliases globals
+| .lifted id => .typeVar id
+| .unrepresentable => .unrepresentable
+
+/--
+Context used by `eraseType`.
+Note that `eraseTypeToplevel` does not only read this but also adds new tvars and extends the lookup table.
+-/
+structure TypeContext where
+  lctx: LocalContext
+  tvars: TypeVarContext
+  lookup: Std.HashMap FVarId (TypeFVarKind tvars)
+
+def TypeContext.empty: TypeContext where
+  lctx := .empty
+  tvars := .empty
+  lookup := ∅
+
+-- This is very similar to ExprContext.extend. Generalize?
+def TypeContext.extend
+  (ctx: TypeContext)
+  (binderName: Name)
+  (binderType: Expr)
+  (binderInfo: BinderInfo)
+  (lift: Bool)
+  (body: Expr)
+  : CoreM ({ ctx': TypeContext // ctx.tvars.MultiExtension ctx'.tvars } × Expr)
+  := do
+  let fvarid ← mkFreshFVarId;
+  let lctx := ctx.lctx.mkLocalDecl fvarid binderName binderType binderInfo;
+  let body := body.instantiate1 (.fvar fvarid);
+  if lift then 
+    let ⟨tvars, ext⟩ := ctx.tvars.extend;
+    let lookup :=
+      ctx.lookup.map (fun _ => fun | .unrepresentable => .unrepresentable | .lifted id => .lifted (ext.weakenId id))
+      |>.insert fvarid (if lift then .lifted ext.newId else .unrepresentable)
+    ;
+    return (⟨{ lctx, tvars, lookup }, ext.toMulti⟩, body)
+  else
+    return (⟨{ ctx with lctx }, .trivial⟩, body)
+
 structure State (pctx: ProgramContext) where
   lookupGlobals: Std.HashMap Name pctx.globals.Id := ∅
+
+def State.weaken (ext: pctx.MultiExtension pctx'): State pctx -> State pctx'
+| ⟨m⟩ => ⟨m.map (fun _ gid => ext.globals.weakenId gid) ⟩
 
 abbrev Expression := TypedML.Expression initialConfig
 abbrev Program (pctx: ProgramContext) := TypedML.Program initialConfig pctx.aliases pctx.globals pctx.inductives
@@ -54,6 +108,14 @@ structure EraseExprResult (oldpctx: ProgramContext) (locals: LocalValueContext) 
   s: State pctx
   e: Expression pctx.globals pctx.inductives locals
 
+structure EraseTypeResult (oldpctx: ProgramContext) (oldtvars: TypeVarContext) where
+  pctx: ProgramContext
+  pext: oldpctx.MultiExtension pctx
+  tvars: TypeVarContext
+  text: oldtvars.MultiExtension tvars
+  p: Program pctx
+  t: TypedML.TType tvars pctx.aliases pctx.inductives
+
 def easyNow (p: Program pctx) (s: State pctx) (e: Expression pctx.globals pctx.inductives locals): EraseExprResult pctx locals :=
   { pctx, ext := .trivial, p, s, e }
 
@@ -61,16 +123,33 @@ abbrev M := ExceptT String <| CoreM
 
 def throw {α} := @throwThe String M _ α
 
-def isErasable (e : Expr) : MetaM Bool := do
-    let type ← Meta.inferType e
+def runMeta (lctx: LocalContext) (x: MetaM α) [Monad m] [MonadLiftT CoreM m]: m α := do return (← x.run { lctx }).fst
+
+/--
+Whether inhabitants of `t`, which is assumed to represent a type, can be erased.
+`t` itself, being a type, can always be erased in a term.
+-/
+def isErasableType (t: Expr): MetaM Bool := do
     -- Erase evidence of propositions
     -- ToLCNF includes an explicit check for isLcProof, but I think the type information should be enough to erase those here.
-    if (← Meta.isProp type) then
+    if (← Meta.isProp t) then
       return true
     -- Erase types and type formers
-    if (← Meta.isTypeFormerType type) then
+    if (← Meta.isTypeFormerType t) then
       return true
     return false
+
+/-- Whether the term `e` can be erased inside a computationally meaningful expression. -/
+def isErasable (e: Expr): MetaM Bool := do
+    let type ← Meta.inferType e;
+    isErasableType type
+
+/-- Whether a bound variable of type `t` represents a type or type former that can be lifted to a prenex type variable. -/
+def canLiftToTypeVar (t: Expr): Bool :=
+  match t with
+  | .forallE _ body .. => canLiftToTypeVar body
+  | .sort u => not u.isAlwaysZero
+  | _ => false
 
 set_option linter.unusedVariables false in
 mutual
@@ -83,7 +162,7 @@ partial def eraseExpr
   (ectx: ExprContext)
   : M (EraseExprResult pctx ectx.locals)
   := do
-  if (← (isErasable e).run { lctx := ectx.lctx }) |>.fst then
+  if ← (runMeta ectx.lctx (isErasable e)) then
     return easyNow p s .box
   match e with
   | .sort u => throw "unexpected sort, should be erased"
@@ -134,14 +213,106 @@ where
     match s.lookupGlobals[val.name]? with
     | .some gid => return ⟨pctx, .trivial, p, s, gid⟩
     | .none =>
-      let res ← eraseExpr val.value p s .empty; -- here we restart with an empty expression context since this is a new toplevel definition
-      let ⟨gctx', gext⟩ := res.pctx.globals.extend;
-      let pctx' := { res.pctx with globals := gctx' };
-      let ext' := { aliases := .trivial, inductives := .trivial, globals := gext.toMulti };
-      let p' := .valueDecl res.p (← val.name.toGlobalName) gext res.e .unrepresentable (tvars := .empty); -- TODO: actually process type
-      let gid := gext.newId;
-      let lookupGlobals := res.s.lookupGlobals.map (fun _ => gext.toMulti.weakenId) |>.insert val.name gid
-      return ⟨pctx', res.ext.compose ext', p', { res.s with lookupGlobals }, gid⟩
+      let ⟨pctx', ext, tvars, p', t⟩ ← eraseType p val.type;
+      let res ← eraseExpr val.value p' (s.weaken ext) .empty;
+      let ⟨gctx'', gext'⟩ := res.pctx.globals.extend;
+      let pctx'' := { res.pctx with globals := gctx'' };
+      let p'': Program pctx'' := .valueDecl res.p (← val.name.toGlobalName) gext' res.e (res.ext.weakenType .trivial t);
+      let gid := gext'.newId;
+      let ext': res.pctx.MultiExtension pctx'' := { aliases := .trivial, inductives := .trivial, globals := gext'.toMulti };
+      let s'' := { lookupGlobals := res.s.weaken ext'|>.lookupGlobals |>.insert val.name gid }
+      return ⟨pctx'', (ext.compose res.ext).compose ext', p'', s'', gid⟩
+
+  eraseType
+    {pctx}
+    (p: Program pctx)
+    (t: Expr)
+    : M (
+      (pctx': ProgramContext)
+      ×' pctx.MultiExtension pctx'
+      ×' (tvars: TypeVarContext)
+      × Program pctx'
+      × TypedML.TType tvars pctx'.aliases pctx'.inductives
+    )
+    := do
+    let res ← eraseTypeToplevel p .empty t;
+    return ⟨res.pctx, res.pext, res.tvars, res.p, res.t⟩
+
+  /-- Convert a Lean type to a TypedML type, lifting quantification over types and type formers to prenex type variables. -/
+  eraseTypeToplevel {pctx} (p: Program pctx) (tctx: TypeContext) (t: Expr): M (EraseTypeResult pctx tctx.tvars) := do
+    let t ← runMeta tctx.lctx (Meta.whnf t); -- TODO: think about which transparency setting is desired here and at other applications of whnf
+    -- sanity check
+    if ← runMeta tctx.lctx (isErasableType t) then throw "should not be erasing the type of an erasable term at toplevel"
+    match t with
+    | .forallE binderName binderType body binderInfo =>
+      let ⟨pctx', pext, p', domain⟩ ← eraseTypeInner p tctx binderType;
+      let lift := canLiftToTypeVar binderType;
+      let (⟨tctx', text⟩, body) ← tctx.extend binderName binderType binderInfo lift body
+      let codomainres ← eraseTypeToplevel p' tctx' body;
+      let text := text.compose codomainres.text;
+      return { codomainres with
+        pext := pext.compose codomainres.pext,
+        text,
+        t := .arrow (codomainres.pext.weakenType text domain) codomainres.t
+      }
+
+    | _ =>
+      let ⟨pctx, pext, p, t⟩ ← eraseTypeInner p tctx t;
+      return { pctx, pext, p, tvars := tctx.tvars, text := .trivial, t }
+    
+  /-- Convert a Lean Type to a TypedML type without creating new type variables. -/
+  eraseTypeInner
+    {pctx}
+    (p: Program pctx)
+    (tctx: TypeContext)
+    (t: Expr)
+    : M (
+      (pctx': ProgramContext)
+      ×' pctx.MultiExtension pctx'
+      ×' Program pctx'
+      × TypedML.TType tctx.tvars pctx'.aliases pctx'.inductives
+    )
+    := do 
+    let t ← runMeta tctx.lctx (Meta.whnf t);
+    if ← runMeta tctx.lctx (isErasableType t) then
+      return ⟨pctx, .trivial, p, .erased⟩
+    -- Here, `t` is either an fvar, an application of a type former to some types, or a dependent arrow (forall).
+    t.withApp (fun hd args => do
+      match hd with
+      | .bvar deBruijnIndex => throw "unexpected bvar, the locally nameless invariant should ensure we never see this"
+      | .letE declName type value body nonDep => throw "unexpected let in whnf"
+      | .proj typeName idx struct => throw "unexpected projection in whnf"
+      | .sort u => throw "unexpected sort, should be erasable"
+      | .app fn arg => throw "unexpected .app, should be consumed by withApp"
+      | .lit l => throw "unexpected literal, expected type former"
+      | .mvar mvarId => throw "unexpected metavariable"
+      | .lam binderName binderType body binderInfo =>
+        if args.isEmpty then
+          throw "unexpected lambda, expected type"
+        else
+          throw "unexpected applied lambda in whnf"
+      | .mdata data expr =>
+        -- Instead of taking `expr` as head, reapply `expr` to all arguments then withApp down again to make sure we aren't missing applications.
+        -- For example, if `t` was `.app (.mdata data (.app f a)) b`, `(hd, args)` should be `(f, #[a, b])` and not `(.app f a, #[b])`.
+        eraseTypeInner p tctx (mkAppN expr args)
+      | .fvar fvarId =>
+        match tctx.lookup[fvarId]? with
+        | .none => throw "unknown fvarId"
+        | .some k => return ⟨pctx, .trivial, p, k.toType⟩
+      | .const declName us =>
+        if let .inductInfo val ← getConstInfo declName then
+          throw "inductives not yet implemented"
+        else
+          throw "type aliases not yet implemented"
+      | .forallE binderName binderType body binderInfo =>
+        let ⟨pctx', pext, p', domain⟩ ← eraseTypeInner p tctx binderType;
+        let fvarId ← mkFreshFVarId;
+        let lctx' := tctx.lctx.mkLocalDecl fvarId binderName binderType binderInfo;
+        let body := body.instantiate1 (.fvar fvarId)
+        let ⟨pctx'', pext', p'', codomain⟩ ← eraseTypeInner p' { tctx with lctx := lctx' } body;
+        return ⟨pctx'', pext.compose pext', p'', .arrow (pext'.weakenType .trivial domain) codomain⟩
+    )
+                                                     
 end
 
 /-
@@ -598,8 +769,8 @@ def eraseElab: Elab.Command.CommandElab
       let e := res.e;
       let p' := Constructors.transformProgram p (hvalue := rfl);
       let e' := Constructors.transformExpression e (hvalue := rfl);
-      let (decls, names) ← programToLambdaBox p' rfl;
-      let e ← expressionToLambdaBox e' names rfl;
+      let (decls, names) := programToLambdaBox p' rfl;
+      let e := expressionToLambdaBox e' names rfl;
       let s: String := (decls, e) |> Serialize.to_sexpr |>.toString;
       return s
 

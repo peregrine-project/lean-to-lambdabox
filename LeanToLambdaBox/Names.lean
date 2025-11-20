@@ -55,11 +55,13 @@ private def rootKername (s: String): Kername :=
 
 -- Following MetaRocq's conventions.
 @[irreducible, local semireducible] def TypeVarName: Type := LocalName
-@[irreducible, local semireducible] def TypeAliasName: Type := Kername
-@[irreducible, local semireducible] def GlobalName: Type := Kername
-@[irreducible, local semireducible] def MutualInductiveName: Type := Kername
+@[irreducible, local semireducible] def TypeAliasName: Type := Kername deriving Inhabited
+@[irreducible, local semireducible] def GlobalName: Type := Kername deriving Inhabited
+@[irreducible, local semireducible] def MutualInductiveName: Type := Kername deriving Inhabited
 @[irreducible, local semireducible] def InductiveName: Type := Ident
 @[irreducible, local semireducible] def ConstructorName: Type := Ident
+
+def x: TypeAliasName := default
 
 namespace Lean.Name
 @[irreducible] def toLocalName: Lean.Name -> Except String LocalName := _root_.toLocalName

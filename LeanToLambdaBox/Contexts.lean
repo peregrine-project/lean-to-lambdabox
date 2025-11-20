@@ -83,10 +83,35 @@ def TypeVarContext: Type := GenericSizedContext
 namespace TypeVarContext
 @[irreducible]
 def empty: TypeVarContext := GenericSizedContext.empty
-@[irreducible]
+@[irreducible, local semireducible]
 def Id: TypeVarContext -> Type := GenericSizedContext.Id
+-- `lbox` may expect this to be the other way around, check.
+@[irreducible]
+def Id.toIndex: Id ctx -> Nat := Fin.val
 @[irreducible]
 def size: TypeVarContext -> Nat := id
+@[irreducible, local semireducible]
+def MultiExtension: TypeVarContext -> TypeVarContext -> Prop := GenericSizedContext.MultiExtension
+namespace MultiExtension
+@[irreducible]
+def trivial: MultiExtension ctx ctx := GenericSizedContext.MultiExtension.trivial
+@[irreducible]
+def compose: MultiExtension ctx ctx' -> MultiExtension ctx' ctx'' -> MultiExtension ctx ctx'' := GenericSizedContext.MultiExtension.compose
+@[irreducible]
+def weakenId: MultiExtension ctx ctx' -> ctx.Id -> ctx'.Id := GenericSizedContext.MultiExtension.weakenId
+end MultiExtension
+@[irreducible, local semireducible]
+def Extension: TypeVarContext -> TypeVarContext -> Prop := GenericSizedContext.Extension
+namespace Extension
+@[irreducible]
+def toMulti: Extension ctx ctx' -> MultiExtension ctx ctx' := GenericSizedContext.Extension.toMulti
+@[irreducible]
+def newId: Extension ctx ctx' -> ctx'.Id := GenericSizedContext.Extension.newId
+@[irreducible]
+def weakenId: Extension ctx ctx' -> ctx.Id -> ctx'.Id := GenericSizedContext.Extension.weakenId
+end Extension
+@[irreducible]
+def extend: (ctx: TypeVarContext) -> { ctx': TypeVarContext // ctx.Extension ctx' } := GenericSizedContext.extend
 end TypeVarContext
 
 @[irreducible, local semireducible]
@@ -112,6 +137,10 @@ namespace MultiExtension
 def trivial: MultiExtension ctx ctx := GenericArrayContext.MultiExtension.trivial
 @[irreducible]
 def compose: MultiExtension ctx ctx' -> MultiExtension ctx' ctx'' -> MultiExtension ctx ctx'' := GenericArrayContext.MultiExtension.compose
+@[irreducible, local semireducible]
+def weakenId: MultiExtension ctx ctx' -> ctx.Id -> ctx'.Id := GenericArrayContext.MultiExtension.weakenId
+unseal Id.arity in
+theorem weakenId_arity : (@weakenId ctx ctx' ext i).arity = i.arity := GenericArrayContext.MultiExtension.weakenId_getInfo
 end MultiExtension
 @[irreducible, local semireducible]
 def Map: TypeAliasContext -> Type -> Type := GenericArrayContext.Map
@@ -175,7 +204,11 @@ def weakenMutualInductiveId: MultiExtension ctx ctx' -> ctx.MutualInductiveId ->
 
 unseal MutualInductiveId.inductiveArities
 theorem weakenMutualInductiveId_inductiveArities : (@weakenMutualInductiveId ctx ctx' ext mid).inductiveArities = mid.inductiveArities :=
-  congrArg (MutualInductiveSpec.arities) GenericArrayContext.MultiExtension.weakenId_getInfo
+  congrArg MutualInductiveSpec.arities GenericArrayContext.MultiExtension.weakenId_getInfo
+
+unseal MutualInductiveId.typeFormerArity
+theorem weakenMutualInductiveId_typeFormerArity : (@weakenMutualInductiveId ctx ctx' ext mid).typeFormerArity = mid.typeFormerArity :=
+  congrArg MutualInductiveSpec.typeVarCount GenericArrayContext.MultiExtension.weakenId_getInfo
 
 unseal InductiveId
 @[irreducible, local semireducible]
@@ -207,25 +240,6 @@ def extend: Map ctx β -> β -> Extension ctx ctx' a -> Map ctx' β := GenericAr
 def get: Map ctx α -> ctx.Id -> α := GenericArrayContext.Map.get
 end Map
 end InductiveContext
-
-structure TypeFormerContext: Type where
-  private mkPriv ::
-  private aliases: TypeAliasContext
-  private inductives: InductiveContext
-
-namespace TypeFormerContext
-@[irreducible]
-def mk: TypeAliasContext -> InductiveContext -> TypeFormerContext := .mkPriv
-inductive IdImpl (ctx: TypeFormerContext): Type where
-  | ialias (id: ctx.aliases.Id)
-  | iinductive (iid: ctx.inductives.InductiveId mid)
-@[irreducible, local semireducible]
-def Id: TypeFormerContext -> Type := IdImpl
-@[irreducible]
-def arity (ctx: TypeFormerContext): ctx.Id -> Nat
-| .ialias id => id.arity
-| @IdImpl.iinductive _ mid _ => mid.typeFormerArity
-end TypeFormerContext
 
 @[irreducible, local semireducible]
 def GlobalValueContext: Type := GenericSizedContext
