@@ -71,9 +71,9 @@ def transformExpressionAux (e: Expression cfg globals inductives locals) (args: 
 def transformProgram (p: Program cfg aliases globals inductives): Program (@cfg' cfg) aliases globals inductives :=
   match p with
   | .empty => .empty
-  | .typeAlias p name ext tvarnames t => .typeAlias (transformProgram p) name ext tvarnames t
+  | .typeAlias p name ext tvarinfos t => .typeAlias (transformProgram p) name ext tvarinfos t
   | .mutualInductiveDecl p ext decl => .mutualInductiveDecl (transformProgram p) ext decl
-  | .valueDecl p name ext e t =>.valueDecl (transformProgram p) name ext (transformExpression e) t
+  | .valueDecl p name ext e tvarnames t =>.valueDecl (transformProgram p) name ext (transformExpression e) tvarnames t
 end
 
 end Constructors

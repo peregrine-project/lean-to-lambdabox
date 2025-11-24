@@ -17,17 +17,49 @@ namespace Erasure
 
 def initialConfig: Config := { constructors := .value }
 
+abbrev M := ExceptT String <| CoreM
+
+def throw {α} := @throwThe String M _ α
+
+def runMeta (lctx: LocalContext) (x: MetaM α) [Monad m] [MonadLiftT CoreM m]: m α := do return (← x.run { lctx }).fst
+
+def _root_.Lean.LocalContext.enterBinder
+  (lctx: LocalContext)
+  (binderName: Name)
+  (binderType: Expr)
+  (binderInfo: BinderInfo)
+  (body: Expr)
+  : CoreM (LocalContext × Expr × FVarId)
+  := do
+    let fvarid ← mkFreshFVarId;
+    let lctx := lctx.mkLocalDecl fvarid binderName binderType binderInfo;
+    return (lctx, body.instantiate1 (.fvar fvarid), fvarid)
+
+def _root_.Lean.LocalContext.enterEta
+  (lctx: LocalContext)
+  (binderName: Name)
+  (binderType: Expr)
+  (binderInfo: BinderInfo)
+  (e: Expr)
+  : CoreM (LocalContext × Expr × FVarId)
+  := do
+    let fvarid ← mkFreshFVarId;
+    let lctx := lctx.mkLocalDecl fvarid binderName binderType binderInfo;
+    return (lctx, .app e (.fvar fvarid), fvarid)
+
 structure ExprContext where
   lctx: LocalContext
   locals: LocalValueContext
   lookup: Std.HashMap FVarId locals.Id -- invariant: every fvarid in the localcontext is mapped to a value. Include as proof?
 
-def ExprContext.empty: ExprContext where
+namespace ExprContext
+
+def empty: ExprContext where
   lctx := .empty
   locals := .empty
   lookup := ∅
 
-def ExprContext.extend
+def enterBinder
   (ctx: ExprContext)
   (binderName: Name)
   (binderType: Expr)
@@ -35,11 +67,12 @@ def ExprContext.extend
   (body: Expr)
   : CoreM ({ ctx': ExprContext // ctx.locals.Extension ctx'.locals } × Expr)
   := do
-  let fvarid ← mkFreshFVarId;
-  let lctx := ctx.lctx.mkLocalDecl fvarid binderName binderType binderInfo;
+  let (lctx, body, fvarid) ← ctx.lctx.enterBinder binderName binderType binderInfo body;
   let ⟨locals, ext⟩ := ctx.locals.extend;
   let lookup: Std.HashMap FVarId locals.Id := ctx.lookup.map (fun _ => ext.weakenId) |>.insert fvarid ext.newId;
-  return (⟨{ lctx, locals, lookup }, ext⟩, body.instantiate1 (.fvar fvarid))
+  return (⟨{ lctx, locals, lookup }, ext⟩, body)
+
+end ExprContext
 
 /-- Information about an fvar in the context of conversion of a Lean Expr to a TypedML type. -/
 inductive TypeFVarKind (tvars: TypeVarContext): Type where
@@ -49,11 +82,17 @@ inductive TypeFVarKind (tvars: TypeVarContext): Type where
   either because it is not a type or an arity
   or because it is bound in a non-prenex position.
   -/
-  | unrepresentable
+  | notlifted
 
 def TypeFVarKind.toType: TypeFVarKind tvars -> TypedML.TType tvars aliases globals
 | .lifted id => .typeVar id
-| .unrepresentable => .unrepresentable
+/-
+Claim: it is correct for toType to always return .unrepresentable and not .erased for an fvar which was not lifted.
+This is because, if an fvar represents data of an erasable type, this will be detectable from the Lean LocalContext,
+and so the check for isErasableType in eraseTypeInner will preemptively return .erased before we inspect the fvar.
+See also the call site of this function.
+-/
+| .notlifted => .unrepresentable
 
 /--
 Context used by `eraseType`.
@@ -62,35 +101,152 @@ Note that `eraseTypeToplevel` does not only read this but also adds new tvars an
 structure TypeContext where
   lctx: LocalContext
   tvars: TypeVarContext
+  tvarinfo: tvars.Map TypedML.TypeVarInfo
   lookup: Std.HashMap FVarId (TypeFVarKind tvars)
 
-def TypeContext.empty: TypeContext where
+namespace TypeContext
+
+def empty: TypeContext where
   lctx := .empty
   tvars := .empty
+  tvarinfo := .empty
   lookup := ∅
 
--- This is very similar to ExprContext.extend. Generalize?
-def TypeContext.extend
+inductive TypeVarLiftSpec where
+  /-- Generate a new type variable and map the new FVarId to it. -/
+  | lift
+  /--
+  Generate a new type variable, but mark the new FVarId as not referring to a type variable.
+  This is used for type aliases and inductive type formers, where every argument generates a type variable,
+  but arguments which are not arities cannot be used in the "body".
+  -/
+  | liftInaccessible
+  /-- Do not generate a new type variable. -/
+  | noLift
+
+def extendTypeVars (ctx: TypeContext) (info: TypedML.TypeVarInfo) (fvarid: FVarId): TypeVarLiftSpec -> { ctx': TypeContext // ctx.tvars.MultiExtension ctx'.tvars }
+| .lift =>
+  let ⟨tvars, ext⟩ := ctx.tvars.extend;
+  let lookup :=
+    ctx.lookup.map (fun _ => fun | .notlifted => .notlifted | .lifted id => .lifted (ext.weakenId id))
+    |>.insert fvarid (.lifted ext.newId)
+  ;
+  ⟨{ ctx with tvars, lookup, tvarinfo := ctx.tvarinfo.extend info ext }, ext.toMulti⟩
+| .liftInaccessible =>
+  let ⟨tvars, ext⟩ := ctx.tvars.extend;
+  let lookup :=
+    ctx.lookup.map (fun _ => fun | .notlifted => .notlifted | .lifted id => .lifted (ext.weakenId id))
+    |>.insert fvarid .notlifted
+  ;
+  ⟨{ ctx with tvars, lookup, tvarinfo := ctx.tvarinfo.extend info ext }, ext.toMulti⟩
+| .noLift =>
+  let lookup := ctx.lookup.insert fvarid .notlifted;
+  ⟨{ ctx with lookup }, .trivial⟩
+
+theorem extendTypeVars_tvars_noLift: (extendTypeVars ctx info fvarid .noLift).val.tvars = ctx.tvars := rfl
+
+inductive ClassifyResult where
+  /-- Inhabitants of this type are proofs. -/
+  | proposition
+  /-- Inhabitants of this type are predicates of arity `n`. -/
+  | predicateArity (n: Nat)
+  /-- Inhabitants of this type are type formers of arity `n`. -/
+  | typeFormerArity (n: Nat)
+  | other
+deriving Inhabited
+
+namespace ClassifyResult
+
+def isLogical: ClassifyResult -> Bool
+| proposition | predicateArity _ => true
+| typeFormerArity _ | other => false
+
+def isArity: ClassifyResult -> Bool
+| predicateArity _ | typeFormerArity _ => true
+| proposition | other => false
+
+def isSort: ClassifyResult -> Bool
+| predicateArity 0 | typeFormerArity 0 => true
+| _ => false
+
+end ClassifyResult
+
+partial def classifyType (lctx: LocalContext) (t: Expr): CoreM ClassifyResult := do
+  if ← runMeta lctx (Meta.isProp t) then
+    return .proposition
+  else
+    match ← runMeta lctx (Meta.whnf t) with
+    | .forallE binderName binderType body binderInfo =>
+      let (lctx, body, _) ← lctx.enterBinder binderName binderType binderInfo body;
+      return match ← classifyType lctx body with
+      | .proposition => unreachable! -- if β is a proposition, then (a: α) -> β is also a proposition
+      | .predicateArity n => .predicateArity (n+1)
+      | .typeFormerArity n => .typeFormerArity (n+1)
+      | .other => .other
+    | .sort u => return if u.isAlwaysZero then .predicateArity 0 else .typeFormerArity 0
+    -- This is an approximation: at greater transparencies we would perhaps be able to reduce to a forall or a sort.
+    -- MetaRocq, iiuc, has a procedure which decides whether a given type is convertible to an arity or not.
+    -- If this approximation becomes an issue here, retrying with increased transparency should work.
+    | _ => return .other
+
+def typeVarInfoOfBinderType (lctx: LocalContext) (binderName: Name) (binderType: Expr): M TypedML.TypeVarInfo := do
+  let cls ← classifyType lctx binderType;
+  return {
+    name := ← binderName.toTypeVarName
+    isLogical := cls.isLogical
+    isArity := cls.isArity
+    isSort := cls.isSort
+  }
+
+abbrev LiftSpecExt: TypeVarLiftSpec -> TypeVarContext -> TypeVarContext -> Prop
+| .lift | .liftInaccessible => TypeVarContext.MultiExtension
+| .noLift => Eq
+
+def LiftSpecExt.toMulti {tvars}: LiftSpecExt spec tvars tvars' -> TypeVarContext.MultiExtension tvars tvars' :=
+  match spec with
+  | .lift | .liftInaccessible => id
+  | .noLift => fun h => h ▸ .trivial
+
+def enterBinder
   (ctx: TypeContext)
   (binderName: Name)
   (binderType: Expr)
   (binderInfo: BinderInfo)
-  (lift: Bool)
+  (liftSpec: TypeVarLiftSpec)
   (body: Expr)
-  : CoreM ({ ctx': TypeContext // ctx.tvars.MultiExtension ctx'.tvars } × Expr)
+  : M ({ ctx': TypeContext // LiftSpecExt liftSpec ctx.tvars ctx'.tvars } × Expr)
   := do
-  let fvarid ← mkFreshFVarId;
-  let lctx := ctx.lctx.mkLocalDecl fvarid binderName binderType binderInfo;
-  let body := body.instantiate1 (.fvar fvarid);
-  if lift then 
-    let ⟨tvars, ext⟩ := ctx.tvars.extend;
-    let lookup :=
-      ctx.lookup.map (fun _ => fun | .unrepresentable => .unrepresentable | .lifted id => .lifted (ext.weakenId id))
-      |>.insert fvarid (if lift then .lifted ext.newId else .unrepresentable)
-    ;
-    return (⟨{ lctx, tvars, lookup }, ext.toMulti⟩, body)
-  else
-    return (⟨{ ctx with lctx }, .trivial⟩, body)
+  let info ← typeVarInfoOfBinderType ctx.lctx binderName binderType;
+  let (lctx, body, fvarid) ← ctx.lctx.enterBinder binderName binderType binderInfo body;
+  let tmp := { ctx with lctx }.extendTypeVars info fvarid liftSpec
+  let tctx: TypeContext := tmp.val;
+  let ext := tmp.property;
+  let ext: LiftSpecExt liftSpec ctx.tvars tctx.tvars :=
+    match h: liftSpec with
+    | .noLift => by unfold tctx tmp; rewrite [h]; rfl
+    | .lift | .liftInaccessible => ext
+  ;
+  return (⟨tctx, ext⟩, body)
+
+/--
+Like enterLambdaBody, but instead of assuming `e` is the body of a lambda-abstraction with a loose bvar,
+assumes `e` is an expression of type binderType -> β without loose bvars,
+and perform the equivalent of eta-expansion (creating `λ (x: binderType), e x`) followed by enterLambdaBody on the body.
+-/
+def enterEta
+  (ctx: TypeContext)
+  (binderName: Name)
+  (binderType: Expr)
+  (binderInfo: BinderInfo)
+  (liftSpec: TypeVarLiftSpec)
+  (e: Expr)
+  : M ({ ctx': TypeContext // ctx.tvars.MultiExtension ctx'.tvars } × Expr)
+  := do
+  let info ← typeVarInfoOfBinderType ctx.lctx binderName binderType;
+  let (lctx, body, fvarid) ← ctx.lctx.enterBinder binderName binderType binderInfo e;
+  return ({ ctx with lctx }.extendTypeVars info fvarid liftSpec, body)
+
+end TypeContext
 
 structure State (pctx: ProgramContext) where
   lookupGlobals: Std.HashMap Name pctx.globals.Id := ∅
@@ -114,6 +270,7 @@ structure EraseTypeResult (oldpctx: ProgramContext) (oldtvars: TypeVarContext) w
   pctx: ProgramContext
   pext: oldpctx.MultiExtension pctx
   tvars: TypeVarContext
+  tvarnames: tvars.Map TypeVarName
   text: oldtvars.MultiExtension tvars
   p: Program pctx
   s: State pctx
@@ -128,12 +285,6 @@ structure MiscResult (oldpctx: ProgramContext) (α: ProgramContext -> Type) wher
 
 def easyNow (p: Program pctx) (s: State pctx) (e: Expression pctx.globals pctx.inductives locals): EraseExprResult pctx locals :=
   { pctx, ext := .trivial, p, s, e }
-
-abbrev M := ExceptT String <| CoreM
-
-def throw {α} := @throwThe String M _ α
-
-def runMeta (lctx: LocalContext) (x: MetaM α) [Monad m] [MonadLiftT CoreM m]: m α := do return (← x.run { lctx }).fst
 
 /--
 Whether inhabitants of `t`, which is assumed to represent a type, can be erased.
@@ -154,7 +305,10 @@ def isErasable (e: Expr): MetaM Bool := do
     let type ← Meta.inferType e;
     isErasableType type
 
-/-- Whether a bound variable of type `t` represents a type or type former that can be lifted to a prenex type variable. -/
+/--
+Whether a bound variable of type `t` represents a type or type former that can be lifted to a prenex type variable.
+Phrased as MetaRocq type flags, this is isArity && !isLogical.
+-/
 def canLiftToTypeVar (t: Expr): Bool :=
   match t with
   | .forallE _ body .. => canLiftToTypeVar body
@@ -208,7 +362,7 @@ partial def eraseExpr
       e := .app (argres.ext.weakenExpression fnres.e) argres.e
     }
   | .lam binderName binderType body binderInfo =>
-    let (⟨bodyectx, ext⟩, body) ← ectx.extend binderName binderType binderInfo body;
+    let (⟨bodyectx, ext⟩, body) ← ectx.enterBinder binderName binderType binderInfo body;
     let bodyres ← eraseExpr body p s bodyectx;
     return { bodyres with e := .lambda (← binderName.toLocalName) ext bodyres.e }
 
@@ -224,10 +378,11 @@ where
     | .some gid => return ⟨pctx, .trivial, p, s, gid⟩
     | .none =>
       let typeres ← eraseType p s val.type;
+      let ⟨tvars, tvarnames, t⟩ := typeres.res;
       let res ← eraseExpr val.value typeres.p typeres.s .empty;
       let ⟨gctx'', gext'⟩ := res.pctx.globals.extend;
       let pctx'' := { res.pctx with globals := gctx'' };
-      let p'': Program pctx'' := .valueDecl res.p (← val.name.toGlobalName) gext' res.e (res.ext.weakenType .trivial typeres.res.snd);
+      let p'': Program pctx'' := .valueDecl res.p (← val.name.toGlobalName) gext' res.e tvarnames (res.ext.weakenType .trivial t);
       let gid := gext'.newId;
       let ext': res.pctx.MultiExtension pctx'' := { aliases := .trivial, inductives := .trivial, globals := gext'.toMulti };
       let s'' := { lookupGlobals := res.s.weaken ext'|>.lookupGlobals |>.insert val.name gid }
@@ -237,30 +392,55 @@ where
     match s.lookupAliases[val.name]? with
     | .some aid => return ⟨pctx, .trivial, p, s, aid⟩
     | .none =>
-      let ts := eraseTypeScheme p s .empty val.value;
-      sorry
+      if val.all.length > 1 then
+        throw "unexpected mutual recursion in type alias declaration"
+      else
+        let ts ← eraseTypeScheme p s .empty val.value;
+        let ⟨tvars, tvarinfo, t⟩ := ts.res;
+        let ⟨newaliases, aext⟩ := ts.pctx.aliases.extend tvars.size;
+        let ext := { globals := .trivial, aliases := aext.toMulti, inductives := .trivial };
+        return {
+          pctx := { ts.pctx with aliases := newaliases },
+          ext := ts.ext.compose ext,
+          p := .typeAlias ts.p (← val.name.toTypeAliasName) aext tvarinfo t
+          s := ts.s.weaken ext,
+          res := aext.newId
+        }
 
-  eraseTypeScheme {pctx} (p: Program pctx) (s: State pctx) (tctx: TypeContext) (e: Expr): M (MiscResult pctx (fun pctx' => (tvars: TypeVarContext) × TypedML.TType tvars pctx'.aliases pctx'.inductives)) :=
-    -- destructure e:
-    -- - if e is a λ-abstraction then add a tvar (irrespective of type!) and recurse
-    -- - if e is not a λ-abstraction then call eraseTypeSchemeEta
-    sorry
+  eraseTypeScheme {pctx} (p: Program pctx) (s: State pctx) (tctx: TypeContext) (e: Expr)
+    : M (MiscResult pctx (fun pctx' => (tvars: TypeVarContext) × tvars.Map TypedML.TypeVarInfo × TypedML.TType tvars pctx'.aliases pctx'.inductives))
+    := do
+      let e ← runMeta tctx.lctx (Meta.whnf e)
+      match e with
+      | .lam binderName binderType body binderInfo =>
+        let liftSpec := if canLiftToTypeVar binderType then .lift else .liftInaccessible;
+        let ⟨⟨tctx', _⟩, body⟩ ← tctx.enterBinder binderName binderType binderInfo liftSpec body;
+        eraseTypeScheme p s tctx' body
+      | _ => eraseTypeSchemeEta p s tctx e
 
-  eraseTypeSchemeEta {pctx} (p: Program pctx) (tctx: TypeContext) (e: Expr): M (MiscResult pctx (fun pctx' => (tvars: TypeVarContext) × TypedML.TType tvars pctx'.aliases pctx'.inductives)) :=
-    -- inspect the *type* of e, up to whnf:
-    -- - if e: (a: α) -> β, then add a tvar (irrespective of α!) and recurse on .app e (.fvar fvarid)
-    -- - if e: Type, then call eraseTypeInner
-    sorry
+  eraseTypeSchemeEta {pctx} (p: Program pctx) (s: State pctx) (tctx: TypeContext) (e: Expr)
+    : M (MiscResult pctx (fun pctx' => (tvars: TypeVarContext) × tvars.Map TypedML.TypeVarInfo × TypedML.TType tvars pctx'.aliases pctx'.inductives))
+    := do
+      let t ← runMeta tctx.lctx (Meta.inferType e >>= Meta.whnf);
+      match t with
+      | .forallE binderName binderType _ binderInfo =>
+        let liftSpec := if canLiftToTypeVar binderType then .lift else .liftInaccessible;
+        let ⟨⟨tctx', _⟩, body⟩ ← tctx.enterEta binderName binderType binderInfo liftSpec e;
+        eraseTypeSchemeEta p s tctx' body
+      | .sort u =>
+        let res ← eraseTypeInner p s tctx e;
+        return { res with res := ⟨tctx.tvars, tctx.tvarinfo, res.res⟩ }
+      | _ => throw "invalid type for type former: expected arity"
 
   eraseType
     {pctx}
     (p: Program pctx)
     (s: State pctx)
     (t: Expr)
-    : M (MiscResult pctx (fun pctx' => (tvars: TypeVarContext) × TypedML.TType tvars pctx'.aliases pctx'.inductives))
+    : M (MiscResult pctx (fun pctx' => (tvars: TypeVarContext) × tvars.Map TypeVarName × TypedML.TType tvars pctx'.aliases pctx'.inductives))
     := do
     let res ← eraseTypeToplevel p s .empty t;
-    return { pctx := res.pctx, ext := res.pext, p := res.p, s := res.s, res := ⟨res.tvars, res.t⟩ }
+    return { pctx := res.pctx, ext := res.pext, p := res.p, s := res.s, res := ⟨res.tvars, res.tvarnames, res.t⟩ }
 
   /-- Convert a Lean type to a TypedML type, lifting quantification over types and type formers to prenex type variables. -/
   eraseTypeToplevel {pctx} (p: Program pctx) (s: State pctx) (tctx: TypeContext) (t: Expr): M (EraseTypeResult pctx tctx.tvars) := do
@@ -270,10 +450,10 @@ where
     match t with
     | .forallE binderName binderType body binderInfo =>
       let domres ← eraseTypeInner p s tctx binderType;
-      let lift := canLiftToTypeVar binderType;
-      let (⟨tctx', text⟩, body) ← tctx.extend binderName binderType binderInfo lift body
+      let liftSpec := if canLiftToTypeVar binderType then .lift else .noLift;
+      let (⟨tctx', text⟩, body) ← tctx.enterBinder binderName binderType binderInfo liftSpec body
       let codomainres ← eraseTypeToplevel domres.p domres.s tctx' body;
-      let text := text.compose codomainres.text;
+      let text := text.toMulti.compose codomainres.text;
       return { codomainres with
         pext := domres.ext.compose codomainres.pext,
         text,
@@ -282,9 +462,18 @@ where
 
     | _ =>
       let innerres ← eraseTypeInner p s tctx t;
-      return { pctx := innerres.pctx, pext := innerres.ext, p := innerres.p, s := innerres.s, tvars := tctx.tvars, text := .trivial, t := innerres.res }
+      return {
+        pctx := innerres.pctx,
+        pext := innerres.ext,
+        p := innerres.p,
+        s := innerres.s,
+        tvars := tctx.tvars,
+        tvarnames := tctx.tvarinfo.map (fun i => i.name),
+        text := .trivial,
+        t := innerres.res
+      }
     
-  /-- Convert a Lean Type to a TypedML type without creating new type variables. -/
+  /-- Convert a Lean expression `t` representing a Type to a TypedML type without creating new type variables. -/
   eraseTypeInner
     {pctx}
     (p: Program pctx)
@@ -327,17 +516,37 @@ where
         | .ctorInfo val => throw "unexpected constructor, expected type former"
         | .quotInfo val => throw "unexpected QuotVal, expected type former"
         | .inductInfo val => throw "inductive type formers not yet implemented"
+        | .defnInfo val => -- applied type alias
+          let gares ← getAlias p s val;
+          let aliasid := gares.res;
+          if h: args.size = aliasid.arity then
+            let argsres ← eraseTypeArgs gares.p gares.s tctx (.ofList args.toList);
+            let aliasid := argsres.ext.aliases.weakenId aliasid;
+            let args: SizedList _ aliasid.arity := TypeAliasContext.MultiExtension.weakenId_arity.symm ▸ h ▸ argsres.res;
+            return { argsres with ext := gares.ext.compose argsres.ext, res := .typeFormerApp (.alias aliasid) args }
+          else
+            throw "type alias arity mismatch"
         | .axiomInfo val => throw "axiomatic type aliases not implemented"
         | .opaqueInfo val => throw "opaque type aliases not implemented"
-        | .defnInfo val => throw "type aliases not yet implemented"
       | .forallE binderName binderType body binderInfo =>
         let domres ← eraseTypeInner p s tctx binderType;
-        let fvarId ← mkFreshFVarId;
-        let lctx' := tctx.lctx.mkLocalDecl fvarId binderName binderType binderInfo;
-        let body := body.instantiate1 (.fvar fvarId)
-        let codres ← eraseTypeInner domres.p domres.s { tctx with lctx := lctx' } body;
-        return { codres with ext := domres.ext.compose codres.ext, res := .arrow (codres.ext.weakenType .trivial domres.res) codres.res }
+        let (⟨tctx', h⟩, body) ← tctx.enterBinder binderName binderType binderInfo .noLift body;
+        let codres ← eraseTypeInner domres.p domres.s tctx' body;
+        -- h is a proof that enterBinder with .noLift does not introduce new type variables
+        let codom := h.symm.ndrec (motive := fun tvars => TypedML.TType tvars _ _) codres.res;
+        return { codres with ext := domres.ext.compose codres.ext, res := .arrow (codres.ext.weakenType .trivial domres.res) codom }
     )
+
+  /-- Doing the equivalent of List.mapM by hand, since here we also have dependent types. -/
+  eraseTypeArgs {pctx n} (p: Program pctx) (s: State pctx) (tctx: TypeContext) (args: SizedList Expr n)
+    : M (MiscResult pctx (fun pctx' => SizedList (TypedML.TType tctx.tvars pctx'.aliases pctx'.inductives) n))
+    := do
+    match args with
+    | .nil => return { pctx, ext := .trivial, p, s, res := .nil }
+    | .cons _ arg args =>
+      let headres ← eraseTypeInner p s tctx arg;
+      let tailres ← eraseTypeArgs headres.p headres.s tctx args;
+      return { tailres with ext := headres.ext.compose tailres.ext, res := .cons _ (tailres.ext.weakenType .trivial headres.res) tailres.res }
                                                      
 end
 

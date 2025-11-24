@@ -5,6 +5,12 @@ import LeanToLambdaBox.Names
 
 namespace TypedML
 
+structure TypeVarInfo where
+  name: TypeVarName
+  isLogical: Bool
+  isArity: Bool
+  isSort: Bool
+
 inductive TypeFormerId (aliases: TypeAliasContext) (inductives: InductiveContext): Type where
   | «alias» (id: aliases.Id)
   | «inductive» (id: inductives.InductiveId mid)
@@ -30,7 +36,9 @@ inductive TType (tvars: TypeVarContext) (aliases: TypeAliasContext) (inductives:
   | typeVar (id: tvars.Id)
   | typeFormerApp (id: TypeFormerId aliases inductives) (args: SizedList (TType tvars aliases inductives) id.arity)
   | arrow (dom codom: TType tvars aliases inductives)
+  /-- The type of data which is erased. -/
   | erased
+  /-- Any type which is not representable. -/
   | unrepresentable
 
 mutual
@@ -105,13 +113,18 @@ inductive Program (cfg: Config): TypeAliasContext -> GlobalValueContext -> Induc
       (name: GlobalName)
       (ext: globals.Extension newglobals)
       (val: Expression cfg globals inductives .empty)
+      (tvarnames: tvars.Map TypeVarName)
       (t: TType tvars aliases inductives)
     : Program cfg aliases newglobals inductives 
+  /--
+  Note: the order in which type variables were added to the type var context matters,
+  since TType.typeFormerApp takes an ordered SizedList of arguments.
+  -/
   | typeAlias
       (p: Program cfg aliases globals inductives)
       (name: TypeAliasName)
       (ext: aliases.Extension newaliases tvars.size)
-      (tvarnames: SizedList TypeVarName tvars.size)
+      (tvarinfo: tvars.Map TypeVarInfo)
       (t: TType tvars aliases inductives)
     : Program cfg newaliases globals inductives
   | mutualInductiveDecl
@@ -119,12 +132,6 @@ inductive Program (cfg: Config): TypeAliasContext -> GlobalValueContext -> Induc
       (ext: inductives.Extension newinductives { typeVarCount := tvars.size, arities })
       (minds: MutualInductiveDecl tvars aliases newinductives arities)
     : Program cfg aliases globals newinductives
-
-structure BundledProgram (cfg: Config): Type where
-  aliases: TypeAliasContext
-  globals: GlobalValueContext
-  inductives: InductiveContext
-  program: Program cfg aliases globals inductives
 
 end TypedML
 

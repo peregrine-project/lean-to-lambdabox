@@ -18,6 +18,15 @@ where
   | .nil => acc
   | .cons n a as =>
     Nat.succ_add_eq_add_succ m n ▸ revAcc (.cons m a acc) as
+
+def ofList: (as: List α) -> SizedList α as.length
+| .nil => .nil
+| .cons a as => .cons _ a (ofList as)
+
+def toList: SizedList α n -> List α
+| .nil => .nil
+| .cons _ a as => .cons a as.toList
+
 end SizedList
 
 inductive DependentList (α: Type) (f: α -> Type): (List α) -> Type where

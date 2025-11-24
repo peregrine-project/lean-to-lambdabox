@@ -3,6 +3,12 @@ private abbrev GenericSizedContext := Nat
 namespace GenericSizedContext
 private def empty: GenericSizedContext := 0
 private def Id: GenericSizedContext -> Type := Fin
+private def MultiExtension (ctx ctx': GenericSizedContext): Prop := ctx ≤ ctx'
+namespace MultiExtension
+private def trivial: MultiExtension ctx ctx := Nat.le_refl _
+private def compose: (ext: MultiExtension ctx ctx') -> (ext': MultiExtension ctx' ctx'') -> MultiExtension ctx ctx'' := Nat.le_trans
+private def weakenId: MultiExtension ctx ctx' -> ctx.Id -> ctx'.Id := Fin.castLE
+end MultiExtension
 private def Extension (ctx ctx': GenericSizedContext): Prop := (ctx' = ctx + 1)
 private def extend (ctx: GenericSizedContext): { ctx': GenericSizedContext // ctx.Extension ctx' } := ⟨ctx+1, rfl⟩
 namespace Extension
@@ -13,14 +19,8 @@ private def pullback
   (extB: Extension base b)
   : { top: GenericSizedContext // a.Extension top ∧ b.Extension top }
   := ⟨a+1, rfl, (extA ▸ show _ = _ from extB) ▸ rfl⟩ -- this is the most codegolf way I've ever proved n + 1 + 1 = n + 1 + 1
+private def toMulti (ext: Extension ctx ctx'): MultiExtension ctx ctx' := ext ▸ Nat.le_succ _
 end Extension
-private def MultiExtension (ctx ctx': GenericSizedContext): Prop := ctx ≤ ctx'
-namespace MultiExtension
-private def trivial: MultiExtension ctx ctx := Nat.le_refl _
-private def compose: (ext: MultiExtension ctx ctx') -> (ext': MultiExtension ctx' ctx'') -> MultiExtension ctx ctx'' := Nat.le_trans
-private def weakenId: MultiExtension ctx ctx' -> ctx.Id -> ctx'.Id := Fin.castLE
-end MultiExtension
-private def Extension.toMulti (ext: Extension ctx ctx'): MultiExtension ctx ctx' := ext ▸ Nat.le_succ _
 
 /-- Essentially a map from `ctx.Id` to `α`. -/
 -- should this be used to define GenericArrayContext?
@@ -29,6 +29,7 @@ namespace Map
 private def empty: Map .empty α := #v[]
 private def extend (m: Map ctx α) (a: α) (ext: Extension ctx ctx'): Map ctx' α := ext ▸ m.push a
 private def get (m: Map ctx α) (i: ctx.Id): α := Vector.get m i
+private def map: (α -> β) -> Map ctx α -> Map ctx β := Vector.map
 end Map
 end GenericSizedContext
 
@@ -39,7 +40,6 @@ private abbrev Id (ctx: GenericArrayContext α): Type := Fin (ctx.size)
 namespace Id
 private def getInfo (id: @Id α ctx): α := ctx[id]
 end Id
-private def Extension (ctx ctx': GenericArrayContext α) (x: α): Prop := ctx' = ctx.push x
 private def MultiExtension (ctx ctx': GenericArrayContext α): Prop := ctx.toList.IsPrefix ctx'.toList
 namespace MultiExtension
 private def trivial: MultiExtension ctx ctx := ⟨[], List.append_nil _⟩
@@ -65,6 +65,12 @@ private theorem weakenId_getInfo: (@weakenId α ctx ctx' ext i).getInfo = i.getI
   apply List.getElem_append_left
 
 end MultiExtension
+private def Extension (ctx ctx': GenericArrayContext α) (x: α): Prop := ctx' = ctx.push x
+private def extend (ctx: GenericArrayContext α) (x: α): { ctx': GenericArrayContext α // ctx.Extension ctx' x } := ⟨ctx.push x, rfl⟩
+namespace Extension
+private def newId (ext: Extension ctx ctx' x): ctx'.Id := ⟨ctx.size, by rewrite [ext]; simp⟩
+private def toMulti (ext: Extension ctx ctx' x): MultiExtension ctx ctx' := ⟨[x], by rewrite [ext]; simp⟩
+end Extension
 
 private def Map (ctx: GenericArrayContext α) (β: Type): Type := Vector β ctx.size
 namespace Map
@@ -81,7 +87,7 @@ end GenericArrayContext
 @[irreducible, local semireducible]
 def TypeVarContext: Type := GenericSizedContext
 namespace TypeVarContext
-@[irreducible]
+@[irreducible, local semireducible]
 def empty: TypeVarContext := GenericSizedContext.empty
 @[irreducible, local semireducible]
 def Id: TypeVarContext -> Type := GenericSizedContext.Id
@@ -112,6 +118,22 @@ def weakenId: Extension ctx ctx' -> ctx.Id -> ctx'.Id := GenericSizedContext.Ext
 end Extension
 @[irreducible]
 def extend: (ctx: TypeVarContext) -> { ctx': TypeVarContext // ctx.Extension ctx' } := GenericSizedContext.extend
+@[irreducible, local semireducible]
+def Map: TypeVarContext -> Type -> Type := GenericSizedContext.Map
+namespace Map
+@[irreducible]
+def empty: Map .empty α := GenericSizedContext.Map.empty
+@[irreducible]
+def map: (α -> β) -> Map ctx α -> Map ctx β := GenericSizedContext.Map.map
+@[irreducible]
+def extend: (Map ctx α) -> α -> ctx.Extension ctx' -> Map ctx' α := GenericSizedContext.Map.extend
+/--
+This is defined only for TypeVarContext, and not for GenericSizedContext,
+because it is actually quite special that we expose a canonical ordering of the identifiers in a context.
+-/
+@[irreducible]
+def toList: Map ctx α -> List α := Vector.toList
+end Map
 end TypeVarContext
 
 @[irreducible, local semireducible]
@@ -127,9 +149,6 @@ namespace Id
 @[irreducible]
 def arity: (id: @Id ctx) -> Nat := GenericArrayContext.Id.getInfo
 end Id
-/-- A witness of the fact that `ctx'` is an extension of `ctx` with an added type alias of arity `n`. -/
-@[irreducible, local semireducible]
-def Extension: (ctx ctx': TypeAliasContext) -> (n: Nat) -> Prop := GenericArrayContext.Extension
 @[irreducible, local semireducible]
 def MultiExtension: (ctx ctx': TypeAliasContext) -> Prop := GenericArrayContext.MultiExtension
 namespace MultiExtension
@@ -142,6 +161,15 @@ def weakenId: MultiExtension ctx ctx' -> ctx.Id -> ctx'.Id := GenericArrayContex
 unseal Id.arity in
 theorem weakenId_arity : (@weakenId ctx ctx' ext i).arity = i.arity := GenericArrayContext.MultiExtension.weakenId_getInfo
 end MultiExtension
+/-- A witness of the fact that `ctx'` is an extension of `ctx` with an added type alias of arity `n`. -/
+@[irreducible, local semireducible]
+def Extension: (ctx ctx': TypeAliasContext) -> (n: Nat) -> Prop := GenericArrayContext.Extension
+namespace Extension
+def newId: Extension ctx ctx' x -> ctx'.Id := GenericArrayContext.Extension.newId
+def toMulti: Extension ctx ctx' n -> MultiExtension ctx ctx' := GenericArrayContext.Extension.toMulti
+end Extension
+@[irreducible]
+def extend: (ctx: TypeAliasContext) -> (n: Nat) -> { ctx': TypeAliasContext // ctx.Extension ctx' n } := GenericArrayContext.extend
 @[irreducible, local semireducible]
 def Map: TypeAliasContext -> Type -> Type := GenericArrayContext.Map
 namespace Map

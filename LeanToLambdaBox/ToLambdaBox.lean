@@ -61,16 +61,21 @@ def mutualInductiveDeclToLambdaBox (minds: TypedML.MutualInductiveDecl tvars ali
   -- assuming has_deps is always true
   ((minds.name, true), .inductiveDecl { bodies := minds.inductives.map (fun _ => oneInductiveDeclToLambdaBox) |>.forget, npars := minds.npars } )
 
-def typeToLambdaBox : TypedML.TType tvars aliases inductives -> LBType
+unseal TypeAliasName in
+partial def typeToLambdaBox (names: NameContext aliases globals inductives): TypedML.TType tvars aliases inductives -> LBType
 | .erased => .box
 | .unrepresentable => .any
-| .arrow dom codom => .arr (typeToLambdaBox dom) (typeToLambdaBox codom)
+| .arrow dom codom => .arr (typeToLambdaBox names dom) (typeToLambdaBox names codom)
 | .typeVar id => .var id.toIndex
 | .typeFormerApp (.inductive _iid) _args => panic! "inductive types not yet implemented"
-| .typeFormerApp (.alias _id) _args => panic! "type aliases not yet implemented"
+| .typeFormerApp (.alias id) args => args.toList.map (typeToLambdaBox names) |>.foldl (LBType.app) (LBType.const (names.aliases.get id))
 
+unseal TypeVarName in
+def typeVarInfoToLambdaBox (info: TypedML.TypeVarInfo): TypeVarInfo := { info with }
 
 unseal GlobalName in
+unseal TypeVarName in
+unseal TypeAliasName in
 def programToLambdaBox
   (p: TypedML.Program cfg aliases globals inductives)
   (hConstructors: cfg.constructors = .applied)
@@ -78,14 +83,16 @@ def programToLambdaBox
   :=
   match p with
   | .empty => ([], .empty)
-  | .valueDecl p name ext val t (tvars := tvars) =>
+  | .valueDecl p name ext val tvarnames t =>
     let (decls, names) := programToLambdaBox p hConstructors;
     let value := expressionToLambdaBox val names hConstructors;
-    -- TODO: use real names for type variables somewhere
-    let decl := .constantDecl { body := .some value, type := (List.replicate tvars.size .anon , typeToLambdaBox t)};
+    let decl := .constantDecl { body := .some value, type := (tvarnames.toList , typeToLambdaBox names t)};
     -- assuming has_deps is always true
     (((name, true), decl) :: decls, { names with globals := names.globals.extend name ext })
-  | .typeAlias _p _name ext tvarnames t => panic! "type aliases not yet implemented"
+  | .typeAlias p name ext tvarinfo t =>
+    let (decls, names) := programToLambdaBox p hConstructors;
+    let decl: GlobalDecl := .typeAliasDecl <| .some <| (tvarinfo.toList.map typeVarInfoToLambdaBox, typeToLambdaBox names t); 
+    (((name, true), decl) :: decls, { names with aliases := names.aliases.extend name ext })
   | .mutualInductiveDecl p ext minds =>
     let (decls, names) := programToLambdaBox p hConstructors;
     (mutualInductiveDeclToLambdaBox minds :: decls, { names with inductives := names.inductives.extend minds.name ext })

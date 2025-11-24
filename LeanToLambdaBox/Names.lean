@@ -34,7 +34,7 @@ private def toLocalName (n: Lean.Name): Except String LocalName :=
   match n with
   | .anonymous => pure LocalName.anon
   | .str .anonymous str => pure <| .named (cleanIdent str)
-  |  _ => throw ("Expected binder name to be anonymous or an atomic string, found " ++ reprStr n.toString)
+  |  _ => pure LocalName.anon -- these cases can be produced by Lean's hygiene system
 
 -- TODO: clarify what lambdabox module paths are used for in `lbox`. Do these names matter? Should there be a sensible dirpath instead of the empty one?
 private def toModPath: Lean.Name -> ModPath
@@ -61,9 +61,9 @@ private def rootKername (s: String): Kername :=
 @[irreducible, local semireducible] def InductiveName: Type := Ident
 @[irreducible, local semireducible] def ConstructorName: Type := Ident
 
-def x: TypeAliasName := default
-
 namespace Lean.Name
 @[irreducible] def toLocalName: Lean.Name -> Except String LocalName := _root_.toLocalName
 @[irreducible] def toGlobalName: Lean.Name -> Except String GlobalName := toKername
+@[irreducible] def toTypeAliasName: Lean.Name -> Except String TypeAliasName := toKername
+@[irreducible] def toTypeVarName: Lean.Name -> Except String TypeVarName := toLocalName
 end Lean.Name
