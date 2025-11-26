@@ -183,12 +183,10 @@ end Map
 end TypeAliasContext
 
 abbrev ConstructorArity := Nat
-/-- A list of constructor arities. -/
-abbrev OneInductiveArities := List ConstructorArity
-abbrev MutualInductiveArities := List OneInductiveArities
-structure MutualInductiveSpec where
+structure OneInductiveSpec where
   typeVarCount: Nat
-  arities: MutualInductiveArities
+  constructorArities: List ConstructorArity
+abbrev MutualInductiveSpec := List OneInductiveSpec
 
 @[irreducible, local semireducible]
 def InductiveContext: Type := GenericArrayContext MutualInductiveSpec
@@ -198,27 +196,33 @@ def empty: InductiveContext := GenericArrayContext.empty
 @[irreducible, local semireducible]
 def MutualInductiveId: InductiveContext -> Type := GenericArrayContext.Id
 namespace MutualInductiveId
-@[irreducible]
-def typeFormerArity (mid: MutualInductiveId ctx): Nat := mid.getInfo |>.typeVarCount
 @[irreducible, local semireducible]
-def inductiveArities (mid: MutualInductiveId ctx): List OneInductiveArities := mid.getInfo |>.arities
+def spec (mid: MutualInductiveId ctx): MutualInductiveSpec := mid.getInfo
 @[irreducible, local semireducible]
-def InductiveId (mid: MutualInductiveId ctx): Type := Fin (mid.inductiveArities.length)
+def InductiveId (mid: MutualInductiveId ctx): Type := Fin (mid.spec.length)
 namespace InductiveId
 @[irreducible, local semireducible]
-def constructorArities (iid: @InductiveId ctx mid): List ConstructorArity := mid.inductiveArities |>.get iid
+def spec (iid: @InductiveId ctx mid): OneInductiveSpec := mid.spec.get iid
+@[irreducible]
+def typeFormerArity (iid: @InductiveId ctx mid): Nat := iid.spec.typeVarCount
+@[irreducible, local semireducible]
+def constructorArities (iid: @InductiveId ctx mid): List ConstructorArity := iid.spec.constructorArities
 @[irreducible, local semireducible]
 def ConstructorId (iid: @InductiveId ctx mid): Type := Fin (iid.constructorArities.length)
 namespace ConstructorId
 @[irreducible]
 public def arity (cid: @ConstructorId ctx mid iid): Nat := iid.constructorArities |>.get cid
 end ConstructorId
+@[irreducible]
+def constructorIdOfIndex (iid: @InductiveId ctx mid) (cidx: Nat): Option (iid.ConstructorId) :=
+  if h: cidx < iid.constructorArities.length then
+    .some ⟨cidx, h⟩
+  else
+    .none
 end InductiveId
 export InductiveId (ConstructorId)
 end MutualInductiveId
 export MutualInductiveId (InductiveId ConstructorId)
-@[irreducible, local semireducible]
-def Extension: (ctx ctx': InductiveContext) -> (spec: MutualInductiveSpec) -> Prop := GenericArrayContext.Extension
 @[irreducible, local semireducible]
 def MultiExtension: (ctx ctx': InductiveContext) -> Prop := GenericArrayContext.MultiExtension
 namespace MultiExtension
@@ -230,33 +234,47 @@ def compose: MultiExtension ctx ctx' -> MultiExtension ctx' ctx'' -> MultiExtens
 @[irreducible, local semireducible]
 def weakenMutualInductiveId: MultiExtension ctx ctx' -> ctx.MutualInductiveId -> ctx'.MutualInductiveId := GenericArrayContext.MultiExtension.weakenId
 
-unseal MutualInductiveId.inductiveArities
-theorem weakenMutualInductiveId_inductiveArities : (@weakenMutualInductiveId ctx ctx' ext mid).inductiveArities = mid.inductiveArities :=
-  congrArg MutualInductiveSpec.arities GenericArrayContext.MultiExtension.weakenId_getInfo
-
-unseal MutualInductiveId.typeFormerArity
-theorem weakenMutualInductiveId_typeFormerArity : (@weakenMutualInductiveId ctx ctx' ext mid).typeFormerArity = mid.typeFormerArity :=
-  congrArg MutualInductiveSpec.typeVarCount GenericArrayContext.MultiExtension.weakenId_getInfo
+unseal MutualInductiveId.spec in
+theorem weakenMutualInductiveId_spec : (@weakenMutualInductiveId ctx ctx' ext mid).spec = mid.spec :=
+  GenericArrayContext.MultiExtension.weakenId_getInfo
 
 unseal InductiveId
 @[irreducible, local semireducible]
 def weakenInductiveId (ext: MultiExtension ctx ctx') (iid: @InductiveId ctx mid): (ext.weakenMutualInductiveId mid).InductiveId :=
-  Fin.cast (congrArg List.length weakenMutualInductiveId_inductiveArities).symm iid
+  Fin.cast (congrArg List.length weakenMutualInductiveId_spec).symm iid
 
-unseal MutualInductiveId.InductiveId.constructorArities
+unseal MutualInductiveId.InductiveId.spec in
+theorem weakenInductiveId_spec: (@weakenInductiveId ctx ctx' mid ext iid).spec = iid.spec :=
+  List.get_of_eq weakenMutualInductiveId_spec _
+
+unseal MutualInductiveId.InductiveId.constructorArities in
 theorem weakenInductiveId_constructorArities: (@weakenInductiveId ctx ctx' mid ext iid).constructorArities = iid.constructorArities :=
-  List.get_of_eq weakenMutualInductiveId_inductiveArities _
+  congrArg OneInductiveSpec.constructorArities weakenInductiveId_spec
+
+unseal MutualInductiveId.InductiveId.typeFormerArity in
+theorem weakenInductiveId_typeFormerArity: (@weakenInductiveId ctx ctx' mid ext iid).typeFormerArity = iid.typeFormerArity :=
+  congrArg OneInductiveSpec.typeVarCount weakenInductiveId_spec
 
 unseal ConstructorId
 @[irreducible, local semireducible]
 def weakenConstructorId (ext: MultiExtension ctx ctx') (cid: @ConstructorId ctx mid iid): (ext.weakenInductiveId iid).ConstructorId :=
   Fin.cast (congrArg List.length weakenInductiveId_constructorArities).symm cid
 
-unseal MutualInductiveId.InductiveId.ConstructorId.arity
+unseal MutualInductiveId.InductiveId.ConstructorId.arity in
 theorem weakenConstructorId_arity: (@weakenConstructorId ctx ctx' mid iid ext cid).arity = cid.arity :=
   List.get_of_eq weakenInductiveId_constructorArities _
 
 end MultiExtension
+@[irreducible, local semireducible]
+def Extension: (ctx ctx': InductiveContext) -> (spec: MutualInductiveSpec) -> Prop := GenericArrayContext.Extension
+namespace Extension
+@[irreducible]
+def newMutualInductiveId: Extension ctx ctx' spec -> ctx'.MutualInductiveId := GenericArrayContext.Extension.newId
+@[irreducible]
+def toMulti: Extension ctx ctx' spec -> MultiExtension ctx ctx' := GenericArrayContext.Extension.toMulti
+end Extension
+@[irreducible]
+def extend: (ctx: InductiveContext) -> (spec: MutualInductiveSpec) -> { ctx': InductiveContext // ctx.Extension ctx' spec } := GenericArrayContext.extend
 @[irreducible, local semireducible]
 def Map: InductiveContext -> Type -> Type := GenericArrayContext.Map
 namespace Map

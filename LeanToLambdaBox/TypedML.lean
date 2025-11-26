@@ -19,7 +19,7 @@ namespace TypeFormerId
 
 def arity: TypeFormerId aliases inductives -> Nat
 | .alias id => id.arity
-| @TypeFormerId.inductive _ _ mid _ => mid.typeFormerArity
+| @TypeFormerId.inductive _ _ _ iid => iid.typeFormerArity
 
 def weaken (aext: aliases.MultiExtension aliases') (iext: inductives.MultiExtension inductives'): TypeFormerId aliases inductives -> TypeFormerId aliases' inductives'
 | .alias id => .alias (aext.weakenId id)
@@ -28,7 +28,7 @@ def weaken (aext: aliases.MultiExtension aliases') (iext: inductives.MultiExtens
 theorem weaken_arity: arity (i.weaken aext iext) = arity i :=
   match i with
   | .alias _ => TypeAliasContext.MultiExtension.weakenId_arity
-  | .inductive _ => InductiveContext.MultiExtension.weakenMutualInductiveId_typeFormerArity
+  | .inductive _ => InductiveContext.MultiExtension.weakenInductiveId_typeFormerArity
 
 end TypeFormerId
 
@@ -87,18 +87,26 @@ def ofSizedList: SizedList (Expression cfg globals inductives locals) n -> Expre
 
 end ExpressionSizedList
 
+structure ConstructorArgInfo (tvars: TypeVarContext) (aliases: TypeAliasContext) (inductives: InductiveContext) where
+  name: LocalName
+  type: TType tvars aliases inductives
+
 structure ConstructorDecl (tvars: TypeVarContext) (aliases: TypeAliasContext) (inductives: InductiveContext) (arity: Nat): Type where
   name: ConstructorName
-  argTypes: SizedList (TType tvars aliases inductives) arity
+  args: SizedList (ConstructorArgInfo tvars aliases inductives) arity
 
-structure OneInductiveDecl (tvars: TypeVarContext) (aliases: TypeAliasContext) (inductives: InductiveContext) (arities: OneInductiveArities) where
+structure OneInductiveDecl (aliases: TypeAliasContext) (inductives: InductiveContext) (spec: OneInductiveSpec) where
   name: InductiveName
-  constructors: DependentList Nat (ConstructorDecl tvars aliases inductives) arities
+  tvars: TypeVarContext
+  tvarinfo: tvars.Map TypeVarInfo
+  size_tvars_eq_typeVarCount: tvars.size = spec.typeVarCount
+  constructors: DependentList Nat (ConstructorDecl tvars aliases inductives) spec.constructorArities
 
-structure MutualInductiveDecl (tvars: TypeVarContext) (aliases: TypeAliasContext) (inductives: InductiveContext) (arities: MutualInductiveArities) where
+structure MutualInductiveDecl (aliases: TypeAliasContext) (inductives: InductiveContext) (spec: MutualInductiveSpec) where
   name: MutualInductiveName
+  /-- The number of parameters of this inductive type familiy, relevant for type formers and constructors. -/
   npars: Nat
-  inductives: DependentList OneInductiveArities (OneInductiveDecl tvars aliases inductives) arities
+  inductives: DependentList OneInductiveSpec (OneInductiveDecl aliases inductives) spec
 
 /--
 A program made up a sequence of type alias, global value, and inductive type declarations.
@@ -129,8 +137,8 @@ inductive Program (cfg: Config): TypeAliasContext -> GlobalValueContext -> Induc
     : Program cfg newaliases globals inductives
   | mutualInductiveDecl
       (p: Program cfg aliases globals inductives)
-      (ext: inductives.Extension newinductives { typeVarCount := tvars.size, arities })
-      (minds: MutualInductiveDecl tvars aliases newinductives arities)
+      (ext: inductives.Extension newinductives spec)
+      (minds: MutualInductiveDecl aliases newinductives spec)
     : Program cfg aliases globals newinductives
 
 end TypedML

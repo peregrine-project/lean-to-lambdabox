@@ -13,6 +13,7 @@ Lean Expr
 TypedML (early)
 - Structural changes here:
   - fully apply constructors [x]
+  - remove parameters from constructor applications (optionally)
   - fully apply casesOn and emit match
   - change Nat and Int literals, constructors, and match to use native integers
   - mutual recursion to fixpoints
@@ -20,3 +21,7 @@ TypedML (late)
 - Convert to lambdabox
 Lambdabox (typed)
 - Serialize to s-expression
+
+
+# MetaRocq questions
+- what is the field "original arities" in ExAst.v one_inductive_body for? Is it arity before dearging but after parameter removal?

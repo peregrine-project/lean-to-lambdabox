@@ -14,6 +14,7 @@ open Lean
 open Lean.Compiler.LCNF
 
 namespace Erasure
+#check getCasesInfo?
 
 def initialConfig: Config := { constructors := .value }
 
@@ -249,12 +250,19 @@ def enterEta
 end TypeContext
 
 structure State (pctx: ProgramContext) where
-  lookupGlobals: Std.HashMap Name pctx.globals.Id := ∅
-  lookupAliases: Std.HashMap Name pctx.aliases.Id := ∅
+  lookupGlobals: Std.HashMap Name pctx.globals.Id
+  lookupAliases: Std.HashMap Name pctx.aliases.Id
+  lookupInductives: Std.HashMap Name ((mid: pctx.inductives.MutualInductiveId) × mid.InductiveId)
+
+def State.empty: State pctx where
+  lookupGlobals := ∅
+  lookupAliases := ∅
+  lookupInductives := ∅
 
 def State.weaken (ext: pctx.MultiExtension pctx') (s: State pctx): State pctx' where
   lookupGlobals := s.lookupGlobals.map (fun _ gid => ext.globals.weakenId gid)
   lookupAliases := s.lookupAliases.map (fun _ aid => ext.aliases.weakenId aid)
+  lookupInductives := s.lookupInductives.map (fun _ ⟨mid, iid⟩ => ⟨ext.inductives.weakenMutualInductiveId mid, ext.inductives.weakenInductiveId iid⟩)
 
 abbrev Expression := TypedML.Expression initialConfig
 abbrev Program (pctx: ProgramContext) := TypedML.Program initialConfig pctx.aliases pctx.globals pctx.inductives
@@ -319,6 +327,7 @@ set_option linter.unusedVariables false in
 mutual
 
 -- partial because when going under lambdas we rewrite the body to guarantee the locally nameless invariant, and so this is not structurally recursive
+-- use well-founded recursion?
 partial def eraseExpr
   (e: Expr)
   (p: Program pctx)
@@ -340,8 +349,8 @@ partial def eraseExpr
   | .const declName us =>
     if Lean.isCasesOnRecursor (← getEnv) declName then
       throw "casesOn not yet implemented"
+      -- for implementation, see Lean.Compiler.LCNF.getCasesInfo?
     else match ← getConstInfo declName with
-    | .ctorInfo _ => throw "constructors not yet implemented"
     | .recInfo _ => throw "recursors not implemented"
     | .inductInfo _ => throw "unexpected inductive type, should be erased"
     | .thmInfo _ => throw "unexpected theorem, should be erased"
@@ -351,6 +360,10 @@ partial def eraseExpr
     | .defnInfo val =>
       let ⟨pctx, ext, p, s, gid⟩ ← getGlobal p s val;
       return { pctx, ext, p, s, e := .global gid } 
+    | .ctorInfo val =>
+      let cres ← getConstructor p s val;
+      let ⟨mid, iid, cid⟩ := cres.res;
+      return { cres with e := .constructorVal rfl cid }
   | .app fn arg =>
     let fnres ← eraseExpr fn p s ectx;
     let argres ← eraseExpr arg fnres.p (fnres.s) ectx;
@@ -385,7 +398,8 @@ where
       let p'': Program pctx'' := .valueDecl res.p (← val.name.toGlobalName) gext' res.e tvarnames (res.ext.weakenType .trivial t);
       let gid := gext'.newId;
       let ext': res.pctx.MultiExtension pctx'' := { aliases := .trivial, inductives := .trivial, globals := gext'.toMulti };
-      let s'' := { lookupGlobals := res.s.weaken ext'|>.lookupGlobals |>.insert val.name gid }
+      let s'' := res.s.weaken ext';
+      let s'' := { s'' with lookupGlobals := s''.lookupGlobals |>.insert val.name gid }
       return { pctx := pctx'', ext := (typeres.ext.compose res.ext).compose ext', p := p'', s := s'', res := gid }
 
   getAlias {pctx} (p: Program pctx) (s: State pctx) (val: DefinitionVal): M (MiscResult pctx (fun pctx' => pctx'.aliases.Id)) := do
@@ -393,19 +407,66 @@ where
     | .some aid => return ⟨pctx, .trivial, p, s, aid⟩
     | .none =>
       if val.all.length > 1 then
+        -- but this will not detect single recursive type alias declarations
         throw "unexpected mutual recursion in type alias declaration"
       else
         let ts ← eraseTypeScheme p s .empty val.value;
         let ⟨tvars, tvarinfo, t⟩ := ts.res;
         let ⟨newaliases, aext⟩ := ts.pctx.aliases.extend tvars.size;
         let ext := { globals := .trivial, aliases := aext.toMulti, inductives := .trivial };
+        let s' := ts.s.weaken ext;
+        let s' := { s' with lookupAliases := s'.lookupAliases.insert val.name aext.newId };
         return {
           pctx := { ts.pctx with aliases := newaliases },
           ext := ts.ext.compose ext,
           p := .typeAlias ts.p (← val.name.toTypeAliasName) aext tvarinfo t
-          s := ts.s.weaken ext,
+          s := s',
           res := aext.newId
         }
+
+  getConstructor {pctx} (p: Program pctx) (s: State pctx) (val: ConstructorVal)
+    : M (MiscResult pctx (fun pctx' => (mid: pctx'.inductives.MutualInductiveId) × (iid: mid.InductiveId) × iid.ConstructorId))
+    := do
+      let .inductInfo indval ← getConstInfo val.induct | throw "expected inductive at field ConstructorVal.induct";
+      let ires ← getInductive p s indval;
+      let ⟨mid, iid⟩ := ires.res;
+      match iid.constructorIdOfIndex val.cidx with
+      | .none => throw "invalid constructor index"
+      | .some cid => return { ires with res := ⟨mid, iid, cid⟩ }
+
+  getInductive {pctx} (p: Program pctx) (s: State pctx) (val: InductiveVal)
+    : M (MiscResult pctx (fun pctx' => (mid: pctx'.inductives.MutualInductiveId) × mid.InductiveId))
+    := do
+      match s.lookupInductives[val.name]? with
+      | .some x => return { pctx, ext := .trivial, p, s, res := x }
+      | .none =>
+        -- in this case we need to handle all inductive types mutually declared with the one we want
+        let mutualInductiveSpec: MutualInductiveSpec ← val.all.mapM (fun name => do
+          let .inductInfo indval ← getConstInfo name | throw "expected inductive in field InductiveVal.all";
+          let constructorArities ← indval.ctors.mapM (fun name => do
+            let .ctorInfo ctorval ← getConstInfo name | throw "expected constructor in field InductiveVal.ctors";
+            pure (ctorval.numParams + ctorval.numFields)
+          );
+          pure { constructorArities, typeVarCount := sorry }
+        );
+        let ⟨inductives', iext⟩ := pctx.inductives.extend mutualInductiveSpec;
+        let minds: TypedML.MutualInductiveDecl pctx.aliases inductives' mutualInductiveSpec := sorry;
+        let pctx' := { pctx with inductives := inductives' };
+        let ext: pctx.MultiExtension pctx' := { globals := .trivial, aliases := .trivial, inductives := iext.toMulti };
+        let p' := .mutualInductiveDecl p iext minds;
+        let s' := s.weaken ext;
+        let lookupInductives := sorry;
+        let s' := { s' with lookupInductives };
+        let res ← match s'.lookupInductives[val.name]? with
+        | .none => throw "did not find inductive name in its own .all"
+        | .some x => pure x
+        return { pctx := pctx', ext, p := p', s := s', res }
+
+  -- here I am using tctx for brevity, but in fact we are not using the field tctx.lookup at all
+  /-- Find out how many type variables (and what kind) an inductive type former whose type is `t` should take. -/
+  eraseInductiveArity {pctx} (p: Program pctx) (s: State pctx) (tctx: TypeContext) (t: Expr)
+    : M (MiscResult pctx (fun pctx' => (tvars: TypeVarContext) × tvars.Map TypedML.TypeVarInfo))
+    := sorry
 
   eraseTypeScheme {pctx} (p: Program pctx) (s: State pctx) (tctx: TypeContext) (e: Expr)
     : M (MiscResult pctx (fun pctx' => (tvars: TypeVarContext) × tvars.Map TypedML.TypeVarInfo × TypedML.TType tvars pctx'.aliases pctx'.inductives))
@@ -999,7 +1060,7 @@ def eraseElab: Elab.Command.CommandElab
     let e ← Lean.instantiateMVars e
 
     let sOrError := do
-      let res ← (@eraseExpr .empty e .empty {} .empty);
+      let res ← (@eraseExpr .empty e .empty .empty .empty);
       let p := res.p;
       let e := res.e;
       let p' := Constructors.transformProgram p (hvalue := rfl);

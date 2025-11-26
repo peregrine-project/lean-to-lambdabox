@@ -5,6 +5,7 @@ import Batteries.CodeAction
 structure NameContext (aliases: TypeAliasContext) (globals: GlobalValueContext) (inductives: InductiveContext) where
   aliases: aliases.Map TypeAliasName
   globals: globals.Map GlobalName
+  -- thankfully, in λbox individual inductive types are identified by their index in a mutual block, otherwise this would have to be a dependent map
   inductives: inductives.Map MutualInductiveName
 
 -- This Inhabited instance should only be necessary while there are still panics for unimplemented bits.
@@ -40,27 +41,6 @@ def expressionToLambdaBox
   | .app f x => .app (expressionToLambdaBox f names hConstructors) (expressionToLambdaBox x names hConstructors)
   | .lambda name ext body => .lambda name (expressionToLambdaBox body names hConstructors)
 
-unseal ConstructorName in
-def constructorDeclToLambdaBox (decl: TypedML.ConstructorDecl tvars aliases inductives arity): ConstructorBody :=
-  {
-    name := decl.name,
-    args := panic! "constructors not yet implemented",
-    originalArity := panic! "constructors not yet implemented",
-  }
-
-unseal InductiveName in
-def oneInductiveDeclToLambdaBox (decl: TypedML.OneInductiveDecl tvars aliases inductives arities): OneInductiveBody :=
-  { name := decl.name,
-    typeVars := panic! "inductive types not yet implemented",
-    ctors := decl.constructors.map (fun _ => constructorDeclToLambdaBox) |>.forget,
-    projs := [],
-  }
-
-unseal MutualInductiveName in
-def mutualInductiveDeclToLambdaBox (minds: TypedML.MutualInductiveDecl tvars aliases inductives arities): (Kername × Bool) × GlobalDecl :=
-  -- assuming has_deps is always true
-  ((minds.name, true), .inductiveDecl { bodies := minds.inductives.map (fun _ => oneInductiveDeclToLambdaBox) |>.forget, npars := minds.npars } )
-
 unseal TypeAliasName in
 partial def typeToLambdaBox (names: NameContext aliases globals inductives): TypedML.TType tvars aliases inductives -> LBType
 | .erased => .box
@@ -70,8 +50,27 @@ partial def typeToLambdaBox (names: NameContext aliases globals inductives): Typ
 | .typeFormerApp (.inductive _iid) _args => panic! "inductive types not yet implemented"
 | .typeFormerApp (.alias id) args => args.toList.map (typeToLambdaBox names) |>.foldl (LBType.app) (LBType.const (names.aliases.get id))
 
+unseal ConstructorName in
+def constructorDeclToLambdaBox (names: NameContext aliases globals inductives) (decl: TypedML.ConstructorDecl tvars aliases inductives arity): ConstructorBody where
+  name := decl.name
+  args := decl.args.toList.map (fun argInfo => (argInfo.name, typeToLambdaBox names argInfo.type))
+  originalArity := arity -- does MetaRocq expect this to include parameters or not?
+
 unseal TypeVarName in
 def typeVarInfoToLambdaBox (info: TypedML.TypeVarInfo): TypeVarInfo := { info with }
+
+unseal InductiveName in
+def oneInductiveDeclToLambdaBox (names: NameContext aliases globals inductives) (decl: TypedML.OneInductiveDecl aliases inductives spec): OneInductiveBody :=
+  { name := decl.name,
+    typeVars := decl.tvarinfo.toList.map typeVarInfoToLambdaBox
+    ctors := decl.constructors.map (fun _ => constructorDeclToLambdaBox names) |>.forget,
+    projs := [],
+  }
+
+unseal MutualInductiveName in
+def mutualInductiveDeclToLambdaBox (names: NameContext aliases globals inductives) (minds: TypedML.MutualInductiveDecl aliases inductives spec): (Kername × Bool) × GlobalDecl :=
+  -- assuming has_deps is always true
+  ((minds.name, true), .inductiveDecl { bodies := minds.inductives.map (fun _ => oneInductiveDeclToLambdaBox names) |>.forget, npars := minds.npars } )
 
 unseal GlobalName in
 unseal TypeVarName in
@@ -95,4 +94,5 @@ def programToLambdaBox
     (((name, true), decl) :: decls, { names with aliases := names.aliases.extend name ext })
   | .mutualInductiveDecl p ext minds =>
     let (decls, names) := programToLambdaBox p hConstructors;
-    (mutualInductiveDeclToLambdaBox minds :: decls, { names with inductives := names.inductives.extend minds.name ext })
+    let names := { names with inductives := names.inductives.extend minds.name ext };
+    (mutualInductiveDeclToLambdaBox names minds :: decls, names)
