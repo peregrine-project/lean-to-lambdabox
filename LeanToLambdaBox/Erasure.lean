@@ -359,7 +359,7 @@ This not only erases the expression but also gives a context with all necessary 
 -/
 partial def erase (e : Expr) (config: ErasureConfig): CoreM Program := do
   let (t, s) ← run (do visitExpr (← prepare_erasure e)) config
-  return (s.gdecls, t)
+  return .untyped s.gdecls (.some t)
 
 where
   /- Proofs (terms whose type is of type Prop) and type formers/predicates are all erased. -/

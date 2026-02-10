@@ -41,7 +41,7 @@ instance : Serialize ModPath where to_sexpr := modpath.to_sexpr
 
 instance : Serialize Kername where
   to_sexpr
-  | ⟨mp, id⟩ => .list [ to_sexpr mp, to_sexpr id ] 
+  | ⟨mp, id⟩ => .list [ to_sexpr mp, to_sexpr id ]
 
 instance: Serialize InductiveId where
   to_sexpr | ⟨kn, idx⟩  => .list [ .atom "inductive", to_sexpr kn, to_sexpr idx ]
@@ -126,12 +126,16 @@ instance : [Serialize α] -> Serialize (Option α) where
   | .some a => .list [.atom "Some", to_sexpr a]
 
 instance : Serialize ConstantBody where
-  to_sexpr | ⟨cb⟩ => .list [.atom "constant_body", to_sexpr cb] 
+  to_sexpr | ⟨cb⟩ => .list [.atom "constant_body", to_sexpr cb]
 
 instance : Serialize GlobalDecl where
   to_sexpr
   | .constantDecl cb => .list [ .atom "ConstantDecl", to_sexpr cb ]
   | .inductiveDecl mib => .list [ .atom "InductiveDecl", to_sexpr mib ]
+
+instance : Serialize ASTType where
+  to_sexpr
+  | .untyped env t => .list [ .atom "Untyped", to_sexpr env, to_sexpr t ]
 
 /-- The Rocq/Coq lexer expects `"` characters in string literals to be represented by the sequence `""`. This is cursed. -/
 def rocq_escape (s: String): String :=
