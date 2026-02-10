@@ -54,7 +54,7 @@ structure InductiveId where
   deriving Inhabited, Repr
 
 structure ProjectionInfo where
-  indType: InductiveId 
+  indType: InductiveId
   paramCount: Nat
   fieldIdx: Nat
   deriving Inhabited, Repr
@@ -175,4 +175,8 @@ deriving Repr
 
 -- The first declarations to be added to the context are the deepest/first-consed in the list.
 abbrev GlobalDeclarations := List (Kername × GlobalDecl)
-abbrev Program: Type := GlobalDeclarations × LBTerm
+
+inductive ASTType where
+  | untyped (body: GlobalDeclarations) (term: Option LBTerm)
+deriving Repr
+abbrev Program: Type := ASTType

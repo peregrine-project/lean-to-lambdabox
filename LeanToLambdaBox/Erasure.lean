@@ -300,7 +300,7 @@ where
 
 /-- Remove the ._unsafe_rec suffix from a Name if it is present. -/
 def remove_unsafe_rec (n: Name): Name := Compiler.isUnsafeRecName? n |>.getD n
-      
+
 /--
 This is used to detect if a definition is recursive.
 Occurrences of `name` in types may or may not be detected, but I don't think this matters in practice.
@@ -357,7 +357,7 @@ This not only erases the expression but also gives a context with all necessary 
 -/
 partial def erase (e : Expr) (config: ErasureConfig): CoreM Program := do
   let (t, s) ← run (do visitExpr (← prepare_erasure e)) config
-  return (s.gdecls, t)
+  return .untyped s.gdecls (.some t)
 
 where
   /- Proofs (terms whose type is of type Prop) and type formers/predicates are all erased. -/
@@ -381,7 +381,7 @@ where
     | .peano, .natVal (n+1) => visitConstructor ``Nat.succ #[.lit (.natVal n)]
     | .machine, .natVal n =>
       if n <= BitVec.intMax 63 then
-        pure <| .prim ⟨.primInt, n⟩ 
+        pure <| .prim ⟨.primInt, n⟩
       else
         panic! "Nat literal not representable as a 63-bit signed integer."
     | _, .strVal _ => panic! "String literals not supported."
@@ -430,7 +430,7 @@ where
     if let .some id := (← read).fixvars.bind (fun hmap => hmap[declName]?) then
       return .fvar id
     return .const (← get_constant_kername declName)
-    
+
   /--
   Special handling of
   - casesOn (will be eta-expanded)
@@ -495,7 +495,7 @@ where
   visitCases (casesInfo : CasesInfo) (args: Array Expr) : EraseM LBTerm := do
     let discr_nt ← visitExpr args[casesInfo.discrPos]!
     let typeName := casesInfo.declName.getPrefix
-    
+
     -- If we are using machine Nats then the inductive casesOn will not work.
     let mut ret: LBTerm ← (match typeName, (← read).config.nat with
     | ``Nat, .machine => do
