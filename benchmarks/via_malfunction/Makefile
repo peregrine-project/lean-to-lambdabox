@@ -205,6 +205,7 @@ $(build)/%.lean: test.lean.template | $(build)
 # Running `lake build` would not work as lake would do nothing on subsequent runs if the .lean has not changed.
 $(build)/%.ast $(build)/%.mli: $(build)/%.lean ../FromLeanCommon.lean ../FromLeanCommon/
 	lake lean $<
+	cp peregrine-inlining $(build)/$*.inlining
 
 $(build)/%.mlf: $(build)/%.ast
 	$(LBOX) ocaml $< > /dev/null

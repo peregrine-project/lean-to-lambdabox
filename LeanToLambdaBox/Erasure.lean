@@ -71,6 +71,7 @@ structure ErasureContext: Type where
   lctx: LocalContext := {}
   fixvars: Option (Std.HashMap Name FVarId) := .none
   config: ErasureConfig
+  fileHandle : IO.FS.Handle
 
 /-- The monad in ToLCNF has caches, a local context and toAny as a set of fvars, all as mutable state for some reason.
     Here I just have a read-only local context, in order to be able to use MetaM's type inference, and keep the code complexity low.
@@ -80,8 +81,9 @@ structure ErasureContext: Type where
     -/
 abbrev EraseM := StateT ErasureState <| ReaderT ErasureContext CoreM
 
-def run (x : EraseM α) (config: ErasureConfig): CoreM (α × ErasureState) :=
-  x |>.run {} |>.run { config }
+def run (x : EraseM α) (config: ErasureConfig): CoreM (α × ErasureState) := do
+  let fileHandle ← IO.FS.Handle.mk "./peregrine-inlining" IO.FS.Mode.write
+  x |>.run {} |>.run { config , fileHandle }
 
 /-- Run an action of MetaM in EraseM using EraseM's local context of Lean types. -/
 @[inline] def liftMetaM (x : MetaM α) : EraseM α := do
@@ -584,7 +586,10 @@ where
     if single_decl then
       match Compiler.getInlineAttribute? (← getEnv) name with
       | .some inl => match inl with
-                     | .inline | .alwaysInline => logInfo s!"PEREGRINE INLINE {name}"
+                     | .inline | .alwaysInline => logInfo s!"Name {name} is marked as inline."
+                                                  let h := (← read).fileHandle
+                                                  h.putStrLn s!"{name}"
+                                                  h.flush
                      | _ => pure ()
       | .none => pure ()
       match ci.value? (allowOpaque := true), isExtern (← getEnv) name, (← read).config.extern with
