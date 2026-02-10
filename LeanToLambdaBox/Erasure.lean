@@ -660,7 +660,7 @@ partial def to_ml_type (ty: Expr): MetaM MLType :=
     | .const `Unit _ | .const `PUnit _ => pure .unit
     | .const `Bool _ => pure .bool
     | .app (.const `List _) a => do pure <| .list (← to_ml_type a)
-    | t => panic! s!"failed to translate {t} into ML type"
+    | t => logWarning s!"failed to translate {t} into ML type, emitting unit instead." ; pure .unit
     return varmltypes.foldr .arrow bodymltype
 
 def gen_mli (ty: Expr): MetaM String := do return s!"val main: {← to_ml_type ty}"
