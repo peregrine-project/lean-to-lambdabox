@@ -300,7 +300,7 @@ where
 
 /-- Remove the ._unsafe_rec suffix from a Name if it is present. -/
 def remove_unsafe_rec (n: Name): Name := Compiler.isUnsafeRecName? n |>.getD n
-      
+
 /--
 This is used to detect if a definition is recursive.
 Occurrences of `name` in types may or may not be detected, but I don't think this matters in practice.
@@ -381,7 +381,7 @@ where
     | .peano, .natVal (n+1) => visitConstructor ``Nat.succ #[.lit (.natVal n)]
     | .machine, .natVal n =>
       if n <= BitVec.intMax 63 then
-        pure <| .prim ⟨.primInt, n⟩ 
+        pure <| .prim ⟨.primInt, n⟩
       else
         panic! "Nat literal not representable as a 63-bit signed integer."
     | _, .strVal _ => panic! "String literals not supported."
@@ -430,7 +430,7 @@ where
     if let .some id := (← read).fixvars.bind (fun hmap => hmap[declName]?) then
       return .fvar id
     return .const (← get_constant_kername declName)
-    
+
   /--
   Special handling of
   - casesOn (will be eta-expanded)
@@ -495,7 +495,7 @@ where
   visitCases (casesInfo : CasesInfo) (args: Array Expr) : EraseM LBTerm := do
     let discr_nt ← visitExpr args[casesInfo.discrPos]!
     let typeName := casesInfo.declName.getPrefix
-    
+
     -- If we are using machine Nats then the inductive casesOn will not work.
     let mut ret: LBTerm ← (match typeName, (← read).config.nat with
     | ``Nat, .machine => do
@@ -582,6 +582,11 @@ where
     let single_decl := names.length == 1
     -- A single declaration may have to be output as an axiom.
     if single_decl then
+      match Compiler.getInlineAttribute? (← getEnv) name with
+      | .some inl => match inl with
+                     | .inline | .alwaysInline => logInfo s!"PEREGRINE INLINE {name}"
+                     | _ => pure ()
+      | .none => pure ()
       match ci.value? (allowOpaque := true), isExtern (← getEnv) name, (← read).config.extern with
       | .none, _, _ =>
         logInfo s!"No value found for name {name}, emitting axiom."
