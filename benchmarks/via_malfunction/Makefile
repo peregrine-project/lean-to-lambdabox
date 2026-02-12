@@ -1,5 +1,4 @@
-PEREGRINE_NO_UNBOX_SWITCH?=peregrine
-PEREGRINE_UNBOX_SWITCH?=peregrine-unbox
+PEREGRINE_SWITCH?=peregrine
 MALFUNCTION_NO_FLAMBDA_SWITCH?=malfunction
 MALFUNCTION_FLAMBDA_SWITCH?=malfunction+flambda
 
@@ -42,9 +41,9 @@ endif
 # 0 to keep values of one-constructor one-field inductive types boxed, 1 to unbox; default is 1.
 UNBOX?=1
 ifeq ($(UNBOX),1)
-PEREGRINE_SWITCH=$(PEREGRINE_UNBOX_SWITCH)
+PEREGRINE_CONFIG=unbox.config
 else ifeq ($(UNBOX),0)
-PEREGRINE_SWITCH=$(PEREGRINE_NO_UNBOX_SWITCH)
+PEREGRINE_CONFIG=no_unbox.config
 else
 $(error Variable UNBOX must be either 0 or 1, is $(UNBOX))
 endif
@@ -207,7 +206,7 @@ $(build)/%.ast $(build)/%.mli: $(build)/%.lean ../FromLeanCommon.lean ../FromLea
 	lake lean $<
 
 $(build)/%.mlf: $(build)/%.ast
-	$(PEREGRINE) ocaml $< > /dev/null
+	$(PEREGRINE) compile $< $(PEREGRINE_CONFIG) > /dev/null
 
 # Malfunction will silently generate an empty .cmi file if not given an .mli interface, but that won't work for linking later.
 $(build)/%.cmi: $(build)/%.mli
