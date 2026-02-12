@@ -1,0 +1,35 @@
+name: Build
+on:
+  workflow_dispatch:
+  push:
+    branches:
+    - 'main'
+    paths-ignore:
+    - '**.md'
+    - 'LICENSE'
+  pull_request:
+    paths-ignore:
+    - '**.md'
+    - 'LICENSE'
+concurrency:
+  group: "${{ github.workflow }}-${{ github.event.pull_request.number || github.head_ref || github.ref }}"
+  cancel-in-progress: true
+permissions:
+  contents: read
+env:
+  JOBS: 4
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch ${{ github.ref_name }}
+        uses: actions/checkout@v6
+
+      - name: Set up Lean and build
+        uses: leanprover/lean-action@v1
+        with:
+          use-github-cache: true
+          build: true
+          test: false
+          lint: false
