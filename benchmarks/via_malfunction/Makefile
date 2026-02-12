@@ -1,5 +1,4 @@
-LBOX_NO_UNBOX_SWITCH?=lambda-box-extraction
-LBOX_UNBOX_SWITCH?=lbox-unbox
+PEREGRINE_SWITCH?=peregrine
 MALFUNCTION_NO_FLAMBDA_SWITCH?=malfunction
 MALFUNCTION_FLAMBDA_SWITCH?=malfunction+flambda
 
@@ -42,9 +41,9 @@ endif
 # 0 to keep values of one-constructor one-field inductive types boxed, 1 to unbox; default is 1.
 UNBOX?=1
 ifeq ($(UNBOX),1)
-LBOX_SWITCH=$(LBOX_UNBOX_SWITCH)
+PEREGRINE_CONFIG=unbox.config
 else ifeq ($(UNBOX),0)
-LBOX_SWITCH=$(LBOX_NO_UNBOX_SWITCH)
+PEREGRINE_CONFIG=no_unbox.config
 else
 $(error Variable UNBOX must be either 0 or 1, is $(UNBOX))
 endif
@@ -56,7 +55,7 @@ else
 OCAMLPACKAGE=zarith
 endif
 
-LBOX=opam exec --switch=$(LBOX_SWITCH) -- lbox
+PEREGRINE=opam exec --switch=$(PEREGRINE_SWITCH) -- peregrine
 MALFUNCTION=opam exec --switch=$(MALFUNCTION_SWITCH) -- malfunction
 OCAMLOPT=opam exec --switch=$(MALFUNCTION_SWITCH) -- ocamlfind ocamlopt -package $(OCAMLPACKAGE)
 
@@ -67,7 +66,7 @@ INLINE_AXIOMS=$(INLINE_AXIOMS)\
 PRUNE_CONSTRUCTORS=$(PRUNE_CONSTRUCTORS)\
 UNBOX=$(UNBOX)\
 ERASURE_CONFIG=$(ERASURE_CONFIG)\
-LBOX_SWITCH=$(LBOX_SWITCH)\
+PEREGRINE_SWITCH=$(PEREGRINE_SWITCH)\
 MALFUNCTION_SWITCH=$(MALFUNCTION_SWITCH)\
 MALFUNCTION_ARGS=$(MALFUNCTION_ARGS)\
 OCAMLPARAM=$(OCAMLPARAM)\
@@ -205,10 +204,9 @@ $(build)/%.lean: test.lean.template | $(build)
 # Running `lake build` would not work as lake would do nothing on subsequent runs if the .lean has not changed.
 $(build)/%.ast $(build)/%.mli: $(build)/%.lean ../FromLeanCommon.lean ../FromLeanCommon/
 	lake lean $<
-	cp peregrine-inlining $(build)/$*.inlining
 
-$(build)/%.mlf: $(build)/%.ast
-	$(LBOX) ocaml $< > /dev/null
+$(build)/%.mlf: $(build)/%.ast $(build)/%.ast.inlinings
+	$(PEREGRINE) compile $< $(PEREGRINE_CONFIG) --attributes=$<.inlinings > /dev/null
 
 # Malfunction will silently generate an empty .cmi file if not given an .mli interface, but that won't work for linking later.
 $(build)/%.cmi: $(build)/%.mli

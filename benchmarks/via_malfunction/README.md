@@ -1,15 +1,7 @@
 ## OPAM switches
 The pipeline for the `malfunction-*` backends uses programs installed in a variety of OPAM switches,
 whose names are configurable via Make variables.
-- `LBOX_NO_UNBOX_SWITCH`: in which the `lbox` tool,
-  modified to accept "raw lambdabox", is installed.
-  The modified `lbox` source code is available at https://github.com/simon-dima/lambda-box-extraction/tree/release.
-  This switch is used when the Make variable `UNBOX` is set to `0` (e.g. when using the backend `malfunction-prune-nounbox`).
-- `LBOX_UNBOX_SWITCH`: in which the `lbox` tool,
-  modified to accept "raw lambdabox" *and* perform unboxing in the extraction step to Malfunction,
-  is installed.
-  The modified `lbox` source code is available at https://github.com/simon-dima/lambda-box-extraction/tree/unbox.
-  This switch is used when the Make variable `UNBOX` is set to `1`.
+- `PEREGRINE_SWITCH`: in which the `peregrine` tool is installed.
 - `MALFUNCTION_NO_FLAMBDA_SWITCH`: in which the `malfunction` executable is installed.
   Used when the Make variable `FLAMBDA` is set to `0` (e.g. when using the backend `malfunction-noflambda`).
   This switch should have an OCaml toolchain without flambda.
@@ -19,9 +11,9 @@ whose names are configurable via Make variables.
 
 These four switches are not required to be distinct or have matching OCaml versions.
 
-Each backend uses one switch for `lbox` and one for `malfunction` switch;
-For example, `malfunction-reference` refers to `LBOX_UNBOX_SWITCH` and `MALFUNCTION_FLAMBDA_SWITCH`,
-but does not require the switches `LBOX_NO_UNBOX_SWITCH` or `MALFUNCTION_NOFLAMBDA_SWITCH` to exist.
+Each backend uses one switch for `peregrine` and one for `malfunction` switch;
+For example, `malfunction-reference` refers to `PEREGRINE_SWITCH` and `MALFUNCTION_FLAMBDA_SWITCH`,
+but does not require the switch `MALFUNCTION_NOFLAMBDA_SWITCH` to exist.
 
 ## Configuration options
 These Make variables control the behavior of the pipeline.
