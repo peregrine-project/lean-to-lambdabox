@@ -137,6 +137,21 @@ instance : Serialize ASTType where
   to_sexpr
   | .untyped env t => .list [ .atom "Untyped", to_sexpr env, to_sexpr t ]
 
+instance: Serialize RemappedInductive where
+  to_sexpr | ⟨reIndName, reIndCtors, reIndMatch⟩ => .list [.atom "remapped_inductive", to_sexpr reIndName, to_sexpr reIndCtors, to_sexpr reIndMatch]
+
+instance: Serialize Remapping where
+  to_sexpr
+  | .remapInductive kn er ri => .list [ .atom "RemapInductive", to_sexpr kn, to_sexpr er, to_sexpr ri ]
+  | .remapConstant kn er a gc s => .list [ .atom "RemapConstant", to_sexpr kn, to_sexpr er, to_sexpr a, to_sexpr gc, to_sexpr s ]
+  | .remapInlineConstant kn er a gc s => .list [ .atom "RemapInlineConstant", to_sexpr kn, to_sexpr er, to_sexpr a, to_sexpr gc, to_sexpr s ]
+
+instance: Serialize InductiveMapping where
+  to_sexpr | ⟨indMapKn, indMapS, indMapN⟩ => .list [.atom "inductive_mapping", to_sexpr indMapKn, to_sexpr indMapS, to_sexpr indMapN]
+
+instance: Serialize AttributesConfig where
+  to_sexpr | ⟨inls, rmps, cstrs, cattrs⟩ => .list [.atom "attributes_config", to_sexpr inls, to_sexpr rmps, to_sexpr cstrs, to_sexpr cattrs]
+
 /-- The Rocq/Coq lexer expects `"` characters in string literals to be represented by the sequence `""`. This is cursed. -/
 def rocq_escape (s: String): String :=
   s.toList |>.map (fun c: Char => if c = '"' then [c, c] else [c]) |>.flatten |>.asString
