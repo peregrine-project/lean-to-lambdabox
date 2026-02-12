@@ -148,7 +148,7 @@ structure OneInductiveBody where
   propositional : Bool := false -- I think, since erasure should remove anything which ends up in Prop
   kelim : AllowedEliminations := .IntoAny
   ctors : List ConstructorBody
-  projs : List ProjectionBody -- This is only about giving user-visible names to projections, but `lbox` complains about wellformedness if it is empty.
+  projs : List ProjectionBody -- This is only about giving user-visible names to projections, but `peregrine` complains about wellformedness if it is empty.
 deriving Inhabited, Repr
 
 inductive RecursivityKind where
