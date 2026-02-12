@@ -180,3 +180,28 @@ inductive ASTType where
   | untyped (body: GlobalDeclarations) (term: Option LBTerm)
 deriving Repr
 abbrev Program: Type := ASTType
+
+structure RemappedInductive where
+  reIndName: String
+  reIndCtors: List String
+  reIndMatch: Option String
+deriving Inhabited, Repr
+
+inductive Remapping where
+  | remapInductive (ind: InductiveId) (external: Option String) (reInd: RemappedInductive)
+  | remapConstant (kn: Kername) (external: Option String) (arity: Option Nat) (gc: Bool) (re: String)
+  | remapInlineConstant (kn: Kername) (external: Option String) (arity: Option Nat) (gc: Bool) (re: String)
+deriving Repr
+
+structure InductiveMapping where
+  indMapKn: Kername
+  indMapS: String
+  indMapN: List Nat
+deriving Inhabited, Repr
+
+structure AttributesConfig where
+  inlinings: List Kername
+  remappings: List Remapping
+  cstrReorders: List InductiveMapping
+  customAttributes: List (Kername × String)
+deriving Inhabited, Repr
