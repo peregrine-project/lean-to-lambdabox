@@ -29,6 +29,7 @@ structure ErasureState: Type where
   constants: Std.HashMap Name Kername := ∅
   /-- This field is only updated, not read. -/
   gdecls: GlobalDeclarations := []
+  inlinings: List Kername := []
 
 namespace Config
 
@@ -71,7 +72,6 @@ structure ErasureContext: Type where
   lctx: LocalContext := {}
   fixvars: Option (Std.HashMap Name FVarId) := .none
   config: ErasureConfig
-  fileHandle : IO.FS.Handle
 
 /-- The monad in ToLCNF has caches, a local context and toAny as a set of fvars, all as mutable state for some reason.
     Here I just have a read-only local context, in order to be able to use MetaM's type inference, and keep the code complexity low.
@@ -81,9 +81,8 @@ structure ErasureContext: Type where
     -/
 abbrev EraseM := StateT ErasureState <| ReaderT ErasureContext CoreM
 
-def run (x : EraseM α) (config: ErasureConfig): CoreM (α × ErasureState) := do
-  let fileHandle ← IO.FS.Handle.mk "./peregrine-inlining" IO.FS.Mode.write
-  x |>.run {} |>.run { config , fileHandle }
+def run (x : EraseM α) (config: ErasureConfig): CoreM (α × ErasureState) :=
+  x |>.run {} |>.run { config }
 
 /-- Run an action of MetaM in EraseM using EraseM's local context of Lean types. -/
 @[inline] def liftMetaM (x : MetaM α) : EraseM α := do
@@ -357,9 +356,9 @@ Copied over from toLCNF, then quite heavily pruned and modified.
 
 This not only erases the expression but also gives a context with all necessary global declarations of inductive types and top-level constants.
 -/
-partial def erase (e : Expr) (config: ErasureConfig): CoreM Program := do
+partial def erase (e : Expr) (config: ErasureConfig): CoreM (Program × List Kername) := do
   let (t, s) ← run (do visitExpr (← prepare_erasure e)) config
-  return .untyped s.gdecls (.some t)
+  return (.untyped s.gdecls (.some t), s.inlinings)
 
 where
   /- Proofs (terms whose type is of type Prop) and type formers/predicates are all erased. -/
@@ -587,9 +586,7 @@ where
       match Compiler.getInlineAttribute? (← getEnv) name with
       | .some inl => match inl with
                      | .inline | .alwaysInline => logInfo s!"Name {name} is marked as inline."
-                                                  let h := (← read).fileHandle
-                                                  h.putStrLn s!"{name}"
-                                                  h.flush
+                                                  modify (fun s => { s with inlinings := s.inlinings.cons (toKername name) })
                      | _ => pure ()
       | .none => pure ()
       match ci.value? (allowOpaque := true), isExtern (← getEnv) name, (← read).config.extern with
@@ -678,12 +675,19 @@ def eraseElab: Elab.Command.CommandElab
     | .none => pure {}
     | .some cfg => unsafe Elab.Term.evalTerm ErasureConfig (.const ``Erasure.ErasureConfig []) cfg
 
-    let p: Program ← erase e cfg
+    let (p, inls) ← erase e cfg
     let s: String := p |> Serialize.to_sexpr |>.toString
     -- logInfo s!"{repr p}"
     match path? with
     | .some path => do
         IO.FS.writeFile path.getString s
+    | .none => logInfo s
+
+    let c: AttributesConfig := { inlinings := inls,remappings := [], cstrReorders := [], customAttributes := [] }
+    let c_s := c |> Serialize.to_sexpr |>.toString
+    match path? with
+    | .some path => do
+        IO.FS.writeFile (path.getString ++ ".inlinings") c_s
     | .none => logInfo s
 
     let ty: Expr ← Meta.inferType e
