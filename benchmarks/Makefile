@@ -14,8 +14,8 @@ malfunction-unsafearray\
 malfunction-prune-nounbox\
 malfunction-noprune-unbox\
 malfunction-noprune-nounbox\
-malfunction-noinline\
 malfunction-ocaml4
+malfunction-noinlineaxioms\
 
 benches:=
 define register_test
@@ -67,6 +67,9 @@ $(bin)/malfunction-noprune-unbox/%: FORCE | $(bin)/malfunction-noprune-unbox/
 
 $(bin)/malfunction-noprune-nounbox/%: FORCE | $(bin)/malfunction-noprune-nounbox/
 	PRUNE_CONSTRUCTORS=0 UNBOX=0 OCAMLPARAM=_,O2=1 make -C via_malfunction bin/$* TARGETDIR=../$(bin)/malfunction-noprune-nounbox
+
+$(bin)/malfunction-noinlineaxioms/%: FORCE | $(bin)/malfunction-noinlineaxioms/
+	INLINE_AXIOMS=0 OCAMLPARAM=_,O2=1 make -C via_malfunction bin/$* TARGETDIR=../$(bin)/malfunction-noinlineaxioms
 
 $(bin)/malfunction-noinline/%: FORCE | $(bin)/malfunction-noinline/
 	INLINE_AXIOMS=0 OCAMLPARAM=_,O2=1 make -C via_malfunction bin/$* TARGETDIR=../$(bin)/malfunction-noinline
