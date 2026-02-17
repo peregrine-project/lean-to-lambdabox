@@ -36,9 +36,9 @@ bin/allbenches: $(foreach bench,$(benches),$(bin)/$(bench))
 
 $(bin)/%: $(build)/%/Main.lean $(build)/%/lean-toolchain $(build)/%/lakefile.toml ../FromLeanCommon.lean ../FromLeanCommon | $(bin)/
 	(cd $(build)/$* && lake build test)
-	ln -srf $(build)/$*/.lake/build/bin/test $@
+	gln -srf $(build)/$*/.lake/build/bin/test $@
 ifdef TARGETDIR
-	ln -srf $@ $(TARGETDIR)/$*
+	gln -srf $@ $(TARGETDIR)/$*
 endif
 
 FORCE:

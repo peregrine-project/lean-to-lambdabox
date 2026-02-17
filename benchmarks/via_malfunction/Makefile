@@ -1,6 +1,6 @@
-PEREGRINE_SWITCH?=peregrine
-MALFUNCTION_NO_FLAMBDA_SWITCH?=malfunction
-MALFUNCTION_FLAMBDA_SWITCH?=malfunction+flambda
+PEREGRINE_SWITCH?=box9.0r
+MALFUNCTION_NO_FLAMBDA_SWITCH?=caml4-nolam
+MALFUNCTION_FLAMBDA_SWITCH?=caml4-lam
 
 # 0 to make without flambda, 1 to use flambda; default is 1.
 FLAMBDA?=1
@@ -39,8 +39,11 @@ $(error Variable PRUNE_CONSTRUCTORS must be either 0 or 1, is $(PRUNE_CONSTRUCTO
 endif
 
 # 0 to keep values of one-constructor one-field inductive types boxed, 1 to unbox; default is 1.
+BETARED?=1
 UNBOX?=1
-ifeq ($(UNBOX),1)
+ifeq ($(BETARED),0)
+PEREGRINE_CONFIG=no_betared.config
+else ifeq ($(UNBOX),1)
 PEREGRINE_CONFIG=unbox.config
 else ifeq ($(UNBOX),0)
 PEREGRINE_CONFIG=no_unbox.config
@@ -48,7 +51,7 @@ else
 $(error Variable UNBOX must be either 0 or 1, is $(UNBOX))
 endif
 
-ARRAYML?=JCFArray.ml
+ARRAYML?=JCFArrayOCaml4.ml
 ifeq ($(ARRAYML),SekArray.ml)
 OCAMLPACKAGE=zarith,sek
 else
@@ -58,6 +61,8 @@ endif
 PEREGRINE=opam exec --switch=$(PEREGRINE_SWITCH) -- peregrine
 MALFUNCTION=opam exec --switch=$(MALFUNCTION_SWITCH) -- malfunction
 OCAMLOPT=opam exec --switch=$(MALFUNCTION_SWITCH) -- ocamlfind ocamlopt -package $(OCAMLPACKAGE)
+
+INLINING?=1
 
 # Space-separated.
 malfunction_build_info:=OCAML_ARGS=$(OCAML_ARGS)\
@@ -75,7 +80,9 @@ DECIDABLEML=$(DECIDABLEML)\
 EQML=$(EQML)\
 NATML=$(NATML)\
 INTML=$(INTML)\
-ARRAYML=$(ARRAYML)
+ARRAYML=$(ARRAYML)\
+INLINING=$(INLINING)\
+BETARED=$(BETARED)
 
 malfunction_build_id:= $(shell echo "$(malfunction_build_info)" | sha256sum | head -c 8)
 
@@ -88,7 +95,7 @@ $(let testname harness rest,$(subst :, ,$(1)),\
 
 # The shell magic capitalizes the first letter of the test name to make a module name.
 $(build)/$(testname)_main.ml: $(harness).ml.template | $(build)
-	sed "s/{{testmodule}}/$(shell echo $(testname) | sed 's/^./\U&/')/g" $(harness).ml.template > $$@
+	gsed "s/{{testmodule}}/$(shell echo $(testname) | gsed 's/^./\U&/')/g" $(harness).ml.template > $$@
 ifeq ($(harness),natio)
 benches+=$(testname)
 endif
@@ -101,9 +108,9 @@ FORCE:
 
 bin/%: $(bin)/% $(if $(TARGETDIR),FORCE)
 ifdef TARGETDIR
-	ln -srf $< $(TARGETDIR)/$*
+	gln -srf $< $(TARGETDIR)/$*
 else
-	ln -srf $< $@
+	gln -srf $< $@
 endif
 
 bin/allbenches: $(foreach bench,$(benches),bin/$(bench))
@@ -205,8 +212,13 @@ $(build)/%.lean: test.lean.template | $(build)
 $(build)/%.ast $(build)/%.mli: $(build)/%.lean ../FromLeanCommon.lean ../FromLeanCommon/
 	lake lean $<
 
+ifeq ($(INLINING),1)
 $(build)/%.mlf: $(build)/%.ast
 	$(PEREGRINE) compile $< $(PEREGRINE_CONFIG) --attributes=$<.inlinings > /dev/null
+else
+$(build)/%.mlf: $(build)/%.ast
+	$(PEREGRINE) compile $< $(PEREGRINE_CONFIG) > /dev/null
+endif
 
 # Malfunction will silently generate an empty .cmi file if not given an .mli interface, but that won't work for linking later.
 $(build)/%.cmi: $(build)/%.mli
