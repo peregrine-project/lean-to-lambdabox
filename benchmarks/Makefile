@@ -14,6 +14,7 @@ malfunction-unsafearray\
 malfunction-prune-nounbox\
 malfunction-noprune-unbox\
 malfunction-noprune-nounbox\
+malfunction-nobetared\
 malfunction-ocaml4\
 malfunction-noinlineaxioms\
 malfunction-noinline
@@ -68,6 +69,9 @@ $(bin)/malfunction-noprune-unbox/%: FORCE | $(bin)/malfunction-noprune-unbox/
 
 $(bin)/malfunction-noprune-nounbox/%: FORCE | $(bin)/malfunction-noprune-nounbox/
 	PRUNE_CONSTRUCTORS=0 UNBOX=0 OCAMLPARAM=_,O2=1 make -C via_malfunction bin/$* TARGETDIR=../$(bin)/malfunction-noprune-nounbox
+
+$(bin)/malfunction-nobetared/%: FORCE | $(bin)/malfunction-nobetared/
+	BETARED=0 OCAMLPARAM=_,O2=1 make -C via_malfunction bin/$* TARGETDIR=../$(bin)/malfunction-nobetared
 
 $(bin)/malfunction-noinlineaxioms/%: FORCE | $(bin)/malfunction-noinlineaxioms/
 	INLINE_AXIOMS=0 OCAMLPARAM=_,O2=1 make -C via_malfunction bin/$* TARGETDIR=../$(bin)/malfunction-noinlineaxioms

@@ -39,8 +39,11 @@ $(error Variable PRUNE_CONSTRUCTORS must be either 0 or 1, is $(PRUNE_CONSTRUCTO
 endif
 
 # 0 to keep values of one-constructor one-field inductive types boxed, 1 to unbox; default is 1.
+BETARED?=1
 UNBOX?=1
-ifeq ($(UNBOX),1)
+ifeq ($(BETARED),0)
+PEREGRINE_CONFIG=no_betared.config
+else ifeq ($(UNBOX),1)
 PEREGRINE_CONFIG=unbox.config
 else ifeq ($(UNBOX),0)
 PEREGRINE_CONFIG=no_unbox.config
@@ -78,7 +81,8 @@ EQML=$(EQML)\
 NATML=$(NATML)\
 INTML=$(INTML)\
 ARRAYML=$(ARRAYML)\
-INLINING=$(INLINING)
+INLINING=$(INLINING)\
+BETARED=$(BETARED)
 
 malfunction_build_id:= $(shell echo "$(malfunction_build_info)" | sha256sum | head -c 8)
 
