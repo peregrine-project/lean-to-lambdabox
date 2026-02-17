@@ -683,7 +683,7 @@ def eraseElab: Elab.Command.CommandElab
         IO.FS.writeFile path.getString s
     | .none => logInfo s
 
-    let c: AttributesConfig := { inlinings := inls,remappings := [], cstrReorders := [], customAttributes := [] }
+    let c: AttributesConfig := { inlinings := inls, constRemappings := [], indRemappings := [], cstrReorders := [], customAttributes := [] }
     let c_s := c |> Serialize.to_sexpr |>.toString
     match path? with
     | .some path => do

@@ -140,17 +140,22 @@ instance : Serialize ASTType where
 instance: Serialize RemappedInductive where
   to_sexpr | ⟨reIndName, reIndCtors, reIndMatch⟩ => .list [.atom "remapped_inductive", to_sexpr reIndName, to_sexpr reIndCtors, to_sexpr reIndMatch]
 
-instance: Serialize Remapping where
+instance: Serialize ExtractInductive where
+  to_sexpr | ⟨cstrs, elim⟩ => .list [.atom "extract_inductive", to_sexpr cstrs, to_sexpr elim]
+
+instance: Serialize remapInductive where
   to_sexpr
-  | .remapInductive kn er ri => .list [ .atom "RemapInductive", to_sexpr kn, to_sexpr er, to_sexpr ri ]
-  | .remapConstant kn er a gc s => .list [ .atom "RemapConstant", to_sexpr kn, to_sexpr er, to_sexpr a, to_sexpr gc, to_sexpr s ]
-  | .remapInlineConstant kn er a gc s => .list [ .atom "RemapInlineConstant", to_sexpr kn, to_sexpr er, to_sexpr a, to_sexpr gc, to_sexpr s ]
+  | .knIndRemap r => .list [ .atom "KnIndRemap", to_sexpr r ]
+  | .stringIndRemap r => .list [ .atom "StringIndRemap", to_sexpr r ]
 
 instance: Serialize InductiveMapping where
   to_sexpr | ⟨indMapKn, indMapS, indMapN⟩ => .list [.atom "inductive_mapping", to_sexpr indMapKn, to_sexpr indMapS, to_sexpr indMapN]
 
+instance: Serialize RemappedConstant where
+  to_sexpr | ⟨reExt, reArity, reGC, reInl, reS⟩ => .list [.atom "remapped_constant", to_sexpr reExt, to_sexpr reArity, to_sexpr reGC, to_sexpr reInl, to_sexpr reS ]
+
 instance: Serialize AttributesConfig where
-  to_sexpr | ⟨inls, rmps, cstrs, cattrs⟩ => .list [.atom "attributes_config", to_sexpr inls, to_sexpr rmps, to_sexpr cstrs, to_sexpr cattrs]
+  to_sexpr | ⟨inls, c_rmps, i_rmps, cstrs, cattrs⟩ => .list [.atom "attributes_config", to_sexpr inls, to_sexpr c_rmps, to_sexpr i_rmps, to_sexpr cstrs, to_sexpr cattrs]
 
 /-- The Rocq/Coq lexer expects `"` characters in string literals to be represented by the sequence `""`. This is cursed. -/
 def rocq_escape (s: String): String :=

@@ -187,10 +187,22 @@ structure RemappedInductive where
   reIndMatch: Option String
 deriving Inhabited, Repr
 
-inductive Remapping where
-  | remapInductive (ind: InductiveId) (external: Option String) (reInd: RemappedInductive)
-  | remapConstant (kn: Kername) (external: Option String) (arity: Option Nat) (gc: Bool) (re: String)
-  | remapInlineConstant (kn: Kername) (external: Option String) (arity: Option Nat) (gc: Bool) (re: String)
+structure ExtractInductive where
+  cstrs: List Kername
+  elim: Kername
+deriving Inhabited, Repr
+
+structure RemappedConstant where
+  reConstExt: Option String
+  reConstArity: Nat
+  reConstGC: Bool
+  reConstInl: Bool
+  reConstS: String
+deriving Inhabited, Repr
+
+inductive remapInductive where
+  | knIndRemap (re: ExtractInductive)
+  | stringIndRemap (re: RemappedInductive)
 deriving Repr
 
 structure InductiveMapping where
@@ -201,7 +213,8 @@ deriving Inhabited, Repr
 
 structure AttributesConfig where
   inlinings: List Kername
-  remappings: List Remapping
+  constRemappings: List (Kername × RemappedConstant)
+  indRemappings: List (InductiveId × remapInductive)
   cstrReorders: List InductiveMapping
   customAttributes: List (Kername × String)
 deriving Inhabited, Repr
