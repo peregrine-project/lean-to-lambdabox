@@ -14,8 +14,9 @@ malfunction-unsafearray\
 malfunction-prune-nounbox\
 malfunction-noprune-unbox\
 malfunction-noprune-nounbox\
-malfunction-ocaml4
+malfunction-ocaml4\
 malfunction-noinlineaxioms\
+malfunction-noinline
 
 benches:=
 define register_test
@@ -72,7 +73,7 @@ $(bin)/malfunction-noinlineaxioms/%: FORCE | $(bin)/malfunction-noinlineaxioms/
 	INLINE_AXIOMS=0 OCAMLPARAM=_,O2=1 make -C via_malfunction bin/$* TARGETDIR=../$(bin)/malfunction-noinlineaxioms
 
 $(bin)/malfunction-noinline/%: FORCE | $(bin)/malfunction-noinline/
-	INLINE_AXIOMS=0 OCAMLPARAM=_,O2=1 make -C via_malfunction bin/$* TARGETDIR=../$(bin)/malfunction-noinline
+	INLINING=0 INLINE_AXIOMS=0 OCAMLPARAM=_,O2=1 make -C via_malfunction bin/$* TARGETDIR=../$(bin)/malfunction-noinline
 
 $(bin)/malfunction-ocaml4/%: FORCE | $(bin)/malfunction-ocaml4/
 	OCAMLPARAM=_,O2=1 MALFUNCTION_FLAMBDA_SWITCH=$(MALFUNCTION_OCAML4_SWITCH) make ARRAYML=JCFArrayOCaml4.ml -C via_malfunction bin/$* TARGETDIR=../$(bin)/malfunction-ocaml4

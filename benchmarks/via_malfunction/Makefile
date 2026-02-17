@@ -59,6 +59,8 @@ PEREGRINE=opam exec --switch=$(PEREGRINE_SWITCH) -- peregrine
 MALFUNCTION=opam exec --switch=$(MALFUNCTION_SWITCH) -- malfunction
 OCAMLOPT=opam exec --switch=$(MALFUNCTION_SWITCH) -- ocamlfind ocamlopt -package $(OCAMLPACKAGE)
 
+INLINING?=1
+
 # Space-separated.
 malfunction_build_info:=OCAML_ARGS=$(OCAML_ARGS)\
 FLAMBDA=$(FLAMBDA)\
@@ -75,7 +77,8 @@ DECIDABLEML=$(DECIDABLEML)\
 EQML=$(EQML)\
 NATML=$(NATML)\
 INTML=$(INTML)\
-ARRAYML=$(ARRAYML)
+ARRAYML=$(ARRAYML)\
+INLINING=$(INLINING)
 
 malfunction_build_id:= $(shell echo "$(malfunction_build_info)" | sha256sum | head -c 8)
 
@@ -205,8 +208,13 @@ $(build)/%.lean: test.lean.template | $(build)
 $(build)/%.ast $(build)/%.mli: $(build)/%.lean ../FromLeanCommon.lean ../FromLeanCommon/
 	lake lean $<
 
+ifeq ($(INLINING),1)
 $(build)/%.mlf: $(build)/%.ast
 	$(PEREGRINE) compile $< $(PEREGRINE_CONFIG) --attributes=$<.inlinings > /dev/null
+else
+$(build)/%.mlf: $(build)/%.ast
+	$(PEREGRINE) compile $< $(PEREGRINE_CONFIG) > /dev/null
+endif
 
 # Malfunction will silently generate an empty .cmi file if not given an .mli interface, but that won't work for linking later.
 $(build)/%.cmi: $(build)/%.mli
