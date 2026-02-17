@@ -205,7 +205,7 @@ $(build)/%.lean: test.lean.template | $(build)
 $(build)/%.ast $(build)/%.mli: $(build)/%.lean ../FromLeanCommon.lean ../FromLeanCommon/
 	lake lean $<
 
-$(build)/%.mlf: $(build)/%.ast $(build)/%.ast.inlinings
+$(build)/%.mlf: $(build)/%.ast
 	$(PEREGRINE) compile $< $(PEREGRINE_CONFIG) --attributes=$<.inlinings > /dev/null
 
 # Malfunction will silently generate an empty .cmi file if not given an .mli interface, but that won't work for linking later.
