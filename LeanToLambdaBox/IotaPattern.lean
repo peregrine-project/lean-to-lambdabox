@@ -11,30 +11,34 @@ against a well-typed redex, into a definitional equality. `VEnv.addRecRule`
 registers, per recursor rule, the pattern `SimplePattern.iota` and the reduct
 `SimplePattern.iotaRHS`.
 
-Consuming that interface needs three things the fork does **not** provide, and this
-file provides them:
+Consuming that interface needed three things the fork did **not** provide. The
+`6fd8a1d` re-pin brought two of them upstream — the fork adopted this file's
+`matches_varN_const` essentially verbatim and factored the reduct calculation through
+a new `iotaRHS'` — so what this file still provides is the composition and the
+`TrExprS` side:
 
-* **`matches_varN_const` / `matches_iota`** — a `Pattern.Matches` *introduction* rule
-  for spines. `Pattern.Matches` has only its three constructors plus transports; the
-  docstring of `Pattern.varN_pathOf` claims validation "against `Pattern.Matches`"
-  but no such lemma exists. `matches_varN_const` builds the match of a
-  `q.varN k` pattern against a `k`-ary constant spine *and* pins each hole:
-  `m2 (varN_pathOf k i h) = args[i]`. `matches_iota` composes two of them through
-  `Matches.app` into the ι redex shape
-  `(rec a₀ … a_{M-1}) (ctor b₀ … b_{N-1})`.
-* **`iotaRHS_apply`** — the reduct *calculation*. `SimplePattern.iotaRHS` is a
-  `foldl` of `RHS.app` over two `pmap`-of-`range` hole lists; applied to a matcher it
-  yields exactly
-  `VExpr.mkApps (rhs.instL m1) (as.take (np+nm+nmin) ++ bs.drop np)`.
+* **`matches_iota`** — the ι redex `Pattern.Matches` introduction, composing two
+  upstream `Pattern.matches_varN_const`es through `Matches.app` into
+  `(rec a₀ … a_{M-1}) (ctor b₀ … b_{N-1})`. `matches_varN_const` itself is
+  **upstream's** now (`Theory/Typing/Pattern.lean`); the copy this file carried, and
+  the `varN_pathOf` orientation lemmas and `range`-`pmap` plumbing that supported it,
+  are deleted.
+* **`iotaRHS_apply`** — the reduct *calculation*, now a restatement of upstream's
+  `SimplePattern.iotaRHS'_apply` at `iotaRHS`'s telescope split. Applied to a matcher,
+  `SimplePattern.iotaRHS` yields exactly
+  `VExpr.mkApps (rhs.instL m1) (as.take (np+nm+nmin) ++ bs.drop cnp)`.
   The two slices are **not** symmetric and are the easiest thing in this development
   to get backwards: the rec-side holes are `range (np+nm+nmin)` over a spine of
   length `np+nm+nmin+nind`, i.e. a `take` that drops the **indices** (which sit
   *between* the minors and the major premise); the ctor-side holes are `range nf` at
-  paths `np+j`, i.e. a `drop np` that keeps the **fields**. Getting either backwards
+  paths `cnp+j`, i.e. a `drop cnp` that keeps the **fields**. Getting either backwards
   silently produces a well-typed but wrong reduct, which is why `iotaRHS_apply` is
   stated with explicit `take`/`drop` and why the guard in `IotaDischarge.lean`
   exercises a shape with `np > 0` *and* `nind > 0` (with `np = nind = 0` both slices
   degenerate and a wrong convention still looks right).
+  ⚠️ The ctor-side offset is the **constructor's** own `numParams` (`cnp`), not the
+  recursor's `np`: `VRecRule` gained a `ctorParams` field at `6fd8a1d`, and the two
+  differ for the auxiliary recursors of nested inductives.
 * **`TrExprS.mkApps_inv`** — full spine inversion for `TrExprS`
   (`TrExprS_spine_head` in `SubjectReductionFull.lean` returns only the head).
 
@@ -48,85 +52,22 @@ namespace Lean4Lean
 
 open Lean
 
-/-! ## List plumbing for the `pmap`-over-`range` hole lists -/
+/-! ## `Matches` introduction for constant spines — **now upstream's**
 
-/-- `l.take k` as a `pmap` over `range k` — the shape `SimplePattern.iotaRHS`'s
-rec-side hole list has. -/
-theorem take_eq_range_pmap {α} (l : List α) (k : Nat) (hk : k ≤ l.length) :
-    (List.range k).pmap (fun i (h : i < l.length) => l[i])
-      (fun i hi => Nat.lt_of_lt_of_le (List.mem_range.1 hi) hk) = l.take k := by
-  apply List.ext_getElem
-  · simp [Nat.min_eq_left hk]
-  · intro n h1 h2
-    simp
+`Pattern.matches_varN_const` (a `q.varN k` pattern matched against a `k`-ary constant
+spine, with each hole pinned to `m2 (varN_pathOf k i h) = args[i]`) used to be *defined
+here*, together with the two `varN_pathOf` orientation lemmas and the
+`range`-`pmap` ↔ `take`/`drop` plumbing its proof and `iotaRHS_apply`'s needed. At
+`6fd8a1d` upstream declared it under the **same qualified name**
+(`Lean4Lean.Pattern.matches_varN_const`, `Theory/Typing/Pattern.lean`), adopting this
+file's statement essentially verbatim — an "already declared" build error, not a type
+error — so the copy and its support are deleted and the uses below resolve upstream.
+Upstream's `SimplePattern.iotaRHS'_apply` subsumes the plumbing.
 
-/-- `l.drop np` as a `pmap` over `range nf` — the shape `SimplePattern.iotaRHS`'s
-ctor-side hole list has (holes at paths `np+j`, `j < nf`). -/
-theorem drop_eq_range_pmap {α} (l : List α) (np nf : Nat) (hk : l.length = np + nf) :
-    (List.range nf).pmap (fun j (h : np + j < l.length) => l[np+j])
-      (fun j hj => by have := List.mem_range.1 hj; omega) = l.drop np := by
-  apply List.ext_getElem
-  · simp; omega
-  · intro n h1 h2
-    simp
-
--- Snoc for `VExpr.mkApps` (`= List.foldl .app`) used to live here. The `trproj`
--- re-pin brought upstream its own `Lean4Lean.VExpr.mkApps_concat` (`Verify/Typing/
--- Lemmas.lean`, same statement with implicit arguments), part of the `mkApps`/
--- `fieldSelector` kit the `TrProj.*` structural proofs needed. The duplicate is
--- deleted; the use site below resolves to upstream's.
-
-/-! ## `varN_pathOf` orientation
-
-`Pattern.varN k` adds its `.var`s **outermost-last**, so the *last* argument of a
-spine sits at path `none` and argument `i < k` at `someᵏ⁻¹⁻ⁱ none`. These two
-lemmas are the only place that orientation is unfolded; `matches_varN_const` and
-`iotaRHS_apply` both go through them, so they cannot disagree. -/
-
-/-- The last argument of a `k+1`-ary spine sits at the outermost hole. -/
-theorem Pattern.varN_pathOf_self {q : Pattern} {k : Nat} (h : k < k+1) :
-    Pattern.varN_pathOf (q := q) (k+1) k h = (none : Option (q.varN k).Path) := dif_pos rfl
-
-/-- An earlier argument sits one `.var` deeper. -/
-theorem Pattern.varN_pathOf_lt {q : Pattern} {k i : Nat} (h : i < k+1) (hik : i ≠ k)
-    (h' : i < k) :
-    Pattern.varN_pathOf (q := q) (k+1) i h = some (Pattern.varN_pathOf (q := q) k i h') :=
-  dif_neg hik
-
-/-! ## `Matches` introduction for constant spines -/
-
-/-- **A `k`-ary constant spine matches `(.const c).varN k`, with the holes named.**
-The matcher's level list is the head's (`ls`) and hole `varN_pathOf k i` is the
-`i`-th argument. This is the `Pattern.Matches` introduction rule the fork lacks. -/
-theorem Pattern.matches_varN_const {c : Name} {ls : List VLevel} :
-    ∀ (k : Nat) (args : List VExpr) (hlen : args.length = k),
-      ∃ m2, Pattern.Matches ((Pattern.const c).varN k)
-              (VExpr.mkApps (.const c ls) args) ls m2 ∧
-            ∀ i (h : i < k), m2 (Pattern.varN_pathOf k i h) = args[i]'(hlen ▸ h)
-  | 0, args, hlen => by
-    obtain rfl : args = [] := List.eq_nil_of_length_eq_zero hlen
-    exact ⟨nofun, .const, nofun⟩
-  | k+1, args, hlen => by
-    rcases List.eq_nil_or_concat args with rfl | ⟨init, last, rfl⟩
-    · simp at hlen
-    · simp only [List.concat_eq_append] at hlen ⊢
-      simp only [List.length_append, List.length_cons, List.length_nil] at hlen
-      have hinit : init.length = k := by omega
-      obtain ⟨m2, hm, hval⟩ := Pattern.matches_varN_const (c := c) (ls := ls) k init hinit
-      refine ⟨fun p => Option.elim p last m2, ?_, ?_⟩
-      · rw [VExpr.mkApps_concat]
-        exact hm.var
-      · intro i h
-        show (Pattern.varN_pathOf (k+1) i h).elim last m2 = _
-        by_cases hik : i = k
-        · subst hik
-          rw [Pattern.varN_pathOf_self]
-          show last = _
-          simp [hinit]
-        · have h' : i < k := by omega
-          rw [Pattern.varN_pathOf_lt h hik h']
-          show m2 _ = _
-          rw [hval i h', List.getElem_append_left (hinit ▸ h')]
+Also deleted with them: `Pattern.RHS.apply_foldl` (upstream ships
+`Pattern.RHS.apply_foldl_var`) and the local snoc lemma for `VExpr.mkApps`, whose
+upstream counterpart `VExpr.mkApps_concat` was itself removed at `6fd8a1d` when the
+projection builders' lift/inst family was re-derived from `subst`. -/
 
 /-- **The ι redex builder.** `(SimplePattern.iota r M c N).toPattern` matches exactly
 `(r a₀ … a_{M-1}) (c b₀ … b_{N-1})`, at the *recursor's* level list (`Matches.app`
@@ -145,51 +86,39 @@ theorem Pattern.matches_iota {recName cName : Name} {ls ls' : List VLevel}
 
 /-! ## The reduct calculation -/
 
-/-- `RHS.apply` turns a `foldl RHS.app` into a `VExpr.mkApps`. -/
-theorem Pattern.RHS.apply_foldl {p : Pattern} {m1 m2} (base : p.RHS) :
-    ∀ (l : List p.RHS),
-      (l.foldl Pattern.RHS.app base).apply m1 m2
-        = VExpr.mkApps (base.apply m1 m2) (l.map (Pattern.RHS.apply m1 m2))
-  | [] => rfl
-  | a :: as => by
-    show ((as.foldl Pattern.RHS.app (base.app a)).apply m1 m2) = _
-    rw [Pattern.RHS.apply_foldl (base.app a) as]
-    rfl
-
 /-- **The registered ι reduct, computed.** Applying `SimplePattern.iotaRHS` to a
 matcher gives the rule template (level-instantiated at the *recursor's* universes)
 applied to
 
 * the recursor spine's **parameters, motives and minors** — `as.take (np+nm+nmin)`,
   dropping the `nind` indices, which sit between the minors and the major premise;
-* the constructor spine's **fields** — `bs.drop np`, dropping its parameters,
+* the constructor spine's **fields** — `bs.drop cnp`, dropping *the constructor's own*
+  parameters,
 
 in that order and *not* reversed. This is exactly `inductiveReduceRec`'s slicing and
 exactly the argument list the source-side ι reduct
-`(cargs.drop np).foldl Expr.app minors[cidx]` wants. -/
-theorem SimplePattern.iotaRHS_apply {r c : Name} {np nm nmin nind nf : Nat}
+`(cargs.drop cnp).foldl Expr.app minors[cidx]` wants.
+
+`cnp` is the **constructor's** `numParams`, which `VRecRule.ctorParams` records since
+`6fd8a1d`; it coincides with the recursor's `np` for ordinary inductives and differs
+for the auxiliary recursors of nested ones. `VEnv.addRecRule` keys the registered
+pattern on `cnp + nfields`, so nothing here may read `np` on the constructor side.
+
+Since `6fd8a1d` this is upstream's `SimplePattern.iotaRHS'_apply` read at `iotaRHS`'s
+telescope split (`iotaRHS` is by definition `iotaRHS'` at `k := np+nm+nmin`), so the
+`range`-`pmap` computation this file used to carry is gone. -/
+theorem SimplePattern.iotaRHS_apply {r c : Name} {np nm nmin nind cnp nf : Nat}
     {rhs : VExpr} {hc : rhs.Closed} {m1 : List VLevel}
-    {m2 : (SimplePattern.iota r (np+nm+nmin+nind) c (np+nf)).toPattern.Path → VExpr}
+    {m2 : (SimplePattern.iota r (np+nm+nmin+nind) c (cnp+nf)).toPattern.Path → VExpr}
     {as bs : List VExpr}
-    (has : as.length = np+nm+nmin+nind) (hbs : bs.length = np+nf)
+    (has : as.length = np+nm+nmin+nind) (hbs : bs.length = cnp+nf)
     (hma : ∀ i (h : i < np+nm+nmin+nind),
       m2 (.inl (Pattern.varN_pathOf (np+nm+nmin+nind) i h)) = as[i]'(has ▸ h))
-    (hmb : ∀ j (h : j < np+nf),
-      m2 (.inr (Pattern.varN_pathOf (np+nf) j h)) = bs[j]'(hbs ▸ h)) :
-    (SimplePattern.iotaRHS r c np nm nmin nind nf rhs hc).apply m1 m2
-      = VExpr.mkApps (rhs.instL m1) (as.take (np+nm+nmin) ++ bs.drop np) := by
-  rw [SimplePattern.iotaRHS, Pattern.RHS.apply_foldl]
-  congr 1
-  rw [List.map_append]
-  congr 1
-  · rw [List.map_pmap, ← take_eq_range_pmap as (np+nm+nmin) (by omega)]
-    apply List.pmap_congr_left
-    intro i hi h1 h2
-    exact hma i _
-  · rw [List.map_pmap, ← drop_eq_range_pmap bs np nf hbs]
-    apply List.pmap_congr_left
-    intro j hj h1 h2
-    exact hmb (np+j) _
+    (hmb : ∀ j (h : j < cnp+nf),
+      m2 (.inr (Pattern.varN_pathOf (cnp+nf) j h)) = bs[j]'(hbs ▸ h)) :
+    (SimplePattern.iotaRHS r c np nm nmin nind cnp nf rhs hc).apply m1 m2
+      = VExpr.mkApps (rhs.instL m1) (as.take (np+nm+nmin) ++ bs.drop cnp) :=
+  SimplePattern.iotaRHS'_apply r c (np+nm+nmin) nind cnp nf rhs hc m1 m2 has hbs hma hmb
 
 /-! ## `TrExprS` spine inversion -/
 
@@ -225,15 +154,25 @@ They are recovered by **application generation**,
 `Lean4Lean.VEnv.HasType.app_inv` (`Theory/Typing/Strong.lean`), which is a proved
 theorem at the current pin — `Strong.lean`'s `IsDefEq.strong` /
 `IsDefEqStrong.hasType'` layering exists exactly for this. Its premises are
-`env.Ordered` and `OnCtx Γ (env.IsType U)`, i.e. `henv.ordered` and `hΔ.toCtx`, which
-every call site here already has. Its sorry-frontier is a *subset* of the one
-`VEnv.IsDefEq.uniqU` already carries — and `uniqU` is called throughout the committed
-development (including `trExprS_beta_step`) — so this costs no new sorry-carrying
-declaration. -/
+`env.OrderedStrong` and `OnCtx Γ (env.IsType U)`, i.e. `henv.orderedStrong` and
+`hΔ.toCtx`, which every call site here already has. Its sorry-frontier is a *subset*
+of the one `VEnv.IsDefEq.uniqU` already carries — and `uniqU` is called throughout the
+committed development (including `trExprS_beta_step`) — so this costs no new
+sorry-carrying declaration.
+
+⚠️ At `6fd8a1d` the premise **strengthened** from `env.Ordered` to
+`env.OrderedStrong` (`Ordered` + `OnTypes (EnvStrong env)` + `PatsStrongOn`): the ι
+redesign restated ι subject reduction over well-formed *prefixes*, so the strong
+developments now carry it as a field rather than re-deriving it. The two lemmas below
+take `OrderedStrong` for the same reason. The route from `VEnv.WF` is
+`VEnv.WF.orderedStrong`, which is where the single consolidated ι obligation
+`VEnv.WF.patsStrong` enters — the same obligation `IsDefEq.strong` was already
+carrying under 15 scattered markers, now named once. A bare `Ordered` no longer
+suffices; there is a `CoeOut` the other way. -/
 
 /-- Every prefix of a well-typed application spine is well-typed. -/
-theorem VExpr.WF.mkApps_head {env : VEnv} (henv : env.Ordered) {U : Nat} {Γ : List VExpr}
-    (hΓ : OnCtx Γ (env.IsType U)) :
+theorem VExpr.WF.mkApps_head {env : VEnv} (henv : env.OrderedStrong) {U : Nat}
+    {Γ : List VExpr} (hΓ : OnCtx Γ (env.IsType U)) :
     ∀ (args : List VExpr) {f : VExpr},
       VExpr.WF env U Γ (VExpr.mkApps f args) → VExpr.WF env U Γ f
   | [], _, h => h
@@ -245,8 +184,8 @@ theorem VExpr.WF.mkApps_head {env : VEnv} (henv : env.Ordered) {U : Nat} {Γ : L
 /-- **`TrExprS` for an application spine, from the spine's well-typedness.** Each
 `TrExprS.app` node's `HasType` fields are recovered by application generation, so no
 app node of the *input* has to supply them. Converse of `TrExprS.mkApps_inv`. -/
-theorem TrExprS.mkApps {env : VEnv} (henv : env.Ordered) {Us : List Name} {Δ : VLCtx}
-    (hΓ : OnCtx Δ.toCtx (env.IsType Us.length))
+theorem TrExprS.mkApps {env : VEnv} (henv : env.OrderedStrong) {Us : List Name}
+    {Δ : VLCtx} (hΓ : OnCtx Δ.toCtx (env.IsType Us.length))
     {args : List Expr} {args' : List VExpr}
     (hall : List.Forall₂ (TrExprS env Us Δ) args args') :
     ∀ {head : Expr} {hve : VExpr},
@@ -283,7 +222,7 @@ theorem VEnv.IsDefEqU.mkApps_congr_head {env : VEnv} (henv : env.WF) {U : Nat}
   | a :: as, f, g, hd, hwf => by
     have hwf' : VExpr.WF env U Γ (VExpr.mkApps (.app g a) as) := hwf
     obtain ⟨A, B, hg, ha⟩ :=
-      (VExpr.WF.mkApps_head henv.ordered hΓ _ hwf').app_inv henv.ordered hΓ
+      (VExpr.WF.mkApps_head henv.orderedStrong hΓ _ hwf').app_inv henv.orderedStrong hΓ
     have hfg : env.IsDefEq U Γ f g (.forallE A B) :=
       (VEnv.IsDefEqU.of_l henv hΓ hd.symm hg).symm
     have hstep : env.IsDefEqU U Γ (.app f a) (.app g a) := ⟨_, .appDF hfg ha⟩
@@ -424,19 +363,27 @@ structure PatsIotaSpec (safety : DefinitionSafety) (kenv : Lean.Kernel.Environme
   **with its payload named**: the reduct is `SimplePattern.iotaRHS` over a closed
   translation `rhs` of the *kernel* rule's template `rule.rhs`, at the kernel's own
   `numParams`/`numMotives`/`numMinors`/`numIndices` split, and the side-condition
-  check is the trivial one. -/
+  check is the trivial one.
+
+  Since `6fd8a1d` it also **returns the constructor**, tied to the kernel by
+  `kenv.find? cName = some (.ctorInfo cval)`, and keys the pattern's constructor-side
+  arity on `cval.numParams` rather than the recursor's `rval.numParams` — the two
+  differ for the auxiliary recursors of nested inductives, and `VEnv.addRecRule` keys
+  on the constructor's. This is the ctor↔pattern agreement the projection round used
+  to certify by hand as `ProjCtorAgree`. -/
   pats_iota' : ∀ {recName cName : Name} {rval : RecursorVal} {rule : RecursorRule},
     kenv.find? recName = some (.recInfo rval) →
     rval.rules.find? (·.ctor == cName) = some rule →
     safety ≤ (Lean.ConstantInfo.recInfo rval).safety →
-    ∃ (rhs : VExpr) (hc : rhs.Closed),
+    ∃ (cval : ConstructorVal) (rhs : VExpr) (hc : rhs.Closed),
+      kenv.find? cName = some (.ctorInfo cval) ∧
       TrExprS venv rval.levelParams [] rule.rhs rhs ∧
       venv.pats
         (SimplePattern.iota recName
           (rval.numParams + rval.numMotives + rval.numMinors + rval.numIndices) cName
-          (rval.numParams + rule.nfields)).toPattern
+          (cval.numParams + rule.nfields)).toPattern
         (SimplePattern.iotaRHS recName cName rval.numParams rval.numMotives rval.numMinors
-          rval.numIndices rule.nfields rhs hc, .true)
+          rval.numIndices cval.numParams rule.nfields rhs hc, .true)
 
 /-- **`PatsIotaSpec` is discharged for translated environments.** Any `TrEnv` — the
 relation saying `venv` is the model of the kernel environment `kenv` — satisfies the
@@ -447,12 +394,15 @@ This closes the one upstream item the ι capstone was carrying. It does **not** 
 the structure from the capstone signatures: those stay stated over an ambient `VEnv`
 with `PatsIotaSpec` as an explicit premise, and a `TrEnv`-holding caller discharges it
 here. Its axiom set is `pats_iota'`'s, which since the `fee3ada` re-pin (2026-08-27) is
-**sorryAx-free**: it is lean4lean's three `PersistentHashMap` `ConstMap` modelling axioms
-and nothing else. [This used to read "`sorryAx` via the `TrProj` placeholder carried in
-`TrExprS`". `TrProj` has a real definition now, so mentioning `TrExprS` costs nothing, and
-`TrEnv.pats_iota'` measures clean. It never picked up `Aligned.addInduct` — it routes
-through `TrEnv'.constMap_wf`, not `map_wf` — so with the placeholder gone there was
-nothing left.] -/
+**sorryAx-free**: it is lean4lean's `PersistentHashMap` `ConstMap` modelling axioms and
+nothing else. [This used to read "`sorryAx` via the `TrProj` placeholder carried in
+`TrExprS`". `TrProj` has a real definition now, so mentioning `TrExprS` costs nothing,
+and `TrEnv.pats_iota'` measures clean. The claim that it "never picked up
+`Aligned.addInduct` because it routes through `TrEnv'.constMap_wf`, not `map_wf`" is
+**obsolete at `6fd8a1d`, in the good direction**: `constMap_wf` was *deleted* precisely
+because `Aligned.addInduct` is now **proved**, and `pats_iota'` routes through
+`TrEnv'.map_wf`, which is clean. The routing rule the previous round recorded is
+inverted; the measurement is unchanged.] -/
 theorem PatsIotaSpec.of_trEnv {safety : DefinitionSafety} {kenv : Lean.Kernel.Environment}
     {venv : VEnv} (H : TrEnv safety kenv venv) : PatsIotaSpec safety kenv venv :=
   ⟨fun hrec hrule hsafe => TrEnv.pats_iota' H hrec hrule hsafe⟩
@@ -461,9 +411,19 @@ theorem PatsIotaSpec.of_trEnv {safety : DefinitionSafety} {kenv : Lean.Kernel.En
 
 /-- **The ι rule fires.** Given the named spec, a translated **exact-arity** redex
 `rec a₀ … a_{M-1} (ctor b₀ … b_{N-1})` — with `M = np+nm+nmin+nind` and
-`N = np+nfields`, the only shape `SimplePattern.iota` matches — is definitionally
+`N = cnp+nfields`, the only shape `SimplePattern.iota` matches — is definitionally
 equal to the kernel rule's template applied to the recursor's
 parameters/motives/minors and the constructor's fields.
+
+The constructor-side arity `cnp` is the **constructor's own** `numParams`, and the
+caller must say so by resolving the constructor in `kenv` (`hctor`) — the shape
+upstream's `TrEnv.iota_rec` also moved to at `6fd8a1d`, when `VRecRule` gained
+`ctorParams` and `VEnv.addRecRule` started keying the registered pattern on it. For an
+ordinary inductive `cnp` is the recursor's `rval.numParams`; the two part company for
+the auxiliary recursors of nested inductives, and the registry follows the constructor.
+So `hctor` is not bookkeeping: it is what says *which* arity the pattern in `venv.pats`
+was keyed at, and without it the redex and the registered rule need not have the same
+constructor-side arity at all.
 
 Everything on the right-hand side is *named*: `rhs` is the translation of
 `rule.rhs`, and the argument lists are the translations of the source spines'
@@ -474,13 +434,16 @@ theorem iota_defeq_spine {safety : DefinitionSafety} {kenv : Lean.Kernel.Environ
     {venv : VEnv} (hspec : PatsIotaSpec safety kenv venv) (henv : venv.WF)
     {Us : List Name} {Δ : VLCtx} (hΔ : VLCtx.WF venv Us.length Δ)
     {recName cName : Name} {rval : RecursorVal} {rule : RecursorRule}
+    {cnp : Nat}
     (hrec : kenv.find? recName = some (.recInfo rval))
     (hrule : rval.rules.find? (·.ctor == cName) = some rule)
     (hsafe : safety ≤ (Lean.ConstantInfo.recInfo rval).safety)
+    (hctor : ∃ cval : ConstructorVal,
+      kenv.find? cName = some (.ctorInfo cval) ∧ cval.numParams = cnp)
     {recArgs ctorArgs : List Expr} {rus cus : List Level} {ve : VExpr}
     (hras : recArgs.length =
       rval.numParams + rval.numMotives + rval.numMinors + rval.numIndices)
-    (hcas : ctorArgs.length = rval.numParams + rule.nfields)
+    (hcas : ctorArgs.length = cnp + rule.nfields)
     (htr : TrExprS venv Us Δ
       (.app (recArgs.foldl Expr.app (.const recName rus))
             (ctorArgs.foldl Expr.app (.const cName cus))) ve) :
@@ -492,9 +455,15 @@ theorem iota_defeq_spine {safety : DefinitionSafety} {kenv : Lean.Kernel.Environ
       venv.IsDefEqU Us.length Δ.toCtx ve
         (VExpr.mkApps (rhs.instL rus')
           (recArgs'.take (rval.numParams + rval.numMotives + rval.numMinors)
-            ++ ctorArgs'.drop rval.numParams)) := by
+            ++ ctorArgs'.drop cnp)) := by
   obtain ⟨A, hty⟩ := htr.wf henv.ordered hΔ
-  obtain ⟨rhs, hc, htrRhs, hpats⟩ := hspec.pats_iota' hrec hrule hsafe
+  obtain ⟨cvalC, hctorC, hcnpC⟩ := hctor
+  obtain ⟨cval, rhs, hc, hctor', htrRhs, hpats⟩ := hspec.pats_iota' hrec hrule hsafe
+  -- `kenv.find?` is a function, so the constructor the spec resolves is the caller's,
+  -- and the pattern in `venv.pats` really is keyed at `cnp`.
+  obtain rfl : cval.numParams = cnp := by
+    rw [hctorC] at hctor'
+    exact (Lean.ConstantInfo.ctorInfo.inj (Option.some.inj hctor')) ▸ hcnpC
   cases htr with
   | @app f' A₀ B a' _ _ _ hTf hTa htrf htra =>
     obtain ⟨hve1, recArgs', htrRecHead, hall1, rfl⟩ := TrExprS.mkApps_inv htrf
@@ -504,7 +473,7 @@ theorem iota_defeq_spine {safety : DefinitionSafety} {kenv : Lean.Kernel.Environ
     have hras' : recArgs'.length =
         rval.numParams + rval.numMotives + rval.numMinors + rval.numIndices := by
       rw [← Lean4Lean.List.Forall₂.length_eq hall1]; exact hras
-    have hcas' : ctorArgs'.length = rval.numParams + rule.nfields := by
+    have hcas' : ctorArgs'.length = cval.numParams + rule.nfields := by
       rw [← Lean4Lean.List.Forall₂.length_eq hall2]; exact hcas
     obtain ⟨m2, hm, hva, hvb⟩ :=
       Pattern.matches_iota (recName := recName) (cName := cName) (ls := rus') (ls' := cus')

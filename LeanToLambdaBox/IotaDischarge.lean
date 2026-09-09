@@ -281,6 +281,16 @@ structure IotaShape (safety : DefinitionSafety) (kenv : Lean.Kernel.Environment)
       -- (ii) per constructor: its rule, and the rule template's β-normal form
       (∀ {ctor : Name} {cidx : Nat}, Γ.ctors ctor = some (iid, cidx) →
         ∃ rule : RecursorRule, rval.rules.find? (·.ctor == ctor) = some rule ∧
+          -- the constructor resolves in `kenv` and its OWN parameter count is `np`.
+          -- Since `6fd8a1d`, `VEnv.addRecRule` keys the registered ι pattern on
+          -- `VRecRule.ctorParams = cval.numParams`, not on the recursor's `numParams`;
+          -- the two coincide for an ordinary inductive and diverge for the auxiliary
+          -- recursors of nested ones. A certificate that only pinned `rval.numParams`
+          -- would not say which arity the registered pattern was keyed at, so this
+          -- conjunct is load-bearing rather than bookkeeping. It is `rfl`-checkable at
+          -- any concrete constructor, like the rest of the certificate.
+          (∃ cval : ConstructorVal,
+            kenv.find? ctor = some (.ctorInfo cval) ∧ cval.numParams = np) ∧
           Γ.ctorArities ctor = some (np + rule.nfields) ∧
           (rule.rhs.instantiateLevelParams rval.levelParams rus).looseBVarRange' = 0 ∧
           ∀ (pre minors fields : List Expr) (hidx : cidx < minors.length),
@@ -321,7 +331,7 @@ theorem iotaConsistent_of_shape {safety : DefinitionSafety} {kenv : Lean.Kernel.
   obtain ⟨conVal, recName, rval, rus, recArgs, hconVal, hrec, hsafe, hlen,
     hnp, hnmot, hnmin, hnidx, hraLen, hunfold, hctors⟩ := hshape.shape hcases hia
   subst hnp; subst hnmot; subst hnmin; subst hnidx
-  obtain ⟨rule, hrule, harity, hsrcclosed, hbeta2⟩ := hctors hctor
+  obtain ⟨rule, hrule, hcnp, harity, hsrcclosed, hbeta2⟩ := hctors hctor
   have hΓ : OnCtx Δ.toCtx (env.IsType Us.length) := hΔ.toCtx
   have harEq : ar = rval.numParams + rule.nfields := by
     rw [har] at harity; exact Option.some.inj harity
@@ -349,14 +359,14 @@ theorem iotaConsistent_of_shape {safety : DefinitionSafety} {kenv : Lean.Kernel.
   rw [hunfold pre minors _ hpre hmin] at htr₂
   -- (3) the ι rule fires.
   obtain ⟨rhs, hc, rus', recArgs', cargs', htrRhs, hmapM, hall1, hall2, hd₃⟩ :=
-    iota_defeq_spine hspec henv hΔ hrec hrule hsafe
+    iota_defeq_spine hspec henv hΔ hrec hrule hsafe hcnp
       (hraLen pre minors hpre hmin) hcargs htr₂
   -- (4a) re-attach the model reduct to the *source* rule template.
   obtain ⟨e₂, htrRhsSrc, hdhead⟩ := TrExprS.instL_weak henv hΔ hmapM hlen hsrcclosed htrRhs
   have hcongr := VEnv.IsDefEqU.mkApps_congr_head henv hΓ
     (recArgs'.take (rval.numParams + rval.numMotives + rval.numMinors)
       ++ cargs'.drop rval.numParams) hdhead hd₃.wf_r
-  have htr₃ := TrExprS.mkApps henv.ordered hΓ
+  have htr₃ := TrExprS.mkApps henv.orderedStrong hΓ
     (forall2_append
       (forall2_take (rval.numParams + rval.numMotives + rval.numMinors) hall1)
       (forall2_drop rval.numParams hall2))
@@ -413,10 +423,15 @@ theorem rhsι_closed : rhsι.Closed := by
   simp [VExpr.ClosedN]
 
 /-- The guard environment, with one ι rule registered by `VEnv.addPat` — exactly the
-shape `VEnv.addRecRule` installs, at `np = nmot = nmin = nind = nfields = 1`. -/
+shape `VEnv.addRecRule` installs, at `np = nmot = nmin = nind = cnp = nfields = 1`.
+
+`cnp` (the *constructor's* `numParams`, `VRecRule.ctorParams` since `6fd8a1d`) is the
+sixth argument of `SimplePattern.iotaRHS`. Here it coincides with the recursor's `np`,
+so this fixture pins the `take`/`drop` conventions but does **not** exercise
+`cnp ≠ np` — the nested-inductive case. -/
 noncomputable def envι : VEnv :=
   envιBase.addPat (SimplePattern.iota `R (1+1+1+1) `K (1+1)).toPattern
-    (SimplePattern.iotaRHS `R `K 1 1 1 1 1 rhsι rhsι_closed, .true)
+    (SimplePattern.iotaRHS `R `K 1 1 1 1 1 1 rhsι rhsι_closed, .true)
 
 theorem envι_K : envι.constants `K = some ⟨0, Kty⟩ := envιBase_K
 theorem envι_R : envι.constants `R = some ⟨0, Rty⟩ := envιBase_R
@@ -450,7 +465,7 @@ theorem hredex : envι.HasType 0 Γι
 `Or.inl ⟨rfl, rfl⟩`). -/
 theorem envι_pats :
     envι.pats (SimplePattern.iota `R (1+1+1+1) `K (1+1)).toPattern
-      (SimplePattern.iotaRHS `R `K 1 1 1 1 1 rhsι rhsι_closed, .true) :=
+      (SimplePattern.iotaRHS `R `K 1 1 1 1 1 1 rhsι rhsι_closed, .true) :=
   VEnv.addPat_self
 
 /-- **The guard: the ι machinery fires and produces real content.**
@@ -475,8 +490,8 @@ theorem envι_iota_fires :
       (1+1+1+1) (1+1) [.bvar 0, .bvar 1, .bvar 2, .bvar 3] [.bvar 4, .bvar 5]
       (by simp) (by simp)
   have h := TrEnv.iota_defeq (chk := []) envι_pats hm hredex trivial nofun
-  rw [SimplePattern.iotaRHS_apply (np := 1) (nm := 1) (nmin := 1) (nind := 1) (nf := 1)
-      (by simp) (by simp) hva hvb] at h
+  rw [SimplePattern.iotaRHS_apply (np := 1) (nm := 1) (nmin := 1) (nind := 1) (cnp := 1)
+      (nf := 1) (by simp) (by simp) hva hvb] at h
   exact h
 
 /-! ### Guards for `IotaShape`'s two `Expr` equations

@@ -174,15 +174,23 @@ theorem VEnv.IsDefEqU.uvars_mono {env : VEnv} {U U' : Nat} (hle : U ≤ U')
     {Γ : List VExpr} {e₁ e₂ : VExpr} : env.IsDefEqU U Γ e₁ e₂ → env.IsDefEqU U' Γ e₁ e₂
   | ⟨A, h⟩ => ⟨A, VEnv.IsDefEq.uvars_mono hle h⟩
 
-/-- `TrProj` is a pattern lookup plus two typing derivations; the pattern is
-`uvars`-free, so the whole predicate is monotone in the count. -/
+/-- `TrProj` is a pattern lookup, a constructor-telescope reading and two typing
+derivations; only the latter two mention `U`, and the pattern is `uvars`-free, so the
+whole predicate is monotone in the count.
+
+Six of `TrProjCtor`'s eight fields (`pat`, `params_length`, `ctor`, `field_lt`,
+`minor_arity`, `eq`) are `U`-free and travel unchanged; `major_ty` and `fn_ty` are the
+two `HasType`s that move. -/
 theorem TrProj.uvars_mono {env : VEnv} {U U' : Nat} (hle : U ≤ U') {Γ : List VExpr}
     {S : Name} {i : Nat} {e e' : VExpr} (H : TrProj env U Γ S i e e') :
     TrProj env U' Γ S i e e' := by
-  obtain ⟨recName, ctorName, us, params, fieldTys, np, structTy, fieldTy, r,
-    h1, h2, h3, h4, h5, h6, h7⟩ := H
-  exact ⟨recName, ctorName, us, params, fieldTys, np, structTy, fieldTy, r,
-    h1, h2, h3, h4, VEnv.HasType.uvars_mono hle h5, h6, VEnv.HasType.uvars_mono hle h7⟩
+  obtain ⟨ctorName, usS, uss, params, np, fieldTys, hp⟩ := H
+  exact ⟨ctorName, usS, uss, params, np, fieldTys,
+    { pat := hp.pat, params_length := hp.params_length, ctor := hp.ctor,
+      field_lt := hp.field_lt, minor_arity := hp.minor_arity,
+      major_ty := VEnv.HasType.uvars_mono hle hp.major_ty,
+      fn_ty := VEnv.HasType.uvars_mono hle hp.fn_ty,
+      eq := hp.eq }⟩
 
 /-- **The Γ-U1 lemma, strict.** A `TrExprS` derivation at a level scope `Us` is a
 `TrExprS` derivation — same source, same `VExpr`, no `≈` residue — at any right
