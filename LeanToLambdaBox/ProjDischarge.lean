@@ -102,9 +102,10 @@ refuted outright at a `pats`-free `env` (`projCtorAgree_of_noPats`), which is th
 negative polarity. -/
 def ProjCtorAgree (env : VEnv) (Γ : ErasureCtx) : Prop :=
   ∀ {U : Nat} {Γc : List VExpr} {S ctor c : Name} {i : Nat} {iid : InductiveId}
-    {np : Nat} {e e' : VExpr},
+    {np np' : Nat} {e e' : VExpr} {usS : List VLevel} {uss : Nat → List VLevel}
+    {params fieldTys : List VExpr},
     Γ.projs S = some (iid, np) → Γ.ctors ctor = some (iid, 0) →
-    TrProjCtor env U Γc S i e e' c → c = ctor
+    TrProjCtor env U Γc S i e e' c usS uss params np' fieldTys → c = ctor
 
 /-- **Negative polarity.** At a `pats`-free environment `TrProjCtor` is uninhabited
 (`trProjCtor_refuted`), so the agreement holds by refutation — which is exactly what
@@ -145,6 +146,58 @@ def ProjRecRules (kenv : Lean.Kernel.Environment) (Γ : ErasureCtx) : Prop :=
       kenv.find? (mkRecName S) = some (.recInfo rval) ∧
       ∀ rule ∈ rval.rules, rule.ctor = ctor
 
+/-- **The kernel's structure facts for the structures `Γ` registers.** Upstream's
+`TrEnv.proj_defeq` was *proved* at `6fd8a1d` by deriving the recursor's
+`(1 motive, 1 minor, 0 indices)` telescope split from the kernel's own structure facts —
+non-mutual, single-constructor, non-indexed — rather than trying to recover it from the ι
+pattern's sum, which the previous round had reported as the blocker. Those facts are
+therefore premises of the reduction now, and a discharge route has to supply them.
+
+This is the same class of certificate as `ProjRecRules` and `ProjShape`'s `find?`
+conjuncts: a `Kernel.Environment` is opaque in-logic, so the facts are stated rather than
+computed, and they are `rfl`-checkable at any concrete kernel environment. For a real Lean
+structure every conjunct is a kernel well-formedness triviality.
+
+⚠️ **This is what the proved `proj_defeq` costs the registration route.**
+`projConsistent_of_coh` used to have no kernel environment in it at all — that was the
+point of the registration route. It now needs this premise, because the reduction it fires
+is stated against `kenv`. The alternative would be to keep assuming the *old*
+`ProjDefeqSpec`, which upstream no longer proves, so this is the honest trade: a
+kernel-side certificate in exchange for an assumption becoming a theorem. Whether the
+registration route should instead carry a `TrEnv` (from which these facts are derivable
+together with `ProjRecRules`) is a design question this migration deliberately leaves
+open. -/
+structure ProjStructFacts (kenv : Lean.Kernel.Environment) (Γ : ErasureCtx) : Prop where
+  facts : ∀ {S cn : Name} {iid : InductiveId} {np nf : Nat},
+    Γ.projs S = some (iid, np) → Γ.ctorFields iid = some [nf] →
+    Γ.ctors cn = some (iid, 0) →
+    ∃ (ival : Lean.InductiveVal) (cval : Lean.ConstructorVal),
+      kenv.find? S = some (.inductInfo ival) ∧
+      ival.all = [S] ∧ ival.ctors = [cn] ∧ ival.numIndices = 0 ∧ ival.numParams = np ∧
+      kenv.find? cn = some (.ctorInfo cval) ∧ cval.numFields = nf
+
+/-- **`ProjStructFacts` is free at a `Γ` that registers no structure** — the same vacuity
+`ProjRecRules` has, and for the same reason: the whole projection column is empty there,
+so threading it through the pre-projection cone costs nothing. -/
+theorem projStructFacts_of_noProjs {kenv : Lean.Kernel.Environment} {Γ : ErasureCtx}
+    (h : Γ.projs = fun _ => none) : ProjStructFacts kenv Γ :=
+  ⟨fun hs _ _ => by rw [h] at hs; exact absurd hs (by simp)⟩
+
+/-- **…and `ProjShape` already contains it**, up to the `Γ`-side uniqueness side condition
+the certificate route carries anyway (`hone`): `ProjShape` names the constructor itself,
+which need not syntactically be the one a caller holds. So the certificate route pays
+nothing new for the proved `proj_defeq` beyond the `ival.all` conjunct. -/
+theorem ProjShape.structFacts {safety : DefinitionSafety} {kenv : Lean.Kernel.Environment}
+    {Γ : ErasureCtx} (h : ProjShape safety kenv Γ)
+    (hone : ∀ {c₁ c₂ : Name} {iid : InductiveId},
+      Γ.ctors c₁ = some (iid, 0) → Γ.ctors c₂ = some (iid, 0) → c₁ = c₂) :
+    ProjStructFacts kenv Γ := by
+  refine ⟨fun hs hnfs hcn => ?_⟩
+  obtain ⟨ival, ctor, cval, hS, hall, hctors, hnp, hnind, -, hctor, -, hnf, hc, -, -⟩ :=
+    h.shape hs hnfs
+  obtain rfl : ctor = _ := hone hc hcn
+  exact ⟨ival, cval, hS, hall, hctors, hnind, hnp, hctor, hnf⟩
+
 /-- **`ProjCtorAgree` is a theorem at a translated environment.** The upstream-gated row it
 used to be is discharged here, from a `TrEnv` — the `kenv`↔`env` alignment the module
 docstring identified as the missing ingredient — plus the kernel certificate above.
@@ -162,11 +215,15 @@ takes the other on trust. -/
 theorem projCtorAgree_of_trEnv {safety : DefinitionSafety} {kenv : Lean.Kernel.Environment}
     {env : VEnv} {Γ : ErasureCtx} (H : TrEnv safety kenv env)
     (hrr : ProjRecRules kenv Γ) : ProjCtorAgree env Γ := by
-  intro _ _ S ctor c _ _ _ _ _ hs hctor hw
-  obtain ⟨recName, _, _, fieldTys, np, _, _, r, rfl, hp, -⟩ := hw
-  obtain ⟨rval, rule, hrec, hfind, -, -⟩ := H.pats_iota_inv hp
-  have hmem := List.mem_of_find?_eq_some hfind
-  have hctc : rule.ctor = c := by simpa using List.find?_some hfind
+  intro _ _ S ctor c _ _ _ _ _ _ _ _ _ _ hs hctor hw
+  obtain ⟨r, hp⟩ := hw.pat
+  obtain ⟨rval, rule, cval, rhs, hc, rci, hIR⟩ := H.pats_iota_inv_shape hp
+  have hrec : kenv.find? (mkRecName S) = some (.recInfo rval) := by
+    have h : kenv.constants.find?' (mkRecName S) = some (.recInfo rval) := by
+      rw [(TrEnv'.map_wf H).find?'_eq_find?]; exact hIR.rec_find
+    exact h
+  have hmem := List.mem_of_find?_eq_some hIR.rule_find
+  have hctc : rule.ctor = c := by simpa using List.find?_some hIR.rule_find
   obtain ⟨rval', hrec', hall⟩ := hrr hs hctor
   rw [hrec'] at hrec
   obtain rfl : rval' = rval := Lean.ConstantInfo.recInfo.inj (Option.some.inj hrec)
@@ -191,6 +248,7 @@ theorem projConsistent_of_arity {safety : DefinitionSafety} {kenv : Lean.Kernel.
     {env : VEnv} (henv : env.WF) {Us : List Name} {Γ : ErasureCtx}
     (hspec : ProjDefeqSpec safety kenv env)
     (hagree : ProjCtorAgree env Γ)
+    (hsf : ProjStructFacts kenv Γ)
     (harity : ∀ {S cn : Name} {iid : InductiveId} {np nf : Nat},
       Γ.projs S = some (iid, np) → Γ.ctorFields iid = some [nf] →
       Γ.ctors cn = some (iid, 0) → Γ.ctorArities cn = some (np + nf)) :
@@ -198,7 +256,7 @@ theorem projConsistent_of_arity {safety : DefinitionSafety} {kenv : Lean.Kernel.
   intro Δ S ctor cus cargs iid np nf i ar discr ve
     hΔ hs hctor hnfs har hcargs hi hlt htr hdiscr
   -- (0)/(1) invert the projection node
-  obtain ⟨dve, c, htrd, hpc⟩ := htr.proj_inv'
+  obtain ⟨dve, c, usS, uss, params', np', fieldTys, htrd, hpc⟩ := htr.proj_inv'
   -- (2) the discriminant's own subject reduction
   obtain ⟨cve, htrsp, hdef⟩ := hdiscr htrd
   -- (3) the spine's translation is a translated head applied to translated arguments
@@ -216,11 +274,14 @@ theorem projConsistent_of_arity {safety : DefinitionSafety} {kenv : Lean.Kernel.
   have hpl : (cargs'.take np).length = np := by rw [List.length_take]; omega
   have hfl : (cargs'.drop np).length = nf := by rw [List.length_drop]; omega
   -- (6) `ProjDefeqSpec` fires, at `params ++ fields = cargs'`
-  obtain ⟨A, hty⟩ := htrd.wf henv.ordered hΔ
   have hd : env.IsDefEqU Us.length Δ.toCtx dve
       ((VExpr.const c us').mkApps (cargs'.take np ++ cargs'.drop np)) := by
     rw [List.take_append_drop]; exact hdef
-  have hstep := hspec.proj_defeq hpc hd hty hpl hfl hi
+  -- (6') the kernel's structure facts, which the proved `proj_defeq` reads in place of
+  -- the telescope split. `hty` is gone: it is `TrProjCtor.major_ty`.
+  obtain ⟨ival, cval, hS, hallS, hctors, hnind, hnp, hctorK, hnf⟩ := hsf.facts hs hnfs hctor
+  have hstep := hspec.proj_defeq hΔ.toCtx hpc hS hallS hctors hnind hctorK hd
+    (by rw [hnp]; exact hpl) (by rw [hnf]; exact hfl) (by rw [hnf]; exact hi)
   -- (7) the reduct's translation is a component of the redex's own
   refine ⟨cargs'[np + i]'hlt', forall2_getElem hall (np + i) hlt hlt', ?_⟩
   have hg : (cargs'.drop np)[i]'(hfl ▸ hi) = cargs'[np + i]'hlt' := by
@@ -235,9 +296,10 @@ theorem projConsistent_of_coh {safety : DefinitionSafety} {kenv : Lean.Kernel.En
     {env : VEnv} (henv : env.WF) {Us : List Name} {Γ : ErasureCtx}
     (hspec : ProjDefeqSpec safety kenv env)
     (hagree : ProjCtorAgree env Γ)
+    (hsf : ProjStructFacts kenv Γ)
     (hpcoh : ProjFieldsCoherent Γ) :
     ProjConsistent env Us Γ :=
-  projConsistent_of_arity henv hspec hagree
+  projConsistent_of_arity henv hspec hagree hsf
     (fun hs hnfs hctor => by
       obtain ⟨_, harc⟩ := hpcoh hs hnfs hctor; simpa using harc)
 
@@ -260,7 +322,7 @@ theorem projConsistent_of_shape {safety : DefinitionSafety} {kenv : Lean.Kernel.
     (hone : ∀ {c₁ c₂ : Name} {iid : InductiveId},
       Γ.ctors c₁ = some (iid, 0) → Γ.ctors c₂ = some (iid, 0) → c₁ = c₂) :
     ProjConsistent env Us Γ :=
-  projConsistent_of_arity henv hspec hagree
+  projConsistent_of_arity henv hspec hagree (hpshape.structFacts hone)
     (fun hs hnfs hctor => by
       obtain ⟨ctor', hctor', harc⟩ := hpshape.ctorAgreement hs hnfs
       obtain rfl : ctor' = _ := hone hctor' hctor
@@ -278,9 +340,10 @@ theorem projConsistent_of_coh_trEnv {safety : DefinitionSafety}
     {Γ : ErasureCtx} (H : TrEnv safety kenv env)
     (hspec : ProjDefeqSpec safety kenv env)
     (hrr : ProjRecRules kenv Γ)
+    (hsf : ProjStructFacts kenv Γ)
     (hpcoh : ProjFieldsCoherent Γ) :
     ProjConsistent env Us Γ :=
-  projConsistent_of_coh henv hspec (projCtorAgree_of_trEnv H hrr) hpcoh
+  projConsistent_of_coh henv hspec (projCtorAgree_of_trEnv H hrr) hsf hpcoh
 
 /-! ### Guards
 
@@ -321,14 +384,15 @@ theorem projCtorAgree_Γproj_of_noPats {env : VEnv}
 /-- **The agreement's conclusion is reachable**: at `Γproj` the constructor it must name
 is `AC.mk`, registered at index `0` — so an instance of `ProjCtorAgree Γproj` says
 something with content (`c = AC.mk`) rather than something that holds for every `c`. -/
-example {env : VEnv} (h : ProjCtorAgree env Γproj) {U Γc i e e' c}
-    (hw : TrProjCtor env U Γc `AC i e e' c) : c = `AC.mk :=
+example {env : VEnv} (h : ProjCtorAgree env Γproj) {U Γc i e e' c usS uss params np fieldTys}
+    (hw : TrProjCtor env U Γc `AC i e e' c usS uss params np fieldTys) : c = `AC.mk :=
   h Γproj_projs Γproj_ctors hw
 
 /-- **`TrProjCtor` is inhabited at a `pats`-carrying environment**, so the agreement
 premise is not about an empty domain — the positive polarity, imported from the P3/P4
 witnesses. -/
-example : TrProjCtor envQ 0 ΓqV `MyOfNat 0 (.bvar 0) (eProjQ (.bvar 0)) `MyOfNat.mk :=
+example : TrProjCtor envQ 0 ΓqV `MyOfNat 0 (.bvar 0) (eProjQ (.bvar 0)) `MyOfNat.mk []
+    ussQ [Nty, n0c] 2 [Nty] :=
   trProjCtorQ_bvar
 
 /-- **The certificate route's side condition is `rfl`-checkable**: at `Γproj` only

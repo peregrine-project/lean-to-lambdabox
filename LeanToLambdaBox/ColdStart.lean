@@ -1926,9 +1926,10 @@ takes on trust is the pair above. -/
 theorem gProjConsistentQ_of_trEnv {safety : DefinitionSafety}
     {kenv : Lean.Kernel.Environment} {env : VEnv} (henv : env.WF)
     (H : TrEnv safety kenv env)
-    (hspec : ProjDefeqSpec safety kenv env) (hrr : ProjRecRules kenv ΓprojQ) :
+    (hspec : ProjDefeqSpec safety kenv env) (hrr : ProjRecRules kenv ΓprojQ)
+    (hsf : ProjStructFacts kenv ΓprojQ) :
     ProjConsistent env [] ΓprojQ :=
-  projConsistent_of_coh_trEnv henv H hspec hrr ΓprojQ_projFieldsCoherent
+  projConsistent_of_coh_trEnv henv H hspec hrr hsf ΓprojQ_projFieldsCoherent
 
 /-- The constructor/`casesOn` disjointness premise at the fixture: `ΓprojQ` registers no
 `casesOn` head at all, so the structure's constructor cannot collide with one. -/
@@ -1953,6 +1954,7 @@ example {safety : DefinitionSafety} {kenv : Lean.Kernel.Environment}
     {env : VEnv} (henv : env.WF) (ia : IotaArities)
     (cfg : ErasureConfig) (hcsimp : cfg.csimp = false)
     (hspec : ProjDefeqSpec safety kenv env) (hagree : ProjCtorAgree env ΓprojQ)
+    (hsf : ProjStructFacts kenv ΓprojQ)
     (hiota : IotaConsistent env [] ΓprojQ ia) (hiacoh : IotaArityCoherent ΓprojQ ia)
     (hrel : IotaRelevant env [] ΓprojQ)
     (gw : Void IO.RealWorld → NameGenerator)
@@ -1981,7 +1983,7 @@ example {safety : DefinitionSafety} {kenv : Lean.Kernel.Environment}
   shipping_erase_correct_firstorderι_coldstart henv rfl hcsimp rfl
     (by simp [ΓprojQ]) hstr Hr (by intro Δ n us body cve h; exact absurd h (by simp)) rfl
     hiota hiacoh hrel
-    (projConsistent_of_coh henv hspec hagree ΓprojQ_projFieldsCoherent) ΓprojQ_cc
+    (projConsistent_of_coh henv hspec hagree hsf ΓprojQ_projFieldsCoherent) ΓprojQ_cc
     H HD C P Hδ Hβ RecBlockAgreement.of_bot S
     (fun _ _ => RecCovered.of_noRec (Γ := ΓprojQ) rfl)
     (fun hp _ => by rw [SEnv.walked_bot]; exact hev hp)

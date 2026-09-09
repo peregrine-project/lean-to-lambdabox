@@ -262,13 +262,14 @@ theorem SEvalDataι_defeq_of_shape {safety : DefinitionSafety} {kenv : Lean.Kern
     (hshape : IotaShape safety kenv Γ ia Esrc)
     (hpspec : ProjDefeqSpec safety kenv env)
     (hpagree : ProjCtorAgree env Γ)
+    (hpsf : ProjStructFacts kenv Γ)
     (hpcoh : ProjFieldsCoherent Γ)
     {e v : Expr} {ve : VExpr}
     (htr : TrExprS env Us Δ e ve)
     (hev : SEvalDataι Γ ia Esrc e v) :
     ∃ vve, TrExprS env Us Δ v vve ∧ env.IsDefEqU Us.length Δ.toCtx ve vve :=
   SEvalDataι_defeq henv hΔ (hcon.toL hlp) (iotaConsistent_of_shape henv hspec hcon hshape)
-    (projConsistent_of_coh henv hpspec hpagree hpcoh) htr hev
+    (projConsistent_of_coh henv hpspec hpagree hpsf hpcoh) htr hev
 
 /-! ## ι-redex relevance — the two side conditions the model needs
 
