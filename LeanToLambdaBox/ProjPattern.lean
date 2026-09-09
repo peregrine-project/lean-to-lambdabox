@@ -10,30 +10,47 @@ At the `fee3ada` re-pin, `TrProj` (`Lean4Lean/Verify/Typing/Expr.lean`) stopped 
 `sorry` and became a real definition — a *recursor expansion*. `VExpr` has no projection
 node, so a source `Expr.proj S i e` is translated to the structure's recursor applied to
 the parameters, a motive, the **field selector** `fun f₀ … f_{n-1} => fᵢ`, and the major
-premise. At `7a5e96d` the motive stopped being existential and was pinned to the constant
-one, which is the shape this file is written against:
+premise.
+
+At `6fd8a1d` that definition was **redesigned**, and this file is written against the new
+shape. `TrProjCtor` is a `structure` with eight named fields over the thesis's *dependent*
+motive; `TrProj` is its existential closure:
 
 ```lean
-def TrProj (env : VEnv) (U : Nat) (Γ : List VExpr)
-    (S : Name) (i : Nat) (e e' : VExpr) : Prop :=
-  ∃ (recName ctorName : Name) (us : List VLevel) (params fieldTys : List VExpr)
-    (np : Nat) (structTy fieldTy : VExpr) (r : … .RHS × … .Check),
-    recName = mkRecName S ∧
-    env.pats (SimplePattern.iota recName (np+1+1+0) ctorName (np+fieldTys.length)).toPattern r ∧
-    params.length = np ∧ i < fieldTys.length ∧
-    env.HasType U Γ e structTy ∧
-    e' = (VExpr.const recName us).mkApps
-           (params ++ [.lam structTy fieldTy.lift, VExpr.fieldSelector fieldTys i, e]) ∧
-    env.HasType U Γ e' fieldTy
+structure TrProjCtor (env : VEnv) (U : Nat) (Γ : List VExpr) (S : Name) (i : Nat)
+    (e e' : VExpr) (ctorName : Name) (usS : List VLevel) (uss : Nat → List VLevel)
+    (params : List VExpr) (np : Nat) (fieldTys : List VExpr) : Prop where
+  pat           : ∃ r, env.pats (SimplePattern.iota (mkRecName S) (np+1+1+0) ctorName
+                    (np + fieldTys.length)).toPattern r
+  params_length : params.length = np
+  ctor          : ∃ ci, env.constants ctorName = some ci ∧ ci.type.CtorHeaded ∧
+                    ∃ cty, (ci.type.instL usS).instPis params = some cty ∧
+                      fieldTys = cty.piBinders
+  field_lt      : i < fieldTys.length
+  minor_arity   : ∃ rci, env.constants (mkRecName S) = some rci ∧
+                    rci.type.binderArity? (np+1) = some fieldTys.length
+  major_ty      : env.HasType U Γ e ((VExpr.const S usS).mkApps params)
+  fn_ty         : env.HasType U Γ (VExpr.projFn S usS uss params fieldTys i)
+                    (.forallE ((VExpr.const S usS).mkApps params)
+                      (VExpr.projMotiveBody S usS uss params fieldTys i))
+  eq            : e' = .app (VExpr.projFn S usS uss params fieldTys i) e
+
+def TrProj (env) (U) (Γ) (S) (i) (e e') : Prop :=
+  ∃ ctorName usS uss params np fieldTys, TrProjCtor env U Γ S i e e' ctorName usS uss params np fieldTys
 ```
 
-Nine binders, seven conjuncts. The two `HasType`s are what pin `structTy` and `fieldTy`,
-and through them the motive.
+Three things changed that matter here. The motive is **dependent**
+(`VExpr.projMotiveBody`), so `e'` is `.app (projFn …) e` and not a `mkApps` spine — every
+match on the old spine was dead code. The levels are a per-field *function* `uss`, since
+field `j`'s elimination level is the sort of `F_j`. And two new obligations appeared:
+`ctor`, reading the field telescope off the constructor's type by `instPis`/`piBinders`,
+and `minor_arity`, which is what excludes reflexive structures.
 
 **Nobody had ever constructed one** — no `example`, no test, upstream or down. Every
 downstream statement about projections was therefore possibly vacuous, and the whole
 projection round rests on the answer. This file settles it: **`TrProj` is inhabited, and
-so is `TrExprS` at a `.proj` node.**
+so is `TrExprS` at a `.proj` node.** Upstream now settles it too, on a plain *and* a
+`Sigma`-shaped dependent structure (`Tests/ProjInhabit.lean`).
 
 ## What is here
 
@@ -63,26 +80,26 @@ recursor has `numMotives = numMinors = 1`, `numIndices = 0` — i.e. `TrProj`'s 
 
 Since slice **P4** the file also carries the *interface* layer the round consumes:
 
-* `TrProjCtor` — `TrProj` with its constructor witness named, and the two conversions
-  (`toTrProj`, `TrProj.exists_ctorName`) that make it a reparenthesisation rather than a
-  strengthening. **Since the `b6a5a38` re-pin these are upstream's**, adopted verbatim
-  from the copies this file used to carry;
 * `ProjDefeqSpec` — the projection-reduction rule as a **named premise**, stated over
-  `TrProjCtor`. It was stated that way because the upstream `TrEnv.proj_defeq` was
-  missing the agreement between its two constructor names, and was therefore likely
-  unprovable as written; **upstream adopted the correction at `b6a5a38`** (see §"The
-  statement correction, and what it did and did not buy" below);
-* `ProjDefeqSpec.of_trEnv` — the injection point, landed at the re-pin. It is the one
-  declaration in this file that carries `sorryAx`, and it carries it because upstream's
-  corrected `proj_defeq` is still `sorry`;
+  `TrProjCtor`. It was stated that way because the upstream `TrEnv.proj_defeq` was missing
+  the agreement between its two constructor names and was therefore likely unprovable as
+  written; upstream adopted the correction at `b6a5a38` and **proved the result at
+  `6fd8a1d`** (see §"The statement correction, and what it finally bought" below);
+* `ProjDefeqSpec.of_trEnv` — the injection point, and since `6fd8a1d` a **real
+  discharge**: upstream's `proj_defeq` has no `sorry` of its own, so this is no longer a
+  price tag for a deferred proof but an assumption that became a theorem;
 * `ProjShape` — the `rfl`-checkable per-structure certificate, and
-  `ProjShape.ctorAgreement`, the accessor that supplies the arity decomposition locally;
-* `TrExprS.proj_inv` / `proj_inv'` — total inversion at a `.proj` source.
+  `ProjShape.ctorAgreement`, the accessor that supplies the arity decomposition locally.
+  It gained `ival.all = [S]` at the re-pin, because the proved `proj_defeq` derives the
+  recursor's telescope split from the kernel's structure facts;
+* `TrExprS.proj_inv` / `proj_inv'` — total inversion at a `.proj` source, now handing
+  back the six exposed expansion components as well as the constructor.
 
-Everything here is `sorryAx`-free **except `ProjDefeqSpec.of_trEnv`** (audited in
-`scratch/final_audit.lean`), and no capstone uses that one: the capstones keep
-`ProjDefeqSpec` as a premise, so the deferred upstream proof stays a named trust item
-rather than a silent inheritance.
+Everything here is `sorryAx`-free of its own. `ProjDefeqSpec.of_trEnv` inherits
+`sorryAx` from upstream's cone — unique typing, Π-injectivity, and the single
+consolidated ι obligation `VEnv.WF.patsStrong` — which is the cone every `TrEnv`-premised
+result already sits in, not a projection-specific gap (audited in
+`scratch/final_audit.lean`).
 
 ## The recipe, for the slices that follow
 
@@ -101,52 +118,54 @@ anyway and `trProjP` therefore takes as a parameter. **The whole cost is the las
    `fun _ : MyProd N => N` makes the two definitionally equal by **one β step** under two
    `forallEDF` congruences (`hconvP`). That is the whole trick, and it is the reason a
    non-dependent structure goes through by β alone.
-4. **One more β step, on the way out.** The recursor spine's own type is `motive d`, not
-   `fieldTy`, and the definition now demands the latter on the nose. `hEProj*raw` proves
-   the former; `hEProj*` converts by `VEnv.IsDefEq.beta`, which is `rfl`-cheap here
-   because `Nty` is closed and so `Nty.lift = Nty` and `Nty.inst d = Nty`. Since
-   `.lam structTy fieldTy.lift` is *definitionally* the `motiveP` this file already used,
-   the spine equation stayed `rfl` across the `7a5e96d` re-pin.
+4. **One more β step, on the way out.** The recursor spine's own type is
+   `.forallE structTy (motive #0)`, while `fn_ty` demands the *motive body* on the nose.
+   One `VEnv.IsDefEq.beta` under a `forallEDF` closes it, and it is `rfl`-cheap here
+   because `Nty` is closed, so `Nty.lift = Nty` and `Nty.inst d = Nty`.
 
-Step 3 also draws the **exact** line between the easy and the hard case, which is the
-answer this file owes survey item R2 (*"can the `HasType` conjunct be met at a dependent
-structure?"*). Upstream's `7a5e96d` docstring now draws the same line from the other
-side, and declares it the definition's **scope** rather than a choice a witness makes:
-the constant motive is correct exactly for non-dependent fields, and the dependent case
-would need structure-η in `IsDefEq` or a dependent motive. The two analyses were reached
-independently and agree. Concretely: the constant motive `fun _ => T` discharges step 3
-iff `T` can be chosen closed with respect to the field binders — i.e. iff `fieldTys[i]`,
-which sits under the binders `f₀ … f_{i-1}` of the selector telescope, **does not mention
-them**. So:
+**What the redesign changed about this recipe.** The dependent motive collapses at these
+fixtures: `projMotiveBody … i` is `fieldTys[i]` with the *earlier projections* substituted
+for the earlier field binders, and `Nty` is closed, so nothing is substituted and the
+motive body is `Nty` by `rfl` at both indices. `VExpr.projFn` therefore unfolds onto the
+very spine `eProj` already spelled out, and `projFnP0/1`, `projMotiveBodyP0/1` and
+`eProjP0/1_eq` are all `rfl`. The two new obligations are lookups: `ctor` reads
+`[Nty, Nty]` off `MKty` by `instPis`/`piBinders`, and `minor_arity` checks
+`MRty.binderArity? 2 = some 2` — the minor premise binds the two fields and no
+inductive-hypothesis binder.
 
-* **field `0` of *any* structure is as easy as this file**, dependent or not: the first
-  field's type is fixed before any field is bound. `Subtype.val`, `Sigma.fst`,
-  `OfNat.ofNat` and every one-field class are in this case;
-* a field `i > 0` whose type genuinely depends on an earlier field (`Sigma.snd : β fst`)
-  needs the honest motive `fun p => β p.0`, which mentions a projection itself — so step
-  3 becomes β **plus a firing of the ι rule** (`VEnv.IsDefEq.pat`, which `envP` does
-  register, via `Pattern.matches_iota`). Inhabitable by the same kit, materially more
-  work, and **not attempted here**.
+## Scope, after the redesign
 
-Nothing in `Erases.proj`'s planned premises (`Γ.projs`, `Γ.ctorFields`, `i < nf`)
-restricts to the easy case, so the open half of R2 is a real residue — but it is a
-narrow one, it is now *upstream's* residue rather than this file's, and it does not touch
-the typeclass-dispatch payoff, whose methods are all field `0` or fields whose types are
-independent of the earlier ones.
+Survey item R2 asked whether the `HasType` conjunct can be met at a **dependent**
+structure. Under the old constant motive the answer was "only when `fieldTys[i]` does not
+mention the earlier field binders" — field `0` of anything, `Sigma.snd` of nothing. **The
+redesign removed that limit**: the motive is now
+`Fs[i][f_j := P_j x]`, the earlier projections substituted for the earlier fields, and
+upstream inhabits it sorry-free on a `Sigma`-shaped structure (`Tests/ProjInhabit.lean`,
+namespace `Dependent`). So the dependent case is in scope, and the fixtures below stay
+non-dependent as a *choice of fixture* — they model the typeclass-dispatch payoff — not
+as a scope boundary.
 
-## Scope notes
+The boundary that *is* real, and that the ledger must carry, is the other one upstream
+declares: `TrProjCtor` covers single-constructor types that are non-recursive,
+non-indexed and non-mutual. `minor_arity` is what excludes reflexive structures (their
+minor carries an extra binder), and `ival.all = [S]` is what excludes mutual ones. The
+kernel's `inferProj` accepts more than this — reflexive, indexed and nested
+single-constructor types included, and core's own `Lean.Language.SnapshotTree.element` is
+exactly such a raw `.proj`. That is a **completeness** boundary, not a soundness one, but
+it means "the `TrEnv` horizon closes" may not be written without it.
 
-* **Monomorphic by construction.** `us = []`, `U = 0`, `uvars = 0` throughout, so
-  `instL` is the identity and no level bookkeeping appears. A universe-polymorphic
-  witness would ride `TrProj.instL` (proved in the delivery); it is not needed to answer
-  the inhabitation question and is not attempted.
-* **The motive is pinned; `fieldTys` is not.** Since `7a5e96d` the motive is forced to
-  `.lam structTy fieldTy.lift`, and the two `HasType` conjuncts fix `structTy` and
-  `fieldTy` — which is what took `TrProj.uniq` from *false* to merely unproved. `params`
-  and `fieldTys` remain existential and constrained only up to definitional equality,
-  which is still `TrProj.uniq`'s reason for claiming `IsDefEqU` and not equality, and
-  still why on-the-nose `TrExprS.unique` at `.proj` is unavailable. The witnesses below
-  pick the natural ones.
+## Other scope notes
+
+* **Monomorphic by construction.** `usS = []`, `uss = fun _ => []`, `U = 0`, `uvars = 0`
+  throughout, so `instL` is the identity and no level bookkeeping appears. A
+  universe-polymorphic witness would ride `TrProj.instL` (proved upstream); it is not
+  needed to answer the inhabitation question and is not attempted.
+* **The expansion is now determined; `params`/`fieldTys` are pinned by the kernel.**
+  `fieldTys` is no longer a free existential constrained only up to defeq: `ctor` forces
+  it to be the constructor's telescope instantiated at `params`, which is what makes the
+  expansion a *function* of `(S, ctorName, usS, uss, params, i, e)`. `TrProj.uniq` is
+  still open upstream, but for a different reason than before — the `proj` case of
+  `IsDefEqE` compares two projections up to the index alone.
 -/
 
 namespace LeanToLambdaBox
@@ -244,7 +263,7 @@ arity is `1+1+1+0` on the recursor side and `1+2` on the constructor side, which
 literally `TrProj`'s `(np+1+1+0)` / `(np+fieldTys.length)`. -/
 noncomputable def envP : VEnv :=
   envPBase.addPat (SimplePattern.iota `MyProd.rec (1+1+1+0) `MyProd.mk (1+2)).toPattern
-    (SimplePattern.iotaRHS `MyProd.rec `MyProd.mk 1 1 1 0 2 rhsP rhsP_closed, .true)
+    (SimplePattern.iotaRHS `MyProd.rec `MyProd.mk 1 1 1 0 1 2 rhsP rhsP_closed, .true)
 
 theorem envP_N : envP.constants `N = some ⟨0, Ty1⟩ := envPBase_N
 theorem envP_MP : envP.constants `MyProd = some ⟨0, MPty⟩ := envPBase_MP
@@ -346,18 +365,86 @@ theorem hEProj1 {Γ} {d} (hd : envP.HasType 0 Γ d PN) :
     envP.HasType 0 Γ (eProj 1 d) Nty :=
   (VEnv.IsDefEq.beta hNtyP hd).defeq (hEProj1raw hd)
 
-/-! ### The witnesses -/
+/-! ### The witnesses
 
-/-- The generic `TrProj` introduction at this structure: any well-typed discriminant of
-type `MyProd N`, either field. `hd` is the `structTy` conjunct `7a5e96d` added — the
-caller has it anyway, since it is what `hEProj*` needs. -/
-theorem trProjP {Γ} {i} {d} (hi : i < 2)
-    (hd : envP.HasType 0 Γ d PN)
-    (h : envP.HasType 0 Γ (eProj i d) Nty) :
-    TrProj envP 0 Γ `MyProd i d (eProj i d) :=
-  ⟨`MyProd.rec, `MyProd.mk, [], [Nty], [Nty, Nty], 1, PN, Nty,
-    (SimplePattern.iotaRHS `MyProd.rec `MyProd.mk 1 1 1 0 2 rhsP rhsP_closed, .true),
-    envP_mkRecName, VEnv.addPat_self, rfl, by simpa using hi, hd, rfl, h⟩
+`TrProjCtor` is an 11-argument `structure` over the thesis's *dependent* motive
+(`VExpr.projMotiveBody`) since `6fd8a1d`. At this fixture the dependency is vacuous —
+both field types are the closed `N` — so the dependent motive collapses to the constant
+`motiveP` and the generic builders `VExpr.projFn` / `VExpr.projMotiveBody` unfold onto
+the `eProj` spine above by `rfl`. That is what makes the rebuild cheap here and is
+exactly the boundary upstream's `Tests/ProjInhabit.lean` draws between its `Plain` and
+`Dependent` sections. -/
+
+/-- The per-field level list; constantly `[]` here, since this fixture's recursor is
+monomorphic. In general `uss j` is field `j`'s elimination level, which is why the
+redesigned relation carries a *function* rather than one level list. -/
+def ussP : Nat → List VLevel := fun _ => []
+
+/-- Field `0`'s motive body: `projFns … 0 = []`, so `projMotiveBodyOf` substitutes nothing
+into the closed `N`. -/
+theorem projMotiveBodyP0 : VExpr.projMotiveBody `MyProd [] ussP [Nty] [Nty, Nty] 0 = Nty := rfl
+
+/-- Field `1`'s motive body: the earlier projection function is substituted into the closed
+`N` and vanishes, so this is `N` again — the motive stays constant. -/
+theorem projMotiveBodyP1 : VExpr.projMotiveBody `MyProd [] ussP [Nty] [Nty, Nty] 1 = Nty := rfl
+
+/-- The generic builder for field `0` *is* the recursor spine of `eProj`: `mkRecName MyProd`
+is `MyProd.rec`, `(const MyProd []).mkApps [Nty]` is `PN`, and the motive body is `Nty`. -/
+theorem projFnP0 : VExpr.projFn `MyProd [] ussP [Nty] [Nty, Nty] 0
+    = (VExpr.const `MyProd.rec []).mkApps ([Nty] ++ [motiveP, selP 0]) := rfl
+
+/-- Same at field `1`; only the selector changes. -/
+theorem projFnP1 : VExpr.projFn `MyProd [] ussP [Nty] [Nty, Nty] 1
+    = (VExpr.const `MyProd.rec []).mkApps ([Nty] ++ [motiveP, selP 1]) := rfl
+
+/-- `eProj 0 d` is the field-`0` expansion applied to the discriminant — `TrProjCtor.eq`. -/
+theorem eProjP0_eq {d} : eProj 0 d = .app (VExpr.projFn `MyProd [] ussP [Nty] [Nty,Nty] 0) d := rfl
+
+/-- `eProj 1 d` is the field-`1` expansion applied to the discriminant — `TrProjCtor.eq`. -/
+theorem eProjP1_eq {d} : eProj 1 d = .app (VExpr.projFn `MyProd [] ussP [Nty] [Nty,Nty] 1) d := rfl
+
+/-- `TrProjCtor.fn_ty` for field `0`: the spine's natural codomain `motiveP #0` is converted
+to the motive body `N` by one β step under `forallEDF`. This is the field the redesign
+added, and the only one that is a typing derivation rather than a lookup. -/
+theorem hProjFnP0 {Γ} : envP.HasType 0 Γ (VExpr.projFn `MyProd [] ussP [Nty] [Nty,Nty] 0)
+    (.forallE PN (VExpr.projMotiveBody `MyProd [] ussP [Nty] [Nty,Nty] 0)) :=
+  (VEnv.IsDefEq.forallEDF hPN (VEnv.IsDefEq.beta hNtyP (.bvar .zero))).defeq
+    (((hMRc.app hNtyP).app hMotiveP).app (hconvP.defeq hSelP0))
+
+/-- `TrProjCtor.fn_ty` for field `1`. -/
+theorem hProjFnP1 {Γ} : envP.HasType 0 Γ (VExpr.projFn `MyProd [] ussP [Nty] [Nty,Nty] 1)
+    (.forallE PN (VExpr.projMotiveBody `MyProd [] ussP [Nty] [Nty,Nty] 1)) :=
+  (VEnv.IsDefEq.forallEDF hPN (VEnv.IsDefEq.beta hNtyP (.bvar .zero))).defeq
+    (((hMRc.app hNtyP).app hMotiveP).app (hconvP.defeq hSelP1))
+
+/-- The generic introduction at field `0` of `MyProd`: any well-typed discriminant of type
+`MyProd N`. -/
+theorem trProjCtorP0 {Γ} {d} (hd : envP.HasType 0 Γ d PN) :
+    TrProjCtor envP 0 Γ `MyProd 0 d (eProj 0 d) `MyProd.mk [] ussP [Nty] 1 [Nty, Nty] where
+  pat := ⟨_, VEnv.addPat_self⟩
+  params_length := rfl
+  ctor := ⟨_, envP_MK, ⟨_, _, rfl⟩, _, rfl, rfl⟩
+  field_lt := by decide
+  minor_arity := ⟨_, envP_MR, rfl⟩
+  major_ty := hd
+  fn_ty := hProjFnP0
+  eq := eProjP0_eq
+
+/-- …and at field `1`, so the guard is not degenerate in `fieldSelector`'s index. -/
+theorem trProjCtorP1 {Γ} {d} (hd : envP.HasType 0 Γ d PN) :
+    TrProjCtor envP 0 Γ `MyProd 1 d (eProj 1 d) `MyProd.mk [] ussP [Nty] 1 [Nty, Nty] :=
+  { trProjCtorP0 hd with
+    field_lt := by decide
+    fn_ty := hProjFnP1
+    eq := eProjP1_eq }
+
+/-- The bare `TrProj` at field `0`: the expansion data is existentially quantified. -/
+theorem trProjP0 {Γ} {d} (hd : envP.HasType 0 Γ d PN) : TrProj envP 0 Γ `MyProd 0 d (eProj 0 d) :=
+  ⟨_, _, _, _, _, _, trProjCtorP0 hd⟩
+
+/-- The bare `TrProj` at field `1`. -/
+theorem trProjP1 {Γ} {d} (hd : envP.HasType 0 Γ d PN) : TrProj envP 0 Γ `MyProd 1 d (eProj 1 d) :=
+  ⟨_, _, _, _, _, _, trProjCtorP1 hd⟩
 
 /-- `Γ = [p : MyProd N]` — a variable discriminant. -/
 def ΓpV : List VExpr := [PN]
@@ -367,11 +454,11 @@ theorem hdV : envP.HasType 0 ΓpV (.bvar 0) PN := .bvar .zero
 /-- **THE WITNESS.** `TrProj` is inhabited: the first field of `MyProd N` at a variable
 discriminant. -/
 theorem trProjP_bvar0 : TrProj envP 0 ΓpV `MyProd 0 (.bvar 0) (eProj 0 (.bvar 0)) :=
-  trProjP (by omega) hdV (hEProj0 hdV)
+  trProjP0 hdV
 
 /-- The second field — so the guard is not degenerate in `fieldSelector`'s index. -/
 theorem trProjP_bvar1 : TrProj envP 0 ΓpV `MyProd 1 (.bvar 0) (eProj 1 (.bvar 0)) :=
-  trProjP (by omega) hdV (hEProj1 hdV)
+  trProjP1 hdV
 
 /-- `Γ = [x : N, y : N]` — the discriminant is the saturated constructor spine
 `MyProd.mk N x y`, which is the shape `TrEnv.proj_defeq` and hence the whole
@@ -381,10 +468,10 @@ def ΓpC : List VExpr := [Nty, Nty]
 theorem hdC : envP.HasType 0 ΓpC mkappP PN := hmkappP
 
 theorem trProjP_ctor0 : TrProj envP 0 ΓpC `MyProd 0 mkappP (eProj 0 mkappP) :=
-  trProjP (by omega) hdC (hEProj0 hdC)
+  trProjP0 hdC
 
 theorem trProjP_ctor1 : TrProj envP 0 ΓpC `MyProd 1 mkappP (eProj 1 mkappP) :=
-  trProjP (by omega) hdC (hEProj1 hdC)
+  trProjP1 hdC
 
 /-! ### `TrExprS` at a `.proj` node
 
@@ -439,7 +526,8 @@ the earlier survey already had.) -/
 
 theorem trProj_refuted {env : VEnv} {U Γ S i e e'}
     (hp : ∀ (p : Pattern) r, ¬ env.pats p r) : ¬ TrProj env U Γ S i e e' := by
-  rintro ⟨_, _, _, _, _, _, _, _, _, _, hpat, _⟩
+  rintro ⟨_, _, _, _, _, _, h⟩
+  obtain ⟨_, hpat⟩ := h.pat
   exact hp _ _ hpat
 
 theorem trProj_refuted_empty {U Γ S i e e'} : ¬ TrProj .empty U Γ S i e e' :=
@@ -521,7 +609,7 @@ theorem rhsQ_closed : rhsQ.Closed := by
 /-- The class environment, with its ι rule at `np = 2`, `nfields = 1`. -/
 noncomputable def envQ : VEnv :=
   envQBase.addPat (SimplePattern.iota `MyOfNat.rec (2+1+1+0) `MyOfNat.mk (2+1)).toPattern
-    (SimplePattern.iotaRHS `MyOfNat.rec `MyOfNat.mk 2 1 1 0 1 rhsQ rhsQ_closed, .true)
+    (SimplePattern.iotaRHS `MyOfNat.rec `MyOfNat.mk 2 1 1 0 2 1 rhsQ rhsQ_closed, .true)
 
 theorem envQ_mkRecName : (`MyOfNat.rec : Name) = mkRecName `MyOfNat := rfl
 
@@ -582,16 +670,59 @@ theorem hEProjQ {Γ} {d} (hd : envQ.HasType 0 Γ d QN) :
     envQ.HasType 0 Γ (eProjQ d) Nty :=
   (VEnv.IsDefEq.beta hNtyQ hd).defeq (hEProjQraw hd)
 
+/-- The per-field level list; constantly `[]` here (see `ussP`). -/
+def ussQ : Nat → List VLevel := fun _ => []
+
+/-- The single field's motive body is the closed constant `N`. -/
+theorem projMotiveBodyQ0 : VExpr.projMotiveBody `MyOfNat [] ussQ [Nty, n0c] [Nty] 0 = Nty := rfl
+
+/-- The generic builder unfolds onto `eProjQ`'s recursor spine — with a **two**-element
+parameter list, so the `params ++ [motive, selector]` append is not degenerate. -/
+theorem projFnQ0 : VExpr.projFn `MyOfNat [] ussQ [Nty, n0c] [Nty] 0
+    = (VExpr.const `MyOfNat.rec []).mkApps ([Nty, n0c] ++ [motiveQ, selQ]) := rfl
+
+/-- `eProjQ d` is the expansion applied to the discriminant — `TrProjCtor.eq`. -/
+theorem eProjQ_eq {d} : eProjQ d = .app (VExpr.projFn `MyOfNat [] ussQ [Nty, n0c] [Nty] 0) d := rfl
+
+/-- The recursor spine's typing, before the codomain β step. -/
+theorem hProjSpineQ {Γ} : envQ.HasType 0 Γ
+    ((VExpr.const `MyOfNat.rec []).mkApps ([Nty, n0c] ++ [motiveQ, selQ]))
+    (.forallE QN (.app motiveQ (.bvar 0))) := by
+  have h := ((((hQRc (Γ := Γ)).app hNtyQ).app hn0c).app hMotiveQ).app (hconvQ.defeq hSelQ)
+  simpa [QRc, motiveQ, QN, QCc, Nty, n0c, VExpr.inst, VExpr.lift, VExpr.liftN,
+    VExpr.mkApps] using h
+
+/-- `TrProjCtor.fn_ty`: one β step under `forallEDF` takes the spine's natural codomain
+`motiveQ #0` to the motive body `N`. -/
+theorem hProjFnQ {Γ} : envQ.HasType 0 Γ (VExpr.projFn `MyOfNat [] ussQ [Nty, n0c] [Nty] 0)
+    (.forallE QN (VExpr.projMotiveBody `MyOfNat [] ussQ [Nty, n0c] [Nty] 0)) :=
+  (VEnv.IsDefEq.forallEDF hQN (VEnv.IsDefEq.beta hNtyQ (.bvar .zero))).defeq hProjSpineQ
+
+/-- The generic introduction at this class. -/
+theorem trProjCtorQ {Γ} {d} (hd : envQ.HasType 0 Γ d QN) :
+    TrProjCtor envQ 0 Γ `MyOfNat 0 d (eProjQ d) `MyOfNat.mk [] ussQ [Nty, n0c] 2 [Nty] where
+  pat := ⟨_, VEnv.addPat_self⟩
+  params_length := rfl
+  ctor := ⟨_, envQ_QK, ⟨_, _, rfl⟩, _, rfl, rfl⟩
+  field_lt := by decide
+  minor_arity := ⟨_, envQ_QR, rfl⟩
+  major_ty := hd
+  fn_ty := hProjFnQ
+  eq := eProjQ_eq
+
+/-- …and the bare `TrProj`. -/
+theorem trProjQ {Γ} {d} (hd : envQ.HasType 0 Γ d QN) : TrProj envQ 0 Γ `MyOfNat 0 d (eProjQ d) :=
+  ⟨_, _, _, _, _, _, trProjCtorQ hd⟩
+
 /-- `Γ = [self : MyOfNat N n0]`. -/
 def ΓqV : List VExpr := [QN]
+
+theorem hdQ : envQ.HasType 0 ΓqV (.bvar 0) QN := .bvar .zero
 
 /-- **The payoff witness**: `TrProj` at a one-field type class with **two** parameters —
 the shape `OfNat.ofNat` needs. -/
 theorem trProjQ_bvar : TrProj envQ 0 ΓqV `MyOfNat 0 (.bvar 0) (eProjQ (.bvar 0)) :=
-  ⟨`MyOfNat.rec, `MyOfNat.mk, [], [Nty, n0c], [Nty], 2, QN, Nty,
-    (SimplePattern.iotaRHS `MyOfNat.rec `MyOfNat.mk 2 1 1 0 1 rhsQ rhsQ_closed, .true),
-    envQ_mkRecName, VEnv.addPat_self, rfl, by simp, .bvar .zero, rfl,
-    hEProjQ (.bvar .zero)⟩
+  trProjQ hdQ
 
 /-- `Δ = [self : MyOfNat N n0]`; `self.ofNat` translates. -/
 def ΔqV : VLCtx := [(none, .vlam QN)]
@@ -649,7 +780,7 @@ projection round consumes, in the `PatsIotaSpec` two-layer idiom: a named hypoth
 structure stating the reduction rule the discharge needs, plus a `rfl`-checkable
 per-structure certificate. Neither is an axiom.
 
-### The statement correction, and what it did and did not buy
+### The statement correction, and what it finally bought
 
 **The finding, and the escalation.** `TrEnv.proj_defeq` used to read
 
@@ -665,30 +796,35 @@ where `hp` carries its **own**, existentially bound constructor name — the one
 to be a spine of `ctorName'`, the reduction cannot fire without the agreement, and
 recovering it from `TrEnv` + `HasType` alone is a canonicity argument rather than a
 rewrite. So the statement was plausibly **unprovable, not merely unproved** — the disease
-`PatsIotaSpec` was created for, in a different field — and this round escalated it as a
+`PatsIotaSpec` was created for, in a different field — and the round escalated it as a
 *statement* correction rather than a proof request.
 
-**Upstream adopted it** (`b6a5a38`). `TrProjCtor` is now upstream's, character-identical
-to the copy this file carried, and `proj_defeq` is re-stated over it, so its ι rule's
-constructor and its spine's head are the same name. The correction landed in exactly the
-shape `ProjDefeqSpec.proj_defeq` states it, which is why `of_trEnv` below is an eta
-expansion and does not even need `toTrProj` — the premise *is* a `TrProjCtor`.
+**Upstream adopted the correction** (`b6a5a38`): `proj_defeq` was re-stated over
+`TrProjCtor`, so its ι rule's constructor and its spine's head became the same name. The
+proof stayed deferred, and the residual was re-analysed and reported as *not* the ι
+`pat_uniq` gap but the structure-recursor telescope split: the ι pattern records only the
+sum `numMotives + numMinors + numIndices`, so `(1, 1, 0)` is not recoverable from it.
 
-**What it did not buy: the proof.** `proj_defeq` is still `sorry`
-(`Verify/Environment/Lemmas.lean:652`), and upstream re-analysed the residual: it is
-**not** the ι `pat_uniq` gap. It is (a) a `safety` side condition, (b) the constructor
-arity bookkeeping `np + nf = rval.numParams + rule.nfields`, and (c) the fact that `rval`
-is a *structure* recursor — the ι pattern records only the sum
-`numMotives + numMinors + numIndices`, so `(1,1,0)` is not recoverable from it without
-recursor-application typing inversion. All three are the inductive-translation-boundary
-correspondence that `VInductDecl.WF` does not pin, which is the same wall that blocked the
-`pats_iota_ctor` ask.
+**And at `6fd8a1d` upstream proved it.** The route is exactly the one that analysis
+implied: stop trying to recover the split from the pattern, and take it from the
+*kernel's* structure facts instead — `ival.all = [S]`, `ival.ctors = [ctorName]`,
+`ival.numIndices = 0`, via the new `TrEnv.structure_rec`. `TrEnv.proj_defeq` now has no
+`sorry` of its own; `Verify/Environment/Lemmas.lean` has none at all. The lengths moved
+onto `ival.numParams` / `cval.numFields`, the redundant `hty` premise went (it is
+`TrProjCtor.major_ty`), and a context premise `OnCtx Γ (venv.IsType U)` came in.
 
-So `of_trEnv` **is** landed here, and it carries `sorryAx`. It is the only declaration in
-this file that does, it is deliberately not used by any capstone, and its purpose is to
-*measure* the gap rather than to cross it: with it in the audit, exactly one printed axiom
-set says what accepting upstream's deferred proof would cost. `ProjDefeqSpec` stays a
-named premise everywhere it is consumed. -/
+So the entry below inverts. `ProjDefeqSpec.of_trEnv` used to exist to *price* a gap and
+was deliberately used by nothing; it is now a real discharge of an assumption this
+development had carried since slice P4. What it inherits — `patsStrong`, unique typing,
+Π-injectivity — is the cone every other `TrEnv`-premised result already sits in, so the
+projection row stops being a *separate* upstream-gated item. Consumers may still take
+`ProjDefeqSpec` as a named premise, which is the right shape for a statement about an
+ambient `VEnv`; what changed is that a `TrEnv`-holding caller can now honestly discharge
+it rather than assume it.
+
+The cost is that the kernel structure facts are premises of the field, so a route that
+holds no `kenv` cannot supply them — see `ProjStructFacts` and the note on
+`projConsistent_of_coh` in `ProjDischarge.lean`. -/
 
 end LeanToLambdaBox
 
@@ -696,19 +832,30 @@ namespace Lean4Lean
 
 open Lean LeanToLambdaBox
 
-/-! ### `TrProjCtor` — **now upstream's**
+/-! ### `TrProjCtor` — **upstream's, and redesigned**
 
-`TrProjCtor` (`TrProj` with its constructor witness named), `TrProjCtor.toTrProj` and
-`TrProj.exists_ctorName` used to be *defined here*, in this namespace, because upstream
-had no such thing. At the `b6a5a38` re-pin they landed in `Lean4Lean`
-(`Verify/Typing/Expr.lean`) **character-identical to the copies this file carried** — the
-statement correction this round escalated, adopted verbatim — so the copies are deleted
-and the three names below resolve upstream. Nothing else in the file moved: the witnesses
-`trProjCtorP_bvar0` / `trProjCtorQ_bvar` construct the *same* nine-binder existential they
-constructed before, and `ProjDefeqSpec` states the reduction over the *same* predicate.
+`TrProjCtor` used to be *defined here* because upstream had no such thing. At `b6a5a38`
+it landed in `Lean4Lean` character-identical to this file's copy, and the copy died. At
+`6fd8a1d` upstream then **redesigned** it, and this file follows rather than diverging:
 
-That is the whole cost of the re-pin, and it is the shape a downstream mirror is supposed
-to have: when upstream adopts the statement, the mirror dies rather than diverging. -/
+* `def` (an 8-argument existential) → `structure` with **11** arguments and 8 named
+  fields (`pat`, `params_length`, `ctor`, `field_lt`, `minor_arity`, `major_ty`,
+  `fn_ty`, `eq`). The expansion's data — `usS`, `uss`, `params`, `np`, `fieldTys` — is
+  now exposed rather than existentially buried.
+* The motive is the thesis's **dependent** one (`VExpr.projMotiveBody`), not the constant
+  `.lam structTy fieldTy.lift`, and `e'` is `.app (VExpr.projFn …) e`, not a `mkApps`
+  spine `(const recName us).mkApps (params ++ [motive, selector, e])`. Every pattern
+  match on that spine was dead code and is gone.
+* Consequently **dependent fields come into scope** (`Sigma.snd`), which the constant
+  motive could not express; reflexive, indexed and nested single-constructor types stay
+  out, excluded by `minor_arity`'s `binderArity?` rather than by the pattern key.
+* `TrProj` is now *derived from* `TrProjCtor` — literally
+  `∃ ctorName usS uss params np fieldTys, TrProjCtor …` — so `TrProjCtor.toTrProj` and
+  `TrProj.exists_ctorName` were deleted with no replacement needed: the anonymous
+  constructor introduces and `obtain` eliminates.
+
+The fixtures above were rebuilt against this shape, on the model of upstream's own
+`Tests/ProjInhabit.lean`. -/
 
 /-! ### `TrExprS` inversion at a projection
 
@@ -724,11 +871,12 @@ theorem TrExprS.proj_inv {env : VEnv} {Us : List Name} {Δ : VLCtx} {S : Name} {
 
 theorem TrExprS.proj_inv' {env : VEnv} {Us : List Name} {Δ : VLCtx} {S : Name} {i : Nat}
     {e : Expr} {e'' : VExpr} (h : TrExprS env Us Δ (.proj S i e) e'') :
-    ∃ (e' : VExpr) (c : Name),
-      TrExprS env Us Δ e e' ∧ TrProjCtor env Us.length Δ.toCtx S i e' e'' c := by
-  obtain ⟨e', hd, hp⟩ := h.proj_inv
-  obtain ⟨c, hpc⟩ := hp.exists_ctorName
-  exact ⟨e', c, hd, hpc⟩
+    ∃ (e' : VExpr) (c : Name) (usS : List VLevel) (uss : Nat → List VLevel)
+      (params : List VExpr) (np : Nat) (fieldTys : List VExpr),
+      TrExprS env Us Δ e e' ∧
+        TrProjCtor env Us.length Δ.toCtx S i e' e'' c usS uss params np fieldTys := by
+  obtain ⟨e', hd, c, usS, uss, params, np, fieldTys, hpc⟩ := h.proj_inv
+  exact ⟨e', c, usS, uss, params, np, fieldTys, hd, hpc⟩
 
 end Lean4Lean
 
@@ -736,57 +884,78 @@ namespace LeanToLambdaBox
 
 open Lean Lean4Lean
 
-/-- **The projection-reduction interface.** `TrEnv.proj_defeq`'s statement, strengthened
-with the one hypothesis it is missing: the constructor heading the spine `d` is defeq to
-is the *same* one the `TrProj` witness carries. See the section docstring for why the
-upstream form is likely unprovable as written, and why naming the witness is the
-`PatsIotaSpec` move rather than a new assumption.
+/-- **The projection-reduction interface.** `TrEnv.proj_defeq`'s statement, verbatim.
 
-Stated at a `VEnv` with `safety`/`kenv` as parameters it only ever uses through the
-eventual discharge — the same discipline `SEvalDataι_defeq`'s docstring records for
-`IotaConsistent`: the interface keeps kernel-environment data out of every downstream
-`VEnv`-level statement.
+Stated at a `VEnv` with `safety`/`kenv` as parameters — the same discipline
+`SEvalDataι_defeq`'s docstring records for `IotaConsistent` — except that the kernel
+*structure facts* are now premises of the field itself, because that is what upstream's
+proof consumes. See the section docstring for why they replaced the telescope split.
 
-A `Prop` **hypothesis**, never an axiom. -/
+A `Prop` **hypothesis**, and since `6fd8a1d` one with a real discharge below. -/
 structure ProjDefeqSpec (safety : DefinitionSafety) (kenv : Lean.Kernel.Environment)
     (venv : VEnv) : Prop where
   /-- A projection whose discriminant is definitionally a saturated spine of *its own
-  structure's* constructor is definitionally the spine's `i`-th field. -/
-  proj_defeq : ∀ {U : Nat} {Γ : List VExpr} {S ctorName : Name} {i np nf : Nat}
-      {cus : List VLevel} {params fields : List VExpr} {d e'' A : VExpr},
-    TrProjCtor venv U Γ S i d e'' ctorName →
+  structure's* constructor is definitionally the spine's `i`-th field.
+
+  The constructor agreement this field used to have to *assume* — that the name heading
+  the spine is the one the `TrProjCtor` witness carries — is now structural: `hp` exposes
+  `ctorName` and `hd` is stated at the same name. What replaced the old `np`/`nf` and the
+  un-recoverable `(1 motive, 1 minor, 0 indices)` telescope split are the kernel's own
+  structure facts (`hS`, `hall`, `hctors`, `hnind`, `hctor`), which is exactly what
+  `inferProj` and `reduceProjCore` establish before they accept a projection, and the
+  lengths are read off `ival.numParams` / `cval.numFields` rather than free variables.
+  `hty` is gone: it is subsumed by `TrProjCtor.major_ty`. -/
+  proj_defeq : ∀ {U : Nat} {Γ : List VExpr} {S ctorName : Name} {i : Nat}
+      {ival : InductiveVal} {cval : ConstructorVal}
+      {usS : List VLevel} {uss : Nat → List VLevel} {params' : List VExpr} {np : Nat}
+      {fieldTys : List VExpr}
+      {cus : List VLevel} {params fields : List VExpr} {d e'' : VExpr},
+    OnCtx Γ (venv.IsType U) →
+    TrProjCtor venv U Γ S i d e'' ctorName usS uss params' np fieldTys →
+    kenv.find? S = some (.inductInfo ival) →
+    ival.all = [S] → ival.ctors = [ctorName] → ival.numIndices = 0 →
+    kenv.find? ctorName = some (.ctorInfo cval) →
     venv.IsDefEqU U Γ d ((VExpr.const ctorName cus).mkApps (params ++ fields)) →
-    venv.HasType U Γ d A →
-    params.length = np → ∀ (hflen : fields.length = nf) (hi : i < nf),
+    params.length = ival.numParams →
+    ∀ (hflen : fields.length = cval.numFields) (hi : i < cval.numFields),
     venv.IsDefEqU U Γ e'' (fields[i]'(hflen ▸ hi))
 
-/-- **The injection point.** Any `TrEnv` satisfies `ProjDefeqSpec`, by upstream's
-`TrEnv.proj_defeq` — which since `b6a5a38` states this field *verbatim*, over the same
-`TrProjCtor`, so the proof is the eta expansion and the `toTrProj` this discharge was
-predicted to need is not needed at all.
+/-- **The injection point, and now a real theorem.** Any `TrEnv` satisfies
+`ProjDefeqSpec`, by upstream's `TrEnv.proj_defeq` — whose statement this field is,
+verbatim, so the proof is the eta expansion.
 
-⚠️ **This declaration carries `sorryAx`**, and it is the only one in this file that does.
-Upstream's `proj_defeq` has the corrected statement and a deferred proof
-(`PROJ-TODO(soundness)`, `Verify/Environment/Lemmas.lean:652`); the residual is the
-structure-recursor shape plus constructor-arity threading, *not* the ι `pat_uniq` gap.
-See the section docstring.
+**This declaration no longer carries a `sorry` of its own upstream.** At `b6a5a38`
+`proj_defeq` was a corrected statement with a deferred proof, and this discharge existed
+only to *price* the gap: one printed axiom set saying what accepting the deferred proof
+would cost. At `6fd8a1d` upstream **proved it** (`Verify/Environment/Lemmas.lean`, a file
+with zero `sorry`s), by deriving the recursor's telescope split from the kernel's
+structure facts (`TrEnv.structure_rec`) instead of trying to recover it from the ι
+pattern's sum — which is precisely the residual the previous round had analysed and
+reported as the blocker. The `sorryAx` it still reports is *inherited*, from unique
+typing, Π-injectivity and the single consolidated ι obligation `VEnv.WF.patsStrong`;
+upstream pins that cone itself in `Tests/ProjInhabit.lean`.
 
-It is landed anyway, and left **unused by every capstone**, for the reason the ledger
-gives: a named premise that no one can discharge is an unmeasured trust item, whereas a
-one-line discharge sitting beside it turns the gap into a printed axiom set. Consumers
-keep taking `ProjDefeqSpec` as a hypothesis (`projConsistent_of_coh`, the cold-start
-guards); this is what they will *apply* when the upstream `sorry` goes, and until then it
-is the honest price tag. Contrast `PatsIotaSpec.of_trEnv`, which is `sorryAx`-free and
-therefore does get used. -/
+So this is an assumption that became a theorem. Consumers may keep taking
+`ProjDefeqSpec` as a hypothesis — that is still the honest shape for a statement about
+an ambient `VEnv` — but the row is no longer *upstream-gated*: a `TrEnv`-holding caller
+can discharge it, and the trust ledger's projection entry moves from "priced, not paid"
+to the general `patsStrong`/injectivity cone every other `TrEnv` result already sits in. -/
 theorem ProjDefeqSpec.of_trEnv {safety : DefinitionSafety} {kenv : Lean.Kernel.Environment}
     {venv : VEnv} (H : TrEnv safety kenv venv) : ProjDefeqSpec safety kenv venv :=
-  ⟨fun hp hd hty hlen hflen hi => H.proj_defeq hp hd hty hlen hflen hi⟩
+  ⟨fun hΓ hp hS hall hctors hnind hctor hd hlen hflen hi =>
+    H.proj_defeq hΓ hp hS hall hctors hnind hctor hd hlen hflen hi⟩
 
 /-- **Per-structure shape certificate** — `IotaShape`'s analogue, and much smaller: four
 kernel lookups and no `Expr` equation at all, because a projection's reduct is a *subterm*
 of the redex rather than a rule template that has to be β-normalised.
 `rfl`/`decide`-checkable for any concrete structure; nothing in it is a typing or
 translation assumption.
+
+`ival.all = [S]` (the block is `S` alone, i.e. non-mutual) joined the certificate at the
+`6fd8a1d` re-pin: upstream's now-proved `TrEnv.proj_defeq` derives the recursor's
+`(1 motive, 1 minor, 0 indices)` split from the kernel's structure facts rather than from
+the ι pattern's sum, and non-mutuality is one of the three it reads. It is `rfl`-checkable
+like the rest.
 
 `ival.ctors = [ctor]` is the load-bearing conjunct: it is `register_inductive`'s own
 `is_struct` gate (`inf.ctors.length == 1`), it is what makes the target rule's hard-wired
@@ -803,6 +972,7 @@ structure ProjShape (safety : DefinitionSafety) (kenv : Lean.Kernel.Environment)
     Γ.projs S = some (iid, np) → Γ.ctorFields iid = some [nf] →
     ∃ (ival : InductiveVal) (ctor : Name) (cval : ConstructorVal),
       kenv.find? S = some (.inductInfo ival) ∧
+      ival.all = [S] ∧
       ival.ctors = [ctor] ∧ ival.numParams = np ∧ ival.numIndices = 0 ∧
       ival.isRec = false ∧
       kenv.find? ctor = some (.ctorInfo cval) ∧
@@ -820,7 +990,7 @@ theorem ProjShape.ctorAgreement {safety : DefinitionSafety}
     {S : Name} {iid : InductiveId} {np nf : Nat}
     (hs : Γ.projs S = some (iid, np)) (hnfs : Γ.ctorFields iid = some [nf]) :
     ∃ ctor : Name, Γ.ctors ctor = some (iid, 0) ∧ Γ.ctorArities ctor = some (np + nf) := by
-  obtain ⟨ival, ctor, cval, -, -, -, -, -, -, -, -, hc, har, -⟩ := h.shape hs hnfs
+  obtain ⟨ival, ctor, cval, -, -, -, -, -, -, -, -, -, hc, har, -⟩ := h.shape hs hnfs
   exact ⟨ctor, hc, har⟩
 
 /-! ### Guards for the interface
@@ -830,37 +1000,42 @@ one implementation is upstream's deferred lemma. What can be guarded, and what m
 that it does not quantify over an empty domain: its premise `TrProjCtor` is inhabited, at
 both fixtures above and at both polarities. -/
 
-/-- **`TrProjCtor` is inhabited** — the witness with its constructor named, at `MyProd`'s
-first field. -/
+/-- **`TrProjCtor` is inhabited** — the witness with its constructor *and its expansion
+data* named, at `MyProd`'s first field. Since the redesign this exposes six components
+(`ctorName`, `usS`, `uss`, `params`, `np`, `fieldTys`) rather than the constructor
+alone. -/
 theorem trProjCtorP_bvar0 :
-    TrProjCtor envP 0 ΓpV `MyProd 0 (.bvar 0) (eProj 0 (.bvar 0)) `MyProd.mk :=
-  ⟨`MyProd.rec, [], [Nty], [Nty, Nty], 1, PN, Nty,
-    (SimplePattern.iotaRHS `MyProd.rec `MyProd.mk 1 1 1 0 2 rhsP rhsP_closed, .true),
-    envP_mkRecName, VEnv.addPat_self, rfl, by simp, hdV, rfl, hEProj0 hdV⟩
+    TrProjCtor envP 0 ΓpV `MyProd 0 (.bvar 0) (eProj 0 (.bvar 0)) `MyProd.mk [] ussP
+      [Nty] 1 [Nty, Nty] :=
+  trProjCtorP0 hdV
 
 /-- …and at the payoff shape, the two-parameter one-field class. This is the
 `ProjDefeqSpec` instance the `OfNat.ofNat` trace runs through. -/
 theorem trProjCtorQ_bvar :
-    TrProjCtor envQ 0 ΓqV `MyOfNat 0 (.bvar 0) (eProjQ (.bvar 0)) `MyOfNat.mk :=
-  ⟨`MyOfNat.rec, [], [Nty, n0c], [Nty], 2, QN, Nty,
-    (SimplePattern.iotaRHS `MyOfNat.rec `MyOfNat.mk 2 1 1 0 1 rhsQ rhsQ_closed, .true),
-    envQ_mkRecName, VEnv.addPat_self, rfl, by simp, .bvar .zero, rfl,
-    hEProjQ (.bvar .zero)⟩
+    TrProjCtor envQ 0 ΓqV `MyOfNat 0 (.bvar 0) (eProjQ (.bvar 0)) `MyOfNat.mk [] ussQ
+      [Nty, n0c] 2 [Nty] :=
+  trProjCtorQ hdQ
 
-/-- The forgetful direction lands back on `TrProj` — so `TrProjCtor` really is a
-reparenthesisation and not a strengthening in disguise. -/
+/-- The forgetful direction lands back on `TrProj`. `TrProjCtor.toTrProj` was deleted
+upstream and needs no replacement: `TrProj` *is* the existential closure, so this is the
+anonymous constructor. -/
 example : TrProj envP 0 ΓpV `MyProd 0 (.bvar 0) (eProj 0 (.bvar 0)) :=
-  trProjCtorP_bvar0.toTrProj
+  ⟨_, _, _, _, _, _, trProjCtorP_bvar0⟩
 
-/-- …and the naming direction recovers a constructor from the bare witness. -/
-example : ∃ c, TrProjCtor envP 0 ΓpV `MyProd 0 (.bvar 0) (eProj 0 (.bvar 0)) c :=
-  trProjP_bvar0.exists_ctorName
+/-- …and the naming direction recovers the constructor from the bare witness, by `obtain`
+rather than by the deleted `TrProj.exists_ctorName`. -/
+example : ∃ c usS uss params np fieldTys,
+    TrProjCtor envP 0 ΓpV `MyProd 0 (.bvar 0) (eProj 0 (.bvar 0)) c usS uss params np fieldTys :=
+  trProjP_bvar0
 
 /-- The negative polarity travels too: at a `pats`-free environment no `TrProjCtor`
-exists, for any constructor name. -/
-theorem trProjCtor_refuted {env : VEnv} {U Γ S i e e' c}
-    (hp : ∀ (p : Pattern) r, ¬ env.pats p r) : ¬ TrProjCtor env U Γ S i e e' c :=
-  fun h => trProj_refuted hp h.toTrProj
+exists, for any constructor name or expansion data. `TrProj` is now literally the
+existential closure of `TrProjCtor`, so the forgetful direction is the anonymous
+constructor and needs no `toTrProj`. -/
+theorem trProjCtor_refuted {env : VEnv} {U Γ S i e e' c usS uss params np fieldTys}
+    (hp : ∀ (p : Pattern) r, ¬ env.pats p r) :
+    ¬ TrProjCtor env U Γ S i e e' c usS uss params np fieldTys :=
+  fun h => trProj_refuted hp ⟨_, _, _, _, _, _, h⟩
 
 /-- **`ProjShape`'s `Γ`-side conjuncts fire** at `Γproj` (`Erases.lean`), the
 one-parameter one-field structure fixture: its unique constructor is registered at index
@@ -872,10 +1047,12 @@ example : Γproj.ctors `AC.mk = some (projInd, 0) ∧ Γproj.ctorArities `AC.mk 
   ⟨Γproj_ctors, Γproj_arity⟩
 
 /-- **`TrExprS.proj_inv'` fires**, and hands back exactly what the discharge asks for: the
-discriminant's translation and the constructor name. -/
-example : ∃ (e' : VExpr) (c : Name),
+discriminant's translation, the constructor name and — since the redesign — the expansion
+data the reduction is stated over. -/
+example : ∃ (e' : VExpr) (c : Name) (usS : List VLevel) (uss : Nat → List VLevel)
+    (params : List VExpr) (np : Nat) (fieldTys : List VExpr),
     TrExprS envQ [] ΔqV (.bvar 0) e' ∧
-      TrProjCtor envQ 0 ΔqV.toCtx `MyOfNat 0 e' (eProjQ (.bvar 0)) c :=
+      TrProjCtor envQ 0 ΔqV.toCtx `MyOfNat 0 e' (eProjQ (.bvar 0)) c usS uss params np fieldTys :=
   trExprSQ_proj.proj_inv'
 
 end LeanToLambdaBox
