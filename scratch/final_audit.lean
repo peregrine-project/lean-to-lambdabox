@@ -3105,8 +3105,14 @@ open LeanToLambdaBox
 --     injects the upstream PROJ-TODO `sorryAx`, and this round adds none. The interface
 --     stays a NAMED PREMISE — the `PatsIotaSpec` idiom — so the injection point, when it
 --     comes, is one declaration.
-#print axioms Lean4Lean.TrProjCtor.toTrProj
-#print axioms Lean4Lean.TrProj.exists_ctorName
+--
+--     [SUPERSEDED at the `6fd8a1d` re-pin, 2026-09-09 — see §MIGRATION at the end of this
+--     file. `TrProjCtor.toTrProj` and `TrProj.exists_ctorName` were DELETED upstream when
+--     `TrProj` became the existential closure of `TrProjCtor`, so the two probes that
+--     stood here are gone rather than moved: there is nothing to measure, the anonymous
+--     constructor and `obtain` do the work. And `of_trEnv` is no longer deliberately
+--     absent — `TrEnv.proj_defeq` is PROVED, so it is landed and real. The paragraph
+--     above is kept as the record of what was true at `b6a5a38`.]
 #print axioms Lean4Lean.TrExprS.proj_inv
 #print axioms Lean4Lean.TrExprS.proj_inv'
 #print axioms LeanToLambdaBox.ProjShape.ctorAgreement
@@ -4313,8 +4319,13 @@ open LeanToLambdaBox
 --     provenance from the projection round. It is landed to PRICE the deferral, not to
 --     cross it: no capstone uses it, `ProjDefeqSpec` stays a named premise everywhere, and
 --     the entry below is the whole cost of accepting upstream's deferred proof.
-#print axioms Lean4Lean.TrProjCtor.toTrProj
-#print axioms Lean4Lean.TrProj.exists_ctorName
+--
+--     [SUPERSEDED at `6fd8a1d` — see §MIGRATION. The deferral was PAID: upstream proved
+--     `proj_defeq` by the very route this paragraph's residual analysis implied, taking
+--     the `(1,1,0)` split from the kernel's structure facts instead of from the ι
+--     pattern's sum. `of_trEnv` is now a real discharge; what it prints is inherited from
+--     `patsStrong`/injectivity/unique typing, not from a projection-specific gap. The two
+--     conversion probes are gone with their declarations.]
 #print axioms Lean4Lean.TrEnv.proj_defeq
 #print axioms LeanToLambdaBox.ProjDefeqSpec.of_trEnv
 --
@@ -4338,7 +4349,10 @@ open LeanToLambdaBox
 --     obligation is now STATABLE where the development can see it, and FREE wherever the
 --     projection column is (`projRecRules_of_noProjs`) — which is what makes it a trade
 --     rather than a new assumption, the same measurement `ProjBridgeHyps.of_bot` earns.
-#print axioms Lean4Lean.TrEnv.pats_iota_inv
+-- [`TrEnv.pats_iota_inv` was DELETED at `6fd8a1d` and replaced by
+--  `pats_iota_inv_shape`, which returns the named-witness `TrEnv'.IotaRule` structure
+--  instead of a six-component tuple. The probe follows the successor. See §MIGRATION.]
+#print axioms Lean4Lean.TrEnv.pats_iota_inv_shape
 #print axioms LeanToLambdaBox.ProjRecRules
 #print axioms LeanToLambdaBox.projCtorAgree_of_trEnv
 #print axioms LeanToLambdaBox.projConsistent_of_coh_trEnv
@@ -4382,3 +4396,151 @@ open LeanToLambdaBox
 #print axioms LeanToLambdaBox.shipping_erase_correct_firstorderι
 #print axioms LeanToLambdaBox.shipping_erase_correct_firstorder_coldstart
 #print axioms LeanToLambdaBox.shipping_erase_correct_firstorderι_coldstart
+
+-- ############################################################################
+-- §MIGRATION — the `6fd8a1d` re-pin (2026-09-09)
+-- ############################################################################
+--
+-- lean4lean was re-pinned `b6a5a38` → `6fd8a1d` (head of the fork's `trproj` branch,
+-- 22 commits, 60 files, +17454/-1840). The step absorbs TWO redesigns at once: the ι
+-- redesign (branch `iota`, merged in) and a second TrProj redesign on top of it —
+-- `b6a5a38` was NOT a descendant of the ι work, so none of it had been seen here.
+-- Toolchain unchanged (v4.33.0-rc2), batteries unchanged.
+--
+-- THIS SECTION IS A REWRITE, NOT A RENUMBERING. The marker taxonomy the entries above
+-- are organised around no longer exists upstream:
+--
+--     IOTA-TODO   15 → 0        PROJ-TODO   4 → 0
+--
+-- Thirteen of the fifteen were PROVED; one was restated as an explicit caller hypothesis
+-- (`VEnv.toParams` now takes `DefEqsAsPats`); one was deleted with the API it guarded.
+-- The residue is ONE named theorem, `VEnv.WF.patsStrong` (`Theory/Typing/EnvLemmas.lean`)
+-- — "subject reduction of every registered ι rule in every well-formed prefix of `env`".
+--
+-- (a) THE FOUR ROOT CAUSES, RE-PARTITIONED. The count of *items* drops from ~23 to 7;
+--     the count of independent root causes stays 4:
+--
+--       i    `VEnv.WF.patsStrong`                  (one, named — replaces the 15 markers)
+--       ii   `Theory/Typing/Injectivity.lean` ×3   (unchanged: sort_inv,
+--                                                   forallE_inv_stratified, sort_forallE_inv)
+--       iii  `IsDefEqU.weakN_iff` forward          (unchanged — commission item C1 again
+--                                                   NOT delivered; `UniqueTyping.lean` is
+--                                                   byte-identical, so `ErasableStrengthen`
+--                                                   stays this ledger's class-R residue)
+--       iv   `TrProj.weak'_inv` + `TrProj.uniq`    (the A3 residue, two of seven)
+--
+--     GONE from the list: the whole `TrProj` definitional cluster (`TrProj` is a real
+--     definition and 6 of its 7 structural lemmas are proved, plus a new `mono`), and
+--     `Aligned.addInduct`, which is PROVED — so `TrEnv'.constMap_wf`, which existed only
+--     to route around it, was deleted upstream. The commission's routing rule
+--     ("go through `constMap_wf`, NOT `map_wf`") is INVERTED: `map_wf` is the only route
+--     and it is clean.
+--
+-- (b) THE PROJECTION ROW: AN ASSUMPTION BECAME A THEOREM.
+--     `TrEnv.proj_defeq` is PROVED (`Verify/Environment/Lemmas.lean`, a file with zero
+--     `sorry`s), by the route §(b) of the `b6a5a38` section above predicted when it
+--     analysed the residual: take the recursor's `(1 motive, 1 minor, 0 indices)` split
+--     from the KERNEL's structure facts (`TrEnv.structure_rec`: `ival.all = [S]`,
+--     `ival.ctors = [c]`, `ival.numIndices = 0`) rather than trying to recover it from the
+--     ι pattern's sum. `ProjDefeqSpec` is restated at those premises and
+--     `ProjDefeqSpec.of_trEnv` is a real discharge.
+--
+--     ⚠️ IT STILL PRINTS `sorryAx`, AND THE PROVENANCE IS WHAT CHANGED. Before, the
+--     `sorryAx` was `proj_defeq`'s OWN deferred proof — a projection-specific gap, priced
+--     deliberately and used by nothing. Now it is INHERITED, from unique typing,
+--     Π-injectivity and `patsStrong`: the cone every `TrEnv`-premised result in this file
+--     already sits in. Upstream pins the same set itself in `Tests/ProjInhabit.lean`.
+--     So the row moves from "priced, not paid" to "paid, on the general cone", and the
+--     projection round stops being a SEPARATE upstream-gated item.
+--
+--     The cost is stated, not hidden: the proved statement is against `kenv`, so a
+--     discharge route must supply the structure facts. That is `ProjStructFacts`
+--     (`ProjDischarge.lean`), free wherever the projection column is empty
+--     (`projStructFacts_of_noProjs`) and derivable from `ProjShape` (which gained
+--     `ival.all = [S]`), but NOT free for the registration route, which used to contain no
+--     kernel environment at all.
+#print axioms Lean4Lean.TrEnv.proj_defeq
+#print axioms LeanToLambdaBox.ProjDefeqSpec.of_trEnv
+#print axioms LeanToLambdaBox.ProjStructFacts
+#print axioms LeanToLambdaBox.ProjShape.structFacts
+#print axioms LeanToLambdaBox.projStructFacts_of_noProjs
+--
+-- (c) THE FIXTURES WERE REBUILT, AND THEY ARE SORRY-FREE. `TrProjCtor` went from an
+--     8-argument `def` over a CONSTANT motive and an explicit `mkApps` spine to an
+--     11-argument `structure` with eight named fields over the thesis's DEPENDENT motive,
+--     with `e' = .app (VExpr.projFn …) e`. Nothing could be patched. Both `MyProd` and
+--     `MyOfNat` witnesses are re-derived on upstream's `Tests/ProjInhabit.lean` model and
+--     measure `[propext, Classical.choice, Quot.sound]` — no `sorryAx`, so the projection
+--     layer is still demonstrably non-vacuous, now at the redesigned relation.
+#print axioms LeanToLambdaBox.trProjCtorP_bvar0
+#print axioms LeanToLambdaBox.trProjCtorQ_bvar
+#print axioms LeanToLambdaBox.trProjP_bvar0
+#print axioms LeanToLambdaBox.trProjP_bvar1
+#print axioms LeanToLambdaBox.trProjQ_bvar
+#print axioms LeanToLambdaBox.trExprSQ_ofNatBody
+#print axioms LeanToLambdaBox.gEsrcShapeProj
+--
+-- (d) THE ι INTERFACE IS CONSTRUCTOR-KEYED NOW. `VRecRule` gained a `ctorParams` field, so
+--     `VEnv.addRecRule` keys the registered pattern on the CONSTRUCTOR's `numParams`, not
+--     the recursor's, and `SimplePattern.iotaRHS` gained a `cnp` argument. `pats_iota'`
+--     also RETURNS the constructor, tied to the kernel. All still `sorryAx`-free here.
+#print axioms LeanToLambdaBox.PatsIotaSpec.of_trEnv
+#print axioms Lean4Lean.SimplePattern.iotaRHS_apply
+#print axioms LeanToLambdaBox.iota_defeq_spine
+--
+--     ⚠️ A SURVEY CLAIM THAT IS WRONG, RECORDED SO IT IS NOT ACTED ON. The drift survey
+--     said `pats_iota'` returning the constructor makes `ProjCtorAgree`/`ProjRecRules`
+--     "pure epicycle — retire them". It does not. `pats_iota'` ties the pattern's
+--     constructor to the KERNEL (`kenv.find? cName`); `ProjCtorAgree` ties it to
+--     `Γ.ctors`, the ERASURE CONTEXT's registration. No upstream lemma spans that gap —
+--     it is the same `VEnv`/`Γ` boundary slice P6 identified — so the bridge is still
+--     ours. `projCtorAgree_of_trEnv` is re-proved on `pats_iota_inv_shape` (the successor
+--     to the deleted `pats_iota_inv`) and stays `sorryAx`-free.
+#print axioms Lean4Lean.TrEnv.pats_iota_inv_shape
+#print axioms LeanToLambdaBox.projCtorAgree_of_trEnv
+#print axioms LeanToLambdaBox.projConsistent_of_coh_trEnv
+--
+-- (e) `Ordered` → `OrderedStrong`, AND WHERE THE TRUST MOVED TO. `VExpr.WF.app_inv` (and
+--     the whole substitution family and primitives layer) now demand `OrderedStrong`
+--     (= `Ordered` + `OnTypes (EnvStrong env)` + `PatsStrongOn`), so this repo's
+--     `VExpr.WF.mkApps_head` and `TrExprS.mkApps` do too. The effect on the ledger is
+--     GOOD and worth stating precisely: those two lemmas are now `sorryAx`-FREE at the
+--     hypothesis, and the obligation surfaces at whoever builds `OrderedStrong` from a
+--     `VEnv.WF` (`VEnv.WF.orderedStrong`, which is exactly `patsStrong`). Trust that used
+--     to be buried inside `IsDefEq.strong` under fifteen scattered markers is now
+--     LOCATED at one named premise.
+#print axioms Lean4Lean.VExpr.WF.mkApps_head
+#print axioms Lean4Lean.TrExprS.mkApps
+#print axioms Lean4Lean.VEnv.IsDefEqU.mkApps_congr_head
+#print axioms Lean4Lean.TrProj.uvars_mono
+--
+-- (f) AXIOMS. lean4lean's `axiom` count went 73 → 74. The delta is exactly one real
+--     declaration, `any_eq_any_toList` (`Verify/Axioms.lean`), a `Std.TreeMap` bridging
+--     axiom of the same class as the pre-existing `all_eq_all_toList`, arriving from the
+--     upstream-`master` merge rather than from either commissioned cluster. Nothing in
+--     this file's sets changed shape because of it.
+--
+-- (g) A SOUNDNESS-OF-FORMULATION NOTE, AND A SCOPE LIMIT.
+--     `VInductDecl.WF` stopped being a `sorry` and became a real 14-field §2.6
+--     direct-block specification (positivity, universes, large elimination, constructor
+--     result types, `recs_over_block`, `rules_ctor`, …). Upstream's own review mechanized
+--     two sorry-free counterexamples against EARLIER commits of this branch — a `WF` that
+--     admitted inconsistent environments, and a `patsStrong` route that missed WF-admitted
+--     off-block rules — and records both as FIXED at the surveyed head. The pin this file
+--     used to measure against, `b6a5a38`, predates both the fix and the specification (WF
+--     was still `sorry` there), so the exposure is different in kind, not worse.
+--
+--     ⚠️ WHAT MAY NOT BE WRITTEN: "the `TrEnv` horizon closes", unqualified. `TrProjCtor`
+--     covers single-constructor types that are non-recursive, non-indexed and non-mutual;
+--     `inferProj` (kernel and lean4lean) accepts reflexive, indexed and nested ones too,
+--     and core's own `Lean.Language.SnapshotTree.element` is exactly such a raw `.proj`.
+--     A `TrEnv` witness is constructible for prelude structures but NOT for an environment
+--     containing `SnapshotTree`. That is a COMPLETENESS boundary, not a soundness one, and
+--     it must accompany the claim.
+--
+-- (h) STILL OPEN, UNCHANGED BY THIS RE-PIN: `inferProj.WF` (now split, with a scoped
+--     `inferProj.WF_struct` beside it, both `sorry`), `reduceProj`/`reduceProjCore.WF`
+--     (not attempted — needs constructor-head injectivity), `tryEtaStructCore.WF`,
+--     `isDefEqUnitLike.WF`, `addDecl.WF`'s `inductDecl` case, and `NormalEq.parRed`'s two
+--     cases. `IsDefEq.church_rosser` is now sorry-FREE — its `pat` case was one of the
+--     fifteen.

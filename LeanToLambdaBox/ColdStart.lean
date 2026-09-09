@@ -485,7 +485,7 @@ downstream reach:
 |---|---|---|
 | `TrProj.uniq` | `Verify/Typing/Lemmas.lean` | **YES**, through `TrExprS.uniq` (above). Blocked on the `Injectivity.lean` cluster, never in scope for the trproj round |
 | `TrProj.weak'_inv` | `Verify/Typing/Lemmas.lean` | **no** — nothing here calls `TrExprS.weakFV'_inv`/`weakFV_inv`. `ErasesUniform.lean` deliberately routed around it, and that decision pays off twice: it dodged the A0 churn *and* this gap. Blocked on C1 |
-| `TrEnv.proj_defeq` | `Verify/Environment/Lemmas.lean` | **priced, not paid** — a real statement with a deferred proof. Its *statement* was corrected at the `b6a5a38` re-pin (re-stated over `TrProjCtor`, adopted verbatim from this repo's copy), so what this round escalated as plausibly unprovable is now merely unproved; upstream also re-analysed the residual as the structure-recursor shape plus ctor-arity threading, explicitly **not** the ι `pat_uniq` gap. Since the re-pin exactly one downstream declaration reaches it — `ProjDefeqSpec.of_trEnv`, landed deliberately and used by nothing — so it contributes `sorryAx` to that entry and to no other, and to no capstone. That is the design call made explicitly: name the price, do not pay it |
+| `TrEnv.proj_defeq` | `Verify/Environment/Lemmas.lean` | **priced, not paid** — a real statement with a deferred proof. Its *statement* was corrected at the `b6a5a38` re-pin (re-stated over `TrProjCtor`, adopted verbatim from this repo's copy), so what this round escalated as plausibly unprovable is now merely unproved; upstream also re-analysed the residual as the structure-recursor shape plus ctor-arity threading, explicitly **not** the ι `pat_uniq` gap. Since the re-pin exactly one downstream declaration reaches it — `ProjDefeqSpec.of_trEnv`, landed deliberately and used by nothing — so it contributes `sorryAx` to that entry and to no other, and to no capstone. That is the design call made explicitly: name the price, do not pay it. **[UPDATED at the `6fd8a1d` re-pin, 2026-09-09: the price was PAID — upstream *proved* `proj_defeq`, by exactly the route this row's residual analysis implied, taking the recursor's `(1,1,0)` split from the kernel's structure facts (`TrEnv.structure_rec`) instead of from the ι pattern's sum. `Verify/Environment/Lemmas.lean` now has zero `sorry`s. `ProjDefeqSpec.of_trEnv` still *prints* `sorryAx`, but the provenance changed: it is inherited from unique typing, Π-injectivity and the consolidated `VEnv.WF.patsStrong`, i.e. the cone every `TrEnv`-premised result here already sits in, not a projection-specific gap. The row therefore stops being a separate upstream-gated item. What it costs is stated rather than hidden: the proved statement is against `kenv`, so a discharge route must supply the structure facts — `ProjStructFacts`, free where the projection column is empty and derivable from `ProjShape`, but *not* free for the registration route, which used to contain no kernel environment at all.]** |
 
 **And what the merge cost.** `trproj` is a merge of upstream `master`, so this pin also
 absorbs master's level-normalization rewrite, the K-target flag fix and
@@ -693,8 +693,10 @@ theorem shipping_erase_correct_firstorderι_coldstart
     -- source-side interface premise, and it sits here for the same reason `hiota` does —
     -- `ProjConsistent` is a statement about `env`, not about the registry. Its discharge
     -- is `projConsistent_of_coh` (`ProjDischarge.lean`) from `ProjDefeqSpec` (upstream's
-    -- `TrEnv.proj_defeq` — statement corrected at the `b6a5a38` re-pin, proof still
-    -- deferred, and the round's ONLY remaining upstream-gated premise) and
+    -- `TrEnv.proj_defeq` — statement corrected at `b6a5a38` and **proved at `6fd8a1d`**,
+    -- so no longer a separate upstream-gated premise; its `sorryAx` is now inherited from
+    -- `patsStrong`/injectivity/unique typing, and its discharge costs the caller the
+    -- kernel structure facts `ProjStructFacts`) and
     -- `ProjCtorAgree` (a theorem since that re-pin, `projCtorAgree_of_trEnv`), feeding on
     -- the very `ProjFieldsCoherent` this theorem now derives; at a structure-free `Γ` it is
     -- `projConsistent_of_noProjs`, which is how the `known = ⊥` guards pick it up.
@@ -1879,11 +1881,14 @@ That is a deliberate weakening: `env` universally quantified is a stronger state
   only-vacuously — the S1d/S1e failure mode, checked here for the column P9 added.
 
 And `hproj` is discharged along the route the ledger names — `projConsistent_of_coh`, on
-the *constructed* `ProjFieldsCoherent` — leaving, since the `b6a5a38` re-pin, exactly
-**one** upstream-gated item rather than two: `ProjDefeqSpec` (`TrEnv.proj_defeq`,
-statement corrected, proof still deferred). `ProjCtorAgree` is now derivable
-(`projCtorAgree_of_trEnv`), and `gProjConsistentQ_of_trEnv` below fires that route at this
-fixture, so the shrink is measured here and not merely asserted in the ledger. -/
+the *constructed* `ProjFieldsCoherent`. The `b6a5a38` re-pin took the projection gate from
+two upstream-gated items to one, and **`6fd8a1d` took it to none**: `ProjCtorAgree` is
+derivable (`projCtorAgree_of_trEnv`) and `TrEnv.proj_defeq` is *proved*, so
+`ProjDefeqSpec` has a real discharge. What replaces the gate is a kernel-side certificate
+of the class this round already carries — `ProjStructFacts`, beside `ProjRecRules` — which
+is the honest price of a statement that is now proved against `kenv`'s structure facts.
+`gProjConsistentQ_of_trEnv` below fires that route at this fixture, so the shrink is
+measured here and not merely asserted in the ledger. -/
 
 /-- **The premise slice P9 deleted is FALSE at this fixture.** `ΓFOrec_norec_refuted`'s
 transpose: `hnoprojs : Γ.projs = ⊥` is not merely unused below, it is refutable, so the
@@ -1944,8 +1949,9 @@ registry invariant's new column, and the premise that used to stand in for them,
 `hnoprojs : Γ.projs = ⊥`, is refuted here (`ΓprojQ_noprojs_refuted`).
 
 What is left on the projection side is `hproj`, discharged below through
-`projConsistent_of_coh` from `ProjDefeqSpec` — the one upstream-gated item left after the
-`b6a5a38` re-pin — the derivable `ProjCtorAgree`, and the constructed
+`projConsistent_of_coh` from `ProjDefeqSpec` — proved upstream at `6fd8a1d`, so no longer
+an upstream-gated item — the derivable `ProjCtorAgree`, the kernel-side `ProjStructFacts`
+that the proved statement now requires, and the constructed
 `ΓprojQ_projFieldsCoherent`. This guard keeps `hagree` hypothetical so that it stays the
 general `VEnv`-level statement of the capstone; `gProjConsistentQ_of_trEnv` above is where
 the re-pin's discharge is exercised. See the section docstring for the
