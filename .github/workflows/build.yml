@@ -4,6 +4,7 @@ on:
   push:
     branches:
     - 'main'
+    - 'dev/verify'
     paths-ignore:
     - '**.md'
     - 'LICENSE'
@@ -33,3 +34,13 @@ jobs:
           build: true
           test: false
           lint: false
+
+      - name: Trust ledger
+        run: bash scripts/ledger.sh
+
+      - name: lean4lean sorry inventory
+        run: bash scripts/lean4lean-sorries.sh
+
+      - name: Comment hygiene
+        continue-on-error: true
+        run: bash scripts/hygiene.sh
