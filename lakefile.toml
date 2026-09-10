@@ -115,3 +115,9 @@ roots = [
   "VerifyBench.BinaryTrees",
   "VerifyBench.Fannkuch",
 ]
+
+# The external half of the green ladder (`Tools/GreenCheck.lean`): the checks that
+# have to run outside the kernel. Today `--self-test` exercises `lbEval`.
+[[lean_exe]]
+name = "green-check"
+root = "Tools.GreenCheck"
