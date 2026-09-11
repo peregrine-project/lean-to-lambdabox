@@ -106,7 +106,7 @@ theorem isArityCheck.loop.WF {c : VContext} {s : VState} {ty : Expr} {ty' : VExp
     (isArityCheck.loop fuel ty).WF c s fun b _ =>
       b → IsArityUpTo c.venv c.lparams.length c.vlctx.toCtx ty' := by
   induction fuel generalizing c s ty ty' with
-  | zero => exact .pure nofun
+  | zero => exact .throw
   | succ fuel ih =>
     refine (whnf.WF hty).bind fun ty1 s' le h => ?_
     obtain ⟨_, e₂, hS, hdefeq⟩ := h
