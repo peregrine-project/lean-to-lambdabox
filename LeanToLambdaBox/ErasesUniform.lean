@@ -190,7 +190,8 @@ theorem Erases.strengthen_fvlift {env : VEnv} (henv : env.Ordered) {Us : List Na
   | fvar _ =>
     intro _ _ _ _ _ _ _ _ hwt
     cases hwt with | fvar h => exact .fvar h
-  | const hc => intro _ _ _ _ _ _ _ _ _; exact .const hc
+  | ctor hc hi => intro _ _ _ _ _ _ _ _ _; exact .ctor hc hi
+  | const hc ho => intro _ _ _ _ _ _ _ _ _; exact .const hc ho
   | app _ _ ihf iha =>
     intro _ _ _ _ _ W hΔ' hnp hwt
     cases hwt with
@@ -249,7 +250,8 @@ theorem Erases.strengthen_fvlift_binders {env : VEnv} (henv : env.WF) {Us : List
   | fvar _ =>
     intro _ _ _ _ _ _ _ _ hwt
     cases hwt with | fvar h => exact .fvar h
-  | const hc => intro _ _ _ _ _ _ _ _ _; exact .const hc
+  | ctor hc hi => intro _ _ _ _ _ _ _ _ _; exact .ctor hc hi
+  | const hc ho => intro _ _ _ _ _ _ _ _ _; exact .const hc ho
   | app _ _ ihf iha =>
     intro _ _ _ _ _ W hΔ' hnp hwt
     cases hwt with

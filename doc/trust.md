@@ -6,6 +6,16 @@ diff can check. `#print axioms` reports `sorryAx` as one flat name with **no pro
 provenance lives here, and no acceptance test claims to have measured it. This file is the
 only prose ledger in the repository.
 
+Its live rows are the results of `doc/rework/01-DESIGN.md` §4.14 that exist:
+`LowerBlock.lambda_of_fixLambda`, `Lower.constToFix`,
+`shipping_erase_correct_firstorder`, `green_G1`-`green_G4`, and the three §5 results already
+standing — `SEval.defeq`, `LBOptimize_correct`, `lbEval_sound`. `erases_correct` (W3), the two
+`visitExpr_refines_*` bridges (W4) and `green_G8` (W5) are commented out in `test/Ledger.lean`
+and are uncommented by the wave that proves them. A second fixture,
+`test/erasesLB.expected` (`scripts/erasesLB.sh`), measures the composite's introduction
+lemmas — statement and footprint — so a premise silently added to or dropped from `ErasesLB`
+shows as a diff.
+
 Five classes are used throughout, in decreasing strength:
 
 | Class | Meaning |
@@ -76,18 +86,24 @@ appear by name in the statements that take them, and `lake exe green-check` is t
 
 ## (c) Class-**C**: hypotheses of stated theorems
 
-`hcfg` (the erasure configuration is the fragment's), `hcb` (the compiler bodies table is
-adequate — a hypothesis of the capstone, discharged at a rung by `Green.g1_compilerBodies`
-from `P`, `htbl` and `hsafe`), `hsup` (`Supported`, established at a rung by `supportedB_sound`
-from `supportedB`'s computed verdict), `hax` (`ErasableAxioms`, decidable per rung), and the
-source-evaluation hypothesis each capstone takes.
+Each is a hypothesis of a theorem a reader checks by reading its statement. A rung is
+expected to inhabit each by a checked term; where one is still a binder the row says so, and
+that is the only place in this repository where that is recorded.
+
+| Binder | What it assumes | Where a rung discharges it |
+|---|---|---|
+| `hcfg` | the erasure configuration is the fragment's | `Green.spike_configPinned`, at G1-G4 |
+| `hsup` | `Supported`, the fragment predicate | `supportedB_sound` on `supportedB`'s computed verdict, at G1-G4 |
+| `hnb` | `NoBodylessRefs`, `erase_correct_firstorder`'s `axiom_free` at the emitted environment; decidable, and false on Fannkuch | `by decide +kernel`, at G1-G4 |
+| `hcb` | `CompilerBodies`: every tabled compiler body is kernel-typeable at its declared type | `Green.g1_compilerBodies` from `P`, `htbl` and `hsafe`, at **G1 only**. It stays a binder at G2-G4, whose tables carry the class projection `OfNat.ofNat`: typing that body needs a `TrExprS` derivation through the `TrProj` layer, which is unproven at the pin (a2) |
+| `hev` | the source evaluation `SEval env bo [] fullFlags [] e v` the capstone observes | **nowhere yet.** No rung below G5 constructs an `SEval` derivation, so `hev` is an **uninhabited** class-**C** binder at G1-G4 (`Green.lean`, one per rung). The first one built is G3's `green_G5`, whose subject is a `match`: it discharges `CasesOnShape`, `ConstOrigin`, `CtorOf` and N20's per-branch obligations. Until then a rung's non-vacuity is conditional on this binder as well as on the class-**D** ones |
 
 ## (d) Class-**E**: scope restrictions and consumer facts
 
 | Row | Content |
 |---|---|
 | N1 `csimp` | `csimp := false` is required by every correctness statement; the shipping default is `true` |
-| N2 `@[extern]` | one `AxiomRealizer` row per name; the consumer supplies the realizer |
+| N2 `@[extern]` | an `@[extern]` constant is emitted body-less and its realizer is the consumer's; a program reaching one fails `NoBodylessRefs` and is outside the capstone's domain |
 | N3 machine `Nat` | `nat := .peano` only |
 | N4 argmask | `remove_irrel_constr_args := false` |
 | N5 auto-inline | the `.ast.inlinings` channel, including `F-PRODUCT`'s feature |

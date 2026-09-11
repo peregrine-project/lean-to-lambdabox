@@ -59,7 +59,8 @@ theorem erases_shift {env : VEnv} (henv : env.Ordered) {Us : List Name}
     · rw [if_neg hlt, if_pos (by omega : i ≥ dk)]
       exact .bvar (by simpa [VLCtx.liftVar, hlt] using hfind)
   | fvar hf => exact .fvar (by simpa [VLCtx.liftVar] using W.find? hf)
-  | const hc => exact .const hc
+  | ctor hc hi => exact .ctor hc hi
+  | const hc ho => exact .const hc ho
   | app _ _ ihf iha => exact .app (ihf W) (iha W)
   | lam hty _ ihb => exact .lam (hty.weakBV henv W) (ihb (W.cons _))
   | letE hty hval _ _ ihv ihb =>
@@ -182,7 +183,8 @@ theorem erases_subst {env : VEnv} (henv : env.Ordered) {Us : List Name}
       · obtain ⟨⟨_, _⟩, h⟩ := instN_find?_gt W (by omega) ⟨_, hf⟩
         exact .bvar h
   | fvar hf => obtain ⟨⟨_, _⟩, h⟩ := instN_find?_fvar W ⟨_, hf⟩; exact .fvar h
-  | const hc => exact .const hc
+  | ctor hc hi => exact .ctor hc hi
+  | const hc ho => exact .const hc ho
   | app _ _ ihf iha => exact .app (ihf W) (iha W)
   | lam hty _ ihb =>
     exact .lam (TrExprS.instN henv ht₀ t₀ W hty) (ihb (W.succ (d := .vlam _)))
@@ -228,7 +230,8 @@ theorem Erases.defeqDFC_wt {env : VEnv} (henv : env.WF) {Us : List Name} :
       intro Δ₂ hΔ hWF ve htr
       obtain ⟨_, _, h₂⟩ := hΔ.find?_defeqDFC hf
       exact .fvar h₂
-  | const hc => intro Δ₂ hΔ hWF ve htr; exact .const hc
+  | ctor hc hi => intro Δ₂ hΔ hWF ve htr; exact .ctor hc hi
+  | const hc ho => intro Δ₂ hΔ hWF ve htr; exact .const hc ho
   | app _ _ ihf iha =>
       intro Δ₂ hΔ hWF ve htr
       cases htr with
@@ -397,7 +400,8 @@ theorem erases_subst_let {env : VEnv} (henv : env.Ordered) {Us : List Name}
       · obtain ⟨⟨_, _⟩, h⟩ := instLet_find?_gt W (by omega) ⟨_, hf⟩
         exact .bvar h
   | fvar hf => obtain ⟨⟨_, _⟩, h⟩ := instLet_find?_fvar W ⟨_, hf⟩; exact .fvar h
-  | const hc => exact .const hc
+  | ctor hc hi => exact .ctor hc hi
+  | const hc ho => exact .const hc ho
   | app _ _ ihf iha => exact .app (ihf W) (iha W)
   | lam hty _ ihb =>
     exact .lam (TrExprS.instN_let henv ht₀ W hty) (ihb (W.succ (d := .vlam _)))
@@ -474,7 +478,8 @@ theorem Erases.abstract {env : VEnv} {Us : List Name}
     · simp only [if_true]
       obtain ⟨_, _, h⟩ := abstract_find?_dk W
       exact .bvar h
-  | const hc' => exact .const hc'
+  | ctor hc' hi => exact .ctor hc' hi
+  | const hc' ho => exact .const hc' ho
   | app _ _ ihf iha => exact .app (ihf W hc.1) (iha W hc.2)
   | lam hty _ ihb => exact .lam (hty.abstract W) (ihb W.succ hc.2)
   | letE hty hval _ _ ihv ihb =>
@@ -685,12 +690,6 @@ theorem TrExprS.instL_strict {env : VEnv} {Us ps : List Name} {ls : List Level}
   rw [Expr.instantiateLevelParams_eq]
   exact TrExprS.instL_core Hls eq rfl _ H hnm
 
-/-- `IsArity` is a spine of `forallE`s ending in a `sort`; `instL` fixes both
-constructors. -/
-theorem IsArity.instL {ls : List VLevel} : ∀ {A : VExpr}, IsArity A → IsArity (A.instL ls)
-  | _, .sort _ => .sort _
-  | _, .forallE _ _ h => .forallE _ _ (IsArity.instL h)
-
 /-- `IsArityUpTo` transports along a level instantiation, its defeq witness by
 `VEnv.IsDefEqU.instL` and its syntactic arity by `IsArity.instL`. -/
 theorem IsArityUpTo.instL {env : VEnv} {U U' : Nat} {ls : List VLevel}
@@ -736,7 +735,8 @@ theorem Erases.instL_core {env : VEnv} {Us ps : List Name} {ls : List Level}
       Literal.toConstructor_hasLevelParam ▸ ih noMaxLevels_toConstructor :)
   | bvar hf => intro _; exact .bvar (VLCtx.find?_instL hf)
   | fvar hf => intro _; exact .fvar (VLCtx.find?_instL hf)
-  | const hc => intro _; exact .const hc
+  | ctor hc hi => intro _; exact .ctor hc hi
+  | const hc ho => intro _; exact .const hc ho
   | app _ _ ihf iha => intro hnm; exact .app (ihf hnm.1) (iha hnm.2)
   | lam hty _ ihb =>
     intro hnm; exact .lam (TrExprS.instL_core Hls eq eqF red hty hnm.1) (ihb hnm.2)

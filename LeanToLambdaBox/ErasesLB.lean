@@ -12,17 +12,21 @@ compilation steps at source level.
 
 * `ErasesLB Σ = Erases ⨟ Lower Σ`, with `ErasesLBAlt`/`ErasesLBAlts` for a `case`
   alternative and a block of them.
-* Eight introduction lemmas — `box`, `app`, `ctor_head`, `ctor`, `ctor_eta`, `cases`,
-  `cases_eta`, `fix` — each taking the source-level data of one compilation step.
+* Six introduction lemmas — `box`, `app`, `ctor_head`, `ctor`, `cases`, `fix` — each
+  taking the source-level data of one compilation step.
 * Their `ErasesLBFix.*` twins, the same steps inside a mutual block, where the emitted term
   carries the block's fix variables (`LowerFix.lean`'s `ErasesLBFix = ErasesLB ⨟ ConstToFVar`),
   plus `ErasesLBFix.fixvar`, the block branch's own step, which has no `ErasesLB` counterpart.
 * `erasesLB_of_spine`, which reads a spine premise written as `Erases` and `Lower` side by
   side as one `ErasesLB` premise.
 
-`ErasesLB.ctor_head` and `ErasesLB.cases` carry premises `doc/rework/01-DESIGN.md` §4.7 does
-not print; their docstrings say which and why, and `ErasesLB.ctor_head_needs_nullary` shows
-`ctor_head`'s added premise necessary.
+`ErasesLB.cases` carries premises `doc/rework/01-DESIGN.md` §4.7 does not print; its
+docstring says which and why.
+
+The two `*_eta` twins are deleted with the pass's two η arms, and `ctor_head_needs_nullary`
+with them: it showed the empty constructor node reachable from a constructor constant only
+at arity zero, a fact about `Lower.ctorApp`. `ctor_head` and `ctor` are `Erases.ctor` plus
+`Lower.construct`, at every arity.
 -/
 
 namespace LeanToLambdaBox
@@ -183,77 +187,56 @@ theorem ErasesLB.app {f a : Expr} {f' a' : LBTerm} (hf : ErasesLB env Us Γ Δ f
   let ⟨a₀, ha₀, ha₁⟩ := ha
   ⟨.app f₀ a₀, .app hf₀ ha₀, .app hf₁ ha₁⟩
 
-/--
-A bare constructor constant composes to the empty constructor node, provided the
-constructor takes no argument.
-
-`hnul` is not in `doc/rework/01-DESIGN.md` §4.7's printed signature and is load-bearing:
-`Lower` sends a constructor constant of positive arity to an η-expanded λ, never to a
-`.construct` node (`ErasesLB.ctor_head_needs_nullary`).
--/
-theorem ErasesLB.ctor_head {cn : Name} {us : List Level} {ci : VConstant}
-    {iid : InductiveId} {k : Nat} (hc : CtorDecl Γ (toKername cn) iid k)
-    (hnul : cstrArity Γ iid k = 0) (h : env.constants cn = some ci) :
+/-- A bare constructor constant composes to the empty constructor node: `Erases.ctor` is
+the `tConstruct` congruence at the head, and the pass relates that node to itself. -/
+theorem ErasesLB.ctor_head {cn I : Name} {us : List Level} {iid : InductiveId}
+    {k np : Nat} {nfs : List Nat} (hc : CtorOf env cn I k)
+    (hi : IndInfo env I iid np nfs) :
     ErasesLB env Us Γ Δ (.const cn us) (.construct iid k []) :=
-  ⟨.const (toKername cn), .const h,
-    Lower.ctorApp (args := []) (args' := []) hc (by simp [hnul]) rfl (fun i hi => absurd hi (by simp))⟩
+  ⟨.construct iid k [], .ctor hc hi, .construct rfl (fun i hi => absurd hi (by simp))⟩
 
-/-- A saturated or over-applied constructor spine composes to the applied constructor
-node. `hsat` is `Lower.ctorApp`'s own dispatch guard, and `hcst` is the erasure factor's:
-the head is a declared constant. -/
-theorem ErasesLB.ctor {cn : Name} {us : List Level} {ci : VConstant}
-    {iid : InductiveId} {k : Nat} {args : List Expr} {args' : List LBTerm}
-    (hc : CtorDecl Γ (toKername cn) iid k) (hcst : env.constants cn = some ci)
-    (hsat : args.length ≥ cstrArity Γ iid k) (hlen : args'.length = args.length)
+/-- A constructor spine composes to the applied constructor node, at any arity: the
+arguments arrive through `Erases.app`, so the node carries none and the pass is the
+`app`/`construct` congruence over the spine. -/
+theorem ErasesLB.ctor {cn I : Name} {us : List Level} {iid : InductiveId}
+    {k np : Nat} {nfs : List Nat} {args : List Expr} {args' : List LBTerm}
+    (hc : CtorOf env cn I k) (hi : IndInfo env I iid np nfs)
+    (hlen : args'.length = args.length)
     (ha : ∀ i, i < args.length → ErasesLB env Us Γ Δ args[i]! args'[i]!) :
     ErasesLB env Us Γ Δ (args.foldl Expr.app (.const cn us))
       (LBTerm.mkApps (.construct iid k []) args') := by
   obtain ⟨mid, hmlen, herm, hlowm⟩ := ErasesLB.exists_mid ha
-  refine ⟨LBTerm.mkApps (.const (toKername cn)) mid, ?_, ?_⟩
+  refine ⟨LBTerm.mkApps (.construct iid k []) mid, ?_, ?_⟩
   · rw [← mkApps_eq_foldl]
-    exact Erases.mkApps args mid (.const hcst) hmlen herm
-  · exact Lower.ctorApp hc (by omega) (by omega) (fun i hi => hlowm i (by omega))
+    exact Erases.mkApps args mid (.ctor hc hi) hmlen herm
+  · exact Lower.mkApps (.construct rfl (fun i hi => absurd hi (by simp))) (by omega)
+      (fun i hi => hlowm i (by omega))
 
-/-- An under-applied constructor spine composes to the η-expanded constructor node: `ns`
-fresh binders saturate it, and `shift ns.length 0` moves the lowered prefix under them. -/
-theorem ErasesLB.ctor_eta {cn : Name} {us : List Level} {ci : VConstant}
-    {iid : InductiveId} {k : Nat} {args : List Expr} {args' : List LBTerm}
-    {ns : List BinderName}
-    (hc : CtorDecl Γ (toKername cn) iid k) (hcst : env.constants cn = some ci)
-    (hns : ns ≠ []) (hund : args.length + ns.length = cstrArity Γ iid k)
-    (hlen : args'.length = args.length)
-    (ha : ∀ i, i < args.length → ErasesLB env Us Γ Δ args[i]! args'[i]!) :
-    ErasesLB env Us Γ Δ (args.foldl Expr.app (.const cn us))
-      (mkLambdas ns (LBTerm.mkApps (.construct iid k [])
-        ((args'.map (LBTerm.shift ns.length 0)) ++ bvarsDesc ns.length))) := by
-  obtain ⟨mid, hmlen, herm, hlowm⟩ := ErasesLB.exists_mid ha
-  refine ⟨LBTerm.mkApps (.const (toKername cn)) mid, ?_, ?_⟩
-  · rw [← mkApps_eq_foldl]
-    exact Erases.mkApps args mid (.const hcst) hmlen herm
-  · exact Lower.ctorEta hc hns (by omega) (by omega) (fun i hi => hlowm i (by omega))
-
-/-- A block member's constant composes to the block's `.fix` node. -/
+/-- A block member's constant composes to the block's `.fix` node. `hnk` is `Lower.fixConst`'s
+own guard: a block member is a definition, never an eliminator key. -/
 theorem ErasesLB.fix {cn : Name} {us : List Level} {ci : VConstant} {kns : List Kername}
     {bs bs' : List LBTerm} {ids : List FVarId} {defs : List (@FixDef LBTerm)} {j : Nat}
-    (hblk : LowerBlock Γ kns bs bs' ids defs) (hj : kns[j]? = some (toKername cn))
-    (h : env.constants cn = some ci) : ErasesLB env Us Γ Δ (.const cn us) (.fix defs j) :=
-  ⟨.const (toKername cn), .const h, Lower.fixConst' hblk hj⟩
+    (hblk : LowerBlock Γ kns bs bs' ids defs) (hnk : ¬ RuntimeKey Γ (toKername cn))
+    (hj : kns[j]? = some (toKername cn)) (h : env.constants cn = some ci)
+    (ho : ConstOrigin env cn) : ErasesLB env Us Γ Δ (.const cn us) (.fix defs j) :=
+  ⟨.const (toKername cn), .const h ho, Lower.fixConst' hblk hnk hj⟩
 
 
-/--
-A saturated eliminator spine composes to a `.case` node: the `dp` arguments before the
-discriminant are dropped, and the minors become the alternatives.
-
-`hpre` and `hppi` are not in `doc/rework/01-DESIGN.md` §4.7's printed signature in this
-form: the dropped arguments still need an erasure image, since `Erases` is a congruence
-over the whole spine, and `Erases.exists_of_trExprS_of_projInfo` supplies one only under a
-`ProjInfo` side premise. `hlen` pins the spine to the node's own arity.
--/
+/-- A saturated eliminator spine composes to a `.case` node: the `dp` arguments before the
+discriminant are dropped, the minors become the alternatives, and `hlen` pins the spine to
+the node's own arity. `hpre`, `hppi` and `hclass` are not in
+`doc/rework/01-DESIGN.md` §4.7's printed signature: the dropped arguments still need an
+erasure image, since `Erases` is a congruence over the whole spine, and
+`Erases.exists_of_trExprS_of_projInfo` supplies one only under a `ProjInfo` side premise
+and the classification of every declared constant. -/
 theorem ErasesLB.cases {con : Name} {us : List Level} {ci : VConstant}
     {iid : InductiveId} {np dp : Nat} {nfs : List Nat} {args : List Expr}
     {disc : LBTerm} {alts : List (List BinderName × LBTerm)}
     (hE : ElimDecl Γ (toKername con) iid np dp nfs) (hcst : env.constants con = some ci)
-    (henv : env.WF) (hΔ : VLCtx.WF env Us.length Δ)
+    (hco : ConstOrigin env con) (henv : env.WF)
+    (hclass : ∀ c ci, env.constants c = some ci → (∃ I k, CtorOf env c I k) ∨
+      (∃ iid np nfs, IndInfo env c iid np nfs) ∨ ConstOrigin env c)
+    (hΔ : VLCtx.WF env Us.length Δ)
     (hpre : ∀ a ∈ args.take dp, ∃ ve, TrExprS env Us Δ a ve)
     (hppi : ∀ a ∈ args.take dp, ProjInfo env a)
     (hlen : args.length = dp + 1 + nfs.length)
@@ -272,7 +255,8 @@ theorem ErasesLB.cases {con : Name} {us : List Level} {ci : VConstant}
       (fun i b => Erases env Us Δ (args.take dp)[i]! b)
       (fun i hi => by
         obtain ⟨ve, hve⟩ := hpre _ (Lower.getElem!_mem hi)
-        exact Erases.exists_of_trExprS_of_projInfo henv hΔ (hppi _ (Lower.getElem!_mem hi)) hve)
+        exact Erases.exists_of_trExprS_of_projInfo henv hclass hΔ
+          (hppi _ (Lower.getElem!_mem hi)) hve)
   obtain ⟨minors₀, hnlen, hnpt⟩ :=
     exists_list_of_index (args.drop (dp + 1)).length
       (fun i b => Erases env Us Δ (args.drop (dp + 1))[i]! b ∧
@@ -281,7 +265,7 @@ theorem ErasesLB.cases {con : Name} {us : List Level} {ci : VConstant}
   refine ⟨LBTerm.mkApps (.const (toKername con)) (pre₀ ++ disc₀ :: minors₀), ?_, ?_⟩
   · have hspine := Erases.mkApps (f := Expr.const con us)
       (args.take dp ++ args[dp]! :: args.drop (dp + 1)) (pre₀ ++ disc₀ :: minors₀)
-      (.const hcst) (by simp [hplen, hnlen])
+      (.const hcst hco) (by simp [hplen, hnlen])
       (forall_index_append hplen (by simp [hnlen]) hperase
         (forall_index_cons hderase (fun i hi => (hnpt i hi).1)))
     rw [← hsplit] at hspine
@@ -290,99 +274,19 @@ theorem ErasesLB.cases {con : Name} {us : List Level} {ci : VConstant}
   · have hstep : Lower Γ
         (LBTerm.mkApps (.const (toKername con)) (pre₀ ++ disc₀ :: minors₀ ++ []))
         (LBTerm.mkApps (.case (iid, np) disc alts) []) :=
-      Lower.elimApp' (Γ := Γ) (hd := .const (toKername con)) (iid := iid) (np := np)
+      Lower.elimApp' (Γ := Γ) (kn := toKername con) (iid := iid) (np := np)
         (dp := dp) (nfs := nfs) (pre := pre₀) (disc := disc₀) (disc' := disc)
         (minors := minors₀) (alts := alts) (extra := []) (extra' := [])
-        (.inl ⟨_, rfl, hE⟩) (by omega)
+        hE (by omega)
         ⟨by omega, halen, fun i hi => (hnpt i (by omega)).2⟩ hdlow rfl
         (fun i hi => absurd hi (by simp))
     simpa using hstep
 
-/-- An under-applied eliminator spine composes to the η-expanded `.case` node: `ns` fresh
-binders saturate the spine, and `hsat` lowers the saturated spine. The spine's erasure
-image `args₀` is explicit because the added binders have no source counterpart. -/
-theorem ErasesLB.cases_eta {con : Name} {us : List Level} {ci : VConstant}
-    {iid : InductiveId} {np dp : Nat} {nfs : List Nat} {args : List Expr}
-    {args₀ : List LBTerm} {ns : List BinderName} {body : LBTerm}
-    (hE : ElimDecl Γ (toKername con) iid np dp nfs) (hcst : env.constants con = some ci)
-    (hns : ns ≠ []) (hund : args.length + ns.length = dp + 1 + nfs.length)
-    (hlen : args₀.length = args.length)
-    (ha : ∀ i, i < args.length → Erases env Us Δ args[i]! args₀[i]!)
-    (hsat : Lower Γ (LBTerm.mkApps (.const (toKername con))
-      ((args₀.map (LBTerm.shift ns.length 0)) ++ bvarsDesc ns.length)) body) :
-    ErasesLB env Us Γ Δ (args.foldl Expr.app (.const con us)) (mkLambdas ns body) :=
-  ⟨LBTerm.mkApps (.const (toKername con)) args₀,
-    by rw [← mkApps_eq_foldl]; exact Erases.mkApps args args₀ (.const hcst) hlen ha,
-    Lower.elimEta (.inl ⟨_, rfl, hE⟩) hns (by omega) hsat⟩
-
-
-/-! ## Why `ctor_head` is nullary -/
-
-/-- The empty constructor node is reachable from a constructor constant only at arity
-zero: at any other arity the pass η-expands, and `Lower` relates no `.const` to a
-`.construct` node otherwise. This is `ErasesLB.ctor_head`'s `hnul` shown necessary. -/
-theorem ErasesLB.ctor_head_needs_nullary {cn : Name} {us : List Level}
-    {iid : InductiveId} {k : Nat}
-    (h : ErasesLB env Us Γ Δ (.const cn us) (.construct iid k [])) :
-    CtorDecl Γ (toKername cn) iid k ∧ cstrArity Γ iid k = 0 := by
-  obtain ⟨t₀, her, hlow⟩ := h
-  rcases Erases.const_inv her with ⟨_, rfl⟩ | ⟨_, rfl⟩
-  · rcases Lower.target_construct hlow rfl with ⟨_, hs, _⟩ | ⟨_, hs, _⟩ <;>
-      exact LBTerm.noConfusion hs
-  · rcases Lower.target_construct hlow rfl with ⟨_, hs, _⟩ | ⟨kn, hs, hc, _, hnul⟩
-    · exact LBTerm.noConfusion hs
-    · injection hs with hkn
-      subst hkn
-      exact ⟨hc, hnul⟩
-
 /-! ## `ConstToFVar` as a congruence
 
-The block rewriting commutes with the operators the η arms build their targets out of. -/
-
-/-- Block rewriting commutes with `shift`: it reads no de Bruijn index, and a `.fix` node
-maps to itself at every cutoff. -/
-theorem ConstToFVar.shift {kns : List Kername} {ids : List FVarId} {t u : LBTerm}
-    (h : ConstToFVar kns ids t u) :
-    ∀ d c, ConstToFVar kns ids (LBTerm.shift d c t) (LBTerm.shift d c u) := by
-  induction h with
-  | box => exact fun _ _ => .box
-  | bvar i => intro d c; simp only [LBTerm.shift]; split <;> exact .bvar _
-  | fvar x => exact fun _ _ => .fvar x
-  | prim p => exact fun _ _ => .prim p
-  | hit hkn hx => exact fun _ _ => .hit hkn hx
-  | miss hk => exact fun _ _ => .miss hk
-  | lambda _ ih => exact fun d c => .lambda (ih d (c + 1))
-  | letIn _ _ ihv ihb => exact fun d c => .letIn (ihv d c) (ihb d (c + 1))
-  | app _ _ ihf iha => exact fun d c => .app (ihf d c) (iha d c)
-  | proj _ ih => exact fun d c => .proj (ih d c)
-  | @construct iid k args args' hlen _ ih =>
-      intro d c
-      simp only [LBTerm.shift, LBTerm.shiftArgs_eq_map]
-      refine .construct (by simp [hlen]) ?_
-      intro i hi
-      rw [List.length_map] at hi
-      rw [Lower.getElem!_map _ _ i hi, Lower.getElem!_map _ _ i (by omega)]
-      exact ih i hi d c
-  | @«case» ip dd dd' alts alts' _ hlen hn _ ihd ihb =>
-      intro d c
-      simp only [LBTerm.shift, LBTerm.shiftAlts_eq_map]
-      refine .case (ihd d c) (by simp [hlen]) ?_ ?_
-      · intro i hi
-        rw [List.length_map] at hi
-        rw [Lower.getElem!_map (fun a : List BinderName × LBTerm =>
-              (a.1, LBTerm.shift d (c + a.1.length) a.2)) alts' i (by omega),
-          Lower.getElem!_map (fun a : List BinderName × LBTerm =>
-              (a.1, LBTerm.shift d (c + a.1.length) a.2)) alts i hi]
-        exact hn i hi
-      · intro i hi
-        rw [List.length_map] at hi
-        rw [Lower.getElem!_map (fun a : List BinderName × LBTerm =>
-              (a.1, LBTerm.shift d (c + a.1.length) a.2)) alts' i (by omega),
-          Lower.getElem!_map (fun a : List BinderName × LBTerm =>
-              (a.1, LBTerm.shift d (c + a.1.length) a.2)) alts i hi]
-        rw [hn i hi]
-        exact ihb i hi d (c + (alts[i]!).1.length)
-  | fix defs i => intro d c; simp only [LBTerm.shift]; exact .fix _ _
+The block rewriting commutes with the spine operator the composite's introduction lemmas
+build their targets out of. `ConstToFVar.shift`, `.mkLambdas` and `.bvarsDesc` are deleted
+with the two `*_eta` twins, the only consumers of a λ-telescope target. -/
 
 /-- Block rewriting is a congruence over an application spine. -/
 theorem ConstToFVar.mkApps {kns : List Kername} {ids : List FVarId} {f f' : LBTerm}
@@ -409,23 +313,6 @@ theorem ConstToFVar.mkApps {kns : List Kername} {ids : List FVarId} {f f' : LBTe
         getElem!_pos (y :: ys) (i + 1) (by simp only [List.length_cons]; omega),
         List.getElem_cons_succ, List.getElem_cons_succ,
         ← getElem!_pos xs i hi, ← getElem!_pos ys i (by omega)] at hi'
-
-/-- Block rewriting is a congruence under a lambda telescope. -/
-theorem ConstToFVar.mkLambdas {kns : List Kername} {ids : List FVarId}
-    (ns : List BinderName) {b b' : LBTerm} (h : ConstToFVar kns ids b b') :
-    ConstToFVar kns ids (mkLambdas ns b) (mkLambdas ns b') := by
-  induction ns with
-  | nil => exact h
-  | cons n ns ih => exact .lambda ih
-
-/-- An η-expansion's own arguments are de Bruijn indices, which block rewriting fixes. -/
-theorem ConstToFVar.bvarsDesc {kns : List Kername} {ids : List FVarId} (n : Nat) :
-    ∀ i, i < (bvarsDesc n).length →
-      ConstToFVar kns ids (bvarsDesc n)[i]! (bvarsDesc n)[i]! := by
-  intro i hi
-  obtain ⟨m, _, hm⟩ := bvarsDesc_mem (Lower.getElem!_mem hi)
-  rw [hm]; exact .bvar m
-
 
 /-! ## The block twins
 
@@ -467,9 +354,10 @@ theorem ErasesLBFix.exists_mid {args : List Expr} {args' : List LBTerm}
 step of the block branch neither `Erases` nor `Lower` states. -/
 theorem ErasesLBFix.fixvar {cn : Name} {us : List Level} {ci : VConstant} {j : Nat}
     {x : FVarId} (hkn : kns[j]? = some (toKername cn)) (hx : ids[j]? = some x)
-    (hnr : ¬ RuntimeKey Γ (toKername cn)) (h : env.constants cn = some ci) :
+    (hnr : ¬ RuntimeKey Γ (toKername cn)) (h : env.constants cn = some ci)
+    (ho : ConstOrigin env cn) :
     ErasesLBFix env Us Γ kns ids Δ (.const cn us) (.fvar x) :=
-  ⟨.const (toKername cn), .const (toKername cn), .const h, .const hnr, .hit hkn hx⟩
+  ⟨.const (toKername cn), .const (toKername cn), .const h ho, .const hnr, .hit hkn hx⟩
 
 /-- `ErasesLB.box` inside a block. -/
 theorem ErasesLBFix.box {e : Expr} {ve : VExpr} (htr : TrExprS env Us Δ e ve)
@@ -486,53 +374,35 @@ theorem ErasesLBFix.app {f a : Expr} {f' a' : LBTerm}
   .of_erasesLB (ErasesLB.app hf₁ ha₁) (.app hfc hac)
 
 /-- `ErasesLB.ctor_head` inside a block. -/
-theorem ErasesLBFix.ctor_head {cn : Name} {us : List Level} {ci : VConstant}
-    {iid : InductiveId} {k : Nat} (hc : CtorDecl Γ (toKername cn) iid k)
-    (hnul : cstrArity Γ iid k = 0) (h : env.constants cn = some ci) :
+theorem ErasesLBFix.ctor_head {cn I : Name} {us : List Level} {iid : InductiveId}
+    {k np : Nat} {nfs : List Nat} (hc : CtorOf env cn I k)
+    (hi : IndInfo env I iid np nfs) :
     ErasesLBFix env Us Γ kns ids Δ (.const cn us) (.construct iid k []) :=
-  .of_erasesLB (ErasesLB.ctor_head hc hnul h)
+  .of_erasesLB (ErasesLB.ctor_head hc hi)
     (.construct rfl (fun i hi => absurd hi (by simp)))
 
 /-- `ErasesLB.ctor` inside a block. -/
-theorem ErasesLBFix.ctor {cn : Name} {us : List Level} {ci : VConstant}
-    {iid : InductiveId} {k : Nat} {args : List Expr} {args' : List LBTerm}
-    (hc : CtorDecl Γ (toKername cn) iid k) (hcst : env.constants cn = some ci)
-    (hsat : args.length ≥ cstrArity Γ iid k) (hlen : args'.length = args.length)
+theorem ErasesLBFix.ctor {cn I : Name} {us : List Level} {iid : InductiveId}
+    {k np : Nat} {nfs : List Nat} {args : List Expr} {args' : List LBTerm}
+    (hc : CtorOf env cn I k) (hi : IndInfo env I iid np nfs)
+    (hlen : args'.length = args.length)
     (ha : ∀ i, i < args.length → ErasesLBFix env Us Γ kns ids Δ args[i]! args'[i]!) :
     ErasesLBFix env Us Γ kns ids Δ (args.foldl Expr.app (.const cn us))
       (LBTerm.mkApps (.construct iid k []) args') := by
   obtain ⟨mid, hmlen, hlb, hct⟩ := ErasesLBFix.exists_mid ha
-  exact .of_erasesLB (ErasesLB.ctor hc hcst hsat hmlen hlb)
+  exact .of_erasesLB (ErasesLB.ctor hc hi hmlen hlb)
     (ConstToFVar.mkApps (.construct rfl (fun i hi => absurd hi (by simp)))
       (by omega) (fun i hi => hct i (by omega)))
-
-/-- `ErasesLB.ctor_eta` inside a block. -/
-theorem ErasesLBFix.ctor_eta {cn : Name} {us : List Level} {ci : VConstant}
-    {iid : InductiveId} {k : Nat} {args : List Expr} {args' : List LBTerm}
-    {ns : List BinderName}
-    (hc : CtorDecl Γ (toKername cn) iid k) (hcst : env.constants cn = some ci)
-    (hns : ns ≠ []) (hund : args.length + ns.length = cstrArity Γ iid k)
-    (hlen : args'.length = args.length)
-    (ha : ∀ i, i < args.length → ErasesLBFix env Us Γ kns ids Δ args[i]! args'[i]!) :
-    ErasesLBFix env Us Γ kns ids Δ (args.foldl Expr.app (.const cn us))
-      (mkLambdas ns (LBTerm.mkApps (.construct iid k [])
-        ((args'.map (LBTerm.shift ns.length 0)) ++ bvarsDesc ns.length))) := by
-  obtain ⟨mid, hmlen, hlb, hct⟩ := ErasesLBFix.exists_mid ha
-  refine .of_erasesLB (ErasesLB.ctor_eta hc hcst hns hund hmlen hlb)
-    (ConstToFVar.mkLambdas ns (ConstToFVar.mkApps
-      (.construct rfl (fun i hi => absurd hi (by simp))) (by simp; omega) ?_))
-  refine forall_index_append (by simp; omega) (by simp) ?_ (ConstToFVar.bvarsDesc _)
-  intro i hi
-  rw [List.length_map] at hi
-  rw [Lower.getElem!_map _ _ i hi, Lower.getElem!_map _ _ i (by omega)]
-  exact ConstToFVar.shift (hct i (by omega)) _ _
 
 /-- `ErasesLB.cases` inside a block. -/
 theorem ErasesLBFix.cases {con : Name} {us : List Level} {ci : VConstant}
     {iid : InductiveId} {np dp : Nat} {nfs : List Nat} {args : List Expr}
     {disc : LBTerm} {alts : List (List BinderName × LBTerm)}
     (hE : ElimDecl Γ (toKername con) iid np dp nfs) (hcst : env.constants con = some ci)
-    (henv : env.WF) (hΔ : VLCtx.WF env Us.length Δ)
+    (hco : ConstOrigin env con) (henv : env.WF)
+    (hclass : ∀ c ci, env.constants c = some ci → (∃ I k, CtorOf env c I k) ∨
+      (∃ iid np nfs, IndInfo env c iid np nfs) ∨ ConstOrigin env c)
+    (hΔ : VLCtx.WF env Us.length Δ)
     (hpre : ∀ a ∈ args.take dp, ∃ ve, TrExprS env Us Δ a ve)
     (hppi : ∀ a ∈ args.take dp, ProjInfo env a)
     (hlen : args.length = dp + 1 + nfs.length)
@@ -548,36 +418,21 @@ theorem ErasesLBFix.cases {con : Name} {us : List Level} {ci : VConstant}
         (alts[i]!).1.length = a.1.length ∧ ConstToFVar kns ids a.2 (alts[i]!).2)
       halts
   refine .of_erasesLB
-    (ErasesLB.cases hE hcst henv hΔ hpre hppi hlen hdlb
+    (ErasesLB.cases hE hcst hco henv hclass hΔ hpre hppi hlen hdlb
       ⟨hmlen, halen₁, fun i hi => (hapt i hi).1⟩) ?_
   exact .case hdct (by omega) (fun i hi => (hapt i (by omega)).2.1)
     (fun i hi => (hapt i (by omega)).2.2)
-
-/-- `ErasesLB.cases_eta` inside a block. -/
-theorem ErasesLBFix.cases_eta {con : Name} {us : List Level} {ci : VConstant}
-    {iid : InductiveId} {np dp : Nat} {nfs : List Nat} {args : List Expr}
-    {args₀ : List LBTerm} {ns : List BinderName} {body body' : LBTerm}
-    (hE : ElimDecl Γ (toKername con) iid np dp nfs) (hcst : env.constants con = some ci)
-    (hns : ns ≠ []) (hund : args.length + ns.length = dp + 1 + nfs.length)
-    (hlen : args₀.length = args.length)
-    (ha : ∀ i, i < args.length → Erases env Us Δ args[i]! args₀[i]!)
-    (hsat : Lower Γ (LBTerm.mkApps (.const (toKername con))
-      ((args₀.map (LBTerm.shift ns.length 0)) ++ bvarsDesc ns.length)) body)
-    (hct : ConstToFVar kns ids body body') :
-    ErasesLBFix env Us Γ kns ids Δ (args.foldl Expr.app (.const con us))
-      (mkLambdas ns body') :=
-  .of_erasesLB (ErasesLB.cases_eta hE hcst hns hund hlen ha hsat)
-    (ConstToFVar.mkLambdas ns hct)
 
 /-- `ErasesLB.fix` inside a block: the `.fix` node of an inner block, which the outer
 block's rewriting leaves alone. -/
 theorem ErasesLBFix.fix {cn : Name} {us : List Level} {ci : VConstant}
     {bkns : List Kername} {bs bs' : List LBTerm} {bids : List FVarId}
     {defs : List (@FixDef LBTerm)} {j : Nat}
-    (hblk : LowerBlock Γ bkns bs bs' bids defs) (hj : bkns[j]? = some (toKername cn))
-    (h : env.constants cn = some ci) :
+    (hblk : LowerBlock Γ bkns bs bs' bids defs) (hnk : ¬ RuntimeKey Γ (toKername cn))
+    (hj : bkns[j]? = some (toKername cn)) (h : env.constants cn = some ci)
+    (ho : ConstOrigin env cn) :
     ErasesLBFix env Us Γ kns ids Δ (.const cn us) (.fix defs j) :=
-  .of_erasesLB (ErasesLB.fix hblk hj h) (.fix defs j)
+  .of_erasesLB (ErasesLB.fix hblk hnk hj h ho) (.fix defs j)
 
 /-! ## The spine premise, folded -/
 

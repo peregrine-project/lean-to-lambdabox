@@ -139,14 +139,12 @@ def importGraph : IO (Array (String × List String)) := do
       let (kw, rest) := firstToken l
       if kw == "import" then some (firstToken rest).1 else none)
   return out
-/-- Backticked tokens of a line, each with whether `'s` follows the closing backtick — the
-    mark of a citation of part of a file rather than of the file. -/
-def backticked (line : String) : List (String × Bool) :=
-  let rec go : List String → Nat → List (String × Bool)
+/-- Backticked tokens of a line. A possessive (`` `X.lean` ``'s something) is a citation of
+    part of a file and still names the file, so it is not distinguished here. -/
+def backticked (line : String) : List String :=
+  let rec go : List String → Nat → List String
     | [], _ => []
-    | p :: rest, i =>
-      if i % 2 == 1 then (p, (rest.headD "").startsWith "'s") :: go rest (i + 1)
-      else go rest (i + 1)
+    | p :: rest, i => if i % 2 == 1 then p :: go rest (i + 1) else go rest (i + 1)
   go (line.splitOn "`") 0
 /-- Expand one `{a,b}` group: `E{,X}.lean` gives `E.lean` and `EX.lean`. -/
 partial def expandBraces (s : String) : List String :=
@@ -158,11 +156,12 @@ partial def expandBraces (s : String) : List String :=
       (mid.splitOn ",").flatMap fun alt => expandBraces (pre ++ alt ++ post)
     | _ => [s]
   | _ => [s]
-/-- The `.lean` paths in a table cell: braces expanded, part-of-file citations dropped, a
-    bare module name resolved under `LeanToLambdaBox/`. -/
+/-- The `.lean` paths in a table cell: braces expanded, a bare module name resolved under
+    `LeanToLambdaBox/`. A cell naming a file possessively yields that file, so a row deleting
+    part of a file is checked like any other. -/
 def cellFiles (cell : String) : List String :=
-  (backticked cell).flatMap fun (t, part) =>
-    if part then [] else (expandBraces t).filter (·.endsWith ".lean") |>.map fun t =>
+  (backticked cell).flatMap fun t =>
+    (expandBraces t).filter (·.endsWith ".lean") |>.map fun t =>
       if topDirs.contains ((t.splitOn "/").headD t) then t else "LeanToLambdaBox/" ++ t
 /-- The cells of a markdown table row. -/ def rowCells (line : String) : List String :=
   let t := trimS line
@@ -186,7 +185,7 @@ def deletionRows (plan : Array String) : Array DelRow := Id.run do
       let cs := rowCells l
       match waveNum (cs.headD ""), cs[1]?, cs[2]? with
       | some w, some unit, some cell =>
-        out := out.push ⟨w, (backticked unit).headD (unit, false) |>.1, cellFiles cell,
+        out := out.push ⟨w, (backticked unit).headD unit, cellFiles cell,
           (cell.splitOn "importers' import lines").length > 1⟩
       | _, _, _ => pure ()
   return out
@@ -345,7 +344,7 @@ def checkCites (files : List String) (all : Bool) : IO UInt32 := do
   let mut bad := 0; let mut n := 0
   for f in files do
     for (l, i) in ((← IO.FS.readFile f).splitOn "\n").zipIdx do
-      for (t, _) in backticked l do
+      for t in backticked l do
         for t in expandBraces t do
           let t := (t.splitOn ":").headD t
           if (t.splitOn "/").length > 1 && topDirs.contains ((t.splitOn "/").headD "")

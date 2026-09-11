@@ -36,15 +36,16 @@ import LeanToLambdaBox.ErasesAbstract
 import LeanToLambdaBox.ErasesStrengthen
 import LeanToLambdaBox.ErasesUniform
 import LeanToLambdaBox.ErasesTotal
--- The source-side evaluation and its subject reduction.
+-- The source-side evaluation, its subject reduction, and what the simulation's arms consume.
 import LeanToLambdaBox.SourceEval
 import LeanToLambdaBox.SubjectReduction
+import LeanToLambdaBox.ErasesCorrect
 -- The pass layer: the runtime library's bodies, the pass relation, its fixpoint closure,
--- and the forward simulation on the fragment W1 covers.
+-- and the composite of erasure with the pass.
 import LeanToLambdaBox.ElimBody
 import LeanToLambdaBox.Lower
 import LeanToLambdaBox.LowerFix
-import LeanToLambdaBox.LowerCorrect
+import LeanToLambdaBox.ErasesLB
 -- The specification bundle, the output boundary, the supported fragment, the environments.
 import LeanToLambdaBox.ErasureSpec
 import LeanToLambdaBox.Output

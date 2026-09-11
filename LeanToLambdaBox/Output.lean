@@ -16,15 +16,50 @@ as `LBExpandedFix`, and `PeregrinePre` is the conjunction peregrine's first pass
 requires. The gap is a shipping finding, not paperwork: `guarded_to_unguarded_fix` is the
 identity on terms and discharges its whole evaluation-preservation obligation from that clause.
 
-`ErasableAxioms` is the reachability form of `axiom_free`: a `Prop`-typed axiom is erasable,
-hence boxed, hence unreachable, so the condition to state is that every *reachable* body-less
-constant has a realizer on the consumer side. It is a hypothesis of the capstone, decidable on
-the emitted program.
+`NoBodylessRefs` is `axiom_free` at the emitted environment: no constant the program reaches
+is declared without a body. It is decidable, and it is the capstone's premise — a run that
+reaches a body-less constant is stuck at its `delta` step, so without the premise such a rung
+would be vacuously green.
+
+`ReachableFrom` is the reachability the two conditions read, computed by a fuel-bounded fold
+over the constant bodies; its threading lemmas move a program's reachable set to a subterm, to
+a δ-unfolded body and to a substitution instance.
 -/
 
 namespace LeanToLambdaBox
 
 open Lean (Name FVarId)
+
+/-! ## Kername equality
+
+`Kername.beq` is the comparison `LBTerm.envLookup` and the reachability closure use; these
+are its reflexivity and its adequacy, which a concrete environment's lookups are computed
+with.
+-/
+
+theorem ModPath.eq_of_beq : ∀ {mp mp' : ModPath}, ModPath.beq mp mp' = true → mp = mp'
+  | .MPfile _, .MPfile _, h => by simp [ModPath.beq] at h; simp [h]
+  | .MPdot mp _, .MPdot mp' _, h => by
+      simp [ModPath.beq] at h
+      rw [ModPath.eq_of_beq h.1, h.2]
+  | .MPfile _, .MPdot _ _, h | .MPdot _ _, .MPfile _, h => by simp [ModPath.beq] at h
+
+theorem ModPath.beq_self : ∀ mp : ModPath, ModPath.beq mp mp = true
+  | .MPfile _ => by simp [ModPath.beq]
+  | .MPdot mp _ => by simp [ModPath.beq, ModPath.beq_self mp]
+
+theorem Kername.eq_of_beq {k k' : Kername} (h : Kername.beq k k' = true) : k = k' := by
+  simp only [Kername.beq, Bool.and_eq_true] at h
+  obtain ⟨hmp, hid⟩ := h
+  cases k; cases k'
+  simp_all only [Kername.mk.injEq]
+  exact ⟨ModPath.eq_of_beq hmp, by simpa using hid⟩
+
+theorem Kername.beq_self (k : Kername) : Kername.beq k k = true := by
+  simp [Kername.beq, ModPath.beq_self]
+
+theorem Kername.beq_iff {k k' : Kername} : Kername.beq k k' = true ↔ k = k' :=
+  ⟨Kername.eq_of_beq, fun h => h ▸ Kername.beq_self k⟩
 
 /-! ## Subterms -/
 
@@ -207,7 +242,7 @@ erasure emits bare `tFix` constant bodies. This is **not** concluded by the caps
 def PeregrinePre (Γ : GlobalDeclarations) (t : LBTerm) : Prop :=
   LBWfPeregrine Γ t ∧ LBExpandedFix Γ t
 
-/-! ## Reachable axioms -/
+/-! ## Reachability -/
 
 /-- Is `kn` in `l`? -/
 def kernameElem (kn : Kername) (l : List Kername) : Bool := l.any (Kername.beq kn)
@@ -221,15 +256,18 @@ def addNames : List Kername → List Kername → List Kername
 the structural-recursion checker does not see through `map` for the nested `List` occurrences
 of `LBTerm`, the same factoring `Semantics.shift` uses. -/
 mutual
-/-- Every constant `t` names. -/
+/-- Every kername `t` names: the constants it references, and the **inductive block** every
+`.construct`, `.case` and `.proj` node reads — `constructorArity` and
+`isPropositionalInductive` answer from that declaration, so a program that reaches such a
+node reaches its block. -/
 def constRefs : LBTerm → List Kername
   | .const kn => [kn]
   | .lambda _ b => constRefs b
   | .letIn _ v b => constRefs v ++ constRefs b
   | .app f a => constRefs f ++ constRefs a
-  | .construct _ _ args => constRefsArgs args
-  | .case _ discr alts => constRefs discr ++ constRefsAlts alts
-  | .proj _ e => constRefs e
+  | .construct iid _ args => iid.mutualBlockName :: constRefsArgs args
+  | .case ip discr alts => ip.1.mutualBlockName :: (constRefs discr ++ constRefsAlts alts)
+  | .proj p e => p.indType.mutualBlockName :: constRefs e
   | .fix defs _ => constRefsDefs defs
   | .box | .bvar _ | .fvar _ | .prim _ => []
 
@@ -249,24 +287,30 @@ def constRefsDefs : List (@FixDef LBTerm) → List Kername
   | fd :: rest => constRefs fd.body ++ constRefsDefs rest
 end
 
+/-- The accumulator step of `expandRefs`: a seen constant contributes the kernames of its
+body, if it has one. -/
+def expandStep (Γ : GlobalDeclarations) (acc : List Kername) (kn : Kername) : List Kername :=
+  match LBTerm.envLookup Γ kn with
+  | some (.constantDecl ⟨some b⟩) => addNames (constRefs b) acc
+  | _ => acc
+
 /-- One δ-step of the reachability closure: add the constants named by the bodies of the
 constants seen so far. -/
 def expandRefs (Γ : GlobalDeclarations) (seen : List Kername) : List Kername :=
-  seen.foldl (fun acc kn =>
-    match LBTerm.envLookup Γ kn with
-    | some (.constantDecl ⟨some b⟩) => addNames (constRefs b) acc
-    | _ => acc) seen
+  seen.foldl (expandStep Γ) seen
 
-/-- The reachability closure, unfolded `n` times from `t`'s own constants. -/
-def reachRefs (Γ : GlobalDeclarations) (t : LBTerm) : Nat → List Kername
-  | 0 => constRefs t
-  | n + 1 => expandRefs Γ (reachRefs Γ t n)
+/-- A seed closed under `n` δ-steps. -/
+def reachFrom (Γ : GlobalDeclarations) (seen : List Kername) : Nat → List Kername
+  | 0 => seen
+  | n + 1 => expandRefs Γ (reachFrom Γ seen n)
+
+/-- The reachability closure, unfolded `n` times from `t`'s own kernames. -/
+def reachRefs (Γ : GlobalDeclarations) (t : LBTerm) (n : Nat) : List Kername :=
+  reachFrom Γ (constRefs t) n
 
 /-- `kn` is reachable from `t` through the constant bodies of `Γ`. Computed by the
-list-bounded closure — `Γ` declares finitely many constants, so `Γ.length` δ-steps saturate —
-so the predicate is decidable by construction. It over-approximates nothing a shorter closure
-would miss, and as a *hypothesis* of the capstone the over-approximating direction is the safe
-one: more names must have realizers, not fewer. -/
+list-bounded closure, so the predicate is decidable by construction; `Γ.length` δ-steps do
+saturate it (`reachFrom_saturated`), which is what makes it compose. -/
 def ReachableFrom (Γ : GlobalDeclarations) (t : LBTerm) (kn : Kername) : Prop :=
   kernameElem kn (reachRefs Γ t Γ.length) = true
 
@@ -279,44 +323,530 @@ def isBodylessConst : Option GlobalDecl → Bool
   | some (.constantDecl ⟨none⟩) => true
   | _ => false
 
-/-- The kernames for which the consumer is assumed to supply a realizer. One row per audited
-name: `Eq.rec` and `False.rec` are the two the erasure emits as body-less axioms and the
-backends realize by hand. -/
-def axiomRealizerNames : List Kername := [toKername ``Eq.rec, toKername ``False.rec]
+/-! ## The reachability closure, as a set of kernames
 
-/-- Decision procedure for `AxiomRealizer`. -/
-def axiomRealizerB (kn : Kername) : Bool := kernameElem kn axiomRealizerNames
+`kernameElem` is `Kername.beq` membership, which is membership; the closure's three
+operations — one accumulation, one δ-step, the iteration — are characterised by it, and the
+threading lemmas of the next section are read off those characterisations.
+-/
 
-/-- `kn` names a body-less constant the consumer realizes. Each constructor is one audited
-row, and each is an assumption about the consumer, not a fact about the frontend. -/
-inductive AxiomRealizer : Kername → Prop
-  /-- Lean's `Eq.rec`, realized by a hand-written identity on the target side. -/
-  | eqRec {kn} (h : Kername.beq kn (toKername ``Eq.rec) = true) : AxiomRealizer kn
-  /-- Lean's `False.rec`, realized by an unreachable-abort on the target side. -/
-  | falseRec {kn} (h : Kername.beq kn (toKername ``False.rec) = true) : AxiomRealizer kn
+/-- `Kername.beq` membership is membership. -/
+theorem kernameElem_iff {kn : Kername} {l : List Kername} :
+    kernameElem kn l = true ↔ kn ∈ l := by
+  simp only [kernameElem, List.any_eq_true]
+  exact ⟨fun ⟨x, hx, hb⟩ => Kername.eq_of_beq hb ▸ hx,
+    fun h => ⟨kn, h, Kername.beq_self kn⟩⟩
 
-/-- `AxiomRealizer` is exactly its decision procedure. -/
-theorem axiomRealizer_iff {kn : Kername} : AxiomRealizer kn ↔ axiomRealizerB kn = true := by
-  constructor
-  · rintro (h | h) <;> simp [axiomRealizerB, kernameElem, axiomRealizerNames, h]
-  · intro h
-    simp [axiomRealizerB, kernameElem, axiomRealizerNames] at h
-    rcases h with h | h
-    · exact .eqRec h
-    · exact .falseRec h
+/-- `addNames` is union. -/
+theorem mem_addNames {kn : Kername} : ∀ {ks acc : List Kername},
+    kn ∈ addNames ks acc ↔ kn ∈ ks ∨ kn ∈ acc
+  | [], acc => by simp [addNames]
+  | k :: ks, acc => by
+      rw [addNames, mem_addNames (kn := kn) (ks := ks)]
+      by_cases hk : kernameElem k acc = true
+      · rw [if_pos hk]
+        have : k ∈ acc := kernameElem_iff.1 hk
+        constructor
+        · rintro (h | h) <;> simp_all
+        · rintro (h | h)
+          · rcases List.mem_cons.1 h with rfl | h
+            · exact .inr this
+            · exact .inl h
+          · exact .inr h
+      · rw [if_neg hk]
+        simp only [List.mem_cons]
+        constructor
+        · rintro (h | h | h)
+          · exact .inl (.inr h)
+          · exact .inl (.inl h)
+          · exact .inr h
+        · rintro ((h | h) | h)
+          · exact .inr (.inl h)
+          · exact .inl h
+          · exact .inr (.inr h)
 
-instance (kn : Kername) : Decidable (AxiomRealizer kn) :=
-  decidable_of_iff _ axiomRealizer_iff.symm
+/-- What one δ-step accumulates: the seed, plus the kernames named by the bodies of the
+constants folded over. -/
+theorem mem_foldl_expandStep {Γ : GlobalDeclarations} {kn : Kername} :
+    ∀ {l acc : List Kername}, kn ∈ l.foldl (expandStep Γ) acc ↔
+      kn ∈ acc ∨ ∃ k ∈ l, ∃ b, LBTerm.envLookup Γ k = some (.constantDecl ⟨some b⟩) ∧
+        kn ∈ constRefs b
+  | [], acc => by simp
+  | k :: ks, acc => by
+      rw [List.foldl_cons, mem_foldl_expandStep (Γ := Γ) (kn := kn) (l := ks)]
+      unfold expandStep
+      split
+      · rename_i b hb
+        simp only [mem_addNames, List.mem_cons]
+        constructor
+        · rintro ((h | h) | ⟨k', hk', hb'⟩)
+          · exact .inr ⟨k, .inl rfl, b, hb, h⟩
+          · exact .inl h
+          · exact .inr ⟨k', .inr hk', hb'⟩
+        · rintro (h | ⟨k', rfl | hk', b', hb', h⟩)
+          · exact .inl (.inr h)
+          · rw [hb] at hb'; cases hb'; exact .inl (.inl h)
+          · exact .inr ⟨k', hk', b', hb', h⟩
+      · rename_i hb
+        simp only [List.mem_cons]
+        constructor
+        · rintro (h | ⟨k', hk', hb'⟩)
+          · exact .inl h
+          · exact .inr ⟨k', .inr hk', hb'⟩
+        · rintro (h | ⟨k', rfl | hk', b', hb', h⟩)
+          · exact .inl h
+          · exact absurd hb' (by simpa using hb b')
+          · exact .inr ⟨k', hk', b', hb', h⟩
 
-/-- The reachability form of `axiom_free`: every body-less constant of `Γ` that the emitted
-program can reach has a realizer. A `Prop`-typed axiom is erasable, hence boxed, hence not
-reachable, which is why the naive "no axioms" form is uninhabited on real output. This is a
-hypothesis of the capstone, decidable on the emitted program. -/
-def ErasableAxioms (Γ : GlobalDeclarations) (t : LBTerm) : Prop :=
-  ∀ kn ∈ Γ.map Prod.fst, ReachableFrom Γ t kn →
-    isBodylessConst (LBTerm.envLookup Γ kn) = true → AxiomRealizer kn
+/-- What one δ-step adds: the bodies of the constants already seen. -/
+theorem mem_expandRefs {Γ : GlobalDeclarations} {kn : Kername} {seen : List Kername} :
+    kn ∈ expandRefs Γ seen ↔ kn ∈ seen ∨ ∃ k ∈ seen, ∃ b,
+      LBTerm.envLookup Γ k = some (.constantDecl ⟨some b⟩) ∧ kn ∈ constRefs b :=
+  mem_foldl_expandStep
 
-instance (Γ : GlobalDeclarations) (t : LBTerm) : Decidable (ErasableAxioms Γ t) := by
-  unfold ErasableAxioms; infer_instance
+/-- A δ-step only adds. -/
+theorem subset_expandRefs {Γ : GlobalDeclarations} {seen : List Kername} :
+    seen ⊆ expandRefs Γ seen := fun _ h => mem_expandRefs.2 (.inl h)
+
+/-- A δ-step is monotone in its seed. -/
+theorem expandRefs_mono {Γ : GlobalDeclarations} {s₁ s₂ : List Kername} (h : s₁ ⊆ s₂) :
+    expandRefs Γ s₁ ⊆ expandRefs Γ s₂ := by
+  intro kn hkn
+  rcases mem_expandRefs.1 hkn with hk | ⟨k, hk, b, hb, hcb⟩
+  · exact mem_expandRefs.2 (.inl (h hk))
+  · exact mem_expandRefs.2 (.inr ⟨k, h hk, b, hb, hcb⟩)
+
+/-- The closure is monotone in its seed. -/
+theorem reachFrom_mono {Γ : GlobalDeclarations} {s₁ s₂ : List Kername} (h : s₁ ⊆ s₂) :
+    ∀ n, reachFrom Γ s₁ n ⊆ reachFrom Γ s₂ n
+  | 0 => h
+  | n + 1 => expandRefs_mono (reachFrom_mono h n)
+
+/-- The closure only adds. -/
+theorem subset_reachFrom {Γ : GlobalDeclarations} {seen : List Kername} :
+    ∀ n, seen ⊆ reachFrom Γ seen n
+  | 0 => fun _ h => h
+  | n + 1 => fun _ h => subset_expandRefs (subset_reachFrom n h)
+
+/-- The empty seed reaches nothing. -/
+theorem reachFrom_nil {Γ : GlobalDeclarations} : ∀ n, reachFrom Γ [] n = []
+  | 0 => rfl
+  | n + 1 => by rw [reachFrom, reachFrom_nil n]; rfl
+
+/-- The closure of a union is the union of the closures. -/
+theorem reachFrom_append {Γ : GlobalDeclarations} {A B : List Kername} {kn : Kername} :
+    ∀ n, kn ∈ reachFrom Γ (A ++ B) n → kn ∈ reachFrom Γ A n ∨ kn ∈ reachFrom Γ B n
+  | 0, h => List.mem_append.1 h
+  | n + 1, h => by
+      rcases mem_expandRefs.1 h with hk | ⟨k, hk, b, hb, hcb⟩
+      · exact (reachFrom_append n hk).imp (fun hA => subset_expandRefs hA)
+          (fun hB => subset_expandRefs hB)
+      · exact (reachFrom_append n hk).imp
+          (fun hA => mem_expandRefs.2 (.inr ⟨k, hA, b, hb, hcb⟩))
+          (fun hB => mem_expandRefs.2 (.inr ⟨k, hB, b, hb, hcb⟩))
+
+/-! ## Threading the reachable set
+
+`ErasesEnv`'s `deps` and `defns` clauses are universally quantified over what a program
+reaches, so the simulation's induction consumes them at a subterm, at a δ-unfolded body and
+at an ι reduct. Each lemma below moves reachability from the part to the whole, which is the
+direction that consumption needs.
+-/
+
+/-- `constRefsArgs` is `constRefs` over the arguments. -/
+theorem constRefsArgs_eq : ∀ l : List LBTerm, constRefsArgs l = l.flatMap constRefs
+  | [] => rfl
+  | t :: rest => by simp [constRefsArgs, constRefsArgs_eq rest]
+
+/-- `constRefsAlts` is `constRefs` over the branch bodies. -/
+theorem constRefsAlts_eq : ∀ l : List (List BinderName × LBTerm),
+    constRefsAlts l = l.flatMap fun a => constRefs a.2
+  | [] => rfl
+  | (_, b) :: rest => by simp [constRefsAlts, constRefsAlts_eq rest]
+
+/-- `constRefsDefs` is `constRefs` over the block's bodies. -/
+theorem constRefsDefs_eq : ∀ l : List (@FixDef LBTerm),
+    constRefsDefs l = l.flatMap fun d => constRefs d.body
+  | [] => rfl
+  | fd :: rest => by simp [constRefsDefs, constRefsDefs_eq rest]
+
+/-- Membership in the arguments' kernames. -/
+theorem mem_constRefsArgs {kn : Kername} {l : List LBTerm} :
+    kn ∈ constRefsArgs l ↔ ∃ x ∈ l, kn ∈ constRefs x := by
+  rw [constRefsArgs_eq]; simp
+
+/-- Membership in the branch bodies' kernames. -/
+theorem mem_constRefsAlts {kn : Kername} {l : List (List BinderName × LBTerm)} :
+    kn ∈ constRefsAlts l ↔ ∃ a ∈ l, kn ∈ constRefs a.2 := by
+  rw [constRefsAlts_eq]; simp
+
+/-- Membership in a block's kernames. -/
+theorem mem_constRefsDefs {kn : Kername} {l : List (@FixDef LBTerm)} :
+    kn ∈ constRefsDefs l ↔ ∃ d ∈ l, kn ∈ constRefs d.body := by
+  rw [constRefsDefs_eq]; simp
+
+/-- A subterm names no kername the whole term does not. -/
+theorem SubTerm.constRefs_subset {d t : LBTerm} (h : SubTerm d t) :
+    constRefs d ⊆ constRefs t := by
+  induction h with
+  | refl => exact fun _ h => h
+  | lambda _ ih => exact ih
+  | letInVal _ ih => exact fun _ h => List.mem_append.2 (.inl (ih h))
+  | letInBody _ ih => exact fun _ h => List.mem_append.2 (.inr (ih h))
+  | appFn _ ih => exact fun _ h => List.mem_append.2 (.inl (ih h))
+  | appArg _ ih => exact fun _ h => List.mem_append.2 (.inr (ih h))
+  | constructArg hx _ ih =>
+      exact fun _ h => List.mem_cons_of_mem _ (mem_constRefsArgs.2 ⟨_, hx, ih h⟩)
+  | caseDiscr _ ih =>
+      exact fun _ h => List.mem_cons_of_mem _ (List.mem_append.2 (.inl (ih h)))
+  | caseAlt ha _ ih =>
+      exact fun _ h => List.mem_cons_of_mem _
+        (List.mem_append.2 (.inr (mem_constRefsAlts.2 ⟨_, ha, ih h⟩)))
+  | proj _ ih => exact fun _ h => List.mem_cons_of_mem _ (ih h)
+  | fixBody hd _ ih => exact fun _ h => mem_constRefsDefs.2 ⟨_, hd, ih h⟩
+
+/-- What a subterm reaches, the whole term reaches. -/
+theorem ReachableFrom.subterm {Γ : GlobalDeclarations} {d t : LBTerm} {kn : Kername}
+    (hs : SubTerm d t) (h : ReachableFrom Γ d kn) : ReachableFrom Γ t kn :=
+  kernameElem_iff.2 (reachFrom_mono hs.constRefs_subset _ (kernameElem_iff.1 h))
+
+/-- What either side of an application reaches, the application reaches. -/
+theorem ReachableFrom.app {Γ : GlobalDeclarations} {f a : LBTerm} {kn : Kername}
+    (h : ReachableFrom Γ f kn ∨ ReachableFrom Γ a kn) : ReachableFrom Γ (.app f a) kn :=
+  h.elim (ReachableFrom.subterm (.appFn .refl)) (ReachableFrom.subterm (.appArg .refl))
+
+/-- What a branch body reaches, the `.case` node reaches. -/
+theorem ReachableFrom.alt {Γ : GlobalDeclarations} {ip : InductiveId × Nat}
+    {discr b : LBTerm} {ns : List BinderName} {alts : List (List BinderName × LBTerm)}
+    {kn : Kername} (hm : (ns, b) ∈ alts) (h : ReachableFrom Γ b kn) :
+    ReachableFrom Γ (.case ip discr alts) kn :=
+  ReachableFrom.subterm (.caseAlt hm .refl) h
+
+/-- Shifting names no new kername. -/
+theorem mem_constRefs_shift {kn : Kername} : ∀ (t : LBTerm) (d c : Nat),
+    kn ∈ constRefs (LBTerm.shift d c t) → kn ∈ constRefs t := by
+  intro t
+  induction t using LBTerm.recData with
+  | hbox | hfvar | hprim => intro d c h; exact h
+  | hbvar i => intro d c h; unfold LBTerm.shift at h; split at h <;> exact h
+  | hconst kn' => intro d c h; exact h
+  | hlam n b ih => intro d c h; exact ih d (c + 1) h
+  | hletIn n v b ihv ihb =>
+      intro d c h
+      exact List.mem_append.2 ((List.mem_append.1 h).imp (ihv d c) (ihb d (c + 1)))
+  | happ f a ihf iha =>
+      intro d c h
+      exact List.mem_append.2 ((List.mem_append.1 h).imp (ihf d c) (iha d c))
+  | hconstruct iid k args ih =>
+      intro d c h
+      rcases List.mem_cons.1 h with rfl | h
+      · exact List.mem_cons_self ..
+      · rw [LBTerm.shiftArgs_eq_map, mem_constRefsArgs] at h
+        obtain ⟨x, hx, hkn⟩ := h
+        obtain ⟨y, hy, rfl⟩ := List.mem_map.1 hx
+        exact List.mem_cons_of_mem _ (mem_constRefsArgs.2 ⟨y, hy, ih y hy d c hkn⟩)
+  | hcase info discr alts ihd iha =>
+      intro d c h
+      rcases List.mem_cons.1 h with rfl | h
+      · exact List.mem_cons_self ..
+      refine List.mem_cons_of_mem _ (List.mem_append.2 ?_)
+      rcases List.mem_append.1 h with h | h
+      · exact .inl (ihd d c h)
+      · rw [LBTerm.shiftAlts_eq_map, mem_constRefsAlts] at h
+        obtain ⟨a, ha, hkn⟩ := h
+        obtain ⟨b, hb, rfl⟩ := List.mem_map.1 ha
+        exact .inr (mem_constRefsAlts.2 ⟨b, hb, iha b hb d (c + b.1.length) hkn⟩)
+  | hproj p e ih =>
+      intro d c h
+      rcases List.mem_cons.1 h with rfl | h
+      · exact List.mem_cons_self ..
+      · exact List.mem_cons_of_mem _ (ih d c h)
+  | hfix defs i ih =>
+      intro d c h
+      rw [LBTerm.shift, constRefs, LBTerm.shiftDefs_eq_map, mem_constRefsDefs] at h
+      obtain ⟨fd, hfd, hkn⟩ := h
+      obtain ⟨fd', hfd', rfl⟩ := List.mem_map.1 hfd
+      exact mem_constRefsDefs.2 ⟨fd', hfd', ih fd' hfd' d (c + defs.length) hkn⟩
+
+/-- Substitution names no kername the term and the substituend do not. -/
+theorem mem_constRefs_subst {kn : Kername} {s : LBTerm} : ∀ (t : LBTerm) (d : Nat),
+    kn ∈ constRefs (LBTerm.subst s d t) → kn ∈ constRefs t ∨ kn ∈ constRefs s := by
+  intro t
+  induction t using LBTerm.recData with
+  | hbox | hfvar | hprim => intro d h; exact .inl h
+  | hbvar i =>
+      intro d h
+      unfold LBTerm.subst at h
+      split at h
+      · exact .inl h
+      · split at h
+        · exact .inr (mem_constRefs_shift s d 0 h)
+        · exact .inl h
+  | hconst kn' => intro d h; exact .inl h
+  | hlam n b ih => intro d h; exact ih (d + 1) h
+  | hletIn n v b ihv ihb =>
+      intro d h
+      rcases List.mem_append.1 h with h | h
+      · exact (ihv d h).imp (fun h => List.mem_append.2 (.inl h)) id
+      · exact (ihb (d + 1) h).imp (fun h => List.mem_append.2 (.inr h)) id
+  | happ f a ihf iha =>
+      intro d h
+      rcases List.mem_append.1 h with h | h
+      · exact (ihf d h).imp (fun h => List.mem_append.2 (.inl h)) id
+      · exact (iha d h).imp (fun h => List.mem_append.2 (.inr h)) id
+  | hconstruct iid k args ih =>
+      intro d h
+      rcases List.mem_cons.1 h with rfl | h
+      · exact .inl (List.mem_cons_self ..)
+      · rw [LBTerm.substArgs_eq_map, mem_constRefsArgs] at h
+        obtain ⟨x, hx, hkn⟩ := h
+        obtain ⟨y, hy, rfl⟩ := List.mem_map.1 hx
+        exact (ih y hy d hkn).imp
+          (fun h => List.mem_cons_of_mem _ (mem_constRefsArgs.2 ⟨y, hy, h⟩)) id
+  | hcase info discr alts ihd iha =>
+      intro d h
+      rcases List.mem_cons.1 h with rfl | h
+      · exact .inl (List.mem_cons_self ..)
+      rcases List.mem_append.1 h with h | h
+      · exact (ihd d h).imp
+          (fun h => List.mem_cons_of_mem _ (List.mem_append.2 (.inl h))) id
+      · rw [LBTerm.substAlts_eq_map, mem_constRefsAlts] at h
+        obtain ⟨a, ha, hkn⟩ := h
+        obtain ⟨b, hb, rfl⟩ := List.mem_map.1 ha
+        exact (iha b hb (d + b.1.length) hkn).imp
+          (fun h => List.mem_cons_of_mem _
+            (List.mem_append.2 (.inr (mem_constRefsAlts.2 ⟨b, hb, h⟩)))) id
+  | hproj p e ih =>
+      intro d h
+      rcases List.mem_cons.1 h with rfl | h
+      · exact .inl (List.mem_cons_self ..)
+      · exact (ih d h).imp (fun h => List.mem_cons_of_mem _ h) id
+  | hfix defs i ih =>
+      intro d h
+      rw [LBTerm.subst, constRefs, LBTerm.substDefs_eq_map, mem_constRefsDefs] at h
+      obtain ⟨fd, hfd, hkn⟩ := h
+      obtain ⟨fd', hfd', rfl⟩ := List.mem_map.1 hfd
+      exact (ih fd' hfd' (d + defs.length) hkn).imp
+        (fun h => mem_constRefsDefs.2 ⟨fd', hfd', h⟩) id
+
+/-- A simultaneous substitution names no kername the term and the substituends do not. -/
+theorem mem_constRefs_substList {kn : Kername} : ∀ (l : List LBTerm) (t : LBTerm),
+    kn ∈ constRefs (LBTerm.substList l t) →
+      kn ∈ constRefs t ∨ ∃ x ∈ l, kn ∈ constRefs x
+  | [], t, h => .inl h
+  | x :: l, t, h => by
+      rw [LBTerm.substList, List.foldl_cons] at h
+      rcases mem_constRefs_substList l _ h with h | ⟨y, hy, hkn⟩
+      · exact (mem_constRefs_subst t 0 h).imp id fun h => ⟨x, List.mem_cons_self .., h⟩
+      · exact .inr ⟨y, List.mem_cons_of_mem _ hy, hkn⟩
+
+/-! ## Saturation
+
+`Γ.length` δ-steps saturate the closure. A step that unfolds no body the previous step had
+not already unfolded is a fixed point, and every other step consumes a distinct key of `Γ`:
+there are `Γ.length` of those. Saturation is what makes reachability compositional, which is
+what `through_body` needs.
+-/
+
+/-- `kn` is declared in `Γ` with a body. -/
+def HasBody (Γ : GlobalDeclarations) (kn : Kername) : Prop :=
+  ∃ b, LBTerm.envLookup Γ kn = some (.constantDecl ⟨some b⟩)
+
+/-- A successful lookup exhibits the entry it answered with. -/
+theorem envLookup_mem : ∀ {Γ : GlobalDeclarations} {kn : Kername} {d : GlobalDecl},
+    LBTerm.envLookup Γ kn = some d → (kn, d) ∈ Γ
+  | [], _, _, h => by simp [LBTerm.envLookup] at h
+  | (k, e) :: rest, kn, d, h => by
+      rw [LBTerm.envLookup] at h
+      split at h
+      · rename_i hb
+        cases h
+        rw [← Kername.eq_of_beq hb]
+        exact List.mem_cons_self ..
+      · exact List.mem_cons_of_mem _ (envLookup_mem h)
+
+/-- A declared key is a key of the environment. -/
+theorem HasBody.mem_keys {Γ : GlobalDeclarations} {kn : Kername} (h : HasBody Γ kn) :
+    kn ∈ Γ.map Prod.fst :=
+  List.mem_map.2 ⟨_, envLookup_mem h.choose_spec, rfl⟩
+
+/-- A δ-step that unfolds no body the previous step had not is a fixed point. -/
+theorem expandRefs_stall {Γ : GlobalDeclarations} {seen : List Kername}
+    (h : ∀ k, HasBody Γ k → k ∈ expandRefs Γ seen → k ∈ seen) :
+    expandRefs Γ (expandRefs Γ seen) ⊆ expandRefs Γ seen := by
+  intro kn hkn
+  rcases mem_expandRefs.1 hkn with h' | ⟨k, hk, b, hb, hcb⟩
+  · exact h'
+  · exact mem_expandRefs.2 (.inr ⟨k, h k ⟨b, hb⟩ hk, b, hb, hcb⟩)
+
+/-- The closure is monotone in its fuel. -/
+theorem reachFrom_le_add {Γ : GlobalDeclarations} {s : List Kername} {m : Nat} :
+    ∀ k : Nat, reachFrom Γ s m ⊆ reachFrom Γ s (m + k)
+  | 0 => fun _ h => h
+  | k + 1 => fun _ h => subset_expandRefs (reachFrom_le_add k h)
+
+/-- The closure is monotone in its fuel. -/
+theorem reachFrom_le {Γ : GlobalDeclarations} {s : List Kername} {m j : Nat} (h : m ≤ j) :
+    reachFrom Γ s m ⊆ reachFrom Γ s j := by
+  obtain ⟨k, rfl⟩ := Nat.le.dest h
+  exact reachFrom_le_add k
+
+/-- A fixed point stays one. -/
+theorem reachFrom_stall_add {Γ : GlobalDeclarations} {s : List Kername} {m : Nat}
+    (h : reachFrom Γ s (m + 1) ⊆ reachFrom Γ s m) :
+    ∀ k : Nat, reachFrom Γ s (m + k) ⊆ reachFrom Γ s m
+  | 0 => fun _ h => h
+  | k + 1 => fun _ hkn => h (expandRefs_mono (reachFrom_stall_add h k) hkn)
+
+/-- A fixed point stays one. -/
+theorem reachFrom_stall {Γ : GlobalDeclarations} {s : List Kername} {m j : Nat}
+    (h : reachFrom Γ s (m + 1) ⊆ reachFrom Γ s m) (hj : m ≤ j) :
+    reachFrom Γ s j ⊆ reachFrom Γ s m := by
+  obtain ⟨k, rfl⟩ := Nat.le.dest hj
+  exact reachFrom_stall_add h k
+
+/-- Some step at or below `n + rem.length + 1` is a fixed point, given that every key with a
+body not yet reached at step `n` is listed in `rem`. Each step that is not already a fixed
+point consumes one entry of `rem`, so `f` bounds the search. -/
+theorem find_stall {Γ : GlobalDeclarations} {s : List Kername} :
+    ∀ (f : Nat) (rem : List Kername) (n : Nat), rem.length ≤ f →
+      (∀ k, HasBody Γ k → k ∉ reachFrom Γ s n → k ∈ rem) →
+      ∃ m, m ≤ n + rem.length + 1 ∧ reachFrom Γ s (m + 1) ⊆ reachFrom Γ s m := by
+  have _ : DecidableEq Kername := fun _ _ => Classical.propDecidable _
+  intro f
+  induction f with
+  | zero =>
+      intro rem n hf hinv
+      have hnil : rem = [] := by
+        cases rem with
+        | nil => rfl
+        | cons a l => simp at hf
+      refine ⟨n + 1, by omega, expandRefs_stall ?_⟩
+      intro k hb _
+      by_cases hk : k ∈ reachFrom Γ s n
+      · exact hk
+      · exact absurd (hinv k hb hk) (by rw [hnil]; simp)
+  | succ f ih =>
+      intro rem n hf hinv
+      by_cases hc : ∀ k, HasBody Γ k → k ∈ reachFrom Γ s (n + 1) → k ∈ reachFrom Γ s n
+      · exact ⟨n + 1, by omega, expandRefs_stall hc⟩
+      · have hex : ∃ k, HasBody Γ k ∧ k ∈ reachFrom Γ s (n + 1) ∧
+            k ∉ reachFrom Γ s n :=
+          Classical.byContradiction fun hno =>
+            hc fun k hb hin =>
+              Classical.byContradiction fun hout => hno ⟨k, hb, hin, hout⟩
+        obtain ⟨k₀, hbody, hin, hout⟩ := hex
+        have hk₀ : k₀ ∈ rem := hinv k₀ hbody hout
+        have hpos : 0 < rem.length := List.length_pos_of_mem hk₀
+        have hlen : (rem.erase k₀).length ≤ f := by
+          rw [List.length_erase_of_mem hk₀]; omega
+        obtain ⟨m, hm, hstall⟩ := ih (rem.erase k₀) (n + 1) hlen (by
+          intro k hb hnot
+          have hne : k ≠ k₀ := fun h => hnot (h ▸ hin)
+          exact (List.mem_erase_of_ne hne).2
+            (hinv k hb fun h => hnot (reachFrom_le (Nat.le_succ n) h)))
+        refine ⟨m, ?_, hstall⟩
+        rw [List.length_erase_of_mem hk₀] at hm
+        omega
+
+/-- `Γ.length` δ-steps saturate the closure of any seed. -/
+theorem reachFrom_saturated {Γ : GlobalDeclarations} {s : List Kername} {j : Nat}
+    (hj : Γ.length ≤ j) : reachFrom Γ s j ⊆ reachFrom Γ s Γ.length := by
+  have _ : DecidableEq Kername := fun _ _ => Classical.propDecidable _
+  by_cases hs : ∃ k, HasBody Γ k ∧ k ∈ s
+  · obtain ⟨k₀, hbody, hmem⟩ := hs
+    have hk₀ : k₀ ∈ Γ.map Prod.fst := hbody.mem_keys
+    obtain ⟨m, hm, hstall⟩ :=
+      find_stall (Γ := Γ) (s := s) Γ.length ((Γ.map Prod.fst).erase k₀) 0
+        (by rw [List.length_erase_of_mem hk₀, List.length_map]; omega) (by
+        intro k hb hnot
+        have hne : k ≠ k₀ := fun h => hnot (h ▸ hmem)
+        exact (List.mem_erase_of_ne hne).2 hb.mem_keys)
+    have hpos : 0 < Γ.length := by
+      have := List.length_pos_of_mem hk₀
+      rw [List.length_map] at this; omega
+    have hmL : m ≤ Γ.length := by
+      rw [List.length_erase_of_mem hk₀, List.length_map] at hm; omega
+    exact fun kn hkn => reachFrom_le hmL (reachFrom_stall hstall (Nat.le_trans hmL hj) hkn)
+  · have hs' : ∀ k, HasBody Γ k → k ∉ s := fun k hb hm => hs ⟨k, hb, hm⟩
+    have hstall : reachFrom Γ s (0 + 1) ⊆ reachFrom Γ s 0 := by
+      intro kn hkn
+      rcases mem_expandRefs.1 hkn with h' | ⟨k, hk, b, hb, _⟩
+      · exact h'
+      · exact absurd hk (hs' k ⟨b, hb⟩)
+    exact fun kn hkn =>
+      reachFrom_le (Nat.zero_le _) (reachFrom_stall hstall (Nat.zero_le j) hkn)
+
+/-- Two runs of the closure compose. -/
+theorem reachFrom_add {Γ : GlobalDeclarations} {s : List Kername} :
+    ∀ (a c : Nat), reachFrom Γ (reachFrom Γ s a) c = reachFrom Γ s (c + a)
+  | a, 0 => by rw [Nat.zero_add]; rfl
+  | a, c + 1 => by
+      show expandRefs Γ (reachFrom Γ (reachFrom Γ s a) c) = reachFrom Γ s (c + 1 + a)
+      rw [reachFrom_add a c]
+      have h : c + 1 + a = (c + a) + 1 := by omega
+      rw [h]
+      rfl
+
+/-- A kername reached from a list of terms' kernames is reached from one of them. -/
+theorem mem_reachFrom_flatMap {Γ : GlobalDeclarations} {kn : Kername} :
+    ∀ l : List LBTerm, kn ∈ reachFrom Γ (l.flatMap constRefs) Γ.length →
+      ∃ x ∈ l, ReachableFrom Γ x kn
+  | [], h => by rw [List.flatMap_nil, reachFrom_nil] at h; exact absurd h (by simp)
+  | x :: l, h => by
+      rw [List.flatMap_cons] at h
+      rcases reachFrom_append _ h with h | h
+      · exact ⟨x, List.mem_cons_self .., kernameElem_iff.2 h⟩
+      · obtain ⟨y, hy, hky⟩ := mem_reachFrom_flatMap l h
+        exact ⟨y, List.mem_cons_of_mem _ hy, hky⟩
+
+/-- What a δ-unfolded body reaches, the program reaches: the closure composes, because
+`Γ.length` steps saturate it. -/
+theorem ReachableFrom.through_body {Γ : GlobalDeclarations} {t b : LBTerm}
+    {kn kn' : Kername} (hk : ReachableFrom Γ t kn')
+    (hb : LBTerm.envLookup Γ kn' = some (.constantDecl ⟨some b⟩))
+    (h : ReachableFrom Γ b kn) : ReachableFrom Γ t kn := by
+  have hsub : constRefs b ⊆ reachFrom Γ (constRefs t) (Γ.length + 1) := fun _ hx =>
+    mem_expandRefs.2 (.inr ⟨kn', kernameElem_iff.1 hk, b, hb, hx⟩)
+  have h2 := reachFrom_mono hsub Γ.length (kernameElem_iff.1 h)
+  rw [reachFrom_add] at h2
+  exact kernameElem_iff.2 (reachFrom_saturated (by omega) h2)
+
+/-- What an ι reduct or a β contractum reaches, the term and the substituends reach: a
+substitution instance names no new kername. -/
+theorem ReachableFrom.substList {Γ : GlobalDeclarations} {l : List LBTerm} {t : LBTerm}
+    {kn : Kername} (h : ReachableFrom Γ (LBTerm.substList l t) kn) :
+    ReachableFrom Γ t kn ∨ ∃ x ∈ l, ReachableFrom Γ x kn := by
+  rw [ReachableFrom, kernameElem_iff, reachRefs] at h
+  have hsub : constRefs (LBTerm.substList l t) ⊆ constRefs t ++ l.flatMap constRefs := by
+    intro kn' hkn'
+    rcases mem_constRefs_substList l t hkn' with h' | ⟨x, hx, h'⟩
+    · exact List.mem_append.2 (.inl h')
+    · exact List.mem_append.2 (.inr (List.mem_flatMap.2 ⟨x, hx, h'⟩))
+  rcases reachFrom_append _ (reachFrom_mono hsub _ h) with h | h
+  · exact .inl (kernameElem_iff.2 h)
+  · exact .inr (mem_reachFrom_flatMap l h)
+
+/-! ## `axiom_free` at the emitted environment -/
+
+/-- `[S §7.3]`'s `axiom_free Σ`, with no realizer whitelist: no constant reachable from `t`
+is declared without a body. Decidable, hence `by decide +kernel` per rung; false exactly
+where the target is stuck at a `delta` step. The capstone's premise, and nothing else's —
+the source semantics gives a body-less constant no value, so the simulation needs none. -/
+def NoBodylessRefs (Γ : GlobalDeclarations) (t : LBTerm) : Prop :=
+  ∀ kn, ReachableFrom Γ t kn → isBodylessConst (LBTerm.envLookup Γ kn) = false
+
+/-- Decision procedure for `NoBodylessRefs`: the closure is a list. -/
+def noBodylessRefsB (Γ : GlobalDeclarations) (t : LBTerm) : Bool :=
+  (reachRefs Γ t Γ.length).all fun kn => !isBodylessConst (LBTerm.envLookup Γ kn)
+
+/-- `NoBodylessRefs` is exactly its decision procedure. -/
+theorem noBodylessRefs_iff {Γ : GlobalDeclarations} {t : LBTerm} :
+    NoBodylessRefs Γ t ↔ noBodylessRefsB Γ t = true := by
+  simp only [NoBodylessRefs, noBodylessRefsB, ReachableFrom, List.all_eq_true,
+    Bool.not_eq_true', kernameElem_iff]
+
+instance (Γ : GlobalDeclarations) (t : LBTerm) : Decidable (NoBodylessRefs Γ t) :=
+  decidable_of_iff _ noBodylessRefs_iff.symm
 
 end LeanToLambdaBox

@@ -89,6 +89,75 @@ self-call is applied. Rocq avoids the problem by η-expanding before erasure
 deliberately does **not** claim fixpoint η; the stronger `PeregrinePre` is defined and *not*
 concluded, and the difference is exactly this row.
 
+### F-ETA2 — the η path re-erases supplied arguments, and constructors do not need it
+
+*Site.* `visitCtorEtaGo`, `LeanToLambdaBox/Erasure.lean:722-728`; `visitCasesEtaGo`,
+`:705-712`.
+
+*Defect, two halves.*
+
+First, both loops recurse with `args.push (.fvar fvarid)` **inside** `forallMonocular`'s
+scope and only then call `visitConstructor`/`visitCases`. The arguments the call site already
+supplied are therefore erased again under every new binder, and `mkLambda` abstracts them
+back out: the eraser pays one erasure of the whole supplied prefix per missing argument, and
+the emitted term is `λ x₁ … xₙ. C a₁ … aₖ x₁ … xₙ` where `C a₁ … aₖ` would do.
+
+Second, and independently: **applied-form λ□ needs no constructor η at all.** At
+`with_constructor_as_block = false`, which is what `eraseFlags` sets
+(`LeanToLambdaBox/Semantics/Flags.lean:44`), a partially applied constructor spine is already
+a value — `Value.construct_app_val` (`LeanToLambdaBox/Semantics/Values.lean:104`) builds
+`mkApps (.construct iid c []) args` as a value for every `args.length < ar`, and
+`WcbvEval.construct_app` (`LeanToLambdaBox/Semantics/Eval.lean:130-136`) is the rule that
+reaches it. So `visitCtorEta`'s whole saturation loop buys nothing that the target semantics
+does not already give, and it is the only reason an under-applied constructor occurrence is
+not a plain spine.
+
+*Measure.* Every emitted `tConstruct` node carries an empty argument list, so applied form is
+what the eraser already emits everywhere:
+
+    python3 - <<'EOF'
+    import glob, re
+    def nodes(s):
+        out = []
+        for m in re.finditer(r'\(tConstruct\b', s):
+            i = m.start(); d = 0; j = i
+            while True:
+                if s[j] == '(': d += 1
+                elif s[j] == ')':
+                    d -= 1
+                    if d == 0: break
+                j += 1
+            out.append(s[i:j+1])
+        return out
+    tot = empty = 0
+    for f in sorted(glob.glob('VerifyBench/ast/*.ast')):
+        ns = nodes(open(f).read())
+        e = sum(1 for n in ns if n.rstrip()[:-1].rstrip().endswith('()'))
+        print(f, len(ns), e); tot += len(ns); empty += e
+    print('total', tot, 'empty-arg', empty)
+    EOF
+
+    VerifyBench/ast/Arith.ast 42 42
+    VerifyBench/ast/BinaryTrees.ast 84 84
+    VerifyBench/ast/Fannkuch.ast 101 101
+    VerifyBench/ast/Quicksort.ast 697 697
+    VerifyBench/ast/Sieve.ast 58 58
+    total 982 empty-arg 982
+
+*Proposed edit.* Delete `visitCtorEta`/`visitCtorEtaGo` and dispatch `visitConstructor`
+directly at every arity. For `visitCasesEta` the loop is not removable — a `.case` node needs
+its discriminant — but the recursion should erase the supplied prefix once, outside
+`forallMonocular`, and reuse the result.
+
+*Status in the verification.* `Lower` has no `ctorEta` and no `elimEta` arm: both are
+compositional, so an η-expanded head still composes under `app` into
+`mkApps (mkLambdas ns body) args'`, a β-redex target with no bound on nesting that every
+spine-inverting arm of the simulation would have to collapse. What they covered is the
+coverage restriction **N19** — no under-applied constructor or eliminator occurrence — which
+`supportedB` decides per program. For constructors N19 costs nothing once this row is
+repaired; for eliminators it is a real restriction, and `doc/coverage.md` carries the
+per-program verdict.
+
 ### F-SPARSE — a sparse `casesOn` panics and writes a wrong program
 
 *Site.* `visitCases`, `LeanToLambdaBox/Erasure.lean:770` (the name-based recovery) and

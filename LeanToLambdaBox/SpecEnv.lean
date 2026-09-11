@@ -61,13 +61,17 @@ theorem SpecEnv.mono {env : VEnv} {bo : Name → Option Expr} {s₁ s : ErasureS
   elims n hn := H.elims n (h.inds hn)
 
 /-- A specification environment of a state is a specification environment of any program
-whose reachable kernames it declares — `ErasesEnv`'s third clause is the only one that
-mentions a program. -/
+whose reachable kernames it declares and whose reached compiler bodies it holds erasures
+of. Those two clauses are the ones that mention a program, so they are premises: the state
+records which constants a run consulted, not what a given program reaches. -/
 theorem SpecEnv.erasesEnv {env : VEnv} {bo : Name → Option Expr} {s : ErasureState}
     {Γspec : GlobalDeclarations} (H : SpecEnv env bo s Γspec) {t : LBTerm}
-    (hdeps : ∀ kn, ReachableFrom Γspec t kn → (LBTerm.envLookup Γspec kn).isSome) :
+    (hdeps : ∀ kn, ReachableFrom Γspec t kn → (LBTerm.envLookup Γspec kn).isSome)
+    (hdefns : ∀ c b, bo c = some b → ReachableFrom Γspec t (toKername c) →
+      ∃ b₀, LBTerm.envLookup Γspec (toKername c) = some (.constantDecl ⟨some b₀⟩) ∧
+        ∀ Us' ups us, Erases env Us' [] (b.instantiateLevelParams ups us) b₀) :
     ErasesEnv env bo Γspec t :=
-  .mk H.keys H.decls hdeps
+  .mk H.keys H.decls hdeps hdefns
 
 /-- The four-entry fixture is a specification environment for the initial state, whose
 registries are empty. Read with `SpecEnv.mono`, it is one for every state below any state

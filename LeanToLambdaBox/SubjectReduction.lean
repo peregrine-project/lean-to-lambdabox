@@ -11,10 +11,11 @@ in the kernel environment. It is what lets an erasure simulation replace a sourc
 its value without leaving the typed world.
 
 The β and ζ arms are proved outright — β from `TrExprS.inst`, lean4lean's
-`VEnv.IsDefEq.beta` and type uniqueness; ζ from `TrExpr.inst_let`, at which the `VExpr` side does not move at
-all. The δ, ι and projection arms hand back the `StepDefeq` they carry. Constructor-spine
-values go through `SEval.defeq_spine`, the abstract-`P` spine schema, which is also what
-carries the δ arm from a redex's arguments to their values.
+`VEnv.IsDefEq.beta` and type uniqueness; ζ from `TrExpr.inst_let`, at which the `VExpr` side
+does not move at all. The δ, ι and projection arms hand back the `StepDefeq` they carry. The
+two spine-value arms go through `SEval.defeq_spine_value`, and both it and the δ arm are
+instances of `SEval.defeq_spine`, the abstract-`P` spine schema. The sort and Π arms are
+reflexive.
 -/
 
 namespace LeanToLambdaBox
@@ -103,6 +104,31 @@ theorem SEval.defeq_spine {env : VEnv} (henv : env.WF) {Us : List Name}
               VEnv.IsDefEqU.of_l henv hΓ hldef hTa
             exact ⟨_, .appDF hfd hld⟩
 
+/-- The two value arms share one proof: a `.const`-headed spine whose arguments
+subject-reduce keeps its head, and the value spine's translation is definitionally equal to
+the redex's. -/
+theorem SEval.defeq_spine_value {env : VEnv} (henv : env.WF) {Us : List Name} {Δ : VLCtx}
+    (hΔ : VLCtx.WF env Us.length Δ) {cn : Name} {us : List Level} {args argsv : List Expr}
+    {ve : VExpr} (htr : TrExprS env Us Δ (mkApps (.const cn us) args) ve)
+    (hlen : argsv.length = args.length)
+    (ih : ∀ i, i < args.length → ∀ {ev : VExpr}, TrExprS env Us Δ args[i]! ev →
+      ∃ vv, TrExprS env Us Δ argsv[i]! vv ∧ env.IsDefEqU Us.length Δ.toCtx ev vv) :
+    ∃ vv, TrExprS env Us Δ (mkApps (.const cn us) argsv) vv ∧
+      env.IsDefEqU Us.length Δ.toCtx ve vv := by
+  obtain ⟨hve, htrHead⟩ := trExprS_spine_head args htr
+  have hargs' : ∀ i (h : i < args.length) (h2 : i < argsv.length),
+      (fun e v => ∀ {ev : VExpr}, TrExprS env Us Δ e ev →
+        ∃ vv, TrExprS env Us Δ v vv ∧ env.IsDefEqU Us.length Δ.toCtx ev vv)
+        args[i] argsv[i] := by
+    intro i h h2
+    rw [← getElem!_pos args i h, ← getElem!_pos argsv i h2]
+    exact fun htr => ih i h htr
+  exact SEval.defeq_spine henv hΔ
+    (fun e v => ∀ {ev : VExpr}, TrExprS env Us Δ e ev →
+      ∃ vv, TrExprS env Us Δ v vv ∧ env.IsDefEqU Us.length Δ.toCtx ev vv)
+    (fun htr p => p htr) args.length args argsv (.const cn us) (.const cn us) hve hve
+    rfl hlen htrHead htrHead (VEnv.IsDefEqU.refl (htrHead.wf henv.ordered hΔ)) hargs' htr
+
 /-- **Subject reduction as definitional equality.**
 
 If `e` translates to `ve` and `e` evaluates to `v`, then `v` translates to some `vv`
@@ -166,7 +192,7 @@ theorem SEval.defeq {env : VEnv} (henv : env.WF) {Us : List Name} {Δ : VLCtx}
             TrExpr.inst_let henv hΔ hValT hbodyTrExpr hvvTrExpr
           obtain ⟨vve, htrr, hrd⟩ := ihbody htrsub
           exact ⟨vve, htrr, VEnv.IsDefEqU.trans henv hΓ (VEnv.IsDefEqU.symm hsubd) hrd⟩
-  | @deltaC c us ups args argsv b b' v _ hb hinst hlen hargs hdef _ ihargs ihcont =>
+  | @deltaC c us ups args argsv b b' v _ hb _ hinst hlen hargs hdef _ ihargs ihcont =>
       obtain ⟨hve, htrHead⟩ := trExprS_spine_head args htr
       have hargs' : ∀ i (h : i < args.length) (h2 : i < argsv.length),
           (fun e v => ∀ {ev : VExpr}, TrExprS env Us Δ e ev →
@@ -189,22 +215,14 @@ theorem SEval.defeq {env : VEnv} (henv : env.WF) {Us : List Name} {Δ : VLCtx}
         TrExprS.uniq henv (VLCtx.IsDefEq.refl henv.ordered hΔ) htr₁ h₁
       exact VEnv.IsDefEqU.trans henv hΓ hd₁ (VEnv.IsDefEqU.trans henv hΓ huniq
         (VEnv.IsDefEqU.trans henv hΓ hd hrd))
-  | @ctorVal cn us args argsv hnb hlen hargs ihargs =>
-      obtain ⟨hve, htrHead⟩ := trExprS_spine_head args htr
-      have hargs' : ∀ i (h : i < args.length) (h2 : i < argsv.length),
-          (fun e v => ∀ {ev : VExpr}, TrExprS env Us Δ e ev →
-            ∃ vv, TrExprS env Us Δ v vv ∧ env.IsDefEqU Us.length Δ.toCtx ev vv) args[i]
-            argsv[i] := by
-        intro i h h2
-        rw [← getElem!_pos args i h, ← getElem!_pos argsv i h2]
-        exact fun htr => ihargs i h htr
-      exact SEval.defeq_spine henv hΔ
-        (fun e v => ∀ {ev : VExpr}, TrExprS env Us Δ e ev →
-            ∃ vv, TrExprS env Us Δ v vv ∧ env.IsDefEqU Us.length Δ.toCtx ev vv)
-        (fun htr p => p htr) args.length args argsv
-        (.const cn us) (.const cn us) hve hve rfl hlen htrHead htrHead
-        (VEnv.IsDefEqU.refl (htrHead.wf henv.ordered hΔ)) hargs' htr
-  | @iota con us cus pre minors discr ctor cargs np cidx r _ hdiscr hidx hdef _ _ ihcont =>
+  | @ctorVal cn I us iid k np nfs args argsv _ _ _ hlen _ ihargs =>
+      exact SEval.defeq_spine_value henv hΔ htr hlen (fun i h => ihargs i h)
+  | @indVal cn us iid np nfs args argsv _ hlen _ ihargs =>
+      exact SEval.defeq_spine_value henv hΔ htr hlen (fun i h => ihargs i h)
+  | sort => exact ⟨ve, htr, VEnv.IsDefEqU.refl (htr.wf henv.ordered hΔ)⟩
+  | forallE => exact ⟨ve, htr, VEnv.IsDefEqU.refl (htr.wf henv.ordered hΔ)⟩
+  | @iota con I ctor us cus pre prev minors minorsv extra extrav cargs disc r np cidx
+      _ _ _ _ _ _ _ _ _ _ _ _ hdef _ _ _ _ _ ihcont =>
       obtain ⟨v₁, v₂, h₁, h₂, hd⟩ := hdef
       obtain ⟨vve, htrr, hrd⟩ := ihcont h₂
       refine ⟨vve, htrr, ?_⟩

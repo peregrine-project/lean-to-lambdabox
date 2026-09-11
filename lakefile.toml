@@ -37,6 +37,9 @@ roots = [
   "VerifyBench.BinaryTrees",
   "VerifyBench.Fannkuch",
   "VerifyBench.Spikes.G1",
+  "VerifyBench.Spikes.G2",
+  "VerifyBench.Spikes.G3",
+  "VerifyBench.Spikes.G4",
 ]
 
 # The external half of the green ladder (`Tools/GreenCheck.lean`): the checks that

@@ -134,7 +134,8 @@ theorem Erases.thin_vlet {env : VEnv} {Us : List Name}
   | @bvar _ i _ _ hf => exact .bvar (W.find? (v := .inl i) (by nofun) ▸ hf)
   | @fvar _ y _ _ hf =>
     exact .fvar (W.find? (v := .inr y) (fun h => sc (Sum.inr.inj h)) ▸ hf)
-  | const hc => exact .const hc
+  | ctor hc hi => exact .ctor hc hi
+  | const hc ho => exact .const hc ho
   | app _ _ ihf iha => exact .app (ihf W sc.1) (iha W sc.2)
   | lam hty _ ihb => exact .lam (TrExprS.thin_vlet W hty sc.1) (ihb W.succ sc.2)
   | letE hty hval _ _ ihv ihb =>
@@ -281,7 +282,8 @@ theorem erases_weakFV {env : VEnv} (henv : env.Ordered) {Us : List Name}
   | lit hcl _ ih => exact .lit hcl (ih W hΔ')
   | bvar hf => exact .bvar (VLCtx.FVLift.find?_fvwf W hΔ' hf)
   | fvar hf => exact .fvar (VLCtx.FVLift.find?_fvwf W hΔ' hf)
-  | const hc => exact .const hc
+  | ctor hc hi => exact .ctor hc hi
+  | const hc ho => exact .const hc ho
   | app _ _ ihf iha => exact .app (ihf W hΔ') (iha W hΔ')
   | lam hty _ ihb =>
     exact .lam (TrExprS.weakFV_fvwf henv W hΔ' hty) (ihb (W.cons_bvar _) ⟨hΔ', nofun⟩)
@@ -382,7 +384,8 @@ theorem erases_weakFV_nofvars {env : VEnv} (henv : env.Ordered) {Us : List Name}
   | lit hcl _ ih => exact .lit hcl (ih W FVarsIn.toConstructor)
   | bvar hf => exact .bvar (VLCtx.FVLift.find?_inl W hf)
   | fvar _ => exact (hfvf : False).elim
-  | const hc => exact .const hc
+  | ctor hc hi => exact .ctor hc hi
+  | const hc ho => exact .const hc ho
   | app _ _ ihf iha => exact .app (ihf W hfvf.1) (iha W hfvf.2)
   | lam hty _ ihb =>
     exact .lam (TrExprS.weakFV_nofvars henv W hty hfvf.1) (ihb (W.cons_bvar _) hfvf.2)

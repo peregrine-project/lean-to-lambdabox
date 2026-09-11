@@ -17,17 +17,17 @@ what `Lower` alone cannot say about that round trip:
 * `Lower.constToFix` — the transport: substituting the block's own `.fix` nodes for its
   fixvars in a `ConstToFVar` image lands back inside `Lower`.
 * `LowerBlock.lambda_of_fixLambda` — λ-headedness of the emitted definitions transported
-  to the specification bodies.
+  to the specification bodies, unconditionally.
+* `Lower.fixUnfold` — a member's unfolded definition is a λ still related to its body.
 * `LowerFixFixture` — a two-member mutual block exhibiting all of it, including one
   application step that fires `WcbvEval.fix_guarded` through the block.
 
 `ConstToFVar` and `CloseConstAt` are `Lower.lean`'s (`LowerBlock.hcl` needs them).
 
-Two statements of `doc/rework/01-DESIGN.md` §4.5/§5 are **false as written** and are
-repaired here with the missing premise named in their docstrings;
-`LowerFixFixture.constToFix_needs_freshness` and
-`LowerFixFixture.lambda_of_fixLambda_needs_noEta` are the machine-checked refutations of
-the unrepaired forms.
+One statement of `doc/rework/01-DESIGN.md` §4.5 is **false as written** and is repaired
+here with the missing premise named in its docstring;
+`LowerFixFixture.constToFix_needs_freshness` is the machine-checked refutation of the
+unrepaired form.
 -/
 
 namespace LeanToLambdaBox
@@ -594,7 +594,7 @@ end SubstFixNodes
 `hfv` replaces the design's inert `LBClosed t 0`, and is free at the call site — `t` is a
 lowered body and `hfv` is `LowerBlock.hfresh`;
 `LowerFixFixture.constToFix_needs_freshness` refutes the statement without it. `hΓ` closes
-the installed block, which `Lower.ctorEta`'s shift needs. -/
+the installed block, which the `elimApp` alternatives and `fixBody` need. -/
 theorem Lower.constToFix {Γ : GlobalDeclarations} {kns : List Kername} {bs bs' : List LBTerm}
     {ids : List FVarId} {defs : List (@FixDef LBTerm)} {s t t' : LBTerm}
     (hΓ : ClosedBodies Γ) (hblk : LowerBlock Γ kns bs bs' ids defs)
@@ -628,7 +628,7 @@ theorem Lower.constToFix {Γ : GlobalDeclarations} {kns : List Kername} {bs bs' 
     | @const kn hk =>
         intro _ q' hcw
         cases hcw with
-        | @hit j _ x hkn hx => rw [hhit j x hx]; exact Lower.fixConst' hblk hkn
+        | @hit j _ x hkn hx => rw [hhit j x hx]; exact Lower.fixConst' hblk hk hkn
         | miss _ => rw [substFix_const]; exact .const hk
     | @lambda n n' b b' _ ih =>
         intro hnf q' hcw
@@ -681,79 +681,7 @@ theorem Lower.constToFix {Γ : GlobalDeclarations} {kns : List Kername} {bs bs' 
               refine ihb i hi (fun x hx hc => hnf x hx ?_) (A₂[i]!).2 (hb₂ i (by omega))
               rw [hasFVar_case, hasFVarAlts_iff]
               exact .inr ⟨_, Lower.getElem!_mem (by omega), hc⟩
-    | @ctorApp kn iid k args args' hc hsat hlen _ ih =>
-        intro hnf q' hcw
-        obtain ⟨f₂, L₂, hf₂, hlen₂, hpt₂, rfl⟩ :=
-          ConstToFVar.mkApps_inv args' (.construct iid k []) q' hcw
-        cases hf₂ with
-        | @construct _ _ _ A₀ hA₀ _ =>
-            have hA : A₀ = [] := List.eq_nil_of_length_eq_zero (by simpa using hA₀)
-            subst hA
-            rw [substFix_mkApps, substFix_construct]
-            simp only [List.map_nil]
-            refine .ctorApp hc hsat (by simp [hlen₂, hlen]) (fun i hi => ?_)
-            rw [Lower.getElem!_map (substFix ids defs) L₂ i (by omega)]
-            refine ih i hi (fun x hx hcc => hnf x hx ?_) L₂[i]! (hpt₂ i (by omega))
-            rw [hasFVar_mkApps]
-            exact .inr ⟨_, Lower.getElem!_mem (by omega), hcc⟩
-    | @ctorEta kn iid k args args' ns hc hns hund hlen _ ih =>
-        intro hnf q' hcw
-        obtain ⟨ns₂, b₂, hnl, hb₂, rfl⟩ := ConstToFVar.mkLambdas_inv ns _ q' hcw
-        obtain ⟨f₂, L, hf₂, hLlen, hLpt, rfl⟩ :=
-          ConstToFVar.mkApps_inv _ (.construct iid k []) b₂ hb₂
-        cases hf₂ with
-        | @construct _ _ _ A₀ hA₀ _ =>
-            have hA : A₀ = [] := List.eq_nil_of_length_eq_zero (by simpa using hA₀)
-            subst hA
-            obtain ⟨L₁, L₂, rfl, hl₁, hl₂, hp₁, hp₂⟩ :=
-              ConstToFVar.list_append_inv hLlen hLpt
-            rw [List.length_map] at hl₁
-            rw [bvarsDesc_length] at hl₂
-            -- the arguments' images, unshifted
-            have hargfv : ∀ i, i < args'.length → ∀ x ∈ ids, ¬ hasFVar x args'[i]! := by
-              intro i hi x hx hcc
-              refine hnf x hx ?_
-              rw [hasFVar_mkLambdas, hasFVar_mkApps]
-              refine .inr ⟨LBTerm.shift ns.length 0 args'[i]!, ?_, ?_⟩
-              · exact List.mem_append_left _ (List.mem_map_of_mem
-                  (Lower.getElem!_mem hi))
-              · exact (hasFVar_shift x args'[i]! ns.length 0).mpr hcc
-            obtain ⟨us, hus, hpts⟩ := exists_list_of_index args'.length
-              (fun i u => ConstToFVar kns ids args'[i]! u ∧ L₁[i]! = LBTerm.shift ns.length 0 u)
-              (fun i hi => by
-                have hpi := hp₁ i (by simp [hi])
-                rw [Lower.getElem!_map (LBTerm.shift ns.length 0) args' i hi] at hpi
-                exact ConstToFVar.of_shift args'[i]! ns.length 0 L₁[i]! hpi)
-            have hL₁ : L₁ = us.map (LBTerm.shift ns.length 0) :=
-              list_eq_of_getElem! (by simp [hl₁, hus]) (fun i hi => by
-                rw [Lower.getElem!_map (LBTerm.shift ns.length 0) us i (by omega)]
-                exact (hpts i (by omega)).2)
-            have hL₂ : L₂ = bvarsDesc ns.length :=
-              list_eq_of_getElem! (by simp [hl₂]) (fun i hi => by
-                have hi' : i < (bvarsDesc ns.length).length := by simpa [hl₂] using hi
-                obtain ⟨m, _, hm⟩ := bvarsDesc_mem (Lower.getElem!_mem hi')
-                have hpi := hp₂ i (by simpa using hi')
-                rw [hm] at hpi
-                rw [ConstToFVar.bvar_target hpi, hm])
-            subst hL₁; subst hL₂
-            rw [substFix_mkLambdas, substFix_mkApps, substFix_construct, List.map_append,
-              List.map_map, substFix_bvarsDesc]
-            simp only [List.map_nil]
-            have hmapcomm : us.map (substFix ids defs ∘ LBTerm.shift ns.length 0)
-                = (us.map (substFix ids defs)).map (LBTerm.shift ns.length 0) := by
-              rw [List.map_map]
-              refine List.map_congr_left (fun u _ => ?_)
-              simp only [Function.comp]
-              exact substFix_shift_comm hdcl u ns.length 0
-            rw [hmapcomm]
-            have hns₂ : ns₂ ≠ [] := by
-              intro he; exact hns (List.eq_nil_of_length_eq_zero (by rw [← hnl, he]; rfl))
-            rw [show ns.length = ns₂.length from hnl.symm]
-            refine .ctorEta hc hns₂ (by rw [hnl]; exact hund) (by simp [hus, hlen])
-              (fun i hi => ?_)
-            rw [Lower.getElem!_map (substFix ids defs) us i (by omega)]
-            exact ih i hi (hargfv i (by omega)) us[i]! (hpts i (by omega)).1
-    | @elimApp hd iid np dp nfs pre disc disc' minors alts extra extra'
+    | @elimApp knE iid np dp nfs pre disc disc' minors alts extra extra'
         hh hlen hmlen halen _ _ hxlen _ ihmin ihd ihx =>
         intro hnf q' hcw
         obtain ⟨f₂, L₂, hf₂, hlen₂, hpt₂, rfl⟩ :=
@@ -777,23 +705,12 @@ theorem Lower.constToFix {Γ : GlobalDeclarations} {kns : List Kername} {bs bs' 
             · rw [Lower.getElem!_map (substFix ids defs) L₂ i (by omega)]
               refine ihx i hi (fun x hx hcc => hnf x hx ?_) L₂[i]! (hpt₂ i (by omega))
               exact (hasFVar_mkApps x extra' _).mpr (.inr ⟨_, Lower.getElem!_mem (by omega), hcc⟩)
-    | @elimEta hd iid np dp nfs args ns body hh hns hund _ ih =>
-        intro hnf q' hcw
-        obtain ⟨ns₂, b₂, hnl, hb₂, rfl⟩ := ConstToFVar.mkLambdas_inv ns body q' hcw
-        have hbodyfv : ∀ x ∈ ids, ¬ hasFVar x body := by
-          intro x hx hcc; exact hnf x hx ((hasFVar_mkLambdas x ns body).mpr hcc)
-        have hns₂ : ns₂ ≠ [] := by
-          intro he; exact hns (List.eq_nil_of_length_eq_zero (by rw [← hnl, he]; rfl))
-        rw [substFix_mkLambdas]
-        refine .elimEta hh hns₂ (by rw [hnl]; exact hund) ?_
-        rw [hnl]
-        exact ih hbodyfv b₂ hb₂
     | @fixConst kn kns₀ bs₀ bs₀' ids₀ defs₀ j hb hb' hd₀ hnd hids hilen hfresh hrarg
-        hdecl hlow hcl hj _ =>
+        hdecl hlow hcl hnk hj _ =>
         intro hnf q' hcw
         cases hcw
         rw [hself _ hnf]
-        exact .fixConst hb hb' hd₀ hnd hids hilen hfresh hrarg hdecl hlow hcl hj
+        exact .fixConst hb hb' hd₀ hnd hids hilen hfresh hrarg hdecl hlow hcl hnk hj
     | @fixBody b kns₀ bs₀ bs₀' ids₀ defs₀ j hb hb' hd₀ hnd hids hilen hfresh hrarg
         hdecl hlow hcl hj hjl _ =>
         intro hnf q' hcw
@@ -817,10 +734,15 @@ theorem Lower.constToFix {Γ : GlobalDeclarations} {kns : List Kername} {bs bs' 
 /-! ## λ-headedness of the block members
 
 `LBWfPeregrine.fixLambda` is a fact about the **emitted** definitions. Transporting it to
-the specification bodies passes through `closeFix` and `ConstToFVar` (both faithful on the
-head) and then through `Lower`, where it can fail: the two η arms turn a spine into a
-lambda. `EtaSpine` is exactly that gap, and `LowerFixFixture.lambda_of_fixLambda_needs_noEta` is
-the counterexample without it. -/
+the specification bodies passes through `closeFix` and `ConstToFVar`, both faithful on the
+head, and then through `Lower`, faithful on it too: the only arm with a λ-headed target is
+`lambda`. The transport is therefore unconditional.
+
+`lambda_of_fixLambda_needs_noEta` and its `EtaCounterexample` fixture are deleted with
+their subject. They refuted the unconditional statement through `Lower.ctorEta`, which sent
+a member body `.const lfC` to `λ_. lfC #0`; that arm is absent from the relation, and
+`EtaSpine`, `not_etaSpine_lambda_named` and `Lower.source_isLambda`'s second disjunct are
+deleted with it. -/
 
 /-- Abstraction does not change the head constructor: `toBvar` maps a lambda to a lambda
 and everything else to a non-lambda. -/
@@ -861,12 +783,6 @@ theorem LowerBlock.targetLambda_of_fixLambda {Γ : GlobalDeclarations} {kns : Li
   rw [heq, isLambda_closeFix, hcu.isLambda_eq] at this
   exact this
 
-/-- A source term of one of the two η arms: an under-applied constructor or eliminator
-spine. These are the only `Lower` sources that are not λ-headed at a λ-headed target. -/
-def EtaSpine (Γ : GlobalDeclarations) (s : LBTerm) : Prop :=
-  (∃ kn iid k args, CtorDecl Γ kn iid k ∧ s = LBTerm.mkApps (.const kn) args)
-    ∨ (∃ hd iid np dp nfs args, ElimHeadOf Γ hd iid np dp nfs ∧ s = LBTerm.mkApps hd args)
-
 /-- Neither eliminator body is a lambda whose binder carries a source name: `mkElimBody`'s
 telescope is `.anon` throughout and `mkElimBodyRec` is a `.fix`. -/
 theorem not_elimBody_lambda_named {iid : InductiveId} {np dp : Nat} {nfs : List Nat}
@@ -885,56 +801,52 @@ theorem not_elimBody_lambda_named {iid : InductiveId} {np dp : Nat} {nfs : List 
   · rw [mkElimBodyRec] at he
     exact LBTerm.noConfusion he
 
-/-- A λ with a source binder name is no η spine: an η source is a spine, hence a `.const`,
-an `ElimBody` shape, or an `.app` — and the eraser names a λ binder after its source
-binder. This is what discharges `LowerBlock.lambda_of_fixLambda`'s `hη`. -/
-theorem not_etaSpine_lambda_named {Γ : GlobalDeclarations} {nm : String} {b : LBTerm} :
-    ¬ EtaSpine Γ (.lambda (.named nm) b) := by
-  rintro (⟨kn, iid, k, args, _, he⟩ | ⟨hd, iid, np, dp, nfs, args, hh, he⟩)
-  · rcases mkApps_head_or_app (LBTerm.const kn) args with h | ⟨g, a, h⟩ <;>
-      rw [h] at he <;> exact LBTerm.noConfusion he
-  · rcases mkApps_head_or_app hd args with h | ⟨g, a, h⟩
-    · rw [h] at he
-      subst he
-      rcases hh with ⟨kn, hkn, _⟩ | hbody
-      · exact LBTerm.noConfusion hkn
-      · exact not_elimBody_lambda_named hbody
-    · rw [h] at he; exact LBTerm.noConfusion he
-
-/-- A λ-headed target comes from a λ-headed source or from an η spine. -/
+/-- A λ-headed target comes from a λ-headed source: `lambda` is the only arm whose target
+is a λ, since `elimApp`'s is a `.case` spine and the two fix arms' is a `.fix`. -/
 theorem Lower.source_isLambda {Γ : GlobalDeclarations} {s t : LBTerm} (h : Lower Γ s t)
-    (ht : isLambda t = true) : isLambda s = true ∨ EtaSpine Γ s := by
+    (ht : isLambda t = true) : isLambda s = true := by
   cases h with
   | box | bvar | fvar | prim | const | letIn | app | proj | construct | «case»
   | fixConst | fixBody => exact absurd ht (by simp [isLambda])
-  | lambda => exact .inl rfl
-  | @ctorApp kn iid k args args' =>
-      rcases mkApps_head_or_app (LBTerm.construct iid k []) args' with he | ⟨g, a, he⟩ <;>
-        rw [he] at ht <;> exact absurd ht (by simp [isLambda])
-  | @elimApp hd iid np dp nfs pre disc disc' minors alts extra extra' =>
+  | lambda => rfl
+  | @elimApp kn iid np dp nfs pre disc disc' minors alts extra extra' =>
       rcases mkApps_head_or_app (LBTerm.case (iid, np) disc' alts) extra' with he | ⟨g, a, he⟩ <;>
         rw [he] at ht <;> exact absurd ht (by simp [isLambda])
-  | @ctorEta kn iid k args args' ns hc => exact .inr (.inl ⟨kn, iid, k, args, hc, rfl⟩)
-  | @elimEta hd iid np dp nfs args ns body hh =>
-      exact .inr (.inr ⟨hd, iid, np, dp, nfs, args, hh, rfl⟩)
 
-/--
-The design's transport, **with the premise it is missing**: a block member's specification
-body is λ-headed whenever the emitted definition is, *provided* it is not an η spine.
-`LowerFixFixture.lambda_of_fixLambda_needs_noEta` refutes the statement without `hη`, and
-`not_etaSpine_lambda_named` discharges it for every λ-headed member body.
--/
+/-- **The design's transport, unconditional.** A block member's specification body is
+λ-headed whenever the emitted definition is. -/
 theorem LowerBlock.lambda_of_fixLambda {Γ : GlobalDeclarations} {kns : List Kername}
     {bs bs' : List LBTerm} {ids : List FVarId} {defs : List (@FixDef LBTerm)}
     (hblk : LowerBlock Γ kns bs bs' ids defs)
-    (hfl : ∀ j, j < defs.length → isLambda (defs[j]!).body = true)
-    (hη : ∀ j, j < kns.length → ¬ EtaSpine Γ bs[j]!) :
-    ∀ j, j < kns.length → isLambda bs[j]! = true := by
-  intro j hj
-  rcases (hblk.hlow j hj).source_isLambda (hblk.targetLambda_of_fixLambda hfl j hj) with h | h
-  · exact h
-  · exact absurd h (hη j hj)
+    (hfl : ∀ j, j < defs.length → isLambda (defs[j]!).body = true) :
+    ∀ j, j < kns.length → isLambda bs[j]! = true :=
+  fun j hj => (hblk.hlow j hj).source_isLambda (hblk.targetLambda_of_fixLambda hfl j hj)
 
+/-- **A block member's unfolded definition is a λ, still related to the member's
+specification body.** This is what the target does where the source δ-steps into a
+recursive body: the emitted `.fix` fires (`hrarg` pins the principal argument to `0`) and
+`Lower.constToFix` carries the relation across the substitution. -/
+theorem Lower.fixUnfold {Γ : GlobalDeclarations} (hΓ : ClosedBodies Γ) {kns : List Kername}
+    {bs bs' : List LBTerm} {ids : List FVarId} {defs : List (@FixDef LBTerm)} {j : Nat}
+    (hblock : LowerBlock Γ kns bs bs' ids defs)
+    (hfl : ∀ i, i < defs.length → isLambda (defs[i]!).body = true) (hjl : j < defs.length) :
+    ∃ n b, LBTerm.substList (LBTerm.fixSubst defs) (defs[j]!).body = .lambda n b ∧
+      Lower Γ bs[j]! (.lambda n b) := by
+  have hjk : j < kns.length := by rw [← hblock.hd]; exact hjl
+  obtain ⟨u, hct, heq⟩ := hblock.hcl j hjk
+  have hbs' : LBClosed bs'[j]! 0 :=
+    Lower.closed hΓ (hblock.hlow j hjk) 0 (hΓ _ _ (hblock.hdecl j hjk))
+  have hu : LBClosed u 0 := hct.closed hbs'
+  have hsub : LBTerm.substList (LBTerm.fixSubst defs) (defs[j]!).body = substFix ids defs u := by
+    rw [heq]; exact hblock.substList_fixSubst hΓ hu
+  have hlam : isLambda (LBTerm.substList (LBTerm.fixSubst defs) (defs[j]!).body) = true :=
+    isLambda_substList _ (hfl j hjl)
+  obtain ⟨n, b, hnb⟩ := isLambda_eq_true hlam
+  refine ⟨n, b, hnb, ?_⟩
+  have hlow : Lower Γ bs[j]! (substFix ids defs u) :=
+    Lower.constToFix hΓ hblock (fun x hx => hblock.hfresh x hx j hjk) (hblock.hlow j hjk) hct
+  rw [← hsub, hnb] at hlow
+  exact hlow
 
 /-! ## The fixture `lowerfix_nv`
 
@@ -1011,17 +923,15 @@ theorem specEnv_body {kn : Kername} {b : LBTerm} (h : DefnDecl specEnv kn b) :
   · exact ⟨"x", .box, rfl⟩
   · exact ⟨"x", _, rfl⟩
 
-/-- Neither member is a runtime key: a λ with a source binder name is neither a
-constructor block nor either eliminator shape. -/
+/-- Neither member is a runtime key: a λ with a source binder name is neither eliminator
+shape. -/
 theorem not_runtimeKey {kn : Kername} {b : LBTerm} (h : DefnDecl specEnv kn b) :
     ¬ RuntimeKey specEnv kn := by
   obtain ⟨nm, u, rfl⟩ := specEnv_body h
   rw [DefnDecl] at h
-  rintro (⟨iid, k, hc⟩ | ⟨iid, np, dp, nfs, body, hd, hbody⟩)
-  · rw [CtorDecl] at hc
-    exact LBTerm.noConfusion (body_inj (h.symm.trans hc))
-  · rw [← body_inj (h.symm.trans hd)] at hbody
-    exact not_elimBody_lambda_named hbody
+  rintro ⟨iid, np, dp, nfs, ⟨body, hd, hbody⟩, -⟩
+  rw [← body_inj (h.symm.trans hd)] at hbody
+  exact not_elimBody_lambda_named hbody
 
 /-- The lowering is the identity on the specification bodies: nothing in them is a
 constructor or eliminator key. -/
@@ -1141,16 +1051,9 @@ theorem lowerfix_fixLambda : ∀ j, j < defs.length → isLambda (defs[j]!).body
   | 0, _ => rfl
   | 1, _ => rfl
 
-/-- (iii) Neither member body is an η spine: both are λs with a source binder name. -/
-theorem lowerfix_noEta : ∀ j, j < kns.length → ¬ EtaSpine specEnv bs[j]! := by
-  intro j hj
-  match j, hj with
-  | 0, _ => exact not_etaSpine_lambda_named
-  | 1, _ => exact not_etaSpine_lambda_named
-
 /-- (iii) `isLambda bs[1]! = true`, discharged through `LowerBlock.lambda_of_fixLambda`. -/
 theorem lowerfix_isLambda : isLambda bs[1]! = true :=
-  lowerfix_nv.lambda_of_fixLambda lowerfix_fixLambda lowerfix_noEta 1 (Nat.lt_succ_self 1)
+  lowerfix_nv.lambda_of_fixLambda lowerfix_fixLambda 1 (Nat.lt_succ_self 1)
 
 /-- The source environment behind the stateability witness: one constant, `name₀`. -/
 def srcEnv : VEnv where
@@ -1163,13 +1066,20 @@ no factor of `Erases ⨟ Lower` relates: the source constant `lfA` against the f
 `ids[0]` the eraser emits for it inside the block. -/
 theorem lowerfix_erasesLBFix (Us : List Name) (us : List Lean.Level) :
     ErasesLBFix srcEnv Us specEnv kns ids [] (.const name₀ us) (.fvar ids[0]!) :=
-  ⟨.const kn₀, .const kn₀, .const (ci := ⟨0, .sort .zero⟩) rfl,
+  ⟨.const kn₀, .const kn₀,
+    .const (ci := ⟨0, .sort .zero⟩) rfl
+      (ConstOrigin.of_axiom (A := .sort .zero) ⟨.succ .zero, VEnv.HasType.sort trivial⟩ rfl),
     .const (not_runtimeKey decl₀), .hit (j := 0) rfl rfl⟩
 
-/-! ### The two refutations
+/-- **`fixConst` fires under its new guard.** The fixture's first member is a definition,
+so it is not a runtime key, and its constant relates to the block's `.fix` node. -/
+theorem lowerfix_fixConst_fires : Lower specEnv (.const kn₀) (.fix defs 0) :=
+  Lower.fixConst' lowerfix_nv (not_runtimeKey decl₀) (by rfl)
 
-The design's `Lower.constToFix` and `LowerBlock.lambda_of_fixLambda` are false as written;
-these are the counterexamples, both on `LowerBlock`s built here. -/
+/-! ### The refutation
+
+The design's `Lower.constToFix` is false as written; this is the counterexample, on the
+`LowerBlock` built here. -/
 
 /-- **`Lower.constToFix` is false without `hfv`.** At `t = t' = s = .fvar ids[0]` every
 premise of the design's statement holds — including `LBClosed t 0`, which says nothing
@@ -1194,97 +1104,18 @@ theorem constToFix_needs_freshness :
     obtain ⟨nm, u, he⟩ := specEnv_body hd
     exact LBTerm.noConfusion he
 
-/-! #### The η counterexample to `lambda_of_fixLambda` -/
-
-namespace EtaCounterexample
-
-/-- The counterexample's inductive block. -/
-def indKn : Kername := { mp := .MPfile [], id := "lfI" }
-/-- Its single constructor's constant. -/
-def ctorKn : Kername := { mp := .MPfile [], id := "lfC" }
-/-- The block member whose body is that constructor constant. -/
-def memKn : Kername := { mp := .MPfile [], id := "lfM" }
-/-- The inductive. -/
-def iid : InductiveId := ⟨indKn, 0⟩
-/-- The counterexample's one inductive type: a single unary constructor. -/
-def oneInd : OneInductiveBody where
-  name := "lfI"
-  ctors := [{ name := "lfC", nargs := 1 }]
-  projs := []
-/-- The mutual block holding `oneInd`, with no parameters. -/
-def mutInd : MutualInductiveBody where
-  npars := 0
-  bodies := [oneInd]
-/-- One inductive of one unary constructor, the constructor constant, and a member whose
-specification body is that constant. -/
-def env : GlobalDeclarations :=
-  [ (indKn, .inductiveDecl mutInd),
-    (ctorKn, .constantDecl ⟨some (.construct iid 0 [])⟩),
-    (memKn, .constantDecl ⟨some (.const ctorKn)⟩) ]
-/-- The η-expansion the pass emits for the member: `λ _. lfC #0`. -/
-def etaBody : LBTerm := .lambda .anon (.app (.construct iid 0 []) (.bvar 0))
-/-- The emitted single-member block. -/
-def defs : List (@FixDef LBTerm) := [{ name := .anon, body := etaBody }]
-/-- The block's fixvar. -/
-def ids : List FVarId := [⟨.mkSimple "lfW"⟩]
-
-/-- The constructor constant is declared, at arity one. -/
-theorem ctorDecl : CtorDecl env ctorKn iid 0 := rfl
-
-/-- The η arm fires: the under-applied constructor constant becomes a lambda. -/
-theorem lower_eta : Lower env (.const ctorKn) etaBody :=
-  .ctorEta (kn := ctorKn) (iid := iid) (k := 0) (args := []) (args' := []) (ns := [.anon])
-    ctorDecl (by simp) rfl rfl (fun i hi => absurd hi (by simp))
-
-/-- A `LowerBlock` whose emitted definition is λ-headed and whose specification body is
-not: the member's body is a bare constructor constant. -/
-theorem block : LowerBlock env [memKn] [.const ctorKn] [etaBody] ids defs where
-  hb := rfl
-  hb' := rfl
-  hd := rfl
-  hnd := by simp
-  hids := by simp [ids]
-  hilen := rfl
-  hfresh := by
-    intro x _ i hi
-    match i, hi with
-    | 0, _ => rintro (hc | hc) <;> exact hc
-  hrarg := by
-    intro d hd
-    rcases List.mem_cons.mp hd with rfl | hd
-    · rfl
-    · exact absurd hd (by simp)
-  hdecl := by
-    intro i hi
-    match i, hi with
-    | 0, _ => exact rfl
-  hlow := by
-    intro i hi
-    match i, hi with
-    | 0, _ => exact lower_eta
-  hcl := by
-    intro i hi
-    match i, hi with
-    | 0, _ => exact ⟨etaBody, .lambda (.app (.construct rfl (fun i hi => absurd hi (by simp)))
-        (.bvar 0)), rfl⟩
-
-end EtaCounterexample
-
-/-- **`LowerBlock.lambda_of_fixLambda` is false without `hη`.** The emitted definition is
-λ-headed while the specification body is the bare constructor constant the `ctorEta` arm
-η-expanded — so the eraser's `fixLambda` fact does not transport to `bs` unaided. -/
-theorem lambda_of_fixLambda_needs_noEta :
-    ¬ (∀ (Γ : GlobalDeclarations) (kns : List Kername) (bs bs' : List LBTerm)
-         (ids : List FVarId) (defs : List (@FixDef LBTerm)),
-        LowerBlock Γ kns bs bs' ids defs →
-        (∀ j, j < defs.length → isLambda (defs[j]!).body = true) →
-        ∀ j, j < kns.length → isLambda bs[j]! = true) := by
-  intro hall
-  have h := hall _ _ _ _ _ _ EtaCounterexample.block
-    (fun j hj => by match j, hj with | 0, _ => rfl) 0 (by simp)
-  exact absurd h (by simp [isLambda])
-
-
 end LowerFixFixture
+
+/-- The naive transport of box-freedom along `Lower` is false: `Lower.fixConst` relates
+the box-free `.const kn` to the block's `.fix`, whose definitions carry the boxes of the
+members' bodies. Any transport needs a premise excluding a `.fix` in the target. It lives
+here rather than beside `NoBox` in `Lower.lean` because its witness is the fixture above. -/
+theorem noBox_lower_needs_noFix :
+    ¬ (∀ (Γ : GlobalDeclarations) (s t : LBTerm), Lower Γ s t → NoBox s → NoBox t) := by
+  intro H
+  exact H LowerFixFixture.specEnv (.const LowerFixFixture.kn₀)
+    (.fix LowerFixFixture.defs 0)
+    (Lower.fixConst' LowerFixFixture.lowerfix_nv
+      (LowerFixFixture.not_runtimeKey LowerFixFixture.decl₀) (by rfl)) trivial |>.1
 
 end LeanToLambdaBox

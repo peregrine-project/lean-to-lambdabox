@@ -1,0 +1,161 @@
+ErasesLB : Lean4Lean.VEnv → List Lean.Name → GlobalDeclarations → Lean4Lean.VLCtx → Lean.Expr → LBTerm → Prop
+ErasesLBAlt : Lean4Lean.VEnv →
+  List Lean.Name → GlobalDeclarations → Lean4Lean.VLCtx → Nat → Lean.Expr → List BinderName × LBTerm → Prop
+ErasesLBAlts : Lean4Lean.VEnv →
+  List Lean.Name →
+    GlobalDeclarations → Lean4Lean.VLCtx → List Nat → List Lean.Expr → List (List BinderName × LBTerm) → Prop
+ErasesLBFixAlt : Lean4Lean.VEnv →
+  List Lean.Name →
+    GlobalDeclarations →
+      List Kername → List Lean.FVarId → Lean4Lean.VLCtx → Nat → Lean.Expr → List BinderName × LBTerm → Prop
+ErasesLBFixAlts : Lean4Lean.VEnv →
+  List Lean.Name →
+    GlobalDeclarations →
+      List Kername →
+        List Lean.FVarId → Lean4Lean.VLCtx → List Nat → List Lean.Expr → List (List BinderName × LBTerm) → Prop
+@Erases.mkApps : ∀ {env : Lean4Lean.VEnv} {Us : List Lean.Name} {Δ : Lean4Lean.VLCtx} {f : Lean.Expr} {f' : LBTerm}
+  (args : List Lean.Expr) (args' : List LBTerm),
+  Erases env Us Δ f f' →
+    args'.length = args.length →
+      (∀ (i : Nat), i < args.length → Erases env Us Δ args[i]! args'[i]!) →
+        Erases env Us Δ (mkApps f args) (f'.mkApps args')
+@ErasesLB.exists_mid : ∀ {env : Lean4Lean.VEnv} {Us : List Lean.Name} {Γ : GlobalDeclarations} {Δ : Lean4Lean.VLCtx}
+  {args : List Lean.Expr} {args' : List LBTerm},
+  (∀ (i : Nat), i < args.length → ErasesLB env Us Γ Δ args[i]! args'[i]!) →
+    ∃ mid,
+      mid.length = args.length ∧
+        (∀ (i : Nat), i < args.length → Erases env Us Δ args[i]! mid[i]!) ∧
+          ∀ (i : Nat), i < args.length → Lower Γ mid[i]! args'[i]!
+@ErasesLB.box : ∀ {env : Lean4Lean.VEnv} {Us : List Lean.Name} {Γ : GlobalDeclarations} {Δ : Lean4Lean.VLCtx}
+  {e : Lean.Expr} {ve : Lean4Lean.VExpr},
+  Lean4Lean.TrExprS env Us Δ e ve → Erasable env Us.length Δ.toCtx ve → ErasesLB env Us Γ Δ e LBTerm.box
+@ErasesLB.app : ∀ {env : Lean4Lean.VEnv} {Us : List Lean.Name} {Γ : GlobalDeclarations} {Δ : Lean4Lean.VLCtx}
+  {f a : Lean.Expr} {f' a' : LBTerm},
+  ErasesLB env Us Γ Δ f f' → ErasesLB env Us Γ Δ a a' → ErasesLB env Us Γ Δ (f.app a) (f'.app a')
+@ErasesLB.ctor_head : ∀ {env : Lean4Lean.VEnv} {Us : List Lean.Name} {Γ : GlobalDeclarations} {Δ : Lean4Lean.VLCtx}
+  {cn I : Lean.Name} {us : List Lean.Level} {iid : InductiveId} {k np : Nat} {nfs : List Nat},
+  CtorOf env cn I k → IndInfo env I iid np nfs → ErasesLB env Us Γ Δ (Lean.Expr.const cn us) (LBTerm.construct iid k [])
+@ErasesLB.ctor : ∀ {env : Lean4Lean.VEnv} {Us : List Lean.Name} {Γ : GlobalDeclarations} {Δ : Lean4Lean.VLCtx}
+  {cn I : Lean.Name} {us : List Lean.Level} {iid : InductiveId} {k np : Nat} {nfs : List Nat} {args : List Lean.Expr}
+  {args' : List LBTerm},
+  CtorOf env cn I k →
+    IndInfo env I iid np nfs →
+      args'.length = args.length →
+        (∀ (i : Nat), i < args.length → ErasesLB env Us Γ Δ args[i]! args'[i]!) →
+          ErasesLB env Us Γ Δ (List.foldl Lean.Expr.app (Lean.Expr.const cn us) args)
+            ((LBTerm.construct iid k []).mkApps args')
+@ErasesLB.fix : ∀ {env : Lean4Lean.VEnv} {Us : List Lean.Name} {Γ : GlobalDeclarations} {Δ : Lean4Lean.VLCtx}
+  {cn : Lean.Name} {us : List Lean.Level} {ci : Lean4Lean.VConstant} {kns : List Kername} {bs bs' : List LBTerm}
+  {ids : List Lean.FVarId} {defs : List FixDef} {j : Nat},
+  LowerBlock Γ kns bs bs' ids defs →
+    ¬RuntimeKey Γ (toKername cn) →
+      kns[j]? = some (toKername cn) →
+        env.constants cn = some ci →
+          ConstOrigin env cn → ErasesLB env Us Γ Δ (Lean.Expr.const cn us) (LBTerm.fix defs j)
+@ErasesLB.cases : ∀ {env : Lean4Lean.VEnv} {Us : List Lean.Name} {Γ : GlobalDeclarations} {Δ : Lean4Lean.VLCtx}
+  {con : Lean.Name} {us : List Lean.Level} {ci : Lean4Lean.VConstant} {iid : InductiveId} {np dp : Nat} {nfs : List Nat}
+  {args : List Lean.Expr} {disc : LBTerm} {alts : List (List BinderName × LBTerm)},
+  ElimDecl Γ (toKername con) iid np dp nfs →
+    env.constants con = some ci →
+      ConstOrigin env con →
+        env.WF →
+          (∀ (c : Lean.Name) (ci : Lean4Lean.VConstant),
+              env.constants c = some ci →
+                (∃ I k, CtorOf env c I k) ∨ (∃ iid np nfs, IndInfo env c iid np nfs) ∨ ConstOrigin env c) →
+            Lean4Lean.VLCtx.WF env Us.length Δ →
+              (∀ (a : Lean.Expr), a ∈ List.take dp args → ∃ ve, Lean4Lean.TrExprS env Us Δ a ve) →
+                (∀ (a : Lean.Expr), a ∈ List.take dp args → ProjInfo env a) →
+                  args.length = dp + 1 + nfs.length →
+                    ErasesLB env Us Γ Δ args[dp]! disc →
+                      ErasesLBAlts env Us Γ Δ nfs (List.drop (dp + 1) args) alts →
+                        ErasesLB env Us Γ Δ (List.foldl Lean.Expr.app (Lean.Expr.const con us) args)
+                          (LBTerm.case (iid, np) disc alts)
+@erasesLB_of_spine : ∀ {env : Lean4Lean.VEnv} {Us : List Lean.Name} {Γ : GlobalDeclarations} {Δ : Lean4Lean.VLCtx}
+  {args : List Lean.Expr} {targs : List LBTerm},
+  targs.length = args.length →
+    ((∀ (i : Nat), i < args.length → ∃ a₀, Erases env Us Δ args[i]! a₀ ∧ Lower Γ a₀ targs[i]!) ↔
+      ∀ (i : Nat), i < args.length → ErasesLB env Us Γ Δ args[i]! targs[i]!)
+@ErasesLBFix.of_erasesLB : ∀ {env : Lean4Lean.VEnv} {Us : List Lean.Name} {Γ : GlobalDeclarations} {Δ : Lean4Lean.VLCtx}
+  {kns : List Kername} {ids : List Lean.FVarId} {e : Lean.Expr} {t₁ t : LBTerm},
+  ErasesLB env Us Γ Δ e t₁ → ConstToFVar kns ids t₁ t → ErasesLBFix env Us Γ kns ids Δ e t
+@ErasesLBFix.exists_erasesLB : ∀ {env : Lean4Lean.VEnv} {Us : List Lean.Name} {Γ : GlobalDeclarations}
+  {Δ : Lean4Lean.VLCtx} {kns : List Kername} {ids : List Lean.FVarId} {e : Lean.Expr} {t : LBTerm},
+  ErasesLBFix env Us Γ kns ids Δ e t → ∃ t₁, ErasesLB env Us Γ Δ e t₁ ∧ ConstToFVar kns ids t₁ t
+@ErasesLBFix.exists_mid : ∀ {env : Lean4Lean.VEnv} {Us : List Lean.Name} {Γ : GlobalDeclarations} {Δ : Lean4Lean.VLCtx}
+  {kns : List Kername} {ids : List Lean.FVarId} {args : List Lean.Expr} {args' : List LBTerm},
+  (∀ (i : Nat), i < args.length → ErasesLBFix env Us Γ kns ids Δ args[i]! args'[i]!) →
+    ∃ mid,
+      mid.length = args.length ∧
+        (∀ (i : Nat), i < args.length → ErasesLB env Us Γ Δ args[i]! mid[i]!) ∧
+          ∀ (i : Nat), i < args.length → ConstToFVar kns ids mid[i]! args'[i]!
+@ErasesLBFix.fixvar : ∀ {env : Lean4Lean.VEnv} {Us : List Lean.Name} {Γ : GlobalDeclarations} {Δ : Lean4Lean.VLCtx}
+  {kns : List Kername} {ids : List Lean.FVarId} {cn : Lean.Name} {us : List Lean.Level} {ci : Lean4Lean.VConstant}
+  {j : Nat} {x : Lean.FVarId},
+  kns[j]? = some (toKername cn) →
+    ids[j]? = some x →
+      ¬RuntimeKey Γ (toKername cn) →
+        env.constants cn = some ci →
+          ConstOrigin env cn → ErasesLBFix env Us Γ kns ids Δ (Lean.Expr.const cn us) (LBTerm.fvar x)
+@ErasesLBFix.box : ∀ {env : Lean4Lean.VEnv} {Us : List Lean.Name} {Γ : GlobalDeclarations} {Δ : Lean4Lean.VLCtx}
+  {kns : List Kername} {ids : List Lean.FVarId} {e : Lean.Expr} {ve : Lean4Lean.VExpr},
+  Lean4Lean.TrExprS env Us Δ e ve → Erasable env Us.length Δ.toCtx ve → ErasesLBFix env Us Γ kns ids Δ e LBTerm.box
+@ErasesLBFix.app : ∀ {env : Lean4Lean.VEnv} {Us : List Lean.Name} {Γ : GlobalDeclarations} {Δ : Lean4Lean.VLCtx}
+  {kns : List Kername} {ids : List Lean.FVarId} {f a : Lean.Expr} {f' a' : LBTerm},
+  ErasesLBFix env Us Γ kns ids Δ f f' →
+    ErasesLBFix env Us Γ kns ids Δ a a' → ErasesLBFix env Us Γ kns ids Δ (f.app a) (f'.app a')
+@ErasesLBFix.ctor_head : ∀ {env : Lean4Lean.VEnv} {Us : List Lean.Name} {Γ : GlobalDeclarations} {Δ : Lean4Lean.VLCtx}
+  {kns : List Kername} {ids : List Lean.FVarId} {cn I : Lean.Name} {us : List Lean.Level} {iid : InductiveId}
+  {k np : Nat} {nfs : List Nat},
+  CtorOf env cn I k →
+    IndInfo env I iid np nfs → ErasesLBFix env Us Γ kns ids Δ (Lean.Expr.const cn us) (LBTerm.construct iid k [])
+@ErasesLBFix.ctor : ∀ {env : Lean4Lean.VEnv} {Us : List Lean.Name} {Γ : GlobalDeclarations} {Δ : Lean4Lean.VLCtx}
+  {kns : List Kername} {ids : List Lean.FVarId} {cn I : Lean.Name} {us : List Lean.Level} {iid : InductiveId}
+  {k np : Nat} {nfs : List Nat} {args : List Lean.Expr} {args' : List LBTerm},
+  CtorOf env cn I k →
+    IndInfo env I iid np nfs →
+      args'.length = args.length →
+        (∀ (i : Nat), i < args.length → ErasesLBFix env Us Γ kns ids Δ args[i]! args'[i]!) →
+          ErasesLBFix env Us Γ kns ids Δ (List.foldl Lean.Expr.app (Lean.Expr.const cn us) args)
+            ((LBTerm.construct iid k []).mkApps args')
+@ErasesLBFix.cases : ∀ {env : Lean4Lean.VEnv} {Us : List Lean.Name} {Γ : GlobalDeclarations} {Δ : Lean4Lean.VLCtx}
+  {kns : List Kername} {ids : List Lean.FVarId} {con : Lean.Name} {us : List Lean.Level} {ci : Lean4Lean.VConstant}
+  {iid : InductiveId} {np dp : Nat} {nfs : List Nat} {args : List Lean.Expr} {disc : LBTerm}
+  {alts : List (List BinderName × LBTerm)},
+  ElimDecl Γ (toKername con) iid np dp nfs →
+    env.constants con = some ci →
+      ConstOrigin env con →
+        env.WF →
+          (∀ (c : Lean.Name) (ci : Lean4Lean.VConstant),
+              env.constants c = some ci →
+                (∃ I k, CtorOf env c I k) ∨ (∃ iid np nfs, IndInfo env c iid np nfs) ∨ ConstOrigin env c) →
+            Lean4Lean.VLCtx.WF env Us.length Δ →
+              (∀ (a : Lean.Expr), a ∈ List.take dp args → ∃ ve, Lean4Lean.TrExprS env Us Δ a ve) →
+                (∀ (a : Lean.Expr), a ∈ List.take dp args → ProjInfo env a) →
+                  args.length = dp + 1 + nfs.length →
+                    ErasesLBFix env Us Γ kns ids Δ args[dp]! disc →
+                      ErasesLBFixAlts env Us Γ kns ids Δ nfs (List.drop (dp + 1) args) alts →
+                        ErasesLBFix env Us Γ kns ids Δ (List.foldl Lean.Expr.app (Lean.Expr.const con us) args)
+                          (LBTerm.case (iid, np) disc alts)
+@ErasesLBFix.fix : ∀ {env : Lean4Lean.VEnv} {Us : List Lean.Name} {Γ : GlobalDeclarations} {Δ : Lean4Lean.VLCtx}
+  {kns : List Kername} {ids : List Lean.FVarId} {cn : Lean.Name} {us : List Lean.Level} {ci : Lean4Lean.VConstant}
+  {bkns : List Kername} {bs bs' : List LBTerm} {bids : List Lean.FVarId} {defs : List FixDef} {j : Nat},
+  LowerBlock Γ bkns bs bs' bids defs →
+    ¬RuntimeKey Γ (toKername cn) →
+      bkns[j]? = some (toKername cn) →
+        env.constants cn = some ci →
+          ConstOrigin env cn → ErasesLBFix env Us Γ kns ids Δ (Lean.Expr.const cn us) (LBTerm.fix defs j)
+'LeanToLambdaBox.Erases.mkApps' depends on axioms: [propext, Classical.choice, Quot.sound]
+'LeanToLambdaBox.ErasesLB.box' depends on axioms: [propext, Classical.choice, Quot.sound]
+'LeanToLambdaBox.ErasesLB.app' depends on axioms: [propext, Classical.choice, Quot.sound]
+'LeanToLambdaBox.ErasesLB.ctor_head' depends on axioms: [propext, Classical.choice, Quot.sound]
+'LeanToLambdaBox.ErasesLB.ctor' depends on axioms: [propext, Classical.choice, Quot.sound]
+'LeanToLambdaBox.ErasesLB.fix' depends on axioms: [propext, Classical.choice, Quot.sound]
+'LeanToLambdaBox.ErasesLB.cases' depends on axioms: [propext, Classical.choice, Quot.sound]
+'LeanToLambdaBox.erasesLB_of_spine' depends on axioms: [propext, Classical.choice, Quot.sound]
+'LeanToLambdaBox.ErasesLBFix.fixvar' depends on axioms: [propext, Classical.choice, Quot.sound]
+'LeanToLambdaBox.ErasesLBFix.box' depends on axioms: [propext, Classical.choice, Quot.sound]
+'LeanToLambdaBox.ErasesLBFix.app' depends on axioms: [propext, Classical.choice, Quot.sound]
+'LeanToLambdaBox.ErasesLBFix.ctor_head' depends on axioms: [propext, Classical.choice, Quot.sound]
+'LeanToLambdaBox.ErasesLBFix.ctor' depends on axioms: [propext, Classical.choice, Quot.sound]
+'LeanToLambdaBox.ErasesLBFix.cases' depends on axioms: [propext, Classical.choice, Quot.sound]
+'LeanToLambdaBox.ErasesLBFix.fix' depends on axioms: [propext, Classical.choice, Quot.sound]
