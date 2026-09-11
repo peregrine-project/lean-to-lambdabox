@@ -3,59 +3,57 @@ import LeanToLambdaBox.Basic
 /-!
 # `WcbvFlags` — evaluation flags for λ□
 
-Faithful translation of MetaCoq's `EWcbvEval.WcbvFlags`
-(`MetaCoq.Erasure.EWcbvEval`). The weak call-by-value evaluation of λ□ is
-parameterised by three booleans:
+Faithful translation of MetaRocq's `EWcbvEval.WcbvFlags`. The weak call-by-value
+evaluation of λ□ is parameterised by three booleans:
 
-* `with_prop_case`  — enable the propositional-case reduction rules
-  (`iota_sing`, `proj_prop`): a case/projection on an erased proof reduces by
-  substituting `□`. MetaCoq's default has this **on**; the `optimize` pass
-  removes such cases and targets the **off** semantics.
-* `with_guarded_fix` — a `fix` unfolds only once its principal argument is a
-  constructor value (the "guarded" recursion of Coq/Lean). With the flag off,
-  a `fix` unfolds on any value argument (the malfunction target).
-* `with_constructor_as_block` — whether constructors carry their arguments
-  *inside* the node (`true`, "block" form) or accumulate them by application
-  (`false`). **We are always block form** because `LBTerm.construct` holds its
-  args inside and the `Erases` relation only ever produces saturated
-  constructors; so we pin this to `true` and do not model the accumulation
-  rules (MetaCoq's `eval_construct`/partial-constructor `app_cong`), which are
-  unrepresentable in our syntax.
+* `with_prop_case` — enable the propositional-case reduction rules (`WcbvEval.iota_sing`,
+  `WcbvEval.proj_prop`): a case or projection on an erased proof reduces by substituting
+  `□`. Both rules additionally require the inductive to be marked propositional.
+* `with_guarded_fix` — a `fix` unfolds only once its principal argument is a constructor
+  value (the guarded recursion of Rocq and Lean). With the flag off, a `fix` unfolds on
+  any value argument.
+* `with_constructor_as_block` — whether constructors carry their arguments *inside* the
+  node (`true`, block form) or accumulate them by application (`false`, applied form).
 
-MetaCoq's instances:
-```
-default_wcbv_flags := { prop_case := true;  guarded_fix := true;  block := false }
-opt_wcbv_flags     := { prop_case := false; guarded_fix := true;  block := false }
-target_wcbv_flags  := { prop_case := false; guarded_fix := false; block := false }
-```
-We mirror them with `block := true` (the syntactic deviation justified above).
+**Both constructor regimes are modelled.** `WcbvEval` carries the block rules
+(`construct`, `iota_block`, `proj_block`) and the applied rules (`construct_atom`,
+`construct_app`, `iota`, `proj`), each gated on this bit. The shipping erasure emits
+applied form, so its evaluation point is `eraseFlags`; `blockFlags` and `propBlockFlags`
+are the block-form points `LBOptimize_correct` relates.
+
+**The prop-case bit is inert on emitted output.** The erasure never marks an
+`OneInductiveBody` propositional — all 683 inductive entries of the benchmark suite's
+emitted environments carry `propositional := false` — and both prop-gated rules require
+that mark, so on every emitted environment `eraseFlags` and `entryFlags` agree.
+`WcbvEval.propcase_weaken` (`Semantics/Metatheory.lean`) is the direction the consumer
+needs: peregrine's `untyped_transform_pipeline` declares its input at `entryFlags`, while
+the erasure correctness statement is made at the stronger point `eraseFlags`.
 -/
 
 namespace LeanToLambdaBox
 
-/-- Evaluation flags — MetaCoq `EWcbvEval.WcbvFlags`. -/
+/-- Evaluation flags — MetaRocq `EWcbvEval.WcbvFlags`. -/
 structure WcbvFlags where
   with_prop_case            : Bool
   with_guarded_fix          : Bool
-  /-- Pinned `true` in this development: `LBTerm.construct` is args-inside. -/
   with_constructor_as_block : Bool
   deriving Repr, DecidableEq
 
-/-- MetaCoq `default_wcbv_flags` — prop-case on, guarded fix. The semantics the
-    erasure correctness result targets. -/
-def defaultFlags : WcbvFlags := ⟨true, true, true⟩
+/-- The point the erasure correctness statement is made at: applied-form constructors,
+    prop-case off, guarded fix. MetaRocq's `opt_wcbv_flags`. -/
+def eraseFlags : WcbvFlags := ⟨false, true, false⟩
 
-/-- MetaCoq `opt_wcbv_flags` — prop-case off, guarded fix. The target of the
-    `optimize` pass (`LBOptimize`). -/
-def optFlags : WcbvFlags := ⟨false, true, true⟩
+/-- The point peregrine's `untyped_transform_pipeline` declares for its input:
+    applied-form constructors, prop-case on, guarded fix. MetaRocq's
+    `default_wcbv_flags`. Reached from `eraseFlags` by `WcbvEval.propcase_weaken`. -/
+def entryFlags : WcbvFlags := ⟨true, true, false⟩
 
-/-- MetaCoq `target_wcbv_flags` — prop-case off, unguarded fix. The malfunction
-    backend target. -/
-def targetFlags : WcbvFlags := ⟨false, false, true⟩
+/-- Block-form constructors, prop-case off, guarded fix: the conclusion point of
+    `LBOptimize_correct`. -/
+def blockFlags : WcbvFlags := ⟨false, true, true⟩
 
-/-- Non-block (applied) constructors, prop-case off, guarded fix. This is the form
-    the shipping `visitExpr` emits (constructors applied via `.app`); the
-    `construct_app` rule of `WcbvEval` is enabled here. -/
-def appliedFlags : WcbvFlags := ⟨false, true, false⟩
+/-- Block-form constructors, prop-case on, guarded fix: the source point of
+    `LBOptimize_correct`, which is what the pass removes the prop-cases from. -/
+def propBlockFlags : WcbvFlags := ⟨true, true, true⟩
 
 end LeanToLambdaBox

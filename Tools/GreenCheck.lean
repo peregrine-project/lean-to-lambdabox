@@ -17,13 +17,13 @@ open LeanToLambdaBox
     They cover δ, both constructor regimes, ι and `fix` unfolding — the same
     fixtures the kernel-checked `example`s in `Semantics/Compute.lean` use. -/
 def selfTests : List (String × Option LBTerm × Option LBTerm) :=
-  [ ("delta-applied", lbEval nvEnv appliedFlags 1000 (.const nvTwoAKn), some (nvPeanoA 2)),
-    ("delta-block",   lbEval nvEnv optFlags 1000 (.const nvTwoBKn),     some (nvPeanoB 2)),
-    ("iota-applied",  lbEval nvEnv appliedFlags 1000 (nvPredA (nvPeanoA 3)), some (nvPeanoA 2)),
-    ("iota-block",    lbEval nvEnv optFlags 1000 (nvPredB (nvPeanoB 3)), some (nvPeanoB 2)),
-    ("fix-applied",   lbEval nvEnv appliedFlags 1000 (.app (.fix [nvAddTwoA] 0) (nvPeanoA 2)),
+  [ ("delta-applied", lbEval nvEnv eraseFlags 1000 (.const nvTwoAKn), some (nvPeanoA 2)),
+    ("delta-block",   lbEval nvEnv blockFlags 1000 (.const nvTwoBKn),     some (nvPeanoB 2)),
+    ("iota-applied",  lbEval nvEnv eraseFlags 1000 (nvPredA (nvPeanoA 3)), some (nvPeanoA 2)),
+    ("iota-block",    lbEval nvEnv blockFlags 1000 (nvPredB (nvPeanoB 3)), some (nvPeanoB 2)),
+    ("fix-applied",   lbEval nvEnv eraseFlags 1000 (.app (.fix [nvAddTwoA] 0) (nvPeanoA 2)),
       some (nvPeanoA 4)),
-    ("fix-block",     lbEval nvEnv optFlags 1000 (.app (.fix [nvAddTwoB] 0) (nvPeanoB 2)),
+    ("fix-block",     lbEval nvEnv blockFlags 1000 (.app (.fix [nvAddTwoB] 0) (nvPeanoB 2)),
       some (nvPeanoB 4)) ]
 
 /-- Run one self-test case, print its verdict, and report whether it passed.

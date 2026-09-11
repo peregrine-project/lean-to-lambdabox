@@ -14,6 +14,8 @@ reasoning about `WcbvEval`/`Value` and **must be `sorryAx`-free**.
 | `eval_deterministic` | `eval_deterministic` |
 | `eval_value`    | `eval_value` |
 | `eval_unique`   | `eval_unique` (free — `Prop`-valued) |
+
+Plus `WcbvEval.propcase_weaken`: `eraseFlags` evaluation implies `entryFlags` evaluation.
 -/
 
 namespace LeanToLambdaBox
@@ -385,6 +387,41 @@ theorem eval_value {Γ : GlobalDeclarations} {fl : WcbvFlags} {v v' : LBTerm}
 theorem eval_unique {Γ : GlobalDeclarations} {fl : WcbvFlags} {t v : LBTerm}
     (h1 h2 : WcbvEval Γ fl t v) : h1 = h2 := rfl
 
+/-! ### Weakening the prop-case bit -/
+
+/-- **Turning the propositional-case rules on is a weakening.** No `WcbvEval` rule carries
+a *negative* `with_prop_case` guard, so every evaluation at `eraseFlags` is also one at
+`entryFlags` — the point peregrine's pipeline declares for its input. The three arms the
+induction has to rule out (`construct`, `iota_block`, `proj_block`) are the block-form
+ones, refuted by `eraseFlags`' `with_constructor_as_block = false`, together with
+`iota_sing`/`proj_prop`/`fix_unguarded`, refuted by its other two bits. -/
+theorem WcbvEval.propcase_weaken {Γ : GlobalDeclarations} {t v : LBTerm}
+    (h : WcbvEval Γ eraseFlags t v) : WcbvEval Γ entryFlags t v := by
+  induction h with
+  | box => exact .box
+  | lam n b => exact .lam n b
+  | fvar x => exact .fvar x
+  | prim p => exact .prim p
+  | fix_atom d i => exact .fix_atom d i
+  | beta _ _ _ ih1 ih2 ih3 => exact .beta ih1 ih2 ih3
+  | app_box _ _ ih1 ih2 => exact .app_box ih1 ih2
+  | zeta _ _ ih1 ih2 => exact .zeta ih1 ih2
+  | delta hl _ ih => exact .delta hl ih
+  | construct hb _ _ => simp [eraseFlags] at hb
+  | construct_atom _ hc => exact .construct_atom rfl hc
+  | construct_app _ _ ha hlt _ ih1 ih2 => exact .construct_app rfl ih1 ha hlt ih2
+  | iota _ hp _ ha hl _ ih1 ih2 => exact .iota rfl hp ih1 ha hl ih2
+  | iota_block hb _ _ _ _ _ => simp [eraseFlags] at hb
+  | iota_sing hpc _ _ _ _ _ => simp [eraseFlags] at hpc
+  | proj _ hp _ hg _ ih1 ih2 => exact .proj rfl hp ih1 hg ih2
+  | proj_block hb _ _ _ _ _ => simp [eraseFlags] at hb
+  | proj_prop hpc _ _ _ => simp [eraseFlags] at hpc
+  | fix_guarded _ _ _ hd hp _ ih1 ih2 ih3 => exact .fix_guarded rfl ih1 ih2 hd hp ih3
+  | fix_stuck _ _ _ hd hp ih1 ih2 => exact .fix_stuck rfl ih1 ih2 hd hp
+  | fix_unguarded hg _ _ _ _ _ _ _ => simp [eraseFlags] at hg
+  | app_cong _ hst _ ih1 ih2 =>
+      exact .app_cong ih1 (by simpa [eraseFlags, entryFlags, isStuckApp] using hst) ih2
+
 /-! ## Non-vacuity witnesses for the metatheory
 
 Every hypothesis-bearing lemma above is guarded against vacuous truth: the
@@ -393,25 +430,25 @@ non-trivial evaluation. -/
 
 /-- A concrete non-trivial evaluation: `(λ. #0) □ ⇓ □`. -/
 theorem wcbvEval_beta_box :
-    WcbvEval [] optFlags (.app (.lambda .anon (.bvar 0)) .box) .box :=
+    WcbvEval [] blockFlags (.app (.lambda .anon (.bvar 0)) .box) .box :=
   .beta (.lam .anon (.bvar 0)) .box .box
 
-theorem value_box : Value [] optFlags (.box : LBTerm) := .atom (by simp [atomValue])
+theorem value_box : Value [] blockFlags (.box : LBTerm) := .atom (by simp [atomValue])
 
 /-- `Value` is inhabited (⇒ `value_final` is not vacuous). -/
 theorem value_final_hyps_satisfiable : ∃ (fl : WcbvFlags) (v : LBTerm), Value [] fl v :=
-  ⟨optFlags, .box, value_box⟩
+  ⟨blockFlags, .box, value_box⟩
 
 /-- `value_final` fires: `□` (a value) evaluates to itself. -/
-theorem value_final_fires : WcbvEval [] optFlags .box .box := value_final value_box
+theorem value_final_fires : WcbvEval [] blockFlags .box .box := value_final value_box
 
 /-- `WcbvEval` is inhabited (⇒ `eval_to_value`/`eval_deterministic` are not vacuous). -/
 theorem eval_hyps_satisfiable :
     ∃ (Γ : GlobalDeclarations) (fl : WcbvFlags) (t v : LBTerm), WcbvEval Γ fl t v :=
-  ⟨[], optFlags, _, _, wcbvEval_beta_box⟩
+  ⟨[], blockFlags, _, _, wcbvEval_beta_box⟩
 
 /-- `eval_to_value` fires: the redex's result `□` is a value. -/
-theorem eval_to_value_fires : Value [] optFlags .box := eval_to_value wcbvEval_beta_box
+theorem eval_to_value_fires : Value [] blockFlags .box := eval_to_value wcbvEval_beta_box
 
 /-- `eval_deterministic` fires on the β-redex `(λ. #0) □` (whose argument evaluates). -/
 theorem eval_deterministic_fires : (.box : LBTerm) = .box :=
@@ -419,15 +456,15 @@ theorem eval_deterministic_fires : (.box : LBTerm) = .box :=
 
 /-- `eval_value` fires: the value `□` evaluates only to itself. -/
 theorem eval_value_fires : (.box : LBTerm) = .box :=
-  eval_value value_box (@WcbvEval.box [] optFlags)
+  eval_value value_box (@WcbvEval.box [] blockFlags)
 
 /-- `eval_unique` fires: any two derivations of `□ ⇓ □` are equal. -/
-theorem eval_unique_fires (h1 h2 : WcbvEval [] optFlags .box .box) : h1 = h2 :=
+theorem eval_unique_fires (h1 h2 : WcbvEval [] blockFlags .box .box) : h1 = h2 :=
   eval_unique h1 h2
 
 /-! ### Non-block (applied) constructors genuinely fire — with a **parameter**.
 
-`appliedFlags` is MetaCoq's `opt_wcbv_flags` (`with_constructor_as_block = false`),
+`eraseFlags` is MetaCoq's `opt_wcbv_flags` (`with_constructor_as_block = false`),
 the validated target. The witness is a **one-parameter** constructor (`cstr_arity =
 npars + cstr_nargs = 1 + 1 = 2`): a constructor spine `((mk) p) x` accumulates its
 parameter `p` and then its field `x` before saturating, exercising the corrected
@@ -447,27 +484,27 @@ def acΓ : GlobalDeclarations :=
 /-- `constructorArity` now includes the parameter: `1 (npars) + 1 (nargs) = 2`. -/
 theorem ac_arity : constructorArity acΓ acIid 0 = some 2 := rfl
 
-/-- The nullary applied head is a value under `appliedFlags`. -/
-theorem ac_nil : WcbvEval acΓ appliedFlags (.construct acIid 0 []) (.construct acIid 0 []) :=
+/-- The nullary applied head is a value under `eraseFlags`. -/
+theorem ac_nil : WcbvEval acΓ eraseFlags (.construct acIid 0 []) (.construct acIid 0 []) :=
   .construct_atom rfl ac_arity
 
 /-- `construct_atom`/`construct_app` fire: `((mk) p) x` accumulates the parameter `p`
     then the field `x` into the two-argument spine `mkApps (mk) [p, x]` — a genuine
     non-block, parameter-carrying constructor value. -/
 theorem construct_app_fires :
-    WcbvEval acΓ appliedFlags
+    WcbvEval acΓ eraseFlags
       (.app (.app (.construct acIid 0 []) .box) .box)
       (LBTerm.mkApps (.construct acIid 0 []) [.box, .box]) := by
-  have h1 : WcbvEval acΓ appliedFlags (.app (.construct acIid 0 []) .box)
+  have h1 : WcbvEval acΓ eraseFlags (.app (.construct acIid 0 []) .box)
       (.app (LBTerm.mkApps (.construct acIid 0 []) []) .box) :=
     .construct_app rfl ac_nil ac_arity (by decide) .box
-  have h2 := WcbvEval.construct_app (Γ := acΓ) (fl := appliedFlags) (a := .box)
+  have h2 := WcbvEval.construct_app (Γ := acΓ) (fl := eraseFlags) (a := .box)
     (args := [.box]) rfl h1 ac_arity (by decide) .box
   simpa [LBTerm.mkApps] using h2
 
 /-- The two-argument applied-constructor spine is a genuine `Value` (via `eval_to_value`). -/
 theorem construct_app_value :
-    Value acΓ appliedFlags (LBTerm.mkApps (.construct acIid 0 []) [.box, .box]) :=
+    Value acΓ eraseFlags (LBTerm.mkApps (.construct acIid 0 []) [.box, .box]) :=
   eval_to_value construct_app_fires
 
 /-! ### A mutual (`n ≥ 2`) `fix` block exercises the corrected `fixSubst` order.
@@ -488,13 +525,13 @@ theorem mf_fixSubst : LBTerm.fixSubst mfDefs = [.fix mfDefs 1, .fix mfDefs 0] :=
     `rarg = 1`), yielding the `fix`-spine value `(fix mfDefs 1) □`. Exercises the
     `n = 2` mutual block with the corrected `fixSubst`. -/
 theorem mf_fix_stuck :
-    WcbvEval [] optFlags (.app (.fix mfDefs 1) .box)
+    WcbvEval [] blockFlags (.app (.fix mfDefs 1) .box)
       (.app (LBTerm.mkApps (.fix mfDefs 1) []) .box) :=
   .fix_stuck rfl (.fix_atom mfDefs 1) .box rfl (by decide)
 
 /-- That `fix`-spine is a genuine `Value` (via `eval_to_value`). -/
 theorem mf_fix_value :
-    Value [] optFlags (.app (LBTerm.mkApps (.fix mfDefs 1) []) .box) :=
+    Value [] blockFlags (.app (LBTerm.mkApps (.fix mfDefs 1) []) .box) :=
   eval_to_value mf_fix_stuck
 
 end LeanToLambdaBox

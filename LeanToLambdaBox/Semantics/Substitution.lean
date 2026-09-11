@@ -3,13 +3,18 @@ import LeanToLambdaBox.Basic
 /-!
 # de Bruijn substitution kit for λ□ terms
 
-The environment lookup and the shift/substitution operations on `LBTerm`, shared
-by every layer that reasons about λ□ reduction (`WcbvEval`, `LBOptimize`, the
-`Erases` substitution lemmas, and the legacy small-step relation).
+The environment lookup (`LBTerm.envLookup`) and the shift/substitution operations on
+`LBTerm`, shared by every layer that reasons about λ□ reduction. Also here: the
+application-spine helpers (`LBTerm.mkApps`, `LBTerm.spineHead`, `LBTerm.spineArgs`),
+the fixpoint-unfolding substitution `LBTerm.fixSubst`, the lambda telescope
+`mkLambdas` with its two commutation laws, the data-oriented recursor
+`LBTerm.recData`, and the six `List.map` forms of the hand-rolled list traversals
+(`LBTerm.shiftArgs_eq_map` and its siblings) that every `LBTerm.recData` induction
+needs in its `hconstruct`/`hcase`/`hfix` arm.
 
 The conventions here **match lean4lean's `Expr.liftLooseBVars'`/`instantiate1'`**
 (`shift d cutoff ≡ liftLooseBVars' · cutoff d`, `subst ≡ instantiate1'`), which is
-what lets `erases_shift`/`erases_subst` line source and target up. Preserve them.
+what lines the source and target de Bruijn operations up. Preserve them.
 -/
 
 /-- Structural boolean equality of module paths. `ModPath`/`Kername` derive only
@@ -220,4 +225,136 @@ theorem mkApps_construct_ne_fix {iid : InductiveId} {c : Nat}
 def fixSubst (defs : List (@FixDef LBTerm)) : List LBTerm :=
   (List.range defs.length).reverse.map (fun j => LBTerm.fix defs j)
 
+
+/-! ### A data-oriented recursor, and the list traversals in `List.map` form -/
+
+/-- A `Prop`-motive recursor for `LBTerm` handing per-list membership induction
+hypotheses rather than raw nested-inductive motives. `LBTerm` is a nested inductive
+(lists of subterms inside `construct`/`case`/`fix`), so plain `induction t` is rejected;
+this eliminator's list-carrying arms give back `∀ x ∈ l, P x`. -/
+@[elab_as_elim]
+def recData
+    {P : LBTerm → Prop}
+    (hbox : P .box)
+    (hbvar : ∀ i, P (.bvar i))
+    (hfvar : ∀ x, P (.fvar x))
+    (hlam : ∀ n b, P b → P (.lambda n b))
+    (hletIn : ∀ n v b, P v → P b → P (.letIn n v b))
+    (happ : ∀ f a, P f → P a → P (.app f a))
+    (hconst : ∀ kn, P (.const kn))
+    (hconstruct : ∀ iid k args, (∀ x ∈ args, P x) → P (.construct iid k args))
+    (hcase : ∀ info discr alts, P discr → (∀ a ∈ alts, P a.2) → P (.case info discr alts))
+    (hproj : ∀ p e, P e → P (.proj p e))
+    (hfix : ∀ defs i, (∀ d ∈ defs, P d.body) → P (.fix defs i))
+    (hprim : ∀ p, P (.prim p)) :
+    ∀ t, P t := by
+  refine fun t => LBTerm.rec
+    (motive_1 := P)
+    (motive_2 := fun l => ∀ x ∈ l, P x)
+    (motive_3 := fun l => ∀ a ∈ l, P a.2)
+    (motive_4 := fun l => ∀ d ∈ l, P d.body)
+    (motive_5 := fun (a : List BinderName × LBTerm) => P a.2)
+    (motive_6 := fun (d : @FixDef LBTerm) => P d.body)
+    ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ t
+  case _ => exact hbox
+  case _ => exact hbvar
+  case _ => exact hfvar
+  case _ => exact fun n b ih => hlam n b ih
+  case _ => exact fun n v b ihv ihb => hletIn n v b ihv ihb
+  case _ => exact fun f a ihf iha => happ f a ihf iha
+  case _ => exact hconst
+  case _ => exact fun iid k args ih => hconstruct iid k args ih
+  case _ => exact fun info discr alts ihd iha => hcase info discr alts ihd iha
+  case _ => exact fun p e ih => hproj p e ih
+  case _ => exact fun defs i ih => hfix defs i ih
+  case _ => exact hprim
+  case _ => exact List.forall_mem_nil _
+  case _ => exact fun t l iht ihl => List.forall_mem_cons.mpr ⟨iht, ihl⟩
+  case _ => exact List.forall_mem_nil _
+  case _ => exact fun a l iha ihl => List.forall_mem_cons.mpr ⟨iha, ihl⟩
+  case _ => exact List.forall_mem_nil _
+  case _ => exact fun d l ihd ihl => List.forall_mem_cons.mpr ⟨ihd, ihl⟩
+  case _ => exact fun _ snd ih => ih
+  case _ => exact fun _ _ _ ih => ih
+
+
+/-- `shiftArgs` as a `List.map`. -/
+theorem shiftArgs_eq_map (d c : Nat) (l : List LBTerm) :
+    LBTerm.shiftArgs d c l = l.map (LBTerm.shift d c) := by
+  induction l with
+  | nil => rfl
+  | cons a as ih => simp only [LBTerm.shiftArgs, List.map, ih]
+
+/-- `substArgs` as a `List.map`. -/
+theorem substArgs_eq_map (s : LBTerm) (d : Nat) (l : List LBTerm) :
+    LBTerm.substArgs s d l = l.map (LBTerm.subst s d) := by
+  induction l with
+  | nil => rfl
+  | cons a as ih => simp only [LBTerm.substArgs, List.map, ih]
+
+/-- `shiftAlts` as a `List.map`; the shift cutoff of a branch body is offset by the
+branch's own field binders. -/
+theorem shiftAlts_eq_map (d c : Nat) (l : List (List BinderName × LBTerm)) :
+    LBTerm.shiftAlts d c l = l.map (fun a => (a.1, LBTerm.shift d (c + a.1.length) a.2)) := by
+  induction l with
+  | nil => rfl
+  | cons a as ih => simp only [LBTerm.shiftAlts, List.map, ih]
+
+/-- `substAlts` as a `List.map`; the substitution depth of a branch body is offset by the
+branch's own field binders. -/
+theorem substAlts_eq_map (s : LBTerm) (d : Nat) (l : List (List BinderName × LBTerm)) :
+    LBTerm.substAlts s d l = l.map (fun a => (a.1, LBTerm.subst s (d + a.1.length) a.2)) := by
+  induction l with
+  | nil => rfl
+  | cons a as ih => simp only [LBTerm.substAlts, List.map, ih]
+
+/-- `shiftDefs` as a `List.map`; a mutual block's bodies already live under their own
+binders, so the cutoff does not move. -/
+theorem shiftDefs_eq_map (d c : Nat) (l : List (@FixDef LBTerm)) :
+    LBTerm.shiftDefs d c l = l.map (fun fd => { fd with body := LBTerm.shift d c fd.body }) := by
+  induction l with
+  | nil => rfl
+  | cons fd rest ih => simp only [LBTerm.shiftDefs, List.map, ih]
+
+/-- `substDefs` as a `List.map`; a mutual block's bodies already live under their own
+binders, so the depth does not move. -/
+theorem substDefs_eq_map (s : LBTerm) (d : Nat) (l : List (@FixDef LBTerm)) :
+    LBTerm.substDefs s d l = l.map (fun fd => { fd with body := LBTerm.subst s d fd.body }) := by
+  induction l with
+  | nil => rfl
+  | cons fd rest ih => simp only [LBTerm.substDefs, List.map, ih]
+
 end LBTerm
+
+namespace LeanToLambdaBox
+
+/-! ### Lambda telescopes -/
+
+/-- Wrap a body in a chain of lambdas, outermost binder first:
+`mkLambdas [n₁, …, nₖ] body = .lambda n₁ (… (.lambda nₖ body))`. The shape a `case`
+alternative's `(field-names, body)` pair takes when read back as a minor function. -/
+def mkLambdas : List BinderName → LBTerm → LBTerm
+  | [], body => body
+  | n :: ns, body => .lambda n (mkLambdas ns body)
+
+/-- `shift` pushes into a lambda telescope, its cutoff raised by the telescope's length. -/
+theorem shift_mkLambdas (d c : Nat) (names : List BinderName) (body : LBTerm) :
+    LBTerm.shift d c (mkLambdas names body)
+      = mkLambdas names (LBTerm.shift d (c + names.length) body) := by
+  induction names generalizing c with
+  | nil => rfl
+  | cons n ns ih =>
+      have h : c + (ns.length + 1) = (c + 1) + ns.length := by omega
+      simp only [mkLambdas, LBTerm.shift, List.length_cons, h, ih]
+
+/-- `subst` pushes into a lambda telescope, its depth raised by the telescope's length. -/
+theorem subst_mkLambdas (s : LBTerm) (d : Nat) (names : List BinderName) (body : LBTerm) :
+    LBTerm.subst s d (mkLambdas names body)
+      = mkLambdas names (LBTerm.subst s (d + names.length) body) := by
+  induction names generalizing d with
+  | nil => rfl
+  | cons n ns ih =>
+      have h : d + (ns.length + 1) = (d + 1) + ns.length := by omega
+      simp only [mkLambdas, LBTerm.subst, List.length_cons, h, ih]
+
+end LeanToLambdaBox

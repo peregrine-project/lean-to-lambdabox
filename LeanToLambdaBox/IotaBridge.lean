@@ -190,7 +190,7 @@ the bridge turns that into the ι rule's own reduct
 *first* field) select `□`. The second field is a λ, i.e. a genuine non-atomic closed
 value, so the closedness hypothesis is exercised rather than sidestepped. -/
 theorem wcbvEval_mkApps_mkLambdas_substList_fires :
-    WcbvEval [] appliedFlags
+    WcbvEval [] eraseFlags
       (LBTerm.substList ([(.box : LBTerm), .lambda (.named "y") .box].reverse) (.bvar 1)) .box := by
   refine wcbvEval_mkApps_mkLambdas_substList [(.box : LBTerm), .lambda (.named "y") .box]
     [.named "x", .named "y"] (.bvar 1) rfl ?_ ?_ ?_

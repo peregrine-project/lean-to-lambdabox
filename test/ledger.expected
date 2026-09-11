@@ -1,25 +1,2 @@
-'LeanToLambdaBox.shipping_erase_correct_firstorder_coldstart' depends on axioms: [propext,
- sorryAx,
- Classical.choice,
- Quot.sound,
- Lean.Expr.instantiate1_eq,
- Lean.PersistentArray.toList'_push,
- Lean.PersistentHashMap.WF.find?_eq,
- Lean.PersistentHashMap.WF.toList'_insert]
-'LeanToLambdaBox.shipping_erase_correct_firstorderι_coldstart' depends on axioms: [propext,
- sorryAx,
- Classical.choice,
- Quot.sound,
- Lean.Expr.instantiate1_eq,
- Lean.PersistentArray.toList'_push,
- Lean.PersistentHashMap.WF.find?_eq,
- Lean.PersistentHashMap.WF.toList'_insert]
-'LeanToLambdaBox.visitExpr_refines_erases' depends on axioms: [propext,
- Classical.choice,
- Quot.sound,
- Lean.Expr.instantiate1_eq,
- Lean.PersistentArray.toList'_push,
- Lean.PersistentHashMap.WF.find?_eq,
- Lean.PersistentHashMap.WF.toList'_insert]
-'LeanToLambdaBox.erases_correct' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
 'LeanToLambdaBox.LBOptimize_correct' depends on axioms: [propext, Quot.sound]
+'LeanToLambdaBox.lbEval_sound' depends on axioms: [propext]

@@ -1,3 +1,4 @@
+import LeanToLambdaBox.FixMetatheory
 import LeanToLambdaBox.Closed
 import LeanToLambdaBox.Semantics.Metatheory
 
@@ -170,7 +171,7 @@ theorem substFVar_eq_of_not_hasFVar (x : FVarId) (s : LBTerm) :
   | .fvar y, h => by
     simp only [hasFVar_fvar] at h
     show (if y == x then s else LBTerm.fvar y) = _
-    simp [h]
+    simp [fvarId_beq_iff_eq, h]
   | .lambda nm body, h => by
     simp only [hasFVar_lambda] at h
     simp only [substFVar, substFVar_eq_of_not_hasFVar x s body h]
@@ -614,7 +615,7 @@ theorem substFVarList_zipIdx_fvar {defs : List (@FixDef LBTerm)} :
           show substFVar x (LBTerm.fix defs base) (substFVarList _ (LBTerm.fvar x)) = _
           rw [hinner]
           show (if x == x then LBTerm.fix defs base else LBTerm.fvar x) = _
-          simp
+          simp [fvarId_beq_iff_eq]
       | k + 1, h =>
           have hk : k < rest.length := by simpa using h
           show substFVar x (LBTerm.fix defs base)
@@ -773,7 +774,7 @@ theorem closeFix_substList_fixSubst_fires_value (x : FVarId) :
   rw [closeFix_substList_fixSubst_fires x]
   show substFVar x (LBTerm.fix nvDefs 0) (.fvar x) = _
   show (if x == x then LBTerm.fix nvDefs 0 else LBTerm.fvar x) = _
-  simp
+  simp [fvarId_beq_iff_eq]
 
 /-! ## Part 7 — the unfolding chain (recursion wall, slice W2)
 

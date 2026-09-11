@@ -1,217 +1,32 @@
--- This module serves as the root of the `LeanToLambdabox` library.
+-- This module serves as the root of the `LeanToLambdaBox` library.
 -- Import modules here that should be built as part of the library.
+-- λ□ syntax, the shipping erasure (`#erase`), its relevance oracle and the printer.
 import LeanToLambdaBox.Basic
+import LeanToLambdaBox.Printing
+import LeanToLambdaBox.Relevance
 import LeanToLambdaBox.Erasure
--- Operational-semantics model (a Lean translation of MetaCoq `EWcbvEval`). The
--- `Semantics/` directory holds the de Bruijn substitution kit, `WcbvFlags`, the
--- faithful `Value`/`atom` predicates, the flag-parameterised big-step `WcbvEval`
--- (with `Eval`/`EvalProp` recovered as abbrevs), and its metatheory (determinism,
--- `eval_to_value`, `value_final`, …).
+-- Operational semantics of λ□: a Lean translation of MetaRocq's `EWcbvEval`.
 import LeanToLambdaBox.Semantics.Substitution
 import LeanToLambdaBox.Semantics.Env
 import LeanToLambdaBox.Semantics.Flags
 import LeanToLambdaBox.Semantics.Values
 import LeanToLambdaBox.Semantics.Eval
 import LeanToLambdaBox.Semantics.Metatheory
-import LeanToLambdaBox.Semantics
--- `Type`-valued twin `WcbvEvalT` of `WcbvEval` (+ `All2T` and the axiom-free
--- `wcbvEvalT_iff`), exported to Rocq via lean4export/rocq-lean-import to validate the
--- λ□ semantics translation against MetaRocq's `EWcbvEval.eval` (workstream WS-R).
-import LeanToLambdaBox.Export.EvalT
--- Grounding on lean4lean (Half A): the erasure context, the typed `Erases` relation
--- over real `Lean.Expr`, the irrelevance predicate, substitution lemmas, source-side
--- evaluation, subject reduction, and forward-simulation correctness.
-import LeanToLambdaBox.ErasureContext
-import LeanToLambdaBox.Erasability
-import LeanToLambdaBox.Erases
--- Target-side de-Bruijn metatheory: the closedness predicate `LBClosed` and the general
--- `shift`/`subst` commutation kit (`subst_subst`), shared by the env-erasure and ι layers.
-import LeanToLambdaBox.Closed
-import LeanToLambdaBox.SourceEval
-import LeanToLambdaBox.SubjectReduction
-import LeanToLambdaBox.SubjectReductionFull
-import LeanToLambdaBox.SourceEvalData
-import LeanToLambdaBox.ErasesCorrect
--- Implementation refinement bridge (Half B): pure `eraseCore` + refinement of `Erases`.
+import LeanToLambdaBox.Semantics.Compute
+-- Target-side metatheory: fvar↔de-Bruijn transport, closedness, output shape, fixpoints.
 import LeanToLambdaBox.Abstract
--- P3 foundation: the `n`-way fvar→de-Bruijn abstraction (`closeFix`) modelling the
--- `mkDef` closing loop of a recursive mutual block (env-level erasure, deferred rule).
-import LeanToLambdaBox.FixMetatheory
--- Recursion wall, slice W0: `substFix` (the fvar → closed-term simultaneous
--- substitution), the `toBvar` ↔ `subst` commutation pair, and
--- `closeFix_substList_fixSubst` — static fix-closing (`mkDef`) inverts the dynamic
--- fix-unfolding that `WcbvEval.fix_guarded` performs.
-import LeanToLambdaBox.FixUnfold
-import LeanToLambdaBox.EraseCore
--- Data-fragment forward simulation at MetaRocq's non-block `appliedFlags`
--- (β + δ + saturated constructors): `erases_correct_data` (A5–A7).
-import LeanToLambdaBox.ErasesCorrectData
--- The shipping bridge (Half B, plan of record): `visitExpr` → `Erases` directly.
--- `Bridge` holds the supported-fragment predicate; the fvar↔de-Bruijn transport
--- (`ErasesAbstract`), the vlet strengthening (`ErasesStrengthen`), and the
--- `EraseM` run/admissibility toolkit (`ErasureRun`) feed the fixpoint-induction
--- bridge theorem.
-import LeanToLambdaBox.Bridge
-import LeanToLambdaBox.ErasesAbstract
-import LeanToLambdaBox.ErasesStrengthen
--- Context-uniformity of erasure (slice δ-D7b): strengthening to the empty context,
--- modulo the one commissioned VExpr-level obligation `ErasableStrengthen`, composed with
--- `ErasesStrengthen`'s weakening — the two-sided transport `DeltaHyps.uniform` asked for.
-import LeanToLambdaBox.ErasesUniform
--- Level-scope weakening (slice Γ-U1): `TrExprS`/`Erases` transported along a *prefix
--- extension* `Us <+: Us'` of the level scope, with STRICT conclusions — the half of the
--- Γ-U plan that `TrExprS.instL` (which lands in `TrExpr`) cannot supply. Carries the
--- universe-count monotonicity of lean4lean's typing judgement, which is what discharges
--- the `Erasable` witness of `Erases.box`. Consumed at Γ-U2, for *satisfiability* rather
--- than proof repair: `DeltaHyps.gPreparedAtPrefix`/`gErasesDepPrefix` discharge the
--- ambient-`Us` bundle fields from a dependency's own scope.
-import LeanToLambdaBox.ErasesLevels
--- Level *instantiation* (slice Γ-U3): `TrExprS`/`Erases` transported along
--- `e.instantiateLevelParams ps ls`, STRICTLY, on the `max`/`imax`-free level fragment —
--- which is where upstream's `TrExprS.instL` residue comes from (Lean's normalising
--- `mkLevelMax'`), and not from the substitution as such. Refutes the plan's route (b)
--- (closed instantiations are not the cut) and carries the polymorphic-dependency fixture
--- the typeclass layer needs. Recursive fragment constants are out of scope, for a reason
--- named in the file.
-import LeanToLambdaBox.ErasesInstL
-import LeanToLambdaBox.ErasureRun
--- Relevance-oracle soundness via lean4lean's verified checker (discharges the
--- `isProp`/proof disjunct of `OracleSound` with no axiom of ours).
-import LeanToLambdaBox.RelevanceCheck
--- Run-adequacy of the verified relevance check at an ambient local context
--- (`kernel_isErasable_sound` = `isErasable.WF` + the generalized `M.WF.run'`),
--- and the oracle discharge (`ResidualHyps ⟹ BridgeHyps`) that plugs it into the
--- bridge, shrinking the oracle trust to reflection + `Meta` fallback.
-import LeanToLambdaBox.CheckerAdequacy
--- The data-fragment trust bundle (constructor data-path primitive specs), beside
--- `BridgeHyps`; consumed by the widened bridge.
-import LeanToLambdaBox.DataBridgeHyps
--- The ι-fragment trust bundle (`casesOn` classifier / inductive registration /
--- `inferType` specs), beside `BridgeHyps`; consumed by the ι-widened bridge.
-import LeanToLambdaBox.CasesBridgeHyps
--- The projection-fragment trust bundle (structure-info fetch / inductive registration
--- specs tying `argmasks`/`numParams` to `Γ.projs`), beside `BridgeHyps`; consumed by the
--- projection-widened bridge (slice P8).
-import LeanToLambdaBox.ProjBridgeHyps
--- The δ-fragment scope bundle (δ-inclusion, slice D3): fragment closure under
--- dependency, decl-fetch/`Esrc` agreement, prepared dependency bodies `Supported` and
--- translatable, `axiom_free`, and the generator bookkeeping for the primitives only
--- `visitMutual` reaches. The *scope*-side half of the contract whose *state*-side half is
--- `BridgeInv` — which is why it is a bundle and not an invariant field: at the empty entry
--- state no state condition can speak about a constant the walk has not reached.
-import LeanToLambdaBox.DeltaHyps
--- The recursive block, from open bodies to `Erases.fix`: `Erases.instFixvars`, the
--- `erases_fix_of_open` family, the block map's inversions and `erases_rec_block_of_run`.
--- Imported BY the bridge (slice Γ-W2) so the induction's step 6 can call them; the
--- ordering that matters is `VisitExprRefines.lean`'s own import, not this line's position.
-import LeanToLambdaBox.RecBlockErasure
--- P3-v2b: recursive (value-`fix`) cold-start env-consistency — Part 3's registration
--- certificate and the historical record of the pre-W1 contentless `Erases.fix`.
-import LeanToLambdaBox.EnvErasureRec
--- P3-v2b composition: the D3 capstone with its env-δ-consistency premise sourced from
--- the registration record (`erasesEnvDeltaData_of_registeredClosureData`), plus the
--- honest trust bundle for full cold-start (DAG + `NoFixEnv` relaxation deferred).
-import LeanToLambdaBox.EnvErasure
-import LeanToLambdaBox.VisitExprRefines
-import LeanToLambdaBox.OracleDischarge
-import LeanToLambdaBox.ShippingCorrect
--- Closing the gap to MetaCoq §7.3/§7.4: first-order determinism + the `optimize` pass.
-import LeanToLambdaBox.FirstOrder
-import LeanToLambdaBox.Optimize
--- ι (`casesOn`) fragment (WS-F2, C2/C3): subject-reduction-as-defeq over `SEvalDataι`
--- (`SEvalDataι_defeq`, discharging ι only via `IotaConsistent`), the non-vacuity guards
--- for the ζ-fragment theorems, and the documented C3 forward-simulation finding
--- (`Erases.cases` under-constrains minor arities — an upstream `Erases.lean` gap).
-import LeanToLambdaBox.SubjectReductionIota
--- ι Task 2: the pattern-side core of the pinned fork's ι interface — `Pattern.Matches`
--- introduction for spines, the `SimplePattern.iotaRHS` reduct calculation (`take`/`drop`
--- conventions), `TrExprS` spine inversion, the named upstream spec `PatsIotaSpec` with
--- its discharge `PatsIotaSpec.of_trEnv`, and
--- `iota_defeq_spine` (the ι rule fires on a translated exact-arity redex); plus the
--- constructed non-vacuity guard and the accounting of the remaining chain.
-import LeanToLambdaBox.IotaPattern
-import LeanToLambdaBox.IotaDischarge
--- The ι reversal bridge: a β chain over an erased minor's λ-telescope has the same
--- evaluations as the target ι rule's one-shot `substList (fields.reverse) body`, for
--- closed field values (`wcbvEval_mkApps_mkLambdas_substList`).
-import LeanToLambdaBox.IotaBridge
--- ι Task 3: the ι forward simulation `erases_correct_dataι`, at any constructor arity —
--- the ι counterpart of `erases_correct_data`, consuming the `casesOn`-spine erasure
--- inversion (`Erases.cases_spine_inv`/`iota_redex_inv`), the reversal bridge, the
--- `LBClosed` thread, the relevance guard `IotaRelevant` and the two Γ/`ia` coherence
--- predicates.
--- The δ record at the call site's universe instantiation (slice Γ-U4): the clause the
--- restated δ case of the ι simulation consumes, its monomorphic degeneracy (which is why
--- no existing discharge moved) and its universe-polymorphic implementation — the first
--- consumer of `ErasesInstL.Erases.instL` outside that file's own guards. Also the
--- coherence obligation `ErasureCtx.lparams` carries, `LparamsArity`, constructed and
--- refuted.
-import LeanToLambdaBox.ErasesDeltaL
-import LeanToLambdaBox.ErasesCorrectIota
--- The shipping eraser is correct on the data fragment (β+δ+saturated constructors)
--- at MetaRocq's non-block `appliedFlags` (`shipping_visitExpr_correct_data`, A9), and
--- the first-order capstone (`shipping_erase_correct_firstorder`, D3): the shipping
--- erasure of a source term evaluating to a first-order value reaches the unique
--- applied-form erasure of that value.
-import LeanToLambdaBox.ShippingCorrectData
-import LeanToLambdaBox.FirstOrderShipping
--- P3-v1 (env-level cold-start erasure, non-recursive + inductive fragment): the
--- elaborator-transformation trust class `PrepareHyps` (csimp-off gate), and the
--- discharge of the env-consistency hypotheses `ErasesEnvCtor`/`ErasesEnvCases` (from
--- `register_inductive`'s local arity) and non-recursive `ErasesEnvDelta`/
--- `ErasesEnvDeltaData` (via the `visitExpr → Erases` bridge), isolating the cold-start
--- DAG registration behind clean `Prop` hypotheses for P3-v2b.
-import LeanToLambdaBox.PrepareHyps
-import LeanToLambdaBox.EnvErasureNonrec
--- ι Task 5: the ι capstone (D3ι) — `shipping_erase_correct_firstorderι` plus its
--- `_of_shape` / `_registered` twins, composing the T4b bridge, the flat-fragment ι
--- forward simulation and D1 uniqueness over `SEvalDataι`, with the whole `Γ`/`E`
--- certificate block constructed jointly at a registered flat inductive.
-import LeanToLambdaBox.FirstOrderShippingIota
--- Cold-start slice S1 (+ S1e): the registry invariant `RegInvShape` (scoped registration
--- records + constant-key coverage + the disjunctive `NoFixEnvD`), vacuous at the empty
--- state and preserved by the registration primitives via the *true* run shapes proved in
--- `ErasureRun` (`run_addAxiom_ok`, `run_register_inductive_cold_ok`) — replacing the
--- assumed state-preservation of `register_inductive` with its actual `gdecls` cons.
--- S1e traded the `KeysDistinct` field for `ConstKeysCovered`, which no registration site
--- needs a freshness side condition to maintain and from which freshness for a
--- not-yet-registered name follows (`RegInvShape.fresh_of_unregistered`).
-import LeanToLambdaBox.ColdStartShape
--- Output-shape metatheory for the binder-closing operations (`toBvar` preserves
--- `NoFix`; it takes a body closed at `k` to one closed at `k+1`), plus the fold forms
--- `mkAlt`/`mkDef` need. Prerequisite of the `visitExpr` output-shape induction that
--- `ColdStartShape.regInvShape_nonrec_cons_iff` shows the registry invariant requires.
+import LeanToLambdaBox.Closed
 import LeanToLambdaBox.OutputShape
--- The output-shape induction itself (R11): `visitExpr_shape`, all 18 motives of the
--- erasure family in Hoare form over a `RunClosed` state predicate. Yields
--- `visitExpr_noFix_closed` — every successful `visitExpr` run returns a fix-free,
--- de-Bruijn-closed term, with no hypotheses — and, at `Q := RegInvShape Γ`, the
--- preservation of the cold-start registry invariant across a whole run (slice S1e: from
--- the repaired `RegBridgeHyps`, replacing the refuted `RegShapeHyps`, which is kept with
--- its refutations as a negative guard; `runClosed_keysDistinct_refuted` records why the
--- invariant cannot carry key distinctness at all).
-import LeanToLambdaBox.ColdStartInduction
--- Cold-start slice S3: the entry point and the registration exits, decomposed
--- (`erase_run_ok` (R1), `run_prepare_erasure_ok` (R2) — which also *derives*
--- `PrepareHyps`' former `prepare_sound` field — and `run_visitMutual_decomp`, which hands
--- the inner `visitExpr` run back where the Hoare form cannot); and the δ half of the
--- registry record: the body a non-recursive `visitMutual` exit stored really erases the
--- body it erased, plus the recursive block's registration.
-import LeanToLambdaBox.ColdStartRun
-import LeanToLambdaBox.ColdStartDelta
--- Cold-start slice S4: the capstone whose subject is the real `Erasure.erase e cfg`, from
--- the empty state, producing `E` and `t` instead of consuming them — and the three
--- refutations of slice S1d's `RegShapeHyps`. Since S1e the registry invariant is carried
--- by the theorem `visitExpr_regInvShape` rather than by a bundle field.
-import LeanToLambdaBox.ColdStart
--- Projection round, slice P3: the first constructed `TrProj` — a synthetic
--- single-constructor two-field structure registered by `VEnv.addPat`, four positive
--- `TrProj` witnesses (both fields, variable and constructor-spine discriminants), the
--- `TrExprS.proj` witnesses over them, and the `pats`-free refutation. Answers the
--- inhabitation question the whole projection round is staked on.
-import LeanToLambdaBox.ProjPattern
--- Projection round, slices P4/P5: the projection-reduction interface's discharge —
--- `ProjCtorAgree` (the constructor agreement `ProjShape` provably cannot supply) and
--- `projConsistent_of_coh`/`_of_shape`, the `iotaConsistent_of_shape` analogue, whose
--- chain is short because a projection's reduct is a *subterm* of its redex.
-import LeanToLambdaBox.ProjDischarge
+import LeanToLambdaBox.FixMetatheory
+import LeanToLambdaBox.FixUnfold
+import LeanToLambdaBox.IotaBridge
+-- The `optimize` pass and its correctness theorem.
+import LeanToLambdaBox.Optimize
+-- Source-side erasability and the verified relevance check.
+import LeanToLambdaBox.Erasability
+import LeanToLambdaBox.RelevanceCheck
+import LeanToLambdaBox.CheckerAdequacy
+-- The `EraseM` run/admissibility toolkit for the shipping erasure.
+import LeanToLambdaBox.ErasureRun
+-- The reified slice of the elaboration environment and its adequacy statement.
+import LeanToLambdaBox.Witness.SourceTable

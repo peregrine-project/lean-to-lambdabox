@@ -1,37 +1,167 @@
 import LeanToLambdaBox.Closed
 import LeanToLambdaBox.Abstract
-import LeanToLambdaBox.ErasesCorrectData
 
 /-!
-# Output-shape metatheory for the binder-closing operations (slice S1b)
+# Output-shape metatheory for λ□ terms
 
-`ColdStartShape.regInvShape_nonrec_cons_iff` shows that the cold-start registry
-invariant cannot get past `visitMutual`'s non-recursive constant cons without knowing
-`NoFix t` and `LBClosed t 0` of the stored `visitExpr` output. Establishing those is an
-induction over the *results* of the 18-function erasure family ("R11"), and every one of
-its binder cases goes through `Erasure.mkLambda`/`mkLetIn`/`mkAlt`/`mkDef`, i.e. through
-`toBvar`.
+The two shape predicates the erasure's output is described by, and how the
+binder-closing operation `toBvar` acts on them.
 
-This file is the metatheory those cases need: `toBvar` preserves `NoFix`, and it takes a
-body closed at level `k` to one closed at `k + 1` — plus the fold forms for the
-multi-binder closings (`mkAlt` over an alternative's fields, `mkDef` over a mutual
-block's fixpoint variables), which apply `toBvar` at levels `0, 1, 2, …` in turn.
+* `NoFix t` — `t` carries no `.fix` node. The shipping `visitExpr` never emits one; only
+  the environment-level `visitMutual` does.
+* `NoBlock t` — `t` carries no *nonempty* `.construct` node, i.e. every constructor
+  application is in applied (spine) form rather than block form.
 
-Since slice δ-N the same three shapes are here for **`NoBlock`** (applied form), which
-the shape induction now carries as a third output conjunct — see `ShapeC`. That is why
-this file imports `ErasesCorrectData`, where `NoBlock` is defined next to its de-Bruijn
-metatheory (`noBlock_shift`/`noBlock_subst`); the import is free in practice, the only
-consumer of this file being `ColdStartInduction`, which already pulls that cone in
-through `ColdStartShape`.
+Both are defined by the same mutual recursion as `LBClosed`, with the per-list traversals
+factored into helpers (`NoFixAlts`, `NoBlockAlts`, `NoBlockDefs`) because the nested-list
+occurrence defeats the structural-recursion checker in `∀ a ∈ alts, NoFix a.2` form;
+`NoFix_case`/`NoFixAlts_iff` and their `NoBlock` counterparts expose exactly that form.
 
-Deliberately independent of `ErasureRun`: these are pure `LBTerm` facts, so they can be
-used by the shape induction, by the recursion wall's `.fix` reasoning, and by the ι
-layer alike.
+The binder-closing lemmas follow: `toBvar` preserves both predicates, and it takes a body
+closed at level `k` to one closed at `k + 1` (`Closed.lean`). Every binder case of an
+induction over the erasure family's results goes through `Erasure.mkLambda`/`mkLetIn`/
+`mkAlt`/`mkDef`, i.e. through `toBvar`, so the fold forms for the multi-binder closings
+(`mkAlt` over an alternative's fields, `mkDef` over a mutual block's fixpoint variables,
+which apply `toBvar` at levels `0, 1, 2, …` in turn) are here too.
+
+Pure `LBTerm` facts throughout — no lean4lean, and no dependence on `ErasureRun`.
 -/
 
 namespace LeanToLambdaBox
 
 open Lean
+
+/-! ## The shape predicates -/
+
+/-! ### `NoFix`
+
+`.construct` is opaque (`True`): applied-form constructor spines carry their arguments
+through `.app`, so `NoFix` reaches them by the `.app` recursion rather than through the
+(always-empty) `.construct` node. `.case` and `.proj` are **not** opaque: a `.fix` hidden
+under either would satisfy the predicate and then take a fix-unfolding step. -/
+mutual
+/-- `t` contains no `.fix` node in relevant (spine) position. -/
+def NoFix : LBTerm → Prop
+  | .lambda _ b => NoFix b
+  | .letIn _ v b => NoFix v ∧ NoFix b
+  | .app f a => NoFix f ∧ NoFix a
+  | .case _ d alts => NoFix d ∧ NoFixAlts alts
+  | .fix _ _ => False
+  | .box => True
+  | .bvar _ => True
+  | .fvar _ => True
+  | .const _ => True
+  | .construct _ _ _ => True
+  | .proj _ e => NoFix e
+  | .prim _ => True
+
+/-- `NoFix` over `case` alternatives (each branch body is `NoFix`). -/
+def NoFixAlts : List (List BinderName × LBTerm) → Prop
+  | [] => True
+  | (_, b) :: rest => NoFix b ∧ NoFixAlts rest
+end
+
+/-- `NoFixAlts` in the natural per-element form. -/
+theorem NoFixAlts_iff (l : List (List BinderName × LBTerm)) :
+    NoFixAlts l ↔ ∀ a ∈ l, NoFix a.2 := by
+  induction l with
+  | nil => simp [NoFixAlts]
+  | cons a rest ih => obtain ⟨ns, b⟩ := a; simp [NoFixAlts, ih]
+
+@[simp] theorem NoFix_box : NoFix .box := trivial
+@[simp] theorem NoFix_bvar (i : Nat) : NoFix (.bvar i) := trivial
+@[simp] theorem NoFix_fvar (x : FVarId) : NoFix (.fvar x) := trivial
+@[simp] theorem NoFix_const (kn : Kername) : NoFix (.const kn) := trivial
+@[simp] theorem NoFix_construct (iid : InductiveId) (c : Nat) (args : List LBTerm) :
+    NoFix (.construct iid c args) := trivial
+@[simp] theorem NoFix_fix (defs : List (@FixDef LBTerm)) (i : Nat) :
+    NoFix (.fix defs i) ↔ False := Iff.rfl
+@[simp] theorem NoFix_lambda (n : BinderName) (b : LBTerm) :
+    NoFix (.lambda n b) ↔ NoFix b := Iff.rfl
+@[simp] theorem NoFix_letIn (n : BinderName) (v b : LBTerm) :
+    NoFix (.letIn n v b) ↔ NoFix v ∧ NoFix b := Iff.rfl
+@[simp] theorem NoFix_app (f a : LBTerm) :
+    NoFix (.app f a) ↔ NoFix f ∧ NoFix a := Iff.rfl
+@[simp] theorem NoFix_case (info : InductiveId × Nat) (d : LBTerm)
+    (alts : List (List BinderName × LBTerm)) :
+    NoFix (.case info d alts) ↔ NoFix d ∧ ∀ a ∈ alts, NoFix a.2 := by
+  show NoFix d ∧ NoFixAlts alts ↔ _
+  rw [NoFixAlts_iff]
+@[simp] theorem NoFix_proj (p : ProjectionInfo) (e : LBTerm) :
+    NoFix (.proj p e) ↔ NoFix e := Iff.rfl
+@[simp] theorem NoFix_prim (p : PrimVal) : NoFix (.prim p) := trivial
+
+/-! ### `NoBlock`
+
+`.fix` is **not** opaque — an unfolding substitutes the block's own `.fix` nodes into the
+body, so carrying `NoBlock` through an unfolding needs the bodies' clause. -/
+mutual
+/-- `t` contains no *nonempty* block-constructor node: every constructor application is in
+applied (spine) form. -/
+def NoBlock : LBTerm → Prop
+  | .lambda _ b => NoBlock b
+  | .letIn _ v b => NoBlock v ∧ NoBlock b
+  | .app f a => NoBlock f ∧ NoBlock a
+  | .case _ d alts => NoBlock d ∧ NoBlockAlts alts
+  | .fix defs _ => NoBlockDefs defs
+  | .construct _ _ [] => True
+  | .construct _ _ (_ :: _) => False
+  | .box => True
+  | .bvar _ => True
+  | .fvar _ => True
+  | .const _ => True
+  | .proj _ e => NoBlock e
+  | .prim _ => True
+
+/-- `NoBlock` over `case` alternatives (each branch body is `NoBlock`). -/
+def NoBlockAlts : List (List BinderName × LBTerm) → Prop
+  | [] => True
+  | (_, b) :: rest => NoBlock b ∧ NoBlockAlts rest
+
+/-- `NoBlock` over `fix` definitions (each definition body is `NoBlock`). -/
+def NoBlockDefs : List (@FixDef LBTerm) → Prop
+  | [] => True
+  | fd :: rest => NoBlock fd.body ∧ NoBlockDefs rest
+end
+
+/-- `NoBlockAlts` in the natural per-element form. -/
+theorem NoBlockAlts_iff (l : List (List BinderName × LBTerm)) :
+    NoBlockAlts l ↔ ∀ a ∈ l, NoBlock a.2 := by
+  induction l with
+  | nil => simp [NoBlockAlts]
+  | cons a rest ih => obtain ⟨ns, b⟩ := a; simp [NoBlockAlts, ih]
+
+/-- `NoBlockDefs` in the natural per-element form. -/
+theorem NoBlockDefs_iff (l : List (@FixDef LBTerm)) :
+    NoBlockDefs l ↔ ∀ d ∈ l, NoBlock d.body := by
+  induction l with
+  | nil => simp [NoBlockDefs]
+  | cons fd rest ih => simp [NoBlockDefs, ih]
+
+@[simp] theorem NoBlock_box : NoBlock .box := trivial
+@[simp] theorem NoBlock_bvar (i : Nat) : NoBlock (.bvar i) := trivial
+@[simp] theorem NoBlock_fvar (x : FVarId) : NoBlock (.fvar x) := trivial
+@[simp] theorem NoBlock_const (kn : Kername) : NoBlock (.const kn) := trivial
+@[simp] theorem NoBlock_construct_nil (iid : InductiveId) (c : Nat) :
+    NoBlock (.construct iid c []) := trivial
+@[simp] theorem NoBlock_lambda (n : BinderName) (b : LBTerm) :
+    NoBlock (.lambda n b) ↔ NoBlock b := Iff.rfl
+@[simp] theorem NoBlock_letIn (n : BinderName) (v b : LBTerm) :
+    NoBlock (.letIn n v b) ↔ NoBlock v ∧ NoBlock b := Iff.rfl
+@[simp] theorem NoBlock_app (f a : LBTerm) :
+    NoBlock (.app f a) ↔ NoBlock f ∧ NoBlock a := Iff.rfl
+@[simp] theorem NoBlock_case (info : InductiveId × Nat) (d : LBTerm)
+    (alts : List (List BinderName × LBTerm)) :
+    NoBlock (.case info d alts) ↔ NoBlock d ∧ ∀ a ∈ alts, NoBlock a.2 := by
+  show NoBlock d ∧ NoBlockAlts alts ↔ _
+  rw [NoBlockAlts_iff]
+@[simp] theorem NoBlock_proj (p : ProjectionInfo) (e : LBTerm) :
+    NoBlock (.proj p e) ↔ NoBlock e := Iff.rfl
+@[simp] theorem NoBlock_fix (defs : List (@FixDef LBTerm)) (i : Nat) :
+    NoBlock (.fix defs i) ↔ ∀ d ∈ defs, NoBlock d.body := by
+  show NoBlockDefs defs ↔ _
+  rw [NoBlockDefs_iff]
+@[simp] theorem NoBlock_prim (p : PrimVal) : NoBlock (.prim p) := trivial
 
 /-! ### The panic fall-through's output
 
@@ -81,14 +211,11 @@ theorem noFix_toBvar {t : LBTerm} (x : FVarId) :
   | hproj p e ih => intro lvl h; simpa [toBvar] using ih lvl h
   | hfix defs i ih => intro lvl h; exact absurd h (by simp)
 
-/-- **`toBvar` preserves applied form.** The third `toBvar` lemma, and the one the shape
-induction's binder cases (motives 8/9/14/16/18) and `mkDef` need once `ShapeC` carries
-`NoBlock`.
+/-- **`toBvar` preserves applied form.** The `NoBlock` counterpart of `noFix_toBvar`.
 
 Routine, and for a structural reason: `toBvar` maps `.construct iid n args` to
 `.construct iid n (toBvarArgs x lvl args)`, and `toBvarArgs` preserves list emptiness —
-so the one node `NoBlock` forbids is neither created nor destroyed. The proof is
-`noBlock_shift`'s (`ErasesCorrectData.lean`) with `shift` replaced by `toBvar`. -/
+so the one node `NoBlock` forbids is neither created nor destroyed. -/
 theorem noBlock_toBvar {t : LBTerm} (x : FVarId) :
     ∀ (lvl : Nat), NoBlock t → NoBlock (toBvar x lvl t) := by
   induction t using LBTerm.recData with

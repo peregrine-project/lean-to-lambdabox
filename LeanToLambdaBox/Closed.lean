@@ -1,4 +1,3 @@
-import LeanToLambdaBox.Erases
 import LeanToLambdaBox.Abstract
 
 /-!
@@ -10,25 +9,21 @@ lemmas) and the general `shift`/`subst` commutation laws.
 
 **`LBClosed`.** `LBClosed t k` holds when `t` has no loose de-Bruijn index `≥ k`
 (the `LBTerm` analogue of lean4lean's `Lean4Lean.Closed`). It is what makes
-`shift`/`subst` the identity on a closed constructed `.fix` node (whose bodies live
-under `defs.length` binders and are otherwise closed) — the six transport-inertness
-equalities of `Erases.fix` are derived from it in `RecBlockErasure.lean`. Defined by the
-same mutual recursion as `shift`/`hasFVar` (the per-list traversals factored into
-helpers so the structural-recursion checker sees through the nested `List`
-occurrences).
+`LBTerm.shift`/`LBTerm.subst` the identity on a closed `.fix` node, whose bodies live
+under `defs.length` binders and are otherwise closed. Defined by the same mutual
+recursion as `LBTerm.shift`/`hasFVar` (the per-list traversals factored into helpers so
+the structural-recursion checker sees through the nested `List` occurrences).
 
-**The commutation kit.** `shift_shift`, `subst_shift_cancel`, `subst_shift_comm` and
-their capstone `subst_subst` (the standard de-Bruijn distribution law
-`σ ∘ [t] = [σ t] ∘ σ⁺`). These are the *general* forms; `Optimize.lean` has
-`.box`-specialised siblings, which we deliberately do not depend on (that file sits in
-a different branch of the import DAG).
+**The commutation kit.** `LBTerm.shift_shift`, `LBTerm.subst_shift_cancel`,
+`LBTerm.subst_shift_comm` and their capstone `LBTerm.subst_subst` (the standard
+de-Bruijn distribution law `σ ∘ [t] = [σ t] ∘ σ⁺`).
 
 Everything here is pure target-side reasoning — no lean4lean, hence `sorryAx`-free.
 -/
 
 namespace LeanToLambdaBox
 
-open Lean Lean4Lean
+open Lean
 
 /-! ## Part 1 — `LBClosed`: de-Bruijn closedness for `LBTerm` -/
 
@@ -108,13 +103,6 @@ theorem LBClosedDefs_iff (l : List (@FixDef LBTerm)) (k : Nat) :
   | nil => simp [LBClosedDefs]
   | cons fd rest ih => simp [LBClosedDefs, ih]
 
-/-! ### The `Defs` traversals in `List.map` form
-
-`LBTerm.shiftDefs_eq_map`/`substDefs_eq_map` — needed by every `hfix` arm below, both
-for the elementwise comparison and for the `defs.length` bookkeeping — used to live
-here, next to their first consumer. They now sit in `Erases.lean` beside their four
-`Args`/`Alts` siblings, because `noBlock_shift`/`noBlock_subst` (which live in
-`ErasesCorrectData.lean`, upstream of this file) gained a `.fix` arm and need them too. -/
 
 /-! ### `shift`/`subst` are the identity on de-Bruijn-closed terms
 
@@ -203,12 +191,10 @@ theorem LBClosed.subst_eq {t : LBTerm} {k : Nat} (hc : LBClosed t k)
 
 /-! ### …and the converse, at the unit shift
 
-`shift 1 k` is the identity on `t` *only* when there is nothing at or above `k` to move.
-Reading the equality backwards is what turns `Erases.const_fix`/`Erases.fix`' `hshift`
-inertness premise — all a derivation carries about the block it emits — into a closedness
-fact about the target (`RecBlockErasure.erases_target_lbClosed`). It is the closedness
-twin of `FixUnfold.not_hasFVar_of_toBvar_eq_self`, which reads `htobv` the same way.
-(Recursion wall, slice Γ-W3.) -/
+`LBTerm.shift 1 k` is the identity on `t` *only* when there is nothing at or above `k` to
+move. Read backwards, that turns a shift-inertness equation about a term into a closedness
+fact about it. It is the closedness twin of `not_hasFVar_of_toBvar_eq_self`, which reads a
+`toBvar` fixed point the same way. -/
 
 /-- From `l.map f = l` and `u ∈ l`, `f u = u`: the elementwise readback of a map fixed
 point, for the three list traversals `shift` descends through. -/
@@ -229,11 +215,12 @@ theorem lbClosed_of_shift_eq :
   | hbvar i =>
       intro k h
       simp only [LBClosed_bvar]
-      by_contra hlt
-      rw [show LBTerm.shift 1 k (LBTerm.bvar i)
-            = if i ≥ k then LBTerm.bvar (i + 1) else LBTerm.bvar i from rfl,
-        if_pos (Nat.le_of_not_lt hlt)] at h
-      simp at h
+      rcases Nat.lt_or_ge i k with hlt | hge
+      · exact hlt
+      · rw [show LBTerm.shift 1 k (LBTerm.bvar i)
+              = if i ≥ k then LBTerm.bvar (i + 1) else LBTerm.bvar i from rfl,
+          if_pos hge] at h
+        simp at h
   | hlam n b ih =>
       intro k h
       simp only [LBTerm.shift, LBTerm.lambda.injEq, true_and] at h
@@ -451,9 +438,8 @@ theorem LBClosed.mkLambdas {names : List BinderName} {body : LBTerm} {k : Nat}
       exact ih (h.mono (by simp only [List.length_cons]; omega))
 
 /-- …and the converse: the telescope closes *exactly* its own binders, so reading a
-`mkLambdas`-wrapped alternative back gives the branch body's own bound. `Erases.cases`
-relates each minor to its alternative re-wrapped as a lambda chain, while `LBClosedAlts`
-speaks about the bare body — this is that step (recursion wall, slice Γ-W3). -/
+`mkLambdas`-wrapped alternative back gives the branch body's own bound. `LBClosedAlts`
+speaks about the bare body; this is the step between the two. -/
 theorem LBClosed.mkLambdas_inv {names : List BinderName} {body : LBTerm} {k : Nat}
     (h : LBClosed (LeanToLambdaBox.mkLambdas names body) k) :
     LBClosed body (k + names.length) := by
@@ -734,16 +720,8 @@ theorem LBTerm.substList_reverse_subst (f : LBTerm) :
 
 `Erasure.mkAlt` and `Erasure.mkDef` close a body over free variables by folding `toBvar`
 at successive levels, and `closeFix` is the `mkDef` fold in de-Bruijn form
-(`FixMetatheory.closeFixFold_eq_foldl`). The closedness arithmetic of that fold is the
-last thing the recursive exit's `Erases.fix` composition needs of the block it built:
-`hoclosed` is about one opened body, `hfclosed` about the closed `.fix` node, and the
-step between them is `lbClosed_foldl_zipIdx`.
-
-**Relocated here at slice Γ-W3**, verbatim, from `OutputShape.lean`. That file sits below
-`ErasesCorrectData` and is imported only by `ColdStartInduction`, i.e. strictly downstream
-of the bridge — the same layering objection slice Γ-W2c met, answered the same way. These
-are pure `LBTerm` facts about `toBvar`; they need only `Closed` and `Abstract`, and
-`OutputShape` re-acquires them transitively, so no consumer moves. -/
+(`closeFixFold_eq_foldl`). `lbClosed_foldl_zipIdx` is that fold's closedness arithmetic:
+it takes a bound on one opened body to a bound on the closed `.fix` node. -/
 
 theorem lbClosed_toBvar {t : LBTerm} (x : FVarId) :
     ∀ (k : Nat), LBClosed t k → LBClosed (toBvar x k t) (k + 1) := by

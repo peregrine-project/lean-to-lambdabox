@@ -41,6 +41,24 @@ jobs:
       - name: lean4lean sorry inventory
         run: bash scripts/lean4lean-sorries.sh
 
+      - name: Green ladder self-test
+        run: lake exe green-check --self-test
+
+      - name: Reified table drift
+        run: |
+          lake exe reify --check LeanToLambdaBox.Witness.SourceTable \
+            LeanToLambdaBox.Witness.SelfTest.toyTable
+          if lake exe reify --check LeanToLambdaBox.Witness.SourceTable \
+               LeanToLambdaBox.Witness.SelfTest.staleTable; then
+            echo "reify accepted the deliberately stale table" >&2
+            exit 1
+          fi
+
+      - name: Duplicate names and deletion schedule
+        run: |
+          lake exe hygiene --dup
+          lake exe hygiene --schedule
+
       - name: Comment hygiene
         continue-on-error: true
         run: bash scripts/hygiene.sh

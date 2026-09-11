@@ -3,94 +3,16 @@ version = "0.1.0"
 defaultTargets = ["LeanToLambdaBox"]
 
 # Grounds the verified-erasure development on lean4lean's formal Lean type theory
-# (VExpr, HasType/IsDefEq, TrExprS/VLCtx, TrEnv, inferType'.WF).
+# (`VExpr`, `HasType`/`IsDefEq`, `TrExprS`/`VLCtx`, `TrEnv`, `inferType'.WF`).
 #
-# Pinned to the head of the `trproj` branch of the barabbs/lean4lean fork, which
-# extends upstream (digama0/lean4lean) with ι-reduction support and a real
-# definition of `TrProj`. On the v4.33.0-rc2 toolchain (matches lean-toolchain);
-# pulls batteries v4.33.0-rc2 transitively. No toolchain change from the previous
-# pin (`b6a5a38`).
+# The pin is the head of the `trproj` branch of the barabbs/lean4lean fork, which extends
+# upstream (digama0/lean4lean) with ι-reduction support and a definition of `TrProj`. It is
+# on the v4.33.0-rc2 toolchain (matching `lean-toolchain`) and pulls batteries v4.33.0-rc2
+# transitively.
 #
-# ── What this pin changes, and why we adopt it wholesale ────────────────────────
-#
-# `b6a5a38..6fd8a1d` is 22 commits (60 files, +17454/−1840) and absorbs TWO
-# redesigns at once: the ι redesign (branch `iota`, merged in) and a second TrProj
-# redesign on top of it. `b6a5a38` was NOT a descendant of the ι work, so nothing
-# here was seen before.
-#
-# The redesign is principled and it DELETED every piece of API that existed only to
-# serve this consumer. We adopt the new interfaces rather than shimming the old
-# shapes back: the shapes we were consuming were epicycles around upstream gaps
-# that are now closed.
-#
-# Adoptions banked (assumption → theorem):
-#   * `TrEnv.proj_defeq` is **PROVED** (`Verify/Environment/Lemmas.lean:1021`; no
-#     `sorry` of its own). It now takes the kernel's structure facts
-#     (`ival.all = [S]`, `ival.ctors = [c]`, `ival.numIndices = 0`) via the new
-#     `TrEnv.structure_rec`, in place of the un-recoverable telescope split. This
-#     is what `ProjDefeqSpec` was carrying as a `sorryAx`-tainted premise.
-#   * `TrEnv.pats_iota'` now **returns the constructor**, tied to the kernel
-#     (`∃ cval, env.find? cName = some (.ctorInfo cval)`). That is exactly what
-#     `ProjCtorAgree`/`ProjRecRules` were certifying by hand — they are retirable.
-#   * `Aligned.addInduct` is **PROVED**, so `TrEnv'.constMap_wf` (which existed only
-#     to route around it) was deleted. `TrEnv'.map_wf` is now the only route, clean.
-#   * The 15 `IOTA-TODO` and 4 `PROJ-TODO` markers are gone: 13 proved, and the ι
-#     residue is consolidated into ONE named obligation, `VEnv.WF.patsStrong`
-#     (`Theory/Typing/EnvLemmas.lean:334`).
-#   * `VInductDecl.WF` stopped being a `sorry` and became a real §2.6 direct-block
-#     specification (positivity, universes, large elimination, `rules_ctor`, …).
-#   * `Tests/ProjInhabit.lean` inhabits `TrProjCtor` sorry-free (`[propext,
-#     Quot.sound]`) on a plain AND a `Sigma`-shaped dependent structure — the
-#     projection layer is demonstrably non-vacuous.
-#
-# Interface drift this repo absorbs (the migration cost):
-#   * `TrProjCtor`: `def`(8 args) → **`structure`**(11 args, 8 named fields), over
-#     the thesis's **dependent** motive (`VExpr.projFn`/`projMotiveBody`, new
-#     `Theory/Proj.lean`). `e'` is `.app (projFn …) e`, NOT a `mkApps` spine.
-#     Dependent fields (`Sigma.snd`) come into scope; reflexive/indexed/nested
-#     structures stay out (see the B3 caveat in `ColdStart.lean`'s ledger).
-#   * `TrProj` is now derived from it: `∃ ctorName usS uss params np fieldTys,
-#     TrProjCtor …` — six binders, not nine.
-#   * `VRecRule` gained a `ctorParams` field, so `SimplePattern.iotaRHS` gained an
-#     argument (`cnp`) and every ι pattern key arity moved from `rval.numParams` to
-#     `cval.numParams`.
-#   * Deleted with no drop-in: `TrEnv.pats_iota` (unprimed), `TrEnv.pats_iota_inv`
-#     (→ `pats_iota_inv_shape`, returning a `TrEnv'.IotaRule` structure),
-#     `TrProjCtor.toTrProj`, `TrProj.exists_ctorName`, `TrEnv'.constMap_wf`,
-#     `VExpr.mkApps_lift'`/`_inst`/`_instL`/`_concat`, the `fieldSelector_*` and
-#     `foldr_lam_*` lift/inst family (subsumed by `subst`-derived lemmas in
-#     `Theory/Proj.lean`), `VEnv.recSplit?`, `Verify/Environment/Boundaries.lean`.
-#   * `Lean4Lean.Pattern.matches_varN_const` is now declared UPSTREAM
-#     (`Theory/Typing/Pattern.lean:598`), adopted essentially verbatim from this
-#     repo's copy. Ours is deleted; upstream's is the one.
-#   * `VExpr.mkApps` moved to `Theory/VExpr.lean`, `VExpr.fieldSelector` to
-#     `Theory/Proj.lean`. The shape `Decidable` instances moved to
-#     `Lean4Lean/Tests/ShapeDecide.lean`, a lib no longer in upstream's
-#     `defaultTargets`.
-#   * `TrProj.wf` LOST its `VExpr.WF … e` premise; `TrProj.instN` GAINED
-#     `h₀ : env.HasType U Γ₀ e₀ A₀`; `TrProj.uniq` now compares two structure names.
-#   * `Ordered` gained a `pat` constructor, `Aligned` gained `pat` and `block`,
-#     `TrEnv'.induct` dropped its `safety = .safe` gate (4 hypotheses → 3).
-#   * The substitution family and the primitives layer — including the `TrExprS`
-#     literal lemmas — now demand `OrderedStrong`, not `Ordered`. A `CoeOut` covers
-#     the easy direction; going the other way is `VEnv.WF.orderedStrong`, which
-#     carries `patsStrong`'s `sorryAx`.
-#   * `FuelConfig.recDepth` default 10000 → 50000. `Erasure.lean`'s `M.run` call
-#     site passes no `fuel`, so this lands there silently — behavioural, not a
-#     build break.
-#
-# Residual upstream `sorry` roots after this pin (four, re-partitioned — see the
-# trust ledger in `ColdStart.lean`): `VEnv.WF.patsStrong` · `Injectivity.lean`
-# ×3 (`sort_inv`, `forallE_inv_stratified`, `sort_forallE_inv`) ·
-# `IsDefEqU.weakN_iff` forward (`UniqueTyping.lean:174`, C1 still NOT delivered —
-# `ErasableStrengthen` stays a named premise) · `TrProj.weak'_inv` + `TrProj.uniq`.
-#
-# ⚠️ `trproj` merges upstream `master`, so this pin also absorbs master's
-# level-normalization rewrite, the K-target flag fix, `lazyDeltaProjReduction`, the
-# `Verify/Environment/Primitive/*` layer, and one new `axiom any_eq_any_toList`
-# (`Verify/Axioms.lean`, 73 → 74 axioms) plus native `bv_decide` axioms reachable
-# through `TrExprS.instL`. Recorded in the trust ledger (`ColdStart.lean`) and in
-# the audit baseline (`scratch/final_audit.lean`).
+# The `sorry` roots this pin makes inheritable are listed, with `file:line`, in
+# `doc/trust.md`; `scripts/lean4lean-sorries.sh` re-measures them against
+# `test/lean4lean-sorries.expected`, so a re-pin or a new upstream hole fails CI.
 [[require]]
 name = "lean4lean"
 git = "https://github.com/barabbs/lean4lean"
@@ -121,3 +43,17 @@ roots = [
 [[lean_exe]]
 name = "green-check"
 root = "Tools.GreenCheck"
+
+# Table drift detection (`Tools/Reify.lean`): `--check MOD NAME…` compares a committed
+# `SourceTable` field-by-field against the environment `MOD` elaborated in.
+[[lean_exe]]
+name = "reify"
+root = "Tools.Reify"
+# Reads a compiled `SourceTable` out of an imported module, so it runs the interpreter.
+supportInterpreter = true
+
+# Repository hygiene (`Tools/Hygiene.lean`): duplicate-name, deletion-schedule, comment,
+# citation, rule-table and dead-code checks. Run from the repository root.
+[[lean_exe]]
+name = "hygiene"
+root = "Tools.Hygiene"

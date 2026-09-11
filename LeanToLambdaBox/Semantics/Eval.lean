@@ -15,10 +15,10 @@ implements).
 constants and inductive-metadata lookups) and the `WcbvFlags` `fl`. The two prior
 ad-hoc relations are recovered as instances:
 
-* `Eval Γ     := WcbvEval Γ optFlags`     — prop-cases **off** (MetaCoq's
+* `Eval Γ     := WcbvEval Γ blockFlags`     — prop-cases **off** (MetaCoq's
   `disable_prop_cases`/`opt_wcbv_flags`); the target of the `optimize` pass and
   the relation `erases_correct` produces.
-* `EvalProp Γ := WcbvEval Γ defaultFlags` — prop-cases **on** (MetaCoq's
+* `EvalProp Γ := WcbvEval Γ propBlockFlags` — prop-cases **on** (MetaCoq's
   `default_wcbv_flags`); the source of `optimize_correct`.
 
 ## Constructor ↔ MetaCoq `eval` rule correspondence
@@ -248,10 +248,10 @@ inductive WcbvEval (Γ : GlobalDeclarations) (fl : WcbvFlags) : LBTerm → LBTer
 
 /-- λ□ evaluation with propositional cases **disabled** (MetaCoq `opt_wcbv_flags`);
     the target of `LBOptimize` and the relation `erases_correct` produces. -/
-abbrev Eval (Γ : GlobalDeclarations) : LBTerm → LBTerm → Prop := WcbvEval Γ optFlags
+abbrev Eval (Γ : GlobalDeclarations) : LBTerm → LBTerm → Prop := WcbvEval Γ blockFlags
 
 /-- λ□ evaluation with propositional cases **enabled** (MetaCoq `default_wcbv_flags`);
     the source of `optimize_correct`. -/
-abbrev EvalProp (Γ : GlobalDeclarations) : LBTerm → LBTerm → Prop := WcbvEval Γ defaultFlags
+abbrev EvalProp (Γ : GlobalDeclarations) : LBTerm → LBTerm → Prop := WcbvEval Γ propBlockFlags
 
 end LeanToLambdaBox

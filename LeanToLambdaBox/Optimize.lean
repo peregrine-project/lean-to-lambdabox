@@ -3,12 +3,13 @@
 
 The case-on-`Prop` expansion pass over target λ□ terms, proven to preserve
 evaluation. Pure target-side reasoning (no lean4lean) → theorems must be
-`sorryAx`-free. See the paper `3706056.pdf` §7.4 (`optimize`, `optimize_correct`).
+`sorryAx`-free. MetaRocq's counterpart, `optimize_correct`, is analysed in
+`doc/rework/refs/metacoq-erasure.md` §3.6.
 -/
 import LeanToLambdaBox.Basic
-import LeanToLambdaBox.Semantics
+import LeanToLambdaBox.Closed
 import LeanToLambdaBox.Semantics.Env
-import LeanToLambdaBox.Eval
+import LeanToLambdaBox.Semantics.Eval
 import LeanToLambdaBox.Semantics.Metatheory
 
 namespace LeanToLambdaBox
@@ -84,71 +85,6 @@ def LBOptimize_env (Γ : GlobalDeclarations) : GlobalDeclarations :=
     | .constantDecl ⟨some body⟩ => (kn, .constantDecl ⟨some (LBOptimize Γ body)⟩)
     | _ => (kn, d)
 
-/-! ### `subst` / `shift` list-helper equations (re-proved locally). -/
-
-theorem substArgs_eq_map (s : LBTerm) (d : Nat) (l : List LBTerm) :
-    LBTerm.substArgs s d l = l.map (LBTerm.subst s d) := by
-  induction l with
-  | nil => rfl
-  | cons t rest ih => simp [LBTerm.substArgs, ih]
-
-theorem substAlts_eq_map (s : LBTerm) (d : Nat) (l : List (List BinderName × LBTerm)) :
-    LBTerm.substAlts s d l = l.map (fun a => (a.1, LBTerm.subst s (d + a.1.length) a.2)) := by
-  induction l with
-  | nil => rfl
-  | cons a rest ih => obtain ⟨ns, b⟩ := a; simp [LBTerm.substAlts, ih]
-
-/-! ### A usable structural induction principle for `LBTerm`.
-
-`LBTerm` is a *nested* inductive (lists of subterms inside `construct`/`case`/
-`fix`), so `induction t` is rejected. We build an eliminator whose list-carrying
-constructors hand back a per-element induction hypothesis `∀ x ∈ l, P x`. -/
-
-@[elab_as_elim]
-def LBTerm.rec'
-    {P : LBTerm → Prop}
-    (hbox : P .box)
-    (hbvar : ∀ i, P (.bvar i))
-    (hfvar : ∀ x, P (.fvar x))
-    (hlam : ∀ n b, P b → P (.lambda n b))
-    (hletIn : ∀ n v b, P v → P b → P (.letIn n v b))
-    (happ : ∀ f a, P f → P a → P (.app f a))
-    (hconst : ∀ kn, P (.const kn))
-    (hconstruct : ∀ iid k args, (∀ x ∈ args, P x) → P (.construct iid k args))
-    (hcase : ∀ info discr alts, P discr → (∀ a ∈ alts, P a.2) → P (.case info discr alts))
-    (hproj : ∀ p e, P e → P (.proj p e))
-    (hfix : ∀ defs i, (∀ d ∈ defs, P d.body) → P (.fix defs i))
-    (hprim : ∀ p, P (.prim p)) :
-    ∀ t, P t := by
-  refine fun t => LBTerm.rec
-    (motive_1 := P)
-    (motive_2 := fun l => ∀ x ∈ l, P x)
-    (motive_3 := fun l => ∀ a ∈ l, P a.2)
-    (motive_4 := fun l => ∀ d ∈ l, P d.body)
-    (motive_5 := fun (a : List BinderName × LBTerm) => P a.2)
-    (motive_6 := fun (d : @FixDef LBTerm) => P d.body)
-    ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ t
-  case _ => exact hbox
-  case _ => exact hbvar
-  case _ => exact hfvar
-  case _ => exact fun n b ih => hlam n b ih
-  case _ => exact fun n v b ihv ihb => hletIn n v b ihv ihb
-  case _ => exact fun f a ihf iha => happ f a ihf iha
-  case _ => exact hconst
-  case _ => exact fun iid k args ih => hconstruct iid k args ih
-  case _ => exact fun info discr alts ihd iha => hcase info discr alts ihd iha
-  case _ => exact fun p e ih => hproj p e ih
-  case _ => exact fun defs i ih => hfix defs i ih
-  case _ => exact hprim
-  case _ => exact List.forall_mem_nil _
-  case _ => exact fun t l iht ihl => List.forall_mem_cons.mpr ⟨iht, ihl⟩
-  case _ => exact List.forall_mem_nil _
-  case _ => exact fun a l iha ihl => List.forall_mem_cons.mpr ⟨iha, ihl⟩
-  case _ => exact List.forall_mem_nil _
-  case _ => exact fun d l ihd ihl => List.forall_mem_cons.mpr ⟨ihd, ihl⟩
-  case _ => exact fun _ snd ih => ih
-  case _ => exact fun _ _ _ ih => ih
-
 /-! ### Box is closed: substitution/shift act trivially on it. -/
 
 @[simp] theorem shift_box (d c : Nat) : LBTerm.shift d c .box = .box := rfl
@@ -161,91 +97,13 @@ We only ever substitute the closed term `.box`, which lets the generic
 The statement is: substituting a `.box` at depth 0 commutes past an outer
 substitution `subst s' (k+1)`, lowering it to `subst s' k`. -/
 
-/-- `shift` list-helper as a `map`. -/
-theorem shiftArgs_eq_map (d c : Nat) (l : List LBTerm) :
-    LBTerm.shiftArgs d c l = l.map (LBTerm.shift d c) := by
-  induction l with
-  | nil => rfl
-  | cons t rest ih => simp [LBTerm.shiftArgs, ih]
-
-theorem shiftAlts_eq_map (d c : Nat) (l : List (List BinderName × LBTerm)) :
-    LBTerm.shiftAlts d c l = l.map (fun a => (a.1, LBTerm.shift d (c + a.1.length) a.2)) := by
-  induction l with
-  | nil => rfl
-  | cons a rest ih => obtain ⟨ns, b⟩ := a; simp [LBTerm.shiftAlts, ih]
-
-theorem shiftDefs_eq_map (d c : Nat) (l : List (@FixDef LBTerm)) :
-    LBTerm.shiftDefs d c l = l.map (fun fd => { fd with body := LBTerm.shift d c fd.body }) := by
-  induction l with
-  | nil => rfl
-  | cons fd rest ih => simp [LBTerm.shiftDefs, ih]
-
-theorem substDefs_eq_map (s : LBTerm) (d : Nat) (l : List (@FixDef LBTerm)) :
-    LBTerm.substDefs s d l = l.map (fun fd => { fd with body := LBTerm.subst s d fd.body }) := by
-  induction l with
-  | nil => rfl
-  | cons fd rest ih => simp [LBTerm.substDefs, ih]
-
-/-- Substituting *anything* at depth `d` into a term shifted by `n+1` at cutoff
-    `c` lowers the shift to `n`, provided the subst depth `d` lies in the shifted
-    band `c ≤ d ≤ c + n` (so no shifted variable lands exactly on `d`). -/
-theorem subst_shift_cancel (x : LBTerm) (n : Nat) :
-    ∀ (c d : Nat), c ≤ d → d ≤ c + n → ∀ (s : LBTerm),
-    LBTerm.subst x d (LBTerm.shift (n + 1) c s) = LBTerm.shift n c s := by
-  intro c d hcd hdn s
-  induction s using LBTerm.rec' generalizing c d with
-  | hbox => rfl
-  | hbvar i =>
-    simp only [LBTerm.shift]
-    split <;> rename_i h
-    · -- i ≥ c : shifted to i+(n+1) > d, subst decrements to i+n
-      simp only [LBTerm.subst]
-      rw [if_neg (by omega), if_neg (by omega)]
-      congr 1
-    · -- i < c ≤ d : unshifted bvar i; subst leaves it
-      simp only [LBTerm.subst]
-      rw [if_pos (by omega)]
-  | hfvar x => rfl
-  | hconst kn => rfl
-  | hprim p => rfl
-  | hlam n' b ih =>
-    simp only [LBTerm.shift, LBTerm.subst]; rw [ih (c + 1) (d + 1) (by omega) (by omega)]
-  | hletIn n' v b ihv ihb =>
-    simp only [LBTerm.shift, LBTerm.subst]
-    rw [ihv c d hcd hdn, ihb (c + 1) (d + 1) (by omega) (by omega)]
-  | happ f a ihf iha =>
-    simp only [LBTerm.shift, LBTerm.subst]; rw [ihf c d hcd hdn, iha c d hcd hdn]
-  | hproj p e ih => simp only [LBTerm.shift, LBTerm.subst]; rw [ih c d hcd hdn]
-  | hconstruct iid k args ih =>
-    simp only [LBTerm.shift, LBTerm.subst, shiftArgs_eq_map, substArgs_eq_map, List.map_map]
-    congr 1
-    apply List.map_congr_left
-    intro a ha; simp only [Function.comp]; exact ih a ha c d hcd hdn
-  | hcase info discr alts ihd iha =>
-    simp only [LBTerm.shift, LBTerm.subst, shiftAlts_eq_map, substAlts_eq_map, List.map_map]
-    rw [ihd c d hcd hdn]
-    congr 1
-    apply List.map_congr_left
-    intro a ha
-    simp only [Function.comp]
-    rw [iha a ha (c + a.1.length) (d + a.1.length) (by omega) (by omega)]
-  | hfix defs i ih =>
-    simp only [LBTerm.shift, LBTerm.subst, shiftDefs_eq_map, substDefs_eq_map,
-      List.map_map, List.length_map]
-    congr 1
-    apply List.map_congr_left
-    intro a ha
-    simp only [Function.comp]
-    have := ih a ha (c + defs.length) (d + defs.length) (by omega) (by omega)
-    simp only [this]
-
 /-- General single-`box` substitution swap: substituting `.box` at depth `d`
     commutes past an outer substitution at depth `d + j + 1`, lowering it to
     `d + j`. (`box` is closed, so no shift bookkeeping leaks through.) -/
 theorem box_subst_swap_gen (s' : LBTerm) (d j : Nat) (t : LBTerm) :
     LBTerm.subst .box d (LBTerm.subst s' (d + j + 1) t)
       = LBTerm.subst s' (d + j) (LBTerm.subst .box d t) := by
-  induction t using LBTerm.rec' generalizing d with
+  induction t using LBTerm.recData generalizing d with
   | hbox => rfl
   | hfvar x => rfl
   | hconst kn => rfl
@@ -274,7 +132,7 @@ theorem box_subst_swap_gen (s' : LBTerm) (d j : Nat) (t : LBTerm) :
         subst hj
         rw [hsub, if_neg (by omega), if_pos rfl, hsub s' (d + j) (d + j + 1 - 1),
           if_neg (by omega), if_pos (by omega)]
-        exact subst_shift_cancel .box (d + j) 0 d (by omega) (by omega) s'
+        exact LBTerm.subst_shift_cancel .box (d + j) 0 d (by omega) (by omega) s'
       · -- i > d+j+1
         rw [hsub, if_neg (by omega), if_neg (by omega), hsub s' (d + j) (i - 1),
           if_neg (by omega), if_neg (by omega), hsub .box d (i - 1),
@@ -297,12 +155,12 @@ theorem box_subst_swap_gen (s' : LBTerm) (d j : Nat) (t : LBTerm) :
   | hproj p e ih =>
     simp only [LBTerm.subst]; congr 1; exact ih d
   | hconstruct iid k args ih =>
-    simp only [LBTerm.subst, substArgs_eq_map, List.map_map]
+    simp only [LBTerm.subst, LBTerm.substArgs_eq_map, List.map_map]
     congr 1
     apply List.map_congr_left
     intro a ha; simp only [Function.comp]; exact ih a ha d
   | hcase info discr alts ihd iha =>
-    simp only [LBTerm.subst, substAlts_eq_map, List.map_map]
+    simp only [LBTerm.subst, LBTerm.substAlts_eq_map, List.map_map]
     rw [ihd d]
     congr 1
     apply List.map_congr_left
@@ -312,7 +170,7 @@ theorem box_subst_swap_gen (s' : LBTerm) (d j : Nat) (t : LBTerm) :
       show d + a.1.length + j = d + j + a.1.length by omega] at this
     rw [this]
   | hfix defs i ih =>
-    simp only [LBTerm.subst, substDefs_eq_map, List.map_map, List.length_map]
+    simp only [LBTerm.subst, LBTerm.substDefs_eq_map, List.map_map, List.length_map]
     congr 1
     apply List.map_congr_left
     intro a ha; simp only [Function.comp]
@@ -372,7 +230,7 @@ theorem LBOptimizeDefs_eq_map (Γ : GlobalDeclarations) (l : List (@FixDef LBTer
   | nil => rfl
   | cons fd rest ih => simp [LBOptimizeDefs, ih]
 
-/-! ### `LBOptimize` unfolding equations (used to drive `simp only`). -/
+/-! ### `LBOptimize` unfolding equations, for `simp only`. -/
 
 @[simp] theorem LBOptimize_box (Γ) : LBOptimize Γ .box = .box := rfl
 @[simp] theorem LBOptimize_bvar (Γ i) : LBOptimize Γ (.bvar i) = .bvar i := rfl
@@ -434,7 +292,7 @@ theorem box_subst_shift_swap (d : Nat) :
     LBTerm.subst .box e (LBTerm.shift d (c + 1) u)
       = LBTerm.shift d c (LBTerm.subst .box e u) := by
   intro e c hec u
-  induction u using LBTerm.rec' generalizing e c with
+  induction u using LBTerm.recData generalizing e c with
   | hbox => rfl
   | hfvar x => rfl
   | hconst kn => rfl
@@ -473,12 +331,12 @@ theorem box_subst_shift_swap (d : Nat) :
     · exact iha e c hec
   | hproj p e' ih => simp only [LBTerm.shift, LBTerm.subst]; congr 1; exact ih e c hec
   | hconstruct iid k args ih =>
-    simp only [LBTerm.shift, LBTerm.subst, shiftArgs_eq_map, substArgs_eq_map, List.map_map]
+    simp only [LBTerm.shift, LBTerm.subst, LBTerm.shiftArgs_eq_map, LBTerm.substArgs_eq_map, List.map_map]
     congr 1
     apply List.map_congr_left
     intro a ha; simp only [Function.comp]; exact ih a ha e c hec
   | hcase info discr alts ihd iha =>
-    simp only [LBTerm.shift, LBTerm.subst, shiftAlts_eq_map, substAlts_eq_map, List.map_map]
+    simp only [LBTerm.shift, LBTerm.subst, LBTerm.shiftAlts_eq_map, LBTerm.substAlts_eq_map, List.map_map]
     rw [ihd e c hec]
     congr 1
     apply List.map_congr_left
@@ -487,7 +345,7 @@ theorem box_subst_shift_swap (d : Nat) :
     rw [show c + a.1.length + 1 = c + 1 + a.1.length by omega] at this
     rw [this]
   | hfix defs i ih =>
-    simp only [LBTerm.shift, LBTerm.subst, shiftDefs_eq_map, substDefs_eq_map,
+    simp only [LBTerm.shift, LBTerm.subst, LBTerm.shiftDefs_eq_map, LBTerm.substDefs_eq_map,
       List.map_map, List.length_map]
     congr 1
     apply List.map_congr_left
@@ -551,7 +409,7 @@ theorem LBOptimize_shift_comm (Γ : GlobalDeclarations) (d : Nat) :
     ∀ (c : Nat) (t : LBTerm),
     LBOptimize Γ (LBTerm.shift d c t) = LBTerm.shift d c (LBOptimize Γ t) := by
   intro c t
-  induction t using LBTerm.rec' generalizing c with
+  induction t using LBTerm.recData generalizing c with
   | hbox => rfl
   | hbvar i => simp only [LBTerm.shift, LBOptimize_bvar]; split <;> rfl
   | hfvar x => rfl
@@ -565,7 +423,7 @@ theorem LBOptimize_shift_comm (Γ : GlobalDeclarations) (d : Nat) :
     simp only [LBTerm.shift, LBOptimize_proj]; rw [ih c, projCollapse_shift]
   | hconstruct iid k args ih =>
     simp only [LBTerm.shift, LBOptimize_construct, LBOptimizeArgs_eq_map,
-      shiftArgs_eq_map, List.map_map]
+      LBTerm.shiftArgs_eq_map, List.map_map]
     congr 1
     apply List.map_congr_left
     intro a ha; simp only [Function.comp]; exact ih a ha c
@@ -577,7 +435,7 @@ theorem LBOptimize_shift_comm (Γ : GlobalDeclarations) (d : Nat) :
     -- remaining: the optimized-then-shifted alts agree both ways
     have halts : LBOptimizeAlts Γ (LBTerm.shiftAlts d c alts)
         = LBTerm.shiftAlts d c (LBOptimizeAlts Γ alts) := by
-      rw [LBOptimizeAlts_eq_map, shiftAlts_eq_map, shiftAlts_eq_map, LBOptimizeAlts_eq_map,
+      rw [LBOptimizeAlts_eq_map, LBTerm.shiftAlts_eq_map, LBTerm.shiftAlts_eq_map, LBOptimizeAlts_eq_map,
         List.map_map, List.map_map]
       apply List.map_congr_left
       intro a ha; simp only [Function.comp]
@@ -585,7 +443,7 @@ theorem LBOptimize_shift_comm (Γ : GlobalDeclarations) (d : Nat) :
     rw [halts]
   | hfix defs i ih =>
     simp only [LBTerm.shift, LBOptimize_fix, LBOptimizeDefs_eq_map,
-      shiftDefs_eq_map, List.map_map, List.length_map]
+      LBTerm.shiftDefs_eq_map, List.map_map, List.length_map]
     congr 1
     apply List.map_congr_left
     intro a ha; simp only [Function.comp]
@@ -604,7 +462,7 @@ theorem LBOptimize_subst_comm (Γ : GlobalDeclarations) (s : LBTerm) :
     LBOptimize Γ (LBTerm.subst s d t)
       = LBTerm.subst (LBOptimize Γ s) d (LBOptimize Γ t) := by
   intro d t
-  induction t using LBTerm.rec' generalizing d with
+  induction t using LBTerm.recData generalizing d with
   | hbox => rfl
   | hbvar i =>
     simp only [LBTerm.subst, LBOptimize_bvar]
@@ -627,7 +485,7 @@ theorem LBOptimize_subst_comm (Γ : GlobalDeclarations) (s : LBTerm) :
     simp only [LBTerm.subst, LBOptimize_proj]; rw [ih d, projCollapse_subst]
   | hconstruct iid k args ih =>
     simp only [LBTerm.subst, LBOptimize_construct, LBOptimizeArgs_eq_map,
-      substArgs_eq_map, List.map_map]
+      LBTerm.substArgs_eq_map, List.map_map]
     congr 1
     apply List.map_congr_left
     intro a ha; simp only [Function.comp]; exact ih a ha d
@@ -640,7 +498,7 @@ theorem LBOptimize_subst_comm (Γ : GlobalDeclarations) (s : LBTerm) :
     -- remaining: the optimized-then-substituted alts agree both ways
     have halts : LBOptimizeAlts Γ (LBTerm.substAlts s d alts)
         = LBTerm.substAlts (LBOptimize Γ s) d (LBOptimizeAlts Γ alts) := by
-      rw [LBOptimizeAlts_eq_map, substAlts_eq_map, substAlts_eq_map, LBOptimizeAlts_eq_map,
+      rw [LBOptimizeAlts_eq_map, LBTerm.substAlts_eq_map, LBTerm.substAlts_eq_map, LBOptimizeAlts_eq_map,
         List.map_map, List.map_map]
       apply List.map_congr_left
       intro a ha; simp only [Function.comp]
@@ -648,7 +506,7 @@ theorem LBOptimize_subst_comm (Γ : GlobalDeclarations) (s : LBTerm) :
     rw [halts]
   | hfix defs i ih =>
     simp only [LBTerm.subst, LBOptimize_fix, LBOptimizeDefs_eq_map,
-      substDefs_eq_map, List.map_map, List.length_map]
+      LBTerm.substDefs_eq_map, List.map_map, List.length_map]
     congr 1
     apply List.map_congr_left
     intro a ha; simp only [Function.comp]
@@ -685,8 +543,8 @@ theorem LBOptimize_substList (Γ : GlobalDeclarations) :
 
 /-! ## B2 — the flagged big-step relation `EvalProp`.
 
-`EvalProp` is now the `abbrev` `WcbvEval Γ defaultFlags` (prop-cases **on**), and
-plain `Eval` is `WcbvEval Γ optFlags` (prop-cases **off**, MetaCoq's
+`EvalProp` is now the `abbrev` `WcbvEval Γ propBlockFlags` (prop-cases **on**), and
+plain `Eval` is `WcbvEval Γ blockFlags` (prop-cases **off**, MetaCoq's
 `disable_prop_cases`), both defined in `Semantics/Eval.lean`. The prop-case rule
 that the `optimize` pass removes is `WcbvEval.iota_sing` (formerly `EvalProp.iota_box`),
 guarded by `with_prop_case = true`. -/
@@ -916,14 +774,14 @@ theorem LBOptimize_iota_red (Γ : GlobalDeclarations) (np : Nat) (cargs : List L
 
 /-! ## B3 — `LBOptimize_correct`.
 
-`EvalProp = WcbvEval Γ defaultFlags` (prop-cases enabled) implies `Eval =
-WcbvEval Γ optFlags` on the optimized term in the optimized environment — MetaCoq's
+`EvalProp = WcbvEval Γ propBlockFlags` (prop-cases enabled) implies `Eval =
+WcbvEval Γ blockFlags` on the optimized term in the optimized environment — MetaCoq's
 `optimize_correct` (`eval fl → eval (disable_prop_cases fl)`). The prop-case rules
 (`iota_sing`, `proj_prop`) are discharged by the `LBOptimize` collapse of the
 corresponding `.case`/`.proj`; `iota`/`proj` are guarded non-propositional, so the
 optimized node stays a `.case`/`.proj` and reuses `Eval.iota`/`Eval.proj`. The
 `fix` unfolding commutes with `LBOptimize` via `LBOptimize_fixUnfold_body`;
-`fix_unguarded` is unreachable under `defaultFlags`. -/
+`fix_unguarded` is unreachable under `propBlockFlags`. -/
 theorem LBOptimize_correct {Γ : GlobalDeclarations} {t v : LBTerm} :
     EvalProp Γ t v → Eval (LBOptimize_env Γ) (LBOptimize Γ t) (LBOptimize Γ v) := by
   intro h
@@ -946,11 +804,11 @@ theorem LBOptimize_correct {Γ : GlobalDeclarations} {t v : LBTerm} :
   | @delta kn body r hlk _ ihbody =>
     exact .delta (envLookup_LBOptimize_env hlk) ihbody
   | @construct_app hb _ _ _ _ _ _ _ _ _ _ _ _ _ =>
-    -- `EvalProp = WcbvEval defaultFlags` has `with_constructor_as_block = true`,
+    -- `EvalProp = WcbvEval propBlockFlags` has `with_constructor_as_block = true`,
     -- so the non-block accumulation rule is unreachable here.
-    simp [defaultFlags] at hb
+    simp [propBlockFlags] at hb
   | @construct_atom hb _ _ _ _ =>
-    simp [defaultFlags] at hb   -- non-block nullary constructor: unreachable
+    simp [propBlockFlags] at hb   -- non-block nullary constructor: unreachable
   | @construct hb iid k args vs hl hargs ihargs =>
     simp only [LBOptimize_construct, LBOptimizeArgs_eq_map]
     refine .construct rfl (by simp [hl]) (fun i hi => ?_)
@@ -959,7 +817,7 @@ theorem LBOptimize_correct {Γ : GlobalDeclarations} {t v : LBTerm} :
     have := ihargs i hi'
     simpa using this
   | @iota hb _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ =>
-    simp [defaultFlags] at hb   -- non-block ι: unreachable (block form used here)
+    simp [propBlockFlags] at hb   -- non-block ι: unreachable (block form used here)
   | @iota_block hb iid np k discr alts cargs names body r hnp hdiscr hsel hlen hbody ihd ihbodyev =>
     have hwc : wouldCollapse Γ iid alts = false := by simp [wouldCollapse, hnp]
     rw [LBOptimize_case_noncollapse Γ iid np discr alts hwc]
@@ -975,7 +833,7 @@ theorem LBOptimize_correct {Γ : GlobalDeclarations} {t v : LBTerm} :
     rw [← LBOptimize_substList_box Γ names.length body]
     exact ihbody
   | @proj hb _ _ _ _ _ _ _ _ _ _ _ =>
-    simp [defaultFlags] at hb   -- non-block projection: unreachable (block form used here)
+    simp [propBlockFlags] at hb   -- non-block projection: unreachable (block form used here)
   | @proj_block hb p discr cargs v r hnp hdiscr hsel hvev ihd ihv =>
     rw [LBOptimize_proj_noncollapse Γ p discr hnp]
     refine .proj_block rfl (cargs := LBOptimizeArgs Γ cargs) (v := LBOptimize Γ v) ?_ ?_ ?_ ?_
@@ -1009,11 +867,11 @@ theorem LBOptimize_correct {Γ : GlobalDeclarations} {t v : LBTerm} :
     · rw [LBOptimizeDefs_eq_map, List.getElem?_map, hsel]; rfl
     · simp only [List.length_map]; exact hlt
   | @fix_unguarded hg _ _ _ _ _ _ _ _ _ _ _ _ _ _ =>
-    simp [defaultFlags] at hg   -- unguarded fix: unreachable (guarded under `defaultFlags`)
+    simp [propBlockFlags] at hg   -- unguarded fix: unreachable (guarded under `propBlockFlags`)
   | @app_cong f a f' a' hf hstuck ha ihf iha =>
     simp only [LBOptimize_app]
     refine .app_cong ihf ?_ iha
-    exact isStuckApp_LBOptimize (fl := defaultFlags) (eval_to_value hf) hstuck
+    exact isStuckApp_LBOptimize (fl := propBlockFlags) (eval_to_value hf) hstuck
 
 /-! ## Vacuity guard for `LBOptimize_correct`.
 

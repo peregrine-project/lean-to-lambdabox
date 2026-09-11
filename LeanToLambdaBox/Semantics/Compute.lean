@@ -650,34 +650,34 @@ def nvEnv : GlobalDeclarations :=
    (nvTwoBKn, .constantDecl ⟨some (nvPeanoB 2)⟩)]
 
 /-- δ and the applied-constructor regime: the constant `twoA` runs to the Peano
-    numeral `2` under `appliedFlags` (`with_constructor_as_block := false`). -/
-example : lbEval nvEnv appliedFlags 1000 (.const nvTwoAKn) = some (nvPeanoA 2) := by rfl
+    numeral `2` under `eraseFlags` (`with_constructor_as_block := false`). -/
+example : lbEval nvEnv eraseFlags 1000 (.const nvTwoAKn) = some (nvPeanoA 2) := by rfl
 
 /-- δ and the block-constructor regime: the constant `twoB` runs to the Peano
-    numeral `2` under `optFlags` (`with_constructor_as_block := true`). -/
-example : lbEval nvEnv optFlags 1000 (.const nvTwoBKn) = some (nvPeanoB 2) := by rfl
+    numeral `2` under `blockFlags` (`with_constructor_as_block := true`). -/
+example : lbEval nvEnv blockFlags 1000 (.const nvTwoBKn) = some (nvPeanoB 2) := by rfl
 
-/-- ι on a constructor spine: the predecessor of `3` is `2` under `appliedFlags`. -/
-example : lbEval nvEnv appliedFlags 1000 (nvPredA (nvPeanoA 3)) = some (nvPeanoA 2) := by rfl
+/-- ι on a constructor spine: the predecessor of `3` is `2` under `eraseFlags`. -/
+example : lbEval nvEnv eraseFlags 1000 (nvPredA (nvPeanoA 3)) = some (nvPeanoA 2) := by rfl
 
-/-- ι on a constructor block: the predecessor of `3` is `2` under `optFlags`. -/
-example : lbEval nvEnv optFlags 1000 (nvPredB (nvPeanoB 3)) = some (nvPeanoB 2) := by rfl
+/-- ι on a constructor block: the predecessor of `3` is `2` under `blockFlags`. -/
+example : lbEval nvEnv blockFlags 1000 (nvPredB (nvPeanoB 3)) = some (nvPeanoB 2) := by rfl
 
 /-- `fix` unfolding (twice, through ι and β) in the applied regime: `addTwo 2 = 4`. -/
-example : lbEval nvEnv appliedFlags 1000 (.app (.fix [nvAddTwoA] 0) (nvPeanoA 2))
+example : lbEval nvEnv eraseFlags 1000 (.app (.fix [nvAddTwoA] 0) (nvPeanoA 2))
     = some (nvPeanoA 4) := by rfl
 
 /-- `fix` unfolding in the block regime: `addTwo 2 = 4`. -/
-example : lbEval nvEnv optFlags 1000 (.app (.fix [nvAddTwoB] 0) (nvPeanoB 2))
+example : lbEval nvEnv blockFlags 1000 (.app (.fix [nvAddTwoB] 0) (nvPeanoB 2))
     = some (nvPeanoB 4) := by rfl
 
 /-- The point of `lbEval_sound`: a kernel-checked run is a `WcbvEval` derivation,
     here for the applied-form `fix`/ι/β program `addTwo 2 = 4`. -/
-example : WcbvEval nvEnv appliedFlags (.app (.fix [nvAddTwoA] 0) (nvPeanoA 2)) (nvPeanoA 4) :=
+example : WcbvEval nvEnv eraseFlags (.app (.fix [nvAddTwoA] 0) (nvPeanoA 2)) (nvPeanoA 4) :=
   lbEval_sound (n := 1000) (by rfl)
 
 /-- The same for the block-form `fix`/ι/β program. -/
-example : WcbvEval nvEnv optFlags (.app (.fix [nvAddTwoB] 0) (nvPeanoB 2)) (nvPeanoB 4) :=
+example : WcbvEval nvEnv blockFlags (.app (.fix [nvAddTwoB] 0) (nvPeanoB 2)) (nvPeanoB 4) :=
   lbEval_sound (n := 1000) (by rfl)
 
 end LeanToLambdaBox
