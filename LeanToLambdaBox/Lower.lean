@@ -66,8 +66,10 @@ def RuntimeKey (Γ : GlobalDeclarations) (kn : Kername) : Prop :=
   (∃ iid k, CtorDecl Γ kn iid k) ∨ (∃ iid np dp nfs, ElimDecl Γ kn iid np dp nfs)
 
 /-- An eliminator head: `.const kn` before the environment unfolds it, or an `ElimBody`
-shape after. The second disjunct is what relates the intermediate configurations of a
-source derivation that has already taken the δ step. -/
+shape after. The second disjunct relates the intermediate configurations of a source
+derivation that has already taken the δ step, the partially applied ones included, which
+are λ-headed values. It is not about a stuck discriminant: `WcbvEval` has no `.case`
+congruence rule, so a `.case` whose discriminant has no value has none either. -/
 def ElimHeadOf (Γ : GlobalDeclarations) (h : LBTerm) (iid : InductiveId) (np dp : Nat)
     (nfs : List Nat) : Prop :=
   (∃ kn, h = .const kn ∧ ElimDecl Γ kn iid np dp nfs) ∨ ElimBody iid np dp nfs h
@@ -568,13 +570,6 @@ theorem Lower.closed {Γ : GlobalDeclarations} (hΓ : ClosedBodies Γ) {s t : LB
 
 /-! ## Commutation with the de Bruijn operations -/
 
-/-- Every `ElimBody` shape is closed. A property of `ElimBody.lean`'s two constructions,
-named here because the `elimApp`/`elimEta` arms need the head fixed by `shift` and
-`subst`. -/
-def ElimBodyClosed : Prop :=
-  ∀ (iid : InductiveId) (np dp : Nat) (nfs : List Nat) (h : LBTerm),
-    ElimBody iid np dp nfs h → LBClosed h 0
-
 /-- `getElem?` pins both the index and the `getElem!`. -/
 theorem Lower.getElem!_of_getElem? {α : Type} [Inhabited α] {l : List α} {i : Nat} {a : α}
     (h : l[i]? = some a) : i < l.length ∧ l[i]! = a := by
@@ -586,21 +581,22 @@ theorem Lower.getElem!_of_getElem? {α : Type} [Inhabited α] {l : List α} {i :
   · rw [List.getElem?_eq_none hi] at h
     exact absurd h (by simp)
 
-/-- An eliminator head is fixed by `shift`. -/
+/-- An eliminator head is fixed by `shift`: a `.const` has no index, and both `ElimBody`
+shapes are closed (`ElimBody.closed`). -/
 theorem ElimHeadOf.shift_eq {Γ : GlobalDeclarations} {hd : LBTerm} {iid : InductiveId}
-    {np dp : Nat} {nfs : List Nat} (hE : ElimBodyClosed) (hh : ElimHeadOf Γ hd iid np dp nfs)
+    {np dp : Nat} {nfs : List Nat} (hh : ElimHeadOf Γ hd iid np dp nfs)
     (d c : Nat) : LBTerm.shift d c hd = hd := by
   rcases hh with ⟨kn, rfl, _⟩ | hb
   · rfl
-  · exact (hE _ _ _ _ _ hb).shift_eq (Nat.zero_le c) d
+  · exact hb.closed.shift_eq (Nat.zero_le c) d
 
-/-- An eliminator head is fixed by `subst`. -/
+/-- An eliminator head is fixed by `subst`, for the same reason as `shift_eq`. -/
 theorem ElimHeadOf.subst_eq {Γ : GlobalDeclarations} {hd : LBTerm} {iid : InductiveId}
-    {np dp : Nat} {nfs : List Nat} (hE : ElimBodyClosed) (hh : ElimHeadOf Γ hd iid np dp nfs)
+    {np dp : Nat} {nfs : List Nat} (hh : ElimHeadOf Γ hd iid np dp nfs)
     (s : LBTerm) (c : Nat) : LBTerm.subst s c hd = hd := by
   rcases hh with ⟨kn, rfl, _⟩ | hb
   · rfl
-  · exact (hE _ _ _ _ _ hb).subst_eq (Nat.zero_le c) s
+  · exact hb.closed.subst_eq (Nat.zero_le c) s
 
 /-- Pushing a telescope's shift past an outer one, on a whole argument list. -/
 theorem map_shift_shift_comm (d n c : Nat) (l : List LBTerm) :
@@ -614,7 +610,7 @@ theorem map_shift_shift_comm (d n c : Nat) (l : List LBTerm) :
 
 /-- `Lower` commutes with `shift`: the pass never reads a de Bruijn index, and its two
 fix arms rest on declarations that are closed. -/
-theorem Lower.shift_comm {Γ : GlobalDeclarations} (hΓ : ClosedBodies Γ) (hE : ElimBodyClosed)
+theorem Lower.shift_comm {Γ : GlobalDeclarations} (hΓ : ClosedBodies Γ)
     {s t : LBTerm} (h : Lower Γ s t) :
     ∀ d c, Lower Γ (LBTerm.shift d c s) (LBTerm.shift d c t) := by
   induction h using Lower.rec
@@ -676,7 +672,7 @@ theorem Lower.shift_comm {Γ : GlobalDeclarations} (hΓ : ClosedBodies Γ) (hE :
   | @elimApp hd iid np dp nfs pre disc disc' minors alts extra extra'
       hh hlen hmlen halen _ _ hxlen _ ihmin ihd ihx =>
       intro d c
-      rw [LBTerm.shift_mkApps, LBTerm.shift_mkApps, hh.shift_eq hE d c]
+      rw [LBTerm.shift_mkApps, LBTerm.shift_mkApps, hh.shift_eq d c]
       simp only [List.map_append, List.map_cons, LBTerm.shift, LBTerm.shiftAlts_eq_map]
       refine .elimApp hh (by simp [hlen]) (by simp [hmlen]) (by simp [halen]) ?_ (ihd d c)
         (by simp [hxlen]) ?_
@@ -689,10 +685,10 @@ theorem Lower.shift_comm {Γ : GlobalDeclarations} (hΓ : ClosedBodies Γ) (hE :
         exact ihx i hi d c
   | @elimEta hd iid np dp nfs args ns body hh hns hund _ ih =>
       intro d c
-      rw [LBTerm.shift_mkApps, hh.shift_eq hE d c, shift_mkLambdas]
+      rw [LBTerm.shift_mkApps, hh.shift_eq d c, shift_mkLambdas]
       refine .elimEta hh hns (by simpa using hund) ?_
       have hih := ih d (c + ns.length)
-      rwa [LBTerm.shift_mkApps, hh.shift_eq hE d (c + ns.length), List.map_append,
+      rwa [LBTerm.shift_mkApps, hh.shift_eq d (c + ns.length), List.map_append,
         map_shift_shift_comm, shift_bvarsDesc (Nat.le_add_left _ _)] at hih
   | @fixConst kn kns bs bs' ids defs j hb hb' hdl hnd hids hilen hfresh hrarg hdecl hlow hcl hj
       ih =>
@@ -740,7 +736,7 @@ theorem map_subst_shift_comm (a : LBTerm) (d n : Nat) (l : List LBTerm) :
 
 /-- `Lower` commutes with substitution, the substituted terms being related themselves.
 This is the law the β, ζ and ι steps of a forward simulation consume. -/
-theorem Lower.subst_comm {Γ : GlobalDeclarations} (hΓ : ClosedBodies Γ) (hE : ElimBodyClosed)
+theorem Lower.subst_comm {Γ : GlobalDeclarations} (hΓ : ClosedBodies Γ)
     {a a' : LBTerm} (ha : Lower Γ a a') {s t : LBTerm} (h : Lower Γ s t) :
     ∀ d, Lower Γ (LBTerm.subst a d s) (LBTerm.subst a' d t) := by
   induction h using Lower.rec
@@ -754,7 +750,7 @@ theorem Lower.subst_comm {Γ : GlobalDeclarations} (hΓ : ClosedBodies Γ) (hE :
       split
       · exact .bvar _
       · split
-        · exact Lower.shift_comm hΓ hE ha d 0
+        · exact Lower.shift_comm hΓ ha d 0
         · exact .bvar _
   | fvar x => exact fun _ => .fvar x
   | prim p => exact fun _ => .prim p
@@ -810,7 +806,7 @@ theorem Lower.subst_comm {Γ : GlobalDeclarations} (hΓ : ClosedBodies Γ) (hE :
   | @elimApp hd iid np dp nfs pre disc disc' minors alts extra extra'
       hh hlen hmlen halen _ _ hxlen _ ihmin ihd ihx =>
       intro d
-      rw [LBTerm.subst_mkApps, LBTerm.subst_mkApps, hh.subst_eq hE a d]
+      rw [LBTerm.subst_mkApps, LBTerm.subst_mkApps, hh.subst_eq a d]
       simp only [List.map_append, List.map_cons, LBTerm.subst, LBTerm.substAlts_eq_map]
       refine .elimApp hh (by simp [hlen]) (by simp [hmlen]) (by simp [halen]) ?_ (ihd d)
         (by simp [hxlen]) ?_
@@ -823,10 +819,10 @@ theorem Lower.subst_comm {Γ : GlobalDeclarations} (hΓ : ClosedBodies Γ) (hE :
         exact ihx i hi d
   | @elimEta hd iid np dp nfs args ns body hh hns hund _ ih =>
       intro d
-      rw [LBTerm.subst_mkApps, hh.subst_eq hE a d, subst_mkLambdas]
+      rw [LBTerm.subst_mkApps, hh.subst_eq a d, subst_mkLambdas]
       refine .elimEta hh hns (by simpa using hund) ?_
       have hih := ih (d + ns.length)
-      rwa [LBTerm.subst_mkApps, hh.subst_eq hE a (d + ns.length), List.map_append,
+      rwa [LBTerm.subst_mkApps, hh.subst_eq a (d + ns.length), List.map_append,
         map_subst_shift_comm, subst_bvarsDesc (Nat.le_add_left _ _)] at hih
   | @fixConst kn kns bs bs' ids defs j hb hb' hdl hnd hids hilen hfresh hrarg hdecl hlow hcl hj
       ih =>
