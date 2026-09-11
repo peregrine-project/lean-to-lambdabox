@@ -27,10 +27,11 @@ def isErasableProp (e : Expr) : Lean4Lean.TypeChecker.RecM Bool := do
   isProp ty
 
 /-- Peel the `∀`-telescope of `ty` (whnf at each step): succeed iff it ends in a
-    sort. `fuel` bounds the depth (running out fails — only bounds completeness). -/
+    sort. `fuel` bounds the depth; running out throws, so the caller's `.error`
+    arm (the elaborator fallback) decides instead of a spurious `false`. -/
 def isArityCheck.loop (fuel : Nat) (ty : Expr) : Lean4Lean.TypeChecker.RecM Bool := do
   match fuel with
-  | 0 => return false
+  | 0 => throw <| .other "isArityCheck: fuel exhausted"
   | fuel + 1 =>
     match ← whnf ty with
     | .forallE name dom body bi =>
@@ -40,7 +41,8 @@ def isArityCheck.loop (fuel : Nat) (ty : Expr) : Lean4Lean.TypeChecker.RecM Bool
 
 /-- Type-former branch: whnf-reduce and peel the whole `∀`-telescope of `ty`,
     succeeding iff it ends in a sort (faithful to `Meta.isTypeFormerType`). Fuelled
-    by the syntactic depth of `ty`. -/
+    by the syntactic depth of the unreduced `ty`; if the reduced telescope is deeper,
+    the loop throws and `Erasure.isErasable` falls back to `isErasableMeta`. -/
 def isArityCheck (ty : Expr) : Lean4Lean.TypeChecker.RecM Bool :=
   isArityCheck.loop (ty.approxDepth.toNat + 1) ty
 
