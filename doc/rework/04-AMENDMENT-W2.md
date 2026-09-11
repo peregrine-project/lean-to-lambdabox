@@ -770,7 +770,7 @@ folded into §§1–12, which read as current fact.
 | **F7** | The upstream ask is mis-filed; `WF'.defeqOwn` is omitted; and "consumed as theorems" oversells, since `Injectivity.lean`'s three siblings are `sorry` at the pin | **accepted** | Answered with fidelity F1 for the filing. §9 now says plainly that ask 6 is expected to land as a `sorry` whose root inherits into T5's ι and proj arms and into T7, and U3.4's acceptance already records the inherited roots. `WF'.defeqOwn` is named in §9 as ask 1, landing with the same pin bump |
 | **F8** | U2.6 says `ctorVal` loses `hnb`/`hpat`/`hne`, but the rule carries only `hnb`, so the grep acceptance is vacuous | **accepted** | §5 and U2.6 say `ctorVal` loses `hnb`, the one side condition the tree's rule carries (`SourceEval.lean:181-185`); `hpat`/`hne` were the first cut's proposal and never landed. U2.6's grep acceptance is replaced by one that can fail: the refutation witness `untabled_const_not_value` and the four `_fires` witnesses |
 | **F9** | Undeclared edges U2.8→U2.6 and U3.5→U3.2 | **accepted** | Both are in `02-PLAN.md` §2 and in the unit specs. U2.8 needs `CasesOnShape`, which U2.6 defines in `SourceEval.lean`; U3.5 needs `not_erasable_of_informative`, which U3.2 proves. W2's second half is six serial stages and W3's arm chain is five |
-| **H** | `Hygiene.cellFiles` drops possessive tokens, so all three partial-deletion rows escape the check `02-PLAN.md` says enforces them — measured `--schedule: 7 rows, 45 files, 0 inversions` | **accepted** | `Tools/Hygiene.lean:144-166` is confirmed: `backticked` marks a token followed by `'s` as a part-of-file citation and `cellFiles` drops it. The tool is not this document's to change, so the three rows are restated with **bare backticked filenames**: `LowerCorrect.lean` becomes a whole-file deletion (§7), `ElimBody.lean` gets its own row under U2.10, and `CheckerAdequacy.lean`'s row names the file. The tool defect is recorded for the gate as a `doc/dev-fix-queue.md` row: until it parses possessives, a partial-deletion row must name its file bare or go unchecked |
+| **H** | `Hygiene.cellFiles` drops possessive tokens, so all three partial-deletion rows escape the check `02-PLAN.md` says enforces them — measured `--schedule: 7 rows, 45 files, 0 inversions` | **accepted** | `Tools/Hygiene.lean:144-166` is confirmed: `backticked` marks a token followed by `'s` as a part-of-file citation and `cellFiles` drops it. The tool is not this document's to change, so the three rows are restated with **bare backticked filenames**: `LowerCorrect.lean` becomes a whole-file deletion (§7), `ElimBody.lean` gets its own row under U2.10, and `CheckerAdequacy.lean`'s row names the file. The tool defect is recorded for the gate as a `doc/rework/03-DEV-FIX.md` row: until it parses possessives, a partial-deletion row must name its file bare or go unchecked |
 | **I** | Dead code is carried against the design's own standard: `Fuel.lean`, `PrunedFor`, `EnvAgree`/`congr_env`, `mkCtorBody`/`mkCtorBody_beta` | **accepted in full** | All deleted, each with an owning unit (§6, §8, §11). Verified: `Fuel.lean` 101 lines, no `LeanToLambdaBox.Fuel` import and no reference (the tree's other `Fuel` tokens are `FuelConfig` and `SupportError.outOfFuel`); `PrunedFor` one occurrence, its definition; `EnvAgree` and `≐` zero uses outside `ErasesEnv.lean`, and `congr_env` does not exist yet; `mkCtorBody`, `mkCtorBody_closed`, `mkCtorBody_beta` zero references outside `ElimBody.lean`, and `01-DESIGN.md` §7.3's own rule retires them with `ErasesDecl.ctor`. `AxiomFree` has zero occurrences, so A-F2's "deleted" is corrected to "not landed" |
 | **J** | Unowned casualties (`test/Ledger.lean`, `doc/trust.md`, `doc/rules-Erases.md`, `doc/rules-Lower.md`), `NoBox`'s home, `LowerCorrect.lean`'s residue, and two estimates | **accepted** | The four documents are in the changing units' file lists (§11 item 6). `NoBox` and its family move to `Lower.lean` with the rest of the surviving pass metatheory, and `LowerCorrect.lean` is deleted as a file, so nothing is residual (§7). U2.7 is re-priced from 1,100 to **1,900** — it owns a 5,551-line cluster whose `Lower.source_*` kit is re-proved against fourteen arms and which absorbs ≈740 relocated lines — and `01-DESIGN.md` §7.3's `Lower.lean` row from 850 to **1,850**, the file being 1,106 today and the designated recipient of the relocation |
 
@@ -782,3 +782,38 @@ Under the un-generalised rule an over-applied spine is simulated only when a bra
 return a function, and §6 step 3's derivation of `extra = []` is unsound in exactly the cases where
 it is not. Generalising removes both. It does not remove the β arm's `elimApp` inversion (fidelity
 F6): the β route survives generalisation, and §6's reading (iii-a) is what handles it.
+
+---
+
+## 14. Wave-2 delivery findings
+
+The units that built §§4–8's amended architecture (U2.5–U2.10, G2) each carry a machine-checked
+finding against what this document or `01-DESIGN.md` printed. Folded into `01-DESIGN.md` §2.4,
+which §4/§5's signatures are now transcribed against; recorded here, append-only, as this wave's
+own record of what its own delivery found.
+
+| # | Text as printed here or in `01-DESIGN.md` | What delivery found | Landed instead | Unit |
+|---|---|---|---|---|
+| **D1** | §8's `LowerEnv` (`01-DESIGN.md` §4.8) prints `specBlocks : BlockBodiesLambda Σ⁺` as one of nine clauses, unremarked | **Unsatisfiable at every specification environment the five programs produce**: `BlockBodiesLambda Σ⁺` quantifies over every `LowerBlock` over `Σ⁺`, and a single declared non-λ body (`Unit.unit`'s shape, present once per file in all five programs, and in G1's own `Σ⁺`) is a one-member block that refutes it | Landed verbatim, REFUTED as printed: `LowerEnv Σ⁺ Σ` is uninhabited on every realistic `Σ⁺`. No repair landed; the obligation is stated for U3.1/U3.2/U3.3 in `01-DESIGN.md` §2.4/§4.8 | U2.8 |
+| **D2** | §5's `SEval.le` (`01-DESIGN.md` §4.3) prints an unconditional `env ≤ env' → SEval env … → SEval env' …` | **False**: `deltaC`'s `hnd` is negative in `env`, and `CasesOnShape` is monotone the wrong way for it | Gains a premise `hcs`; no consumer exists tree-wide | U2.6 |
+| **D3** | §8's `SpecEnv.erasesEnv` (via `01-DESIGN.md` §4.8) prints one premise, `hdeps` | `SpecEnv`'s fields never mention `bo`, so `ErasesEnv`'s `defns` clause cannot be derived from `hdeps` alone | Gains a second premise `hdefns`; U3.6 discharges it from the run's registry | U2.8 |
+| **D4** | §4's `Erases.exists_of_trExprS_of_projInfo` (`01-DESIGN.md` §4.2) prints four binders | The three-way classification of `Expr.const` needs an explicit totality hypothesis not derivable from `env.WF` alone at the pin | Gains a fifth binder `hclass`; U3.4's `Origin.lean`/`UpstreamAsks` discharges it once the pin moves | U2.5 |
+| **D5** | §8's `patHead`/`PatOf`/`IotaInert` (`01-DESIGN.md` §4.8) print as one live cluster | `IotaInert` is deleted with the value arms' re-keying (its ι-freedom conjunct is subsumed by N21); `patHead`/`PatOf` are then consumer-free | `IotaInert` deleted; `patHead`/`PatOf` left for U3.6 to delete with `ErasesEnv.lean` | U2.5, U2.8 |
+| **D6** | `CasesOnShape` (§5, `01-DESIGN.md` §4.3) is introduced with no import-cost note | Names `isCasesOnName`, which lives in `Supported.lean`; `SourceEval.lean` therefore imports the whole shipping-code closure a wave early (a layering defect, no cycle) | Landed as is; relocation of `isCasesOnName`/`lastComponent` to a leaf module scheduled for U3.8 | U2.6 |
+
+Also landed and filed to `doc/upstream-asks.md` for consolidation (not load-bearing): three
+general facts about lean4lean's `VEnv.WF'`/`VInductDecl.WF` — `IsArity.piBody_sort`,
+`CtorOf.constant_ctorResult`, `CtorOf.not_indInfo` — proved in `SourceEval.lean` for want of a
+dedicated home, sorryAx-free at the pin. Natural home is `Origin.lean` alongside U2.5's
+`wf'_induct_origin`/`IndInfo.constant_isArity`.
+
+**One policy note, for §9 above.** §9 states that neither upstream ask is a hypothesis of the
+simulation and that a refusal stops the wave rather than being replaced by a premise. That stance
+assumed this repository could act on the fork directly. It cannot: editing lean4lean is a separate
+agent's work, so U3.4 (`02-PLAN.md` §2, W3) now only *files* the two load-bearing asks and, until
+the fork accepts them, every consumer takes the asked fact as the named, class-**C**,
+`doc/trust.md`-tracked hypothesis `UpstreamAsks env` (`LeanToLambdaBox/Upstream.lean`) rather than
+assuming the pin has already moved. This is not `IotaRelevant`'s premise reborn: the two asks are
+unweakened and unrestated, the binder is discharged with no change of shape once the fork accepts
+them, and a refusal is still recorded as blocking in `doc/trust.md`, not silently absorbed. See
+`01-DESIGN.md` §8.3 and `02-PLAN.md`'s W3 section for the mechanism this section does not restate.
