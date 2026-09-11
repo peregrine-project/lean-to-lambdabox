@@ -1,6 +1,7 @@
 # 01 — Final design for the Lean → λ□ verification rework
 
-**Status.** Design of record. It is the synthesis of the three candidate designs
+**Status.** Design of record, as amended at the design gate (24 refuter verdicts; every fatal or
+major finding resolved in §2.1). It is the synthesis of the three candidate designs
 (`doc/rework/designs/{A,B,C}-*.md`) after adversarial review by three judges, and it is
 subordinate to `doc/rework/00-REFERENCE-SPEC.md` except where §3.3 below asks that document to be
 amended. Every amendment is forced by a measurement, and the measurement is cited.
@@ -14,8 +15,9 @@ the entire non-vacuity lane (the G-ladder, `Green.lean`, `green-check`), the hon
 predicate (`LBWfPeregrine` without fixpoint η, `PeregrinePre` stated separately), `supportedB :
 … → Except SupportError Unit`, the reified `SourceTable`, `lbEval`, and the applied capstone.
 
-**Repairs this document makes that no candidate design contained.** Six, listed in §2; two of them
-are machine-checked here (`scratchpad/probe/lowerfix2.lean`, `scratchpad/probe/fixval.lean`).
+**Repairs this document makes that no candidate design contained.** The §2 rows, plus the §2.1
+gate resolutions; the machine-checked evidence lives under `scratchpad/probe/` and
+`scratchpad/gate/` and is cited row by row.
 
 ---
 
@@ -38,35 +40,49 @@ specification environment `Σ⁺` alone**:
 Each carries `erases_correct`'s shape one layer down:
 `R Σ⁺ t t' → WcbvEval Σ⁺ fl t v → ∃ v', R Σ⁺ v v' ∧ WcbvEval Σ fl t' v'`.
 T8 concludes membership in the composite `ErasesLB = Erases ⨟ Lower`, and the composite has
-**derived introduction lemmas whose signatures are the deleted `Erases` rules**, so the 4,641-line
-18-motive induction is restated by a rename rather than rewritten.
+**derived introduction lemmas whose signatures are the deleted `Erases` rules**, so seventeen of
+the eighteen motives are restated by a rename. The exception is motive 6 (the block branch of
+`visitMutual`): there the eraser emits `.fvar id` at a source `.const` position, no factor of
+`Erases ⨟ Lower` can state that, and the motive is stated with the explicit third factor
+`ErasesLBFix` (§4.5) — genuinely new work, priced in W4, gated by U1.7's stateability test.
 
-One `VEnv` is threaded: `envC`, the environment the *compiler* compiles (`env` extended by one
-`VEnv.addDefEq` per `_unsafe_rec` body). The kernel `env` survives only inside `PrimSpec` and
-`CompilerEnv`.
+One `VEnv` is threaded: **`env`, the kernel environment** (`TrEnv .safe`, via
+`ErasureSpec.env_connect`). Compiler bodies (`_unsafe_rec`, N8) are **not** modelled as a second
+`VEnv`: a `VEnv.WF` environment grants each constant at most one defining equation (machine-checked
+this gate, `scratchpad/gate/d3_defeq_unique.lean`: `WF'.defeqOwn`, axioms `[propext, Quot.sound]`),
+so an `env + addDefEq`-style `CompilerEnv` is uninhabitable on every declaration with both a kernel
+and a different compiler body — 31 of the 33 measured, including all four of Arith's. Instead the
+spec follows N8 of `00-REFERENCE-SPEC.md` verbatim: `SEval` reads the compiler-body table
+`tbl.body?` through its `deltaC` arm, and `CompilerBodies` (§4.3) is the class-**C** typing
+hypothesis N8 names, measured inhabitable 33/33.
 
 ### 1.2 Why relations, in one paragraph
 
-`[L Def. 10]`'s `◄` is a relation and `[S §7.2]`'s posture is graph ⊆ relation, so a theorem of
-the form "the run's output is in the composite" is the papers' own theorem shape. It is also the
-only shape in which the Lean-specific content can be *stated*: a recursive Lean constant has a
-λ-headed source body and a `.fix`-headed λ□ body, both of which are `WcbvEval` **values**
-(`Semantics/Values.lean:36`; probe `scratchpad/probe/fixval.lean`), so the correspondence between
-them is irreducibly a relation between a λ and a `.fix` — not a function equality (design C's
-`fixIntro.correct` is false), and not a congruence over `Lean.Expr` (design A's T5 is false at
-`Arith`). Finally, a relation between two λ□ terms *cannot mention* `Expr`, `VEnv`, `Erasable` or
-the run even by accident, so a premise added to make a case go through is refutable by a two-term
-counterexample. That is the structural answer to the review's central finding (the specification
-was written to match the implementation).
+MetaRocq itself ships the precedent: `EWcbvEvalNamed.represents` / `represents_value`
+(`EWcbvEvalNamed.v:289, 318-323`) is a term relation paired with a value relation whose
+`represents_value_tFix` is exactly the closure-vs-`.fix` value correspondence the fix arms here
+need. (`[L Def. 10]`'s `◄` is the analogue of `Erases`, not of a λ□→λ□ pass; and MetaRocq's own
+λ□→λ□ passes are functions with a *relational* `obseq` (`Transform.v:38-46`) — this design departs
+from that split deliberately, because the function would have to be keyed on the run's fresh-name
+state and the `Lean.Environment`, re-importing the registry-indexed specification the review
+condemned.) A relation is also the only shape in which the Lean-specific content can be *stated*:
+a recursive Lean constant has a λ-headed source body and a `.fix`-headed λ□ body, both of which
+are `WcbvEval` **values** (`Semantics/Values.lean:36`; probe `scratchpad/probe/fixval.lean`), so
+the correspondence between them is irreducibly a relation between a λ and a `.fix` — not a
+function equality (design C's `fixIntro.correct` is false), and not a congruence over `Lean.Expr`
+(design A's T5 is false at `Arith`). Finally, a relation between two λ□ terms *cannot mention*
+`Expr`, `VEnv`, `Erasable` or the run even by accident, so a premise added to make a case go
+through is refutable by a two-term counterexample. That is the structural answer to the review's
+central finding (the specification was written to match the implementation).
 
 ### 1.3 Layers, files, trust
 
 | Layer | Objects | lean4lean? | Class |
 |---|---|---|---|
 | **L0** target | `LBTerm`, `WcbvEval`, flags, values, substitution, `Closed`, `IotaBridge`, `FixUnfold`, `lbEval` | no | **A** |
-| **L1** specification | `Erases`, `ErasesDecl`/`ErasesEnv`, `Erasable`, `SEval`, `SubsingletonElim`, `FirstOrderInd`, T5, T7 | yes | **B** |
+| **L1** specification | `Erases`, `ErasesDecl`/`ErasesEnv`, `Erasable`, `SEval`, `CompilerBodies`, `FirstOrderInd`, T5, T7 | yes | **B** |
 | **L4** passes | `Lower`, `LowerFix`, `LowerEnv`, `ElimBody`, `optimize` | no | **A** |
-| **L2** bridge | `PrimSpec`, `Supported`, run algebra, 18 motives, T8 | yes | **B** + **D** |
+| **L2** bridge | `ErasureSpec`, `Supported`, run algebra, 18 motives, T8 | yes | **B** + **D** |
 | **N** non-vacuity | `SourceTable`, `Green.lean`, the G-ladder, coverage, ledger, CI tools | yes | **A** |
 
 Lane **N** is a first-class lane with its own deliverables and its own schedule slot in every
@@ -81,10 +97,13 @@ configuration: if the run succeeds with `(Σ, t)`, then `t ∈ (Erases ⨟ Lower
 `LowerEnv`'s image of the dependency-selective erasure `Σ⁺` of the declarations the run
 registered, `Σ` satisfies peregrine's input predicate, and every source evaluation of `e` applied
 to closed first-order arguments is simulated into a **box-free, unique** λ□ value at
-`eraseFlags = ⟨true, true, false⟩` — which is *exactly* MetaRocq's `EWcbvEval.default_wcbv_flags`
-(`EWcbvEval.v:69`) and *exactly* what peregrine's `untyped_transform_pipeline` declares as its
-input evaluation (`peregrine-tool/theories/erasure/Transforms.v:151`). The deliverable therefore
-stops at the emitted program, at the flag point the consumer names.
+`eraseFlags = ⟨false, true, false⟩`. Peregrine's `untyped_transform_pipeline` declares its input
+evaluation at MetaRocq's `EWcbvEval.default_wcbv_flags = ⟨true, true, false⟩` (`EWcbvEval.v:69`,
+`peregrine-tool/theories/erasure/Transforms.v:151`), named `entryFlags` here; the one-line bridge
+`WcbvEval.propcase_weaken : WcbvEval Σ eraseFlags t v → WcbvEval Σ entryFlags t v` (§3.2,
+mechanised at `scratchpad/gate/d6.lean`, class **A**) carries the stronger conclusion to the
+consumer's declared point. The deliverable therefore stops at the emitted program, and its
+evaluation conjunct is strictly stronger than what the consumer requires.
 
 ---
 
@@ -95,26 +114,52 @@ left "not fatal because" without a reason.
 
 | # | Flaw (judge) | Applies to | Resolution here |
 |---|---|---|---|
-| **F1** | `.fix` value mismatch: A's T5 refutable, C's `fixIntro.correct` false, **B's `lower_correct` false as written** (all three judges) | all three | **Repaired.** `Lower` gains two arms, `fixConst` and `fixBody` (§4.5), and the transport lemma `Lower.constToFix`. Probe-checked to elaborate and to yield a usable recursor (`scratchpad/probe/lowerfix2.lean`). This is where today's `Erases.const_fix` content belongs; its docstring's claim ("no arrangement of `fix`'s premises avoids needing it", `Erases.lean:618-624`) is true of the *relation*, and the relation is now `Lower`, not `Erases`. Retired in **W1**, not W4. |
+| **F1** | `.fix` value mismatch: A's T5 refutable, C's `fixIntro.correct` false, **B's `lower_correct` false as written** (all three judges) | all three | **Repaired.** `Lower` gains two arms, `fixConst` and `fixBody` (§4.5), and the transport lemma `Lower.constToFix`. The inductive and both wrappers are probe-checked to elaborate and to yield a usable recursor; the δ-obligation example is probe-checked at `scratchpad/gate/lowerfix2_fixed.lean` (the original `scratchpad/probe/lowerfix2.lean` never elaborated its final example — `Σ` is a reserved token, so the binder `hΣ` was a parse error; all Lean code in this repo writes the λ□ environment metavariable `Γ`, never `Σ`). This is where today's `Erases.const_fix` content belongs; its docstring's claim ("no arrangement of `fix`'s premises avoids needing it", `Erases.lean:618-624`) is true of the *relation*, and the relation is now `Lower`, not `Erases`. Retired in **W1**, not W4. |
 | **F2** | `LBWfPeregrine.etaFix` is false on every emitted program (judges 1, 2; C alone got it right) | A, B | **Repaired.** `LBWfPeregrine` does not claim `EEtaExpandedFix.expanded_eprogram`; `PeregrinePre := LBWfPeregrine ∧ LBExpandedFix` is stated separately and is *not* concluded. Finding **F-ETA** raised (§8.2), one ledger row. Measured: `Arith.ast` has 4 bare `(constant_body (Some (tFix`, and `EEtaExpandedFix`'s only `tFix` rule needs `args ≠ []` and `#args > rarg`. |
-| **F3** | The capstone's observable conjunct uses the wrong relation: `Erases v tv` yields a `.const`-headed spine, the emitted `Σ` evaluates to a `.construct` spine (judge 2, M2) | A, B, C | **Repaired.** T9's observable conjunct is stated with the composite: `∃ tv₀ tv, Erases envC [] [] v tv₀ ∧ Lower Σ⁺ tv₀ tv ∧ NoBox tv ∧ WcbvEval Σ eraseFlags … tv`, and T7 becomes uniqueness-of-`Erases` **plus** determinism-of-`Lower` on first-order data (§5, T7/T9). |
-| **F4** | `by decide` on a `Lean.Environment` predicate is impossible; `native_decide` is banned; criteria 8/11/13 unreachable (judges 2, 3; probe `dec.lean`) | A, B | **Repaired.** Every decidable check runs on a **reified, committed `SourceTable`** produced by `lake exe reify` and byte-diffed in CI; discharges are `by rfl` on the table, and adequacy (`SourceTableAdequate`) is a `PrimSpec` field. `ErasableAxioms` stays on the *emitted* `(Σ,t)`, where `decide` genuinely works. |
+| **F3** | The capstone's observable conjunct uses the wrong relation: `Erases v tv` yields a `.const`-headed spine, the emitted `Σ` evaluates to a `.construct` spine (judge 2, M2) | A, B, C | **Repaired.** T9's observable conjunct is stated with the composite: `∃ tv₀ tv, Erases env [] [] v tv₀ ∧ Lower Σ⁺ tv₀ tv ∧ NoBox tv ∧ WcbvEval Σ eraseFlags … tv`. Uniqueness of the answer is `firstorder_erases_deterministic` (T7) on `tv₀` plus `eval_deterministic` (T1) on `tv`; no separate `Lower`-determinism theorem exists (a `firstorder_lower_deterministic` would rest on a `FirstOrderShape` predicate no theorem consumes — policy 6). |
+| **F4** | `by decide` on a `Lean.Environment` predicate is impossible; `native_decide` is banned; criteria 8/11/13 unreachable (judges 2, 3; probe `dec.lean`) | A, B | **Repaired.** Every decidable check runs on a **reified `SourceTable`** spliced by the `reify%` term elaborator in the same elaboration as the rung (§4.11); discharges are `by rfl` on the table, and adequacy is the single named class-**D** binder `htbl` beside `hrun` — not a structure field, which could not even bind `tbl` (§4.10). `ErasableAxioms` is the spec's own *hypothesis* `hax`, stated boundedly over the emitted `Σ`'s key list with a `Decidable` instance (§4.9), so per-rung `by decide` genuinely works. |
 | **F5** | `benchArith : Nat → Nat`, so T10's `hty : … (.const ``Nat [])` cannot be instantiated (judge 3, C alone noticed) | A, B | **Repaired.** The capstone's observable conjunct is quantified over closed first-order argument spines (§5, T9); `args = []` is the spec's T9 verbatim, `args = [0]` is `benchArith`. The ladder additionally carries the closed rung `arithClosed := benchArith 0`. |
 | **F6** | `Lower` has no arm for the eraser's η-expansion of under-applied ctor/`casesOn` heads, so T8 is unprovable on Arith (judges 2 M6, 3 F3) | B | **Repaired.** Two η arms, `ctorEta` and `elimEta` (§4.4), matching `visitCtorEtaGo`/`visitCasesEtaGo` (`Erasure.lean:705-728`) exactly: fresh binders are pushed into the spine and the λ□ result is wrapped in `mkLambdas`. |
 | **F7** | A's per-motive `∃ E` does not compose across sibling sub-runs (judges 2 M4, 3 F6) | A | **Avoided by construction.** `Σ⁺` is *universally* quantified in every motive under `SpecEnv`, which is antitone in the run state; `SpecEnv.mono` is proved from the existing `StateLe` (`ErasureRun.lean:1585`) that every motive already concludes. |
 | **F8** | C's `LBPass.correct` quantifies over all `CompileTable`s with nothing tying the table to `Σ`; two sources of truth (judge 3, F2) | C | **Avoided.** There is no `CompileTable`. The passes read `Σ⁺` — the same object that justifies them. |
 | **F9** | `Erases.bvar`/`.fvar` drop the `Δ.find?` premise `TrExprS` carries (judges 1, 2, 3) | B | **Repaired.** Restored (§4.2). |
-| **F10** | T5 written at `env` while the capstone evaluates at `envC` (judge 1) | B | **Repaired.** One `VEnv` index, `envC`, everywhere in L1/L4; `env` appears only in `PrimSpec.env_connect` and `CompilerEnv env envC`. `Erasable.mono`, `TrExprS.mono` (`Verify/Typing/Lemmas.lean:781`) and `HasType.mono` (`Theory/Typing/Lemmas.lean:414`) do the lifting. |
+| **F10** | T5 written at `env` while the capstone evaluates at `envC` (judge 1) | B | **Repaired, by deletion.** There is **one** `VEnv` index, the kernel `env`, everywhere — `envC`/`CompilerEnv` is gone (§3.1 Q3: it was uninhabitable, `WF'.defeqOwn`). Compiler bodies enter through `SEval`'s table parameter, so no `.mono` lifting between two environments exists to get wrong. |
 | **F11** | `LBPassR.correct` has free variables in a structure field (judge 2, M10) | B | **Repaired.** Explicit `∀` binders (§4.10 note). |
 | **F12** | `ProjParams` reverse-engineers a parameter count out of an ι-rule key (judges 2, 3) | A | **Avoided.** `IndInfo` reads the block data off `VEnv.WF`'s declaration list; `Erases.proj` keys on it. |
 | **F13** | `SelfRefers`/`name_occurs` as a specification premise mirrors the implementation (judges 1, 3) | A | **Avoided.** `LowerFix` tolerates an unused fix binder; no source-side occurrence premise exists anywhere. |
 | **F14** | A single monolithic 18-motive wave reproduces the failure that made the current tree (judges 1, 2) | B | **Repaired.** W4 splits the motives into three batches (3 environment-facing **first**, 7 mechanical, 8 pass-facing), each a unit on disjoint files. |
 | **F15** | C's `eraseB`/`srEval` are ~2,700 lines no theorem needs, and `eraseB` is a larger `EraseCore.lean` (judges 1, 2, 3) | C | **Not adopted.** `lbEval` (class **A**, ~420 lines, unconditional) is adopted because it turns the target-side evaluation of every green rung into `by rfl` and cross-checks `peregrine eval`. `srEval` is **W6-optional** and scoped per flag slice; `eraseB` is **not built** — the `Erases`/`Lower` witnesses the ladder needs are produced by the derived introduction lemmas plus the reified table. |
-| **F16** | Criterion 21 (no `Lean4Lean`-namespace declarations) vs `CheckerAdequacy.lean`'s eight (all three) | all | **Met without an exception clause.** Seven are kernel-generic and go upstream (`doc/upstream-asks.md`); `kernel_isErasable_sound` mentions `LeanToLambdaBox.isErasable` and is renamed `LeanToLambdaBox.Oracle.kernel_isErasable_sound`. |
-| **F17** | `hwt : TrExprS envC [] [] e ve` and `hty` must be *inhabited* for a 39-declaration program or criterion 13 is theatre (judge 3, shared blind spot) | all | **Scheduled**, W3 unit `TrWitness`: read `TrExprS` off a successful run of lean4lean's checker (`CheckerAdequacy.lean:94,112`, `M.WF.run'`, `VState.WF.initial`). **Named fallback:** if that does not land, `hwt`/`hty` stay class-**D** binders beside `PrimSpec`, and criterion 13's wording is amended in the same commit that records the fallback — never silently. |
+| **F16** | Criterion 21 (no `Lean4Lean`-namespace declarations) vs `CheckerAdequacy.lean`'s eight (all three) | all | **Met at W3, not W1, and the sequencing is scheduled.** `kernel_isErasable_sound` mentions `LeanToLambdaBox.isErasable`, so it is renamed `LeanToLambdaBox.Oracle.kernel_isErasable_sound` in W1. The seven kernel-generic declarations cannot leave until the pin moves: unit **U3.1** lands them in the lean4lean fork and bumps the pin (the fork is ours, so this is scheduled work, not a hope), after which `CheckerAdequacy.lean`'s `namespace Lean4Lean` block is deleted and the criterion-21 gate check — `grep -rn "^namespace Lean4Lean" LeanToLambdaBox/` empty, which is what the criterion actually forbids — runs from G3 on. |
+| **F17** | `hwt : TrExprS envC [] [] e ve` and `hty` must be *inhabited* for a 39-declaration program or criterion 13 is theatre (judge 3, shared blind spot) | all | **Scheduled**, W3 unit `TrWitness`: read `TrExprS` off a successful run of lean4lean's checker (`CheckerAdequacy.lean:94,112`, `M.WF.run'`, `VState.WF.initial`). **Named fallback:** if that does not land, `hwt`/`hty` stay class-**D** binders beside `ErasureSpec`, `test/ledger.expected` grows the rows, and criterion 13's wording (A14) is re-amended in the same commit that records the fallback — never silently. |
 | **F18** | `hrun` can never be discharged inside Lean (`Void IO.RealWorld` is opaque) (judge 3) | A, B | **Stated, not hidden.** `hrun` is a permanent binder; it is named as such in the capstone's docstring, in the ledger (class **D**), and in `doc/coverage.md`, and it is mechanised externally by `lake exe green-check` (re-run `#erase`, byte-diff the committed `.ast`). |
 | **F19** | `by rfl` on a 19-node peano tower through 27 constants may exceed kernel budgets (judge 1) | C | **Priced.** `lbEval` is fuel-indexed and structurally recursive; G7's evaluation is done by `lbEval` + `lbEval_sound`, not by `WcbvEval` derivation building. Risk **R9** with the fallback (evaluate `arithClosed` at a smaller exponent rung, recorded in the coverage table). |
 | **F20** | B lists criterion 5 as "met" while replacing `LBPass` with a relational `LBPassR` (judge 3) | B | **Filed as amendment A8** (§3.3), not silently. |
+
+### 2.1 Design-gate findings (24 refuter verdicts) and their resolution
+
+Every fatal or major gate finding, resolved in this document; probe files under
+`scratchpad/gate/` are the evidence.
+
+| # | Finding (gate) | Resolution |
+|---|---|---|
+| **G-D1a** | T8 unstateable on every recursive declaration: `visitMutual`'s block branch emits `.fvar id` at a source `.const` position, which no factor of `Erases ⨟ Lower` relates (fatal; 50/50 emitted `FixDef`s exercise it) | `ErasesLBFix` third factor + T8 split on `ctx.fixvars` (§4.5, §4.7, §5); U1.7's acceptance gains the stateability test; §1.1's "rename" claim retracted for motive 6 |
+| **G-D1b** | `lower_correct` false: `LowerEnv` had no totality clause, so a pruned plain definition strands the target | `LowerEnv.defsTotal` added (§4.8); real instantiation satisfies it — pruning removes only `RuntimeKey`s |
+| **G-D1c** | `mkElimBody_iota`'s `↔` false in the ⇐ direction (β needs every argument to evaluate) and at block flags | split into `_fwd` (unconditional) and `_bwd` (guarded by evaluability of `pre`/minors — the same obligation `ErasesLB.cases`'s `hpre` supplies); both pinned at `with_constructor_as_block = false` (§4.6) |
+| **G-D1d** | T9 ill-formed: `t₀`, `fo` free (auto-bound universally — absurd), and the headline `Erases … e t₀` conjunct missing | T9 rewritten: `∃ Σ⁺ t₀` binds, the subject's `Erases` conjunct restored, `fo` eliminated by closing `FirstOrderInd` (§5, §4.12) |
+| **G-D2a** | `lower_correct` false without a `principalArgIdx` premise (machine-checked counterexample `gate/rarg_ce.lean`: at `rarg = 1` source ⇓ `□`, target stuck) | `LowerBlock.hrarg : ∀ d ∈ defs, d.principalArgIdx = 0` (§4.4) — a fact about the emitter (`mkDef` never sets the field, `Basic.lean:67`; `FixUnfoldChain` already carries it), not a filter |
+| **G-D2b** | `CloseConst`'s per-member `ids` cannot feed `closeFix_substList_fixSubst` (freshness needed against the whole block; `LBClosed` says nothing about fvars) | `ids` hoisted into `LowerBlock` — one Nodup list for the block, freshness against every member, matching `visitMutual`'s single `ids` (§4.4-4.5) |
+| **G-D2c** | `Lower.const`'s `DefnDeclFix` premise undefined; on one reading it empties the fix arms on every recursive block (probe `gate/d2_vacuity.lean`), on the other it is vacuous | deleted; the deliberate `const`/`fixConst` non-determinism at a block member is documented as what `Lower.constToFix` transports (§4.4) |
+| **G-D2d** | `lowerFix_correct` needs λ-headed specification bodies; asserted in prose only, unenforced by the eraser | explicit premise on the emitted `defs` (`isLambda`), transported to `bs` by `LowerBlock.lambda_of_fixLambda`; the missing eraser-side guard is raised as part of **F-ETA** (§4.4, §8.2), never assumed silently |
+| **G-D3** | `CompilerEnv` jointly contradictory (fatal, machine-checked `gate/d3_defeq_unique.lean`): `le + wf + bodies` force compiler body = kernel body, refuted 31/31; T9/T10 vacuous on 5/5 programs | `CompilerEnv`/`envC` **deleted**; N8 adopted verbatim: `CompilerBodies` typing hypothesis + `SEval.deltaC` reading the table, with the applied-instance defeq side condition that is `rfl`-provable for structural recursion (measured 12/12 incl. Arith's four, `gate/d3_eqlemmas.lean`) (§4.3); `WF'.defeqOwn` filed upstream (§8.3) |
+| **G-D4** | `table_adequate` field could not bind `tbl` (auto-bound ∀ — every table adequate; `PrimSpec` uninhabited); committed-JSON reify circular (regenerate-and-diff); `oracle`/`cfg` columns dead; `supportedB` unfuelled; wrong env index | field deleted → named binder `htbl`; `reify%` elaborator replaces the JSON; `SourceTable` shrunk to `decls`+`inds`; `supportedB` fuelled with `outOfFuel : SupportError`; one env, so no index mismatch (§4.10-4.11) |
+| **G-D5** | `oracle_sound` overstated ("discharged" hides the assumed `isErasableMeta` fallback and the `lparams = Us` scope); `env_connect` ill-typed at `Lean.Environment`; SI-1 (the `approxDepth` fuel) unraised | field split into `oracle_refl` (kernel arm, class **B**) + `oracle_meta` (fallback + polymorphic-scope, class **D**, measured empirically dead: 0 fallbacks / 139,196 constants, `gate/d5_census.lean`); `env_connect` stated at `lenv.toKernelEnv`; the fuel defect is **F-FUEL**, fixed in **W0 on `dev/verify`** — `Relevance.lean` is verification-authored (absent from `main`), so this is not a transpiler edit, and `isArityCheck.WF` never mentions the fuel, so the fix is proof-free (§4.10, §8.1) |
+| **G-D6** | tree has no `⟨true,true,false⟩` point; §3.2's name map wrong twice; `with_prop_case` inert on emitted output (683/683 `propositional = false`); `mkElimBody_iota_sing`'s premise uninhabitable on any real Σ; U0.1's grep unsatisfiable | flag chain re-derived (§3.2): deliverable at `eraseFlags = ⟨false,true,false⟩` (= today's `appliedFlags`, = the point all 103 existing simulation sites use), `propcase_weaken` bridges to `entryFlags`; the singleton-elim machinery is deleted with restriction **N18** and shipping finding **F-PROP** (§3.1 Q2, §8.2); U0.1 re-scoped as a tree-wide mechanical rename |
+| **G-D7** | `subsingletonElim_of_wf` false (`Acc` satisfies the hypotheses, refutes the conclusion — `LargeElim` minus a disjunct is stronger than what `WF` gives); "codegen refuses `Acc.rec`" true of `.rec` only (`Acc.casesOn` compiles, probe `gate/d7e.lean`); F-ACC's mechanism wrong (the emitted `.case` is *stuck*, not mis-boxed) | the theorem and its consumers are deleted with N18; the honest kernel fact (`largeElim_of_wf`, both disjuncts) is recorded as the future shape gated on F-PROP; `SupportError` keys on the *shape* (`propElimIntoData I`), never the name (§3.1 Q2, §4.11, §8.2) |
+| **G-D8** | `FirstOrderInd`'s free `fo` makes T7/T9 false (`fo := fun _ => True` admits a `True`-fielded `Type` — probe `gate/d8b.lean`); `FOType`'s `.bvar` clause dead (lean4lean names block formers by `.const`), so no stratified `fo` accepts `Nat` | `fo` closed by `FOClosed` (∃-quantified post-fixed point; the checker's visited set is the witness); `FOType` takes the block's own names; `mono`/`noIndices` declared as scope restrictions with ledger rows, not attributed to the papers (§4.12) |
+| **G-D9** | `etaCtors` quantified over `t` only — vacuous on all five programs (982/982 constructor occurrences live in Σ's bodies; every emitted `t` is a bare `tConst`); no proof route budgeted; "(boxed, being types)" false (`OfNat.mk`'s numeral parameter is data) | `etaCtors` split env+term, mirroring `expanded_eprogram_cstrs`; `Lower.ctorApp` gains the saturation premise `hsat` (the eraser's own `args.size ≥ arity` guard), which also makes `ctorApp`/`ctorEta` disjoint; Q5's parenthetical corrected (§4.4, §4.9, §3.1 Q5) |
+| **G-D10** | the schedule is not topological (62 import-order inversions), `Supported`/`SEvalDataC`/`PrimSpec` name clashes, the build root unowned in four waves, three acceptance greps vacuous or unrunnable, budgets off by ~5,650 lines, ledger provenance not `#print`-measurable | `02-PLAN.md` re-derived: topological deletion invariant + `hygiene --schedule` check, the **W1 cut** (U1.0), gate-owned standing files (N3a), `PrimSpec → ErasureSpec` (upstream `Lean4Lean.PrimSpec` exists, `Verify/Typing/Expr.lean:315`), greps fixed, budgets restated (§7.3), ledger fixture = `#print` output only with provenance in `doc/trust.md` |
+| **G-D11** | criterion 13 silently narrowed; `hnp : ¬ Panicked run` undefined with `run` unbound; `ErasesDecl.ax` admits ι-reducible constants (T5 false at an applied `Eq.rec`); criteria 21/22 mutually unsatisfiable at a frozen pin | amendments A14/A15 filed (§3.3); `hnp` deleted — N12 is met by its option 2 (the per-site table + `Supported`, which is what the tree actually does); `ax` gains ι-inertness (§4.8); the U3.1 pin-bump unit is added |
+| **G-D12** | the dev/fix queue had no tracked home; B4's row reason false (both inline paths sit under `single_decl` — behaviour-neutral); `auto_inline_typeclass_dispatch` (review SI-10) unnamed; `ErasableAxioms` as a conclusion made true by an assumed name table | `doc/dev-fix-queue.md` is a U0.5 deliverable; B4 corrected, **F-PRODUCT** row added; `hax` restored as the spec's hypothesis with `AxiomRealizer` rows named class-**E** per name (§4.9, §8) |
 
 ---
 
@@ -123,7 +168,9 @@ left "not fatal because" without a reason.
 ### 3.1 The eight open questions
 
 **Q1 — does the pass layer reproduce `visitExpr` exactly?** **No; state membership in the
-composite.** T8 concludes `∃ t₀, Erases envC Us Δ (prepare_erasure e) t₀ ∧ Lower Σ⁺ t₀ t`. Exact
+composite.** T8 concludes `∃ t₀, Erases env Us Δ e t₀ ∧ Lower Σ⁺ t₀ t` (over the prepared
+subject — `prepare_erasure` is monadic, so its output is bound by the run decomposition, never
+written as a pure application). Exact
 functional equality is attainable only against a compile table keyed on the `Lean.Environment` (a
 sixth assumed obligation threaded through every motive), under two extra `Supported` conjuncts,
 and resting on an unverified claim that `Meta.inferType` preserves λ binder names. The relation
@@ -135,28 +182,56 @@ false at the one place it matters. The functional refinement survives as an **op
 theorem** (W6): `Lower Σ⁺ t₀ (lowerTerm E t₀)` on the exactness fragment recovers `[S §7.4]`'s
 "same result" reading without any of it being load-bearing.
 
-**Q2 — where is Lean's subsingleton criterion derived?** **Derived from `envC.WF`, first cut
-excludes the index-determined case.** `SubsingletonElim envC I` (§4.6) comes from
-`VInductDecl.LargeElim` (`Theory/Inductive.lean:226`) **minus** the `FieldInIndices` disjunct; the
-one missing link, `VEnv.WF'.consts_origin` (the constants-keyed twin of `WF'.pats_origin`,
-`InductiveParams.lean:93`), is kernel-generic and goes upstream by N15. Until it lands,
-`SubsingletonElim` is one named class-**C** hypothesis with one ledger row, which criterion 7
-permits. `Eq.rec`, `And.rec`, `Iff.rec`, `False.rec` and `Decidable`'s elimination are inside the
-fragment, each exhibited by a checked `ElimBody` instance; `Acc.rec`/`WellFounded.fix` go to
-restriction **N17** plus a raised finding (measured: `largeElimClause ``Acc = some (2,[1])`, so
-`Acc.intro`'s field `x : α` is index-determined *data* and MetaRocq's `eval_iota_sing`, which
-boxes every branch binder, computes a wrong program). Lean's own code generator refuses `Acc.rec`,
-so nothing shipping is lost.
+**Q2 — where is Lean's subsingleton criterion derived?** **Nowhere in the first cut: the
+prop-case fragment has no subject on emitted output, so it is restricted (N18) and the shipping
+gap is raised (F-PROP).** The eraser never sets `OneInductiveBody.propositional` (`Basic.lean:164`
+defaults `false`; `register_inductive`, `Erasure.lean:199-240`, never overrides it — measured
+683/683 emitted `one_inductive_body` entries across all 72 `.ast` in the tree carry `false`), and
+`LowerEnv.inds` transports declarations unchanged, so `isPropositionalInductive` is identically
+`false` at every `Σ⁺` and `Σ` a run produces. Consequently a `.case` on a `□` discriminee is
+**stuck** at every flag point (`iota` needs a `.construct` spine; `iota_sing` needs the flag) —
+verified end-to-end: erased `And.casesOn` at a `Nat` motive fails `peregrine eval` with "branch
+not found" — and MetaRocq's `remove_match_on_box` skips it too (`EOptimizePropDiscr.v:35,57` gates
+on the same bit). So: restriction **N18** — `Supported` rejects any `casesOn`-like elimination of
+a non-informative inductive (`SupportError.propElimIntoData I`, shape-keyed) — and
+`ErasesDecl.elim` carries the informativity premise, making the fragment's hypotheses jointly
+inhabitable (measured: 0 of the 120 `tCase` nodes in the five fixtures eliminate a `Prop`
+inductive, so N18 costs nothing on the corpus). The subsingleton machinery
+(`mkElimBodySing`, `ElimBody.sing`, `mkElimBody_iota_sing`, `SubsingletonElim`,
+`subsingletonElim_of_wf`) is **deleted** — the last of these was also false as stated: `Acc`
+satisfies its hypotheses (`ind_uvars = 1`, `rec_uvars = 2`) and refutes its conclusion, because
+lean4lean's `VInductDecl.LargeElim` (`Theory/Inductive.lean:226`) *includes* the `FieldInIndices`
+disjunct and no origin lemma can deliver the strengthened form. The honest future shape, recorded
+for the day F-PROP lands on `dev/fix`: `largeElim_of_wf` (both disjuncts, = `consts_origin` +
+`WF.universes`) plus a decidable no-index-determined-field side condition in `Supported` — the
+target's contract (`remove_match_on_box` boxes every branch binder) is strictly stronger than
+Lean's kernel criterion, and the difference is a fact about erasure, not proof convenience.
+`Eq.rec`/`False.rec` reached as constants are body-less axioms (the `ax` + `AxiomRealizer` route,
+F-EQREC); `Decidable` is `Type`-valued (informative — `largeElimClause ``Decidable = some (0,[])`)
+and eliminates through the ordinary ι path. On what ships: Lean's code generator refuses `Acc.rec`
+(`ToImpure.lean:184`) and `WellFounded.fix` is `noncomputable`, but it does **not** refuse
+`Acc.casesOn` at a data motive (measured: compiles and evaluates), so N18 does exclude a construct
+Lean ships — at zero cost on the tracked programs, not zero in general.
 
-**Q3 — `_unsafe_rec`: hypothesis or restriction?** **Hypothesis, as a one-`VEnv` extension.**
-`envC = env + one VEnv.addDefEq per compiler body in the run's closure`
-(`Theory/VEnv.lean:37`: `addDefEq` touches only `defeqs`, never `constants`), carried by the
-class-**C** binder `hcomp : CompilerEnv env envC lenv e`, decidable per program (measured 33/33
-compiler bodies kernel-typeable at the declared type). Everything in L1/L4 is stated at `envC`.
-The restriction alternative is **deleted** from the spec: it covers 0 of 5 benchmarks
-(`Nat.add/mul/sub/pow` are all `_unsafe_rec`, so `Arith` — T10's minimum — covers zero). One
-class-**E** ledger row records that the two bodies agree only propositionally, and not at all for
-`partial def`.
+**Q3 — `_unsafe_rec`: hypothesis or restriction?** **Hypothesis, exactly as N8 words it — a
+typing hypothesis, not a second environment.** The one-`VEnv`-extension device (`envC = env +
+addDefEq per compiler body`) is **uninhabitable**: a `VEnv.WF` environment grants each constant at
+most one defining equation (`WF'.defeqOwn`, machine-checked at the pin,
+`scratchpad/gate/d3_defeq_unique.lean`, axioms `[propext, Quot.sound]`), so `le + wf + bodies`
+force the compiler body definitionally equal to the kernel body — refuted 31/31 by measurement,
+and the equation it smuggles in (`c ≡ F c`, a fixpoint axiom, self-referential and
+non-normalizing) is false in the intended model for `partial def`. Instead: **one** `VEnv`, the
+kernel `env`; `SEval` takes the compiler-body table as a parameter (`body? : Name → Option Expr`,
+the `decls` column of the reified `SourceTable`) and reads it through its `deltaC` arm (§4.3),
+whose per-instance side condition `env.IsDefEqU … (mkApps (.const c ls) argsv) (mkApps vb argsv)`
+is a **fact about the two bodies**: `rfl`-provable for structural recursion at constructor-headed
+recursive arguments (measured 12/12 incl. `Nat.add/mul/sub/pow`, `gate/d3_eqlemmas.lean` —
+mirroring λ□'s own `tFix`, which unfolds only there), propositional-only for well-founded
+recursion (one class-**E** row), and unavailable for `partial def` (visible in the rung's `hev`
+derivation, never hidden inside a `.WF`). The class-**C** binder is N8's own:
+`hcb : CompilerBodies lenv env tbl` — every tabled body kernel-typeable at the declared type —
+measured inhabitable 33/33 and discharged per program by running lean4lean's checker. The
+restriction alternative stays **deleted** from the spec (A5): it covers 0 of 5 benchmarks.
 
 **Q4 — do the emitted eliminator declarations blow up the deliverable?** **No.** The runtime
 library lives in `Σ⁺`, which never reaches disk; `LowerEnv` carries the pruning clause and
@@ -166,17 +241,30 @@ N14 ledger row with the measured `.peano`/hygienic-name split, not a disclaimer.
 **Q5 — parameters in constructor applications.** **The frontend keeps them; peregrine drops
 them** (`remove_params_optimization`, pass 2 of `verified_lambdabox_pipeline`, at
 `with_constructor_as_block = false`). `ErasesDecl.ctor`'s body is `.construct iid k []` and
-parameters arrive through `Erases.app` (boxed, being types). Measured 982/982 constructor
-occurrences at exactly `ind_npars + cstr_nargs`, 0 under-applied. `LBWfPeregrine.etaCtors` states
-that invariant; `etaFix` does **not** appear (§2 F2).
+parameters arrive through `Erases.app`. They are *not* required to be boxed — measured: `OfNat`'s
+`n : Nat` parameter is emitted as data (`instOfNatNat = λ n. OfNat.mk □ (tRel 0) (tRel 0)`; 5 of
+181 parameter slots across the five programs) — which is harmless because `ERemoveParams.strip`
+drops the first `ind_npars` arguments positionally and unconditionally (parameters are not
+fields; `cstr_nargs` counts fields only). Measured 982/982 constructor occurrences at exactly
+`ind_npars + cstr_nargs`, 0 under-applied — **all 982 in Σ's constant bodies, 0 in the emitted
+main term**, which is a bare `.const` in all five programs; the saturation invariant therefore
+lives on the environment, and `LBWfPeregrine.etaCtors` states it over env **and** term (§4.9),
+with the proof route named (`Lower.ctorApp`'s `hsat`, §4.4). `etaFix` does **not** appear (§2 F2).
 
-**Q6 — is `FirstOrderInd` `[L Def. 14]` / `[L Def. 6]` / `[S §7.3]`?** `fields` ≡ Def. 14; Def. 6
-is `firstorder_no_box`'s *conclusion*, not a definition (the fidelity table's shared row is
-split); `[S §7.3]`'s `firstorder_ind` is cited as origin and **not transcribed**, because its sort
-conjunct makes it `false` on `nat` (reproduced three ways by `vm_compute`; raised upstream).
-`FirstOrderInd` is typed over `VEnv.WF`'s declaration list — `VEnv` stores no inductive
-declarations (`Theory/VEnv.lean:17-23`), so the spec's signature is unwritable — and the decidable
-checker runs on the reified table. Criterion 8 is narrowed to `Nat`, `Bool`, `Tree`.
+**Q6 — is `FirstOrderInd` `[L Def. 14]` / `[L Def. 6]` / `[S §7.3]`?** `fields` is Def. 14
+restricted to unapplied field types (matching `firstorder_type`'s `args = []`); `informative` is
+the *result-sort* half of Def. 6, whose *conclusion* is `firstorder_no_box`; the shipped
+`firstorder_ind` (`PCUICFirstorder.v:59` — the code, not `[S §7.3]`'s prose, which states no sort
+condition) is cited as origin and **not transcribed**, because its sort conjunct makes it `false`
+on `nat` (reproduced three ways by `vm_compute`; the upstream report is filed in
+`doc/upstream-asks.md` at W0). `FirstOrderInd` is typed over `VEnv.WF`'s declaration list — `VEnv`
+stores no inductive declarations (`Theory/VEnv.lean:17-23`), so the spec's signature is unwritable
+— its closure parameter is **closed** inside the definition (§4.12; a free `fo` made T7/T9
+refutable), and the checker is a sound-only fuelled Boolean over the reified table, which is what
+criterion 8's "decidable" becomes (A6/A15). Criterion 8's list is narrowed to `Nat`, `Bool`,
+`Tree` — because the predicate is chosen at the *declaration* level following `firstorder_ind`'s
+shape (`List Nat`/`Nat × Nat` are data-types under Def. 14 itself; they fall outside the
+declaration-level, parameter-hostile shape, and all five benchmarks return `Nat`).
 
 **Q7 — `Quot`.** **Restrict (N16).** No `Quot`/`Quot.mk`/`Quot.lift`/`Quot.ind` in a
 computationally relevant position, as a `Supported` conjunct over the dependency closure.
@@ -198,50 +286,75 @@ repos). One class-**E** ledger row.
 
 ### 3.2 The flag chain — the one place the design *removes* work
 
-Measured, by two judges independently:
+Measured facts the chain is derived from:
 
-```
-eraseFlags := ⟨with_prop_case := true, with_guarded_fix := true, with_constructor_as_block := false⟩
-            = MetaRocq  EWcbvEval.default_wcbv_flags                     (EWcbvEval.v:69)
-            = peregrine untyped_transform_pipeline's INPUT evaluation    (Transforms.v:151)
-```
+* peregrine's `untyped_transform_pipeline` declares its input evaluation at MetaRocq's
+  `EWcbvEval.default_wcbv_flags = ⟨true, true, false⟩` (`EWcbvEval.v:69`; `Transforms.v:151`;
+  `eval_eprogram_mapping` ignores the inductives mapping, `ETransform.v:1023`).
+* `with_prop_case` is **inert on this frontend's output**: the eraser never sets
+  `OneInductiveBody.propositional` (683/683 emitted entries are `false`), and both prop-gated
+  rules (`iota_sing`, `proj_prop`) require it `true` — so on every emitted `Σ`,
+  `WcbvEval Σ ⟨true,true,false⟩ = WcbvEval Σ ⟨false,true,false⟩`. peregrine's
+  `remove_match_on_box` is gated by the same bit (`EOptimizePropDiscr.v:35,57`) and is therefore
+  the identity on every declaration this frontend emits: the prop-case obligation is discharged
+  locally-by-vacuity, not downstream. (The bit being always-`false` is itself shipping finding
+  **F-PROP**, §8.2.)
+* every existing simulation statement in the tree — 103 sites across 16 files — is at
+  `appliedFlags = ⟨false, true, false⟩`, and `WcbvEval` has no negative `with_prop_case` guard,
+  so the weakening to the consumer's point is one ~25-line lemma (mechanised,
+  `scratchpad/gate/d6.lean`).
 
-So the frontend's obligation stops at `eraseFlags`, and `with_prop_case` is discharged downstream
-by peregrine's own verified `remove_match_on_box` pass. Consequences:
-
-* the capstone concludes about **the emitted program `(Σ, t)`** — the artefact — not about
-  `LBOptimize Σ t`, which nobody ships;
-* `optimize` leaves the critical path. `Optimize.lean` is still wired into the import closure (no
-  dead code) as the **template** every pass follows and as an optional corollary at
-  `optFlags = ⟨false, true, false⟩`; the four block-form arms it would need
-  (`construct_atom`, `construct_app`, `iota`, `proj`) are W6, not W2.
-
-Definitions replacing the four current constants (whose header asserts the opposite of the
-design):
+So the capstone's evaluation conjunct is stated at `⟨false, true, false⟩` — the *stronger* point —
+and bridged:
 
 ```lean
-def eraseFlags  : WcbvFlags := ⟨true,  true,  false⟩   -- deliverable point; = default_wcbv_flags
-def optFlags    : WcbvFlags := ⟨false, true,  false⟩   -- = MetaRocq opt_wcbv_flags; W6 corollary
-def blockFlags  : WcbvFlags := ⟨false, true,  true⟩    -- today's `targetFlags`, renamed; unused
+def eraseFlags     : WcbvFlags := ⟨false, true, false⟩  -- deliverable point; = MetaRocq opt_wcbv_flags;
+                                                        --   value of today's `appliedFlags` (renamed)
+def entryFlags     : WcbvFlags := ⟨true,  true, false⟩  -- = default_wcbv_flags = peregrine's declared input
+def blockFlags     : WcbvFlags := ⟨false, true, true⟩   -- value of today's `optFlags` (renamed);
+                                                        --   conclusion flag of the proved LBOptimize_correct
+def propBlockFlags : WcbvFlags := ⟨true,  true, true⟩   -- value of today's `defaultFlags` (renamed);
+                                                        --   LBOptimize_correct's source flag; Optimize.lean only
+theorem WcbvEval.propcase_weaken : WcbvEval Γ eraseFlags t v → WcbvEval Γ entryFlags t v  -- class A
 ```
+
+The old→new map, stated so U0.1 is a mechanical rename: `appliedFlags → eraseFlags`,
+`optFlags → blockFlags`, `defaultFlags → propBlockFlags` (all values unchanged);
+`targetFlags = ⟨false,false,true⟩` is deleted (zero uses tree-wide; not a MetaRocq point).
+Neither `⟨true,true,true⟩` nor `⟨false,false,true⟩` appears anywhere in `EWcbvEval.v` or the
+`ErasurePlugin`; `propBlockFlags` exists only so `LBOptimize_correct` (proved) keeps compiling
+until W6. Consequences:
+
+* the capstone concludes about **the emitted program `(Σ, t)`** — the artefact — not about
+  `LBOptimize Σ t`, which nobody ships; peregrine's obligation is met via `propcase_weaken`;
+* `optimize` leaves the critical path. `Optimize.lean` stays wired as the **template** every pass
+  follows and as the W6 corollary; the four *non-block* arms it would need (`construct_atom`,
+  `construct_app`, `iota`, `proj` — gated on `with_constructor_as_block = false`, already present
+  in `Semantics/Eval.lean`, missing only inside `LBOptimize_correct`) are W6, not W2;
+* the singleton-elimination companion (`mkElimBody_iota_sing`) is **deleted**: its
+  `isPropositionalInductive Σ iid = true` premise is uninhabitable at any `Σ⁺` that lowers to a
+  real emitted environment (Q2, N18).
 
 ### 3.3 Amendments requested of `00-REFERENCE-SPEC.md`
 
 | # | Spec text | Amendment | Forced by |
 |---|---|---|---|
-| A1 | §2 T3 lines 213-221 ("verbatim `[L §3.3]` … `Acc.rec` … **inside** the fragment") | Lean's criterion admits index-determined data fields; `Acc.rec` is **outside** the first cut (N17); `Eq.rec`/`And.rec`/`Iff.rec`/`False.rec`/`Decidable` are inside | `largeElimClause ``Acc = some (2,[1])` |
-| A2 | §7 criterion 7's example list | replace `Acc.rec` by `Eq.rec`/`And.rec`/`Iff.rec`/`Decidable` | same |
-| A3 | §2 T8's conclusion `t = LBCompile.term s'.gdecls t₀` | `∃ Σ⁺ t₀, Erases … t₀ ∧ Lower Σ⁺ t₀ t`, with `ErasesEnv envC Σ⁺ t₀` and `LowerEnv Σ⁺ s'.gdecls` | 0 ctor/`casesOn`/rec declarations in all five `.ast`; `elimInline` would have nothing to δ-expand |
-| A4 | §2 T3 `ErasesDecl.defn`'s premise `env.constants c = some ⟨_, some body⟩` | `VConstant` carries no body at the pin; read the defining equation from `envC.defeqs` | `Theory/VEnv.lean:6-21` |
+| A1 | §2 T3 lines 213-221 ("verbatim `[L §3.3]` … `Acc.rec` … **inside** the fragment") | the emitted environment marks every inductive non-propositional (F-PROP), so *every* elimination of a `Prop`-valued inductive into data is stuck on the target and is restricted (**N18**, subsuming N17); `Eq.rec`/`False.rec` are inside via the body-less-axiom route (`ax` + `AxiomRealizer`); `Decidable` (Type-valued) is inside via ordinary ι; `And.rec`/`Iff.rec`/`Acc.rec` are **outside** until F-PROP lands | 683/683 `propositional = false`; erased `And.casesOn` fails `peregrine eval`; `largeElimClause ``Acc = some (2,[1])` |
+| A2 | §7 criterion 7's example list, and its "derived from the environment" clause | example list becomes `Nat.casesOn`/`Bool.casesOn`/`Decidable.casesOn` (checked `ElimBody` instances) + `Eq.rec`/`False.rec` (axiom route); the Subsingleton condition appears zero times in the first cut — it has no subject (N18/F-PROP), which the criterion's own "demonstrably inside the fragment" test forces | same, plus `subsingletonElim_of_wf` refuted on `Acc` (gate) |
+| A3 | §2 T8's conclusion `t = LBCompile.term s'.gdecls t₀` | `∃ Σ⁺ t₀, Erases … t₀ ∧ Lower Σ⁺ t₀ t`, with `ErasesEnv env bo Σ⁺ t₀` and `LowerEnv Σ⁺ s'.gdecls` | 1 ctor declaration (`Unit.unit ↦ tConstruct PUnit 0`, the `CtorDecl` shape) and 0 `casesOn`/rec declarations in all five `.ast`; `elimInline` would have nothing to δ-expand, and the functional conclusion cannot see a fix-bodied `tConst`'s call sites |
+| A4 | §2 T3 `ErasesDecl.defn`'s premise `env.constants c = some ⟨_, some body⟩` | `VConstant` carries no body at the pin; the defining body is read from the compiler-body table (N8), `tbl.body? c = some body` | `Theory/VEnv.lean:6-21`; Q3 (`envC` uninhabitable) |
 | A5 | §5 N8's "or a restriction to declarations where the two coincide" | delete the restriction alternative | covers 0/5 |
-| A6 | §7 criterion 8's list (`List Nat`, `Nat × Nat`) | `Nat`, `Bool`, `Tree` | `List`/`Prod` are outside Def. 14 and outside `firstorder_ind`; all five benchmarks return `Nat` |
+| A6 | §7 criterion 8's list (`List Nat`, `Nat × Nat`) and its word "decidable" | list becomes `Nat`, `Bool`, `Tree`; "decidable" becomes "a sound Boolean checker `firstOrderIndB` discharged `by rfl` on the reified table, under the named binder `htbl`" | the predicate is declaration-level following `firstorder_ind`'s shape (`List Nat` *is* a data-type under Def. 14 — the honest reason is the shape choice plus "all five benchmarks return `Nat`"); `FirstOrderInd` quantifies over `VEnv.WF'` chains and admits no `Decidable` instance |
 | A7 | §7 criterion 12 ("matching what `peregrine validate` checks") | "matching `untyped_transform_pipeline`'s precondition **minus** fixpoint η, which is stated separately as `PeregrinePre` and **not** concluded" | `ETransform.v:710-716`; `EEtaExpandedFix.v:47-53`; 4 bare `tFix` bodies in `Arith.ast`; peregrine's own discharge is `Admitted` (`Transforms.v:375`) |
 | A8 | §2 T6's `LBPass` (functional) and criterion 5 | passes are relations (`LBPassR`); `correct` keeps `optimize_correct`'s shape with the value existentially quantified | §2 F1 |
 | A9 | §2 T6's `LBCompile := optimize ∘ fixIntro ∘ elimInline ∘ ctorInline`, used as both T8's factor and T9's tail | split: `Lower` is T8's factor; `optimize` is an optional post-pass. Removes an unstated idempotence obligation, and `fixIntro` disappears (it has no true `correct`) | §2 F1, §3.2 |
-| A10 | §5 N-list | add **N16** (`Quot`), **N17** (subsingleton inductives with an index-determined field) | Q7, Q2 |
-| A11 | §2 T8's four `PrimSpec` fields | six: add `ind_adequate` and `table_adequate` | Q6; §2 F4 |
+| A10 | §5 N-list | add **N16** (`Quot`), **N18** (no `casesOn`-like elimination of a non-informative inductive — subsumes N17's `Acc` case while F-PROP stands) | Q7, Q2 |
+| A11 | §2 T8's four `PrimSpec` fields | the bundle is renamed **`ErasureSpec`** (upstream `Lean4Lean.PrimSpec` exists, `Verify/Typing/Expr.lean:315`, and this tree opens `Lean4Lean` pervasively) and has six fields: `env_connect`, `lookup_adequate`, `fresh_names`, `oracle_refl`, `oracle_meta`, `ind_adequate`; table adequacy is the separate named binder `htbl` (a `Prop`-valued structure cannot hold `tbl` as a field, and an unbound `tbl` auto-binds to a false ∀) | Q6; §2 F4; gate G-D4/G-D5 |
 | A12 | §2 T9's observable conjunct | value side is the **composite**, not `Erases`; and the conjunct is quantified over closed first-order argument spines | §2 F3, F5 |
-| A13 | §2 T1's "the `optimize` pass (T6) discharges `with_prop_case`, landing the deliverable at `⟨false,true,false⟩`" | the deliverable lands at `eraseFlags`; `optimize` is optional | §3.2 |
+| A13 | §2 T1's "the `optimize` pass (T6) discharges `with_prop_case`, landing the deliverable at `⟨false,true,false⟩`" | the deliverable **is stated at** `⟨false,true,false⟩` directly (prop-case is inert on emitted output) and `propcase_weaken` bridges to the consumer's `⟨true,true,false⟩`; `optimize` is optional | §3.2 |
+| A14 | §7 criterion 13 ("every hypothesis of T9 simultaneously inhabited by a checked term") | "every class-**C** hypothesis of T9 inhabited by a checked term; `hrun`, `htbl` and `ErasureSpec`'s class-**D** fields are permanent named binders mechanised externally by `lake exe green-check`; `hwt`/`hty` per F17's schedule and named fallback" | F17, F18; `Void IO.RealWorld` is opaque; the bundle's fields model opaque `Lean.Environment`/`Meta` primitives |
+| A15 | §7 criteria 8 and 11's "decidable"/"decides" | "`by rfl` on the `reify%`-spliced `SourceTable`, sound under the named binder `htbl`" | §2 F4: no term denotes the ambient environment |
+| A16 | §7 criterion 9 ("`oracle_sound` … discharged rather than assumed") | "discharged on its kernel-reflection arm (`oracle_refl`, class **B**); the `isErasableMeta` fallback and the polymorphic-scope arm remain one named class-**D** field (`oracle_meta`) with a ledger row" — the reduction is real but partial, and saying so costs one field | §4.10; measured 0 fallback hits / 139,196 constants |
 
 ### 3.4 Acceptance criteria — how each is met
 
@@ -249,15 +362,21 @@ def blockFlags  : WcbvFlags := ⟨false, true,  true⟩    -- today's `targetFla
 so the grep is empty by construction. CI grep over `Erases.lean` for `\.construct|\.case|\.fix`.
 3 (rule table): `doc/rules-Erases.md`, plus `doc/rules-Lower.md`. 4 (one `SEval`, one environment
 relation, one bundle, one ledger): §4.3, §4.8, §4.10, §4.14 + CI greps. 5 (pass shape + guards +
-composition): §4.4-§4.7, §5 T6, as amended by A8. 6 (T5's five hypotheses): §5 T5 literally.
-7 (Subsingleton once, derived or one class-**C** row): §4.6. 8 (`FirstOrderInd` decidable):
-§4.12 on the reified table, `by rfl`, as amended by A6. 9 (`OracleDischarge` in the closure,
-`oracle_sound` discharged): §4.10. 10 (`sort_erasable`/`forallE_erasable` + the panic table):
-§4.2, `doc/panics.md`. 11 (`Supported` decidable, sparse-`casesOn` visible): §4.11, and
-`supportedB` *names* the hole. 12 (`LBWfPeregrine` in the conclusion): §4.9, as amended by A7.
-13-14 (non-vacuity, coverage table): §6 and `02-PLAN.md`'s per-wave green obligation.
-15-17 (ledger, `sorryAx` roots, no `sorry`/`axiom`): §4.14. 18-21 (hygiene, no `Lean4Lean`
-namespace): §9. 22 (delivery): W5.
+composition): §4.4-§4.7, §5 T6, as amended by A8. 6 (T5's five hypotheses): §5 T5 literally —
+final form from W3; W2's interim statement carries one explicitly-named extra binder
+`hfl : fl ≤ w2Flags`, deleted at W3 when the fixture is pinned. 7 (Subsingleton): zero
+occurrences in the first cut, as amended by A2 — the condition has no subject on emitted output
+(Q2, N18, F-PROP). 8 (`FirstOrderInd`): §4.12, `by rfl` on the reified table under `htbl`, as
+amended by A6/A15. 9 (`OracleDischarge` in the closure, `oracle_refl` discharged): §4.10, as
+amended by A16. 10 (`sort_erasable`/`forallE_erasable` + the panic table): §4.2, `doc/panics.md` —
+this pair is also how N12 is met (its option 2: the per-site table plus `Supported`; there is no
+`Panicked` predicate and no `hnp` binder). 11 (`Supported` decidable, sparse-`casesOn` visible):
+§4.11, and `supportedB` *names* the hole. 12 (`LBWfPeregrine` in the conclusion): §4.9, as
+amended by A7. 13-14 (non-vacuity, coverage table): §6 and `02-PLAN.md`'s per-wave green
+obligation, as amended by A14. 15-17 (ledger, `sorryAx` roots, no `sorry`/`axiom`): §4.14; the
+class-**C** binders that appear in stated theorems are `hcfg`, `hcb`, `hsup`, `hax` (criterion
+17). 18-21 (hygiene; no `Lean4Lean`-namespace declaration): §9; criterion 21 is met from W3 (F16,
+U3.1). 22 (delivery): W5.
 
 ---
 
@@ -280,6 +399,12 @@ Written against lean4lean rev `20ec229` and `LeanToLambdaBox/Basic.lean` at `dev
   the indexed form** `hlen : xs'.length = xs.length` + `∀ i, i < xs.length → R xs[i]! xs'[i]!`,
   which is probe-checked to produce a usable recursor with the induction hypothesis
   `∀ i, i < xs.length → motive xs[i]! xs'[i]!`.
+* `Σ` is a **reserved token** in Lean 4 (the sigma binder): the snippets below use it as
+  mathematical notation, but in the actual `.lean` files the λ□-environment metavariable is
+  written `Γ` (the existing `Semantics/` convention) or `Sg`. An implementer transcribing a
+  snippet verbatim will hit a parse error at the first binder named over `Σ` — this is why the
+  original probe `scratchpad/probe/lowerfix2.lean` never elaborated its final example
+  (repaired at `scratchpad/gate/lowerfix2_fixed.lean`, which does hold).
 
 ### 4.1 Flags — `Semantics/Flags.lean`
 
@@ -348,7 +473,7 @@ theorem Erases.forallE_erasable (henv : env.WF) : TrExprS env Us Δ (.forallE n 
 theorem Erases.mono (h : env ≤ env') : Erases env Us Δ e t → Erases env' Us Δ e t
 ```
 
-### 4.3 `SEval`, `SEvalFlags`, `CompilerEnv` — T4 — `SourceEval.lean`, `CompilerEnv.lean`
+### 4.3 `SEval`, `SEvalFlags`, `CompilerBodies` — T4 — `SourceEval.lean`
 
 ```lean
 structure SEvalFlags where beta, delta, zeta, iota, proj, lit : Bool
@@ -358,42 +483,66 @@ def deltaOnly : SEvalFlags := ⟨false, true, false, false, false, false⟩
 def fullFlags : SEvalFlags := ⟨true, true, true, true, true, true⟩
 
 /-- The one source evaluation: weak call-by-value big-step over `Lean.Expr`, parameterised by
-which reductions are enabled `[S §5.6]`. δ reads `env.defeqs`; ι reads `env.pats`. -/
-inductive SEval (env : VEnv) (Us : List Name) (fl : SEvalFlags) : VLCtx → Expr → Expr → Prop
+which reductions are enabled `[S §5.6]` and by the compiler-body table `bo` (N8). ι reads
+`env.pats`. δ is the arm `deltaC` below: it unfolds the body the **compiler** compiles — the same
+body the eraser reads — never the kernel equation, so the two sides of T5 step in lockstep and no
+equation-lemma transport is ever needed. Its side condition keeps T4's `IsDefEqU` conclusion:
+`rfl`-provable for structural recursion at constructor-headed recursive arguments (measured
+12/12 incl. `Nat.add/mul/sub/pow`), propositional for well-founded recursion (class-**E** row),
+unavailable for `partial def` — visibly, in the rung's own `hev` derivation. -/
+inductive SEval (env : VEnv) (bo : Name → Option Expr) (Us : List Name) (fl : SEvalFlags) :
+    VLCtx → Expr → Expr → Prop
+  -- among the arms:
+  | deltaC {Δ c us args argsv b v} (hfl : fl.delta)
+      (hb : bo c = some b)
+      (hargs : ∀ i, i < args.length → SEval env bo Us fl Δ args[i]! argsv[i]!)
+      (hdef : ∀ vc vb, TrExprS env Us Δ (mkAppN (.const c us) argsv) vc →
+              TrExprS env Us Δ (mkAppN (b.instantiateLevelParams … us) argsv) vb →
+              env.IsDefEqU Us.length Δ.toCtx vc vb)
+      (hcont : SEval env bo Us fl Δ (mkAppN (b.instantiateLevelParams … us) argsv) v) :
+      SEval env bo Us fl Δ (mkAppN (.const c us) args) v
 
-theorem SEval.mono  (h : fl ≤ fl') : SEval env Us fl Δ e v → SEval env Us fl' Δ e v
-theorem SEval.le    (h : env ≤ env') : SEval env Us fl Δ e v → SEval env' Us fl Δ e v
+theorem SEval.mono  (h : fl ≤ fl') : SEval env bo Us fl Δ e v → SEval env bo Us fl' Δ e v
+theorem SEval.le    (h : env ≤ env') : SEval env bo Us fl Δ e v → SEval env' bo Us fl Δ e v
 theorem SEval.defeq (henv : env.WF) (hΔ : VLCtx.WF env Us.length Δ)
-    (htr : TrExprS env Us Δ e ve) (hev : SEval env Us fl Δ e v) :
+    (hcb : CompilerBodies lenv env bo)
+    (htr : TrExprS env Us Δ e ve) (hev : SEval env bo Us fl Δ e v) :
     ∃ vv, TrExprS env Us Δ v vv ∧ env.IsDefEqU Us.length Δ.toCtx ve vv
 ```
 
 `SEvalFlags` is the **widening axis of the schedule** (design C's device, adopted): T5 is proved
 first at `deltaOnly`, then at `βζδ + lit + proj`, then at `fullFlags`, with `SEval.mono` as the
-inclusion and *the statement never changing*. `SEval.defeq` unifies
-`SubjectReduction{,Full,Iota}`: the β/ζ/δ arms are written once (today three times, two
+inclusion and *the statement never changing from W3 on* (§3.4, criterion 6). `SEval.defeq`
+unifies `SubjectReduction{,Full,Iota}`: the β/ζ/δ arms are written once (today three times, two
 byte-identical at `SubjectReductionFull.lean:398-430` = `SubjectReductionIota.lean:157-189`) via
 the abstract-`P` spine schema at `SubjectReductionFull.lean:309`.
 
 ```lean
-/-- Q3. The environment the compiler compiles: `env` plus one defining equation per declaration
-whose `_unsafe_rec` body the eraser reads. Class **C**, decidable per program. -/
-structure CompilerEnv (env envC : VEnv) (lenv : Lean.Environment) (e : Expr) : Prop where
-  le     : env ≤ envC
-  wf     : envC.WF
-  consts : envC.constants = env.constants
-  bodies : ∀ c ∈ depClosure env e, ∀ b, compilerBody lenv c = some b →
-             ∃ vb ty, TrExprS env (levelParams lenv c) [] b vb ∧
-                      envC.defeqs ⟨(levelParams lenv c).length, .const c _, vb, ty⟩
-  only   : ∀ d, envC.defeqs d → env.defeqs d ∨ IsCompilerDefn lenv d
-  pats   : envC.pats = env.pats
+/-- Q3 = N8 of `00-REFERENCE-SPEC.md`, verbatim: every tabled compiler body is kernel-typeable at
+the declared type. Class **C**, genuinely checkable per program by running lean4lean's checker
+(measured inhabitable 33/33 on the five programs' closures). There is **no** second `VEnv`: the
+`envC = env + addDefEq` device is uninhabitable — a `VEnv.WF` environment grants each constant at
+most one defining equation (`WF'.defeqOwn`, `scratchpad/gate/d3_defeq_unique.lean`, filed
+upstream §8.3) — and weakening its `wf` to `Ordered` would legalise a per-declaration fixpoint
+axiom `c ≡ F c`, false in the intended model for `partial def`. -/
+def CompilerBodies (lenv : Lean.Environment) (env : VEnv) (bo : Name → Option Expr) : Prop :=
+  ∀ c b, bo c = some b →
+    ∃ vb, TrExprS env (levelParams lenv c) [] b vb ∧
+          env.HasType (levelParams lenv c).length [] vb (typeOf lenv c)
 ```
+
+`bo` at the capstone is `tbl.body?` — the `decls` column of the reified `SourceTable` (§4.11),
+i.e. exactly the `prepare_erasure`d bodies the run reads; `ErasesDecl.defn` (§4.8) reads the same
+table, so the specification's δ and the eraser's input are the same object by construction.
 
 ### 4.4 `Lower` — the term-level pass relation — `Lower.lean`
 
 Seventeen arms: eleven congruence, four redex, two fix. Indexed by `Σ : GlobalDeclarations` and
-by nothing else — no source term, no `VEnv`, no run state, no fresh names, no evaluation-shaped or
-relevance-shaped side condition anywhere. Free on `BinderName`s (`WcbvEval` reads only their
+by nothing else — no source term, no `VEnv`, no run state, no fresh-name *generator*, no
+evaluation-shaped or relevance-shaped side condition anywhere. (`LowerBlock`'s `ids : List
+FVarId` is λ□'s own fvar type — `LBTerm.fvar` is syntax, `Lower.fvar` is an arm — quantified like
+any other metavariable, never read off a run; the anti-epicycle scan therefore bans `Expr`,
+`VEnv`, `Erasable`, `ErasureState`, `NameGenerator`, not `FVarId`.) Free on `BinderName`s (`WcbvEval` reads only their
 lengths, `Eval.lean:143-153,171`).
 
 ```lean
@@ -406,16 +555,20 @@ def DefnDecl (Σ) (kn : Kername) (b : LBTerm) : Prop :=
 def RuntimeKey (Σ) (kn : Kername) : Prop :=
   (∃ iid k, CtorDecl Σ kn iid k) ∨ (∃ iid np dp nfs, ElimDecl Σ kn iid np dp nfs)
 
-/-- A constructor head, before **or after** the specification environment's own δ step.
-Both disjuncts are needed: `lower_correct`'s source side δ-unfolds `.const kn` to
-`.construct iid k []`, and an under-applied constructor spine is a `WcbvEval` **value**, so the
-value correspondence must be expressible at the post-δ head as well. -/
-def CtorHeadOf (Σ) (h : LBTerm) (iid : InductiveId) (k : Nat) : Prop :=
-  (∃ kn, h = .const kn ∧ CtorDecl Σ kn iid k) ∨ h = .construct iid k []
-/-- Likewise for an eliminator: `.const kn` pre-δ, `mkElimBody …` post-δ. Dropping the second
-disjunct makes `lower_correct` false at a stuck discriminant, where both sides are stuck values. -/
+-- There is deliberately no `CtorHeadOf`: a post-δ constructor value
+-- `mkApps (.construct iid k []) args` is related by the `app` + `construct` congruence arms
+-- alone, so a second disjunct would add zero pairs and one inversion case per consumer.
+-- `ctorApp`/`ctorEta` take the `.const` head directly.
+
+/-- An eliminator head, `.const kn` pre-δ or an `ElimBody` shape post-δ. The second disjunct is
+needed *inside* `lower_correct`'s δ case: after the specification environment unfolds `kn`, the
+intermediate configurations of the source derivation are `mkElimBody`-headed spines, and the
+induction must relate them — including the partially-applied ones, which are λ-headed **values**.
+(It is *not* about a stuck discriminant: `WcbvEval` has no `.case` congruence rule, so a `.case`
+with an unevaluable discriminant has no value at all.) U2.1's per-arm `_fires` guard must
+exercise this disjunct or it is deleted. -/
 def ElimHeadOf (Σ) (h : LBTerm) (iid : InductiveId) (np dp : Nat) (nfs : List Nat) : Prop :=
-  (∃ kn, h = .const kn ∧ ElimDecl Σ kn iid np dp nfs) ∨ h = mkElimBody iid np dp nfs
+  (∃ kn, h = .const kn ∧ ElimDecl Σ kn iid np dp nfs) ∨ ElimBody iid np dp nfs h
 
 inductive Lower (Σ : GlobalDeclarations) : LBTerm → LBTerm → Prop
   -- congruence (11)
@@ -423,8 +576,11 @@ inductive Lower (Σ : GlobalDeclarations) : LBTerm → LBTerm → Prop
   | bvar (i)                               : Lower Σ (.bvar i) (.bvar i)
   | fvar (x)                               : Lower Σ (.fvar x) (.fvar x)
   | prim (p)                               : Lower Σ (.prim p) (.prim p)
-  | const {kn} (h : ¬ RuntimeKey Σ kn) (h2 : ¬ ∃ b, DefnDeclFix Σ kn b) :
-                                             Lower Σ (.const kn) (.const kn)
+  | const {kn} (h : ¬ RuntimeKey Σ kn)     : Lower Σ (.const kn) (.const kn)
+      -- deliberately non-deterministic at a block member: `const` relates it to `.const kn`
+      -- (what `CloseConstAt` abstracts) and `fixConst` to the block's `.fix` (what a fix
+      -- unfolding installs); both are needed, and `Lower.constToFix` is the transport.
+      -- ¬RuntimeKey is load-bearing: without it a pruned ctor/elim constant strands the target.
   | lambda {n n' b b'} (h : Lower Σ b b')  : Lower Σ (.lambda n b) (.lambda n' b')
   | letIn  {n n' v v' b b'} (hv : Lower Σ v v') (hb : Lower Σ b b') :
                                              Lower Σ (.letIn n v b) (.letIn n' v' b')
@@ -440,20 +596,24 @@ inductive Lower (Σ : GlobalDeclarations) : LBTerm → LBTerm → Prop
       (hb : ∀ i, i < alts.length → Lower Σ (alts[i]!).2 (alts'[i]!).2) :
       Lower Σ (.case ip d alts) (.case ip d' alts')
   -- redex (4)
-  /-- `R_ctor`, saturated or over-applied: applied form, so no arity is stored in the node and
-      inductive parameters are kept (Q5). -/
-  | ctorApp {h iid k args args'} (hh : CtorHeadOf Σ h iid k)
+  /-- `R_ctor`, saturated or over-applied — `hsat` is the eraser's own dispatch guard
+      (`visitCtorEtaGo`, `Erasure.lean:722-728`: `args.size ≥ arity`), measured 982/982, and it
+      is what `LBWfPeregrine.etaCtors` is discharged from; it also makes `ctorApp` and `ctorEta`
+      disjoint on `args.length`. Applied form, so no arity is stored in the node and inductive
+      parameters are kept (Q5). -/
+  | ctorApp {kn iid k args args'} (hc : CtorDecl Σ kn iid k)
+      (hsat : args.length ≥ cstrArity Σ iid k)
       (hlen : args'.length = args.length)
       (ha : ∀ i, i < args.length → Lower Σ args[i]! args'[i]!) :
-      Lower Σ (LBTerm.mkApps h args) (LBTerm.mkApps (.construct iid k []) args')
+      Lower Σ (LBTerm.mkApps (.const kn) args) (LBTerm.mkApps (.construct iid k []) args')
   /-- `R_ctorη`: `visitCtorEtaGo` (`Erasure.lean:721-728`) pushes fresh binders into the spine
-      and wraps the λ□ result in `mkLambdas`. `n` binders are added, `shift n 0` moves the
-      already-lowered prefix under them. -/
-  | ctorEta {h iid k args args' ns} (hh : CtorHeadOf Σ h iid k)
+      and wraps the λ□ result in `mkLambdas`. `ns ≠ []` binders are added, `shift ns.length 0`
+      moves the already-lowered prefix under them. -/
+  | ctorEta {kn iid k args args' ns} (hc : CtorDecl Σ kn iid k) (hns : ns ≠ [])
       (hund : args.length + ns.length = cstrArity Σ iid k)
       (hlen : args'.length = args.length)
       (ha : ∀ i, i < args.length → Lower Σ args[i]! args'[i]!) :
-      Lower Σ (LBTerm.mkApps h args)
+      Lower Σ (LBTerm.mkApps (.const kn) args)
               (mkLambdas ns (LBTerm.mkApps (.construct iid k [])
                  ((args'.map (LBTerm.shift ns.length 0)) ++ bvarsDesc ns.length)))
   /-- `R_case`: a saturated eliminator application becomes a `.case` node. The `dp` arguments
@@ -473,21 +633,18 @@ inductive Lower (Σ : GlobalDeclarations) : LBTerm → LBTerm → Prop
   /-- `R_caseη`: `visitCasesEtaGo` (`Erasure.lean:705-712`), same shape as `ctorEta`. -/
   | elimEta {hd iid np dp nfs args args' ns} (hh : ElimHeadOf Σ hd iid np dp nfs) … :
       Lower Σ (LBTerm.mkApps hd args) (mkLambdas ns (…))
-  -- recursion (2) — the repair of §2 F1
+  -- recursion (2) — the repair of §2 F1. Both arms inline the fields of `LowerBlock` below
+  -- (the kernel rejects the structure as a nested premise); read them through the wrappers.
   /-- `R_fix` at a *call*: a block member's constant relates to the block's `.fix` node. -/
-  | fixConst {kn kns bs bs' defs j}
-      (hb : bs.length = kns.length) (hb' : bs'.length = kns.length)
-      (hd : defs.length = kns.length) (hnd : kns.Nodup)
-      (hdecl : ∀ i, i < kns.length → DefnDecl Σ kns[i]! bs[i]!)
-      (hlow  : ∀ i, i < kns.length → Lower Σ bs[i]! bs'[i]!)
-      (hcl   : ∀ i, i < kns.length → CloseConst kns bs'[i]! (defs[i]!).body)
+  | fixConst {kn kns bs bs' ids defs j}
+      (hblk… : the `LowerBlock` fields, inlined)
       (hj    : kns[j]? = some kn) :
       Lower Σ (.const kn) (.fix defs j)
   /-- `R_fix` at a *value*: the member's specification body relates to the same `.fix` node.
       This is the arm the δ step needs, and the one whose absence makes design A's T5 and
       design C's `fixIntro.correct` false. -/
-  | fixBody {b kns bs bs' defs j}
-      (hb …) (hb' …) (hd …) (hnd …) (hdecl …) (hlow …) (hcl …)
+  | fixBody {b kns bs bs' ids defs j}
+      (hblk… : the `LowerBlock` fields, inlined)
       (hj : bs[j]? = some b) (hjl : j < defs.length) :
       Lower Σ b (.fix defs j)
 
@@ -509,56 +666,85 @@ for the subject term unconditionally, so the source side of `Lower` never contai
 congruence arm for it would be dead code (policy 6).
 
 **The block premises are packaged after the fact**, so the arms read as one hypothesis without
-creating the kernel-rejected nested-inductive premise:
+creating the kernel-rejected nested-inductive premise. Two fields answer machine-checked
+refutations: `hrarg` (without it `lower_correct` is false — probe `gate/rarg_ce.lean` builds the
+counterexample at `principalArgIdx = 1`, where the source ⇓ `□` and the target is a stuck spine;
+the field is a fact about the emitter: `mkDef` never sets it, `FixDef.principalArgIdx := 0` is
+the default, `Basic.lean:67`, whose comment "this doesn't matter computationally" is false under
+this `WcbvEval`, and `FixUnfoldChain` already carries exactly this premise, `FixUnfold.lean:803`);
+and the **block-shared** `ids` (per-member existential `ids` cannot feed
+`closeFix_substList_fixSubst`, whose freshness clause is against *every* `.fix defs j`, and
+`ClosedEnv` cannot supply it — `LBClosed (.fvar _) k = True`, `Closed.lean:40`; `visitMutual`
+mints one `ids` list for the whole block, `Erasure.lean:905`, so the shared form is what the
+emitter does):
 
 ```lean
-structure LowerBlock (Σ) (kns : List Kername) (bs bs' : List LBTerm)
+structure LowerBlock (Σ) (kns : List Kername) (bs bs' : List LBTerm) (ids : List FVarId)
     (defs : List (@FixDef LBTerm)) : Prop where
   hb : bs.length = kns.length ; hb' : bs'.length = kns.length
   hd : defs.length = kns.length ; hnd : kns.Nodup
+  hids : ids.Nodup ; hilen : ids.length = kns.length
+  hfresh : ∀ x ∈ ids, ∀ i, i < kns.length → ¬ hasFVar x bs'[i]!
+  hrarg : ∀ d ∈ defs, d.principalArgIdx = 0
   hdecl : ∀ i, i < kns.length → DefnDecl Σ kns[i]! bs[i]!
   hlow  : ∀ i, i < kns.length → Lower Σ bs[i]! bs'[i]!
-  hcl   : ∀ i, i < kns.length → CloseConst kns bs'[i]! (defs[i]!).body
-theorem Lower.fixConst' (h : LowerBlock Σ kns bs bs' defs) (hj : kns[j]? = some kn) :
+  hcl   : ∀ i, i < kns.length → CloseConstAt kns ids bs'[i]! (defs[i]!).body
+theorem Lower.fixConst' (h : LowerBlock Σ kns bs bs' ids defs) (hj : kns[j]? = some kn) :
     Lower Σ (.const kn) (.fix defs j)
-theorem Lower.fixBody'  (h : LowerBlock Σ kns bs bs' defs) (hj : bs[j]? = some b)
+theorem Lower.fixBody'  (h : LowerBlock Σ kns bs bs' ids defs) (hj : bs[j]? = some b)
     (hjl : j < defs.length) : Lower Σ b (.fix defs j)
 ```
 
-Both wrappers are probe-checked (`scratchpad/probe/lowerfix2.lean`, axioms `[propext]`).
+The inductive, both wrappers and the δ-obligation example are probe-checked
+(`scratchpad/probe/lowerfix.lean`, `probe/lowerfix2.lean` up to its parse error,
+`gate/lowerfix2_fixed.lean` for the repaired final example; axioms `[propext]`).
 
 ### 4.5 `LowerFix` — `LowerFix.lean`
 
 ```lean
 /-- Replace `.const kns[j]` by `.fvar ids[j]`: the λ□-only residue of today's `Erases.fixvar`,
-with the source side removed. -/
+with the source side removed. Does **not** descend under a `.fix` node (there is none to descend
+under: the source side of `Lower` is `NoFix`, §4.4). -/
 inductive ConstToFVar (kns : List Kername) (ids : List FVarId) : LBTerm → LBTerm → Prop
 
-/-- The `Kername`-keyed fix closure, phrased through the **existing** `closeFix` so that
-`closeFix_substList_fixSubst` (`FixUnfold.lean:748`) applies verbatim and no const-keyed twin of
+/-- The `Kername`-keyed fix closure at a **block-shared** `ids`, phrased through the existing
+`closeFix` so that `closeFix_substList_fixSubst` (`FixUnfold.lean:748`) applies verbatim — its
+freshness hypothesis is against every `.fix defs j`, which only the shared `ids` (Nodup,
+fresh for every member, `LowerBlock`'s fields) can supply — and no const-keyed twin of
 `FixUnfold`'s 41 theorems has to be re-proved. -/
-def CloseConst (kns : List Kername) (t u : LBTerm) : Prop :=
-  ∃ ids t', ids.Nodup ∧ ids.length = kns.length ∧ (∀ x ∈ ids, ¬ hasFVar x t) ∧
-    ConstToFVar kns ids t t' ∧ u = closeFix ids 0 t'
+def CloseConstAt (kns : List Kername) (ids : List FVarId) (t u : LBTerm) : Prop :=
+  ∃ t', ConstToFVar kns ids t t' ∧ u = closeFix ids 0 t'
 
 /-- **The transport that makes the fix arms usable.** A fix unfolding
 (`WcbvEval.fix_guarded`'s `substList (fixSubst defs)`) puts `.fix defs i` exactly where the
 lowered body has the sibling `.const knᵢ`; this lemma says the result is still `Lower`-related to
-the same specification body, by re-deriving each such position with `fixConst`. -/
-theorem Lower.constToFix (hblk : LowerBlock Σ kns bs bs' defs)
+the same specification body, by re-deriving each such position with `fixConst`. `ids` is the
+block's own list, taken from `hblk`. -/
+theorem Lower.constToFix (hblk : LowerBlock Σ kns bs bs' ids defs)
     (hcl : LBClosed t 0) (h : Lower Σ s t)
     (hct : ConstToFVar kns ids t t') :
     Lower Σ s (LBTerm.substFix ids defs t')
 
 /-- Declaration-level statement, for `LowerEnv`. Tolerates an unused fix binder: `visitMutual`
-decides recursiveness by `name_occurs` on the **source** body (`Erasure.lean:878`), and if
+decides recursiveness by `name_occurs` on the **source** body (`Erasure.lean:885`), and if
 erasure removes the only self-reference the emitted `.fix` binder is unused — which is why no
 `name_occurs`-mirroring premise exists anywhere in this design. -/
 def LowerFix (Σ) (kns : List Kername) (bs : List LBTerm)
-    (defs : List (@FixDef LBTerm)) : Prop := ∃ bs', LowerBlock Σ kns bs bs' defs
+    (defs : List (@FixDef LBTerm)) : Prop := ∃ bs' ids, LowerBlock Σ kns bs bs' ids defs
+
+/-- **The block-body motive.** Inside `visitMutual`'s block branch the eraser rewrites a source
+`.const` to `.fvar id` (`visitConst`, `Erasure.lean:658-664`; the ids come from `mkFreshFVarId`,
+so they are in neither `Δ` nor the local context) — a pair no factor of `Erases ⨟ Lower` can
+state. The sub-runs under `ctx.fixvars = some …` therefore conclude membership in this
+three-factor composite; `mkDef`'s `toBvar` chain then discharges `LowerBlock.hcl` directly from
+the `ConstToFVar` witness. This is the λ□-only replacement for today's `Erases.fixvar` and
+`BridgeInv.fixvars`, and it is **new work** (motive 6 of W4, gated by U1.7), not a rename. -/
+def ErasesLBFix (env : VEnv) (Us : List Name) (Σ : GlobalDeclarations)
+    (kns : List Kername) (ids : List FVarId) (Δ : VLCtx) (e : Expr) (t : LBTerm) : Prop :=
+  ∃ t₀ t₁, Erases env Us Δ e t₀ ∧ Lower Σ t₀ t₁ ∧ ConstToFVar kns ids t₁ t
 ```
 
-### 4.6 `ElimBody`, `IndInfo`, `SubsingletonElim` — `ElimBody.lean`
+### 4.6 `ElimBody`, `IndInfo` — `ElimBody.lean`
 
 The runtime library's bodies are **constructions**, and their ι-reproduction is a **theorem**, not
 an assumed obligation. This is design A's move, and it is what discharges Letouzey's `(◄₄)` rather
@@ -567,48 +753,57 @@ than assuming it (criterion 7, `[L R4]`).
 ```lean
 def mkCtorBody (iid : InductiveId) (k : Nat) (ns : List BinderName) : LBTerm
 def mkElimBody (iid : InductiveId) (np dp : Nat) (nfs : List Nat) : LBTerm
-def mkElimBodySing (iid : InductiveId) (np dp : Nat) (nf : Nat) : LBTerm
 
 /-- The λ□ body of an eliminator constant, as a *syntactic* shape — decidable, one constructor
-per shape, no semantic side condition. -/
+per shape, no semantic side condition. No `sing` shape: the emitted environment marks every
+inductive non-propositional (F-PROP), so a `□`-discriminant `.case` is stuck at every flag point
+and N18 keeps such programs out of the fragment (Q2). -/
 inductive ElimBody : InductiveId → Nat → Nat → List Nat → LBTerm → Prop
   | cases {iid np dp nfs} : ElimBody iid np dp nfs (mkElimBody iid np dp nfs)
   | rec   {iid np dp nfs} : ElimBody iid np dp nfs (mkElimBodyRec iid np dp nfs)
-  | sing  {iid np dp nf}  : ElimBody iid np dp [nf] (mkElimBodySing iid np dp nf)
 
 /-- `[S Fig. 18]`'s side condition reproduced: applying the canonical body to parameters, a
 motive, a constructor spine and the minors evaluates exactly as MetaRocq's `iota_red` does.
-Class **A** — `LBTerm` only. -/
-theorem mkElimBody_iota {Σ fl iid np dp nfs k args minors pre r}
+Class **A** — `LBTerm` only. Stated as two directions, because β requires every argument to
+evaluate: the forward direction is unconditional; the backward one — the direction T5's ι arm
+consumes — needs the dropped `pre` args and the non-selected minors to evaluate, which is
+exactly what `ErasesLB.cases`'s `hpre` supplies (§4.7: the two premises are the same obligation).
+Both are pinned at `fl.with_constructor_as_block = false` — at block flags the applied-spine
+discriminant has no derivation (probe `gate/d6.lean`, `no_ctor_app_block`). -/
+theorem mkElimBody_iota_fwd {Σ fl iid np dp nfs k args minors pre r}
+    (hbl : fl.with_constructor_as_block = false)
     (hk : k < nfs.length) (harity : (args.drop np).length = nfs[k]!)
     (hprop : isPropositionalInductive Σ iid = false) :
     WcbvEval Σ fl (LBTerm.mkApps (mkElimBody iid np dp nfs)
-                     (pre ++ LBTerm.mkApps (.construct iid k []) args :: minors)) r ↔
+                     (pre ++ LBTerm.mkApps (.construct iid k []) args :: minors)) r →
     WcbvEval Σ fl (LBTerm.mkApps minors[k]! (args.drop np)) r
-
-/-- The `with_prop_case` companion (`[S §7.1]` amendment (2), `[L Def. 8]` clause 2): a
-subsingleton discriminant that erased to `□`. -/
-theorem mkElimBody_iota_sing {Σ iid np dp nf minors pre r}
-    (hprop : isPropositionalInductive Σ iid = true) :
-    WcbvEval Σ eraseFlags (LBTerm.mkApps (mkElimBodySing iid np dp nf) (pre ++ .box :: minors)) r ↔
-    WcbvEval Σ eraseFlags (LBTerm.mkApps minors[0]! (List.replicate nf .box)) r
+theorem mkElimBody_iota_bwd {…same…}
+    (hpre : ∀ a ∈ pre, ∃ av, WcbvEval Σ fl a av)
+    (hmin : ∀ m ∈ minors, ∃ mv, WcbvEval Σ fl m mv) :
+    WcbvEval Σ fl (LBTerm.mkApps minors[k]! (args.drop np)) r →
+    WcbvEval Σ fl (LBTerm.mkApps (mkElimBody iid np dp nfs)
+                     (pre ++ LBTerm.mkApps (.construct iid k []) args :: minors)) r
 
 theorem mkCtorBody_beta {Σ fl iid k ns args r} (h : args.length = ns.length) :
     WcbvEval Σ fl (LBTerm.mkApps (mkCtorBody iid k ns) args) r ↔
     WcbvEval Σ fl (LBTerm.mkApps (.construct iid k []) args) r
 
 /-- `env`'s inductive block data for `I`, read off `VEnv.WF`'s declaration list (`VEnv` itself
-stores none — `Theory/VEnv.lean:17-23`), in λ□ coordinates. -/
+stores none — `Theory/VEnv.lean:17-23`), in λ□ coordinates. Declared in `Erases.lean` (U1.1),
+since `Erases.proj` is its first consumer; `ElimBody.lean` imports it. -/
 structure IndInfo (env : VEnv) (I : Name) (iid : InductiveId) (np : Nat) (nfs : List Nat) : Prop
-
-/-- Lean's large-elimination criterion, **minus** the index-determined disjunct (N17, Q2).
-Derived from `envC.WF` via `VInductDecl.LargeElim` (`Theory/Inductive.lean:226`) once
-`VEnv.WF'.consts_origin` lands upstream; one named class-**C** hypothesis with one ledger row
-until then. -/
-def SubsingletonElim (env : VEnv) (I : Name) : Prop
-theorem subsingletonElim_of_wf (henv : env.WF) (hrec : env.constants (mkRecName I) = some ci)
-    (hlarge : ci.uvars = declUvars + 1) : SubsingletonElim env I     -- modulo the upstream ask
 ```
+
+There is **no** `SubsingletonElim` in the first cut (Q2, N18, F-PROP): the emitted environment
+gives the prop-case fragment no subject, and the strengthened criterion the old draft assumed
+(`LargeElim` minus `FieldInIndices`) is refutable on `Acc` from `env.WF` alone. Recorded for the
+day F-PROP lands on `dev/fix`: the derivable kernel fact is
+`largeElim_of_wf (henv : env.WF) (hI : env.constants I = some ic) (hrec : env.constants
+(mkRecName I) = some ci) (huv : ci.uvars = ic.uvars + 1) : ∃ decl ℓ envT, …LargeElim…` — with
+**both** disjuncts, `declUvars` bound to `I`'s own constant, and `consts_origin` (§8.3) as its
+one missing upstream link — plus a decidable no-index-determined-field conjunct in `Supported`,
+which is the target's contract (`remove_match_on_box` boxes every branch binder) and must never
+be sent upstream.
 
 ### 4.7 `ErasesLB` — the composite and the derived introduction lemmas — `ErasesLB.lean`
 
@@ -650,37 +845,56 @@ theorem ErasesLB.fix {cn us kns bs defs j} (hblk : LowerBlock Σ kns bs bs' defs
 `ErasesLB.cases`'s `hpre` is the one genuinely new premise, and it is discharged by
 `Erases.exists_of_trExprS` from the `TrExprS` every motive already carries: the arguments a
 `.case` node drops still need an erasure image in `t₀`, because `Erases` is a congruence over the
-whole spine.
+whole spine — and it is the same obligation `mkElimBody_iota_bwd`'s guard consumes in T5's ι arm
+(§4.6), stated once, used twice.
+
+The introduction lemmas above serve the `ctx.fixvars = none` runs. The block-branch sub-runs
+conclude `ErasesLBFix` (§4.5) instead, and each lemma has an `ErasesLBFix.*` twin obtained by
+post-composing with `ConstToFVar`'s congruence — mechanical, since `ConstToFVar` is itself a
+congruence everywhere except at the `kns` constants.
 
 ### 4.8 `ErasesDecl`, `ErasesEnv`, `LowerEnv`, `EnvAgree`, `SpecEnv` — T3 — `ErasesEnv.lean`, `SpecEnv.lean`
 
 ```lean
-inductive ErasesDecl (envC : VEnv) : Kername → GlobalDecl → Prop
-  | defn {c us body b₀ ty} (hd : envC.defeqs ⟨us.length, .const c (levelsOf us), body, ty⟩)
-         (hb : Erases envC us [] body b₀) :
+inductive ErasesDecl (env : VEnv) (bo : Name → Option Expr) : Kername → GlobalDecl → Prop
+  /-- The defining body is the **compiler's** (N8, §4.3) — the same table `SEval.deltaC` reads,
+      so the specification's δ and the environment's entries agree by construction. -/
+  | defn {c body b₀} (hd : bo c = some body)
+         (hb : Erases env (levelParamsOf env c) [] body b₀) :
          ErasesDecl (toKername c) (.constantDecl ⟨some b₀⟩)
-  | ax   {c ci} (h : envC.constants c = some ci) (hno : ∀ df, ¬ IsDefnOf envC c df) :
+  /-- Inert constants only: no compiler body **and** no ι rule keyed on `c` — without the second
+      conjunct an applied recursor (`Eq.rec` in `Fannkuch.ast`) would be `ax`-declared while the
+      source ι-steps and the target is stuck, refuting T5. A program reaching such a constant has
+      no `ErasesEnv` witness; that is its coverage row (F-EQREC), not a hidden premise. -/
+  | ax   {c ci} (h : env.constants c = some ci) (hno : bo c = none)
+         (hpat : ∀ p, p ∈ patsOf env → p.head ≠ c) :
          ErasesDecl (toKername c) (.constantDecl ⟨none⟩)
-  | ind  {I iid np nfs} (h : IndInfo envC I iid np nfs) :
-         ErasesDecl iid.blockName (.inductiveDecl (indBodyOf envC I))
-  | ctor {c I iid k np nfs} (h : CtorOf envC c I k) (hi : IndInfo envC I iid np nfs) :
+  | ind  {I iid np nfs} (h : IndInfo env I iid np nfs) :
+         ErasesDecl iid.blockName (.inductiveDecl (indBodyOf env I))
+  | ctor {c I iid k np nfs} (h : CtorOf env c I k) (hi : IndInfo env I iid np nfs) :
          ErasesDecl (toKername c) (.constantDecl ⟨some (.construct iid k [])⟩)
   /-- `casesOn`-like constants only (`Lean/Meta/CasesInfo.lean:56`'s `isCasesOnLike`:
       `isCasesOnRecursor ∨ isSparseCasesOn`; never `X.rec`, and matchers are gone by
-      `prepare_erasure`'s `inlineMatchers`). A recursor reached as a constant is body-less and
-      arrives through `ax` + `AxiomRealizer` — measured: `Eq.rec` is
-      `(ConstantDecl (constant_body None))` in `Fannkuch.ast`. -/
-  | elim {I kn iid np dp nfs body} (hi : IndInfo envC I iid np nfs) (he : CasesOnOf envC I kn)
-         (hs : nfs.length = 1 → IsPropositional envC I → SubsingletonElim envC I)
+      `prepare_erasure`'s `inlineMatchers`). `hinf` is N18's environment half: an eliminator of a
+      non-informative inductive has no entry, because its emitted `.case` is stuck on every `Σ` a
+      run produces (F-PROP) — a fact about the target, not a proof convenience. -/
+  | elim {I kn iid np dp nfs body} (hi : IndInfo env I iid np nfs) (he : CasesOnOf env I kn)
+         (hinf : Informative env I)
          (hb : ElimBody iid np dp nfs body) :
          ErasesDecl kn (.constantDecl ⟨some body⟩)
 ```
 
 `ErasesDecl.quot` is deleted (Q7). `ErasesEnv` is `[S §7.4]`'s `erases_deps` — bottom-up,
-dependency-selective, the **only** relation between a `VEnv` and λ□:
+dependency-selective, the **only** relation between a `VEnv` and λ□. Its body is written out
+(the elided form left the no-slack story unstated): lookups go through `envLookup` (first match),
+keys are `Nodup` — so a junk shadowing entry cannot retarget `Lower` — and every kername
+reachable from `t` in `Σ⁺` has an `ErasesDecl` image:
 
 ```lean
-inductive ErasesEnv (envC : VEnv) : GlobalDeclarations → LBTerm → Prop
+inductive ErasesEnv (env : VEnv) (bo : Name → Option Expr) : GlobalDeclarations → LBTerm → Prop
+  -- clauses: (Σ⁺.map Prod.fst).Nodup;
+  --          ∀ kn d, envLookup Σ⁺ kn = some d → ErasesDecl env bo kn d;
+  --          ∀ kn, ReachableFrom Σ⁺ t kn → (envLookup Σ⁺ kn).isSome
 ```
 
 The emitted environment is the lowered, pruned image — class **A**, and the conclusion is stated
@@ -697,6 +911,13 @@ structure LowerEnv (Σ⁺ Σ : GlobalDeclarations) : Prop where
   defs   : ∀ kn b₀ b, DefnDecl Σ⁺ kn b₀ → DefnDecl Σ kn b →
              Lower Σ⁺ b₀ b ∨ ∃ kns bs defs j, LowerFix Σ⁺ kns bs defs ∧
                                               kns[j]? = some kn ∧ b = .fix defs j
+  /-- Totality of `defs` — without it a plain definition present in `Σ⁺` but pruned out of `Σ`
+      satisfies everything vacuously while the target is stuck at its `.const` (no δ rule, and
+      `atomValue` excludes `.const`). The real instantiation satisfies it: pruning removes only
+      `RuntimeKey`s. -/
+  defsTotal : ∀ kn b₀, DefnDecl Σ⁺ kn b₀ → ¬ RuntimeKey Σ⁺ kn →
+             (∃ b, DefnDecl Σ kn b) ∨
+             (∃ kns bs defs j, LowerFix Σ⁺ kns bs defs ∧ kns[j]? = some kn)
   axioms : ∀ kn, envLookup Σ⁺ kn = some (.constantDecl ⟨none⟩) →
              envLookup Σ kn = some (.constantDecl ⟨none⟩) ∨ envLookup Σ kn = none
   inds   : ∀ kn d, envLookup Σ⁺ kn = some (.inductiveDecl d) → envLookup Σ kn = some (.inductiveDecl d)
@@ -711,79 +932,144 @@ premise, so sibling sub-runs never merge environments:
 /-- `Σ⁺` is a specification environment for the run state `s`: every constant `s` registered has
 its `ErasesDecl` image in `Σ⁺`, and every inductive `s` registered contributes its `ind`, `ctor`
 and `elim` declarations. Antitone in the state, which is what makes it compose. -/
-def SpecEnv (envC : VEnv) (s : ErasureState) (Σ⁺ : GlobalDeclarations) : Prop
-theorem SpecEnv.mono   (h : StateLe s₁ s) : SpecEnv envC s Σ⁺ → SpecEnv envC s₁ Σ⁺
-theorem SpecEnv.exists (hreg : RegInvShape' s) (P : PrimSpec …) : ∃ Σ⁺, SpecEnv envC s Σ⁺
+def SpecEnv (env : VEnv) (bo : Name → Option Expr) (s : ErasureState)
+    (Σ⁺ : GlobalDeclarations) : Prop
+theorem SpecEnv.mono   (h : StateLe s₁ s) : SpecEnv env bo s Σ⁺ → SpecEnv env bo s₁ Σ⁺
+theorem SpecEnv.exists (hreg : RegInvShape' s) (P : ErasureSpec …) (htbl : …) :
+    ∃ Σ⁺, SpecEnv env bo s Σ⁺
 ```
 
 `StateLe` (`ErasureRun.lean:1585`) and `RunConcl` (`:1609`) already exist and carry unchanged;
 `SpecEnv.exists` builds `Σ⁺` from `RegInvShape` (`ColdStartShape.lean:314`) plus
-`PrimSpec.lookup_adequate`, keeping the tree's genuine advantage over the papers' presentation:
+`ErasureSpec.lookup_adequate`, keeping the tree's genuine advantage over the papers' presentation:
 the environment relation is *derived from what the run registered and consulted*.
 
 ### 4.9 Output boundary — `Output.lean`
 
 ```lean
+/-- One constructor spine of `t` or of a constant body of `Σ`, with its argument count — the
+subject of the saturation invariant. -/
+inductive ConstructSpine (Σ : GlobalDeclarations) : LBTerm → InductiveId → Nat → Nat → Prop
+
 /-- What `untyped_transform_pipeline` needs from us, on the emitted program alone. `fresh`…
 `projDecl` are `EWellformed all_env_flags` (what `peregrine validate` checks); `etaCtors` is the
-constructor-saturation invariant `validate` omits and `remove_params_optimization` consumes
-(measured 982/982). Fixpoint η is **not** claimed: it is false on all five programs — F-ETA. -/
+constructor-saturation invariant `validate` omits and `remove_params_optimization` consumes —
+env **and** term, mirroring `EEtaExpanded.expanded_eprogram_cstrs = isEtaExp_env p.1 && isEtaExp
+p.1 p.2`; the term half is vacuous on every `#erase` of a constant (the emitted `t` is a bare
+`.const`), so the env half carries the measured 982/982. It is discharged from `Lower.ctorApp`'s
+`hsat` through `LowerEnv.defs`, not assumed. The same env+term split applies to `ctorApplied`,
+`closed`, `fixLambda`, `casesExh`, `projDecl`, `constsOk`, `ctorDecl`. Fixpoint η is **not**
+claimed: it is false on all five programs — F-ETA. -/
 structure LBWfPeregrine (Σ : GlobalDeclarations) (t : LBTerm) : Prop where
   keys, declsWf, closed, constsOk, ctorApplied, ctorDecl, casesExh, fixLambda, projDecl : …
-  etaCtors    : ∀ iid k n, ConstructSpine Σ t iid k n → n ≥ cstrArity Σ iid k
+  etaCtorsEnv : ∀ kn b iid k n, envLookup Σ kn = some (.constantDecl ⟨some b⟩) →
+                  ConstructSpine Σ b iid k n → n ≥ cstrArity Σ iid k
+  etaCtorsTm  : ∀ iid k n, ConstructSpine Σ t iid k n → n ≥ cstrArity Σ iid k
   asciiNames  : ∀ nm ∈ binderNames Σ t, nm.isAsciiGraphic          -- the λ□ parser's constraint
 
+/-- The fix-clause half of `EEtaExpandedFix.expanded`, over env and term: every `tFix` occurs
+applied, `args ≠ []` and `#args > principalArgIdx` (`EEtaExpandedFix.v:47-53`). -/
+def LBExpandedFix (Σ : GlobalDeclarations) (t : LBTerm) : Prop
+
 /-- What peregrine's first pass actually requires. `LBWfPeregrine` is strictly weaker; the
-difference is exactly fixpoint η (§8.2 F-ETA; peregrine's own discharge is `Admitted`,
-`Transforms.v:375`, so nothing downstream detects it). **Not concluded by T9.** -/
+difference is exactly `LBExpandedFix`. This is not paperwork: `guarded_to_unguarded_fix`
+(`ETransform.v:666-682`) is the identity on terms and its **entire evaluation-preservation
+obligation** is discharged from `EEtaExpandedFix.expanded_eprogram` via `eval_opt_to_target`, so
+with F-ETA no verified semantics-preservation argument covers the frontend's output past T9's
+`WcbvEval` — T9's docstring says so and names F-ETA. peregrine's own discharge is `Admitted`
+(`Transforms.v:375`) and `validate` checks no η, so nothing downstream detects it.
+**Not concluded by T9.** -/
 def PeregrinePre (Σ) (t) : Prop := LBWfPeregrine Σ t ∧ LBExpandedFix Σ t
 
 /-- `[S §5.6]`'s `axiom_free` generalised — the naive form is uninhabited in Lean, which is why
 the current capstones cover 0/5. A `Prop`-typed axiom is `Erasable`, hence boxed, hence never
-*reachable*; so the condition is reachability on the emitted program, and it is decidable there. -/
+*reachable*; so the condition is reachability on the emitted program. Stated boundedly over `Σ`'s
+key list (dangling references are `constsOk`'s business), with a `Decidable` instance via the
+list-bounded reachability checker — so it is the spec's own *hypothesis* `hax`, inhabited per
+rung `by decide` on the emitted `(Σ, t)`. -/
 def ErasableAxioms (Σ : GlobalDeclarations) (t : LBTerm) : Prop :=
-  ∀ kn, ReachableFrom Σ t kn → envLookup Σ kn = some (.constantDecl ⟨none⟩) → AxiomRealizer Σ kn
-inductive AxiomRealizer (Σ) : Kername → Prop          -- N2, one row per name (`Eq.rec`, `@[extern]`)
+  ∀ kn ∈ Σ.map Prod.fst, ReachableFrom Σ t kn →
+    envLookup Σ kn = some (.constantDecl ⟨none⟩) → AxiomRealizer Σ kn
+inductive AxiomRealizer (Σ) : Kername → Prop
+  -- one constructor per named row (`Eq.rec`, `@[extern]` names); each row is a class-E
+  -- assumption that a realizer exists on the consumer side (F-EQREC decides whether the
+  -- frontend should emit it into `.attr`/`.ast.inlinings`); decidable inversion derived
 ```
 
 `ctorApplied` (`NoBlock t`) and `closed` are supplied **unconditionally and panic-tolerantly** by
-`visitExpr_shape_all` — two conjuncts for free.
+`visitExpr_shape_all` — two conjuncts for free. `etaCtorsEnv` is supplied by U4.5's
+`visitExpr_ctorSat` (the run-side saturation lemma, lifted through `RegInvShape'`), and
+`fixLambda` by the shape of `visitMutual`'s output under `Supported` — the eraser itself checks
+neither (raised inside **F-ETA**, §8.2).
 
-### 4.10 `PrimSpec` — the one bundle — `PrimSpec.lean`
+### 4.10 `ErasureSpec` — the one bundle — `ErasureSpec.lean`
 
-Built by renaming `OracleDischarge.ResidualHyps` (`OracleDischarge.lean:65`, already four fields
-in this shape) and adding two.
+Renamed from the draft's `PrimSpec` — `Lean4Lean.PrimSpec` exists upstream
+(`Verify/Typing/Expr.lean:315`) and this tree opens `Lean4Lean` pervasively. Built from
+`OracleDischarge.ResidualHyps` (`OracleDischarge.lean:65`): three fields carried (`orc_refl` split
+in two below; `fresh_run`; `cases_run`+`ctor_run` merged into `lookup_adequate`) and three new.
+Table adequacy is **not** a field: a `Prop`-valued structure cannot hold `tbl` as data, and an
+unbound `tbl` in a field auto-binds to `∀ tbl, …` — false, hence the bundle uninhabitable. It is
+the named binder `htbl` beside `hrun` (§5).
 
 ```lean
-structure PrimSpec (lenv : Lean.Environment) (env : VEnv) (Us : List Name)
+structure ErasureSpec (lenv : Lean.Environment) (env : VEnv) (Us : List Name)
     (gw : Void IO.RealWorld → NameGenerator) : Prop where
-  env_connect     : ∃ ves : VEnvs, ves.WF lenv ∧ env = ves.venv .safe     -- + `abs_env_irr`
+  /-- `VEnvs.WF : Lean.Kernel.Environment → VEnvs → Prop`, so the bridge object is named:
+      `lenv.toKernelEnv = lenv.checked.get` is where the elaboration environment and the modelled
+      one are joined — the same conversion the shipping call site makes (`Erasure.lean:178`). -/
+  env_connect     : ∃ ves : VEnvs, ves.WF lenv.toKernelEnv ∧ env = ves.venv .safe
   lookup_adequate : …    -- getConstInfo / getCasesInfo? / getCtorArity? / getDeclInfo?
   fresh_names     : …    -- `mkFreshFVarId` returns identifiers absent from the ambient context
-  oracle_sound    : …    -- **discharged**, not assumed (below)
-  ind_adequate    : …    -- `InductiveVal` ↔ `VInductDecl` in `env`'s declaration list
-  table_adequate  : SourceTableAdequate lenv tbl                          -- §2 F4
+  /-- Class **D** with a proved kernel branch: an `Erasure.isErasable` run at `lps` returning
+      `true` either reflects `M.run env₀ .safe ctx.lctx lps (isErasable e) = .ok true` with
+      `lps = Us` (the arm `Oracle.kernel_isErasable_sound` discharges — class **B**), or the
+      `.error` arm fired and `isErasableMeta` answered. The disjunctive shape is
+      `OracleDischarge.lean:69-88` verbatim; a structure field cannot be "discharged", only its
+      kernel arm can. -/
+  oracle_refl     : …
+  /-- Class **D**: soundness of the `isErasableMeta` fallback, and of any run at
+      `ctx.lparams ≠ Us` (`BridgeInv.lparams` is a strict-prefix guard, so at the capstone's
+      `Us = []` the kernel arm covers only monomorphic declarations' runs — a real scope limit,
+      stated). Measured empirically dead on the error route: 0 kernel-run errors over 139,196
+      non-internal constants, 1 divergence and that one planted (`gate/d5_census.lean`). -/
+  oracle_meta     : …
+  /-- `InductiveVal` ↔ `VInductDecl` in `env`'s declaration list. U1.8 first *attempts the
+      derivation* from `env_connect` by `TrEnv'` inversion on the `induct`/`AddInduct` clause —
+      upstream ships the shape twice (`TrEnv'.structure_rec`, `TrEnv'.pats_iota'`) — and keeps
+      the field only if that fails, with the obstruction named. -/
+  ind_adequate    : …
 
-theorem PrimSpec.envWF (P : PrimSpec lenv env Us gw) : env.WF            -- via `TrEnv'.wf`
-theorem PrimSpec.oracle_sound_of_run (P : PrimSpec …) … :
-    Erasure.isErasable lps e = .ok true → TrExprS env lps Δ e ve →
-    Erasable env lps.length Δ.toCtx ve                                    -- via `Oracle.kernel_isErasable_sound`
+theorem ErasureSpec.envWF (P : ErasureSpec lenv env Us gw) : env.WF     -- via `TrEnv'.wf`;
+    -- measured sorryAx-free: [propext, Classical.choice, Quot.sound] (gate/d5_envwf.lean)
+theorem ErasureSpec.oracle_sound_of_run (P : ErasureSpec …) … :
+    Erasure.isErasable lps e = .ok true → ctx.lparams = Us → TrExprS env lps Δ e ve →
+    Erasable env lps.length Δ.toCtx ve
+    -- kernel branch via `Oracle.kernel_isErasable_sound`; fallback branch by `P.oracle_meta`
 ```
 
-Fields 1, 2, 3, 5, 6 are class **D**; field 4 is class **B**, discharged through
-`Relevance` → `RelevanceCheck.isErasable.WF` → `Oracle.kernel_isErasable_sound`. That chain is the
-development's only trust *reduction*; keeping it is what makes criterion 9 satisfiable, it costs
-33 axioms (measured, all classified in the ledger), and it is why shipping edit **B1** (the
-`isErasable` kernel reroute) must stay. `PrimSpec.envWF` is a genuine trust reduction over the
-current tree, which assumes `env.WF` outright.
+Fields 1, 2, 3, 6 are class **D** (field 6 pending its derivation attempt); `oracle_refl` +
+`oracle_meta` are class **D** with the kernel arm class **B**, discharged through
+`Relevance` → `RelevanceCheck.isArityCheck.WF` → `Oracle.kernel_isErasable_sound`. That chain is
+the development's only trust *reduction* — real but **partial** (A16): what remains assumed is
+the impure→pure reflection, the `Meta` fallback, and the polymorphic-scope arm, each with its
+ledger row. It costs 33 axioms (measured: 29 non-standard names, exactly two `_native.bv_decide`
+from Lean core — `gate/d5_axioms.lean`), and it is why shipping edit **B1** (the `isErasable`
+kernel reroute) is kept — conditional on **F-FUEL** landing in W0 (§8.1): with the fuel defect
+fixed, the residual kernel-arm assumption is near-definitional (`Erasure.isErasable` literally
+calls `M.run … (RecM.run (isErasable e))`), a genuinely weaker trust obligation than
+"`Meta.isProp ∨ Meta.isTypeFormerType` is sound". `ErasureSpec.envWF` is a genuine trust
+reduction over the current tree, which assumes `env.WF` outright.
 
-The relational pass interface, with explicit binders (§2 F11):
+The relational pass interface, with explicit binders (§2 F11). `LBWfSpec Σ⁺` is the
+specification environment's own well-formedness — `(Σ⁺.map Prod.fst).Nodup ∧ ClosedEnv Σ⁺` —
+defined in `ErasesEnv.lean` and derived from `ErasesEnv` (there is no other `LBWf`):
 
 ```lean
 structure LBPassR where
   rel        : GlobalDeclarations → LBTerm → LBTerm → Prop
   flIn flOut : WcbvFlags
-  correct    : ∀ {Σ⁺ Σ t t' v}, LBWf Σ⁺ → LBClosed t 0 → LowerEnv Σ⁺ Σ → rel Σ⁺ t t' →
+  correct    : ∀ {Σ⁺ Σ t t' v}, LBWfSpec Σ⁺ → LBClosed t 0 → LowerEnv Σ⁺ Σ → rel Σ⁺ t t' →
                WcbvEval Σ⁺ flIn t v → ∃ v', rel Σ⁺ v v' ∧ WcbvEval Σ flOut t' v'
 ```
 
@@ -794,63 +1080,103 @@ inductive SupportError where
   | sparseCasesOn (c : Name)       -- the measured Quicksort miscompile
   | sideConditionElim (c : Name) | etaContractedMinor (c : Name)
   | strLit | machineNat | quotPrim (c : Name) | ioLike (c : Name) | implementedBy (c : Name)
-  | mvar | accRec (c : Name) | unknownConst (c : Name)
+  | mvar | propElimIntoData (I : Name)      -- N18, *shape*-keyed: `Acc.casesOn` compiles in Lean,
+                                            -- so a name-keyed `accRec` would not close the hole
+  | unknownConst (c : Name)
+  | outOfFuel                               -- exhaustion never certifies an untraversed closure
   deriving Repr, DecidableEq
 
-/-- Decidable over `e` **and its dependency closure**, on the reified table, and it *names the
+/-- Total and fuel-indexed — the dependency closure is cyclic through mutual blocks, so this is
+not structural on `e`, and a `partial def` would be kernel-opaque (`by rfl` fails on one).
+Decidable over `e` **and its dependency closure**, on the reified table, and it *names the
 hole* — which is what generates the coverage table; `Bool` would lose the name. -/
-def supportedB (tbl : SourceTable) (e : Expr) : Except SupportError Unit
+def supportedB (tbl : SourceTable) (fuel : Nat) (e : Expr) : Except SupportError Unit
 def Supported (env : VEnv) (e : Expr) : Prop                    -- one named conjunct per SupportError
-theorem supportedB_sound (P : PrimSpec …) (ht : SourceTableAdequate lenv tbl) :
-    supportedB tbl e = .ok () → Supported env e
+theorem supportedB_sound (P : ErasureSpec lenv env Us gw) (ht : SourceTableAdequate lenv tbl) :
+    supportedB tbl fuel e = .ok () → Supported env e
 ```
 
-`Supported.casesApp` requires the head to be `I.casesOn` for an inductive in the fragment with a
-**plain** `CasesInfo` (no `CasesAltInfo.default`, no `hasSideCondition`) and every minor a
-syntactic λ-chain of its alt's field arity (`IsLamTelescope`, `Bridge.lean:60`, already assumed by
-motive 18 — zero churn). The first exclusion is the shipping bug of `VerifyBench/Quicksort`; the
-second is what makes the composite's branch rule exact. A *reporting* predicate
-`HasCompilerBody` excludes nothing and feeds the coverage table.
+`Supported.casesApp` requires the head to be `I.casesOn` for an inductive in the fragment —
+**informative** (N18) — with a **plain** `CasesInfo` (no `CasesAltInfo.default`, no
+`hasSideCondition`) and every minor a syntactic λ-chain of its alt's field arity
+(`IsLamTelescope`, `Bridge.lean:60`, already assumed by motive 18 — zero churn). The first
+exclusion is the shipping bug of `VerifyBench/Quicksort`; the second is what makes the
+composite's branch rule exact; the informativity conjunct is F-PROP's fragment boundary (Q2). A
+*reporting* predicate `HasCompilerBody` excludes nothing and feeds the coverage table.
 
 ```lean
-/-- A reified, committed slice of the `Lean.Environment`: the `prepare_erasure`d bodies of the
-dependency closure, the inductive metadata, the constructor arities, and the relevance oracle's
-verdict at every subterm position. Generated by `lake exe reify`, byte-diffed in CI. This is the
-only way a `by rfl`/`by decide` discharge can exist: `Lean.Environment` has a private constructor
-and an opaque `EnvExtensionState`, and `native_decide` is banned. -/
+/-- A reified slice of the `Lean.Environment`: the `prepare_erasure`d bodies of the dependency
+closure and the inductive metadata with constructor arities — nothing else (an `oracle` column
+would re-enter as assumed data the one fact the development discharges, and a `cfg` column
+duplicates `hcfg`). Spliced by the `reify%` term elaborator, which reads `getEnv` **in the same
+elaboration as the rung** — so there is no committed-artifact ingestion step, no JSON parser in
+the trust base, and no regenerate-and-diff circularity; the assumption shrinks to "a ten-line
+elaborator copies `find?`'s result". `lake exe green-check` still re-runs `#erase` and byte-diffs
+the emitted `.ast`, the output half of `hrun`. This is the only way a `by rfl`/`by decide`
+discharge can exist: no term denotes the ambient environment (the private constructor and opaque
+`EnvExtensionState` hold of `Lean.Kernel.Environment` too), and `native_decide` is banned. -/
 structure SourceTable where
-  decls  : List (Name × ReifiedDecl)
+  decls  : List (Name × ReifiedDecl)      -- levelParams, type, prepared body?
   inds   : List (Name × ReifiedInduct)
-  oracle : List (Name × List (SubtermPos × Bool))
-  cfg    : Erasure.ErasureConfig
+def SourceTable.body? (tbl : SourceTable) : Name → Option Expr   -- `SEval`/`ErasesDecl`'s table
+
+/-- Two clauses: (a) a per-declaration pin — `∀ d ∈ tbl.decls, lenv.find? d.name` matches
+`d`'s type and levels; (b) the run clause for the one column that is not a `find?` output —
+`prepare_erasure` on `d.name`'s value returns `d.body?` (`prepare_erasure : Expr → EraseM Expr`
+is monadic, so this clause is run-indexed like `lookup_adequate`, not a pure equation). Carried
+as the named class-**D** binder `htbl` in every rung and in T9. -/
 def SourceTableAdequate (lenv : Lean.Environment) (tbl : SourceTable) : Prop
 ```
+
+The reflection posture is the ecosystem's own: MetaRocq reifies the Rocq environment through an
+unverified OCaml quoter (`quoter.ml`/`ast_quoter.ml` in rocq-metarocq-template, vendored by
+`peregrine-tool/plugin`), so a reification TCB already sits under `Peregrine Extract`, unnamed.
+Here it is one named binder. Because `lenv` is universally quantified in every rung, the ladder
+delivers **conditional** non-vacuity — no computation can make it unconditional, and saying so
+costs this sentence (§6).
 
 ### 4.12 `FirstOrderInd` — T7 — `FirstOrderInd.lean`
 
 ```lean
-def VEnv.HasInduct (env : VEnv) (decl : VInductDecl) : Prop :=
-  ∃ ds, VEnv.WF' ds env ∧ VDecl.induct decl ∈ ds
-def FOType (fo : Name → Prop) (n k : Nat) : VExpr → Prop
-  | .const I _ => fo I
-  | .bvar i    => k ≤ i ∧ i < n + k
+def HasInduct (env : VEnv) (decl : VInductDecl) : Prop :=       -- LeanToLambdaBox namespace, no
+  ∃ ds, VEnv.WF' ds env ∧ VDecl.induct decl ∈ ds                --   dot notation (criterion 21)
+/-- Field types are `.const`-headed only. lean4lean names a block's own type formers by
+`.const` — constructor types are **closed** (`VConstant.WF` types them in the empty context) and
+`ctors_result` pins `piBody = (.const t.name us).mkApps …` — so MetaRocq's `tRel` clause has no
+counterpart here and the block's self-reference is admitted through `own`. There is no `.bvar`
+clause: `piBinders[i]` sits under `i` binders, so a `.bvar j` there has `j < i` and can never be
+a type former. -/
+def FOType (own : List Name) (fo : Name → Prop) : VExpr → Prop
+  | .const I _ => I ∈ own ∨ fo I
   | _          => False
-structure VInductDecl.FirstOrder (env : VEnv) (fo : Name → Prop) (decl : VInductDecl) : Prop where
-  mono        : decl.uvars = 0
+structure FirstOrderDecl (own : List Name) (fo : Name → Prop) (decl : VInductDecl) : Prop where
+  mono        : decl.uvars = 0                    -- declared scope restriction, see below
   informative : ∀ t ∈ decl.types, ∃ ℓ, t.type.piBody = .sort ℓ ∧ ℓ.IsNeverZero
-  noIndices   : ∀ t ∈ decl.types, t.type.piArity = decl.nparams
+  noIndices   : ∀ t ∈ decl.types, t.type.piArity = decl.nparams   -- declared scope restriction
   fields      : ∀ t ∈ decl.types, ∀ c ∈ t.ctors, ∀ i < c.type.piArity,
-                  ∃ A, c.type.piBinders[i]? = some A ∧ FOType fo decl.types.length i A
-def FirstOrderInd (env : VEnv) (fo : Name → Prop) (I : Name) : Prop :=
-  ∃ decl, env.HasInduct decl ∧ decl.FirstOrder env fo ∧ ∃ t ∈ decl.types, t.name = I
+                  ∃ A, c.type.piBinders[i]? = some A ∧ FOType own fo A
+/-- The closure is **closed inside the definition** — a free `fo` parameter made T7/T9
+refutable (`fo := fun _ => True` accepts a `True`-fielded `Type`). `FOClosed` is a post-fixed
+point: every name in `fo` is declared, informative and first-order w.r.t. `fo` itself; the
+checker's visited set is the witness. `Nat` is accepted with `fo = {Nat}` (succ's field is the
+block's own former); a `True`-fielded wrapper is rejected because `True` has no informative
+declaration in any `fo`. -/
+def FOClosed (env : VEnv) (fo : Name → Prop) : Prop :=
+  ∀ J, fo J → ∃ decl, HasInduct env decl ∧
+    FirstOrderDecl (decl.types.map (·.name)) fo decl ∧ ∃ t ∈ decl.types, t.name = J
+def FirstOrderInd (env : VEnv) (I : Name) : Prop := ∃ fo, FOClosed env fo ∧ fo I
 def firstOrderIndB (tbl : SourceTable) (fuel : Nat) (I : Name) : Bool
-theorem firstOrderIndB_sound (P : PrimSpec …) (ht : SourceTableAdequate lenv tbl) :
-    firstOrderIndB tbl fuel I = true → FirstOrderInd env (foClosure tbl) I
+theorem firstOrderIndB_sound (P : ErasureSpec …) (ht : SourceTableAdequate lenv tbl) :
+    firstOrderIndB tbl fuel I = true → FirstOrderInd env I    -- visited set = the fo witness
 ```
 
-`fields` ≡ `[L Def. 14]`; `informative` is the syntactic sufficient condition for `[L Def. 6]`,
-whose *conclusion* is `firstorder_no_box`. This definition elaborates clean against the pinned
-lean4lean (probe `q6.lean`, axioms `[propext, Quot.sound]`).
+`fields` is `[L Def. 14]` restricted to unapplied field types (matching `firstorder_type`'s
+`args = []`); `informative` is the *result-sort* half of `[L Def. 6]`, whose *conclusion* is
+`firstorder_no_box`. `mono` and `noIndices` come from **neither** paper nor from
+`firstorder_ind`: they are declared scope restrictions with class-**C** ledger rows beside
+N16/N18 — they reject types (universe-polymorphic, indexed) that are genuinely first-order and
+box-free, and they are stated as such, not booked to the sources. `Nat`, `Bool` and
+BinaryTrees' `Tree` satisfy all four conjuncts at the pinned lean4lean.
 
 ### 4.13 `lbEval` — the certified target evaluator — `Semantics/Compute.lean`
 
@@ -859,7 +1185,10 @@ def lbEval (Σ : GlobalDeclarations) (fl : WcbvFlags) (fuel : Nat) : LBTerm → 
 theorem lbEval_sound (h : lbEval Σ fl fuel t = some v) : WcbvEval Σ fl t v      -- class A
 ```
 
-Unconditional, ~420 lines, every step one `WcbvEval` rule. It turns the target-side evaluation of
+Unconditional; **already in the tree** (`Semantics/Compute.lean`, 338 lines, proved,
+`#print axioms lbEval_sound = [propext]` — U0.4 wires it into the build root and adds
+`green-check`, it does not rewrite it); every step one `WcbvEval` rule. It turns the target-side
+evaluation of
 every green rung into `by rfl`, and it doubles as a differential oracle: `lake exe green-check`
 compares `lbEval Σ eraseFlags` on the committed `.ast` with `peregrine eval` — a
 cross-implementation agreement test on the λ□ semantics itself (CLAUDE.md's cheapest real
@@ -873,23 +1202,32 @@ only if its soundness proof stays small; `eraseB` is **not built**.
 #print axioms LeanToLambdaBox.lower_correct
 #print axioms LeanToLambdaBox.lowerFix_correct
 #print axioms LeanToLambdaBox.visitExpr_refines_erasesLB
+#print axioms LeanToLambdaBox.visitExpr_refines_erasesLBFix
 #print axioms LeanToLambdaBox.shipping_erase_correct_firstorder
 #print axioms LeanToLambdaBox.green_G1
 #print axioms LeanToLambdaBox.green_G8
 ```
 
-Rows, measured, never narrated: **(a1)** lean4lean's inherited `sorryAx` cluster at `20ec229` with
+`test/ledger.expected` holds **exactly** the `#print axioms` output and nothing else — that is
+what a `diff` can measure; `#print axioms` reports `sorryAx` as one flat name with no provenance,
+so provenance lives in `doc/trust.md`, whose every `file:line` and identifier `lake exe hygiene`
+resolves. Its rows: **(a1)** lean4lean's inherited `sorryAx` cluster at `20ec229` with
 `file:line` (`Injectivity.lean:12,21,34`, `UniqueTyping.lean:174`, `ChurchRosser.lean:1193,1212`),
 reaching here through `TrExprS.uniq` and `IsDefEq.uniqU`; **(a2)** `EnvLemmas.lean:334
 VEnv.WF.patsStrong`, marked **fork-authored, not inherited** — which no current document does;
 **(a3)** the 29-name executable-checker cluster criterion 9 brings in, including two
-`_native.bv_decide` axioms from Lean core; **(b)** `PrimSpec`'s five class-**D** fields and `hrun`;
-**(c)** the class-**C** hypotheses (`hcfg`, `hcomp`, `hsup`, `hax`, `hfo`, `hnp`, `hsub`, and the
-source evaluation per N7); **(d)** the class-**E** rows: N1 csimp, N2 extern, N3 machine `Nat`,
-N4 argmask, N5 auto-inline, N7 termination, N10 serialisation, N11 `.inlinings`/`.mli`, N14 size,
-N16 `Quot`, N17 `Acc`, the compiler-vs-kernel body gap, peregrine's `Admitted` precondition and
-its `validate` gap, MetaRocq's `firstorder_ind` defect, and Q8's dropped Rocq transport. **No
-prose copy exists anywhere else in the repository.**
+`_native.bv_decide` axioms from Lean core; **(b)** `ErasureSpec`'s class-**D** fields
+(`env_connect`, `lookup_adequate`, `fresh_names`, `oracle_refl`'s reflection clause,
+`oracle_meta`, `ind_adequate` if underived), plus `hrun` and `htbl` — each a permanent named
+binder, mechanised externally by `lake exe green-check`; **(c)** the class-**C** hypotheses
+(`hcfg`, `hcb`, `hsup`, `hax`, `mono`/`noIndices`' scope restrictions, and the source evaluation
+per N7) — each a binder in a stated §5 theorem (criterion 17); **(d)** the class-**E** rows: N1
+csimp, N2 extern (one `AxiomRealizer` row per name), N3 machine `Nat`, N4 argmask, N5
+auto-inline, N7 termination, N10 serialisation, N11 `.inlinings`/`.mli`, N14 size, N16 `Quot`,
+N18 prop-elimination (F-PROP), the well-founded compiler-vs-kernel body gap (`deltaC`'s
+propositional-only instances), peregrine's `Admitted` precondition and its `validate` gap,
+MetaRocq's `firstorder_ind` defect, and Q8's dropped Rocq transport. **No second prose copy
+exists anywhere else in the repository.**
 
 ---
 
@@ -901,81 +1239,106 @@ theorem eval_deterministic : WcbvEval Σ fl t v → WcbvEval Σ fl t v' → v = 
 theorem value_final        : Value Σ fl v → WcbvEval Σ fl v v
 
 -- T4  subject reduction                                                            class B
-theorem SEval.defeq (henv : envC.WF) (hΔ : VLCtx.WF envC Us.length Δ)
-    (htr : TrExprS envC Us Δ e ve) (hev : SEval envC Us fl Δ e v) :
-    ∃ vv, TrExprS envC Us Δ v vv ∧ envC.IsDefEqU Us.length Δ.toCtx ve vv
+theorem SEval.defeq (henv : env.WF) (hΔ : VLCtx.WF env Us.length Δ)
+    (hcb : CompilerBodies lenv env bo)
+    (htr : TrExprS env Us Δ e ve) (hev : SEval env bo Us fl Δ e v) :
+    ∃ vv, TrExprS env Us Δ v vv ∧ env.IsDefEqU Us.length Δ.toCtx ve vv
 
 -- T5  erases_correct — exactly five hypotheses, at the specification environment    class B
+--     (`bo`, like `fl`, is an index, not a hypothesis; final statement from W3, §3.4)
 theorem erases_correct
-    (henv : envC.WF) (hwt : TrExprS envC Us [] e ve)
-    (hev  : SEval envC Us fl [] e v)
-    (her  : Erases envC Us [] e t)
-    (hΣ   : ErasesEnv envC Σ⁺ t) :
-    ∃ v', Erases envC Us [] v v' ∧ WcbvEval Σ⁺ eraseFlags t v'
+    (henv : env.WF) (hwt : TrExprS env Us [] e ve)
+    (hev  : SEval env bo Us fl [] e v)
+    (her  : Erases env Us [] e t)
+    (hΣ   : ErasesEnv env bo Σ⁺ t) :
+    ∃ v', Erases env Us [] v v' ∧ WcbvEval Σ⁺ eraseFlags t v'
 
 -- T6  the passes                                                                    class A
 theorem lower_correct
-    (hwf : LBWf Σ⁺) (hcl : LBClosed t 0) (hE : LowerEnv Σ⁺ Σ) (h : Lower Σ⁺ t t')
+    (hwf : LBWfSpec Σ⁺) (hcl : LBClosed t 0) (hE : LowerEnv Σ⁺ Σ) (h : Lower Σ⁺ t t')
     (hev : WcbvEval Σ⁺ eraseFlags t v) :
     ∃ v', Lower Σ⁺ v v' ∧ WcbvEval Σ eraseFlags t' v'
 theorem lowerFix_correct    -- the block clause of `lower_correct`, stated separately for reuse
-    (hE : LowerEnv Σ⁺ Σ) (hblk : LowerBlock Σ⁺ kns bs bs' defs) … :
+    (hE : LowerEnv Σ⁺ Σ) (hblk : LowerBlock Σ⁺ kns bs bs' ids defs)
+    (hfl : ∀ i, i < defs.length → isLambda (defs[i]!).body) … :
+    -- `hfl` is a fact about the *emitted* defs (`LBWfPeregrine.fixLambda`), transported to the
+    -- specification bodies by `LowerBlock.lambda_of_fixLambda` (`closeFix` preserves the head);
+    -- it is needed because at `args = []` the source δ pins `v` to `bs[j]`'s value and `Lower`'s
+    -- only value-side fix arm demands `bs[j]` verbatim, i.e. `bs[j]` must be its own value.
+    -- The eraser guarantees it under `Supported`, and checks nothing itself — part of F-ETA.
     WcbvEval Σ⁺ eraseFlags (LBTerm.mkApps (.const kns[j]!) args) v →
     ∃ v', Lower Σ⁺ v v' ∧ WcbvEval Σ eraseFlags (LBTerm.mkApps (.fix defs j) args') v'
-theorem LBOptimize_correct  -- optional corollary, W6; eraseFlags → optFlags
-    : WcbvEval Σ eraseFlags t v → WcbvEval (LBOptimize_env Σ) optFlags (LBOptimize Σ t) (LBOptimize Σ v)
+theorem LowerBlock.lambda_of_fixLambda (hblk : LowerBlock Σ⁺ kns bs bs' ids defs)
+    (hfl : ∀ j, j < defs.length → isLambda (defs[j]!).body) :
+    ∀ j, j < kns.length → isLambda bs[j]! = true
+theorem LBOptimize_correct  -- optional corollary, W6; blockFlags source point, §3.2
+    : WcbvEval Σ propBlockFlags t v → WcbvEval (LBOptimize_env Σ) blockFlags (LBOptimize Σ t) (LBOptimize Σ v)
 
 -- T7  first-order uniqueness and box-freedom                                        class B
 theorem firstorder_erases_deterministic
-    (henv : envC.WF) (hfo : FirstOrderInd envC fo I)
-    (hwt : TrExprS envC Us [] v vv)
-    (hty : envC.HasType Us.length [] vv (VExpr.mkApps (.const I us) args))
-    (hval : SEval envC Us fl [] v v)
-    (h₁ : Erases envC Us [] v t₁) (h₂ : Erases envC Us [] v t₂) : t₁ = t₂
-theorem firstorder_lower_deterministic   -- §2 F3: determinism of the *composite* on data class A
-    (hfo : FirstOrderShape Σ⁺ t) (h₁ : Lower Σ⁺ t u₁) (h₂ : Lower Σ⁺ t u₂) : u₁ = u₂
-theorem firstorder_no_box (… same premises …) (h : Erases envC Us [] v t) : NoBox t
+    (henv : env.WF) (hfo : FirstOrderInd env I)
+    (hwt : TrExprS env Us [] v vv)
+    (hty : env.HasType Us.length [] vv (VExpr.mkApps (.const I us) args))
+    (hval : SEval env bo Us fl [] v v)
+    (h₁ : Erases env Us [] v t₁) (h₂ : Erases env Us [] v t₂) : t₁ = t₂
+theorem firstorder_no_box (… same premises …) (h : Erases env Us [] v t) : NoBox t
+-- (no `firstorder_lower_deterministic`: T9's answer is pinned by T7 on `tv₀` and by
+--  `eval_deterministic` (T1) on `tv`; a Lower-determinism theorem would be load-bearing for
+--  nothing and would need a `FirstOrderShape` predicate with no other consumer — policy 6)
 
--- T8  the bridge                                                                    class B
+-- T8  the bridge — two statements, split on the fixvar mode (§4.5)                  class B
 theorem visitExpr_refines_erasesLB
-    (P    : PrimSpec lenv env Us gw)
+    (P    : ErasureSpec lenv env Us gw)
+    (htbl : SourceTableAdequate lenv tbl)
     (hcfg : ConfigPinned cfg)
-    (hC   : CompilerEnv env envC lenv e)
-    (hwt  : TrExprS envC Us Δ (prepare_erasure e) ve)
-    (hsup : Supported envC (prepare_erasure e))
-    (hnp  : ¬ Panicked run)
-    (hrun : Erasure.visitExpr (prepare_erasure e) s ctx cctx ref w = .ok (t, s') w')
-    (hinv : BridgeInv envC Us cfg (gw w) ctx s Δ) :
-    ∀ Σ⁺, SpecEnv envC s' Σ⁺ →
-      ErasesLB envC Us Σ⁺ Δ (prepare_erasure e) t ∧ RunConcl s s' ∧ gw w ≤ gw w'
+    (hcb  : CompilerBodies lenv env tbl.body?)          -- N8, class C
+    (hwt  : TrExprS env Us Δ e ve)                      -- e is already prepared: T8 is about
+    (hsup : Supported env e)                            --   `visitExpr`, whose input is post-
+    (hfx  : ctx.fixvars = none)                         --   `prepare_erasure` (`erase_run_ok`)
+    (hrun : Erasure.visitExpr e s ctx cctx ref w = .ok (t, s') w')
+    (hinv : BridgeInv env Us cfg (gw w) ctx s Δ) :
+    ∀ Σ⁺, SpecEnv env tbl.body? s' Σ⁺ →
+      ErasesLB env Us Σ⁺ Δ e t ∧ RunConcl s s' ∧ gw w ≤ gw w'
+theorem visitExpr_refines_erasesLBFix   -- the block-branch companion; genuinely new work (W4)
+    (…same P/htbl/hcfg/hcb/hwt/hsup/hrun/hinv…)
+    (hfx : ctx.fixvars = some (fixvarMap kns ids)) (hfr : FreshFor ids ctx s) :
+    ∀ Σ⁺, SpecEnv env tbl.body? s' Σ⁺ →
+      ErasesLBFix env Us Σ⁺ kns ids Δ e t ∧ RunConcl s s' ∧ gw w ≤ gw w'
+-- There is no `hnp`: N12 is met by its option 2 — the per-site panic table (`doc/panics.md`)
+-- plus the `Supported` conjuncts that exclude the reachable sites; `visitExpr_shape_all` is
+-- panic-tolerant and the bridge's arms discharge the panic branches under `Supported`.
 
 -- T9  the capstone, applied form                                                    class B
 theorem shipping_erase_correct_firstorder
-    (P     : PrimSpec lenv env [] gw)
+    (P     : ErasureSpec lenv env [] gw)
+    (htbl  : SourceTableAdequate lenv tbl)              -- class D, named (A14)
     (hcfg  : ConfigPinned cfg)                          -- N1-N5
-    (hC    : CompilerEnv env envC lenv e)               -- N8, class C
-    (hwt   : TrExprS envC [] [] e ve)
-    (hsup  : Supported envC e)                          -- N6/N16/N17, class C, decidable
-    (hnp   : ¬ Panicked run)                            -- N12, class C
-    (hrun  : Erasure.erase e cfg cctx ref w = .ok (.untyped Σ (some t), inls) w') :
-    ∃ Σ⁺, ErasesEnv envC Σ⁺ t₀ ∧ Lower Σ⁺ t₀ t
+    (hcb   : CompilerBodies lenv env tbl.body?)         -- N8, class C (33/33 measured)
+    (hwt   : TrExprS env [] [] e ve)                    -- F17: W3 witness or named fallback
+    (hsup  : Supported env e)                           -- N6/N16/N18, class C, decidable
+    (hrun  : Erasure.erase e cfg cctx ref w = .ok (.untyped Σ (some t), inls) w')
+    (hax   : ErasableAxioms Σ t) :                      -- spec's own hypothesis; by decide per rung
+    ∃ Σ⁺ t₀, Erases env [] [] e t₀                      -- the subject's own erasure, bound
+        ∧ ErasesEnv env tbl.body? Σ⁺ t₀
+        ∧ Lower Σ⁺ t₀ t
         ∧ LowerEnv Σ⁺ Σ
-        ∧ LBWfPeregrine Σ t
-        ∧ ErasableAxioms Σ t                            -- decidable on the emitted program
+        ∧ LBWfPeregrine Σ t                             -- not PeregrinePre: F-ETA, §4.9
         ∧ ∀ (args : List Expr) (targs : List LBTerm) (I : Name) (us idx) (v : Expr) (vv : VExpr),
-            (∀ i, i < args.length → ErasesLB envC [] Σ⁺ [] args[i]! targs[i]!) →
-            SEval envC [] fullFlags [] (mkApps e args) v →
-            TrExprS envC [] [] v vv →
-            envC.HasType 0 [] vv (VExpr.mkApps (.const I us) idx) →
-            FirstOrderInd envC fo I →
-            ∃ tv₀ tv, Erases envC [] [] v tv₀ ∧ Lower Σ⁺ tv₀ tv ∧ NoBox tv
-                    ∧ (∀ tv', Erases envC [] [] v tv' → tv' = tv₀)
+            (∀ i, i < args.length → ErasesLB env [] Σ⁺ [] args[i]! targs[i]!) →
+            SEval env tbl.body? [] fullFlags [] (mkApps e args) v →
+            TrExprS env [] [] v vv →
+            env.HasType 0 [] vv (VExpr.mkApps (.const I us) idx) →
+            FirstOrderInd env I →
+            ∃ tv₀ tv, Erases env [] [] v tv₀ ∧ Lower Σ⁺ tv₀ tv ∧ NoBox tv
+                    ∧ (∀ tv', Erases env [] [] v tv' → tv' = tv₀)
                     ∧ WcbvEval Σ eraseFlags (LBTerm.mkApps t targs) tv
 ```
 
 At `args = []` this is the spec's T9 verbatim; at `args = [.lit 0]` it is the observation for
-`benchArith`. The uniqueness conjunct is T7 and is what makes the conclusion *an answer* rather
-than an existential. `hrun` is a permanent class-**D** binder (§2 F18).
+`benchArith`. The answer is unique: T7 pins `tv₀` and `eval_deterministic` (T1) pins `tv` given
+`hrun`'s emitted program. `hrun` and `htbl` are permanent class-**D** binders (§2 F18, A14).
+`hax` is false on `Fannkuch` unless its `Eq.rec` `AxiomRealizer` row is granted (class **E**) —
+that is `Fannkuch`'s coverage row, and F-EQREC is where the frontend-side fix is decided.
 
 Composition, mirroring `[S §7.3]`: `erase_run_ok` (`ColdStartRun.lean:651`) decomposes the run into
 `prepare_erasure` then `visitExpr`; T8 puts the output in `Erases ⨟ Lower` at a `Σ⁺` that
@@ -1004,15 +1367,19 @@ closed-normal-term posture; G8 is the tracked `benchArith`.
 | G3 | `spikeLet : Nat := let x := 2; Nat.succ x` | ζ in **both** semantics | W2 |
 | G4 | `spikeProj : Nat := (Prod.mk 1 2).1` | `Erases.proj`, boxed type parameters, polymorphic dependencies | W2 |
 | G5 | `spikeCase : Nat := match 3 with \| 0 => 7 \| n+1 => n` | matcher inlining, `casesOn`, `.case`, ι | W3 |
-| G6 | `spikeFix : Nat := Nat.add 2 3` | `_unsafe_rec`, `envC`, `.fix` | W3 |
+| G6 | `spikeFix : Nat := Nat.add 2 3` | `_unsafe_rec`, `deltaC` + the compiler-body table, `.fix` | W3 |
 | G7 | `arithClosed : Nat := benchArith 0` | the typeclass tower: 10 projections, 4 fix blocks, 5 `.case`, 19-node peano tower | W5 |
 | G8 | `benchArith : Nat → Nat` | function-typed subject; the applied capstone | W5 |
 
 `LeanToLambdaBox/Green.lean` is a tracked default build target holding, for every rung reached so
 far, a theorem whose conclusion ends in a **literal** peano numeral — so it cannot be satisfied by
-`□` or a stuck term — with every class-**C** hypothesis inhabited by a checked term. Waves that
-predate T8 carry one extra binder `hbridge`; W4 discharges it and the rungs become unconditional
-statements about the shipping eraser. `lake exe green-check` re-runs `#erase` on every rung,
+`□` or a stuck term — with every class-**C** hypothesis inhabited by a checked term (A14: the
+class-**D** binders — `P`, `htbl`, `hrun`, and `hwt` until F17's witness lands — remain named
+binders in each rung's docstring, mechanised externally by `lake exe green-check`). `lenv` and
+`env` are universally quantified in every rung, so the lane delivers **conditional** non-vacuity;
+no computation can make it unconditional, and this sentence is where that is said. Waves that
+predate T8 carry one extra binder `hbridge`; W4 discharges it and the rungs become conditional
+statements about the shipping eraser with only the named class-**D** binders outstanding. `lake exe green-check` re-runs `#erase` on every rung,
 byte-diffs the committed `.ast` and the committed `SourceTable`, and cross-checks `lbEval` against
 `peregrine eval` where the tool is available. **Every wave from W1 on must leave `Green.lean`
 elaborating**; that is a per-wave acceptance test, not a wave-5 deliverable.
@@ -1031,54 +1398,67 @@ elaborating**; that is a per-wave acceptance test, not a wave-5 deliverable.
 | `FixMetatheory.lean`, `FixUnfold.lean` | 1,184 | re-aimed at `lowerFix_correct`; **statements unchanged** |
 | `IotaBridge.lean` | 207 | re-aimed at `lower_correct`'s `elimApp` arm; statements unchanged |
 | `Erasability.lean` | 230 | + `Erasable.mono` (~10 lines, from `HasType.mono`) |
-| `Relevance.lean`, `RelevanceCheck.lean` | 229 | the executable oracle and its `M.WF` soundness |
-| `OutputShape.lean` | 155 | panic modelling; feeds `doc/panics.md` |
+| `Relevance.lean`, `RelevanceCheck.lean` | 229 | the executable oracle and its `M.WF` soundness; **one W0 edit**: F-FUEL (§8.1) — verification-authored code, exhaustion routed to the fallback, proof-free (`isArityCheck.WF` never mentions the fuel) |
+| `OutputShape.lean` | 155 | panic-**tolerant** output-shape lemmas (`noFix_toBvar`/`noBlock_toBvar` family — the panic arms are discharged, not refuted); feeds `doc/panics.md` |
 | `ErasureRun.lean` | 3,234 | 74 `run_*`, `RunConcl`, `StateLe`, `⊑`/admissibility, `mutual_le_of` — relation-independent, **zero edits** |
-| `Optimize.lean` | 1,090 | wired into the closure as the pass template + W6 corollary |
+| `Optimize.lean` | 1,090 | the pass template + W6 corollary; from W0 it consumes the renamed `propBlockFlags`/`blockFlags` (§3.2) and sits on the tracked exception list with its W6 consumer named (§9.6) — an import into the closure is not a consumer |
 | `Basic.lean`, `Erasure.lean`, `Printing.lean` | 1,422 | **shipping; untouched** (§8) |
 
 ### 7.2 Re-anchored
 
+Files in this table whose statements mention `ErasureCtx` or the six deleted `Erases` rules are
+**deleted in the W1 cut** (`02-PLAN.md` U1.0) and their carried content is **re-landed from git
+history** by the owning unit in the wave shown — the tree never holds a file that references a
+deleted name, which is the only way N1, N2 and the per-wave green obligation can jointly hold
+(the alternative — a surviving compatibility `ErasureCtx` or a second `Erases` — is the review-§2
+failure mode by name). "Carried verbatim" below means re-landed with only the index rename.
+
 | Module | Lines | What changes | Wave |
 |---|---|---|---|
-| `Semantics/Flags.lean` | 61 | §3.2's three constants; header rewritten | W0 |
+| `Semantics/Flags.lean` | 61 | §3.2's four constants + `propcase_weaken`; header rewritten | W0 |
 | `Erases.lean` | 1,426 | ten rules (§4.2); transport half carried; six rules' arms deleted | W1 |
 | `ErasesAbstract/Strengthen/Uniform.lean` | 1,865 | nine arms survive per lemma; six die with their rules | W1 |
 | `SourceEval.lean` (+`SourceEvalData.lean`) | 701 → ~250 | one flag-parameterised `SEval`; seven relations deleted | W1 |
 | `SubjectReduction{,Full,Iota}.lean` | 1,414 → ~1,050 | merged into `SubjectReduction.lean`; β/ζ/δ written once | W1/W2/W3 |
 | `EnvErasure{,Nonrec,Rec}.lean` | 1,640 → ~700 | become `ErasesEnv.lean` + `SpecEnv.lean` | W1/W3 |
-| `CheckerAdequacy.lean` | 143 | seven declarations upstreamed; the eighth renamed into `LeanToLambdaBox.Oracle` | W1 |
-| `OracleDischarge.lean` | 123 | becomes `PrimSpec.lean` | W1 |
-| `Bridge.lean` | 674 | `Supported` moves to `Supported.lean`; `BridgeInv` keeps 7 of 10 fields | W1/W4 |
+| `CheckerAdequacy.lean` | 143 | the eraser-specific lemma renamed into `LeanToLambdaBox.Oracle` (W1); the seven kernel-generic declarations land in the lean4lean fork with the pin bump and the file's `Lean4Lean` namespace block is deleted (U3.1, W3) | W1/W3 |
+| `OracleDischarge.lean` | 123 | becomes `ErasureSpec.lean` (deleted in the W1 cut; `orc_refl`'s disjunction re-landed as `oracle_refl`/`oracle_meta`) | W1 |
+| `Bridge.lean` | 674 | deleted in the W1 cut (no `Supported` name clash); `Supported`/`IsLamTelescope` re-land in `Supported.lean` (W1), `BridgeInv` re-lands in `Bridge.lean` (U4.1, W4) keeping 7 of 10 fields — `fixvars` is *not* dropped silently: its content is `ErasesLBFix`'s `kns`/`ids` indices (§4.5) | W1/W4 |
 | `FirstOrder.lean` | 762 → ~250 | `informativeType_not_erasable` (`:103-131`) carried verbatim; becomes `FirstOrderInd.lean` | W3 |
-| `ColdStartShape.lean` | 1,055 → ~600 | `RegInvShape` keeps `kn`/`cover`/`closed`/`nofix`; five `Registered*On` fields move to `SpecEnv` | W4 |
-| `ColdStartInduction.lean` | 1,503 | `visitExpr_shape_all` carried verbatim; `RegBridgeHyps` and its fixtures deleted | W4 |
-| `ColdStartRun.lean` | 672 | `erase_run_ok`, `run_prepare_erasure_ok` carried | W4 |
-| `VisitExprRefines.lean` | 4,641 | 18 motives restated against `ErasesLB` + `SpecEnv` — **the long pole**, split in three | W4 |
-| `ErasesCorrect.lean` | 650 | becomes T5 with five hypotheses; ι/proj arms absorbed from the deleted chains | W1-W3 |
-| `ColdStart.lean` | 2,000 → ~500 | becomes `Capstone.lean` | W4/W5 |
-| `LeanToLambdaBox.lean` | 217 | import list and header rewritten | every wave |
-| `VerifyBench/STATUS.md` | 520 | retired **into** `doc/coverage.md`, not duplicated | W5 |
+| `ColdStartShape.lean` | 1,055 → ~600 | deleted in the W1 cut; `RegInvShape` re-lands keeping `kn`/`cover`/`closed`/`nofix`; five `Registered*On` fields move to `SpecEnv` | W3 (U3.5) |
+| `ColdStartInduction.lean` | 1,503 | deleted in the W1 cut; `visitExpr_shape_all` re-lands carried verbatim, plus the new `visitExpr_ctorSat` (§4.9); `RegBridgeHyps` and its fixtures stay deleted | W4 (U4.5) |
+| `ColdStartRun.lean` | 672 | deleted in the W1 cut; `erase_run_ok`, `run_prepare_erasure_ok` re-land carried | W4 (U4.5) |
+| `VisitExprRefines.lean` | 4,641 | deleted in the W1 cut; the motives re-land against `ErasesLB`/`ErasesLBFix` + `SpecEnv` — **the long pole**, split in three files (measured shape today: 93 top-level declarations, largest `visitExpr_refines_erases_core` at 1,744 lines; the ~2,430 auxiliary lines — `Supported.*_inv`, `run_*`, `Std.Subarray` plumbing — land in `Step/Mechanical.lean` and `Supported.lean`) | W4 |
+| `ErasesCorrect.lean` | 650 | deleted in the W1 cut; re-lands as T5 with five hypotheses; ι/proj arms absorbed from the deleted chains | W2-W3 |
+| `ColdStart.lean` | 2,000 → ~500 | deleted in the W1 cut; T9's composition re-lands as `Capstone.lean` | W4/W5 |
+| `LeanToLambdaBox.lean` | 217 | import list and header rewritten — **gate-owned in every wave** (N3a): units hand their one-line root edits to the wave gate | every wave |
+| `VerifyBench/STATUS.md` | 230 | retired **into** `doc/coverage.md`, not duplicated; the F-SPARSE reproduction is carried into `doc/dev-fix-queue.md` first | W5 |
 
 ### 7.3 New
 
 | File | Contents | Est. |
 |---|---|---|
-| `Semantics/Compute.lean` | `lbEval`, `lbEval_sound` | 420 |
-| `Lower.lean` | `Lower` (17 arms), `LowerAlt(s)`, `CtorDecl`/`ElimDecl`/`DefnDecl`/`RuntimeKey`/`CtorHeadOf`/`ElimHeadOf`, `LowerBlock`, inversion + shift/subst commutation | 850 |
+| `Semantics/Compute.lean` | `lbEval`, `lbEval_sound` — **already in the tree** (338 lines, proved, `[propext]`); U0.4 wires it | 0 |
+| `Lower.lean` | `Lower` (17 arms), `LowerAlt(s)`, `CtorDecl`/`ElimDecl`/`DefnDecl`/`RuntimeKey`/`ElimHeadOf`, `LowerBlock`, inversion + shift/subst commutation | 850 |
 | `LowerCorrect.lean` | `lower_correct`, `lowerFix_correct`, non-vacuity guards | 1,100 |
-| `LowerFix.lean` | `ConstToFVar`, `CloseConst`, `LowerFix`, `Lower.constToFix` | 600 |
-| `ElimBody.lean` | `mkCtorBody`/`mkElimBody`/`mkElimBodySing`, the three ι theorems, `ElimBody`, `IndInfo`, `SubsingletonElim`, `subsingletonElim_of_wf` | 850 |
+| `LowerFix.lean` | `ConstToFVar`, `CloseConstAt`, `LowerFix`, `Lower.constToFix`, `ErasesLBFix` | 650 |
+| `ElimBody.lean` | `mkCtorBody`/`mkElimBody`/`mkElimBodyRec`, `mkElimBody_iota_fwd`/`_bwd`, `mkCtorBody_beta`, `ElimBody` (no `sing`, no `SubsingletonElim` — Q2/N18) | 700 |
 | `ErasesLB.lean` | the composite + seven derived introduction lemmas + transport | 500 |
 | `ErasesEnv.lean` | `ErasesDecl`, `ErasesEnv`, `LowerEnv`, `EnvAgree`, `WcbvEval.congr_env` | 650 |
 | `SpecEnv.lean` | `SpecEnv`, `.mono`, `.exists` | 350 |
 | `ErasesTotal.lean` | `Erases.exists_of_trExprS`, `sort_erasable`, `forallE_erasable`, `Erases.mono` | 300 |
-| `CompilerEnv.lean` | `CompilerEnv`, `CompilerBodyOf`, the `env ≤ envC` lifting kit | 280 |
-| `PrimSpec.lean` | `PrimSpec`, `envWF`, `oracle_sound_of_run`, `LBPassR` | 260 |
-| `Supported.lean` | `SupportError`, `Supported`, `supportedB`, soundness, closure lemmas | 550 |
+| *(no `CompilerEnv.lean`)* | `CompilerBodies` lives in `SourceEval.lean` (§4.3); there is no second `VEnv` and no lifting kit | 0 |
+| `ErasureSpec.lean` | `ErasureSpec`, `envWF`, `oracle_sound_of_run`, `LBPassR` | 280 |
+| `Supported.lean` | `SupportError`, `Supported`, fuelled `supportedB`, soundness, closure lemmas, the re-landed `IsLamTelescope`/`Supported.*_inv` | 800 |
 | `Output.lean` | `LBWfPeregrine`, `PeregrinePre`, `ErasableAxioms`, `AxiomRealizer`, checkers | 420 |
-| `FirstOrderInd.lean` | `FirstOrderInd`, `firstOrderIndB`, adequacy, `firstorder_no_box`, `firstorder_lower_deterministic` | 500 |
-| `Witness/SourceTable.lean` | `SourceTable`, `SourceTableAdequate`, lookups | 320 |
+| `FirstOrderInd.lean` | `HasInduct`, `FOType`, `FirstOrderDecl`, `FOClosed`, `FirstOrderInd`, `firstOrderIndB` + soundness, `firstorder_no_box` | 500 |
+| `Witness/SourceTable.lean` | `SourceTable`, `body?`, `SourceTableAdequate`, the `reify%` elaborator, lookups | 380 |
+| `Witness/TrWitness.lean` | F17's `TrExprS` witnesses via `M.WF.run'` (U3.4) | 500 |
+| `VisitExprRefines/Motives.lean` | `Motives f`, the eighteen conjuncts (U4.1) | 900 |
+| `VisitExprRefines/Step/Env.lean` | motives 4, 5, 6 — 6 against `ErasesLBFix` (U4.2) | 1,100 |
+| `VisitExprRefines/Step/Mechanical.lean` | motives 1, 7, 8, 9, 11, 12, 18 + re-landed plumbing (U4.3) | 1,300 |
+| `VisitExprRefines/Step/Passes.lean` | motives 2, 3, 10, 13, 14, 15, 16, 17 (U4.4) | 1,600 |
+| `Fuel.lean` | the surviving `EraseCore` fuel lemmas (U2.4) | 250 |
 | `Capstone.lean` | T9 | 550 |
 | `Green.lean` | the ladder's theorems | 400 |
 | `VerifyBench/Spikes/G1..G8.lean` + `VerifyBench/tables/*` | the rungs and their committed tables | 300 |
@@ -1086,14 +1466,15 @@ elaborating**; that is a per-wave acceptance test, not a wave-5 deliverable.
 | `test/Ledger.lean` + `test/ledger.expected` | the measured ledger | 80 |
 | `doc/{rules-Erases,rules-Lower,panics,coverage,upstream-asks}.md` | criteria 3, 10, 14, 21 | — |
 
-Net: ≈9,400 new lines against 19,592 deleted (`02-PLAN.md` §4) and ≈8,800 carried untouched,
-plus the 1,422 shipping lines this development never edits.
+Net: ≈15,100 new lines against 19,302 deleted (`02-PLAN.md` §4; `VerifyBench/STATUS.md` is 230
+lines, not 520) and ≈8,800 carried untouched, plus the 1,422 shipping lines this development
+edits only at F-FUEL's one site (§8.1).
 
 ### 7.4 Deleted, and when
 
 Full schedule in `02-PLAN.md` §4. Summary: `ErasureContext.lean` (251, criterion 1);
 `DeltaHyps` (1,499), `CasesBridgeHyps` (287), `DataBridgeHyps` (137), `ProjBridgeHyps` (182),
-`PrepareHyps` (118) — one `PrimSpec`; `ErasesCorrectData` (1,731), `ErasesCorrectIota` (1,075) —
+`PrepareHyps` (118) — one `ErasureSpec`; `ErasesCorrectData` (1,731), `ErasesCorrectIota` (1,075) —
 their ι/proj content re-lands in T5's arms; `IotaPattern` (485), `IotaDischarge` (604),
 `ProjPattern` (1,059), `ProjDischarge` (415), `SubjectReductionIota` (458) — the discharge chains
 keyed on the six deleted rules, with `IotaRelevant`/`IotaShape`; `RecBlockErasure` (811) —
@@ -1107,23 +1488,53 @@ lemmas T5's δ arm needs); the three prose ledgers; ~3,000-3,500 comment lines o
 
 ## 8. Transpiler edits
 
-### 8.1 Required by the verification: **none**
+### 8.1 Required by the verification: none new; one inherited (B1), kept; one verification-authored defect (F-FUEL), fixed in W0
 
 No wave edits `LeanToLambdaBox/{Erasure,Basic,Printing}.lean`. The proof-only edits already on
 `dev/verify` (P1-P7: the `partial_fixpoint` mutual block, nine `@[partial_fixpoint_monotone]`
 lemmas, `expr_withApp_eq`, `visitCasesEta`/`visitCtorEta`, the `.toArray` over-application loop,
-`Basic.lean`'s de-partialized `toBvar` family, the `Relevance` import) are carried unchanged, and
-the behaviour-affecting edit **B1** (the `isErasable` kernel reroute, `Erasure.lean:151-187`) is
-**kept**, because `PrimSpec.oracle_sound` is discharged through it; reverting it would demote that
-field to class **D** and make criterion 9 unsatisfiable. Its measured under-erasure (review SI-1)
-is owned inside `Supported` and `PrimSpec`, with the finding raised.
+`Basic.lean`'s de-partialized `toBvar` family, the `Relevance` import) are carried unchanged.
 
-Two shipping-side facts need a **ledger row each** rather than a code change, under N11: **B4**
-(the `@[inline]` restructure at `Erasure.lean:857-875`, which changes `.ast.inlinings` for
-multi-declaration mutual blocks) and **B6** (the `MLType` extension at `:934-980`, affecting only
-the `.mli` sidecar). **B5** (`withLocalDef` dropping `nd`, `:283-295`) is argued behaviour-neutral
-and is unmeasured in-repo; W5's coverage script diffs the five regenerated `.ast` files against
-the frozen originals and settles it. If it diverges, that is a raised finding, not a patch.
+**B1** (the `isErasable` kernel reroute, `Erasure.lean:151-187`, plus the
+`ErasureContext.lparams` threading it needs) is **kept, conditional on F-FUEL landing in W0**.
+Plainly: B1 is not required to *build* the verification — T8/T9 keep their shape with the oracle
+assumed — it is required by criterion 9's "discharged rather than assumed", and keeping it is a
+judgement call priced at 33 axioms (29 non-standard, two Lean-core `_native.bv_decide`; measured)
+against a genuinely weaker residual assumption (the near-definitional reflection of
+`M.run … (RecM.run (isErasable e))`, versus "`Meta.isProp ∨ Meta.isTypeFormerType` is sound").
+The discharge is **partial** (A16): the `isErasableMeta` fallback and the polymorphic-scope arm
+(`ctx.lparams = Us` — at the capstone's `Us = []` the kernel arm reaches only monomorphic
+declarations' runs; measured: 101 of the 191 constants in BinaryTrees' closure are polymorphic)
+stay class **D** as `oracle_meta`, empirically dead on the error route (0 fallback hits /
+139,196 constants). B1 introduced `Relevance.lean` onto the shipping path and changes emitted
+verdicts on the success path — that is named here, not hidden. If the owner declines F-FUEL,
+revert B1 (~40 lines in 5 hunks: `ErasureContext.lparams` `:120-129`, the reroute `:164-182`,
+the `isErasableMeta` rename `:151`, the call sites `:217`/`:591`, the `Relevance` import) — the
+one-line switch is `oracle_refl` at class **D** with criterion 9 amended; shipping a measured
+regression to satisfy an acceptance criterion is not an option.
+
+**F-FUEL** (W0, on `dev/verify` — `Relevance.lean` does not exist on `main`, so this is
+verification-authored code, not a transpiler edit, and N5 does not apply): `Relevance.lean:44-45`
+seeds `isArityCheck`'s ∀-telescope peel with `ty.approxDepth.toNat + 1` computed on the
+*unreduced* type while the loop whnf-reduces, so a definitional alias for a ∀-telescope is judged
+relevant **on the success path** — review SI-1, reproduced (`kernel=false meta=true, raw=ok
+false`), latent on the corpus (0 divergences over the five programs' 82 local + 56 core
+constants' closed subterms) but live in general, and arity-changing under
+`remove_irrel_constr_args := true`. Fix: make fuel exhaustion `throw`, so the run `.error`s and
+`Erasure.isErasable` falls back to `isErasableMeta`, reproducing the pre-B1 verdict exactly.
+Proof cost zero: `isArityCheck.WF`'s statement never mentions the fuel and its proof is
+`isArityCheck.loop.WF hty` (`RelevanceCheck.lean:133-137`).
+
+Shipping-side facts under N11: **B4** (the `@[inline]` restructure at `Erasure.lean:857-875`) is
+**behaviour-neutral** — both the registration and the auto-inline block sit under `single_decl`
+(`:863-872`, `:885-903`), so `.ast.inlinings` is unchanged for mutual blocks and B4 needs no
+ledger row. **B6** (the `MLType` extension at `:934-980`) affects only the `.mli` sidecar — one
+ledger row. **B5** (`withLocalDef` dropping `nd`, `:283-295`) is argued behaviour-neutral and is
+unmeasured in-repo; W5's coverage script diffs the five regenerated `.ast` files against the
+frozen originals and settles it. If it diverges, that is a raised finding, not a patch. The
+unverified product surface that rode in with the branch — `auto_inline_typeclass_dispatch` and
+its three helpers (review SI-10) — is raised as **F-PRODUCT** (§8.2) so the verification diff is
+clean.
 
 ### 8.2 Proposed for branch `dev/fix` — raised here, never applied on `dev/verify`
 
@@ -1133,24 +1544,38 @@ tree never depends on any of them landing.
 
 | Id | Site | Defect | Proposed edit | Justification |
 |---|---|---|---|---|
-| **F-ETA** | `visitMutual`, `Erasure.lean:878-911` | a recursive declaration's body is a bare unapplied `.fix`, so `EEtaExpandedFix.expanded_eprogram` — the precondition of `untyped_transform_pipeline` (`Transforms.v:147` → `ETransform.v:710-716`) — is **false on all five programs**; peregrine's own discharge is `Admitted` (`Transforms.v:375`), so nothing detects it | wrap the emitted body in `rarg+1` lambdas applied to their own binders (the eraser's own TODO at `:911`) | Coq avoids this by η-expanding before erasure (`Template/EtaExpand`). Without the edit the frontend's output violates a documented precondition of the consumer it is written for |
+| **F-PROP** | `register_inductive`, `Erasure.lean:199-240`; `Basic.lean:164` | `OneInductiveBody.propositional` is never set (the `false` default carries the author's own hedge "I think"), so every emitted inductive — including `Prop` ones — is declared non-propositional (683/683 across all 72 `.ast`). `isPropositionalInductive` is then identically `false`, an emitted `.case` on a `□` discriminee is **stuck** at every flag point (verified: erased `And.casesOn` at a `Nat` motive fails `peregrine eval` with "branch not found"), and peregrine's verified `remove_match_on_box` (`EOptimizePropDiscr.v:35,57`) skips it | set the field from the source sort (`Meta.isProp` on the type former) | one-word change; until it lands, `And`/`Iff`/`Acc` eliminations into data ship as stuck terms, which is why N18 restricts them (Q2) |
+| **F-ETA** | `visitMutual`, `Erasure.lean:878-918` | every emitted recursive body is a bare unapplied `.fix` (50/50 across the five programs: 4/10/15/11/10) with no λ-headedness check (`nonrecursive := single_decl && !name_occurs` is the only guard), so `EEtaExpandedFix.expanded_eprogram` is **false on all five programs**. The violated condition guards *evaluation preservation of peregrine's first pass*: `guarded_to_unguarded_fix` (`ETransform.v:666-682`) is the identity on terms and its whole obligation is discharged from that predicate via `eval_opt_to_target` — with it false, no verified semantics-preservation argument covers the output past T9's `WcbvEval`. peregrine's own discharge is `Admitted` (`Transforms.v:375`) and `validate` checks no η, so nothing detects it | wrap the emitted body in `rarg+1` lambdas applied to their own binders (the eraser's own TODO at `:911`) — adequate: all 50 `FixDef`s have `rarg = 0` and every self-call is applied | Coq avoids this by η-expanding before erasure (`Template/EtaExpand`). Without the edit the frontend's output violates a documented precondition of the consumer it is written for |
 | **F-SPARSE** | `visitCases`, `Erasure.lean:770,817` | the inductive is recovered by `casesInfo.declName.getPrefix`, so a sparse `casesOn` (`_sparseCasesOn_`, named after the enclosing function) hits `unreachable!`, which *succeeds* at `EraseM` returning `.box`: `Quicksort` panics, exits 0, and writes a **wrong** `.ast` that passes `peregrine validate` | recover the inductive from `CasesInfo` rather than from the name, and handle `CasesAltInfo.default` | already `RAISED-not-fixed`; this design makes it visible as `SupportError.sparseCasesOn` in the predicate a reader audits and as a named row in the generated coverage table |
-| **F-ACC** | `visitCases` at a `Prop`-valued inductive with an index-determined field | for `Acc`-shaped inductives the emitted `.case` on a boxed discriminee evaluates by `iota_sing`, which boxes a field that is **data** (`Acc.intro`'s `x : α`; measured `largeElimClause ``Acc = some (2,[1])`) | refuse `Acc.rec`/`WellFounded.fix`, as Lean's own code generator does | restricted here by N17; the alternative (a two-class field treatment plus `iota_sing_idx`) needs type-former injectivity at the redex and is W6 |
+| **F-ACC** | `visitCases` at a `Prop`-valued inductive with an index-determined field | a consequence of F-PROP with a second stage: *today* the emitted `.case` is stuck at `Σ` (F-PROP); *if F-PROP alone is fixed*, `Acc`-shaped inductives then reduce by `iota_sing`/`remove_match_on_box`, which box a field that is **data** (`Acc.intro`'s `x : α`; measured `largeElimClause ``Acc = some (2,[1])`) and compute a wrong program | any F-PROP fix must keep `Acc`-shaped (index-determined-field) eliminations refused | restricted here by N18 (shape-keyed: `Acc.casesOn` *does* compile in Lean, so a name-keyed refusal would not close the hole); the full treatment needs type-former injectivity at the redex and is W6-at-best. Latent: `Acc`/`WellFounded`/`Quot` occur in none of the five `.ast` |
 | **F-QUOT** | `Erasure.lean:873-877` | `Quot` primitives are emitted as body-less axioms, so a quotient program erases to a stuck term that passes `validate` | emit a realizer, or refuse | restricted here by N16 |
-| **F-EQREC** | `Erasure.lean:873-877` | recursors reached as constants have no compiler value and are emitted body-less (`Eq.rec` in `Fannkuch.ast`), so the program is stuck there unless peregrine's `.attr` channel supplies a realizer — which the frontend does not emit | emit the remapping into `.ast.inlinings`/`.attr` | covered here by an `AxiomRealizer` row at class **D** plus a ledger row; someone must decide whether the frontend should emit it |
+| **F-EQREC** | `Erasure.lean:873-877` | recursors reached as constants have no compiler value and are emitted body-less (`Eq.rec` in `Fannkuch.ast`), so the program is stuck there unless peregrine's `.attr` channel supplies a realizer — which the frontend does not emit | emit the remapping into `.ast.inlinings`/`.attr` | covered here by an `AxiomRealizer` row at class **E** plus `Fannkuch`'s coverage row (`hax` is false there without the row); someone must decide whether the frontend should emit it |
+| **F-PRODUCT** | `Erasure.lean:71-118` (`auto_inline_typeclass_dispatch`, `stripLambdas`/`containsFix`/`isTrivialAlias`, the `Meta.isInstance` call) | unverified product feature added on the verification branch (review SI-10), so "what verification changed" is not a clean diff | re-home the feature via `dev/fix` (or `main`) | the verification never depends on it; N5 covers the class-**E** row for the `.inlinings` channel it drives |
 
 ### 8.3 Upstream asks (lean4lean, N15) — `doc/upstream-asks.md`
 
-1. `VEnv.WF'.consts_origin`, the constants-keyed twin of `WF'.pats_origin`
-   (`InductiveParams.lean:93`), plus `iotaRHS'_Generic` — the missing link in Q2's derivation.
-2. The seven kernel-generic declarations currently in `CheckerAdequacy.lean` (`VContext.ofMLCtx`
+1. `VEnv.WF'.defeqOwn` — a `WF'` environment grants each constant at most one defining equation
+   (the `defeqs` twin of `WF'.pats_origin`; the 130-line proof exists,
+   `scratchpad/gate/d3_defeq_unique.lean`, no frontend dependency) — the fact that decided Q3
+   and belongs upstream, cited in the ledger as why `envC` was dropped.
+2. `VEnv.WF'.consts_origin`, the constants-keyed twin of `WF'.pats_origin`
+   (`InductiveParams.lean:93`), plus `iotaRHS'_Generic` — the missing link in `largeElim_of_wf`
+   (§4.6); filed now, load-bearing only after F-PROP.
+3. The seven kernel-generic declarations currently in `CheckerAdequacy.lean` (`VContext.ofMLCtx`
    and its three `@[simp]` projections, `VState.WF.initial`, `M.WF.run'`, `kernelNGen`), which
-   criterion 21 forbids here and criterion 9 needs.
-3. The `Quot.ind` divergence between `Theory/Quot.lean:11` and the executable checker.
-4. **Reported, not asked:** MetaRocq's `firstorder_ind` is `false` on `nat`
-   (`PCUICFirstorder.v:59`'s sort conjunct), so every theorem guarded by it is vacuously guarded;
-   and peregrine's `run_untyped_transforms` precondition obligation is `Admitted`
-   (`Transforms.v:375`) while `peregrine validate` does not check η-expandedness.
+   criterion 21 forbids here and criterion 9 needs — landed by U3.1 with the pin bump (F16).
+4. A `TrEnv'` inversion on the `induct`/`AddInduct` clause yielding `InductiveVal ↔ VInductDecl`
+   (the shape of `TrEnv'.structure_rec`/`TrEnv'.pats_iota'`), which turns `ind_adequate` from an
+   assumed field into a theorem off `env_connect`; and `addDecl.WF`'s `inductDecl` case
+   (`Verify/Environment.lean:208`, `sorry` at the pin), the lemma that would let `env_connect`
+   itself be derived.
+5. The `Quot.ind` divergence between `Theory/Quot.lean:11` and the executable checker.
+6. **Reported, not asked:** MetaRocq's shipped `firstorder_ind` is `false` on `nat`
+   (`PCUICFirstorder.v:59`'s sort conjunct — the code's defect, not `[S §7.3]`'s prose), so every
+   theorem guarded by it is vacuously guarded; peregrine's `run_untyped_transforms` precondition
+   obligation is `Admitted` (`Transforms.v:375`); and `peregrine validate` is
+   `parse_ast ;; get_config ;; check_wf` only (`Pipeline.v:245-248`, `CheckWf.v:182-183`) — no
+   expandedness check, which is what makes F-ETA undetectable downstream.
 
 ---
 
@@ -1172,11 +1597,14 @@ tree never depends on any of them landing.
 5. **A docstring says what the object *is*, and why a hypothesis is not slack** — with a
    counterexample where one exists. The models are `IotaBridge.lean:96-111`,
    `Semantics/Values.lean:79`, `Semantics/Eval.lean:29`. Under this design that duty is heaviest
-   on `Lower`'s four redex arms and two fix arms, and on `CtorHeadOf`/`ElimHeadOf`'s second
-   disjuncts (§4.4 records the stuck-discriminant counterexample that forces them).
+   on `Lower`'s four redex arms and two fix arms, and on `ElimHeadOf`'s second disjunct — whose
+   docstring states the real reason (the post-δ intermediates inside `lower_correct`, §4.4;
+   there is no stuck-`.case` value in this semantics, so no such counterexample exists to cite).
 6. **No dead code.** Every declaration is in `Green.lean`'s or `Capstone.lean`'s transitive import
-   closure, or on a short tracked exception list in `doc/coverage.md` that must be **empty** at
-   W5. No module receives a standing exemption.
+   closure, or on a short tracked exception list in `doc/coverage.md`. At W5 the list may carry
+   only rows naming a scheduled **W6** unit as consumer (today: `Optimize.lean` → U6.2), each with
+   the trigger "deleted if its W6 unit is not executed this cycle" — an import into the closure is
+   not a consumer and never counts. No module receives a standing exemption.
 7. **No duplicate definitions, no forked relations.** Growth is by parameterisation: `SEval` by
    `SEvalFlags`, `WcbvEval` by `WcbvFlags`, `LBPassR` by its relation field. The known duplicates
    are deleted, not documented. In particular there is exactly one λ□→λ□ relation (`Lower`); the
@@ -1196,16 +1624,16 @@ tree never depends on any of them landing.
 
 | # | Risk | Likelihood | Impact | Mitigation / trigger |
 |---|---|---|---|---|
-| R1 | `Lower.constToFix` (the fix transport) is harder than the 600-line budget | medium | high | The hard half — `closeFix_substList_fixSubst` (`FixUnfold.lean:748`) and `FixUnfoldChain.eval` (`:830`, gated on `with_guarded_fix`, which `eraseFlags` satisfies) — is already proved. It is **W1** work with its own unit and its own acceptance test, so a failure surfaces in week one, not in W4. **Trigger:** if the transport is not proved by the end of W1, stop and re-scope: the fallback is to restrict the fragment to non-recursive declarations (which covers 0/5 benchmarks) and say so, i.e. the project has no viable deliverable — this is the one risk that can end it |
+| R1 | The fix wall: `Lower.constToFix` harder than budget, **or the block-body motive unstateable** | medium | high | The hard half — `closeFix_substList_fixSubst` (`FixUnfold.lean:748`) and `FixUnfoldChain.eval` (`:830`, gated on `with_guarded_fix`, which `eraseFlags` satisfies) — is already proved. It is **W1** work with its own unit and its own acceptance test, so a failure surfaces in week one, not in W4. **Trigger — on the motive, not only the transport:** if by the end of W1 `Lower.constToFix` is unproved *or* `ErasesLBFix` cannot be exhibited on the two-member fixture (U1.7's stateability test — a `constToFix` that elaborates while the motive is unstateable does not clear the wall), stop and re-scope: the fallback is to restrict the fragment to non-recursive declarations (which covers 0/5 benchmarks) and say so, i.e. the project has no viable deliverable — this is the one risk that can end it |
 | R2 | `SpecEnv`'s antitone threading does not compose at some motive | medium | high | `SpecEnv.mono` is proved from `StateLe`, which every motive already concludes; W4 sequences the three environment-facing motives (4, 5, 6) **first** so a failure surfaces on day one of the wave |
 | R3 | T5's ι arm needs `pats` ↔ `ElimBody` agreement, touching the `patsStrong` residual | high | medium | The known seam, declared in §1 of the spec. `IndInfo` states the agreement at declaration level, where a pats-carrying `VEnv.WF` is constructible today (21/22 clauses discharged in the Q2 probe); the nine "unconstructible" docstrings are false and are deleted in W0 |
-| R4 | `VEnv.WF'.consts_origin` does not land upstream in time | medium | low | `SubsingletonElim` is a named class-**C** hypothesis with a ledger row until it does; criterion 7 explicitly permits this, and no other theorem depends on the derivation |
+| R4 | `VEnv.WF'.consts_origin` does not land upstream in time | medium | none in the first cut | Nothing depends on it before F-PROP lands on `dev/fix` (Q2/N18 removed the subsingleton machinery); the ask stays filed for the future shape |
 | R5 | The four redex arms' exactness against `visitCases`/`visitConstructor` is worse than believed (over-application placement, `mkAlt` binder order) | medium | medium | The relation is *name-free* and drops the `pre` args, so the two known sources of exactness trouble do not arise; the residual risk is spine shape, which W2's differential test measures directly (reconstruct the `Erases`-image from the run, check the emitted term is in `Lower Σ⁺` of it by a decidable checker, on all five programs). This is the check no candidate design proposed and the one that would have caught A's own T5 hole |
 | R6 | `Erases.exists_of_trExprS` is harder than budgeted (`proj` case needs `TrProj`) | medium | low | The two hard cases are criterion 10's lemmas, required anyway; the `proj` case reuses `Erases.proj`'s deliberate `TrProj`-freedom. Fallback: make `hpre` a premise of `ErasesLB.cases` discharged in the bridge from `BridgeInv.mlc` |
-| R7 | Reified `SourceTable` drifts from the real environment | medium | high | `SourceTableAdequate` is a `PrimSpec` field (so drift is a *stated* assumption, not a silent one) and `lake exe reify` + byte-diff runs in CI on every rung |
+| R7 | Reified `SourceTable` drifts from the real environment | low | high | `reify%` reads `getEnv` in the same elaboration as the rung, so there is no committed artifact to drift and no regenerate-and-diff circularity; the residual assumption is the named binder `htbl` (elaborator-copy + the `prepare_erasure` run clause), and `green-check` still byte-diffs the emitted `.ast` (the output half of `hrun`) |
 | R8 | Genuine mutual blocks are unexercised (0/50 emitted `FixDef`s are mutual) | medium | medium | `LowerBlock` is stated for lists, not singletons; W1's non-vacuity guard is a hand-built two-element block; the coverage table records that no benchmark exercises it |
 | R9 | `by rfl` at G7 (2^3 through a 19-node peano tower and 27 constants) exceeds kernel budgets | medium | low | `lbEval` is fuel-indexed and structurally recursive; `set_option maxRecDepth` with a stated reason. Fallback recorded in the coverage table: evaluate a smaller closed rung and state that G7's arithmetic is checked by `green-check` externally |
-| R10 | The 33-axiom fixture (criterion 9 × 15) is judged unacceptable at review | low | low | The ledger classifies all 29 non-standard names and distinguishes Lean-core `_native.bv_decide` from lean4lean's `sorryAx`; the alternative (field 4 at class **D**) is documented as a one-line switch that costs the development's only trust reduction |
+| R10 | The 33-axiom fixture (criterion 9 × 15) is judged unacceptable at review | low | low | The ledger classifies all 29 non-standard names and distinguishes Lean-core `_native.bv_decide` from lean4lean's `sorryAx`; the alternative — `oracle_refl` at class **D**, criterion 9 amended, B1 reverted (~40 lines, §8.1) — is documented as the switch and its price named; §8.1 owns the decision, this row only prices it |
 | R11 | `hwt`/`hty` cannot be inhabited for a 39-declaration program (§2 F17) | medium | medium | W3's `TrWitness` unit routes lean4lean's checker; named fallback is class-**D** binders plus an amendment to criterion 13, recorded in the same commit |
 | R12 | The relational conclusion is read as weaker than a functional one | low | low | §1.2 states the papers' posture; W6's functional refinement is additive and needs no restatement of T8, since a function equality implies relation membership |
-| R13 | Shipping edit B1's under-erasure (review SI-1) is inside the fragment | medium | medium | Owned explicitly by `Supported` + `PrimSpec.oracle_sound`, and raised (§8.2); reverting B1 is not an option (criterion 9) |
+| R13 | Shipping edit B1's under-erasure (review SI-1) fires inside the fragment | low — measured: 1 divergence in 139,196 constants, and that one planted by the probe; 0 on the five programs' closures | medium | **Removed at W0 by F-FUEL** (§8.1). Until then, contained because `Erases.box` carries no `¬Erasable` guard and the structural rules carry no negative side condition (mirroring MetaRocq `Extract.v:88-141`), so a structurally-erased type-former is a legal `Erases` image and T8's refinement is unaffected; `isErasable` on a syntactic `.sort`/`.forallE` returns `true` unconditionally, so SI-1 cannot reach `Erasure.lean:602`'s `unreachable!`; the argmask half is off by default (N4's `hprune`). `Supported` and the oracle fields do **not** constrain a false verdict — the containment is the relation's, not theirs |
