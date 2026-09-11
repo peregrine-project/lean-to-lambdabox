@@ -1,0 +1,5 @@
+# Paths whose comment-hygiene findings `scripts/hygiene.sh --allow test/hygiene.allow`
+# prints without failing on. Only the shipping frontend is listed: the verification never
+# edits it, so its comments cannot be brought under the policy from this branch.
+LeanToLambdaBox/Basic.lean
+LeanToLambdaBox/Erasure.lean

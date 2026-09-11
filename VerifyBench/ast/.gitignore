@@ -1,4 +1,9 @@
 # Erasure outputs (.ast / .ast.inlinings) are build artifacts, like benchmarks/.
 # The directory itself is tracked because `#erase … to` does not create it.
+# The green ladder's rungs are the exception: `lake exe green-check RUNG` byte-diffs the
+# rung's `.ast` against the literal program `LeanToLambdaBox/Green.lean` states its theorem
+# about, so that file is tracked and a frontend change shows up as a diff.
 *
 !.gitignore
+!Spikes/
+!Spikes/*.ast

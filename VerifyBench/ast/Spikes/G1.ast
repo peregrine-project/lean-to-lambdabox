@@ -1,0 +1,1 @@
+(Untyped ((((MPfile ()) "spikeZero") (ConstantDecl (constant_body (Some (tConstruct (inductive ((MPfile ()) "Nat") 0) 0 ()))))) (((MPfile ()) "Nat") (InductiveDecl (mutual_inductive_body Finite 0 ((one_inductive_body "Nat" false IntoAny ((constructor_body "Nat.zero" 0) (constructor_body "Nat.succ" 1)) ())))))) (Some (tConst ((MPfile ()) "spikeZero"))))

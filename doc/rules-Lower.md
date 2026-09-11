@@ -36,12 +36,14 @@ shape `LBPassR` reuses.
 | `ctorApp` | `mkApps (.const kn) args` → `mkApps (.construct iid k []) args'` | `visitConstructor` (`LeanToLambdaBox/Erasure.lean:731-761`) after `visitCtorEtaGo`'s saturation test (`:722-728`, `args.size ≥ arity`). `hsat` is that test, and it is what discharges `LBWfPeregrine.etaCtorsEnv`; it also makes this arm and `ctorEta` disjoint on `args.length`. Applied form, so no arity is stored in the node and inductive parameters are kept |
 | `ctorEta` | an under-applied constructor → `mkLambdas ns (…)` | `visitCtorEtaGo` (`LeanToLambdaBox/Erasure.lean:722-728`) pushes fresh binders into the spine and wraps the result in `mkLambdas`; `shift ns.length 0` moves the already-lowered prefix under them. `hns : ns ≠ []` keeps it disjoint from `ctorApp` |
 | `elimApp` | `mkApps hd (pre ++ disc :: minors ++ extra)` → `mkApps (.case (iid, np) disc' alts) extra'` | `visitCases` (`LeanToLambdaBox/Erasure.lean:768-835`), whose over-application rides outside the node (`args[casesInfo.arity:]`, `:832`). The `dp` arguments before the discriminant — parameters, motive, and for `rec` the minors' prefix — are **dropped**, which is sound for a forward simulation and is what MetaRocq's own expansion does. The head is `ElimHeadOf`: `.const kn` pre-δ, or an `ElimBody` shape post-δ, the disjunct `lower_correct`'s δ case needs for its intermediate configurations |
-| `elimEta` | an under-applied eliminator → `mkLambdas ns (…)` | `visitCasesEtaGo` (`LeanToLambdaBox/Erasure.lean:705-712`), the same shape as `ctorEta` |
+| `elimEta` | an under-applied eliminator → `mkLambdas ns body` | `visitCasesEtaGo` (`LeanToLambdaBox/Erasure.lean:705-712`). `hns : ns ≠ []` and `hund` pin the under-application; the premise is `Lower` on the *saturated* spine — the lowered prefix shifted under the new binders, then `bvarsDesc ns.length` — so the case node the eraser builds is whatever `elimApp` builds for that spine, and the arm does not duplicate `elimApp`'s data |
 
 Branch peeling is a separate relation: `LowerAlt Σ⁺ nf m alt` turns a minor's λ-chain into an
 alternative's binder list — arm `done` at arity zero, arm `lam` peeling one binder — and
 `LowerAlts` is its pointwise lift over the block's field arities. Only the *number* of
-binders is pinned, because that is all `iota_red` reads.
+binders is pinned, because that is all `iota_red` reads. `elimApp` inlines `LowerAlts`' three
+conjuncts, for the same reason the fix arms inline `LowerBlock`'s fields; `Lower.elimApp'` is
+the wrapper that takes them packaged.
 
 ## Recursion (2) — `fixSubst`
 
@@ -62,21 +64,25 @@ refutations:
   (`LeanToLambdaBox/FixUnfold.lean:803`).
 * a **block-shared** `ids`. Per-member existential names cannot feed
   `closeFix_substList_fixSubst` (`LeanToLambdaBox/FixUnfold.lean:748`), whose freshness
-  clause is against every `.fix defs j`, and `ClosedEnv` cannot supply it because
-  `LBClosed (.fvar _) k` is `True` (`LeanToLambdaBox/Closed.lean:40`). `visitMutual` mints
+  clause is against every `.fix defs j`, and closedness cannot supply it because
+  `LBClosed (.fvar _) k` is `True` (`LeanToLambdaBox/Closed.lean:35`). `visitMutual` mints
   one `ids` list per block (`LeanToLambdaBox/Erasure.lean:905`), so the shared form is what
   the emitter does.
 
-There is **no** `fix` congruence arm: the specification environment declares no `.fix` (block
-members hold their plain bodies) and `visitExpr_shape_all` proves `NoFix` for the subject
-term unconditionally, so the source side of `Lower` never contains one. Adding the arm would
-be dead code.
+There is **no** `fix` congruence arm: the specification environment declares no `.fix` — a
+block's members hold their plain bodies, and the `.fix` node is what `fixConst`/`fixBody`
+introduce on the target side — so the source side of `Lower` never contains one. Adding the
+arm would be dead code.
 
-## The fixpoint closure — `LowerFix`
+## The fixpoint closure — `Lower.lean` and `LowerFix`
+
+`ConstToFVar` and `CloseConstAt` are defined in `LeanToLambdaBox/Lower.lean`: `LowerBlock`'s
+`hcl` field mentions `CloseConstAt`, and the two fix arms inline that field, so they precede
+`Lower` itself. `LowerFix.lean` holds the rest of the closure.
 
 | Object | What it is | Anchor |
 |---|---|---|
-| `ConstToFVar kns ids` | replaces `.const kns[j]` by `.fvar ids[j]`; does not descend under a `.fix`, there being none to descend under | the λ□-only residue of the retired source-indexed fix-variable rule |
+| `ConstToFVar kns ids` | replaces `.const kns[j]` by `.fvar ids[j]`; a `.fix` node maps to itself — no block member is declared as a `.fix`, and a nested one belongs to another block, whose members are none of `kns` | the λ□-only residue of the retired source-indexed fix-variable rule |
 | `CloseConstAt kns ids t u` | `∃ t', ConstToFVar kns ids t t' ∧ u = closeFix ids 0 t'` | phrased through the existing `closeFix` so `closeFix_substList_fixSubst` applies verbatim and no `Kername`-keyed twin of `FixUnfold`'s theorems is needed |
 | `Lower.constToFix` | a fix unfolding (`WcbvEval.fix_guarded`'s `substList (fixSubst defs)`) puts `.fix defs i` where the lowered body has the sibling `.const knᵢ`; the result is still `Lower`-related to the same body | `fixSubst`; this is the transport that makes the fix arms usable |
 | `LowerFix Σ⁺ kns bs defs` | `∃ bs' ids, LowerBlock …`, the declaration-level statement for `LowerEnv` | tolerates an unused fix binder: `visitMutual` decides recursiveness by `name_occurs` on the **source** body (`LeanToLambdaBox/Erasure.lean:885`), so erasure can remove the only self-reference and leave the binder unused |
@@ -91,3 +97,24 @@ differences are named, not silent: `optimize` is a function and `Lower` is a rel
 because the eraser's constructor and `casesOn` handling is not a function of the λ□ term
 alone; and `optimize` preserves the environment, whereas `Lower`'s redex arms read it
 (`CtorDecl`, `ElimDecl`, `DefnDecl`).
+
+## What `Lower.lean` proves about the relation
+
+`ClosedBodies Γ` — every constant `Γ` declares has a closed body — is the one environment-side
+premise these carry; it is a fact about the specification environment, and the two fix arms are
+where it is needed (the source side of `fixBody` is a declared body, and a block's emitted
+`.fix` is `closeFix` of one).
+
+| Theorem | Statement | Used for |
+|---|---|---|
+| `Lower.closed` | `ClosedBodies Γ → Lower Γ s t → LBClosed s k → LBClosed t k` | the pass invents no index; feeds the two commutation laws |
+| `Lower.shift_comm` | `Lower Γ s t → Lower Γ (shift d c s) (shift d c t)` | the `ctorEta`/`elimEta` arms of a simulation, and `subst_comm`'s `bvar` case |
+| `Lower.subst_comm` | `Lower Γ a a' → Lower Γ s t → Lower Γ (subst a d s) (subst a' d t)` | the β, ζ and ι steps of a forward simulation |
+| `Lower.mkApps` | spine congruence from head and arguments | over-application, and the value side of a constructor spine |
+| `Lower.target_box`/`_bvar`/`_fvar`/`_prim`/`_const`/`_construct`/`_fix` | what a target of that shape can come from | inversion at a value; `target_fix` returns the whole `LowerBlock` |
+| `LowerAlt.arity` | `LowerAlt Γ nf m alt → alt.1.length = nf` | the binder count `iota_red` reads |
+| `cstrArity_eq_of_constructorArity` | `constructorArity Γ iid k = some a → cstrArity Γ iid k = a` | reading `ctorApp.hsat` as `LBWfPeregrine.etaCtors` |
+
+Both commutation laws also take `ElimBodyClosed` — every `ElimBody` shape is closed — because an
+`ElimHeadOf` head must be fixed by `shift` and `subst`. It is a property of `ElimBody.lean`'s two
+constructions, stated here as a named premise rather than assumed inside the relation.

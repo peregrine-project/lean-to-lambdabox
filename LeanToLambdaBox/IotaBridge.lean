@@ -21,8 +21,8 @@ This module reconciles the two, over closed field values:
   are themselves values (so they evaluate to themselves, `value_final`);
 * `wcbvEval_mkApps_mkLambdas_substList` — the bridge itself.
 
-It sits between `Closed.lean` (which owns the de-Bruijn half, `substList_reverse_subst`)
-and `ErasesCorrectIota.lean` (its only consumer), and mentions neither `Erases` nor
+It sits above `Closed.lean` (which owns the de-Bruijn half, `substList_reverse_subst`)
+and below `ElimBody.lean`, whose ι theorems consume it. It mentions neither `Erases` nor
 lean4lean: everything here is target-side, hence `sorryAx`-free.
 -/
 

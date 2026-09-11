@@ -3,7 +3,7 @@ import LeanToLambdaBox.Closed
 import LeanToLambdaBox.Semantics.Metatheory
 
 /-!
-# `substFix`: static fix-closing inverts dynamic fix-unfolding (recursion wall, slice W0)
+# `substFix`: static fix-closing inverts dynamic fix-unfolding
 
 The shipping eraser builds a recursive block by erasing each sibling body with the
 block's own names mapped to fresh **fvars** `ids`, then closing the result with `mkDef`'s
@@ -776,7 +776,7 @@ theorem closeFix_substList_fixSubst_fires_value (x : FVarId) :
   show (if x == x then LBTerm.fix nvDefs 0 else LBTerm.fvar x) = _
   simp [fvarId_beq_iff_eq]
 
-/-! ## Part 7 — the unfolding chain (recursion wall, slice W2)
+/-! ## Part 7 — the unfolding chain
 
 Slice W1's `Erases.fix` states its bodies premise against the *one-step* unfolding
 `LBTerm.substList (LBTerm.fixSubst defs) defs[idx].body` — precisely

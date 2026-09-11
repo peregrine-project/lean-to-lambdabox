@@ -36,6 +36,7 @@ roots = [
   "VerifyBench.Quicksort",
   "VerifyBench.BinaryTrees",
   "VerifyBench.Fannkuch",
+  "VerifyBench.Spikes.G1",
 ]
 
 # The external half of the green ladder (`Tools/GreenCheck.lean`): the checks that

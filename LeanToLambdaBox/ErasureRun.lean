@@ -289,7 +289,7 @@ flat order, the motive holds at bottom because `EST.bot` is an `.error`. -/
 theorem est_admissible_ok {ε σ α : Type} [Nonempty ε]
     (Q : Void σ → α → Void σ → Prop) :
     admissible (α := EST ε σ α) (fun x => ∀ w a w', x w = .ok a w' → Q w a w') := by
-  -- the pi-CCPO instance is no longer found by `infer_instance` (the pointwise
+  -- `infer_instance` does not find the pi-CCPO here (the pointwise
   -- `FlatOrder.instCCPO` is not synthesized under the `(w : Void σ)` binder), so
   -- supply it explicitly; it is the instance `CCPO (EST ε σ α)` is built from.
   letI : CCPO ((w : Void σ) → FlatOrder (EST.bot (ε := ε) (α := α) w)) :=
@@ -448,8 +448,8 @@ The eighteen motives of the bridge induction are proved at an **abstract** erase
 `Lean.Order.fix_induct` hands each step an arbitrary point of the CCPO, not an
 approximation of the fixpoint. For most of the bridge that is exactly right: the
 conclusions are Hoare-style, "if *this* function's run succeeded then …", and nothing
-about `Erasure.visitExpr` is needed. `visitMutual`'s recursive exit is the exception
-(slice Γ-W3): the block it builds has to be *the* block, the one a `Γ₀` fixed before
+about `Erasure.visitExpr` is needed. `visitMutual`'s recursive exit is the exception:
+the block it builds has to be *the* block, the one a `Γ₀` fixed before
 the run can have recorded, and at an abstract eraser it is not (see
 `rec_exit_agreement_eraser_quantified_refuted`).
 
@@ -1396,14 +1396,14 @@ theorem visitExpr_run_shape :
   · intros; trivial
   · intros; trivial
 
-/-! ## Registration-path run lemmas (cold start, slice S1)
+/-! ## Registration-path run lemmas
 
 The `visitExpr` family is only half of what a cold `Erasure.erase` run does: the
 other half is the *registration path* — `addAxiom`, `register_inductive`,
 `get_constant_kername`, `visitMutual`, `mkDef` — which is what actually populates
-`ErasureState.constants`, `ErasureState.inductives` and `ErasureState.gdecls`. The
-warm bridge (`VisitExprRefines.lean`) never had to model it: its conclusion is
-`s' = s` and its invariant demands every referenced constant be pre-registered.
+`ErasureState.constants`, `ErasureState.inductives` and `ErasureState.gdecls`. A bridge
+argument that assumes every referenced constant pre-registered never has to model it;
+one that starts from an empty state does.
 
 This section proves the **true** state effects of those primitives, so that a
 cold-start argument can carry a registry invariant through the run instead of
@@ -2064,8 +2064,7 @@ theorem run_mkDef_ok {nm : Name} {fixvarnames : List Name} {body : LBTerm}
 /-- **…and the def's `principalArgIdx` is the `Basic.lean` default `0`.** `mkDef` never
 sets the field, and `Erases.fix`'s `hrarg` — the premise on which the whole source-β ↔
 target-`fix_guarded` correspondence rests — is exactly this. Stated apart from
-`run_mkDef_ok` so that its three destructuring call sites are untouched (recursion wall,
-slice Γ-W3). -/
+`run_mkDef_ok`, so that its three destructuring call sites need no change. -/
 theorem run_mkDef_rarg {nm : Name} {fixvarnames : List Name} {body : LBTerm}
     {s : ErasureState} {ctx : ErasureContext} {cctx : Core.Context}
     {ref : ST.Ref IO.RealWorld Core.State} {w : Void IO.RealWorld}
@@ -2833,7 +2832,7 @@ theorem addAxiomState_get? (m : Name) (s : ErasureState) :
 `recConstStep`, which *is* `nonrecConstState` at a `.fix` body (`recConstState_eq`), so the
 whole block registration composes out of `runConcl_nonrecConstState`: every sibling is
 registered under its own canonical kername, so canonicity survives, and `gdecls` only gets
-prepended to. (Recursion wall, slice Γ-W0 — this is what `RunConclδ.recBlock` sits on.) -/
+prepended to. `RunConclδ.recBlock` sits on it. -/
 theorem runConcl_foldl_recConstStep (defs : List (@FixDef LBTerm)) :
     ∀ (L : List (Name × Nat)) (s : ErasureState), RunConcl s (L.foldl (recConstStep defs) s)
   | [], s => RunConcl.rfl' s
@@ -2847,8 +2846,8 @@ theorem runConcl_recConstState (names : List Name) (defs : List (@FixDef LBTerm)
 
 /-- **…and every name the *recursive* exit registers is in the registry afterwards.** The
 block's `forIn` inserts one name per sibling, under `names.map remove_unsafe_rec`, so the
-registration conclusion of `visitMutual`'s motive holds at each of them (recursion wall,
-slice Γ-W3). Stated over the `(name, index)` list the fold actually walks. -/
+registration conclusion of `visitMutual`'s motive holds at each of them. Stated over the
+`(name, index)` list the fold actually walks. -/
 theorem foldl_recConstStep_get? (defs : List (@FixDef LBTerm)) :
     ∀ (L : List (Name × Nat)) (s : ErasureState) {m : Name}, m ∈ L.map Prod.fst →
       ((L.foldl (recConstStep defs) s).constants.get? m).isSome
@@ -2873,7 +2872,7 @@ theorem recConstState_get? {names : List Name} {defs : List (@FixDef LBTerm)}
 `gw`-free by design, so its states and worlds are unrelated existentials. A consumer that
 must rebuild a `BridgeInv` at each sibling needs both at once. Neither needs a new loop
 rule — `run_list_mapM_ok` already threads the state *and* the world through its invariant;
-what was missing is an invariant that keeps them. (Recursion wall, slice Γ-W0.) -/
+what it takes is an invariant that keeps them. -/
 
 /-- **Lemma A — the id-minting loop.** The block's fresh fvars come back `Nodup`, at an
 unchanged state, with the generator advanced once and every id reserved by the *final*

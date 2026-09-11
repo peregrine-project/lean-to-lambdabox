@@ -161,15 +161,14 @@ inherit, beyond the usual `[propext, sorryAx, Classical.choice, Quot.sound]`, th
 lean4lean-declared *modeling* axioms for native `Expr`/`Level`/`PersistentHashMap`/
 `PersistentArray` (`Lean4Lean/Verify/Axioms.lean`) that the executable checker's
 `whnf`/`inferType`/`isProp` and the `Expr.instantiate1 = instantiate1'` bridge
-(`Expr.instantiate1_eq`, used to re-open binders in the `∀`-telescope recursion) rest
+(`Expr.instantiate1_eq`, which re-opens binders in the `∀`-telescope recursion) rest
 on. These are all lean4lean's, not introduced here — the price of routing through the
 *verified executable* checker rather than the pure `HasType` judgment. In particular
 no new `axiom`/`sorry`/`native_decide` is added by this file: `sorryAx` is inherited
 from lean4lean's own unproven `Verify` lemmas, whose trust this development sits atop.
-[Provenance corrected at the `fee3ada` re-pin, 2026-08-27: this used to name
-"projections/`TrProj`" as the source. `TrProj` has a real definition upstream now; the
-live source is the unique-typing cluster (`TrExprS.uniq` → `TrProj.uniq`, and
-`IsDefEq.uniqU`). See `ColdStart.lean`'s inherited-boundary section for the measurement.]
+Its source is the unique-typing cluster (`TrExprS.uniq` → `TrProj.uniq`, and
+`IsDefEq.uniqU`); `doc/trust.md` holds the measurement, and `scripts/lean4lean-sorries.sh`
+re-measures it against `test/lean4lean-sorries.expected`.
 -/
 
 end LeanToLambdaBox

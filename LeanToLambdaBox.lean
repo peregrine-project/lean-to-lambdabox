@@ -30,3 +30,27 @@ import LeanToLambdaBox.CheckerAdequacy
 import LeanToLambdaBox.ErasureRun
 -- The reified slice of the elaboration environment and its adequacy statement.
 import LeanToLambdaBox.Witness.SourceTable
+-- What erasure means: the specification relation, its transport lemmas and its totality.
+import LeanToLambdaBox.Erases
+import LeanToLambdaBox.ErasesAbstract
+import LeanToLambdaBox.ErasesStrengthen
+import LeanToLambdaBox.ErasesUniform
+import LeanToLambdaBox.ErasesTotal
+-- The source-side evaluation and its subject reduction.
+import LeanToLambdaBox.SourceEval
+import LeanToLambdaBox.SubjectReduction
+-- The pass layer: the runtime library's bodies, the pass relation, its fixpoint closure,
+-- and the forward simulation on the fragment W1 covers.
+import LeanToLambdaBox.ElimBody
+import LeanToLambdaBox.Lower
+import LeanToLambdaBox.LowerFix
+import LeanToLambdaBox.LowerCorrect
+-- The specification bundle, the output boundary, the supported fragment, the environments.
+import LeanToLambdaBox.ErasureSpec
+import LeanToLambdaBox.Output
+import LeanToLambdaBox.Supported
+import LeanToLambdaBox.ErasesEnv
+import LeanToLambdaBox.SpecEnv
+-- The capstone and the green ladder.
+import LeanToLambdaBox.Capstone
+import LeanToLambdaBox.Green

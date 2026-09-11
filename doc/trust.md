@@ -11,7 +11,7 @@ Five classes are used throughout, in decreasing strength:
 | Class | Meaning |
 |---|---|
 | **A** | proved here, footprint within `[propext, Classical.choice, Quot.sound]` |
-| **B** | proved here, footprint additionally contains `sorryAx` inherited from lean4lean |
+| **B** | proved here, footprint additionally contains `sorryAx` inherited from lean4lean — in the ledger, `SEval.defeq` |
 | **C** | a hypothesis of a stated theorem — visible in the statement a reader checks |
 | **D** | a permanent named binder, mechanised outside Lean (`lake exe green-check`) |
 | **E** | a scope restriction or a fact about a consumer, stated and not formalised |
@@ -66,6 +66,7 @@ appear by name in the statements that take them, and `lake exe green-check` is t
 | `hrun` | the `#erase` run produced the committed `.ast` | `green-check` re-runs `#erase` and byte-diffs the file; `IO.RealWorld` is opaque, so no Lean proof of this can exist |
 | `htbl` | the reified `SourceTable` is the live environment's slice, including the `prepare_erasure` run clause | `lake exe reify --check` compares field by field against the live environment |
 | `hwt` | the subject's `TrExprS` witness, until the checker-routed witness lands (U3.4) | lean4lean's checker, run on the subject |
+| `hsafe` | `Green.TableSafe`: the declarations the reified table pins are safe in the ambient environment — the one column `SourceTableAdequate` does not record | `lake exe reify --check` reads the live declarations; the column is an upstream ask |
 | `env_connect` | the ambient `Lean.Environment` is `TrEnv`-related to the `VEnv` the specification quantifies over | upstream ask 4 would derive it |
 | `lookup_adequate` | a run's constant and inductive lookups agree with the specification environment | — |
 | `fresh_names` | the run's fresh `FVarId`s are fresh | — |
@@ -76,8 +77,10 @@ appear by name in the statements that take them, and `lake exe green-check` is t
 ## (c) Class-**C**: hypotheses of stated theorems
 
 `hcfg` (the erasure configuration is the fragment's), `hcb` (the compiler bodies table is
-adequate), `hsup` (`Supported`, decidable and reported by `supportedB`), `hax`
-(`ErasableAxioms`, decidable per rung), the source-evaluation hypothesis each capstone takes,
+adequate — a hypothesis of the capstone, discharged at a rung by `Green.g1_compilerBodies`
+from `P`, `htbl` and `hsafe`), `hsup` (`Supported`, decidable and reported by `supportedB`),
+`hax` (`ErasableAxioms`, decidable per rung), the source-evaluation hypothesis each capstone
+takes,
 and the two declared scope restrictions of the first-order predicate — `mono` (no universe
 polymorphism) and `noIndices`. The last two come from **neither** paper nor from MetaRocq's
 `firstorder_ind`: they reject types that are genuinely first-order and box-free, and they are
