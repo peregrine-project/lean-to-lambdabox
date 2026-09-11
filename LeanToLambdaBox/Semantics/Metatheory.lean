@@ -1,4 +1,6 @@
 import LeanToLambdaBox.Semantics.Eval
+-- `List.Forall₂`, the pointwise relation `mkApps_congr` reads its argument lists through.
+import Batteries.Data.List.Basic
 
 /-!
 # Metatheory of `WcbvEval` (target-side, lean4lean-free)
@@ -15,7 +17,9 @@ reasoning about `WcbvEval`/`Value` and **must be `sorryAx`-free**.
 | `eval_value`    | `eval_value` |
 | `eval_unique`   | `eval_unique` (free — `Prop`-valued) |
 
-Plus `WcbvEval.propcase_weaken`: `eraseFlags` evaluation implies `entryFlags` evaluation.
+Plus the application-spine kit an `mkApps`-shaped simulation arm reads its target through —
+`WcbvEval.{head_value_of_mkApps, app_congr, mkApps_congr, mkApps_box}` — and
+`WcbvEval.propcase_weaken`: `eraseFlags` evaluation implies `entryFlags` evaluation.
 -/
 
 namespace LeanToLambdaBox
@@ -387,6 +391,83 @@ theorem eval_value {Γ : GlobalDeclarations} {fl : WcbvFlags} {v v' : LBTerm}
 theorem eval_unique {Γ : GlobalDeclarations} {fl : WcbvFlags} {t v : LBTerm}
     (h1 h2 : WcbvEval Γ fl t v) : h1 = h2 := rfl
 
+/-! ### Application spines
+
+What an application spine's evaluation depends on: the *values* of its head and of its
+arguments, not their syntax. Every `.app` rule has exactly one premise about each of the two
+subterms and none reads their syntax, which is what makes `app_congr` a case analysis rather
+than an induction. -/
+
+/-- The head of an evaluating application spine evaluates. -/
+theorem WcbvEval.head_value_of_mkApps {Γ : GlobalDeclarations} {fl : WcbvFlags} :
+    ∀ (as : List LBTerm) {f r : LBTerm}, WcbvEval Γ fl (LBTerm.mkApps f as) r →
+      ∃ fv, WcbvEval Γ fl f fv
+  | [], _, _, h => ⟨_, h⟩
+  | a :: as, f, _, h => by
+      obtain ⟨_, hX⟩ := head_value_of_mkApps as (f := .app f a) h
+      cases hX with
+      | beta hf _ _ => exact ⟨_, hf⟩
+      | app_box hf _ => exact ⟨_, hf⟩
+      | construct_app _ hf _ _ _ => exact ⟨_, hf⟩
+      | fix_guarded _ hf _ _ _ _ => exact ⟨_, hf⟩
+      | fix_stuck _ hf _ _ _ => exact ⟨_, hf⟩
+      | fix_unguarded _ hf _ _ _ => exact ⟨_, hf⟩
+      | app_cong hf _ _ => exact ⟨_, hf⟩
+
+/-- An application's evaluation reads its function and argument only through their values:
+every `.app` rule has exactly one premise about each, and none reads their syntax. -/
+theorem WcbvEval.app_congr {Γ : GlobalDeclarations} {fl : WcbvFlags}
+    {f f' a a' fv av r : LBTerm}
+    (hf : WcbvEval Γ fl f fv) (hf' : WcbvEval Γ fl f' fv)
+    (ha : WcbvEval Γ fl a av) (ha' : WcbvEval Γ fl a' av)
+    (h : WcbvEval Γ fl (.app f a) r) : WcbvEval Γ fl (.app f' a') r := by
+  cases h with
+  | beta hf₁ ha₁ hb =>
+      exact .beta (eval_deterministic hf hf₁ ▸ hf') (eval_deterministic ha ha₁ ▸ ha') hb
+  | app_box hf₁ ha₁ =>
+      exact .app_box (eval_deterministic hf hf₁ ▸ hf') (eval_deterministic ha ha₁ ▸ ha')
+  | construct_app hb hf₁ har hlt ha₁ =>
+      exact .construct_app hb (eval_deterministic hf hf₁ ▸ hf') har hlt
+        (eval_deterministic ha ha₁ ▸ ha')
+  | fix_guarded hg hf₁ ha₁ hd hidx hr =>
+      exact .fix_guarded hg (eval_deterministic hf hf₁ ▸ hf')
+        (eval_deterministic ha ha₁ ▸ ha') hd hidx hr
+  | fix_stuck hg hf₁ ha₁ hd hlt =>
+      exact .fix_stuck hg (eval_deterministic hf hf₁ ▸ hf')
+        (eval_deterministic ha ha₁ ▸ ha') hd hlt
+  | fix_unguarded hg hf₁ hd ha₁ hr =>
+      exact .fix_unguarded hg (eval_deterministic hf hf₁ ▸ hf') hd
+        (eval_deterministic ha ha₁ ▸ ha') hr
+  | app_cong hf₁ hstuck ha₁ =>
+      exact .app_cong (eval_deterministic hf hf₁ ▸ hf') hstuck
+        (eval_deterministic ha ha₁ ▸ ha')
+
+/-- Same-valued heads and same-valued arguments give the same spine value. -/
+theorem WcbvEval.mkApps_congr {Γ : GlobalDeclarations} {fl : WcbvFlags} :
+    ∀ {as as' : List LBTerm},
+      List.Forall₂ (fun a a' => ∃ av, WcbvEval Γ fl a av ∧ WcbvEval Γ fl a' av) as as' →
+      ∀ {f f' fv r : LBTerm}, WcbvEval Γ fl f fv → WcbvEval Γ fl f' fv →
+        WcbvEval Γ fl (LBTerm.mkApps f as) r → WcbvEval Γ fl (LBTerm.mkApps f' as') r := by
+  intro as as' hall
+  induction hall with
+  | nil => intro f f' fv r hf hf' h; exact eval_deterministic hf h ▸ hf'
+  | @cons a a' as as' hpair _ ih =>
+      intro f f' fv r hf hf' h
+      obtain ⟨av, ha, ha'⟩ := hpair
+      obtain ⟨X, hX⟩ := WcbvEval.head_value_of_mkApps as (f := .app f a) h
+      exact ih hX (WcbvEval.app_congr hf hf' ha ha' hX) h
+
+/-- A spine headed by a term evaluating to `□` evaluates to `□`, provided its arguments
+evaluate: MetaCoq's `eval_box`, iterated. -/
+theorem WcbvEval.mkApps_box {Γ : GlobalDeclarations} {fl : WcbvFlags} :
+    ∀ (ts : List LBTerm), (∀ t ∈ ts, ∃ x, WcbvEval Γ fl t x) →
+      ∀ {f : LBTerm}, WcbvEval Γ fl f .box → WcbvEval Γ fl (LBTerm.mkApps f ts) .box
+  | [], _, _, hf => hf
+  | t :: ts, hts, f, hf => by
+      obtain ⟨x, hx⟩ := hts t (List.mem_cons_self ..)
+      exact WcbvEval.mkApps_box ts (fun u hu => hts u (List.mem_cons_of_mem _ hu))
+        (.app_box hf hx)
+
 /-! ### Weakening the prop-case bit -/
 
 /-- **Turning the propositional-case rules on is a weakening.** No `WcbvEval` rule carries
@@ -461,6 +542,28 @@ theorem eval_value_fires : (.box : LBTerm) = .box :=
 /-- `eval_unique` fires: any two derivations of `□ ⇓ □` are equal. -/
 theorem eval_unique_fires (h1 h2 : WcbvEval [] blockFlags .box .box) : h1 = h2 :=
   eval_unique h1 h2
+
+/-- `head_value_of_mkApps` fires: the β-redex read as the one-argument spine
+`mkApps (λ. #0) [□]` yields an evaluation of its λ head. -/
+theorem head_value_of_mkApps_fires :
+    ∃ fv, WcbvEval [] blockFlags (.lambda .anon (.bvar 0)) fv :=
+  WcbvEval.head_value_of_mkApps [.box] wcbvEval_beta_box
+
+/-- `app_congr` fires: the β-redex's own function and argument are same-valued with
+themselves, and the rebuilt application evaluates. -/
+theorem app_congr_fires : WcbvEval [] blockFlags (.app (.lambda .anon (.bvar 0)) .box) .box :=
+  WcbvEval.app_congr (.lam .anon (.bvar 0)) (.lam .anon (.bvar 0)) .box .box wcbvEval_beta_box
+
+/-- `mkApps_congr` fires at the same redex, read as a one-argument spine. -/
+theorem mkApps_congr_fires :
+    WcbvEval [] blockFlags (LBTerm.mkApps (.lambda .anon (.bvar 0)) [.box]) .box :=
+  WcbvEval.mkApps_congr (List.Forall₂.cons ⟨.box, .box, .box⟩ .nil)
+    (.lam .anon (.bvar 0)) (.lam .anon (.bvar 0)) wcbvEval_beta_box
+
+/-- `mkApps_box` fires: `□ □ ⇓ □`, an `app_box` step whose discarded argument evaluates. -/
+theorem mkApps_box_fires : WcbvEval [] blockFlags (LBTerm.mkApps .box [.box]) .box :=
+  WcbvEval.mkApps_box [.box]
+    (fun _ ht => by simp only [List.mem_singleton] at ht; subst ht; exact ⟨.box, .box⟩) .box
 
 /-! ### Non-block (applied) constructors genuinely fire — with a **parameter**.
 

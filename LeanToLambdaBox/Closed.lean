@@ -1,4 +1,6 @@
 import LeanToLambdaBox.Abstract
+-- `WcbvEval` and the `acΓ` constructor fixture the closedness-preservation witness runs on.
+import LeanToLambdaBox.Semantics.Metatheory
 
 /-!
 # `LBClosed` + the de-Bruijn commutation kit for `LBTerm`
@@ -13,6 +15,10 @@ lemmas) and the general `shift`/`subst` commutation laws.
 under `defs.length` binders and are otherwise closed. Defined by the same mutual
 recursion as `LBTerm.shift`/`hasFVar` (the per-list traversals factored into helpers so
 the structural-recursion checker sees through the nested `List` occurrences).
+
+**Closedness under evaluation.** `WcbvEval.lbClosed`: a closed term's value is closed,
+given an environment whose declared bodies are closed. It is the side condition the ι
+step's β-chain rewrite asks for, and the only part of this module that reads `WcbvEval`.
 
 **The commutation kit.** `LBTerm.shift_shift`, `LBTerm.subst_shift_cancel`,
 `LBTerm.subst_shift_comm` and their capstone `LBTerm.subst_subst` (the standard
@@ -847,3 +853,130 @@ theorem lbClosed_fix_of_bodies {defs : List (@FixDef LBTerm)} {k : Nat}
     LBClosed (.fix defs j) 0 := by
   rw [LBClosed_fix, Nat.zero_add, LBClosedDefs_iff, hlen]
   exact h
+
+
+/-! ## Part 6 — closedness under evaluation
+
+`WcbvEval` substitutes: β and ζ substitute one value, ι a list of constructor fields, and
+`fix` the block's own unfolding. Each of those is a `LBClosed` law of Part 2, so the only
+thing the induction needs from outside the term is `hΓ`: the bodies `delta` unfolds are
+closed, since nothing in the subject `.const kn` bounds them. -/
+
+/-- **Evaluation preserves closedness.** `hΓ` is the environment clause the pass layer
+carries (every declared body is closed); without it the `delta` case is false, since a
+`.const kn` subject is closed at every `k` while its body need not be. -/
+theorem WcbvEval.lbClosed {Γ : GlobalDeclarations} {fl : WcbvFlags}
+    (hΓ : ∀ kn b, LBTerm.envLookup Γ kn = some (.constantDecl ⟨some b⟩) → LBClosed b 0) :
+    ∀ {t v : LBTerm}, WcbvEval Γ fl t v → LBClosed t 0 → LBClosed v 0 := by
+  have hunfold : ∀ (defs : List (@FixDef LBTerm)) (idx : Nat) (def_i : @FixDef LBTerm),
+      defs[idx]? = some def_i → LBClosed (.fix defs idx) 0 →
+      LBClosed (LBTerm.substList (LBTerm.fixSubst defs) def_i.body) 0 := by
+    intro defs idx def_i hsel hcl
+    rw [LBClosed_fix, Nat.zero_add, LBClosedDefs_iff] at hcl
+    refine LBClosed.substList (fun s hs => ?_) ?_
+    · obtain ⟨j, _, rfl⟩ := List.mem_map.mp hs
+      rw [LBClosed_fix, Nat.zero_add, LBClosedDefs_iff]
+      exact hcl
+    · rw [LBTerm.fixSubst, List.length_map, List.length_reverse, List.length_range]
+      exact hcl _ (List.mem_of_getElem? hsel)
+  intro t v hev
+  induction hev with
+  | box => exact id
+  | lam n b => exact id
+  | fvar x => exact id
+  | prim p => exact id
+  | fix_atom defs i => exact id
+  | @beta f a n b av r hf ha hbody ihf iha ihbody =>
+      exact fun ht => ihbody (LBClosed.subst1 (ihf ht.1) (iha ht.2))
+  | app_box _ _ _ _ => exact fun _ => trivial
+  | @zeta n v b vv r hv hbody ihv ihbody =>
+      exact fun ht => ihbody (LBClosed.subst1 ht.2 (ihv ht.1))
+  | @delta kn body r hlk hbody ihbody => exact fun _ => ihbody (hΓ _ _ hlk)
+  | @construct hb iid k args vs hl hargs ihargs =>
+      intro ht
+      rw [LBClosed_construct, LBClosedArgs_iff] at ht ⊢
+      intro s hs
+      obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hs
+      have hi' : i < args.length := hl ▸ hi
+      exact ihargs i hi' (ht _ (List.getElem_mem hi'))
+  | construct_atom _ _ => exact id
+  | @construct_app hb f a a' iid c args ar hf harity hlt ha ihf iha =>
+      exact fun ht => ⟨ihf ht.1, iha ht.2⟩
+  | @iota hb iid np k discr alts args names body r hprop hdiscr hsel hlen hbody ihd ihbody =>
+      intro ht
+      have hargs := LBClosed.mkApps_inv (ihd ht.1)
+      have halt : LBClosed body (0 + names.length) :=
+        (LBClosedAlts_iff alts 0).mp ht.2 _ (List.mem_of_getElem? hsel)
+      refine ihbody (LBClosed.substList (fun s hs => ?_) ?_)
+      · exact hargs s (List.mem_of_mem_drop (List.mem_reverse.mp hs))
+      · rw [List.length_reverse, hlen]; simpa using halt
+  | @iota_block hb iid np k discr alts cargs names body r hprop hdiscr hsel hlen hbody ihd ihbody =>
+      intro ht
+      have hargs := (LBClosedArgs_iff cargs 0).mp (ihd ht.1)
+      have halt : LBClosed body (0 + names.length) :=
+        (LBClosedAlts_iff alts 0).mp ht.2 _ (List.mem_of_getElem? hsel)
+      refine ihbody (LBClosed.substList (fun s hs => ?_) ?_)
+      · exact hargs s (List.mem_of_mem_drop (List.mem_reverse.mp hs))
+      · rw [List.length_reverse, hlen]; simpa using halt
+  | @iota_sing hpc iid np discr names body r hprop hdiscr hbody ihd ihbody =>
+      intro ht
+      have halt : LBClosed body (0 + names.length) :=
+        (LBClosedAlts_iff [(names, body)] 0).mp ht.2 _ (List.mem_cons_self ..)
+      refine ihbody (LBClosed.substList (fun s hs => ?_) ?_)
+      · rw [List.eq_of_mem_replicate hs]; trivial
+      · rw [List.length_replicate]; simpa using halt
+  | @proj hb p discr args v r hprop hdiscr hsel hv ihd ihv =>
+      intro ht
+      exact ihv (LBClosed.mkApps_inv (ihd ht) v (List.mem_of_getElem? hsel))
+  | @proj_block hb p discr cargs v r hprop hdiscr hsel hv ihd ihv =>
+      intro ht
+      exact ihv ((LBClosedArgs_iff cargs 0).mp (ihd ht) v (List.mem_of_getElem? hsel))
+  | proj_prop _ _ _ _ => exact fun _ => trivial
+  | @fix_guarded hg f a av defs idx def_i argsv r hf ha hsel hrarg hunf ihf iha ihunf =>
+      intro ht
+      have hsp := ihf ht.1
+      exact ihunf ⟨LBClosed.mkApps (hunfold defs idx def_i hsel (LBClosed.mkApps_head hsp))
+        (LBClosed.mkApps_inv hsp), iha ht.2⟩
+  | @fix_stuck hg f a av defs idx def_i argsv hf ha hsel hlt ihf iha =>
+      exact fun ht => ⟨ihf ht.1, iha ht.2⟩
+  | @fix_unguarded hg f a av defs idx def_i r hf hsel ha hunf ihf iha ihunf =>
+      intro ht
+      exact ihunf ⟨hunfold defs idx def_i hsel (ihf ht.1), iha ht.2⟩
+  | @app_cong f a f' a' hf hstuck ha ihf iha =>
+      exact fun ht => ⟨ihf ht.1, iha ht.2⟩
+
+/-- The `acΓ` fixture declares no constant, so its bodies are vacuously closed. -/
+theorem ac_closedBodies :
+    ∀ kn b, LBTerm.envLookup acΓ kn = some (.constantDecl ⟨some b⟩) → LBClosed b 0 := by
+  intro kn b h
+  simp only [acΓ, LBTerm.envLookup] at h
+  split at h <;> simp at h
+
+/-- `WcbvEval.lbClosed` fires on the `acΓ` fixture: the two-argument constructor spine
+`((mk) □) □` evaluates, and its value is closed because the redex is. -/
+theorem wcbvEval_lbClosed_fires :
+    LBClosed (LBTerm.mkApps (.construct acIid 0 []) [.box, .box]) 0 :=
+  WcbvEval.lbClosed ac_closedBodies construct_app_fires (by simp [LBClosedArgs])
+
+/-- `acΓ` with one constant, whose body is a closed λ. -/
+def acDefKn : Kername := { mp := .MPfile [], id := "acDef" }
+
+def acDefΓ : GlobalDeclarations :=
+  (acDefKn, .constantDecl ⟨some (.lambda .anon (.bvar 0))⟩) :: acΓ
+
+theorem ac_def_closedBodies :
+    ∀ kn b, LBTerm.envLookup acDefΓ kn = some (.constantDecl ⟨some b⟩) → LBClosed b 0 := by
+  intro kn b h
+  simp only [acDefΓ, acΓ, LBTerm.envLookup] at h
+  split at h
+  · simp only [Option.some.injEq, GlobalDecl.constantDecl.injEq, ConstantBody.mk.injEq,
+      Option.some.injEq] at h
+    subst h; simp
+  · split at h <;> simp at h
+
+/-- **`hΓ` is not slack.** At a δ step the subject is `.const acDefKn`, which is closed at
+every bound; the value's closedness is read off `hΓ` alone. -/
+theorem wcbvEval_lbClosed_fires_delta :
+    LBClosed (.lambda .anon (.bvar 0) : LBTerm) 0 :=
+  WcbvEval.lbClosed (fl := eraseFlags) ac_def_closedBodies
+    (.delta (kn := acDefKn) rfl (.lam ..)) trivial

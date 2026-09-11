@@ -11,6 +11,8 @@ obtained by de Bruijn surgery, mirroring lean4lean's `TrExprS.weakBV`, `TrExprS.
 
 * `erases_shift` — weakening by bvar entries (`Expr.liftLooseBVars'` / `LBTerm.shift`);
 * `erases_subst` — instantiation of a bvar entry (`Expr.instantiate1'` / `LBTerm.subst`);
+* `erases_subst_let` — the same at a `.vlet` entry (`VLCtx.InstLet`), with
+  `Erases.defeqDFC_wt` for the defeq swap of the entry's recorded value;
 * `Erases.abstract` and `Erases.uninstantiateN` — closing a free variable back into a de
   Bruijn binder (`Expr.abstract1` / `toBvar`).
 
@@ -186,6 +188,221 @@ theorem erases_subst {env : VEnv} (henv : env.Ordered) {Us : List Name}
     exact .lam (TrExprS.instN henv ht₀ t₀ W hty) (ihb (W.succ (d := .vlam _)))
   | letE hty hval _ _ ihv ihb =>
     exact .letE (TrExprS.instN henv ht₀ t₀ W hty) (TrExprS.instN henv ht₀ t₀ W hval)
+      (ihv W) (ihb (W.succ (d := .vlet ..)))
+  | proj hs hi _ ihd => exact .proj hs hi (ihd W)
+  | mdata _ ih => exact .mdata (ih W)
+
+/-! ## Instantiation of a let entry, and transport along a definitionally equal context
+
+Two further moves on a `.vlet` entry, which `erases_subst`'s `VLCtx.InstN` does not reach:
+swapping the entry's recorded value for a definitionally equal one, and instantiating the
+entry away. The second is `erases_subst` with `VLCtx.InstLet` in place of `VLCtx.InstN`, so
+the four lookup helpers below mirror the `instN_*` ones exactly. -/
+
+/--
+Erasure transports along a definitionally equal context, given a translation of the source
+term in the source context.
+
+The `box` arm moves its witnesses with `TrExprS.defeqDFC'`, `Erasable.defeqDFC` and
+`Erasable.defeq`; the binder arms need a `VLocalDecl.IsDefEq` for the entry they cons, which
+is typed at a sort and so needs the binder type's `IsType` — data `Erases.lam` does not
+carry and the translation does.
+-/
+theorem Erases.defeqDFC_wt {env : VEnv} (henv : env.WF) {Us : List Name} :
+    ∀ {Δ₁ : VLCtx} {e : Expr} {t : LBTerm}, Erases env Us Δ₁ e t →
+      ∀ {Δ₂ : VLCtx}, VLCtx.IsDefEq env Us.length Δ₁ Δ₂ → VLCtx.WF env Us.length Δ₁ →
+        ∀ {ve : VExpr}, TrExprS env Us Δ₁ e ve → Erases env Us Δ₂ e t := by
+  intro Δ₁ e t her
+  induction her with
+  | box htrb herb =>
+      intro Δ₂ hΔ hWF ve htr
+      obtain ⟨w, htrw, hdw⟩ := TrExprS.defeqDFC' henv hΔ htrb
+      have her₂ : Erasable env Us.length Δ₂.toCtx _ :=
+        Erasable.defeqDFC henv.ordered hΔ.defeqCtx herb
+      exact .box htrw (Erasable.defeq henv (hΔ.symm henv).wf.toCtx (VEnv.IsDefEqU.symm hdw) her₂)
+  | bvar hf =>
+      intro Δ₂ hΔ hWF ve htr
+      obtain ⟨_, _, h₂⟩ := hΔ.find?_defeqDFC hf
+      exact .bvar h₂
+  | fvar hf =>
+      intro Δ₂ hΔ hWF ve htr
+      obtain ⟨_, _, h₂⟩ := hΔ.find?_defeqDFC hf
+      exact .fvar h₂
+  | const hc => intro Δ₂ hΔ hWF ve htr; exact .const hc
+  | app _ _ ihf iha =>
+      intro Δ₂ hΔ hWF ve htr
+      cases htr with
+      | app _ _ s1 s2 => exact .app (ihf hΔ hWF s1) (iha hΔ hWF s2)
+  | lam hty hb ihb =>
+      intro Δ₂ hΔ hWF ve htr
+      cases htr with
+      | lam h1 s1 s2 =>
+          have hΓ₁ := hWF.toCtx
+          obtain ⟨u, h1'⟩ := h1
+          have hdty := VEnv.IsDefEqU.of_l henv hΓ₁
+            (TrExprS.uniq henv (VLCtx.IsDefEq.refl henv.ordered hWF) s1 hty) h1'
+          have hWF' : VLCtx.WF env Us.length ((none, .vlam _) :: _) :=
+            ⟨hWF, nofun, ⟨u, hdty.hasType.2⟩⟩
+          obtain ⟨bv', s2'⟩ :=
+            s2.defeqDFC henv
+              (VLCtx.IsDefEq.cons (.refl henv.ordered hWF) (ofv := none) nofun (.vlam hdty))
+          obtain ⟨ty₂, htrty₂, _⟩ := TrExprS.defeqDFC' henv hΔ hty
+          have hdty₂ := VEnv.IsDefEqU.of_l henv hΓ₁
+            (TrExprS.uniq henv hΔ hty htrty₂) hdty.hasType.2
+          exact .lam htrty₂ (ihb (hΔ.cons nofun (.vlam hdty₂)) hWF' s2')
+  | letE hty hval hv hb ihv ihb =>
+      intro Δ₂ hΔ hWF ve htr
+      cases htr with
+      | letE h1 s1 s2 s3 =>
+          have hΓ₁ := hWF.toCtx
+          obtain ⟨u, h0⟩ := h1.isType henv hΓ₁
+          have hdty := VEnv.IsDefEqU.of_l henv hΓ₁
+            (TrExprS.uniq henv (VLCtx.IsDefEq.refl henv.ordered hWF) s1 hty) h0
+          have hdval := VEnv.IsDefEqU.of_l henv hΓ₁
+            (TrExprS.uniq henv (VLCtx.IsDefEq.refl henv.ordered hWF) s2 hval) h1
+          have hvalT := (hdval.hasType.2).defeqU_r henv hΓ₁ ⟨_, hdty⟩
+          have hWF' : VLCtx.WF env Us.length ((none, .vlet _ _) :: _) := ⟨hWF, nofun, hvalT⟩
+          obtain ⟨bv', s3'⟩ :=
+            s3.defeqDFC henv
+              (VLCtx.IsDefEq.cons (.refl henv.ordered hWF) (ofv := none) nofun
+                (.vlet hdval hdty))
+          obtain ⟨ty₂, htrty₂, _⟩ := TrExprS.defeqDFC' henv hΔ hty
+          obtain ⟨val₂, htrval₂, _⟩ := TrExprS.defeqDFC' henv hΔ hval
+          have hdty₂ := VEnv.IsDefEqU.of_l henv hΓ₁
+            (TrExprS.uniq henv hΔ hty htrty₂) hdty.hasType.2
+          have hdval₂ := VEnv.IsDefEqU.of_l henv hΓ₁
+            (TrExprS.uniq henv hΔ hval htrval₂) hvalT
+          exact .letE htrty₂ htrval₂ (ihv hΔ hWF hval)
+            (ihb (hΔ.cons nofun (.vlet hdval₂ hdty₂)) hWF' s3')
+  | proj hs hi _ ihd =>
+      intro Δ₂ hΔ hWF ve htr
+      cases htr with
+      | proj s1 _ => exact .proj hs hi (ihd hΔ hWF s1)
+  | lit hcl _ ih =>
+      intro Δ₂ hΔ hWF ve htr
+      cases htr with
+      | lit _ s1 => exact .lit hcl (ih hΔ hWF s1)
+  | mdata _ ih =>
+      intro Δ₂ hΔ hWF ve htr
+      cases htr with
+      | mdata s1 => exact .mdata (ih hΔ hWF s1)
+
+/-- A `VLCtx.InstLet` witness yields the de Bruijn weakening of the substitutee's context
+`Δ₀` into the context the let entry is removed from, which carries `dk` binders above it. -/
+theorem instLet_toBVLift {Δ₀ Δ₁ Δ : VLCtx} {e₀' A₀ : VExpr} {dk k : Nat}
+    (W : VLCtx.InstLet Δ₀ e₀' A₀ dk k Δ₁ Δ) : VLCtx.BVLift Δ₀ Δ dk 0 k 0 := by
+  induction W with
+  | zero => exact .refl
+  | succ _ ih => exact ih.skip _
+
+/-- A bvar below the let keeps its index and stays bound. Only existence is claimed, which
+is all `Erases.bvar` asks for. -/
+theorem instLet_find?_lt {Δ₀ Δ₁ Δ : VLCtx} {e₀' A₀ : VExpr} {dk k : Nat}
+    (W : VLCtx.InstLet Δ₀ e₀' A₀ dk k Δ₁ Δ) :
+    ∀ {i : Nat}, i < dk → (∃ p, Δ₁.find? (.inl i) = some p) →
+      ∃ p, Δ.find? (.inl i) = some p := by
+  induction W with
+  | zero => intro i h; omega
+  | @succ dk k Γ Γ' d _ ih =>
+    rintro (_ | i) hlt ⟨p, H⟩
+    · exact ⟨_, rfl⟩
+    · simp only [VLCtx.find?, VLCtx.next, Option.bind_eq_bind] at H
+      have hsome : ∃ p, Γ.find? (.inl i) = some p := by
+        cases hf : Γ.find? (.inl i) with
+        | none => rw [hf] at H; simp at H
+        | some q => exact ⟨q, rfl⟩
+      obtain ⟨⟨qe, qA⟩, h₂⟩ := ih (by omega) hsome
+      exact ⟨(qe.liftN d.depth, qA.liftN d.depth), by simp [VLCtx.find?, VLCtx.next, h₂]⟩
+
+/-- A bvar above the let drops by one and stays bound: the entry it pointed past is the one
+instantiation removes. -/
+theorem instLet_find?_gt {Δ₀ Δ₁ Δ : VLCtx} {e₀' A₀ : VExpr} {dk k : Nat}
+    (W : VLCtx.InstLet Δ₀ e₀' A₀ dk k Δ₁ Δ) :
+    ∀ {i : Nat}, dk < i → (∃ p, Δ₁.find? (.inl i) = some p) →
+      ∃ p, Δ.find? (.inl (i - 1)) = some p := by
+  induction W with
+  | zero =>
+    rintro (_ | i) hgt ⟨p, H⟩
+    · omega
+    · simp only [VLCtx.find?, VLCtx.next, Option.bind_eq_bind] at H
+      cases hf : Δ₀.find? (.inl i) with
+      | none => rw [hf] at H; simp at H
+      | some q => exact ⟨q, hf⟩
+  | @succ dk k Γ Γ' d _ ih =>
+    rintro (_ | i) hgt ⟨p, H⟩
+    · omega
+    · simp only [VLCtx.find?, VLCtx.next, Option.bind_eq_bind] at H
+      have hsome : ∃ p, Γ.find? (.inl i) = some p := by
+        cases hf : Γ.find? (.inl i) with
+        | none => rw [hf] at H; simp at H
+        | some q => exact ⟨q, rfl⟩
+      obtain ⟨⟨qe, qA⟩, h₂⟩ := ih (by omega) hsome
+      obtain _ | m := i
+      · omega
+      · simp only [Nat.add_sub_cancel] at h₂ ⊢
+        exact ⟨(qe.liftN d.depth, qA.liftN d.depth), by simp [VLCtx.find?, VLCtx.next, h₂]⟩
+
+/-- A free variable's lookup survives instantiation of a let entry: `VLCtx.InstLet` touches
+no fvar-tagged entry. -/
+theorem instLet_find?_fvar {Δ₀ Δ₁ Δ : VLCtx} {e₀' A₀ : VExpr} {dk k : Nat}
+    (W : VLCtx.InstLet Δ₀ e₀' A₀ dk k Δ₁ Δ) :
+    ∀ {x : FVarId}, (∃ p, Δ₁.find? (.inr x) = some p) →
+      ∃ p, Δ.find? (.inr x) = some p := by
+  induction W with
+  | zero =>
+    rintro x ⟨p, H⟩
+    simp only [VLCtx.find?, VLCtx.next, Option.bind_eq_bind] at H
+    cases hf : Δ₀.find? (.inr x) with
+    | none => rw [hf] at H; simp at H
+    | some q => exact ⟨q, rfl⟩
+  | @succ dk k Γ Γ' d _ ih =>
+    rintro x ⟨p, H⟩
+    simp only [VLCtx.find?, VLCtx.next, Option.bind_eq_bind] at H
+    have hsome : ∃ p, Γ.find? (.inr x) = some p := by
+      cases hf : Γ.find? (.inr x) with
+      | none => rw [hf] at H; simp at H
+      | some q => exact ⟨q, rfl⟩
+    obtain ⟨⟨qe, qA⟩, h₂⟩ := ih hsome
+    exact ⟨(qe.liftN d.depth, qA.liftN d.depth), by simp [VLCtx.find?, VLCtx.next, h₂]⟩
+
+/--
+Erasure commutes with instantiating a `.vlet` entry away: source `Expr.instantiate1'` matches
+target `LBTerm.subst` under a `VLCtx.InstLet`, when the substitutee's translation is the
+entry's recorded value.
+
+`box`, `lam` and `letE` discharge their lean4lean premises with `TrExprS.instN_let`; the
+`Erasable` witness needs no move at all, since a `.vlet` entry contributes nothing to the
+pure typing context. The `bvar i = dk` case is the substitutee's own derivation, lifted by
+`erases_shift` along `instLet_toBVLift`.
+-/
+theorem erases_subst_let {env : VEnv} (henv : env.Ordered) {Us : List Name}
+    {Δ₀ : VLCtx} {e₀ : Expr} {e₀' A₀ : VExpr} {s' : LBTerm}
+    (ht₀ : TrExprS env Us Δ₀ e₀ e₀')
+    (h₀ : Erases env Us Δ₀ e₀ s')
+    {Δ₁ Δ : VLCtx} {dk k : Nat} (W : VLCtx.InstLet Δ₀ e₀' A₀ dk k Δ₁ Δ)
+    {e : Expr} {t : LBTerm} (h : Erases env Us Δ₁ e t) :
+    Erases env Us Δ (e.instantiate1' e₀ dk) (LBTerm.subst s' dk t) := by
+  induction h generalizing Δ dk k with
+  | box htr her => exact .box (TrExprS.instN_let henv ht₀ W htr) (W.toCtx ▸ her)
+  | lit hcl _ ih =>
+    refine .lit hcl (Expr.instantiate1'_eq_self ?_ ▸ ih W :)
+    exact Closed.toConstructor.looseBVarRange_le
+  | @bvar _ i _ _ hf =>
+    simp only [Expr.instantiate1', LBTerm.subst]
+    split <;> rename_i hlt
+    · obtain ⟨⟨_, _⟩, h⟩ := instLet_find?_lt W hlt ⟨_, hf⟩
+      exact .bvar h
+    · split <;> rename_i heq
+      · exact heq ▸ erases_shift henv (instLet_toBVLift W) h₀
+      · obtain ⟨⟨_, _⟩, h⟩ := instLet_find?_gt W (by omega) ⟨_, hf⟩
+        exact .bvar h
+  | fvar hf => obtain ⟨⟨_, _⟩, h⟩ := instLet_find?_fvar W ⟨_, hf⟩; exact .fvar h
+  | const hc => exact .const hc
+  | app _ _ ihf iha => exact .app (ihf W) (iha W)
+  | lam hty _ ihb =>
+    exact .lam (TrExprS.instN_let henv ht₀ W hty) (ihb (W.succ (d := .vlam _)))
+  | letE hty hval _ _ ihv ihb =>
+    exact .letE (TrExprS.instN_let henv ht₀ W hty) (TrExprS.instN_let henv ht₀ W hval)
       (ihv W) (ihb (W.succ (d := .vlet ..)))
   | proj hs hi _ ihd => exact .proj hs hi (ihd W)
   | mdata _ ih => exact .mdata (ih W)
