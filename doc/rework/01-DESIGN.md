@@ -10,7 +10,7 @@ amended. Every amendment is forced by a measurement, and the measurement is cite
 judges ranked it first, and it is the only one of the three whose `erases_correct` is well-posed
 at a recursive constant. Grafted, per the judges' endorsements: from **A** the flag chain, the
 eliminator bodies as *constructions* with their ι theorems proved rather than assumed, the
-declaration-level `elim` class, `EnvAgree`, the panic table and the upstream-ask file; from **C**
+declaration-level `elim` class, the panic table and the upstream-ask file; from **C**
 the entire non-vacuity lane (the G-ladder, `Green.lean`, `green-check`), the honest output
 predicate (`LBWfPeregrine` without fixpoint η, `PeregrinePre` stated separately), `supportedB :
 … → Except SupportError Unit`, the reified `SourceTable`, `lbEval`, and the applied capstone.
@@ -213,7 +213,8 @@ and §3.1 Q9–Q12 carry its decisions.
 What Wave 2 delivered and this design keeps: the composite `ErasesLB` and its seventeen
 introduction lemmas, the βζδ+lit arms and their metatheory (`Erases.defeqDFC_wt`,
 `erases_subst_let`, the `WcbvEval` spine kit, `erases_mkApps_inv`, `erasable_mkApps`),
-`LowerFix.constToFix`, `IotaBridge`, `Fuel.lean`, T9 with its single `hbridge` binder, `green_G1`.
+`LowerFix.constToFix`, `IotaBridge`, T9 with its single `hbridge` binder, `green_G1`. Not
+`Fuel.lean`: it has zero references tree-wide and no importer, so U2.10 deletes it.
 
 ---
 
@@ -384,6 +385,12 @@ by `ErasesDecl.elim` on the target side, where Rocq carries it in `tCase`'s synt
 W2 refuter B-F3).
 
 **Q12 — what happens to η-expansion?** **It is not covered; it is restricted (N19).**
+*Over*-application is the opposite case and is **covered, not restricted**: `Lower.elimApp` carries
+the `extra` list the eraser applies outside the emitted node (`Erasure.lean:828-832`) and
+`SEval.iota`'s subject is generalised to match it, at the cost of one existing target lemma
+(`wcbvEval_mkApps_head_congr`). It fires — Quicksort has three over-applied `casesOn` spines —
+and an over-applied *constructor* spine is excluded instead by `SEval.ctorVal`'s arity bound,
+which is `[S Fig. 12]`'s own and which the target enforces anyway (§4.3).
 `Lower.ctorEta`/`elimEta` at a non-empty, under-applied prefix are unsound in any architecture: the
 expansion moves the supplied arguments under a binder, where weak evaluation never reaches them, so
 the source value and the target value are related by no derivation. Re-keying them to the bare head
@@ -464,7 +471,7 @@ the coverage row once a run forces one); `Decidable` (Type-valued) is inside via
 | A11 | §2 T8's four `PrimSpec` fields | the bundle is renamed **`ErasureSpec`** (upstream `Lean4Lean.PrimSpec` exists, `Verify/Typing/Expr.lean:315`, and this tree opens `Lean4Lean` pervasively) and has six fields: `env_connect`, `lookup_adequate`, `fresh_names`, `oracle_refl`, `oracle_meta`, `decl_adequate`; table adequacy is the separate named binder `htbl` (a `Prop`-valued structure cannot hold `tbl` as a field, and an unbound `tbl` auto-binds to a false ∀) | Q6; §2 F4; gate G-D4/G-D5 |
 | A12 | §2 T9's observable conjunct | value side is the **composite**, not `Erases`; and the conjunct is quantified over closed first-order argument spines | §2 F3, F5 |
 | A13 | §2 T1's "the `optimize` pass (T6) discharges `with_prop_case`, landing the deliverable at `⟨false,true,false⟩`" | the deliverable **is stated at** `⟨false,true,false⟩` directly (prop-case is inert on emitted output) and `propcase_weaken` bridges to the consumer's `⟨true,true,false⟩`; `optimize` is optional | §3.2 |
-| A14 | §7 criterion 13 ("every hypothesis of T9 simultaneously inhabited by a checked term") | "every class-**C** hypothesis of T9 inhabited by a checked term; `hrun`, `htbl` and `ErasureSpec`'s class-**D** fields are permanent named binders mechanised externally by `lake exe green-check`; `hwt`/`hty` per F17's schedule and named fallback" | F17, F18; `Void IO.RealWorld` is opaque; the bundle's fields model opaque `Lean.Environment`/`Meta` primitives |
+| A14 | §7 criterion 13 ("every hypothesis of T9 simultaneously inhabited by a checked term") | "every class-**C** hypothesis of T9 inhabited by a checked term; `hrun`, `htbl` and `ErasureSpec`'s class-**D** fields are permanent named binders mechanised externally by `lake exe green-check`; `hwt`/`hty` per F17's schedule and named fallback; **`hev` is class **C** and uninhabited at G1–G4** — `Green.lean:186` is a binder no rung discharges, G3's `green_G5` is the first rung that constructs an `SEval` derivation, and `test/ledger.expected` and `doc/trust.md` carry the row until then" | F17, F18; `Void IO.RealWorld` is opaque; the bundle's fields model opaque `Lean.Environment`/`Meta` primitives; W2 second-round refuter F4 |
 | A15 | §7 criteria 8 and 11's "decidable"/"decides" | "`by rfl` on the `reify%`-spliced `SourceTable`, sound under the named binder `htbl`" | §2 F4: no term denotes the ambient environment |
 | A16 | §7 criterion 9 ("`oracle_sound` … discharged rather than assumed") | "discharged on its kernel-reflection arm (`oracle_refl`, class **B**); the `isErasableMeta` fallback and the polymorphic-scope arm remain one named class-**D** field (`oracle_meta`) with a ledger row" — the reduction is real but partial, and saying so costs one field | §4.10; measured 0 fallback hits / 139,196 constants |
 | A17 | §7 criteria 1-2 ("exactly ten rules"; "no rule produces `.construct`, `.case` or `.fix`") | eleven rules; the prohibition stands for `.case`/`.fix` and is lifted for `.construct` **at the bare head**, which is `[S Fig. 18]`'s own `tConstruct` congruence | Q9; `erases_correct_needs_tabled_ctor` |
@@ -730,38 +737,61 @@ inductive SEval (env : VEnv) (bo : Name → Option Expr) (Us : List Name) (fl : 
   -- among the arms:
   | deltaC {Δ c us ups args argsv b b' v} (hfl : fl.delta)
       (hb : bo c = some b) (hinst : b' = b.instantiateLevelParams ups us)
+      -- `hnd` mirrors the eraser's own dispatch: `visitCases` (`Erasure.lean:768`) never visits
+      -- a `casesOn` body, so neither does δ here. It is not optional — `reify%` tables a
+      -- `.defnInfo` with a body (`Witness/SourceTable.lean:213-216`) and `Nat.casesOn` is one, so
+      -- without it a saturated eliminator spine has a second derivation that unfolds the
+      -- eliminator, and T5's δ arm would owe the `ElimBody` evaluation theory §7.4 retires (N21).
+      (hnd : ∀ I dp nm, ¬ CasesOnShape env c I dp nm)
       (hlen : argsv.length = args.length)
       (hargs : ∀ i, i < args.length → SEval env bo Us fl Δ args[i]! argsv[i]!)
       (hdef : StepDefeq env Us Δ (mkApps (.const c us) argsv) (mkApps b' argsv))
       (hcont : SEval env bo Us fl Δ (mkApps b' argsv) v) :
       SEval env bo Us fl Δ (mkApps (.const c us) args) v
-  /-- ι, call-by-value in the **whole** spine: the dropped prefix and the unselected minors are
-      arguments of an application, and call-by-value evaluates arguments. The premises are what
-      the simulation's boxed-ι case consumes — the image of such a redex is `mkApps .box args'`,
-      and `WcbvEval.app_box` evaluates the argument it discards (Q11). -/
-  | iota {Δ con us I pre prev disc minors minorsv ctor cus cargs np cidx r} (hfl : fl.iota)
+  /-- ι, call-by-value in the **whole** spine: the dropped prefix, the unselected minors and any
+      over-application are arguments of an application, and call-by-value evaluates arguments. The
+      premises are what the simulation's boxed-ι case consumes — the image of such a redex is
+      `mkApps .box args'`, and `WcbvEval.app_box` evaluates the argument it discards (Q11). -/
+  | iota {Δ con us I pre prev disc minors minorsv extra extrav ctor cus cargs np cidx r}
+      (hfl : fl.iota)
       -- the split, from the source theory: `hsh` is how many arguments precede the major premise
       -- and how many minors follow it, read off `I`'s own declaration; `hct` is which minor the
       -- matched constructor selects. Rocq's `tCase` carries both in its syntax; without them
-      -- nothing ties this derivation's split to the emitted `.case` node (W2 refuter B-F3).
+      -- nothing ties this derivation's split to the emitted `.case` node (W2 refuter B-F3), and
+      -- `CasesOnShape.inj` is what makes the split unique once `extra` is admitted.
       (hsh : CasesOnShape env con I pre.length minors.length)
+      -- the head's *reading*. `CasesOnShape` constrains `con`'s name and `I`'s declaration and
+      -- nothing else — it transports to any name with the same `isCasesOnName` verdict and prefix
+      -- (`scratchpad/refute2/step3.lean`) — so without `ho` the head may still erase by
+      -- `Erases.ctor` and T5's ι head step does not follow.
+      (ho : ConstOrigin env con)
       (hct : CtorOf env ctor I cidx)
       (hpre : prev.length = pre.length)
       (hpres : ∀ i, i < pre.length → SEval env bo Us fl Δ pre[i]! prev[i]!)
       (hdiscr : SEval env bo Us fl Δ disc (mkApps (.const ctor cus) cargs))
       (hmin : minorsv.length = minors.length)
       (hmins : ∀ i, i < minors.length → SEval env bo Us fl Δ minors[i]! minorsv[i]!)
+      -- over-application rides outside the node, exactly as `visitCases` emits it
+      -- (`Erasure.lean:828-832`) and as `Lower.elimApp`'s `extra` carries it; measured firing on
+      -- three `casesOn` spines in Quicksort.
+      (hxlen : extrav.length = extra.length)
+      (hxs : ∀ i, i < extra.length → SEval env bo Us fl Δ extra[i]! extrav[i]!)
       (hidx : cidx < minors.length)
-      (hdef : StepDefeq env Us Δ (mkApps (.const con us) (pre ++ disc :: minors))
-        (mkApps minors[cidx]! (cargs.drop np)))
-      (hcont : SEval env bo Us fl Δ (mkApps minors[cidx]! (cargs.drop np)) r) :
-      SEval env bo Us fl Δ (mkApps (.const con us) (pre ++ disc :: minors)) r
-  /-- `[S Fig. 12]`'s `value_head_cstr`: a constructor spine is a value once its arguments are.
-      Keyed on the source theory's classification — not on the compiler table, not on a name test:
-      a `casesOn` spine is not a value because `casesOn` is not a constructor. A body-less *plain*
-      constant then has no value at all, which is PCUIC's treatment of an axiom and what removes
-      the axiom-freedom premise W2-R2 seemed to force (A18). -/
-  | ctorVal {Δ cn us I k args argsv} (hc : CtorOf env cn I k)
+      (hdef : StepDefeq env Us Δ (mkApps (.const con us) (pre ++ disc :: minors ++ extra))
+        (mkApps minors[cidx]! (cargs.drop np ++ extra)))
+      (hcont : SEval env bo Us fl Δ (mkApps minors[cidx]! (cargs.drop np ++ extra)) r) :
+      SEval env bo Us fl Δ (mkApps (.const con us) (pre ++ disc :: minors ++ extra)) r
+  /-- `[S Fig. 12]`'s `value_head_cstr`: a constructor spine within the constructor's arity is a
+      value once its arguments are. Keyed on the source theory's classification — not on the
+      compiler table, not on a name test: a `casesOn` spine is not a value because `casesOn` is not
+      a constructor. A body-less *plain* constant then has no value at all, which is PCUIC's
+      treatment of an axiom and what removes the axiom-freedom premise W2-R2 seemed to force (A18).
+      `harity` is Fig. 12's own `nargs ≤ cstr_arity`, here `np + nfs[k]` off `IndInfo`: the target
+      is stuck on an over-applied constructor spine (`WcbvEval.construct_app` fires only while
+      `args.length < ar`, `Semantics/Eval.lean:130-136`), and this is what gives T5's `ctorVal` arm
+      its no-over-application fact without an upstream lemma. -/
+  | ctorVal {Δ cn us I iid k np nfs args argsv} (hc : CtorOf env cn I k)
+      (hi : IndInfo env I iid np nfs) (harity : args.length ≤ np + nfs[k]!)
       (hlen : argsv.length = args.length)
       (hargs : ∀ i, i < args.length → SEval env bo Us fl Δ args[i]! argsv[i]!) :
       SEval env bo Us fl Δ (mkApps (.const cn us) args) (mkApps (.const cn us) argsv)
@@ -1163,7 +1193,7 @@ conclude `ErasesLBFix` (§4.5) instead, and each lemma has an `ErasesLBFix.*` tw
 post-composing with `ConstToFVar`'s congruence — mechanical, since `ConstToFVar` is itself a
 congruence everywhere except at the `kns` constants.
 
-### 4.8 `ErasesDecl`, `ErasesEnv`, `LowerEnv`, `EnvAgree`, `SpecEnv` — T3 — `ErasesEnv.lean`, `SpecEnv.lean`
+### 4.8 `ErasesDecl`, `ErasesEnv`, `LowerEnv`, `SpecEnv` — T3 — `ErasesEnv.lean`, `SpecEnv.lean`
 
 Four helper predicates read the environment in λ□ coordinates, against lean4lean's actual API
 rather than against functions the design's first draft named but that do not exist (§2.2, finding
@@ -1217,6 +1247,11 @@ inductive ErasesDecl (env : VEnv) (bo : Name → Option Expr) : Kername → Glob
          -- the emitted `.case` node's segmentation **is** the source eliminator's: without this
          -- clause nothing relates `SEval.iota`'s spine split to `dp`/`nfs` (W2 refuter B-F3)
          (hsh : CasesOnShape env c I dp nfs.length)
+         -- the eliminator constant's own reading, the same positive fact `Erases.const` takes.
+         -- T5's β arm reaches it through `hspec` to discharge `SEval.no_elimSpine_value` at a
+         -- saturated eliminator spine, where `Lower.elimApp` is the second reading of an `.app`
+         -- node (`04-AMENDMENT-W2.md` §6; second-round fidelity F6)
+         (hco : ConstOrigin env c)
          (hb : ElimBody iid np dp nfs body) :
          ErasesDecl env bo kn (.constantDecl ⟨some body⟩)
 ```
@@ -1249,23 +1284,20 @@ while `defn` justifies it through the new `Erases.ctor` rule. The only path that
 genuine constructor declaration is `visitConstructor`'s `isExtern ∧ extern == .preferAxiom` branch
 (`Erasure.lean:739`), which is out of fragment and named in `doc/coverage.md`.
 
-The emitted environment is the lowered, pruned image — class **A**, and the conclusion is stated
-up to `EnvAgree` (design A's graft: literal list equality is brittle and *meaningless*, since
-`WcbvEval`, `constructorArity` and `isPropositionalInductive` read only `envLookup`):
+The emitted environment is the lowered, pruned image — class **A**. `EnvAgree` and its five
+lemmas, the planned `WcbvEval.congr_env`/`LowerEnv.congr_env`, and `PrunedFor` are **deleted**: no
+statement in the tree or in this design consumes any of them, `PrunedFor`'s only occurrence is its
+own definition (`ErasesEnv.lean:329`), and `congr_env`'s acceptance was that it elaborates. The
+conclusion is stated at the emitted `Σ` itself.
 
 ```lean
-def EnvAgree (Σ Σ' : GlobalDeclarations) : Prop :=      -- notation: `Σ ≐ Σ'`
-  (∀ kn, envLookup Σ kn = envLookup Σ' kn) ∧ (Σ.map Prod.fst).Nodup ∧ (Σ'.map Prod.fst).Nodup
-theorem WcbvEval.congr_env (h : Σ ≐ Σ') : WcbvEval Σ fl t v → WcbvEval Σ' fl t v
-
 /-- `closed` reads `ClosedBodies` (`Lower.lean`, U1.5) rather than a new `ClosedEnv`: the two
 predicates coincide, and minting a second name would split every downstream rewrite (N1). `sub`
 replaces the design's `prune : ∀ kn, envLookup Σ kn ≠ none → Reachable Σ kn`, which does not
 typecheck as written — `Reachable` has no root — and could only be *the* rootless reading (every
 key reaches itself), which is vacuous. `sub` is the binary half a `const`-arm argument can
-actually use ("pruning only removes"); the term-rooted size claim survives as the standalone
-`PrunedFor Γ t := ∀ kn, envLookup Γ kn ≠ none → ReachableFrom Γ t kn` (Q4), conjoined once a
-program is in scope. -/
+actually use ("pruning only removes"). The term-rooted size claim was carried as a standalone
+`PrunedFor`; it is deleted, having acquired no consumer. -/
 structure LowerEnv (Σ⁺ Σ : GlobalDeclarations) : Prop where
   keys   : (Σ.map Prod.fst).Nodup
   defs   : ∀ kn b₀ b, DefnDecl Σ⁺ kn b₀ → DefnDecl Σ kn b →
@@ -1290,9 +1322,6 @@ structure LowerEnv (Σ⁺ Σ : GlobalDeclarations) : Prop where
       not extra binders of T5 (A18, W2 refuter B-F2); U3.6 derives them with the rest. -/
   specClosed : ClosedBodies Σ⁺
   specBlocks : BlockBodiesLambda Σ⁺
-theorem LowerEnv.congr_env {Σ⁺ Σ Σ'} (h : Σ ≐ Σ') (H : LowerEnv Σ⁺ Σ) : LowerEnv Σ⁺ Σ'
-def PrunedFor (Σ : GlobalDeclarations) (t : LBTerm) : Prop :=
-  ∀ kn, envLookup Σ kn ≠ none → ReachableFrom Σ t kn
 ```
 
 **Environment threading.** The bridge's motives quantify `Σ⁺` *universally* under an antitone
@@ -1328,8 +1357,9 @@ theorem SpecEnv.erasesEnv (H : SpecEnv env bo s Σ⁺) {t : LBTerm}
 `ErasesEnv` is not (yet) known to transport along `≐`, unlike `LowerEnv`: `ReachableFrom` is
 computed by a fuel-bounded fold whose accumulator order depends on the list, and relating two
 agreeing environments' closures needs a permutation-invariance argument not yet made. Not needed
-by the design (the conclusion is stated up to `EnvAgree` on the *emitted* `Σ`, and `ErasesEnv`
-constrains `Σ⁺`), but a unit that re-keys `Σ⁺` must prove it first.
+by the design — the conclusion is stated at the emitted `Σ` itself and `ErasesEnv` constrains `Σ⁺`,
+which is why `EnvAgree` is deleted rather than carried — but a unit that re-keys `Σ⁺` must prove it
+first.
 
 `StateLe` (`ErasureRun.lean:1585`) and `RunConcl` (`:1609`) already exist and carry unchanged.
 `SpecEnv.mono` and `SpecEnv.erasesEnv` are landed (above); `SpecEnv.exists`, which builds `Σ⁺`
@@ -1378,18 +1408,33 @@ with F-ETA no verified semantics-preservation argument covers the frontend's out
 **Not concluded by T9.** -/
 def PeregrinePre (Σ) (t) : Prop := LBWfPeregrine Σ t ∧ LBExpandedFix Σ t
 
--- There is no axiom-freedom predicate. `ErasableAxioms`, `AxiomRealizer` and the `AxiomFree` the
--- first cut of the W2 amendment proposed are all **deleted** (A18, A-F2/B-F8), for two reasons.
--- (i) Nothing consumes one: with `SEval`'s value arms keyed on `CtorOf`/`IndInfo` (§4.3), a run
--- that forces a body-less plain constant has no `SEval` derivation at all — PCUIC's own treatment
--- of an axiom, where `value_head` admits no body-less `tConst` and `erases_correct` therefore
--- carries no `axiom_free` hypothesis (`refs/metacoq-erasure.md:552`; `axiom_free` appears only in
--- the §5.6 progress/first-order results). (ii) `AxiomFree` as printed was *false* on the green
--- rung G1 the moment reachability tracks inductive blocks, since a block kername is answered by an
--- `.inductiveDecl` and never by a bodied `.constantDecl` (`scratchpad/amend2/r1_axiomfree.lean`).
--- The `Eq.rec`/`False.rec` realizer rows survive as `doc/coverage.md`'s F-EQREC row, which is what
--- they always were: a claim about the consumer's runtime, not a premise of any theorem here.
+-- `ErasableAxioms` and `AxiomRealizer` are **deleted**, and the `AxiomFree` the first cut of the
+-- W2 amendment proposed is not landed (A18, A-F2/B-F8). `ErasableAxioms`' realizer whitelist
+-- *permitted* `Eq.rec` and `False.rec` while nothing realizes them, so it was not `axiom_free`'s
+-- analogue; and `AxiomFree` as printed was *false* on the green rung G1 the moment reachability
+-- tracks inductive blocks, since a block kername is answered by an `.inductiveDecl` and never by a
+-- bodied `.constantDecl` (`scratchpad/amend2/r1_axiomfree.lean`). What survives is the honest
+-- analogue, and it sits where MetaRocq puts it: on T9, not on T5.
+--
+-- T5 needs none: with `SEval`'s value arms keyed on `CtorOf`/`IndInfo` (§4.3), a run that forces a
+-- body-less plain constant has no `SEval` derivation at all — PCUIC's own treatment of an axiom,
+-- where `value_head` admits no body-less `tConst` and `erases_correct` carries no `axiom_free`
+-- hypothesis (`refs/metacoq-erasure.md:552`). But `erase_correct_firstorder` *does* take one
+-- (`:600`), and for a reason this design cannot do without: measured, `Fannkuch.ast` emits `Eq.rec`
+-- as `(ConstantDecl (constant_body None))`, so a Fannkuch rung's `hev` is uninhabitable and the
+-- rung would be **vacuously** green with nothing flagging it (A24).
+
+/-- `[S §7.3]`'s `axiom_free Σ` at the emitted environment, with no realizer whitelist: no constant
+reachable from `t` is declared without a body. Decidable, hence `by decide +kernel` per rung; false
+exactly where the target is stuck at a `delta` step. T9's premise, and nothing else's. -/
+def NoBodylessRefs (Σ : GlobalDeclarations) (t : LBTerm) : Prop :=
+  ∀ kn, ReachableFrom Σ t kn → isBodylessConst (envLookup Σ kn) = false
 ```
+
+The `Eq.rec`/`False.rec` realizer rows survive as `doc/coverage.md`'s F-EQREC row, which is what
+they always were: a claim about the consumer's runtime, not a premise of any theorem here. The
+coverage table records that **Fannkuch** fails `NoBodylessRefs` and is therefore outside T9's
+domain.
 
 **Reachability tracks inductive blocks.** `constRefs` collects `.const` kernames only
 (`Output.lean:225`), so nothing forces the emitted `Σ` to declare the block a `.construct`,
@@ -1676,6 +1721,87 @@ theorem erases_correct
     (henvL : LowerEnv Σ⁺ Σ) :
     ∃ v₀ v', Erases env Us [] v v₀ ∧ Lower Σ⁺ v₀ v' ∧ WcbvEval Σ eraseFlags t v'
 
+-- T5's modules, and why there are five. `ErasesCorrect/Steps.lean` sits BELOW the aggregator and
+-- holds the spine inversion kit the arms consume (`erases_mkApps_inv`, `erasable_mkApps`,
+-- `erases_correct_box`/`_boxSpine`), the motive, the three step interfaces, and
+-- `SEval.no_elimSpine_value`; `ErasesCorrect.lean` proves the aggregator and the ten structural
+-- arms; the three arm files import `Steps.lean` only; `ErasesCorrect/Close.lean` sits ABOVE them
+-- and instantiates. Without the split the graph is circular — the arms need the aggregator's file
+-- for the inversion kit, and the closing edit needs theirs — and no unit's acceptance is reachable
+-- inside its own dependencies (`04-AMENDMENT-W2.md` §6).
+--
+-- The motive, so that the arms and the aggregator state the same thing:
+def Simulates (env : VEnv) (bo : Name → Option Expr) (Us : List Name)
+    (Σ⁺ Σ : GlobalDeclarations) (e v : Expr) : Prop :=
+  ∀ {ve : VExpr} {t₀ t : LBTerm},
+    TrExprS env Us [] e ve → Erases env Us [] e t₀ → Lower Σ⁺ t₀ t →
+    ErasesEnv env bo Σ⁺ t₀ →
+    ∃ v₀ v', Erases env Us [] v v₀ ∧ Lower Σ⁺ v₀ v' ∧ WcbvEval Σ eraseFlags t v'
+
+-- The three step interfaces: each is "the arm of `SEval`, with the induction hypothesis already
+-- available at every subderivation". `erases_correct_of_steps` takes them as explicit hypotheses
+-- and is proved by `induction hev`; `Close.lean` instantiates them with U3.2/U3.2b/U3.3's lemmas.
+abbrev StepIota (env : VEnv) (bo : Name → Option Expr) (Us : List Name) (fl : SEvalFlags)
+    (Σ⁺ Σ : GlobalDeclarations) : Prop :=
+  ∀ {con us I pre prev disc minors minorsv extra extrav ctor cus cargs np cidx r},
+    env.WF → LowerEnv Σ⁺ Σ → fl.iota →
+    CasesOnShape env con I pre.length minors.length → ConstOrigin env con →
+    CtorOf env ctor I cidx →
+    prev.length = pre.length →
+    (∀ i, i < pre.length → SEval env bo Us fl [] pre[i]! prev[i]! ∧
+        Simulates env bo Us Σ⁺ Σ pre[i]! prev[i]!) →
+    SEval env bo Us fl [] disc (mkApps (.const ctor cus) cargs) →
+    Simulates env bo Us Σ⁺ Σ disc (mkApps (.const ctor cus) cargs) →
+    minorsv.length = minors.length →
+    (∀ i, i < minors.length → SEval env bo Us fl [] minors[i]! minorsv[i]! ∧
+        Simulates env bo Us Σ⁺ Σ minors[i]! minorsv[i]!) →
+    extrav.length = extra.length →
+    (∀ i, i < extra.length → SEval env bo Us fl [] extra[i]! extrav[i]! ∧
+        Simulates env bo Us Σ⁺ Σ extra[i]! extrav[i]!) →
+    cidx < minors.length →
+    StepDefeq env Us [] (mkApps (.const con us) (pre ++ disc :: minors ++ extra))
+      (mkApps minors[cidx]! (cargs.drop np ++ extra)) →
+    SEval env bo Us fl [] (mkApps minors[cidx]! (cargs.drop np ++ extra)) r →
+    Simulates env bo Us Σ⁺ Σ (mkApps minors[cidx]! (cargs.drop np ++ extra)) r →
+    Simulates env bo Us Σ⁺ Σ (mkApps (.const con us) (pre ++ disc :: minors ++ extra)) r
+
+abbrev StepProj (env : VEnv) (bo : Name → Option Expr) (Us : List Name) (fl : SEvalFlags)
+    (Σ⁺ Σ : GlobalDeclarations) : Prop :=
+  ∀ {S i disc ctor cus cargs np r},
+    env.WF → LowerEnv Σ⁺ Σ → fl.proj →
+    SEval env bo Us fl [] disc (mkApps (.const ctor cus) cargs) →
+    Simulates env bo Us Σ⁺ Σ disc (mkApps (.const ctor cus) cargs) →
+    np + i < cargs.length →
+    StepDefeq env Us [] (.proj S i disc) cargs[np + i]! →
+    SEval env bo Us fl [] cargs[np + i]! r →
+    Simulates env bo Us Σ⁺ Σ cargs[np + i]! r →
+    Simulates env bo Us Σ⁺ Σ (.proj S i disc) r
+
+abbrev StepDelta (env : VEnv) (bo : Name → Option Expr) (Us : List Name) (fl : SEvalFlags)
+    (Σ⁺ Σ : GlobalDeclarations) : Prop :=
+  ∀ {c us ups args argsv b b' v},
+    env.WF → LowerEnv Σ⁺ Σ → fl.delta →
+    bo c = some b → (∀ I dp nm, ¬ CasesOnShape env c I dp nm) →
+    b' = b.instantiateLevelParams ups us →
+    argsv.length = args.length →
+    (∀ i, i < args.length → SEval env bo Us fl [] args[i]! argsv[i]! ∧
+        Simulates env bo Us Σ⁺ Σ args[i]! argsv[i]!) →
+    StepDefeq env Us [] (mkApps (.const c us) argsv) (mkApps b' argsv) →
+    SEval env bo Us fl [] (mkApps b' argsv) v →
+    Simulates env bo Us Σ⁺ Σ (mkApps b' argsv) v →
+    Simulates env bo Us Σ⁺ Σ (mkApps (.const c us) args) v
+
+theorem erases_correct_of_steps
+    (step_iota : StepIota env bo Us fl Σ⁺ Σ) (step_proj : StepProj env bo Us fl Σ⁺ Σ)
+    (step_delta : StepDelta env bo Us fl Σ⁺ Σ) : … -- `erases_correct`'s statement
+
+/-- The β arm's second reading of an `.app` node: `Lower.elimApp` at `extra = []` makes the source
+an eliminator spine one minor short, and no `SEval` arm applies to one. Its two premises are
+`ErasesDecl.elim`'s `hsh` and `hco` (§4.8). `ErasesCorrect/Steps.lean`, U3.1. -/
+theorem SEval.no_elimSpine_value (hsh : CasesOnShape env c I dp nm) (hco : ConstOrigin env c)
+    (hlt : args.length < dp + 1 + nm) :
+    ¬ SEval env bo Us fl Δ (mkApps (.const c us) args) w
+
 -- T6  the passes                                                                    class A
 -- There is no `lower_correct`: nothing evaluates at `Σ⁺` and nothing transports along `Lower`
 -- (Q10). The unrestricted statement is refuted at `elimEta` with an `ElimBody`-shaped head
@@ -1925,19 +2051,19 @@ failure mode by name). "Carried verbatim" below means re-landed with only the in
 | File | Contents | Est. |
 |---|---|---|
 | `Semantics/Compute.lean` | `lbEval`, `lbEval_sound` — **already in the tree** (338 lines, proved, `[propext]`); U0.4 wires it | 0 |
-| `Lower.lean` | `Lower` (**14 arms**), `LowerAlt(s)`, `ElimDecl`/`DefnDecl`/`RuntimeKey` (no `CtorDecl`, no `ElimHeadOf`), `LowerBlock`, inversion + shift/subst commutation | 850 |
-| `ErasesCorrect.lean`, `ErasesCorrect/{Iota,Proj,Delta}.lean` | T5's statement, its aggregator (steps as explicit hypotheses) and its step lemmas | 3,650 |
+| `Lower.lean` | `Lower` (**14 arms**), `LowerAlt(s)`, `ElimDecl`/`DefnDecl`/`RuntimeKey` (no `CtorDecl`, no `ElimHeadOf`), `LowerBlock`, inversion + shift/subst commutation, `BlockBodiesLambda`, the spine toolkit, and the **`NoBox` family** relocated from `LowerCorrect.lean` | 1,850 |
+| `ErasesCorrect/Steps.lean`, `ErasesCorrect.lean`, `ErasesCorrect/{Iota,Proj,Delta}.lean`, `ErasesCorrect/Close.lean` | the spine inversion kit + `Simulates` + the three step interfaces + `SEval.no_elimSpine_value`; T5's aggregator (steps as explicit hypotheses); the three step lemmas; the closing instantiation (§5) | 3,900 |
 | `Origin.lean` | the five corollaries of `WF'.consts_origin` this tree consumes (`constOrigin_not_ctorOf`, `constOrigin_not_indInfo`, `IndInfo.inj`, `CtorOf.inj`, `CasesOnShape.inj`) plus `consts_classified` — lands with the pin bump, U3.4 | 200 |
 | `LowerFix.lean` | `ConstToFVar`, `CloseConstAt`, `LowerFix`, `Lower.constToFix`, `ErasesLBFix` | 650 |
-| `ElimBody.lean` | `mkCtorBody`/`mkElimBody`, `mkCtorBody_beta`, `ElimBody` and its inversion — shapes only, no evaluation theory (Q10); no `sing`, no `SubsingletonElim` (Q2/N18) | 350 |
+| `ElimBody.lean` | `fieldArgs`, `elimAlts`, `mkElimBody`, `mkElimBodyRec` (`ElimBody.recur`'s own right-hand side — it stays), `ElimBody`, the closedness chain up to `ElimBody.closed`, and criterion 7's three checked instances — shapes only, no evaluation theory (Q10) and no `mkCtorBody` family (its one consumer, `ErasesDecl.ctor`, is deleted); no `sing`, no `SubsingletonElim` (Q2/N18). 953 today, ≈215 after U2.10 | 0 |
 | `ErasesLB.lean` | the composite + seven derived introduction lemmas + transport | 500 |
-| `ErasesEnv.lean` | `ErasesDecl`, `ErasesEnv`, `LowerEnv`, `EnvAgree`, `WcbvEval.congr_env` | 650 |
+| `ErasesEnv.lean` | `ErasesDecl`, `ErasesEnv`, `LowerEnv` (no `EnvAgree`, no `congr_env`, no `PrunedFor`, no `IotaInert` — §4.8) | 650 |
 | `SpecEnv.lean` | `SpecEnv`, `.mono`, `.exists` | 350 |
 | `ErasesTotal.lean` | `Erases.exists_of_trExprS`, `sort_erasable`, `forallE_erasable`, `Erases.mono` | 300 |
 | *(no `CompilerEnv.lean`)* | `CompilerBodies` lives in `SourceEval.lean` (§4.3); there is no second `VEnv` and no lifting kit | 0 |
 | `ErasureSpec.lean` | `ErasureSpec`, `envWF`, `oracle_sound_of_run`, `LBPassR` | 280 |
 | `Supported.lean` | `SupportError`, `Supported`, fuelled `supportedB`, soundness, closure lemmas, the re-landed `IsLamTelescope`/`Supported.*_inv` | 800 |
-| `Output.lean` | `LBWfPeregrine`, `PeregrinePre`, reachability (`constRefs` incl. block kernames, `ReachableFrom` + its threading kit), checkers — **no** axiom-freedom predicate (A18) | 420 |
+| `Output.lean` | `LBWfPeregrine`, `PeregrinePre`, reachability (`constRefs` incl. block kernames, `ReachableFrom` + its threading kit), checkers, and `NoBodylessRefs` — T9's decidable `axiom_free` analogue, with no realizer whitelist (A24). T5 carries no axiom-freedom premise (A18) | 420 |
 | `FirstOrderInd.lean` | `HasInduct`, `FOType`, `FirstOrderDecl`, `FOClosed`, `FirstOrderInd`, `firstOrderIndB` + soundness, `firstorder_no_box` | 500 |
 | `Witness/SourceTable.lean` | `SourceTable`, `body?`, `SourceTableAdequate`, the `reify%` elaborator, lookups | 380 |
 | `Witness/TrWitness.lean` | F17's `TrExprS` witnesses via `M.WF.run'` (U3.7) | 500 |
@@ -1945,12 +2071,11 @@ failure mode by name). "Carried verbatim" below means re-landed with only the in
 | `VisitExprRefines/Step/Env.lean` | motives 4, 5, 6 — 6 against `ErasesLBFix` (U4.2) | 1,100 |
 | `VisitExprRefines/Step/Mechanical.lean` | motives 1, 7, 8, 9, 11, 12, 18 + re-landed plumbing (U4.3) | 1,300 |
 | `VisitExprRefines/Step/Passes.lean` | motives 2, 3, 10, 13, 14, 15, 16, 17 (U4.4) | 1,600 |
-| `Fuel.lean` | the surviving `EraseCore` fuel lemmas (U2.4) | 250 |
 | `Capstone.lean` | T9 | 550 |
 | `Green.lean` | the ladder's theorems | 400 |
 | `VerifyBench/Spikes/G1..G8.lean` + `VerifyBench/tables/*` | the rungs and their committed tables | 300 |
 | `Tools/{Reify,GreenCheck,Hygiene,Coverage}.lean` | `lake exe` drivers | 450 |
-| `test/Ledger.lean` + `test/ledger.expected` | the measured ledger | 80 |
+| `test/Ledger.lean` + `test/ledger.expected` | the measured ledger; its `#print axioms` rows follow their subjects, so a unit that deletes a subject owns the row | 80 |
 | `doc/{rules-Erases,rules-Lower,panics,coverage,upstream-asks}.md` | criteria 3, 10, 14, 21 | — |
 
 Net: ≈15,100 new lines against 19,302 deleted (`02-PLAN.md` §4; `VerifyBench/STATUS.md` is 230
@@ -1970,14 +2095,20 @@ replaced by `LowerFix`; `EraseCore` (643) minus the fuel lemmas; `FirstOrderShip
 capstone flavours become one; `Export/EvalT` (296), `Semantics.lean` (17), `Eval.lean` (11);
 `ErasesLevels`/`ErasesInstL`/`ErasesDeltaL` (1,146, of which ~200 survive as level-instantiation
 lemmas T5's δ arm needs); the three prose ledgers; ~3,000-3,500 comment lines of changelog. W2's
-findings add, in W3: `ElimBody`'s evaluation theory (`mkElimBody_iota_fwd`/`_bwd`,
-`wcbvEval_mkLambdas_fwd`, the `mkElimBodyRec` unfolding, ≈600 lines — `Σ⁺` is never evaluated,
-Q10); `LowerCorrect.lean`'s simulation half (`LowerPlain`, `lower_correct_plain`,
-`lowerFix_correct_plain`, `lower_correct_deltaChain`, `lowerFix_correct_atom`, `LowerNoEta`,
-`DeltaChain`, ≈1,600 lines), its inversion and spine kit moving to `Lower.lean` — **in W2, by
-U2.7**, which owns the file (W2 refuter B-F4); `Lower.ctorApp`, `Lower.ctorEta`, `Lower.elimEta`,
-`ElimHeadOf`, `CtorDecl`, `EtaSpine`, `ErasesDecl.ctor`, and `ErasableAxioms`/`AxiomRealizer`
-(Q9, W2-R4, A21, A22, A18).
+findings add, all **in W2**: `ElimBody.lean`'s evaluation theory — the de-Bruijn/eval kit
+(`LBTerm.shift_zero`, `LBTerm.subst_spine`, `LBTerm.substList_mkApps`, `substTele` with its nine
+lemmas, `elimAltsSub` with its two, `substList_reverse_fields`, `eval_self`, `EvalArgs` with its
+six), the nine `wcbvEval_*` lemmas, `mkCtorBody` with `mkCtorBody_closed` and `mkCtorBody_beta`,
+`mkElimBody_iota_fwd`/`_bwd`, and the `*_iota_fires` fixture block: **≈740 lines**, by **U2.10**,
+which owns the file. `mkElimBodyRec` **stays** — it is `ElimBody.recur`'s right-hand side
+(`ElimBody.lean:108,120`), feeds `ElimBody.closed`, and is destructed by the two surviving
+inversions (`LowerFix.lean:875,885`). Also, by **U2.7**, `LowerCorrect.lean` as a whole file
+(above) with its simulation half (`LowerPlain`, `lower_correct_plain`, `lowerFix_correct_plain`,
+`lower_correct_deltaChain`, `lowerFix_correct_atom`, `LowerNoEta`, `DeltaChain`) and
+`Lower.ctorApp`, `Lower.ctorEta`, `Lower.elimEta`, `ElimHeadOf`, `CtorDecl`, `EtaSpine`; by
+**U2.8**, `ErasesDecl.ctor`, `ErasableAxioms`/`AxiomRealizer`, `PrunedFor`, `EnvAgree` with its
+five lemmas and `IotaInert`, all reference-free; by **U2.10**, `Fuel.lean`
+(Q9, W2-R4, A21, A22, A18, A24).
 
 ---
 
@@ -2152,5 +2283,7 @@ tree never depends on any of them landing.
 | R15 | Restriction **N19** (no under-applied constructor or eliminator occurrence) fails on a tracked program | medium | medium | `supportedB` decides it at U3.8, **before** the ι arm is proved. The emitted `.ast` cannot settle it — an η-expansion and a user λ print identically (measured: 1-3 such nodes per file in `VerifyBench/ast`) — so the check is on the source. Contingency if it fails: one new `elimEta` arm whose saturated body is forced to be an `elimApp` image (so it cannot nest), plus one collapse lemma through `wcbvEval_mkApps_mkLambdas_substList` and `Lower.substList_comm` — ≈300 lines and two extra step-lemma cases, no theorem statement changes. For constructors the restriction disappears once **F-ETA2** is repaired, since applied-form λ□ evaluates partial constructor spines natively |
 | R17 | `CasesOnShape` does not match how `casesOn`/`pats` are actually shaped at the pin | medium | medium | It is read off the *inductive declaration* (`VInductDecl.nparams`, `VInductiveType.ctors`), not off the pattern table, precisely so that it does not depend on how `pats` is populated. **Trigger:** U2.6's `_fires` witness on `Nat.casesOn`, due before anything consumes it; if the shape is wrong, the fix is local to `CasesOnShape` and `ErasesDecl.elim` |
 | R18 | The `.case` node's arity data is in scope only if reachability tracks inductive blocks, and the `constRefs` extension changes every rung's `rfl`-computed closure | low | low | U2.8 re-measures G1's closure in the same commit; the gate re-runs it. The extension is now unopposed, `AxiomFree` having been deleted (`04-AMENDMENT-W2.md` A-F2) |
-| R16 | Restriction **N20** (call-by-value ι, A20) is uninhabitable on a rung, because an unselected minor or a dropped prefix argument has no source value | low | medium | Each rung's own `hev` derivation is the test; the decidable sufficient condition is that every prefix argument and minor is already a syntactic value (a λ, a literal, a sort, a Π, a constructor spine). Measured mitigation: Lean's match compiler thunks nullary branches (`Nat.pred`'s zero branch in `Arith.ast` is a `tLambda` applied to `tConst Unit.unit`), so the `match` fragment is unaffected; a hand-written `casesOn` with an unthunked diverging minor is outside, and is declared as such in `doc/coverage.md` |
+| R19 | T5's β arm cannot discharge `Lower.elimApp`'s saturated reading, because `ErasesDecl.elim`'s `hsh`/`hco` do not reach it through `hspec` | medium | medium | The case arises only at `extra = []`, where the source `.app f a` *is* a saturated eliminator spine and the β rule's own `hf` is uninhabited (`SEval.no_elimSpine_value`, §5). U3.1 owns it and prices it at ≈150 lines. **Fallback:** state the eliminator reading as an explicit side condition of `StepBeta` and discharge it at `Close.lean` from the rung's environment — one extra hypothesis on a step interface, no change to `erases_correct`'s statement |
+| R20 | Restriction **N21** empties a tracked rung: a program reaches a recursor, which has no `SEval` derivation at all | medium | medium | Recursors are tabled body-less (`Witness/SourceTable.lean:211`), so `deltaC` cannot fire and no value arm applies; that is why `supportedB` must reject them rather than let them through (`Supported.lean:239`). What keeps the five programs clear is N8: the eraser and `SEval` read *compiler* bodies, in which structural recursion is direct rather than `brecOn`-mediated. **Trigger:** U3.8 decides it, second in W3, in the same unit that lands the rejection; a failure takes the program out of the fragment and `doc/coverage.md` names the construct |
+| R16 | Restriction **N20**'s per-branch obligation is larger than its decidable check suggests, or is uninhabitable on a rung | **medium** | medium | The decidable sufficient condition — every prefix argument, minor and extra argument already a syntactic value — **fails on all five programs**, and the earlier "measured mitigation" was false: Lean's match compiler thunks a nullary branch into an *application*, not a λ (measured across `VerifyBench/ast/*.ast`: no nullary alternative has a `tLambda` head; `Arith.ast`'s `Nat` zero-branch is `(tApp (tRel 1) (tConst Unit.unit))`). So `hmins` needs an `SEval` derivation per unselected branch per ι step. That is a cost, not a vacuity — Lean is total, so every well-typed closed term normalises and each unselected branch has a value, while partial and `unsafe` bodies are already outside through N8 — but it is proof volume proportional to the program, not to its trace. **Trigger:** G3's `green_G5` is the first rung that builds one; if it runs long, the rungs stay small and `doc/coverage.md` records which programs carry a constructed `hev` and which carry it as a binder |
 | R13 | Shipping edit B1's under-erasure (review SI-1) fires inside the fragment | low — measured: 1 divergence in 139,196 constants, and that one planted by the probe; 0 on the five programs' closures | medium | **Removed at W0 by F-FUEL** (§8.1). Until then, contained because `Erases.box` carries no `¬Erasable` guard and the structural rules carry no negative side condition (mirroring MetaRocq `Extract.v:88-141`), so a structurally-erased type-former is a legal `Erases` image and T8's refinement is unaffected; `isErasable` on a syntactic `.sort`/`.forallE` returns `true` unconditionally, so SI-1 cannot reach `Erasure.lean:602`'s `unreachable!`; the argmask half is off by default (N4's `hprune`). `Supported` and the oracle fields do **not** constrain a false verdict — the containment is the relation's, not theirs |
