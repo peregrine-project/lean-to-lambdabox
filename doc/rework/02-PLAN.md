@@ -73,11 +73,11 @@ the fixture diff and the `doc/trust.md` row to its wave gate (N3a).
 
 ## 1. Wave summary
 
-| Wave | Goal | Units | Green rung at the gate |
-|---|---|---|---|
-| **W0** | Foundation: flags renamed tree-wide, tooling, ledger, F-FUEL, dead shims deleted | 6 + gate | — (tooling self-test) |
-| **W1** | **The cut**, then specification + pass layers; **the recursion wall retired**; first end-to-end instance | 1 + 9 + gate | **G1** `spikeZero` |
-| **W2** | β, ζ, literals, projections; the full `lower_correct`; the composite | 4 + gate | G2, G3, G4 |
+| Wave | Goal | Units | Green rung at the gate | Status |
+|---|---|---|---|---|
+| **W0** | Foundation: flags renamed tree-wide, tooling, ledger, F-FUEL, dead shims deleted | 6 + gate | — (tooling self-test) | **Delivered** |
+| **W1** | **The cut**, then specification + pass layers; **the recursion wall retired**; first end-to-end instance | 1 + 9 + gate | **G1** `spikeZero` | **Delivered**, except U1.5 and U1.8 (in progress) |
+| **W2** | β, ζ, literals, projections; the general `lower_correct`; the composite | 4 + gate | G2, G3, G4 | in progress |
 | **W3** | ι, first-order domain, `TrExprS` witnesses, the pin bump | 5 + gate | G5, G6 |
 | **W4** | The bridge: 18 motives against `ErasesLB`/`ErasesLBFix` | 5 + gate | G1–G6 lose `hbridge` |
 | **W5** | Capstone at Arith, coverage, delivery | 4 + gate | **G7, G8** |
@@ -87,16 +87,27 @@ the fixture diff and the `doc/trust.md` row to its wave gate (N3a).
 
 ## 2. Waves in detail
 
-### W0 — foundation (6 parallel units + gate)
+### W0 — foundation (6 parallel units + gate) — done
+
+All six units and the gate are landed; every file below exists and `G0`'s command line is green.
 
 **Goal.** Make the flag points exist under their final names, stand up the CI tools the whole
 schedule depends on, fix the one verification-authored shipping defect, and delete what is
 provably dead — before anything is proved on top of the tree.
 
+**Delivered.** All six units and the gate landed together: `Semantics/Flags.lean` carries
+`eraseFlags`/`entryFlags`/`blockFlags`/`propBlockFlags` and `WcbvEval.propcase_weaken`;
+`test/{Ledger.lean,ledger.expected,hygiene.allow}` and `lakefile.toml` exist; `LeanToLambdaBox/
+Witness/SourceTable.lean` and `Tools/{Reify,GreenCheck,Hygiene}.lean` exist and `lake exe
+green-check --self-test` and `lake exe hygiene` both run; `doc/{rules-Erases,rules-Lower,panics,
+coverage,upstream-asks,trust,dev-fix-queue}.md` exist; `Relevance.lean`'s F-FUEL fix landed. The
+deletion U1.0 (below) describes was executed in this same pass, ahead of its scheduled wave — the
+surviving tree at G0 already has no reference to `ErasureCtx` or a retired `Erases` rule.
+
 | Unit | Files owned | Depends | Est. | Acceptance |
 |---|---|---|---|---|
 | **U0.1 flags-rename** | `LeanToLambdaBox/Semantics/Flags.lean` (§3.2's four constants + `propcase_weaken`; header rewritten); **co-owns, for the mechanical rename only**, every `.lean` file holding `appliedFlags`/`optFlags`/`defaultFlags`/`targetFlags` (103 sites / 16 files, including `Semantics/Eval.lean`'s `Eval`/`EvalProp` abbrevs, `Optimize.lean`, `Semantics/Metatheory.lean`); **deletes** `Export/EvalT.lean`, `Semantics.lean`, `Eval.lean` (re-export shims), co-owning their importers' import lines | — | 250 | `lake build` green; `grep -rn "defaultFlags\|appliedFlags\|targetFlags" LeanToLambdaBox/` empty and `grep -rn "optFlags" LeanToLambdaBox/` empty; `grep -c "⟨false, true, false⟩" LeanToLambdaBox/Semantics/Flags.lean` = 1; `#print axioms WcbvEval.propcase_weaken` = `[propext]`; the three files absent from `git ls-files` |
-| **U0.2 ledger-and-CI** | `test/Ledger.lean`, `test/ledger.expected`, `lakefile.toml`, `lake-manifest.json`, `.github/workflows/build.yml` (from W1 on these pass to gate ownership, N3a) | — | 140 | `diff <(lake env lean test/Ledger.lean) test/ledger.expected` exits 0; `git show HEAD:lakefile.toml \| grep -c 20ec229` = 1; the workflow's `branches:` list contains `dev/verify`; `lean_exe` stanzas exist for `reify`, `green-check`, `hygiene` (texts supplied by U0.3–U0.5) |
+| **U0.2 ledger-and-CI** | `test/Ledger.lean`, `test/ledger.expected`, `lakefile.toml`, `lake-manifest.json`, `.github/workflows/build.yml` (from W1 on these pass to gate ownership, N3a) | — | 140 | `diff <(lake env lean test/Ledger.lean) test/ledger.expected` exits 0; `git show HEAD:lakefile.toml` pins the `lean4lean` dependency by an explicit `rev`, matching the `rev` field `lake-manifest.json` records for the `lean4lean` package; the workflow's `branches:` list contains `dev/verify`; `lean_exe` stanzas exist for `reify`, `green-check`, `hygiene` (texts supplied by U0.3–U0.5) |
 | **U0.3 reify-elaborator** | `LeanToLambdaBox/Witness/SourceTable.lean` (`SourceTable`, `body?`, `SourceTableAdequate`, the `reify%` term elaborator — §4.11: no committed JSON, no ingestion parser), `Tools/Reify.lean` (`lake exe reify --check`: field-by-field comparison of a named table against the **live** environment, for CI drift detection) | — | 420 | a self-test module reifies one toy declaration with `reify%` and `by rfl`-checks its type and body fields against hand-written literals; `lake exe reify --check` exits 0 on it and exits 1 when the module deliberately mismatches |
 | **U0.4 lbEval-wiring** | `LeanToLambdaBox/Semantics/Compute.lean` (**exists**, 338 lines, proved — this unit only reviews and wires it), `Tools/GreenCheck.lean` | — | 250 | `Semantics/Compute.lean` is in the root's import closure (gate applies the root edit); `#print axioms lbEval_sound` = `[propext]` (measured); `example : lbEval nvΣ eraseFlags 1000 nvT = some (peanoLB 3) := by rfl`; `lake exe green-check --self-test` exits 0 |
 | **U0.5 docs-and-hygiene** | `Tools/Hygiene.lean` (incl. `--dup`, `--schedule` (N2), `--anti-epicycle FILE` (comment-stripped token scan), `--dead`, `--tables`), `doc/rules-Erases.md`, `doc/rules-Lower.md`, `doc/panics.md`, `doc/coverage.md`, `doc/upstream-asks.md`, `doc/trust.md`, `doc/dev-fix-queue.md` | — | 420 | `lake exe hygiene` exits 0 on the files W0 touched; `--dup` exits 0; `--schedule` exits 0 against §4's table; the seven documents exist, `doc/dev-fix-queue.md` carries the six §8.2 rows (F-PROP, F-ETA, F-SPARSE, F-ACC, F-QUOT/F-EQREC, F-PRODUCT) each with `file:line`, the measuring command and its output, and `doc/upstream-asks.md` carries §8.3's six items; every `doc/…` citation in `01-DESIGN.md` resolves |
@@ -108,6 +119,19 @@ provably dead — before anything is proved on top of the tree.
 **Goal.** Delete the old proof chain in one commit, then build everything L1 and L4 need at the
 δ/constructor fragment, prove the fix correspondence, and land a real `#erase` run of
 `spikeZero : Nat := Nat.zero` whose every class-**C** hypothesis is inhabited.
+
+**Delivered**, with two units still in progress. **U1.0**'s deletion is confirmed done (it landed
+together with W0, above; nothing in the surviving tree references `ErasureCtx` or a retired
+`Erases` rule). **Done**, each on its own file(s): `Erases.lean` (U1.1, ten rules plus `IndInfo`);
+`ErasesAbstract/Strengthen/Uniform.lean` (U1.2); `ErasesTotal.lean` (U1.3); `SourceEval.lean` and
+`SubjectReduction.lean` (U1.4); `ElimBody.lean` (U1.6); `LowerFix.lean` (U1.7, the wall did not
+stop the schedule — §2.2 of `01-DESIGN.md` records the two repairs it needed); `ErasesEnv.lean`
+and `SpecEnv.lean` (U1.9); `LowerCorrect.lean`, `Capstone.lean`, `VerifyBench/Spikes/G1.lean` and
+`Green.lean` (**G1**, `green_G1` elaborates). Every delivered signature that changed shape from
+this document's printed form is in `01-DESIGN.md` §2.2, §4 and §5, by file:line. **In progress**:
+**U1.5** (`Lower.lean`, `doc/rules-Lower.md`) and **U1.8** (`ErasureSpec.lean`, `Supported.lean`,
+`Output.lean`, `CheckerAdequacy.lean`) — W2's units below depend on their interfaces, which are
+stable, and on their proofs where marked.
 
 | Unit | Files owned | Depends | Est. | Acceptance |
 |---|---|---|---|---|
@@ -125,13 +149,39 @@ provably dead — before anything is proved on top of the tree.
 
 ### W2 — β, ζ, literals, projections (4 + gate)
 
+**What the gate handed over.** G1 already delivered `lower_correct_deltaChain` — `lower_correct`
+at the δ/constructor/fix fragment, under three named guards (`LowerNoEta`, `BlockBodiesLambda`,
+`DefsSurvive`) that are load-bearing, not interim: the unrestricted statement is machine-refuted
+at the `ctorEta` arm (`lower_correct_needs_ctorEta_guard`, `01-DESIGN.md` §2.2 finding **G1-O6**),
+and box-freedom does not transport along `Lower` without a `NoFix`-shaped guard either
+(`noBox_lower_needs_noFix`, finding **G1-O7**). T9 is proved in full modulo one binder, `hbridge :
+∃ Σ⁺ t₀, ErasureBridge …`, whose nine fields are the actual W2–W4 work list (`01-DESIGN.md` §5);
+three of its own statement's deviations from `01-DESIGN.md`'s printed T9 (**G1-O1/O2/O3**) are
+retired by the units below and by U3.3, not by this wave restating T9 itself.
+
+`Capstone.lean` is **gate-owned for this wave** (an addition to N3a's list, tracked here since W1
+already set the precedent of the wave gate assembling `hbridge`'s fields from sibling units'
+proofs): each of U2.1–U2.3 below delivers a standalone theorem in its own file and hands its
+one-line `ErasureBridge` field assignment to **G2**, which is the only unit that edits
+`Capstone.lean` this wave. This is what rule N3 requires once three sibling units all feed one
+shared consumer file.
+
 | Unit | Files owned | Depends | Est. | Acceptance |
 |---|---|---|---|---|
-| **U2.1 lower-correct** | `LowerCorrect.lean` | W1 **(proof)** | 1,100 | `#print axioms lower_correct` = `[propext, Classical.choice, Quot.sound]` (criterion 15); a `_fires` non-vacuity guard per arm in the style of `Optimize.lean:1066` — including one that exercises `ElimHeadOf`'s second disjunct, on pain of deleting it (§4.4); `lake exe green-check --differential` reconstructs the `Erases`-image from each of the five runs and checks membership in `Lower Σ⁺` by a decidable checker |
-| **U2.2 composite** | `ErasesLB.lean` (the composite, the seven derived introduction lemmas, their `ErasesLBFix.*` twins) | U2.1, U1.9 | 550 | the introduction lemmas elaborate and their `#check` output diffs clean against `test/erasesLB.expected` — the fixture that pins them to the deleted rules' signatures |
-| **U2.3 T5-interim** | `ErasesCorrect.lean` (re-created; T5 at the W2 fragment), `SubjectReduction.lean` | U1.1, U1.4, U1.9 | 800 | T5 elaborates with **six** binders — the five of `01-DESIGN` §5 plus the named interim `hfl : fl ≤ w2Flags`, deleted at U3.2 (§3.4; the W3 statement is the pinned one); none is named `Supported`/`Relevant`/`Iota*`/`*Consistent`/`*Hyps`; `#print axioms erases_correct` = the class-**B** set |
+| **U2.1 lower-correct — general case** | `LowerCorrect.lean` | W1 **(proof)**, U1.5 **(proof)** | 900 | `lower_correct` generalises `lower_correct_deltaChain` to all 17 arms of `Lower` (η, ι, proj, `case`, block flags), carrying `LowerNoEta`/`BlockBodiesLambda`/`DefsSurvive` as permanent class-**C** hypotheses — **not** discharged by waiting on the eraser-side fix **F-ETA** (policy N5: `dev/verify` never depends on `dev/fix` landing). `#print axioms lower_correct` = `[propext, Classical.choice, Quot.sound]`; a `_fires` non-vacuity guard per arm (`Optimize.lean:1066`'s style), including one exercising `ElimHeadOf`'s second disjunct, on pain of deleting it (§4.4); `lake exe green-check --differential` reconstructs the `Erases`-image from each rung and checks membership in `Lower Σ⁺` by a decidable checker |
+| **U2.2 composite** | `ErasesLB.lean` (new: the composite, the seven derived introduction lemmas, their `ErasesLBFix.*` twins) | U1.1, U1.5 **(proof)**, U1.7 **(proof)**, U1.9 | 600 | the introduction lemmas elaborate and their `#check` output diffs clean against `test/erasesLB.expected` — the fixture pinning them to the deleted rules' signatures; a lemma that T9's spine premise (`targs.length = args.length → ∀ i, … → ∃ a₀, Erases … a₀ ∧ Lower Σ⁺ a₀ targs[i]!`) implies `∀ i, i < args.length → ErasesLB env [] Σ⁺ [] args[i]! targs[i]!` (and conversely), so **G2** can fold `Capstone.lean`'s statement back with no reproof (finding **G1-O3** retired) |
+| **U2.3 T5-interim** | `ErasesCorrect.lean` (new: T5 at the W2 fragment) | U1.1, U1.9, U1.4 (interface only — `SEval.defeq` already holds unconditionally at `fullFlags` with no `CompilerBodies`/`lenv` binder, finding **U1.4-b**, so U2.3 does not edit `SourceEval.lean`/`SubjectReduction.lean`) | 750 | `erases_correct` elaborates with **six** binders — the five of `01-DESIGN.md` §5 plus the named interim `hfl : fl ≤ w2Flags` (the induction does not yet cover the `case`/ι step), deleted at U3.2 once the ι arm lands (§3.4; the W3 statement is the pinned one); none is named `Supported`/`Relevant`/`Iota*`/`*Consistent`/`*Hyps`; `#print axioms erases_correct` = the class-**B** set |
 | **U2.4 fuel** | `Fuel.lean` (the surviving `EraseCore` fuel lemmas, re-landed from git history) | U1.0 | 250 | the lemmas elaborate; `grep -rn "IotaRelevant\|IotaShape\|RecBlockAgreement" LeanToLambdaBox/` empty; `lake build` green |
-| **G2 gate — green_G2–G4** | `VerifyBench/Spikes/{G2,G3,G4}.lean`, `Green.lean`; N3a files | U2.1–U2.4 **(proof)** | 400 | `green_G2`, `green_G3`, `green_G4` elaborate with literal peano answers; `green_G1` still elaborates; `lake exe green-check` covers four rungs; `doc/coverage.md` updated by hand this wave (the generator is U5.3's; its interim absence is stated in the file header) |
+| **G2 gate — green_G2–G4** | `Capstone.lean` (assigns `ErasureBridge.lowerCorrect` from U2.1, `.simulate` from U2.3, and folds the spine premise per U2.2's lemma — finding **G1-O3** retired), `VerifyBench/Spikes/{G2,G3,G4}.lean`, `Green.lean`; N3a files | U2.1–U2.4 **(proof)**, U1.8 **(proof, for `Supported`/`supportedB_sound`)** | 500 | `green_G2`, `green_G3`, `green_G4` elaborate with literal peano answers; `green_G1` still elaborates and, once U1.8 lands, `hsup` swaps from the `supportedB` verdict to `Supported env e` at the three sites `Capstone.lean`'s module docstring names (finding **G1-O1** retired); `lake exe green-check` covers four rungs; `lake exe hygiene --dup && lake exe hygiene --schedule` exit 0; `doc/coverage.md` updated by hand this wave (the generator is U5.3's; its interim absence is stated in the file header) |
+
+Two absorptions Task-level review might expect as new W2 units are not: landing the `Supported`
+Prop and `supportedB_sound` is **U1.8's own completion**, not new W2 scope — it is a W1 unit still
+in progress, and G2 only consumes it (above); and `FirstOrderInd` plus T9's `fo`-parameter swap
+(finding **G1-O2**) is **U3.3's** (W3), since `FirstOrderInd.lean` needs the first-order domain
+work that wave does. `NoBox` transport along the general `Lower` (finding **G1-O7**) is likewise
+**U3.3's**, not a separate W2 unit: `01-DESIGN.md` §7.3 assigns `firstorder_no_box` to
+`FirstOrderInd.lean`, and `ErasureBridge.firstorder`'s field (§5) already states box-freedom of
+the *lowered* value, not the erasure, so that is the theorem the guard has to be proved into.
 
 ### W3 — ι, first-order domain, witnesses, the pin bump (5 + gate)
 
@@ -139,7 +189,7 @@ provably dead — before anything is proved on top of the tree.
 |---|---|---|---|---|
 | **U3.1 upstream-and-repin** | the lean4lean **fork** (lands the seven kernel-generic `CheckerAdequacy` declarations, `WF'.defeqOwn`, and — best-effort — `consts_origin`); `CheckerAdequacy.lean` (deletes its `namespace Lean4Lean` block); gate applies the `lake-manifest.json` bump | W2 | 300 | `git show HEAD:lake-manifest.json` pins the new fork rev; `grep -rn "^namespace Lean4Lean" LeanToLambdaBox/` empty (criterion 21, gate-checked from G3 on); `lake build` green at the new pin; `test/ledger.expected` re-measured by the gate |
 | **U3.2 T5-full** | `ErasesCorrect.lean`, `SubjectReduction.lean` | U1.6, W2 **(proof)** | 900 | T5 at `fullFlags` with the final five-binder statement (`hfl` deleted); the fixture `test/t5.expected` is committed **now** and pinned from here on (criterion 6); the ι arm is discharged via `mkElimBody_iota_bwd` with its guard fed by `hpre`'s image (§4.6-4.7); `#print axioms erases_correct` unchanged |
-| **U3.3 first-order** | `FirstOrderInd.lean` | W2 | 550 | `example : firstOrderIndB arithTable 64 ``Nat = true := by rfl`, likewise `Bool` and `BinaryTrees`' `Tree` (criterion 8 as amended by A6/A15); `firstOrderIndB_sound` elaborates with the visited-set `fo` witness; `firstorder_no_box` elaborates |
+| **U3.3 first-order** | `FirstOrderInd.lean` (`firstorder_erases_deterministic`, `firstorder_no_box` — proved of the LOWERED value, closing finding **G1-O7**, not only of the erasure `tv₀`); co-owns `Capstone.lean` for the `fo`-parameter swap (finding **G1-O2**) | W2 | 650 | `example : firstOrderIndB arithTable 64 ``Nat = true := by rfl`, likewise `Bool` and `BinaryTrees`' `Tree` (criterion 8 as amended by A6/A15); `firstOrderIndB_sound` elaborates with the visited-set `fo` witness; `firstorder_no_box (henv) (hfo : FirstOrderInd env I) (hwt) (hty) (hval) (hlow : Lower Σ⁺ t₀ t) (h : Erases env Us [] v t₀) : NoBox t` — the `Lower`-transported form `ErasureBridge.firstorder` needs, discharged either by re-deriving box-freedom structurally over `Lower`'s congruence arms with a `NoFix`-shaped side guard, or by a decidable check on the lowered value at each rung (the choice and its cost are recorded in this unit's own commit, not assumed); `Capstone.lean`'s `{fo : Name → Prop}` binder and `ErasureBridge`'s `fo` parameter are instantiated to `FirstOrderInd env I` at the three sites `Capstone.lean`'s module docstring names, with no reproof of `shipping_erase_correct_firstorder` itself |
 | **U3.4 TrExprS-witnesses** | `Witness/TrWitness.lean` | U1.8 | 500 | `arith_trExprS : TrExprS env [] [] eArith ve` is produced by routing lean4lean's checker (`M.WF.run'`, `VState.WF.initial`); **or**, if that fails, the unit lands the named fallback: `hwt`/`hty` stay class-**D** binders, the gate grows `test/ledger.expected` and `doc/trust.md` by the two rows, and A14's wording is re-amended in the same commit (risk R11) |
 | **U3.5 lowerenv-from-records** | `ColdStartShape.lean` (re-lands `RegInvShape'` adapted), `ErasesEnv.lean`, `SpecEnv.lean` | U1.9, W2 **(proof)** | 700 | `SpecEnv.exists` elaborates from `RegInvShape'` + `ErasureSpec.lookup_adequate` + `htbl`; `LowerEnv Σ⁺ s'.gdecls` is **derived** — including `defsTotal` — not assumed; `EnvAgree`/`WcbvEval.congr_env` elaborate |
 | **G3 gate — green_G5–G6** | `VerifyBench/Spikes/{G5,G6}.lean`, `Green.lean`; N3a files | U3.1–U3.5 **(proof)** | 450 | `green_G5` (a `match`, hence `.case` and ι) and `green_G6` (`Nat.add`, hence `_unsafe_rec`, `deltaC` and `.fix`) elaborate with literal answers; G1–G4 still green; one file constructs a pats-carrying `VEnv.WF` together with every ι-round premise, retiring review findings P1 and TA-06 by construction; criterion-21 grep green |
@@ -163,7 +213,7 @@ introduction-lemma renames of §4.7 for seventeen; genuinely new work for motive
 | **U4.3 motives-mechanical (1, 7, 8, 9, 11, 12, 18)** | `VisitExprRefines/Step/Mechanical.lean` (+ the re-landed run plumbing) | U4.1 | 1,300 | the seven steps elaborate |
 | **U4.4 motives-passes (2, 3, 10, 13, 14, 15, 16, 17)** | `VisitExprRefines/Step/Passes.lean` | U4.1, U2.2 | 1,600 | the eight steps elaborate, each via a derived introduction lemma of `ErasesLB` (the acceptance test greps that each of the eight uses `ErasesLB.` and none re-proves a `Lower` fact inline) |
 | **U4.5 cold-start + panics** | `ColdStartRun.lean`, `ColdStartInduction.lean` (re-landed adapted; **plus the new `visitExpr_ctorSat`** — §4.9's saturation route), `doc/panics.md` | U4.1 | 800 | `erase_run_ok`, `run_prepare_erasure_ok`, `visitExpr_shape_all` re-landed; `visitExpr_ctorSat` elaborates; `doc/panics.md` lists all sixteen sites with the premise excluding each — two closed by `Erases.sort_erasable`/`forallE_erasable`, the rest by named `Supported` conjuncts (criterion 10 = N12 option 2) |
-| **G4 gate — the bridge lands** | `Capstone.lean`, `Green.lean`; N3a files | U4.1–U4.5 **(proof)** | 700 | both T8 statements elaborate proved; `#print axioms` on them shows `sorryAx` present exactly for the theorems `test/ledger.expected` predicts, and `doc/trust.md` names the lean4lean roots with `file:line` (provenance is documented there, not claimed measured — N6); **`green_G1`…`green_G6` no longer take `hbridge`**; ledger diff clean |
+| **G4 gate — the bridge lands** | `Capstone.lean`, `Green.lean`; N3a files | U4.1–U4.5 **(proof)** | 700 | both T8 statements elaborate proved; `#print axioms` on them shows `sorryAx` present exactly for the theorems `test/ledger.expected` predicts, and `doc/trust.md` names the lean4lean roots with `file:line` (provenance is documented there, not claimed measured — N6); **`green_G1`…`green_G6` stop taking `hbridge`**; ledger diff clean |
 
 ### W5 — capstone at Arith, coverage, delivery (4 + gate)
 
