@@ -16,12 +16,12 @@ box-free — by the emitted program under λ□'s own semantics.
 `PeregrinePre` does not hold of its output (finding F-ETA). The conclusion is
 `LBWfPeregrine`, which is what the emitted program does satisfy.
 
-Three hypotheses are stated in the form this module can express. `hsup` is the `supportedB`
-verdict on the reified table — the decidable form, which a rung discharges by computation;
-the fragment predicate it certifies is `Supported.lean`'s to state. The first-order side
-condition is the parameter `fo : Name → Prop` with the premise `fo I`, so the statement is a
-schema a first-order predicate instantiates. The spine premise is `Erases` composed with
-`Lower`, written out, together with the length equation `Lower.mkApps` consumes.
+Three hypotheses are stated in the form this module can express. `hsup` is the fragment
+predicate `Supported`, which a rung discharges by computation through `supportedB_sound`.
+The first-order side condition is the parameter `fo : Name → Prop` with the premise `fo I`, so
+the statement is a schema a first-order predicate instantiates. The spine premise is `Erases`
+composed with `Lower`, written out, together with the length equation `Lower.mkApps`
+consumes.
 
 At this wave the composition is proved and the results it composes are the fields of one
 named binder, `hbridge : ErasureBridge …` — each field named after the theorem that
@@ -139,14 +139,15 @@ answer's erasure — uniquely, and with no `□` in it.
 
 `P`, `htbl`, `hrun` and `hwt` are the named class-**D** binders: each is about a primitive
 no term denotes (the elaboration environment, a monadic run, a table copied out of it) or
-awaits the translation witness. `hcfg`, `hsup` and `hax` are decidable per program.
-`hbridge` carries the results the later waves prove; the proof here is the composition.
+awaits the translation witness. `hcfg` and `hax` are decidable per program, and `hsup` is
+settled per program by `supportedB`'s verdict through `supportedB_sound`. `hbridge` carries
+the results the later waves prove; the proof here is the composition.
 
 `LBExpandedFix` is not concluded — finding F-ETA.
 -/
 theorem shipping_erase_correct_firstorder
     {lenv : Lean.Environment} {env : VEnv} {gw : Void IO.RealWorld → NameGenerator}
-    {tbl : SourceTable} {cfg : ErasureConfig} {fuel : Nat} {e : Expr} {ve : VExpr}
+    {tbl : SourceTable} {cfg : ErasureConfig} {e : Expr} {ve : VExpr}
     {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State} {w w' : Void IO.RealWorld}
     {Γ : GlobalDeclarations} {t : LBTerm} {inls : List Kername} {fo : Name → Prop}
     (P : ErasureSpec lenv env [] gw)
@@ -154,7 +155,7 @@ theorem shipping_erase_correct_firstorder
     (hcfg : ConfigPinned cfg)
     (hcb : CompilerBodies lenv env tbl.body?)
     (hwt : TrExprS env [] [] e ve)
-    (hsup : supportedB tbl fuel e = .ok ())
+    (hsup : Supported env tbl e)
     (hrun : Erasure.erase e cfg cctx ref w = .ok (.untyped Γ (some t), inls) w')
     (hax : ErasableAxioms Γ t)
     (hbridge : ∃ Γspec t₀, ErasureBridge env tbl.body? fo e Γspec Γ t t₀) :

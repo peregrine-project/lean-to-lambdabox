@@ -84,15 +84,6 @@ theorem g1_eval : WcbvEval g1Env eraseFlags g1Term g1Answer :=
 
 /-! ### The compiler bodies, typed -/
 
-/-- Every declaration `tbl` pins is safe in `lenv` — none is `unsafe` or `partial`.
-`Witness.SourceTableAdequate` pins level parameters, types and the constructor split but
-not the safety flag, and `ErasureSpec.decl_adequate` reads only safe declarations, so the
-flag is named separately. Class **D** for the reason the table's own adequacy is: no term
-denotes `lenv`. -/
-def TableSafe (lenv : Lean.Environment) (tbl : SourceTable) : Prop :=
-  ∀ (n : Name) (ci : ConstantInfo), (tbl.decl? n).isSome → lenv.find? n = some ci →
-    DefinitionSafety.safe ≤ ci.safety
-
 /-- The declaration column of rung G1's reified table: the subject and the two `Nat`
 constructors, of which only the subject carries a body. -/
 def g1Decls : List (Name × ReifiedDecl) :=
@@ -148,7 +139,7 @@ theorem g1_compilerBodies {lenv : Lean.Environment} {env : VEnv} {Us : List Name
   obtain ⟨ci, hci, hlp, hty⟩ := g1_pinned_subject htbl
   obtain ⟨ciz, hciz, hlpz, htyz⟩ := g1_pinned_zero htbl
   obtain ⟨⟨uvz, tyz⟩, hconstz, -, huv, htrty⟩ :=
-    P.decl_adequate ``Nat.zero ciz hciz (hsafe ``Nat.zero ciz rfl hciz)
+    P.decl_adequate ``Nat.zero ciz hciz (hsafe.decls ``Nat.zero ciz rfl hciz)
   rw [hlpz] at huv
   rw [hlpz, htyz] at htrty
   cases htrty with
@@ -209,7 +200,8 @@ theorem green_G1
       ∧ WcbvEval g1Env eraseFlags g1Term (.construct natIid 0 []) := by
   obtain ⟨Γspec, t₀, her, herΓ, hlow, hlowΓ, hwf, hobs⟩ :=
     shipping_erase_correct_firstorder P htbl g1_configPinned
-      (g1_compilerBodies P htbl hsafe) hwt g1_supported hrun g1_erasableAxioms hbridge
+      (g1_compilerBodies P htbl hsafe) hwt (supportedB_sound P htbl hsafe g1_supported)
+      hrun g1_erasableAxioms hbridge
   obtain ⟨tv₀, tv, herv, hlowv, hnb, huniq, hevtgt⟩ :=
     hobs [] [] ``Nat us idx v vv rfl (fun i hi => absurd hi (by simp)) hev hvwt hty hfo
   have htv : tv = g1Answer := eval_deterministic hevtgt g1_eval
