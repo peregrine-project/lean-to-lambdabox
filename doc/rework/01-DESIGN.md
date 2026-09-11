@@ -188,7 +188,7 @@ failing goal).
 | **G1-O1** | T9's `hsup : Supported env e` | `Supported.lean`'s Prop `Supported` and `supportedB_sound` are U1.8's, not yet landed | T9 currently takes `hsup : supportedB tbl fuel e = .ok ()` — the checker verdict directly (`Capstone.lean:157`) | swaps to `Supported env e` once U1.8 lands, at three call sites — a statement edit, no reproof |
 | **G1-O2** | T9's `FirstOrderInd env I` premise inside the ∀-clause | `FirstOrderInd.lean` (U3.3) is not yet landed | T9 currently takes a free implicit `{fo : Name → Prop}` with the premise `fo I` (`Capstone.lean:151,175`) | instantiates to `FirstOrderInd env I` once U3.3 lands, at the three sites named in `Capstone.lean`'s own module docstring |
 | **G1-O3** | T9's spine premise `∀ i, i < args.length → ErasesLB env [] Σ⁺ [] args[i]! targs[i]!` | `ErasesLB.lean` (§4.7, U2.2) is not yet landed | T9 currently takes `targs.length = args.length` plus `∀ i, i < args.length → ∃ a₀, Erases env [] [] args[i]! a₀ ∧ Lower Σ⁺ a₀ targs[i]!` — the composite unfolded, with the length equation `Lower.mkApps` needs (`Capstone.lean:169-171`) | folding back to `ErasesLB` once it exists is definitional (the unfolded form and the composite agree by `Lower.mkApps`'s own length premise) |
-| **G1-O4** | §4.14's ledger names `P`, `htbl`, `hrun`, `hwt` as the class-**D** binders (A14) | `green_G1`'s discharge of `hcb` needs an extra fact about the reified table beyond `htbl`'s adequacy | a fourth class-**D** binder, `hsafe : TableSafe lenv g1Table` (`Green.lean:144`), guards `g1_compilerBodies` | recorded as a `doc/trust.md` row beside `hsafe`, outside A14's original list |
+| **G1-O4** | §4.14's ledger names `P`, `htbl`, `hrun`, `hwt` as the class-**D** binders (A14) | `green_G1`'s discharge of `hcb` needs an extra fact about the reified table beyond `htbl`'s adequacy | a fourth class-**D** binder, `hsafe : TableSafe lenv g1Table` (`Supported.lean:327`), guards `g1_compilerBodies` | recorded as a `doc/trust.md` row beside `hsafe`, outside A14's original list |
 | **G1-O5** | T9's eight remaining binders (`P`, `htbl`, `hcfg`, `hcb`, `hwt`, `hsup`, `hrun`, `hax`) are load-bearing hypotheses of the composed theorem | at this wave the entire proof is `obtain ⟨Σ⁺, t₀, B⟩ := hbridge; …` — none of those eight names occurs in the proof body | `set_option linter.unusedVariables false in` immediately precedes the theorem (`Capstone.lean:130,179-192`) | zero occurrences of any of the eight names in the tactic block; each becomes load-bearing only as W2–W4 discharge `hbridge`'s own fields |
 | **G1-O6** | `lower_correct (hwf : LBWfSpec Σ⁺) (hcl : LBClosed t 0) (hE) (h : Lower Σ⁺ t t') (hev : WcbvEval Σ⁺ eraseFlags t v) : ∃ v', Lower Σ⁺ v v' ∧ WcbvEval Σ eraseFlags t' v'` — unrestricted over all 17 arms | the unrestricted statement is false at the `ctorEta` arm: an under-applied constructor constant δ-unfolds, on the specification side, to the applied-form constructor node (a value), the pass sends the *same constant* to the η-expanded λ (also a value), and no arm of `Lower` relates a constructor node to a λ | delivered as `lower_correct_deltaChain`, on the δ/constructor/fix fragment (`DeltaChain`, a sub-relation of `WcbvEval`) under three named guards `LowerNoEta`, `BlockBodiesLambda`, `DefsSurvive` (`LowerCorrect.lean:449-453`); the general 17-arm statement is W2's `U2.1` | `lower_correct_needs_ctorEta_guard` (`LowerCorrect.lean:565-568`), on a one-inductive, single-unary-constructor fixture |
 | **G1-O7** | T7's `firstorder_no_box` composed directly with `lower_correct` to conclude the *lowered* value is box-free | box-freedom does not transport along `Lower` in general: `Lower.fixConst` relates the box-free `.const kn` to a block's `.fix`, whose `defs` carry the members' own boxed bodies | T9's value-side conjunct states `NoBox tv` of the lowered value `tv` directly (via `hbridge.firstorder`), not by citing `firstorder_no_box` on `tv₀` alone | `noBox_lower_needs_noFix` (`LowerCorrect.lean:187-192`), witnessed on the `LowerFixFixture` two-member block |
@@ -382,7 +382,7 @@ until W6. Consequences:
 | A8 | §2 T6's `LBPass` (functional) and criterion 5 | passes are relations (`LBPassR`); `correct` keeps `optimize_correct`'s shape with the value existentially quantified | §2 F1 |
 | A9 | §2 T6's `LBCompile := optimize ∘ fixIntro ∘ elimInline ∘ ctorInline`, used as both T8's factor and T9's tail | split: `Lower` is T8's factor; `optimize` is an optional post-pass. Removes an unstated idempotence obligation, and `fixIntro` disappears (it has no true `correct`) | §2 F1, §3.2 |
 | A10 | §5 N-list | add **N16** (`Quot`), **N18** (no `casesOn`-like elimination of a non-informative inductive — subsumes N17's `Acc` case while F-PROP stands) | Q7, Q2 |
-| A11 | §2 T8's four `PrimSpec` fields | the bundle is renamed **`ErasureSpec`** (upstream `Lean4Lean.PrimSpec` exists, `Verify/Typing/Expr.lean:315`, and this tree opens `Lean4Lean` pervasively) and has six fields: `env_connect`, `lookup_adequate`, `fresh_names`, `oracle_refl`, `oracle_meta`, `ind_adequate`; table adequacy is the separate named binder `htbl` (a `Prop`-valued structure cannot hold `tbl` as a field, and an unbound `tbl` auto-binds to a false ∀) | Q6; §2 F4; gate G-D4/G-D5 |
+| A11 | §2 T8's four `PrimSpec` fields | the bundle is renamed **`ErasureSpec`** (upstream `Lean4Lean.PrimSpec` exists, `Verify/Typing/Expr.lean:315`, and this tree opens `Lean4Lean` pervasively) and has six fields: `env_connect`, `lookup_adequate`, `fresh_names`, `oracle_refl`, `oracle_meta`, `decl_adequate`; table adequacy is the separate named binder `htbl` (a `Prop`-valued structure cannot hold `tbl` as a field, and an unbound `tbl` auto-binds to a false ∀) | Q6; §2 F4; gate G-D4/G-D5 |
 | A12 | §2 T9's observable conjunct | value side is the **composite**, not `Erases`; and the conjunct is quantified over closed first-order argument spines | §2 F3, F5 |
 | A13 | §2 T1's "the `optimize` pass (T6) discharges `with_prop_case`, landing the deliverable at `⟨false,true,false⟩`" | the deliverable **is stated at** `⟨false,true,false⟩` directly (prop-case is inert on emitted output) and `propcase_weaken` bridges to the consumer's `⟨true,true,false⟩`; `optimize` is optional | §3.2 |
 | A14 | §7 criterion 13 ("every hypothesis of T9 simultaneously inhabited by a checked term") | "every class-**C** hypothesis of T9 inhabited by a checked term; `hrun`, `htbl` and `ErasureSpec`'s class-**D** fields are permanent named binders mechanised externally by `lake exe green-check`; `hwt`/`hty` per F17's schedule and named fallback" | F17, F18; `Void IO.RealWorld` is opaque; the bundle's fields model opaque `Lean.Environment`/`Meta` primitives |
@@ -1273,7 +1273,7 @@ structure ErasureSpec (lenv : Lean.Environment) (env : VEnv) (Us : List Name)
       derivation* from `env_connect` by `TrEnv'` inversion on the `induct`/`AddInduct` clause —
       upstream ships the shape twice (`TrEnv'.structure_rec`, `TrEnv'.pats_iota'`) — and keeps
       the field only if that fails, with the obstruction named. -/
-  ind_adequate    : …
+  decl_adequate   : …
 
 theorem ErasureSpec.envWF (P : ErasureSpec lenv env Us gw) : env.WF     -- via `TrEnv'.wf`;
     -- measured sorryAx-free: [propext, Classical.choice, Quot.sound] (gate/d5_envwf.lean)
@@ -1460,7 +1460,7 @@ VEnv.WF.patsStrong`, marked **fork-authored, not inherited** — which no curren
 **(a3)** the 29-name executable-checker cluster criterion 9 brings in, including two
 `_native.bv_decide` axioms from Lean core; **(b)** `ErasureSpec`'s class-**D** fields
 (`env_connect`, `lookup_adequate`, `fresh_names`, `oracle_refl`'s reflection clause,
-`oracle_meta`, `ind_adequate` if underived), plus `hrun` and `htbl` — each a permanent named
+`oracle_meta`, `decl_adequate` if underived), plus `hrun` and `htbl` — each a permanent named
 binder, mechanised externally by `lake exe green-check`; **(c)** the class-**C** hypotheses
 (`hcfg`, `hcb`, `hsup`, `hax`, `mono`/`noIndices`' scope restrictions, and the source evaluation
 per N7) — each a binder in a stated §5 theorem (criterion 17); **(d)** the class-**E** rows: N1
@@ -1886,7 +1886,7 @@ tree never depends on any of them landing.
    and its three `@[simp]` projections, `VState.WF.initial`, `M.WF.run'`, `kernelNGen`), which
    criterion 21 forbids here and criterion 9 needs — landed by U3.1 with the pin bump (F16).
 4. A `TrEnv'` inversion on the `induct`/`AddInduct` clause yielding `InductiveVal ↔ VInductDecl`
-   (the shape of `TrEnv'.structure_rec`/`TrEnv'.pats_iota'`), which turns `ind_adequate` from an
+   (the shape of `TrEnv'.structure_rec`/`TrEnv'.pats_iota'`), which turns `decl_adequate` from an
    assumed field into a theorem off `env_connect`; and `addDecl.WF`'s `inductDecl` case
    (`Verify/Environment.lean:208`, `sorry` at the pin), the lemma that would let `env_connect`
    itself be derived.

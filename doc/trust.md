@@ -72,7 +72,7 @@ appear by name in the statements that take them, and `lake exe green-check` is t
 | `fresh_names` | the run's fresh `FVarId`s are fresh | — |
 | `oracle_refl` (reflection clause) | the monadic oracle run reflects the kernel predicate | near-definitional; the discharge's price is (a3) |
 | `oracle_meta` | the `isErasableMeta` fallback and the polymorphic-scope arm are sound | empirically dead on the error route: 0 fallback hits in 139,196 constants |
-| `ind_adequate` | inductive metadata of the run matches the specification's | kept only with the obstruction named; upstream ask 4 |
+| `decl_adequate` | inductive metadata of the run matches the specification's | kept only with the obstruction named; upstream ask 4 |
 
 ## (c) Class-**C**: hypotheses of stated theorems
 
