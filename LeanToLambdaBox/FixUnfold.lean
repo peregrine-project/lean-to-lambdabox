@@ -790,9 +790,11 @@ of such steps is not bounded by anything in the β case's induction (which is on
 *source* derivation), so it is packaged here as its own relation: `FixUnfoldChain defs
 idx u` says `u` is reached from `.fix defs idx` by a finite, non-empty chain of one-step
 unfoldings, each of whose selected definitions has the `mkDef` default `principalArgIdx`.
-`Erases.fix_unfold` (`ErasesCorrect`) produces such a chain from a `.lam`-to-`.fix`
-erasure, by induction on the erasure derivation, with `u` guaranteed *not* to be a `.fix`;
-`FixUnfoldChain.eval` below turns it into the corresponding stack of `fix_guarded` nodes.
+The recursion that produces such a chain from a `.lam`-to-`.fix` erasure now lives in
+`Lower`/`LowerFix` — the `Lower.fixConst`/`Lower.fixBody` recursion arms and the transport
+theorem `Lower.constToFix` (`LeanToLambdaBox/LowerFix.lean`) — with `u` guaranteed *not* to
+be a `.fix`; `FixUnfoldChain.eval` below turns it into the corresponding stack of
+`fix_guarded` nodes.
 -/
 
 /-- `FixUnfoldChain defs idx u`: `u` is the result of unfolding `.fix defs idx` one or
@@ -814,7 +816,7 @@ inductive FixUnfoldChain : List (@FixDef LBTerm) → Nat → LBTerm → Prop
       FixUnfoldChain defs idx u
 
 /-- A target term either *is* a `fix` node or is provably none — the case split
-`Erases.fix_unfold` iterates on. -/
+`Lower.constToFix` iterates on. -/
 theorem LBTerm.fix_or_not (t : LBTerm) :
     (∃ (defs : List (@FixDef LBTerm)) (i : Nat), t = .fix defs i) ∨
     (∀ (defs : List (@FixDef LBTerm)) (i : Nat), t ≠ .fix defs i) := by

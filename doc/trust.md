@@ -79,12 +79,8 @@ appear by name in the statements that take them, and `lake exe green-check` is t
 `hcfg` (the erasure configuration is the fragment's), `hcb` (the compiler bodies table is
 adequate — a hypothesis of the capstone, discharged at a rung by `Green.g1_compilerBodies`
 from `P`, `htbl` and `hsafe`), `hsup` (`Supported`, established at a rung by `supportedB_sound`
-from `supportedB`'s computed verdict), `hax` (`ErasableAxioms`, decidable per rung), the
-source-evaluation hypothesis each capstone takes,
-and the two declared scope restrictions of the first-order predicate — `mono` (no universe
-polymorphism) and `noIndices`. The last two come from **neither** paper nor from MetaRocq's
-`firstorder_ind`: they reject types that are genuinely first-order and box-free, and they are
-booked here, not to the sources.
+from `supportedB`'s computed verdict), `hax` (`ErasableAxioms`, decidable per rung), and the
+source-evaluation hypothesis each capstone takes.
 
 ## (d) Class-**E**: scope restrictions and consumer facts
 

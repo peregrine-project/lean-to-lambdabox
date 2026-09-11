@@ -4,7 +4,7 @@
 `panic!`. Both compile to the same thing — a message on stderr and the `Inhabited` default
 as the result — and `EraseM`'s default is `.box`, so a panic **does not stop the run**: it
 can produce a wrong `.ast` and exit `0`. That is not hypothetical, it is the measured
-`Quicksort` miscompile (`F-SPARSE`, `doc/dev-fix-queue.md`).
+`Quicksort` miscompile (`F-SPARSE`, `doc/rework/03-DEV-FIX.md`).
 
 This table is how the development meets the obligation to account for them. There is no
 `Panicked` predicate and no `¬ Panicked run` binder: the output-shape lemmas

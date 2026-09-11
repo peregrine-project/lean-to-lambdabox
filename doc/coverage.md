@@ -21,13 +21,13 @@ Fannkuch}.lean`; every correctness statement needs `csimp := false`, which the s
 | Arith | 14,113 | exit 0, no panic | yes | the applied capstone's subject, G7/G8 (W5) |
 | Sieve | 28,207 | exit 0, no panic | yes | not a rung; reached only by the general statement |
 | BinaryTrees | 29,680 | exit 0, no panic | yes | not a rung; its `Tree` is one of the first-order witnesses |
-| Quicksort | 66,374 | exit 0, **one panic** | **no** — `SupportError.sparseCasesOn` | none: the emitted program is wrong (`F-SPARSE`, `doc/dev-fix-queue.md`) |
+| Quicksort | 66,374 | exit 0, **one panic** | **no** — `SupportError.sparseCasesOn` | none: the emitted program is wrong (`F-SPARSE`, `doc/rework/03-DEV-FIX.md`) |
 | Fannkuch | 39,861 | exit 0, no panic | yes, with one caveat | needs an `AxiomRealizer` row for `Eq.rec`: its `hax` is false without one (`F-EQREC`) |
 
 Two measurements behind the table: the panic is
 `PANIC at Erasure.visitCases LeanToLambdaBox.Erasure:817:55`, and the run still exits 0 and
 still writes the file; `Fannkuch.ast` is the only one of the five carrying a body-less
-constant, `((MPdot (MPfile ()) "Eq") "rec")`. Both commands are in `doc/dev-fix-queue.md`.
+constant, `((MPdot (MPfile ()) "Eq") "rec")`. Both commands are in `doc/rework/03-DEV-FIX.md`.
 
 Not exercised by any of the five, and recorded so that the gap is visible rather than
 inferred: a genuinely **mutual** fixpoint block — 0 of the 50 emitted `FixDef`s are mutual,
