@@ -20,9 +20,9 @@ inductive) and `ctor_saturated` (a constructor spine typed at its own inductive 
 together with `CasesOnShape.agree`, which pins `SEval.iota`'s parameter count to the
 eliminator's own block.
 
-Every declaration here therefore takes `(A : UpstreamAsks env)` explicitly. Once the fork holds
-the four asked theorems the binder is discharged by the pin bump and no statement below changes
-shape.
+The corollaries that rest on an ask take `(A : UpstreamAsks env)` explicitly; the spine and
+major-premise lemmas beside them need no ask. Once the fork holds the four asked theorems the
+binder is discharged by the pin bump and no statement below changes shape.
 -/
 namespace LeanToLambdaBox
 
@@ -250,6 +250,19 @@ theorem CasesOnShape.agree (A : UpstreamAsks env) (hsh : CasesOnShape env c I dp
   refine ⟨by omega, ?_⟩
   simp [ctorFieldCounts, hnm]
 
+/-- **A type former has one arity.** The `IndArity` twin of `IndInfo.inj`; the same route as
+`CasesOnShape.agree`, at two `IndArity`s. -/
+theorem IndArity.inj {env : VEnv} (A : UpstreamAsks env) {I : Name} {np np' : Nat}
+    {nfs nfs' : List Nat} (h : IndArity env I np nfs) (h' : IndArity env I np' nfs') :
+    np = np' ∧ nfs = nfs' := by
+  obtain ⟨decl, hblk, t, ht, hname, hnp, hnfs⟩ := h.indBlockBelow
+  obtain ⟨decl', hblk', t', ht', hname', hnp', hnfs'⟩ := h'.indBlockBelow
+  obtain rfl : decl = decl' :=
+    indBlock_uniq A hblk hblk' ⟨t, ht, hname⟩ ⟨t', ht', hname'⟩
+  obtain rfl : t = t' := indBlockBelow_type_uniq hblk ht ht' (hname.trans hname'.symm)
+  subst hnp; subst hnp'; subst hnfs; subst hnfs'
+  exact ⟨rfl, rfl⟩
+
 
 /-! ## Peeling a translated spine
 
@@ -297,6 +310,19 @@ theorem trExprS_spine_peel {env : VEnv} {Us : List Name} {Δ : VLCtx} (henv : en
 
 /-! ## The major premise of an eliminator spine -/
 
+/-- A bare type former at binder `i` of a Π-telescope is a major premise of that former at
+position `i`: `MajorPremiseAt`'s spine is the empty application. -/
+theorem majorPremiseAt_of_piBinders {J : Name} {jus : List VLevel} :
+    ∀ {i : Nat} {T : VExpr}, T.piBinders[i]? = some (.const J jus) → MajorPremiseAt J i T
+  | 0, .forallE _ B, h => by
+      simp only [VExpr.piBinders, List.getElem?_cons_zero, Option.some.injEq] at h
+      exact ⟨_, B, jus, [], rfl, h⟩
+  | _ + 1, .forallE A _, h => by
+      simp only [VExpr.piBinders, List.getElem?_cons_succ] at h
+      exact ⟨A, _, rfl, majorPremiseAt_of_piBinders h⟩
+  | _, .bvar .., h | _, .sort .., h | _, .const .., h | _, .app .., h | _, .lam .., h => by
+      simp [VExpr.piBinders] at h
+
 /-- The major-premise position survives instantiation: the domain is a spine headed by `I`,
 and `VExpr.mkApps_inst` pushes the substitution into its arguments. -/
 theorem MajorPremiseAt.inst {I : Name} : ∀ {n : Nat} {T a : VExpr} {k : Nat},
@@ -304,6 +330,14 @@ theorem MajorPremiseAt.inst {I : Name} : ∀ {n : Nat} {T a : VExpr} {k : Nat},
   | 0, _, a, k, ⟨_, _, ius, iargs, rfl, rfl⟩ =>
       ⟨_, _, ius, iargs.map (·.inst a k), rfl, VExpr.mkApps_inst⟩
   | _ + 1, _, _, _, ⟨_, _, rfl, h⟩ => ⟨_, _, rfl, h.inst⟩
+
+/-- The major-premise position survives level instantiation, as `MajorPremiseAt.inst` survives
+term instantiation. -/
+theorem MajorPremiseAt.instL {I : Name} {ls : List VLevel} : ∀ {n : Nat} {T : VExpr},
+    MajorPremiseAt I n T → MajorPremiseAt I n (T.instL ls)
+  | 0, _, ⟨_, _, ius, iargs, rfl, rfl⟩ =>
+      ⟨_, _, ius.map (VLevel.inst ls), iargs.map (·.instL ls), rfl, VExpr.mkApps_instL⟩
+  | _ + 1, _, ⟨_, _, rfl, h⟩ => ⟨_, _, rfl, h.instL⟩
 
 /-- Peeling a type whose `n`-th binder is a major premise of `I` types the `n`-th argument at
 an `I`-spine. -/
@@ -458,6 +492,37 @@ theorem peel_piSpine {env : VEnv} (henv : env.WF) (A : UpstreamAsks env) {U : Na
       have hinst : env.IsDefEqU U Γ (B₀.inst a) (B'.inst a) :=
         VEnv.IsDefEqU.instN henv.ordered .zero ⟨_, hB⟩ ha₀
       simpa using ih hS'.inst (VEnv.IsDefEqU.symm hinst) hrest hV
+
+/-- Peeling a Π-telescope to its end reaches the telescope's own result spine. `peel_piSpine`
+says the spine of a well-typed constructor value has exactly the telescope's length; this says
+what the type at that end is. -/
+theorem peel_piSpine_head {env : VEnv} (henv : env.WF) {U : Nat} {Γ : List VExpr}
+    (hΓ : OnCtx Γ (env.IsType U)) {I : Name} :
+    ∀ (vargs : List VExpr) {T S V : VExpr} {n : Nat}, PiSpine I n S → vargs.length = n →
+      env.IsDefEqU U Γ T S → Peel env U Γ T vargs V →
+      ∃ us args, env.IsDefEqU U Γ V (VExpr.mkApps (.const I us) args) := by
+  intro vargs
+  induction vargs with
+  | nil =>
+    intro T S V n hS hlen hTS hP
+    cases n with
+    | zero =>
+      obtain ⟨us, args, rfl⟩ := hS
+      exact ⟨us, args, VEnv.IsDefEqU.trans henv hΓ (VEnv.IsDefEqU.symm hP) hTS⟩
+    | succ m => simp at hlen
+  | cons a as ih =>
+    intro T S V n hS hlen hTS hP
+    cases n with
+    | zero => simp at hlen
+    | succ m =>
+      obtain ⟨A₀, B₀, rfl, hS'⟩ := hS
+      obtain ⟨A', B', hTf, ha, hrest⟩ := hP
+      obtain ⟨⟨_, hA⟩, _, hB⟩ := VEnv.IsDefEqU.forallE_inv henv hΓ
+        (VEnv.IsDefEqU.trans henv hΓ (VEnv.IsDefEqU.symm hTS) hTf)
+      have ha₀ : env.HasType U Γ a A₀ := VEnv.HasType.defeqU_r henv hΓ ⟨_, hA.symm⟩ ha
+      have hinst : env.IsDefEqU U Γ (B₀.inst a) (B'.inst a) :=
+        VEnv.IsDefEqU.instN henv.ordered .zero ⟨_, hB⟩ ha₀
+      exact ih hS'.inst (by simpa using hlen) (VEnv.IsDefEqU.symm hinst) hrest
 
 /-- A constructor's declared type, with the block's own parameter count and this
 constructor's field count. `CtorOf` and `IndArity` each exhibit a block; ask 2's uniqueness

@@ -342,58 +342,6 @@ theorem firstOrderInd_of_own {env : VEnv} {fo : Name → Prop} {decl : VInductDe
   · obtain ⟨t, ht, hname⟩ := List.mem_map.1 hK
     exact ⟨decl, hd, hfd.widen (fun _ h => .inl h), t, ht, hname⟩
 
-/-- A bare type former at binder `i` of a Π-telescope is a major premise of that former at
-position `i`: `MajorPremiseAt`'s spine is the empty application. -/
-theorem majorPremiseAt_of_piBinders {J : Name} {jus : List VLevel} :
-    ∀ {i : Nat} {T : VExpr}, T.piBinders[i]? = some (.const J jus) → MajorPremiseAt J i T
-  | 0, .forallE _ B, h => by
-      simp only [VExpr.piBinders, List.getElem?_cons_zero, Option.some.injEq] at h
-      exact ⟨_, B, jus, [], rfl, h⟩
-  | _ + 1, .forallE A _, h => by
-      simp only [VExpr.piBinders, List.getElem?_cons_succ] at h
-      exact ⟨A, _, rfl, majorPremiseAt_of_piBinders h⟩
-  | _, .bvar .., h | _, .sort .., h | _, .const .., h | _, .app .., h | _, .lam .., h => by
-      simp [VExpr.piBinders] at h
-
-/-- The major-premise position survives level instantiation, as `MajorPremiseAt.inst` survives
-term instantiation. -/
-theorem MajorPremiseAt.instL {I : Name} {ls : List VLevel} : ∀ {n : Nat} {T : VExpr},
-    MajorPremiseAt I n T → MajorPremiseAt I n (T.instL ls)
-  | 0, _, ⟨_, _, ius, iargs, rfl, rfl⟩ =>
-      ⟨_, _, ius.map (VLevel.inst ls), iargs.map (·.instL ls), rfl, VExpr.mkApps_instL⟩
-  | _ + 1, _, ⟨_, _, rfl, h⟩ => ⟨_, _, rfl, h.instL⟩
-
-/-- Peeling a Π-telescope to its end reaches the telescope's own result spine. `peel_piSpine`
-says the spine of a well-typed constructor value has exactly the telescope's length; this says
-what the type at that end is. -/
-theorem peel_piSpine_head {env : VEnv} (henv : env.WF) {U : Nat} {Γ : List VExpr}
-    (hΓ : OnCtx Γ (env.IsType U)) {I : Name} :
-    ∀ (vargs : List VExpr) {T S V : VExpr} {n : Nat}, PiSpine I n S → vargs.length = n →
-      env.IsDefEqU U Γ T S → Peel env U Γ T vargs V →
-      ∃ us args, env.IsDefEqU U Γ V (VExpr.mkApps (.const I us) args) := by
-  intro vargs
-  induction vargs with
-  | nil =>
-    intro T S V n hS hlen hTS hP
-    cases n with
-    | zero =>
-      obtain ⟨us, args, rfl⟩ := hS
-      exact ⟨us, args, VEnv.IsDefEqU.trans henv hΓ (VEnv.IsDefEqU.symm hP) hTS⟩
-    | succ m => simp at hlen
-  | cons a as ih =>
-    intro T S V n hS hlen hTS hP
-    cases n with
-    | zero => simp at hlen
-    | succ m =>
-      obtain ⟨A₀, B₀, rfl, hS'⟩ := hS
-      obtain ⟨A', B', hTf, ha, hrest⟩ := hP
-      obtain ⟨⟨_, hA⟩, _, hB⟩ := VEnv.IsDefEqU.forallE_inv henv hΓ
-        (VEnv.IsDefEqU.trans henv hΓ (VEnv.IsDefEqU.symm hTS) hTf)
-      have ha₀ : env.HasType U Γ a A₀ := VEnv.HasType.defeqU_r henv hΓ ⟨_, hA.symm⟩ ha
-      have hinst : env.IsDefEqU U Γ (B₀.inst a) (B'.inst a) :=
-        VEnv.IsDefEqU.instN henv.ordered .zero ⟨_, hB⟩ ha₀
-      exact ih hS'.inst (by simpa using hlen) (VEnv.IsDefEqU.symm hinst) hrest
-
 /-- **The source theory's typing of a first-order constructor value**: every argument of a
 well-typed constructor value of a first-order inductive is itself typed at a first-order type
 former. Three kernel facts carry it, and each is a field of `UpstreamAsks`: the constructor's

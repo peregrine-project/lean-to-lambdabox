@@ -257,27 +257,6 @@ theorem Lower.source_constApp {Γ : GlobalDeclarations} {kn : Kername} :
             hh, ?_, hlen, hmlen, halen, hmin, hdisc, hxlen, hx, rfl⟩
           rw [List.concat_eq_append, ← hargs]
 
-/-! ## Two block readings agree
-
-`SEval.iota`'s `hnp` and the eliminator entry's `IndInfo` each exhibit a block declaring the
-same type former. Ask 2's declaration-level uniqueness identifies the blocks and a block
-names its type formers injectively, so the two arity readings are one — which is what pins
-the prefix the source rule drops to the one the emitted `.case` node drops.
--/
-
-/-- **A type former has one arity.** The `IndArity` twin of `IndInfo.inj`; the same route as
-`CasesOnShape.agree`, at two `IndArity`s. -/
-theorem IndArity.inj {env : VEnv} (A : UpstreamAsks env) {I : Name} {np np' : Nat}
-    {nfs nfs' : List Nat} (h : IndArity env I np nfs) (h' : IndArity env I np' nfs') :
-    np = np' ∧ nfs = nfs' := by
-  obtain ⟨decl, hblk, t, ht, hname, hnp, hnfs⟩ := h.indBlockBelow
-  obtain ⟨decl', hblk', t', ht', hname', hnp', hnfs'⟩ := h'.indBlockBelow
-  obtain rfl : decl = decl' :=
-    indBlock_uniq A hblk hblk' ⟨t, ht, hname⟩ ⟨t', ht', hname'⟩
-  obtain rfl : t = t' := indBlockBelow_type_uniq hblk ht ht' (hname.trans hname'.symm)
-  subst hnp; subst hnp'; subst hnfs; subst hnfs'
-  exact ⟨rfl, rfl⟩
-
 /-! ## The ι arm -/
 
 /-- **The ι arm.** The subject is the `casesOn` spine, the induction hypotheses come with
