@@ -1,3 +1,4 @@
+import LeanToLambdaBox.CasesNames
 import LeanToLambdaBox.ErasureSpec
 import LeanToLambdaBox.Witness.SourceTable
 
@@ -60,6 +61,18 @@ inductive SupportError where
       *shape*, not the name — `Acc.casesOn` compiles in Lean, so a name-keyed exclusion would
       not close the hole. -/
   | propElimIntoData (I : Name)
+  /-- A constructor occurrence applied to fewer than `numParams + numFields` arguments: the
+      erasure η-expands it and pushes the supplied prefix under the new binders, where weak
+      evaluation never reaches it. -/
+  | underAppliedCtor (c : Name)
+  /-- An eliminator occurrence applied to fewer than `dp + 1 + nm` arguments — the arguments
+      before the major premise, the major premise, and one minor per constructor. Same η path,
+      same defect. -/
+  | underAppliedElim (c : Name)
+  /-- A recursor head. It is tabled body-less, it is neither a constructor nor a type former,
+      and the ι rule is keyed on `casesOn` names, so a spine headed by one has no source
+      evaluation at all and a program reaching it would be vacuously covered. -/
+  | recursorHead (c : Name)
   /-- A constant the table does not know. -/
   | unknownConst (c : Name)
   /-- The closure did not saturate within the fuel. Exhaustion never certifies an untraversed
@@ -134,23 +147,11 @@ def ioLikeRoots : List Name :=
 /-- Is `c` the name, or a name under, one of `ioLikeRoots`? -/
 def isIoLike (c : Name) : Bool := ioLikeRoots.any fun r => r == c || r.isPrefixOf c
 
-/-- The last string component of `c`, if it has one. -/
-def lastComponent (c : Name) : Option String :=
-  match c with
-  | .str _ s => some s
-  | _ => none
-
 /-- Is `c` a sparse `casesOn` — `f._sparseCasesOn_i`, named after the enclosing function rather
 than after an inductive type? -/
 def isSparseCasesOn (c : Name) : Bool :=
   match lastComponent c with
   | some s => "_sparseCasesOn_".isPrefixOf s
-  | none => false
-
-/-- Is `c` a `casesOn` eliminator name, `I.casesOn`? -/
-def isCasesOnName (c : Name) : Bool :=
-  match lastComponent c with
-  | some s => s == "casesOn"
   | none => false
 
 /-- Is `c` a matcher — `f.match_i` or one of its splitter variants? -/
@@ -159,8 +160,9 @@ def isMatcherName (c : Name) : Bool :=
   | some s => "match_".isPrefixOf s || "splitter".isPrefixOf s
   | none => false
 
-/-- Is `c` a recursor of a tabled inductive type? Such a constant is body-less and reaches the
-consumer through the axiom route, so the fragment lets it through. -/
+/-- Is `c` a recursor of a tabled inductive type? Such a constant is outside the fragment:
+`Witness.reify%` tables it body-less, so δ cannot fire at it, no value arm classifies it, and
+the ι rule reads `casesOn` names only. -/
 def isRecursorName (tbl : SourceTable) (c : Name) : Bool :=
   match lastComponent c with
   | some s =>
@@ -173,6 +175,13 @@ def ctorOf? (tbl : SourceTable) (c : Name) : Option (Name × ReifiedCtor) :=
   match tbl.ind? c.getPrefix with
   | some I => (I.ctors.find? (·.name == c)).map fun cb => (c.getPrefix, cb)
   | none => none
+
+/-- N19's constructor half at one occurrence: if `c` is a tabled constructor, the spine it
+heads supplies at least its parameters and its fields. Vacuous at every other head. -/
+def ctorSaturatedB (tbl : SourceTable) (c : Name) (args : List Expr) : Bool :=
+  match ctorOf? tbl c with
+  | some p => decide (p.2.numParams + p.2.numFields ≤ args.length)
+  | none => true
 
 /-! ## Informativity -/
 
@@ -230,6 +239,8 @@ def supportedHead (tbl : SourceTable) (c : Name) (args : List Expr) :
     | none => .error (.sparseCasesOn c)
     | some I =>
       if !informativeB I then .error (.propElimIntoData c.getPrefix)
+      else if !decide (I.numParams + 1 + I.numIndices + 1 + I.ctors.length ≤ args.length) then
+        .error (.underAppliedElim c)
       else
         let discrPos := I.numParams + 1 + I.numIndices
         let minors := (args.drop (discrPos + 1)).take I.ctors.length
@@ -237,7 +248,8 @@ def supportedHead (tbl : SourceTable) (c : Name) (args : List Expr) :
         else if (List.zip minors I.ctors).all
             (fun p => isLamTelescopeB p.2.numFields p.1) then .ok ()
         else .error (.etaContractedMinor c)
-  else if isRecursorName tbl c then .ok ()
+  else if !ctorSaturatedB tbl c args then .error (.underAppliedCtor c)
+  else if isRecursorName tbl c then .error (.recursorHead c)
   else if (tbl.ind? c).isSome then .ok ()
   else match ctorOf? tbl c with
     | some _ => .ok ()
@@ -338,6 +350,22 @@ structure TableSafe (lenv : Lean.Environment) (tbl : SourceTable) : Prop where
 
 /-! ## The fragment -/
 
+/-- **N19's constructor half**: a tabled constructor occurs applied to at least its
+parameters and its fields. Vacuous at every other head. Under-application is excluded because
+the erasure η-expands it and pushes the supplied prefix under the new binders, where weak
+evaluation never reaches it, and the pass relation has no η arm. -/
+def CtorSaturated (tbl : SourceTable) (c : Name) (args : List Expr) : Prop :=
+  ∀ p : Name × ReifiedCtor, ctorOf? tbl c = some p →
+    p.2.numParams + p.2.numFields ≤ args.length
+
+/-- `ctorSaturatedB` decides `CtorSaturated`. -/
+theorem ctorSaturatedB_iff {tbl : SourceTable} {c : Name} {args : List Expr} :
+    ctorSaturatedB tbl c args = true ↔ CtorSaturated tbl c args := by
+  simp only [ctorSaturatedB, CtorSaturated]
+  cases h : ctorOf? tbl c with
+  | none => simp
+  | some p => simp
+
 /-- The four exclusions every head carries, one per error the name classes report. -/
 structure PlainHead (c : Name) : Prop where
   /-- Not a `Quot` primitive — `SupportError.quotPrim`. -/
@@ -349,13 +377,10 @@ structure PlainHead (c : Name) : Prop where
   /-- Not a surviving matcher — `SupportError.sideConditionElim`. -/
   notSideCondition : isMatcherName c = false
 
-/-- A head the table knows, in one of the four columns it has — the exclusion
-`SupportError.unknownConst` reports. Three of the four also put the name in the model; the
-recursor of a tabled inductive type need not be tabled itself, reaches the consumer through
-the axiom route, and carries no model claim here. -/
+/-- A head the table knows, in one of the three columns the fragment admits — the exclusion
+`SupportError.unknownConst` reports. Each of the three also puts the name in the model. A
+recursor is not among them: `SupportError.recursorHead` excludes it. -/
 inductive KnownHead (env : VEnv) (tbl : SourceTable) : Name → Prop
-  /-- A recursor of a tabled inductive type. -/
-  | recursor {c : Name} (h : isRecursorName tbl c = true) : KnownHead env tbl c
   /-- A tabled inductive type. -/
   | indType {c : Name} {I : ReifiedInduct} (h : tbl.ind? c = some I) (hm : env.contains c) :
       KnownHead env tbl c
@@ -405,9 +430,12 @@ inductive SupportedTm (env : VEnv) (tbl : SourceTable) : Expr → List Expr → 
       indices `Erasure.visitLiteral`'s peano arm rebuilds. -/
   | natLit {n : Nat} {args : List Expr} (hpeano : PeanoReady env)
       (hidx : peanoReadyB tbl = true) : SupportedTm env tbl (.lit (.natVal n)) args
-  /-- A plain constant head. -/
+  /-- A plain constant head. `hrec` is restriction **N21** — a recursor spine has no source
+      evaluation at all (`SupportError.recursorHead`) — and `hsat` is **N19**'s constructor
+      half (`SupportError.underAppliedCtor`). -/
   | const {c : Name} {us : List Level} {args : List Expr} (hplain : PlainHead c)
-      (hcases : isCasesOnName c = false) (hknown : KnownHead env tbl c) :
+      (hcases : isCasesOnName c = false) (hrec : isRecursorName tbl c = false)
+      (hsat : CtorSaturated tbl c args) (hknown : KnownHead env tbl c) :
       SupportedTm env tbl (.const c us) args
   /-- A `casesOn` head, applied. `hind` names the inductive type the erasure recovers from the
       head's name prefix; `hinf` is its informativity, without which the emitted `.case` is
@@ -415,10 +443,13 @@ inductive SupportedTm (env : VEnv) (tbl : SourceTable) : Expr → List Expr → 
       (`SupportError.propElimIntoData`); `hlen` and `htel` are the minor premises, one per
       constructor and each a manifest λ-telescope of its constructor's field count, which is
       what keeps the erasure's intro branch from η-expanding
-      (`SupportError.etaContractedMinor`). -/
+      (`SupportError.etaContractedMinor`); `harity` is **N19**'s eliminator half
+      (`SupportError.underAppliedElim`), which `hlen` does not imply at a constructor-free
+      inductive type. -/
   | casesApp {c : Name} {us : List Level} {args minors : List Expr} {I : ReifiedInduct}
       (hplain : PlainHead c) (hcases : isCasesOnName c = true)
       (hind : tbl.ind? c.getPrefix = some I) (hinf : InformativeInd env c.getPrefix)
+      (harity : I.numParams + 1 + I.numIndices + 1 + I.ctors.length ≤ args.length)
       (hmin : minors = (args.drop (I.numParams + 1 + I.numIndices + 1)).take I.ctors.length)
       (hlen : minors.length = I.ctors.length)
       (htel : ∀ (j : Nat) (m : Expr) (cb : ReifiedCtor), minors[j]? = some m →
@@ -587,19 +618,27 @@ theorem supportedHead_sound (P : ErasureSpec lenv env Us gw) (ht : SourceTableAd
     rename_i hinfB
     split at h
     · cases h
+    rename_i harity
+    split at h
+    · cases h
     rename_i hlen
     split at h
     · rename_i hall
       refine .casesApp hplain hco hI
-        (informativeInd_of_tabled P ht hsafe hI (by simpa using hinfB)) rfl
-        (by simpa using hlen) ?_
+        (informativeInd_of_tabled P ht hsafe hI (by simpa using hinfB))
+        (by simpa using harity) rfl (by simpa using hlen) ?_
       intro j m cb hm hcb
       exact (isLamTelescopeB_iff _ _).1 (zip_all_getElem? hall j m cb hm hcb)
     · cases h
   rename_i hco
-  refine .const hplain (by simpa using hco) ?_
   split at h
-  · exact .recursor (by assumption)
+  · cases h
+  rename_i hsat
+  split at h
+  · cases h
+  rename_i hrecn
+  refine .const hplain (by simpa using hco) (by simpa using hrecn)
+    (ctorSaturatedB_iff.1 (by simpa using hsat)) ?_
   split at h
   · rename_i hsome
     obtain ⟨I, hI⟩ := Option.isSome_iff_exists.1 (by simpa using hsome)
@@ -757,11 +796,13 @@ theorem SupportedTm.instantiate1' {env : VEnv} {tbl : SourceTable} {e : Expr}
   | proj _ ihb => intro k; exact .proj (ihb k)
   | app _ _ iha ihf => intro k; exact .app (iha k) (ihf k)
   | natLit hpeano hidx => intro _; exact .natLit hpeano hidx
-  | const hplain hcases hknown => intro _; exact .const hplain hcases hknown
-  | @casesApp c us args minors I hplain hcases hind hinf hmin hlen htel =>
+  | @const c us args hplain hcases hrec hsat hknown =>
+    intro _
+    exact .const hplain hcases hrec (fun p hp => by simpa using hsat p hp) hknown
+  | @casesApp c us args minors I hplain hcases hind hinf harity hmin hlen htel =>
     intro k
     refine .casesApp (minors := minors.map (·.instantiate1' (.fvar x) k)) hplain hcases hind
-      hinf ?_ (by simpa using hlen) ?_
+      hinf (by simpa using harity) ?_ (by simpa using hlen) ?_
     · rw [hmin, List.map_take, List.map_drop]
     · intro j m cb hm hcb
       rw [List.getElem?_map] at hm

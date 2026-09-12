@@ -1,5 +1,5 @@
 import LeanToLambdaBox.ErasesTotal
-import LeanToLambdaBox.Supported
+import LeanToLambdaBox.CasesNames
 
 /-!
 # The source evaluation relation

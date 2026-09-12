@@ -5,12 +5,16 @@ What this development needs from, or has found in, the projects it sits on: lean
 fixes whose natural home is upstream, either because they are kernel-generic — a fact about
 `VEnv`/`VExpr`/`HasType`/`IsDefEq`/`TrExprS` and not about erasure — or because the defect
 is upstream's. Item 7 is **reported, not asked**: findings about consumers this repository
-does not depend on fixing.
+does not depend on fixing. Item 8 is **proved here and filed for consolidation**: kernel-generic
+facts this repository already has, which need no fork change.
 
-Two asks are **load-bearing for Wave 3** and are consumed as theorems, never as hypotheses:
-item 2 (`WF'.consts_origin`) and item 6 (`IsDefEqU.const_arity_inv`). If either is refused,
-the arms that consume it are blocked and `doc/trust.md` records that; neither is replaced by
-a premise (`doc/rework/00-REFERENCE-SPEC.md` criterion 6).
+Two asks are **load-bearing for Wave 3**: item 2 (`WF'.consts_origin`) and item 6
+(`IsDefEqU.const_arity_inv`). Editing the fork is a separate agent's work, so until the pin
+moves each is taken as one named, auditable class-**C** hypothesis — the two fields of
+`UpstreamAsks env` (`LeanToLambdaBox/Upstream.lean`), unweakened and unrestated — and every
+consumer carries it in its statement. The pin bump discharges the structure with no change to
+any consumer's statement shape; a refusal blocks the arms that consume it, and `doc/trust.md`
+records which.
 
 Paths under `.lake/packages/lean4lean/Lean4Lean/` are given relative to that directory.
 
@@ -21,7 +25,14 @@ Paths under `.lake/packages/lean4lean/Lean4Lean/` are given relative to that dir
    This is the fact that settled whether the δ layer needs a second environment of compiler
    bodies, and the answer was no. The proof is written (about 130 lines, no frontend
    dependency; it was produced as a design-gate probe, `doc/rework/01-DESIGN.md` §8.3) and it
-   belongs upstream, not here.
+   belongs upstream, not here. In the idiom of `WF'.pats_origin`, and free to be sharpened:
+
+   ```lean
+   theorem VEnv.WF'.defeqOwn {ds : List VDecl} {env : VEnv} (H : env.WF' ds)
+       {df df' : VDefEq} (h : env.defeqs df) (h' : env.defeqs df')
+       {c : Name} {us us' : List VLevel}
+       (hlhs : df.lhs = .const c us) (hlhs' : df'.lhs = .const c us') : df = df'
+   ```
 
 2. **`VEnv.WF'.consts_origin`**, the constants-keyed twin of `WF'.pats_origin`, together with
    a generic `iotaRHS'` — the missing link in the `largeElim_of_wf` argument. **Load-bearing
@@ -31,13 +42,65 @@ Paths under `.lake/packages/lean4lean/Lean4Lean/` are given relative to that dir
    corollaries this repository consumes are `constOrigin_not_ctorOf`, `constOrigin_not_indInfo`,
    `IndInfo.inj`, `CtorOf.inj`, `CasesOnShape.inj`, plus the totality direction
    `consts_classified`; they land in `LeanToLambdaBox/Origin.lean`. Its singleton-machinery use
-   still waits on `F-PROP`.
+   still waits on `F-PROP`. The origin statement asked for, in the idiom of `WF'.pats_origin`
+   — one declaring step per constant, the name fresh below it — is what the six corollaries are
+   read off:
+
+   ```lean
+   theorem VEnv.WF'.consts_origin {ds : List VDecl} {env : VEnv} (H : env.WF' ds)
+       {c : Name} {ci : VConstant} (hc : env.constants c = some ci) :
+       ∃ (d : VDecl) (ds₀ : List VDecl) (env₀ env₁ : VEnv),
+         (d :: ds₀) <:+ ds ∧ env₀.WF' ds₀ ∧ VDecl.WF env₀ d env₁ ∧ env₁ ≤ env ∧
+         env₀.constants c = none ∧ env₁.constants c = some ci
+   ```
+
+   Until the fork holds it, the six consequences are the `constsOrigin` field of
+   `UpstreamAsks env` (`LeanToLambdaBox/Upstream.lean`), taken as one named class-**C**
+   hypothesis and unpacked by `LeanToLambdaBox/Origin.lean`; `doc/trust.md` carries the row.
 
 3. **The seven kernel-generic declarations in `LeanToLambdaBox/CheckerAdequacy.lean`** —
    `VContext.ofMLCtx` with its three `@[simp]` projections, `VState.WF.initial`, `M.WF.run'`,
    and `kernelNGen`. They are about the checker, not about erasure; this repository's
    acceptance criteria forbid a `Lean4Lean`-namespace declaration here, and the oracle
-   discharge needs them. They move to the fork with the pin bump (U3.1).
+   discharge needs them. They move to the fork with the pin bump (U3.1). Their statements, as
+   they stand here in `namespace Lean4Lean.TypeChecker`:
+
+   ```lean
+   def kernelNGen : NameGenerator := { namePrefix := `_kernel_fresh, idx := 0 }
+
+   def VContext.ofMLCtx {env : Environment} {ves : VEnvs} (wf : ves.WF env)
+       (safety : DefinitionSafety := .safe) (lparams : List Name := [])
+       (fuel : FuelConfig := {})
+       (m : MLCtx) (mwf : m.WF (ves.venv safety) lparams) : VContext
+
+   @[simp] theorem VContext.ofMLCtx_venv {env : Environment} {ves : VEnvs} (wf : ves.WF env)
+       {safety : DefinitionSafety} {lparams : List Name} {fuel : FuelConfig}
+       {m : MLCtx} (mwf : m.WF (ves.venv safety) lparams) :
+       (VContext.ofMLCtx wf safety lparams fuel m mwf).venv = ves.venv safety
+
+   @[simp] theorem VContext.ofMLCtx_lparams {env : Environment} {ves : VEnvs} (wf : ves.WF env)
+       {safety : DefinitionSafety} {lparams : List Name} {fuel : FuelConfig}
+       {m : MLCtx} (mwf : m.WF (ves.venv safety) lparams) :
+       (VContext.ofMLCtx wf safety lparams fuel m mwf).lparams = lparams
+
+   @[simp] theorem VContext.ofMLCtx_vlctx {env : Environment} {ves : VEnvs} (wf : ves.WF env)
+       {safety : DefinitionSafety} {lparams : List Name} {fuel : FuelConfig}
+       {m : MLCtx} (mwf : m.WF (ves.venv safety) lparams) :
+       (VContext.ofMLCtx wf safety lparams fuel m mwf).vlctx = m.vlctx
+
+   theorem VState.WF.initial {env : Environment} {ves : VEnvs} {wf : ves.WF env}
+       {safety : DefinitionSafety} {lparams : List Name} {fuel : FuelConfig}
+       {m : MLCtx} {mwf : m.WF (ves.venv safety) lparams}
+       (hfresh : ∀ fv ∈ m.vlctx.fvars, kernelNGen.Reserves fv) :
+       VState.WF (.ofMLCtx wf safety lparams fuel m mwf) {}
+
+   theorem M.WF.run' {env : Environment} {ves : VEnvs} (wf : ves.WF env)
+       {safety : DefinitionSafety} {lparams : List Name} {fuel : FuelConfig}
+       {m : MLCtx} (mwf : m.WF (ves.venv safety) lparams)
+       (hfresh : ∀ fv ∈ m.vlctx.fvars, kernelNGen.Reserves fv)
+       {x : M α} {Q} (H : x.WF (.ofMLCtx wf safety lparams fuel m mwf) {} fun a _ => Q a) :
+       (M.run env safety m.lctx lparams fuel x).WF Q
+   ```
 
 4. **A `TrEnv'` inversion on the `induct`/`AddInduct` clause** yielding
    `InductiveVal ↔ VInductDecl`, in the shape of `TrEnv.structure_rec`
@@ -92,3 +155,22 @@ Paths under `.lake/packages/lean4lean/Lean4Lean/` are given relative to that dir
      (`Pipeline.v:245-248`, `CheckWf.v:182-183`) — no expandedness check. That is what makes
      `F-ETA` undetectable downstream, and why an `.ast` produced by a panicking run still
      validates (`doc/panics.md`).
+
+## Proved here, filed for consolidation
+
+8. Three facts about lean4lean's `VEnv.WF'`/`VInductDecl.WF` that are kernel-generic rather than
+   about erasure. **No fork change is needed**: all three are proved here and `sorryAx`-free at
+   the pin, in `LeanToLambdaBox/SourceEval.lean`, for want of a dedicated home. They are the
+   constructor-side twins of `wf'_induct_origin` and `IndInfo.constant_isArity`
+   (`LeanToLambdaBox/ErasesTotal.lean`), which make the same argument from the type-former side;
+   the natural home for all five, on this side of the boundary, is `LeanToLambdaBox/Origin.lean`.
+
+   ```lean
+   theorem IsArity.piBody_sort {A : VExpr} (h : IsArity A) : ∃ u, A.piBody = .sort u
+
+   theorem CtorOf.constant_ctorResult {env : VEnv} {c I : Name} {k : Nat} (h : CtorOf env c I k) :
+       ∃ ci np nf nind, env.constants c = some ci ∧ ci.type.CtorResult I np nf nind
+
+   theorem CtorOf.not_indInfo {env : VEnv} {c I : Name} {k : Nat} {iid : InductiveId}
+       {np : Nat} {nfs : List Nat} (hc : CtorOf env c I k) : ¬ IndInfo env c iid np nfs
+   ```

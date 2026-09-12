@@ -1,0 +1,676 @@
+import LeanToLambdaBox.ErasesAbstract
+import LeanToLambdaBox.ErasesEnv
+import LeanToLambdaBox.ErasureRun
+
+/-!
+# The cold-start registry invariant
+
+`RegInvShape' env bo Γspec s` is what a run of the erasure's *registration* path maintains
+between a fixed specification environment `Γspec` and the state `s` it has built so far: the
+specification environment is well formed and `ErasesDecl`-justified, everything the run has
+registered is covered by it, and the emitted `s.gdecls` is its lowered, pruned image as far as
+the run has got.
+
+`Γspec` does not grow with the state. The pass relation `Lower Γ` is not monotone in `Γ` — the
+`fixConst` arm's `¬ RuntimeKey Γ` guard is negative, and declaring a block can turn a key into
+a runtime key — so a specification environment built entry by entry alongside the run would
+strand every `Lower` fact it had already recorded. Reading one fixed `Γspec` at every state is
+the same universally-quantified, antitone reading `SpecEnv.mono` takes.
+
+The state-facing clauses are *scoped* to what the run has registered: `defsTotal` and
+`indsEmitted` quantify over the registries, not over `Γspec`, so they hold vacuously at the
+empty state and collapse to `LowerEnv`'s unscoped clauses under the saturation premises
+`SpecEnv.lean` names. Key *coverage* is maintainable at every registration site; key
+*distinctness* is not maintainable unconditionally — every writer prepends and `envLookup` is
+first-match-wins — so each step lemma takes the freshness it needs as a side condition.
+
+`LowerEnv`'s ninth clause, `specBlocks : BlockBodiesLambda Γspec`, is not a field: it is
+refuted at every specification environment holding a non-λ body, and `regInvShape'_ctorBody`
+(`SpecEnv.lean`) exhibits the invariant holding at a state whose `Γspec` refutes it.
+-/
+
+namespace LeanToLambdaBox
+
+open Lean Lean4Lean Erasure
+
+/-! ## Lookup and registry plumbing across one registration step -/
+
+/-- An established lookup survives a cons whose key is fresh for the list. -/
+theorem envLookup_cons_of_fresh {E : GlobalDeclarations} {k kn : Kername} {d d' : GlobalDecl}
+    (hfresh : ∀ q ∈ E, q.1 ≠ k) (h : LBTerm.envLookup E kn = some d') :
+    LBTerm.envLookup ((k, d) :: E) kn = some d' :=
+  (envLookup_cons_ne (fun hkn => hfresh _ (envLookup_mem h) hkn.symm)).trans h
+
+/-- A lookup that missed the consed entry is a lookup of the tail. -/
+theorem envLookup_of_cons_ne {E : GlobalDeclarations} {k kn : Kername} {d d' : GlobalDecl}
+    (hne : k ≠ kn) (h : LBTerm.envLookup ((k, d) :: E) kn = some d') :
+    LBTerm.envLookup E kn = some d' := by
+  rwa [envLookup_cons_ne hne] at h
+
+/-- A fresh key is not among the keys of the list. -/
+theorem not_mem_keys_of_fresh {E : GlobalDeclarations} {k : Kername}
+    (hfresh : ∀ q ∈ E, q.1 ≠ k) : k ∉ E.map Prod.fst := by
+  intro hk
+  obtain ⟨q, hq, hqk⟩ := List.mem_map.mp hk
+  exact hfresh q hq hqk
+
+/-- The key just inserted is known. -/
+theorem constants_isSome_insert_self (mp : Std.HashMap Name Kername) (n : Name)
+    (k : Kername) : ((mp.insert n k).get? n).isSome := by
+  rw [Std.HashMap.get?_insert]; simp
+
+/-- Insertion does not forget. -/
+theorem constants_isSome_insert {mp : Std.HashMap Name Kername} {n m : Name} {k : Kername}
+    (h : (mp.get? m).isSome) : ((mp.insert n k).get? m).isSome := by
+  rw [Std.HashMap.get?_insert]
+  split
+  · simp
+  · exact h
+
+/-- An inserted key is the inserted name's or was known before. -/
+theorem constants_insert_cases {mp : Std.HashMap Name Kername} {n m : Name} {k : Kername}
+    (h : ((mp.insert n k).get? m).isSome) : m = n ∨ (mp.get? m).isSome := by
+  rw [Std.HashMap.get?_insert] at h
+  split at h
+  · rename_i hb; refine .inl ?_; have : n = m := by simpa using hb
+    exact this.symm
+  · exact .inr h
+
+/-! ## Coverage of one inductive -/
+
+/-- `Γspec` covers the inductive `n`: it declares `n`'s block, every constructor of `n`, and —
+when `n` is informative — every `casesOn` eliminator of `n`. These are `SpecEnv`'s three
+inductive clauses at one name, which is the granularity a registration step establishes. -/
+structure IndCovered (env : VEnv) (Γspec : GlobalDeclarations) (n : Name) : Prop where
+  /-- The block declaration, at the block kername `IndInfo` names. -/
+  block : ∃ iid np nfs, IndInfo env n iid np nfs ∧
+    (LBTerm.envLookup Γspec iid.mutualBlockName).isSome
+  /-- Every constructor of `n` is declared. -/
+  ctors : ∀ c k, CtorOf env c n k → (LBTerm.envLookup Γspec (toKername c)).isSome
+  /-- Every `casesOn` eliminator of an informative `n` is declared. -/
+  elims : ∀ kn, CasesOnOf env n kn → InformativeInd env n →
+    (LBTerm.envLookup Γspec kn).isSome
+
+/-- The block `Γspec` holds for `n` is the block the run emitted. `LowerEnv.inds` at one
+registered name: blocks are carried over unchanged, since the target reads the parameter count
+and the field counts off them. -/
+def IndEmitted (env : VEnv) (Γspec Γ : GlobalDeclarations) (n : Name) : Prop :=
+  ∀ iid np nfs, IndInfo env n iid np nfs → ∀ d,
+    LBTerm.envLookup Γspec iid.mutualBlockName = some (.inductiveDecl d) →
+    LBTerm.envLookup Γ iid.mutualBlockName = some (.inductiveDecl d)
+
+/-! ## The invariant -/
+
+/--
+What a registration run maintains between a fixed specification environment and its state.
+
+The first three fields are `Γspec`'s own well-formedness, fixed for the run; `consts` and
+`inds` are the coverage the state demands; the rest is the emitted environment, scoped to what
+the run has registered. `specBlocks` is absent by design — it is refuted, not merely underived.
+-/
+structure RegInvShape' (env : VEnv) (bo : Name → Option Expr)
+    (Γspec : GlobalDeclarations) (s : ErasureState) : Prop where
+  /-- The specification keys are distinct. -/
+  specKeys : (Γspec.map Prod.fst).Nodup
+  /-- Every specification entry is `ErasesDecl`-justified. -/
+  specDecls : ∀ kn d, LBTerm.envLookup Γspec kn = some d → ErasesDecl env bo kn d
+  /-- The specification bodies are closed. -/
+  specClosed : ClosedBodies Γspec
+  /-- Every registered constant is declared, at its canonical kername. -/
+  consts : ∀ n : Name, (s.constants.get? n).isSome →
+    (LBTerm.envLookup Γspec (toKername n)).isSome
+  /-- Every registered inductive is covered. -/
+  inds : ∀ n : Name, (s.inductives.get? n).isSome → IndCovered env Γspec n
+  /-- The emitted keys are distinct. -/
+  keys : (s.gdecls.map Prod.fst).Nodup
+  /-- A body declared by both is a `Lower` image, or one member of a lowered block. -/
+  defs : ∀ kn b₀ b, DefnDecl Γspec kn b₀ → DefnDecl s.gdecls kn b →
+    Lower Γspec b₀ b ∨ ∃ kns bs defs j, LowerFix Γspec kns bs defs ∧
+      kns[j]? = some kn ∧ b = .fix defs j
+  /-- Every registered constant that `Γspec` declares with a body, and that is not a runtime
+      key, is emitted with a body. `LowerEnv.defsTotal`, scoped to the registry. -/
+  defsTotal : ∀ (n : Name) (b₀ : LBTerm), (s.constants.get? n).isSome →
+    DefnDecl Γspec (toKername n) b₀ → ¬ RuntimeKey Γspec (toKername n) →
+    ∃ b, DefnDecl s.gdecls (toKername n) b
+  /-- A body-less specification constant stays body-less, or is pruned. -/
+  axioms : ∀ kn, LBTerm.envLookup Γspec kn = some (.constantDecl ⟨none⟩) →
+    LBTerm.envLookup s.gdecls kn = some (.constantDecl ⟨none⟩) ∨
+      LBTerm.envLookup s.gdecls kn = none
+  /-- Every registered inductive's block is emitted unchanged. `LowerEnv.inds`, scoped. -/
+  indsEmitted : ∀ n : Name, (s.inductives.get? n).isSome → IndEmitted env Γspec s.gdecls n
+  /-- Pruning only removes. -/
+  sub : ∀ kn, LBTerm.envLookup s.gdecls kn ≠ none → LBTerm.envLookup Γspec kn ≠ none
+  /-- The emitted bodies are closed. -/
+  closed : ClosedBodies s.gdecls
+
+/-- The invariant at the initial state: the registries are empty and nothing is emitted, so
+only `Γspec`'s own three clauses are left to hold. This is what makes a cold run possible. -/
+theorem RegInvShape'.empty {env : VEnv} {bo : Name → Option Expr}
+    {Γspec : GlobalDeclarations} (hkeys : (Γspec.map Prod.fst).Nodup)
+    (hdecls : ∀ kn d, LBTerm.envLookup Γspec kn = some d → ErasesDecl env bo kn d)
+    (hcl : ClosedBodies Γspec) : RegInvShape' env bo Γspec {} where
+  specKeys := hkeys
+  specDecls := hdecls
+  specClosed := hcl
+  consts n hn := by simp at hn
+  inds n hn := by simp at hn
+  keys := by simp
+  defs kn b₀ b _ hb := by simp [DefnDecl, LBTerm.envLookup] at hb
+  defsTotal n b₀ hn := by simp at hn
+  axioms kn _ := .inr rfl
+  indsEmitted n hn := by simp at hn
+  sub kn hk := by simp [LBTerm.envLookup] at hk
+  closed kn b hb := by simp [DefnDecl, LBTerm.envLookup] at hb
+
+/-! ## Preservation across the registration primitives -/
+
+/-- The key of a consed entry, decided against a queried kername. -/
+theorem kername_ne_of_beq_false {k kn : Kername} (h : Kername.beq k kn = false) : k ≠ kn :=
+  fun hk => by rw [hk, Kername.beq_self] at h; exact Bool.noConfusion h
+
+/-- The two state deltas, unfolded once, so the lookup lemmas can fire on them. -/
+theorem addAxiomState_gdecls (n : Name) (s : ErasureState) :
+    (addAxiomState n s).gdecls = (toKername n, .constantDecl ⟨none⟩) :: s.gdecls := rfl
+
+theorem nonrecConstState_gdecls (n : Name) (t : LBTerm) (s : ErasureState) :
+    (nonrecConstState n t s).gdecls = (toKername n, .constantDecl ⟨some t⟩) :: s.gdecls := rfl
+
+/-- **`addAxiom`.** Registering a body-less constant preserves the invariant, provided the
+specification environment declares it body-less too and its kername is fresh in the emitted
+environment. This is the shape `Erasure.addAxiom` leaves behind (`run_addAxiom_ok`). -/
+theorem RegInvShape'.addAxiom {env : VEnv} {bo : Name → Option Expr}
+    {Γspec : GlobalDeclarations} {s : ErasureState} {n : Name}
+    (H : RegInvShape' env bo Γspec s)
+    (hax : LBTerm.envLookup Γspec (toKername n) = some (.constantDecl ⟨none⟩))
+    (hfresh : ∀ q ∈ s.gdecls, q.1 ≠ toKername n) :
+    RegInvShape' env bo Γspec (addAxiomState n s) where
+  specKeys := H.specKeys
+  specDecls := H.specDecls
+  specClosed := H.specClosed
+  consts m hm := by
+    rcases constants_insert_cases hm with rfl | hm'
+    · rw [hax]; rfl
+    · exact H.consts m hm'
+  inds n' hn' := H.inds n' hn'
+  keys := List.nodup_cons.mpr ⟨not_mem_keys_of_fresh hfresh, H.keys⟩
+  defs kn b₀ b h₀ hb := by
+    rw [DefnDecl, addAxiomState_gdecls] at hb
+    cases hk : Kername.beq (toKername n) kn with
+    | true =>
+      rw [← Kername.eq_of_beq hk, envLookup_cons_self] at hb
+      exact absurd hb (by simp)
+    | false =>
+      exact H.defs kn b₀ b h₀ (envLookup_of_cons_ne (kername_ne_of_beq_false hk) hb)
+  defsTotal m b₀ hm h₀ hrk := by
+    cases hk : Kername.beq (toKername n) (toKername m) with
+    | true =>
+      rw [DefnDecl, ← Kername.eq_of_beq hk, hax] at h₀
+      exact absurd h₀ (by simp)
+    | false =>
+      have hne := kername_ne_of_beq_false hk
+      rcases constants_insert_cases hm with rfl | hm'
+      · exact absurd rfl hne
+      · obtain ⟨b, hb⟩ := H.defsTotal m b₀ hm' h₀ hrk
+        exact ⟨b, by rw [DefnDecl, addAxiomState_gdecls]; exact envLookup_cons_of_fresh hfresh hb⟩
+  axioms kn hkn := by
+    rw [addAxiomState_gdecls]
+    cases hk : Kername.beq (toKername n) kn with
+    | true => rw [← Kername.eq_of_beq hk]; exact .inl envLookup_cons_self
+    | false =>
+      have hne := kername_ne_of_beq_false hk
+      rcases H.axioms kn hkn with h | h
+      · exact .inl (envLookup_cons_of_fresh hfresh h)
+      · exact .inr (by rw [envLookup_cons_ne hne]; exact h)
+  indsEmitted n' hn' iid np nfs hi d hd := by
+    rw [addAxiomState_gdecls]
+    exact envLookup_cons_of_fresh hfresh (H.indsEmitted n' hn' iid np nfs hi d hd)
+  sub kn hk := by
+    rw [addAxiomState_gdecls] at hk
+    cases hb : Kername.beq (toKername n) kn with
+    | true => rw [← Kername.eq_of_beq hb, hax]; simp
+    | false =>
+      exact H.sub kn (by rwa [envLookup_cons_ne (kername_ne_of_beq_false hb)] at hk)
+  closed kn b hb := by
+    rw [DefnDecl, addAxiomState_gdecls] at hb
+    cases hk : Kername.beq (toKername n) kn with
+    | true =>
+      rw [← Kername.eq_of_beq hk, envLookup_cons_self] at hb
+      exact absurd hb (by simp)
+    | false =>
+      exact H.closed kn b (envLookup_of_cons_ne (kername_ne_of_beq_false hk) hb)
+
+/-- **`visitMutual`'s non-recursive exit.** Registering a constant with an emitted body
+preserves the invariant: the specification environment declares that constant with a body,
+the emitted body is its `Lower` image (or one member of a lowered block, which is the shape
+the recursive exit produces), the emitted body is closed, and the kername is fresh. -/
+theorem RegInvShape'.constCons {env : VEnv} {bo : Name → Option Expr}
+    {Γspec : GlobalDeclarations} {s : ErasureState} {n : Name} {t b₀ : LBTerm}
+    (H : RegInvShape' env bo Γspec s) (hspec : DefnDecl Γspec (toKername n) b₀)
+    (hlow : Lower Γspec b₀ t ∨ ∃ kns bs defs j, LowerFix Γspec kns bs defs ∧
+      kns[j]? = some (toKername n) ∧ t = .fix defs j)
+    (hcl : LBClosed t 0) (hfresh : ∀ q ∈ s.gdecls, q.1 ≠ toKername n) :
+    RegInvShape' env bo Γspec (nonrecConstState n t s) where
+  specKeys := H.specKeys
+  specDecls := H.specDecls
+  specClosed := H.specClosed
+  consts m hm := by
+    rcases constants_insert_cases hm with rfl | hm'
+    · rw [DefnDecl] at hspec; rw [hspec]; rfl
+    · exact H.consts m hm'
+  inds n' hn' := H.inds n' hn'
+  keys := List.nodup_cons.mpr ⟨not_mem_keys_of_fresh hfresh, H.keys⟩
+  defs kn b₀' b h₀ hb := by
+    rw [DefnDecl, nonrecConstState_gdecls] at hb
+    cases hk : Kername.beq (toKername n) kn with
+    | true =>
+      have hkn := Kername.eq_of_beq hk
+      subst hkn
+      rw [envLookup_cons_self] at hb
+      have hbt : b = t := by simpa using hb.symm
+      rw [DefnDecl, hspec] at h₀
+      have hb₀ : b₀' = b₀ := by simpa using h₀.symm
+      subst hbt; subst hb₀
+      exact hlow
+    | false =>
+      exact H.defs kn b₀' b h₀ (envLookup_of_cons_ne (kername_ne_of_beq_false hk) hb)
+  defsTotal m b₀' hm h₀ hrk := by
+    cases hk : Kername.beq (toKername n) (toKername m) with
+    | true =>
+      refine ⟨t, ?_⟩
+      rw [DefnDecl, nonrecConstState_gdecls, ← Kername.eq_of_beq hk, envLookup_cons_self]
+    | false =>
+      have hne := kername_ne_of_beq_false hk
+      rcases constants_insert_cases hm with rfl | hm'
+      · exact absurd rfl hne
+      · obtain ⟨b, hb⟩ := H.defsTotal m b₀' hm' h₀ hrk
+        exact ⟨b, by rw [DefnDecl, nonrecConstState_gdecls]
+                     exact envLookup_cons_of_fresh hfresh hb⟩
+  axioms kn hkn := by
+    rw [nonrecConstState_gdecls]
+    cases hk : Kername.beq (toKername n) kn with
+    | true =>
+      rw [← Kername.eq_of_beq hk] at hkn
+      rw [DefnDecl] at hspec
+      rw [hspec] at hkn
+      exact absurd hkn (by simp)
+    | false =>
+      have hne := kername_ne_of_beq_false hk
+      rcases H.axioms kn hkn with h | h
+      · exact .inl (envLookup_cons_of_fresh hfresh h)
+      · exact .inr (by rw [envLookup_cons_ne hne]; exact h)
+  indsEmitted n' hn' iid np nfs hi d hd := by
+    rw [nonrecConstState_gdecls]
+    exact envLookup_cons_of_fresh hfresh (H.indsEmitted n' hn' iid np nfs hi d hd)
+  sub kn hk := by
+    rw [nonrecConstState_gdecls] at hk
+    cases hb : Kername.beq (toKername n) kn with
+    | true =>
+      rw [DefnDecl] at hspec
+      rw [← Kername.eq_of_beq hb, hspec]
+      simp
+    | false =>
+      exact H.sub kn (by rwa [envLookup_cons_ne (kername_ne_of_beq_false hb)] at hk)
+  closed kn b hb := by
+    rw [DefnDecl, nonrecConstState_gdecls] at hb
+    cases hk : Kername.beq (toKername n) kn with
+    | true =>
+      rw [← Kername.eq_of_beq hk, envLookup_cons_self] at hb
+      have : b = t := by simpa using hb.symm
+      subst this; exact hcl
+    | false =>
+      exact H.closed kn b (envLookup_of_cons_ne (kername_ne_of_beq_false hk) hb)
+
+/-- The member kernames of an indexed list are the kernames of its members. -/
+theorem map_toKername_fst (l : List (Name × Nat)) :
+    l.map (fun p => toKername p.1) = (l.map Prod.fst).map toKername := by
+  induction l with
+  | nil => rfl
+  | cons a t ih => simpa using ih
+
+/-- **`visitMutual`'s recursive exit, one member at a time.** The fold `recConstState` runs
+is `recConstStep`, which is `nonrecConstState` at a `.fix` body, so the block's own
+`LowerFix` witness supplies every member's `defs` disjunct and `LowerBlock.lbClosed_fix`
+supplies its closedness. Freshness of a member's kername against the entries the earlier
+members have consed is the block's `Nodup`. -/
+theorem regInvShape'_foldl_recConstStep {env : VEnv} {bo : Name → Option Expr}
+    {Γspec : GlobalDeclarations} {kns : List Kername} {bs bs' : List LBTerm}
+    {ids : List FVarId} {defs : List (@FixDef LBTerm)}
+    (hblk : LowerBlock Γspec kns bs bs' ids defs) :
+    ∀ (ps : List (Name × Nat)) (s : ErasureState), RegInvShape' env bo Γspec s →
+      (∀ p ∈ ps, kns[p.2]? = some (toKername p.1)) →
+      (∀ p ∈ ps, ∀ q ∈ s.gdecls, q.1 ≠ toKername p.1) →
+      (ps.map (fun p => toKername p.1)).Nodup →
+      RegInvShape' env bo Γspec (ps.foldl (recConstStep defs) s)
+  | [], _, H, _, _, _ => H
+  | p :: rest, s, H, hidx, hfresh, hnd => by
+    have hj : kns[p.2]? = some (toKername p.1) := hidx p List.mem_cons_self
+    have hlt : p.2 < kns.length := by
+      rcases List.getElem?_eq_some_iff.mp hj with ⟨h, -⟩; exact h
+    have hkey : kns[p.2]! = toKername p.1 := by
+      rw [getElem!_pos kns p.2 hlt]
+      exact Option.some.inj (by rw [← hj, List.getElem?_eq_getElem hlt])
+    have hdecl : DefnDecl Γspec (toKername p.1) bs[p.2]! := by
+      have := hblk.hdecl p.2 hlt; rwa [hkey] at this
+    have H' : RegInvShape' env bo Γspec (recConstStep defs s p) :=
+      H.constCons hdecl (.inr ⟨kns, bs, defs, p.2, ⟨bs', ids, hblk⟩, hj, rfl⟩)
+        (hblk.lbClosed_fix H.specClosed p.2) (hfresh p List.mem_cons_self)
+    obtain ⟨hnh, hnt⟩ := List.nodup_cons.mp hnd
+    refine regInvShape'_foldl_recConstStep hblk rest _ H'
+      (fun r hr => hidx r (List.mem_cons_of_mem _ hr)) ?_ hnt
+    intro r hr q hq
+    rcases List.mem_cons.mp hq with rfl | hq'
+    · intro hcon
+      exact hnh (List.mem_map.mpr ⟨r, hr, hcon.symm⟩)
+    · exact hfresh r (List.mem_cons_of_mem _ hr) q hq'
+
+/-- **`visitMutual`'s recursive exit.** A whole block is registered at once: every member is
+declared in the specification environment with the body the block lowers, and the emitted
+body is the block's own `.fix` node at that member's index. -/
+theorem RegInvShape'.recConst {env : VEnv} {bo : Name → Option Expr}
+    {Γspec : GlobalDeclarations} {s : ErasureState} {names : List Name}
+    {kns : List Kername} {bs bs' : List LBTerm} {ids : List FVarId}
+    {defs : List (@FixDef LBTerm)} (H : RegInvShape' env bo Γspec s)
+    (hblk : LowerBlock Γspec kns bs bs' ids defs)
+    (hidx : ∀ p ∈ names.zipIdx, kns[p.2]? = some (toKername p.1))
+    (hfresh : ∀ n ∈ names, ∀ q ∈ s.gdecls, q.1 ≠ toKername n)
+    (hnd : (names.map toKername).Nodup) :
+    RegInvShape' env bo Γspec (recConstState names defs s) := by
+  rw [recConstState_eq]
+  refine regInvShape'_foldl_recConstStep hblk names.zipIdx s H hidx ?_ ?_
+  · exact fun p hp => hfresh p.1 (List.fst_mem_of_mem_zipIdx hp)
+  · rw [map_toKername_fst, List.zipIdx_map_fst]; exact hnd
+
+/-- **One body-less entry.** `register_inductive`'s cold branch conses one such entry per
+`@[extern]` constructor, through `addAxiom`, without the caller seeing the individual runs. -/
+theorem RegInvShape'.axiomCons {env : VEnv} {bo : Name → Option Expr}
+    {Γspec : GlobalDeclarations} {s : ErasureState} {kn : Kername}
+    (H : RegInvShape' env bo Γspec s)
+    (hax : LBTerm.envLookup Γspec kn = some (.constantDecl ⟨none⟩))
+    (hfresh : ∀ q ∈ s.gdecls, q.1 ≠ kn) :
+    RegInvShape' env bo Γspec { s with gdecls := (kn, .constantDecl ⟨none⟩) :: s.gdecls } where
+  specKeys := H.specKeys
+  specDecls := H.specDecls
+  specClosed := H.specClosed
+  consts m hm := H.consts m hm
+  inds n' hn' := H.inds n' hn'
+  keys := List.nodup_cons.mpr ⟨not_mem_keys_of_fresh hfresh, H.keys⟩
+  defs kn' b₀ b h₀ hb := by
+    rw [DefnDecl] at hb
+    cases hk : Kername.beq kn kn' with
+    | true =>
+      rw [← Kername.eq_of_beq hk, envLookup_cons_self] at hb
+      exact absurd hb (by simp)
+    | false => exact H.defs kn' b₀ b h₀ (envLookup_of_cons_ne (kername_ne_of_beq_false hk) hb)
+  defsTotal m b₀ hm h₀ hrk := by
+    obtain ⟨b, hb⟩ := H.defsTotal m b₀ hm h₀ hrk
+    exact ⟨b, envLookup_cons_of_fresh hfresh hb⟩
+  axioms kn' hkn := by
+    cases hk : Kername.beq kn kn' with
+    | true => rw [← Kername.eq_of_beq hk]; exact .inl envLookup_cons_self
+    | false =>
+      have hne := kername_ne_of_beq_false hk
+      rcases H.axioms kn' hkn with h | h
+      · exact .inl (envLookup_cons_of_fresh hfresh h)
+      · exact .inr (by rw [envLookup_cons_ne hne]; exact h)
+  indsEmitted n' hn' iid np nfs hi d hd :=
+    envLookup_cons_of_fresh hfresh (H.indsEmitted n' hn' iid np nfs hi d hd)
+  sub kn' hk := by
+    cases hb : Kername.beq kn kn' with
+    | true => rw [← Kername.eq_of_beq hb, hax]; simp
+    | false => exact H.sub kn' (by rwa [envLookup_cons_ne (kername_ne_of_beq_false hb)] at hk)
+  closed kn' b hb := by
+    rw [DefnDecl] at hb
+    cases hk : Kername.beq kn kn' with
+    | true =>
+      rw [← Kername.eq_of_beq hk, envLookup_cons_self] at hb
+      exact absurd hb (by simp)
+    | false => exact H.closed kn' b (envLookup_of_cons_ne (kername_ne_of_beq_false hk) hb)
+
+/-- **A whole body-less prefix.** `ConstExt`'s `gdecls` clause hands back exactly this shape:
+the state's declarations grew by a prefix of axiom entries. -/
+theorem regInvShape'_axiomPrefix {env : VEnv} {bo : Name → Option Expr}
+    {Γspec : GlobalDeclarations} :
+    ∀ (pre : GlobalDeclarations) (s : ErasureState), RegInvShape' env bo Γspec s →
+      (∀ p ∈ pre, p.2 = GlobalDecl.constantDecl ⟨none⟩ ∧
+        LBTerm.envLookup Γspec p.1 = some (.constantDecl ⟨none⟩)) →
+      (pre.map Prod.fst).Nodup → (∀ p ∈ pre, ∀ q ∈ s.gdecls, q.1 ≠ p.1) →
+      RegInvShape' env bo Γspec { s with gdecls := pre ++ s.gdecls }
+  | [], s, H, _, _, _ => by simpa using H
+  | p :: rest, s, H, hpre, hnd, hfp => by
+    obtain ⟨k, d⟩ := p
+    obtain ⟨hd, hax⟩ := hpre _ List.mem_cons_self
+    obtain ⟨hnh, hnt⟩ := List.nodup_cons.mp hnd
+    have IH := regInvShape'_axiomPrefix rest s H
+      (fun q hq => hpre q (List.mem_cons_of_mem _ hq)) hnt
+      (fun q hq => hfp q (List.mem_cons_of_mem _ hq))
+    have hfresh : ∀ q ∈ rest ++ s.gdecls, q.1 ≠ k := by
+      intro q hq
+      rcases List.mem_append.mp hq with hq' | hq'
+      · intro hcon; exact hnh (List.mem_map.mpr ⟨q, hq', hcon⟩)
+      · exact hfp _ List.mem_cons_self q hq'
+    have := IH.axiomCons hax hfresh
+    rw [show d = GlobalDecl.constantDecl ⟨none⟩ from hd]
+    exact this
+
+/-- **The registries, read at a larger state.** The declarations and the inductive registry
+are unchanged; a constant the extension added is either one the state already knew or one the
+specification environment declares body-less, which is the only kind `addAxiom` adds. -/
+theorem RegInvShape'.stateCongr {env : VEnv} {bo : Name → Option Expr}
+    {Γspec : GlobalDeclarations} {s s' : ErasureState} (H : RegInvShape' env bo Γspec s)
+    (hg : s'.gdecls = s.gdecls) (hi : s'.inductives = s.inductives)
+    (hc : ∀ n : Name, (s'.constants.get? n).isSome → (s.constants.get? n).isSome ∨
+      LBTerm.envLookup Γspec (toKername n) = some (.constantDecl ⟨none⟩)) :
+    RegInvShape' env bo Γspec s' where
+  specKeys := H.specKeys
+  specDecls := H.specDecls
+  specClosed := H.specClosed
+  consts m hm := by
+    rcases hc m hm with h | h
+    · exact H.consts m h
+    · rw [h]; rfl
+  inds n' hn' := H.inds n' (by rwa [hi] at hn')
+  keys := by rw [hg]; exact H.keys
+  defs kn b₀ b h₀ hb := H.defs kn b₀ b h₀ (by rwa [DefnDecl, hg] at hb)
+  defsTotal m b₀ hm h₀ hrk := by
+    rcases hc m hm with h | h
+    · obtain ⟨b, hb⟩ := H.defsTotal m b₀ h h₀ hrk
+      exact ⟨b, by rw [DefnDecl, hg]; exact hb⟩
+    · rw [DefnDecl, h] at h₀; exact absurd h₀ (by simp)
+  axioms kn hkn := by rw [hg]; exact H.axioms kn hkn
+  indsEmitted n' hn' iid np nfs hind d hd := by
+    rw [hg]
+    exact H.indsEmitted n' (by rwa [hi] at hn') iid np nfs hind d hd
+  sub kn hk := H.sub kn (by rwa [hg] at hk)
+  closed kn b hb := H.closed kn b (by rwa [DefnDecl, hg] at hb)
+
+/-- **The inductive registry, grown.** Every name the registry now knows is covered by the
+specification environment and has its block emitted; the run's own records supply both at the
+names `register_inductive` just registered. -/
+theorem RegInvShape'.indsGrow {env : VEnv} {bo : Name → Option Expr}
+    {Γspec : GlobalDeclarations} {s s' : ErasureState} (H : RegInvShape' env bo Γspec s)
+    (hg : s'.gdecls = s.gdecls) (hc : s'.constants = s.constants)
+    (hnew : ∀ n : Name, (s'.inductives.get? n).isSome →
+      IndCovered env Γspec n ∧ IndEmitted env Γspec s.gdecls n) :
+    RegInvShape' env bo Γspec s' where
+  specKeys := H.specKeys
+  specDecls := H.specDecls
+  specClosed := H.specClosed
+  consts m hm := H.consts m (by rwa [hc] at hm)
+  inds n' hn' := (hnew n' hn').1
+  keys := by rw [hg]; exact H.keys
+  defs kn b₀ b h₀ hb := H.defs kn b₀ b h₀ (by rwa [DefnDecl, hg] at hb)
+  defsTotal m b₀ hm h₀ hrk := by
+    obtain ⟨b, hb⟩ := H.defsTotal m b₀ (by rwa [hc] at hm) h₀ hrk
+    exact ⟨b, by rw [DefnDecl, hg]; exact hb⟩
+  axioms kn hkn := by rw [hg]; exact H.axioms kn hkn
+  indsEmitted n' hn' iid np nfs hind d hd := by
+    rw [hg]; exact (hnew n' hn').2 iid np nfs hind d hd
+  sub kn hk := H.sub kn (by rwa [hg] at hk)
+  closed kn b hb := H.closed kn b (by rwa [DefnDecl, hg] at hb)
+
+/-- **The block entry.** `registerIndState` conses the block the run built; the specification
+environment holds that same block, which is `LowerEnv.inds` at this key. -/
+theorem RegInvShape'.blockCons {env : VEnv} {bo : Name → Option Expr}
+    {Γspec : GlobalDeclarations} {s : ErasureState} {kn : Kername}
+    {mib : MutualInductiveBody} (H : RegInvShape' env bo Γspec s)
+    (hspec : LBTerm.envLookup Γspec kn = some (.inductiveDecl mib))
+    (hfresh : ∀ q ∈ s.gdecls, q.1 ≠ kn) :
+    RegInvShape' env bo Γspec { s with gdecls := (kn, .inductiveDecl mib) :: s.gdecls } where
+  specKeys := H.specKeys
+  specDecls := H.specDecls
+  specClosed := H.specClosed
+  consts m hm := H.consts m hm
+  inds n' hn' := H.inds n' hn'
+  keys := List.nodup_cons.mpr ⟨not_mem_keys_of_fresh hfresh, H.keys⟩
+  defs kn' b₀ b h₀ hb := by
+    rw [DefnDecl] at hb
+    cases hk : Kername.beq kn kn' with
+    | true =>
+      rw [← Kername.eq_of_beq hk, envLookup_cons_self] at hb
+      exact absurd hb (by simp)
+    | false => exact H.defs kn' b₀ b h₀ (envLookup_of_cons_ne (kername_ne_of_beq_false hk) hb)
+  defsTotal m b₀ hm h₀ hrk := by
+    obtain ⟨b, hb⟩ := H.defsTotal m b₀ hm h₀ hrk
+    exact ⟨b, envLookup_cons_of_fresh hfresh hb⟩
+  axioms kn' hkn := by
+    cases hk : Kername.beq kn kn' with
+    | true =>
+      rw [← Kername.eq_of_beq hk] at hkn
+      rw [hspec] at hkn; exact absurd hkn (by simp)
+    | false =>
+      have hne := kername_ne_of_beq_false hk
+      rcases H.axioms kn' hkn with h | h
+      · exact .inl (envLookup_cons_of_fresh hfresh h)
+      · exact .inr (by rw [envLookup_cons_ne hne]; exact h)
+  indsEmitted n' hn' iid np nfs hind d hd :=
+    envLookup_cons_of_fresh hfresh (H.indsEmitted n' hn' iid np nfs hind d hd)
+  sub kn' hk := by
+    cases hb : Kername.beq kn kn' with
+    | true => rw [← Kername.eq_of_beq hb, hspec]; simp
+    | false => exact H.sub kn' (by rwa [envLookup_cons_ne (kername_ne_of_beq_false hb)] at hk)
+  closed kn' b hb := by
+    rw [DefnDecl] at hb
+    cases hk : Kername.beq kn kn' with
+    | true =>
+      rw [← Kername.eq_of_beq hk, envLookup_cons_self] at hb
+      exact absurd hb (by simp)
+    | false => exact H.closed kn' b (envLookup_of_cons_ne (kername_ne_of_beq_false hk) hb)
+
+/-! ## The invariant across the two registration runs -/
+
+/-- **`addAxiom`, at the run.** `run_addAxiom_ok` reports the exact state delta, so the run
+form is the delta form with no extra hypothesis. -/
+theorem RegInvShape'.addAxiom_run {env : VEnv} {bo : Name → Option Expr}
+    {Γspec : GlobalDeclarations} {n : Name} {s : ErasureState} {ctx : ErasureContext}
+    {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State} {w : Void IO.RealWorld}
+    {u : Unit} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
+    (H : RegInvShape' env bo Γspec s)
+    (hrun : Erasure.addAxiom n s ctx cctx ref w = .ok (u, s₁) w₁)
+    (hax : LBTerm.envLookup Γspec (toKername n) = some (.constantDecl ⟨none⟩))
+    (hfresh : ∀ q ∈ s.gdecls, q.1 ≠ toKername n) :
+    RegInvShape' env bo Γspec s₁ := by
+  rw [(run_addAxiom_ok hrun).1]
+  exact H.addAxiom hax hfresh
+
+/-- **`register_inductive`, cold, at the run.** The intermediate state the cold branch builds
+is not exposed by `run_register_inductive_cold_ok`, so every side condition is read off the
+*final* state: the emitted keys are distinct, each body-less entry is declared body-less in
+the specification environment, the emitted block is the one the specification environment
+holds, and each registry entry is either one the run already had or a covered one. -/
+theorem RegInvShape'.register_inductive_run {env : VEnv} {bo : Name → Option Expr}
+    {Γspec : GlobalDeclarations} {indinfo : InductiveVal} {s : ErasureState}
+    {ctx : ErasureContext} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
+    {w : Void IO.RealWorld} {r : InductiveId × InductiveArgMasks} {s₁ : ErasureState}
+    {w₁ : Void IO.RealWorld} (H : RegInvShape' env bo Γspec s)
+    (hmiss : s.inductives.get? indinfo.name = none)
+    (hrun : register_inductive indinfo s ctx cctx ref w = .ok (r, s₁) w₁)
+    (hkeys : (s₁.gdecls.map Prod.fst).Nodup)
+    (haxpre : ∀ p ∈ s₁.gdecls, p.2 = GlobalDecl.constantDecl ⟨none⟩ →
+      LBTerm.envLookup Γspec p.1 = some (.constantDecl ⟨none⟩))
+    (hblk : ∀ mib, LBTerm.envLookup s₁.gdecls (mutualBlockKn indinfo) = some (.inductiveDecl mib) →
+      LBTerm.envLookup Γspec (mutualBlockKn indinfo) = some (.inductiveDecl mib))
+    (hnewc : ∀ n : Name, (s₁.constants.get? n).isSome → (s.constants.get? n).isSome ∨
+      LBTerm.envLookup Γspec (toKername n) = some (.constantDecl ⟨none⟩))
+    (hnewi : ∀ n : Name, (s₁.inductives.get? n).isSome → (s.inductives.get? n).isSome ∨
+      (IndCovered env Γspec n ∧ IndEmitted env Γspec s₁.gdecls n)) :
+    RegInvShape' env bo Γspec s₁ := by
+  obtain ⟨bodies, sM, rfl, -, -, hce, -, -⟩ := run_register_inductive_cold_ok hmiss hrun
+  obtain ⟨pre, hpre, hshape⟩ := hce.gdecls
+  have hgd : (registerIndState indinfo bodies sM).gdecls
+      = (mutualBlockKn indinfo,
+          GlobalDecl.inductiveDecl { npars := indinfo.numParams, bodies := bodies })
+        :: (pre ++ s.gdecls) := by
+    show (mutualBlockKn indinfo,
+      GlobalDecl.inductiveDecl { npars := indinfo.numParams, bodies := bodies })
+        :: sM.gdecls = _
+    rw [hpre]
+  rw [hgd, List.map_cons, List.nodup_cons, List.map_append, List.nodup_append] at hkeys
+  obtain ⟨hbn, hndp, hnds, hdisj⟩ := hkeys
+  -- the axiom prefix
+  have hA : RegInvShape' env bo Γspec { s with gdecls := pre ++ s.gdecls } := by
+    refine regInvShape'_axiomPrefix pre s H (fun p hp => ⟨(hshape p hp).1, ?_⟩) hndp ?_
+    · refine haxpre p ?_ (hshape p hp).1
+      rw [hgd]
+      exact List.mem_cons_of_mem _ (List.mem_append_left _ hp)
+    · intro p hp q hq hcon
+      exact hdisj _ (List.mem_map.mpr ⟨p, hp, rfl⟩) _
+        (List.mem_map.mpr ⟨q, hq, rfl⟩) hcon.symm
+  -- the constants the extension added
+  have hB : RegInvShape' env bo Γspec { sM with inductives := s.inductives } :=
+    hA.stateCongr hpre rfl (fun n hn => hnewc n hn)
+  -- the block entry
+  have hfb : ∀ q ∈ ({ sM with inductives := s.inductives } : ErasureState).gdecls,
+      q.1 ≠ mutualBlockKn indinfo := by
+    intro q hq hcon
+    have hmem : q.1 ∈ List.map Prod.fst (pre ++ s.gdecls) :=
+      List.mem_map.mpr ⟨q, by rw [← hpre]; exact hq, rfl⟩
+    rw [List.map_append] at hmem
+    exact hbn (hcon ▸ hmem)
+  have hC := hB.blockCons
+    (mib := { npars := indinfo.numParams, bodies := bodies })
+    (hblk _ (by rw [hgd]; exact envLookup_cons_self)) hfb
+  -- the inductive registry
+  refine hC.indsGrow rfl rfl (fun n hn => ?_)
+  rcases hnewi n hn with hold | hnew
+  · exact ⟨hC.inds n hold, hC.indsEmitted n hold⟩
+  · exact hnew
+
+
+/-! ## The δ column, from the registry
+
+`ErasesEnv.defns` asks for the erasure of a compiler body at **every** level scope and every
+instantiation. `ErasesDecl.defn` supplies one scope, so the two are bridged only where the
+instantiation is inert: a body with no level parameters is its own instantiation, and
+`Erases.instL` moves its derivation to any scope. At a body that does carry a level parameter
+the clause is out of reach of any `ErasesDecl` justification, and `defns_needs_paramFree`
+records why.
+-/
+
+/-- Instantiating at zeroes is a well-formed instantiation at any scope. -/
+theorem mapM_ofLevel_replicate_zero (Us : List Name) :
+    ∀ n : Nat, (List.replicate n Level.zero).mapM (Lean4Lean.VLevel.ofLevel Us)
+      = some (List.replicate n Lean4Lean.VLevel.zero)
+  | 0 => rfl
+  | n + 1 => by
+      simp [List.replicate_succ, mapM_ofLevel_replicate_zero Us n, Lean4Lean.VLevel.ofLevel]
+
+/-- A level-parameter-free source is its own instantiation. -/
+theorem instantiateLevelParams_eq_self {b : Expr} (hlp : b.hasLevelParam' = false)
+    (ps : List Name) (ls : List Level) : b.instantiateLevelParams ps ls = b := by
+  rw [Expr.instantiateLevelParams_eq]
+  exact Expr.instantiateLevelParamsCore_eq_self hlp
+
+/-- **Level-scope transport at a parameter-free body.** The λ□ image carries no levels, so a
+derivation at one scope is a derivation at every scope once the source has no level parameter
+to instantiate. -/
+theorem erases_any_scope_of_paramFree {env : VEnv} {Us : List Name} {b : Expr} {b₀ : LBTerm}
+    (hlp : b.hasLevelParam' = false) (hnm : NoMaxLevels b) (h : Erases env Us [] b b₀)
+    (Us' : List Name) : Erases env Us' [] b b₀ := by
+  have := Erases.instL (Us := Us') (ps := Us) (ls := List.replicate Us.length Level.zero)
+    (ls' := List.replicate Us.length Lean4Lean.VLevel.zero) (Δ := [])
+    (mapM_ofLevel_replicate_zero Us' Us.length) (by simp) h hnm
+  rwa [instantiateLevelParams_eq_self hlp,
+    show Lean4Lean.VLCtx.instL [] (List.replicate Us.length Lean4Lean.VLevel.zero)
+      = ([] : Lean4Lean.VLCtx) from rfl] at this
+
+end LeanToLambdaBox

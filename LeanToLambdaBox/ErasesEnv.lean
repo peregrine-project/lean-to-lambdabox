@@ -254,8 +254,14 @@ theorem lowerEnv_idEnv : LowerEnv idEnv idEnv where
 `BlockBodiesLambda` reads *every* declared body as a possible block member, so the clause
 is false of any specification environment holding a definition whose body is not a λ. The
 five programs all hold one — `Unit.unit ↦ .construct PUnit 0`, and every nullary definition
-besides — so no such environment has a `LowerEnv` image. The repair, if the simulation
-needs one, is `BlockBodiesLambda`'s own, in `Lower.lean`.
+besides — so no such environment has a `LowerEnv` image. `regInvShape'_ctorBody`
+(`SpecEnv.lean`) exhibits a run state where every other clause is derived and this one fails.
+
+The repair is `BlockBodiesLambda`'s own, in `Lower.lean`: key the quantifier on the blocks
+the pass emits instead of on every `LowerBlock` over `Γ`. What a consumer needs at a `.fix`
+target is `LowerBlock.lambda_of_fixLambda`, whose premise is that the *emitted* definitions
+are λ-bodied — a fact about the `.fix` nodes a run writes, true of `mkDef`'s output, and
+unaffected by a constructor-bodied declaration elsewhere in `Γ`.
 -/
 
 /-- The block of the one-entry counterexample environment. -/

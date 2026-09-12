@@ -19,11 +19,17 @@ Fannkuch}.lean`; every correctness statement needs `csimp := false`, which the s
 
 | Program | `.ast` bytes | Erase run | In the fragment? | Capstone |
 |---|---|---|---|---|
-| Arith | 14,113 | exit 0, no panic | yes | the applied capstone's subject, G7/G8 (W5) |
-| Sieve | 28,207 | exit 0, no panic | yes | not a rung; reached only by the general statement |
-| BinaryTrees | 29,680 | exit 0, no panic | yes | not a rung; its `Tree` is one of the first-order witnesses |
-| Quicksort | 66,374 | exit 0, **one panic** | **no** — `SupportError.sparseCasesOn` | none: the emitted program is wrong (`F-SPARSE`, `doc/rework/03-DEV-FIX.md`) |
-| Fannkuch | 39,861 | exit 0, no panic | yes, with one caveat | **fails `NoBodylessRefs`** and is outside the capstone's domain: it reaches the body-less `Eq.rec` (`F-EQREC`) |
+| Arith | 14,113 | exit 0, no panic | **no** — `recursorHead` at `Nat.brecOn` | the applied capstone's subject, G7/G8 (W5) |
+| Sieve | 28,207 | exit 0, no panic | **no** — `recursorHead` at `List.below` | not a rung; reached only by the general statement |
+| BinaryTrees | 29,680 | exit 0, no panic | **no** — `recursorHead` at `Nat.brecOn` | not a rung; its `Tree` is one of the first-order witnesses |
+| Quicksort | 66,374 | exit 0, **one panic** | **no** — `recursorHead` at `Nat.brecOn`, and `sparseCasesOn` | none: the emitted program is wrong (`F-SPARSE`, `doc/rework/03-DEV-FIX.md`) |
+| Fannkuch | 39,861 | exit 0, no panic | **no** — `recursorHead` at `Nat.brecOn` | **fails `NoBodylessRefs`** and is outside the capstone's domain: it reaches the body-less `Eq.rec` (`F-EQREC`) |
+
+The verdict column is the checker's, not a judgement: it is the first error
+`supportedTerm` plus `checkNames` return over the dependency closure of a
+`Witness.reify%` table built on the program's entry constant. **No tracked program is
+inside the fragment**, and the section below says which restriction takes each one out
+and which of the two closures is responsible.
 
 Two measurements behind the table: the panic is
 `PANIC at Erasure.visitCases LeanToLambdaBox.Erasure:817:55`, and the run still exits 0 and
@@ -39,6 +45,91 @@ green. The same closure reaches every declared kername of all five — the erase
 exactly what the program reads — and it now includes the inductive block of every
 `tConstruct`, `tCase` and `tProj` node, which is what `constructorArity` and
 `isPropositionalInductive` are answered from.
+
+### The four per-program restrictions
+
+Three of the four are conjuncts of `Supported` and are decided by `supportedB`
+(`LeanToLambdaBox/Supported.lean`). **N20 is not a conjunct** — it constrains `hev`, T9's
+evaluation hypothesis, not the eraser's output — so its column records a decidable
+*sufficient* condition, and the paragraph below it says what the semantic obligation costs
+when that condition fails.
+
+* **N19** — no under-applied constructor and no under-applied eliminator occurrence: a tabled
+  constructor head is applied to at least `numParams + numFields`, a `casesOn` head to at
+  least `dp + 1 + nm`. Reported as `SupportError.underAppliedCtor` / `.underAppliedElim`.
+* **N20** — every ι spine's dropped prefix, every unselected minor and every extra argument
+  has a source value. Sufficient condition: each is already a syntactic value.
+* **N21** — a recursor head is outside the fragment: it is tabled body-less, so δ cannot fire
+  at it; it is neither a constructor nor a type former, so no `SEval` value arm applies; and
+  ι is keyed on `casesOn` names. A spine headed by one has no source evaluation at all, so a
+  program reaching one would be **vacuously** covered. Reported as
+  `SupportError.recursorHead`.
+* **`NoBodylessRefs`** — no constant the *emitted* program reaches is declared without a
+  body. Measured on the emitted environment, not on the source closure.
+
+| Program | N19 | N20 (sufficient condition) | N21 | `NoBodylessRefs` |
+|---|---|---|---|---|
+| Arith | **holds** | fails, 3/3 non-value minors | fails: `Nat.brecOn`, `Nat.rec`, `Nat.below` | holds |
+| Sieve | **holds** | fails, 25/26 | fails: 10 heads, incl. `List.rec`, `Nat.brecOn`, `Eq.rec` | holds |
+| BinaryTrees | **holds** | fails, 16/19 | fails: 14 heads, incl. `Tree.rec`, `Tree.brecOn` | holds |
+| Quicksort | **holds** | fails, 28/40 | fails: 14 heads, incl. `False.rec`, `Prod.rec` | holds |
+| Fannkuch | **holds** | fails, 2/2 | fails: `Nat.brecOn`, `Nat.rec`, `Nat.below` | **fails**: `Eq.rec` |
+
+**N19 holds on all five**, in both closures below and at every occurrence, not just at the
+first: no `underAppliedCtor` and no `underAppliedElim` anywhere. So the deletion of the two η
+arms costs the tracked programs nothing, the R15 contingency is not triggered, and F-ETA2's
+containment claim is measured rather than assumed. Its constructor half disappears entirely
+once F-ETA2 is repaired: applied-form λ□ evaluates a partially applied constructor spine
+natively (`Value.construct_app_val`, `LeanToLambdaBox/Semantics/Values.lean:105`).
+
+**N21 fails on all five**, and the closure it is measured over decides how badly. Two
+closures answer the question, because `Supported.Reaches` and the eraser do not read the same
+bodies:
+
+* the **table closure** — `Reaches` over a `Witness.reify%` table, which is what `supportedB`
+  actually decides. `Reify.visit` tables `ConstantInfo.value` prepared
+  (`Witness/SourceTable.lean:215`), i.e. the **kernel** body, and it tables the bodies of
+  `casesOn`-like heads. So `Nat.add`, `Nat.mul`, `Nat.sub`, `Nat.pow`, `List.append` come in
+  `brecOn`-mediated, and `Nat.casesOn`/`Nat.brecOn`/`Nat.below` come in with bodies naming
+  `Nat.rec`. Every recursor in the table column above arrives this way.
+* the **eraser closure** — the bodies `Erasure.visitMutual` reads, which are
+  `Compiler.LCNF.getDeclInfo?`'s (`LeanToLambdaBox/Erasure.lean:861`), with the body of a
+  `casesOn`-like head not traversed at all, because `visitConstApp` dispatches it to a `.case`
+  node. Over that closure Arith is **clean** — no `SupportError` at any occurrence — and the
+  other four are left with exactly one recursor route, `Bool.noConfusion` → `Eq.ndrec` →
+  `Eq.rec` (Fannkuch also `Eq.ndrec_symm`), which is `F-EQREC` again. The emitted programs
+  agree: `grep` over `VerifyBench/ast/*.ast` finds no recursor kername at all in Arith,
+  Sieve, BinaryTrees or Quicksort, and only `Eq.rec`/`Eq.ndrec` in Fannkuch.
+
+N8's claim — that the compiler bodies the eraser reads carry direct structural recursion
+rather than `brecOn` — is therefore **confirmed for the eraser and false for the table**. The
+gap is `Reify.visit`'s body column, not the fragment. A table built on compiler bodies takes
+Arith into the fragment outright, with no `SupportError` at any occurrence; Sieve is left
+with `F-EQREC` alone; BinaryTrees, Quicksort and Fannkuch are left with `F-EQREC` plus holes
+of their own — Quicksort's `sparseCasesOn` (`F-SPARSE`), Fannkuch's two `etaContractedMinor`
+occurrences at `Decidable.casesOn`, and the `propElimIntoData` false exclusion at `Prod`
+described below.
+
+N20's sufficient condition **fails on all five**, and the earlier claim that the `match`
+fragment is unaffected is false: Lean's match compiler thunks a nullary branch into an
+*application*, not a λ. Measured over the emitted alternatives of `VerifyBench/ast/*.ast`, no
+nullary alternative anywhere has a `tLambda` head — the heads are `tApp` (5 Arith, 16
+BinaryTrees, 29 Fannkuch, 23 Quicksort, 26 Sieve), `tCase` and `tRel` — and `Arith.ast`'s
+`Nat` zero-branch is `(tApp (tRel 1) (tConst Unit.unit))`. Non-value minors per total ι spine
+are the column above; bad prefix arguments are 0 everywhere, so `hpres` stays cheap. `hmins`
+is therefore discharged semantically, one `SEval` derivation per unselected branch per ι
+step. That is a cost, not a vacuity: Lean is total, so every well-typed closed term
+normalises and each unselected branch has a value, while partial and `unsafe` bodies are
+outside the fragment through N8. What the restriction deletes is exactly the derivations
+where the source converges and eager minor evaluation would not.
+
+One measured false exclusion, recorded so that the rows above are read correctly.
+`informativeB` tests the result sort syntactically for `Level.succ`, and `Prod`'s declared
+type ends in `Sort (max (u+1) (v+1))`, whose level is `Level.max (succ u) (succ v)` — not a
+`Level.succ`. So `Prod.casesOn` is reported `propElimIntoData` on Quicksort, BinaryTrees and
+Fannkuch although `Prod` is informative. It is a conservative error, never an unsound one,
+and it is the reason BinaryTrees' pre-existing "in the fragment: yes" row was not a
+measurement.
 
 Not exercised by any of the five, and recorded so that the gap is visible rather than
 inferred: a genuinely **mutual** fixpoint block — 0 of the 50 emitted `FixDef`s are mutual,
