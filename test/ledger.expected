@@ -20,6 +20,8 @@
 'LeanToLambdaBox.Lower.constToFix' depends on axioms: [propext, Quot.sound]
 'LeanToLambdaBox.constants_of_tabled' depends on axioms: [propext, Classical.choice, Quot.sound]
 'LeanToLambdaBox.constOrigin_of_constants' depends on axioms: [propext, Classical.choice, Quot.sound]
+'LeanToLambdaBox.visitExpr_refines_erasesLB' depends on axioms: [propext, Classical.choice, Quot.sound]
+'LeanToLambdaBox.visitExpr_refines_erasesLBFix' depends on axioms: [propext, Classical.choice, Quot.sound]
 'LeanToLambdaBox.shipping_erase_correct_firstorder' depends on axioms: [propext, Classical.choice, Quot.sound]
 'LeanToLambdaBox.Green.green_G1' depends on axioms: [propext, Classical.choice, Quot.sound]
 'LeanToLambdaBox.Green.green_G2' depends on axioms: [propext, Classical.choice, Quot.sound]

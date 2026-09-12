@@ -74,6 +74,32 @@ is a clause of the emitted program's own well-formedness, read at one block.
   4/4, Sieve 10/10, BinaryTrees 10/10, Quicksort 11/11, Fannkuch 15/15, G6 1/1).
 * **`NoBodylessRefs`** — no constant the *emitted* program reaches is declared without a
   body. Measured on the emitted environment, not on the source closure.
+* **N18, projection half** — the head of a `.proj` node is a tabled inductive type whose
+  declared result sort never evaluates to `Prop`. Without it the emitted `.proj` is stuck on
+  the target at every flag point, for the same reason the `casesOn` half covers, and
+  `Erases.proj`'s `hinf` has no source. Reported as `SupportError.propElimIntoData` at a
+  non-informative head and `.unknownConst` at an untabled one.
+
+**N18's projection half costs the tracked programs nothing**, and the criterion choice is
+load-bearing. Measured over the `.proj` nodes of the five emitted `.ast`s:
+
+| Program | `.proj` nodes | distinct heads | rejected by `informativeB` | rejected by `succSortB` |
+|---|---|---|---|---|
+| Arith | 10 | 10 | **0** | 5 |
+| Sieve | 8 | 8 | **0** | 3 |
+| BinaryTrees | 9 | 9 | **0** | 4 |
+| Quicksort | 9 | 9 | **0** | 4 |
+| Fannkuch | 6 | 6 | **0** | 2 |
+| all five | 42 | 14 | **0** | 6 |
+
+The fourteen distinct heads are `Add`, `Append`, `BEq`, `HAdd`, `HAppend`, `HMul`, `HPow`,
+`HSub`, `Max`, `Mul`, `NatPow`, `OfNat`, `Pow` and `Sub` — every one a typeclass structure.
+All fourteen pass the semantic criterion, so the restriction excludes no node on the corpus.
+The syntactic successor criterion passes only eight: it rejects the six heterogeneous classes
+`HAdd`, `HAppend`, `HMul`, `HPow`, `HSub` and `Pow`, whose declared result sort is a `max` of
+successors rather than a successor, and each of the five programs carries at least two such
+nodes. So the successor form would have emptied the projection machinery on every tracked
+program, which is the same false exclusion it makes at `Prod`.
 
 `Witness.Reify.visit` reads `compilerInfo?` — the `_unsafe_rec` companion first — and tables
 no body for a `casesOn`-like head, so the reified table *is* built on compiler bodies and the
@@ -162,6 +188,16 @@ That is N20's per-branch obligation, paid. At G1-G4 and G6 `hev` is still a bind
 a rung says that the conditions are consistent with a literal answer, not that they hold. The
 value-side typings `hvwt` and `hty` are binders at every rung: a rung's value is a
 constructor spine, not a constant.
+
+`hbridge` is a binder at every rung too, and it is the largest one: the eight-field
+`ErasureBridge` bundle that ties the emitted program to a specification environment erasing
+the subject. Its first two fields would come from `visitExpr_refines_erasesLB`, which is
+proved but takes the erasure's eighteen member steps as hypotheses; four of those — the
+`visitConstructor`, `visitConst`, `visitProj` and `visitCases` steps — have no supplier, and
+the `visitConst` one is refuted at a mutual-block reader. `doc/trust.md` carries the row.
+Until it is discharged, what a rung says about the shipping erasure is conditional on the
+bundle, and the bridge modules sit outside the import closure of `Green.lean` and
+`Capstone.lean` because nothing consumes them yet.
 
 **What a matcher-bearing subject costs the ladder, and what it no longer costs.**
 `ReifiedDecl.Prepared` — the run clause of `SourceTableAdequate` — pins the compiler body

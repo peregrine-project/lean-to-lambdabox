@@ -53,7 +53,12 @@ jobs:
       - name: Reified table drift
         run: |
           lake exe reify --check LeanToLambdaBox.Witness.SourceTable \
-            LeanToLambdaBox.Witness.SelfTest.toyTable
+            LeanToLambdaBox.Witness.SelfTest.toyTable \
+            LeanToLambdaBox.Witness.SelfTest.matchTable
+          lake exe reify --check LeanToLambdaBox.Green \
+            LeanToLambdaBox.Green.g1Table LeanToLambdaBox.Green.g2Table \
+            LeanToLambdaBox.Green.g3Table LeanToLambdaBox.Green.g4Table \
+            LeanToLambdaBox.Green.g5Table LeanToLambdaBox.Green.g6Table
           if lake exe reify --check LeanToLambdaBox.Witness.SourceTable \
                LeanToLambdaBox.Witness.SelfTest.staleTable; then
             echo "reify accepted the deliberately stale table" >&2

@@ -27,9 +27,12 @@ equation `Lower.mkApps` consumes.
 rung: without it a run reaching a body-less declaration would satisfy the conclusion
 vacuously, its source evaluation having no derivation.
 
-At this wave the composition is proved and the results it composes are the fields of one
-named binder, `hbridge : ErasureBridge …` — each field named after the theorem that
-discharges it and the wave that lands it.
+The composition is proved; what it composes is one named binder, `hbridge : ErasureBridge
+…`, whose field docstrings name each supplier. **No field is discharged yet.** The two the
+erasure's own refinement supplies wait on `visitExpr_refines_erasesLB`, which is proved but
+takes the erasure's eighteen member steps as hypotheses, four of which have no supplier;
+the six that follow wait on the specification environment that theorem produces.
+`doc/trust.md`'s `hbridge` row is the accounting.
 -/
 
 namespace LeanToLambdaBox
@@ -49,31 +52,35 @@ def ConfigPinned (cfg : ErasureConfig) : Prop :=
 /-! ## The pending results -/
 
 /--
-What the capstone composes, as one named binder: the bridge's own conclusion together with
-the results the later waves prove. Every field names the theorem that discharges it, and the
-shapes are the ones the composition consumes; where a field is *stronger* than the theorem
-named — a premise that theorem takes and the capstone's clause cannot supply — the field's
-docstring says so.
+What the capstone composes, as one named binder: the erasure's own refinement of the source
+term together with the environment and simulation results it needs. Every field names its
+supplier and says whether that supplier is proved, and the shapes are the ones the
+composition consumes; where a field is *stronger* than the theorem named — a premise that
+theorem takes and the capstone's clause cannot supply — the field's docstring says so.
 -/
 structure ErasureBridge (env : VEnv) (bo : Name → Option Expr)
     (e : Expr) (Γspec Γ : GlobalDeclarations) (t t₀ : LBTerm) : Prop where
-  /-- The subject's own erasure. Discharged by `visitExpr_refines_erasesLB` (T8, W4). -/
+  /-- The subject's own erasure. Supplied by `visitExpr_refines_erasesLB`, whose member
+      steps for `visitConstructor`, `visitConst`, `visitProj` and `visitCases` are open. -/
   erases : Erases env [] [] e t₀
-  /-- The specification environment erases the source environment. Discharged by
-      `SpecEnv.erasesEnv` on the `SpecEnv` that W3 constructs from the run's final state. -/
+  /-- The specification environment erases the source environment. Supplied by
+      `SpecEnv.erasesEnv`, at the `SpecEnv` read off the run's final state. -/
   erasesEnv : ErasesEnv env bo Γspec t₀
-  /-- The emitted term is the lowered erasure. Discharged by `visitExpr_refines_erasesLB`. -/
+  /-- The emitted term is the lowered erasure. Supplied by `visitExpr_refines_erasesLB`,
+      under the same four open member steps as `erases`. -/
   lower : Lower Γspec t₀ t
-  /-- The emitted environment is the lowered, pruned specification environment. Discharged
-      by W3's environment instantiation. -/
+  /-- The emitted environment is the lowered, pruned specification environment. Supplied by
+      `RegInvShape'.lowerEnv`, at a saturated registry. -/
   lowerEnv : LowerEnv Γspec Γ
   /-- The specification environment is well formed. Its `Nodup` half is `ErasesEnv.keys`;
-      the `ClosedBodies` half is W3's. -/
+      the `ClosedBodies` half is `SpecEnv`'s. -/
   wfSpec : LBWfSpec Γspec
-  /-- What peregrine's first pass needs of the emitted program. Discharged by W4's output
-      lemmas; `LBExpandedFix` is deliberately absent (F-ETA). -/
+  /-- What peregrine's first pass needs of the emitted program. `visitExpr_shape_all`
+      supplies the term half of `closed` and `ctorApplied` unconditionally from the run; the
+      environment halves and `fixLambda` are open. `LBExpandedFix` is deliberately absent
+      (F-ETA). -/
   wf : LBWfPeregrine Γ t
-  /-- `erases_correct` (T5, W3): one simulation, on the composite, at the **emitted**
+  /-- `simulate_of_erases_correct`: one simulation, on the composite, at the **emitted**
       environment. Stronger than T5 by three premises T9's clause cannot supply at an
       applied subject — `env.WF`, `TrExprS env [] [] s ve` and `ErasesEnv env bo Γspec t₀s`
       hold of the subject `e` and its erasure `t₀`, not of the spine `mkApps e args` — and
@@ -81,7 +88,7 @@ structure ErasureBridge (env : VEnv) (bo : Name → Option Expr)
   simulate : ∀ {s t₀s ts v : _}, Erases env [] [] s t₀s → Lower Γspec t₀s ts →
       SEval env bo [] fullFlags [] s v →
       ∃ v₀ v', Erases env [] [] v v₀ ∧ Lower Γspec v₀ v' ∧ WcbvEval Γ eraseFlags ts v'
-  /-- `firstorder_erases_deterministic` and `firstorder_no_box` (T7, W3). Stronger than T7
+  /-- `firstorder_erases_deterministic` and `firstorder_no_box`. Stronger than those two
       by the value premise `SEval env bo [] fullFlags [] v v`, and by asking box-freedom of
       the *lowered* value: T7 proves it of the erasure, and the transport along `Lower` is
       false without a guard (`noBox_lower_needs_noFix`). -/
@@ -96,12 +103,11 @@ structure ErasureBridge (env : VEnv) (bo : Name → Option Expr)
 set_option linter.unusedVariables false in
 /--
 **The shipping erasure is correct at a first-order answer.** For a term the erasure ran on
-under a pinned configuration, inside the fragment, whose emitted program declares
-a body for every constant it reaches: `(Γ, t)` is the lowered image of a specification
-environment that erases `e`, it satisfies `LBWfPeregrine` — not `LBExpandedFix`, finding
-F-ETA — and every first-order answer the source evaluation produces is reproduced by it,
-uniquely and box-free. The binders' classes are `doc/trust.md`'s rows; the proof is
-`hbridge`'s fields, composed.
+under a pinned configuration, inside the fragment, whose emitted program declares a body for
+every constant it reaches: `(Γ, t)` is the lowered image of a specification environment that
+erases `e`, it satisfies `LBWfPeregrine` — not `LBExpandedFix`, finding F-ETA — and every
+first-order answer the source evaluation produces is reproduced by it, uniquely and
+box-free. The binders' classes are `doc/trust.md`'s rows; the proof is `hbridge`'s fields.
 -/
 theorem shipping_erase_correct_firstorder
     {lenv : Lean.Environment} {env : VEnv} {gw : Void IO.RealWorld → NameGenerator}

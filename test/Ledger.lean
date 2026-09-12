@@ -2,9 +2,12 @@
 The trust ledger: the axiom footprint of the top-level results, measured.
 `scripts/ledger.sh` runs this file and diffs its output against `test/ledger.expected`.
 One `#print axioms` per line; a result whose footprint changes changes the fixture.
-The commented lines are the ledger of `doc/rework/01-DESIGN.md` §4.14 that no theorem
-inhabits yet: each is uncommented by the wave that proves the theorem it names. The rows
-below them are the §5 theorems that exist — the simulation and its three arms, the
+The commented line is the ledger row of `doc/rework/01-DESIGN.md` §4.14 that no theorem
+inhabits yet; it is uncommented by the unit that proves the theorem it names. The two
+`visitExpr_refines_*` rows measure the bridge as it stands: an implication whose eighteen
+member steps are hypotheses, four of which have no supplier, so the clean footprint is the
+aggregator's own and not the composed bridge's — `doc/trust.md`'s `hbridge` row carries the
+open ones. The other rows are the §5 theorems that exist — the simulation and its three arms, the
 corollaries of `ErasesEnv` and of `UpstreamAsks` the arms spend, the first-order answer,
 the pass layer's two transports, subject reduction, the `optimize` corollary, the certified
 evaluator, and one line per green rung. `ErasesEnv.tabled`'s discharge is measured as its
@@ -39,8 +42,8 @@ import LeanToLambdaBox
 #print axioms LeanToLambdaBox.Lower.constToFix
 #print axioms LeanToLambdaBox.constants_of_tabled
 #print axioms LeanToLambdaBox.constOrigin_of_constants
--- #print axioms LeanToLambdaBox.visitExpr_refines_erasesLB
--- #print axioms LeanToLambdaBox.visitExpr_refines_erasesLBFix
+#print axioms LeanToLambdaBox.visitExpr_refines_erasesLB
+#print axioms LeanToLambdaBox.visitExpr_refines_erasesLBFix
 #print axioms LeanToLambdaBox.shipping_erase_correct_firstorder
 #print axioms LeanToLambdaBox.Green.green_G1
 #print axioms LeanToLambdaBox.Green.green_G2

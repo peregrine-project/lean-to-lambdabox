@@ -67,7 +67,7 @@ hypotheses, conclusion), and its **trust class**.
 *Origin.* `[S Fig. 16]`, `[S §7.1]` amendments (1)(2)(3), `[S §7.4]` `WcbvFlags`;
 `[L §2.3]` Def. 5 (`(□ u) →□ □`), Def. 8 (singleton ι, boxed fixpoint guard), Def. 9 (weak
 compatibility). Canonical implementation reference: MetaRocq `EWcbvEval`; canonical on-disk
-reference: `peregrine-tool/theories/PAst.v` and `doc/format.md`.
+reference: `peregrine-tool/theories/PAst.v` and `peregrine-tool/doc/format.md`.
 
 *Shape.*
 

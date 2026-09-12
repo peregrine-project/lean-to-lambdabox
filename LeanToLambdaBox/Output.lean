@@ -192,6 +192,19 @@ environment — the env+term split `expanded_eprogram_cstrs` makes. -/
 def OnProgram (Γ : GlobalDeclarations) (t : LBTerm) (P : LBTerm → Prop) : Prop :=
   P t ∧ ∀ kn b, LBTerm.envLookup Γ kn = some (.constantDecl ⟨some b⟩) → P b
 
+/-- Every `.fix` node in the subterm closure of an `OnProgram`-satisfying program is itself
+λ-headed at every member: the projection that feeds one `LowerBlock.hfl` obligation at the
+block a `visitMutual` run emits. A block stored in `Γ` rather than reached from the term is
+read through the environment half first — `⟨h.2 kn b hb, h.2⟩ : OnProgram Γ b FixLambda`. -/
+theorem FixLambda.of_onProgram {Γ : GlobalDeclarations} {prog sub : LBTerm}
+    (h : OnProgram Γ prog FixLambda) (hsub : SubTerm sub prog)
+    {defs : List (@FixDef LBTerm)} {j : Nat} (heq : sub = .fix defs j) :
+    ∀ i, i < defs.length → isLambda (defs[i]!).body = true := by
+  intro i hi
+  obtain ⟨nm, b, hb⟩ :=
+    h.1 defs j (heq ▸ hsub) defs[i]! (by rw [getElem!_pos defs i hi]; exact List.getElem_mem hi)
+  rw [hb]; rfl
+
 /-! ## The output predicate -/
 
 /-- What `untyped_transform_pipeline` needs from the emitted program `(Γ, t)`, on the emitted

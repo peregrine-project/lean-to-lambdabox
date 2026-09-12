@@ -7,31 +7,32 @@ can produce a wrong `.ast` and exit `0`. That is not hypothetical, it is the mea
 `Quicksort` miscompile (`F-SPARSE`, `doc/rework/03-DEV-FIX.md`).
 
 This table is how the development meets the obligation to account for them. There is no
-`Panicked` predicate and no `¬ Panicked run` binder: the output-shape lemmas
-(`LeanToLambdaBox/OutputShape.lean`) are panic-**tolerant** — they discharge the panic arms
-rather than refute them — and each site below is excluded by a premise that is either proved
-here or is a named conjunct of `Supported`, the decidable fragment predicate whose errors a
-reader audits. A site excluded "by a call-site guard" is one whose `unreachable!` sits in a
+`Panicked` predicate and no `¬ Panicked run` binder: the output-shape induction
+(`LeanToLambdaBox.visitExpr_shape_all`, on the metatheory of
+`LeanToLambdaBox/OutputShape.lean`) is panic-**tolerant** — it discharges the panic arms
+rather than refuting them, which is why it holds with no hypotheses at all — and each site
+below is excluded by a premise that is either proved here or is a named error of
+`SupportError`, the decidable fragment predicate's audited hole list. A site excluded "by a call-site guard" is one whose `unreachable!` sits in a
 destructuring `let` reached only under a matching syntactic head in the caller's own `match`.
 
-| # | Site | Line | Kind | What excludes it |
+| # | Site | Site in the eraser | Kind | What excludes it |
 |---|---|---|---|---|
-| 1 | `addAxiom`, duplicate constant | `:185` | `panic!` | The registration invariant: a constant is added to `constants` once, and `RegInvShape'`'s coverage field is what states it |
-| 2 | `register_inductive`, `getConstInfo ind_name` not `.inductInfo` | `:200` | `unreachable!` | `InductiveVal.all` lists inductives of the block — environment adequacy, `ErasureSpec.lookup_adequate` |
-| 3 | `register_inductive`, `getConstInfo ctor_name` not `.ctorInfo` | `:206` | `unreachable!` | `InductiveVal.ctors` lists constructors — the same adequacy field |
-| 4 | `register_inductive`, unexpected field count | `:213` | `panic!` | `Meta.forallBoundedTelescope ci.type (numParams + numFields)` returns that many binders because the constructor's type is well-typed with that arity; a kernel invariant, reached only under `remove_irrel_constr_args` (off by default, N4) |
-| 5 | `lambdaMonocular` on a non-`.lam` | `:303` | `unreachable!` | Call-site guard: `visitLambda` dispatches on `.lam` |
-| 6 | `letMonocular` on a non-`.letE` | `:312` | `unreachable!` | Call-site guard: `visitLet` dispatches on `.letE` |
-| 7 | `forallMonocular` on a non-`.forallE` | `:322` | `unreachable!` | Call-site guard: the η loops peel a binder of a type they have just found to be a `∀` |
-| 8 | `visitExpr`, the four inert heads | `:602` | `unreachable!` | Four heads, two of them closed **by theorem**: `Erases.sort_erasable` and `Erases.forallE_erasable` prove a `.sort` and a `.forallE` are `Erasable`, and `visitExpr` returns `.box` at `:591` before the match, so those heads never reach it. `.mvar` is excluded by `Supported.mvar`; `.bvar` by the locally-nameless invariant — every binder is instantiated with an `.fvar`, so the subject carries no loose index |
-| 9 | `visitLiteral`, `Nat` literal over 63 bits | `:613` | `panic!` | `Supported.machineNat`: the fragment fixes `nat := .peano`, and this arm is `.machine`-only |
-| 10 | `visitLiteral`, string literal | `:614` | `panic!` | `Supported.strLit` |
-| 11 | `visitProj`, `getConstInfo s` not `.inductInfo` | `:635` | `unreachable!` | `Expr.proj S i e` names a structure: a kernel invariant of the well-typed subject, and `Erases.proj`'s `IndInfo` premise states it on the specification side |
-| 12 | `visitConst` on a non-`.const` | `:661` | `unreachable!` | Call-site guard: `visitApp` reaches it with a `.const` head |
-| 13 | `visitConstApp` on a non-`.const` head | `:674` | `unreachable!` | Call-site guard: `withApp`'s head is the one the caller matched |
-| 14 | `visitConstructor`, `getConstInfo ctorname` not `.ctorInfo` | `:732` | `unreachable!` | The name comes from a `CasesInfo`/constructor dispatch — environment adequacy |
-| 15 | `visitConstructor`, `getConstInfo info.induct` not `.inductInfo` | `:734` | `unreachable!` | `ConstructorVal.induct` names an inductive — environment adequacy |
-| 16 | `visitCases`, `getConstInfo typeName` not `.inductInfo` | `:817` | `unreachable!` | `Supported.casesApp`'s **plain `CasesInfo`** conjunct. This is the one site reachable on a program the eraser otherwise accepts: `typeName` is recovered from the *name* (`casesInfo.declName.getPrefix`, `:770`), which is the enclosing function for a sparse `casesOn`. Reported as `SupportError.sparseCasesOn` and queued as **F-SPARSE** |
+| 1 | `addAxiom`, duplicate constant | `Erasure.lean:185` | `panic!` | The registration invariant: a constant is added to `constants` once, and `RegInvShape'`'s coverage field is what states it |
+| 2 | `register_inductive`, `getConstInfo ind_name` not `.inductInfo` | `Erasure.lean:200` | `unreachable!` | `InductiveVal.all` lists inductives of the block — environment adequacy, `ErasureSpec.lookup_adequate` |
+| 3 | `register_inductive`, `getConstInfo ctor_name` not `.ctorInfo` | `Erasure.lean:206` | `unreachable!` | `InductiveVal.ctors` lists constructors — the same adequacy field |
+| 4 | `register_inductive`, unexpected field count | `Erasure.lean:213` | `panic!` | `Meta.forallBoundedTelescope ci.type (numParams + numFields)` returns that many binders because the constructor's type is well-typed with that arity; a kernel invariant, reached only under `remove_irrel_constr_args` (off by default, N4) |
+| 5 | `lambdaMonocular` on a non-`.lam` | `Erasure.lean:303` | `unreachable!` | Call-site guard: `visitLambda` dispatches on `.lam` |
+| 6 | `letMonocular` on a non-`.letE` | `Erasure.lean:312` | `unreachable!` | Call-site guard: `visitLet` dispatches on `.letE` |
+| 7 | `forallMonocular` on a non-`.forallE` | `Erasure.lean:322` | `unreachable!` | Call-site guard: the η loops peel a binder of a type they have just found to be a `∀` |
+| 8 | `visitExpr`, the four inert heads | `Erasure.lean:602` | `unreachable!` | Four heads, two of them closed **by theorem**: `Erases.sort_erasable` and `Erases.forallE_erasable` prove a `.sort` and a `.forallE` are `Erasable`, and `visitExpr` returns `.box` at `:591` before the match, so those heads never reach it. `.mvar` is excluded by the fragment, which has no rule for it (`SupportError.mvar`); `.bvar` by the locally-nameless invariant — every binder is instantiated with an `.fvar`, so the subject carries no loose index |
+| 9 | `visitLiteral`, `Nat` literal over 63 bits | `Erasure.lean:613` | `panic!` | `SupportError.machineNat`, the verdict `supportedGo` returns here: the fragment fixes `nat := .peano`, and this arm is `.machine`-only |
+| 10 | `visitLiteral`, string literal | `Erasure.lean:614` | `panic!` | `SupportError.strLit`: the fragment has no rule for a string literal |
+| 11 | `visitProj`, `getConstInfo s` not `.inductInfo` | `Erasure.lean:635` | `unreachable!` | `Expr.proj S i e` names a structure: a kernel invariant of the well-typed subject, and `Erases.proj`'s `IndInfo` premise states it on the specification side |
+| 12 | `visitConst` on a non-`.const` | `Erasure.lean:661` | `unreachable!` | Call-site guard: `visitApp` reaches it with a `.const` head |
+| 13 | `visitConstApp` on a non-`.const` head | `Erasure.lean:674` | `unreachable!` | Call-site guard: `withApp`'s head is the one the caller matched |
+| 14 | `visitConstructor`, `getConstInfo ctorname` not `.ctorInfo` | `Erasure.lean:732` | `unreachable!` | The name comes from a `CasesInfo`/constructor dispatch — environment adequacy |
+| 15 | `visitConstructor`, `getConstInfo info.induct` not `.inductInfo` | `Erasure.lean:734` | `unreachable!` | `ConstructorVal.induct` names an inductive — environment adequacy |
+| 16 | `visitCases`, `getConstInfo typeName` not `.inductInfo` | `Erasure.lean:817` | `unreachable!` | `SupportedTm.casesApp`'s **plain `CasesInfo`** conjunct. This is the one site reachable on a program the eraser otherwise accepts: `typeName` is recovered from the *name* (`casesInfo.declName.getPrefix`, `:770`), which is the enclosing function for a sparse `casesOn`. Reported as `SupportError.sparseCasesOn` and queued as **F-SPARSE** |
 
 ## Two sites outside the eraser
 

@@ -264,7 +264,10 @@ def supportedGo (tbl : SourceTable) : Expr → List Expr → Except SupportError
   | .mdata _ b, args => supportedGo tbl b args
   | .lam _ _ b _, _ => supportedGo tbl b []
   | .letE _ _ v b _, _ => do supportedGo tbl v []; supportedGo tbl b []
-  | .proj _ _ b, _ => supportedGo tbl b []
+  | .proj S _ b, _ =>
+    match tbl.ind? S with
+    | none => .error (.unknownConst S)
+    | some I => if informativeB I then supportedGo tbl b [] else .error (.propElimIntoData S)
   | .lit (.strVal _), _ => .error .strLit
   | .lit (.natVal _), _ => if peanoReadyB tbl then .ok () else .error .machineNat
   | .mvar _, _ => .error .mvar
@@ -415,8 +418,13 @@ inductive SupportedTm (env : VEnv) (tbl : SourceTable) : Expr → List Expr → 
   | letE {n : Name} {ty v b : Expr} {nd : Bool} {args : List Expr}
       (hv : SupportedTm env tbl v []) (hb : SupportedTm env tbl b []) :
       SupportedTm env tbl (.letE n ty v b nd) args
-  /-- A projection: its discriminant carries the condition. -/
-  | proj {S : Name} {i : Nat} {b : Expr} {args : List Expr} (hb : SupportedTm env tbl b []) :
+  /-- A projection. `hind` and `hinf` are **N18**'s projection half: the structure is tabled
+      and informative, without which the emitted `.proj` is stuck on the target for the same
+      reason the `casesApp` rule's `hinf` covers (`SupportError.propElimIntoData`). `hb` is the
+      discriminant's own condition. -/
+  | proj {S : Name} {i : Nat} {b : Expr} {args : List Expr} {I : ReifiedInduct}
+      (hind : tbl.ind? S = some I) (hinf : InformativeInd env S)
+      (hb : SupportedTm env tbl b []) :
       SupportedTm env tbl (.proj S i b) args
   /-- An application: the argument is a term of its own, and the head reads it in the spine. -/
   | app {f a : Expr} {args : List Expr} (ha : SupportedTm env tbl a [])
@@ -470,6 +478,27 @@ structure Supported (env : VEnv) (tbl : SourceTable) (e : Expr) : Prop where
   /-- The shape of every reachable tabled body. -/
   bodies : ∀ (c : Name) (b : Expr), Reaches tbl e c → tbl.body? c = some b →
     SupportedTm env tbl b []
+
+/-! ## The projection head, read back
+
+**N18**'s projection half, in the form `Erases.proj`'s `hinf` consumes it.
+-/
+
+/-- The projection rule's three conjuncts, read off a verdict at a `.proj` node. -/
+theorem SupportedTm.proj_inv {env : VEnv} {tbl : SourceTable} {S : Name} {i : Nat}
+    {b : Expr} {args : List Expr} (h : SupportedTm env tbl (.proj S i b) args) :
+    (∃ I, tbl.ind? S = some I) ∧ InformativeInd env S ∧ SupportedTm env tbl b [] := by
+  cases h with | proj hind hinf hb => exact ⟨⟨_, hind⟩, hinf, hb⟩
+
+/-- **The fact `Erases.proj` demands, read back off the fragment verdict.** -/
+theorem Supported.projInto {env : VEnv} {tbl : SourceTable} {S : Name} {i : Nat} {e : Expr}
+    (h : Supported env tbl (.proj S i e)) : InformativeInd env S :=
+  h.term.proj_inv.2.1
+
+/-- The tabled inductive the projection's head names. -/
+theorem Supported.projInd {env : VEnv} {tbl : SourceTable} {S : Name} {i : Nat} {e : Expr}
+    (h : Supported env tbl (.proj S i e)) : ∃ I, tbl.ind? S = some I :=
+  h.term.proj_inv.1
 
 /-! ## Soundness: the model-side conjuncts -/
 
@@ -685,7 +714,15 @@ theorem supportedGo_sound (P : ErasureSpec lenv env Us gw) (ht : SourceTableAdeq
       · cases h
     | strVal s => simp only [supportedGo] at h; cases h
   | mdata d b ihb => intro args h; exact .mdata (ihb args (by simpa only [supportedGo] using h))
-  | proj S i b ihb => intro args h; exact .proj (ihb [] (by simpa only [supportedGo] using h))
+  | proj S i b ihb =>
+    intro args h
+    simp only [supportedGo] at h
+    split at h
+    · cases h
+    rename_i I hI
+    split at h
+    · exact .proj hI (informativeInd_of_tabled P ht hsafe hI (by assumption)) (ihb [] h)
+    · cases h
 
 /-- The δ-closure grows with the fuel: the constants of `e` are in every unfolding. -/
 theorem mem_reachNames {e : Expr} {c : Name} (h : c ∈ constNames e) :
@@ -782,7 +819,7 @@ theorem SupportedTm.instantiate1' {env : VEnv} {tbl : SourceTable} {e : Expr}
   | mdata _ ih => intro k; exact .mdata (ih k)
   | lam _ ihb => intro k; exact .lam (ihb (k + 1))
   | letE _ _ ihv ihb => intro k; exact .letE (ihv k) (ihb (k + 1))
-  | proj _ ihb => intro k; exact .proj (ihb k)
+  | proj hind hinf _ ihb => intro k; exact .proj hind hinf (ihb k)
   | app _ _ iha ihf => intro k; exact .app (iha k) (ihf k)
   | natLit hpeano hidx => intro _; exact .natLit hpeano hidx
   | @const c us args hplain hcases hrec hsat hknown =>
@@ -819,6 +856,22 @@ example : supportedB ⟨[], []⟩ 64 (.const `f._sparseCasesOn_1 []) =
       | .error e => e
       | .ok _ => .outOfFuel) = .sparseCasesOn `f._sparseCasesOn_1 := by decide +kernel
   cases hx : supportedB ⟨[], []⟩ 64 (.const `f._sparseCasesOn_1 []) with
+  | ok u => simp only [hx] at h; exact absurd h (by simp)
+  | error e => simp only [hx] at h; exact congrArg _ h
+
+/-- The table of one `Prop`-valued nullary structure, for the projection self-test. -/
+def propStructTable : SourceTable :=
+  ⟨[], [(`P, ⟨[], .sort .zero, 0, 0, [`P], []⟩)]⟩
+
+/-- **N18's projection half is live.** A projection out of a `Prop`-valued structure is
+rejected on the shape. Hand-built, because no tracked program carries such a node
+(`doc/coverage.md`). -/
+example : supportedB propStructTable 64 (.proj `P 0 (.bvar 0))
+    = .error (.propElimIntoData `P) := by
+  have h : (match supportedB propStructTable 64 (.proj `P 0 (.bvar 0)) with
+      | .error e => e
+      | .ok _ => .outOfFuel) = .propElimIntoData `P := by decide +kernel
+  cases hx : supportedB propStructTable 64 (.proj `P 0 (.bvar 0)) with
   | ok u => simp only [hx] at h; exact absurd h (by simp)
   | error e => simp only [hx] at h; exact congrArg _ h
 

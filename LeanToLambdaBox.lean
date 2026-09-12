@@ -58,7 +58,17 @@ import LeanToLambdaBox.Output
 import LeanToLambdaBox.Supported
 import LeanToLambdaBox.ErasesEnv
 import LeanToLambdaBox.SpecEnv
--- The first-order answer predicate, the capstone and the green ladder.
+-- The first-order answer predicate and the capstone.
 import LeanToLambdaBox.FirstOrderInd
 import LeanToLambdaBox.Capstone
+-- The bridge from the shipping erasure to the specification: the run invariant, the
+-- eighteen motives of the `partial_fixpoint` induction, the member steps that discharge
+-- them, the aggregator, and the cold-start shape and decomposition lemmas.
+import LeanToLambdaBox.Bridge
+import LeanToLambdaBox.VisitExprRefines
+import LeanToLambdaBox.VisitExprRefines.Step.Env
+import LeanToLambdaBox.VisitExprRefines.Step.Mechanical
+import LeanToLambdaBox.VisitExprRefines.Step.Passes
+import LeanToLambdaBox.ColdStartRun
+-- The green ladder.
 import LeanToLambdaBox.Green

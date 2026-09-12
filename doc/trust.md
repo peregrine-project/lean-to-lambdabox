@@ -16,8 +16,9 @@ first-order results with `fOFields_of_asks`, `simulate_of_erases_correct`,
 discharge (`constants_of_tabled`, `constOrigin_of_constants`),
 `shipping_erase_correct_firstorder`, `green_G1`-`green_G6` with `green_G5`'s source
 evaluation, and the three §5 results already standing — `SEval.defeq`, `LBOptimize_correct`,
-`lbEval_sound`. The two `visitExpr_refines_*` bridges (W4) and `green_G8` (W5) are commented
-out in `test/Ledger.lean` and are uncommented by the wave that proves them. A second fixture,
+`lbEval_sound`. The two `visitExpr_refines_*` bridges are live rows, measured as they stand: an
+implication whose eighteen member steps are hypotheses. `green_G8` (W5) is still
+commented out in `test/Ledger.lean` and is uncommented by the wave that proves it. A second fixture,
 `test/erasesLB.expected` (`scripts/erasesLB.sh`), measures the composite's introduction
 lemmas — statement and footprint — so a premise silently added to or dropped from `ErasesLB`
 shows as a diff.
@@ -69,8 +70,31 @@ assuming its soundness — brings in a cluster of 33 axioms, of which 29 are non
 lean4lean or Lean-core names and two are Lean core's `_native.bv_decide`. The cluster is the
 price of criterion 9, and the alternative is named in `doc/rework/01-DESIGN.md` §8.1: revert
 the kernel reroute (about 40 lines in 5 hunks) and keep the oracle's reflection clause as a
-class-**D** binder instead. The measuring command is `#print axioms` on the capstone, i.e.
-the ledger fixture itself; the classification of each name is this row's business.
+class-**D** binder instead.
+
+The cluster's entry point is `Oracle.kernel_isErasable_sound`, reached through
+`ErasureSpec.oracle_sound_of_run`, and **no row of `test/ledger.expected` measures it**:
+`shipping_erase_correct_firstorder` and the six rungs are clean because the erasure's box
+arm reaches them only through `hbridge`, which is a binder. It enters the ledger when
+that binder is discharged, since the bridge's step 1 *is* the oracle. Sites of the
+twenty-nine non-standard names, relative to `.lake/packages/lean4lean/Lean4Lean/`:
+
+| Names | Site |
+|---|---|
+| `ptrEqExpr_eq`, `ptrEqConstantInfo_eq` | `PtrEq.lean:17,22` |
+| `Std.TreeMap.all_eq_all_toList` | `Verify/Axioms.lean:10` |
+| `PersistentArray.toList'_push` | `Verify/Axioms.lean:39` |
+| `PersistentHashMap.WF.toList'_insert`, `WF.find?_eq`, `findAux_isSome` | `Verify/Axioms.lean:72,78,83` |
+| `Syntax.structEq_eq` | `Verify/Axioms.lean:115` |
+| `Level.isExplicitSubsumedAux_eq`, `normalize_eq`, `hasParam_eq`, `hasMVar_eq`, `instLawfulBEqLevel` | `Verify/Axioms.lean:194,257,279,289,292` |
+| `Expr.mkData_eq`, `mkAppData_eq`, `looseBVarRange_eq`, `replace_eq`, `lowerLooseBVars_eq` | `Verify/Axioms.lean:325,342,360,363,402` |
+| `Expr.instantiate1_eq`, `instantiate_eq`, `instantiateRev_eq`, `instantiateRange_eq`, `instantiateRevRange_eq` | `Verify/Axioms.lean:421,428,432,436,440` |
+| `Expr.abstract_eq`, `abstractRange_eq`, `hasLooseBVar_eq`, `eqv_eq` | `Verify/Axioms.lean:463,467,485,505` |
+| `Expr.Data.looseBVarRange_le._native.bv_decide.ax_1_7`, `Expr.mkData_flags._native.bv_decide.ax_1_12` | `Verify/Expr.lean:203,256` — the LRAT certificates of two `bv_decide` proofs |
+
+`Expr.instantiate1_eq` and the three persistent-structure names also reach the bridge
+outside the oracle, through the binder transports `BridgeInv.mkLocalDecl`/`.mkLetDecl`
+that the `visitLambda`, `visitLet` and `visitAlt` steps consume.
 
 ### (a4) What the projection arm and the δ arm do **not** add
 
@@ -125,6 +149,8 @@ that is the only place in this repository where that is recorded.
 
 | Binder | What it assumes | Where a rung discharges it |
 |---|---|---|
+| `hbridge` | `∃ Γspec t₀, ErasureBridge …`, the eight-field bundle `shipping_erase_correct_firstorder` composes: `erases`, `lower`, `erasesEnv`, `lowerEnv`, `wfSpec`, `wf`, `simulate`, `firstorder`. Each field's docstring names its supplier; `simulate` and `firstorder` are stronger than `simulate_of_erases_correct` and the two first-order results by the premises a clause cannot supply at an applied subject | nowhere, at any rung. `visitExpr_refines_erasesLB`/`_erasesLBFix` conclude `erases` and `lower` from a run, but take the erasure's eighteen member steps as hypotheses, and four have no supplier: steps 3 and 10 (`visitConstructor`, `visitProj`) are proved only at the weaker `Step3Reg`/`Step10Reg`, which carry an inductive-registry invariant `BridgeInv` does not; step 4 (`visitConst`) is **refuted** at a block reader by `erasesLBMode_block_refuted`; step 17 (`visitCases`) is not written. The remaining six fields wait on those two theorems, so the whole bundle is one class-**C** binder |
+| the bridge's step premises | seventeen named `Prop`s the fourteen supplied member steps carry, one clause each, because no field of `ErasureSpec`, `Supported`, `SpecEnv` or `BridgeInv` covers what the step reads. Eight are `ErasureSpec`-field-shaped, about primitives this development cannot execute — `CoreCallsMonotone`, `GetEnvMonotone`, `InferTypeMonotone`, `InferLamAdequate`, `PrepareRunConcl`, `DeclBlockMember`, `CasesInfoAdequate`, `CtorArityAdequate`. Six are model-side readings of a declaration `decl_adequate` does not classify — `CtorAdequate`, `CtorDeclModelled`, `IndDeclModelled`, `RegisterModels`, `NonConstHeadSupported`, `ProjSupported`. Two are repairs owed to `Bridge.lean` and `ErasesEnv.lean` — `FixvarsAllReserved`, `SpecEnvAbstracts`. One, `VisitExprRunConcl`, is a theorem of this development (`visitExpr_shape_all`'s run half) not yet composed | each is a bare `def … : Prop` whose docstring names the declaration it belongs to; none is a bundle, and none adds an axiom — every supplied step is within `[propext, Classical.choice, Quot.sound]` except step 1, which inherits (a3) through the oracle |
 | `hcfg` | the erasure configuration is the fragment's | `Green.spike_configPinned`, at G1-G6 |
 | `hsup` | `Supported`, the fragment predicate | `supportedB_sound` on `supportedB`'s computed verdict, at G1-G6 |
 | `hnb` | `NoBodylessRefs`, `erase_correct_firstorder`'s `axiom_free` at the emitted environment; decidable, and false on Fannkuch | `by decide +kernel`, at G1-G6 |
@@ -132,6 +158,7 @@ that is the only place in this repository where that is recorded.
 | `hvwt`, `hty` | the *value*'s `TrExprS` witness and its typing at the first-order inductive's spine | nowhere: a rung's value is a constructor spine, not a constant, so `Witness.trExprS_const_of_table` does not reach it. `Witness.sevalValue_of_table`'s route through `SEval.defeq` would discharge both and move the rung from class **A** to class **B**; no rung takes it |
 | `UpstreamAsks env` | the four load-bearing upstream asks (`doc/upstream-asks.md` items 2, 6, 9 and 10), as the four fields `constsOrigin` — a plain constant is neither a constructor nor an inductive type name, every declared constant is one of the three, and the block declaring a type former is unique both in its λ□ coordinates and as a declaration — `constArityInv` — an application headed by an inductive type former is defeq to neither a sort nor a Π — `mkAppsInv` — spine typing inversion, stated with `OrderedStrong` explicit — and `indSpineInj` — two defeq spines headed by inductively declared formers have the same head. Taken by `erases_correct` (hence T5 and everything closed on it), `not_erasable_of_informative`, `indSpine_not_prop`, `elim_major`, `ctor_saturated`, `CasesOnShape.agree`, `fOFields_of_asks`, `firstorder_erases_deterministic` and `firstorder_no_box`, and unpacked by `LeanToLambdaBox/Origin.lean`'s corollaries | the pin bump: the fork's `VEnv.WF'.consts_origin`, `VEnv.IsDefEqU.const_arity_inv`, `HasType.mkApps_inv` and `IsDefEqU.indSpine_inj` build the structure, and `Origin.lean`'s theorems drop the `A` binder with no change of statement shape. Not measurable in the ledger — `#print axioms` reports a proved theorem's footprint, never a hypothesis — so this row is where it lives |
 | `ErasesEnv.tabled`'s exclusion at a tabled constant | that a constant the compiler table gives a body for is neither a constructor nor an inductive type name **in the model**. `Origin.lean` proves the two halves that surround it — `constants_of_tabled` (the tabled constant is a constant of `env`, class **D** through `ErasureSpec.decl_adequate`) and `constOrigin_of_constants` (ask 2's classification, given the exclusion) — and nothing at the pin joins them | class **D**, and blocked: the join is a kind transfer from `lenv`'s `ConstantInfo` to the model's classification of `env.constants`, whose only witness would be a `TrEnv'` inversion — `doc/upstream-asks.md` item 4, the same ask `firstOrderIndB_sound` waits on. Until it lands the exclusion is a premise of `SpecEnv.erasesEnv` beside `hdefns` |
+| `hfo` | `FirstOrderInd env I`: the answer's inductive is first order in the model — every constructor field of every member of its block is itself a first-order inductive, and the block has no parameter, index or `Prop` member. Read at `` `Nat`` by all six rungs | nowhere. `firstOrderIndB` decides the same property on a reified `SourceTable` and `firstOrderIndB_step` is its table-side half, but the model-side half is the kind transfer from `lenv` to `env.constants` — `doc/upstream-asks.md` item 4, the same ask `ErasesEnv.tabled`'s exclusion waits on — so no rung discharges it by computation |
 | `hev` | the source evaluation `SEval env bo [] fullFlags [] e v` the capstone observes | `Green.g5_seval`, at **G5 only** — the one rung whose answer is computed by the source semantics rather than assumed of it. It is a binder at G1-G4 and at G6, where a rung says that its conditions are consistent with a literal answer and not that they hold. The derivation is δ at the subject, then ι at `Nat.casesOn`, and it pays N20's per-branch obligation in full: the *unselected* nullary branch is evaluated too, through its thunk and the δ step at `Unit.unit` that thunk's argument needs |
 | `SpikeNatFacts env ni`, `SpikeUnitFacts env pi` | how `env` declares `Nat`, `PUnit`, their constructors and `Nat.casesOn`, and that `Nat` eliminates into data — the eight facts `Green.g5_seval` reads off the model, the last of them `natInf : InformativeInd env ``Nat`, which is `SEval.iota`'s relevance premise. Each is a column the reified table records for `lenv`; nothing at the pin transports a tabled inductive back to its declaring block | upstream ask 3 (`doc/upstream-asks.md`), or the ask U3.5 filed for a `TrEnv'` inversion at an inductive name. Until one lands, `green_G5` carries both. The `Nat` half is **satisfiable**, not merely assumed: `Green.spikeNatFacts_natEnv` inhabits it at `SourceEval.lean`'s `NatWitness` fixture, a pats-carrying `VEnv.WF'` declaring `Nat`, its constructors, its recursor and `Nat.casesOn`. The `PUnit` half needs a second block in that fixture |
 | `hd`, `hdu`, `hio` at G5 | the three `StepDefeq`s `Green.g5_seval`'s δ, δ and ι steps owe: the constant is definitionally its compiler body, twice, and the eliminator spine is definitionally the selected branch applied to the constructor's field | the kernel's own reductions; a `TrExprS`-level discharge needs the same block inversion `SpikeNatFacts` does |
