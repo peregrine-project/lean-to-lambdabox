@@ -54,9 +54,28 @@ Paths under `.lake/packages/lean4lean/Lean4Lean/` are given relative to that dir
          env₀.constants c = none ∧ env₁.constants c = some ci
    ```
 
-   Until the fork holds it, the six consequences are the `constsOrigin` field of
+   Until the fork holds it, the consequences are the `constsOrigin` field of
    `UpstreamAsks env` (`LeanToLambdaBox/Upstream.lean`), taken as one named class-**C**
    hypothesis and unpacked by `LeanToLambdaBox/Origin.lean`; `doc/trust.md` carries the row.
+
+   **Two conjuncts added by W3R** (`doc/rework/05-REPAIRS-W3.md` §13), both consequences of the
+   same origin statement and both `VEnv`-only, so they change nothing about the ask's home or its
+   discharge — the prose above already claims the second ("the block declaring a given type
+   former is unique"), which the coordinate-level conjunct did not deliver:
+
+   ```lean
+   -- a block below `env` that declares `I` is a block of `env`'s OWN declaration list
+   (∀ I iid np nfs, IndInfo env I iid np nfs → IndDeclOf env I) ∧
+   -- and there is only one such block, at the declaration level, not only in its coordinates
+   (∀ (I : Name) decl decl', HasInduct env decl → HasInduct env decl' →
+     (∃ t ∈ decl.types, t.name = I) → (∃ t ∈ decl'.types, t.name = I) → decl = decl')
+   ```
+
+   Consumers: `ErasesEnv.blocks`' `IndDeclOf` conjunct — hence every rung's `ErasesEnv` — the
+   derived `CasesOnShape.agree`, which is what pins `SEval.iota`'s parameter count to the rule's
+   own block, and `fOFields_of_asks`' block uniqueness. These replace a `TrEnv'`-shaped ask W3R
+   filed and then withdrew: `TrEnv'` is indexed by a `Lean.Environment`, so it cannot be a field
+   of `UpstreamAsks env`, and its content for `firstOrderIndB_sound` is item 4 below.
 
 3. **The seven kernel-generic declarations in `LeanToLambdaBox/CheckerAdequacy.lean`** —
    `VContext.ofMLCtx` with its three `@[simp]` projections, `VState.WF.initial`, `M.WF.run'`,
@@ -110,6 +129,12 @@ Paths under `.lake/packages/lean4lean/Lean4Lean/` are given relative to that dir
    (`Verify/Environment.lean:208`) is `sorry` at the pinned revision — the lemma that would
    let the environment connection itself be derived rather than assumed.
 
+   **This is also `firstOrderIndB_sound`'s blocker** (`LeanToLambdaBox/FirstOrderInd.lean`'s
+   module header): the table-side half `firstOrderIndB_step` is proved, and the model-side half
+   is exactly this inversion. W3R briefly filed a second ask for the same content
+   (`TrEnv'.induct_block`) and withdrew it as a duplicate; until item 4 lands, `FirstOrderInd` is
+   reached only through `FOModel.firstOrderInd_E` and `hfo` stays a rung binder.
+
 5. **The `Quot.ind` divergence** between the theory (`Theory/Quot.lean:11` and its
    neighbours) and the executable checker.
 
@@ -138,10 +163,64 @@ Paths under `.lake/packages/lean4lean/Lean4Lean/` are given relative to that dir
    `nargs ≤ cstr_arity` bound, read off `IndInfo`, so no-over-application is a premise of the
    source value relation rather than a kernel fact to be derived.
 
+9. **`HasType.mkApps_inv`** — spine typing inversion. There is no lemma anywhere in
+   `Lean4Lean/Theory/Typing/` about `HasType U Γ (VExpr.mkApps f args) V`; the tree needs one at
+   four places. Stated with `OrderedStrong env` **explicit**, in `HasType.app_inv`'s own idiom
+   (`Theory/Typing/Strong.lean:885`), so that the ask is `sorryAx`-free exactly as `app_inv` is
+   (measured: `app_inv` is `[propext, Quot.sound]`). Home: at or below
+   `Theory/Typing/UniqueTyping.lean`, beside `app_inv`.
+
+   ```lean
+   /-- Peeling a spine's typing, argument by argument. -/
+   def Peel (env : VEnv) (U : Nat) (Γ : List VExpr) : VExpr → List VExpr → VExpr → Prop
+     | T, [],      V => env.IsDefEqU U Γ T V
+     | T, a :: as, V => ∃ A B, env.IsDefEqU U Γ T (.forallE A B) ∧ env.HasType U Γ a A ∧
+                          Peel env U Γ (B.inst a) as V
+
+   theorem HasType.mkApps_inv {env : VEnv} (henv : OrderedStrong env) {U Γ}
+       (hΓ : OnCtx Γ (env.IsType U)) (args : List VExpr) {f V}
+       (H : env.HasType U Γ (VExpr.mkApps f args) V) :
+       ∃ T, env.HasType U Γ f T ∧ Peel env U Γ T args V
+   ```
+
+   Consumers, all theorems here: `elim_major` and `ctor_saturated` (T5's ι arm),
+   `indSpine_not_prop` (T5's ι and proj arms, inside `not_erasable_of_informative`) and
+   `fOFields_of_asks` (both T7 theorems). Feasibility as measured: the forward half is ~40 lines
+   from `HasType.app_inv` plus `IsDefEq.uniqU`; the second half needs `IsDefEqU.forallE_inv` and
+   an instantiation lemma under a binder.
+
+   **What it does not buy, said plainly.** Not sorry-freedom at the consumers. `app_inv` needs
+   `OrderedStrong`, whose only introduction `VEnv.WF.orderedStrong` rests on
+   `VEnv.WF.patsStrong := sorry` (`Theory/Typing/EnvLemmas.lean:334`), and `IsDefEq.uniqU` and
+   `IsDefEqU.forallE_inv` are `sorry` at the pin as well. The consumers already inherit those
+   roots — `not_erasable_of_informative` measures
+   `[propext, sorryAx, Classical.choice, Quot.sound]` today — so this ask buys the statement, not
+   the trust.
+
+10. **`IsDefEqU.indSpine_inj`** — two spines headed by **inductively declared** type formers that
+   are definitionally equal have the same head name. Home: `Theory/Typing/Injectivity.lean`,
+   beside item 6.
+
+   ```lean
+   theorem IsDefEqU.indSpine_inj {env : VEnv} (henv : env.WF) {U Γ}
+       (hΓ : OnCtx Γ (env.IsType U)) {I J : Name} {us vs iargs jargs}
+       (hI : IndDeclOf env I) (hJ : IndDeclOf env J)
+       (h : env.IsDefEqU U Γ (VExpr.mkApps (.const I us) iargs)
+                             (VExpr.mkApps (.const J vs) jargs)) : I = J
+   ```
+
+   The `IndDeclOf` premises are load-bearing rather than decoration: without them the statement
+   is **false**, since a `VDecl.def` named `Foo` with body `Nat` gives
+   `IsDefEqU (.const Foo []) (.const Nat [])`. Consumers: `ctor_saturated`, `fOFields_of_asks`.
+   Honest expectation: the home file has three `sorry`s of four theorems (`sort_inv`,
+   `forallE_inv_stratified`, `sort_forallE_inv`) and Church-Rosser itself is unproved
+   (`ChurchRosser.lean:1193,1212`), so this ask lands with them and not before.
+
 ## Reported, not asked
 
-7. Three findings about downstream consumers, recorded because theorems here are stated
-   against them:
+7. *(Not an ask — a section. The running numbers continue through the file, which is why the
+   asks W3R added are 9 and 10.)* Three findings about downstream consumers, recorded because
+   theorems here are stated against them:
 
    * **MetaRocq's shipped `firstorder_ind` is `false` on `nat`.** The sort conjunct of
      `PCUICFirstorder.v:59` is not in `[S §7.3]`'s prose; it makes every theorem guarded by
