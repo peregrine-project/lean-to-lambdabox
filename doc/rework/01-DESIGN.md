@@ -765,10 +765,10 @@ inductive SEval (env : VEnv) (bo : Name → Option Expr) (Us : List Name) (fl : 
   | deltaC {Δ c us ups args argsv b b' v} (hfl : fl.delta)
       (hb : bo c = some b) (hinst : b' = b.instantiateLevelParams ups us)
       -- `hnd` mirrors the eraser's own dispatch: `visitCases` (`Erasure.lean:768`) never visits
-      -- a `casesOn` body, so neither does δ here. It is not optional — `reify%` tables a
-      -- `.defnInfo` with a body (`Witness/SourceTable.lean:213-216`) and `Nat.casesOn` is one, so
-      -- without it a saturated eliminator spine has a second derivation that unfolds the
-      -- eliminator, and T5's δ arm would owe the `ElimBody` evaluation theory §7.4 retires (N21).
+      -- a `casesOn` body, so neither does δ here. It is not optional — the source semantics
+      -- quantifies over an abstract body table `bo`, so without it a saturated eliminator spine
+      -- could have a second derivation that unfolds the eliminator, and T5's δ arm would owe the
+      -- `ElimBody` evaluation theory §7.4 retires (N21).
       (hnd : ∀ I dp nm, ¬ CasesOnShape env c I dp nm)
       (hlen : argsv.length = args.length)
       (hargs : ∀ i, i < args.length → SEval env bo Us fl Δ args[i]! argsv[i]!)
@@ -1675,9 +1675,11 @@ def SourceTable.body? (tbl : SourceTable) : Name → Option Expr   -- `SEval`/`E
 
 /-- Two clauses: (a) a per-declaration pin — `∀ d ∈ tbl.decls, lenv.find? d.name` matches
 `d`'s type and levels; (b) the run clause for the one column that is not a `find?` output —
-`prepare_erasure` on `d.name`'s value returns `d.body?` (`prepare_erasure : Expr → EraseM Expr`
-is monadic, so this clause is run-indexed like `lookup_adequate`, not a pure equation). Carried
-as the named class-**D** binder `htbl` in every rung and in T9. -/
+`prepare_erasure` on the value `compilerInfo? lenv d.name` reads (`ci.value? (allowOpaque :=
+true)`, the code generator's own value, per `SourceTable.lean`'s "The compiler's view of a
+declaration") returns `d.body?` (`prepare_erasure : Expr → EraseM Expr` is monadic, so this
+clause is run-indexed like `lookup_adequate`, not a pure equation). Carried as the named
+class-**D** binder `htbl` in every rung and in T9. -/
 def SourceTableAdequate (lenv : Lean.Environment) (tbl : SourceTable) : Prop
 ```
 
