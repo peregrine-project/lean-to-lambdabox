@@ -1226,6 +1226,36 @@ The inductive, both wrappers and the δ-obligation example are probe-checked
 (`scratchpad/probe/lowerfix.lean`, `probe/lowerfix2.lean` up to its parse error,
 `gate/lowerfix2_fixed.lean` for the repaired final example; axioms `[propext]`).
 
+**The pass commutes with abstraction**, which is what the bridge's three binder steps need:
+`Erasure.mkLambda`, `mkLetIn` and `mkAlt` close the emitted body with `abstract x = toBvar x 0`
+and `Erases.uninstantiate` closes the erasure image with the same operator. It does not follow
+from a congruence: at `fixConst`/`fixBody` the target is built from `Σ`'s declared bodies
+(`hdecl`, `hcl`), and abstracting a variable occurring in one of them demands a block the
+declaration does not declare. The side condition is free-variable-freedom of those bodies, and
+the two fix arms then replay because `closeFix` abstracts the block's own identifiers, so a
+`.fix` node the pass builds has no free variable at all (`toBvar_fixNode`) and `toBvar` is the
+identity on it. `ClosedBodies` is **not** a premise here: `toBvar` reads no de Bruijn index.
+
+```lean
+def FVarFreeBodies (Σ : GlobalDeclarations) : Prop :=
+  ∀ (kn : Kername) (b : LBTerm) (x : FVarId), DefnDecl Σ kn b → ¬ hasFVar x b
+
+theorem Lower.noFVar (hfv : FVarFreeBodies Σ) {x : FVarId} {s t : LBTerm} (h : Lower Σ s t) :
+    ¬ hasFVar x s → ¬ hasFVar x t
+theorem Lower.abstract (hfv : FVarFreeBodies Σ) {s t : LBTerm} (h : Lower Σ s t) (x : FVarId) :
+    ∀ lvl, Lower Σ (toBvar x lvl s) (toBvar x lvl t)
+theorem LowerAlt.abstract (hfv : FVarFreeBodies Σ) {nf : Nat} {m : LBTerm}
+    {alt : List BinderName × LBTerm} (h : LowerAlt Σ nf m alt) (x : FVarId) :
+    ∀ lvl, LowerAlt Σ nf (toBvar x lvl m) (alt.1, toBvar x (lvl + alt.1.length) alt.2)
+```
+
+`Lower.abstract` is `Lower.shift_comm`'s induction with `LowerAlt.abstract` as `motive_2`; the
+occurrence metatheory it rests on (`hasFVar_toBvar_of` and its three list companions in
+`LeanToLambdaBox/Abstract.lean`, `closeFix_not_hasFVar` in `LeanToLambdaBox/FixMetatheory.lean`,
+`constToFVar_not_hasFVar` and `closeConstAt_not_hasFVar` beside `CloseConstAt`) is new, and
+`FVarFreeBodies` is the `SpecEnv` clause of §4.8. `doc/rework/06-REPAIRS-W4.md` §4 is the
+derivation, with the arm that refutes the unconditional form.
+
 ### 4.5 `LowerFix` — `LowerFix.lean` (`ConstToFVar`/`CloseConstAt` in `Lower.lean`)
 
 `ConstToFVar` and `CloseConstAt` are declared in `Lower.lean`, not here: `LowerBlock.hcl` (§4.4)
@@ -1651,6 +1681,13 @@ structure SpecEnv (env : VEnv) (bo : Name → Option Expr) (s : ErasureState)
   spec   : SpecContent env bo Σ⁺
   consts : ∀ n : Name, (s.constants.get? n).isSome → (envLookup Σ⁺ (toKername n)).isSome
   inds   : ∀ n : Name, (s.inductives.get? n).isSome → IndCovered env Σ⁺ n
+  /-- The specification bodies mention no free variable, which is what makes the pass commute
+      with abstraction (`Lower.abstract`, §4.4) — the clause the bridge's binder steps consume.
+      A clause and not a theorem because `SpecContent` has no coverage clause: its four content
+      clauses are conditional on an entry being present, and an entry at a kername outside the
+      four kinds may hold a body with free variables. `RegInvShape'` carries the matching field
+      `specFVarFree`, beside the `specClosed` it already has. -/
+  fvarFree : FVarFreeBodies Σ⁺
 
 theorem SpecEnv.mono (h : StateLe s₁ s) (H : SpecEnv env bo s Σ⁺) : SpecEnv env bo s₁ Σ⁺
 /-- **The environment relation of a run.** Three premises, not four: `hax` is a `SpecContent`
@@ -1829,6 +1866,29 @@ structure ErasureSpec (lenv : Lean.Environment) (env : VEnv) (Us : List Name)
       upstream ships the shape twice (`TrEnv'.structure_rec`, `TrEnv'.pats_iota'`) — and keeps
       the field only if that fails, with the obstruction named. -/
   decl_adequate   : …
+  /-- The primitives the erasure calls for their effect alone: `Lean.getEnv`, `Lean.logInfo`,
+      `Lean.Meta.isInstance`, `Lean.Meta.inferType` — the last also reporting the agreement
+      between the inferred Π-telescope and the subject's λ-telescope `lambdaOrIntroToArity`
+      peels — and the three `preparePasses` `Erasure.prepare_erasure` runs with the `csimp`
+      gate off. Class **D**. -/
+  prim_monotone   : PrimMonotone gw
+  /-- `decl_adequate`'s block-level sibling: the kernel's inductive blocks, constructors and
+      `casesOn` constants in the model, at the identifier `Erasure.register_inductive` mints
+      (`⟨indBlockKername iv.all, i⟩`). Class **D**; it is what closes the kind transfer for
+      tabled names (`doc/upstream-asks.md` item 4) and what `IndRegistryModelled` is
+      maintained against. -/
+  block_adequate  : BlockAdequate lenv env
+  /-- The oracle's **completeness**, at the one shape the fragment cannot exclude: a `false`
+      verdict is not returned at a type former. An inductive type name is an argument of
+      almost every spine, so `Erasure.visitExpr` is called on it and the emitted `.const` has
+      no `Erases` reading — only `Erases.box` covers a type, and only a `true` verdict reaches
+      it. Class **D**. -/
+  oracle_informative : …
+  /-- The three transforms preserve the source evaluation. This is what `prepare_sound`
+      composes, and what carries T9's observable conjunct from the subject to the term the
+      erasure walks — the two are not the same term, and no relation identifies them
+      (`06-REPAIRS-W4.md` §11). Class **D**. -/
+  transforms_sound : …
 
 theorem ErasureSpec.envWF (P : ErasureSpec lenv env Us gw) : env.WF     -- via `TrEnv'.wf`;
     -- measured sorryAx-free: [propext, Classical.choice, Quot.sound] (gate/d5_envwf.lean)
@@ -1837,6 +1897,20 @@ theorem ErasureSpec.oracle_sound_of_run (P : ErasureSpec …) … :
     Erasable env lps.length Δ.toCtx ve
     -- kernel branch via `Oracle.kernel_isErasable_sound`; fallback branch by `P.oracle_meta`
 ```
+
+`ConfigPinned` — the five configuration restrictions every correctness statement is made under
+(§5) — is declared **here**, not in `Capstone.lean`: the bridge reads it in every one of its
+eighteen step interfaces, and a capstone that declares it can never import the bridge, which is
+what kept `hbridge` a binder (`06-REPAIRS-W4.md` §7).
+
+`LookupAdequate`'s four clauses are read at the answers the erasure branches on, so three of
+them carry more than presence: `declInfo` reports the compiler block the name belongs to and
+that its members are distinct after `Erasure.remove_unsafe_rec`; `ctorArity` and `casesInfo`
+carry their *negative* directions, without which a `none` answer excludes nothing in the model
+and the run's branch and the fragment's arm can disagree; `casesInfo` additionally pins the
+elaborator's `Lean.CasesInfo` against the block `lenv` declares (`CasesInfoAgreesK`), which the
+table-side `CasesInfoAgrees` follows from by `Witness.ReifiedInduct.Pinned`. `ErasureSpec` holds
+no `SourceTable`, so no clause here mentions one.
 
 Fields 1, 2, 3, 6 are class **D** (field 6 pending its derivation attempt); `oracle_refl` +
 `oracle_meta` are class **D** with the kernel arm class **B**, discharged through
@@ -1892,6 +1966,22 @@ def Supported (env : VEnv) (e : Expr) : Prop                    -- one named con
 theorem supportedB_sound (P : ErasureSpec lenv env Us gw) (ht : SourceTableAdequate lenv tbl) :
     supportedB tbl fuel e = .ok () → Supported env e
 ```
+
+Two of `SupportedTm`'s rules are read against the shipping dispatch rather than against the
+`Expr` constructor, and the difference is load-bearing (`06-REPAIRS-W4.md` §5). `mdata` holds at
+the **empty spine only**: `Expr.getAppFn` does not see through `.mdata`, so a metadata-wrapped
+head reaches `Erasure.visitConstApp` at the empty argument list and η-expands, the shape A21
+deleted the `Lower` arm for. `proj` carries the model's block arithmetic beside the table's —
+`IndArity env S np [nf]` and `i < nf` — which is what `Erases.proj` reads and what no clause about
+the table alone supplies. With the two, `Supported.head` (the spine's head is supported at the
+empty spine, away from a constant head) and `Supported.projInfo` (`ProjInfo env e`, which
+`ErasesLB.cases` needs for an eliminator's dropped prefix) are theorems.
+
+`KnownHead`'s three columns are the three readings of `Expr.const` that `Erases` distinguishes,
+and each carries the model's own — `∃ iid np nfs, IndInfo env c iid np nfs`, `∃ I k, CtorOf env c
+I k`, `ConstOrigin env c` — discharged in `supportedB_sound` from `ErasureSpec.block_adequate`
+and the table pin. That is where the bridge's plain-constant step gets the `ConstOrigin`
+`Erases.const` asks for, and it is what closes the kind transfer for tabled names.
 
 `Supported.casesApp` requires the head to be `I.casesOn` for an inductive in the fragment —
 **informative** (N18) — with a **plain** `CasesInfo` (no `CasesAltInfo.default`, no
@@ -2355,37 +2445,88 @@ theorem firstorder_no_box (… same premises …) (h : Erases env Us [] v t) : N
 --  nothing and would need a `FirstOrderShape` predicate with no other consumer — policy 6)
 
 -- T8  the bridge — two statements, split on the fixvar mode (§4.5)                  class B
+-- Both are read off motive 1 of one eighteen-member fixpoint induction, whose step interfaces
+-- are `Motives.lean`'s and whose eighteen steps are explicit hypotheses of the aggregator.
+-- `BridgeInv` is the state-side contract; its `fixvars` field names ONE pair, and the block
+-- statement is keyed on that pair rather than on the bare map equation — `fixvarMap nms ids =
+-- Std.HashMap.ofList (nms.zip ids)` truncates and overwrites, so the bare equation admits
+-- representations at which the conclusion is unsatisfiable (`erasesLBMode_block_refuted`) or at
+-- which `ids` holds a freshly opened binder (`06-REPAIRS-W4.md` §1):
+def BlockKeyed (ctx : ErasureContext) (nms : List Name) (ids : List FVarId) : Prop :=
+  ctx.fixvars = some (fixvarMap nms ids) ∧ nms.length = ids.length ∧ nms.Nodup ∧
+    ∀ m : Name, toKername m ∈ nms.map toKername → m ∈ nms
+
 theorem visitExpr_refines_erasesLB
+    (steps : Step1 … ∧ … ∧ Step18 …)                    -- eighteen explicit hypotheses
     (P    : ErasureSpec lenv env Us gw)
     (htbl : SourceTableAdequate lenv tbl)
     (hcfg : ConfigPinned cfg)
     (hcb  : CompilerBodies lenv env tbl.body?)          -- N8, class C
     (hwt  : TrExprS env Us Δ e ve)                      -- e is already prepared: T8 is about
-    (hsup : Supported env e)                            --   `visitExpr`, whose input is post-
+    (hsup : Supported env tbl e)                        --   `visitExpr`, whose input is post-
     (hfx  : ctx.fixvars = none)                         --   `prepare_erasure` (`erase_run_ok`)
     (hrun : Erasure.visitExpr e s ctx cctx ref w = .ok (t, s') w')
     (hinv : BridgeInv env Us cfg (gw w) ctx s Δ) :
     ∀ Σ⁺, SpecEnv env tbl.body? s' Σ⁺ →
       ErasesLB env Us Σ⁺ Δ e t ∧ RunConcl s s' ∧ gw w ≤ gw w'
 theorem visitExpr_refines_erasesLBFix   -- the block-branch companion; genuinely new work (W4)
-    (…same P/htbl/hcfg/hcb/hwt/hsup/hrun/hinv…)
-    (hfx : ctx.fixvars = some (fixvarMap kns ids)) (hfr : FreshFor ids ctx s) :
+    (…same steps/P/htbl/hcfg/hcb/hwt/hsup/hrun/hinv…)
+    (hfx : BlockKeyed ctx nms ids) :
     ∀ Σ⁺, SpecEnv env tbl.body? s' Σ⁺ →
-      ErasesLBFix env Us Σ⁺ kns ids Δ e t ∧ RunConcl s s' ∧ gw w ≤ gw w'
+      ErasesLBFix env Us Σ⁺ (nms.map toKername) ids Δ e t ∧ RunConcl s s' ∧ gw w ≤ gw w'
+-- No `hfr : FreshFor ids ctx s`: `ErasureState` records no free-variable information, so a
+-- freshness clause keyed on the state is vacuous. The content the block branch needs — the ids
+-- are distinct, reserved by the ambient generator and absent from `Δ` — is `BridgeInv.fixvars`,
+-- and `BridgeInv.fixvars_ids_subset` reads it at every `BlockKeyed` representation.
+-- The block statement quantifies `nms : List Name`, not `kns : List Kername`: the eraser
+-- installs `Std.HashMap.ofList (fixvarnames.zip ids)` at names, and `toKername` is not
+-- invertible, so `ErasesLBFix`'s first index is `nms.map toKername`.
 -- There is no `hnp`: N12 is met by its option 2 — the per-site panic table (`doc/panics.md`)
 -- plus the `Supported` conjuncts that exclude the reachable sites; `visitExpr_shape_all` is
 -- panic-tolerant and the bridge's arms discharge the panic branches under `Supported`.
+--
+-- `BridgeInv`, the state-side contract the induction carries (`Bridge.lean`):
+structure BridgeInv (env : VEnv) (Us : List Name) (cfg₀ : ErasureConfig) (gen : NameGenerator)
+    (ctx : ErasureContext) (s : ErasureState) (Δ : VLCtx) : Prop where
+  mlc      : ∃ m : MLCtx, m.WF env Us ∧ m.lctx = ctx.lctx ∧ m.vlctx = Δ
+  lparams  : ctx.lparams <+: Us
+  cfg      : ctx.config = cfg₀
+  kfresh   : ∀ fv ∈ Δ.fvars, kernelNGen.Reserves fv
+  reserved : ∀ fv ∈ Δ.fvars, gen.Reserves fv
+  fixvars  : ctx.fixvars = none ∨
+    ∃ nms ids, BlockKeyed ctx nms ids ∧ ids.Nodup ∧ ∀ x ∈ ids, gen.Reserves x ∧ x ∉ Δ.fvars
+  canon    : CanonicalConstants s
+  -- the registry the constructor, projection and eliminator members read their `InductiveId`
+  -- and field masks out of; `SpecEnv` sees its DOMAIN only, so the content is here. Carried
+  -- forward by the motives' own conclusion, since `RunConcl` bounds growth alone and
+  -- `ErasureRun.lean` is model-free (`06-REPAIRS-W4.md` §2)
+  indcanon : IndRegistryModelled env s
 
 -- T9  the capstone, applied form                                                    class B
 -- Proved by composition through one named binder, `hbridge`, whose fields are the results
 -- later waves prove (below); three clauses are stated in the form this wave can express
 -- rather than in §4's target form, each named in the theorem's own docstring, and one further
 -- binder, `hsafe`, is needed beyond the class-D list A14 names (§2.2, findings G1-O1/O2/O3/O4).
-structure ErasureBridge (env : VEnv) (bo : Name → Option Expr) (fo : Name → Prop) (e : Expr)
+-- The subject of the syntactic conjuncts is the **prepared** term `pe`, not `e`: `erase_run_ok`
+-- splits the run into `prepare_erasure e … = .ok (pe, {}) wp` and `visitExpr pe …`, and the two
+-- terms cannot be identified — `Lean.Compiler.LCNF.macroInline` replaces a constant by its body
+-- and the erasure of the result is not an erasure of the original. The observable conjunct stays
+-- at `e`, transported by `prepare_sound` off `ErasureSpec.transforms_sound`
+-- (`06-REPAIRS-W4.md` §11). The two fields T8 supplies are **not** fields: they are
+-- `erasure_bridge_of_run`, proved in `Capstone.lean`, which is why `ConfigPinned` lives in
+-- `ErasureSpec.lean` and the capstone imports the bridge.
+theorem erasure_bridge_of_run
+    (P : ErasureSpec lenv env [] gw) (htbl : SourceTableAdequate lenv tbl)
+    (hcfg : ConfigPinned cfg) (hcb : CompilerBodies lenv env tbl.body?)
+    (hsup : Supported env tbl pe) (hwt : TrExprS env [] [] pe ve)
+    (hprep : Erasure.prepare_erasure e {} { «config» := cfg } cctx ref w = .ok (pe, {}) wp)
+    (hvis : Erasure.visitExpr pe {} { «config» := cfg } cctx ref wp = .ok (t, sf) wt)
+    (hspec : SpecEnv env tbl.body? sf Σ⁺) :
+    ∃ t₀, Erases env [] [] pe t₀ ∧ Lower Σ⁺ t₀ t
+
+structure ErasureBridge (env : VEnv) (bo : Name → Option Expr) (fo : Name → Prop) (pe : Expr)
     (Σ⁺ Σ : GlobalDeclarations) (t t₀ : LBTerm) : Prop where
-  erases     : Erases env [] [] e t₀                                          -- T8, W4
   erasesEnv  : ErasesEnv env bo Σ⁺ t₀                                         -- SpecEnv.exists, W3
-  lower      : Lower Σ⁺ t₀ t                                                  -- T8, W4
   lowerEnv   : LowerEnv Σ⁺ Σ                                                  -- W3
   wfSpec     : LBWfSpec Σ⁺
   wf         : LBWfPeregrine Σ t                                             -- W4; not PeregrinePre (F-ETA)
@@ -2434,9 +2575,12 @@ theorem shipping_erase_correct_firstorder
     -- W2b's own capstone premise, not a design refutation): a rung discharges it `by decide
     -- +kernel`. False exactly on Fannkuch, whose coverage row (F-EQREC) is where that fact lives.
     (hnb   : NoBodylessRefs Σ t)
-    (hbridge : ∃ Σ⁺ t₀, ErasureBridge env tbl.body? fo e Σ⁺ Σ t t₀) :
-    ∃ (Σ⁺ : GlobalDeclarations) (t₀ : LBTerm),
-      Erases env [] [] e t₀
+    (hbridge : ∃ Σ⁺ t₀ pe, ErasureBridge env tbl.body? fo pe Σ⁺ Σ t t₀) :
+    ∃ (Σ⁺ : GlobalDeclarations) (t₀ : LBTerm) (pe : Expr),
+      -- the term the erasure walked, and the run that produced it, so a reader can see which
+      -- term the syntactic conjunct is about
+      Erasure.prepare_erasure e {} { «config» := cfg } cctx ref w = .ok (pe, {}) wp
+      ∧ Erases env [] [] pe t₀
       ∧ ErasesEnv env tbl.body? Σ⁺ t₀
       ∧ Lower Σ⁺ t₀ t
       ∧ LowerEnv Σ⁺ Σ
@@ -2488,12 +2632,16 @@ and `NoBodylessRefs` is its landed replacement, gained at G2), and each rung's `
 what first consumes `P`, `htbl` and `hsafe` for real (G1's alone, so far — G2–G4's `hcb` is class-**C**
 and uninhabited, §2.4).
 
-Composition, mirroring `[S §7.3]`: `erase_run_ok` (`ColdStartRun.lean:651`) decomposes the run into
-`prepare_erasure` then `visitExpr`; T8 puts the output in `Erases ⨟ Lower` at a `Σ⁺` that
-`SpecEnv.exists` constructs; T5 simulates the source evaluation into λ□ **at the emitted `Σ` and
-`eraseFlags`** — the deliverable point (§3.2), reached in one step rather than two; T7 identifies
-the value uniquely and shows it box-free. `hbridge`'s fields are named after exactly
-these theorems.
+Composition, mirroring `[S §7.3]`: `erase_run_ok` (`LeanToLambdaBox/ColdStartRun.lean`)
+decomposes the run into `prepare_erasure` then `visitExpr`; `prepare_sound` carries the source
+evaluation to the prepared term the second half walks; T8 puts that half's output in
+`Erases ⨟ Lower` at a `Σ⁺` that `SpecEnv.exists` constructs; T5 simulates the evaluation into λ□
+**at the emitted `Σ` and `eraseFlags`** — the deliverable point (§3.2), reached in one step
+rather than two; T7 identifies the value uniquely and shows it box-free.
+
+The first two steps are `erasure_bridge_of_run`, proved; the rest are `hbridge`'s six remaining
+fields, each named after the theorem that will supply it, and all six wait on the registration
+invariant at the final state (`RegInvShape'`, `RegSaturated`) rather than on the bridge.
 
 ```lean
 -- T10 non-vacuity (per rung; §6)                                                    class A/B

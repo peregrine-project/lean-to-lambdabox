@@ -82,7 +82,8 @@ the fixture diff and the `doc/trust.md` row to its wave gate (N3a).
 | **W2** | β, ζ, literals; the composite; then the re-anchoring the W2 refutations force | 4 + 6 + gate | G2, G3, G4 | **Delivered** |
 | **W3** | the one simulation (β ζ δ ι proj lit), first-order domain, `TrExprS` witnesses, the fragment, the pin bump | 9 + gate | G5, G6 | **Delivered**, under `StepPremises` (retired by W3R) |
 | **W3R** | **The repair wave**: the definitions the W3 arms had to work around — `ErasesEnv` forward (seven clauses), `Erases.proj`'s relevance (semantic, not syntactic), `SEval`'s pinned block data in source coordinates, `CasesOnShape`'s type, `LowerBlock.hfl`, the table modulo α — so that `erases_correct` needs MetaRocq's five, `LowerEnv` and `UpstreamAsks` and nothing else. Re-planned after its own refutation (`05-REPAIRS-W3.md` §16) | 9 + gate | G1–G6 unchanged and still green **at the gate** | **Delivered**; delivered files below |
-| **W4** | The bridge: 18 motives against `ErasesLB`/`ErasesLBFix`, plus the block λ-headedness `LowerBlock.hfl` now asks of it | 6 + gate | G1–G6 lose `hbridge` | not started |
+| **W4** | The bridge: 18 motives against `ErasesLB`/`ErasesLBFix`, plus the block λ-headedness `LowerBlock.hfl` now asks of it | 6 + gate | G1–G6 lose `hbridge` | **Delivered in part**: the motives, the aggregator and fourteen of the eighteen steps; steps 3, 4, 10 and 17 have no supplier and step 4 is refuted at a block reader, so `hbridge` stands |
+| **W4b** | **The bridge repair wave**: the keyed fixvar mode that un-refutes step 4, the inductive registry in `BridgeInv`, the `ErasureSpec` clauses that retire the seventeen step premises, `Lower.abstract`, the two `SupportedTm` repairs, step 17, and the capstone's erasure half. `doc/rework/06-REPAIRS-W4.md` is the design | 9 + gate | G1–G6 take a proved term for the erasure half | not started |
 | **W5** | Capstone at Arith, coverage, delivery | 4 + gate | **G7, G8** | not started |
 | **W6** | Optional hardening, off the critical path | 4 | unchanged | not started |
 
@@ -390,6 +391,48 @@ theorem named `constOrigin_of_tabled` exists (`05-REPAIRS-W3.md` §17 WD6).
 | **U4.5 cold-start + panics** | `ColdStartRun.lean`, `ColdStartInduction.lean` (re-landed adapted; **plus the new `visitExpr_ctorSat`** — §4.9's saturation route), `doc/panics.md` | U4.1 | 800 | `erase_run_ok`, `run_prepare_erasure_ok`, `visitExpr_shape_all` re-landed; `visitExpr_ctorSat` elaborates; `doc/panics.md` lists all sixteen sites with the premise excluding each — two closed by `Erases.sort_erasable`/`forallE_erasable`, the rest by named `Supported` conjuncts (criterion 10 = N12 option 2) |
 | **G4 gate — the bridge lands** | `Capstone.lean`, `Green.lean`, `.github/workflows/build.yml` (N3a); N3a files | U4.1–U4.5 **(proof)** | 700 | both T8 statements elaborate proved; `#print axioms` on them shows `sorryAx` present exactly for the theorems `test/ledger.expected` predicts, and `doc/trust.md` names the lean4lean roots with `file:line` (provenance is documented there, not claimed measured — N6); **`green_G1`…`green_G6` stop taking `hbridge`**; ledger diff clean; **three CI steps W3R's gate left owed** (`.github/workflows/build.yml`, gate-owned since W1, N3a): `bash scripts/erases_correct.sh` beside the `Trust ledger` step (the only guard on T5's premise list), `bash scripts/erasesLB.sh` (exists, was not run), and `LeanToLambdaBox.Witness.SelfTest.matchTable` added beside `toyTable`/`staleTable` in the `Reified table drift` step (the only regression guard on the α-note path) — all three pass locally today and are owed to CI, not to a proof |
 
+### W4b — the bridge repair wave (9 + gate)
+
+`doc/rework/06-REPAIRS-W4.md` is this wave's design: it names each W4 finding, the decision it
+takes, the exact signature that lands, and the probe that checks it. Four member steps had no
+supplier and one of them was refuted, so W4's two T8 statements are implications no reader
+satisfies at a mutual block; seventeen named `Prop` premises carry the fourteen that were
+supplied. The wave closes both — all eighteen steps, no named premise beyond the standing
+binders — and discharges the erasure half of `hbridge`.
+
+**Three repairs are definition changes, so the tree does not build mid-wave.** `ErasesLBMode`'s
+block conjunct is keyed by `BlockKeyed` (length, `Nodup`, kername separation) and
+`BridgeInv.fixvars` names such a pair; `BridgeInv` gains the inductive registry and the motives
+carry it forward, since `Erasure.RunConcl` bounds growth alone and `LeanToLambdaBox/ErasureRun.lean`
+is model-free; `SpecEnv` gains the free-variable-freedom clause `Lower.abstract` needs, and
+`SupportedTm`'s `mdata` and `proj` rules are repaired against the shipping dispatch. Two of the
+three are forced by a **machine-checked refutation** of the W4 shape, not by taste.
+
+**`ConfigPinned` moves to `LeanToLambdaBox/ErasureSpec.lean`.** While it lives in
+`LeanToLambdaBox/Capstone.lean`, `LeanToLambdaBox/Bridge.lean` must import the capstone and the
+capstone can never import the bridge — which is why no `ErasureBridge` field could be discharged
+in the file that declares it, and why 282 declarations sit outside `lake exe hygiene --dead`'s
+closure.
+
+| Unit | Files owned | Depends | Est. | Acceptance |
+|---|---|---|---|---|
+| **U4R.1 the spec** | `LeanToLambdaBox/ErasureSpec.lean`, `LeanToLambdaBox/Capstone.lean` (the `ConfigPinned` relocation only, co-owned with U4R.9) | — | 400 | `ConfigPinned` has exactly one home and it is `ErasureSpec.lean`; `LookupAdequate`'s `declInfo`/`ctorArity`/`casesInfo` carry the block membership, the two negative directions and `CasesInfoAgreesK`; the four new fields (`prim_monotone`, `block_adequate`, `oracle_informative`, `transforms_sound`) elaborate, each docstring naming the `Lean.*` primitive it is about and its class — **no clause specifies this repository's own code**; `ErasureSpec.envWF`/`.oracle_sound_of_run` footprints unchanged |
+| **U4R.2 abstraction** | `LeanToLambdaBox/{Abstract,FixMetatheory,Lower,SpecEnv,ColdStartShape}.lean` | — | 450 | `Lower.abstract`, `Lower.noFVar` and `LowerAlt.abstract` elaborate under `FVarFreeBodies` alone; the occurrence metatheory (`hasFVar_toBvar_of`, `closeFix_not_hasFVar`, `constToFVar_not_hasFVar`, `closeConstAt_not_hasFVar`, `toBvar_fixNode`) lands with them; `SpecEnv.fvarFree` and `RegInvShape'.specFVarFree` are discharged at every construction site; the five relocated `gdecls` lemmas and `visitMutual_lowerBlock_hfl` land beside `RegInvShape'.recConst`; `--dup` 0 |
+| **U4R.3 the fragment** | `LeanToLambdaBox/Supported.lean`, `LeanToLambdaBox/Erases.lean` (one theorem) | U4R.1 | 400 | `SupportedTm.mdata` at the empty spine and `SupportedTm.proj` with the model arity and the index bound, both decided by `supportedGo` and transported by `supportedB_sound`; `Supported.head`, `Supported.projInfo`, `IndArity.indInfo` and `CasesInfoAgrees.of_pinned` are theorems; `KnownHead`'s three columns carry the model's three readings; `green-check --all` 6/6 and `reify --check` green — the ripple changes no committed verdict; the unit report **measures** metadata-wrapped heads and `.proj` heads over the eleven committed environments |
+| **U4R.4 the invariant** | `LeanToLambdaBox/Bridge.lean`, `LeanToLambdaBox/VisitExprRefines/Motives.lean`, `LeanToLambdaBox/VisitExprRefines.lean`, `LeanToLambdaBox/VisitExprRefines/Step/Passes.lean` (the `IndRegistryModelled`/`*Reg` block only, co-owned with U4R.8) | U4R.1 | 450 | `BlockKeyed`, the keyed `ErasesLBMode`/`ErasesLBAltMode`, `BridgeInv.indcanon`, `BridgeInv.fixvars_ids_subset` and the registry conjunct on `RunRefines`; `Bridge.lean` imports `SpecEnv` and `ColdStartRun` and **not** `Capstone`; `blockKeyed_append_absurd` shows the refuting pair is excluded; both T8 statements still elaborate with the eighteen steps as hypotheses |
+| **U4R.5 the registry run** | `LeanToLambdaBox/ErasureRun.lean` | U4R.1, U4R.4 | 350 | `run_register_inductive_models` — `RegisterModels` **proved**, guarded by the invariant so it is not refutable at a hand-made state; the four `pass_*_core` bridges and the two `run_mkDef_*` relocations land |
+| **U4R.6 env steps** | `LeanToLambdaBox/VisitExprRefines/Step/Env.lean` | U4R.1, U4R.3, U4R.4 | 300 | steps 4, 5, 6 conclude `Step4`/`Step5`/`Step6` with no named premise; `grep "^def .* : Prop$"` empty |
+| **U4R.7 mechanical steps** | `LeanToLambdaBox/VisitExprRefines/Step/Mechanical.lean` | U4R.1–U4R.5 | 400 | steps 1, 7, 8, 9, 11, 12, 18 with no named premise; the seven relocated declarations gone; step 1 produces the type-former exclusion the spine steps thread |
+| **U4R.8 pass steps** | `LeanToLambdaBox/VisitExprRefines/Step/Passes.lean` | U4R.1–U4R.5 | 900 | steps 2, 3, 10, 13, 14, 15, 16 at the induction's own interfaces (`*Reg` gone) and **step 17**; with U4R.6/U4R.7, `motives_of_steps` composes with all eighteen supplied, and its `#print axioms` is the 33-name cluster of `06-REPAIRS-W4.md` §8 and nothing else |
+| **U4R.9 the capstone** | `LeanToLambdaBox/Capstone.lean`, `LeanToLambdaBox/Green.lean`, `LeanToLambdaBox/ColdStartRun.lean`, `test/Ledger.lean`, `test/ledger.expected`, `doc/trust.md` | U4R.1–U4R.8 | 450 | `prepare_sound`; `ErasureBridge` loses `erases` and `lower`, which `erasure_bridge_of_run` proves; the capstone's syntactic conjunct reads the prepared term and its observable conjunct still reads the subject; the six rungs pass a proved term for the erasure half; the ledger gains the `ErasureSpec.oracle_sound_of_run` row and `doc/trust.md` loses its step-premise row |
+| **G4R gate — the bridge closes** | `.github/workflows/build.yml`, `scripts/ledger.sh`, `doc/coverage.md`; N3a files | U4R.1–U4R.9 **(proof)** | 200 | both T8 statements proved in full; the measured footprint is the predicted one; `--dead` reports 172, down 282; `--dup`/`--schedule`/`--tables`/`--cites` 0; `green-check --all` 6/6; the ledger diff is exactly the predicted one; `doc/trust.md` and `doc/coverage.md` carry the F-KERNAME and N22 rows |
+
+**What W4b does not close, and says so.** The environment half of `ErasureBridge` —
+`erasesEnv`, `lowerEnv`, `wfSpec` and the environment clauses of `wf` — waits on the registration
+invariant at the final state (`RegInvShape'`, `SpecEnv.exists`, `RegSaturated`), which is W5's.
+`hbridge` therefore survives as a six-field binder, with each field's supplier named in its
+docstring and in `doc/trust.md`.
+
 ### W5 — capstone at Arith, coverage, delivery (5 + gate)
 
 **Two W3R consequences fix what G7/G8 were blocked on.** A rung's subject must be nameable by a
@@ -403,8 +446,8 @@ remaining asks are `hsup` (measured clear: Arith 43 tabled decls, entry `ok`, 0 
 
 | Unit | Files owned | Depends | Est. | Acceptance |
 |---|---|---|---|---|
-| **U5.0 rung subjects and the α transports** | **new** `VerifyBench/Src/{Arith,Sieve,Quicksort,BinaryTrees,Fannkuch}.lean`, the five `VerifyBench/<P>.lean` roots, `lakefile.toml`, **new** `test/frozen/<P>.lean.expected`, **new** `scripts/frozen.sh`, **new** `LeanToLambdaBox/Alpha.lean` | W4 **(proof)**, W3R U3R.9 **(proof)** | 500 | each `VerifyBench/Src/<P>.lean` is the frozen original's definitions with no `#erase` and no `import LeanToLambdaBox`; each `VerifyBench/<P>.lean` is `import VerifyBench.Src.<P>` plus its unchanged `#erase` line; `lake build` elaborates the `Src` modules and **writes no `.ast`** (checked: `git status --porcelain VerifyBench/ast` empty after a clean build); `scripts/frozen.sh` diffs the `Src` copies against `test/frozen/` and is wired into CI; `Alpha.lean` proves the four transports the rung consumes and **only** those, each with its U5.2 consumer named (`05-REPAIRS-W3.md` §6): (1) `LBTerm.AlphaEq`, λ□ equality up to `.lambda`/`.letIn` binder names, decidable; (2) `TrExprS.alpha` — the same `VExpr`, since `VExpr` has no binder names; (3) `SEval.alpha` — true only because `Expr.AlphaEq` has no `mdata` arms (U3R.9); (4) `Erases.alpha` and `Lower.alpha` up to `LBTerm.AlphaEq`, with the invariance of `NoBox`, `constRefs`/`ReachableFrom` and `WcbvEval` under it. **Out of scope, and the unit report says why:** the rung conclusions and the emitted-term equations — a rung's answer is binder-free, and the table equations stay `rfl` |
-| **U5.1 capstone** | `Capstone.lean` | W4 **(proof)** | 600 | `shipping_erase_correct_firstorder` elaborates in the applied form of `01-DESIGN` §5 (with `hax` a hypothesis and `∃ Σ⁺ t₀` binding the subject's own `Erases` conjunct); its conclusion contains `LBWfPeregrine` (criterion 12) and **not** `LBExpandedFix`, and its docstring names F-ETA; `#print axioms` matches the fixture |
+| **U5.0 rung subjects and the α transports** | **new** `VerifyBench/Src/{Arith,Sieve,Quicksort,BinaryTrees,Fannkuch}.lean`, the five `VerifyBench/<P>.lean` roots, `lakefile.toml`, **new** `test/frozen/<P>.lean.expected`, **new** `scripts/frozen.sh`, **new** `LeanToLambdaBox/Alpha.lean` | W4b **(proof)**, W3R U3R.9 **(proof)** | 500 | each `VerifyBench/Src/<P>.lean` is the frozen original's definitions with no `#erase` and no `import LeanToLambdaBox`; each `VerifyBench/<P>.lean` is `import VerifyBench.Src.<P>` plus its unchanged `#erase` line; `lake build` elaborates the `Src` modules and **writes no `.ast`** (checked: `git status --porcelain VerifyBench/ast` empty after a clean build); `scripts/frozen.sh` diffs the `Src` copies against `test/frozen/` and is wired into CI; `Alpha.lean` proves the four transports the rung consumes and **only** those, each with its U5.2 consumer named (`05-REPAIRS-W3.md` §6): (1) `LBTerm.AlphaEq`, λ□ equality up to `.lambda`/`.letIn` binder names, decidable; (2) `TrExprS.alpha` — the same `VExpr`, since `VExpr` has no binder names; (3) `SEval.alpha` — true only because `Expr.AlphaEq` has no `mdata` arms (U3R.9); (4) `Erases.alpha` and `Lower.alpha` up to `LBTerm.AlphaEq`, with the invariance of `NoBox`, `constRefs`/`ReachableFrom` and `WcbvEval` under it. **Out of scope, and the unit report says why:** the rung conclusions and the emitted-term equations — a rung's answer is binder-free, and the table equations stay `rfl` |
+| **U5.1 capstone** | `Capstone.lean` | W4b **(proof)** | 600 | `shipping_erase_correct_firstorder` elaborates in the applied form of `01-DESIGN` §5 (with `hax` a hypothesis and `∃ Σ⁺ t₀` binding the subject's own `Erases` conjunct); its conclusion contains `LBWfPeregrine` (criterion 12) and **not** `LBExpandedFix`, and its docstring names F-ETA; `#print axioms` matches the fixture |
 | **U5.2 Arith rungs** | `VerifyBench/Spikes/{G7,G8}.lean`, `Green.lean` | U5.1, **U5.0** | 700 | `green_G7` (`arithClosed = benchArith 0`, defined beside the program in `VerifyBench/Src/Arith.lean`) and `green_G8` (the applied capstone at `args = [0]`) elaborate, both ending in `peanoLB 8`; `arith_hcb : CompilerBodies …` is discharged by four checker runs (`Nat.add/mul/sub/pow` typed via `M.WF.run'`), and the `deltaC` side conditions inside `hev` close by the four `rfl` equation instances (`01-DESIGN` §3.1 Q3); `lake exe reify --check` on `g7Table` passes, α-notes included, and the unit report says which tabled bodies are α-only matches |
 | **U5.3 coverage** | `Tools/Coverage.lean`, `doc/coverage.md`; **deletes** `VerifyBench/STATUS.md` (230 lines) **after** its F-SPARSE reproduction is verified present in `doc/rework/03-DEV-FIX.md` | U5.1 | 400 | `lake exe coverage` regenerates `doc/coverage.md` byte-identically; it has five program rows plus the eight rungs, names the excluding `SupportError` per uncovered program (incl. `Fannkuch`'s `hax` row and any N18 row), and its covered count is ≥ 3 (criterion 14); it carries the `hrun`, `htbl` and `hsafe` rows verbatim from `doc/trust.md`, the **N22** row (a block's member bodies are λs — regenerated from the `.ast`s, not transcribed), and the fragment column as measured at the compiler-body table (Arith inside) |
 | **U5.4 hygiene + delivery** | `README.md`, module headers **of files owned by W0–W5 units** (never `{Erasure,Basic,Printing}.lean`) | U5.1 | 500 | `lake exe hygiene` exits 0 over the whole tree: zero slice tags / commit hashes / dates / memory references / "used to"-narration, every backticked identifier resolves, every cited document exists (criteria 18-19); comment fraction < 20% **scoped to the files the rework owns** (the carried set measures 22.3% and shipping code may not be edited — the threshold is per-owned-file, stated in the tool); `lake exe hygiene --dead` reports zero declarations outside `Green.lean` ∪ `Capstone.lean`'s import closure except `doc/coverage.md`'s exception list, which may carry **only W6-consumer rows** (`01-DESIGN` §9.6 — today: `Optimize.lean` → U6.2); `git rev-list --count main..HEAD` = 0 after the merge (criterion 22) |
@@ -427,7 +470,7 @@ statement from W0–W5 is restated.
 ## 3. Dependency graph (waves)
 
 ```
-W0 ──► W1 ──► W2 ──► W3 ──► W3R ──► W4 ──► W5
+W0 ──► W1 ──► W2 ──► W3 ──► W3R ──► W4 ──► W4b ──► W5
              └───────────────────────────────► W6 (any time after W2; additive — except U6.3, gated on dev/fix F-PROP)
 ```
 
@@ -507,6 +550,25 @@ Inside W4, U4.1 precedes the three motive units, and **U4.2 is scheduled before 
 though it is independent of them. **U4.3b** (the block λ-headedness `LowerBlock.hfl` asks of the
 bridge, W3R's F5) needs U4.1 and W3R U3R.3's proof and is otherwise independent; it is small and
 can run alongside U4.3, whose file it shares one step with.
+
+**W4b's file graph, checked disjoint.** Nine units' FILES: U4R.1 (`ErasureSpec.lean`,
+`Capstone.lean`'s `ConfigPinned` relocation), U4R.2 (`Abstract.lean`, `FixMetatheory.lean`,
+`Lower.lean`, `SpecEnv.lean`, `ColdStartShape.lean`), U4R.3 (`Supported.lean`, `Erases.lean`),
+U4R.4 (`Bridge.lean`, `VisitExprRefines/Motives.lean`, `VisitExprRefines.lean`,
+`VisitExprRefines/Step/Passes.lean`'s `IndRegistryModelled` block), U4R.5 (`ErasureRun.lean`),
+U4R.6 (`VisitExprRefines/Step/Env.lean`), U4R.7 (`VisitExprRefines/Step/Mechanical.lean`),
+U4R.8 (`VisitExprRefines/Step/Passes.lean`), U4R.9 (`Capstone.lean`, `Green.lean`,
+`ColdStartRun.lean`, `test/Ledger.lean`, `test/ledger.expected`, `doc/trust.md`). **Two declared
+co-ownerships**, each a single block rather than a file: `Capstone.lean` (U4R.1 removes
+`ConfigPinned`, U4R.9 owns the rest and runs last) and
+`VisitExprRefines/Step/Passes.lean` (U4R.4 removes `IndRegistryModelled` and the four `*Reg`
+declarations, U4R.8 owns the rest and runs after). **Order:** U4R.1 and U4R.2 are independent and
+run first, in parallel; U4R.3 and U4R.4 need U4R.1; U4R.5 needs U4R.4's interface; U4R.6, U4R.7
+and U4R.8 need U4R.5's proof, and U4R.8 is the long pole (its step 17 half starts only after its
+own first half); U4R.9 waits on all eight and G4R on all nine. Serial path:
+**U4R.1 → U4R.4 → U4R.5 → U4R.8 → U4R.9 → G4R** (six links). The wave changes `SpecEnv`,
+`BridgeInv` and two `SupportedTm` rules, so — as in W3R — the tree does not build between the
+first unit and the gate, and the green obligation for G1–G6 is the gate's.
 
 ---
 
