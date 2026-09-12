@@ -7,8 +7,10 @@ import LeanToLambdaBox.Witness.SourceTable
 and compares it, field by field, against the environment `MOD` elaborated in — the same
 comparison `LeanToLambdaBox.Witness.SourceTable.check` performs, run outside the kernel.
 Nothing is regenerated and diffed: the table under test is the committed one, and it is held
-against `Lean.Environment.find?` and a fresh `Erasure.prepare_erasure` run on the environment's
-own value. Exit `0` when every table matches, `1` on any mismatch or error.
+against `Lean.Environment.find?` and a fresh `Erasure.prepare_erasure` run on the value the code
+generator reads for the constant (`LeanToLambdaBox.Witness.compilerValue?`, the `_unsafe_rec`
+companion's body where the elaborator emitted one) — the column `reify%` fills. Exit `0` when
+every table matches, `1` on any mismatch or error.
 
 The negative half of the self-test is
 `LeanToLambdaBox.Witness.SelfTest.staleTable`, a deliberately wrong table the tool must reject.
@@ -37,7 +39,11 @@ def checkTable (env : Environment) (tbl : SourceTable) (name : Name) : IO Bool :
 unsafe def checkModuleUnsafe (mod : Name) (names : List Name) : IO UInt32 := do
   initSearchPath (← findSysroot)
   enableInitializersExecution
-  let env ← importModules #[{ module := mod }] {} (trustLevel := 1024)
+  -- `loadExts := true` is load-bearing: with the default the imported environment carries no
+  -- environment-extension state, `Lean.Meta.getMatcherInfo?` answers `none` for every matcher,
+  -- and `Erasure.prepare_erasure`'s `inlineMatchers` step silently does nothing — so the check
+  -- would hold the table against a body prepared differently from the one `reify%` tabled.
+  let env ← importModules #[{ module := mod }] {} (trustLevel := 1024) (loadExts := true)
   let mut failed := 0
   for name in names do
     match env.evalConstCheck SourceTable {} ``SourceTable name with

@@ -6,8 +6,8 @@ import LeanToLambdaBox.Erasure
 # `SourceTable` — a reified slice of the elaboration environment
 
 A `SourceTable` holds the data the verification reads out of `Lean.Environment`: the
-`Erasure.prepare_erasure`d bodies of a dependency closure (`SourceTable.decls`) and the
-inductive metadata with constructor arities (`SourceTable.inds`). There is no oracle column —
+`Erasure.prepare_erasure`d compiler bodies of a dependency closure (`SourceTable.decls`) and
+the inductive metadata with constructor arities (`SourceTable.inds`). There is no oracle column —
 relevance is discharged, not tabled — and no configuration column: the table is built under
 `reifyConfig`, and a rung states its configuration obligation separately.
 
@@ -47,9 +47,12 @@ structure ReifiedInduct where
   ctors : List ReifiedCtor
   deriving Inhabited, Repr, ToExpr
 
-/-- A reified constant: its level parameters, its type, and — for a definition — the body the
-eraser reads, already run through `Erasure.prepare_erasure`. `body?` is `none` for a constant
-whose body the eraser never traverses (axioms, theorems, constructors, recursors). -/
+/-- A reified constant: its level parameters and type, read off the kernel constant, and — for
+a definition or an opaque constant the eraser δ-unfolds — the body the eraser reads, which is
+the *compiler* body (`compilerValue?`) run through `Erasure.prepare_erasure`. `body?` is `none`
+for a constant whose body the eraser never traverses (`erasesBody`): axioms, theorems,
+quotient primitives, constructors, recursors, and the `casesOn`-like constants that
+`Erasure.visitConstApp` eliminates with rather than unfolds. -/
 structure ReifiedDecl where
   levelParams : List Name
   type : Expr
@@ -89,6 +92,56 @@ theorem mem_of_lookup {α : Type} {n : Name} {a : α} :
       simp_all
     · exact List.mem_cons_of_mem _ (mem_of_lookup h)
 
+/-! ## The compiler's view of a declaration
+
+The eraser does not read the kernel body of a definition. `Erasure.visitMutual` opens a
+declaration with `Lean.Compiler.LCNF.getDeclInfo?`, which prefers the `_unsafe_rec` companion
+the elaborator emits for a recursive definition, and takes that constant's value with
+`allowOpaque := true`. For a definition by structural recursion the kernel body eliminates with
+`brecOn` while the compiler body calls itself directly, so the two differ and only the second
+is erased. -/
+
+/-- The `Lean.ConstantInfo` the code generator reads for `n`: the `_unsafe_rec` companion when
+the elaborator emitted one, and `n` itself otherwise. A pure reading of the environment, equal
+to `Lean.Compiler.LCNF.getDeclInfo?` run at that environment (`compilerInfo?_eq`). -/
+def compilerInfo? (lenv : Environment) (n : Name) : Option ConstantInfo :=
+  lenv.find? (Compiler.mkUnsafeRecName n) <|> lenv.find? n
+
+/-- The value the eraser erases for `n`, before `Erasure.prepare_erasure`: the value of
+`compilerInfo?`, taken with `allowOpaque := true` as `Erasure.visitMutual` takes it. `none` is
+the case `Erasure.visitMutual` emits an axiom for. -/
+def compilerValue? (lenv : Environment) (n : Name) : Option Expr :=
+  (compilerInfo? lenv n).bind (·.value? (allowOpaque := true))
+
+/-- Does the table carry a body for a constant of this kind? Definitions and opaque constants
+do — they are the kinds `Erasure.visitMutual` opens. Axioms, theorems, quotient primitives,
+constructors and recursors do not, and the eraser reads none of their bodies: a proof is boxed
+by `Erasure.visitExpr` before `Erasure.visitConst` sees its head, and the other three kinds have
+no value at all. -/
+def reifiesBody : ConstantInfo → Bool
+  | .defnInfo _ | .opaqueInfo _ => true
+  | _ => false
+
+/-- Does the eraser read `n`'s body? `Erasure.visitConstApp` sends a `casesOn`-like head to
+`Erasure.visitCasesEta` and a constructor head to `Erasure.visitCtorEta`; only the remaining
+heads reach `Erasure.visitConst`, hence `Erasure.visitMutual` and its δ-step. Constructors have
+their own arm in `Reify.visit`, so the test left here is `Lean.getCasesInfo?`, on top of the kind
+test `reifiesBody`. -/
+def erasesBody (n : Name) (ci : ConstantInfo) : CoreM Bool := do
+  if !reifiesBody ci then return false
+  return (← getCasesInfo? n).isNone
+
+/-- The value the table records a prepared form of, for the constant `ci` of name `n`:
+`compilerValue?` where the eraser reads a body, and `none` where it does not. `Reify.visit`
+fills the column with it and `checkDecl` re-derives the column from it. -/
+def erasedValue? (n : Name) (ci : ConstantInfo) : CoreM (Option Expr) := do
+  if ← erasesBody n ci then return compilerValue? (← getEnv) n else return none
+
+/-- `compilerInfo?` is `Lean.Compiler.LCNF.getDeclInfo?` read off the ambient environment. -/
+theorem compilerInfo?_eq (n : Name) :
+    (Compiler.LCNF.getDeclInfo? n : CoreM (Option ConstantInfo))
+      = do return compilerInfo? (← getEnv) n := rfl
+
 /-! ## Adequacy -/
 
 /-- The per-declaration pin: `lenv` knows `n`, with the level parameters and the type the table
@@ -96,9 +149,12 @@ records for it. -/
 def ReifiedDecl.Pinned (lenv : Environment) (n : Name) (d : ReifiedDecl) : Prop :=
   ∃ ci, lenv.find? n = some ci ∧ ci.levelParams = d.levelParams ∧ ci.type = d.type
 
-/-- The run clause for the one column that is not a `Lean.Environment.find?` output: `n` has a
-value in `lenv`, and every successful run of `Erasure.prepare_erasure` on that value, in a
-context whose configuration has `csimp` off, returns the tabled body.
+/-- The run clause for the one column that is not a `Lean.Environment.find?` output: the code
+generator reads a value for `n` in `lenv`, and every successful run of
+`Erasure.prepare_erasure` on that value, in a context whose configuration has `csimp` off,
+returns the tabled body. The value is `compilerValue?`'s, which is the one
+`Erasure.visitMutual` erases — for a recursive definition the `_unsafe_rec` companion's body,
+not the kernel's.
 `Erasure.prepare_erasure` is monadic, so this is a statement about runs, not an equation.
 It is inhabited only where preparation is name-stable: `Lean.Compiler.LCNF.inlineMatchers`
 draws the `let`-binder names it introduces from the name generator, so a declaration whose
@@ -106,7 +162,7 @@ preparation inlines a matcher has prepared bodies that agree across runs only up
 names — `lake exe reify --check` reports that case as `TableMismatch.declBodyAlpha`. -/
 def ReifiedDecl.Prepared (lenv : Environment) (n : Name) (d : ReifiedDecl) : Prop :=
   ∀ b, d.body? = some b →
-    ∃ ci v, lenv.find? n = some ci ∧ ci.value? = some v ∧
+    ∃ ci v, compilerInfo? lenv n = some ci ∧ ci.value? (allowOpaque := true) = some v ∧
       ∀ (s s' : Erasure.ErasureState) (ctx : Erasure.ErasureContext) (cctx : Core.Context)
         (ref : ST.Ref IO.RealWorld Core.State) (w w' : Void IO.RealWorld) (b' : Expr),
         ctx.config.csimp = false →
@@ -125,20 +181,20 @@ def ReifiedInduct.Pinned (lenv : Environment) (n : Name) (I : ReifiedInduct) : P
       cv.numParams = c.numParams ∧ cv.numFields = c.numFields ∧ cv.induct = n
 
 /-- The table is a faithful copy of the slice of `lenv` it claims: every tabled constant is
-pinned and its tabled body is what `Erasure.prepare_erasure` computes, and every tabled
-inductive type is pinned. Not decidable — no term denotes the ambient environment — so this is
-a named hypothesis of every theorem that reads a table, mechanised outside the kernel by
-`lake exe reify --check`. -/
+pinned and its tabled body is what `Erasure.prepare_erasure` computes from the constant's
+compiler value, and every tabled inductive type is pinned. Not decidable — no term denotes the
+ambient environment — so this is a named hypothesis of every theorem that reads a table,
+mechanised outside the kernel by `lake exe reify --check`. -/
 structure SourceTableAdequate (lenv : Environment) (tbl : SourceTable) : Prop where
   decls : ∀ n d, (n, d) ∈ tbl.decls →
     ReifiedDecl.Pinned lenv n d ∧ ReifiedDecl.Prepared lenv n d
   inds : ∀ n I, (n, I) ∈ tbl.inds → ReifiedInduct.Pinned lenv n I
 
 /-- Adequacy transported to the lookup interface: a tabled body is the prepared body of the
-value `lenv` holds for that name. -/
+value the code generator reads for that name. -/
 theorem SourceTableAdequate.body?_prepared {lenv : Environment} {tbl : SourceTable} {n : Name}
     {b : Expr} (h : SourceTableAdequate lenv tbl) (hb : tbl.body? n = some b) :
-    ∃ ci v, lenv.find? n = some ci ∧ ci.value? = some v ∧
+    ∃ ci v, compilerInfo? lenv n = some ci ∧ ci.value? (allowOpaque := true) = some v ∧
       ∀ (s s' : Erasure.ErasureState) (ctx : Erasure.ErasureContext) (cctx : Core.Context)
         (ref : ST.Ref IO.RealWorld Core.State) (w w' : Void IO.RealWorld) (b' : Expr),
         ctx.config.csimp = false →
@@ -185,9 +241,9 @@ def reifyCtor (c : Name) : M ReifiedCtor := do
            numParams := cv.numParams, numFields := cv.numFields }
 
 /-- Reify `n` and everything its prepared body, or its constructors' types, mention.
-Definition bodies go through `Erasure.prepare_erasure` under `reifyConfig`; an inductive type
-pulls in its whole mutual block. Terminates because the environment is finite and every name is
-processed at most once. -/
+A body is `erasedValue?` run through `Erasure.prepare_erasure` under `reifyConfig` — the
+expression `Erasure.visitMutual` erases; an inductive type pulls in its whole mutual block.
+Terminates because the environment is finite and every name is processed at most once. -/
 partial def visit (n : Name) : M Unit := do
   if (← get).seen.contains n then return
   modify fun s => { s with seen := s.seen.insert n }
@@ -211,12 +267,14 @@ partial def visit (n : Name) : M Unit := do
   | .recInfo rv =>
     pushDecl n { levelParams := rv.levelParams, type := rv.type, body? := none }
     for I in rv.all do visit I
-  | .defnInfo dv =>
-    let (body, _) ← Erasure.run (Erasure.prepare_erasure dv.value) reifyConfig
-    pushDecl n { levelParams := dv.levelParams, type := dv.type, body? := some body }
-    for c in body.getUsedConstants do visit c
   | _ =>
-    pushDecl n { levelParams := ci.levelParams, type := ci.type, body? := none }
+    match ← erasedValue? n ci with
+    | some v =>
+      let (body, _) ← Erasure.run (Erasure.prepare_erasure v) reifyConfig
+      pushDecl n { levelParams := ci.levelParams, type := ci.type, body? := some body }
+      for c in body.getUsedConstants do visit c
+    | none =>
+      pushDecl n { levelParams := ci.levelParams, type := ci.type, body? := none }
 
 /-- Reify the dependency closure of `ns` out of the environment of the current elaboration. -/
 def table (ns : List Name) : CoreM SourceTable := do
@@ -264,10 +322,12 @@ def TableMismatch.describe : TableMismatch → String
   | .unknownDecl n => s!"{n}: not in the environment"
   | .declLevels n => s!"{n}: level parameters differ"
   | .declType n => s!"{n}: type differs"
-  | .declBody n => s!"{n}: tabled body is not the prepared body"
-  | .declBodyAlpha n => s!"{n}: tabled body is the prepared body only up to binder names"
-  | .missingBody n => s!"{n}: a definition, but the table records no body"
-  | .spuriousBody n => s!"{n}: the table records a body, but the constant has no value"
+  | .declBody n => s!"{n}: tabled body is not the prepared compiler body"
+  | .declBodyAlpha n =>
+    s!"{n}: tabled body is the prepared compiler body only up to binder names"
+  | .missingBody n => s!"{n}: a definition or opaque constant, but the table records no body"
+  | .spuriousBody n =>
+    s!"{n}: the table records a body, but the code generator reads no value for it"
   | .prepareFailed n msg => s!"{n}: prepare_erasure failed: {msg}"
   | .notInductive n => s!"{n}: not an inductive type in the environment"
   | .indBlock n => s!"{n}: block data (levels, type, parameters, indices, block) differ"
@@ -276,14 +336,15 @@ def TableMismatch.describe : TableMismatch → String
 
 /-- Check one tabled constant against the live environment: level parameters and type against
 `Lean.Environment.find?`, and the tabled body against a fresh `Erasure.prepare_erasure` run on
-the environment's own value. Expression comparison is `Lean.Expr.equal`, which is structural —
-`==` on `Lean.Expr` is α-equivalence and would accept a table with different binder names. -/
+the constant's `erasedValue?` — the same column `Reify.visit` fills. Expression comparison is
+`Lean.Expr.equal`, which is structural — `==` on `Lean.Expr` is α-equivalence and would accept a
+table with different binder names. -/
 def checkDecl (n : Name) (d : ReifiedDecl) : CoreM (Array TableMismatch) := do
   let some ci := (← getEnv).find? n | return #[.unknownDecl n]
   let mut ms := #[]
   if ci.levelParams != d.levelParams then ms := ms.push (.declLevels n)
   if !ci.type.equal d.type then ms := ms.push (.declType n)
-  match d.body?, ci.value? with
+  match d.body?, ← erasedValue? n ci with
   | some b, some v =>
     try
       let (b', _) ← Erasure.run (Erasure.prepare_erasure v) reifyConfig
@@ -292,7 +353,8 @@ def checkDecl (n : Name) (d : ReifiedDecl) : CoreM (Array TableMismatch) := do
     catch e =>
       ms := ms.push (.prepareFailed n (← e.toMessageData.toString))
   | some _, none => ms := ms.push (.spuriousBody n)
-  | none, _ => if ci.isDefinition then ms := ms.push (.missingBody n)
+  | none, some _ => ms := ms.push (.missingBody n)
+  | none, none => pure ()
   return ms
 
 /-- Check one tabled inductive type against the live environment: block data against the
