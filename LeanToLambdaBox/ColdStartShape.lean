@@ -7,9 +7,9 @@ import LeanToLambdaBox.ErasureRun
 
 `RegInvShape' env bo Γspec s` is what a run of the erasure's *registration* path maintains
 between a fixed specification environment `Γspec` and the state `s` it has built so far: the
-specification environment is well formed and `ErasesDecl`-justified, everything the run has
-registered is covered by it, and the emitted `s.gdecls` is its lowered, pruned image as far as
-the run has got.
+specification environment is well formed and its entries say of the source what `SpecContent`
+asks, everything the run has registered is covered by it, and the emitted `s.gdecls` is its
+lowered, pruned image as far as the run has got.
 
 `Γspec` does not grow with the state. The pass relation `Lower Γ` is not monotone in `Γ` — the
 `fixConst` arm's `¬ RuntimeKey Γ` guard is negative, and declaring a block can turn a key into
@@ -24,9 +24,9 @@ empty state and collapse to `LowerEnv`'s unscoped clauses under the saturation p
 *distinctness* is not maintainable unconditionally — every writer prepends and `envLookup` is
 first-match-wins — so each step lemma takes the freshness it needs as a side condition.
 
-`LowerEnv`'s ninth clause, `specBlocks : BlockBodiesLambda Γspec`, is not a field: it is
-refuted at every specification environment holding a non-λ body, and `regInvShape'_ctorBody`
-(`SpecEnv.lean`) exhibits the invariant holding at a state whose `Γspec` refutes it.
+`Γspec`'s own content is one field, `spec`, fixed for the run and copied by every step: it
+is what `ErasesEnv`'s five source-facing clauses read, with the entry's presence in place of
+the program's reachability.
 -/
 
 namespace LeanToLambdaBox
@@ -76,20 +76,10 @@ theorem constants_insert_cases {mp : Std.HashMap Name Kername} {n m : Name} {k :
     exact this.symm
   · exact .inr h
 
-/-! ## Coverage of one inductive -/
+/-! ## Coverage of one inductive
 
-/-- `Γspec` covers the inductive `n`: it declares `n`'s block, every constructor of `n`, and —
-when `n` is informative — every `casesOn` eliminator of `n`. These are `SpecEnv`'s three
-inductive clauses at one name, which is the granularity a registration step establishes. -/
-structure IndCovered (env : VEnv) (Γspec : GlobalDeclarations) (n : Name) : Prop where
-  /-- The block declaration, at the block kername `IndInfo` names. -/
-  block : ∃ iid np nfs, IndInfo env n iid np nfs ∧
-    (LBTerm.envLookup Γspec iid.mutualBlockName).isSome
-  /-- Every constructor of `n` is declared. -/
-  ctors : ∀ c k, CtorOf env c n k → (LBTerm.envLookup Γspec (toKername c)).isSome
-  /-- Every `casesOn` eliminator of an informative `n` is declared. -/
-  elims : ∀ kn, CasesOnOf env n kn → InformativeInd env n →
-    (LBTerm.envLookup Γspec kn).isSome
+`IndCovered` is `ErasesEnv.lean`'s, beside the relation whose two inductive clauses it is.
+-/
 
 /-- The block `Γspec` holds for `n` is the block the run emitted. `LowerEnv.inds` at one
 registered name: blocks are carried over unchanged, since the target reads the parameter count
@@ -104,16 +94,14 @@ def IndEmitted (env : VEnv) (Γspec Γ : GlobalDeclarations) (n : Name) : Prop :
 /--
 What a registration run maintains between a fixed specification environment and its state.
 
-The first three fields are `Γspec`'s own well-formedness, fixed for the run; `consts` and
-`inds` are the coverage the state demands; the rest is the emitted environment, scoped to what
-the run has registered. `specBlocks` is absent by design — it is refuted, not merely underived.
+The first two fields are `Γspec`'s own, fixed for the run; `consts` and `inds` are the
+coverage the state demands; the rest is the emitted environment, scoped to what the run has
+registered.
 -/
 structure RegInvShape' (env : VEnv) (bo : Name → Option Expr)
     (Γspec : GlobalDeclarations) (s : ErasureState) : Prop where
-  /-- The specification keys are distinct. -/
-  specKeys : (Γspec.map Prod.fst).Nodup
-  /-- Every specification entry is `ErasesDecl`-justified. -/
-  specDecls : ∀ kn d, LBTerm.envLookup Γspec kn = some d → ErasesDecl env bo kn d
+  /-- What the specification environment's entries say about the source. -/
+  spec : SpecContent env bo Γspec
   /-- The specification bodies are closed. -/
   specClosed : ClosedBodies Γspec
   /-- Every registered constant is declared, at its canonical kername. -/
@@ -146,11 +134,9 @@ structure RegInvShape' (env : VEnv) (bo : Name → Option Expr)
 /-- The invariant at the initial state: the registries are empty and nothing is emitted, so
 only `Γspec`'s own three clauses are left to hold. This is what makes a cold run possible. -/
 theorem RegInvShape'.empty {env : VEnv} {bo : Name → Option Expr}
-    {Γspec : GlobalDeclarations} (hkeys : (Γspec.map Prod.fst).Nodup)
-    (hdecls : ∀ kn d, LBTerm.envLookup Γspec kn = some d → ErasesDecl env bo kn d)
+    {Γspec : GlobalDeclarations} (hspec : SpecContent env bo Γspec)
     (hcl : ClosedBodies Γspec) : RegInvShape' env bo Γspec {} where
-  specKeys := hkeys
-  specDecls := hdecls
+  spec := hspec
   specClosed := hcl
   consts n hn := by simp at hn
   inds n hn := by simp at hn
@@ -184,8 +170,7 @@ theorem RegInvShape'.addAxiom {env : VEnv} {bo : Name → Option Expr}
     (hax : LBTerm.envLookup Γspec (toKername n) = some (.constantDecl ⟨none⟩))
     (hfresh : ∀ q ∈ s.gdecls, q.1 ≠ toKername n) :
     RegInvShape' env bo Γspec (addAxiomState n s) where
-  specKeys := H.specKeys
-  specDecls := H.specDecls
+  spec := H.spec
   specClosed := H.specClosed
   consts m hm := by
     rcases constants_insert_cases hm with rfl | hm'
@@ -250,8 +235,7 @@ theorem RegInvShape'.constCons {env : VEnv} {bo : Name → Option Expr}
       kns[j]? = some (toKername n) ∧ t = .fix defs j)
     (hcl : LBClosed t 0) (hfresh : ∀ q ∈ s.gdecls, q.1 ≠ toKername n) :
     RegInvShape' env bo Γspec (nonrecConstState n t s) where
-  specKeys := H.specKeys
-  specDecls := H.specDecls
+  spec := H.spec
   specClosed := H.specClosed
   consts m hm := by
     rcases constants_insert_cases hm with rfl | hm'
@@ -388,8 +372,7 @@ theorem RegInvShape'.axiomCons {env : VEnv} {bo : Name → Option Expr}
     (hax : LBTerm.envLookup Γspec kn = some (.constantDecl ⟨none⟩))
     (hfresh : ∀ q ∈ s.gdecls, q.1 ≠ kn) :
     RegInvShape' env bo Γspec { s with gdecls := (kn, .constantDecl ⟨none⟩) :: s.gdecls } where
-  specKeys := H.specKeys
-  specDecls := H.specDecls
+  spec := H.spec
   specClosed := H.specClosed
   consts m hm := H.consts m hm
   inds n' hn' := H.inds n' hn'
@@ -461,8 +444,7 @@ theorem RegInvShape'.stateCongr {env : VEnv} {bo : Name → Option Expr}
     (hc : ∀ n : Name, (s'.constants.get? n).isSome → (s.constants.get? n).isSome ∨
       LBTerm.envLookup Γspec (toKername n) = some (.constantDecl ⟨none⟩)) :
     RegInvShape' env bo Γspec s' where
-  specKeys := H.specKeys
-  specDecls := H.specDecls
+  spec := H.spec
   specClosed := H.specClosed
   consts m hm := by
     rcases hc m hm with h | h
@@ -492,8 +474,7 @@ theorem RegInvShape'.indsGrow {env : VEnv} {bo : Name → Option Expr}
     (hnew : ∀ n : Name, (s'.inductives.get? n).isSome →
       IndCovered env Γspec n ∧ IndEmitted env Γspec s.gdecls n) :
     RegInvShape' env bo Γspec s' where
-  specKeys := H.specKeys
-  specDecls := H.specDecls
+  spec := H.spec
   specClosed := H.specClosed
   consts m hm := H.consts m (by rwa [hc] at hm)
   inds n' hn' := (hnew n' hn').1
@@ -516,8 +497,7 @@ theorem RegInvShape'.blockCons {env : VEnv} {bo : Name → Option Expr}
     (hspec : LBTerm.envLookup Γspec kn = some (.inductiveDecl mib))
     (hfresh : ∀ q ∈ s.gdecls, q.1 ≠ kn) :
     RegInvShape' env bo Γspec { s with gdecls := (kn, .inductiveDecl mib) :: s.gdecls } where
-  specKeys := H.specKeys
-  specDecls := H.specDecls
+  spec := H.spec
   specClosed := H.specClosed
   consts m hm := H.consts m hm
   inds n' hn' := H.inds n' hn'
@@ -639,10 +619,10 @@ theorem RegInvShape'.register_inductive_run {env : VEnv} {bo : Name → Option E
 /-! ## The δ column, from the registry
 
 `ErasesEnv.defns` asks for the erasure of a compiler body at **every** level scope and every
-instantiation. `ErasesDecl.defn` supplies one scope, so the two are bridged only where the
+instantiation. `SpecContent.defns` supplies one scope, so the two are bridged only where the
 instantiation is inert: a body with no level parameters is its own instantiation, and
 `Erases.instL` moves its derivation to any scope. At a body that does carry a level parameter
-the clause is out of reach of any `ErasesDecl` justification, and `defns_needs_paramFree`
+the clause is out of reach of any registered justification, and `defns_needs_paramFree`
 records why.
 -/
 

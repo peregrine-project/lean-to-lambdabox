@@ -16,10 +16,11 @@ and the eight remaining arms are discharged here:
   `construct_app`;
 * `indVal` — an inductive-type-name spine, which has no head erasure and so boxes.
 
-Besides the three step hypotheses the aggregator takes one environment premise beyond
-`erases_correct`'s own seven, `ErasesEnvFwd`: the forward reading of the specification
-environment at an inductive block's key and at an eliminator's, which `ErasesEnv.decls`
-does not give and which `ctorVal` and `beta` spend.
+Besides the three step hypotheses the aggregator takes nothing: the forward readings
+`ctorVal` and `beta` spend are clauses of `ErasesEnv` itself — `ErasesEnv.ctorArity` at the
+reached block, `erases_elimSpine_no_value` at the under-applied eliminator spine — and the
+kernel facts are fields of `UpstreamAsks`, which `erases_correct`'s statement already
+binds.
 
 `ErasesCorrect/Close.lean` discharges those hypotheses and states `erases_correct` itself;
 the arm files import `ErasesCorrect/Steps.lean` and not this module, which is what keeps
@@ -42,7 +43,7 @@ per arm.
 `const` applies to a type former — so the spine inversion leaves only the boxed prefix, and
 both sides box. -/
 theorem indVal_arm {env : VEnv} (henv : env.WF) {Us : List Name} {bo : Name → Option Expr}
-    {fl : SEvalFlags} {Γspec Γ : GlobalDeclarations} (hblk : BlockBodiesLambda Γspec)
+    {fl : SEvalFlags} {Γspec Γ : GlobalDeclarations}
     (A : UpstreamAsks env) {cn : Name} {us : List Level} {iid : InductiveId} {np : Nat}
     {nfs : List Nat} {args argsv : List Expr}
     (hi : IndInfo env cn iid np nfs) (hlen : argsv.length = args.length)
@@ -66,13 +67,13 @@ theorem indVal_arm {env : VEnv} (henv : env.WF) {Us : List Name} {bo : Name → 
     ⟨th, ts, hth, hts, rfl⟩ | ⟨pre, suf, ts, rfl, hbw, hts, rfl⟩
   · rcases Erases.const_inv hth with ⟨hb, rfl⟩ | ⟨I', iid', k', np', nfs', hc', hi', rfl⟩ |
       ⟨-, ho, rfl⟩
-    · refine erases_correct_boxSpineLow (pre := []) (suf := args) henv hblk hwt hb hlow
+    · refine erases_correct_boxSpineLow (pre := []) (suf := args) henv hwt hb hlow
         hspec (fun s hs u hsu => ?_) (.indVal hi hlen hargs)
       obtain ⟨a, ha, hea⟩ := forall₂_mem_right hts s hs
       exact hargEv a ha s u hea (hspec.subterm (subTerm_mkApps_arg ts .box s hs)) hsu
     · exact absurd hi hc'.not_indInfo
     · exact absurd hi (constOrigin_not_indInfo A ho _ _ _)
-  · refine erases_correct_boxSpineLow henv hblk hwt hbw hlow hspec
+  · refine erases_correct_boxSpineLow henv hwt hbw hlow hspec
       (fun s hs u hsu => ?_) (.indVal hi hlen hargs)
     obtain ⟨a, ha, hea⟩ := forall₂_mem_right hts s hs
     exact hargEv a (List.mem_append_right _ ha) s u hea
@@ -81,7 +82,7 @@ theorem indVal_arm {env : VEnv} (henv : env.WF) {Us : List Name} {bo : Name → 
 /-- **`zeta`.** The `let` congruence: the bound value's image evaluates, and the body's
 image is the substitution instance `Lower.subst_comm` and `erases_subst_let` produce. -/
 theorem zeta_arm {env : VEnv} (henv : env.WF) {Us : List Name} {bo : Name → Option Expr}
-    {fl : SEvalFlags} {Γspec Γ : GlobalDeclarations} (hblk : BlockBodiesLambda Γspec)
+    {fl : SEvalFlags} {Γspec Γ : GlobalDeclarations}
     (hΓcl : ClosedBodies Γspec) {n : Name} {ty val bd : Expr} {nd : Bool} {vv r : Expr}
     (hfl : fl.zeta) (hvalEv : SEval env bo Us fl [] val vv)
     (hbodyEv : SEval env bo Us fl [] (bd.instantiate1' vv 0) r)
@@ -95,8 +96,8 @@ theorem zeta_arm {env : VEnv} (henv : env.WF) {Us : List Name} {bo : Name → Op
       ErasesEnv env bo Γspec w₀ := by
   rcases Erases.letE_inv her with hbw |
     ⟨ty', val', v', b', htrtyE, htrvalE, herv, herb, rfl⟩
-  · exact erases_correct_boxLow henv hblk hwt hbw hlow hspec (.zeta hfl hvalEv hbodyEv)
-  · obtain ⟨n₂, tv, tb, rfl, hlv, hlb⟩ := Lower.source_letIn hblk hlow rfl
+  · exact erases_correct_boxLow henv hwt hbw hlow hspec (.zeta hfl hvalEv hbodyEv)
+  · obtain ⟨n₂, tv, tb, rfl, hlv, hlb⟩ := Lower.source_letIn hlow rfl
     cases hwt with
     | letE hValT htrty htrval htrb =>
       have hΔ : VLCtx.WF env Us.length ([] : VLCtx) := trivial
@@ -133,8 +134,8 @@ congruence, where the function's image is β-ready by `Lower.appReady`; and a sa
 eliminator spine, where the β rule's own function premise is refuted because an eliminator
 spine one minor short heads no value. -/
 theorem beta_arm {env : VEnv} (henv : env.WF) {Us : List Name} {bo : Name → Option Expr}
-    {fl : SEvalFlags} {Γspec Γ : GlobalDeclarations} (hblk : BlockBodiesLambda Γspec)
-    (hΓcl : ClosedBodies Γspec) (hfwd : ErasesEnvFwd env bo Us fl Γspec)
+    {fl : SEvalFlags} {Γspec Γ : GlobalDeclarations} (A : UpstreamAsks env)
+    (hΓcl : ClosedBodies Γspec)
     {f a : Expr} {n : Name} {ty bd : Expr} {bi : BinderInfo} {av r : Expr}
     (hfl : fl.beta) (hf : SEval env bo Us fl [] f (.lam n ty bd bi))
     (ha : SEval env bo Us fl [] a av)
@@ -150,8 +151,8 @@ theorem beta_arm {env : VEnv} (henv : env.WF) {Us : List Name} {bo : Name → Op
   have hΔ : VLCtx.WF env Us.length ([] : VLCtx) := trivial
   have hΓv := hΔ.toCtx
   rcases Erases.app_inv her with hbw | ⟨f', a', hf', ha', rfl⟩
-  · exact erases_correct_boxLow henv hblk hwt hbw hlow hspec (.beta hfl hf ha hbody)
-  · rcases Lower.source_app hblk hlow rfl with ⟨tf, ta, rfl, hlf, hla⟩ |
+  · exact erases_correct_boxLow henv hwt hbw hlow hspec (.beta hfl hf ha hbody)
+  · rcases Lower.source_app hlow rfl with ⟨tf, ta, rfl, hlf, hla⟩ |
       ⟨kn, iid, np, dp, nfs, pre, disc, minors, helim, hpl, hml, heq⟩
     · cases hwt with
       | @app fve A B ave _ _ _ hTf hTa htrf htra =>
@@ -162,7 +163,7 @@ theorem beta_arm {env : VEnv} (henv : env.WF) {Us : List Name} {bo : Name → Op
         obtain ⟨fvv, htrfvv, hfdef⟩ := SEval.defeq henv hΔ htrf hf
         rcases Erases.lam_inv herfv with ⟨⟨we, htrw, herw⟩, rfl⟩ |
           ⟨ty₂, b'', hty₂, hb'', rfl⟩
-        · obtain rfl : fv' = .box := Lower.source_box hblk hlfv rfl
+        · obtain rfl : fv' = .box := Lower.source_box hlfv rfl
           obtain ⟨rv, htrr, hrdef⟩ :=
             SEval.defeq henv hΔ (.app hTf hTa htrf htra) (.beta hfl hf ha hbody)
           have hferase : Erasable env Us.length (VLCtx.toCtx []) fve :=
@@ -211,15 +212,16 @@ theorem beta_arm {env : VEnv} (henv : env.WF) {Us : List Name} {bo : Name → Op
         omega
       have hlt : (pre ++ disc :: minors).dropLast.length < dp + 1 + nfs.length := by
         rw [List.length_dropLast, hlenL]; omega
-      exact hfwd.noElimSpine helim hlt (hfe ▸ hf') hf
+      exact erases_elimSpine_no_value A (hfe ▸ (hspec.subterm (.appFn .refl))) helim hlt
+        (hfe ▸ hf') hf
 
 /-- **`ctorVal`.** A constructor spine within its arity: the head erases to the
 `.construct` node (`Erases.const`'s reading is refuted by the rule's own `CtorOf`), the
 node's emitted arity comes from the block the program reaches, and the target value is
 built by `construct_atom` and `construct_app`. -/
 theorem ctorVal_arm {env : VEnv} (henv : env.WF) {Us : List Name} {bo : Name → Option Expr}
-    {fl : SEvalFlags} {Γspec Γ : GlobalDeclarations} (hblk : BlockBodiesLambda Γspec)
-    (A : UpstreamAsks env) (hfwd : ErasesEnvFwd env bo Us fl Γspec)
+    {fl : SEvalFlags} {Γspec Γ : GlobalDeclarations}
+    (A : UpstreamAsks env)
     (henvL : LowerEnv Γspec Γ) {cn I : Name} {us : List Level} {iid : InductiveId}
     {k np : Nat} {nfs : List Nat} {args argsv : List Expr}
     (hc : CtorOf env cn I k) (hi : IndInfo env I iid np nfs)
@@ -244,7 +246,7 @@ theorem ctorVal_arm {env : VEnv} (henv : env.WF) {Us : List Name} {bo : Name →
     ⟨th, ts, hth, hts, rfl⟩ | ⟨pre, suf, ts, rfl, hbw, hts, rfl⟩
   · rcases Erases.const_inv hth with ⟨hb, rfl⟩ | ⟨I', iid', k', np', nfs', hc', hi', rfl⟩ |
       ⟨-, ho, rfl⟩
-    · refine erases_correct_boxSpineLow (pre := []) (suf := args) henv hblk hwt hb hlow
+    · refine erases_correct_boxSpineLow (pre := []) (suf := args) henv hwt hb hlow
         hspec (fun s hs u hsu => ?_) (.ctorVal hc hi harity hlen hargs)
       obtain ⟨a, ha, hea⟩ := forall₂_mem_right hts s hs
       exact hargEv a ha s u hea (hspec.subterm (subTerm_mkApps_arg ts .box s hs)) hsu
@@ -252,17 +254,17 @@ theorem ctorVal_arm {env : VEnv} (henv : env.WF) {Us : List Name} {bo : Name →
       obtain ⟨rfl, rfl, rfl⟩ := IndInfo.inj A hi hi'
       have hlents : args.length = ts.length := hts.length_eq
       obtain ⟨hd', ts', rfl, hhd, hlen', hpt⟩ :=
-        Lower.source_mkApps hblk (fun _ _ => LBTerm.noConfusion)
+        Lower.source_mkApps (fun _ _ => LBTerm.noConfusion)
           (fun _ => LBTerm.noConfusion) ts hlow
       obtain rfl : hd' = .construct iid k [] := by
         rcases Lower.source_construct_nil hhd rfl with h | ⟨defs, j, h⟩
         · exact h
         · exact absurd h
-            (Lower.ne_fix_of_block hblk hhd (fun _ => LBTerm.noConfusion) rfl defs j)
-      have hdep := hspec.deps iid.mutualBlockName
+            (Lower.ne_fix_of_block hhd (fun _ => LBTerm.noConfusion) rfl defs j)
+      have har := hspec.ctorArity henvL hi
         (ReachableFrom.subterm (subTerm_mkApps_head ts .refl)
           (reachableFrom_of_mem_constRefs (by simp [constRefs, constRefsArgs])))
-      have har := hfwd.ctorArity henvL hi hdep (CtorOf.lt_nfs A hc hi)
+        (CtorOf.lt_nfs A hc hi)
       have hchoice : ∀ i, i < args.length → ∃ p : LBTerm × LBTerm,
           Erases env Us [] argsv[i]! p.1 ∧ Lower Γspec p.1 p.2 ∧
             WcbvEval Γ eraseFlags ts'[i]! p.2 ∧ ErasesEnv env bo Γspec p.1 := by
@@ -296,7 +298,7 @@ theorem ctorVal_arm {env : VEnv} (henv : env.WF) {Us : List Name} {bo : Name →
         rw [Lower.getElem!_map _ ps i hip]
         exact (hps i (by omega)).2.2.2
     · exact absurd hc (constOrigin_not_ctorOf A ho I k)
-  · refine erases_correct_boxSpineLow henv hblk hwt hbw hlow hspec (fun s hs u hsu => ?_)
+  · refine erases_correct_boxSpineLow henv hwt hbw hlow hspec (fun s hs u hsu => ?_)
       (.ctorVal hc hi harity hlen hargs)
     obtain ⟨a, ha, hea⟩ := forall₂_mem_right hts s hs
     exact hargEv a (List.mem_append_right _ ha) s u hea
@@ -304,19 +306,15 @@ theorem ctorVal_arm {env : VEnv} (henv : env.WF) {Us : List Name} {bo : Name →
 
 /--
 **T5, with the three hard arms as hypotheses.** One induction on `hev`; every other arm is
-discharged here. `hfwd` is the forward reading of the specification environment that
-`ErasesEnv.decls` does not give (`ErasesCorrect/Steps.lean`), spent by `ctorVal` and by the
-`beta` arm's eliminator reading.
+discharged here, off the eight binders `erases_correct` itself has and nothing more.
 -/
 theorem erases_correct_of_steps {env : VEnv} {bo : Name → Option Expr} {Us : List Name}
     {fl : SEvalFlags} {Γspec Γ : GlobalDeclarations}
-    (hfwd : ErasesEnvFwd env bo Us fl Γspec)
     (step_iota : StepIota env bo Us fl Γspec Γ)
     (step_proj : StepProj env bo Us fl Γspec Γ)
     (step_delta : StepDelta env bo Us fl Γspec Γ) :
     ErasesCorrectStmt env bo Us fl Γspec Γ := by
   intro e₀ v₀ ve₀ t₀₀ t₀ henv hwt₀ hev₀ her₀ hlow₀ hspec₀ henvL A
-  have hblk : BlockBodiesLambda Γspec := henvL.specBlocks
   have hΓcl : ClosedBodies Γspec := henvL.specClosed
   have key : ∀ {Δ : VLCtx} {e v : Expr}, SEval env bo Us fl Δ e v → Δ = [] →
       Simulates env bo Us Γspec Γ e v := by
@@ -326,57 +324,59 @@ theorem erases_correct_of_steps {env : VEnv} {bo : Name → Option Expr} {Us : L
     | @lam n ty bd bi =>
         intro rfl ve t₀ t hwt her hlow hspec
         rcases Erases.lam_inv her with hbw | ⟨ty₂, b', hty₂, hb', rfl⟩
-        · exact erases_correct_boxLow (fl := fl) henv hblk hwt hbw hlow hspec (.lam n ty bd bi)
+        · exact erases_correct_boxLow (fl := fl) henv hwt hbw hlow hspec (.lam n ty bd bi)
         · refine ⟨_, t, her, hlow, ?_, hspec⟩
           rcases Lower.source_lambda hlow rfl with ⟨n', b'', rfl⟩ | ⟨defs, j, rfl⟩
           · exact .lam _ _
           · exact .fix_atom _ _
     | @sort u =>
         intro rfl ve t₀ t hwt her hlow hspec
-        exact erases_correct_boxLow (fl := fl) henv hblk hwt (Erases.sort_inv her) hlow hspec
+        exact erases_correct_boxLow (fl := fl) henv hwt (Erases.sort_inv her) hlow hspec
           .sort
     | @forallE n ty bd bi =>
         intro rfl ve t₀ t hwt her hlow hspec
-        exact erases_correct_boxLow (fl := fl) henv hblk hwt (Erases.forallE_inv her) hlow hspec
+        exact erases_correct_boxLow (fl := fl) henv hwt (Erases.forallE_inv her) hlow hspec
           .forallE
     | @lit l r hfl hlit ih =>
         intro rfl ve t₀ t hwt her hlow hspec
         rcases Erases.lit_inv her with hbw | ⟨hcl, her'⟩
-        · exact erases_correct_boxLow henv hblk hwt hbw hlow hspec (.lit hfl hlit)
+        · exact erases_correct_boxLow henv hwt hbw hlow hspec (.lit hfl hlit)
         · cases hwt with
           | lit _ htrC => exact ih rfl htrC her' hlow hspec
     | @zeta n ty val bd nd vv r hfl hvalEv hbodyEv ihval ihbody =>
         intro rfl ve t₀ t hwt her hlow hspec
-        exact zeta_arm henv hblk hΓcl hfl hvalEv hbodyEv (ihval rfl) (ihbody rfl) hwt her
+        exact zeta_arm henv hΓcl hfl hvalEv hbodyEv (ihval rfl) (ihbody rfl) hwt her
           hlow hspec
     | @beta f a n ty bd bi av r hfl hf ha hbody ihf iha ihbody =>
         intro rfl ve t₀ t hwt her hlow hspec
-        exact beta_arm henv hblk hΓcl hfwd hfl hf ha hbody (ihf rfl) (iha rfl) (ihbody rfl)
+        exact beta_arm henv A hΓcl hfl hf ha hbody (ihf rfl) (iha rfl) (ihbody rfl)
           hwt her hlow hspec
     | @ctorVal cn I us iid k np nfs args argsv hc hi harity hlen hargs ihargs =>
         intro rfl ve t₀ t hwt her hlow hspec
-        exact ctorVal_arm henv hblk A hfwd henvL hc hi harity hlen hargs
+        exact ctorVal_arm henv A henvL hc hi harity hlen hargs
           (fun i hi' => ihargs i hi' rfl) hwt her hlow hspec
     | @indVal cn us iid np nfs args argsv hi hlen hargs ihargs =>
         intro rfl ve t₀ t hwt her hlow hspec
-        exact indVal_arm henv hblk A hi hlen hargs (fun i hi' => ihargs i hi' rfl) hwt her
+        exact indVal_arm henv A hi hlen hargs (fun i hi' => ihargs i hi' rfl) hwt her
           hlow hspec
     | @deltaC c us ups args argsv b b' vres hfl hbd hnd hinst hlen hargs hdef hcont
         ihargs ihcont =>
         intro rfl
-        exact step_delta henv henvL hfl hbd hnd hinst hlen
+        exact step_delta A henv henvL hfl hbd hnd hinst hlen
           (fun i hi => ⟨hargs i hi, ihargs i hi rfl⟩) hdef hcont (ihcont rfl)
     | @iota con I ctor us cus pre prev minors minorsv extra extrav cargs disc r np cidx
-        hfl hsh ho hct hpre hpres hdiscr hmin hmins hxlen hxs hidx hdef hcont
+        nfs hfl hsh ho hct hnp hinf hpre hpres hdiscr hmin hmins hxlen hxs hidx hdef hcont
         ihpres ihdiscr ihmins ihxs ihcont =>
         intro rfl
-        exact step_iota A henv henvL hfl hsh ho hct hpre
+        exact step_iota A henv henvL hfl hsh ho hct hnp hinf hpre
           (fun i hi => ⟨hpres i hi, ihpres i hi rfl⟩) hdiscr (ihdiscr rfl) hmin
           (fun i hi => ⟨hmins i hi, ihmins i hi rfl⟩) hxlen
           (fun i hi => ⟨hxs i hi, ihxs i hi rfl⟩) hidx hdef hcont (ihcont rfl)
-    | @proj S i discr ctor cus cargs np r hfl hdiscr hlt hdef hcont ihdiscr ihcont =>
+    | @proj S ctor i discr cus cargs np nf cidx r hfl hct hnp hdiscr hlt hdef hcont
+        ihdiscr ihcont =>
         intro rfl
-        exact step_proj A henv henvL hfl hdiscr (ihdiscr rfl) hlt hdef hcont (ihcont rfl)
+        exact step_proj A henv henvL hfl hct hnp hdiscr (ihdiscr rfl) hlt hdef hcont
+          (ihcont rfl)
   obtain ⟨w₀, w', her, hlw, hEw, -⟩ := key hev₀ rfl hwt₀ her₀ hlow₀ hspec₀
   exact ⟨w₀, w', her, hlw, hEw⟩
 
@@ -408,19 +408,6 @@ theorem indVal_head_boxes_fires (A : UpstreamAsks blkEnv) (Us : List Name) (Δ :
   · exact absurd blk_indInfo hc'.not_indInfo
   · exact absurd blk_indInfo (constOrigin_not_indInfo A ho _ _ _)
 
-/-- The eliminator fixture's only bodied entry is a λ, so its blocks are λ-bodied. -/
-theorem blockBodiesLambda_elimFixture : BlockBodiesLambda LowerElimFixture.env := by
-  intro kns bs bs' ids defs hblock j hj
-  have hd := hblock.hdecl j hj
-  rw [DefnDecl, LowerElimFixture.env, LBTerm.envLookup] at hd
-  split at hd
-  · exact absurd hd (by simp)
-  · rw [LBTerm.envLookup] at hd
-    split at hd
-    · have hb : bs[j]! = mkElimBody LowerElimFixture.iid 0 1 [0, 1] := by simpa using hd.symm
-      rw [hb]; rfl
-    · simp [LBTerm.envLookup] at hd
-
 /-- **The `beta` arm's re-association fires.** `Lower.source_app` reads
 `LowerElimFixture`'s over-applied eliminator spine as the `app` congruence — the `.case`
 node at the initial segment against the spine one argument shorter, and the last argument
@@ -433,7 +420,7 @@ theorem beta_reassociation_fires :
         (LBTerm.mkApps (.const LowerElimFixture.elimKn)
           [.box, .bvar 0, .box, .lambda .anon (.bvar 0)]) f' ∧
       Lower LowerElimFixture.env (.bvar 1) a' := by
-  rcases Lower.source_app blockBodiesLambda_elimFixture LowerElimFixture.elimApp_fires rfl
+  rcases Lower.source_app LowerElimFixture.elimApp_fires rfl
     with ⟨f', a', heq, hf, ha⟩ |
       ⟨kn, iid', np', dp', nfs', pre, disc, minors, helim, hpl, hml, heq⟩
   · exact ⟨f', a', heq, hf, ha⟩

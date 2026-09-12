@@ -143,26 +143,42 @@ theorem forall_form_not_stepDefeq {env : VEnv} {Us : List Name} {e₂ : Expr} :
 
 /-! ## The eliminator's source-side segmentation -/
 
-/-- The `casesOn` of `I`, at the segmentation `I`'s own block fixes: `dp` arguments before
-the major premise — parameters, motive, indices — and then one minor per constructor.
+/-- The declared type peels `dp` binders and then takes a major premise headed by `I`. -/
+def MajorPremiseAt (I : Name) : Nat → VExpr → Prop
+  | 0,     T => ∃ A B ius iargs, T = .forallE A B ∧ A = VExpr.mkApps (.const I ius) iargs
+  | n + 1, T => ∃ A B, T = .forallE A B ∧ MajorPremiseAt I n B
 
-Read off the **inductive declaration**, not off `VEnv.pats`, so it does not depend on how
-the pattern table is populated. It constrains `c`'s name and `I`'s declaration and nothing
-else: it does not say how `c` is declared, which is why `SEval.iota` carries `ConstOrigin`
-beside it. -/
+/-- The `casesOn` of `I`, at the segmentation `I`'s own block fixes: `dp` arguments before
+the major premise — parameters, motive, indices — and then one minor per constructor, with
+`c`'s declared type taking its major premise at that position.
+
+The arithmetic is read off the **inductive declaration**, not off `VEnv.pats`, so it does
+not depend on how the pattern table is populated; the type clause is what
+`Lean.mkCasesOnDecl` builds, and it pins the meaning of the name rather than filtering
+programs — in a `VEnv` a `casesOn` constant is an ordinary constant, so the discriminant's
+typing follows from no other conjunct. It still does not say how `c` is declared, which is
+why `SEval.iota` carries `ConstOrigin` beside it, and the block this predicate's own
+existential exhibits is tied to `SEval.iota`'s `IndArity` only through
+`CasesOnShape.agree`, off ask 2's block uniqueness. -/
 def CasesOnShape (env : VEnv) (c I : Name) (dp nm : Nat) : Prop :=
   isCasesOnName c = true ∧ c.getPrefix = I ∧
+  (∃ ci, env.constants c = some ci ∧ ∀ us, MajorPremiseAt I dp (ci.type.instL us)) ∧
   ∃ (ds : List VDecl) (env₀ : VEnv) (decl : VInductDecl) (t : VInductiveType),
     VEnv.WF' ds env₀ ∧ VDecl.induct decl ∈ ds ∧ env₀ ≤ env ∧
     t ∈ decl.types ∧ t.name = I ∧
     dp = decl.nparams + 1 + (t.type.piArity - decl.nparams) ∧ nm = t.ctors.length
 
 /-- The segmentation survives an environment extension: the declaring list sits below
-`env`, hence below any extension of it. -/
+`env`, hence below any extension of it, and a declared constant stays declared.
+
+The converse direction, which `SEval.le` asks of its `hcs`, is strictly harder to supply
+for the same reason: an extension must declare no `casesOn` type the base did not. No
+consumer of `hcs` exists. -/
 theorem CasesOnShape.mono {env env' : VEnv} {c I : Name} {dp nm : Nat} (hle : env ≤ env')
     (h : CasesOnShape env c I dp nm) : CasesOnShape env' c I dp nm :=
-  let ⟨hn, hp, ds, env₀, decl, t, hds, hd, hle₀, ht, hname, hdp, hnm⟩ := h
-  ⟨hn, hp, ds, env₀, decl, t, hds, hd, hle₀.trans hle, ht, hname, hdp, hnm⟩
+  let ⟨hn, hp, ⟨ci, hci, hmaj⟩, ds, env₀, decl, t, hds, hd, hle₀, ht, hname, hdp, hnm⟩ := h
+  ⟨hn, hp, ⟨ci, hle.constants hci, hmaj⟩,
+    ds, env₀, decl, t, hds, hd, hle₀.trans hle, ht, hname, hdp, hnm⟩
 
 /-! ## The relation -/
 
@@ -231,18 +247,21 @@ inductive SEval (env : VEnv) (bo : Name → Option Expr) (Us : List Name) (fl : 
   | forallE {Δ : VLCtx} {n : Name} {ty b : Expr} {bi : BinderInfo} :
       SEval env bo Us fl Δ (.forallE n ty b bi) (.forallE n ty b bi)
   /-- ι: the discriminant evaluates to a constructor spine and the selected minor is
-      applied to the constructor's fields, the `np` parameters dropped; `hdef` is the
-      kernel ι fact for this instance. Split where the source theory splits it — `hsh`
-      counts the arguments before the major premise and the minors after it, `hct` picks
-      the selected minor — and headed by a plain constant, which is what `ho` says and
-      `hsh` does not. Call-by-value in the **whole** spine, and absorbing the
-      over-application the eraser applies outside the emitted node. -/
+      applied to its fields, the block's `np` parameters dropped, call-by-value in the
+      **whole** spine and absorbing the over-application the eraser applies outside the
+      emitted node. `hsh` splits the spine, `ho` says the head is a plain constant, `hct`
+      picks the minor; `hnp` reads `np` off `I`'s block in source coordinates, pinned to
+      `hsh`'s own block only in company — through `CasesOnShape.agree` — and not by this
+      rule alone. `hinf` is the twin of `Erases.proj`'s: the source relations model only
+      the eliminations the target performs, which is restriction N18. -/
   | iota {Δ : VLCtx} {con I ctor : Name} {us cus : List Level}
       {pre prev minors minorsv extra extrav cargs : List Expr} {disc r : Expr}
-      {np cidx : Nat} (hfl : fl.iota)
+      {np cidx : Nat} {nfs : List Nat} (hfl : fl.iota)
       (hsh : CasesOnShape env con I pre.length minors.length)
       (ho : ConstOrigin env con)
       (hct : CtorOf env ctor I cidx)
+      (hnp : IndArity env I np nfs)
+      (hinf : InformativeInd env I)
       (hpre : prev.length = pre.length)
       (hpres : ∀ i, i < pre.length → SEval env bo Us fl Δ pre[i]! prev[i]!)
       (hdiscr : SEval env bo Us fl Δ disc (mkApps (.const ctor cus) cargs))
@@ -255,9 +274,17 @@ inductive SEval (env : VEnv) (bo : Name → Option Expr) (Us : List Name) (fl : 
         (mkApps minors[cidx]! (cargs.drop np ++ extra)))
       (hcont : SEval env bo Us fl Δ (mkApps minors[cidx]! (cargs.drop np ++ extra)) r) :
       SEval env bo Us fl Δ (mkApps (.const con us) (pre ++ disc :: minors ++ extra)) r
-  /-- Projection: the discriminee evaluates to a constructor spine and spine position
-      `np + i` — `np` parameters skipped, then field `i` — evaluates. -/
-  | proj {Δ S i discr ctor cus cargs np r} (hfl : fl.proj)
+  /-- Projection: the discriminee evaluates to a constructor spine of `S` and spine
+      position `np + i` — the block's `np` parameters skipped, then field `i` — evaluates.
+      `hct` classifies the head of that value and `hnp` pins `np`: without them an axiom of
+      type `S usS params` is an admissible constant-headed value, on which the target is
+      stuck, and source and target select different spine positions. Neither excludes a
+      kernel reduction — a projection whose discriminant's value is not a constructor spine
+      of `S` has none. No relevance premise: `Erases.proj` carries it, and a projection the
+      erasure boxes never reaches this rule. -/
+  | proj {Δ S ctor i discr cus cargs np nf cidx r} (hfl : fl.proj)
+      (hct : CtorOf env ctor S cidx)
+      (hnp : IndArity env S np [nf])
       (hdiscr : SEval env bo Us fl Δ discr (mkApps (.const ctor cus) cargs))
       (hlt : np + i < cargs.length)
       (hdef : StepDefeq env Us Δ (.proj S i discr) cargs[np + i]!)
@@ -283,10 +310,12 @@ theorem SEval.mono {env : VEnv} {bo : Name → Option Expr} {Us : List Name}
   | indVal hi hlen _ ihargs => exact .indVal hi hlen ihargs
   | sort => exact .sort
   | forallE => exact .forallE
-  | iota hfl hsh ho hct hpre _ _ hmin _ hxlen _ hidx hdef _ ihpres ihd ihmins ihxs ihc =>
-      exact .iota (h.2.2.2.1 hfl) hsh ho hct hpre ihpres ihd hmin ihmins hxlen ihxs hidx
-        hdef ihc
-  | proj hfl _ hlt hdef _ ihd ihc => exact .proj (h.2.2.2.2.1 hfl) ihd hlt hdef ihc
+  | iota hfl hsh ho hct hnp hinf hpre _ _ hmin _ hxlen _ hidx hdef _ ihpres ihd ihmins
+      ihxs ihc =>
+      exact .iota (h.2.2.2.1 hfl) hsh ho hct hnp hinf hpre ihpres ihd hmin ihmins hxlen
+        ihxs hidx hdef ihc
+  | proj hfl hct hnp _ hlt hdef _ ihd ihc =>
+      exact .proj (h.2.2.2.2.1 hfl) hct hnp ihd hlt hdef ihc
   | lit hfl _ ih => exact .lit (h.2.2.2.2.2 hfl) ih
 
 /-- **Stability under an environment extension that declares no new eliminator.**
@@ -312,10 +341,12 @@ theorem SEval.le {env env' : VEnv} (h : env ≤ env')
   | indVal hi hlen _ ihargs => exact .indVal (hi.mono h) hlen ihargs
   | sort => exact .sort
   | forallE => exact .forallE
-  | iota hfl hsh ho hct hpre _ _ hmin _ hxlen _ hidx hdef _ ihpres ihd ihmins ihxs ihc =>
-      exact .iota hfl (hsh.mono h) (ho.mono h) (hct.mono h) hpre ihpres ihd hmin ihmins
-        hxlen ihxs hidx (hdef.le h) ihc
-  | proj hfl _ hlt hdef _ ihd ihc => exact .proj hfl ihd hlt (hdef.le h) ihc
+  | iota hfl hsh ho hct hnp hinf hpre _ _ hmin _ hxlen _ hidx hdef _ ihpres ihd ihmins
+      ihxs ihc =>
+      exact .iota hfl (hsh.mono h) (ho.mono h) (hct.mono h) (hnp.mono h) (hinf.mono h) hpre
+        ihpres ihd hmin ihmins hxlen ihxs hidx (hdef.le h) ihc
+  | proj hfl hct hnp _ hlt hdef _ ihd ihc =>
+      exact .proj hfl (hct.mono h) (hnp.mono h) ihd hlt (hdef.le h) ihc
   | lit hfl _ ih => exact .lit hfl ih
 
 /-! ## What is not a value
@@ -428,7 +459,7 @@ theorem untabled_const_not_value {env : VEnv} {bo : Name → Option Expr} {Us : 
     | zeta _ _ _ => rcases eq_mkApps_const_elim he with h | ⟨_, _, h⟩ <;> simp at h
     | sort => rcases eq_mkApps_const_elim he with h | ⟨_, _, h⟩ <;> simp at h
     | forallE => rcases eq_mkApps_const_elim he with h | ⟨_, _, h⟩ <;> simp at h
-    | proj _ _ _ _ _ => rcases eq_mkApps_const_elim he with h | ⟨_, _, h⟩ <;> simp at h
+    | proj _ _ _ _ _ _ _ => rcases eq_mkApps_const_elim he with h | ⟨_, _, h⟩ <;> simp at h
     | lit _ _ => rcases eq_mkApps_const_elim he with h | ⟨_, _, h⟩ <;> simp at h
     | beta _ hf _ _ =>
         rcases List.eq_nil_or_concat args' with rfl | ⟨init, last, rfl⟩
@@ -446,7 +477,7 @@ theorem untabled_const_not_value {env : VEnv} {bo : Name → Option Expr} {Us : 
     | indVal hi _ _ =>
         obtain ⟨rfl, -, -⟩ := mkApps_const_inj _ rfl he
         exact hni _ _ _ hi
-    | iota _ hsh _ _ _ _ _ _ _ _ _ _ _ _ =>
+    | iota _ hsh _ _ _ _ _ _ _ _ _ _ _ _ _ _ =>
         obtain ⟨rfl, -, -⟩ := mkApps_const_inj _ rfl he
         exact hnd _ _ _ hsh
 
@@ -471,7 +502,7 @@ theorem seval_const_head_value {env : VEnv} {bo : Name → Option Expr} {Us : Li
     | zeta _ _ _ => rcases eq_mkApps_const_elim he with h | ⟨_, _, h⟩ <;> simp at h
     | sort => rcases eq_mkApps_const_elim he with h | ⟨_, _, h⟩ <;> simp at h
     | forallE => rcases eq_mkApps_const_elim he with h | ⟨_, _, h⟩ <;> simp at h
-    | proj _ _ _ _ _ => rcases eq_mkApps_const_elim he with h | ⟨_, _, h⟩ <;> simp at h
+    | proj _ _ _ _ _ _ _ => rcases eq_mkApps_const_elim he with h | ⟨_, _, h⟩ <;> simp at h
     | lit _ _ => rcases eq_mkApps_const_elim he with h | ⟨_, _, h⟩ <;> simp at h
     | beta _ hf _ _ =>
         rcases List.eq_nil_or_concat args' with rfl | ⟨init, last, rfl⟩
@@ -491,7 +522,7 @@ theorem seval_const_head_value {env : VEnv} {bo : Name → Option Expr} {Us : Li
     | indVal _ _ _ =>
         obtain ⟨rfl, rfl, rfl⟩ := mkApps_const_inj _ rfl he
         exact ⟨_, rfl⟩
-    | iota _ hsh _ _ _ _ _ _ _ _ _ _ _ _ =>
+    | iota _ hsh _ _ _ _ _ _ _ _ _ _ _ _ _ _ =>
         obtain ⟨rfl, -, -⟩ := mkApps_const_inj _ rfl he
         exact absurd hsh (hnd _ _ _)
 
@@ -520,7 +551,7 @@ theorem overapplied_ctor_not_value {env : VEnv} {bo : Name → Option Expr} {Us 
   | zeta _ _ _ => rcases eq_mkApps_const_elim he with h | ⟨_, _, h⟩ <;> simp at h
   | sort => rcases eq_mkApps_const_elim he with h | ⟨_, _, h⟩ <;> simp at h
   | forallE => rcases eq_mkApps_const_elim he with h | ⟨_, _, h⟩ <;> simp at h
-  | proj _ _ _ _ _ => rcases eq_mkApps_const_elim he with h | ⟨_, _, h⟩ <;> simp at h
+  | proj _ _ _ _ _ _ _ => rcases eq_mkApps_const_elim he with h | ⟨_, _, h⟩ <;> simp at h
   | lit _ _ => rcases eq_mkApps_const_elim he with h | ⟨_, _, h⟩ <;> simp at h
   | beta _ hf _ _ =>
       rcases List.eq_nil_or_concat args' with rfl | ⟨init, last, rfl⟩
@@ -539,7 +570,7 @@ theorem overapplied_ctor_not_value {env : VEnv} {bo : Name → Option Expr} {Us 
   | indVal hi _ _ =>
       obtain ⟨rfl, -, -⟩ := mkApps_const_inj _ rfl he
       exact hc.not_indInfo hi
-  | iota _ hsh _ _ _ _ _ _ _ _ _ _ _ _ =>
+  | iota _ hsh _ _ _ _ _ _ _ _ _ _ _ _ _ _ =>
       obtain ⟨rfl, -, -⟩ := mkApps_const_inj _ rfl he
       exact absurd hsh (hnd _ _ _)
 
@@ -1469,10 +1500,21 @@ theorem nat_constOrigin_id : ConstOrigin natEnv natId :=
 
 /-- **R17's test.** The `casesOn` of the fixture's `Nat` has one argument before the major
 premise — no parameters, one motive, no indices — and one minor per constructor, read off
-the inductive declaration rather than off the pattern table. -/
+the inductive declaration rather than off the pattern table, and its declared type
+`natCTy` takes a major premise headed by `Nat` after that one binder. -/
 theorem nat_casesOnShape : CasesOnShape natEnv natC natN 1 2 :=
-  ⟨rfl, rfl, _, _, natDecl, natTypeVal, nat_wf'_cas, nat_decl_mem, natEnvCas_le,
+  ⟨rfl, rfl, ⟨_, natEnv_C, fun _ => ⟨_, _, rfl, _, _, [], [], rfl, rfl⟩⟩,
+    _, _, natDecl, natTypeVal, nat_wf'_cas, nat_decl_mem, natEnvCas_le,
     List.mem_singleton_self _, rfl, rfl, rfl⟩
+
+/-- The fixture's `Nat` is relevant: its declared type is `natSort`, whose level is a
+successor. This is what `SEval.iota`'s `hinf` asks for at the fixture. -/
+theorem nat_informativeInd : InformativeInd natEnv natN :=
+  informativeInd_of_succ ⟨_, rfl, _, rfl⟩
+
+/-- The block's parameter count and field counts in source coordinates, which is what
+`SEval.iota`'s `hnp` reads. -/
+theorem nat_indArity : IndArity natEnv natN 0 [0, 1] := nat_indInfo.arity
 
 /-- Neither the tabled definition nor the body-less constant is a `casesOn` name. -/
 theorem nat_not_casesOnShape {c I : Name} {dp nm : Nat} (hc : c = natId ∨ c = natAx) :
@@ -1647,8 +1689,9 @@ theorem seval_iota_fires :
       (mkApps srcC ([srcMot1] ++ srcOne :: ([srcZ, srcIdFun] ++ []))) srcZ := by
   refine SEval.iota (I := natN) (ctor := natS) (cus := []) (cargs := [srcZ]) (np := 0)
     (cidx := 1) (prev := [srcMot1]) (minorsv := [srcZ, srcIdFun]) (extrav := [])
-    rfl nat_casesOnShape nat_constOrigin_cas nat_ctorOf_succ rfl ?_ seval_ctorVal_fires
-    rfl ?_ rfl ?_ (by decide) natIota1_step (.beta rfl (.lam ..) seval_zero seval_zero)
+    rfl nat_casesOnShape nat_constOrigin_cas nat_ctorOf_succ nat_indArity nat_informativeInd
+    rfl ?_ seval_ctorVal_fires rfl ?_ rfl ?_ (by decide) natIota1_step
+    (.beta rfl (.lam ..) seval_zero seval_zero)
   · intro i hi
     match i, hi with
     | 0, _ => exact seval_lam
@@ -1665,8 +1708,8 @@ theorem seval_iota_overapplied_fires :
       (mkApps srcC ([srcMot2] ++ srcOne :: ([srcIdFun, srcConstFun] ++ [srcZ]))) srcZ := by
   refine SEval.iota (I := natN) (ctor := natS) (cus := []) (cargs := [srcZ]) (np := 0)
     (cidx := 1) (prev := [srcMot2]) (minorsv := [srcIdFun, srcConstFun]) (extrav := [srcZ])
-    rfl nat_casesOnShape nat_constOrigin_cas nat_ctorOf_succ rfl ?_ seval_ctorVal_fires
-    rfl ?_ rfl ?_ (by decide) natIota2_step
+    rfl nat_casesOnShape nat_constOrigin_cas nat_ctorOf_succ nat_indArity nat_informativeInd
+    rfl ?_ seval_ctorVal_fires rfl ?_ rfl ?_ (by decide) natIota2_step
     (.beta rfl (.beta rfl (.lam ..) seval_zero (.lam ..)) seval_zero seval_zero)
   · intro i hi
     match i, hi with
@@ -1705,5 +1748,579 @@ theorem nat_stuck_not_value {fl : SEvalFlags} (us : List Level) (args : List Exp
     (fun _ _ _ => nat_not_casesOnShape (.inr rfl)) us args v
 
 end NatWitness
+
+/-! ## A `SEval.proj` witness
+
+A hand-built two-field structure — `Pair.P`, one constructor `mk : Type → Type → P`, no
+parameters — declared through `VEnv.addInduct`, so its ι rule is registered the way a
+translated environment registers one, and its projection expansion is `Theory/Proj.lean`'s
+`projFn`. It exhibits the projection rule's two new premises together with the rest: `hct`
+classifies the discriminant's value head as `Pair.P.mk`, `hnp` reads the parameter count and
+the single constructor's field count off the block, and the fields are sorts, which are
+source values, so the discriminant evaluates.
+
+The projection instance the witness steps at is recorded as a defining equation of the
+fixture environment, as `NatWitness` records its two ι instances: the general derivation of
+`projFn (mk a b) ≡ b` from the registered ι rule is `Theory/Proj.lean`'s and is not redone
+here. `np` is zero — the block has no parameters — so the witness exercises the field index
+and not the dropped prefix.
+-/
+
+namespace ProjWitness
+
+open Lean Lean4Lean
+
+/-- The fixture's type former: a two-field structure in `Type 1`. -/
+def pS : Name := `Pair.P
+/-- Its single constructor, `mk : Type → Type → P`. -/
+def pMk : Name := `Pair.P.mk
+/-- Its eliminator, large-eliminating: the recursor takes one extra universe. -/
+def pRec : Name := mkRecName pS
+
+/-- The field type, `Type`: its inhabitants — a sort, a Π-type — are source values. -/
+def fldTy : VExpr := .sort (.succ .zero)
+/-- The structure's own level, one above the fields'. -/
+def lS : VLevel := .succ (.succ .zero)
+def Sc : VExpr := .const pS []
+def mkc : VExpr := .const pMk []
+def ctorTy : VExpr := .forallE fldTy (.forallE fldTy Sc)
+def motiveTy : VExpr := .forallE Sc (.sort (.param 0))
+def mkSpine : VExpr := .app (.app mkc (.bvar 1)) (.bvar 0)
+def minorTy : VExpr := .forallE fldTy (.forallE fldTy (.app (.bvar 2) mkSpine))
+def recTy : VExpr :=
+  .forallE motiveTy (.forallE minorTy (.forallE Sc (.app (.bvar 2) (.bvar 0))))
+def ruleRhs : VExpr :=
+  .lam motiveTy (.lam minorTy (.lam fldTy (.lam fldTy
+    (.app (.app (.bvar 2) (.bvar 1)) (.bvar 0)))))
+
+def pCtorVal : VConstVal := { uvars := 0, type := ctorTy, name := pMk }
+def pTypeVal : VInductiveType :=
+  { uvars := 0, type := .sort lS, name := pS, ctors := [pCtorVal] }
+def pRule : VRecRule := { ctor := pMk, ctorParams := 0, nfields := 2, rhs := ruleRhs }
+def pRecVal : VRecursor :=
+  { uvars := 1, type := recTy, name := pRec, all := [pS], numParams := 0, numMotives := 1,
+    numMinors := 1, numIndices := 0, k := false, rules := [pRule] }
+/-- The block: one type former, one two-field constructor, one recursor, no parameters. -/
+def pDecl : VInductDecl := { uvars := 0, nparams := 0, types := [pTypeVal], recs := [pRecVal] }
+
+/-- The environment after the type former. -/
+def pEnvT : VEnv :=
+  { VEnv.empty with constants := fun n => if pS = n then some ⟨0, .sort lS⟩ else none }
+/-- The environment after the constructor. -/
+def pEnvC : VEnv :=
+  { pEnvT with constants := fun n => if pMk = n then some ⟨0, ctorTy⟩ else pEnvT.constants n }
+/-- The environment after the recursor. -/
+def pEnvR : VEnv :=
+  { pEnvC with constants := fun n => if pRec = n then some ⟨1, recTy⟩ else pEnvC.constants n }
+
+theorem pDecl_addTypes : pDecl.addTypes VEnv.empty = some pEnvT := by
+  simp [VInductDecl.addTypes, VEnv.addConst, VEnv.empty, pDecl, pTypeVal, pEnvT]
+
+theorem pDecl_addCtors : pDecl.addCtors pEnvT = some pEnvC := by
+  simp [VInductDecl.addCtors, VEnv.addConst, pDecl, pTypeVal, pCtorVal, pEnvT, pEnvC, pS, pMk]
+  rfl
+
+theorem pDecl_addRecs : pDecl.addRecs pEnvC = some pEnvR := by
+  simp [VInductDecl.addRecs, VEnv.addConst, pDecl, pRecVal, pEnvC, pEnvR, pEnvT, pS, pMk, pRec]
+  rfl
+
+theorem pDecl_addTypesCtorsRecs : pDecl.addTypesCtorsRecs VEnv.empty = some pEnvR := by
+  simp [VInductDecl.addTypesCtorsRecs, VInductDecl.addTypesCtors, pDecl_addTypes,
+    pDecl_addCtors, pDecl_addRecs]
+
+theorem pEnvT_S : pEnvT.constants pS = some ⟨0, .sort lS⟩ := by simp [pEnvT]
+theorem pEnvC_S : pEnvC.constants pS = some ⟨0, .sort lS⟩ := by simp [pEnvC, pEnvT, pS, pMk]
+theorem pEnvC_mk : pEnvC.constants pMk = some ⟨0, ctorTy⟩ := by simp [pEnvC]
+theorem pEnvR_S : pEnvR.constants pS = some ⟨0, .sort lS⟩ := by
+  simp [pEnvR, pEnvC, pEnvT, pS, pMk, pRec, mkRecName]
+theorem pEnvR_mk : pEnvR.constants pMk = some ⟨0, ctorTy⟩ := by
+  simp [pEnvR, pEnvC, pS, pMk, pRec, mkRecName]
+theorem pEnvR_rec : pEnvR.constants pRec = some ⟨1, recTy⟩ := by simp [pEnvR]
+
+theorem fld_ty {env : VEnv} {U : Nat} {Γ : List VExpr} :
+    VEnv.HasType env U Γ fldTy (.sort (.succ (.succ .zero))) :=
+  VEnv.HasType.sort (l := .succ .zero) trivial
+
+theorem pS_tyC {U : Nat} {Γ : List VExpr} : VEnv.HasType pEnvC U Γ Sc (.sort lS) :=
+  VEnv.HasType.const pEnvC_S nofun rfl
+
+theorem pMk_tyC {U : Nat} {Γ : List VExpr} : VEnv.HasType pEnvC U Γ mkc ctorTy :=
+  VEnv.HasType.const pEnvC_mk nofun rfl
+
+theorem mkSpine_tyC {Γ : List VExpr} :
+    VEnv.HasType pEnvC 1 (fldTy :: fldTy :: Γ) mkSpine Sc :=
+  VEnv.HasType.app (B := Sc)
+    (VEnv.HasType.app (B := .forallE fldTy Sc) pMk_tyC (VEnv.HasType.bvar (.succ .zero)))
+    (VEnv.HasType.bvar .zero)
+
+theorem motive_tyC {Γ : List VExpr} :
+    VEnv.HasType pEnvC 1 Γ motiveTy (.sort (.imax lS (.succ (.param 0)))) :=
+  VEnv.HasType.forallE pS_tyC (VEnv.HasType.sort (l := .param 0) (by decide))
+
+theorem minor_tyC {Γ : List VExpr} :
+    VEnv.HasType pEnvC 1 (motiveTy :: Γ) minorTy
+      (.sort (.imax (.succ (.succ .zero)) (.imax (.succ (.succ .zero)) (.param 0)))) :=
+  VEnv.HasType.forallE fld_ty (VEnv.HasType.forallE fld_ty
+    (VEnv.HasType.app (B := .sort (.param 0))
+      (VEnv.HasType.bvar (.succ (.succ .zero))) mkSpine_tyC))
+
+theorem recTy_tyC :
+    VEnv.HasType pEnvC 1 [] recTy
+      (.sort (.imax (.imax lS (.succ (.param 0)))
+        (.imax (.imax (.succ (.succ .zero)) (.imax (.succ (.succ .zero)) (.param 0)))
+          (.imax lS (.param 0))))) :=
+  VEnv.HasType.forallE motive_tyC (VEnv.HasType.forallE minor_tyC
+    (VEnv.HasType.forallE pS_tyC
+      (VEnv.HasType.app (B := .sort (.param 0))
+        (VEnv.HasType.bvar (.succ (.succ .zero))) (VEnv.HasType.bvar .zero))))
+
+theorem pS_tyT {U : Nat} {Γ : List VExpr} : VEnv.HasType pEnvT U Γ Sc (.sort lS) :=
+  VEnv.HasType.const pEnvT_S nofun rfl
+
+theorem ctorTy_tyT :
+    VEnv.HasType pEnvT 0 [] ctorTy
+      (.sort (.imax (.succ (.succ .zero)) (.imax (.succ (.succ .zero)) lS))) :=
+  VEnv.HasType.forallE fld_ty (VEnv.HasType.forallE fld_ty pS_tyT)
+
+
+theorem pMk_tyR {U : Nat} {Γ : List VExpr} : VEnv.HasType pEnvR U Γ mkc ctorTy :=
+  VEnv.HasType.const pEnvR_mk nofun rfl
+
+theorem pRec_tyR {Γ : List VExpr} :
+    VEnv.HasType pEnvR 1 Γ (.const pRec (VLevel.params 1)) (recTy.instL (VLevel.params 1)) :=
+  VEnv.HasType.const pEnvR_rec (by decide) rfl
+
+theorem pS_tyR {U : Nat} {Γ : List VExpr} : VEnv.HasType pEnvR U Γ Sc (.sort lS) :=
+  VEnv.HasType.const pEnvR_S nofun rfl
+
+theorem mkSpine_tyR {Γ : List VExpr} :
+    VEnv.HasType pEnvR 1 (fldTy :: fldTy :: Γ) mkSpine Sc :=
+  VEnv.HasType.app (B := Sc)
+    (VEnv.HasType.app (B := .forallE fldTy Sc) pMk_tyR (VEnv.HasType.bvar (.succ .zero)))
+    (VEnv.HasType.bvar .zero)
+
+theorem motive_tyR {Γ : List VExpr} :
+    VEnv.HasType pEnvR 1 Γ motiveTy (.sort (.imax lS (.succ (.param 0)))) :=
+  VEnv.HasType.forallE pS_tyR (VEnv.HasType.sort (l := .param 0) (by decide))
+
+theorem minor_tyR {Γ : List VExpr} :
+    VEnv.HasType pEnvR 1 (motiveTy :: Γ) minorTy
+      (.sort (.imax (.succ (.succ .zero)) (.imax (.succ (.succ .zero)) (.param 0)))) :=
+  VEnv.HasType.forallE fld_ty (VEnv.HasType.forallE fld_ty
+    (VEnv.HasType.app (B := .sort (.param 0))
+      (VEnv.HasType.bvar (.succ (.succ .zero))) mkSpine_tyR))
+
+/-- The ι rule's own context: the two fields, the minor, the motive. -/
+def ctxR : List VExpr := [fldTy, fldTy, minorTy, motiveTy]
+
+
+theorem ruleRhs_instL : ruleRhs.instL (VLevel.params 1) = ruleRhs := rfl
+
+
+theorem ruleBody_ty :
+    VEnv.HasType pEnvR 1 (fldTy :: fldTy :: minorTy :: motiveTy :: ctxR)
+      (.app (.app (.bvar 2) (.bvar 1)) (.bvar 0)) (.app (.bvar 3) mkSpine) := by
+  have h := VEnv.HasType.app
+    (VEnv.HasType.app (VEnv.HasType.bvar (env := pEnvR) (U := 1)
+        (Γ := fldTy :: fldTy :: minorTy :: motiveTy :: ctxR) (.succ (.succ .zero)))
+      (VEnv.HasType.bvar (.succ .zero)))
+    (VEnv.HasType.bvar .zero)
+  exact h
+
+theorem ruleRhs_ty :
+    VEnv.HasType pEnvR 1 ctxR ruleRhs
+      (.forallE motiveTy (.forallE minorTy (.forallE fldTy (.forallE fldTy
+        (.app (.bvar 3) mkSpine))))) :=
+  VEnv.HasType.lam motive_tyR (VEnv.HasType.lam minor_tyR
+    (VEnv.HasType.lam fld_ty (VEnv.HasType.lam fld_ty ruleBody_ty)))
+
+theorem reduct_ty :
+    VEnv.HasType pEnvR 1 ctxR
+      (.app (.app (.app (.app ruleRhs (.bvar 3)) (.bvar 2)) (.bvar 1)) (.bvar 0))
+      (.app (.bvar 3) mkSpine) := by
+  have h := VEnv.HasType.app (VEnv.HasType.app (VEnv.HasType.app
+    (VEnv.HasType.app ruleRhs_ty (VEnv.HasType.bvar (.succ (.succ (.succ .zero)))))
+    (VEnv.HasType.bvar (.succ (.succ .zero))))
+    (VEnv.HasType.bvar (.succ .zero))) (VEnv.HasType.bvar .zero)
+  exact h
+
+theorem redex_ty :
+    VEnv.HasType pEnvR 1 ctxR
+      (.app (.app (.app (.const pRec (VLevel.params 1)) (.bvar 3)) (.bvar 2)) mkSpine)
+      (.app (.bvar 3) mkSpine) := by
+  have h := VEnv.HasType.app (VEnv.HasType.app
+    (VEnv.HasType.app (pRec_tyR (Γ := ctxR)) (VEnv.HasType.bvar (.succ (.succ (.succ .zero)))))
+    (VEnv.HasType.bvar (.succ (.succ .zero)))) (mkSpine_tyR (Γ := [minorTy, motiveTy]))
+  exact h
+
+/-- The ι rule is typed: at the generic redex `rec C m (mk a b)`, redex and reduct — the
+minor applied to the two fields — have the type `C (mk a b)` over the context of the motive,
+the minor and the fields. -/
+theorem pDecl_patTyped (hc : ruleRhs.Closed) :
+    pEnvR.PatTyped (SimplePattern.iota pRec 2 pMk 2).toPattern
+      (SimplePattern.iotaRHS pRec pMk 0 1 1 0 0 2 ruleRhs hc, .true) := by
+  obtain ⟨g1, hm1, hg1⟩ :=
+    Pattern.matches_varN_const (c := pRec) (ls := VLevel.params 1) 2 [.bvar 3, .bvar 2] rfl
+  obtain ⟨g2, hm2, hg2⟩ :=
+    Pattern.matches_varN_const (c := pMk) (ls := []) 2 [.bvar 1, .bvar 0] rfl
+  have happly : Pattern.RHS.apply (p := (SimplePattern.iota pRec 2 pMk 2).toPattern)
+      (VLevel.params 1) (Sum.elim g1 g2)
+      (SimplePattern.iotaRHS pRec pMk 0 1 1 0 0 2 ruleRhs hc)
+      = .app (.app (.app (.app (ruleRhs.instL (VLevel.params 1)) (.bvar 3)) (.bvar 2))
+          (.bvar 1)) (.bvar 0) :=
+    SimplePattern.iotaRHS'_apply pRec pMk 2 0 0 2 ruleRhs hc (VLevel.params 1)
+      (Sum.elim g1 g2) (recArgs := [.bvar 3, .bvar 2]) (ctorArgs := [.bvar 1, .bvar 0])
+      rfl rfl hg1 hg2
+  refine ⟨1, ctxR, _, Sum.elim g1 g2, .app (.bvar 3) mkSpine, hm1.app hm2, ?_, ?_, ?_⟩
+  · have h0 : g1 (some none) = .bvar 3 := hg1 0 (by omega)
+    have h1 : g1 none = .bvar 2 := hg1 1 (by omega)
+    have h2 : g2 (some none) = .bvar 1 := hg2 0 (by omega)
+    have h3 : g2 none = .bvar 0 := hg2 1 (by omega)
+    have hR : SimplePattern.iotaRHS pRec pMk 0 1 1 0 0 2 ruleRhs hc =
+        ((((Pattern.RHS.fixed ruleRhs hc).app
+          (Pattern.RHS.var (p := (SimplePattern.iota pRec 2 pMk 2).toPattern)
+            (Sum.inl (some none)))).app
+          (Pattern.RHS.var (p := (SimplePattern.iota pRec 2 pMk 2).toPattern)
+            (Sum.inl none))).app
+          (Pattern.RHS.var (p := (SimplePattern.iota pRec 2 pMk 2).toPattern)
+            (Sum.inr (some none)))).app
+          (Pattern.RHS.var (p := (SimplePattern.iota pRec 2 pMk 2).toPattern)
+            (Sum.inr none)) := rfl
+    rw [show ((SimplePattern.iotaRHS pRec pMk 0 1 1 0 0 2 ruleRhs hc,
+      Pattern.Check.true).fst) = _ from hR]
+    refine ⟨?_, ?_, ?_⟩
+    · intro x hx
+      simp only [Pattern.RHS.Uses, false_or] at hx
+      rcases hx with ((rfl | rfl) | rfl) | rfl
+      · exact ⟨3, by simp [ctxR], h0⟩
+      · exact ⟨2, by simp [ctxR], h1⟩
+      · exact ⟨1, by simp [ctxR], h2⟩
+      · exact ⟨0, by simp [ctxR], h3⟩
+    · intro x y hx hy hxy
+      simp only [Pattern.RHS.Uses, false_or] at hx hy
+      rcases hx with ((rfl | rfl) | rfl) | rfl <;> rcases hy with ((rfl | rfl) | rfl) | rfl
+      · rfl
+      · exact absurd ((h0.symm.trans hxy).trans h1) (by simp)
+      · exact absurd ((h0.symm.trans hxy).trans h2) (by simp)
+      · exact absurd ((h0.symm.trans hxy).trans h3) (by simp)
+      · exact absurd ((h1.symm.trans hxy).trans h0) (by simp)
+      · rfl
+      · exact absurd ((h1.symm.trans hxy).trans h2) (by simp)
+      · exact absurd ((h1.symm.trans hxy).trans h3) (by simp)
+      · exact absurd ((h2.symm.trans hxy).trans h0) (by simp)
+      · exact absurd ((h2.symm.trans hxy).trans h1) (by simp)
+      · rfl
+      · exact absurd ((h2.symm.trans hxy).trans h3) (by simp)
+      · exact absurd ((h3.symm.trans hxy).trans h0) (by simp)
+      · exact absurd ((h3.symm.trans hxy).trans h1) (by simp)
+      · exact absurd ((h3.symm.trans hxy).trans h2) (by simp)
+      · rfl
+    · intro i hi
+      simp only [ctxR, List.length_cons, List.length_nil] at hi
+      have hi4 : i = 0 ∨ i = 1 ∨ i = 2 ∨ i = 3 := by omega
+      rcases hi4 with rfl | rfl | rfl | rfl
+      · exact ⟨Sum.inr none, Or.inr rfl, h3⟩
+      · exact ⟨Sum.inr (some none), Or.inl (Or.inr rfl), h2⟩
+      · exact ⟨Sum.inl none, Or.inl (Or.inl (Or.inr rfl)), h1⟩
+      · exact ⟨Sum.inl (some none), Or.inl (Or.inl (Or.inl (Or.inr rfl))), h0⟩
+  · exact redex_ty
+  · rw [happly, ruleRhs_instL]; exact reduct_ty
+
+
+
+/-- The block is a well-formed declaration: the three constants are typed at their stages,
+the syntactic clauses hold by computation, large elimination is granted by the result level
+being never zero, and the ι rule is typed by `pDecl_patTyped`. -/
+theorem pDecl_wf : pDecl.WF VEnv.empty where
+  types_wf := by
+    intro t ht; cases List.mem_singleton.1 ht
+    exact ⟨.succ lS, VEnv.HasType.sort (l := lS) trivial⟩
+  ctors_wf := by
+    intro envT h t ht c hc
+    rw [pDecl_addTypes] at h; cases h
+    cases List.mem_singleton.1 ht
+    cases List.mem_singleton.1 hc
+    exact ⟨_, ctorTy_tyT⟩
+  recs_wf := by
+    intro envC h r hr
+    rw [show pDecl.addTypesCtors VEnv.empty = some pEnvC by
+      simp [VInductDecl.addTypesCtors, pDecl_addTypes, pDecl_addCtors]] at h
+    cases h
+    cases List.mem_singleton.1 hr
+    exact ⟨_, recTy_tyC⟩
+  types_uvars := by intro t ht; cases List.mem_singleton.1 ht; rfl
+  ctors_uvars := by
+    intro t ht c hc; cases List.mem_singleton.1 ht; cases List.mem_singleton.1 hc; rfl
+  universes := by
+    intro envT h
+    rw [pDecl_addTypes] at h; cases h
+    refine ⟨lS, ?_, ?_, ?_⟩
+    · intro t ht; cases List.mem_singleton.1 ht; exact ⟨rfl, Nat.zero_le _⟩
+    · intro t ht c hc i hi
+      cases List.mem_singleton.1 ht; cases List.mem_singleton.1 hc
+      have hi2 : i = 0 ∨ i = 1 := by
+        simp [pCtorVal, ctorTy, fldTy, Sc, pDecl, VExpr.piArity] at hi; omega
+      rcases hi2 with rfl | rfl <;>
+        exact ⟨fldTy, rfl, _, fld_ty, fun ls => by simp [VLevel.eval, lS, Lean.Nat.imax]⟩
+    · rintro -
+      exact Or.inl fun ls => by simp [VLevel.eval, lS]
+  recs_elim := by
+    intro r hr; cases List.mem_singleton.1 hr
+    refine ⟨Or.inr rfl, ?_⟩
+    intro i hi
+    have : i = 0 := by simpa [pRecVal] using hi
+    subst this
+    exact ⟨motiveTy, rfl, rfl⟩
+  rec_params := by intro r hr; cases List.mem_singleton.1 hr; rfl
+  ctors_params := by
+    intro t ht c hc; cases List.mem_singleton.1 ht; cases List.mem_singleton.1 hc; rfl
+  ctors_result := by
+    intro t ht c hc
+    cases List.mem_singleton.1 ht; cases List.mem_singleton.1 hc
+    exact ⟨2, rfl, [], [], rfl, rfl⟩
+  ctors_positive := by
+    intro t ht c hc
+    cases List.mem_singleton.1 ht; cases List.mem_singleton.1 hc
+    refine ⟨nofun, ?_⟩
+    intro i hi
+    have hi2 : i = 0 ∨ i = 1 := by
+      simp [pCtorVal, ctorTy, fldTy, Sc, pDecl, VExpr.piArity] at hi; omega
+    rcases hi2 with rfl | rfl <;> exact ⟨fldTy, rfl, Or.inl nofun⟩
+  recs_over_block := by
+    intro r hr; cases List.mem_singleton.1 hr
+    exact ⟨pTypeVal, List.mem_singleton_self _, rfl⟩
+  rec_counts := by
+    intro r hr; cases List.mem_singleton.1 hr
+    refine ⟨rfl, rfl, ?_⟩
+    intro t ht _; cases List.mem_singleton.1 ht; rfl
+  rec_shape := by
+    intro r hr; cases List.mem_singleton.1 hr
+    refine ⟨rfl, ?_, ?_, 0, Nat.zero_lt_one, ⟨_, rfl, pS, rfl, ⟨[], rfl⟩, _, rfl, rfl⟩, rfl⟩
+    · intro i hi
+      have : i = 0 := by simpa [pRecVal] using hi
+      subst this
+      exact ⟨motiveTy, rfl, ⟨.param 0, rfl⟩, rfl⟩
+    · intro i hi
+      have : i = 0 := by simpa [pRecVal] using hi
+      subst this
+      exact ⟨minorTy, rfl, 0, Nat.zero_lt_one, rfl⟩
+  rules_nodup := by
+    intro r hr; cases List.mem_singleton.1 hr
+    simp [pRecVal, pRule]
+  rules_ctor := by
+    intro r hr ru hru
+    cases List.mem_singleton.1 hr; cases List.mem_singleton.1 hru
+    exact ⟨pTypeVal, List.mem_singleton_self _, rfl, pCtorVal, List.mem_singleton_self _,
+      rfl, rfl, rfl, [], [], rfl, rfl⟩
+  types_have_rec := by
+    intro t ht; cases List.mem_singleton.1 ht
+    exact ⟨pRecVal, List.mem_singleton_self _, rfl⟩
+  rules_total := by
+    intro r hr t ht _ c hc
+    cases List.mem_singleton.1 hr; cases List.mem_singleton.1 ht
+    cases List.mem_singleton.1 hc
+    exact ⟨pRule, List.mem_singleton_self _, rfl⟩
+  rule_shape := by
+    intro r hr ru hru
+    cases List.mem_singleton.1 hr; cases List.mem_singleton.1 hru
+    refine ⟨0, Nat.zero_lt_one, minorTy, rfl, ⟨⟨_, rfl⟩, _, rfl, rfl⟩, by decide, rfl,
+      [], rfl, rfl⟩
+  rules_wf := by
+    intro envR h r hr ru hru hc
+    rw [pDecl_addTypesCtorsRecs] at h
+    cases h
+    cases List.mem_singleton.1 hr
+    cases List.mem_singleton.1 hru
+    exact pDecl_patTyped hc
+
+
+
+/-! ### The fixture environment and its three readings -/
+
+/-- The environment the block alone produces, ι rule registered. -/
+def pEnvB : VEnv := (VEnv.empty.addInduct pDecl).getD .empty
+
+theorem pEnvB_eq : VEnv.empty.addInduct pDecl = some pEnvB := rfl
+
+theorem p_wf' : VEnv.WF' [.induct pDecl] pEnvB := .decl (.induct pDecl_wf pEnvB_eq) .empty
+
+def fld0 : VExpr := .sort .zero
+def fld1 : VExpr := .forallE (.sort .zero) (.sort .zero)
+def mkPair : VExpr := .app (.app mkc fld0) fld1
+
+/-- The fixture's λ□ inductive identifier. -/
+def pIid : InductiveId := ⟨indBlockKername [pS], 0⟩
+
+def uss : Nat → List VLevel := fun _ => [lS]
+def recC : VExpr := .const pRec [lS]
+def M0 : VExpr := .lam Sc fldTy
+def sel1 : VExpr := .lam fldTy (.lam fldTy (.bvar 0))
+/-- The expansion of the second projection, `P.rec (motive) (λ a b. b)`. -/
+def projFn1 : VExpr := .app (.app recC M0) sel1
+
+theorem projFn1_eq : VExpr.projFn pS [] uss [] [fldTy, fldTy] 1 = projFn1 := rfl
+theorem projMotive_eq : VExpr.projMotiveBody pS [] uss [] [fldTy, fldTy] 1 = fldTy := rfl
+
+/-- The projection instance the witness steps at, as a defining equation. -/
+def pProjEq : VDefEq := ⟨0, .app projFn1 mkPair, fld1, fldTy⟩
+
+/-- The fixture's environment: the block, plus that instance. -/
+def pEnv : VEnv := pEnvB.addDefEq pProjEq
+
+theorem pEnvB_le : pEnvB ≤ pEnv := VEnv.addDefEq_le
+
+theorem pEnv_S : pEnv.constants pS = some ⟨0, .sort lS⟩ := rfl
+theorem pEnv_mk : pEnv.constants pMk = some ⟨0, ctorTy⟩ := rfl
+theorem pEnv_rec : pEnv.constants pRec = some ⟨1, recTy⟩ := rfl
+
+theorem p_decl_mem : VDecl.induct pDecl ∈ [VDecl.induct pDecl] := List.mem_singleton_self _
+
+/-- The constructor reading, off the fixture's own declaration list. -/
+theorem p_ctorOf : CtorOf pEnv pMk pS 0 :=
+  ⟨_, _, pDecl, pTypeVal, pCtorVal, p_wf', p_decl_mem, pEnvB_le,
+    List.mem_singleton_self _, rfl, rfl, rfl⟩
+
+theorem p_indInfo : IndInfo pEnv pS pIid 0 [2] :=
+  ⟨_, _, pDecl, pTypeVal, p_wf', p_decl_mem, pEnvB_le, rfl, rfl, rfl, rfl, rfl⟩
+
+/-- The block reading in source coordinates: no parameters, one constructor of two fields.
+This is what `SEval.proj`'s `hnp` reads. -/
+theorem p_indArity : IndArity pEnv pS 0 [2] :=
+  ⟨_, _, pDecl, pTypeVal, p_wf', p_decl_mem, pEnvB_le, List.mem_singleton_self _, rfl, rfl, rfl⟩
+
+/-! ### The projection expansion is typed -/
+
+theorem lS_wf {U : Nat} : ∀ l ∈ [lS], VLevel.WF U l := by
+  intro l hl
+  obtain rfl : l = lS := by simpa using hl
+  trivial
+
+theorem pS_tyE {U : Nat} {Γ : List VExpr} : VEnv.HasType pEnv U Γ Sc (.sort lS) :=
+  VEnv.HasType.const pEnv_S nofun rfl
+
+theorem pMk_tyE {U : Nat} {Γ : List VExpr} : VEnv.HasType pEnv U Γ mkc ctorTy :=
+  VEnv.HasType.const pEnv_mk nofun rfl
+
+theorem pRec_tyE {Γ : List VExpr} :
+    VEnv.HasType pEnv 0 Γ recC (recTy.instL [lS]) :=
+  VEnv.HasType.const pEnv_rec lS_wf rfl
+
+theorem fld0_ty {Γ : List VExpr} : VEnv.HasType pEnv 0 Γ fld0 fldTy :=
+  VEnv.HasType.sort (l := .zero) trivial
+
+theorem fld1_ty {Γ : List VExpr} : VEnv.HasType pEnv 0 Γ fld1 fldTy :=
+  VEnv.IsDefEq.defeqDF
+    (VEnv.IsDefEq.sortDF (l := .imax (.succ .zero) (.succ .zero)) (l' := .succ .zero)
+      ⟨trivial, trivial⟩ trivial (by simp [VLevel.equiv_def, VLevel.eval, Lean.Nat.imax]))
+    (VEnv.HasType.forallE fld0_ty fld0_ty)
+
+theorem mkPair_ty {Γ : List VExpr} : VEnv.HasType pEnv 0 Γ mkPair Sc :=
+  VEnv.HasType.app (B := Sc) (VEnv.HasType.app (B := .forallE fldTy Sc) pMk_tyE fld0_ty) fld1_ty
+
+theorem hM0 {Γ : List VExpr} :
+    VEnv.HasType pEnv 0 Γ M0 (.forallE Sc (.sort lS)) :=
+  VEnv.HasType.lam pS_tyE fld_ty
+
+theorem hspineE {Γ : List VExpr} :
+    VEnv.HasType pEnv 0 (fldTy :: fldTy :: Γ) mkSpine Sc :=
+  VEnv.HasType.app (B := Sc)
+    (VEnv.HasType.app (B := .forallE fldTy Sc) pMk_tyE (VEnv.HasType.bvar (.succ .zero)))
+    (VEnv.HasType.bvar .zero)
+
+theorem hbody0 {Γ : List VExpr} :
+    VEnv.IsDefEq pEnv 0 (fldTy :: fldTy :: Γ) (.app M0 mkSpine) fldTy (.sort lS) :=
+  VEnv.IsDefEq.beta fld_ty hspineE
+
+def minorTyM : VExpr := .forallE fldTy (.forallE fldTy (.app M0 mkSpine))
+
+theorem hminorEq {Γ : List VExpr} :
+    VEnv.IsDefEq pEnv 0 Γ (.forallE fldTy (.forallE fldTy fldTy)) minorTyM
+      (.sort (.imax lS (.imax lS lS))) :=
+  VEnv.IsDefEq.forallEDF fld_ty (VEnv.IsDefEq.forallEDF fld_ty hbody0.symm)
+
+theorem hsel1 {Γ : List VExpr} : VEnv.HasType pEnv 0 Γ sel1 minorTyM :=
+  VEnv.IsDefEq.defeqDF hminorEq
+    (VEnv.HasType.lam fld_ty (VEnv.HasType.lam fld_ty (VEnv.HasType.bvar .zero)))
+
+theorem hstep1 {Γ : List VExpr} :
+    VEnv.HasType pEnv 0 Γ (.app recC M0)
+      (.forallE minorTyM (.forallE Sc (.app M0 (.bvar 0)))) :=
+  VEnv.HasType.app (B := .forallE minorTy (.forallE Sc (.app (.bvar 2) (.bvar 0))))
+    pRec_tyE hM0
+
+theorem hbetax {Γ : List VExpr} :
+    VEnv.IsDefEq pEnv 0 (Sc :: Γ) (.app M0 (.bvar 0)) fldTy (.sort lS) :=
+  VEnv.IsDefEq.beta fld_ty (VEnv.HasType.bvar .zero)
+
+theorem htyEq {Γ : List VExpr} :
+    VEnv.IsDefEq pEnv 0 Γ (.forallE Sc (.app M0 (.bvar 0))) (.forallE Sc fldTy)
+      (.sort (.imax lS lS)) :=
+  VEnv.IsDefEq.forallEDF pS_tyE hbetax
+
+theorem hProjFn1 {Γ : List VExpr} :
+    VEnv.HasType pEnv 0 Γ projFn1 (.forallE Sc fldTy) :=
+  VEnv.IsDefEq.defeqDF htyEq (VEnv.HasType.app (B := .forallE Sc (.app M0 (.bvar 0)))
+    hstep1 hsel1)
+
+/-- The second projection of the constructor value translates: `TrExprS.proj`'s premise, at
+the expansion `Theory/Proj.lean` builds. -/
+theorem p_trProj : TrProj pEnv 0 [] pS 1 mkPair (.app projFn1 mkPair) := by
+  refine ⟨pMk, [], uss, [], 0, [fldTy, fldTy], ?_⟩
+  refine
+    { pat := ⟨_, Or.inl ⟨rfl, rfl⟩⟩
+      params_length := rfl
+      ctor := ⟨⟨0, ctorTy⟩, pEnv_mk, ⟨pS, [], rfl⟩, ctorTy, rfl, rfl⟩
+      field_lt := by decide
+      minor_arity := ⟨⟨1, recTy⟩, pEnv_rec, rfl⟩
+      major_ty := mkPair_ty
+      fn_ty := ?_
+      eq := ?_ }
+  · rw [projFn1_eq, projMotive_eq]; exact hProjFn1
+  · rw [projFn1_eq]
+
+/-! ### The source side: the rule fires -/
+
+def srcMk : Expr := .const pMk []
+def srcFld0 : Expr := .sort .zero
+def srcFld1 : Expr := .forallE `p (.sort .zero) (.sort .zero) .default
+def srcPair : Expr := mkApps srcMk [srcFld0, srcFld1]
+/-- The source projection the witness evaluates: the second field of `mk Prop (Prop → Prop)`. -/
+def srcProj : Expr := .proj pS 1 srcPair
+def pBo : Name → Option Expr := fun _ => none
+
+theorem trFld0 {Δ : VLCtx} : TrExprS pEnv [] Δ srcFld0 fld0 := .sort rfl
+
+theorem trFld1 {Δ : VLCtx} : TrExprS pEnv [] Δ srcFld1 fld1 :=
+  .forallE ⟨_, fld0_ty⟩ ⟨_, fld0_ty⟩ trFld0 trFld0
+
+theorem trMk {Δ : VLCtx} : TrExprS pEnv [] Δ srcMk mkc := .const rfl rfl rfl
+
+theorem trPair : TrExprS pEnv [] [] srcPair mkPair :=
+  .app (B := Sc) (VEnv.HasType.app (B := .forallE fldTy Sc) pMk_tyE fld0_ty) fld1_ty
+    (.app (B := .forallE fldTy Sc) pMk_tyE fld0_ty trMk trFld0) trFld1
+
+theorem trProj : TrExprS pEnv [] [] srcProj (.app projFn1 mkPair) := .proj trPair p_trProj
+
+theorem pEnv_defeq : pEnv.defeqs pProjEq := Or.inl rfl
+
+/-- The step's definitional equality, off the recorded instance. -/
+theorem p_projStep : StepDefeq pEnv [] [] srcProj srcFld1 :=
+  ⟨_, _, trProj, trFld1, _,
+    VEnv.IsDefEq.extra (df := pProjEq) (ls := []) pEnv_defeq (by simp) rfl⟩
+
+/-- **`SEval.ctorVal` fires** at the two-field constructor. -/
+theorem seval_pair : SEval pEnv pBo [] fullFlags [] srcPair srcPair :=
+  SEval.ctorVal (cn := pMk) (us := []) (args := [srcFld0, srcFld1])
+    (argsv := [srcFld0, srcFld1]) p_ctorOf p_indInfo (by decide) rfl (fun i hi => by
+      match i, hi with
+      | 0, _ => exact .sort
+      | 1, _ => exact .forallE)
+
+/-- **`SEval.proj` fires** at the second field of the two-field structure. -/
+theorem seval_proj_fires : SEval pEnv pBo [] fullFlags [] srcProj srcFld1 :=
+  SEval.proj (ctor := pMk) (cus := []) (cargs := [srcFld0, srcFld1]) (np := 0) (nf := 2)
+    (cidx := 0) rfl p_ctorOf p_indArity seval_pair (by decide) p_projStep .forallE
+
+end ProjWitness
 
 end LeanToLambdaBox

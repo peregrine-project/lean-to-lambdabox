@@ -36,14 +36,14 @@ def spikeProj : Nat := (Prod.mk 1 2).1
 /-- Rung G5's subject: a `casesOn` applied to a constructor value — an ι redex on both
 sides. The nullary branch is a thunk application, the shape Lean's `match` compiler gives a
 nullary alternative, so the branch obligation the ι rule owes is the one a compiled `match`
-owes. Written with `Nat.casesOn` rather than `match` syntax because matcher inlining is not
-binder-name stable, which leaves `SourceTableAdequate` uninhabited on a matcher's body. -/
+owes. Spelled with `Nat.casesOn` rather than `match`, which puts the ι redex in the subject
+instead of behind a matcher constant. -/
 def spikeCase : Nat :=
   Nat.casesOn (motive := fun _x => Nat) (Nat.succ (Nat.succ Nat.zero))
     ((fun _u : Unit => Nat.zero) Unit.unit) (fun n => n)
 
 /-- Rung G6's recursive constant: it erases to a `.fix` node, and its body is the same ι
-redex on the argument. Written with `Nat.casesOn` for the reason `spikeCase` is. -/
+redex on the argument, spelled with `Nat.casesOn` for the reason `spikeCase` is. -/
 def spikeRec : Nat → Nat := fun n =>
   Nat.casesOn (motive := fun _x => Nat) n Nat.zero (fun m => Nat.succ (spikeRec m))
 
@@ -646,9 +646,10 @@ theorem g5_unit_body_eq :
     g5Table.body? ``Unit.unit = some (.const ``PUnit.unit [.succ .zero]) := rfl
 
 /-- How `env` declares what rung G5's evaluation steps on at `Nat`: the type, its two
-constructors, and `Nat.casesOn` as a plain constant with the segmentation the ι rule splits
-at. Each is a datum the reified table records for `lenv`, read in the model; the
-transport is upstream ask 3's, so the bundle is a binder here rather than a theorem. -/
+constructors, `Nat.casesOn` as a plain constant with the segmentation the ι rule splits at,
+and that `Nat` eliminates into data. Each is a datum the reified table records for `lenv`,
+read in the model; the transport is upstream ask 3's, so the bundle is a binder here rather
+than a theorem. -/
 structure SpikeNatFacts (env : VEnv) (ni : InductiveId) : Prop where
   /-- `Nat` is declared with no parameters and two constructors of zero and one field. -/
   natInd : IndInfo env ``Nat ni 0 [0, 1]
@@ -660,13 +661,17 @@ structure SpikeNatFacts (env : VEnv) (ni : InductiveId) : Prop where
   natCases : CasesOnShape env ``Nat.casesOn ``Nat 1 2
   /-- `Nat.casesOn` is declared as a plain constant, which is what the ι rule's `ho` is. -/
   natCasesOrigin : ConstOrigin env ``Nat.casesOn
+  /-- `Nat` eliminates into data: its result sort is never zero, which is the ι rule's
+      `hinf` and the restriction N18 the source relations model. -/
+  natInf : InformativeInd env ``Nat
 
 /-- **The `Nat` half of the bundle is satisfiable.** `SourceEval.lean`'s `NatWitness` builds a
 pats-carrying `VEnv.WF'` declaring `Nat`, its constructors, its recursor and `Nat.casesOn`,
 and every field is one of that fixture's own theorems. -/
 theorem spikeNatFacts_natEnv : SpikeNatFacts NatWitness.natEnv NatWitness.natIid :=
   ⟨NatWitness.nat_indInfo, NatWitness.nat_ctorOf_zero, NatWitness.nat_ctorOf_succ,
-    NatWitness.nat_casesOnShape, NatWitness.nat_constOrigin_cas⟩
+    NatWitness.nat_casesOnShape, NatWitness.nat_constOrigin_cas,
+    NatWitness.nat_informativeInd⟩
 
 /-- How `env` declares the thunk's argument type: the second block rung G5's nullary branch
 reaches. Separate from `SpikeNatFacts` because `NatWitness` declares one block, so the two
@@ -729,7 +734,8 @@ theorem g5_seval {env : VEnv} {ni pi : InductiveId} (F : SpikeNatFacts env ni)
     (us := [.succ .zero]) (cus := []) (pre := [g5Motive]) (prev := [g5Motive])
     (minors := [g5Minor0, g5Minor1]) (minorsv := [.const ``Nat.zero [], g5Minor1])
     (extra := []) (extrav := []) (cargs := [peanoSrc 1]) (disc := peanoSrc 2)
-    (np := 0) (cidx := 1) rfl F.natCases F.natCasesOrigin F.natSucc rfl ?_ ?_ rfl ?_ rfl
+    (np := 0) (cidx := 1) rfl F.natCases F.natCasesOrigin F.natSucc F.natInd.arity F.natInf
+    rfl ?_ ?_ rfl ?_ rfl
     (fun i hi => absurd hi (by simp)) (by decide) hio hcont
   · intro i hi
     obtain rfl : i = 0 := by simp at hi; omega

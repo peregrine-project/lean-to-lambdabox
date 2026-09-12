@@ -1,5 +1,6 @@
 import LeanToLambdaBox.Basic
 import LeanToLambdaBox.Erasability
+import LeanToLambdaBox.Semantics.Eval
 import Lean4Lean.Verify.Typing.Expr
 
 /-!
@@ -90,6 +91,34 @@ theorem IndInfo.mono {env env' : VEnv} {I : Name} {iid : InductiveId} {np : Nat}
   let ⟨ds, env₀, decl, t, hds, hd, hle₀, ht, hname, hkn, hnp, hnfs⟩ := h.block
   ⟨ds, env₀, decl, t, hds, hd, hle₀.trans hle, ht, hname, hkn, hnp, hnfs⟩
 
+/-- `env`'s block data for `I` in **source** coordinates: the parameter count and the
+per-constructor field counts, with no λ□ identifier. This is what a rule about `Lean.Expr`
+evaluation may read; `IndInfo.arity` is the projection, so every site holding `IndInfo` holds
+this. -/
+def IndArity (env : VEnv) (I : Name) (np : Nat) (nfs : List Nat) : Prop :=
+  ∃ (ds : List VDecl) (env₀ : VEnv) (decl : VInductDecl) (t : VInductiveType),
+    VEnv.WF' ds env₀ ∧ VDecl.induct decl ∈ ds ∧ env₀ ≤ env ∧
+    t ∈ decl.types ∧ t.name = I ∧ decl.nparams = np ∧ ctorFieldCounts np t = nfs
+
+/-- The λ□ identifier is the only thing `IndInfo` has beyond `IndArity`. -/
+theorem IndInfo.arity {env : VEnv} {I : Name} {iid : InductiveId} {np : Nat} {nfs : List Nat}
+    (h : IndInfo env I iid np nfs) : IndArity env I np nfs :=
+  let ⟨ds, env₀, decl, t, hds, hd, hle, ht, hname, _, hnp, hnfs⟩ := h.block
+  ⟨ds, env₀, decl, t, hds, hd, hle, List.mem_of_getElem? ht, hname, hnp, hnfs⟩
+
+/-- Source-coordinate block data survives environment extension. -/
+theorem IndArity.mono {env env' : VEnv} {I : Name} {np : Nat} {nfs : List Nat}
+    (hle : env ≤ env') (h : IndArity env I np nfs) : IndArity env' I np nfs :=
+  let ⟨ds, env₀, decl, t, hds, hd, hle₀, ht, hname, hnp, hnfs⟩ := h
+  ⟨ds, env₀, decl, t, hds, hd, hle₀.trans hle, ht, hname, hnp, hnfs⟩
+
+/-- The type former `I` is declared by a block of `env`'s **own** declaration list, which is
+the list upstream ask 6 reads. `IndInfo` exhibits a block below `env`, one extension short of
+this, so this is not monotone in `env` and belongs on no rule. -/
+def IndDeclOf (env : VEnv) (I : Name) : Prop :=
+  ∃ (ds : List VDecl) (decl : VInductDecl) (t : VInductiveType),
+    env.WF' ds ∧ VDecl.induct decl ∈ ds ∧ t ∈ decl.types ∧ t.name = I
+
 /-! ## The three readings of `Expr.const`
 
 A constructor, an inductive type name and a plain constant are one `Expr` node in Lean and
@@ -150,6 +179,13 @@ theorem CtorOf.indInfo {env : VEnv} {c I : Name} {k : Nat} (h : CtorOf env c I k
     ⟨ds, env₀, decl, t, hds, hd, hle, hidx, hname, ?_, rfl, rfl⟩⟩
   rfl
 
+/-- The source-coordinate half of `CtorOf.indInfo`: a constructor's own block supplies the
+parameter and field counts its type former's rules read. -/
+theorem CtorOf.indArity {env : VEnv} {c I : Name} {k : Nat} (h : CtorOf env c I k) :
+    ∃ np nfs, IndArity env I np nfs :=
+  let ⟨_iid, np, nfs, hi⟩ := h.indInfo
+  ⟨np, nfs, hi.arity⟩
+
 /-! ## The relation -/
 
 /--
@@ -206,11 +242,15 @@ inductive Erases (env : VEnv) (Us : List Name) : VLCtx → Expr → LBTerm → P
       (hb : Erases env Us ((none, .vlet ty' val') :: Δ) b b') :
       Erases env Us Δ (.letE n ty v b nd) (.letIn (.named n.toString) v' b')
   /-- A structure projection erases the discriminant and reads its metadata off `IndInfo`:
-      `S` is a block-level type former with `np` parameters and a single constructor of `nf`
-      fields. There is no `TrExprS` premise: `TrProj` pins parameters only up to
-      definitional equality, so a term premise would demand an equality that does not
-      hold. -/
-  | proj {Δ S i e t iid np nf} (hs : IndInfo env S iid np [nf]) (hi : i < nf)
+      `S` is a block-level type former with `np` parameters and one constructor of `nf`
+      fields. `hinf` is the relevance Fig. 18 gets from Rocq's typing, which forbids a
+      projection out of `Prop`: without it the arm is refutable, since a boxed discriminant
+      has no target step (`erases_proj_needs_informative`). It removes no program — a field of
+      a propositional structure is a proof, and `box` is its rule — and it is semantic, since
+      the successor shape would exclude `Prod`, which `box` does not cover. `IndDeclOf` is not
+      here: it is not monotone in `env`. No `TrExprS` premise: `TrProj` pins only up to defeq. -/
+  | proj {Δ S i e t iid np nf} (hs : IndInfo env S iid np [nf])
+      (hinf : InformativeInd env S) (hi : i < nf)
       (hd : Erases env Us Δ e t) :
       Erases env Us Δ (.proj S i e) (.proj ⟨iid, np, i⟩ t)
   /-- A literal erases to whatever its one-step kernel unfolding erases to, mirroring
@@ -324,11 +364,11 @@ theorem Erases.letE_inv {n : Name} {ty v b : Expr} {nd : Bool}
 
 theorem Erases.proj_inv {S : Name} {i : Nat} {e : Expr} (h : Erases env Us Δ (.proj S i e) t) :
     ErasesBox env Us Δ (.proj S i e) t ∨
-      (∃ iid np nf d, IndInfo env S iid np [nf] ∧ i < nf ∧ Erases env Us Δ e d ∧
-        t = .proj ⟨iid, np, i⟩ d) := by
+      (∃ iid np nf d, IndInfo env S iid np [nf] ∧ InformativeInd env S ∧ i < nf ∧
+        Erases env Us Δ e d ∧ t = .proj ⟨iid, np, i⟩ d) := by
   cases h with
   | box htr her => exact .inl ⟨⟨_, htr, her⟩, rfl⟩
-  | proj hs hi hd => exact .inr ⟨_, _, _, _, hs, hi, hd, rfl⟩
+  | proj hs hinf hi hd => exact .inr ⟨_, _, _, _, hs, hinf, hi, hd, rfl⟩
 
 theorem Erases.lit_inv {l : Literal} (h : Erases env Us Δ (.lit l) t) :
     ErasesBox env Us Δ (.lit l) t ∨
@@ -697,5 +737,31 @@ theorem erases_ctor_fires (Us : List Name) (Δ : VLCtx) (us : List Level) :
 theorem erases_const_fires (Us : List Name) (Δ : VLCtx) (us : List Level) :
     Erases blkEnv Us Δ (.const blkDef us) (.const (toKername blkDef)) :=
   .const blk_constants blk_constOrigin
+
+/-! ### Why the `proj` rule needs its relevance premise
+
+The fixture's type former is `Prop`-valued, so `InformativeInd blkEnv blkT` fails and the
+`proj` rule does not fire at it — which is the point. Without the premise the rule would
+fire, and the discriminant of a projection out of a propositional structure is a proof, whose
+image the `box` rule may make `.box`. At `eraseFlags` that target term has **no** step: the
+applied-form rule wants a constructor spine, the block rule is off, and the propositional rule
+needs `with_prop_case`, which the erasure correctness statement does not enable. So the arm of
+`erases_correct` would be refutable, not merely unprovable.
+-/
+
+/-- **A boxed discriminant is stuck.** No projection of `.box` evaluates at `eraseFlags`, in
+any environment and at any projection. -/
+theorem erases_proj_needs_informative (Γ : GlobalDeclarations) (p : ProjectionInfo) :
+    ¬ ∃ v, WcbvEval Γ eraseFlags (.proj p .box) v := by
+  have hbox : ∀ {w : LBTerm}, WcbvEval Γ eraseFlags .box w → w = .box := fun h => by
+    cases h; rfl
+  rintro ⟨v, h⟩
+  cases h with
+  | proj _ _ hdiscr _ _ =>
+      have hsp := congrArg LBTerm.spineHead (hbox hdiscr)
+      rw [LBTerm.spineHead_mkApps] at hsp
+      simp [LBTerm.spineHead] at hsp
+  | proj_block hb => exact absurd hb (by decide)
+  | proj_prop hpc => exact absurd hpc (by decide)
 
 end LeanToLambdaBox

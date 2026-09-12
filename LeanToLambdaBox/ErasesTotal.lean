@@ -40,7 +40,8 @@ theorem Erasable.mono (hle : env ≤ env') {U : Nat} {Γ : List VExpr} {e : VExp
 /-- An erasure derivation survives environment extension. Each premise is monotone in its own
 right: `TrExprS.mono` for the translations, `Erasable.mono` for the box witness,
 `CtorOf.mono` and `IndInfo.mono` for `ctor`, `VEnv.LE.constants` and `ConstOrigin.mono` for
-`const`, `IndInfo.mono` again for `proj`, `VEnv.ContainsLits.mono` for `lit`. -/
+`const`, `IndInfo.mono` and `InformativeInd.mono` for `proj`, `VEnv.ContainsLits.mono` for
+`lit`. -/
 theorem Erases.mono (hle : env ≤ env') {e : Expr} {t : LBTerm} (h : Erases env Us Δ e t) :
     Erases env' Us Δ e t := by
   induction h with
@@ -52,7 +53,7 @@ theorem Erases.mono (hle : env ≤ env') {e : Expr} {t : LBTerm} (h : Erases env
   | app _ _ ihf iha => exact .app ihf iha
   | lam hty _ ihb => exact .lam (hty.mono hle) ihb
   | letE hty hval _ _ ihv ihb => exact .letE (hty.mono hle) (hval.mono hle) ihv ihb
-  | proj hs hi _ ihd => exact .proj (hs.mono hle) hi ihd
+  | proj hs hinf hi _ ihd => exact .proj (hs.mono hle) (hinf.mono hle) hi ihd
   | lit hcl _ ih => exact .lit (hcl.mono hle) ih
   | mdata _ ih => exact .mdata ih
 
@@ -151,9 +152,9 @@ theorem Erases.indInfo_erasable {env : VEnv} {Us : List Name} {Δ : VLCtx} (henv
 /--
 Block data for every projection head of a source term.
 
-`Erases.proj` demands an `IndInfo`, and `TrExprS.proj`'s premise `TrProj` does not yield one,
-so totality takes it as a side premise. Binder types are not traversed: they reach erasure
-only as `TrExprS` witnesses. A literal needs no premise — `Literal.toConstructor` is
+`Erases.proj` demands an `IndInfo` and the relevance of the projection's type former, and
+`TrExprS.proj`'s premise `TrProj` yields neither, so totality takes both as side premises.
+Binder types are not traversed: they reach erasure only as `TrExprS` witnesses. A literal needs no premise — `Literal.toConstructor` is
 projection-free (`ProjInfo.toConstructor`).
 -/
 inductive ProjInfo (env : VEnv) : Expr → Prop
@@ -167,7 +168,8 @@ inductive ProjInfo (env : VEnv) : Expr → Prop
   | lam {n ty b bi} : ProjInfo env b → ProjInfo env (.lam n ty b bi)
   | letE {n ty v b nd} : ProjInfo env v → ProjInfo env b → ProjInfo env (.letE n ty v b nd)
   | mdata {d e} : ProjInfo env e → ProjInfo env (.mdata d e)
-  | proj {S i e} (hs : ∃ iid np nf, IndInfo env S iid np [nf] ∧ i < nf) (h : ProjInfo env e) :
+  | proj {S i e} (hs : ∃ iid np nf, IndInfo env S iid np [nf] ∧ i < nf)
+      (hinf : InformativeInd env S) (h : ProjInfo env e) :
       ProjInfo env (.proj S i e)
 
 /-- A literal's kernel unfolding is built from constants, applications and literals, so it
@@ -242,8 +244,8 @@ theorem Erases.exists_of_trExprS_of_projInfo (henv : env.WF)
     exact (ih hΔ hpe).imp fun _ he => .mdata he
   | proj htr hproj ih =>
     intro hΔ hpi
-    let .proj ⟨iid, np, nf, hii, hlt⟩ hpe := hpi
+    let .proj ⟨iid, np, nf, hii, hlt⟩ hinf hpe := hpi
     let ⟨_, he⟩ := ih hΔ hpe
-    exact ⟨_, .proj hii hlt he⟩
+    exact ⟨_, .proj hii hinf hlt he⟩
 
 end LeanToLambdaBox

@@ -149,24 +149,44 @@ records for it. -/
 def ReifiedDecl.Pinned (lenv : Environment) (n : Name) (d : ReifiedDecl) : Prop :=
   ∃ ci, lenv.find? n = some ci ∧ ci.levelParams = d.levelParams ∧ ci.type = d.type
 
+/-- α-equivalence of `Lean.Expr`: structural equality ignoring binder names and binder info,
+and nothing else. There is no `mdata`-blind arm, so `.mdata d e` and `e` stay unrelated: the
+source semantics has no `mdata` rule, and a relation identifying them makes an α-transport of
+that semantics false. Extensionally `Lean.Expr.eqv`, which is `@[extern]` and opaque, so no
+theorem connects the two; `Expr.alphaEqB` is this relation arm for arm, and the `--check` verb
+of the `reify` executable reports a disagreement between it and `Lean.Expr.eqv`. -/
+inductive Expr.AlphaEq : Expr → Expr → Prop
+  | bvar {i} : AlphaEq (.bvar i) (.bvar i)
+  | fvar {x} : AlphaEq (.fvar x) (.fvar x)
+  | mvar {x} : AlphaEq (.mvar x) (.mvar x)
+  | sort {u} : AlphaEq (.sort u) (.sort u)
+  | const {c us} : AlphaEq (.const c us) (.const c us)
+  | lit {l} : AlphaEq (.lit l) (.lit l)
+  | app {f a g b} : AlphaEq f g → AlphaEq a b → AlphaEq (.app f a) (.app g b)
+  | lam {n n' t t' b b' bi bi'} : AlphaEq t t' → AlphaEq b b' →
+      AlphaEq (.lam n t b bi) (.lam n' t' b' bi')
+  | forallE {n n' t t' b b' bi bi'} : AlphaEq t t' → AlphaEq b b' →
+      AlphaEq (.forallE n t b bi) (.forallE n' t' b' bi')
+  | letE {n n' t t' v v' b b' nd nd'} : AlphaEq t t' → AlphaEq v v' → AlphaEq b b' →
+      AlphaEq (.letE n t v b nd) (.letE n' t' v' b' nd')
+  | proj {s i e e'} : AlphaEq e e' → AlphaEq (.proj s i e) (.proj s i e')
+  | mdata {d e e'} : AlphaEq e e' → AlphaEq (.mdata d e) (.mdata d e')
+
 /-- The run clause for the one column that is not a `Lean.Environment.find?` output: the code
 generator reads a value for `n` in `lenv`, and every successful run of
-`Erasure.prepare_erasure` on that value, in a context whose configuration has `csimp` off,
-returns the tabled body. The value is `compilerValue?`'s, which is the one
-`Erasure.visitMutual` erases — for a recursive definition the `_unsafe_rec` companion's body,
-not the kernel's.
-`Erasure.prepare_erasure` is monadic, so this is a statement about runs, not an equation.
-It is inhabited only where preparation is name-stable: `Lean.Compiler.LCNF.inlineMatchers`
-draws the `let`-binder names it introduces from the name generator, so a declaration whose
-preparation inlines a matcher has prepared bodies that agree across runs only up to binder
-names — `lake exe reify --check` reports that case as `TableMismatch.declBodyAlpha`. -/
+`Erasure.prepare_erasure` on that value, under a configuration with `csimp` off, returns the
+tabled body up to `Expr.AlphaEq`. The value is `compilerValue?`'s — for a recursive definition
+the `_unsafe_rec` companion's body, not the kernel's — and preparation is monadic, so this is a
+statement about runs. On equality in place of α the clause is uninhabited wherever
+`Lean.Compiler.LCNF.inlineMatchers` fires, `Nat.add` included; the price is that a consumer of
+a tabled body owes an α-transport. -/
 def ReifiedDecl.Prepared (lenv : Environment) (n : Name) (d : ReifiedDecl) : Prop :=
   ∀ b, d.body? = some b →
     ∃ ci v, compilerInfo? lenv n = some ci ∧ ci.value? (allowOpaque := true) = some v ∧
       ∀ (s s' : Erasure.ErasureState) (ctx : Erasure.ErasureContext) (cctx : Core.Context)
         (ref : ST.Ref IO.RealWorld Core.State) (w w' : Void IO.RealWorld) (b' : Expr),
         ctx.config.csimp = false →
-        Erasure.prepare_erasure v s ctx cctx ref w = .ok (b', s') w' → b' = b
+        Erasure.prepare_erasure v s ctx cctx ref w = .ok (b', s') w' → Expr.AlphaEq b' b
 
 /-- The per-inductive pin: `lenv` knows `n` as an inductive type with the block data the table
 records, and each tabled constructor is `lenv`'s constructor of `n` with that type, index and
@@ -191,14 +211,14 @@ structure SourceTableAdequate (lenv : Environment) (tbl : SourceTable) : Prop wh
   inds : ∀ n I, (n, I) ∈ tbl.inds → ReifiedInduct.Pinned lenv n I
 
 /-- Adequacy transported to the lookup interface: a tabled body is the prepared body of the
-value the code generator reads for that name. -/
+value the code generator reads for that name, up to `Expr.AlphaEq`. -/
 theorem SourceTableAdequate.body?_prepared {lenv : Environment} {tbl : SourceTable} {n : Name}
     {b : Expr} (h : SourceTableAdequate lenv tbl) (hb : tbl.body? n = some b) :
     ∃ ci v, compilerInfo? lenv n = some ci ∧ ci.value? (allowOpaque := true) = some v ∧
       ∀ (s s' : Erasure.ErasureState) (ctx : Erasure.ErasureContext) (cctx : Core.Context)
         (ref : ST.Ref IO.RealWorld Core.State) (w w' : Void IO.RealWorld) (b' : Expr),
         ctx.config.csimp = false →
-        Erasure.prepare_erasure v s ctx cctx ref w = .ok (b', s') w' → b' = b := by
+        Erasure.prepare_erasure v s ctx cctx ref w = .ok (b', s') w' → Expr.AlphaEq b' b := by
   cases hd : tbl.decls.lookup n with
   | none =>
     rw [SourceTable.body?, SourceTable.decl?, hd] at hb
@@ -307,7 +327,7 @@ inductive TableMismatch where
   | declLevels (n : Name)
   | declType (n : Name)
   | declBody (n : Name)
-  | declBodyAlpha (n : Name)
+  | alphaDisagreement (n : Name)
   | missingBody (n : Name)
   | spuriousBody (n : Name)
   | prepareFailed (n : Name) (msg : String)
@@ -323,8 +343,8 @@ def TableMismatch.describe : TableMismatch → String
   | .declLevels n => s!"{n}: level parameters differ"
   | .declType n => s!"{n}: type differs"
   | .declBody n => s!"{n}: tabled body is not the prepared compiler body"
-  | .declBodyAlpha n =>
-    s!"{n}: tabled body is the prepared compiler body only up to binder names"
+  | .alphaDisagreement n =>
+    s!"{n}: Expr.eqv and Expr.alphaEqB disagree on the prepared body"
   | .missingBody n => s!"{n}: a definition or opaque constant, but the table records no body"
   | .spuriousBody n =>
     s!"{n}: the table records a body, but the code generator reads no value for it"
@@ -334,28 +354,62 @@ def TableMismatch.describe : TableMismatch → String
   | .ctorList n => s!"{n}: constructor list differs"
   | .ctorField n c => s!"{n}: constructor {c} differs"
 
+/-- An agreement worth printing: the table and the environment match, but not on the nose. -/
+inductive TableNote where
+  | declBodyAlpha (n : Name)
+  deriving Inhabited, Repr
+
+/-- One line naming the agreement and the declaration it is about. -/
+def TableNote.describe : TableNote → String
+  | .declBodyAlpha n => s!"{n}: tabled body matches up to binder names"
+
+/-- `Expr.AlphaEq` as a Boolean, one arm per constructor of the relation. `partial` because
+`Expr` carries computed fields, so a two-argument recursion over it has no structural measure;
+nothing in `Prop` reduces this, which is used only inside `checkDecl`, against `Expr.eqv`. -/
+partial def Expr.alphaEqB : Expr → Expr → Bool
+  | .bvar i, .bvar j => i == j
+  | .fvar x, .fvar y => x == y
+  | .mvar x, .mvar y => x == y
+  | .sort u, .sort v => u == v
+  | .const c us, .const c' us' => c == c' && us == us'
+  | .lit l, .lit l' => l == l'
+  | .app f a, .app g b => alphaEqB f g && alphaEqB a b
+  | .lam _ t b _, .lam _ t' b' _ => alphaEqB t t' && alphaEqB b b'
+  | .forallE _ t b _, .forallE _ t' b' _ => alphaEqB t t' && alphaEqB b b'
+  | .letE _ t v b _, .letE _ t' v' b' _ => alphaEqB t t' && alphaEqB v v' && alphaEqB b b'
+  | .proj s i e, .proj s' i' e' => s == s' && i == i' && alphaEqB e e'
+  | .mdata d e, .mdata d' e' => d == d' && alphaEqB e e'
+  | _, _ => false
+
 /-- Check one tabled constant against the live environment: level parameters and type against
 `Lean.Environment.find?`, and the tabled body against a fresh `Erasure.prepare_erasure` run on
-the constant's `erasedValue?` — the same column `Reify.visit` fills. Expression comparison is
-`Lean.Expr.equal`, which is structural — `==` on `Lean.Expr` is α-equivalence and would accept a
-table with different binder names. -/
-def checkDecl (n : Name) (d : ReifiedDecl) : CoreM (Array TableMismatch) := do
-  let some ci := (← getEnv).find? n | return #[.unknownDecl n]
+the constant's `erasedValue?` — the same column `Reify.visit` fills. Types are compared with
+`Lean.Expr.equal`, which is structural; the body is compared with `==`, which is `Lean.Expr.eqv`,
+the decision procedure for the relation `ReifiedDecl.Prepared` pins the body up to. A body that
+matches only up to binder names is a pass with a note; anything beyond them is `declBody`. The
+`@[extern]` `eqv` is checked against `Expr.alphaEqB` on every compared pair, and a disagreement
+is itself a mismatch. -/
+def checkDecl (n : Name) (d : ReifiedDecl) :
+    CoreM (Array TableMismatch × Array TableNote) := do
+  let some ci := (← getEnv).find? n | return (#[.unknownDecl n], #[])
   let mut ms := #[]
+  let mut ns := #[]
   if ci.levelParams != d.levelParams then ms := ms.push (.declLevels n)
   if !ci.type.equal d.type then ms := ms.push (.declType n)
   match d.body?, ← erasedValue? n ci with
   | some b, some v =>
     try
       let (b', _) ← Erasure.run (Erasure.prepare_erasure v) reifyConfig
-      if !b'.equal b then
-        ms := ms.push (if b' == b then .declBodyAlpha n else .declBody n)
+      let eqv := b' == b
+      if eqv != Expr.alphaEqB b' b then ms := ms.push (.alphaDisagreement n)
+      if !eqv then ms := ms.push (.declBody n)
+      else if !b'.equal b then ns := ns.push (.declBodyAlpha n)
     catch e =>
       ms := ms.push (.prepareFailed n (← e.toMessageData.toString))
   | some _, none => ms := ms.push (.spuriousBody n)
   | none, some _ => ms := ms.push (.missingBody n)
   | none, none => pure ()
-  return ms
+  return (ms, ns)
 
 /-- Check one tabled inductive type against the live environment: block data against the
 `Lean.InductiveVal`, and every tabled constructor against its `Lean.ConstructorVal`. -/
@@ -376,15 +430,20 @@ def checkInd (n : Name) (I : ReifiedInduct) : CoreM (Array TableMismatch) := do
     | _ => ms := ms.push (.ctorField n c.name)
   return ms
 
-/-- Every disagreement between the table and the environment of the current `CoreM` run. An
-empty result is the mechanised form of `SourceTableAdequate` at that environment, modulo the
-clauses no computation reaches: the body column is re-derived by running
-`Erasure.prepare_erasure` once, not quantified over all runs. -/
-def SourceTable.check (tbl : SourceTable) : CoreM (Array TableMismatch) := do
+/-- Every disagreement between the table and the environment of the current `CoreM` run, and
+every body that agrees only up to binder names. An empty mismatch array is the mechanised form
+of `SourceTableAdequate` at that environment, modulo the clauses no computation reaches: the
+body column is re-derived by running `Erasure.prepare_erasure` once, not quantified over all
+runs, and no theorem connects `Lean.Expr.eqv` to `Expr.AlphaEq`. -/
+def SourceTable.check (tbl : SourceTable) :
+    CoreM (Array TableMismatch × Array TableNote) := do
   let mut ms := #[]
-  for (n, d) in tbl.decls do ms := ms ++ (← checkDecl n d)
+  let mut ns := #[]
+  for (n, d) in tbl.decls do
+    let (ms', ns') ← checkDecl n d
+    ms := ms ++ ms'; ns := ns ++ ns'
   for (n, I) in tbl.inds do ms := ms ++ (← checkInd n I)
-  return ms
+  return (ms, ns)
 
 /-! ## Self-test -/
 
@@ -422,6 +481,19 @@ example : toyTable.ind? ``Nat =
 /-- The constructor arities of the tabled `Nat`, decided on the table. -/
 example : (toyTable.ind? ``Nat).map (fun I => I.ctors.map (·.numFields)) = some [0, 1] := by
   decide
+
+/-- A matcher-bearing declaration. Preparing its body inlines the matcher, and the inlined
+`let`-binders are named from the name generator, so a fresh preparation agrees with the tabled
+body only up to binder names — the case `ReifiedDecl.Prepared` is stated up to `Expr.AlphaEq`
+for, and the positive half of the executable's α self-test. -/
+def spikeMatch : Nat :=
+  match Nat.succ (Nat.succ Nat.zero) with
+  | Nat.zero => Nat.zero
+  | Nat.succ n => n
+
+/-- The reified closure of `spikeMatch` and of `Nat.add`, the two measured declarations whose
+preparation is not binder-name stable. `lake exe reify --check` passes it with one note each. -/
+def matchTable : SourceTable := reify% spikeMatch, Nat.add
 
 /-- A deliberately wrong table: it claims `LeanToLambdaBox.Witness.SelfTest.toyTwo` has body
 `Nat.zero`. `lake exe reify --check` must reject it — that is the negative half of the

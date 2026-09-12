@@ -183,7 +183,7 @@ theorem Erases.strengthen_fvlift {env : VEnv} (henv : env.Ordered) {Us : List Na
     intro _ _ _ _ _ W hΔ' _ hwt
     cases hwt with
     | lit _ h2 => exact .lit hcl (ih W hΔ' NoProj.toConstructor h2)
-  | proj _ _ _ _ => intro _ _ _ _ _ _ _ hnp _; exact hnp.elim
+  | proj _ _ _ _ _ => intro _ _ _ _ _ _ _ hnp _; exact hnp.elim
   | bvar _ =>
     intro _ _ _ _ _ _ _ _ hwt
     cases hwt with | bvar h => exact .bvar h
@@ -240,10 +240,10 @@ theorem Erases.strengthen_fvlift_binders {env : VEnv} (henv : env.WF) {Us : List
     intro _ _ _ _ _ W hΔ' _ hwt
     cases hwt with
     | lit _ h2 => exact .lit hcl (ih W hΔ' NoProjBinders.toConstructor h2)
-  | proj hs hi _ ih =>
+  | proj hs hinf hi _ ih =>
     intro _ _ _ _ _ W hΔ' hnp hwt
     cases hwt with
-    | proj hd _ => exact .proj hs hi (ih W hΔ' hnp hd)
+    | proj hd _ => exact .proj hs hinf hi (ih W hΔ' hnp hd)
   | bvar _ =>
     intro _ _ _ _ _ _ _ _ hwt
     cases hwt with | bvar h => exact .bvar h

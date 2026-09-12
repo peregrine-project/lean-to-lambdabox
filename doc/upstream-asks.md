@@ -1,16 +1,18 @@
 # Upstream asks
 
 What this development needs from, or has found in, the projects it sits on: lean4lean
-(the fork this repository pins), MetaRocq, and peregrine. Items 1-6 are **asks**: lemmas or
-fixes whose natural home is upstream, either because they are kernel-generic — a fact about
-`VEnv`/`VExpr`/`HasType`/`IsDefEq`/`TrExprS` and not about erasure — or because the defect
+(the fork this repository pins), MetaRocq, and peregrine. Items 1-6, 9 and 10 are **asks**:
+lemmas or fixes whose natural home is upstream, either because they are kernel-generic — a fact
+about `VEnv`/`VExpr`/`HasType`/`IsDefEq`/`TrExprS` and not about erasure — or because the defect
 is upstream's. Item 7 is **reported, not asked**: findings about consumers this repository
 does not depend on fixing. Item 8 is **proved here and filed for consolidation**: kernel-generic
-facts this repository already has, which need no fork change.
+facts this repository already has, which need no fork change. The numbering is a single running
+list, which is why the asks added by W3R are 9 and 10.
 
-Two asks are **load-bearing for Wave 3**: item 2 (`WF'.consts_origin`) and item 6
-(`IsDefEqU.const_arity_inv`). Editing the fork is a separate agent's work, so until the pin
-moves each is taken as one named, auditable class-**C** hypothesis — the two fields of
+Four asks are **load-bearing for Wave 3**: item 2 (`WF'.consts_origin`), item 6
+(`IsDefEqU.const_arity_inv`), item 9 (`HasType.mkApps_inv`) and item 10
+(`IsDefEqU.indSpine_inj`). Editing the fork is a separate agent's work, so until the pin
+moves each is taken as one named, auditable class-**C** hypothesis — the four fields of
 `UpstreamAsks env` (`LeanToLambdaBox/Upstream.lean`), unweakened and unrestated — and every
 consumer carries it in its statement. The pin bump discharges the structure with no change to
 any consumer's statement shape; a refusal blocks the arms that consume it, and `doc/trust.md`
@@ -38,13 +40,13 @@ Paths under `.lake/packages/lean4lean/Lean4Lean/` are given relative to that dir
    a generic `iotaRHS'` — the missing link in the `largeElim_of_wf` argument. **Load-bearing
    from Wave 3**, for a reason unrelated to the one it was filed under: `Erases` distinguishes
    the three readings of `Expr.const` (constructor / inductive type name / plain constant), and
-   the *exclusion* direction is what T7's uniqueness and T5's ι head step consume. The five
+   the *exclusion* direction is what T7's uniqueness and T5's ι head step consume. The
    corollaries this repository consumes are `constOrigin_not_ctorOf`, `constOrigin_not_indInfo`,
-   `IndInfo.inj`, `CtorOf.inj`, `CasesOnShape.inj`, plus the totality direction
-   `consts_classified`; they land in `LeanToLambdaBox/Origin.lean`. Its singleton-machinery use
+   `IndInfo.inj`, `CtorOf.inj`, `CasesOnShape.inj`, the totality direction `consts_classified`
+   and, off the two conjuncts below, `IndInfo.indDeclOf` and `indBlock_uniq`; they land in
+   `LeanToLambdaBox/Origin.lean`. Its singleton-machinery use
    still waits on `F-PROP`. The origin statement asked for, in the idiom of `WF'.pats_origin`
-   — one declaring step per constant, the name fresh below it — is what the six corollaries are
-   read off:
+   — one declaring step per constant, the name fresh below it — is what they are read off:
 
    ```lean
    theorem VEnv.WF'.consts_origin {ds : List VDecl} {env : VEnv} (H : env.WF' ds)
@@ -67,15 +69,24 @@ Paths under `.lake/packages/lean4lean/Lean4Lean/` are given relative to that dir
    -- a block below `env` that declares `I` is a block of `env`'s OWN declaration list
    (∀ I iid np nfs, IndInfo env I iid np nfs → IndDeclOf env I) ∧
    -- and there is only one such block, at the declaration level, not only in its coordinates
-   (∀ (I : Name) decl decl', HasInduct env decl → HasInduct env decl' →
+   (∀ (I : Name) decl decl', IndBlockBelow env decl → IndBlockBelow env decl' →
      (∃ t ∈ decl.types, t.name = I) → (∃ t ∈ decl'.types, t.name = I) → decl = decl')
    ```
 
+   `IndBlockBelow env decl` is `∃ ds env₀, VEnv.WF' ds env₀ ∧ env₀ ≤ env ∧ VDecl.induct decl ∈ ds`
+   (`LeanToLambdaBox/Upstream.lean`). The **below**-`env` form is what the conjunct has to be
+   stated in: `IndInfo`, `IndArity`, `CtorOf` and `CasesOnShape` each bound their declaration
+   list by `env₀ ≤ env` rather than by `env` itself, so a conjunct phrased at `env`'s own list
+   (`FirstOrderInd`'s `HasInduct`, the special case `env₀ = env`) is not applicable at any
+   consumer. The fork is free to derive it from the origin statement, where the recursor a block
+   generates is what distinguishes two blocks declaring one former.
+
    Consumers: `ErasesEnv.blocks`' `IndDeclOf` conjunct — hence every rung's `ErasesEnv` — the
    derived `CasesOnShape.agree`, which is what pins `SEval.iota`'s parameter count to the rule's
-   own block, and `fOFields_of_asks`' block uniqueness. These replace a `TrEnv'`-shaped ask W3R
-   filed and then withdrew: `TrEnv'` is indexed by a `Lean.Environment`, so it cannot be a field
-   of `UpstreamAsks env`, and its content for `firstOrderIndB_sound` is item 4 below.
+   own block, and `CtorOf.ctorResult_at`, which is `ctor_saturated`'s and `fOFields_of_asks`'
+   block uniqueness. They replace an ask W3R filed against the environment-translation relation
+   and then withdrew: that relation is indexed by a `Lean.Environment`, so it cannot appear in a
+   field of `UpstreamAsks env`, and its content for `firstOrderIndB_sound` is item 4 below.
 
 3. **The seven kernel-generic declarations in `LeanToLambdaBox/CheckerAdequacy.lean`** —
    `VContext.ofMLCtx` with its three `@[simp]` projections, `VState.WF.initial`, `M.WF.run'`,
@@ -128,6 +139,12 @@ Paths under `.lake/packages/lean4lean/Lean4Lean/` are given relative to that dir
    a theorem. Related and larger: the `inductDecl` case of `addDecl.WF`
    (`Verify/Environment.lean:208`) is `sorry` at the pinned revision — the lemma that would
    let the environment connection itself be derived rather than assumed.
+
+   **It is also what `constOrigin_of_tabled` needs.** `ErasesEnv.tabled` asks that a constant
+   the compiler table gives a body for be a *plain* constant of `env`. Both halves are proved
+   (`LeanToLambdaBox/Origin.lean`: `constants_of_tabled` and `constOrigin_of_constants`); what
+   joins them is a transfer of the constant's **kind** from `lenv` to the model, and nothing at
+   the pin performs it. Until item 4 lands, the exclusion is a premise of `SpecEnv.erasesEnv`.
 
    **This is also `firstOrderIndB_sound`'s blocker** (`LeanToLambdaBox/FirstOrderInd.lean`'s
    module header): the table-side half `firstOrderIndB_step` is proved, and the model-side half
@@ -183,9 +200,13 @@ Paths under `.lake/packages/lean4lean/Lean4Lean/` are given relative to that dir
        ∃ T, env.HasType U Γ f T ∧ Peel env U Γ T args V
    ```
 
-   Consumers, all theorems here: `elim_major` and `ctor_saturated` (T5's ι arm),
-   `indSpine_not_prop` (T5's ι and proj arms, inside `not_erasable_of_informative`) and
-   `fOFields_of_asks` (both T7 theorems). Feasibility as measured: the forward half is ~40 lines
+   Consumers, all theorems here: `indSpine_not_prop` (T5's ι and proj arms, inside
+   `not_erasable_of_informative`) and `fOFields_of_asks` (both T7 theorems). `elim_major` and
+   `ctor_saturated` were filed as consumers and are **not**: their spines are translated, and
+   `TrExprS`'s `app` arm already carries the function's typing at a Π and the argument's at its
+   domain, so `LeanToLambdaBox/Origin.lean`'s `trExprS_spine_peel` proves the peel for them
+   outright. The ask stays load-bearing for the two consumers whose spine is untranslated.
+   Feasibility as measured: the forward half is ~40 lines
    from `HasType.app_inv` plus `IsDefEq.uniqU`; the second half needs `IsDefEqU.forallE_inv` and
    an instantiation lemma under a binder.
 

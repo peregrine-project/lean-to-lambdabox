@@ -6,7 +6,8 @@ import LeanToLambdaBox.IotaBridge
 
 `step_iota` is the arm of `erases_correct` at `SEval.iota`: a `casesOn` spine
 `mkApps (.const con us) (pre ++ disc :: minors ++ extra)` whose discriminant reaches a
-constructor value. Six steps, in the order the module lands them:
+constructor value. It takes no premise beyond `StepIota`'s own `UpstreamAsks env`. Six
+steps, in the order the module lands them:
 
 * `erases_mkApps_inv` splits the erasure into a head reading with pointwise arguments or a
   boxed proper prefix; the boxed prefix boxes the whole redex and folds by
@@ -14,19 +15,19 @@ constructor value. Six steps, in the order the module lands them:
   hypotheses at the prefix, the minors and the extra arguments do;
 * the head is `Erases.const`'s — the constructor reading is refuted by the rule's own
   `ConstOrigin` — and `Lower.source_constApp` reads the pass back at that head: the
-  congruence, refuted by the eliminator key, or `Lower.elimApp`'s `.case` node;
+  congruence, refuted by the `ElimDecl` `ErasesEnv.elims` gives at the reached key against
+  the rule's own `hsh`/`hinf`, or `Lower.elimApp`'s `.case` node, whose data `ElimDecl.uniq`
+  equates with that one's;
 * the discriminant's induction hypothesis gives the target constructor value, its boxed
-  readings refuted by `not_erasable_of_informative`;
-* the node's arity data comes from `ElimDecl`'s block through `LowerEnv.inds`;
+  readings refuted by `not_erasable_of_informative` against `elim_major`'s typing;
+* the node's arity data comes from `ElimDecl`'s block through `LowerEnv.inds`, and the
+  rule's own `hnp` names the same block by `IndArity.inj`;
 * the branch's induction hypothesis is taken at the *un-contracted* application of the
   selected minor, and `IotaBridge`'s β-chain rewrite under `wcbvEval_mkApps_head_congr`
   turns it into `WcbvEval.iota`, over-application included.
 
-`step_iota_of_elimSpec` is the arm under three named premises, each carrying a fact the
-tree's relations do not state: `SpecElims` reads the specification environment forward at
-an eliminator key, `ElimTyping` is the source-theory typing of an eliminator spine and of
-a constructor value, and `IndSpineNotProp` is the half of `not_erasable_of_informative`
-upstream ask 6 does not cover.
+Over-application rides outside the emitted node and costs no premise: the arguments past
+the node's arity are the `extra` of both the source rule and `Lower.elimApp`.
 -/
 
 namespace LeanToLambdaBox
@@ -168,7 +169,7 @@ theorem Erases.lbClosed {env : VEnv} {Us : List Name} :
   | app _ _ ihf iha => exact ⟨ihf, iha⟩
   | lam _ _ ih => exact ih
   | letE _ _ _ _ ihv ihb => exact ⟨ihv, ihb⟩
-  | proj _ _ _ ih => exact ih
+  | proj _ _ _ _ ih => exact ih
   | lit _ _ ih => exact ih
   | mdata _ ih => exact ih
 
@@ -206,11 +207,10 @@ def LowerConstApp (Γ : GlobalDeclarations) (kn : Kername) (ts : List LBTerm)
     t = LBTerm.mkApps (.case (iid, np) disc' alts) extra')
 
 /-- **Inverting the pass at a constant-headed spine.** The `.fix` targets are excluded by
-`BlockBodiesLambda` — an application is neither a constant nor a λ — so an argument at a
+the block's own `hfl` — an application is neither a constant nor a λ — so an argument at a
 time the derivation is either the `app` congruence or `elimApp`, and an `elimApp` at a
 shorter spine absorbs the remaining arguments into its `extra`. -/
-theorem Lower.source_constApp {Γ : GlobalDeclarations} (hblk : BlockBodiesLambda Γ)
-    {kn : Kername} :
+theorem Lower.source_constApp {Γ : GlobalDeclarations} {kn : Kername} :
     ∀ (n : Nat) (ts : List LBTerm), ts.length = n → ∀ {s t : LBTerm}, Lower Γ s t →
       s = LBTerm.mkApps (.const kn) ts → LowerConstApp Γ kn ts t := by
   intro n
@@ -219,10 +219,10 @@ theorem Lower.source_constApp {Γ : GlobalDeclarations} (hblk : BlockBodiesLambd
     intro ts hn s t h hs
     rcases List.eq_nil_or_concat ts with rfl | ⟨init, last, rfl⟩
     · subst hs
-      obtain ⟨hnk, -⟩ := Lower.source_const hblk h rfl
+      obtain ⟨hnk, -⟩ := Lower.source_const h rfl
       exact .inl ⟨hnk, t, [], rfl, h, rfl, by simp⟩
     · rw [List.concat_eq_append, LBTerm.mkApps_concat] at hs
-      have hnf := Lower.ne_fix_of_block hblk h (by rw [hs]; exact fun _ => LBTerm.noConfusion)
+      have hnf := Lower.ne_fix_of_block h (by rw [hs]; exact fun _ => LBTerm.noConfusion)
         (by rw [hs]; rfl)
       cases h with
       | box | bvar | fvar | prim | const | lambda | letIn | proj | construct | «case» =>
@@ -257,121 +257,43 @@ theorem Lower.source_constApp {Γ : GlobalDeclarations} (hblk : BlockBodiesLambd
             hh, ?_, hlen, hmlen, halen, hmin, hdisc, hxlen, hx, rfl⟩
           rw [List.concat_eq_append, ← hargs]
 
-/-! ## A value of an informative inductive is not erasable -/
+/-! ## Two block readings agree
 
-/-- The type former `I` is declared by a block of `env`'s **own** declaration list, which
-is the list upstream ask 6 reads. `IndInfo` exhibits a block below `env`, one extension
-short of this. -/
-def IndDeclOf (env : VEnv) (I : Name) : Prop :=
-  ∃ (ds : List VDecl) (decl : VInductDecl) (t : VInductiveType),
-    env.WF' ds ∧ VDecl.induct decl ∈ ds ∧ t ∈ decl.types ∧ t.name = I
-
-/-- The kernel fact upstream ask 6 does not cover: a spine headed by an **informative**
-inductive type former is not a proposition. Ask 6 excludes `Erasable`'s type-former
-disjunct; this excludes its proof disjunct. -/
-def IndSpineNotProp (env : VEnv) : Prop :=
-  ∀ {U : Nat} {Γ : List VExpr} {I : Name} {us : List VLevel} {args : List VExpr},
-    OnCtx Γ (env.IsType U) → InformativeInd env I →
-    ¬ env.HasType U Γ (VExpr.mkApps (.const I us) args) (.sort .zero)
-
-/-- **A value of an informative inductive is neither a proof nor a type-former**, so the
-box rule does not reach it. The type-former disjunct is upstream ask 6, taken from
-`UpstreamAsks`; the proof disjunct is `IndSpineNotProp`. -/
-theorem not_erasable_of_informative {env : VEnv} (henv : env.WF) (A : UpstreamAsks env)
-    (P : IndSpineNotProp env) {U : Nat} {Γ : List VExpr} (hΓ : OnCtx Γ (env.IsType U))
-    {I : Name} (hdec : IndDeclOf env I) (hinf : InformativeInd env I)
-    {e : VExpr} {us : List VLevel} {args : List VExpr}
-    (hty : env.HasType U Γ e (VExpr.mkApps (.const I us) args)) :
-    ¬ Erasable env U Γ e := by
-  obtain ⟨ds, decl, tp, hds, hdecl, htype, rfl⟩ := hdec
-  rintro ⟨T, hT, hcase⟩
-  have hTeq : env.IsDefEqU U Γ T (VExpr.mkApps (.const tp.name us) args) :=
-    VEnv.IsDefEq.uniqU henv hΓ hT hty
-  have hisT : ∃ V, env.HasType U Γ (VExpr.mkApps (.const tp.name us) args) V := by
-    obtain ⟨u, hu⟩ := hty.isType henv hΓ
-    exact ⟨_, hu⟩
-  cases hcase with
-  | inl hp => exact P hΓ hinf (VEnv.HasType.defeqU_l henv hΓ hTeq hp)
-  | inr har =>
-      obtain ⟨T', hdef', harity⟩ := har
-      have hspine : env.IsDefEqU U Γ (VExpr.mkApps (.const tp.name us) args) T' :=
-        VEnv.IsDefEqU.trans henv hΓ (VEnv.IsDefEqU.symm hTeq) hdef'
-      obtain ⟨hns, hnf⟩ := A.constArityInv hds hΓ hdecl htype hisT
-      cases harity with
-      | sort u => exact hns u hspine
-      | forallE A' B' _ => exact hnf A' B' hspine
-
-
-/-! ## What the arm reads off the environment and off the source theory
-
-Two structures, each a fact about `env` and `Γspec` alone and each true of the environment
-a run registers. `SpecElims` is `ErasesDecl.elim` read **forward**, the direction
-`ErasesEnv.decls` does not run in; `ElimTyping` is the typing of an eliminator spine and of
-a constructor value, which `CasesOnShape` records only the arity of.
+`SEval.iota`'s `hnp` and the eliminator entry's `IndInfo` each exhibit a block declaring the
+same type former. Ask 2's declaration-level uniqueness identifies the blocks and a block
+names its type formers injectively, so the two arity readings are one — which is what pins
+the prefix the source rule drops to the one the emitted `.case` node drops.
 -/
 
-/-- The forward readings of a specification environment at an eliminator key. -/
-structure SpecElims (env : VEnv) (Γspec : GlobalDeclarations) : Prop where
-  /-- A reached `casesOn` constant's kername is a key the pass consumes, so its
-      occurrences are `.case` nodes rather than constants. -/
-  key : ∀ {c I : Name} {dp nm : Nat}, CasesOnShape env c I dp nm → ConstOrigin env c →
-    (LBTerm.envLookup Γspec (toKername c)).isSome → RuntimeKey Γspec (toKername c)
-  /-- At that key the declaration is that eliminator's, so the emitted node's block data
-      is the source inductive's, and the segmentation is the one the ι rule splits at. -/
-  decl : ∀ {c I : Name} {dp nm : Nat} {iid : InductiveId} {np dp' : Nat} {nfs : List Nat},
-    CasesOnShape env c I dp nm → ConstOrigin env c →
-    ElimDecl Γspec (toKername c) iid np dp' nfs →
-    IndInfo env I iid np nfs ∧ InformativeInd env I ∧ IndDeclOf env I ∧ dp' = dp ∧
-      nfs.length = nm
-
-/-- The source-theory typing of an eliminator spine and of a constructor value. -/
-structure ElimTyping (env : VEnv) (Us : List Name) : Prop where
-  /-- The major premise of a well-typed saturated `casesOn` spine is typed at the
-      eliminator's own inductive, applied to its parameters and indices. -/
-  major : ∀ {c I : Name} {dp nm : Nat} {us : List Level} {pre minors extra : List Expr}
-      {disc : Expr} {ve w : VExpr},
-    CasesOnShape env c I dp nm → pre.length = dp → minors.length = nm →
-    TrExprS env Us [] (mkApps (.const c us) (pre ++ disc :: minors ++ extra)) ve →
-    TrExprS env Us [] disc w →
-    ∃ (ius : List VLevel) (iargs : List VExpr),
-      env.HasType Us.length [] w (VExpr.mkApps (.const I ius) iargs)
-  /-- A constructor spine typed at its own inductive is saturated: `SEval.ctorVal`'s
-      `harity` bounds the spine from above, and the typing bounds it from below. -/
-  ctorSat : ∀ {ctor I : Name} {k : Nat} {iid : InductiveId} {np : Nat} {nfs : List Nat}
-      {cus : List Level} {cargs : List Expr} {w : VExpr} {ius : List VLevel}
-      {iargs : List VExpr},
-    CtorOf env ctor I k → IndInfo env I iid np nfs →
-    TrExprS env Us [] (mkApps (.const ctor cus) cargs) w →
-    env.HasType Us.length [] w (VExpr.mkApps (.const I ius) iargs) →
-    cargs.length = np + nfs[k]!
-  /-- The ι rule's dropped-argument count is the block's parameter count, which is what
-      the emitted `.case` node carries. -/
-  params : ∀ {con I ctor : Name} {dp nm cidx np nps : Nat} {us : List Level}
-      {pre minors extra cargs : List Expr} {disc : Expr} {iid : InductiveId}
-      {nfs : List Nat},
-    CasesOnShape env con I dp nm → CtorOf env ctor I cidx → IndInfo env I iid nps nfs →
-    StepDefeq env Us [] (mkApps (.const con us) (pre ++ disc :: minors ++ extra))
-      (mkApps minors[cidx]! (cargs.drop np ++ extra)) →
-    np = nps
+/-- **A type former has one arity.** The `IndArity` twin of `IndInfo.inj`; the same route as
+`CasesOnShape.agree`, at two `IndArity`s. -/
+theorem IndArity.inj {env : VEnv} (A : UpstreamAsks env) {I : Name} {np np' : Nat}
+    {nfs nfs' : List Nat} (h : IndArity env I np nfs) (h' : IndArity env I np' nfs') :
+    np = np' ∧ nfs = nfs' := by
+  obtain ⟨decl, hblk, t, ht, hname, hnp, hnfs⟩ := h.indBlockBelow
+  obtain ⟨decl', hblk', t', ht', hname', hnp', hnfs'⟩ := h'.indBlockBelow
+  obtain rfl : decl = decl' :=
+    indBlock_uniq A hblk hblk' ⟨t, ht, hname⟩ ⟨t', ht', hname'⟩
+  obtain rfl : t = t' := indBlockBelow_type_uniq hblk ht ht' (hname.trans hname'.symm)
+  subst hnp; subst hnp'; subst hnfs; subst hnfs'
+  exact ⟨rfl, rfl⟩
 
 /-! ## The ι arm -/
 
-/-- **The ι arm, under the three named premises.** The subject is the `casesOn` spine, the
-induction hypotheses come with the rule's own subderivations, and the target is the emitted
-`.case` node with the over-application riding outside it. -/
-theorem step_iota_of_elimSpec {env : VEnv} {bo : Name → Option Expr} {Us : List Name}
-    {fl : SEvalFlags} {Γspec Γ : GlobalDeclarations} (P : IndSpineNotProp env)
-    (S : SpecElims env Γspec) (T : ElimTyping env Us) :
+/-- **The ι arm.** The subject is the `casesOn` spine, the induction hypotheses come with
+the rule's own subderivations, and the target is the emitted `.case` node with the
+over-application riding outside it. -/
+theorem step_iota {env : VEnv} {bo : Name → Option Expr} {Us : List Name}
+    {fl : SEvalFlags} {Γspec Γ : GlobalDeclarations} :
     StepIota env bo Us fl Γspec Γ := by
-  intro A con I ctor us cus pre prev minors minorsv extra extrav cargs disc r np cidx
-    henv henvL hfl hsh ho hct hpre hpres hdiscr ihdiscr hmin hmins hxlen hxs hidx hdef hcont
-    ihcont ve t₀ t hwt her hlow hspec
+  intro A con I ctor us cus pre prev minors minorsv extra extrav cargs disc r np cidx nfsR
+    henv henvL hfl hsh ho hct hnp hinf hpre hpres hdiscr ihdiscr hmin hmins hxlen hxs hidx
+    hdef hcont ihcont ve t₀ t hwt her hlow hspec
   have hΔ : VLCtx.WF env Us.length ([] : VLCtx) := trivial
   have hΓv := hΔ.toCtx
-  have hblk : BlockBodiesLambda Γspec := henvL.specBlocks
   have hΓcl : ClosedBodies Γspec := henvL.specClosed
   have hev : SEval env bo Us fl [] (mkApps (.const con us) (pre ++ disc :: minors ++ extra)) r :=
-    .iota hfl hsh ho hct hpre (fun i hi => (hpres i hi).1) hdiscr hmin
+    .iota hfl hsh ho hct hnp hinf hpre (fun i hi => (hpres i hi).1) hdiscr hmin
       (fun i hi => (hmins i hi).1) hxlen (fun i hi => (hxs i hi).1) hidx hdef hcont
   have ihmem : ∀ a ∈ pre ++ disc :: minors ++ extra,
       ∃ av, Simulates env bo Us Γspec Γ a av := by
@@ -398,30 +320,31 @@ theorem step_iota_of_elimSpec {env : VEnv} {bo : Name → Option Expr} {Us : Lis
     ⟨th, ts, hth, hts, rfl⟩ | ⟨bpre, bsuf, bts, heqargs, hbw, hbts, rfl⟩
   case inr =>
     rw [heqargs] at hwt hev
-    refine erases_correct_boxSpineLow henv hblk hwt hbw hlow hspec (fun s hs u hsu => ?_) hev
+    refine erases_correct_boxSpineLow henv hwt hbw hlow hspec (fun s hs u hsu => ?_) hev
     obtain ⟨a, ha, hea⟩ := forall₂_mem_right hbts s hs
     exact hargEv a (by rw [heqargs]; exact List.mem_append_right _ ha) s u hea
       (hspec.subterm (subTerm_mkApps_arg bts .box s hs)) hsu
   rcases Erases.const_inv hth with ⟨hb, rfl⟩ | ⟨I', iid', k', np', nfs', hc', hi', rfl⟩ |
     ⟨-, -, rfl⟩
   · refine erases_correct_boxSpineLow (pre := []) (suf := pre ++ disc :: minors ++ extra)
-      henv hblk hwt hb hlow hspec (fun s hs u hsu => ?_) hev
+      henv hwt hb hlow hspec (fun s hs u hsu => ?_) hev
     obtain ⟨a, ha, hea⟩ := forall₂_mem_right hts s hs
     exact hargEv a ha s u hea (hspec.subterm (subTerm_mkApps_arg ts .box s hs)) hsu
   · exact absurd hc' (constOrigin_not_ctorOf A ho _ _)
-  rcases Lower.source_constApp hblk ts.length ts rfl hlow rfl with
+  obtain ⟨eiid, enp, enfs, helimS, hi, hnme⟩ := hspec.elims hsh hinf ho
+    (reachableFrom_of_mem_constRefs (by rw [constRefs_mkApps]; simp [constRefs]))
+  have hdec : IndDeclOf env I := IndInfo.indDeclOf A hi
+  rcases Lower.source_constApp ts.length ts rfl hlow rfl with
     ⟨hnk, -, -, -, -, -, -⟩ |
     ⟨iid, nps, dp, nfs, tpre, tdisc, disc', tminors, alts, textra, textra',
       helim, htseq, hpl, hml, hal, hminAlt, hdiscL, hxl, hxL, rfl⟩
-  · exact absurd (S.key hsh ho (hspec.deps (toKername con)
-      (reachableFrom_of_mem_constRefs (by rw [constRefs_mkApps]; simp [constRefs])))) hnk
+  · exact absurd ⟨eiid, enp, pre.length, enfs, helimS⟩ hnk
   subst htseq
-  obtain ⟨hi, hinf, hdec, hdpe, hnme⟩ := S.decl hsh ho helim
-  subst hdpe
+  obtain ⟨rfl, rfl, rfl, rfl⟩ := ElimDecl.uniq helim helimS
   obtain ⟨-, herdisc, hfmin, hfextra⟩ :=
     forall₂_split3 hts hpl (by rw [hml, hnme])
   obtain ⟨w, htrdisc⟩ := trExprS_spine_mem _ hwt disc (by simp)
-  obtain ⟨ius, iargs, hwty⟩ := T.major hsh rfl rfl hwt htrdisc
+  obtain ⟨ius, iargs, hwty⟩ := elim_major henv hsh rfl rfl hwt htrdisc
   have hspecdisc : ErasesEnv env bo Γspec tdisc :=
     hspec.subterm (subTerm_mkApps_arg _ _ _ (by simp))
   obtain ⟨dv₀, dv', herdv, hlowdv, hEdisc, hspecdv⟩ := ihdiscr htrdisc herdisc hdiscL hspecdisc
@@ -429,7 +352,7 @@ theorem step_iota_of_elimSpec {env : VEnv} {bo : Name → Option Expr} {Us : Lis
   have hvvty : env.HasType Us.length (VLCtx.toCtx []) vv (VExpr.mkApps (.const I ius) iargs) :=
     VEnv.HasType.defeqU_l henv hΓv hdefvv hwty
   have hnotEr : ¬ Erasable env Us.length (VLCtx.toCtx []) vv :=
-    not_erasable_of_informative henv A P hΓv hdec hinf hvvty
+    not_erasable_of_informative henv A hΓv hdec hinf hvvty
   rcases erases_mkApps_inv cargs herdv with
     ⟨cth, cargs₀, hcth, hcts, rfl⟩ | ⟨cpre, csuf, cts, hceq, hcbw, hcts, rfl⟩
   case inr =>
@@ -446,14 +369,14 @@ theorem step_iota_of_elimSpec {env : VEnv} {bo : Name → Option Expr} {Us : Lis
   obtain ⟨rfl, rfl⟩ := CtorOf.inj A hct hc'
   obtain ⟨rfl, rfl, rfl⟩ := IndInfo.inj A hi hi'
   obtain ⟨hd₂, cargs', rfl, hhd₂, hclen, hcpt⟩ :=
-    Lower.source_mkApps hblk (fun _ _ => LBTerm.noConfusion) (fun _ => LBTerm.noConfusion)
+    Lower.source_mkApps (fun _ _ => LBTerm.noConfusion) (fun _ => LBTerm.noConfusion)
       cargs₀ hlowdv
   obtain rfl : hd₂ = .construct iid cidx [] := by
     rcases Lower.source_construct_nil hhd₂ rfl with h | ⟨defs, j, h⟩
     · exact h
-    · exact absurd h (Lower.ne_fix_of_block hblk hhd₂ (fun _ => LBTerm.noConfusion) rfl defs j)
-  have hsat : cargs.length = nps + nfs[cidx]! := T.ctorSat hct hi htrvv hvvty
-  obtain rfl : np = nps := T.params hsh hct hi hdef
+    · exact absurd h (Lower.ne_fix_of_block hhd₂ (fun _ => LBTerm.noConfusion) rfl defs j)
+  have hsat : cargs.length = nps + nfs[cidx]! := ctor_saturated henv A hct hi htrvv hvvty
+  obtain ⟨rfl, -⟩ := IndArity.inj A hnp hi.arity
   have hcidxlt : cidx < nfs.length := by omega
   obtain ⟨-, mib, hmib, -, oib, hoib, hprop, -⟩ := helim
   have hmibΓ := henvL.inds _ _ hmib
@@ -501,7 +424,6 @@ theorem step_iota_of_elimSpec {env : VEnv} {bo : Name → Option Expr} {Us : Lis
   exact wcbvEval_mkApps_mkLambdas_substList (cargs'.drop np) (alts[cidx]!).1
     (alts[cidx]!).2 hfieldsLen (fun x hx => hvalArgs x (List.mem_of_mem_drop hx))
     (fun x hx => hclosedArgs x (List.mem_of_mem_drop hx)) hv
-
 
 /-! ## Non-vacuity
 

@@ -1,4 +1,4 @@
-import LeanToLambdaBox.ErasesCorrect.Iota
+import LeanToLambdaBox.ErasesCorrect.Steps
 
 /-!
 # First-order inductive types, and the erasure of their values
@@ -18,19 +18,24 @@ becomes a function. Three declarations carry that:
 Both theorems run one induction, `firstorder_erases_core`, over the shape of a source value
 (`SValue`, what an `SEval` derivation returns). Their box-freedom and their uniqueness come
 from the same place: at each node of the value the box rule is excluded by
-`not_erasable_of_informative` (`ErasesCorrect/Iota.lean`, stated once and used twice), and
-what remains is the constructor congruence.
+`not_erasable_of_informative` (`Origin.lean`, stated once and used twice), and what remains
+is the constructor congruence.
 
 `mono` (monomorphic) and `noIndices` (index-free) are **declared scope restrictions**: they
 reject types that are first-order and box-free, and they are booked to this development, not
 to Letouzey's Def. 14 or to MetaRocq's `firstorder_ind`. `informative` is the result-sort
-half of Def. 6, in the shape the tree's own `InformativeInd` uses.
+half of Def. 6 in the **successor** shape — a declared scope restriction too, and one the
+monomorphy clause makes cheap. It implies the semantic relevance the target-facing relations
+read, `InformativeInd`, whose criterion is that the declared result level never evaluates to
+zero; the checker computes the successor shape as `succSortB`.
 
-Two facts this file cannot prove are named premises: `FOFields`, the source-theory typing of
-a first-order constructor value, and `IndSpineNotProp`, which `not_erasable_of_informative`
-already takes. `firstOrderIndB`'s soundness against `FirstOrderInd` is **not** landed —
-`firstOrderIndB_step` is its table-side half, and the model-side half needs an inversion of
-`Lean4Lean.TrEnv'` at an inductive name that the pinned fork does not have.
+The two theorems' only premise beyond MetaRocq's own list is `UpstreamAsks env`:
+`fOFields_of_asks` derives the source-theory typing of a first-order constructor value from
+asks 9 and 10 and ask 2's declaration-level uniqueness. `firstorder_no_box` is of the
+**erasure**, not of the lowered value. `firstOrderIndB`'s soundness against `FirstOrderInd`
+is **not** in the tree: `firstOrderIndB_step` is its table-side half, and the model-side half
+needs the inversion of `Lean4Lean.TrEnv'` at an inductive name that is filed ask 4, so
+`FirstOrderInd` is reached today only through `FOModel.firstOrderInd_E`.
 -/
 
 namespace LeanToLambdaBox
@@ -83,7 +88,7 @@ def FirstOrderInd (env : VEnv) (I : Name) : Prop := ∃ fo, FOClosed env fo ∧ 
 theorem FirstOrderInd.indDeclOf {env : VEnv} {I : Name} (h : FirstOrderInd env I) :
     IndDeclOf env I := by
   obtain ⟨fo, hcl, hI⟩ := h
-  obtain ⟨decl, ⟨ds, hds, hd⟩, -, t, hmem, hname⟩ := hcl I hI
+  obtain ⟨decl, ⟨ds, hds, hd⟩, -, t, hmem, hname⟩ := hcl _ hI
   exact ⟨ds, decl, t, hds, hd, hmem, hname⟩
 
 /-- A first-order type former is informative: its declared type — the block's own, read off
@@ -91,13 +96,13 @@ the environment the block produced — lands in a successor sort. -/
 theorem FirstOrderInd.informativeInd {env : VEnv} {I : Name} (h : FirstOrderInd env I) :
     InformativeInd env I := by
   obtain ⟨fo, hcl, hI⟩ := h
-  obtain ⟨decl, ⟨ds, hds, hd⟩, hdecl, t, hmem, hname⟩ := hcl I hI
+  obtain ⟨decl, ⟨ds, hds, hd⟩, hdecl, t, hmem, hname⟩ := hcl _ hI
   obtain ⟨e₀, e₁, -, hadd, hle⟩ := wf'_induct_origin hds hd
   obtain ⟨envT, envC, envR, hT, hC, hR, hP⟩ := VEnv.addInduct_stages hadd
   have hfind := VEnv.addTypes_find hT t hmem
   have hle' : envT ≤ env :=
     ((VEnv.addCtors_le hC).trans ((VEnv.addRecs_le hR).trans (VEnv.addRules_le hP))).trans hle
-  exact ⟨_, hname ▸ hle'.constants hfind, hdecl.informative t hmem⟩
+  exact informativeInd_of_succ ⟨_, hname ▸ hle'.constants hfind, hdecl.informative t hmem⟩
 
 /-- Upstream ask 6 at a first-order type former: a spine headed by it is definitionally
 equal to no sort and to no Π-type. -/
@@ -125,14 +130,16 @@ def foFieldB (own : List Name) (rec : Name → Bool) : Expr → Bool
   | _ => false
 
 /-- One member of a candidate block, checked against the table: monomorphic, index-free,
-informative, declaring the same block, and with every constructor binder a first-order field
-type. -/
+landing in a syntactic successor sort, declaring the same block, and with every constructor
+binder a first-order field type. The relevance test is `succSortB`, the fragment's stricter
+one, matching `FirstOrderDecl.informative`; `informativeB` is the never-zero test that
+matches `InformativeInd`. -/
 def foMemberB (tbl : SourceTable) (own : List Name) (rec : Name → Bool) (J : Name) : Bool :=
   match tbl.ind? J with
   | none => false
   | some Jval =>
     Jval.levelParams.isEmpty && Jval.numIndices == 0 && Jval.all == own &&
-      informativeB Jval &&
+      succSortB Jval &&
       Jval.ctors.all fun c => (piDomains c.type).all (foFieldB own rec)
 
 /-- The fuelled first-order check: `I` is tabled, belongs to the block it names, and every
@@ -192,7 +199,7 @@ theorem firstOrderIndB_step {tbl : SourceTable} {fuel : Nat} {I : Name}
     ∃ Ival, tbl.ind? I = some Ival ∧ I ∈ Ival.all ∧
       ∀ J ∈ Ival.all, ∃ Jval, tbl.ind? J = some Jval ∧
         Jval.all = Ival.all ∧ Jval.levelParams = [] ∧ Jval.numIndices = 0 ∧
-        informativeB Jval = true ∧
+        succSortB Jval = true ∧
         ∀ c ∈ Jval.ctors, ∀ A ∈ piDomains c.type, ∃ K us, A = .const K us ∧
           (K ∈ Ival.all ∨ firstOrderIndB tbl fuel K = true) := by
   unfold firstOrderIndB at h
@@ -290,8 +297,8 @@ theorem SEval.svalue {env : VEnv} {bo : Name → Option Expr} {Us : List Name} {
   | deltaC _ _ _ _ _ _ _ _ _ ihcont => exact ihcont
   | ctorVal hc _ _ hlen _ ihargs => exact .ctor hc (fun i hi => ihargs i (hlen ▸ hi))
   | indVal hi hlen _ ihargs => exact .ind hi (fun i hi => ihargs i (hlen ▸ hi))
-  | iota _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ ihcont => exact ihcont
-  | proj _ _ _ _ _ _ ihcont => exact ihcont
+  | iota _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ ihcont => exact ihcont
+  | proj _ _ _ _ _ _ _ _ ihcont => exact ihcont
   | lit _ _ ih => exact ih
 
 /-- **`SEval.svalue` fires** at its constructor arm: the nullary constructor of `Erases`'s
@@ -304,21 +311,168 @@ theorem svalue_ctor_fires {bo : Name → Option Expr} {Us : List Name} {fl : SEv
 
 /-! ## The fields of a first-order value -/
 
-/-- The source theory's typing of a first-order constructor value: every argument of a
-well-typed constructor value of a first-order inductive is itself typed at a first-order
-type former. A named premise, class **C**, and the only one the two theorems below add.
-It is `FirstOrderDecl.fields` transported to a value; its discharge needs the spine typing
-inversion filed upstream, the identification of the constructor's own type former with the
-one the value is typed at, and uniqueness of the block declaring a former. -/
-def FOFields (env : VEnv) (Us : List Name) : Prop :=
-  ∀ {I I' c : Name} {k i : Nat} {us : List Level} {cargs : List Expr} {vv a : VExpr}
-    {ius : List VLevel} {iargs : List VExpr},
+/-- The field condition is monotone in the closure. -/
+theorem FOType.widen {own : List Name} {fo fo' : Name → Prop} (h : ∀ K, fo K → fo' K) :
+    ∀ {A : VExpr}, FOType own fo A → FOType own fo' A
+  | .const .., hA => hA.imp id (h _)
+  | .bvar .., hA | .sort .., hA | .app .., hA | .lam .., hA | .forallE .., hA => hA
+
+/-- A first-order block stays first-order at a wider closure. -/
+theorem FirstOrderDecl.widen {own : List Name} {fo fo' : Name → Prop} {decl : VInductDecl}
+    (h : ∀ K, fo K → fo' K) (hd : FirstOrderDecl own fo decl) :
+    FirstOrderDecl own fo' decl where
+  mono := hd.mono
+  informative := hd.informative
+  noIndices := hd.noIndices
+  fields := fun t ht c hc i hi =>
+    let ⟨A, hA, hfo⟩ := hd.fields t ht c hc i hi
+    ⟨A, hA, FOType.widen h hfo⟩
+
+/-- **Every type former of a first-order block is first-order.** `FOClosed` accepts the names
+of `fo`, and a block's own formers need not be among them; widening `fo` by the block's names
+keeps the post-fixed point, since the closure occurs only positively in `FirstOrderDecl`. -/
+theorem firstOrderInd_of_own {env : VEnv} {fo : Name → Prop} {decl : VInductDecl} {J : Name}
+    (hcl : FOClosed env fo) (hd : HasInduct env decl)
+    (hfd : FirstOrderDecl (decl.types.map (·.name)) fo decl)
+    (hJ : J ∈ decl.types.map (·.name)) : FirstOrderInd env J := by
+  refine ⟨fun K => fo K ∨ K ∈ decl.types.map (·.name), fun K hK => ?_, .inr hJ⟩
+  rcases hK with hK | hK
+  · obtain ⟨d, hdd, hfdd, t, ht, hname⟩ := hcl K hK
+    exact ⟨d, hdd, hfdd.widen (fun _ h => .inl h), t, ht, hname⟩
+  · obtain ⟨t, ht, hname⟩ := List.mem_map.1 hK
+    exact ⟨decl, hd, hfd.widen (fun _ h => .inl h), t, ht, hname⟩
+
+/-- A bare type former at binder `i` of a Π-telescope is a major premise of that former at
+position `i`: `MajorPremiseAt`'s spine is the empty application. -/
+theorem majorPremiseAt_of_piBinders {J : Name} {jus : List VLevel} :
+    ∀ {i : Nat} {T : VExpr}, T.piBinders[i]? = some (.const J jus) → MajorPremiseAt J i T
+  | 0, .forallE _ B, h => by
+      simp only [VExpr.piBinders, List.getElem?_cons_zero, Option.some.injEq] at h
+      exact ⟨_, B, jus, [], rfl, h⟩
+  | _ + 1, .forallE A _, h => by
+      simp only [VExpr.piBinders, List.getElem?_cons_succ] at h
+      exact ⟨A, _, rfl, majorPremiseAt_of_piBinders h⟩
+  | _, .bvar .., h | _, .sort .., h | _, .const .., h | _, .app .., h | _, .lam .., h => by
+      simp [VExpr.piBinders] at h
+
+/-- The major-premise position survives level instantiation, as `MajorPremiseAt.inst` survives
+term instantiation. -/
+theorem MajorPremiseAt.instL {I : Name} {ls : List VLevel} : ∀ {n : Nat} {T : VExpr},
+    MajorPremiseAt I n T → MajorPremiseAt I n (T.instL ls)
+  | 0, _, ⟨_, _, ius, iargs, rfl, rfl⟩ =>
+      ⟨_, _, ius.map (VLevel.inst ls), iargs.map (·.instL ls), rfl, VExpr.mkApps_instL⟩
+  | _ + 1, _, ⟨_, _, rfl, h⟩ => ⟨_, _, rfl, h.instL⟩
+
+/-- Peeling a Π-telescope to its end reaches the telescope's own result spine. `peel_piSpine`
+says the spine of a well-typed constructor value has exactly the telescope's length; this says
+what the type at that end is. -/
+theorem peel_piSpine_head {env : VEnv} (henv : env.WF) {U : Nat} {Γ : List VExpr}
+    (hΓ : OnCtx Γ (env.IsType U)) {I : Name} :
+    ∀ (vargs : List VExpr) {T S V : VExpr} {n : Nat}, PiSpine I n S → vargs.length = n →
+      env.IsDefEqU U Γ T S → Peel env U Γ T vargs V →
+      ∃ us args, env.IsDefEqU U Γ V (VExpr.mkApps (.const I us) args) := by
+  intro vargs
+  induction vargs with
+  | nil =>
+    intro T S V n hS hlen hTS hP
+    cases n with
+    | zero =>
+      obtain ⟨us, args, rfl⟩ := hS
+      exact ⟨us, args, VEnv.IsDefEqU.trans henv hΓ (VEnv.IsDefEqU.symm hP) hTS⟩
+    | succ m => simp at hlen
+  | cons a as ih =>
+    intro T S V n hS hlen hTS hP
+    cases n with
+    | zero => simp at hlen
+    | succ m =>
+      obtain ⟨A₀, B₀, rfl, hS'⟩ := hS
+      obtain ⟨A', B', hTf, ha, hrest⟩ := hP
+      obtain ⟨⟨_, hA⟩, _, hB⟩ := VEnv.IsDefEqU.forallE_inv henv hΓ
+        (VEnv.IsDefEqU.trans henv hΓ (VEnv.IsDefEqU.symm hTS) hTf)
+      have ha₀ : env.HasType U Γ a A₀ := VEnv.HasType.defeqU_r henv hΓ ⟨_, hA.symm⟩ ha
+      have hinst : env.IsDefEqU U Γ (B₀.inst a) (B'.inst a) :=
+        VEnv.IsDefEqU.instN henv.ordered .zero ⟨_, hB⟩ ha₀
+      exact ih hS'.inst (by simpa using hlen) (VEnv.IsDefEqU.symm hinst) hrest
+
+/-- **The source theory's typing of a first-order constructor value**: every argument of a
+well-typed constructor value of a first-order inductive is itself typed at a first-order type
+former. Three kernel facts carry it, and each is a field of `UpstreamAsks`: the constructor's
+own former is the value's by ask 10 (`indSpineInj`) against the result spine `peel_piSpine_head`
+reaches; the block `FOClosed` exhibits is the block `CtorOf` exhibits by ask 2's
+declaration-level uniqueness, which is what lets `FirstOrderDecl.fields` name the field's
+former; and the spine's typing peels without ask 9, since a *translated* spine carries its
+argument typings in `TrExprS`'s own `app` arm (`trExprS_spine_peel`). -/
+theorem fOFields_of_asks {env : VEnv} {Us : List Name} (henv : env.WF) (A : UpstreamAsks env) :
+    ∀ {I I' c : Name} {k i : Nat} {us : List Level} {cargs : List Expr} {vv a : VExpr}
+      {ius : List VLevel} {iargs : List VExpr},
     FirstOrderInd env I → CtorOf env c I' k →
     TrExprS env Us [] (mkApps (.const c us) cargs) vv →
     env.HasType Us.length [] vv (VExpr.mkApps (.const I ius) iargs) →
     i < cargs.length → TrExprS env Us [] cargs[i]! a →
     ∃ (J : Name) (jus : List VLevel) (jargs : List VExpr),
-      FirstOrderInd env J ∧ env.HasType Us.length [] a (VExpr.mkApps (.const J jus) jargs)
+      FirstOrderInd env J ∧ env.HasType Us.length [] a (VExpr.mkApps (.const J jus) jargs) := by
+  intro I I' c k i us cargs vv a ius iargs hfo hct hwt hty hilt htra
+  have hΔ : VLCtx.WF env Us.length ([] : VLCtx) := trivial
+  have hΓ : OnCtx (VLCtx.toCtx ([] : VLCtx)) (env.IsType Us.length) := hΔ.toCtx
+  obtain ⟨iid, np, nfs, hi⟩ := hct.indInfo
+  have hdI' : IndDeclOf env I' := IndInfo.indDeclOf A hi
+  have hdI : IndDeclOf env I := hfo.indDeclOf
+  obtain ⟨cci, nind, hcst, hres⟩ := hct.ctorResult_at A hi.arity
+  obtain ⟨_, htrhead⟩ := trExprS_spine_head _ hwt
+  cases htrhead with
+  | const hci₂ hmap hlen =>
+    rename_i cus'
+    obtain rfl : cci = _ := Option.some.inj (hcst.symm.trans hci₂)
+    have hlen' : _ = cci.uvars := ((List.mapM_eq_some.1 hmap).length_eq).symm.trans hlen
+    have hT := hasType_const (Γ := VLCtx.toCtx ([] : VLCtx)) hcst
+      (VLevel.WF.of_mapM_ofLevel hmap) hlen'
+    obtain ⟨V, vargs, hvlen, hvarg, hveV, hpeel⟩ :=
+      trExprS_spine_peel henv hΔ _ (.const hci₂ hmap hlen) hT hwt
+    obtain ⟨u, hu⟩ := hT.isType henv hΓ
+    have hVI : env.IsDefEqU Us.length (VLCtx.toCtx []) V (VExpr.mkApps (.const I ius) iargs) :=
+      VEnv.IsDefEq.uniqU henv hΓ hveV hty
+    have hspine : PiSpine I' (np + nfs[k]!) (cci.type.instL cus') :=
+      (piSpine_of_piBody hres.1 (by obtain ⟨us₀, idx, -, h⟩ := hres.2; exact ⟨us₀, _, h⟩)).instL
+    have hvlen' : vargs.length = np + nfs[k]! :=
+      peel_piSpine henv A hΓ hdI' hdI vargs hspine ⟨_, hu⟩ hpeel hVI
+    obtain ⟨jus₀, jargs₀, hVI'⟩ := peel_piSpine_head henv hΓ vargs hspine hvlen' ⟨_, hu⟩ hpeel
+    obtain rfl : I' = I := A.indSpineInj hΓ hdI' hdI
+      (VEnv.IsDefEqU.trans henv hΓ (VEnv.IsDefEqU.symm hVI') hVI)
+    -- the block `FOClosed` exhibits is the block the constructor comes from
+    obtain ⟨fo, hcl, hI⟩ := hfo
+    obtain ⟨decl, hdhas, hfd, t, ht, hname⟩ := hcl _ hI
+    obtain ⟨ds₂, env₀, decl₂, t₂, ctor, hds₂, hd₂, hle₂, hmem₂, hname₂, hk, hcn⟩ := id hct
+    obtain ⟨ds₁, hds₁, hd₁⟩ := hdhas
+    have hblk : IndBlockBelow env decl := ⟨ds₁, env, hds₁, .rfl, hd₁⟩
+    obtain rfl : decl₂ = decl :=
+      indBlock_uniq A ⟨ds₂, env₀, hds₂, hle₂, hd₂⟩ hblk ⟨t₂, hmem₂, hname₂⟩ ⟨t, ht, hname⟩
+    obtain rfl : t₂ = t := indBlockBelow_type_uniq hblk hmem₂ ht (hname₂.trans hname.symm)
+    have hctor : ctor ∈ t₂.ctors := List.mem_of_getElem? hk
+    -- the constructor's declared type is the type the head is typed at
+    obtain ⟨e₀, e₁, -, hadd, hle₁⟩ := wf'_induct_origin hds₂ hd₂
+    obtain ⟨envT, envC, envR, hT₀, hC, hR, hP⟩ := VEnv.addInduct_stages hadd
+    have hcstc : env.constants c = some ctor.toVConstant :=
+      hcn ▸ hle₂.constants (hle₁.constants
+        (((VEnv.addRecs_le hR).trans (VEnv.addRules_le hP)).constants
+          (VEnv.addCtors_find hC t₂ hmem₂ ctor hctor)))
+    obtain rfl : cci = ctor.toVConstant := Option.some.inj (hcst.symm.trans hcstc)
+    -- the field's own type former
+    have hipi : i < ctor.type.piArity := by
+      have : ctor.type.piArity = np + nfs[k]! := hres.1
+      omega
+    obtain ⟨Afld, hbind, hfoty⟩ := hfd.fields t₂ ht ctor hctor i hipi
+    obtain ⟨J, jus₀, rfl⟩ : ∃ J jus, Afld = .const J jus := by
+      cases Afld <;> first
+        | exact ⟨_, _, rfl⟩
+        | exact absurd hfoty (by simp [FOType])
+    have hmaj : MajorPremiseAt J i (ctor.toVConstant.type.instL cus') :=
+      (majorPremiseAt_of_piBinders hbind).instL
+    obtain ⟨jus, jargs, htyv⟩ := peel_major henv hΓ i vargs hmaj ⟨_, hu⟩ hpeel (by omega)
+    refine ⟨J, jus, jargs, ?_, VEnv.HasType.defeqU_l henv hΓ
+      (TrExprS.uniq henv (VLCtx.IsDefEq.refl henv.ordered hΔ) (hvarg i hilt) htra) htyv⟩
+    rcases hfoty with hJ | hJ
+    · exact firstOrderInd_of_own hcl ⟨ds₁, hds₁, hd₁⟩ hfd hJ
+    · exact ⟨fo, hcl, hJ⟩
 
 /-- Two pointwise erasures of the same list agree when each element's erasure is unique. -/
 theorem forall₂_unique {α β : Type _} {R : α → β → Prop} {as : List α} {ts ts' : List β}
@@ -342,9 +496,9 @@ value's shape: a λ is excluded because its type is a Π and a first-order spine
 they are erasable and a first-order value is not (`not_erasable_of_informative`); and a
 constructor spine erases by the congruence alone — its boxed readings by the same fact, its
 head by `constOrigin_not_ctorOf`, its arguments by the induction hypothesis at the field
-typings `FOFields` supplies. -/
+typings `fOFields_of_asks` supplies. -/
 theorem firstorder_erases_core {env : VEnv} {Us : List Name} (henv : env.WF)
-    (A : UpstreamAsks env) (P : IndSpineNotProp env) (F : FOFields env Us) :
+    (A : UpstreamAsks env) :
     ∀ {v : Expr}, SValue env v →
       ∀ {I : Name} {ius : List VLevel} {iargs : List VExpr} {vv : VExpr} {t : LBTerm},
         FirstOrderInd env I → TrExprS env Us [] v vv →
@@ -367,21 +521,21 @@ theorem firstorder_erases_core {env : VEnv} {Us : List Name} (henv : env.WF)
   | sort =>
     intro I ius iargs vv t hfo hwt hty _
     exact absurd (Erases.sort_erasable henv hwt)
-      (not_erasable_of_informative henv A P hΓ hfo.indDeclOf hfo.informativeInd hty)
+      (not_erasable_of_informative henv A hΓ hfo.indDeclOf hfo.informativeInd hty)
   | forallE =>
     intro I ius iargs vv t hfo hwt hty _
     exact absurd (Erases.forallE_erasable henv hΔ hwt)
-      (not_erasable_of_informative henv A P hΓ hfo.indDeclOf hfo.informativeInd hty)
+      (not_erasable_of_informative henv A hΓ hfo.indDeclOf hfo.informativeInd hty)
   | @ind c iid np nfs us args hi _ _ =>
     intro I ius iargs vv t hfo hwt hty _
     obtain ⟨hve, htrh⟩ := trExprS_spine_head args hwt
     exact absurd (erasable_mkApps henv hΔ args hwt htrh (Erases.indInfo_erasable henv hΔ hi htrh))
-      (not_erasable_of_informative henv A P hΓ hfo.indDeclOf hfo.informativeInd hty)
+      (not_erasable_of_informative henv A hΓ hfo.indDeclOf hfo.informativeInd hty)
   | @ctor c I' k us cargs hc _ ihargs =>
     intro I ius iargs vv t hfo hwt hty her
     obtain ⟨iid, np, nfs, hi⟩ := hc.indInfo
     have hnotEr : ¬ Erasable env Us.length (VLCtx.toCtx []) vv :=
-      not_erasable_of_informative henv A P hΓ hfo.indDeclOf hfo.informativeInd hty
+      not_erasable_of_informative henv A hΓ hfo.indDeclOf hfo.informativeInd hty
     -- every erasure of the spine is the congruence, at the constructor node
     have hshape : ∀ {s : LBTerm}, Erases env Us [] (mkApps (.const c us) cargs) s →
         ∃ ts, List.Forall₂ (Erases env Us []) cargs ts ∧
@@ -405,7 +559,7 @@ theorem firstorder_erases_core {env : VEnv} {Us : List Name} (henv : env.WF)
       intro a ha x hx
       obtain ⟨i, hilt, rfl⟩ := Lower.mem_getElem! ha
       obtain ⟨w, htrw⟩ := trExprS_spine_mem cargs hwt _ ha
-      obtain ⟨J, jus, jargs, hfoJ, hJty⟩ := F hfo hc hwt hty hilt htrw
+      obtain ⟨J, jus, jargs, hfoJ, hJty⟩ := fOFields_of_asks henv A hfo hc hwt hty hilt htrw
       exact ihargs i hilt hfoJ htrw hJty hx
     obtain ⟨ts, hts, rfl⟩ := hshape her
     refine ⟨?_, fun t' ht' => ?_⟩
@@ -420,23 +574,23 @@ theorem firstorder_erases_core {env : VEnv} {Us : List Name} (henv : env.WF)
 inductive type the relation `Erases` has one image. -/
 theorem firstorder_erases_deterministic {env : VEnv} {bo : Name → Option Expr} {Us : List Name}
     {fl : SEvalFlags} {I : Name} {us : List VLevel} {args : List VExpr} {v : Expr} {vv : VExpr}
-    {t₁ t₂ : LBTerm} (henv : env.WF) (A : UpstreamAsks env) (P : IndSpineNotProp env)
-    (F : FOFields env Us) (hfo : FirstOrderInd env I) (hwt : TrExprS env Us [] v vv)
+    {t₁ t₂ : LBTerm} (henv : env.WF) (A : UpstreamAsks env)
+    (hfo : FirstOrderInd env I) (hwt : TrExprS env Us [] v vv)
     (hty : env.HasType Us.length [] vv (VExpr.mkApps (.const I us) args))
     (hval : SEval env bo Us fl [] v v) (h₁ : Erases env Us [] v t₁)
     (h₂ : Erases env Us [] v t₂) : t₁ = t₂ :=
-  (firstorder_erases_core henv A P F hval.svalue hfo hwt hty h₂).2 t₁ h₁
+  (firstorder_erases_core henv A hval.svalue hfo hwt hty h₂).2 t₁ h₁
 
 /-- **The erasure of a first-order value holds no box** `[L Def. 6]`. Of the erasure, not of
 its lowered image: box-freedom does not transport along `Lower`, whose `fixConst` arm relates
 a box-free constant to a block whose definitions carry their own boxes. -/
 theorem firstorder_no_box {env : VEnv} {bo : Name → Option Expr} {Us : List Name}
     {fl : SEvalFlags} {I : Name} {us : List VLevel} {args : List VExpr} {v : Expr} {vv : VExpr}
-    {t : LBTerm} (henv : env.WF) (A : UpstreamAsks env) (P : IndSpineNotProp env)
-    (F : FOFields env Us) (hfo : FirstOrderInd env I) (hwt : TrExprS env Us [] v vv)
+    {t : LBTerm} (henv : env.WF) (A : UpstreamAsks env)
+    (hfo : FirstOrderInd env I) (hwt : TrExprS env Us [] v vv)
     (hty : env.HasType Us.length [] vv (VExpr.mkApps (.const I us) args))
     (hval : SEval env bo Us fl [] v v) (h : Erases env Us [] v t) : NoBox t :=
-  (firstorder_erases_core henv A P F hval.svalue hfo hwt hty h).1
+  (firstorder_erases_core henv A hval.svalue hfo hwt hty h).1
 
 /-! ## The predicate is inhabited -/
 

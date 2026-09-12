@@ -191,26 +191,22 @@ def resultSort : Expr → Option Level
   | .sort l => some l
   | _ => none
 
-/-- The result sort of a `VExpr` Π-telescope. -/
-def vResultSort : VExpr → Option VLevel
-  | .forallE _ b => vResultSort b
-  | .sort l => some l
-  | _ => none
-
-/-- Is the tabled inductive informative — does its declared type land in `Sort (u+1)` rather
-than in `Prop`? The successor shape is what survives translation: `VLevel.ofLevel` maps a
-`Level.succ` to a `VLevel.succ`, which is never `VLevel.zero`. -/
+/-- Is the tabled inductive relevant — does its declared result sort never evaluate to
+`Prop`? This is the twin of the relation's `InformativeInd`, so the fragment checker and
+`Erases.proj` accept the same type formers. The stricter successor shape is `succSortB`. -/
 def informativeB (I : ReifiedInduct) : Bool :=
+  match resultSort I.type with
+  | some l => l.isNeverZero
+  | none => false
+
+/-- Does the tabled inductive's declared type land in a syntactic `Sort (u+1)`? Strictly
+stronger than `informativeB` — it rejects `Prod`, whose result sort is a `max` of two
+successors — and read only by the first-order fragment, whose `FirstOrderDecl.informative`
+clause is a declared scope restriction. -/
+def succSortB (I : ReifiedInduct) : Bool :=
   match resultSort I.type with
   | some (.succ _) => true
   | _ => false
-
-/-- The modelled inductive `I` is informative: `env` knows it, and its model type lands in a
-successor sort. This is the fragment boundary N18 draws — an elimination of a non-informative
-inductive into data is stuck on the target, because the erasure marks no inductive
-propositional. -/
-def InformativeInd (env : VEnv) (I : Name) : Prop :=
-  ∃ ci, env.constants I = some ci ∧ ∃ l, vResultSort ci.type = some (.succ l)
 
 /-- `env` can build a peano tower: `Nat` and both of its constructors are modelled. -/
 def PeanoReady (env : VEnv) : Prop :=
@@ -489,30 +485,23 @@ theorem ErasureSpec.contains_of_find (P : ErasureSpec lenv env Us gw) {n : Name}
   let ⟨vc, hvc, _⟩ := P.decl_adequate n ci h hs
   ⟨vc, hvc⟩
 
-/-- The result sort of a `Π`-telescope survives translation: a source telescope landing in a
-successor sort has a model telescope landing in one. `VLevel.ofLevel` maps a `Level.succ` to a
-`VLevel.succ`, which is what carries the informativity check across. -/
+/-- The relevance of a `Π`-telescope's result sort survives translation: `VLevel.ofLevel` is a
+homomorphism, and `Lean4Lean.ofLevel_isNeverZero` carries never-zero-ness across it. -/
 theorem vResultSort_of_trExprS {Δ : VLCtx} {t : Expr} {vt : VExpr} {u : Level}
-    (h : TrExprS env Us Δ t vt) (hr : resultSort t = some (.succ u)) :
-    ∃ l, vResultSort vt = some (.succ l) := by
+    (h : TrExprS env Us Δ t vt) (hr : resultSort t = some u) (hnz : u.isNeverZero = true) :
+    ∃ l, vResultSort vt = some l ∧ l.IsNeverZero := by
   induction h with
   | sort hu =>
     simp only [resultSort, Option.some.injEq] at hr
     subst hr
-    simp only [VLevel.ofLevel] at hu
-    cases hl : VLevel.ofLevel Us u with
-    | none => rw [hl] at hu; exact absurd hu (by simp)
-    | some l =>
-      rw [hl] at hu
-      cases hu
-      exact ⟨l, rfl⟩
+    exact ⟨_, rfl, Lean4Lean.ofLevel_isNeverZero hu hnz⟩
   | forallE _ _ _ _ _ ih => exact ih (by simpa [resultSort] using hr)
   | bvar _ | fvar _ | const _ _ _ | app _ _ _ _ _ _ | lam _ _ _ _ _ | letE _ _ _ _ _ _ _
   | lit _ _ _ | mdata _ _ | proj _ _ _ => simp [resultSort] at hr
 
-/-- A tabled inductive type the checker calls informative is informative in the model: the
-table pins its declared type to `lenv`'s, `ErasureSpec.decl_adequate` translates that type, and
-`vResultSort_of_trExprS` carries the sort across. -/
+/-- A tabled inductive type the checker calls relevant is relevant in the model: the table
+pins its declared type to `lenv`'s, `ErasureSpec.decl_adequate` translates that type, and
+`vResultSort_of_trExprS` carries the never-zero result sort across. -/
 theorem informativeInd_of_tabled (P : ErasureSpec lenv env Us gw)
     (ht : SourceTableAdequate lenv tbl) (hsafe : TableSafe lenv tbl) {J : Name}
     {I : ReifiedInduct} (hind : tbl.ind? J = some I) (hinf : informativeB I = true) :
@@ -524,10 +513,10 @@ theorem informativeInd_of_tabled (P : ErasureSpec lenv env Us gw)
   simp only [informativeB] at hinf
   split at hinf
   · rename_i u hu
-    have hty : resultSort (ConstantInfo.inductInfo iv).type = some (Level.succ u) := by
-      show resultSort iv.type = some (Level.succ u)
+    have hty : resultSort (ConstantInfo.inductInfo iv).type = some u := by
+      show resultSort iv.type = some u
       rw [htype]; exact hu
-    exact vResultSort_of_trExprS htr.2.2 hty
+    exact vResultSort_of_trExprS htr.2.2 hty hinf
   · exact Bool.noConfusion hinf
 
 /-- The model can build a peano tower whenever the table can: `Nat` and its two constructors

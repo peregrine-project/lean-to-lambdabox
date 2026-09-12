@@ -227,4 +227,102 @@ theorem Erasable.app {env : VEnv} (henv : env.WF) {U : Nat} {Γ : List VExpr}
           exact IsArityUpTo.inst henv.ordered (Ctx.InstN.zero) hTa
             ⟨B', ⟨_, hBB'⟩, harB'⟩
 
+/-! ### Relevance of an inductive type former
+
+`Erases.proj` fires only at an inductive whose declared result level is never `Prop`. The
+criterion is **semantic** — the level never evaluates to zero — and not the syntactic
+successor shape, which is false at `Prod`, whose declared type ends in
+`Sort (max (u+1) (v+1))`, and at ten further projection heads of the corpus.
+`VLevel.IsNeverZero` is lean4lean's own predicate, the one its kernel theory reads for large
+elimination (`VInductDecl.LargeElim`).
+-/
+
+/-- The result sort of a `VExpr` Π-telescope. -/
+def vResultSort : VExpr → Option VLevel
+  | .forallE _ b => vResultSort b
+  | .sort l => some l
+  | _ => none
+
+/-- Decides `VLevel.IsNeverZero`: a successor is never zero, a parameter can be instantiated
+by zero, a `max` needs one nonzero side, and an `imax` is nonzero exactly when its right
+argument is. Sound and complete — `neverZeroB_sound`, `neverZeroB_complete`. -/
+def neverZeroB : VLevel → Bool
+  | .zero | .param _ => false
+  | .succ _ => true
+  | .max a b => neverZeroB a || neverZeroB b
+  | .imax _ b => neverZeroB b
+
+/-- Soundness of `neverZeroB`. -/
+theorem neverZeroB_sound : ∀ {l : VLevel}, neverZeroB l = true → l.IsNeverZero
+  | .succ _, _, ls => by simp [VLevel.eval]
+  | .max a b, h, ls => by
+      simp only [neverZeroB, Bool.or_eq_true] at h
+      rcases h with h | h
+      · have := neverZeroB_sound h ls; simp [VLevel.eval]; omega
+      · have := neverZeroB_sound h ls; simp [VLevel.eval]; omega
+  | .imax _ b, h, ls => by
+      have := neverZeroB_sound (l := b) h ls
+      simp [VLevel.eval, Lean.Nat.imax, this]
+
+/-- Completeness of `neverZeroB`: the all-zero instantiation witnesses the failure. -/
+theorem neverZeroB_complete : ∀ {l : VLevel}, neverZeroB l = false → l.eval [] = 0
+  | .zero, _ => rfl
+  | .param _, _ => rfl
+  | .max a b, h => by
+      simp only [neverZeroB, Bool.or_eq_false_iff] at h
+      simp [VLevel.eval, neverZeroB_complete h.1, neverZeroB_complete h.2]
+  | .imax _ b, h => by
+      simp only [neverZeroB] at h
+      simp [VLevel.eval, Lean.Nat.imax, neverZeroB_complete h]
+
+/-- The modelled inductive `I` is **relevant**: `env` knows it, and the result sort of its
+model type never evaluates to `Prop`. This is the fragment boundary N18 draws — an
+elimination of an irrelevant inductive into data is stuck on the target, because the erasure
+marks no inductive propositional. -/
+def InformativeInd (env : VEnv) (I : Name) : Prop :=
+  ∃ ci, env.constants I = some ci ∧ ∃ l, vResultSort ci.type = some l ∧ l.IsNeverZero
+
+/-- Relevance survives environment extension, which is what `Erases.mono`'s `proj` arm
+needs. -/
+theorem InformativeInd.mono {env env' : VEnv} {I : Name} (hle : env ≤ env')
+    (h : InformativeInd env I) : InformativeInd env' I :=
+  let ⟨ci, hci, l, hl, hnz⟩ := h; ⟨ci, hle.constants hci, l, hl, hnz⟩
+
+/-- Every producer of the syntactic successor criterion is a producer of the semantic one,
+so `FirstOrderDecl.informative` keeps its successor clause and still supplies relevance. -/
+theorem informativeInd_of_succ {env : VEnv} {I : Name}
+    (h : ∃ ci, env.constants I = some ci ∧ ∃ l, vResultSort ci.type = some (.succ l)) :
+    InformativeInd env I :=
+  let ⟨ci, hci, l, hl⟩ := h
+  ⟨ci, hci, .succ l, hl, fun ls => by simp [VLevel.eval]⟩
+
+/-! ### The two witnesses that separate the criteria
+
+`Prod`'s declared type is `Sort u → Sort v → Sort (max (u+1) (v+1))` and `VLevel.ofLevel` is
+a homomorphism, so the translated result level is `.max (.succ (.param 0)) (.succ (.param
+1))` — accepted here, rejected by the successor shape. `And`'s is `Prop → Prop → Prop`,
+rejected by both. -/
+
+/-- `Prod`'s translated declared type. -/
+def prodVTy : VExpr :=
+  .forallE (.sort (.succ (.param 0)))
+    (.forallE (.sort (.succ (.param 1)))
+      (.sort (.max (.succ (.param 0)) (.succ (.param 1)))))
+
+/-- `And`'s translated declared type. -/
+def andVTy : VExpr := .forallE (.sort .zero) (.forallE (.sort .zero) (.sort .zero))
+
+/-- A `.max`-headed result sort is relevant: the criterion accepts `Prod`. -/
+theorem informativeInd_prod {env : VEnv} (h : env.constants ``Prod = some ⟨2, prodVTy⟩) :
+    InformativeInd env ``Prod :=
+  ⟨_, h, _, rfl, neverZeroB_sound (l := .max (.succ (.param 0)) (.succ (.param 1))) rfl⟩
+
+/-- A `Prop`-valued structure is irrelevant: the criterion still rejects `And`. -/
+theorem not_informativeInd_and {env : VEnv} (h : env.constants ``And = some ⟨0, andVTy⟩) :
+    ¬ InformativeInd env ``And := by
+  rintro ⟨ci, hci, l, hl, hnz⟩
+  rw [h] at hci; cases hci
+  cases Option.some.inj hl
+  exact hnz [] rfl
+
 end LeanToLambdaBox

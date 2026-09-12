@@ -64,11 +64,11 @@ binders is pinned, because that is all `iota_red` reads.
 | Arm | Relates | Counterpart | Anchor and deviation |
 |---|---|---|---|
 | `fixConst` | `.const kn` to `.fix defs j`, for `kn` the block's *j*-th member, with `¬ RuntimeKey Γ kn` | `fixSubst` | The call site: `visitMutual` registers each member as the whole block's `.fix` node (`LeanToLambdaBox/Erasure.lean:904-918`). `hnk` is the same guard `const` carries and is load-bearing for the *inversion*: `ElimDecl` implies `DefnDecl`, so without it nothing keeps a `.fix` image off an eliminator constant and `Lower.source_const` cannot refute an eliminator head |
-| `fixBody` | the member's specification body to the same `.fix defs j` | `fixSubst` | The value side, and the arm the δ step needs: after the specification environment unfolds `kn`, the source configuration is the plain body while the target is the `.fix`. Its absence is what makes a functional pass, and a one-sided fix relation, false. Its source is constrained **only** by `hj : bs[j]? = some b`, so it is an admissible reading at every source shape; `BlockBodiesLambda` is what excludes it at a non-λ |
+| `fixBody` | the member's specification body to the same `.fix defs j` | `fixSubst` | The value side, and the arm the δ step needs: after the specification environment unfolds `kn`, the source configuration is the plain body while the target is the `.fix`. Its absence is what makes a functional pass, and a one-sided fix relation, false. Its source is constrained **only** by `hj : bs[j]? = some b`, so the arm's own `hfl` is what excludes it at a non-λ source |
 
 Both arms read their premises through `LowerBlock` (the fields are inlined into each arm:
 the kernel rejects the structure as a nested premise; `Lower.fixConst'` and `Lower.fixBody'`
-are the packaged forms). Two fields answer machine-checked refutations:
+are the packaged forms). Three fields answer machine-checked refutations:
 
 * `hrarg : ∀ d ∈ defs, d.principalArgIdx = 0`. Without it the correctness statement is
   false — at `principalArgIdx = 1` the source evaluates to `□` while the target is a stuck
@@ -76,6 +76,16 @@ are the packaged forms). Two fields answer machine-checked refutations:
   (`LeanToLambdaBox/Basic.lean:67`), whose comment "this doesn't matter computationally" is
   false under this `WcbvEval`; `FixUnfoldChain` already carries the same premise
   (`LeanToLambdaBox/FixUnfold.lean:803`).
+* `hfl : ∀ i, i < defs.length → isLambda (defs[i]!).body = true`, the λ-headedness of the
+  **emitted** definitions. It is `LBWfPeregrine.fixLambda`'s clause
+  (`LeanToLambdaBox/Output.lean`) at this block: `visitMutual` erases each member's compiler
+  value and closes it with `mkDef` (`LeanToLambdaBox/Erasure.lean`), and λ□'s own `tFix`
+  well-formedness rejects anything else. The **source** side is not asserted a second time —
+  it is `LowerBlock.lambda_of_fixLambda`, a theorem reading this field. Keyed on the block
+  rather than on the environment, because a condition quantified over every `LowerBlock` over
+  `Γ` is refuted by one declared non-λ body: `LowerCtorBodyFixture.lowerBlock_needs_lambda_bodies`
+  is that one-member block, `Unit.unit`'s `.construct` shape, which every one of the five
+  programs declares. Restriction **N22** in `doc/coverage.md`.
 * a **block-shared** `ids`. Per-member existential names cannot feed
   `closeFix_substList_fixSubst` (`LeanToLambdaBox/FixUnfold.lean:744`), whose freshness
   clause is against every `.fix defs j`, and closedness cannot supply it because
@@ -96,16 +106,16 @@ constructor), and no `DefnDeclFix` premise on `const`.
 
 `ConstToFVar` and `CloseConstAt` are defined in `LeanToLambdaBox/Lower.lean`: `LowerBlock`'s
 `hcl` field mentions `CloseConstAt`, and the two fix arms inline that field, so they precede
-`Lower` itself. `LowerFix.lean` holds the rest of the closure, and repairs one statement of
-`01-DESIGN.md` that is false as written; its fixture theorem is the refutation.
+`Lower` itself, and so are the two `hfl` transports, which the inversion kit there consumes.
+`LowerFix.lean` holds the rest of the closure, and repairs one statement of `01-DESIGN.md`
+that is false as written; its fixture theorem is the refutation.
 
 | Object | What it is | Anchor |
 |---|---|---|
 | `ConstToFVar kns ids` | replaces `.const kns[j]` by `.fvar ids[j]`; a `.fix` node maps to itself — no block member is declared as a `.fix`, and a nested one belongs to another block, whose members are none of `kns` | the λ□-only residue of the retired source-indexed fix-variable rule |
 | `CloseConstAt kns ids t u` | `∃ t', ConstToFVar kns ids t t' ∧ u = closeFix ids 0 t'` | phrased through the existing `closeFix` so `closeFix_substList_fixSubst` applies verbatim and no `Kername`-keyed twin of `FixUnfold`'s theorems is needed |
 | `Lower.constToFix` | a fix unfolding (`WcbvEval.fix_guarded`'s `substList (fixSubst defs)`) puts `.fix defs i` where the lowered body has the sibling `.const knᵢ`; the result is still `Lower`-related to the same body | `fixSubst`; the transport that makes the fix arms usable. **Deviation:** it takes `hfv` — the fixvars do not already occur in `t` — in place of the design's inert `LBClosed t 0`, which `LowerFixFixture.constToFix_needs_freshness` refutes; at the call site `hfv` is `LowerBlock.hfresh` |
-| `LowerBlock.lambda_of_fixLambda` | λ-headedness of the emitted `defs` transported to the specification bodies, **unconditionally**: `lambda` is the only arm with a λ-headed target, so `Lower.source_isLambda` is total | `LowerBlock.targetLambda_of_fixLambda` is the half that never needed a premise. No deviation: the `hη`/`EtaSpine` premise and its counterexample belonged to the two η arms |
-| `Lower.fixUnfold` | a member's unfolded definition is a λ still related to its specification body | what the target does where the source δ-steps into a recursive body |
+| `Lower.fixUnfold` | a member's unfolded definition is a λ still related to its specification body, off `LowerBlock.hfl` and with no premise of its own | what the target does where the source δ-steps into a recursive body. The transport the simulation's β and δ arms actually spend is `Lower.appReady` (`LeanToLambdaBox/ErasesCorrect/Steps.lean`), which takes no premise either; `hfl` is what makes its `fixBody` sub-case a projection |
 | `LowerFix Γ kns bs defs` | `∃ bs' ids, LowerBlock …`, the declaration-level statement for `LowerEnv` | tolerates an unused fix binder: `visitMutual` decides recursiveness by `name_occurs` on the **source** body (`LeanToLambdaBox/Erasure.lean:885`), so erasure can remove the only self-reference and leave the binder unused |
 | `ErasesLBFix` | `∃ t₀ t₁, Erases … t₀ ∧ Lower Γ t₀ t₁ ∧ ConstToFVar kns ids t₁ t` | the block-body motive: inside `visitMutual`'s block branch the eraser rewrites a source `.const` to `.fvar id` (`visitConst`, `LeanToLambdaBox/Erasure.lean:660-664`), a pair no two-factor composite can state |
 
@@ -128,10 +138,9 @@ side of `fixBody` is a declared body, and a block's emitted `.fix` is `closeFix`
 Closedness of the two eliminator shapes needs no premise at all — `ElimBody.closed` proves it
 in `LeanToLambdaBox/ElimBody.lean`, which `Lower.lean` imports.
 
-`BlockBodiesLambda Γ` — every member body of every block the pass builds out of `Γ` is a λ —
-is the second, and it is what the source-side inversion kit spends: `Lower.fixBody`'s source
-is unconstrained, so at every source shape but a λ it is this guard, not syntax, that rules
-the `.fix` image out.
+The source-side inversion kit carries **no** environment-side guard beside it: `Lower.fixBody`'s
+source is unconstrained by syntax, and what rules the `.fix` image out at every source shape but
+a λ is the derivation's own `LowerBlock.hfl`, through `LowerBlock.lambda_of_fixLambda`.
 
 | Theorem | Statement | Used for |
 |---|---|---|
@@ -141,8 +150,11 @@ the `.fix` image out.
 | `Lower.substList_comm` | the same law over a whole substitution list | the ι step's branch application |
 | `Lower.mkApps` | spine congruence from head and arguments | over-application, and the value side of a constructor spine |
 | `Lower.target_box`/`_bvar`/`_fvar`/`_prim`/`_const`/`_construct`/`_fix` | what a target of that shape can come from | inversion at a value; `target_fix` returns the whole `LowerBlock` |
-| `Lower.source_box`/`_bvar`/`_fvar`/`_prim`/`_letIn`/`_proj`/`_construct`/`_case`/`_fix`/`_lambda`/`_const`/`_construct_nil` | what a source of that shape can go to, under `BlockBodiesLambda` where the `fixBody` reading has to be excluded | the simulation's per-node inversion. `source_const` gives **two** images, both under `¬ RuntimeKey Γ kn`, which is what lets an `ElimDecl` at `kn` refute both |
-| `Lower.notFix_of_block`/`.ne_fix_of_block` | only a constant or a λ has a `.fix` image | the guard the whole `source_*` kit runs on |
+| `Lower.source_box`/`_bvar`/`_fvar`/`_prim`/`_letIn`/`_proj`/`_construct`/`_case`/`_fix`/`_lambda`/`_const`/`_construct_nil` | what a source of that shape can go to, with no premise: the `fixBody` reading is excluded from the derivation | the simulation's per-node inversion. `source_const` gives **two** images, both under `¬ RuntimeKey Γ kn`, which is what lets an `ElimDecl` at `kn` refute both |
+| `Lower.notFix_of_block`/`.ne_fix_of_block` | only a constant or a λ has a `.fix` image, premise-free | what the whole `source_*` kit runs on |
+| `isLambda_toBvar`/`isLambda_closeFix`/`ConstToFVar.isLambda_eq` | `toBvar`, `closeFix` and the block rewriting are faithful on the head constructor | the two halves of the `hfl` transport |
+| `Lower.source_isLambda`, `LowerBlock.targetLambda_of_fixLambda`/`.lambda_of_fixLambda` | `hfl` read at the lowered bodies, and at the specification bodies | `lambda` is the only arm with a λ-headed target, so `Lower.source_isLambda` is total and neither transport takes a premise |
+| `ElimDecl.uniq` | two eliminator declarations at one key agree on `(iid, np, dp, nfs)` | `LBTerm.envLookup` is a function and the two `ElimBody` shapes are injective and distinct; the ι arm's under-application bound reads it |
 | `Lower.concat`/`.drop_reverse` | pointwise relation through `++ [x]`, `drop` and `reverse` | the spine bookkeeping of the ι and β steps |
 | `LowerAlt.arity` | `LowerAlt Γ nf m alt → alt.1.length = nf` | the binder count `iota_red` reads |
 | `NoBox` and its family | box-freedom of a λ□ term, with `NoBox_shift` | the capstone's box-free conclusion; `LowerFix.noBox_lower_needs_noFix` shows the naive transport along `Lower` false |

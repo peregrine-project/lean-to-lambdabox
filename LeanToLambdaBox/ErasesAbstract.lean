@@ -65,7 +65,7 @@ theorem erases_shift {env : VEnv} (henv : env.Ordered) {Us : List Name}
   | lam hty _ ihb => exact .lam (hty.weakBV henv W) (ihb (W.cons _))
   | letE hty hval _ _ ihv ihb =>
     exact .letE (hty.weakBV henv W) (hval.weakBV henv W) (ihv W) (ihb (W.cons _))
-  | proj hs hi _ ihd => exact .proj hs hi (ihd W)
+  | proj hs hinf hi _ ihd => exact .proj hs hinf hi (ihd W)
   | mdata _ ih => exact .mdata (ih W)
 
 /-! ## Instantiation of a bvar entry -/
@@ -191,7 +191,7 @@ theorem erases_subst {env : VEnv} (henv : env.Ordered) {Us : List Name}
   | letE hty hval _ _ ihv ihb =>
     exact .letE (TrExprS.instN henv ht₀ t₀ W hty) (TrExprS.instN henv ht₀ t₀ W hval)
       (ihv W) (ihb (W.succ (d := .vlet ..)))
-  | proj hs hi _ ihd => exact .proj hs hi (ihd W)
+  | proj hs hinf hi _ ihd => exact .proj hs hinf hi (ihd W)
   | mdata _ ih => exact .mdata (ih W)
 
 /-! ## Instantiation of a let entry, and transport along a definitionally equal context
@@ -277,10 +277,10 @@ theorem Erases.defeqDFC_wt {env : VEnv} (henv : env.WF) {Us : List Name} :
             (TrExprS.uniq henv hΔ hval htrval₂) hvalT
           exact .letE htrty₂ htrval₂ (ihv hΔ hWF hval)
             (ihb (hΔ.cons nofun (.vlet hdval₂ hdty₂)) hWF' s3')
-  | proj hs hi _ ihd =>
+  | proj hs hinf hi _ ihd =>
       intro Δ₂ hΔ hWF ve htr
       cases htr with
-      | proj s1 _ => exact .proj hs hi (ihd hΔ hWF s1)
+      | proj s1 _ => exact .proj hs hinf hi (ihd hΔ hWF s1)
   | lit hcl _ ih =>
       intro Δ₂ hΔ hWF ve htr
       cases htr with
@@ -408,7 +408,7 @@ theorem erases_subst_let {env : VEnv} (henv : env.Ordered) {Us : List Name}
   | letE hty hval _ _ ihv ihb =>
     exact .letE (TrExprS.instN_let henv ht₀ W hty) (TrExprS.instN_let henv ht₀ W hval)
       (ihv W) (ihb (W.succ (d := .vlet ..)))
-  | proj hs hi _ ihd => exact .proj hs hi (ihd W)
+  | proj hs hinf hi _ ihd => exact .proj hs hinf hi (ihd W)
   | mdata _ ih => exact .mdata (ih W)
 
 /-! ## Closing a free variable -/
@@ -484,7 +484,7 @@ theorem Erases.abstract {env : VEnv} {Us : List Name}
   | lam hty _ ihb => exact .lam (hty.abstract W) (ihb W.succ hc.2)
   | letE hty hval _ _ ihv ihb =>
     exact .letE (hty.abstract W) (hval.abstract W) (ihv W hc.2.1) (ihb W.succ hc.2.2)
-  | proj hs hi _ ihd => exact .proj hs hi (ihd W hc)
+  | proj hs hinf hi _ ihd => exact .proj hs hinf hi (ihd W hc)
   | mdata _ ih => exact .mdata (ih W hc)
 
 /-- If the body opened with a fresh `v₀` erases to `t`, then the un-opened body erases to
@@ -744,7 +744,7 @@ theorem Erases.instL_core {env : VEnv} {Us ps : List Name} {ls : List Level}
     intro hnm
     exact .letE (TrExprS.instL_core Hls eq eqF red hty hnm.1)
       (TrExprS.instL_core Hls eq eqF red hval hnm.2.1) (ihv hnm.2.1) (ihb hnm.2.2)
-  | proj hs hi _ ihd => intro hnm; exact .proj hs hi (ihd hnm)
+  | proj hs hinf hi _ ihd => intro hnm; exact .proj hs hinf hi (ihd hnm)
   | mdata _ ih => intro hnm; exact .mdata (ih hnm)
 
 /-- The user-facing form, at `Expr.instantiateLevelParams`. -/

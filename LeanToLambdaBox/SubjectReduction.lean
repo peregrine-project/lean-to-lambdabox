@@ -221,15 +221,15 @@ theorem SEval.defeq {env : VEnv} (henv : env.WF) {Us : List Name} {Δ : VLCtx}
       exact SEval.defeq_spine_value henv hΔ htr hlen (fun i h => ihargs i h)
   | sort => exact ⟨ve, htr, VEnv.IsDefEqU.refl (htr.wf henv.ordered hΔ)⟩
   | forallE => exact ⟨ve, htr, VEnv.IsDefEqU.refl (htr.wf henv.ordered hΔ)⟩
-  | @iota con I ctor us cus pre prev minors minorsv extra extrav cargs disc r np cidx
-      _ _ _ _ _ _ _ _ _ _ _ _ hdef _ _ _ _ _ ihcont =>
+  | @iota con I ctor us cus pre prev minors minorsv extra extrav cargs disc r np cidx nfs
+      _ _ _ _ _ _ _ _ _ _ _ _ _ _ hdef _ _ _ _ _ ihcont =>
       obtain ⟨v₁, v₂, h₁, h₂, hd⟩ := hdef
       obtain ⟨vve, htrr, hrd⟩ := ihcont h₂
       refine ⟨vve, htrr, ?_⟩
       have huniq : env.IsDefEqU Us.length Δ.toCtx ve v₁ :=
         TrExprS.uniq henv (VLCtx.IsDefEq.refl henv.ordered hΔ) htr h₁
       exact VEnv.IsDefEqU.trans henv hΓ huniq (VEnv.IsDefEqU.trans henv hΓ hd hrd)
-  | @proj S i discr ctor cus cargs np r _ hdiscr hlt hdef _ _ ihcont =>
+  | @proj S ctor i discr cus cargs np nf cidx r _ _ _ hdiscr hlt hdef _ _ ihcont =>
       obtain ⟨v₁, v₂, h₁, h₂, hd⟩ := hdef
       obtain ⟨vve, htrr, hrd⟩ := ihcont h₂
       refine ⟨vve, htrr, ?_⟩

@@ -7,16 +7,22 @@ import LeanToLambdaBox.Supported
 # `ErasesEnv` — the dependency-selective environment erasure
 
 `ErasesEnv env bo Γspec t` relates a source environment to the **specification** λ□
-environment `Γspec` a program `t` is read against: its keys are distinct, every
-declaration it holds is justified by `ErasesDecl`, every kername `t` reaches through
-`Γspec` is present, and every compiler body a reached constant carries erases to the entry
-`Γspec` holds for it. It is `erases_deps` of Sozeau et al.: bottom-up and selective, not a
-pointwise image of the whole source environment.
+environment `Γspec` a program `t` is read against. It is `erases_deps` of Sozeau et al.:
+bottom-up, selective, and stated in `erases_deps`' own direction — every clause reads *the
+source declares X → the target declares X' → X' is the erasure of X*, per kind of
+declaration. There is no clause running the other way, from an entry to a justification:
+the arms of the simulation hold a source declaration and ask what the environment holds
+for it.
 
-`ErasesDecl` has one arm per kind of entry the eraser emits — a definition whose body is
-the compiler's, an inert axiom, an inductive block, and a `casesOn` eliminator. There is no
-constructor arm: a constructor constant is not declared, it is `Erases.ctor`'s node, and the
-one constructor-bodied entry the five programs hold is a *definition*.
+Seven clauses. `keys` is `wf Σ'`'s `fresh_global` half, so a shadowing entry cannot
+retarget `Lower`; `deps` is the dependency closure; `tabled`, `defns`, `axioms`, `blocks`
+and `elims` are the per-kind readings. There is no constructor clause: a constructor
+constant has no entry, and what a constructor value's arity is read off is the **block**,
+which `blocks` gives at the block kername a `.construct` node already reaches.
+
+`IndCovered` is the same content at one type former, and `SpecContent` bundles the five
+`Γspec`-only clauses with the entry's presence in place of the program's reachability —
+which is what makes them fixed for a run and is how the registry supplies them.
 
 `LowerEnv Γspec Γ` relates the specification environment to the emitted one and carries the
 pass layer's own environment well-formedness on `Γspec`, which the `Lower` metatheory the
@@ -27,109 +33,164 @@ namespace LeanToLambdaBox
 
 open Lean Lean4Lean
 
-/-! ## Source-side declaration facts
-
-What `ErasesDecl` reads off the source environment. A `VEnv` stores constants, defeqs and
-ι patterns; a declaration *block* lives in the `VEnv.WF'` declaration list, which is why
-the inductive-shaped facts go through `IndInfo`.
--/
-
-/-- `c` is a `casesOn`-like constant of `I`, declared in `env`, at the λ□ kername `kn`.
-Sparse `casesOn` constants are named after the enclosing function, are mistranslated by the
-eraser and are excluded from the fragment, so they are not here. -/
-def CasesOnOf' (env : VEnv) (I c : Name) (kn : Kername) : Prop :=
-  ∃ ci : VConstant, env.constants c = some ci ∧ isCasesOnName c = true ∧
-    c.getPrefix = I ∧ kn = toKername c
-
-/-- `kn` is the λ□ kername of an eliminator of `I`, the constant left existential. -/
-def CasesOnOf (env : VEnv) (I : Name) (kn : Kername) : Prop :=
-  ∃ c : Name, CasesOnOf' env I c kn
-
-/-! ## `ErasesDecl` -/
-
-/--
-One entry of the specification environment, justified by the source environment.
-
-`bo` is the **compiler** body table, the one `SEval.deltaC` reads, so a `defn` entry and
-the source δ rule unfold the same term. `Us` is existential because the parameter names a
-declaration is erased at are not recoverable from a `VEnv`, which records only their
-number; that number is pinned by `huv`.
--/
-inductive ErasesDecl (env : VEnv) (bo : Name → Option Expr) : Kername → GlobalDecl → Prop
-  /-- A definition erases its compiler body at a level scope of the declared width. -/
-  | defn {c body b₀ Us ci} (hc : env.constants c = some ci) (huv : Us.length = ci.uvars)
-      (hd : bo c = some body) (hb : Erases env Us [] body b₀) :
-      ErasesDecl env bo (toKername c) (.constantDecl ⟨some b₀⟩)
-  /-- An inert constant: declared, with no compiler body. A source derivation cannot step
-      at it, so the body-less entry is faithful. -/
-  | ax {c ci} (h : env.constants c = some ci) (hno : bo c = none) :
-      ErasesDecl env bo (toKername c) (.constantDecl ⟨none⟩)
-  /-- An inductive block, keyed on the block kername `IndInfo` pins. -/
-  | ind {I iid np nfs mib} (h : IndInfo env I iid np nfs) (hm : IndBodyOf iid np nfs mib) :
-      ErasesDecl env bo iid.mutualBlockName (.inductiveDecl mib)
-  /-- A `casesOn` eliminator of an **informative** inductive. An eliminator of a
-      non-informative one has no entry: its emitted `.case` is stuck on every value a run
-      produces, so declaring it would claim a correctness it does not have. `hsh` is the
-      eliminator's source-side segmentation, which makes the emitted node's shape a fact
-      about the source theory rather than an assumption; `hco` is the constant's own
-      reading, the positive fact `Erases.const` takes, and it is what a saturated
-      eliminator spine is refuted as a value by. -/
-  | elim {I c kn iid np dp nfs body} (hi : IndInfo env I iid np nfs)
-      (he : CasesOnOf' env I c kn) (hinf : InformativeInd env I)
-      (hsh : CasesOnShape env c I dp nfs.length) (hco : ConstOrigin env c)
-      (hb : ElimBody iid np dp nfs body) :
-      ErasesDecl env bo kn (.constantDecl ⟨some body⟩)
-
 /-! ## `ErasesEnv` -/
 
 /--
 The specification environment of a program, `erases_deps` of Sozeau et al.
 
-Four clauses, written out rather than elided: the keys are distinct, so a shadowing
-entry cannot retarget a lookup; every declaration the environment answers with is
-justified by `ErasesDecl`; every kername `t` reaches is answered at all; and every
-compiler body a reached constant carries erases to the body the environment holds.
+`bo` is the **compiler** body table, the one `SEval.deltaC` reads, so `defns` and the source
+δ rule unfold the same term.
 -/
 inductive ErasesEnv (env : VEnv) (bo : Name → Option Expr) :
     GlobalDeclarations → LBTerm → Prop
-  /-- The only clause: the four conditions, at one environment and one program. -/
+  /-- The only clause: the seven conditions, at one environment and one program. -/
   | mk {Γspec : GlobalDeclarations} {t : LBTerm}
       (keys : (Γspec.map Prod.fst).Nodup)
-      (decls : ∀ kn d, LBTerm.envLookup Γspec kn = some d → ErasesDecl env bo kn d)
       (deps : ∀ kn, ReachableFrom Γspec t kn → (LBTerm.envLookup Γspec kn).isSome)
-      -- `defns` is the δ arm's own premise, in the δ arm's own direction: `decls` runs
-      -- the other way — entry implies justified — and at a tabled constant does not even
-      -- say which arm justifies the entry, so it cannot supply this
+      (tabled : ∀ c b, bo c = some b → ConstOrigin env c)
       (defns : ∀ c b, bo c = some b → ReachableFrom Γspec t (toKername c) →
         ∃ b₀, LBTerm.envLookup Γspec (toKername c) = some (.constantDecl ⟨some b₀⟩) ∧
-          ∀ Us' ups us, Erases env Us' [] (b.instantiateLevelParams ups us) b₀) :
+          ∀ Us' ups us, Erases env Us' [] (b.instantiateLevelParams ups us) b₀)
+      (axioms : ∀ c, bo c = none → ConstOrigin env c → isCasesOnName c = false →
+        ReachableFrom Γspec t (toKername c) →
+        LBTerm.envLookup Γspec (toKername c) = some (.constantDecl ⟨none⟩))
+      (blocks : ∀ {I : Name} {iid : InductiveId} {np : Nat} {nfs : List Nat},
+        IndInfo env I iid np nfs → ReachableFrom Γspec t iid.mutualBlockName →
+        IndDeclOf env I ∧ ∃ mib,
+          LBTerm.envLookup Γspec iid.mutualBlockName = some (.inductiveDecl mib) ∧
+          IndBodyOf iid np nfs mib)
+      (elims : ∀ {c I : Name} {dp nm : Nat},
+        CasesOnShape env c I dp nm → InformativeInd env I → ConstOrigin env c →
+        ReachableFrom Γspec t (toKername c) →
+        ∃ iid np nfs, ElimDecl Γspec (toKername c) iid np dp nfs ∧
+          IndInfo env I iid np nfs ∧ nfs.length = nm) :
       ErasesEnv env bo Γspec t
 
-/-- The keys of a specification environment are distinct. -/
-theorem ErasesEnv.keys {env : VEnv} {bo : Name → Option Expr} {Γspec : GlobalDeclarations}
-    {t : LBTerm} (h : ErasesEnv env bo Γspec t) : (Γspec.map Prod.fst).Nodup := by
-  cases h with | mk k _ _ _ => exact k
+variable {env : VEnv} {bo : Name → Option Expr} {Γspec : GlobalDeclarations} {t : LBTerm}
 
-/-- Every declaration a specification environment answers with is `ErasesDecl`-justified. -/
-theorem ErasesEnv.decls {env : VEnv} {bo : Name → Option Expr} {Γspec : GlobalDeclarations}
-    {t : LBTerm} (h : ErasesEnv env bo Γspec t) :
-    ∀ kn d, LBTerm.envLookup Γspec kn = some d → ErasesDecl env bo kn d := by
-  cases h with | mk _ d _ _ => exact d
+/-- The keys of a specification environment are distinct. -/
+theorem ErasesEnv.keys (h : ErasesEnv env bo Γspec t) : (Γspec.map Prod.fst).Nodup := by
+  cases h with | mk k _ _ _ _ _ _ => exact k
 
 /-- Every kername the program reaches is declared. -/
-theorem ErasesEnv.deps {env : VEnv} {bo : Name → Option Expr} {Γspec : GlobalDeclarations}
-    {t : LBTerm} (h : ErasesEnv env bo Γspec t) :
+theorem ErasesEnv.deps (h : ErasesEnv env bo Γspec t) :
     ∀ kn, ReachableFrom Γspec t kn → (LBTerm.envLookup Γspec kn).isSome := by
-  cases h with | mk _ _ d _ => exact d
+  cases h with | mk _ d _ _ _ _ _ => exact d
+
+/-- `erases_deps`' `declared_constant Σ kn cb`: a constant the compiler table defines is a
+plain constant of `env`. No reachability trigger — the reading it refutes is at a constant
+the erasure emits no key for, so there is no occurrence to trigger on. -/
+theorem ErasesEnv.tabled (h : ErasesEnv env bo Γspec t) :
+    ∀ c b, bo c = some b → ConstOrigin env c := by
+  cases h with | mk _ _ d _ _ _ _ => exact d
 
 /-- Every compiler body a reached constant carries erases to the entry the environment
-holds for it. -/
-theorem ErasesEnv.defns {env : VEnv} {bo : Name → Option Expr} {Γspec : GlobalDeclarations}
-    {t : LBTerm} (h : ErasesEnv env bo Γspec t) :
+holds for it: the δ arm's own premise, in the δ arm's own direction. -/
+theorem ErasesEnv.defns (h : ErasesEnv env bo Γspec t) :
     ∀ c b, bo c = some b → ReachableFrom Γspec t (toKername c) →
       ∃ b₀, LBTerm.envLookup Γspec (toKername c) = some (.constantDecl ⟨some b₀⟩) ∧
         ∀ Us' ups us, Erases env Us' [] (b.instantiateLevelParams ups us) b₀ := by
-  cases h with | mk _ _ _ d => exact d
+  cases h with | mk _ _ _ d _ _ _ => exact d
+
+/-- A reached key whose constant has no compiler body — and is not an eliminator, whose
+entry is the `ElimBody` — is declared body-less. Without it the environment may hold
+`⟨some junk⟩` where the source cannot step and the target δ-unfolds. -/
+theorem ErasesEnv.axioms (h : ErasesEnv env bo Γspec t) :
+    ∀ c, bo c = none → ConstOrigin env c → isCasesOnName c = false →
+      ReachableFrom Γspec t (toKername c) →
+      LBTerm.envLookup Γspec (toKername c) = some (.constantDecl ⟨none⟩) := by
+  cases h with | mk _ _ _ _ d _ _ => exact d
+
+/-- `erases_deps`' `tConstruct`/`tCase`/`tProj` clause: `declared_inductive Σ` — the
+`IndDeclOf` conjunct, which `IndInfo` does not give, since it exhibits a block below `env` —
+and `declared_inductive Σ'` with the arity and propositionality data the target reads. -/
+theorem ErasesEnv.blocks (h : ErasesEnv env bo Γspec t) {I : Name} {iid : InductiveId}
+    {np : Nat} {nfs : List Nat} (hi : IndInfo env I iid np nfs)
+    (hr : ReachableFrom Γspec t iid.mutualBlockName) :
+    IndDeclOf env I ∧ ∃ mib,
+      LBTerm.envLookup Γspec iid.mutualBlockName = some (.inductiveDecl mib) ∧
+      IndBodyOf iid np nfs mib := by
+  cases h with | mk _ _ _ _ _ d _ => exact d hi hr
+
+/-- The `tCase` clause at the Lean eliminator **constant** the pass consumes: at a reached
+`casesOn` of a relevant inductive the entry is that eliminator's. Relevance is a hypothesis,
+not a conclusion — the registry declares no eliminator of a non-informative inductive, and
+`SEval.iota`'s own `hinf` is what supplies it at the arm. -/
+theorem ErasesEnv.elims (h : ErasesEnv env bo Γspec t) {c I : Name} {dp nm : Nat}
+    (hsh : CasesOnShape env c I dp nm) (hinf : InformativeInd env I)
+    (hco : ConstOrigin env c) (hr : ReachableFrom Γspec t (toKername c)) :
+    ∃ iid np nfs, ElimDecl Γspec (toKername c) iid np dp nfs ∧
+      IndInfo env I iid np nfs ∧ nfs.length = nm := by
+  cases h with | mk _ _ _ _ _ _ d => exact d hsh hinf hco hr
+
+/-! ## Coverage of one inductive, and the `Γspec`-only clauses
+
+A reached key carrying an eliminator's declaration belongs to a `casesOn` constant with no
+compiler body. That is `defns` and `axioms` together — no erasure image is an `ElimBody`,
+and a body-less non-eliminator's entry is `⟨none⟩` — and it is a theorem, not a clause:
+`ErasesEnv.runtimeKey_isCasesOn`, in `ErasesCorrect/Steps.lean`, where `erases_ne_elimBody`
+is in scope.
+-/
+
+/-- `Γspec` covers the inductive `n`: it declares `n`'s block, with the numbers the target
+semantics reads, and — when `n` is informative — its `casesOn` eliminator. These are
+`ErasesEnv`'s two inductive clauses at one name, which is the granularity a registration
+step establishes. -/
+structure IndCovered (env : VEnv) (Γspec : GlobalDeclarations) (n : Name) : Prop where
+  /-- The block declaration, at the block kername `IndInfo` names, together with `n`'s own
+      declaration in `env`. -/
+  block : ∀ iid np nfs, IndInfo env n iid np nfs →
+    IndDeclOf env n ∧ ∃ mib,
+      LBTerm.envLookup Γspec iid.mutualBlockName = some (.inductiveDecl mib) ∧
+      IndBodyOf iid np nfs mib
+  /-- The eliminator of an informative `n` is declared, at the segmentation `n`'s block
+      fixes. `isCasesOnName c` and `c.getPrefix = n` pin one name, so this quantifier ranges
+      over one constant. -/
+  elims : ∀ c dp nm, CasesOnShape env c n dp nm → InformativeInd env n → ConstOrigin env c →
+    ∃ iid np nfs, ElimDecl Γspec (toKername c) iid np dp nfs ∧ IndInfo env n iid np nfs ∧
+      nfs.length = nm
+
+/-- **What a specification environment's entries say about the source.** `ErasesEnv`'s five
+source-facing clauses with the entry's presence in place of the program's reachability,
+which `deps` turns the one into the other. Program-independent, hence fixed for a run and
+maintainable by the registration path. `tabled` is not here: it mentions no `Γspec`. -/
+structure SpecContent (env : VEnv) (bo : Name → Option Expr)
+    (Γspec : GlobalDeclarations) : Prop where
+  /-- The keys are distinct. -/
+  keys : (Γspec.map Prod.fst).Nodup
+  /-- A declared, tabled constant's entry is an erasure of its compiler body. One level
+      scope, which is what a run records; `ErasesEnv.defns` asks for every scope, and
+      `RegInvShape'.defns` is the transport. -/
+  defns : ∀ c b, bo c = some b → (LBTerm.envLookup Γspec (toKername c)).isSome →
+    ∃ b₀ Us, LBTerm.envLookup Γspec (toKername c) = some (.constantDecl ⟨some b₀⟩) ∧
+      Erases env Us [] b b₀
+  /-- A declared, body-less, non-eliminator constant's entry is body-less. -/
+  axioms : ∀ c, bo c = none → ConstOrigin env c → isCasesOnName c = false →
+    (LBTerm.envLookup Γspec (toKername c)).isSome →
+    LBTerm.envLookup Γspec (toKername c) = some (.constantDecl ⟨none⟩)
+  /-- A declared block key belongs to a covered inductive. -/
+  blocks : ∀ (I : Name) (iid : InductiveId) (np : Nat) (nfs : List Nat),
+    IndInfo env I iid np nfs → (LBTerm.envLookup Γspec iid.mutualBlockName).isSome →
+    IndCovered env Γspec I
+  /-- A declared eliminator key belongs to a covered inductive. -/
+  elims : ∀ (c I : Name) (dp nm : Nat), CasesOnShape env c I dp nm →
+    (LBTerm.envLookup Γspec (toKername c)).isSome → IndCovered env Γspec I
+
+/-- **A specification environment's content, read at a program.** The clauses whose trigger
+is the program's reachability get it through `deps`. `hdefns` is a premise because the
+content clause records one level scope and `ErasesEnv.defns` asks for every one; `htab`
+because it mentions no `Γspec` and so is no fact about the environment at all. -/
+theorem SpecContent.erasesEnv (H : SpecContent env bo Γspec) {t : LBTerm}
+    (hdeps : ∀ kn, ReachableFrom Γspec t kn → (LBTerm.envLookup Γspec kn).isSome)
+    (hdefns : ∀ c b, bo c = some b → ReachableFrom Γspec t (toKername c) →
+      ∃ b₀, LBTerm.envLookup Γspec (toKername c) = some (.constantDecl ⟨some b₀⟩) ∧
+        ∀ Us' ups us, Erases env Us' [] (b.instantiateLevelParams ups us) b₀)
+    (htab : ∀ c b, bo c = some b → ConstOrigin env c) :
+    ErasesEnv env bo Γspec t :=
+  .mk H.keys hdeps htab hdefns
+    (fun c hbo hco hnc hr => H.axioms c hbo hco hnc (hdeps _ hr))
+    (fun hi hr => (H.blocks _ _ _ _ hi (hdeps _ hr)).block _ _ _ hi)
+    (fun hsh hinf hco hr => (H.elims _ _ _ _ hsh (hdeps _ hr)).elims _ _ _ hsh hinf hco)
 
 /-! ## Lookup plumbing
 
@@ -159,8 +220,10 @@ def LBWfSpec (Γspec : GlobalDeclarations) : Prop :=
 which is itself well formed for the pass. `defs` relates two bodies of a key both declare;
 `defsTotal` is its totality, without which a definition pruned out of `Γ` satisfies `defs`
 vacuously while the target is stuck at its `.const`; `sub` is the pruning direction.
-`specClosed` and `specBlocks` are what the `Lower` metatheory the simulation consumes needs
-of `Γspec`, and they are clauses here because this is where facts about `Γspec` live. -/
+`specClosed` is what the `Lower` metatheory the simulation consumes needs of `Γspec`, and it
+is a clause here because this is where facts about `Γspec` live. The λ-headedness the
+`Lower.source_*` inversion kit needs is `LowerBlock.hfl`, keyed on the blocks the pass
+builds, so it is no clause of this structure. -/
 structure LowerEnv (Γspec Γ : GlobalDeclarations) : Prop where
   /-- The emitted environment has distinct keys. -/
   keys : (Γ.map Prod.fst).Nodup
@@ -188,15 +251,11 @@ structure LowerEnv (Γspec Γ : GlobalDeclarations) : Prop where
   /-- The specification bodies are closed: `Lower.subst_comm`'s hypothesis, spent at every
       β, ζ and ι step. -/
   specClosed : ClosedBodies Γspec
-  /-- Every member body of every block the pass builds out of `Γspec` is a λ: what the
-      `Lower.source_*` inversion kit takes, and what excludes a `.fix` image of a
-      constructor value. -/
-  specBlocks : BlockBodiesLambda Γspec
 
 /-! ## Non-vacuity of `LowerEnv`
 
-The nine fields are jointly satisfiable on the smallest environment carrying a real
-`Lower` step. The body is a λ, which is what `specBlocks` asks of a block member.
+The eight fields are jointly satisfiable on the smallest environment carrying a real
+`Lower` step.
 -/
 
 /-- One definition with a closed λ-body, kept by the pruning. -/
@@ -240,97 +299,17 @@ theorem lowerEnv_idEnv : LowerEnv idEnv idEnv where
     split at hb
     · cases hb; exact Nat.zero_lt_one
     · simp [LBTerm.envLookup] at hb
-  specBlocks := by
-    intro kns bs bs' ids defs hblock j hj
-    have hd := hblock.hdecl j hj
-    rw [DefnDecl, idEnv, LBTerm.envLookup] at hd
-    split at hd
-    · have hbs : bs[j]! = LBTerm.lambda .anon (.bvar 0) := by simpa using hd.symm
-      rw [hbs]; rfl
-    · simp [LBTerm.envLookup] at hd
-
-/-! ## What `specBlocks` costs
-
-`BlockBodiesLambda` reads *every* declared body as a possible block member, so the clause
-is false of any specification environment holding a definition whose body is not a λ. The
-five programs all hold one — `Unit.unit ↦ .construct PUnit 0`, and every nullary definition
-besides — so no such environment has a `LowerEnv` image. `regInvShape'_ctorBody`
-(`SpecEnv.lean`) exhibits a run state where every other clause is derived and this one fails.
-
-The repair is `BlockBodiesLambda`'s own, in `Lower.lean`: key the quantifier on the blocks
-the pass emits instead of on every `LowerBlock` over `Γ`. What a consumer needs at a `.fix`
-target is `LowerBlock.lambda_of_fixLambda`, whose premise is that the *emitted* definitions
-are λ-bodied — a fact about the `.fix` nodes a run writes, true of `mkDef`'s output, and
-unaffected by a constructor-bodied declaration elsewhere in `Γ`.
--/
-
-/-- The block of the one-entry counterexample environment. -/
-def ctorBodyIid : InductiveId := ⟨rootKername "U", 0⟩
-
-/-- One definition whose body is a nullary constructor node — `Unit.unit`'s shape in every
-one of the five programs' specification environments. -/
-def ctorBodyEnv : GlobalDeclarations :=
-  [(rootKername "u", .constantDecl ⟨some (.construct ctorBodyIid 0 [])⟩)]
-
-/-- That single definition is a one-member block of the pass: every `LowerBlock` field is
-discharged, with the constructor node as the member body. -/
-theorem ctorBodyEnv_block :
-    LowerBlock ctorBodyEnv [rootKername "u"] [.construct ctorBodyIid 0 []]
-      [.construct ctorBodyIid 0 []] [⟨`x⟩]
-      [{ name := .anon, body := closeFix [⟨`x⟩] 0 (.construct ctorBodyIid 0 []),
-         principalArgIdx := 0 }] where
-  hb := rfl
-  hb' := rfl
-  hd := rfl
-  hnd := by simp
-  hids := by simp
-  hilen := rfl
-  hfresh := by
-    intro x hx i hi
-    have : i = 0 := by simp at hi; omega
-    subst this
-    simp [hasFVarArgs]
-  hrarg := by intro d hd; simp at hd; subst hd; rfl
-  hdecl := by
-    intro i hi
-    have : i = 0 := by simp at hi; omega
-    subst this; rfl
-  hlow := by
-    intro i hi
-    have : i = 0 := by simp at hi; omega
-    subst this
-    exact .construct rfl (by intro j hj; simp at hj)
-  hcl := by
-    intro i hi
-    have : i = 0 := by simp at hi; omega
-    subst this
-    exact ⟨.construct ctorBodyIid 0 [], .construct rfl (by intro j hj; simp at hj), rfl⟩
-
-/-- A constructor-bodied definition refutes `BlockBodiesLambda`. -/
-theorem not_blockBodiesLambda_ctorBodyEnv : ¬ BlockBodiesLambda ctorBodyEnv := by
-  intro h
-  have := h _ _ _ _ _ ctorBodyEnv_block 0 (by simp)
-  simp [isLambda] at this
-
-/-- **What the clause excludes.** A specification environment declaring a constructor-bodied
-definition has no `LowerEnv` image at all, for any emitted environment. -/
-theorem lowerEnv_needs_lambda_bodies {Γ : GlobalDeclarations} : ¬ LowerEnv ctorBodyEnv Γ :=
-  fun h => not_blockBodiesLambda_ctorBodyEnv h.specBlocks
 
 /-! ## A four-entry specification environment
 
-The fixture exercises every kind of entry a specification environment holds: an
-inductive block, its constructor constant, its `casesOn` eliminator, a recursive
-definition and a body-less axiom. Source-side facts — `IndInfo`, `CtorOf`, `CasesOnOf`,
-`InformativeInd` and the definition's own `Erases` derivation — are hypotheses;
-everything λ□-side is literal and computed.
+The fixture exercises every kind of entry a specification environment holds: an inductive
+block, its `casesOn` eliminator, a recursive definition and a body-less axiom, with the
+block and the eliminator together, which is what `blocks` and `elims` are read at. Everything
+λ□-side is literal and computed; the source-side readings are `DemoSource`'s hypotheses.
 -/
 
 /-- The fixture's inductive type. -/
 def demoInd : Name := `DemoT
-
-/-- The fixture's single, nullary constructor. -/
-def demoCtor : Name := `DemoT.mk
 
 /-- The fixture's `casesOn` eliminator. -/
 def demoCases : Name := `DemoT.casesOn
@@ -343,7 +322,7 @@ def demoAx : Name := `Demo.opaqueOp
 
 /-- The fixture's λ□ inductive identifier: the block of `demoInd`, first type. The block
 kername is spelled as the literal `indBlockKername [demoInd]` evaluates to, because
-`Name.toString` does not reduce definitionally and reachability through a `.case` node now
+`Name.toString` does not reduce definitionally, and reachability through a `.case` node
 computes with the block kername. -/
 def demoIid : InductiveId := ⟨rootKername "DemoT", 0⟩
 
@@ -366,7 +345,6 @@ def demoBody : LBTerm :=
 /-- The fixture's specification environment. -/
 def demoEnv : GlobalDeclarations :=
   [(demoIid.mutualBlockName, .inductiveDecl demoMib),
-   (toKername demoCtor, .constantDecl ⟨some (.construct demoIid 0 [])⟩),
    (toKername demoCases, .constantDecl ⟨some demoElim⟩),
    (toKername demoDef, .constantDecl ⟨some demoBody⟩),
    (toKername demoAx, .constantDecl ⟨none⟩)]
@@ -374,60 +352,100 @@ def demoEnv : GlobalDeclarations :=
 /-- The fixture's program: the recursive definition itself. -/
 def demoProg : LBTerm := .const (toKername demoDef)
 
-/-- The source-side facts the fixture's entries are justified by. Everything a
-`VEnv` cannot be hand-built to exhibit without a full kernel declaration — the inductive
-block, the constructor the fixture's definition unfolds to, the eliminator constant and the
-definition's own erasure — enters here. -/
+/-- The source-side facts the fixture's entries are read against. Everything a `VEnv`
+cannot be hand-built to exhibit without a full kernel declaration enters here: which
+constants the compiler table defines, the fixture's own block and eliminator, and the
+identification of a kername with the name it belongs to, since `toKername` is not
+injective. -/
 structure DemoSource (env : VEnv) (bo : Name → Option Expr) : Prop where
-  /-- The block of `demoInd`, at no parameters and one nullary constructor. -/
-  ind : IndInfo env demoInd demoIid 0 [0]
-  /-- `demoCtor` is a *definition* whose compiler body is a constructor constant of the
-      block, as `Unit.unit`'s is `PUnit.unit`: the entry is justified by `defn` through
-      `Erases.ctor`, which is why `ErasesDecl` needs no constructor arm. -/
-  ctorDefn : ∃ (ci : VConstant) (Us : List Name) (c : Name) (us : List Level),
-    env.constants demoCtor = some ci ∧ Us.length = ci.uvars ∧
-      bo demoCtor = some (.const c us) ∧ CtorOf env c demoInd 0
-  /-- `demoCases` is `demoInd`'s `casesOn` eliminator. -/
-  cases : CasesOnOf' env demoInd demoCases (toKername demoCases)
-  /-- The block is informative, so the eliminator may be declared. -/
-  informative : InformativeInd env demoInd
-  /-- The eliminator's source-side segmentation: one dropped argument before the major
-      premise, one minor. It is what pins the emitted `.case` node's shape. -/
-  casesShape : CasesOnShape env demoCases demoInd 1 1
-  /-- The eliminator constant is declared as a definition. -/
-  casesOrigin : ConstOrigin env demoCases
-  /-- `demoDef` has a compiler body erasing to `demoBody`. -/
-  defn : ∃ (ci : VConstant) (Us : List Name) (src : Expr),
-    env.constants demoDef = some ci ∧ Us.length = ci.uvars ∧
-      bo demoDef = some src ∧ Erases env Us [] src demoBody
-  /-- `demoDef`'s compiler body erases to the same entry at every level scope and
-      instantiation: `ErasesEnv.defns`, the δ arm's own premise. -/
-  defnStable : ∀ c b, bo c = some b → toKername c = toKername demoDef →
-    ∀ Us' ups us, Erases env Us' [] (b.instantiateLevelParams ups us) demoBody
-  /-- `demoAx` is a constant with no compiler body. -/
-  ax : ∃ ci : VConstant, env.constants demoAx = some ci ∧ bo demoAx = none
+  /-- Every constant the compiler table defines is a plain constant of `env`. -/
+  tabled : ∀ c b, bo c = some b → ConstOrigin env c
   /-- No constant carrying a compiler body is named by the block's, the eliminator's or the
-      axiom's kername. `toKername` is not injective, so this is a fact about kernames. -/
+      axiom's kername. -/
   inert : ∀ c b, bo c = some b → toKername c ≠ toKername demoCases ∧
     toKername c ≠ toKername demoAx ∧ toKername c ≠ demoIid.mutualBlockName
+  /-- A body-less, non-eliminator constant is named by none of the other three keys. -/
+  axKey : ∀ c, bo c = none → ConstOrigin env c → isCasesOnName c = false →
+    toKername c ≠ demoIid.mutualBlockName ∧ toKername c ≠ toKername demoCases ∧
+    toKername c ≠ toKername demoDef
+  /-- `demoDef`'s compiler body erases to the entry the fixture holds. -/
+  defnBody : ∀ c b, bo c = some b → toKername c = toKername demoDef →
+    ∃ Us, Erases env Us [] b demoBody
+  /-- It erases to the same entry at every level scope and instantiation: `ErasesEnv.defns`'
+      own shape, which one scope does not give. -/
+  defnStable : ∀ c b, bo c = some b → toKername c = toKername demoDef →
+    ∀ Us' ups us, Erases env Us' [] (b.instantiateLevelParams ups us) demoBody
+  /-- The block of `demoInd`, at no parameters and one nullary constructor. -/
+  ind : IndInfo env demoInd demoIid 0 [0]
+  /-- `demoInd` is declared by a block of `env`'s own declaration list: upstream ask 2's
+      declaration-level conjunct at the fixture. -/
+  indDecl : IndDeclOf env demoInd
+  /-- Every block reading of `demoInd` is the fixture's own: ask 2's block uniqueness, which
+      `IndCovered.block`'s unconditional quantifier needs. -/
+  indUniq : ∀ iid np nfs, IndInfo env demoInd iid np nfs → iid = demoIid ∧ np = 0 ∧ nfs = [0]
+  /-- The `casesOn` of `demoInd` is `demoCases`, at one dropped argument and one minor. -/
+  elimUniq : ∀ (c : Name) (dp nm : Nat), CasesOnShape env c demoInd dp nm →
+    toKername c = toKername demoCases ∧ dp = 1 ∧ nm = 1
+  /-- A block whose kername the fixture declares is `demoInd`'s. -/
+  blockKeyIs : ∀ (I : Name) (iid : InductiveId) (np : Nat) (nfs : List Nat),
+    IndInfo env I iid np nfs → (LBTerm.envLookup demoEnv iid.mutualBlockName).isSome →
+    I = demoInd
+  /-- An eliminator whose kername the fixture declares is `demoInd`'s. -/
+  elimKeyIs : ∀ (c I : Name) (dp nm : Nat), CasesOnShape env c I dp nm →
+    (LBTerm.envLookup demoEnv (toKername c)).isSome → I = demoInd
 
 /-- The fixture's keys are distinct. -/
 theorem demoEnv_keys : ((demoEnv.map Prod.fst).Nodup) := by decide
 
-/-- Every entry of the fixture is justified, one per `ErasesDecl` arm. -/
-theorem demoEnv_decls {env : VEnv} {bo : Name → Option Expr} (h : DemoSource env bo) :
-    ∀ kn d, LBTerm.envLookup demoEnv kn = some d → ErasesDecl env bo kn d := by
-  obtain ⟨hind, ⟨cic, Usc, cn, us, hcc, huvc, hboc, hctor⟩, hcases, hinf, hsh, hco,
-    ⟨ci, Us, src, hc, huv, hbo, hb⟩, _, ⟨cia, hca, hnoa⟩, _⟩ := h
-  intro kn d hd
+/-- A key the fixture answers is one of its four. -/
+theorem demoEnv_key_cases {kn : Kername} (h : (LBTerm.envLookup demoEnv kn).isSome) :
+    kn = demoIid.mutualBlockName ∨ kn = toKername demoCases ∨ kn = toKername demoDef ∨
+      kn = toKername demoAx := by
+  obtain ⟨d, hd⟩ := Option.isSome_iff_exists.mp h
   have hmem := envLookup_mem hd
   simp only [demoEnv, List.mem_cons, List.not_mem_nil, or_false, Prod.mk.injEq] at hmem
-  rcases hmem with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
-  · exact .ind hind ⟨rfl, _, rfl, rfl, rfl⟩
-  · exact .defn hcc huvc hboc (.ctor hctor hind)
-  · exact .elim hind hcases hinf hsh hco (body := demoElim) .cases
-  · exact .defn hc huv hbo hb
-  · exact .ax hca hnoa
+  rcases hmem with ⟨rfl, -⟩ | ⟨rfl, -⟩ | ⟨rfl, -⟩ | ⟨rfl, -⟩
+  · exact .inl rfl
+  · exact .inr (.inl rfl)
+  · exact .inr (.inr (.inl rfl))
+  · exact .inr (.inr (.inr rfl))
+
+/-- The fixture covers its own inductive: the block entry is `demoMib` and the eliminator
+entry is the `casesOn` body, both at the numbers the source side reads. -/
+theorem demoEnv_indCovered {env : VEnv} {bo : Name → Option Expr} (h : DemoSource env bo) :
+    IndCovered env demoEnv demoInd where
+  block iid np nfs hi := by
+    obtain ⟨rfl, rfl, rfl⟩ := h.indUniq iid np nfs hi
+    exact ⟨h.indDecl, demoMib, rfl, rfl, _, rfl, rfl, rfl⟩
+  elims c dp nm hsh _ _ := by
+    obtain ⟨hkn, rfl, rfl⟩ := h.elimUniq c dp nm hsh
+    refine ⟨demoIid, 0, [0], ?_, h.ind, rfl⟩
+    rw [hkn]
+    exact ⟨⟨demoElim, rfl, .cases⟩, demoMib, rfl, rfl, _, rfl, rfl, rfl⟩
+
+/-- The fixture's entries, in the readings `ErasesEnv` consumes. -/
+theorem demoEnv_specContent {env : VEnv} {bo : Name → Option Expr} (h : DemoSource env bo) :
+    SpecContent env bo demoEnv where
+  keys := demoEnv_keys
+  defns c b hbo hd := by
+    obtain ⟨hnc, hna, hnb⟩ := h.inert c b hbo
+    rcases demoEnv_key_cases hd with hk | hk | hk | hk
+    · exact absurd hk hnb
+    · exact absurd hk hnc
+    · obtain ⟨Us, he⟩ := h.defnBody c b hbo hk
+      exact ⟨demoBody, Us, by rw [hk]; rfl, he⟩
+    · exact absurd hk hna
+  axioms c hbo hco hnc hd := by
+    obtain ⟨hnb, hncas, hndef⟩ := h.axKey c hbo hco hnc
+    rcases demoEnv_key_cases hd with hk | hk | hk | hk
+    · exact absurd hk hnb
+    · exact absurd hk hncas
+    · exact absurd hk hndef
+    · rw [hk]; rfl
+  blocks I iid np nfs hi hd := by
+    rw [h.blockKeyIs I iid np nfs hi hd]; exact demoEnv_indCovered h
+  elims c I dp nm hsh hd := by
+    rw [h.elimKeyIs c I dp nm hsh hd]; exact demoEnv_indCovered h
 
 /-- The fixture's program reaches only declared kernames: the axiom, the block the
 eliminator's `.case` node reads, the eliminator and the definition itself. -/
@@ -443,7 +461,7 @@ theorem demoEnv_deps :
   rcases h with h | h | h | h <;> rw [Kername.eq_of_beq h] <;> decide
 
 /-- Every compiler body the fixture's program reaches erases to the entry the fixture
-holds: only `demoDef`'s kername is both reached and bodied. -/
+holds, at every level scope: only `demoDef`'s kername is both reached and bodied. -/
 theorem demoEnv_defns {env : VEnv} {bo : Name → Option Expr} (h : DemoSource env bo) :
     ∀ c b, bo c = some b → ReachableFrom demoEnv demoProg (toKername c) →
       ∃ b₀, LBTerm.envLookup demoEnv (toKername c) = some (.constantDecl ⟨some b₀⟩) ∧
@@ -467,9 +485,6 @@ theorem demoEnv_defns {env : VEnv} {bo : Name → Option Expr} (h : DemoSource e
 /-- The fixture is a specification environment for its own program. -/
 theorem demoEnv_erasesEnv {env : VEnv} {bo : Name → Option Expr} (h : DemoSource env bo) :
     ErasesEnv env bo demoEnv demoProg :=
-  .mk demoEnv_keys (demoEnv_decls h) demoEnv_deps (demoEnv_defns h)
-
-example {env : VEnv} {bo : Name → Option Expr} (h : DemoSource env bo) :
-    ErasesEnv env bo demoEnv demoProg := demoEnv_erasesEnv h
+  (demoEnv_specContent h).erasesEnv demoEnv_deps (demoEnv_defns h) h.tabled
 
 end LeanToLambdaBox

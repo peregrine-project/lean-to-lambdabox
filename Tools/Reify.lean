@@ -9,8 +9,10 @@ comparison `LeanToLambdaBox.Witness.SourceTable.check` performs, run outside the
 Nothing is regenerated and diffed: the table under test is the committed one, and it is held
 against `Lean.Environment.find?` and a fresh `Erasure.prepare_erasure` run on the value the code
 generator reads for the constant (`LeanToLambdaBox.Witness.compilerValue?`, the `_unsafe_rec`
-companion's body where the elaborator emitted one) — the column `reify%` fills. Exit `0` when
-every table matches, `1` on any mismatch or error.
+companion's body where the elaborator emitted one) — the column `reify%` fills. Bodies are
+compared up to binder names, the relation `LeanToLambdaBox.Witness.ReifiedDecl.Prepared` pins
+them up to; such a match is a pass with a `TableNote.declBodyAlpha` note. Exit `0` when every
+table matches, `1` on any mismatch or error.
 
 The negative half of the self-test is
 `LeanToLambdaBox.Witness.SelfTest.staleTable`, a deliberately wrong table the tool must reject.
@@ -26,13 +28,20 @@ def usage : String :=
    NAME is the fully qualified name of a `SourceTable` constant in MOD.\n\
    Exit 0 if every table matches the environment, 1 otherwise."
 
-/-- Compare one named table against `env`, printing every mismatch. Returns whether it matched. -/
+/-- Compare one named table against `env`, printing every mismatch and every note. A body that
+matches only up to binder names is a note, not a mismatch, and the summary counts those and the
+`Expr.alphaEqB`/`Lean.Expr.eqv` disagreements separately. Returns whether it matched. -/
 def checkTable (env : Environment) (tbl : SourceTable) (name : Name) : IO Bool := do
   let ctx : Core.Context := { fileName := "<reify>", fileMap := default, maxHeartbeats := 0 }
-  let (ms, _) ← (tbl.check).toIO ctx { env }
+  let ((ms, ns), _) ← (tbl.check).toIO ctx { env }
   for m in ms do IO.println s!"  {m.describe}"
+  for n in ns do IO.println s!"  note: {n.describe}"
+  let alpha := ns.filter (fun n => match n with | .declBodyAlpha _ => true) |>.size
+  let disagree := ms.filter (fun m => match m with | .alphaDisagreement _ => true | _ => false)
+    |>.size
   IO.println s!"{if ms.isEmpty then "PASS" else "FAIL"} {name} \
-    ({tbl.decls.length} decls, {tbl.inds.length} inds, {ms.size} mismatches)"
+    ({tbl.decls.length} decls, {tbl.inds.length} inds, {ms.size} mismatches, \
+    {alpha} up to binder names, {disagree} alphaEqB/eqv disagreements)"
   return ms.isEmpty
 
 /-- Import `mod` and check each named table against its environment. -/

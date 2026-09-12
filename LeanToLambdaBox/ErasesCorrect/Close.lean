@@ -11,67 +11,35 @@ three arm files. A separate module rather than an edit to `ErasesCorrect.lean`, 
 arms import that aggregator's own dependencies and Lean rejects the cycle the other
 arrangement needs.
 
-The theorem stands with its seven binders and the eighth, `UpstreamAsks env`, **plus one
-named premise**, `StepPremises`. Its six fields are not a design choice: each is a fact the
-specification relations state in the wrong direction, or a datum a source rule leaves free,
-and each was reported with its own repair by the unit that hit it —
-
-* `fwd`, `elims` — `ErasesEnv.decls` reads *entry ⇒ justified*, and the `ctorVal`, `beta`
-  and ι arms need *justified ⇒ entry* at a block and at an eliminator key;
-* `indSpine` — upstream ask 6 refutes `Erasable`'s type-former disjunct only, and the proof
-  disjunct at an informative inductive spine is a second kernel fact;
-* `elimTyping` — `CasesOnShape` constrains a name and a block, not the eliminator's type,
-  so the major premise's typing and the constructor value's saturation come from outside;
-* `proj` — `Erases.proj` carries no relevance side condition and `SEval.proj` classifies
-  neither the head of the discriminant's value nor its parameter count;
-* `tabled` — nothing in `SEval.deltaC` excludes a tabled constant that is a constructor.
-
-Each retires by a repair in the file that owns the relation, not by a proof here; until then
-the bundle is what the arms honestly need, gathered under one name so that
-`erases_correct`'s statement stays §5's.
+The theorem's premises are MetaRocq's five — `env.WF`, the source term's typing, the source
+evaluation, `Erases`, and `ErasesEnv` for `erases_deps` — plus `LowerEnv`, which carries the
+pass layer MetaRocq has no analogue of, plus `UpstreamAsks env`, the lean4lean facts the pin
+does not yet prove. `Erases` and `Lower` are two binders here because the statement names the
+middle term, so the count is eight binders and seven premises. Nothing is added: each arm
+reads what it needs off `ErasesEnv`'s seven clauses, off the source rule's own fields, and
+off `UpstreamAsks`.
 -/
 
 namespace LeanToLambdaBox
 
 open Lean Lean4Lean
 
-/-- The premises the three arms take beyond `erases_correct`'s own binders. -/
-structure StepPremises (env : VEnv) (bo : Name → Option Expr) (Us : List Name)
-    (fl : SEvalFlags) (Γspec : GlobalDeclarations) : Prop where
-  /-- The forward readings of the specification environment at a block and at an
-      eliminator spine (`ErasesCorrect/Steps.lean`). -/
-  fwd : ErasesEnvFwd env bo Us fl Γspec
-  /-- A spine headed by an informative inductive type former is not a proposition. -/
-  indSpine : IndSpineNotProp env
-  /-- A reached `casesOn` constant's kername is a runtime key carrying that eliminator's
-      declaration. -/
-  elims : SpecElims env Γspec
-  /-- The source-theory typing of an eliminator spine and of a constructor value. -/
-  elimTyping : ElimTyping env Us
-  /-- What `Erases.proj` and `SEval.proj` leave open at a projection. -/
-  proj : ProjSpec env Us Γspec
-  /-- No tabled constant is a constructor. -/
-  tabled : TabledNotCtor env bo
-
 /-- **T5.** The simulation, closed: source evaluation is reproduced by the emitted program,
 on the composite of erasure with the pass, at the emitted environment. -/
 theorem erases_correct {env : VEnv} {bo : Name → Option Expr} {Us : List Name}
-    {fl : SEvalFlags} {Γspec Γ : GlobalDeclarations} (H : StepPremises env bo Us fl Γspec) :
+    {fl : SEvalFlags} {Γspec Γ : GlobalDeclarations} :
     ErasesCorrectStmt env bo Us fl Γspec Γ :=
-  erases_correct_of_steps H.fwd
-    (step_iota_of_elimSpec H.indSpine H.elims H.elimTyping)
-    (step_proj_of_projSpec H.indSpine H.fwd H.proj)
-    (step_delta H.tabled)
+  erases_correct_of_steps step_iota step_proj step_delta
 
 /-- **T5, folded.** The same simulation read through `ErasesLB`, with the environment
 premise taken at whichever middle term the composite exhibits. -/
 theorem erases_correct_lb {env : VEnv} {bo : Name → Option Expr} {Us : List Name}
-    {fl : SEvalFlags} {Γspec Γ : GlobalDeclarations} (H : StepPremises env bo Us fl Γspec) :
+    {fl : SEvalFlags} {Γspec Γ : GlobalDeclarations} :
     ErasesCorrectLBStmt env bo Us fl Γspec Γ := by
   intro e v ve t henv hwt hev hlb hspec henvL A
   obtain ⟨t₀, her, hlow⟩ := hlb
   obtain ⟨v₀, v', herv, hlowv, hevt⟩ :=
-    erases_correct H henv hwt hev her hlow (hspec t₀ her hlow) henvL A
+    erases_correct henv hwt hev her hlow (hspec t₀ her hlow) henvL A
   exact ⟨v', ⟨v₀, herv, hlowv⟩, hevt⟩
 
 /-- **The capstone's `simulate` field, from T5.** `ErasureBridge.simulate` quantifies over

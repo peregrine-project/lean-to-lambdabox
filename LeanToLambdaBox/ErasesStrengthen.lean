@@ -141,7 +141,7 @@ theorem Erases.thin_vlet {env : VEnv} {Us : List Name}
   | letE hty hval _ _ ihv ihb =>
     exact .letE (TrExprS.thin_vlet W hty sc.1) (TrExprS.thin_vlet W hval sc.2.1)
       (ihv W sc.2.1) (ihb W.succ sc.2.2)
-  | proj hs hi _ ihd => exact .proj hs hi (ihd W sc)
+  | proj hs hinf hi _ ihd => exact .proj hs hinf hi (ihd W sc)
   | mdata _ ih => exact .mdata (ih W sc)
 
 /-- Let-value thinning at depth zero: a let-value erased under the freshly opened binder
@@ -290,7 +290,7 @@ theorem erases_weakFV {env : VEnv} (henv : env.Ordered) {Us : List Name}
   | letE hty hval _ _ ihv ihb =>
     exact .letE (TrExprS.weakFV_fvwf henv W hΔ' hty) (TrExprS.weakFV_fvwf henv W hΔ' hval)
       (ihv W hΔ') (ihb (W.cons_bvar _) ⟨hΔ', nofun⟩)
-  | proj hs hi _ ihd => exact .proj hs hi (ihd W hΔ')
+  | proj hs hinf hi _ ihd => exact .proj hs hinf hi (ihd W hΔ')
   | mdata _ ih => exact .mdata (ih W hΔ')
 
 /-! ## Unrestricted weakening for closed, fvar-free terms -/
@@ -393,7 +393,7 @@ theorem erases_weakFV_nofvars {env : VEnv} (henv : env.Ordered) {Us : List Name}
     exact .letE (TrExprS.weakFV_nofvars henv W hty hfvf.1)
       (TrExprS.weakFV_nofvars henv W hval hfvf.2.1) (ihv W hfvf.2.1)
       (ihb (W.cons_bvar _) hfvf.2.2)
-  | proj hs hi _ ihd => exact .proj hs hi (ihd W hfvf)
+  | proj hs hinf hi _ ihd => exact .proj hs hinf hi (ihd W hfvf)
   | mdata _ ih => exact .mdata (ih W hfvf)
 
 /--
