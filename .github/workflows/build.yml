@@ -38,11 +38,17 @@ jobs:
       - name: Trust ledger
         run: bash scripts/ledger.sh
 
+      - name: erases_correct premise list
+        run: bash scripts/erases_correct.sh
+
+      - name: ErasesLB introduction interface
+        run: bash scripts/erasesLB.sh
+
       - name: lean4lean sorry inventory
         run: bash scripts/lean4lean-sorries.sh
 
       - name: Green ladder self-test
-        run: lake exe green-check --self-test
+        run: lake exe green-check --self-test && lake exe green-check --all
 
       - name: Reified table drift
         run: |
@@ -60,5 +66,4 @@ jobs:
           lake exe hygiene --schedule
 
       - name: Comment hygiene
-        continue-on-error: true
-        run: bash scripts/hygiene.sh
+        run: bash scripts/hygiene.sh --allow test/hygiene.allow
