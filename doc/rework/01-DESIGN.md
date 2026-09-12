@@ -741,7 +741,11 @@ successor shape survives only where it is a declared scope restriction, in `Firs
 (§4.12):
 
 ```lean
-def VLevel.IsNeverZero (l : VLevel) : Prop := ∀ ls, l.eval ls ≠ 0
+-- `VLevel.IsNeverZero` is NOT declared here: `Lean4Lean.VLevel.IsNeverZero (l) := ∀ ls,
+-- l.eval ls ≠ 0` already exists at the pin (`Theory/VLevel.lean:109`) with exactly this body,
+-- and it is the kernel theory's own relevance notion (`VInductDecl.LargeElim`). Landing a
+-- second definition would duplicate an upstream name (rule 5); every statement below reads
+-- `l.IsNeverZero` under `open Lean4Lean` and resolves to the upstream one.
 def neverZeroB : VLevel → Bool                 -- sound AND complete for `IsNeverZero`
   | .zero | .param _ => false | .succ _ => true
   | .max a b => neverZeroB a || neverZeroB b   | .imax _ b => neverZeroB b
@@ -751,6 +755,9 @@ theorem InformativeInd.mono (hle : env ≤ env') (h : InformativeInd env I) : In
 theorem informativeInd_of_succ                 -- every producer of the old shape produces this
     (h : ∃ ci, env.constants I = some ci ∧ ∃ l, vResultSort ci.type = some (.succ l)) :
     InformativeInd env I
+-- Two witnesses separate the criteria: `informativeInd_prod` (the `.max`-headed result sort
+-- of `Prod`'s declared type is accepted) and `not_informativeInd_and` (`And`'s `Prop`-valued
+-- one is still rejected), both in `Erasability.lean`.
 ```
 
 There is no `SubsingletonElim` clause and no `sing` disjunct here (Q2, N18, F-PROP): see §4.6.
@@ -769,11 +776,25 @@ theorem Erases.forallE_erasable (henv : env.WF) {n : Name} {A B : Expr} {bi : Bi
     {ve : VExpr} (hΔ : VLCtx.WF env Us.length Δ)
     (h : TrExprS env Us Δ (.forallE n A B bi) ve) : Erasable env Us.length Δ.toCtx ve
 
-/-- Block data for every projection head: free everywhere but `.proj`, where it is `IndInfo`.
-`Literal.toConstructor` is projection-free, so `lit` needs no clause of its own
+/-- Block data for every projection head: free everywhere but `.proj`, where it carries the
+same two facts `Erases.proj` needs — the block's arity and the type former's relevance
+(`hinf`), since a total reading of `.proj` must supply exactly what the rule consumes. `lit`
+needs no clause of its own, `Literal.toConstructor` being projection-free
 (`ProjInfo.toConstructor`). -/
 inductive ProjInfo (env : VEnv) : Expr → Prop
+  | proj {S i e} (hs : ∃ iid np nf, IndInfo env S iid np [nf] ∧ i < nf)
+      (hinf : InformativeInd env S) (h : ProjInfo env e) : ProjInfo env (.proj S i e)
+  -- and one congruence arm per other `Expr` former (`bvar`, `fvar`, `sort`, `const`, `lit`,
+  -- `forallE`, `app`, `lam`, `letE`, `mdata`).
 theorem ProjInfo.toConstructor {env : VEnv} (l : Literal) : ProjInfo env l.toConstructor
+
+/-- **The refutation that forces `hinf`.** At `eraseFlags`, `.proj p .box` has no value: `proj`
+wants a construct spine and `.box` evaluates only to itself; `proj_block` and `proj_prop` both
+need a flag `eraseFlags` sets `false`. This is what makes a projection out of a `Prop`
+structure — where the discriminant's image may be `.box` — a case `Erases.proj` must exclude
+rather than merely leave unproved. -/
+theorem erases_proj_needs_informative (Γ : GlobalDeclarations) (p : ProjectionInfo) :
+    ¬ ∃ v, WcbvEval Γ eraseFlags (.proj p .box) v
 
 /-- The largest true fragment of totality. Unconditional totality is not provable: at the `proj`
 case, inverting `TrExprS.proj` yields a `TrProj` witness, not an `IndInfo`, and closing that gap
@@ -1191,8 +1212,8 @@ structure LowerBlock (Σ) (kns : List Kername) (bs bs' : List LBTerm) (ids : Lis
   -- non-λ body; here the derivation carries it and the inversion kit takes no premise at all.
   -- The λ-headedness of the EMITTED definitions — `LBWfPeregrine.fixLambda`'s clause
   -- (`Output.lean:218`) at this block, so one assertion has one home. The source side is not
-  -- asserted a second time: it is `LowerBlock.lambda_of_fixLambda` (`LowerFix.lean:821`), which
-  -- now reads this field instead of taking it as an argument (`05-REPAIRS-W3.md` §5, §16 F5).
+  -- asserted a second time: it is `LowerBlock.lambda_of_fixLambda` (`Lower.lean`), which now
+  -- reads this field instead of taking it as an argument (`05-REPAIRS-W3.md` §5, §16 F5).
   hfl   : ∀ i, i < defs.length → isLambda (defs[i]!).body = true
 theorem Lower.fixConst' (h : LowerBlock Σ kns bs bs' ids defs) (hnk : ¬ RuntimeKey Σ kn)
     (hj : kns[j]? = some kn) :
@@ -1209,7 +1230,13 @@ The inductive, both wrappers and the δ-obligation example are probe-checked
 
 `ConstToFVar` and `CloseConstAt` are declared in `Lower.lean`, not here: `LowerBlock.hcl` (§4.4)
 needs them, so they sit beside `LowerBlock`; `LowerFix.lean` imports and uses them rather than
-redeclaring them (rule N1).
+redeclaring them (rule N1). Six further declarations moved from this file into `Lower.lean` in
+W3R, forced by the same deletion: with `BlockBodiesLambda` gone, `Lower.notFix_of_block` can
+only exclude the `fixBody` reading through `LowerBlock.lambda_of_fixLambda`, which sat in this
+downstream module — `isLambda_toBvar`, `isLambda_closeFix`, `ConstToFVar.isLambda_eq`,
+`LowerBlock.targetLambda_of_fixLambda`, `Lower.source_isLambda` and
+`LowerBlock.lambda_of_fixLambda` are now all in `Lower.lean`, statements unchanged apart from
+the dropped `hfl` argument on the two transports (`05-REPAIRS-W3.md` §5).
 
 ```lean
 /-- Replace `.const kns[j]` by `.fvar ids[j]`: the λ□-only residue of today's `Erases.fixvar`,
@@ -1480,10 +1507,34 @@ inductive ErasesEnv (env : VEnv) (bo : Name → Option Expr) : GlobalDeclaration
 There is **no `elimsOnly` clause.** W3R proposed one — "a reached key carrying an eliminator's
 declaration belongs to that eliminator" — and it is false at a constructible Γ, because
 `RuntimeKey` tests the entry's body shape and never the key's name (§2.5; kernel-checked at
-`scratchpad/refute3/elimsOnly.lean`). Its content is a theorem of `defns` and `axioms`: no
-erasure image is an `ElimBody` (`erases_ne_elimBody`) and a body-less non-eliminator's entry is
-`⟨none⟩`, so the constant behind such a key is a `casesOn` name
-(`scratchpad/refute3/s1_answer.lean`, `sorryAx`-free).
+`scratchpad/refute3/elimsOnly.lean`). Its content is a theorem of `defns` and `axioms`, in
+`ErasesCorrect/Steps.lean` where `erases_ne_elimBody` is in scope: no erasure image is an
+`ElimBody` and a body-less non-eliminator's entry is `⟨none⟩`, so the constant behind such a
+key is a `casesOn` name with no compiler body (`scratchpad/refute3/s1_answer.lean`,
+`sorryAx`-free):
+
+```lean
+theorem ErasesEnv.runtimeKey_isCasesOn (h : ErasesEnv env bo Σ⁺ t) (hco : ConstOrigin env c)
+    (hr : ReachableFrom Σ⁺ t (toKername c)) (hrk : RuntimeKey Σ⁺ (toKername c)) :
+    isCasesOnName c = true ∧ bo c = none
+```
+
+**The closure kit**, five theorems restating `ErasesEnv`'s seven-clause `.mk` at a related
+subject: `ErasesEnv.subterm` (a subterm of a reached program is reached), `.ofReach` (a term
+whose every reachable kername the original also reaches), `.box`, `.substPair` and `.mkApps`.
+Five of the seven clauses take the reachability transport — `deps`, `defns`, `axioms`, `blocks`,
+`elims` — `keys` and `tabled` are carried unchanged. These are what a β/ζ step's induction
+hypothesis needs (`ErasesEnv.substPair` is what spends `[S §7.4]`'s accumulator, §5), and they
+live in `ErasesCorrect/Steps.lean` beside `runtimeKey_isCasesOn`, for the same reason.
+
+**`ErasesEnv.ctorArity`**, the arm-facing corollary that reads a block's per-constructor field
+count off the emitted environment through `LowerEnv.inds`:
+
+```lean
+theorem ErasesEnv.ctorArity (hspec : ErasesEnv env bo Σ⁺ t) (henvL : LowerEnv Σ⁺ Σ)
+    {I iid np k nfs} (hi : IndInfo env I iid np nfs) (hr : ReachableFrom Σ⁺ t iid.mutualBlockName)
+    (hk : k < nfs.length) : constructorArity Σ iid k = some (np + nfs[k]!)
+```
 
 `ErasesDecl.ctor` is **deleted** (A22). The one constructor-bodied declaration in the five
 programs is `Unit.unit ↦ tConstruct PUnit 0` (1 per file), and `Unit.unit` is a Lean *definition*:
@@ -1491,6 +1542,49 @@ programs is `Unit.unit ↦ tConstruct PUnit 0` (1 per file), and `Unit.unit` is 
 while `defn` justifies it through the new `Erases.ctor` rule. The only path that would emit a
 genuine constructor declaration is `visitConstructor`'s `isExtern ∧ extern == .preferAxiom` branch
 (`Erasure.lean:739`), which is out of fragment and named in `doc/coverage.md`.
+
+**`IndCovered` and `SpecContent`.** Two bundles, landed by U3R.4, sit between `ErasesEnv` and
+`SpecEnv`. `IndCovered env Σ⁺ n` is `ErasesEnv`'s two inductive clauses (`blocks`, `elims`) read
+at one type former; `SpecContent env bo Σ⁺` is the five `Σ⁺`-only clauses with the entry's
+*presence* in place of the program's reachability, which `SpecContent.erasesEnv` turns into
+`ErasesEnv` once `deps` supplies the presence facts:
+
+```lean
+structure IndCovered (env : VEnv) (Σ⁺ : GlobalDeclarations) (n : Name) : Prop where
+  block : ∀ iid np nfs, IndInfo env n iid np nfs →
+    IndDeclOf env n ∧ ∃ mib, envLookup Σ⁺ iid.mutualBlockName = some (.inductiveDecl mib) ∧
+      IndBodyOf iid np nfs mib
+  elims : ∀ c dp nm, CasesOnShape env c n dp nm → InformativeInd env n → ConstOrigin env c →
+    ∃ iid np nfs, ElimDecl Σ⁺ (toKername c) iid np dp nfs ∧ IndInfo env n iid np nfs ∧
+      nfs.length = nm
+
+structure SpecContent (env : VEnv) (bo : Name → Option Expr) (Σ⁺ : GlobalDeclarations) : Prop
+    where
+  keys   : (Σ⁺.map Prod.fst).Nodup
+  defns  : ∀ c b, bo c = some b → (envLookup Σ⁺ (toKername c)).isSome →
+    ∃ b₀ Us, envLookup Σ⁺ (toKername c) = some (.constantDecl ⟨some b₀⟩) ∧ Erases env Us [] b b₀
+  axioms : ∀ c, bo c = none → ConstOrigin env c → isCasesOnName c = false →
+    (envLookup Σ⁺ (toKername c)).isSome → envLookup Σ⁺ (toKername c) = some (.constantDecl ⟨none⟩)
+  blocks : ∀ I iid np nfs, IndInfo env I iid np nfs →
+    (envLookup Σ⁺ iid.mutualBlockName).isSome → IndCovered env Σ⁺ I
+  elims  : ∀ c I dp nm, CasesOnShape env c I dp nm →
+    (envLookup Σ⁺ (toKername c)).isSome → IndCovered env Σ⁺ I
+
+theorem SpecContent.erasesEnv (H : SpecContent env bo Σ⁺) {t : LBTerm}
+    (hdeps : ∀ kn, ReachableFrom Σ⁺ t kn → (envLookup Σ⁺ kn).isSome)
+    (hdefns : ∀ c b, bo c = some b → ReachableFrom Σ⁺ t (toKername c) →
+      ∃ b₀, envLookup Σ⁺ (toKername c) = some (.constantDecl ⟨some b₀⟩) ∧
+            ∀ Us' ups us, Erases env Us' [] (b.instantiateLevelParams ups us) b₀)
+    (htab : ∀ c b, bo c = some b → ConstOrigin env c) :
+    ErasesEnv env bo Σ⁺ t
+```
+
+`defns` here records one level scope (what a run itself erases at), not `ErasesEnv.defns`'s
+every scope — `RegInvShape'.defns` (below) is the transport, from `hlp : … → NoMaxLevels b`;
+`tabled`'s content mentions no `Σ⁺`, so it is not a clause of `SpecContent` either, and stays a
+premise. `defns`/`axioms`/`blocks`/`elims` are keyed on the entry's presence rather than on
+`t`'s reachability, so they are fixed for a run and maintainable by the registration path,
+independent of which program is later erased against them.
 
 The emitted environment is the lowered, pruned image — class **A**. `EnvAgree` and its five
 lemmas, the planned `WcbvEval.congr_env`/`LowerEnv.congr_env`, and `PrunedFor` are **deleted**: no
@@ -1533,45 +1627,62 @@ structure LowerEnv (Σ⁺ Σ : GlobalDeclarations) : Prop where
 ```
 
 **Environment threading.** The bridge's motives quantify `Σ⁺` *universally* under an antitone
-premise, so sibling sub-runs never merge environments. `SpecEnv`'s three state-facing fields
+premise, so sibling sub-runs never merge environments. `SpecEnv`'s two state-facing fields
 quantify the registry entry's witness *existentially*: `StateLe` gives only domain growth
 (`(s.constants.get? n).isSome → (s'.constants.get? n).isSome`), never equality of a stored value,
 so a field phrased on the stored value would make `.mono` false as stated.
 
+`SpecEnv` is **re-keyed to `SpecContent`** in W3R (§2.5 finding W2b-F3, resolved past its
+original repair): its own `tabled`/`elims` fields are gone, replaced by one field `spec :
+SpecContent env bo Σ⁺` plus the two registry-coverage fields. This is forced, not stylistic —
+`ErasesEnv.blocks`/`.elims` are triggered by *reachability*, which `deps` turns into "the key is
+declared", and a registration-keyed clause cannot supply that: `indBlockKername` is not
+injective, so `RegSaturated.inds` yields *some* registered name with a given block kername, not
+the `I` a caller holds. `IndCovered` is the one home of the content the registry-scoped clause
+(`inds`) and the two declaredness-keyed ones (`SpecContent.blocks`/`.elims`) all conclude, so
+nothing is stated twice:
+
 ```lean
-/-- `Σ⁺` is a specification environment for the run state `s`: every constant `s` registered has
-its entry in `Σ⁺`, and every inductive `s` registered contributes its block and eliminator
-declarations, in the forward readings `ErasesEnv` consumes (§4.8 above).
-Antitone in the state (`.mono`), which is what makes it compose. -/
+/-- `Σ⁺` is a specification environment for the run state `s`: `spec` is what `ErasesEnv`
+reads, and `consts`/`inds` are the coverage the state demands. `keys` is `spec.keys`, so it is
+not a field of its own. Antitone in the state (`.mono`), which is what makes it compose. -/
 structure SpecEnv (env : VEnv) (bo : Name → Option Expr) (s : ErasureState)
     (Σ⁺ : GlobalDeclarations) : Prop where
-  keys  : (Σ⁺.map Prod.fst).Nodup
-  tabled : ∀ c b, bo c = some b → ConstOrigin env c
+  spec   : SpecContent env bo Σ⁺
   consts : ∀ n : Name, (s.constants.get? n).isSome → (envLookup Σ⁺ (toKername n)).isSome
-  inds  : ∀ n : Name, (s.inductives.get? n).isSome →
-            ∃ iid np nfs, IndInfo env n iid np nfs ∧ IndDeclOf env n ∧
-              ∃ mib, envLookup Σ⁺ iid.mutualBlockName = some (.inductiveDecl mib) ∧
-                IndBodyOf iid np nfs mib
-  -- no `ctors` clause: a constructor constant has no entry (A22), and nothing read it
-  elims : ∀ n : Name, (s.inductives.get? n).isSome →
-            ∀ c dp nm, CasesOnShape env c n dp nm → ConstOrigin env c → InformativeInd env n →
-            ∃ iid np nfs, ElimDecl Σ⁺ (toKername c) iid np dp nfs ∧
-              IndInfo env n iid np nfs ∧ nfs.length = nm
+  inds   : ∀ n : Name, (s.inductives.get? n).isSome → IndCovered env Σ⁺ n
 
 theorem SpecEnv.mono (h : StateLe s₁ s) (H : SpecEnv env bo s Σ⁺) : SpecEnv env bo s₁ Σ⁺
-/-- The `ErasesEnv` clauses mentioning a program are `deps` and `defns`; the four kind-clauses
-come from `SpecEnv`'s registry coverage, now stated forward (`decls` and `ErasesDecl` are gone,
-§4.8 above). -/
--- WEAKENED (§2.4 finding W2b-F3): `SpecEnv`'s fields never mention `bo`, so no proof of
--- `ErasesEnv`'s `defns` clause can come out of `H` alone. Gains `hdefns`, exactly `defns`'s
--- shape, as a second explicit premise. U3R.4's `SpecEnv.exists` discharges it from the run's
--- registry.
+/-- **The environment relation of a run.** Three premises, not four: `hax` is a `SpecContent`
+field, so it is *derived* rather than assumed — the spec's own §3 already says `hax` is
+"discharged from the registry", and `axioms` is a fact about `Σ⁺`'s entries alone, carried by
+`RegInvShape'` and copied unchanged by every registration step. `hdefns` stays a premise
+(`SpecContent.defns` is the one-scope reading a run records; `ErasesEnv.defns` asks for every
+scope, W2b-F3), and so does `htab` (it mentions no `Σ⁺` at all, so no registry fact supplies
+it). -/
 theorem SpecEnv.erasesEnv (H : SpecEnv env bo s Σ⁺) {t : LBTerm}
     (hdeps : ∀ kn, ReachableFrom Σ⁺ t kn → (envLookup Σ⁺ kn).isSome)
     (hdefns : ∀ c b, bo c = some b → ReachableFrom Σ⁺ t (toKername c) →
       ∃ b₀, envLookup Σ⁺ (toKername c) = some (.constantDecl ⟨some b₀⟩) ∧
-            ∀ Us' ups us, Erases env Us' [] (b.instantiateLevelParams ups us) b₀) :
+            ∀ Us' ups us, Erases env Us' [] (b.instantiateLevelParams ups us) b₀)
+    (htab : ∀ c b, bo c = some b → ConstOrigin env c) :
     ErasesEnv env bo Σ⁺ t
+```
+
+**`RegInvShape'.defns`**, the δ column from the registry, drops the three side conditions
+(`hkinj`, `hnc`, `hblkname`) the original W3R text carried: they existed only to disambiguate an
+inversion on `ErasesDecl`, absent from the tree — `SpecContent.defns` runs forward, so there is
+no arm to invert — and dropping unused premises strengthens the theorem. `hlp` — the
+level-parameter-freedom side condition — survives, and with it `instantiateLevelParams_eq_self`,
+`erases_any_scope_of_paramFree` and the refutation `defns_needs_paramFree`:
+
+```lean
+theorem RegInvShape'.defns (H : RegInvShape' env bo Σ⁺ s) {t : LBTerm}
+    (hdeps : ∀ kn, ReachableFrom Σ⁺ t kn → (envLookup Σ⁺ kn).isSome)
+    (hlp : ∀ c b, bo c = some b → b.hasLevelParam' = false ∧ NoMaxLevels b) :
+    ∀ c b, bo c = some b → ReachableFrom Σ⁺ t (toKername c) →
+      ∃ b₀, envLookup Σ⁺ (toKername c) = some (.constantDecl ⟨some b₀⟩) ∧
+        ∀ Us' ups us, Erases env Us' [] (b.instantiateLevelParams ups us) b₀
 ```
 
 `ErasesEnv` is not (yet) known to transport along `≐`, unlike `LowerEnv`: `ReachableFrom` is
@@ -1582,10 +1693,15 @@ which is why `EnvAgree` is deleted rather than carried — but a unit that re-ke
 first.
 
 `StateLe` (`ErasureRun.lean:1585`) and `RunConcl` (`:1609`) already exist and carry unchanged.
-`SpecEnv.mono` and `SpecEnv.erasesEnv` are landed (above); `SpecEnv.exists`, which builds `Σ⁺`
-from `RegInvShape` (`ColdStartShape.lean:314`) plus `ErasureSpec.lookup_adequate`, is U3.6's (W3)
-— keeping the tree's genuine advantage over the papers' presentation: the environment relation is
-*derived from what the run registered and consulted*.
+Landed (`SpecEnv.lean`): `SpecEnv.mono`, `SpecEnv.erasesEnv` (above), `RegInvShape'.specEnv`
+(the invariant's three specification-side fields read as a `SpecEnv`) and `SpecEnv.exists`,
+which builds `Σ⁺` from `∃ Σ⁺, RegInvShape' env bo Σ⁺ s` — keeping the tree's genuine advantage
+over the papers' presentation: the environment relation is *derived from what the run
+registered and consulted*. `RegInvShape'.lowerEnv (hsat : RegSaturated env Σ⁺ s) : LowerEnv Σ⁺
+s.gdecls` derives all eight `LowerEnv` clauses from the invariant plus `RegSaturated` — "the run
+has registered everything the specification environment declares" — with no `hblocks :
+BlockBodiesLambda Σ⁺` binder; its refutation of the ninth (`regInvShape'_ctorBody`) is deleted,
+replaced by `LowerCtorBodyFixture.lowerBlock_needs_lambda_bodies` (§4.4).
 
 ### 4.9 Output boundary — `Output.lean` (landed, U2.8)
 
@@ -1872,6 +1988,39 @@ N16/N18 — they reject types (universe-polymorphic, indexed) that are genuinely
 box-free, and they are stated as such, not booked to the sources. `Nat`, `Bool` and
 BinaryTrees' `Tree` satisfy all four conjuncts at the pinned lean4lean.
 
+**`fOFields_of_asks`**, off `A` alone (W3R; retires `def FOFields`). A constructor field of a
+first-order value's type is itself a value of a first-order type — the fact T7's `firstorder_no_box`
+needs at every field, proved rather than assumed:
+
+```lean
+theorem fOFields_of_asks {env : VEnv} {Us : List Name} (henv : env.WF) (A : UpstreamAsks env) :
+    ∀ {I I' c : Name} {k i : Nat} {us : List Level} {cargs : List Expr} {vv a : VExpr}
+      {ius : List VLevel} {iargs : List VExpr},
+    FirstOrderInd env I → CtorOf env c I' k →
+    TrExprS env Us [] (mkApps (.const c us) cargs) vv →
+    env.HasType Us.length [] vv (VExpr.mkApps (.const I ius) iargs) →
+    i < cargs.length → TrExprS env Us [] cargs[i]! a →
+    ∃ (J : Name) (jus : List VLevel) (jargs : List VExpr),
+      FirstOrderInd env J ∧ env.HasType Us.length [] a (VExpr.mkApps (.const J jus) jargs)
+```
+
+Its route is `ctor_saturated`'s (§8.3) with three extra steps: `peel_piSpine_head` names the
+constructor's own result spine, ask 10 (`indSpineInj`) identifies its head `I'` with the value's
+`I`, and `peel_major` (off `FirstOrderDecl.fields` through `majorPremiseAt_of_piBinders`) reads
+the field position. Measured (`05-REPAIRS-W3.md` §16): it consumes asks **2**, **6** and **10**
+— NOT ask 9, since its spine is reached through a `TrExprS` translation, which
+`Origin.lean`'s `trExprS_spine_peel` peels as a theorem, no ask (`doc/upstream-asks.md` items
+2/6/9/10 carry the corrected consumer lists). `peel_piSpine_head`, `MajorPremiseAt.instL` and
+`majorPremiseAt_of_piBinders` are its three helper lemmas, in `Origin.lean` beside `peel_piSpine`
+and `MajorPremiseAt.inst`, their route-mates.
+
+`FirstOrderInd.informativeInd` (`FirstOrderInd env I → InformativeInd env I`) now closes with
+`informativeInd_of_succ`, since `FirstOrderDecl.informative` keeps its successor clause and
+`InformativeInd` is the semantic one (§4.2); the checker's `foMemberB`/`firstOrderIndB_step`
+read `succSortB`, not `informativeB` — the two Booleans differ at eleven universe-polymorphic
+heads (`HAdd`, `HMul`, …, `Prod`), all excluded here by `FirstOrderDecl.mono` regardless, so
+`firstOrderIndB`'s verdicts on the tracked corpus are unchanged.
+
 ### 4.13 `lbEval` — the certified target evaluator — `Semantics/Compute.lean`
 
 ```lean
@@ -1891,28 +2040,54 @@ only if its soundness proof stays small; `eraseB` is **not built**.
 
 ### 4.14 The ledger — T11 — `test/Ledger.lean`
 
+**Landed, W3R.** `test/ledger.expected` holds 34 rows, **exactly** the `#print axioms` output of
+these 34 declarations and nothing else — that is what `diff` can measure, and this list is that
+file verbatim (`scripts/ledger.sh`). Two theorems the design once staged here —
+`visitExpr_refines_erasesLB`/`_erasesLBFix` (T8) — are **not yet rows**: they land with the W4
+bridge, along with `Green.green_G7`/`green_G8` once those rungs land (§6).
+
 ```lean
-#print axioms LeanToLambdaBox.erases_correct          -- and `_lb`, `_of_steps`, the three arms
+#print axioms LeanToLambdaBox.erases_correct
+#print axioms LeanToLambdaBox.erases_correct_lb
+#print axioms LeanToLambdaBox.erases_correct_of_steps
+#print axioms LeanToLambdaBox.step_iota
+#print axioms LeanToLambdaBox.step_proj
+#print axioms LeanToLambdaBox.step_delta
+#print axioms LeanToLambdaBox.simulate_of_erases_correct
+#print axioms LeanToLambdaBox.ErasesEnv.runtimeKey_isCasesOn
 #print axioms LeanToLambdaBox.erases_elimSpine_no_value
+#print axioms LeanToLambdaBox.ErasesEnv.ctorArity
 #print axioms LeanToLambdaBox.not_erasable_of_informative
-#print axioms LeanToLambdaBox.fOFields_of_asks
-#print axioms LeanToLambdaBox.Lower.appReady
+#print axioms LeanToLambdaBox.CasesOnShape.agree
 #print axioms LeanToLambdaBox.ElimDecl.uniq
+#print axioms LeanToLambdaBox.neverZeroB_sound
+#print axioms LeanToLambdaBox.Lower.appReady
+#print axioms LeanToLambdaBox.firstorder_erases_deterministic
+#print axioms LeanToLambdaBox.firstorder_no_box
+#print axioms LeanToLambdaBox.fOFields_of_asks
 #print axioms LeanToLambdaBox.LowerBlock.lambda_of_fixLambda
 #print axioms LeanToLambdaBox.Lower.constToFix
-#print axioms LeanToLambdaBox.simulate_of_erases_correct
-#print axioms LeanToLambdaBox.visitExpr_refines_erasesLB
-#print axioms LeanToLambdaBox.visitExpr_refines_erasesLBFix
+#print axioms LeanToLambdaBox.constants_of_tabled
+#print axioms LeanToLambdaBox.constOrigin_of_constants
 #print axioms LeanToLambdaBox.shipping_erase_correct_firstorder
-#print axioms LeanToLambdaBox.firstorder_erases_deterministic  -- and `firstorder_no_box`
+#print axioms LeanToLambdaBox.Green.green_G1
+#print axioms LeanToLambdaBox.Green.green_G2
+#print axioms LeanToLambdaBox.Green.green_G3
+#print axioms LeanToLambdaBox.Green.green_G4
+#print axioms LeanToLambdaBox.Green.green_G5
+#print axioms LeanToLambdaBox.Green.green_G6
+#print axioms LeanToLambdaBox.Green.g5_seval
+#print axioms LeanToLambdaBox.Green.spikeNatFacts_natEnv
 #print axioms LeanToLambdaBox.SEval.defeq
-#print axioms LeanToLambdaBox.Green.green_G1          -- …through `green_G8`, and `g5_seval`
+#print axioms LeanToLambdaBox.LBOptimize_correct
 #print axioms LeanToLambdaBox.lbEval_sound
 ```
 
-`test/ledger.expected` holds **exactly** the `#print axioms` output and nothing else — that is
-what a `diff` can measure; `#print axioms` reports `sorryAx` as one flat name with no provenance,
-so provenance lives in `doc/trust.md`, whose every `file:line` and identifier `lake exe hygiene`
+There is no row for `constOrigin_of_tabled`: that theorem does not exist (§8.3, item 4) — the
+two halves that surround its gap, `constants_of_tabled` and `constOrigin_of_constants`, are
+rows instead, and `test/Ledger.lean`'s header states in one sentence that ask 4 is the step
+between them. `#print axioms` reports `sorryAx` as one flat name with no provenance, so
+provenance lives in `doc/trust.md`, whose every `file:line` and identifier `lake exe hygiene`
 resolves. Its rows: **(a1)** lean4lean's inherited `sorryAx` cluster at the pinned rev with
 `file:line` (`Injectivity.lean:12,21,34`, `UniqueTyping.lean:174`, `ChurchRosser.lean:1193,1212`),
 reaching here through `TrExprS.uniq` and `IsDefEq.uniqU`; **(a2)** `EnvLemmas.lean:334
@@ -1922,7 +2097,7 @@ VEnv.WF.patsStrong`, marked **fork-authored, not inherited** — which no curren
 (`env_connect`, `lookup_adequate`, `fresh_names`, `oracle_refl`'s reflection clause,
 `oracle_meta`, `decl_adequate` if underived), plus `hrun` and `htbl` — each a permanent named
 binder, mechanised externally by `lake exe green-check`; **(c)** the class-**C** hypotheses
-(`hcfg`, `hcb`, `hsup`, `mono`/`noIndices`' scope restrictions, `UpstreamAsks`' five fields,
+(`hcfg`, `hcb`, `hsup`, `mono`/`noIndices`' scope restrictions, `UpstreamAsks`' four fields,
 and the source evaluation per N7) — each a binder in a stated §5 theorem (criterion 17); **(d)** the class-**E** rows: N1
 csimp, N2 extern (one coverage row per name), N3 machine `Nat`, N4 argmask, N5
 auto-inline, N7 termination, N10 serialisation, N11 `.inlinings`/`.mli`, N14 size, N16 `Quot`,
@@ -1951,21 +2126,41 @@ theorem SEval.defeq (henv : env.WF) (hΔ : VLCtx.WF env Us.length Δ)
 --     EMITTED environment (A18, A19; `bo` and `fl` are indices, not hypotheses).
 --     `her`+`hlow` is `ErasesLB env Us Σ⁺ [] e t` unfolded, so that `hspec` can name the middle
 --     term; `erases_correct_lb` is the folded corollary. One induction on `hev`, each arm a step
---     lemma of `ErasesCorrect/`. Seven hypotheses: MetaRocq's five — `wf`, `welltyped`,
---     evaluation, `erases`, `erases_deps` — plus `LowerEnv`, which MetaRocq has no analogue of
---     because it has no pass layer and which carries `ClosedBodies Σ⁺` as a clause, plus
---     `UpstreamAsks`, the tracked lean4lean binder that dies with the pin (§8.3). **No premise
---     bundle**: `StepPremises`' six fields are retired by the definition repairs of §4.2, §4.3,
---     §4.4 and §4.8 and by asks 9-10 and ask 2's two new conjuncts (`05-REPAIRS-W3.md`).
---     Eight binders, seven premises:
---     `her`+`hlow` is one. No `axiom_free` (§4.3, §4.9).
-theorem erases_correct
-    (henv  : env.WF) (hwt : TrExprS env Us [] e ve)
-    (hev   : SEval env bo Us fl [] e v)
-    (her   : Erases env Us [] e t₀) (hlow : Lower Σ⁺ t₀ t)
-    (hspec : ErasesEnv env bo Σ⁺ t₀)
-    (henvL : LowerEnv Σ⁺ Σ) (A : UpstreamAsks env) :
+--     lemma of `ErasesCorrect/`. Eight binders, seven premises — `her`+`hlow` is one, MetaRocq's
+--     five — `wf`, `welltyped`, evaluation, `erases`, `erases_deps` — plus `LowerEnv`, which
+--     MetaRocq has no analogue of because it has no pass layer and which carries `ClosedBodies
+--     Σ⁺` as a clause, plus `UpstreamAsks`, the tracked lean4lean binder that dies with the pin
+--     (§8.3). **No premise bundle**: `StepPremises`' six fields are retired by the definition
+--     repairs of §4.2, §4.3, §4.4 and §4.8 and by asks 9-10 and ask 2's two new conjuncts
+--     (`05-REPAIRS-W3.md`). No `axiom_free` (§4.3, §4.9).
+--
+--     `erases_correct` ITSELF takes none of these as an explicit argument: they are the eight
+--     hypotheses of the abbreviation `ErasesCorrectStmt`, printed here verbatim from
+--     `#check @erases_correct` / `@erases_correct_target_shape` (`test/erases_correct.expected`,
+--     the CI-checked premise audit):
+abbrev ErasesCorrectStmt (env : VEnv) (bo : Name → Option Expr) (Us : List Name)
+    (fl : SEvalFlags) (Σ⁺ Σ : GlobalDeclarations) : Prop :=
+  ∀ {e v : Expr} {ve : VExpr} {t₀ t : LBTerm},
+    env.WF → TrExprS env Us [] e ve → SEval env bo Us fl [] e v →
+    Erases env Us [] e t₀ → Lower Σ⁺ t₀ t → ErasesEnv env bo Σ⁺ t₀ →
+    LowerEnv Σ⁺ Σ → UpstreamAsks env →
     ∃ v₀ v', Erases env Us [] v v₀ ∧ Lower Σ⁺ v₀ v' ∧ WcbvEval Σ eraseFlags t v'
+
+theorem erases_correct {env : VEnv} {bo : Name → Option Expr} {Us : List Name}
+    {fl : SEvalFlags} {Σ⁺ Σ : GlobalDeclarations} :
+    ErasesCorrectStmt env bo Us fl Σ⁺ Σ :=
+  erases_correct_of_steps step_iota step_proj step_delta
+
+-- `erases_correct_target_shape`, closed by `Iff.rfl`, pins the abbreviation against the
+-- statement above so a reader need not trust that unfolding `ErasesCorrectStmt` is faithful:
+theorem erases_correct_target_shape {env bo Us fl Σ⁺ Σ} :
+    ErasesCorrectStmt env bo Us fl Σ⁺ Σ ↔
+      ∀ {e v : Expr} {ve : VExpr} {t₀ t : LBTerm},
+        env.WF → TrExprS env Us [] e ve → SEval env bo Us fl [] e v →
+        Erases env Us [] e t₀ → Lower Σ⁺ t₀ t → ErasesEnv env bo Σ⁺ t₀ →
+        LowerEnv Σ⁺ Σ → UpstreamAsks env →
+        ∃ v₀ v', Erases env Us [] v v₀ ∧ Lower Σ⁺ v₀ v' ∧ WcbvEval Σ eraseFlags t v' :=
+  Iff.rfl
 
 -- T5's modules, and why there are five. `ErasesCorrect/Steps.lean` sits BELOW the aggregator and
 -- holds the spine inversion kit the arms consume (`erases_mkApps_inv`, `erasable_mkApps`,
@@ -2001,11 +2196,13 @@ abbrev StepIota (env : VEnv) (bo : Name → Option Expr) (Us : List Name) (fl : 
   -- this development does not edit the fork that would otherwise supply them unconditionally.
   UpstreamAsks env →
   -- the binder groups are annotated in code: Lean cannot infer `prev.length` from an untyped
-  -- binder (U3.1). `iid`/`nfs` and the `IndInfo` premise are `SEval.iota`'s own (§4.3).
-  ∀ {con us I pre prev disc minors minorsv extra extrav ctor cus cargs np cidx r iid nfs},
+  -- binder (U3.1). `nfs` and the `IndArity`/`InformativeInd` premises are `SEval.iota`'s own
+  -- (§4.3) — `IndArity`, not `IndInfo`, since the rule takes `IndInfo` minus the λ□ block
+  -- identifier no source rule needs (`05-REPAIRS-W3.md` §16 F6); no `iid` binder.
+  ∀ {con us I pre prev disc minors minorsv extra extrav ctor cus cargs np cidx r nfs},
     env.WF → LowerEnv Σ⁺ Σ → fl.iota →
     CasesOnShape env con I pre.length minors.length → ConstOrigin env con →
-    CtorOf env ctor I cidx → IndInfo env I iid np nfs →
+    CtorOf env ctor I cidx → IndArity env I np nfs → InformativeInd env I →
     prev.length = pre.length →
     (∀ i, i < pre.length → SEval env bo Us fl [] pre[i]! prev[i]! ∧
         Simulates env bo Us Σ⁺ Σ pre[i]! prev[i]!) →
@@ -2027,10 +2224,11 @@ abbrev StepIota (env : VEnv) (bo : Name → Option Expr) (Us : List Name) (fl : 
 abbrev StepProj (env : VEnv) (bo : Name → Option Expr) (Us : List Name) (fl : SEvalFlags)
     (Σ⁺ Σ : GlobalDeclarations) : Prop :=
   -- `not_erasable_of_informative` (U3.2, reused) takes `UpstreamAsks env` — see `StepIota`.
+  -- `IndArity`, not `IndInfo`, for the same reason as `StepIota`'s.
   UpstreamAsks env →
-  ∀ {S i disc ctor cus cargs np nf cidx r iid},
+  ∀ {S i disc ctor cus cargs np nf cidx r},
     env.WF → LowerEnv Σ⁺ Σ → fl.proj →
-    CtorOf env ctor S cidx → IndInfo env S iid np [nf] →
+    CtorOf env ctor S cidx → IndArity env S np [nf] →
     SEval env bo Us fl [] disc (mkApps (.const ctor cus) cargs) →
     Simulates env bo Us Σ⁺ Σ disc (mkApps (.const ctor cus) cargs) →
     np + i < cargs.length →
@@ -2060,18 +2258,53 @@ abbrev StepDelta (env : VEnv) (bo : Name → Option Expr) (Us : List Name) (fl :
 -- `ErasesEnv` (§4.8) and the kernel facts are fields of `UpstreamAsks` (§8.3).
 theorem erases_correct_of_steps
     (step_iota : StepIota env bo Us fl Σ⁺ Σ) (step_proj : StepProj env bo Us fl Σ⁺ Σ)
-    (step_delta : StepDelta env bo Us fl Σ⁺ Σ) : … -- `erases_correct`'s statement
+    (step_delta : StepDelta env bo Us fl Σ⁺ Σ) : ErasesCorrectStmt env bo Us fl Σ⁺ Σ
 
 /-- The β arm's second reading of an `.app` node: `Lower.elimApp` at `extra = []` makes the source
 an eliminator spine one minor short, and no `SEval` arm applies to one. The head's `casesOn`-ness
 is no longer a premise: `ErasesEnv.runtimeKey_isCasesOn` (§4.8) establishes it *and* `bo c = none`
 from `defns` and `axioms`, `bo c = none` is what blocks `deltaC`, and the `iota` case is blocked
 by that arm's OWN `hsh`/`hinf` through `ErasesEnv.elims` and `ElimDecl.uniq`
-(`05-REPAIRS-W3.md` §1). `ErasesCorrect/Steps.lean`, U3R.2 restates, U3R.7 consumes. -/
+(`05-REPAIRS-W3.md` §1). `ErasesCorrect/Steps.lean`, U3R.2 restates, U3R.7 amends and consumes.
+DEVIATION: `hagree` gains `InformativeInd env I` (U3R.7): as U3R.2 landed it, the only fact that
+gives `dp'`/`nm'` is `ErasesEnv.elims`, whose relevance premise (F1) is a HYPOTHESIS the clause
+cannot conclude, so `hagree` at an arbitrary `I` was underivable at the `iota` case without it —
+the `iota` arm already binds its own `hinf`, so the amendment costs the proof nothing and
+strictly weakens the premise. -/
 theorem SEval.no_elimSpine_value (hco : ConstOrigin env c) (hnone : bo c = none)
-    (helim : ∀ I dp' nm', CasesOnShape env c I dp' nm' → dp' = dp ∧ nm' = nm)
+    (helim : ∀ I dp' nm', CasesOnShape env c I dp' nm' → InformativeInd env I →
+      dp' = dp ∧ nm' = nm)
     (hlt : args.length < dp + 1 + nm) :
     ¬ SEval env bo Us fl Δ (mkApps (.const c us) args) w
+
+-- Also `ErasesCorrect/Steps.lean` (U3R.7): the general facts a source spine reaching a target
+-- constant spine is itself a spine at that constant, and its refutation twin:
+theorem erases_constSpine_value (hev : SEval env bo Us fl Δ e w) :
+    ∀ (kn : Kername) (args : List LBTerm),
+      Erases env Us Δ e (LBTerm.mkApps (.const kn) args) →
+      ∃ c us as, toKername c = kn ∧ ConstOrigin env c ∧ as.length ≤ args.length ∧
+        SEval env bo Us fl Δ (mkApps (.const c us) as) w
+theorem erases_constSpine_head
+    (her : Erases env Us Δ (mkApps (.const c us) as) (LBTerm.mkApps (.const kn) args)) :
+    toKername c = kn ∧ ConstOrigin env c ∧ as.length = args.length
+theorem not_mkApps_const (hu : ∀ x y, u ≠ .app x y) (hc : ∀ k, u ≠ .const k)
+    (h : LBTerm.mkApps (.const kn) args = u) : False
+theorem erases_elimSpine_no_value (A : UpstreamAsks env)
+    (hspec : ErasesEnv env bo Σ⁺ (LBTerm.mkApps (.const kn) args))
+    (hed : ElimDecl Σ⁺ kn iid np dp nfs) (hlt : args.length < dp + 1 + nfs.length)
+    (her : Erases env Us [] e (LBTerm.mkApps (.const kn) args)) :
+    ¬ SEval env bo Us fl [] e w
+-- the β arm's own saturated-eliminator exclusion, off `runtimeKey_isCasesOn`/`erases_ne_elimBody`
+-- rather than a `CasesOnShape` the arm's premises do not exhibit (obstruction 2: `Erases`
+-- inverts at a SOURCE `.const`, the premise is a TARGET spine, and `SEval` cannot be `cases`d at
+-- `.app f a` when four of its arms are indexed by `mkApps (.const c us) args` — hence the two
+-- lemmas above, by induction on the evaluation rather than on the erasure).
+--
+-- Five further declarations moved from `ErasesCorrect/Delta.lean` into this file (U3R.7,
+-- forced: `Delta.lean` IMPORTS `Steps.lean`, so a lemma `runtimeKey_isCasesOn` needs cannot sit
+-- there and be seen by `beta_arm` in `ErasesCorrect.lean`, which does not import `Delta.lean`):
+-- `erases_target_lambda`, `erases_mkLambdas_inv`, `erases_ne_case`, `erases_ne_fix`,
+-- `erases_ne_elimBody` — statements unchanged.
 
 -- T6  the passes                                                                    class A
 -- There is no `lower_correct`: nothing evaluates at `Σ⁺` and nothing transports along `Lower`
@@ -2103,7 +2336,13 @@ theorem LBOptimize_correct  -- optional corollary, W6; blockFlags source point, 
 
 -- T7  first-order uniqueness and box-freedom                                        class B
 -- `A` and nothing else beyond MetaRocq's own list: `IndSpineNotProp` and `FOFields` are
--- theorems off asks 9-10 and ask 2 (`fOFields_of_asks`, `indSpine_not_prop`).
+-- theorems, `indSpine_not_prop` (ask 9, `Origin.lean`) and `fOFields_of_asks`
+-- (`FirstOrderInd.lean`). Ask 9 is `indSpine_not_prop`'s alone — `fOFields_of_asks` reads a
+-- spine reached through a `TrExprS` translation, which `Origin.lean`'s `trExprS_spine_peel`
+-- peels as a THEOREM, no ask — and `fOFields_of_asks` instead consumes asks 2 (block
+-- uniqueness, `CtorOf.ctorResult_at`/`IndInfo.indDeclOf`), 6 (`indSpine_ne_forallE`, inside
+-- `peel_piSpine`) and 10 (`indSpineInj`, identifying the constructor's own former with the
+-- value's); `doc/upstream-asks.md` items 2/6/9/10 carry the corrected consumer lists.
 theorem firstorder_erases_deterministic
     (henv : env.WF) (A : UpstreamAsks env) (hfo : FirstOrderInd env I)
     (hwt : TrExprS env Us [] v vv)
@@ -2156,6 +2395,20 @@ structure ErasureBridge (env : VEnv) (bo : Name → Option Expr) (fo : Name → 
   simulate     : ∀ {s t₀s ts v}, Erases env [] [] s t₀s → Lower Σ⁺ t₀s ts →
       SEval env bo [] fullFlags [] s v →
       ∃ v₀ v', Erases env [] [] v v₀ ∧ Lower Σ⁺ v₀ v' ∧ WcbvEval Σ eraseFlags ts v'  -- T5, W3
+
+-- `simulate_of_erases_correct` discharges `simulate` from `erases_correct`; it KEEPS its own
+-- `hc : ErasesCorrectStmt env bo [] fullFlags Σ⁺ Σ` argument, parameterised rather than calling
+-- `erases_correct` inline, precisely so this row of the ledger stays about the one thing it is
+-- about — the gap between T5's subject-level premises and `simulate`'s spine-level
+-- quantification — and so its axiom footprint does not gain `sorryAx` from T5's own proof term:
+theorem simulate_of_erases_correct {Σ⁺ Σ : GlobalDeclarations}
+    (hc : ErasesCorrectStmt env bo [] fullFlags Σ⁺ Σ)
+    (henv : env.WF) (henvL : LowerEnv Σ⁺ Σ) (A : UpstreamAsks env)
+    (hwt : ∀ {s t₀s}, Erases env [] [] s t₀s → ∃ ve, TrExprS env [] [] s ve)
+    (hsp : ∀ {s t₀s}, Erases env [] [] s t₀s → ErasesEnv env bo Σ⁺ t₀s) :
+    ∀ {s t₀s ts v}, Erases env [] [] s t₀s → Lower Σ⁺ t₀s ts →
+      SEval env bo [] fullFlags [] s v →
+      ∃ v₀ v', Erases env [] [] v v₀ ∧ Lower Σ⁺ v₀ v' ∧ WcbvEval Σ eraseFlags ts v'
   -- stronger than T7 by the value premise `SEval … v v`, and by asking box-freedom of the
   -- LOWERED value (`noBox_lower_needs_noFix`, §2.2 finding G1-O7)
   firstorder   : ∀ {I us idx v vv tv₀ tv}, fo I → TrExprS env [] [] v vv →
@@ -2474,13 +2727,15 @@ tree never depends on any of them landing.
 ### 8.3 Upstream asks (lean4lean, N15) — `doc/upstream-asks.md`
 
 Editing the lean4lean fork is a separate agent's work; this repository only **files** asks
-(`doc/upstream-asks.md`, U3.4 and U3R.5). Until the pin actually moves, every consumer of asks 2,
-6, 7, 8 and 9 takes the asked fact as a named, class-**C** hypothesis — the structure `UpstreamAsks env` in
-`LeanToLambdaBox/Upstream.lean` (U3.4.md) — rather than a design assuming the fork has already
-changed. This is not a premise of `IotaRelevant`'s shape (criterion 6): it is the already-filed
-asks, unweakened and unrestated, made an explicit, auditable, tracked binder until the fork
-accepts them, at which point `UpstreamAsks` is discharged by the re-pin with no change to any
-consumer's statement shape (`doc/trust.md`'s row says so).
+(`doc/upstream-asks.md`, U3.4 and U3R.5). Until the pin actually moves, every consumer of the
+four **load-bearing** asks — 2, 6, 9 and 10 — takes the asked fact as a named, class-**C**
+hypothesis — the four fields of the structure `UpstreamAsks env` in
+`LeanToLambdaBox/Upstream.lean` (`constsOrigin`, `constArityInv`, `mkAppsInv`, `indSpineInj`) —
+rather than a design assuming the fork has already changed. This is not a premise of
+`IotaRelevant`'s shape (criterion 6): it is the already-filed asks, unweakened and unrestated,
+made an explicit, auditable, tracked binder until the fork accepts them, at which point
+`UpstreamAsks` is discharged by the re-pin with no change to any consumer's statement shape
+(`doc/trust.md`'s row says so).
 
 1. `VEnv.WF'.defeqOwn` — a `WF'` environment grants each constant at most one defining equation
    (the `defeqs` twin of `WF'.pats_origin`; the 130-line proof exists,
@@ -2496,6 +2751,27 @@ consumer's statement shape (`doc/trust.md`'s row says so).
    them from `UpstreamAsks.constsOrigin` as theorems taking `(A : UpstreamAsks env)`; introduction
    sites need none of it — `Erases.const`'s premise is the positive `ConstOrigin` (§4.2), which a
    rung discharges from its own declaration list.
+
+   **Two conjuncts added by W3R** (`05-REPAIRS-W3.md` §13): `(∀ I iid np nfs, IndInfo env I iid
+   np nfs → IndDeclOf env I)` and declaration-level block uniqueness, `∀ I decl decl',
+   IndBlockBelow env decl → IndBlockBelow env decl' → (∃ t ∈ decl.types, t.name = I) → (∃ t ∈
+   decl'.types, t.name = I) → decl = decl'`. The uniqueness conjunct is stated over
+   `IndBlockBelow env decl := ∃ ds env₀, VEnv.WF' ds env₀ ∧ env₀ ≤ env ∧ VDecl.induct decl ∈ ds`
+   (`Upstream.lean`), **not** `FirstOrderInd.lean`'s `HasInduct env decl := ∃ ds, VEnv.WF' ds env
+   ∧ …`: `HasInduct` bounds the declaration list by `env` *itself*, while `IndInfo`/`IndArity`/
+   `CtorOf`/`CasesOnShape` each bound theirs by an `env₀ ≤ env` below it, so a conjunct phrased
+   at `env`'s own list is inapplicable at every consumer (and `HasInduct` lives in
+   `FirstOrderInd.lean`, which *imports* `Upstream.lean` — a cycle). `HasInduct env decl →
+   IndBlockBelow env decl` is the case `env₀ = env`, so the strengthening loses nothing.
+   Corollaries: `IndInfo.indDeclOf` (`ErasesEnv.blocks`' `IndDeclOf` conjunct — hence every
+   rung's `ErasesEnv`), `indBlock_uniq`, and, off it, `CasesOnShape.agree` (links `SEval.iota`'s
+   `hnp : IndArity env I np nfs` to `hsh`'s own block existential) and its `IndArity`-vs-`IndArity`
+   twin `IndArity.inj (A) : IndArity env I np nfs → IndArity env I np' nfs' → np = np' ∧ nfs =
+   nfs'` — what `step_iota`/`step_proj` (§4.3) read `np = nps` off, since `CasesOnShape.agree`'s
+   own conjuncts are arithmetic tautologies about one arity reading, not a second one — and
+   `CtorOf.ctorResult_at`
+   (`ctor_saturated`'s and `fOFields_of_asks`' block uniqueness). They replace a `TrEnv'`-shaped
+   ask W3R filed and withdrew (below).
 3. The seven kernel-generic declarations currently in `CheckerAdequacy.lean` (`VContext.ofMLCtx`
    and its three `@[simp]` projections, `VState.WF.initial`, `M.WF.run'`, `kernelNGen`), which
    criterion 21 forbids here and criterion 9 needs. **Deferred**, not landed in W3: relocating them
@@ -2513,53 +2789,22 @@ consumer's statement shape (`doc/trust.md`'s row says so).
    to neither a sort nor a Π. Its home is `Theory/Typing/Injectivity.lean` ("A bunch of important
    structural theorems which we can't prove :("), beside `sort_inv`, `forallE_inv_stratified` and
    `sort_forallE_inv`, all three `sorry` at the pin and all three already inherited here through
-   `Erasable.app`. Three consumers, all of them theorems and none of them a binder **once the pin
+   `Erasable.app`. Consumers, all of them theorems and none of them a binder **once the pin
    has moved** — until then each takes `UpstreamAsks.constArityInv` explicitly: T5's ι arm (a
    value of an informative inductive is not erasable, so the `.case` node's discriminant evaluates
-   to a `.construct` spine and not to `.box`), T5's proj arm (same fact), and T7's
-   `firstorder_no_box` (same fact, plus the saturation of a well-typed constructor value). MetaRocq
-   discharges the same obligation from PCUIC's inversion lemmas; this is the one place where
-   lean4lean's incomplete metatheory is load-bearing for the ι fragment (R14).
-9. **`HasType.mkApps_inv`** — spine typing inversion; there is no lemma anywhere in
-   `Lean4Lean/Theory/Typing/` about `HasType U Γ (VExpr.mkApps f args) V`. Stated with
-   `OrderedStrong env` **explicit**, in `HasType.app_inv`'s own idiom, so that the ask itself is
-   `sorryAx`-free exactly as `app_inv` is (measured `[propext, Quot.sound]`). Home: at or below
-   `Theory/Typing/UniqueTyping.lean`, beside `app_inv`. Statement, with the peel written out, in
-   `05-REPAIRS-W3.md` §13. **Load-bearing from W3R**: `elim_major`, `ctor_saturated`,
-   `indSpine_not_prop` and `fOFields_of_asks` are its four consumers, i.e. T5's ι and proj arms
-   and both T7 theorems, and it is what retires `IndSpineNotProp`, `ElimTyping` and `FOFields`.
-   Measured feasibility (U3.2): the forward half is ~40 lines from `HasType.app_inv` plus
-   `IsDefEq.uniqU`; the second half transports the peel onto the declared type's Π-telescope with
-   `IsDefEqU.forallE_inv`. **What it does not buy**: sorry-freedom at the consumers. Supplying
-   `OrderedStrong` from `env.WF` runs through `VEnv.WF.orderedStrong`, whose `patsStrong` is
-   `sorry` (`EnvLemmas.lean:334`), and `IsDefEq.uniqU`/`IsDefEqU.forallE_inv` are `sorry` too; the
-   consumers already inherit those roots and the ask buys the statement, not the trust
-   (`05-REPAIRS-W3.md` §16 F8, measured at `scratchpad/refute3/ax_now.lean`).
-10. **`IsDefEqU.indSpine_inj`** — two spines headed by **inductively declared** formers that are
-   defeq have the same head name. The `IndDeclOf` premises are load-bearing: without them the
-   claim is false, a `VDecl.def` giving `IsDefEqU (.const Foo []) (.const Nat [])`. Home:
-   `Theory/Typing/Injectivity.lean`, beside ask 6 — a file in which three of four theorems are
-   `sorry` at the pin, so the honest expectation is that it lands with Church-Rosser and not
-   before. Consumers: `ctor_saturated`, `fOFields_of_asks`.
-
-   **Ask 2 is strengthened rather than a third ask added.** Its prose already claims that the
-   block declaring a type former is unique; two `VEnv`-only conjuncts are added to
-   `constsOrigin` — `IndInfo env I … → IndDeclOf env I`, and declaration-level uniqueness of the
-   block declaring `I`. The first is `ErasesEnv.blocks`' `IndDeclOf`, the second is
-   `fOFields_of_asks`' block uniqueness and `CasesOnShape.agree`'s link between `SEval.iota`'s
-   `hnp` and `hsh`. A `TrEnv'`-shaped ask for the same content was filed in the first round of
-   W3R and is **withdrawn**: `TrEnv'` is indexed by a `Lean.Environment`, so it cannot be a field
-   of `UpstreamAsks env`, its only witness is the class-**D** `ErasureSpec.env_connect`, it
-   duplicates filed ask 4, and the consumer it named (`firstOrderIndB_sound`) is a planned
-   signature with no declaration in the tree. `firstOrderIndB_sound` stays blocked on **ask 4**.
-
-10. **Reported, not asked:** MetaRocq's shipped `firstorder_ind` is `false` on `nat`
+   to a `.construct` spine and not to `.box`), T5's proj arm (same fact), T7's
+   `firstorder_no_box` (same fact, plus the saturation of a well-typed constructor value) — all
+   three directly, through `not_erasable_of_informative` — and `fOFields_of_asks` (T7), through
+   `indSpine_ne_forallE`'s use inside `peel_piSpine`. MetaRocq discharges the same obligation
+   from PCUIC's inversion lemmas; this is the one place where lean4lean's incomplete metatheory
+   is load-bearing for the ι fragment (R14).
+7. **Reported, not asked:** MetaRocq's shipped `firstorder_ind` is `false` on `nat`
    (`PCUICFirstorder.v:59`'s sort conjunct — the code's defect, not `[S §7.3]`'s prose), so every
    theorem guarded by it is vacuously guarded; peregrine's `run_untyped_transforms` precondition
    obligation is `Admitted` (`Transforms.v:375`); and `peregrine validate` is
    `parse_ast ;; get_config ;; check_wf` only (`Pipeline.v:245-248`, `CheckWf.v:182-183`) — no
    expandedness check, which is what makes F-ETA undetectable downstream.
-11. **Kernel-generic, proved locally, filed for consolidation** (§2.4; not load-bearing — no fork
+8. **Kernel-generic, proved locally, filed for consolidation** (§2.4; not load-bearing — no fork
    change is needed for any of the three): the constructor-side twins of `wf'_induct_origin`/
    `IndInfo.constant_isArity` (`ErasesTotal.lean`), currently parked in `SourceEval.lean:362-386`
    for want of a dedicated home (sorryAx-free at the pin):
@@ -2574,6 +2819,69 @@ consumer's statement shape (`doc/trust.md`'s row says so).
 
    Natural home is `Origin.lean` (item 2) once U3.4 lands, alongside `wf'_induct_origin`/
    `IndInfo.constant_isArity`, which make the same argument from the type-former side.
+
+9. **`HasType.mkApps_inv`** — spine typing inversion; there is no lemma anywhere in
+   `Lean4Lean/Theory/Typing/` about `HasType U Γ (VExpr.mkApps f args) V`. Stated with
+   `OrderedStrong env` **explicit**, in `HasType.app_inv`'s own idiom, so that the ask itself is
+   `sorryAx`-free exactly as `app_inv` is (measured `[propext, Quot.sound]`). Home: at or below
+   `Theory/Typing/UniqueTyping.lean`, beside `app_inv`. Statement, with the peel written out, in
+   `05-REPAIRS-W3.md` §13. **Load-bearing from W3R, one consumer**: `indSpine_not_prop` alone
+   (T5's ι and proj arms, inside `not_erasable_of_informative`), and it is what retires
+   `IndSpineNotProp`. `elim_major`, `ctor_saturated` and `fOFields_of_asks` were filed as
+   consumers and are not: all three read a spine reached through a `TrExprS` translation, and
+   `TrExprS`'s `app` arm already carries the function's typing at a Π and the argument's at its
+   domain, so `Origin.lean`'s `trExprS_spine_peel` proves the peel for them outright — which is
+   also what retires `ElimTyping` and `FOFields` (as premise-shapes; the facts move to `A`'s
+   other three fields). Measured feasibility (U3.2): the forward half is ~40 lines from
+   `HasType.app_inv` plus `IsDefEq.uniqU`; the second half transports the peel onto the declared
+   type's Π-telescope with `IsDefEqU.forallE_inv`. **What it does not buy**: sorry-freedom at the
+   consumer. Supplying `OrderedStrong` from `env.WF` runs through `VEnv.WF.orderedStrong`, whose
+   `patsStrong` is `sorry` (`EnvLemmas.lean:334`), and `IsDefEq.uniqU`/`IsDefEqU.forallE_inv` are
+   `sorry` too; `indSpine_not_prop` already inherits those roots and the ask buys the statement,
+   not the trust (`05-REPAIRS-W3.md` §16 F8, measured at `scratchpad/refute3/ax_now.lean`).
+
+   The three corollaries at their landed shape, all in `Origin.lean` (measured, not the design's
+   first-round printing):
+
+   ```lean
+   -- gains `henv : env.WF` (ask 9's `mkAppsInv` needs `OrderedStrong`, introduced only from
+   -- `env.WF`); loses `hdec : IndDeclOf env I`, unused — the route reads the former's declared
+   -- type off `InformativeInd`'s own `env.constants I = some ci`, never off a declaring block.
+   theorem indSpine_not_prop (henv : env.WF) (A : UpstreamAsks env) {U Γ I us args}
+       (hΓ : OnCtx Γ (env.IsType U)) (hinf : InformativeInd env I) :
+       ¬ env.HasType U Γ (VExpr.mkApps (.const I us) args) (.sort .zero)
+   -- does NOT take `(A : UpstreamAsks env)`: `TrExprS`'s `app` arm already carries both typings
+   -- for a TRANSLATED spine, so `trExprS_spine_peel` (a theorem) does ask 9's work for it.
+   theorem elim_major (henv : env.WF) {c I dp nm us pre minors extra disc ve w}
+       (hsh : CasesOnShape env c I dp nm) (hpre : pre.length = dp) (_hmin : minors.length = nm)
+       (hwt : TrExprS env Us [] (mkApps (.const c us) (pre ++ disc :: minors ++ extra)) ve)
+       (hdisc : TrExprS env Us [] disc w) :
+       ∃ ius iargs, env.HasType Us.length [] w (VExpr.mkApps (.const I ius) iargs)
+   -- still takes `henv` and `A`: it needs ask 6 (`indSpine_ne_forallE`) and ask 2
+   -- (`CtorOf.ctorResult_at`), neither of which a translated spine's own typing supplies.
+   theorem ctor_saturated (henv : env.WF) (A : UpstreamAsks env)
+       {ctor I k iid np nfs cus cargs w ius iargs}
+       (hct : CtorOf env ctor I k) (hi : IndInfo env I iid np nfs)
+       (hwt : TrExprS env Us [] (mkApps (.const ctor cus) cargs) w)
+       (hty : env.HasType Us.length [] w (VExpr.mkApps (.const I ius) iargs)) :
+       cargs.length = np + nfs[k]!
+   ```
+
+10. **`IsDefEqU.indSpine_inj`** — two spines headed by **inductively declared** formers that are
+   defeq have the same head name. The `IndDeclOf` premises are load-bearing: without them the
+   claim is false, a `VDecl.def` giving `IsDefEqU (.const Foo []) (.const Nat [])`. Home:
+   `Theory/Typing/Injectivity.lean`, beside ask 6 — a file in which three of four theorems are
+   `sorry` at the pin, so the honest expectation is that it lands with Church-Rosser and not
+   before. Consumers: `fOFields_of_asks` alone — the one theorem that must identify a
+   constructor field's own type former with the value's; `ctor_saturated` was filed as a
+   consumer and is not, since its `I` is given directly by its own `hi : IndInfo env I iid np
+   nfs`, with no second former to identify it against.
+
+   A `TrEnv'`-shaped third ask for ask 2's content was filed in the first round of W3R and is
+   **withdrawn**: `TrEnv'` is indexed by a `Lean.Environment`, so it cannot be a field of
+   `UpstreamAsks env`, its only witness is the class-**D** `ErasureSpec.env_connect`, it
+   duplicates filed ask 4, and the consumer it named (`firstOrderIndB_sound`) is a planned
+   signature with no declaration in the tree. `firstOrderIndB_sound` stays blocked on **ask 4**.
 
 ---
 

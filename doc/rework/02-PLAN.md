@@ -79,12 +79,12 @@ the fixture diff and the `doc/trust.md` row to its wave gate (N3a).
 |---|---|---|---|---|
 | **W0** | Foundation: flags renamed tree-wide, tooling, ledger, F-FUEL, dead shims deleted | 6 + gate | — (tooling self-test) | **Delivered** |
 | **W1** | **The cut**, then specification + pass layers; **the recursion wall retired**; first end-to-end instance | 1 + 9 + gate | **G1** `spikeZero` | **Delivered**, except U1.5 and U1.8 (in progress) |
-| **W2** | β, ζ, literals; the composite; then the re-anchoring the W2 refutations force | 4 + 6 + gate | G2, G3, G4 | in progress |
-| **W3** | the one simulation (β ζ δ ι proj lit), first-order domain, `TrExprS` witnesses, the fragment, the pin bump | 9 + gate | G5, G6 |
-| **W3R** | **The repair wave**: the definitions the W3 arms had to work around — `ErasesEnv` forward (seven clauses), `Erases.proj`'s relevance (semantic, not syntactic), `SEval`'s pinned block data in source coordinates, `CasesOnShape`'s type, `LowerBlock.hfl`, the table modulo α — so that `erases_correct` needs MetaRocq's five, `LowerEnv` and `UpstreamAsks` and nothing else. Re-planned after its own refutation (`05-REPAIRS-W3.md` §16) | 9 + gate | G1–G6 unchanged and still green **at the gate** |
-| **W4** | The bridge: 18 motives against `ErasesLB`/`ErasesLBFix`, plus the block λ-headedness `LowerBlock.hfl` now asks of it | 6 + gate | G1–G6 lose `hbridge` |
-| **W5** | Capstone at Arith, coverage, delivery | 4 + gate | **G7, G8** |
-| **W6** | Optional hardening, off the critical path | 4 | unchanged |
+| **W2** | β, ζ, literals; the composite; then the re-anchoring the W2 refutations force | 4 + 6 + gate | G2, G3, G4 | **Delivered** |
+| **W3** | the one simulation (β ζ δ ι proj lit), first-order domain, `TrExprS` witnesses, the fragment, the pin bump | 9 + gate | G5, G6 | **Delivered**, under `StepPremises` (retired by W3R) |
+| **W3R** | **The repair wave**: the definitions the W3 arms had to work around — `ErasesEnv` forward (seven clauses), `Erases.proj`'s relevance (semantic, not syntactic), `SEval`'s pinned block data in source coordinates, `CasesOnShape`'s type, `LowerBlock.hfl`, the table modulo α — so that `erases_correct` needs MetaRocq's five, `LowerEnv` and `UpstreamAsks` and nothing else. Re-planned after its own refutation (`05-REPAIRS-W3.md` §16) | 9 + gate | G1–G6 unchanged and still green **at the gate** | **Delivered**; delivered files below |
+| **W4** | The bridge: 18 motives against `ErasesLB`/`ErasesLBFix`, plus the block λ-headedness `LowerBlock.hfl` now asks of it | 6 + gate | G1–G6 lose `hbridge` | not started |
+| **W5** | Capstone at Arith, coverage, delivery | 4 + gate | **G7, G8** | not started |
+| **W6** | Optional hardening, off the critical path | 4 | unchanged | not started |
 
 ---
 
@@ -278,6 +278,46 @@ MetaRocq's five, `LowerEnv`, and `UpstreamAsks` — no bundle, no forward-readin
 `specBlocks`. Decisions, evidence and full signatures: `doc/rework/05-REPAIRS-W3.md`; unit specs
 `U3R.*.md`, gate `G3R.md`.
 
+**Delivered**, all nine units and the gate. `erases_correct` closes exactly on the target line:
+`ErasesCorrect/Close.lean` states it as `ErasesCorrectStmt env bo Us fl Γspec Γ` with no explicit
+argument, `#check @erases_correct`/`erases_correct_target_shape` pinned by `test/
+erases_correct.expected` (new, `scripts/erases_correct.sh`, new). `StepPremises` and its six
+fields (`ErasesEnvFwd`, `IndSpineNotProp`, `SpecElims`, `ElimTyping`, `ProjSpec`,
+`TabledNotCtor`) are gone tree-wide, and so are `ErasesDecl`, `BlockBodiesLambda`,
+`LowerEnv.specBlocks`, `CasesOnOf`/`CasesOnOf'`. Delivered files, by unit: **U3R.1**
+`Erasability.lean` (new: `vResultSort`, `neverZeroB`, `InformativeInd`), `Erases.lean` (`IndArity`,
+`IndInfo.arity`, `Erases.proj`'s `hinf`, `erases_proj_needs_informative`), `ErasesTotal.lean`
+(`ProjInfo.proj`'s two new conjuncts), `Supported.lean` (`succSortB`); **U3R.2** `SourceEval.lean`
+(`MajorPremiseAt`, `CasesOnShape`'s third conjunct, `SEval.iota`/`.proj`'s `IndArity`/
+`InformativeInd`, the `NatWitness`/`ProjWitness` fixtures), `SubjectReduction.lean`; **U3R.3**
+`Lower.lean` (`LowerBlock.hfl`, `ElimDecl.uniq`, `LowerCtorBodyFixture`, and the six declarations
+relocated in from `LowerFix.lean`: `isLambda_toBvar`, `isLambda_closeFix`,
+`ConstToFVar.isLambda_eq`, `LowerBlock.targetLambda_of_fixLambda`, `Lower.source_isLambda`,
+`LowerBlock.lambda_of_fixLambda`), `LowerFix.lean`; **U3R.9** `Witness/SourceTable.lean`
+(`Expr.AlphaEq`, `Expr.alphaEqB`, `ReifiedDecl.Prepared` modulo α), `Tools/Reify.lean`; **U3R.4**
+`ErasesEnv.lean` (`ErasesEnv`'s seven clauses, `IndCovered`, `SpecContent`,
+`SpecContent.erasesEnv`), `ColdStartShape.lean`, `SpecEnv.lean` (`SpecEnv` re-keyed to
+`SpecContent`, `SpecEnv.erasesEnv`'s three premises, `RegInvShape'.defns`/`.erasesEnv`/
+`.lowerEnv`); **U3R.5** `Upstream.lean` (`UpstreamAsks`'s four fields, `IndBlockBelow`, `Peel`),
+`Origin.lean` (`indSpine_not_prop`, `not_erasable_of_informative`, `CasesOnShape.agree`,
+`IndArity.inj`, `constants_of_tabled`, `constOrigin_of_constants`, `peel_piSpine_head`,
+`MajorPremiseAt.instL`, `majorPremiseAt_of_piBinders`), `doc/upstream-asks.md`, `doc/trust.md`;
+**U3R.6** `ErasesCorrect/Iota.lean` (`step_iota`), `ErasesCorrect/Proj.lean`
+(`step_proj`); **U3R.7** `ErasesCorrect/Steps.lean` (`ErasesEnv.runtimeKey_isCasesOn`,
+`erases_elimSpine_no_value`, `erases_constSpine_value`/`_head`, `not_mkApps_const`,
+`ErasesEnv.ctorArity`, the five closure-kit lemmas, `Lower.appReady`, the five lemmas relocated
+in from `Delta.lean`), `ErasesCorrect/Delta.lean` (`step_delta`), `ErasesCorrect.lean`;
+**U3R.8** `FirstOrderInd.lean` (`fOFields_of_asks`); **gate** `ErasesCorrect/Close.lean`,
+`Green.lean`, `test/{Ledger.lean,ledger.expected,erases_correct.expected}` (34 ledger rows),
+`scripts/erases_correct.sh`. One declaration `01-DESIGN.md` §2.4 scheduled for this wave was
+not landed as first printed and is recorded as a delivery finding rather than silently
+resolved (`05-REPAIRS-W3.md` §17): `constOrigin_of_tabled` does not exist, replaced by
+`constants_of_tabled` + `constOrigin_of_constants`, blocked on filed ask 4. `IndArity.inj`
+(landed inside U3R.6's files) and `peel_piSpine_head`/`MajorPremiseAt.instL`/
+`majorPremiseAt_of_piBinders` (landed inside U3R.8's file) are placed above in their settled
+home, `Origin.lean`, folding in a rename-free relocation onto their natural site beside
+`CasesOnShape.agree`/`peel_piSpine`/`MajorPremiseAt.inst`.
+
 **The wave was refuted before any unit ran and re-planned against the refutation.** Two of the
 thirteen findings are kernel-checked: the relevance criterion on `Erases.proj` cannot be the
 syntactic `InformativeInd` (refuted at `Prod` and at 11 of 24 measured `.proj` heads), and the
@@ -334,18 +374,21 @@ target cannot reduce it — a **`Supported` clause**, N18's projection half, dec
 measurement (how many `.proj` nodes across the five `.ast`s have a non-informative head; the
 prediction from `doc/coverage.md`'s `Prod` note is zero, with `Prod` itself a false exclusion of
 `informativeB`'s syntactic successor test). Motives 4-6 target the **seven-clause** `ErasesEnv`
-(§4.8) and take its forward clauses from U3R.4's registry derivation, not from a `decls`
-re-packing.
+(§4.8), through `SpecContent`/`IndCovered` rather than a `decls` re-packing: `blocks`/`axioms`
+are `SpecContent`'s own declaredness-keyed clauses once `deps` supplies presence, `elims` is
+`IndCovered.elims` at the registered inductive, and only `tabled`/`defns` are not registry facts
+at all — U4.2's own obligation, off `constants_of_tabled`/`constOrigin_of_constants`, since no
+theorem named `constOrigin_of_tabled` exists (`05-REPAIRS-W3.md` §17 WD6).
 
 | Unit | Files owned | Depends | Est. | Acceptance |
 |---|---|---|---|---|
 | **U4.1 motive-split + BridgeInv** | `VisitExprRefines/Motives.lean`, `VisitExprRefines.lean` (aggregator), `Bridge.lean` (re-lands `BridgeInv`, 7 of the old 10 fields; the `fixvars` field's content is now `ErasesLBFix`'s `kns`/`ids` indices) | W3 **(proof)** | 900 | `Motives` is defined and both `visitExpr_refines_erasesLB` and `visitExpr_refines_erasesLBFix` are stated (§5), with the eighteen steps as **explicit hypotheses** of the aggregator (no `sorry`, no named holes — `#print axioms` on the aggregator = `[propext, Classical.choice, Quot.sound]`); `BridgeInv`'s binder list contains no `*Hyps` other than `ErasureSpec` |
-| **U4.2 motives-env (4, 5, 6) — first** | `VisitExprRefines/Step/Env.lean` | U4.1, **W3R U3R.4 (proof)** | 1,200 | the three environment-facing steps elaborate — motive 6 against `ErasesLBFix` — against the seven-clause `ErasesEnv`, whose `blocks`/`elims`/`axioms` the run establishes as it registers (U3R.4's `IndCovered`) and whose `tabled` it establishes through `constOrigin_of_tabled`, which needs `ErasureSpec.env_connect` — **this unit owns the two source-facing clauses G3R's inhabitation probe leaves to it** (`05-REPAIRS-W3.md` §16 S3c); there is no `elimsOnly` clause; **scheduled first inside the wave** so `SpecEnv.mono`, the forward clauses or the motive-6 shape fails on day one if it is going to (risks R2, R1's W4 residue) |
+| **U4.2 motives-env (4, 5, 6) — first** | `VisitExprRefines/Step/Env.lean` | U4.1, **W3R U3R.4 (proof)** | 1,200 | the three environment-facing steps elaborate — motive 6 against `ErasesLBFix` — against the **seven**-clause `ErasesEnv`, taken through `SpecContent`/`IndCovered` (`01-DESIGN.md` §4.8): `blocks`/`axioms` come from `SpecContent`'s own clauses once `deps` supplies declaredness, and `elims` from `IndCovered.elims` at the registered inductive (U3R.4's `RegInvShape'`/`SpecEnv`) — **this unit owns the two clauses that are not registry facts, `tabled` and `defns`**, the gap G3R's `ErasesEnv` inhabitation probe leaves open (`01-DESIGN.md` §5, `hbridge`'s notes; `05-REPAIRS-W3.md` §17 WD6 corrects §16 S3c's theorem name): `tabled` composes `constants_of_tabled` (`P.decl_adequate`/`htbl`/`hsafe` ⇒ `∃ vc, env.constants c = some vc`) with `constOrigin_of_constants` (`A.constsOrigin` ⇒ `ConstOrigin`), **not** a single `constOrigin_of_tabled` — that theorem does not exist and is blocked on filed ask 4 (`doc/upstream-asks.md` item 4); until ask 4 lands, `defns` carries the two exclusions (`∀ I k, ¬ CtorOf env c I k`, `∀ iid np nfs, ¬ IndInfo env c iid np nfs`) as an explicit premise of this unit's own step lemma, exactly as `SpecEnv.erasesEnv`'s `htab` does; there is no `elimsOnly` clause; **scheduled first inside the wave** so `SpecEnv.mono`, the forward clauses or the motive-6 shape fails on day one if it is going to (risks R2, R1's W4 residue) |
 | **U4.3 motives-mechanical (1, 7, 8, 9, 11, 12, 18)** | `VisitExprRefines/Step/Mechanical.lean` (+ the re-landed run plumbing) | U4.1 | 1,300 | the seven steps elaborate |
-| **U4.3b block λ-headedness** | `VisitExprRefines/Step/Mechanical.lean` (the `visitMutual` step), `Output.lean` (`FixLambda.of_onProgram` only) | U4.1, **W3R U3R.3 (proof)** | 200 | `LowerBlock` now carries `hfl` (`01-DESIGN.md` §4.4), so the bridge must supply it per block. It has the fact — `ErasureBridge` carries `LBWfPeregrine Γ t`, whose `fixLambda` is `OnProgram Γ t FixLambda` — and what is owed is the subterm-closure step to the block's own `.fix defs j` node: `FixLambda.of_onProgram`. One lemma, named here rather than discovered at the step (`05-REPAIRS-W3.md` §16 F5) |
+| **U4.3b block λ-headedness — runs after U4.3** | `VisitExprRefines/Step/Mechanical.lean` (the `visitMutual` step only, co-owned with U4.3, which lands first and owns every other step in the file), `Output.lean` (`FixLambda.of_onProgram` only) | U4.1, U4.3, **W3R U3R.3 (proof)** | 200 | `LowerBlock` now carries `hfl` (`01-DESIGN.md` §4.4), so the bridge must supply it per block. It has the fact — `ErasureBridge` carries `LBWfPeregrine Γ t`, whose `fixLambda` is `OnProgram Γ t FixLambda` — and what is owed is the subterm-closure step to the block's own `.fix defs j` node: `FixLambda.of_onProgram`. One lemma, named here rather than discovered at the step (`05-REPAIRS-W3.md` §16 F5) |
 | **U4.4 motives-passes (2, 3, 10, 13, 14, 15, 16, 17)** | `VisitExprRefines/Step/Passes.lean`, `Supported.lean` (N18's projection half, if that is the route chosen), `doc/coverage.md` (the `.proj`-head measurement row) | U4.1, U2.2, **W3R U3R.1 (proof)** | 1,700 | the eight steps elaborate, each via a derived introduction lemma of `ErasesLB` (the acceptance test greps that each of the eight uses `ErasesLB.` and none re-proves a `Lower` fact inline); motive 10 supplies `Erases.proj`'s `hinf` from a stated source — a `Supported` clause or a coherence clause, decided and **measured** here, with the count of non-informative `.proj` heads across the five `.ast`s in the unit report. The criterion is the **semantic** one (U3R.1): measured over the 11 committed environments, all 15 distinct `.proj` heads pass it, where the syntactic one rejected 7 of them (`scratchpad/refute3/projheads.lean`) |
 | **U4.5 cold-start + panics** | `ColdStartRun.lean`, `ColdStartInduction.lean` (re-landed adapted; **plus the new `visitExpr_ctorSat`** — §4.9's saturation route), `doc/panics.md` | U4.1 | 800 | `erase_run_ok`, `run_prepare_erasure_ok`, `visitExpr_shape_all` re-landed; `visitExpr_ctorSat` elaborates; `doc/panics.md` lists all sixteen sites with the premise excluding each — two closed by `Erases.sort_erasable`/`forallE_erasable`, the rest by named `Supported` conjuncts (criterion 10 = N12 option 2) |
-| **G4 gate — the bridge lands** | `Capstone.lean`, `Green.lean`; N3a files | U4.1–U4.5 **(proof)** | 700 | both T8 statements elaborate proved; `#print axioms` on them shows `sorryAx` present exactly for the theorems `test/ledger.expected` predicts, and `doc/trust.md` names the lean4lean roots with `file:line` (provenance is documented there, not claimed measured — N6); **`green_G1`…`green_G6` stop taking `hbridge`**; ledger diff clean |
+| **G4 gate — the bridge lands** | `Capstone.lean`, `Green.lean`, `.github/workflows/build.yml` (N3a); N3a files | U4.1–U4.5 **(proof)** | 700 | both T8 statements elaborate proved; `#print axioms` on them shows `sorryAx` present exactly for the theorems `test/ledger.expected` predicts, and `doc/trust.md` names the lean4lean roots with `file:line` (provenance is documented there, not claimed measured — N6); **`green_G1`…`green_G6` stop taking `hbridge`**; ledger diff clean; **three CI steps W3R's gate left owed** (`.github/workflows/build.yml`, gate-owned since W1, N3a): `bash scripts/erases_correct.sh` beside the `Trust ledger` step (the only guard on T5's premise list), `bash scripts/erasesLB.sh` (exists, was not run), and `LeanToLambdaBox.Witness.SelfTest.matchTable` added beside `toyTable`/`staleTable` in the `Reified table drift` step (the only regression guard on the α-note path) — all three pass locally today and are owed to CI, not to a proof |
 
 ### W5 — capstone at Arith, coverage, delivery (5 + gate)
 

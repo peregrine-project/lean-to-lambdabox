@@ -140,11 +140,13 @@ Paths under `.lake/packages/lean4lean/Lean4Lean/` are given relative to that dir
    (`Verify/Environment.lean:208`) is `sorry` at the pinned revision — the lemma that would
    let the environment connection itself be derived rather than assumed.
 
-   **It is also what `constOrigin_of_tabled` needs.** `ErasesEnv.tabled` asks that a constant
-   the compiler table gives a body for be a *plain* constant of `env`. Both halves are proved
-   (`LeanToLambdaBox/Origin.lean`: `constants_of_tabled` and `constOrigin_of_constants`); what
-   joins them is a transfer of the constant's **kind** from `lenv` to the model, and nothing at
-   the pin performs it. Until item 4 lands, the exclusion is a premise of `SpecEnv.erasesEnv`.
+   **It is also what would compose `ErasesEnv.tabled`'s two proved halves into one theorem.**
+   `ErasesEnv.tabled` asks that a constant the compiler table gives a body for be a *plain*
+   constant of `env`. Both halves are proved (`LeanToLambdaBox/Origin.lean`:
+   `constants_of_tabled` and `constOrigin_of_constants`); what joins them is a transfer of the
+   constant's **kind** from `lenv` to the model, and nothing at the pin performs it — no
+   theorem spans the gap. Until item 4 lands, the exclusion is a premise of
+   `SpecEnv.erasesEnv`.
 
    **This is also `firstOrderIndB_sound`'s blocker** (`LeanToLambdaBox/FirstOrderInd.lean`'s
    module header): the table-side half `firstOrderIndB_step` is proved, and the model-side half
@@ -175,7 +177,9 @@ Paths under `.lake/packages/lean4lean/Lean4Lean/` are given relative to that dir
 
    The fork is free to sharpen the hypotheses (`hty` is there so that the over-applied case is
    excluded by typing rather than by a side condition). Consumers here, all theorems:
-   `not_erasable_of_informative` (T5's ι arm, T5's proj arm, T7's `firstorder_no_box`). It is
+   `not_erasable_of_informative` (T5's ι arm, T5's proj arm, T7's `firstorder_no_box`), directly,
+   and `fOFields_of_asks` (both T7 theorems), through `indSpine_ne_forallE`'s use inside
+   `peel_piSpine`. It is
    **not** a consumer of the `SEval.ctorVal` arm any more: that arm carries `[S Fig. 12]`'s own
    `nargs ≤ cstr_arity` bound, read off `IndInfo`, so no-over-application is a premise of the
    source value relation rather than a kernel fact to be derived.
@@ -200,12 +204,13 @@ Paths under `.lake/packages/lean4lean/Lean4Lean/` are given relative to that dir
        ∃ T, env.HasType U Γ f T ∧ Peel env U Γ T args V
    ```
 
-   Consumers, all theorems here: `indSpine_not_prop` (T5's ι and proj arms, inside
-   `not_erasable_of_informative`) and `fOFields_of_asks` (both T7 theorems). `elim_major` and
-   `ctor_saturated` were filed as consumers and are **not**: their spines are translated, and
-   `TrExprS`'s `app` arm already carries the function's typing at a Π and the argument's at its
-   domain, so `LeanToLambdaBox/Origin.lean`'s `trExprS_spine_peel` proves the peel for them
-   outright. The ask stays load-bearing for the two consumers whose spine is untranslated.
+   Consumers, all theorems here: `indSpine_not_prop` alone (T5's ι and proj arms, inside
+   `not_erasable_of_informative`). `elim_major`, `ctor_saturated` and `fOFields_of_asks` were
+   filed as consumers and are **not**: all three read a spine reached through a `TrExprS`
+   translation, and `TrExprS`'s `app` arm already carries the function's typing at a Π and the
+   argument's at its domain, so `LeanToLambdaBox/Origin.lean`'s `trExprS_spine_peel` proves the
+   peel for them outright — `fOFields_of_asks` consumes asks 2, 6 and 10 instead (items 2, 6
+   and 10). The ask stays load-bearing for the one consumer whose spine is untranslated.
    Feasibility as measured: the forward half is ~40 lines
    from `HasType.app_inv` plus `IsDefEq.uniqU`; the second half needs `IsDefEqU.forallE_inv` and
    an instantiation lemma under a binder.
@@ -232,7 +237,10 @@ Paths under `.lake/packages/lean4lean/Lean4Lean/` are given relative to that dir
 
    The `IndDeclOf` premises are load-bearing rather than decoration: without them the statement
    is **false**, since a `VDecl.def` named `Foo` with body `Nat` gives
-   `IsDefEqU (.const Foo []) (.const Nat [])`. Consumers: `ctor_saturated`, `fOFields_of_asks`.
+   `IsDefEqU (.const Foo []) (.const Nat [])`. Consumers: `fOFields_of_asks` alone — it is the
+   one theorem that must identify a constructor field's own type former with the value's;
+   `ctor_saturated` was filed as a consumer and is not, since its `I` is given directly by its
+   own `hi : IndInfo env I iid np nfs`, with no second former to identify it against.
    Honest expectation: the home file has three `sorry`s of four theorems (`sort_inv`,
    `forallE_inv_stratified`, `sort_forallE_inv`) and Church-Rosser itself is unproved
    (`ChurchRosser.lean:1193,1212`), so this ask lands with them and not before.
