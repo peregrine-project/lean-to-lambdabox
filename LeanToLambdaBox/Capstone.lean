@@ -1,4 +1,5 @@
 import LeanToLambdaBox.ErasesLB
+import LeanToLambdaBox.FirstOrderInd
 import LeanToLambdaBox.SpecEnv
 import LeanToLambdaBox.SubjectReduction
 import LeanToLambdaBox.Supported
@@ -18,9 +19,9 @@ box-free — by the emitted program under λ□'s own semantics.
 
 Three hypotheses are stated in the form this module can express. `hsup` is the fragment
 predicate `Supported`, which a rung discharges by computation through `supportedB_sound`.
-The first-order side condition is the parameter `fo : Name → Prop` with the premise `fo I`, so
-the statement is a schema a first-order predicate instantiates. The spine premise is the
-composite `ErasesLB`, together with the length equation `Lower.mkApps` consumes.
+The first-order side condition is `FirstOrderInd env I`, the closed predicate of
+`FirstOrderInd.lean`. The spine premise is the composite `ErasesLB`, together with the length
+equation `Lower.mkApps` consumes.
 
 `hnb : NoBodylessRefs Γ t` is `erase_correct_firstorder`'s `axiom_free` analogue, decided per
 rung: without it a run reaching a body-less declaration would satisfy the conclusion
@@ -54,7 +55,7 @@ shapes are the ones the composition consumes; where a field is *stronger* than t
 named — a premise that theorem takes and the capstone's clause cannot supply — the field's
 docstring says so.
 -/
-structure ErasureBridge (env : VEnv) (bo : Name → Option Expr) (fo : Name → Prop)
+structure ErasureBridge (env : VEnv) (bo : Name → Option Expr)
     (e : Expr) (Γspec Γ : GlobalDeclarations) (t t₀ : LBTerm) : Prop where
   /-- The subject's own erasure. Discharged by `visitExpr_refines_erasesLB` (T8, W4). -/
   erases : Erases env [] [] e t₀
@@ -85,7 +86,7 @@ structure ErasureBridge (env : VEnv) (bo : Name → Option Expr) (fo : Name → 
       the *lowered* value: T7 proves it of the erasure, and the transport along `Lower` is
       false without a guard (`noBox_lower_needs_noFix`). -/
   firstorder : ∀ {I : Name} {us : List VLevel} {idx : List VExpr} {v : Expr} {vv : VExpr}
-      {tv₀ tv : LBTerm}, fo I → TrExprS env [] [] v vv →
+      {tv₀ tv : LBTerm}, FirstOrderInd env I → TrExprS env [] [] v vv →
       env.HasType 0 [] vv (VExpr.mkApps (.const I us) idx) →
       Erases env [] [] v tv₀ → Lower Γspec tv₀ tv →
       NoBox tv ∧ ∀ tv', Erases env [] [] v tv' → tv' = tv₀
@@ -106,7 +107,7 @@ theorem shipping_erase_correct_firstorder
     {lenv : Lean.Environment} {env : VEnv} {gw : Void IO.RealWorld → NameGenerator}
     {tbl : SourceTable} {cfg : ErasureConfig} {e : Expr} {ve : VExpr}
     {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State} {w w' : Void IO.RealWorld}
-    {Γ : GlobalDeclarations} {t : LBTerm} {inls : List Kername} {fo : Name → Prop}
+    {Γ : GlobalDeclarations} {t : LBTerm} {inls : List Kername}
     (P : ErasureSpec lenv env [] gw)
     (htbl : SourceTableAdequate lenv tbl)
     (hcfg : ConfigPinned cfg)
@@ -115,7 +116,7 @@ theorem shipping_erase_correct_firstorder
     (hsup : Supported env tbl e)
     (hrun : Erasure.erase e cfg cctx ref w = .ok (.untyped Γ (some t), inls) w')
     (hnb : NoBodylessRefs Γ t)
-    (hbridge : ∃ Γspec t₀, ErasureBridge env tbl.body? fo e Γspec Γ t t₀) :
+    (hbridge : ∃ Γspec t₀, ErasureBridge env tbl.body? e Γspec Γ t t₀) :
     ∃ (Γspec : GlobalDeclarations) (t₀ : LBTerm),
       Erases env [] [] e t₀
       ∧ ErasesEnv env tbl.body? Γspec t₀
@@ -129,7 +130,7 @@ theorem shipping_erase_correct_firstorder
           SEval env tbl.body? [] fullFlags [] (mkApps e args) v →
           TrExprS env [] [] v vv →
           env.HasType 0 [] vv (VExpr.mkApps (.const I us) idx) →
-          fo I →
+          FirstOrderInd env I →
           ∃ tv₀ tv, Erases env [] [] v tv₀ ∧ Lower Γspec tv₀ tv ∧ NoBox tv
             ∧ (∀ tv', Erases env [] [] v tv' → tv' = tv₀)
             ∧ WcbvEval Γ eraseFlags (LBTerm.mkApps t targs) tv := by

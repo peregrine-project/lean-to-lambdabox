@@ -40,6 +40,8 @@ roots = [
   "VerifyBench.Spikes.G2",
   "VerifyBench.Spikes.G3",
   "VerifyBench.Spikes.G4",
+  "VerifyBench.Spikes.G5",
+  "VerifyBench.Spikes.G6",
 ]
 
 # The external half of the green ladder (`Tools/GreenCheck.lean`): the checks that

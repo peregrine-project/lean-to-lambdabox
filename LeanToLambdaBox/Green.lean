@@ -1,4 +1,5 @@
 import LeanToLambdaBox.Capstone
+import LeanToLambdaBox.Witness.TrWitness
 
 /-!
 # The green ladder
@@ -31,6 +32,23 @@ def spikeLet : Nat := let x := 2; Nat.succ x
 /-- Rung G4's subject: a structure projection out of a pair, whose type parameters are
 erased. -/
 def spikeProj : Nat := (Prod.mk 1 2).1
+
+/-- Rung G5's subject: a `casesOn` applied to a constructor value — an ι redex on both
+sides. The nullary branch is a thunk application, the shape Lean's `match` compiler gives a
+nullary alternative, so the branch obligation the ι rule owes is the one a compiled `match`
+owes. Written with `Nat.casesOn` rather than `match` syntax because matcher inlining is not
+binder-name stable, which leaves `SourceTableAdequate` uninhabited on a matcher's body. -/
+def spikeCase : Nat :=
+  Nat.casesOn (motive := fun _x => Nat) (Nat.succ (Nat.succ Nat.zero))
+    ((fun _u : Unit => Nat.zero) Unit.unit) (fun n => n)
+
+/-- Rung G6's recursive constant: it erases to a `.fix` node, and its body is the same ι
+redex on the argument. Written with `Nat.casesOn` for the reason `spikeCase` is. -/
+def spikeRec : Nat → Nat := fun n =>
+  Nat.casesOn (motive := fun _x => Nat) n Nat.zero (fun m => Nat.succ (spikeRec m))
+
+/-- Rung G6's subject: an application of a recursive constant, hence δ on a `.fix`. -/
+def spikeFix : Nat := spikeRec (Nat.succ (Nat.succ Nat.zero))
 
 namespace LeanToLambdaBox.Green
 
@@ -173,26 +191,26 @@ set_option linter.unusedVariables false in
 **Rung G1 is green.** For the `#erase` run recorded in `VerifyBench/Spikes/G1.lean`, the
 emitted program is the lowered image of a specification environment that erases `spikeZero`,
 and the source evaluation's answer is reproduced as the literal λ□ numeral `0` —
-`.construct natIid 0 []`, not `□` and not a stuck term. `hcfg`, `hsup`, `hnb`, the capstone's
+`.construct natIid 0 []`, not `□` and not a stuck term. `hcfg`, `hsup`, `hnb`, `hwt`, the capstone's
 `hcb` and the target-side evaluation are discharged here by checked terms; every remaining
-binder is a `doc/trust.md` row, `hev` among them, uninhabited until `green_G5`.
+binder is a `doc/trust.md` row, `hev` among them, which `green_G5` is the first rung to
+inhabit.
 -/
 theorem green_G1
     {lenv : Lean.Environment} {env : VEnv} {gw : Void IO.RealWorld → NameGenerator}
-    {ve vv : VExpr} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
-    {w w' : Void IO.RealWorld} {inls : List Kername} {fo : Name → Prop}
+    {vv : VExpr} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
+    {w w' : Void IO.RealWorld} {inls : List Kername}
     {v : Expr} {us : List VLevel} {idx : List VExpr}
     (P : ErasureSpec lenv env [] gw)
     (htbl : SourceTableAdequate lenv g1Table)
     (hsafe : TableSafe lenv g1Table)
-    (hwt : TrExprS env [] [] eG1 ve)
     (hrun : Erasure.erase eG1 spikeConfig cctx ref w
       = .ok (.untyped g1Env (some g1Term), inls) w')
-    (hbridge : ∃ Γspec t₀, ErasureBridge env g1Table.body? fo eG1 Γspec g1Env g1Term t₀)
+    (hbridge : ∃ Γspec t₀, ErasureBridge env g1Table.body? eG1 Γspec g1Env g1Term t₀)
     (hev : SEval env g1Table.body? [] fullFlags [] eG1 v)
     (hvwt : TrExprS env [] [] v vv)
     (hty : env.HasType 0 [] vv (VExpr.mkApps (.const ``Nat us) idx))
-    (hfo : fo ``Nat) :
+    (hfo : FirstOrderInd env ``Nat) :
     ∃ (Γspec : GlobalDeclarations) (t₀ tv₀ : LBTerm),
       Erases env [] [] eG1 t₀
       ∧ ErasesEnv env g1Table.body? Γspec t₀
@@ -206,7 +224,8 @@ theorem green_G1
       ∧ WcbvEval g1Env eraseFlags g1Term (.construct natIid 0 []) := by
   obtain ⟨Γspec, t₀, her, herΓ, hlow, hlowΓ, hwf, hobs⟩ :=
     shipping_erase_correct_firstorder P htbl spike_configPinned
-      (g1_compilerBodies P htbl hsafe) hwt (supportedB_sound P htbl hsafe g1_supported)
+      (g1_compilerBodies P htbl hsafe) (trExprS_const_of_table P htbl hsafe rfl)
+      (supportedB_sound P htbl hsafe g1_supported)
       hrun g1_noBodylessRefs hbridge
   obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
     hobs [] [] ``Nat us idx v vv rfl (fun i hi => absurd hi (by simp)) hev hvwt hty hfo
@@ -306,26 +325,25 @@ emitted program is the lowered image of a specification environment that erases 
 and the source evaluation's answer is reproduced as the literal λ□ peano numeral `4`, not
 `□` and not a stuck term. The peano tower and the `OfNat` class tower a literal brings are
 both in the emitted program.
-`hcfg`, `hsup`, `hnb` and the target-side evaluation are discharged here by checked terms;
-`hcb` and `hev` stay binders, per `doc/trust.md`'s class-**C** rows.
+`hcfg`, `hsup`, `hnb`, `hwt` and the target-side evaluation are discharged here by checked
+terms; `hcb` and `hev` stay binders, per `doc/trust.md`'s class-**C** rows.
 -/
 theorem green_G2
     {lenv : Lean.Environment} {env : VEnv} {gw : Void IO.RealWorld → NameGenerator}
-    {ve vv : VExpr} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
-    {w w' : Void IO.RealWorld} {inls : List Kername} {fo : Name → Prop}
+    {vv : VExpr} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
+    {w w' : Void IO.RealWorld} {inls : List Kername}
     {v : Expr} {us : List VLevel} {idx : List VExpr}
     (P : ErasureSpec lenv env [] gw)
     (htbl : SourceTableAdequate lenv g2Table)
     (hsafe : TableSafe lenv g2Table)
     (hcb : CompilerBodies lenv env g2Table.body?)
-    (hwt : TrExprS env [] [] eG2 ve)
     (hrun : Erasure.erase eG2 spikeConfig cctx ref w
       = .ok (.untyped g2Env (some g2Term), inls) w')
-    (hbridge : ∃ Γspec t₀, ErasureBridge env g2Table.body? fo eG2 Γspec g2Env g2Term t₀)
+    (hbridge : ∃ Γspec t₀, ErasureBridge env g2Table.body? eG2 Γspec g2Env g2Term t₀)
     (hev : SEval env g2Table.body? [] fullFlags [] eG2 v)
     (hvwt : TrExprS env [] [] v vv)
     (hty : env.HasType 0 [] vv (VExpr.mkApps (.const ``Nat us) idx))
-    (hfo : fo ``Nat) :
+    (hfo : FirstOrderInd env ``Nat) :
     ∃ (Γspec : GlobalDeclarations) (t₀ tv₀ : LBTerm),
       Erases env [] [] eG2 t₀
       ∧ ErasesEnv env g2Table.body? Γspec t₀
@@ -338,7 +356,8 @@ theorem green_G2
       ∧ (∀ tv', Erases env [] [] v tv' → tv' = tv₀)
       ∧ WcbvEval g2Env eraseFlags g2Term (peanoLB 4) := by
   obtain ⟨Γspec, t₀, her, herΓ, hlow, hlowΓ, hwf, hobs⟩ :=
-    shipping_erase_correct_firstorder P htbl spike_configPinned hcb hwt
+    shipping_erase_correct_firstorder P htbl spike_configPinned hcb
+      (trExprS_const_of_table P htbl hsafe rfl)
       (supportedB_sound P htbl hsafe g2_supported) hrun g2_noBodylessRefs hbridge
   obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
     hobs [] [] ``Nat us idx v vv rfl (fun i hi => absurd hi (by simp)) hev hvwt hty hfo
@@ -392,26 +411,25 @@ set_option linter.unusedVariables false in
 emitted program is the lowered image of a specification environment that erases `spikeLet`,
 and the source evaluation's answer is reproduced as the literal λ□ peano numeral `3`, not
 `□` and not a stuck term. The `let` is contracted by ζ on both sides.
-`hcfg`, `hsup`, `hnb` and the target-side evaluation are discharged here by checked terms;
-`hcb` and `hev` stay binders, per `doc/trust.md`'s class-**C** rows.
+`hcfg`, `hsup`, `hnb`, `hwt` and the target-side evaluation are discharged here by checked
+terms; `hcb` and `hev` stay binders, per `doc/trust.md`'s class-**C** rows.
 -/
 theorem green_G3
     {lenv : Lean.Environment} {env : VEnv} {gw : Void IO.RealWorld → NameGenerator}
-    {ve vv : VExpr} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
-    {w w' : Void IO.RealWorld} {inls : List Kername} {fo : Name → Prop}
+    {vv : VExpr} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
+    {w w' : Void IO.RealWorld} {inls : List Kername}
     {v : Expr} {us : List VLevel} {idx : List VExpr}
     (P : ErasureSpec lenv env [] gw)
     (htbl : SourceTableAdequate lenv g3Table)
     (hsafe : TableSafe lenv g3Table)
     (hcb : CompilerBodies lenv env g3Table.body?)
-    (hwt : TrExprS env [] [] eG3 ve)
     (hrun : Erasure.erase eG3 spikeConfig cctx ref w
       = .ok (.untyped g3Env (some g3Term), inls) w')
-    (hbridge : ∃ Γspec t₀, ErasureBridge env g3Table.body? fo eG3 Γspec g3Env g3Term t₀)
+    (hbridge : ∃ Γspec t₀, ErasureBridge env g3Table.body? eG3 Γspec g3Env g3Term t₀)
     (hev : SEval env g3Table.body? [] fullFlags [] eG3 v)
     (hvwt : TrExprS env [] [] v vv)
     (hty : env.HasType 0 [] vv (VExpr.mkApps (.const ``Nat us) idx))
-    (hfo : fo ``Nat) :
+    (hfo : FirstOrderInd env ``Nat) :
     ∃ (Γspec : GlobalDeclarations) (t₀ tv₀ : LBTerm),
       Erases env [] [] eG3 t₀
       ∧ ErasesEnv env g3Table.body? Γspec t₀
@@ -424,7 +442,8 @@ theorem green_G3
       ∧ (∀ tv', Erases env [] [] v tv' → tv' = tv₀)
       ∧ WcbvEval g3Env eraseFlags g3Term (peanoLB 3) := by
   obtain ⟨Γspec, t₀, her, herΓ, hlow, hlowΓ, hwf, hobs⟩ :=
-    shipping_erase_correct_firstorder P htbl spike_configPinned hcb hwt
+    shipping_erase_correct_firstorder P htbl spike_configPinned hcb
+      (trExprS_const_of_table P htbl hsafe rfl)
       (supportedB_sound P htbl hsafe g3_supported) hrun g3_noBodylessRefs hbridge
   obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
     hobs [] [] ``Nat us idx v vv rfl (fun i hi => absurd hi (by simp)) hev hvwt hty hfo
@@ -498,26 +517,25 @@ emitted program is the lowered image of a specification environment that erases 
 and the source evaluation's answer is reproduced as the literal λ□ peano numeral `1`, not
 `□` and not a stuck term. The projection is taken on both sides and the pair's two type
 parameters are erased.
-`hcfg`, `hsup`, `hnb` and the target-side evaluation are discharged here by checked terms;
-`hcb` and `hev` stay binders, per `doc/trust.md`'s class-**C** rows.
+`hcfg`, `hsup`, `hnb`, `hwt` and the target-side evaluation are discharged here by checked
+terms; `hcb` and `hev` stay binders, per `doc/trust.md`'s class-**C** rows.
 -/
 theorem green_G4
     {lenv : Lean.Environment} {env : VEnv} {gw : Void IO.RealWorld → NameGenerator}
-    {ve vv : VExpr} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
-    {w w' : Void IO.RealWorld} {inls : List Kername} {fo : Name → Prop}
+    {vv : VExpr} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
+    {w w' : Void IO.RealWorld} {inls : List Kername}
     {v : Expr} {us : List VLevel} {idx : List VExpr}
     (P : ErasureSpec lenv env [] gw)
     (htbl : SourceTableAdequate lenv g4Table)
     (hsafe : TableSafe lenv g4Table)
     (hcb : CompilerBodies lenv env g4Table.body?)
-    (hwt : TrExprS env [] [] eG4 ve)
     (hrun : Erasure.erase eG4 spikeConfig cctx ref w
       = .ok (.untyped g4Env (some g4Term), inls) w')
-    (hbridge : ∃ Γspec t₀, ErasureBridge env g4Table.body? fo eG4 Γspec g4Env g4Term t₀)
+    (hbridge : ∃ Γspec t₀, ErasureBridge env g4Table.body? eG4 Γspec g4Env g4Term t₀)
     (hev : SEval env g4Table.body? [] fullFlags [] eG4 v)
     (hvwt : TrExprS env [] [] v vv)
     (hty : env.HasType 0 [] vv (VExpr.mkApps (.const ``Nat us) idx))
-    (hfo : fo ``Nat) :
+    (hfo : FirstOrderInd env ``Nat) :
     ∃ (Γspec : GlobalDeclarations) (t₀ tv₀ : LBTerm),
       Erases env [] [] eG4 t₀
       ∧ ErasesEnv env g4Table.body? Γspec t₀
@@ -530,12 +548,348 @@ theorem green_G4
       ∧ (∀ tv', Erases env [] [] v tv' → tv' = tv₀)
       ∧ WcbvEval g4Env eraseFlags g4Term (peanoLB 1) := by
   obtain ⟨Γspec, t₀, her, herΓ, hlow, hlowΓ, hwf, hobs⟩ :=
-    shipping_erase_correct_firstorder P htbl spike_configPinned hcb hwt
+    shipping_erase_correct_firstorder P htbl spike_configPinned hcb
+      (trExprS_const_of_table P htbl hsafe rfl)
       (supportedB_sound P htbl hsafe g4_supported) hrun g4_noBodylessRefs hbridge
   obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
     hobs [] [] ``Nat us idx v vv rfl (fun i hi => absurd hi (by simp)) hev hvwt hty hfo
   have htv : tv = g4Answer := eval_deterministic hevtgt g4_eval
   subst htv
   exact ⟨Γspec, t₀, tv₀, her, herΓ, hlow, hlowΓ, hwf, herv, hlowv, hnobox, huniq, g4_eval⟩
+
+/-! ## G5 — `spikeCase`, the first ι rung -/
+
+/-- The reified slice of the elaboration environment rung G5 reads, spliced by `reify%`
+out of the environment this module elaborates in. -/
+def g5Table : SourceTable := reify% spikeCase
+
+/-- The source term `#erase spikeCase` elaborates. -/
+def eG5 : Expr := .const ``spikeCase []
+
+/-- `PUnit`'s λ□ inductive identifier: the thunk's argument type. -/
+def punitIid : InductiveId := ⟨rootKername "PUnit", 0⟩
+
+/-- The kername of `Unit.unit`, the thunk's argument. -/
+def unitUnitKn : Kername := ⟨.MPdot (.MPfile []) "Unit", "unit"⟩
+
+/-- `PUnit`'s emitted inductive body: one nullary constructor, no parameters. -/
+def punitBody : MutualInductiveBody :=
+  { npars := 0,
+    bodies := [{ name := "PUnit", propositional := false, kelim := .IntoAny,
+                 ctors := [{ name := "PUnit.unit", nargs := 0 }],
+                 projs := [] }] }
+
+/-- Rung G5's emitted environment, transcribed from `VerifyBench/ast/Spikes/G5.ast`. -/
+def g5Env : GlobalDeclarations :=
+  [ (rootKername "spikeCase", .constantDecl ⟨some
+      (.case (natIid, 0) (peanoLB 2)
+        [([], .app (.lambda (.named "_u") (.construct natIid 0 [])) (.const unitUnitKn)),
+         ([.named "n"], .bvar 0)])⟩),
+    (unitUnitKn, .constantDecl ⟨some (.construct punitIid 0 [])⟩),
+    (rootKername "PUnit", .inductiveDecl punitBody),
+    (rootKername "Nat", .inductiveDecl natBody) ]
+
+/-- Rung G5's emitted term. -/
+def g5Term : LBTerm := .const (rootKername "spikeCase")
+
+/-- Rung G5's answer: the λ□ peano numeral `1`. -/
+def g5Answer : LBTerm := peanoLB 1
+
+/-- The subject is inside the supported fragment, decided on the reified table.
+The verdict is computed by the kernel: `String.isPrefixOf`, which `isMatcherName` calls,
+does not reduce in the elaborator. -/
+theorem g5_supported : supportedB g5Table 8 eG5 = .ok () := by
+  have h : (supportedB g5Table 8 eG5).isOk = true := by decide +kernel
+  cases hx : supportedB g5Table 8 eG5 with
+  | ok u => cases u; rfl
+  | error err => rw [hx] at h; exact Bool.noConfusion h
+
+/-- Every constant the emitted program reaches is declared with a body. -/
+theorem g5_noBodylessRefs : NoBodylessRefs g5Env g5Term := by decide +kernel
+
+/-- The emitted program evaluates to the literal answer, by the certified evaluator. -/
+theorem g5_eval : WcbvEval g5Env eraseFlags g5Term g5Answer :=
+  lbEval_sound (n := 16) (by rfl)
+
+/-! ### The source evaluation, constructed
+
+`hev` is a hypothesis at every rung below this one. Here it is a term: the peano numerals
+in constructor form, the δ step at the subject, the thunked nullary branch and the ι step
+are each built, so the answer the rung reports is computed by the source semantics rather
+than assumed of it. What the derivation still reads off `env` is `SpikeNatFacts` and three
+`StepDefeq`s — the block data upstream ask 3 transports and the kernel's own reductions. -/
+
+/-- A peano numeral in source constructor form. -/
+def peanoSrc : Nat → Expr
+  | 0 => .const ``Nat.zero []
+  | n + 1 => .app (.const ``Nat.succ []) (peanoSrc n)
+
+/-- The motive of rung G5's eliminator spine. -/
+def g5Motive : Expr := .lam `_x (.const ``Nat []) (.const ``Nat []) .default
+
+/-- The nullary branch, as a thunk applied to `Unit.unit`. -/
+def g5Minor0 : Expr :=
+  .app (.lam `_u (.const ``Unit []) (.const ``Nat.zero []) .default) (.const ``Unit.unit [])
+
+/-- The successor branch. -/
+def g5Minor1 : Expr := .lam `n (.const ``Nat []) (.bvar 0) .default
+
+/-- The tabled body of rung G5's subject: the eliminator spine the ι rule splits. -/
+def g5Body : Expr :=
+  mkApps (.const ``Nat.casesOn [.succ .zero]) [g5Motive, peanoSrc 2, g5Minor0, g5Minor1]
+
+/-- The tabled body of rung G5's subject is that spine. -/
+theorem g5_body_eq : g5Table.body? ``spikeCase = some g5Body := rfl
+
+/-- The tabled body of the thunk's argument is the constructor constant. -/
+theorem g5_unit_body_eq :
+    g5Table.body? ``Unit.unit = some (.const ``PUnit.unit [.succ .zero]) := rfl
+
+/-- How `env` declares what rung G5's evaluation steps on at `Nat`: the type, its two
+constructors, and `Nat.casesOn` as a plain constant with the segmentation the ι rule splits
+at. Each is a datum the reified table records for `lenv`, read in the model; the
+transport is upstream ask 3's, so the bundle is a binder here rather than a theorem. -/
+structure SpikeNatFacts (env : VEnv) (ni : InductiveId) : Prop where
+  /-- `Nat` is declared with no parameters and two constructors of zero and one field. -/
+  natInd : IndInfo env ``Nat ni 0 [0, 1]
+  /-- `Nat.zero` is `Nat`'s constructor 0. -/
+  natZero : CtorOf env ``Nat.zero ``Nat 0
+  /-- `Nat.succ` is `Nat`'s constructor 1. -/
+  natSucc : CtorOf env ``Nat.succ ``Nat 1
+  /-- `Nat.casesOn` takes one argument before the major premise and two minors. -/
+  natCases : CasesOnShape env ``Nat.casesOn ``Nat 1 2
+  /-- `Nat.casesOn` is declared as a plain constant, which is what the ι rule's `ho` is. -/
+  natCasesOrigin : ConstOrigin env ``Nat.casesOn
+
+/-- **The `Nat` half of the bundle is satisfiable.** `SourceEval.lean`'s `NatWitness` builds a
+pats-carrying `VEnv.WF'` declaring `Nat`, its constructors, its recursor and `Nat.casesOn`,
+and every field is one of that fixture's own theorems. -/
+theorem spikeNatFacts_natEnv : SpikeNatFacts NatWitness.natEnv NatWitness.natIid :=
+  ⟨NatWitness.nat_indInfo, NatWitness.nat_ctorOf_zero, NatWitness.nat_ctorOf_succ,
+    NatWitness.nat_casesOnShape, NatWitness.nat_constOrigin_cas⟩
+
+/-- How `env` declares the thunk's argument type: the second block rung G5's nullary branch
+reaches. Separate from `SpikeNatFacts` because `NatWitness` declares one block, so the two
+halves of the bundle are satisfiable at different fixtures. -/
+structure SpikeUnitFacts (env : VEnv) (pi : InductiveId) : Prop where
+  /-- `PUnit` is declared with no parameters and one nullary constructor. -/
+  punitInd : IndInfo env ``PUnit pi 0 [0]
+  /-- `PUnit.unit` is `PUnit`'s constructor 0. -/
+  punitUnit : CtorOf env ``PUnit.unit ``PUnit 0
+
+/-- Every peano numeral in constructor form is a value: each spine is within its
+constructor's arity, so `SEval.ctorVal` applies at every level. -/
+theorem peanoSrc_eval {env : VEnv} {ni : InductiveId} (F : SpikeNatFacts env ni)
+    {bo : Name → Option Expr} {Us : List Name} {fl : SEvalFlags} :
+    ∀ n, SEval env bo Us fl [] (peanoSrc n) (peanoSrc n)
+  | 0 => .ctorVal (args := []) (argsv := []) F.natZero F.natInd (by decide) rfl
+      (fun i hi => absurd hi (by simp))
+  | n + 1 => .ctorVal (args := [peanoSrc n]) (argsv := [peanoSrc n]) F.natSucc F.natInd
+      (by simp) rfl (fun i hi => by
+        obtain rfl : i = 0 := by simp at hi; omega
+        exact peanoSrc_eval F n)
+
+/-- The subject is no eliminator, so δ on it is the only step available. -/
+theorem not_casesOn_spikeCase {env : VEnv} :
+    ∀ I dp nm, ¬ CasesOnShape env ``spikeCase I dp nm :=
+  fun _ _ _ h => absurd h.1 (by decide)
+
+/-- The thunk's argument is no eliminator either. -/
+theorem not_casesOn_unitUnit {env : VEnv} :
+    ∀ I dp nm, ¬ CasesOnShape env ``Unit.unit I dp nm :=
+  fun _ _ _ h => absurd h.1 (by decide)
+
+/-- **Rung G5's source evaluation, as a derivation.** δ at the subject, then ι at
+`Nat.casesOn`: the discriminant is a constructor value, the selected branch is applied to
+its field, and — the obligation the ι rule owes and a compiled `match` makes visible — the
+*unselected* nullary branch is evaluated too, through its thunk and the δ step at
+`Unit.unit` that thunk's argument needs. -/
+theorem g5_seval {env : VEnv} {ni pi : InductiveId} (F : SpikeNatFacts env ni)
+    (U : SpikeUnitFacts env pi)
+    (hd : StepDefeq env [] [] eG5 g5Body)
+    (hdu : StepDefeq env [] [] (.const ``Unit.unit []) (.const ``PUnit.unit [.succ .zero]))
+    (hio : StepDefeq env [] [] g5Body (mkApps g5Minor1 [peanoSrc 1])) :
+    SEval env g5Table.body? [] fullFlags [] eG5 (peanoSrc 1) := by
+  have hunit : SEval env g5Table.body? [] fullFlags []
+      (.const ``Unit.unit []) (.const ``PUnit.unit [.succ .zero]) :=
+    .deltaC (c := ``Unit.unit) (us := []) (ups := []) (args := []) (argsv := [])
+      (b := .const ``PUnit.unit [.succ .zero]) (b' := .const ``PUnit.unit [.succ .zero])
+      rfl g5_unit_body_eq not_casesOn_unitUnit rfl rfl (fun i hi => absurd hi (by simp)) hdu
+      (.ctorVal (args := []) (argsv := []) U.punitUnit U.punitInd (by decide) rfl
+        (fun i hi => absurd hi (by simp)))
+  have hmin0 : SEval env g5Table.body? [] fullFlags [] g5Minor0 (.const ``Nat.zero []) :=
+    .beta rfl (.lam _ _ _ _) hunit (peanoSrc_eval F 0)
+  have hcont : SEval env g5Table.body? [] fullFlags []
+      (mkApps g5Minor1 [peanoSrc 1]) (peanoSrc 1) :=
+    .beta rfl (.lam _ _ _ _) (peanoSrc_eval F 1) (peanoSrc_eval F 1)
+  refine SEval.deltaC (c := ``spikeCase) (us := []) (ups := []) (args := []) (argsv := [])
+    (b := g5Body) (b' := g5Body) rfl g5_body_eq not_casesOn_spikeCase rfl rfl
+    (fun i hi => absurd hi (by simp)) hd ?_
+  refine SEval.iota (con := ``Nat.casesOn) (I := ``Nat) (ctor := ``Nat.succ)
+    (us := [.succ .zero]) (cus := []) (pre := [g5Motive]) (prev := [g5Motive])
+    (minors := [g5Minor0, g5Minor1]) (minorsv := [.const ``Nat.zero [], g5Minor1])
+    (extra := []) (extrav := []) (cargs := [peanoSrc 1]) (disc := peanoSrc 2)
+    (np := 0) (cidx := 1) rfl F.natCases F.natCasesOrigin F.natSucc rfl ?_ ?_ rfl ?_ rfl
+    (fun i hi => absurd hi (by simp)) (by decide) hio hcont
+  · intro i hi
+    obtain rfl : i = 0 := by simp at hi; omega
+    exact .lam _ _ _ _
+  · exact peanoSrc_eval F 2
+  · intro i hi
+    rcases i with _ | _ | n
+    · exact hmin0
+    · exact .lam _ _ _ _
+    · exact absurd hi (by simp)
+
+set_option linter.unusedVariables false in
+/--
+**Rung G5 is green, and its source evaluation is not assumed.** For the `#erase` run
+recorded in `VerifyBench/Spikes/G5.lean`, the emitted program is the lowered image of a
+specification environment that erases `spikeCase`, and the answer the source semantics
+computes — the peano numeral `1` — is reproduced as the literal λ□ numeral `1`, not `□` and
+not a stuck term. This is the first rung whose `hev` is a derivation: `hcfg`, `hsup`, `hnb`,
+`hwt`, the source evaluation and the target-side evaluation are all discharged here, and
+what is left of the trust rows is `hcb`, the two value-side typings, and the block data
+`SpikeNatFacts` and the three `StepDefeq`s carry.
+-/
+theorem green_G5
+    {lenv : Lean.Environment} {env : VEnv} {gw : Void IO.RealWorld → NameGenerator}
+    {vv : VExpr} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
+    {w w' : Void IO.RealWorld} {inls : List Kername} {ni pi : InductiveId}
+    {us : List VLevel} {idx : List VExpr}
+    (P : ErasureSpec lenv env [] gw)
+    (htbl : SourceTableAdequate lenv g5Table)
+    (hsafe : TableSafe lenv g5Table)
+    (hcb : CompilerBodies lenv env g5Table.body?)
+    (hrun : Erasure.erase eG5 spikeConfig cctx ref w
+      = .ok (.untyped g5Env (some g5Term), inls) w')
+    (hbridge : ∃ Γspec t₀, ErasureBridge env g5Table.body? eG5 Γspec g5Env g5Term t₀)
+    (F : SpikeNatFacts env ni)
+    (U : SpikeUnitFacts env pi)
+    (hd : StepDefeq env [] [] eG5 g5Body)
+    (hdu : StepDefeq env [] [] (.const ``Unit.unit []) (.const ``PUnit.unit [.succ .zero]))
+    (hio : StepDefeq env [] [] g5Body (mkApps g5Minor1 [peanoSrc 1]))
+    (hvwt : TrExprS env [] [] (peanoSrc 1) vv)
+    (hty : env.HasType 0 [] vv (VExpr.mkApps (.const ``Nat us) idx))
+    (hfo : FirstOrderInd env ``Nat) :
+    ∃ (Γspec : GlobalDeclarations) (t₀ tv₀ : LBTerm),
+      Erases env [] [] eG5 t₀
+      ∧ ErasesEnv env g5Table.body? Γspec t₀
+      ∧ Lower Γspec t₀ g5Term
+      ∧ LowerEnv Γspec g5Env
+      ∧ LBWfPeregrine g5Env g5Term
+      ∧ Erases env [] [] (peanoSrc 1) tv₀
+      ∧ Lower Γspec tv₀ (peanoLB 1)
+      ∧ NoBox (peanoLB 1)
+      ∧ (∀ tv', Erases env [] [] (peanoSrc 1) tv' → tv' = tv₀)
+      ∧ WcbvEval g5Env eraseFlags g5Term (peanoLB 1) := by
+  obtain ⟨Γspec, t₀, her, herΓ, hlow, hlowΓ, hwf, hobs⟩ :=
+    shipping_erase_correct_firstorder P htbl spike_configPinned hcb
+      (trExprS_const_of_table P htbl hsafe rfl)
+      (supportedB_sound P htbl hsafe g5_supported) hrun g5_noBodylessRefs hbridge
+  obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
+    hobs [] [] ``Nat us idx (peanoSrc 1) vv rfl (fun i hi => absurd hi (by simp))
+      (g5_seval F U hd hdu hio) hvwt hty hfo
+  have htv : tv = g5Answer := eval_deterministic hevtgt g5_eval
+  subst htv
+  exact ⟨Γspec, t₀, tv₀, her, herΓ, hlow, hlowΓ, hwf, herv, hlowv, hnobox, huniq, g5_eval⟩
+
+/-! ## G6 — `spikeFix`, δ on a recursive constant -/
+
+/-- The reified slice of the elaboration environment rung G6 reads, spliced by `reify%`
+out of the environment this module elaborates in. -/
+def g6Table : SourceTable := reify% spikeFix
+
+/-- The source term `#erase spikeFix` elaborates. -/
+def eG6 : Expr := .const ``spikeFix []
+
+/-- The kername of the recursive constant rung G6 unfolds. -/
+def spikeRecKn : Kername := rootKername "spikeRec"
+
+/-- The emitted fixpoint of `spikeRec`: one member, recursive on its only argument, whose
+body is the ι redex on it. -/
+def spikeRecDef : @FixDef LBTerm :=
+  { name := .named "spikeRec",
+    body := .lambda (.named "n")
+      (.case (natIid, 0) (.bvar 0)
+        [([], .construct natIid 0 []),
+         ([.named "m"], .app (.construct natIid 1 []) (.app (.bvar 2) (.bvar 0)))]),
+    principalArgIdx := 0 }
+
+/-- Rung G6's emitted environment, transcribed from `VerifyBench/ast/Spikes/G6.ast`. -/
+def g6Env : GlobalDeclarations :=
+  [ (rootKername "spikeFix", .constantDecl ⟨some (.app (.const spikeRecKn) (peanoLB 2))⟩),
+    (spikeRecKn, .constantDecl ⟨some (.fix [spikeRecDef] 0)⟩),
+    (rootKername "Nat", .inductiveDecl natBody) ]
+
+/-- Rung G6's emitted term. -/
+def g6Term : LBTerm := .const (rootKername "spikeFix")
+
+/-- Rung G6's answer: the λ□ peano numeral `2`. -/
+def g6Answer : LBTerm := peanoLB 2
+
+/-- The subject is inside the supported fragment, decided on the reified table.
+The verdict is computed by the kernel: `String.isPrefixOf`, which `isMatcherName` calls,
+does not reduce in the elaborator. -/
+theorem g6_supported : supportedB g6Table 8 eG6 = .ok () := by
+  have h : (supportedB g6Table 8 eG6).isOk = true := by decide +kernel
+  cases hx : supportedB g6Table 8 eG6 with
+  | ok u => cases u; rfl
+  | error err => rw [hx] at h; exact Bool.noConfusion h
+
+/-- Every constant the emitted program reaches is declared with a body. -/
+theorem g6_noBodylessRefs : NoBodylessRefs g6Env g6Term := by decide +kernel
+
+/-- The emitted program evaluates to the literal answer, by the certified evaluator: two
+`fix` unfoldings, each guarded by the ι step on its argument. -/
+theorem g6_eval : WcbvEval g6Env eraseFlags g6Term g6Answer :=
+  lbEval_sound (n := 24) (by rfl)
+
+set_option linter.unusedVariables false in
+/--
+**Rung G6 is green.** For the `#erase` run recorded in `VerifyBench/Spikes/G6.lean`, the
+emitted program is the lowered image of a specification environment that erases `spikeFix`,
+and the source evaluation's answer is reproduced as the literal λ□ peano numeral `2`, not
+`□` and not a stuck term. The constant the subject applies is recursive, so its emitted
+body is a `.fix` node and the target run unfolds it twice under the guard.
+`hcfg`, `hsup`, `hnb`, `hwt` and the target-side evaluation are discharged here by checked
+terms; `hcb` and `hev` stay binders, per `doc/trust.md`'s class-**C** rows.
+-/
+theorem green_G6
+    {lenv : Lean.Environment} {env : VEnv} {gw : Void IO.RealWorld → NameGenerator}
+    {vv : VExpr} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
+    {w w' : Void IO.RealWorld} {inls : List Kername}
+    {v : Expr} {us : List VLevel} {idx : List VExpr}
+    (P : ErasureSpec lenv env [] gw)
+    (htbl : SourceTableAdequate lenv g6Table)
+    (hsafe : TableSafe lenv g6Table)
+    (hcb : CompilerBodies lenv env g6Table.body?)
+    (hrun : Erasure.erase eG6 spikeConfig cctx ref w
+      = .ok (.untyped g6Env (some g6Term), inls) w')
+    (hbridge : ∃ Γspec t₀, ErasureBridge env g6Table.body? eG6 Γspec g6Env g6Term t₀)
+    (hev : SEval env g6Table.body? [] fullFlags [] eG6 v)
+    (hvwt : TrExprS env [] [] v vv)
+    (hty : env.HasType 0 [] vv (VExpr.mkApps (.const ``Nat us) idx))
+    (hfo : FirstOrderInd env ``Nat) :
+    ∃ (Γspec : GlobalDeclarations) (t₀ tv₀ : LBTerm),
+      Erases env [] [] eG6 t₀
+      ∧ ErasesEnv env g6Table.body? Γspec t₀
+      ∧ Lower Γspec t₀ g6Term
+      ∧ LowerEnv Γspec g6Env
+      ∧ LBWfPeregrine g6Env g6Term
+      ∧ Erases env [] [] v tv₀
+      ∧ Lower Γspec tv₀ (peanoLB 2)
+      ∧ NoBox (peanoLB 2)
+      ∧ (∀ tv', Erases env [] [] v tv' → tv' = tv₀)
+      ∧ WcbvEval g6Env eraseFlags g6Term (peanoLB 2) := by
+  obtain ⟨Γspec, t₀, her, herΓ, hlow, hlowΓ, hwf, hobs⟩ :=
+    shipping_erase_correct_firstorder P htbl spike_configPinned hcb
+      (trExprS_const_of_table P htbl hsafe rfl)
+      (supportedB_sound P htbl hsafe g6_supported) hrun g6_noBodylessRefs hbridge
+  obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
+    hobs [] [] ``Nat us idx v vv rfl (fun i hi => absurd hi (by simp)) hev hvwt hty hfo
+  have htv : tv = g6Answer := eval_deterministic hevtgt g6_eval
+  subst htv
+  exact ⟨Γspec, t₀, tv₀, her, herΓ, hlow, hlowΓ, hwf, herv, hlowv, hnobox, huniq, g6_eval⟩
 
 end LeanToLambdaBox.Green

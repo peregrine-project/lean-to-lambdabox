@@ -59,7 +59,37 @@ def rungs : List Rung :=
       ast := "VerifyBench/ast/Spikes/G1.ast"
       program := .untyped g1Env (some g1Term)
       term := g1Term
-      answer := g1Answer } ]
+      answer := g1Answer },
+    { name := "G2"
+      spike := "VerifyBench/Spikes/G2.lean"
+      ast := "VerifyBench/ast/Spikes/G2.ast"
+      program := .untyped g2Env (some g2Term)
+      term := g2Term
+      answer := g2Answer },
+    { name := "G3"
+      spike := "VerifyBench/Spikes/G3.lean"
+      ast := "VerifyBench/ast/Spikes/G3.ast"
+      program := .untyped g3Env (some g3Term)
+      term := g3Term
+      answer := g3Answer },
+    { name := "G4"
+      spike := "VerifyBench/Spikes/G4.lean"
+      ast := "VerifyBench/ast/Spikes/G4.ast"
+      program := .untyped g4Env (some g4Term)
+      term := g4Term
+      answer := g4Answer },
+    { name := "G5"
+      spike := "VerifyBench/Spikes/G5.lean"
+      ast := "VerifyBench/ast/Spikes/G5.ast"
+      program := .untyped g5Env (some g5Term)
+      term := g5Term
+      answer := g5Answer },
+    { name := "G6"
+      spike := "VerifyBench/Spikes/G6.lean"
+      ast := "VerifyBench/ast/Spikes/G6.ast"
+      program := .untyped g6Env (some g6Term)
+      term := g6Term
+      answer := g6Answer } ]
 
 /-- Print a verdict line and return it. -/
 def report (ok : Bool) (what : String) : IO Bool := do
@@ -115,7 +145,7 @@ def usage : String :=
   "green-check — external checks for the green ladder\n\n\
    usage:\n  \
      green-check --self-test    run lbEval on the built-in fixtures\n  \
-     green-check RUNG...        check the named rungs (G1, …)\n  \
+     green-check RUNG...        check the named rungs (G1 … G6)\n  \
      green-check --all          check every rung reached so far\n\n\
    Run from the repository root. A rung check byte-diffs the committed .ast against the\n\
    literal program Green.lean states its theorem about, re-runs the frontend and diffs\n\

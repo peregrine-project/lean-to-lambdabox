@@ -28,18 +28,24 @@ import LeanToLambdaBox.RelevanceCheck
 import LeanToLambdaBox.CheckerAdequacy
 -- The `EraseM` run/admissibility toolkit for the shipping erasure.
 import LeanToLambdaBox.ErasureRun
--- The reified slice of the elaboration environment and its adequacy statement.
+-- The reified slice of the elaboration environment, its adequacy statement, and the
+-- translation witnesses a rung reads off it.
 import LeanToLambdaBox.Witness.SourceTable
+import LeanToLambdaBox.Witness.TrWitness
+-- The kernel facts taken from the fork as one named premise, and their corollaries.
+import LeanToLambdaBox.Upstream
+import LeanToLambdaBox.Origin
 -- What erasure means: the specification relation, its transport lemmas and its totality.
 import LeanToLambdaBox.Erases
 import LeanToLambdaBox.ErasesAbstract
 import LeanToLambdaBox.ErasesStrengthen
 import LeanToLambdaBox.ErasesUniform
 import LeanToLambdaBox.ErasesTotal
--- The source-side evaluation, its subject reduction, and what the simulation's arms consume.
+-- The source-side evaluation, its subject reduction, the simulation's arms and its closing.
 import LeanToLambdaBox.SourceEval
 import LeanToLambdaBox.SubjectReduction
 import LeanToLambdaBox.ErasesCorrect
+import LeanToLambdaBox.ErasesCorrect.Close
 -- The pass layer: the runtime library's bodies, the pass relation, its fixpoint closure,
 -- and the composite of erasure with the pass.
 import LeanToLambdaBox.ElimBody
@@ -52,6 +58,7 @@ import LeanToLambdaBox.Output
 import LeanToLambdaBox.Supported
 import LeanToLambdaBox.ErasesEnv
 import LeanToLambdaBox.SpecEnv
--- The capstone and the green ladder.
+-- The first-order answer predicate, the capstone and the green ladder.
+import LeanToLambdaBox.FirstOrderInd
 import LeanToLambdaBox.Capstone
 import LeanToLambdaBox.Green

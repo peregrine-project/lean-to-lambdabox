@@ -7,7 +7,7 @@ is that an uncovered program is named with the reason it is uncovered.
 This file is maintained by hand in this cut; `lake exe coverage` (U5.3) will regenerate it
 byte-identically from the tree, and `VerifyBench/STATUS.md` is folded into it at the same
 time.
-The `hrun`, `htbl` and `hwt` rows below are carried verbatim from `doc/trust.md`, which is
+The `hrun`, `htbl` and `hsafe` rows below are carried verbatim from `doc/trust.md`, which is
 their home.
 
 ## The five programs
@@ -123,6 +123,31 @@ normalises and each unselected branch has a value, while partial and `unsafe` bo
 outside the fragment through N8. What the restriction deletes is exactly the derivations
 where the source converges and eager minor evaluation would not.
 
+### The same four restrictions, re-measured at the current table
+
+The two-closure account above is superseded by a measurement of the table as it stands.
+`Witness.Reify.visit` reads `compilerInfo?` — the `_unsafe_rec` companion first — and tables
+no body for a `casesOn`-like head, so the "table closure" and the "eraser closure" of the
+previous section have converged: the reified table *is* built on compiler bodies. The
+command is `supportedTerm` on the entry constant together with `supportedTerm` on **every**
+tabled body of `reify% <entry>` — a superset of `Supported.Reaches`' closure, so a zero here
+is stronger than the fragment check — and the verdicts are:
+
+| Program | tabled decls | entry term | erroring bodies | what they are |
+|---|---|---|---|---|
+| Arith | 43 | `ok` | **0** | — |
+| Sieve | 81 | `ok` | 2 | `Bool.noConfusion` → `Eq.ndrec` → `Eq.rec` (`F-EQREC`) |
+| BinaryTrees | 89 | `ok` | 3 | `F-EQREC`, plus `propElimIntoData` at `Prod` |
+| Quicksort | 126 | `ok` | 9 | `F-EQREC`; `Nat.below`/`Nat.brecOn`/`False.rec` through the well-founded `Nat.div.go` and `Nat.modCore.go`; `Prod` twice |
+| Fannkuch | 95 | `ok` | 6 | `F-EQREC` three times; `etaContractedMinor` at `Decidable.casesOn`; `Prod` twice |
+
+So **Arith is inside the fragment**: no `SupportError` at any tabled body and none at the
+entry term. The sentence "No tracked program is inside the fragment" above, the `Nat.brecOn`
+verdicts in the five-program table, and the `N21` column are measurements of an earlier body
+column and no longer hold; what survives of them is `F-EQREC` on the other four, Quicksort's
+well-founded route, Fannkuch's η-contracted minor, and the `Prod` false exclusion described
+next. N19 and N20's verdicts are unchanged.
+
 One measured false exclusion, recorded so that the rows above are read correctly.
 `informativeB` tests the result sort syntactically for `Level.succ`, and `Prod`'s declared
 type ends in `Sort (max (u+1) (v+1))`, whose level is `Level.max (succ u) (succ v)` — not a
@@ -151,8 +176,8 @@ ends in a **literal** peano numeral, so it cannot be satisfied by `□` or by a 
 | G2 | `spikeLit : Nat := Nat.succ 3` | the literal rule, the peano tower, the `OfNat` class tower | **W2, green** |
 | G3 | `spikeLet : Nat := let x := 2; Nat.succ x` | ζ in both semantics | **W2, green** |
 | G4 | `spikeProj : Nat := (Prod.mk 1 2).1` | the projection rule, boxed type parameters, polymorphic dependencies | **W2, green** |
-| G5 | `spikeCase : Nat := match 3 with …` | matcher inlining, `casesOn`, `.case`, ι | W3 |
-| G6 | `spikeFix : Nat := Nat.add 2 3` | `_unsafe_rec`, the compiler-body table, `.fix` | W3 |
+| G5 | `spikeCase : Nat := Nat.casesOn 2 (thunk) (fun n => n)` | `casesOn`, `.case`, ι, and the first constructed `SEval` derivation | **W3, green** |
+| G6 | `spikeFix : Nat := spikeRec 2` | a recursive constant: the compiler-body table, `.fix`, two guarded unfoldings | **W3, green** |
 | G7 | `arithClosed : Nat := benchArith 0` | the typeclass tower: 10 projections, 4 fix blocks, 5 `.case`, a 19-node peano tower | W5 |
 | G8 | `benchArith : Nat → Nat` | a function-typed subject; the applied capstone | W5 |
 
@@ -160,13 +185,36 @@ ends in a **literal** peano numeral, so it cannot be satisfied by `□` or by a 
 **conditional** non-vacuity. No computation can make it unconditional, and this sentence is
 where that is said.
 
-What each of G1-G4 settles by computation is `hcfg`, `hsup` (through `supportedB`'s kernel
+What each of G1-G6 settles by computation is `hcfg`, `hsup` (through `supportedB`'s kernel
 verdict), `hnb` and the target-side evaluation, which is what pins the answer to the literal
-numeral. Two class-**C** hypotheses are still binders and `doc/trust.md` carries the rows:
-`hcb` is discharged at G1 and not at G2-G4, whose reified tables carry the class projection
-`OfNat.ofNat`, and `hev` — the source evaluation — is inhabited at **no** rung yet, the first
-`SEval` derivation being G3's `green_G5`. Until then a rung says that the conditions are
-consistent with a literal answer, not that they hold.
+numeral. `hwt` is settled too, at every rung, by a checked term rather than a computation:
+each subject is `#erase <constant>`, so `Witness.trExprS_const_of_table` builds its `TrExprS`
+witness from `P`, `htbl` and `hsafe`.
+
+Two class-**C** hypotheses are binders at most rungs, and `doc/trust.md` carries the rows.
+`hcb` is discharged at G1 and not at G2-G6. `hev` — the source evaluation — is discharged at
+**G5**, by `Green.g5_seval`: δ at the subject, then ι at `Nat.casesOn`, with the discriminant
+a constructor value, the selected branch applied to its field, and the *unselected* nullary
+branch evaluated through its thunk and the δ step at `Unit.unit` the thunk's argument needs.
+That is N20's per-branch obligation, paid. At G1-G4 and G6 `hev` is still a binder, and there
+a rung says that the conditions are consistent with a literal answer, not that they hold. The
+value-side typings `hvwt` and `hty` are binders at every rung: a rung's value is a
+constructor spine, not a constant.
+
+**Why G5 and G6 are written with `Nat.casesOn` and a hand-written recursive constant rather
+than with `match` and `Nat.add`.** `ReifiedDecl.Prepared` — the run clause of
+`SourceTableAdequate` — requires that *every* run of `Erasure.prepare_erasure` on the
+compiler value return the tabled body. `Lean.Compiler.LCNF.inlineMatchers` draws the `let`
+binder names it introduces from the name generator, so a declaration whose preparation
+inlines a matcher has prepared bodies that agree across runs only up to binder names, and the
+clause is false of it. Measured: a table reified on `match 3 with …` and one reified on
+`Nat.add 2 3` are both reported `TableMismatch.declBodyAlpha` by `lake exe reify --check`,
+i.e. `htbl` is **uninhabited** for them and a rung built on either would be vacuous. Both
+current rung subjects are matcher-free, and `lake exe reify --check` passes on all six rung
+tables. The restriction is the ladder's, not the fragment's: `supportedB` accepts a `match`
+and accepts `Nat.add`, and it is the table's adequacy that fails. It bounds G7/G8 as well —
+`benchArith`'s closure inlines matchers — so a rung on a real program needs a name-stable
+preparation first.
 
 A measured note on what a source literal costs. Under `nat := .peano` a `Nat` literal is
 emitted as a peano tower, but the source syntax `3` is `@OfNat.ofNat Nat 3 (instOfNatNat 3)`,
@@ -181,7 +229,7 @@ satisfy `NoBodylessRefs` by `decide +kernel`.
 |---|---|---|
 | `hrun` | the `#erase` run produced the committed `.ast` | `green-check` re-runs `#erase` and byte-diffs the file; `IO.RealWorld` is opaque, so no Lean proof of this can exist |
 | `htbl` | the reified `SourceTable` is the live environment's slice, including the `prepare_erasure` run clause | `lake exe reify --check` compares field by field against the live environment |
-| `hwt` | the subject's `TrExprS` witness, until the checker-routed witness lands (U3.4) | lean4lean's checker, run on the subject |
+| `hsafe` | `TableSafe`: every declaration the reified table pins is safe in the ambient environment, the one column `SourceTableAdequate` does not record | `lake exe reify --check` reads the live declarations; the column is an upstream ask |
 
 ## Exceptions to the no-dead-code rule
 
