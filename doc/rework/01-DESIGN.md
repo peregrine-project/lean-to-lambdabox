@@ -1253,8 +1253,13 @@ theorem LowerAlt.abstract (hfv : FVarFreeBodies Σ) {nf : Nat} {m : LBTerm}
 occurrence metatheory it rests on (`hasFVar_toBvar_of` and its three list companions in
 `LeanToLambdaBox/Abstract.lean`, `closeFix_not_hasFVar` in `LeanToLambdaBox/FixMetatheory.lean`,
 `constToFVar_not_hasFVar` and `closeConstAt_not_hasFVar` beside `CloseConstAt`) is new, and
-`FVarFreeBodies` is the `SpecEnv` clause of §4.8. `doc/rework/06-REPAIRS-W4.md` §4 is the
-derivation, with the arm that refutes the unconditional form.
+`FVarFreeBodies` is the `SpecEnv` clause of §4.8. All three are **proved** ahead of the unit
+that lands them, every arm, at `[propext, Quot.sound]`, and the two fix arms call `noFVar` rather
+than their own induction hypothesis — so `noFVar` is a standalone lemma, not a corollary. No
+level side condition is needed, unlike `shift_comm`'s `c ≤ lvl`. `FVarFreeBodies` is not a
+convenience either: both statements are **refuted** with `ClosedBodies Σ` granted, since
+`LBClosed`'s fvar clause is `| .fvar _, _ => True`, so `LBWfSpec` does not imply the new one.
+`doc/rework/06-REPAIRS-W4.md` §4 carries the derivation, the two refutations and the probes.
 
 ### 4.5 `LowerFix` — `LowerFix.lean` (`ConstToFVar`/`CloseConstAt` in `Lower.lean`)
 
@@ -1686,7 +1691,9 @@ structure SpecEnv (env : VEnv) (bo : Name → Option Expr) (s : ErasureState)
       A clause and not a theorem because `SpecContent` has no coverage clause: its four content
       clauses are conditional on an entry being present, and an entry at a kername outside the
       four kinds may hold a body with free variables. `RegInvShape'` carries the matching field
-      `specFVarFree`, beside the `specClosed` it already has. -/
+      `specFVarFree`, beside the `specClosed` it already has, and `Erases.noFVar` — the erasure
+      relation emits an `.fvar` only through `Erases.fvar`, which cannot fire at `Δ = []` — is
+      what discharges it at every producer. -/
   fvarFree : FVarFreeBodies Σ⁺
 
 theorem SpecEnv.mono (h : StateLe s₁ s) (H : SpecEnv env bo s Σ⁺) : SpecEnv env bo s₁ Σ⁺
@@ -1867,10 +1874,10 @@ structure ErasureSpec (lenv : Lean.Environment) (env : VEnv) (Us : List Name)
       the field only if that fails, with the obstruction named. -/
   decl_adequate   : …
   /-- The primitives the erasure calls for their effect alone: `Lean.getEnv`, `Lean.logInfo`,
-      `Lean.Meta.isInstance`, `Lean.Meta.inferType` — the last also reporting the agreement
+      `Lean.Meta.isInstance` and `Lean.Meta.inferType` — the last also reporting the agreement
       between the inferred Π-telescope and the subject's λ-telescope `lambdaOrIntroToArity`
-      peels — and the three `preparePasses` `Erasure.prepare_erasure` runs with the `csimp`
-      gate off. Class **D**. -/
+      peels. Class **D**. The `prepare_erasure` passes are **not** here: one of the three is
+      this repository's own, so their two clauses are `EraserAsks`'. -/
   prim_monotone   : PrimMonotone gw
   /-- `decl_adequate`'s block-level sibling: the kernel's inductive blocks, constructors and
       `casesOn` constants in the model, at the identifier `Erasure.register_inductive` mints
@@ -1878,17 +1885,6 @@ structure ErasureSpec (lenv : Lean.Environment) (env : VEnv) (Us : List Name)
       tabled names (`doc/upstream-asks.md` item 4) and what `IndRegistryModelled` is
       maintained against. -/
   block_adequate  : BlockAdequate lenv env
-  /-- The oracle's **completeness**, at the one shape the fragment cannot exclude: a `false`
-      verdict is not returned at a type former. An inductive type name is an argument of
-      almost every spine, so `Erasure.visitExpr` is called on it and the emitted `.const` has
-      no `Erases` reading — only `Erases.box` covers a type, and only a `true` verdict reaches
-      it. Class **D**. -/
-  oracle_informative : …
-  /-- The three transforms preserve the source evaluation. This is what `prepare_sound`
-      composes, and what carries T9's observable conjunct from the subject to the term the
-      erasure walks — the two are not the same term, and no relation identifies them
-      (`06-REPAIRS-W4.md` §11). Class **D**. -/
-  transforms_sound : …
 
 theorem ErasureSpec.envWF (P : ErasureSpec lenv env Us gw) : env.WF     -- via `TrEnv'.wf`;
     -- measured sorryAx-free: [propext, Classical.choice, Quot.sound] (gate/d5_envwf.lean)
@@ -1898,20 +1894,61 @@ theorem ErasureSpec.oracle_sound_of_run (P : ErasureSpec …) … :
     -- kernel branch via `Oracle.kernel_isErasable_sound`; fallback branch by `P.oracle_meta`
 ```
 
+**The second bundle.** Four clauses W4b first put in `ErasureSpec` are not about primitives at
+all: they are about `Erasure.isErasable` (`Erasure.lean:177`), about the passes
+`Erasure.prepare_erasure` runs — one of which, `Erasure.replaceUnsafeRecNames`, is this
+repository's — and about `Erasure.remove_unsafe_rec` applied to a primitive's answer. An
+assumption about the code under verification is not a specification of an input, so it gets its
+own bundle, its own standing binder `E`, and one `doc/trust.md` row per field with an owner, a
+wave and what retires it. Class **C**: the honest end state of each is a proof, not a permanent
+binder. The symmetric bundle for lean4lean is `UpstreamAsks` (§8.3).
+
+```lean
+structure EraserAsks (lenv : Lean.Environment) (env : VEnv) (Us : List Name)
+    (gw : Void IO.RealWorld → NameGenerator) : Prop where
+  passes_monotone     : …   -- the four `prepare_erasure` calls only advance the generator
+  passes_sound        : …   -- each pass preserves `SEval` **under an arbitrary spine** (§5, T9)
+  oracle_false_refl   : …   -- a `false` verdict ⇒ the pure kernel run did not answer `true`
+  kernel_ind_head_true: …   -- at an inductive head the pure kernel run answers `true`
+  block_keys_distinct : …   -- a block's members have distinct λ□ keys
+
+theorem EraserAsks.oracle_informative (E : EraserAsks lenv env Us gw) … :
+    -- the type-former exclusion `Motive4`/`Motive11`/`Motive12` carry, PROVED from the two
+    -- oracle clauses and `erasable_indSpine` (`ErasesTotal.lean`), which is itself a theorem
+    ∀ c us, e.getAppFn = .const c us → ∀ iid np nfs, ¬ IndInfo env c iid np nfs
+```
+
+Why the oracle clause is split rather than assumed whole: stated directly about
+`Erasure.isErasable`, "a `false` verdict is not returned at a type former" is **false about the
+Lean API** — an inductive declared at an `@[irreducible]` arity alias gets `false`, because
+`Expr.Data.approxDepth` is eight bits (so `isArityCheck`'s fuel is at most 256, and at an alias
+it is 1) and `Meta.whnf` will not unfold the alias. `env_connect` excludes that environment, and
+the split makes the residue visible: one near-definitional reflection clause, and one obligation
+about lean4lean's executable checker at a single shape, measured `.ok true` on 2,940 of 2,940
+inductive type formers and refuted only at arities of ≥ 256 binders. The cap is finding
+**F-DEPTH** (`doc/rework/03-DEV-FIX.md`). `block_keys_distinct` is likewise stated at the kername
+level and known false of a legal `mutual unsafe def u / u._unsafe_rec` block, which the eraser
+silently miscompiles — finding **F-UNSAFEREC**, with the one-line `visitMutual` guard that would
+retire the field.
+
 `ConfigPinned` — the five configuration restrictions every correctness statement is made under
 (§5) — is declared **here**, not in `Capstone.lean`: the bridge reads it in every one of its
 eighteen step interfaces, and a capstone that declares it can never import the bridge, which is
 what kept `hbridge` a binder (`06-REPAIRS-W4.md` §7).
 
 `LookupAdequate`'s four clauses are read at the answers the erasure branches on, so three of
-them carry more than presence: `declInfo` reports the compiler block the name belongs to and
-that its members are distinct after `Erasure.remove_unsafe_rec`; `ctorArity` and `casesInfo`
+them carry more than presence: `declInfo` reports the compiler block the name belongs to —
+**guarded** by `isUnsafeRecName? n = none`, since `getDeclInfo?` prefers the `_unsafe_rec` twin
+and the unguarded clause is false for 3,376 names of this environment, and with the distinctness
+of the block's keys left to `EraserAsks.block_keys_distinct`, which is where a clause mentioning
+`Erasure.remove_unsafe_rec` belongs; `ctorArity` and `casesInfo`
 carry their *negative* directions, without which a `none` answer excludes nothing in the model
 and the run's branch and the fragment's arm can disagree; `casesInfo` additionally pins the
 elaborator's `Lean.CasesInfo` against the block `lenv` declares (`CasesInfoAgreesK`), which the
 table-side `CasesInfoAgrees` follows from by `Witness.ReifiedInduct.Pinned`. `ErasureSpec` holds
 no `SourceTable`, so no clause here mentions one.
 
+Every field of `ErasureSpec` is class **D**; every field of `EraserAsks` is class **C**.
 Fields 1, 2, 3, 6 are class **D** (field 6 pending its derivation attempt); `oracle_refl` +
 `oracle_meta` are class **D** with the kernel arm class **B**, discharged through
 `Relevance` → `RelevanceCheck.isArityCheck.WF` → `Oracle.kernel_isErasable_sound`. That chain is
@@ -1982,6 +2019,42 @@ and each carries the model's own — `∃ iid np nfs, IndInfo env c iid np nfs`,
 I k`, `ConstOrigin env c` — discharged in `supportedB_sound` from `ErasureSpec.block_adequate`
 and the table pin. That is where the bridge's plain-constant step gets the `ConstOrigin`
 `Erases.const` asks for, and it is what closes the kind transfer for tabled names.
+
+Two further conditions ride on the same checker, both from `doc/rework/06-REPAIRS-W4.md`. The
+first is decidable and becomes an arm: `kernameSepB tbl` — the tabled names have pairwise-distinct
+λ□ keys — reported as `SupportError.kernameCollision` and read back as the `Supported` clause
+`kernames`. `toKername` is not injective (`toKername_not_injective`), so two tabled constants can
+print as one kername and the second shadows the first in the emitted environment; the fragment
+excludes that input, and the block conjunct of the bridge's fixvar mode (§5, `BlockKeyed`) is
+what consumes it. Measured: 0 collisions on all eleven committed tables, and 0 over the whole
+227,840-constant elaboration environment.
+
+The second is **not** decidable on the table, and saying why is the point:
+
+```lean
+/-- The block `Erasure.visitMutual` installs a fixvar map for at `n`, `none` at its
+non-recursive exit — a pure function of `lenv`, mirroring `Erasure.lean:885`. -/
+def fixBlock? (lenv : Lean.Environment) (n : Name) : Option (List Name)
+
+/-- The blocks the run installs, against the table. Class **D**, beside `htbl` and `hsafe`,
+mechanised by `lake exe reify --blocks`. -/
+structure TableBlocks (lenv : Lean.Environment) (env : VEnv) (tbl : SourceTable) : Prop where
+  members     : …   -- every member of an installed block is tabled
+  lamHeaded   : …   -- N22, first half: its tabled body is λ-headed
+  informative : …   -- N22, second half: no member is erasable in the model
+```
+
+`ReifiedDecl` is `{levelParams, type, body?}` — only `ReifiedInduct` carries an `all` field — and
+the run's gate reads the *unprepared* compiler value, which the table does not hold either, so a
+table-side proxy for "this name heads a fix block" is neither an over- nor an
+under-approximation. The λ-headedness itself *is* read off a column (`tbl.body?`); the block is a
+`lenv` read, exactly as `TableSafe`'s safety flag is. Adding an `all`/`fixBlock` column to
+`ReifiedDecl` would move two of the three clauses into the checker at the cost of the reifier,
+the `--check` comparison and a new pin clause; it is not taken, and the trade is recorded
+(`06-REPAIRS-W4.md` §6, §14). Measured: 55 blocks install a fixvar map across the eleven tables,
+all singletons, all λ-headed, none with an untabled member — while a *blanket* "every tabled body
+is λ-headed" clause is false on every one of them, the non-λ bodies being the non-recursive
+instance constants and the rung subjects themselves.
 
 `Supported.casesApp` requires the head to be `I.casesOn` for an inductive in the fragment —
 **informative** (N18) — with a **plain** `CasesInfo` (no `CasesAltInfo.default`, no
@@ -2452,32 +2525,43 @@ theorem firstorder_no_box (… same premises …) (h : Erases env Us [] v t) : N
 -- Std.HashMap.ofList (nms.zip ids)` truncates and overwrites, so the bare equation admits
 -- representations at which the conclusion is unsatisfiable (`erasesLBMode_block_refuted`) or at
 -- which `ids` holds a freshly opened binder (`06-REPAIRS-W4.md` §1):
-def BlockKeyed (ctx : ErasureContext) (nms : List Name) (ids : List FVarId) : Prop :=
+def BlockKeyed (tbl : SourceTable) (ctx : ErasureContext) (nms : List Name)
+    (ids : List FVarId) : Prop :=
   ctx.fixvars = some (fixvarMap nms ids) ∧ nms.length = ids.length ∧ nms.Nodup ∧
-    ∀ m : Name, toKername m ∈ nms.map toKername → m ∈ nms
+    ∀ m : Name, (tbl.decl? m).isSome → toKername m ∈ nms.map toKername → m ∈ nms
+-- the fourth conjunct is read at the TABLED names — the one site that spends it
+-- (`Step/Env.lean:615`) spends it at the visited constant, which `Motive4` carries as
+-- `tbl.decl? n = some d`. Over all names it is false, since `toKername` is not injective;
+-- over the tabled names it is decidable (`kernameSepB`, §4.11) and measured green on the
+-- eleven committed tables and over the whole environment. `ErasesLBMode`/`ErasesLBAltMode`
+-- and `BridgeInv` gain the same `tbl` index
 
 theorem visitExpr_refines_erasesLB
     (steps : Step1 … ∧ … ∧ Step18 …)                    -- eighteen explicit hypotheses
-    (P    : ErasureSpec lenv env Us gw)
+    (P    : ErasureSpec lenv env Us gw)                 -- class D, primitives
+    (E    : EraserAsks lenv env Us gw)                  -- class C, this repository's code
     (htbl : SourceTableAdequate lenv tbl)
+    (hblk : TableBlocks lenv env tbl)                   -- N22 input-side + the block's members
     (hcfg : ConfigPinned cfg)
     (hcb  : CompilerBodies lenv env tbl.body?)          -- N8, class C
     (hwt  : TrExprS env Us Δ e ve)                      -- e is already prepared: T8 is about
     (hsup : Supported env tbl e)                        --   `visitExpr`, whose input is post-
     (hfx  : ctx.fixvars = none)                         --   `prepare_erasure` (`erase_run_ok`)
     (hrun : Erasure.visitExpr e s ctx cctx ref w = .ok (t, s') w')
-    (hinv : BridgeInv env Us cfg (gw w) ctx s Δ) :
+    (hinv : BridgeInv env Us tbl cfg (gw w) ctx s Δ) :
     ∀ Σ⁺, SpecEnv env tbl.body? s' Σ⁺ →
       ErasesLB env Us Σ⁺ Δ e t ∧ RunConcl s s' ∧ gw w ≤ gw w'
 theorem visitExpr_refines_erasesLBFix   -- the block-branch companion; genuinely new work (W4)
-    (…same steps/P/htbl/hcfg/hcb/hwt/hsup/hrun/hinv…)
-    (hfx : BlockKeyed ctx nms ids) :
+    (…same steps/P/E/htbl/hblk/hcfg/hcb/hwt/hsup/hrun/hinv…)
+    (hfx : BlockKeyed tbl ctx nms ids) :
     ∀ Σ⁺, SpecEnv env tbl.body? s' Σ⁺ →
       ErasesLBFix env Us Σ⁺ (nms.map toKername) ids Δ e t ∧ RunConcl s s' ∧ gw w ≤ gw w'
 -- No `hfr : FreshFor ids ctx s`: `ErasureState` records no free-variable information, so a
 -- freshness clause keyed on the state is vacuous. The content the block branch needs — the ids
 -- are distinct, reserved by the ambient generator and absent from `Δ` — is `BridgeInv.fixvars`,
--- and `BridgeInv.fixvars_ids_subset` reads it at every `BlockKeyed` representation.
+-- and `BridgeInv.fixvars_ids_subset` reads it at every `BlockKeyed` representation. The
+-- separation conjunct is supplied at the install site by `Supported.kernames` (decidable) and
+-- `TableBlocks.members` (class D), and `nms.Nodup` by `EraserAsks.block_keys_distinct`.
 -- The block statement quantifies `nms : List Name`, not `kns : List Kername`: the eraser
 -- installs `Std.HashMap.ofList (fixvarnames.zip ids)` at names, and `toKername` is not
 -- invertible, so `ErasesLBFix`'s first index is `nms.map toKername`.
@@ -2486,15 +2570,15 @@ theorem visitExpr_refines_erasesLBFix   -- the block-branch companion; genuinely
 -- panic-tolerant and the bridge's arms discharge the panic branches under `Supported`.
 --
 -- `BridgeInv`, the state-side contract the induction carries (`Bridge.lean`):
-structure BridgeInv (env : VEnv) (Us : List Name) (cfg₀ : ErasureConfig) (gen : NameGenerator)
-    (ctx : ErasureContext) (s : ErasureState) (Δ : VLCtx) : Prop where
+structure BridgeInv (env : VEnv) (Us : List Name) (tbl : SourceTable) (cfg₀ : ErasureConfig)
+    (gen : NameGenerator) (ctx : ErasureContext) (s : ErasureState) (Δ : VLCtx) : Prop where
   mlc      : ∃ m : MLCtx, m.WF env Us ∧ m.lctx = ctx.lctx ∧ m.vlctx = Δ
   lparams  : ctx.lparams <+: Us
   cfg      : ctx.config = cfg₀
   kfresh   : ∀ fv ∈ Δ.fvars, kernelNGen.Reserves fv
   reserved : ∀ fv ∈ Δ.fvars, gen.Reserves fv
   fixvars  : ctx.fixvars = none ∨
-    ∃ nms ids, BlockKeyed ctx nms ids ∧ ids.Nodup ∧ ∀ x ∈ ids, gen.Reserves x ∧ x ∉ Δ.fvars
+    ∃ nms ids, BlockKeyed tbl ctx nms ids ∧ ids.Nodup ∧ ∀ x ∈ ids, gen.Reserves x ∧ x ∉ Δ.fvars
   canon    : CanonicalConstants s
   -- the registry the constructor, projection and eliminator members read their `InductiveId`
   -- and field masks out of; `SpecEnv` sees its DOMAIN only, so the content is here. Carried
@@ -2516,13 +2600,19 @@ structure BridgeInv (env : VEnv) (Us : List Name) (cfg₀ : ErasureConfig) (gen 
 -- `erasure_bridge_of_run`, proved in `Capstone.lean`, which is why `ConfigPinned` lives in
 -- `ErasureSpec.lean` and the capstone imports the bridge.
 theorem erasure_bridge_of_run
-    (P : ErasureSpec lenv env [] gw) (htbl : SourceTableAdequate lenv tbl)
+    (P : ErasureSpec lenv env [] gw) (E : EraserAsks lenv env [] gw)
+    (htbl : SourceTableAdequate lenv tbl) (hblk : TableBlocks lenv env tbl)
     (hcfg : ConfigPinned cfg) (hcb : CompilerBodies lenv env tbl.body?)
     (hsup : Supported env tbl pe) (hwt : TrExprS env [] [] pe ve)
     (hprep : Erasure.prepare_erasure e {} { «config» := cfg } cctx ref w = .ok (pe, {}) wp)
     (hvis : Erasure.visitExpr pe {} { «config» := cfg } cctx ref wp = .ok (t, sf) wt)
     (hspec : SpecEnv env tbl.body? sf Σ⁺) :
     ∃ t₀, Erases env [] [] pe t₀ ∧ Lower Σ⁺ t₀ t
+-- `hsup` and `hwt` are asked of `pe`, and the six rungs' subjects are RAW constants, so each
+-- rung gains one premise fixing the prepared term — `hprep : prepare_erasure eGn … =
+-- .ok (eGn, {}) w`, class D, mechanised by `lake exe reify --prepared`. Transporting `Supported`
+-- and `TrExprS` across the passes instead would be a stronger statement about `macroInline`,
+-- and false in general (`06-REPAIRS-W4.md` §11)
 
 structure ErasureBridge (env : VEnv) (bo : Name → Option Expr) (fo : Name → Prop) (pe : Expr)
     (Σ⁺ Σ : GlobalDeclarations) (t t₀ : LBTerm) : Prop where
@@ -2619,7 +2709,12 @@ parameters, types and the constructor split, but not `ConstantInfo.safety`, and 
 fact `ErasureSpec`'s declaration-adequacy step cannot type the one tabled body. The added binder
 is `hsafe : TableSafe lenv tbl`, `TableSafe lenv tbl := ∀ n ci, (tbl.decl? n).isSome →
 lenv.find? n = some ci → DefinitionSafety.safe ≤ ci.safety` (`Green.lean`) — a fourth class-**D**
-binder, filed as an amendment to A14's list (finding G1-O4).
+binder, filed as an amendment to A14's list (finding G1-O4). W4b adds three more, and files them
+the same way: `hblk : TableBlocks lenv env tbl` and the per-rung
+`hprep` (both class **D**, both mechanised by `lake exe reify`), and `E : EraserAsks lenv env []
+gw` (class **C**, five fields, each with an owner). The standing binder list is therefore
+`P`, `E`, `htbl`, `hblk`, `hsafe`, `hcfg`, `hcb`, `A` — and `grep` for a named `Prop` premise in
+a step file is what keeps it at eight.
 
 At this wave `P`, `htbl`, `hcfg`, `hcb`, `hwt`, `hsup`, `hrun` and `hnb` are present in the
 signature but consumed by nothing in the proof term, which destructures only `hbridge` and
@@ -2634,7 +2729,10 @@ and uninhabited, §2.4).
 
 Composition, mirroring `[S §7.3]`: `erase_run_ok` (`LeanToLambdaBox/ColdStartRun.lean`)
 decomposes the run into `prepare_erasure` then `visitExpr`; `prepare_sound` carries the source
-evaluation to the prepared term the second half walks; T8 puts that half's output in
+evaluation to the prepared term the second half walks — **at the spine**, since the observable
+clause is read at `mkApps e args` while the pass ran on `e` alone and the passes are whole-tree
+`Core.transform` walks (measured non-compositional at an application head, `macroInline` being
+the culprit), which is why `EraserAsks.passes_sound` is spine-indexed; T8 puts that half's output in
 `Erases ⨟ Lower` at a `Σ⁺` that `SpecEnv.exists` constructs; T5 simulates the evaluation into λ□
 **at the emitted `Σ` and `eraseFlags`** — the deliverable point (§3.2), reached in one step
 rather than two; T7 identifies the value uniquely and shows it box-free.
