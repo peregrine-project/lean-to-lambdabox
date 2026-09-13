@@ -12,8 +12,8 @@ compilation steps at source level.
 
 * `ErasesLB Σ = Erases ⨟ Lower Σ`, with `ErasesLBAlt`/`ErasesLBAlts` for a `case`
   alternative and a block of them.
-* Six introduction lemmas — `box`, `app`, `ctor_head`, `ctor`, `cases`, `fix` — each
-  taking the source-level data of one compilation step.
+* Eight introduction lemmas — `box`, `app`, `ctor_head`, `ctor`, `lit`, `proj`, `cases`,
+  `fix` — each taking the source-level data of one compilation step.
 * Their `ErasesLBFix.*` twins, the same steps inside a mutual block, where the emitted term
   carries the block's fix variables (`LowerFix.lean`'s `ErasesLBFix = ErasesLB ⨟ ConstToFVar`),
   plus `ErasesLBFix.fixvar`, the block branch's own step, which has no `ErasesLB` counterpart.
@@ -212,6 +212,22 @@ theorem ErasesLB.ctor {cn I : Name} {us : List Level} {iid : InductiveId}
   · exact Lower.mkApps (.construct rfl (fun i hi => absurd hi (by simp))) (by omega)
       (fun i hi => hlowm i (by omega))
 
+/-- A literal composes to whatever its kernel unfolding composes to: the pass is the identity
+at the source step, so the composite inherits `Erases.lit`. -/
+theorem ErasesLB.lit {l : Literal} {t : LBTerm} (hcl : env.ContainsLits l)
+    (h : ErasesLB env Us Γ Δ l.toConstructor t) : ErasesLB env Us Γ Δ (.lit l) t :=
+  let ⟨t₀, h₀, h₁⟩ := h
+  ⟨t₀, .lit hcl h₀, h₁⟩
+
+/-- A projection composes to the projection node: `Erases.proj` reads the block data and the
+relevance of the type former, and the pass is the `proj` congruence. -/
+theorem ErasesLB.proj {S : Name} {i : Nat} {e : Expr} {t : LBTerm} {iid : InductiveId}
+    {np nf : Nat} (hs : IndInfo env S iid np [nf]) (hinf : InformativeInd env S) (hi : i < nf)
+    (hd : ErasesLB env Us Γ Δ e t) :
+    ErasesLB env Us Γ Δ (.proj S i e) (.proj ⟨iid, np, i⟩ t) :=
+  let ⟨t₀, h₀, h₁⟩ := hd
+  ⟨.proj ⟨iid, np, i⟩ t₀, .proj hs hinf hi h₀, .proj h₁⟩
+
 /-- A block member's constant composes to the block's `.fix` node. `hnk` is `Lower.fixConst`'s
 own guard: a block member is a definition, never an eliminator key. -/
 theorem ErasesLB.fix {cn : Name} {us : List Level} {ci : VConstant} {kns : List Kername}
@@ -393,6 +409,21 @@ theorem ErasesLBFix.ctor {cn I : Name} {us : List Level} {iid : InductiveId}
   exact .of_erasesLB (ErasesLB.ctor hc hi hmlen hlb)
     (ConstToFVar.mkApps (.construct rfl (fun i hi => absurd hi (by simp)))
       (by omega) (fun i hi => hct i (by omega)))
+
+/-- `ErasesLB.lit` inside a block. -/
+theorem ErasesLBFix.lit {l : Literal} {t : LBTerm} (hcl : env.ContainsLits l)
+    (h : ErasesLBFix env Us Γ kns ids Δ l.toConstructor t) :
+    ErasesLBFix env Us Γ kns ids Δ (.lit l) t :=
+  let ⟨_, h₁, hc⟩ := h.exists_erasesLB
+  .of_erasesLB (ErasesLB.lit hcl h₁) hc
+
+/-- `ErasesLB.proj` inside a block. -/
+theorem ErasesLBFix.proj {S : Name} {i : Nat} {e : Expr} {t : LBTerm} {iid : InductiveId}
+    {np nf : Nat} (hs : IndInfo env S iid np [nf]) (hinf : InformativeInd env S) (hi : i < nf)
+    (hd : ErasesLBFix env Us Γ kns ids Δ e t) :
+    ErasesLBFix env Us Γ kns ids Δ (.proj S i e) (.proj ⟨iid, np, i⟩ t) :=
+  let ⟨_, h₁, hc⟩ := hd.exists_erasesLB
+  .of_erasesLB (ErasesLB.proj hs hinf hi h₁) (.proj hc)
 
 /-- `ErasesLB.cases` inside a block. -/
 theorem ErasesLBFix.cases {con : Name} {us : List Level} {ci : VConstant}

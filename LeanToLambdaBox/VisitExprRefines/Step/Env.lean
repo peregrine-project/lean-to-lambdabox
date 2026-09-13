@@ -9,12 +9,19 @@ members that write the erasure state's constant registry, and their motives are 
 report registration rather than a term relation.
 
 * `step5` and `step6` are the two registration steps, discharged in full.
-* `visitConst_refines` is step 4's content. `Step4` itself is **not** delivered: `Motive4` is
-  false as stated — at a constructor or type-former head, and at every block reader
-  (`erasesLBMode_block_refuted`) — so the content is delivered with those gaps as explicit
-  premises.
-* Four facts about impure primitives that no clause of `ErasureSpec` carries are named here and
-  taken as premises; each docstring says what it would be as an `ErasureSpec` field.
+* `visitConst_refines` is step 4's content and `step4_of_exclusions` is its step interface at
+  two further premises. `Step4` itself is **not** delivered: `Motive4` admits a constructor and
+  a type-former head, and `Erases.const` excludes both.
+* `blockKeyed_install` proves the four conditions of the reader description at the pair
+  `Erasure.visitMutual` installs.
+* Two facts the registration path needs are named here as premises; each docstring says why
+  no clause of `ErasureSpec` or `EraserAsks` carries it.
+
+`Motive6` reports registration and nothing about the block's content. The sub-runs erase a
+dependency at its own `levelParams`, where `BridgeInv.lparams` — a prefix of the ambient level
+scope — is unsatisfiable at a polymorphic dependency of a closed subject, so the block's
+content is read off the final state by `SpecEnv` instead. That is a restriction of the motive's
+shape rather than a premise, and it is why `blockKeyed_install` has no consumer here.
 -/
 
 namespace LeanToLambdaBox
@@ -32,62 +39,69 @@ theorem hashMap_get!_of_get? {m : Std.HashMap Name Kername} {k : Name} {v : Kern
   rw [Std.HashMap.getElem!_eq_get!_getElem?, show m[k]? = some v from h]
   rfl
 
-/-! ## The primitives the specification bundle does not carry
+/-! ## The preparation pass, run
 
-`ErasureSpec` specifies the four environment queries, the fresh-name source and the relevance
-oracle. `Erasure.visitMutual`'s registration path calls four more impure things, and each of
-the four facts below is what an `ErasureSpec` field for it would say. They are premises of the
-step lemmas that need them, in the idiom `InferTypeMonotone` uses for `Lean.Meta.inferType`.
+`Erasure.prepare_erasure` is four `CoreM`-lifted passes and a `@[csimp]` walk the pinned
+configuration closes. Its state half is a theorem of the run decomposition; its generator half
+is `EraserAsks.passes_monotone`, one application per call.
 -/
 
-/-- The three state-transparent `CoreM` calls on the registration path — `Lean.getEnv`,
-`Lean.logInfo` and `Lean.Meta.isInstance` — only advance the name generator. Class **D**: the
-generator is read out of `IO.RealWorld`, which no term denotes. -/
-def CoreCallsMonotone (gw : Void IO.RealWorld → NameGenerator) : Prop :=
-  (∀ (s : ErasureState) (ctx : ErasureContext) (cctx : Core.Context)
-      (ref : ST.Ref IO.RealWorld Core.State) (w : Void IO.RealWorld) (e : Environment)
-      (s₁ : ErasureState) (w₁ : Void IO.RealWorld),
-      (getEnv : EraseM Environment) s ctx cctx ref w = .ok (e, s₁) w₁ → gw w ≤ gw w₁) ∧
-  (∀ (m : MessageData) (s : ErasureState) (ctx : ErasureContext) (cctx : Core.Context)
-      (ref : ST.Ref IO.RealWorld Core.State) (w : Void IO.RealWorld) (u : Unit)
-      (s₁ : ErasureState) (w₁ : Void IO.RealWorld),
-      (logInfo m : EraseM Unit) s ctx cctx ref w = .ok (u, s₁) w₁ → gw w ≤ gw w₁) ∧
-  (∀ (nm : Name) (s : ErasureState) (ctx : ErasureContext) (cctx : Core.Context)
-      (ref : ST.Ref IO.RealWorld Core.State) (w : Void IO.RealWorld) (b : Bool)
-      (s₁ : ErasureState) (w₁ : Void IO.RealWorld),
-      (liftM (Lean.Meta.isInstance nm) : EraseM Bool) s ctx cctx ref w = .ok (b, s₁) w₁ →
-        gw w ≤ gw w₁)
+/-- **The preparation pass leaves the erasure state alone and only advances the generator.**
+With the `@[csimp]` gate closed the run is exactly the four lifted calls
+`run_prepare_erasure_ok` exposes, and each of the three functions it calls is a member of
+`preparePasses`. -/
+theorem run_prepare_erasure_concl {lenv : Environment} {env : VEnv} {Us : List Name}
+    {gw : Void IO.RealWorld → NameGenerator} (E : EraserAsks lenv env Us gw) {e : Expr}
+    {s : ErasureState} {ctx : ErasureContext} {cctx : Core.Context}
+    {ref : ST.Ref IO.RealWorld Core.State} {w : Void IO.RealWorld} {pe : Expr}
+    {s₁ : ErasureState} {w₁ : Void IO.RealWorld} (hcs : ctx.config.csimp = false)
+    (hrun : prepare_erasure e s ctx cctx ref w = .ok (pe, s₁) w₁) :
+    s₁ = s ∧ gw w ≤ gw w₁ := by
+  obtain ⟨rfl, e₁, e₂, e₃, v₁, v₂, v₃, h1, h2, h3, h4⟩ := run_prepare_erasure_ok hcs hrun
+  refine ⟨rfl, NameGenerator.LE.trans
+    (E.passes_monotone _ (by simp [preparePasses]) _ _ _ _ _ _ _ _ _ h1)
+    (NameGenerator.LE.trans
+      (E.passes_monotone _ (by simp [preparePasses]) _ _ _ _ _ _ _ _ _ h2)
+      (NameGenerator.LE.trans
+        (E.passes_monotone _ (by simp [preparePasses]) _ _ _ _ _ _ _ _ _ h3)
+        (E.passes_monotone _ (by simp [preparePasses]) _ _ _ _ _ _ _ _ _ h4)))⟩
 
-/-- `Erasure.prepare_erasure` leaves the erasure state alone and only advances the generator.
-Class **D**: its `csimp` branch runs `Lean.Core.transform` at `EraseM` through
-`MonadControlT`, so its state transparency does not follow from the `liftM` run lemmas. -/
-def PrepareRunConcl (gw : Void IO.RealWorld → NameGenerator) : Prop :=
-  ∀ (e : Expr) (s : ErasureState) (ctx : ErasureContext) (cctx : Core.Context)
-    (ref : ST.Ref IO.RealWorld Core.State) (w : Void IO.RealWorld) (pe : Expr)
-    (s₁ : ErasureState) (w₁ : Void IO.RealWorld),
-    prepare_erasure e s ctx cctx ref w = .ok (pe, s₁) w₁ → s₁ = s ∧ gw w ≤ gw w₁
+/-! ## What no clause of the specification bundle carries
 
-/-- The term walk's state and generator conclusion, unconditionally. This is the
-`Erasure.visitExpr` half of the unconditional shape induction (`erase_run_ok`), which is a
-second induction over the same eighteen-member family; it is a premise here so that the
-registration step does not depend on the order the two inductions land in. -/
-def VisitExprRunConcl (gw : Void IO.RealWorld → NameGenerator) : Prop :=
-  ∀ (e : Expr) (s : ErasureState) (ctx : ErasureContext) (cctx : Core.Context)
-    (ref : ST.Ref IO.RealWorld Core.State) (w : Void IO.RealWorld) (t : LBTerm)
-    (s₁ : ErasureState) (w₁ : Void IO.RealWorld),
-    Erasure.visitExpr e s ctx cctx ref w = .ok (t, s₁) w₁ → RunConcl s s₁ ∧ gw w ≤ gw w₁
+`ErasureSpec` specifies the four environment queries, the fresh-name source, the relevance
+oracle and the `CoreM` calls the erasure makes for their effect. Two facts the registration
+path still needs are not among them — one a gap in an existing clause, one about **this
+repository's own eraser** — so each docstring says what would retire it.
+-/
 
-/-- The code generator answers for a name of the fragment, and the block it reports contains
-that name, modulo the `_unsafe_rec` renaming `Erasure.remove_unsafe_rec` undoes. Class **D**,
-and the clause `ErasureSpec.LookupAdequate.declInfo` is missing: `declInfo` pins only that a
-non-`none` answer is a name `lenv` knows, while the registration conclusion of
-`Erasure.visitMutual`'s block exit is about the names the block registers. -/
-def DeclBlockMember (env : VEnv) (tbl : SourceTable) : Prop :=
+/-- The code generator answers for a head of the fragment, and that head is not an
+`_unsafe_rec` companion. `ErasureSpec.LookupAdequate.declInfo` then supplies the block
+membership `Erasure.visitMutual`'s registration loop is indexed by; what that clause lacks is
+an `r = none` arm and a supplier for its guard, which are exactly the two halves here. Class
+**D**: `Lean.Compiler.LCNF.getDeclInfo?` reads
+`lenv.find? (Compiler.mkUnsafeRecName n) <|> lenv.find? n`, so both halves are conditions on
+`lenv` and on the shape of the name. -/
+def DeclInfoAtHead (env : VEnv) (tbl : SourceTable) : Prop :=
   ∀ (n : Name) (cctx : Core.Context) (ref : ST.Ref IO.RealWorld Core.State)
     (w : Void IO.RealWorld) (r : Option ConstantInfo) (w₁ : Void IO.RealWorld),
     KnownHead env tbl n →
     (Lean.Compiler.LCNF.getDeclInfo? n : CoreM (Option ConstantInfo)) cctx ref w = .ok r w₁ →
-      n ∈ r.get!.all.map remove_unsafe_rec
+      r.isSome ∧ Lean.Compiler.isUnsafeRecName? n = none
+
+/-- **The term walk's state, generator and registry conclusion, unconditionally.** Owner: this
+repository — a second, unconditional induction over the same eighteen-member family, which the
+tree does not have: `visitExpr_shape` propagates a **state** predicate, and neither
+`Erasure.RunConcl` nor the generator bound is one; its `reg` and `prep` closure conditions
+quantify over an arbitrary reader, while `run_register_inductive_models` reads the pinned
+configuration. The registry conjunct is guarded because the cold registration branch computes
+a real pruning mask when pruning is on. -/
+def VisitExprRunConcl (env : VEnv) (gw : Void IO.RealWorld → NameGenerator) : Prop :=
+  ∀ (e : Expr) (s : ErasureState) (ctx : ErasureContext) (cctx : Core.Context)
+    (ref : ST.Ref IO.RealWorld Core.State) (w : Void IO.RealWorld) (t : LBTerm)
+    (s₁ : ErasureState) (w₁ : Void IO.RealWorld),
+    ctx.config.remove_irrel_constr_args = false →
+    Erasure.visitExpr e s ctx cctx ref w = .ok (t, s₁) w₁ →
+    RunConcl s s₁ ∧ gw w ≤ gw w₁ ∧ (IndRegistryModelled env s → IndRegistryModelled env s₁)
 
 
 /-! ## The registration exits, decomposed
@@ -100,18 +114,36 @@ decomposed here, at the abstract eraser the induction hands the step.
 
 section Exits
 
-variable {gw : Void IO.RealWorld → NameGenerator} {n : Name}
+variable {lenv : Environment} {env : VEnv} {Us : List Name}
+  {gw : Void IO.RealWorld → NameGenerator} {n : Name}
   {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
+
+/-- The block registration loop writes the constant registry and `gdecls` only, so a modelled
+inductive registry survives it. -/
+theorem indRegistryModelled_recConstState (names : List Name)
+    (defs : List (@FixDef LBTerm)) {s : ErasureState} (h : IndRegistryModelled env s) :
+    IndRegistryModelled env (recConstState names defs s) := by
+  rw [recConstState_eq]
+  have key : ∀ (l : List (Name × Nat)) (s' : ErasureState), IndRegistryModelled env s' →
+      IndRegistryModelled env (l.foldl (recConstStep defs) s') := by
+    intro l
+    induction l with
+    | nil => exact fun _ h' => h'
+    | cons _ _ ih => exact fun s' h' => ih _ h'
+  exact key _ _ h
 
 /-- **The non-recursive exit registers its name.** The body erasure and the `@[inline]`
 bookkeeping tail only grow the state; the `modify` between them is the registration. -/
 theorem run_nonrec_exit_reg {vE : Expr → EraseM LBTerm}
     {f : ErasureContext → ErasureContext} {e : Expr}
     {b1 b2 : ErasureContext → LBTerm → Bool} {msg1 msg2 : MessageData}
-    (hbk : CoreCallsMonotone gw) (hprep : PrepareRunConcl gw)
+    (hpm : PrimMonotone gw) (E : EraserAsks lenv env Us gw)
     (hvE : ∀ (e' : Expr) (s' : ErasureState) (ctx' : ErasureContext)
         (w' : Void IO.RealWorld) (t : LBTerm) (s'' : ErasureState) (w'' : Void IO.RealWorld),
-      vE e' s' ctx' cctx ref w' = .ok (t, s'') w'' → RunConcl s' s'' ∧ gw w' ≤ gw w'')
+      ctx'.config.remove_irrel_constr_args = false →
+      vE e' s' ctx' cctx ref w' = .ok (t, s'') w'' →
+      RunConcl s' s'' ∧ gw w' ≤ gw w'' ∧
+        (IndRegistryModelled env s' → IndRegistryModelled env s''))
     {s : ErasureState} {ctx : ErasureContext} {w : Void IO.RealWorld}
     {u : Unit} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
     (hrun : (do
@@ -129,15 +161,20 @@ theorem run_nonrec_exit_reg {vE : Expr → EraseM LBTerm}
             logInfo msg2
             modify (fun s => { s with inlinings := toKername n :: s.inlinings })
           else pure ()
-        else pure () : EraseM Unit) s ctx cctx ref w = .ok (u, s₁) w₁) :
-    (s₁.constants.get? n).isSome ∧ RunConcl s s₁ ∧ gw w ≤ gw w₁ := by
+        else pure () : EraseM Unit) s ctx cctx ref w = .ok (u, s₁) w₁)
+    (hcs : ctx.config.csimp = false)
+    (hpru : ctx.config.remove_irrel_constr_args = false)
+    (hind : IndRegistryModelled env s)
+    (hf : ∀ c : ErasureContext, (f c).config = c.config) :
+    (s₁.constants.get? n).isSome ∧ RunConcl s s₁ ∧ gw w ≤ gw w₁ ∧
+      IndRegistryModelled env s₁ := by
   rw [run_bind_ok] at hrun
   obtain ⟨t, st, wt, hvis, hrun⟩ := hrun
   rw [run_withReader, run_bind_ok] at hvis
   obtain ⟨pe, sp, wp, hpr, hvis⟩ := hvis
-  obtain ⟨hsp, hlep⟩ := hprep _ _ _ _ _ _ _ _ _ hpr
+  obtain ⟨hsp, hlep⟩ := run_prepare_erasure_concl E (by rw [hf]; exact hcs) hpr
   subst hsp
-  obtain ⟨hrct, hlet⟩ := hvE _ _ _ _ _ _ _ hvis
+  obtain ⟨hrct, hlet, hindt⟩ := hvE _ _ _ _ _ _ _ (by rw [hf]; exact hpru) hvis
   rw [run_bind_ok] at hrun
   obtain ⟨u2, sm, wm, hmod, hrun⟩ := hrun
   rw [run_modify] at hmod
@@ -147,25 +184,26 @@ theorem run_nonrec_exit_reg {vE : Expr → EraseM LBTerm}
   rw [run_read] at hread
   cases hread
   have hP := run_inline_tail_ok' (n := n) (cctx := cctx) (ref := ref)
-    (P := fun s' w' => RunConcl (nonrecConstState n t st) s' ∧ gw wt ≤ gw w')
-    (fun {s' w' kn} h => ⟨h.1.trans (runConcl_inlinings s' kn), h.2⟩)
+    (P := fun s' w' => RunConcl (nonrecConstState n t st) s' ∧ gw wt ≤ gw w' ∧
+      IndRegistryModelled env s')
+    (fun {s' w' kn} h => ⟨h.1.trans (runConcl_inlinings s' kn), h.2.1, h.2.2⟩)
     (fun {m u' s' s'' ctx' w' w''} hl h => by
       obtain rfl := run_logInfo_state _ _ cctx ref _ hl
-      exact ⟨h.1, NameGenerator.LE.trans h.2 (hbk.2.1 _ _ _ _ _ _ _ _ _ hl)⟩)
+      exact ⟨h.1, NameGenerator.LE.trans h.2.1 (hpm.logInfo _ _ _ _ _ _ _ _ _ hl), h.2.2⟩)
     (fun {m b s' s'' ctx' w' w''} hi h => by
       obtain rfl := run_liftCoreM_state (x := (Lean.Meta.isInstance m : CoreM Bool)) _ _ cctx ref _ hi
-      exact ⟨h.1, NameGenerator.LE.trans h.2 (hbk.2.2 _ _ _ _ _ _ _ _ _ hi)⟩)
-    ⟨RunConcl.rfl' _, NameGenerator.LE.rfl⟩ hrun
-  refine ⟨hP.1.le.consts (nonrecConstState_get? n t st), ?_, ?_⟩
+      exact ⟨h.1, NameGenerator.LE.trans h.2.1 (hpm.isInstance _ _ _ _ _ _ _ _ _ hi), h.2.2⟩)
+    ⟨RunConcl.rfl' _, NameGenerator.LE.rfl, hindt hind⟩ hrun
+  refine ⟨hP.1.le.consts (nonrecConstState_get? n t st), ?_, ?_, hP.2.2⟩
   · exact (hrct.trans (runConcl_nonrecConstState n t st)).trans hP.1
-  · exact NameGenerator.LE.trans (NameGenerator.LE.trans hlep hlet) hP.2
+  · exact NameGenerator.LE.trans (NameGenerator.LE.trans hlep hlet) hP.2.1
 
 /-- **The block exit registers every name of the block.** The identifier loop leaves the state
 alone, the sibling loop only grows it, and the registration loop is `recConstState`. -/
 theorem run_rec_exit_reg {vE : Expr → EraseM LBTerm} {names fixnames : List Name}
     {f : List FVarId → ErasureContext → ErasureContext}
     {g : ConstantInfo → ErasureContext → ErasureContext} {val : ConstantInfo → Expr}
-    (hprep : PrepareRunConcl gw)
+    (E : EraserAsks lenv env Us gw)
     (hfresh : ∀ (s' : ErasureState) (ctx' : ErasureContext) (w' : Void IO.RealWorld)
         (x : FVarId) (s'' : ErasureState) (w'' : Void IO.RealWorld),
       (mkFreshFVarId : EraseM FVarId) s' ctx' cctx ref w' = .ok (x, s'') w'' → gw w' ≤ gw w'')
@@ -175,7 +213,10 @@ theorem run_rec_exit_reg {vE : Expr → EraseM LBTerm} {names fixnames : List Na
         gw w' ≤ gw w'')
     (hvE : ∀ (e' : Expr) (s' : ErasureState) (ctx' : ErasureContext)
         (w' : Void IO.RealWorld) (t : LBTerm) (s'' : ErasureState) (w'' : Void IO.RealWorld),
-      vE e' s' ctx' cctx ref w' = .ok (t, s'') w'' → RunConcl s' s'' ∧ gw w' ≤ gw w'')
+      ctx'.config.remove_irrel_constr_args = false →
+      vE e' s' ctx' cctx ref w' = .ok (t, s'') w'' →
+      RunConcl s' s'' ∧ gw w' ≤ gw w'' ∧
+        (IndRegistryModelled env s' → IndRegistryModelled env s''))
     (hmem : n ∈ fixnames)
     {s : ErasureState} {ctx : ErasureContext} {w : Void IO.RealWorld}
     {u : Unit} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
@@ -190,8 +231,14 @@ theorem run_rec_exit_reg {vE : Expr → EraseM LBTerm} {names fixnames : List Na
             modify (fun s => { s with
               constants := s.constants.insert p.1 (toKername p.1),
               gdecls := (toKername p.1, .constantDecl ⟨some (.fix defs p.2)⟩) :: s.gdecls })
-          pure ()) : EraseM Unit) s ctx cctx ref w = .ok (u, s₁) w₁) :
-    (s₁.constants.get? n).isSome ∧ RunConcl s s₁ ∧ gw w ≤ gw w₁ := by
+          pure ()) : EraseM Unit) s ctx cctx ref w = .ok (u, s₁) w₁)
+    (hcs : ctx.config.csimp = false)
+    (hpru : ctx.config.remove_irrel_constr_args = false)
+    (hind : IndRegistryModelled env s)
+    (hf : ∀ (ids : List FVarId) (c : ErasureContext), (f ids c).config = c.config)
+    (hg : ∀ (ci : ConstantInfo) (c : ErasureContext), (g ci c).config = c.config) :
+    (s₁.constants.get? n).isSome ∧ RunConcl s s₁ ∧ gw w ≤ gw w₁ ∧
+      IndRegistryModelled env s₁ := by
   rw [run_bind_ok] at hrun
   obtain ⟨ids, sid, wid, hids, hrun⟩ := hrun
   have hid := run_list_mapM_ok _ cctx ref
@@ -208,10 +255,11 @@ theorem run_rec_exit_reg {vE : Expr → EraseM LBTerm} {names fixnames : List Na
   obtain ⟨defs, sd, wd, hdefs, hrun⟩ := hrun
   have hsib := run_list_mapM_ok _ cctx ref
     (P := fun (_ : List Name) (_ : List (@FixDef LBTerm)) (s' : ErasureState)
-        (w' : Void IO.RealWorld) => RunConcl sid s' ∧ gw wid ≤ gw w')
-    ⟨RunConcl.rfl' _, NameGenerator.LE.rfl⟩
+        (w' : Void IO.RealWorld) => RunConcl sid s' ∧ gw wid ≤ gw w' ∧
+          IndRegistryModelled env s')
+    ⟨RunConcl.rfl' _, NameGenerator.LE.rfl, by rw [hsid]; exact hind⟩
     (fun _ _ _ _ _ _ _ _ _ _ hPa hb => by
-      obtain ⟨hrc, hle⟩ := hPa
+      obtain ⟨hrc, hle, hindp⟩ := hPa
       rw [run_bind_ok] at hb
       obtain ⟨ci, s2, w2, hciR, hb⟩ := hb
       have hleci := hci _ _ _ _ _ _ _ hciR
@@ -221,12 +269,12 @@ theorem run_rec_exit_reg {vE : Expr → EraseM LBTerm} {names fixnames : List Na
       obtain ⟨t2, s4, w4, hvis, hb⟩ := hb
       rw [run_withReader, run_bind_ok] at hvis
       obtain ⟨pe2, s3, w3, hpr, hvis⟩ := hvis
-      obtain ⟨rfl, hlep⟩ := hprep _ _ _ _ _ _ _ _ _ hpr
-      obtain ⟨hrc2, hle2⟩ := hvE _ _ _ _ _ _ _ hvis
+      obtain ⟨rfl, hlep⟩ := run_prepare_erasure_concl E (by rw [hg, hf]; exact hcs) hpr
+      obtain ⟨hrc2, hle2, hind2⟩ := hvE _ _ _ _ _ _ _ (by rw [hg, hf]; exact hpru) hvis
       obtain ⟨-, -, rfl, rfl⟩ := run_mkDef_ok hb
       exact ⟨hrc.trans hrc2, NameGenerator.LE.trans hle
         (NameGenerator.LE.trans hleci
-          (NameGenerator.LE.trans hlep hle2))⟩)
+          (NameGenerator.LE.trans hlep hle2)), hind2 hindp⟩)
     hdefs
   rw [run_bind_ok] at hrun
   obtain ⟨u4, sf, wf, hloop, hrun⟩ := hrun
@@ -235,30 +283,38 @@ theorem run_rec_exit_reg {vE : Expr → EraseM LBTerm} {names fixnames : List Na
   cases hrun
   have hreg : s₁ = recConstState fixnames defs sd := by rw [hsf]; rfl
   subst hreg
-  refine ⟨recConstState_get? hmem, ?_, ?_⟩
+  refine ⟨recConstState_get? hmem, ?_, ?_, indRegistryModelled_recConstState _ _ hsib.2.2⟩
   · exact (hsid ▸ hsib.1 : RunConcl s sd).trans (runConcl_recConstState fixnames defs sd)
-  · exact NameGenerator.LE.trans hleid hsib.2
+  · exact NameGenerator.LE.trans hleid hsib.2.1
 
 /-- The registration conclusion, composed across a prefix that registered nothing. -/
 theorem reg_compose {s s' s₁ : ErasureState} {w w' w₁ : Void IO.RealWorld}
     (hrc : RunConcl s s') (hle : gw w ≤ gw w')
-    (h : (s₁.constants.get? n).isSome ∧ RunConcl s' s₁ ∧ gw w' ≤ gw w₁) :
-    (s₁.constants.get? n).isSome ∧ RunConcl s s₁ ∧ gw w ≤ gw w₁ :=
-  ⟨h.1, hrc.trans h.2.1, NameGenerator.LE.trans hle h.2.2⟩
+    (h : (s₁.constants.get? n).isSome ∧ RunConcl s' s₁ ∧ gw w' ≤ gw w₁ ∧
+      IndRegistryModelled env s₁) :
+    (s₁.constants.get? n).isSome ∧ RunConcl s s₁ ∧ gw w ≤ gw w₁ ∧
+      IndRegistryModelled env s₁ :=
+  ⟨h.1, hrc.trans h.2.1, NameGenerator.LE.trans hle h.2.2.1, h.2.2.2⟩
 
 set_option maxHeartbeats 2000000 in
 theorem run_visitMutual_registers {lenv : Environment} {env : VEnv} {Us : List Name}
     {tbl : SourceTable} {s : ErasureState} {ctx : ErasureContext} {w : Void IO.RealWorld}
     {u : Unit} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
-    (P : ErasureSpec lenv env Us gw) (hbk : CoreCallsMonotone gw)
-    (hprep : PrepareRunConcl gw) (hve : VisitExprRunConcl gw)
-    (hblk : DeclBlockMember env tbl) (hkn : KnownHead env tbl n)
+    (P : ErasureSpec lenv env Us gw) (E : EraserAsks lenv env Us gw)
+    (hve : VisitExprRunConcl env gw) (hdih : DeclInfoAtHead env tbl)
+    (hkn : KnownHead env tbl n) (hcs : ctx.config.csimp = false)
+    (hpru : ctx.config.remove_irrel_constr_args = false)
+    (hind : IndRegistryModelled env s)
     (hrun : visitMutual n s ctx cctx ref w = .ok (u, s₁) w₁) :
-    (s₁.constants.get? n).isSome ∧ RunConcl s s₁ ∧ gw w ≤ gw w₁ := by
+    (s₁.constants.get? n).isSome ∧ RunConcl s s₁ ∧ gw w ≤ gw w₁ ∧
+      IndRegistryModelled env s₁ := by
   have hvE : ∀ (e' : Expr) (s' : ErasureState) (ctx' : ErasureContext)
       (w' : Void IO.RealWorld) (t : LBTerm) (s'' : ErasureState) (w'' : Void IO.RealWorld),
-      visitExpr e' s' ctx' cctx ref w' = .ok (t, s'') w'' → RunConcl s' s'' ∧ gw w' ≤ gw w'' :=
-    fun e' s' ctx' w' t s'' w'' h => hve _ _ _ _ _ _ _ _ _ h
+      ctx'.config.remove_irrel_constr_args = false →
+      visitExpr e' s' ctx' cctx ref w' = .ok (t, s'') w'' →
+      RunConcl s' s'' ∧ gw w' ≤ gw w'' ∧
+        (IndRegistryModelled env s' → IndRegistryModelled env s'') :=
+    fun e' s' ctx' w' t s'' w'' hc h => hve _ _ _ _ _ _ _ _ _ hc h
   have hfresh : ∀ (s' : ErasureState) (ctx' : ErasureContext) (w' : Void IO.RealWorld)
       (x : FVarId) (s'' : ErasureState) (w'' : Void IO.RealWorld),
       (mkFreshFVarId : EraseM FVarId) s' ctx' cctx ref w' = .ok (x, s'') w'' → gw w' ≤ gw w'' :=
@@ -271,7 +327,7 @@ theorem run_visitMutual_registers {lenv : Environment} {env : VEnv} {Us : List N
     unfold Lean.getConstInfo at h
     rw [run_bind_ok] at h
     obtain ⟨e, s₂, w₂, henv, hk⟩ := h
-    have hle := hbk.1 _ _ _ _ _ _ _ _ henv
+    have hle := P.prim_monotone.getEnv _ _ _ _ _ _ _ _ henv
     cases hfind : e.find? m with
     | some info =>
       rw [hfind] at hk
@@ -301,33 +357,38 @@ theorem run_visitMutual_registers {lenv : Environment} {env : VEnv} {Us : List N
     _ _ cctx ref _ hdi
   subst hsa
   have hdiC := ((run_liftCoreM_ok _ _ cctx ref _).mp hdi).1
-  have hmem : n ∈ di.get!.all.map remove_unsafe_rec := hblk _ _ _ _ _ _ hkn hdiC
+  have hmem : n ∈ di.get!.all.map remove_unsafe_rec := by
+    obtain ⟨hdom, hstrip⟩ := hdih n cctx ref w di wa hkn hdiC
+    obtain ⟨ci₀, hci₀⟩ := Option.isSome_iff_exists.mp hdom
+    have hb := ((P.lookup_adequate.declInfo n cctx ref w di wa hdiC).2 ci₀ hci₀).2 hstrip
+    simpa [hci₀] using hb
   have hlea : gw w ≤ gw wa := (P.lookup_adequate.declInfo n cctx ref w di wa hdiC).1
   rw [run_bind_ok] at hrun
   obtain ⟨env0, sb, wb, henv0, hrun⟩ := hrun
   have hsb := run_getEnv_state _ _ cctx ref _ henv0
   subst hsb
   have hleb : gw w ≤ gw wb :=
-    NameGenerator.LE.trans hlea (hbk.1 _ _ _ _ _ _ _ _ henv0)
+    NameGenerator.LE.trans hlea (P.prim_monotone.getEnv _ _ _ _ _ _ _ _ henv0)
   clear hdi henv0
   refine reg_compose (RunConcl.rfl' _) hleb ?_
   split at hrun
   case isFalse =>
     split at hrun
-    · exact run_nonrec_exit_reg hbk hprep hvE hrun
-    · exact run_rec_exit_reg hprep hfresh hciM hvE hmem hrun
+    · exact run_nonrec_exit_reg P.prim_monotone E hvE hrun hcs hpru hind (fun _ => rfl)
+    · exact run_rec_exit_reg E hfresh hciM hvE hmem hrun hcs hpru hind (fun _ _ => rfl)
+        (fun _ _ => rfl)
   case isTrue =>
     obtain ⟨s₀, w₀, u₀, hpre, hm⟩ := run_inline_prefix_decomp' hrun
-    have hpc : RunConcl sb s₀ ∧ gw wb ≤ gw w₀ := by
+    have hpc : RunConcl sb s₀ ∧ gw wb ≤ gw w₀ ∧ IndRegistryModelled env s₀ := by
       rcases hpre with ⟨rfl, rfl⟩ | ⟨u', hlog, rfl⟩
-      · exact ⟨RunConcl.rfl' _, NameGenerator.LE.rfl⟩
-      · exact ⟨runConcl_inlinings _ _, hbk.2.1 _ _ _ _ _ _ _ _ _ hlog⟩
-    refine reg_compose hpc.1 hpc.2 ?_
+      · exact ⟨RunConcl.rfl' _, NameGenerator.LE.rfl, hind⟩
+      · exact ⟨runConcl_inlinings _ _, P.prim_monotone.logInfo _ _ _ _ _ _ _ _ _ hlog, hind⟩
+    refine reg_compose hpc.1 hpc.2.1 ?_
     rw [run_bind_ok] at hm
     obtain ⟨env2, se, we, henv2, hm⟩ := hm
     have hse := run_getEnv_state _ _ cctx ref _ henv2
     subst hse
-    have hlee : gw w₀ ≤ gw we := hbk.1 _ _ _ _ _ _ _ _ henv2
+    have hlee : gw w₀ ≤ gw we := P.prim_monotone.getEnv _ _ _ _ _ _ _ _ henv2
     rw [run_bind_ok] at hm
     obtain ⟨c1, sr, wr, hread, hm⟩ := hm
     rw [run_read] at hread
@@ -343,19 +404,50 @@ theorem run_visitMutual_registers {lenv : Environment} {env : VEnv} {Us : List N
          have hz2 := run_logInfo_state _ _ cctx ref _ hlogr
          subst hz2
          replace hlee := NameGenerator.LE.trans hlee
-           (hbk.2.1 _ _ _ _ _ _ _ _ _ hlogr))
+           (P.prim_monotone.logInfo _ _ _ _ _ _ _ _ _ hlogr))
     all_goals
       first
         | (obtain ⟨hstA, hwA⟩ := run_addAxiom_ok hm
            subst hstA
            subst hwA
-           exact ⟨addAxiomState_get? n _, runConcl_addAxiomState n _, hlee⟩)
+           exact ⟨addAxiomState_get? n _, runConcl_addAxiomState n _, hlee, hpc.2.2⟩)
         | (refine reg_compose (RunConcl.rfl' _) hlee ?_
            split at hm
-           · exact run_nonrec_exit_reg hbk hprep hvE hm
-           · exact run_rec_exit_reg hprep hfresh hciM hvE hmem hm)
+           · exact run_nonrec_exit_reg P.prim_monotone E hvE hm hcs hpru hpc.2.2
+               (fun _ => rfl)
+           · exact run_rec_exit_reg E hfresh hciM hvE hmem hm hcs hpru hpc.2.2
+               (fun _ _ => rfl) (fun _ _ => rfl))
 
 end Exits
+
+/-! ## The installed block's keying -/
+
+/-- **The pair `Erasure.visitMutual` installs is `BlockKeyed`.** The reader equation is the
+`withReader` the block branch runs under, the length is the identifier loop's, the distinctness
+is `EraserAsks.block_keys_distinct` read back through `toKername`, and the separation is the
+table's own key separation against `TableBlocks.members`. `hfb` is the correspondence between
+the run's `Lean.Compiler.LCNF.getDeclInfo?` answer and `Witness.fixBlock?`, which no clause of
+the specification bundle supplies. -/
+theorem blockKeyed_install {lenv : Environment} {env : VEnv} {Us : List Name}
+    {gw : Void IO.RealWorld → NameGenerator} {tbl : SourceTable} {ctx : ErasureContext}
+    {n : Name} {e : Expr} {ci : ConstantInfo} {ids : List FVarId} {cctx : Core.Context}
+    {ref : ST.Ref IO.RealWorld Core.State} {w w₁ : Void IO.RealWorld}
+    (E : EraserAsks lenv env Us gw) (hblk : TableBlocks lenv env tbl)
+    (hsup : Supported env tbl e) (htab : (tbl.decl? n).isSome)
+    (hdi : (Lean.Compiler.LCNF.getDeclInfo? n : CoreM (Option ConstantInfo)) cctx ref w
+      = .ok (some ci) w₁)
+    (hfb : fixBlock? lenv n = some (ci.all.map remove_unsafe_rec))
+    (hlen : ids.length = ci.all.length)
+    (hfx : ctx.fixvars = some (fixvarMap (ci.all.map remove_unsafe_rec) ids)) :
+    BlockKeyed tbl ctx (ci.all.map remove_unsafe_rec) ids := by
+  refine ⟨hfx, by simp [hlen], List.Pairwise.of_map toKername
+    (fun _ _ hne hab => hne (congrArg toKername hab))
+    (E.block_keys_distinct n cctx ref w ci w₁ hdi), ?_⟩
+  intro m htm hin
+  obtain ⟨m', hm', hkey⟩ := List.mem_map.mp hin
+  have heq : m = m' := hsup.kernames m m' htm (hblk.members n _ htab hfb m' hm') hkey.symm
+  rw [heq]
+  exact hm'
 
 /-! ## The two registration steps -/
 
@@ -391,7 +483,8 @@ theorem step5 : Step5 lenv env Us tbl cfg gw := by
       simp only [] at hk
       rw [run_pure] at hk
       cases hk
-      exact ⟨hinv.canon hc, by rw [hc]; simp, RunConcl.rfl' _, NameGenerator.LE.rfl⟩
+      exact ⟨hinv.canon hc, by rw [hc]; simp, RunConcl.rfl' _, hinv.indcanon,
+        NameGenerator.LE.rfl⟩
   | none =>
       rw [hc] at hk
       simp only [] at hk
@@ -403,24 +496,26 @@ theorem step5 : Step5 lenv env Us tbl cfg gw := by
       cases hget2
       rw [run_pure] at hp
       cases hp
-      obtain ⟨hdom, hrc, hle⟩ := m6.1 _ _ _ _ _ _ _ _ _ hvm Δ hinv hsup
+      obtain ⟨hdom, hrc, hreg, hle⟩ := m6.1 _ _ _ _ _ _ _ _ _ hvm Δ hinv hsup
       obtain ⟨kn₀, hkn₀⟩ := Option.isSome_iff_exists.mp hdom
-      exact ⟨by rw [hashMap_get!_of_get? hkn₀]; exact hrc.canon hinv.canon hkn₀, hdom, hrc, hle⟩
+      exact ⟨by rw [hashMap_get!_of_get? hkn₀]; exact hrc.canon hinv.canon hkn₀, hdom, hrc,
+        hreg, hle⟩
 
 /-- **Step 6.** All four exits of `Erasure.visitMutual` register the name it was called at, and
 the term walk's own run conclusion is what carries the state and generator facts across the
 body erasures. `Motive1`'s refinement half is not consumed: what the motive reports is
 registration, and the fragment and translation premises a body erasure would need are not
 available at a dependency's own level scope. -/
-theorem step6 (hbk : CoreCallsMonotone gw) (hprep : PrepareRunConcl gw)
-    (hve : VisitExprRunConcl gw) (hblk : DeclBlockMember env tbl) :
-    Step6 lenv env Us tbl cfg gw := by
-  intro P _htbl _hcfg _hcb vExpr m1
+theorem step6 (E : EraserAsks lenv env Us gw) (hve : VisitExprRunConcl env gw)
+    (hdih : DeclInfoAtHead env tbl) : Step6 lenv env Us tbl cfg gw := by
+  intro P _htbl hcfg _hcb vExpr m1
   refine ⟨?_, bodyLe6 m1.2⟩
-  intro n s ctx cctx ref w u s' w' hrun Δ _hinv hsup
-  exact run_visitMutual_registers P hbk hprep hve hblk
-    (knownHead_of_supported_const hsup.term).1
-    (run_ok_of_le₁ (bodyLe6 m1.2) hrun)
+  intro n s ctx cctx ref w u s' w' hrun Δ hinv hsup
+  have hrun' := run_ok_of_le₁ (bodyLe6 m1.2) hrun
+  obtain ⟨hdom, hrc, hle, hreg⟩ := run_visitMutual_registers P E hve hdih
+    (knownHead_of_supported_const hsup.term).1 (by rw [hinv.cfg]; exact hcfg.1)
+    (by rw [hinv.cfg]; exact hcfg.2.2.2.1) hinv.indcanon hrun'
+  exact ⟨hdom, hrc, hreg, hle⟩
 
 end Steps
 
@@ -478,72 +573,13 @@ theorem specEnv_not_runtimeKey {env : VEnv} {bo : Name → Option Expr}
   rw [H.runtimeKey_isCasesOn hco hrk] at hcas
   exact absurd hcas (by simp)
 
-/-! ## The reader's fixvar map, read as index lists
+/-! ## Step 4, at the exclusions its motive does not carry
 
-`ErasesLBFix` is indexed by a kername list and an identifier list read positionally, while the
-reader carries a `Std.HashMap`. These three lemmas cross the gap.
--/
-
-/-- The map the block reader installs, read as a right-biased lookup in the zipped list. -/
-theorem fixvarMap_getElem? (nms : List Name) (ids : List FVarId) (m : Name) :
-    (fixvarMap nms ids)[m]? =
-      List.findSome? (fun p => if p.1 == m then some p.2 else none) (nms.zip ids).reverse := by
-  rw [fixvarMap,
-    show (Std.HashMap.ofList (nms.zip ids))
-        = (∅ : Std.HashMap Name FVarId).insertMany (nms.zip ids) from rfl,
-    Std.HashMap.getElem?_insertMany_list]
-  simp
-
-/-- A hit in the reader's map is a hit at one index of both lists: the last pair the zipped
-list holds for the key, which is the one `Std.HashMap.ofList` keeps. -/
-theorem fixvarMap_get?_some {nms : List Name} {ids : List FVarId} {m : Name} {x : FVarId}
-    (h : (fixvarMap nms ids)[m]? = some x) :
-    ∃ j : Nat, nms[j]? = some m ∧ ids[j]? = some x := by
-  rw [fixvarMap_getElem?] at h
-  obtain ⟨l₁, a, l₂, hsplit, hfa, -⟩ := List.findSome?_eq_some_iff.mp h
-  have hmem : a ∈ nms.zip ids := by
-    rw [← List.mem_reverse, hsplit]; simp
-  have ha : a.1 = m ∧ a.2 = x := by
-    by_cases hb : a.1 == m
-    · simp only [hb, if_pos] at hfa
-      exact ⟨by simpa using hb, by simpa using hfa⟩
-    · simp only [hb, Bool.false_eq_true, if_false] at hfa
-      exact absurd hfa (by simp)
-  obtain ⟨j, hj, hja⟩ := List.getElem_of_mem hmem
-  have hjn : j < nms.length := by
-    have := List.length_zip (l₁ := nms) (l₂ := ids); omega
-  have hji : j < ids.length := by
-    have := List.length_zip (l₁ := nms) (l₂ := ids); omega
-  refine ⟨j, ?_, ?_⟩
-  · rw [List.getElem?_eq_getElem hjn]
-    congr 1
-    rw [← ha.1, ← hja, List.getElem_zip]
-  · rw [List.getElem?_eq_getElem hji]
-    congr 1
-    rw [← ha.2, ← hja, List.getElem_zip]
-
-/-- A miss in the reader's map is a miss in the name list, provided the identifier list is long
-enough that `List.zip` truncates none of it. -/
-theorem fixvarMap_get?_none {nms : List Name} {ids : List FVarId} {m : Name}
-    (hlen : nms.length ≤ ids.length) (h : (fixvarMap nms ids)[m]? = none) : m ∉ nms := by
-  rw [fixvarMap_getElem?] at h
-  intro hm
-  obtain ⟨j, hj, hjm⟩ := List.getElem_of_mem hm
-  have hjz : j < (nms.zip ids).length := by
-    rw [List.length_zip]; omega
-  have hmem : (m, ids[j]'(by omega)) ∈ nms.zip ids := by
-    have : (nms.zip ids)[j] = (nms[j], ids[j]'(by omega)) := List.getElem_zip
-    rw [hjm] at this
-    exact this ▸ List.getElem_mem hjz
-  have := List.findSome?_eq_none_iff.mp h (m, ids[j]'(by omega)) (by rwa [List.mem_reverse])
-  simp at this
-
-/-! ## Step 4's content
-
-`Step4` itself is **not** delivered: `Motive4` is false as stated. Two independent reasons, both
-recorded by a lemma below. The content is delivered here with the two gaps as premises —
-`ConstOrigin env n` at the visited head, and the two conditions under which the reader's map is
-faithfully described by the index lists `ErasesLBFix` is stated at.
+`Step4` itself is **not** delivered: `Motive4`'s premises admit a constructor and a type-former
+head, which `Erases.const` excludes and no clause here supplies. `visitConst_refines` is the
+content, at the model facts the constant branch reads; `step4_of_exclusions` is the step
+interface with the two exclusions added, which is `Step4` on the nose once the motive carries
+them.
 -/
 
 /-- **Step 4's content.** The block branch returns the member's fix variable, which is
@@ -557,17 +593,13 @@ theorem visitConst_refines {env : VEnv} {Us : List Name} {tbl : SourceTable}
       (s' : ErasureState) (w' : Void IO.RealWorld),
       visitConstBody vGck e s ctx cctx ref w = .ok (t, s') w' →
       ∀ (Δ : VLCtx) (n : Name) (us : List Level) (ci : VConstant),
-        BridgeInv env Us cfg (gw w) ctx s Δ → e = .const n us →
+        BridgeInv env Us tbl cfg (gw w) ctx s Δ → e = .const n us →
         isCasesOnName n = false → env.constants n = some ci → ConstOrigin env n →
-        Supported env tbl e →
-        RunConcl s s' ∧ gw w ≤ gw w' ∧
+        (tbl.decl? n).isSome → Supported env tbl e →
+        RunConcl s s' ∧ IndRegistryModelled env s' ∧ gw w ≤ gw w' ∧
           ∀ Γspec, SpecEnv env tbl.body? s' Γspec →
-            (ctx.fixvars = none → ErasesLB env Us Γspec Δ e t) ∧
-            ∀ (nms : List Name) (ids : List FVarId),
-              ctx.fixvars = some (fixvarMap nms ids) → nms.length ≤ ids.length →
-              (∀ m : Name, toKername m ∈ nms.map toKername → m ∈ nms) →
-              ErasesLBFix env Us Γspec (nms.map toKername) ids Δ e t := by
-  intro e s ctx cctx ref w t s' w' hrun Δ n us ci hinv he hcas hcst hco hsup
+            ErasesLBMode tbl ctx env Us Γspec Δ e t := by
+  intro e s ctx cctx ref w t s' w' hrun Δ n us ci hinv he hcas hcst hco htab hsup
   subst he
   have hsupc : Supported env tbl (.const n []) :=
     hsup.subterm (by simp [constNames]) (by
@@ -585,10 +617,11 @@ theorem visitConst_refines {env : VEnv} {Us : List Name} {tbl : SourceTable}
       simp only [] at hk
       rw [run_pure] at hk
       cases hk
-      refine ⟨RunConcl.rfl' _, NameGenerator.LE.rfl, fun Γspec hspec => ⟨?_, ?_⟩⟩
+      refine ⟨RunConcl.rfl' _, hinv.indcanon, NameGenerator.LE.rfl,
+        fun Γspec hspec => ⟨?_, ?_⟩⟩
       · intro hnone; rw [hnone] at hopt; simp at hopt
-      · intro nms ids hfx hlen hsep
-        rw [hfx] at hopt
+      · intro nms ids hbk
+        rw [hbk.1] at hopt
         simp only [Option.bind_some] at hopt
         obtain ⟨j, hj1, hj2⟩ := fixvarMap_get?_some hopt
         exact ErasesLBFix.fixvar (by rw [List.getElem?_map, hj1]; rfl) hj2
@@ -600,69 +633,99 @@ theorem visitConst_refines {env : VEnv} {Us : List Name} {tbl : SourceTable}
       obtain ⟨kn, s₂, w₂, hgck, hp⟩ := hk
       rw [run_pure] at hp
       cases hp
-      obtain ⟨hkn, hdom, hrc, hle⟩ := m5.1 _ _ _ _ _ _ _ _ _ hgck Δ hinv hsupc
+      obtain ⟨hkn, hdom, hrc, hreg, hle⟩ := m5.1 _ _ _ _ _ _ _ _ _ hgck Δ hinv hsupc
       subst hkn
-      refine ⟨hrc, hle, fun Γspec hspec => ⟨?_, ?_⟩⟩
+      refine ⟨hrc, hreg, hle, fun Γspec hspec => ⟨?_, ?_⟩⟩
       · intro _
         exact ⟨.const (toKername n), .const hcst hco,
           .const (specEnv_not_runtimeKey hspec.spec hco hcas)⟩
-      · intro nms ids hfx hlen hsep
+      · intro nms ids hbk
         refine ErasesLBFix.of_erasesLB ⟨.const (toKername n), .const hcst hco,
           .const (specEnv_not_runtimeKey hspec.spec hco hcas)⟩ (.miss ?_)
         intro hin
-        rw [hfx] at hopt
+        rw [hbk.1] at hopt
         simp only [Option.bind_some] at hopt
-        exact fixvarMap_get?_none hlen hopt (hsep n hin)
+        exact fixvarMap_get?_none (Nat.le_of_eq hbk.2.1) hopt (hbk.2.2.2 n htab hin)
 
-/-! ## Why `Step4` is not delivered
+/-- **Step 4, at the two exclusions `Motive4` does not carry.** `Erases.const` asks for
+`ConstOrigin`, which `KnownHead`'s three columns do not settle: the constructor column and the
+type-former column are ruled out by the caller, and with them gone the head is the `defn`
+column, whose `VEnv.contains` and `SourceTable.decl?` are exactly what the content reads. -/
+theorem step4_of_exclusions {lenv : Environment} {env : VEnv} {Us : List Name}
+    {tbl : SourceTable} {cfg : ErasureConfig} {gw : Void IO.RealWorld → NameGenerator}
+    (A : UpstreamAsks env) :
+    ErasureSpec lenv env Us gw → SourceTableAdequate lenv tbl → ConfigPinned cfg →
+    CompilerBodies lenv env tbl.body? →
+    ∀ vGck : Name → EraseM Kername, Motive5 env Us tbl cfg gw vGck →
+      (∀ (e : Expr) (s : ErasureState) (ctx : ErasureContext) (cctx : Core.Context)
+          (ref : ST.Ref IO.RealWorld Core.State) (w : Void IO.RealWorld) (t : LBTerm)
+          (s' : ErasureState) (w' : Void IO.RealWorld),
+          visitConstBody vGck e s ctx cctx ref w = .ok (t, s') w' →
+          ∀ (Δ : VLCtx) (nm : Name) (us : List Level),
+            BridgeInv env Us tbl cfg (gw w) ctx s Δ → e = .const nm us → PlainHead nm →
+            isCasesOnName nm = false → KnownHead env tbl nm → Supported env tbl e →
+            (∀ (I : Name) (k : Nat), ¬ CtorOf env nm I k) →
+            (∀ (iid : InductiveId) (np : Nat) (nfs : List Nat), ¬ IndInfo env nm iid np nfs) →
+            RunRefines env Us tbl ctx Δ s s' (gw w) (gw w') e t) ∧
+      visitConstBody vGck ⊑ Erasure.visitConst := by
+  intro _P _htbl _hcfg _hcb vGck m5
+  refine ⟨?_, bodyLe4 m5.2⟩
+  intro e s ctx cctx ref w t s' w' hrun Δ nm us hinv he _hplain hcas hkn hsup hnc hni
+  obtain ⟨vc, hvc, hco, htab⟩ :
+      ∃ vc, env.constants nm = some vc ∧ ConstOrigin env nm ∧ (tbl.decl? nm).isSome := by
+    cases hkn with
+    | indType _ hm => obtain ⟨iid, np, nfs, h⟩ := hm; exact absurd h (hni iid np nfs)
+    | ctor _ hm => obtain ⟨I, k, h⟩ := hm; exact absurd h (hnc I k)
+    | defn hd hm =>
+        obtain ⟨vc, hvc⟩ := hm
+        exact ⟨vc, hvc, constOrigin_of_constants A hvc hnc hni, by rw [hd]; simp⟩
+  exact visitConst_refines m5 e s ctx cctx ref w t s' w' hrun Δ nm us vc hinv he hcas hvc hco
+    htab hsup
 
-`ErasesLBMode`'s block conjunct is read at **every** pair of lists `fixvarMap` re-assembles the
-reader's map from, and `List.zip` truncates, so a name list one longer than the identifier list
-presents the same map. At that pair the last kername has no identifier, so `ConstToFVar`
-relates nothing to a constant target: the conjunct is unsatisfiable whenever the emitted term
-is a `.const`, which is what the plain branch of `Erasure.visitConst` emits. The repair is in
-`Bridge.lean`: read the conjunct at the decompositions `BridgeInv.fixvars` provides — length
-matched, and separated under `toKername`, which `toKername_not_injective` shows is a real
-condition and not a formality.
+/-! ## Why the block conjunct is keyed
+
+The unkeyed conjunct is read at **every** pair of lists `fixvarMap` re-assembles the reader's
+map from, and `List.zip` truncates, so a name list one longer than the identifier list presents
+the same map. At that pair the last kername has no identifier, so `ConstToFVar` relates nothing
+to a constant target: the unkeyed conjunct is unsatisfiable whenever the emitted term is a
+`.const`, which is what the plain branch of `Erasure.visitConst` emits. `BlockKeyed` excludes
+that pair by its length condition, and its separation conjunct is restricted to the tabled
+names because `toKername` is not injective.
 -/
 
-/-- Appending a name past the end of the identifier list does not change the reader's map. -/
-theorem fixvarMap_append_left {nms : List Name} {ids : List FVarId} (c : Name)
-    (hlen : ids.length ≤ nms.length) :
-    fixvarMap (nms ++ [c]) ids = fixvarMap nms ids := by
-  rw [fixvarMap, fixvarMap]
-  congr 1
-  induction nms generalizing ids with
-  | nil =>
-      have : ids = [] := List.eq_nil_of_length_eq_zero (by simpa using hlen)
-      subst this; rfl
-  | cons a as ih =>
-      cases ids with
-      | nil => rfl
-      | cons x xs =>
-          simp only [List.cons_append, List.zip_cons_cons]
-          rw [ih (by simpa using hlen)]
-
-/-- **The block conjunct is unsatisfiable at a constant target.** At the decomposition that
+/-- **The unkeyed block conjunct is unsatisfiable at a constant target.** At the pair that
 appends the target's own name to the name list, the emitted `.const` is neither a `hit` — there
-is no identifier at that index — nor a `miss` — the kername is in the list. So no motive
-concluding `ErasesLBMode` at a block reader holds of a run that emits a bare constant, which
-is every plain constant head inside a mutual block. -/
+is no identifier at that index — nor a `miss` — the kername is in the list. It is the reason
+`BlockKeyed`'s **length** condition is there, and `blockKeyed_append_absurd` is that condition
+excluding this pair. -/
 theorem erasesLBMode_block_refuted {env : VEnv} {Us : List Name}
     {Γspec : GlobalDeclarations} {Δ : VLCtx} {ctx : ErasureContext} {e : Expr}
     {nms : List Name} {ids : List FVarId} (c : Name) (hlen : ids.length ≤ nms.length)
     (hfx : ctx.fixvars = some (fixvarMap nms ids)) :
-    ¬ ErasesLBMode ctx env Us Γspec Δ e (.const (toKername c)) := by
+    ¬ ∀ (nms' : List Name) (ids' : List FVarId),
+        ctx.fixvars = some (fixvarMap nms' ids') →
+        ErasesLBFix env Us Γspec (nms'.map toKername) ids' Δ e (.const (toKername c)) := by
   intro h
   obtain ⟨t₀, t₁, -, -, hc⟩ :=
-    h.2 (nms ++ [c]) ids (by rw [hfx, fixvarMap_append_left c hlen])
+    h (nms ++ [c]) ids (by rw [hfx, fixvarMap_append_left c hlen])
   cases hc with
   | miss hnm => exact hnm (by simp)
 
+/-- **The refuting pair is not `BlockKeyed`.** Its name list is one longer than its identifier
+list, so `BlockKeyed`'s length condition excludes it and `erasesLBMode_block_refuted` does not
+reach the keyed conjunct. -/
+theorem blockKeyed_append_absurd {tbl : SourceTable} {ctx : ErasureContext} {nms : List Name}
+    {ids : List FVarId} (c : Name) (hlen : ids.length ≤ nms.length) :
+    ¬ BlockKeyed tbl ctx (nms ++ [c]) ids := by
+  intro h
+  have hl := h.2.1
+  simp only [List.length_append, List.length_cons, List.length_nil] at hl
+  omega
+
 /-- **`toKername` is not injective**, so a name outside the block can still carry a block
-member's kername. That is the second condition `visitConst_refines` takes as a premise, and a
-finding about the shipping printer: two Lean constants with one λ□ key shadow each other in the
-emitted environment. -/
+member's kername. That is why `BlockKeyed`'s separation conjunct is quantified over the tabled
+names, and it is a finding about the shipping printer: two Lean constants with one λ□ key
+shadow each other in the emitted environment. -/
 theorem toKername_not_injective :
     toKername (.num .anonymous 5) = toKername (.str .anonymous "5") ∧
       (Name.num .anonymous 5) ≠ (Name.str .anonymous "5") :=

@@ -10,15 +10,16 @@ The induction obligations at the seven members that carry no compilation step of
 
 * `ErasesLBMode` is closed under the congruences the composite inherits from `Erases` and
   `Lower`: box, application, free variable, metadata, and — through `Erases.uninstantiate`,
-  `ConstToFVar.abstracts` and `LowerAbstracts` — the two binders and one alternative.
+  `ConstToFVar.abstracts` and `Lower.abstract` at `SpecEnv.fvarFree` — the two binders and one
+  alternative.
 * The spine kit reads a term's head and arguments back off `Expr.getAppFn`/`Expr.getAppArgs`,
   which is how `Erasure.visitApp` and `Erasure.visitConstApp` decompose their subject;
   `bridge_alt_telescope` is its binder-side twin for `Erasure.lambdaOrIntroToArity`.
-* `step_visitAppArgs` lands with no premise beyond `Step7`'s own. The other six each take
-  further named clauses — `NonConstHeadSupported`, `ProjSupported`, `SpecEnvAbstracts`,
-  `FixvarsAllReserved`, `CasesInfoAdequate`, `CtorArityAdequate`, `InferLamAdequate` — one per
-  gap in `Supported`, `SpecEnv`, `BridgeInv`, `ErasesLBMode` or `ErasureSpec`; each one's
-  docstring says which declaration it belongs to and why the step cannot derive it.
+* Six of the seven steps carry no premise beyond their own `Stepᵢ`: the binder steps read
+  `SpecEnv.fvarFree`, and steps 12 and 18 read `ErasureSpec.lookup_adequate` and
+  `ErasureSpec.prim_monotone`. `step_visitConstApp` keeps one hypothesis, `hctab`, which says
+  that a constructor the table knows at all it knows as a constructor; its docstring records
+  why no standing binder supplies it.
 * The last section is not a member's step. It is the λ-headedness `LowerBlock.hfl` asks of
   the block `Erasure.visitMutual` emits, supplied from the emitted program's own
   `LBWfPeregrine.fixLambda` — the run does not carry it.
@@ -32,33 +33,33 @@ set_option synthInstance.maxSize 4000
 
 /-! ## The congruences of the composite, in either fixvar mode -/
 
-variable {ctx : ErasureContext} {env : VEnv} {Us : List Name} {Γspec : GlobalDeclarations}
-  {Δ : VLCtx}
+variable {tbl : SourceTable} {ctx : ErasureContext} {env : VEnv} {Us : List Name}
+  {Γspec : GlobalDeclarations} {Δ : VLCtx}
 
 /-- An irrelevant term is the composite's `box` in either mode. -/
 theorem ErasesLBMode.box {e : Expr} {ve : VExpr} (htr : TrExprS env Us Δ e ve)
-    (her : Erasable env Us.length Δ.toCtx ve) : ErasesLBMode ctx env Us Γspec Δ e .box :=
+    (her : Erasable env Us.length Δ.toCtx ve) : ErasesLBMode tbl ctx env Us Γspec Δ e .box :=
   ⟨fun _ => ErasesLB.box htr her, fun _ _ _ => ErasesLBFix.box htr her⟩
 
 /-- Application is a congruence of the composite in either mode. -/
 theorem ErasesLBMode.app {f a : Expr} {f' a' : LBTerm}
-    (hf : ErasesLBMode ctx env Us Γspec Δ f f')
-    (ha : ErasesLBMode ctx env Us Γspec Δ a a') :
-    ErasesLBMode ctx env Us Γspec Δ (.app f a) (.app f' a') :=
+    (hf : ErasesLBMode tbl ctx env Us Γspec Δ f f')
+    (ha : ErasesLBMode tbl ctx env Us Γspec Δ a a') :
+    ErasesLBMode tbl ctx env Us Γspec Δ (.app f a) (.app f' a') :=
   ⟨fun h => (hf.1 h).app (ha.1 h), fun nms ids h => (hf.2 nms ids h).app (ha.2 nms ids h)⟩
 
 /-- A free variable keeps its identifier: `Erases.fvar` composed with `Lower.fvar`, which the
 block rewriting fixes. -/
 theorem ErasesLBMode.fvar {x : FVarId} {e' A : VExpr}
     (h : Δ.find? (.inr x) = some (e', A)) :
-    ErasesLBMode ctx env Us Γspec Δ (.fvar x) (.fvar x) :=
+    ErasesLBMode tbl ctx env Us Γspec Δ (.fvar x) (.fvar x) :=
   ⟨fun _ => ⟨.fvar x, .fvar h, .fvar x⟩,
     fun _ _ _ => .of_erasesLB ⟨.fvar x, .fvar h, .fvar x⟩ (.fvar x)⟩
 
 /-- Metadata is transparent to both factors. -/
 theorem ErasesLBMode.mdata {d : MData} {e : Expr} {t : LBTerm}
-    (h : ErasesLBMode ctx env Us Γspec Δ e t) :
-    ErasesLBMode ctx env Us Γspec Δ (.mdata d e) t :=
+    (h : ErasesLBMode tbl ctx env Us Γspec Δ e t) :
+    ErasesLBMode tbl ctx env Us Γspec Δ (.mdata d e) t :=
   ⟨fun hf => let ⟨t₀, h₀, h₁⟩ := h.1 hf; ⟨t₀, .mdata h₀, h₁⟩,
     fun nms ids hf => let ⟨t₀, t₁, h₀, h₁, hc⟩ := h.2 nms ids hf; ⟨t₀, t₁, .mdata h₀, h₁, hc⟩⟩
 
@@ -161,7 +162,7 @@ theorem spine_args_ok {env : VEnv} {Us : List Name} {tbl : SourceTable} {Δ : VL
 
 /-- The head and the arguments of a supported, translatable spine, packaged as the two
 premises `Motive1` and `Motive7` ask for. `hhd` is the head's own shape condition at the
-empty spine, which the whole term's does not imply — see `NonConstHeadSupported`. -/
+empty spine, which the whole term's does not imply — see `Supported.head`. -/
 theorem spine_facts {env : VEnv} {Us : List Name} {tbl : SourceTable} {Δ : VLCtx} {e : Expr}
     (hsupp : Supported env tbl e) (hex : ∃ ve, TrExprS env Us Δ e ve)
     (hhd : SupportedTm env tbl e.getAppFn []) :
@@ -241,87 +242,69 @@ theorem ConstToFVar.abstracts {kns : List Kername} {ids : List FVarId} {x : FVar
     · rw [hn i hi]; exact ihb i hi (lvl + (alts[i]!).1.length)
   | fix defs i => exact fun _ => .fix _ _
 
-/-- **The clause `SpecEnv` does not carry.** `Lower` is a congruence except at its two fix
-arms, where the target `.fix` node is built from `Γ`'s own declared bodies; abstracting a
-variable that occurs in one of those bodies would rebuild a block the declaration does not
-declare. Every environment a run builds satisfies this — its bodies are erasures at the empty
-context, hence free-variable-free — but no field of `SpecEnv` records it. -/
-def LowerAbstracts (Γ : GlobalDeclarations) : Prop :=
-  ∀ (x : FVarId) (lvl : Nat) {s t : LBTerm}, Lower Γ s t →
-    Lower Γ (toBvar x lvl s) (toBvar x lvl t)
-
 /-- The composite at a λ binder: the run opens the binder into `x`, erases, and closes with
 `toBvar x 0`; `Erases.uninstantiate` closes the erasure image and the two pass factors follow
 it. `Lower.lambda` leaves the emitted binder name free, so the run's own name is admissible. -/
-theorem ErasesLBMode.lam (habs : LowerAbstracts Γspec) {x : FVarId}
-    (hxids : ∀ nms ids, ctx.fixvars = some (fixvarMap nms ids) → x ∉ ids)
+theorem ErasesLBMode.lam (hfv : FVarFreeBodies Γspec) {x : FVarId}
+    (hxids : ∀ nms ids, BlockKeyed tbl ctx nms ids → x ∉ ids)
     {n : Name} {ty b : Expr} {bi : BinderInfo} {ty' body' : VExpr} {deps : List FVarId}
     {t : LBTerm} {N : BinderName} (hΔbv : Δ.NoBV)
     (hty : TrExprS env Us Δ ty ty')
     (hbody : TrExprS env Us ((none, .vlam ty') :: Δ) b body') (hx : x ∉ Δ.fvars)
-    (h : ErasesLBMode ctx env Us Γspec ((some (x, deps), .vlam ty') :: Δ)
+    (h : ErasesLBMode tbl ctx env Us Γspec ((some (x, deps), .vlam ty') :: Δ)
       (b.instantiate1' (.fvar x)) t) :
-    ErasesLBMode ctx env Us Γspec Δ (.lam n ty b bi) (.lambda N (toBvar x 0 t)) := by
+    ErasesLBMode tbl ctx env Us Γspec Δ (.lam n ty b bi) (.lambda N (toBvar x 0 t)) := by
   have sc : FVarsIn (· ≠ x) b := by
-    have hfv : FVarsIn (· ∈ Δ.fvars) b := by
+    have hin : FVarsIn (· ∈ Δ.fvars) b := by
       have := hbody.fvarsIn; simpa [Lean4Lean.VLCtx.fvars] using this
-    exact hfv.mono fun fv hfv' heq => hx (heq ▸ hfv')
+    exact hin.mono fun fv hfv' heq => hx (heq ▸ hfv')
   have hc : b.Closed 1 := by
     have := hbody.closed; simpa [Lean4Lean.VLCtx.bvars, hΔbv] using this
   refine ⟨fun hfx => ?_, fun nms ids hfx => ?_⟩
   · obtain ⟨t₀, her, hl⟩ := h.1 hfx
-    exact ⟨_, .lam hty (her.uninstantiate sc hc), .lambda (habs x 0 hl)⟩
+    exact ⟨_, .lam hty (her.uninstantiate sc hc), .lambda (Lower.abstract hfv hl x 0)⟩
   · obtain ⟨t₀, t₁, her, hl, hcf⟩ := h.2 nms ids hfx
     exact ⟨.lambda (.named n.toString) (toBvar x 0 t₀), .lambda N (toBvar x 0 t₁),
-      .lam hty (her.uninstantiate sc hc), .lambda (habs x 0 hl),
+      .lam hty (her.uninstantiate sc hc), .lambda (Lower.abstract hfv hl x 0),
       .lambda (hcf.abstracts (hxids nms ids hfx) 0)⟩
 
 /-- The composite at a `let` binder. The value is erased *inside* the extended context, so
 `Erases.strengthen_vlet` brings it back out. -/
-theorem ErasesLBMode.letE (habs : LowerAbstracts Γspec) {x : FVarId}
-    (hxids : ∀ nms ids, ctx.fixvars = some (fixvarMap nms ids) → x ∉ ids)
+theorem ErasesLBMode.letE (hfv : FVarFreeBodies Γspec) {x : FVarId}
+    (hxids : ∀ nms ids, BlockKeyed tbl ctx nms ids → x ∉ ids)
     {n : Name} {ty v b : Expr} {nd : Bool} {ty' val' body' : VExpr} {deps : List FVarId}
     {tv t : LBTerm} {N : BinderName} (hΔbv : Δ.NoBV)
     (hty : TrExprS env Us Δ ty ty') (hval : TrExprS env Us Δ v val')
     (hbody : TrExprS env Us ((none, .vlet ty' val') :: Δ) b body') (hx : x ∉ Δ.fvars)
-    (hv : ErasesLBMode ctx env Us Γspec ((some (x, deps), .vlet ty' val') :: Δ) v tv)
-    (h : ErasesLBMode ctx env Us Γspec ((some (x, deps), .vlet ty' val') :: Δ)
+    (hv : ErasesLBMode tbl ctx env Us Γspec ((some (x, deps), .vlet ty' val') :: Δ) v tv)
+    (h : ErasesLBMode tbl ctx env Us Γspec ((some (x, deps), .vlet ty' val') :: Δ)
       (b.instantiate1' (.fvar x)) t) :
-    ErasesLBMode ctx env Us Γspec Δ (.letE n ty v b nd) (.letIn N tv (toBvar x 0 t)) := by
+    ErasesLBMode tbl ctx env Us Γspec Δ (.letE n ty v b nd) (.letIn N tv (toBvar x 0 t)) := by
   have scv : FVarsIn (· ≠ x) v := hval.fvarsIn.mono fun fv hfv' heq => hx (heq ▸ hfv')
   have scb : FVarsIn (· ≠ x) b := by
-    have hfv : FVarsIn (· ∈ Δ.fvars) b := by
+    have hin : FVarsIn (· ∈ Δ.fvars) b := by
       have := hbody.fvarsIn; simpa [Lean4Lean.VLCtx.fvars] using this
-    exact hfv.mono fun fv hfv' heq => hx (heq ▸ hfv')
+    exact hin.mono fun fv hfv' heq => hx (heq ▸ hfv')
   have hc : b.Closed 1 := by
     have := hbody.closed; simpa [Lean4Lean.VLCtx.bvars, hΔbv] using this
   refine ⟨fun hfx => ?_, fun nms ids hfx => ?_⟩
   · obtain ⟨v₀, herv, hlv⟩ := hv.1 hfx
     obtain ⟨t₀, her, hl⟩ := h.1 hfx
     exact ⟨_, .letE hty hval (herv.strengthen_vlet scv) (her.uninstantiate scb hc),
-      .letIn hlv (habs x 0 hl)⟩
+      .letIn hlv (Lower.abstract hfv hl x 0)⟩
   · obtain ⟨v₀, v₁, herv, hlv, hcv⟩ := hv.2 nms ids hfx
     obtain ⟨t₀, t₁, her, hl, hcf⟩ := h.2 nms ids hfx
     exact ⟨.letIn (.named n.toString) v₀ (toBvar x 0 t₀), .letIn N v₁ (toBvar x 0 t₁),
       .letE hty hval (herv.strengthen_vlet scv) (her.uninstantiate scb hc),
-      .letIn hlv (habs x 0 hl), .letIn hcv (hcf.abstracts (hxids nms ids hfx) 0)⟩
+      .letIn hlv (Lower.abstract hfv hl x 0),
+      .letIn hcv (hcf.abstracts (hxids nms ids hfx) 0)⟩
 
 /-! ## Step 7 — `Erasure.visitAppArgs` -/
 
 section Steps
 
-variable {lenv : Environment} {tbl : SourceTable} {cfg : ErasureConfig}
+variable {lenv : Environment} {cfg : ErasureConfig}
   {gw : Void IO.RealWorld → NameGenerator}
-
-/-- **The gap `SupportedTm` leaves at a spine head.** `Erasure.visitApp` dispatches on
-`Expr.getAppFn`, and `SupportedTm`'s spine index is read at the head, so a head reached
-through `Expr.getAppFn` carries its condition at the *whole* argument list, not at the empty
-one — and at a constant head the two differ (`CtorSaturated`). Away from a constant head the
-difference is inert, except that `SupportedTm.mdata` lets metadata hide a constant from
-`Expr.getAppFn`. This is that clause. -/
-def NonConstHeadSupported (env : VEnv) (tbl : SourceTable) : Prop :=
-  ∀ e : Expr, Supported env tbl e → (∀ c us, e.getAppFn ≠ .const c us) →
-    SupportedTm env tbl e.getAppFn []
 
 /-- **Step 7.** The spine loop: the accumulator is the composite's image of the prefix
 already consumed, and each iteration extends it by one `app` congruence. A specification
@@ -339,20 +322,20 @@ theorem step_visitAppArgs : Step7 lenv env Us tbl cfg gw := by
     simpa using hargs i hi'
   have hP := run_array_foldlM_ok ctx cctx ref
     (P := fun pre acc s₁ w₁ =>
-      RunConcl s s₁ ∧ gw w ≤ gw w₁ ∧
+      RunConcl s s₁ ∧ IndRegistryModelled env s₁ ∧ gw w ≤ gw w₁ ∧
         ∀ Γspec, SpecEnv env tbl.body? s₁ Γspec →
-          ErasesLBMode ctx env Us Γspec Δ (pre.foldl Expr.app e) acc)
-    ⟨RunConcl.rfl' _, NameGenerator.LE.rfl, hhd⟩
+          ErasesLBMode tbl ctx env Us Γspec Δ (pre.foldl Expr.app e) acc)
+    ⟨RunConcl.rfl' _, hinv.indcanon, NameGenerator.LE.rfl, hhd⟩
     (fun pre x post acc s₁ w₁ acc' s₂ w₂ hLpre hPacc hg => by
       rw [run_bind_ok] at hg
       obtain ⟨tx, s₃, w₃, hvx, hp⟩ := hg
       rw [run_pure] at hp
       cases hp
-      obtain ⟨hrc, hle, hacc⟩ := hPacc
+      obtain ⟨hrc, hreg, hle, hacc⟩ := hPacc
       obtain ⟨hsx, hex⟩ := hmem x (by rw [hLpre]; exact List.mem_append_right _ List.mem_cons_self)
-      obtain ⟨hrc₂, hle₂, hx⟩ :=
-        ih1 _ _ _ _ _ _ _ _ _ hvx Δ ((hinv.mono_state hrc).mono hle) hsx hex
-      refine ⟨hrc.trans hrc₂, NameGenerator.LE.trans hle hle₂, fun Γspec hspec => ?_⟩
+      obtain ⟨hrc₂, hreg₂, hle₂, hx⟩ :=
+        ih1 _ _ _ _ _ _ _ _ _ hvx Δ ((hinv.mono_state hrc hreg).mono hle) hsx hex
+      refine ⟨hrc.trans hrc₂, hreg₂, NameGenerator.LE.trans hle hle₂, fun Γspec hspec => ?_⟩
       rw [List.foldl_append, List.foldl_cons, List.foldl_nil]
       exact (hacc Γspec (SpecEnv.mono hrc₂.le hspec)).app (hx Γspec hspec))
     hrun
@@ -360,19 +343,11 @@ theorem step_visitAppArgs : Step7 lenv env Us tbl cfg gw := by
 
 /-! ## Step 1 — `Erasure.visitExpr` -/
 
-/-- **The gap `SupportedTm.proj` leaves.** Its projection arm carries the structure's tabled
-block and its informativity, but not the model-side arity `Motive10` reads off `Erases.proj`
-nor the field index's bound — and the bound is a condition on the term, so no clause about
-the table alone can supply it. This is that clause, at the term. -/
-def ProjSupported (env : VEnv) (tbl : SourceTable) : Prop :=
-  ∀ (S : Name) (i : Nat) (b : Expr), SupportedTm env tbl (.proj S i b) [] →
-    ∃ np nf : Nat, IndArity env S np [nf] ∧ i < nf
-
 /-- **Step 1.** The relevance oracle first: a `true` verdict is `ErasesLBMode.box`, at the
 ambient scope through the verified checker and at any other scope through the assumed
 `Oracle.MetaSound`. Otherwise the shape condition selects the arm, and each arm is one
 member's motive. -/
-theorem step_visitExpr (hproj : ProjSupported env tbl) : Step1 lenv env Us tbl cfg gw := by
+theorem step_visitExpr : Step1 lenv env Us tbl cfg gw := by
   intro P _htbl _hcfg _hcb vExpr vLit vLet vLam vProj vApp ih1 ih2 ih8 ih9 ih10 ih11
   refine ⟨?_, bodyLe1 ih1.2 ih2.2 ih8.2 ih9.2 ih10.2 ih11.2⟩
   replace ih1 := ih1.1
@@ -399,15 +374,15 @@ theorem step_visitExpr (hproj : ProjSupported env tbl) : Step1 lenv env Us tbl c
       by_cases hlp : ctx.lparams = Us
       · exact P.oracle_sound_of_run horc hlp mwf hlctx hinv.kfresh hve
       · exact P.oracle_meta _ _ _ _ _ _ _ _ horc hlp m ve mwf hlctx hinv.kfresh hve
-    exact ⟨RunConcl.rfl' _, hle₁, fun _ _ => ErasesLBMode.box hve her⟩
+    exact ⟨RunConcl.rfl' _, hinv.indcanon, hle₁, fun _ _ => ErasesLBMode.box hve her⟩
   · rw [if_neg hc] at hk
     have hinv' := hinv.mono hle₁
     have hnext : ∀ {t₀ : LBTerm} {s₂ : ErasureState} {w₂ : Void IO.RealWorld},
-        RunConcl s s₂ ∧ gw w₁ ≤ gw w₂ ∧
-          (∀ Γspec, SpecEnv env tbl.body? s₂ Γspec → ErasesLBMode ctx env Us Γspec Δ e t₀) →
+        RunConcl s s₂ ∧ IndRegistryModelled env s₂ ∧ gw w₁ ≤ gw w₂ ∧
+          (∀ Γspec, SpecEnv env tbl.body? s₂ Γspec → ErasesLBMode tbl ctx env Us Γspec Δ e t₀) →
         RunRefines env Us tbl ctx Δ s s₂ (gw w) (gw w₂) e t₀ :=
-      fun ⟨h1, h2, h3⟩ => ⟨h1, NameGenerator.LE.trans hle₁ h2, h3⟩
-    obtain ⟨hterm, hbodies⟩ := hsupp
+      fun ⟨h1, h2, h3, h4⟩ => ⟨h1, h2, NameGenerator.LE.trans hle₁ h3, h4⟩
+    obtain ⟨hterm, hbodies, hkn⟩ := hsupp
     cases hterm with
     | @bvar i _ =>
       obtain ⟨ve, hve⟩ := hex
@@ -419,57 +394,58 @@ theorem step_visitExpr (hproj : ProjSupported env tbl) : Step1 lenv env Us tbl c
       cases hk
       obtain ⟨ve, hve⟩ := hex
       cases hve with
-      | fvar hfind => exact ⟨RunConcl.rfl' _, hle₁, fun _ _ => ErasesLBMode.fvar hfind⟩
+      | fvar hfind =>
+          exact ⟨RunConcl.rfl' _, hinv.indcanon, hle₁, fun _ _ => ErasesLBMode.fvar hfind⟩
     | @sort u _ =>
       obtain ⟨ve, hve⟩ := hex
       simp only [] at hk
       rw [run_panicWithPosWithDecl] at hk
       cases hk
-      exact ⟨RunConcl.rfl' _, hle₁,
+      exact ⟨RunConcl.rfl' _, hinv.indcanon, hle₁,
         fun _ _ => ErasesLBMode.box hve (Erases.sort_erasable P.envWF hve)⟩
     | @forallE n ty b bi _ =>
       obtain ⟨ve, hve⟩ := hex
       simp only [] at hk
       rw [run_panicWithPosWithDecl] at hk
       cases hk
-      exact ⟨RunConcl.rfl' _, hle₁,
+      exact ⟨RunConcl.rfl' _, hinv.indcanon, hle₁,
         fun _ _ => ErasesLBMode.box hve (Erases.forallE_erasable P.envWF hinv.vlctx_wf hve)⟩
-    | @mdata d b _ hb =>
+    | @mdata d b hb =>
       simp only [] at hk
       have hsub : ∀ n ∈ constNames b, n ∈ constNames (Expr.mdata d b) := fun _ h => h
       have hexb : ∃ ve, TrExprS env Us Δ b ve := by
         obtain ⟨ve, hve⟩ := hex; cases hve with | mdata h => exact ⟨_, h⟩
-      obtain ⟨hrc, hle₂, hmb⟩ :=
-        ih1 _ _ _ _ _ _ _ _ _ hk Δ hinv' (Supported.subterm ⟨hb.mdata, hbodies⟩ hsub hb) hexb
-      exact hnext ⟨hrc, hle₂, fun Γspec hspec => (hmb Γspec hspec).mdata⟩
+      obtain ⟨hrc, hreg, hle₂, hmb⟩ :=
+        ih1 _ _ _ _ _ _ _ _ _ hk Δ hinv' (Supported.subterm ⟨hb.mdata, hbodies, hkn⟩ hsub hb) hexb
+      exact hnext ⟨hrc, hreg, hle₂, fun Γspec hspec => (hmb Γspec hspec).mdata⟩
     | @lam n ty b bi _ hb =>
       simp only [] at hk
-      exact hnext (ih9 _ _ _ _ _ _ _ _ _ hk Δ n ty b bi hinv' rfl ⟨.lam hb, hbodies⟩ hex)
+      exact hnext (ih9 _ _ _ _ _ _ _ _ _ hk Δ n ty b bi hinv' rfl ⟨.lam hb, hbodies, hkn⟩ hex)
     | @letE n ty v b nd _ hv hb =>
       simp only [] at hk
-      exact hnext (ih8 _ _ _ _ _ _ _ _ _ hk Δ n ty v b nd hinv' rfl ⟨.letE hv hb, hbodies⟩ hex)
-    | @proj S i b _ I hind hinf hb =>
+      exact hnext (ih8 _ _ _ _ _ _ _ _ _ hk Δ n ty v b nd hinv' rfl ⟨.letE hv hb, hbodies, hkn⟩ hex)
+    | @proj S i b _ I np nf hind hinf harity hi hb =>
       simp only [] at hk
-      obtain ⟨np, nf, har, hi⟩ := hproj S i b (.proj hind hinf hb)
       have hsub : ∀ n ∈ constNames b, n ∈ constNames (Expr.proj S i b) := fun _ h => h
       have hexb : ∃ ve, TrExprS env Us Δ b ve := by
         obtain ⟨ve, hve⟩ := hex; cases hve with | proj h _ => exact ⟨_, h⟩
-      exact hnext (ih10 _ _ _ _ _ _ _ _ _ _ _ hk Δ I np nf hinv' hind hinf har hi
-        (Supported.subterm ⟨.proj hind hinf hb, hbodies⟩ hsub hb) hexb)
+      exact hnext (ih10 _ _ _ _ _ _ _ _ _ _ _ hk Δ I np nf hinv' hind hinf harity hi
+        (Supported.subterm ⟨.proj hind hinf harity hi hb, hbodies, hkn⟩ hsub hb) hexb)
     | @app f a _ ha hf =>
       simp only [] at hk
-      exact hnext (ih11 _ _ _ _ _ _ _ _ _ hk Δ hinv' ⟨.app ha hf, hbodies⟩ hex)
+      exact hnext (ih11 _ _ _ _ _ _ _ _ _ hk Δ hinv' ⟨.app ha hf, hbodies, hkn⟩ hex)
     | @natLit n _ hpeano hidx =>
       simp only [] at hk
-      exact hnext (ih2 _ _ _ _ _ _ _ _ _ hk Δ n hinv' rfl hpeano hidx hex)
+      exact hnext (ih2 _ _ _ _ _ _ _ _ _ hk Δ n hinv' rfl hpeano hidx
+        ⟨.natLit hpeano hidx, hbodies, hkn⟩ hex)
     | @const c us _ hplain hcases hrec hsat hknown =>
       simp only [] at hk
       exact hnext (ih11 _ _ _ _ _ _ _ _ _ hk Δ hinv'
-        ⟨.const hplain hcases hrec hsat hknown, hbodies⟩ hex)
+        ⟨.const hplain hcases hrec hsat hknown, hbodies, hkn⟩ hex)
     | @casesApp c us _ minors I hplain hcases hind hinf harity hmin hlen htel =>
       simp only [] at hk
       exact hnext (ih11 _ _ _ _ _ _ _ _ _ hk Δ hinv'
-        ⟨.casesApp hplain hcases hind hinf harity hmin hlen htel, hbodies⟩ hex)
+        ⟨.casesApp hplain hcases hind hinf harity hmin hlen htel, hbodies, hkn⟩ hex)
 
 /-! ## Steps 8 and 9 — the two binder members -/
 
@@ -506,27 +482,10 @@ theorem Supported.instantiate1 {env : VEnv} {tbl : SourceTable} {e : Expr} (x : 
     (by rw [Lean.Expr.instantiate1_eq, constNames_instantiate1'_fvar]; exact fun _ hd => hd)
     (by simpa using h.term.instantiate1 (args := []) x)
 
-/-- **The clause `BridgeInv.fixvars` states at one representation only.** `ErasesLBMode`'s
-block conjunct quantifies over every `(nms, ids)` whose zip builds the installed map, while
-the invariant names the one the eraser installed. A representation whose `ids` run past its
-`nms` — or repeat a name — can hold a freshly opened binder variable, and there the binder
-steps cannot close the composite under abstraction. This is the invariant's freshness clause
-read at every representation. -/
-def FixvarsAllReserved (env : VEnv) (Us : List Name) (cfg : ErasureConfig) : Prop :=
-  ∀ (gen : NameGenerator) (ctx : ErasureContext) (s : ErasureState) (Δ : VLCtx),
-    BridgeInv env Us cfg gen ctx s Δ →
-      ∀ nms ids, ctx.fixvars = some (fixvarMap nms ids) → ∀ y ∈ ids, gen.Reserves y
-
-/-- Every specification environment a run's state admits commutes with abstraction. -/
-def SpecEnvAbstracts (env : VEnv) (tbl : SourceTable) : Prop :=
-  ∀ (s : ErasureState) (Γspec : GlobalDeclarations), SpecEnv env tbl.body? s Γspec →
-    LowerAbstracts Γspec
-
 /-- **Step 9.** `Erasure.lambdaMonocular` mints a fresh identifier, opens the body under it
 and `Erasure.mkLambda` closes the result with `abstract`; the invariant crosses the binder by
 `BridgeInv.mkLocalDecl` and the composite by `ErasesLBMode.lam`. -/
-theorem step_visitLambda (habs : SpecEnvAbstracts env tbl)
-    (hfr : FixvarsAllReserved env Us cfg) : Step9 lenv env Us tbl cfg gw := by
+theorem step_visitLambda : Step9 lenv env Us tbl cfg gw := by
   intro P _htbl _hcfg _hcb vExpr ih1
   refine ⟨?_, bodyLe9 ih1.2⟩
   replace ih1 := ih1.1
@@ -540,7 +499,7 @@ theorem step_visitLambda (habs : SpecEnvAbstracts env tbl)
   rw [hs₁, run_withReader, run_bind_ok] at hk
   obtain ⟨tb, s₂, w₂, hvb, hm⟩ := hk
   obtain ⟨hs2, hw2, N, hteq⟩ := run_mkLambda_ok hm
-  obtain ⟨hterm, hbodies⟩ := hsupp
+  obtain ⟨hterm, hbodies, hkn⟩ := hsupp
   cases hterm with
   | @lam _ _ _ _ _ hb =>
   obtain ⟨ve, hve⟩ := hex
@@ -553,22 +512,21 @@ theorem step_visitLambda (habs : SpecEnvAbstracts env tbl)
   rw [Lean.Expr.instantiate1_eq] at hvb
   have hbext := TrExprS.inst_fvar P.envWF.ordered hΔ'.wf hbody
   have hsuppb : Supported env tbl b :=
-    Supported.subterm ⟨.lam hb, hbodies⟩ (fun _ hd => hd) hb
+    Supported.subterm ⟨.lam hb, hbodies, hkn⟩ (fun _ hd => hd) hb
   have hsuppb' : Supported env tbl (b.instantiate1' (.fvar x)) := by
     have := hsuppb.instantiate1 x; rwa [Lean.Expr.instantiate1_eq] at this
-  obtain ⟨hrc, hle₂, hmb⟩ := ih1 _ _ _ _ _ _ _ _ _ hvb _ hinv' hsuppb' ⟨_, hbext⟩
+  obtain ⟨hrc, hreg, hle₂, hmb⟩ := ih1 _ _ _ _ _ _ _ _ _ hvb _ hinv' hsuppb' ⟨_, hbext⟩
   subst hs2
   subst hw2
   subst hteq
-  refine ⟨hrc, NameGenerator.LE.trans hle₁ hle₂, fun Γspec hspec => ?_⟩
-  exact ErasesLBMode.lam (habs _ _ hspec)
-    (fun nms ids hfx hmem => hnres (hfr _ _ _ _ hinv nms ids hfx x hmem))
+  refine ⟨hrc, hreg, NameGenerator.LE.trans hle₁ hle₂, fun Γspec hspec => ?_⟩
+  exact ErasesLBMode.lam hspec.fvarFree
+    (fun _ _ hbk hmem => hnres (hinv.fixvars_ids_subset hbk x hmem).1)
     hinv.noBV hty hbody hx (hmb Γspec hspec)
 
 /-- **Step 8.** As step 9, with the value erased inside the extended context — where the
 shipping code puts it — and brought back out by `Erases.strengthen_vlet`. -/
-theorem step_visitLet (habs : SpecEnvAbstracts env tbl)
-    (hfr : FixvarsAllReserved env Us cfg) : Step8 lenv env Us tbl cfg gw := by
+theorem step_visitLet : Step8 lenv env Us tbl cfg gw := by
   intro P _htbl _hcfg _hcb vExpr ih1
   refine ⟨?_, bodyLe8 ih1.2⟩
   replace ih1 := ih1.1
@@ -584,7 +542,7 @@ theorem step_visitLet (habs : SpecEnvAbstracts env tbl)
   rw [run_bind_ok] at hk2
   obtain ⟨tb, s₃, w₃, hvb, hm⟩ := hk2
   obtain ⟨hs3, hw3, N, hteq⟩ := run_mkLetIn_ok hm
-  obtain ⟨hterm, hbodies⟩ := hsupp
+  obtain ⟨hterm, hbodies, hkn⟩ := hsupp
   cases hterm with
   | @letE _ _ _ _ _ _ hsv hsb =>
   obtain ⟨ve, hve⟩ := hex
@@ -595,31 +553,31 @@ theorem step_visitLet (habs : SpecEnvAbstracts env tbl)
     (hinv.trlctx.find?_eq_none.mpr hx) hty hval hvt
   have hinv' := hinv.mkLetDecl (n := n) hty hval hvt hx hnres hle₁ hxres hkres
   have hsuppv : Supported env tbl v :=
-    Supported.subterm ⟨.letE hsv hsb, hbodies⟩ (fun _ hd => List.mem_append_left _ hd) hsv
+    Supported.subterm ⟨.letE hsv hsb, hbodies, hkn⟩ (fun _ hd => List.mem_append_left _ hd) hsv
   have hsuppb : Supported env tbl b :=
-    Supported.subterm ⟨.letE hsv hsb, hbodies⟩ (fun _ hd => List.mem_append_right _ hd) hsb
+    Supported.subterm ⟨.letE hsv hsb, hbodies, hkn⟩ (fun _ hd => List.mem_append_right _ hd) hsb
   have hsuppb' : Supported env tbl (b.instantiate1' (.fvar x)) := by
     have := hsuppb.instantiate1 x; rwa [Lean.Expr.instantiate1_eq] at this
   have hvext := hval.weakFV P.envWF.ordered (.skip_fvar _ _ .refl) hΔ'.wf
-  obtain ⟨hrcv, hle₂, hmv⟩ := ih1 _ _ _ _ _ _ _ _ _ hvv _ hinv' hsuppv ⟨_, hvext⟩
+  obtain ⟨hrcv, hregv, hle₂, hmv⟩ := ih1 _ _ _ _ _ _ _ _ _ hvv _ hinv' hsuppv ⟨_, hvext⟩
   rw [Lean.Expr.instantiate1_eq] at hvb
   have hbext := TrExprS.inst_fvar P.envWF.ordered hΔ'.wf hbody
-  obtain ⟨hrcb, hle₃, hmb⟩ :=
-    ih1 _ _ _ _ _ _ _ _ _ hvb _ ((hinv'.mono_state hrcv).mono hle₂) hsuppb' ⟨_, hbext⟩
+  obtain ⟨hrcb, hregb, hle₃, hmb⟩ :=
+    ih1 _ _ _ _ _ _ _ _ _ hvb _ ((hinv'.mono_state hrcv hregv).mono hle₂) hsuppb' ⟨_, hbext⟩
   subst hs3
   subst hw3
   subst hteq
-  refine ⟨hrcv.trans hrcb, NameGenerator.LE.trans hle₁ (NameGenerator.LE.trans hle₂ hle₃),
-    fun Γspec hspec => ?_⟩
-  exact ErasesLBMode.letE (habs _ _ hspec)
-    (fun nms ids hfx hmem => hnres (hfr _ _ _ _ hinv nms ids hfx x hmem))
+  refine ⟨hrcv.trans hrcb, hregb,
+    NameGenerator.LE.trans hle₁ (NameGenerator.LE.trans hle₂ hle₃), fun Γspec hspec => ?_⟩
+  exact ErasesLBMode.letE hspec.fvarFree
+    (fun _ _ hbk hmem => hnres (hinv.fixvars_ids_subset hbk x hmem).1)
     hinv.noBV hty hval hbody hx (hmv Γspec (SpecEnv.mono hrcb.le hspec)) (hmb Γspec hspec)
 
 /-! ## Step 11 — `Erasure.visitApp` -/
 
 /-- **Step 11.** A constant head goes to `Erasure.visitConstApp`; any other head is erased
 on its own and the spine is rebuilt by `Erasure.visitAppArgs`. -/
-theorem step_visitApp (hnc : NonConstHeadSupported env tbl) : Step11 lenv env Us tbl cfg gw := by
+theorem step_visitApp : Step11 lenv env Us tbl cfg gw := by
   intro _P _htbl _hcfg _hcb vExpr vArgs vConstApp ih1 ih7 ih12
   refine ⟨?_, bodyLe11 ih1.2 ih7.2 ih12.2⟩
   replace ih1 := ih1.1
@@ -636,15 +594,15 @@ theorem step_visitApp (hnc : NonConstHeadSupported env tbl) : Step11 lenv env Us
     all_goals (
       have hne : ∀ c us, e.getAppFn ≠ .const c us := by
         intro c us h; rw [hfn] at h; exact absurd h (by simp)
-      obtain ⟨⟨hsuppfn, fve, htrfn⟩, hargs⟩ := spine_facts hsupp hex (hnc e hsupp hne)
+      obtain ⟨⟨hsuppfn, fve, htrfn⟩, hargs⟩ := spine_facts hsupp hex (hsupp.head hne)
       rw [hfn] at hrun
       simp only [] at hrun
       rw [Erasure.expr_withApp_eq, run_bind_ok] at hrun
       obtain ⟨tf, s₁, w₁, hvf, hk⟩ := hrun
-      obtain ⟨hrc₁, hle₁, hf⟩ := ih1 _ _ _ _ _ _ _ _ _ hvf Δ hinv hsuppfn ⟨fve, htrfn⟩
-      obtain ⟨hrc₂, hle₂, hsp⟩ := ih7 _ _ _ _ _ _ _ _ _ _ hk Δ e.getAppFn
-        ((hinv.mono_state hrc₁).mono hle₁) hf hargs
-      refine ⟨hrc₁.trans hrc₂, NameGenerator.LE.trans hle₁ hle₂, fun Γspec hspec => ?_⟩
+      obtain ⟨hrc₁, hreg₁, hle₁, hf⟩ := ih1 _ _ _ _ _ _ _ _ _ hvf Δ hinv hsuppfn ⟨fve, htrfn⟩
+      obtain ⟨hrc₂, hreg₂, hle₂, hsp⟩ := ih7 _ _ _ _ _ _ _ _ _ _ hk Δ e.getAppFn
+        ((hinv.mono_state hrc₁ hreg₁).mono hle₁) hf hargs
+      refine ⟨hrc₁.trans hrc₂, hreg₂, NameGenerator.LE.trans hle₁ hle₂, fun Γspec hspec => ?_⟩
       have := hsp Γspec hspec
       rwa [srcSpine, getAppArgs_spine] at this)
 
@@ -653,15 +611,8 @@ theorem step_visitApp (hnc : NonConstHeadSupported env tbl) : Step11 lenv env Us
 `Erasure.lambdaOrIntroToArity` peels the alternative's binders through the *inferred type*:
 `Erasure.forallMonocular` pushes the `∀`'s binder name and domain, so the fragment's manifest
 λ-telescope must be matched by the type's `∀`-telescope. `ForallMatchesLam` is that agreement;
-`InferLamAdequate` is the clause that supplies it.
+`ErasureSpec.prim_monotone.inferType` is the clause that supplies it.
 -/
-
-/-- The inferred type's `∀`-telescope agrees with a term's λ-telescope binder for binder.
-Vacuous unless the term side is a λ, which is what makes it discharge on a non-λ minor. -/
-def ForallMatchesLam : Expr → Expr → Prop
-  | .forallE n d c _, .lam m a b _ => n = m ∧ d = a ∧ ForallMatchesLam c b
-  | _,                .lam _ _ _ _ => False
-  | _,                _            => True
 
 /-- `ForallMatchesLam` holds whenever neither side has the shape it constrains. -/
 theorem forallMatchesLam_of_not_lam {ty e : Expr}
@@ -769,14 +720,14 @@ theorem bridge_alt_telescope {lenv : Environment} {env : VEnv} {Us : List Name}
       (s : ErasureState) (ctx : ErasureContext) (w : Void IO.RealWorld)
       (r : List BinderName × LBTerm) (s' : ErasureState) (w' : Void IO.RealWorld),
       Erasure.lambdaOrIntroToArity e ty n K s ctx cctx ref w = .ok (r, s') w' →
-      BridgeInv env Us cfg (gw w) ctx s Δ →
+      BridgeInv env Us tbl cfg (gw w) ctx s Δ →
       IsLamTelescope n e → Supported env tbl e → (∃ ve, TrExprS env Us Δ e ve) →
       ForallMatchesLam ty e →
       ∃ (ys : List FVarId) (Ns : List BinderName) (efin : Expr) (Δ' : VLCtx)
         (ctx' : ErasureContext) (w₁ : Void IO.RealWorld),
         ys.length = n ∧ Ns.length = n ∧ gw w ≤ gw w₁ ∧ ctx'.fixvars = ctx.fixvars ∧
         (∀ y ∈ ys, ¬ (gw w).Reserves y) ∧
-        BridgeInv env Us cfg (gw w₁) ctx' s Δ' ∧
+        BridgeInv env Us tbl cfg (gw w₁) ctx' s Δ' ∧
         Supported env tbl efin ∧ (∃ ve, TrExprS env Us Δ' efin ve) ∧
         K efin ys s ctx' cctx ref w₁ = .ok (r, s') w' ∧
         ∀ t : LBTerm, Erases env Us Δ' efin t →
@@ -805,7 +756,7 @@ theorem bridge_alt_telescope {lenv : Environment} {env : VEnv} {Us : List Name}
         obtain ⟨ve, hve⟩ := hex
         cases hve with
         | lam hty' hty hbody =>
-        obtain ⟨hterm, hbodies⟩ := hsupp
+        obtain ⟨hterm, hbodies, hkn⟩ := hsupp
         cases hterm with
         | @lam _ _ _ _ _ hb =>
         have hx : x ∉ Δ.fvars := fun hmem => hnres (hinv.reserved x hmem)
@@ -815,7 +766,7 @@ theorem bridge_alt_telescope {lenv : Environment} {env : VEnv} {Us : List Name}
         rw [Lean.Expr.instantiate1_eq, Lean.Expr.instantiate1_eq] at hk
         have hbext := TrExprS.inst_fvar P.envWF.ordered hΔ'.wf hbody
         have hsuppb : Supported env tbl b :=
-          Supported.subterm ⟨.lam hb, hbodies⟩ (fun _ hd => hd) hb
+          Supported.subterm ⟨.lam hb, hbodies, hkn⟩ (fun _ hd => hd) hb
         have hsuppb' : Supported env tbl (b.instantiate1' (.fvar x)) := by
           have := hsuppb.instantiate1 x; rwa [Lean.Expr.instantiate1_eq] at this
         obtain ⟨ys, Ns, efin, Δ'', ctx'', w₂, hlen, hnlen, hle₂, hfx, hfr, hinv'', hsupp'',
@@ -870,15 +821,16 @@ theorem filter_replicate_keep_of_size {α : Type} (n : Nat) (arr : Array α) (h 
 /-- The mode reads only the reader's fixvar map, so it transports along an extension that
 leaves it alone — which is every extension the binder helpers make. -/
 theorem ErasesLBMode.congr_fixvars {ctx' : ErasureContext} {e : Expr} {t : LBTerm}
-    (hfx : ctx'.fixvars = ctx.fixvars) (h : ErasesLBMode ctx' env Us Γspec Δ e t) :
-    ErasesLBMode ctx env Us Γspec Δ e t :=
-  ⟨fun hn => h.1 (by rw [hfx]; exact hn), fun nms ids hs => h.2 nms ids (by rw [hfx]; exact hs)⟩
+    (hfx : ctx'.fixvars = ctx.fixvars) (h : ErasesLBMode tbl ctx' env Us Γspec Δ e t) :
+    ErasesLBMode tbl ctx env Us Γspec Δ e t :=
+  ⟨fun hn => h.1 (by rw [hfx]; exact hn),
+    fun nms ids hs => h.2 nms ids ⟨by rw [hfx]; exact hs.1, hs.2⟩⟩
 
-/-- The pass pushes through `closeAlt`, one `LowerAbstracts` step per field binder. -/
-theorem lower_closeAlt {Γ : GlobalDeclarations} (habs : LowerAbstracts Γ) :
+/-- The pass pushes through `closeAlt`, one `Lower.abstract` step per field binder. -/
+theorem lower_closeAlt {Γ : GlobalDeclarations} (hfv : FVarFreeBodies Γ) :
     ∀ (ys : List FVarId) {a b : LBTerm}, Lower Γ a b → Lower Γ (closeAlt ys a) (closeAlt ys b)
   | [], _, _, h => h
-  | y :: ys, _, _, h => habs y ys.length (lower_closeAlt habs ys h)
+  | y :: ys, _, _, h => Lower.abstract hfv (lower_closeAlt hfv ys h) y ys.length
 
 /-- Block rewriting pushes through `closeAlt`, provided no field binder is a fix variable. -/
 theorem constToFVar_closeAlt {kns : List Kername} {ids : List FVarId} :
@@ -901,62 +853,67 @@ theorem lowerAlt_mkLambdas {Γ : GlobalDeclarations} :
 
 /-- **The composite at one alternative.** The telescope's closing gives the source side; the
 two pass factors follow it through `closeAlt`. -/
-theorem ErasesLBAltMode.mk (habs : LowerAbstracts Γspec) {ys : List FVarId}
-    (hyids : ∀ nms ids, ctx.fixvars = some (fixvarMap nms ids) → ∀ y ∈ ys, y ∉ ids)
+theorem ErasesLBAltMode.mk (hfv : FVarFreeBodies Γspec) {ys : List FVarId}
+    (hyids : ∀ nms ids, BlockKeyed tbl ctx nms ids → ∀ y ∈ ys, y ∉ ids)
     {Δ' : VLCtx} {Ns : List BinderName} {nf : Nat} {m efin : Expr} {t : LBTerm}
     {alt : List BinderName × LBTerm}
     (hNs : Ns.length = nf) (hnames : alt.1.length = nf) (halt : alt.2 = closeAlt ys t)
     (hclose : ∀ t₀, Erases env Us Δ' efin t₀ →
       Erases env Us Δ m (mkLambdas Ns (closeAlt ys t₀)))
-    (h : ErasesLBMode ctx env Us Γspec Δ' efin t) :
-    ErasesLBAltMode ctx env Us Γspec Δ nf m alt := by
+    (h : ErasesLBMode tbl ctx env Us Γspec Δ' efin t) :
+    ErasesLBAltMode tbl ctx env Us Γspec Δ nf m alt := by
   subst hNs
   refine ⟨fun hfx => ?_, fun nms ids hfx => ?_⟩
   · obtain ⟨t₀, her, hl⟩ := h.1 hfx
     refine ⟨mkLambdas Ns (closeAlt ys t₀), hclose t₀ her, ?_⟩
-    have := lowerAlt_mkLambdas Ns alt.1 hnames (lower_closeAlt habs ys hl)
+    have := lowerAlt_mkLambdas Ns alt.1 hnames (lower_closeAlt hfv ys hl)
     rwa [← halt] at this
   · obtain ⟨t₀, t₁, her, hl, hcf⟩ := h.2 nms ids hfx
     refine ⟨(alt.1, closeAlt ys t₁), ⟨mkLambdas Ns (closeAlt ys t₀), hclose t₀ her,
-      lowerAlt_mkLambdas Ns alt.1 hnames (lower_closeAlt habs ys hl)⟩, rfl, ?_⟩
+      lowerAlt_mkLambdas Ns alt.1 hnames (lower_closeAlt hfv ys hl)⟩, rfl, ?_⟩
     rw [halt]
     exact constToFVar_closeAlt ys (hyids nms ids hfx) hcf
 
 /-! ## Step 12 — `Erasure.visitConstApp` -/
 
-/-- **The strengthening of `ErasureSpec.LookupAdequate.casesInfo` the bridge needs.** The
-shipped clause says only that a positive answer names a declaration of `lenv`; the step has
-to know *which* head class the answer picks out, and — for `Motive15` — that the elaborator's
-`Lean.CasesInfo` agrees field for field with the table's reified inductive. The two exclusions
-`CasesHead.notMachine` asks for ride along, since `Motive15` demands them even though
-`ConfigPinned` already sends `Nat`'s and `Int`'s eliminators down the generic arm. -/
-def CasesInfoAdequate (tbl : SourceTable) : Prop :=
-  ∀ (c : Name) (cctx : Core.Context) (ref : ST.Ref IO.RealWorld Core.State)
-    (w : Void IO.RealWorld) (r : Option Lean.CasesInfo) (w₁ : Void IO.RealWorld),
-    (Lean.getCasesInfo? c : CoreM (Option Lean.CasesInfo)) cctx ref w = .ok r w₁ →
-    (∀ ci, r = some ci → isCasesOnName c = true ∧
-      ∀ I : ReifiedInduct, tbl.ind? c.getPrefix = some I →
-        CasesInfoAgrees ci c I ∧ c.getPrefix ≠ ``Nat ∧ c.getPrefix ≠ ``Int) ∧
-    (r = none → isCasesOnName c = false)
-
-/-- **The strengthening of `ErasureSpec.LookupAdequate.ctorArity` the bridge needs.** The
-shipped clause reports `lenv`'s constructor and its arity; the step has to read that arity
-against the *table's* reified constructor, which is where the fragment's saturation condition
-lives, and to name the model's own constructor for `Motive13`. -/
-def CtorArityAdequate (env : VEnv) (tbl : SourceTable) : Prop :=
-  ∀ (c : Name) (cctx : Core.Context) (ref : ST.Ref IO.RealWorld Core.State)
-    (w : Void IO.RealWorld) (r : Option Nat) (w₁ : Void IO.RealWorld),
-    (Lean.Compiler.LCNF.getCtorArity? c : CoreM (Option Nat)) cctx ref w = .ok r w₁ →
-    (∀ ar, r = some ar → (∃ I k, CtorOf env c I k) ∧
-      ∃ p, ctorOf? tbl c = some p ∧ ar ≤ p.2.numParams + p.2.numFields) ∧
-    (r = none → ctorOf? tbl c = none)
+/-- **A tabled constructor's arithmetic is the kernel's.** `ctorOf?` reads the constructor
+column of the tabled inductive the head's name prefix picks out, and
+`Witness.ReifiedInduct.Pinned` matches that entry against `lenv`'s own `ConstructorVal`. -/
+theorem ctorOf?_pinned (htbl : SourceTableAdequate lenv tbl) {c : Name}
+    {p : Name × ReifiedCtor} (h : ctorOf? tbl c = some p) :
+    ∃ cv : ConstructorVal, lenv.find? c = some (.ctorInfo cv) ∧
+      cv.numParams = p.2.numParams ∧ cv.numFields = p.2.numFields := by
+  rw [ctorOf?] at h
+  split at h
+  next I hind =>
+    cases hf : I.ctors.find? (fun x => x.name == c) with
+    | none => rw [hf] at h; exact absurd h (by simp)
+    | some cb =>
+      rw [hf] at h
+      obtain rfl : (c.getPrefix, cb) = p := by simpa using h
+      have hname : cb.name = c := by
+        have := List.find?_some hf
+        simpa using this
+      obtain ⟨j, hj, hjeq⟩ := List.getElem_of_mem (List.mem_of_find?_eq_some hf)
+      obtain ⟨iv, -, -, -, -, -, -, -, -, -, hcs⟩ := htbl.inds _ I (mem_of_lookup hind)
+      obtain ⟨cv, hcvf, -, -, -, hnp, -, hnf, -⟩ :=
+        hcs j cb (by rw [List.getElem?_eq_getElem hj, hjeq])
+      exact ⟨cv, hname ▸ hcvf, hnp, hnf⟩
+  next => exact absurd h (by simp)
 
 /-- **Step 12.** The head's classification picks the arm: an eliminator goes to
 `Erasure.visitCasesEta`, a constructor to `Erasure.visitCtorEta`, and any other constant is
-erased by `Erasure.visitConst` with the spine rebuilt by `Erasure.visitAppArgs`. -/
-theorem step_visitConstApp (hci : CasesInfoAdequate tbl) (hca : CtorArityAdequate env tbl) :
+erased by `Erasure.visitConst` with the spine rebuilt by `Erasure.visitAppArgs`.
+
+`hctab` is the one fact no standing binder supplies: the fragment decides N19's constructor
+half against `ctorOf?`, the run reads `Lean.Compiler.LCNF.getCtorArity?`, and `KnownHead.defn`
+admits a constructor `lenv` declares that the table holds in its constant column alone. It is
+a clause of table adequacy, a `lenv` read of the table's own columns like `TableSafe`. -/
+theorem step_visitConstApp
+    (hctab : ∀ (c : Name) (cv : ConstructorVal), (tbl.decl? c).isSome →
+      lenv.find? c = some (.ctorInfo cv) → (ctorOf? tbl c).isSome) :
     Step12 lenv env Us tbl cfg gw := by
-  intro P _htbl _hcfg _hcb vConst vArgs vCtorEta vCasesEta ih4 ih7 ih13 ih15
+  intro P htbl _hcfg _hcb vConst vArgs vCtorEta vCasesEta ih4 ih7 ih13 ih15
   refine ⟨?_, bodyLe12 ih4.2 ih7.2 ih13.2 ih15.2⟩
   replace ih4 := ih4.1
   replace ih7 := ih7.1
@@ -980,22 +937,24 @@ theorem step_visitConstApp (hci : CasesInfoAdequate tbl) (hca : CtorArityAdequat
   have hlecs : gw w ≤ gw w₁ := (P.lookup_adequate.casesInfo cn cctx ref w o w₁ hcs).1
   cases o with
   | some ci =>
-    obtain ⟨hcname, hagree⟩ := (hci cn cctx ref w _ w₁ hcs).1 ci rfl
+    obtain ⟨hcname, hdecl, hagreeK⟩ :=
+      (P.lookup_adequate.casesInfo cn cctx ref w _ w₁ hcs).2.1 ci rfl
     simp only [] at hk
     -- the fragment's own eliminator arm supplies the tabled inductive
     cases hheadS with
     | const hplain hcases _ _ _ => rw [hcname] at hcases; exact absurd hcases (by simp)
     | @casesApp _ _ _ minors I hplain hcases hind hinf harity hmin hlen htel =>
-      obtain ⟨hag, hnn, hni⟩ := hagree I hind
+      have hag : CasesInfoAgrees ci cn I := CasesInfoAgrees.of_pinned htbl hind hdecl hagreeK
       have hcasesHead : CasesHead env tbl ci cn I :=
-        ⟨hplain, hcname, hind, hinf, hag, hnn, hni⟩
+        ⟨hplain, hcname, hind, hinf, hag⟩
       have hsat : ci.arity ≤ e.getAppArgs.size := by
         rw [hag.arity]; simpa using harity
-      obtain ⟨hrc, hle₂, hm⟩ := ih15 _ _ _ _ _ _ _ _ _ _ hk Δ cn us I (hinv.mono hlecs)
+      obtain ⟨hrc, hreg, hle₂, hm⟩ := ih15 _ _ _ _ _ _ _ _ _ _ hk Δ cn us I (hinv.mono hlecs)
         hfn hcasesHead hsat hsupp hargs hex
-      exact ⟨hrc, NameGenerator.LE.trans hlecs hle₂, hm⟩
+      exact ⟨hrc, hreg, NameGenerator.LE.trans hlecs hle₂, hm⟩
   | none =>
-    have hnc : isCasesOnName cn = false := (hci cn cctx ref w _ w₁ hcs).2 rfl
+    have hnc : isCasesOnName cn = false :=
+      (P.lookup_adequate.casesInfo cn cctx ref w _ w₁ hcs).2.2 rfl
     simp only [] at hk
     rw [run_bind_ok] at hk
     obtain ⟨o₂, s₂, w₂, hct, hk⟩ := hk
@@ -1007,16 +966,36 @@ theorem step_visitConstApp (hci : CasesInfoAdequate tbl) (hca : CtorArityAdequat
     | @const _ _ _ hplain hcases hrec hsatT hknown =>
       cases o₂ with
       | some ar =>
-        obtain ⟨hctor, p, hp, harp⟩ := (hca cn cctx ref w₁ _ w₂ hct).1 ar rfl
+        obtain ⟨cv, hcvf, harar⟩ :=
+          (P.lookup_adequate.ctorArity cn cctx ref w₁ _ w₂ hct).2.1 ar rfl
+        have hctor : ∃ I k, CtorOf env cn I k := ⟨_, _, P.block_adequate.ctor cn cv hcvf⟩
+        have hcol : (ctorOf? tbl cn).isSome := by
+          cases hknown with
+          | indType hind _ =>
+            obtain ⟨iv, hiv, -⟩ := htbl.inds _ _ (mem_of_lookup hind)
+            rw [hcvf] at hiv; exact absurd hiv (by simp)
+          | ctor hc _ => rw [hc]; rfl
+          | defn hd _ => exact hctab cn cv (by rw [hd]; rfl) hcvf
+        obtain ⟨p, hp⟩ := Option.isSome_iff_exists.mp hcol
+        obtain ⟨cv', hcvf', hnp, hnf⟩ := ctorOf?_pinned htbl hp
+        obtain rfl : cv' = cv := by simpa using hcvf'.symm.trans hcvf
+        have harp : ar ≤ p.2.numParams + p.2.numFields :=
+          Nat.le_of_eq (by rw [harar, hnp, hnf])
         have hsat : ar ≤ e.getAppArgs.size := by
           have := hsatT p hp
           simpa using Nat.le_trans harp this
         simp only [] at hk
-        obtain ⟨hrc, hle₃, hm⟩ := ih13 _ _ _ _ _ _ _ _ _ _ _ hk Δ us
+        obtain ⟨hrc, hreg, hle₃, hm⟩ := ih13 _ _ _ _ _ _ _ _ _ _ _ hk Δ us
           (hinv.mono (NameGenerator.LE.trans hlecs hlect)) hfn hctor hsat hargs
-        exact ⟨hrc, NameGenerator.LE.trans hlecs (NameGenerator.LE.trans hlect hle₃), hm⟩
+        exact ⟨hrc, hreg, NameGenerator.LE.trans hlecs (NameGenerator.LE.trans hlect hle₃), hm⟩
       | none =>
-        have hnone : ctorOf? tbl cn = none := (hca cn cctx ref w₁ _ w₂ hct).2 rfl
+        have hnone : ctorOf? tbl cn = none := by
+          cases hcc : ctorOf? tbl cn with
+          | none => rfl
+          | some p =>
+            obtain ⟨cv, hcvf, -, -⟩ := ctorOf?_pinned htbl hcc
+            exact absurd hcvf
+              ((P.lookup_adequate.ctorArity cn cctx ref w₁ _ w₂ hct).2.2 rfl cv)
         have hheadNil : SupportedTm env tbl (.const cn us) [] :=
           .const hplain hcases hrec (fun p hp => by rw [hnone] at hp; exact absurd hp (by simp))
             hknown
@@ -1029,37 +1008,25 @@ theorem step_visitConstApp (hci : CasesInfoAdequate tbl) (hca : CtorArityAdequat
         simp only [] at hk
         rw [run_bind_ok] at hk
         obtain ⟨tc, s₃, w₃, hvc, hk⟩ := hk
-        obtain ⟨hrc₃, hle₃, hmc⟩ := ih4 _ _ _ _ _ _ _ _ _ hvc Δ cn us
+        obtain ⟨hrc₃, hreg₃, hle₃, hmc⟩ := ih4 _ _ _ _ _ _ _ _ _ hvc Δ cn us
           (hinv.mono (NameGenerator.LE.trans hlecs hlect)) rfl hplain hcases hknown hheadSupp
-        obtain ⟨hrc₄, hle₄, hsp⟩ := ih7 _ _ _ _ _ _ _ _ _ _ hk Δ (.const cn us)
-          ((hinv.mono_state hrc₃).mono
+        obtain ⟨hrc₄, hreg₄, hle₄, hsp⟩ := ih7 _ _ _ _ _ _ _ _ _ _ hk Δ (.const cn us)
+          ((hinv.mono_state hrc₃ hreg₃).mono
             (NameGenerator.LE.trans hlecs (NameGenerator.LE.trans hlect hle₃)))
           hmc hargs
-        refine ⟨hrc₃.trans hrc₄, NameGenerator.LE.trans hlecs (NameGenerator.LE.trans hlect
-          (NameGenerator.LE.trans hle₃ hle₄)), fun Γspec hspec => ?_⟩
+        refine ⟨hrc₃.trans hrc₄, hreg₄, NameGenerator.LE.trans hlecs
+          (NameGenerator.LE.trans hlect (NameGenerator.LE.trans hle₃ hle₄)),
+          fun Γspec hspec => ?_⟩
         have := hsp Γspec hspec
         rw [srcSpine, ← hfn, getAppArgs_spine] at this
         exact this
 
 /-! ## Step 18 — `Erasure.visitAlt` -/
 
-/-- **The clause `ErasureSpec` has no field for.** `Erasure.visitAlt` — and, in the same
-shape, `Erasure.visitCtorEta` and `Erasure.visitCasesEta` — calls `Lean.Meta.inferType`
-through `Erasure.liftMetaM`, and nothing in `ErasureSpec` bounds that call's generator or
-says anything about its result. What the telescope needs is the agreement between the
-inferred `∀`-telescope and the subject's λ-telescope. -/
-def InferLamAdequate (gw : Void IO.RealWorld → NameGenerator) : Prop :=
-  ∀ (e : Expr) (s : ErasureState) (ctx : ErasureContext) (cctx : Core.Context)
-    (ref : ST.Ref IO.RealWorld Core.State) (w : Void IO.RealWorld) (ty : Expr)
-    (s₁ : ErasureState) (w₁ : Void IO.RealWorld),
-    Erasure.liftMetaM (Lean.Meta.inferType e) s ctx cctx ref w = .ok (ty, s₁) w₁ →
-    gw w ≤ gw w₁ ∧ ForallMatchesLam ty e
-
 /-- **Step 18.** The minor premise's binders are opened by `bridge_alt_telescope`, the opened
 body is erased by `Motive1`, and `Erasure.mkAlt` closes the result — which is what
 `ErasesLBAltMode.mk` reads as an alternative of the composite. -/
-theorem step_visitAlt (habs : SpecEnvAbstracts env tbl) (hfr : FixvarsAllReserved env Us cfg)
-    (hinf : InferLamAdequate gw) : Step18 lenv env Us tbl cfg gw := by
+theorem step_visitAlt : Step18 lenv env Us tbl cfg gw := by
   intro P _htbl _hcfg _hcb vExpr ih1
   refine ⟨?_, bodyLe18 ih1.2⟩
   replace ih1 := ih1.1
@@ -1069,7 +1036,7 @@ theorem step_visitAlt (habs : SpecEnvAbstracts env tbl) (hfr : FixvarsAllReserve
   obtain ⟨ty, s₁, w₁, hity, hk⟩ := hrun
   have hs₁ : s₁ = s := run_liftMetaM_state _ _ _ _ _ hity
   rw [hs₁] at hity hk
-  obtain ⟨hlei, hfml⟩ := hinf e s ctx cctx ref w ty s w₁ hity
+  obtain ⟨hlei, hfml⟩ := P.prim_monotone.inferType e s ctx cctx ref w ty s w₁ hity
   obtain ⟨ys, Ns, efin, Δ', ctx', w₂, hlen, hnlen, hle₂, hfx, hyfresh, hinv', hsupp', hex',
     hK, hclose⟩ := bridge_alt_telescope P cctx ref nf e ty Δ _ s ctx w₁ r s' w' hk
       (hinv.mono hlei) hlam hsupp hex hfml
@@ -1077,15 +1044,15 @@ theorem step_visitAlt (habs : SpecEnvAbstracts env tbl) (hfr : FixvarsAllReserve
     run_bind_ok] at hK
   obtain ⟨tb, s₂, w₃, hvb, hm⟩ := hK
   obtain ⟨hs2, hw2, hrlen, hr2⟩ := run_mkAlt_ok hm
-  obtain ⟨hrc, hle₃, hmb⟩ := ih1 _ _ _ _ _ _ _ _ _ hvb Δ' hinv' hsupp' hex'
+  obtain ⟨hrc, hreg, hle₃, hmb⟩ := ih1 _ _ _ _ _ _ _ _ _ hvb Δ' hinv' hsupp' hex'
   subst hs2
   subst hw2
-  refine ⟨hrc, NameGenerator.LE.trans hlei (NameGenerator.LE.trans hle₂ hle₃),
+  refine ⟨hrc, hreg, NameGenerator.LE.trans hlei (NameGenerator.LE.trans hle₂ hle₃),
     fun Γspec hspec => ?_⟩
-  refine ErasesLBAltMode.mk (habs _ _ hspec) ?_ hnlen (by rw [hrlen, hlen])
+  refine ErasesLBAltMode.mk hspec.fvarFree ?_ hnlen (by rw [hrlen, hlen])
     (by rw [hr2, closeAlt_foldl]) hclose (ErasesLBMode.congr_fixvars hfx (hmb Γspec hspec))
-  intro nms ids hfxc y hy hmem
-  exact hyfresh y hy ((hfr _ _ _ _ hinv nms ids hfxc y hmem).mono hlei)
+  intro _ _ hbk y hy hmem
+  exact hyfresh y hy ((hinv.fixvars_ids_subset hbk y hmem).1.mono hlei)
 
 end Steps
 
@@ -1098,30 +1065,10 @@ directions, so the field *is* the λ-headedness of each member's erased body —
 from `LBWfPeregrine.fixLambda`, read at the block through `FixLambda.of_onProgram`.
 -/
 
-/-- Closing a term under a fold of `toBvar`s leaves its head shape alone. -/
-theorem isLambda_foldl_toBvar (f : Name → FVarId) :
-    ∀ (ps : List (Name × Nat)) (t : LBTerm),
-      isLambda (ps.foldl (fun b p => toBvar (f p.1) p.2 b) t) = isLambda t := by
-  intro ps
-  induction ps with
-  | nil => intro t; rfl
-  | cons p rest ih => intro t; rw [List.foldl_cons, ih, isLambda_toBvar]
-
-/-- `Erasure.mkDef` closes the erased body over the block's fix variables, which is a
-`toBvar` fold: the emitted definition is λ-headed exactly when the erased body is. -/
-theorem run_mkDef_isLambda {nm : Name} {fixvarnames : List Name} {body : LBTerm}
-    {s : ErasureState} {ctx : ErasureContext} {cctx : Core.Context}
-    {ref : ST.Ref IO.RealWorld Core.State} {w : Void IO.RealWorld}
-    {r : @FixDef LBTerm} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
-    (hrun : mkDef nm fixvarnames body s ctx cctx ref w = .ok (r, s₁) w₁) :
-    isLambda r.body = isLambda body := by
-  obtain ⟨-, hb, -, -⟩ := run_mkDef_ok hrun
-  rw [hb, isLambda_foldl_toBvar]
-
 /-- **λ-headedness is not a run invariant.** A member whose erasure is `.box` — what
 `Erasure.visitExpr` returns at its erasability gate — is registered as a definition with a
-non-λ body, so `LowerBlock.hfl` cannot be read off the run and is taken from the emitted
-program instead. -/
+non-λ body, and `LowerBlock.hfl` fails. That is why `TableBlocks.informative`, which excludes
+an erasable member, is a conjunct of the input condition and not a formality. -/
 theorem run_mkDef_box_not_lambda {nm : Name} {fixvarnames : List Name}
     {s : ErasureState} {ctx : ErasureContext} {cctx : Core.Context}
     {ref : ST.Ref IO.RealWorld Core.State} {w : Void IO.RealWorld}

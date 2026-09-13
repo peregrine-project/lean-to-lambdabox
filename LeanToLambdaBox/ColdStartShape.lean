@@ -89,6 +89,47 @@ def IndEmitted (env : VEnv) (Γspec Γ : GlobalDeclarations) (n : Name) : Prop :
     LBTerm.envLookup Γspec iid.mutualBlockName = some (.inductiveDecl d) →
     LBTerm.envLookup Γ iid.mutualBlockName = some (.inductiveDecl d)
 
+/-! ## The erasure image mentions no free variable
+
+`SpecContent.defns` records each declared body as an erasure at the **empty** local context,
+and `Erases` emits an `.fvar` only through `Erases.fvar`, whose lookup premise no empty
+context answers. That is what pays `RegInvShape'.specFVarFree` wherever the invariant is
+inhabited. -/
+
+/-- The `.vlam`/`.vlet` extensions the binder arms take add no free variable to the context. -/
+theorem VLCtx.find?_inr_cons_none {Δ : VLCtx} {d : VLocalDecl}
+    (h : ∀ y : FVarId, Δ.find? (.inr y) = none) :
+    ∀ y : FVarId, VLCtx.find? ((none, d) :: Δ) (.inr y) = none := by
+  intro y
+  simp [VLCtx.find?, VLCtx.next, h y]
+
+/-- **The erasure image over a context binding no free variable has none either.** The `fvar`
+arm is the only producer of an `.fvar` node and its lookup premise is unsatisfiable there. -/
+theorem Erases.noFVar_of_noFVars {env : VEnv} {Us : List Name} {Δ : VLCtx} {e : Expr}
+    {t : LBTerm} (h : Erases env Us Δ e t) :
+    ∀ {x : FVarId}, (∀ y : FVarId, Δ.find? (.inr y) = none) → ¬ hasFVar x t := by
+  induction h with
+  | box | bvar => exact fun _ hc => hc.elim
+  | @fvar Δ z e' A hz => exact fun hΔ _ => absurd hz (by rw [hΔ z]; simp)
+  | ctor => exact fun _ hc => hc.elim
+  | const => exact fun _ hc => hc.elim
+  | app _ _ ihf iha =>
+      intro x hΔ hc
+      exact hc.elim (ihf hΔ) (iha hΔ)
+  | lam _ _ ih => exact fun hΔ => ih (VLCtx.find?_inr_cons_none hΔ)
+  | letE _ _ _ _ ihv ihb =>
+      intro x hΔ hc
+      exact hc.elim (ihv hΔ) (ihb (VLCtx.find?_inr_cons_none hΔ))
+  | proj _ _ _ _ ih => exact fun hΔ => ih hΔ
+  | lit _ _ ih => exact fun hΔ => ih hΔ
+  | mdata _ ih => exact fun hΔ => ih hΔ
+
+/-- **The erasure image at the empty context has no free variable.** This is what turns
+`SpecContent.defns`' witness into `FVarFreeBodies` at a producer of the invariant. -/
+theorem Erases.noFVar {env : VEnv} {Us : List Name} {e : Expr} {t : LBTerm} {x : FVarId}
+    (h : Erases env Us [] e t) : ¬ hasFVar x t :=
+  h.noFVar_of_noFVars (fun _ => rfl)
+
 /-! ## The invariant -/
 
 /--
@@ -104,6 +145,11 @@ structure RegInvShape' (env : VEnv) (bo : Name → Option Expr)
   spec : SpecContent env bo Γspec
   /-- The specification bodies are closed. -/
   specClosed : ClosedBodies Γspec
+  /-- The specification bodies mention no free variable. Carried, not derived: the invariant
+      fixes `Γspec` rather than building it, so the clause is discharged where the invariant
+      is inhabited, by `Erases.noFVar` on `SpecContent.defns`' witness. It is what
+      `Lower.abstract` consumes through `SpecEnv.fvarFree`. -/
+  specFVarFree : FVarFreeBodies Γspec
   /-- Every registered constant is declared, at its canonical kername. -/
   consts : ∀ n : Name, (s.constants.get? n).isSome →
     (LBTerm.envLookup Γspec (toKername n)).isSome
@@ -135,9 +181,11 @@ structure RegInvShape' (env : VEnv) (bo : Name → Option Expr)
 only `Γspec`'s own three clauses are left to hold. This is what makes a cold run possible. -/
 theorem RegInvShape'.empty {env : VEnv} {bo : Name → Option Expr}
     {Γspec : GlobalDeclarations} (hspec : SpecContent env bo Γspec)
-    (hcl : ClosedBodies Γspec) : RegInvShape' env bo Γspec {} where
+    (hcl : ClosedBodies Γspec) (hfv : FVarFreeBodies Γspec) :
+    RegInvShape' env bo Γspec {} where
   spec := hspec
   specClosed := hcl
+  specFVarFree := hfv
   consts n hn := by simp at hn
   inds n hn := by simp at hn
   keys := by simp
@@ -172,6 +220,7 @@ theorem RegInvShape'.addAxiom {env : VEnv} {bo : Name → Option Expr}
     RegInvShape' env bo Γspec (addAxiomState n s) where
   spec := H.spec
   specClosed := H.specClosed
+  specFVarFree := H.specFVarFree
   consts m hm := by
     rcases constants_insert_cases hm with rfl | hm'
     · rw [hax]; rfl
@@ -237,6 +286,7 @@ theorem RegInvShape'.constCons {env : VEnv} {bo : Name → Option Expr}
     RegInvShape' env bo Γspec (nonrecConstState n t s) where
   spec := H.spec
   specClosed := H.specClosed
+  specFVarFree := H.specFVarFree
   consts m hm := by
     rcases constants_insert_cases hm with rfl | hm'
     · rw [DefnDecl] at hspec; rw [hspec]; rfl
@@ -374,6 +424,7 @@ theorem RegInvShape'.axiomCons {env : VEnv} {bo : Name → Option Expr}
     RegInvShape' env bo Γspec { s with gdecls := (kn, .constantDecl ⟨none⟩) :: s.gdecls } where
   spec := H.spec
   specClosed := H.specClosed
+  specFVarFree := H.specFVarFree
   consts m hm := H.consts m hm
   inds n' hn' := H.inds n' hn'
   keys := List.nodup_cons.mpr ⟨not_mem_keys_of_fresh hfresh, H.keys⟩
@@ -446,6 +497,7 @@ theorem RegInvShape'.stateCongr {env : VEnv} {bo : Name → Option Expr}
     RegInvShape' env bo Γspec s' where
   spec := H.spec
   specClosed := H.specClosed
+  specFVarFree := H.specFVarFree
   consts m hm := by
     rcases hc m hm with h | h
     · exact H.consts m h
@@ -476,6 +528,7 @@ theorem RegInvShape'.indsGrow {env : VEnv} {bo : Name → Option Expr}
     RegInvShape' env bo Γspec s' where
   spec := H.spec
   specClosed := H.specClosed
+  specFVarFree := H.specFVarFree
   consts m hm := H.consts m (by rwa [hc] at hm)
   inds n' hn' := (hnew n' hn').1
   keys := by rw [hg]; exact H.keys
@@ -499,6 +552,7 @@ theorem RegInvShape'.blockCons {env : VEnv} {bo : Name → Option Expr}
     RegInvShape' env bo Γspec { s with gdecls := (kn, .inductiveDecl mib) :: s.gdecls } where
   spec := H.spec
   specClosed := H.specClosed
+  specFVarFree := H.specFVarFree
   consts m hm := H.consts m hm
   inds n' hn' := H.inds n' hn'
   keys := List.nodup_cons.mpr ⟨not_mem_keys_of_fresh hfresh, H.keys⟩

@@ -23,7 +23,9 @@ verification found, specified with the site, the command that measures it, and t
 command's output. No wave depends on any of them landing, and no unit applies one.
 
 Ordered as the design orders them (`doc/rework/01-DESIGN.md` §8.2): **F-PROP** first, because
-three other rows are downstream of it.
+three other rows are downstream of it. The last three rows — **F-DEPTH**, **F-UNSAFEREC**,
+**F-KERNAME** — are `doc/rework/06-REPAIRS-W4.md` §3's findings, in the order that document
+raises them; each bounds one class-**C** field of `EraserAsks`.
 
 Every command below runs from the repository root. The `.ast` files are the five csimp-off
 duplicates under `VerifyBench/ast/`, regenerated with `lake build VerifyBench`.
@@ -265,3 +267,190 @@ touches only verification files.
 
 *Status in the verification.* The `.ast.inlinings` channel it drives is a class-**E** row in
 `doc/trust.md`; nothing in the theorem stack mentions it.
+
+### F-DEPTH — the relevance oracle's arity check has an 8-bit fuel
+
+*Site.* `isArityCheck`, `LeanToLambdaBox/Relevance.lean:46`, whose fuel is
+`ty.approxDepth.toNat + 1`; the loop it feeds is at `:32`.
+
+*Defect.* `Lean.Expr.Data.approxDepth` is eight bits, so the fuel saturates at 256 however deep
+the type is, and it is **1** at a definitional alias, whose `approxDepth` is 0. `isArityCheck`
+then throws, `Erasure.isErasable` (`LeanToLambdaBox/Erasure.lean:177`) takes its `.error` arm,
+and the verdict is the unverified `Erasure.isErasableMeta`'s — which will not unfold an
+`@[irreducible]` alias either, so it answers `false`. The oracle therefore answers `false` at an
+inductive **type former**, the one shape the erasure must not treat as data.
+
+*Measure.*
+
+    cat > /tmp/f-depth.lean <<'EOF'
+    import LeanToLambdaBox.Relevance
+    import LeanToLambdaBox.Erasure
+    open Lean
+
+    def tele : Nat → Expr
+      | 0     => .sort .zero
+      | n + 1 => .forallE `x (.sort .zero) (tele n) .default
+
+    def DeepArity : Type 1 := Nat → Nat → Nat → Nat → Type
+    inductive Bar : DeepArity
+    attribute [irreducible] DeepArity
+
+    #eval show CoreM Unit from do
+      for k in [4, 100, 255, 300, 1000] do
+        let d := (tele k).approxDepth
+        IO.println s!"telescope of {k} binders: approxDepth = {d}, isArityCheck fuel = {d.toNat + 1}"
+      let al := mkConst ``DeepArity
+      IO.println s!"alias DeepArity:          approxDepth = {al.approxDepth}, isArityCheck fuel = {al.approxDepth.toNat + 1}"
+      let env ← getEnv
+      match Lean4Lean.TypeChecker.M.run env.toKernelEnv (safety := .safe) (lctx := {}) (lparams := [])
+          (x := Lean4Lean.TypeChecker.RecM.run (LeanToLambdaBox.isErasable (mkConst ``Bar))) with
+      | .ok b    => IO.println s!"kernel isErasable Bar   = ok {b}"
+      | .error _ => IO.println s!"kernel isErasable Bar   = error (routes to isErasableMeta)"
+
+    #eval show MetaM Unit from do
+      IO.println s!"isErasableMeta Bar      = {← Erasure.isErasableMeta (mkConst ``Bar)}"
+    EOF
+    lake env lean /tmp/f-depth.lean
+
+    telescope of 4 binders: approxDepth = 4, isArityCheck fuel = 5
+    telescope of 100 binders: approxDepth = 100, isArityCheck fuel = 101
+    telescope of 255 binders: approxDepth = 255, isArityCheck fuel = 256
+    telescope of 300 binders: approxDepth = 255, isArityCheck fuel = 256
+    telescope of 1000 binders: approxDepth = 255, isArityCheck fuel = 256
+    alias DeepArity:          approxDepth = 0, isArityCheck fuel = 1
+    kernel isErasable Bar   = error (routes to isErasableMeta)
+    isErasableMeta Bar      = false
+
+*Proposed edit.* Fuel the loop by the *reduced* telescope's own bound rather than by the
+unreduced subject's `approxDepth` — count binders as `whnf` produces them, with a budget that
+does not come from an eight-bit field. `LeanToLambdaBox/Relevance.lean` is verification-authored,
+so this is in scope for a later wave under plan rule N5's scheduled exception; W4b does not take
+it.
+
+*Consequence until it lands.* `EraserAsks.kernel_ind_head_true` — "at an inductive head the pure
+kernel run answers `true`" — is false in general, at a telescope of ≥ 256 binders or behind an
+`@[irreducible]` alias. It is carried as a class-**C** field with this row as its bound, and
+`EraserAsks.oracle_informative`, the type-former exclusion the bridge's constant step consumes,
+is exactly as strong as it.
+
+### F-UNSAFEREC — a `mutual unsafe def` block with an `_unsafe_rec` twin is miscompiled
+
+*Site.* `visitMutual`, `LeanToLambdaBox/Erasure.lean:906` (`let fixvarnames := names.map
+remove_unsafe_rec`) and `:916-918` (the registration loop); `remove_unsafe_rec` at `:520`.
+
+*Defect.* `Erasure.remove_unsafe_rec` strips one literal `_unsafe_rec` component, so it is not
+injective. A `mutual` block holding both `u` and `u._unsafe_rec` is legal Lean, and
+`Lean.Compiler.LCNF.getDeclInfo?` reports both members in `ci.all`; the eraser maps that block to
+`[u, u]`, builds `fixvarMap [u, u] ids` (whose second binding overwrites the first), names both
+`FixDef`s `u`, and registers both declarations at the one kername `u`. The emitted program has
+two constants under one key, two identically named fix variables, and both members' recursive
+calls bound to whichever the map kept. No error is reported.
+
+*Measure.*
+
+    cat > /tmp/f-unsaferec.lean <<'EOF'
+    import LeanToLambdaBox.Erasure
+    open Lean LeanToLambdaBox
+
+    mutual
+      unsafe def u : Nat → Nat
+        | 0 => 0
+        | n + 1 => u._unsafe_rec n
+      unsafe def u._unsafe_rec : Nat → Nat
+        | 0 => 1
+        | n + 1 => u n
+    end
+
+    def keyStr (k : Kername) : String := toString (repr k)
+
+    #eval show CoreM Unit from do
+      let some ci ← Lean.Compiler.LCNF.getDeclInfo? ``u | IO.println "getDeclInfo? u = none"
+      let mapped := ci.all.map Erasure.remove_unsafe_rec
+      IO.println s!"getDeclInfo? u : all = {ci.all}"
+      IO.println s!"mapped by remove_unsafe_rec = {mapped}"
+      IO.println s!"distinct keys = {(mapped.map (keyStr <| toKername ·)).eraseDups.length} of {mapped.length}"
+      let (p, _) ← Erasure.erase (mkConst ``u) {}
+      let keys := p.1.map (keyStr ·.1)
+      IO.println s!"emitted declarations = {keys.length}, distinct keys = {keys.eraseDups.length}"
+      for (kn, d) in p.1 do
+        if kn.id == "u" then
+          match d with
+          | .constantDecl ⟨some (.fix defs i)⟩ =>
+              IO.println s!"key u: fix at index {i}, defs named {defs.map (repr ·.name)}"
+          | _ => IO.println "key u: not a bare fix"
+    EOF
+    lake env lean /tmp/f-unsaferec.lean
+
+    Name Unit.unit is marked as inline.
+    Name Nat.sub has a value but is tagged @[extern], emitting axiom.
+    Name Nat.beq has a value but is tagged @[extern], emitting axiom.
+    getDeclInfo? u : all = [u, u._unsafe_rec]
+    mapped by remove_unsafe_rec = [u, u]
+    distinct keys = 1 of 2
+    emitted declarations = 10, distinct keys = 9
+    key u: fix at index 1, defs named [BinderName.named "u", BinderName.named "u"]
+    key u: fix at index 0, defs named [BinderName.named "u", BinderName.named "u"]
+
+The first three lines are the eraser's own `logInfo` output on this program.
+
+*Proposed edit.* One line after `LeanToLambdaBox/Erasure.lean:906`:
+
+    unless (fixvarnames.map toKername).Nodup do
+      throw <| .error .missing s!"mutual block {names} has colliding lambda-box keys"
+
+Refusing is right rather than renaming: the two members are distinct declarations and the λ□
+environment has no room for both under one key.
+
+*Consequence until it lands.* `EraserAsks.block_keys_distinct` is a class-**C** field rather than
+a fact the run recovers. With the guard the field becomes a consequence of the run's own
+conclusion and the field goes.
+
+### F-KERNAME — `toKername` is not injective
+
+*Site.* `toKername`, `LeanToLambdaBox/Basic.lean:35`, through `cleanIdent` at `:24` and the
+`.num` arm's `nb.repr`.
+
+*Defect.* `toKername` sends `.num p k` and `.str p k.repr` to one kername, and `cleanIdent`'s
+escape has fixed points, so two distinct Lean constants can carry one λ□ key. Registration is a
+`gdecls.cons`, so the second such constant shadows the first in the emitted environment and the
+program reads whichever the printer emits last. `toKername_not_injective`
+(`LeanToLambdaBox/VisitExprRefines/Step/Env.lean:666`) is the witness pair.
+
+*Measure.* The defect is latent rather than live: over the whole elaboration environment of this
+repository, no two declared constants collide.
+
+    cat > /tmp/f-kername.lean <<'EOF'
+    import LeanToLambdaBox
+    open Lean LeanToLambdaBox
+
+    #eval show CoreM Unit from do
+      let env ← getEnv
+      let mut keys : Std.HashMap String Name := {}
+      let mut n := 0
+      let mut collisions : Array (Name × Name) := #[]
+      for (nm, _) in env.constants.toList do
+        if nm != .anonymous then
+          n := n + 1
+          let k := toString (repr (toKername nm))
+          match keys[k]? with
+          | some m => collisions := collisions.push (m, nm)
+          | none   => keys := keys.insert k nm
+      IO.println s!"constants = {n}, distinct keys = {keys.size}, collisions = {collisions.size}"
+
+    example : toKername (.num .anonymous 5) = toKername (.str .anonymous "5") := rfl
+    EOF
+    lake env lean /tmp/f-kername.lean
+
+    constants = 228987, distinct keys = 228987, collisions = 0
+
+The `example` is the non-injectivity witness and it elaborates by `rfl`; the count is what says
+no *declared* pair realises it here.
+
+*Proposed edit.* Make the key injective — carry the `.num`/`.str` distinction and the escape
+into the identifier — or refuse a collision at registration, which is the cheaper half and the
+one that turns a silent shadowing into an error.
+
+*Consequence until it lands.* The verification excludes colliding inputs rather than assuming
+they cannot occur: kername separation over the tabled names is a decidable arm of the fragment
+checker, reported as `SupportError.kernameCollision`, and `doc/coverage.md` carries the
+restriction row. Nothing in the theorem stack assumes `toKername` injective.

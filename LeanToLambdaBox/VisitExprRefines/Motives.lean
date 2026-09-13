@@ -1,4 +1,5 @@
 import LeanToLambdaBox.Bridge
+import LeanToLambdaBox.ErasesCorrect.Steps
 
 /-!
 # The eighteen motives of the bridge induction
@@ -31,26 +32,27 @@ set_option synthInstance.maxSize 4000
 /-! ## The shared conclusions -/
 
 /-- What a successful sub-run of a term-producing member concludes: the state grew canonically,
-the generator only advanced, and at every specification environment of the final state the
-emitted term is the source term's image in the reader's fixvar mode. -/
+the inductive registry is still the model's, the generator only advanced, and at every
+specification environment of the final state the emitted term is the source term's image in the
+reader's fixvar mode. -/
 def RunRefines (env : VEnv) (Us : List Name) (tbl : SourceTable) (ctx : ErasureContext)
     (Δ : VLCtx) (s s' : ErasureState) (gen gen' : NameGenerator) (e : Expr) (t : LBTerm) : Prop :=
-  RunConcl s s' ∧ gen ≤ gen' ∧
-    ∀ Γspec, SpecEnv env tbl.body? s' Γspec → ErasesLBMode ctx env Us Γspec Δ e t
+  RunConcl s s' ∧ IndRegistryModelled env s' ∧ gen ≤ gen' ∧
+    ∀ Γspec, SpecEnv env tbl.body? s' Γspec → ErasesLBMode tbl ctx env Us Γspec Δ e t
 
 /-- `RunRefines` for `Erasure.visitAlt`, whose result is a `case` alternative rather than a
 term. -/
 def RunRefinesAlt (env : VEnv) (Us : List Name) (tbl : SourceTable) (ctx : ErasureContext)
     (Δ : VLCtx) (s s' : ErasureState) (gen gen' : NameGenerator) (nf : Nat) (m : Expr)
     (alt : List BinderName × LBTerm) : Prop :=
-  RunConcl s s' ∧ gen ≤ gen' ∧
-    ∀ Γspec, SpecEnv env tbl.body? s' Γspec → ErasesLBAltMode ctx env Us Γspec Δ nf m alt
+  RunConcl s s' ∧ IndRegistryModelled env s' ∧ gen ≤ gen' ∧
+    ∀ Γspec, SpecEnv env tbl.body? s' Γspec → ErasesLBAltMode tbl ctx env Us Γspec Δ nf m alt
 
 /-- The head premise of `Erasure.visitAppArgs`' motive, read at the *initial* state: the caller
 holds the head's refinement there, and `SpecEnv.mono` re-reads a final-state environment at it. -/
 def HeadRefines (env : VEnv) (Us : List Name) (tbl : SourceTable) (ctx : ErasureContext)
     (Δ : VLCtx) (s : ErasureState) (e : Expr) (t : LBTerm) : Prop :=
-  ∀ Γspec, SpecEnv env tbl.body? s Γspec → ErasesLBMode ctx env Us Γspec Δ e t
+  ∀ Γspec, SpecEnv env tbl.body? s Γspec → ErasesLBMode tbl ctx env Us Γspec Δ e t
 
 /-- The fragment and translation conditions on the arguments of a spine, at the array the run
 carries them in. -/
@@ -62,32 +64,7 @@ def ArgsOk (env : VEnv) (Us : List Name) (tbl : SourceTable) (Δ : VLCtx)
 /-- The source spine a run over `args` at head `hd` is about. -/
 def srcSpine (hd : Expr) (args : Array Expr) : Expr := args.toList.foldl Expr.app hd
 
-/-! ## The `casesOn` metadata the run reads
-
-`Erasure.visitCases` branches on the `Lean.CasesInfo` the elaborator hands it; the fragment
-condition is stated against the table's reified inductive. This is their agreement.
--/
-
-/-- The field count of one `casesOn` alternative, as `Erasure.visitCases` reads it. -/
-def altNumFields : Lean.CasesAltInfo → Nat
-  | .ctor _ n => n
-  | .default n => n
-
-/-- The `Lean.CasesInfo` the run reads for `c` agrees with the table's reified inductive: the
-discriminant sits after the parameters, the motive and the indices, the alternatives are the
-constructors, and each takes its constructor's fields. -/
-structure CasesInfoAgrees (ci : Lean.CasesInfo) (c : Name) (I : ReifiedInduct) : Prop where
-  /-- The information is the one recorded for `c`. -/
-  decl : ci.declName = c
-  /-- The discriminant follows the parameters, the motive and the indices. -/
-  discrPos : ci.discrPos = I.numParams + 1 + I.numIndices
-  /-- The eliminator is saturated by one minor premise per constructor. -/
-  arity : ci.arity = I.numParams + 1 + I.numIndices + 1 + I.ctors.length
-  /-- The alternatives begin one past the discriminant and end at the arity. -/
-  altsRange : ci.altsRange.lower = ci.discrPos + 1 ∧ ci.altsRange.upper = ci.arity
-  /-- Each alternative binds its constructor's fields. -/
-  numFields : ∀ (j : Nat) (a : Lean.CasesAltInfo) (cb : ReifiedCtor),
-    ci.altNumParams[j]? = some a → I.ctors[j]? = some cb → altNumFields a = cb.numFields
+/-! ## The `casesOn` head the run dispatches on -/
 
 /-- The `casesOn` head data a `casesOn`-eliminating motive reads: the fragment's own conditions
 on the head, and the run's agreement with the table. -/
@@ -103,8 +80,6 @@ structure CasesHead (env : VEnv) (tbl : SourceTable) (ci : Lean.CasesInfo) (con 
   informative : InformativeInd env con.getPrefix
   /-- The elaborator's own metadata agrees with the table's. -/
   agrees : CasesInfoAgrees ci con I
-  /-- Neither of the two machine-mode special cases applies. -/
-  notMachine : con.getPrefix ≠ ``Nat ∧ con.getPrefix ≠ ``Int
 
 /-! ## The eighteen motives -/
 
@@ -117,17 +92,18 @@ variable (env : VEnv) (Us : List Name) (tbl : SourceTable) (cfg : ErasureConfig)
 composite, in whichever fixvar mode the reader is in. -/
 def Motive1 (f : Expr → EraseM LBTerm) : Prop :=
   (∀ e s ctx cctx ref w t s' w', f e s ctx cctx ref w = .ok (t, s') w' →
-    ∀ Δ, BridgeInv env Us cfg (gw w) ctx s Δ → Supported env tbl e →
+    ∀ Δ, BridgeInv env Us tbl cfg (gw w) ctx s Δ → Supported env tbl e →
       (∃ ve, TrExprS env Us Δ e ve) →
       RunRefines env Us tbl ctx Δ s s' (gw w) (gw w') e t) ∧
   f ⊑ Erasure.visitExpr
 
-/-- Motive 2 — `Erasure.visitLiteral`: a `Nat` literal erases to its peano tower. The two
-premises beyond the invariant are the fragment's own `natLit` rule. -/
+/-- Motive 2 — `Erasure.visitLiteral`: a `Nat` literal erases to its peano tower. The premises
+beyond the invariant are the fragment's own `natLit` rule and the verdict at the literal, whose
+kername clause the recursive constructor call needs. -/
 def Motive2 (f : Literal → EraseM LBTerm) : Prop :=
   (∀ l s ctx cctx ref w t s' w', f l s ctx cctx ref w = .ok (t, s') w' →
-    ∀ Δ n, BridgeInv env Us cfg (gw w) ctx s Δ → l = .natVal n →
-      PeanoReady env → peanoReadyB tbl = true →
+    ∀ Δ n, BridgeInv env Us tbl cfg (gw w) ctx s Δ → l = .natVal n →
+      PeanoReady env → peanoReadyB tbl = true → Supported env tbl (.lit l) →
       (∃ ve, TrExprS env Us Δ (.lit l) ve) →
       RunRefines env Us tbl ctx Δ s s' (gw w) (gw w') (.lit l) t) ∧
   f ⊑ Erasure.visitLiteral
@@ -136,7 +112,7 @@ def Motive2 (f : Literal → EraseM LBTerm) : Prop :=
 erases to the applied constructor node. -/
 def Motive3 (f : Name → Array Expr → EraseM LBTerm) : Prop :=
   (∀ cn args s ctx cctx ref w t s' w', f cn args s ctx cctx ref w = .ok (t, s') w' →
-    ∀ Δ (us : List Level), BridgeInv env Us cfg (gw w) ctx s Δ →
+    ∀ Δ (us : List Level), BridgeInv env Us tbl cfg (gw w) ctx s Δ →
       (∃ I k, CtorOf env cn I k) → ArgsOk env Us tbl Δ args →
       RunRefines env Us tbl ctx Δ s s' (gw w) (gw w') (srcSpine (.const cn us) args) t) ∧
   f ⊑ Erasure.visitConstructor
@@ -145,7 +121,7 @@ def Motive3 (f : Name → Array Expr → EraseM LBTerm) : Prop :=
 mutual block that defines it, that member's fix variable. -/
 def Motive4 (f : Expr → EraseM LBTerm) : Prop :=
   (∀ e s ctx cctx ref w t s' w', f e s ctx cctx ref w = .ok (t, s') w' →
-    ∀ Δ n us, BridgeInv env Us cfg (gw w) ctx s Δ → e = .const n us →
+    ∀ Δ n us, BridgeInv env Us tbl cfg (gw w) ctx s Δ → e = .const n us →
       PlainHead n → isCasesOnName n = false → KnownHead env tbl n → Supported env tbl e →
       RunRefines env Us tbl ctx Δ s s' (gw w) (gw w') e t) ∧
   f ⊑ Erasure.visitConst
@@ -154,9 +130,9 @@ def Motive4 (f : Expr → EraseM LBTerm) : Prop :=
 the constant is registered afterwards. -/
 def Motive5 (f : Name → EraseM Kername) : Prop :=
   (∀ n s ctx cctx ref w kn s' w', f n s ctx cctx ref w = .ok (kn, s') w' →
-    ∀ Δ, BridgeInv env Us cfg (gw w) ctx s Δ → Supported env tbl (.const n []) →
+    ∀ Δ, BridgeInv env Us tbl cfg (gw w) ctx s Δ → Supported env tbl (.const n []) →
       kn = toKername n ∧ (s'.constants.get? n).isSome ∧
-        RunConcl s s' ∧ gw w ≤ gw w') ∧
+        RunConcl s s' ∧ IndRegistryModelled env s' ∧ gw w ≤ gw w') ∧
   f ⊑ Erasure.get_constant_kername
 
 /-- Motive 6 — `Erasure.visitMutual`: the declaration is registered. Its two branches erase the
@@ -165,15 +141,16 @@ is where the sub-runs conclude `ErasesLBFix` rather than `ErasesLB`; the content
 registered is read off the final state by `SpecEnv`, not concluded here. -/
 def Motive6 (f : Name → EraseM Unit) : Prop :=
   (∀ n s ctx cctx ref w u s' w', f n s ctx cctx ref w = .ok (u, s') w' →
-    ∀ Δ, BridgeInv env Us cfg (gw w) ctx s Δ → Supported env tbl (.const n []) →
-      (s'.constants.get? n).isSome ∧ RunConcl s s' ∧ gw w ≤ gw w') ∧
+    ∀ Δ, BridgeInv env Us tbl cfg (gw w) ctx s Δ → Supported env tbl (.const n []) →
+      (s'.constants.get? n).isSome ∧ RunConcl s s' ∧ IndRegistryModelled env s' ∧
+        gw w ≤ gw w') ∧
   f ⊑ Erasure.visitMutual
 
 /-- Motive 7 — `Erasure.visitAppArgs`: a head already related to a source term, applied to a
 supported argument array, is the spine. -/
 def Motive7 (f : LBTerm → Array Expr → EraseM LBTerm) : Prop :=
   (∀ hd args s ctx cctx ref w t s' w', f hd args s ctx cctx ref w = .ok (t, s') w' →
-    ∀ Δ (e : Expr), BridgeInv env Us cfg (gw w) ctx s Δ →
+    ∀ Δ (e : Expr), BridgeInv env Us tbl cfg (gw w) ctx s Δ →
       HeadRefines env Us tbl ctx Δ s e hd → ArgsOk env Us tbl Δ args →
       RunRefines env Us tbl ctx Δ s s' (gw w) (gw w') (srcSpine e args) t) ∧
   f ⊑ Erasure.visitAppArgs
@@ -181,7 +158,7 @@ def Motive7 (f : LBTerm → Array Expr → EraseM LBTerm) : Prop :=
 /-- Motive 8 — `Erasure.visitLet`. -/
 def Motive8 (f : Expr → EraseM LBTerm) : Prop :=
   (∀ e s ctx cctx ref w t s' w', f e s ctx cctx ref w = .ok (t, s') w' →
-    ∀ Δ n ty v b nd, BridgeInv env Us cfg (gw w) ctx s Δ → e = .letE n ty v b nd →
+    ∀ Δ n ty v b nd, BridgeInv env Us tbl cfg (gw w) ctx s Δ → e = .letE n ty v b nd →
       Supported env tbl e → (∃ ve, TrExprS env Us Δ e ve) →
       RunRefines env Us tbl ctx Δ s s' (gw w) (gw w') e t) ∧
   f ⊑ Erasure.visitLet
@@ -189,7 +166,7 @@ def Motive8 (f : Expr → EraseM LBTerm) : Prop :=
 /-- Motive 9 — `Erasure.visitLambda`. -/
 def Motive9 (f : Expr → EraseM LBTerm) : Prop :=
   (∀ e s ctx cctx ref w t s' w', f e s ctx cctx ref w = .ok (t, s') w' →
-    ∀ Δ n ty b bi, BridgeInv env Us cfg (gw w) ctx s Δ → e = .lam n ty b bi →
+    ∀ Δ n ty b bi, BridgeInv env Us tbl cfg (gw w) ctx s Δ → e = .lam n ty b bi →
       Supported env tbl e → (∃ ve, TrExprS env Us Δ e ve) →
       RunRefines env Us tbl ctx Δ s s' (gw w) (gw w') e t) ∧
   f ⊑ Erasure.visitLambda
@@ -197,7 +174,7 @@ def Motive9 (f : Expr → EraseM LBTerm) : Prop :=
 /-- Motive 10 — `Erasure.visitProj`: a projection of a tabled, informative structure. -/
 def Motive10 (f : Name → Nat → Expr → EraseM LBTerm) : Prop :=
   (∀ tn i e s ctx cctx ref w t s' w', f tn i e s ctx cctx ref w = .ok (t, s') w' →
-    ∀ Δ (I : ReifiedInduct) (np nf : Nat), BridgeInv env Us cfg (gw w) ctx s Δ →
+    ∀ Δ (I : ReifiedInduct) (np nf : Nat), BridgeInv env Us tbl cfg (gw w) ctx s Δ →
       tbl.ind? tn = some I → InformativeInd env tn → IndArity env tn np [nf] → i < nf →
       Supported env tbl e → (∃ ve, TrExprS env Us Δ e ve) →
       RunRefines env Us tbl ctx Δ s s' (gw w) (gw w') (.proj tn i e) t) ∧
@@ -206,7 +183,7 @@ def Motive10 (f : Name → Nat → Expr → EraseM LBTerm) : Prop :=
 /-- Motive 11 — `Erasure.visitApp`, the spine dispatcher. -/
 def Motive11 (f : Expr → EraseM LBTerm) : Prop :=
   (∀ e s ctx cctx ref w t s' w', f e s ctx cctx ref w = .ok (t, s') w' →
-    ∀ Δ, BridgeInv env Us cfg (gw w) ctx s Δ → Supported env tbl e →
+    ∀ Δ, BridgeInv env Us tbl cfg (gw w) ctx s Δ → Supported env tbl e →
       (∃ ve, TrExprS env Us Δ e ve) →
       RunRefines env Us tbl ctx Δ s s' (gw w) (gw w') e t) ∧
   f ⊑ Erasure.visitApp
@@ -214,7 +191,7 @@ def Motive11 (f : Expr → EraseM LBTerm) : Prop :=
 /-- Motive 12 — `Erasure.visitConstApp`, the constant-headed spine. -/
 def Motive12 (f : Expr → EraseM LBTerm) : Prop :=
   (∀ e s ctx cctx ref w t s' w', f e s ctx cctx ref w = .ok (t, s') w' →
-    ∀ Δ cn us, BridgeInv env Us cfg (gw w) ctx s Δ → e.getAppFn = .const cn us →
+    ∀ Δ cn us, BridgeInv env Us tbl cfg (gw w) ctx s Δ → e.getAppFn = .const cn us →
       Supported env tbl e → (∃ ve, TrExprS env Us Δ e ve) →
       RunRefines env Us tbl ctx Δ s s' (gw w) (gw w') e t) ∧
   f ⊑ Erasure.visitConstApp
@@ -222,7 +199,7 @@ def Motive12 (f : Expr → EraseM LBTerm) : Prop :=
 /-- Motive 13 — `Erasure.visitCtorEta`, entered at a saturated constructor spine. -/
 def Motive13 (f : Name → Nat → Expr → EraseM LBTerm) : Prop :=
   (∀ cn ar e s ctx cctx ref w t s' w', f cn ar e s ctx cctx ref w = .ok (t, s') w' →
-    ∀ Δ us, BridgeInv env Us cfg (gw w) ctx s Δ → e.getAppFn = .const cn us →
+    ∀ Δ us, BridgeInv env Us tbl cfg (gw w) ctx s Δ → e.getAppFn = .const cn us →
       (∃ I k, CtorOf env cn I k) → ar ≤ e.getAppArgs.size →
       ArgsOk env Us tbl Δ e.getAppArgs →
       RunRefines env Us tbl ctx Δ s s' (gw w) (gw w') e t) ∧
@@ -232,7 +209,7 @@ def Motive13 (f : Name → Nat → Expr → EraseM LBTerm) : Prop :=
 def Motive14 (f : Name → Nat → Expr → Expr → Array Expr → EraseM LBTerm) : Prop :=
   (∀ cn ar ty fe args s ctx cctx ref w t s' w',
     f cn ar ty fe args s ctx cctx ref w = .ok (t, s') w' →
-    ∀ Δ us, BridgeInv env Us cfg (gw w) ctx s Δ →
+    ∀ Δ us, BridgeInv env Us tbl cfg (gw w) ctx s Δ →
       (∃ I k, CtorOf env cn I k) → ar ≤ args.size → ArgsOk env Us tbl Δ args →
       RunRefines env Us tbl ctx Δ s s' (gw w) (gw w') (srcSpine (.const cn us) args) t) ∧
   f ⊑ Erasure.visitCtorEtaGo
@@ -240,7 +217,7 @@ def Motive14 (f : Name → Nat → Expr → Expr → Array Expr → EraseM LBTer
 /-- Motive 15 — `Erasure.visitCasesEta`, entered at a saturated `casesOn` spine. -/
 def Motive15 (f : Lean.CasesInfo → Expr → EraseM LBTerm) : Prop :=
   (∀ ci e s ctx cctx ref w t s' w', f ci e s ctx cctx ref w = .ok (t, s') w' →
-    ∀ Δ con us I, BridgeInv env Us cfg (gw w) ctx s Δ → e.getAppFn = .const con us →
+    ∀ Δ con us I, BridgeInv env Us tbl cfg (gw w) ctx s Δ → e.getAppFn = .const con us →
       CasesHead env tbl ci con I → ci.arity ≤ e.getAppArgs.size →
       Supported env tbl e → ArgsOk env Us tbl Δ e.getAppArgs →
       (∃ ve, TrExprS env Us Δ e ve) →
@@ -250,7 +227,7 @@ def Motive15 (f : Lean.CasesInfo → Expr → EraseM LBTerm) : Prop :=
 /-- Motive 16 — `Erasure.visitCasesEtaGo`, its saturated loop. -/
 def Motive16 (f : Lean.CasesInfo → Expr → Expr → Array Expr → EraseM LBTerm) : Prop :=
   (∀ ci ty fe args s ctx cctx ref w t s' w', f ci ty fe args s ctx cctx ref w = .ok (t, s') w' →
-    ∀ Δ con us I, BridgeInv env Us cfg (gw w) ctx s Δ →
+    ∀ Δ con us I, BridgeInv env Us tbl cfg (gw w) ctx s Δ →
       CasesHead env tbl ci con I → ci.arity ≤ args.size →
       Supported env tbl (srcSpine (.const con us) args) → ArgsOk env Us tbl Δ args →
       (∃ ve, TrExprS env Us Δ (srcSpine (.const con us) args) ve) →
@@ -260,7 +237,7 @@ def Motive16 (f : Lean.CasesInfo → Expr → Expr → Array Expr → EraseM LBT
 /-- Motive 17 — `Erasure.visitCases`, the `case` node itself. -/
 def Motive17 (f : Lean.CasesInfo → Array Expr → EraseM LBTerm) : Prop :=
   (∀ ci args s ctx cctx ref w t s' w', f ci args s ctx cctx ref w = .ok (t, s') w' →
-    ∀ Δ con us I, BridgeInv env Us cfg (gw w) ctx s Δ →
+    ∀ Δ con us I, BridgeInv env Us tbl cfg (gw w) ctx s Δ →
       CasesHead env tbl ci con I → ci.arity ≤ args.size →
       Supported env tbl (srcSpine (.const con us) args) → ArgsOk env Us tbl Δ args →
       (∃ ve, TrExprS env Us Δ (srcSpine (.const con us) args) ve) →
@@ -271,7 +248,7 @@ def Motive17 (f : Lean.CasesInfo → Array Expr → EraseM LBTerm) : Prop :=
 alternative with that many binders. -/
 def Motive18 (f : Nat → ConstructorArgMask → Expr → EraseM (List BinderName × LBTerm)) : Prop :=
   (∀ nf mask e s ctx cctx ref w r s' w', f nf mask e s ctx cctx ref w = .ok (r, s') w' →
-    ∀ Δ, BridgeInv env Us cfg (gw w) ctx s Δ → mask = Array.replicate nf .keep →
+    ∀ Δ, BridgeInv env Us tbl cfg (gw w) ctx s Δ → mask = Array.replicate nf .keep →
       IsLamTelescope nf e → Supported env tbl e → (∃ ve, TrExprS env Us Δ e ve) →
       RunRefinesAlt env Us tbl ctx Δ s s' (gw w) (gw w') nf e r) ∧
   f ⊑ Erasure.visitAlt

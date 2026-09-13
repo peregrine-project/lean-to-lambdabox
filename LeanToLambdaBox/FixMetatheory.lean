@@ -100,6 +100,52 @@ theorem closeFixFold_eq_self_of_not_hasFVar (t : LBTerm) :
     have hx : ¬ hasFVar x t := h (x, lvl) (List.mem_cons_self ..)
     rw [closeFixFold_cons, toBvar_eq_of_not_hasFVar x lvl t hx]
     exact ih t (fun q hq => h q (List.mem_cons_of_mem _ hq))
+/-! ### `closeFix` removes the block fvars and introduces none
+
+The dual of the previous section, and the reason a `.fix` node the pass builds is closed at
+**every** free variable: a closing step can only delete occurrences, and it deletes exactly
+those of the variable it abstracts. The reflection form comes first — it is what keeps the
+consumers free of a membership decision on `FVarId`. -/
+
+/-- **Occurrence reflection for the fold.** A variable occurring in a closed term occurred in
+the term before closing, and is none of the abstracted ones. -/
+theorem hasFVar_closeFixFold_of {x : FVarId} :
+    ∀ (pairs : List (FVarId × Nat)) (t : LBTerm),
+      hasFVar x (closeFixFold pairs t) → x ∉ pairs.map Prod.fst ∧ hasFVar x t
+  | [], t, h => ⟨by simp, h⟩
+  | (y, lvl) :: rest, t, h => by
+      rw [closeFixFold_cons] at h
+      obtain ⟨hn, ht⟩ := hasFVar_closeFixFold_of rest _ h
+      obtain ⟨hxy, ht'⟩ := hasFVar_toBvar_of x y lvl t ht
+      refine ⟨?_, ht'⟩
+      simp only [List.map_cons, List.mem_cons]
+      rintro (rfl | hm)
+      · exact hxy rfl
+      · exact hn hm
+
+/-- **Occurrence reflection for `closeFix`.** -/
+theorem hasFVar_closeFix_of {x : FVarId} {ids : List FVarId} {base : Nat} {t : LBTerm}
+    (h : hasFVar x (closeFix ids base t)) : x ∉ ids ∧ hasFVar x t := by
+  rw [closeFix] at h
+  obtain ⟨hn, ht⟩ := hasFVar_closeFixFold_of _ t h
+  refine ⟨fun hm => hn ?_, ht⟩
+  simp only [List.zipIdx_map_fst, List.mem_reverse]
+  exact hm
+
+/-- `closeFixFold` removes every variable of its pair list and introduces none. -/
+theorem closeFixFold_not_hasFVar {x : FVarId} :
+    ∀ (pairs : List (FVarId × Nat)) (t : LBTerm),
+      (¬ hasFVar x t ∨ x ∈ pairs.map Prod.fst) → ¬ hasFVar x (closeFixFold pairs t) := by
+  intro pairs t h hc
+  obtain ⟨hn, ht⟩ := hasFVar_closeFixFold_of pairs t hc
+  exact h.elim (fun h => h ht) hn
+
+/-- `closeFix` removes every block identifier and introduces nothing. -/
+theorem closeFix_not_hasFVar {x : FVarId} {ids : List FVarId} {base : Nat} {t : LBTerm}
+    (h : ¬ hasFVar x t ∨ x ∈ ids) : ¬ hasFVar x (closeFix ids base t) := by
+  intro hc
+  obtain ⟨hn, ht⟩ := hasFVar_closeFix_of hc
+  exact h.elim (fun h => h ht) hn
 
 /-! ### Distinct-fvar bookkeeping for the per-sibling result
 

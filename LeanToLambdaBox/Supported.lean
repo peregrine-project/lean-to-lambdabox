@@ -1,5 +1,6 @@
 import LeanToLambdaBox.CasesNames
 import LeanToLambdaBox.ErasureSpec
+import LeanToLambdaBox.Semantics.Compute
 import LeanToLambdaBox.Witness.SourceTable
 
 /-!
@@ -17,9 +18,14 @@ peano tower, and the reachability clause is about the `Erasure.prepare_erasure`d
 `supportedB` is the decision procedure: total, fuel-indexed (the dependency closure is cyclic
 through mutual blocks, so no structural recursion on `e` reaches it), and run on a reified
 `Witness.SourceTable` rather than on the `Lean.Environment`, because no term denotes the
-latter. It returns the *name* of the hole it found, which is what generates the coverage table.
-`supportedB_sound` is the bridge: a `.ok ()` verdict on an adequate table establishes
-`Supported`.
+latter. Two of its conditions are table-wide and decided once rather than per node: the peano
+tower and the separation of the tabled names under `toKername`. It returns the *name* of the
+hole it found, which is what generates the coverage table. `supportedB_sound` is the bridge: a
+`.ok ()` verdict on an adequate table establishes `Supported`.
+
+Two further conditions the bridge consumes are inputs no computation reaches, and they are
+named structures beside the fragment: `TableSafe`, the safety column, and `TableBlocks`, the
+blocks `Erasure.visitMutual` installs, both mechanised by `lake exe reify`.
 -/
 
 namespace LeanToLambdaBox
@@ -73,6 +79,17 @@ inductive SupportError where
       and the ι rule is keyed on `casesOn` names, so a spine headed by one has no source
       evaluation at all and a program reaching it would be vacuously covered. -/
   | recursorHead (c : Name)
+  /-- A metadata node read under a non-empty application spine. `Expr.getAppFn` does not see
+      through `.mdata`, so the erasure hands such a head to `Erasure.visitConstApp` at the
+      empty spine and η-expands it, while the fragment reads the spine conditions at the
+      head. -/
+  | mdataSpine
+  /-- A projection whose tabled structure does not have exactly one constructor, or whose
+      field index is beyond that constructor's fields. -/
+  | projField (S : Name)
+  /-- Two tabled names print as one λ□ kername. `toKername` is not injective, so the second
+      declaration would shadow the first in the emitted environment. -/
+  | kernameCollision
   /-- A constant the table does not know. -/
   | unknownConst (c : Name)
   /-- The closure did not saturate within the fuel. Exhaustion never certifies an untraversed
@@ -221,6 +238,73 @@ def peanoReadyB (tbl : SourceTable) : Bool :=
       (I.ctors.any fun c => c.name == ``Nat.succ && c.cidx == 1)
   | none => false
 
+/-- The tabled names have pairwise-distinct λ□ keys. `toKername` is not injective
+(`toKername_not_injective`), so two tabled constants can print as one kername and the second
+shadows the first in the emitted environment; the fragment excludes that input. A table-wide
+condition, decided once rather than per node, and reported as
+`SupportError.kernameCollision`. -/
+def kernameSepB (tbl : SourceTable) : Bool :=
+  ((tbl.decls.map Prod.fst ++ tbl.inds.map Prod.fst).map toKername).eraseDups.length ==
+    (tbl.decls.length + tbl.inds.length)
+
+/-! ### The key-separation arm, read back -/
+
+/-- `List.eraseDups` never lengthens its argument. -/
+theorem length_eraseDups_le {α : Type _} [DecidableEq α] :
+    ∀ l : List α, l.eraseDups.length ≤ l.length
+  | [] => Nat.le_refl 0
+  | a :: as => by
+    rw [List.eraseDups_cons, List.length_cons, List.length_cons]
+    exact Nat.succ_le_succ (Nat.le_trans
+      (length_eraseDups_le (as.filter fun b => !b == a)) (List.length_filter_le _ as))
+  termination_by l => l.length
+  decreasing_by exact Nat.lt_succ_of_le (List.length_filter_le _ as)
+
+/-- A list `List.eraseDups` does not shorten carries no duplicate. -/
+theorem nodup_of_length_eraseDups {α : Type _} [DecidableEq α] :
+    ∀ {l : List α}, l.eraseDups.length = l.length → l.Nodup
+  | [], _ => List.nodup_nil
+  | a :: as, h => by
+    rw [List.eraseDups_cons, List.length_cons, List.length_cons] at h
+    have hle1 := length_eraseDups_le (as.filter fun b => !b == a)
+    have hle2 := List.length_filter_le (fun b => !b == a) as
+    have hfl : (as.filter fun b => !b == a).length = as.length := by omega
+    have hfe : (as.filter fun b => !b == a) = as := List.filter_sublist.eq_of_length hfl
+    have h' : as.eraseDups.length = as.length := by rw [← hfe]; omega
+    refine List.nodup_cons.2 ⟨?_, nodup_of_length_eraseDups h'⟩
+    intro hmem
+    have : a ∈ as.filter fun b => !b == a := by rw [hfe]; exact hmem
+    simp [List.mem_filter] at this
+  termination_by l => l.length
+
+/-- A list whose image under `f` carries no duplicate is one `f` is injective on. -/
+theorem eq_of_nodup_map {α β : Type _} [DecidableEq β] {f : α → β} :
+    ∀ {l : List α}, (l.map f).Nodup → ∀ x ∈ l, ∀ y ∈ l, f x = f y → x = y
+  | [], _, _, hx, _, _, _ => absurd hx (by simp)
+  | a :: as, h, x, hx, y, hy, hf => by
+    rw [List.map_cons, List.nodup_cons] at h
+    rcases List.mem_cons.1 hx with rfl | hx' <;> rcases List.mem_cons.1 hy with rfl | hy'
+    · rfl
+    · exact absurd (hf ▸ List.mem_map_of_mem hy') h.1
+    · exact absurd (hf ▸ List.mem_map_of_mem hx') h.1
+    · exact eq_of_nodup_map h.2 x hx' y hy' hf
+
+/-- `kernameSepB` decides the `Supported.kernames` clause. -/
+theorem kernames_of_kernameSepB {tbl : SourceTable} (h : kernameSepB tbl = true) :
+    ∀ m m' : Name, (tbl.decl? m).isSome → (tbl.decl? m').isSome →
+      toKername m = toKername m' → m = m' := by
+  have heq : ((tbl.decls.map Prod.fst ++ tbl.inds.map Prod.fst).map toKername).eraseDups.length
+      = tbl.decls.length + tbl.inds.length := by simpa [kernameSepB] using h
+  have hnd : ((tbl.decls.map Prod.fst ++ tbl.inds.map Prod.fst).map toKername).Nodup :=
+    nodup_of_length_eraseDups (by rw [heq]; simp)
+  have hmem : ∀ n : Name, (tbl.decl? n).isSome → n ∈ tbl.decls.map Prod.fst := by
+    intro n hn
+    obtain ⟨d, hd⟩ := Option.isSome_iff_exists.1 hn
+    exact List.mem_map_of_mem (mem_of_lookup hd)
+  intro m m' hm hm' hk
+  exact eq_of_nodup_map hnd m (List.mem_append_left _ (hmem m hm)) m'
+    (List.mem_append_left _ (hmem m' hm')) hk
+
 /-! ## The checker -/
 
 /-- Head check of an application spine: the head constant `c` applied to `args`. -/
@@ -261,13 +345,17 @@ recursive on `Expr` and a `by rfl` discharge reduces through it. -/
 def supportedGo (tbl : SourceTable) : Expr → List Expr → Except SupportError Unit
   | .app f a, args => do supportedGo tbl a []; supportedGo tbl f (a :: args)
   | .const c _, args => supportedHead tbl c args
-  | .mdata _ b, args => supportedGo tbl b args
+  | .mdata _ b, args => if args.isEmpty then supportedGo tbl b [] else .error .mdataSpine
   | .lam _ _ b _, _ => supportedGo tbl b []
   | .letE _ _ v b _, _ => do supportedGo tbl v []; supportedGo tbl b []
-  | .proj S _ b, _ =>
+  | .proj S i b, _ =>
     match tbl.ind? S with
     | none => .error (.unknownConst S)
-    | some I => if informativeB I then supportedGo tbl b [] else .error (.propElimIntoData S)
+    | some I =>
+      if !informativeB I then .error (.propElimIntoData S)
+      else match I.ctors with
+        | [cb] => if i < cb.numFields then supportedGo tbl b [] else .error (.projField S)
+        | _ => .error (.projField S)
   | .lit (.strVal _), _ => .error .strLit
   | .lit (.natVal _), _ => if peanoReadyB tbl then .ok () else .error .machineNat
   | .mvar _, _ => .error .mvar
@@ -322,10 +410,12 @@ def checkNames (tbl : SourceTable) : List Name → Except SupportError Unit
 mutual blocks, so it is not structural on `e`, and a `partial def` would be kernel-opaque, which
 is exactly what a `by rfl` discharge cannot afford. Exhaustion is an error
 (`SupportError.outOfFuel`) — it never certifies an untraversed body. -/
-def supportedB (tbl : SourceTable) (fuel : Nat) (e : Expr) : Except SupportError Unit := do
-  supportedTerm tbl e
-  let ns := reachNames tbl e fuel
-  if saturatedB tbl ns then checkNames tbl ns else .error .outOfFuel
+def supportedB (tbl : SourceTable) (fuel : Nat) (e : Expr) : Except SupportError Unit :=
+  if kernameSepB tbl then do
+    supportedTerm tbl e
+    let ns := reachNames tbl e fuel
+    if saturatedB tbl ns then checkNames tbl ns else .error .outOfFuel
+  else .error .kernameCollision
 
 
 /-! ## The safety column -/
@@ -377,16 +467,19 @@ structure PlainHead (c : Name) : Prop where
   notSideCondition : isMatcherName c = false
 
 /-- A head the table knows, in one of the three columns the fragment admits — the exclusion
-`SupportError.unknownConst` reports. Each of the three also puts the name in the model. A
+`SupportError.unknownConst` reports. Each column carries the model's own reading of the name,
+which is what lets a consumer eliminate the two columns its run has already excluded. A
 recursor is not among them: `SupportError.recursorHead` excludes it. -/
 inductive KnownHead (env : VEnv) (tbl : SourceTable) : Name → Prop
-  /-- A tabled inductive type. -/
-  | indType {c : Name} {I : ReifiedInduct} (h : tbl.ind? c = some I) (hm : env.contains c) :
-      KnownHead env tbl c
-  /-- A constructor of a tabled inductive type. -/
-  | ctor {c : Name} {p : Name × ReifiedCtor} (h : ctorOf? tbl c = some p) (hm : env.contains c) :
-      KnownHead env tbl c
-  /-- A tabled constant. -/
+  /-- A tabled inductive type, and the model's block data for it. -/
+  | indType {c : Name} {I : ReifiedInduct} (h : tbl.ind? c = some I)
+      (hm : ∃ iid np nfs, IndInfo env c iid np nfs) : KnownHead env tbl c
+  /-- A constructor of a tabled inductive type, and the model's constructor reading. -/
+  | ctor {c : Name} {p : Name × ReifiedCtor} (h : ctorOf? tbl c = some p)
+      (hm : ∃ I k, CtorOf env c I k) : KnownHead env tbl c
+  /-- A tabled constant, and its model constant. `ConstOrigin` is not here: it needs the
+      classification `UpstreamAsks` carries, together with the two exclusions the run supplies
+      at the head it is visiting. -/
   | defn {c : Name} {d : ReifiedDecl} (h : tbl.decl? c = some d) (hm : env.contains c) :
       KnownHead env tbl c
 
@@ -408,9 +501,11 @@ inductive SupportedTm (env : VEnv) (tbl : SourceTable) : Expr → List Expr → 
   /-- A `Π` type: erased before it is visited. -/
   | forallE {n : Name} {ty b : Expr} {bi : BinderInfo} {args : List Expr} :
       SupportedTm env tbl (.forallE n ty b bi) args
-  /-- Metadata is transparent to the erasure. -/
-  | mdata {d : MData} {b : Expr} {args : List Expr} (h : SupportedTm env tbl b args) :
-      SupportedTm env tbl (.mdata d b) args
+  /-- Metadata is transparent to the erasure, at a term read on its own: `Expr.getAppFn` does
+      not see through `.mdata`, so a metadata-wrapped head is outside the fragment
+      (`SupportError.mdataSpine`). -/
+  | mdata {d : MData} {b : Expr} (h : SupportedTm env tbl b []) :
+      SupportedTm env tbl (.mdata d b) []
   /-- A λ: its binder type is erased, its body carries the condition at the empty spine. -/
   | lam {n : Name} {ty b : Expr} {bi : BinderInfo} {args : List Expr}
       (hb : SupportedTm env tbl b []) : SupportedTm env tbl (.lam n ty b bi) args
@@ -420,10 +515,12 @@ inductive SupportedTm (env : VEnv) (tbl : SourceTable) : Expr → List Expr → 
       SupportedTm env tbl (.letE n ty v b nd) args
   /-- A projection. `hind` and `hinf` are **N18**'s projection half: the structure is tabled
       and informative, without which the emitted `.proj` is stuck on the target for the same
-      reason the `casesApp` rule's `hinf` covers (`SupportError.propElimIntoData`). `hb` is the
-      discriminant's own condition. -/
-  | proj {S : Name} {i : Nat} {b : Expr} {args : List Expr} {I : ReifiedInduct}
+      reason the `casesApp` rule's `hinf` covers (`SupportError.propElimIntoData`). `harity`
+      and `hi` are the model's block data and the field bound the emitted node is read at
+      (`SupportError.projField`). `hb` is the discriminant's own condition. -/
+  | proj {S : Name} {i : Nat} {b : Expr} {args : List Expr} {I : ReifiedInduct} {np nf : Nat}
       (hind : tbl.ind? S = some I) (hinf : InformativeInd env S)
+      (harity : IndArity env S np [nf]) (hi : i < nf)
       (hb : SupportedTm env tbl b []) :
       SupportedTm env tbl (.proj S i b) args
   /-- An application: the argument is a term of its own, and the head reads it in the spine. -/
@@ -478,6 +575,10 @@ structure Supported (env : VEnv) (tbl : SourceTable) (e : Expr) : Prop where
   /-- The shape of every reachable tabled body. -/
   bodies : ∀ (c : Name) (b : Expr), Reaches tbl e c → tbl.body? c = some b →
     SupportedTm env tbl b []
+  /-- No two tabled names share a λ□ key, so no emitted declaration shadows another
+      (`SupportError.kernameCollision`). -/
+  kernames : ∀ m m' : Name, (tbl.decl? m).isSome → (tbl.decl? m').isSome →
+    toKername m = toKername m' → m = m'
 
 /-! ## The projection head, read back
 
@@ -488,7 +589,7 @@ structure Supported (env : VEnv) (tbl : SourceTable) (e : Expr) : Prop where
 theorem SupportedTm.proj_inv {env : VEnv} {tbl : SourceTable} {S : Name} {i : Nat}
     {b : Expr} {args : List Expr} (h : SupportedTm env tbl (.proj S i b) args) :
     (∃ I, tbl.ind? S = some I) ∧ InformativeInd env S ∧ SupportedTm env tbl b [] := by
-  cases h with | proj hind hinf hb => exact ⟨⟨_, hind⟩, hinf, hb⟩
+  cases h with | proj hind hinf _ _ hb => exact ⟨⟨_, hind⟩, hinf, hb⟩
 
 /-- **The fact `Erases.proj` demands, read back off the fragment verdict.** -/
 theorem Supported.projInto {env : VEnv} {tbl : SourceTable} {S : Name} {i : Nat} {e : Expr}
@@ -535,7 +636,7 @@ theorem informativeInd_of_tabled (P : ErasureSpec lenv env Us gw)
     (ht : SourceTableAdequate lenv tbl) (hsafe : TableSafe lenv tbl) {J : Name}
     {I : ReifiedInduct} (hind : tbl.ind? J = some I) (hinf : informativeB I = true) :
     InformativeInd env J := by
-  obtain ⟨iv, hfind, -, htype, -, -, -, -, -⟩ := ht.inds J I (mem_of_lookup hind)
+  obtain ⟨iv, hfind, -, -, htype, -⟩ := ht.inds J I (mem_of_lookup hind)
   have hs := hsafe.inds J _ (by rw [hind]; rfl) hfind
   obtain ⟨vc, hvc, htr⟩ := P.decl_adequate J _ hfind hs
   refine ⟨vc, hvc, ?_⟩
@@ -548,6 +649,32 @@ theorem informativeInd_of_tabled (P : ErasureSpec lenv env Us gw)
     exact vResultSort_of_trExprS htr.2.2 hty hinf
   · exact Bool.noConfusion hinf
 
+/-- **A tabled inductive type is the model's type former for its own block**, at the parameter
+count and the per-constructor field counts the table records. The pin names the block, the
+type's own position in it and the kernel's indexing of its constructors;
+`ErasureSpec.BlockAdequate.fwd` reads that as `IndInfo`. -/
+theorem indInfo_of_tabled (P : ErasureSpec lenv env Us gw) (ht : SourceTableAdequate lenv tbl)
+    {J : Name} {I : ReifiedInduct} (hind : tbl.ind? J = some I) :
+    ∃ iid, IndInfo env J iid I.numParams (I.ctors.map (·.numFields)) := by
+  obtain ⟨iv, hfind, hname, -, -, hnp, -, hall, hmem, hcm, hcs⟩ :=
+    ht.inds J I (mem_of_lookup hind)
+  have hmem' : J ∈ iv.all := by rw [hall]; exact hmem
+  obtain ⟨i, hi⟩ := List.getElem?_of_mem hmem'
+  have hkf : KernelFields lenv iv (I.ctors.map (·.numFields)) := by
+    refine ⟨by rw [hcm]; simp, ?_⟩
+    intro j cn hcn
+    rw [hcm, List.getElem?_map] at hcn
+    obtain ⟨cb, hcb, rfl⟩ := Option.map_eq_some_iff.1 hcn
+    obtain ⟨cv, hcvf, -, hcidx, hjidx, hnpc, hnpI, hnf, hindc⟩ := hcs j cb hcb
+    refine ⟨cv, hcvf, ?_, ?_, ?_, ?_⟩
+    · rw [List.getElem?_map, hcb]; simp [hnf]
+    · rw [hindc, hname]
+    · rw [hcidx, hjidx]
+    · rw [hnpc, hnpI, hnp]
+  have hII := P.block_adequate.fwd J J iv iv i _ hfind hi hfind hkf
+  rw [hnp] at hII
+  exact ⟨_, hII⟩
+
 /-- The model can build a peano tower whenever the table can: `Nat` and its two constructors
 are tabled, hence pinned in `lenv`, hence constants of the model. -/
 theorem peanoReady_of_tabled (P : ErasureSpec lenv env Us gw)
@@ -556,15 +683,17 @@ theorem peanoReady_of_tabled (P : ErasureSpec lenv env Us gw)
   simp only [peanoReadyB] at h
   split at h
   · rename_i I hind
-    obtain ⟨iv, hfind, -, -, -, -, -, -, hctors⟩ := ht.inds _ I (mem_of_lookup hind)
+    obtain ⟨iv, hfind, -, -, -, -, -, -, -, -, hctors⟩ := ht.inds _ I (mem_of_lookup hind)
     simp only [Bool.and_eq_true, List.any_eq_true] at h
     obtain ⟨⟨cz, hczmem, hcz⟩, ⟨cs, hcsmem, hcs⟩⟩ := h
     simp only [beq_iff_eq] at hcz hcs
     refine ⟨P.contains_of_find hfind (hsafe.inds _ _ (by rw [hind]; rfl) hfind), ?_, ?_⟩
-    · obtain ⟨cv, hcvf, -⟩ := hctors cz hczmem
+    · obtain ⟨jz, hjz⟩ := List.getElem?_of_mem hczmem
+      obtain ⟨cv, hcvf, -⟩ := hctors jz cz hjz
       rw [hcz.1] at hcvf
       exact P.contains_of_find hcvf (hsafe.ctors _ I cz _ hind hczmem (hcz.1 ▸ hcvf))
-    · obtain ⟨cv, hcvf, -⟩ := hctors cs hcsmem
+    · obtain ⟨js, hjs⟩ := List.getElem?_of_mem hcsmem
+      obtain ⟨cv, hcvf, -⟩ := hctors js cs hjs
       rw [hcs.1] at hcvf
       exact P.contains_of_find hcvf (hsafe.ctors _ I cs _ hind hcsmem (hcs.1 ▸ hcvf))
   · exact Bool.noConfusion h
@@ -660,15 +789,16 @@ theorem supportedHead_sound (P : ErasureSpec lenv env Us gw) (ht : SourceTableAd
   split at h
   · rename_i hsome
     obtain ⟨I, hI⟩ := Option.isSome_iff_exists.1 (by simpa using hsome)
-    obtain ⟨iv, hfind, -, -, -, -, -, -, -⟩ := ht.inds c I (mem_of_lookup hI)
-    exact .indType hI (P.contains_of_find hfind (hsafe.inds c _ (by rw [hI]; rfl) hfind))
+    obtain ⟨iid, hII⟩ := indInfo_of_tabled P ht hI
+    exact .indType hI ⟨iid, _, _, hII⟩
   split at h
   · rename_i p hp
     obtain ⟨I, hI, hmem, hname⟩ := ctorOf?_spec hp
-    obtain ⟨-, -, -, -, -, -, -, -, hctors⟩ := ht.inds _ I (mem_of_lookup hI)
-    obtain ⟨cv, hcvf, -⟩ := hctors p.2 hmem
+    obtain ⟨-, -, -, -, -, -, -, -, -, -, hctors⟩ := ht.inds _ I (mem_of_lookup hI)
+    obtain ⟨j, hj⟩ := List.getElem?_of_mem hmem
+    obtain ⟨cv, hcvf, -⟩ := hctors j p.2 hj
     rw [hname] at hcvf
-    exact .ctor hp (P.contains_of_find hcvf (hsafe.ctors _ I p.2 _ hI hmem (hname ▸ hcvf)))
+    exact .ctor hp ⟨cv.induct, cv.cidx, P.block_adequate.ctor c cv hcvf⟩
   split at h
   · rename_i hsome
     obtain ⟨d, hd⟩ := Option.isSome_iff_exists.1 (by simpa using hsome)
@@ -713,7 +843,14 @@ theorem supportedGo_sound (P : ErasureSpec lenv env Us gw) (ht : SourceTableAdeq
       · exact .natLit (peanoReady_of_tabled P ht hsafe (by assumption)) (by assumption)
       · cases h
     | strVal s => simp only [supportedGo] at h; cases h
-  | mdata d b ihb => intro args h; exact .mdata (ihb args (by simpa only [supportedGo] using h))
+  | mdata d b ihb =>
+    intro args h
+    simp only [supportedGo] at h
+    split at h
+    · rename_i hemp
+      obtain rfl : args = [] := List.isEmpty_iff.1 hemp
+      exact .mdata (ihb [] h)
+    · cases h
   | proj S i b ihb =>
     intro args h
     simp only [supportedGo] at h
@@ -721,7 +858,17 @@ theorem supportedGo_sound (P : ErasureSpec lenv env Us gw) (ht : SourceTableAdeq
     · cases h
     rename_i I hI
     split at h
-    · exact .proj hI (informativeInd_of_tabled P ht hsafe hI (by assumption)) (ihb [] h)
+    · cases h
+    rename_i hinfB
+    split at h
+    · rename_i cb heq
+      split at h
+      · rename_i hlt
+        obtain ⟨iid, hII⟩ := indInfo_of_tabled P ht hI
+        simp only [heq, List.map_cons, List.map_nil] at hII
+        exact .proj hI (informativeInd_of_tabled P ht hsafe hI (by simpa using hinfB))
+          hII.arity hlt (ihb [] h)
+      · cases h
     · cases h
 
 /-- The δ-closure grows with the fuel: the constants of `e` are in every unfolding. -/
@@ -776,6 +923,9 @@ theorem supportedB_sound (P : ErasureSpec lenv env Us gw) (ht : SourceTableAdequ
     (hsafe : TableSafe lenv tbl) {fuel : Nat} {e : Expr}
     (h : supportedB tbl fuel e = .ok ()) : Supported env tbl e := by
   simp only [supportedB] at h
+  split at h
+  case isFalse => cases h
+  rename_i hsep
   cases hterm : supportedTerm tbl e with
   | error er => rw [hterm] at h; cases h
   | ok u =>
@@ -786,7 +936,8 @@ theorem supportedB_sound (P : ErasureSpec lenv env Us gw) (ht : SourceTableAdequ
       else .error SupportError.outOfFuel) = .ok () := h
     split at h
     · rename_i hsat
-      refine ⟨supportedGo_sound P ht hsafe e [] hterm, fun c b hreach hbody => ?_⟩
+      refine ⟨supportedGo_sound P ht hsafe e [] hterm, fun c b hreach hbody => ?_,
+        kernames_of_kernameSepB hsep⟩
       exact supportedGo_sound P ht hsafe b []
         (checkNames_sound h (mem_of_reaches hsat (fun d hd => mem_reachNames hd fuel) hreach)
           hbody)
@@ -819,7 +970,7 @@ theorem SupportedTm.instantiate1' {env : VEnv} {tbl : SourceTable} {e : Expr}
   | mdata _ ih => intro k; exact .mdata (ih k)
   | lam _ ihb => intro k; exact .lam (ihb (k + 1))
   | letE _ _ ihv ihb => intro k; exact .letE (ihv k) (ihb (k + 1))
-  | proj hind hinf _ ihb => intro k; exact .proj hind hinf (ihb k)
+  | proj hind hinf harity hi _ ihb => intro k; exact .proj hind hinf harity hi (ihb k)
   | app _ _ iha ihf => intro k; exact .app (iha k) (ihf k)
   | natLit hpeano hidx => intro _; exact .natLit hpeano hidx
   | @const c us args hplain hcases hrec hsat hknown =>
@@ -842,6 +993,126 @@ theorem SupportedTm.instantiate1 {env : VEnv} {tbl : SourceTable} {e : Expr}
     SupportedTm env tbl (e.instantiate1 (.fvar x)) (args.map (·.instantiate1 (.fvar x))) := by
   simp only [Lean.Expr.instantiate1_eq]
   exact h.instantiate1' x 0
+
+/-! ## The head, and the projection heads
+
+Two readings of a fragment verdict the bridge's steps consume: the head of a spine whose head
+is not a constant, and the block data every projection head carries.
+-/
+
+/-- The head of a term of the fragment is itself inside the fragment, at the empty spine. The
+metadata rule is what makes it true: `Expr.getAppFn` does not see through `.mdata`, so a
+metadata node is its own head and the rule reads it at the empty spine. -/
+theorem SupportedTm.head {env : VEnv} {tbl : SourceTable} {e : Expr} {args : List Expr}
+    (h : SupportedTm env tbl e args) (hnc : ∀ c us, e.getAppFn ≠ .const c us) :
+    SupportedTm env tbl e.getAppFn [] := by
+  revert hnc
+  induction h with
+  | bvar => intro _; exact .bvar
+  | fvar => intro _; exact .fvar
+  | sort => intro _; exact .sort
+  | forallE => intro _; exact .forallE
+  | mdata hb => intro _; exact .mdata hb
+  | lam hb => intro _; exact .lam hb
+  | letE hv hb => intro _; exact .letE hv hb
+  | proj hind hinf harity hi hb => intro _; exact .proj hind hinf harity hi hb
+  | natLit hp hidx => intro _; exact .natLit hp hidx
+  | app _ _ _ ihf => intro hnc; exact ihf hnc
+  | const => intro hnc; exact absurd rfl (hnc _ _)
+  | casesApp => intro hnc; exact absurd rfl (hnc _ _)
+
+/-- **The head of a fragment term that is not a constant application.** -/
+theorem Supported.head {env : VEnv} {tbl : SourceTable} {e : Expr} (h : Supported env tbl e)
+    (hnc : ∀ c us, e.getAppFn ≠ .const c us) : SupportedTm env tbl e.getAppFn [] :=
+  h.term.head hnc
+
+/-- **Every projection head of a fragment term carries its block data**, which is what
+`Erases.proj` and the totality lemma read. The projection rule's `harity` is the source of the
+`IndInfo`, through `IndArity.indInfo`. -/
+theorem Supported.projInfo {env : VEnv} {tbl : SourceTable} {e : Expr} {args : List Expr}
+    (h : SupportedTm env tbl e args) : ProjInfo env e := by
+  induction h with
+  | bvar => exact .bvar
+  | fvar => exact .fvar
+  | sort => exact .sort
+  | forallE => exact .forallE
+  | mdata _ ih => exact .mdata ih
+  | lam _ ih => exact .lam ih
+  | letE _ _ ihv ihb => exact .letE ihv ihb
+  | proj _ hinf harity hi _ ihb =>
+    obtain ⟨iid, hii⟩ := harity.indInfo
+    exact .proj ⟨iid, _, _, hii, hi⟩ hinf ihb
+  | app _ _ iha ihf => exact .app ihf iha
+  | natLit => exact .lit
+  | const => exact .const
+  | casesApp => exact .const
+
+/-! ## The `casesOn` metadata the run reads
+
+`Erasure.visitCases` branches on the `Lean.CasesInfo` the elaborator hands it; the fragment
+condition is stated against the table's reified inductive. This is their agreement, and the
+transport that reads it off the kernel-side twin `CasesInfoAgreesK`.
+-/
+
+/-- The `Lean.CasesInfo` the run reads for `c` agrees with the table's reified inductive: the
+discriminant sits after the parameters, the motive and the indices, the alternatives are the
+constructors, and each takes its constructor's fields. -/
+structure CasesInfoAgrees (ci : Lean.CasesInfo) (c : Name) (I : ReifiedInduct) : Prop where
+  /-- The information is the one recorded for `c`. -/
+  decl : ci.declName = c
+  /-- The discriminant follows the parameters, the motive and the indices. -/
+  discrPos : ci.discrPos = I.numParams + 1 + I.numIndices
+  /-- The eliminator is saturated by one minor premise per constructor. -/
+  arity : ci.arity = I.numParams + 1 + I.numIndices + 1 + I.ctors.length
+  /-- The alternatives begin one past the discriminant and end at the arity. -/
+  altsRange : ci.altsRange.lower = ci.discrPos + 1 ∧ ci.altsRange.upper = ci.arity
+  /-- Each alternative binds its constructor's fields. -/
+  numFields : ∀ (j : Nat) (a : Lean.CasesAltInfo) (cb : ReifiedCtor),
+    ci.altNumParams[j]? = some a → I.ctors[j]? = some cb → altNumFields a = cb.numFields
+
+/-- **The kernel-side agreement, transported to the table.** `CasesInfoAgreesK` reads the
+`Lean.CasesInfo` against the `Lean.InductiveVal` the elaboration environment declares, and the
+pin carries that block's arithmetic to the reified one. -/
+theorem CasesInfoAgrees.of_pinned {lenv : Lean.Environment} {tbl : SourceTable}
+    {ci : Lean.CasesInfo} {c : Name} {I : ReifiedInduct} (htbl : SourceTableAdequate lenv tbl)
+    (hind : tbl.ind? c.getPrefix = some I) (hdecl : ci.declName = c)
+    (h : ∀ iv : InductiveVal, lenv.find? c.getPrefix = some (.inductInfo iv) →
+      CasesInfoAgreesK lenv ci iv) :
+    CasesInfoAgrees ci c I := by
+  obtain ⟨iv, hfind, -, -, -, hnp, hni, -, -, hcm, hcs⟩ :=
+    htbl.inds _ I (mem_of_lookup hind)
+  have hK := h iv hfind
+  have hlen : iv.ctors.length = I.ctors.length := by rw [hcm]; simp
+  refine ⟨hdecl, ?_, ?_, hK.altsRange, ?_⟩
+  · rw [hK.discrPos, hnp, hni]
+  · rw [hK.arity, hnp, hni, hlen]
+  · intro j a cb ha hcb
+    obtain ⟨cv, hcvf, -, -, -, -, -, hnf, -⟩ := hcs j cb hcb
+    have hcn : iv.ctors[j]? = some cb.name := by rw [hcm, List.getElem?_map, hcb]; rfl
+    exact (hK.numFields j a cb.name cv ha hcn hcvf).trans hnf
+
+/-! ## The blocks the run installs -/
+
+/-- The blocks `Erasure.visitMutual` installs a fixvar map for, against the table the run is
+checked against. Class **D**, beside `TableSafe`, and mechanised by `lake exe reify --blocks`:
+`Witness.fixBlock?` is a `Lean.Environment` read, and no column of the reified table carries
+it. -/
+structure TableBlocks (lenv : Lean.Environment) (env : VEnv) (tbl : SourceTable) : Prop where
+  /-- Every member of an installed block is itself tabled, which is what the key-separation
+      conjunct of the reader's block description needs. -/
+  members : ∀ (n : Name) (nms : List Name), (tbl.decl? n).isSome →
+    fixBlock? lenv n = some nms → ∀ m ∈ nms, (tbl.decl? m).isSome
+  /-- Every member's tabled body is λ-headed, which is what makes the emitted member body a
+      `.lambda` and the installed block a well-formed `.fix`. -/
+  lamHeaded : ∀ (n : Name) (nms : List Name), (tbl.decl? n).isSome →
+    fixBlock? lenv n = some nms →
+    ∀ (m : Name) (b : Expr), m ∈ nms → tbl.body? m = some b → b.isLambda = true
+  /-- No member is erasable, so none erases to `□` — stated as the negation the oracle's
+      soundness contradicts, with `InformativeInd` as its precedent. -/
+  informative : ∀ (n : Name) (nms : List Name), (tbl.decl? n).isSome →
+    fixBlock? lenv n = some nms →
+    ∀ (m : Name) (b : Expr) (vb : VExpr), m ∈ nms → tbl.body? m = some b →
+      TrExprS env [] [] b vb → ¬ Erasable env 0 [] vb
 
 /-! ## Self-test -/
 

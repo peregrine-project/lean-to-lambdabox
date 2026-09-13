@@ -5,9 +5,12 @@ One `#print axioms` per line; a result whose footprint changes changes the fixtu
 The commented line is the ledger row of `doc/rework/01-DESIGN.md` §4.14 that no theorem
 inhabits yet; it is uncommented by the unit that proves the theorem it names. The two
 `visitExpr_refines_*` rows measure the bridge as it stands: an implication whose eighteen
-member steps are hypotheses, four of which have no supplier, so the clean footprint is the
-aggregator's own and not the composed bridge's — `doc/trust.md`'s `hbridge` row carries the
-open ones. The other rows are the §5 theorems that exist — the simulation and its three arms, the
+member steps are hypotheses, so the clean footprint is the aggregator's own and not the
+composed bridge's. `ErasureSpec.oracle_sound_of_run` is the entry point of the
+executable-checker cluster (`doc/trust.md` §(a3)), measured on its own so that the cluster is
+pinned independently of the results that inherit it — `erasure_bridge_of_run`, which supplies
+seventeen of the eighteen steps, and everything closed on it. The other rows are the §5
+theorems that exist — the simulation and its three arms, the
 corollaries of `ErasesEnv` and of `UpstreamAsks` the arms spend, the first-order answer,
 the pass layer's two transports, subject reduction, the `optimize` corollary, the certified
 evaluator, and one line per green rung. `ErasesEnv.tabled`'s discharge is measured as its
@@ -42,6 +45,7 @@ import LeanToLambdaBox
 #print axioms LeanToLambdaBox.Lower.constToFix
 #print axioms LeanToLambdaBox.constants_of_tabled
 #print axioms LeanToLambdaBox.constOrigin_of_constants
+#print axioms LeanToLambdaBox.ErasureSpec.oracle_sound_of_run
 #print axioms LeanToLambdaBox.visitExpr_refines_erasesLB
 #print axioms LeanToLambdaBox.visitExpr_refines_erasesLBFix
 #print axioms LeanToLambdaBox.shipping_erase_correct_firstorder

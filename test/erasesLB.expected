@@ -44,6 +44,16 @@ ErasesLBFixAlts : Lean4Lean.VEnv →
         (∀ (i : Nat), i < args.length → ErasesLB env Us Γ Δ args[i]! args'[i]!) →
           ErasesLB env Us Γ Δ (List.foldl Lean.Expr.app (Lean.Expr.const cn us) args)
             ((LBTerm.construct iid k []).mkApps args')
+@ErasesLB.lit : ∀ {env : Lean4Lean.VEnv} {Us : List Lean.Name} {Γ : GlobalDeclarations} {Δ : Lean4Lean.VLCtx}
+  {l : Lean.Literal} {t : LBTerm},
+  env.ContainsLits l → ErasesLB env Us Γ Δ l.toConstructor t → ErasesLB env Us Γ Δ (Lean.Expr.lit l) t
+@ErasesLB.proj : ∀ {env : Lean4Lean.VEnv} {Us : List Lean.Name} {Γ : GlobalDeclarations} {Δ : Lean4Lean.VLCtx}
+  {S : Lean.Name} {i : Nat} {e : Lean.Expr} {t : LBTerm} {iid : InductiveId} {np nf : Nat},
+  IndInfo env S iid np [nf] →
+    InformativeInd env S →
+      i < nf →
+        ErasesLB env Us Γ Δ e t →
+          ErasesLB env Us Γ Δ (Lean.Expr.proj S i e) (LBTerm.proj { indType := iid, paramCount := np, fieldIdx := i } t)
 @ErasesLB.fix : ∀ {env : Lean4Lean.VEnv} {Us : List Lean.Name} {Γ : GlobalDeclarations} {Δ : Lean4Lean.VLCtx}
   {cn : Lean.Name} {us : List Lean.Level} {ci : Lean4Lean.VConstant} {kns : List Kername} {bs bs' : List LBTerm}
   {ids : List Lean.FVarId} {defs : List FixDef} {j : Nat},
@@ -117,6 +127,19 @@ ErasesLBFixAlts : Lean4Lean.VEnv →
         (∀ (i : Nat), i < args.length → ErasesLBFix env Us Γ kns ids Δ args[i]! args'[i]!) →
           ErasesLBFix env Us Γ kns ids Δ (List.foldl Lean.Expr.app (Lean.Expr.const cn us) args)
             ((LBTerm.construct iid k []).mkApps args')
+@ErasesLBFix.lit : ∀ {env : Lean4Lean.VEnv} {Us : List Lean.Name} {Γ : GlobalDeclarations} {Δ : Lean4Lean.VLCtx}
+  {kns : List Kername} {ids : List Lean.FVarId} {l : Lean.Literal} {t : LBTerm},
+  env.ContainsLits l →
+    ErasesLBFix env Us Γ kns ids Δ l.toConstructor t → ErasesLBFix env Us Γ kns ids Δ (Lean.Expr.lit l) t
+@ErasesLBFix.proj : ∀ {env : Lean4Lean.VEnv} {Us : List Lean.Name} {Γ : GlobalDeclarations} {Δ : Lean4Lean.VLCtx}
+  {kns : List Kername} {ids : List Lean.FVarId} {S : Lean.Name} {i : Nat} {e : Lean.Expr} {t : LBTerm}
+  {iid : InductiveId} {np nf : Nat},
+  IndInfo env S iid np [nf] →
+    InformativeInd env S →
+      i < nf →
+        ErasesLBFix env Us Γ kns ids Δ e t →
+          ErasesLBFix env Us Γ kns ids Δ (Lean.Expr.proj S i e)
+            (LBTerm.proj { indType := iid, paramCount := np, fieldIdx := i } t)
 @ErasesLBFix.cases : ∀ {env : Lean4Lean.VEnv} {Us : List Lean.Name} {Γ : GlobalDeclarations} {Δ : Lean4Lean.VLCtx}
   {kns : List Kername} {ids : List Lean.FVarId} {con : Lean.Name} {us : List Lean.Level} {ci : Lean4Lean.VConstant}
   {iid : InductiveId} {np dp : Nat} {nfs : List Nat} {args : List Lean.Expr} {disc : LBTerm}
@@ -149,6 +172,8 @@ ErasesLBFixAlts : Lean4Lean.VEnv →
 'LeanToLambdaBox.ErasesLB.app' depends on axioms: [propext, Classical.choice, Quot.sound]
 'LeanToLambdaBox.ErasesLB.ctor_head' depends on axioms: [propext, Classical.choice, Quot.sound]
 'LeanToLambdaBox.ErasesLB.ctor' depends on axioms: [propext, Classical.choice, Quot.sound]
+'LeanToLambdaBox.ErasesLB.lit' depends on axioms: [propext, Classical.choice, Quot.sound]
+'LeanToLambdaBox.ErasesLB.proj' depends on axioms: [propext, Classical.choice, Quot.sound]
 'LeanToLambdaBox.ErasesLB.fix' depends on axioms: [propext, Classical.choice, Quot.sound]
 'LeanToLambdaBox.ErasesLB.cases' depends on axioms: [propext, Classical.choice, Quot.sound]
 'LeanToLambdaBox.erasesLB_of_spine' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -157,5 +182,7 @@ ErasesLBFixAlts : Lean4Lean.VEnv →
 'LeanToLambdaBox.ErasesLBFix.app' depends on axioms: [propext, Classical.choice, Quot.sound]
 'LeanToLambdaBox.ErasesLBFix.ctor_head' depends on axioms: [propext, Classical.choice, Quot.sound]
 'LeanToLambdaBox.ErasesLBFix.ctor' depends on axioms: [propext, Classical.choice, Quot.sound]
+'LeanToLambdaBox.ErasesLBFix.lit' depends on axioms: [propext, Classical.choice, Quot.sound]
+'LeanToLambdaBox.ErasesLBFix.proj' depends on axioms: [propext, Classical.choice, Quot.sound]
 'LeanToLambdaBox.ErasesLBFix.cases' depends on axioms: [propext, Classical.choice, Quot.sound]
 'LeanToLambdaBox.ErasesLBFix.fix' depends on axioms: [propext, Classical.choice, Quot.sound]

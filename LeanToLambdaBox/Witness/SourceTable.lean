@@ -113,6 +113,18 @@ the case `Erasure.visitMutual` emits an axiom for. -/
 def compilerValue? (lenv : Environment) (n : Name) : Option Expr :=
   (compilerInfo? lenv n).bind (·.value? (allowOpaque := true))
 
+/-- The block `Erasure.visitMutual` installs a fixvar map for at `n`, and `none` when it takes
+its non-recursive exit or emits an axiom. Mirrors the gate at `Erasure.visitMutual`, read off
+`compilerInfo?`, which is `Lean.Compiler.LCNF.getDeclInfo?` at the ambient environment
+(`compilerInfo?_eq`). The members are the block's names after the `_unsafe_rec` stripping the
+run applies. -/
+def fixBlock? (lenv : Environment) (n : Name) : Option (List Name) :=
+  match compilerInfo? lenv n, compilerValue? lenv n with
+  | some ci, some v =>
+    if ci.all.length == 1 && !Erasure.name_occurs n v then none
+    else some (ci.all.map Erasure.remove_unsafe_rec)
+  | _, _ => none
+
 /-- Does the table carry a body for a constant of this kind? Definitions and opaque constants
 do — they are the kinds `Erasure.visitMutual` opens. Axioms, theorems, quotient primitives,
 constructors and recursors do not, and the eraser reads none of their bodies: a proof is boxed
@@ -188,17 +200,21 @@ def ReifiedDecl.Prepared (lenv : Environment) (n : Name) (d : ReifiedDecl) : Pro
         ctx.config.csimp = false →
         Erasure.prepare_erasure v s ctx cctx ref w = .ok (b', s') w' → Expr.AlphaEq b' b
 
-/-- The per-inductive pin: `lenv` knows `n` as an inductive type with the block data the table
-records, and each tabled constructor is `lenv`'s constructor of `n` with that type, index and
-parameter/field split. -/
+/-- The per-inductive pin: `lenv` knows `n` as an inductive type of that name, listed in its
+own block, with the block data the table records, and each tabled constructor is `lenv`'s
+constructor of `n` at its position in the tabled list, with that type, index, parameter count
+and field count. The positional clauses are the kernel's own indexing invariants; they are what
+carries the table's arithmetic to `ErasureSpec.KernelFields`. -/
 def ReifiedInduct.Pinned (lenv : Environment) (n : Name) (I : ReifiedInduct) : Prop :=
-  ∃ iv, lenv.find? n = some (.inductInfo iv) ∧
+  ∃ iv, lenv.find? n = some (.inductInfo iv) ∧ iv.name = n ∧
     iv.levelParams = I.levelParams ∧ iv.type = I.type ∧
     iv.numParams = I.numParams ∧ iv.numIndices = I.numIndices ∧
-    iv.all = I.all ∧ iv.ctors = I.ctors.map (·.name) ∧
-    ∀ c ∈ I.ctors, ∃ cv, lenv.find? c.name = some (.ctorInfo cv) ∧
-      cv.type = c.type ∧ cv.cidx = c.cidx ∧
-      cv.numParams = c.numParams ∧ cv.numFields = c.numFields ∧ cv.induct = n
+    iv.all = I.all ∧ n ∈ I.all ∧ iv.ctors = I.ctors.map (·.name) ∧
+    ∀ (j : Nat) (c : ReifiedCtor), I.ctors[j]? = some c →
+      ∃ cv, lenv.find? c.name = some (.ctorInfo cv) ∧
+        cv.type = c.type ∧ cv.cidx = c.cidx ∧ c.cidx = j ∧
+        cv.numParams = c.numParams ∧ c.numParams = I.numParams ∧
+        cv.numFields = c.numFields ∧ cv.induct = n
 
 /-- The table is a faithful copy of the slice of `lenv` it claims: every tabled constant is
 pinned and its tabled body is what `Erasure.prepare_erasure` computes from the constant's
@@ -412,19 +428,22 @@ def checkDecl (n : Name) (d : ReifiedDecl) :
   return (ms, ns)
 
 /-- Check one tabled inductive type against the live environment: block data against the
-`Lean.InductiveVal`, and every tabled constructor against its `Lean.ConstructorVal`. -/
+`Lean.InductiveVal` — its name, its membership in its own block included — and every tabled
+constructor against its `Lean.ConstructorVal`, at its position in the tabled list. -/
 def checkInd (n : Name) (I : ReifiedInduct) : CoreM (Array TableMismatch) := do
   let some (.inductInfo iv) := (← getEnv).find? n | return #[.notInductive n]
   let mut ms := #[]
-  if iv.levelParams != I.levelParams || !iv.type.equal I.type || iv.numParams != I.numParams
-      || iv.numIndices != I.numIndices || iv.all != I.all then
+  if iv.name != n || iv.levelParams != I.levelParams || !iv.type.equal I.type
+      || iv.numParams != I.numParams || iv.numIndices != I.numIndices || iv.all != I.all
+      || !I.all.contains n then
     ms := ms.push (.indBlock n)
   if iv.ctors != I.ctors.map (·.name) then
     return ms.push (.ctorList n)
-  for c in I.ctors do
+  for (c, j) in I.ctors.zipIdx do
     match (← getEnv).find? c.name with
     | some (.ctorInfo cv) =>
-      if !cv.type.equal c.type || cv.cidx != c.cidx || cv.numParams != c.numParams
+      if !cv.type.equal c.type || cv.cidx != c.cidx || c.cidx != j
+          || cv.numParams != c.numParams || c.numParams != I.numParams
           || cv.numFields != c.numFields || cv.induct != n then
         ms := ms.push (.ctorField n c.name)
     | _ => ms := ms.push (.ctorField n c.name)

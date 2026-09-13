@@ -510,6 +510,30 @@ theorem run_prepare_erasure_state {e : Expr} {s : ErasureState} {ctx : ErasureCo
     (hrun : prepare_erasure e s ctx cctx ref w = .ok (pe, s₁) w₁) : s₁ = s :=
   (run_prepare_erasure_ok hcs hrun).1
 
+/-- **The preprocessing preserves the source evaluation, under any application spine.** Four
+applications of `EraserAsks.passes_sound`, one per call `run_prepare_erasure_ok` exposes. The
+spine is quantified because the capstone reads its observable at `mkApps e args` while the
+passes run on `e` alone and are whole-tree `Lean.Core.transform` walks, so `f (mkApps e args)`
+is not `mkApps (f e) args`. -/
+theorem prepare_sound {lenv : Environment} {env : Lean4Lean.VEnv} {Us : List Name}
+    {gw : Void IO.RealWorld → NameGenerator} (E : EraserAsks lenv env Us gw)
+    {e pe : Expr} {s s₁ : ErasureState} {ctx : ErasureContext}
+    {w w₁ : Void IO.RealWorld}
+    (hcs : ctx.config.csimp = false)
+    (hrun : prepare_erasure e s ctx cctx ref w = .ok (pe, s₁) w₁) :
+    ∀ (args : List Expr) (bo : Name → Option Expr) (Us' : List Name) (fl : SEvalFlags)
+      (Δ : Lean4Lean.VLCtx) (v : Expr),
+      SEval env bo Us' fl Δ (mkApps e args) v → SEval env bo Us' fl Δ (mkApps pe args) v := by
+  obtain ⟨-, e₁, e₂, e₃, v₁, v₂, v₃, h1, h2, h3, h4⟩ := run_prepare_erasure_ok hcs hrun
+  intro args bo Us' fl Δ v hev
+  have m1 : Erasure.replaceUnsafeRecNames ∈ preparePasses := by simp [preparePasses]
+  have m2 : Lean.Compiler.LCNF.macroInline ∈ preparePasses := by simp [preparePasses]
+  have m3 : Lean.Compiler.LCNF.inlineMatchers ∈ preparePasses := by simp [preparePasses]
+  have s1 := E.passes_sound _ m1 e e₁ s ctx cctx ref w s v₁ h1 args bo Us' fl Δ v hev
+  have s2 := E.passes_sound _ m2 e₁ e₂ s ctx cctx ref v₁ s v₂ h2 args bo Us' fl Δ v s1
+  have s3 := E.passes_sound _ m3 e₂ e₃ s ctx cctx ref v₂ s v₃ h3 args bo Us' fl Δ v s2
+  exact E.passes_sound _ m2 e₃ pe s ctx cctx ref v₃ s w₁ h4 args bo Us' fl Δ v s3
+
 end Prepare
 
 /-! ## The entry point

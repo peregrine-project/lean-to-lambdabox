@@ -106,6 +106,18 @@ theorem IndInfo.arity {env : VEnv} {I : Name} {iid : InductiveId} {np : Nat} {nf
   let ⟨ds, env₀, decl, t, hds, hd, hle, ht, hname, _, hnp, hnfs⟩ := h.block
   ⟨ds, env₀, decl, t, hds, hd, hle, List.mem_of_getElem? ht, hname, hnp, hnfs⟩
 
+/-- The converse of `IndInfo.arity`: source-coordinate block data names a position in its own
+block, so it exhibits a λ□ identifier. The identifier is not unique data — it is read off the
+block the witness already carries — which is why the arity form is the one a source-side rule
+holds. -/
+theorem IndArity.indInfo {env : VEnv} {I : Name} {np : Nat} {nfs : List Nat}
+    (h : IndArity env I np nfs) : ∃ iid, IndInfo env I iid np nfs := by
+  obtain ⟨ds, env₀, decl, t, hds, hd, hle, hmem, hname, hnp, hnfs⟩ := h
+  obtain ⟨idx, hidx⟩ : ∃ idx : Nat, decl.types[idx]? = some t := List.getElem?_of_mem hmem
+  refine ⟨⟨indBlockKername (decl.types.map (·.name)), idx⟩,
+    ⟨ds, env₀, decl, t, hds, hd, hle, hidx, hname, ?_, hnp, hnfs⟩⟩
+  rfl
+
 /-- Source-coordinate block data survives environment extension. -/
 theorem IndArity.mono {env env' : VEnv} {I : Name} {np : Nat} {nfs : List Nat}
     (hle : env ≤ env') (h : IndArity env I np nfs) : IndArity env' I np nfs :=

@@ -84,6 +84,14 @@ commute with `shift` and `subst`. -/
 def ClosedBodies (Γ : GlobalDeclarations) : Prop :=
   ∀ kn b, DefnDecl Γ kn b → LBClosed b 0
 
+/-- Every constant declared in `Γ` has a body free of free variables. Independent of
+`ClosedBodies`, whose `LBClosed` clause at an `.fvar` node is `True`
+(`noFVar_needs_fvarFree`), and it is what makes the pass commute with abstraction: the two
+fix arms build their target out of `Γ`'s declared bodies, so a stray variable there would be
+abstracted on the target and nowhere on the source. -/
+def FVarFreeBodies (Γ : GlobalDeclarations) : Prop :=
+  ∀ (kn : Kername) (b : LBTerm) (x : FVarId), DefnDecl Γ kn b → ¬ hasFVar x b
+
 /-- **Two eliminator declarations at one key agree.** `LBTerm.envLookup` is a function, so
 both readings hold one body, and that body fixes the data: `mkElimBody` and `mkElimBodyRec`
 are each injective in `(iid, np, dp, nfs)` and are never equal to one another — one is a
@@ -230,6 +238,93 @@ inductive ConstToFVar (kns : List Kername) (ids : List FVarId) : LBTerm → LBTe
 then abstract those variables with `closeFix`, which is exactly `mkDef`'s fold. -/
 def CloseConstAt (kns : List Kername) (ids : List FVarId) (t u : LBTerm) : Prop :=
   ∃ t', ConstToFVar kns ids t t' ∧ u = closeFix ids 0 t'
+
+/-! ### The block closure has no free variable
+
+`ConstToFVar` introduces only the block's own identifiers and `closeFix` abstracts exactly
+those, so a block body built from a variable-free declaration is variable-free at **every**
+variable. That is what makes the two fix arms of `Lower` replay under abstraction. -/
+
+/-- `ConstToFVar` introduces only the block's own identifiers. -/
+theorem constToFVar_not_hasFVar {kns : List Kername} {ids : List FVarId} {x : FVarId} :
+    ∀ {b u : LBTerm}, ConstToFVar kns ids b u → ¬ hasFVar x b → x ∉ ids → ¬ hasFVar x u := by
+  intro b u h
+  induction h with
+  | box | bvar | prim | miss => exact fun hb _ => hb
+  | fvar y => exact fun hb _ => hb
+  | @hit j kn y hkn hy =>
+      intro _ hx hc
+      simp only [hasFVar_fvar] at hc
+      subst hc
+      exact hx (List.mem_of_getElem? hy)
+  | lambda _ ih => exact fun hb hx => ih hb hx
+  | letIn _ _ ihv ihb =>
+      intro hb hx
+      simp only [hasFVar_letIn, not_or] at hb ⊢
+      exact ⟨ihv hb.1 hx, ihb hb.2 hx⟩
+  | app _ _ ihf iha =>
+      intro hb hx
+      simp only [hasFVar_app, not_or] at hb ⊢
+      exact ⟨ihf hb.1 hx, iha hb.2 hx⟩
+  | proj _ ih => exact fun hb hx => ih hb hx
+  | @construct iid k args args' hlen _ ih =>
+      intro hb hx
+      simp only [hasFVar_construct, hasFVarArgs_iff, not_exists, not_and] at hb ⊢
+      intro t ht hc
+      obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem ht
+      have hi' : i < args.length := by omega
+      refine ih i hi' ?_ hx ?_
+      · rw [getElem!_pos args i hi']
+        exact fun hcc => hb args[i] (List.getElem_mem hi') hcc
+      · rw [getElem!_pos args' i hi]
+        exact hc
+  | @«case» ip d d' alts alts' _ hlen hn _ ihd ihb =>
+      intro hb hx
+      simp only [hasFVar_case, not_or] at hb ⊢
+      refine ⟨ihd hb.1 hx, ?_⟩
+      simp only [hasFVarAlts_iff, not_exists, not_and] at hb ⊢
+      intro a ha hc
+      obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem ha
+      have hi' : i < alts.length := by omega
+      refine ihb i hi' ?_ hx ?_
+      · rw [getElem!_pos alts i hi']
+        exact fun hcc => hb.2 alts[i] (List.getElem_mem hi') hcc
+      · rw [getElem!_pos alts' i hi]
+        exact hc
+  | fix defs i => exact fun hb _ => hb
+
+/-- The block closure of a variable-free body is variable-free at every variable, the
+block's own identifiers included, since `closeFix` abstracts exactly those. -/
+theorem closeConstAt_not_hasFVar {kns : List Kername} {ids : List FVarId} {b u : LBTerm}
+    {x : FVarId} (h : CloseConstAt kns ids b u) (hb : ¬ hasFVar x b) : ¬ hasFVar x u := by
+  obtain ⟨t', hc, rfl⟩ := h
+  intro hocc
+  obtain ⟨hx, hocc'⟩ := hasFVar_closeFix_of hocc
+  exact constToFVar_not_hasFVar hc hb hx hocc'
+
+/-- The `.fix` node a block builds has no free variable at all, given variable-free
+declared bodies for its members. -/
+theorem fixNode_not_hasFVar {kns : List Kername} {bs' : List LBTerm} {ids : List FVarId}
+    {defs : List (@FixDef LBTerm)} {x : FVarId} {j : Nat}
+    (hd : defs.length = kns.length)
+    (hcl : ∀ i, i < kns.length → CloseConstAt kns ids bs'[i]! (defs[i]!).body)
+    (hnf : ∀ i, i < kns.length → ¬ hasFVar x bs'[i]!) :
+    ¬ hasFVar x (LBTerm.fix defs j) := by
+  simp only [hasFVar_fix, hasFVarDefs_iff, not_exists, not_and]
+  intro d hdm
+  obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hdm
+  have hik : i < kns.length := by omega
+  rw [show defs[i] = defs[i]! from (getElem!_pos defs i hi).symm]
+  exact closeConstAt_not_hasFVar (hcl i hik) (hnf i hik)
+
+/-- Abstraction is therefore the identity on a block's `.fix` node. -/
+theorem toBvar_fixNode {kns : List Kername} {bs' : List LBTerm} {ids : List FVarId}
+    {defs : List (@FixDef LBTerm)} {x : FVarId} {j lvl : Nat}
+    (hd : defs.length = kns.length)
+    (hcl : ∀ i, i < kns.length → CloseConstAt kns ids bs'[i]! (defs[i]!).body)
+    (hnf : ∀ i, i < kns.length → ¬ hasFVar x bs'[i]!) :
+    toBvar x lvl (LBTerm.fix defs j) = LBTerm.fix defs j :=
+  toBvar_eq_of_not_hasFVar x lvl _ (fixNode_not_hasFVar hd hcl hnf)
 
 /-! ## The relation -/
 
@@ -435,6 +530,15 @@ theorem LBTerm.subst_mkApps (s : LBTerm) (d : Nat) (f : LBTerm) (args : List LBT
   induction args generalizing f with
   | nil => rfl
   | cons a as ih => simpa [LBTerm.mkApps, LBTerm.subst] using ih (.app f a)
+
+/-- Abstraction distributes over an application spine, which is what the `elimApp` arm of
+`Lower.abstract` needs. -/
+theorem toBvar_mkApps (x : FVarId) (lvl : Nat) :
+    ∀ (l : List LBTerm) (f : LBTerm),
+      toBvar x lvl (LBTerm.mkApps f l) = LBTerm.mkApps (toBvar x lvl f) (l.map (toBvar x lvl))
+  | [], f => rfl
+  | a :: as, f => by
+      simpa [LBTerm.mkApps, toBvar] using toBvar_mkApps x lvl as (.app f a)
 
 /-- Two shifts with disjoint roles commute: pushing `n` binders in at `b` moves the outer
 cutoff `c` up by `n`. -/
@@ -851,6 +955,341 @@ theorem Lower.subst_comm {Γ : GlobalDeclarations} (hΓ : ClosedBodies Γ)
       have e : d + (alt.1.length + 1) = (d + 1) + alt.1.length := by omega
       rw [e]
       exact .lam hih
+
+
+/-! ## The pass commutes with abstraction
+
+`Erasure.mkLambda`, `mkLetIn` and `mkAlt` close a binder with `abstract x = toBvar x 0`, and
+`Erases.uninstantiate` closes the erasure image with the same operator, so the pass factor
+has to follow. It does at twelve of the fourteen arms by congruence; at `fixConst` and
+`fixBody` the target is built out of `Γ`'s own declared bodies, and abstracting a variable
+occurring in one of them would demand a block the declaration does not declare. The side
+condition is therefore `FVarFreeBodies`, and it is necessary: `noFVar_needs_fvarFree` and
+`abstract_needs_fvarFree` refute both laws with `ClosedBodies` granted. -/
+
+/-- **`Lower` introduces no free variable**, given variable-free declared bodies. Both fix
+arms go through `fixNode_not_hasFVar`, so neither uses its induction hypothesis on the
+block; that is why this is proved before, and independently of, `Lower.abstract`. -/
+theorem Lower.noFVar {Γ : GlobalDeclarations} (hfv : FVarFreeBodies Γ) {x : FVarId}
+    {s t : LBTerm} (h : Lower Γ s t) : ¬ hasFVar x s → ¬ hasFVar x t := by
+  have hma : ∀ (l : List LBTerm) (f : LBTerm),
+      hasFVar x (LBTerm.mkApps f l) ↔ hasFVar x f ∨ ∃ a ∈ l, hasFVar x a := by
+    intro l
+    induction l with
+    | nil => intro f; simp [LBTerm.mkApps]
+    | cons a as ih =>
+        intro f
+        rw [show LBTerm.mkApps f (a :: as) = LBTerm.mkApps (.app f a) as from rfl, ih]
+        simp only [hasFVar_app, List.mem_cons]
+        constructor
+        · rintro ((hf | ha) | ⟨y, hy, hxy⟩)
+          · exact .inl hf
+          · exact .inr ⟨a, .inl rfl, ha⟩
+          · exact .inr ⟨y, .inr hy, hxy⟩
+        · rintro (hf | ⟨y, (rfl | hy), hxy⟩)
+          · exact .inl (.inl hf)
+          · exact .inl (.inr hxy)
+          · exact .inr ⟨y, hy, hxy⟩
+  induction h using Lower.rec
+    (motive_2 := fun _nf m alt _ => ¬ hasFVar x m → ¬ hasFVar x alt.2) with
+  | box | bvar | fvar | prim | const => exact id
+  | lambda _ ih => exact ih
+  | letIn _ _ ihv ihb =>
+      intro hh
+      simp only [hasFVar_letIn, not_or] at hh ⊢
+      exact ⟨ihv hh.1, ihb hh.2⟩
+  | app _ _ ihf iha =>
+      intro hh
+      simp only [hasFVar_app, not_or] at hh ⊢
+      exact ⟨ihf hh.1, iha hh.2⟩
+  | proj _ ih => exact ih
+  | @construct iid k args args' hlen _ ih =>
+      intro hh
+      simp only [hasFVar_construct, hasFVarArgs_iff, not_exists, not_and] at hh ⊢
+      intro a ha
+      obtain ⟨i, hi, rfl⟩ := Lower.mem_getElem! ha
+      exact ih i (by omega) (hh _ (Lower.getElem!_mem (by omega)))
+  | @«case» ip d d' alts alts' _ hlen hn _ ihd ihb =>
+      intro hh
+      simp only [hasFVar_case, not_or, hasFVarAlts_iff, not_exists, not_and] at hh ⊢
+      refine ⟨ihd hh.1, ?_⟩
+      intro a ha
+      obtain ⟨i, hi, rfl⟩ := Lower.mem_getElem! ha
+      exact ihb i (by omega) (hh.2 _ (Lower.getElem!_mem (by omega)))
+  | @elimApp kn iid np dp nfs pre disc disc' minors alts extra extra'
+      hh hlen hmlen halen _ _ hxlen _ ihmin ihd ihx =>
+      intro hnf hc
+      have hargs : ∀ a ∈ pre ++ disc :: minors ++ extra, ¬ hasFVar x a := by
+        intro a ha hca
+        exact hnf ((hma _ _).mpr (.inr ⟨a, ha, hca⟩))
+      rcases (hma extra' _).mp hc with hcc | ⟨a, ha, hca⟩
+      · rw [hasFVar_case] at hcc
+        rcases hcc with hcc | hcc
+        · exact ihd (hargs disc (by simp)) hcc
+        · rw [hasFVarAlts_iff] at hcc
+          obtain ⟨a, ha, hca⟩ := hcc
+          obtain ⟨i, hi, rfl⟩ := Lower.mem_getElem! ha
+          exact ihmin i (by omega) (hargs _ (List.mem_append_left extra
+            (List.mem_append_right pre
+              (List.mem_cons_of_mem _ (Lower.getElem!_mem (by omega)))))) hca
+      · obtain ⟨i, hi, rfl⟩ := Lower.mem_getElem! ha
+        exact ihx i (by omega)
+          (hargs _ (List.mem_append_right _ (Lower.getElem!_mem (by omega)))) hca
+  | @fixConst kn kns bs bs' ids defs j hb hb' hdl hnd hids hilen hfresh hrarg hdecl hfl hlow
+      hcl hnk hj ih =>
+      intro _
+      exact fixNode_not_hasFVar hdl hcl (fun i hi => ih i hi (hfv _ _ _ (hdecl i hi)))
+  | @fixBody b kns bs bs' ids defs j hb hb' hdl hnd hids hilen hfresh hrarg hdecl hfl hlow
+      hcl hj hjl ih =>
+      intro _
+      exact fixNode_not_hasFVar hdl hcl (fun i hi => ih i hi (hfv _ _ _ (hdecl i hi)))
+  | done _ ih => rename_i hh; exact ih hh
+  | @lam nf n n' m alt _ ih => rename_i hh; exact ih hh
+
+/-- **`Lower` commutes with abstraction.** No level side condition: `toBvar` never reads or
+rewrites an existing de Bruijn index, so unlike `Lower.shift_comm` this needs neither a
+cutoff bound nor `ClosedBodies`. The two fix arms do not recurse — the block's `.fix` node is
+inert under `toBvar` (`toBvar_fixNode`), read off `Lower.noFVar` at the block's own bodies. -/
+theorem Lower.abstract {Γ : GlobalDeclarations} (hfv : FVarFreeBodies Γ) {s t : LBTerm}
+    (h : Lower Γ s t) (x : FVarId) : ∀ lvl, Lower Γ (toBvar x lvl s) (toBvar x lvl t) := by
+  induction h using Lower.rec
+    (motive_2 := fun nf m alt _ => ∀ lvl,
+      LowerAlt Γ nf (toBvar x lvl m) (alt.1, toBvar x (lvl + alt.1.length) alt.2)) with
+  | box => exact fun _ => .box
+  | bvar i => exact fun _ => .bvar i
+  | fvar y =>
+      intro lvl
+      cases hyx : (y == x)
+      · rw [show toBvar x lvl (LBTerm.fvar y) = .fvar y from by simp [toBvar, hyx]]
+        exact .fvar y
+      · rw [show toBvar x lvl (LBTerm.fvar y) = .bvar lvl from by simp [toBvar, hyx]]
+        exact .bvar lvl
+  | prim p => exact fun _ => .prim p
+  | const hk => exact fun _ => .const hk
+  | lambda _ ih => exact fun lvl => .lambda (ih (lvl + 1))
+  | letIn _ _ ihv ihb => exact fun lvl => .letIn (ihv lvl) (ihb (lvl + 1))
+  | app _ _ ihf iha => exact fun lvl => .app (ihf lvl) (iha lvl)
+  | proj _ ih => exact fun lvl => .proj (ih lvl)
+  | @construct iid ci args args' hlen _ ih =>
+      intro lvl
+      simp only [toBvar, toBvarArgs_eq_map]
+      refine .construct (by simp [hlen]) ?_
+      intro i hi
+      rw [List.length_map] at hi
+      rw [Lower.getElem!_map _ _ i hi, Lower.getElem!_map _ _ i (by omega)]
+      exact ih i hi lvl
+  | @«case» ip dd dd' alts alts' _ hlen hn _ ihd ihb =>
+      intro lvl
+      simp only [toBvar, toBvarAlts_eq_map]
+      refine .case (ihd lvl) (by simp [hlen]) ?_ ?_
+      · intro i hi
+        rw [List.length_map] at hi
+        rw [Lower.getElem!_map (fun a : List BinderName × LBTerm =>
+              (a.1, toBvar x (lvl + a.1.length) a.2)) alts' i (by omega),
+          Lower.getElem!_map (fun a : List BinderName × LBTerm =>
+              (a.1, toBvar x (lvl + a.1.length) a.2)) alts i hi]
+        exact hn i hi
+      · intro i hi
+        rw [List.length_map] at hi
+        rw [Lower.getElem!_map (fun a : List BinderName × LBTerm =>
+              (a.1, toBvar x (lvl + a.1.length) a.2)) alts' i (by omega),
+          Lower.getElem!_map (fun a : List BinderName × LBTerm =>
+              (a.1, toBvar x (lvl + a.1.length) a.2)) alts i hi]
+        rw [hn i hi]
+        exact ihb i hi (lvl + (alts[i]!).1.length)
+  | @elimApp kn iid np dp nfs pre disc disc' minors alts extra extra'
+      hh hlen hmlen halen _ _ hxlen _ ihmin ihd ihx =>
+      intro lvl
+      rw [toBvar_mkApps, toBvar_mkApps]
+      simp only [List.map_append, List.map_cons, toBvar, toBvarAlts_eq_map]
+      refine .elimApp hh (by simp [hlen]) (by simp [hmlen]) (by simp [halen]) ?_ (ihd lvl)
+        (by simp [hxlen]) ?_
+      · intro i hi
+        rw [Lower.getElem!_map _ _ i (by omega), Lower.getElem!_map _ _ i (by omega)]
+        exact ihmin i hi lvl
+      · intro i hi
+        rw [List.length_map] at hi
+        rw [Lower.getElem!_map _ _ i hi, Lower.getElem!_map _ _ i (by omega)]
+        exact ihx i hi lvl
+  | @fixConst kn kns bs bs' ids defs j hb hb' hdl hnd hids hilen hfresh hrarg hdecl hfl hlow
+      hcl hnk hj _ih =>
+      intro lvl
+      have hnf : ∀ i, i < kns.length → ¬ hasFVar x bs'[i]! :=
+        fun i hi => Lower.noFVar hfv (hlow i hi) (hfv _ _ _ (hdecl i hi))
+      rw [show toBvar x lvl (LBTerm.const kn) = .const kn from rfl,
+        toBvar_fixNode hdl hcl hnf]
+      exact .fixConst hb hb' hdl hnd hids hilen hfresh hrarg hdecl hfl hlow hcl hnk hj
+  | @fixBody b kns bs bs' ids defs j hb hb' hdl hnd hids hilen hfresh hrarg hdecl hfl hlow
+      hcl hj hjl _ih =>
+      intro lvl
+      obtain ⟨hjb, hjeq⟩ := Lower.getElem!_of_getElem? hj
+      have hjk : j < kns.length := by omega
+      have hnf : ∀ i, i < kns.length → ¬ hasFVar x bs'[i]! :=
+        fun i hi => Lower.noFVar hfv (hlow i hi) (hfv _ _ _ (hdecl i hi))
+      have hbfv : ¬ hasFVar x b := by
+        have hb0 := hfv _ _ x (hdecl j hjk)
+        rwa [hjeq] at hb0
+      rw [toBvar_eq_of_not_hasFVar x lvl b hbfv, toBvar_fixNode hdl hcl hnf]
+      exact .fixBody hb hb' hdl hnd hids hilen hfresh hrarg hdecl hfl hlow hcl hj hjl
+  | done _ ih =>
+      rename_i lvl
+      simpa using LowerAlt.done (ih lvl)
+  | @lam nf n n' m alt _ ih =>
+      rename_i lvl
+      have hih := ih (lvl + 1)
+      simp only [toBvar, List.length_cons]
+      have e : lvl + (alt.1.length + 1) = (lvl + 1) + alt.1.length := by omega
+      rw [e]
+      exact .lam hih
+
+/-- The alternative half of the same law: an alternative's binders shift the abstraction
+level by the field count. Obtained by induction on that count rather than by re-running the
+fourteen `Lower` arms. -/
+theorem LowerAlt.abstract {Γ : GlobalDeclarations} (hfv : FVarFreeBodies Γ) {nf : Nat}
+    {m : LBTerm} {alt : List BinderName × LBTerm} (h : LowerAlt Γ nf m alt) (x : FVarId) :
+    ∀ lvl, LowerAlt Γ nf (toBvar x lvl m) (alt.1, toBvar x (lvl + alt.1.length) alt.2) := by
+  induction nf generalizing m alt with
+  | zero =>
+      cases h with
+      | done hl => intro lvl; simpa using LowerAlt.done (Lower.abstract hfv hl x lvl)
+  | succ n ih =>
+      cases h with
+      | @lam _ n₀ n' m₀ alt₀ h₀ =>
+          intro lvl
+          have hih := ih h₀ (lvl + 1)
+          simp only [toBvar, List.length_cons]
+          have e : lvl + (alt₀.1.length + 1) = (lvl + 1) + alt₀.1.length := by omega
+          rw [e]
+          exact .lam hih
+
+/-! ### `FVarFreeBodies` is not a formality
+
+A one-member block whose declared body carries a stray free variable satisfies
+`ClosedBodies` — `LBClosed`'s clause at an `.fvar` node is `True` — and refutes both laws.
+So neither `ClosedBodies` nor the well-formedness predicates built on it imply the new
+clause, and the two laws genuinely need it. -/
+
+namespace FVarFixture
+
+/-- The one member's kername. -/
+def kn : Kername := { mp := .MPfile [], id := "cxA" }
+
+/-- The stray variable the declared body carries. -/
+def y : FVarId := ⟨.mkSimple "cxY"⟩
+
+/-- The block identifier `visitMutual` would mint. -/
+def z : FVarId := ⟨.mkSimple "cxV0"⟩
+
+/-- The declared body: λ-headed, closed, and mentioning `y`. -/
+def b : LBTerm := .lambda (.named "x") (.fvar y)
+
+def kns : List Kername := [kn]
+def ids : List FVarId := [z]
+def defs : List (@FixDef LBTerm) := [{ name := .named "d0", body := b }]
+
+/-- The one-entry specification environment. -/
+def cxEnv : GlobalDeclarations := [(kn, .constantDecl ⟨some b⟩)]
+
+/-- The member is declared. -/
+theorem decl : DefnDecl cxEnv kn b := rfl
+
+/-- Only the one body is declared. -/
+theorem cxEnv_body_eq {k : Kername} {b' : LBTerm} (h : DefnDecl cxEnv k b') : b' = b := by
+  rw [DefnDecl, cxEnv, LBTerm.envLookup] at h
+  split at h
+  · injection h with h; injection h with h; injection h with h
+    exact (Option.some.inj h).symm
+  · rw [LBTerm.envLookup] at h
+    exact absurd h (by simp)
+
+/-- The environment satisfies `ClosedBodies`: `LBClosed` says nothing about free variables. -/
+theorem closed_cxEnv : ClosedBodies cxEnv := by
+  intro k b' h
+  rw [cxEnv_body_eq h]
+  exact trivial
+
+/-- …but not `FVarFreeBodies`. -/
+theorem not_fvarFree : ¬ FVarFreeBodies cxEnv := fun H => H kn b y decl rfl
+
+/-- The key is not a runtime key: the environment declares no block at all. -/
+theorem not_rk : ¬ RuntimeKey cxEnv kn := by
+  rintro ⟨iid, np, dp, nfs, -, mib, hmib, -⟩
+  rw [cxEnv, LBTerm.envLookup] at hmib
+  split at hmib
+  · exact absurd hmib (by simp)
+  · rw [LBTerm.envLookup] at hmib
+    exact absurd hmib (by simp)
+
+/-- The one-member block. -/
+theorem blk : LowerBlock cxEnv kns [b] [b] ids defs where
+  hb := rfl
+  hb' := rfl
+  hd := rfl
+  hnd := List.Pairwise.cons (fun a ha => nomatch ha) .nil
+  hids := List.Pairwise.cons (fun a ha => nomatch ha) .nil
+  hilen := rfl
+  hfresh := by
+    intro x hx i hi
+    match i, hi with
+    | 0, _ =>
+        have hxz : x = z := by
+          rcases hx with _ | ⟨_, hx⟩
+          · rfl
+          · nomatch hx
+        subst hxz
+        exact fun hc => absurd (congrArg Lean.FVarId.name hc) (by decide)
+  hrarg := by
+    intro d hd
+    cases hd with
+    | head => rfl
+    | tail _ hd => nomatch hd
+  hdecl := by
+    intro i hi
+    match i, hi with
+    | 0, _ => exact decl
+  hfl := by
+    intro j hj
+    match j, hj with
+    | 0, _ => rfl
+  hlow := by
+    intro i hi
+    match i, hi with
+    | 0, _ => exact .lambda (.fvar y)
+  hcl := by
+    intro i hi
+    match i, hi with
+    | 0, _ => exact ⟨b, .lambda (.fvar y), rfl⟩
+
+/-- The `fixConst` arm fires, and its target carries the stray variable. -/
+theorem lower_const : Lower cxEnv (.const kn) (.fix defs 0) :=
+  Lower.fixConst' blk not_rk rfl
+
+/-- **`Lower.noFVar` is false without `FVarFreeBodies`**, `ClosedBodies` granted: the
+target of the `fixConst` arm carries a variable the source `.const` node does not. -/
+theorem noFVar_needs_fvarFree :
+    ¬ (∀ (Γ : GlobalDeclarations) (x : FVarId) (s t : LBTerm),
+        ClosedBodies Γ → Lower Γ s t → ¬ hasFVar x s → ¬ hasFVar x t) := fun H =>
+  H cxEnv y (.const kn) (.fix defs 0) closed_cxEnv lower_const id (Or.inl rfl)
+
+/-- **`Lower.abstract` is false without `FVarFreeBodies`**, `ClosedBodies` granted:
+abstracting the stray variable under the block's own binders manufactures an out-of-range
+de Bruijn index, and `Lower` preserves closedness, so no arm relates the abstracted pair. -/
+theorem abstract_needs_fvarFree :
+    ¬ (∀ (Γ : GlobalDeclarations) (s t : LBTerm), ClosedBodies Γ → Lower Γ s t →
+        ∀ (x : FVarId) (lvl : Nat), Lower Γ (toBvar x lvl s) (toBvar x lvl t)) := by
+  intro H
+  have h := H cxEnv (.const kn) (.fix defs 0) closed_cxEnv lower_const y 0
+  rw [show toBvar y 0 (LBTerm.const kn) = .const kn from rfl] at h
+  have hcl : LBClosed (toBvar y 0 (LBTerm.fix defs 0)) 0 :=
+    Lower.closed closed_cxEnv h 0 trivial
+  rw [show toBvar y 0 (LBTerm.fix defs 0)
+        = LBTerm.fix [{ name := .named "d0", body := .lambda (.named "x") (.bvar 2) }] 0
+      from rfl, LBClosed_fix, LBClosedDefs_iff] at hcl
+  have hbv := hcl { name := .named "d0", body := .lambda (.named "x") (.bvar 2) } (by simp)
+  simp only [LBClosed_lambda, LBClosed_bvar, List.length_singleton] at hbv
+  omega
+
+end FVarFixture
 
 
 /-! ## Spine and telescope shapes -/

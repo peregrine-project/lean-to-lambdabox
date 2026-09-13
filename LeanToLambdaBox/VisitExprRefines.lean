@@ -166,7 +166,7 @@ abbrev VisitExprRefinesLB (env : VEnv) (Us : List Name) (tbl : SourceTable)
     {t : LBTerm},
     TrExprS env Us Δ e ve → Supported env tbl e → ctx.fixvars = none →
     Erasure.visitExpr e s ctx cctx ref w = .ok (t, s') w' →
-    BridgeInv env Us cfg (gw w) ctx s Δ →
+    BridgeInv env Us tbl cfg (gw w) ctx s Δ →
     ∀ Γspec, SpecEnv env tbl.body? s' Γspec →
       ErasesLB env Us Γspec Δ e t ∧ RunConcl s s' ∧ gw w ≤ gw w'
 
@@ -180,9 +180,9 @@ abbrev VisitExprRefinesLBFix (env : VEnv) (Us : List Name) (tbl : SourceTable)
     {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State} {w w' : Void IO.RealWorld}
     {t : LBTerm} {nms : List Name} {ids : List FVarId},
     TrExprS env Us Δ e ve → Supported env tbl e →
-    ctx.fixvars = some (fixvarMap nms ids) →
+    BlockKeyed tbl ctx nms ids →
     Erasure.visitExpr e s ctx cctx ref w = .ok (t, s') w' →
-    BridgeInv env Us cfg (gw w) ctx s Δ →
+    BridgeInv env Us tbl cfg (gw w) ctx s Δ →
     ∀ Γspec, SpecEnv env tbl.body? s' Γspec →
       ErasesLBFix env Us Γspec (nms.map toKername) ids Δ e t ∧ RunConcl s s' ∧ gw w ≤ gw w'
 
@@ -215,7 +215,7 @@ theorem visitExpr_refines_erasesLB
     step15 step16 step17 step18
     P htbl hcfg hcb
   obtain ⟨hm, -⟩ := M.motive1
-  obtain ⟨hrc, hle, hmode⟩ := hm e s ctx cctx ref w t s' w' hrun Δ hinv hsup ⟨ve, hwt⟩
+  obtain ⟨hrc, -, hle, hmode⟩ := hm e s ctx cctx ref w t s' w' hrun Δ hinv hsup ⟨ve, hwt⟩
   exact ⟨(hmode Γspec hspec).ambient hfx, hrc, hle⟩
 
 /-- **T8, block mode.** Motive 1 of the induction, read at a reader carrying a block's map. -/
@@ -247,7 +247,7 @@ theorem visitExpr_refines_erasesLBFix
     step15 step16 step17 step18
     P htbl hcfg hcb
   obtain ⟨hm, -⟩ := M.motive1
-  obtain ⟨hrc, hle, hmode⟩ := hm e s ctx cctx ref w t s' w' hrun Δ hinv hsup ⟨ve, hwt⟩
+  obtain ⟨hrc, -, hle, hmode⟩ := hm e s ctx cctx ref w t s' w' hrun Δ hinv hsup ⟨ve, hwt⟩
   exact ⟨(hmode Γspec hspec).block hfx, hrc, hle⟩
 
 /-- The ambient statement, unfolded, so that a reader need not trust the abbreviation. -/
@@ -258,7 +258,7 @@ theorem visitExpr_refines_erasesLB_shape :
         {t : LBTerm},
         TrExprS env Us Δ e ve → Supported env tbl e → ctx.fixvars = none →
         Erasure.visitExpr e s ctx cctx ref w = .ok (t, s') w' →
-        BridgeInv env Us cfg (gw w) ctx s Δ →
+        BridgeInv env Us tbl cfg (gw w) ctx s Δ →
         ∀ Γspec, SpecEnv env tbl.body? s' Γspec →
           ErasesLB env Us Γspec Δ e t ∧ RunConcl s s' ∧ gw w ≤ gw w' :=
   Iff.rfl
@@ -270,9 +270,9 @@ theorem visitExpr_refines_erasesLBFix_shape :
         {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State} {w w' : Void IO.RealWorld}
         {t : LBTerm} {nms : List Name} {ids : List FVarId},
         TrExprS env Us Δ e ve → Supported env tbl e →
-        ctx.fixvars = some (fixvarMap nms ids) →
+        BlockKeyed tbl ctx nms ids →
         Erasure.visitExpr e s ctx cctx ref w = .ok (t, s') w' →
-        BridgeInv env Us cfg (gw w) ctx s Δ →
+        BridgeInv env Us tbl cfg (gw w) ctx s Δ →
         ∀ Γspec, SpecEnv env tbl.body? s' Γspec →
           ErasesLBFix env Us Γspec (nms.map toKername) ids Δ e t ∧ RunConcl s s' ∧
             gw w ≤ gw w' :=

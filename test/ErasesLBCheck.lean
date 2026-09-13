@@ -22,6 +22,8 @@ open LeanToLambdaBox
 #check @ErasesLB.app
 #check @ErasesLB.ctor_head
 #check @ErasesLB.ctor
+#check @ErasesLB.lit
+#check @ErasesLB.proj
 #check @ErasesLB.fix
 #check @ErasesLB.cases
 #check @erasesLB_of_spine
@@ -34,6 +36,8 @@ open LeanToLambdaBox
 #check @ErasesLBFix.app
 #check @ErasesLBFix.ctor_head
 #check @ErasesLBFix.ctor
+#check @ErasesLBFix.lit
+#check @ErasesLBFix.proj
 #check @ErasesLBFix.cases
 #check @ErasesLBFix.fix
 
@@ -42,6 +46,8 @@ open LeanToLambdaBox
 #print axioms LeanToLambdaBox.ErasesLB.app
 #print axioms LeanToLambdaBox.ErasesLB.ctor_head
 #print axioms LeanToLambdaBox.ErasesLB.ctor
+#print axioms LeanToLambdaBox.ErasesLB.lit
+#print axioms LeanToLambdaBox.ErasesLB.proj
 #print axioms LeanToLambdaBox.ErasesLB.fix
 #print axioms LeanToLambdaBox.ErasesLB.cases
 #print axioms LeanToLambdaBox.erasesLB_of_spine
@@ -50,5 +56,7 @@ open LeanToLambdaBox
 #print axioms LeanToLambdaBox.ErasesLBFix.app
 #print axioms LeanToLambdaBox.ErasesLBFix.ctor_head
 #print axioms LeanToLambdaBox.ErasesLBFix.ctor
+#print axioms LeanToLambdaBox.ErasesLBFix.lit
+#print axioms LeanToLambdaBox.ErasesLBFix.proj
 #print axioms LeanToLambdaBox.ErasesLBFix.cases
 #print axioms LeanToLambdaBox.ErasesLBFix.fix

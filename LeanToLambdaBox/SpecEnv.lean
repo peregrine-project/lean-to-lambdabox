@@ -34,6 +34,9 @@ structure SpecEnv (env : VEnv) (bo : Name → Option Expr) (s : ErasureState)
     (LBTerm.envLookup Γspec (toKername n)).isSome
   /-- Every registered inductive is covered. -/
   inds : ∀ n : Name, (s.inductives.get? n).isSome → IndCovered env Γspec n
+  /-- The specification bodies mention no free variable, which is what makes the pass commute
+      with abstraction (`Lower.abstract`) — the clause the bridge's binder steps consume. -/
+  fvarFree : FVarFreeBodies Γspec
 
 /-- `SpecEnv` is antitone in the run state: an environment adequate for a state is
 adequate for every state below it. The proof is `StateLe`'s two domain clauses. -/
@@ -43,6 +46,7 @@ theorem SpecEnv.mono {env : VEnv} {bo : Name → Option Expr} {s₁ s : ErasureS
   spec := H.spec
   consts n hn := H.consts n (h.consts hn)
   inds n hn := H.inds n (h.inds hn)
+  fvarFree := H.fvarFree
 
 /-- A specification environment of a state is a specification environment of any program
 whose reachable kernames it declares, whose reached compiler bodies it holds erasures of at
@@ -60,6 +64,26 @@ theorem SpecEnv.erasesEnv {env : VEnv} {bo : Name → Option Expr} {s : ErasureS
     ErasesEnv env bo Γspec t :=
   H.spec.erasesEnv hdeps hdefns htab
 
+/-- The four-entry fixture declares two bodies, the eliminator's and the definition's, and
+neither mentions a free variable. -/
+theorem fvarFree_demoEnv : FVarFreeBodies demoEnv := by
+  have helim : ∀ x : FVarId, ¬ hasFVar x demoElim := by
+    intro x
+    show ¬ hasFVar x (mkElimBody demoIid 0 1 [0])
+    rw [mkElimBody]
+    simp [mkLambdas, elimAlts, hasFVarAlts_iff, fieldArgs]
+  intro kn b x hd
+  have hmem := envLookup_mem hd
+  simp only [demoEnv, List.mem_cons, List.not_mem_nil, or_false, Prod.mk.injEq] at hmem
+  rcases hmem with ⟨-, hb⟩ | ⟨-, hb⟩ | ⟨-, hb⟩ | ⟨-, hb⟩
+  · exact absurd hb (by simp)
+  · injection hb with hb; injection hb with hb
+    rw [Option.some.inj hb]; exact helim x
+  · injection hb with hb; injection hb with hb
+    rw [Option.some.inj hb]; simp [demoBody]
+  · injection hb with hb; injection hb with hb
+    exact absurd hb (by simp)
+
 /-- The four-entry fixture is a specification environment for the initial state, whose
 registries are empty. Read with `SpecEnv.mono`, it is one for every state below any state
 it is read at. -/
@@ -68,6 +92,7 @@ theorem demoEnv_specEnv {env : VEnv} {bo : Name → Option Expr} (h : DemoSource
   spec := demoEnv_specContent h
   consts n hn := by simp at hn
   inds n hn := by simp at hn
+  fvarFree := fvarFree_demoEnv
 
 /-! ## The specification environment of a run
 
@@ -97,6 +122,7 @@ theorem RegInvShape'.specEnv {env : VEnv} {bo : Name → Option Expr}
   spec := H.spec
   consts := H.consts
   inds := H.inds
+  fvarFree := H.specFVarFree
 
 /-- **A run has a specification environment.** It is the one its own registration invariant
 was maintained against — derived from what the run registered, not posited. -/
@@ -180,6 +206,16 @@ theorem defns_needs_paramFree {env : VEnv} {b₀ : LBTerm} (v : Name) :
 
 /-! ## A cold run, end to end -/
 
+/-- The one-definition fixture's body is a closed λ over a de Bruijn index. -/
+theorem fvarFree_idEnv : FVarFreeBodies idEnv := by
+  intro kn b x hd
+  rw [DefnDecl, idEnv, LBTerm.envLookup] at hd
+  split at hd
+  · injection hd with hd; injection hd with hd; injection hd with hd
+    rw [← Option.some.inj hd]
+    exact fun hc => hc
+  · simp [LBTerm.envLookup] at hd
+
 /-- **The derivation is not vacuous.** A run that starts at the empty state and registers one
 λ-bodied definition satisfies the invariant and saturates its own specification environment, so
 `LowerEnv` comes out with every clause derived. -/
@@ -187,7 +223,7 @@ theorem lowerEnv_of_cold_run {env : VEnv} {bo : Name → Option Expr}
     (hspec : SpecContent env bo idEnv) :
     LowerEnv idEnv (nonrecConstState `id (.lambda .anon (.bvar 0)) {}).gdecls := by
   have H : RegInvShape' env bo idEnv (nonrecConstState `id (.lambda .anon (.bvar 0)) {}) :=
-    (RegInvShape'.empty hspec lowerEnv_idEnv.specClosed).constCons
+    (RegInvShape'.empty hspec lowerEnv_idEnv.specClosed fvarFree_idEnv).constCons
       (b₀ := .lambda .anon (.bvar 0)) rfl (.inl (.lambda (.bvar 0)))
       (lowerEnv_idEnv.closed (rootKername "id") _ rfl) (by simp)
   refine H.lowerEnv ⟨?_, ?_⟩

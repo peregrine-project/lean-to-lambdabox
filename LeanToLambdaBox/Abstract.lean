@@ -223,6 +223,97 @@ end
 theorem abstract_eq_of_not_hasFVar (x : FVarId) (t : LBTerm) (h : ¬ hasFVar x t) :
     abstract x t = t :=
   toBvar_eq_of_not_hasFVar x 0 t h
+/-! ### The converse: `toBvar` introduces no occurrence
+
+Where `toBvar_eq_of_not_hasFVar` says abstraction is inert on a term that does not mention
+the variable, this says abstraction never *creates* an occurrence: whatever `x` occurs in
+`toBvar y lvl t` occurred in `t` already, and `x` is not the abstracted `y`, which `toBvar`
+has replaced by a de Bruijn index everywhere. It is what the block-closure lemmas of
+`FixMetatheory.lean` and the pass laws of `Lower.lean` are built from. -/
+
+mutual
+/-- An occurrence of `x` in an abstracted term is an occurrence in the term, at a variable
+other than the abstracted one. -/
+theorem hasFVar_toBvar_of (x y : FVarId) (lvl : Nat) :
+    ∀ (t : LBTerm), hasFVar x (toBvar y lvl t) → x ≠ y ∧ hasFVar x t
+  | .box, h => h.elim
+  | .bvar _, h => h.elim
+  | .fvar z, h => by
+      by_cases hz : (z == y) = true
+      · rw [show toBvar y lvl (.fvar z) = .bvar lvl from by simp [toBvar, hz]] at h
+        exact absurd h (by simp)
+      · rw [show toBvar y lvl (.fvar z) = .fvar z from by simp [toBvar, hz]] at h
+        simp only [hasFVar_fvar] at h ⊢
+        subst h
+        exact ⟨fun hxy => hz (fvarId_beq_iff_eq.mpr hxy), rfl⟩
+  | .lambda _ b, h => by
+      simp only [toBvar, hasFVar_lambda] at h
+      exact hasFVar_toBvar_of x y (lvl + 1) b h
+  | .letIn _ v b, h => by
+      simp only [toBvar, hasFVar_letIn] at h
+      rcases h with h | h
+      · obtain ⟨h1, h2⟩ := hasFVar_toBvar_of x y lvl v h; exact ⟨h1, .inl h2⟩
+      · obtain ⟨h1, h2⟩ := hasFVar_toBvar_of x y (lvl + 1) b h; exact ⟨h1, .inr h2⟩
+  | .app a b, h => by
+      simp only [toBvar, hasFVar_app] at h
+      rcases h with h | h
+      · obtain ⟨h1, h2⟩ := hasFVar_toBvar_of x y lvl a h; exact ⟨h1, .inl h2⟩
+      · obtain ⟨h1, h2⟩ := hasFVar_toBvar_of x y lvl b h; exact ⟨h1, .inr h2⟩
+  | .const _, h => h.elim
+  | .construct _ _ args, h => by
+      simp only [toBvar, hasFVar_construct] at h
+      exact hasFVarArgs_toBvarArgs_of x y lvl args h
+  | .case (_, _) d alts, h => by
+      simp only [toBvar, hasFVar_case] at h
+      rcases h with h | h
+      · obtain ⟨h1, h2⟩ := hasFVar_toBvar_of x y lvl d h; exact ⟨h1, .inl h2⟩
+      · obtain ⟨h1, h2⟩ := hasFVarAlts_toBvarAlts_of x y lvl alts h; exact ⟨h1, .inr h2⟩
+  | .proj _ e, h => by
+      simp only [toBvar, hasFVar_proj] at h
+      exact hasFVar_toBvar_of x y lvl e h
+  | .fix defs _, h => by
+      simp only [toBvar, hasFVar_fix] at h
+      have := hasFVarDefs_toBvarDefs_of x y (lvl + defs.length) defs h
+      exact ⟨this.1, by simpa using this.2⟩
+  | .prim _, h => h.elim
+
+/-- The `construct`-argument helper of `hasFVar_toBvar_of`. -/
+theorem hasFVarArgs_toBvarArgs_of (x y : FVarId) (lvl : Nat) :
+    ∀ (l : List LBTerm), hasFVarArgs x (toBvarArgs y lvl l) → x ≠ y ∧ hasFVarArgs x l
+  | [], h => h.elim
+  | t :: rest, h => by
+      simp only [toBvarArgs, hasFVarArgs] at h
+      rcases h with h | h
+      · obtain ⟨h1, h2⟩ := hasFVar_toBvar_of x y lvl t h
+        exact ⟨h1, by simp only [hasFVarArgs]; exact .inl h2⟩
+      · obtain ⟨h1, h2⟩ := hasFVarArgs_toBvarArgs_of x y lvl rest h
+        exact ⟨h1, by simp only [hasFVarArgs]; exact .inr h2⟩
+
+/-- The `case`-alternative helper of `hasFVar_toBvar_of`. -/
+theorem hasFVarAlts_toBvarAlts_of (x y : FVarId) (lvl : Nat) :
+    ∀ (l : List (List BinderName × LBTerm)),
+      hasFVarAlts x (toBvarAlts y lvl l) → x ≠ y ∧ hasFVarAlts x l
+  | [], h => h.elim
+  | (ns, b) :: rest, h => by
+      simp only [toBvarAlts, hasFVarAlts] at h
+      rcases h with h | h
+      · obtain ⟨h1, h2⟩ := hasFVar_toBvar_of x y (lvl + ns.length) b h
+        exact ⟨h1, by simp only [hasFVarAlts]; exact .inl h2⟩
+      · obtain ⟨h1, h2⟩ := hasFVarAlts_toBvarAlts_of x y lvl rest h
+        exact ⟨h1, by simp only [hasFVarAlts]; exact .inr h2⟩
+
+/-- The `fix`-definition helper of `hasFVar_toBvar_of`. -/
+theorem hasFVarDefs_toBvarDefs_of (x y : FVarId) (lvl : Nat) :
+    ∀ (l : List (@FixDef LBTerm)), hasFVarDefs x (toBvarDefs y lvl l) → x ≠ y ∧ hasFVarDefs x l
+  | [], h => h.elim
+  | fd :: rest, h => by
+      simp only [toBvarDefs, hasFVarDefs] at h
+      rcases h with h | h
+      · obtain ⟨h1, h2⟩ := hasFVar_toBvar_of x y lvl fd.body h
+        exact ⟨h1, by simp only [hasFVarDefs]; exact .inl h2⟩
+      · obtain ⟨h1, h2⟩ := hasFVarDefs_toBvarDefs_of x y lvl rest h
+        exact ⟨h1, by simp only [hasFVarDefs]; exact .inr h2⟩
+end
 
 /-! ### Positive sanity layer (non-vacuity checks)
 
