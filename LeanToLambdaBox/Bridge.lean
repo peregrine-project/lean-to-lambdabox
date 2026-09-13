@@ -314,9 +314,13 @@ structure BridgeInv (env : VEnv) (Us : List Name) (tbl : SourceTable) (cfg₀ : 
     (gen : NameGenerator) (ctx : ErasureContext) (s : ErasureState) (Δ : VLCtx) : Prop where
   /-- The reader's local context is modelled by `Δ`, witnessed by an ambient `MLCtx`. -/
   mlc : ∃ m : MLCtx, m.WF env Us ∧ m.lctx = ctx.lctx ∧ m.vlctx = Δ
-  /-- The reader's level scope is a prefix of the ambient one: along a prefix no level index
-      moves, so a sub-run's facts transport to `Us` on the nose. -/
-  lparams : ctx.lparams <+: Us
+  /-- The reader's level scope **is** the ambient one. The entry reader sets it to `Us` and
+      the only `withReader` in the erasure that touches it is `Erasure.visitMutual`'s, which
+      moves to a dependency's own `levelParams`; the invariant is not carried into that
+      sub-run — `Motive6` reports registration alone — so equality holds throughout the term
+      walk. It is what lets a sub-run's oracle facts be read at `Us` on the nose, which is
+      what `EraserAsks.oracle_informative` asks for. -/
+  lparams : ctx.lparams = Us
   /-- The reader's configuration is the one the statement is made at. `Erasure.run` builds the
       only reader from scratch and no `withReader` in the erasure touches `config`. -/
   cfg : ctx.config = cfg₀

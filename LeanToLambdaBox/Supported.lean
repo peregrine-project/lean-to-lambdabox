@@ -436,6 +436,25 @@ structure TableSafe (lenv : Lean.Environment) (tbl : SourceTable) : Prop where
   ctors : ∀ (n : Name) (I : ReifiedInduct) (c : ReifiedCtor) (ci : ConstantInfo),
     tbl.ind? n = some I → c ∈ I.ctors → lenv.find? c.name = some ci →
     DefinitionSafety.safe ≤ ci.safety
+  /-- No tabled constant is an `_unsafe_rec` companion. `Lean.Compiler.LCNF.getDeclInfo?`
+      prefers the `_unsafe_rec` twin of the name it is asked about, so at `n = f._unsafe_rec`
+      the block it answers with is `f`'s and does not contain `n`; this is the guard that
+      excludes that name shape, and it is what `ErasureSpec.LookupAdequate.declInfo`'s
+      membership arm takes. Unlike the three clauses above it is *decidable* on a concrete
+      table — `Lean.Compiler.isUnsafeRecName?` is a pure function of the name — and it holds by
+      construction of `Witness.reify%`, which mints no `_unsafe_rec` entry. No `reify` verb
+      reads it. -/
+  notUnsafeRec : ∀ n : Name, (tbl.decl? n).isSome → Lean.Compiler.isUnsafeRecName? n = none
+  /-- The table's two columns agree about what a constructor is: a tabled constant that `lenv`
+      declares as a constructor is also in the table's constructor column. The fragment decides
+      N19's saturation half against `ctorOf?` while `Erasure.visitConstApp` reads
+      `Lean.Compiler.LCNF.getCtorArity?`, and `Witness.ReifiedDecl.Pinned` does not exclude a
+      constructor from the constant column — the reifier really does put one there. It holds by
+      construction of `Witness.reify%`, whose `.ctorInfo` arm reifies the constructor's own
+      inductive block. Class **D** like the three above: a `lenv` read of the table's own
+      columns, and no `reify` verb reads it. -/
+  declCtor : ∀ (c : Name) (cv : ConstructorVal), (tbl.decl? c).isSome →
+    lenv.find? c = some (.ctorInfo cv) → (ctorOf? tbl c).isSome
 
 /-! ## The fragment -/
 
@@ -1066,6 +1085,10 @@ structure CasesInfoAgrees (ci : Lean.CasesInfo) (c : Name) (I : ReifiedInduct) :
   arity : ci.arity = I.numParams + 1 + I.numIndices + 1 + I.ctors.length
   /-- The alternatives begin one past the discriminant and end at the arity. -/
   altsRange : ci.altsRange.lower = ci.discrPos + 1 ∧ ci.altsRange.upper = ci.arity
+  /-- There is one alternative slot per constructor. This is what refutes the two early exits
+      of `Erasure.visitCases`' parallel `for`: the loop reads one alternative per constructor
+      of the table's block, and the elaborator's array is exactly that long. -/
+  numAlts : ci.altNumParams.size = I.ctors.length
   /-- Each alternative binds its constructor's fields. -/
   numFields : ∀ (j : Nat) (a : Lean.CasesAltInfo) (cb : ReifiedCtor),
     ci.altNumParams[j]? = some a → I.ctors[j]? = some cb → altNumFields a = cb.numFields
@@ -1083,7 +1106,7 @@ theorem CasesInfoAgrees.of_pinned {lenv : Lean.Environment} {tbl : SourceTable}
     htbl.inds _ I (mem_of_lookup hind)
   have hK := h iv hfind
   have hlen : iv.ctors.length = I.ctors.length := by rw [hcm]; simp
-  refine ⟨hdecl, ?_, ?_, hK.altsRange, ?_⟩
+  refine ⟨hdecl, ?_, ?_, hK.altsRange, hK.numAlts.trans hlen, ?_⟩
   · rw [hK.discrPos, hnp, hni]
   · rw [hK.arity, hnp, hni, hlen]
   · intro j a cb ha hcb

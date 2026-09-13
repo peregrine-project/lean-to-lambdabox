@@ -118,19 +118,29 @@ def Motive3 (f : Name → Array Expr → EraseM LBTerm) : Prop :=
   f ⊑ Erasure.visitConstructor
 
 /-- Motive 4 — `Erasure.visitConst`: a plain known constant becomes its kername, or, inside a
-mutual block that defines it, that member's fix variable. -/
+mutual block that defines it, that member's fix variable. The two exclusions are what
+`Erases.const` needs and `KnownHead` does not settle: `KnownHead` has a constructor column and
+a type-former column, and the run emits a `.const` node, which no rule of the composite relates
+to either head. Both are read off the run at the call sites — the constructor column from
+`Erasure.visitConstApp`'s `Lean.Compiler.LCNF.getCtorArity?` miss, the type-former column from
+the relevance oracle's `false` verdict through `EraserAsks.oracle_informative`. -/
 def Motive4 (f : Expr → EraseM LBTerm) : Prop :=
   (∀ e s ctx cctx ref w t s' w', f e s ctx cctx ref w = .ok (t, s') w' →
     ∀ Δ n us, BridgeInv env Us tbl cfg (gw w) ctx s Δ → e = .const n us →
       PlainHead n → isCasesOnName n = false → KnownHead env tbl n → Supported env tbl e →
+      (∀ (I : Name) (k : Nat), ¬ CtorOf env n I k) →
+      (∀ (iid : InductiveId) (np : Nat) (nfs : List Nat), ¬ IndInfo env n iid np nfs) →
       RunRefines env Us tbl ctx Δ s s' (gw w) (gw w') e t) ∧
   f ⊑ Erasure.visitConst
 
 /-- Motive 5 — `Erasure.get_constant_kername`: the kername returned is the canonical one, and
-the constant is registered afterwards. -/
+the constant is registered afterwards. The name is in the table's constant column, which is
+where `Erasure.visitConst` has already put it and what the registration below needs to know the
+name is not an `_unsafe_rec` companion. -/
 def Motive5 (f : Name → EraseM Kername) : Prop :=
   (∀ n s ctx cctx ref w kn s' w', f n s ctx cctx ref w = .ok (kn, s') w' →
     ∀ Δ, BridgeInv env Us tbl cfg (gw w) ctx s Δ → Supported env tbl (.const n []) →
+      (tbl.decl? n).isSome →
       kn = toKername n ∧ (s'.constants.get? n).isSome ∧
         RunConcl s s' ∧ IndRegistryModelled env s' ∧ gw w ≤ gw w') ∧
   f ⊑ Erasure.get_constant_kername
@@ -142,6 +152,7 @@ registered is read off the final state by `SpecEnv`, not concluded here. -/
 def Motive6 (f : Name → EraseM Unit) : Prop :=
   (∀ n s ctx cctx ref w u s' w', f n s ctx cctx ref w = .ok (u, s') w' →
     ∀ Δ, BridgeInv env Us tbl cfg (gw w) ctx s Δ → Supported env tbl (.const n []) →
+      (tbl.decl? n).isSome →
       (s'.constants.get? n).isSome ∧ RunConcl s s' ∧ IndRegistryModelled env s' ∧
         gw w ≤ gw w') ∧
   f ⊑ Erasure.visitMutual
@@ -180,19 +191,26 @@ def Motive10 (f : Name → Nat → Expr → EraseM LBTerm) : Prop :=
       RunRefines env Us tbl ctx Δ s s' (gw w) (gw w') (.proj tn i e) t) ∧
   f ⊑ Erasure.visitProj
 
-/-- Motive 11 — `Erasure.visitApp`, the spine dispatcher. -/
+/-- Motive 11 — `Erasure.visitApp`, the spine dispatcher. The head exclusion travels with the
+subject: `Erasure.visitExpr` reaches this member only past a `false` relevance verdict, which
+by `EraserAsks.oracle_informative` rules out a type former at the spine's head, and the
+constant arm below spends it at `Motive4`. -/
 def Motive11 (f : Expr → EraseM LBTerm) : Prop :=
   (∀ e s ctx cctx ref w t s' w', f e s ctx cctx ref w = .ok (t, s') w' →
     ∀ Δ, BridgeInv env Us tbl cfg (gw w) ctx s Δ → Supported env tbl e →
       (∃ ve, TrExprS env Us Δ e ve) →
+      (∀ (c : Name) (us : List Level), e.getAppFn = .const c us →
+        ∀ (iid : InductiveId) (np : Nat) (nfs : List Nat), ¬ IndInfo env c iid np nfs) →
       RunRefines env Us tbl ctx Δ s s' (gw w) (gw w') e t) ∧
   f ⊑ Erasure.visitApp
 
-/-- Motive 12 — `Erasure.visitConstApp`, the constant-headed spine. -/
+/-- Motive 12 — `Erasure.visitConstApp`, the constant-headed spine. The head is not a type
+former: the exclusion is `Motive11`'s, read at the head this member has already matched. -/
 def Motive12 (f : Expr → EraseM LBTerm) : Prop :=
   (∀ e s ctx cctx ref w t s' w', f e s ctx cctx ref w = .ok (t, s') w' →
     ∀ Δ cn us, BridgeInv env Us tbl cfg (gw w) ctx s Δ → e.getAppFn = .const cn us →
       Supported env tbl e → (∃ ve, TrExprS env Us Δ e ve) →
+      (∀ (iid : InductiveId) (np : Nat) (nfs : List Nat), ¬ IndInfo env cn iid np nfs) →
       RunRefines env Us tbl ctx Δ s s' (gw w) (gw w') e t) ∧
   f ⊑ Erasure.visitConstApp
 

@@ -227,17 +227,18 @@ a rung says that the conditions are consistent with a literal answer, not that t
 value-side typings `hvwt` and `hty` are binders at every rung: a rung's value is a
 constructor spine, not a constant.
 
-`hbridge` is a binder at every rung too, and it is the largest one, but it no longer carries
-the erasure itself: `erasure_bridge_of_run` proves `Erases env [] [] pe t₀ ∧ Lower Γspec t₀ t`
-from the run, supplying seventeen of the eighteen member steps, and `ErasureBridge` is the six
-remaining fields — the environment and the simulation. Those wait on the registration
-invariant at the run's final state, which is W5's, and `doc/trust.md` names a supplier per
-field. One member step, `Step4` at `Erasure.visitConst`, still has no supplier: `Motive4`
-classifies the head by `KnownHead` and excludes neither a constructor nor a type former, and
-`step4_of_exclusions` is the same statement with those two exclusions, proved. So what a rung
-says about the shipping erasure is conditional on that step and on the environment half, and
-`doc/trust.md` carries both rows. The bridge and cold-start modules are inside the import
-closure of `Green.lean` and `Capstone.lean` now that the capstone consumes them.
+`hbridge` is a binder at every rung too, and it is the largest one, but it does not carry the
+erasure itself: `erasure_bridge_of_run` proves `Erases env [] [] pe t₀ ∧ Lower Γspec t₀ t` from
+the run, supplying all eighteen member steps, and `ErasureBridge` is the six remaining fields —
+the environment and the simulation. Those wait on the registration invariant at the run's final
+state, which is W5's, and `doc/trust.md` names a supplier per field. One obligation of the
+bridge itself survives beside them, `hve : VisitExprRunConcl`: the term walk's unconditional
+state, generator and registry conclusion, which `step6` spends at the dependency bodies
+`Erasure.visitMutual` erases and which needs a second induction over the same eighteen-member
+family. So what a rung says about the shipping erasure is conditional on that obligation and on
+the environment half, and `doc/trust.md` carries both rows. The bridge and cold-start modules
+are inside the import closure of `Green.lean` and `Capstone.lean` now that the capstone
+consumes them.
 
 **What a matcher-bearing subject costs the ladder, and what it no longer costs.**
 `ReifiedDecl.Prepared` — the run clause of `SourceTableAdequate` — pins the compiler body
@@ -264,11 +265,18 @@ satisfy `NoBodylessRefs` by `decide +kernel`.
 
 ## The permanent binders every rung keeps
 
+Nine binders stand at every rung of the ladder: `P : ErasureSpec`, `htbl :
+SourceTableAdequate`, `hsafe : TableSafe`, `E : EraserAsks`, `A : UpstreamAsks`, `hblk :
+TableBlocks`, `hcb : CompilerBodies`, `hprep` and `hve : VisitExprRunConcl`. `hcb` is
+discharged at G1, `hve` is the bridge's one residual obligation, and `doc/trust.md` carries a
+row per binder and per field. The three below are the ones a rung can neither discharge nor
+ever expect to.
+
 | Binder | What it assumes | External mechanism |
 |---|---|---|
 | `hrun` | the `#erase` run produced the committed `.ast` | `green-check` re-runs `#erase` and byte-diffs the file; `IO.RealWorld` is opaque, so no Lean proof of this can exist |
 | `htbl` | the reified `SourceTable` is the live environment's slice, including the `prepare_erasure` run clause, which pins the compiler body up to α (`Witness.Expr.AlphaEq`: binder names and binder info ignored, nothing else) | `lake exe reify --check` compares field by field against the live environment, and cross-checks `Expr.eqv` against a Boolean written arm-for-arm against the relation |
-| `hsafe` | `TableSafe`: every declaration the reified table pins — constants, inductive types and their constructors — is safe in the ambient environment, the one column `SourceTableAdequate` does not record. Load-bearing twice: `Green.g1_compilerBodies` and `supportedB_sound`, which reads it to put a tabled name in the model | `lake exe reify --check` reads the live declarations; the column is an upstream ask |
+| `hsafe` | `TableSafe`: every declaration the reified table pins — constants, inductive types and their constructors — is safe in the ambient environment, the one column `SourceTableAdequate` does not record, plus two clauses about the table's own constant column: `notUnsafeRec`, no tabled constant is an `_unsafe_rec` companion, and `declCtor`, a tabled constant that `lenv` declares a constructor is in the table's constructor column too | `lake exe reify --check` reads the live declarations for the three safety clauses; the column is an upstream ask. `notUnsafeRec` is decidable on a concrete table and `declCtor` holds by construction of `Witness.reify%`; no `reify` verb reads either |
 
 ## The dead-declaration budget
 

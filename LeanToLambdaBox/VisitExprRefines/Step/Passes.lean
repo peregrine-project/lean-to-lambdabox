@@ -629,16 +629,13 @@ theorem ErasesLBMode.ctor_head {env : VEnv} {Us : List Name} {Δ : VLCtx}
 
 /-- **Step 3.** With the configuration pinned, the `@[extern]` arm and both machine-`Nat` arms
 are dead, the argument mask retains every field so the emitted spine is the source spine, and
-the head is `ErasesLB.ctor_head` at the registered block. `hall` is the block self-membership
-`BlockAdequate` does not record: the registration answers at `indinfo.name`, and nothing here
-says that name is a member of its own block. The motive gives no table entry for the
-constructor's type, so it cannot come from `Witness.ReifiedInduct.Pinned` as it does at steps
-10 and 17. -/
+the head is `ErasesLB.ctor_head` at the registered block. The block self-membership the
+registration loop is indexed by is `BlockAdequate.selfMem`: the motive gives no table entry for
+the constructor's type, so it cannot come from `Witness.ReifiedInduct.Pinned` as it does at
+steps 10 and 17. -/
 theorem step_visitConstructor {lenv : Environment} {env : VEnv} {Us : List Name}
     {tbl : SourceTable} {cfg : ErasureConfig} {gw : Void IO.RealWorld → NameGenerator}
-    (A : UpstreamAsks env)
-    (hall : ∀ (I : Name) (iv : InductiveVal), lenv.find? I = some (.inductInfo iv) →
-      iv.name ∈ iv.all) :
+    (A : UpstreamAsks env) :
     Step3 lenv env Us tbl cfg gw := by
   intro P _htbl hcfg _hcb vLit vConst vArgs _h2 _h4 h7
   refine ⟨?_, bodyLe3 _h2.2 _h4.2 h7.2⟩
@@ -670,7 +667,7 @@ theorem step_visitConstructor {lenv : Environment} {env : VEnv} {Us : List Name}
   obtain ⟨iv, hivf, hivn, hivp, hkf⟩ := P.block_adequate.bwd cv.induct np nfs harity
   have hnf : nfs[cv.cidx]? = some cv.numFields :=
     pass_kernelFields_at P A hcvf hivn harity hkf
-  have hself : iv.name ∈ iv.all := hall cv.induct iv hivf
+  have hself : iv.name ∈ iv.all := P.block_adequate.selfMem cv.induct iv hivf
   have hci2eq : ci2 = .inductInfo iv := by rw [hivf] at hfind2; exact (Option.some.inj hfind2).symm
   subst hci2eq
   simp only [] at hk
@@ -811,16 +808,14 @@ motive 18, and the over-application tail by motive 1 again.
 -/
 
 /-- **Step 17.** The discriminant is motive 1's, the alternatives are motive 18's through the
-parallel `for`, and the over-application tail is motive 1's again. `hseg` is what
-`CasesInfoAgrees` is short of: one alternative slot per constructor, and the elaborator's
-discriminant position at the model's segmentation. The first refutes the loop's two early
-exits; the second is what makes `ErasesLB.cases`' length equation hold. -/
+parallel `for`, and the over-application tail is motive 1's again. Two numeric facts frame the
+loop: `CasesInfoAgrees.numAlts` gives one alternative slot per constructor, which refutes the
+loop's two early exits, and `BlockAdequate.casesOnDecl` reports the model's segmentation at the
+block's own arithmetic, which is `CasesInfoAgrees.discrPos` through the pin and is what makes
+`ErasesLB.cases`' length equation hold. -/
 theorem step_visitCases {lenv : Environment} {env : VEnv} {Us : List Name}
     {tbl : SourceTable} {cfg : ErasureConfig} {gw : Void IO.RealWorld → NameGenerator}
-    (A : UpstreamAsks env)
-    (hseg : ∀ (cinfo : Lean.CasesInfo) (c : Name) (Ir : ReifiedInduct),
-      CasesHead env tbl cinfo c Ir → Ir.ctors.length ≤ cinfo.altNumParams.size ∧
-        ∀ dp nm, CasesOnShape env c c.getPrefix dp nm → dp = cinfo.discrPos) :
+    (A : UpstreamAsks env) :
     Step17 lenv env Us tbl cfg gw := by
   intro P htbl hcfg _hcb vExpr vAlt ih1 ih18
   refine ⟨?_, bodyLe17 ih1.2 ih18.2⟩
@@ -839,7 +834,7 @@ theorem step_visitCases {lenv : Environment} {env : VEnv} {Us : List Name}
   simp only [visitCasesBody] at hrun
   rw [hhead.agrees.decl] at hrun
   -- the block the head names, in the table and in the model
-  obtain ⟨iv, hfind, hivn, -, -, hivnp, -, hivall, hivmem, -, -⟩ :=
+  obtain ⟨iv, hfind, hivn, -, -, hivnp, hivni, hivall, hivmem, -, -⟩ :=
     htbl.inds _ I (mem_of_lookup hhead.ind)
   have hself : iv.name ∈ iv.all := by rw [hivn, hivall]; exact hivmem
   obtain ⟨iid₀, hII⟩ := indInfo_of_tabled P htbl hhead.ind
@@ -913,7 +908,8 @@ theorem step_visitCases {lenv : Environment} {env : VEnv} {Us : List Name}
     have hj := hmodel.2 rr.2.length _ (hnfsget rr.2.length hcon')
     rcases List.getElem?_eq_some_iff.mp hj with ⟨hlt, -⟩
     omega
-  have haltslen : I.ctors.length ≤ ci.altNumParams.size := (hseg ci con I hhead).1
+  have haltslen : I.ctors.length ≤ ci.altNumParams.size :=
+    Nat.le_of_eq hhead.agrees.numAlts.symm
   have hinv₅ : BridgeInv env Us tbl cfg (gw w₅) ctx s₅ Δ :=
     (((hinv.mono_state hrc₁ hreg₁).mono hle₁).mono_state hrc₅ hreg₅).mono
       (NameGenerator.LE.trans hle₄ hle₅)
@@ -1039,10 +1035,10 @@ theorem step_visitCases {lenv : Environment} {env : VEnv} {Us : List Name}
     refine hloopP.1.le.inds ?_
     rw [← hivn, hget]
     simp
-  obtain ⟨dp0, nm0, vc0, hcst0, hco0, hshape0⟩ :=
+  obtain ⟨nm0, vc0, hcst0, hco0, hshape0⟩ :=
     P.block_adequate.casesOnDecl con con.getPrefix iv hhead.cases rfl hfind
-  have hdp0 : dp0 = ci.discrPos := (hseg ci con I hhead).2 dp0 nm0 hshape0
-  subst hdp0
+  rw [show iv.numParams + 1 + iv.numIndices = ci.discrPos by rw [hdiscrP, hivnp, hivni]]
+    at hshape0
   have hnalen : accF.1.size = I.ctors.length := by
     rw [hloopP.2.2.2.1, Array.length_toList, pass_rco_size]
     omega

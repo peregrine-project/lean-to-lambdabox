@@ -37,7 +37,8 @@ vacuously, its source evaluation having no derivation.
 
 The erasure half of the composition is `erasure_bridge_of_run`, a proved term. What remains is
 one named binder, `hbridge`, whose six fields wait on the specification environment the run's
-final state admits, and the six step obligations `erasure_bridge_of_run` still takes.
+final state admits, and one step obligation, `hve` — the term walk's unconditional run
+conclusion, which needs a second induction over the same eighteen-member family.
 `doc/trust.md`'s rows are the accounting.
 -/
 
@@ -51,10 +52,10 @@ set_option linter.unusedVariables false in
 /--
 **The erasure half of the capstone's bundle, discharged.** The entry reader carries no fixvar
 map and the entry state is empty, so `BridgeInv` holds there by construction, and T8 puts the
-emitted term in the composite at every specification environment of the final state. Seventeen
-of the eighteen member steps are supplied here; `step4` and the five obligations beside it are
-what the wave leaves open, each a `doc/trust.md` row. `hblk` is the wave's standing block
-binder, consumed at the install site rather than here.
+emitted term in the composite at every specification environment of the final state. All
+eighteen member steps are supplied here; the one obligation the composition still takes is
+`hve`, the term walk's unconditional run conclusion, which `doc/trust.md` carries as its own
+row. `hblk` is the standing block binder, consumed at the install site rather than here.
 -/
 theorem erasure_bridge_of_run
     {lenv : Lean.Environment} {env : VEnv} {gw : Void IO.RealWorld → NameGenerator}
@@ -63,17 +64,10 @@ theorem erasure_bridge_of_run
     {w wp wt : Void IO.RealWorld} {sp sf : ErasureState} {t : LBTerm}
     (P : ErasureSpec lenv env [] gw) (E : EraserAsks lenv env [] gw)
     (A : UpstreamAsks env)
-    (htbl : SourceTableAdequate lenv tbl) (hblk : TableBlocks lenv env tbl)
+    (htbl : SourceTableAdequate lenv tbl) (hsafe : TableSafe lenv tbl)
+    (hblk : TableBlocks lenv env tbl)
     (hcfg : ConfigPinned cfg) (hcb : CompilerBodies lenv env tbl.body?)
-    (step4 : Step4 lenv env [] tbl cfg gw)
-    (hve : VisitExprRunConcl env gw) (hdih : DeclInfoAtHead env tbl)
-    (hall : ∀ (I : Name) (iv : InductiveVal), lenv.find? I = some (.inductInfo iv) →
-      iv.name ∈ iv.all)
-    (hseg : ∀ (cinfo : Lean.CasesInfo) (c : Name) (Ir : ReifiedInduct),
-      CasesHead env tbl cinfo c Ir → Ir.ctors.length ≤ cinfo.altNumParams.size ∧
-        ∀ dp nm, CasesOnShape env c c.getPrefix dp nm → dp = cinfo.discrPos)
-    (hctab : ∀ (c : Name) (cv : ConstructorVal), (tbl.decl? c).isSome →
-      lenv.find? c = some (.ctorInfo cv) → (ctorOf? tbl c).isSome)
+    (hve : VisitExprRunConcl env gw)
     (hsup : Supported env tbl pe) (hwt : TrExprS env [] [] pe ve)
     (hprep : Erasure.prepare_erasure e {} { «config» := cfg } cctx ref w = .ok (pe, sp) wp)
     (hvis : Erasure.visitExpr pe sp { «config» := cfg } cctx ref wp = .ok (t, sf) wt)
@@ -81,16 +75,16 @@ theorem erasure_bridge_of_run
     ∃ t₀, Erases env [] [] pe t₀ ∧ Lower Γspec t₀ t := by
   obtain rfl : sp = ({} : ErasureState) := run_prepare_erasure_state hcfg.1 hprep
   have hinv : BridgeInv env [] tbl cfg (gw wp) { «config» := cfg } {} [] := by
-    refine ⟨⟨.nil, trivial, rfl, rfl⟩, List.prefix_refl _, rfl, ?_, ?_, Or.inl rfl, ?_,
+    refine ⟨⟨.nil, trivial, rfl, rfl⟩, rfl, rfl, ?_, ?_, Or.inl rfl, ?_,
       indRegistryModelled_empty⟩
     · intro fv hfv; simp at hfv
     · intro fv hfv; simp at hfv
     · intro n k h; simp at h
   exact (visitExpr_refines_erasesLB
-    step_visitExpr step_visitLiteral (step_visitConstructor A hall) step4 step5
-    (step6 E hve hdih) step_visitAppArgs step_visitLet step_visitLambda step_visitProj
-    step_visitApp (step_visitConstApp hctab) step_visitCtorEta step_visitCtorEtaGo
-    step_visitCasesEta step_visitCasesEtaGo (step_visitCases A hseg) step_visitAlt
+    (step_visitExpr E) step_visitLiteral (step_visitConstructor A) (step_visitConst A) step5
+    (step6 E hve hsafe) step_visitAppArgs step_visitLet step_visitLambda step_visitProj
+    step_visitApp (step_visitConstApp hsafe) step_visitCtorEta step_visitCtorEtaGo
+    step_visitCasesEta step_visitCasesEtaGo (step_visitCases A) step_visitAlt
     P htbl hcfg hcb hwt hsup rfl hvis hinv Γspec hspec).1
 
 /-! ## The pending results -/
@@ -161,19 +155,11 @@ theorem shipping_erase_correct_firstorder
     (E : EraserAsks lenv env [] gw)
     (A : UpstreamAsks env)
     (htbl : SourceTableAdequate lenv tbl)
+    (hsafe : TableSafe lenv tbl)
     (hblk : TableBlocks lenv env tbl)
     (hcfg : ConfigPinned cfg)
     (hcb : CompilerBodies lenv env tbl.body?)
-    (step4 : Step4 lenv env [] tbl cfg gw)
     (hve : VisitExprRunConcl env gw)
-    (hdih : DeclInfoAtHead env tbl)
-    (hall : ∀ (I : Name) (iv : InductiveVal), lenv.find? I = some (.inductInfo iv) →
-      iv.name ∈ iv.all)
-    (hseg : ∀ (cinfo : Lean.CasesInfo) (c : Name) (Ir : ReifiedInduct),
-      CasesHead env tbl cinfo c Ir → Ir.ctors.length ≤ cinfo.altNumParams.size ∧
-        ∀ dp nm, CasesOnShape env c c.getPrefix dp nm → dp = cinfo.discrPos)
-    (hctab : ∀ (c : Name) (cv : ConstructorVal), (tbl.decl? c).isSome →
-      lenv.find? c = some (.ctorInfo cv) → (ctorOf? tbl c).isSome)
     (hwt : TrExprS env [] [] pe ve)
     (hsup : Supported env tbl pe)
     (hprep : Erasure.prepare_erasure e {} { «config» := cfg } cctx ref w = .ok (pe, {}) wp)
@@ -210,8 +196,7 @@ theorem shipping_erase_correct_firstorder
   obtain rfl : t = t' := by injection hp with _ h; exact Option.some.inj h
   obtain ⟨Γspec, hspec, hrest⟩ := hbridge sf wt hvis
   obtain ⟨t₀, her, hlow⟩ :=
-    erasure_bridge_of_run P E A htbl hblk hcfg hcb step4 hve hdih hall hseg hctab hsup hwt
-      hprep hvis hspec
+    erasure_bridge_of_run P E A htbl hsafe hblk hcfg hcb hve hsup hwt hprep hvis hspec
   have B := hrest t₀ her hlow
   refine ⟨Γspec, t₀, hprep, her, B.erasesEnv, hlow, B.lowerEnv, B.wf, ?_⟩
   intro args targs I us idx v vv hlen hargs hev hvwt hty hfo

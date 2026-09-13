@@ -9,19 +9,20 @@ members that write the erasure state's constant registry, and their motives are 
 report registration rather than a term relation.
 
 * `step5` and `step6` are the two registration steps, discharged in full.
-* `visitConst_refines` is step 4's content and `step4_of_exclusions` is its step interface at
-  two further premises. `Step4` itself is **not** delivered: `Motive4` admits a constructor and
-  a type-former head, and `Erases.const` excludes both.
+* `visitConst_refines` is step 4's content and `step_visitConst` is its step interface:
+  `Motive4` carries the constructor and type-former exclusions `Erases.const` needs, so the
+  interface is `Step4` on the nose.
 * `blockKeyed_install` proves the four conditions of the reader description at the pair
   `Erasure.visitMutual` installs.
-* Two facts the registration path needs are named here as premises; each docstring says why
-  no clause of `ErasureSpec` or `EraserAsks` carries it.
+* One fact the term walk still needs is named here as a premise, `VisitExprRunConcl`, and its
+  docstring says why no clause of `ErasureSpec` or `EraserAsks` carries it.
 
 `Motive6` reports registration and nothing about the block's content. The sub-runs erase a
-dependency at its own `levelParams`, where `BridgeInv.lparams` — a prefix of the ambient level
-scope — is unsatisfiable at a polymorphic dependency of a closed subject, so the block's
-content is read off the final state by `SpecEnv` instead. That is a restriction of the motive's
-shape rather than a premise, and it is why `blockKeyed_install` has no consumer here.
+dependency at its own `levelParams`, where `BridgeInv.lparams` — the reader's level scope is
+the ambient one — is unsatisfiable at a polymorphic dependency of a closed subject, so the
+block's content is read off the final state by `SpecEnv` instead. That is a restriction of the
+motive's shape rather than a premise, and it is why `blockKeyed_install` has no consumer
+here.
 -/
 
 namespace LeanToLambdaBox
@@ -69,24 +70,16 @@ theorem run_prepare_erasure_concl {lenv : Environment} {env : VEnv} {Us : List N
 /-! ## What no clause of the specification bundle carries
 
 `ErasureSpec` specifies the four environment queries, the fresh-name source, the relevance
-oracle and the `CoreM` calls the erasure makes for their effect. Two facts the registration
-path still needs are not among them — one a gap in an existing clause, one about **this
-repository's own eraser** — so each docstring says what would retire it.
--/
+oracle and the `CoreM` calls the erasure makes for their effect. One fact the registration
+path still needs is not among them, and it is about **this repository's own eraser**, so its
+docstring says what would retire it.
 
-/-- The code generator answers for a head of the fragment, and that head is not an
-`_unsafe_rec` companion. `ErasureSpec.LookupAdequate.declInfo` then supplies the block
-membership `Erasure.visitMutual`'s registration loop is indexed by; what that clause lacks is
-an `r = none` arm and a supplier for its guard, which are exactly the two halves here. Class
-**D**: `Lean.Compiler.LCNF.getDeclInfo?` reads
-`lenv.find? (Compiler.mkUnsafeRecName n) <|> lenv.find? n`, so both halves are conditions on
-`lenv` and on the shape of the name. -/
-def DeclInfoAtHead (env : VEnv) (tbl : SourceTable) : Prop :=
-  ∀ (n : Name) (cctx : Core.Context) (ref : ST.Ref IO.RealWorld Core.State)
-    (w : Void IO.RealWorld) (r : Option ConstantInfo) (w₁ : Void IO.RealWorld),
-    KnownHead env tbl n →
-    (Lean.Compiler.LCNF.getDeclInfo? n : CoreM (Option ConstantInfo)) cctx ref w = .ok r w₁ →
-      r.isSome ∧ Lean.Compiler.isUnsafeRecName? n = none
+The registration loop's own two facts come from elsewhere. That
+`Lean.Compiler.LCNF.getDeclInfo?` answers at a tabled head is
+`ErasureSpec.LookupAdequate.declInfo`'s `r = none` arm read against
+`Witness.SourceTableAdequate`'s pin; that the head is not an `_unsafe_rec` companion is
+`TableSafe.notUnsafeRec`.
+-/
 
 /-- **The term walk's state, generator and registry conclusion, unconditionally.** Owner: this
 repository — a second, unconditional induction over the same eighteen-member family, which the
@@ -301,8 +294,9 @@ theorem run_visitMutual_registers {lenv : Environment} {env : VEnv} {Us : List N
     {tbl : SourceTable} {s : ErasureState} {ctx : ErasureContext} {w : Void IO.RealWorld}
     {u : Unit} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
     (P : ErasureSpec lenv env Us gw) (E : EraserAsks lenv env Us gw)
-    (hve : VisitExprRunConcl env gw) (hdih : DeclInfoAtHead env tbl)
-    (hkn : KnownHead env tbl n) (hcs : ctx.config.csimp = false)
+    (hve : VisitExprRunConcl env gw) (htbl : SourceTableAdequate lenv tbl)
+    (hsafe : TableSafe lenv tbl)
+    (htab : (tbl.decl? n).isSome) (hcs : ctx.config.csimp = false)
     (hpru : ctx.config.remove_irrel_constr_args = false)
     (hind : IndRegistryModelled env s)
     (hrun : visitMutual n s ctx cctx ref w = .ok (u, s₁) w₁) :
@@ -358,9 +352,17 @@ theorem run_visitMutual_registers {lenv : Environment} {env : VEnv} {Us : List N
   subst hsa
   have hdiC := ((run_liftCoreM_ok _ _ cctx ref _).mp hdi).1
   have hmem : n ∈ di.get!.all.map remove_unsafe_rec := by
-    obtain ⟨hdom, hstrip⟩ := hdih n cctx ref w di wa hkn hdiC
-    obtain ⟨ci₀, hci₀⟩ := Option.isSome_iff_exists.mp hdom
-    have hb := ((P.lookup_adequate.declInfo n cctx ref w di wa hdiC).2 ci₀ hci₀).2 hstrip
+    obtain ⟨d, hd⟩ := Option.isSome_iff_exists.mp htab
+    obtain ⟨⟨ci₁, hfind₁, -, -⟩, -⟩ :=
+      htbl.decls n d (mem_of_lookup (by rwa [SourceTable.decl?] at hd))
+    obtain ⟨ci₀, hci₀⟩ : ∃ ci₀, di = some ci₀ := by
+      cases hdisome : di with
+      | some ci₀ => exact ⟨ci₀, rfl⟩
+      | none =>
+        have := (P.lookup_adequate.declInfo n cctx ref w di wa hdiC).2.2 hdisome
+        rw [hfind₁] at this; exact absurd this (by simp)
+    have hb := ((P.lookup_adequate.declInfo n cctx ref w di wa hdiC).2.1 ci₀ hci₀).2
+      (hsafe.notUnsafeRec n htab)
     simpa [hci₀] using hb
   have hlea : gw w ≤ gw wa := (P.lookup_adequate.declInfo n cctx ref w di wa hdiC).1
   rw [run_bind_ok] at hrun
@@ -456,22 +458,13 @@ section Steps
 variable {lenv : Environment} {env : VEnv} {Us : List Name} {tbl : SourceTable}
   {cfg : ErasureConfig} {gw : Void IO.RealWorld → NameGenerator}
 
-/-- A constant at the empty spine is a plain head: the `casesApp` rule needs a spine long
-enough for the eliminator's own arity, so it does not apply. -/
-theorem knownHead_of_supported_const {env : VEnv} {tbl : SourceTable} {n : Name}
-    {us : List Level} (h : SupportedTm env tbl (.const n us) []) :
-    KnownHead env tbl n ∧ PlainHead n ∧ isCasesOnName n = false := by
-  cases h with
-  | const hp hc _ _ hk => exact ⟨hk, hp, hc⟩
-  | casesApp _ _ _ _ harity => simp at harity
-
 /-- **Step 5.** The hit branch reads the registry, whose kernames are canonical by the
 invariant; the miss branch registers the name through `Erasure.visitMutual` and then reads it
 back, which is what makes the `panic!`-defaulting lookup total and canonical. -/
 theorem step5 : Step5 lenv env Us tbl cfg gw := by
   intro _P _htbl _hcfg _hcb vMut m6
   refine ⟨?_, bodyLe5 m6.2⟩
-  intro n s ctx cctx ref w kn s' w' hrun Δ hinv hsup
+  intro n s ctx cctx ref w kn s' w' hrun Δ hinv hsup htab
   unfold getConstantKernameBody at hrun
   rw [run_bind_ok] at hrun
   obtain ⟨s₀, sa, wa, hget, hk⟩ := hrun
@@ -496,7 +489,7 @@ theorem step5 : Step5 lenv env Us tbl cfg gw := by
       cases hget2
       rw [run_pure] at hp
       cases hp
-      obtain ⟨hdom, hrc, hreg, hle⟩ := m6.1 _ _ _ _ _ _ _ _ _ hvm Δ hinv hsup
+      obtain ⟨hdom, hrc, hreg, hle⟩ := m6.1 _ _ _ _ _ _ _ _ _ hvm Δ hinv hsup htab
       obtain ⟨kn₀, hkn₀⟩ := Option.isSome_iff_exists.mp hdom
       exact ⟨by rw [hashMap_get!_of_get? hkn₀]; exact hrc.canon hinv.canon hkn₀, hdom, hrc,
         hreg, hle⟩
@@ -507,13 +500,13 @@ body erasures. `Motive1`'s refinement half is not consumed: what the motive repo
 registration, and the fragment and translation premises a body erasure would need are not
 available at a dependency's own level scope. -/
 theorem step6 (E : EraserAsks lenv env Us gw) (hve : VisitExprRunConcl env gw)
-    (hdih : DeclInfoAtHead env tbl) : Step6 lenv env Us tbl cfg gw := by
-  intro P _htbl hcfg _hcb vExpr m1
+    (hsafe : TableSafe lenv tbl) : Step6 lenv env Us tbl cfg gw := by
+  intro P htbl hcfg _hcb vExpr m1
   refine ⟨?_, bodyLe6 m1.2⟩
-  intro n s ctx cctx ref w u s' w' hrun Δ hinv hsup
+  intro n s ctx cctx ref w u s' w' hrun Δ hinv _hsup htab
   have hrun' := run_ok_of_le₁ (bodyLe6 m1.2) hrun
-  obtain ⟨hdom, hrc, hle, hreg⟩ := run_visitMutual_registers P E hve hdih
-    (knownHead_of_supported_const hsup.term).1 (by rw [hinv.cfg]; exact hcfg.1)
+  obtain ⟨hdom, hrc, hle, hreg⟩ := run_visitMutual_registers P E hve htbl hsafe htab
+    (by rw [hinv.cfg]; exact hcfg.1)
     (by rw [hinv.cfg]; exact hcfg.2.2.2.1) hinv.indcanon hrun'
   exact ⟨hdom, hrc, hreg, hle⟩
 
@@ -573,13 +566,14 @@ theorem specEnv_not_runtimeKey {env : VEnv} {bo : Name → Option Expr}
   rw [H.runtimeKey_isCasesOn hco hrk] at hcas
   exact absurd hcas (by simp)
 
-/-! ## Step 4, at the exclusions its motive does not carry
+/-! ## Step 4
 
-`Step4` itself is **not** delivered: `Motive4`'s premises admit a constructor and a type-former
-head, which `Erases.const` excludes and no clause here supplies. `visitConst_refines` is the
-content, at the model facts the constant branch reads; `step4_of_exclusions` is the step
-interface with the two exclusions added, which is `Step4` on the nose once the motive carries
-them.
+`Erases.const` asks for `ConstOrigin`, which `KnownHead`'s three columns do not settle: the
+constructor and type-former columns are ruled out by `Motive4`'s own exclusions, which the
+run's callers produce — the constructor one from `Erasure.visitConstApp`'s
+`Lean.Compiler.LCNF.getCtorArity?` miss, the type-former one from the relevance oracle's
+`false` verdict. `visitConst_refines` is the content, at the model facts the constant branch
+reads; `step_visitConst` is the step interface.
 -/
 
 /-- **Step 4's content.** The block branch returns the member's fix variable, which is
@@ -633,7 +627,7 @@ theorem visitConst_refines {env : VEnv} {Us : List Name} {tbl : SourceTable}
       obtain ⟨kn, s₂, w₂, hgck, hp⟩ := hk
       rw [run_pure] at hp
       cases hp
-      obtain ⟨hkn, hdom, hrc, hreg, hle⟩ := m5.1 _ _ _ _ _ _ _ _ _ hgck Δ hinv hsupc
+      obtain ⟨hkn, hdom, hrc, hreg, hle⟩ := m5.1 _ _ _ _ _ _ _ _ _ hgck Δ hinv hsupc htab
       subst hkn
       refine ⟨hrc, hreg, hle, fun Γspec hspec => ⟨?_, ?_⟩⟩
       · intro _
@@ -647,27 +641,11 @@ theorem visitConst_refines {env : VEnv} {Us : List Name} {tbl : SourceTable}
         simp only [Option.bind_some] at hopt
         exact fixvarMap_get?_none (Nat.le_of_eq hbk.2.1) hopt (hbk.2.2.2 n htab hin)
 
-/-- **Step 4, at the two exclusions `Motive4` does not carry.** `Erases.const` asks for
-`ConstOrigin`, which `KnownHead`'s three columns do not settle: the constructor column and the
-type-former column are ruled out by the caller, and with them gone the head is the `defn`
-column, whose `VEnv.contains` and `SourceTable.decl?` are exactly what the content reads. -/
-theorem step4_of_exclusions {lenv : Environment} {env : VEnv} {Us : List Name}
+/-- **Step 4.** With `Motive4`'s two exclusions the head is the `defn` column of `KnownHead`,
+whose `VEnv.contains` and `SourceTable.decl?` are exactly what `visitConst_refines` reads. -/
+theorem step_visitConst {lenv : Environment} {env : VEnv} {Us : List Name}
     {tbl : SourceTable} {cfg : ErasureConfig} {gw : Void IO.RealWorld → NameGenerator}
-    (A : UpstreamAsks env) :
-    ErasureSpec lenv env Us gw → SourceTableAdequate lenv tbl → ConfigPinned cfg →
-    CompilerBodies lenv env tbl.body? →
-    ∀ vGck : Name → EraseM Kername, Motive5 env Us tbl cfg gw vGck →
-      (∀ (e : Expr) (s : ErasureState) (ctx : ErasureContext) (cctx : Core.Context)
-          (ref : ST.Ref IO.RealWorld Core.State) (w : Void IO.RealWorld) (t : LBTerm)
-          (s' : ErasureState) (w' : Void IO.RealWorld),
-          visitConstBody vGck e s ctx cctx ref w = .ok (t, s') w' →
-          ∀ (Δ : VLCtx) (nm : Name) (us : List Level),
-            BridgeInv env Us tbl cfg (gw w) ctx s Δ → e = .const nm us → PlainHead nm →
-            isCasesOnName nm = false → KnownHead env tbl nm → Supported env tbl e →
-            (∀ (I : Name) (k : Nat), ¬ CtorOf env nm I k) →
-            (∀ (iid : InductiveId) (np : Nat) (nfs : List Nat), ¬ IndInfo env nm iid np nfs) →
-            RunRefines env Us tbl ctx Δ s s' (gw w) (gw w') e t) ∧
-      visitConstBody vGck ⊑ Erasure.visitConst := by
+    (A : UpstreamAsks env) : Step4 lenv env Us tbl cfg gw := by
   intro _P _htbl _hcfg _hcb vGck m5
   refine ⟨?_, bodyLe4 m5.2⟩
   intro e s ctx cctx ref w t s' w' hrun Δ nm us hinv he _hplain hcas hkn hsup hnc hni

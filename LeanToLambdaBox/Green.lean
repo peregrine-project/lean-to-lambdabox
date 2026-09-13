@@ -207,16 +207,7 @@ theorem green_G1
     (E : EraserAsks lenv env [] gw)
     (A : UpstreamAsks env)
     (hblk : TableBlocks lenv env g1Table)
-    (step4 : Step4 lenv env [] g1Table spikeConfig gw)
     (hve : VisitExprRunConcl env gw)
-    (hdih : DeclInfoAtHead env g1Table)
-    (hall : ∀ (I : Name) (iv : InductiveVal), lenv.find? I = some (.inductInfo iv) →
-      iv.name ∈ iv.all)
-    (hseg : ∀ (cinfo : Lean.CasesInfo) (c : Name) (Ir : ReifiedInduct),
-      CasesHead env g1Table cinfo c Ir → Ir.ctors.length ≤ cinfo.altNumParams.size ∧
-        ∀ dp nm, CasesOnShape env c c.getPrefix dp nm → dp = cinfo.discrPos)
-    (hctab : ∀ (c : Name) (cv : ConstructorVal), (g1Table.decl? c).isSome →
-      lenv.find? c = some (.ctorInfo cv) → (ctorOf? g1Table c).isSome)
     (hprep : Erasure.prepare_erasure eG1 {} { «config» := spikeConfig } cctx ref w
       = .ok (eG1, {}) wp)
     (hrun : Erasure.erase eG1 spikeConfig cctx ref w
@@ -242,8 +233,8 @@ theorem green_G1
       ∧ (∀ tv', Erases env [] [] v tv' → tv' = tv₀)
       ∧ WcbvEval g1Env eraseFlags g1Term (.construct natIid 0 []) := by
   obtain ⟨Γspec, t₀, -, her, herΓ, hlow, hlowΓ, hwf, hobs⟩ :=
-    shipping_erase_correct_firstorder P E A htbl hblk spike_configPinned
-      (g1_compilerBodies P htbl hsafe) step4 hve hdih hall hseg hctab
+    shipping_erase_correct_firstorder P E A htbl hsafe hblk spike_configPinned
+      (g1_compilerBodies P htbl hsafe) hve
       (trExprS_const_of_table P htbl hsafe rfl)
       (supportedB_sound P htbl hsafe g1_supported)
       hprep hrun g1_noBodylessRefs hbridge
@@ -359,16 +350,7 @@ theorem green_G2
     (E : EraserAsks lenv env [] gw)
     (A : UpstreamAsks env)
     (hblk : TableBlocks lenv env g2Table)
-    (step4 : Step4 lenv env [] g2Table spikeConfig gw)
     (hve : VisitExprRunConcl env gw)
-    (hdih : DeclInfoAtHead env g2Table)
-    (hall : ∀ (I : Name) (iv : InductiveVal), lenv.find? I = some (.inductInfo iv) →
-      iv.name ∈ iv.all)
-    (hseg : ∀ (cinfo : Lean.CasesInfo) (c : Name) (Ir : ReifiedInduct),
-      CasesHead env g2Table cinfo c Ir → Ir.ctors.length ≤ cinfo.altNumParams.size ∧
-        ∀ dp nm, CasesOnShape env c c.getPrefix dp nm → dp = cinfo.discrPos)
-    (hctab : ∀ (c : Name) (cv : ConstructorVal), (g2Table.decl? c).isSome →
-      lenv.find? c = some (.ctorInfo cv) → (ctorOf? g2Table c).isSome)
     (hcb : CompilerBodies lenv env g2Table.body?)
     (hprep : Erasure.prepare_erasure eG2 {} { «config» := spikeConfig } cctx ref w
       = .ok (eG2, {}) wp)
@@ -395,8 +377,8 @@ theorem green_G2
       ∧ (∀ tv', Erases env [] [] v tv' → tv' = tv₀)
       ∧ WcbvEval g2Env eraseFlags g2Term (peanoLB 4) := by
   obtain ⟨Γspec, t₀, -, her, herΓ, hlow, hlowΓ, hwf, hobs⟩ :=
-    shipping_erase_correct_firstorder P E A htbl hblk spike_configPinned hcb
-      step4 hve hdih hall hseg hctab (trExprS_const_of_table P htbl hsafe rfl)
+    shipping_erase_correct_firstorder P E A htbl hsafe hblk spike_configPinned hcb
+      hve (trExprS_const_of_table P htbl hsafe rfl)
       (supportedB_sound P htbl hsafe g2_supported) hprep hrun g2_noBodylessRefs hbridge
   obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
     hobs [] [] ``Nat us idx v vv rfl (fun i hi => absurd hi (by simp)) hev hvwt hty hfo
@@ -464,16 +446,7 @@ theorem green_G3
     (E : EraserAsks lenv env [] gw)
     (A : UpstreamAsks env)
     (hblk : TableBlocks lenv env g3Table)
-    (step4 : Step4 lenv env [] g3Table spikeConfig gw)
     (hve : VisitExprRunConcl env gw)
-    (hdih : DeclInfoAtHead env g3Table)
-    (hall : ∀ (I : Name) (iv : InductiveVal), lenv.find? I = some (.inductInfo iv) →
-      iv.name ∈ iv.all)
-    (hseg : ∀ (cinfo : Lean.CasesInfo) (c : Name) (Ir : ReifiedInduct),
-      CasesHead env g3Table cinfo c Ir → Ir.ctors.length ≤ cinfo.altNumParams.size ∧
-        ∀ dp nm, CasesOnShape env c c.getPrefix dp nm → dp = cinfo.discrPos)
-    (hctab : ∀ (c : Name) (cv : ConstructorVal), (g3Table.decl? c).isSome →
-      lenv.find? c = some (.ctorInfo cv) → (ctorOf? g3Table c).isSome)
     (hcb : CompilerBodies lenv env g3Table.body?)
     (hprep : Erasure.prepare_erasure eG3 {} { «config» := spikeConfig } cctx ref w
       = .ok (eG3, {}) wp)
@@ -500,8 +473,8 @@ theorem green_G3
       ∧ (∀ tv', Erases env [] [] v tv' → tv' = tv₀)
       ∧ WcbvEval g3Env eraseFlags g3Term (peanoLB 3) := by
   obtain ⟨Γspec, t₀, -, her, herΓ, hlow, hlowΓ, hwf, hobs⟩ :=
-    shipping_erase_correct_firstorder P E A htbl hblk spike_configPinned hcb
-      step4 hve hdih hall hseg hctab (trExprS_const_of_table P htbl hsafe rfl)
+    shipping_erase_correct_firstorder P E A htbl hsafe hblk spike_configPinned hcb
+      hve (trExprS_const_of_table P htbl hsafe rfl)
       (supportedB_sound P htbl hsafe g3_supported) hprep hrun g3_noBodylessRefs hbridge
   obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
     hobs [] [] ``Nat us idx v vv rfl (fun i hi => absurd hi (by simp)) hev hvwt hty hfo
@@ -589,16 +562,7 @@ theorem green_G4
     (E : EraserAsks lenv env [] gw)
     (A : UpstreamAsks env)
     (hblk : TableBlocks lenv env g4Table)
-    (step4 : Step4 lenv env [] g4Table spikeConfig gw)
     (hve : VisitExprRunConcl env gw)
-    (hdih : DeclInfoAtHead env g4Table)
-    (hall : ∀ (I : Name) (iv : InductiveVal), lenv.find? I = some (.inductInfo iv) →
-      iv.name ∈ iv.all)
-    (hseg : ∀ (cinfo : Lean.CasesInfo) (c : Name) (Ir : ReifiedInduct),
-      CasesHead env g4Table cinfo c Ir → Ir.ctors.length ≤ cinfo.altNumParams.size ∧
-        ∀ dp nm, CasesOnShape env c c.getPrefix dp nm → dp = cinfo.discrPos)
-    (hctab : ∀ (c : Name) (cv : ConstructorVal), (g4Table.decl? c).isSome →
-      lenv.find? c = some (.ctorInfo cv) → (ctorOf? g4Table c).isSome)
     (hcb : CompilerBodies lenv env g4Table.body?)
     (hprep : Erasure.prepare_erasure eG4 {} { «config» := spikeConfig } cctx ref w
       = .ok (eG4, {}) wp)
@@ -625,8 +589,8 @@ theorem green_G4
       ∧ (∀ tv', Erases env [] [] v tv' → tv' = tv₀)
       ∧ WcbvEval g4Env eraseFlags g4Term (peanoLB 1) := by
   obtain ⟨Γspec, t₀, -, her, herΓ, hlow, hlowΓ, hwf, hobs⟩ :=
-    shipping_erase_correct_firstorder P E A htbl hblk spike_configPinned hcb
-      step4 hve hdih hall hseg hctab (trExprS_const_of_table P htbl hsafe rfl)
+    shipping_erase_correct_firstorder P E A htbl hsafe hblk spike_configPinned hcb
+      hve (trExprS_const_of_table P htbl hsafe rfl)
       (supportedB_sound P htbl hsafe g4_supported) hprep hrun g4_noBodylessRefs hbridge
   obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
     hobs [] [] ``Nat us idx v vv rfl (fun i hi => absurd hi (by simp)) hev hvwt hty hfo
@@ -846,16 +810,7 @@ theorem green_G5
     (E : EraserAsks lenv env [] gw)
     (A : UpstreamAsks env)
     (hblk : TableBlocks lenv env g5Table)
-    (step4 : Step4 lenv env [] g5Table spikeConfig gw)
     (hve : VisitExprRunConcl env gw)
-    (hdih : DeclInfoAtHead env g5Table)
-    (hall : ∀ (I : Name) (iv : InductiveVal), lenv.find? I = some (.inductInfo iv) →
-      iv.name ∈ iv.all)
-    (hseg : ∀ (cinfo : Lean.CasesInfo) (c : Name) (Ir : ReifiedInduct),
-      CasesHead env g5Table cinfo c Ir → Ir.ctors.length ≤ cinfo.altNumParams.size ∧
-        ∀ dp nm, CasesOnShape env c c.getPrefix dp nm → dp = cinfo.discrPos)
-    (hctab : ∀ (c : Name) (cv : ConstructorVal), (g5Table.decl? c).isSome →
-      lenv.find? c = some (.ctorInfo cv) → (ctorOf? g5Table c).isSome)
     (hcb : CompilerBodies lenv env g5Table.body?)
     (hprep : Erasure.prepare_erasure eG5 {} { «config» := spikeConfig } cctx ref w
       = .ok (eG5, {}) wp)
@@ -886,8 +841,8 @@ theorem green_G5
       ∧ (∀ tv', Erases env [] [] (peanoSrc 1) tv' → tv' = tv₀)
       ∧ WcbvEval g5Env eraseFlags g5Term (peanoLB 1) := by
   obtain ⟨Γspec, t₀, -, her, herΓ, hlow, hlowΓ, hwf, hobs⟩ :=
-    shipping_erase_correct_firstorder P E A htbl hblk spike_configPinned hcb
-      step4 hve hdih hall hseg hctab (trExprS_const_of_table P htbl hsafe rfl)
+    shipping_erase_correct_firstorder P E A htbl hsafe hblk spike_configPinned hcb
+      hve (trExprS_const_of_table P htbl hsafe rfl)
       (supportedB_sound P htbl hsafe g5_supported) hprep hrun g5_noBodylessRefs hbridge
   obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
     hobs [] [] ``Nat us idx (peanoSrc 1) vv rfl (fun i hi => absurd hi (by simp))
@@ -968,16 +923,7 @@ theorem green_G6
     (E : EraserAsks lenv env [] gw)
     (A : UpstreamAsks env)
     (hblk : TableBlocks lenv env g6Table)
-    (step4 : Step4 lenv env [] g6Table spikeConfig gw)
     (hve : VisitExprRunConcl env gw)
-    (hdih : DeclInfoAtHead env g6Table)
-    (hall : ∀ (I : Name) (iv : InductiveVal), lenv.find? I = some (.inductInfo iv) →
-      iv.name ∈ iv.all)
-    (hseg : ∀ (cinfo : Lean.CasesInfo) (c : Name) (Ir : ReifiedInduct),
-      CasesHead env g6Table cinfo c Ir → Ir.ctors.length ≤ cinfo.altNumParams.size ∧
-        ∀ dp nm, CasesOnShape env c c.getPrefix dp nm → dp = cinfo.discrPos)
-    (hctab : ∀ (c : Name) (cv : ConstructorVal), (g6Table.decl? c).isSome →
-      lenv.find? c = some (.ctorInfo cv) → (ctorOf? g6Table c).isSome)
     (hcb : CompilerBodies lenv env g6Table.body?)
     (hprep : Erasure.prepare_erasure eG6 {} { «config» := spikeConfig } cctx ref w
       = .ok (eG6, {}) wp)
@@ -1004,8 +950,8 @@ theorem green_G6
       ∧ (∀ tv', Erases env [] [] v tv' → tv' = tv₀)
       ∧ WcbvEval g6Env eraseFlags g6Term (peanoLB 2) := by
   obtain ⟨Γspec, t₀, -, her, herΓ, hlow, hlowΓ, hwf, hobs⟩ :=
-    shipping_erase_correct_firstorder P E A htbl hblk spike_configPinned hcb
-      step4 hve hdih hall hseg hctab (trExprS_const_of_table P htbl hsafe rfl)
+    shipping_erase_correct_firstorder P E A htbl hsafe hblk spike_configPinned hcb
+      hve (trExprS_const_of_table P htbl hsafe rfl)
       (supportedB_sound P htbl hsafe g6_supported) hprep hrun g6_noBodylessRefs hbridge
   obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
     hobs [] [] ``Nat us idx v vv rfl (fun i hi => absurd hi (by simp)) hev hvwt hty hfo

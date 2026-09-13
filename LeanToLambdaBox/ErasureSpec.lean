@@ -114,15 +114,18 @@ structure LookupAdequate (lenv : Environment) (gw : Void IO.RealWorld → NameGe
     (getConstInfo n : CoreM ConstantInfo) cctx ref w = .ok ci w₁ →
     gw w ≤ gw w₁ ∧ lenv.find? n = some ci
   /-- `getDeclInfo?` answers for a name `lenv` knows, at the compiler block that name belongs
-      to. The membership is **guarded**: `getDeclInfo?` prefers the `_unsafe_rec` twin, so at
+      to, and answers `none` only for a name `lenv` does not know. `getDeclInfo?` reads
+      `lenv.find? (Compiler.mkUnsafeRecName n) <|> lenv.find? n`, so both arms are conditions
+      on `lenv`. The membership is **guarded**: the query prefers the `_unsafe_rec` twin, so at
       `n = f._unsafe_rec` the answer's block is `f`'s and does not contain `n`. The guard is
-      discharged at the call site, where the visited name comes out of a term
-      `Erasure.replaceUnsafeRecNames` has already stripped. -/
+      `TableSafe.notUnsafeRec`, a condition on the table's own constant column. -/
   declInfo : ∀ (n : Name) (cctx : Core.Context) (ref : ST.Ref IO.RealWorld Core.State)
     (w : Void IO.RealWorld) (r : Option ConstantInfo) (w₁ : Void IO.RealWorld),
     Lean.Compiler.LCNF.getDeclInfo? n cctx ref w = .ok r w₁ →
-    gw w ≤ gw w₁ ∧ ∀ ci, r = some ci → lenv.find? n ≠ none ∧
-      (Lean.Compiler.isUnsafeRecName? n = none → n ∈ ci.all.map Erasure.remove_unsafe_rec)
+    gw w ≤ gw w₁ ∧
+    (∀ ci, r = some ci → lenv.find? n ≠ none ∧
+      (Lean.Compiler.isUnsafeRecName? n = none → n ∈ ci.all.map Erasure.remove_unsafe_rec)) ∧
+    (r = none → lenv.find? n = none)
   /-- `getCtorArity?` answers exactly for the constructors `lenv` declares, at their
       parameter-plus-field arity, and for no other name. -/
   ctorArity : ∀ (n : Name) (cctx : Core.Context) (ref : ST.Ref IO.RealWorld Core.State)
@@ -192,11 +195,20 @@ structure BlockAdequate (lenv : Environment) (env : VEnv) : Prop where
   ctorBwd : ∀ (c I : Name) (k : Nat), CtorOf env c I k →
     ∃ cv : ConstructorVal, lenv.find? c = some (.ctorInfo cv) ∧ cv.induct = I ∧ cv.cidx = k
   /-- The `casesOn` constant of a declared inductive is declared in the model, at the
-      segmentation the block fixes. Named `casesOnDecl` because a structure may not carry a
+      segmentation the block fixes: the discriminant sits after the parameters, the motive and
+      the indices, which is the same arithmetic `CasesInfoAgreesK.discrPos` reads off the
+      elaborator's own metadata. Named `casesOnDecl` because a structure may not carry a
       field called `casesOn`. -/
   casesOnDecl : ∀ (c I : Name) (iv : InductiveVal), isCasesOnName c = true → c.getPrefix = I →
     lenv.find? I = some (.inductInfo iv) →
-    ∃ dp nm vc, env.constants c = some vc ∧ ConstOrigin env c ∧ CasesOnShape env c I dp nm
+    ∃ nm vc, env.constants c = some vc ∧ ConstOrigin env c ∧
+      CasesOnShape env c I (iv.numParams + 1 + iv.numIndices) nm
+  /-- A declared inductive is a member of its own block. Class **D** like the five beside it:
+      `Lean.InductiveVal.all` is the elaborator's own record of the mutual block, and the
+      registration loop of `Erasure.register_inductive` is indexed by membership in it. -/
+  selfMem : ∀ (I : Name) (iv : InductiveVal), lenv.find? I = some (.inductInfo iv) →
+    iv.name ∈ iv.all
+
 /-! ## The bundle -/
 
 /-- The specification of the erasure's ambient primitives, at the elaboration environment
