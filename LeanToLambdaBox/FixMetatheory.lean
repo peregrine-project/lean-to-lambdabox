@@ -1,45 +1,36 @@
 import LeanToLambdaBox.Abstract
 
 /-!
-# `closeFix`: the `n`-way fvar → de-Bruijn abstraction of a mutual `fix` block (P3 foundation)
+# `closeFix`: the `n`-way fvar → de Bruijn abstraction of a mutual `fix` block
 
-Pure-`LBTerm` foundation for the environment-level erasure of *recursive* Lean
-definitions (workstream P3, `notes/P3_ENV_ERASURE_DESIGN.md` §1.5/§2). This file is
-**additive and self-contained** — it adds no constructor to `Erases`, touches no
-forward-simulation lemma, and imports only `Abstract` (the single-fvar `toBvar`
-metatheory). It models the closing step of the shipping `mkDef`.
+Pure-`LBTerm` metatheory of the closing step the shipping `Erasure.mkDef`
+(`LeanToLambdaBox/Erasure.lean:273`) performs. It imports only `Abstract`, the single-fvar
+`toBvar` metatheory, and mentions no source-side notion.
 
 ## What the shipping code does
 
-For a recursive mutual block `names = [n₀ … n₍ₘ₋₁₎]`, the eraser (`Erasure.visitMutual`,
-Erasure.lean:904) picks `m` fresh fvars `ids = [x₀ … x₍ₘ₋₁₎]`, erases each def body
-with the sibling references `.const nₖ` mapped to `.fvar xₖ` (via `visitConst`,
-Erasure.lean:662), and then closes every body with `mkDef` (Erasure.lean:273):
+For a recursive mutual block `names = [n₀ … n₍ₘ₋₁₎]`, `Erasure.visitMutual` picks `m` fresh
+fvars `ids = [x₀ … x₍ₘ₋₁₎]`, erases each def body with the sibling references `.const nₖ` mapped
+to `.fvar xₖ` (`Erasure.visitConst`), then closes every body with `mkDef`, whose loop folds
+`toBvar (fixvars[n]) i` over `fixvarnames.reverse.zipIdx`.
 
-```lean
-def mkDef (name : Name) (fixvarnames : List Name) (body : LBTerm) : EraseM (@FixDef LBTerm) := do
-  let mut body := body
-  for (n, i) in fixvarnames.reverse.zipIdx do
-    body := toBvar ((← read).fixvars.get![n]!) i body
-  return { name := .named name.toString, body }
-```
+Because the block names zip with `ids` in order, that fold is `closeFix ids 0`: it sends the
+**last** sibling `x₍ₘ₋₁₎ ↦ .bvar 0` and the **first** `x₀ ↦ .bvar (m-1)`, the de Bruijn
+convention of the `.fix` node (`LBTerm.fix`), whose bodies live under `m` binders and refer to
+sibling `k` by `.bvar (m-1-k)` — the convention `Semantics.Substitution`'s `fixSubst` inverts.
 
-So `mkDef` folds `toBvar` over `fixvarnames.reverse.zipIdx`, looking up each name's
-fvar. Because the block names zip with `ids` in order, this is exactly
-`closeFix ids body` below: it sends the **last** sibling `x₍ₘ₋₁₎ ↦ .bvar 0` and the
-**first** sibling `x₀ ↦ .bvar (m-1)`, matching the de-Bruijn convention of the
-`.fix` node (`LBTerm.fix`, Basic.lean:104), whose bodies live under `m` binders and
-refer to sibling `k` by `.bvar (m-1-k)` (cf. `fixSubst`, Substitution.lean:220, which
-re-instantiates `.bvar (m-1-k) ↦ .fix defs (m-1-k)`).
+## What is proved
 
-The lemmas here establish the two facts the reconciliation needs:
-
-* **`closeFix` = the `mkDef` fold** (definitional), so the shipping output is exactly
-  `closeFix`.
-* **`closeFix_fvar`**: for distinct `ids`, `closeFix ids 0 (.fvar xₖ) = .bvar (m-1-k)` —
-  the per-sibling abstraction result. This is the pure-`LBTerm` skeleton of the
-  `Erases.abstractFixvars` lemma of the design (§1.5); the `Erases`-level version
-  lifts it once the `Erases.fix` rule lands (deferred, XL — see the design doc).
+* `closeFixFold_eq_foldl`: the structural fold equals the `List.foldl` that `mkDef`'s `for`
+  elaborates to. The `fixvars` lookup layer (`fixvars[nₖ] = xₖ`) is not proved here; it is a
+  fact about the run, and `ErasureRun`/`LowerFix` carry it.
+* `closeFix_not_hasFVar` and `hasFVar_closeFix_of`: closing removes exactly the block fvars and
+  introduces none.
+* `closeFixFold_fvar_head`, `closeFixFold_fvar_of_not_mem`, `closeFixFold_bvar`,
+  `closeFixFold_app`: the per-constructor characterisation the index arithmetic rests on.
+* `closeFix_2block_last`, `closeFix_2block_first`, `closeFix_2block_unfold` and the two
+  `example`s beside them: the two-member block worked out concretely, so the sibling-index
+  convention is witnessed rather than only asserted.
 -/
 
 namespace LeanToLambdaBox

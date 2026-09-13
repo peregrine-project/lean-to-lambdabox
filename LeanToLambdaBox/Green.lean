@@ -1,5 +1,6 @@
 import LeanToLambdaBox.Capstone
 import LeanToLambdaBox.Witness.TrWitness
+import VerifyBench.Src.Arith
 
 /-!
 # The green ladder
@@ -49,6 +50,12 @@ def spikeRec : Nat → Nat := fun n =>
 
 /-- Rung G6's subject: an application of a recursive constant, hence δ on a `.fix`. -/
 def spikeFix : Nat := spikeRec (Nat.succ (Nat.succ Nat.zero))
+
+/-- Rung G7's subject: the tracked benchmark program `benchArith` at `0`, a closed nullary
+definition whose value is `2 ^ 3 = 8`. Its erasure pulls in the arithmetic typeclass tower —
+ten projections, four `fix` blocks, five `.case` nodes — so it is the ladder's first rung at
+the scale of a real program. -/
+def arithClosed : Nat := benchArith 0
 
 namespace LeanToLambdaBox.Green
 
@@ -216,7 +223,7 @@ theorem green_G1
       Erasure.visitExpr eG1 {} { «config» := spikeConfig } cctx ref wp = .ok (g1Term, sf) wt →
       ∃ Γspec : GlobalDeclarations, SpecEnv env g1Table.body? sf Γspec ∧
         ∀ t₀ : LBTerm, Erases env [] [] eG1 t₀ → Lower Γspec t₀ g1Term →
-          ErasureBridge env g1Table.body? eG1 Γspec g1Env g1Term t₀)
+          ErasureBridge env g1Table.body? Γspec g1Env g1Term t₀)
     (hev : SEval env g1Table.body? [] fullFlags [] eG1 v)
     (hvwt : TrExprS env [] [] v vv)
     (hty : env.HasType 0 [] vv (VExpr.mkApps (.const ``Nat us) idx))
@@ -262,13 +269,18 @@ def ofNatKn : Kername := ⟨.MPdot (.MPfile []) "OfNat", "ofNat"⟩
 /-- The kername of the `Nat` instance `instOfNatNat`. -/
 def instOfNatNatKn : Kername := rootKername "instOfNatNat"
 
+/-- The emitted inductive body of a single-field class: `npars` parameters, the constructor
+`<name>.mk` of one field, and that field's projection. Every class a rung's closure declares
+— `OfNat` here, the whole arithmetic tower at G7 — has this shape. -/
+def classBody (name : String) (npars : Nat) : MutualInductiveBody :=
+  { npars := npars,
+    bodies := [{ name := name, propositional := false, kelim := .IntoAny,
+                 ctors := [{ name := name ++ ".mk", nargs := 1 }],
+                 projs := [{ name := "0" }] }] }
+
 /-- `OfNat`'s emitted inductive body: two parameters, one constructor of one field, one
 projection. -/
-def ofNatBody : MutualInductiveBody :=
-  { npars := 2,
-    bodies := [{ name := "OfNat", propositional := false, kelim := .IntoAny,
-                 ctors := [{ name := "OfNat.mk", nargs := 1 }],
-                 projs := [{ name := "0" }] }] }
+def ofNatBody : MutualInductiveBody := classBody "OfNat" 2
 
 /-- The emitted image of the source literal `n : Nat`: the class projection applied to the
 erased type, the peano numeral and the instance. -/
@@ -360,7 +372,7 @@ theorem green_G2
       Erasure.visitExpr eG2 {} { «config» := spikeConfig } cctx ref wp = .ok (g2Term, sf) wt →
       ∃ Γspec : GlobalDeclarations, SpecEnv env g2Table.body? sf Γspec ∧
         ∀ t₀ : LBTerm, Erases env [] [] eG2 t₀ → Lower Γspec t₀ g2Term →
-          ErasureBridge env g2Table.body? eG2 Γspec g2Env g2Term t₀)
+          ErasureBridge env g2Table.body? Γspec g2Env g2Term t₀)
     (hev : SEval env g2Table.body? [] fullFlags [] eG2 v)
     (hvwt : TrExprS env [] [] v vv)
     (hty : env.HasType 0 [] vv (VExpr.mkApps (.const ``Nat us) idx))
@@ -456,7 +468,7 @@ theorem green_G3
       Erasure.visitExpr eG3 {} { «config» := spikeConfig } cctx ref wp = .ok (g3Term, sf) wt →
       ∃ Γspec : GlobalDeclarations, SpecEnv env g3Table.body? sf Γspec ∧
         ∀ t₀ : LBTerm, Erases env [] [] eG3 t₀ → Lower Γspec t₀ g3Term →
-          ErasureBridge env g3Table.body? eG3 Γspec g3Env g3Term t₀)
+          ErasureBridge env g3Table.body? Γspec g3Env g3Term t₀)
     (hev : SEval env g3Table.body? [] fullFlags [] eG3 v)
     (hvwt : TrExprS env [] [] v vv)
     (hty : env.HasType 0 [] vv (VExpr.mkApps (.const ``Nat us) idx))
@@ -572,7 +584,7 @@ theorem green_G4
       Erasure.visitExpr eG4 {} { «config» := spikeConfig } cctx ref wp = .ok (g4Term, sf) wt →
       ∃ Γspec : GlobalDeclarations, SpecEnv env g4Table.body? sf Γspec ∧
         ∀ t₀ : LBTerm, Erases env [] [] eG4 t₀ → Lower Γspec t₀ g4Term →
-          ErasureBridge env g4Table.body? eG4 Γspec g4Env g4Term t₀)
+          ErasureBridge env g4Table.body? Γspec g4Env g4Term t₀)
     (hev : SEval env g4Table.body? [] fullFlags [] eG4 v)
     (hvwt : TrExprS env [] [] v vv)
     (hty : env.HasType 0 [] vv (VExpr.mkApps (.const ``Nat us) idx))
@@ -820,7 +832,7 @@ theorem green_G5
       Erasure.visitExpr eG5 {} { «config» := spikeConfig } cctx ref wp = .ok (g5Term, sf) wt →
       ∃ Γspec : GlobalDeclarations, SpecEnv env g5Table.body? sf Γspec ∧
         ∀ t₀ : LBTerm, Erases env [] [] eG5 t₀ → Lower Γspec t₀ g5Term →
-          ErasureBridge env g5Table.body? eG5 Γspec g5Env g5Term t₀)
+          ErasureBridge env g5Table.body? Γspec g5Env g5Term t₀)
     (F : SpikeNatFacts env ni)
     (U : SpikeUnitFacts env pi)
     (hd : StepDefeq env [] [] eG5 g5Body)
@@ -933,7 +945,7 @@ theorem green_G6
       Erasure.visitExpr eG6 {} { «config» := spikeConfig } cctx ref wp = .ok (g6Term, sf) wt →
       ∃ Γspec : GlobalDeclarations, SpecEnv env g6Table.body? sf Γspec ∧
         ∀ t₀ : LBTerm, Erases env [] [] eG6 t₀ → Lower Γspec t₀ g6Term →
-          ErasureBridge env g6Table.body? eG6 Γspec g6Env g6Term t₀)
+          ErasureBridge env g6Table.body? Γspec g6Env g6Term t₀)
     (hev : SEval env g6Table.body? [] fullFlags [] eG6 v)
     (hvwt : TrExprS env [] [] v vv)
     (hty : env.HasType 0 [] vv (VExpr.mkApps (.const ``Nat us) idx))
@@ -958,5 +970,457 @@ theorem green_G6
   have htv : tv = g6Answer := eval_deterministic hevtgt g6_eval
   subst htv
   exact ⟨Γspec, t₀, tv₀, her, herΓ, hlow, hlowΓ, hwf, herv, hlowv, hnobox, huniq, g6_eval⟩
+
+/-! ## The arithmetic tower, shared by rungs G7 and G8
+
+`arithClosed` and `benchArith` erase the same dependency closure — the `HPow`/`Pow`/`NatPow`,
+`HMul`/`Mul`, `HSub`/`Sub` and `HAdd`/`Add` classes, their `Nat` instances, and the four
+`Nat` operations — so the two rungs share one transcription. The rungs differ in their head
+declaration and in the tag the matcher inliner writes into the ten emitted `let` binders,
+which names the module the `#erase` ran in.
+-/
+
+/-- A kername in a one-segment module path, the shape every qualified name in the arithmetic
+tower has. -/
+def dotKername (mp id : String) : Kername := ⟨.MPdot (.MPfile []) mp, id⟩
+
+/-- The λ□ inductive identifier of a class the tower declares: its own block, first body. -/
+def classIid (name : String) : InductiveId := ⟨rootKername name, 0⟩
+
+/-- `n` anonymous binders in front of a body: what an emitted class projection puts before
+its `self` binder, one per class parameter whose argument the eraser boxes. -/
+def boxLambdas : Nat → LBTerm → LBTerm
+  | 0, t => t
+  | n + 1, t => .lambda .anon (boxLambdas n t)
+
+/-- The emitted declaration of a class's field projection: the class parameters bound
+anonymously, then the field read out of the instance. -/
+def classProjDecl (cls fld : String) (npars : Nat) : Kername × GlobalDecl :=
+  (dotKername cls fld, .constantDecl ⟨some
+    (boxLambdas npars (.lambda (.named "self") (.proj ⟨classIid cls, npars, 0⟩ (.bvar 0))))⟩)
+
+/-- The emitted declaration of a `Nat` instance of a homogeneous class: the `Nat` operation
+packed into the class constructor, the carrier erased. -/
+def natInstDecl (inst cls op : String) : Kername × GlobalDecl :=
+  (rootKername inst, .constantDecl ⟨some
+    (.app (.app (.construct (classIid cls) 0 []) .box) (.const (dotKername "Nat" op)))⟩)
+
+/-- The emitted declaration of a heterogeneous class's homogeneous bridge instance — the
+`instHMul` shape. `ib` is the hygienic name the instance binder carries. -/
+def homInstDecl (inst hcls cls fld ib : String) : Kername × GlobalDecl :=
+  (rootKername inst, .constantDecl ⟨some
+    (.lambda .anon (.lambda (.named ib)
+      (LBTerm.mkApps (.construct (classIid hcls) 0 [])
+        [.box, .box, .box,
+         (.lambda (.named "a") (.lambda (.named "b")
+           (LBTerm.mkApps (.const (dotKername cls fld))
+             [.box, .bvar 2, .bvar 1, .bvar 0])))])))⟩)
+
+/-- The binder name Lean's matcher inliner gives an emitted `let`. The tag is the macro scope
+of the module the `#erase` ran in, so the same source program erased in two modules differs
+exactly at these names. -/
+def altBinder (tag n : String) : BinderName :=
+  .named ("_alt._@." ++ tag ++ "._hygCtx._hyg." ++ n)
+
+/-! ### The emitted bodies, transcribed -/
+
+/-- The emitted fixpoint of `Nat.pow`: structural recursion on the exponent, the base
+multiplied in at each step. The two `let`s hold the compiled `match`'s alternatives, the
+nullary one thunked. -/
+def natPowFix (tag : String) : @FixDef LBTerm :=
+  { name := (.named "Nat.pow"),
+    body := (.lambda (.named "m")
+              (.lambda (.named "x._@.Init.Prelude.427477602._hygCtx._hyg.10")
+                (.letIn (altBinder tag "11") (.lambda (.named "_") (litLB 1))
+                  (.letIn (altBinder tag "12")
+                    (.lambda (.named "n")
+                      (.app
+                        (.app (.const (dotKername "Nat" "mul"))
+                          (.app (.app (.bvar 4) (.bvar 3)) (.bvar 0)))
+                        (.bvar 3)))
+                    (.case (natIid, 0) (.bvar 2)
+                      [([], (.app (.bvar 1) (.const unitUnitKn))),
+                       ([(.named "n._@.Init.Prelude.427477602._hygCtx._hyg.40")],
+                        (.app (.bvar 1) (.bvar 0)))]))))),
+    principalArgIdx := 0 }
+
+/-- The emitted fixpoint of `Nat.mul`: structural recursion on the **second** argument,
+adding the first at each step. -/
+def natMulFix (tag : String) : @FixDef LBTerm :=
+  { name := (.named "Nat.mul"),
+    body := (.lambda (.named "x._@.Init.Prelude.2075127268._hygCtx._hyg.13")
+              (.lambda (.named "x._@.Init.Prelude.2075127268._hygCtx._hyg.14")
+                (.letIn (altBinder tag "13")
+                  (.lambda (.named "x._@.Init.Prelude.2075127268._hygCtx._hyg.41") (litLB 0))
+                  (.letIn (altBinder tag "14")
+                    (.lambda (.named "a")
+                      (.lambda (.named "b")
+                        (.app
+                          (.app (.const (dotKername "Nat" "add"))
+                            (.app (.app (.bvar 5) (.bvar 1)) (.bvar 0)))
+                          (.bvar 1))))
+                    (.case (natIid, 0) (.bvar 2)
+                      [([], (.app (.bvar 1) (.bvar 3))),
+                       ([(.named "n._@.Init.Prelude.2075127268._hygCtx._hyg.64")],
+                        (.app (.app (.bvar 1) (.bvar 4)) (.bvar 0)))]))))),
+    principalArgIdx := 0 }
+
+/-- The emitted fixpoint of `Nat.add`: structural recursion on the second argument, a
+`Nat.succ` at each step. -/
+def natAddFix (tag : String) : @FixDef LBTerm :=
+  { name := (.named "Nat.add"),
+    body := (.lambda (.named "x._@.Init.Prelude.2314059840._hygCtx._hyg.13")
+              (.lambda (.named "x._@.Init.Prelude.2314059840._hygCtx._hyg.14")
+                (.letIn (altBinder tag "15") (.lambda (.named "a") (.bvar 0))
+                  (.letIn (altBinder tag "16")
+                    (.lambda (.named "a")
+                      (.lambda (.named "b")
+                        (.app (.construct natIid 1 [])
+                          (.app (.app (.bvar 5) (.bvar 1)) (.bvar 0)))))
+                    (.case (natIid, 0) (.bvar 2)
+                      [([], (.app (.bvar 1) (.bvar 3))),
+                       ([(.named "n._@.Init.Prelude.2314059840._hygCtx._hyg.62")],
+                        (.app (.app (.bvar 1) (.bvar 4)) (.bvar 0)))]))))),
+    principalArgIdx := 0 }
+
+/-- The emitted fixpoint of `Nat.sub`: structural recursion on the subtrahend, one
+`Nat.pred` at each step. -/
+def natSubFix (tag : String) : @FixDef LBTerm :=
+  { name := (.named "Nat.sub"),
+    body := (.lambda (.named "x._@.Init.Prelude.462884191._hygCtx._hyg.13")
+              (.lambda (.named "x._@.Init.Prelude.462884191._hygCtx._hyg.14")
+                (.letIn (altBinder tag "17") (.lambda (.named "a") (.bvar 0))
+                  (.letIn (altBinder tag "18")
+                    (.lambda (.named "a")
+                      (.lambda (.named "b")
+                        (.app (.const (dotKername "Nat" "pred"))
+                          (.app (.app (.bvar 5) (.bvar 1)) (.bvar 0)))))
+                    (.case (natIid, 0) (.bvar 2)
+                      [([], (.app (.bvar 1) (.bvar 3))),
+                       ([(.named "n._@.Init.Prelude.2075127268._hygCtx._hyg.64")],
+                        (.app (.app (.bvar 1) (.bvar 4)) (.bvar 0)))]))))),
+    principalArgIdx := 0 }
+
+/-- The emitted body of `Nat.pred`: a compiled `match` on the argument, zero on the
+nullary alternative and the field on the successor one. -/
+def natPredBody (tag : String) : LBTerm :=
+  (.lambda (.named "x._@.Init.Prelude.4130297703._hygCtx._hyg.8")
+    (.letIn (altBinder tag "19") (.lambda (.named "_") (litLB 0))
+      (.letIn (altBinder tag "20") (.lambda (.named "a") (.bvar 0))
+        (.case (natIid, 0) (.bvar 2)
+          [([], (.app (.bvar 1) (.const unitUnitKn))),
+           ([(.named "n._@.Init.Prelude.427477602._hygCtx._hyg.40")],
+            (.app (.bvar 1) (.bvar 0)))]))))
+
+/-- The emitted body of `instPowNat`: the `NatPow` instance re-packed as a `Pow` instance,
+the two carriers erased. -/
+def instPowNatBody : LBTerm :=
+  (.lambda .anon
+    (.lambda (.named "inst._@.Init.Prelude.3231272351._hygCtx._hyg.5")
+      (LBTerm.mkApps (.construct (classIid "Pow") 0 [])
+        [.box, .box,
+         (.lambda (.named "a")
+           (.lambda (.named "n")
+             (LBTerm.mkApps (.const (dotKername "NatPow" "pow"))
+               [.box, (.bvar 2), (.bvar 1), (.bvar 0)])))])))
+
+/-- The emitted body of `instHPow`: the `Pow` instance re-packed as an `HPow` instance.
+Its argument count differs from the `instHMul` shape, so it is transcribed on its own. -/
+def instHPowBody : LBTerm :=
+  (.lambda .anon
+    (.lambda .anon
+      (.lambda (.named "inst._@.Init.Prelude.3805852345._hygCtx._hyg.9")
+        (LBTerm.mkApps (.construct (classIid "HPow") 0 [])
+          [.box, .box, .box,
+           (.lambda (.named "a")
+             (.lambda (.named "b")
+               (LBTerm.mkApps (.const (dotKername "Pow" "pow"))
+                 [.box, .box, (.bvar 2), (.bvar 1), (.bvar 0)])))]))))
+
+/-- The emitted body of `benchArith`: the whole class tower of `2 ^ (((n * 3) - n) + 3)`,
+every dictionary spelled out and every type argument erased. -/
+def benchArithBody : LBTerm :=
+  (.lambda (.named "n")
+    (LBTerm.mkApps (.const (dotKername "HPow" "hPow"))
+      [.box, .box, .box,
+       (LBTerm.mkApps (.const (rootKername "instHPow"))
+         [.box, .box,
+          (.app (.app (.const (rootKername "instPowNat")) .box)
+            (.const (rootKername "instNatPowNat")))]),
+       (litLB 2),
+       (LBTerm.mkApps (.const (dotKername "HAdd" "hAdd"))
+         [.box, .box, .box,
+          (.app (.app (.const (rootKername "instHAdd")) .box)
+            (.const (rootKername "instAddNat"))),
+          (LBTerm.mkApps (.const (dotKername "HSub" "hSub"))
+            [.box, .box, .box,
+             (.app (.app (.const (rootKername "instHSub")) .box)
+               (.const (rootKername "instSubNat"))),
+             (LBTerm.mkApps (.const (dotKername "HMul" "hMul"))
+               [.box, .box, .box,
+                (.app (.app (.const (rootKername "instHMul")) .box)
+                  (.const (rootKername "instMulNat"))),
+                (.bvar 0), (litLB 3)]),
+             (.bvar 0)]),
+          (litLB 3)])]))
+
+/-- The emitted body of `arithClosed`: `benchArith` applied to the literal `0`. -/
+def arithClosedBody : LBTerm :=
+  (.app (.const (rootKername "benchArith")) (litLB 0))
+
+/-! ### The tower -/
+
+/-- Everything rungs G7 and G8 emit below their own head declaration, in the frontend's own
+order. `tag` is the erasing module's macro scope, which the ten matcher-inlined `let` binders
+carry. -/
+def arithTower (tag : String) : GlobalDeclarations :=
+  [
+    (rootKername "benchArith", .constantDecl ⟨some benchArithBody⟩),
+    natInstDecl "instMulNat" "Mul" "mul",
+    homInstDecl "instHMul" "HMul" "Mul" "mul"
+      "inst._@.Init.Prelude.3013044039._hygCtx._hyg.5",
+    classProjDecl "Mul" "mul" 1,
+    (rootKername "Mul", .inductiveDecl (classBody "Mul" 1)),
+    classProjDecl "HMul" "hMul" 3,
+    (rootKername "HMul", .inductiveDecl (classBody "HMul" 3)),
+    natInstDecl "instSubNat" "Sub" "sub",
+    (dotKername "Nat" "sub", .constantDecl ⟨some (.fix [natSubFix tag] 0)⟩),
+    (dotKername "Nat" "pred", .constantDecl ⟨some (natPredBody tag)⟩),
+    homInstDecl "instHSub" "HSub" "Sub" "sub"
+      "inst._@.Init.Prelude.4034066273._hygCtx._hyg.5",
+    classProjDecl "Sub" "sub" 1,
+    (rootKername "Sub", .inductiveDecl (classBody "Sub" 1)),
+    classProjDecl "HSub" "hSub" 3,
+    (rootKername "HSub", .inductiveDecl (classBody "HSub" 3)),
+    natInstDecl "instAddNat" "Add" "add",
+    homInstDecl "instHAdd" "HAdd" "Add" "add"
+      "inst._@.Init.Prelude.1910291827._hygCtx._hyg.5",
+    classProjDecl "Add" "add" 1,
+    (rootKername "Add", .inductiveDecl (classBody "Add" 1)),
+    classProjDecl "HAdd" "hAdd" 3,
+    (rootKername "HAdd", .inductiveDecl (classBody "HAdd" 3)),
+    natInstDecl "instNatPowNat" "NatPow" "pow",
+    (dotKername "Nat" "pow", .constantDecl ⟨some (.fix [natPowFix tag] 0)⟩),
+    (unitUnitKn, .constantDecl ⟨some (.construct punitIid 0 [])⟩),
+    (rootKername "PUnit", .inductiveDecl punitBody),
+    (dotKername "Nat" "mul", .constantDecl ⟨some (.fix [natMulFix tag] 0)⟩),
+    (dotKername "Nat" "add", .constantDecl ⟨some (.fix [natAddFix tag] 0)⟩),
+    instOfNatNatDecl,
+    (rootKername "Nat", .inductiveDecl natBody),
+    ofNatDecl,
+    (rootKername "OfNat", .inductiveDecl ofNatBody),
+    (rootKername "instPowNat", .constantDecl ⟨some instPowNatBody⟩),
+    classProjDecl "NatPow" "pow" 1,
+    (rootKername "NatPow", .inductiveDecl (classBody "NatPow" 1)),
+    (rootKername "instHPow", .constantDecl ⟨some instHPowBody⟩),
+    classProjDecl "Pow" "pow" 2,
+    (rootKername "Pow", .inductiveDecl (classBody "Pow" 2)),
+    classProjDecl "HPow" "hPow" 3,
+    (rootKername "HPow", .inductiveDecl (classBody "HPow" 3))
+  ]
+
+/-! ## G7 — `arithClosed : Nat := benchArith 0` -/
+
+/-- The reified slice of the elaboration environment rung G7 reads, spliced by `reify%`
+out of the environment this module elaborates in. -/
+def g7Table : SourceTable := reify% arithClosed
+
+/-- The source term `#erase arithClosed` elaborates. -/
+def eG7 : Expr := .const ``arithClosed []
+
+/-- The macro scope `VerifyBench/Spikes/G7.lean` writes into its emitted `let` binders. -/
+def g7Tag : String := "VerifyBench.Spikes.G7.1490284936"
+
+/-- Rung G7's emitted environment, transcribed from `VerifyBench/ast/Spikes/G7.ast`. -/
+def g7Env : GlobalDeclarations :=
+  (rootKername "arithClosed", .constantDecl ⟨some arithClosedBody⟩) :: arithTower g7Tag
+
+/-- Rung G7's emitted term. -/
+def g7Term : LBTerm := .const (rootKername "arithClosed")
+
+/-- Rung G7's answer: the λ□ peano numeral `8`. -/
+def g7Answer : LBTerm := peanoLB 8
+
+/-! ## G8 — `benchArith : Nat → Nat`, the applied rung -/
+
+/-- The reified slice of the elaboration environment rung G8 reads, spliced by `reify%`
+out of the environment this module elaborates in. -/
+def g8Table : SourceTable := reify% benchArith
+
+/-- The source term `#erase benchArith` elaborates. -/
+def eG8 : Expr := .const ``benchArith []
+
+/-- The macro scope `VerifyBench/Spikes/G8.lean` writes into its emitted `let` binders. -/
+def g8Tag : String := "VerifyBench.Spikes.G8.2455828205"
+
+/-- Rung G8's emitted environment, transcribed from `VerifyBench/ast/Spikes/G8.ast`. -/
+def g8Env : GlobalDeclarations := arithTower g8Tag
+
+/-- Rung G8's emitted term. -/
+def g8Term : LBTerm := .const (rootKername "benchArith")
+
+/-- The source argument rung G8 applies its subject to: the constructor spelling of `0`. -/
+def g8Arg : Expr := .const ``Nat.zero []
+
+/-- Rung G8's answer: the λ□ peano numeral `8`. -/
+def g8Answer : LBTerm := peanoLB 8
+
+/-! ### The hypotheses a computation settles, at Arith's scale -/
+
+/-- The subject is inside the supported fragment, decided on the reified table.
+The verdict is computed by the kernel: `String.isPrefixOf`, which `isMatcherName` calls,
+does not reduce in the elaborator. -/
+theorem g7_supported : supportedB g7Table 8 eG7 = .ok () := by
+  have h : (supportedB g7Table 8 eG7).isOk = true := by decide +kernel
+  cases hx : supportedB g7Table 8 eG7 with
+  | ok u => cases u; rfl
+  | error err => rw [hx] at h; exact Bool.noConfusion h
+
+/-- Every constant the emitted program reaches is declared with a body. Forty declarations
+and a forty-round closure, so the kernel run is the ladder's longest. -/
+theorem g7_noBodylessRefs : NoBodylessRefs g7Env g7Term := by decide +kernel
+
+/-- The emitted program evaluates to the literal answer, by the certified evaluator: the
+whole class tower unfolded, `Nat.pow` three times and `Nat.mul`/`Nat.add` under it. -/
+theorem g7_eval : WcbvEval g7Env eraseFlags g7Term g7Answer :=
+  lbEval_sound (n := 64) (by rfl)
+
+/-- The subject is inside the supported fragment, decided on the reified table. -/
+theorem g8_supported : supportedB g8Table 8 eG8 = .ok () := by
+  have h : (supportedB g8Table 8 eG8).isOk = true := by decide +kernel
+  cases hx : supportedB g8Table 8 eG8 with
+  | ok u => cases u; rfl
+  | error err => rw [hx] at h; exact Bool.noConfusion h
+
+/-- Every constant the emitted program reaches is declared with a body. -/
+theorem g8_noBodylessRefs : NoBodylessRefs g8Env g8Term := by decide +kernel
+
+/-- The emitted program **applied to the λ□ numeral `0`** evaluates to the literal answer.
+This is the applied rung's target-side computation: the subject is a function, so the
+observation is made at a spine, not at the term alone. -/
+theorem g8_eval : WcbvEval g8Env eraseFlags (.app g8Term (peanoLB 0)) g8Answer :=
+  lbEval_sound (n := 64) (by rfl)
+
+/-! ### The rungs -/
+
+set_option linter.unusedVariables false in
+/--
+**Rung G7 is green.** For the `#erase` run recorded in `VerifyBench/Spikes/G7.lean`, the
+emitted program is the lowered image of a specification environment that erases
+`arithClosed`, and the source evaluation's answer is reproduced as the literal λ□ peano
+numeral `8`, not `□` and not a stuck term. The subject is a tracked benchmark program: forty
+emitted declarations, ten class projections, four `.fix` blocks and five `.case` nodes.
+`hcfg`, `hsup`, `hnb`, `hwt` and the target-side evaluation are discharged here by checked
+terms; `hcb` and `hev` stay binders, per `doc/trust.md`'s class-**C** rows.
+-/
+theorem green_G7
+    {lenv : Lean.Environment} {env : VEnv} {gw : Void IO.RealWorld → NameGenerator}
+    {vv : VExpr} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
+    {w wp w' : Void IO.RealWorld} {inls : List Kername}
+    {v : Expr} {us : List VLevel} {idx : List VExpr}
+    (P : ErasureSpec lenv env [] gw)
+    (htbl : SourceTableAdequate lenv g7Table)
+    (hsafe : TableSafe lenv g7Table)
+    (E : EraserAsks lenv env [] gw)
+    (A : UpstreamAsks env)
+    (hblk : TableBlocks lenv env g7Table)
+    (hve : VisitExprRunConcl env gw)
+    (hcb : CompilerBodies lenv env g7Table.body?)
+    (hprep : Erasure.prepare_erasure eG7 {} { «config» := spikeConfig } cctx ref w
+      = .ok (eG7, {}) wp)
+    (hrun : Erasure.erase eG7 spikeConfig cctx ref w
+      = .ok (.untyped g7Env (some g7Term), inls) w')
+    (hbridge : ∀ (sf : Erasure.ErasureState) (wt : Void IO.RealWorld),
+      Erasure.visitExpr eG7 {} { «config» := spikeConfig } cctx ref wp = .ok (g7Term, sf) wt →
+      ∃ Γspec : GlobalDeclarations, SpecEnv env g7Table.body? sf Γspec ∧
+        ∀ t₀ : LBTerm, Erases env [] [] eG7 t₀ → Lower Γspec t₀ g7Term →
+          ErasureBridge env g7Table.body? Γspec g7Env g7Term t₀)
+    (hev : SEval env g7Table.body? [] fullFlags [] eG7 v)
+    (hvwt : TrExprS env [] [] v vv)
+    (hty : env.HasType 0 [] vv (VExpr.mkApps (.const ``Nat us) idx))
+    (hfo : FirstOrderInd env ``Nat) :
+    ∃ (Γspec : GlobalDeclarations) (t₀ tv₀ : LBTerm),
+      Erases env [] [] eG7 t₀
+      ∧ ErasesEnv env g7Table.body? Γspec t₀
+      ∧ Lower Γspec t₀ g7Term
+      ∧ LowerEnv Γspec g7Env
+      ∧ LBWfPeregrine g7Env g7Term
+      ∧ Erases env [] [] v tv₀
+      ∧ Lower Γspec tv₀ (peanoLB 8)
+      ∧ NoBox (peanoLB 8)
+      ∧ (∀ tv', Erases env [] [] v tv' → tv' = tv₀)
+      ∧ WcbvEval g7Env eraseFlags g7Term (peanoLB 8) := by
+  obtain ⟨Γspec, t₀, -, her, herΓ, hlow, hlowΓ, hwf, hobs⟩ :=
+    shipping_erase_correct_firstorder P E A htbl hsafe hblk spike_configPinned hcb
+      hve (trExprS_const_of_table P htbl hsafe rfl)
+      (supportedB_sound P htbl hsafe g7_supported) hprep hrun g7_noBodylessRefs hbridge
+  obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
+    hobs [] [] ``Nat us idx v vv rfl (fun i hi => absurd hi (by simp)) hev hvwt hty hfo
+  have htv : tv = g7Answer := eval_deterministic hevtgt g7_eval
+  subst htv
+  exact ⟨Γspec, t₀, tv₀, her, herΓ, hlow, hlowΓ, hwf, herv, hlowv, hnobox, huniq, g7_eval⟩
+
+set_option linter.unusedVariables false in
+/--
+**Rung G8 is green, and it is the applied one.** For the `#erase` run recorded in
+`VerifyBench/Spikes/G8.lean` the subject is function-typed, so the observation is made at a
+spine: the emitted term applied to the λ□ numeral `0` evaluates to the literal peano numeral
+`8`, the value the source semantics gives `benchArith Nat.zero`. The argument's own
+`ErasesLB` premise is discharged here — a nullary constructor constant erases and lowers to
+the empty constructor node — so the rung adds no binder for it beyond the block data
+`SpikeNatFacts` carries. `hcfg`, `hsup`, `hnb`, `hwt`, the argument's erasure and the
+target-side evaluation are discharged by checked terms; `hcb` and `hev` stay binders.
+-/
+theorem green_G8
+    {lenv : Lean.Environment} {env : VEnv} {gw : Void IO.RealWorld → NameGenerator}
+    {vv : VExpr} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
+    {w wp w' : Void IO.RealWorld} {inls : List Kername}
+    {v : Expr} {us : List VLevel} {idx : List VExpr}
+    (P : ErasureSpec lenv env [] gw)
+    (htbl : SourceTableAdequate lenv g8Table)
+    (hsafe : TableSafe lenv g8Table)
+    (E : EraserAsks lenv env [] gw)
+    (A : UpstreamAsks env)
+    (hblk : TableBlocks lenv env g8Table)
+    (hve : VisitExprRunConcl env gw)
+    (hcb : CompilerBodies lenv env g8Table.body?)
+    (F : SpikeNatFacts env natIid)
+    (hprep : Erasure.prepare_erasure eG8 {} { «config» := spikeConfig } cctx ref w
+      = .ok (eG8, {}) wp)
+    (hrun : Erasure.erase eG8 spikeConfig cctx ref w
+      = .ok (.untyped g8Env (some g8Term), inls) w')
+    (hbridge : ∀ (sf : Erasure.ErasureState) (wt : Void IO.RealWorld),
+      Erasure.visitExpr eG8 {} { «config» := spikeConfig } cctx ref wp = .ok (g8Term, sf) wt →
+      ∃ Γspec : GlobalDeclarations, SpecEnv env g8Table.body? sf Γspec ∧
+        ∀ t₀ : LBTerm, Erases env [] [] eG8 t₀ → Lower Γspec t₀ g8Term →
+          ErasureBridge env g8Table.body? Γspec g8Env g8Term t₀)
+    (hev : SEval env g8Table.body? [] fullFlags [] (mkApps eG8 [g8Arg]) v)
+    (hvwt : TrExprS env [] [] v vv)
+    (hty : env.HasType 0 [] vv (VExpr.mkApps (.const ``Nat us) idx))
+    (hfo : FirstOrderInd env ``Nat) :
+    ∃ (Γspec : GlobalDeclarations) (t₀ tv₀ : LBTerm),
+      Erases env [] [] eG8 t₀
+      ∧ ErasesEnv env g8Table.body? Γspec t₀
+      ∧ Lower Γspec t₀ g8Term
+      ∧ LowerEnv Γspec g8Env
+      ∧ LBWfPeregrine g8Env g8Term
+      ∧ Erases env [] [] v tv₀
+      ∧ Lower Γspec tv₀ (peanoLB 8)
+      ∧ NoBox (peanoLB 8)
+      ∧ (∀ tv', Erases env [] [] v tv' → tv' = tv₀)
+      ∧ WcbvEval g8Env eraseFlags (.app g8Term (peanoLB 0)) (peanoLB 8) := by
+  obtain ⟨Γspec, t₀, -, her, herΓ, hlow, hlowΓ, hwf, hobs⟩ :=
+    shipping_erase_correct_firstorder P E A htbl hsafe hblk spike_configPinned hcb
+      hve (trExprS_const_of_table P htbl hsafe rfl)
+      (supportedB_sound P htbl hsafe g8_supported) hprep hrun g8_noBodylessRefs hbridge
+  obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
+    hobs [g8Arg] [peanoLB 0] ``Nat us idx v vv rfl
+      (fun i hi => by
+        obtain rfl : i = 0 := by simp at hi; omega
+        exact ErasesLB.ctor_head F.natZero F.natInd)
+      hev hvwt hty hfo
+  have htv : tv = g8Answer := eval_deterministic hevtgt g8_eval
+  subst htv
+  exact ⟨Γspec, t₀, tv₀, her, herΓ, hlow, hlowΓ, hwf, herv, hlowv, hnobox, huniq, g8_eval⟩
 
 end LeanToLambdaBox.Green

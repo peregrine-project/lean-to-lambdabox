@@ -15,9 +15,8 @@ binders by the block's own `.fix defs j` nodes.
 This file proves the two are inverse, in the sense the forward simulation needs:
 **substituting the block into a `closeFix`-closed body is the same as substituting
 `.fix defs j` for `ids[j]` directly in the *open* body**
-(`closeFix_substList_fixSubst`). That is the identity `notes/P3_ENV_ERASURE_DESIGN.md`
-§1.5 flagged as missing, and it is what will let the β case of the simulations turn a
-target fix-unfolding back into an ordinary erasure statement about the source body.
+(`closeFix_substList_fixSubst`). It is what lets the δ arm of the simulation turn a target
+fix-unfolding back into an ordinary erasure statement about the source body.
 
 ## Contents
 
@@ -29,9 +28,7 @@ target fix-unfolding back into an ordinary erasure statement about the source bo
 * The `toBvar` ↔ `LBTerm.subst` commutation pair — `subst_toBvar_self` (levels agree: the
   fresh bvar is consumed, giving `substFVar`) and `subst_toBvar_succ` (the `toBvar` level
   is above the substitution depth: the binder survives, one lower). These are the
-  primitive deferred at `Abstract.lean`'s closing note ("the `toBvar` ↔ `LBTerm.subst`
-  commutation … only needed once the bridge substitutes under abstractions"), and they
-  are the inductive heart of everything below.
+  primitive `Abstract.lean` leaves open, and the inductive heart of everything below.
 * `closeFixFold_append` / `closeFix_cons` — the structural recursion `closeFix` was
   missing (it is stated on the *pair* list, so peeling an id needs the append law).
 * `substList_toBvar`, then `closeFix_substList_fixSubst` and its `_gen` form generalised
@@ -488,7 +485,7 @@ fixvars: `.fvar ids[j] ↦ .fix defs j`. This is the *static* counterpart of
 def substFix (ids : List FVarId) (defs : List (@FixDef LBTerm)) (t : LBTerm) : LBTerm :=
   substFVarList (ids.zipIdx.map (fun p => (p.1, LBTerm.fix defs p.2))) t
 
-/-! ## Part 3b — `substFVarList`/`substFix` push through every node (recursion wall, W3.1)
+/-! ## Part 3b — `substFVarList`/`substFix` push through every node
 
 `Erases.instFixvars` (`RecBlockErasure`) is an induction over an erasure derivation whose
 *target* is being rewritten by `substFix`, so every structural rule needs the matching

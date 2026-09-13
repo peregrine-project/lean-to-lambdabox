@@ -405,7 +405,7 @@ requirement is automatically satisfied and the apparatus is unnecessary.
 it is **syntactic and decidable on `e` and its dependency closure** `[R R16]`, checkable by
 running it on a real program. It must make every currently-known coverage hole *visible in the
 predicate a reader audits* — in particular the sparse-`casesOn` shape (`_sparseCasesOn_`,
-`VerifyBench/STATUS.md`) on which the shipping eraser silently emits a wrong program: that
+`doc/rework/03-DEV-FIX.md`, F-SPARSE) on which the shipping eraser silently emits a wrong program: that
 exclusion may not live in a hypothesis bundle in another file.
 
 *Panics.* `.ok` does not exclude a panicked run: a `panic!` succeeds at `EraseM` and returns
@@ -481,7 +481,7 @@ theorem arith_covered : <the full conclusion of T9, instantiated> := ...
 ```
 
 plus a per-program coverage table for all five VerifyBench programs, stating for each what is
-covered and what is not, in the honest style of the existing `VerifyBench/STATUS.md`. Arith is
+covered and what is not, in the honest style of `doc/coverage.md`. Arith is
 the minimum because it is the smallest and needs no `match`: its residue is 10 typeclass
 projections, 4 single-definition `fix` blocks and a 19-node peano tower — i.e. exactly the
 typeclass-dictionary layer the collaborators care about `[Z 6]`. A hypothesis no benchmark
@@ -787,7 +787,7 @@ The checklist the final review runs. Each item is mechanical or has a named arte
    hypothesis with a ledger row, and `Acc.rec`/`Eq.rec`/`And.rec`/`Decidable` are demonstrably
    inside the fragment either way.
 8. `FirstOrderInd` is decidable and `decide`s to `true` on `Nat`, `Bool`, `List Nat`, `Nat × Nat`
-   and `VerifyBench/BinaryTrees`' `Tree`.
+   and `VerifyBench/Src/BinaryTrees.lean`'s `Tree`.
 9. `OracleDischarge` is in the capstone's transitive import closure, and the capstone's
    `oracle_sound` obligation is discharged rather than assumed.
 10. `Erases.sort_erasable` and `Erases.forallE_erasable` exist, so two of the eraser's sixteen

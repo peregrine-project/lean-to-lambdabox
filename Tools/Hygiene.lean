@@ -23,12 +23,12 @@ def topDirs : List String :=
 /-- The names a `lake exe` driver defines at the root namespace: `main`, which it must, and
     `usage`, which `Tools/GreenCheck.lean` and `Tools/Reify.lean` do. -/
 def dupExempt : List String := ["main", "usage"]
-/-- The five benchmark duplicates are separate library roots (`lakefile.toml`'s `VerifyBench`
-    stanza) never imported together, copied from frozen sources: `Sieve` and `Quicksort` both
-    declare `divmod`. N1 governs modules that can meet in one environment: scanned, unpaired. -/
+/-- The five frozen benchmark sources are separate library roots (`lakefile.toml`'s
+    `VerifyBench` stanza) never imported together: `Sieve` and `Quicksort` both declare
+    `divmod`. N1 governs modules that can meet in one environment: scanned, unpaired. -/
 def dupExemptFiles : List String :=
-  ["VerifyBench/Arith.lean", "VerifyBench/Sieve.lean", "VerifyBench/Quicksort.lean",
-   "VerifyBench/BinaryTrees.lean", "VerifyBench/Fannkuch.lean"]
+  ["VerifyBench/Src/Arith.lean", "VerifyBench/Src/Sieve.lean", "VerifyBench/Src/Quicksort.lean",
+   "VerifyBench/Src/BinaryTrees.lean", "VerifyBench/Src/Fannkuch.lean"]
 /-- Tokens `01-DESIGN.md` §4.4 forbids in the pass layer: `Lower` is indexed by λ□ terms and
     the specification environment alone. `FVarId` is λ□'s own fvar syntax, so it is not here. -/
 def epicycleTokens : List String := ["Expr", "VEnv", "Erasable", "ErasureState", "NameGenerator"]

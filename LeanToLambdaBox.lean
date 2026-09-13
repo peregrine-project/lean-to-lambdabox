@@ -58,6 +58,8 @@ import LeanToLambdaBox.Output
 import LeanToLambdaBox.Supported
 import LeanToLambdaBox.ErasesEnv
 import LeanToLambdaBox.SpecEnv
+-- α-equivalence of λ□ terms, and the transports of the relations along it.
+import LeanToLambdaBox.Alpha
 -- The first-order answer predicate and the capstone.
 import LeanToLambdaBox.FirstOrderInd
 import LeanToLambdaBox.Capstone

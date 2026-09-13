@@ -26,10 +26,9 @@ A `VExpr` is an *arity* when it is a (possibly nullary) telescope ending in a
 sort: `∀ x₁ … xₙ, Sort u`. These are the type-formers/predicates whose inhabitants
 erasure replaces with `box`.
 
-NOTE: this is a *syntactic* characterisation of the inferred type. The shipping
-`Meta.isTypeFormerType` whnf-reduces while peeling `∀`s; bridging the two will
-require taking the type up to definitional equality (deferred to the
-`isErasable` adequacy lemma, step A5/B1).
+This is a *syntactic* characterisation of the inferred type. The shipping
+`Meta.isTypeFormerType` whnf-reduces while peeling `∀`s; the defeq-closed form that
+bridges the two is `IsArityUpTo` below, which `Erasable` is stated with.
 -/
 inductive IsArity : VExpr → Prop
   | sort (u : VLevel) : IsArity (.sort u)

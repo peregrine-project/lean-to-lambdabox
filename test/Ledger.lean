@@ -2,8 +2,7 @@
 The trust ledger: the axiom footprint of the top-level results, measured.
 `scripts/ledger.sh` runs this file and diffs its output against `test/ledger.expected`.
 One `#print axioms` per line; a result whose footprint changes changes the fixture.
-The commented line is the ledger row of `doc/rework/01-DESIGN.md` §4.14 that no theorem
-inhabits yet; it is uncommented by the unit that proves the theorem it names. The two
+Every rung of the green ladder has a row, `green_G1` through `green_G8`. The two
 `visitExpr_refines_*` rows measure the bridge as it stands: an implication whose eighteen
 member steps are hypotheses, so the clean footprint is the aggregator's own and not the
 composed bridge's. `ErasureSpec.oracle_sound_of_run` is the entry point of the
@@ -13,7 +12,9 @@ seventeen of the eighteen steps, and everything closed on it. The other rows are
 theorems that exist — the simulation and its three arms, the
 corollaries of `ErasesEnv` and of `UpstreamAsks` the arms spend, the first-order answer,
 the pass layer's two transports, subject reduction, the `optimize` corollary, the certified
-evaluator, and one line per green rung. `ErasesEnv.tabled`'s discharge is measured as its
+evaluator, and one line per green rung. `bridgeEnv_of_regInv`, which composes the
+environment half of the capstone's bridge bundle, is measured on its own: its footprint is
+disjoint from the rungs' and carries no `sorryAx`. `ErasesEnv.tabled`'s discharge is measured as its
 two halves, `constants_of_tabled` and `constOrigin_of_constants`: the step between them is
 filed ask 4 and no theorem spans it.
 Provenance for the axiom names printed here lives in `doc/trust.md`, the single home of
@@ -49,15 +50,17 @@ import LeanToLambdaBox
 #print axioms LeanToLambdaBox.visitExpr_refines_erasesLB
 #print axioms LeanToLambdaBox.visitExpr_refines_erasesLBFix
 #print axioms LeanToLambdaBox.shipping_erase_correct_firstorder
+#print axioms LeanToLambdaBox.bridgeEnv_of_regInv
 #print axioms LeanToLambdaBox.Green.green_G1
 #print axioms LeanToLambdaBox.Green.green_G2
 #print axioms LeanToLambdaBox.Green.green_G3
 #print axioms LeanToLambdaBox.Green.green_G4
 #print axioms LeanToLambdaBox.Green.green_G5
 #print axioms LeanToLambdaBox.Green.green_G6
+#print axioms LeanToLambdaBox.Green.green_G7
+#print axioms LeanToLambdaBox.Green.green_G8
 #print axioms LeanToLambdaBox.Green.g5_seval
 #print axioms LeanToLambdaBox.Green.spikeNatFacts_natEnv
--- #print axioms LeanToLambdaBox.Green.green_G8
 
 #print axioms LeanToLambdaBox.SEval.defeq
 #print axioms LeanToLambdaBox.LBOptimize_correct

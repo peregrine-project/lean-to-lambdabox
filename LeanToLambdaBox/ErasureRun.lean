@@ -3,64 +3,44 @@ import LeanToLambdaBox.Semantics.Values
 import Lean4Lean.Verify.NameGenerator
 
 /-!
-# Run-level reasoning for `EraseM` (verification infrastructure)
+# Run-level reasoning for `EraseM`
 
-This file provides the reusable library for reasoning about *runs* of the
-`EraseM` monad, in preparation for the "`visitExpr` refines `Erases`" bridge
-proof, which will proceed by `Erasure.visitExpr.mutual_fixpoint_induct` over
-the 18-function erasure family in `LeanToLambdaBox/Erasure.lean`.
+The reusable library for reasoning about *runs* of the `EraseM` monad, under the
+`Erasure.visitExpr.mutual_fixpoint_induct` induction over the eighteen-function erasure family
+of `LeanToLambdaBox/Erasure.lean`. It is model-free: nothing here mentions `Erases` or `VEnv`.
 
 ## The run-application spelling
 
 `EraseM := StateT ErasureState (ReaderT ErasureContext CoreM)`, and
-`CoreM = ReaderT Core.Context (StateRefT' IO.RealWorld Core.State (EIO Exception))`
-with `EIO ε = EST ε IO.RealWorld` and `EST ε σ α = Void σ → EST.Out ε σ α`.
-An `x : EraseM α` is therefore run by applying it, step by step, to
+`CoreM = ReaderT Core.Context (StateRefT' IO.RealWorld Core.State (EIO Exception))` with
+`EIO ε = EST ε IO.RealWorld` and `EST ε σ α = Void σ → EST.Out ε σ α`. An `x : EraseM α` is run
+by applying it to `s : ErasureState` (the `StateT` layer), `ctx : ErasureContext` (the `ReaderT`
+layer), `cctx : Core.Context` (`CoreM`'s `ReaderT` layer), `ref : ST.Ref IO.RealWorld Core.State`
+(the `StateRefT'` layer) and `w : Void IO.RealWorld` (the `EST` world token), yielding an
+`EST.Out Exception IO.RealWorld (α × ErasureState)` whose success shape is `.ok (r, s') w'`.
 
-* `s    : ErasureState`                    (the `StateT` layer),
-* `ctx  : ErasureContext`                  (the `ReaderT` layer),
-* `cctx : Core.Context`                    (`CoreM`'s `ReaderT` layer),
-* `ref  : ST.Ref IO.RealWorld Core.State`  (the `StateRefT'` layer),
-* `w    : Void IO.RealWorld`               (the `EST` world token),
-
-yielding an `EST.Out Exception IO.RealWorld (α × ErasureState)`, whose success
-shape is `.ok (r, s') w'`. **We deliberately do not wrap this application in a
-`def`/`abbrev`**: `rw`/`cases`/keyed matching operate on the raw application
-spine (head `Bind.bind`, `Pure.pure`, …), and a wrapper constant would make
-lemma statements and goals disagree about the head symbol. The spelling
-`x s ctx cctx ref w = .ok (r, s') w'` is the canonical form used by every
-lemma in this file and should be used by all bridge motives.
+That application is deliberately not wrapped in a `def`: `rw`/`cases` and keyed matching operate
+on the raw spine (head `Bind.bind`, `Pure.pure`, …), and a wrapper constant would make lemma
+statements and goals disagree about the head symbol. `x s ctx cctx ref w = .ok (r, s') w'` is the
+canonical form of every lemma here and of every bridge motive.
 
 ## Contents
 
-* **Run lemmas** (`run_pure`, `run_bind`, `run_bind_ok`, …): step through
-  `do`-blocks under a `= .ok` hypothesis. `do`-notation match-compilation and
-  smart unfolding can block raw `rfl`/`decide`-style reasoning at the `EST`
-  layer; the (one-time) workaround — `cases h : <effect> …` + `show EST.bind …`
-  + `unfold`/`rw` — is distilled into `run_bind`/`run_liftCoreM` so client
-  proofs never fight it again.
-* **Admissibility toolkit** (`eraseM_admissible_ok` & the arity variants):
-  the canonical "on a successful run, `Q` holds" motive is
-  `Lean.Order.admissible` for every function signature in the erasure family,
-  as required by `partial_fixpoint`'s fixpoint induction.
-* **Approximation toolkit** (`run_ok_of_le`, `fix_step_le`, `mutual_le_of` and the
-  eighteen `_eq_mutual` slot equations): the second motive conjunct the bridge
-  carries — "this abstract eraser is below the shipping one" — together with the
-  plumbing that discharges its step obligations off
-  `Erasure.visitExpr.mutual._proof_1`, the monotonicity proof `partial_fixpoint`
-  generated for the erasure family itself.
-* **Hoare-style loop rules** for `List.forIn'`/`forIn`, `Array.forIn`,
-  `List.foldlM`/`Array.foldlM` and `List.mapM`: if an invariant holds
-  initially and is preserved by every loop-body run, it holds of the result
-  of a successful run of the whole loop. The `Array.forIn` rule also covers
-  the parallel-`for` shape (`for x in xs, y in ys do …`), which elaborates to
-  an `Array.forIn` whose accumulator threads the `Std.Stream` state of the
-  second iterator: instantiate the invariant with a predicate on the
-  (stream × state) accumulator (see the examples section).
-* **Scale check** (`visitExpr_run_shape`): a real (if modest) property of all
-  18 functions proved by `Erasure.visitExpr.mutual_fixpoint_induct`,
-  confirming that the admissibility obligations discharge with the toolkit and
-  that the step goals are tractable with the run lemmas at full scale.
+* **Run lemmas** (`run_pure`, `run_bind`, `run_bind_ok`, …): step through `do`-blocks under a
+  `= .ok` hypothesis. `do`-notation match-compilation and smart unfolding block raw `rfl`-style
+  reasoning at the `EST` layer; the workaround — `cases h : <effect> …` + `show EST.bind …` +
+  `unfold`/`rw` — is distilled into `run_bind`/`run_liftCoreM`.
+* **Admissibility toolkit** (`eraseM_admissible_ok` and its arity variants): the motive "on a
+  successful run, `Q` holds" is `Lean.Order.admissible` for every signature in the family, as
+  `partial_fixpoint`'s fixpoint induction requires.
+* **Approximation toolkit** (`run_ok_of_le`, `fix_step_le`, `mutual_le_of` and the eighteen
+  `_eq_mutual` slot equations): the motive conjunct "this abstract eraser is below the shipping
+  one", discharging its step obligations off `Erasure.visitExpr.mutual._proof_1`, the family's
+  own monotonicity proof.
+* **Hoare-style loop rules** for `List.forIn'`/`forIn`, `Array.forIn`, `List.foldlM`/`Array.foldlM`
+  and `List.mapM`: an invariant preserved by every body run holds of the whole loop's. The
+  `Array.forIn` rule covers the parallel-`for` shape, whose accumulator threads a `Std.Stream`.
+* **Scale check** (`visitExpr_run_shape`): all eighteen functions, through the family's induction.
 -/
 
 open Lean

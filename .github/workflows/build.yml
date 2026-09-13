@@ -6,11 +6,9 @@ on:
     - 'main'
     - 'dev/verify'
     paths-ignore:
-    - '**.md'
     - 'LICENSE'
   pull_request:
     paths-ignore:
-    - '**.md'
     - 'LICENSE'
 concurrency:
   group: "${{ github.workflow }}-${{ github.event.pull_request.number || github.head_ref || github.ref }}"
@@ -47,6 +45,11 @@ jobs:
       - name: lean4lean sorry inventory
         run: bash scripts/lean4lean-sorries.sh
 
+      # The benchmark programs a rung's subject is named by. The cross-repository half
+      # of the check is skipped here, where the sibling `benchmarks` checkout is absent.
+      - name: Frozen benchmark sources
+        run: bash scripts/frozen.sh
+
       - name: Green ladder self-test
         run: lake exe green-check --self-test && lake exe green-check --all
 
@@ -58,7 +61,8 @@ jobs:
           lake exe reify --check LeanToLambdaBox.Green \
             LeanToLambdaBox.Green.g1Table LeanToLambdaBox.Green.g2Table \
             LeanToLambdaBox.Green.g3Table LeanToLambdaBox.Green.g4Table \
-            LeanToLambdaBox.Green.g5Table LeanToLambdaBox.Green.g6Table
+            LeanToLambdaBox.Green.g5Table LeanToLambdaBox.Green.g6Table \
+            LeanToLambdaBox.Green.g7Table LeanToLambdaBox.Green.g8Table
           if lake exe reify --check LeanToLambdaBox.Witness.SourceTable \
                LeanToLambdaBox.Witness.SelfTest.staleTable; then
             echo "reify accepted the deliberately stale table" >&2
@@ -67,33 +71,44 @@ jobs:
 
       # The external mechanism behind the two class-D binders the bridge adds:
       # `TableBlocks` (`hblk`) and the rungs' `hprep`. `doc/trust.md` names both.
+      # `--prepared` takes constant names, not table names.
       - name: Installed fix blocks and prepared subjects
         run: |
           lake exe reify --blocks LeanToLambdaBox.Green \
             LeanToLambdaBox.Green.g1Table LeanToLambdaBox.Green.g2Table \
             LeanToLambdaBox.Green.g3Table LeanToLambdaBox.Green.g4Table \
-            LeanToLambdaBox.Green.g5Table LeanToLambdaBox.Green.g6Table
+            LeanToLambdaBox.Green.g5Table LeanToLambdaBox.Green.g6Table \
+            LeanToLambdaBox.Green.g7Table LeanToLambdaBox.Green.g8Table
           lake exe reify --prepared LeanToLambdaBox.Green \
             LeanToLambdaBox.Green.spikeZero LeanToLambdaBox.Green.spikeLit \
             LeanToLambdaBox.Green.spikeLet LeanToLambdaBox.Green.spikeProj \
-            LeanToLambdaBox.Green.spikeCase LeanToLambdaBox.Green.spikeFix
+            LeanToLambdaBox.Green.spikeCase LeanToLambdaBox.Green.spikeFix \
+            arithClosed benchArith
 
-      - name: Duplicate names and deletion schedule
+      - name: Duplicate names, deletion schedule, citations
         run: |
           lake exe hygiene --dup
           lake exe hygiene --schedule
           lake exe hygiene --tables
+          lake exe hygiene --cites
+          lake exe hygiene --anti-epicycle LeanToLambdaBox/Lower.lean
 
-      # A ratchet, not a zero: the residue is the tooling, the benchmark roots and the
-      # `ErasesCorrect/` arms `doc/coverage.md` accounts for. The budget fails when a
-      # module leaves the Green.lean-union-Capstone.lean closure, which is the regression
-      # this guards; a drop below it is fine and the budget is lowered by hand.
+      # `doc/coverage.md` is generated, so the check catches a hand-edit as well as a
+      # stale figure. The five corpus `.ast` files it measures are build artifacts.
+      - name: Coverage document
+        run: lake build VerifyBench && lake exe coverage --check
+
+      # A ratchet, not a zero: the residue is the tooling, the frozen benchmark sources,
+      # `Alpha.lean` and the `ErasesCorrect/` arms `doc/coverage.md` accounts for. The
+      # budget fails when a module leaves the Green.lean-union-Capstone.lean closure,
+      # which is the regression this guards; a drop below it is fine and the budget is
+      # lowered by hand.
       - name: Dead-declaration closure
         run: |
           out=$(lake exe hygiene --dead || true)
           n=$(printf '%s\n' "$out" | sed -n 's/^--dead: \([0-9]*\) .*/\1/p')
-          echo "declarations outside the closure: ${n:-unparsed} (budget 182)"
-          if [ -z "$n" ] || [ "$n" -gt 182 ]; then
+          echo "declarations outside the closure: ${n:-unparsed} (budget 315)"
+          if [ -z "$n" ] || [ "$n" -gt 315 ]; then
             printf '%s\n' "$out" >&2
             exit 1
           fi

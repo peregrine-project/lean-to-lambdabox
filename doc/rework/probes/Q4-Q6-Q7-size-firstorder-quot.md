@@ -63,7 +63,7 @@ functions, their instances, and ordinary definitions.
 
 The projection functions are exactly the class-method constants (`Add.add`, `HAdd.hAdd`,
 `OfNat.ofNat`, `Max.max`, `BEq.beq`, `Append.append`, `Pow.pow`, `NatPow.pow`, …) — the
-`tProj` column of `VerifyBench/STATUS.md`, seen from the declaration side. Each is 147–478
+`tProj` column of `doc/coverage.md`, seen from the declaration side. Each is 147–478
 bytes. The instances are 151–989 bytes each.
 
 ### Q4.2 Which inductives are eliminated, and how often
@@ -488,7 +488,7 @@ So `Quot.lift f h (Quot.mk r a)` erases to an application whose head is an axiom
 λ□'s `WcbvEval` an axiom is a `.const` with no body: it is a `Value`/`atom`, and the
 application never reduces. The eraser exits 0 and writes a well-formed `.ast` that
 `peregrine validate` accepts and that computes nothing. This is the **same failure class**
-as the sparse-`casesOn` finding in `VerifyBench/STATUS.md` — silently wrong output rather
+as the sparse-`casesOn` finding in `doc/rework/03-DEV-FIX.md` — silently wrong output rather
 than an error — and it should be recorded next to it. It is *not*, however, a soundness
 break for the verification: a stuck term simply falsifies the capstone's `WcbvEval`
 conclusion rather than proving a false one, and the scope restriction below keeps it out.

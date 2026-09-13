@@ -21,13 +21,15 @@ rev = "20ec229f1a8c6358f3b3852c4e27d2be523d1b87"
 [[lean_lib]]
 name = "LeanToLambdaBox"
 
-# csimp-off duplicates of the five `frontend_bench` programs that the coverage
-# measurement (§H) tracks. The originals live in the sibling `benchmarks` repo and are
-# byte-frozen; these copies differ only in their `#erase` line (`csimp := false`, which
-# every correctness theorem requires — finding D1 — plus an output path under
-# `VerifyBench/ast/`). Deliberately NOT in `defaultTargets`: `lake build` is unchanged,
-# and elaborating these roots writes `.ast` files, which CI should not do. Build with
-# `lake build VerifyBench` from the repo root.
+# The benchmark corpus and the green ladder's spike modules. A program is split in two:
+# `VerifyBench/Src/<P>.lean` declares it and is a plain library module, byte-frozen against
+# the sibling `benchmarks` repo and against `test/frozen/` by `scripts/frozen.sh`;
+# `VerifyBench/<P>.lean` imports it and runs one `#erase` (`csimp := false`, which every
+# correctness theorem requires — finding D1 — writing under `VerifyBench/ast/`). The split
+# is what lets a rung name its subject: `LeanToLambdaBox/Green.lean` imports
+# `VerifyBench.Src.Arith`. Deliberately NOT in `defaultTargets`: `lake build` is unchanged,
+# and elaborating the roots and the spikes writes `.ast` files, which CI should not do.
+# Build with `lake build VerifyBench` from the repo root.
 [[lean_lib]]
 name = "VerifyBench"
 roots = [
@@ -42,6 +44,13 @@ roots = [
   "VerifyBench.Spikes.G4",
   "VerifyBench.Spikes.G5",
   "VerifyBench.Spikes.G6",
+  "VerifyBench.Spikes.G7",
+  "VerifyBench.Spikes.G8",
+  "VerifyBench.Src.Arith",
+  "VerifyBench.Src.Sieve",
+  "VerifyBench.Src.Quicksort",
+  "VerifyBench.Src.BinaryTrees",
+  "VerifyBench.Src.Fannkuch",
 ]
 
 # The external half of the green ladder (`Tools/GreenCheck.lean`): the checks that
@@ -63,3 +72,11 @@ supportInterpreter = true
 [[lean_exe]]
 name = "hygiene"
 root = "Tools.Hygiene"
+
+# The coverage document (`Tools/Coverage.lean`): regenerates `doc/coverage.md` from the
+# tree, and `--check` fails when the committed document has drifted from the measurement.
+[[lean_exe]]
+name = "coverage"
+root = "Tools.Coverage"
+# Reifies a `SourceTable` out of an imported module, so it runs the interpreter.
+supportInterpreter = true

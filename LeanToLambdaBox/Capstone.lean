@@ -36,9 +36,10 @@ rung: without it a run reaching a body-less declaration would satisfy the conclu
 vacuously, its source evaluation having no derivation.
 
 The erasure half of the composition is `erasure_bridge_of_run`, a proved term. What remains is
-one named binder, `hbridge`, whose six fields wait on the specification environment the run's
+one named binder, `hbridge`, whose five fields wait on the specification environment the run's
 final state admits, and one step obligation, `hve` — the term walk's unconditional run
 conclusion, which needs a second induction over the same eighteen-member family.
+`bridgeEnv_of_regInv` turns a registration invariant at that state into two of the five;
 `doc/trust.md`'s rows are the accounting.
 -/
 
@@ -87,35 +88,33 @@ theorem erasure_bridge_of_run
     step_visitCasesEta step_visitCasesEtaGo (step_visitCases A) step_visitAlt
     P htbl hcfg hcb hwt hsup rfl hvis hinv Γspec hspec).1
 
-/-! ## The pending results -/
+/-! ## The residual, as one named binder -/
 
 /--
-What the capstone composes beyond the erasure half, as one named binder: the environment and
+What the capstone assumes beyond the erasure half, as one named binder: the environment and
 simulation results the specification environment of the run's final state carries. Every field
 names its supplier and says whether that supplier is proved, and the shapes are the ones the
 composition consumes; where a field is *stronger* than the theorem named — a premise that
-theorem takes and the capstone's clause cannot supply — the field's docstring says so. The
-index `pe` is the prepared term the run walked; the fields below constrain the environment and
-the simulation, not `pe`.
+theorem takes and the capstone's clause cannot supply — the field's docstring says so.
+`bridgeEnv_of_regInv` derives the first two of the five from a registration invariant at that
+state.
 -/
 structure ErasureBridge (env : VEnv) (bo : Name → Option Expr)
-    (pe : Expr) (Γspec Γ : GlobalDeclarations) (t t₀ : LBTerm) : Prop where
-  /-- The specification environment erases the source environment. Supplied by
-      `SpecEnv.erasesEnv`, at the `SpecEnv` read off the run's final state; the registration
-      invariant that inhabits it is W5's. -/
+    (Γspec Γ : GlobalDeclarations) (t t₀ : LBTerm) : Prop where
+  /-- The specification environment erases the source environment. `RegInvShape'.erasesEnv`
+      derives it from the registration invariant at the run's final state, at the three
+      side conditions `bridgeEnv_of_regInv` names; no theorem produces that invariant for a
+      run of the shipping eraser. -/
   erasesEnv : ErasesEnv env bo Γspec t₀
-  /-- The emitted environment is the lowered, pruned specification environment. Supplied by
-      `RegInvShape'.lowerEnv`, at a saturated registry; W5's. -/
+  /-- The emitted environment is the lowered, pruned specification environment.
+      `RegInvShape'.lowerEnv` derives it from the same invariant at a saturated registry. -/
   lowerEnv : LowerEnv Γspec Γ
-  /-- The specification environment is well formed. Its `Nodup` half is `ErasesEnv.keys`;
-      the `ClosedBodies` half is `SpecEnv`'s. Both wait on W5's registration invariant. -/
-  wfSpec : LBWfSpec Γspec
-  /-- What peregrine's first pass needs of the emitted program. `visitExpr_shape_all`
-      supplies the term half of `closed` and `ctorApplied` unconditionally from the run; the
-      environment halves and `fixLambda` wait on W5. `LBExpandedFix` is deliberately absent
-      (F-ETA). -/
+  /-- What peregrine's first pass needs of the emitted program. Two of its twelve clauses are
+      derivable here — `keys` from `LowerEnv.keys` and `closed` from `visitExpr_shape_all`
+      beside `LowerEnv.closed` — and the other ten have no supplier in the tree.
+      `LBExpandedFix` is deliberately absent (F-ETA). -/
   wf : LBWfPeregrine Γ t
-  /-- `simulate_of_erases_correct` (W3, proved): one simulation, on the composite, at the
+  /-- `simulate_of_erases_correct` (proved): one simulation, on the composite, at the
       **emitted** environment. Stronger than T5 by three premises T9's clause cannot supply at
       an applied subject — `env.WF`, `TrExprS env [] [] s ve` and `ErasesEnv env bo Γspec t₀s`
       hold of the subject and its erasure, not of the spine — and by `LowerEnv Γspec Γ`, which
@@ -123,15 +122,37 @@ structure ErasureBridge (env : VEnv) (bo : Name → Option Expr)
   simulate : ∀ {s t₀s ts v : _}, Erases env [] [] s t₀s → Lower Γspec t₀s ts →
       SEval env bo [] fullFlags [] s v →
       ∃ v₀ v', Erases env [] [] v v₀ ∧ Lower Γspec v₀ v' ∧ WcbvEval Γ eraseFlags ts v'
-  /-- `firstorder_erases_deterministic` and `firstorder_no_box` (W3, proved). Stronger than
-      those two by the value premise `SEval env bo [] fullFlags [] v v`, and by asking
-      box-freedom of the *lowered* value: T7 proves it of the erasure, and the transport along
-      `Lower` is false without a guard (`noBox_lower_needs_noFix`). -/
-  firstorder : ∀ {I : Name} {us : List VLevel} {idx : List VExpr} {v : Expr} {vv : VExpr}
-      {tv₀ tv : LBTerm}, FirstOrderInd env I → TrExprS env [] [] v vv →
+  /-- Box-freedom of the **lowered** first-order value. `firstorder_no_box` proves it of the
+      erasure `tv₀` — this field's own `NoBox tv₀` premise — and the transport along `Lower`
+      is false without a guard: `noBox_lower_needs_noFix` relates a box-free `.const` to a
+      block whose definitions carry their own boxes. Uniqueness of `tv₀` is not a field;
+      `firstorder_erases_core` proves it at these premises. -/
+  noBox : ∀ {I : Name} {us : List VLevel} {idx : List VExpr} {v : Expr} {vv : VExpr}
+      {tv₀ tv : LBTerm}, SValue env v → FirstOrderInd env I → TrExprS env [] [] v vv →
       env.HasType 0 [] vv (VExpr.mkApps (.const I us) idx) →
-      Erases env [] [] v tv₀ → Lower Γspec tv₀ tv →
-      NoBox tv ∧ ∀ tv', Erases env [] [] v tv' → tv' = tv₀
+      Erases env [] [] v tv₀ → NoBox tv₀ → Lower Γspec tv₀ tv → NoBox tv
+
+/-! ## The bridge's environment fields, from the registration invariant -/
+
+/--
+**The bridge's two environment fields, derived.** `RegInvShape'` — the invariant the
+registration path maintains — carries the specification environment's content, the emitted
+environment's shape and the relation between them; `RegSaturated` says the run registered
+everything that environment declares. `hdeps` is decidable at a concrete program, and
+`hlp`/`htab` are the two clauses `ErasesEnv` reads off the compiler table rather than off any
+environment. The `SpecEnv` is what `erasure_bridge_of_run` consumes; `LBWfSpec` is what the
+pass metatheory reads of `Γspec`.
+-/
+theorem bridgeEnv_of_regInv {env : VEnv} {bo : Name → Option Expr}
+    {Γspec : GlobalDeclarations} {sf : ErasureState} {t₀ : LBTerm}
+    (hreg : RegInvShape' env bo Γspec sf) (hsat : RegSaturated env Γspec sf)
+    (hdeps : ∀ kn, ReachableFrom Γspec t₀ kn → (LBTerm.envLookup Γspec kn).isSome)
+    (hlp : ∀ c b, bo c = some b → b.hasLevelParam' = false ∧ NoMaxLevels b)
+    (htab : ∀ c b, bo c = some b → ConstOrigin env c) :
+    SpecEnv env bo sf Γspec ∧ LBWfSpec Γspec ∧
+      ErasesEnv env bo Γspec t₀ ∧ LowerEnv Γspec sf.gdecls :=
+  ⟨hreg.specEnv, ⟨hreg.spec.keys, hreg.specClosed⟩,
+    hreg.erasesEnv hdeps hlp htab, hreg.lowerEnv hsat⟩
 
 /-! ## The capstone -/
 
@@ -143,7 +164,8 @@ program declares a body for every constant it reaches: `(Γ, t)` is the lowered 
 specification environment that erases the prepared term, it satisfies `LBWfPeregrine` — not
 `LBExpandedFix`, finding F-ETA — and every first-order answer the **source** evaluation
 produces is reproduced by it, uniquely and box-free. The binders' classes are `doc/trust.md`'s
-rows; the erasure half of the proof is `erasure_bridge_of_run` and the rest is `hbridge`.
+rows; the erasure half of the proof is `erasure_bridge_of_run`, the answer's uniqueness is
+`firstorder_erases_core`, and the rest is `hbridge`.
 -/
 theorem shipping_erase_correct_firstorder
     {lenv : Lean.Environment} {env : VEnv} {gw : Void IO.RealWorld → NameGenerator}
@@ -169,7 +191,7 @@ theorem shipping_erase_correct_firstorder
       Erasure.visitExpr pe {} { «config» := cfg } cctx ref wp = .ok (t, sf) wt →
       ∃ Γspec : GlobalDeclarations, SpecEnv env tbl.body? sf Γspec ∧
         ∀ t₀ : LBTerm, Erases env [] [] pe t₀ → Lower Γspec t₀ t →
-          ErasureBridge env tbl.body? pe Γspec Γ t t₀) :
+          ErasureBridge env tbl.body? Γspec Γ t t₀) :
     ∃ (Γspec : GlobalDeclarations) (t₀ : LBTerm),
       Erasure.prepare_erasure e {} { «config» := cfg } cctx ref w = .ok (pe, {}) wp
       ∧ Erases env [] [] pe t₀
@@ -210,7 +232,9 @@ theorem shipping_erase_correct_firstorder
   have hlowspine : Lower Γspec (LBTerm.mkApps t₀ a₀s) (LBTerm.mkApps t targs) :=
     Lower.mkApps hlow (by rw [hlen, hlen₀]) (fun i hi => (ha₀ i (by omega)).2)
   obtain ⟨tv₀, tv, herv, hlowv, hevtgt⟩ := B.simulate hspine hlowspine hevp
-  obtain ⟨hnobox, huniq⟩ := B.firstorder hfo hvwt hty herv hlowv
-  exact ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩
+  obtain ⟨hnb₀, huniq⟩ :=
+    firstorder_erases_core (Us := []) P.envWF A hev.svalue hfo hvwt hty herv
+  exact ⟨tv₀, tv, herv, hlowv,
+    B.noBox hev.svalue hfo hvwt hty herv hnb₀ hlowv, huniq, hevtgt⟩
 
 end LeanToLambdaBox

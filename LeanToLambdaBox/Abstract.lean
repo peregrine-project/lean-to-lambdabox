@@ -503,12 +503,9 @@ example :
       toBvar ⟨`a⟩ 0 (toBvar ⟨`b⟩ 5 (.app (.fvar ⟨`a⟩) (.fvar ⟨`b⟩))) := rfl
 
 /-!
-Next (deferred — the remaining foundation): the `toBvar`↔`LBTerm.subst`
-commutation (only needed once the bridge substitutes under abstractions), and the
-binder-case simulation relating `abstract x (eraseCore (e.instantiate1' (.fvar x)))`
-to `eraseCore e`. That simulation — together with lean4lean's `TrExprS.inst_fvar`
-(fvar-opening ↔ `VLCtx` extension) — is the crux of the `fvar`↔de-Bruijn bridge,
-and is a substantial (HIGH-difficulty) effort in its own right.
+The `toBvar` ↔ `LBTerm.subst` commutation this file stops short of — needed where the
+bridge substitutes under abstractions — is `FixUnfold.lean`'s `subst_toBvar_self` and
+`subst_toBvar_succ`.
 -/
 
 end LeanToLambdaBox

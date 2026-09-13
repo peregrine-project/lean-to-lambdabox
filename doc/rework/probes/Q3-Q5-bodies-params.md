@@ -365,7 +365,7 @@ and likewise `Sieve`, `Quicksort`, `BinaryTrees`, `Fannkuch`.
    (repository rule: report, do not patch).
 
 2. **`validate` accepts a wrong program.** `Quicksort.ast` is the one the eraser panics on
-   (`VerifyBench/STATUS.md`: `visitCases` hits `unreachable!` on `_sparseCasesOn_`, returns
+   (`doc/rework/03-DEV-FIX.md`, F-SPARSE: `visitCases` hits `unreachable!` on `_sparseCasesOn_`, returns
    `default = .box`, and the `cons` branch of the top-level match erases to `tBox`), and it
    validates clean. `LBWfPeregrine` is a *format* precondition, not a correctness statement,
    and the capstone must not be read as if it were.
@@ -432,7 +432,7 @@ Design notes, each load-bearing:
   not. Constructor form is clean (42/42 saturated). This is the T10 minimum and it *hinges*
   on Q3 resolving as (B).
 * **Sieve, Quicksort, BinaryTrees** — same shape, 10/11/10 compiler bodies, all structural.
-  Quicksort is separately blocked by the `_sparseCasesOn_` panic (`VerifyBench/STATUS.md`),
+  Quicksort is separately blocked by the `_sparseCasesOn_` panic (`doc/rework/03-DEV-FIX.md`),
   which `Supported` must make visible (criterion 11).
 * **Fannkuch** — 15 compiler bodies; additionally needs `findI` (well-founded recursion: kernel body is
   `WellFounded.fix`, compiler body is top-level recursion) and the two `partial def`s with no

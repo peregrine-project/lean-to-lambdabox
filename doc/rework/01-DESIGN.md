@@ -1,8 +1,8 @@
 # 01 — Final design for the Lean → λ□ verification rework
 
 **Status.** Design of record, as amended at the design gate (24 refuter verdicts; every fatal or
-major finding resolved in §2.1). It is the synthesis of the three candidate designs
-(`doc/rework/designs/{A,B,C}-*.md`) after adversarial review by three judges, and it is
+major finding resolved in §2.1). It is the synthesis of three candidate designs
+after adversarial review by three judges, and it is
 subordinate to `doc/rework/00-REFERENCE-SPEC.md` except where §3.3 below asks that document to be
 amended. Every amendment is forced by a measurement, and the measurement is cited.
 
@@ -2060,7 +2060,7 @@ instance constants and the rung subjects themselves.
 **informative** (N18) — with a **plain** `CasesInfo` (no `CasesAltInfo.default`, no
 `hasSideCondition`) and every minor a syntactic λ-chain of its alt's field arity
 (`IsLamTelescope`, `Bridge.lean:60`, already assumed by motive 18 — zero churn). The first
-exclusion is the shipping bug of `VerifyBench/Quicksort`; the second is what makes the
+exclusion is the shipping bug of `VerifyBench/Src/Quicksort.lean`; the second is what makes the
 composite's branch rule exact; the informativity conjunct is F-PROP's fragment boundary (Q2). It
 is decided by `informativeB`, which is the never-zero test matching the relation `InformativeInd`
 (§4.2) — the syntactic successor test it replaces reported `propElimIntoData` at `Prod.casesOn` on
@@ -2832,7 +2832,7 @@ failure mode by name). "Carried verbatim" below means re-landed with only the in
 | `ErasesCorrect.lean` | 650 | deleted in the W1 cut; re-lands as T5 with five hypotheses; ι/proj arms absorbed from the deleted chains | W2-W3 |
 | `ColdStart.lean` | 2,000 → ~500 | deleted in the W1 cut; T9's composition re-lands as `Capstone.lean` | W4/W5 |
 | `LeanToLambdaBox.lean` | 217 | import list and header rewritten — **gate-owned in every wave** (N3a): units hand their one-line root edits to the wave gate | every wave |
-| `VerifyBench/STATUS.md` | 230 | retired **into** `doc/coverage.md`, not duplicated; the F-SPARSE reproduction is carried into `doc/rework/03-DEV-FIX.md` first | W5 |
+| the benchmark status document (deleted) | 230 | retired **into** `doc/coverage.md`, not duplicated; the F-SPARSE reproduction is carried into `doc/rework/03-DEV-FIX.md` first | W5 |
 
 ### 7.3 New
 
@@ -2867,7 +2867,7 @@ failure mode by name). "Carried verbatim" below means re-landed with only the in
 | `test/Ledger.lean` + `test/ledger.expected` | the measured ledger; its `#print axioms` rows follow their subjects, so a unit that deletes a subject owns the row | 80 |
 | `doc/{rules-Erases,rules-Lower,panics,coverage,upstream-asks}.md` | criteria 3, 10, 14, 21 | — |
 
-Net: ≈15,100 new lines against 19,302 deleted (`02-PLAN.md` §4; `VerifyBench/STATUS.md` is 230
+Net: ≈15,100 new lines against 19,302 deleted (`02-PLAN.md` §4; the deleted benchmark status document is 230
 lines, not 520) and ≈8,800 carried untouched, plus the 1,422 shipping lines this development
 edits only at F-FUEL's one site (§8.1).
 

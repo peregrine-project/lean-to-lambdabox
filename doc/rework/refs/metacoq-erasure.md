@@ -922,7 +922,7 @@ prose. History belongs in git.
    declared out of scope with a stated (unproven) refinement obligation? The paper gives no guidance;
    this is the largest genuinely-Lean design decision.
 6. **Which λ□ is canonical here?** MetaRocq's `EAst` has drifted from Fig. 16 (`tPrim`, branch
-   contexts, block-vs-applied constructors). `peregrine-tool/theories/PAst.v` + `doc/format.md` is the
+   contexts, block-vs-applied constructors). `peregrine-tool/theories/PAst.v` + peregrine-tool's format document is the
    on-disk contract. The rework's λ□ should be pinned to *that*, with Fig. 16 as the semantic
    reference — but the block/applied constructor convention (CLAUDE.md's recurring cross-repo bug)
    must be decided once and recorded in the semantics, not per-lemma.

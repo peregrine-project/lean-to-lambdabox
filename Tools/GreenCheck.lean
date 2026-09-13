@@ -47,8 +47,9 @@ structure Rung where
   ast : System.FilePath
   /-- The committed emitted program, as a Lean literal. -/
   program : ASTType
-  /-- The committed emitted term, and the answer `Green.lean` pins it to. -/
-  term : LBTerm
+  /-- The term the certified evaluator runs: the emitted term at a closed rung, and the
+  emitted term applied to its argument at an applied one. -/
+  observed : LBTerm
   /-- The literal answer the rung's theorem ends in. -/
   answer : LBTerm
 
@@ -58,38 +59,50 @@ def rungs : List Rung :=
       spike := "VerifyBench/Spikes/G1.lean"
       ast := "VerifyBench/ast/Spikes/G1.ast"
       program := .untyped g1Env (some g1Term)
-      term := g1Term
+      observed := g1Term
       answer := g1Answer },
     { name := "G2"
       spike := "VerifyBench/Spikes/G2.lean"
       ast := "VerifyBench/ast/Spikes/G2.ast"
       program := .untyped g2Env (some g2Term)
-      term := g2Term
+      observed := g2Term
       answer := g2Answer },
     { name := "G3"
       spike := "VerifyBench/Spikes/G3.lean"
       ast := "VerifyBench/ast/Spikes/G3.ast"
       program := .untyped g3Env (some g3Term)
-      term := g3Term
+      observed := g3Term
       answer := g3Answer },
     { name := "G4"
       spike := "VerifyBench/Spikes/G4.lean"
       ast := "VerifyBench/ast/Spikes/G4.ast"
       program := .untyped g4Env (some g4Term)
-      term := g4Term
+      observed := g4Term
       answer := g4Answer },
     { name := "G5"
       spike := "VerifyBench/Spikes/G5.lean"
       ast := "VerifyBench/ast/Spikes/G5.ast"
       program := .untyped g5Env (some g5Term)
-      term := g5Term
+      observed := g5Term
       answer := g5Answer },
     { name := "G6"
       spike := "VerifyBench/Spikes/G6.lean"
       ast := "VerifyBench/ast/Spikes/G6.ast"
       program := .untyped g6Env (some g6Term)
-      term := g6Term
-      answer := g6Answer } ]
+      observed := g6Term
+      answer := g6Answer },
+    { name := "G7"
+      spike := "VerifyBench/Spikes/G7.lean"
+      ast := "VerifyBench/ast/Spikes/G7.ast"
+      program := .untyped g7Env (some g7Term)
+      observed := g7Term
+      answer := g7Answer },
+    { name := "G8"
+      spike := "VerifyBench/Spikes/G8.lean"
+      ast := "VerifyBench/ast/Spikes/G8.ast"
+      program := .untyped g8Env (some g8Term)
+      observed := .app g8Term (peanoLB 0)
+      answer := g8Answer } ]
 
 /-- Print a verdict line and return it. -/
 def report (ok : Bool) (what : String) : IO Bool := do
@@ -116,7 +129,7 @@ def rerun (r : Rung) : IO (Except String Unit) := do
 
 /-- Check one rung: the `.ast` on disk is the literal program `Green.lean` states the rung
 about, re-running the frontend writes those same bytes, and the certified evaluator takes
-the committed term to the committed answer. The `.ast` is a build artifact, so an absent
+the rung's observed term to the committed answer. The `.ast` is a build artifact, so an absent
 one is a note rather than a failure: the re-run writes it and the diff is made against it.
 -/
 def checkRung (r : Rung) : IO Bool := do
@@ -135,9 +148,9 @@ def checkRung (r : Rung) : IO Bool := do
       let regenerated ← IO.FS.readFile r.ast
       ok := (← report (chomp regenerated == chomp r.printed)
         s!"{r.name}: re-run .ast is the literal program of Green.lean") && ok
-  let ev := lbEval (match r.program with | .untyped env _ => env) eraseFlags 1000 r.term
+  let ev := lbEval (match r.program with | .untyped env _ => env) eraseFlags 1000 r.observed
   ok := (← report (reprStr ev == reprStr (some r.answer))
-    s!"{r.name}: lbEval takes the emitted term to the committed answer") && ok
+    s!"{r.name}: lbEval takes the observed term to the committed answer") && ok
   return ok
 
 /-- What this tool does and how to call it. -/
@@ -145,11 +158,11 @@ def usage : String :=
   "green-check — external checks for the green ladder\n\n\
    usage:\n  \
      green-check --self-test    run lbEval on the built-in fixtures\n  \
-     green-check RUNG...        check the named rungs (G1 … G6)\n  \
+     green-check RUNG...        check the named rungs (G1 … G8)\n  \
      green-check --all          check every rung reached so far\n\n\
    Run from the repository root. A rung check byte-diffs the committed .ast against the\n\
    literal program Green.lean states its theorem about, re-runs the frontend and diffs\n\
-   again, and evaluates the emitted term with lbEval."
+   again, and evaluates the rung's observed term with lbEval."
 
 /-- Entry point of the `green-check` executable. -/
 def main (args : List String) : IO UInt32 := do

@@ -545,7 +545,7 @@ uniqueness clause are unaffected; the slack lives between the tabled body and `t
 absorbed where `t₀` is existentially quantified. The table equations (`g5Table.body? … = some …`)
 stay `rfl`: they are facts about the committed table.
 
-**What changes in the checker and what does not.** `Tools/Reify.lean --check` already computes
+**What changes in the checker and what does not.** `Tools/Reify.lean`'s `--check` already computes
 the comparison — `checkDecl` (`Witness/SourceTable.lean:342-352`) tests `Expr.equal` and reports
 `declBodyAlpha` when `==` (`Expr.eqv`) succeeds where `equal` fails — so the pass condition
 becomes `eqv`, and α-agreement is a **pass** with a note, a hard mismatch remaining for any
