@@ -32,10 +32,11 @@ zero; the checker computes the successor shape as `succSortB`.
 The two theorems' only premise beyond MetaRocq's own list is `UpstreamAsks env`:
 `fOFields_of_asks` derives the source-theory typing of a first-order constructor value from
 asks 9 and 10 and ask 2's declaration-level uniqueness. `firstorder_no_box` is of the
-**erasure**, not of the lowered value. `firstOrderIndB`'s soundness against `FirstOrderInd`
-is **not** in the tree: `firstOrderIndB_step` is its table-side half, and the model-side half
-needs the inversion of `Lean4Lean.TrEnv'` at an inductive name that is filed ask 4, so
-`FirstOrderInd` is reached today only through `FOModel.firstOrderInd_E`.
+**erasure**, not of the lowered value; the induction returns the image's shape, `FOSpine`, and
+`noBox_lower_of_foSpine` is box-freedom of the lowered one at it. `firstOrderIndB`'s soundness
+against `FirstOrderInd` is **not** in the tree: `firstOrderIndB_step` is its table-side half,
+and the model-side half needs the inversion of `Lean4Lean.TrEnv'` at an inductive name that is
+filed ask 4, so `FirstOrderInd` is reached today only through `FOModel.firstOrderInd_E`.
 -/
 
 namespace LeanToLambdaBox
@@ -436,22 +437,91 @@ theorem forall₂_unique {α β : Type _} {R : α → β → Prop} {as : List α
       rw [h a (List.mem_cons_self ..) _ _ hab hab',
         ih (fun x hx => h x (List.mem_cons_of_mem _ hx)) hrest']
 
+/-! ## The shape of a first-order value's image -/
+
+/-- **The λ□ image of a first-order value**: an applied-form constructor tree. A `.construct`
+node carries no arguments on the emitted output (F-ETA2), so the tree is built by `.app`, and
+these two rules are the whole predicate. -/
+inductive FOSpine : LBTerm → Prop
+  | ctor {iid : InductiveId} {k : Nat} : FOSpine (.construct iid k [])
+  | app {f a : LBTerm} : FOSpine f → FOSpine a → FOSpine (.app f a)
+
+/-- Non-vacuity: the λ□ peano numeral `1`, applied form, is a constructor tree. -/
+example {iid : InductiveId} :
+    FOSpine (.app (.construct iid 1 []) (.construct iid 0 [])) := .app .ctor .ctor
+
+/-- A constructor tree holds no box: neither rule introduces one. -/
+theorem FOSpine.noBox {t : LBTerm} (h : FOSpine t) : NoBox t := by
+  induction h with
+  | ctor => trivial
+  | app _ _ ihf iha => exact ⟨ihf, iha⟩
+
+/-- A nullary constructor node applied to constructor trees is one. -/
+theorem FOSpine.mkApps {iid : InductiveId} {k : Nat} :
+    ∀ {ts : List LBTerm}, (∀ x ∈ ts, FOSpine x) →
+      FOSpine (LBTerm.mkApps (.construct iid k []) ts) := by
+  have key : ∀ (ts : List LBTerm) (f : LBTerm), FOSpine f → (∀ x ∈ ts, FOSpine x) →
+      FOSpine (LBTerm.mkApps f ts) := by
+    intro ts
+    induction ts with
+    | nil => intro f hf _; exact hf
+    | cons a rest ih =>
+        intro f hf hall
+        exact ih _ (.app hf (hall a (by simp))) (fun x hx => hall x (by simp [hx]))
+  intro ts hall; exact key ts _ .ctor hall
+
+/-- The head of a constructor tree is its nullary constructor node. -/
+theorem FOSpine.spineHead {t : LBTerm} (h : FOSpine t) :
+    ∃ iid k, LBTerm.spineHead t = .construct iid k [] := by
+  induction h with
+  | @ctor iid k => exact ⟨iid, k, rfl⟩
+  | app _ _ ihf _ => exact ihf
+
+/-- **A constructor tree has a constructor tree for a lowered image.** The `.construct` arm
+goes through `Lower.source_construct`, which excludes both `fix` arms itself by
+`Lower.ne_fix_of_block` — a constructor node is neither a constant nor a λ — and returns a
+zero-length argument list; the `.app` arm goes through `Lower.source_app`, whose `elimApp`
+disjunct is refuted on the head, a `.const` there and a `.construct` here. The nullary route
+`Lower.source_construct_nil`, which keeps a `.fix` disjunct, is not used. -/
+theorem FOSpine.lower {Γ : GlobalDeclarations} {s t : LBTerm}
+    (hs : FOSpine s) (h : Lower Γ s t) : FOSpine t := by
+  induction hs generalizing t with
+  | @ctor iid k =>
+      obtain ⟨args', rfl, hlen, -⟩ := Lower.source_construct h rfl
+      rw [List.eq_nil_of_length_eq_zero hlen]; exact .ctor
+  | @app f a hf' ha' ihf iha =>
+      rcases Lower.source_app h rfl with ⟨f', a', rfl, hf, ha⟩ |
+        ⟨kn, iid, np, dp, nfs, pre, disc, minors, -, -, -, heq⟩
+      · exact .app (ihf hf) (iha ha)
+      · exfalso
+        obtain ⟨iid', k', hsh⟩ := (FOSpine.app hf' ha').spineHead
+        rw [heq, LBTerm.spineHead_mkApps] at hsh
+        exact LBTerm.noConfusion hsh
+
+/-- **Box-freedom of the lowered first-order value.** The shape `firstorder_erases_core`
+concludes is what makes the transport go through: `NoBox` alone does not transport along
+`Lower`, whose `fixConst` arm relates a box-free `.const` to a block whose definitions carry
+their own boxes (`noBox_lower_needs_noFix`). -/
+theorem noBox_lower_of_foSpine {Γspec : GlobalDeclarations} {tv₀ tv : LBTerm}
+    (hfo : FOSpine tv₀) (hlow : Lower Γspec tv₀ tv) : NoBox tv :=
+  (hfo.lower hlow).noBox
+
 /-! ## Uniqueness and box-freedom at a first-order value -/
 
-/-- **The erasure of a first-order value is unique and box-free.** One induction over the
-value's shape: a λ is excluded because its type is a Π and a first-order spine is not
+/-- **The erasure of a first-order value is unique and a constructor tree.** One induction
+over the value's shape: a λ is excluded because its type is a Π and a first-order spine is not
 (`UpstreamAsks.constArityInv`); a sort, a Π-type and a type-former spine are excluded because
 they are erasable and a first-order value is not (`not_erasable_of_informative`); and a
 constructor spine erases by the congruence alone — its boxed readings by the same fact, its
 head by `constOrigin_not_ctorOf`, its arguments by the induction hypothesis at the field
-typings `fOFields_of_asks` supplies. -/
+typings `fOFields_of_asks` supplies. `FOSpine.noBox` reads box-freedom off the shape. -/
 theorem firstorder_erases_core {env : VEnv} {Us : List Name} (henv : env.WF)
     (A : UpstreamAsks env) :
     ∀ {v : Expr}, SValue env v →
       ∀ {I : Name} {ius : List VLevel} {iargs : List VExpr} {vv : VExpr} {t : LBTerm},
         FirstOrderInd env I → TrExprS env Us [] v vv →
         env.HasType Us.length [] vv (VExpr.mkApps (.const I ius) iargs) →
-        Erases env Us [] v t → NoBox t ∧ ∀ t', Erases env Us [] v t' → t' = t := by
+        Erases env Us [] v t → FOSpine t ∧ ∀ t', Erases env Us [] v t' → t' = t := by
   have hΔ : VLCtx.WF env Us.length ([] : VLCtx) := trivial
   have hΓ : OnCtx (VLCtx.toCtx ([] : VLCtx)) (env.IsType Us.length) := hΔ.toCtx
   intro v hval
@@ -501,9 +571,9 @@ theorem firstorder_erases_core {env : VEnv} {Us : List Name} (henv : env.WF)
       · refine absurd (erasable_mkApps henv hΔ suf ?_ htrwe herwe) hnotEr
         rw [heq, mkApps_append] at hwt
         exact hwt
-    -- each argument's erasure is unique and box-free
+    -- each argument's erasure is unique and a constructor tree
     have harg : ∀ a ∈ cargs, ∀ (x : LBTerm), Erases env Us [] a x →
-        NoBox x ∧ ∀ y, Erases env Us [] a y → y = x := by
+        FOSpine x ∧ ∀ y, Erases env Us [] a y → y = x := by
       intro a ha x hx
       obtain ⟨i, hilt, rfl⟩ := Lower.mem_getElem! ha
       obtain ⟨w, htrw⟩ := trExprS_spine_mem cargs hwt _ ha
@@ -511,8 +581,7 @@ theorem firstorder_erases_core {env : VEnv} {Us : List Name} (henv : env.WF)
       exact ihargs i hilt hfoJ htrw hJty hx
     obtain ⟨ts, hts, rfl⟩ := hshape her
     refine ⟨?_, fun t' ht' => ?_⟩
-    · rw [NoBox_mkApps]
-      refine ⟨by simp, fun x hx => ?_⟩
+    · refine FOSpine.mkApps (fun x hx => ?_)
       obtain ⟨a, ha, hax⟩ := forall₂_mem_right hts x hx
       exact (harg a ha x hax).1
     · obtain ⟨ts', hts', rfl⟩ := hshape ht'
@@ -531,14 +600,15 @@ theorem firstorder_erases_deterministic {env : VEnv} {bo : Name → Option Expr}
 
 /-- **The erasure of a first-order value holds no box** `[L Def. 6]`. Of the erasure, not of
 its lowered image: box-freedom does not transport along `Lower`, whose `fixConst` arm relates
-a box-free constant to a block whose definitions carry their own boxes. -/
+a box-free constant to a block whose definitions carry their own boxes. What does transport is
+the shape the same induction returns — `noBox_lower_of_foSpine`. -/
 theorem firstorder_no_box {env : VEnv} {bo : Name → Option Expr} {Us : List Name}
     {fl : SEvalFlags} {I : Name} {us : List VLevel} {args : List VExpr} {v : Expr} {vv : VExpr}
     {t : LBTerm} (henv : env.WF) (A : UpstreamAsks env)
     (hfo : FirstOrderInd env I) (hwt : TrExprS env Us [] v vv)
     (hty : env.HasType Us.length [] vv (VExpr.mkApps (.const I us) args))
     (hval : SEval env bo Us fl [] v v) (h : Erases env Us [] v t) : NoBox t :=
-  (firstorder_erases_core henv A hval.svalue hfo hwt hty h).1
+  (firstorder_erases_core henv A hval.svalue hfo hwt hty h).1.noBox
 
 /-! ## The predicate is inhabited -/
 

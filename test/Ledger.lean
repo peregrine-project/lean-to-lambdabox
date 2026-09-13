@@ -30,7 +30,6 @@ import LeanToLambdaBox
 #print axioms LeanToLambdaBox.step_iota
 #print axioms LeanToLambdaBox.step_proj
 #print axioms LeanToLambdaBox.step_delta
-#print axioms LeanToLambdaBox.simulate_of_erases_correct
 #print axioms LeanToLambdaBox.ErasesEnv.runtimeKey_isCasesOn
 #print axioms LeanToLambdaBox.erases_elimSpine_no_value
 #print axioms LeanToLambdaBox.ErasesEnv.ctorArity

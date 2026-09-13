@@ -174,18 +174,30 @@ def ProjsDeclared (Γ : GlobalDeclarations) (t : LBTerm) : Prop :=
 def FixLambda (t : LBTerm) : Prop :=
   ∀ defs i, SubTerm (.fix defs i) t → ∀ fd ∈ defs, ∃ nm b, fd.body = .lambda nm b
 
-/-- A binder name the λ□ printer can emit: `Basic.cleanIdent`'s character class. -/
-def AsciiBinderName : BinderName → Prop
-  | .named s => ∀ c ∈ s.toList, c.isAlphanum ∨ c = '_'
+/-- A binder name the λ□ printer can emit. `Printing.lean`'s `quote_atom` wraps the name in
+`"…"` and escapes nothing, and peregrine's `Deserialize_ident` accepts any `Str` atom, so the
+condition is that the name contains neither of the two characters that would close or escape
+the atom. `Basic.cleanIdent`'s alphanumeric class is a condition on **kername identifiers**,
+which `toKername` establishes by construction; on a binder name it is false — the eraser emits
+`x._@.Init.Prelude.1822880135._hygCtx._hyg.3` at three rungs and thirty-two such names at two
+more. -/
+def PrintableBinderName : BinderName → Prop
+  | .named s => ∀ c ∈ s.toList, c ≠ '"' ∧ c ≠ '\\'
   | .anon => True
 
 /-- Every binder name in `t` is printable. -/
-def AsciiBinders (t : LBTerm) : Prop :=
-  (∀ nm b, SubTerm (.lambda nm b) t → AsciiBinderName nm) ∧
-  (∀ nm v b, SubTerm (.letIn nm v b) t → AsciiBinderName nm) ∧
+def PrintableBinders (t : LBTerm) : Prop :=
+  (∀ nm b, SubTerm (.lambda nm b) t → PrintableBinderName nm) ∧
+  (∀ nm v b, SubTerm (.letIn nm v b) t → PrintableBinderName nm) ∧
   (∀ info discr alts ns b, SubTerm (.case info discr alts) t → (ns, b) ∈ alts →
-    ∀ nm ∈ ns, AsciiBinderName nm) ∧
-  (∀ defs i fd, SubTerm (.fix defs i) t → fd ∈ defs → AsciiBinderName fd.name)
+    ∀ nm ∈ ns, PrintableBinderName nm) ∧
+  (∀ defs i fd, SubTerm (.fix defs i) t → fd ∈ defs → PrintableBinderName fd.name)
+
+/-- The refutation the printability condition answers: the character class `Basic.cleanIdent`
+establishes on a kername identifier is false at a binder name the eraser emits. -/
+theorem hygienic_binder_not_alphanum :
+    ¬ ∀ c ∈ "x._@.Init.Prelude.1822880135._hygCtx._hyg.3".toList, c.isAlphanum ∨ c = '_' := by
+  decide
 
 /-- A clause holding of the emitted term and of every constant body of the emitted
 environment — the env+term split `expanded_eprogram_cstrs` makes. -/
@@ -208,9 +220,10 @@ theorem FixLambda.of_onProgram {Γ : GlobalDeclarations} {prog sub : LBTerm}
 /-! ## The output predicate -/
 
 /-- What `untyped_transform_pipeline` needs from the emitted program `(Γ, t)`, on the emitted
-program alone. Everything but `etaCtorsEnv`/`etaCtorsTm` is `peregrine validate`'s check; those
-two are the constructor-saturation invariant `validate` omits and
-`remove_params_optimization` consumes. Fixpoint η is **not** claimed — see `LBExpandedFix`. -/
+program alone. Everything but `etaCtorsEnv`/`etaCtorsTm` and `printableNames` is `peregrine
+validate`'s check; those two are the constructor-saturation invariant `validate` omits and
+`remove_params_optimization` consumes, and `printableNames` is what the printer's quoted atoms
+need of a binder name. Fixpoint η is **not** claimed — see `LBExpandedFix`. -/
 structure LBWfPeregrine (Γ : GlobalDeclarations) (t : LBTerm) : Prop where
   /-- No kername is declared twice. -/
   keys : (Γ.map Prod.fst).Pairwise (fun a b => Kername.beq a b = false)
@@ -241,7 +254,7 @@ structure LBWfPeregrine (Γ : GlobalDeclarations) (t : LBTerm) : Prop where
   etaCtorsTm : ∀ iid k n, ConstructSpine t iid k n →
     ∀ a, constructorArity Γ iid k = some a → a ≤ n
   /-- Every binder name is printable. -/
-  asciiNames : OnProgram Γ t AsciiBinders
+  printableNames : OnProgram Γ t PrintableBinders
 
 /-- The fix-clause of MetaRocq's `EEtaExpandedFix.expanded`, over environment and term: every
 `.fix` occurs applied, to a non-empty argument list longer than its principal argument index. -/

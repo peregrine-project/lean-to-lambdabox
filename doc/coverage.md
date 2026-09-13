@@ -16,13 +16,15 @@ size and its `tProj`/`tCase`/`tFix` and body-less-declaration counts; each progr
 body, the `SupportError` of each erroring body, the fix blocks `Witness.fixBlock?` installs,
 the `.proj` heads with their `informativeB` and `succSortB` verdicts, the metadata-headed
 spines and `kernameSepB`; the same measurements on the eight committed rung tables; each rung
-theorem's presence and the hypotheses it still binds; and the constant and λ□-key counts of
-the environment `LeanToLambdaBox/Green.lean` elaborates in.
+theorem's presence, the hypotheses it still binds and whether its `hwf` term is declared; every
+binder name of each rung's emitted program, under both the retired alphanumeric class and the
+printability condition that replaced it; and the constant and λ□-key counts of the environment
+`LeanToLambdaBox/Green.lean` elaborates in.
 
-Four things here are prose a reader maintains: the panic reproduction and the erase-run
+Five things here are prose a reader maintains: the panic reproduction and the erase-run
 column (`doc/rework/03-DEV-FIX.md` holds the commands), the wave a rung went green in, N20's
-per-program minor counts, and the dead-declaration budget. Each is attributed where it
-appears.
+per-program minor counts, the elaboration cost of the eight `hwf` terms, and the
+dead-declaration budget. Each is attributed where it appears.
 
 ## The five programs
 
@@ -133,7 +135,7 @@ map for. `NoBodylessRefs` is the capstone's own premise, decided on the emitted 
   collision rather than rejecting it — is `F-KERNAME` in `doc/rework/03-DEV-FIX.md`.
 
 Over the whole elaboration environment of `LeanToLambdaBox/Green.lean` the same check is
-229,009 constants against 229,009 distinct keys, so no collision is
+229,593 constants against 229,593 distinct keys, so no collision is
 excluded by the fragment that the environment does not already avoid.
 
 ### The nodes each program emits, and the projection heads behind them
@@ -214,15 +216,15 @@ stuck term.
 
 Each rung's theorem and the hypotheses it still binds, read off `LeanToLambdaBox.Green`:
 
-| Rung | Theorem | `.ast` bytes | `hcb` | `hev` | `hbridge` | `hve` |
+| Rung | Theorem | `.ast` bytes | `hcb` | `hev` | `hbridge` | `hargReach` |
 |---|---|---|---|---|---|---|
-| G1 | elaborates | 354 | — | binder | binder | binder |
-| G2 | elaborates | 1,556 | binder | binder | binder | binder |
-| G3 | elaborates | 1,469 | binder | binder | binder | binder |
-| G4 | elaborates | 2,284 | binder | binder | binder | binder |
-| G5 | elaborates | 966 | binder | — | binder | binder |
-| G6 | elaborates | 853 | binder | binder | binder | binder |
-| G7 | elaborates | 14,497 | binder | binder | binder | binder |
+| G1 | elaborates | 354 | — | binder | binder | — |
+| G2 | elaborates | 1,556 | binder | binder | binder | — |
+| G3 | elaborates | 1,469 | binder | binder | binder | — |
+| G4 | elaborates | 2,284 | binder | binder | binder | — |
+| G5 | elaborates | 966 | binder | — | binder | — |
+| G6 | elaborates | 853 | binder | binder | binder | — |
+| G7 | elaborates | 14,497 | binder | binder | binder | — |
 | G8 | elaborates | 14,163 | binder | binder | binder | binder |
 
 `lenv` and `env` are universally quantified in every rung, so the ladder delivers
@@ -230,9 +232,9 @@ Each rung's theorem and the hypotheses it still binds, read off `LeanToLambdaBox
 where that is said.
 
 What every rung settles by computation is `hcfg`, `hsup` (through `supportedB`'s kernel
-verdict), `hnb` and the target-side evaluation, which is what pins the answer to the literal
-numeral; at G8 the evaluated term is the emitted term applied to its argument. `hwt` is settled
-too, by a checked term rather than a computation: each subject is `#erase <constant>`, so
+verdict), `hnb`, `hwf` and the target-side evaluation, which is what pins the answer to the
+literal numeral; at G8 the evaluated term is the emitted term applied to its argument. `hwt`
+is settled too, by a checked term rather than a computation: each subject is `#erase <constant>`, so
 `Witness.trExprS_const_of_table` builds its `TrExprS` witness from `P`, `htbl` and `hsafe` —
 including at G8, whose subject is function-typed, since that lemma reads only the table's level
 parameters.
@@ -257,16 +259,62 @@ it does at G1-G4 and G6, and T10, non-vacuity, stays demonstrated at G5. The val
 `hvwt` and `hty` are binders at every rung: a rung's value is a constructor spine, not a
 constant.
 
-`hbridge` is a binder at every rung too, and it is the largest one, but it does not carry the
-erasure itself: `erasure_bridge_of_run` proves `Erases env [] [] pe t₀ ∧ Lower Γspec t₀ t` from
-the run, supplying all eighteen member steps, and `ErasureBridge` is the five remaining fields —
-the environment, the simulation and the box-freedom of the lowered value. Those wait on the
-registration invariant at the run's final state, which no theorem produces for an actual run,
-and `doc/trust.md` names a supplier per field. One obligation of the bridge itself survives
-beside them, `hve : VisitExprRunConcl`: the term walk's unconditional state, generator and
-registry conclusion, which `step6` spends at the dependency bodies `Erasure.visitMutual` erases.
-So what a rung says about the shipping erasure is conditional on that obligation and on the
-environment half, and `doc/trust.md` carries both rows.
+`hwf : LBWfPeregrine Γ t` is a checked term at every rung: `lbWfPeregrine_of_check` reduces
+all **twelve** clauses to one Boolean and `Green.g<i>_wf` is `by decide +kernel` on it,
+declared at all eight rungs. It is a binder
+of the capstone rather than a field of `hbridge`, the same shape `hnb` already had, so no rung
+assumes what peregrine's first pass reads. The eight kernel checks cost about twelve seconds of
+elaboration, most of it at G7 and G8 — a carried figure, re-timed by `lake build
+LeanToLambdaBox.Green`.
+
+`hbridge` is a binder at every rung too, and it now carries **two** fields, `erasesEnv` and
+`lowerEnv`, the environment half: `erasure_bridge_of_run` proves
+`Erases env [] [] pe t₀ ∧ Lower Γspec t₀ t` from the run, supplying all eighteen member steps.
+Both fields are composed by `bridgeEnv_of_regInv` out of a registration invariant that no
+theorem produces for a run of the shipping eraser, and `doc/rework/08-REPAIRS-W5.md` §2.3 names
+the three measured obstructions in the way: the eighteen motives are stated at a fixed level
+scope while 16 of G7's 30 tabled bodies are erased at their own, `ReifiedDecl.Prepared` pins a
+tabled body only up to `Expr.AlphaEq` while `Lower` is not α-closed on its source, and
+`RunRefines` reads content at *every* specification environment of the final state where the
+repair produces one. The three fields that left the bundle are discharged, not deferred: `wf`
+is the `hwf` above, `simulate` is the capstone's own application of `erases_correct` at the
+spine — which is what puts that theorem and the arms it composes inside the closure — and
+`noBox` is `FOSpine.lower` transporting the constructor-tree shape `firstorder_erases_core`
+computes. So what a rung says about the shipping erasure is conditional on the environment half
+and on nothing else the bridge once carried; `doc/trust.md` carries the row.
+
+G8 alone binds `hargReach`, the last column above: that the erasure of its subject reaches
+`Nat`'s block in the specification environment the capstone produces. It is what remains of the
+argument's own `ErasesEnv` conjunct after `Green.g8_argErasesEnv`, and it is a G8 fact because
+G1–G7 apply the observable clause at the empty spine.
+
+### The printable-binder finding
+
+`LBWfPeregrine`'s binder-name clause read `Basic.cleanIdent`'s alphanumeric class until the
+closing round, and on the emitted output it is **false**: `cleanIdent` is what `toKername`
+applies to a **kername identifier**, while a binder name is emitted as a quoted atom
+(`Printing.lean`) that peregrine's `Deserialize_ident` accepts in full. Measured over each
+rung's emitted program — the term and every constant body of the emitted environment:
+
+| Rung | offending names, alphanumeric class | of them distinct | offending names, printability |
+|---|---|---|---|
+| G1 | 0 | 0 | 0 |
+| G2 | 1 | 1 | 0 |
+| G3 | 1 | 1 | 0 |
+| G4 | 1 | 1 | 0 |
+| G5 | 0 | 0 | 0 |
+| G6 | 0 | 0 | 0 |
+| G7 | 34 | 32 | 0 |
+| G8 | 34 | 32 | 0 |
+
+The offenders at G2-G4 are
+`x._@.Init.Prelude.1822880135._hygCtx._hyg.3`, `instOfNatNat`'s binder. G7 and G8 add the hygienic binders the matcher
+inlining introduces, and the four `.fix` definition names
+`Nat.sub`, `Nat.pow`, `Nat.mul`, `Nat.add`,
+which carry a `.`. Under the retired clause five of the eight rungs would have had an
+unsatisfiable `wf` field and would have been vacuous; under the printability condition the
+clause holds everywhere, and `hwf` is the checked term above. The finding is F6 of
+`doc/rework/08-REPAIRS-W5.md` §3.1.
 
 **What a matcher-bearing subject costs the ladder.** `ReifiedDecl.Prepared` — the run clause of
 `SourceTableAdequate` — pins the compiler body **up to α**: `Expr.AlphaEq`, an inductive relation
@@ -276,7 +324,7 @@ preparation inlines a matcher has prepared bodies that agree across runs only up
 which the clause allows. `lake exe reify --check` passes on all eight rung tables; at G7 and G8
 it reports five bodies matching up to binder names — `Nat.add`, `Nat.mul`, `Nat.pow`, `Nat.pred`
 and `Nat.sub`, the five whose preparation inlines a matcher — and no mismatch, while G1-G6 pass
-with no note at all. The λ□ side of the same phenomenon is `LeanToLambdaBox/Alpha.lean`; the
+with no note at all. The λ□ side of the same phenomenon has no transport kit in the tree: the
 emitted binder names are the frontend generator's choice and embed the spike module's own name,
 so a rung's `.ast` is pinned to that module's name and import line, and `green-check` reports a
 rename as a byte diff rather than absorbing it.
@@ -290,12 +338,12 @@ those closures reach is declared with a body, so all four rungs satisfy `NoBodyl
 
 ## The permanent binders every rung keeps
 
-Nine binders stand at every rung of the ladder: `P : ErasureSpec`, `htbl :
+Eight binders stand at every rung of the ladder: `P : ErasureSpec`, `htbl :
 SourceTableAdequate`, `hsafe : TableSafe`, `E : EraserAsks`, `A : UpstreamAsks`, `hblk :
-TableBlocks`, `hcb : CompilerBodies`, `hprep` and `hve : VisitExprRunConcl`. `hcb` is
-discharged at G1, `hve` is the bridge's one residual obligation, and `doc/trust.md` carries a
-row per binder and per field. The three below are the ones a rung can neither discharge nor
-ever expect to; `lake exe coverage` reads them out of `doc/trust.md` rather than copying them.
+TableBlocks`, `hcb : CompilerBodies` and `hprep`, together with `hbridge` at its two fields;
+`hcb` is discharged at G1, and `doc/trust.md` carries a row per binder and per field. The three
+below are the ones a rung can neither discharge nor ever expect to; `lake exe coverage` reads
+them out of `doc/trust.md` rather than copying them.
 
 | Binder | What it assumes | External mechanism |
 |---|---|---|
@@ -305,16 +353,25 @@ ever expect to; `lake exe coverage` reads them out of `doc/trust.md` rather than
 
 ## The dead-declaration budget
 
-`lake exe hygiene --dead` reports **315** declarations outside the import closure of
+`lake exe hygiene --dead` reports **240** declarations outside the import closure of
 `LeanToLambdaBox/Green.lean` and `LeanToLambdaBox/Capstone.lean`, and the workflow fails above
-that budget: a module falling out of the closure is caught, while the standing residue is not
-re-litigated at every push. The residue is four things and nothing else: the tooling (101 — 44 in
-`Tools/Hygiene.lean`, 35 in `Tools/Coverage.lean`, 11 each in `Tools/Reify.lean` and
+its budget: a module falling out of the closure is caught, while the standing residue is not
+re-litigated at every push. The residue is four things and nothing else: the tooling (107 — 44 in
+`Tools/Hygiene.lean`, 41 in `Tools/Coverage.lean`, 11 each in `Tools/Reify.lean` and
 `Tools/GreenCheck.lean`), the frozen benchmark sources under `VerifyBench/Src/` (43), the
-`ErasesCorrect/` arms with `ErasesUniform.lean` and `IotaBridge.lean` (72), which only the
-aggregator reaches, and `LeanToLambdaBox/Alpha.lean`'s λ□ α-relation with its transports (99),
-which no rung reads yet. The count is a measurement of the tree rather than of this file, and is
-the one figure here a reader re-runs by hand.
+uniform-erasure module `LeanToLambdaBox/ErasesUniform.lean` (19), and the λ□ optimisation pass
+`LeanToLambdaBox/Optimize.lean` (71) — the last two reached by the aggregator and by nothing
+else. The count is a measurement of the tree rather than of this file, and is the one figure
+here a reader re-runs by hand.
+
+Two movements account for it, and they run in opposite directions. The α-transport kit for the
+reified-body clause — 99 declarations, the λ□ α-relation with its transports, which git holds —
+is **deleted**: its only possible consumer is a content clause for the registration invariant that
+the closing round does not schedule, and a file outside the closure earns a row below only by
+naming a scheduled consumer. In the other direction `erases_correct`, the simulation, together
+with the δ, ι and projection arms it composes, **entered** the closure: the capstone applies it
+at the spine, so the largest single result of the development is now reachable from the
+shipping theorem instead of from the aggregator alone.
 
 This paragraph is deliberately outside the section below: `--dead` reads every backticked
 `.lean` token in the exception section as an exemption, prose included.
@@ -323,11 +380,11 @@ This paragraph is deliberately outside the section below: `--dead` reads every b
 
 Every declaration must sit in the import closure of `LeanToLambdaBox/Green.lean` or
 `LeanToLambdaBox/Capstone.lean`; `lake exe hygiene --dead` checks it against this list. A row
-is admissible only if it names a **scheduled W6 unit as its consumer**, and its trigger is
-that the file is deleted if that unit is not executed this cycle. An import into the closure
-is not a consumer, and no module gets a standing exemption. An open proof obligation — a
-hypothesis a theorem still binds — is not a dead declaration and does not belong here.
+is admissible only if it names a **scheduled unit as its consumer**, and its trigger is that
+the file is deleted if that unit is not executed. An import into the closure is not a consumer,
+and no module gets a standing exemption. An open proof obligation — a hypothesis a theorem
+still binds — is not a dead declaration and does not belong here.
 
-| File | Consumer | Trigger |
-|---|---|---|
-| `LeanToLambdaBox/Optimize.lean` | U6.2, the pass corollary over the non-block constructor regimes | deleted if U6.2 is not executed this cycle |
+The list is **empty**. The closing round schedules no consumer for any file outside the
+closure, so the two that remain there are counted in the budget above rather than exempted from
+it, and the tooling and the frozen sources are counted with them.

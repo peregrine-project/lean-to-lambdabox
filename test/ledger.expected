@@ -4,7 +4,6 @@
 'LeanToLambdaBox.step_iota' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
 'LeanToLambdaBox.step_proj' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
 'LeanToLambdaBox.step_delta' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
-'LeanToLambdaBox.simulate_of_erases_correct' depends on axioms: [propext, Classical.choice, Quot.sound]
 'LeanToLambdaBox.ErasesEnv.runtimeKey_isCasesOn' depends on axioms: [propext, Classical.choice, Quot.sound]
 'LeanToLambdaBox.erases_elimSpine_no_value' depends on axioms: [propext, Classical.choice, Quot.sound]
 'LeanToLambdaBox.ErasesEnv.ctorArity' depends on axioms: [propext, Classical.choice, Quot.sound]
