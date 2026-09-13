@@ -84,8 +84,8 @@ the fixture diff and the `doc/trust.md` row to its wave gate (N3a).
 | **W3R** | **The repair wave**: the definitions the W3 arms had to work around — `ErasesEnv` forward (seven clauses), `Erases.proj`'s relevance (semantic, not syntactic), `SEval`'s pinned block data in source coordinates, `CasesOnShape`'s type, `LowerBlock.hfl`, the table modulo α — so that `erases_correct` needs MetaRocq's five, `LowerEnv` and `UpstreamAsks` and nothing else. Re-planned after its own refutation (`05-REPAIRS-W3.md` §16) | 9 + gate | G1–G6 unchanged and still green **at the gate** | **Delivered**; delivered files below |
 | **W4** | The bridge: 18 motives against `ErasesLB`/`ErasesLBFix`, plus the block λ-headedness `LowerBlock.hfl` now asks of it | 6 + gate | G1–G6 lose `hbridge` | **Delivered in part**: the motives, the aggregator and fourteen of the eighteen steps; steps 3, 4, 10 and 17 have no supplier and step 4 is refuted at a block reader, so `hbridge` stands |
 | **W4b** | **The bridge repair wave**: the fixvar mode keyed at the tabled names, which un-refutes step 4, the inductive registry in `BridgeInv`, the two bundles that retire the seventeen step premises (`ErasureSpec` for the primitives, `EraserAsks` for this repository's own code), `Lower.abstract`, the two `SupportedTm` repairs, N22 moved to the input side, step 17, and the capstone's erasure half. `doc/rework/06-REPAIRS-W4.md` is the design; its §14 is the refutation round, its §15 the delivery findings | 9 + gate | G1–G6 green at every unit | **Delivered in part**: seventeen of the eighteen member steps landed, `erasure_bridge_of_run` proved modulo six named obligations (`Step4`, `VisitExprRunConcl`, `DeclInfoAtHead`, `hall`, `hseg`, `hctab`); those six are being closed by a follow-up to G4R, tracked outside this document |
-| **W5** | The registration invariant at a run's final state, discharging `hbridge`'s six fields; capstone at Arith, coverage, delivery | 6 + gate | **G7, G8** | not started |
-| **W6** | Optional hardening, off the critical path | 4 | unchanged | not started |
+| **W5** | The registration invariant at a run's final state, discharging `hbridge`'s six fields; capstone at Arith, coverage, delivery | 6 + gate | **G7, G8** | **Delivered in part**: eight rungs green, the world-indexed run induction (`RunClosedW`, `visitExpr_shapeW`), `bridgeEnv_of_regInv` and a five-field `ErasureBridge`; the registration invariant is refuted as specified (`08-REPAIRS-W5.md` §2) and `hve`/`hbridge` stand |
+| **W6** | **The closing round**: `hve` discharged, `hbridge` reduced from five fields to two (`wf` a per-rung checked term, `noBox` and `simulate` retired), the mis-specified printable-binder clause restated, the α kit deleted. `doc/rework/08-REPAIRS-W5.md` is the design | 8 + gate | G1–G8, `hve`-free | not started |
 
 ---
 
@@ -501,25 +501,80 @@ discharge of these three).
 **U5.1 → U5.2 → U5.3 → U5.4 → U5.5 → G5**; U5.0 runs beside U5.1 (and, if needed, beside U5.2)
 and joins the path at U5.3, which is the first unit to need both.
 
-### W6 — optional hardening (4 units, no gate; each additive)
+### W6 — the closing round: `hve` discharged, `hbridge` reduced to two fields (8 + gate)
 
-| Unit | Files owned | Est. | Acceptance |
-|---|---|---|---|
-| **U6.1 functional refinement** | `LowerFun.lean` | 900 | `Lower Σ⁺ t₀ (lowerTerm E t₀)` on the exactness fragment — `[S §7.4]`'s "same result" reading — added **without restating T8** |
-| **U6.2 optimize corollary** | `Optimize.lean` | 600 | `LBOptimize_correct` generalised over `with_constructor_as_block` (the four non-block arms), giving the optional corollary chain from `eraseFlags`; `Optimize.lean` leaves the §9.6 exception list |
-| **U6.3 prop-case fragment** | `ElimBody.lean`, `Semantics/Eval.lean` | 800 | gated on **F-PROP landing on `dev/fix`** and on lean4lean's open `Injectivity.lean`: re-introduces the singleton machinery with `largeElim_of_wf` (both disjuncts) + the decidable index-determined-field conjunct, and a green rung with a `Prop` discriminee (`And.casesOn` at a `Nat` motive) — the rung that today is an N18 coverage row |
-| **U6.4 srEval** | `Witness/SrEval.lean` | 900 | `srEval_sound` per flag slice, turning the source-evaluation hypothesis of each rung into `by rfl`; built only if the soundness proof stays under budget |
+`doc/rework/08-REPAIRS-W5.md` is this wave's design; every signature below is quoted there in
+full, with the probe that elaborates it. What W6 closes: `hve`, by deleting the premise `def` and
+proving its conclusion under `ConfigPinned`; three of `hbridge`'s five fields — `wf`, which
+becomes a per-rung `decide +kernel` term once one mis-specified clause is restated, `noBox`, by
+exporting the constructor-tree shape `firstorder_erases_core` already computes, and `simulate`, by
+applying `erases_correct` at the one spine the capstone needs it at. What W6 does **not** close,
+and says so in its own design document's §2.3: `erasesEnv` and `lowerEnv`, for three measured
+reasons — the eighteen-motive family is stated at a fixed level scope while 16 of G7's 30 tabled
+bodies are erased at their own, `ReifiedDecl.Prepared` pins a tabled body only up to
+`Expr.AlphaEq` while `Lower` is not α-closed on its source, and `RunRefines` reads content at
+*every* specification environment of the final state where the repair produces one. `hbridge`
+survives as a two-field binder with that section as its discharge story.
 
-Every W6 unit's acceptance also includes: all W0–W5 acceptance tests still pass unchanged, and no
-statement from W0–W5 is restated.
+**One finding of this wave is load-bearing for what the ladder means.** `LBWfPeregrine.asciiNames`
+is **false** at five of the eight rungs — 1 offending binder name at G2/G3/G4 and 34 at G7/G8, all
+of them hygienic binders or `.fix` definition names carrying `.` and `@` — so those five rungs'
+`hbridge` is unsatisfiable and their statements are vacuous. The clause, not the eraser, is wrong:
+it mirrors `Basic.cleanIdent`'s character class, which `toKername` applies to **kername
+identifiers**, while `Printing.lean:25` emits a binder name as a quoted atom and peregrine's
+`Deserialize_ident` accepts any `Str` atom. U6.3 restates it and U6.4 checks the restated clause,
+green at all eight rungs.
+
+**What stays a binder at every rung, unconditionally on this wave**, restated so no unit treats it
+as a W6 gap: `hcb` (upstream — 10 of G7's 30 tabled bodies carry an `Expr.proj` and lean4lean's
+`TrProj` is unproven at the pin), `hfo` (upstream ask 4), `hev`/`hvwt`/`hty` (the statement is
+quantified over any value the source evaluates to; T10 is a separate per-rung witness), and
+`hbridge`'s two remaining fields.
+
+| Unit | Files owned | Depends | Est. | Acceptance |
+|---|---|---|---|---|
+| **U6.1 `hve` discharged** | `LeanToLambdaBox/VisitExprRefines/Step/Env.lean` | — | 120 | `def VisitExprRunConcl` is **deleted** and `runClosedW_indReg`/`visitExpr_runConcl` land in its place, both `[propext, Classical.choice, Quot.sound]`; `run_visitMutual_registers` and `step6` take `hcfg : ConfigPinned ctx.config` in place of `hve`+`hcs`+`hpru` and neither gains a premise; `grep -rn "VisitExprRunConcl" --include='*.lean' LeanToLambdaBox/` is empty; `grep -nE "^def [A-Za-z0-9_']+ " LeanToLambdaBox/VisitExprRefines/Step/*.lean` reports 0 (was 1); `lake build` green |
+| **U6.2 box-freedom of the lowered value** | `LeanToLambdaBox/FirstOrderInd.lean` | — | 150 | `FOSpine` with its two rules, `FOSpine.{noBox, mkApps, spineHead, lower}`, `spineHead_mkApps` and `noBox_lower_of_foSpine` land; `firstorder_erases_core` concludes `FOSpine t ∧ ∀ t', Erases env Us [] v t' → t' = t`; `firstorder_no_box`'s **statement** is byte-identical (`git diff` over its signature empty) and its `test/Ledger.lean` footprint unchanged; the unit report quotes `#print axioms` for each new declaration |
+| **U6.3 the printable-binder clause** | `LeanToLambdaBox/Output.lean` | — | 60 | `AsciiBinderName`/`AsciiBinders` become `PrintableBinderName`/`PrintableBinders` at the condition the quoted atom needs (no `"`, no `\`), `LBWfPeregrine.asciiNames` becomes `printableNames`, and the docstring names `Printing.lean:25`, `Basic.lean:26-42` and `DeserializeCommon.v:13-18` as the three facts that fix the class; `hygienic_binder_not_alphanum` is a `by decide` refutation at the name the eraser actually emits; `lake build` green tree-wide (no consumer projects the clause) |
+| **U6.4 the well-formedness checker** | **new** `LeanToLambdaBox/OutputCheck.lean` | U6.3 | 900 | `lbWfPeregrineB` and `lbWfPeregrine_of_check` land, with `subtermAll`/`subtermAll_sound` and `onProgramB`/`onProgramB_sound` as the two generic engines and one Boolean per clause; **every** definition in the file is structurally recursive (`grep -c "termination_by\|decreasing_by"` = 0), because a well-founded one does not reduce under `decide +kernel`; the file adds no `axiom`, no `sorry`, no `native_decide`; `lbWfPeregrineB Γ t = true` decided `by decide +kernel` at all eight `Green.g<i>Env`/`g<i>Term` pairs, the whole file under 30 s; the unit report gives the per-rung elaboration time |
+| **U6.5 the simulation at the spine** | `LeanToLambdaBox/ErasesEnv.lean`, `LeanToLambdaBox/ErasesCorrect/Close.lean` | — | 120 | `ReachableFrom.mkApps_inv` and `ErasesEnv.mkApps` land, both `[propext, Classical.choice, Quot.sound]`; `simulate_of_erases_correct` is **deleted** (its two ∀-premises are false at any `Γspec`, U5.2 blocker 3) and its `test/Ledger.lean` row goes with it, handed to G6 under N3a; `erases_correct`/`erases_correct_lb` are untouched |
+| **U6.6 the α kit's disposal** | `LeanToLambdaBox/Alpha.lean` (**deleted**, 1,050 lines, 99 declarations) | — | 10 | the file is gone and no `.lean` file outside `LeanToLambdaBox.lean` referenced it (`grep -rn "import LeanToLambdaBox.Alpha"` = 1 line, the aggregator's, handed to G6 under N3a); `02-PLAN.md` §4 gains its deletion row naming `08-REPAIRS-W5.md` §6 as the reason and §2.3's O2 as the round that re-lands it; no exception row is added |
+| **U6.7 the capstone and the ladder** | `LeanToLambdaBox/Capstone.lean`, `LeanToLambdaBox/Green.lean` | U6.1, U6.2, U6.4, U6.5 | 200 | `ErasureBridge` has exactly two fields, `erasesEnv` and `lowerEnv`, and drops the `t` index; `shipping_erase_correct_firstorder` loses `hve`, gains `hwf : LBWfPeregrine Γ t`, and its observable clause gains the per-argument `ErasesEnv` conjunct and the spine translation `TrExprS env [] [] (mkApps pe args) vs`; all eight rungs discharge `hwf` by `lbWfPeregrine_of_check (by decide +kernel)` and pass `hwt` for the spine translation at `args = []`; no rung's conclusion moves (`git diff LeanToLambdaBox/Green.lean` adds and removes no `∧` inside any `green_G*` statement); `lake exe green-check --all` 8/8 |
+| **U6.8 the record** | `doc/trust.md`, `Tools/Coverage.lean`, `doc/coverage.md` | U6.7 | 250 | `doc/trust.md`'s `hve` row is gone, its `hbridge` row names two fields and cites `08-REPAIRS-W5.md` §2.3's three obstructions, and it gains a `hwf` row in the `hnb` class (checked term, `decide +kernel`); `doc/coverage.md` is regenerated byte-identically by `lake exe coverage` and carries the F6 measurement table and the fact that T5 is now inside the closure; `lake exe coverage --check` exit 0 |
+| **G6 gate — the closing round** | integration; N3a files (`.github/workflows/build.yml`, `LeanToLambdaBox.lean`, `test/Ledger.lean`, `test/ledger.expected`, `test/hygiene.allow`), `doc/rework/07-STATUS.md` | U6.1–U6.8 **(proof)** | 150 | every W0–W5 acceptance test re-run in one CI job; `grep -n "hve" LeanToLambdaBox/Capstone.lean LeanToLambdaBox/Green.lean` **empty**; `grep -n "hbridge" LeanToLambdaBox/Capstone.lean LeanToLambdaBox/Green.lean` reports **exactly 20 lines**, the W5 count unchanged — 4 in `Capstone.lean` (two docstring sentences, the binder, its one application) and 16 in `Green.lean` (one binder and one argument per rung) — and `grep -A 6 "structure ErasureBridge" LeanToLambdaBox/Capstone.lean` shows `erasesEnv` and `lowerEnv` and no third field; `lake exe green-check --all` **8/8**; `bash scripts/ledger.sh` green against a re-measured `test/ledger.expected` whose only diff is the deleted `simulate_of_erases_correct` row (the 33-name cluster is unchanged at the capstone and at all eight rungs — `#print axioms` never measures a hypothesis, and `decide` adds no axiom); `lake exe hygiene --dead` **re-measured**, its CI budget set to the measured value, with the two movements accounted in the gate report — Alpha's 99 leaving, and `erases_correct` with the arms it reaches entering; `--dup`/`--schedule`/`--tables`/`--cites`/`--anti-epicycle` all exit 0; `07-STATUS.md` §1's binder table and §4's open list rewritten against the measurement, not against this plan |
+
+1,960 lines added, 1,065 deleted. Serial path **U6.3 → U6.4 → U6.7 → U6.8 → G6** (1,560); U6.1,
+U6.2, U6.5 and U6.6 run beside it and join at U6.7, the first unit to need any of them. U6.4 is the
+long pole and the only unit above 300 lines; its risk is the soundness proof for the two saturation
+clauses, whose Boolean twin has to implement `ConstructSpine`'s maximal-application-depth guard —
+**fallback, stated up front**: if that proof overruns by more than half, land the ten other clauses
+in `lbWfPeregrine_of_check` and take `etaCtorsEnv`/`etaCtorsTm` as two explicit hypotheses of it,
+leaving `wf` a two-clause residual binder at the rungs instead of a checked term. The no-regression
+floor for the whole wave is that `hbridge` stays exactly the binder it is at the W5 checkpoint and
+`green-check --all` stays 8/8.
+
+**W6's file graph, checked disjoint.** Eight units' FILES: U6.1
+(`VisitExprRefines/Step/Env.lean`), U6.2 (`FirstOrderInd.lean`), U6.3 (`Output.lean`), U6.4
+(`OutputCheck.lean`, new), U6.5 (`ErasesEnv.lean`, `ErasesCorrect/Close.lean`), U6.6
+(`Alpha.lean`, deleted), U6.7 (`Capstone.lean`, `Green.lean`), U6.8 (`doc/trust.md`,
+`Tools/Coverage.lean`, `doc/coverage.md`). No file is named twice and no co-ownership is declared;
+the aggregator's import line, the ledger row and the CI budget are the gate's, under N3a.
+
+**Off the critical path, not scheduled.** Four additive hardening items survive from the earlier
+W6 plan and are not part of the closing round: the functional refinement `Lower Σ⁺ t₀ (lowerTerm E t₀)`
+on the exactness fragment (`LowerFun.lean`, ≈900); `LBOptimize_correct` generalised over
+`with_constructor_as_block` (`Optimize.lean`, ≈600); the `Prop`-case fragment, gated on F-PROP
+landing on `dev/fix` and on lean4lean's open `Injectivity.lean` (`ElimBody.lean`,
+`Semantics/Eval.lean`, ≈800); and `srEval_sound`, which would turn each rung's source-evaluation
+hypothesis into `by rfl` (`Witness/SrEval.lean`, ≈900). Each is additive and restates no W0–W6
+statement.
 
 ---
 
 ## 3. Dependency graph (waves)
 
 ```
-W0 ──► W1 ──► W2 ──► W3 ──► W3R ──► W4 ──► W4b ──► W5
-             └───────────────────────────────► W6 (any time after W2; additive — except U6.3, gated on dev/fix F-PROP)
+W0 ──► W1 ──► W2 ──► W3 ──► W3R ──► W4 ──► W4b ──► W5 ──► W6
 ```
 
 Inside W1: **U1.0 first**, then the only constraints are U1.1 → {U1.2, U1.3, U1.6 (interface:
@@ -673,6 +728,8 @@ would mark thirty deleted files covered to silence one.
 | W2 | U2.8, U2.9 | in `Output.lean`: `ErasableAxioms`, `AxiomRealizer` and the axiom-realizer table; in the environment-relation module (`ErasesEnv`, partial — the file stands): `ErasesDecl.ctor`, `PrunedFor`, `EnvAgree` with its five lemmas, `IotaInert`; in `ErasesCorrect.lean`: `DeltaAgrees` and the four W2 refutation statements | ≈400 | the value arms of `SEval` (A18), `NoBodylessRefs` at T9 (A24), `ErasesDecl.defn` (A22); the rest had no consumer |
 | W2 | U2.10 | `Fuel.lean` — the whole file (101 lines, zero references, no importer); `ElimBody.lean` — partial: the de-Bruijn/evaluation kit (`LBTerm.shift_zero`, `LBTerm.subst_spine`, `LBTerm.substList_mkApps`, `substTele` + nine lemmas, `elimAltsSub` + two, `substList_reverse_fields`, `eval_self`, `EvalArgs` + six), `wcbvEval_{app_inv, mkApps_inv, beta_step, mkApps_head_swap, app_arg_swap, mkApps_args_swap, case_inv, mkLambdas_fwd, mkLambdas_bwd}`, `mkCtorBody` + `mkCtorBody_closed` + `mkCtorBody_beta`, `mkElimBody_iota_fwd`/`_bwd`, and the `*_iota_fires` fixture block. **`mkElimBodyRec` is not deleted** — it is `ElimBody.recur`'s right-hand side | 101 + ≈740 | nothing evaluates at `Σ⁺` (`01-DESIGN.md` §2.3); `mkCtorBody`'s one consumer was `ErasesDecl.ctor` |
 | W5 | U5.3 | the benchmark status document | 230 | `doc/coverage.md`, generated; F-SPARSE evidence carried into `doc/rework/03-DEV-FIX.md` first |
+| W6 | U6.5 | in `ErasesCorrect/Close` (partial — the file stands): `simulate_of_erases_correct`, and its `#print axioms` row in the ledger fixture module (handed to G6, N3a) | 15 | `erases_correct` applied at the spine inside the capstone (`08-REPAIRS-W5.md` §5); the lemma's content was two ∀-premises that are false at any `Γspec` |
+| W6 | U6.6 | `Alpha.lean` (the aggregator's import line co-owned, N3a) | 1,050 | nothing — it is the α-transport kit for `ReifiedDecl.Prepared`, whose only consumer is the content clause of `08-REPAIRS-W5.md` §2.1, which W6 does not schedule; the round that lands §2.1 re-lands it from git |
 
 **Not scheduled here: `CheckerAdequacy.lean`'s partial deletion.** Its `namespace Lean4Lean`
 block (the seven kernel-generic declarations, `01-DESIGN.md` §8.3 item 3) moves to the fork only
