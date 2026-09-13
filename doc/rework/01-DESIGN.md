@@ -26,8 +26,9 @@ gate resolutions; the machine-checked evidence lives under `scratchpad/probe/` a
 ### 1.1 Thesis
 
 `Erases` is `[S Fig. 18]` transposed to `Lean.Expr`: ten congruence rules plus one box rule,
-indexed by `(env : VEnv, Us : List Name, Δ : VLCtx)` and nothing else. It produces no
-`.construct`, no `.case`, no `.fix`. The four Lean-specific compilation steps that the current
+indexed by `(env : VEnv, Us : List Name, Δ : VLCtx)` and nothing else. It produces no `.case` and
+no `.fix`, and the only `.construct` it produces is the nullary `.construct iid k []` of the
+`ctor` rule (W2-R1's eleventh): it builds no applied block. The four Lean-specific steps that the
 relation absorbed leave it, and they leave as **relations between two λ□ terms indexed by the
 specification environment `Σ⁺` alone**:
 
@@ -2434,8 +2435,9 @@ gives `dp'`/`nm'` is `ErasesEnv.elims`, whose relevance premise (F1) is a HYPOTH
 cannot conclude, so `hagree` at an arbitrary `I` was underivable at the `iota` case without it —
 the `iota` arm already binds its own `hinf`, so the amendment costs the proof nothing and
 strictly weakens the premise. -/
-theorem SEval.no_elimSpine_value (hco : ConstOrigin env c) (hnone : bo c = none)
-    (helim : ∀ I dp' nm', CasesOnShape env c I dp' nm' → InformativeInd env I →
+theorem SEval.no_elimSpine_value (A : UpstreamAsks env)
+    (hco : ConstOrigin env c) (hnone : bo c = none)
+    (hagree : ∀ I dp' nm', CasesOnShape env c I dp' nm' → InformativeInd env I →
       dp' = dp ∧ nm' = nm)
     (hlt : args.length < dp + 1 + nm) :
     ¬ SEval env bo Us fl Δ (mkApps (.const c us) args) w
@@ -2471,9 +2473,10 @@ theorem erases_elimSpine_no_value (A : UpstreamAsks env)
 
 -- T6  the passes                                                                    class A
 -- There is no `lower_correct`: nothing evaluates at `Σ⁺` and nothing transports along `Lower`
--- (Q10). The unrestricted statement is refuted at `elimEta` with an `ElimBody`-shaped head
--- (`lower_correct_needs_elimBody_head`) and the guard it leaned on is false on every environment
--- reaching `Nat.succ` (`lowerNoEta_fails`); `LowerNoEta`, `DeltaChain`, `LowerPlain` and
+-- (Q10). The unrestricted statement is refuted at `elimEta` with an `ElimBody`-shaped head and
+-- the guard it leaned on is false on every environment reaching `Nat.succ`; both refutations are
+-- deleted with their subjects, so neither is a declaration (`LeanToLambdaBox/Lower.lean` says so
+-- in its header). `LowerNoEta`, `DeltaChain`, `LowerPlain` and
 -- `lower_correct_deltaChain`/`lowerFix_correct_atom`/`lower_correct_plain` are deleted with it.
 -- What the pass layer keeps is its own metatheory, now consumed by T5's arms: the `Lower`
 -- inversion kit, `Lower.{subst_comm, substList_comm, mkApps}`, `LowerFix.constToFix`,
@@ -2539,9 +2542,7 @@ def BlockKeyed (tbl : SourceTable) (ctx : ErasureContext) (nms : List Name)
 theorem visitExpr_refines_erasesLB
     (steps : Step1 … ∧ … ∧ Step18 …)                    -- eighteen explicit hypotheses
     (P    : ErasureSpec lenv env Us gw)                 -- class D, primitives
-    (E    : EraserAsks lenv env Us gw)                  -- class C, this repository's code
     (htbl : SourceTableAdequate lenv tbl)
-    (hblk : TableBlocks lenv env tbl)                   -- N22 input-side + the block's members
     (hcfg : ConfigPinned cfg)
     (hcb  : CompilerBodies lenv env tbl.body?)          -- N8, class C
     (hwt  : TrExprS env Us Δ e ve)                      -- e is already prepared: T8 is about
@@ -2551,8 +2552,10 @@ theorem visitExpr_refines_erasesLB
     (hinv : BridgeInv env Us tbl cfg (gw w) ctx s Δ) :
     ∀ Σ⁺, SpecEnv env tbl.body? s' Σ⁺ →
       ErasesLB env Us Σ⁺ Δ e t ∧ RunConcl s s' ∧ gw w ≤ gw w'
+-- `E : EraserAsks` and `hblk : TableBlocks` are NOT binders of T8: they are spent at the call
+-- site, inside the step arguments (`step_visitExpr E`, `step6 E hve hsafe`) in `Capstone.lean`
 theorem visitExpr_refines_erasesLBFix   -- the block-branch companion; genuinely new work (W4)
-    (…same steps/P/E/htbl/hblk/hcfg/hcb/hwt/hsup/hrun/hinv…)
+    (…same steps/P/htbl/hcfg/hcb/hwt/hsup/hrun/hinv…)
     (hfx : BlockKeyed tbl ctx nms ids) :
     ∀ Σ⁺, SpecEnv env tbl.body? s' Σ⁺ →
       ErasesLBFix env Us Σ⁺ (nms.map toKername) ids Δ e t ∧ RunConcl s s' ∧ gw w ≤ gw w'
@@ -2573,7 +2576,7 @@ theorem visitExpr_refines_erasesLBFix   -- the block-branch companion; genuinely
 structure BridgeInv (env : VEnv) (Us : List Name) (tbl : SourceTable) (cfg₀ : ErasureConfig)
     (gen : NameGenerator) (ctx : ErasureContext) (s : ErasureState) (Δ : VLCtx) : Prop where
   mlc      : ∃ m : MLCtx, m.WF env Us ∧ m.lctx = ctx.lctx ∧ m.vlctx = Δ
-  lparams  : ctx.lparams <+: Us
+  lparams  : ctx.lparams = Us
   cfg      : ctx.config = cfg₀
   kfresh   : ∀ fv ∈ Δ.fvars, kernelNGen.Reserves fv
   reserved : ∀ fv ∈ Δ.fvars, gen.Reserves fv
@@ -2595,30 +2598,31 @@ structure BridgeInv (env : VEnv) (Us : List Name) (tbl : SourceTable) (cfg₀ : 
 -- splits the run into `prepare_erasure e … = .ok (pe, {}) wp` and `visitExpr pe …`, and the two
 -- terms cannot be identified — `Lean.Compiler.LCNF.macroInline` replaces a constant by its body
 -- and the erasure of the result is not an erasure of the original. The observable conjunct stays
--- at `e`, transported by `prepare_sound` off `ErasureSpec.transforms_sound`
+-- at `e`, transported by `prepare_sound` off `EraserAsks.passes_sound`
 -- (`06-REPAIRS-W4.md` §11). The two fields T8 supplies are **not** fields: they are
 -- `erasure_bridge_of_run`, proved in `Capstone.lean`, which is why `ConfigPinned` lives in
 -- `ErasureSpec.lean` and the capstone imports the bridge.
 theorem erasure_bridge_of_run
-    (P : ErasureSpec lenv env [] gw) (E : EraserAsks lenv env [] gw)
-    (htbl : SourceTableAdequate lenv tbl) (hblk : TableBlocks lenv env tbl)
+    (P : ErasureSpec lenv env [] gw) (E : EraserAsks lenv env [] gw) (A : UpstreamAsks env)
+    (htbl : SourceTableAdequate lenv tbl) (hsafe : TableSafe lenv tbl)
+    (hblk : TableBlocks lenv env tbl)
     (hcfg : ConfigPinned cfg) (hcb : CompilerBodies lenv env tbl.body?)
+    (hve : VisitExprRunConcl env gw)                    -- the term walk's run conclusion, open
     (hsup : Supported env tbl pe) (hwt : TrExprS env [] [] pe ve)
-    (hprep : Erasure.prepare_erasure e {} { «config» := cfg } cctx ref w = .ok (pe, {}) wp)
-    (hvis : Erasure.visitExpr pe {} { «config» := cfg } cctx ref wp = .ok (t, sf) wt)
+    (hprep : Erasure.prepare_erasure e {} { «config» := cfg } cctx ref w = .ok (pe, sp) wp)
+    (hvis : Erasure.visitExpr pe sp { «config» := cfg } cctx ref wp = .ok (t, sf) wt)
     (hspec : SpecEnv env tbl.body? sf Σ⁺) :
     ∃ t₀, Erases env [] [] pe t₀ ∧ Lower Σ⁺ t₀ t
--- `hsup` and `hwt` are asked of `pe`, and the six rungs' subjects are RAW constants, so each
+-- `hsup` and `hwt` are asked of `pe`, and the eight rungs' subjects are RAW constants, so each
 -- rung gains one premise fixing the prepared term — `hprep : prepare_erasure eGn … =
 -- .ok (eGn, {}) w`, class D, mechanised by `lake exe reify --prepared`. Transporting `Supported`
 -- and `TrExprS` across the passes instead would be a stronger statement about `macroInline`,
 -- and false in general (`06-REPAIRS-W4.md` §11)
 
-structure ErasureBridge (env : VEnv) (bo : Name → Option Expr) (fo : Name → Prop) (pe : Expr)
+structure ErasureBridge (env : VEnv) (bo : Name → Option Expr)
     (Σ⁺ Σ : GlobalDeclarations) (t t₀ : LBTerm) : Prop where
-  erasesEnv  : ErasesEnv env bo Σ⁺ t₀                                         -- SpecEnv.exists, W3
-  lowerEnv   : LowerEnv Σ⁺ Σ                                                  -- W3
-  wfSpec     : LBWfSpec Σ⁺
+  erasesEnv  : ErasesEnv env bo Σ⁺ t₀                                -- RegInvShape'.erasesEnv
+  lowerEnv   : LowerEnv Σ⁺ Σ                                         -- RegInvShape'.lowerEnv
   wf         : LBWfPeregrine Σ t                                             -- W4; not PeregrinePre (F-ETA)
   -- one field, not two: T5 is now the whole simulation, at the emitted `Σ` (A19). Stronger
   -- than T5 by the premises T9's clause cannot supply at an applied subject (`TrExprS`/
@@ -2640,46 +2644,54 @@ theorem simulate_of_erases_correct {Σ⁺ Σ : GlobalDeclarations}
     ∀ {s t₀s ts v}, Erases env [] [] s t₀s → Lower Σ⁺ t₀s ts →
       SEval env bo [] fullFlags [] s v →
       ∃ v₀ v', Erases env [] [] v v₀ ∧ Lower Σ⁺ v₀ v' ∧ WcbvEval Σ eraseFlags ts v'
-  -- stronger than T7 by the value premise `SEval … v v`, and by asking box-freedom of the
-  -- LOWERED value (`noBox_lower_needs_noFix`, §2.2 finding G1-O7)
-  firstorder   : ∀ {I us idx v vv tv₀ tv}, fo I → TrExprS env [] [] v vv →
-      env.HasType 0 [] vv (VExpr.mkApps (.const I us) idx) →
-      Erases env [] [] v tv₀ → Lower Σ⁺ tv₀ tv →
-      NoBox tv ∧ ∀ tv', Erases env [] [] v tv' → tv' = tv₀                   -- T7, W3
+  -- the fifth and last field: box-freedom of the LOWERED value alone
+  -- (`noBox_lower_needs_noFix`, §2.2 finding G1-O7). Uniqueness of `tv₀` is NOT a field —
+  -- `firstorder_erases_core` proves it inside the capstone at these same premises
+  noBox        : ∀ {I us idx v vv tv₀ tv}, SValue env v → FirstOrderInd env I →
+      TrExprS env [] [] v vv → env.HasType 0 [] vv (VExpr.mkApps (.const I us) idx) →
+      Erases env [] [] v tv₀ → NoBox tv₀ → Lower Σ⁺ tv₀ tv → NoBox tv        -- T7, W3
 
 theorem shipping_erase_correct_firstorder
     {lenv : Lean.Environment} {env : VEnv} {gw : Void IO.RealWorld → NameGenerator}
-    {tbl : SourceTable} {cfg : ErasureConfig} {fuel : Nat} {e : Expr} {ve : VExpr}
-    {Σ : GlobalDeclarations} {t : LBTerm} {fo : Name → Prop}
-    (P     : ErasureSpec lenv env [] gw)                 -- class D, named (A14)
+    {tbl : SourceTable} {cfg : ErasureConfig} {e pe : Expr} {ve : VExpr}
+    {Σ : GlobalDeclarations} {t : LBTerm}
+    (P     : ErasureSpec lenv env [] gw)                  -- class D, named (A14)
+    (E     : EraserAsks lenv env [] gw)                   -- class C, this repository's code
+    (A     : UpstreamAsks env)                            -- class C, upstream (items 2/6/9/10)
     (htbl  : SourceTableAdequate lenv tbl)                -- class D, named (A14)
+    (hsafe : TableSafe lenv tbl)                          -- class D (finding G1-O4)
+    (hblk  : TableBlocks lenv env tbl)                    -- N22 input-side, class D
     (hcfg  : ConfigPinned cfg)                            -- N1-N5
     (hcb   : CompilerBodies lenv env tbl.body?)           -- N8, class C (33/33 measured)
-    (hwt   : TrExprS env [] [] e ve)                      -- F17: W3 witness or named fallback
-    -- the `supportedB` VERDICT, not `Supported env e`: `Supported`/`supportedB_sound` are
-    -- U1.8's and land in W2 (finding G1-O1); this is also the only form a rung can discharge
-    -- by a checked term, since `Supported env e` mentions the non-computable `env`
-    (hsup  : supportedB tbl fuel e = .ok ())              -- N6/N16/N18, decidable
+    (hve   : VisitExprRunConcl env gw)                    -- the term walk's run conclusion, open
+    (hwt   : TrExprS env [] [] pe ve)                     -- of the PREPARED term
+    -- `Supported env tbl pe`, not the `supportedB` verdict: a rung discharges it by
+    -- `supportedB_sound` applied to `supportedB`'s kernel-computed verdict, so the checked
+    -- term is still what settles it while the statement stays model-side
+    (hsup  : Supported env tbl pe)                        -- N6/N16/N18, decided per rung
+    (hprep : Erasure.prepare_erasure e {} { «config» := cfg } cctx ref w = .ok (pe, {}) wp)
     (hrun  : Erasure.erase e cfg cctx ref w = .ok (.untyped Σ (some t), inls) w')
     -- T9's decidable `axiom_free` analogue (§4.9, A24; landed by U2.8, gained by G2 — §2.4 finding
     -- W2b's own capstone premise, not a design refutation): a rung discharges it `by decide
     -- +kernel`. False exactly on Fannkuch, whose coverage row (F-EQREC) is where that fact lives.
     (hnb   : NoBodylessRefs Σ t)
-    (hbridge : ∃ Σ⁺ t₀ pe, ErasureBridge env tbl.body? fo pe Σ⁺ Σ t t₀) :
-    ∃ (Σ⁺ : GlobalDeclarations) (t₀ : LBTerm) (pe : Expr),
-      -- the term the erasure walked, and the run that produced it, so a reader can see which
-      -- term the syntactic conjunct is about
+    (hbridge : ∀ (sf : ErasureState) (wt : Void IO.RealWorld),
+      Erasure.visitExpr pe {} { «config» := cfg } cctx ref wp = .ok (t, sf) wt →
+      ∃ Σ⁺, SpecEnv env tbl.body? sf Σ⁺ ∧
+        ∀ t₀, Erases env [] [] pe t₀ → Lower Σ⁺ t₀ t →
+          ErasureBridge env tbl.body? Σ⁺ Σ t t₀) :
+    ∃ (Σ⁺ : GlobalDeclarations) (t₀ : LBTerm),
+      -- the run that produced the term the erasure walked, so a reader can see which term
+      -- the syntactic conjunct is about (`pe` is a binder of the theorem, not existential)
       Erasure.prepare_erasure e {} { «config» := cfg } cctx ref w = .ok (pe, {}) wp
       ∧ Erases env [] [] pe t₀
       ∧ ErasesEnv env tbl.body? Σ⁺ t₀
       ∧ Lower Σ⁺ t₀ t
       ∧ LowerEnv Σ⁺ Σ
       ∧ LBWfPeregrine Σ t                                 -- not PeregrinePre: F-ETA, §4.9
-      -- the FIRST-ORDER SIDE CONDITION is the parameter `fo : Name → Prop` with premise `fo I`,
-      -- not the closed `FirstOrderInd env I` of §4.12: `FirstOrderInd` is U3.5's (W3) and minting
-      -- it here would put one name in two files. T9 holds for every `fo`; instantiating
-      -- `fo := FirstOrderInd env` once U3.5 lands recovers §4.12's reading with no reproof —
-      -- three sites: this binder, `ErasureBridge`'s `fo`, and `Green.lean`'s `hfo` (finding G1-O2)
+      -- the FIRST-ORDER SIDE CONDITION is the closed `FirstOrderInd env I` of §4.12 at all
+      -- three sites — this premise, `ErasureBridge.noBox` and `Green.lean`'s `hfo`. There is
+      -- no `fo : Name → Prop` parameter: U3.5's `FirstOrderInd` is the reading (finding G1-O2)
       ∧ ∀ (args : List Expr) (targs : List LBTerm) (I : Name) (us : List VLevel)
           (idx : List VExpr) (v : Expr) (vv : VExpr),
           -- the SPINE PREMISE, folded through `ErasesLB` (§4.7) rather than written out as
@@ -2691,41 +2703,44 @@ theorem shipping_erase_correct_firstorder
           SEval env tbl.body? [] fullFlags [] (mkApps e args) v →
           TrExprS env [] [] v vv →
           env.HasType 0 [] vv (VExpr.mkApps (.const I us) idx) →
-          fo I →
+          FirstOrderInd env I →
           ∃ tv₀ tv, Erases env [] [] v tv₀ ∧ Lower Σ⁺ tv₀ tv ∧ NoBox tv
                   ∧ (∀ tv', Erases env [] [] v tv' → tv' = tv₀)
                   ∧ WcbvEval Σ eraseFlags (LBTerm.mkApps t targs) tv
 ```
 
 At `args = []` this is the spec's T9 up to the three deviations named above; at `args = [.lit 0]`
-it is the observation for `benchArith`. The answer is unique: `firstorder` pins `tv₀` and
-`eval_deterministic` (T1) pins `tv` given `hrun`'s emitted program. `hrun`, `htbl`, `P` and `hwt`
-are the named class-**D** binders (§2 F18, A14). T9 carries **no** axiom-freedom binder: a run
+it is the observation for `benchArith`. The answer is unique: `firstorder_erases_core` pins `tv₀`
+— inside the capstone's own proof, not as a bridge field — and `eval_deterministic` (T1) pins
+`tv` given `hrun`'s emitted program. `hrun`, `htbl` and `P` are named class-**D** binders
+(§2 F18, A14); `hwt` is not one — `Witness.trExprS_const_of_table` builds it as a checked term at
+every rung, class **A** (`doc/trust.md`). T9 carries **no** axiom-freedom binder: a run
 that forces `Fannkuch`'s body-less `Eq.rec` has no `SEval` derivation, so that program's coverage
 row (F-EQREC) is where the fact lives, not a hypothesis (§4.9).
 
 `hcb` needs one further binder to discharge at a rung: `SourceTableAdequate` pins level
 parameters, types and the constructor split, but not `ConstantInfo.safety`, and without a safety
 fact `ErasureSpec`'s declaration-adequacy step cannot type the one tabled body. The added binder
-is `hsafe : TableSafe lenv tbl`, `TableSafe lenv tbl := ∀ n ci, (tbl.decl? n).isSome →
-lenv.find? n = some ci → DefinitionSafety.safe ≤ ci.safety` (`Green.lean`) — a fourth class-**D**
-binder, filed as an amendment to A14's list (finding G1-O4). W4b adds three more, and files them
-the same way: `hblk : TableBlocks lenv env tbl` and the per-rung
-`hprep` (both class **D**, both mechanised by `lake exe reify`), and `E : EraserAsks lenv env []
-gw` (class **C**, five fields, each with an owner). The standing binder list is therefore
-`P`, `E`, `htbl`, `hblk`, `hsafe`, `hcfg`, `hcb`, `A` — and `grep` for a named `Prop` premise in
-a step file is what keeps it at eight.
+is `hsafe : TableSafe lenv tbl`, a five-field structure in `LeanToLambdaBox/Supported.lean` —
+`decls`, `inds` and `ctors`, the safety of the three columns the table pins, plus `notUnsafeRec`
+and `declCtor` — a fourth class-**D** binder, filed as an amendment to A14's list (finding
+G1-O4). W4b adds three more, and files them the same way: `hblk : TableBlocks lenv env tbl` and
+the per-rung `hprep` (both class **D**, both mechanised by `lake exe reify`), and
+`E : EraserAsks lenv env [] gw` (class **C**, five fields, each with an owner). The standing
+binder list of a rung is therefore `P`, `htbl`, `hsafe`, `E`, `A`, `hblk`, `hve`, `hcb` — eight,
+`hcfg` not among them, since every rung discharges it with `Green.spike_configPinned`.
 
-At this wave `P`, `htbl`, `hcfg`, `hcb`, `hwt`, `hsup`, `hrun` and `hnb` are present in the
-signature but consumed by nothing in the proof term, which destructures only `hbridge` and
-composes its fields (finding G1-O5) — exactly what a wave landing the composition ahead of the
-results it composes looks like, and the reason a reviewer must check the *statement*, not only
-the proof, at this wave. `green_G1`–`green_G4` (§6) do better: they discharge
-`hcfg`/`hsup`/`hnb`/`hcb` by checked terms rather than carrying them as binders (`ErasableAxioms`,
+Every binder but `hnb` is consumed in the capstone's proof term: `erase_run_ok hrun` splits the
+run, `erasure_bridge_of_run P E A htbl hsafe hblk hcfg hcb hve hsup hwt hprep hvis hspec` is the
+erasure half, `prepare_sound E hcfg.1 hprep` carries the observable to the prepared term, and
+`firstorder_erases_core P.envWF A …` supplies uniqueness and `NoBox tv₀`. `hnb` is stated and
+unused: it is what keeps a run reaching a body-less declaration out of the domain, and the rung
+that would need it is the one the fragment already excludes. All eight rungs (§6) discharge
+`hcfg`/`hsup`/`hnb`/`hwt` by checked terms rather than carrying them as binders (`ErasableAxioms`,
 the design's first cut for this premise, is gone — retired at Wave 2, `04-AMENDMENT-W2.md` §8 —
-and `NoBodylessRefs` is its landed replacement, gained at G2), and each rung's `hcb` derivation is
-what first consumes `P`, `htbl` and `hsafe` for real (G1's alone, so far — G2–G4's `hcb` is class-**C**
-and uninhabited, §2.4).
+and `NoBodylessRefs` is its landed replacement, gained at G2). `hcb` is discharged at **G1 only**,
+by `Green.g1_compilerBodies`, which is what consumes `P`, `htbl` and `hsafe` for real; at G2–G8
+it is a class-**C** binder, blocked by `TrProj` at the pin (`doc/trust.md`, the `hcb` row).
 
 Composition, mirroring `[S §7.3]`: `erase_run_ok` (`LeanToLambdaBox/ColdStartRun.lean`)
 decomposes the run into `prepare_erasure` then `visitExpr`; `prepare_sound` carries the source
@@ -2733,13 +2748,15 @@ evaluation to the prepared term the second half walks — **at the spine**, sinc
 clause is read at `mkApps e args` while the pass ran on `e` alone and the passes are whole-tree
 `Core.transform` walks (measured non-compositional at an application head, `macroInline` being
 the culprit), which is why `EraserAsks.passes_sound` is spine-indexed; T8 puts that half's output in
-`Erases ⨟ Lower` at a `Σ⁺` that `SpecEnv.exists` constructs; T5 simulates the evaluation into λ□
+`Erases ⨟ Lower` at **every** `Σ⁺` of the run's final state — nothing constructs one, which is
+what `hbridge`'s existential asks for; T5 simulates the evaluation into λ□
 **at the emitted `Σ` and `eraseFlags`** — the deliverable point (§3.2), reached in one step
 rather than two; T7 identifies the value uniquely and shows it box-free.
 
-The first two steps are `erasure_bridge_of_run`, proved; the rest are `hbridge`'s six remaining
-fields, each named after the theorem that will supply it, and all six wait on the registration
-invariant at the final state (`RegInvShape'`, `RegSaturated`) rather than on the bridge.
+The first two steps are `erasure_bridge_of_run`, proved; the rest are `hbridge`'s five fields.
+`simulate` has a proved supplier, `simulate_of_erases_correct`, which is stronger than the field;
+`erasesEnv` and `lowerEnv` wait on the registration invariant at the final state (`RegInvShape'`,
+`RegSaturated`, composed by `bridgeEnv_of_regInv`); `wf` and `noBox` wait on neither.
 
 ```lean
 -- T10 non-vacuity (per rung; §6)                                                    class A/B
@@ -3154,8 +3171,11 @@ made an explicit, auditable, tracked binder until the fork accepts them, at whic
    replacement comment states the two real reasons (a supplied prefix would sit under a binder weak
    evaluation never enters; and a bare η-expanded head still composes under `app` into an unbounded
    β-redex target, §4.4, Q12).
-6. **No dead code.** Every declaration is in `Green.lean`'s or `Capstone.lean`'s transitive import
-   closure, or on a short tracked exception list in `doc/coverage.md`. At W5 the list may carry
+6. **No dead code.** Every declaration is to be in `Green.lean`'s or `Capstone.lean`'s transitive
+   import closure, or on a short tracked exception list in `doc/coverage.md`. The rule is a
+   ratchet, not a fact: `lake exe hygiene --dead` reports 315 declarations outside the closure
+   against a one-row list, itemised in `doc/coverage.md`'s budget paragraph, of which
+   `LeanToLambdaBox/Alpha.lean`'s 99 are the one breach with no consumer. At W5 the list may carry
    only rows naming a scheduled **W6** unit as consumer (today: `Optimize.lean` → U6.2), each with
    the trigger "deleted if its W6 unit is not executed this cycle" — an import into the closure is
    not a consumer and never counts. No module receives a standing exemption.
@@ -3163,8 +3183,12 @@ made an explicit, auditable, tracked binder until the fork accepts them, at whic
    `SEvalFlags`, `WcbvEval` by `WcbvFlags`, `LBPassR` by its relation field. The known duplicates
    are deleted, not documented. In particular there is exactly one λ□→λ□ relation (`Lower`); the
    stuck-value cases are handled by head predicates inside it, not by an auxiliary twin.
-8. **Kernel lemmas upstream** (§8.3); no `Lean4Lean`-namespace declaration remains here.
-9. **One measured ledger** (§4.14); no prose ledger anywhere.
+8. **Kernel lemmas upstream** (§8.3). One `Lean4Lean`-namespace block remains,
+   `LeanToLambdaBox/CheckerAdequacy.lean:41`: it holds the seven kernel-generic declarations of
+   ask 3 and moves to the fork when that ask lands, which is why criterion 21 is recorded as
+   deferred in `doc/trust.md` §(c1) rather than reported as passing.
+9. **One measured ledger** (§4.14), `test/ledger.expected`; the only prose ledger is
+   `doc/trust.md`, which carries the provenance `#print axioms` cannot — and no second copy.
 10. **Non-vacuity guards** for every relation and every pass, in the style of
     `Semantics/Metatheory.lean:417` and `Optimize.lean:1066` — including a hand-built **two-member
     mutual block** for `Lower`'s fix arms, since 0 of the 50 emitted `FixDef`s are mutual and that
