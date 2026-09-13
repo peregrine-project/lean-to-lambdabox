@@ -37,6 +37,7 @@ import LeanToLambdaBox
 #print axioms LeanToLambdaBox.CasesOnShape.agree
 #print axioms LeanToLambdaBox.ElimDecl.uniq
 #print axioms LeanToLambdaBox.neverZeroB_sound
+#print axioms LeanToLambdaBox.lbWfPeregrine_of_check
 #print axioms LeanToLambdaBox.Lower.appReady
 #print axioms LeanToLambdaBox.firstorder_erases_deterministic
 #print axioms LeanToLambdaBox.firstorder_no_box

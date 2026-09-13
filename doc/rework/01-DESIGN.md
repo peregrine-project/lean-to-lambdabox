@@ -3175,7 +3175,8 @@ made an explicit, auditable, tracked binder until the fork accepts them, at whic
    import closure, or on a short tracked exception list in `doc/coverage.md`. The rule is a
    ratchet, not a fact: `lake exe hygiene --dead` reports 315 declarations outside the closure
    against a one-row list, itemised in `doc/coverage.md`'s budget paragraph, of which
-   `LeanToLambdaBox/Alpha.lean`'s 99 are the one breach with no consumer. At W5 the list may carry
+   `Alpha.lean`'s 99 were the one breach with no consumer, since deleted with its only planned
+   consumer (`08-REPAIRS-W5.md` §6). At W5 the list may carry
    only rows naming a scheduled **W6** unit as consumer (today: `Optimize.lean` → U6.2), each with
    the trigger "deleted if its W6 unit is not executed this cycle" — an import into the closure is
    not a consumer and never counts. No module receives a standing exemption.

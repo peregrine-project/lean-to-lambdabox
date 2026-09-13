@@ -11,6 +11,7 @@
 'LeanToLambdaBox.CasesOnShape.agree' depends on axioms: [propext, Classical.choice, Quot.sound]
 'LeanToLambdaBox.ElimDecl.uniq' depends on axioms: [propext, Quot.sound]
 'LeanToLambdaBox.neverZeroB_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+'LeanToLambdaBox.lbWfPeregrine_of_check' depends on axioms: [propext, Classical.choice, Quot.sound]
 'LeanToLambdaBox.Lower.appReady' depends on axioms: [propext, Quot.sound]
 'LeanToLambdaBox.firstorder_erases_deterministic' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
 'LeanToLambdaBox.firstorder_no_box' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]

@@ -22,7 +22,7 @@ tree at the W5 checkpoint (`lake build`, 173 jobs); they live outside the reposi
 | F6 | new, this round: `LBWfPeregrine.asciiNames` is **false** at five of the eight rungs — 1 offending binder name at G2/G3/G4, 34 at G7/G8 — and is not what peregrine's reader requires (§3.1) | `AsciiBinderName` is restated at the condition the quoted `(nNamed "…")` atom needs; the alphanumeric class is `cleanIdent`'s, a condition on kername identifiers, and belongs nowhere near a binder name (§3.1) |
 | F7 | `noBox` needs the constructor-tree shape `firstorder_erases_core` computes and does not export, and the naive transport along `Lower` is false (U5.2 blocker 4) | `firstorder_erases_core` concludes `FOSpine t`; `FOSpine.lower` transports it; `noBox` is **retired** (§4) |
 | F8 | `simulate`'s two ∀-premises are false at any `Γspec` for a constant-spine subject, so `simulate_of_erases_correct` cannot discharge the field (U5.2 blocker 3) | the field is **retired**: the capstone applies `erases_correct` once, at the spine, with `ErasesEnv.mkApps`; the two premises become per-argument premises of the observable clause, vacuous at every rung (§5) |
-| F9 | `LeanToLambdaBox/Alpha.lean` is 99 proved declarations outside the closure with no consumer and no scheduled W6 consumer (U5.5 obstruction 4, 07-STATUS §4) | **deleted**; it is the α-transport kit for `ReifiedDecl.Prepared`, whose only consumer is F4's deferred content clause, and `01-DESIGN.md` §9.6 admits no exception row without a scheduled consumer (§6) |
+| F9 | `Alpha.lean` is 99 proved declarations outside the closure with no consumer and no scheduled W6 consumer (U5.5 obstruction 4, 07-STATUS §4) | **deleted**; it is the α-transport kit for `ReifiedDecl.Prepared`, whose only consumer is F4's deferred content clause, and `01-DESIGN.md` §9.6 admits no exception row without a scheduled consumer (§6) |
 | F10 | `hcb : CompilerBodies` is a binder at G2–G8 | upstream, and stays so: 10 of G7's 30 tabled bodies carry an `Expr.proj` and `TrExprS` at a `.proj` routes through lean4lean's `TrProj`, entirely unproven at the pin (§7) |
 | F11 | new, this round: T5 — `erases_correct`, the simulation — is **outside** the `Green.lean` ∪ `Capstone.lean` closure, together with its three arms (`lake exe hygiene --dead`) | F8's decision puts it inside: the capstone applies it, so the simulation and the arms it composes become live code (§5.3) |
 
@@ -396,7 +396,7 @@ decision fixes that: the capstone applies `erases_correct`, so T5 and the arms i
 live code. The gate re-measures `--dead` rather than predicting it; the two named movements are
 Alpha's 99 leaving and the T5 closure entering.
 
-## 6. `LeanToLambdaBox/Alpha.lean`, deleted
+## 6. `Alpha.lean`, deleted
 
 99 declarations, 1,050 lines, the single largest block in `--dead`'s 315 and outside the closure
 since it landed. What it is: the α-transport kit for `ReifiedDecl.Prepared` — `Expr.AlphaEq.refl`,

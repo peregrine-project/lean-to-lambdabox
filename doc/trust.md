@@ -23,7 +23,9 @@ live row too, and it is the row that measures the executable-checker cluster of 
 entry point. Every rung of the ladder has a row, and none is commented out. A second fixture,
 `test/erasesLB.expected` (`scripts/erasesLB.sh`), measures the composite's introduction
 lemmas — statement and footprint — so a premise silently added to or dropped from `ErasesLB`
-shows as a diff.
+shows as a diff. `lbWfPeregrine_of_check` is a live row too, beside `neverZeroB_sound`: the
+checker-to-structure transport `hwf` reads at every rung, footprint `[propext, Classical.choice,
+Quot.sound]`.
 
 Five classes are used throughout, in decreasing strength:
 
