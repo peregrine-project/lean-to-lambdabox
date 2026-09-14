@@ -1,0 +1,48 @@
+% In this file you should put all LaTeX macros and settings to be used both by
+% the pdf version and the web version.
+% This should be most of your macros.
+
+% The theorem-like environments defined below are those that appear by default
+% in the dependency graph. See the README of leanblueprint if you need help to
+% customize this. 
+% The configuration below use the theorem counter for all those environments
+% (this is what the [theorem] arguments mean) and never resets it.
+% If you want for instance to number them within chapters then you can add
+% [chapter] at the end of the next line.
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+
+% Assumption: something the development assumes rather than proves
+% (a hypothesis bundle field, a standalone hypothesis binder, or an
+% inherited trust boundary). Upright-titled like a theorem, so restore
+% \theoremstyle{plain} after the definition-style block above.
+\theoremstyle{plain}
+\newtheorem{assumption}[theorem]{Assumption}
+
+% Remark: prose asides that must NOT be dependency-graph nodes. Kept
+% out of the thms= list in web.tex, and starred so it is unnumbered;
+% plasTeX's amsthm shim explicitly supports the starred \newtheorem.
+\theoremstyle{remark}
+\newtheorem*{remark}{Remark}
+
+% Notation for the lambda-box target language and its semantics
+% (conventions.md sec. 7 -- writers use only these plus standard LaTeX).
+\newcommand{\lbox}{\ensuremath{\lambda_\square}}
+\newcommand{\lboxT}{\ensuremath{\lambda_\square^{T}}}
+\newcommand{\Erases}{\ensuremath{\mathsf{Erases}}}
+\newcommand{\ErasesEnv}{\ensuremath{\mathsf{ErasesEnv}}}
+\newcommand{\Lower}{\ensuremath{\mathsf{Lower}}}
+\newcommand{\LowerEnv}{\ensuremath{\mathsf{LowerEnv}}}
+\newcommand{\SEval}{\ensuremath{\mathsf{SEval}}}
+\newcommand{\WcbvEval}{\ensuremath{\mathsf{WcbvEval}}}
+\newcommand{\TrExprS}{\ensuremath{\mathsf{TrExprS}}}
+\newcommand{\Erasable}{\ensuremath{\mathsf{Erasable}}}
+\newcommand{\mkApps}{\ensuremath{\mathsf{mkApps}}}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\ie}{i.e.,}
+\newcommand{\eg}{e.g.,}

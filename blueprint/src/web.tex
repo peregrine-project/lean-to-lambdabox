@@ -1,0 +1,27 @@
+% This file makes a web version of the blueprint
+% It should include all the \usepackage needed for this version.
+% The template includes standard AMS packages.
+% It is otherwise a very minimal preamble (you should probably at least
+% add cleveref and tikz-cd).
+
+\documentclass{report}
+
+\usepackage{amssymb, amsthm, amsmath}
+\usepackage{hyperref}
+\usepackage[showmore, dep_graph, thms=definition+lemma+proposition+theorem+corollary+assumption]{blueprint}
+
+
+\input{macros/common}
+\input{macros/web}
+
+\home{https://peregrine-project.github.io/lean-to-lambdabox}
+\github{https://github.com/peregrine-project/lean-to-lambdabox}
+\dochome{https://peregrine-project.github.io/lean-to-lambdabox/docs}
+
+\title{Verified Erasure from Lean to $\lambda_\square$}
+\author{Alessandro Sosso}
+
+\begin{document}
+\maketitle
+\input{content}
+\end{document}

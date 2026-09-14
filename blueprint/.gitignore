@@ -1,0 +1,14 @@
+print/
+web/
+lean_decls
+src/web.paux
+src/*.aux
+src/*.log
+src/*.fls
+src/*.fdb_latexmk
+src/*.out
+src/*.toc
+src/*.synctex.gz
+src/*.bbl
+src/*.blg
+src/*.xdv

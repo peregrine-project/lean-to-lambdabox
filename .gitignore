@@ -3,3 +3,4 @@
 *.mlf
 LeanToLambdaBox/Test.lean
 notes/
+.venv/
