@@ -139,6 +139,7 @@ above.
 If an application spine $\mkApps{}\ hd\ as$ has a lean4lean translation, then its head translates, and
 so does each argument separately. The Lean statements are \code{trExprS\_spine\_head} and
 \code{trExprS\_spine\_mem}; both leave the local context general.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:lean4lean-grounding}
@@ -146,7 +147,6 @@ Induction on the argument list, peeling one application node of the translation 
 form is the first applied at each prefix. These are the workhorses by which every arm obtains the typing
 witness its induction hypothesis needs at an argument position.
 \end{proof}
-\end{lemma}
 
 \begin{lemma}[Subject reduction along a spine, at an abstract step relation]
 \label{lem:SEval-defeq_spine}
@@ -159,6 +159,7 @@ definitionally equal to a second head's translation, and every argument is relat
 then the whole spine's translation is definitionally equal to the value spine's. The Lean statement is
 \code{SEval.defeq\_spine}; \code{SEval.defeq\_spine\_value} is its instance at a constant-headed spine
 that keeps its head, which the two value arms share.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:trExprS_spine_head, def:lean4lean-grounding, asm:lean4lean-trust}
@@ -167,7 +168,6 @@ definitional equality with the argument's, and uniqueness of translations reconc
 translations of the same term. Leaving $P$ abstract makes the schema serve both the constructor-value
 arms and the delta arm, whose side condition is stated at the \emph{evaluated} arguments.
 \end{proof}
-\end{lemma}
 
 \begin{theorem}[Subject reduction as definitional equality]
 \label{thm:SEval-defeq}
@@ -177,6 +177,7 @@ arms and the delta arm, whose side condition is stated at the \emph{evaluated} a
 If $e$ translates to $ve$ in the kernel environment and $e$ evaluates to $v$ under \SEval{}, then $v$
 translates to some $vv$ with $ve$ and $vv$ definitionally equal in $env$. The Lean statement is
 \code{SEval.defeq}; it is stated at a general local context and puts no restriction on the source flags.
+\end{theorem}
 \begin{proof}
 \leanok
 \uses{lem:SEval-defeq_spine, def:StepDefeq, lem:trExprS_spine_head, asm:lean4lean-trust}
@@ -188,7 +189,6 @@ a compiler body, iota at a \code{casesOn} constant and projection are not kernel
 they do not prove their definitional equality --- the \SEval{} rule carries it as its \code{StepDefeq}
 premise, and this theorem is where that premise is spent.
 \end{proof}
-\end{theorem}
 
 \begin{remark}
 The measured axiom footprint of \code{SEval.defeq} contains \code{sorryAx}, inherited from the pinned
@@ -209,6 +209,7 @@ gating fact that lets the simulation replace a term by its value without leaving
 If the head $hd$ erases to $th$ and the arguments $as$ erase pointwise to $ts$, then
 $\mkApps{}\ hd\ as$ erases to the \lbox{} spine $\mathsf{mkApps}\ th\ ts$. The Lean statement is
 \code{Erases.mkApps\_forall}$_2$, whose pointwise premise is a \code{List.Forall}$_2$ witness.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:Erases}
@@ -216,7 +217,6 @@ Induction on the pointwise witness, applying the application rule of \Erases{} o
 is the forward direction the constructor-value, delta and iota arms use to build the image of a
 contractum.
 \end{proof}
-\end{lemma}
 
 \begin{lemma}[Inversion of erasure along a spine]
 \label{lem:erases_mkApps_inv}
@@ -228,6 +228,7 @@ $th$, arguments pointwise to $ts$, and $t = \mathsf{mkApps}\ th\ ts$ --- or (b) 
 the spine, head included, was judged irrelevant: $as$ splits as $pre \mathbin{+\!\!+} suf$, the term
 $\mkApps{}\ hd\ pre$ translates to an \Erasable{} model term, the remaining arguments erase pointwise to
 $ts$, and $t = \mathsf{mkApps}\ \Box\ ts$. The Lean statement is \code{erases\_mkApps\_inv}.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:Erases, lem:Erases-sort_inv}
@@ -236,7 +237,6 @@ box rule or the congruence, and the box rule extends the boxed prefix by one arg
 analogue of the two ways MetaRocq's \code{erases} can meet an application spine, and it is the case
 split every spine-shaped arm opens with.
 \end{proof}
-\end{lemma}
 
 \begin{lemma}[An irrelevant head makes the spine irrelevant]
 \label{lem:erasable_mkApps}
@@ -246,6 +246,7 @@ split every spine-shaped arm opens with.
 In a well-formed environment and local context, if $\mkApps{}\ hd\ as$ translates to $ve$, the head
 translates to $hve$, and $hve$ is \Erasable{}, then $ve$ is \Erasable{}. The Lean statement is
 \code{erasable\_mkApps}.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:trExprS_spine_head, thm:Erasable-app, asm:lean4lean-trust}
@@ -254,7 +255,6 @@ model terms at each node. This turns a boxed \emph{prefix} into irrelevance of t
 the box disjunct of Lemma~\ref{lem:erases_mkApps_inv} gets closed --- and it is also the tool the iota
 and projection arms use to \emph{refute} a boxed reading of a constructor value.
 \end{proof}
-\end{lemma}
 
 \begin{lemma}[The box arm, at the erasure]
 \label{lem:erases_correct_box}
@@ -267,6 +267,7 @@ $\Box$, and $\Box$ --- already a \lbox{} value --- evaluates to an erasure of $v
 irrelevance at the prefix: the target folds $\Box\,t_1\dots t_n$ to $\Box$ by the iterated rule
 $\Box\,x \to \Box$, provided each discarded argument evaluates, which the Lean statement carries as an
 explicit hypothesis.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{thm:SEval-defeq, lem:erasable_mkApps, lem:WcbvEval-mkApps_box, def:Erases, asm:lean4lean-trust}
@@ -275,7 +276,6 @@ definitional equality, irrelevance being stable under definitional equality, so 
 \Erases{} applies at $v$. On the target, $\Box$ evaluates to itself, and at a spine the folding lemma
 for boxed applications collapses the application of $\Box$ to the evaluating arguments.
 \end{proof}
-\end{lemma}
 
 \begin{lemma}[The box arm, at the composite]
 \label{lem:erases_correct_boxLow}
@@ -288,6 +288,7 @@ $\Box$, then for $e$'s value $v$ there are $v_0 = \Box$ and $v' = \Box$ with \Er
 \WcbvEval{} taking $t$ to $\Box$, and \ErasesEnv{} at $v_0$. The spine form
 \code{erases\_correct\_boxSpineLow} is the same with middle term $\mathsf{mkApps}\ \Box\ ts$ and a
 hypothesis that every \emph{lowered} argument evaluates.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:erases_correct_box, lem:ErasesEnv-ofReach, prop:Lower-source_const, thm:eval_deterministic,
@@ -298,7 +299,6 @@ closure of \ErasesEnv{} re-establishes the accumulator, since $\Box$ reaches no 
 first inverts the pass at the $\Box$-headed spine --- the head is neither an application nor a constant,
 so no eliminator key can fire --- and then folds by the boxed-application lemma.
 \end{proof}
-\end{lemma}
 
 \begin{remark}
 This pair is the closing move of the box disjunct in \emph{every} arm of the simulation, and the one
@@ -321,6 +321,7 @@ constructor, with $\mathtt{app}\ f\ a = \mathsf{mkApps}\ (\mathtt{const}\ kn)\ (
 disc :: minors)$, which the pass turns into a \code{case} node. At a spine whose head is neither an
 application nor a constant, the companion \code{Lower.source\_mkApps} leaves only the congruence
 reading, with lengths preserved and the arguments related pointwise.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:Lower-ne_fix_of_block, def:Lower}
@@ -330,7 +331,6 @@ emitting a block's \code{fix} node from a lambda body is excluded because an app
 lambda, and the arm emitting it from a constant because an application is not a constant. The spine form
 iterates the first along the spine, the eliminator disjunct being unavailable at the excluded heads.
 \end{proof}
-\end{lemma}
 
 \begin{remark}
 Disjunct (b) is exactly what Proposition~\ref{prop:erases_elimSpine_no_value} exists to refute; the
@@ -361,6 +361,7 @@ beta-ready at the image of the same body: if \Lower{} relates $\mathtt{lambda}\ 
 is $c$ with \Lower{} relating $b_0$ to $c$ and $\mathsf{BetaReady}\ \Gamma\ fl\ t\ c$. The Lean
 statement is \code{Lower.appReady}; \code{Lower.target\_lambda} records which target shapes a lambda can
 take.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:LowerBlock, thm:Lower-constToFix, prop:LowerBlock-substList_fixSubst,
@@ -371,7 +372,6 @@ is the block's \code{fix} node and the target unfolds the fixpoint at principal 
 (guarded) to a lambda again --- beta-ready in turn, because a block member's emitted body is
 lambda-headed. Every other arm is refuted on the node shape.
 \end{proof}
-\end{lemma}
 
 \begin{remark}
 The measured footprint of \code{Lower.appReady} is sorry-free, and free of choice as well; its row is
@@ -391,6 +391,7 @@ Section~\ref{sec:correctness:closefix} is cashed in.
 \uses{def:ErasesEnv, def:SubTerm}
 If \ErasesEnv{} holds of $t$ and $d$ is a subterm of $t$, then \ErasesEnv{} holds of $d$. The Lean
 statement is \code{ErasesEnv.subterm}.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:ReachableFrom-through_body, def:ErasesEnv}
@@ -400,7 +401,6 @@ each arm hands its induction hypothesis the environment relation at the subterm 
 design point behind it is that \ErasesEnv{} is triggered by reachability of kernames, not by syntax,
 which is what makes the closure kit below provable and hence what makes the induction go through.
 \end{proof}
-\end{lemma}
 
 \begin{lemma}[The closure kit for the environment relation]
 \label{lem:ErasesEnv-ofReach}
@@ -412,6 +412,7 @@ LeanToLambdaBox.ErasesEnv.substPair}
 (\code{ErasesEnv.ofReach}); $\Box$ reaches nothing, so it always satisfies the relation
 (\code{ErasesEnv.box}); and the contractum $b[s]$ of a beta or zeta step names no kername its two parts
 do not (\code{ErasesEnv.substPair}).
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:ErasesEnv-subterm, lem:ReachableFrom-through_body}
@@ -419,7 +420,6 @@ All three reduce to the reachability calculus: the first is immediate from the s
 the other two exhibit the required reachability map ($\Box$ has none; a substitution's reachable set is
 the union of the two parts').
 \end{proof}
-\end{lemma}
 
 \begin{lemma}[The environment relation at a spine]
 \label{lem:ErasesEnv-mkApps}
@@ -429,6 +429,7 @@ the union of the two parts').
 A spine is answered by whatever answers its head and its arguments: if \ErasesEnv{} holds of $f$ and of
 every member of $l$, then it holds of $\mathsf{mkApps}\ f\ l$. The Lean statement is
 \code{ErasesEnv.mkApps}.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:ErasesEnv-ofReach, lem:ReachableFrom-through_body, def:ErasesEnv}
@@ -436,7 +437,6 @@ Re-establish each of the seven clauses at the spine, splitting the reachability 
 for reachability through an application spine: a kername reached from the spine is reached from the head
 or from one of the arguments, and the corresponding clause of that part answers it.
 \end{proof}
-\end{lemma}
 
 \begin{remark}
 Together with Lemma~\ref{lem:ErasesEnv-subterm} these are the accumulator lemmas that let the motive
@@ -454,6 +454,7 @@ If \ErasesEnv{} holds of $t$, \LowerEnv{} prunes $\Gamma_{spec}$ to $\Gamma$, th
 $\mathsf{IndInfo}\ env\ I\ iid\ np\ nfs$, the program reaches the block kername of $iid$, and
 $k < |nfs|$, then the emitted environment reports constructor arity $np + nfs_k$ for constructor $k$ of
 $iid$. The Lean statement is \code{ErasesEnv.ctorArity}.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:ErasesEnv, def:LowerEnv, def:ElimDecl}
@@ -462,7 +463,6 @@ own emitted declaration together with its numbers; \LowerEnv{} says the pruning 
 over unchanged; unfolding the arity function on that declaration gives $np + nfs_k$, the number the
 \lbox{} constructor-value rules read. The measured footprint is sorry-free.
 \end{proof}
-\end{lemma}
 
 \begin{lemma}[A constructor spine within its arity evaluates componentwise]
 \label{lem:wcbvEval_mkApps_construct}
@@ -473,6 +473,7 @@ If constructor $k$ of $iid$ has emitted arity $ar$ in $\Gamma$, $ts$ is no longe
 $ts_i$ evaluates to $vs_i$, then $\mathsf{mkApps}\ (\mathtt{construct}\ iid\ k\ [\,])\ ts$ evaluates to
 $\mathsf{mkApps}\ (\mathtt{construct}\ iid\ k\ [\,])\ vs$. The Lean statement is
 \code{wcbvEval\_mkApps\_construct}, at \code{eraseFlags}.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:WcbvEval, def:eraseFlags}
@@ -480,7 +481,6 @@ Strong induction on the spine length, peeling the \emph{last} argument. The atom
 starts the run at the bare declared constructor node and the applied constructor rule accumulates one
 evaluated argument at a time, its saturation side condition supplied by the arity bound.
 \end{proof}
-\end{lemma}
 
 \begin{remark}
 This is the \emph{applied-form} constructor regime: \code{eraseFlags} sets
@@ -496,6 +496,7 @@ point and the rule shapes.
 \uses{def:UpstreamAsks, def:CtorOf, def:IndInfo}
 Under \code{UpstreamAsks\ env}, if $c$ is constructor $k$ of $I$ and $I$'s block data is
 $(iid, np, nfs)$, then $k < |nfs|$. The Lean statement is \code{CtorOf.lt\_nfs}.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:UpstreamAsks, lem:IndInfo-inj}
@@ -504,7 +505,6 @@ upstream bundle asks for identifies the field-count list with the member's own c
 whose length is that member's constructor count, and the index lookup \code{CtorOf} records would be
 \code{none} above it.
 \end{proof}
-\end{lemma}
 
 \section{An under-applied eliminator spine erases nothing that has a value}
 \label{sec:correctness:elimspine}
@@ -523,6 +523,7 @@ LeanToLambdaBox.erases_ne_elimBody}
 If $e$ erases to $t$ then $t$ is not a \code{case} node, not a \code{fix} node, and does not satisfy
 \code{ElimBody} for any $(iid, np, dp, nfs)$. The three Lean statements are \code{erases\_ne\_case},
 \code{erases\_ne\_fix} and \code{erases\_ne\_elimBody}.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:Erases, def:ElimBody}
@@ -531,7 +532,6 @@ not the erasure's --- so no rule of \Erases{} emits either. \code{ElimBody} has 
 \code{case} under a lambda telescope or a \code{fix}; the telescope is peeled by the auxiliary inversion
 for erasures of iterated lambdas, and both shapes then carry a node the erasure never emits.
 \end{proof}
-\end{lemma}
 
 \begin{lemma}[A runtime eliminator key belongs to a casesOn constant]
 \label{lem:ErasesEnv-runtimeKey_isCasesOn}
@@ -542,6 +542,7 @@ If \ErasesEnv{} holds of $t$, the source name $c$ has \code{ConstOrigin}, the pr
 kername of $c$, and that kername is a runtime eliminator key of $\Gamma_{spec}$, then $c$ is a
 \code{casesOn} name and has no compiler body. The Lean statement is
 \code{ErasesEnv.runtimeKey\_isCasesOn}.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:erases_ne_case, def:ErasesEnv}
@@ -550,7 +551,6 @@ is an erasure image, contradicting \code{erases\_ne\_elimBody} against the elimi
 runtime key carries. If it is not, and $c$ were not a \code{casesOn} name, \ErasesEnv{}'s \code{axioms}
 clause pins the entry to a body-less declaration, again contradicting the witness.
 \end{proof}
-\end{lemma}
 
 \begin{remark}
 The measured footprint is sorry-free. The doc-comment's own point is worth repeating: this is a
@@ -568,6 +568,7 @@ and $as$ with the kername of $c$ equal to $kn$, with $c$ of \code{ConstOrigin}, 
 $|as| \le |args|$, and with $\mkApps{}\ (\mathtt{const}\ c\ us)\ as$ evaluating to the same value. The
 companion \code{erases\_constSpine\_head} says that in such an erasure the head erased by the constant
 rule, so the kernames agree and the two spines have the same length.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:Erases-sort_inv, def:Erases, def:SEval}
@@ -577,7 +578,6 @@ every other arm's source erases to a node of another shape, which the head form 
 of \Erases{} refute. The produced spine is at most as long as the target's, which is all the consumer
 reads.
 \end{proof}
-\end{lemma}
 
 \begin{lemma}[A source eliminator spine below its arity heads no value]
 \label{lem:SEval-no_elimSpine_value}
@@ -588,6 +588,7 @@ Let $c$ be a constant of \code{ConstOrigin} with no compiler body, such that eve
 \code{casesOn} shape at $c$ has $dp$ pre-arguments and $nm$ minor premises. Then no spine at $c$ with
 fewer than $dp + 1 + nm$ arguments has an \SEval{} derivation. The Lean statement is
 \code{SEval.no\_elimSpine\_value}.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:consts_classified, def:SEval}
@@ -597,7 +598,6 @@ by \code{ConstOrigin} excluding the other two classifications of a constant; the
 agreement against the under-application bound; the beta arm by the induction hypothesis at the spine
 with one argument removed; the remaining six arms by the subject's shape.
 \end{proof}
-\end{lemma}
 
 \begin{proposition}[An under-applied eliminator spine erases nothing that has a value]
 \label{prop:erases_elimSpine_no_value}
@@ -608,6 +608,7 @@ Under \code{UpstreamAsks\ env}, if \ErasesEnv{} holds of $\mathsf{mkApps}\ (\mat
 the key $kn$ carries \code{ElimDecl} data $(iid, np, dp, nfs)$, the spine is shorter than
 $dp + 1 + |nfs|$, and $e$ erases to it, then $e$ has no \SEval{} value. The Lean statement is
 \code{erases\_elimSpine\_no\_value}.
+\end{proposition}
 \begin{proof}
 \leanok
 \uses{lem:erases_constSpine_value, lem:ErasesEnv-runtimeKey_isCasesOn, lem:SEval-no_elimSpine_value,
@@ -620,7 +621,6 @@ Lemma~\ref{lem:erases_constSpine_value} produces an \SEval{} derivation at that 
 exactly the arity agreement Lemma~\ref{lem:SEval-no_elimSpine_value} asks for; the under-application
 bound closes it.
 \end{proof}
-\end{proposition}
 
 \begin{remark}
 The measured footprint is sorry-free. This is the one fact that makes the beta arm's second \Lower{}
@@ -639,6 +639,7 @@ An inductive-type-name spine --- a type former applied to arguments, a value in 
 is simulated: its erasure can only be a boxed spine, and both sides box. The Lean statement is
 \code{indVal\_arm}, taking the rule's own premises together with the induction hypothesis at each
 argument.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:erases_mkApps_inv, lem:erases_correct_boxLow, lem:ErasesEnv-subterm, lem:Erases-sort_inv,
@@ -648,7 +649,6 @@ reading the head would have to erase by the constructor rule or by the constant 
 applies to a type former; so only the boxed-prefix reading survives, and the spine form of
 Lemma~\ref{lem:erases_correct_boxLow} closes it.
 \end{proof}
-\end{lemma}
 
 \begin{remark}
 The source rule exists because the delta and constructor-value arms evaluate their arguments and a
@@ -665,6 +665,7 @@ A \code{let} whose bound value evaluates and whose instantiated body evaluates i
 \code{let} boxes, or the emitted node is a \code{letIn} whose bound part evaluates by the induction
 hypothesis and whose body's image is exactly the substitution instance. The Lean statement is
 \code{zeta\_arm}; it asks for the zeta flag and for closed bodies in the specification environment.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:erases_correct_boxLow, lem:ErasesEnv-ofReach, thm:SEval-defeq, lem:Erases-sort_inv,
@@ -678,7 +679,6 @@ local context has been retyped, so that the body is translated against the \emph
 The substitution closure of \ErasesEnv{} re-establishes the accumulator. This is the only arm that
 manipulates a \code{let} entry of lean4lean's local context.
 \end{proof}
-\end{lemma}
 
 \begin{proposition}[The beta arm]
 \label{prop:beta_arm}
@@ -688,6 +688,7 @@ manipulates a \code{let} entry of lean4lean's local context.
 An application whose function evaluates to a lambda, whose argument evaluates, and whose contractum
 evaluates, is simulated. The Lean statement is \code{beta\_arm}; it asks for the beta flag, for
 \code{UpstreamAsks\ env} and for closed bodies in the specification environment.
+\end{proposition}
 \begin{proof}
 \leanok
 \uses{lem:Lower-source_app, lem:Lower-appReady, prop:erases_elimSpine_no_value,
@@ -701,7 +702,6 @@ which case the whole application is irrelevant and both sides box. In the second
 saturated eliminator spine one minor premise short, and the beta rule's own function premise is refuted
 by Proposition~\ref{prop:erases_elimSpine_no_value}: such a spine heads no value.
 \end{proof}
-\end{proposition}
 
 \begin{proposition}[The constructor-value arm]
 \label{prop:ctorVal_arm}
@@ -711,6 +711,7 @@ by Proposition~\ref{prop:erases_elimSpine_no_value}: such a spine heads no value
 A constructor spine within the constructor's arity, all of whose arguments evaluate, is simulated: its
 image is the pointwise image of the arguments applied to the same \code{construct} node. The Lean
 statement is \code{ctorVal\_arm}; the arity bound $|args| \le np + nfs_k$ is the rule's own premise.
+\end{proposition}
 \begin{proof}
 \leanok
 \uses{lem:erases_mkApps_inv, lem:ErasesEnv-ctorArity, lem:CtorOf-lt_nfs, lem:wcbvEval_mkApps_construct,
@@ -726,7 +727,6 @@ the pointwise image of the arguments' values, assembled by Lemma~\ref{lem:Erases
 pass's own spine congruence and by Lemma~\ref{lem:ErasesEnv-mkApps}. The boxed-prefix reading folds as
 usual.
 \end{proof}
-\end{proposition}
 
 \begin{theorem}[T5 with the three hard arms as hypotheses]
 \label{thm:erases_correct_of_steps}
@@ -736,6 +736,7 @@ usual.
 Given inhabitants of \code{StepIota}, \code{StepProj} and \code{StepDelta}, the statement
 $\code{ErasesCorrectStmt}\ env\ bo\ Us\ fl\ \Gamma_{spec}\ \Gamma$ holds. The Lean statement is
 \code{erases\_correct\_of\_steps}.
+\end{theorem}
 \begin{proof}
 \leanok
 \uses{def:Simulates, lem:indVal_arm, lem:zeta_arm, prop:beta_arm, prop:ctorVal_arm,
@@ -750,7 +751,6 @@ hypotheses. Nothing beyond the eight binders of \code{ErasesCorrectStmt} is requ
 environment facts each arm needs are clauses of \ErasesEnv{} itself, and the kernel facts are fields of
 \code{UpstreamAsks}.
 \end{proof}
-\end{theorem}
 
 \begin{remark}
 The aggregator closes with three non-vacuity witnesses --- \code{ctorVal\_target\_fires},
@@ -774,6 +774,7 @@ alternative-peeling relation turns a minor premise $m$ into a \code{case} altern
 $(\mathit{names}, \mathit{body})$ for a constructor of $nf$ fields, then $|\mathit{names}| = nf$ and
 \Lower{} relates $m$ to the lambda telescope over $\mathit{names}$ and $\mathit{body}$. The Lean
 statements are \code{Erases.lbClosed} and \code{LowerAlt.lower}.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:Erases, def:Lower}
@@ -781,7 +782,6 @@ statements are \code{Erases.lbClosed} and \code{LowerAlt.lower}.
 two binder rules recurse under an extended context. (b) Induction on the peeling derivation, which
 removes one binder at a time.
 \end{proof}
-\end{lemma}
 
 \begin{remark}
 Part (a) is needed because the iota bridge substitutes the constructor's fields simultaneously and in
@@ -815,6 +815,7 @@ rule and the pass's eliminator rule.
 If \Lower{} relates $\mathsf{mkApps}\ (\mathtt{const}\ kn)\ ts$ to $t$ then
 $\mathsf{LowerConstApp}\ \Gamma\ kn\ ts\ t$. The Lean statement is \code{Lower.source\_constApp}, whose
 induction is on a supplied spine length.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:Lower-source_app, prop:Lower-source_const, lem:Lower-ne_fix_of_block}
@@ -823,7 +824,6 @@ or the eliminator rule; an eliminator node at a shorter spine absorbs the remain
 over-application. Both \code{fix}-producing arms are excluded by the block's own lambda-headedness: an
 application is neither a constant nor a lambda.
 \end{proof}
-\end{lemma}
 
 \begin{theorem}[The iota arm]
 \label{thm:step_iota}
@@ -833,6 +833,7 @@ application is neither a constant nor a lambda.
 $\code{StepIota}\ env\ bo\ Us\ fl\ \Gamma_{spec}\ \Gamma$ holds: at a \code{casesOn} spine whose
 discriminant reaches a constructor value, the emitted \code{case} node performs the same reduction,
 over-application included. The Lean statement is \code{step\_iota}.
+\end{theorem}
 \begin{proof}
 \leanok
 \uses{lem:erases_mkApps_inv, lem:Lower-source_constApp, lem:Erases-lbClosed, lem:Erases-mkApps_forall2,
@@ -852,7 +853,6 @@ premise to the constructor's fields (past the parameters) and the over-applicati
 bridge's beta-chain rewrite, under the head-congruence lemma for spines, turns that run into one iota
 step at the emitted \code{case} node.
 \end{proof}
-\end{theorem}
 
 \begin{remark}
 The measured footprint of \code{step\_iota} contains \code{sorryAx}, and its row is in
@@ -869,13 +869,13 @@ without over-application.
 If $kn$ is not a runtime eliminator key of $\Gamma$ and \Lower{} relates
 $\mathsf{mkApps}\ (\mathtt{const}\ kn)\ ts$ to $t$, then $t$ is a congruence image: head to head,
 argument to argument, lengths preserved. The Lean statement is \code{Lower.source\_constSpine}.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:Lower-source_constApp, def:LowerConstApp}
 The second disjunct of Definition~\ref{def:LowerConstApp} requires an \code{ElimDecl} at the key, which
 the guard excludes; so the first disjunct holds.
 \end{proof}
-\end{lemma}
 
 \begin{lemma}[What a tabled constant's image is]
 \label{lem:Lower-const_body}
@@ -886,6 +886,7 @@ If \Lower{} relates $\mathtt{const}\ kn$ to $t$ and $\Gamma$ declares $kn$ with 
 then $kn$ is no runtime eliminator key and either $t = \mathtt{const}\ kn$ or \Lower{} relates $b$ to
 $t$. The supporting fact \code{Lower.fixBody\_of\_block} is that a block member's own body has the
 block's \code{fix} node as a \Lower{} image, at the member the declaration pins.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{prop:LowerBlock-lambda_of_fixLambda, def:Lower}
@@ -895,7 +896,6 @@ constant itself; the rule emitting a block from a constant gives the block's \co
 eliminator arms are excluded on the node shape, and a runtime key would make the entry an eliminator
 body.
 \end{proof}
-\end{lemma}
 
 \begin{theorem}[The delta arm]
 \label{thm:step_delta}
@@ -905,6 +905,7 @@ body.
 $\code{StepDelta}\ env\ bo\ Us\ fl\ \Gamma_{spec}\ \Gamma$ holds: unfolding a \emph{compiler} body at
 the call site's universe levels is simulated, whether the emitted head is the constant's own body or the
 block's \code{fix} node. The Lean statement is \code{step\_delta}.
+\end{theorem}
 \begin{proof}
 \leanok
 \uses{lem:erases_mkApps_inv, lem:Lower-source_constSpine, lem:Lower-const_body,
@@ -921,7 +922,6 @@ application is then taken at the composite image whose \emph{head} is what the t
 relates it to the block --- and the spine congruence of \lbox{} evaluation moves the resulting run onto
 the actual spine, replacing the head by one delta step or by nothing.
 \end{proof}
-\end{theorem}
 
 \begin{remark}
 The measured footprint contains \code{sorryAx}. The design point worth stating is that \emph{no fix
@@ -941,6 +941,7 @@ $\code{StepProj}\ env\ bo\ Us\ fl\ \Gamma_{spec}\ \Gamma$ holds: a structure pro
 discriminant reaches a constructor spine is simulated by the emitted \code{proj} node, which carries the
 same triple of inductive identifier, parameter count and field index. The Lean statement is
 \code{step\_proj}.
+\end{theorem}
 \begin{proof}
 \leanok
 \uses{lem:erases_mkApps_inv, lem:erasable_mkApps, lem:erases_correct_boxLow, lem:CtorOf-lt_nfs,
@@ -955,7 +956,6 @@ carries; the node's non-propositional flag comes from \ErasesEnv{}'s \code{block
 projection rule assembles. The prefix the node drops is the parameter count the source rule names, and
 the constructor index is forced to $0$ at a single-constructor block.
 \end{proof}
-\end{theorem}
 
 \begin{remark}
 The measured footprint contains \code{sorryAx}. An honesty item the module records itself: the arm is
@@ -981,13 +981,13 @@ semantics at \code{eraseFlags} (prop-case off, guarded fix, applied-form constru
 that is itself an erasure-then-lowering image of the source value $v$. The Lean statement is
 \code{erases\_correct}, which \emph{is} Definition~\ref{def:ErasesCorrectStmt}: the source flag record
 stays a parameter, so the theorem is unconditional in the source flags.
+\end{theorem}
 \begin{proof}
 \leanok
 \uses{thm:erases_correct_of_steps, thm:step_iota, thm:step_proj, thm:step_delta, asm:lean4lean-trust}
 Theorem~\ref{thm:erases_correct_of_steps} applied to the three arm theorems; one line, the content being
 in the nodes above.
 \end{proof}
-\end{theorem}
 
 \begin{remark}
 The measured footprint of \code{erases\_correct} contains \code{sorryAx}, inherited from the pinned
@@ -1005,6 +1005,7 @@ environment premises --- and must never be quoted without them.
 $\code{ErasesCorrectLBStmt}\ env\ bo\ Us\ fl\ \Gamma_{spec}\ \Gamma$ holds: the same simulation read
 through \code{ErasesLB}, with the environment premise taken at whichever middle term the composite
 exhibits. The Lean statement is \code{erases\_correct\_lb}.
+\end{theorem}
 \begin{proof}
 \leanok
 \uses{thm:erases_correct, def:ErasesLB, asm:lean4lean-trust}
@@ -1012,7 +1013,6 @@ Destructure the \code{ErasesLB} witness into its erasure and lowering halves, ap
 Theorem~\ref{thm:erases_correct} to them and to the environment premise instantiated at the exhibited
 middle term, and repackage the conclusion as an \code{ErasesLB} witness.
 \end{proof}
-\end{theorem}
 
 \section{The fix-closing convention}
 \label{sec:correctness:closefix}
@@ -1041,12 +1041,12 @@ bodies live under $m$ binders and refer to sibling $k$ by $\mathtt{bvar}\ (m-1-k
 \uses{def:closeFix, def:toBvar}
 $\code{closeFixFold}\ \mathit{pairs}\ t$ equals the left fold of \code{toBvar} over $\mathit{pairs}$
 starting from $t$. The Lean statement is \code{closeFixFold\_eq\_foldl}.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:closeFix}
 Induction on the instruction list, generalising the accumulator.
 \end{proof}
-\end{lemma}
 
 \begin{remark}
 This is the bridge from the shipping code's imperative loop --- which elaborates to exactly this left
@@ -1071,6 +1071,7 @@ none: a variable occurring after closing occurred before and is none of the abst
 variable that either did not occur or is abstracted does not occur after. Worked out on a two-member
 block, the last sibling becomes $\mathtt{bvar}\ 0$ and the first $\mathtt{bvar}\ 1$, so a body
 $x_0\,x_1$ closes to $\mathtt{bvar}\ 1\ \mathtt{bvar}\ 0$ --- what the \code{fix} node expects.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:closeFixFold_eq_foldl, def:closeFix}
@@ -1078,7 +1079,6 @@ All by induction on the instruction list, using that \code{toBvar} is the identi
 occurrence of its variable and introduces no free variable. The two-member statements are then instances
 computed by unfolding.
 \end{proof}
-\end{lemma}
 
 \begin{remark}
 The convention is made a theorem plus a worked example rather than a comment because the whole
@@ -1142,6 +1142,7 @@ set, under which a type former with an arbitrary field would count as first-orde
 \uses{def:FirstOrderInd, def:IndDeclOf, def:InformativeInd}
 If $I$ is first-order in $env$ then $I$ belongs to a declared block and $I$ is informative. The Lean
 statements are \code{FirstOrderInd.indDeclOf} and \code{FirstOrderInd.informativeInd}.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:InformativeInd-mono, lem:IndInfo-constant_isArity, def:FirstOrderDecl}
@@ -1150,7 +1151,6 @@ follows from the \code{informative} clause's successor shape, whose level never 
 is the criterion informativity uses. This is the hinge between the \emph{syntactic} first-order
 condition and the \emph{semantic} relevance predicate the target-facing relations read.
 \end{proof}
-\end{lemma}
 
 \begin{lemma}[A first-order spine is neither a sort nor a Pi]
 \label{lem:FirstOrderInd-notSortNotPi}
@@ -1160,13 +1160,13 @@ condition and the \emph{semantic} relevance predicate the target-facing relation
 Under \code{UpstreamAsks\ env}, in a well-formed context, if $I$ is first-order and
 $\mathsf{mkApps}\ (\mathtt{const}\ I\ ius)\ iargs$ is typeable, then that spine is definitionally equal
 to no sort and to no Pi type. The Lean statement is \code{FirstOrderInd.notSortNotPi}.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:FirstOrderInd-indDeclOf, def:UpstreamAsks}
 The declaring block is exhibited by the closure, so the upstream ask about the arities of declared
 constants applies at it.
 \end{proof}
-\end{lemma}
 
 \begin{remark}
 This is what excludes lambda values and type values from the first-order induction; it rests on one of
@@ -1209,13 +1209,13 @@ $I$ is among that block's members, and every member $J$ of the block is tabled w
 no level parameters, no indices, a successor result sort, and every constructor binder of the form
 $\mathtt{const}\ K\ us$ with $K$ in the block or accepted by the checker at one less fuel. The Lean
 statement is \code{firstOrderIndB\_step}.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:firstOrderIndB}
 Unfold one layer of the fuelled recursion and convert each Boolean conjunct into its propositional
 reading, using the checker's monotonicity in the fuel to widen the recursive call.
 \end{proof}
-\end{lemma}
 
 \begin{remark}
 This is the honesty item of the section: \code{firstOrderIndB\_step} is the \emph{table-side} half of
@@ -1251,13 +1251,13 @@ superset.
 \uses{def:SValue, def:SEval}
 If \SEval{} relates $e$ to $v$ then $\mathsf{SValue}\ env\ v$. The Lean statement is
 \code{SEval.svalue}.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:SValue, def:SEval}
 One arm per rule: the three value arms conclude directly, and every reduction arm reads its result off
 its continuation premise.
 \end{proof}
-\end{lemma}
 
 \begin{lemma}[Every member of a first-order block is first-order]
 \label{lem:firstOrderInd_of_own}
@@ -1267,6 +1267,7 @@ its continuation premise.
 If $fo$ is closed, $\mathit{decl}$ is a block of $env$ that is first-order with respect to $fo$, and $J$
 is one of its members' names, then $J$ is first-order in $env$. The Lean statement is
 \code{firstOrderInd\_of\_own}.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:FirstOrderDecl, def:FirstOrderInd}
@@ -1274,7 +1275,6 @@ Widen the closure by the block's own names. The closure occurs only \emph{positi
 \code{FirstOrderDecl}, so widening preserves the post-fixed-point property, and the widened set contains
 $J$.
 \end{proof}
-\end{lemma}
 
 \begin{proposition}[Fields of a first-order constructor value are first-order]
 \label{prop:fOFields_of_asks}
@@ -1285,6 +1285,7 @@ In a well-formed environment, under \code{UpstreamAsks\ env}: if $I$ is first-or
 constructor of some $I'$, the spine $\mkApps{}\ (\mathtt{const}\ c\ us)\ \mathit{cargs}$ translates to a
 model term typed at a spine of $I$, and argument $i$ translates to $a$, then there is a first-order $J$
 with $a$ typed at a spine of $J$. The Lean statement is \code{fOFields\_of\_asks}.
+\end{proposition}
 \begin{proof}
 \leanok
 \uses{lem:firstOrderInd_of_own, def:FirstOrderDecl, lem:trExprS_spine_head, lem:IndInfo-arity,
@@ -1296,7 +1297,6 @@ block the constructor's classification exhibits, by declaration-level uniqueness
 \code{fields} clause name the field's former. The spine's typing then peels without a further ask,
 because a \emph{translated} spine carries its argument typings in the translation's own application arm.
 \end{proof}
-\end{proposition}
 
 \begin{remark}
 The measured footprint contains \code{sorryAx}. This proposition is the recursion premise of
@@ -1326,6 +1326,7 @@ A constructor tree holds no box; a bare \code{construct} node applied to constru
 spine head is its \code{construct} node; and a constructor tree has a constructor tree for a lowered
 image. The four Lean statements are \code{FOSpine.noBox}, \code{FOSpine.mkApps},
 \code{FOSpine.spineHead} and \code{FOSpine.lower}.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:Lower-source_app, prop:Lower-source_const, lem:Lower-ne_fix_of_block, def:FOSpine}
@@ -1335,7 +1336,6 @@ pass's inversion at a \code{construct} node, which excludes both \code{fix}-prod
 application arm goes through Lemma~\ref{lem:Lower-source_app}, whose eliminator disjunct is refuted on
 the head --- a constant there, a constructor here.
 \end{proof}
-\end{lemma}
 
 \begin{lemma}[Box-freedom of the lowered first-order value]
 \label{lem:noBox_lower_of_foSpine}
@@ -1344,12 +1344,12 @@ the head --- a constant there, a constructor here.
 \uses{def:FOSpine, def:Lower, def:NoBox}
 If $t_{v_0}$ is a constructor tree and \Lower{} relates it to $t_v$, then $t_v$ satisfies \code{NoBox}.
 The Lean statement is \code{noBox\_lower\_of\_foSpine}.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:FOSpine-lower}
 Transport the shape across the pass by Lemma~\ref{lem:FOSpine-lower}, then read box-freedom off it.
 \end{proof}
-\end{lemma}
 
 \begin{remark}
 Why it is stated at the \emph{shape} and not at \code{NoBox}: box-freedom does not transport along
@@ -1368,6 +1368,7 @@ In a well-formed environment, under \code{UpstreamAsks\ env}: for every source v
 first-order $I$, every translation of $v$ typed at a spine of $I$, and every erasure $t$ of $v$, the
 term $t$ is a constructor tree, and every erasure of $v$ equals $t$. The Lean statement is
 \code{firstorder\_erases\_core}.
+\end{theorem}
 \begin{proof}
 \leanok
 \uses{lem:FirstOrderInd-notSortNotPi, lem:FirstOrderInd-indDeclOf, prop:fOFields_of_asks,
@@ -1383,7 +1384,6 @@ of constants, and its arguments to the induction hypothesis at the field typings
 Proposition~\ref{prop:fOFields_of_asks} supplies. Uniqueness of the whole spine then follows from
 pointwise uniqueness.
 \end{proof}
-\end{theorem}
 
 \begin{remark}
 This is the single result that makes the capstone's observable meaningful: it delivers both uniqueness
@@ -1400,13 +1400,13 @@ At a source \emph{value} of a first-order inductive type --- a term that evaluat
 erasure relation has exactly one image: if $v$ erases to $t_1$ and to $t_2$ then $t_1 = t_2$. The Lean
 statement is \code{firstorder\_erases\_deterministic}, whose self-evaluation premise is an \SEval{}
 derivation from $v$ to $v$.
+\end{theorem}
 \begin{proof}
 \leanok
 \uses{thm:firstorder_erases_core, lem:SEval-svalue, asm:lean4lean-trust}
 Lemma~\ref{lem:SEval-svalue} turns the self-evaluation into an \code{SValue} witness, and
 Theorem~\ref{thm:firstorder_erases_core} then gives uniqueness.
 \end{proof}
-\end{theorem}
 
 \begin{remark}
 The measured footprint contains \code{sorryAx}. This is the point at which this development's relational
@@ -1423,12 +1423,12 @@ anywhere in the tree; see Lemma~\ref{lem:FOModel-firstOrderInd_E}.
 \uses{def:FirstOrderInd, def:Erases, def:NoBox, def:SEval, def:UpstreamAsks}
 Same binders as the preceding theorem; if $v$ erases to $t$ then $t$ satisfies \code{NoBox}. The Lean
 statement is \code{firstorder\_no\_box}.
+\end{theorem}
 \begin{proof}
 \leanok
 \uses{thm:firstorder_erases_core, lem:SEval-svalue, lem:FOSpine-lower, asm:lean4lean-trust}
 Theorem~\ref{thm:firstorder_erases_core} returns the shape, and box-freedom is read off it.
 \end{proof}
-\end{theorem}
 
 \begin{remark}
 The measured footprint contains \code{sorryAx}. The caveat bears repeating: this is box-freedom of the
@@ -1447,6 +1447,7 @@ inductive $E$: empty (no constructors), \code{Type}-valued, parameter-free, inde
 \code{Prop}-eliminating recursor. The Lean statements are \code{FOModel.decl\_wf}, which discharges
 every clause of lean4lean's well-formedness for the declaration, \code{FOModel.wf'}, which exhibits the
 one-declaration well-formed list, and \code{FOModel.firstOrderInd\_E}.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:FirstOrderInd, def:FirstOrderDecl}
@@ -1454,7 +1455,6 @@ one-declaration well-formed list, and \code{FOModel.firstOrderInd\_E}.
 \code{firstOrderInd\_E} then exhibits the closure that accepts exactly $E$, whose \code{FirstOrderDecl}
 obligations are vacuous for the same reason.
 \end{proof}
-\end{lemma}
 
 \begin{remark}
 This is the vacuity caveat of the whole section. It is the \emph{only} proved instance of

@@ -27,3 +27,5 @@
  {\clist_map_inline:nn{#1}{\vphantom{\ref{##1}}}%
   \ignorespaces}
 \ExplSyntaxOff
+% Long \code{} runs cannot hyphenate; let TeX stretch lines rather than overflow the margin.
+\emergencystretch=4em

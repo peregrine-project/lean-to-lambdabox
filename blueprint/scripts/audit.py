@@ -17,6 +17,8 @@ Checks, over blueprint/src/chapters/*.tex:
     measured on every cited name: a result node uses asm:lean4lean-trust iff one of its
     declarations depends on sorryAx, and asm:lean-reflection-axioms iff one depends on an
     axiom other than propext / Classical.choice / Quot.sound / sorryAx;
+  * no proof environment is nested inside its statement's environment (plasTeX pairs a proof
+    with the preceding sibling statement; a nested proof leaves the node rendered unproved);
   * source hygiene: non-ASCII characters outside \\lean{}, unescaped underscores in
     \\code / \\texttt.
 
@@ -63,6 +65,9 @@ def parse():
             line = txt.count('\n', 0, pos) + 1
             if what == 'node':
                 body = m.group(2)
+                if '\\begin{proof}' in body:
+                    defects[ch].append(f'L{line}: proof nested inside the {m.group(1)} environment '
+                                       '(plasTeX cannot pair it with its statement; the node renders unproved)')
                 labels = re.findall(r'\\label\{([^}]*)\}', body)
                 last = dict(ch=ch, line=line, kind=m.group(1), label=labels[0] if labels else None,
                             lean=items('lean', body), leanok=bool(re.search(r'\\leanok\b', body)),

@@ -85,13 +85,13 @@ LeanToLambdaBox.IsArity.instL, LeanToLambdaBox.IsArity.of_piBody}
 Being a syntactic arity is preserved by de Bruijn substitution, by lifting and by
 universe-level instantiation; and a telescope whose $\Pi$-body is a sort is an arity, which
 is the introduction rule the inductive-declaration metatheory feeds.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:IsArity}
 All four by induction on the telescope: each operation fixes \code{.sort} and maps
 \code{.forallE} structurally, and \code{piBody} is the telescope's tail.
 \end{proof}
-\end{lemma}
 
 \begin{remark}
 \code{IsArity.instL} is declared in \code{Erases.lean} and \code{IsArity.of\_piBody} in
@@ -110,13 +110,13 @@ LeanToLambdaBox.IsArityUpTo.defeqDFC, LeanToLambdaBox.IsArityUpTo.instL}
 context, passing to a definitionally equal context, and instantiating universe levels. Each
 Lean statement carries the matching lean4lean context-surgery witness and, for the
 substitution form, an ordered environment.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:IsArity-inst, def:IsArity}
 In each case the conversion witness moves by the corresponding upstream conversion lemma and
 the syntactic arity by its twin from Lemma~\ref{lem:IsArity-inst}.
 \end{proof}
-\end{lemma}
 
 \begin{lemma}[Conversion of the type]
 \label{lem:IsArityUpTo-defeq}
@@ -126,6 +126,7 @@ the syntactic arity by its twin from Lemma~\ref{lem:IsArity-inst}.
 If $A''$ is convertible to $A$ and $A$ is an arity up to conversion, so is $A''$. This is the
 property the purely syntactic \code{IsArity} lacks and the reason the refined predicate
 exists; the Lean statement asks for a well-formed environment and context.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:IsArity, asm:lean4lean-trust}
@@ -133,7 +134,6 @@ Compose the two conversions by transitivity and keep the syntactic witness. Tran
 in lean4lean's unique-typing cluster, so the measured axiom footprint contains
 \code{sorryAx}.
 \end{proof}
-\end{lemma}
 
 \begin{lemma}[Irrelevance survives reduction]
 \label{lem:Erasable-defeq}
@@ -146,6 +146,7 @@ reduces, which is what makes erasing it to $\Box$ sound in the simulation of
 Chapter~\ref{chap:correctness}. The Lean statement asks for a well-formed environment and
 context. Its informal ancestor is [L, Lemma 2]: \code{Prop}-sortedness and being a type
 scheme are preserved by reduction.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:Erasable, asm:lean4lean-trust}
@@ -153,7 +154,6 @@ Keep the same type $A$ and move the typing witness along the conversion; the pro
 disjunct concerns $A$ alone and carries over unchanged. The measured axiom footprint contains
 \code{sorryAx}, inherited through the conversion cluster.
 \end{proof}
-\end{lemma}
 
 \begin{lemma}[Stability of irrelevance]
 \label{lem:Erasable-weakN}
@@ -168,6 +168,7 @@ environment. These are exactly the five moves the transport results of
 Sections~\ref{sec:erases:transport} and~\ref{sec:erases:strengthen} perform, one per
 \code{box} arm. The Lean statements carry the matching surgery witnesses; the universe form
 additionally asks that the substituted levels be well formed in the target scope.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:IsArityUpTo-inst, def:Erasable}
@@ -175,7 +176,6 @@ Move the typing witness by the corresponding upstream lemma and the arity disjun
 twin from Lemma~\ref{lem:IsArityUpTo-inst}. The sort $\mathrm{Sort}\ 0$ is fixed by lifting,
 substitution and level instantiation, so the proof disjunct carries over verbatim.
 \end{proof}
-\end{lemma}
 
 \begin{theorem}[Box propagation through application]
 \label{thm:Erasable-app}
@@ -190,6 +190,7 @@ $v \approx 0$ and $f\,a : B[a]$ is again a proof; if $f$ is a type former, $B$ i
 to conversion, hence so is $B[a]$. The Lean statement takes the function type and the
 argument's typing as separate premises. It is the source-side \emph{licence} for the \lbox{}
 box rule, which itself lives in Chapter~\ref{chap:lambdabox}.
+\end{theorem}
 \begin{proof}
 \leanok
 \uses{def:Erasable, def:IsArity, lem:IsArityUpTo-defeq, lem:IsArityUpTo-inst,
@@ -201,7 +202,6 @@ through the substitution by Lemma~\ref{lem:IsArityUpTo-inst} and through the con
 Lemma~\ref{lem:IsArityUpTo-defeq}. Uniqueness and sort inversion are lean4lean \code{sorry}
 sites; the measured axiom footprint contains \code{sorryAx}.
 \end{proof}
-\end{theorem}
 
 \begin{definition}[Relevance of an inductive type former]
 \label{def:InformativeInd}
@@ -230,13 +230,13 @@ Definition~\ref{def:Erases} and the source $\iota$ rule of Chapter~\ref{chap:sou
 $\code{neverZeroB}\ l = \mathit{true}$ implies that $l$ never evaluates to zero, and
 $\code{neverZeroB}\ l = \mathit{false}$ implies that the all-zero instantiation witnesses that
 it does.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:InformativeInd}
 Induction on the level, unfolding level evaluation at each constructor; the \code{imax} case
 uses $\mathrm{imax}\ u\ 0 = 0$.
 \end{proof}
-\end{lemma}
 
 \begin{remark}
 \code{neverZeroB\_sound} is one of the few declarations of this chapter whose footprint the
@@ -253,13 +253,13 @@ Relevance survives environment extension, which is what the \code{proj} arm of
 Theorem~\ref{thm:Erases-mono} needs; and every producer of the syntactic successor criterion
 produces the semantic one, which lets the first-order layer of
 Chapter~\ref{chap:correctness} keep its successor clause and still supply relevance.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:InformativeInd}
 Transport the constant lookup along the extension; a successor level evaluates to a
 successor, hence never to zero.
 \end{proof}
-\end{lemma}
 
 \begin{lemma}[The two criteria are different]
 \label{lem:informativeInd_prod}
@@ -274,13 +274,13 @@ On an environment declaring \code{Prod} at the translated type $\mathrm{Sort}\ u
 Lean statement is conditional on the environment declaring the stated literal type, which is
 all a hand-built model environment can offer. They are the separating witnesses that justify
 the semantic criterion.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:neverZeroB_sound, def:InformativeInd}
 Compute the result sort of the two literal types; for \code{Prod} discharge never-zeroness
 through Lemma~\ref{lem:neverZeroB_sound}, and for \code{And} the result level is zero.
 \end{proof}
-\end{lemma}
 
 \section{Reading the kernel environment: blocks, constructors, constants}
 \label{sec:erases:readings}
@@ -371,13 +371,13 @@ introduction rules are recorded alongside: \code{IndInfo.of\_wf'} builds block d
 explicit declaration list, and \code{ConstOrigin.of\_axiom} says that a constant an
 environment declares at the type of a closed axiom has that axiom's declaration as its origin
 --- the cheapest introduction, and the one a hand-built environment uses.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:IndInfo, def:CtorOf, def:ConstOrigin}
 Each witness already carries the bound $\mathit{env}_0 \le \mathit{env}$; compose it with
 $\mathit{env} \le \mathit{env}'$ by transitivity and keep everything else.
 \end{proof}
-\end{lemma}
 
 \begin{remark}
 This is the sole reason the bound $\mathit{env}_0 \le \mathit{env}$ appears in all four
@@ -396,6 +396,7 @@ position in its own block: the identifier is not extra data. Moreover a construc
 declaration is its type's block, so all the block data the \code{ctor} rule needs is derivable
 from \code{CtorOf} alone. These are what let source-side rules and target-side rules exchange
 block data.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:IndInfo, def:CtorOf}
@@ -404,7 +405,6 @@ indexing, after which the block identifier is \code{indBlockKername} of the bloc
 its defining equation is definitional. The constructor forms do the same starting from the
 constructor's own block.
 \end{proof}
-\end{lemma}
 
 \section{The erasure relation and its eleven rules}
 \label{sec:erases:relation}
@@ -515,13 +515,13 @@ discards the others. One lemma is keyed on the \textbf{target}: if any source er
 $\code{construct}\ \mathit{iid}\ k\ \mathit{args}$ then $\mathit{args} = []$ and the block
 data is exhibited, the source not being pinned because \code{lit} and \code{mdata} pass an
 image through. For the same reason the literal lemma does \emph{not} pin the image.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:Erases, def:ErasesBox}
 Each is a case analysis on the relation, except the target-keyed one, which generalises the
 image and inducts so that the \code{lit} and \code{mdata} arms can pass it through.
 \end{proof}
-\end{lemma}
 
 \begin{remark}
 This is the elimination interface every downstream proof uses instead of raw case analysis.
@@ -544,6 +544,7 @@ fixture's constructor erases to its \lbox{} constructor node and the fixture's d
 its kername, with every premise discharged from the fixture's own declaration list. The Lean
 statements are universally quantified over the universe scope, the local context and the
 constant's level arguments.
+\end{theorem}
 \begin{proof}
 \leanok
 \uses{def:Erases, def:CtorOf, def:IndInfo, def:ConstOrigin, lem:IndInfo-mono}
@@ -554,7 +555,6 @@ additions with definitional equations to reach well-formedness of the two-declar
 then read \code{CtorOf}, \code{IndInfo} and \code{ConstOrigin} off that list and apply the two
 rules.
 \end{proof}
-\end{theorem}
 
 \begin{remark}
 This is \emph{unconditional} non-vacuity --- no hypothesis about the source --- which is worth
@@ -577,6 +577,7 @@ Consequently the relevance premise on the \code{proj} rule is not a convenience:
 the rule would fire at a projection out of a \code{Prop}-valued structure, whose discriminant
 is a proof and may erase to $\Box$, and the corresponding arm of the simulation would be
 \textbf{refutable}, not merely unprovable.
+\end{theorem}
 \begin{proof}
 \leanok
 \uses{def:InformativeInd, def:WcbvEval}
@@ -584,7 +585,6 @@ A $\Box$ evaluates only to itself, so its spine head is $\Box$ and not a constru
 kills the applied-form rule; the two remaining projection rules are refuted by deciding the
 flag record, whose block and propositional flags are off.
 \end{proof}
-\end{theorem}
 
 \begin{remark}
 This is the chapter's model for how an added premise is justified: by a refutation rather than
@@ -606,6 +606,7 @@ An erasure derivation survives an extension $\mathit{env} \le \mathit{env}'$ of 
 environment, with source and target unchanged. This is [S, Sect. 7.3]'s global weakening for
 the erasure relation, and the reason all four environment readings carry the bound
 $\mathit{env}_0 \le \mathit{env}$.
+\end{theorem}
 \begin{proof}
 \leanok
 \uses{def:Erases, lem:Erasable-weakN, lem:IndInfo-mono, lem:InformativeInd-mono}
@@ -615,7 +616,6 @@ lean4lean's own monotonicity, \code{Erasable.mono} handles \code{box}, \code{Cto
 handles \code{const}, \code{IndInfo.mono} with \code{InformativeInd.mono} handles \code{proj},
 and the literal premise moves by its own monotonicity lemma.
 \end{proof}
-\end{theorem}
 
 \begin{lemma}[Sorts and $\Pi$-types are erasable]
 \label{lem:Erases-sort_erasable}
@@ -627,6 +627,7 @@ whose type is the \code{imax} of its parts' sorts. Hence the box rule covers bot
 structural rule for them is missing: this is how [S, Fig. 18]'s sort and $\forall$ premises
 are absorbed. The $\Pi$ statement asks for a well-formed environment and context; the sort
 statement binds an environment premise that its proof never uses, as its doc-comment says.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:Erasable, def:IsArity}
@@ -634,7 +635,6 @@ Invert the translation: the model term's type is a sort, respectively an \code{i
 which is a one-node arity, so the arity disjunct holds by reflexivity of conversion. The $\Pi$
 case needs the context's well-formedness only to supply the levels' well-formedness.
 \end{proof}
-\end{lemma}
 
 \begin{lemma}[A type former's declared type is an arity]
 \label{lem:IndInfo-constant_isArity}
@@ -645,6 +645,7 @@ A block occurring in a well-formed declaration list was added by a well-formed d
 step, and the environment that step produced sits below the list's own; from which the
 declared type of an inductive type former is an arity. This is the cost of having no
 \code{tInd} rule: it is what makes an inductive type name erasable.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:IndInfo, lem:IsArity-inst}
@@ -652,7 +653,6 @@ Peel the declaration list back to the step that added the block. That step binds
 former's name to exactly the type the declaration's universe condition forces to end in a
 sort; conclude with \code{IsArity.of\_piBody}.
 \end{proof}
-\end{lemma}
 
 \begin{lemma}[An inductive type name is erasable]
 \label{lem:Erases-indInfo_erasable}
@@ -664,13 +664,13 @@ declared type is an arity and the arity survives the universe instantiation the 
 performs. So $\Box$ is its only image, and the third reading of \code{Expr.const} is closed
 without a rule. The Lean statement asks for a well-formed environment and context and takes
 the constant's translation as a premise.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:IndInfo-constant_isArity, lem:IsArity-inst, def:Erasable}
 Invert the translation of the constant, identify its type with the declared one, and push the
 arity through level instantiation.
 \end{proof}
-\end{lemma}
 
 \begin{remark}
 This is also the concrete reason the \code{const} rule cannot be premise-free: a ten-rule
@@ -707,6 +707,7 @@ and its declared constants are classified: the Lean statement binds a hypothesis
 every constant the environment declares is a constructor, or an inductive type former, or a
 plain constant. Every head takes its structural rule, except a sort, a $\Pi$-type and an
 inductive type name, where the box rule fires.
+\end{theorem}
 \begin{proof}
 \leanok
 \uses{lem:Erases-sort_erasable, lem:Erases-indInfo_erasable, lem:IndInfo-arity,
@@ -720,7 +721,6 @@ binder cases extend the context exactly as the translation does, the literal cas
 literal's unfolding is projection-free, and the projection case reads its two premises off
 \code{ProjInfo}.
 \end{proof}
-\end{theorem}
 
 \begin{remark}
 This is the ``erasure is defined everywhere on the fragment'' half of the specification, the
@@ -761,13 +761,13 @@ already and is not $y$, which has been replaced by a de Bruijn index everywhere.
 reflection lemma for the derived equality test on free-variable identifiers bridges the
 Boolean test in \code{toBvar} and the propositional clause in \code{hasFVar}; it is proved
 locally because Lean core ships no lawfulness instance for that test.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:hasFVar}
 Structural induction, mutual with the three list traversals, using the reflection lemma at the
 free-variable leaf.
 \end{proof}
-\end{lemma}
 
 \begin{remark}
 The module documentation records that these lemmas were unprovable while \code{toBvar} was a
@@ -793,13 +793,13 @@ index adjustment at all, because closing never rewrites existing indices; that i
 bridge cases which open several free variables at once and close them in sequence need. The
 three list traversals of the closing operator are ordinary maps, closing and shifting preserve
 the length of a fixpoint block, and \code{abstract} is closing at level $0$.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:toBvar_eq_of_not_hasFVar}
 Structural inductions, each mutual with its three list twins; the only arithmetic is the
 cutoff bookkeeping at the variable, $\lambda$, \code{let}, case and fixpoint nodes.
 \end{proof}
-\end{lemma}
 
 \section{Weakening, substitution, closing, universe instantiation}
 \label{sec:erases:transport}
@@ -815,6 +815,7 @@ target. The Lean statement carries lean4lean's bound-variable lift witness, whic
 cutoffs, and asks only that the environment be ordered. This is the weakening half of the
 [S, Sect. 7.3] and [L, Lemma 16] package, with the target side included, which the paper
 statements leave implicit.
+\end{theorem}
 \begin{proof}
 \leanok
 \uses{def:Erases, lem:Erasable-weakN}
@@ -823,7 +824,6 @@ arm moves its two witnesses by lean4lean's translation weakening and by \code{Er
 the variable arms move their lookups by the lift witness's own lookup lemma, whose index
 convention both sides already use; the structural arms are congruences.
 \end{proof}
-\end{theorem}
 
 \begin{theorem}[Erasure commutes with substitution]
 \label{thm:erases_subst}
@@ -841,6 +841,7 @@ the substituted index keeps its index, one above it drops by one, and a free var
 is untouched. The Lean statements additionally require the substitutee's translation and its
 typing. These are the lemmas the $\beta$ and $\zeta$ arms of the simulation spend
 (Chapter~\ref{chap:correctness}); [L, Lemma 16] is the informal statement.
+\end{theorem}
 \begin{proof}
 \leanok
 \uses{def:Erases, lem:Erasable-weakN, thm:erases_shift}
@@ -851,7 +852,6 @@ weakening; the other variable cases are the two lookup shifts; the binder arms p
 instantiation under the extended context. In the \code{let} variant the irrelevance witness
 needs no move at all, since a \code{let} entry contributes nothing to the pure typing context.
 \end{proof}
-\end{theorem}
 
 \begin{lemma}[Transport along a definitionally equal context]
 \label{lem:Erases-defeqDFC_wt}
@@ -862,6 +862,7 @@ An erasure derivation transports along a definitionally equal local context, giv
 translation of the source in the original context and that context's well-formedness. It is
 consumed by the $\zeta$ arm of the simulation, where a \code{let} entry's recorded value is
 replaced by a convertible one.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:Erases, lem:Erasable-weakN, lem:Erasable-defeq, asm:lean4lean-trust}
@@ -873,7 +874,6 @@ does not carry and the assumed translation does, which is exactly why the transl
 premise. The proof routes through lean4lean's uniqueness of translations, and the measured
 axiom footprint contains \code{sorryAx}.
 \end{proof}
-\end{lemma}
 
 \begin{theorem}[Open, erase, close]
 \label{thm:Erases-abstract}
@@ -893,6 +893,7 @@ carry lean4lean's context-abstraction witness, a closedness side condition, and,
 derived form, freshness of $v_0$ in the body. This is the reconciliation for the shipping
 eraser's open-recurse-abstract idiom, the one part of the metatheory that neither [S] nor [L]
 needs, both working with de Bruijn terms throughout ([R, Sect. 4.7]).
+\end{theorem}
 \begin{proof}
 \leanok
 \uses{def:Erases, lem:toBvar_eq_of_not_hasFVar}
@@ -905,7 +906,6 @@ closedness premise is needed because source abstraction shifts loose bound varia
 above the insertion level while \code{toBvar} does not, and the two agree only when there is
 no such variable. The two derived forms follow by rewriting with the freshness hypothesis.
 \end{proof}
-\end{theorem}
 
 \begin{definition}[The \texttt{max}-free level fragment]
 \label{def:NoMaxLevels}
@@ -933,6 +933,7 @@ equivalence. Consequently, on the \code{max}-free fragment, level instantiation 
 translation is again a translation \emph{on the nose}, where lean4lean's own instantiation
 lemma concludes only translation up to conversion. Because the transport is strict, the strict
 version needs neither environment nor context well-formedness.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:NoMaxLevels, asm:lean-reflection-axioms}
@@ -940,7 +941,6 @@ Induction on the level, respectively on the translation; the excluded nodes are 
 at which the smart constructors could normalise. The measured axiom footprint contains
 lean4lean's reflection axiom for level parameters.
 \end{proof}
-\end{lemma}
 
 \begin{remark}
 \code{TrExprS.instL\_core} and \code{TrExprS.instL\_strict} are \textbf{repository-local}
@@ -962,6 +962,7 @@ then the source with those parameters instantiated erases to the same $t$ at the
 the instantiated context. That \lbox{} carries no universes is the whole content of the
 theorem. The Lean statement asks that the substituted levels be readable in the target scope
 and that the two lists have equal length.
+\end{theorem}
 \begin{proof}
 \leanok
 \uses{def:Erases, lem:substParams_strict, lem:Erasable-weakN, asm:lean-reflection-axioms}
@@ -971,7 +972,6 @@ by \code{Erasable.instL}; the \code{ctor}, \code{const} and \code{proj} arms are
 their premises being about the environment rather than about levels. The measured axiom
 footprint adds the \code{Lean.Expr} reflection axioms and two \code{bv\_decide} certificates.
 \end{proof}
-\end{theorem}
 
 \begin{remark}
 A small theorem with a large consequence: it is what makes the strong definition clause of
@@ -1002,6 +1002,7 @@ variable list, and leaves lookup unchanged at every other variable. At depth zer
 since the value cannot mention that binder. The Lean statements carry a freshness side
 condition on the source. The lemma is consumed by the eraser bridge
 (Chapter~\ref{chap:refinement}).
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:Erases}
@@ -1009,7 +1010,6 @@ Induction on the derivation; every lean4lean side premise transports on the nose
 lookup fact is an \emph{equality} and the model witness is unchanged --- which is what the
 repository-local \code{TrExprS.thin\_vlet} establishes for the translation.
 \end{proof}
-\end{lemma}
 
 \begin{lemma}[Free-variable weakening]
 \label{lem:erases_weakFV}
@@ -1024,6 +1024,7 @@ distinctness of its variable list --- where the upstream weakening asks for full
 well-formedness; that relaxation is why five of the six cited names are repository-local
 re-proofs of upstream inductions, declared under upstream-looking namespaces and tied to the
 lean4lean pin.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:Erases, lem:Erasable-weakN}
@@ -1033,7 +1034,6 @@ the rest by congruence. The re-proofs follow upstream's own scripts, which touch
 well-formedness hypothesis only through the tail and through distinctness of the variable
 list, both of which the weaker predicate supplies.
 \end{proof}
-\end{lemma}
 
 \begin{lemma}[Weakening with no hypothesis on the context]
 \label{lem:erases_weakFV_nofvars}
@@ -1047,13 +1047,13 @@ The same weakening with the target context's well-formedness premise removed
 never reaches the branch that needs distinctness --- that branch exists only to refute a
 shadowing free variable --- and the free-variable rule cannot fire at all. This is the
 ingredient that makes weakening to an \emph{arbitrary} context possible.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:Erases, lem:erases_weakFV, lem:Erasable-weakN}
 As for Lemma~\ref{lem:erases_weakFV}, with the two lookup lemmas replaced by their
 bound-variable-only variants and the free-variable arm refuted by the freeness hypothesis.
 \end{proof}
-\end{lemma}
 
 \begin{theorem}[Unrestricted weakening]
 \label{thm:erases_weak_any}
@@ -1064,6 +1064,7 @@ For a closed, free-variable-free source erasing to a closed \lbox{} term, a deri
 empty context holds at \emph{every} context, with no hypothesis on that context whatsoever.
 This is the form in which a closed top-level body's erasure is replayed wherever it is needed:
 the weakening leg of context uniformity.
+\end{theorem}
 \begin{proof}
 \leanok
 \uses{thm:erases_shift, lem:erases_weakFV_nofvars}
@@ -1072,7 +1073,6 @@ Theorem~\ref{thm:erases_shift}, whose two lifts are the identity by closedness o
 a variable entry --- possibly shadowing --- goes through
 Lemma~\ref{lem:erases_weakFV_nofvars}, which asks nothing of the context.
 \end{proof}
-\end{theorem}
 
 \begin{definition}[A commissioned premise: strengthening irrelevance]
 \label{def:ErasableStrengthen}
@@ -1133,12 +1133,12 @@ satisfies the weaker condition --- its three binder types are projection-free an
 projection sits in the body --- and provably \textbf{fails} the strong one. That is what the
 relaxation buys, and why the second strengthening induction is the usable one: the corpus
 contains class-method projections.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:NoProj}
 Both by unfolding the two predicates at the literal term.
 \end{proof}
-\end{lemma}
 
 \begin{theorem}[Strengthening at depth]
 \label{thm:Erases-strengthen_fvlift}
@@ -1155,6 +1155,7 @@ where lean4lean's \emph{conversion} uniqueness plus Lemma~\ref{lem:Erasable-defe
 equational uniqueness, an upgrade that moves two premises --- from free-variable-only to full
 context well-formedness, and from an ordered to a well-formed environment. Both are proved
 \emph{modulo the named premise}, and neither is in the capstone's import closure.
+\end{theorem}
 \begin{proof}
 \leanok
 \uses{def:Erases, lem:erases_weakFV, lem:Erasable-defeq, def:ErasableStrengthen,
@@ -1171,7 +1172,6 @@ between binder types. Of the two versions, the measured axiom footprint of the w
 contains \code{sorryAx}, through the conversion uniqueness; that of the strong-scope one does
 not.
 \end{proof}
-\end{theorem}
 
 \begin{theorem}[Context uniformity]
 \label{thm:erases_uniform_closed}
@@ -1190,6 +1190,7 @@ variables; closedness and freeness of the source are consequences of the assumed
 not premises. The one-sided corollary at the empty context needs \textbf{no} commissioned
 premise: only the two-sided transport, which must also come back down from the call site's
 context, buys the obligation.
+\end{theorem}
 \begin{proof}
 \leanok
 \uses{thm:Erases-strengthen_fvlift, thm:erases_weak_any, asm:lean4lean-trust}
@@ -1199,7 +1200,6 @@ Lemma~\ref{lem:erases_weakFV}, because the target context is arbitrary --- de Br
 and shadowing variable entries included --- which is what breaks its well-formedness premise.
 The measured axiom footprint contains \code{sorryAx}, inherited through the first leg.
 \end{proof}
-\end{theorem}
 
 \begin{remark}
 An honesty flag. The intended consumer of this theorem is a bridge step at which the erasure
@@ -1278,12 +1278,12 @@ simulation cite (Chapter~\ref{chap:correctness}). Two additionally take their tr
 as explicit arguments: the block accessor takes the block data and the reachability of the
 block kername, and the eliminator accessor takes the eliminator's shape, the relevance of its
 inductive, its constant origin, and the reachability of its kername.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:ErasesEnv}
 Each is a case analysis on the single constructor.
 \end{proof}
-\end{lemma}
 
 \begin{definition}[Coverage of one inductive]
 \label{def:IndCovered}
@@ -1328,6 +1328,7 @@ clause, because it is not a fact about the environment at all. Despite its name 
 \emph{not} use the bundle's own definition field; it is better described as the transport of
 the four remaining fields plus the three premises just listed (dependency closure, the
 all-scopes \code{defns} form, and \code{tabled}).
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:SpecContent, def:ErasesEnv, def:IndCovered}
@@ -1335,7 +1336,6 @@ Apply the single constructor, feeding each reachability trigger through the depe
 and unpacking the two inductive fields' coverage conclusions into the block and eliminator
 clauses.
 \end{proof}
-\end{lemma}
 
 \begin{definition}[Well-formedness of a specification environment]
 \label{def:LBWfSpec}
@@ -1379,13 +1379,13 @@ defined in this chapter and used by Chapters~\ref{chap:lowering} and~\ref{chap:c
 The smallest environment carrying a real pass step --- one definition whose body is a closed
 identity $\lambda$, kept by the pruning --- is its own lowered image, with all eight fields
 discharged.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:LowerEnv, def:Lower}
 Decide the key list; the single body is related to itself by the pass's $\lambda$ congruence;
 the remaining fields follow by unfolding the one-entry lookup.
 \end{proof}
-\end{lemma}
 
 \begin{remark}
 An honest caveat: on a one-definition environment the body-less, inductive and totality fields
@@ -1431,6 +1431,7 @@ the numbers the source side reads; its entries satisfy the program-independent c
 its program reaches exactly the four declared kernames --- the axiom, the block the
 eliminator's case node reads, the eliminator, and the definition itself; and every reached,
 tabled constant's body erases to the entry the fixture holds, at every level scope.
+\end{theorem}
 \begin{proof}
 \leanok
 \uses{lem:SpecContent-erasesEnv, def:SpecContent, def:IndCovered, def:demoEnv,
@@ -1441,7 +1442,6 @@ the fixture's key-case analysis to identify which entry each query hits. Then ap
 Lemma~\ref{lem:SpecContent-erasesEnv}, supplying the all-scopes definition clause from the
 bundle's stability field.
 \end{proof}
-\end{theorem}
 
 \begin{remark}
 This is \emph{conditional} non-vacuity, and must be read as such: the eleven-field source

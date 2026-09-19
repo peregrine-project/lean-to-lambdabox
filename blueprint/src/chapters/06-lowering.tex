@@ -97,6 +97,7 @@ $\code{ElimDecl}\ \Gamma\ kn\ iid\ np\ dp\ nfs$ and
 $\code{ElimDecl}\ \Gamma\ kn\ iid'\ np'\ dp'\ nfs'$ then $iid = iid'$, $np = np'$, $dp = dp'$
 and $nfs = nfs'$. The Lean statement is \code{ElimDecl.uniq}, whose conclusion is the
 fourfold conjunction rather than an equality of the whole datum.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:ElimDecl, def:ElimBody, def:mkElimBody}
@@ -106,7 +107,6 @@ $\code{elimAlts}\ nfs$ determines $nfs$, the telescope length determines $dp$, a
 \code{case} node carries $(iid, np)$ --- and they are never equal to one another, one being a
 lambda-telescope over a \code{case} and the other a \code{fix}.
 \end{proof}
-\end{lemma}
 
 \begin{definition}[Block rewriting and block closure]
 \label{def:ConstToFVar}
@@ -245,12 +245,12 @@ downstream construction of a fixpoint or eliminator derivation goes through thes
 names are \code{Lower.fixConst'}, \code{Lower.fixBody'} and \code{Lower.elimApp'}; the inlining
 they undo is forced by the Lean kernel, which rejects a structure premise mentioning the
 inductive being defined.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:Lower, def:LowerBlock}
 Each is the corresponding constructor applied to the projections of the bundle.
 \end{proof}
-\end{lemma}
 
 \section{Metatheory of the pass}
 \label{sec:lowering:meta}
@@ -275,6 +275,7 @@ statements are \code{lbClosed\_closeFix}, \code{ConstToFVar.closed},
 \code{closeConstAt\_not\_hasFVar}, \code{fixNode\_not\_hasFVar} and \code{toBvar\_fixNode}; the
 block-level ones take the bundle's length and closure fields as separate hypotheses rather than
 the bundle itself, so that they also apply inside its construction.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:ConstToFVar, def:closeFix, lem:toBvar_eq_of_not_hasFVar,
@@ -285,7 +286,6 @@ bundle's closure field and observe that closing at base $0$ closes exactly the b
 and removes exactly the scheduled identifiers. The abstraction equation is the general
 ``abstraction is the identity where the variable does not occur'' applied to that.
 \end{proof}
-\end{lemma}
 
 \begin{proposition}[The pass invents no de Bruijn index]
 \label{prop:Lower-closed}
@@ -296,6 +296,7 @@ If every constant declared in $\Gamma$ has a closed body, then $\Lower\ \Gamma\ 
 closedness at every bound: $\code{LBClosed}\ s\ k$ implies $\code{LBClosed}\ t\ k$. The Lean
 statement \code{Lower.closed} quantifies the bound $k$ inside the conclusion, so the induction
 can raise it under binders.
+\end{proposition}
 \begin{proof}
 \leanok
 \uses{def:Lower, lem:lbClosed_fix_of_block, lem:LBClosed-substList}
@@ -305,7 +306,6 @@ reassembles a spine, and the two recursion arms read their definitions off $\Gam
 exactly why the environment premise is there --- and discharge through
 Lemma~\ref{lem:lbClosed_fix_of_block}.
 \end{proof}
-\end{proposition}
 
 \begin{proposition}[The pass commutes with shifting and substitution]
 \label{prop:Lower-subst_comm}
@@ -319,6 +319,7 @@ terms. These are the laws a forward simulation spends at its beta, zeta and iota
 the source contracts a redex, the target's contractum is still a pass image. The Lean statements
 are \code{Lower.shift\_comm}, \code{Lower.subst\_comm} and \code{Lower.substList\_comm}; the
 substitution laws require the substituends themselves to be related, not merely closed.
+\end{proposition}
 \begin{proof}
 \leanok
 \uses{def:Lower, prop:Lower-closed, lem:lbClosed_fix_of_block}
@@ -329,7 +330,6 @@ is where the shift law is spent. The list form is the iterated single form and i
 step's branch application needs, since the iota rule substitutes a constructor's reversed field
 list.
 \end{proof}
-\end{proposition}
 
 \begin{proposition}[The pass commutes with binder abstraction]
 \label{prop:Lower-abstract}
@@ -345,6 +345,7 @@ shifts the abstraction level by the branch's field count. The Lean statements ar
 \code{Lower.noFVar}, \code{Lower.abstract} and \code{LowerAlt.abstract}; they carry
 \code{FVarFreeBodies} and \emph{not} \code{ClosedBodies}, and the next lemma shows the
 difference is real.
+\end{proposition}
 \begin{proof}
 \leanok
 \uses{def:Lower, lem:lbClosed_fix_of_block}
@@ -356,7 +357,6 @@ rewrite by the equation saying the block's node is inert under abstraction, whos
 variable-freedom statement at the block's own bodies. The alternative form is obtained by
 induction on the field count rather than by re-running the fourteen arms.
 \end{proof}
-\end{proposition}
 
 \begin{remark}
 The abstraction law is needed because the eraser closes every binder with the same abstraction
@@ -381,6 +381,7 @@ declared body's stray variable. The Lean statements
 \code{FVarFixture.noFVar\_needs\_fvarFree} and \code{FVarFixture.abstract\_needs\_fvarFree} are
 negations of the universally quantified weakened laws, so they refute the general statement and
 not merely one instantiation.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:LowerBlock, lem:Lower-fixConst-prime, prop:Lower-closed}
@@ -389,7 +390,6 @@ which refutes the variable statement directly. For the abstraction statement, ab
 stray variable under the block's own binders would manufacture an out-of-range de Bruijn index,
 and since the pass preserves closedness no arm can relate the abstracted pair.
 \end{proof}
-\end{lemma}
 
 \section{The inversion kit}
 \label{sec:lowering:inversion}
@@ -412,6 +412,7 @@ Conversely the relation lifts from a head and its arguments to a whole applicati
 Lean statements are the \code{Lower.target\_*} family and \code{Lower.mkApps}; each inversion is
 phrased with the target shape as a separate equation hypothesis, which is what lets it be
 applied to a derivation whose target is only later known.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:Lower, def:LowerBlock}
@@ -421,7 +422,6 @@ the congruence of the same node. The \code{fix} case keeps the whole bundle, whi
 delta and beta steps through a block run on. The spine congruence is an induction on the
 argument list through the \code{app} arm.
 \end{proof}
-\end{lemma}
 
 \begin{proposition}[A block member's specification body is a lambda]
 \label{prop:LowerBlock-lambda_of_fixLambda}
@@ -441,6 +441,7 @@ statements are \code{LowerBlock.lambda\_of\_fixLambda},
 \code{LowerBlock.targetLambda\_of\_fixLambda} and \code{Lower.source\_isLambda}, together with
 the three head-faithfulness equations; all are stated through the Boolean head test
 \code{isLambda} rather than an existential.
+\end{proposition}
 \begin{proof}
 \leanok
 \uses{def:LowerBlock, def:Lower, def:ConstToFVar, def:closeFix, def:toBvar}
@@ -450,7 +451,6 @@ constructor in each case. \code{Lower.source\_isLambda} is a case analysis on th
 \code{fix}, so \code{lambda} is the only surviving arm. Composing the three transports with the
 bundle's \code{hfl} field gives the statement.
 \end{proof}
-\end{proposition}
 
 \begin{remark}
 This single fact is what lets the entire source-side inversion kit dispense with an environment
@@ -466,6 +466,7 @@ If $\Lower\ \Gamma\ s\ (\code{fix}\ defs\ j)$ then $s$ is a constant or is lambd
 contrapositively, a source that is neither has no \code{fix} image. Both Lean statements,
 \code{Lower.notFix\_of\_block} and \code{Lower.ne\_fix\_of\_block}, are premise-free in the
 environment.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:Lower-target_fix, prop:LowerBlock-lambda_of_fixLambda}
@@ -473,7 +474,6 @@ Invert the target through Lemma~\ref{lem:Lower-target_fix}; the \code{fixConst} 
 constant, and the \code{fixBody} reading gives a declared block-member body, which
 Proposition~\ref{prop:LowerBlock-lambda_of_fixLambda} pins to a lambda.
 \end{proof}
-\end{lemma}
 
 \begin{proposition}[Source-side inversion]
 \label{prop:Lower-source_const}
@@ -499,6 +499,7 @@ an eliminator declaration at that key refute both images. A branch peeling pins 
 alternative's binder count to the field arity and nothing else --- exactly what the iota rule
 reads. The Lean statements are the \code{Lower.source\_*} family together with
 \code{LowerAlt.arity}, each phrased with the source shape as a separate equation hypothesis.
+\end{proposition}
 \begin{proof}
 \leanok
 \uses{def:Lower, lem:Lower-ne_fix_of_block, prop:LowerBlock-lambda_of_fixLambda}
@@ -509,7 +510,6 @@ is a spine headed by a constant. At a constant both readings survive, and the \c
 reading is excluded by the block's lambda-headedness (it would force a constant to be
 lambda-headed), leaving the runtime-key guard common to both.
 \end{proof}
-\end{proposition}
 
 \begin{remark}
 The application case is not here: \code{Lower.source\_app} lives in
@@ -530,6 +530,7 @@ On a hand-built two-constructor inductive, with constructors of $0$ and $1$ fiel
 and the \code{elimApp} arm fires at it with a non-empty over-application, producing a
 \code{case} node applied to one extra argument. The three Lean statements are stated at a fully
 explicit environment, so each is a closed fact about concrete data.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:ElimDecl, def:mkElimBody, lem:Lower-fixConst-prime}
@@ -537,7 +538,6 @@ The environment is given explicitly, so both halves of the eliminator declaratio
 definitional; the runtime-key statement is the existential over them; the arm is applied with
 the branch peelings discharged by the two \code{LowerAlt} constructors.
 \end{proof}
-\end{lemma}
 
 \begin{lemma}[Lambda-headedness must be keyed on the block]
 \label{lem:LowerCtorBodyFixture-lowerBlock_needs_lambda_bodies}
@@ -549,13 +549,13 @@ every one of the five benchmark programs declares --- is \textbf{not} a block of
 lambda-headedness field fails, because the emitted body is the constructor node, not a lambda.
 The Lean statement is the negation of a \code{LowerBlock} claim at that concrete one-member
 block.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:LowerBlock}
 Project the \code{hfl} field at index $0$ and evaluate: the stored body's head is a constructor
 node.
 \end{proof}
-\end{lemma}
 
 \begin{remark}
 This is why lambda-headedness is keyed on the blocks a run actually builds rather than
@@ -603,6 +603,7 @@ closed, $x$-free terms past an abstraction, dropping the level by exactly the nu
 substitutions. The Lean statements are \code{subst\_toBvar\_self}, \code{subst\_toBvar\_succ},
 \code{substList\_toBvar} and its primed variant; the level and the depth are quantified inside
 the statement so the binder cases can raise them.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:substFVar}
@@ -612,7 +613,6 @@ index at depth $d$ is the one the abstraction just created, which is the closedn
 job, and the substitution's internal shift is the identity because the substituted term is
 closed. The simultaneous form is the iterated step case.
 \end{proof}
-\end{lemma}
 
 \begin{lemma}[What closing removes, and what it schedules]
 \label{lem:hasFVar_toBvar}
@@ -631,6 +631,7 @@ the outermost abstraction. Dually, the static fix substitution does what it is m
 sends $ids[j]$ to the block's $j$-th node, under distinctness of $ids$ and the block's own
 variable-freedom. The Lean statement \code{substFVarList\_zipIdx\_fvar} is generalised over the
 window's base index, which is what makes the induction go through.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:substFVar, def:closeFix}
@@ -640,7 +641,6 @@ the append law. The substitution computation is generalised over the window's ba
 variable-freedom of the block is what lets an already-substituted sibling pass through the
 remaining substitutions untouched.
 \end{proof}
-\end{lemma}
 
 \begin{remark}
 \code{not\_hasFVar\_closeFix} is what makes the stored block variable-free \emph{without
@@ -666,6 +666,7 @@ Notably, distinctness of $ids$ is \textbf{not} needed and is not assumed. The Le
 \code{closeFix\_substList\_fixSubst}, proved from a form generalised over the window's base
 index, and the two \code{\_fires} theorems discharge the hypothesis class on a concrete
 self-looping block.
+\end{theorem}
 \begin{proof}
 \leanok
 \uses{lem:subst_toBvar_self, lem:hasFVar_toBvar, def:substFVar}
@@ -676,7 +677,6 @@ substituted node --- are the two hypotheses. Two non-vacuity theorems close the 
 premises are discharged on a concrete self-looping block, and the common value is the block
 itself rather than a vacuous index.
 \end{proof}
-\end{theorem}
 
 \begin{remark}
 The module docstring records why the variable-freedom hypothesis is not slack: with two
@@ -697,6 +697,7 @@ from the bundle plus closedness of the declared bodies, and the freshness from t
 every definition body is a closing-fold image and the fold removes exactly the identifiers it
 schedules. Only closedness needs anything beyond the structure, in the shape of the
 \code{ClosedBodies} premise the Lean statement carries.
+\end{proposition}
 \begin{proof}
 \leanok
 \uses{thm:closeFix_substList_fixSubst, lem:hasFVar_toBvar, lem:lbClosed_fix_of_block,
@@ -707,7 +708,6 @@ lowered bodies, which is Proposition~\ref{prop:Lower-closed} at the declared bod
 bundle carries no closedness field of its own, so this is where the environment premise enters
 the block story. The conclusion is then the general theorem.
 \end{proof}
-\end{proposition}
 
 \begin{theorem}[Installing the block keeps the relation]
 \label{thm:Lower-constToFix}
@@ -721,6 +721,7 @@ Theorem~\ref{thm:closeFix_substList_fixSubst} has rewritten the dynamic substitu
 static one --- lands back inside the pass at the \emph{same} source term $s$. The Lean statement
 \code{Lower.constToFix} takes as its freshness premise that the fix variables do not already
 occur in $t$, which is free at the call site, where it is the bundle's \code{hfresh} field.
+\end{theorem}
 \begin{proof}
 \leanok
 \uses{def:Lower, def:LowerBlock, lem:Lower-fixConst-prime,
@@ -734,7 +735,6 @@ call-site arm; at a source already related by a recursion arm the substitution i
 by the block's own variable-freedom. The application-spine arm needs the inversion of the
 rewriting through a spine.
 \end{proof}
-\end{theorem}
 
 \begin{remark}
 The measured axiom footprint of \code{Lower.constToFix} is \code{propext} and \code{Quot.sound}
@@ -755,13 +755,13 @@ statement holds --- closedness says nothing about free variables --- while the c
 demands that a free variable be related to the block's node, which no arm derives: the only
 value-side recursion arm needs a declared specification body, and no declared body in the
 fixture is a free variable. The Lean statement negates the universally quantified weakened form.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:LowerFixFixture-lowerfix_app_step, prop:Lower-source_const}
 Instantiate at the two-member fixture block and at the free variable; the conclusion is inverted
 by the source-side kit at an \code{fvar}, which admits only the same \code{fvar} as image.
 \end{proof}
-\end{lemma}
 
 \begin{proposition}[A member's unfolded definition is a lambda still related to its body]
 \label{prop:Lower-fixUnfold}
@@ -773,6 +773,7 @@ and that lambda is still related by the pass to the $j$-th member's \emph{specif
 The Lean statement \code{Lower.fixUnfold} needs no premise beyond the block and closedness of
 the declared bodies, and its conclusion is an existential exhibiting the binder name and the
 lambda's body.
+\end{proposition}
 \begin{proof}
 \leanok
 \uses{prop:LowerBlock-substList_fixSubst, thm:Lower-constToFix, prop:Lower-closed,
@@ -783,7 +784,6 @@ static one; unfolding does not change the head constructor, so the lambda-headed
 the result its lambda head; and Theorem~\ref{thm:Lower-constToFix} carries the relation across
 the substitution.
 \end{proof}
-\end{proposition}
 
 \begin{remark}
 This is what the target does where the source delta-steps into a recursive body. In the tree as
@@ -846,6 +846,7 @@ target application evaluates to a pass image of it. Separately, the three-factor
 inhabited at exactly the pair no two-factor composite relates --- the source constant against
 the fix variable the eraser emits for it inside the block. All six Lean statements are at the
 fixture's explicit environments and terms.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:LowerBlock, lem:Lower-fixConst-prime, prop:LowerBlock-substList_fixSubst,
@@ -856,7 +857,6 @@ the beta steps, and determinism of evaluation identifies the source value. The c
 statement builds an erasure derivation at the source constant and the rewriting's \code{hit} arm
 at the target.
 \end{proof}
-\end{lemma}
 
 \begin{remark}
 This is the cluster's guard against a vacuously true fixpoint story; it is the only theorem here
@@ -873,6 +873,7 @@ The naive transport of box-freedom along the pass is \textbf{false}: the call-si
 the box-free \code{const} to the block's \code{fix} node, whose definitions carry the boxes of
 the members' bodies. Any transport of box-freedom therefore needs a premise excluding a
 \code{fix} in the target. The Lean statement negates the universally quantified transport.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:LowerFixFixture-lowerfix_app_step, lem:Lower-fixConst-prime, def:NoBox}
@@ -880,7 +881,6 @@ Instantiate at the fixture block, whose member $0$ returns the box; the call-sit
 the box-free constant to the block, and the block's box-freedom would project to the member's
 body, which is a box.
 \end{proof}
-\end{lemma}
 
 \begin{remark}
 This is exactly why the capstone proves box-freedom of the lowered first-order value along the
@@ -951,6 +951,7 @@ exhibited at three real Lean declarations at the numbers their declarations actu
 fields), \code{Bool.casesOn} (two field-free minors) and \code{Decidable.casesOn} (one
 parameter, so two dropped arguments, and two one-field minors). The three Lean instances are
 stated at the \code{cases} constructor, so they are definitional checks rather than proofs.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:mkElimBody, def:mkLambdas, def:LBClosed}
@@ -959,7 +960,6 @@ the telescope length; the two body statements are then the telescope closure of 
 shape predicate's two constructors dispatch to them. The three instances are each the
 \code{cases} constructor, definitionally.
 \end{proof}
-\end{lemma}
 
 \begin{remark}
 \code{ElimBody.lean} carries no evaluation theory at all, because the specification environment
@@ -1051,6 +1051,7 @@ block-closing fold, which indexes its binders by name through the run's fixvar m
 erasure's panic value is the box, which is fixpoint-free, closed at every level and invisible to
 the applied-form predicate. The Lean statements for the folds are stated at the exact fold the
 eraser performs, including the indexed one over a reversed zip.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:NoFix, def:toBvar}
@@ -1061,7 +1062,6 @@ created nor destroyed. The fold forms iterate the single form; the applied-form 
 carries no level, so the indexed fold needs no arithmetic. The panic statements are
 definitional, the erasure's default value being the box.
 \end{proof}
-\end{lemma}
 
 \begin{remark}
 This is the honest reading of code whose ``impossible'' branches are reachable in the model:
@@ -1165,11 +1165,11 @@ The character class the kername sanitiser establishes on a kername \emph{identif
 a binder name the eraser actually emits: a hygienic macro-scoped name contains characters
 outside the alphanumeric-plus-underscore class. The Lean statement negates that class at the
 literal string, and is proved by kernel evaluation of the decidable proposition.
+\end{lemma}
 \begin{proof}
 \leanok
 Kernel evaluation of the decidable proposition on the literal string.
 \end{proof}
-\end{lemma}
 
 \begin{remark}
 This refutation is the in-code record of a design decision. An earlier version of the
@@ -1222,13 +1222,13 @@ clause, every member of the block is lambda-headed --- stated in the indexed Boo
 pass relation's bundle wants. A block stored in the environment rather than reached from the
 term is handled by first taking the environment half. The Lean statement takes the subterm
 witness and a separate equation fixing its shape.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:OnProgram, def:NoDangling, def:SubTerm}
 Apply the clause at the given subterm and rewrite the existential lambda form into the Boolean
 head test at each index.
 \end{proof}
-\end{lemma}
 
 \begin{definition}[The clause the output fails, and the true precondition]
 \label{def:LBExpandedFix}
@@ -1291,6 +1291,7 @@ LeanToLambdaBox.mem_expandRefs}
 $|\Gamma|$ delta-steps saturate the closure of any seed: beyond that nothing new is reachable.
 The Lean statement \code{reachFrom\_saturated} is a list inclusion, and it rests on a one-step
 characterisation \code{mem\_expandRefs} of what the expansion adds.
+\end{theorem}
 \begin{proof}
 \leanok
 \uses{def:ReachableFrom}
@@ -1302,7 +1303,6 @@ remaining such keys therefore bounds the search for a fixed point. The proof use
 decidability of kername equality locally, which is why the measured footprint of this branch
 carries \code{Classical.choice}.
 \end{proof}
-\end{theorem}
 
 \begin{lemma}[Reachability threads through the simulation]
 \label{lem:ReachableFrom-through_body}
@@ -1318,6 +1318,7 @@ a delta-unfolded body reaches, the program reaches --- the closure composes, bec
 steps saturate it. And what an iota reduct or a beta contractum reaches, the term and the
 substituends reach. The Lean statement for substitution is a disjunction, since a reachable name
 may come from either side.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:ReachableFrom, thm:reachFrom_saturated, def:SubTerm}
@@ -1326,7 +1327,6 @@ monotonicity of the closure. The body law composes two closures into one of thei
 cuts back with the saturation theorem. The substitution law is the corresponding fact about
 which kernames a substitution can name, lifted to the closure.
 \end{proof}
-\end{lemma}
 
 \begin{remark}
 These are the direction the environment-relation clauses need, since those clauses are
@@ -1390,6 +1390,7 @@ two introduction rules for the environment/term combinator --- from a whole-term
 a per-node check, the latter taking as input the one place each individual clause's own
 statement enters. The Lean statements are one-directional (soundness of the check, not
 completeness), which is all the rungs need.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:onProgramB, def:SubTerm}
@@ -1397,7 +1398,6 @@ Induction on the subterm derivation for the walk, with the three list-descent he
 combinator rules then split the conjunction of the term check and the body check and apply the
 supplied per-clause implication.
 \end{proof}
-\end{lemma}
 
 \begin{definition}[Deciding saturation]
 \label{def:ctorSatB}
@@ -1427,6 +1427,7 @@ If the check succeeds on a term then every constructor spine occurring in it, at
 application depth, carries at least its constructor's declared arity --- and the same for the
 function-side walk. The Lean statement \code{ctorSat\_sound} is the \emph{conjunction} of the
 two readings, which is what makes the induction go through.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:ctorSatB, def:ConstructSpine}
@@ -1434,7 +1435,6 @@ Induction on the spine-occurrence derivation with the conjunction of the two wal
 motive, which is what makes the function-side clause available exactly where the guard removes
 the spine-root reading. The root case reads the computed spine data off the node.
 \end{proof}
-\end{lemma}
 
 \begin{remark}
 This is the one non-mechanical argument in the checker file; six of the twelve clauses go
@@ -1479,6 +1479,7 @@ LeanToLambdaBox.printableBinderName_of_check}
 If the checker returns true on a concrete emitted program, that program satisfies
 Definition~\ref{def:LBWfPeregrine}. The Lean statement \code{lbWfPeregrine\_of\_check} takes the
 Boolean equation as its only hypothesis, so a \code{decide} verdict discharges it.
+\end{theorem}
 \begin{proof}
 \leanok
 \uses{def:lbWfPeregrineB, lem:onProgramB_sound, lem:ctorSat_sound, def:LBWfPeregrine,
@@ -1488,7 +1489,6 @@ engine's introduction rule applied to that clause's own node soundness lemma. Th
 conjunct is handled once, through the whole-term engine at the conjunctive statement the spine
 lemma proves, and then projected to the environment half and the term half.
 \end{proof}
-\end{theorem}
 
 \begin{remark}
 The measured axiom footprint is \code{propext}, \code{Classical.choice} and \code{Quot.sound}
@@ -1554,6 +1554,7 @@ two readings of the pass at a \code{case} and at a projection are split by decid
 conditions; looking a constant up in the optimised environment yields the optimised body;
 optimising the environment does not change which inductives are propositional; and on a
 \emph{value}, the pass preserves being a stuck application head.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:LBOptimize}
@@ -1566,7 +1567,6 @@ a free variable when it is stuck, never a \code{case} or projection the pass mig
 the head shape survives; the stuckness test reads only one flag, so the flag on the value need
 not match the query.
 \end{proof}
-\end{lemma}
 
 \begin{theorem}[The pass discharges the propositional-case flag]
 \label{thm:LBOptimize_correct}
@@ -1579,6 +1579,7 @@ environment, to the optimised value under the same evaluation \emph{with those r
 This is exactly MetaRocq's \code{optimize\_correct} shape: the pass discharges a flag. The Lean
 statement relates the two flag points \code{propBlockFlags} and \code{blockFlags}, both of which
 are \emph{block}-form constructor regimes.
+\end{theorem}
 \begin{proof}
 \leanok
 \uses{def:LBOptimize, lem:LBOptimize_subst_comm, def:WcbvEval, thm:eval_to_value}
@@ -1589,7 +1590,6 @@ the same rule on the optimised node; fixpoint unfolding commutes by the unfoldin
 the applied-form rules together with the unguarded fixpoint rule are unreachable at the source
 flags and are closed at the flag hypothesis.
 \end{proof}
-\end{theorem}
 
 \begin{remark}
 The measured axiom footprint is \code{propext} and \code{Quot.sound}: no
@@ -1617,6 +1617,7 @@ Theorem~\ref{thm:LBOptimize_correct} is non-empty; this concrete term does satis
 hypothesis, by the flag-gated single-branch rule; the pass really does collapse it to $\Box$;
 and applying the theorem at it yields genuine evaluation content rather than a trivial
 statement. The Lean statements are at the fixture's explicit environment and term.
+\end{lemma}
 \begin{proof}
 \leanok
 \uses{def:LBOptimize, def:WcbvEval}
@@ -1624,7 +1625,6 @@ The environment and term are explicit, so the collapse is a definitional computa
 evaluation is one application of the flag-gated single-branch rule at the propositional
 inductive; and the third statement is the theorem applied to the second.
 \end{proof}
-\end{lemma}
 
 \begin{remark}
 This three-part pattern --- hypothesis class inhabited, concrete witness, firing yields content
