@@ -16,15 +16,16 @@ python3 -m venv .venv
 Then build:
 
 ```
-PATH=$PWD/.venv/bin:$PATH leanblueprint pdf      # print/print.pdf (xelatex)
-PATH=$PWD/.venv/bin:$PATH leanblueprint web      # web/index.html, web/dep_graph_document.html, lean_decls
-PATH=$PWD/.venv/bin:$PATH leanblueprint serve    # serves web/ on localhost so the JS dep graph renders
+source .venv/bin/activate
+leanblueprint pdf      # print/print.pdf (xelatex)
+leanblueprint web      # web/index.html, web/dep_graph_document.html, lean_decls
+leanblueprint serve    # serves web/ on localhost so the JS dep graph renders
 lake env lean --run blueprint/CheckDecls.lean blueprint/lean_decls   # after `leanblueprint web`
 python3 blueprint/scripts/audit.py               # after `lake build`; see "Audit" below
 ```
 
-`leanblueprint web` needs `plastex` resolvable on `PATH`, hence the `PATH=...` prefix on every
-command (it shells out to the bare `plastex` executable, not an absolute path).
+Activate the venv rather than calling `.venv/bin/leanblueprint` by path: `leanblueprint web`
+shells out to a bare `plastex`, which only resolves when `.venv/bin` is on `PATH`.
 
 The stock `leanblueprint checkdecls` (`lake exe checkdecls`) cannot be used in this repository:
 it imports every root of every `lean_lib` in the workspace, and the `VerifyBench.Src.*` frozen
