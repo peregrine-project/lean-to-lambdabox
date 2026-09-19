@@ -57,6 +57,9 @@ jobs:
       - name: Check blueprint declarations
         run: lake env lean --run blueprint/CheckDecls.lean blueprint/lean_decls
 
+      - name: Audit blueprint (labels, uses graph, leanok policy, trust edges vs #print axioms)
+        run: python3 blueprint/scripts/audit.py
+
       - name: Copy PDF into web output
         run: cp blueprint/print/print.pdf blueprint/web/print.pdf
 

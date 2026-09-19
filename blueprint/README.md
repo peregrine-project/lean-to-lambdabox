@@ -1,7 +1,8 @@
 # Blueprint
 
-A [leanblueprint](https://github.com/PatrickMassot/leanblueprint) skeleton documenting the
-formal verification on `dev/verify`.
+A [leanblueprint](https://github.com/PatrickMassot/leanblueprint) of the formal verification on
+`dev/verify`: what is proved about the shipping eraser, what is assumed, and what is inherited
+as trust. Twelve chapters, about 550 dependency-graph nodes citing about 1600 Lean declarations.
 
 ## Building
 
@@ -19,6 +20,7 @@ PATH=$PWD/.venv/bin:$PATH leanblueprint pdf      # print/print.pdf (xelatex)
 PATH=$PWD/.venv/bin:$PATH leanblueprint web      # web/index.html, web/dep_graph_document.html, lean_decls
 PATH=$PWD/.venv/bin:$PATH leanblueprint serve    # serves web/ on localhost so the JS dep graph renders
 lake env lean --run blueprint/CheckDecls.lean blueprint/lean_decls   # after `leanblueprint web`
+python3 blueprint/scripts/audit.py               # after `lake build`; see "Audit" below
 ```
 
 `leanblueprint web` needs `plastex` resolvable on `PATH`, hence the `PATH=...` prefix on every
@@ -46,15 +48,16 @@ Note that the web version's `\lean{}` links point at a doc-gen4 site (`\dochome`
 `src/content.tex` `\input`s twelve files under `src/chapters/`, numbered `01-intro.tex`
 through `12-trust.tex`, one per topic area of the verification (target language, source side,
 erasure spec, correctness, lowering, the shipping eraser, its run model, the refinement, cold
-start, the capstone, the trust boundary). Each currently holds only a `\chapter{}`/`\label{}`
-placeholder; writers overwrite these in place.
+start, the capstone, the trust boundary). Shared notation lives in `src/macros/common.tex`.
 
 ## Labels
 
 Every node's label is `<kind>:<name>`, where `<kind>` is `def`/`lem`/`prop`/`thm`/`cor`/`asm`
 matching its environment, and `<name>` is the principal Lean declaration's fully-qualified
-name with the leading `LeanToLambdaBox.` stripped and `.` replaced by `-`. This lets any
-chapter `\uses{}` a node from any other chapter without coordinating names in advance.
+name with the leading `LeanToLambdaBox.` stripped, `.` replaced by `-` and `'` by `-prime`.
+This lets any chapter `\uses{}` a node from any other chapter without coordinating names in
+advance. Many declarations are root-namespace names (`LBTerm`, `toKername`, `Erasure.erase`),
+not `LeanToLambdaBox.*`; a Lean declaration is cited by exactly one node.
 
 ## `assumption` nodes and graph colors
 
@@ -67,3 +70,17 @@ In the graph, a node's **border** color reports its statement status (green = `\
 = ready to state, orange = `\notready`) and its **fill** color reports proof status (green =
 proved, blue = ready to prove, dark green = proved and all ancestors proved) — an `assumption`
 node is therefore never green-filled, since it has no proof.
+
+A hypothesis bundle's definition node `\uses` its field assumptions, never the reverse: a
+cycle in the `\uses` graph makes `leanblueprint web` die with a `RecursionError`. Result nodes
+`\uses{asm:lean4lean-trust}` exactly when `#print axioms` reports `sorryAx` for one of their
+declarations, and `\uses{asm:lean-reflection-axioms}` exactly when it reports an axiom beyond
+`propext`, `Classical.choice`, `Quot.sound` and `sorryAx`.
+
+## Audit
+
+`python3 blueprint/scripts/audit.py` re-checks all of the above against the built library:
+labels and their prefixes, dangling and cyclic `\uses`, the `\leanok` policy, single ownership
+of declarations, existence of every cited declaration, and the two trust edges against
+`#print axioms` measured on every cited name. It writes `blueprint/.audit/` (report, node
+index, measured footprints; gitignored) and exits non-zero on any defect.

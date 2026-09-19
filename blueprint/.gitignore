@@ -12,3 +12,4 @@ src/*.synctex.gz
 src/*.bbl
 src/*.blg
 src/*.xdv
+.audit/
