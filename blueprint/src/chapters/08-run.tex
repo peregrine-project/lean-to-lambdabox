@@ -54,7 +54,8 @@ used purely for the vocabulary \code{Lean.NameGenerator.Reserves} and its order.
 therefore \emph{applied} to five arguments: the erasure state \code{s}, the erasure reader
 \code{ctx}, the core reader \code{cctx : Core.Context}, the reference cell
 \code{ref : ST.Ref IO.RealWorld Core.State} and the world token \code{w : Void IO.RealWorld}. We
-say that \textbf{the run of \code{x} from \code{(s, ctx, w)} succeeded with result \code{r}, final
+say that \textbf{the run of \code{x} from \code{(s, ctx, cctx, ref, w)} succeeded with result
+\code{r}, final
 state \code{s'} and final world \code{w'}} when
 \[
   \code{x s ctx cctx ref w} \;=\; \code{.ok (r, s') w'}.
@@ -77,7 +78,7 @@ The fixpoint packs the eighteen members into one \code{PProd} chain
 \code{visitAppArgs}, \code{visitLet}, \code{visitLambda}, \code{visitProj}, \code{visitApp},
 \code{visitConstApp}, \code{visitCtorEta}, \code{visitCtorEtaGo}, \code{visitCasesEta},
 \code{visitCasesEtaGo}, \code{visitCases}, \code{visitAlt}. This is \emph{not} the source order of
-the \code{mutual} block in \code{Erasure.lean} --- \code{visitLambda} is second in the source and
+the \code{mutual} block in \code{Erasure.lean} --- \code{visitLambda} is third in the source and
 ninth in the tuple, \code{visitConstructor} thirteenth in the source and third in the tuple --- and
 every \code{motive\_1} \dots{} \code{motive\_18} numbering in the project follows the tuple order.
 \end{remark}
@@ -96,8 +97,9 @@ Consequently a bind's run succeeds exactly when there is a successful intermedia
 \code{(x >>= f) s ctx cctx ref w = .ok (b, s') w'} if and only if there are \code{a}, \code{s\_1},
 \code{w\_1} with \code{x s ctx cctx ref w = .ok (a, s\_1) w\_1} and
 \code{f a s\_1 ctx cctx ref w\_1 = .ok (b, s') w'}. The three Lean declarations are the equation,
-the inversion (an \code{iff}), and its contrapositive, which discharges every error path of the
-eraser.
+the inversion (an \code{iff}), and a corollary of its contrapositive (assuming \code{f} fails from
+every possible intermediate result, not just the one \code{x} actually produces), which discharges
+every error path of the eraser.
 \end{lemma}
 
 \begin{proof}
@@ -133,8 +135,9 @@ reader's level parameters before invoking the relevance oracle.
 \leanok
 \uses{lem:Erasure-run_bind_ok}
 All but three are \code{rfl}: the stack's \code{pure}, \code{get}, \code{set}, \code{modify},
-\code{modifyGet}, \code{read} and \code{withReader} reduce definitionally once the run is applied
-to all five arguments. \code{run\_read\_bind} composes the bind equation with \code{run\_read};
+\code{modifyGet}, \code{read}, \code{withReader} and \code{throw} reduce definitionally once the run
+is applied to all five arguments. \code{run\_read\_bind} composes the bind equation with
+\code{run\_read};
 \code{run\_throw\_ne\_ok} is a \code{nomatch}; and \code{run\_throwError\_ne\_ok} unfolds
 \code{Lean.throwError} into its \code{getRef} and \code{addMessageContext} binds, treats those as
 opaque, and ends in \code{run\_throw\_ne\_ok}.
@@ -197,7 +200,8 @@ form to \code{pure default}.
 \begin{remark}
 Three shipping consequences follow, and the verification models all three rather than excluding
 them by hypothesis: \code{addAxiom}'s duplicate guard is a no-op that still registers a second
-declaration entry (Theorem~\ref{thm:Erasure-run_addAxiom_ok}); every binder-helper lemma carries a
+declaration entry (Theorem~\ref{thm:Erasure-run_addAxiom_ok}); every \emph{destructuring}
+binder-helper lemma carries a
 ``the result was \code{default}'' disjunct, \ie{} the eraser can silently emit a default \lbox{}
 term on an unexpected shape (Lemma~\ref{lem:Erasure-run_withLocalDecl_ok}); and
 \code{register\_inductive}'s \code{unreachable!} arms fall through successfully. These are findings
@@ -704,8 +708,9 @@ no longer exists.
 \leanok
 \uses{def:Erasure-addAxiomState, def:Erasure-RegisteredBodyAt, def:Erasure-ErasureConfig}
 Fix an abstract lookup predicate \code{Ci} --- ``what a successful environment lookup reports'' ---
-and a reading \code{gw} of the name generator out of the world token, and assume that every lookup,
-environment read and log during the run reports \code{Ci} and advances \code{gw} monotonically.
+and a reading \code{gw} of the name generator out of the world token, and assume that every lookup
+during the run reports \code{Ci}, and that every lookup, environment read and log during the run
+advances \code{gw} monotonically.
 Then, on the miss branch and with constructor-argument pruning switched off, the generator only
 advances, and every inductive-registry entry present afterwards was either already present or names
 the block identifier minted from the block's member list at the member's own position, with the

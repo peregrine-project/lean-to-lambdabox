@@ -505,10 +505,10 @@ general}, so every result that takes the bundle is bounded by them.
 \begin{remark}
   The constructor case emits \emph{applied} form --- a bare constructor node applied through
   \lbox{} application --- never a block with its arguments inside; the inline comment says ``in
-  the stage of lambda-box I am targeting constructor application is function application''. This
+  the stage of $\lambda$box I am targeting constructor application is function application''. This
   is the opposite of agda2lambox's choice and of MetaRocq's \code{constructors\_as\_blocks}
   target, and it is why the semantics of Chapter~\ref{chap:lambdabox} is pinned with the
-  block-constructor flag off (design tag F-ETA). [R]'s Listing~2 shows block form, so the report
+  block-constructor flag off (cf.\ shipping finding F-ETA2). [R]'s Listing~2 shows block form, so the report
   and the shipping code disagree on the record; the code wins. Two further findings sit at these
   sites: F-SPARSE, where the eliminator case recovers the inductive from the eliminator's name
   prefix and declares a sparse eliminator unreachable, after which the run continues and writes a
@@ -742,7 +742,9 @@ general}, so every result that takes the bundle is bounded by them.
   $2{,}940$ inductive type formers, and no failure over more than two hundred thousand
   declaration-info answers. Because the bundle is a binder of the capstone and of all eight rungs,
   those statements are conditionally vacuous on any environment exhibiting a counterexample. The
-  repository's own status document says ``four fields'' and then lists five; the code has five.
+  An earlier design note counted four clauses destined for this repository's own code before the
+  oracle clause was split into \code{oracle\_false\_refl} and \code{kernel\_ind\_head\_true}
+  (\code{doc/rework/06-REPAIRS-W4.md}); the shipped bundle has five.
 \end{remark}
 
 \section{What the bundles prove}
@@ -1154,7 +1156,7 @@ general}, so every result that takes the bundle is bounded by them.
 \label{sec:eraser:caveats}
 
 The eraser departs from [S] and [L] in five places that matter for reading the rest of this
-blueprint. \emph{Applied constructors} (F-ETA): MetaRocq's erasure target and agda2lambox both
+blueprint. \emph{Applied constructors} (cf.\ F-ETA2): MetaRocq's erasure target and agda2lambox both
 emit constructors as blocks carrying their arguments, while this eraser emits a bare constructor
 node applied through \lbox{} application, which is why every semantic statement of
 Chapter~\ref{chap:lambdabox} is pinned with the block-constructor flag off and why

@@ -101,7 +101,11 @@ there is one, and \code{n} itself otherwise. \code{compilerValue?} takes that co
 the case in which the eraser emits an axiom instead. \code{fixBlock? lenv n} is the mutual block for
 which the eraser installs a fix-variable map at \code{n} --- \code{none} when it takes its
 non-recursive exit or emits an axiom, and otherwise the block's members after the
-\code{\_unsafe\_rec} stripping the run applies.
+\code{\_unsafe\_rec} stripping the run applies. \code{reifiesBody} is the Boolean test of a
+\code{ConstantInfo}'s kind that this same dispatch uses to decide whether a body should be sought
+at all: true exactly at \code{Lean.ConstantInfo.defnInfo} and \code{Lean.ConstantInfo.opaqueInfo},
+false at every other constructor (axioms, theorems, quotient primitives, constructors, recursors),
+none of which the eraser reads a body of.
 \end{definition}
 
 \begin{remark}
@@ -556,12 +560,14 @@ is the source term \code{\#erase <subject>} elaborates, namely the constant of t
 The environment \code{g<i>Env} and the term \code{g<i>Term} are the emitted program, transcribed by
 hand from the committed \code{.ast} file under \code{VerifyBench/ast/Spikes/}. The answer
 \code{g<i>Answer} is the literal peano numeral the rung claims. G7 and G8 share \code{arithTower},
-thirty-nine declarations spelling out everything the two Arith rungs emit below their own head
-declaration --- \code{benchArith}'s body, the power, multiplication, subtraction and addition
-classes with their \code{Nat} and homogeneous-bridge instances, the four \code{Nat} operations as
-fixpoint blocks plus \code{Nat.pred}, and \code{PUnit}, \code{Nat}, \code{OfNat} and
-\code{instOfNatNat} --- parametrised by the macro-scope tag Lean's matcher inliner writes into the
-ten emitted \code{let} binders, which is why the two rungs are transcribed at two different tags.
+thirty-nine declarations --- \code{benchArith}'s body, the power, multiplication, subtraction and
+addition classes with their \code{Nat} and homogeneous-bridge instances, the four \code{Nat}
+operations as fixpoint blocks plus \code{Nat.pred}, and \code{PUnit}, \code{Nat}, \code{OfNat} and
+\code{instOfNatNat}. \code{g8Env} \textbf{is} \code{arithTower g8Tag}, since \code{benchArith} is
+itself the tower's first entry; \code{g7Env} conses one further declaration, \code{arithClosed}'s
+own body, onto the same tower --- parametrised by the macro-scope tag Lean's matcher inliner writes
+into the ten emitted \code{let} binders, which is why the two rungs are transcribed at two
+different tags.
 \end{definition}
 
 \begin{remark}
@@ -980,8 +986,8 @@ literal answer the \lbox{} peano numeral 8 and with \code{hcb} and \code{hev} as
 \begin{proof} \leanok
 \uses{thm:shipping_erase_correct_firstorder, lem:Green-spike_configPinned, lem:Witness-trExprS_const_of_table, thm:supportedB_sound, lem:Green-g1_supported, lem:Green-g1_noBodylessRefs, lem:Green-g1_wf, lem:Green-g1_eval, thm:eval_deterministic, asm:lean4lean-trust, asm:lean-reflection-axioms}
 As at G1, at G7's own checked terms. This is the ladder at real program scale --- forty emitted
-declarations, ten class projections, four fixpoint blocks, five case nodes, a nineteen-node peano
-tower and a 14,497-byte committed \code{.ast} --- and its well-formedness and body-less-reference
+declarations, ten class projections, four fixpoint blocks, five case nodes and a 14,497-byte
+committed \code{.ast} --- and its well-formedness and body-less-reference
 checks are the ladder's most expensive kernel computations.
 \end{proof}
 

@@ -820,8 +820,10 @@ Inside a mutual block the eraser emits $\code{fvar}\ ids[j]$ where the source ha
 $\code{const}\ kns[j]$ --- a pair neither the erasure relation nor the pass relates on its own
 --- so the two-factor composite cannot state what a sub-run inside the block branch concludes.
 The Lean definition \code{ErasesLBFix} threads the lean4lean environment and local context of
-the erasure factor, and is the only place in the three pass files where lean4lean appears, and
-only in the signature.
+the erasure factor. Among the three pass files, lean4lean is otherwise touched only by the
+\code{LowerFixFixture} built for Lemma~\ref{lem:LowerFixFixture-lowerfix_app_step}, which
+constructs a concrete lean4lean environment and whose \code{lowerfix\_erasesLBFix} proof
+invokes lean4lean's typing judgement.
 \end{definition}
 
 \begin{lemma}[The fixpoint wall at a real mutual block]
@@ -1114,7 +1116,7 @@ of Definition~\ref{def:ctorSatB} to use two mutually recursive walks.
 $\code{OnProgram}\ \Gamma\ t\ P$ says the clause $P$ holds of the emitted term and of every
 constant body of the emitted environment --- the environment/term split MetaRocq's
 \code{expanded\_eprogram\_cstrs} makes. In Lean it is the conjunction of $P\ t$ with a bounded
-quantifier over the environment's constant declarations that have a body; nine of the twelve
+quantifier over the environment's constant declarations that have a body; eight of the twelve
 clauses below have this shape.
 \end{definition}
 

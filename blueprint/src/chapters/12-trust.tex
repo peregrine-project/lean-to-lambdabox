@@ -77,12 +77,13 @@ machine \code{Nat}; N4, the constructor argument mask; N5, auto-inlining and the
 \code{.ast.inlinings} sidecar channel; N7, termination --- there is no source strong
 normalisation result here, and the capstone keeps the conditional form of [S]; N10,
 serialisation; N11, the remaining sidecars; N14, size; N16, \code{Quot}; N18, elimination out of
-\code{Prop}. Three further rows are facts about consumers: peregrine's own precondition
-obligation for its untyped transforms is \code{Admitted} and its \code{validate} verb checks no
-expandedness; MetaRocq's shipped \code{firstorder\_ind} predicate is \code{false} on \code{nat},
-so this development cites [S] and does not transcribe it; and no Rocq-side copy of $\Erases$ or
-$\Lower$ exists, \code{doc/rules-Erases.md} and \code{doc/rules-Lower.md} being the anchor
-instead.
+\code{Prop}. Four further rows do not fit the N-numbering: the well-founded definitions' compiler
+bodies differ from their kernel bodies, with only the propositional instances covered; peregrine's
+own precondition obligation for its untyped transforms is \code{Admitted} and its \code{validate}
+verb checks no expandedness; MetaRocq's shipped \code{firstorder\_ind} predicate is \code{false} on
+\code{nat}, so this development cites [S] and does not transcribe it; and no Rocq-side copy of
+$\Erases$ or $\Lower$ exists, \code{doc/rules-Erases.md} and \code{doc/rules-Lower.md} being the
+anchor instead.
 
 \section{Inherited trust}
 \label{sec:trust:inherited}
@@ -309,8 +310,10 @@ The field is a binder at every rung, discharged nowhere --- and it is \textbf{fa
 \code{mutual unsafe def} block pairing a definition with its own \code{\_unsafe\_rec} companion,
 which maps to one distinct key for two members, two fixpoint definitions with the same name, both
 registered at one kername, and no error reported (finding F-UNSAFEREC). Measured: 0 failures over
-228{,}937 \code{getDeclInfo?} answers. The one-line \code{Nodup} guard F-UNSAFEREC proposes would
-turn the assumption into a run-recovered fact.
+228{,}937 \code{getDeclInfo?} answers --- a different count, and a different population, from the
+228{,}987 declared constants the \code{F-KERNAME} row of Section~\ref{sec:trust:findings} measures.
+The one-line \code{Nodup} guard F-UNSAFEREC proposes would turn the assumption into a
+run-recovered fact.
 \end{assumption}
 
 \section{Class D: the specification of Lean's primitives}
@@ -1088,7 +1091,7 @@ F-KERNAME & \code{toKername} identifies a numeric and a string name component; l
 \end{tabular}
 \end{center}
 
-Four of the eleven are load-bearing for this blueprint's own claims. F-ETA is why the
+Five of the eleven are load-bearing for this blueprint's own claims. F-ETA is why the
 expandedness predicate is \emph{not} a conjunct of the capstone's conclusion. F-DEPTH and
 F-UNSAFEREC are the general refutations of Assumptions~\ref{asm:EraserAsks-kernel_ind_head_true}
 and~\ref{asm:EraserAsks-block_keys_distinct}. F-EQREC is why Fannkuch fails
@@ -1168,8 +1171,11 @@ G2--G8: 10 of G7's 30 tabled bodies carry a projection, all of them class projec
 Lean test lakefile and the frontend benchmark's --- and \emph{neither builds the verified
 eraser}. The verification lives on a feature branch 250 commits ahead. \code{lake build} is green
 at 173 jobs with only lean4lean's \code{sorry} warnings, and the CI battery runs on pushes to both
-branches; one check in it is knowingly red, a schedule-hygiene inversion caused by a backtick in
-a planning document, a defect that changes no code.
+branches. The status document \code{doc/rework/07-STATUS.md} still reports one check of that
+battery as red, a schedule-hygiene inversion caused by a backtick in a planning document; the
+branch's last commit removed the backtick, and re-measured at that commit
+\code{lake exe hygiene -{}-schedule} reports zero inversions, so that sentence of the status
+document is stale.
 
 \section*{Deviations from the paper, and caveats}
 

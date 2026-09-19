@@ -160,9 +160,11 @@ erasure state: \code{inl} (the \code{@[inline]} bookkeeping cons), \code{ax} and
 registration primitives, stated at a \emph{run}, so that \code{addAxiom}'s \code{panic!}
 fall-through and \code{register\_inductive}'s state-changing cold branch are both covered),
 \code{prep} (the preprocessing pass), and \code{nrc}/\code{rc} (the two registering exits of
-\code{Erasure.visitMutual}). The last two fields are allowed to \emph{assume} the shape of the term
-being stored --- fix-free, closed at level $0$, applied form --- because those facts are false of an
-arbitrary term and are proved by the same induction that consumes them.
+\code{Erasure.visitMutual}). \code{nrc} is allowed to \emph{assume} the shape of the term being
+stored --- fix-free, closed at level $0$, applied form; \code{rc} is allowed to assume only
+closedness and applied form of each fixpoint projection, since the projection is itself a
+\code{fix} node and so is never fix-free to begin with. These facts are false of an arbitrary
+term and are proved by the same induction that consumes them.
 \end{definition}
 \begin{remark}
 \code{RunClosed} is world-blind and therefore unable to carry a configuration condition; it is
@@ -396,8 +398,9 @@ predicate every field's conclusion is \code{True}.
 Every successful run of \code{Erasure.visitExpr} returns a \lbox{} term $t$ that is fix-free,
 closed at level $0$ and in applied form: no fixpoint node in spine position, no loose de Bruijn
 index, and no constructor node carrying block arguments. There are \textbf{no hypotheses at all}
---- none on the state, none on the source expression, none on the configuration --- and the sixteen
-\code{panic!} arms of the eraser are discharged rather than excluded. Three thin corollaries project
+--- none on the state, none on the source expression, none on the configuration --- and the eraser's
+sixteen panic sites (four \code{panic!} calls and twelve \code{unreachable!} calls, per
+\code{doc/panics.md}) are discharged rather than excluded. Three thin corollaries project
 the first two conjuncts, the third conjunct alone, and the generic packaging.
 \end{theorem}
 \begin{proof}

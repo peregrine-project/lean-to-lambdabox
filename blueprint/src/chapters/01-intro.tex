@@ -464,9 +464,13 @@ internship report, supervised by Yannick Forster (Inria Paris, Cambium), 1 Octob
 copy is \code{references/lean\_extraction\_report.pdf}. It is the design document of the subject
 of this verification, not of its specification.
 
-MetaRocq's own sources (\code{EAst}, \code{EWcbvEval}, \code{ExAst},
-\code{EOptimizePropDiscr}, \code{PCUICFirstorder}) are cited by file wherever a rule-by-rule
-comparison is made, since [S] does not display the \lbox{} evaluation relation at all; the on-disk
+MetaRocq's own sources are cited by file wherever this blueprint itself makes a rule-by-rule
+comparison to them, since [S] does not display the \lbox{} evaluation relation at all:
+\code{EAst}, in Chapter~\ref{chap:lambdabox}. \code{EWcbvEval} is instead named by identifier
+throughout and never by file, as are \code{PCUICFirstorder} and \code{EOptimizePropDiscr}, whose
+file-name citations live in the repository's own findings (\code{doc/upstream-asks.md},
+\code{doc/rework/}) rather than in this blueprint; \code{ExAst} names ConCert's \emph{typed}
+\lboxT{} AST and has no rule-by-rule comparison anywhere in this untyped development. The on-disk
 interchange format is peregrine-tool's \code{doc/format.md} and \code{theories/PAst.v}.
 
 \paragraph{Deviations from the paper and caveats.} This chapter has claimed four things that a

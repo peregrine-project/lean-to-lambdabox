@@ -121,9 +121,11 @@ the form Chapter~\ref{chap:refinement} consumes.
 T5 as \emph{published} is weaker than what its proof establishes: the inner induction proves
 \code{Simulates}, whose fourth conjunct is \ErasesEnv{} at $v_0$, and the aggregator discards that
 conjunct when it exits, so a consumer wanting the environment relation at the value must re-derive it.
-The module doc-comments also disagree on how to count the premises (``seven binders carrying six
-premises \dots{} plus the eighth'', ``eight binders and seven premises'', ``eight premises''); all three
-resolve to the eight binders above.
+Two module doc-comments and the project's own status notes disagree on how to count the
+premises (\code{ErasesCorrect/Steps.lean}: ``seven binders carrying six premises \dots{} plus
+the eighth''; \code{ErasesCorrect/Close.lean}: ``eight binders and seven premises'';
+\code{doc/rework/07-STATUS.md}: ``eight premises''); all three resolve to the eight binders
+above.
 \end{remark}
 
 \section{Subject reduction for the source evaluator}
@@ -206,7 +208,7 @@ gating fact that lets the simulation replace a term by its value without leaving
 \uses{def:Erases, def:LBTerm-mkApps}
 If the head $hd$ erases to $th$ and the arguments $as$ erase pointwise to $ts$, then
 $\mkApps{}\ hd\ as$ erases to the \lbox{} spine $\mathsf{mkApps}\ th\ ts$. The Lean statement is
-\code{Erases.mkApps\_forall}$_2$, whose pointwise premise is a \code{List.Forall2} witness.
+\code{Erases.mkApps\_forall}$_2$, whose pointwise premise is a \code{List.Forall}$_2$ witness.
 \begin{proof}
 \leanok
 \uses{def:Erases}
@@ -1113,9 +1115,10 @@ parameters included, is a first-order field type). The Lean structure is \code{F
 The clauses should be booked honestly. \code{informative} is the result-sort half of [L, Def.~6] in the
 successor shape and \code{fields} is [L, Def.~14] restricted to unapplied field types, while
 \code{mono} and \code{noIndices} are declared scope restrictions of this development --- the module says
-so --- booked neither to Letouzey nor to MetaRocq's \code{firstorder\_ind}. The module header also
-records that MetaRocq's shipped \code{firstorder\_ind} evaluates to false on \code{nat}, so this
-development cites rather than transcribes it.
+so --- booked neither to Letouzey nor to MetaRocq's \code{firstorder\_ind}. The trust documentation
+(\code{doc/upstream-asks.md}, \code{doc/trust.md}) records that MetaRocq's shipped
+\code{firstorder\_ind} evaluates to false on \code{nat}, so this development cites rather than
+transcribes it.
 \end{remark}
 
 \begin{definition}[First-order inductive types]

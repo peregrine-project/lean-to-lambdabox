@@ -141,9 +141,10 @@ are unrepresentable here.
 
 \begin{remark}
 Against \code{E.term} of [S, Fig.~16] the adaptations are exactly three: \code{.fvar} is added (the
-locally nameless representation, [R, \S4.7]); \code{.prim} corresponds to MetaRocq's later
-\code{tPrim}; branches carry a list of binder names, per [S, Fig.~18] and peregrine's grammar; and
-\code{tCoFix} is dropped. That \code{construct} carries a \emph{list} does not by itself mean the
+locally nameless representation, [R, \S4.7]); branches carry a list of binder names, per [S,
+Fig.~18] and peregrine's grammar; and \code{tCoFix} is dropped. (\code{.prim} is not a fourth: it
+simply mirrors MetaRocq's own later addition of \code{tPrim}, absent from Fig.~16 only because that
+figure predates it.) That \code{construct} carries a \emph{list} does not by itself mean the
 development uses block form: which of the two constructor conventions is in force is a \emph{flag}
 of the semantics (Section~\ref{sec:lambdabox:flags}), and the shipping eraser emits the applied
 form, where that list is always empty and arguments arrive through \code{app}.
@@ -198,8 +199,9 @@ The printer is also where the \code{.fvar} constructor is declared impossible: i
 \leanok
 \uses{def:Kername}
 What \lbox{} records about an inductive type. A \code{ConstructorBody} is a display name together
-with the constructor's arity \emph{after} irrelevant-field pruning; a \code{ProjectionBody} is a
-user-visible projection name; \code{AllowedEliminations} is MetaRocq's elimination-sort restriction,
+with the constructor's field count \emph{after} irrelevant-field pruning --- \code{nargs}, not to be
+confused with the declared \emph{arity} of Definition~\ref{def:constructorArity} below, which adds the
+block's parameter count; a \code{ProjectionBody} is a user-visible projection name; \code{AllowedEliminations} is MetaRocq's elimination-sort restriction,
 with the four values \code{IntoSProp}, \code{IntoPropSProp}, \code{IntoSetPropSProp} and
 \code{IntoAny}. A \code{OneInductiveBody} bundles a name, a Boolean \code{propositional} mark, an
 elimination restriction \code{kelim}, the constructor list and the projection names. A
@@ -586,7 +588,7 @@ Chapter~\ref{chap:lowering}.
 \uses{def:LBTerm-envLookup, def:OneInductiveBody, def:InductiveId}
 Looks the mutual block up in the environment, selects the indicated member and returns its
 \code{propositional} mark, answering \code{false} on any lookup failure. It is the Boolean component
-of MetaRocq's \code{inductive\_isprop\_and\_pars}, and it guards five evaluation rules: \code{iota},
+of MetaRocq's \code{inductive\_isprop\_and\_pars}, and it guards six evaluation rules: \code{iota},
 \code{iota\_block}, \code{proj} and \code{proj\_block} require it \code{false}, while
 \code{iota\_sing} and \code{proj\_prop} require it \code{true}.
 \end{definition}
@@ -995,10 +997,11 @@ the new flags, which is immediate, the two settings agreeing on the guarded-fix 
 \end{proof}
 
 \begin{remark}
-This proposition is an \textbf{endpoint, not a link}. A repository-wide search finds
+This proposition is an \textbf{endpoint, not a link}. A search of the \code{.lean} sources finds
 \code{propcase\_weaken} and \code{entryFlags} only in the flags module's header and in
-\code{Semantics/Metatheory.lean} itself; no theorem in the development, the capstone included,
-applies it. The handover to peregrine's middle-end is therefore available but not exercised.
+\code{Semantics/Metatheory.lean} itself (both names also appear in the \code{doc/rework/} planning
+notes, but are not applied by any theorem there either); no theorem in the development, the capstone
+included, applies it. The handover to peregrine's middle-end is therefore available but not exercised.
 \end{remark}
 
 \subsection*{Non-vacuity}
@@ -1230,7 +1233,10 @@ with that qualification. Determinism and everything proved from it are unaffecte
 \item \textbf{The prop-case bit is inert on emitted output, as a measurement.} The flags module
 asserts that all 683 inductive entries of the benchmark suite's emitted environments carry
 \code{propositional := false}, from which \code{eraseFlags} and \code{entryFlags} agree on every
-emitted environment. Nothing in the repository re-checks that count. The corroborating code evidence
+emitted environment. The repository's own later re-measurement disagrees with this
+count: \code{doc/rework/05-REPAIRS-W3.md} reports 82 of 82 emitted
+\code{one\_inductive\_body} entries with \code{propositional = false} among 296
+declarations across the 11 committed environments, not 683. The corroborating code evidence
 is that the shipping registration of an inductive never sets the field at all (finding F-PROP), nor
 \code{kelim}, nor the recursivity kind. Read it as a measurement, not a theorem.
 \item \textbf{The handover is stated but unused.} Proposition~\ref{prop:WcbvEval-propcase_weaken} is

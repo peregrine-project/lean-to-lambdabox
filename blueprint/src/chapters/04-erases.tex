@@ -442,7 +442,8 @@ translate, $v$ erases, $b$ erases under a \code{let} entry \\
 \code{proj} & $\code{proj}\ S\ i\ e$ & $\code{proj}\ \langle \mathit{iid},\mathit{np},i
 \rangle\ t$ & $\code{IndInfo}\ \mathit{env}\ S\ \mathit{iid}\ \mathit{np}\ [\mathit{nf}]$,
 $i < \mathit{nf}$, and $\code{InformativeInd}\ \mathit{env}\ S$ \\
-\code{lit} & $\code{lit}\ l$ & $t$ & $l$'s one-step kernel unfolding erases to $t$ \\
+\code{lit} & $\code{lit}\ l$ & $t$ & \emph{env} contains the literal's unfolding
+constants (\code{ContainsLits}), and $l$'s one-step kernel unfolding erases to $t$ \\
 \code{mdata} & $\code{mdata}\ d\ e$ & $t$ & $e$ erases to $t$ \\
 \end{tabular}
 \medskip
@@ -1321,11 +1322,12 @@ the registry invariant of Chapter~\ref{chap:coldstart}.
 \uses{def:SpecContent, def:ErasesEnv}
 A specification environment's content, read at a program, is an environment erasure for that
 program: the clauses whose trigger is the program's reachability get it through a
-dependency-closure premise. Two premises are supplied separately --- the all-scopes form of
+dependency-closure premise. Two further premises are supplied separately --- the all-scopes form of
 the definition clause, because the content bundle records one scope, and the \code{tabled}
 clause, because it is not a fact about the environment at all. Despite its name the lemma does
 \emph{not} use the bundle's own definition field; it is better described as the transport of
-the four remaining fields plus two premises.
+the four remaining fields plus the three premises just listed (dependency closure, the
+all-scopes \code{defns} form, and \code{tabled}).
 \begin{proof}
 \leanok
 \uses{def:SpecContent, def:ErasesEnv, def:IndCovered}
@@ -1405,7 +1407,7 @@ clauses are read at. Its program is the recursive definition itself, whose body 
 eliminator on a recursive call --- the recursion being a constant node here, since a fixpoint
 node is what the \emph{lowering} makes of it. \code{DemoSource} bundles the eleven source-side
 facts the entries are read against: which constants the compiler table defines, the fixture's
-own block and eliminator, block and eliminator uniqueness, and three kername-separation
+own block and definition, block and eliminator uniqueness, and four kername-separation
 clauses, the last needed because the name-to-kername map is \textbf{not} injective.
 \end{definition}
 
@@ -1453,7 +1455,7 @@ outright --- in contrast to Theorem~\ref{thm:erases_ctor_fires}, which is uncond
 The relation of this chapter departs from [S, Fig. 18] in six places, each departure forced
 rather than chosen. Constructors are in \emph{applied form}: the \code{ctor} rule fires at the
 bare head and the constructor node carries a literally empty argument list, arguments arriving
-through \code{app} (design tag F-ETA). There is no case rule and no fixpoint rule, because
+through \code{app} (cf.\ shipping finding F-ETA2). There is no case rule and no fixpoint rule, because
 \code{Lean.Expr} has neither node; both are declaration-level phenomena and belong to \Lower{}
 (Chapter~\ref{chap:lowering}). Two arms are added that [S] has no need of, \code{mdata} and
 \code{lit}. The \code{proj} rule carries a relevance premise that [S] gets from Rocq's typing,
