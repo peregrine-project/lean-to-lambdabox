@@ -84,3 +84,9 @@ labels and their prefixes, dangling and cyclic `\uses`, the `\leanok` policy, si
 of declarations, existence of every cited declaration, and the two trust edges against
 `#print axioms` measured on every cited name. It writes `blueprint/.audit/` (report, node
 index, measured footprints; gitignored) and exits non-zero on any defect.
+
+## Issues found
+
+`ISSUES-FOUND.md` lists what writing the blueprint turned up in the repository's code and
+documents, observed at `dev/verify` `e7894de`: reported, not fixed, classified by kind and
+severity, with a `verified` field saying whether a second pass confirmed the entry.
