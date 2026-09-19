@@ -1,0 +1,1249 @@
+\chapter{\texorpdfstring{The target language \lbox\ and its semantics}{The target language lambda-box and its semantics}}
+\label{chap:lambdabox}
+
+This chapter fixes the \emph{target} of the erasure: the untyped lambda calculus with boxes,
+inductive constructors, fixpoints, case analysis and primitive machine integers that MetaRocq calls
+\code{EAst.term} and that peregrine reads from an \code{.ast} file. Two things are formalised here,
+and both are formalised independently of Lean-the-source-language. The \textbf{syntax}, because the
+shipping eraser has to build it and print it: \code{LeanToLambdaBox/Basic.lean} is a Lean
+re-implementation of MetaRocq's \code{EAst}, kept byte-compatible with peregrine's \code{PAst.v}, and
+\code{LeanToLambdaBox/Printing.lean} is the S-expression printer. And the \textbf{operational
+semantics}, because a certified erasure is a statement relating two evaluations and the target one
+had no Lean formalisation at all: \code{LeanToLambdaBox/Semantics/} (the modules \code{Flags},
+\code{Env}, \code{Values}, \code{Eval}, \code{Substitution}, \code{Metatheory}, \code{Compute}) is a
+flag-parameterised transcription of MetaRocq's \code{EWcbvEval.eval}. The de Bruijn closedness
+predicate and the commutation kit that goes with it live in \code{LeanToLambdaBox/Closed.lean} and
+are also target-side, so they belong here too.
+
+The semantics cluster is the one large block of the development that is unconditionally the
+project's own. Nothing under \code{LeanToLambdaBox/Semantics/} or in \code{Closed.lean} mentions
+\code{Lean.Expr}, \code{VExpr}, \TrExprS{} or \code{HasType}, so no result in this chapter can
+inherit lean4lean's \code{sorryAx}: the measured axiom footprint of every theorem below is standard
+(the headline \code{lbEval\_sound} measures exactly \code{[propext]}, recorded as the committed
+fixture \code{test/ledger.expected}). Consequently no node in this chapter carries a trust edge to
+the assumption nodes of Chapter~\ref{chap:trust}.
+
+Three design decisions shape everything that follows. (i) \emph{Flag-parametricity}: evaluation is
+indexed by a \code{WcbvFlags} triple exactly as in MetaRocq, because the development needs several
+different points of the same cube --- \code{eraseFlags} (where erasure correctness and every green
+rung are stated), \code{entryFlags} (what peregrine's \code{untyped\_transform\_pipeline} declares
+for its input), and the block-constructor pair \code{propBlockFlags}/\code{blockFlags} (where the
+\code{optimize} pass of Chapter~\ref{chap:lowering} is stated). (ii) \emph{Spines as premises, not as
+indices}: MetaRocq indexes its value and evaluation rules by $\mkApps f\ args$; transcribed naively
+that makes the Lean relations non-invertible, so the spine cases are phrased structurally over
+\code{.app} with the spine shape carried as a premise equation, and spine identity is recovered by
+hand from three injectivity and disjointness lemmas. (iii) \emph{An executable twin}: \WcbvEval{} is
+\code{Prop}-valued and computes nothing, so a fuel-indexed evaluator \code{lbEval} is defined
+alongside it and proved sound; because it is structurally recursive in the fuel the kernel reduces
+it, which is how every concrete rung of Chapter~\ref{chap:capstone} discharges its target evaluation
+by \code{rfl}.
+
+\section{\texorpdfstring{The syntax of \lbox}{The syntax of lambda-box}}
+\label{sec:lambdabox:syntax}
+
+\begin{definition}[Kernames and module paths]
+\label{def:Kername}
+\lean{Ident, DirPath, ModPath, Kername, toModPath, cleanIdent, toKername, rootKername}
+\leanok
+A \lbox{} \emph{kername} is a module path together with a base identifier, mirroring MetaRocq's
+\code{kername}: a module path is either a file path $\mathtt{MPfile}\ dp$ (a list of string
+components) or a dotted extension $\mathtt{MPdot}\ mp\ id$, and an identifier is a plain string.
+MetaRocq's third case \code{MPbound}, for arguments of ML module functors, is deliberately absent,
+Lean having no module functors. A Lean \code{Name} is turned into a kername by \code{toKername}: its
+prefix becomes the module path and its last component becomes the identifier, after
+\code{cleanIdent} has escaped every character outside \texttt{[A-Za-z0-9\_]} as \texttt{\_u} followed
+by the code point, so that the name is legal for the OCaml and Malfunction backends. A numeric name
+component is rendered by its decimal representation. \code{rootKername s} builds the unqualified
+kername with empty module path and identifier \code{cleanIdent s}, used for the synthetic name of a
+mutual inductive block. All of these are \emph{root} names: \code{Basic.lean} opens no namespace.
+\end{definition}
+
+\begin{remark}
+\code{toKername} is \textbf{not injective}. Both \code{cleanIdent} --- which maps a source character
+already spelled \texttt{\_u}$\ldots$ onto the same string as the character it escapes --- and the
+collapse of \code{.num} components onto their decimal spelling contribute. This is registered as
+finding F-KERNAME and is witnessed in Lean by \code{toKername\_not\_injective}, a declaration
+Chapter~\ref{chap:refinement} owns. \code{toKername} also panics on the anonymous name, one of only
+two panic sites outside the eraser proper.
+\end{remark}
+
+\begin{definition}[Binder annotations]
+\label{def:BinderName}
+\lean{BinderName}
+\leanok
+MetaRocq's \code{name}: a bound variable carries either a printable name $\mathtt{named}\ s$ or
+\code{anon}. Binder names are inert for the semantics --- no rule of
+Section~\ref{sec:lambdabox:eval} inspects them --- but they are load-bearing for the printer, since
+peregrine's parser rejects binder names outside the printable ASCII range. That constraint reappears
+as the printable-binder clause of the emitted program's well-formedness in
+Chapter~\ref{chap:lowering}.
+\end{definition}
+
+\begin{definition}[Inductive identifiers and projections]
+\label{def:InductiveId}
+\lean{InductiveId, ProjectionInfo}
+\leanok
+\uses{def:Kername}
+An \code{InductiveId} names one member of a mutual inductive block: the block's kername together
+with the member's index, mirroring MetaRocq's \code{inductive} pair. A \code{ProjectionInfo} records
+a primitive projection: the inductive projected from, its parameter count, and the index of the
+projected field, counted \emph{after} irrelevant fields have been pruned.
+\end{definition}
+
+\begin{definition}[Members of a mutual fixpoint block]
+\label{def:FixDef}
+\lean{FixDef}
+\leanok
+\uses{def:BinderName}
+One member of a \lbox{} mutual fixpoint block: a display name, a body, and the index
+\code{principalArgIdx} of the argument on which the fixpoint is guarded, defaulting to $0$. The body
+is expected to begin with at least $\mathtt{principalArgIdx} + 1$ lambdas. The Lean type is
+parameterised by the term type and is always used at \code{LBTerm}. The index is what the guarded
+fixpoint rules of Section~\ref{sec:lambdabox:eval} count arguments against.
+\end{definition}
+
+\begin{remark}
+The source's own doc comment calls \code{principalArgIdx} computationally irrelevant and safe to
+leave at $0$. That is true of the \emph{printer} but not of the guarded-fix rules, where the index
+decides when unfolding fires. The shipping eraser always leaves it at the default; see finding F-ETA
+in Chapter~\ref{chap:eraser}.
+\end{remark}
+
+\begin{definition}[Primitive values]
+\label{def:PrimVal}
+\lean{PrimTag, PrimModel, PrimVal}
+\leanok
+The only primitive tag modelled is \code{primInt}, whose semantic model is $\mathtt{BitVec}\ 63$; a
+primitive value is a dependent pair of a tag and an element of its model. MetaRocq's
+\code{primFloat} and \code{primArray} are commented out in the source --- arrays would force a
+positivity trick this development avoids by not supporting them.
+\end{definition}
+
+\begin{definition}[\texorpdfstring{The \lbox{} term language}{The lambda-box term language}]
+\label{def:LBTerm}
+\lean{LBTerm}
+\leanok
+\uses{def:BinderName, def:Kername, def:InductiveId, def:FixDef, def:PrimVal}
+The central definition of the chapter. \code{LBTerm} is MetaRocq's \code{EAst.term} --- the module's
+own doc comment says ``basically \code{term} as defined in \code{MetaRocq/Erasure/EAst.v}'' --- with
+twelve constructors: the box $\Box$ (\code{box}, Letouzey's placeholder for erased proofs and types),
+de Bruijn variables (\code{bvar}, MetaRocq's \code{tRel}), \textbf{free variables} (\code{fvar},
+carrying a \code{Lean.FVarId} --- the one addition to \code{EAst}, mimicking Lean's locally nameless
+representation), \code{lambda} and \code{letIn} with a binder annotation, binary application
+\code{app}, constants \code{const} keyed by kername, constructors \code{construct} carrying an
+inductive identifier, a constructor index and a \emph{list} of arguments, case analysis \code{case}
+carrying the inductive together with its parameter count, a discriminee and one branch per
+constructor as a pair of field binder names and a body, primitive projection \code{proj}, mutual
+fixpoint blocks \code{fix} with the index of the selected member, and primitive values \code{prim}.
+There is deliberately no \code{cofix}: Lean has no coinductive types, so MetaRocq's cofixpoint rules
+are unrepresentable here.
+\end{definition}
+
+\begin{remark}
+Against \code{E.term} of [S, Fig.~16] the adaptations are exactly three: \code{.fvar} is added (the
+locally nameless representation, [R, \S4.7]); \code{.prim} corresponds to MetaRocq's later
+\code{tPrim}; branches carry a list of binder names, per [S, Fig.~18] and peregrine's grammar; and
+\code{tCoFix} is dropped. That \code{construct} carries a \emph{list} does not by itself mean the
+development uses block form: which of the two constructor conventions is in force is a \emph{flag}
+of the semantics (Section~\ref{sec:lambdabox:flags}), and the shipping eraser emits the applied
+form, where that list is always empty and arguments arrive through \code{app}.
+\end{remark}
+
+\begin{definition}[Abstraction of a free variable]
+\label{def:toBvar}
+\lean{toBvar, toBvarArgs, toBvarAlts, toBvarDefs, abstract}
+\leanok
+\uses{def:LBTerm}
+$\mathtt{toBvar}\ x\ lvl\ t$ replaces every occurrence of the free variable $x$ in $t$ by the de
+Bruijn index $lvl$, raising $lvl$ by one under a \code{lambda} and under the body of a \code{letIn},
+by the branch's field count under a case alternative, and by the block size under a \code{fix}.
+$\mathtt{abstract}\ x\ e$ is $\mathtt{toBvar}\ x\ 0\ e$ --- the operation the eraser performs
+whenever it closes a binder it has just emitted. The three list companions are written out by hand,
+rather than as \code{List.map}, so that Lean's structural-recursion checker sees through the nested
+\code{List} occurrences of \code{LBTerm}; this makes them genuine definitions with equational lemmas
+rather than the \code{partial def} they once were.
+\end{definition}
+
+\begin{remark}
+The metatheory of \code{toBvar} --- its commutation with \Erases{}, and its preservation of shape ---
+lives in \code{Abstract.lean} and \code{OutputShape.lean} and belongs to Chapters~\ref{chap:erases}
+and~\ref{chap:lowering}; only the definition is owned here. Its interaction with closedness is
+Lemma~\ref{lem:lbClosed_fix_of_bodies} below.
+\end{remark}
+
+\subsection*{The printer, and where the verified perimeter stops}
+
+\code{LeanToLambdaBox/Printing.lean} defines a small \code{sexpr} type, a one-method class
+\code{Serialize}, and one instance per \lbox{} syntactic category, emitting exactly the atoms
+MetaRocq's and peregrine's readers expect: \code{tBox}, \code{(tRel n)}, \code{(tLambda na t)},
+\code{(tLetIn na b t)}, \code{(tApp u v)}, \code{(tConst k)}, \code{(tConstruct ind n args)},
+\code{(tCase (ind, npars) discr brs)}, \code{(tProj p c)}, \code{(tFix defs idx)}, \code{(tPrim p)},
+\code{ConstantDecl} and \code{InductiveDecl}, and the top-level \code{(Untyped env term)}.
+
+This is the byte-level contract with \code{peregrine-tool}, and it is \textbf{outside the verified
+perimeter}. \code{LBTerm.to\_sexpr} is a \code{partial def}, so it has no equational lemmas and no
+induction principle, and no file under \code{LeanToLambdaBox/} other than \code{Printing.lean} and
+\code{Erasure.lean} so much as mentions \code{sexpr} or \code{to\_sexpr}. Every claim in this
+blueprint of the form ``the emitted program satisfies \ldots'' is therefore a claim about the
+\code{Program} \emph{value} of Definition~\ref{def:ASTType}, not about the bytes peregrine parses.
+The printer is also where the \code{.fvar} constructor is declared impossible: its case is
+\code{unreachable!}. None of this is given a node.
+
+\section{Declarations, environments and programs}
+\label{sec:lambdabox:env}
+
+\begin{definition}[Inductive declarations]
+\label{def:OneInductiveBody}
+\lean{ConstructorBody, ProjectionBody, AllowedEliminations, OneInductiveBody, RecursivityKind, MutualInductiveBody}
+\leanok
+\uses{def:Kername}
+What \lbox{} records about an inductive type. A \code{ConstructorBody} is a display name together
+with the constructor's arity \emph{after} irrelevant-field pruning; a \code{ProjectionBody} is a
+user-visible projection name; \code{AllowedEliminations} is MetaRocq's elimination-sort restriction,
+with the four values \code{IntoSProp}, \code{IntoPropSProp}, \code{IntoSetPropSProp} and
+\code{IntoAny}. A \code{OneInductiveBody} bundles a name, a Boolean \code{propositional} mark, an
+elimination restriction \code{kelim}, the constructor list and the projection names. A
+\code{MutualInductiveBody} is a recursivity kind (\code{finite}, \code{cofinite} or
+\code{bifinite}, the middle one present only to match MetaRocq), a count \code{npars} of uniform
+parameters, and the member bodies.
+\end{definition}
+
+\begin{remark}
+The \code{propositional} field is the one the propositional evaluation rules of
+Section~\ref{sec:lambdabox:eval} read, and the shipping eraser \textbf{never sets it} --- finding
+F-PROP. The defaults \code{kelim := .IntoAny} and \code{finite := .finite} are likewise never
+overridden, \code{kelim} being precisely the field MetaRocq uses to record elimination restrictions
+on \code{Prop} inductives. This is why the prop-case bit is inert on emitted output, a fact this
+chapter states as a measurement and not as a theorem; see the caveats closing the chapter.
+\end{remark}
+
+\begin{definition}[\texorpdfstring{The \lbox{} global environment}{The lambda-box global environment}]
+\label{def:GlobalDeclarations}
+\lean{ConstantBody, GlobalDecl, GlobalDeclarations}
+\leanok
+\uses{def:LBTerm, def:OneInductiveBody, def:Kername}
+A constant declaration is an optional body --- \code{none} marks an axiom, a declaration the
+consumer cannot realise. A global declaration is either a constant or a mutual inductive block. A
+\lbox{} environment is an association list of kername/declaration pairs, MetaRocq's
+\code{global\_declarations}, in \textbf{reverse} declaration order: the entries added first sit
+deepest in the list, so lookup by scanning from the head finds the most recent binding.
+\end{definition}
+
+\begin{definition}[Programs]
+\label{def:ASTType}
+\lean{ASTType, Program}
+\leanok
+\uses{def:GlobalDeclarations, def:LBTerm}
+A \lbox{} program on disk is an environment together with an optional main term. The Lean type has
+the single constructor \code{untyped}, so this frontend emits only untyped \lbox{} --- peregrine's
+\code{PAst} restricted to its \code{Untyped} head. Typed \lboxT{}, which peregrine's Rust and Elm
+backends require, is not produced here. \code{Program} is a synonym for \code{ASTType}; it is the
+return type of the shipping eraser and the subject of the capstone theorem of
+Chapter~\ref{chap:capstone}.
+\end{definition}
+
+\begin{remark}
+\code{Basic.lean} also declares the \code{.ast.inlinings} side-channel --- remapping and attribute
+configuration records for inductives and constants. Only the inlinings field is ever populated, and
+nothing in the theorem stack mentions any of them; they are given no node.
+\end{remark}
+
+\section{The de Bruijn kit}
+\label{sec:lambdabox:subst}
+
+The declarations of this section live in \code{Semantics/Substitution.lean}, which opens
+\code{namespace LBTerm} \emph{at the root}: \code{LBTerm.envLookup}, \code{LBTerm.shift} and their
+companions are root names, not \code{LeanToLambdaBox.*} ones. The last two definitions of the file,
+\code{mkLambdas} and its two lemmas, do sit in \code{namespace LeanToLambdaBox}.
+
+\begin{definition}[Environment lookup]
+\label{def:LBTerm-envLookup}
+\lean{ModPath.beq, Kername.beq, LBTerm.envLookup}
+\leanok
+\uses{def:GlobalDeclarations, def:Kername}
+$\mathtt{envLookup}\ \Gamma\ kn$ scans the environment and returns the declaration of the first entry
+whose kername is \code{Kername.beq}-equal to $kn$, where kername equality compares the module path
+structurally and the identifier by \code{String} equality. This is MetaRocq's \code{lookup\_env} with
+its \code{eq\_kername}, and it is the only way the semantics reads the environment: delta reduction,
+the propositional mark and constructor arities all go through it.
+\end{definition}
+
+\begin{definition}[Index shifting]
+\label{def:LBTerm-shift}
+\lean{LBTerm.shift, LBTerm.shiftArgs, LBTerm.shiftAlts, LBTerm.shiftDefs}
+\leanok
+\uses{def:LBTerm}
+$\mathtt{shift}\ d\ c\ t$ raises by $d$ every de Bruijn index of $t$ that is at least the cutoff $c$,
+pushing the cutoff up by one under a \code{lambda} and under a \code{letIn} body, by the branch's
+field count under a case alternative and by the block size under a \code{fix}. The convention is
+pinned to lean4lean's: $\mathtt{shift}\ d\ c$ is lean4lean's loose-index lift at cutoff $c$ by $d$,
+which is what lets the erasure relation of Chapter~\ref{chap:erases} line up source and target de
+Bruijn bookkeeping. The three list companions are hand-written traversals, again because the
+structural-recursion checker cannot see through \code{List.map} on a nested inductive.
+\end{definition}
+
+\begin{definition}[Substitution]
+\label{def:LBTerm-subst}
+\lean{LBTerm.subst, LBTerm.substArgs, LBTerm.substAlts, LBTerm.substDefs, LBTerm.subst1, LBTerm.substList}
+\leanok
+\uses{def:LBTerm-shift}
+$\mathtt{subst}\ s\ d\ t$ replaces the bound variable at depth $d$ by $s$, shifted by $d$ at the hit,
+and decrements every strictly higher index, with the same binder bookkeeping as \code{shift}; it is
+pinned to lean4lean's single-variable instantiation. $\mathtt{subst1}\ s\ t$ is the depth-$0$ case,
+the redex operation of the beta and zeta rules. $\mathtt{substList}\ ss\ t$ substitutes $ss$ for the
+indices $0,\dots,|ss|-1$ by folding \code{subst1} from the left --- substituting $ss[0]$ first lowers
+every higher index by one, which is exactly what the next step needs. This is MetaRocq's
+\code{substl}, the redex operation of the three iota rules and of fixpoint unfolding.
+\end{definition}
+
+\begin{definition}[Application spines]
+\label{def:LBTerm-mkApps}
+\lean{LBTerm.mkApps, LBTerm.spineHead, LBTerm.spineArgs}
+\leanok
+\uses{def:LBTerm}
+$\mathtt{mkApps}\ f\ [a_1,\dots,a_n]$ is the left-nested spine $(\dots((f\,a_1)\,a_2)\dots a_n)$,
+MetaRocq's \code{mkApps}; \code{spineHead} peels every application node (MetaRocq's
+\code{EAstUtils.head}) and \code{spineArgs} collects the arguments in order. The applied-form
+constructor values and the fixpoint-spine values of Section~\ref{sec:lambdabox:values} are exactly
+\code{mkApps}-shapes. Seven one-line \code{simp} lemmas accompany the definitions --- the empty spine,
+and the head and argument functions at a lambda, a box, a constructor node and a fixpoint node ---
+and serve only as rewriting fuel.
+\end{definition}
+
+\begin{lemma}[Spine decomposition]
+\label{lem:LBTerm-mkApps_concat}
+\lean{LBTerm.mkApps_concat, LBTerm.spineHead_mkApps, LBTerm.spineArgs_mkApps}
+\leanok
+\uses{def:LBTerm-mkApps}
+Appending one argument to a spine adds one application node,
+$\mathtt{mkApps}\ f\ (args \mathbin{+\mkern-10mu+} [a]) = \mathtt{app}\ (\mathtt{mkApps}\ f\ args)\ a$;
+a spine's head is the head of its own head,
+$\mathtt{spineHead}\ (\mathtt{mkApps}\ f\ args) = \mathtt{spineHead}\ f$; and its arguments are the
+head's arguments followed by the appended ones,
+$\mathtt{spineArgs}\ (\mathtt{mkApps}\ f\ args) = \mathtt{spineArgs}\ f \mathbin{+\mkern-10mu+} args$.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:LBTerm-mkApps}
+Each is an induction on the argument list, unfolding \code{mkApps}, \code{spineHead} and
+\code{spineArgs} at the \code{.app} node; the append cases follow by \code{simp} from the induction
+hypothesis.
+\end{proof}
+
+\begin{lemma}[Spine injectivity and disjointness]
+\label{lem:LBTerm-mkApps_construct_inj}
+\lean{LBTerm.mkApps_construct_inj, LBTerm.mkApps_fix_inj, LBTerm.mkApps_construct_ne_fix}
+\leanok
+\uses{def:LBTerm-mkApps}
+An applied-form constructor spine determines its data: if
+$\mathtt{mkApps}\ (\mathtt{construct}\ iid\ c\ [])\ args =
+ \mathtt{mkApps}\ (\mathtt{construct}\ iid'\ c'\ [])\ args'$
+then $iid = iid'$, $c = c'$ and $args = args'$; likewise a fixpoint spine determines its mutual
+block, its selected member and its accumulated arguments; and a constructor spine is never a
+fixpoint spine. These three facts are what replaces case analysis on an \code{mkApps}-indexed
+relation: they are how the determinism proof identifies two derivations' discriminees and keeps the
+constructor rule apart from the fixpoint rules.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{lem:LBTerm-mkApps_concat}
+Apply the spine-head and spine-argument lemmas to both sides. The heads reduce to the bare
+\code{construct} (respectively \code{fix}) nodes by the \code{simp} spine lemmas, giving the
+identifier and index by constructor injectivity, and the argument lists coincide because the
+arguments of a non-application head are empty. Disjointness is the same computation, the two heads
+being distinct constructors of \code{LBTerm}.
+\end{proof}
+
+\begin{definition}[The fixpoint-unfolding substitution]
+\label{def:LBTerm-fixSubst}
+\lean{LBTerm.fixSubst}
+\leanok
+\uses{def:LBTerm, def:FixDef}
+$\mathtt{fixSubst}\ defs$ is the list
+$[\mathtt{fix}\ defs\ (n-1),\dots,\mathtt{fix}\ defs\ 1,\mathtt{fix}\ defs\ 0]$ for $n = |defs|$,
+MetaRocq's \code{fix\_subst}: index $i$ of a fixpoint body refers to member $n-1-i$ of its own block.
+The reversal is invisible for a single-member block and load-bearing for a mutual one; it is pinned
+by the two-member witness of Lemma~\ref{lem:mf_fixSubst}.
+\end{definition}
+
+\begin{definition}[\texorpdfstring{A \code{Prop}-motive recursor for \code{LBTerm}}{A Prop-motive recursor for LBTerm}]
+\label{def:LBTerm-recData}
+\lean{LBTerm.recData}
+\leanok
+\uses{def:LBTerm}
+\code{LBTerm} is a \emph{nested} inductive --- lists of subterms occur inside \code{construct},
+\code{case} and \code{fix} --- so plain induction on a term is rejected by Lean. \code{recData} is
+the development's standard replacement: an \code{elab\_as\_elim} eliminator with a \code{Prop} motive
+whose list-carrying arms hand back membership hypotheses (``$P$ holds of every argument'', ``of every
+alternative's body'', ``of every definition's body'') instead of raw nested motives. It is defined by
+\code{refine} on the kernel recursor with six motives and is used throughout the later chapters.
+\end{definition}
+
+\begin{lemma}[The hand-rolled traversals are maps]
+\label{lem:LBTerm-shiftArgs_eq_map}
+\lean{LBTerm.shiftArgs_eq_map, LBTerm.substArgs_eq_map, LBTerm.shiftAlts_eq_map, LBTerm.substAlts_eq_map, LBTerm.shiftDefs_eq_map, LBTerm.substDefs_eq_map}
+\leanok
+\uses{def:LBTerm-shift, def:LBTerm-subst}
+Each of the six list companions of \code{shift} and \code{subst} equals the corresponding
+\code{List.map}: for arguments, pointwise $\mathtt{shift}\ d\ c$ respectively
+$\mathtt{subst}\ s\ d$; for case alternatives, the binder list is kept and the cutoff (respectively
+depth) is raised by that branch's own field count; for fixpoint definitions, only the body is
+traversed and the cutoff does not move, the bodies already living under the block's binders.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:LBTerm-shift, def:LBTerm-subst}
+List induction, unfolding one step of the mutual definition in each case. These six are the bridge
+every \code{recData} induction needs, its goal speaking of \code{map} where the definitions unfold to
+the helpers.
+\end{proof}
+
+\begin{definition}[Lambda telescopes]
+\label{def:mkLambdas}
+\lean{LeanToLambdaBox.mkLambdas}
+\leanok
+\uses{def:LBTerm, def:BinderName}
+$\mathtt{mkLambdas}\ names\ body$ wraps $body$ in one \code{lambda} per binder name, outermost binder
+first --- the shape a case alternative's (field names, body) pair takes when read back as a minor
+function, which is how the lowering of Chapter~\ref{chap:lowering} turns branches into functions.
+\end{definition}
+
+\begin{lemma}[Telescopes commute with the de Bruijn kit]
+\label{lem:shift_mkLambdas}
+\lean{LeanToLambdaBox.shift_mkLambdas, LeanToLambdaBox.subst_mkLambdas}
+\leanok
+\uses{def:mkLambdas, def:LBTerm-shift, def:LBTerm-subst}
+$\mathtt{shift}\ d\ c\ (\mathtt{mkLambdas}\ names\ body) =
+ \mathtt{mkLambdas}\ names\ (\mathtt{shift}\ d\ (c + |names|)\ body)$
+and
+$\mathtt{subst}\ s\ d\ (\mathtt{mkLambdas}\ names\ body) =
+ \mathtt{mkLambdas}\ names\ (\mathtt{subst}\ s\ (d + |names|)\ body)$:
+shifting and substitution pass a lambda telescope, raising the cutoff (respectively the depth) by the
+telescope's length.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:mkLambdas, def:LBTerm-shift, def:LBTerm-subst}
+Induction on the list of names, unfolding one \code{lambda} per step and re-associating the $+1$ into
+the telescope length.
+\end{proof}
+
+\subsection*{Closedness and the commutation kit}
+
+The remaining declarations of this section live in \code{LeanToLambdaBox/Closed.lean}, in
+\code{namespace LeanToLambdaBox}. They are pure target-side de Bruijn metatheory, developed
+independently of the erasure relation.
+
+\begin{definition}[De Bruijn closedness of a target term]
+\label{def:LBClosed}
+\lean{LeanToLambdaBox.LBClosed, LeanToLambdaBox.LBClosedArgs, LeanToLambdaBox.LBClosedAlts, LeanToLambdaBox.LBClosedDefs, LeanToLambdaBox.LBClosedArgs_iff, LeanToLambdaBox.LBClosedAlts_iff, LeanToLambdaBox.LBClosedDefs_iff}
+\leanok
+\uses{def:LBTerm}
+$\mathtt{LBClosed}\ t\ k$ holds when no loose de Bruijn index $\ge k$ occurs in $t$ --- the
+\code{LBTerm} analogue of lean4lean's closedness predicate, defined by the same mutual recursion as
+\code{shift}, with the bound raised by one under a \code{lambda} and under a \code{letIn} body, by
+the branch's field count under an alternative, and by the block size under a \code{fix}. Two arms are
+worth naming: free variables are \emph{not} constrained, that being a different predicate's job, and
+the fixpoint arm raises the bound by the block's own size, because a fixpoint node's bodies live
+under one binder per definition. Three list helpers exist so that the structural-recursion checker
+sees through the nested list occurrences; each is proved equivalent to the pointwise statement.
+\end{definition}
+
+\begin{lemma}[Shift and substitution are inert on closed terms]
+\label{lem:LBClosed-shift_eq}
+\lean{LeanToLambdaBox.LBClosed.shift_eq, LeanToLambdaBox.LBClosed.subst_eq, LeanToLambdaBox.lbClosed_of_shift_eq}
+\leanok
+\uses{def:LBClosed, def:LBTerm-shift, def:LBTerm-subst}
+If $t$ is closed below $k$ and the cutoff $c \ge k$, then neither $\mathtt{shift}\ d\ c$ nor
+$\mathtt{subst}\ s\ c$ touches any index of $t$. Conversely, at unit shift with the bound as the
+cutoff, a term fixed by the shift has no loose index at or above that bound --- which turns a
+shift-inertness \emph{equation} into a closedness \emph{fact}.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:LBClosed, def:LBTerm-recData, lem:LBTerm-shiftArgs_eq_map}
+One induction over \code{recData}, which supplies per-list membership induction hypotheses, threading
+$k \le c$ under each binder; the variable case is the arithmetic comparison. The converse is the same
+induction read backwards, with a list-level helper turning a ``the map fixes the list'' equation into
+a pointwise one.
+\end{proof}
+
+\begin{lemma}[The arithmetic of closedness]
+\label{lem:LBClosed-substList}
+\lean{LeanToLambdaBox.LBClosed.mono, LeanToLambdaBox.LBClosed.shift, LeanToLambdaBox.LBClosed.subst_gen, LeanToLambdaBox.LBClosed.subst, LeanToLambdaBox.LBClosed.subst1, LeanToLambdaBox.LBClosed.substList, LeanToLambdaBox.LBClosed.mkApps, LeanToLambdaBox.LBClosed.mkApps_inv, LeanToLambdaBox.LBClosed.mkLambdas, LeanToLambdaBox.LBClosed.mkLambdas_inv}
+\leanok
+\uses{def:LBClosed, def:LBTerm-mkApps, def:mkLambdas}
+Closedness is monotone in the bound; a shift by $d$ raises the bound by $d$; substituting a
+\textbf{closed} term at depth $k$ lowers the bound from $k+1$ to $k$; simultaneous substitution of a
+list of closed terms closes the term outright; and closedness passes through the spine and telescope
+builders in both directions.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:LBClosed, lem:LBClosed-shift_eq, def:LBTerm-recData}
+Each is an induction over the target syntax with the bound generalised; the substitution laws
+case-split on the comparison of the index with the depth, and the inertness lemma discharges the
+branch where the substitution misses.
+\end{proof}
+
+\begin{lemma}[The de Bruijn commutation kit]
+\label{lem:LBTerm-subst_subst}
+\lean{LeanToLambdaBox.LBTerm.subst_subst, LeanToLambdaBox.LBTerm.subst_subst_gen, LeanToLambdaBox.LBTerm.shift_shift, LeanToLambdaBox.LBTerm.subst_shift_cancel, LeanToLambdaBox.LBTerm.subst_shift_comm, LeanToLambdaBox.LBTerm.substList_append, LeanToLambdaBox.LBTerm.substList_concat}
+\leanok
+\uses{def:LBTerm-shift, def:LBTerm-subst}
+Two shifts collapse into one when the outer cutoff lies inside the band the inner shift opened; a
+substitution inside that band lowers the shift by one; a substitution commutes with an outer shift,
+pushing its depth; and the standard distribution law holds,
+$$\mathtt{subst}\ s\ d\ (\mathtt{subst}\ t\ 0\ u) =
+  \mathtt{subst}\ (\mathtt{subst}\ s\ d\ t)\ 0\ (\mathtt{subst}\ s\ (d+1)\ u),$$
+with the number of binders crossed kept general in the auxiliary form. Simultaneous substitution
+sequences one-term substitutions left to right, so it splits along list append and along a trailing
+element.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:LBTerm-recData, lem:LBTerm-shiftArgs_eq_map, def:LBTerm-shift, def:LBTerm-subst}
+Induction over the target syntax with the two depths generalised. The arithmetic side conditions are
+carried as \emph{equations} rather than baked into the statement, so crossing a binder is an
+arithmetic step rather than a rewrite; this is the reason each law has a general auxiliary form from
+which the headline statement is the instance at depth $0$.
+\end{proof}
+
+\begin{lemma}[Pushing a substitution out through a block of binders]
+\label{lem:LBTerm-substList_reverse_subst}
+\lean{LeanToLambdaBox.LBTerm.substList_reverse_subst}
+\leanok
+\uses{def:LBClosed, def:LBTerm-subst}
+Substituting $f$ under the $|rest|$ binders that a list is about to fill is the same as filling them
+first and substituting $f$ at depth $0$ --- \textbf{provided every term in the list is closed}. The
+proviso is not slack: a counterexample with discriminee $\mathtt{bvar}\ 0$ and a constant-function
+body is recorded in the sources, and this is exactly why MetaRocq's evaluation relation carries
+closedness side conditions throughout.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{lem:LBTerm-subst_subst, lem:LBClosed-shift_eq}
+Induction on the list. The step uses the distribution law to move the outer substitution past one
+element, and that element's closedness to make the inner substitution inert on it.
+\end{proof}
+
+\begin{lemma}[Closedness of the binder-closing folds]
+\label{lem:lbClosed_fix_of_bodies}
+\lean{LeanToLambdaBox.lbClosed_fix_of_bodies, LeanToLambdaBox.lbClosed_toBvar, LeanToLambdaBox.lbClosed_foldl_toBvar, LeanToLambdaBox.lbClosed_foldl_zipIdx, LeanToLambdaBox.lbClosed_foldl_zipIdx_map}
+\leanok
+\uses{def:LBClosed, def:toBvar, def:FixDef}
+Closing a body over a list of free variables by folding the abstraction operator at successive levels
+takes a body closed at $0$ to one closed at the list's length, with a name-indexed variant for the
+fixpoint builder; consequently a block of bodies each closed at the block's own size is a closed
+fixpoint node, at every index.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:LBClosed, def:toBvar}
+The fold lemmas are inductions on the list of names. The fixpoint statement is then the definitional
+unfolding of the fixpoint arm of \code{LBClosed} at bound $0$ plus the length equation. Note that
+closedness of a fixpoint node is not a property of an arbitrary block --- a body $\mathtt{bvar}\ 5$
+refutes it --- but of one whose bodies were closed over exactly the block's own names, which is what
+the eraser's definition builder does.
+\end{proof}
+
+\section{Evaluation flags and environment queries}
+\label{sec:lambdabox:flags}
+
+\begin{definition}[Evaluation flags]
+\label{def:WcbvFlags}
+\lean{LeanToLambdaBox.WcbvFlags}
+\leanok
+A triple of Booleans parameterising weak call-by-value evaluation, in exact correspondence with
+MetaRocq's \code{EWcbvEval.WcbvFlags} [S, \S7.4]. \code{with\_prop\_case} enables the two
+propositional reduction rules: a case or projection whose discriminee is an erased proof, hence the
+box, reduces by substituting boxes. \code{with\_guarded\_fix} makes a fixpoint unfold only once its
+principal argument has arrived, as in Rocq and Lean, rather than on any argument.
+\code{with\_constructor\_as\_block} chooses between the two \lbox{} constructor conventions:
+arguments stored inside the \code{construct} node (block form) or accumulated by application
+(applied form).
+\end{definition}
+
+\begin{definition}[The four flag points]
+\label{def:eraseFlags}
+\lean{LeanToLambdaBox.eraseFlags, LeanToLambdaBox.entryFlags, LeanToLambdaBox.blockFlags, LeanToLambdaBox.propBlockFlags}
+\leanok
+\uses{def:WcbvFlags}
+Four points of the flag cube are named. \code{eraseFlags} --- prop-case off, guarded fix, applied
+constructors --- is MetaRocq's \code{opt\_wcbv\_flags} and is \textbf{the distinguished target
+semantics of this development}: the erasure-correctness theorem, the capstone and every green rung
+are stated at it. \code{entryFlags} --- prop-case on, guarded fix, applied constructors --- is
+MetaRocq's \code{default\_wcbv\_flags}, the point peregrine's \code{untyped\_transform\_pipeline}
+declares for its input. \code{blockFlags} and \code{propBlockFlags} are their block-constructor
+counterparts, the target and source of the \code{optimize} pass's correctness statement in
+Chapter~\ref{chap:lowering}.
+\end{definition}
+
+\begin{definition}[The propositional mark]
+\label{def:isPropositionalInductive}
+\lean{LeanToLambdaBox.isPropositionalInductive}
+\leanok
+\uses{def:LBTerm-envLookup, def:OneInductiveBody, def:InductiveId}
+Looks the mutual block up in the environment, selects the indicated member and returns its
+\code{propositional} mark, answering \code{false} on any lookup failure. It is the Boolean component
+of MetaRocq's \code{inductive\_isprop\_and\_pars}, and it guards five evaluation rules: \code{iota},
+\code{iota\_block}, \code{proj} and \code{proj\_block} require it \code{false}, while
+\code{iota\_sing} and \code{proj\_prop} require it \code{true}.
+\end{definition}
+
+\begin{definition}[Constructor arity]
+\label{def:constructorArity}
+\lean{LeanToLambdaBox.constructorArity}
+\leanok
+\uses{def:LBTerm-envLookup, def:OneInductiveBody}
+The declared arity of a constructor: the block's parameter count plus the constructor's own field
+count, MetaRocq's $\mathtt{cstr\_arity} = \mathtt{ind\_npars} + \mathtt{cstr\_nargs}$; \code{none}
+when the block, the body or the constructor is undeclared. It plays two roles at once in applied
+form: it is the declaredness side condition of the nullary-constructor rule, and the saturation bound
+beyond which a constructor spine stops accumulating arguments.
+\end{definition}
+
+\begin{definition}[Collapsible case nodes]
+\label{def:wouldCollapse}
+\lean{LeanToLambdaBox.wouldCollapse}
+\leanok
+\uses{def:isPropositionalInductive}
+True exactly when the inductive is propositional and the branch list is a singleton: the decidable
+characterisation of the case nodes that the propositional singleton rule fires on and that the
+\code{optimize} pass of Chapter~\ref{chap:lowering} collapses. It is read only by that pass, never by
+the semantics itself.
+\end{definition}
+
+\section{Values}
+\label{sec:lambdabox:values}
+
+\begin{definition}[Head atoms and head-shape tests]
+\label{def:atomValue}
+\lean{LeanToLambdaBox.atomValue, LeanToLambdaBox.isLambda, LeanToLambdaBox.isBox, LeanToLambdaBox.isFix, LeanToLambdaBox.isConstruct, LeanToLambdaBox.isPrim, LeanToLambdaBox.isFixApp, LeanToLambdaBox.isConstructApp, LeanToLambdaBox.isPrimApp}
+\leanok
+\uses{def:LBTerm, def:LBTerm-mkApps}
+$\mathtt{atomValue}\ t$ holds for the head atoms of \lbox{} --- the box, a lambda abstraction, a free
+variable (the locally nameless addition), a primitive, and a bare fixpoint node --- and for nothing
+else. It is MetaRocq's \code{atom} minus its flag-dependent nullary-\code{tConstruct} clause, which
+is handled separately below; note that a constant is deliberately \emph{not} an atom, since it delta
+reduces. Alongside it sit the five head-shape tests of MetaRocq's \code{EAstUtils} and their spine
+variants \code{isFixApp}, \code{isConstructApp} and \code{isPrimApp}, each obtained by applying the
+corresponding test to \code{spineHead}. \code{atomValue} is decidable, by an anonymous instance whose
+generated name is not cited here.
+\end{definition}
+
+\begin{definition}[Stuck application heads]
+\label{def:isStuckApp}
+\lean{LeanToLambdaBox.isStuckApp}
+\leanok
+\uses{def:atomValue, def:WcbvFlags}
+An evaluated function head is \emph{stuck} when none of the application rules can apply to it: it is
+not a lambda, not a fixpoint (under guarded recursion: not the head of a fixpoint spine), not the
+box, not the head of a constructor spine and not the head of a primitive application. This is the
+literal negated side condition of MetaRocq's \code{eval\_app\_cong}, minus its \code{isLazyApp}
+disjunct, there being no \code{tLazy} in \code{LBTerm}; the \code{with\_guarded\_fix} bit selects
+between testing the spine head and the term itself, exactly as MetaRocq does.
+\end{definition}
+
+\begin{definition}[Weak call-by-value normal forms]
+\label{def:Value}
+\lean{LeanToLambdaBox.Value, LeanToLambdaBox.Value.atom, LeanToLambdaBox.Value.construct_block, LeanToLambdaBox.Value.construct_nil, LeanToLambdaBox.Value.construct_app_val, LeanToLambdaBox.Value.app_stuck, LeanToLambdaBox.Value.fix_app_val}
+\leanok
+\uses{def:atomValue, def:isStuckApp, def:constructorArity, def:LBTerm-mkApps, def:WcbvFlags, def:FixDef}
+$\mathtt{Value}\ \Gamma\ fl\ t$ is MetaRocq's \code{EWcbvEval.value}, relative to an environment and
+a flag setting; the environment parameter is needed, as in MetaRocq, because in applied form a
+constructor spine is a value only while it stays strictly under the declared arity. There are six
+clauses. A head atom is a value (\code{atom}). In block mode, a constructor node all of whose
+arguments are values (\code{construct\_block}). In applied mode, the bare head of a \emph{declared}
+constructor (\code{construct\_nil}), and such a spine extended by one value argument while strictly
+under the arity (\code{construct\_app\_val}) --- together these generate MetaRocq's constructor-headed
+spines. A stuck head applied to a value (\code{app\_stuck}), which is how \code{fvar}-headed spines
+are values. And, under guarded recursion, a fixpoint spine still strictly under its principal
+argument index, applied to a value (\code{fix\_app\_val}), generating MetaRocq's fixpoint-headed
+spines.
+\end{definition}
+
+\begin{remark}
+This is where design decision (ii) of the chapter overview becomes visible: the two spine clauses are
+stated \textbf{structurally over \code{.app}}, with the spine shape carried as a premise equation, so
+that \code{Value} remains invertible by case analysis; MetaRocq indexes the corresponding clause by
+$\mkApps f\ args$ directly. Compare [S, Fig.~12].
+\end{remark}
+
+\section{Weak call-by-value evaluation}
+\label{sec:lambdabox:eval}
+
+\begin{definition}[Weak call-by-value evaluation]
+\label{def:WcbvEval}
+\lean{LeanToLambdaBox.WcbvEval, LeanToLambdaBox.WcbvEval.box, LeanToLambdaBox.WcbvEval.lam, LeanToLambdaBox.WcbvEval.fvar, LeanToLambdaBox.WcbvEval.prim, LeanToLambdaBox.WcbvEval.fix_atom, LeanToLambdaBox.WcbvEval.beta, LeanToLambdaBox.WcbvEval.app_box, LeanToLambdaBox.WcbvEval.zeta, LeanToLambdaBox.WcbvEval.delta, LeanToLambdaBox.WcbvEval.construct, LeanToLambdaBox.WcbvEval.construct_atom, LeanToLambdaBox.WcbvEval.construct_app, LeanToLambdaBox.WcbvEval.iota, LeanToLambdaBox.WcbvEval.iota_block, LeanToLambdaBox.WcbvEval.iota_sing, LeanToLambdaBox.WcbvEval.proj, LeanToLambdaBox.WcbvEval.proj_block, LeanToLambdaBox.WcbvEval.proj_prop, LeanToLambdaBox.WcbvEval.fix_guarded, LeanToLambdaBox.WcbvEval.fix_stuck, LeanToLambdaBox.WcbvEval.fix_unguarded, LeanToLambdaBox.WcbvEval.app_cong}
+\leanok
+\uses{def:WcbvFlags, def:isPropositionalInductive, def:constructorArity, def:isStuckApp, def:LBTerm-envLookup, def:LBTerm-subst, def:LBTerm-mkApps, def:LBTerm-fixSubst, def:LBTerm, def:GlobalDeclarations}
+The target semantics of the whole verification: a big-step relation
+$\Gamma \vdash t \Downarrow_{fl} v$ evaluating a \lbox{} term to a value, relative to a global
+environment (for delta reduction and inductive metadata) and a flag setting. It is the Lean
+counterpart of MetaRocq's \code{EWcbvEval.eval} [S, \S7.1], with \textbf{twenty-two rules}, whose
+correspondence with MetaRocq is recorded in the module header and reproduced here.
+
+\begin{center}
+\begin{tabular}{lll}
+\textbf{rule} & \textbf{MetaRocq} & \textbf{flag guard} \\
+\hline
+\code{box}, \code{lam}, \code{fvar}, \code{prim}, \code{fix\_atom}
+  & \code{eval\_atom} (decomposed by head) & --- \\
+\code{beta} & \code{eval\_beta} & --- \\
+\code{app\_box} & \code{eval\_box} & --- \\
+\code{zeta} & \code{eval\_zeta} & --- \\
+\code{delta} & \code{eval\_delta} & --- \\
+\code{construct} & \code{eval\_construct\_block} & block \\
+\code{construct\_atom} & \code{eval\_atom} on a nullary head & applied \\
+\code{construct\_app} & \code{eval\_construct} & applied \\
+\code{iota} & \code{eval\_iota} & applied, non-\code{Prop} \\
+\code{iota\_block} & \code{eval\_iota\_block} & block, non-\code{Prop} \\
+\code{iota\_sing} & \code{eval\_iota\_sing} & prop-case \\
+\code{proj} & \code{eval\_proj} & applied, non-\code{Prop} \\
+\code{proj\_block} & \code{eval\_proj\_block} & block, non-\code{Prop} \\
+\code{proj\_prop} & \code{eval\_proj\_prop} & prop-case \\
+\code{fix\_guarded} & \code{eval\_fix} & guarded fix \\
+\code{fix\_stuck} & \code{eval\_fix\_value} & guarded fix \\
+\code{fix\_unguarded} & \code{eval\_fix'} & unguarded fix \\
+\code{app\_cong} & \code{eval\_app\_cong} & head stuck \\
+\end{tabular}
+\end{center}
+
+In words. The five \emph{atom} rules send the box, a lambda abstraction, a free variable, a primitive
+and a bare fixpoint node each to itself; no reduction happens under a binder. \emph{Beta}: if the
+function evaluates to $\mathtt{lambda}\ n\ b$ and the argument to $av$, the application evaluates to
+whatever $\mathtt{subst1}\ av\ b$ evaluates to. \emph{The box rule}: if the function evaluates to the
+box and the argument evaluates at all, the application evaluates to the box, $\Box\,x \to \Box$ ---
+Letouzey's amendment [L, Def.~5]. The argument's value is discarded but it \emph{is} evaluated, which
+the source comment flags as required both for faithfulness and for determinism. \emph{Zeta}: a
+\code{letIn} evaluates its value and then the body with it substituted. \emph{Delta}: a constant
+whose environment entry is a constant declaration \emph{with} a body evaluates to whatever that body
+evaluates to; a body-less entry, \ie{} an axiom, is stuck.
+
+\emph{Constructors} come in two regimes. In block form, a constructor node evaluates componentwise,
+its argument list evaluating pointwise to a list of the same length. In applied form, the bare head
+of a \emph{declared} constructor is a value, and an application whose function evaluates to an
+under-applied spine $\mathtt{mkApps}\ (\mathtt{construct}\ iid\ c\ [])\ args$ --- with $|args|$
+strictly below the declared arity --- accumulates the evaluated argument onto that spine. A saturated
+head has no rule, and the congruence rule excludes constructor-headed spines, so over-application is
+stuck: exactly MetaRocq's ``no over-applications''.
+
+\emph{Iota} comes in three forms. \code{iota} (applied form, non-propositional): the discriminee
+evaluates to a spine $\mathtt{mkApps}\ (\mathtt{construct}\ iid\ k\ [])\ args$, alternative $k$ is a
+pair $(names, body)$, the fields left after dropping the node's $np$ parameters match the binder
+count, and the case evaluates to whatever
+$\mathtt{substList}\ ((args.\mathtt{drop}\ np).\mathtt{reverse})\ body$ evaluates to --- MetaRocq's
+$\mathtt{iota\_red}$. \code{iota\_block} is the same with a block discriminee. \code{iota\_sing},
+guarded by the prop-case bit, is Letouzey's second amendment [L, Def.~8]: a \emph{single-branch} case
+on a \emph{propositional} inductive whose discriminee evaluates to the box reduces by substituting
+$|names|$ boxes into the sole branch.
+
+\emph{Projection} comes in the same three forms: \code{proj} selects the field at index
+$\mathtt{paramCount} + \mathtt{fieldIdx}$ from a constructor-$0$ spine of a non-propositional
+inductive and evaluates it, \code{proj\_block} does the same on a block discriminee, and
+\code{proj\_prop}, guarded by the prop-case bit, sends a projection of a propositional discriminee
+that evaluates to the box to the box.
+
+\emph{Fixpoints}. Under guarded recursion the rules dispatch on the \emph{evaluated} function head, a
+spine $\mathtt{mkApps}\ (\mathtt{fix}\ defs\ idx)\ argsv$: \code{fix\_guarded} fires when the
+accumulated argument count equals the selected member's \code{principalArgIdx} --- the principal
+argument has just arrived --- unfolding the block by $\mathtt{substList}\ (\mathtt{fixSubst}\ defs)$
+and applying the unfolded body to $argsv$ and then to the new argument; \code{fix\_stuck} applies
+while the spine is strictly under that index and simply accumulates, yielding a value. Under
+unguarded recursion, \code{fix\_unguarded} unfolds a \emph{bare} fixpoint head on every argument.
+
+\emph{Congruence}: if the function evaluates to a value head that is stuck in the sense of
+\code{isStuckApp} and the argument evaluates, the application evaluates to the application of the two
+values. This is the only rule producing an \code{fvar}-headed spine. Finally, there is no
+\code{cofix} rule, \code{LBTerm} having no cofixpoint node, so MetaRocq's \code{eval\_cofix\_case} and
+\code{eval\_cofix\_proj} are unrepresentable.
+\end{definition}
+
+\begin{remark}[The faithfulness gap]
+The module header asserts that at the non-block flags the model matches \code{EWcbvEval.eval}
+rule-for-rule. It does not, quite. MetaRocq's \code{eval\_iota} carries a premise tying the case
+node's parameter count to the inductive's \emph{declared} number of parameters, and a saturation
+premise requiring the discriminee spine to have exactly the constructor's arity many arguments. The
+Lean \code{iota} checks only that the inductive is non-propositional and that the fields remaining
+after dropping the node's own $np$ match the branch's binder count: the node's $np$ is never compared
+with the declared parameter count, and the spine is never required to be saturated. The same holds
+for \code{iota\_block}, \code{iota\_sing}, \code{proj} and \code{proj\_block}. Determinism is
+unaffected, $np$ being part of the node, but \WcbvEval{} is strictly \emph{more permissive} than
+\code{EWcbvEval} on ill-formed input, so a target-evaluation conclusion proved against this relation
+is weaker than the same statement against MetaRocq's. This is recorded as a finding, not repaired.
+\end{remark}
+
+\begin{definition}[The block-form abbreviations]
+\label{def:Eval}
+\lean{LeanToLambdaBox.Eval, LeanToLambdaBox.EvalProp}
+\leanok
+\uses{def:WcbvEval, def:eraseFlags}
+$\mathtt{Eval}\ \Gamma$ is $\WcbvEval\ \Gamma\ \mathtt{blockFlags}$ and
+$\mathtt{EvalProp}\ \Gamma$ is $\WcbvEval\ \Gamma\ \mathtt{propBlockFlags}$: block-form evaluation
+with propositional cases off and on respectively. They exist only so that the \code{optimize} pass of
+Chapter~\ref{chap:lowering} --- whose correctness statement removes propositional cases --- can be
+phrased as a relation between them.
+\end{definition}
+
+\section{Metatheory}
+\label{sec:lambdabox:metatheory}
+
+\code{Semantics/Metatheory.lean} opens with the requirement that every result in the file be free of
+\code{sorryAx}. Since none of them mentions lean4lean, the requirement is met by construction, and
+the measured footprints confirm it.
+
+\begin{lemma}[Stuckness is disjoint from the spine rules]
+\label{lem:isStuckApp_construct_spine}
+\lean{LeanToLambdaBox.isStuckApp_construct_spine, LeanToLambdaBox.isStuckApp_fix_spine, LeanToLambdaBox.isStuckApp_construct, LeanToLambdaBox.isStuckApp_fix_bare}
+\leanok
+\uses{def:isStuckApp, def:LBTerm-mkApps}
+At any flags, an applied-form constructor spine, a bare block constructor node and a bare fixpoint
+head are never stuck application heads; under guarded recursion a fixpoint spine is never one either.
+These are MetaRocq's negated side conditions of \code{eval\_app\_cong} turned into lemmas, and they
+are what keeps the congruence rule disjoint from the constructor and fixpoint rules.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{lem:LBTerm-mkApps_concat, def:atomValue, def:isStuckApp}
+Unfold \code{isStuckApp} and compute the relevant disjunct: the spine-head lemma reduces the spine's
+head to the bare \code{construct} (respectively \code{fix}) node, so the corresponding spine test is
+true and the negation collapses. The bare cases are immediate by \code{simp}; the guarded-fix
+hypothesis is needed only to select the fixpoint-spine branch of the conditional.
+\end{proof}
+
+\begin{theorem}[Values are final]
+\label{thm:value_final}
+\lean{LeanToLambdaBox.value_final}
+\leanok
+\uses{def:Value, def:WcbvEval}
+Every weak call-by-value normal form evaluates to itself: $\mathtt{Value}\ \Gamma\ fl\ v$ implies
+$\Gamma \vdash v \Downarrow_{fl} v$. This is MetaRocq's \code{value\_final}. The Lean statement is
+parametric in the flags: no specialisation to \code{eraseFlags} is smuggled in.
+\end{theorem}
+\begin{proof}
+\leanok
+\uses{def:Value, def:WcbvEval, def:atomValue}
+Induction on the \code{Value} derivation, mapping each of the six clauses to the corresponding
+evaluation rule: \code{atom} to the five atom rules by case analysis on \code{atomValue},
+\code{construct\_block} to \code{construct}, \code{construct\_nil} to \code{construct\_atom},
+\code{construct\_app\_val} to \code{construct\_app}, \code{app\_stuck} to \code{app\_cong} and
+\code{fix\_app\_val} to \code{fix\_stuck}. Each spine clause re-uses its own premise equation to put
+the goal in \code{mkApps} shape.
+\end{proof}
+
+\begin{theorem}[Evaluation produces values]
+\label{thm:eval_to_value}
+\lean{LeanToLambdaBox.eval_to_value}
+\leanok
+\uses{def:WcbvEval, def:Value}
+If $t$ evaluates to $v$ then $v$ is a value: MetaRocq's \code{eval\_to\_value}, again flag-parametric.
+\end{theorem}
+\begin{proof}
+\leanok
+\uses{def:Value, def:WcbvEval, def:atomValue}
+Induction on the evaluation. The atom rules land in the \code{atom} clause; the rules whose
+conclusion is the result of a recursive premise inherit the induction hypothesis; and the three
+interesting arms build a value from a spine --- \code{construct\_app} yields
+\code{construct\_app\_val}, \code{fix\_stuck} yields \code{fix\_app\_val}, and \code{app\_cong} yields
+\code{app\_stuck}, each feeding its own side condition (the arity bound, the principal-argument
+bound, the stuckness test) into the corresponding \code{Value} clause.
+\end{proof}
+
+\begin{theorem}[Determinism]
+\label{thm:eval_deterministic}
+\lean{LeanToLambdaBox.eval_deterministic}
+\leanok
+\uses{def:WcbvEval}
+A \lbox{} term has at most one value under a fixed environment and flag setting: two evaluations of
+the same term have equal results. MetaRocq's \code{eval\_deterministic}.
+\end{theorem}
+\begin{proof}
+\leanok
+\uses{lem:LBTerm-mkApps_construct_inj, lem:LBTerm-mkApps_concat, lem:isStuckApp_construct_spine, def:isStuckApp, def:LBTerm-mkApps, def:WcbvEval}
+A single induction on the first derivation, inverting the second in each case; about 240 lines of
+Lean. All the difficulty is in the seven rules whose subject is an \code{.app} node. They are
+separated by the \emph{shape of the evaluated function head} --- lambda, box, constructor spine,
+fixpoint spine, bare fixpoint, stuck head --- which the induction hypothesis pins down, since each
+rule's head premise evaluates the same function. Spine identity is recovered by the spine-head lemma
+together with the two \code{mkApps} injectivity lemmas; the constructor and fixpoint spines are kept
+apart by the disjointness lemma; and the congruence rule is excluded against the four spine rules by
+the stuckness lemmas. The block and applied pairs, and the two propositional rules, never collide
+because their flag guards are contradictory.
+\end{proof}
+
+\begin{corollary}[A value evaluates only to itself]
+\label{cor:eval_value}
+\lean{LeanToLambdaBox.eval_value}
+\leanok
+\uses{def:Value, def:WcbvEval}
+If $v$ is a value and $v$ evaluates to $v'$, then $v = v'$. This is MetaRocq's \code{eval\_value}.
+\end{corollary}
+\begin{proof}
+\leanok
+\uses{thm:value_final, thm:eval_deterministic}
+Finality gives $v \Downarrow v$; determinism applied to that and to the hypothesis gives $v = v'$.
+\end{proof}
+
+\begin{lemma}[Derivation irrelevance]
+\label{lem:eval_unique}
+\lean{LeanToLambdaBox.eval_unique}
+\leanok
+\uses{def:WcbvEval}
+Any two derivations of the same evaluation judgement are equal.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:WcbvEval}
+By \code{rfl}: \WcbvEval{} is \code{Prop}-valued, so this is proof irrelevance. MetaRocq's
+\code{eval\_unique} needs a real argument, its relation being \code{Type}-level.
+\end{proof}
+
+\begin{lemma}[A spine's head evaluates]
+\label{lem:WcbvEval-head_value_of_mkApps}
+\lean{LeanToLambdaBox.WcbvEval.head_value_of_mkApps}
+\leanok
+\uses{def:WcbvEval, def:LBTerm-mkApps}
+If an application spine evaluates, so does its head: from
+$\mathtt{mkApps}\ f\ as \Downarrow r$ one obtains some $fv$ with $f \Downarrow fv$.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:WcbvEval, def:LBTerm-mkApps}
+Induction on the argument list. The empty case is the hypothesis itself; in the cons case the spine
+is an \code{.app} node, and every application rule of \WcbvEval{} has a premise evaluating the
+function, so inverting the derivation yields an evaluation of the shorter spine, to which the
+induction hypothesis applies.
+\end{proof}
+
+\begin{proposition}[Applications depend on subterms only through values]
+\label{prop:WcbvEval-app_congr}
+\lean{LeanToLambdaBox.WcbvEval.app_congr}
+\leanok
+\uses{def:WcbvEval}
+If $f$ and $f'$ have a common value, $a$ and $a'$ have a common value, and $f\,a$ evaluates to $r$,
+then $f'\,a'$ evaluates to $r$. In other words the evaluation of an application reads its two
+subterms only through their values, never through their syntax. This is the syntax-independence
+principle the erasure simulation of Chapter~\ref{chap:correctness} needs whenever it replaces a
+source spine's components by related target ones.
+\end{proposition}
+\begin{proof}
+\leanok
+\uses{thm:eval_deterministic, def:WcbvEval}
+A case analysis on the given evaluation --- not an induction --- which is possible precisely because
+every \code{.app} rule has exactly one premise about the function and one about the argument, and
+none inspects their syntax. In each case determinism rewrites the head premise's value to the common
+value and the argument premise's likewise, and the same rule is re-applied with the primed
+evaluations in place of the originals; the side conditions (arity bound, principal-argument index,
+stuckness) speak only about the values and are transported unchanged.
+\end{proof}
+
+\begin{proposition}[The spine form of congruence]
+\label{prop:WcbvEval-mkApps_congr}
+\lean{LeanToLambdaBox.WcbvEval.mkApps_congr}
+\leanok
+\uses{def:WcbvEval, def:LBTerm-mkApps}
+If two argument lists are pointwise related by ``these two terms have a common value'' and two heads
+have a common value, then any evaluation of the first spine is an evaluation of the second, with the
+same result.
+\end{proposition}
+\begin{proof}
+\leanok
+\uses{prop:WcbvEval-app_congr, lem:WcbvEval-head_value_of_mkApps, thm:eval_deterministic}
+Induction along the pointwise relation between the two lists. The nil case is the head hypothesis. In
+the cons case the spine is $\mathtt{mkApps}\ (\mathtt{app}\ f\ a)\ as$; the head-evaluation lemma
+supplies a value for the extended head, application congruence replaces $f\,a$ by $f'\,a'$ at that
+value, and the induction hypothesis finishes with the shorter lists.
+\end{proof}
+
+\begin{lemma}[Boxes absorb spines]
+\label{lem:WcbvEval-mkApps_box}
+\lean{LeanToLambdaBox.WcbvEval.mkApps_box}
+\leanok
+\uses{def:WcbvEval, def:LBTerm-mkApps}
+A spine whose head evaluates to the box evaluates to the box, provided every argument evaluates,
+their values being discarded. This is Letouzey's $\Box\,x \to \Box$ [L, Def.~5] iterated along a
+spine, and it is the box arm of the erasure simulation of Chapter~\ref{chap:correctness}.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:WcbvEval, def:LBTerm-mkApps}
+Induction on the argument list, applying the box rule once per argument: the head evaluates to the
+box by hypothesis, the next argument evaluates by the membership premise, so the one-longer spine
+evaluates to the box, and the induction hypothesis applies.
+\end{proof}
+
+\begin{proposition}[Turning propositional cases on is a weakening]
+\label{prop:WcbvEval-propcase_weaken}
+\lean{LeanToLambdaBox.WcbvEval.propcase_weaken}
+\leanok
+\uses{def:WcbvEval, def:eraseFlags}
+Every evaluation at \code{eraseFlags} is an evaluation at \code{entryFlags}: no rule of \WcbvEval{}
+carries a \emph{negative} prop-case guard, so enabling the propositional rules only adds derivations.
+This is the direction a consumer of the emitted program would need, peregrine's
+\code{untyped\_transform\_pipeline} declaring its input at \code{entryFlags}.
+\end{proposition}
+\begin{proof}
+\leanok
+\uses{def:WcbvEval, def:isStuckApp, def:eraseFlags}
+Induction on the derivation, re-applying each rule at the new flags. Only the arms whose guard
+mentions a bit on which the two settings differ need attention, and they are all refuted rather than
+rebuilt: the block-form arms because \code{eraseFlags} has applied constructors, \code{fix\_unguarded}
+because it has guarded fix, and the two propositional arms because it has the prop-case bit off, so
+they cannot occur in the source derivation. The congruence arm needs \code{isStuckApp} recomputed at
+the new flags, which is immediate, the two settings agreeing on the guarded-fix bit.
+\end{proof}
+
+\begin{remark}
+This proposition is an \textbf{endpoint, not a link}. A repository-wide search finds
+\code{propcase\_weaken} and \code{entryFlags} only in the flags module's header and in
+\code{Semantics/Metatheory.lean} itself; no theorem in the development, the capstone included,
+applies it. The handover to peregrine's middle-end is therefore available but not exercised.
+\end{remark}
+
+\subsection*{Non-vacuity}
+
+\code{Semantics/Metatheory.lean} closes with a suite of witnesses whose purpose is to guard the
+lemmas above against vacuous truth: a concrete non-trivial evaluation $(\lambda.\,\#0)\,\Box
+\Downarrow \Box$, the fact that \code{Value} and \WcbvEval{} are inhabited, and one ``fires'' witness
+per hypothesis-bearing lemma, each obtained by applying that lemma to the concrete evaluation. Two
+caveats are worth recording. First, the section header claims that \emph{every} hypothesis-bearing
+lemma above is covered, and two groups are not: \code{propcase\_weaken} and the four stuckness lemmas
+of Lemma~\ref{lem:isStuckApp_construct_spine}, of which the fixpoint-spine one carries a real
+hypothesis. Second, two of the witnesses --- those for determinism and for
+Corollary~\ref{cor:eval_value} --- have the contentless statement $\Box = \Box$ and carry their whole
+content in the proof term; they are true for trivial reasons as Lean declarations and are therefore
+not restated here as results. The two witnesses that do say something new about the applied-form and
+mutual-fixpoint machinery are given nodes.
+
+\begin{lemma}[Non-vacuity: an applied-form constructor with a parameter]
+\label{lem:construct_app_fires}
+\lean{LeanToLambdaBox.acKn, LeanToLambdaBox.acIid, LeanToLambdaBox.acOIB, LeanToLambdaBox.ac_arity, LeanToLambdaBox.ac_nil, LeanToLambdaBox.construct_app_fires, LeanToLambdaBox.construct_app_value}
+\leanok
+\uses{def:WcbvEval, def:constructorArity, def:eraseFlags, def:Value}
+A concrete witness at the validated flags \code{eraseFlags}, over a one-inductive environment whose
+single constructor \code{mk} takes one parameter and one field. Its arity is $1 + 1 = 2$, decided by
+\code{rfl} --- so \code{constructorArity} genuinely adds the parameter count; the bare head is a
+value; the two-step accumulation
+$((\mathtt{mk})\,\Box)\,\Box \Downarrow \mathtt{mkApps}\ \mathtt{mk}\ [\Box,\Box]$ really fires; and
+the resulting spine is a \code{Value}.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:WcbvEval, thm:eval_to_value, def:constructorArity}
+The arity is decided by \code{rfl} on the hand-built environment. The evaluation is built by two
+applications of \code{construct\_app}, each discharging its arity bound by \code{decide}, on top of
+\code{construct\_atom}; the value follows from Theorem~\ref{thm:eval_to_value}.
+\end{proof}
+
+\begin{lemma}[Non-vacuity: the fixpoint substitution order]
+\label{lem:mf_fixSubst}
+\lean{LeanToLambdaBox.mfDefs, LeanToLambdaBox.mf_fixSubst, LeanToLambdaBox.mf_fix_stuck, LeanToLambdaBox.mf_fix_value}
+\leanok
+\uses{def:LBTerm-fixSubst, def:WcbvEval, def:Value}
+For a two-member mutual block, $\mathtt{fixSubst}\ defs =
+[\mathtt{fix}\ defs\ 1, \mathtt{fix}\ defs\ 0]$ by \code{rfl}: the reversal of MetaRocq's
+\code{fix\_subst} is exactly the order this development uses, which only a block of size at least two
+can pin down. The same block, applied to one argument while its principal argument index is $1$, is
+stuck and yields a fixpoint-spine value.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:LBTerm-fixSubst, def:WcbvEval, thm:eval_to_value}
+\code{rfl} for the order; the stuck-fixpoint rule with an empty accumulated spine and principal
+argument index $1$ for the evaluation; then Theorem~\ref{thm:eval_to_value} for the value.
+\end{proof}
+
+\begin{theorem}[Evaluation preserves closedness]
+\label{thm:WcbvEval-lbClosed}
+\lean{LeanToLambdaBox.WcbvEval.lbClosed, LeanToLambdaBox.wcbvEval_lbClosed_fires_delta}
+\leanok
+\uses{def:WcbvEval, def:LBClosed, def:LBTerm-envLookup}
+If every constant body declared in the environment is closed, then the value of a closed term is
+closed. The environment hypothesis is unavoidable: at a delta step the subject is a bare constant,
+which is closed at every bound, while its body need not be. The Lean statement takes that hypothesis
+as an explicit premise about \code{envLookup}, and is flag-parametric. A witness that the theorem
+fires on a delta step accompanies it.
+\end{theorem}
+\begin{proof}
+\leanok
+\uses{lem:LBClosed-substList, lem:LBClosed-shift_eq, lem:lbClosed_fix_of_bodies, def:LBClosed, def:WcbvEval, def:LBTerm-fixSubst, def:LBTerm-subst}
+Induction over every arm of the evaluation relation --- beta, zeta, delta, the three iota arms, the
+three projection arms, the three fixpoint arms, the congruence arms and the box arms. An auxiliary
+fact is proved first: unfolding a closed fixpoint node by
+$\mathtt{substList}\ (\mathtt{fixSubst}\ defs)$ yields a closed body, because every element of that
+list is the same closed \code{fix} node and the list has exactly the block's length. Each remaining
+arm reduces to the closedness arithmetic of substitution, simultaneous substitution and spines; the
+delta arm is exactly where the environment premise is spent.
+\end{proof}
+
+\section{The executable evaluator}
+\label{sec:lambdabox:compute}
+
+\begin{lemma}[Every term is its own spine]
+\label{lem:LBTerm-mkApps_spine}
+\lean{LeanToLambdaBox.LBTerm.mkApps_spine}
+\leanok
+\uses{def:LBTerm-mkApps}
+$\mathtt{mkApps}\ (\mathtt{spineHead}\ t)\ (\mathtt{spineArgs}\ t) = t$ for every term: the executable
+head/arguments decomposition the evaluator performs recovers the term, which is how a computed
+dispatch is turned back into the \code{mkApps}-shaped premise the spine rules expect. Despite its
+\code{LBTerm.} prefix this declaration lives inside \code{namespace LeanToLambdaBox}, unlike the
+\code{LBTerm.*} lemmas of Section~\ref{sec:lambdabox:subst}.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{lem:LBTerm-mkApps_concat}
+Induction on the term; only the \code{.app} case is non-trivial, where the argument function appends
+the new argument and the spine-decomposition lemma turns the extended spine back into an application
+of the induction hypothesis' spine.
+\end{proof}
+
+\begin{definition}[The fuel-indexed executable evaluator]
+\label{def:lbEval}
+\lean{LeanToLambdaBox.lbEvalArgs, LeanToLambdaBox.lbEvalSpine, LeanToLambdaBox.lbEvalApp, LeanToLambdaBox.lbEvalCase, LeanToLambdaBox.lbEvalProj, LeanToLambdaBox.lbEvalStep, LeanToLambdaBox.lbEval}
+\leanok
+\uses{def:WcbvEval, def:constructorArity, def:isPropositionalInductive, def:isStuckApp, def:LBTerm-envLookup, def:LBTerm-subst, def:LBTerm-mkApps, def:LBTerm-fixSubst, def:WcbvFlags}
+An executable twin of \WcbvEval{} under the same flags, returning an optional term. \code{lbEval}
+takes a fuel: at zero it fails, at $n+1$ it runs one \code{lbEvalStep} over the evaluator at fuel $n$.
+One step is the whole rule table at the top node: atoms return themselves, a constant is looked up and
+its body evaluated, a \code{letIn} evaluates its value and then the instantiated body, an application
+evaluates both subterms and hands them to \code{lbEvalApp}, a constructor node evaluates
+componentwise in block mode and is accepted only nullary-and-declared in applied mode, and
+\code{case} and \code{proj} delegate to \code{lbEvalCase} and \code{lbEvalProj}, each of which
+dispatches three ways (propositional, block, spine). \code{lbEvalApp} performs beta on a lambda, the
+box rule on the box, the fixpoint rules on a bare fixpoint node, and otherwise calls
+\code{lbEvalSpine}, which inspects the head of the head's spine: a constructor spine accumulates while
+strictly under the declared arity, a fixpoint spine unfolds exactly when the accumulated count
+reaches the principal argument index and accumulates below it, and anything else congruates if and
+only if it is stuck. Every unmodelled shape fails. Because the recursion is structural in the fuel,
+Lean's \textbf{kernel} reduces \code{lbEval}, so a closed \lbox{} run is decided by \code{rfl}.
+\end{definition}
+
+\begin{remark}
+Each layer takes the recursive evaluator as an abstract parameter, which is what keeps the fuel
+induction of Theorem~\ref{thm:lbEval_sound} to two lines. Three \code{deriving instance DecidableEq}
+declarations at the top of the module, for module paths, kernames and inductive identifiers, let the
+case and projection layers compare inductive identifiers; their generated names are not cited. Note
+that they are a \emph{second} notion of kername equality alongside the hand-rolled Boolean equality
+that \code{envLookup} uses, and nothing inside this cluster reconciles the two; the lemmas that do
+live in a module the cluster does not import.
+\end{remark}
+
+\begin{lemma}[Layered soundness of one step]
+\label{lem:lbEvalStep_sound}
+\lean{LeanToLambdaBox.lbEvalArgs_length, LeanToLambdaBox.lbEvalArgs_get, LeanToLambdaBox.lbEvalSpine_sound, LeanToLambdaBox.lbEvalApp_sound, LeanToLambdaBox.lbEvalCase_sound, LeanToLambdaBox.lbEvalProj_sound, LeanToLambdaBox.lbEvalStep_sound}
+\leanok
+\uses{def:lbEval, def:WcbvEval}
+Relative to a recursive evaluator that is sound --- whatever it returns, the relation admits --- each
+layer of the executable evaluator is sound: the argument traversal preserves length and evaluates
+each element pointwise; the spine dispatch yields an application evaluation by \code{construct\_app},
+\code{fix\_guarded}, \code{fix\_stuck} or \code{app\_cong}; the application dispatch adds beta, the
+box rule and the bare-fixpoint instances; the case dispatch yields \code{iota}, \code{iota\_block} or
+\code{iota\_sing}; the projection dispatch yields \code{proj}, \code{proj\_block} or
+\code{proj\_prop}; and one whole step is sound for every term shape.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{lem:LBTerm-mkApps_spine, def:WcbvEval, def:lbEval, def:constructorArity, def:isPropositionalInductive, def:isStuckApp}
+Each layer is a case split on the executable dispatch, with no induction: every branch that succeeds
+names the rule it implements, its premises are supplied by the soundness hypothesis applied to the
+sub-evaluations, and its side conditions are exactly the Boolean tests the branch took. Where the
+branch decomposed a term by head and arguments, Lemma~\ref{lem:LBTerm-mkApps_spine} reconstitutes the
+\code{mkApps} shape the rule's premise demands. The top-level step then assembles the four dispatch
+lemmas plus the two argument-traversal lemmas, which supply the length and pointwise premises of the
+block constructor rule.
+\end{proof}
+
+\begin{theorem}[Soundness of the executable evaluator]
+\label{thm:lbEval_sound}
+\lean{LeanToLambdaBox.lbEval_sound}
+\leanok
+\uses{def:lbEval, def:WcbvEval}
+Whatever \code{lbEval} returns, the relation admits: if
+$\mathtt{lbEval}\ \Gamma\ fl\ n\ t$ succeeds with $v$, then $\Gamma \vdash t \Downarrow_{fl} v$. Only
+this direction can hold, and only it is needed --- the converse fails by fuel exhaustion, which is a
+failure. This is the mechanism that turns a kernel-checked computation into a genuine evaluation
+derivation, and it is how every concrete rung of Chapter~\ref{chap:capstone} discharges its target
+evaluation, by applying the theorem to a \code{rfl}.
+\end{theorem}
+\begin{proof}
+\leanok
+\uses{lem:lbEvalStep_sound, def:lbEval}
+Induction on the fuel. At zero the hypothesis says a failure equals a success, which is absurd. At
+$n+1$ the hypothesis is a successful \code{lbEvalStep} over the evaluator at fuel $n$, whose
+soundness is the induction hypothesis; Lemma~\ref{lem:lbEvalStep_sound} concludes.
+\end{proof}
+
+\begin{remark}
+The measured axiom footprint of \code{lbEval\_sound} is exactly \code{[propext]} --- in particular no
+\code{sorryAx} and no \code{Classical.choice} --- recorded in the committed fixture
+\code{test/ledger.expected}. The same function is run by the repository's \code{green-check}
+executable as a differential oracle against \code{peregrine eval} on the emitted \code{.ast}; see
+Chapter~\ref{chap:trust}.
+\end{remark}
+
+\begin{lemma}[Fuel monotonicity]
+\label{lem:lbEval_mono}
+\lean{LeanToLambdaBox.lbEvalArgs_mono, LeanToLambdaBox.lbEvalSpine_mono, LeanToLambdaBox.lbEvalApp_mono, LeanToLambdaBox.lbEvalCase_mono, LeanToLambdaBox.lbEvalProj_mono, LeanToLambdaBox.lbEvalStep_mono, LeanToLambdaBox.lbEval_succ, LeanToLambdaBox.lbEval_mono}
+\leanok
+\uses{def:lbEval}
+An answer found with $n$ units of fuel is found again with any larger amount. Each layer first
+transports a successful run along a pointwise-larger recursive evaluator; one more unit of fuel then
+never loses an answer, and the general statement follows. This is what makes the fuel choice of a
+rung, and of the differential oracle, inessential.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:lbEval}
+The six layer lemmas are case splits mirroring the dispatch, each rewriting its recursive calls
+through the pointwise hypothesis. The successor step is the step-level monotonicity lemma applied
+with the evaluators at fuel $n$ and $n+1$, itself available by an inner induction; the general
+statement is an induction on the difference of the two fuels.
+\end{proof}
+
+\begin{remark}
+\code{Semantics/Compute.lean} also carries a hand-built Peano fixture and eight anonymous examples
+exercising delta, iota, beta and fixpoint unfolding in both constructor regimes, all checked by plain
+kernel reduction. They have no citable names and are given no node. The module's own header says that
+\code{lbEval} ``implements every rule of \WcbvEval{}''; no completeness theorem exists and none can,
+the evaluator being necessarily incomplete for fuel. It is also order-committed: the application arm
+evaluates the argument \emph{before} dispatching, which is sound only because every application rule
+of \WcbvEval{} happens to have an argument-evaluation premise.
+\end{remark}
+
+\section*{Deviations from the paper, and caveats}
+
+Five points where this chapter's target model departs from [S]/[L], or where a claim in the sources
+should be read narrowly.
+
+\begin{enumerate}
+\item \textbf{Dropped side conditions.} The three iota rules and the two applied/block projection
+rules omit premises MetaRocq carries: the node's parameter count is never compared with the
+inductive's declared \code{npars}, and the discriminee spine is never required to be saturated. So
+\WcbvEval{} is strictly more permissive than \code{EWcbvEval} on ill-formed input, and the module
+header's ``rule-for-rule'' claim --- which is made for the non-block flags only --- should be read
+with that qualification. Determinism and everything proved from it are unaffected.
+\item \textbf{No cofixpoints, no lazy terms.} \code{LBTerm} has no \code{tCoFix} and no
+\code{tLazy}, so MetaRocq's two cofixpoint rules are unrepresentable and \code{isStuckApp} drops the
+\code{isLazyApp} disjunct. Lean has no coinductive types, so nothing is lost on the source side.
+\item \textbf{The prop-case bit is inert on emitted output, as a measurement.} The flags module
+asserts that all 683 inductive entries of the benchmark suite's emitted environments carry
+\code{propositional := false}, from which \code{eraseFlags} and \code{entryFlags} agree on every
+emitted environment. Nothing in the repository re-checks that count. The corroborating code evidence
+is that the shipping registration of an inductive never sets the field at all (finding F-PROP), nor
+\code{kelim}, nor the recursivity kind. Read it as a measurement, not a theorem.
+\item \textbf{The handover is stated but unused.} Proposition~\ref{prop:WcbvEval-propcase_weaken} is
+the direction peregrine's pipeline would need, and no theorem in the development applies it.
+\item \textbf{The verified perimeter stops at the \code{Program} value.} The S-expression printer is
+a \code{partial def} with no equational lemmas, mentioned by no file in the verification. Every
+claim of the form ``the emitted program satisfies \ldots'' in this blueprint is a claim about the
+\code{Program} value of Definition~\ref{def:ASTType}; the step from that value to the bytes peregrine
+parses is unverified.
+\end{enumerate}
+
+Finally, one positive measurement, recorded here and picked up in Chapter~\ref{chap:trust}: the whole
+\code{Semantics/} cluster contains no \code{sorry}, no \code{axiom}, no \code{partial}, no
+\code{unsafe}, no compiler-implemented declaration, no \code{native\_decide} and no kernel-accelerated
+\code{decide}. The concrete witnesses are plain kernel reduction, and the only automation in one is
+ordinary \code{decide} on arithmetic side conditions.

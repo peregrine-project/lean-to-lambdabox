@@ -1,0 +1,1070 @@
+\chapter{The capstone theorem and the green rungs}
+\label{chap:capstone}
+
+Every earlier chapter speaks about \emph{relations}: erasability and $\Erases$
+(Chapter~\ref{chap:erases}), the forward simulation for $\Erases$ (Chapter~\ref{chap:correctness}),
+the Lean-specific lowering $\Lower$ and the emitted program's well-formedness
+(Chapter~\ref{chap:lowering}), the shipping eraser's specification and its run model
+(Chapters~\ref{chap:eraser} and~\ref{chap:run}), the refinement of \code{visitExpr}
+(Chapter~\ref{chap:refinement}), and the bridge that turns a run into an erasure
+(Chapter~\ref{chap:coldstart}). This chapter states the theorem those pieces were built for and then
+instantiates it eight times at runs of the real \code{\#erase} command. The theorem is
+\code{shipping\_erase\_correct\_firstorder} (\code{LeanToLambdaBox/Capstone.lean}): under fifteen
+named hypotheses it says that the program \code{Erasure.erase} emits is the $\Lower$ image of a
+specification environment that erases the prepared source term, that it satisfies what peregrine's
+first pass reads of a program, and that every \emph{first-order} answer the source evaluation
+produces is reproduced by the emitted program under \lbox{}'s own call-by-value semantics, uniquely
+and free of $\Box$.
+
+The chapter's second half is the \emph{green ladder} (\code{LeanToLambdaBox/Green.lean}, 1552
+lines): eight theorems \code{green\_G1} through \code{green\_G8}, each an instance of the capstone
+at a committed \code{\#erase} run whose emitted environment and term are transcribed into the file
+and whose conclusion ends in a \textbf{literal} \lbox{} peano numeral. The literal answer is an
+anti-vacuity device: a correctness statement of this shape is cheap to satisfy if the target answer
+may be $\Box$ or a stuck term, and pinning it to a numeral with the certified evaluator and then
+forcing the theorem's existential with determinism of evaluation rules both out. The ladder is
+nevertheless conditional --- the Lean environment \code{lenv} and the model environment \code{env}
+are universally quantified at every rung, and the run equation \code{hrun} is an equation about an
+opaque \code{IO.RealWorld} token that no Lean term can inhabit --- so what a rung delivers is:
+\emph{these hypotheses are consistent with a literal answer, and every hypothesis a computation can
+settle is settled by one.}
+
+Between the two halves sits the \emph{reification} machinery of
+\code{LeanToLambdaBox/Witness/SourceTable.lean} and \code{LeanToLambdaBox/Witness/TrWitness.lean}.
+The verification never reads a \code{Lean.Environment} and never ingests a committed artefact: the
+term elaborator \code{reify\%} copies the slice of the environment a rung needs into a literal
+source table, so that the rung's side conditions are kernel computations (\code{by rfl}, \code{by
+decide +kernel}) rather than assumptions about opaque data. The faithfulness of that copy is one
+named hypothesis, table adequacy (the capstone's \code{htbl}), mechanised outside the kernel by
+\code{lake exe reify --check}. \code{TrWitness.lean} then turns a tabled monomorphic constant into
+the model translation the capstone's \code{hwt} asks for, so that binder too costs nothing at a
+rung. The chapter must be read together with Chapter~\ref{chap:trust}: the capstone is a composition
+with exactly one hole, its binder \code{hbridge}, which packages the two environment-level results
+($\ErasesEnv$ and $\LowerEnv$, the two fields of \code{ErasureBridge}) that no theorem in the
+repository produces for a run of the shipping eraser, and which is inhabited at \textbf{no} rung.
+
+\section{What the capstone composes}
+\label{sec:capstone:overview}
+
+Read as a composition, the capstone spends four ingredients. \emph{The run split}
+(\code{erase\_run\_ok}, Chapter~\ref{chap:coldstart}) factors one shipping run into a preparation
+and a \code{visitExpr} run from the empty state. \emph{The bridge} (\code{erasure\_bridge\_of\_run},
+Chapter~\ref{chap:coldstart}) turns that \code{visitExpr} run into an intermediate \lbox{} term
+$t_0$ with an $\Erases$ derivation and a $\Lower$ derivation. \emph{The simulation}
+(\code{erases\_correct}, Chapter~\ref{chap:correctness}) is applied once, at the applied spine, and
+yields the target evaluation. \emph{The first-order core} (\code{firstorder\_erases\_core} and
+\code{noBox\_lower\_of\_foSpine}, Chapter~\ref{chap:correctness}) gives the answer's
+constructor-spine shape, the uniqueness of its erasure and the box-freedom of its lowering. What the
+composition does \emph{not} supply is the pair of environment-level facts about the shipping
+eraser's own registration behaviour; those enter as the binder \code{hbridge}.
+
+The capstone's measured axiom footprint is 33 names (the committed fixture
+\code{test/ledger.expected}), identical to every rung's: four standard axioms (\code{propext},
+\code{sorryAx}, \code{Classical.choice}, \code{Quot.sound}) and 29 non-standard ones, of which two
+are \code{bv\_decide} certificates and two are lean4lean pointer-equality axioms, the rest
+reflection axioms for \code{Lean.Expr}, \code{Lean.Level}, the persistent containers and syntax. The
+\code{sorryAx} is inherited from the pinned lean4lean checkout; Chapter~\ref{chap:trust} states what
+it bounds.
+
+\section{The reified source table}
+\label{sec:capstone:table}
+
+\begin{definition}[The reified source table]\label{def:Witness-SourceTable}
+\lean{LeanToLambdaBox.Witness.SourceTable, LeanToLambdaBox.Witness.ReifiedDecl, LeanToLambdaBox.Witness.ReifiedInduct, LeanToLambdaBox.Witness.ReifiedCtor, LeanToLambdaBox.Witness.SourceTable.decl?, LeanToLambdaBox.Witness.SourceTable.ind?, LeanToLambdaBox.Witness.SourceTable.body?} \leanok
+A \emph{source table} is the reified slice of a Lean elaboration environment that the verification
+reads in the environment's place: a list of named \emph{reified declarations} and a list of named
+\emph{reified inductive types}. A reified declaration records the level parameters and the type the
+kernel constant carries, together with an optional body; a reified inductive type records its level
+parameters, its type, its parameter and index counts, the names of its mutual block, and for each
+constructor its name, type, position and parameter/field split. The body column is optional because
+the eraser only ever opens the body of a definition or an opaque constant: axioms, theorems,
+quotient primitives, constructors, recursors and \code{casesOn}-like constants it eliminates with
+rather than unfolds, and those are tabled with no body. The lookup interface is the three Lean
+functions \code{SourceTable.decl?}, \code{SourceTable.ind?} and the partial map
+\code{SourceTable.body?}, which is the $\delta$-column that the source evaluation, $\ErasesEnv$,
+\code{CompilerBodies} and \code{SpecEnv} all read.
+\end{definition}
+
+\begin{remark}
+The table has \textbf{no} relevance-oracle column (relevance is discharged, not tabled) and no
+configuration column: it is built under one fixed configuration, and a rung states its configuration
+obligation separately. The source evaluation reads this table's compiler-body column, not the
+kernel's $\delta$ rules --- design tag N8.
+\end{remark}
+
+\begin{definition}[The compiler's view of a declaration]\label{def:Witness-compilerInfo}
+\lean{LeanToLambdaBox.Witness.compilerInfo?, LeanToLambdaBox.Witness.compilerValue?, LeanToLambdaBox.Witness.fixBlock?, LeanToLambdaBox.Witness.reifiesBody} \leanok
+\code{compilerInfo? lenv n} is the constant information the \emph{code generator} reads for
+\code{n}: the \code{\_unsafe\_rec} companion the elaborator emits for a recursive definition when
+there is one, and \code{n} itself otherwise. \code{compilerValue?} takes that constant's value with
+\code{allowOpaque := true}, exactly as the eraser's mutual-block entry point does; \code{none} is
+the case in which the eraser emits an axiom instead. \code{fixBlock? lenv n} is the mutual block for
+which the eraser installs a fix-variable map at \code{n} --- \code{none} when it takes its
+non-recursive exit or emits an axiom, and otherwise the block's members after the
+\code{\_unsafe\_rec} stripping the run applies.
+\end{definition}
+
+\begin{remark}
+This is the formal locus of the \emph{compiler-versus-kernel bodies} scope restriction: the eraser
+never reads the kernel body of a structurally recursive definition, which eliminates with
+\code{brecOn}, but the compiler body, which calls itself directly. \code{fixBlock?} is what
+\code{lake exe reify --blocks} computes in order to mechanise two of the three clauses of
+\code{TableBlocks}.
+\end{remark}
+
+\begin{lemma}[The compiler's view is Lean's own]\label{lem:Witness-compilerInfo-eq}
+\lean{LeanToLambdaBox.Witness.compilerInfo?_eq} \leanok
+\uses{def:Witness-compilerInfo}
+For every name \code{n}, Lean's own \code{Compiler.LCNF.getDeclInfo? n} is the monadic action that
+reads the ambient environment and returns \code{compilerInfo?} of it at \code{n}.
+\end{lemma}
+
+\begin{proof} \leanok
+\uses{def:Witness-compilerInfo}
+Definitional: the two sides are the same unfolding of \code{getDeclInfo?}, and the Lean proof is
+\code{rfl}. This is the only link between the table's model of the code generator's view and the
+primitive the shipping eraser actually calls.
+\end{proof}
+
+\begin{definition}[Alpha-equivalence of Lean expressions]\label{def:Witness-Expr-AlphaEq}
+\lean{LeanToLambdaBox.Witness.Expr.AlphaEq} \leanok
+\code{Expr.AlphaEq} is structural equality of \code{Lean.Expr} that ignores binder names and binder
+info, and nothing else: twelve congruence arms over \code{bvar}, \code{fvar}, \code{mvar},
+\code{sort}, \code{const}, \code{lit}, \code{app}, \code{lam}, \code{forallE}, \code{letE},
+\code{proj} and \code{mdata}, with the three binder arms quantifying the two binder names and the
+two binder annotations away. It deliberately has \textbf{no} metadata-blind arm: \code{.mdata d e}
+and \code{e} stay unrelated, because the source semantics has no metadata rule and a relation
+identifying them would falsify an alpha-transport of that semantics.
+\end{definition}
+
+\begin{remark}
+Extensionally this is \code{Lean.Expr.eqv}, which is \code{@[extern]} and opaque, so \textbf{no
+theorem connects the two}. \code{Expr.alphaEqB} is the arm-for-arm Boolean counterpart (a
+\code{partial def}), and \code{lake exe reify --check} cross-checks it against \code{Lean.Expr.eqv}
+on every compared pair, reporting a disagreement as a mismatch. Chapter~\ref{chap:trust} carries the
+gap as a finding.
+\end{remark}
+
+\begin{definition}[Pinning a tabled constant and a tabled inductive type]\label{def:Witness-ReifiedDecl-Pinned}
+\lean{LeanToLambdaBox.Witness.ReifiedDecl.Pinned, LeanToLambdaBox.Witness.ReifiedInduct.Pinned} \leanok
+\uses{def:Witness-SourceTable}
+A tabled constant is \emph{pinned} in an environment when the environment knows that name with
+exactly the level parameters and the type the table records. A tabled inductive type is pinned when
+the environment knows the name as an inductive of that name, listed in its own mutual block, with
+the recorded level parameters, type, parameter count, index count and block; and when each tabled
+constructor is the environment's constructor of that type at its position in the tabled list, with
+the recorded type, constructor index (equal to its position), parameter count (equal to the block's)
+and field count.
+\end{definition}
+
+\begin{remark}
+The positional clauses of the inductive pin are the kernel's own indexing invariants restated; they
+are what carries the table's arithmetic --- constructor arities and indices --- to the specification
+bundle's kernel-field clause.
+\end{remark}
+
+\begin{definition}[The body column, pinned up to alpha]\label{def:Witness-ReifiedDecl-Prepared}
+\lean{LeanToLambdaBox.Witness.ReifiedDecl.Prepared} \leanok
+\uses{def:Witness-compilerInfo, def:Witness-Expr-AlphaEq, def:Erasure-prepare_erasure}
+A tabled declaration is \emph{prepared} in an environment when, for every body $b$ the table records
+for it, the code generator reads a value $v$ for that name in the environment and \emph{every}
+successful run of \code{Erasure.prepare\_erasure} on $v$, under a configuration with \code{csimp}
+switched off, returns a term alpha-equivalent to $b$. This is the one clause of table adequacy that
+is a statement about monadic runs rather than about the output of an environment lookup.
+\end{definition}
+
+\begin{remark}
+Stated with equality in place of alpha-equivalence the clause would be \textbf{uninhabited} wherever
+Lean's \code{inlineMatchers} pass fires --- \code{Nat.add} included --- because the inliner names
+its inlined \code{let} binders from the name generator. The price is that a consumer of a tabled
+body owes an alpha-transport, and $\Lower$ is not alpha-closed on its source; this is one of the
+three measured obstructions to closing \code{hbridge}. Measured consequence: \code{lake exe reify
+--check} passes on all eight rung tables and reports five bodies matching only up to binder names at
+G7 and G8 (\code{Nat.add}, \code{Nat.mul}, \code{Nat.pow}, \code{Nat.pred}, \code{Nat.sub}).
+\end{remark}
+
+\begin{definition}[Table adequacy]\label{def:Witness-SourceTableAdequate}
+\lean{LeanToLambdaBox.Witness.SourceTableAdequate, LeanToLambdaBox.Witness.SourceTableAdequate.decls, LeanToLambdaBox.Witness.SourceTableAdequate.inds} \leanok
+\uses{def:Witness-ReifiedDecl-Pinned, def:Witness-ReifiedDecl-Prepared, def:Witness-SourceTable}
+A table is \emph{adequate} for an environment when every tabled constant is pinned in it and
+prepared, and every tabled inductive type is pinned in it. Adequacy is the single interface between
+the live elaboration environment and everything downstream. It is not decidable, because no Lean
+term denotes the ambient environment, so it is a permanent named hypothesis of every theorem that
+reads a table: the capstone's binder \code{htbl}, for which Chapter~\ref{chap:trust} carries the
+assumption node.
+\end{definition}
+
+\begin{lemma}[A tabled body is a prepared compiler body]\label{lem:Witness-SourceTableAdequate-body-prepared}
+\lean{LeanToLambdaBox.Witness.SourceTableAdequate.body?_prepared} \leanok
+\uses{def:Witness-SourceTableAdequate, def:Witness-SourceTable}
+If a table is adequate for an environment and its body column answers $b$ at a name, then the code
+generator reads a value for that name in the environment whose every successful \code{csimp}-off
+preparation run returns a term alpha-equivalent to $b$.
+\end{lemma}
+
+\begin{proof} \leanok
+\uses{def:Witness-SourceTableAdequate, def:Witness-ReifiedDecl-Prepared}
+Case on the association-list lookup behind \code{SourceTable.body?}. In the \code{none} case the
+hypothesis is the impossible equation \code{none = some b}. In the \code{some d} case, a successful
+lookup exhibits a member of the declaration column, so the \code{decls} field of adequacy applies at
+that member, and its second component is the prepared clause, read at $b$. This is the form in which
+every consumer of a tabled body uses adequacy.
+\end{proof}
+
+\begin{definition}[Reification: the \code{reify\%} elaborator]\label{def:Witness-elabReify}
+\lean{LeanToLambdaBox.Witness.elabReify, LeanToLambdaBox.Witness.Reify.table, LeanToLambdaBox.Witness.Reify.visit, LeanToLambdaBox.Witness.Reify.State, LeanToLambdaBox.Witness.reifyConfig} \leanok
+\uses{def:Witness-SourceTable, def:Witness-compilerInfo, def:Erasure-prepare_erasure, def:Erasure-ErasureConfig}
+The term syntax \code{reify\% c1, ..., cn} elaborates to the source table of the dependency closure
+of the named constants, read out of the environment of the elaboration it runs in. The worklist
+\code{Reify.visit} marks a name seen and dispatches on its constant kind: an inductive type is
+reified together with its whole mutual block, with recursion into the constructor types; a
+constructor is recorded without a body and its type traversed; a recursor is recorded without a body
+and its block members visited; any other constant has its compiler value run through
+\code{Erasure.prepare\_erasure} under \code{reifyConfig} and the prepared body recorded, with
+recursion into the constants that body names. \code{Reify.table} runs the worklist over a list of
+roots and sorts both columns. \code{reifyConfig} is the configuration those preparation runs use: it
+sets \code{csimp := false}, the one field preparation reads, and every correctness statement needs
+it off, since \code{csimp} replaces bodies by tail-recursive variants that are not the declaration's
+own.
+\end{definition}
+
+\begin{remark}
+\code{reify\%} is the mechanism that makes a rung's side conditions \emph{kernel computations on a
+literal} rather than assumptions about an opaque artefact; this is the chapter's main methodological
+point. \code{Reify.visit} is a \code{partial def} --- termination by finiteness of the environment
+is argued in its doc comment, not proved --- but no proposition reduces it, and its output is only
+ever a literal whose faithfulness is table adequacy. The \code{syntax} declaration behind
+\code{reify\%} is not a citable Lean declaration, so only the elaborator and the definitions appear
+above.
+\end{remark}
+
+\begin{definition}[The external table check]\label{def:Witness-SourceTable-check}
+\lean{LeanToLambdaBox.Witness.SourceTable.check, LeanToLambdaBox.Witness.checkDecl, LeanToLambdaBox.Witness.checkInd, LeanToLambdaBox.Witness.TableMismatch, LeanToLambdaBox.Witness.TableNote, LeanToLambdaBox.Witness.Expr.alphaEqB} \leanok
+\uses{def:Witness-SourceTableAdequate, def:Witness-Expr-AlphaEq, def:Witness-elabReify}
+\code{SourceTable.check} is the executable comparison of a table against the live environment:
+\code{checkDecl} compares level parameters, compares the type with the structural
+\code{Lean.Expr.equal}, and compares the body against a fresh preparation run of the compiler value;
+\code{checkInd} compares block data and each constructor positionally. Disagreements are reported as
+one of twelve \code{TableMismatch} cases, and the one agreement worth printing --- a body matching
+only up to binder names --- as the single \code{TableNote} case.
+\end{definition}
+
+\begin{remark}
+The check mechanises strictly \textbf{less} than adequacy asserts, as its own doc comment says: the
+body column is re-derived by running preparation \emph{once}, whereas the prepared clause quantifies
+over all runs, and no theorem connects \code{Lean.Expr.eqv} (used for the body comparison) to
+\code{Expr.AlphaEq}. It is therefore wrong to say that \code{lake exe reify --check} \emph{decides}
+table adequacy. The module also carries a kernel self-test, including a deliberately stale table the
+external check must reject; those examples are anonymous and cannot be cited.
+\end{remark}
+
+\section{Translation witnesses: discharging \code{hwt}}
+\label{sec:capstone:trwitness}
+
+\begin{lemma}[A declared constant translates]\label{lem:Witness-trExprS_const}
+\lean{LeanToLambdaBox.Witness.trExprS_const, LeanToLambdaBox.Witness.trExprS_const_nil} \leanok
+\uses{def:ErasureSpec, def:lean4lean-grounding}
+Under the specification bundle, a constant the ambient environment declares at a safety the bundle
+accepts translates, at any modelled local context, to the model constant of the same name; the level
+arguments are translated pointwise and the arity condition is read at the declaration's own level
+parameters. The monomorphic instance: a constant with no level parameters, applied to no level
+arguments, is its own translation.
+\end{lemma}
+
+\begin{proof} \leanok
+\uses{def:ErasureSpec, asm:ErasureSpec-decl_adequate, def:lean4lean-grounding}
+The bundle's \code{decl\_adequate} field turns the environment lookup into a model constant together
+with the equality of universe-variable counts and the translation of the declared type; the constant
+arm of lean4lean's translation relation then applies with the translated level list and the arity
+equation. The monomorphic instance instantiates the level list with the empty list. This lemma is
+the base of the \emph{table route}, the only way a rung obtains the capstone's \code{hwt} without a
+binder.
+\end{proof}
+
+\begin{lemma}[The declared type of a monomorphic constant, in the model]\label{lem:Witness-hasType_const_nil}
+\lean{LeanToLambdaBox.Witness.hasType_const_nil} \leanok
+\uses{lem:Witness-trExprS_const, def:ErasureSpec, def:lean4lean-grounding}
+If the environment declares a constant with no level parameters whose declared type is itself a
+constant, then the model types that constant at the same constant.
+\end{lemma}
+
+\begin{proof} \leanok
+\uses{def:ErasureSpec, asm:ErasureSpec-decl_adequate, def:lean4lean-grounding}
+The \code{decl\_adequate} field gives the model constant and the translation of its declared type;
+inverting that translation at a constant type identifies the model type with the model constant of
+the same name and forces the level list to be empty, after which the constant rule of the model
+typing judgement applies with the universe-count equation read off the declaration.
+\end{proof}
+
+\begin{lemma}[A tabled constant is pinned]\label{lem:Witness-tableDeclPin}
+\lean{LeanToLambdaBox.Witness.tableDeclPin} \leanok
+\uses{def:Witness-SourceTableAdequate, def:TableSafe}
+If a table is adequate for an environment and the environment's tabled declarations are safe, then a
+successful table lookup yields a constant the environment knows, at an accepted safety, with the
+level parameters and the type the table records.
+\end{lemma}
+
+\begin{proof} \leanok
+\uses{def:Witness-ReifiedDecl-Pinned, def:Witness-SourceTableAdequate, def:TableSafe}
+A successful lookup exhibits a member of the declaration column, so the \code{decls} field of
+adequacy applies and its pinning half gives the environment constant with the two equalities; the
+safety clause of \code{TableSafe} is read at the same lookup. This is the single entry point from a
+decidable table lookup to environment facts.
+\end{proof}
+
+\begin{lemma}[The rung's subject translates]\label{lem:Witness-trExprS_const_of_table}
+\lean{LeanToLambdaBox.Witness.trExprS_const_of_table} \leanok
+\uses{def:Witness-SourceTableAdequate, def:Witness-SourceTable, def:TableSafe, def:ErasureSpec, def:lean4lean-grounding}
+Under the specification bundle, an adequate and safe table, and the computed side condition that the
+table records no level parameters for a name, the source constant of that name translates to the
+model constant of the same name, at any modelled local context.
+\end{lemma}
+
+\begin{proof} \leanok
+\uses{lem:Witness-tableDeclPin, lem:Witness-trExprS_const}
+Case on the table lookup; the \code{none} branch contradicts the side condition. In the \code{some}
+branch the pinning lemma supplies the environment constant, and the side condition transports the
+table's level-parameter list to the constant's, so the monomorphic instance of the translation lemma
+applies. This is what discharges the capstone's \code{hwt} at all eight rungs, its one side
+condition being \code{by rfl} on the reified table; the same route is exercised outside the ladder
+at \code{Nat.add}.
+\end{proof}
+
+\begin{lemma}[The tabled subject's type, in the model]\label{lem:Witness-hasType_const_of_table}
+\lean{LeanToLambdaBox.Witness.hasType_const_of_table} \leanok
+\uses{def:Witness-SourceTableAdequate, def:Witness-SourceTable, def:TableSafe, def:ErasureSpec, def:lean4lean-grounding}
+With the same hypotheses, and the further computed condition that the table records the subject's
+type as a constant, the model types the subject at that constant.
+\end{lemma}
+
+\begin{proof} \leanok
+\uses{lem:Witness-tableDeclPin, lem:Witness-hasType_const_nil}
+As in the previous lemma, with the type equation transported alongside the level-parameter equation
+and the monomorphic typing lemma applied in place of the translation lemma. Rungs whose subject is
+function-typed fall outside this lemma; see Lemma~\ref{lem:Green-g8_trExprS_spine}.
+\end{proof}
+
+\begin{lemma}[The checker route: a successful run reports a translation]\label{lem:Witness-trTyping_of_checkType_run}
+\lean{LeanToLambdaBox.Witness.trTyping_of_checkType_run, LeanToLambdaBox.Witness.trTyping_of_checkType_run_closed} \leanok
+\uses{def:ErasureSpec, def:lean4lean-grounding}
+If lean4lean's executable type checker, run purely at a well-formed environment and a well-formed
+ambient local context whose free variables the kernel's fixed name generator reserves, returns a
+type for a term whose free variables lie in that context, then both the term and the reported type
+translate at that context and the model types the first at the second. In the closed instance, taken
+at the specification bundle's own model connection, a closed source term the checker accepts at the
+empty local context translates together with its reported type in the model environment.
+\end{lemma}
+
+\begin{proof} \leanok
+\uses{def:lean4lean-grounding, lem:Lean4Lean-TypeChecker-M-WF-run-prime, def:Lean4Lean-TypeChecker-VContext-ofMLCtx, asm:ErasureSpec-env_connect, asm:lean4lean-trust, asm:lean-reflection-axioms}
+lean4lean's own well-formedness lemma for \code{checkType} states the translation and its typing at
+an abstract verified context; this repository's checker adequacy supplies the initial state at an
+ambient multi-level local context, so a pure run returning \code{ok} witnesses both translations and
+the typing. The closed instance instantiates the ambient context with the empty one, obtaining the
+model connection from the bundle's \code{env\_connect} field.
+\end{proof}
+
+\begin{remark}
+This is the second route to the capstone's translation binders, for subjects that are not constants:
+it replaces a translation binder by an executable run equation of the same kind as \code{hrun}.
+Unlike the table route it goes through lean4lean's executable checker layer, and its measured
+footprint accordingly contains \code{sorryAx} and the reflection axioms. \textbf{No rung uses it}
+--- the ladder's eight subjects are all constants.
+\end{remark}
+
+\section{The capstone theorem}
+\label{sec:capstone:theorem}
+
+\begin{theorem}[The shipping erasure is correct at first-order answers]\label{thm:shipping_erase_correct_firstorder}
+\lean{LeanToLambdaBox.shipping_erase_correct_firstorder} \leanok
+\uses{def:Witness-SourceTableAdequate, def:TableSafe, def:TableBlocks, def:ConfigPinned, def:CompilerBodies, def:Supported, def:Erases, def:ErasesEnv, def:Lower, def:LowerEnv, def:SEval, def:SEvalFlags, def:WcbvEval, def:eraseFlags, def:NoBox, def:FirstOrderInd, def:LBWfPeregrine, def:NoBodylessRefs, def:SpecEnv, def:ErasureBridge, def:Erasure-erase, def:Erasure-prepare_erasure, def:Erasure-visitExpr, def:ErasureSpec, def:EraserAsks, def:UpstreamAsks, def:lean4lean-grounding, asm:htbl, asm:hsafe, asm:hblk, asm:hcb, asm:hprep, asm:hrun, asm:ErasureBridge-erasesEnv, asm:ErasureBridge-lowerEnv}
+Fix a Lean environment \code{lenv}, a model environment \code{env} and a name-generator reading, a
+source table, an erasure configuration \code{cfg}, source terms $e$ and $pe$, an emitted environment
+$\Gamma$ and an emitted term $t$. Assume
+\begin{enumerate}
+\item $P$: the specification bundle \code{ErasureSpec} for Lean's elaboration primitives and the
+    model connection (eight fields);
+\item $E$: this repository's own obligations \code{EraserAsks} (five fields);
+\item $A$: the four load-bearing upstream obligations \code{UpstreamAsks};
+\item \code{htbl}: the table is adequate for \code{lenv};
+\item \code{hsafe}: every tabled declaration is safe in \code{lenv} (\code{TableSafe});
+\item \code{hblk}: every block the run installs a fix-variable map for is tabled, lambda-headed and
+    non-erasable (\code{TableBlocks});
+\item \code{hcfg}: the configuration is the pinned one (\code{ConfigPinned});
+\item \code{hcb}: every tabled compiler body is kernel-typeable at its declared type
+    (\code{CompilerBodies});
+\item \code{hwt}: the prepared term $pe$ translates into the model;
+\item \code{hsup}: $pe$ lies in the supported fragment for the table;
+\item \code{hprep}: preparation run on $e$ from the empty state at \code{cfg} returns $pe$ and the
+    empty state;
+\item \code{hrun}: \code{Erasure.erase e cfg} returns the untyped program $(\Gamma, t)$ together
+    with an inlining list, which the theorem binds and discards;
+\item \code{hnb}: every constant $(\Gamma,t)$ reaches is declared with a body
+    (\code{NoBodylessRefs});
+\item \code{hwf}: $(\Gamma,t)$ satisfies \code{LBWfPeregrine};
+\item \code{hbridge}: for the state the \code{visitExpr} run from $pe$ ends in there is a
+    specification environment $\Gamma_{spec}$ with \code{SpecEnv}, such that for every $t_0$ with
+    $\Erases\ pe\ t_0$ and $\Lower\ \Gamma_{spec}\ t_0\ t$, the pair $(\Gamma_{spec}, \Gamma)$
+    satisfies \code{ErasureBridge} at $t_0$.
+\end{enumerate}
+Then there are a specification environment $\Gamma_{spec}$ and a \lbox{} term $t_0$ such that: (a)
+the preparation ran as assumed; (b) $pe$ erases to $t_0$; (c) $\Gamma_{spec}$ erases the source
+environment along everything $t_0$ reaches; (d) the lowering takes $t_0$ to $t$; (e) it takes
+$\Gamma_{spec}$ to $\Gamma$; (f) $(\Gamma,t)$ satisfies \code{LBWfPeregrine}; and (g) the
+\textbf{observable}: for every list of source arguments and every list of \lbox{} arguments of the
+same length, each of which carries an erasure of the corresponding source argument, its lowering and
+its own environment clause, if the applied spine translates, if the source evaluation of $e$ applied
+to the arguments yields a value $v$, if $v$ translates and the model types its translation at a
+spine of an inductive $I$ that is first order in the model, then $v$ has a \textbf{unique} erasure
+$tv_0$, its lowering $tv$ is \textbf{box-free}, and the emitted program evaluates $t$ applied to the
+\lbox{} arguments to that very $tv$ under \lbox{}'s call-by-value semantics.
+
+Beyond the prose, the Lean statement fixes both evaluations at flag sets --- the source side at
+\code{fullFlags}, the target side at \code{eraseFlags} --- keeps the local contexts and level scopes
+empty throughout, and states the argument-indexed premise with \code{getElem!} on both lists.
+\end{theorem}
+
+\begin{proof} \leanok
+\uses{thm:erase_run_ok, thm:erasure_bridge_of_run, thm:prepare_sound, thm:erases_correct, thm:firstorder_erases_core, lem:noBox_lower_of_foSpine, lem:Erases-mkApps, lem:Lower-target_fix, lem:ErasesEnv-mkApps, asm:lean4lean-trust, asm:lean-reflection-axioms}
+The run-split theorem factors the shipping run into a preparation and a \code{visitExpr} run from
+the empty state and identifies the emitted term with the one the statement names; injecting
+\code{hprep} against that split fixes $pe$, the empty state and the world token. Applying
+\code{hbridge} to the \code{visitExpr} run supplies the specification environment and, once the
+bridge theorem has produced the intermediate term $t_0$ with its erasure and its lowering, the two
+environment results. For the observable, a generic list lemma turns the per-argument premise into a
+list of erasures of the arguments; the preparation-soundness theorem carries the source evaluation
+from $e$ to $pe$ under the spine; the three spine lemmas for $\Erases$, $\Lower$ and $\ErasesEnv$
+assemble the corresponding spine facts; \code{erases\_correct} is applied \textbf{once}, at the
+spine, and yields the target evaluation; and the first-order core gives the answer's
+constructor-spine shape and the uniqueness of its erasure, from which the box-freedom lemma turns
+that shape into box-freedom of the lowered value.
+\end{proof}
+
+The fifteen binders fall into classes. $P$, $E$ and $A$ are hypothesis bundles whose fields
+Chapter~\ref{chap:trust} lists one by one. \code{htbl}, \code{hsafe}, \code{hblk}, \code{hcb},
+\code{hprep} and \code{hrun} are statements about the live environment or about a monadic run; some
+are mechanised outside the kernel, none is a theorem. \code{hcfg}, \code{hsup}, \code{hnb} and
+\code{hwf} are decidable at a concrete program and are discharged at every rung. \code{hwt} is
+discharged by the table route. \code{hbridge} is the hole.
+
+\begin{remark}
+Two conjuncts of the conclusion are literally hypotheses of the theorem: conjunct (a) is the binder
+\code{hprep} verbatim, and conjunct (f) is the binder \code{hwf} verbatim. Both are carried, not
+derived. The binder \code{hnb} is the theorem's one genuinely unused binder: it appears nowhere in
+the proof term and is not among the conclusion's conjuncts. The binder \code{hblk} is forwarded to
+the bridge theorem, but \code{TableBlocks} is consumed by no theorem in the closure: its only
+consumer in the tree is a lemma that is itself consumed by nothing.
+\end{remark}
+
+\begin{remark}
+Explicitly \textbf{not} concluded: the expanded-fixpoint condition corresponding to MetaRocq's
+\code{expanded\_eprogram}. The eraser emits bare fixpoint constant bodies, so the stronger
+precondition is false of its output --- shipping finding F-ETA. The theorem concludes the weaker
+\code{LBWfPeregrine}, which the output does satisfy. Also: the proof derives the identification of
+the emitted environment with the run's final state and then discards it, keeping only the term
+component, so the statement relates $\Gamma$ to the run only through \code{hrun}, and
+\code{hbridge}'s lowering field speaks about the \emph{given} $\Gamma$.
+\end{remark}
+
+\begin{remark}
+Correspondence with [S, Sec. 7.3--7.4]: the same shape with three deliberate substitutions ---
+\lbox{}'s own weak call-by-value evaluation as target semantics, the extra relation $\Lower$ (and
+hence the split of the environment side into $\ErasesEnv$ and $\LowerEnv$), and a source evaluation
+reading the compiler-body table rather than the kernel's $\delta$ rules (tag N8). The first-order
+restriction is where MetaRocq's own first-order inductive machinery sits, and \code{NoBodylessRefs}
+is this repository's counterpart of \code{axiom\_free}. Finally, \code{hbridge} is inhabited
+\textbf{nowhere}: \code{bridgeEnv\_of\_regInv} (Chapter~\ref{chap:coldstart}) is the proved
+interface that would derive its two fields from a registration invariant, but no theorem establishes
+that invariant for a run of the shipping eraser.
+\end{remark}
+
+\section{The ladder's data}
+\label{sec:capstone:data}
+
+\begin{definition}[The eight rung subjects]\label{def:spikeZero}
+\lean{spikeZero, spikeLit, spikeLet, spikeProj, spikeCase, spikeRec, spikeFix, arithClosed, benchArith} \leanok
+The ladder's subjects, in order: \code{spikeZero} is \code{Nat.zero}; \code{spikeLit} is
+\code{Nat.succ 3}; \code{spikeLet} is \code{let x := 2; Nat.succ x}; \code{spikeProj} is
+\code{(Prod.mk 1 2).1}; \code{spikeCase} is a \code{Nat.casesOn} applied to the constructor value
+\code{Nat.succ (Nat.succ Nat.zero)}, whose nullary branch is a \emph{thunk application} --- the
+shape Lean's \code{match} compiler gives a nullary alternative --- and which is spelled with
+\code{Nat.casesOn} rather than \code{match} so that the iota redex sits in the subject rather than
+behind a matcher constant; \code{spikeRec} is the analogous recursive definition and \code{spikeFix}
+its application \code{spikeRec (Nat.succ (Nat.succ Nat.zero))}; \code{arithClosed} is
+\code{benchArith 0}; and \code{benchArith n} is the tracked benchmark program $2^{((n \cdot 3) - n)
++ 3}$ itself.
+\end{definition}
+
+\begin{remark}
+All of \code{spikeZero} through \code{arithClosed} are declared at the \textbf{root} namespace,
+deliberately: their kernames are then \code{rootKername "spikeZero"} and so on, which is what the
+committed emitted environments record. \code{benchArith} lives in the frozen benchmark source
+\code{VerifyBench/Src/Arith.lean}, held byte-identical against its expected copy and against the
+sibling \code{benchmarks} repository by \code{scripts/frozen.sh}.
+\end{remark}
+
+\begin{definition}[The pinned configuration]\label{def:Green-spikeConfig}
+\lean{LeanToLambdaBox.Green.spikeConfig} \leanok
+\uses{def:Erasure-ErasureConfig, def:ConfigPinned}
+Every rung is erased under one configuration: \code{extern := .preferLogical}, \code{nat := .peano},
+\code{csimp := false}, the remaining fields at their defaults.
+\end{definition}
+
+\begin{remark}
+This is \textbf{not} the default \code{\#erase} configuration: \code{ConfigPinned} differs from the
+default on three of its five fields (\code{extern}, \code{nat} and \code{csimp}). Scope rows N1--N4
+are pinned here, in particular \code{csimp} off and constructor-argument pruning off.
+\end{remark}
+
+\begin{lemma}[The rungs' configuration is the pinned one]\label{lem:Green-spike_configPinned}
+\lean{LeanToLambdaBox.Green.spike_configPinned} \leanok
+\uses{def:Green-spikeConfig, def:ConfigPinned}
+The rung configuration satisfies \code{ConfigPinned}.
+\end{lemma}
+
+\begin{proof} \leanok
+\uses{def:Green-spikeConfig, def:ConfigPinned}
+\code{ConfigPinned} is a conjunction of five field equations, each true by \code{rfl} of the literal
+configuration. This discharges the capstone's \code{hcfg} at all eight rungs.
+\end{proof}
+
+\begin{definition}[The literal answers: peano numerals in \lbox{}]\label{def:Green-peanoLB}
+\lean{LeanToLambdaBox.Green.peanoLB, LeanToLambdaBox.Green.litLB, LeanToLambdaBox.Green.natIid, LeanToLambdaBox.Green.ofNatIid, LeanToLambdaBox.Green.ofNatKn, LeanToLambdaBox.Green.instOfNatNatKn} \leanok
+\uses{def:LBTerm, def:InductiveId, def:Kername}
+\code{peanoLB n} is the \lbox{} peano numeral: the zero constructor node under $n$ applications of
+the successor constructor node, each constructor node carrying an \emph{empty} argument list. Under
+\code{nat := .peano} this is what the eraser emits for a \code{Nat} literal, so it is the language
+every rung's committed answer is written in. \code{litLB n} is the emitted image of a \emph{source}
+\code{Nat} literal: the class projection \code{OfNat.ofNat} applied to the erased carrier type --- a
+$\Box$ --- then to the numeral and then to the instance, because the source syntax \code{3} is
+\code{@OfNat.ofNat Nat 3 (instOfNatNat 3)}.
+\end{definition}
+
+\begin{remark}
+Two things are visible in this data. First, the \emph{applied} constructor convention: every emitted
+constructor node carries an empty argument list (measured 982 of 982 across the five benchmark
+programs, finding F-ETA2), as opposed to CertiCoq's block form. Second, the box rule of [L] and [S,
+Sec. 7.3] in the committed output: \code{litLB} shows a $\Box$ where the carrier type was.
+\end{remark}
+
+\begin{definition}[The per-rung committed data]\label{def:Green-g1Table}
+\lean{LeanToLambdaBox.Green.g1Table, LeanToLambdaBox.Green.eG1, LeanToLambdaBox.Green.g1Env, LeanToLambdaBox.Green.g1Term, LeanToLambdaBox.Green.g1Answer, LeanToLambdaBox.Green.g2Table, LeanToLambdaBox.Green.g3Table, LeanToLambdaBox.Green.g4Table, LeanToLambdaBox.Green.g5Table, LeanToLambdaBox.Green.g6Table, LeanToLambdaBox.Green.g7Table, LeanToLambdaBox.Green.g8Table, LeanToLambdaBox.Green.g8Arg, LeanToLambdaBox.Green.arithTower, LeanToLambdaBox.Green.g7Tag, LeanToLambdaBox.Green.g8Tag} \leanok
+\uses{def:Witness-elabReify, def:Green-peanoLB, def:GlobalDeclarations, def:LBTerm}
+Each rung commits four literals and one answer. The table \code{g<i>Table} is \code{reify\%
+<subject>}, the reified slice of the environment this module elaborates in. The subject \code{eG<i>}
+is the source term \code{\#erase <subject>} elaborates, namely the constant of the subject's name.
+The environment \code{g<i>Env} and the term \code{g<i>Term} are the emitted program, transcribed by
+hand from the committed \code{.ast} file under \code{VerifyBench/ast/Spikes/}. The answer
+\code{g<i>Answer} is the literal peano numeral the rung claims. G7 and G8 share \code{arithTower},
+thirty-nine declarations spelling out everything the two Arith rungs emit below their own head
+declaration --- \code{benchArith}'s body, the power, multiplication, subtraction and addition
+classes with their \code{Nat} and homogeneous-bridge instances, the four \code{Nat} operations as
+fixpoint blocks plus \code{Nat.pred}, and \code{PUnit}, \code{Nat}, \code{OfNat} and
+\code{instOfNatNat} --- parametrised by the macro-scope tag Lean's matcher inliner writes into the
+ten emitted \code{let} binders, which is why the two rungs are transcribed at two different tags.
+\end{definition}
+
+\begin{remark}
+This is \textbf{data}, not a claim. Its correspondence to a real run is the binder \code{hrun},
+byte-diffed by \code{lake exe green-check}; no Lean proof can exist, \code{IO.RealWorld} being
+opaque. The transcription includes hygienic binder names and macro-scope tags, so it is a
+maintenance risk guarded only by that external diff. One visible asymmetry is worth recording: the
+emitted \code{Nat.add} and \code{Nat.mul} fixpoints recurse on their \textbf{second} argument, the
+Lean-versus-Rocq difference the benchmark repository also documents.
+\end{remark}
+
+\section{The hypotheses a computation settles}
+\label{sec:capstone:checked}
+
+The four lemmas of this section exist once per rung; each is stated below for G1, and the seven
+analogues differ only in the committed literals they are read at.
+
+\begin{lemma}[Each subject is inside the fragment]\label{lem:Green-g1_supported}
+\lean{LeanToLambdaBox.Green.g1_supported, LeanToLambdaBox.Green.g2_supported, LeanToLambdaBox.Green.g3_supported, LeanToLambdaBox.Green.g4_supported, LeanToLambdaBox.Green.g5_supported, LeanToLambdaBox.Green.g6_supported, LeanToLambdaBox.Green.g7_supported, LeanToLambdaBox.Green.g8_supported} \leanok
+\uses{def:supportedB, def:Green-g1Table}
+For each rung, the Boolean fragment checker returns success on the rung's reified table at depth
+fuel 8 and the rung's subject.
+\end{lemma}
+
+\begin{proof} \leanok
+\uses{def:supportedB, def:Green-g1Table}
+The checker's success is decided by the \textbf{kernel} (\code{by decide +kernel}) on the
+\code{isOk} projection, then a case analysis on the \code{Except} value turns the Boolean verdict
+into the equation. The kernel is needed because \code{String.isPrefixOf}, which the matcher-name
+test calls, does not reduce in the elaborator. Combined with the checker's soundness theorem this
+discharges the capstone's \code{hsup} at every rung.
+\end{proof}
+
+\begin{lemma}[Every reached constant has a body]\label{lem:Green-g1_noBodylessRefs}
+\lean{LeanToLambdaBox.Green.g1_noBodylessRefs, LeanToLambdaBox.Green.g2_noBodylessRefs, LeanToLambdaBox.Green.g3_noBodylessRefs, LeanToLambdaBox.Green.g4_noBodylessRefs, LeanToLambdaBox.Green.g5_noBodylessRefs, LeanToLambdaBox.Green.g6_noBodylessRefs, LeanToLambdaBox.Green.g7_noBodylessRefs, LeanToLambdaBox.Green.g8_noBodylessRefs} \leanok
+\uses{def:NoBodylessRefs, def:Green-g1Table}
+For each rung, every constant the committed emitted program reaches is declared with a body.
+\end{lemma}
+
+\begin{proof} \leanok
+\uses{def:NoBodylessRefs, def:Green-g1Table}
+\code{decide +kernel} on the committed literals; at G7 this is forty declarations and a forty-round
+reachability closure, the ladder's longest kernel computation.
+\end{proof}
+
+\begin{remark}
+This discharges \code{hnb}. Since \code{hnb} is an unspent binder of the capstone, the honest
+statement is that the rungs settle a hypothesis the theorem does not use: it is the exclusion
+mechanism for the body-less \code{Eq.rec} finding F-EQREC at the \emph{program} level, not a premise
+of the theorem's proof. Among the five benchmark programs only Fannkuch fails it.
+\end{remark}
+
+\begin{lemma}[Each emitted program is well formed for peregrine]\label{lem:Green-g1_wf}
+\lean{LeanToLambdaBox.Green.g1_wf, LeanToLambdaBox.Green.g2_wf, LeanToLambdaBox.Green.g3_wf, LeanToLambdaBox.Green.g4_wf, LeanToLambdaBox.Green.g5_wf, LeanToLambdaBox.Green.g6_wf, LeanToLambdaBox.Green.g7_wf, LeanToLambdaBox.Green.g8_wf} \leanok
+\uses{def:LBWfPeregrine, def:Green-g1Table}
+For each rung, the committed emitted program satisfies \code{LBWfPeregrine}, the twelve clauses
+peregrine's first pass reads of a \lbox{} program.
+\end{lemma}
+
+\begin{proof} \leanok
+\uses{thm:lbWfPeregrine_of_check, def:LBWfPeregrine, def:Green-g1Table}
+The Boolean checker decides all twelve clauses on the committed environment and term in the kernel,
+and the transport theorem turns its verdict into the structure. The eight kernel checks cost about
+twelve seconds of elaboration, most of it at G7 and G8.
+\end{proof}
+
+\begin{remark}
+A recently corrected vacuity belongs here. Until the closing round of work the binder-name clause of
+\code{LBWfPeregrine} demanded the alphanumeric identifier class that the kername constructor applies
+to \emph{kernames}, which emitted \emph{binder} names do not satisfy (measured 0/1/1/1/0/0/34/34
+offending names at G1 through G8), so G2, G3, G4, G7 and G8 had an unsatisfiable hypothesis and were
+vacuous. The clause now reads \code{PrintableBinders}, under which the count is 0 at all eight
+rungs. Any older description of the ladder is stale on this point.
+\end{remark}
+
+\begin{lemma}[Each emitted program evaluates to its literal answer]\label{lem:Green-g1_eval}
+\lean{LeanToLambdaBox.Green.g1_eval, LeanToLambdaBox.Green.g2_eval, LeanToLambdaBox.Green.g3_eval, LeanToLambdaBox.Green.g4_eval, LeanToLambdaBox.Green.g5_eval, LeanToLambdaBox.Green.g6_eval, LeanToLambdaBox.Green.g7_eval, LeanToLambdaBox.Green.g8_eval} \leanok
+\uses{def:WcbvEval, def:eraseFlags, def:Green-g1Table, def:Green-peanoLB}
+For each rung the committed emitted program evaluates, under \lbox{}'s call-by-value semantics at
+the erasure flag set, to the committed literal peano answer. At G8 the evaluated term is the emitted
+term \textbf{applied to} the \lbox{} numeral 0.
+\end{lemma}
+
+\begin{proof} \leanok
+\uses{thm:lbEval_sound, def:WcbvEval, def:Green-peanoLB}
+The certified evaluator is run in the kernel at a fixed fuel --- 8, 16, 16, 16, 16, 24, 64, 64 at G1
+through G8 --- and its soundness theorem transports the computed value to a derivation of the
+evaluation relation. This is the ladder's anti-vacuity device: together with determinism of \lbox{}
+evaluation it forces the capstone's existential target value to be the literal numeral, so the
+conclusion cannot be met by $\Box$ or by a stuck term. The evaluator's own measured footprint is
+\code{[propext]}, the cleanest in the ledger.
+\end{proof}
+
+\begin{lemma}[G1's compiler bodies are typed]\label{lem:Green-g1_compilerBodies}
+\lean{LeanToLambdaBox.Green.g1_compilerBodies, LeanToLambdaBox.Green.g1Decls, LeanToLambdaBox.Green.g1_decls_eq, LeanToLambdaBox.Green.g1_body?_some, LeanToLambdaBox.Green.g1_pinned_subject, LeanToLambdaBox.Green.g1_pinned_zero} \leanok
+\uses{def:CompilerBodies, def:Witness-SourceTableAdequate, def:TableSafe, def:ErasureSpec, def:Green-g1Table}
+Under the specification bundle and an adequate, safe G1 table, \code{CompilerBodies} holds of G1's
+body column: the table's declaration column is the subject together with the two \code{Nat}
+constructors, only the subject carries a body, and that body is the constant \code{Nat.zero}, which
+the pinned table types at the subject's declared type in the model.
+\end{lemma}
+
+\begin{proof} \leanok
+\uses{def:Witness-SourceTableAdequate, asm:ErasureSpec-decl_adequate, def:CompilerBodies}
+The declaration column is settled by computation --- the equation identifying it with the literal
+list is \code{rfl} --- so the only tabled body is the subject's, and it is the constant
+\code{Nat.zero}. Adequacy pins the subject and \code{Nat.zero} in the ambient environment,
+monomorphically and at type \code{Nat}. The bundle's \code{decl\_adequate} field then supplies the
+model constant for \code{Nat.zero} and the translation of its declared type; inverting that
+translation gives the model typing of the body at the subject's type, and a constant-unfolding step
+supplies the required definitional equality.
+\end{proof}
+
+\begin{remark}
+This is \textbf{the only rung at which \code{hcb} is discharged.} It stays a binder at G2 through
+G8: the tables of G2--G4 carry the class projection \code{OfNat.ofNat}, whose translation routes
+through lean4lean's projection layer, which is entirely unproven at the pin; G5 and G6 carry an
+eliminator spine and a recursive body; and G7/G8's Arith table has ten projection-bearing bodies
+among thirty, with twenty-eight of its forty-four declarations polymorphic.
+\end{remark}
+
+\section{G5: the source evaluation, derived}
+\label{sec:capstone:g5}
+
+\begin{definition}[G5's source-side vocabulary]\label{def:Green-peanoSrc}
+\lean{LeanToLambdaBox.Green.peanoSrc, LeanToLambdaBox.Green.g5Motive, LeanToLambdaBox.Green.g5Minor0, LeanToLambdaBox.Green.g5Minor1, LeanToLambdaBox.Green.g5Body} \leanok
+\uses{def:Green-g1Table}
+A peano numeral in \emph{source constructor form}; G5's motive; its thunked nullary minor premise,
+the identity thunk applied to \code{Unit.unit}; its successor minor premise, the identity function;
+and \code{g5Body}, the eliminator spine \code{Nat.casesOn} applied to the motive, the constructor
+value 2 and the two minors --- which is the body G5's table records for the subject.
+\end{definition}
+
+\begin{remark}
+The thunked nullary branch is not an artefact of the fixture: it is the shape Lean's \code{match}
+compiler gives a nullary alternative, and it is exactly what makes the iota rule's per-branch
+obligation (restriction N20) visible.
+\end{remark}
+
+\begin{lemma}[G5's tabled bodies, computed]\label{lem:Green-g5_body_eq}
+\lean{LeanToLambdaBox.Green.g5_body_eq, LeanToLambdaBox.Green.g5_unit_body_eq} \leanok
+\uses{def:Green-peanoSrc, def:Green-g1Table}
+G5's table records the eliminator spine as the subject's body and \code{PUnit.unit} as
+\code{Unit.unit}'s.
+\end{lemma}
+
+\begin{proof} \leanok
+\uses{def:Green-peanoSrc, def:Green-g1Table}
+Both are \code{rfl} on the reified literal.
+\end{proof}
+
+\begin{definition}[What the model must declare about \code{Nat}]\label{def:Green-SpikeNatFacts}
+\lean{LeanToLambdaBox.Green.SpikeNatFacts, LeanToLambdaBox.Green.SpikeNatFacts.natInd, LeanToLambdaBox.Green.SpikeNatFacts.natZero, LeanToLambdaBox.Green.SpikeNatFacts.natSucc, LeanToLambdaBox.Green.SpikeNatFacts.natCases, LeanToLambdaBox.Green.SpikeNatFacts.natCasesOrigin, LeanToLambdaBox.Green.SpikeNatFacts.natInf} \leanok
+\uses{def:IndInfo, def:CtorOf, def:CasesOnShape, def:ConstOrigin, def:InformativeInd}
+A bundle of six model-side facts: \code{Nat} is declared with no parameters and two constructors of
+zero and one field; \code{Nat.zero} and \code{Nat.succ} are its constructors at indices 0 and 1;
+\code{Nat.casesOn} has one argument before the major premise and two minors --- the segmentation at
+which the iota rule splits a spine; \code{Nat.casesOn} is declared as a \emph{plain} constant; and
+\code{Nat} eliminates into data, its result sort never being \code{Prop}.
+\end{definition}
+
+\begin{remark}
+Each field is a datum the reified table records for the ambient environment, \emph{read in the
+model}; the transport between the two is upstream ask 3, which is why this is a bundle of hypotheses
+rather than a theorem. The informativeness field is restriction N18.
+\end{remark}
+
+\begin{lemma}[The \code{Nat} bundle is satisfiable]\label{lem:Green-spikeNatFacts_natEnv}
+\lean{LeanToLambdaBox.Green.spikeNatFacts_natEnv} \leanok
+\uses{def:Green-SpikeNatFacts, prop:NatWitness-seval_iota_fires}
+The \code{Nat} bundle holds at the model fixture of the source-evaluation chapter and its inductive
+identifier.
+\end{lemma}
+
+\begin{proof} \leanok
+\uses{def:Green-SpikeNatFacts, prop:NatWitness-seval_iota_fires}
+The source-evaluation fixture builds a well-formed model environment declaring \code{Nat}, its
+constructors, its recursor and \code{Nat.casesOn}; every field of the bundle is one of that
+fixture's own theorems, so the bundle is assembled directly. The measured footprint is
+\code{[propext, Classical.choice, Quot.sound]}: no \code{sorryAx}. This is the non-vacuity guard for
+G5's and G8's model-side bundle.
+\end{proof}
+
+\begin{definition}[What the model must declare about \code{PUnit}]\label{def:Green-SpikeUnitFacts}
+\lean{LeanToLambdaBox.Green.SpikeUnitFacts, LeanToLambdaBox.Green.SpikeUnitFacts.punitInd, LeanToLambdaBox.Green.SpikeUnitFacts.punitUnit} \leanok
+\uses{def:IndInfo, def:CtorOf}
+\code{PUnit} is declared with no parameters and one nullary constructor, and \code{PUnit.unit} is
+that constructor.
+\end{definition}
+
+\begin{remark}
+This bundle is kept separate from the \code{Nat} one because the model fixture declares a single
+block, so the two halves would be satisfiable only at different fixtures. \textbf{This half is
+inhabited nowhere}: G5's claim that its source evaluation is not assumed therefore holds modulo a
+bundle half whose consistency is not exhibited.
+\end{remark}
+
+\begin{lemma}[Source peano numerals are values]\label{lem:Green-peanoSrc_eval}
+\lean{LeanToLambdaBox.Green.peanoSrc_eval} \leanok
+\uses{def:Green-SpikeNatFacts, def:Green-peanoSrc, def:SEval}
+Given the \code{Nat} bundle, every peano numeral in source constructor form evaluates to itself, at
+any body column, level scope and flag set.
+\end{lemma}
+
+\begin{proof} \leanok
+\uses{def:Green-SpikeNatFacts, def:Green-peanoSrc, def:SEval}
+Induction on the numeral. At zero and at a successor the spine is within the constructor's arity, so
+the constructor-value rule of the source evaluation applies, with the inductive hypothesis
+discharging the single argument in the successor case.
+\end{proof}
+
+\begin{lemma}[Neither the subject nor the thunk's argument is an eliminator]\label{lem:Green-not_casesOn_spikeCase}
+\lean{LeanToLambdaBox.Green.not_casesOn_spikeCase, LeanToLambdaBox.Green.not_casesOn_unitUnit} \leanok
+\uses{def:CasesOnShape}
+No \code{CasesOnShape} holds of \code{spikeCase}, nor of \code{Unit.unit}, at any inductive type,
+prefix depth or minor count.
+\end{lemma}
+
+\begin{proof} \leanok
+\uses{def:CasesOnShape}
+The first component of \code{CasesOnShape} is a decidable condition on the name, refuted by
+\code{decide}. These are the side conditions the delta rule of the source evaluation takes; they are
+what makes a delta step the only available move at those two heads.
+\end{proof}
+
+\begin{proposition}[G5's source evaluation, derived]\label{prop:Green-g5_seval}
+\lean{LeanToLambdaBox.Green.g5_seval} \leanok
+\uses{def:Green-SpikeNatFacts, def:Green-SpikeUnitFacts, def:Green-peanoSrc, def:Green-g1Table, def:SEval, def:StepDefeq, def:SEvalFlags}
+Given the \code{Nat} and \code{PUnit} bundles and three definitional-step facts --- that the subject
+is definitionally its tabled body, that \code{Unit.unit} is definitionally \code{PUnit.unit}, and
+that the eliminator spine is definitionally the selected minor applied to the constructor's field
+--- the source evaluation takes G5's subject to the source numeral 1, reading the body column off
+G5's reified table at the full flag set.
+\end{proposition}
+
+\begin{proof} \leanok
+\uses{lem:Green-g5_body_eq, lem:Green-peanoSrc_eval, lem:Green-not_casesOn_spikeCase, def:Green-SpikeNatFacts, def:Green-SpikeUnitFacts, def:SEval}
+A delta step at the subject --- licensed by the tabled body, by the subject not being an eliminator,
+and by the first definitional-step fact --- exposes the eliminator spine. The iota rule then fires
+at \code{Nat.casesOn}: the discriminant is a constructor value by the numeral lemma, the block data
+comes from the \code{Nat} bundle, and the selected minor applied to the constructor's field
+beta-reduces to the numeral 1. The rule also owes a derivation for the \emph{unselected} nullary
+minor, which is a thunk application; that is discharged by a beta step whose argument needs its own
+delta step at \code{Unit.unit}, using the \code{PUnit} bundle and the second definitional-step fact.
+\end{proof}
+
+\begin{remark}
+This is the only place in the repository where the capstone's source-evaluation premise is a term
+rather than a binder, hence the ladder's non-vacuity high-water mark on the source side. Its
+measured footprint is \code{[propext, Classical.choice, Quot.sound]}: no \code{sorryAx}. Design tags
+N20 (the per-branch obligation of the iota rule) and N18 (informativeness). No source-evaluation
+witness is constructed at Arith: \code{benchArith 0} runs 45 recursive calls, each a delta on a
+fixpoint-carrying constant and an iota on its compiled match, and N20 would owe a derivation for
+every unselected minor of each --- a recorded fallback, not an oversight.
+\end{remark}
+
+\section{G8: the applied rung}
+\label{sec:capstone:g8}
+
+\begin{lemma}[G8's spine translates]\label{lem:Green-g8_trExprS_spine}
+\lean{LeanToLambdaBox.Green.g8_trExprS_spine} \leanok
+\uses{def:Witness-SourceTableAdequate, def:Green-g1Table, def:TableSafe, def:ErasureSpec, def:lean4lean-grounding}
+Under the specification bundle and an adequate, safe G8 table, the source application of
+\code{benchArith} to \code{Nat.zero} translates to the model application of the two model constants.
+\end{lemma}
+
+\begin{proof} \leanok
+\uses{lem:Witness-trExprS_const_of_table, lem:Witness-hasType_const_of_table, lem:Witness-tableDeclPin, asm:ErasureSpec-decl_adequate}
+The application arm of the translation relation needs the function's arrow type in the model and the
+argument's typing. The table records \code{benchArith}'s type as a dependent arrow between two
+\code{Nat} constants and records no level parameters, both by \code{rfl}; the pinning lemma
+transports this to the ambient environment, and inverting \code{decl\_adequate}'s translation of
+that arrow twice --- once at the domain, once at the codomain, using that a translated constant is
+the model constant of the same name --- identifies the model type. The two components then come from
+the table route and the argument's typing from the tabled-type lemma.
+\end{proof}
+
+\begin{remark}
+The capstone's observable reads its translation premise at the \emph{applied spine}, so a
+function-typed subject cannot use the table route alone. G8 is the only rung with a non-empty spine.
+\end{remark}
+
+\begin{lemma}[The argument's image reaches one key]\label{lem:Green-reachableFrom_peanoLB_zero}
+\lean{LeanToLambdaBox.Green.reachableFrom_peanoLB_zero} \leanok
+\uses{def:Green-peanoLB, def:ReachableFrom, def:LBTerm-envLookup}
+If a specification environment answers \code{Nat}'s block key with an inductive declaration, then
+the only kername reachable from the \lbox{} numeral 0 in that environment is that key.
+\end{lemma}
+
+\begin{proof} \leanok
+\uses{def:Green-peanoLB, def:ReachableFrom, def:LBTerm-envLookup}
+The numeral 0 is a nullary constructor node whose constant references are the single block key. The
+reachability closure is computed by iterating an expansion step; an induction on the iteration count
+shows the singleton is a fixed point, because a block key answers with an inductive declaration,
+which the expansion does not unfold. Membership in the singleton is then the claimed equation.
+\end{proof}
+
+\begin{lemma}[G8's argument is covered by the subject's environment]\label{lem:Green-g8_argErasesEnv}
+\lean{LeanToLambdaBox.Green.g8_argErasesEnv} \leanok
+\uses{def:Green-SpikeNatFacts, def:Green-peanoLB, def:Green-g1Table, def:ErasesEnv, def:ReachableFrom}
+Given the \code{Nat} bundle, an environment-erasure of the subject's erasure, and the fact that the
+subject's erasure reaches \code{Nat}'s block key in that environment, the same environment erases
+the source environment along the argument's \lbox{} image.
+\end{lemma}
+
+\begin{proof} \leanok
+\uses{lem:Green-reachableFrom_peanoLB_zero, def:Green-SpikeNatFacts, def:ErasesEnv}
+The \code{Nat} block's declaration in the specification environment is obtained from the subject's
+environment-erasure at the reachability fact. Of the seven conditions of $\ErasesEnv$, two --- the
+key clause and the tabled clause --- are reused verbatim from the subject's derivation, and the
+remaining five are re-derived at the argument's image: in each, the previous lemma rewrites every
+reached key to \code{Nat}'s block key, at which the subject's own clause applies.
+\end{proof}
+
+\begin{remark}
+This reduces the capstone's per-argument environment conjunct at G8 to a single reachability fact,
+\code{hargReach}, which stays a binder. That binder is \emph{not} slack: at the empty specification
+environment the per-argument conjunct is false while the lowering of a bare constant still holds,
+which is why the lemma carries the environment-erasure and lowering facts as antecedents rather than
+being stated at every environment.
+\end{remark}
+
+\section{The eight rungs}
+\label{sec:capstone:rungs}
+
+\begin{center}
+\begin{tabular}{llll}
+rung & subject & answer & committed \code{.ast} \\
+\hline
+G1 & \code{spikeZero} & 0 & 354 bytes \\
+G2 & \code{spikeLit} & 4 & 1556 bytes \\
+G3 & \code{spikeLet} & 3 & 1469 bytes \\
+G4 & \code{spikeProj} & 1 & 2284 bytes \\
+G5 & \code{spikeCase} & 1 & 966 bytes \\
+G6 & \code{spikeFix} & 2 & 853 bytes \\
+G7 & \code{arithClosed} & 8 & 14497 bytes \\
+G8 & \code{benchArith} applied to 0 & 8 & 14163 bytes \\
+\end{tabular}
+\end{center}
+
+\begin{theorem}[Rung G1 is green]\label{thm:Green-green_G1}
+\lean{LeanToLambdaBox.Green.green_G1} \leanok
+\uses{thm:shipping_erase_correct_firstorder, def:Green-g1Table, def:Green-peanoLB, def:Witness-SourceTableAdequate, def:ErasureSpec, def:EraserAsks, def:UpstreamAsks, asm:htbl, asm:hsafe, asm:hblk, asm:hprep, asm:hrun, asm:hev, asm:hvwt, asm:hty, asm:hfo, asm:ErasureBridge-erasesEnv, asm:ErasureBridge-lowerEnv}
+For the \code{\#erase} run recorded in \code{VerifyBench/Spikes/G1.lean} --- assuming the
+specification bundle, an adequate and safe G1 table, this repository's and upstream's obligations,
+the block condition, the preparation and run equations, the bridge, a source evaluation of the
+subject to a value, that value's translation and typing at a \code{Nat} spine, and that \code{Nat}
+is first order in the model --- there are a specification environment and an intermediate term such
+that the subject erases to it, the environment erases the source environment along it, the lowering
+carries both to the committed emitted program, that program is well formed for peregrine, and the
+source value's erasure is unique, its lowering is the box-free literal \lbox{} numeral 0, and the
+emitted program evaluates to that very numeral.
+\end{theorem}
+
+\begin{proof} \leanok
+\uses{thm:shipping_erase_correct_firstorder, lem:Green-spike_configPinned, lem:Green-g1_compilerBodies, lem:Witness-trExprS_const_of_table, thm:supportedB_sound, lem:Green-g1_supported, lem:Green-g1_noBodylessRefs, lem:Green-g1_wf, lem:Green-g1_eval, thm:eval_deterministic, asm:lean4lean-trust, asm:lean-reflection-axioms}
+The capstone is applied with six checked terms in place of six of its binders --- the pinned
+configuration, G1's compiler bodies, the table route's translation, the fragment checker's verdict
+transported by its soundness theorem, the body-less-reference check and the well-formedness check
+--- and the remaining binders passed through. Its observable is then instantiated at the
+\textbf{empty} argument list, where the length equation is \code{rfl}, the per-argument premise is
+vacuous and the spine translation is again the table route. Finally the determinism of \lbox{}
+evaluation identifies the existential target value with the committed literal answer, which is
+substituted into the conclusion.
+\end{proof}
+
+\begin{remark}
+G1 is the simplest rung and the only one at which \code{hcb} is a checked term; at every other rung
+five checked terms are supplied and \code{hcb} is a binder.
+\end{remark}
+
+\begin{theorem}[Rungs G2, G3, G4 and G6]\label{thm:Green-green_G2}
+\lean{LeanToLambdaBox.Green.green_G2, LeanToLambdaBox.Green.green_G3, LeanToLambdaBox.Green.green_G4, LeanToLambdaBox.Green.green_G6} \leanok
+\uses{thm:shipping_erase_correct_firstorder, def:Green-g1Table, def:Green-peanoLB, def:Witness-SourceTableAdequate, def:CompilerBodies, asm:htbl, asm:hsafe, asm:hblk, asm:hcb, asm:hprep, asm:hrun, asm:hev, asm:hvwt, asm:hty, asm:hfo, asm:ErasureBridge-erasesEnv, asm:ErasureBridge-lowerEnv}
+Four further rungs of the same shape as G1, at their own tables, subjects and committed programs,
+with the literal answers 4, 3, 1 and 2, and with one extra binder each --- \code{hcb}, the
+compiler-bodies hypothesis, which only G1 discharges. G2 exhibits a \code{Nat} literal becoming a
+peano tower together with the \code{OfNat} class tower; G3 a \code{let} contracted by zeta on both
+sides; G4 a projection taken on both sides with the pair's two type parameters erased to $\Box$; G6
+a recursive constant whose emitted body is a fixpoint node that the target run unfolds twice under
+the guard.
+\end{theorem}
+
+\begin{proof} \leanok
+\uses{thm:shipping_erase_correct_firstorder, lem:Green-spike_configPinned, lem:Witness-trExprS_const_of_table, thm:supportedB_sound, lem:Green-g1_supported, lem:Green-g1_noBodylessRefs, lem:Green-g1_wf, lem:Green-g1_eval, thm:eval_deterministic, asm:lean4lean-trust, asm:lean-reflection-axioms}
+Identical in shape to G1's: the capstone at the rung's five checked terms, the observable at the
+empty spine, determinism to fix the answer. Together the four cover the erasure rules the fragment
+admits --- literal, zeta, projection with boxed type parameters, delta on a fixpoint --- and at all
+four both \code{hcb} and the source evaluation \code{hev} remain binders.
+\end{proof}
+
+\begin{theorem}[Rung G5 is green, and its source evaluation is not assumed]\label{thm:Green-green_G5}
+\lean{LeanToLambdaBox.Green.green_G5} \leanok
+\uses{thm:shipping_erase_correct_firstorder, def:Green-SpikeNatFacts, def:Green-SpikeUnitFacts, def:Green-peanoSrc, def:Green-peanoLB, def:Green-g1Table, def:StepDefeq, asm:htbl, asm:hsafe, asm:hblk, asm:hcb, asm:hprep, asm:hrun, asm:hvwt, asm:hty, asm:hfo, asm:ErasureBridge-erasesEnv, asm:ErasureBridge-lowerEnv}
+As the other rungs, at G5's table, subject and committed program, except that the source-evaluation
+binder is replaced by the two model-side bundles and the three definitional-step facts that the
+derived source evaluation consumes, the observed value is fixed to the source numeral 1, and the
+answer is the literal \lbox{} numeral 1.
+\end{theorem}
+
+\begin{proof} \leanok
+\uses{thm:shipping_erase_correct_firstorder, prop:Green-g5_seval, lem:Green-spike_configPinned, lem:Witness-trExprS_const_of_table, thm:supportedB_sound, lem:Green-g1_supported, lem:Green-g1_noBodylessRefs, lem:Green-g1_wf, lem:Green-g1_eval, thm:eval_deterministic, asm:lean4lean-trust, asm:lean-reflection-axioms}
+As at G1, with the capstone's source-evaluation premise supplied by
+Proposition~\ref{prop:Green-g5_seval} rather than bound. What remains of the trust rows here is
+\code{hcb}, the two value-side facts \code{hvwt} and \code{hty}, the first-order hypothesis, the two
+model-side bundles and the three definitional-step facts.
+\end{proof}
+
+\begin{theorem}[Rung G7 is green]\label{thm:Green-green_G7}
+\lean{LeanToLambdaBox.Green.green_G7} \leanok
+\uses{thm:shipping_erase_correct_firstorder, def:Green-g1Table, def:Green-peanoLB, def:spikeZero, asm:htbl, asm:hsafe, asm:hblk, asm:hcb, asm:hprep, asm:hrun, asm:hev, asm:hvwt, asm:hty, asm:hfo, asm:ErasureBridge-erasesEnv, asm:ErasureBridge-lowerEnv}
+As G1, at the tracked benchmark subject \code{arithClosed}, which is \code{benchArith 0}, with the
+literal answer the \lbox{} peano numeral 8 and with \code{hcb} and \code{hev} as binders.
+\end{theorem}
+
+\begin{proof} \leanok
+\uses{thm:shipping_erase_correct_firstorder, lem:Green-spike_configPinned, lem:Witness-trExprS_const_of_table, thm:supportedB_sound, lem:Green-g1_supported, lem:Green-g1_noBodylessRefs, lem:Green-g1_wf, lem:Green-g1_eval, thm:eval_deterministic, asm:lean4lean-trust, asm:lean-reflection-axioms}
+As at G1, at G7's own checked terms. This is the ladder at real program scale --- forty emitted
+declarations, ten class projections, four fixpoint blocks, five case nodes, a nineteen-node peano
+tower and a 14,497-byte committed \code{.ast} --- and its well-formedness and body-less-reference
+checks are the ladder's most expensive kernel computations.
+\end{proof}
+
+\begin{theorem}[Rung G8 is green, and it is the applied one]\label{thm:Green-green_G8}
+\lean{LeanToLambdaBox.Green.green_G8} \leanok
+\uses{thm:shipping_erase_correct_firstorder, def:Green-SpikeNatFacts, def:Green-peanoLB, def:Green-g1Table, def:ReachableFrom, def:ErasesEnv, def:LowerEnv, asm:htbl, asm:hsafe, asm:hblk, asm:hcb, asm:hprep, asm:hrun, asm:hargReach, asm:hev, asm:hvwt, asm:hty, asm:hfo, asm:ErasureBridge-erasesEnv, asm:ErasureBridge-lowerEnv}
+As the others at G8's data, except that the subject \code{benchArith} is function-typed: the source
+evaluation is read at the \textbf{spine} \code{benchArith Nat.zero}, the conclusion's target
+evaluation at the emitted term \textbf{applied to} the \lbox{} numeral 0, and two binders appear
+that the other seven do not have --- the \code{Nat} bundle, and \code{hargReach}, the hypothesis
+that the subject's erasure reaches \code{Nat}'s block key in any specification environment carrying
+the other facts. The answer is again the literal numeral 8.
+\end{theorem}
+
+\begin{proof} \leanok
+\uses{thm:shipping_erase_correct_firstorder, lem:Green-g8_trExprS_spine, lem:Green-g8_argErasesEnv, lem:Green-spike_configPinned, lem:Witness-trExprS_const_of_table, thm:supportedB_sound, lem:Green-g1_supported, lem:Green-g1_noBodylessRefs, lem:Green-g1_wf, lem:Green-g1_eval, thm:eval_deterministic, def:Erases, def:Lower, asm:lean4lean-trust, asm:lean-reflection-axioms}
+The capstone is applied as at the other rungs, then its observable is instantiated at the
+\textbf{one-element} argument list, the source constant \code{Nat.zero} against the \lbox{} numeral
+0. The per-argument premise is therefore not vacuous: it is discharged by the constructor arm of the
+erasure relation and the constructor arm of the lowering relation at the numeral, together with
+Lemma~\ref{lem:Green-g8_argErasesEnv}, whose reachability input is the binder \code{hargReach}. The
+spine's translation is Lemma~\ref{lem:Green-g8_trExprS_spine}, and determinism fixes the answer to
+the literal numeral 8. G8 is the only rung exercising a non-empty spine, hence the only one at which
+the capstone's per-argument premise has content.
+\end{proof}
+
+\section{The tooling that re-measures}
+\label{sec:capstone:tooling}
+
+Nothing in this section is a graph node; all of it is machinery that re-derives, outside the kernel,
+what the rungs assume or claim.
+
+\code{lake exe green-check} re-runs the Lean frontend on a rung's spike module, byte-diffs the
+regenerated \code{.ast} against the committed one \emph{and} against the literal program the rung's
+theorem is stated about, and runs the certified evaluator on the rung's observed term against the
+committed answer; \code{--self-test} exercises the evaluator on the delta, iota and fixpoint
+fixtures independently of any rung. This is the external mechanisation of \code{hrun}.
+
+\code{lake exe reify --check MOD NAME...} re-derives a committed table from the live environment
+field by field --- the same comparison Definition~\ref{def:Witness-SourceTable-check} performs, run
+outside the kernel --- tolerating bodies that agree only up to binder names and reporting those as
+notes; \code{--blocks} re-checks the two computable clauses of \code{TableBlocks} against the
+compiler's fix-block view; \code{--prepared} checks that preparation is the identity at a rung's
+subject, which is the binder \code{hprep}. CI runs all three over the eight rung tables, and over a
+deliberately stale table that must be \emph{rejected}.
+
+\code{scripts/ledger.sh} runs \code{test/Ledger.lean} --- 40 \code{\#print axioms} invocations ---
+and diffs the output against \code{test/ledger.expected}, so any change to a tracked theorem's
+measured axiom footprint fails the build. \code{scripts/erases\_correct.sh} and
+\code{scripts/erasesLB.sh} guard \emph{premise shape}, which a footprint cannot see.
+\code{scripts/lean4lean-sorries.sh} re-scans the pinned lean4lean checkout and pins the inherited
+trust boundary at sixteen \code{sorry} sites. \code{scripts/frozen.sh} holds the five benchmark
+sources byte-identical against their expected copies and against the sibling benchmarks repository.
+
+\code{lake exe coverage} regenerates \code{doc/coverage.md} by \emph{measuring} the tree ---
+reifying the five programs' tables, running the fragment checker at every tabled body, reading the
+eight rungs' data out of \code{Green.lean} --- and \code{--check} fails on drift. \code{lake exe
+hygiene} enforces the documentation and dead-declaration policies, with a budget of 240 declarations
+outside the import closure of \code{Green.lean} and \code{Capstone.lean}.
+
+\section{Deviations from the paper, and caveats}
+\label{sec:capstone:caveats}
+
+The capstone's shape is [S, Sec. 7.3--7.4]'s, with three deliberate substitutions already named:
+\lbox{}'s own weak call-by-value evaluation in place of MetaRocq's, the extra lowering relation
+$\Lower$ with the consequent split of the environment side, and a source evaluation reading a
+compiler-body table rather than the kernel's $\delta$ rules. Two further deviations are visible in
+the emitted data: constructors are emitted in \emph{applied} form, never as blocks (F-ETA2), and no
+fixpoint eta-expansion is performed, so the emitted program satisfies \code{LBWfPeregrine} but not
+the stronger expanded-fixpoint condition (F-ETA).
+
+The honest reading of the ladder is this. Eight rungs instantiate the capstone at real
+\code{\#erase} runs and end in literal answers, so the theorem is not vacuously satisfiable by
+$\Box$ or by a stuck term, and every hypothesis a computation can settle --- the configuration, the
+fragment check, the body-less-reference check, the well-formedness check, the target evaluation, and
+at G1 the compiler bodies, at G5 the source evaluation --- is settled by one. But \code{lenv} and
+\code{env} are universally quantified at every rung; the run equation \code{hrun} is an equation
+about an opaque world token that no Lean term inhabits; the binder \code{hbridge} is inhabited
+nowhere; \code{hcb} is a binder at seven rungs and \code{hev} at seven; and the \code{PUnit} half of
+G5's model-side bundle is satisfied by no fixture. Two fields of \code{EraserAsks}, a binder of the
+capstone and of every rung, are moreover refuted in general: the kernel inductive-head field is
+false at a telescope of at least 256 binders (finding F-DEPTH, since Lean's approximate depth field
+is eight bits wide), and the block-key-distinctness field is false on a legal mutual \code{unsafe
+def} block whose \code{\_unsafe\_rec} companion collides (finding F-UNSAFEREC). Both are true on
+every measured input, and both bound what "verified" may mean here. Chapter~\ref{chap:trust} states
+each of these as its own assumption and gives the measured axiom footprint behind them.

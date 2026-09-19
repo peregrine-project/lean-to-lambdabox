@@ -1,0 +1,1204 @@
+\chapter{The trust boundary: assumptions, axiom footprint, inherited sorries, findings, coverage, what is open}
+\label{chap:trust}
+
+The preceding eleven chapters state what the development proves. This one states what it does
+not. The capstone \code{shipping\_erase\_correct\_firstorder}
+(\code{LeanToLambdaBox/Capstone.lean}) is a \emph{conditional} theorem: fifteen explicit binders
+stand in front of its conclusion, and at the eight green rungs only five of them --- six at G1
+--- are replaced by checked terms. Three of the fifteen are bundles of further hypotheses ---
+\code{ErasureSpec} (eight fields), \code{EraserAsks} (five fields) and \code{UpstreamAsks} (four
+fields), declared in \code{LeanToLambdaBox/ErasureSpec.lean} and
+\code{LeanToLambdaBox/Upstream.lean} --- and a fourth, \code{hbridge}, is an implication whose
+consequent is a two-field bundle \code{ErasureBridge} that no theorem in the repository inhabits,
+at any rung. Underneath all of that sits trust inherited from outside: sixteen \code{sorry} sites
+in the pinned lean4lean fork, and twenty-nine non-standard axioms of Lean's own kernel-reflection
+layer that the oracle reroute drags in. This chapter gives one node to each of those assumptions,
+and then records the measured axiom footprint of every tracked theorem, the measured coverage of
+the five benchmark programs and the eight rungs, the eleven shipping findings the verification
+uncovered and deliberately did not fix, and what remains open.
+
+The repository's own accounting is \code{doc/trust.md} (five classes A--E, a row per assumption),
+\code{doc/rework/07-STATUS.md} (the class table, the footprint, the verdicts) and
+\code{doc/coverage.md}, which \code{lake exe coverage} writes from the tree and re-checks in CI
+with \code{lake exe coverage --check}. The numbers below are transcribed from those documents and
+from the committed fixtures \code{test/ledger.expected} (40 \code{\#print axioms} rows in 368
+lines) and \code{test/lean4lean-sorries.expected} (the pinned revision plus sixteen \code{sorry}
+sites); every one of them is re-measured by a CI step, so a drifting claim shows up as a fixture
+diff rather than as prose rot. What a fixture cannot catch is stated as such: \code{\#print
+axioms} measures a \emph{proved term} and never a hypothesis, which is exactly why moving an
+obligation from a bundle field to a named binder moves no row in the ledger.
+
+How to read the nodes below. An \emph{assumption} node carries the Lean name of the structure
+field that states it, when a Lean declaration does, and never a proof: in the dependency graph it
+renders as stated-but-unproved, and every result depending on it inherits that colour. Nodes for
+hypotheses stated inline in the capstone or a rung, and the two nodes with no Lean counterpart at
+all, name instead the definition node of the predicate they mention. Two of the assumptions,
+Assumption~\ref{asm:EraserAsks-kernel_ind_head_true} and
+Assumption~\ref{asm:EraserAsks-block_keys_distinct}, are \emph{refuted in general} and hold only
+on the measured inputs; every statement taking a bundle \code{E : EraserAsks} --- the capstone and
+all eight rungs --- is bounded by them.
+
+\section{The five trust classes}
+\label{sec:trust:classes}
+
+\code{doc/trust.md} grades every assumption on one scale, used by name in chapters
+\ref{chap:erases}, \ref{chap:eraser}, \ref{chap:refinement}, \ref{chap:coldstart} and
+\ref{chap:capstone} and defined here once.
+
+\begin{center}
+\begin{tabular}{cp{0.78\textwidth}}
+\textbf{class} & \textbf{meaning} \\
+\hline
+\textbf{A} & proved here, measured footprint within \code{propext}, \code{Classical.choice},
+\code{Quot.sound} \\
+\textbf{B} & proved here, footprint additionally contains \code{sorryAx} inherited from
+lean4lean --- in the ledger, \code{SEval.defeq} \\
+\textbf{C} & a hypothesis of a stated theorem, visible in the statement a reader checks \\
+\textbf{D} & a permanent named binder, mechanised outside Lean \\
+\textbf{E} & a scope restriction or a fact about a consumer, stated and not formalised \\
+\end{tabular}
+\end{center}
+
+Every statement of this development is made at one pinned erasure configuration,
+\code{ConfigPinned} (Definition~\ref{def:ConfigPinned}), whose five conjuncts are
+\code{csimp = false}, \code{extern = .preferLogical}, \code{nat = .peano},
+\code{remove\_irrel\_constr\_args = false} and
+\code{auto\_inline\_typeclass\_dispatch = false}. \textbf{This is not the shipping default}: the
+\code{ErasureConfig} the \code{\#erase} command uses when the user says nothing ships with
+\code{csimp} on, \code{extern := .preferAxiom} and machine \code{Nat}, so it differs from the
+pinned configuration on three of the five fields. A default \code{\#erase} invocation is outside
+every theorem in this blueprint.
+
+The class-\textbf{E} rows are scope restrictions, stated and not formalised. In the numbering of
+the development's restriction register they are: N1, the \code{@[csimp]} replacement walk; N2,
+\code{@[extern]} axiomatisation (a program reaching an \code{@[extern]} constant fails
+\code{NoBodylessRefs}, Definition~\ref{def:NoBodylessRefs}, and is outside the domain); N3,
+machine \code{Nat}; N4, the constructor argument mask; N5, auto-inlining and the
+\code{.ast.inlinings} sidecar channel; N7, termination --- there is no source strong
+normalisation result here, and the capstone keeps the conditional form of [S]; N10,
+serialisation; N11, the remaining sidecars; N14, size; N16, \code{Quot}; N18, elimination out of
+\code{Prop}. Three further rows are facts about consumers: peregrine's own precondition
+obligation for its untyped transforms is \code{Admitted} and its \code{validate} verb checks no
+expandedness; MetaRocq's shipped \code{firstorder\_ind} predicate is \code{false} on \code{nat},
+so this development cites [S] and does not transcribe it; and no Rocq-side copy of $\Erases$ or
+$\Lower$ exists, \code{doc/rules-Erases.md} and \code{doc/rules-Lower.md} being the anchor
+instead.
+
+\section{Inherited trust}
+\label{sec:trust:inherited}
+
+\begin{assumption}[The lean4lean trust boundary: sixteen inherited sorry sites]
+\label{asm:lean4lean-trust}
+\uses{def:lean4lean-grounding}
+Everything this development proves about \emph{source} terms is relative to lean4lean's
+metatheory, and the pinned fork is not \code{sorry}-free. The pin is
+\code{20ec229f1a8c6358f3b3852c4e27d2be523d1b87}, the head of the \code{trproj} branch of a fork
+of lean4lean that adds iota-reduction support and a definition of \code{TrProj}; it is recorded
+identically in \code{lakefile.toml}, in both fields of \code{lake-manifest.json} and on the first
+line of \code{test/lean4lean-sorries.expected}, and every measurement in this chapter was taken
+at it. At that pin the package contains exactly sixteen \code{sorry} sites, re-enumerated on
+every CI run by \code{scripts/lean4lean-sorries.sh} and diffed against the committed fixture.
+Grouped by file, relative to \code{.lake/packages/lean4lean/Lean4Lean/}: two in
+\code{Theory/Typing/ChurchRosser.lean} (\code{VEnv.NormalEq.parRed}), one in
+\code{Theory/Typing/EnvLemmas.lean} (\code{VEnv.WF.patsStrong}, fork-authored), three in
+\code{Theory/Typing/Injectivity.lean} (\code{IsDefEqU.sort\_inv},
+\code{IsDefEqU.forallE\_inv\_stratified}, \code{IsDefEqU.sort\_forallE\_inv}), one in
+\code{Theory/Typing/UniqueTyping.lean} (\code{IsDefEqU.weakN\_iff}), one in
+\code{Verify/Environment.lean} (the \code{inductDecl} case of \code{addDecl.WF}), six in the
+executable checker's verification (\code{inferProj.WF\_struct}, \code{inferProj.WF},
+\code{tryEtaStructCore.WF}, \code{isDefEqUnitLike.WF}, \code{reduceProjCore.WF},
+\code{reduceRecursor.WF}), and two in \code{Verify/Typing/Lemmas.lean}
+(\code{TrProj.weak'\_inv}, \code{TrProj.uniq}).
+
+Which of them actually reach this development is a smaller set: the entries reached through
+\code{TrExprS.uniq} and \code{IsDefEq.uniqU} --- the three \code{Injectivity} lemmas,
+\code{IsDefEqU.weakN\_iff} and \code{NormalEq.parRed} --- together with
+\code{VEnv.WF.patsStrong}, which reaches everything that needs \code{OrderedStrong} rather than
+\code{Ordered}. The \code{inductDecl} case of \code{addDecl.WF} and the two \code{TrProj} lemmas
+are \code{sorry} at the pin and load-bearing only for an upstream ask, not for a theorem stated
+here. This repository itself contains \textbf{no} \code{sorry}: \code{lake build} is green at 173
+jobs and the only \code{sorry} warnings emitted are lean4lean's.
+\end{assumption}
+
+\begin{remark}
+Nothing in this repository can discharge Assumption~\ref{asm:lean4lean-trust}; it dies only with a
+re-pin whose fixture diff is then inspected. The fixture's declaration names are attributed by a
+line-oriented heuristic, so the \emph{sites} are the hard data and the names informational; and
+sixteen is the package's complete inventory, six the subset reaching this tree. One consequence of
+the boundary is measured rather than assumed: the projection arm of the simulation,
+\code{step\_proj} (Theorem~\ref{thm:step_proj}), has \emph{exactly} the \code{sorryAx} roots of
+the iota arm, name for name, and the two open projection lemmas of the executable checker do not
+appear at all --- because it \emph{consumes} a \code{TrProj} witness from the premise of
+\code{TrExprS.proj} and never builds one. The \code{TrProj} exposure at a projection is therefore
+an \emph{inhabitation} problem, not an axiom problem: a projection in a real program has a
+\code{TrExprS} derivation only through \code{inferProj.WF}, \code{sorry} at the pin.
+\end{remark}
+
+\begin{assumption}[Lean's reflection axioms: the price of the oracle reroute]
+\label{asm:lean-reflection-axioms}
+\uses{asm:ErasureSpec-oracle_refl}
+The capstone and all eight rungs carry a measured axiom footprint of thirty-three names. Four
+are the usual ones --- \code{propext}, \code{Classical.choice}, \code{Quot.sound} and
+\code{sorryAx}, the last inherited through Assumption~\ref{asm:lean4lean-trust}. The remaining
+\textbf{twenty-nine} are the price of one design decision:
+\code{ErasureSpec.oracle\_sound\_of\_run} discharges the kernel disjunct of
+Assumption~\ref{asm:ErasureSpec-oracle_refl} through lean4lean's \emph{executable} checker, via
+\code{Oracle.kernel\_isErasable\_sound}, rather than assuming that checker's soundness --- so
+the checker's own reflection axioms come with it. Every rung carries them because
+\code{erasure\_bridge\_of\_run} supplies the bridge's first step, and that step \emph{is} the
+oracle. Grouped, with their sites under \code{.lake/packages/lean4lean/Lean4Lean/}:
+
+\begin{center}
+\begin{tabular}{lcp{0.42\textwidth}l}
+\textbf{group} & \textbf{count} & \textbf{names} & \textbf{site} \\
+\hline
+pointer equality & 2 & \code{ptrEqExpr\_eq}, \code{ptrEqConstantInfo\_eq} & \code{PtrEq.lean} \\
+\code{Lean.Expr} reflection & 14 & \code{abstract\_eq}, \code{abstractRange\_eq},
+\code{eqv\_eq}, \code{hasLooseBVar\_eq}, \code{instantiate\_eq}, \code{instantiate1\_eq},
+\code{instantiateRange\_eq}, \code{instantiateRev\_eq}, \code{instantiateRevRange\_eq},
+\code{looseBVarRange\_eq}, \code{lowerLooseBVars\_eq}, \code{mkAppData\_eq},
+\code{mkData\_eq}, \code{replace\_eq} & \code{Verify/Axioms.lean} \\
+\code{Lean.Level} & 5 & \code{hasMVar\_eq}, \code{hasParam\_eq}, \code{instLawfulBEqLevel},
+\code{isExplicitSubsumedAux\_eq}, \code{normalize\_eq} & \code{Verify/Axioms.lean} \\
+persistent containers & 4 & \code{PersistentArray.toList'\_push},
+\code{PersistentHashMap.findAux\_isSome}, \code{PersistentHashMap.WF.find?\_eq},
+\code{PersistentHashMap.WF.toList'\_insert} & \code{Verify/Axioms.lean} \\
+\code{Std.TreeMap} & 1 & \code{all\_eq\_all\_toList} & \code{Verify/Axioms.lean} \\
+syntax & 1 & \code{Lean.Syntax.structEq\_eq} & \code{Verify/Axioms.lean} \\
+\code{bv\_decide} certificates & 2 & the LRAT certificates of \code{Expr.mkData\_flags} and
+\code{Expr.Data.looseBVarRange\_le} & \code{Verify/Expr.lean} \\
+\end{tabular}
+\end{center}
+
+Four of these reach the bridge \emph{outside} the oracle as well: \code{Lean.Expr.instantiate1\_eq}
+together with \code{PersistentArray.toList'\_push}, \code{PersistentHashMap.WF.find?\_eq} and
+\code{PersistentHashMap.WF.toList'\_insert}, which are the measured footprint of
+\code{BridgeInv.mkLocalDecl} and \code{BridgeInv.mkLetDecl}, consumed by the \code{visitLambda},
+\code{visitLet} and \code{visitAlt} steps. And a six-name subset --- \code{Expr.mkAppData\_eq},
+\code{Expr.mkData\_eq}, \code{Expr.replace\_eq}, \code{Level.hasParam\_eq} and the two
+certificates --- together with the three standard names is exactly the nine-name footprint of
+\code{bridgeEnv\_of\_regInv}, inherited from lean4lean's \code{Erases.instL}.
+\end{assumption}
+
+\begin{remark}
+These are Lean's and lean4lean's own modelling of opaque, \code{@[extern]}-implemented
+primitives; they are not proof holes, so a node depending on them is in a different situation from
+one depending on Assumption~\ref{asm:lean4lean-trust}. An escape hatch is on record: reverting the
+kernel reroute --- about forty lines in five hunks --- and keeping the oracle's reflection clause
+as a class-\textbf{D} binder would remove all twenty-nine, at the price of assuming what is now
+proved. The ledger row measures the \emph{set of axiom names} only, so a swapped LRAT certificate
+would be invisible to it. In the emitted fixture the first certificate's name carries a hygiene
+dagger; it is written without one here.
+\end{remark}
+
+\section{Class C: what the eraser asks of itself}
+\label{sec:trust:eraser}
+
+\code{EraserAsks lenv env Us gw} (Definition~\ref{def:EraserAsks}) bundles what the correctness
+statement assumes about code \emph{this repository owns} --- the \code{CoreM} passes of
+\code{Erasure.prepare\_erasure} and \code{Erasure.isErasable}, the relevance oracle. Each of its
+five fields is therefore an obligation with an owner whose honest end state is a proof, not a
+specification of an input. The bundle is a binder of \code{erasure\_bridge\_of\_run}, of the
+capstone and of every rung, and \textbf{no rung discharges any field}. A reader of
+\code{doc/rework/07-STATUS.md} should note the arithmetic slip there: its prose says ``four
+fields'' and then names five; the code has exactly five, plus one \emph{derived theorem},
+\code{EraserAsks.oracle\_informative} (Theorem~\ref{thm:EraserAsks-oracle_informative}), proved
+from \code{oracle\_false\_refl} and \code{kernel\_ind\_head\_true}.
+
+\begin{assumption}[The preparation passes only advance the name generator]
+\label{asm:EraserAsks-passes_monotone}
+\lean{LeanToLambdaBox.EraserAsks.passes_monotone}
+\leanok
+\uses{def:preparePasses, def:Erasure-EraseM}
+For each of the \code{CoreM} passes $f$ in \code{preparePasses} ---
+\code{Erasure.replaceUnsafeRecNames}, \code{Lean.Compiler.LCNF.macroInline} and
+\code{Lean.Compiler.LCNF.inlineMatchers} --- any run of $f$ lifted into the erasure monad takes
+the ambient name generator, read out of \code{IO.RealWorld} by the reading function $gw$, to one
+that is at least as advanced. The Lean field is \code{EraserAsks.passes\_monotone}; it quantifies
+over membership in \code{preparePasses} rather than over the literal call sequence, which matters
+because \code{Erasure.prepare\_erasure} calls the three passes four times, running
+\code{macroInline} twice, and because the \code{@[csimp]} walk is out of scope by
+\code{ConfigPinned}. Owner: this repository; discharged nowhere, at any rung; the route on record
+is unfolding the generator discipline of \code{Lean.Core.transform} at the three passes.
+\end{assumption}
+
+\begin{assumption}[The preparation passes preserve the source evaluation, under any spine]
+\label{asm:EraserAsks-passes_sound}
+\lean{LeanToLambdaBox.EraserAsks.passes_sound}
+\leanok
+\uses{def:preparePasses, def:SEval}
+For each pass $f$ of \code{preparePasses} and each run taking $e$ to $e'$: whenever the source
+evaluation relates $\mkApps\ e\ args$ to a value $v$, it relates $\mkApps\ e'\ args$ to the same
+$v$ --- for \emph{every} argument spine, compiler-body table, level scope, flag set and local
+context. The Lean field is \code{EraserAsks.passes\_sound}. The spine is quantified because the
+capstone reads its observable at $\mkApps\ e\ args$ while a pass is a whole-tree
+\code{Lean.Core.transform} walk, and $f\,(\mkApps\ e\ args)$ is not $\mkApps\ (f\,e)\ args$, so a
+clause stated at the subject alone would not reach the observable. The field is a binder at every
+rung and discharged nowhere; what \emph{is} proved is its composition over the four calls,
+\code{prepare\_sound} (Theorem~\ref{thm:prepare_sound}), which carries the source evaluation from
+the subject to the prepared term at the spine and which the capstone spends. The route on record
+is a delta-expansion argument for \code{macroInline} and a renaming argument for
+\code{replaceUnsafeRecNames}.
+\end{assumption}
+
+\begin{assumption}[A false oracle verdict reflects the pure kernel run]
+\label{asm:EraserAsks-oracle_false_refl}
+\lean{LeanToLambdaBox.EraserAsks.oracle_false_refl}
+\leanok
+\uses{def:Erasure-isErasable, def:isErasable}
+If the shipping oracle \code{Erasure.isErasable} (Definition~\ref{def:Erasure-isErasable}, the
+\code{MetaM} function the eraser calls), lifted into the erasure monad, returns \code{false} at
+the ambient level scope, then the \emph{pure} verified run of \code{LeanToLambdaBox.isErasable}
+(Definition~\ref{def:isErasable}) at the same local context and scope did not answer \code{true}.
+The Lean field is \code{EraserAsks.oracle\_false\_refl}; it states the pure run through
+\code{Lean4Lean.TypeChecker.M.run} at the kernel environment of \code{lenv}, at safety
+\code{.safe}. A binder at every rung, discharged nowhere. It is near-definitional --- it is the
+success arm of \code{Erasure.isErasable} modulo the environment and local-context reads --- and a
+\code{MetaM} reflection lemma for that arm would discharge it.
+\end{assumption}
+
+\begin{assumption}[At an inductive-type head the kernel oracle answers true --- refuted in general]
+\label{asm:EraserAsks-kernel_ind_head_true}
+\lean{LeanToLambdaBox.EraserAsks.kernel_ind_head_true}
+\leanok
+\uses{def:IndInfo, def:isErasable, def:lean4lean-grounding}
+If the head of $e$ is a constant that the model declares as an inductive type former, and $e$ has
+a \code{TrExprS} translation at a well-formed modelled local context whose free variables the
+kernel's own name generator reserves, then the pure verified run of
+\code{LeanToLambdaBox.isErasable} at $e$ answers \code{true}. The Lean field is
+\code{EraserAsks.kernel\_ind\_head\_true}; the reserving generator is
+\code{Lean4Lean.TypeChecker.kernelNGen}, a declaration this repository keeps in an
+upstream-looking namespace pending an upstream ask. This is the oracle's \emph{completeness} at
+the one shape the fragment cannot exclude, and it is what
+\code{EraserAsks.oracle\_informative} composes with
+Assumption~\ref{asm:EraserAsks-oracle_false_refl} to rule out an inductive-type head after a
+\code{false} verdict.
+
+The field is a binder at every rung, discharged nowhere --- and it is \textbf{false} in general,
+at a \code{forall}-telescope deep enough to exhaust the fuel: \code{LeanToLambdaBox.isArityCheck}
+takes its fuel as the approximate depth of the type plus one, and that depth is an eight-bit
+field saturating at 255, so the fuel caps at 256 and is \textbf{1} at a definitional alias, where
+the depth is zero (finding F-DEPTH). Measured the other way, the kernel run answers \code{true}
+at 2{,}940 of 2{,}940 inductive type formers of the elaboration environment. A discharge needs
+three executable-shape lemmas lean4lean does not have --- that \code{inferType} on a
+constant-headed spine returns the instantiated declared telescope, that \code{whnf} is the
+identity on a syntactic \code{forallE}, and that the fuel covers the telescope --- together with
+F-DEPTH's fuel change.
+\end{assumption}
+
+\begin{remark}
+Every statement that takes a bundle \code{E : EraserAsks} --- the capstone and all eight rungs
+--- is bounded by Assumption~\ref{asm:EraserAsks-kernel_ind_head_true}, and
+\code{EraserAsks.oracle\_informative} is exactly as strong, so the bound transfers to it and to
+everything downstream of it.
+\end{remark}
+
+\begin{assumption}[A mutual block's lambda-box keys are distinct --- refuted in general]
+\label{asm:EraserAsks-block_keys_distinct}
+\lean{LeanToLambdaBox.EraserAsks.block_keys_distinct}
+\leanok
+\uses{def:Kername}
+Whenever \code{Lean.Compiler.LCNF.getDeclInfo?} answers with a \code{ConstantInfo}, the list of
+$\lbox$ keys obtained from that declaration's mutual block, after stripping the
+\code{\_unsafe\_rec} companion suffix and applying \code{toKername}, has no duplicate. The Lean
+field is \code{EraserAsks.block\_keys\_distinct}. A collapse here is a \emph{miscompilation}, not
+a proof gap: \code{Erasure.visitMutual} builds the fixvar map from exactly that list and
+\code{Erasure.mkDef} reads it back by name.
+
+The field is a binder at every rung, discharged nowhere --- and it is \textbf{false} on a legal
+\code{mutual unsafe def} block pairing a definition with its own \code{\_unsafe\_rec} companion,
+which maps to one distinct key for two members, two fixpoint definitions with the same name, both
+registered at one kername, and no error reported (finding F-UNSAFEREC). Measured: 0 failures over
+228{,}937 \code{getDeclInfo?} answers. The one-line \code{Nodup} guard F-UNSAFEREC proposes would
+turn the assumption into a run-recovered fact.
+\end{assumption}
+
+\section{Class D: the specification of Lean's primitives}
+\label{sec:trust:spec}
+
+\code{ErasureSpec lenv env Us gw} (Definition~\ref{def:ErasureSpec}) specifies the ambient
+primitives the erasure runs on --- \code{Lean.Environment} lookups, the fresh-name supply, the
+relevance oracle's plumbing, the kernel's inductive blocks --- at the elaboration environment
+\code{lenv}, its model \code{env}, the level scope and the generator reading. Class \textbf{D}
+throughout: each field is a permanent named binder about an object no Lean term denotes
+(\code{IO.RealWorld} is opaque and \code{Lean.Environment} has a private constructor), mechanised
+outside Lean where it can be mechanised at all. Three of its eight fields are partly \emph{earned}
+rather than assumed, through the theorems \code{ErasureSpec.envWF},
+\code{ErasureSpec.oracle\_sound\_of\_run} and \code{ErasureSpec.decl\_adequate\_of\_kernelFind};
+the nodes below say where. A bundle \code{P : ErasureSpec lenv env [] gw} is a binder of the
+capstone and of every rung.
+
+\begin{assumption}[The elaboration environment is modelled by the specification environment]
+\label{asm:ErasureSpec-env_connect}
+\lean{LeanToLambdaBox.ErasureSpec.env_connect}
+\leanok
+\uses{def:lean4lean-grounding}
+There is a family of model environments, well formed for the kernel environment underlying
+\code{lenv}, of which \code{env} is the \code{.safe} member. The Lean field is
+\code{ErasureSpec.env\_connect}; it names the kernel-environment conversion explicitly because
+lean4lean's well-formedness is stated at \code{Lean.Kernel.Environment}, and it is the same
+conversion the shipping oracle makes. A binder at every rung, discharged nowhere; upstream ask 4
+would derive it. What it \emph{buys} is proved: \code{ErasureSpec.envWF}
+(Theorem~\ref{thm:ErasureSpec-envWF}) derives the model's well-formedness from it, so the
+target-side metatheory's well-formedness premise is earned rather than assumed, and the capstone
+spends it twice.
+\end{assumption}
+
+\begin{assumption}[Environment lookups report what the elaboration environment holds]
+\label{asm:ErasureSpec-lookup_adequate}
+\lean{LeanToLambdaBox.ErasureSpec.lookup_adequate}
+\leanok
+\uses{def:LookupAdequate, def:CasesOnShape}
+The four environment queries a run makes --- \code{Lean.getConstInfo},
+\code{Lean.Compiler.LCNF.getDeclInfo?}, \code{Lean.Compiler.LCNF.getCtorArity?} and
+\code{Lean.getCasesInfo?} --- report what \code{lenv} holds and none of them advances the name
+generator, in guarded or two-sided form. The Lean field is \code{ErasureSpec.lookup\_adequate},
+and it is one application of the four-field predicate \code{LookupAdequate}
+(Definition~\ref{def:LookupAdequate}): \code{constInfo}, that \code{getConstInfo} returns
+\code{lenv}'s own declaration; \code{declInfo}, that the visited name lies in the block
+\code{getDeclInfo?} answers with --- under the guard that the name is not an \code{\_unsafe\_rec}
+companion, since the primitive prefers the companion and the membership is false at such a name
+--- and that the query answers \code{none} only for a name \code{lenv} does not know, which is
+what makes it total at a tabled head; \code{ctorArity}, that \code{getCtorArity?} answers exactly
+for the constructors \code{lenv} declares and for no other name, the negative direction being the
+constructor exclusion the refinement's fourth motive needs; and \code{casesInfo}, that
+\code{getCasesInfo?} answers exactly for the \code{casesOn} constants, at metadata agreeing with
+the declared block. A binder at every rung, discharged nowhere: it is the specification of four
+opaque compiler queries, and no statement about \code{getConstInfo} can be discharged inside Lean.
+\end{assumption}
+
+\begin{assumption}[Fresh free variables are fresh]
+\label{asm:ErasureSpec-fresh_names}
+\lean{LeanToLambdaBox.ErasureSpec.fresh_names}
+\leanok
+
+\code{Lean.mkFreshFVarId}, run in the erasure monad, returns an identifier the ambient generator
+has not handed out, reserves it afterwards, only advances the generator, and returns an
+identifier the kernel's own generator reserves. The Lean field is
+\code{ErasureSpec.fresh\_names}, a four-way conjunction; the kernel generator it names is
+\code{Lean4Lean.TypeChecker.kernelNGen}, declared by \emph{this} repository inside an
+upstream-looking namespace. A binder at every rung, discharged nowhere --- the generator is read
+out of \code{IO.RealWorld}, which is opaque, so no Lean proof of this can exist in the present
+formulation.
+\end{assumption}
+
+\begin{assumption}[The monadic oracle run reflects the kernel predicate]
+\label{asm:ErasureSpec-oracle_refl}
+\lean{LeanToLambdaBox.ErasureSpec.oracle_refl}
+\leanok
+\uses{def:Erasure-isErasable, def:isErasable, def:Oracle-MetaSound}
+A run of \code{Erasure.isErasable} only advances the generator, and a \code{true} verdict at the
+\emph{ambient} level scope either reflects a successful run of the pure verified checker at the
+same local context and scope, or came from the \code{Erasure.isErasableMeta} fallback, whose
+soundness is \code{Oracle.MetaSound} (Definition~\ref{def:Oracle-MetaSound}). The Lean field is
+\code{ErasureSpec.oracle\_refl}. What is irreducible here is that the impure \code{MetaM}
+plumbing reflects the pure kernel run it calls; no Lean term denotes a \code{MetaM} run. A binder
+at every rung, discharged nowhere --- but its kernel disjunct is \emph{spent, not assumed}:
+\code{ErasureSpec.oracle\_sound\_of\_run}
+(Theorem~\ref{thm:ErasureSpec-oracle_sound_of_run}) composes it with
+\code{Oracle.kernel\_isErasable\_sound} to conclude $\Erasable$ outright, and that composition is
+what brings the twenty-nine reflection axioms of
+Assumption~\ref{asm:lean-reflection-axioms} into the capstone's footprint.
+\end{assumption}
+
+\begin{assumption}[The isErasableMeta fallback and the off-scope arm are sound]
+\label{asm:ErasureSpec-oracle_meta}
+\lean{LeanToLambdaBox.ErasureSpec.oracle_meta}
+\leanok
+\uses{def:Oracle-MetaSound, def:Erasure-isErasable}
+A \code{true} verdict of \code{Erasure.isErasable} obtained at a level scope \emph{other} than
+the ambient one is sound: every translation of the subject at a modelled local context whose
+\code{LocalContext} is the run's is $\Erasable$. The Lean field is
+\code{ErasureSpec.oracle\_meta}. This is a real scope limit, not a formality --- the verified
+checker concludes at the scope it ran in, while the consumer holds its translation witness at the
+ambient scope, and a term that translates at one scope need not translate at another. At the
+capstone's empty scope the field covers exactly the runs made below a polymorphic declaration.
+A binder at every rung, discharged nowhere, and with no proved arm. The measurement on record ---
+0 fallback hits in 139{,}196 constants --- is evidence about the \emph{error} route of
+\code{Erasure.isErasable}, not about the scope-mismatch arm, which fires on a \emph{successful}
+kernel run made below a polymorphic declaration.
+\end{assumption}
+
+\begin{assumption}[A declaration visible at safe is visible in the model]
+\label{asm:ErasureSpec-decl_adequate}
+\lean{LeanToLambdaBox.ErasureSpec.decl_adequate}
+\leanok
+\uses{def:lean4lean-grounding}
+Whenever \code{lenv.find?} answers with a \code{ConstantInfo} at safety \code{.safe}, the model
+declares that name with a translated type. The Lean field is
+\code{ErasureSpec.decl\_adequate}; it concludes both that the model's constant table answers and
+that lean4lean's \code{TrConstant} relates the two. In lean4lean's order \code{.safe} is the
+\emph{top} of \code{DefinitionSafety}, so the inequality in the Lean statement --- which reads
+backwards to a first-time reader --- forces the declaration to be exactly \code{.safe}. A binder
+at every rung, discharged nowhere. This is the field's \emph{amended} shape, and the amendment
+records a derivation attempt: \code{ErasureSpec.decl\_adequate\_of\_kernelFind} \emph{proves} the
+statement from Assumption~\ref{asm:ErasureSpec-env_connect} alone for the \emph{kernel}
+environment's own lookup; what it cannot cross is \code{Lean.Environment.find?} versus
+\code{Lean.Kernel.Environment.find?}, two opaque primitives whose agreement is not a theorem of
+this development. Upstream ask 4 is the named route for the inductive half.
+\end{assumption}
+
+\begin{remark}
+Assumption~\ref{asm:ErasureSpec-decl_adequate} is what Assumption~\ref{asm:hsafe} feeds: the three
+safety clauses of \code{TableSafe} exist because \code{decl\_adequate} is stated at safe
+declarations only, while the table's adequacy predicate does not record the safety flag.
+\end{remark}
+
+\begin{assumption}[The effect-only primitive calls only advance the generator]
+\label{asm:ErasureSpec-prim_monotone}
+\lean{LeanToLambdaBox.ErasureSpec.prim_monotone}
+\leanok
+\uses{def:PrimMonotone}
+The four calls the erasure makes for their effect alone --- \code{Lean.getEnv},
+\code{Lean.logInfo}, \code{Lean.Meta.isInstance} and \code{Lean.Meta.inferType} --- only advance
+the name generator; and the Pi-telescope \code{inferType} returns matches the subject's
+lambda-telescope. The Lean field is \code{ErasureSpec.prim\_monotone}, one application of the
+four-field predicate \code{PrimMonotone} (Definition~\ref{def:PrimMonotone}), whose telescope
+clause is \code{ForallMatchesLam}. A binder at every rung, discharged nowhere.
+\end{assumption}
+
+\begin{remark}
+\code{ForallMatchesLam} is vacuous unless the term side is a lambda. That is documented as
+deliberate --- it is what makes the clause discharge on a non-lambda minor premise --- but it
+means the \code{inferType} clause of Assumption~\ref{asm:ErasureSpec-prim_monotone} asserts
+nothing about the inferred type of a constant or of an application.
+\end{remark}
+
+\begin{assumption}[The kernel's inductive blocks are the model's]
+\label{asm:ErasureSpec-block_adequate}
+\lean{LeanToLambdaBox.ErasureSpec.block_adequate}
+\leanok
+\uses{def:BlockAdequate, def:IndInfo, def:CasesOnShape}
+The kernel's inductive blocks, constructors and eliminators are the model's, at the identifier
+\code{Erasure.register\_inductive} mints. The Lean field is
+\code{ErasureSpec.block\_adequate}, one application of the six-field predicate
+\code{BlockAdequate} (Definition~\ref{def:BlockAdequate}): \code{fwd} and \code{bwd} relate
+\code{IndInfo} to a declared block with its kernel fields; \code{ctor} and \code{ctorBwd} relate
+\code{CtorOf} to a declared \code{Lean.ConstructorVal}; \code{casesOnDecl} gives the eliminator a
+\code{CasesOnShape} \emph{at the block's own segmentation}, parameters then discriminee then
+indices, which is what pins the model's discriminant position to the elaborator's; and
+\code{selfMem} says a declared inductive is a member of its own block, which is what the
+registration loop is indexed by. A binder at every rung, discharged nowhere.
+\end{assumption}
+
+\section{The four load-bearing upstream asks}
+\label{sec:trust:upstream}
+
+\code{UpstreamAsks env} (Definition~\ref{def:UpstreamAsks}) packages items 2, 6, 9 and 10 of
+\code{doc/upstream-asks.md} as one structure, so that every consumer takes an identical,
+auditable premise instead of a private one, and so that one pin bump discharges all four with no
+change to any consumer's statement shape. It is taken by \code{erases\_correct} --- hence by
+everything closed on it --- by \code{not\_erasable\_of\_informative}, \code{indSpine\_not\_prop},
+\code{elim\_major}, \code{ctor\_saturated}, \code{CasesOnShape.agree},
+\code{fOFields\_of\_asks}, \code{firstorder\_erases\_deterministic} and
+\code{firstorder\_no\_box}; and \code{erasure\_bridge\_of\_run} takes it for three of the
+bridge's eighteen steps, so \textbf{every rung carries it}. It is not measurable in the ledger:
+\code{\#print axioms} reports the footprint of a proved term and never a hypothesis.
+
+\begin{assumption}[Ask 2: the origin of a constant, and uniqueness of the declaring block]
+\label{asm:UpstreamAsks-constsOrigin}
+\lean{LeanToLambdaBox.UpstreamAsks.constsOrigin}
+\leanok
+\uses{def:CtorOf, def:IndInfo, def:ConstOrigin, def:CasesOnShape, def:IndBlockBelow}
+Eight conjuncts, stated as the corollaries and the totality direction this tree consumes: a
+constructor is not an inductive type name; \code{CtorOf}, \code{IndInfo} and \code{CasesOnShape}
+are functional in their data (three conjuncts); every declared constant is a constructor, an
+inductive type name or a plain constant; a plain constant is neither of the first two; an
+\code{IndInfo} yields an \code{IndDeclOf}; and two well-formed declaration lists below \code{env}
+that both declare the same inductive declare the \emph{same} block --- uniqueness at the
+declaration level, stated in the below-\code{env} form \code{IndBlockBelow}. The Lean field is
+\code{UpstreamAsks.constsOrigin}. The exclusion direction is what the uniqueness of the erasure
+and the iota head step consume. A binder at every rung, discharged nowhere here; it dies with the
+pin bump, against the fork's own constants-keyed origin lemma, after which the ambient
+\code{UpstreamAsks} binder drops with no change of statement shape. Its first conjunct is
+\emph{already} redundant --- \code{CtorOf.not\_indInfo} proves it here --- and is kept so that the
+field grants everything ask 2 was filed for.
+\end{assumption}
+
+\begin{assumption}[Ask 6: an inductive-type-former spine is neither a sort nor a Pi]
+\label{asm:UpstreamAsks-constArityInv}
+\lean{LeanToLambdaBox.UpstreamAsks.constArityInv}
+\leanok
+\uses{def:lean4lean-grounding, asm:lean4lean-trust}
+For a well-formed declaration list containing an inductive block, a typed application headed by
+one of its type formers is definitionally equal to neither a sort nor a Pi. The Lean field is
+\code{UpstreamAsks.constArityInv}; it takes the list's well-formedness, the context's, and a
+typing witness for the spine, and concludes the two negations. A binder at every rung, discharged
+nowhere here. Its consumers in this tree are \code{not\_erasable\_of\_informative} directly, and
+\code{fOFields\_of\_asks} through the Pi-spine peeling lemma. Its home upstream is beside
+\code{sort\_inv}, \code{forallE\_inv\_stratified} and \code{sort\_forallE\_inv} --- all three
+\code{sorry} at the pin and already inherited here --- so the expectation on record is that ask 6
+lands the same way and that its \code{sorryAx} root then inherits into the iota and projection
+arms of the simulation and into the uniqueness theorem.
+\end{assumption}
+
+\begin{assumption}[Ask 9: spine typing inversion]
+\label{asm:UpstreamAsks-mkAppsInv}
+\lean{LeanToLambdaBox.UpstreamAsks.mkAppsInv}
+\leanok
+\uses{def:IndBlockBelow, def:lean4lean-grounding, asm:lean4lean-trust}
+If an application spine has a type in a well-formed context, under the strong-order
+well-formedness of the model, then its head has a type and the argument-by-argument \code{Peel}
+relation holds: the head's type is definitionally a Pi whose domain types the first argument, and
+the instantiated codomain peels the rest. The Lean field is \code{UpstreamAsks.mkAppsInv}, and it
+makes the strong order an \emph{explicit} hypothesis so that the ask is \code{sorryAx}-free
+exactly as the single-application inversion is. A binder at every rung, discharged nowhere here;
+its only consumer in this tree is \code{indSpine\_not\_prop}, the other three candidates reaching
+their spines through \code{TrExprS} and the peel lemma proved here instead. No lemma anywhere in
+lean4lean's typing theory is about the type of a spine, and the forward half is about forty lines
+from the single-application inversion plus uniqueness of types; what it does \emph{not} buy is
+\code{sorry}-freedom, since the strong order's only introduction rests on
+\code{VEnv.WF.patsStrong}, which is \code{sorry} at the pin.
+\end{assumption}
+
+\begin{assumption}[Ask 10: definitionally equal inductive spines have the same head]
+\label{asm:UpstreamAsks-indSpineInj}
+\lean{LeanToLambdaBox.UpstreamAsks.indSpineInj}
+\leanok
+\uses{def:IndDeclOf, def:lean4lean-grounding, asm:lean4lean-trust}
+Two definitionally equal application spines headed by \emph{inductively declared} type formers
+have the same head. The Lean field is \code{UpstreamAsks.indSpineInj}. Its \code{IndDeclOf}
+premises are load-bearing, not decoration: without them the statement is false, refuted by a
+plain definition whose body is an inductive type. A binder at every rung, discharged nowhere
+here; its one consumer is \code{fOFields\_of\_asks}. The expectation on record is that it lands
+with the three injectivity \code{sorry}s and Church--Rosser, not before.
+\end{assumption}
+
+\section{The residual: the bridge's two environment fields}
+\label{sec:trust:bridge}
+
+What the capstone assumes \emph{beyond} the erasure half is one named binder, \code{hbridge}.
+Read at the state the \code{visitExpr} run ends in, it says: there is a specification environment
+$\Gamma_{\mathrm{spec}}$ adequate for that state, and for every $\lbox$ term that the prepared
+subject erases to and that lowers to the emitted term, \code{ErasureBridge}
+(Definition~\ref{def:ErasureBridge}) holds. That structure has exactly \textbf{two} fields --- a
+design document still describing five is stale: the well-formedness field became the capstone's
+own \code{hwf} binder, and the simulation and box-freedom fields were retired in the closing
+round. The proved interface to both is \code{bridgeEnv\_of\_regInv}
+(Theorem~\ref{thm:bridgeEnv_of_regInv}), which derives them from the registration invariant
+\code{RegInvShape'} (Definition~\ref{def:RegInvShape-prime}) and \code{RegSaturated}
+(Definition~\ref{def:RegSaturated}) at the run's final state --- but \textbf{nothing produces
+that invariant there for a run of the shipping eraser}, so the bundle stands whole, at every rung.
+
+\begin{assumption}[The specification environment erases the source environment]
+\label{asm:ErasureBridge-erasesEnv}
+\lean{LeanToLambdaBox.ErasureBridge.erasesEnv}
+\leanok
+\uses{def:ErasesEnv}
+$\ErasesEnv$ holds of the specification environment along the closure of the erasure: every
+constant, block and axiom the erased term reaches is declared in $\Gamma_{\mathrm{spec}}$ in the
+way the environment-erasure relation demands. The Lean field is
+\code{ErasureBridge.erasesEnv}. It is discharged \textbf{nowhere, at any rung}:
+\code{RegInvShape'.erasesEnv} (Theorem~\ref{thm:RegInvShape-prime-erasesEnv}) derives it from the
+registration invariant at the run's final state, at the three side conditions
+\code{bridgeEnv\_of\_regInv} names --- but no theorem establishes that invariant for a run of the
+shipping eraser. What would is the single content clause of the repair plan: a content predicate
+carrying both readings of a \emph{single} erasure witness, read at a $\Gamma_{\mathrm{spec}}$
+threaded as an \emph{output} of the refinement and grown with the state by a fresh-prefix
+extension. Three measured obstructions stand in its way; see
+Section~\ref{sec:trust:open}.
+\end{assumption}
+
+\begin{remark}
+This is the single most important caveat of the whole blueprint: the crown theorem is a
+composition whose environment half is assumed. No statement anywhere in this document may present
+the capstone, or any rung, as unconditionally established.
+\end{remark}
+
+\begin{assumption}[The emitted environment is the lowered, pruned specification environment]
+\label{asm:ErasureBridge-lowerEnv}
+\lean{LeanToLambdaBox.ErasureBridge.lowerEnv}
+\leanok
+\uses{def:LowerEnv}
+$\LowerEnv$ holds between the specification environment and the emitted one: the emitted
+environment is the image of the specification environment under the lowering pass, pruned to what
+the program reaches. The Lean field is \code{ErasureBridge.lowerEnv}. It is discharged nowhere,
+at any rung, for the reason Assumption~\ref{asm:ErasureBridge-erasesEnv} is:
+\code{RegInvShape'.lowerEnv} (Theorem~\ref{thm:RegInvShape-prime-lowerEnv}) derives it from the
+same invariant at a saturated registry, and nothing inhabits that invariant.
+\end{assumption}
+
+\begin{remark}
+\code{bridgeEnv\_of\_regInv} is \emph{proved}, at nine axioms and no \code{sorryAx}. The gap is
+the inhabitation of its premises, not the implication; a reader must not mistake the proved
+interface for a discharge.
+\end{remark}
+
+\begin{assumption}[G8 only: the subject's erasure reaches Nat's block]
+\label{asm:hargReach}
+\uses{def:ReachableFrom, def:ErasesEnv, def:Lower, def:LowerEnv, def:Erases}
+At rung G8 alone: for every specification environment and every $\lbox$ term that the G8 subject
+erases to, if that environment erases the source environment along it, lowers it to the committed
+G8 term and lowers to the committed G8 environment, then the closure of the erasure in the
+specification environment reaches the $\lbox$ key of \code{Nat}'s inductive block. The binder is
+stated inline in the signature of \code{green\_G8}; no declaration states it. It is what remains
+of the observable clause's per-argument $\ErasesEnv$ conjunct once \code{Green.g8\_argErasesEnv}
+has transported the subject's environment clause to the argument's image.
+
+A binder at G8 and nowhere else: G1--G7 apply the observable clause at the empty spine, where the
+per-argument premise is vacuous. It is \emph{not} slack: at the empty specification environment
+the conjunct is false --- the argument's image reaches the block key and the lookup answers
+\code{none} --- while lowering a bare constant to itself still holds, which is exactly why the
+binder carries the erasure and lowering clauses as antecedents rather than being stated at every
+environment. It is true of any real run, since the environment-erasure relation at the tabled
+body forces the specification environment to declare an erasure whose closure runs to
+\code{Nat.succ} and \code{Nat.zero}; proving it needs the same content clause the two fields
+above wait on.
+\end{assumption}
+
+\section{The standalone capstone and rung binders}
+\label{sec:trust:binders}
+
+Ten binders remain, stated inline in \code{shipping\_erase\_correct\_firstorder} and in the rung
+theorems. The capstone's fifteen explicit binders are, in order, \code{P}, \code{E}, \code{A},
+\code{htbl}, \code{hsafe}, \code{hblk}, \code{hcfg}, \code{hcb}, \code{hwt}, \code{hsup},
+\code{hprep}, \code{hrun}, \code{hnb}, \code{hwf} and \code{hbridge}. Of these \code{hcfg},
+\code{hwt}, \code{hsup}, \code{hnb} and \code{hwf} are checked terms at every rung --- by
+\code{Green.spike\_configPinned}, \code{Witness.trExprS\_const\_of\_table},
+\code{supportedB\_sound}, a kernel-reduced decision procedure, and
+\code{lbWfPeregrine\_of\_check} on a kernel-reduced Boolean --- and are therefore not assumptions
+of this chapter. The rung theorems add four further inline binders that the capstone
+\emph{discharges by universal quantification} rather than assumes --- \code{hev}, \code{hvwt},
+\code{hty} and \code{hfo}, the observable clause's own premises --- and G5 additionally binds two
+fixture bundles and three definitional-equality witnesses, while G8 binds one fixture bundle and
+\code{hargReach}. Counting off the sources: G1 has 13 binders, G2, G3, G4, G6 and G7 have 14, G5
+has 18 (and no \code{hev}, which it proves), and G8 has 16.
+
+Two facts about the capstone's signature belong here, because neither is recorded in the
+repository's documents. First, \code{hnb} is an \textbf{unused binder}: the proof term never
+mentions it, and \code{NoBodylessRefs} is absent from the conclusion's six non-observable
+conjuncts --- yet the repository presents that predicate as the analogue of [S]'s
+\code{axiom\_free} and as the honest exclusion for finding F-EQREC, a role the \emph{statement}
+does not give it. Second, two conclusion conjuncts are literally the theorem's own hypotheses ---
+\code{hprep}, re-exported verbatim, and \code{hwf}, passed straight through --- so neither may be
+described as established by the theorem.
+
+\begin{assumption}[The reified source table is the live environment's slice]
+\label{asm:htbl}
+\uses{def:Witness-SourceTableAdequate, def:Witness-SourceTable}
+Every constant the reified table pins is pinned as \code{lenv} declares it, and its tabled body is
+what \code{Erasure.prepare\_erasure} computes from the constant's compiler value; and every tabled
+inductive type is pinned. The binder is \code{htbl : SourceTableAdequate lenv tbl}
+(Definition~\ref{def:Witness-SourceTableAdequate}). Its body clause pins the compiler body only
+\emph{up to} the reifier's alpha-equivalence --- an inductive relation blind to binder names and
+binder info, and to nothing else --- deliberately, since on equality the clause is uninhabited
+wherever \code{inlineMatchers} fires and draws \code{let} binder names from the name generator.
+Class \textbf{D}: no Lean term denotes the ambient \code{Lean.Environment}.
+
+A binder at the capstone and at all eight rungs, discharged nowhere in Lean, and mechanised
+outside the kernel: \code{lake exe reify --check} compares the table field by field against the
+live environment and cross-checks Lean's structural equality test against a Boolean written
+arm-for-arm against the relation. It passes on all eight rung tables; at G7 and G8 it reports
+five bodies matching only up to binder names --- \code{Nat.add}, \code{Nat.mul}, \code{Nat.pow},
+\code{Nat.pred} and \code{Nat.sub}, the five whose preparation inlines a matcher --- and no
+mismatch. The alpha-slack is one of the three measured obstructions of
+Section~\ref{sec:trust:open}.
+\end{assumption}
+
+\begin{assumption}[Every tabled declaration is safe, and the table's two columns agree]
+\label{asm:hsafe}
+\uses{def:TableSafe}
+The binder is \code{hsafe : TableSafe lenv tbl} (Definition~\ref{def:TableSafe}), five clauses.
+Three are safety clauses: every tabled constant, every tabled inductive type and every
+constructor of the inductive column is \code{safe} in \code{lenv}. They exist because every
+statement that puts a tabled name into the model reads it through
+Assumption~\ref{asm:ErasureSpec-decl_adequate}, which is stated at safe declarations only, while
+the table's adequacy predicate does not record the safety flag. Two further clauses are about the
+table's own constant column: no tabled constant is an \code{\_unsafe\_rec} companion --- the
+guard the \code{declInfo} clause of Assumption~\ref{asm:ErasureSpec-lookup_adequate} takes --- and
+a tabled constant that \code{lenv} declares a constructor is in the table's constructor column
+too, which is what \code{Erasure.visitConstApp} needs to read the fragment's saturation condition
+at a constructor-arity hit. Class \textbf{D}, for the reason Assumption~\ref{asm:htbl} is.
+
+A binder at the capstone and at all eight rungs, discharged nowhere. \code{lake exe reify --check}
+reads the live declarations for the three safety clauses; the safety column itself is an upstream
+ask. The two column clauses are true by construction --- the companion test is a pure function of
+the name, and the reifier's constructor arm reifies the constructor's own inductive block --- but
+no \code{reify} verb reads either, so they are unmechanised. The binder is load-bearing four
+times: in \code{Green.g1\_compilerBodies}, in \code{supportedB\_sound}, and in two of the eighteen
+bridge steps.
+\end{assumption}
+
+\begin{assumption}[The blocks the run installs are tabled, lambda-headed and informative]
+\label{asm:hblk}
+\uses{def:TableBlocks}
+The binder is \code{hblk : TableBlocks lenv env tbl} (Definition~\ref{def:TableBlocks}), three
+clauses about the blocks \code{Erasure.visitMutual} installs a fixvar map for: every member of an
+installed block is itself tabled; every member's tabled body is a lambda, which is what makes the
+emitted member body a lambda and the installed block a well-formed fixpoint; and no member is
+erasable, stated as the negation the oracle's soundness contradicts. The third is a conjunct and
+not a formality: \code{run\_mkDef\_box\_not\_lambda} exhibits an erasable member registered with a
+non-lambda body. Class \textbf{D}.
+
+A binder at the capstone and at all eight rungs, discharged nowhere --- and, more than that,
+\textbf{consumed by no theorem in the chain}: the capstone forwards it to
+\code{erasure\_bridge\_of\_run}, which passes it to none of the eighteen steps, and the only lemma
+in the tree that takes \code{TableBlocks} at all, \code{blockKeyed\_install}, has no consumer of
+its own, as its module's docstring records. \code{lake exe reify --blocks} checks the first two
+clauses against the live environment; the third is model-side and no computation reaches it.
+Measured over the thirteen tables --- the eight committed rung tables plus five reified on the
+corpus entry constants --- 63 blocks install a fixvar map, 63 of them singletons, with no
+untabled member and no non-lambda body. A blanket version of the second clause would be false on
+every table: the non-lambda tabled bodies are the non-recursive instance constants and the rung
+subjects themselves.
+\end{assumption}
+
+\begin{assumption}[Every tabled compiler body is kernel-typeable at its declared type]
+\label{asm:hcb}
+\uses{def:CompilerBodies, def:lean4lean-grounding}
+The binder is \code{hcb : CompilerBodies lenv env tbl.body?}
+(Definition~\ref{def:CompilerBodies}): for every constant the table gives a body for, the
+constant is declared in \code{lenv}, and the body translates and has the translation of the
+constant's declared type --- both at the constant's own level scope and in the empty context.
+
+It is a \textbf{checked term at G1 only}, where \code{Green.g1\_compilerBodies} builds it from
+Assumptions~\ref{asm:ErasureSpec-env_connect}--\ref{asm:ErasureSpec-block_adequate},
+\ref{asm:htbl} and \ref{asm:hsafe}; at G2--G8 it is a binder. Why it does not generalise: the
+tables of G2--G4 carry the class projection \code{OfNat.ofNat}, whose typing needs a
+\code{TrExprS} derivation through the \code{TrProj} layer, entirely unproven at the pin; G5 and
+G6's carry an eliminator spine and a recursive body; and G7 and G8's Arith table carries ten
+projection-bearing bodies among its thirty bodied declarations, with twenty-eight of its
+forty-four declarations polymorphic, which the monomorphic G1 route does not reach. It is
+checkable per program by running lean4lean's checker on each body-and-type pair; what blocks the
+ladder is \code{TrProj} at the pin, the territory of upstream asks 3 and 4.
+\end{assumption}
+
+\begin{assumption}[The prepared term is the subject]
+\label{asm:hprep}
+\uses{def:Erasure-prepare_erasure, def:ConfigPinned}
+The preparation run on the subject succeeds from the empty state and returns the prepared term
+with the state unchanged. The binder is an equation stated inline in the capstone's signature; at
+a rung it is instantiated with the prepared term equal to the subject, so that the preparation is
+the \emph{identity} at the rung's own subject. Class \textbf{D}: \code{IO.RealWorld} is opaque,
+so no Lean proof of a run's outcome exists.
+
+A binder at the capstone and at all eight rungs, discharged nowhere in Lean, and mechanised
+outside: \code{lake exe reify --prepared} runs the preparation against the live environment and
+reports identity, green at all eight rung subjects --- the six spike constants and Arith's two.
+It is load-bearing because the capstone's syntactic conjuncts read the \emph{prepared} term while
+\code{Supported} and \code{TrExprS} are checked at the subject, and transporting those two across
+the passes is a stronger statement about \code{macroInline} that is false in general.
+\end{assumption}
+
+\begin{remark}
+The equation of Assumption~\ref{asm:hprep} is re-exported verbatim as the first conjunct of the
+capstone's conclusion. That conjunct is never established by the theorem; it is carried.
+\end{remark}
+
+\begin{assumption}[The \#erase run produced the committed program]
+\label{asm:hrun}
+\uses{def:Erasure-erase, def:ConfigPinned}
+The function \code{\#erase} calls, run on the subject at the pinned configuration from the
+ambient world, returns the untyped program whose environment and entry term are the ones the
+theorem names, together with a list of inlining hints that the statement binds and discards ---
+the \code{.ast.inlinings} sidecar channel. The binder is an equation stated inline; at a rung the
+environment and term are the \emph{committed} literals. Class \textbf{D}, and the canonical
+permanent binder: \code{IO.RealWorld} is opaque, so no Lean proof of this can exist.
+
+A binder at the capstone and at all eight rungs, discharged nowhere. It is mechanised outside the
+kernel by \code{lake exe green-check}, which re-runs \code{\#erase} and byte-diffs the emitted
+\code{.ast} against the committed file. The emitted binder names are the frontend generator's
+choice and embed the spike module's own name, so a rung's \code{.ast} is pinned to that module's
+name and import line, and \code{green-check} reports a rename as a byte diff rather than
+absorbing it. The binder is consumed through \code{erase\_run\_ok}
+(Theorem~\ref{thm:erase_run_ok}), which splits the run into its preparation and \code{visitExpr}
+halves.
+\end{assumption}
+
+\begin{assumption}[The source evaluation of the subject at its spine]
+\label{asm:hev}
+\uses{def:SEval, def:SEvalFlags}
+The source semantics, reading the compiler-body table, evaluates the subject applied to its spine
+to a value. The binder is \code{hev}, a premise of the capstone's observable clause and a binder
+of seven of the eight rung theorems; in the capstone it is universally quantified rather than
+assumed, and at a rung it is instantiated at the rung's own subject and at the empty spine (at
+G8, at the one-element spine). Class \textbf{C}: it is visible in the statement a reader checks.
+
+It is a \textbf{checked term at G5 only}, where \code{Green.g5\_seval} derives it: delta at the
+subject, then iota at \code{Nat.casesOn} with the discriminant a constructor value, the selected
+branch applied to its field, and --- the per-branch obligation of restriction N20, paid --- the
+\emph{unselected} nullary branch evaluated through its thunk together with the delta step its
+argument needs. At G1--G4 and G6--G8 it is a binder. At G7 and G8 no witness was attempted, and
+the fallback is recorded as a fallback: the Arith subject runs 45 recursive calls through
+\code{Nat.pow}, \code{Nat.mul}, \code{Nat.add} and \code{Nat.sub}, each owing a derivation for
+every unselected minor, against a 45-line, three-binder precedent at G5 for a single delta and a
+single iota. The obligation is volume, not vacuity: Lean is total, so every unselected branch of
+a well-typed closed term has a value, while \code{partial} and \code{unsafe} bodies are outside
+the fragment.
+\end{assumption}
+
+\begin{remark}
+\code{Green.g5\_seval} itself carries five further binders --- two fixture bundles and three
+definitional-equality witnesses --- so G5's discharge is conditional in turn. The \code{Nat} half
+is satisfiable: \code{Green.spikeNatFacts\_natEnv}
+(Lemma~\ref{lem:Green-spikeNatFacts_natEnv}) inhabits it at the source-evaluation fixture; the
+\code{PUnit} half needs a second block in that fixture. G8 also binds the \code{Nat} fixture
+bundle, for the argument's erasure --- a fact no status document in the repository records.
+\end{remark}
+
+\begin{assumption}[The value's translation witness]
+\label{asm:hvwt}
+\uses{def:lean4lean-grounding}
+The value the source evaluation produced has a lean4lean translation at the empty level scope and
+the empty local context. The binder is \code{hvwt}, a premise of the capstone's observable clause
+and a binder of all eight rung theorems; class \textbf{C}, discharged nowhere.
+
+Its subject-side twin, \code{hwt}, \emph{is} a checked term at every rung ---
+\code{Witness.trExprS\_const\_of\_table} builds it from the specification bundle and
+Assumptions~\ref{asm:htbl} and~\ref{asm:hsafe}, at class-\textbf{A} footprint, including at G8
+whose subject is function-typed, since that lemma reads only the table's level parameters. It
+does not reach the value: a rung's value is a constructor spine, not a constant. The route on
+record is a transport from the source evaluation to a translation witness through
+\code{SEval.defeq}, which would discharge this assumption and
+Assumption~\ref{asm:hty} together and move the rung from trust class \textbf{A} to class
+\textbf{B}, since \code{SEval.defeq}'s measured footprint carries \code{sorryAx}. No rung takes
+it.
+\end{assumption}
+
+\begin{assumption}[The value is typed at the first-order inductive's spine]
+\label{asm:hty}
+\uses{def:lean4lean-grounding}
+The value's translation has a type that is an application spine headed by an inductive type
+former --- at every rung, \code{Nat}. The binder is \code{hty}, a premise of the capstone's
+observable clause and a binder of all eight rung theorems; class \textbf{C}, discharged nowhere,
+for the reason Assumption~\ref{asm:hvwt} is: the value is not a constant, so the table-side
+witness lemma does not reach it. This is what the first-order argument reads the answer's shape
+off, and the same \code{SEval.defeq} route would discharge it, at the same class-\textbf{B} price.
+\end{assumption}
+
+\begin{assumption}[The answer's inductive is first order in the model]
+\label{asm:hfo}
+\uses{def:FirstOrderInd}
+The binder is \code{hfo : FirstOrderInd env I} (Definition~\ref{def:FirstOrderInd}), read at
+\code{Nat} by all eight rungs: there is a predicate closed under the first-order closure rule
+that holds of $I$ --- every constructor field of every member of $I$'s block is itself a
+first-order inductive, and the block has no parameter, no index and no \code{Prop} member. It is a
+premise of the capstone's observable clause and a binder of each rung; class \textbf{C},
+discharged nowhere.
+
+The Boolean side exists: \code{firstOrderIndB} decides the same property on a reified source
+table and returns \code{true} at \code{Nat}, \code{Bool} and the fixture tree, \code{false} at
+\code{List}, \code{Prod} and \code{True}; and its table-side step lemma is proved. But the
+checker's \emph{soundness} against the model-side predicate is not in the tree, as the module's
+own docstring states. What is missing is the kind transfer from the elaboration environment to the
+model's constant table --- upstream ask 4, the same ask that would join the two proved halves of
+the environment relation's tabled-constant exclusion.
+\end{assumption}
+
+\begin{remark}
+A standing warning attaches to Assumption~\ref{asm:hfo}: the only proved \emph{model} inhabitant
+of \code{FirstOrderInd} in this tree is at an empty inductive, so
+\code{firstorder\_erases\_deterministic} and \code{firstorder\_no\_box} must never be presented as
+instantiated at \code{Nat}.
+\end{remark}
+
+\section{The measured axiom footprint}
+\label{sec:trust:ledger}
+
+\code{test/Ledger.lean} holds one \code{\#print axioms} invocation per tracked top-level result
+--- 40 of them --- and \code{test/ledger.expected} (368 lines) is their committed output;
+\code{scripts/ledger.sh} re-measures and diffs the two, and CI fails on the diff. The grouping
+below is transcribed from that fixture.
+
+\begin{center}
+\small
+\begin{tabular}{p{0.52\textwidth}p{0.38\textwidth}}
+\textbf{theorems} & \textbf{measured footprint} \\
+\hline
+\code{erases\_correct}, \code{erases\_correct\_lb},
+\code{erases\_correct\_of\_steps}, \code{step\_iota}, \code{step\_proj},
+\code{step\_delta}, \code{not\_erasable\_of\_informative},
+\code{firstorder\_erases\_deterministic}, \code{firstorder\_no\_box},
+\code{fOFields\_of\_asks}, \code{SEval.defeq}
+& \code{propext}, \code{sorryAx}, \code{Classical.choice}, \code{Quot.sound} \\
+\code{ErasesEnv.runtimeKey\_isCasesOn}, \code{erases\_elimSpine\_no\_value},
+\code{ErasesEnv.ctorArity}, \code{CasesOnShape.agree}, \code{neverZeroB\_sound},
+\code{lbWfPeregrine\_of\_check}, \code{constants\_of\_tabled},
+\code{constOrigin\_of\_constants}, \code{visitExpr\_refines\_erasesLB},
+\code{visitExpr\_refines\_erasesLBFix}, \code{Green.g5\_seval},
+\code{Green.spikeNatFacts\_natEnv}
+& \code{propext}, \code{Classical.choice}, \code{Quot.sound} \\
+\code{ElimDecl.uniq}, \code{Lower.appReady}, \code{Lower.constToFix},
+\code{LBOptimize\_correct} & \code{propext}, \code{Quot.sound} \\
+\code{LowerBlock.lambda\_of\_fixLambda}, \code{lbEval\_sound} & \code{propext} \\
+\code{bridgeEnv\_of\_regInv} & nine names: the three standard, plus
+\code{Expr.mkAppData\_eq}, \code{Expr.mkData\_eq}, \code{Expr.replace\_eq},
+\code{Level.hasParam\_eq} and the two \code{bv\_decide} certificates --- and no
+\code{sorryAx} \\
+\code{ErasureSpec.oracle\_sound\_of\_run},
+\code{shipping\_erase\_correct\_firstorder}, \code{Green.green\_G1} through
+\code{Green.green\_G8} & the identical 33-name set of
+Assumption~\ref{asm:lean-reflection-axioms} \\
+\end{tabular}
+\end{center}
+
+Four observations on the table. First, the \code{sorryAx} in \code{erases\_correct} is
+\emph{inherited}, through the uniqueness of translations and of definitional equality and through
+\code{VEnv.WF.patsStrong}; its three step arms carry the same set. Second, \code{step\_proj} adds
+nothing to \code{step\_iota}, for the reason given after
+Assumption~\ref{asm:lean4lean-trust}. Third, the delta arm brings in no instantiation cluster,
+because the environment relation's definition clause is already quantified over the
+instantiation; where that cluster does appear --- in the registration invariant's content
+theorems, and in the level-scope transport lemma --- none of the subjects is a ledger row.
+Fourth, a second fixture, \code{test/erasesLB.expected}, measures the composite refinement
+relation's introduction lemmas, statement \emph{and} footprint, so a premise silently added to or
+dropped from it shows as a diff.
+
+\begin{remark}
+The trust edges drawn in this blueprint's dependency graph come from three sources, and the
+distinction matters. Most are \emph{measured}: the node's principal Lean name has a row in
+\code{test/ledger.expected}, or was measured with \code{\#print axioms} in the same way. Some are
+\emph{read off the proof script}: the node is not a ledger subject, but its proof visibly spends a
+lemma that is, so the edge is inherited rather than measured --- the five definitional-equality
+and strengthening lemmas of Chapter~\ref{chap:erases}, the refinement's own step theorem, and
+\code{erasure\_bridge\_of\_run} are in this position. And the reflection edge is
+\emph{transitive through one theorem only}: it is drawn on the capstone, on the rungs and on
+\code{ErasureSpec.oracle\_sound\_of\_run}, the three places the ledger measures the 33-name set.
+A node with no edge to either Assumption~\ref{asm:lean4lean-trust} or
+Assumption~\ref{asm:lean-reflection-axioms} is one the ledger measures clean --- the refinement
+theorems, \code{LBOptimize\_correct}, \code{lbEval\_sound} and \code{bridgeEnv\_of\_regInv}.
+\end{remark}
+
+\section{What the rungs and the benchmark programs actually cover}
+\label{sec:trust:coverage}
+
+Both tables below are transcribed from \code{doc/coverage.md}, which \code{lake exe coverage}
+writes from the tree and \code{--check} diffs in CI.
+
+The five benchmark programs are the frozen copies under \code{VerifyBench/Src/}, held against the
+sibling benchmark repository's originals by \code{scripts/frozen.sh}; the roots under
+\code{VerifyBench/} add the \code{\#erase} line, which sets \code{csimp := false} --- every
+correctness statement needs it, and the frozen originals do not set it.
+
+\begin{center}
+\small
+\begin{tabular}{lrlp{0.30\textwidth}p{0.22\textwidth}}
+\textbf{program} & \textbf{.ast bytes} & \textbf{erase run} & \textbf{in the fragment?} &
+\textbf{capstone} \\
+\hline
+Arith & 14,113 & exit 0, no panic & \textbf{yes} --- no support error at the entry term or at any
+tabled body & the applied capstone's subject, G7 and G8 \\
+Sieve & 28,235 & exit 0, no panic & no --- a recursor head at \code{Eq.rec}, through
+\code{Bool.noConfusion} (F-EQREC) & not a rung; reached only by the general statement \\
+BinaryTrees & 29,736 & exit 0, no panic & no --- F-EQREC & not a rung; its tree type is one of the
+first-order witnesses \\
+Quicksort & 66,450 & exit 0, \textbf{one panic} & no --- F-EQREC, the well-founded division
+route, and a sparse \code{casesOn} & none: \textbf{the emitted program is wrong} (F-SPARSE) \\
+Fannkuch & 40,013 & exit 0, no panic & no --- F-EQREC and an eta-contracted minor at
+\code{Decidable.casesOn} & fails \code{NoBodylessRefs} and is outside the capstone's domain \\
+\end{tabular}
+\end{center}
+
+So \textbf{one of five} programs is inside the decidable fragment, and it is the one the ladder
+instantiates. What the fragment column measures is the checker run on the entry constant
+\emph{and} on every tabled body of the reified table, a superset of the closure the fragment's
+own reachability predicate takes; the erroring-body counts are 0 of 43 tabled declarations for
+Arith, 2 of 81 for Sieve, 2 of 89 for BinaryTrees, 8 of 126 for Quicksort and 5 of 95 for
+Fannkuch. What none of the five exercises is worth recording so that the gap is visible rather
+than inferred: a genuinely \emph{mutual} fixpoint block (all 63 installed blocks across the
+thirteen measured tables are singletons), \code{Acc}, \code{WellFounded} and \code{Quot}, and any
+elimination with a \code{Prop} discriminee --- every emitted inductive is declared
+non-propositional, finding F-PROP, and the fragment excludes such eliminations outright.
+
+G1--G7 are closed nullary definitions, following the closed-normal-term posture of [L]'s
+Theorem 15; G8 is the Arith benchmark function applied to its argument, the one rung with a
+non-empty spine. Each rung's conclusion ends in a \emph{literal} peano numeral, so it cannot be
+satisfied by a box or by a stuck term, and each subject erases at the pinned spike configuration.
+
+\begin{center}
+\small
+\begin{tabular}{llllrllll}
+\textbf{rung} & \textbf{subject} & \textbf{answer} & \textbf{.ast bytes} & &
+\textbf{hcb} & \textbf{hev} & \textbf{hbridge} & \textbf{hargReach} \\
+\hline
+G1 & \code{spikeZero} & 0 & 354 & & checked & binder & binder & --- \\
+G2 & \code{spikeLit} & 4 & 1,556 & & binder & binder & binder & --- \\
+G3 & \code{spikeLet} & 3 & 1,469 & & binder & binder & binder & --- \\
+G4 & \code{spikeProj} & 1 & 2,284 & & binder & binder & binder & --- \\
+G5 & \code{spikeCase} & 1 & 966 & & binder & \textbf{checked} & binder & --- \\
+G6 & \code{spikeFix} & 2 & 853 & & binder & binder & binder & --- \\
+G7 & \code{arithClosed} & 8 & 14,497 & & binder & binder & binder & --- \\
+G8 & \code{benchArith} at \code{Nat.zero} & 8 & 14,163 & & binder & binder & binder &
+\textbf{binder} \\
+\end{tabular}
+\end{center}
+
+The subjects are root names, deliberately outside the rungs' own namespace; G6's is the
+recursive spike constant applied to \code{Nat.succ (Nat.succ Nat.zero)} in constructor form, not
+to a numeric literal, because the rung exists to exercise delta on a recursive constant applied
+to a \emph{constructor} value. What every rung settles by computation is \code{hcfg},
+\code{hsup} --- through the fragment checker's kernel verdict --- \code{hnb}, \code{hwf} and the
+target-side evaluation, which is what pins the answer to the literal numeral, plus \code{hwt} by
+a checked term. The elaboration environment and its model are \emph{universally quantified at
+every rung}, so the ladder delivers conditional non-vacuity, and no computation can make it
+unconditional.
+
+One correction deserves its own paragraph, because it is what makes five of the eight rungs say
+anything at all. Until the closing round the binder-name clause of \code{LBWfPeregrine} read the
+alphanumeric identifier class of the kername cleaner --- the condition \code{toKername}
+establishes for \emph{kername identifiers}, not for binder names, which the printer emits as
+quoted atoms. Measured over each rung's emitted term and every constant body of its emitted
+environment, the offending-name counts under the old class were 0, 1, 1, 1, 0, 0, 34, 34 at
+G1--G8 (32 distinct at G7 and G8), so G2, G3, G4, G7 and G8 had an \textbf{unsatisfiable}
+well-formedness hypothesis and were vacuous; the offenders were a hygienic binder of the
+\code{Nat} literal instance at G2--G4 and, at G7 and G8, the matcher-inlining binders together
+with the four dotted fixpoint names \code{Nat.add}, \code{Nat.mul}, \code{Nat.pow} and
+\code{Nat.sub}. Under the printability clause that replaced it the count is 0 at all eight, and
+the coverage tool recomputes both columns at every regeneration.
+
+Finally, the dead-declaration budget: \code{lake exe hygiene --dead} reports 240 declarations
+outside the import closure of the rung and capstone modules --- the tooling (107), the frozen
+benchmark sources (43), the optimiser (71) and the uniform-erasure module (19) --- and the
+exception list is empty.
+
+\section{Eleven shipping findings, reported and not fixed}
+\label{sec:trust:findings}
+
+A byproduct of the verification is a register of defects in the \emph{shipping} eraser. The
+policy is stated and was followed: they are raised on a separate branch and never patched on the
+verification branch, so the theorems are about the code as it ships.
+
+\begin{center}
+\small
+\begin{tabular}{lp{0.70\textwidth}}
+\textbf{id} & \textbf{measured symptom} \\
+\hline
+F-PROP & every emitted inductive is declared non-propositional --- 71 of 71 --- so a case
+analysis on a boxed discriminee is stuck \\
+F-ETA & 50 emitted fixpoint nodes, 50 of them a whole constant body: no emitted fixpoint is
+applied, so MetaRocq's expandedness predicate is false on all five programs \\
+F-ETA2 & 982 of 982 emitted constructor nodes carry an empty argument list, so applied-form
+$\lbox$ needs no constructor eta \\
+F-SPARSE & a panic inside the case-visiting pass, exit 0, and a \textbf{wrong} \code{.ast}
+written (Quicksort) \\
+F-EQREC & one body-less constant declaration in Fannkuch's \code{.ast}, \code{Eq.rec}, and the
+program applies it \\
+F-QUOT & the same arm emits a \code{Quot} primitive as a body-less axiom that peregrine's
+\code{validate} accepts \\
+F-ACC & latent: the large-elimination clause at \code{Acc} would box a data field if F-PROP alone
+were fixed; 0 occurrences on the five programs \\
+F-PRODUCT & the typeclass-dispatch auto-inliner, an unverified product feature on the
+verification branch, default off \\
+F-DEPTH & the approximate-depth field saturates at 255, so the arity fuel caps at 256 and is 1 at
+a definitional alias \\
+F-UNSAFEREC & a legal \code{mutual unsafe def} block with its \code{\_unsafe\_rec} companion maps
+to one distinct key for two members, two fixpoint definitions of the same name, no error \\
+F-KERNAME & \code{toKername} identifies a numeric and a string name component; latent ---
+228,987 constants, 228,987 distinct keys, 0 collisions \\
+\end{tabular}
+\end{center}
+
+Four of the eleven are load-bearing for this blueprint's own claims. F-ETA is why the
+expandedness predicate is \emph{not} a conjunct of the capstone's conclusion. F-DEPTH and
+F-UNSAFEREC are the general refutations of Assumptions~\ref{asm:EraserAsks-kernel_ind_head_true}
+and~\ref{asm:EraserAsks-block_keys_distinct}. F-EQREC is why Fannkuch fails
+\code{NoBodylessRefs}, and F-SPARSE is why Quicksort has no rung at all. The refutation witness
+for F-KERNAME is a theorem of this tree,
+\code{toKername\_not\_injective} (Lemma~\ref{lem:toKername_not_injective}); the fragment excludes
+colliding inputs by a separation check with its own support error, and nothing in the theorem
+stack assumes \code{toKername} injective.
+
+One executed-code edit was made and is the single exception to the never-patch rule: the fuel
+loop of the arity check \emph{throws} on exhaustion instead of returning \code{false}, routing
+such cases to the \code{MetaM} fallback and reproducing the pre-reroute verdict. It is
+verification-authored code, which is why it was patched rather than merely reported.
+
+\begin{remark}
+The panic inventory. The shipping eraser has sixteen panic sites, twelve unreachable-assertions
+and four explicit panics; both compile to a message on standard error and the \code{Inhabited}
+default, and the erasure monad's default is $\Box$, so \textbf{a panic does not stop the run}. It
+can produce a wrong \code{.ast} and exit 0, which is exactly the measured Quicksort miscompile.
+There is no predicate saying a run did not panic and no binder assuming it: the output-shape
+induction \code{visitExpr\_shape\_all} is panic-\emph{tolerant}, discharging the panic arms rather
+than refuting them, and each site is excluded by a premise of exactly three kinds --- a theorem of
+this development (\code{Erases.sort\_erasable} and \code{Erases.forallE\_erasable} close two of
+the four inert heads), an invariant of the well-typed subject or of the run, or a named conjunct
+of the fragment predicate whose support-error constructor a reader can see. Exactly one site
+excludes a program the eraser otherwise accepts --- the sparse-\code{casesOn} site, reported as
+its own support error and queued as F-SPARSE. Two further sites lie outside the eraser, in the
+kername and printing modules, and are excluded by their callers.
+\end{remark}
+
+\section{What is open}
+\label{sec:trust:open}
+
+\textbf{The content clause.} Proof work in this repository is \emph{one} item: the two fields of
+Assumptions~\ref{asm:ErasureBridge-erasesEnv} and~\ref{asm:ErasureBridge-lowerEnv}.
+\code{bridgeEnv\_of\_regInv} is the proved interface; nothing produces the registration invariant
+at the run's final state. The repair plan states what would: one content clause carrying both
+readings of a \emph{single} erasure witness, read at a specification environment threaded as an
+\emph{output} of the refinement and grown with the state by a fresh-prefix extension. That is
+what closes the determinism gap --- the content predicate's definition clause names \emph{some}
+erasure of the compiler body, while the invariant's definition field demands the emitted body be
+the lowering image of \emph{that} one, and $\Erases$ is not deterministic outside the first-order
+fragment --- and the plan also shows that the registry-domain converse is a theorem about the
+run's constant extension, not a missing clause. Assumption~\ref{asm:hargReach} at G8 is the same
+obligation seen from the ladder.
+
+\textbf{Three measured obstructions} stand in the way, each independent, each a measurement rather
+than an opinion. \emph{(i) The level scope.} The eighteen motives of the refinement are stated at
+a fixed level scope, which the mutual-block pass re-enters under the member's own level
+parameters, and 16 of G7's 30 tabled bodies belong to a polymorphic constant. \emph{(ii) Alpha.}
+The table's body clause pins a tabled body only up to the reifier's alpha-equivalence ---
+deliberately, since on equality the clause is uninhabited wherever the matcher inliner fires ---
+while $\Lower$ is not alpha-closed on its source, its two fixpoint arms reading a declared body
+out of the environment by equality; the reify checker reports five of G7 and G8's bodies matching
+only up to binder names. \emph{(iii) The shape of the environment quantifier.} The refinement's
+run predicate reads content at \emph{every} specification environment of the final state, where
+the repair produces \emph{one}, and the two cannot be proved in one induction without restating
+all eighteen motives. The alpha-transport kit that would have served (i) and (ii) --- 99
+declarations --- was deleted in the closing round, on the rule that a file outside the import
+closure earns an exemption only by naming a scheduled consumer.
+
+\textbf{The upstream asks.} \code{doc/upstream-asks.md} is this side's register; editing the
+lean4lean fork is separate work. Items 2, 6, 9 and 10 are the four fields of
+Section~\ref{sec:trust:upstream}. Three further items are open and load-bearing. \emph{Item 3}:
+the seven kernel-generic declarations this repository keeps in an upstream-looking namespace ---
+\code{kernelNGen}, the modelled-context constructor with its three simp projections, the initial
+state's well-formedness and the runner's --- move to the fork with the pin bump, and the
+repository's own criterion for them records a \emph{deliberate, deferred failure}, not a pass.
+\emph{Item 4}: an inversion on the environment relation's inductive clause, which would turn the
+inductive half of Assumption~\ref{asm:ErasureSpec-decl_adequate} into a theorem, join the two
+proved halves of the tabled-constant exclusion, and unblock Assumption~\ref{asm:hfo}. And
+\emph{\code{TrProj}}, entirely unproven at the pin, which blocks Assumption~\ref{asm:hcb} at
+G2--G8: 10 of G7's 30 tabled bodies carry a projection, all of them class projections, and
+\code{TrExprS} at a projection routes through it.
+
+\textbf{The consumers.} Both downstream consumers still pin the default branch --- peregrine's
+Lean test lakefile and the frontend benchmark's --- and \emph{neither builds the verified
+eraser}. The verification lives on a feature branch 250 commits ahead. \code{lake build} is green
+at 173 jobs with only lean4lean's \code{sorry} warnings, and the CI battery runs on pushes to both
+branches; one check in it is knowingly red, a schedule-hygiene inversion caused by a backtick in
+a planning document, a defect that changes no code.
+
+\section*{Deviations from the paper, and caveats}
+
+Nothing in this development is unconditional, and four caveats should travel with every claim
+made from it.
+
+\begin{itemize}
+\item The capstone is a conditional theorem with fifteen binders, three of them bundles. At the
+eight green rungs five of the fifteen --- six at G1 --- are replaced by checked terms; the rest,
+including the whole of \code{hbridge}, stand. The elaboration environment and its model are
+universally quantified at every rung, so the ladder gives conditional non-vacuity and not
+unconditional truth.
+\item Two of the assumed fields are \emph{false in general} and hold only on the measured inputs
+(Assumptions~\ref{asm:EraserAsks-kernel_ind_head_true} and~\ref{asm:EraserAsks-block_keys_distinct}).
+Every statement taking \code{EraserAsks} is bounded by them.
+\item The default \code{\#erase} configuration is \textbf{not} the pinned one: the shipping
+\code{ErasureConfig} differs from \code{ConfigPinned} on three of five fields, and a default
+invocation is outside every theorem here.
+\item The step from the emitted program value to the \code{.ast} bytes peregrine reads is outside
+every theorem. The serialiser is a \code{partial def} with no equational lemma, so every
+conclusion of this development is a statement about a pair of a $\lbox$ environment and a $\lbox$
+term, and never about a byte sequence --- even though it is the byte sequence that
+\code{green-check} diffs and that a user actually sees.
+\end{itemize}
+
+Where the development departs from [S] and [L], the reasons are recorded at the point of
+departure rather than here: applied-form constructors instead of blocks (F-ETA2), no fixpoint
+application in the emitted program (F-ETA, which is why expandedness is not concluded),
+Lean-specific steps inside $\Lower$, the first-order restriction on the observation, and $\Box$
+on the discriminee of a case analysis (F-PROP). What [S] states unconditionally and this
+development does not is the environment half of the erasure: there it is part of the certified
+pipeline, here it is Assumption~\ref{asm:ErasureBridge-erasesEnv}.

@@ -1,0 +1,1241 @@
+\chapter{The source side: lean4lean grounding, source evaluation, the supported fragment}
+\label{chap:source}
+
+A correctness statement for erasure needs three things fixed before the erasure relation
+itself can be stated: what the source language means, which source programs the claim is
+about, and how the source environment is mirrored on the target side. The Rocq development
+of [S] gets the first for free --- PCUIC is a formalised type theory with its own reduction
+relation --- but Lean has no formal operational semantics one can cite. This chapter
+describes the substitute the development builds. It is grounded in \emph{lean4lean}, Mario
+Carneiro's formalisation of Lean's kernel: a source term \code{Lean.Expr} acquires meaning
+through lean4lean's translation relation \TrExprS{} into the abstract syntax of a kernel
+model, whose judgements are typing and definitional equality. Nothing in this repository
+re-proves any of that theory. What this chapter contributes is a big-step evaluation
+relation on \code{Lean.Expr} whose every reduction step discharges an obligation back into
+that model, a decidable predicate naming exactly which programs are covered, and the
+environment-level companion of the erasure relation, assembled from what an erasure run
+actually registered.
+
+Four modules do the work. \code{LeanToLambdaBox/SourceEval.lean} defines \SEval{}, weak
+call-by-value big-step evaluation of \code{Lean.Expr}, parameterised by a set of permitted
+reductions, by a kernel environment, and --- the sharpest departure from the Rocq setting
+--- by the \emph{compiler-body table}, since the Lean eraser reads the body the code
+generator compiles, not the kernel's defining equation (design tag N8).
+\code{LeanToLambdaBox/Supported.lean} names the fragment: a shape condition on a term and
+on every definition body delta-reachable from it, with one named exclusion per audited
+coverage hole, plus a total fuel-indexed decision procedure proved sound against it --- this
+is how every green rung of Chapter~\ref{chap:capstone} discharges its coverage obligation.
+\code{LeanToLambdaBox/SpecEnv.lean} builds the Lean analogue of MetaRocq's
+\code{erases\_global} from an erasure run's own bookkeeping.
+\code{LeanToLambdaBox/Upstream.lean} writes down, as one auditable structure, the four facts
+about lean4lean's kernel theory that this development needs and cannot prove, because
+editing the pinned fork is not this repository's work.
+
+Two habits of the development are visible throughout and are worth stating once. First, the
+value arms of \SEval{} are keyed on the \emph{source theory's} classification of a constant
+(constructor, inductive type name, plain constant), not on a name test and not on the
+compiler table, and the module spends four theorems proving that what the arms thereby
+exclude is a fact rather than a convention. Second, coverage is a predicate and not a
+footnote: the eighteen constructors of the error type each name a concrete defect ---
+including two shapes on which the shipping eraser panics and emits a wrong program that
+still passes \code{peregrine validate} --- and one of them exists purely to prevent
+\emph{vacuous} coverage, since a recursor spine has no source evaluation at all.
+
+\section{The lean4lean grounding}
+\label{sec:source:lean4lean}
+
+Everything in this chapter is stated relative to a kernel model imported from the pinned
+lean4lean checkout. None of lean4lean's own theory is a node of this blueprint; it is the
+imported background, and the single definition node below fixes the names the rest of the
+document refers to.
+
+\begin{definition}[The lean4lean grounding]
+\label{def:lean4lean-grounding}
+\lean{Lean4Lean.TrExprS, Lean4Lean.VExpr, Lean4Lean.VEnv, Lean4Lean.VLCtx,
+Lean4Lean.VEnv.HasType, Lean4Lean.VEnv.IsDefEqU, Lean4Lean.TrProj}
+\leanok
+
+A source term \code{Lean.Expr} carries no meaning of its own. It acquires one through
+lean4lean's translation relation $\TrExprS\ env\ Us\ \Delta\ e\ v$ --- "the source term $e$,
+in level scope $Us$ and local context $\Delta$, translates to the kernel term $v$" --- where
+$v$ ranges over the kernel model's term syntax (de Bruijn, no metadata, no literals),
+$\Delta$ over local contexts pairing free-variable identities with kernel data, and $env$
+over kernel environments. A kernel environment stores a constant table, a set of defining
+equations and a pattern table; it stores \emph{no declaration list}, which is why every
+"this name is a constructor / a type former / a plain constant" predicate used below
+exhibits a well-formed declaration list producing an environment \emph{below} $env$, and why
+those predicates are monotone in the environment. Typing is $env \vdash v : T$ and
+definitional equality is the untyped-witness judgement $env \vdash v_1 \equiv v_2$; a
+separate relation is the projection clause of the translation.
+The Lean names are \code{Lean4Lean.TrExprS}, \code{Lean4Lean.VExpr}, \code{Lean4Lean.VEnv},
+\code{Lean4Lean.VLCtx}, \code{Lean4Lean.VEnv.HasType}, \code{Lean4Lean.VEnv.IsDefEqU} and
+\code{Lean4Lean.TrProj}. The pinned fork is not \code{sorry}-free: it contains sixteen
+\code{sorry} sites, so every statement of this chapter whose proof routes through the
+translation or the two judgements inherits them (Chapter~\ref{chap:trust}).
+\end{definition}
+
+\begin{remark}
+Three of the capstone's hypothesis binders live entirely in this imported theory: the
+subject's translation at the empty level scope and empty local context, the observable's
+translation of the produced value, and that value's typing at an inductive spine. The first
+is a checked term at every rung; the other two stand unproved at every rung and are
+assumption nodes of Chapter~\ref{chap:trust}.
+\end{remark}
+
+\section{Source evaluation: flags, the step obligation, the relation}
+\label{sec:source:seval}
+
+\begin{definition}[The source application spine]
+\label{def:mkApps}
+\lean{LeanToLambdaBox.mkApps, LeanToLambdaBox.mkApps_const_inj}
+\leanok
+For a source head $f$ and arguments $a_1,\dots,a_n$,
+$\mkApps f\ [a_1,\dots,a_n] = (\dots((f\,a_1)\,a_2)\dots a_n)$ is the left-nested application
+spine. It is the shape on which every head-keyed rule of the source evaluation matches, and
+it is injective at a constant head: if
+$\mkApps (\mathtt{const}\ c\ us)\ args = \mkApps (\mathtt{const}\ c'\ us')\ args'$ then
+$c = c'$, $us = us'$ and $args = args'$.
+The Lean names are \code{mkApps} and \code{mkApps\_const\_inj}, both in the
+\code{LeanToLambdaBox} namespace. This is the \emph{source} spine builder on
+\code{Lean.Expr}; the target-side spine builder on \lbox{} terms
+(Definition~\ref{def:LBTerm-mkApps}) is a different declaration in a different namespace,
+and the capstone's observable mentions both.
+\end{definition}
+
+\begin{definition}[Permitted reductions]
+\label{def:SEvalFlags}
+\lean{LeanToLambdaBox.SEvalFlags, LeanToLambdaBox.fullFlags, LeanToLambdaBox.deltaOnly,
+LeanToLambdaBox.SEvalFlags.le_refl, LeanToLambdaBox.SEvalFlags.le_trans,
+LeanToLambdaBox.deltaOnly_le_fullFlags}
+\leanok
+Six booleans --- \code{beta}, \code{delta}, \code{zeta}, \code{iota}, \code{proj},
+\code{lit} --- say which reductions a source evaluation may use. They are preordered by
+"enables no more than", componentwise implication; the order is reflexive and transitive,
+and the delta-only point is below the point enabling all six. That top point is the flag
+point the capstone's observable conjunct runs at, and the one every rung of
+Chapter~\ref{chap:capstone} uses. Making the reductions a parameter is what lets one
+inductive relation cover every fragment of the schedule.
+The Lean names are \code{SEvalFlags}, \code{fullFlags}, \code{deltaOnly} and the three order
+facts. The order itself is an anonymous \code{LE} instance and so is not cited by name.
+\end{definition}
+
+\begin{definition}[The definitional equality a step owes]
+\label{def:StepDefeq}
+\lean{LeanToLambdaBox.StepDefeq, LeanToLambdaBox.StepDefeq.le}
+\leanok
+\uses{def:lean4lean-grounding}
+$\mathsf{StepDefeq}\ env\ Us\ \Delta\ e_1\ e_2$ holds when \emph{both} sides translate into
+the kernel model and their translations are definitionally equal there: there exist $v_1$
+and $v_2$ with $\TrExprS\ env\ Us\ \Delta\ e_i\ v_i$ and
+$env \vdash v_1 \equiv v_2$. It is the obligation attached to one source reduction
+$e_1 \longrightarrow e_2$, and it is what ties an untyped-looking source step back to the
+kernel theory; the delta, iota and projection arms of the evaluation relation each carry
+one. It is monotone in the environment.
+The Lean names are \code{StepDefeq} and \code{StepDefeq.le}. Both translations are bound
+\emph{existentially} on purpose: a consumer stepping from $e_1$ needs the reduct's
+translation in order to continue, and a form quantified over given translations cannot
+supply one.
+\end{definition}
+
+\begin{lemma}[The existential form entails the universal one]
+\label{lem:StepDefeq-uniq_form}
+\lean{LeanToLambdaBox.StepDefeq.uniq_form}
+\leanok
+\uses{def:StepDefeq, def:lean4lean-grounding}
+In a well-formed environment and local context,
+$\mathsf{StepDefeq}\ env\ Us\ \Delta\ e_1\ e_2$ implies that \emph{every} pair of
+translations of $e_1$ and $e_2$ is definitionally equal. So nothing is lost by binding the
+translations existentially.
+The Lean name is \code{StepDefeq.uniq\_form}; the Lean statement carries the two
+well-formedness premises explicitly, on the environment and on the local context.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:StepDefeq, asm:lean4lean-trust}
+Unpack the recorded pair $v_1, v_2$. lean4lean's uniqueness theorem for translations, read
+at the reflexive local-context equality, identifies any other translation $w_1$ of $e_1$
+with $v_1$ and $v_2$ with $w_2$ up to definitional equality; two applications of
+transitivity of the definitional-equality judgement chain the three equalities into
+$env \vdash w_1 \equiv w_2$.
+\end{proof}
+
+\begin{lemma}[\dots and the converse fails]
+\label{lem:forall_form_not_stepDefeq}
+\lean{LeanToLambdaBox.forall_form_not_stepDefeq, LeanToLambdaBox.trExprS_bvar_nil_elim}
+\leanok
+\uses{def:StepDefeq, def:lean4lean-grounding}
+At $e_1 = \mathtt{bvar}\ 0$ in the empty local context the universally quantified side
+condition holds vacuously --- nothing translates a loose de Bruijn index there --- while
+$\mathsf{StepDefeq}$ does not. Hence the two forms are genuinely different and the
+existential one is the right choice.
+The Lean name is \code{forall\_form\_not\_stepDefeq}; its statement is a conjunction of the
+vacuous universal form and the negation of the existential one, and the auxiliary
+\code{trExprS\_bvar\_nil\_elim} records the underlying fact.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:StepDefeq}
+The translation relation has no arm producing a translation of a loose \code{bvar} in the
+empty context: case analysis on the \code{bvar} arm's lookup premise leaves a \code{none}.
+The universal form is therefore vacuously true. The existential form would have to supply
+exactly such a translation, so it fails.
+\end{proof}
+
+\begin{definition}[The eliminator's source-side segmentation]
+\label{def:CasesOnShape}
+\lean{LeanToLambdaBox.CasesOnShape, LeanToLambdaBox.MajorPremiseAt,
+LeanToLambdaBox.CasesOnShape.mono}
+\leanok
+\uses{def:lean4lean-grounding, def:isCasesOnName}
+$\mathrm{CasesOnShape}\ env\ c\ I\ dp\ nm$ says that $c$ is \emph{the} \code{casesOn} of the
+inductive type $I$, at the segmentation $I$'s own declaration block fixes: $c$ passes the
+\code{casesOn} name test, its name prefix is $I$, its declared type peels $dp$ binders and
+then takes a major premise headed by $I$ at every level instantiation, and some well-formed
+declaration list below $env$ declares a block containing $I$ with
+$dp = \mathit{nparams} + 1 + (\mathit{arity} - \mathit{nparams})$ and
+$nm = |\mathrm{ctors}(I)|$. The arithmetic is read off the \emph{inductive declaration}, not
+off the environment's pattern table, so it does not depend on how that table was populated;
+and since a \code{casesOn} constant is an ordinary constant in the model, the clause pins the
+meaning of the name rather than filtering programs. The predicate survives environment
+extension.
+The Lean names are \code{CasesOnShape}, the auxiliary \code{MajorPremiseAt} and
+\code{CasesOnShape.mono}; monotonicity holds because the declaring list already sits below
+$env$ and a declared constant stays declared.
+\end{definition}
+
+\begin{remark}
+The block that this predicate's existential exhibits is tied to the block the iota rule of
+the evaluation relation reads its parameter count off only in company with the block
+uniqueness carried by Definition~\ref{def:UpstreamAsks}; the module's own doc comment says
+so. The converse, anti-monotone direction is strictly harder and has no consumer.
+\end{remark}
+
+\begin{definition}[Source evaluation]
+\label{def:SEval}
+\lean{LeanToLambdaBox.SEval}
+\leanok
+\uses{def:StepDefeq, def:CasesOnShape, def:mkApps, def:SEvalFlags, def:CtorOf, def:IndInfo,
+def:IndArity, def:ConstOrigin, def:InformativeInd, def:lean4lean-grounding}
+$\SEval\ env\ bo\ Us\ fl\ \Delta\ e\ v$ --- "in the kernel environment $env$, with
+compiler-body table $bo$, level scope $Us$, permitted reductions $fl$ and local context
+$\Delta$, the source term $e$ evaluates to the value $v$" --- is weak call-by-value big-step
+evaluation of \code{Lean.Expr}, with eleven arms.
+\begin{itemize}
+\item \emph{Values that are binders or types.} A lambda is a value; a sort and a Pi type are
+      values (weak evaluation does not enter a binder, and both shapes erase to $\Box$).
+\item \emph{Constructor and type-former spines.} A constructor spine is a value once its
+      arguments are \emph{and the spine is within the constructor's arity},
+      $|args| \le np + nfs[k]$, read off the model's constructor and block data; an inductive
+      type name applied to arguments is a value.
+\item \emph{Beta and zeta} (guarded by the corresponding flags). The function evaluates to a
+      lambda, the argument to a value, and the substituted body evaluates; likewise for
+      \code{let}.
+\item \emph{Delta on a compiler body} (guarded by the delta flag): $bo\ c$ is
+      $\mathrm{some}\ b$, a guard says that $c$ is at no \code{CasesOnShape}, the body is
+      instantiated at the call site's levels, all arguments evaluate pointwise, the step's
+      $\mathsf{StepDefeq}$ is asked \emph{at the applied instance}, and the unfolded
+      application evaluates to $v$. Without the eliminator guard a saturated eliminator spine
+      would have a second derivation, unfolding the eliminator instead of reducing it; the
+      eraser's own dispatch never visits a \code{casesOn} body.
+\item \emph{Iota} (guarded by the iota flag): the subject is
+      $\mkApps (\mathtt{const}\ con\ us)\ (\mathit{pre} \mathbin{+\!\!+}
+      \mathit{disc} :: \mathit{minors} \mathbin{+\!\!+} \mathit{extra})$ with a
+      \code{CasesOnShape} at that segmentation, a plain-constant reading of the head, a
+      constructor reading of the selected constructor, the block's arity data and the
+      inductive type's informativity; the discriminant evaluates to a constructor spine, the
+      pre-arguments, the minors and the over-application all evaluate call by value, and the
+      selected minor applied to the constructor's fields (the block's parameters dropped)
+      together with the over-application evaluates to the result, with a
+      $\mathsf{StepDefeq}$ recording the kernel's own reduction at that instance.
+\item \emph{Projection} (guarded by the projection flag): the discriminee evaluates to a
+      constructor spine of the structure and spine position $np + i$ evaluates, with the
+      constructor reading, the block's single-constructor arity data and the bound
+      $np + i < |cargs|$.
+\item \emph{Literals} (guarded by the literal flag): a literal evaluates by unfolding to its
+      constructor form, the step both the translation relation and the eraser take.
+\end{itemize}
+The Lean name is \code{SEval}. The value arms are [S, Fig.~12]'s \code{value\_head}
+classification, arity bound included, keyed on the source theory's own reading of
+\code{Expr.const} rather than on a name test or on the compiler table. The informativity
+premise of the iota arm is restriction N18 --- the source relations model only the
+eliminations the target performs --- and the projection arm carries \emph{no} relevance
+premise, because the erasure relation's projection rule carries it.
+\end{definition}
+
+\begin{remark}
+The argument-wise premises of the spine arms index with \code{getElem!}, so an out-of-range
+read silently yields a default. The arms carry the length equations that make most reads
+in-range, but the constructor arm's arity bound reads the field-count list at the
+constructor index with no accompanying bound on that index, so an out-of-range index would
+degenerate the bound.
+\end{remark}
+
+\begin{lemma}[Widening along the flags]
+\label{lem:SEval-mono}
+\lean{LeanToLambdaBox.SEval.mono}
+\leanok
+\uses{def:SEval, def:SEvalFlags}
+If $fl \le fl'$ then every $\SEval$ derivation at $fl$ is one at $fl'$, with the \emph{same}
+value.
+The Lean name is \code{SEval.mono}.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:SEval}
+Induction on the derivation. Every arm is rebuilt with the same premises, the only change
+being that each flag guard is transported along the corresponding component of $fl \le fl'$.
+The environment-facing side conditions are untouched.
+\end{proof}
+
+\begin{lemma}[Stability under an environment extension]
+\label{lem:SEval-le}
+\lean{LeanToLambdaBox.SEval.le}
+\leanok
+\uses{def:SEval, def:CasesOnShape}
+If $env \le env'$ and no \code{CasesOnShape} of $env'$ is new --- \ie{} every
+$\mathrm{CasesOnShape}\ env'\ c\ I\ dp\ nm$ is already one of $env$ --- then every $\SEval$
+derivation in $env$ is one in $env'$. The extra hypothesis is not slack: the delta arm's
+eliminator guard is a \emph{negative} fact about the environment, and an extension declaring
+a block named after a constant's prefix makes that constant a \code{casesOn} head it was not.
+The Lean name is \code{SEval.le}.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:SEval, def:StepDefeq, def:CasesOnShape}
+Induction on the derivation. The value arms transport by monotonicity of the constructor and
+block readings; the stepping arms transport their $\mathsf{StepDefeq}$ by its own
+monotonicity lemma; the delta arm's negative guard is transported by contraposing the extra
+hypothesis.
+\end{proof}
+
+\begin{remark}
+Neither of the two preceding lemmas has a consumer anywhere in the tree, and neither has the
+delta-only flag point: every actual consumer works at a generic flag parameter or directly
+at the full flag point. The module docstring's "widening axis" story --- a simulation proved
+at a narrow point and transported --- describes a schedule the tree no longer follows.
+\end{remark}
+
+\section{What is not a value}
+\label{sec:source:values}
+
+The four results of this section prove that what the value arms exclude is a fact about the
+source theory rather than a convention of the definition.
+
+\begin{lemma}[A body-less plain constant heads no value]
+\label{lem:untabled_const_not_value}
+\lean{LeanToLambdaBox.untabled_const_not_value}
+\leanok
+\uses{def:SEval, def:mkApps, def:CasesOnShape, def:CtorOf, def:IndInfo}
+If $bo\ c = \mathrm{none}$ and $c$ is neither a constructor, nor an inductive type name, nor
+at any \code{CasesOnShape}, then no spine $\mkApps (\mathtt{const}\ c\ us)\ args$ evaluates
+at all, at any flags. This is PCUIC's treatment of an axiom, and it is what keeps an
+axiom-freedom premise out of the simulation: a run that reaches such a head simply has no
+source derivation.
+The Lean name is \code{untabled\_const\_not\_value}; the three exclusions are stated as
+universally quantified negations over the model's classifications.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:SEval, def:mkApps}
+Strong induction on the spine length, then case analysis on the derivation. The two value
+arms are excluded by the classification hypotheses; the lambda, sort, Pi, literal,
+projection and zeta arms are excluded because their subjects cannot be a constant-headed
+spine, which is where the spine inversion and the injectivity of the spine at a constant
+head are spent; beta peels one argument and appeals to the induction hypothesis; delta needs
+$bo\ c$ to be \code{some}; iota needs a \code{CasesOnShape}.
+\end{proof}
+
+\begin{lemma}[An over-applied constructor spine has no value]
+\label{lem:overapplied_ctor_not_value}
+\lean{LeanToLambdaBox.OverApplied, LeanToLambdaBox.overapplied_ctor_not_value}
+\leanok
+\uses{def:SEval, def:mkApps, def:CtorOf, def:IndInfo}
+Say $n$ arguments \emph{over-apply} $c$ when no classification of $c$ in the environment
+gives it an arity that long: for every constructor reading of $c$ in a block with parameter
+count $np$ and field counts $nfs$, one has $np + nfs[k] < n$. Then a constructor spine with
+that many arguments has no source value. This is exactly what the constructor value arm's
+arity bound buys: without it the arm would call a value a spine on which the target is stuck.
+The Lean names are \code{OverApplied} and \code{overapplied\_ctor\_not\_value}; the theorem
+additionally assumes that $c$ is untabled and at no \code{CasesOnShape}.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:SEval, lem:CtorOf-not_indInfo}
+Case analysis on the derivation at the given spine. The constructor value arm contradicts
+over-application directly; the type-former value arm is excluded because a constructor name
+is not an inductive type name (Lemma~\ref{lem:CtorOf-not_indInfo}); the remaining arms are
+excluded exactly as in the previous lemma.
+\end{proof}
+
+\begin{remark}
+Over-application quantifies over \emph{every} classification because the constructor and
+block readings each read a declaration list below the environment and nothing in this
+statement says two such lists agree. The uniqueness conjuncts of
+Definition~\ref{def:UpstreamAsks} would collapse the quantifier to a single bound.
+\end{remark}
+
+\begin{lemma}[A constructor is not a type name]
+\label{lem:CtorOf-not_indInfo}
+\lean{LeanToLambdaBox.CtorOf.not_indInfo, LeanToLambdaBox.CtorOf.constant_ctorResult,
+LeanToLambdaBox.IsArity.piBody_sort}
+\leanok
+\uses{def:CtorOf, def:IndInfo, def:IsArity}
+A name that is a constructor of some inductive type in the model is not also an inductive
+type name of that model.
+The Lean name is \code{CtorOf.not\_indInfo}, with the two auxiliaries
+\code{CtorOf.constant\_ctorResult} and \code{IsArity.piBody\_sort}.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:CtorOf, def:IndInfo}
+A constructor's declared type is registered by lean4lean's inductive-declaration staging
+with a result headed by its type former, while a type former's declared type is an arity,
+whose Pi-body is a sort. A sort is not a constructor spine, so the two readings cannot
+coincide.
+\end{proof}
+
+\begin{remark}
+This lemma is one of the facts \code{doc/upstream-asks.md} files for consolidation upstream.
+It also discharges, inside this repository, the first conjunct of the origin field of
+Definition~\ref{def:UpstreamAsks}, which the field's own doc comment records as redundant
+and retains so that the field grants everything the upstream ask was filed for.
+\end{remark}
+
+\begin{lemma}[A stuck head stays a head]
+\label{lem:seval_const_head_value}
+\lean{LeanToLambdaBox.seval_const_head_value, LeanToLambdaBox.SEval.forallE_inv}
+\leanok
+\uses{def:SEval, def:mkApps, def:CasesOnShape}
+At a head where delta cannot move ($bo\ c = \mathrm{none}$) and iota cannot fire (no
+\code{CasesOnShape}), the value of a spine on $c$ is a spine on $c$ --- in particular it is
+never a lambda, so no such spine is the function of a beta redex. Similarly, a Pi type's only
+source value is itself.
+The Lean names are \code{seval\_const\_head\_value} and \code{SEval.forallE\_inv}.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:SEval, def:mkApps}
+Strong induction on the spine length with the statement generalised over the subject, then
+case analysis. The two value arms return a spine on the same head; beta peels an argument
+and appeals to the induction hypothesis; the remaining arms are excluded by the two
+hypotheses or by the shape of their subjects.
+\end{proof}
+
+\begin{remark}
+The Pi-type inversion is what makes the Pi value arm non-optional: without it a delta redex
+with a Pi-typed argument has no derivation at all.
+\end{remark}
+
+\section{The compiler-body table}
+\label{sec:source:bodies}
+
+\begin{definition}[The compiler-body table's typing hypothesis]
+\label{def:CompilerBodies}
+\lean{LeanToLambdaBox.CompilerBodies, LeanToLambdaBox.CompilerBodies.le}
+\leanok
+\uses{def:lean4lean-grounding}
+$\mathrm{CompilerBodies}\ lenv\ env\ bo$ says every tabled compiler body is kernel-typeable
+at its constant's declared type: for each $c$ with $bo\ c = \mathrm{some}\ b$, the constant
+is declared in the elaboration environment $lenv$, and $b$ together with $c$'s declared type
+both translate, with the translated body having the translated type at $c$'s own level scope
+in the empty local context. It is monotone in the environment, and it is checkable per
+program by running lean4lean's checker on the pair.
+The Lean names are \code{CompilerBodies} and \code{CompilerBodies.le}.
+\end{definition}
+
+\begin{remark}
+This predicate is a \emph{hypothesis} at every consumer: it is the capstone binder
+\code{hcb} and a binder of every rung, and it is discharged at the first rung only. At the
+other rungs it is blocked upstream, because a translation at a projection node routes through
+lean4lean's projection relation, which is entirely unproven at the pin. Design tag N8: the
+eraser's input is the compiler-facing body --- after \code{csimp} rewriting and
+\code{@[extern]} or \code{@[implemented\_by]} substitution --- not the kernel-checked one.
+See the assumption node for \code{hcb} in Chapter~\ref{chap:trust}.
+\end{remark}
+
+\section{Three environment fixtures}
+\label{sec:source:witnesses}
+
+Three fixture namespaces build concrete kernel environments by hand and exhibit derivations
+in them, showing that the arms and their side conditions are jointly inhabitable rather than
+vacuous. They account for the great majority of \code{SourceEval.lean}'s roughly 378
+declarations: term abbreviations, per-stage constant lookups proved by \code{rfl},
+per-subterm typing and translation derivations, the extension chains between staged
+environments, and the field proofs of two inductive-declaration well-formedness instances.
+Only the three results below state something a reader needs.
+
+\begin{proposition}[A tabled body that is not the kernel body]
+\label{prop:DeltaWitness-seval_sel_applied}
+\lean{LeanToLambdaBox.DeltaWitness.seval_sel_applied,
+LeanToLambdaBox.DeltaWitness.seval_add_deltaOnly,
+LeanToLambdaBox.DeltaWitness.seval_add_applied,
+LeanToLambdaBox.DeltaWitness.selBody_ne_addBody}
+\leanok
+\uses{def:SEval, def:mkApps, def:SEvalFlags, def:StepDefeq}
+In a two-constant fixture environment, one constant's tabled compiler body \emph{is} its
+kernel body while the other's is \emph{not}; nevertheless the applied instance of the second
+unfolds its tabled body and beta-reduces to a sort, with the delta arm's
+$\mathsf{StepDefeq}$ discharged --- because the obligation is asked at the \emph{applied}
+instance, where both bodies compute to the same value.
+The Lean name is \code{DeltaWitness.seval\_sel\_applied}, with the two companion derivations
+and the inequality of the two bodies.
+\end{proposition}
+\begin{proof}
+\leanok
+\uses{def:SEval, def:StepDefeq}
+Apply the delta arm with the tabled body; its eliminator guard is a name test in this
+fixture; the two arguments evaluate by the sort and Pi value arms, which is where those arms
+are spent, since the Pi-typed argument has no other derivation; the step's definitional
+equality chains the fixture's recorded defining equation with the two bodies' applied
+computations; the continuation is two beta steps to a sort.
+\end{proof}
+
+\begin{remark}
+This is the single most important witness in the file: it shows that the delta arm really
+does model compiler bodies that differ from kernel bodies, which is restriction N8 made
+concrete. One caveat: the fixture's environment is never shown to be a well-formed kernel
+environment (it sets the pattern table to \code{False} and the defining equations to a
+two-element predicate), so the correct reading is "the arm's side conditions are jointly
+satisfiable", not "the arm fires in a well-formed environment". The obligation itself needs
+only the translation and the definitional-equality judgement.
+\end{remark}
+
+\begin{proposition}[The branch rule fires]
+\label{prop:NatWitness-seval_iota_fires}
+\lean{LeanToLambdaBox.NatWitness.seval_iota_fires,
+LeanToLambdaBox.NatWitness.seval_iota_overapplied_fires,
+LeanToLambdaBox.NatWitness.nat_casesOnShape, LeanToLambdaBox.NatWitness.natDecl_wf,
+LeanToLambdaBox.NatWitness.nat_wf'_cas, LeanToLambdaBox.NatWitness.nat_stuck_not_value,
+LeanToLambdaBox.NatWitness.natEnv, LeanToLambdaBox.NatWitness.nat_indInfo}
+\leanok
+\uses{def:SEval, def:CasesOnShape, def:SEvalFlags, def:mkApps, def:IndInfo}
+A hand-built \code{Nat} block, declared through lean4lean's inductive-declaration staging and
+proved well-formed, supports a \code{CasesOnShape} at the segmentation "one argument before
+the major premise, one minor per constructor", and the iota arm fires on it both at the
+saturated instance and at one argument past the emitted node --- the shape the eraser applies
+\emph{outside} the emitted branch node. The same fixture's body-less constant heads no value.
+The Lean name is \code{NatWitness.seval\_iota\_fires}, at the full flag point.
+\end{proposition}
+\begin{proof}
+\leanok
+\uses{def:SEval, def:StepDefeq, lem:untabled_const_not_value}
+Instantiate the iota arm with the fixture's own classification facts --- its constructor
+reading, its block arity, its informativity and the plain-constant reading of the eliminator
+--- and its \code{CasesOnShape}. The pre-argument, the discriminant and the minors evaluate
+by the value arms; the step's definitional equality is one of two hand-recorded conversion
+equations; the continuation is a beta step.
+\end{proof}
+
+\begin{remark}
+Two caveats. Because the registered pattern shape of the staging puts the major premise
+\emph{last} while \code{casesOn} takes it before its minors, the fixture's environment is the
+staged one \emph{extended with two hand-written defining equations}, and well-formedness is
+proved only for the staged environment; the satisfiability claim is correspondingly weaker
+than \code{doc/trust.md} reads. Second, this fixture is consumed outside the file: a rung of
+Chapter~\ref{chap:capstone} inhabits its spike-facts bundle from six of the fixture's facts,
+and \code{natSpecEnv} (Proposition~\ref{prop:natEnv_elimCovered}) builds the \lbox{} side of
+the same fixture.
+\end{remark}
+
+\begin{proposition}[The projection rule fires]
+\label{prop:ProjWitness-seval_proj_fires}
+\lean{LeanToLambdaBox.ProjWitness.seval_proj_fires, LeanToLambdaBox.ProjWitness.p_projStep,
+LeanToLambdaBox.ProjWitness.p_trProj, LeanToLambdaBox.ProjWitness.pDecl_wf,
+LeanToLambdaBox.ProjWitness.p_wf'}
+\leanok
+\uses{def:SEval, def:SEvalFlags, def:lean4lean-grounding}
+A hand-built two-field structure with one constructor, declared through the staging so that
+its iota rule is registered the way a translated environment registers one, supports the
+projection arm at the full flag point: the second field of a constructor spine is selected,
+with the step's definitional equality read off a recorded defining equation and the
+projection premise of the translation relation supplied at the projection's expansion.
+The Lean name is \code{ProjWitness.seval\_proj\_fires}.
+\end{proposition}
+\begin{proof}
+\leanok
+\uses{def:SEval, def:StepDefeq}
+The discriminee evaluates to the constructor spine by the constructor value arm; the
+fixture's constructor and block-arity facts fix the head and the parameter count; the field
+index is in range; the step's obligation is the recorded projection step, built from the
+defining equation and the projection witness of the translation.
+\end{proof}
+
+\begin{remark}
+The same caveat as the \code{Nat} fixture applies: the environment is the staged one extended
+with a defining equation, and well-formedness is proved only before that extension. Worth
+adding is the measurement \code{doc/trust.md} records: at a projection the exposure to
+lean4lean is \emph{inhabitation}, not axioms --- a projection in a real program has a
+translation derivation only through a lean4lean lemma that is \code{sorry} at the pin, so the
+projection arm is non-vacuous only on hand-built witnesses.
+\end{remark}
+
+\section{The supported fragment}
+\label{sec:source:fragment}
+
+\begin{definition}[The coverage holes, named]
+\label{def:SupportError}
+\lean{LeanToLambdaBox.SupportError}
+\leanok
+Eighteen constructors, one per audited coverage hole, each naming a concrete defect:
+\code{sparseCasesOn}, \code{sideConditionElim}, \code{etaContractedMinor}, \code{strLit},
+\code{machineNat}, \code{quotPrim}, \code{ioLike}, \code{implementedBy}, \code{mvar},
+\code{propElimIntoData}, \code{underAppliedCtor}, \code{underAppliedElim},
+\code{recursorHead}, \code{mdataSpine}, \code{projField}, \code{kernameCollision},
+\code{unknownConst}, \code{outOfFuel}. The checker returns the \emph{name} of the hole it
+found, which is what generates \code{doc/coverage.md}.
+The Lean name is \code{SupportError}.
+\end{definition}
+
+\begin{remark}
+The exclusions fall into three kinds. \emph{Eraser bugs}: the sparse-\code{casesOn} shape, on
+which the shipping eraser panics and emits a wrong program that still passes
+\code{peregrine validate} (finding F-SPARSE), and string literals, on which the literal
+visitor panics and returns $\Box$. \emph{Modelling gaps where the eraser eta-expands and the
+erasure relation has no eta rule}: under-applied constructors and eliminators,
+eta-contracted minors, metadata-headed spines. \emph{Vacuity guards}: the recursor head,
+because a recursor spine has \emph{no source evaluation at all}, so a program reaching one
+would be covered vacuously --- restriction N21. Two exclusions must be attributed correctly.
+\code{implementedBy} is \emph{never produced} by the checker and its doc comment says so; the
+shape is closed instead by the configuration hypothesis \code{ConfigPinned}
+(Definition~\ref{def:ConfigPinned}), whose \code{csimp} and \code{extern} settings differ
+from the default \code{\#erase} configuration. And \code{quotPrim} is how \code{Quot}
+primitives in computationally relevant positions (finding F-QUOT) leave the fragment.
+\end{remark}
+
+\begin{remark}
+The measured exclusions on the five benchmark programs are: a recursor head at
+\code{Eq.rec} through \code{Bool.noConfusion} (finding F-EQREC) on Sieve, BinaryTrees,
+Quicksort and Fannkuch; the well-founded \code{Nat.div.go} and \code{Nat.modCore.go} route
+and a sparse \code{casesOn} additionally on Quicksort; an eta-contracted minor at
+\code{Decidable.casesOn} additionally on Fannkuch. \textbf{Arith alone is in the fragment.}
+\end{remark}
+
+\begin{definition}[Manifest lambda-telescopes]
+\label{def:IsLamTelescope}
+\lean{LeanToLambdaBox.IsLamTelescope, LeanToLambdaBox.isLamTelescopeB,
+LeanToLambdaBox.isLamTelescopeB_iff, LeanToLambdaBox.IsLamTelescope.instantiate1}
+\leanok
+$e$ is a manifest lambda-telescope of depth at least $n$ when it is syntactically $n$ nested
+lambdas. The iota fragment needs it: the eraser's intro branch eta-expands a non-lambda minor
+premise and the erasure relation has no eta rule. Lean's \code{match} compiler emits minors
+as explicit \code{fun a b => \dots}, so real pattern-matching code is inside the fragment and
+hand-written eta-contracted minors are not. A decision procedure decides it, and the
+predicate survives opening a binder with a free variable.
+The Lean names are \code{IsLamTelescope}, the Boolean \code{isLamTelescopeB}, their
+correspondence and the instantiation lemma.
+\end{definition}
+
+\begin{definition}[Saturation of a constructor occurrence]
+\label{def:CtorSaturated}
+\lean{LeanToLambdaBox.CtorSaturated, LeanToLambdaBox.ctorSaturatedB,
+LeanToLambdaBox.ctorSaturatedB_iff, LeanToLambdaBox.ctorOf?}
+\leanok
+\uses{def:Witness-SourceTable}
+A tabled constructor occurs applied to at least its parameters and its fields; the condition
+is vacuous at every other head. This is restriction N19's constructor half. Under-application
+is excluded because the eraser eta-expands it and pushes the supplied prefix under the new
+binders, where weak evaluation never reaches it.
+The Lean names are \code{CtorSaturated}, its Boolean twin, their correspondence, and the
+table lookup \code{ctorOf?} that recovers a tabled constructor from its name prefix.
+\end{definition}
+
+\begin{remark}
+The condition was measured to fire zero times over the thirteen reified tables. Its
+constructor half disappears once finding F-ETA2 is repaired, since applied-form \lbox{}
+evaluates a partially applied constructor spine natively.
+\end{remark}
+
+\begin{definition}[The four head exclusions]
+\label{def:PlainHead}
+\lean{LeanToLambdaBox.PlainHead, LeanToLambdaBox.quotPrimNames, LeanToLambdaBox.ioLikeRoots,
+LeanToLambdaBox.isIoLike, LeanToLambdaBox.isSparseCasesOn, LeanToLambdaBox.isMatcherName,
+LeanToLambdaBox.isRecursorName}
+\leanok
+\uses{def:SupportError, def:Witness-SourceTable}
+Every head inside the fragment is \emph{plain}: not a \code{Quot} primitive (\code{Quot},
+\code{Quot.mk}, \code{Quot.lift}, \code{Quot.ind} --- \code{Quot.sound} is deliberately
+absent, being \code{Prop}-typed hence erased), not \code{IO}-like (a list of roots including
+\code{IO}, \code{ST}, \code{Task}, \code{String}, the floats and the machine integers), not a
+sparse \code{casesOn} auxiliary, and not a surviving matcher. Separately, a head is rejected
+when it is a recursor name whose prefix is a tabled inductive.
+The Lean name of the four-field structure is \code{PlainHead}; the name tests it is built
+from are \code{quotPrimNames}, \code{isIoLike}, \code{isSparseCasesOn} and
+\code{isMatcherName}, and the separate recursor test is \code{isRecursorName}.
+\end{definition}
+
+\begin{remark}
+Two defects worth recording. The sparse-\code{casesOn} diagnostic is also reported for a
+\code{casesOn} whose name prefix is simply \emph{not tabled}, while the constructor's doc
+comment defines the hole as a name-shape defect; since the error names generate
+\code{doc/coverage.md}, a coverage row may mean "untabled inductive". And the recursor test
+fires only when the recursor's prefix is a tabled inductive, so a program mentioning
+\code{Foo.rec} while \code{Foo} is absent from the table's inductive column but present in
+its constant column falls through to the constant branch --- exactly the vacuous coverage the
+exclusion exists to prevent. Neither has a soundness consequence for the theorems below.
+\end{remark}
+
+\begin{definition}[A head the table knows]
+\label{def:KnownHead}
+\lean{LeanToLambdaBox.KnownHead}
+\leanok
+\uses{def:IndInfo, def:CtorOf, def:Witness-SourceTable}
+Three arms: a tabled inductive type together with the model's block data, a tabled
+constructor together with the model's constructor reading, and a tabled constant that the
+model contains. Each arm carries the model's own reading of the name, which is what lets a
+consumer eliminate the two columns its run has already excluded. A recursor is deliberately
+not among them.
+The Lean name is \code{KnownHead}. The plain-constant reading of the model is deliberately
+\emph{not} a conjunct of the third arm: it needs the classification
+Definition~\ref{def:UpstreamAsks} carries, together with the two exclusions the run supplies
+at the head it is visiting.
+\end{definition}
+
+\begin{definition}[The shape condition]
+\label{def:SupportedTm}
+\lean{LeanToLambdaBox.SupportedTm, LeanToLambdaBox.PeanoReady, LeanToLambdaBox.peanoReadyB}
+\leanok
+\uses{def:PlainHead, def:KnownHead, def:CtorSaturated, def:IsLamTelescope,
+def:InformativeInd, def:IndArity, def:isCasesOnName, def:Witness-SourceTable}
+$\mathrm{SupportedTm}\ env\ tbl\ e\ args$ --- "$e$, read under the application spine $args$,
+is inside the fragment" --- has twelve arms. Bound variables, free variables, sorts and Pi
+types are unconditional (the last two are erased before they are visited). Metadata holds
+\emph{only at the empty spine}, which is what makes a metadata-headed application an
+exclusion, since the head-of-application function does not see through metadata. A lambda and
+a \code{let} check their subterms at the empty spine. A projection carries the structure's
+tabling, its informativity (restriction N18's projection half, without which the emitted
+projection node is stuck on the target), the model's block data for a single-constructor
+block, and the field bound. An application checks the argument on its own and reads the head
+in the extended spine. A natural-number literal carries both the model's and the table's
+ability to build a peano tower, pinning the two kernel constructor indices the eraser's peano
+arm rebuilds. A plain constant head carries plainness, a negative \code{casesOn} test, a
+negative recursor test (N21), saturation (N19) and a known head. A \code{casesOn} head
+carries plainness, a positive \code{casesOn} test, the tabled inductive recovered from the
+head's name prefix, its informativity, the arity bound
+$\mathit{nparams} + 1 + \mathit{nindices} + 1 + |\mathrm{ctors}| \le |args|$ --- N19's
+eliminator half, which the minors-length equation does \emph{not} imply at a
+constructor-free inductive --- the minors slice, and a manifest lambda-telescope of the right
+depth for each minor. There is deliberately \emph{no} rule for a string literal and none for
+a metavariable: those shapes are outside the fragment, which is what having no rule says.
+The Lean name is \code{SupportedTm}, with the peano-tower conditions \code{PeanoReady} and
+\code{peanoReadyB}.
+\end{definition}
+
+\begin{remark}
+The spine index is load-bearing. The checker and the relation treat metadata asymmetrically
+by design: the shape function accepts a metadata node only at an empty spine accumulator, so
+a metadata node under an application is excluded while one at the root is transparent. A
+rendering that drops the spine index makes the metadata rule wrong.
+\end{remark}
+
+\begin{definition}[The fragment]
+\label{def:Supported}
+\lean{LeanToLambdaBox.Supported, LeanToLambdaBox.Reaches}
+\leanok
+\uses{def:SupportedTm, def:Kername, def:Witness-SourceTable}
+$\mathrm{Supported}\ env\ tbl\ e$ has three fields: $e$ satisfies the shape condition at the
+empty spine; so does every tabled body delta-reachable from $e$, where reachability is the
+least relation containing the constants $e$ names and closed under "named by the tabled body
+of a reachable name"; and no two tabled names share a \lbox{} key. It is \textbf{the coverage
+predicate of the whole development}: the capstone's binder \code{hsup} and a binder of every
+rung.
+The Lean names are \code{Supported} and the reachability relation \code{Reaches}.
+\end{definition}
+
+\begin{remark}
+The key-separation clause exists because the kername translation is \emph{not} injective
+(finding F-KERNAME, refuted by Lemma~\ref{lem:toKername_not_injective}), so without it a
+second tabled constant could shadow the first in the emitted environment. The Boolean that
+decides the clause checks more than the clause records: it ranges over the constant column
+\emph{and} the inductive column, while the recorded clause quantifies only over the constant
+column. The Boolean is the stronger side, so this is not a defect --- but the fragment
+predicate alone does not exclude a collision between an inductive's key and a constant's key.
+\end{remark}
+
+\begin{definition}[The safety column of the reified table]
+\label{def:TableSafe}
+\lean{LeanToLambdaBox.TableSafe}
+\leanok
+\uses{def:Witness-SourceTable, def:CtorOf}
+Five clauses saying that every declaration the reified table pins is \code{safe} in the
+elaboration environment --- none is \code{unsafe} or \code{partial} --- for the constant
+column, for the inductive column and for that column's constructors; that no tabled constant
+is an \code{\_unsafe\_rec} companion name; and that the table's two columns agree about what
+a constructor is.
+The Lean name is \code{TableSafe}.
+\end{definition}
+
+\begin{remark}
+This is a \emph{hypothesis}, never proved: the capstone binder \code{hsafe} and a binder of
+every rung, of the class whose discharge would require reading a \code{Lean.Environment},
+which no Lean term denotes. The first three clauses are mechanised by
+\code{lake exe reify --check}; the last two hold by construction of the reifier and no
+\code{reify} verb reads them. The predicate exists because the table's adequacy pins level
+parameters, types, bodies and the constructor split but \emph{not} the safety flag, while
+every statement that puts a tabled name in the model reads it through the erasure
+specification's declaration-adequacy field, which is stated at safe declarations only. The
+\code{\_unsafe\_rec} clause excludes the name shape at which Lean's compiler lookup answers
+with the \emph{other} declaration's block (finding F-UNSAFEREC). See the assumption node for
+\code{hsafe} in Chapter~\ref{chap:trust}.
+\end{remark}
+
+\begin{definition}[The fix blocks the eraser installs]
+\label{def:TableBlocks}
+\lean{LeanToLambdaBox.TableBlocks}
+\leanok
+\uses{def:Erasable, def:Witness-compilerInfo, def:Witness-SourceTable}
+Three clauses about the mutual blocks for which the eraser installs a fixvar map: every
+member is tabled; every member's tabled body is lambda-headed, which is what makes the
+emitted member body a lambda and the installed block a well-formed fixpoint node; and no
+member is erasable, stated as the negation the relevance oracle's soundness contradicts.
+The Lean name is \code{TableBlocks}.
+\end{definition}
+
+\begin{remark}
+This is a \emph{hypothesis} --- the capstone binder \code{hblk}, of the same class as
+\code{TableSafe}. The capstone does forward it to the bridge theorem, but no theorem in the
+closure spends it: its only consumer in the tree is a single lemma about installed blocks
+that itself has no consumer. The first two clauses are mechanised by
+\code{lake exe reify --blocks} (measured: 63 blocks, all singletons, no untabled members, no
+non-lambda bodies); the third is model-side and no computation reaches it. See the assumption
+node for \code{hblk} in Chapter~\ref{chap:trust}.
+\end{remark}
+
+\begin{definition}[The elaborator's branch metadata]
+\label{def:CasesInfoAgrees}
+\lean{LeanToLambdaBox.CasesInfoAgrees, LeanToLambdaBox.CasesInfoAgrees.of_pinned}
+\leanok
+\uses{def:Witness-SourceTableAdequate}
+Six clauses saying that the \code{Lean.CasesInfo} the shipping eraser reads for a head agrees
+with the table's reified inductive: the declared name, the discriminant position, the arity,
+the alternatives' range, the number of alternatives and each alternative's field count. The
+companion theorem transports the clauses to the table from the kernel-side agreement, by the
+table's adequacy.
+The Lean names are \code{CasesInfoAgrees} and \code{CasesInfoAgrees.of\_pinned}. The
+alternatives-count clause is explicitly what refutes the two early exits of the eraser's
+parallel loop over alternatives.
+\end{definition}
+
+\section{The fragment checker and its soundness}
+\label{sec:source:checker}
+
+\begin{definition}[The fragment checker]
+\label{def:supportedB}
+\lean{LeanToLambdaBox.supportedB, LeanToLambdaBox.supportedHead, LeanToLambdaBox.supportedGo,
+LeanToLambdaBox.supportedTerm, LeanToLambdaBox.constNames, LeanToLambdaBox.stepNames,
+LeanToLambdaBox.reachNames, LeanToLambdaBox.saturatedB, LeanToLambdaBox.checkNames,
+LeanToLambdaBox.kernameSepB, LeanToLambdaBox.informativeB, LeanToLambdaBox.resultSort,
+LeanToLambdaBox.succSortB}
+\leanok
+\uses{def:SupportError, def:IsLamTelescope, def:CtorSaturated, def:Witness-SourceTable}
+$\mathrm{supportedB}\ tbl\ \mathit{fuel}\ e$ returns \code{ok} or a support error: it first
+decides key separation on the whole table, then shape-checks $e$, then unfolds the delta
+closure of $e$'s constants $\mathit{fuel}$ times and, if that closure has saturated,
+shape-checks every tabled body in it --- otherwise it reports exhaustion. It is
+\textbf{total and fuel-indexed}: the dependency closure is cyclic through mutual blocks, so
+it is not structural in $e$, and a \code{partial def} would be kernel-opaque, which is
+exactly what a kernel-level \code{decide} discharge cannot afford. Exhaustion is an
+\emph{error}, never a certificate. The head check decides, in order, the four plainness
+tests, then either the eliminator branch (tabled inductive, informative, arity bound, one
+manifest telescope per minor) or the constant branch (saturation, no recursor head, a known
+column).
+The Lean name is \code{supportedB}, built from the head, term and closure functions named
+alongside it.
+\end{definition}
+
+\begin{remark}
+The Boolean relevance test --- the declared result sort never evaluates to \code{Prop} --- is
+the twin of the relation's informativity predicate, so the checker and the erasure relation
+accept the same type formers; the strictly stronger syntactic successor-sort test is read
+only by the first-order layer and would have rejected 9 of the 21 projection heads on the
+benchmark corpus. Two anonymous \code{example}s in the module, computed by a kernel-level
+\code{decide} because Lean's string-prefix test does not reduce in the elaborator, check that
+the sparse-\code{casesOn} shape is reported by name at every table and that N18's projection
+half is live (hand-built, because no tracked program carries such a node). Being anonymous
+examples, they have no citable Lean name.
+\end{remark}
+
+\begin{lemma}[The checker's relevance test is sound]
+\label{lem:informativeInd_of_tabled}
+\lean{LeanToLambdaBox.informativeInd_of_tabled, LeanToLambdaBox.vResultSort_of_trExprS,
+LeanToLambdaBox.ErasureSpec.contains_of_find}
+\leanok
+\uses{def:TableSafe, def:supportedB, def:ErasureSpec, def:Witness-SourceTableAdequate,
+def:InformativeInd}
+A tabled inductive type that the \emph{checker} calls informative is informative \emph{in the
+model}: given an adequate, safe table over an elaboration environment that the erasure
+specification connects to the model, a \code{true} verdict of the Boolean relevance test
+implies the model-side informativity of the type former.
+The Lean name is \code{informativeInd\_of\_tabled}.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:TableSafe, asm:ErasureSpec-decl_adequate}
+The table pins the inductive's declared type to the elaboration environment's; safety is what
+lets the erasure specification's declaration-adequacy field translate that type; and the
+level translation is a homomorphism, so lean4lean's never-zero lemma carries "the result sort
+never evaluates to \code{Prop}" across the translation.
+\end{proof}
+
+\begin{lemma}[A tabled inductive is the model's type former]
+\label{lem:indInfo_of_tabled}
+\lean{LeanToLambdaBox.indInfo_of_tabled, LeanToLambdaBox.peanoReady_of_tabled}
+\leanok
+\uses{def:IndInfo, def:ErasureSpec, def:Witness-SourceTableAdequate}
+A tabled inductive type is the model's type former for its own block, at the parameter count
+and the per-constructor field counts the table records; and the model can build a peano tower
+whenever the table can.
+The Lean names are \code{indInfo\_of\_tabled} and \code{peanoReady\_of\_tabled}; the second
+additionally takes the table's safety.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{asm:ErasureSpec-block_adequate}
+The table's adequacy pin names the block, the type's own position in it and the kernel's
+indexing of its constructors; the block-adequacy field of the erasure specification reads
+that as the model's block data.
+\end{proof}
+
+\begin{theorem}[Soundness of the fragment checker]
+\label{thm:supportedB_sound}
+\lean{LeanToLambdaBox.supportedB_sound, LeanToLambdaBox.supportedHead_sound,
+LeanToLambdaBox.supportedGo_sound, LeanToLambdaBox.checkNames_sound,
+LeanToLambdaBox.mem_of_reaches, LeanToLambdaBox.kernames_of_kernameSepB}
+\leanok
+\uses{def:Supported, def:supportedB, def:TableSafe, def:ErasureSpec,
+def:Witness-SourceTableAdequate}
+An \code{ok} verdict of the checker, on a table that is an adequate and safe copy of the
+elaboration environment's slice, puts the subject \emph{and every delta-reachable tabled
+body} inside the fragment: $\mathrm{supportedB}\ tbl\ \mathit{fuel}\ e = \code{ok}$ implies
+$\mathrm{Supported}\ env\ tbl\ e$.
+The Lean name is \code{supportedB\_sound}; it takes the erasure specification, the table's
+adequacy and the table's safety, all three named, and is stated for every fuel.
+\end{theorem}
+\begin{proof}
+\leanok
+\uses{def:Supported, def:SupportedTm, def:supportedB, def:KnownHead, def:PlainHead,
+def:CtorSaturated, def:IsLamTelescope, lem:informativeInd_of_tabled, lem:indInfo_of_tabled}
+Unfold the checker. Key separation decides the third field of the fragment, by list
+combinatorics on the deduplicated key list. The subject's own field is a structural induction
+on \code{Lean.Expr} mirroring the checker's shape function, whose constant case is the full
+case split through the head decision tree: the plainness structure is built from the four
+negative tests, and then either the eliminator arm --- with
+Lemma~\ref{lem:informativeInd_of_tabled} supplying informativity and the telescope decision
+correspondence supplying the minors --- or the constant arm, with the known-head column built
+from Lemma~\ref{lem:indInfo_of_tabled}, from the erasure specification's constructor reading,
+or from "a safe declaration of the elaboration environment is a constant of the model". The
+bodies field follows because a \emph{saturated} closure list holding the subject's own
+constants holds everything delta-reachable from it, and every tabled body of a checked name
+passed the shape check.
+\end{proof}
+
+\begin{remark}
+This is the hinge from a computed verdict to the coverage hypothesis of the capstone. Every
+rung of Chapter~\ref{chap:capstone} discharges its coverage binder by applying this theorem
+to a \code{decide}-style computation on the committed reified table.
+\end{remark}
+
+\begin{lemma}[The fragment is closed under opening a binder]
+\label{lem:SupportedTm-instantiate1}
+\lean{LeanToLambdaBox.SupportedTm.instantiate1, LeanToLambdaBox.SupportedTm.instantiate1'}
+\leanok
+\uses{def:SupportedTm}
+If a term is inside the fragment under a spine, so is the term obtained by instantiating its
+outermost bound variable with a free variable --- with the spine instantiated too, because an
+application's arguments are read in it.
+The Lean names are \code{SupportedTm.instantiate1} and its primed form; the unprimed
+statement is the primed one transported along lean4lean's modelling equation for Lean's own
+instantiation function, which is why its measured axiom footprint contains that reflection
+axiom.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:SupportedTm, asm:lean-reflection-axioms}
+Induction on the derivation: every arm's side conditions are about names, tabled data or the
+model and are untouched by the substitution, and the shapes commute with it. The transport to
+Lean's own instantiation is a rewrite by the modelling equation.
+\end{proof}
+
+\begin{remark}
+This is the form the refinement's binder cases recurse in: the eraser's monocular lambda and
+let steps call the continuation on the body instantiated with a fresh free variable.
+\end{remark}
+
+\begin{lemma}[Reading the fragment back]
+\label{lem:Supported-projInfo}
+\lean{LeanToLambdaBox.Supported.projInfo, LeanToLambdaBox.SupportedTm.proj_inv,
+LeanToLambdaBox.Supported.projInto, LeanToLambdaBox.Supported.projInd,
+LeanToLambdaBox.SupportedTm.head, LeanToLambdaBox.Supported.head}
+\leanok
+\uses{def:SupportedTm, def:Supported, def:ProjInfo, def:IndArity}
+Three read-backs the consumers need. Every projection head of a fragment term carries its
+block data; in particular the informativity that the erasure relation's projection rule
+demands can be recovered from a fragment verdict. And the head of a fragment term whose head
+is not a constant application is itself inside the fragment at the empty spine --- which is
+true precisely because of the metadata rule.
+The Lean names are \code{Supported.projInfo} and the five companions.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:SupportedTm}
+Induction on the shape derivation. At the projection arm the block-data premise yields the
+model's inductive information; the other arms either have no projection head or pass the
+claim to a subterm.
+\end{proof}
+
+\begin{remark}
+A naming defect worth one sentence: \code{Supported.projInfo} takes a shape derivation, not a
+fragment verdict, despite its namespace, so dot-notation on a fragment value does not
+elaborate and its call site spells the projection out.
+\end{remark}
+
+\section{Specification environments of a run}
+\label{sec:source:specenv}
+
+\begin{definition}[A specification environment for a run state]
+\label{def:SpecEnv}
+\lean{LeanToLambdaBox.SpecEnv}
+\leanok
+\uses{def:SpecContent, def:IndCovered, def:ElimDecl, def:Kername, def:Erasure-EraseM}
+$\mathrm{SpecEnv}\ env\ bo\ s\ \Gamma_{\mathrm{spec}}$ says that the \lbox{} environment
+$\Gamma_{\mathrm{spec}}$ is adequate for the erasure run state $s$, in four fields: its
+entries say of the source what the content predicate asks; every constant the run registered
+is declared in it at its canonical kername; every inductive the run registered is
+\emph{covered} --- block entry, plus, for an \emph{informative} inductive only, an eliminator
+entry; and the specification bodies mention no free variable, which is what makes the
+lowering pass commute with abstraction. The state occurs only through the \emph{domains} of
+the two registries.
+The Lean name is \code{SpecEnv}. Relevance guards the eliminator entry because the emitted
+branch node of a non-informative inductive is stuck at every flag point, so relevance is a
+hypothesis of both the coverage predicate and the environment relation.
+\end{definition}
+
+\begin{lemma}[Antitone in the run state]
+\label{lem:SpecEnv-mono}
+\lean{LeanToLambdaBox.SpecEnv.mono}
+\leanok
+\uses{def:SpecEnv, def:Erasure-StateLe}
+An environment adequate for a state is adequate for every state below it.
+The Lean name is \code{SpecEnv.mono}.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:SpecEnv}
+The content and free-variable fields do not mention the state; the two coverage fields
+compose with the two domain clauses of the state ordering.
+\end{proof}
+
+\begin{remark}
+This is the property that lets sibling sub-runs be threaded under \emph{one} universally
+quantified specification environment instead of merging environments. A run \emph{has} such
+an environment --- \code{SpecEnv.exists} derives one from the registration invariant of
+Chapter~\ref{chap:coldstart} --- so it is recovered from the run's own bookkeeping rather
+than posited.
+\end{remark}
+
+\begin{lemma}[From a state's environment to a program's]
+\label{lem:SpecEnv-erasesEnv}
+\lean{LeanToLambdaBox.SpecEnv.erasesEnv}
+\leanok
+\uses{def:SpecEnv, def:ErasesEnv, def:ReachableFrom, def:Erases, def:ConstOrigin}
+A specification environment of a state is a specification environment of a \emph{program} ---
+\ie{} satisfies the environment relation the simulation consumes --- given three clauses the
+state does not record: every kername reachable from the program is declared; every reached
+compiler body has its erasure stored at \emph{every} level instantiation; and the compiler
+table defines only plain constants.
+The Lean name is \code{SpecEnv.erasesEnv}; the three clauses are explicit premises.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:SpecEnv, lem:SpecContent-erasesEnv}
+Immediate from the content field and the corresponding theorem about content environments:
+the clauses whose trigger is the program's reachability get it from the declaredness premise;
+the other two premises are passed through, one because the content field records a single
+level scope where the relation asks for every one, the other because it is not a fact about
+the environment at all.
+\end{proof}
+
+\begin{definition}[The run registered everything the environment declares]
+\label{def:RegSaturated}
+\lean{LeanToLambdaBox.RegSaturated}
+\leanok
+\uses{def:ElimDecl, def:IndInfo, def:Erasure-EraseM}
+Two fields: every declared non-runtime-key definition of the specification environment is
+some registered constant's, and every declared block is some registered inductive's. This is
+what turns the registry-\emph{scoped} clauses of a run's invariant into the unscoped clauses
+of the lowering-side environment relation; without it a pruned-away definition satisfies the
+scoped clause vacuously.
+The Lean name is \code{RegSaturated}. It is a hypothesis at every consumer --- the capstone's
+saturation binder.
+\end{definition}
+
+\begin{lemma}[Why the delta column needs parameter-free bodies]
+\label{lem:defns_needs_paramFree}
+\lean{LeanToLambdaBox.defns_needs_paramFree}
+\leanok
+\uses{def:Erases}
+The delta clause's quantifier over \emph{every} level instantiation is unsatisfiable for a
+body carrying its own level parameter: no erasure derivation exists for a sort at an
+instantiation that sends the parameter to a level the reading scope does not know. Hence the
+cold-start theorem that discharges the clause does so at level-parameter-free bodies and no
+further.
+The Lean name is \code{defns\_needs\_paramFree}; the Lean statement is the negation of the
+quantified clause at the sort built from a level parameter, for an arbitrary target term.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:Erases, asm:lean-reflection-axioms}
+Instantiate at a substitution sending the parameter to a level not in the reading scope; the
+instantiation is computed by the modelling equation for Lean's level substitution, which is
+where the measured reflection axioms enter. The only erasure arm applicable to a sort is the
+box arm, whose translation witness needs the level in scope; inverting it gives a
+level-translation equation that is \code{none}, a contradiction.
+\end{proof}
+
+\begin{remark}
+A refutation that pins the shape of a hypothesis rather than proving a positive fact is
+exactly the kind of self-audit a blueprint should record.
+\end{remark}
+
+\begin{proposition}[The chain is not vacuous]
+\label{prop:lowerEnv_of_cold_run}
+\lean{LeanToLambdaBox.lowerEnv_of_cold_run, LeanToLambdaBox.fvarFree_idEnv,
+LeanToLambdaBox.demoEnv_specEnv, LeanToLambdaBox.fvarFree_demoEnv}
+\leanok
+\uses{def:LowerEnv, def:SpecContent, def:SpecEnv, def:RegSaturated}
+A run that starts at the empty state and registers one lambda-bodied definition satisfies the
+registration invariant and saturates its own specification environment, so the lowering-side
+environment relation comes out with \emph{every} clause derived. A four-entry demo fixture is
+likewise a specification environment for the initial state.
+The Lean name is \code{lowerEnv\_of\_cold\_run}; its one premise is that the one-entry
+environment satisfies the content predicate.
+\end{proposition}
+\begin{proof}
+\leanok
+\uses{thm:RegInvShape-prime-lowerEnv, def:RegSaturated}
+Build the registration invariant by one registration step from the empty-state introduction;
+then discharge the two saturation clauses on the one-entry environment by inspecting the
+lookup, and apply the cold-start theorem that converts an invariant plus saturation into the
+lowering-side relation.
+\end{proof}
+
+\begin{proposition}[Eliminator coverage, at the Nat fixture]
+\label{prop:natEnv_elimCovered}
+\lean{LeanToLambdaBox.natEnv_elimCovered, LeanToLambdaBox.natSpecEnv,
+LeanToLambdaBox.natSpecMib, LeanToLambdaBox.natSpecEnv_block,
+LeanToLambdaBox.natSpecEnv_elim}
+\leanok
+\uses{def:ElimDecl, def:IndInfo, def:mkElimBody, def:IndCovered}
+For the hand-built \code{Nat} fixture, the two-entry \lbox{} environment holding the block and
+the eliminator's canonical body supplies exactly what eliminator coverage returns: the
+eliminator declaration at the \code{casesOn} constant's kername, the model's block data
+beside it, and the constructor count.
+The Lean name is \code{natEnv\_elimCovered}; the Lean statement is the three-fold conjunction
+spelled out at the fixture's own identifiers.
+\end{proposition}
+\begin{proof}
+\leanok
+\uses{prop:NatWitness-seval_iota_fires}
+The two lookups are the head and the one-key-past case of environment lookup; the model side
+is the fixture's own block data.
+\end{proof}
+
+\begin{remark}
+This is the non-vacuity witness for the eliminator clause of the coverage predicate.
+\end{remark}
+
+\section{What lean4lean still owes}
+\label{sec:source:upstream}
+
+\begin{definition}[A block declared below the environment]
+\label{def:IndBlockBelow}
+\lean{LeanToLambdaBox.IndBlockBelow, LeanToLambdaBox.Peel}
+\leanok
+\uses{def:lean4lean-grounding}
+A mutual inductive declaration is \emph{below} an environment when some well-formed
+declaration list containing it produces an environment at or under it. Every classification
+predicate of this development exhibits its block in this form, which is why the uniqueness ask
+must be stated in it. Separately, \emph{peeling} a spine's typing argument by argument says
+the head's type is definitionally a Pi whose domain types the first argument and whose
+instantiated codomain peels the rest.
+The Lean names are \code{IndBlockBelow} and \code{Peel}. The first-order layer's own block
+predicate is the special case where the declaration list's environment is the environment
+itself.
+\end{definition}
+
+\begin{definition}[The load-bearing upstream asks, as one premise]
+\label{def:UpstreamAsks}
+\lean{LeanToLambdaBox.UpstreamAsks}
+\leanok
+\uses{def:IndBlockBelow, def:CtorOf, def:IndInfo, def:ConstOrigin, def:CasesOnShape, def:lean4lean-grounding, asm:UpstreamAsks-constsOrigin, asm:UpstreamAsks-constArityInv, asm:UpstreamAsks-mkAppsInv, asm:UpstreamAsks-indSpineInj}
+One \code{Prop}-structure with four fields, packaging the four facts about lean4lean's kernel
+theory that this development needs and cannot prove here (\code{doc/upstream-asks.md} items
+2, 6, 9 and 10).
+\begin{itemize}
+\item The constants-keyed origin field, in eight conjuncts: a constructor is not an inductive
+      type name; the constructor reading determines its type and index; the block reading
+      determines its identifier, parameter count and field counts; the eliminator reading
+      determines its segmentation; every declared constant is a constructor, a type name or a
+      plain constant; the plain-constant reading excludes the other two; a block \emph{below}
+      the environment declaring a type former is matched by a block of the environment's own
+      declaration list; and two blocks below the environment declaring the same type former
+      are the same block.
+\item The arity-inversion field: an application headed by an inductive type former is
+      definitionally equal to neither a sort nor a Pi.
+\item The spine-typing-inversion field, stated with the strong-ordering premise explicit, so
+      that the ask is \code{sorryAx}-free exactly as the corresponding application-inversion
+      lemma is.
+\item The spine-injectivity field: two definitionally equal spines headed by
+      \emph{inductively declared} type formers have the same head. The declaredness premises
+      are load-bearing, since without them an ordinary definition refutes the statement.
+\end{itemize}
+The Lean name is \code{UpstreamAsks}.
+\end{definition}
+
+\begin{remark}
+\textbf{Proof status: hypothesis. Nothing under this structure is proved in this repository.}
+The four fields are the four \code{UpstreamAsks} assumption nodes of
+Chapter~\ref{chap:trust} (Assumptions~\ref{asm:UpstreamAsks-constsOrigin},
+\ref{asm:UpstreamAsks-constArityInv}, \ref{asm:UpstreamAsks-mkAppsInv} and
+\ref{asm:UpstreamAsks-indSpineInj}). The structure is taken by the
+erasure-correctness theorem, by the bridge, by the capstone and by every green rung, and a
+single pin bump would discharge all four with no change to any consumer's statement shape.
+The repository's trust document carries the row and the \emph{measured} ledger cannot, because
+\code{\#print axioms} reports the footprint of a proved term and never a hypothesis. Two asks
+are deliberately \emph{not} fields (the defining-equation ownership lemma and the seven
+kernel-generic declarations), having no consumer here; and the first conjunct of the first
+field is proved in this repository by Lemma~\ref{lem:CtorOf-not_indInfo}, so in a dependency
+graph a proved fact sits inside a hypothesis node.
+\end{remark}
+
+\section*{Deviations from the paper and caveats}
+
+\textbf{There is no source semantics to cite, so one is defined.} $\SEval$ is not a
+free-standing invention: it is a presentation of a sub-relation of the kernel's own
+convertibility, with the evaluation order made explicit and every non-value arm paying a
+definitional-equality obligation. Where [S] can quote PCUIC reduction, this development must
+build and justify its analogue, which is what Section~\ref{sec:source:values} does.
+
+\textbf{Delta is not kernel delta} (tag N8). The eraser reads the compiler's bodies --- after
+\code{csimp} rewriting and \code{@[extern]} or \code{@[implemented\_by]} substitution --- so
+the delta arm unfolds a table independent of the kernel environment and pays with a
+definitional-equality obligation at the applied instance. The corresponding typing hypothesis
+(Definition~\ref{def:CompilerBodies}) is a capstone binder discharged at the first rung only.
+
+\textbf{The coverage predicate has no counterpart in [S].} MetaCoq's erasure is total on
+well-typed PCUIC; a coverage predicate exists here because the subject is a shipping, partly
+panicking eraser read against a \emph{compiler} body table. In [L]'s terms it is the explicit
+statement of which part of the extraction's input domain the correctness argument covers. Of
+the five benchmark programs, only Arith is in the fragment. The recursor-head exclusion
+prevents \emph{vacuous} coverage, since a recursor spine has no source evaluation at all;
+the \code{@[implemented\_by]} hole is closed not by the fragment but by the configuration
+hypothesis \code{ConfigPinned}, which is \emph{not} the default \code{\#erase} configuration
+--- it differs from it on three of its five fields.
+
+\textbf{Specification environments are \code{erases\_global} derived from a run}, not posited:
+the eraser registers constants and blocks as it discovers them, so the environment relation is
+recovered from the run's own bookkeeping.
+
+\textbf{Fixture caveats.} Two of the three witness environments are proved well-formed only
+\emph{before} the hand-added conversion equations they need, and the delta fixture's
+environment is never shown well-formed at all; the right reading of all three is "the arms'
+side conditions are jointly satisfiable".
