@@ -1,23 +1,44 @@
 \chapter{The refinement: visitExpr refines ErasesLB}
 \label{chap:refinement}
 
-Chapters~\ref{chap:erases} and~\ref{chap:lowering} give two relations over different pairs of objects. $\Erases$ relates a \code{Lean.Expr} to a \lbox{} term; it is a congruence with one non-deterministic rule, the box rule, and has no \code{case} and no \code{fix} node, because no \code{Lean.Expr} constructor corresponds to one. $\Lower$ relates a \lbox{} term to a \lbox{} term and carries the four Lean-specific compilation steps: a saturated eliminator spine becomes a \code{.case} node, a top-level recursive constant becomes a \code{.fix} node, eliminator declarations are pruned, and the constructor node is lowered. Neither relation alone can be true of what the shipping eraser emits. This chapter introduces the relation that can be, \code{ErasesLB}, and proves that the shipping \code{Erasure.visitExpr} refines it: every successful run of the eraser on a supported, kernel-translatable term puts its output in \code{ErasesLB}. That statement is the development's \textbf{T8}.
-
-Three things make T8 harder than the corresponding step of [S]. The eraser is \emph{impure} --- it reads a \code{Lean.Environment}, calls \code{Lean.Meta.inferType}, mints fresh \code{FVarId}s and logs --- so the statement is about a monadic run. It is \emph{partial}: \code{Erasure.visitExpr} and seventeen siblings form one \code{mutual} block closed by Lean's \code{partial\_fixpoint}, \ie{} the least fixpoint of a monotone functional on a CCPO of monadic computations, with \code{panic!} fall-throughs. And it \emph{discovers} the global environment while it walks the term, so the environment against which the relation is read is not available when a subterm is erased. The answers are, respectively: a run-indexed conclusion \code{RunRefines}; a fixpoint induction with eighteen motives; and a conclusion quantified over \emph{every} specification environment adequate for the run's \emph{final} state.
-
-The chapter's seven Lean files are \code{LeanToLambdaBox/ErasesLB.lean}, \code{IotaBridge.lean}, \code{VisitExprRefines.lean} and the four modules under \code{VisitExprRefines/} (\code{Motives.lean}, \code{Step/Env.lean}, \code{Step/Mechanical.lean}, \code{Step/Passes.lean}). Two facts must stay visible throughout. First, T8 is a statement about a \textbf{term}: it says nothing about what the run \emph{registered}. The motive for \code{Erasure.visitMutual} concludes registration only, deliberately, and the two environment facts the capstone needs --- $\ErasesEnv$ and $\LowerEnv$ --- remain assumed there (Chapter~\ref{chap:coldstart}). In MetaCoq terms this chapter proves the term half of [S, Sec. 7.4] and leaves the \code{erases\_global\_decls} half to a binder. Second, the two T8 theorems have measured axiom footprint \code{[propext, Classical.choice, Quot.sound]} (\code{test/ledger.expected}, lines 56--57) \emph{only because their eighteen step obligations are hypotheses there}; the step proofs of Section~\ref{sec:refinement:steps} --- step 1 in particular --- route through the executable relevance oracle and inherit \code{sorryAx} from the pinned lean4lean. The clean row on the aggregator is not a claim about the bridge.
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} State the composite relation \code{ErasesLB} and prove \textbf{T8}: the shipping
+\code{Erasure.visitExpr} refines it on every supported, translatable term.
+\item \lead{Main results} Theorem~\ref{thm:motives_of_steps} (bridge induction: steps give motives);
+Theorem~\ref{thm:visitExpr_refines_erasesLB} (T8, ambient mode);
+Theorem~\ref{thm:visitExpr_refines_erasesLBFix} (T8, block mode); Theorem~\ref{thm:step_visitExpr}
+(step 1, the sole \code{sorryAx} entry point).
+\item \lead{Status} \stProved{} throughout, conditional on the eighteen step hypotheses; \stInherited{}
+through lean4lean only at step 1; \stAssumed{} \code{EraserAsks}/\code{UpstreamAsks}/\code{TableSafe} at
+several steps.
+\item \lead{Lean files} \code{ErasesLB.lean}, \code{IotaBridge.lean}, \code{VisitExprRefines.lean},
+\code{VisitExprRefines/Motives.lean}, \code{VisitExprRefines/Step/Env.lean},
+\code{VisitExprRefines/Step/Mechanical.lean}, \code{VisitExprRefines/Step/Passes.lean}.
+\item \lead{Paper} [S, Sec.~7.4]: proves the term-level half; \code{erases\_global\_decls} stays the
+capstone's \code{ErasureBridge} binder, inhabited nowhere.
+\end{itemize}
 
 \section{The composite relation}
 \label{sec:refinement:composite}
+
+$\Erases$ relates \code{Lean.Expr} to \lbox{}; $\Lower$ relates \lbox{} to \lbox{}, adding Lean's
+compilation steps. Neither alone is what the eraser emits, so \code{ErasesLB} composes them; the rest of
+the chapter proves \textbf{T8}, that \code{Erasure.visitExpr} refines the composite.
 
 \begin{definition}[The composite ErasesLB]
 \label{def:ErasesLB}
 \lean{LeanToLambdaBox.ErasesLB}
 \leanok
 \uses{def:Erases, def:Lower}
-For a model environment $\Sigma$, a universe scope $Us$, a \lbox{} specification environment $\Gamma$ and a lean4lean local context $\Delta$, the source term $e$ is \emph{composite-related} to the \lbox{} term $t$ when some intermediate term $t_0$ is an erasure of $e$ which the lowering pass rewrites to $t$:
+\lead{In short} $e$ is \hl{composite-related} to $t$ when some $t_0$ both erases $e$ and lowers to $t$:
 \[ \mathrm{ErasesLB}\ \Sigma\ Us\ \Gamma\ \Delta\ e\ t \;:=\; \exists t_0,\; \Erases\ \Sigma\ Us\ \Delta\ e\ t_0 \wedge \Lower\ \Gamma\ t_0\ t . \]
-It is the relational composition read in \emph{diagrammatic} order --- erase first, lower second --- and the two factors take disjoint parameters: $\Erases$ takes the model, the scope and the context and no \lbox{} environment; $\Lower$ takes the \lbox{} environment and neither the model nor the context. This is the relation the eraser's output is claimed to inhabit; $\Erases$ alone is not, because the eraser emits \code{.case} and \code{.fix} nodes no \code{Lean.Expr} constructor corresponds to. The Lean declaration \code{ErasesLB} is a plain \code{def} into \code{Prop}, so every rule below is a theorem rather than a constructor. It joins two rule tables the repository documents separately: eleven rules for $\Erases$ and fifteen for $\Lower$.
+\begin{itemize}
+\item erase first, lower second; disjoint parameters ($\Erases$: model, scope, context; $\Lower$: the
+\lbox{} environment only);
+\item $\Erases$ alone will not do: the eraser emits \code{.case}/\code{.fix} nodes no \code{Lean.Expr}
+constructor matches.
+\end{itemize}
 \end{definition}
 
 \begin{definition}[The composite at a case alternative]
@@ -25,7 +46,14 @@ It is the relational composition read in \emph{diagrammatic} order --- erase fir
 \lean{LeanToLambdaBox.ErasesLBAlt, LeanToLambdaBox.ErasesLBAlts}
 \leanok
 \uses{def:Erases, def:Lower}
-A source minor premise $m$ is composite-related to an alternative $(\mathit{names}, \mathit{body})$ at field arity $\mathit{nf}$ when $m$ erases to a \lbox{} term whose lambda-chain \code{LowerAlt} peels into that alternative. Binder \emph{names} are free; only the count --- the number MetaRocq's \code{iota\_red} reads --- is pinned. \code{ErasesLBAlts} is the pointwise lift over a block's per-constructor field arities, carrying the two length equations $|\mathit{minors}| = |\mathit{nfs}|$ and $|\mathit{alts}| = |\mathit{nfs}|$: one minor premise and one emitted alternative per constructor. The Lean lift indexes with \code{getElem!}, so the index bound is an explicit hypothesis rather than a dependent one.
+\lead{In short} A minor premise $m$ is composite-related to an alternative $(\mathit{names},
+\mathit{body})$ at field arity $\mathit{nf}$ when $m$ erases to a term whose lambda-chain \code{LowerAlt}
+peels into it.
+\begin{itemize}
+\item binder names are free; only the count (what \code{iota\_red} reads) is pinned;
+\item \code{ErasesLBAlts}: the pointwise lift, carrying $|\mathit{minors}| = |\mathit{nfs}| =
+|\mathit{alts}|$.
+\end{itemize}
 \end{definition}
 
 \begin{definition}[Alternatives inside a block]
@@ -33,11 +61,14 @@ A source minor premise $m$ is composite-related to an alternative $(\mathit{name
 \lean{LeanToLambdaBox.ErasesLBFixAlt, LeanToLambdaBox.ErasesLBFixAlts}
 \leanok
 \uses{def:ErasesLBAlt, def:ConstToFVar}
-One alternative \emph{inside} a mutual block: the alternative of Definition~\ref{def:ErasesLBAlt} with the block's own kernames already rewritten to its fix variables by \code{ConstToFVar}, and with only the alternative's binder \emph{count} pinned against the intermediate one, because the pass leaves binder names free. \code{ErasesLBFixAlts} is the pointwise lift with the same two length equations.
+\lead{In short} One alternative \emph{inside} a mutual block: Definition~\ref{def:ErasesLBAlt} with the
+block's kernames rewritten to fix variables by \code{ConstToFVar}, binder \emph{count} pinned.
 \end{definition}
 
 \begin{remark}
-The in-block composite for \emph{terms}, \code{ErasesLBFix} --- three existentials, $\Erases$ then $\Lower$ then \code{ConstToFVar} --- is Definition~\ref{def:ErasesLBFix} of Chapter~\ref{chap:lowering} and is not redefined here, although half of this chapter targets it.
+\lead{Caveat} The in-block term composite \code{ErasesLBFix} (three existentials: $\Erases$, $\Lower$,
+\code{ConstToFVar}) is Definition~\ref{def:ErasesLBFix} of Chapter~\ref{chap:lowering}, not redefined
+here.
 \end{remark}
 
 \begin{lemma}[A spine premise, folded]
@@ -45,30 +76,44 @@ The in-block composite for \emph{terms}, \code{ErasesLBFix} --- three existentia
 \lean{LeanToLambdaBox.erasesLB_of_spine}
 \leanok
 \uses{def:ErasesLB, def:Erases, def:Lower}
-For argument lists of equal length, the premise ``each argument erases to some $a_0$ which the pass lowers to the corresponding emitted argument'' \emph{is} the premise written with the composite. The Lean statement \code{erasesLB\_of\_spine} is an \code{Iff} carrying a further hypothesis relating the two lengths, which plays no role in either side: the file suppresses the unused-variable linter for it and the docstring says it ``constrains neither side''. It is the length equation \code{Lower.mkApps} consumes at the call site.
+\lead{In short} For equal-length lists, ``each argument erases to some $a_0$ the pass lowers to the
+emitted argument'' \hl{is} the composite premise, as an \code{Iff} plus an unused length equation ---
+the one \code{Lower.mkApps} consumes at its call site.
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{def:ErasesLB}
-Unfolding \code{ErasesLB} turns the left-hand side into the right-hand side syntactically, so the proof is \code{Iff.rfl}. The lemma exists so that a reader of the capstone can read its per-argument spine premises either way.
+\lead{Idea} Unfolding \code{ErasesLB} turns one side into the other syntactically: \code{Iff.rfl}.
 \end{proof}
 
 \section{Introduction rules of the composite}
 \label{sec:refinement:intro}
 
-These eight rules are the composite's introduction form. Read against [S, Fig. 18], the \code{box}, \code{app}, \code{lit}, \code{proj} and \code{ctor} rules are the erasure rules transported to \code{Lean.Expr}; \code{fix} and \code{cases} exist only because Lean's kernel has no \code{tFix} and no \code{tCase}, and are where a Lean frontend departs from an \code{EAst}-shaped source. Nineteen declarations, drawn mostly from this and the next section but also including \code{erasesLB\_of\_spine} of \S\ref{sec:refinement:composite} (the combinatorial helpers \code{ErasesLB.exists\_mid}, \code{ConstToFVar.mkApps}, \code{ErasesLBFix.of\_erasesLB} and \code{ErasesLBFix.exists\_erasesLB}/\code{exists\_mid} are not among them), are measured individually in the committed fixture \code{test/erasesLB.expected}, each with footprint \code{[propext, Classical.choice, Quot.sound]} --- \textbf{no} \code{sorryAx}, even though several mention lean4lean's \code{TrExprS}: mentioning a lean4lean \emph{definition} costs nothing, only its proved theorems carry the inherited sorries.
+These eight rules are the composite's introduction form: \code{box}, \code{app}, \code{lit}, \code{proj},
+\code{ctor} match [S, Fig.~18]; \code{fix} and \code{cases} exist only because Lean's kernel has neither
+\code{tFix} nor \code{tCase}. This section measures \stChecked{} clean, no \code{sorryAx}.
 
 \begin{lemma}[Erasure is a spine congruence]
 \label{lem:Erases-mkApps}
 \lean{LeanToLambdaBox.Erases.mkApps, LeanToLambdaBox.ErasesLB.exists_mid}
 \leanok
 \uses{def:Erases, def:ErasesLB, def:Lower, def:LBTerm-mkApps}
-(i) If the head erases and each argument erases, the whole source application spine erases to the corresponding \lbox{} spine. (ii) A spine of composites splits: from index-wise \code{ErasesLB} on an argument list one obtains a middle list of the same length with $\Erases\ \mathit{args}[i]\ \mathit{mid}[i]$ and $\Lower\ \Gamma\ \mathit{mid}[i]\ \mathit{args}'[i]$ at every index. The first Lean statement carries an explicit length equation between the source and target argument lists (\code{args'.length = args.length}); the second instead produces a middle list of the source's own length, with no hypothesis anywhere relating the target list's length to the source's.
+\lead{In short} A spine erases \hl{pointwise}, and a spine of composites splits into a shared middle
+list.
+\begin{itemize}
+\item \lead{Given} (i) the head and each argument erase, target argument lists of equal length; \lead{Then}
+the whole spine erases to the corresponding \lbox{} spine;
+\item \lead{Given} (ii) index-wise \code{ErasesLB} on an argument list; \lead{Then} a middle list of the
+same length with $\Erases\ \mathit{args}[i]\ \mathit{mid}[i]$ and $\Lower\ \Gamma\ \mathit{mid}[i]\
+\mathit{args}'[i]$ at every index.
+\end{itemize}
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{def:Erases}
-Part (i) is an induction on the argument list, iterating the \code{app} constructor of $\Erases$. Part (ii) collects the per-argument existentials into one list by the finite choice helper \code{exists\_list\_of\_index}, which is choice-free and lives in \code{Prop}. Together they are the engine of the two spine rules below: \code{ctor} and \code{cases} both match a source spine against a \lbox{} spine argument by argument. The \code{cases} proof further needs four generic helpers about index-wise relations on appends and conses, which carry no erasure content.
+\lead{Idea} (i) induction on the argument list, applying $\Erases$'s app rule per step. (ii) collects the
+per-argument existentials via the choice-free helper \code{exists\_list\_of\_index}. Both power the
+\code{ctor}/\code{cases} spine rules below.
 \end{proof}
 
 \begin{lemma}[The box rule]
@@ -76,12 +121,19 @@ Part (i) is an induction on the argument list, iterating the \code{app} construc
 \lean{LeanToLambdaBox.ErasesLB.box}
 \leanok
 \uses{def:ErasesLB, def:Erasable, def:Erases, def:lean4lean-grounding}
-If the source term $e$ has a lean4lean translation $ve$ in $\Delta$ and $ve$ is $\Erasable$ --- a proof or a type former --- then $e$ is composite-related to $\Box$. The Lean statement \code{ErasesLB.box} takes those two witnesses and is polymorphic in $\Gamma$, which the conclusion does not constrain.
+\lead{In short} An \Erasable{} source term is composite-related to \hl{$\Box$}.
+\begin{itemize}
+\item \lead{Given} $e$ has a lean4lean translation $ve$ in $\Delta$; $ve$ is \Erasable{} (a proof or a
+type former);
+\item \lead{Then} $\mathrm{ErasesLB}\ \Sigma\ Us\ \Gamma\ \Delta\ e\ \Box$, any $\Gamma$.
+\end{itemize}
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{def:Erases, def:Lower}
-A three-component term: the intermediate is $\Box$ itself, the source factor is the box constructor of $\Erases$ applied to the two premises, and the target factor is the pass's box rule. This is Letouzey's original rule [L] and [S, Fig. 18]'s box rule transported to \code{Lean.Expr}; its target-side counterpart is the evaluation rule $\Box\,x \to \Box$. The premises are stated over lean4lean's \code{VEnv} and \code{VExpr}, so this touches Chapter~\ref{chap:trust}'s boundary --- but only through a \emph{definition}, which is why the measured footprint stays clean.
+\lead{Idea} Intermediate $\Box$; source factor is $\Erases$'s box rule (Letouzey's [L]); target factor
+is the pass's box rule, counterpart $\Box\,x\to\Box$. Premises live over lean4lean's \code{VEnv}, touching
+only a \emph{definition}, so the footprint stays clean.
 \end{proof}
 
 \begin{lemma}[Application]
@@ -89,12 +141,16 @@ A three-component term: the intermediate is $\Box$ itself, the source factor is 
 \lean{LeanToLambdaBox.ErasesLB.app}
 \leanok
 \uses{def:ErasesLB}
-The composite is a congruence in both factors of an application: from $\mathrm{ErasesLB}\ f\ f'$ and $\mathrm{ErasesLB}\ a\ a'$ conclude $\mathrm{ErasesLB}\ (f\,a)\ (f'\,a')$. The Lean statement carries no side condition.
+\lead{In short} The composite is a \hl{congruence} in both factors of an application.
+\begin{itemize}
+\item \lead{Given} $\mathrm{ErasesLB}\ f\ f'$ and $\mathrm{ErasesLB}\ a\ a'$;
+\item \lead{Then} $\mathrm{ErasesLB}\ (f\,a)\ (f'\,a')$.
+\end{itemize}
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{def:Erases, def:Lower}
-Destructure the two composites into their intermediate terms and pair them; both factors are congruences at an application, so the proof is one line.
+\lead{Idea} Destructure both composites into their intermediates and pair them.
 \end{proof}
 
 \begin{lemma}[Constructors, in applied form]
@@ -102,16 +158,27 @@ Destructure the two composites into their intermediate terms and pair them; both
 \lean{LeanToLambdaBox.ErasesLB.ctor_head, LeanToLambdaBox.ErasesLB.ctor}
 \leanok
 \uses{def:ErasesLB, def:CtorOf, def:IndInfo}
-A bare constructor constant, for a constructor at index $k$ of a block whose model data is \code{IndInfo env I iid np nfs}, is composite-related to the \textbf{empty} constructor node \code{.construct iid k []}; and a constructor \emph{spine} is composite-related to \code{LBTerm.mkApps (.construct iid k []) args'} at \textbf{any} arity, provided the argument lists have equal length and are index-wise composite-related. Universe levels are dropped. The Lean statements write the source spine as a left fold of \code{Expr.app}, the shape the run's motives use.
+\lead{In short} A bare constructor becomes the \hl{empty} node; a spine becomes \code{mkApps} of it, at
+any arity.
+\begin{itemize}
+\item \lead{Given} a constructor at index $k$ of a block with model data \code{IndInfo env I iid np nfs};
+\item \lead{Then} \code{ctor\_head}: composite-related to \code{.construct iid k []};
+\item \lead{Given} argument lists of equal length, index-wise composite-related; \lead{Then}
+\code{ctor}: composite-related to \code{LBTerm.mkApps (.construct iid k []) args'}, universe levels
+dropped.
+\end{itemize}
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:Erases-mkApps, def:Erases, def:Lower}
-\code{ctor\_head} is the \code{ctor} rule of $\Erases$ paired with the pass's \code{construct} congruence at an empty argument list. \code{ctor} splits the spine of composites with \code{ErasesLB.exists\_mid}, rebuilds the source side with \code{Erases.mkApps} after rewriting the left fold into \code{mkApps}, and rebuilds the \lbox{} side with \code{Lower.mkApps} over the \code{construct} congruence.
+\lead{Idea} \code{ctor\_head}: $\Erases$'s \code{ctor} rule paired with the pass's empty-arity
+\code{construct} congruence. \code{ctor}: split the composite spine, rebuild the source side
+(\code{Erases.mkApps}) and target side (\code{Lower.mkApps} over \code{construct}).
 \end{proof}
 
 \begin{remark}
-This pins Lean's \textbf{applied} constructor convention (cf.\ shipping finding F-ETA2): the emitted node carries no fields and the arguments ride on the spine, which is what the pinned \code{eraseFlags} reads, its \code{with\_constructor\_as\_block} field being \code{false}. The Agda frontend \code{agda2lambox} eta-expands to fully applied blocks instead; the disagreement is the recurring cross-frontend trap of the Peregrine pipeline.
+\lead{Deviation} Pins Lean's \textbf{applied} constructor convention (F-ETA2); \code{agda2lambox}
+eta-expands to fully applied blocks instead.
 \end{remark}
 
 \begin{lemma}[Literals]
@@ -119,12 +186,18 @@ This pins Lean's \textbf{applied} constructor convention (cf.\ shipping finding 
 \lean{LeanToLambdaBox.ErasesLB.lit}
 \leanok
 \uses{def:ErasesLB, def:Erases}
-A literal is composite-related to whatever its one-step kernel unfolding is composite-related to, under the premise that the model declares the literal's constructors. The Lean statement spells the unfolding as \code{l.toConstructor} and the premise as \code{env.ContainsLits l}, exactly the premise the erasure rule carries. Under the pinned configuration (\code{nat = .peano}) the eraser rebuilds a \code{Nat} literal as its peano tower, so this rule is what step 2 concludes (Lemma~\ref{lem:step_visitLiteral}).
+\lead{In short} A literal is composite-related to whatever its \hl{one-step kernel unfolding} is.
+\begin{itemize}
+\item \lead{Given} the model declares the literal's constructors (\code{env.ContainsLits l});
+\item \lead{Then} composite-related to the image of \code{l.toConstructor}.
+\end{itemize}
+\lead{Lean} at pinned \code{nat = .peano}, the eraser rebuilds a \code{Nat} literal as its peano tower
+(step 2, Lemma~\ref{lem:step_visitLiteral}).
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{def:Erases}
-The pass is the identity at this step, so the composite inherits the \code{lit} rule of $\Erases$: keep the intermediate term and prefix the source derivation with one rule application.
+\lead{Idea} The pass is the identity here, so the composite inherits $\Erases$'s \code{lit} rule.
 \end{proof}
 
 \begin{lemma}[Projections]
@@ -132,12 +205,19 @@ The pass is the identity at this step, so the composite inherits the \code{lit} 
 \lean{LeanToLambdaBox.ErasesLB.proj}
 \leanok
 \uses{def:ErasesLB, def:IndInfo, def:InformativeInd}
-A structure projection \code{.proj S i e} is composite-related to the \lbox{} node \code{.proj} $\langle \mathit{iid}, \mathit{np}, i\rangle$ $t$ when $S$ is a single-constructor block with $\mathit{np}$ parameters and $\mathit{nf}$ fields, $S$ is \textbf{informative} (not a \code{Prop}), the field index is in range, and the discriminee is composite-related to $t$. The Lean statement states the block data as a one-element field-count list.
+\lead{In short} A structure projection becomes the \lbox{} \code{.proj} node when the block is
+\hl{informative}.
+\begin{itemize}
+\item \lead{Given} \code{.proj S i e}; $S$ a single-constructor block with $np$ parameters, $nf$ fields;
+$S$ informative (not \code{Prop}); the field index in range; the discriminee composite-related to $t$;
+\item \lead{Then} composite-related to \code{.proj} $\langle iid, np, i\rangle\ t$.
+\end{itemize}
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{def:Erases, def:Lower}
-One \code{proj} rule of $\Erases$ over the discriminee's erasure, followed by the pass's \code{proj} congruence. Informativity is not decoration: without it the emitted node is stuck on every value (Chapter~\ref{chap:lambdabox}).
+\lead{Idea} One \code{proj} rule of $\Erases$ over the discriminee's erasure, then the pass's \code{proj}
+congruence. Informativity matters: without it the emitted node is stuck on every value.
 \end{proof}
 
 \begin{lemma}[A block member's constant becomes a fix node]
@@ -145,64 +225,99 @@ One \code{proj} rule of $\Erases$ over the discriminee's erasure, followed by th
 \lean{LeanToLambdaBox.ErasesLB.fix}
 \leanok
 \uses{def:ErasesLB, def:LowerBlock, def:ElimDecl, def:ConstOrigin, def:Kername}
-If \code{LowerBlock} holds of the whole block's lowering data, the constant \code{cn} is the block's $j$-th member, \code{cn} is declared in the model as a definition, opaque or axiom, and \code{toKername cn} is \textbf{not} a runtime key of $\Gamma$, then \code{.const cn us} is composite-related to \code{.fix defs j}. The Lean statement locates the member by a \code{getElem?} equation and takes the model declaration as an explicit \code{env.constants} equation next to the origin predicate.
+\lead{In short} A reference to a block member's own constant becomes the block's \hl{\code{.fix}} node.
+\begin{itemize}
+\item \lead{Given} \code{LowerBlock} holds of the block's data; \code{cn} is the block's $j$-th member, a
+model definition, opaque or axiom; \code{toKername cn} is \textbf{not} a runtime key of $\Gamma$;
+\item \lead{Then} \code{.const cn us} is composite-related to \code{.fix defs j}.
+\end{itemize}
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{def:Erases, def:Lower, lem:Lower-fixConst-prime}
-A two-step term. The \code{const} rule of $\Erases$ sends the constant to its kername; the pass's \code{Lower.fixConst'} turns that kername into \code{.fix defs j} given the block's lowering data. The negative premise is the pass's own guard: a block member is a definition, never an eliminator key whose declaration the pass prunes.
+\lead{Idea} $\Erases$'s \code{const} rule sends the constant to its kername; the pass's
+\code{Lower.fixConst'} turns that into \code{.fix defs j}. The negative premise is the pass's own guard: a
+block member is never a pruned eliminator key.
 \end{proof}
 
 \begin{remark}
-Lean has no \code{tFix} in its kernel; top-level recursion is compiled, which is why this is a \emph{pass} rule and not an erasure rule. Note also that \code{toKername} is not injective --- Lemma~\ref{lem:toKername_not_injective}.
+\lead{Why} Lean's kernel has no \code{tFix}: top-level recursion is compiled, so this is a \emph{pass}
+rule, not an erasure rule. \code{toKername} is not injective (Lemma~\ref{lem:toKername_not_injective}).
 \end{remark}
 
 \begin{lemma}[A saturated eliminator spine becomes a case node]
 \label{lem:ErasesLB-cases}
 \lean{LeanToLambdaBox.ErasesLB.cases}
 \leanok
-\uses{def:ErasesLB, def:ErasesLBAlt, def:ElimDecl, def:ConstOrigin, def:ProjInfo, def:CtorOf, def:IndInfo, def:lean4lean-grounding}
-Let \code{con} be declared in the emitted environment as an eliminator for block $\mathit{iid}$ with $\mathit{np}$ parameters, $\mathit{dp}$ dropped arguments (parameters, motive, indices) and per-constructor field arities $\mathit{nfs}$, let \code{con} be a plain constant of the model, and let the spine have exactly $\mathit{dp} + 1 + |\mathit{nfs}|$ arguments. If argument $\mathit{dp}$ is composite-related to the discriminee and the $|\mathit{nfs}|$ minor premises after it are composite-related to the alternatives at their field arities, then the source spine is composite-related to \code{.case} $(\mathit{iid}, \mathit{np})$ $\mathit{disc}$ $\mathit{alts}$. The Lean statement carries three premises beyond those: every dropped argument has a lean4lean translation, every dropped argument satisfies \code{ProjInfo}, and a \textbf{global} classification of every declared constant of the model as a constructor, an inductive or a plain constant; model and local-context well-formedness are two further premises.
+\uses{def:ErasesLB, def:ErasesLBAlt, def:ElimDecl, def:ConstOrigin, def:ProjInfo, def:CtorOf,
+def:IndInfo, def:lean4lean-grounding}
+\lead{In short} A saturated \code{casesOn} spine becomes the \lbox{} \hl{\code{.case}} node.
+\begin{itemize}
+\item \lead{Given} \code{con} declared as an eliminator for block $iid$ with $np$ parameters, $dp$
+dropped arguments (parameters, motive, indices) and per-constructor field arities $nfs$; a plain model
+constant; the spine has exactly $dp + 1 + |nfs|$ arguments;
+\item argument $dp$ composite-related to the discriminee, the $|nfs|$ minors after it to the alternatives
+at their field arities; every dropped argument translated and satisfying \code{ProjInfo}; a
+\textbf{global} classification of every model constant as constructor, inductive or plain;
+model/context well-formedness;
+\item \lead{Then} the source spine is composite-related to \code{.case} $(iid, np)\ \mathit{disc}\
+\mathit{alts}$.
+\end{itemize}
 \end{lemma}
 \begin{proof}
 \leanok
-\uses{lem:Erases-mkApps, def:Erases, def:Lower, thm:Erases-exists_of_trExprS_of_projInfo, lem:Lower-fixConst-prime}
-Split the spine as the first $\mathit{dp}$ arguments, the discriminee, and the minors. The dropped arguments are discarded by the pass, but $\Erases$ is a congruence over the \textbf{whole} spine, so they still need an erasure image: \code{Erases.exists\_of\_trExprS\_of\_projInfo} supplies one from a translation witness, the projection side premise and the global classification, and the images are collected by \code{exists\_list\_of\_index}. The minors give a second list. \code{Erases.mkApps} then erases the whole spine to a \code{.const} head applied to the concatenation, which the pass's \code{Lower.elimApp'} rewrites to the \code{.case} node.
+\uses{lem:Erases-mkApps, def:Erases, def:Lower, thm:Erases-exists_of_trExprS_of_projInfo,
+lem:Lower-fixConst-prime}
+\lead{Idea} Split the spine into the first $dp$ arguments, the discriminee, and the minors. $\Erases$ is
+a congruence over the \emph{whole} spine, so the dropped arguments still need an erasure image, supplied
+from the translation witness and the global classification by \code{exists\_of\_trExprS\_of\_projInfo}
+and collected with the minors' images. \code{Erases.mkApps} erases the whole spine to a \code{.const}
+head applied to the concatenation, which \code{Lower.elimApp'} rewrites to the \code{.case} node.
 \end{proof}
-
-\begin{remark}
-This is the largest premise list in the chapter and the blueprint prints it in full. The lemma's own docstring records that \code{doc/rework/01-DESIGN.md} Sec. 4.7 states the rule without three of its premises; the global classification in particular is supplied upstream by the assumed \code{UpstreamAsks} bundle, so a reader of that section alone would state the rule too weakly.
-\end{remark}
 
 \section{The same rules inside a mutual block}
 \label{sec:refinement:block}
 
-Inside a mutual block the eraser emits a \textbf{free variable} where the source has a \code{.const} naming a sibling --- a pair neither $\Erases$ nor $\Lower$ relates on its own. The in-block composite \code{ErasesLBFix} therefore has a third factor, \code{ConstToFVar}, and every rule of Section~\ref{sec:refinement:intro} has a twin.
+Inside a mutual block the eraser emits a \textbf{free variable} where the source names a sibling by
+\code{.const} --- a pair neither $\Erases$ nor $\Lower$ relates. \code{ErasesLBFix} carries a third
+factor, \code{ConstToFVar}, and every rule above has a twin.
 
 \begin{lemma}[Block rewriting over a spine]
 \label{lem:ConstToFVar-mkApps}
 \lean{LeanToLambdaBox.ConstToFVar.mkApps}
 \leanok
 \uses{def:ConstToFVar, def:LBTerm-mkApps}
-If \code{ConstToFVar} relates two heads and two argument lists of equal length are index-wise related by it, then the two spines are related. The Lean statement takes the length equation explicitly, in the direction the target list determines the source one.
+\lead{In short} \code{ConstToFVar} \hl{lifts to spines}.
+\begin{itemize}
+\item \lead{Given} it relates two heads, and two equal-length argument lists index-wise;
+\item \lead{Then} it relates the two spines.
+\end{itemize}
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{def:ConstToFVar}
-Induction on the argument list, one \code{app} congruence per step, with the length equation forcing the two lists to peel together.
+\lead{Idea} Induction on the argument list, one \code{app} congruence per step.
 \end{proof}
 
 \begin{lemma}[Factoring the in-block composite]
 \label{lem:ErasesLBFix-of_erasesLB}
-\lean{LeanToLambdaBox.ErasesLBFix.of_erasesLB, LeanToLambdaBox.ErasesLBFix.exists_erasesLB, LeanToLambdaBox.ErasesLBFix.exists_mid}
+\lean{LeanToLambdaBox.ErasesLBFix.of_erasesLB, LeanToLambdaBox.ErasesLBFix.exists_erasesLB,
+LeanToLambdaBox.ErasesLBFix.exists_mid}
 \leanok
 \uses{def:ErasesLB, def:ConstToFVar, def:ErasesLBFix}
-The in-block composite splits into the ambient composite followed by the block rewriting, and recomposes from them: \code{of\_erasesLB} post-composes, \code{exists\_erasesLB} is the converse reading, and \code{exists\_mid} is the spine version, producing one middle list of the right length.
+\lead{In short} The in-block composite \hl{splits} into the ambient composite followed by block
+rewriting, and recomposes from them.
+\begin{itemize}
+\item \code{of\_erasesLB}: post-composes;
+\item \code{exists\_erasesLB}: the converse reading;
+\item \code{exists\_mid}: the spine version, producing one middle list of the right length.
+\end{itemize}
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{def:ErasesLB}
-Both directions re-associate the three existentials of \code{ErasesLBFix} against the two of \code{ErasesLB}; the spine version collects the per-index pairs with \code{exists\_list\_of\_index}. This pair makes every in-block rule cost exactly one \code{ConstToFVar} congruence beyond its ambient twin.
+\lead{Idea} Both directions re-associate the three existentials against the two of \code{ErasesLB}; the
+spine version collects the per-index pairs with \code{exists\_list\_of\_index}.
 \end{proof}
 
 \begin{lemma}[The block branch's own rule]
@@ -210,43 +325,70 @@ Both directions re-associate the three existentials of \code{ErasesLBFix} agains
 \lean{LeanToLambdaBox.ErasesLBFix.fixvar}
 \leanok
 \uses{def:ErasesLBFix, def:ConstOrigin, def:ElimDecl, def:Kername}
-A reference to one of the block's own names becomes that member's fix variable: if the $j$-th kername of the block is \code{toKername cn}, the $j$-th identifier is $x$, \code{toKername cn} is not a runtime key of $\Gamma$, and \code{cn} is a plain constant of the model, then \code{.const cn us} is in-block related to \code{.fvar x}. The Lean statement reads both list positions with \code{getElem?}, so the index bounds come from the two \code{some} equations.
+\lead{In short} A reference to the block's \hl{own} name becomes that member's fix variable.
+\begin{itemize}
+\item \lead{Given} the block's $j$-th kername is \code{toKername cn}; the $j$-th identifier is $x$;
+\code{toKername cn} is not a runtime key of $\Gamma$; \code{cn} a plain model constant;
+\item \lead{Then} \code{.const cn us} is in-block related to \code{.fvar x}.
+\end{itemize}
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{def:Erases, def:Lower, def:ConstToFVar}
-A single three-factor term: the \code{const} rule of $\Erases$ (constant to kername), the \code{const} rule of $\Lower$ (a non-eliminator kername survives the pass), and the \code{hit} rule of \code{ConstToFVar} (the block's $j$-th kername maps to its $j$-th identifier). This is the \textbf{one} step with no \code{ErasesLB} counterpart, and the reason \code{ErasesLBFix} has a third factor at all.
+\lead{Idea} A three-factor term: $\Erases$'s \code{const} rule (constant to kername); $\Lower$'s
+\code{const} rule (a non-eliminator kername survives); \code{ConstToFVar}'s \code{hit} rule (the block's
+$j$-th kername to its $j$-th identifier) --- the one step with no ambient \code{ErasesLB} counterpart.
 \end{proof}
 
 \begin{lemma}[The eight rules, replayed inside a block]
 \label{lem:ErasesLBFix-box}
-\lean{LeanToLambdaBox.ErasesLBFix.box, LeanToLambdaBox.ErasesLBFix.app, LeanToLambdaBox.ErasesLBFix.ctor_head, LeanToLambdaBox.ErasesLBFix.ctor, LeanToLambdaBox.ErasesLBFix.lit, LeanToLambdaBox.ErasesLBFix.proj, LeanToLambdaBox.ErasesLBFix.cases, LeanToLambdaBox.ErasesLBFix.fix}
+\lean{LeanToLambdaBox.ErasesLBFix.box, LeanToLambdaBox.ErasesLBFix.app,
+LeanToLambdaBox.ErasesLBFix.ctor_head, LeanToLambdaBox.ErasesLBFix.ctor,
+LeanToLambdaBox.ErasesLBFix.lit, LeanToLambdaBox.ErasesLBFix.proj, LeanToLambdaBox.ErasesLBFix.cases,
+LeanToLambdaBox.ErasesLBFix.fix}
 \leanok
 \uses{def:ErasesLBFix, def:ErasesLBFixAlt}
-Each of the eight rules of Section~\ref{sec:refinement:intro} holds inside a mutual block, with the same premises plus the block indices; the \code{cases} twin takes \code{ErasesLBFixAlts} for its minors, and the \code{fix} twin is about a \emph{different}, inner block, whose \code{.fix} node the outer block's rewriting leaves alone.
+\lead{In short} Each of the eight rules of \S\ref{sec:refinement:intro} holds \hl{inside a block} too.
+\begin{itemize}
+\item same premises plus the block indices;
+\item the \code{cases} twin takes \code{ErasesLBFixAlts} for its minors;
+\item the \code{fix} twin is about a \emph{different}, inner block, whose \code{.fix} node the outer
+block's rewriting leaves alone.
+\end{itemize}
 \end{lemma}
 \begin{proof}
 \leanok
-\uses{lem:ErasesLBFix-of_erasesLB, lem:ConstToFVar-mkApps, lem:ErasesLB-box, lem:ErasesLB-app, lem:ErasesLB-ctor, lem:ErasesLB-lit, lem:ErasesLB-proj, lem:ErasesLB-cases, lem:ErasesLB-fix}
-Uniform. Split the in-block composite into \code{ErasesLB} plus \code{ConstToFVar}, apply the ambient lemma, and re-compose with the matching \code{ConstToFVar} congruence --- \code{ConstToFVar.mkApps} at the two spine rules, the \code{case} congruence at \code{cases} (which also pins the alternatives' binder counts), and the \code{fix} constructor at \code{fix}. All eight are measured \code{sorryAx}-free in \code{test/erasesLB.expected}.
+\uses{lem:ErasesLBFix-of_erasesLB, lem:ConstToFVar-mkApps, lem:ErasesLB-box, lem:ErasesLB-app,
+lem:ErasesLB-ctor, lem:ErasesLB-lit, lem:ErasesLB-proj, lem:ErasesLB-cases, lem:ErasesLB-fix}
+\lead{Idea} Split the in-block composite into \code{ErasesLB} plus \code{ConstToFVar}, apply the ambient
+lemma, recompose with the matching congruence. All eight measured \code{sorryAx}-free.
 \end{proof}
 
 \section{The iota reversal bridge}
 \label{sec:refinement:iota}
 
-A self-contained target-side reconciliation, used by the simulation of Chapter~\ref{chap:correctness}. \lbox{}'s iota rule, mirroring MetaRocq's \code{iota\_red np args br = substl (rev (skipn np args)) br.2}, contracts a \code{.case} by \textbf{one} simultaneous, \textbf{reversed} substitution of the constructor's fields into the selected alternative's body. The erasure side instead produces a lambda-telescope applied to the fields \emph{in order}, contracted by a \textbf{chain of beta steps}. These two agree --- and only over closed field values. The module mentions neither $\Erases$ nor lean4lean, so it is \code{sorryAx}-free.
+\lbox{}'s iota rule (MetaRocq's \code{iota\_red}) is one simultaneous, \textbf{reversed} substitution of
+fields into the alternative's body. The eraser instead applies a lambda-telescope to the fields
+\emph{in order}, via a \textbf{chain of beta steps}; the two agree only over closed field values. The
+module mentions neither $\Erases$ nor lean4lean, so it is \code{sorryAx}-free.
 
 \begin{lemma}[Head congruence for an application spine]
 \label{lem:wcbvEval_mkApps_head_congr}
 \lean{LeanToLambdaBox.wcbvEval_mkApps_head_congr}
 \leanok
 \uses{def:WcbvEval, def:LBTerm-mkApps}
-If every evaluation of $g$ is also an evaluation of $h$, then every evaluation of the spine $g\,a_1 \ldots a_n$ is an evaluation of $h\,a_1 \ldots a_n$. The hypothesis is a one-directional simulation, not an equivalence; the Lean statement quantifies the result value implicitly and is stated at an arbitrary global environment and arbitrary evaluation flags.
+\lead{In short} A one-directional simulation of heads \hl{lifts to spines}.
+\begin{itemize}
+\item \lead{Given} every evaluation of $g$ is also an evaluation of $h$;
+\item \lead{Then} every evaluation of $g\,a_1\ldots a_n$ is an evaluation of $h\,a_1\ldots a_n$.
+\end{itemize}
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{def:WcbvEval}
-Induction down the spine. Every \code{.app} rule of \lbox{}'s $\WcbvEval$ --- beta, the box rule, the constructor-application rule, the three fixpoint rules and the congruence rule --- evaluates its function first and dispatches on that \emph{value}, so the head may be replaced rule by rule. This reconciles two traversal orders: the beta chain contracts the innermost application first, while $\WcbvEval$ dispatches on the outermost.
+\lead{Idea} Induction down the spine: every \code{.app} rule of $\WcbvEval$ dispatches on the function's
+\emph{value} first, so the head may be replaced rule by rule --- reconciling the beta chain's
+innermost-first order with $\WcbvEval$'s outermost-first dispatch.
 \end{proof}
 
 \begin{lemma}[Fields of a constructor value are values]
@@ -254,12 +396,17 @@ Induction down the spine. Every \code{.app} rule of \lbox{}'s $\WcbvEval$ --- be
 \lean{LeanToLambdaBox.value_mkApps_construct_args}
 \leanok
 \uses{def:Value, def:LBTerm-mkApps}
-If \code{mkApps (.construct iid c []) args} is a value, so is every element of \code{args}. The Lean statement is phrased over an explicit spine length, so the recursion is on a natural number rather than on the list.
+\lead{In short} A constructor value's \hl{fields are themselves values}.
+\begin{itemize}
+\item \lead{Given} \code{mkApps (.construct iid c []) args} is a value;
+\item \lead{Then} so is every element of \code{args}.
+\end{itemize}
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{def:Value}
-Strong recursion on the spine length, inverting the constructor-application arm of \code{Value} one argument at a time. The two competing arms are excluded: the stuck-application arm because a constructor spine is never a stuck application, and the fixpoint-application arm because a constructor spine is not a \code{fix}. Composed with the facts that evaluation lands in values and that values evaluate to themselves, this supplies the bridge's premise ``every field evaluates to itself'' at its call site.
+\lead{Idea} Strong recursion on the spine length, inverting the constructor-application arm one argument
+at a time. Supplies the bridge's ``every field evaluates to itself'' premise at its call site.
 \end{proof}
 
 \begin{proposition}[A beta-chain of field applications is iota\_red]
@@ -267,16 +414,30 @@ Strong recursion on the spine length, inverting the constructor-application arm 
 \lean{LeanToLambdaBox.wcbvEval_mkApps_mkLambdas_substList}
 \leanok
 \uses{def:WcbvEval, def:mkLambdas, def:LBClosed, def:LBTerm-subst, def:LBTerm-mkApps}
-Let the binder-name list have exactly the fields' length and let every field be a closed value --- it evaluates to itself and has no loose de Bruijn index. Then every evaluation of \code{mkApps (mkLambdas names body) fields} is an evaluation of \code{LBTerm.substList fields.reverse body}: applying an alternative's lambda-telescope to the fields \emph{in order} and substituting the \textbf{reversed} field list simultaneously into its body have the same evaluations. The Lean statement spells closedness as \code{LBClosed x 0} and value-hood as self-evaluation, both quantified over the members of the field list.
+\lead{In short} A beta chain over an alternative's telescope \hl{agrees with \code{iota\_red}}, over
+closed field values.
+\begin{itemize}
+\item \lead{Given} the binder-name list has exactly the fields' length; every field is a closed value
+(evaluates to itself, no loose de Bruijn index);
+\item \lead{Then} every evaluation of \code{mkApps (mkLambdas names body) fields} is an evaluation of
+\code{LBTerm.substList fields.reverse body}.
+\end{itemize}
 \end{proposition}
 \begin{proof}
 \leanok
 \uses{lem:wcbvEval_mkApps_head_congr, def:LBTerm-subst}
-Induction on the fields. At each step the single beta contraction is packaged as a head replacement and fed to Lemma~\ref{lem:wcbvEval_mkApps_head_congr}; all six non-beta \code{.app} rules are refuted by determinism against the lambda rule (a lambda evaluates only to itself and is neither a box, nor a constructor spine, nor a fixpoint, nor stuck). The de Bruijn arithmetic is the iterated-substitution lemma together with the reversal lemma of \code{Closed.lean}.
+\lead{Idea} Induction on the fields: each beta contraction is a head replacement fed to
+Lemma~\ref{lem:wcbvEval_mkApps_head_congr}; the non-beta \code{.app} rules are refuted by determinism.
+The de Bruijn arithmetic is the iterated-substitution lemma plus the reversal lemma of \code{Closed.lean}.
 \end{proof}
 
 \begin{remark}
-Closedness is faithfulness, not convenience. At two fields the beta chain reduces to $\mathrm{subst}\ f_1\ 0\ (\mathrm{subst}\ f_0\ 1\ \mathit{body})$ while $\mathrm{substList}\ [f_1, f_0]\ \mathit{body}$ is $\mathrm{subst}\ f_0\ 0\ (\mathrm{subst}\ f_1\ 0\ \mathit{body})$; the two agree exactly when $\mathrm{subst}\ f_0\ 0\ f_1 = f_1$. Taking $\mathit{body}$ to be the de Bruijn variable $0$ and $f_1$ a lambda whose body is the de Bruijn variable $1$ --- a genuine value with a loose index --- the two sides differ. MetaRocq's own \code{closedn 0} convention is therefore \emph{needed} for the iota forward simulation to be true. This counterexample is argued in the module's docstring; it is not mechanised.
+\lead{Why} Closedness is faithfulness, not convenience: at two fields the beta chain reduces to
+$\mathrm{subst}\ f_1\ 0\ (\mathrm{subst}\ f_0\ 1\ \mathit{body})$ while \code{substList} gives
+$\mathrm{subst}\ f_0\ 0\ (\mathrm{subst}\ f_1\ 0\ \mathit{body})$; the two agree only when
+$\mathrm{subst}\ f_0\ 0\ f_1 = f_1$, which fails for a value with a loose index (e.g. $f_1$ a lambda over
+variable $1$). MetaRocq's \code{closedn 0} convention is \emph{needed}. Argued in the module's docstring,
+not mechanised.
 \end{remark}
 
 \begin{lemma}[The bridge fires at two fields]
@@ -284,29 +445,49 @@ Closedness is faithfulness, not convenience. At two fields the beta chain reduce
 \lean{LeanToLambdaBox.wcbvEval_mkApps_mkLambdas_substList_fires}
 \leanok
 \uses{def:WcbvEval, def:eraseFlags}
-A closed instance with no hypotheses: the telescope binding two variables whose body is the inner de Bruijn variable, applied to the two fields $\Box$ and a lambda returning $\Box$, evaluates to $\Box$ through the substituted form the bridge produces.
+\lead{In short} A \hl{closed, hypothesis-free instance}: the two-variable telescope over the inner
+variable, applied to $\Box$ and a lambda returning $\Box$, evaluates to $\Box$.
+\lead{Non-vacuity} two fields is the first regime the flat slice could not reach.
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{prop:wcbvEval_mkApps_mkLambdas_substList}
-Apply Proposition~\ref{prop:wcbvEval_mkApps_mkLambdas_substList} at the two explicit fields, discharging the value and closedness side conditions by the box and lambda evaluation rules and by computation, and supplying the beta chain directly. It is a non-vacuity guard: two fields is the first regime the flat slice could not reach, the reversal is what makes index $1$ select the \emph{first} field, and the second field being a lambda exercises the closedness hypothesis with a genuine non-atomic closed value.
+\lead{Idea} Apply Proposition~\ref{prop:wcbvEval_mkApps_mkLambdas_substList} at the two explicit fields,
+discharging value and closedness by the box and lambda rules and by computation, and supplying the beta
+chain directly.
 \end{proof}
 
 \section{The induction's interfaces: motives, bodies, steps}
 \label{sec:refinement:motives}
 
-The shipping eraser is not a structural recursion, so the correctness proof is a fixpoint induction with one motive per member, and Lean's generated \code{Erasure.visitExpr.mutual\_fixpoint\_induct} demands of each motive that it be \emph{admissible} (closed under suprema of chains) and preserved by the functional's \emph{step}. \code{Motives.lean} supplies the vocabulary for both, and --- the methodologically interesting decision --- declares the eighteen \emph{abstract bodies} as top-level definitions, so that a step lemma is a theorem about a named function, provable in a file that does not carry the induction.
+The eraser is \emph{impure} (reads the environment, mints fresh \code{FVarId}s), \emph{partial}
+(\code{visitExpr} and seventeen siblings form one \code{mutual} block closed by \code{partial\_fixpoint},
+with \code{panic!} fall-throughs), and \emph{discovers} the environment while walking the term --- so the
+proof is a fixpoint induction with one motive per member, each \emph{admissible} and preserved by the
+functional's \emph{step}. \code{Motives.lean} declares the eighteen abstract bodies as top-level
+definitions, so a step lemma is a theorem about a named function, proved in a file with no induction.
 
 \begin{definition}[What a successful sub-run concludes]
 \label{def:RunRefines}
 \lean{LeanToLambdaBox.RunRefines, LeanToLambdaBox.RunRefinesAlt, LeanToLambdaBox.HeadRefines}
 \leanok
 \uses{def:ErasesLBMode, def:SpecEnv, def:Erasure-RunConcl, def:IndRegistryModelled}
-\code{RunRefines} is a four-fold conjunction: (i) the erasure state only grew, canonically; (ii) the inductive registry at the final state is still the model's; (iii) the name generator only advanced; and (iv) at \textbf{every} specification environment $\Gamma_{\mathrm{spec}}$ adequate for the \textbf{final} state, the emitted term is the source term's image in whichever fixvar mode the reader is in (\code{ErasesLBMode}: the ambient composite outside a block, the in-block composite inside one). \code{RunRefinesAlt} is the same with the alternative-level mode, for \code{Erasure.visitAlt}; \code{HeadRefines} is clause (iv) alone, read at the \textbf{initial} state, for the spine loop's head premise.
+\lead{In short} \code{RunRefines} bundles what a successful eraser run \hl{establishes about its final
+state}.
+\begin{itemize}
+\item the erasure state only grew, canonically; the registry is still the model's; the generator only
+advanced;
+\item at \textbf{every} adequate $\Gamma_{\mathrm{spec}}$ for the \textbf{final} state, the emitted term
+is the source term's image in the reader's fixvar mode.
+\end{itemize}
+\lead{Lean} \code{RunRefinesAlt} is the alternative-level form; \code{HeadRefines} is clause four alone,
+at the \textbf{initial} state.
 \end{definition}
 
 \begin{remark}
-Quantifying over \emph{every} adequate $\Gamma_{\mathrm{spec}}$ rather than over a fixed environment is the design's answer to a sequencing problem: the eraser discovers the environment while it walks the term. Two devices make it work: adequacy is antitone in the run state (Lemma~\ref{lem:SpecEnv-mono}), so a final-state environment can be re-read at an earlier state, and \code{HeadRefines} states the head premise at the initial state.
+\lead{Why} Quantifying over every adequate $\Gamma_{\mathrm{spec}}$, not a fixed one, answers a
+sequencing problem: adequacy is antitone in the run state (Lemma~\ref{lem:SpecEnv-mono}), so a
+final-state environment reads back at an earlier state; \code{HeadRefines} states the head premise there.
 \end{remark}
 
 \begin{definition}[Spine premises]
@@ -314,27 +495,80 @@ Quantifying over \emph{every} adequate $\Gamma_{\mathrm{spec}}$ rather than over
 \lean{LeanToLambdaBox.ArgsOk, LeanToLambdaBox.srcSpine}
 \leanok
 \uses{def:Supported, def:lean4lean-grounding}
-\code{ArgsOk} says that every argument in the array the run carries is inside the supported fragment and has a lean4lean translation in $\Delta$. \code{srcSpine hd args} is the source application spine a run over an argument array at head \code{hd} is about --- the same left-fold shape the \code{ctor} and \code{cases} rules' conclusions use. The Lean definition of \code{ArgsOk} indexes the array dependently, so no \code{getElem!} default is involved.
+\lead{In short} \code{ArgsOk}: every run argument is \hl{supported and lean4lean-translatable}.
+\begin{itemize}
+\item \code{ArgsOk}: every argument in the run's array is in the supported fragment, translated in
+$\Delta$;
+\item \code{srcSpine hd args}: the source spine a run at head \code{hd} over that array is about, the
+left-fold shape \code{ctor}/\code{cases} use.
+\end{itemize}
 \end{definition}
 
 \begin{definition}[The casesOn head data]
 \label{def:CasesHead}
 \lean{LeanToLambdaBox.CasesHead}
 \leanok
-\uses{def:InformativeInd, def:CasesInfoAgrees, def:PlainHead, def:isCasesOnName, def:Witness-SourceTable}
-A five-field structure recording what an eliminating motive reads off the head: the head is not in one of the four excluded name classes, it \emph{is} a \code{casesOn} constant, its inductive type --- the head's name prefix --- is in the reified source table, that type is \textbf{informative} (without which the emitted \code{.case} node is stuck on every value), and Lean's own \code{CasesInfo} metadata agrees with the table's reified block on the discriminant position, the arity, the count of alternatives and each alternative's field count.
+\uses{def:InformativeInd, def:CasesInfoAgrees, def:PlainHead, def:isCasesOnName,
+def:Witness-SourceTable}
+\lead{In short} A five-field record of what an eliminating motive \hl{reads off the head}.
+\begin{itemize}
+\item the head is not in one of four excluded classes, and \emph{is} a \code{casesOn} constant;
+\item its inductive type (the name prefix) is in the source table, and \textbf{informative} (not
+\code{Prop}) --- else the emitted \code{.case} node is stuck on every value;
+\item \code{CasesInfo} metadata agrees with the table's block on discriminant position, arity, alternative
+count, each alternative's field count.
+\end{itemize}
 \end{definition}
 
 \begin{definition}[The eighteen motives]
 \label{def:Motive1}
-\lean{LeanToLambdaBox.Motive1, LeanToLambdaBox.Motive2, LeanToLambdaBox.Motive3, LeanToLambdaBox.Motive4, LeanToLambdaBox.Motive5, LeanToLambdaBox.Motive6, LeanToLambdaBox.Motive7, LeanToLambdaBox.Motive8, LeanToLambdaBox.Motive9, LeanToLambdaBox.Motive10, LeanToLambdaBox.Motive11, LeanToLambdaBox.Motive12, LeanToLambdaBox.Motive13, LeanToLambdaBox.Motive14, LeanToLambdaBox.Motive15, LeanToLambdaBox.Motive16, LeanToLambdaBox.Motive17, LeanToLambdaBox.Motive18}
+\lean{LeanToLambdaBox.Motive1, LeanToLambdaBox.Motive2, LeanToLambdaBox.Motive3,
+LeanToLambdaBox.Motive4, LeanToLambdaBox.Motive5, LeanToLambdaBox.Motive6, LeanToLambdaBox.Motive7,
+LeanToLambdaBox.Motive8, LeanToLambdaBox.Motive9, LeanToLambdaBox.Motive10, LeanToLambdaBox.Motive11,
+LeanToLambdaBox.Motive12, LeanToLambdaBox.Motive13, LeanToLambdaBox.Motive14, LeanToLambdaBox.Motive15,
+LeanToLambdaBox.Motive16, LeanToLambdaBox.Motive17, LeanToLambdaBox.Motive18}
 \leanok
-\uses{def:RunRefines, def:ArgsOk, def:CasesHead, def:BridgeInv, def:Supported, def:Erasure-visitExpr, def:lean4lean-grounding}
-One motive per member of the erasure family, each of the shape \emph{(a refinement statement about the abstract function $f$)} conjoined with $f \sqsubseteq \code{Erasure.visitXxx}$. The refinement statement always reads: if the run of $f$ succeeds then, for every modelled local context $\Delta$ satisfying the bridge invariant, and under the member's own side premises, the run concludes \code{RunRefines}. The members are, in order: 1 \code{visitExpr}, the bridge motive, premised on the term being supported and translatable; 2 \code{visitLiteral}, a \code{Nat} literal erasing to its peano tower; 3 \code{visitConstructor}, a constructor spine, for \textbf{every} universe level list; 4 \code{visitConst}, a plain known constant becoming its kername, or its fix variable inside a block, under two \emph{exclusions} --- the head is not a constructor and not a type former; 5 \code{get\_constant\_kername}, the returned kername being canonical and the constant registered; 6 \code{visitMutual}, \textbf{registration only}; 7 \code{visitAppArgs}, a \code{HeadRefines} head applied to an \code{ArgsOk} array; 8 and 9 \code{visitLet} and \code{visitLambda}; 10 \code{visitProj}, at a tabled informative single-constructor structure; 11 and 12 \code{visitApp} and \code{visitConstApp}, the spine dispatchers, carrying the type-former exclusion; 13 and 14 \code{visitCtorEta} and \code{visitCtorEtaGo}, the saturated constructor loop; 15 and 16 \code{visitCasesEta} and \code{visitCasesEtaGo}, the saturated \code{casesOn} loop under \code{CasesHead}; 17 \code{visitCases}, the \code{case} node itself; and 18 \code{visitAlt}, a manifest lambda-telescope of depth $\mathit{nf}$ with an all-\code{keep} argument mask becoming an alternative with that many binders.
+\uses{def:RunRefines, def:ArgsOk, def:CasesHead, def:BridgeInv, def:Supported, def:Erasure-visitExpr,
+def:lean4lean-grounding}
+\lead{In short} One motive per member: a refinement statement about an abstract $f$, conjoined with
+\hl{$f \sqsubseteq \code{Erasure.visitXxx}$}.
+\begin{itemize}
+\item \lead{Given} the run of $f$ succeeds, for every modelled $\Delta$ satisfying the bridge invariant;
+\lead{Then} the run concludes \code{RunRefines}.
+\end{itemize}
+\begin{center}
+\begin{tabular}{lp{0.24\linewidth}p{0.60\linewidth}}
+\textbf{\#} & \textbf{function} & \textbf{motive says} \\
+\hline
+1 & \code{visitExpr} & bridge motive: supported, translatable \\
+2 & \code{visitLiteral} & \code{Nat} literal to peano tower \\
+3 & \code{visitConstructor} & constructor spine, any universe levels \\
+4 & \code{visitConst} & constant to kername/fix variable; not a constructor, not a type former \\
+5 & \code{get\_constant\_kername} & kername canonical, registered \\
+6 & \code{visitMutual} & \textbf{registration only} \\
+7 & \code{visitAppArgs} & \code{HeadRefines} head on \code{ArgsOk} array \\
+8, 9 & \code{visitLet/Lambda} & the two binder cases \\
+10 & \code{visitProj} & tabled informative single-ctor structure \\
+11, 12 & \code{visitApp/ConstApp} & spine dispatchers, type-former exclusion \\
+13, 14 & \code{visitCtorEta(Go)} & saturated constructor loop \\
+15, 16 & \code{visitCasesEta(Go)} & saturated \code{casesOn} loop, \code{CasesHead} \\
+17 & \code{visitCases} & the \code{.case} node itself \\
+18 & \code{visitAlt} & all-\code{keep} telescope of depth $nf$ to an alternative \\
+\hline
+\end{tabular}
+\end{center}
 \end{definition}
 
 \begin{remark}
-The approximation conjunct $f \sqsubseteq \code{Erasure.visitXxx}$ is \code{partial\_fixpoint}'s approximation order; it looks like bookkeeping but does real work. A fixpoint induction gives a statement about an arbitrary approximant, while the steps must reason about \emph{the} block the shipping eraser builds; knowing the approximant is below the fixpoint turns a successful run of the approximant into the identical run of the shipping function, which is exactly what step 6 spends. A slack at the two eta loops is worth recording: motives 14 and 16 conclude about \code{srcSpine (.const cn us) args} while quantifying the universe levels universally and placing no premise relating the loop's own parameters to that head. The statements are sound ($\Erases$ ignores universe levels) and the connection is re-established by motives 13 and 15, but as stated they are about a spine the run's own arguments do not pin.
+\lead{Why} The conjunct $f \sqsubseteq \code{Erasure.visitXxx}$ is \code{partial\_fixpoint}'s
+approximation order: it turns a run of an arbitrary approximant into the identical run of the shipping
+function, what step 6 spends.
+\end{remark}
+
+\begin{remark}
+\lead{Caveat} Motives 14 and 16 conclude about \code{srcSpine (.const cn us) args} with no premise
+pinning the loop's own parameters against that head. Sound (motives 13, 15 re-establish the connection),
+but as stated they concern a spine the run's own arguments do not pin.
 \end{remark}
 
 \begin{definition}[The bundle of eighteen]
@@ -342,173 +576,354 @@ The approximation conjunct $f \sqsubseteq \code{Erasure.visitXxx}$ is \code{part
 \lean{LeanToLambdaBox.Motives}
 \leanok
 \uses{def:Motive1, def:Erasure-EraseM}
-A structure with eighteen fields holding the eighteen motives at \textbf{one} erasure family, whose function slots have exactly the shipping members' types (the fifth is \code{Name -> EraseM Kername}, the eighteenth \code{Nat -> ConstructorArgMask -> Expr -> EraseM (List BinderName x LBTerm)}). Read at the shipping family it is the bridge induction's conclusion; read at an abstract family it is what a step lemma receives.
+\lead{In short} A structure with eighteen fields holding the eighteen motives at \hl{one} erasure family.
+\begin{itemize}
+\item the function slots match the shipping members' types exactly;
+\item read at the shipping family: the bridge induction's conclusion; read at an abstract family: what a
+step lemma receives.
+\end{itemize}
 \end{definition}
 
 \begin{definition}[The eighteen abstract bodies]
 \label{def:visitExprBody}
-\lean{LeanToLambdaBox.visitExprBody, LeanToLambdaBox.visitLiteralBody, LeanToLambdaBox.visitConstructorBody, LeanToLambdaBox.visitConstBody, LeanToLambdaBox.getConstantKernameBody, LeanToLambdaBox.visitMutualBody, LeanToLambdaBox.visitAppArgsBody, LeanToLambdaBox.visitLetBody, LeanToLambdaBox.visitLambdaBody, LeanToLambdaBox.visitProjBody, LeanToLambdaBox.visitAppBody, LeanToLambdaBox.visitConstAppBody, LeanToLambdaBox.visitCtorEtaBody, LeanToLambdaBox.visitCtorEtaGoBody, LeanToLambdaBox.visitCasesEtaBody, LeanToLambdaBox.visitCasesEtaGoBody, LeanToLambdaBox.visitCasesBody, LeanToLambdaBox.visitAltBody}
+\lean{LeanToLambdaBox.visitExprBody, LeanToLambdaBox.visitLiteralBody,
+LeanToLambdaBox.visitConstructorBody, LeanToLambdaBox.visitConstBody,
+LeanToLambdaBox.getConstantKernameBody, LeanToLambdaBox.visitMutualBody,
+LeanToLambdaBox.visitAppArgsBody, LeanToLambdaBox.visitLetBody, LeanToLambdaBox.visitLambdaBody,
+LeanToLambdaBox.visitProjBody, LeanToLambdaBox.visitAppBody, LeanToLambdaBox.visitConstAppBody,
+LeanToLambdaBox.visitCtorEtaBody, LeanToLambdaBox.visitCtorEtaGoBody,
+LeanToLambdaBox.visitCasesEtaBody, LeanToLambdaBox.visitCasesEtaGoBody, LeanToLambdaBox.visitCasesBody,
+LeanToLambdaBox.visitAltBody}
 \leanok
 \uses{def:Erasure-visitExpr, def:Erasure-isErasable, def:Erasure-EraseM}
-Each is the shipping definition of one member with its calls \emph{into} the family replaced by explicit function parameters --- exactly the step goals of Lean's generated mutual fixpoint induction principle, named so a step lemma can be stated and proved elsewhere. \code{visitExprBody}, the dispatch, begins with the relevance oracle call (if the oracle reports the term irrelevant, return $\Box$) and otherwise dispatches on the term's constructor, sending applications and constants to the spine dispatcher, projections, metadata, lambdas, \code{let}s and literals to their members, a free variable to itself, and \code{forallE}, \code{mvar}, \code{bvar} and \code{sort} to an unreachable leaf.
+\lead{In short} Each is the shipping definition of one member with its \hl{calls into the family
+replaced by explicit function parameters} --- the step goals of Lean's generated induction principle.
+\begin{itemize}
+\item \code{visitExprBody}, the dispatch: the relevance-oracle call first (irrelevant $\Rightarrow$
+$\Box$), else dispatch on the term's constructor to the matching member or the spine dispatcher.
+\end{itemize}
 \end{definition}
 
 \begin{remark}
-Three points. (a) The box rule \emph{of the implementation} is ``if the oracle says irrelevant, emit $\Box$'', whose soundness is the assumed pair of oracle clauses of Chapter~\ref{chap:trust}. (b) \code{visitMutualBody} is by far the largest: it is the whole registration path --- inline attributes, \code{@[extern]} axiomatisation, the non-recursive branch, and the recursive branch that mints one fresh \code{FVarId} per member, installs the fixvar map, erases each body and registers each member as a \code{.fix} node. (c) The eighteen are \textbf{hand-maintained copies}; drift is caught by elaboration, since the aggregator closes each step goal by applying the matching step lemma, which forces definitional equality with the real functional's step. The copies reproduce the shipping code's \code{panic!} and \code{unreachable!} leaves and the machine-\code{Nat} and \code{Int} arms that the pinned configuration excludes from the \emph{statement's scope} rather than from the code.
+Three points. \lead{Caveat} (a) The box rule is ``oracle says irrelevant, emit $\Box$'', soundness
+assumed. (b) \code{visitMutualBody} is the largest: the whole registration path, minting one fresh
+\code{FVarId} per member and registering each body as a \code{.fix} node. (c) The eighteen are
+\textbf{hand-maintained copies}; drift is caught by elaboration forcing each body definitionally equal to
+the real step. They keep the code's \code{panic!} leaves and machine-\code{Nat} arms outside the
+statement's scope, not outside the code.
 \end{remark}
 
 \begin{lemma}[The approximation conjunct, for free]
 \label{lem:bodyLe1}
-\lean{LeanToLambdaBox.bodyLe1, LeanToLambdaBox.bodyLe2, LeanToLambdaBox.bodyLe3, LeanToLambdaBox.bodyLe4, LeanToLambdaBox.bodyLe5, LeanToLambdaBox.bodyLe6, LeanToLambdaBox.bodyLe7, LeanToLambdaBox.bodyLe8, LeanToLambdaBox.bodyLe9, LeanToLambdaBox.bodyLe10, LeanToLambdaBox.bodyLe11, LeanToLambdaBox.bodyLe12, LeanToLambdaBox.bodyLe13, LeanToLambdaBox.bodyLe14, LeanToLambdaBox.bodyLe15, LeanToLambdaBox.bodyLe16, LeanToLambdaBox.bodyLe17, LeanToLambdaBox.bodyLe18}
+\lean{LeanToLambdaBox.bodyLe1, LeanToLambdaBox.bodyLe2, LeanToLambdaBox.bodyLe3,
+LeanToLambdaBox.bodyLe4, LeanToLambdaBox.bodyLe5, LeanToLambdaBox.bodyLe6, LeanToLambdaBox.bodyLe7,
+LeanToLambdaBox.bodyLe8, LeanToLambdaBox.bodyLe9, LeanToLambdaBox.bodyLe10, LeanToLambdaBox.bodyLe11,
+LeanToLambdaBox.bodyLe12, LeanToLambdaBox.bodyLe13, LeanToLambdaBox.bodyLe14, LeanToLambdaBox.bodyLe15,
+LeanToLambdaBox.bodyLe16, LeanToLambdaBox.bodyLe17, LeanToLambdaBox.bodyLe18}
 \leanok
 \uses{def:visitExprBody, def:Erasure-visitExpr}
-If each function plugged into a member's abstract body is below the corresponding shipping member in \code{partial\_fixpoint}'s approximation order, the body itself is below that member: one step of the erasure functional stays below its fixpoint.
+\lead{In short} If every function plugged into a member's abstract body is \hl{below} the shipping
+member, the body itself is below it too.
+\begin{itemize}
+\item \lead{Given} each plugged-in function below its shipping counterpart, in \code{partial\_fixpoint}'s
+approximation order;
+\item \lead{Then} one step of the erasure functional stays below its fixpoint.
+\end{itemize}
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{def:visitExprBody}
-Uniform term-mode proofs. An unsealing lemma opens the \code{@[irreducible]} projection out of the eighteen-slot nested product that \code{partial\_fixpoint} builds; a packing lemma combines eighteen componentwise inequalities, filling unused slots with reflexivity; the fixpoint equation read as an inequality supplies the step; one projection lands the member. These discharge the second conjunct of every motive for free, so a step lemma spends no proof on it.
+\lead{Idea} An unsealing lemma opens the \code{@[irreducible]} projection \code{partial\_fixpoint}
+builds; a packing lemma combines eighteen componentwise inequalities; the fixpoint equation read as an
+inequality supplies the step. Discharges the second conjunct of every motive for free.
 \end{proof}
 
 \begin{definition}[The eighteen step interfaces]
 \label{def:Step1}
-\lean{LeanToLambdaBox.Step1, LeanToLambdaBox.Step2, LeanToLambdaBox.Step3, LeanToLambdaBox.Step4, LeanToLambdaBox.Step5, LeanToLambdaBox.Step6, LeanToLambdaBox.Step7, LeanToLambdaBox.Step8, LeanToLambdaBox.Step9, LeanToLambdaBox.Step10, LeanToLambdaBox.Step11, LeanToLambdaBox.Step12, LeanToLambdaBox.Step13, LeanToLambdaBox.Step14, LeanToLambdaBox.Step15, LeanToLambdaBox.Step16, LeanToLambdaBox.Step17, LeanToLambdaBox.Step18}
+\lean{LeanToLambdaBox.Step1, LeanToLambdaBox.Step2, LeanToLambdaBox.Step3, LeanToLambdaBox.Step4,
+LeanToLambdaBox.Step5, LeanToLambdaBox.Step6, LeanToLambdaBox.Step7, LeanToLambdaBox.Step8,
+LeanToLambdaBox.Step9, LeanToLambdaBox.Step10, LeanToLambdaBox.Step11, LeanToLambdaBox.Step12,
+LeanToLambdaBox.Step13, LeanToLambdaBox.Step14, LeanToLambdaBox.Step15, LeanToLambdaBox.Step16,
+LeanToLambdaBox.Step17, LeanToLambdaBox.Step18}
 \leanok
-\uses{def:Motive1, def:visitExprBody, def:ErasureSpec, def:ConfigPinned, def:CompilerBodies, def:Witness-SourceTableAdequate}
-The $i$-th interface is the induction's obligation at member $i$: \textbf{under the four ambient specification premises} --- \code{ErasureSpec} (Lean's \code{Meta} and \code{Core} primitives, the environment-model connection, fresh-name behaviour, the oracle's two arms), \code{SourceTableAdequate} (the reified table faithfully copies the slice of the elaboration environment it claims), \code{ConfigPinned} (no \code{@[csimp]}, no \code{@[extern]} axiomatisation, peano \code{Nat}, no constructor-argmask pruning, no typeclass-dispatch auto-inlining) and \code{CompilerBodies} (every tabled compiler body is kernel-typeable at its declared type) --- given the motives of the members this one calls, the motive holds of its body. The interfaces are Lean \code{abbrev}s, so supplying one is supplying a function of those premises.
+\uses{def:Motive1, def:visitExprBody, def:ErasureSpec, def:ConfigPinned, def:CompilerBodies,
+def:Witness-SourceTableAdequate}
+\lead{In short} The $i$-th interface: \hl{under four ambient premises}, given the motives of the members
+$i$ calls, member $i$'s body satisfies its motive.
+\begin{itemize}
+\item \code{ErasureSpec}: Lean's \code{Meta}/\code{Core} primitives, the environment-model connection,
+fresh names, the oracle's arms;
+\item \code{SourceTableAdequate}: the table faithfully copies its slice of the environment;
+\item \code{ConfigPinned}: no \code{@[csimp]}, no \code{@[extern]}, peano \code{Nat}, no argmask pruning,
+no auto-inlining;
+\item \code{CompilerBodies}: every tabled compiler body is kernel-typeable.
+\end{itemize}
 \end{definition}
 
 \begin{remark}
-The premise lists spell out the call graph, the chapter's clearest picture of the eraser's shape: member 1 calls $\{1,2,8,9,10,11\}$; 2 calls $\{3\}$; 3 calls $\{2,4,7\}$; 4 calls $\{5\}$; 5 calls $\{6\}$; 6 calls $\{1\}$; 7 calls $\{1\}$; 8, 9 and 10 call $\{1\}$; 11 calls $\{1,7,12\}$; 12 calls $\{4,7,13,15\}$; 13 calls $\{14\}$; 14 calls $\{3,14\}$; 15 calls $\{16\}$; 16 calls $\{16,17\}$; 17 calls $\{1,18\}$; 18 calls $\{1\}$.
+\lead{In short} The call graph among the eighteen members, the clearest picture of the eraser's shape.
+\begin{center}
+\begin{tabular}{cl@{\qquad}cl@{\qquad}cl}
+\textbf{\#} & \textbf{calls} & \textbf{\#} & \textbf{calls} & \textbf{\#} & \textbf{calls} \\
+\hline
+1 & 1,2,8,9,10,11 & 7 & 1 & 13 & 14 \\
+2 & 3 & 8,9,10 & 1 & 14 & 3,14 \\
+3 & 2,4,7 & 11 & 1,7,12 & 15 & 16 \\
+4 & 5 & 12 & 4,7,13,15 & 16 & 16,17 \\
+5 & 6 & & & 17 & 1,18 \\
+6 & 1 & & & 18 & 1 \\
+\hline
+\end{tabular}
+\end{center}
 \end{remark}
 
 \section{The eighteen step obligations}
 \label{sec:refinement:steps}
 
-The eighteen obligations are proved in three files, split by what the member does. \code{Step/Env.lean} holds the three that write the \textbf{constant registry} (steps 4, 5, 6) and the run facts that let a block's dependency erasures be crossed with no refinement claim about them. \code{Step/Mechanical.lean} holds the seven that carry \textbf{no compilation step of their own} (steps 1, 7, 8, 9, 11, 12, 18) together with the congruence lemmas of the fixvar mode. \code{Step/Passes.lean} holds the eight that emit a \lbox{} \textbf{node} whose shape is read out of the inductive registry (steps 2, 3, 10, 13, 14, 15, 16, 17). Nothing in the three files is assumed: every declaration is a proved theorem, or in two cases a definition. What they \emph{consume} are the standing bundles \code{ErasureSpec} (trust class D), \code{EraserAsks} (class C), \code{UpstreamAsks}, \code{SourceTableAdequate}, \code{TableSafe} and \code{TableBlocks} --- and two \code{EraserAsks} fields are, by their own docstrings, refuted in general (Chapter~\ref{chap:trust}).
+Three files, by what the member does: \code{Step/Env.lean} (4--6, the registry);
+\code{Step/Mechanical.lean} (1, 7--9, 11, 12, 18, no compilation step of their own);
+\code{Step/Passes.lean} (2, 3, 10, 13--17, each emitting a \lbox{} node). Every declaration is a proved
+theorem, or twice a definition; they consume \code{ErasureSpec} (class D), \code{EraserAsks} (class C),
+\code{UpstreamAsks}, \code{SourceTableAdequate}, \code{TableSafe}, \code{TableBlocks} --- two
+\code{EraserAsks} fields are refuted in general (Chapter~\ref{chap:trust}).
+
+\begin{center}
+\begin{tabular}{cl}
+\textbf{step(s)} & \textbf{proved at} \\
+\hline
+1 & Theorem~\ref{thm:step_visitExpr} \\
+2 & Lemma~\ref{lem:step_visitLiteral} \\
+3 & Lemma~\ref{lem:step_visitConstructor} \\
+4 & Lemma~\ref{lem:step_visitConst} \\
+5, 6 & Lemma~\ref{lem:step5} \\
+7, 8, 9, 11 & Lemma~\ref{lem:step_visitAppArgs} \\
+10 & Lemma~\ref{lem:step_visitProj} \\
+12 & Lemma~\ref{lem:step_visitConstApp} \\
+13--16 & Lemma~\ref{lem:step_visitCtorEta} \\
+17 & Lemma~\ref{lem:step_visitCases} \\
+18 & Lemma~\ref{lem:step_visitAlt} \\
+\hline
+\end{tabular}
+\end{center}
 
 \begin{lemma}[Preparation leaves the state alone]
 \label{lem:run_prepare_erasure_concl}
 \lean{LeanToLambdaBox.run_prepare_erasure_concl}
 \leanok
 \uses{def:Erasure-prepare_erasure, def:EraserAsks, asm:EraserAsks-passes_monotone}
-With \code{@[csimp]} replacement switched off by the pinned configuration, a successful run of \code{Erasure.prepare\_erasure} leaves the erasure state unchanged and only advances the name generator. The Lean statement takes the configuration equation as an isolated hypothesis rather than the whole \code{ConfigPinned} bundle.
+\lead{In short} With \code{@[csimp]} off, \code{prepare\_erasure} \hl{leaves the erasure state
+unchanged}.
+\begin{itemize}
+\item \lead{Given} the pinned configuration (\code{csimp = false});
+\item \lead{Then} a successful run leaves the state unchanged, only advances the name generator.
+\end{itemize}
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{asm:EraserAsks-passes_monotone}
-At \code{csimp = false}, \code{prepare\_erasure} is exactly four lifted \code{CoreM} calls. The state half is the run decomposition of the preparation pipeline; the generator half is four applications of the assumed \code{EraserAsks.passes\_monotone}, one per call, each discharged by membership in the eraser's list of preparation passes.
+\lead{Idea} At \code{csimp = false}, \code{prepare\_erasure} is four lifted \code{CoreM} calls: the state
+half is the run decomposition, the generator half four applications of the assumed
+\code{passes\_monotone}.
 \end{proof}
 
 \begin{remark}
-This is where the class-C obligation \code{passes\_monotone} is actually spent. Its sibling \code{passes\_sound} is spent elsewhere, in the cold start (Chapter~\ref{chap:coldstart}); both are \emph{fields of the hypothesis bundle} \code{EraserAsks}, \ie{} assumptions, never proved here.
+\lead{Caveat} \code{EraserAsks.passes\_monotone} is spent here; its sibling \code{passes\_sound} is spent
+in the cold start. Both are \stAssumed{} fields, never proved here.
 \end{remark}
 
 \begin{lemma}[The term walk's state, generator and registry conclusion]
 \label{lem:visitExpr_runConcl}
-\lean{LeanToLambdaBox.visitExpr_runConcl, LeanToLambdaBox.runClosedW_indReg, LeanToLambdaBox.indRegistryModelled_recConstState}
+\lean{LeanToLambdaBox.visitExpr_runConcl, LeanToLambdaBox.runClosedW_indReg,
+LeanToLambdaBox.indRegistryModelled_recConstState}
 \leanok
-\uses{def:ConfigPinned, def:ErasureSpec, def:EraserAsks, def:Erasure-visitExpr, def:Erasure-RunConcl, def:IndRegistryModelled, def:RunClosedW}
-A successful run of the shipping \code{Erasure.visitExpr} at a pinned configuration extends the erasure state canonically (registries only grow, kernames stay canonical), only advances the name generator, and preserves modelling of the inductive registry. The Lean statement states the registry clause as an implication from the initial state's modelling to the final state's, so it composes along a run.
+\uses{def:ConfigPinned, def:ErasureSpec, def:EraserAsks, def:Erasure-visitExpr, def:Erasure-RunConcl,
+def:IndRegistryModelled, def:RunClosedW}
+\lead{In short} A successful run of the shipping \code{visitExpr} at a pinned configuration \hl{preserves
+inductive-registry modelling}.
+\begin{itemize}
+\item \lead{Given} a successful run at \code{ConfigPinned};
+\item \lead{Then} the erasure state extends canonically (registries only grow, kernames stay canonical);
+the generator only advances; the registry stays modelled.
+\end{itemize}
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:run_prepare_erasure_concl, thm:visitExpr_shapeW, def:RunClosedW, asm:ErasureSpec-lookup_adequate}
-Three run-closure instances are combined into one and spent once through the world-indexed fixpoint induction of Chapter~\ref{chap:coldstart}. The registry instance checks every clause: each of the ten ambient primitives leaves the state alone; the registration clause splits on the provenance of the inductive value, the constant-lookup arm being read through the assumed lookup-adequacy clause, and the machine-numeral arm refuted because the pinned configuration fixes peano \code{Nat}; the preparation clause is Lemma~\ref{lem:run_prepare_erasure_concl}'s state half; and the two registration exits are the identity and the block-registration lemma.
+\lead{Idea} Three run-closure instances combined into one, spent once through the world-indexed fixpoint
+induction (Chapter~\ref{chap:coldstart}). The ten ambient primitives leave the state alone; the
+registration clause splits on the inductive value's provenance (constant-lookup via the assumed
+lookup-adequacy clause, the machine-numeral arm refuted by pinned peano \code{Nat}); the preparation
+clause is Lemma~\ref{lem:run_prepare_erasure_concl}'s state half.
 \end{proof}
-
-\begin{remark}
-This result \emph{discharged} the premise that earlier waves of the development carried as an assumption, in wave W6 (commit \code{47334eb}). The predicate those waves used no longer exists, and \code{doc/rework/02-PLAN.md}'s ``still open'' claim about it is stale at HEAD.
-\end{remark}
 
 \begin{lemma}[Every exit of visitMutual registers its name]
 \label{lem:run_visitMutual_registers}
-\lean{LeanToLambdaBox.run_visitMutual_registers, LeanToLambdaBox.run_nonrec_exit_reg, LeanToLambdaBox.run_rec_exit_reg}
+\lean{LeanToLambdaBox.run_visitMutual_registers, LeanToLambdaBox.run_nonrec_exit_reg,
+LeanToLambdaBox.run_rec_exit_reg}
 \leanok
-\uses{def:ErasureSpec, def:ConfigPinned, def:TableSafe, def:EraserAsks, def:Erasure-visitMutual, def:Erasure-RunConcl, def:IndRegistryModelled}
-For a tabled name $n$, a successful run of \code{Erasure.visitMutual} $n$ ends with $n$ in the constant registry, the state canonically grown, the generator advanced and the inductive registry still modelled --- at \textbf{all four} exits. The Lean statement additionally requires the inductive registry to be modelled at entry.
+\uses{def:ErasureSpec, def:ConfigPinned, def:TableSafe, def:EraserAsks, def:Erasure-visitMutual,
+def:Erasure-RunConcl, def:IndRegistryModelled}
+\lead{In short} At \textbf{all four exits}, a successful run of \code{visitMutual} $n$ \hl{ends with $n$
+registered}.
+\begin{itemize}
+\item \lead{Given} a tabled name $n$; the inductive registry modelled at entry;
+\item \lead{Then} $n$ is in the constant registry at exit; the state is canonically grown; the generator
+advanced; the registry still modelled.
+\end{itemize}
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:visitExpr_runConcl, lem:run_prepare_erasure_concl, asm:ErasureSpec-lookup_adequate}
-The run first asks the compiler for the declaration's block information; by the assumed declaration-lookup clause the answer is not \code{none}, and because \code{TableSafe} excludes an \code{\_unsafe\_rec} companion, $n$ is a member of the block returned. The four exits are the \code{@[extern]} axiom exit, the two term-producing exits and their variant under the \code{@[inline]} prefix. The term-producing exits are decomposed at the \emph{abstract} eraser the induction hands the step --- because the Hoare rules of Chapter~\ref{chap:run} propagate predicates that already hold at the call's entry, and ``$n$ is in the registry'' does not. The non-recursive exit's update inserts $n$ at its canonical kername; the recursive exit's final registration loop declares the whole block under every member's kername. The proof needs a ten-fold heartbeat bump (\code{maxHeartbeats 2000000} against the default 200000), the one place in this chapter where elaboration cost is visible in the source.
+\lead{Idea} The run asks the compiler for block information; the lookup clause makes the answer
+non-\code{none}, and \code{TableSafe} excludes an \code{\_unsafe\_rec} companion. The four exits are
+decomposed at the \emph{abstract} eraser the induction hands the step. The non-recursive exit inserts $n$
+at its kername; the recursive exit's loop declares the block under every member's.
 \end{proof}
 
 \begin{lemma}[Congruences in either fixvar mode]
 \label{lem:ErasesLBMode-box}
-\lean{LeanToLambdaBox.ErasesLBMode.box, LeanToLambdaBox.ErasesLBMode.app, LeanToLambdaBox.ErasesLBMode.fvar, LeanToLambdaBox.ErasesLBMode.mdata, LeanToLambdaBox.ErasesLBMode.congr_fixvars, LeanToLambdaBox.ErasesLBMode.lit, LeanToLambdaBox.ErasesLBMode.proj, LeanToLambdaBox.ErasesLBMode.ctor_head}
+\lean{LeanToLambdaBox.ErasesLBMode.box, LeanToLambdaBox.ErasesLBMode.app,
+LeanToLambdaBox.ErasesLBMode.fvar, LeanToLambdaBox.ErasesLBMode.mdata,
+LeanToLambdaBox.ErasesLBMode.congr_fixvars, LeanToLambdaBox.ErasesLBMode.lit,
+LeanToLambdaBox.ErasesLBMode.proj, LeanToLambdaBox.ErasesLBMode.ctor_head}
 \leanok
 \uses{def:ErasesLBMode}
-The mode-polymorphic readings of the rules already proved: an erasable term is related to $\Box$; application is a congruence; a free variable present in the modelled context keeps its identifier; metadata is transparent; a literal erases as its constructor unfolding does; a projection of an informative single-constructor block becomes the \lbox{} \code{.proj} node with the model's block identifier, parameter count and the \emph{same} field index; a constructor head becomes \code{.construct iid k []} in \textbf{applied} form. Finally, the mode reads only the reader's fixvar map, so it transports along any reader extension leaving that map alone.
+\lead{In short} The \hl{mode-polymorphic} readings of the rules already proved.
+\begin{itemize}
+\item an erasable term relates to $\Box$; application is a congruence; a free variable in the modelled
+context keeps its identifier; metadata is transparent;
+\item a literal erases as its constructor unfolding does; a projection of an informative
+single-constructor block becomes \code{.proj} with the same field index; a constructor head becomes
+\code{.construct iid k []} in \textbf{applied} form.
+\end{itemize}
 \end{lemma}
 \begin{proof}
 \leanok
-\uses{lem:ErasesLB-box, lem:ErasesLB-app, lem:ErasesLB-lit, lem:ErasesLB-proj, lem:ErasesLB-ctor, lem:ErasesLBFix-box}
-Each is the pair of its ambient rule and its in-block twin, discharged side by side; the free-variable case additionally uses the \code{fvar} rule of \code{ConstToFVar}, which the block rewriting fixes.
+\uses{lem:ErasesLB-box, lem:ErasesLB-app, lem:ErasesLB-lit, lem:ErasesLB-proj, lem:ErasesLB-ctor,
+lem:ErasesLBFix-box}
+\lead{Idea} Each is the pair of its ambient rule and in-block twin, side by side; the free-variable case
+additionally uses \code{ConstToFVar}'s \code{fvar} rule.
 \end{proof}
 
 \begin{remark}
-The mode is a conjunction --- if the reader carries no fixvar map the ambient composite holds, and for every block description matching the reader's map the in-block composite holds --- and that conjunction is what keeps the step count at eighteen instead of forcing the bridge to be proved twice.
+\lead{Why} The mode is a conjunction: no fixvar map gives the ambient composite; a matching block
+description gives the in-block composite. This keeps the step count at eighteen instead of proving the
+bridge twice.
 \end{remark}
 
 \begin{lemma}[Binders, eliminators and alternatives, in either mode]
 \label{lem:ErasesLBMode-lam}
-\lean{LeanToLambdaBox.ErasesLBMode.lam, LeanToLambdaBox.ErasesLBMode.letE, LeanToLambdaBox.ErasesLBAltMode.mk, LeanToLambdaBox.ErasesLBMode.cases, LeanToLambdaBox.ConstToFVar.abstracts}
+\lean{LeanToLambdaBox.ErasesLBMode.lam, LeanToLambdaBox.ErasesLBMode.letE,
+LeanToLambdaBox.ErasesLBAltMode.mk, LeanToLambdaBox.ErasesLBMode.cases,
+LeanToLambdaBox.ConstToFVar.abstracts}
 \leanok
 \uses{def:ErasesLBMode, def:BlockKeyed, def:ElimDecl, def:ConstToFVar, def:toBvar}
-(i) \textbf{Lambda}: the eraser opens a binder into a fresh identifier $x$, erases the opened body and closes the emitted term by abstracting $x$ at level $0$; the composite crosses that step, provided no specification body mentions a free variable and $x$ is none of the block's fix variables. (ii) \textbf{Let}, likewise, with the value erased \emph{inside} the extended context where the shipping code puts it and brought back out by a strengthening lemma. (iii) \textbf{Alternatives}: a telescope's closing conjunct plus the two pass factors through the alternative-closing function give the alternative-level mode. (iv) \textbf{casesOn}: a saturated eliminator spine becomes a \code{.case} node in either mode, the composite's counterpart of MetaCoq's \code{tCase} erasure rule. The enabling lemma (v) is that block rewriting commutes with abstracting a free variable \emph{provided that variable is none of the block's fix variables}.
+\lead{In short} The composite crosses a \hl{binder}, a \code{let}, an alternative telescope and a
+\code{casesOn} spine, in either mode.
+\begin{itemize}
+\item \lead{Given} (lambda) a fresh $x$ opens the binder, the opened body erases, closing abstracts $x$
+at level $0$, $x$ none of the block's fix variables; \lead{Then} the composite crosses the step;
+\item (let) likewise, the value erased \emph{inside} the extended context, brought back out by
+strengthening;
+\item (alternatives) a telescope's closing conjunct plus the two pass factors give the alternative-level
+mode; (casesOn) a saturated eliminator spine becomes \code{.case} in either mode (MetaCoq's \code{tCase});
+\item (enabling lemma) block rewriting commutes with abstracting a free variable not among the block's
+fix variables.
+\end{itemize}
 \end{lemma}
 \begin{proof}
 \leanok
-\uses{lem:ErasesLB-cases, lem:ErasesLBFix-box, lem:ConstToFVar-mkApps, thm:Erases-abstract, lem:Erases-thin_vlet, prop:Lower-abstract, lem:consts_classified}
-The source side is closed by the erasure abstraction lemma; the two pass factors follow it --- the pass's own abstraction lemma, which needs the specification environment's free-variable freedom, and the block-rewriting abstraction lemma at the side condition. That last is an induction over the rewriting derivation whose \code{hit} case is where the side condition bites: at a fix variable the rewriting produces that variable and the abstraction would bind it. The pass leaves the emitted binder name free, so the run's own choice of name is admissible. The alternatives go through the closing function with its two push-through congruences, and the \code{casesOn} case is the mode pair of Lemma~\ref{lem:ErasesLB-cases}, whose classification premise is an inlined re-statement of the model's constant classification rather than a named predicate, discharged at the call site by the classification lemma of Chapter~\ref{chap:eraser}.
+\uses{lem:ErasesLB-cases, lem:ErasesLBFix-box, lem:ConstToFVar-mkApps, thm:Erases-abstract,
+lem:Erases-thin_vlet, prop:Lower-abstract, lem:consts_classified}
+\lead{Idea} The source side closes by the abstraction lemma; both pass factors follow it, the
+block-rewriting one by induction (its \code{hit} case is where a fix variable would wrongly get bound).
+\code{casesOn} is the mode pair of Lemma~\ref{lem:ErasesLB-cases}.
 \end{proof}
 
 \begin{lemma}[Reading a spine back off a term]
 \label{lem:spine_facts}
-\lean{LeanToLambdaBox.spine_facts, LeanToLambdaBox.spine_args_ok, LeanToLambdaBox.getAppArgs_spine, LeanToLambdaBox.trExprS_appSpine_inv, LeanToLambdaBox.supportedTm_foldl_app_inv, LeanToLambdaBox.VLCtx.find?_bvar_none_of_noBV}
+\lean{LeanToLambdaBox.spine_facts, LeanToLambdaBox.spine_args_ok, LeanToLambdaBox.getAppArgs_spine,
+LeanToLambdaBox.trExprS_appSpine_inv, LeanToLambdaBox.supportedTm_foldl_app_inv,
+LeanToLambdaBox.VLCtx.find?_bvar_none_of_noBV}
 \leanok
 \uses{def:ArgsOk, def:Supported, def:lean4lean-grounding}
-Folding application over a term's argument array from its head returns the term; the fragment's shape condition inverts along a spine; translating a spine yields translations of the head and, pointwise, of every argument. Together: a supported, translatable spine has a supported, translatable head and an \code{ArgsOk} argument array. Separately, on a bvar-free modelled context --- the shape a real \code{LocalContext} models --- de Bruijn lookups fail. The Lean statement of \code{spine\_facts} carries the head's own shape condition at the empty spine as an extra premise.
+\lead{In short} A supported, translatable spine has a \hl{supported, translatable head} and an
+\code{ArgsOk} array.
+\begin{itemize}
+\item folding application over the argument array from the head returns the term;
+\item the fragment's shape condition inverts along a spine, translation likewise (head plus, pointwise,
+every argument);
+\item separately: on a bvar-free modelled context, de Bruijn lookups fail.
+\end{itemize}
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{def:ArgsOk}
-Inductions on the spine, peeling one application layer of the translation or of the shape condition at a time. The extra premise is needed because the whole term's condition does not imply the head's: a saturated constructor head is unsupported on its own.
+\lead{Idea} Induction on the spine, peeling one application layer per step. The whole term's shape
+condition does not imply the head's alone, so \code{spine\_facts} carries the head's own condition at the
+empty spine as an extra premise.
 \end{proof}
 
 \begin{remark}
-The last of these lemmas is what refutes \code{Erasure.visitExpr}'s \code{.bvar} arm from the translation premise alone. Note also that the statement and proof of the spine-folding lemma are duplicated verbatim in \code{Step/Passes.lean}.
+\lead{Why} The last of these lemmas refutes \code{Erasure.visitExpr}'s \code{.bvar} arm from the
+translation premise alone.
 \end{remark}
 
 \begin{lemma}[Peeling an alternative's binders]
 \label{lem:bridge_alt_telescope}
-\lean{LeanToLambdaBox.bridge_alt_telescope, LeanToLambdaBox.closeAlt, LeanToLambdaBox.closeAlt_foldl, LeanToLambdaBox.mkLambdas_closeAlt_cons, LeanToLambdaBox.ForallMatchesLam.instantiate1'}
+\lean{LeanToLambdaBox.bridge_alt_telescope, LeanToLambdaBox.closeAlt, LeanToLambdaBox.closeAlt_foldl,
+LeanToLambdaBox.mkLambdas_closeAlt_cons, LeanToLambdaBox.ForallMatchesLam.instantiate1'}
 \leanok
-\uses{def:BridgeInv, def:ErasureSpec, def:IsLamTelescope, def:PrimMonotone, def:mkLambdas, def:Erasure-mkLambda, def:Supported}
-Running the eraser's telescope opener on a manifest lambda-telescope of depth $n$ produces $n$ fresh identifiers, $n$ binder names, an opened body, an extended modelled context and a reader with the \emph{same} fixvar map; the continuation is reached at that state; and --- the \textbf{closing conjunct} --- any erasure of the opened body re-binds to an erasure of the original telescope against the shape the eraser's alternative builder emits. \code{closeAlt} is that builder's de Bruijn closing loop as a pure function: the $i$-th binder counted from the end becomes the de Bruijn variable $i$. The Lean statement is quantified over an arbitrary continuation and states nine conjuncts, including freshness of every minted identifier against the incoming generator.
+\uses{def:BridgeInv, def:ErasureSpec, def:IsLamTelescope, def:PrimMonotone, def:mkLambdas,
+def:Erasure-mkLambda, def:Supported}
+\lead{In short} Opening a manifest telescope of depth $n$ produces fresh state \hl{and a closing
+conjunct} back to the original.
+\begin{itemize}
+\item \lead{Given} a manifest lambda-telescope of depth $n$;
+\item \lead{Then} $n$ fresh identifiers and binder names, an opened body, an extended context, a reader
+with the \emph{same} fixvar map; and (\textbf{closing conjunct}) any erasure of the opened body re-binds
+to an erasure of the original telescope.
+\end{itemize}
 \end{lemma}
 \begin{proof}
 \leanok
-\uses{lem:ErasesLBMode-lam, thm:Erases-abstract, asm:ErasureSpec-fresh_names, asm:ErasureSpec-prim_monotone, asm:lean-reflection-axioms}
-Induction on the depth. Each step mints a fresh identifier (the assumed fresh-name clause), crosses the binder in the bridge invariant, and re-binds with the cons-step lemma for the closing loop. Peeling goes through the \emph{inferred type}, because the eraser's binder opener pushes the universally quantified binder's name and domain; that is why the statement carries a premise matching the type against the term, supplied at the call site by the assumed \code{inferType} clause and kept across a binder by the instantiation lemma. The continuation is arbitrary, so the fixpoint step stays plumbing. The measured footprint carries four non-standard axioms about \code{Lean.Expr} instantiation and Lean's persistent data structures, and no \code{sorryAx}.
+\uses{lem:ErasesLBMode-lam, thm:Erases-abstract, asm:ErasureSpec-fresh_names,
+asm:ErasureSpec-prim_monotone, asm:lean-reflection-axioms}
+\lead{Idea} Induction on depth: mint a fresh identifier, cross the binder in the bridge invariant,
+re-bind with the cons-step lemma. Peeling goes through the \emph{inferred type}, kept across a binder by
+the instantiation lemma. Footprint: four non-standard axioms, no \code{sorryAx}.
 \end{proof}
 
 \begin{lemma}[Registry arithmetic]
 \label{lem:pass_register_inductive_entry}
-\lean{LeanToLambdaBox.pass_register_inductive_entry, LeanToLambdaBox.pass_kernelFields_at, LeanToLambdaBox.pass_ctorOf_index, LeanToLambdaBox.pass_ctorOf_of_tabled, LeanToLambdaBox.pass_count_keep_prefix, LeanToLambdaBox.pass_filter_replicate_keep, LeanToLambdaBox.filter_replicate_keep_of_size}
+\lean{LeanToLambdaBox.pass_register_inductive_entry, LeanToLambdaBox.pass_kernelFields_at,
+LeanToLambdaBox.pass_ctorOf_index, LeanToLambdaBox.pass_ctorOf_of_tabled,
+LeanToLambdaBox.pass_count_keep_prefix, LeanToLambdaBox.pass_filter_replicate_keep,
+LeanToLambdaBox.filter_replicate_keep_of_size}
 \leanok
-\uses{def:ErasureSpec, def:ConfigPinned, def:UpstreamAsks, def:CtorOf, def:IndArity, def:Erasure-register_inductive}
-Four arithmetic facts the node-emitting steps live on. (i) The entry a registration leaves behind \emph{is} the value it answers: at a hit that is the entry already there, at a miss the cold branch inserts one entry per member of the block and answers at its own name. (ii) The field-count list the registry indexes by is the constructor's own. (iii) A constructor's block position is determined, and so is the constructor at a position. (iv) With pruning off, an all-\code{keep} argument mask is the identity on the arguments it covers, and the number of retained fields below index $i$ is $i$ --- so the emitted projection's field index is the source one.
+\uses{def:ErasureSpec, def:ConfigPinned, def:UpstreamAsks, def:CtorOf, def:IndArity,
+def:Erasure-register_inductive}
+\lead{In short} Four arithmetic facts the node-emitting steps \hl{live on}.
+\begin{itemize}
+\item (entry) a registration's answer \emph{is} the entry it leaves: a hit reads it, a miss inserts one
+per member and answers at its own name;
+\item (field counts, position) the field-count list is the constructor's own; block position and
+constructor-at-position are determined;
+\item (pruning off) an all-\code{keep} mask is the identity on covered arguments, and the count of
+retained fields below index $i$ is $i$ --- so the emitted projection's field index is the source one.
+\end{itemize}
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{asm:ErasureSpec-block_adequate, asm:UpstreamAsks-constArityInv}
-Under the pinned configuration the \code{@[extern]} and pruning arms of the constructor loop are dead, so that loop leaves the registry untouched and only the per-member update writes to it; with the bridge invariant's clause that the registry is the model's, this turns a registration's \emph{answer} into a model fact. For (ii) and (iii), the block a constructor exhibits and the block an arity exhibits are the same by the upstream block-uniqueness ask, so the constructor index is in range and the name at it is determined, and the model's field-count list and the kernel block agree position by position. Part (iv) is \code{Array} and \code{List} computation.
+\lead{Idea} The pinned configuration kills the \code{@[extern]} and pruning arms, so only the per-member
+update writes the registry, turning an answer into a model fact via the bridge invariant. Blocks agree by
+the upstream block-uniqueness ask; the mask fact is computation.
 \end{proof}
 
 \begin{remark}
-The model represents no argmask filtering at all, so (iv) is a scope restriction made honest by \code{ConfigPinned}, not a theorem about the general eraser. Two of the cited helpers are the same fact at two strengths in two files.
+\lead{Caveat} The model represents no argmask filtering at all: fact (iv) is a scope restriction made
+honest by \code{ConfigPinned}, not a theorem about the general eraser.
 \end{remark}
 
 \begin{lemma}[A runtime key belongs to a casesOn constant]
@@ -516,25 +931,44 @@ The model represents no argmask filtering at all, so (iv) is a scope restriction
 \lean{LeanToLambdaBox.SpecContent.runtimeKey_isCasesOn, LeanToLambdaBox.specEnv_not_runtimeKey}
 \leanok
 \uses{def:SpecContent, def:ElimDecl, def:ConstOrigin, def:isCasesOnName, def:SpecEnv}
-If the specification environment declares an eliminator body at a constant's kername and that constant is a plain constant of the model, then it is a \code{casesOn} name; contrapositively, a plain constant whose name is not a \code{casesOn} name is not a runtime key of any specification environment.
+\lead{In short} A runtime eliminator key of a specification environment is \hl{a \code{casesOn} name}.
+\begin{itemize}
+\item \lead{Given} the specification environment declares an eliminator body at a constant's kername;
+that constant is a plain model constant;
+\item \lead{Then} it is a \code{casesOn} name; contrapositively, a plain constant whose name is not
+\code{casesOn} is not a runtime key of any specification environment.
+\end{itemize}
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{def:SpecContent}
-Read off the \emph{entries} rather than off a program's reachability: a tabled constant's entry is an erasure image and no erasure image is an eliminator body; a body-less non-eliminator's entry is the empty body, by the specification content's axiom clause. This is the \code{SpecContent} twin of the corresponding $\ErasesEnv$ lemma of Chapter~\ref{chap:correctness} --- what a motive holding a \code{SpecEnv} and no program can use, and exactly the side condition the pass's constant rule and the block rewriting's miss rule need at the constant branch of step 4.
+\lead{Idea} Read off the \emph{entries}, not reachability: a tabled constant's entry is an erasure image,
+and no erasure image is an eliminator body; a body-less non-eliminator's entry is empty, by
+\code{SpecContent}'s axiom clause. The \code{SpecContent} twin of the $\ErasesEnv$ lemma of
+Chapter~\ref{chap:correctness}.
 \end{proof}
 
 \begin{lemma}[The content of step 4]
 \label{lem:visitConst_refines}
 \lean{LeanToLambdaBox.visitConst_refines}
 \leanok
-\uses{def:Motive1, def:ErasesLBMode, def:BridgeInv, def:SpecEnv, def:visitExprBody, def:isCasesOnName, def:ConstOrigin}
-If the abstract kername resolver satisfies motive 5, then a successful run of the abstract constant body at a head \code{.const n us} that is a plain, tabled, non-\code{casesOn} constant of the model concludes the run facts and, at every specification environment of the final state, the mode-polymorphic composite.
+\uses{def:Motive1, def:ErasesLBMode, def:BridgeInv, def:SpecEnv, def:visitExprBody,
+def:isCasesOnName, def:ConstOrigin}
+\lead{In short} If motive 5 holds of the abstract kername resolver, a run at a \hl{plain, tabled,
+non-\code{casesOn}} head concludes the mode-polymorphic composite.
+\begin{itemize}
+\item \lead{Given} the abstract kername resolver satisfies motive 5; the head \code{.const n us} is a
+plain, tabled, non-\code{casesOn} constant of the model;
+\item \lead{Then} the run facts hold, and at every specification environment of the final state, the
+mode-polymorphic composite.
+\end{itemize}
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:ErasesLBFix-fixvar, lem:SpecContent-runtimeKey_isCasesOn}
-\code{Erasure.visitConst} reads the reader's fixvar map. Inside a mutual block that defines the head, the map hits and the run returns that member's fix variable --- Lemma~\ref{lem:ErasesLBFix-fixvar} at the index the map records. Otherwise the run resolves the head through the kername resolver and emits a \code{.const} node --- the \code{const} rule of $\Erases$ composed with the \code{const} rule of $\Lower$, the latter needing the not-a-runtime-key fact of Lemma~\ref{lem:SpecContent-runtimeKey_isCasesOn}, and inside a block additionally the block rewriting's miss rule, whose side condition is the separation conjunct of \code{BlockKeyed}.
+\lead{Idea} \code{visitConst} reads the fixvar map: inside a defining block it hits, returning that
+member's fix variable; otherwise the resolver's kername gives a \code{.const} node ($\Erases$'s
+\code{const} rule composed with $\Lower$'s), plus, inside a block, the rewriting's miss rule.
 \end{proof}
 
 \begin{theorem}[Step 1 --- the dispatch and the relevance oracle]
@@ -542,33 +976,61 @@ If the abstract kername resolver satisfies motive 5, then a successful run of th
 \lean{LeanToLambdaBox.step_visitExpr}
 \leanok
 \uses{def:Step1, def:Motive1, def:EraserAsks, def:Erasure-isErasable}
-Given the motives of the six members \code{Erasure.visitExpr} calls, its body satisfies motive 1. The Lean statement takes one binder beyond the four standing premises of its interface: the eraser's own obligation bundle \code{EraserAsks}.
+\lead{In short} Given the motives of the six members it calls, \code{visitExpr}'s body \hl{satisfies
+motive 1}.
+\begin{itemize}
+\item \lead{Given} the motives of \code{visitExpr}'s six callees;
+\item \lead{Then} its body satisfies motive 1.
+\end{itemize}
+\lead{Lean} takes one binder beyond the four standing interface premises: the eraser's own
+\code{EraserAsks} bundle.
+\lead{Status} \stProved{}, \stInherited{} through lean4lean, conditional on \stAssumed{} \code{EraserAsks}.
 \end{theorem}
 \begin{proof}
 \leanok
-\uses{def:visitExprBody, lem:bodyLe1, lem:ErasesLBMode-box, lem:spine_facts, thm:ErasureSpec-oracle_sound_of_run, thm:EraserAsks-oracle_informative, asm:EraserAsks-oracle_false_refl, asm:EraserAsks-kernel_ind_head_true, asm:ErasureSpec-oracle_meta, asm:lean4lean-trust, asm:lean-reflection-axioms}
-The relevance oracle runs first. A \code{true} verdict yields the box rule --- at the ambient level scope through the \emph{verified} checker, at any other scope through the assumed meta-soundness clause. On a \code{false} verdict the fragment's shape condition selects the arm and each arm is one member's motive; the \code{.bvar} arm is refuted from the translation premise alone. The \code{false} verdict is also where the \textbf{type-former exclusion} is produced: the oracle's informativity theorem contradicts the assumed kernel-head clause together with the assumed reflexivity clause at the ambient scope --- which the bridge invariant says the reader is at --- and the two spine arms hand that exclusion to motive 11.
+\uses{def:visitExprBody, lem:bodyLe1, lem:ErasesLBMode-box, lem:spine_facts,
+thm:ErasureSpec-oracle_sound_of_run, thm:EraserAsks-oracle_informative, asm:EraserAsks-oracle_false_refl,
+asm:EraserAsks-kernel_ind_head_true, asm:ErasureSpec-oracle_meta, asm:lean4lean-trust,
+asm:lean-reflection-axioms}
+\lead{Idea} The oracle runs first: \code{true} gives the box rule; \code{false} lets the fragment's shape
+condition pick the arm, one per motive (\code{.bvar} refuted from the translation premise alone). The
+\code{false} verdict also produces the \textbf{type-former exclusion} (oracle informativity against the
+assumed kernel-head and reflexivity clauses), handed to motive 11 by the two spine arms.
 \end{proof}
 
 \begin{remark}
-Three points, all load-bearing. First, \textbf{the panicking arms are handled, not excluded}: at \code{.sort} and \code{.forallE} the shipping code \emph{panics}, the panic returns the default \code{LBTerm}, which is $\Box$, and both shapes are erasable, so the arms conclude box-correctness. The theorem is about what the shipping code returns, panic included --- a silent coupling between a \code{deriving Inhabited} and a correctness proof, since reordering \code{LBTerm}'s constructors would change the meaning of these two arms with no statement changing. Second, \textbf{this is the single \code{sorryAx} entry point of the whole bridge}: via the verified oracle-soundness theorem it reaches the executable-checker cluster, including two \code{bv\_decide} certificates whose contents \code{\#print axioms} cannot see. Its measured footprint is the only one in this chapter containing \code{sorryAx}, and it also contains twenty-eight non-standard reflection axioms. Third, \textbf{two \code{EraserAsks} fields it spends are refuted in general}: the kernel-head clause at telescopes of at least $256$ binders, because \code{Lean.Expr}'s approximate depth field is eight bits wide (design tag F-DEPTH). \code{EraserAsks} must not be presented as benign.
+Three points. \lead{Caveat} (a) \textbf{Panics are handled, not excluded}: at \code{.sort}/\code{.forallE}
+the code panics to the default $\Box$, and both shapes are erasable, so these arms conclude
+box-correctness. (b) \textbf{The single \code{sorryAx} entry point} of the bridge: via oracle soundness it
+reaches the executable-checker cluster, including \code{bv\_decide} certificates \code{\#print axioms}
+cannot see; its measured footprint also carries twenty-eight non-standard reflection axioms. (c)
+\textbf{Two \code{EraserAsks} fields it spends are refuted in general}: the kernel-head clause fails at
+telescopes of $256$+ binders, since \code{Lean.Expr}'s depth field is eight bits wide ---
+\code{EraserAsks} must not be presented as benign.
 \end{remark}
 
 \begin{lemma}[Steps 7, 8, 9, 11 --- the members with no compilation step of their own]
 \label{lem:step_visitAppArgs}
-\lean{LeanToLambdaBox.step_visitAppArgs, LeanToLambdaBox.step_visitLet, LeanToLambdaBox.step_visitLambda, LeanToLambdaBox.step_visitApp}
+\lean{LeanToLambdaBox.step_visitAppArgs, LeanToLambdaBox.step_visitLet,
+LeanToLambdaBox.step_visitLambda, LeanToLambdaBox.step_visitApp}
 \leanok
 \uses{def:Step1, def:ArgsOk}
-The spine loop, the two binders and the head dispatcher each satisfy their motive. None takes a premise beyond its interface's four standing ones.
+\lead{In short} The spine loop, the two binders and the head dispatcher each \hl{satisfy their motive},
+at no extra premise.
 \end{lemma}
 \begin{proof}
 \leanok
-\uses{lem:bodyLe1, lem:ErasesLBMode-box, lem:ErasesLBMode-lam, lem:spine_facts, lem:SpecEnv-mono, asm:ErasureSpec-fresh_names, asm:lean-reflection-axioms}
-\textbf{Step 7} folds over the argument array with the invariant ``the accumulator is the composite's image of the prefix already consumed'', extended at each iteration by one application congruence; a specification environment of a \emph{later} state is read back at the earlier one by antitonicity. \textbf{Steps 9 and 8} mint a fresh identifier, open the body under it and close the result by abstraction; the bridge invariant crosses the binder, and the composite crosses it by the lambda and \code{let} congruences, with the fix-variable side condition supplied by the invariant's subset clause plus freshness, and the fragment re-established for the opened body by the fragment's instantiation lemma. \textbf{Step 11} routes a constant head to the constant spine dispatcher and any other head to the term walk on the head plus the spine loop on the arguments.
+\uses{lem:bodyLe1, lem:ErasesLBMode-box, lem:ErasesLBMode-lam, lem:spine_facts, lem:SpecEnv-mono,
+asm:ErasureSpec-fresh_names, asm:lean-reflection-axioms}
+\lead{Idea} \textbf{Step 7} folds the array with invariant ``accumulator is the composite's image of the
+consumed prefix,'' read back earlier by antitonicity. \textbf{Steps 8, 9} mint a fresh identifier, open
+the body, close by abstraction, crossed by the lambda/\code{let} congruences. \textbf{Step 11} routes a
+constant head to the constant dispatcher, any other head to the term walk plus the spine loop.
 \end{proof}
 
 \begin{remark}
-Steps 8 and 9 route through lean4lean's binder transports, so the measured footprints of \code{step\_visitLet} and \code{step\_visitLambda} carry four non-standard axioms about \code{Lean.Expr} instantiation and Lean's persistent data structures --- but \textbf{not} \code{sorryAx}. Steps 7 and 11 are measured with the standard three only; that is why this bundle's own node carries no trust edge.
+\lead{Caveat} Steps 8, 9 route through lean4lean's binder transports: four non-standard axioms, but
+\textbf{not} \code{sorryAx}. Steps 7, 11 measure at the standard three only.
 \end{remark}
 
 \begin{lemma}[Step 12 --- classifying the head]
@@ -576,12 +1038,19 @@ Steps 8 and 9 route through lean4lean's binder transports, so the measured footp
 \lean{LeanToLambdaBox.step_visitConstApp, LeanToLambdaBox.ctorOf?_pinned}
 \leanok
 \uses{def:Step1, def:TableSafe, def:CasesHead}
-The constant spine dispatcher's body satisfies motive 12. The Lean statement takes one binder beyond its interface, the table-safety bundle \code{TableSafe}.
+\begin{itemize}
+\item \lead{Given} \code{TableSafe};
+\item \lead{Then} the constant spine dispatcher's body satisfies motive 12.
+\end{itemize}
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{def:CasesHead, lem:spine_facts, lem:bodyLe1, asm:ErasureSpec-lookup_adequate}
-The head's classification picks the arm. The elaborator answering with \code{casesOn} metadata puts the run on the \code{casesOn} eta path, with the fragment's own data assembling a \code{CasesHead} and the saturation bound. The compiler answering with a constructor arity puts it on the constructor eta path, saturation coming from the fragment's saturation clause transported through the pinned-arithmetic lemma (``a tabled constructor's arithmetic is the kernel's''). Any other constant goes through the constant member with the spine rebuilt by the spine loop. \code{TableSafe} closes the gap between the two constructor readings, and the constructor-arity \emph{miss} is where motive 4's constructor exclusion is produced.
+\lead{Idea} The head's classification picks the arm: \code{casesOn} metadata gives the \code{casesOn}
+eta path; a constructor arity gives the constructor eta path (saturation via the pinned-arithmetic
+lemma); any other constant goes through the constant member, spine rebuilt by the spine loop.
+\code{TableSafe} closes the gap between the two constructor readings; its miss produces motive 4's
+constructor exclusion.
 \end{proof}
 
 \begin{lemma}[Step 18 --- one alternative]
@@ -589,12 +1058,16 @@ The head's classification picks the arm. The elaborator answering with \code{cas
 \lean{LeanToLambdaBox.step_visitAlt}
 \leanok
 \uses{def:Step1, def:Motive1, def:Erasure-mkLambda}
-\code{Erasure.visitAlt}'s body satisfies motive 18: a minor premise that is a manifest lambda-telescope of depth $\mathit{nf}$ with an all-\code{keep} argument mask becomes an alternative with that many binders. No premise beyond the interface.
+\lead{In short} \code{visitAlt}'s body \hl{satisfies motive 18}: an all-\code{keep} telescope of depth
+$nf$ becomes an alternative with that many binders. No premise beyond the interface.
 \end{lemma}
 \begin{proof}
 \leanok
-\uses{lem:bridge_alt_telescope, lem:ErasesLBMode-lam, lem:pass_register_inductive_entry, lem:bodyLe1, asm:ErasureSpec-prim_monotone, asm:lean-reflection-axioms}
-The binders are opened by Lemma~\ref{lem:bridge_alt_telescope}, whose type-matching premise comes from the assumed \code{inferType} clause; the opened body is erased by motive 1; the all-\code{keep} mask makes the eraser's filter vanish; and the eraser's alternative builder closes the result, read as an alternative of the composite by the alternative-level mode's introduction rule.
+\uses{lem:bridge_alt_telescope, lem:ErasesLBMode-lam, lem:pass_register_inductive_entry, lem:bodyLe1,
+asm:ErasureSpec-prim_monotone, asm:lean-reflection-axioms}
+\lead{Idea} Binders opened by Lemma~\ref{lem:bridge_alt_telescope}; the opened body erased by motive 1;
+the all-\code{keep} mask makes the filter vanish; the result read as an alternative via the
+alternative-level mode's introduction rule.
 \end{proof}
 
 \begin{lemma}[Step 4 --- a constant head]
@@ -602,42 +1075,56 @@ The binders are opened by Lemma~\ref{lem:bridge_alt_telescope}, whose type-match
 \lean{LeanToLambdaBox.step_visitConst}
 \leanok
 \uses{def:Step1, def:UpstreamAsks}
-\code{Erasure.visitConst}'s body satisfies motive 4. The Lean statement takes one binder beyond its interface, the upstream ask bundle \code{UpstreamAsks}.
+\begin{itemize}
+\item \lead{Given} \code{UpstreamAsks};
+\item \lead{Then} \code{visitConst}'s body satisfies motive 4.
+\end{itemize}
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:visitConst_refines, lem:bodyLe1, asm:UpstreamAsks-constsOrigin}
-With motive 4's two exclusions in hand --- the head is neither a constructor nor a type former, produced at the call sites by the constructor-arity miss and by the oracle's \code{false} verdict --- the classification of the head collapses to its definition column, which supplies exactly the model constant entry and the table membership that Lemma~\ref{lem:visitConst_refines} reads.
+\lead{Idea} With motive 4's two exclusions in hand, the head's classification collapses to its
+definition column, supplying what Lemma~\ref{lem:visitConst_refines} reads.
 \end{proof}
-
-\begin{remark}
-An earlier form of this step was \emph{refuted} as motive 4 then stood: a nullary tabled constructor satisfied every premise while the run emitted a \code{.const} node. At HEAD the exclusions are part of the motive and the step is closed.
-\end{remark}
 
 \begin{lemma}[Steps 5 and 6 --- the constant registry]
 \label{lem:step5}
 \lean{LeanToLambdaBox.step5, LeanToLambdaBox.step6}
 \leanok
 \uses{def:Step1, def:EraserAsks, def:TableSafe, def:Erasure-visitMutual, def:Kername}
-Step 5: the kername \code{Erasure.get\_constant\_kername} returns for a tabled constant is the canonical one, and the constant is registered when it returns. Step 6: at a tabled name \code{Erasure.visitMutual} registers that name, grows the state canonically, advances the generator and keeps the inductive registry modelled. The Lean statement of \code{step6} takes two binders beyond its interface, \code{EraserAsks} and \code{TableSafe}; \code{step5} takes none.
+\lead{In short} Step 5: \code{get\_constant\_kername} returns the \hl{canonical} kername, registered
+when it returns. Step 6: \code{visitMutual} registers a tabled name, grows the state canonically, advances
+the generator, keeps the registry modelled.
+\lead{Lean} \code{step6} takes \code{EraserAsks}/\code{TableSafe} beyond its interface; \code{step5}
+takes none.
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:run_visitMutual_registers, lem:visitExpr_runConcl, lem:bodyLe1}
-For step 5, the hit branch reads the registry, whose entries are canonical by the bridge invariant; the miss branch calls \code{visitMutual}, which registers the name (motive 6), then re-reads the registry --- which is what makes the \code{panic!}-defaulting hash-map lookup total and canonical. Step 6 is Lemma~\ref{lem:run_visitMutual_registers}. The refinement half of motive 1 is \textbf{not} consumed: what the motive reports is registration, and the fragment and translation premises a body erasure would need are unavailable at a dependency's own level scope; the run facts come from Lemma~\ref{lem:visitExpr_runConcl} instead, reached through the approximation conjunct. This is the precise sense in which T8 says nothing about the emitted environment.
+\lead{Idea} Step 5: the hit branch reads the registry (canonical by the bridge invariant); the miss
+branch calls \code{visitMutual} (motive 6), then re-reads. Step 6 is
+Lemma~\ref{lem:run_visitMutual_registers}. Motive 1's refinement half is \textbf{not} consumed: a
+dependency's level scope has no fragment/translation premises, so run facts come from
+Lemma~\ref{lem:visitExpr_runConcl} instead --- the precise sense in which T8 says nothing about the
+emitted environment.
 \end{proof}
 
 \begin{lemma}[Step 2 --- the peano tower]
 \label{lem:step_visitLiteral}
-\lean{LeanToLambdaBox.step_visitLiteral, LeanToLambdaBox.pass_peano_ctors, LeanToLambdaBox.pass_supported_lit, LeanToLambdaBox.pass_lit_not_reaches}
+\lean{LeanToLambdaBox.step_visitLiteral, LeanToLambdaBox.pass_peano_ctors,
+LeanToLambdaBox.pass_supported_lit, LeanToLambdaBox.pass_lit_not_reaches}
 \leanok
 \uses{def:Step1, def:ConfigPinned}
-At peano \code{Nat} the literal arm rebuilds the numeral as its kernel unfolding, one constructor call per successor, and the run satisfies motive 2. No premise beyond the interface.
+\lead{In short} At peano \code{Nat}, the literal arm \hl{rebuilds the numeral} as its kernel unfolding,
+one constructor call per successor. No premise beyond the interface.
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:ErasesLB-lit, lem:pass_register_inductive_entry, lem:bodyLe1}
-The case is the literal rule over the constructor motive, with the recursion carried by the fixpoint induction rather than by a measure on the literal. The two constructor facts come from the tabled-constructor lemma at the table's own peano verdict; that nothing is delta-reachable from a literal makes the fragment's body clause vacuous there. The machine-\code{Nat} arm of the shipping code is \emph{outside} the statement's scope, excluded by \code{ConfigPinned}, not absent from the code.
+\lead{Idea} The literal rule over the constructor motive, recursion carried by the fixpoint induction
+rather than a literal measure; the two constructor facts come from the tabled-constructor lemma at the
+table's peano verdict, making the fragment's body clause vacuous there. The machine-\code{Nat} arm is
+outside the statement's scope, excluded by \code{ConfigPinned}, not absent from the code.
 \end{proof}
 
 \begin{lemma}[Step 3 --- the constructor node]
@@ -645,12 +1132,18 @@ The case is the literal rule over the constructor motive, with the recursion car
 \lean{LeanToLambdaBox.step_visitConstructor}
 \leanok
 \uses{def:Step1, def:UpstreamAsks}
-\code{Erasure.visitConstructor}'s body satisfies motive 3. The Lean statement takes one binder beyond its interface, \code{UpstreamAsks}.
+\begin{itemize}
+\item \lead{Given} \code{UpstreamAsks};
+\item \lead{Then} \code{visitConstructor}'s body satisfies motive 3.
+\end{itemize}
 \end{lemma}
 \begin{proof}
 \leanok
-\uses{lem:pass_register_inductive_entry, lem:ErasesLBMode-box, lem:bodyLe1, asm:ErasureSpec-block_adequate}
-With the configuration pinned, the \code{@[extern]} arm and both machine-\code{Nat} arms are dead; the argument mask at the constructor's index retains every field, so the three-slice rebuild is the identity on the argument array and the emitted spine is the source spine; the head is the constructor rule at the registered block; and the spine is closed by motive 7. The block self-membership the registration loop is indexed by comes from the assumed block-adequacy clause --- it cannot come from the table's pin here, because the motive gives no table entry for the constructor's type.
+\uses{lem:pass_register_inductive_entry, lem:ErasesLBMode-box, lem:bodyLe1,
+asm:ErasureSpec-block_adequate}
+\lead{Idea} The pinned configuration kills the \code{@[extern]} and machine-\code{Nat} arms; the mask at
+the constructor's index keeps every field, so the emitted spine is the source spine, closed by motive 7.
+Block self-membership comes from the assumed block-adequacy clause, not the table.
 \end{proof}
 
 \begin{lemma}[Step 10 --- the projection node]
@@ -658,42 +1151,58 @@ With the configuration pinned, the \code{@[extern]} arm and both machine-\code{N
 \lean{LeanToLambdaBox.step_visitProj}
 \leanok
 \uses{def:Step1}
-\code{Erasure.visitProj}'s body satisfies motive 10. No premise beyond the interface.
+\lead{In short} \code{visitProj}'s body \hl{satisfies motive 10}. No premise beyond the interface.
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:pass_register_inductive_entry, lem:ErasesLBMode-box, lem:bodyLe1}
-The declaration fetch is the table's; the registration's answer is the model's block identifier; the mask at constructor $0$ is all-\code{keep}, so the emitted field index is the source one; the parameter count is the model block's; and the discriminee is motive 1's. Concluded by the projection rule in either mode.
+\lead{Idea} The declaration fetch is the table's, registration answers the model's block identifier; the
+mask at constructor $0$ is all-\code{keep}, so the field index is the source one; the discriminee is
+motive 1's. Concluded by the projection rule in either mode.
 \end{proof}
 
 \begin{lemma}[Steps 13--16 --- the two eta loops]
 \label{lem:step_visitCtorEta}
-\lean{LeanToLambdaBox.step_visitCtorEta, LeanToLambdaBox.step_visitCtorEtaGo, LeanToLambdaBox.step_visitCasesEta, LeanToLambdaBox.step_visitCasesEtaGo}
+\lean{LeanToLambdaBox.step_visitCtorEta, LeanToLambdaBox.step_visitCtorEtaGo,
+LeanToLambdaBox.step_visitCasesEta, LeanToLambdaBox.step_visitCasesEtaGo}
 \leanok
 \uses{def:Step1, def:CasesHead}
-The two eta entry points and the two eta loops satisfy their motives. None takes a premise beyond its interface.
+\lead{In short} The two eta entry points and loops \hl{satisfy their motives}, no premise beyond the
+interface.
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:spine_facts, lem:bodyLe1, asm:ErasureSpec-prim_monotone}
-At the entry points, \code{Lean.Meta.inferType} leaves the state alone and only advances the generator, and the spine decomposition hands the arguments to the loop. In both loops the spine is already saturated --- for \code{casesOn} because the elaborator's arity is the fragment's own --- so the eta-expansion branch is dead and the run is the node builder on the nose. This is where the motive slack noted after Definition~\ref{def:Motive1} shows.
+\lead{Idea} At the entry points, \code{inferType} leaves the state alone, advancing only the generator.
+In both loops the spine is already saturated, so the eta-expansion branch is dead and the run is the node
+builder outright --- where motives 14 and 16's slack shows (\S\ref{sec:refinement:motives}).
 \end{proof}
 
 \begin{lemma}[Step 17 --- the case node]
 \label{lem:step_visitCases}
-\lean{LeanToLambdaBox.step_visitCases, LeanToLambdaBox.pass_rco_split, LeanToLambdaBox.pass_subarray_next, LeanToLambdaBox.pass_list_next}
+\lean{LeanToLambdaBox.step_visitCases, LeanToLambdaBox.pass_rco_split,
+LeanToLambdaBox.pass_subarray_next, LeanToLambdaBox.pass_list_next}
 \leanok
 \uses{def:Step1, def:CasesHead, def:UpstreamAsks}
-\code{Erasure.visitCases}' body satisfies motive 17. The Lean statement takes one binder beyond its interface, \code{UpstreamAsks}.
+\begin{itemize}
+\item \lead{Given} \code{UpstreamAsks};
+\item \lead{Then} \code{visitCases}' body satisfies motive 17.
+\end{itemize}
 \end{lemma}
 \begin{proof}
 \leanok
-\uses{lem:ErasesLBMode-lam, lem:pass_register_inductive_entry, lem:bodyLe1, asm:ErasureSpec-block_adequate, asm:lean-reflection-axioms}
-The pinned peano \code{Nat} kills the two machine-numeral arms, so the run is the generic one. The discriminee is erased by motive 1. The alternatives are produced by a \textbf{parallel loop} over an index range, the elaborator's per-alternative metadata and the registered argument masks in lockstep, discharged by a prefix-indexed invariant recording, for each processed index $j$, that the accumulated alternative is at the $j$-th constructor's field count and the $j$-th minor premise (motive 18 per iteration). The over-application tail past the eliminator's arity is erased by motive 1 again and re-applied. Two numeric facts frame the loop: the metadata agreement gives one alternative slot per constructor, which refutes the loop's two early exits, and the assumed block-adequacy clause reports the model's segmentation at the block's own arithmetic --- which makes the \code{cases} rule's length equation hold.
+\uses{lem:ErasesLBMode-lam, lem:pass_register_inductive_entry, lem:bodyLe1,
+asm:ErasureSpec-block_adequate, asm:lean-reflection-axioms}
+\lead{Idea} Pinned peano \code{Nat} kills the machine-numeral arms; the discriminee is erased by motive
+1. A \textbf{parallel loop} walks the metadata and the argument masks in lockstep (motive 18 per
+iteration); the over-application tail is erased by motive 1 again. Metadata agreement gives one
+alternative slot per constructor, refuting early exits; block-adequacy gives the segmentation the
+\code{cases} rule's length equation needs.
 \end{proof}
 
 \begin{remark}
-This is the longest proof of the chapter, about $340$ lines. Re-segmenting a \code{casesOn} \emph{application} is the single largest source of arithmetic in the development, and it exists only because Lean has no primitive \code{case}.
+\lead{Why} Re-segmenting a \code{casesOn} application is the single largest source of arithmetic in the
+development, needed only because Lean's kernel has no primitive \code{case}.
 \end{remark}
 
 \section{T8: the shipping eraser refines the composite}
@@ -703,46 +1212,88 @@ This is the longest proof of the chapter, about $340$ lines. Re-segmenting a \co
 \label{thm:motives_of_steps}
 \lean{LeanToLambdaBox.motives_of_steps}
 \leanok
-\uses{def:Step1, def:Motives, def:ErasureSpec, def:ConfigPinned, def:CompilerBodies, def:Witness-SourceTableAdequate, def:Erasure-visitExpr}
-Given the eighteen step obligations and the four ambient specification premises --- the primitive specification, table adequacy, the pinned configuration and compiler-body typing --- all eighteen motives hold of the \textbf{shipping} erasure family, from \code{Erasure.visitExpr} through \code{Erasure.visitAlt}.
+\uses{def:Step1, def:Motives, def:ErasureSpec, def:ConfigPinned, def:CompilerBodies,
+def:Witness-SourceTableAdequate, def:Erasure-visitExpr}
+\lead{In short} Given the eighteen steps and four ambient premises, \hl{all eighteen motives hold} of the
+shipping family.
+\begin{itemize}
+\item \lead{Given} the eighteen step obligations; the primitive specification, table adequacy, the pinned
+configuration, compiler-body typing;
+\item \lead{Then} all eighteen motives hold of the shipping erasure family, \code{visitExpr} through
+\code{visitAlt}.
+\end{itemize}
+\lead{Status} \stProved{}, given the eighteen step hypotheses (supplied in Chapter~\ref{chap:coldstart}).
 \end{theorem}
 \begin{proof}
 \leanok
 \uses{def:Motive1, def:Step1, lem:bodyLe1, def:visitExprBody}
-One application of Lean's generated mutual fixpoint induction principle with the eighteen motives instantiated. The eighteen \textbf{admissibility} obligations are discharged uniformly by the arity-indexed run-ok toolkit of Chapter~\ref{chap:run}: every motive says ``whenever the run succeeds, $Q$ holds'', which is admissible for an arbitrary monadic computation because the flat order's only nontrivial relation is ``bottom below anything'' and bottom is an error; and the extra approximation conjunct is admissible because a chain below a point has its supremum below that point. The eighteen \textbf{step} obligations are then closed by applying the matching step lemma after introducing the abstract functions and induction hypotheses --- which forces each hand-copied abstract body to be definitionally the real one.
+\lead{Idea} One application of Lean's generated mutual fixpoint induction. \textbf{Admissibility}
+(uniform): each motive is ``run succeeds $\Rightarrow$ $Q$,'' admissible on the flat order where bottom is
+an error. \textbf{Step obligations}: closed by the matching step lemma after introducing the abstract
+functions and induction hypotheses, forcing each hand-copied body definitionally equal to the real one.
 \end{proof}
 
 \begin{remark}
-This is the single place where the fixpoint induction is run; everything downstream reads its first field. Its own measured footprint is clean \textbf{because the steps are hypotheses}. The docstring above it names a declaration \code{visitExpr\_refines\_of\_steps} that exists nowhere in the repository; the aggregator is \code{motives\_of\_steps}.
+\lead{Caveat} The only place the fixpoint induction runs; everything downstream reads its first field.
+Its footprint is clean only because the steps are hypotheses.
 \end{remark}
 
 \begin{definition}[The two T8 statements]
 \label{def:VisitExprRefinesLB}
 \lean{LeanToLambdaBox.VisitExprRefinesLB, LeanToLambdaBox.VisitExprRefinesLBFix}
 \leanok
-\uses{def:ErasesLB, def:ErasesLBFix, def:BridgeInv, def:BlockKeyed, def:SpecEnv, def:Supported, def:Erasure-visitExpr, def:Erasure-RunConcl, def:lean4lean-grounding, def:Kername}
-\code{VisitExprRefinesLB} says: for every source term $e$ that has a lean4lean translation in the modelled local context $\Delta$ and is inside the supported fragment for the reified table, every successful run of the shipping \code{Erasure.visitExpr} from a reader with \textbf{no} fixvar map and a state, reader and generator satisfying the bridge invariant, producing $t$ and final state $s'$, yields --- for every $\Gamma_{\mathrm{spec}}$ adequate for $s'$ --- the composite $\mathrm{ErasesLB}\ \Sigma\ Us\ \Gamma_{\mathrm{spec}}\ \Delta\ e\ t$, together with the canonical-growth conclusion on the states and the generator bound. \code{VisitExprRefinesLBFix} is the same under the reader \code{Erasure.visitMutual} installs for a block, described by a \code{BlockKeyed} pair, and concludes the three-factor in-block composite at the block's kernames and identifiers. Both are Lean \code{abbrev}s.
+\uses{def:ErasesLB, def:ErasesLBFix, def:BridgeInv, def:BlockKeyed, def:SpecEnv, def:Supported,
+def:Erasure-visitExpr, def:Erasure-RunConcl, def:lean4lean-grounding, def:Kername}
+\lead{In short} \code{VisitExprRefinesLB}: every successful run of the shipping eraser, from a
+\hl{fixvar-free} reader satisfying the bridge invariant, lands in the composite.
+\begin{itemize}
+\item \lead{Given} $e$ translated in $\Delta$, inside the supported fragment for the table; a successful
+run of \code{visitExpr} from a reader with \textbf{no} fixvar map, satisfying the bridge invariant,
+producing $t$ and final state $s'$;
+\item \lead{Then} for every $\Gamma_{\mathrm{spec}}$ adequate for $s'$: $\mathrm{ErasesLB}\ \Sigma\ Us\
+\Gamma_{\mathrm{spec}}\ \Delta\ e\ t$, plus canonical-growth and generator-bound conclusions.
+\end{itemize}
+\lead{Lean} \code{VisitExprRefinesLBFix} is the same under the reader \code{visitMutual} installs (a
+\code{BlockKeyed} pair), concluding the in-block composite.
 \end{definition}
 
 \begin{remark}
-Two placement points. In \code{RunRefines} (Definition~\ref{def:RunRefines}) the state and generator conclusions sit \textbf{outside} the quantifier over $\Gamma_{\mathrm{spec}}$; in \code{VisitExprRefinesLB} and \code{VisitExprRefinesLBFix} above they are printed as conjuncts inside the implication the quantifier binds, but since $\Gamma_{\mathrm{spec}}$ occurs free in neither conjunct they hold at every $\Gamma_{\mathrm{spec}}$ uniformly --- which is where the induction needs them: a sub-run's state facts must be available before any environment is chosen. And the block indices are the block's names \emph{mapped through} \code{toKername}, not the names, because the eraser installs its map at names while the emitted environment is keyed by kernames, and \code{toKername} is not invertible.
+\lead{Why} The state/generator conclusions print inside the $\Gamma_{\mathrm{spec}}$ quantifier but hold
+uniformly, since it occurs free in neither --- needed because a sub-run's state facts must be available
+before any environment is chosen. The block indices are names mapped through \code{toKername} (not
+invertible), since the eraser installs its map at names while the environment is keyed by kernames.
 \end{remark}
 
 \begin{theorem}[T8, ambient mode]
 \label{thm:visitExpr_refines_erasesLB}
 \lean{LeanToLambdaBox.visitExpr_refines_erasesLB}
 \leanok
-\uses{def:VisitExprRefinesLB, def:Step1, def:ErasureSpec, def:ConfigPinned, def:CompilerBodies, def:Witness-SourceTableAdequate}
-Under the eighteen member steps and the four ambient specification premises, the shipping \code{Erasure.visitExpr} refines the composite outside a mutual block. The Lean theorem is universally quantified over the elaboration environment, the model, the universe scope, the reified table, the configuration and the generator reading, takes the eighteen step hypotheses and then the four bundles. It takes \textbf{no} \code{EraserAsks}, \code{UpstreamAsks} or \code{TableSafe} binder of its own: those enter only when the eighteen steps are \emph{supplied}, one level up, in the erasure bridge theorem of Chapter~\ref{chap:coldstart} (Theorem~\ref{thm:erasure_bridge_of_run}).
+\uses{def:VisitExprRefinesLB, def:Step1, def:ErasureSpec, def:ConfigPinned, def:CompilerBodies,
+def:Witness-SourceTableAdequate}
+\lead{In short} Under the eighteen steps and four ambient premises, the shipping eraser \hl{refines the
+composite outside a block}.
+\begin{itemize}
+\item \lead{Given} the eighteen step hypotheses, then the four ambient bundles; universally quantified
+over the elaboration environment, model, universe scope, reified table, configuration, generator reading;
+\item \lead{Then} \code{VisitExprRefinesLB} holds.
+\end{itemize}
+\lead{Lean} takes \textbf{no} \code{EraserAsks}/\code{UpstreamAsks}/\code{TableSafe} binder of its own
+--- those enter only when the steps are \emph{supplied}, one level up
+(Theorem~\ref{thm:erasure_bridge_of_run}).
+\lead{Status} \stProved{}, conditional on the eighteen step hypotheses.
 \end{theorem}
 \begin{proof}
 \leanok
 \uses{thm:motives_of_steps, def:Motives, def:RunRefines, def:ErasesLBMode}
-Three lines. Build the motive bundle by Theorem~\ref{thm:motives_of_steps}, project its first field, apply it to the run and the invariant, and read the resulting mode at its ambient branch, which is available because the reader carries no fixvar map.
+\lead{Idea} Build the motive bundle by Theorem~\ref{thm:motives_of_steps}, project its first field, apply
+it to the run and the invariant, read the mode at its ambient branch.
 \end{proof}
 
 \begin{remark}
-The axiom row must be explained, not just quoted. The committed ledger fixture records \code{[propext, Classical.choice, Quot.sound]} for this theorem --- no \code{sorryAx}. That is \emph{only} because the eighteen steps are hypotheses here, and \code{\#print axioms} cannot measure a hypothesis. Once the real step proofs are supplied --- step 1 above all --- the consumer \code{shipping\_erase\_correct\_firstorder} carries the full $33$-name footprint including \code{sorryAx}.
+\lead{Caveat} The ledger records \code{[propext, Classical.choice, Quot.sound]} for this theorem, no
+\code{sorryAx}, \emph{only} because the eighteen steps are hypotheses. Once the real step proofs are
+supplied, the consumer \code{shipping\_erase\_correct\_firstorder} carries the full $33$-name footprint
+including \code{sorryAx}.
 \end{remark}
 
 \begin{theorem}[T8, block mode]
@@ -750,47 +1301,72 @@ The axiom row must be explained, not just quoted. The committed ledger fixture r
 \lean{LeanToLambdaBox.visitExpr_refines_erasesLBFix}
 \leanok
 \uses{def:VisitExprRefinesLB, def:Step1, def:BlockKeyed, def:ErasesLBFix}
-The same binders, with the block-mode conclusion: inside a mutual block whose installed fixvar map is described by a \code{BlockKeyed} pair, the shipping eraser's output is in the three-factor composite --- the erasure, lowered by the pass, with the block's own constants rewritten to its fix variables.
+\lead{In short} The same binders, concluding the \hl{block-mode composite} inside a mutual block.
+\begin{itemize}
+\item \lead{Given} a mutual block whose installed fixvar map is described by a \code{BlockKeyed} pair;
+\item \lead{Then} the shipping eraser's output is in the three-factor composite: erasure, lowered by the
+pass, block constants rewritten to fix variables.
+\end{itemize}
+\lead{Status} \stProved{}, conditional on the eighteen step hypotheses.
 \end{theorem}
 \begin{proof}
 \leanok
 \uses{thm:motives_of_steps, def:ErasesLBMode}
-Identical to the ambient one up to a single projection: the mode is read at its block branch, supplied with the \code{BlockKeyed} hypothesis.
+\lead{Idea} Identical to the ambient theorem up to one projection: the mode is read at its block branch,
+supplied with the \code{BlockKeyed} hypothesis.
 \end{proof}
 
 \begin{remark}
-Its measured footprint is the same clean triple, with the same caveat. This half has \textbf{no consumer} in the capstone chain --- the erasure bridge uses the ambient one; the block half exists because the induction must carry both modes to keep the step count at eighteen.
+\lead{Caveat} Same clean footprint, same caveat. This half has \textbf{no consumer} in the capstone
+chain: the erasure bridge uses the ambient one; the block half exists only to keep the induction's step
+count at eighteen.
 \end{remark}
 
 \begin{lemma}[The two statements, unfolded]
 \label{lem:visitExpr_refines_erasesLB_shape}
-\lean{LeanToLambdaBox.visitExpr_refines_erasesLB_shape, LeanToLambdaBox.visitExpr_refines_erasesLBFix_shape}
+\lean{LeanToLambdaBox.visitExpr_refines_erasesLB_shape,
+LeanToLambdaBox.visitExpr_refines_erasesLBFix_shape}
 \leanok
 \uses{def:VisitExprRefinesLB}
-Each of the two abbreviations is equivalent to its explicit unfolding, printed in full in the source.
+\lead{In short} Each abbreviation is \hl{equivalent to its explicit unfolding}, printed in full in the
+source.
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{def:VisitExprRefinesLB}
-Both are \code{Iff.rfl}. The purpose is documentary: a reader need not trust the abbreviation, and the pair guards against the two abbreviations silently drifting from the statements the design document prints.
+\lead{Idea} Both \code{Iff.rfl}; documentary --- a reader need not trust the abbreviation, and the pair
+guards against the two abbreviations drifting from the design document's statements.
 \end{proof}
 
 \section{What T8 does not claim; four refutations}
 \label{sec:refinement:scope}
 
-T8 is a statement about a \emph{term}. Motive 6 --- the motive for the entire registration path --- concludes only that the constant ends up in the registry, that the state grew, that the inductive registry is still the model's and that the generator advanced. The \emph{content} of the emitted global environment is deliberately left to be read off the final state by \code{SpecEnv}, and the two facts the capstone actually needs about it --- that $\Gamma_{\mathrm{spec}}$ erases the source environment, and that it lowers to the emitted one --- remain the capstone's one named binder \code{ErasureBridge} (Definition~\ref{def:ErasureBridge}), inhabited nowhere, at any rung. In MetaCoq terms this chapter proves the term-level half of [S, Sec. 7.4] and leaves the \code{erases\_global\_decls} half assumed. The two halves must stay visibly separate.
+T8 is a statement about a \emph{term}. Motive 6 concludes only registration for the entire path; the
+emitted environment's \emph{content} is read off the final state by \code{SpecEnv} instead. The two
+facts the capstone needs about it ($\Gamma_{\mathrm{spec}}$ erases the source environment, and lowers to
+the emitted one) remain the capstone's binder \code{ErasureBridge} (Definition~\ref{def:ErasureBridge}),
+inhabited nowhere: this chapter proves the term half of [S, Sec.~7.4], leaving
+\code{erases\_global\_decls} assumed.
 
 \begin{lemma}[Why BlockKeyed is shaped as it is]
 \label{lem:erasesLBMode_block_refuted}
 \lean{LeanToLambdaBox.erasesLBMode_block_refuted, LeanToLambdaBox.blockKeyed_append_absurd}
 \leanok
 \uses{def:BlockKeyed, def:ErasesLBFix, def:fixvarMap}
-(i) The \emph{unkeyed} block conjunct is unsatisfiable at a constant target: it is false that for \textbf{all} name and identifier lists describing the reader's map, the emitted \code{.const} node is in the in-block composite. (ii) The pair that refutes it is not \code{BlockKeyed} --- its name list is one longer than its identifier list.
+\lead{In short} The \emph{unkeyed} block conjunct is \hl{unsatisfiable} at a constant target.
+\begin{itemize}
+\item (i) false that for \textbf{all} name/identifier lists describing the reader's map, the emitted
+\code{.const} node is in the in-block composite;
+\item (ii) the refuting pair is not \code{BlockKeyed}: its name list is one longer than its identifier
+list.
+\end{itemize}
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{def:ConstToFVar}
-For (i): the fixvar map zips its two lists and zipping truncates, so appending one extra name presents \emph{the same} reader map; at that pair the appended kername has no identifier, so \code{ConstToFVar} can relate it neither as a hit (no identifier at that index) nor as a miss (the kername is in the list) --- and \code{.const} is exactly what the plain branch of \code{Erasure.visitConst} emits. Part (ii) reads off the length clause. Together these show that both of \code{BlockKeyed}'s non-obvious clauses are load-bearing: the length condition, and the restriction of the key \emph{separation} to tabled names.
+\lead{Idea} (i) Zipping the map's lists truncates, so an extra name presents the \emph{same} reader map;
+the appended kername then has no identifier, so \code{ConstToFVar} relates it neither as hit nor miss.
+(ii) reads off the length clause.
 \end{proof}
 
 \begin{lemma}[toKername is not injective]
@@ -798,53 +1374,93 @@ For (i): the fixvar map zips its two lists and zipping truncates, so appending o
 \lean{LeanToLambdaBox.toKername_not_injective}
 \leanok
 \uses{def:Kername}
-The numeric Lean name $5$ and the string Lean name \code{"5"} are different names with the same \lbox{} kername.
+\lead{In short} The numeric Lean name $5$ and the string name \code{"5"} are \hl{different names, one
+kername}.
 \end{lemma}
 \begin{proof}
 \leanok
-By computation: the kername equation is \code{rfl} and the name disequality is decided.
+\lead{Idea} By computation: the kername equation is \code{rfl}, the name disequality decided.
 \end{proof}
 
 \begin{remark}
-This is a finding about the shipping printer, recorded in \code{doc/coverage.md}: two Lean constants with one \lbox{} key shadow each other in the emitted environment. It is also why \code{BlockKeyed} must state injectivity of \code{toKername} on the tabled names rather than assume it globally.
+\lead{Caveat} Recorded in \code{doc/coverage.md}: two Lean constants with one \lbox{} key shadow each
+other in the emitted environment --- why \code{BlockKeyed} states injectivity of \code{toKername} on
+tabled names rather than assuming it globally.
 \end{remark}
 
 \begin{lemma}[Lambda-headedness is not a run invariant]
 \label{lem:run_mkDef_box_not_lambda}
-\lean{LeanToLambdaBox.run_mkDef_box_not_lambda, LeanToLambdaBox.visitMutual_block_hfl, LeanToLambdaBox.visitMutual_block_hfl_of_run}
+\lean{LeanToLambdaBox.run_mkDef_box_not_lambda, LeanToLambdaBox.visitMutual_block_hfl,
+LeanToLambdaBox.visitMutual_block_hfl_of_run}
 \leanok
 \uses{def:LBWfPeregrine, def:LowerBlock, def:Erasure-mkLambda}
-(i) A block member whose erasure is $\Box$ --- what \code{Erasure.visitExpr} returns at its erasability gate --- is registered as a definition with a \textbf{non-lambda} body. (ii) Nevertheless, at a block the \emph{emitted environment} declares, every member's body is lambda-headed, read off the emitted program's own well-formedness clause; (iii) likewise at a block a run registered.
+\lead{In short} A $\Box$-bodied member is registered \hl{without} a lambda, yet the \emph{emitted}
+program always has one.
+\begin{itemize}
+\item (i) a block member whose erasure is $\Box$ is registered as a definition with a \textbf{non-lambda}
+body;
+\item (ii) nevertheless, at a block the \emph{emitted environment} declares, every member's body is
+lambda-headed, read off the program's well-formedness clause;
+\item (iii) likewise, at a block a run registered.
+\end{itemize}
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{def:LBWfPeregrine}
-Part (i) is a direct computation on the eraser's definition builder at a $\Box$ body. For (ii), the block's entry is one of the constant bodies the well-formedness clause quantifies over, and the key-uniqueness clause makes that entry answer its own environment lookup; lambda-headedness is then read off the program's well-formedness. Part (iii) transports (ii) along the state-growth order to the state the run ends with.
+\lead{Idea} (i) direct computation at a $\Box$ body. (ii) the block's entry is one of the bodies
+well-formedness quantifies over; key-uniqueness makes it answer its own lookup, giving lambda-headedness.
+(iii) transports (ii) along the state-growth order.
 \end{proof}
 
 \begin{remark}
-This is Letouzey's box rule meeting \lbox{}'s own fixpoint well-formedness, and it is a genuine boundary of the pipeline, recorded rather than papered over: it is why the \code{TableBlocks} clause excluding an erasable member is a real input condition and not a formality. Part (iii) has \textbf{no consumer} at HEAD --- the live route to the block's lambda-headedness field is the output side, not the run side --- and a worked two-member fixture in the same file shows the field is inhabitable.
+\lead{Caveat} A genuine boundary: \code{TableBlocks}'s clause excluding an erasable member is a real
+input condition, not a formality. Part (iii) has no consumer at HEAD.
 \end{remark}
 
 \begin{lemma}[The pair the eraser installs is a valid description]
 \label{lem:blockKeyed_install}
 \lean{LeanToLambdaBox.blockKeyed_install, LeanToLambdaBox.env_motive_tabled}
 \leanok
-\uses{def:BlockKeyed, def:EraserAsks, def:TableBlocks, def:UpstreamAsks, def:Erasure-visitMutual, def:fixvarMap}
-(i) The name and identifier pair \code{Erasure.visitMutual} installs for a block satisfies \code{BlockKeyed}: the map equation is the reader extension the block branch runs under, the length condition is the identifier loop's, distinctness is the assumed key-distinctness clause pulled back along \code{toKername}, and the key separation is the table's own separation against the block's members. (ii) A constant for which the compiler table holds a body is a plain constant of the model, given that it is neither a constructor nor a type former.
+\uses{def:BlockKeyed, def:EraserAsks, def:TableBlocks, def:UpstreamAsks, def:Erasure-visitMutual,
+def:fixvarMap}
+\lead{In short} The pair \code{visitMutual} installs for a block \hl{satisfies \code{BlockKeyed}}.
+\begin{itemize}
+\item (i) the map equation is the block branch's reader extension; the length condition is the identifier
+loop's; distinctness is the assumed key-distinctness clause pulled back along \code{toKername}; key
+separation is the table's own;
+\item (ii) a constant with a compiler-table body is a plain model constant, given it is neither a
+constructor nor a type former.
+\end{itemize}
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{asm:EraserAsks-block_keys_distinct, asm:UpstreamAsks-constsOrigin}
-Four conjuncts, one per clause of \code{BlockKeyed}, each read off its own source.
+\lead{Idea} Four conjuncts, one per clause of \code{BlockKeyed}, each read off its own source.
 \end{proof}
 
 \begin{remark}
-\textbf{Both results are unconsumed}, deliberately. The first has no consumer because motive 6 reports only registration and the reader's level scope is unsatisfiable at a polymorphic dependency of a closed subject, so the block's content is read off the final state by \code{SpecEnv} instead; it also carries a premise about the compiler's fix-block lookup that no specification bundle supplies --- if it ever acquires a consumer, that premise becomes a new ask. The second bridges an environment-side gap recorded in \code{doc/upstream-asks.md} and likewise has no consumer. Neither is part of the load-bearing chain. The key-distinctness clause the first spends is refuted in general by a legal \code{mutual unsafe def} block whose \code{\_unsafe\_rec} companion collides (design tag F-UNSAFEREC).
+\lead{Caveat} \textbf{Both results are unconsumed}, deliberately: motive 6 reports only registration, and
+the block's content is read off the final state by \code{SpecEnv} instead. The key-distinctness clause
+the first spends is refuted in general by a legal \code{mutual unsafe def} block whose
+\code{\_unsafe\_rec} companion collides (F-UNSAFEREC).
 \end{remark}
 
 \section*{Deviations from the paper; caveats}
 
-Five deviations from [S] and [L] are visible in this chapter, none cosmetic. \textbf{Applied-form constructors} (cf.\ F-ETA2): the constructor node carries no fields and the arguments ride on the application spine, which is what the pinned \code{eraseFlags} reads; the Agda frontend eta-expands to fully applied blocks instead. \textbf{\code{fix} and \code{cases} are compilation steps}, not erasure rules, because Lean's kernel has neither \code{tFix} nor \code{tCase}; consequently $\Erases$ has eleven rules and no \code{fix} or \code{cases} rule at all, and the composite of Definition~\ref{def:ErasesLB} exists precisely to put them back. \textbf{The box rule is decided by an external oracle} rather than derived from a typing derivation, which is why step 1 spends the oracle's soundness and is the chapter's only \code{sorryAx} entry point. \textbf{The iota rule's closedness side condition is faithfulness, not slack}: the reversal bridge of Section~\ref{sec:refinement:iota} is false without it, by the two-field counterexample recorded above. And \textbf{the pinned configuration is not the default one}: \code{ConfigPinned} differs from the configuration the default \code{\#erase} command uses on three of its five fields, so the machine-\code{Nat}, \code{@[csimp]} and \code{@[extern]} arms of the shipping code are \emph{outside} the statement's scope rather than absent from the code.
-
-Two caveats about how the chapter's results should be read. First, T8 concerns a term and not an environment; the environment half stays an assumption at every rung. Second, the clean measured footprints of the two T8 theorems are an artefact of their step obligations being hypotheses: the bridge as actually assembled inherits \code{sorryAx} from the pinned lean4lean through Theorem~\ref{thm:step_visitExpr}, and inherits non-standard reflection axioms through it and through four further steps.
+\begin{itemize}
+\item \lead{Deviation} Applied-form constructors (F-ETA2): the node carries no fields, arguments ride the
+spine, per the pinned \code{eraseFlags}; \code{agda2lambox} eta-expands to blocks instead.
+\item \lead{Deviation} \code{fix} and \code{cases} are compilation steps, not erasure rules: Lean's kernel
+has neither \code{tFix} nor \code{tCase}, so $\Erases$ has eleven rules and none of its own for \code{fix}
+or \code{cases}; \code{ErasesLB} exists to put them back.
+\item \lead{Deviation} The box rule is decided by an external oracle, not derived from typing: step 1
+spends its soundness and is the chapter's only \code{sorryAx} entry point.
+\item \lead{Deviation} The iota rule's closedness side condition is faithfulness, not slack: the reversal
+bridge is false without it (\S\ref{sec:refinement:iota}'s two-field counterexample).
+\item \lead{Deviation} The pinned configuration is not the default: \code{ConfigPinned} differs from
+\code{\#erase}'s default on three of five fields, so the machine-\code{Nat}, \code{@[csimp]} and
+\code{@[extern]} arms sit outside the statement's scope, not outside the code.
+\item \lead{Caveat} T8 concerns a term, never an environment; that half stays an assumption at every
+rung. The two T8 theorems' clean footprints are an artefact of hypothesised steps: the assembled bridge
+inherits \code{sorryAx} through step 1, and reflection axioms through it and four further steps.
+\end{itemize}

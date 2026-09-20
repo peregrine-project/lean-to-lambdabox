@@ -1,45 +1,20 @@
 \chapter{The run model of the eraser}
 \label{chap:run}
 
-MetaCoq's certified eraser is a Rocq function over an inductive syntax, so its correctness proof
-is an induction over that function's own equations [S, Sec.~7.3]. The Lean eraser is nothing of
-the sort. It is production elaborator code: eighteen mutually recursive functions in a five-layer
-monad stack, totalised by \code{partial\_fixpoint} rather than by a structural measure, calling
-into \code{Lean.Meta}, the LCNF compiler front end and a kernel-backed relevance oracle, and
-panicking --- successfully --- on shapes it does not expect. Before one can even \emph{state} that
-its output is related to its input by \Erases, one needs a mathematical model of what ``the eraser
-ran'' means. This chapter is that model: the file \code{LeanToLambdaBox/ErasureRun.lean}, a
-deliberately \emph{model-free} library in which nothing mentions \Erases, lean4lean's \TrExprS{} or
-\code{VEnv}, or the \lbox{} semantics. It is a program logic for one monad; everything that gives
-the eraser a meaning is built on top of it in Chapters~\ref{chap:refinement}
-and~\ref{chap:coldstart}.
-
-The central design decision is stated in the file's own module docstring. Since \code{EraseM} is
-\code{StateT ErasureState (ReaderT ErasureContext CoreM)} and \code{CoreM} unfolds to
-\code{ReaderT Core.Context (StateRefT' IO.RealWorld Core.State (EIO Exception))}, an
-\code{x : EraseM alpha} is \emph{run} by applying it to five arguments, and ``the run of \code{x}
-succeeded'' is the bare equation \code{x s ctx cctx ref w = .ok (r, s') w'}. That spine is
-deliberately not wrapped in a \code{def}, so that \code{rw}, \code{cases} and keyed matching see
-the same head symbols the elaborated \code{do}-blocks produce. Four layers sit on top of it. The
-\emph{run algebra} turns a successful \code{do}-block into a chain of successful steps and proves
---- rather than assumes --- that lifted actions leave the erasure state alone. The
-\emph{admissibility toolkit} shows the run-ok motive to be \code{Lean.Order.admissible}, which is
-what \code{partial\_fixpoint}'s generated induction principle demands of each of its eighteen
-motives. The \emph{approximation toolkit} repairs a gap that fixpoint induction leaves open: the
-principle hands each step an arbitrary point of the CCPO, so a conclusion about \emph{the} block
-the shipping eraser builds needs an extra conjunct ``this function is below the shipping one''
-carried through. And a small \emph{Hoare logic} covers exactly the loop forms the elaborated eraser
-produces, including the parallel \code{for x in xs, y in ys} shape whose accumulator silently
-threads a stream state.
-
-The second half is the \emph{registration path}. Where MetaCoq relates a whole Rocq environment to
-a \lbox{} environment by a separate judgement before any term is erased, the Lean eraser has no
-environment pass at all: it builds the \lbox{} declarations \emph{during} the term walk,
-demand-driven and memoised in the erasure state. That construction is modelled by \emph{proved}
-state deltas. No node in this chapter carries a trust edge: the measured axiom footprint of every
-declaration cited below is the standard one, and the file's only non-\code{LeanToLambdaBox} import
-besides \code{Lean} is \code{Lean4Lean.Verify.NameGenerator}, a 28-line \code{sorry}-free module
-used purely for the vocabulary \code{Lean.NameGenerator.Reserves} and its order.
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} Give a mathematical meaning to \hl{``the eraser ran''}, before any correctness
+relation can be stated.
+\item \lead{Main results} Theorem~\ref{thm:Erasure-visitExpr_run_shape} (induction scales to all
+eighteen members); Theorem~\ref{thm:Erasure-run_register_inductive_runConcl} (registration only
+grows the environment); Theorem~\ref{thm:Erasure-run_addAxiom_ok} (axiom registration's state
+effect, unconditionally); Theorem~\ref{thm:Erasure-run_mkFreshFVarId_list} (minted identifiers are
+pairwise distinct).
+\item \lead{Status} \stProved{} throughout; no hypothesis bundle and no trust edge to lean4lean.
+\item \lead{Lean files} \code{LeanToLambdaBox/ErasureRun.lean}.
+\item \lead{Paper} [S, Sec.~7.3]'s eraser is total, an induction on its own equations; this chapter
+builds the analogous program logic for elaborator code with neither property.
+\end{itemize}
 
 \section{What a run is}
 \label{sec:run:spelling}
@@ -47,40 +22,31 @@ used purely for the vocabulary \code{Lean.NameGenerator.Reserves} and its order.
 \begin{definition}[A run of an \code{EraseM} computation]
 \label{def:run-spelling}
 \uses{def:Erasure-EraseM}
-\code{EraseM} is \code{StateT ErasureState (ReaderT ErasureContext CoreM)}, and \code{CoreM} is
-\code{ReaderT Core.Context (StateRefT' IO.RealWorld Core.State (EIO Exception))} with
-\code{EIO eps = EST eps IO.RealWorld} and
-\code{EST eps sigma alpha = Void sigma -> EST.Out eps sigma alpha}. An \code{x : EraseM alpha} is
-therefore \emph{applied} to five arguments: the erasure state \code{s}, the erasure reader
-\code{ctx}, the core reader \code{cctx : Core.Context}, the reference cell
-\code{ref : ST.Ref IO.RealWorld Core.State} and the world token \code{w : Void IO.RealWorld}. We
-say that \textbf{the run of \code{x} from \code{(s, ctx, cctx, ref, w)} succeeded with result
-\code{r}, final
-state \code{s'} and final world \code{w'}} when
-\[
-  \code{x s ctx cctx ref w} \;=\; \code{.ok (r, s') w'}.
-\]
-This raw equation, and not a wrapper definition, is the canonical hypothesis of every lemma below
-and the canonical shape of every motive of every induction in
-Chapters~\ref{chap:run}--\ref{chap:coldstart}: a wrapper constant would make lemma statements and
-elaborated goals disagree about the head symbol.
+\lead{In short} \code{EraseM} unfolds to a function of five arguments; a successful run is a
+\textbf{bare equation} on that unfolding, never a wrapper.
+\begin{itemize}
+\item \code{EraseM alpha} is \code{StateT ErasureState (ReaderT ErasureContext CoreM)}, and
+\code{CoreM} unfolds to \code{ReaderT Core.Context (StateRefT' IO.RealWorld Core.State (EIO
+Exception))};
+\item an \code{x : EraseM alpha} takes five arguments: erasure state \code{s}, erasure reader
+\code{ctx}, core reader \code{cctx : Core.Context}, reference cell \code{ref : ST.Ref IO.RealWorld
+Core.State}, world token \code{w : Void IO.RealWorld};
+\item \lead{Then} the run of \code{x} from \code{(s, ctx, cctx, ref, w)} \textbf{succeeds} with result
+\code{r}, final state \code{s'} and world \code{w'} exactly when
+\code{x s ctx cctx ref w = .ok (r, s') w'}.
+\end{itemize}
+\lead{Lean} this equation, not a \code{def} wrapper, is every lemma's hypothesis and every
+induction's motive shape in this chapter through Chapter~\ref{chap:coldstart}, so goals agree on the
+head symbol; the node has no declaration of its own. ``The run of the family'' names
+\code{Erasure.visitExpr.mutual\_fixpoint\_induct},
+\code{partial\_fixpoint}'s auto-generated (so uncitable) principle for the eighteen-member
+\code{mutual} block.
 \end{definition}
 
-That this node has no Lean declaration of its own is precisely its content. ``The run of the
-\emph{family}'' likewise means an application of
-\code{Erasure.visitExpr.mutual\_fixpoint\_induct}, the principle \code{partial\_fixpoint} generates
-for the eighteen-member \code{mutual} block; being auto-generated, it is named in prose only.
-
 \begin{remark}
-The fixpoint packs the eighteen members into one \code{PProd} chain
-\code{Erasure.visitExpr.mutual}, whose slot order is \code{visitExpr}, \code{visitLiteral},
-\code{visitConstructor}, \code{visitConst}, \code{get\_constant\_kername}, \code{visitMutual},
-\code{visitAppArgs}, \code{visitLet}, \code{visitLambda}, \code{visitProj}, \code{visitApp},
-\code{visitConstApp}, \code{visitCtorEta}, \code{visitCtorEtaGo}, \code{visitCasesEta},
-\code{visitCasesEtaGo}, \code{visitCases}, \code{visitAlt}. This is \emph{not} the source order of
-the \code{mutual} block in \code{Erasure.lean} --- \code{visitLambda} is third in the source and
-ninth in the tuple, \code{visitConstructor} thirteenth in the source and third in the tuple --- and
-every \code{motive\_1} \dots{} \code{motive\_18} numbering in the project follows the tuple order.
+\lead{Why} \code{partial\_fixpoint} packs the eighteen members into one \code{PProd} chain in
+\textbf{tuple order}, not source order (\code{visitLambda} is third in the source but ninth in the
+tuple); every \code{motive\_1} \ldots \code{motive\_18} numbering follows the tuple order.
 \end{remark}
 
 \section{The run algebra}
@@ -91,29 +57,22 @@ every \code{motive\_1} \dots{} \code{motive\_18} numbering in the project follow
 \lean{Erasure.run_bind, Erasure.run_bind_ok, Erasure.run_bind_ne_ok}
 \leanok
 \uses{def:run-spelling}
-Running a bind runs its first action and, on success, feeds the value \emph{together with} the new
-state and the new world token to the continuation; on failure it propagates the error.
-Consequently a bind's run succeeds exactly when there is a successful intermediate run:
-\code{(x >>= f) s ctx cctx ref w = .ok (b, s') w'} if and only if there are \code{a}, \code{s\_1},
+\lead{In short} \hl{A bind's run succeeds exactly when there is a successful intermediate run}.
+\begin{itemize}
+\item \lead{Given} a bind \code{x >>= f} run from \code{(s, ctx, cctx, ref, w)};
+\item \lead{Then} \code{(x >>= f) s ctx cctx ref w = .ok (b, s') w'} iff there are \code{a}, \code{s\_1},
 \code{w\_1} with \code{x s ctx cctx ref w = .ok (a, s\_1) w\_1} and
-\code{f a s\_1 ctx cctx ref w\_1 = .ok (b, s') w'}. The three Lean declarations are the equation,
-the inversion (an \code{iff}), and a corollary of its contrapositive (assuming \code{f} fails from
-every possible intermediate result, not just the one \code{x} actually produces), which discharges
-every error path of the eraser.
+\code{f a s\_1 ctx cctx ref w\_1 = .ok (b, s') w'}; on failure the error propagates.
+\end{itemize}
+\lead{Lean} a third corollary, from the contrapositive (\code{f} fails from every intermediate
+result), discharges every error path.
 \end{lemma}
-
 \begin{proof}
 \leanok
 \uses{def:run-spelling}
-\code{run\_bind} is the one place where \code{do}-notation's match compilation is fought by hand:
-the goal is restated at the \code{EST} layer, \code{EST.bind} unfolded, and a case split on the
-first action's outcome closes both branches. Rewriting with it and casing again gives the
-inversion, whose right-to-left direction is what makes it usable against opaque actions, where one
-learns only that some intermediate result exists.
+\lead{Idea} Restate the goal at the \code{EST} layer, unfold \code{EST.bind}, and case on the first
+action's outcome.
 \end{proof}
-
-Nearly every proof in this chapter and in Chapters~\ref{chap:refinement}--\ref{chap:coldstart}
-opens by rewriting a run hypothesis with this inversion.
 
 \begin{lemma}[The primitive runs]
 \label{lem:Erasure-run_pure}
@@ -122,32 +81,34 @@ Erasure.run_modifyGet, Erasure.run_read, Erasure.run_read_bind, Erasure.run_with
 Erasure.run_throw, Erasure.run_throw_ne_ok, Erasure.run_throwError_ne_ok}
 \leanok
 \uses{def:run-spelling}
-\code{pure a} succeeds immediately with \code{a}, state and world unchanged; \code{get} returns the
-state; \code{set s\_0} installs it; \code{modify g} replaces it by \code{g s}; \code{modifyGet g}
-does both; \code{read} returns the erasure reader; \code{withReader f x} runs \code{x} under
-\code{f ctx}; and \code{throw e} and \code{throwError msg} never return \code{.ok}. The chained
-form \code{run\_read\_bind}, reducing \code{(read >>= f) s ctx cctx ref w} to
-\code{f ctx s ctx cctx ref w}, steps the very first line of \code{visitExpr}, which reads the
-reader's level parameters before invoking the relevance oracle.
+\lead{In short} Each monad primitive's run is exactly what it looks like.
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+Primitive & Run \\
+\midrule
+\code{pure a} & succeeds immediately with \code{a}; state, world unchanged \\
+\code{get} & returns the state \\
+\code{set s0} & installs \code{s0} \\
+\code{modify g} & replaces the state by \code{g s} \\
+\code{modifyGet g} & does both \\
+\code{read} & returns the erasure reader \\
+\code{withReader f x} & runs \code{x} under \code{f ctx} \\
+\code{throw e}, \code{throwError msg} & never return \code{.ok} \\
+\bottomrule
+\end{tabular}
+\end{center}
+\lead{Lean} \code{run\_read\_bind} chains \code{(read >>= f) s ctx cctx ref w} to
+\code{f ctx s ctx cctx ref w}.
 \end{lemma}
-
 \begin{proof}
 \leanok
 \uses{lem:Erasure-run_bind_ok}
-All but three are \code{rfl}: the stack's \code{pure}, \code{get}, \code{set}, \code{modify},
-\code{modifyGet}, \code{read}, \code{withReader} and \code{throw} reduce definitionally once the run
-is applied to all five arguments. \code{run\_read\_bind} composes the bind equation with
-\code{run\_read};
-\code{run\_throw\_ne\_ok} is a \code{nomatch}; and \code{run\_throwError\_ne\_ok} unfolds
-\code{Lean.throwError} into its \code{getRef} and \code{addMessageContext} binds, treats those as
-opaque, and ends in \code{run\_throw\_ne\_ok}.
+\lead{Idea} All but three are \code{rfl} once the run hits all five arguments; \code{run\_read\_bind}
+composes the bind equation with \code{run\_read}, \code{run\_throw\_ne\_ok} is a \code{nomatch}, and
+\code{run\_throwError\_ne\_ok} unfolds to opaque \code{getRef}/\code{addMessageContext} binds ending
+in \code{run\_throw\_ne\_ok}.
 \end{proof}
-
-\begin{remark}
-The docstring of \code{run\_read} records that the inner \code{Core.Context} layer is \emph{not}
-readable at \code{EraseM} --- there is no \code{MonadReaderOf Core.Context EraseM} instance --- and
-is reached only through lifted \code{CoreM} actions.
-\end{remark}
 
 \begin{lemma}[Lifted actions are state-transparent]
 \label{lem:Erasure-run_liftCoreM_ok}
@@ -155,57 +116,43 @@ is reached only through lifted \code{CoreM} actions.
 Erasure.run_liftMetaM, Erasure.run_liftMetaM_ok, Erasure.run_liftMetaM_state}
 \leanok
 \uses{def:run-spelling}
-An action lifted from \code{CoreM} cannot touch the erasure state: running
-\code{(liftM x : EraseM alpha)} is running \code{x cctx ref w} with the erasure state carried
-through, so a successful lifted run has final state equal to the entry state and moves only the
-world token. The same holds for \code{Erasure.liftMetaM x}, which runs a \code{MetaM} action in
-\code{CoreM} under the local context taken from the erasure reader. Each comes in three forms: the
-raw equation, the \code{iff}-inversion and the state corollary.
+\lead{In short} \hl{An action lifted from \code{CoreM} cannot touch the erasure state}.
+\begin{itemize}
+\item \lead{Given} \code{(liftM x : EraseM alpha)} for \code{x : CoreM alpha}, or
+\code{Erasure.liftMetaM x} for \code{x : MetaM alpha} under the reader's local context, running it
+carries the erasure state through unchanged; only the world token moves.
+\end{itemize}
 \end{lemma}
-
 \begin{proof}
 \leanok
 \uses{lem:Erasure-run_bind_ok, lem:Erasure-run_pure}
-Both lifts unfold to a bind of a \code{CoreM} action with a \code{pure} that re-pairs the result
-with the \emph{incoming} state; running that bind with the bind equation and \code{run\_pure} gives
-the result, from which the inversion and the corollary are immediate.
+\lead{Idea} Both lifts unfold to a bind of a \code{CoreM} action with a \code{pure} re-pairing the
+incoming state; the bind equation and \code{run\_pure} give the result.
 \end{proof}
-
-This makes \code{getEnv}, \code{mkFreshFVarId}, \code{logInfo}, \code{Meta.isInstance} and
-\code{Compiler.LCNF.getDeclInfo?} state-transparent \emph{without any assumption}; the clauses the
-world-indexed bundle of Chapter~\ref{chap:coldstart} still spends on them exist only because such a
-primitive, while leaving the state alone, advances the world.
 
 \begin{lemma}[A panic succeeds]
 \label{lem:Erasure-run_panic}
 \lean{Erasure.run_panic, Erasure.run_panicWithPosWithDecl}
 \leanok
 \uses{def:run-spelling}
-At \code{EraseM} a \code{panic!} does \textbf{not} throw. With the \code{Inhabited} instance that
-\code{panic!} and \code{unreachable!} pick up at type \code{EraseM alpha}, a panic returns
-\code{default : alpha} and leaves state and world alone:
-\code{(panic msg : EraseM alpha) s ctx cctx ref w = .ok (default, s) w}, and likewise for the
-elaborated \code{panicWithPosWithDecl} form the macros actually produce. Every ``impossible''
-branch of the eraser is therefore a reachable, \emph{successful} branch of the model. Both Lean
-statements are \code{rfl}.
+\lead{In short} At \code{EraseM}, \hl{\code{panic!} does not throw}.
+\begin{itemize}
+\item \lead{Given} the \code{Inhabited} instance \code{panic!}/\code{unreachable!} pick up at
+\code{EraseM alpha}, \code{(panic msg : EraseM alpha) s ctx cctx ref w = .ok (default, s) w}, and
+likewise for the elaborated \code{panicWithPosWithDecl} form the macros produce.
+\end{itemize}
 \end{lemma}
-
 \begin{proof}
 \leanok
-Both are \code{rfl}: once the run is applied to all five arguments, the \code{Inhabited} instance
-that the monad stack supplies reduces \code{panic} and its elaborated \code{panicWithPosWithDecl}
-form to \code{pure default}.
+\lead{Idea} Both are \code{rfl}: the stack's \code{Inhabited} instance reduces \code{panic} (and its
+elaborated form) to \code{pure default} once applied to all five arguments.
 \end{proof}
 
 \begin{remark}
-Three shipping consequences follow, and the verification models all three rather than excluding
-them by hypothesis: \code{addAxiom}'s duplicate guard is a no-op that still registers a second
-declaration entry (Theorem~\ref{thm:Erasure-run_addAxiom_ok}); every \emph{destructuring}
-binder-helper lemma carries a
-``the result was \code{default}'' disjunct, \ie{} the eraser can silently emit a default \lbox{}
-term on an unexpected shape (Lemma~\ref{lem:Erasure-run_withLocalDecl_ok}); and
-\code{register\_inductive}'s \code{unreachable!} arms fall through successfully. These are findings
-about the shipping code, collected in Chapter~\ref{chap:trust}.
+\lead{Caveat} Three shipping consequences are modelled, not excluded: \code{addAxiom}'s duplicate
+guard still registers a second entry (Theorem~\ref{thm:Erasure-run_addAxiom_ok}); a binder helper can
+return a default \lbox{} term on an unexpected shape (Lemma~\ref{lem:Erasure-run_withLocalDecl_ok});
+\code{register\_inductive}'s \code{unreachable!} arms fall through successfully.
 \end{remark}
 
 \section{Admissibility: the run-ok motive}
@@ -216,20 +163,19 @@ about the shipping code, collected in Chapter~\ref{chap:trust}.
 \lean{Erasure.est_admissible_ok, Erasure.est_admissible_ok_pair}
 \leanok
 \uses{def:run-spelling}
-At the bottom layer of the transformer stack the property ``on a successful run, \code{Q} holds''
-is \code{Lean.Order.admissible}: for any \code{Q : Void sigma -> alpha -> Void sigma -> Prop}, the
-predicate \code{fun x => forall w a w', x w = .ok a w' -> Q w a w'} on \code{EST eps sigma alpha}
-is closed under suprema of chains. A second variant, with the result split as a pair, is the shape
-produced after running the state-transformer layer.
+\lead{In short} \hl{``On a successful run, \code{Q} holds'' is admissible} at the bottom transformer
+layer.
+\begin{itemize}
+\item \lead{Given} any \code{Q : Void sigma -> alpha -> Void sigma -> Prop}, the predicate
+\code{fun x => forall w a w', x w = .ok a w' -> Q w a w'} on \code{EST eps sigma alpha} is closed
+under suprema of chains; a second variant covers the pair-shaped state-transformer result.
+\end{itemize}
 \end{lemma}
-
 \begin{proof}
 \leanok
-The proof works in the pointwise CCPO of flat orders over \code{EST.bot}, to which \code{EST}'s own
-instance is definitionally equal; the instance must be supplied explicitly, since it is not
-synthesised under the world binder. \code{admissible\_pi\_apply} and \code{admissible\_pi} peel the
-quantifiers, and \code{admissible\_flatOrder} reduces the goal to the motive at bottom, which holds
-vacuously because \code{EST.bot} is an \code{.error}.
+\lead{Idea} In the pointwise CCPO of flat orders over \code{EST.bot} (\code{EST}'s own instance),
+\code{admissible\_pi\_apply}/\code{admissible\_pi} peel the quantifiers and
+\code{admissible\_flatOrder} reduces to the motive at bottom, which holds vacuously.
 \end{proof}
 
 \begin{lemma}[The canonical run-ok motive is admissible]
@@ -237,26 +183,17 @@ vacuously because \code{EST.bot} is an \code{.error}.
 \lean{Erasure.eraseM_admissible_ok}
 \leanok
 \uses{def:run-spelling, def:Erasure-EraseM}
-For any predicate \code{Q} of a run's inputs and outputs, the property ``whenever this
-computation's run succeeds, \code{Q} holds of the inputs and the outputs'' is an admissible
-property of \code{EraseM tau}, and hence a legal motive for the fixpoint induction that
-\code{partial\_fixpoint} generates. The Lean file adds five curried variants, of arity one to five,
-for a member that takes that many arguments before returning an \code{EraseM} computation; between
-them they cover all eighteen members. Their names carry Unicode subscripts and are therefore
-described here rather than cited.
+\lead{In short} For any predicate \code{Q} of a run's inputs and outputs, \hl{the run-ok property of
+\code{Q} is admissible} on \code{EraseM tau}, hence a legal fixpoint-induction motive.
+\lead{Lean} five curried, Unicode-subscripted variants (arity one to five) cover all eighteen members.
 \end{lemma}
-
 \begin{proof}
 \leanok
 \uses{lem:Erasure-est_admissible_ok}
-Four applications of \code{admissible\_pi\_apply}, one per transformer layer, each with its
-per-layer predicate supplied explicitly --- a bare \code{apply} fails higher-order unification ---
-reduce the goal to the paired leaf lemma. Each arity variant adds one further application and
-inherits from the previous one; arities four and five need a raised instance-synthesis budget.
+\lead{Idea} Four applications of \code{admissible\_pi\_apply}, one per transformer layer with its
+predicate supplied explicitly, reduce to the paired leaf lemma; each further arity adds one
+application (raising the instance-synthesis budget at arities four and five).
 \end{proof}
-
-This single theorem is why the whole verification is phrased in run-ok form; the docstrings record
-which members each arity serves.
 
 \section{Approximation: staying below the fixpoint}
 \label{sec:run:approx}
@@ -273,18 +210,13 @@ Erasure.visitCasesEta_eq_mutual, Erasure.visitCasesEtaGo_eq_mutual,
 Erasure.visitCases_eq_mutual, Erasure.visitAlt_eq_mutual}
 \leanok
 \uses{def:run-spelling, def:Erasure-visitExpr}
-\code{partial\_fixpoint} packs the mutual block into a single nested product
-\code{Erasure.visitExpr.mutual} and seals each projection behind an irreducible definition. The
-eighteen equations identify each named member with its slot --- \code{visitExpr} with the first
-component, down to \code{visitAlt} with the last --- so that named constants and tuple slots are
-interchangeable in lemma statements. Each Lean statement is \code{rfl} under an \code{unseal} of
-the member it concerns.
+\lead{In short} \code{partial\_fixpoint} packs the mutual block into one sealed tuple
+\code{Erasure.visitExpr.mutual}; eighteen equations identify each named member with its projection,
+so \hl{named constants and tuple slots are interchangeable}.
 \end{lemma}
-
 \begin{proof}
 \leanok
-Each equation is \code{rfl}: unsealing the named member exposes the projection out of
-\code{Erasure.visitExpr.mutual} that \code{partial\_fixpoint} defined it to be.
+\lead{Idea} \code{rfl} after \code{unseal} of the member concerned.
 \end{proof}
 
 \begin{lemma}[Below the fixpoint, a successful run is the fixpoint's run]
@@ -292,44 +224,36 @@ Each equation is \code{rfl}: unsealing the named member exposes the projection o
 \lean{Erasure.approx_rfl, Erasure.run_ok_of_le}
 \leanok
 \uses{def:run-spelling}
-Let \code{x} and \code{y} in \code{EraseM tau} with \code{x} below \code{y} in the order
-\code{partial\_fixpoint} uses. Then every successful run of \code{x} is verbatim a run of \code{y}:
-same result, same final state, same final world token. The converse fails, which is why the
-conjunct carried through the fixpoint induction must be the order itself and not an agreement of
-successful runs. A one-argument variant, whose name carries a Unicode subscript, states the same
-for a family member applied to an argument.
+\lead{In short} \hl{A successful run of \code{x} below \code{y} is verbatim a run of \code{y}}.
+\begin{itemize}
+\item \lead{Given} \code{x, y : EraseM tau} with \code{x} below \code{y} in
+\code{partial\_fixpoint}'s order, every successful run of \code{x} matches \code{y}'s result, state
+and world.
+\end{itemize}
+\lead{Lean} the converse fails, so the induction conjunct must be the order itself, not run
+agreement; a one-argument variant states the same for an applied family member.
 \end{lemma}
-
 \begin{proof}
 \leanok
-The order on \code{EraseM tau} is pointwise down to the flat order over \code{EST.bot}, whose only
-nontrivial relation is ``bottom is below anything''. Applying the hypothesis at the five run
-arguments and casing on the resulting relation leaves two cases: in the bottom case the assumed
-\code{.ok} equation is absurd, since \code{EST.bot} is an \code{.error}; in the reflexivity case
-the two runs are literally the same term.
+\lead{Idea} The order is pointwise down to the flat order over \code{EST.bot} (``bottom below
+anything''): apply the hypothesis at the five arguments; the bottom case is absurd (\code{EST.bot}
+is an \code{.error}), the reflexivity case identical runs.
 \end{proof}
-
-This is the transport that lets a proof performed at the \emph{abstract} eraser handed out by
-fixpoint induction be read at the \emph{shipping} \code{Erasure.visitExpr}.
 
 \begin{lemma}[The extra conjunct costs nothing]
 \label{lem:Erasure-fix_step_le}
 \lean{Erasure.admissible_and_le, Erasure.fix_step_le}
 \leanok
 \uses{lem:Erasure-run_ok_of_le}
-Adding the conjunct ``\dots{} and this function is below \code{c}'' to an admissible predicate
-leaves it admissible; and one step of a monotone functional applied below its own fixpoint lands
-below the fixpoint again. Together these discharge, for free, both the admissibility obligation and
-the step obligation that the extra conjunct creates at each of the eighteen motives.
+\lead{In short} Adding ``\ldots{} and this function is below \code{c}'' to an admissible predicate
+stays admissible, and \hl{one step below a fixpoint lands below it again} -- discharging, for free,
+the extra conjunct's admissibility and step obligation at each of the eighteen motives.
 \end{lemma}
-
 \begin{proof}
 \leanok
 \uses{lem:Erasure-run_ok_of_le}
-The first is an application of \code{CCPO.csup\_le}: a chain that stays below \code{c} has its
-supremum below \code{c}. The second is \code{Lean.Order.fix\_eq} read as an inequality ---
-monotonicity moves the hypothesis under the functional, and \code{fix\_eq} turns one unfolding back
-into the fixpoint.
+\lead{Idea} \code{CCPO.csup\_le} (a chain below \code{c} has supremum below \code{c}) and
+\code{Lean.Order.fix\_eq} read as an inequality.
 \end{proof}
 
 \begin{lemma}[The eighteen order conjuncts, packed]
@@ -337,21 +261,16 @@ into the fixpoint.
 \lean{Erasure.mutual_le_of}
 \leanok
 \uses{lem:Erasure-visitExpr_eq_mutual, def:Erasure-visitExpr}
-Given eighteen functions of the family's eighteen signatures, each below the corresponding shipping
-member, the tuple they form is below \code{Erasure.visitExpr.mutual}. Because the product order is
-componentwise this is an eighteen-fold conjunction modulo the unsealing equations; composed with
-Lemma~\ref{lem:Erasure-fix_step_le} at the family's own generated monotonicity proof, it discharges
-the step obligation of the order conjunct at every one of the eighteen motives with a single
-projection.
+\lead{In short} Eighteen functions, each below its shipping counterpart, form a \hl{tuple below
+\code{Erasure.visitExpr.mutual}} (componentwise, modulo the unsealing equations).
+\lead{Lean} with Lemma~\ref{lem:Erasure-fix_step_le}, this discharges all eighteen motives' order
+conjunct in one projection.
 \end{lemma}
-
 \begin{proof}
 \leanok
 \uses{lem:Erasure-visitExpr_eq_mutual}
-Eighteen nested anonymous constructors, each rewriting the named member to its slot by the
-corresponding unsealing equation. The only difficulty is the instance-synthesis budget:
-\code{PartialOrder (EraseM tau)} is five transformer layers deep, so the default search size is
-exhausted long before the eighteenth slot and is raised explicitly.
+\lead{Idea} Eighteen nested anonymous constructors, each rewriting a member to its slot by the
+unsealing equation, with a raised instance-synthesis budget.
 \end{proof}
 
 \section{Hoare rules for the loops the eraser uses}
@@ -362,18 +281,28 @@ exhausted long before the eighteenth slot and is raised explicitly.
 \lean{Erasure.run_list_forIn'_ok, Erasure.run_list_forIn_ok, Erasure.run_array_forIn_ok}
 \leanok
 \uses{def:run-spelling}
-For an invariant \code{P} of the accumulator, the state and the world: if \code{P} holds initially
-and is preserved by every successful body run --- whether the body yields or finishes early ---
-then it holds of the result of a successful run of the loop. Three variants cover \code{forIn'}
-over a list (with the membership proof available to the body), \code{forIn} over a list, and
-\code{forIn} over an array. The array rule also covers the \emph{parallel}
-\code{for x in xs, y in ys} shape, whose accumulator silently threads a stream state.
+\lead{In short} \hl{An invariant preserved by every successful loop body holds of the loop's result}.
+\begin{itemize}
+\item \lead{Given} an invariant \code{P} of accumulator, state and world, holding initially and
+preserved by every body run (yield or early finish), it holds of a successful loop run's result.
+\end{itemize}
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+Lean name & Loop shape \\
+\midrule
+\code{run\_list\_forIn'\_ok} & \code{forIn'} over a list, membership proof available to the body \\
+\code{run\_list\_forIn\_ok} & \code{forIn} over a list \\
+\code{run\_array\_forIn\_ok} & \code{forIn} over an array; also the parallel
+\code{for x in xs, y in ys} shape \\
+\bottomrule
+\end{tabular}
+\end{center}
 \end{lemma}
-
 \begin{proof}
 \leanok
 \uses{lem:Erasure-run_bind_ok, lem:Erasure-run_pure}
-Induction on the list, stepping the loop body with the bind inversion; the array rule rewrites
+\lead{Idea} Induction on the list, stepping the body with the bind inversion; the array rule rewrites
 through \code{Array.forIn\_toList} to the list rule.
 \end{proof}
 
@@ -383,51 +312,51 @@ through \code{Array.forIn\_toList} to the list rule.
 Erasure.run_array_foldlM_ok, Erasure.run_list_forIn_ok'_go, Erasure.run_list_foldlM_ok_go}
 \leanok
 \uses{lem:Erasure-run_list_forIn_ok}
-In the prefix-indexed rules the invariant is indexed by the \emph{processed prefix}, so the step
-hypothesis is handed the decomposition \code{L = pre ++ x :: post} and therefore knows which
-element it is at and at which position; the early-exit arm must derive a contradiction rather than
-be accommodated, and the conclusion is the invariant at the whole list. Four instances are provided
---- \code{forIn} over a list and over an array, \code{foldlM} over a list and over an array ---
-each derived from an auxiliary induction the Lean file states separately.
+\lead{In short} The invariant is indexed by the \hl{processed prefix}, so each step knows its element
+and position.
+\begin{itemize}
+\item \lead{Given} a step hypothesis handed the decomposition \code{L = pre ++ x :: post}, the
+invariant holds of the whole list; an early-exit arm must be refuted, not accommodated.
+\end{itemize}
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+Lean name & Loop shape \\
+\midrule
+\code{run\_list\_forIn\_ok'} & \code{forIn} over a list \\
+\code{run\_array\_forIn\_ok'} & \code{forIn} over an array \\
+\code{run\_list\_foldlM\_ok} & \code{foldlM} over a list \\
+\code{run\_array\_foldlM\_ok} & \code{foldlM} over an array \\
+\bottomrule
+\end{tabular}
+\end{center}
 \end{lemma}
-
 \begin{proof}
 \leanok
 \uses{lem:Erasure-run_bind_ok}
-Each auxiliary induction generalises over the pair of remaining list and processed prefix, so that
-the list recursion goes through; the array forms rewrite through \code{Array.forIn\_toList} and
-\code{Array.foldlM\_toList}.
+\lead{Idea} Generalise an auxiliary induction over the remaining list and processed prefix (the
+\code{\_go} names); array forms rewrite through \code{Array.forIn\_toList}/\code{Array.foldlM\_toList}.
 \end{proof}
-
-This is what a loop filling one output slot per input needs: \code{visitCases}' parallel
-alternatives loop elaborates its two stream-exhaustion arms into early exits, which must be
-\emph{refuted}, and the position index ties an output alternative to its input alternative
-(Chapter~\ref{chap:refinement}).
 
 \begin{lemma}[The prefix-indexed rule for \code{mapM}]
 \label{lem:Erasure-run_list_mapM_ok}
 \lean{Erasure.run_list_mapM_ok, Erasure.run_list_mapM_ok_go}
 \leanok
 \uses{lem:Erasure-run_list_forIn_ok-prime}
-For an invariant seeing both the processed prefix and the outputs produced so far, and threading
-state and world together: if it holds of the empty prefix and the empty output, and every
-successful body run extends it by one element and one output, then it holds of the whole list and
-the whole output list after a successful run of \code{List.mapM f L}.
+\lead{In short} \hl{The most-used loop rule in this development}: extend an invariant by one element
+and one output per successful body run.
+\begin{itemize}
+\item \lead{Given} an invariant of the processed prefix and outputs so far, state and world threaded
+together, holding at empty and extended by every successful body run, it holds of the whole list and
+output after a successful \code{List.mapM f L} run.
+\end{itemize}
 \end{lemma}
-
 \begin{proof}
 \leanok
 \uses{lem:Erasure-run_bind_ok, lem:Erasure-run_pure}
-The auxiliary induction generalises over the remaining list and the processed prefix and
-additionally accounts for the reversed accumulator of \code{List.mapM.loop}; the rule follows by
-instantiating the prefix at the empty list.
+\lead{Idea} The auxiliary induction generalises over the remaining list, the processed prefix and
+\code{List.mapM.loop}'s reversed accumulator; instantiate the prefix at the empty list.
 \end{proof}
-
-This is the most-used loop rule downstream --- \code{visitMutual}'s sibling loop, the two loops of
-\code{register\_inductive}, the fresh-identifier loop and \code{mkAlt}'s name loop all go through
-it --- and it threads \emph{state and world together}, which is what later makes distinctness of
-freshly minted identifiers provable (Theorem~\ref{thm:Erasure-run_mkFreshFVarId_list}). A section of
-worked examples documents how the rules compose, two of them on the parallel \code{for} shape.
 
 \section{A scale check on the whole family}
 \label{sec:run:scale}
@@ -437,31 +366,29 @@ worked examples documents how the rules compose, two of them on the parallel \co
 \lean{Erasure.visitExpr_run_shape}
 \leanok
 \uses{def:run-spelling, def:Erasure-visitExpr, def:LBTerm}
-An eighteen-fold conjunction, one clause per family member, each in the canonical run-ok form, of
-which four carry real content: a successful \code{visitExpr} run on a lambda input returns $\Box$
-or a \lbox{} lambda; a successful \code{visitConst} run on a constant input returns a free variable
-or a constant; a successful \code{visitAppArgs} run with a non-empty argument array returns an
-application; and a successful \code{visitLambda} run on a lambda input returns a lambda. The
-remaining fourteen clauses conclude \code{True}.
+\lead{In short} \hl{Fixpoint induction with all eighteen motives in run-ok form goes through}.
+\begin{itemize}
+\item \lead{Then} an eighteen-fold conjunction, one clause per member, each in run-ok form; four
+carry content -- \code{visitExpr} on a lambda returns $\Box$ or a \lbox{} lambda; \code{visitConst}
+on a constant returns a free variable or a constant; \code{visitAppArgs} on a non-empty array
+returns an application; \code{visitLambda} on a lambda returns a lambda -- the rest conclude
+\code{True}.
+\end{itemize}
+\lead{Status} \stProved{}.
 \end{theorem}
-
 \begin{proof}
 \leanok
 \uses{lem:Erasure-eraseM_admissible_ok, lem:Erasure-run_bind_ok, lem:Erasure-run_pure,
 lem:Erasure-run_list_forIn_ok-prime}
-By the family's generated fixpoint induction with all eighteen motives in run-ok form. The eighteen
-admissibility obligations discharge from the arity variants of
-Lemma~\ref{lem:Erasure-eraseM_admissible_ok}; each step goal unfolds the member, steps its binds
-with the run algebra, and either appeals to a sibling induction hypothesis or concludes
-\code{True}. The \code{visitAppArgs} clause goes through the array \code{foldlM} rule.
+\lead{Idea} The generated fixpoint induction; admissibility from
+Lemma~\ref{lem:Erasure-eraseM_admissible_ok}'s arities, each step unfolding its member and stepping
+binds, ending in a sibling hypothesis or \code{True} (\code{visitAppArgs} via array \code{foldlM}).
 \end{proof}
 
 \begin{remark}
-The theorem's own docstring calls it a \emph{scale check}: it confirms that the eighteen
-admissibility obligations discharge, that the step goals are tractable with the run lemmas, and
-that elaboration time is acceptable. It has no downstream consumer. The load-bearing
-eighteen-motive inductions are \code{visitExpr\_shapeW} (Chapter~\ref{chap:coldstart}) and the
-refinement induction of Chapter~\ref{chap:refinement}; this one is not a step of the capstone.
+\lead{Caveat} A \emph{scale check} only, with no downstream consumer; what matters is
+\code{visitExpr\_shapeW} (Chapter~\ref{chap:coldstart}) and Chapter~\ref{chap:refinement}'s
+refinement induction.
 \end{remark}
 
 \section{State deltas: what a run may do to the registry}
@@ -473,59 +400,45 @@ refinement induction of Chapter~\ref{chap:refinement}; this one is not a step of
 Erasure.run_mkFreshFVarId_state, Erasure.run_getConstInfo_state}
 \leanok
 \uses{def:run-spelling}
-A successful run of \code{logInfo}, \code{getEnv}, \code{mkFreshFVarId} or \code{getConstInfo}
-leaves the erasure state unchanged. The first three are corollaries of lifting
-(Lemma~\ref{lem:Erasure-run_liftCoreM_ok}); the fourth is not --- \code{getConstInfo} elaborates
-\emph{at} \code{EraseM} rather than as a literal lift --- and is proved outright.
+\lead{In short} A successful run of \code{logInfo}, \code{getEnv}, \code{mkFreshFVarId} or
+\code{getConstInfo} \hl{leaves the erasure state unchanged}.
+\lead{Lean} the first three follow by lifting (Lemma~\ref{lem:Erasure-run_liftCoreM_ok});
+\code{getConstInfo} elaborates \emph{at} \code{EraseM}, not as a literal lift, and is proved outright.
 \end{lemma}
-
 \begin{proof}
 \leanok
 \uses{lem:Erasure-run_bind_ok, lem:Erasure-run_liftCoreM_ok, lem:Erasure-run_pure}
-\code{Lean.getConstInfo} unfolds to \code{getEnv} followed by a match on
-\code{Environment.find?}; the success branch is a \code{pure}, and the failure branch is refuted by
-chasing \code{throwUnknownConstant} through \code{throwUnknownConstantAt},
-\code{throwUnknownIdentifierAt}, \code{throwErrorAt} and \code{withRef} down to the fact that a
-thrown error never returns \code{.ok}. \code{run\_monadRefWithRef} is the small \code{rfl} that
-pushes through \code{withRef}.
+\lead{Idea} \code{Lean.getConstInfo} unfolds to \code{getEnv} then a match on
+\code{Environment.find?}: success is a \code{pure}; failure is refuted by chasing
+\code{throwUnknownConstant} down to ``a thrown error never returns \code{.ok}''.
 \end{proof}
-
-The section docstring singles this lemma out as load-bearing: because it is a \emph{theorem}, no
-hypothesis bundle in the development has to assume that an environment lookup is state-transparent.
 
 \begin{lemma}[An \code{EraseM} lookup is a \code{CoreM} lookup]
 \label{lem:Erasure-pass_getConstInfo_core}
 \lean{Erasure.pass_core_bind, Erasure.pass_getConstInfo_core}
 \leanok
 \uses{def:run-spelling}
-A successful run of \code{Lean.getConstInfo} at \code{EraseM} yields a successful run of
-\code{Lean.getConstInfo} at \code{CoreM}, on the same name, with the same result and the same world
-tokens. The two elaborations are not definitionally equal, so this bridge is proved;
-\code{pass\_core\_bind} is the bind equation one layer down, at \code{CoreM}.
+\lead{In short} A successful \code{EraseM} run of \code{Lean.getConstInfo} \hl{is} a successful
+\code{CoreM} run of it: same name, result, world tokens.
+\begin{itemize}
+\item \lead{Lean} the two elaborations are not definitionally equal: proved, not free.
+\end{itemize}
 \end{lemma}
-
 \begin{proof}
 \leanok
 \uses{lem:Erasure-run_bind_ok, lem:Erasure-run_getConstInfo_state, lem:Erasure-run_liftCoreM_ok,
 lem:Erasure-run_pure}
-Both sides unfold to \code{getEnv} plus the same \code{Environment.find?} match; the error branches
-are refuted exactly as in Lemma~\ref{lem:Erasure-run_getConstInfo_state}, and the success branches
-are matched by \code{pass\_core\_bind}.
+\lead{Idea} Both sides unfold to \code{getEnv} plus the same match; error branches refuted as above,
+success matched by \code{pass\_core\_bind}.
 \end{proof}
-
-This lets an adequacy specification stated at \code{CoreM} --- the lookup-adequacy clause of the
-specification bundle of Chapter~\ref{chap:eraser} --- be applied to the eraser's own calls. It is a
-bridge between two Lean monads, not a bridge to lean4lean.
 
 \begin{definition}[Canonical constant registry]
 \label{def:Erasure-CanonicalConstants}
 \lean{Erasure.CanonicalConstants}
 \leanok
 \uses{def:Erasure-EraseM, def:Kername}
-The erasure state's constant registry is \textbf{canonical} when every constant it knows is
-registered under its own canonical kername: whenever the registry maps \code{n} to \code{k},
-\code{k} is \code{toKername n}. This is the one value-level invariant carried across a growing
-state.
+\lead{In short} The registry is \textbf{canonical} when, whenever it maps \code{n} to \code{k},
+\hl{\code{k} is \code{toKername n}} -- the one value-level invariant carried across a growing state.
 \end{definition}
 
 \begin{definition}[The modelled registration states]
@@ -534,12 +447,15 @@ state.
 \leanok
 \uses{def:Erasure-CanonicalConstants, def:GlobalDeclarations, def:Erasure-EraseM,
 def:OneInductiveBody}
-\code{addAxiomState n s} is the exact post-state of registering \code{n} as an axiom: the registry
-gains \code{n} mapped to \code{toKername n}, and the global declaration list gains one value-less
-constant declaration under that kername. \code{mutualBlockKn ii} is the kername the eraser mints
-for a mutual inductive \emph{block}, the root kername of the concatenation of the block members'
-names. \code{registerIndState ii bodies s} is the post-state of the block registration, which
-prepends one inductive declaration carrying the block's parameter count and its bodies.
+\lead{In short} The exact post-states of the three ways a run can register something.
+\begin{itemize}
+\item \code{addAxiomState n s}: registry gains \code{n} at \code{toKername n}; declarations gain one
+value-less constant under that kername;
+\item \code{mutualBlockKn ii}: the kername minted for a block, the root of its members' concatenated
+names;
+\item \code{registerIndState ii bodies s}: prepends one inductive declaration carrying the block's
+parameter count and bodies.
+\end{itemize}
 \end{definition}
 
 \begin{definition}[The two constant-registration states]
@@ -548,14 +464,14 @@ prepends one inductive declaration carrying the block's parameter count and its 
 Erasure.recConstState_eq}
 \leanok
 \uses{def:Erasure-CanonicalConstants, def:LBTerm, def:FixDef}
-\code{nonrecConstState n t s} is the post-state of the non-recursive exit: the registry gains
-\code{n} under its canonical kername and the declaration list gains a constant declaration whose
-body is \code{t}. \code{recConstState names defs s} is the post-state of the block exit: a fold
-over the block's names paired with their indices, registering each sibling under its own canonical
-kername with body the fixpoint block \code{defs} selected at that index. Its single step,
-\code{recConstStep}, is exactly \code{nonrecConstState} at a fixpoint body, named separately so
-that the fold induction has something to generalise over; \code{recConstState\_eq} is the
-\code{rfl} relating the two.
+\lead{In short} The post-states of the non-recursive and the block exits.
+\begin{itemize}
+\item \code{nonrecConstState n t s}: registry gains \code{n} at its canonical kername; declarations
+gain a constant with body \code{t};
+\item \code{recConstState names defs s}: fold registering each sibling at its own kername with body
+\code{defs} at that index; \code{recConstStep} is its step, \code{nonrecConstState} at a fixpoint
+body, and \code{recConstState\_eq} the \code{rfl} relating the two.
+\end{itemize}
 \end{definition}
 
 \begin{definition}[Axiom-only state extension]
@@ -564,31 +480,25 @@ that the fold induction has something to generalise over; \code{recConstState\_e
 Erasure.ConstExt.trans, Erasure.AxiomExt.rfl', Erasure.AxiomExt.trans, Erasure.AxiomExt.addAxiom}
 \leanok
 \uses{def:Erasure-CanonicalConstants, def:Erasure-addAxiomState, def:GlobalDeclarations}
-\code{ConstExt s s'} says that \code{s'} is an \emph{axiom-only} extension of \code{s}, in three
-fields: canonicity of the constant registry is preserved; the registry's domain only grows; and the
-global declaration list grows by a prefix consisting solely of value-less constant declarations,
-each keyed by the canonical kername of a constant the extended registry knows. \code{AxiomExt}
-extends \code{ConstExt} by one further field requiring that the inductive registry is untouched.
-Both are reflexive and transitive, and the modelled post-state of an axiom registration really is
-an \code{AxiomExt} extension.
+\lead{In short} \code{ConstExt s s'}: \code{s'} extends \code{s} by \hl{axioms only}.
+\begin{itemize}
+\item canonicity is preserved, the registry's domain only grows, and declarations grow by a prefix
+of value-less constants, each keyed by a canonical kername the extended registry knows.
+\end{itemize}
+\lead{Lean} \code{AxiomExt} adds that the inductive registry is untouched; both reflexive,
+transitive; the modelled post-state of an axiom registration is indeed an \code{AxiomExt}
+extension.
 \end{definition}
-
-\begin{remark}
-Recording the \emph{keys} of the prefix, and not merely the shape of its entries, is what lets a
-downstream key-coverage invariant cross a \code{register\_inductive} call, whose cold branch emits
-one axiom per externally implemented constructor. \code{AxiomExt} itself has no consumer outside
-this file.
-\end{remark}
 
 \begin{definition}[State extension]
 \label{def:Erasure-StateLe}
 \lean{Erasure.StateLe, Erasure.StateLe.rfl', Erasure.StateLe.trans}
 \leanok
 \uses{def:Erasure-EraseM, def:GlobalDeclarations}
-\code{StateLe s s'} says that the two registries only grew --- every name the constant registry
-knew it still knows, and likewise for the inductive registry --- and that the global declaration
-list only got prepended to. It is reflexive and transitive, and is the monotonicity a \emph{cold}
-run has in place of a warm bridge's ``the state did not change''.
+\lead{In short} \code{StateLe s s'}: \hl{both registries only grew}, and declarations only gained a
+prefix.
+\lead{Lean} reflexive, transitive; a \emph{cold} run's monotonicity, in place of a warm bridge's
+``state unchanged''.
 \end{definition}
 
 \begin{definition}[The widened run conclusion]
@@ -596,44 +506,37 @@ run has in place of a warm bridge's ``the state did not change''.
 \lean{Erasure.RunConcl, Erasure.RunConcl.rfl', Erasure.RunConcl.of_eq, Erasure.RunConcl.trans}
 \leanok
 \uses{def:Erasure-StateLe, def:Erasure-CanonicalConstants}
-\code{RunConcl s s'} bundles state extension with survival of canonicity, in two fields: the state
-only grew, and if the constant registry was canonical before, it is canonical after. It is
-reflexive, transitive, and holds whenever the state did not change at all.
+\lead{In short} \hl{The shape every motive of the refinement induction concludes}
+(Chapter~\ref{chap:refinement}).
+\begin{itemize}
+\item \code{RunConcl s s'} bundles state extension (\code{StateLe}) with survival of canonicity:
+\code{s} canonical implies \code{s'} canonical.
+\end{itemize}
+\lead{Lean} canonicity is proved, never assumed
+(Lemma~\ref{lem:Erasure-runConcl_nonrecConstState}, Theorem~\ref{thm:Erasure-run_register_inductive_runConcl}).
 \end{definition}
-
-\code{RunConcl} is central: it is the shape every motive of the refinement induction of
-Chapter~\ref{chap:refinement} concludes. Its second field is \emph{provable}, never assumed, because
-every writer on the registration path inserts a constant under its own canonical kername ---
-Lemma~\ref{lem:Erasure-runConcl_nonrecConstState} and
-Theorem~\ref{thm:Erasure-run_register_inductive_runConcl} are exactly that.
 
 \begin{definition}[A registry entry justified by the emitted block]
 \label{def:Erasure-RegisteredBodyAt}
 \lean{Erasure.RegisteredBodyAt, Erasure.RegisteredBodyAt.mono}
 \leanok
 \uses{def:Erasure-addAxiomState, def:OneInductiveBody, def:InductiveId}
-The inductive-registry entry \code{rc} for a name \code{n} is \emph{justified by} the block
-\code{bodies} emitted for \code{ii} when it names that block, points at a body of \code{bodies}
-whose name is \code{n}, and its constructor-argument masks keep exactly as many arguments as that
-body's constructors declare. Justification is stable under extending \code{bodies} on the right.
-The predicate has no consumer outside this file; it is the content of the cold branch's registry
-effect as stated by Theorem~\ref{thm:Erasure-run_register_inductive_cold_ok}.
+\lead{In short} Entry \code{rc} for name \code{n} is \emph{justified by} block \code{bodies} when
+\code{ii} names that block, a member of \code{bodies} is named \code{n}, and \hl{\code{rc}'s
+constructor-argument masks keep exactly that member's constructors' argument counts}.
+\lead{Lean} stable under extending \code{bodies} on the right.
 \end{definition}
 
 \begin{lemma}[A split of an indexed list names its position]
 \label{lem:Erasure-zipIdx_split_snd}
 \lean{Erasure.zipIdx_split_snd, Erasure.zipIdx_split_fst}
 \leanok
-If pairing a list with its indices splits as \code{pre ++ x :: post}, then the index component of
-\code{x} is the length of \code{pre}, and the original list has \code{x}'s value at that position.
-This is what turns the prefix decomposition handed out by the prefix-indexed loop rules into an
-index into the original list.
+\lead{In short} If pairing a list with its indices splits as \code{pre ++ x :: post}, \hl{\code{x}'s
+index is \code{pre.length}}, and the list holds \code{x}'s value there.
 \end{lemma}
-
 \begin{proof}
 \leanok
-Read the element at position \code{pre.length} off both sides of the split equation and unfold the
-index-pairing lemma for that position.
+\lead{Idea} Read the element at position \code{pre.length} off both sides of the split equation.
 \end{proof}
 
 \section{The registration path}
@@ -644,24 +547,22 @@ index-pairing lemma for that position.
 \lean{Erasure.run_addAxiom_ok}
 \leanok
 \uses{def:Erasure-addAxiomState, def:Erasure-register_inductive}
-Every successful run of \code{Erasure.addAxiom n} ends in the state \code{addAxiomState n s} and
-leaves the world token unchanged --- \textbf{unconditionally}, on both branches of the function's
-``already defined'' guard.
+\lead{In short} \hl{Unconditionally}, a successful run of \code{Erasure.addAxiom n} ends in state
+\code{addAxiomState n s} with the world token unchanged, on \emph{both} branches of the ``already
+defined'' guard.
+\lead{Status} \stProved{}.
 \end{theorem}
-
 \begin{proof}
 \leanok
 \uses{lem:Erasure-run_bind_ok, lem:Erasure-run_pure, lem:Erasure-run_panic}
-Step the \code{get}, then split on the guard. In the ``already present'' branch the shipping code
-runs \code{panic!} and, having no \code{return}, falls straight through into the same
-\code{modify}; because a panic \emph{succeeds} at \code{EraseM}
-(Lemma~\ref{lem:Erasure-run_panic}), that branch reaches the modification too. Both branches
-therefore end at \code{addAxiomState n s}, and neither moves the world.
+\lead{Idea} Step \code{get}, split on the guard: \code{panic!} succeeds
+(Lemma~\ref{lem:Erasure-run_panic}) and falls through to the same \code{modify}, so both branches
+end at \code{addAxiomState n s} without moving the world.
 \end{proof}
 
 \begin{remark}
-A finding about the shipping code, modelled rather than assumed away: the duplicate guard is a
-no-op, so a second, duplicate entry is prepended to the declaration list.
+\lead{Caveat} A finding, modelled not assumed away: the duplicate guard is a no-op, so registering
+an already-known axiom still prepends a second, duplicate entry.
 \end{remark}
 
 \begin{theorem}[The miss branch of \code{register\_inductive} is not state-preserving]
@@ -670,36 +571,33 @@ no-op, so a second, duplicate entry is prepended to the declaration list.
 \leanok
 \uses{def:Erasure-ConstExt, def:Erasure-addAxiomState, def:Erasure-RegisteredBodyAt,
 def:Erasure-register_inductive}
-If the inductive registry already knows the block, a successful \code{register\_inductive} run
-returns the stored entry and changes neither state nor world. If it does not, a successful run
-produces a list of inductive bodies \code{bodies} and an intermediate state \code{sM} such that the
-final state is \code{registerIndState ii bodies sM}, the result is the entry \code{sM} holds for
-the block's own name, \code{bodies} has one entry per block member, \code{sM} is an axiom-only
-extension of the entry state, the inductive registry only grew, and every inductive-registry entry
-present in \code{sM} was either already present or is justified by the block just emitted.
+\lead{In short} A \emph{hit} run changes nothing; a \emph{miss} run \hl{grows the inductive registry
+and the declaration list}.
+\begin{itemize}
+\item \lead{Given} the inductive registry knows the block (hit) or not (miss);
+\item \lead{Then}, hit: the run returns the stored entry, state and world unchanged;
+\item \lead{Then}, miss: the run produces bodies \code{bodies} and state \code{sM} with final state
+\code{registerIndState ii bodies sM}, result \code{sM}'s entry for the block's name, one body per
+member, \code{sM} an axiom-only (\code{ConstExt}) extension of the entry state, the inductive
+registry only grown, and every entry in \code{sM} already present or justified by the emitted block.
+\end{itemize}
+\lead{Status} \stProved{}.
 \end{theorem}
-
 \begin{proof}
 \leanok
 \uses{lem:Erasure-run_bind_ok, lem:Erasure-run_pure, lem:Erasure-run_list_mapM_ok,
 lem:Erasure-run_getConstInfo_state, thm:Erasure-run_addAxiom_ok, lem:Erasure-run_panic,
 def:Erasure-ConstExt, lem:Erasure-zipIdx_split_snd}
-Step the registry test; the hit branch is a \code{get} followed by a \code{pure}. On the miss
-branch the body maps over the block's members, so the prefix-indexed \code{mapM} rule carries an
-invariant recording the output length, an axiom-only extension of the entry state, growth of the
-inductive registry, and justification of every new entry. The inner constructor loop uses the same
-rule again and contributes one axiom registration per externally implemented constructor,
-discharged by Theorem~\ref{thm:Erasure-run_addAxiom_ok}; the position of each member comes from
-Lemma~\ref{lem:Erasure-zipIdx_split_snd}. Finally one inductive declaration is prepended.
+\lead{Idea} Step the registry test (hit: \code{get}, \code{pure}); on miss, the prefix-indexed
+\code{mapM} rule carries the extension and justification across the member loop
+(Theorem~\ref{thm:Erasure-run_addAxiom_ok}, Lemma~\ref{lem:Erasure-zipIdx_split_snd} for position),
+then one declaration is prepended.
 \end{proof}
 
 \begin{remark}
-This says plainly that any specification asserting that \code{register\_inductive} preserves the
-state at an arbitrary entry state is \emph{false about the real function}, which is why every
-registration premise in the development is guarded by a registry test. The file also contains a
-companion that constructs a hit-branch run out of nothing --- a refutation device for unguarded
-premises --- which has no consumer in the current tree, and whose docstring cites a refutation that
-no longer exists.
+\lead{Caveat} Any specification asserting \code{register\_inductive} preserves the state at an
+arbitrary entry state is \emph{false} of the real function; every registration premise in the
+development is guarded by a registry test.
 \end{remark}
 
 \begin{theorem}[What the cold branch leaves in the inductive registry]
@@ -707,31 +605,25 @@ no longer exists.
 \lean{Erasure.run_register_inductive_cold_entries}
 \leanok
 \uses{def:Erasure-addAxiomState, def:Erasure-RegisteredBodyAt, def:Erasure-ErasureConfig}
-Fix an abstract lookup predicate \code{Ci} --- ``what a successful environment lookup reports'' ---
-and a reading \code{gw} of the name generator out of the world token, and assume that every lookup
-during the run reports \code{Ci}, and that every lookup, environment read and log during the run
-advances \code{gw} monotonically.
-Then, on the miss branch and with constructor-argument pruning switched off, the generator only
-advances, and every inductive-registry entry present afterwards was either already present or names
-the block identifier minted from the block's member list at the member's own position, with the
-member itself reported by \code{Ci} as an inductive, and carries, for each constructor, an all-keep
-mask of exactly that constructor's field count.
+\lead{In short} With pruning off, \hl{every new entry names its minted block identifier with an
+all-keep mask}.
+\begin{itemize}
+\item \lead{Given} an abstract lookup predicate \code{Ci} that every lookup during the run reports,
+and a reading \code{gw} of the name generator (out of the world token) that every lookup,
+environment read and log advances monotonically;
+\item \lead{Then}, on the miss branch: \code{gw} only advances, and every entry present afterwards
+was already present, or names the position-minted block identifier, the member reported by
+\code{Ci} as an inductive, each constructor's mask keeping its whole field count.
+\end{itemize}
+\lead{Status} \stProved{}.
 \end{theorem}
-
 \begin{proof}
 \leanok
 \uses{thm:Erasure-run_register_inductive_cold_ok, lem:Erasure-run_list_mapM_ok,
 lem:Erasure-run_getConstInfo_state, lem:Erasure-run_bind_ok}
-The same walk as the previous theorem, with the loop invariant carrying, in addition, the abstract
-lookup predicate at every member and constructor and the generator bound. The pruning flag is what
-fixes the mask: with pruning off, the mask computed per constructor is a replication of ``keep'' at
-the constructor's field count.
+\lead{Idea} The same walk, the invariant additionally carrying \code{Ci} and the generator bound;
+with pruning off the mask replicates ``keep'' at each constructor's field count.
 \end{proof}
-
-The predicate \code{Ci} is what keeps this chapter model-free: the model reading instantiates it at
-``the source environment holds this constant information''. It is also the cleanest place to observe
-that the pipeline \emph{declines} the constructor-argument pruning that ConCert-style typed
-extraction performs.
 
 \begin{theorem}[The run conclusion of a registration]
 \label{thm:Erasure-run_register_inductive_runConcl}
@@ -739,27 +631,25 @@ extraction performs.
 Erasure.run_register_inductive_gdeclsConst}
 \leanok
 \uses{def:Erasure-RunConcl, def:Erasure-register_inductive}
-Every successful \code{register\_inductive} run satisfies \code{RunConcl}: the state only grew and
-canonicity survived. The entry characterisation of the previous theorem extends to both branches,
-the hit branch contributing nothing. Moreover the call never records a constant \emph{body}: every
-constant declaration carrying a body that is present afterwards was already present before.
+\lead{In short} Every successful \code{register\_inductive} run satisfies \code{RunConcl}, and
+\hl{never records a constant body}.
+\begin{itemize}
+\item \lead{Then} the state only grew and canonicity survived (\code{RunConcl});
+\item the entry characterisation of Theorem~\ref{thm:Erasure-run_register_inductive_cold_entries}
+extends to both branches, the hit branch contributing nothing;
+\item every constant declaration carrying a body that is present afterwards was already present
+before.
+\end{itemize}
+\lead{Status} \stProved{}.
 \end{theorem}
-
 \begin{proof}
 \leanok
 \uses{thm:Erasure-run_register_inductive_cold_ok, thm:Erasure-run_register_inductive_cold_entries,
 def:Erasure-ConstExt, def:Erasure-StateLe, def:Erasure-RunConcl}
-Case on the registry test. The hit branch preserves the state outright, so \code{RunConcl} follows
-from its reflexivity. The miss branch supplies an axiom-only extension whose declaration prefix,
-extended by the single inductive declaration the branch prepends, is the prefix \code{StateLe}
-needs, and whose canonicity clause is the one \code{RunConcl} needs. The body-freedom statement
-inspects that prefix: every entry it contains is either the block declaration or a value-less
-constant declaration.
+\lead{Idea} Case on the registry test: hit preserves state (\code{RunConcl} by reflexivity); miss's
+axiom-only extension plus the prepended declaration give \code{StateLe} and canonicity, and every
+prefix entry is the block declaration or a value-less constant, giving body-freedom.
 \end{proof}
-
-Nothing is assumed here: this is the whole state effect of the call, proved. The body-freedom
-corollary has no consumer in the current tree, but it is the fact that lets a ``the stored body
-erases its source body'' record cross the call for free.
 
 \begin{theorem}[The shape of an emitted fixpoint definition]
 \label{thm:Erasure-run_mkDef_ok}
@@ -767,49 +657,37 @@ erases its source body'' record cross the call for free.
 Erasure.run_mkDef_rarg}
 \leanok
 \uses{def:Erasure-mkLambda, def:toBvar, def:FixDef, def:atomValue}
-A successful run of \code{Erasure.mkDef nm fixvarnames body} names the definition after the Lean
-constant, closes the erased body over the block's fixpoint variables by a fold of de Bruijn
-abstractions --- in reverse order, at levels given by position --- and touches neither state nor
-world. Two consequences of that shape are stated separately: the emitted definition is
-lambda-headed exactly when the erased body is, and its principal-argument index is the default
-\code{0}, because \code{mkDef} never sets that field.
+\lead{In short} \code{mkDef nm fixvarnames body} names, closes and \hl{never touches state or
+world}.
+\begin{itemize}
+\item \lead{Then} the definition is named after the Lean constant, its body closed over the block's
+fixpoint variables by a fold of de Bruijn abstractions (reverse order, levels by position), state and
+world untouched.
+\end{itemize}
+\lead{Lean} two separate consequences: lambda-headed exactly when the erased body is; its
+principal-argument index is the default \code{0} (\code{mkDef} never sets that field).
+\lead{Status} \stProved{}.
 \end{theorem}
-
 \begin{proof}
 \leanok
 \uses{lem:Erasure-run_bind_ok, lem:Erasure-run_list_forIn_ok-prime, lem:Erasure-run_pure}
-The body is a single \code{for} loop over the reversed, index-paired fixpoint names, each iteration
-reading the reader and abstracting one variable; the prefix-indexed \code{forIn} rule with the
-invariant ``the accumulator is the fold over the processed prefix'' gives the equation, and the
-early-exit arm is refuted because the body always yields. A de Bruijn abstraction never changes the
-head constructor, which gives the head-shape corollary; the principal-argument corollary is
-\code{rfl} after the loop is stepped.
+\lead{Idea} A \code{for} loop over the reversed, index-paired fixpoint names abstracts one variable
+per iteration; the prefix-indexed \code{forIn} rule gives the equation, the early-exit arm refuted.
 \end{proof}
-
-\begin{remark}
-These are exactly the side conditions the target semantics' fixpoint rules need
-(Chapter~\ref{chap:lambdabox}): a fixpoint definition must be lambda-headed, and its recursive
-argument index must agree with what the unfolding rule reads. The principal-argument corollary has
-no consumer in the current tree, and its docstring attributes it to a fixpoint rule of \Erases{}
-that does not exist --- the erasure relation has no fixpoint constructor; the corresponding premise
-lives on the lowering relation's fixpoint rules (Chapter~\ref{chap:lowering}).
-\end{remark}
 
 \begin{lemma}[A loop of state modifications is a fold]
 \label{lem:Erasure-run_modify_forIn_ok}
 \lean{Erasure.run_modify_forIn_ok}
 \leanok
 \uses{def:run-spelling}
-A loop \code{for x in L do modify (g x)} ends at the left fold of \code{g} over \code{L} from the
-entry state, with the world unchanged. This is the block-registration loop of \code{visitMutual}'s
-recursive exit, and it is what makes \code{recConstState} the right model for that exit.
+\lead{In short} \code{for x in L do modify (g x)} ends at the \hl{left fold of \code{g} over
+\code{L}}, world unchanged -- \code{visitMutual}'s recursive-exit block-registration loop.
 \end{lemma}
-
 \begin{proof}
 \leanok
 \uses{lem:Erasure-run_list_forIn_ok-prime, lem:Erasure-run_pure}
-The prefix-indexed \code{forIn} rule with the invariant ``the state is the fold over the processed
-prefix''; the early-exit arm is refuted because the body always yields.
+\lead{Idea} The prefix-indexed \code{forIn} rule with invariant ``state is the fold over the processed
+prefix''; the early-exit arm is refuted.
 \end{proof}
 
 \begin{lemma}[The memoising constant lookup]
@@ -817,18 +695,19 @@ prefix''; the early-exit arm is refuted because the body always yields.
 \lean{Erasure.run_get_constant_kername_ok}
 \leanok
 \uses{def:run-spelling, def:Erasure-visitMutual}
-A successful run of \code{get\_constant\_kername n} is either a registry hit --- the registry
-already maps \code{n} to the returned kername, and neither state nor world moved --- or a registry
-miss followed by a successful \code{visitMutual n} run, after which the returned kername is what the
-registry then holds for \code{n}. This is the demand-driven, memoised environment construction in
-miniature; the lemma has no consumer in the current tree.
+\lead{In short} A successful run of \code{get\_constant\_kername n} is a \hl{registry hit, or a miss
+followed by \code{visitMutual}}.
+\begin{itemize}
+\item hit: the registry already maps \code{n} to the returned kername, state and world unchanged;
+\item miss: a successful \code{visitMutual n} run follows, after which the registry holds that
+kername for \code{n}.
+\end{itemize}
 \end{lemma}
-
 \begin{proof}
 \leanok
 \uses{lem:Erasure-run_bind_ok, lem:Erasure-run_pure}
-Step the \code{get} and case on the registry lookup; the hit arm is a \code{pure}, the miss arm
-binds \code{visitMutual} and re-reads the registry.
+\lead{Idea} Step \code{get}, case on the registry lookup; hit is a \code{pure}, miss binds
+\code{visitMutual} and re-reads the registry.
 \end{proof}
 
 \section{Hoare rules for \code{visitMutual}'s exits}
@@ -840,35 +719,31 @@ binds \code{visitMutual} and re-reads the registry.
 \leanok
 \uses{def:Erasure-addAxiomState, def:Erasure-nonrecConstState, def:Erasure-visitMutual,
 def:Erasure-prepare_erasure}
-Let \code{Q} be a predicate of the erasure state closed under: the inline bookkeeping entry; the
-axiom-registration delta; a run of the preprocessing pass; a run of the shipping \code{visitExpr},
-which must in addition yield a body satisfying two abstract output predicates; the non-recursive
-constant registration, given those two predicates of the stored body; and the block registration,
-given the block's length and the fact that each of its bodies is the abstraction closure of a good
-erasure output. Then \code{Q} survives every successful \code{visitMutual} run.
+\lead{In short} A predicate \code{Q} closed under all four exits \hl{survives every successful
+\code{visitMutual} run}.
+\begin{itemize}
+\item \lead{Given} \code{Q} closed under: the inline entry; the axiom delta; a preprocessing-pass
+run; a shipping-\code{visitExpr} run yielding a body meeting predicates \code{Nf}, \code{Cl}; the
+non-recursive registration, given \code{Nf}/\code{Cl}; and the block registration, given the block's
+length and that each body is the closure of a good erasure output -- then \code{Q} at entry gives
+\code{Q} at exit.
+\end{itemize}
 \end{proposition}
-
 \begin{proof}
 \leanok
 \uses{prop:Erasure-run_nonrec_exit_ok, lem:Erasure-run_bind_ok, lem:Erasure-run_liftCoreM_ok,
 lem:Erasure-run_getConstInfo_state, thm:Erasure-run_addAxiom_ok, lem:Erasure-run_pure}
-Step the compiler-declaration query and the environment read, both state-transparent, then split on
-the inline-attribute test. The elaborated body's core is a match on three discriminants at once ---
-whether the declaration has a value, whether it is externally implemented, and what the
-configuration says about externals --- which the tactic \code{split} cannot handle and which is
-therefore resolved by three nested case analyses. Each resulting arm is one of the four exits: the
-axiom exit closes by Theorem~\ref{thm:Erasure-run_addAxiom_ok}, the two registering exits by the
-rules of Proposition~\ref{prop:Erasure-run_nonrec_exit_ok}, and the inline prefix by its own rule.
+\lead{Idea} Step the declaration query and environment read; split three discriminants at once
+(has-value, externally-implemented, config) by nested cases, since \code{split} cannot: axiom
+(Theorem~\ref{thm:Erasure-run_addAxiom_ok}), the rest by
+Proposition~\ref{prop:Erasure-run_nonrec_exit_ok}.
 \end{proof}
 
 \begin{remark}
-The clause about the preprocessing pass is a \emph{hypothesis} of this proposition, not a proved
-fact: the pass's simplification branch runs a \code{Core} transformation \emph{at} \code{EraseM}, so
-its state transparency does not follow from the lifting lemmas. The proposition is therefore
-conditional on it. The clause \emph{is} discharged downstream, under the pinned configuration, by
-\code{LeanToLambdaBox.run\_prepare\_erasure\_state} (Chapter~\ref{chap:coldstart}), which proves it
-outright when the simplification flag is off; the case where the flag is on remains unhandled. The
-Lean docstring still attributes the clause to a trust class that no longer exists in the tree.
+\lead{Caveat} The preprocessing-pass clause is a \emph{hypothesis}, not proved: its simplification
+branch runs a \code{Core} transformation \emph{at} \code{EraseM}, so lifting does not give state
+transparency. Downstream, \code{run\_prepare\_erasure\_state} (Chapter~\ref{chap:coldstart})
+discharges it when the simplification flag is off; the flag-on case is unhandled.
 \end{remark}
 
 \begin{proposition}[The four exit rules, state form]
@@ -877,32 +752,31 @@ Lean docstring still attributes the clause to a trust class that no longer exist
 Erasure.run_rec_exit_ok}
 \leanok
 \uses{def:Erasure-nonrecConstState, def:Erasure-addAxiomState, def:Erasure-mkLambda}
-Four Hoare rules, one per shape \code{visitMutual} exits through, each with every boolean test, log
-message and reader update left abstract. The inline \emph{tail} rule covers the post-registration
-bookkeeping, which at most prepends one entry to the inline list; the inline \emph{prefix} rule
-covers the attribute test that may precede the core and then runs the same continuation on both
-branches. The non-recursive exit erases the preprocessed body under the declaration's reader update,
-prepends the constant, and runs the inline tail. The recursive exit mints one fresh variable per
-sibling, erases each sibling body through \code{mkDef} under the fixpoint-variable binding, and
-prepends one registry entry per name; its closure hypothesis is handed the \emph{shape} of the block
-being stored --- one definition per name, each definition's body the abstraction closure of a good
-erasure output over the block's names.
+\lead{In short} Four Hoare rules, one per exit shape, boolean tests and log messages left abstract.
+\begin{center}
+\begin{tabular}{p{0.25\linewidth}p{0.68\linewidth}}
+\toprule
+Rule & What it covers \\
+\midrule
+inline \emph{tail} & post-registration bookkeeping; prepends at most one inline-list entry \\
+inline \emph{prefix} & an optional attribute test, then the same continuation either way \\
+non-recursive exit & erases the preprocessed body under the reader update, prepends the constant,
+runs the inline tail \\
+recursive exit & mints one fresh variable per sibling, erases each body via \code{mkDef} under the
+fixpoint binding, prepends one registry entry per name \\
+\bottomrule
+\end{tabular}
+\end{center}
+\lead{Lean} the recursive exit's closure hypothesis takes the stored block's shape: one definition
+per name, each the closure of a good erasure output over the block's names.
 \end{proposition}
-
 \begin{proof}
 \leanok
 \uses{lem:Erasure-run_bind_ok, lem:Erasure-run_pure, lem:Erasure-run_list_mapM_ok,
 thm:Erasure-run_mkDef_ok, lem:Erasure-run_modify_forIn_ok, lem:Erasure-run_getConstInfo_state}
-Each rule steps its own \code{do}-block with the bind inversion, using the \code{mapM} rule for the
-sibling loop, the definition-shape theorem for each sibling's \code{mkDef} call, and the fold rule
-for the registration loop; the inline tail's two branches differ only in which message is logged.
+\lead{Idea} Each rule steps its \code{do}-block with the bind inversion: \code{mapM} for the sibling
+loop, the definition-shape theorem for \code{mkDef}, the fold rule for registration.
 \end{proof}
-
-The eraser is kept \emph{abstract} in these rules because inside the family's fixpoint induction the
-step goal for \code{visitMutual} mentions the fixpoint's abstract argument, not the shipping
-\code{visitExpr}. And the recursive rule cannot simply demand closedness of an arbitrary block --- a
-fixpoint block whose body mentions an out-of-range de Bruijn index is not closed --- so the caller
-must be able to \emph{compute} that closedness from the per-definition shape.
 
 \begin{proposition}[The four exit rules, world-indexed]
 \label{prop:Erasure-run_nonrec_exit_ok-prime}
@@ -910,49 +784,38 @@ must be able to \emph{compute} that closedness from the per-definition shape.
 Erasure.run_rec_exit_ok'}
 \leanok
 \uses{prop:Erasure-run_nonrec_exit_ok, def:Erasure-nonrecConstState}
-The same four rules for a predicate of the erasure state \textbf{and the world token}. Two changes
-are forced by the extra index. First, every state-transparent primitive on the registration path ---
-logging, the instance test, identifier minting, environment lookup --- leaves the state alone but
-\emph{advances the world}, so each now needs its own preservation clause keyed on its own run.
-Second, the erasure clause is keyed on the preprocessing run as well as on the erasure run, so that
-a caller who must \emph{re-establish} an invariant at the erasure's entry state can see the run that
-produced it.
+\lead{In short} The same four rules for a predicate of the state \hl{and the world token}.
+\begin{itemize}
+\item \lead{Given} every state-transparent primitive (logging, instance test, minting, lookup) now
+needs its own world-preservation clause; the erasure clause is keyed on both the preprocessing and
+the erasure run, so a caller re-establishing an invariant at entry sees the run that produced it.
+\end{itemize}
 \end{proposition}
-
 \begin{proof}
 \leanok
 \uses{prop:Erasure-run_nonrec_exit_ok, lem:Erasure-run_bind_ok, thm:Erasure-run_mkDef_ok,
 lem:Erasure-run_modify_forIn_ok, lem:Erasure-run_list_mapM_ok}
-The same walks, with the invariant now carrying the world token; the two world-preserving steps ---
-the definition builder and the registration loop --- need no clause, which is why the recursive rule
-has fewer hypotheses than one might expect.
+\lead{Idea} The same walks, world token carried; the definition builder and registration loop are
+world-preserving, needing no clause.
 \end{proof}
-
-The reason for the duplication is stated in the file: the bridge's motives conclude a
-\emph{relation} between two states together with a \emph{bound on the name generator}, and the
-generator is read out of the world token. A state-only predicate can express neither.
 
 \begin{lemma}[Stepping past the inline prefix]
 \label{lem:Erasure-run_inline_prefix_decomp-prime}
 \lean{Erasure.run_inline_prefix_decomp'}
 \leanok
 \uses{def:run-spelling, def:Kername}
-Instead of propagating an invariant through the inline-attribute prefix, this rule
-\emph{decomposes} it: there are an intermediate state and world such that either nothing happened,
-or one logging run advanced the world at unchanged state and the state gained one inline entry; and
-the continuation ran from there.
+\lead{In short} Instead of propagating an invariant through the prefix, this rule \hl{decomposes} the
+run.
+\begin{itemize}
+\item \lead{Then} either nothing happened, or one logging run advanced the world at unchanged state
+and one inline entry was gained; then the continuation ran.
+\end{itemize}
 \end{lemma}
-
 \begin{proof}
 \leanok
 \uses{lem:Erasure-run_bind_ok, lem:Erasure-run_getConstInfo_state, lem:Erasure-run_liftCoreM_ok}
-Split on the attribute test and step each branch; the only state write is the inline entry.
+\lead{Idea} Split on the attribute test; the only state write is the inline entry.
 \end{proof}
-
-This is the form a caller needs whose conclusion is \emph{false} at the call's entry and becomes true
-only at the registration --- ``\code{n} is in the registry when this call returns'' --- so that no
-single predicate is both establishable at entry and strong enough at exit. The environment step of
-the refinement (Chapter~\ref{chap:refinement}) consumes it.
 
 \begin{lemma}[Each registration delta is a run conclusion]
 \label{lem:Erasure-runConcl_nonrecConstState}
@@ -962,81 +825,73 @@ Erasure.runConcl_recConstState, Erasure.nonrecConstState_get?, Erasure.addAxiomS
 Erasure.foldl_recConstStep_get?, Erasure.recConstState_get?}
 \leanok
 \uses{def:Erasure-RunConcl, def:Erasure-nonrecConstState, def:Erasure-addAxiomState}
-Each of the four state deltas the eraser performs is a \code{RunConcl} step: the inline entry writes
-only the inline list; the axiom exit registers one constant under its own canonical kername and
-prepends one value-less declaration; the non-recursive exit does the same with a body; and the block
-registration, being a fold of the non-recursive step at fixpoint bodies, composes out of the
-previous one. Four further lemmas record that each of these registrations really does put the name
-it registers into the registry.
+\lead{In short} Each of the four state deltas the eraser performs is \hl{a \code{RunConcl} step}.
+\begin{itemize}
+\item the inline entry writes only the inline list;
+\item the axiom exit registers one constant at its canonical kername, prepends one value-less
+declaration; the non-recursive exit does the same with a body;
+\item the block registration, a fold of the non-recursive step, composes out of the previous one.
+\end{itemize}
 \end{lemma}
-
 \begin{proof}
 \leanok
 \uses{def:Erasure-RunConcl, def:Erasure-nonrecConstState}
-Each delta inserts at most one registry key, mapped to that key's canonical kername, and prepends at
-most one declaration, so the three fields of state extension and the canonicity field are read off
-directly; the block registration is an induction over the fold, using transitivity of
-\code{RunConcl}.
+\lead{Idea} Each delta inserts at most one key and prepends at most one declaration, so extension
+and canonicity read off directly; the block case inducts over the fold by transitivity.
 \end{proof}
-
-Together with Theorem~\ref{thm:Erasure-run_register_inductive_runConcl} these are the \emph{proof}
-that the canonicity field of \code{RunConcl} is never assumed.
 
 \begin{theorem}[The identifier-minting loop]
 \label{thm:Erasure-run_mkFreshFVarId_list}
 \lean{Erasure.run_mkFreshFVarId_list}
 \leanok
 \uses{def:run-spelling}
-Assume a freshness specification for identifier minting: each successful run returns an identifier
-not reserved by the generator before the run, reserved by the generator after it, with the generator
-advanced monotonically, and reserved by a fixed ambient generator. Then a successful run of one
-minting per name in a list returns exactly as many identifiers as there are names, pairwise
-distinct, at an unchanged state, with the generator advanced, and with every returned identifier
-reserved by the final generator, reserved by the ambient one, and outside any given list of
-identifiers all of which the initial generator reserves.
+\lead{In short} Minting one fresh identifier per name in a list gives \hl{pairwise distinct}
+identifiers.
+\begin{itemize}
+\item \lead{Given} a freshness specification: each successful minting run returns an identifier
+unreserved before, reserved after, the generator advanced monotonically, and reserved by a fixed
+ambient generator;
+\item \lead{Then} minting once per name returns as many identifiers as names, pairwise distinct, at
+an unchanged state, generator advanced, each reserved by the final and the ambient generator, and
+outside any given list the initial generator reserves.
+\end{itemize}
+\lead{Status} \stProved{}.
 \end{theorem}
-
 \begin{proof}
 \leanok
 \uses{lem:Erasure-run_list_mapM_ok, lem:Erasure-run_getConstInfo_state}
-One application of the \code{mapM} rule whose invariant chains state and world together.
-Distinctness is the payoff of that chaining: at each step the new identifier is not reserved by the
-generator read from the current world, while every earlier identifier is --- carried in the
-invariant and transported along generator monotonicity --- so the new one differs from all of them.
-Disjointness from the ambient list is the same argument run against the hypothesis that the initial
-generator reserves that list.
+\lead{Idea} One \code{mapM} application chaining state and world: each new identifier is unreserved
+while every earlier one is (invariant, monotonicity); disjointness from an ambient list is the same
+argument.
 \end{proof}
 
-The generator vocabulary is lean4lean's, from a 28-line \code{sorry}-free module, so this inherits no
-trust. It has no consumer in the current tree: part of the library, not a step of the capstone.
+\begin{remark}
+\lead{Caveat} The generator vocabulary is lean4lean's, from a 28-line \code{sorry}-free module: no
+trust inherited.
+\end{remark}
 
 \begin{theorem}[The sibling loop, chained]
 \label{thm:Erasure-run_rec_exit_siblings_chained}
 \lean{Erasure.run_rec_exit_siblings_chained}
 \leanok
 \uses{def:run-spelling, def:Erasure-prepare_erasure, def:Erasure-mkLambda, def:FixDef}
-For a per-sibling package \code{R} and a step hypothesis that is handed the four primitive runs
-\emph{in run order and at the states and worlds they actually consume} --- the environment lookup,
-the preprocessing pass under the sibling's own reader, the abstract eraser, and the definition
-builder --- a successful run of \code{visitMutual}'s sibling loop produces exactly as many
-definitions as there are names, carries the invariant from the loop's entry to its exit, and
-returns, for every index, a definition at that index satisfying \code{R} for the name at that index.
+\lead{In short} \code{visitMutual}'s sibling loop, run \hl{one index at a time in run order}.
+\begin{itemize}
+\item \lead{Given} a per-sibling package \code{R} and a step hypothesis handed the four primitive
+runs in run order at the states/worlds they consume: lookup, preprocessing under the sibling's own
+reader, the abstract eraser, the definition builder;
+\item \lead{Then} a successful run produces as many definitions as names, carries the invariant from
+entry to exit, and returns, at every index, a definition satisfying \code{R} for that name.
+\end{itemize}
+\lead{Status} \stProved{}.
 \end{theorem}
-
 \begin{proof}
 \leanok
 \uses{lem:Erasure-run_list_mapM_ok, lem:Erasure-run_bind_ok, lem:Erasure-run_pure}
-One application of the \code{mapM} rule whose invariant carries the output length, the caller's
-state-and-world invariant, and the per-index package for the processed prefix; each step peels the
-lookup, the reader-changing block and the definition builder with the bind inversion and feeds them
-to the step hypothesis in that order. The index bookkeeping is the standard append-split reasoning.
+\lead{Idea} One \code{mapM} application carrying output length, the caller's invariant and the
+per-index package, feeding lookup, reader change and definition builder to the step hypothesis in
+order.
 \end{proof}
-
-Chaining the invariant through state and world \emph{together} is what lets a per-sibling invariant
-be re-established at one sibling from the one held at its predecessor; the cold-start induction of
-Chapter~\ref{chap:coldstart} consumes it. Two companions in the same file --- a monotonicity lemma
-for the sibling loop, and the transport saying that below the fixpoint the sibling loop's successful
-run is verbatim the shipping loop's --- have no consumer in the current tree.
 
 \section{Binder helpers}
 \label{sec:run:binders}
@@ -1048,30 +903,37 @@ Erasure.run_letMonocular_ok, Erasure.run_forallMonocular_ok,
 Erasure.run_lambdaMonocularOrIntro_ok, Erasure.run_lambdaOrIntroToArity_ok}
 \leanok
 \uses{lem:Erasure-run_panic, def:Erasure-mkLambda}
-A successful run of a continuation-passing binder helper is a successful run of its continuation at
-the \emph{same} erasure state, at a fresh identifier, under some extended reader and at some
-intermediate world. For the destructuring helpers there is a second possibility: the argument had
-the wrong shape, the helper's \code{unreachable!} fired, and --- a panic succeeding --- the run
-returned the default value with state and world unchanged. The arity-peeling helper peels exactly as
-many binders as the arity asks for.
+\lead{In short} A binder helper's run is a run of its continuation at the \hl{same erasure state}, a
+fresh identifier and extended reader -- or, for destructuring helpers, a wrong-shape default via
+\code{unreachable!}'s panic, state and world unchanged.
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+Helper & Role \\
+\midrule
+\code{run\_withLocalDecl\_ok} & general local-declaration binder \\
+\code{run\_withLocalDef\_ok} & let-bound local definition binder \\
+\code{run\_lambdaMonocular\_ok} & single-binder lambda destructuring \\
+\code{run\_letMonocular\_ok} & single-binder let destructuring \\
+\code{run\_forallMonocular\_ok} & single-binder Pi destructuring \\
+\code{run\_lambdaMonocularOrIntro\_ok} & lambda destructuring or fresh intro \\
+\code{run\_lambdaOrIntroToArity\_ok} & peels exactly as many binders as the arity asks \\
+\bottomrule
+\end{tabular}
+\end{center}
 \end{lemma}
-
 \begin{proof}
 \leanok
 \uses{lem:Erasure-run_bind_ok, lem:Erasure-run_pure, lem:Erasure-run_panic}
-Each helper is a shape test followed either by a fresh-identifier mint, a reader extension and the
-continuation, or by \code{unreachable!}. The mint is state-transparent, the reader extension is
-\code{withReader}, and the panic arm is closed by Lemma~\ref{lem:Erasure-run_panic}. The
-arity-peeling helper is a structural recursion on the arity over the monocular case.
+\lead{Idea} A shape test, then a state-transparent mint, a \code{withReader} extension and the
+continuation, or \code{unreachable!} (Lemma~\ref{lem:Erasure-run_panic}); the arity-peeling helper
+recurses structurally over the monocular case.
 \end{proof}
 
 \begin{remark}
-None of these rules constrains the extended reader; that is left to the world-indexed twins of
-Chapter~\ref{chap:coldstart}, which additionally report that the continuation's reader has the
-\emph{same configuration}. One asymmetry is worth recording: the arity-peeling rule's fall-through
-disjunct drops the ``world unchanged'' clause that the other destructuring rules carry, because the
-recursive case loses it through an existential. It is forced by the proof, but it weakens the rule
-for a world-indexed consumer.
+\lead{Caveat} No rule here constrains the extended reader (Chapter~\ref{chap:coldstart}'s
+world-indexed twins add ``same configuration''); the arity-peeling rule's fall-through also drops
+the ``world unchanged'' clause the other rules carry.
 \end{remark}
 
 \begin{lemma}[The \lbox-side binder constructors]
@@ -1080,91 +942,73 @@ for a world-indexed consumer.
 Erasure.run_mkAlt_ok}
 \leanok
 \uses{def:toBvar, def:Erasure-mkLambda, def:LBTerm}
-Naming a free variable touches neither state nor world: it only reads the reader's local context and
-tests the user-facing name for printable ASCII. The \lbox-side binder constructors are otherwise
-pure abstraction: a successful \code{mkLambda} run returns a lambda whose body is the input
-abstracted over the variable at level zero, and likewise for \code{mkLetIn}. The one with content is
-\code{mkAlt}: a case alternative's binder-name list has exactly as many entries as the variables
-closed over, and its body is the fold of abstractions over the reversed, index-paired variable list.
+\lead{In short} Pure abstraction, except naming, which touches neither state nor world.
+\begin{center}
+\begin{tabular}{p{0.26\linewidth}p{0.67\linewidth}}
+\toprule
+Constructor & Successful run \\
+\midrule
+free-variable naming & reads the local context, tests for printable ASCII; no state/world effect \\
+\code{mkLambda} & a lambda whose body abstracts the input over the variable at level zero \\
+\code{mkLetIn} & likewise, for a let \\
+\code{mkAlt} & a case alternative: as many binder names as closed-over variables; body is the fold of
+abstractions over the reversed, index-paired variable list \\
+\bottomrule
+\end{tabular}
+\end{center}
 \end{lemma}
-
 \begin{proof}
 \leanok
 \uses{lem:Erasure-run_list_mapM_ok, lem:Erasure-run_list_forIn_ok-prime, lem:Erasure-run_bind_ok}
-The variable-naming helper is a read followed by a \code{pure} on either branch of the ASCII test.
-\code{mkLambda} and \code{mkLetIn} bind it and then return. \code{mkAlt} runs a \code{mapM} over the
-variables for the names and a \code{for} loop for the abstraction fold, both closed by the
-corresponding loop rules.
+\lead{Idea} Naming is a read then a \code{pure} on either branch of the ASCII test;
+\code{mkLambda}/\code{mkLetIn} bind it and return; \code{mkAlt} runs a \code{mapM} for the names and a
+\code{for} loop for the abstraction fold, both closed by the loop rules.
 \end{proof}
 
-These realise the locally-nameless-to-de-Bruijn abstraction step that MetaCoq gets for free from its
-de Bruijn syntax --- a genuine addition of this development with no counterpart in [S]. The fold
-shape is precisely what the \lbox-side closedness lemmas of Chapter~\ref{chap:lowering} compute a
-level for.
+\begin{remark}
+\lead{Deviation} MetaCoq's de Bruijn syntax gets locally-nameless-to-de-Bruijn conversion for free;
+this development performs it explicitly, a genuine addition with no counterpart in [S].
+\end{remark}
 
 \section{How the run model is consumed}
 \label{sec:run:world}
 
-Everything above is a library; two clients spend it. The refinement of
-Chapter~\ref{chap:refinement} runs the family's fixpoint induction with eighteen motives in run-ok
-form, each concluding an \Erases-flavoured relation together with the run conclusion
-\code{RunConcl}; that is Theorem~\ref{thm:visitExpr_refines_erasesLB}. The cold start of
-Chapter~\ref{chap:coldstart} runs it a second time with a \emph{world-indexed} predicate: the
-closure bundle \code{RunClosedW} (Definition~\ref{def:RunClosedW}) collects one closure fact for
-every way the eighteen-member family can move state or world, and the induction
-\code{visitExpr\_shapeW} (Theorem~\ref{thm:visitExpr_shapeW}) pushes such a predicate through the
-whole family while concluding, for every member that returns a \lbox{} term, the per-call shape
-\code{ShapeCW} (Definition~\ref{def:ShapeCW}): the term is fix-free, de Bruijn closed and in applied
-form. Ten of the bundle's clauses are one per ambient primitive the family calls, and they exist
-precisely because a state-transparent primitive still advances the name generator, which lives in
-the world --- which is why the world-indexed exit rules
-(Proposition~\ref{prop:Erasure-run_nonrec_exit_ok-prime}) exist alongside the state-only ones.
-
-Two of the bundle's clauses read the reader's configuration. That is where \code{ConfigPinned}
-(Definition~\ref{def:ConfigPinned}) enters: the five configuration restrictions the whole development
-is stated under --- no simplification-attribute replacement, no axiomatisation of externally
-implemented constants, Peano naturals, no constructor-argument-mask pruning, and no automatic
-inlining of typeclass dispatch. Each is a scope restriction stated as a hypothesis rather than an
-omission, and the default \code{\#erase} configuration is \textbf{not} the pinned one: it differs on
-three of the five fields.
+Two clients spend this library.
+\begin{itemize}
+\item \textbf{Refinement} (Chapter~\ref{chap:refinement}): eighteen motives in run-ok form, each
+concluding an \Erases-flavoured relation with \code{RunConcl}
+(Theorem~\ref{thm:visitExpr_refines_erasesLB}).
+\item \textbf{Cold start} (Chapter~\ref{chap:coldstart}): the same induction, world-indexed
+(\code{RunClosedW}, Definition~\ref{def:RunClosedW}), concluding for every \lbox{}-returning member
+the shape \code{ShapeCW} (Definition~\ref{def:ShapeCW}): fix-free, de Bruijn closed, applied. Ten
+clauses cover the ambient primitives (state-transparent, world-advancing); two read
+\code{ConfigPinned} (Definition~\ref{def:ConfigPinned}), five pinned restrictions -- no
+simplification-attribute replacement, no external-constant axiomatisation, Peano naturals, no
+argument-mask pruning, no typeclass-dispatch inlining -- three of which the default \code{\#erase}
+configuration violates.
+\end{itemize}
 
 \section{Deviations from the paper and caveats}
 \label{sec:run:caveats}
 
-\textbf{No environment pass.} [S, Sec.~7.3] erases a Rocq global environment to a \lbox{}
-environment with a separate judgement, before erasing terms against it. This eraser builds the
-\lbox{} declarations \emph{during} the term walk, demand-driven and memoised
-(Lemma~\ref{lem:Erasure-run_get_constant_kername_ok}). The operational counterpart of
-\ErasesEnv's clauses is the registration path of Section~\ref{sec:run:reg}: a constant becomes
-either an axiom with no body (Theorem~\ref{thm:Erasure-run_addAxiom_ok}), or a constant declaration
-with an erased body, or a member of an emitted inductive block
-(Theorem~\ref{thm:Erasure-run_register_inductive_cold_ok}).
-
-\textbf{Program logic, not equational reasoning.} MetaCoq's proofs are inductions over a Rocq
-function's own equations; this chapter's vocabulary is Hoare rules for \code{do}-blocks and loops, an
-admissibility tower and an approximation transport. That is the price of verifying an eraser that was
-not written to be verified.
-
-\textbf{Panics as successful branches.} [S] has no analogue, since MetaCoq's eraser is total. Here
-the model must carry a default fall-through everywhere (Lemma~\ref{lem:Erasure-run_panic}), and the
-shipping consequences --- the ineffective duplicate guard in \code{addAxiom}, the silently defaulted
-binder helpers --- are recorded rather than excluded.
-
-\textbf{No constructor-argument pruning.}
-Theorem~\ref{thm:Erasure-run_register_inductive_cold_entries} is where the pipeline's declining of
-ConCert-style constructor-argument pruning becomes visible: with the pruning flag off --- one of the
-five things \code{ConfigPinned} pins --- every constructor mask is an all-keep mask of exactly the
-constructor's field count.
-
-\textbf{Applied-form constructors.} The applied-form convention of this frontend --- a bare
-constructor applied through application nodes, rather than the block constructor node MetaCoq and
-CertiCoq prefer --- appears here as one of the three output conditions that the world-indexed
-induction of Chapter~\ref{chap:coldstart} \emph{concludes} rather than assumes.
-
-\textbf{Two caveats on the sources.} First, the declarations of this chapter live in the root
-namespace \code{Erasure}, not in \code{LeanToLambdaBox.Erasure}; the file's module path and its
-namespace do not agree. Second, a number of docstrings in \code{ErasureRun.lean} cross-reference
-names that no longer exist in the tree, among them the trust class the preprocessing hypothesis is
-attributed to and the fixpoint rule of \Erases{} that the principal-argument corollary is said to
-serve. No statement is affected, but a reader following such a cross-reference will be misled; the
-blueprint deliberately repeats none of those names.
+\begin{itemize}
+\item \lead{Deviation} \textbf{No environment pass.} [S, Sec.~7.3] erases a whole environment first;
+this eraser builds \lbox{} declarations \emph{during} the walk, demand-driven and memoised
+(Lemma~\ref{lem:Erasure-run_get_constant_kername_ok}), via \ErasesEnv's operational counterpart
+(Section~\ref{sec:run:reg}): a bodyless axiom, a constant with a body, or a block member.
+\item \lead{Deviation} \textbf{Program logic, not equational reasoning.} MetaCoq's proofs induct on
+equations; here it is Hoare rules, admissibility and approximation -- the price of verifying an
+eraser not written to be verified.
+\item \lead{Caveat} \textbf{Panics as successful branches.} [S] has no analogue: the model carries a
+default fall-through everywhere (Lemma~\ref{lem:Erasure-run_panic}); shipping consequences (the
+ineffective duplicate guard, defaulted binder helpers) are recorded, not excluded.
+\item \lead{Deviation} \textbf{No constructor-argument pruning.}
+Theorem~\ref{thm:Erasure-run_register_inductive_cold_entries}: pruning off, one of
+\code{ConfigPinned}'s five restrictions, every mask keeps a constructor's whole field count.
+\item \lead{Deviation} \textbf{Applied-form constructors.} This frontend applies a bare constructor
+through application nodes, not MetaCoq/CertiCoq's block node; Chapter~\ref{chap:coldstart}
+\emph{concludes} this rather than assuming it.
+\item \lead{Caveat} \textbf{Sources.} This chapter's declarations live in namespace \code{Erasure},
+not \code{LeanToLambdaBox.Erasure}. Some docstrings cross-reference names no longer in the tree; no
+statement is affected, and the blueprint repeats none of them.
+\end{itemize}

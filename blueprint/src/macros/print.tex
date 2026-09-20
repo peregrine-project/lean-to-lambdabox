@@ -12,9 +12,11 @@
 
 % Dummy macros that make sense only for web version.
 % In print, \lean typesets the cited declarations under the node title (the web version links them).
-% \detokenize lets underscores and primes through; names break at the spaces after commas.
-\newcommand{\lean}[1]{{\par\noindent\footnotesize\textcolor{bpoutside}{\textsf{Lean:}
-  \ttfamily\detokenize{#1}}\par\smallskip}}
+% \path (url package, loaded by hyperref) lets the names break after dots, underscores and commas,
+% so long declaration lists wrap instead of running into the margin.
+\newcommand{\lean}[1]{{\par\noindent\footnotesize\raggedright
+  \def\UrlFont{\ttfamily\color{bpoutside}}\def\UrlBreaks{\do\,\do\.\do\_}%
+  \textcolor{bpoutside}{\textsf{Lean:}} \path{#1}\par\smallskip}}
 \newcommand{\discussion}[1]{}
 \newcommand{\leanok}{}
 \newcommand{\mathlibok}{}
@@ -32,3 +34,9 @@
 \ExplSyntaxOff
 % Long \code{} runs cannot hyphenate; let TeX stretch lines rather than overflow the margin.
 \emergencystretch=4em
+
+% raggedright in table cells: narrow justified p{} columns space badly.
+\AtBeginEnvironment{tabular}{\raggedright\small}
+
+% Let long identifiers break after an underscore instead of running into the margin.
+\renewcommand{\code}[1]{\ifmmode\texttt{#1}\else{\ttfamily\def\_{\textunderscore\allowbreak}#1}\fi}

@@ -1,487 +1,410 @@
 \chapter{Introduction: what is verified, how to read this blueprint}
 \label{chap:intro}
 
-This blueprint documents a formal verification, carried out in Lean~4, of the erasure that the
-\code{\#erase} command of this repository performs: the translation of a fully elaborated
-\code{Lean.Expr} into a \lbox{} program --- the untyped calculus of Letouzey and of MetaCoq's
-certified erasure --- which the \code{peregrine} middle-end then compiles to C, Wasm, OCaml,
-CakeML, Rust or Elm. The subject of the verification is not an idealised model of that
-translation but the shipping function itself, \code{Erasure.erase}
-(\code{Erasure.lean:927}), together with the term walk \code{Erasure.visitExpr}
-(\code{:590}) it is built from: the same code that the command elaborator calls and that writes
-the \code{.ast} files the benchmark suite measures.
-
-The development follows the architecture of Sozeau et al.'s certified erasure for Rocq
-([S, Sec. 7.3--7.4]), which in turn machine-checks Letouzey's original design ([L]). That
-architecture has four moving parts: a target calculus with a weak call-by-value big-step
-semantics; a specification of \emph{erasability} and a non-deterministic erasure \emph{relation}
-that the implemented erasure \emph{function} refines; a forward simulation for the relation; and
-the collapse of the relation's non-determinism at first-order observations, which is what turns a
-simulation into a statement about answers. All four are re-formalised here for Lean's own term
-language and Lean's own kernel theory, the latter through \code{lean4lean}, whose \code{VEnv},
-\TrExprS{}, \code{HasType} and \code{IsDefEq} are the only source of typing and
-definitional-equality facts in this development and are never re-derived.
-
-Two things distinguish the Lean setting from the Rocq one and force visible deviations,
-catalogued in Section~\ref{sec:intro:correspondence}. First, Rocq writes constructors, case
-analysis and fixpoints as \emph{term formers} (\code{tConstruct}, \code{tCase}, \code{tFix}),
-while Lean writes all three as \code{Expr.const} heads: constructors are constants, pattern
-matching goes through \code{casesOn} constants, and recursion is top-level. The erasure relation
-\Erases{} is therefore a plain congruence over \code{Lean.Expr} with no case node and no fixpoint
-node in its image at all, and the four Lean-specific compilation steps that produce those nodes
-are factored out into a second relation \Lower{} between two \lbox{} terms. Second, the shipping
-eraser reads the \emph{compiler-facing} body of a definition (the \code{\_unsafe\_rec} companion,
-top-level recursive) rather than the kernel-facing recursor-based one, and it runs a preparation
-pass before erasing; both are visible in the theorem as named hypotheses rather than as silent
-assumptions. The main theorem, \code{shipping\_erase\_correct\_firstorder}
-(\code{Capstone.lean:146}), is \textbf{conditional}: fifteen explicit binders, ten
-of which stand as hypotheses at a general rung. This blueprint is written so that a reader can
-see, node by node, which side of that line each statement falls on.
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} Verify, in Lean 4, the shipping \code{\#erase} eraser --- \code{Erasure.erase}
+(\code{Erasure.lean:927}) and its term walk \code{Erasure.visitExpr} (\code{:590}), the code that
+writes the \code{.ast} files the benchmark suite measures --- \hl{not an idealised model of it}.
+\item \lead{Architecture} Follows Sozeau et al.'s certified erasure for Rocq ([S, Sec. 7.3--7.4],
+after Letouzey [L]): a target calculus with weak call-by-value semantics; an erasability
+specification and non-deterministic erasure relation refined by the implemented function; a forward
+simulation; a collapse of non-determinism at first-order observations --- re-formalised for Lean's
+term language and, via \code{lean4lean}, its kernel theory.
+\item \lead{Main results} Theorem~\ref{thm:shipping_erase_correct_firstorder}
+(\code{shipping\_erase\_correct\_firstorder}, Chapter~\ref{chap:capstone}): first-order source evaluation
+is matched by the emitted program's evaluation.
+\item \lead{Status} \stProved{} in Lean, no local \code{sorry}, but \textbf{conditional}: ten of fifteen
+binders are hypotheses; \stOpen{} on \code{hbridge}; \stInherited{} throughout, via \code{lean4lean}.
+\item \lead{Lean files} \code{Erasure.lean}, \code{Capstone.lean}, \code{ErasureSpec.lean},
+\code{Green.lean}.
+\item \lead{Paper} [S, Sec. 7.3--7.4]; [L]; the eraser's own design document is [R]
+(Section~\ref{sec:intro:references}).
+\end{itemize}
 
 \section{The problem and the object of verification}
 \label{sec:intro:problem}
 
-The Peregrine project compiles programs written in proof assistants through one shared,
-Rocq-verified middle-end whose input language is \lbox{}. A frontend's only job is to produce a
-\lbox{} program; everything downstream is shared. This repository is the Lean frontend. Its user
-interface is a single command, declared at \code{Erasure.lean:982} and elaborated
-by \code{Erasure.eraseElab} (\code{:985}): \code{\#erase} takes a term, an optional configuration,
-an optional output file and an optional \code{.mli} sidecar, elaborates the term, calls
-\code{Erasure.erase} on it and serialises the resulting program.
+\lead{In short} Peregrine's Lean frontend erases \code{Lean.Expr} to \lbox{} through one entry point,
+\code{Erasure.erase}; this blueprint verifies that shipping function, not a model of it.
 
-The entry point is small enough to quote in words. \code{Erasure.erase} runs
-\code{Erasure.visitExpr} on the result of \code{Erasure.prepare\_erasure}, starting from the empty
-erasure state at the given configuration, and returns the untyped program consisting of the
-accumulated global declarations and the erased main term, together with a list of inlining hints.
-The two run hypotheses of the main theorem are exactly this decomposition --- one equation for the
-preparation, one for the term walk --- and Chapter~\ref{chap:coldstart} owns the lemma
-(\code{erase\_run\_ok}) that performs the split formally.
+\begin{itemize}
+\item \lead{Pipeline} Peregrine compiles proof-assistant programs through one Rocq-verified
+middle-end whose input is \lbox{}; a frontend's only job is to produce that program. This repository
+is the Lean frontend.
+\item \lead{Entry point} \code{\#erase} (\code{Erasure.lean:982}, elaborated by
+\code{Erasure.eraseElab}, \code{:985}) takes a term plus an optional configuration, output file and
+\code{.mli} sidecar; it elaborates, calls \code{Erasure.erase} and serialises the result.
+\item \code{Erasure.erase} runs \code{Erasure.visitExpr} on the output of
+\code{Erasure.prepare\_erasure}, from the empty state, returning the untyped program (declarations
+plus main term) and inlining hints. The main theorem's two run hypotheses are exactly this split;
+\code{erase\_run\_ok} (Chapter~\ref{chap:coldstart}) performs it formally.
+\item \lead{Preparation} \code{Erasure.prepare\_erasure} makes up to four rewrites: redirect
+constants to their \code{\_unsafe\_rec} companions (\code{replaceUnsafeRecNames}); Lean's LCNF
+passes \code{macroInline}, \code{inlineMatchers}; and, only when \code{csimp} is on, \code{@[csimp]}
+replacements. The syntactic conjuncts speak of the \emph{prepared} term, the observable conjunct of
+the term the user wrote; \code{prepare\_sound} connects the two. The eraser also reads a
+compiler-facing body (the \code{\_unsafe\_rec} companion, top-level recursive), not the
+kernel-facing recursor-based one; both are named hypotheses, not silent assumptions.
+\end{itemize}
 
-The preparation pass matters, because it is the pass that decides what the term walk actually
-sees. \code{Erasure.prepare\_erasure} performs up to four rewrites: it redirects constants to
-their \code{\_unsafe\_rec} companions (the function
-\code{replaceUnsafeRecNames}), it applies Lean's own LCNF passes \code{macroInline} and
-\code{inlineMatchers}, and --- only when the \code{csimp} flag is on --- it applies \code{@[csimp]}
-replacements. The theorem's
-syntactic conjuncts therefore speak about the \emph{prepared} term, while its observable conjunct
-speaks about the term the user wrote, the two being connected by \code{prepare\_sound}
-(Chapter~\ref{chap:coldstart}).
+\lead{Configuration} \code{ErasureConfig} (\code{Erasure.lean:64}) is a five-field record.
 
-The configuration is a five-field record, \code{ErasureConfig}
-(\code{Erasure.lean:64}), whose defaults are \code{extern := .preferAxiom}, \code{nat := .machine},
-\code{csimp := true}, and \code{false} for both the
-constructor-argument pruning and the typeclass-dispatch auto-inlining flags. Every theorem in this blueprint is stated under
-\code{ConfigPinned} (\code{ErasureSpec.lean:43}), which demands
-\code{csimp = false}, \code{extern = .preferLogical}, \code{nat = .peano} and the last two fields
-false. \textbf{The pinned configuration differs from the default on three of the five fields}
-(\code{csimp}, \code{extern}, \code{nat}): a default \code{\#erase} run is outside every theorem
-stated here. The eight concrete instances of Chapter~\ref{chap:capstone} erase at
-\code{Green.spikeConfig}, which is that pinned point.
+\begin{center}
+\begin{tabular}{p{0.35\linewidth}lp{0.43\linewidth}}
+\toprule
+Field & Default & Pinned (\code{ConfigPinned}, \code{ErasureSpec.lean:43}) \\
+\midrule
+\code{extern} & \code{.preferAxiom} & \code{.preferLogical} \\
+\code{nat} & \code{.machine} & \code{.peano} \\
+\code{csimp} & \code{true} & \code{false} \\
+constructor-argument pruning & \code{false} & \code{false} \\
+typeclass-dispatch auto-inlining & \code{false} & \code{false} \\
+\bottomrule
+\end{tabular}
+\end{center}
 
-Four things are deliberately outside the subject, and are listed once here and detailed in
-Chapter~\ref{chap:trust}: the S-expression printer and the on-disk \code{.ast} grammar --- the
-theorem's conclusion stops at the in-memory program; the \code{.ast.inlinings} and \code{.mli}
-sidecars, and output size; the typed variant \lboxT{} that peregrine's Rust and Elm backends
-require --- the conclusion names the untyped program; and machine \code{Nat}, \code{@[extern]}
-axiomatisation and \code{@[csimp]}, all three excluded by \code{ConfigPinned}.
+\hl{Every theorem here is stated under \code{ConfigPinned}}, differing from the default on three of
+five fields (\code{csimp}, \code{extern}, \code{nat}): a default \code{\#erase} run is outside every
+theorem here. The eight instances of Chapter~\ref{chap:capstone} erase at \code{Green.spikeConfig},
+the pinned point.
+
+\lead{Outside the subject} (detailed in Chapter~\ref{chap:trust}):
+\begin{itemize}
+\item the S-expression printer and the on-disk \code{.ast} grammar -- the conclusion stops at the
+in-memory program;
+\item the \code{.ast.inlinings} and \code{.mli} sidecars, and output size;
+\item the typed variant \lboxT{} that the Rust and Elm backends need -- the conclusion names the
+untyped program;
+\item machine \code{Nat}, \code{@[extern]} axiomatisation and \code{@[csimp]}, all excluded by
+\code{ConfigPinned}.
+\end{itemize}
 
 \begin{remark}
-The design document of the \emph{subject} of this verification is [R], the internship report that
-describes the shipping eraser, its preparation pass, its \code{Nat} and \code{Array} realizers and
-its benchmark measurements. [R] contains no theorem and claims no correctness for the Lean side;
-supplying one is what this development is for. Where [R] and the code disagree the code wins --- in
-particular the tool it calls \code{lbox} is now \code{peregrine}.
+\lead{Why} [R] is the design document of the eraser verified here: an internship report on the eraser,
+its preparation pass, its \code{Nat}/\code{Array} realizers and benchmarks. It states no theorem and
+claims no Lean-side correctness. Where [R] and the code disagree, the code wins --- its tool
+\code{lbox} is now \code{peregrine}.
 \end{remark}
 
 \section{The main theorem in one paragraph}
 \label{sec:intro:theorem}
 
-Suppose the shipping eraser is run on a source term $e$ from the empty erasure state under the
-pinned configuration and returns the untyped program $(\Gamma, t)$; suppose the term it actually
-walks --- the prepared term $pe$ --- lies in the supported fragment and translates into
-\code{lean4lean}'s model of the Lean environment; and suppose the emitted program declares a body
-for every constant it reaches and satisfies what peregrine's first pass reads of a program. Then
-there are a \emph{specification environment} $\Gamma_{\mathrm{spec}}$ and an intermediate \lbox{}
-term $t_0$ such that $pe$ erases to $t_0$ in the sense of the erasure relation \Erases{}; that
-$\Gamma_{\mathrm{spec}}$ erases the source environment along everything $t_0$ reaches
-(\ErasesEnv{}); that the lowering relation takes $t_0$ to the emitted term $t$ and
-$\Gamma_{\mathrm{spec}}$ to the emitted environment $\Gamma$; and --- the observable --- for every
-closed argument spine whose \lbox{} images carry erasures of their own, if the source evaluation
-of $e$ applied to that spine yields a value $v$ whose type is a spine of an inductive that is
-\emph{first order} in the model, then $v$ has a \textbf{unique} erasure, its lowering is
-\textbf{box-free}, and the emitted program evaluates $t$ applied to the lowered arguments to
-exactly that term under \lbox{}'s own weak call-by-value semantics.
+\begin{itemize}
+\item \lead{Given} the shipping eraser runs on $e$ from the empty erasure state under the pinned
+configuration and returns $(\Gamma, t)$; the prepared term $pe$ it actually walks lies in the
+supported fragment and translates into \code{lean4lean}'s model of the environment; the emitted
+program declares a body for every constant it reaches and satisfies peregrine's first-pass check;
+\item \lead{Then} there are $\Gamma_{\mathrm{spec}}$ and an intermediate \lbox{} term $t_0$, with $pe$
+erasing to $t_0$ (\Erases{}), $\Gamma_{\mathrm{spec}}$ erasing the source environment along everything
+$t_0$ reaches (\ErasesEnv{}), and \Lower{} taking $t_0$ to $t$ and $\Gamma_{\mathrm{spec}}$ to
+$\Gamma$;
+\item \lead{The observable} for every closed argument spine whose \lbox{} images carry erasures of
+their own: if $e$ applied to it evaluates to a value $v$ whose type is a spine of an inductive
+\emph{first order} in the model, then $v$ has a unique erasure, that erasure's lowering is box-free,
+and \hl{the emitted program's evaluation of $t$ at the lowered arguments equals it exactly}, under
+\lbox{}'s weak call-by-value semantics.
+\end{itemize}
 
-That theorem is
-\code{shipping\_erase\_correct\_firstorder} (\code{Capstone.lean:146}), stated in full as Theorem~\ref{thm:shipping_erase_correct_firstorder}
-in Chapter~\ref{chap:capstone}. Three facts about it belong in the introduction.
+\code{shipping\_erase\_correct\_firstorder} (\code{Capstone.lean:146}) is stated in full as
+Theorem~\ref{thm:shipping_erase_correct_firstorder} in Chapter~\ref{chap:capstone}.
 
 \begin{itemize}
-\item \textbf{It is conditional.} The theorem has fifteen explicit binders. Five of them ---
-  the pinned configuration, the subject's translation, the fragment verdict, the body-less
-  reference check and the output well-formedness check --- are discharged by checked terms at
-  every one of the eight instances, and a sixth, the compiler-body hypothesis, at the first
-  instance; the remaining ten are hypotheses. One of them, \code{hbridge} --- the two environment
-  fields of \code{ErasureBridge} (\code{Capstone.lean:101}) --- is discharged \emph{nowhere, at any
-  instance}: it is the single open proof obligation of the development.
-\item \textbf{It is paired with eight concrete instances}, \code{Green.green\_G1} through
-  \code{Green.green\_G8} (\code{LeanToLambdaBox/Green.lean}), each an instance of the theorem at a
-  real \code{\#erase} run whose emitted program is committed in the file and whose conclusion ends
-  in a literal Peano numeral, so that it cannot be satisfied by $\Box$ or by a stuck term. The
-  environments they are stated at are universally quantified, so the ladder delivers
-  \emph{conditional} non-vacuity; no computation makes it unconditional.
-\item \textbf{What is deliberately not concluded}: MetaRocq's \code{expanded\_eprogram}, whose
-  counterpart here is \code{LBExpandedFix}, and hence not \code{PeregrinePre}. The emitted body of
-  every recursive declaration is a bare fixpoint node --- fifty of fifty measured --- so fixpoint
-  eta-expansion is false on all five benchmark programs (shipping finding F-ETA). What the theorem
-  does conclude is \code{LBWfPeregrine} (\code{Output.lean:227}), which the emitted
-  programs do satisfy.
+\item \lead{Conditional} Fifteen explicit binders. Five are discharged by checked terms at all
+eight instances (pinned configuration, translation, fragment verdict, body-less reference check,
+output well-formedness), a sixth (compiler-body) at the first instance; the remaining ten are
+hypotheses. One, \code{hbridge} -- the two environment fields of \code{ErasureBridge}
+(\code{Capstone.lean:101}) -- is \stOpen{}: discharged nowhere.
+\item \lead{Eight instances} \code{Green.green\_G1} through \code{green\_G8}
+(\code{LeanToLambdaBox/Green.lean}), each a real \code{\#erase} run with a committed emitted
+program whose conclusion ends in a literal Peano numeral (so it cannot be $\Box$ or a stuck term).
+Environments are universally quantified: \emph{conditional} non-vacuity only.
+\item \lead{Not concluded} MetaRocq's \code{expanded\_eprogram} (here \code{LBExpandedFix}), hence
+not \code{PeregrinePre}: every emitted recursive body is a bare fixpoint node, fifty of fifty
+measured (finding F-ETA). Concludes \code{LBWfPeregrine} (\code{Output.lean:227}) instead, which
+the emitted programs satisfy.
 \end{itemize}
 
 \section{The architecture of the proof}
 \label{sec:intro:architecture}
 
 \begin{enumerate}
-\item \textbf{The target and its semantics} (Chapter~\ref{chap:lambdabox}). \code{LBTerm}
-  (\code{Basic.lean:90}) is MetaRocq's \code{EAst.term} re-implemented for Lean,
-  plus a free-variable constructor forced by the eraser's locally nameless representation and a
-  primitive-value constructor, with branch binders as lists of binder names and no cofixpoints.
-  Its semantics \WcbvEval{} (\code{Semantics/Eval.lean:79}) re-formalises MetaRocq's
-  \code{EWcbvEval}, parameterised by a flag record; the correctness statement is made at the
-  erasure flag point and carried to the entry flag point peregrine declares for its input. The
-  certified evaluator with its soundness theorem \code{lbEval\_sound}
-  (\code{Semantics/Compute.lean:497}) is what turns each instance's target-side evaluation into a
-  kernel computation.
-\item \textbf{The source side} (Chapter~\ref{chap:source}). Every typing, definitional-equality
-  and translation fact comes from \code{lean4lean}, inherited verbatim. On top of it sits one
-  source evaluation relation \SEval{}
-  (\code{SourceEval.lean:193}) whose
-  $\delta$ arm reads the \emph{compiler-body table} rather than the kernel body, with subject
-  reduction \code{SEval.defeq}. The fragment the eraser is stated on is the predicate
-  \code{Supported} (\code{Supported.lean:591}) with its sound Boolean checker
-  \code{supportedB\_sound}.
-\item \textbf{The erasure specification} (Chapter~\ref{chap:erases}). \Erasable{}
-  (\code{Erasability.lean:55}) is [S]'s \code{isErasable}: a proof, or a type former (an arity
-  \emph{up to definitional equality}). \Erases{} (\code{Erases.lean:211}) is [S, Fig. 18]
-  transposed to \code{Lean.Expr}: eleven rules, ten congruences plus the one non-deterministic box
-  rule, indexed by an environment, a level scope and a local context and nothing else --- no
-  registry, no run state. \ErasesEnv{} (\code{ErasesEnv.lean:44}) is the dependency-selective
-  environment erasure, [S]'s \code{erases\_deps}, in one clause with seven conditions.
-\item \textbf{The forward simulation} (Chapter~\ref{chap:correctness}). \code{erases\_correct}
-  (\code{Close.lean:29}) is [S]'s theorem of the same name: one induction on the
-  source evaluation, with the $\iota$, $\delta$ and projection arms as separate step lemmas. It is
-  stated at the \emph{emitted} environment and carries the \Lower{} factors, so there is exactly
-  one simulation in this development and it is proved on the composite.
-\item \textbf{Lowering} (Chapter~\ref{chap:lowering}). \Lower{} (\code{Lower.lean:336}), fourteen
-  arms, relates two \lbox{} terms and is indexed by the specification environment alone. It
-  carries the four Lean-specific compilation steps: constructor constants become constructor
-  heads, saturated \code{casesOn} spines become case nodes, block members become fixpoint nodes,
-  and the environment counterpart \LowerEnv{} prunes. The output boundary \code{LBWfPeregrine}
-  (twelve clauses) is decided by a Boolean checker through \code{lbWfPeregrine\_of\_check}.
-\item \textbf{The run model and the refinement} (Chapters~\ref{chap:eraser}, \ref{chap:run} and
-  \ref{chap:refinement}). The module \code{ErasureRun.lean} (3620 lines) is the algebra of
-  the eraser's monadic runs: what a successful run guarantees about the state, the name generator
-  and the registries. On it, \code{visitExpr\_refines\_erasesLB} and its fixpoint companion
-  (\code{VisitExprRefines.lean:190}, \code{:222}) say that a successful run of the shipping term
-  walk lands in the composite \code{ErasesLB} --- this development's analogue of [S]'s
-  \code{erases\_erase} and of [L, Lemma 11], factored because the shipping function is not a
-  pruning function. The refinement is one eighteen-motive fixpoint induction whose member steps
-  are hypotheses of the aggregator, supplied as proved terms by the capstone layer.
-\item \textbf{The cold start and the bridge} (Chapter~\ref{chap:coldstart}).
-  \code{erase\_run\_ok} splits the shipping entry point into its preparation and its term walk;
-  \code{prepare\_sound} transports the source evaluation across the preparation; and
-  \code{erasure\_bridge\_of\_run} (\code{Capstone.lean:63}) instantiates the bridge invariant at
-  the empty entry state and applies the refinement with all eighteen steps supplied, concluding
-  the erasure half. What it cannot supply is the specification environment's two \emph{environment}
-  results; those are \code{ErasureBridge}'s two fields, and \code{bridgeEnv\_of\_regInv}
-  (\code{Capstone.lean:122}) is the proved interface that would derive them from a registration
-  invariant no theorem yet establishes for a run of the shipping eraser.
-\item \textbf{The capstone and the instances} (Chapter~\ref{chap:capstone}). The composition, plus
-  the eight instances. The capstone applies \code{erases\_correct} once at the spine, uses
-  \code{firstorder\_erases\_core} for the answer's constructor-tree shape and its uniqueness, and
-  \code{noBox\_lower\_of\_foSpine} to turn that shape into box-freedom of the lowered value.
+\item \lead{Target and semantics} (Chapter~\ref{chap:lambdabox}). \code{LBTerm}
+(\code{Basic.lean:90}) is MetaRocq's \code{EAst.term} plus a free-variable and a primitive-value
+constructor, no cofixpoints. \WcbvEval{} (\code{Semantics/Eval.lean:79}) re-formalises
+\code{EWcbvEval}, flag-parameterised, stated at the erasure flag point and carried to the entry
+flag point peregrine declares for its input. \code{lbEval\_sound}
+(\code{Semantics/Compute.lean:497}) turns each instance's evaluation into a kernel computation.
+\item \lead{Source side} (Chapter~\ref{chap:source}). Every typing, definitional-equality and
+translation fact is \code{lean4lean}'s. \SEval{} (\code{SourceEval.lean:193}) sits on top, its
+$\delta$ arm reading the compiler-body table, with subject reduction \code{SEval.defeq}. The
+eraser's fragment is \code{Supported} (\code{Supported.lean:591}), checker \code{supportedB\_sound}.
+\item \lead{Erasure specification} (Chapter~\ref{chap:erases}). \Erasable{}
+(\code{Erasability.lean:55}) is [S]'s \code{isErasable}. \Erases{} (\code{Erases.lean:211}),
+[S, Fig. 18]: eleven rules, ten congruences plus one non-deterministic box rule. \ErasesEnv{}
+(\code{ErasesEnv.lean:44}), [S]'s \code{erases\_deps}, is one clause with seven conditions.
+\item \lead{Forward simulation} (Chapter~\ref{chap:correctness}). \code{erases\_correct}
+(\code{Close.lean:29}), [S]'s theorem of the same name: one induction on the source evaluation, the
+$\iota$, $\delta$ and projection arms as step lemmas. One simulation, on the composite.
+\item \lead{Lowering} (Chapter~\ref{chap:lowering}). \Lower{} (\code{Lower.lean:336}), fourteen
+arms, relates two \lbox{} terms. Carries the four Lean-specific steps: constructor constants to
+heads, saturated \code{casesOn} spines to case nodes, block members to fixpoint nodes; \LowerEnv{}
+prunes the environment. \code{LBWfPeregrine} (twelve clauses) is decided by
+\code{lbWfPeregrine\_of\_check}.
+\item \lead{Run model and refinement} (Chapters~\ref{chap:eraser}, \ref{chap:run},
+\ref{chap:refinement}). \code{ErasureRun.lean} (3620 lines) is the algebra of the eraser's monadic
+runs. \code{visitExpr\_refines\_erasesLB} and its fixpoint companion say a successful run lands in
+composite \code{ErasesLB} --- the analogue of [S]'s \code{erases\_erase} and [L, Lemma 11]. One
+eighteen-motive fixpoint induction whose steps the capstone supplies as proved terms.
+\item \lead{Cold start and bridge} (Chapter~\ref{chap:coldstart}). \code{erase\_run\_ok} splits the
+entry point into preparation and term walk; \code{prepare\_sound} transports the source evaluation
+across it; \code{erasure\_bridge\_of\_run} (\code{Capstone.lean:63}) instantiates the bridge
+invariant at the empty entry state and applies the refinement with all eighteen steps supplied,
+concluding the erasure half. It cannot supply \code{ErasureBridge}'s two environment fields;
+\code{bridgeEnv\_of\_regInv} (\code{Capstone.lean:122}) would derive them from a registration
+invariant no theorem yet establishes.
+\item \lead{Capstone and instances} (Chapter~\ref{chap:capstone}). The composition, plus the eight
+instances: \code{erases\_correct} once at the spine, \code{firstorder\_erases\_core} for the
+answer's constructor-tree shape and uniqueness, \code{noBox\_lower\_of\_foSpine} for box-freedom.
 \end{enumerate}
 
-Everything above is proved \emph{from} the hypotheses collected in Chapter~\ref{chap:trust}: the
-graph in this blueprint shows the proofs, and the assumption nodes of Chapter~\ref{chap:trust}
-show where the proofs stop.
+Everything above is proved \emph{from} the hypotheses of Chapter~\ref{chap:trust}: the graph in this
+blueprint shows the proofs, and the assumption nodes show where the proofs stop.
 
 \section{Correspondence with the certified erasure of [S] and [L]}
 \label{sec:intro:correspondence}
 
-The two tables below map each notion of the reference development onto its counterpart here and
-name the deviation. Line numbers are those of the tree this blueprint documents.
+The two tables below map each notion of the reference development onto its counterpart here and name
+the deviation. Line numbers are those of the tree this blueprint documents.
 
 \begin{center}\small
-\begin{tabular}{p{0.26\textwidth}p{0.30\textwidth}p{0.36\textwidth}}
-\hline
+\begin{tabular}{p{0.30\linewidth}p{0.30\linewidth}p{0.30\linewidth}}
+\toprule
 Notion in [S] / [L] & This development & Deviation \\
-\hline
+\midrule
 \lbox{} syntax, [S, Fig. 16]; CIC-with-box, [L, Sec. 3.2] &
 \code{LBTerm}, \code{Basic.lean:90} &
-adds a free-variable constructor (the eraser is locally nameless) and a primitive one; branch
-binders are a list of binder names; no cofixpoints, Lean having no coinduction \\
-weak call-by-value evaluation, [S, Sec. 5.6 and 7.1]; weak reduction, [L, Def. 9] &
-\WcbvEval{}, \code{Semantics/Eval.lean:79}, with a flag record, \code{Semantics/Flags.lean:36} &
-big-step, not the closure of a one-step reduction; both constructor regimes are modelled and the
-statement is pinned at applied form; the $\iota$ and projection rules drop MetaRocq's
-parameter-count and saturation side conditions (Chapter~\ref{chap:lambdabox}) \\
-box rule (1), a box applied to an argument reduces to a box, [S, Sec. 7.1]; [L, Def. 5] &
+adds a free-variable and a primitive constructor (locally nameless); no cofixpoints \\
+weak call-by-value evaluation, [S, Sec. 5.6, 7.1]; weak reduction, [L, Def. 9] &
+\WcbvEval{}, \code{Semantics/Eval.lean:79}, flag-parameterised &
+big-step; both constructor regimes modelled, pinned at applied form; $\iota$/projection drop
+MetaRocq's parameter-count and saturation conditions \\
+box rule (1): a box applied to an argument reduces to a box, [S, Sec. 7.1]; [L, Def. 5] &
 \code{WcbvEval.app\_box}, \code{Eval.lean:97} &
 none: the argument is still evaluated and discarded, as in MetaRocq \\
-box rule (2), singleton case on a box, [S, Sec. 7.1]; [L, Def. 8] &
-\code{WcbvEval.iota\_sing}, \code{Eval.lean:171}, and \code{WcbvEval.proj\_prop}, \code{:200} &
-gated on a flag \emph{and} on the inductive being marked propositional; the eraser never sets that
-mark (measured false on 71 of 71 emitted inductives), so the rule is inert on emitted output ---
-finding F-PROP \\
-box rule (3), a fixpoint on a boxed guard, [S, Sec. 7.1]; [L, Def. 8] &
-no separate rule: \code{WcbvEval.fix\_guarded}, \code{Eval.lean:210}, fires on the accumulated
-argument count matching the principal argument index &
-a boxed principal argument therefore unfolds like any other value; this realises the amendment
-rather than omitting it \\
+box rule (2): singleton case on a box, [S, Sec. 7.1]; [L, Def. 8] &
+\code{WcbvEval.iota\_sing}/\code{proj\_prop}, \code{Eval.lean:171}/\code{:200} &
+gated on a flag and propositional marking, never set by the eraser (0 of 71 measured): inert on
+emitted output --- F-PROP \\
+box rule (3): a fixpoint on a boxed guard, [S, Sec. 7.1]; [L, Def. 8] &
+no separate rule: \code{WcbvEval.fix\_guarded}, \code{Eval.lean:210}, fires on argument count
+matching the principal index &
+a boxed principal argument unfolds like any other value \\
 values, [S, Fig. 12] &
 \code{Value}, \code{Semantics/Values.lean:85} &
 applied-form constructor spines are values \\
-\hline
+\bottomrule
 \end{tabular}
 \end{center}
 
 \begin{center}\small
-\begin{tabular}{p{0.26\textwidth}p{0.30\textwidth}p{0.36\textwidth}}
-\hline
+\begin{tabular}{p{0.30\linewidth}p{0.30\linewidth}p{0.30\linewidth}}
+\toprule
 Notion in [S] / [L] & This development & Deviation \\
-\hline
-\code{isErasable}, [S, Sec. 7.2]; type scheme and proof, [L, Def. 1 and 3] &
+\midrule
+\code{isErasable}, [S, Sec. 7.2]; type scheme and proof, [L, Def. 1, 3] &
 \Erasable{}, \code{Erasability.lean:55} &
-arity is taken up to definitional equality, which is closer to \code{Meta.isTypeFormerType} than a
-syntactic test; Lean has no \code{Prop} into \code{Type} cumulativity, so [S]'s sort-quality
-apparatus is unnecessary and is not built; proof irrelevance is definitional here and is used, not
-re-proved \\
+arity up to definitional equality; no \code{Prop}-\code{Type} cumulativity in Lean, so no
+sort-quality apparatus; proof irrelevance is definitional, used not re-proved \\
 the erasure relation, [S, Fig. 18]; the invariant of [L, Def. 10] &
 \Erases{}, \code{Erases.lean:211} --- eleven rules &
-the variable rule splits in two (locally nameless); metadata and literal rules have no paper
-counterpart; the constructor rule produces a \emph{bare head}, arguments arriving through the
-application rule; \textbf{[S]'s case and fixpoint rules have no counterpart at all}, because
-Lean's eliminators and recursion are constants, not term formers \\
-the subsingleton side condition on the case rule, [S, Fig. 18 and Sec. 3.6.3] &
-nothing in \Erases{}: the relation has no side condition anywhere at term level &
-the content moves to the pass layer and to the fragment predicate; see F-PROP \\
+variable rule splits in two (locally nameless); metadata/literal rules have no paper counterpart;
+constructor rule emits a bare head, arguments via application; \textbf{no case or fixpoint rule at
+all} (Lean's eliminators and recursion are constants, not term formers) \\
+the subsingleton side condition on the case rule, [S, Fig. 18, Sec. 3.6.3] &
+nothing in \Erases{} &
+moves to the pass layer and the fragment predicate; see F-PROP \\
 environment erasure \code{erases\_deps}, [S, Sec. 7.4] &
-\ErasesEnv{}, \code{ErasesEnv.lean:44} (one clause, seven conditions) &
-the pointwise environment erasure [S] defines but does not use has deliberately no counterpart \\
+\ErasesEnv{}, \code{ErasesEnv.lean:44}, one clause, seven conditions &
+the pointwise erasure [S] defines but never uses has no counterpart \\
 the abstract environment, [S, Sec. 6.2] &
-\code{ErasureSpec}, \code{ErasureSpec.lean:216} (eight fields), plus a reified source table and
-its adequacy &
-the queries are not squashed; adequacy of the reified slice is a named hypothesis mechanised
-outside Lean rather than an interface property \\
+\code{ErasureSpec}, \code{ErasureSpec.lean:216}, eight fields, plus a reified source table and its
+adequacy &
+queries not squashed; adequacy of the reified slice is a named hypothesis mechanised outside Lean,
+not an interface property \\
 \code{erases\_erase}, [S, Sec. 7.3]; [L, Lemma 11] &
-\code{visitExpr\_refines\_erasesLB} and its fixpoint companion,
-\code{VisitExprRefines.lean:190}, \code{:222}, landing in \code{ErasesLB} &
-the shipping function is not a pruning function: it eta-expands to arity, splits \code{casesOn}
-spines and builds literal towers, so the refinement is stated against the \emph{composite} of
-\Erases{} and \Lower{}, not against \Erases{} alone \\
+\code{visitExpr\_refines\_erasesLB} and fixpoint companion,
+\code{VisitExprRefines.lean:190}, \code{:222}, into \code{ErasesLB} &
+not a pruning function (eta-expands to arity, splits \code{casesOn} spines, builds literal towers),
+so stated against the \emph{composite} of \Erases{} and \Lower{} \\
 \code{erases\_correct}, [S, Sec. 7.4]; forward simulation, [L, Thm. 13] &
 \code{erases\_correct}, \code{ErasesCorrect/Close.lean:29} &
-stated at the emitted environment, with \Lower{} and \LowerEnv{} factors and an extra upstream
-hypothesis bundle; the source evaluation is hypothesised, Lean having no progress or
-standardization counterpart here \\
-\code{firstorder\_ind}, [S, Sec. 7.4]; data type and logic-free type, [L, Def. 14 and 6] &
+at the emitted environment, with \Lower{}/\LowerEnv{} factors and an upstream hypothesis bundle;
+source evaluation is hypothesised (no progress/standardization counterpart) \\
+\code{firstorder\_ind}, [S, Sec. 7.4]; data type and logic-free type, [L, Def. 14, 6] &
 \code{FirstOrderInd}, \code{FirstOrderInd.lean:86} &
-MetaRocq's shipped predicate is cited as origin and not transcribed: its sort conjunct makes it
-false on the natural numbers (reported upstream); the monomorphism and index-freedom fields here
-are declared scope restrictions booked to neither paper \\
+cited as origin, not transcribed: sort conjunct false on the naturals (reported upstream);
+monomorphism/index-freedom fields are scope restrictions booked to neither paper \\
 determinism of erasure at a first-order type, [S, Sec. 7.4] &
-\code{firstorder\_erases\_deterministic}, \code{FirstOrderInd.lean:592}; in the capstone,
-\code{firstorder\_erases\_core} with \code{noBox\_lower\_of\_foSpine} &
-the collapse is stated for the relation against itself (uniqueness of the erasure), not against an
-erasure function, since no erasure function is defined here \\
+\code{firstorder\_erases\_deterministic}, \code{FirstOrderInd.lean:592}; capstone's
+\code{firstorder\_erases\_core}/\code{noBox\_lower\_of\_foSpine} &
+stated for the relation against itself (uniqueness): no erasure function is defined here \\
 \code{axiom\_free}, [S, Sec. 5.6] &
 \code{NoBodylessRefs}, \code{Output.lean:862} &
-read on the emitted environment, decidable, and a premise of the capstone only; the simulation
-needs no analogue, a body-less constant having no source value \\
+decidable, on the emitted environment, a premise of the capstone only; no analogue needed (a
+body-less constant has no source value) \\
 first-order erasure correctness, [S, Sec. 7.4]; [L, Thm. 15] &
 \code{shipping\_erase\_correct\_firstorder}, \code{Capstone.lean:146} &
-stated in $\Downarrow$ form off a hypothesised source evaluation, not off reduction to an
-irreducible term; the observable is quantified over a closed first-order \emph{argument spine}
-([S]'s separate-compilation corollary folded in); concludes \code{LBWfPeregrine} and deliberately
-not \code{LBExpandedFix} \\
+$\Downarrow$-form off a hypothesised evaluation; observable over a closed first-order argument
+spine ([S]'s separate-compilation corollary folded in); concludes \code{LBWfPeregrine}, not
+\code{LBExpandedFix} \\
 \code{optimize} and its correctness, [S, Sec. 7.4] &
 \code{LBOptimize\_correct}, \code{Optimize.lean:785} &
-off the shipping path: stated at block flags, and F-PROP makes the pass inert on this frontend's
-output --- a worked example, not a pipeline pass \\
+off the shipping path, at block flags; F-PROP makes it inert on this frontend's output --- a worked
+example, not a pipeline pass \\
 the four Lean-specific compilation steps &
-\Lower{}, \code{Lower.lean:336}, and \LowerEnv{}, \code{ErasesEnv.lean:227} &
-\textbf{no counterpart in [S] or [L]}; anchored instead by this repository's own
-\code{doc/rules-Lower.md} against MetaRocq's iota-reduction and fixpoint substitution \\
+\Lower{}, \code{Lower.lean:336}, \LowerEnv{}, \code{ErasesEnv.lean:227} &
+\textbf{no counterpart in [S] or [L]}; anchored by \code{doc/rules-Lower.md} against MetaRocq's
+iota-reduction and fixpoint substitution \\
 --- &
-\code{Supported}, \code{Supported.lean:591}, and \code{ConfigPinned},
-\code{ErasureSpec.lean:43} &
-\textbf{no counterpart}: a decidable fragment predicate over the term \emph{and its dependency
-closure}, and the configuration restrictions, both theorem-visible \\
+\code{Supported}, \code{Supported.lean:591}; \code{ConfigPinned}, \code{ErasureSpec.lean:43} &
+\textbf{no counterpart}: a decidable fragment predicate over the term and its dependency closure,
+plus the configuration restrictions \\
 --- &
 \SEval{}, \code{SourceEval.lean:193} &
-\textbf{no counterpart}: [S] reuses PCUIC's own evaluation, whereas \code{lean4lean} has none, so
-one is defined here; its $\delta$ arm reads the compiler-body table \\
-\hline
+\textbf{no counterpart}: [S] reuses PCUIC's evaluation; \code{lean4lean} has none; its $\delta$ arm
+reads the compiler-body table \\
+\bottomrule
 \end{tabular}
 \end{center}
 
-Five of these deviations are load-bearing and are taken up in the chapters shown.
+Five deviations matter most.
 
 \begin{itemize}
-\item \textbf{Applied-form constructors} (Chapter~\ref{chap:lambdabox}). peregrine's first pass
-  requires applied form; the erasure flag point pins the non-block regime and the constructor rule
-  of \Erases{} emits a bare head. [L] has no such distinction at all --- constructors are context
-  variables there --- and [S] does not discuss it; it is a CertiCoq-era concern. Measured: all 982
-  emitted constructor nodes carry an empty argument list.
-\item \textbf{No case rule and no fixpoint rule in \Erases{}} (Chapter~\ref{chap:erases}). This is
-  the structural consequence of Lean writing constructors, inductive type names and constants all
-  as \code{Expr.const}. The module's own docstring puts it exactly: ``Rocq writes a constructor
-  \code{tConstruct}, an inductive type name \code{tInd} and everything else \code{tConst}; Lean
-  writes all three \code{Expr.const}, so the relation says which.''
-\item \textbf{No emitted fixpoint is applied} (Chapter~\ref{chap:lowering}). The eraser emits a
-  fixpoint node as a whole constant body, so MetaRocq's \code{expanded\_eprogram} is false on all
-  five benchmark programs; that is finding F-ETA, and it is exactly the gap between the concluded
-  \code{LBWfPeregrine} and the defined but unconcluded \code{PeregrinePre}.
-\item \textbf{The first-order fragment} (Chapters~\ref{chap:correctness} and~\ref{chap:trust}).
-  Both [S] and [L] restrict the \emph{observation}, not the program; so does this development. But
-  first-orderness of the natural numbers is a hypothesis at all eight instances, and the
-  predicate's only proved model inhabitant in this tree is at an empty inductive.
-\item \textbf{Machine \code{Nat}, \code{@[csimp]} and \code{@[extern]}}
-  (Chapter~\ref{chap:trust}). All three are shipping features excluded by \code{ConfigPinned};
-  [R, Sec. 4.2] describes what they do and why they exist, and no theorem in this blueprint covers
-  a run with any of them enabled.
+\item \lead{Applied-form constructors} (Chapter~\ref{chap:lambdabox}). peregrine's first pass needs
+applied form; the erasure flag point pins the non-block regime and \Erases{}'s constructor rule
+emits a bare head. [L] has no such distinction (constructors are context variables there); [S] does
+not discuss it. Measured: all 982 emitted constructor nodes carry an empty argument list.
+\item \lead{No case or fixpoint rule in \Erases{}} (Chapter~\ref{chap:erases}). Structural: Lean
+writes constructors, inductive names and constants all as \code{Expr.const}.
+\item \lead{No emitted fixpoint is applied} (Chapter~\ref{chap:lowering}). The eraser emits a
+fixpoint node as a whole constant body, so \code{expanded\_eprogram} is false on all five benchmark
+programs (F-ETA) --- the gap between concluded \code{LBWfPeregrine} and unconcluded
+\code{PeregrinePre}.
+\item \lead{The first-order fragment} (Chapters~\ref{chap:correctness}, \ref{chap:trust}). Both
+papers restrict the observation, not the program; so does this development. But first-orderness of
+the naturals is a hypothesis at all eight instances, and the predicate's only proved model
+inhabitant here is an empty inductive.
+\item \lead{Machine \code{Nat}, \code{@[csimp]}, \code{@[extern]}} (Chapter~\ref{chap:trust}). All
+three are shipping features excluded by \code{ConfigPinned}, and no theorem in this blueprint
+covers a run with any of them enabled.
 \end{itemize}
 
 \section{How to read this blueprint}
 \label{sec:intro:legend}
 
-\paragraph{Node kinds.} Five standard theorem-like environments are used --- \emph{definition}
-(types, relations, executable functions), \emph{lemma}, \emph{proposition}, \emph{theorem},
-\emph{corollary} --- and one non-standard one added for this blueprint, \emph{assumption}: a
-statement the development assumes rather than proves. Assumption nodes appear in
-Chapter~\ref{chap:trust} only; other chapters point at them. Remarks, like this paragraph's
-surroundings, are prose and are not graph nodes.
-
-\paragraph{Graph colours.} They are \code{leanblueprint}'s, not this blueprint's invention. A
-node's \emph{border} shows the status of its statement: green when the statement is formalised
-(it names Lean declarations that exist and elaborate), blue when every prerequisite is formalised
-but the statement itself is not, orange when marked not-ready. A node's \emph{fill} shows the
-status of its proof: green when the Lean proof is complete in this repository, blue when it is
-only ready to be attempted, dark green when the node and every ancestor are proved.
-
-\paragraph{What that means here, precisely.} The repository contains no \code{sorry} of its own,
-so every result node in Chapters~\ref{chap:lambdabox}--\ref{chap:capstone} is green in both
-senses: its statement elaborates and its proof is complete. \textbf{Green therefore means ``proved
-in Lean from the hypotheses of its own statement''. It does not mean ``unconditionally true'', and
-for the capstone it emphatically does not mean that the erasure is correct.} The hypotheses live
-in Chapter~\ref{chap:trust} as assumption nodes, which carry their Lean names on the statement
-when a Lean declaration states them and carry \emph{no proof environment at all}, so the graph
-renders them as stated-but-unproved and every path into the capstone visibly passes through one.
-
-\paragraph{The four hypothesis bundles.} \code{ErasureSpec} (eight fields: specifications of
-Lean's \code{Meta} and \code{Core} primitives and of the model connection); \code{EraserAsks}
-(five fields, obligations about this repository's own code, two of which, on the kernel's
-inductive head and on distinctness of block keys, are refuted in general by
-findings F-DEPTH and F-UNSAFEREC and hold only on all measured inputs); \code{UpstreamAsks} (four
-fields, \code{lean4lean} lemmas that a pin bump would supply); and \code{ErasureBridge} (two
-fields, the open problem). Alongside them stand the theorem's inline binders, named in
-Chapter~\ref{chap:trust} one by one.
-
-\paragraph{The \code{lean4lean} trust boundary.} Every typing, definitional-equality and
-term-translation fact on the source side is \code{lean4lean}'s. The pin is the head of the
-\code{trproj} branch of a fork, recorded in \code{lakefile.toml}; it carries sixteen \code{sorry}
-sites, enumerated in the committed fixture \code{test/lean4lean-sorries.expected} and re-measured
-by \code{scripts/lean4lean-sorries.sh}. Results that reach them inherit \code{sorryAx}. This is
-the development's one inherited trust boundary, in the sense in which [S] inherits a normalization
-axiom, and it is an assumption node with no Lean counterpart in Chapter~\ref{chap:trust}.
-
-\paragraph{Measurement, not narration.} Axiom footprints are measured, not asserted:
-\code{test/ledger.expected} holds the literal \code{\#print axioms} output of forty invocations in
-\code{test/Ledger.lean}, and CI diffs it. The capstone and each of the eight instances carry one
-and the same set of 33 names, including \code{sorryAx} and twenty-nine non-standard reflection
-axioms of Lean's executable kernel --- the price of discharging the relevance oracle through
-\code{lean4lean}'s executable checker rather than assuming its soundness.
-\code{visitExpr\_refines\_erasesLB} and its fixpoint companion, \code{bridgeEnv\_of\_regInv},
-\code{LBOptimize\_correct} and \code{lbEval\_sound} are measured free of \code{sorryAx}.
-Chapter~\ref{chap:trust} carries the tables and explains what \code{\#print axioms} does and does
-not see: it measures a proved theorem and never a hypothesis, so moving an obligation into a
-binder moves no row.
-
-\paragraph{One further reading rule.} Where a statement in this blueprint is more specific than
-its prose --- an extra flag, a closedness side condition, a pinned configuration --- the chapter
-says so in one sentence after the informal statement. Where the development deviates from [S] or
-[L], the deviation is named in the text, never left to the reader to notice.
+\begin{description}
+\item[\lead{Node kinds}] Five standard environments (\emph{definition}, \emph{lemma},
+\emph{proposition}, \emph{theorem}, \emph{corollary}) plus \emph{assumption}, added here: assumed
+rather than proved, living in Chapter~\ref{chap:trust} only. Remarks are prose, not graph nodes.
+\item[\lead{Graph colours}] \code{leanblueprint}'s own. Border: green (statement formalised), blue
+(prerequisites formalised, not the statement), orange (not-ready). Fill: green (proof complete),
+blue (ready to attempt), dark green (node and every ancestor proved).
+\item[\lead{Status badges}] \stProved{} proved in this repository; \stChecked{} discharged by a
+checked term or kernel computation at a rung; \stAssumed{} a hypothesis binder or bundle field;
+\stInherited{} trust inherited from \code{lean4lean}'s \code{sorry}s or Lean's reflection axioms;
+\stOpen{} an open proof obligation; \stOutside{} outside the verified perimeter.
+\item[\lead{What green means here}] No \code{sorry} of its own, so every result node in
+Chapters~\ref{chap:lambdabox}--\ref{chap:capstone} is green in both senses. \hl{Green means ``proved
+from the hypotheses of its own statement,'' never ``unconditionally true''} --- for the capstone it
+does not mean the erasure is correct. The hypotheses are Chapter~\ref{chap:trust}'s assumption
+nodes, carrying a Lean name when a Lean declaration states them and otherwise no proof environment
+at all, so every path into the capstone visibly passes through one.
+\item[\lead{Four hypothesis bundles}]~\\
+\begin{tabular}{llp{0.67\linewidth}}
+\code{ErasureSpec} & 8 fields & Lean \code{Meta}/\code{Core} primitives, model connection \\
+\code{EraserAsks} & 5 fields & this repository's own code; 2 (kernel inductive head, block-key
+distinctness) refuted in general (F-DEPTH, F-UNSAFEREC), hold only on measured inputs \\
+\code{UpstreamAsks} & 4 fields & \code{lean4lean} lemmas a pin bump would supply \\
+\code{ErasureBridge} & 2 fields & the open problem \\
+\end{tabular}\\
+The theorem's inline binders are named one by one in Chapter~\ref{chap:trust}.
+\item[\lead{The \code{lean4lean} trust boundary}] Every typing, definitional-equality and
+term-translation fact on the source side is \code{lean4lean}'s. The pin carries sixteen
+\code{sorry} sites, enumerated in \code{test/lean4lean-sorries.expected}, re-measured by
+\code{scripts/lean4lean-sorries.sh}; results reaching them inherit \code{sorryAx}. The one
+\stInherited{} boundary here, as [S] inherits a normalization axiom, and it is an assumption node
+with no Lean counterpart in Chapter~\ref{chap:trust}.
+\item[\lead{Measurement, not narration}] \code{test/ledger.expected} holds the literal
+\code{\#print axioms} output of forty invocations in \code{test/Ledger.lean}, CI diffs it. The
+capstone and each instance carry the same 33 names, including \code{sorryAx} and twenty-nine
+non-standard reflection axioms of Lean's executable kernel --- the price of discharging the
+relevance oracle through \code{lean4lean}'s checker. \code{visitExpr\_refines\_erasesLB},
+\code{bridgeEnv\_of\_regInv}, \code{LBOptimize\_correct} and \code{lbEval\_sound} measure free of
+\code{sorryAx}. Moving an obligation into a binder moves no row.
+\item[\lead{One further rule}] A statement more specific than its prose is flagged after the
+informal one; deviations from [S] or [L] are always named.
+\end{description}
 
 \section{Reading order}
 \label{sec:intro:order}
 
-\begin{itemize}
-\item \emph{A reader who knows [S, Sec. 7] and wants the delta.}
-  Section~\ref{sec:intro:correspondence}, then Chapter~\ref{chap:erases} (the relation),
-  Chapter~\ref{chap:lowering} (the part [S] does not have), Chapter~\ref{chap:capstone} (the
-  theorem) and Chapter~\ref{chap:trust} (what it assumes).
-\item \emph{A reader who wants to know whether to trust the output of \code{\#erase}.}
-  Section~\ref{sec:intro:theorem}, then Chapter~\ref{chap:trust} first and
-  Chapter~\ref{chap:capstone} second --- in that order, because the theorem's content is bounded
-  by its hypotheses.
-\item \emph{A reader following the proof.} Chapters~\ref{chap:lambdabox}
-  and~\ref{chap:source} (the two languages), \ref{chap:erases} and~\ref{chap:correctness}
-  (specification and simulation), \ref{chap:lowering} (the emitted form),
-  \ref{chap:eraser}--\ref{chap:refinement} (the shipping function, its run algebra, the
-  refinement), \ref{chap:coldstart} (the cold start), \ref{chap:capstone} (composition and
-  instances) and \ref{chap:trust} (the boundary).
-\end{itemize}
+\begin{enumerate}
+\item \lead{Know [S, Sec. 7], want the delta.} Section~\ref{sec:intro:correspondence}, then
+Chapter~\ref{chap:erases} (the relation), Chapter~\ref{chap:lowering} (the part [S] does not have),
+Chapter~\ref{chap:capstone} (the theorem), Chapter~\ref{chap:trust} (what it assumes).
+\item \lead{Decide whether to trust \code{\#erase}'s output.} Section~\ref{sec:intro:theorem}, then
+Chapter~\ref{chap:trust} \emph{before} Chapter~\ref{chap:capstone} --- the theorem's content is bounded
+by its hypotheses.
+\item \lead{Follow the proof.} Chapters~\ref{chap:lambdabox} and~\ref{chap:source} (the two
+languages), \ref{chap:erases} and~\ref{chap:correctness} (specification and simulation),
+\ref{chap:lowering} (the emitted form), \ref{chap:eraser}--\ref{chap:refinement} (the shipping
+function, its run algebra, the refinement), \ref{chap:coldstart} (the cold start),
+\ref{chap:capstone} (composition and instances), \ref{chap:trust} (the boundary).
+\end{enumerate}
 
-The repository carries tracked anchors this blueprint does not duplicate and does not replace:
-\code{doc/rules-Erases.md} (the rule-by-rule transport table against [S, Fig. 18]),
-\code{doc/rules-Lower.md}, \code{doc/trust.md} and the generated \code{doc/coverage.md}; and the
-check commands \code{lake exe green-check --all}, \code{lake exe reify --check},
-\code{lake exe coverage} and \code{bash scripts/ledger.sh}.
+\lead{External anchors} (not duplicated here): \code{doc/rules-Erases.md} (rule-by-rule table
+against [S, Fig. 18]), \code{doc/rules-Lower.md}, \code{doc/trust.md}, \code{doc/coverage.md};
+commands \code{lake exe green-check --all}, \code{lake exe reify --check}, \code{lake exe coverage},
+\code{bash scripts/ledger.sh}.
 
 \section{References}
 \label{sec:intro:references}
 
-\textbf{[S]} Matthieu Sozeau, Yannick Forster, Meven Lennon-Bertrand, Jakob Botsch Nielsen,
-Nicolas Tabareau and Th\'eo Winterhalter, \emph{Correct and Complete Type Checking and Certified
-Erasure for Coq, in Coq}, Journal of the ACM 72(1), Article 8, January 2025. Section 7 is the
-certified erasure; the sections used here besides it are 5.6 (weak call-by-value standardization,
-\code{axiom\_free}, values), 3.6.3 (allowed eliminations) and 6.2 (the abstract environment). A
-local copy is \code{references/MetaCoq\_paper.pdf}. Citations in this blueprint are by section, so
-[S, Sec. 7.3].
+\begin{description}
+\item[{[S]}] Sozeau, Forster, Lennon-Bertrand, Botsch Nielsen, Tabareau, Winterhalter, \emph{Correct
+and Complete Type Checking and Certified Erasure for Coq, in Coq}, J.\ ACM 72(1), Article 8, January
+2025. Sec.\ 7: the certified erasure; also used: 5.6 (standardization, \code{axiom\_free}, values),
+3.6.3 (eliminations), 6.2 (abstract environment). Local copy: \code{references/MetaCoq\_paper.pdf}.
+\item[{[L]}] Pierre Letouzey, \emph{A New Extraction for Coq}, TYPES 2002, LNCS, Springer,
+pp.\ 200--219. Introduces the calculus (``CIC with a box,'' now \lbox{}), the erasure function, box
+reduction and the correctness statement for closed terms of a logic-free data type. Local copy:
+\code{references/A\_New\_Extraction\_for\_Coq.pdf}. \lead{Caveat} Letouzey never writes ``\lbox{}'';
+the forward simulation is his Theorem 13, not Theorem 12, which transports termination instead.
+\item[{[R]}] Simon Dima, \emph{Compiling Lean programs with Rocq's extraction pipeline}, MPRI
+internship report, supervised by Yannick Forster (Inria Paris, Cambium), 1 October 2025. Local copy:
+\code{references/lean\_extraction\_report.pdf}. Design document of the subject of this
+verification, not of its specification.
+\end{description}
 
-\textbf{[L]} Pierre Letouzey, \emph{A New Extraction for Coq}, in Types for Proofs and Programs
-(TYPES 2002), Lecture Notes in Computer Science, Springer, pages 200--219. This is the paper that
-introduces the calculus, there called CIC with a box and now universally called \lbox{}, the
-erasure function, the box reduction and the correctness statement for closed terms of a logic-free
-data type. A local copy is \code{references/A\_New\_Extraction\_for\_Coq.pdf}. Two cautions this
-blueprint observes: Letouzey never writes ``\lbox{}'', and the forward simulation --- one source
-step matched by one target step or by box steps --- is his Theorem 13, not Theorem 12, which runs
-the other way and is what transports termination.
+\lead{MetaRocq sources} are cited by file wherever a rule-by-rule comparison is made: \code{EAst}
+(Chapter~\ref{chap:lambdabox}). \code{EWcbvEval}, \code{PCUICFirstorder} and
+\code{EOptimizePropDiscr} are named by identifier only, their citations in
+\code{doc/upstream-asks.md} and \code{doc/rework/}; \code{ExAst} names ConCert's typed \lboxT{}
+AST and has no rule-by-rule comparison anywhere in this untyped development. The interchange format
+is peregrine-tool's \code{doc/format.md} and \code{theories/PAst.v}.
 
-\textbf{[R]} Simon Dima, \emph{Compiling Lean programs with Rocq's extraction pipeline}, MPRI
-internship report, supervised by Yannick Forster (Inria Paris, Cambium), 1 October 2025. A local
-copy is \code{references/lean\_extraction\_report.pdf}. It is the design document of the subject
-of this verification, not of its specification.
+\paragraph{Deviations from the paper and caveats.}
+\begin{itemize}
+\item \lead{Deviation} No case rule and no fixpoint rule; the steps that build those nodes live in
+\Lower{}, with no counterpart in either paper.
+\item \lead{Caveat} Correctness is stated off a \emph{hypothesised} source evaluation: nothing here
+proves a Lean term evaluates, only that if it does, the emitted program agrees.
+\item \lead{Caveat} The target semantics is faithful to MetaRocq only at the non-block flag point;
+$\iota$ and projection drop MetaRocq's parameter-count and saturation side conditions.
+\item \lead{Caveat} \code{hnb} is bound and never used in its proof; \code{hblk}, though forwarded
+to \code{erasure\_bridge\_of\_run}, is spent by no theorem in the closure --- two premises stronger
+than the proof requires.
+\end{itemize}
 
-MetaRocq's own sources are cited by file wherever this blueprint itself makes a rule-by-rule
-comparison to them, since [S] does not display the \lbox{} evaluation relation at all:
-\code{EAst}, in Chapter~\ref{chap:lambdabox}. \code{EWcbvEval} is instead named by identifier
-throughout and never by file, as are \code{PCUICFirstorder} and \code{EOptimizePropDiscr}, whose
-file-name citations live in the repository's own findings (\code{doc/upstream-asks.md},
-\code{doc/rework/}) rather than in this blueprint; \code{ExAst} names ConCert's \emph{typed}
-\lboxT{} AST and has no rule-by-rule comparison anywhere in this untyped development. The on-disk
-interchange format is peregrine-tool's \code{doc/format.md} and \code{theories/PAst.v}.
-
-\paragraph{Deviations from the paper and caveats.} This chapter has claimed four things that a
-reader of [S] should carry into the rest of the blueprint. The erasure relation here has no case
-rule and no fixpoint rule, and the compilation steps that build those nodes live in a second
-relation, \Lower{}, that has no counterpart in either paper. The correctness statement is made
-against the emitted environment and off a \emph{hypothesised} source evaluation: nothing here
-proves that a Lean term evaluates, only that if it does, the emitted program agrees with it. The
-target semantics is faithful to MetaRocq rule for rule only at the non-block flag point, and the
-$\iota$ and projection rules drop MetaRocq's parameter-count and saturation side conditions.
-Finally, one binder of the capstone, \code{hnb}, is bound and never used in its proof, and the
-block hypothesis \code{hblk}, while forwarded to \code{erasure\_bridge\_of\_run}, is spent by no
-theorem in the closure --- so two of the theorem's premises are stronger than its proof requires.
 Chapter~\ref{chap:trust} records these, and every other finding, with its measurement.

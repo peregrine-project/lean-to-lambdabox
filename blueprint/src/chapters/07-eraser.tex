@@ -1,1189 +1,1009 @@
 \chapter{The shipping eraser and its specification (ErasureSpec, EraserAsks, the oracle reroute)}
 \label{chap:eraser}
 
-Chapters~\ref{chap:lambdabox}--\ref{chap:lowering} describe \emph{relations}: source terms
-related to \lbox{} terms, and \lbox{} terms lowered, optimised and observed. This chapter
-describes the \emph{program}. The Lean~4 command \code{\#erase} calls \code{Erasure.erase},
-which walks a \code{Lean.Expr} and returns an untyped \lbox{} program. The eraser is a
-\code{CoreM} program: it reads a \code{Lean.Environment} --- an opaque primitive with a private
-constructor --- through four queries, mints fresh \code{FVarId}s out of \code{IO.RealWorld},
-and at every node asks an oracle whether the subterm is computationally irrelevant. None of that
-is a mathematical object inside Lean, so none of it can be reasoned about directly. The chapter
-therefore has three parts: the eraser itself, the \emph{oracle reroute} that turns its central
-semantic decision from an assumption into a theorem, and the two hypothesis bundles ---
-\code{ErasureSpec} and \code{EraserAsks} --- that write down, once and auditably, everything
-else that is assumed about the world outside pure Lean terms.
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} Turn the eraser's oracle decision into a theorem; record every remaining
+assumption about the world outside pure Lean terms.
+\item \lead{Main results} Theorem~\ref{thm:isErasable-WF} (oracle sound at the built context);
+Theorem~\ref{thm:Oracle-kernel_isErasable_sound} (a real run inherits it);
+Theorem~\ref{thm:ErasureSpec-oracle_sound_of_run} (the shipping verdict is sound);
+Theorem~\ref{thm:not_erasable_of_informative} (an informative inductive's value is never erasable).
+\item \lead{Status} \stProved{} the oracle reroute; \stAssumed{} eight \code{ErasureSpec} fields
+(class D), five \code{EraserAsks} fields (class C, two refuted in general); \stInherited{} through
+lean4lean throughout.
+\item \lead{Lean files} \code{Erasure.lean}, \code{Relevance.lean}, \code{RelevanceCheck.lean},
+\code{CheckerAdequacy.lean}, \code{ErasureSpec.lean}, \code{CasesNames.lean}, \code{Origin.lean}.
+\item \lead{Paper} [S, Sec.~7.3] for the eraser; [S, Sec.~7.4] for \S\ref{sec:eraser:origin}'s
+case-step premises.
+\end{itemize}
 
-The Lean files are \code{LeanToLambdaBox/Erasure.lean} (the eraser, roughly a thousand lines of
-shipping code), \code{LeanToLambdaBox/Relevance.lean} and
-\code{LeanToLambdaBox/RelevanceCheck.lean} (the verified relevance check and its soundness
-proof), \code{LeanToLambdaBox/CheckerAdequacy.lean} (the adequacy of a checker run at an
-arbitrary ambient local context), \code{LeanToLambdaBox/ErasureSpec.lean} (the two bundles and
-what they prove), \code{LeanToLambdaBox/CasesNames.lean} and
-\code{LeanToLambdaBox/Origin.lean} (reading a Lean constant three ways). A namespace warning
-applies throughout: \code{Erasure.lean} opens \code{namespace Erasure} at the \emph{root}, so
-every eraser declaration is \code{Erasure.foo} and not \code{LeanToLambdaBox.Erasure.foo}, while
-\code{CheckerAdequacy.lean} deliberately declares seven names into the dependency's namespace
-\code{Lean4Lean.TypeChecker}.
-
-The eraser follows [S, Sec. 7.3] closely where it can: the first act of
-\code{Erasure.visitExpr} at \emph{every} node is the relevance test, and if it succeeds the
-whole subterm becomes $\Box$ with no recursion, which is MetaCoq's box rule in MetaCoq's own
-place; the demand-driven closure over reachable constants and inductives is MetaCoq's
-\code{erase\_global\_decls}. The oracle reroute is the one place the development goes beyond
-MetaRocq's architecture: MetaRocq's \code{is\_erasable} runs on the kernel it is verified against
-by construction, whereas the Lean eraser originally decided relevance with elaborator code that
-has no specification, and the reroute replaces that with a chain \emph{proved} against
-lean4lean's verified executable kernel checker. Two things must be said in the same breath as
-every statement below. First, the verification is stated at a \emph{pinned} configuration, and
-the default \code{\#erase} configuration differs from it on three of its five fields, so a bare
-\code{\#erase foo to "foo.ast"} runs a configuration the theorems say nothing about. Second, two
-of the five fields of \code{EraserAsks} are documented in the source as \emph{refuted in
-general}, so every result that takes the bundle is bounded by them.
+Earlier chapters relate terms; this one describes the \emph{program}, \code{Erasure.erase}, that
+walks a \code{Lean.Expr} and asks an oracle whether each subterm is irrelevant. None of that is
+inside Lean's logic, so this chapter states what is assumed, once, and turns the oracle question
+into a theorem.
 
 \section{The configuration, the state and the erasure monad}
 \label{sec:eraser:config}
+Five knobs configure the eraser; a predicate pins the one combination every theorem below assumes.
 
 \begin{definition}[The erasure configuration]
-  \label{def:Erasure-ErasureConfig}
-  \lean{Erasure.ErasureConfig, Erasure.Config.Extern, Erasure.Config.Nat}
-  \leanok
-  The eraser is parameterised by five knobs. \code{extern} says whether a constant carrying
-  Lean's \code{@[extern]} attribute is compiled from its logical Lean body
-  (\code{.preferLogical}) or emitted as a body-less \lbox{} axiom to be realised on the target
-  side (\code{.preferAxiom}). \code{nat} says whether \code{Nat} is compiled as the unary
-  inductive (\code{.peano}) or as \lbox{} primitive 63-bit integers, with \code{Nat.zero},
-  \code{Nat.succ} and \code{Nat.casesOn} rewritten into machine arithmetic (\code{.machine}).
-  The Booleans \code{csimp}, \code{remove\_irrel\_constr\_args} and
-  \code{auto\_inline\_typeclass\_dispatch} say whether \code{@[csimp]} replacements are applied
-  before erasure, whether irrelevant constructor fields are pruned, and whether
-  typeclass-dispatch artifacts are marked for inlining after erasure.
-
-  The Lean structure \code{Erasure.ErasureConfig} fixes the defaults
-  \code{extern := .preferAxiom}, \code{nat := .machine}, \code{csimp := true}, and \code{false}
-  for the last two.
+\label{def:Erasure-ErasureConfig}
+\lean{Erasure.ErasureConfig, Erasure.Config.Extern, Erasure.Config.Nat}
+\leanok
+\lead{In short} Five knobs select how the eraser compiles \code{Nat}, \code{@[extern]} constants
+and three optional passes; defaults and pinned values in Definition~\ref{def:ConfigPinned}.
+\begin{itemize}
+\item \code{extern}: \code{.preferLogical} compiles from the Lean body; \code{.preferAxiom}
+emits a body-less \lbox{} axiom for the target to realise;
+\item \code{nat}: \code{.peano} compiles \code{Nat} as the unary inductive; \code{.machine}
+rewrites it to 63-bit integers;
+\item \code{csimp}: apply \code{@[csimp]} before erasure;
+\item \code{remove\_irrel\_constr\_args}: prune irrelevant fields;
+\item \code{auto\_inline\_typeclass\_dispatch}: mark typeclass artifacts for later inlining.
+\end{itemize}
 \end{definition}
 
 \begin{definition}[The pinned configuration]
-  \label{def:ConfigPinned}
-  \uses{def:Erasure-ErasureConfig}
-  \lean{LeanToLambdaBox.ConfigPinned}
-  \leanok
-  \code{ConfigPinned cfg} is the conjunction of five equations pinning every field of the
-  configuration: \code{csimp = false}, \code{extern = .preferLogical}, \code{nat = .peano},
-  \code{remove\_irrel\_constr\_args = false} and
-  \code{auto\_inline\_typeclass\_dispatch = false}. Every correctness statement of this
-  development is made at a configuration satisfying it.
-
-  The Lean definition \code{ConfigPinned} is a plain \code{Prop}-valued conjunction; it occurs as
-  the binder \code{hcfg} of the capstone and of every green rung, where it is discharged
-  concretely by five reflexivities (Chapter~\ref{chap:capstone}).
+\label{def:ConfigPinned}
+\uses{def:Erasure-ErasureConfig}
+\lean{LeanToLambdaBox.ConfigPinned}
+\leanok
+\lead{In short} \code{ConfigPinned cfg} pins every field to what every correctness statement here
+assumes.
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Field & Default & Pinned \\
+\midrule
+\code{extern} & \code{.preferAxiom} & \code{.preferLogical} \\
+\code{nat} & \code{.machine} & \code{.peano} \\
+\code{csimp} & \code{true} & \code{false} \\
+\code{remove\_irrel\_constr\_args} & \code{false} & \code{false} \\
+\code{auto\_inline\_typeclass\_dispatch} & \code{false} & \code{false} \\
+\bottomrule
+\end{tabular}
+\end{center}
+Three fields move away from default, so \hl{a bare \code{\#erase foo to "foo.ast"} runs a
+configuration no theorem here is about}.
+\lead{Lean} the binder \code{hcfg} of the capstone and of every green rung, discharged by five
+reflexivities.
 \end{definition}
 
 \begin{remark}
-  Three of the five clauses pin a field \emph{away} from its Lean default. The pinned
-  configuration is therefore not the one a bare \code{\#erase foo to "foo.ast"} runs; it must be
-  asked for explicitly. The honest reading is that the machine-\code{Nat} layer, the
-  \code{@[csimp]} layer and the \code{@[extern]}-axiom layer --- exactly the layers [R] describes
-  as implemented --- are outside the verified perimeter by construction, and that this is
-  \emph{stated} rather than silently omitted.
+\lead{Caveat} Machine-\code{Nat}, \code{@[csimp]} and \code{@[extern]}-axiom -- exactly what [R]
+describes as implemented -- sit outside the verified perimeter by construction, not by omission.
 \end{remark}
 
 \begin{definition}[The erasure monad]
-  \label{def:Erasure-EraseM}
-  \uses{def:Erasure-ErasureConfig, def:Kername, def:GlobalDeclarations, def:InductiveId}
-  \lean{Erasure.EraseM, Erasure.ErasureState, Erasure.ErasureContext, Erasure.run, Erasure.liftMetaM}
-  \leanok
-  The eraser runs in \code{EraseM}, a state monad over a reader monad over \code{CoreM}. The
-  state holds the memo table of registered inductives with their per-constructor field masks, the
-  memo table mapping a Lean \code{Name} to the \lbox{} kername it was registered under, the
-  accumulating \lbox{} global environment, and the kernames to hand the middle-end as inlining
-  hints. The reader holds the Lean local context the subject is being erased in, an optional map
-  sending each member of the mutual block currently being erased to the fresh free variable
-  standing for it, the declaration-level universe parameters threaded to the relevance oracle,
-  and the configuration.
-
-  The Lean declarations are \code{Erasure.ErasureState}, \code{Erasure.ErasureContext} and
-  \code{Erasure.EraseM}; \code{Erasure.run} starts an action from the empty state and the default
-  context at a given configuration, and \code{Erasure.liftMetaM} runs a \code{MetaM} action in
-  the reader's local context.
+\label{def:Erasure-EraseM}
+\uses{def:Erasure-ErasureConfig, def:Kername, def:GlobalDeclarations, def:InductiveId}
+\lean{Erasure.EraseM, Erasure.ErasureState, Erasure.ErasureContext, Erasure.run, Erasure.liftMetaM}
+\leanok
+\lead{In short} \code{EraseM} is a state monad over a reader monad over \code{CoreM}: state
+accumulates the output, reader carries the ambient scope.
+\begin{description}
+\item[State] the registered-inductives memo table with field masks; the Name-to-kername memo
+table; the accumulating \lbox{} environment; kernames hinted for inlining.
+\item[Reader] the local context; an optional map from each mutual-block member to its fresh
+variable; the universe parameters, threaded to the oracle; the configuration.
+\end{description}
+\lead{Lean} \code{Erasure.run} starts from the empty state; \code{liftMetaM} runs a \code{MetaM}
+action in the reader's context.
 \end{definition}
 
 \begin{remark}
-  Because \code{CoreM} is an exception-and-state monad and the \code{Inhabited} default of
-  \code{LBTerm} is $\Box$, a \code{panic!} or \code{unreachable!} inside \code{EraseM} does
-  \emph{not} abort the run: it prints to standard error, yields $\Box$, and the command still
-  exits successfully having written a wrong \code{.ast}. The eraser has sixteen such sites.
+\lead{Caveat} $\Box$ is \code{LBTerm}'s \code{Inhabited} default, so a \code{panic!} inside
+\code{EraseM} does not abort: it prints to standard error, yields $\Box$, and the command still
+exits successfully having written a wrong \code{.ast}. Sixteen sites do this.
 \end{remark}
 
 \section{The relevance oracle and its soundness}
 \label{sec:eraser:oracle}
+This section turns the oracle's per-node relevance decision from an assumption into a theorem.
 
 \begin{definition}[The relevance criterion on the verified checker]
-  \label{def:isErasable}
-  \uses{def:lean4lean-grounding}
-  \lean{LeanToLambdaBox.isErasable, LeanToLambdaBox.isErasableProp, LeanToLambdaBox.isArityCheck, LeanToLambdaBox.isArityCheck.loop}
-  \leanok
-  The erasability criterion of Letouzey and of [S, Sec. 7.3] --- a term is erasable when its type
-  is a proposition, so the term is a proof, or an arity, so the term is a type or a type former
-  --- re-implemented as an \emph{executable} check on lean4lean's verified kernel type checker
-  rather than on Lean's elaborator. The proof branch infers the type of the subject with the
-  kernel's \code{inferType} and asks the kernel's \code{isProp}. The arity branch
-  weak-head-normalises the type, peels one \code{forall} binder at a time under a fresh local
-  declaration, returns success at a sort and failure at any other head, and \textbf{throws} when
-  its fuel runs out, so that the caller's error branch decides instead of a spurious negative.
-  The whole oracle infers the type once and takes the disjunction.
-
-  The Lean declarations are \code{LeanToLambdaBox.isErasableProp},
-  \code{LeanToLambdaBox.isArityCheck.loop}, \code{LeanToLambdaBox.isArityCheck} and
-  \code{LeanToLambdaBox.isErasable}; all four live in lean4lean's recursive checker monad, and
-  \code{isArityCheck} starts the loop at the fuel \code{ty.approxDepth + 1}.
+\label{def:isErasable}
+\uses{def:lean4lean-grounding}
+\lean{LeanToLambdaBox.isErasable, LeanToLambdaBox.isErasableProp, LeanToLambdaBox.isArityCheck, LeanToLambdaBox.isArityCheck.loop}
+\leanok
+\lead{In short} Erasable when the type is a proposition (a proof) or an arity (a type former) --
+[S, Sec.~7.3]'s test, \hl{re-implemented on lean4lean's verified kernel} instead of Lean's
+elaborator.
+\begin{itemize}
+\item \textbf{Proof branch}: infer the type via \code{inferType}, ask \code{isProp};
+\item \textbf{Arity branch}: weak-head-normalise, peel one \code{forall} at a time, succeed at a
+sort, fail elsewhere, \textbf{throw} on exhausted fuel so the caller decides, never a false
+negative;
+\item infer once, take the disjunction.
+\end{itemize}
+\lead{Lean} \code{isArityCheck} starts at fuel \code{ty.approxDepth + 1}.
 \end{definition}
 
 \begin{remark}
-  \code{Lean.Expr.Data.approxDepth} is an eight-bit field, so that fuel saturates at 256 and is
-  \code{1} at a definitional alias, whose \code{approxDepth} is \code{0}. The measured
-  consequence (finding F-DEPTH) is that on an inductive type former behind an
-  \code{@[irreducible]} alias the kernel run throws, the eraser falls back to the elaborator
-  oracle, and the answer is negative. This bounds the \code{EraserAsks} field
-  \code{kernel\_ind\_head\_true} and, through it, Theorem~\ref{thm:EraserAsks-oracle_informative}.
-  Because the exhaustion arm throws rather than answering \code{false}, F-DEPTH is a
-  \emph{completeness} defect and not a soundness one. Making that arm throw is the single applied
-  edit this verification effort made to code the eraser executes; every other entry of the
-  finding register was reported and not fixed.
+\lead{Caveat} Finding \textbf{F-DEPTH}: fuel (\code{approxDepth}, 8 bits, saturating at 256) can
+exhaust behind an \code{@[irreducible]} alias, falling back and answering negatively -- a
+completeness defect bounding \code{kernel\_ind\_head\_true}
+(Theorem~\ref{thm:EraserAsks-oracle_informative}).
 \end{remark}
 
 \begin{definition}[The relevance decision the eraser makes]
-  \label{def:Erasure-isErasable}
-  \uses{def:isErasable, def:Erasure-EraseM}
-  \lean{Erasure.isErasable, Erasure.isErasableMeta}
-  \leanok
-  The decision the erasure family actually makes. It runs the verified check of
-  Definition~\ref{def:isErasable} \emph{purely}, through lean4lean's runner, in the ambient
-  kernel environment, in the current local context, and at the caller-supplied universe
-  parameters --- the declaration's own, threaded through the reader --- so that the checker runs
-  in the universe scope the verification reasons about. On a successful run it returns the
-  verdict. If the kernel checker errors, because of an unsupported construct or because the arity
-  check's fuel was exhausted, it falls back to the elaborator-based check
-  ``\code{Meta.isProp} or \code{Meta.isTypeFormerType}'', so that the transpiler never fails on
-  that account.
-
-  The Lean declarations are \code{Erasure.isErasable}, a \code{MetaM} function taking the
-  universe parameters as its first argument, and \code{Erasure.isErasableMeta}, the fallback.
+\label{def:Erasure-isErasable}
+\uses{def:isErasable, def:Erasure-EraseM}
+\lean{Erasure.isErasable, Erasure.isErasableMeta}
+\leanok
+\lead{In short} The impure call the erasure family makes: run Definition~\ref{def:isErasable}
+purely, at the ambient kernel environment, context and universe parameters.
+\begin{itemize}
+\item on success, return the verdict;
+\item on a kernel error (unsupported construct, or exhausted fuel), \hl{fall back to the
+elaborator check} \code{Meta.isProp} or \code{Meta.isTypeFormerType}, so the transpiler never
+fails on that account.
+\end{itemize}
+\lead{Lean} \code{isErasableMeta} is the fallback.
 \end{definition}
 
 \begin{remark}
-  Two declarations in this development are called \code{isErasable} and they must never be
-  confused: \code{LeanToLambdaBox.isErasable} (Definition~\ref{def:isErasable}) is the
-  \emph{verified pure check}, and \code{Erasure.isErasable}
-  (Definition~\ref{def:Erasure-isErasable}) is the \emph{impure decision the eraser calls}. The
-  two arms of the latter have different statuses, and the blueprint keeps them apart: the kernel
-  arm's soundness is a theorem (Theorem~\ref{thm:Oracle-kernel_isErasable_sound}), the fallback
-  arm's is an assumption (Definition~\ref{def:Oracle-MetaSound}, consumed by the
-  \code{oracle\_meta} field). The source's doc comment ``no axiom of ours'' is defensible only
-  under the narrow reading that this repository declares no \code{axiom} of its own: the proofs
-  below do inherit \code{sorryAx} and lean4lean's modelling axioms. Empirically the error route is
-  dead --- zero fallback hits over $139{,}196$ constants --- but that measurement concerns the
-  \emph{error} route, not the scope-mismatch arm of \code{oracle\_meta}.
+\lead{Caveat} Two same-named declarations: \code{LeanToLambdaBox.isErasable} is the verified pure
+check (Definition~\ref{def:isErasable}); \code{Erasure.isErasable} is the impure call
+(Definition~\ref{def:Erasure-isErasable}). The kernel arm's soundness is a \emph{theorem}
+(Theorem~\ref{thm:Oracle-kernel_isErasable_sound}); the fallback's is an \emph{assumption}
+(\code{oracle\_meta}), measured dead over $139{,}196$ constants, though that covers only the error
+route.
 \end{remark}
 
 \begin{lemma}[Oracle soundness, proof disjunct]
-  \label{lem:isErasableProp-WF}
-  \uses{def:isErasable, def:Erasable, def:lean4lean-grounding}
-  \lean{LeanToLambdaBox.isErasableProp.WF}
-  \leanok
-  If \code{e} translates to the lean4lean term \code{e'} in the verified context, and the
-  executable proof-branch check returns success on \code{e}, then \code{e'} is \Erasable{} by the
-  proof disjunct: its inferred type itself lives in \code{Sort 0}.
-
-  The Lean statement \code{isErasableProp.WF} is a Hoare-style obligation in lean4lean's
-  well-formedness discipline: it quantifies over an arbitrary well-formed checker state and
-  concludes about the returned Boolean, not about a particular run.
+\label{lem:isErasableProp-WF}
+\uses{def:isErasable, def:Erasable, def:lean4lean-grounding}
+\lean{LeanToLambdaBox.isErasableProp.WF}
+\leanok
+\lead{In short} If \code{e} translates to \code{e'} and the \hl{proof-branch check succeeds on
+\code{e}}, then \code{e'} is \Erasable{} by its proof disjunct: its inferred type lives in
+\code{Sort 0}.
+\lead{Lean} a Hoare-style obligation over an arbitrary well-formed checker state, not one run.
 \end{lemma}
 \begin{proof}
-  \leanok
-  \uses{asm:lean4lean-trust, asm:lean-reflection-axioms}
-  Compose lean4lean's well-formedness lemma for \code{inferType}, which yields an inferred-type
-  lean4lean term together with a typing and a translation witness, with the one for
-  \code{isProp}, which turns a positive verdict on that type into a typing at \code{Sort 0}. That
-  is exactly the first disjunct of \Erasable{}.
+\leanok
+\uses{asm:lean4lean-trust, asm:lean-reflection-axioms}
+\lead{Idea} Compose lean4lean's well-formedness lemmas for \code{inferType} and \code{isProp}: a
+positive verdict gives a typing at \code{Sort 0}, the proof disjunct of \Erasable{}.
 \end{proof}
 
 \begin{lemma}[Arity-up-to-definitional-equality is closed under forall-introduction]
-  \label{lem:IsArityUpTo-forallE}
-  \uses{def:IsArity, def:lean4lean-grounding}
-  \lean{LeanToLambdaBox.IsArityUpTo.forallE}
-  \leanok
-  If the codomain \code{B} is an arity up to definitional equality in the extended context, and
-  both \code{A} and \code{B} are types, then \code{forall (\_ : A), B} is an arity up to
-  definitional equality.
-
-  The Lean statement \code{IsArityUpTo.forallE} additionally carries the ambient hypotheses that
-  the environment is well formed and that the context is a context of types. This is the one
-  genuinely new metatheorem the arity branch of the reroute needs --- lean4lean does not have it
-  --- and it is what lets the telescope recursion of Lemma~\ref{lem:isArityCheck-WF} reassemble a
-  whole-type witness out of its body's.
+\label{lem:IsArityUpTo-forallE}
+\uses{def:IsArity, def:lean4lean-grounding}
+\lean{LeanToLambdaBox.IsArityUpTo.forallE}
+\leanok
+\lead{In short} If \code{B} is an arity up to definitional equality in the extended context and
+both \code{A}, \code{B} are types, then \code{forall (\_ : A), B} is one too.
+\lead{Lean} carries the environment's well-formedness and a context of types as ambient
+hypotheses. \hl{The one metatheorem the arity branch needs that lean4lean lacks}, letting the
+telescope recursion below reassemble a whole-type witness from the body's.
 \end{lemma}
 \begin{proof}
-  \leanok
-  \uses{asm:lean4lean-trust}
-  Unpack the witness that \code{B} is definitionally equal to a syntactic arity \code{Y}.
-  Untyped congruence for \code{forall} lifts that equality to one between
-  \code{forall A, B} and \code{forall A, Y}, and \code{forall A, Y} is syntactically an arity.
+\leanok
+\uses{asm:lean4lean-trust}
+\lead{Idea} Untyped \code{forall}-congruence lifts \code{B}'s equality onto \code{forall A, B}.
 \end{proof}
 
 \begin{lemma}[Oracle soundness, type-former disjunct]
-  \label{lem:isArityCheck-WF}
-  \uses{def:isErasable, def:IsArity, def:lean4lean-grounding}
-  \lean{LeanToLambdaBox.isArityCheck.loop.WF, LeanToLambdaBox.isArityCheck.WF}
-  \leanok
-  If \code{ty} translates to \code{ty'} and the executable arity loop returns success at any
-  fuel, then \code{ty'} is an arity up to definitional equality; and likewise for the fuelled
-  entry point, which starts the loop at \code{ty.approxDepth + 1}.
-
-  The Lean statements \code{isArityCheck.loop.WF} and \code{isArityCheck.WF} are universally
-  quantified over the fuel, so nothing about the fuel's adequacy is claimed.
+\label{lem:isArityCheck-WF}
+\uses{def:isErasable, def:IsArity, def:lean4lean-grounding}
+\lean{LeanToLambdaBox.isArityCheck.loop.WF, LeanToLambdaBox.isArityCheck.WF}
+\leanok
+\lead{In short} If \code{ty} translates to \code{ty'} and the arity loop succeeds at any fuel,
+\code{ty'} is an arity up to definitional equality; likewise for the entry point, which starts the
+loop at \code{ty.approxDepth + 1}.
+\lead{Lean} both quantify universally over the fuel: neither claims it adequate.
 \end{lemma}
 \begin{proof}
-  \leanok
-  \uses{lem:IsArityUpTo-forallE, asm:lean4lean-trust, asm:lean-reflection-axioms}
-  Induction on the fuel. After weak-head normalisation, the sort leaf gives the base arity: its
-  translation is a sort definitionally equal to the reduced type. The \code{forall} node opens the
-  binder with lean4lean's local-declaration combinator, applies the induction hypothesis under it,
-  reassembles the whole-telescope witness with Lemma~\ref{lem:IsArityUpTo-forallE}, and transports
-  it back across the reduction with the definitional-equality closure of the arity predicate. Fuel
-  exhaustion throws, so the obligation is vacuous there --- which is precisely why the loop throws
-  rather than answering negatively.
+\leanok
+\uses{lem:IsArityUpTo-forallE, asm:lean4lean-trust, asm:lean-reflection-axioms}
+\lead{Idea} Induction on the fuel.
+\begin{enumerate}
+\item Weak-head normalise; a sort leaf gives the base arity.
+\item A \code{forall} node opens the binder, applies the hypothesis under it, and reassembles the
+telescope witness with Lemma~\ref{lem:IsArityUpTo-forallE}.
+\item Transport the witness back across the reduction.
+\item Exhaustion throws, so the obligation is vacuous there.
+\end{enumerate}
 \end{proof}
 
 \begin{theorem}[Relevance-oracle soundness]
-  \label{thm:isErasable-WF}
-  \uses{def:isErasable, def:Erasable, def:lean4lean-grounding}
-  \lean{LeanToLambdaBox.isErasable.WF}
-  \leanok
-  If \code{e} translates to \code{e'} and the executable oracle returns success on \code{e}, then
-  \code{e'} is \Erasable{}.
-
-  The Lean statement \code{isErasable.WF} is again an obligation at an arbitrary well-formed
-  checker state and context, so it applies to every run the checker can make, not to one. It is
-  the theorem the shipping eraser's own doc comment points to, and its file's closing note is
-  explicit that no new \code{axiom}, \code{sorry} or \code{native\_decide} is added here: the
-  inherited footprint is lean4lean's (Chapter~\ref{chap:trust}).
+\label{thm:isErasable-WF}
+\uses{def:isErasable, def:Erasable, def:lean4lean-grounding}
+\lean{LeanToLambdaBox.isErasable.WF}
+\leanok
+\lead{In short} If \code{e} translates to \code{e'} and the executable oracle succeeds, then
+\code{e'} is \Erasable{}.
+\lead{Lean} an obligation at an arbitrary well-formed state, applying to every run; its closing
+note adds \hl{no new axiom, \code{sorry} or \code{native\_decide}}.
+\lead{Status} \stProved{}, \stInherited{} through lean4lean.
 \end{theorem}
 \begin{proof}
-  \leanok
-  \uses{lem:isErasableProp-WF, lem:isArityCheck-WF, asm:lean4lean-trust, asm:lean-reflection-axioms}
-  The oracle infers the type once and branches. On the \code{isProp} branch the conclusion is the
-  proof disjunct of \Erasable{}, by Lemma~\ref{lem:isErasableProp-WF}; on the other branch it is
-  the type-former disjunct, by Lemma~\ref{lem:isArityCheck-WF}.
+\leanok
+\uses{lem:isErasableProp-WF, lem:isArityCheck-WF, asm:lean4lean-trust, asm:lean-reflection-axioms}
+\lead{Idea} Infer the type once and branch: \code{isProp} gives the proof disjunct
+(Lemma~\ref{lem:isErasableProp-WF}), else the type-former disjunct
+(Lemma~\ref{lem:isArityCheck-WF}).
 \end{proof}
 
 \begin{definition}[A verification context at an arbitrary ambient local context]
-  \label{def:Lean4Lean-TypeChecker-VContext-ofMLCtx}
-  \uses{def:lean4lean-grounding}
-  \lean{Lean4Lean.TypeChecker.VContext.ofMLCtx, Lean4Lean.TypeChecker.kernelNGen, Lean4Lean.TypeChecker.VContext.ofMLCtx_venv, Lean4Lean.TypeChecker.VContext.ofMLCtx_lparams, Lean4Lean.TypeChecker.VContext.ofMLCtx_vlctx}
-  \leanok
-  The kernel type checker's initial name generator has prefix \code{\_kernel\_fresh} and index
-  zero; because its index is zero it \emph{reserves} every free variable not of that numbered
-  shape, in particular every \code{\_uniq}-named identifier an actual \code{CoreM} run produces.
-  On top of it, \code{VContext.ofMLCtx} builds a lean4lean verification context at an
-  \textbf{arbitrary} ambient modelled local context, where lean4lean's own constructor hardwires
-  the empty one; all other fields are taken over unchanged.
-
-  The Lean declarations are \code{Lean4Lean.TypeChecker.kernelNGen} and
-  \code{Lean4Lean.TypeChecker.VContext.ofMLCtx}, with three simp projections recording that the
-  built context's environment, universe parameters and modelled local context are the given ones.
+\label{def:Lean4Lean-TypeChecker-VContext-ofMLCtx}
+\uses{def:lean4lean-grounding}
+\lean{Lean4Lean.TypeChecker.VContext.ofMLCtx, Lean4Lean.TypeChecker.kernelNGen, Lean4Lean.TypeChecker.VContext.ofMLCtx_venv, Lean4Lean.TypeChecker.VContext.ofMLCtx_lparams, Lean4Lean.TypeChecker.VContext.ofMLCtx_vlctx}
+\leanok
+\lead{In short} \code{VContext.ofMLCtx} builds a lean4lean context at an \hl{arbitrary ambient
+modelled local context}, generalising lean4lean's constructor, which hardwires the empty one.
+\begin{itemize}
+\item \code{kernelNGen} (prefix \code{\_kernel\_fresh}, index zero) \emph{reserves} every free
+variable not of that shape -- every \code{\_uniq}-named identifier a real run produces;
+\item all other fields are taken over unchanged.
+\end{itemize}
+\lead{Lean} three simp projections record the built context's environment, parameters and local
+context as the given ones.
 \end{definition}
 
 \begin{remark}
-  These five names, and the two of Lemma~\ref{lem:Lean4Lean-TypeChecker-M-WF-run-prime}, are
-  declared into the \emph{dependency's} namespace \code{Lean4Lean.TypeChecker}: a knowing,
-  documented deferral that the repository's own hygiene criterion records as a deliberate
-  failure, pending an upstream ask. It is a real hazard --- a future lean4lean release declaring
-  \code{M.WF.run'} would clash. The source calls the reservation premise ``vacuous''; strictly it
-  is \emph{cheap}, not vacuous.
+\lead{Caveat} These five names, and the two of
+Lemma~\ref{lem:Lean4Lean-TypeChecker-M-WF-run-prime}, sit in the \emph{dependency's} namespace
+\code{Lean4Lean.TypeChecker} -- a documented deferral, and a hazard: a future lean4lean release
+declaring \code{M.WF.run'} would clash. The reservation premise is \emph{cheap}, not vacuous.
 \end{remark}
 
 \begin{lemma}[Run adequacy at the ambient local context]
-  \label{lem:Lean4Lean-TypeChecker-M-WF-run-prime}
-  \uses{def:Lean4Lean-TypeChecker-VContext-ofMLCtx, def:lean4lean-grounding}
-  \lean{Lean4Lean.TypeChecker.M.WF.run', Lean4Lean.TypeChecker.VState.WF.initial}
-  \leanok
-  The initial checker state, whose name generator is the kernel's own, is well formed at a
-  context built by \code{VContext.ofMLCtx}, provided every ambient free variable is reserved by
-  that generator; and consequently, if a checker computation satisfies its well-formedness
-  obligation at that context, then a successful run of it at the ambient local context returns a
-  value satisfying the postcondition. This is lean4lean's own run lemma generalised from the
-  empty local context to an arbitrary ambient one.
-
-  The Lean statements are \code{VState.WF.initial} and \code{M.WF.run'}; the latter carries the
-  freshness premise as an explicit hypothesis over the modelled context's free variables.
+\label{lem:Lean4Lean-TypeChecker-M-WF-run-prime}
+\uses{def:Lean4Lean-TypeChecker-VContext-ofMLCtx, def:lean4lean-grounding}
+\lean{Lean4Lean.TypeChecker.M.WF.run', Lean4Lean.TypeChecker.VState.WF.initial}
+\leanok
+\lead{Given} every ambient free variable is reserved by the kernel's initial generator;
+\lead{Then} the initial checker state is well formed at the built context, so a successful obliged
+run there returns a value satisfying the postcondition.
+\lead{Lean} \hl{lean4lean's own run lemma, generalised from the empty context to an arbitrary
+one}.
 \end{lemma}
 \begin{proof}
-  \leanok
-  \uses{asm:lean-reflection-axioms}
-  \code{VState.WF.initial} is lean4lean's empty-context state lemma with the empty modelled
-  context replaced by the ambient one: the translation context becomes the generic one of the
-  built context, the two reservation obligations become the freshness premise, and the
-  extension-context witness is taken at the ambient modelled context with a reflexive lift and an
-  empty equivalence manager. \code{M.WF.run'} is then lean4lean's own run proof with the
-  initial-state witness replaced by that one.
+\leanok
+\uses{asm:lean-reflection-axioms}
+\lead{Idea} Replace the empty context in lean4lean's own lemmas by the ambient one, taking the
+extension witness at a reflexive lift with an empty equivalence manager.
 \end{proof}
 
 \begin{theorem}[The kernel arm of the oracle is sound]
-  \label{thm:Oracle-kernel_isErasable_sound}
-  \uses{def:isErasable, def:Lean4Lean-TypeChecker-VContext-ofMLCtx, def:Erasable, def:lean4lean-grounding}
-  \lean{LeanToLambdaBox.Oracle.kernel_isErasable_sound}
-  \leanok
-  A \emph{pure} run of the verified relevance check through lean4lean's runner, at the ambient
-  local context and the declaration's universe parameters, returning success on a term \code{e}
-  that translates to \code{ve}, witnesses that \code{ve} is \Erasable{}.
-
-  The Lean statement \code{Oracle.kernel\_isErasable\_sound} takes the environment model's
-  well-formedness, the modelled context's well-formedness and the reservation premise as
-  hypotheses, and phrases the run as an equation on the runner's result rather than as an
-  obligation.
+\label{thm:Oracle-kernel_isErasable_sound}
+\uses{def:isErasable, def:Lean4Lean-TypeChecker-VContext-ofMLCtx, def:Erasable, def:lean4lean-grounding}
+\lean{LeanToLambdaBox.Oracle.kernel_isErasable_sound}
+\leanok
+\lead{Given} the environment model, the modelled context and the reservation premise are well
+formed;
+\lead{Then} a \hl{pure run} of the verified check, succeeding on \code{e} translating to
+\code{ve}, witnesses \code{ve} is \Erasable{}.
+\lead{Lean} phrases the run as an equation on the runner's result, not an obligation.
+\lead{Status} \stProved{}, \stInherited{} through lean4lean.
 \end{theorem}
 \begin{proof}
-  \leanok
-  \uses{thm:isErasable-WF, lem:Lean4Lean-TypeChecker-M-WF-run-prime, asm:lean4lean-trust, asm:lean-reflection-axioms}
-  A three-way composition, and the Lean proof is literally three lines:
-  Theorem~\ref{thm:isErasable-WF} supplies soundness at the built context, lean4lean's
-  well-formedness lemma for the recursive monad's runner discharges the fuel layer, and
-  Lemma~\ref{lem:Lean4Lean-TypeChecker-M-WF-run-prime} converts the obligation into a statement
-  about the successful run.
+\leanok
+\uses{thm:isErasable-WF, lem:Lean4Lean-TypeChecker-M-WF-run-prime, asm:lean4lean-trust, asm:lean-reflection-axioms}
+\lead{Idea} A three-line composition.
+\begin{enumerate}
+\item Theorem~\ref{thm:isErasable-WF} gives soundness at the built context.
+\item lean4lean's well-formedness lemma for the runner discharges the fuel layer.
+\item Lemma~\ref{lem:Lean4Lean-TypeChecker-M-WF-run-prime} converts it to a statement about the run.
+\end{enumerate}
 \end{proof}
 
 \section{Preparation, registration, binders}
 \label{sec:eraser:prepare}
+A normalisation pass, then registration of inductives and binders into the emitted environment.
 
 \begin{definition}[Pre-erasure preparation]
-  \label{def:Erasure-prepare_erasure}
-  \uses{def:Erasure-EraseM, def:Erasure-ErasureConfig}
-  \lean{Erasure.prepare_erasure, Erasure.replaceUnsafeRecNames, Erasure.remove_unsafe_rec, Erasure.name_occurs}
-  \leanok
-  Before erasure, the subject is normalised by a pass lifted from Lean's own compiler frontend:
-  replace every \code{\_unsafe\_rec} constant by its safe twin, honour \code{@[macro\_inline]},
-  inline auxiliary matchers, honour \code{@[macro\_inline]} a second time --- inlined matchers can
-  expose \code{ite} and \code{dite}, whose branches would otherwise both be evaluated strictly ---
-  and, only when \code{csimp} is on, apply \code{@[csimp]} replacements at every subterm.
-
-  The Lean declarations are \code{Erasure.prepare\_erasure}, the first pass
-  \code{Erasure.replaceUnsafeRecNames}, the name surgery \code{Erasure.remove\_unsafe\_rec}, and
-  \code{Erasure.name\_occurs}, the eraser's only recursiveness test --- a structural occurrence
-  check that treats \code{forall}, sorts, literals and variables as non-occurrences.
+\label{def:Erasure-prepare_erasure}
+\uses{def:Erasure-EraseM, def:Erasure-ErasureConfig}
+\lean{Erasure.prepare_erasure, Erasure.replaceUnsafeRecNames, Erasure.remove_unsafe_rec, Erasure.name_occurs}
+\leanok
+\lead{In short} A normalisation pass, lifted from Lean's compiler frontend, run before erasure.
+\begin{enumerate}
+\item replace every \code{\_unsafe\_rec} constant by its safe twin;
+\item honour \code{@[macro\_inline]};
+\item inline auxiliary matchers;
+\item honour \code{@[macro\_inline]} again -- matchers can expose strict \code{ite}/\code{dite};
+\item only when \code{csimp} is on, \hl{apply \code{@[csimp]} replacements everywhere}.
+\end{enumerate}
+\lead{Lean} \code{name\_occurs} is the only recursiveness test, treating \code{forall}, sorts,
+literals and variables as non-occurrences.
 \end{definition}
 
 \begin{remark}
-  This pass has no MetaCoq counterpart, and its own doc comment warns that it ``may make the
-  expression ill-typed if some dependent type relies on the implementation of functions affected
-  by csimp''. \code{ConfigPinned} pins \code{csimp = false}, so the \code{@[csimp]} walk is
-  outside the theorems' scope. \code{remove\_unsafe\_rec} is the site of finding F-UNSAFEREC: it
-  is not injective, so a legal \code{mutual unsafe def u / u.\_unsafe\_rec} block maps to a key
-  list with a repetition and is silently miscompiled. That is exactly what the \code{EraserAsks}
-  field \code{block\_keys\_distinct} excludes by assumption.
+\lead{Deviation} No MetaCoq counterpart; its doc comment warns it may ill-type the term under
+\code{@[csimp]}, which \code{ConfigPinned} pins off. Finding \textbf{F-UNSAFEREC}:
+\code{remove\_unsafe\_rec} is not injective, so a legal \code{mutual unsafe def} block can collapse
+to a repeated key -- what \code{block\_keys\_distinct} excludes by assumption.
 \end{remark}
 
 \begin{definition}[The prepared passes]
-  \label{def:preparePasses}
-  \uses{def:Erasure-prepare_erasure}
-  \lean{LeanToLambdaBox.preparePasses}
-  \leanok
-  The list of the three \code{CoreM} passes the preparation runs:
-  \code{Erasure.replaceUnsafeRecNames}, Lean's \code{macroInline} and Lean's
-  \code{inlineMatchers}.
-
-  The Lean definition \code{preparePasses} is the \emph{index set} of the two pass clauses of
-  \code{EraserAsks}, not the literal call sequence: the eraser makes four calls, running
-  \code{macroInline} twice, and the quantification over membership in the list covers the
-  repetition. A reader who counts three here and four in the code has counted correctly.
+\label{def:preparePasses}
+\uses{def:Erasure-prepare_erasure}
+\lean{LeanToLambdaBox.preparePasses}
+\leanok
+\lead{In short} The three \code{CoreM} passes: \code{replaceUnsafeRecNames}, Lean's
+\code{macroInline}, Lean's \code{inlineMatchers}.
+\lead{Lean} \hl{an index set, not the call sequence}: the eraser makes four calls, running
+\code{macroInline} twice; membership covers the repetition, so three here and four in the code are
+both correct.
 \end{definition}
 
 \begin{definition}[Registering an inductive block]
-  \label{def:Erasure-register_inductive}
-  \uses{def:Erasure-EraseM, def:Erasure-isErasable, def:Kername, def:InductiveId, def:OneInductiveBody}
-  \lean{Erasure.register_inductive, Erasure.addAxiom, Erasure.ConstructorArgMask, Erasure.InductiveArgMasks, Erasure.ConstructorArgRelevance, Erasure.filter}
-  \leanok
-  Memoised registration of a Lean inductive together with all its mutual companions. On a miss
-  the eraser synthesises the block's kername as the unqualified kername of the concatenation of
-  all member names; walks each member's constructors, emitting a body-less axiom for an
-  \code{@[extern]} constructor when the configuration prefers axioms and computing a
-  per-constructor argument mask --- all fields kept unless \code{remove\_irrel\_constr\_args} is
-  on, in which case each field is tested with the relevance oracle under the constructor's own
-  universe parameters --- recording the post-pruning arity; emits dummy projection names for the
-  kept fields of a single-constructor, single-member, non-recursive block; and conses one
-  inductive declaration for the whole block onto the emitted environment, carrying the block's
-  parameter count.
-
-  The Lean declarations are \code{Erasure.register\_inductive}, the mask types
-  \code{Erasure.ConstructorArgRelevance}, \code{Erasure.ConstructorArgMask} and
-  \code{Erasure.InductiveArgMasks}, the mask application \code{Erasure.filter}, and
-  \code{Erasure.addAxiom}, which registers a name with a body-less constant declaration and
-  panics on a duplicate.
+\label{def:Erasure-register_inductive}
+\uses{def:Erasure-EraseM, def:Erasure-isErasable, def:Kername, def:InductiveId, def:OneInductiveBody}
+\lean{Erasure.register_inductive, Erasure.addAxiom, Erasure.ConstructorArgMask, Erasure.InductiveArgMasks, Erasure.ConstructorArgRelevance, Erasure.filter}
+\leanok
+\lead{In short} Memoised registration of a Lean inductive with its mutual companions; on a miss:
+\begin{enumerate}
+\item synthesise the block's kername from its members' names, concatenated;
+\item per constructor: a body-less axiom for \code{@[extern]}, and an argument mask -- all kept
+unless \code{remove\_irrel\_constr\_args} is on, when \hl{each field is tested with the relevance
+oracle};
+\item dummy projection names for a single-constructor, single-member, non-recursive block;
+\item cons one inductive declaration, carrying the block's parameter count.
+\end{enumerate}
 \end{definition}
 
 \begin{remark}
-  Finding F-PROP lives here: every emitted inductive body leaves \code{propositional} and
-  \code{kelim} at their defaults and every mutual body leaves \code{finite} at its default, so the
-  middle-end's match-on-box optimisation can never fire on this frontend's output. A second,
-  unregistered defect is adjacent: \code{Erasure.filter} zips a mask against an array and drops
-  trailing elements, so a mask shorter than the field array silently truncates. The \lbox{}
-  identifier this function mints is the one \code{BlockAdequate}
-  (Definition~\ref{def:BlockAdequate}) pins to the model's inductive data.
+\lead{Caveat} Finding \textbf{F-PROP}: every emitted inductive leaves \code{propositional},
+\code{kelim}, \code{finite} at their defaults, so match-on-box never fires here. Unregistered:
+\code{Erasure.filter} drops trailing elements, so a short mask silently truncates.
 \end{remark}
 
 \begin{definition}[Emitting binders]
-  \label{def:Erasure-mkLambda}
-  \uses{def:Erasure-EraseM, def:LBTerm, def:toBvar, def:BinderName, def:FixDef}
-  \lean{Erasure.mkLambda, Erasure.mkLetIn, Erasure.mkAlt, Erasure.mkDef, Erasure.fvar_to_name, Erasure.withLocalDecl, Erasure.withLocalDef, Erasure.lambdaMonocular, Erasure.lambdaOrIntroToArity}
-  \leanok
-  The eraser works locally namelessly: it descends under a binder by minting a fresh free
-  variable and extending the reader's local context, and it closes a binder by naming that
-  variable and abstracting it back to a de Bruijn index. Naming reads the user-facing name out of
-  the local context and \textbf{downgrades it to anonymous unless every character is
-  ASCII-graphic}, because the middle-end's parser rejects other binder names.
-
-  The Lean declarations are \code{Erasure.withLocalDecl} and \code{Erasure.withLocalDef} for the
-  descent, \code{Erasure.fvar\_to\_name} for the ASCII filter, \code{Erasure.mkLambda} and
-  \code{Erasure.mkLetIn} for one binder, \code{Erasure.mkAlt} for a case alternative (binding the
-  \emph{last} of its field variables to index zero), \code{Erasure.mkDef} for one member of a
-  mutual fixpoint block (abstracting the block's fixpoint variables, principal-argument index left
-  at zero), and the destructuring helpers \code{Erasure.lambdaMonocular} and
-  \code{Erasure.lambdaOrIntroToArity}.
+\label{def:Erasure-mkLambda}
+\uses{def:Erasure-EraseM, def:LBTerm, def:toBvar, def:BinderName, def:FixDef}
+\lean{Erasure.mkLambda, Erasure.mkLetIn, Erasure.mkAlt, Erasure.mkDef, Erasure.fvar_to_name, Erasure.withLocalDecl, Erasure.withLocalDef, Erasure.lambdaMonocular, Erasure.lambdaOrIntroToArity}
+\leanok
+\lead{In short} Locally nameless: descend under a binder by minting a fresh variable, close it by
+naming and abstracting back to a de Bruijn index.
+\begin{itemize}
+\item \code{withLocalDecl}/\code{withLocalDef}: the descent;
+\item \code{fvar\_to\_name}: \hl{downgrades a binder name to anonymous unless every character is
+ASCII-graphic} (the parser rejects other names);
+\item \code{mkLambda}/\code{mkLetIn}: close one binder;
+\item \code{mkAlt}: close a case alternative, binding the \emph{last} field to index zero;
+\item \code{mkDef}: close one fixpoint member, principal-index zero.
+\end{itemize}
 \end{definition}
 
 \begin{remark}
-  The ASCII filter is the source of the printable-binder clause of the emitted program's
-  well-formedness predicate (Chapter~\ref{chap:lowering}); Chapter~\ref{chap:capstone} records
-  that the stronger all-ASCII form was \emph{refuted} at five rungs. Two doc comments in the
-  shipping source still hedge about binder order (``Check binding order here as well, may be
-  wrong''); the question is settled by Chapters~\ref{chap:lowering} and~\ref{chap:refinement},
-  but the hedge remains in the code.
+\lead{Caveat} Source of Chapter~\ref{chap:lowering}'s printable-binder clause; the stronger
+all-ASCII form was \emph{refuted} at five rungs (Chapter~\ref{chap:capstone}). Two doc comments
+still hedge on binder order; Chapters~\ref{chap:lowering},~\ref{chap:refinement} settle it, but
+the hedge remains.
 \end{remark}
 
 \section{The erasure family and the entry point}
 \label{sec:eraser:visit}
+Eighteen mutually recursive functions, closed over one entry point.
 
 \begin{definition}[The erasure family]
-  \label{def:Erasure-visitExpr}
-  \uses{def:Erasure-EraseM, def:Erasure-isErasable, def:Erasure-register_inductive, def:Erasure-mkLambda, def:LBTerm}
-  \lean{Erasure.visitExpr, Erasure.visitLiteral, Erasure.visitLambda, Erasure.visitLet, Erasure.visitProj, Erasure.visitApp, Erasure.visitConst, Erasure.visitConstApp, Erasure.visitCasesEta, Erasure.visitCasesEtaGo, Erasure.visitCtorEta, Erasure.visitCtorEtaGo, Erasure.visitConstructor, Erasure.visitAppArgs, Erasure.visitCases, Erasure.visitAlt}
-  \leanok
-  Erasure proper is one mutual block of sixteen term-level definitions, each made total by
-  \code{partial\_fixpoint}. Its head, \code{visitExpr}, does the box test first at \emph{every}
-  node: if the oracle says the subterm is a proof or a type former, the result is $\Box$ and
-  there is no recursion. Otherwise it dispatches on the head. Applications and bare constants both
-  go through the application case --- a constant is treated as an application to zero arguments,
-  so the special cases for eliminators and constructors fire uniformly. Projections re-index the
-  field past the pruned ones and emit a \lbox{} projection. Metadata is skipped transparently.
-  Lambdas and \code{let}s emit their binders through Definition~\ref{def:Erasure-mkLambda}. A
-  literal is expanded into a unary \code{Nat.succ} chain under \code{nat = .peano} and into a
-  primitive 63-bit integer under \code{.machine}. A free variable is emitted as an \lbox{} free
-  variable, to be abstracted later. An eliminator or constructor that is under-applied is
-  eta-expanded to its arity before the eliminator or constructor case runs. Four heads are
-  declared unreachable: sorts and products, because they are always erasable and were boxed
-  above; metavariables, because the supported fragment excludes them; and de Bruijn variables, by
-  the locally nameless invariant.
-
-  The Lean block is headed by \code{Erasure.visitExpr}; the other fifteen members are the
-  dispatch targets named above.
+\label{def:Erasure-visitExpr}
+\uses{def:Erasure-EraseM, def:Erasure-isErasable, def:Erasure-register_inductive, def:Erasure-mkLambda, def:LBTerm}
+\lean{Erasure.visitExpr, Erasure.visitLiteral, Erasure.visitLambda, Erasure.visitLet, Erasure.visitProj, Erasure.visitApp, Erasure.visitConst, Erasure.visitConstApp, Erasure.visitCasesEta, Erasure.visitCasesEtaGo, Erasure.visitCtorEta, Erasure.visitCtorEtaGo, Erasure.visitConstructor, Erasure.visitAppArgs, Erasure.visitCases, Erasure.visitAlt}
+\leanok
+\lead{In short} One mutual block of sixteen \code{partial\_fixpoint} definitions (eighteen with
+Definition~\ref{def:Erasure-visitMutual}'s two); \code{visitExpr} box-tests \emph{every} node
+first: on success, $\Box$, with \hl{no recursion at all}. The table below covers all eighteen.
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+Function & Role \\
+\midrule
+\code{visitExpr} & box test, else dispatch on head \\
+\code{visitLiteral} & \code{Nat.succ} chain or machine int \\
+\code{visitLambda} & emit a lambda binder \\
+\code{visitLet} & emit a let binder \\
+\code{visitProj} & re-index past pruned fields \\
+\code{visitApp} & dispatch an application \\
+\code{visitConst} & a bare constant, as zero-arg \\
+\code{visitConstApp} & route to eliminator, constructor or plain \\
+\code{visitCasesEta} & eta-expand an eliminator \\
+\code{visitCasesEtaGo} & eliminator eta-expansion loop \\
+\code{visitCtorEta} & eta-expand a constructor \\
+\code{visitCtorEtaGo} & constructor eta-expansion loop \\
+\code{visitConstructor} & emit a constructor \emph{applied} \\
+\code{visitAppArgs} & erase an argument list \\
+\code{visitCases} & emit an eliminator's case node \\
+\code{visitAlt} & emit one case alternative \\
+\code{visitMutual} & close the environment over one block
+(Definition~\ref{def:Erasure-visitMutual}) \\
+\code{get\_constant\_kername} & memoised kername lookup \\
+\bottomrule
+\end{tabular}
+\end{center}
+A free variable is emitted as an \lbox{} free variable, to be abstracted later. Sorts, products,
+metavariables, de Bruijn variables: all unreachable. Metadata is skipped.
 \end{definition}
 
 \begin{remark}
-  The family was originally a single \code{partial def}, which produces an opaque constant with
-  no equations. \code{partial\_fixpoint} produces equational lemmas and, crucially, the
-  eighteen-motive fixpoint-induction principle \code{Erasure.visitExpr.mutual\_fixpoint\_induct}
-  on which the whole refinement of Chapter~\ref{chap:refinement} and the cold start of
-  Chapter~\ref{chap:coldstart} run. The cost is paid twice: a monotonicity section of nine
-  proof-only lemmas teaching \code{partial\_fixpoint} how recursion flows through the
-  continuation-passing helpers, which change the compiled behaviour of nothing; and two
-  documented behaviour-preserving rewrites, the specialisation of a former combined eta helper
-  (which survives as dead code) into the two eta loops, and one array conversion in the
-  eliminator case.
+\lead{Why} \code{partial\_fixpoint} (replacing an opaque \code{partial def}) yields equational
+lemmas and the eighteen-motive \code{mutual\_fixpoint\_induct} that
+Chapters~\ref{chap:refinement},~\ref{chap:coldstart} run on. Cost: nine proof-only monotonicity
+lemmas and two behaviour-preserving rewrites, one leaving dead code behind.
 \end{remark}
 
 \begin{remark}
-  The constructor case emits \emph{applied} form --- a bare constructor node applied through
-  \lbox{} application --- never a block with its arguments inside; the inline comment says ``in
-  the stage of $\lambda$box I am targeting constructor application is function application''. This
-  is the opposite of agda2lambox's choice and of MetaRocq's \code{constructors\_as\_blocks}
-  target, and it is why the semantics of Chapter~\ref{chap:lambdabox} is pinned with the
-  block-constructor flag off (cf.\ shipping finding F-ETA2). [R]'s Listing~2 shows block form, so the report
-  and the shipping code disagree on the record; the code wins. Two further findings sit at these
-  sites: F-SPARSE, where the eliminator case recovers the inductive from the eliminator's name
-  prefix and declares a sparse eliminator unreachable, after which the run continues and writes a
-  wrong \code{.ast}; and F-ETA2, where the eta loops re-erase the supplied argument prefix once
-  per missing argument, which in applied form buys nothing.
+\lead{Deviation} The constructor case emits \emph{applied} form, never a block -- opposite
+agda2lambox and MetaRocq's \code{constructors\_as\_blocks} -- so Chapter~\ref{chap:lambdabox}'s
+semantics is pinned with the block-constructor flag off. [R]'s Listing~2 shows block form; \hl{the
+shipping code disagrees, and the code wins}. Findings \textbf{F-SPARSE}, \textbf{F-ETA2} sit here
+(table, \S\ref{sec:eraser:caveats}).
 \end{remark}
 
 \begin{definition}[The environment closure]
-  \label{def:Erasure-visitMutual}
-  \uses{def:Erasure-visitExpr, def:Erasure-prepare_erasure, def:Erasure-mkLambda, def:Erasure-EraseM, def:Kername, def:GlobalDeclarations}
-  \lean{Erasure.visitMutual, Erasure.get_constant_kername}
-  \leanok
-  The two remaining members of the mutual block close the emitted environment over what the
-  subject reaches. The kername lookup is memoised and, on a miss, erases the constant's whole Lean
-  mutual block and re-reads the table. Erasing a block reads it through the compiler's declaration
-  info --- the \emph{original} recursive definition where one exists, rather than the
-  recursor-based elaboration --- and then either emits a body-less axiom (no compiler value, or
-  \code{@[extern]} under the axiom policy); or, for a single declaration whose body does not
-  mention its own name, erases the prepared body and conses a constant declaration; or otherwise
-  mints one fresh free variable per block member, installs them in the reader keyed by the
-  members' \code{\_unsafe\_rec}-stripped names, erases each prepared body under that map, closes
-  each with the fixpoint-member constructor, and registers \emph{each} member under its own
-  kername with body a bare, unapplied fixpoint block selected at that member's index.
-
-  The Lean declarations are \code{Erasure.get\_constant\_kername} and
-  \code{Erasure.visitMutual}.
+\label{def:Erasure-visitMutual}
+\uses{def:Erasure-visitExpr, def:Erasure-prepare_erasure, def:Erasure-mkLambda, def:Erasure-EraseM, def:Kername, def:GlobalDeclarations}
+\lean{Erasure.visitMutual, Erasure.get_constant_kername}
+\leanok
+\lead{In short} The remaining two members close the environment over what the subject reaches:
+memoised kername lookup, erasing a mutual block on a miss, via the \emph{original} recursive
+definition where one exists.
+\begin{itemize}
+\item no compiler value, or \code{@[extern]} under the axiom policy: a body-less axiom;
+\item a lone declaration not mentioning its own name: erase it, cons a constant declaration;
+\item otherwise: mint one variable per member, erase each body under that map, and \hl{register
+each under its own kername with a bare, unapplied fixpoint block} at its index.
+\end{itemize}
 \end{definition}
 
 \begin{remark}
-  This is MetaCoq's \code{erase\_global\_decls}, done on demand. It is the site of finding F-ETA:
-  the emitted fixpoint bodies are bare and unapplied, so MetaRocq's expanded-program predicate is
-  false on all five benchmark programs --- which is exactly why the capstone concludes the
-  peregrine well-formedness predicate and pointedly not the expanded form. The eraser's own
-  \code{TODO} sits in this branch. It is also the site of F-UNSAFEREC, since the fixpoint-variable
-  map is keyed by stripped names, and of the body-less arm that produces findings F-QUOT and
-  F-EQREC.
+\lead{Deviation} MetaCoq's \code{erase\_global\_decls}, on demand. Findings \textbf{F-ETA} (bare,
+unapplied fixpoint bodies), \textbf{F-UNSAFEREC} (the stripped-name key map) and
+\textbf{F-QUOT}/\textbf{F-EQREC} (the body-less axiom arm) sit here (table,
+\S\ref{sec:eraser:caveats}).
 \end{remark}
 
 \begin{definition}[The entry point]
-  \label{def:Erasure-erase}
-  \uses{def:Erasure-visitExpr, def:Erasure-prepare_erasure, def:Erasure-EraseM, def:Erasure-ErasureConfig, def:ASTType}
-  \lean{Erasure.erase}
-  \leanok
-  The shipping eraser: prepare the subject, erase it from the empty state at the given
-  configuration, and return the untyped \lbox{} program consisting of the accumulated global
-  environment and the erased main term, together with the list of kernames to hint for inlining.
-
-  The Lean definition \code{Erasure.erase} is a \code{CoreM} function returning a pair of the
-  program and that inlining list; it is the function the capstone of
-  Chapter~\ref{chap:capstone} is about.
+\label{def:Erasure-erase}
+\uses{def:Erasure-visitExpr, def:Erasure-prepare_erasure, def:Erasure-EraseM, def:Erasure-ErasureConfig, def:ASTType}
+\lean{Erasure.erase}
+\leanok
+\lead{In short} Prepare the subject, erase it from the empty state at the given configuration, and
+return the untyped \lbox{} program with the kernames hinted for inlining.
+\lead{Lean} \hl{the function Chapter~\ref{chap:capstone}'s capstone is about}.
 \end{definition}
 
 \begin{remark}
-  Two boundaries must be stated here. First, the \code{\#erase} command wraps this function:
-  it evaluates the user's configuration term with an \code{unsafe} evaluation, serialises the
-  result and writes the \code{.ast} file --- and the S-expression printer \code{LBTerm.to\_sexpr}
-  is a \code{partial def} that \textbf{nothing in the verification mentions}. The theorem stack
-  therefore stops at the \code{Program} value: a claim ``the emitted \code{.ast} satisfies
-  \ldots'' must be read as ``the emitted \code{Program} satisfies \ldots''. Second, the default
-  configuration is not the pinned one (Definition~\ref{def:ConfigPinned}).
+\lead{Caveat} \code{\#erase} wraps this and writes the \code{.ast} with the unverified
+\code{LBTerm.to\_sexpr}: \hl{the theorem stack stops at the \code{Program} value}, not the bytes on
+disk. The default configuration is not the pinned one (Definition~\ref{def:ConfigPinned}).
 \end{remark}
 
 \section{What the correctness statement assumes: ErasureSpec}
 \label{sec:eraser:spec}
+\code{ErasureSpec} names, once, every fact assumed about opaque Lean primitives.
 
 \begin{definition}[Soundness of a relevance verdict]
-  \label{def:Oracle-MetaSound}
-  \uses{def:Lean4Lean-TypeChecker-VContext-ofMLCtx, def:Erasable, def:lean4lean-grounding}
-  \lean{LeanToLambdaBox.Oracle.MetaSound}
-  \leanok
-  \code{Oracle.MetaSound} says that a positive verdict on a term is sound at the ambient universe
-  scope and at \emph{any} modelled local context whose underlying Lean local context is the given
-  one and whose free variables are reserved by the kernel's initial name generator: every
-  lean4lean translation of the term there is \Erasable{}. This is the conclusion the elaborator
-  fallback is \emph{assumed} to deliver and the one the kernel arm \emph{proves}.
-
-  The Lean definition \code{Oracle.MetaSound} is the shape in which the assumed arm and the
-  proved arm meet in Theorem~\ref{thm:ErasureSpec-oracle_sound_of_run}.
+\label{def:Oracle-MetaSound}
+\uses{def:Lean4Lean-TypeChecker-VContext-ofMLCtx, def:Erasable, def:lean4lean-grounding}
+\lean{LeanToLambdaBox.Oracle.MetaSound}
+\leanok
+\lead{In short} A positive verdict is sound at the ambient scope and at \emph{any} local context
+agreeing with the given one and kernel-reserved: every lean4lean translation there is \Erasable{}.
+\lead{Lean} \hl{what the fallback is assumed to deliver and the kernel arm proves} -- they meet in
+Theorem~\ref{thm:ErasureSpec-oracle_sound_of_run}.
 \end{definition}
 
 \begin{definition}[The environment queries report what the environment holds]
-  \label{def:LookupAdequate}
-  \uses{def:isCasesOnName, def:Erasure-prepare_erasure}
-  \lean{LeanToLambdaBox.LookupAdequate, LeanToLambdaBox.CasesInfoAgreesK, LeanToLambdaBox.altNumFields}
-  \leanok
-  The four environment queries the eraser makes --- for a constant's info, for the compiler's
-  declaration info, for a constructor's arity, and for an eliminator's metadata --- report what
-  the elaboration environment holds, and none does more to the fresh-name generator than advance
-  it. Three clauses are deliberately asymmetric. The declaration-info clause's block-membership
-  conclusion is \emph{guarded} by the name not being an \code{\_unsafe\_rec} name, because the
-  primitive prefers the \code{\_unsafe\_rec} twin and at such a name the block it answers with
-  does not contain the name asked for. The constructor-arity and eliminator-metadata clauses are
-  stated in both directions; the negative directions are what the fragment predicate spends to
-  rule out non-constructor and non-eliminator heads.
-
-  The Lean declarations are the four-field structure \code{LookupAdequate}, the field-count
-  helper \code{altNumFields}, and \code{CasesInfoAgreesK}, the payload of the last clause: the
-  elaborator's \code{casesOn} metadata agrees with the declared inductive block --- the
-  discriminant sits immediately after parameters, motive and indices, the eliminator is saturated
-  by one minor premise per constructor, the alternatives run from one past the discriminant to
-  the arity, there is one alternative per constructor, and each binds exactly its constructor's
-  fields.
+\label{def:LookupAdequate}
+\uses{def:isCasesOnName, def:Erasure-prepare_erasure}
+\lean{LeanToLambdaBox.LookupAdequate, LeanToLambdaBox.CasesInfoAgreesK, LeanToLambdaBox.altNumFields}
+\leanok
+\lead{In short} The eraser's four environment queries (a constant's info, the compiler's
+declaration info, a constructor's arity, an eliminator's metadata) report what the environment
+holds, only advancing the fresh-name generator.
+\begin{itemize}
+\item declaration-info's block-membership is \hl{guarded by the name not being
+\code{\_unsafe\_rec}} -- at such a name the answered block omits it;
+\item the arity and metadata clauses hold both directions, excluding non-constructor,
+non-eliminator heads.
+\end{itemize}
+\lead{Lean} \code{CasesInfoAgreesK}: \code{casesOn}'s metadata agrees with the declared block --
+discriminant after parameters/motive/indices; one minor premise and one alternative per
+constructor, each binding exactly its fields.
 \end{definition}
 
 \begin{remark}
-  These are facts about opaque primitives. \code{Lean.Environment} has a private constructor, so
-  no Lean term denotes one and no statement about \code{getConstInfo} is provable inside Lean.
-  That is why the whole bundle is an assumption and not a lemma.
+\lead{Why} \code{Lean.Environment} has a private constructor: no Lean term denotes one, so no
+statement about \code{getConstInfo} is provable in Lean. Hence an assumption, not a lemma.
 \end{remark}
 
 \begin{definition}[The kernel's blocks in the model]
-  \label{def:BlockAdequate}
-  \uses{def:Erasure-register_inductive, def:isCasesOnName, def:IndInfo, def:IndArity, def:CtorOf, def:ConstOrigin, def:CasesOnShape}
-  \lean{LeanToLambdaBox.BlockAdequate, LeanToLambdaBox.KernelFields}
-  \leanok
-  The kernel's inductive blocks, constructors and eliminators are the model's, at the \lbox{}
-  identifier the eraser mints. Forward: a member of a declared block is the model's type former at
-  the block identifier built from the block's member names and at the member's position, with the
-  block's parameter count and per-constructor field counts. Backward: a model type former is
-  declared with the same arithmetic. Constructors correspond in both directions, at their
-  inductive and index. The \code{casesOn} constant of a declared inductive is a declared plain
-  constant of the model whose segmentation is exactly the block's --- the same arithmetic
-  \code{CasesInfoAgreesK} reads off the elaborator's metadata. And a declared inductive is a
-  member of its own mutual block.
-
-  The Lean declarations are the six-field structure \code{BlockAdequate} and the field-count list
-  \code{KernelFields}, one entry per constructor with that constructor agreeing about its
-  inductive, its index and the block's parameter count. The field is spelled \code{casesOnDecl}
-  rather than \code{casesOn}, because a Lean structure may not carry a field of the latter name.
+\label{def:BlockAdequate}
+\uses{def:Erasure-register_inductive, def:isCasesOnName, def:IndInfo, def:IndArity, def:CtorOf, def:ConstOrigin, def:CasesOnShape}
+\lean{LeanToLambdaBox.BlockAdequate, LeanToLambdaBox.KernelFields}
+\leanok
+\lead{In short} The kernel's blocks, constructors and eliminators are the model's, at the \lbox{}
+identifier the eraser mints.
+\begin{itemize}
+\item a block member is the model's type former at the built identifier, with the block's
+parameter and field counts, and conversely;
+\item constructors correspond both directions, at inductive and index;
+\item a declared inductive's \code{casesOn} is a model constant whose segmentation is \hl{exactly
+the arithmetic \code{CasesInfoAgreesK} reads off};
+\item a declared inductive is a member of its own block.
+\end{itemize}
+\lead{Lean} six fields, one spelled \code{casesOnDecl} (no field may be named \code{casesOn}).
 \end{definition}
 
 \begin{definition}[The effectful calls only advance the generator]
-  \label{def:PrimMonotone}
-  \uses{def:Erasure-EraseM}
-  \lean{LeanToLambdaBox.PrimMonotone, LeanToLambdaBox.ForallMatchesLam}
-  \leanok
-  The four \code{CoreM} and \code{MetaM} calls the eraser makes for their effect alone ---
-  reading the environment, logging, asking whether a constant is an instance, and inferring a type
-  --- only advance the fresh-name generator; and type inference additionally reports a
-  \code{forall}-telescope whose binders agree, in name and domain, with the subject's
-  \code{lambda}-telescope.
-
-  The Lean declarations are the four-field structure \code{PrimMonotone} and the telescope
-  agreement \code{ForallMatchesLam}. The latter is \emph{vacuously true} whenever the subject is
-  not a lambda, by design, so the inference clause asserts nothing about the inferred type of a
-  constant or an application.
+\label{def:PrimMonotone}
+\uses{def:Erasure-EraseM}
+\lean{LeanToLambdaBox.PrimMonotone, LeanToLambdaBox.ForallMatchesLam}
+\leanok
+\lead{In short} Four effect-only calls (reading the environment, logging, checking an instance,
+inferring a type) only advance the fresh-name generator; type inference also reports a
+\code{forall}-telescope agreeing, in name and domain, with the subject's \code{lambda}-telescope.
+\lead{Lean} \code{ForallMatchesLam} is \hl{vacuously true when the subject is not a lambda, by
+design}, asserting nothing about a constant's or application's inferred type.
 \end{definition}
 
 \begin{definition}[The specification of the eraser's primitives]
-  \label{def:ErasureSpec}
-  \uses{def:LookupAdequate, def:PrimMonotone, def:BlockAdequate, def:Oracle-MetaSound, def:isErasable, def:Erasure-isErasable, def:lean4lean-grounding, asm:ErasureSpec-env_connect, asm:ErasureSpec-lookup_adequate, asm:ErasureSpec-fresh_names, asm:ErasureSpec-oracle_refl, asm:ErasureSpec-oracle_meta, asm:ErasureSpec-decl_adequate, asm:ErasureSpec-prim_monotone, asm:ErasureSpec-block_adequate}
-  \lean{LeanToLambdaBox.ErasureSpec}
-  \leanok
-  \code{ErasureSpec} bundles eight clauses about the world outside pure Lean terms, at an
-  elaboration environment, its lean4lean model, the ambient universe scope and a reading of the
-  fresh-name generator.
-  \begin{enumerate}
-    \item \emph{env\_connect}: there is a lean4lean environment model, well formed for the kernel
-      environment obtained from the elaboration environment, whose safe projection is the model
-      --- the same conversion the shipping oracle itself makes.
-    \item \emph{lookup\_adequate}: Definition~\ref{def:LookupAdequate}.
-    \item \emph{fresh\_names}: minting a fresh free variable returns an identifier the ambient
-      generator has not handed out, reserves it afterwards, only advances the generator, and is
-      reserved by the kernel's own initial generator.
-    \item \emph{oracle\_refl}: a positive verdict of the shipping oracle at the ambient scope
-      either reflects a successful \emph{pure} run of the verified checker at the same local
-      context and scope, or is a verdict of the elaborator fallback, assumed sound.
-    \item \emph{oracle\_meta}: a positive verdict at a scope other than the ambient one is sound
-      outright.
-    \item \emph{decl\_adequate}: a declaration the environment makes visible at safety
-      \code{.safe} is visible in the model with a translated type.
-    \item \emph{prim\_monotone}: Definition~\ref{def:PrimMonotone}.
-    \item \emph{block\_adequate}: Definition~\ref{def:BlockAdequate}.
-  \end{enumerate}
-  The Lean declaration \code{ErasureSpec} is a \code{Prop}-valued structure with exactly those
-  eight fields. It is the top hypothesis of the capstone, of every green rung, of the erasure
-  bridge, of the fragment's soundness lemmas and of the cold-start induction.
+\label{def:ErasureSpec}
+\uses{def:LookupAdequate, def:PrimMonotone, def:BlockAdequate, def:Oracle-MetaSound, def:isErasable, def:Erasure-isErasable, def:lean4lean-grounding, asm:ErasureSpec-env_connect, asm:ErasureSpec-lookup_adequate, asm:ErasureSpec-fresh_names, asm:ErasureSpec-oracle_refl, asm:ErasureSpec-oracle_meta, asm:ErasureSpec-decl_adequate, asm:ErasureSpec-prim_monotone, asm:ErasureSpec-block_adequate}
+\lean{LeanToLambdaBox.ErasureSpec}
+\leanok
+\lead{In short} Eight \stAssumed{} clauses about the world outside pure Lean terms: an elaboration
+environment, its lean4lean model, the universe scope, the fresh-name generator.
+\begin{center}
+\begin{tabular}{lp{0.68\linewidth}l}
+\toprule
+Field & What it asserts & Class \\
+\midrule
+\code{env\_connect} & a well-formed lean4lean model exists, projecting safely & D \\
+\code{lookup\_adequate} & Definition~\ref{def:LookupAdequate} & D \\
+\code{fresh\_names} & a fresh variable: unreserved, then reserved; generator only advances,
+also kernel-reserved & D \\
+\code{oracle\_refl} & a positive verdict reflects a pure kernel run, or the assumed-sound fallback
+& D \\
+\code{oracle\_meta} & a verdict off-scope is sound outright & D \\
+\code{decl\_adequate} & a safe declaration is visible in the model, translated & D \\
+\code{prim\_monotone} & Definition~\ref{def:PrimMonotone} & D \\
+\code{block\_adequate} & Definition~\ref{def:BlockAdequate} & D \\
+\bottomrule
+\end{tabular}
+\end{center}
+\lead{Lean} \hl{the top hypothesis of the capstone, every rung, the erasure bridge, the fragment's
+soundness lemmas and the cold-start induction}.
 \end{definition}
 
 \begin{remark}
-  This node is a \emph{definition}, not an assumption: the structure exists and elaborates. What
-  is assumed is each of its eight \emph{fields}, and those are eight assumption nodes of
-  Chapter~\ref{chap:trust} (trust class~D). Two readings deserve spelling out. The safety
-  condition of \code{decl\_adequate} is written as an inequality with \code{.safe} on the left;
-  since \code{.safe} is the \emph{top} of lean4lean's order this forces the declaration to be
-  safe and does \textbf{not} admit unsafe or partial declarations, although the inequality reads
-  the other way at first sight. And the bundle deliberately does \emph{not} carry the source-table
-  adequacy hypothesis of Chapter~\ref{chap:capstone}: a \code{Prop}-valued structure cannot hold a
-  table as data, and an unbound table field would auto-bind to a universal quantifier no table
-  satisfies.
+\lead{Caveat} A \emph{definition}: the structure elaborates. Each of its eight fields is a
+separate assumption node, trust class~D (Chapter~\ref{chap:trust}).
+\begin{itemize}
+\item \code{decl\_adequate}'s safety reads \code{.safe} $\le$ \code{ci.safety}; since
+\code{.safe} is lean4lean's \emph{top}, this forces safety, admitting no unsafe or partial
+declaration, though the inequality reads backwards at first sight;
+\item no source-table adequacy hypothesis: a \code{Prop} structure cannot hold a table as data.
+\end{itemize}
+\end{remark}
+
+\begin{remark}
+\lead{Caveat} \code{ErasureSpec.lean} also declares a relational pass interface \code{LBPassR}, in
+MetaRocq's \code{optimize\_correct} shape. It has no consumer and its doc comment forward-references
+a theorem that does not exist: an aspiration, not a current interface.
 \end{remark}
 
 \section{What the eraser is asked for: EraserAsks}
 \label{sec:eraser:asks}
+\code{EraserAsks} names, once, every fact assumed about its own shipping code.
 
 \begin{definition}[What the eraser is asked for]
-  \label{def:EraserAsks}
-  \uses{def:preparePasses, def:Erasure-isErasable, def:isErasable, def:Erasure-prepare_erasure, def:SEval, def:IndInfo, def:Kername, asm:EraserAsks-passes_monotone, asm:EraserAsks-passes_sound, asm:EraserAsks-oracle_false_refl, asm:EraserAsks-kernel_ind_head_true, asm:EraserAsks-block_keys_distinct}
-  \lean{LeanToLambdaBox.EraserAsks}
-  \leanok
-  \code{EraserAsks} bundles five clauses about \emph{this repository's own} code --- the
-  preparation passes and the relevance oracle --- so that each is an obligation with an owner
-  rather than a fact about an opaque object.
-  \begin{enumerate}
-    \item \emph{passes\_monotone}: the preparation calls only advance the generator.
-    \item \emph{passes\_sound}: each pass preserves the source evaluation of the subject
-      \textbf{under an arbitrary application spine}. The capstone observes the program applied to
-      arguments, while a pass is a whole-tree walk, and applying a pass to an application is not
-      applying it to the head; a clause stated at the subject alone would not reach the spine.
-    \item \emph{oracle\_false\_refl}: a negative verdict of the shipping oracle means the pure
-      kernel run did not answer positively.
-    \item \emph{kernel\_ind\_head\_true}: at an inductive-type head the pure kernel run answers
-      positively --- the oracle's \emph{completeness} at the one shape the fragment predicate
-      cannot exclude.
-    \item \emph{block\_keys\_distinct}: the \lbox{} kernames of a mutual block's members are
-      distinct.
-  \end{enumerate}
-  The Lean declaration \code{EraserAsks} is a \code{Prop}-valued structure with exactly those
-  \textbf{five} fields; \code{EraserAsks.oracle\_informative} is not a sixth field but a derived
-  theorem (Theorem~\ref{thm:EraserAsks-oracle_informative}). The five fields are five assumption
-  nodes of Chapter~\ref{chap:trust} (trust class~C).
+\label{def:EraserAsks}
+\uses{def:preparePasses, def:Erasure-isErasable, def:isErasable, def:Erasure-prepare_erasure, def:SEval, def:IndInfo, def:Kername, asm:EraserAsks-passes_monotone, asm:EraserAsks-passes_sound, asm:EraserAsks-oracle_false_refl, asm:EraserAsks-kernel_ind_head_true, asm:EraserAsks-block_keys_distinct}
+\lean{LeanToLambdaBox.EraserAsks}
+\leanok
+\lead{In short} Five \stAssumed{} clauses about \hl{this repository's own code} -- the
+preparation passes and the oracle -- each an obligation with an owner.
+\begin{center}
+\begin{tabular}{p{0.25\linewidth}p{0.60\linewidth}l}
+\toprule
+Field & What it asserts & Class \\
+\midrule
+\code{passes\_monotone} & each call only advances the generator & C \\
+\code{passes\_sound} & each pass preserves evaluation under any application spine & C \\
+\code{oracle\_false\_refl} & a negative verdict: the pure kernel run did not answer positively
+& C \\
+\code{kernel\_ind\_head\_true} & at an inductive-type head the pure run answers positively & C \\
+\code{block\_keys\_distinct} & a mutual block's members get distinct \lbox{} kernames & C \\
+\bottomrule
+\end{tabular}
+\end{center}
+\lead{Lean} \code{oracle\_informative} is a \emph{derived theorem}
+(Theorem~\ref{thm:EraserAsks-oracle_informative}), not a sixth field.
 \end{definition}
 
 \begin{remark}
-  Two of the five fields are documented \emph{refuted in general}. The completeness field is
-  refuted by F-DEPTH: a telescope deeper than the capped fuel, or an \code{@[irreducible]} alias,
-  defeats the arity check. The distinctness field is refuted by F-UNSAFEREC: a legal
-  \code{mutual unsafe def u / u.\_unsafe\_rec} block collapses two kernames, which is a
-  \emph{miscompilation} and not merely a proof gap; the source records a proposed one-line
-  duplicate guard. Both were measured on a large corpus and held there --- $2{,}940$ of
-  $2{,}940$ inductive type formers, and no failure over more than two hundred thousand
-  declaration-info answers. Because the bundle is a binder of the capstone and of all eight rungs,
-  those statements are conditionally vacuous on any environment exhibiting a counterexample. The
-  An earlier design note counted four clauses destined for this repository's own code before the
-  oracle clause was split into \code{oracle\_false\_refl} and \code{kernel\_ind\_head\_true}
-  (\code{doc/rework/06-REPAIRS-W4.md}); the shipped bundle has five.
+\lead{Caveat} Two fields are documented \emph{refuted in general}: \code{kernel\_ind\_head\_true}
+by \textbf{F-DEPTH}, \code{block\_keys\_distinct} by \textbf{F-UNSAFEREC}. Both held on a corpus --
+$2{,}940$ of $2{,}940$ type formers, no failure over $200{,}000$-plus declaration-info answers --
+but since the bundle binds the capstone and all eight rungs, results taking it are conditionally
+vacuous on a counterexample.
 \end{remark}
 
 \section{What the bundles prove}
 \label{sec:eraser:derived}
+What the two bundles are worth: the reductions and the one reroute they buy.
 
 \begin{theorem}[The modelled environment is well formed]
-  \label{thm:ErasureSpec-envWF}
-  \uses{def:ErasureSpec, def:lean4lean-grounding}
-  \lean{LeanToLambdaBox.ErasureSpec.envWF}
-  \leanok
-  Under the specification bundle, the model environment is well formed.
-
-  The Lean statement \code{ErasureSpec.envWF} takes the bundle as its only hypothesis. This is a
-  genuine reduction rather than an assumption, and a load-bearing one: well-formedness of the
-  model environment is the premise of essentially every target-side lemma of
-  Chapters~\ref{chap:erases}--\ref{chap:lowering}, and it is \emph{derived} from the model
-  connection instead of assumed separately. Its measured footprint is the standard one.
+\label{thm:ErasureSpec-envWF}
+\uses{def:ErasureSpec, def:lean4lean-grounding}
+\lean{LeanToLambdaBox.ErasureSpec.envWF}
+\leanok
+\lead{Given} the specification bundle;
+\lead{Then} the model environment is well formed.
+\lead{Lean} the bundle is its only hypothesis; \hl{a genuine reduction, not a separate assumption}
+-- premise of essentially every target-side lemma of
+Chapters~\ref{chap:erases}--\ref{chap:lowering}.
+\lead{Status} \stProved{}, conditional on \stAssumed{} \code{ErasureSpec}.
 \end{theorem}
 \begin{proof}
-  \leanok
-  \uses{asm:ErasureSpec-env_connect}
-  Unpack the model-connection field and apply lean4lean's well-formedness of a translated
-  environment at safety \code{.safe}. Two lines.
+\leanok
+\uses{asm:ErasureSpec-env_connect}
+\lead{Idea} Unpack the model-connection field and apply lean4lean's well-formedness at safety
+\code{.safe}. Two lines.
 \end{proof}
 
 \begin{proposition}[Declaration adequacy, for the kernel's own lookup]
-  \label{prop:ErasureSpec-decl_adequate_of_kernelFind}
-  \uses{def:ErasureSpec, def:lean4lean-grounding}
-  \lean{LeanToLambdaBox.ErasureSpec.decl_adequate_of_kernelFind}
-  \leanok
-  The content of the \code{decl\_adequate} field, proved --- but for the \emph{kernel}
-  environment's own lookup rather than the elaborator's: a declaration the kernel environment
-  makes visible at safety \code{.safe} is visible in the model with a translated type.
-
-  The Lean statement \code{ErasureSpec.decl\_adequate\_of\_kernelFind} differs from the field it
-  mirrors exactly in which of the two lookup primitives it quantifies over. It is
-  documentation-by-theorem of how far the field can be reduced and of what blocks the rest ---
-  the agreement of the elaborator's lookup with the kernel's, two opaque primitives, an upstream
-  ask. It is proved but \textbf{never applied}; a reader must not mistake it for a discharge of
-  the field.
+\label{prop:ErasureSpec-decl_adequate_of_kernelFind}
+\uses{def:ErasureSpec, def:lean4lean-grounding}
+\lean{LeanToLambdaBox.ErasureSpec.decl_adequate_of_kernelFind}
+\leanok
+\lead{In short} The \code{decl\_adequate} field's content, proved for the \emph{kernel}
+environment's own lookup rather than the elaborator's.
+\lead{Lean} differs only in which lookup primitive it quantifies over; shows what blocks the rest
+-- agreement between the elaborator's and kernel's lookup, an upstream ask. \hl{Proved but never
+applied}: not a discharge of the field.
 \end{proposition}
 \begin{proof}
-  \leanok
-  \uses{asm:ErasureSpec-env_connect, asm:lean-reflection-axioms}
-  The model-connection field yields lean4lean's translated-environment predicate, whose own lookup
-  lemma reads a visible declaration off it.
+\leanok
+\uses{asm:ErasureSpec-env_connect, asm:lean-reflection-axioms}
+\lead{Idea} The model-connection field yields lean4lean's translated-environment predicate; its
+lookup lemma reads off a visible declaration.
 \end{proof}
 
 \begin{theorem}[The oracle reroute]
-  \label{thm:ErasureSpec-oracle_sound_of_run}
-  \uses{def:ErasureSpec, def:Erasure-isErasable, def:Oracle-MetaSound, def:Erasable, def:lean4lean-grounding}
-  \lean{LeanToLambdaBox.ErasureSpec.oracle_sound_of_run}
-  \leanok
-  If the shipping relevance oracle returns a positive verdict on a term during a run, at the
-  ambient universe scope, then every lean4lean translation of that term --- at a modelled local
-  context whose underlying Lean local context is the run's and whose free variables are reserved
-  by the kernel's initial generator --- is \Erasable{}, hence a legitimate target of the box rule.
-
-  The Lean statement \code{ErasureSpec.oracle\_sound\_of\_run} phrases the verdict as an equation
-  on a concrete lifted \code{MetaM} run, with the run's world token and state explicit, rather
-  than as an abstract Boolean.
+\label{thm:ErasureSpec-oracle_sound_of_run}
+\uses{def:ErasureSpec, def:Erasure-isErasable, def:Oracle-MetaSound, def:Erasable, def:lean4lean-grounding}
+\lean{LeanToLambdaBox.ErasureSpec.oracle_sound_of_run}
+\leanok
+\lead{Given} the specification bundle, and a run of the shipping oracle returning positive on a
+term, at the ambient scope;
+\lead{Then} every lean4lean translation of that term, at a context matching the run's and
+kernel-reserved, is \hl{\Erasable{}, hence a legitimate target of the box rule}.
+\lead{Lean} phrases the verdict as an equation on a concrete \code{MetaM} run.
+\lead{Status} \stProved{}, \stInherited{} through lean4lean, conditional on \stAssumed{}
+\code{ErasureSpec}.
 \end{theorem}
 \begin{proof}
-  \leanok
-  \uses{thm:Oracle-kernel_isErasable_sound, def:Oracle-MetaSound, asm:ErasureSpec-env_connect, asm:ErasureSpec-oracle_refl, asm:lean4lean-trust, asm:lean-reflection-axioms}
-  Unpack the model connection. The \code{oracle\_refl} field offers two disjuncts. On the kernel
-  disjunct --- a successful pure run of the verified checker at the same local context and scope
-  --- apply Theorem~\ref{thm:Oracle-kernel_isErasable_sound}. On the fallback disjunct the
-  conclusion \emph{is} \code{Oracle.MetaSound} applied to the witnesses at hand.
+\leanok
+\uses{thm:Oracle-kernel_isErasable_sound, def:Oracle-MetaSound, asm:ErasureSpec-env_connect, asm:ErasureSpec-oracle_refl, asm:lean4lean-trust, asm:lean-reflection-axioms}
+\lead{Idea} Unpack the model connection; \code{oracle\_refl} offers two disjuncts.
+\begin{enumerate}
+\item Kernel disjunct: apply Theorem~\ref{thm:Oracle-kernel_isErasable_sound}.
+\item Fallback disjunct: the conclusion \emph{is} \code{Oracle.MetaSound} at hand.
+\end{enumerate}
 \end{proof}
 
 \begin{remark}
-  This is the single place where the erasure's relevance decision stops being an assumption and
-  becomes a consequence of a verified executable checker. What remains assumed on this path is
-  only the \emph{reflection} step --- that the impure \code{MetaM} plumbing reflects the pure run
-  it calls --- and the fallback arm. It is the first step of the erasure bridge, so its footprint
-  propagates to the capstone and to all eight rungs. That footprint is measured, in the committed
-  fixture \code{test/ledger.expected}: 33 axiom names, namely \code{propext}, \code{sorryAx},
-  \code{Classical.choice} and \code{Quot.sound} together with 29 non-standard names --- lean4lean's
-  pointer-equality axioms, its modelling axioms for native \code{Expr}, \code{Level} and the
-  persistent containers, one for \code{Std.TreeMap}, one for syntax, and two Lean-core
-  \code{bv\_decide} certificates. The repository records the alternative on the table: revert the
-  reroute, about forty lines, and keep the oracle sound by assumption.
+\lead{Why} The one place the relevance decision stops being assumed and becomes a consequence of a
+verified checker. Still assumed: the \emph{reflection} step and the fallback arm.
+\begin{itemize}
+\item footprint (\code{test/ledger.expected}): 33 axioms -- \code{propext}, \code{sorryAx},
+\code{Classical.choice}, \code{Quot.sound}, plus 29 non-standard lean4lean modelling axioms;
+\item on record: revert the reroute (forty lines), keep the oracle sound by assumption instead.
+\end{itemize}
 \end{remark}
 
 \begin{theorem}[The type-former exclusion, derived]
-  \label{thm:EraserAsks-oracle_informative}
-  \uses{def:EraserAsks, def:Erasure-isErasable, def:IndInfo, def:lean4lean-grounding}
-  \lean{LeanToLambdaBox.EraserAsks.oracle_informative}
-  \leanok
-  If the shipping oracle answers negatively on a term at the ambient universe scope, then the head
-  of that term's application spine is not an inductive type name.
-
-  The Lean statement \code{EraserAsks.oracle\_informative} carries the same run-level equation and
-  the same modelled-context premises as
-  Theorem~\ref{thm:ErasureSpec-oracle_sound_of_run}, and concludes for every constant head and
-  every universe instantiation at once.
+\label{thm:EraserAsks-oracle_informative}
+\uses{def:EraserAsks, def:Erasure-isErasable, def:IndInfo, def:lean4lean-grounding}
+\lean{LeanToLambdaBox.EraserAsks.oracle_informative}
+\leanok
+\lead{Given} the \code{EraserAsks} bundle, and the shipping oracle answers negatively at the
+ambient scope;
+\lead{Then} the head of that term's spine is \hl{not an inductive type name}.
+\lead{Lean} concludes for every constant head and instantiation at once, under the run-level
+premises of Theorem~\ref{thm:ErasureSpec-oracle_sound_of_run}.
+\lead{Status} \stProved{}, conditional on \stAssumed{} \code{EraserAsks}.
 \end{theorem}
 \begin{proof}
-  \leanok
-  \uses{asm:EraserAsks-oracle_false_refl, asm:EraserAsks-kernel_ind_head_true}
-  The two oracle clauses of the bundle contradict each other at an inductive head: the
-  completeness field says the pure kernel run answers positively there, while the reflection field
-  says it did not answer positively.
+\leanok
+\uses{asm:EraserAsks-oracle_false_refl, asm:EraserAsks-kernel_ind_head_true}
+\lead{Idea} The bundle's two oracle clauses contradict at an inductive head: one says the pure
+kernel run answers positively there, the other that it did not.
 \end{proof}
 
 \begin{remark}
-  This is a theorem, not a field of \code{EraserAsks}. It is the module's advertised template for
-  retiring the remaining fields: derive an \code{EraserAsks}-shaped fact from two weaker clauses
-  instead of assuming it. It tells a \emph{relevant} position of the erasure relation that it is
-  not looking at a type former, and Chapter~\ref{chap:refinement} consumes it. Its truth is
-  conditional on the bundle, and one of the two fields it spends is refuted in general, so it is
-  exactly as strong as \code{kernel\_ind\_head\_true} and no stronger.
+\lead{Caveat} A theorem, not a sixth field -- the template for retiring fields: derive rather than
+assume. Chapter~\ref{chap:refinement} consumes it, but it is exactly as strong as
+\code{kernel\_ind\_head\_true}, refuted in general, and no stronger.
 \end{remark}
 
 \begin{lemma}[An inductive-type-name spine is erasable]
-  \label{lem:erasable_indSpine}
-  \uses{def:IndInfo, def:Erasable, def:lean4lean-grounding}
-  \lean{LeanToLambdaBox.erasable_indSpine}
-  \leanok
-  If the model knows a constant as an inductive type former, then every application of it to
-  arguments that translates is \Erasable{}.
-
-  The Lean statement \code{erasable\_indSpine} additionally requires the environment and the
-  modelled local context to be well formed, and quantifies over all argument lists at once. It is
-  the positive half of the ``type formers are erased'' discipline --- the statement that the box
-  rule \emph{does} cover an applied type constructor --- but it has no consumer anywhere in the
-  repository, and a design document places its intended home in a different module. It is recorded
-  here, where the code puts it, and it is not load-bearing.
+\label{lem:erasable_indSpine}
+\uses{def:IndInfo, def:Erasable, def:lean4lean-grounding}
+\lean{LeanToLambdaBox.erasable_indSpine}
+\leanok
+\lead{In short} If the model knows a constant as an inductive type former, every application of it
+to translating arguments is \Erasable{} -- the box rule \emph{does} cover applied type
+constructors.
+\lead{Lean} takes the environment and the modelled context well formed and quantifies over all
+argument lists at once; \hl{recorded where the code puts it, no consumer anywhere}.
 \end{lemma}
 \begin{proof}
-  \leanok
-  \uses{lem:Erases-indInfo_erasable, thm:Erasable-app, asm:lean4lean-trust}
-  Strong induction on the spine length, peeling the last argument. The head's type is an arity, so
-  the head is erasable, and erasability is carried one argument at a time along the spine.
+\leanok
+\uses{lem:Erases-indInfo_erasable, thm:Erasable-app, asm:lean4lean-trust}
+\lead{Idea} Strong induction on spine length: the head's type is an arity, so erasable, and
+erasability carries one argument at a time.
 \end{proof}
 
 \section{Reading a constant three ways}
 \label{sec:eraser:origin}
+Lean has one constant node where Rocq has three; recovered here from the kernel model.
 
 \begin{definition}[Recognising an eliminator by its name]
-  \label{def:isCasesOnName}
-  \lean{LeanToLambdaBox.isCasesOnName, LeanToLambdaBox.lastComponent}
-  \leanok
-  A constant is treated as an eliminator exactly when its last name component is the string
-  \code{casesOn}.
-
-  The Lean declarations are \code{lastComponent}, which returns the last string component of a
-  hierarchical name if it has one, and \code{isCasesOnName}, which compares it. The criterion is
-  deliberately \emph{syntactic}: the development never consults a kernel ``is this a recursor''
-  flag, which is why the module is a leaf depending only on Lean's name datatype. It is read by
-  the source-side eliminator segmentation predicate of Chapter~\ref{chap:source}, by the fragment
-  checker, and by two clauses of \code{ErasureSpec}.
+\label{def:isCasesOnName}
+\lean{LeanToLambdaBox.isCasesOnName, LeanToLambdaBox.lastComponent}
+\leanok
+\lead{In short} A constant is an eliminator exactly when its last name component is
+\code{casesOn}.
+\lead{Lean} \hl{a deliberately syntactic criterion} -- no kernel ``is this a recursor'' flag is
+consulted -- read by Chapter~\ref{chap:source}'s eliminator predicate, the fragment checker, and
+two \code{ErasureSpec} clauses.
 \end{definition}
 
 \begin{lemma}[Every declared constant is a constructor, a type name or a plain constant]
-  \label{lem:consts_classified}
-  \uses{def:UpstreamAsks, def:CtorOf, def:IndInfo, def:ConstOrigin, def:lean4lean-grounding}
-  \lean{LeanToLambdaBox.consts_classified, LeanToLambdaBox.constOrigin_not_ctorOf, LeanToLambdaBox.constOrigin_not_indInfo, LeanToLambdaBox.constOrigin_of_constants}
-  \leanok
-  Lean has one constant node where Rocq has three, so the three readings of a constant occurrence
-  --- a constructor, an inductive type name, a plain constant --- must be recovered from the
-  environment. Under the upstream ask bundle: every declared constant of the model admits one of
-  the three readings; a plain constant is neither a constructor nor an inductive type name; and
-  conversely a declared constant that is neither is a plain constant.
-
-  The Lean statements are \code{consts\_classified} and the three companions
-  \code{constOrigin\_not\_ctorOf}, \code{constOrigin\_not\_indInfo} and
-  \code{constOrigin\_of\_constants}. The well-formedness hypothesis of the first is unused --- it
-  is named with a leading underscore --- and call sites supply it for nothing.
+\label{lem:consts_classified}
+\uses{def:UpstreamAsks, def:CtorOf, def:IndInfo, def:ConstOrigin, def:lean4lean-grounding}
+\lean{LeanToLambdaBox.consts_classified, LeanToLambdaBox.constOrigin_not_ctorOf, LeanToLambdaBox.constOrigin_not_indInfo, LeanToLambdaBox.constOrigin_of_constants}
+\leanok
+\lead{In short} Lean has one constant node where Rocq has three, so \hl{the three readings}
+(constructor, inductive type name, plain constant) must be recovered; under the upstream ask every
+declared constant admits exactly one.
+\lead{Lean} \code{consts\_classified}'s well-formedness hypothesis is unused (a leading
+underscore); call sites supply it for nothing.
 \end{lemma}
 \begin{proof}
-  \leanok
-  \uses{asm:UpstreamAsks-constsOrigin}
-  Each is a one-line projection of the classification conjunct of the upstream ask bundle. The
-  exclusion and uniqueness directions are facts about lean4lean's environment well-formedness that
-  the pinned lean4lean does not export, so they are assumed once and unpacked here, and every
-  consumer then takes one identical, auditable premise that a pin bump discharges at a stroke with
-  no statement changing shape.
+\leanok
+\uses{asm:UpstreamAsks-constsOrigin}
+\lead{Idea} Each statement projects the ask's classification conjunct; a pin bump discharges all
+at once, with no statement changing shape.
 \end{proof}
 
 \begin{lemma}[The coordinates of a name are unique]
-  \label{lem:IndInfo-inj}
-  \uses{def:UpstreamAsks, def:IndInfo, def:IndArity, def:CtorOf, def:IndDeclOf, def:CasesOnShape}
-  \lean{LeanToLambdaBox.IndInfo.inj, LeanToLambdaBox.CtorOf.inj, LeanToLambdaBox.CasesOnShape.inj, LeanToLambdaBox.IndArity.inj, LeanToLambdaBox.IndInfo.indDeclOf, LeanToLambdaBox.indBlock_uniq, LeanToLambdaBox.indBlockBelow_type_uniq, LeanToLambdaBox.addConst_foldlM_name_inj}
-  \leanok
-  The \lbox{} coordinates the eraser emits are functions of the source name. The block declaring a
-  given type former is unique, so its block kername, its index, its parameter count and its
-  per-constructor field counts are determined by the name; a constructor belongs to one inductive
-  at one index; an eliminator's segmentation is unique; a type former declared below the
-  environment is declared by the environment's own list; two blocks declaring the same former are
-  the same block; and a block declares each of its formers under exactly one name.
-
-  The Lean statements are the four injectivity lemmas, the declaration lemma
-  \code{IndInfo.indDeclOf}, the two block-uniqueness lemmas, and the name-injectivity of a
-  successful environment-extension fold. All eight take the upstream ask bundle. The eliminator
-  injectivity \code{CasesOnShape.inj} has exactly one occurrence in the repository --- its own
-  definition. Together these are what make two independently exhibited witnesses --- an
-  eliminator's block and an arity's block, say --- identifiable, and hence what make two erasure
-  derivations of the same program agree on constructor blocks.
+\label{lem:IndInfo-inj}
+\uses{def:UpstreamAsks, def:IndInfo, def:IndArity, def:CtorOf, def:IndDeclOf, def:CasesOnShape}
+\lean{LeanToLambdaBox.IndInfo.inj, LeanToLambdaBox.CtorOf.inj, LeanToLambdaBox.CasesOnShape.inj, LeanToLambdaBox.IndArity.inj, LeanToLambdaBox.IndInfo.indDeclOf, LeanToLambdaBox.indBlock_uniq, LeanToLambdaBox.indBlockBelow_type_uniq, LeanToLambdaBox.addConst_foldlM_name_inj}
+\leanok
+\lead{In short} \lbox{} coordinates are functions of the source name: a type former's block is
+unique (kername, index, counts determined), a constructor belongs to one inductive at one index,
+an eliminator's segmentation is unique, and a block names each former once.
+\lead{Lean} eight statements, all taking the upstream ask. \hl{Together they identify two
+independent witnesses}, so two erasure derivations agree on constructor blocks.
 \end{lemma}
 \begin{proof}
-  \leanok
-  \uses{asm:UpstreamAsks-constsOrigin}
-  The injectivity statements are projections of the ask. The two block lemmas are the workhorses:
-  a successful environment-extension fold has injective names, so two blocks below the environment
-  that both declare a former must coincide, and a block declares each former under one name.
+\leanok
+\uses{asm:UpstreamAsks-constsOrigin}
+\lead{Idea} The injectivity statements project the ask directly; the block lemmas are the
+workhorses, since a successful extension fold has injective names.
 \end{proof}
 
 \begin{theorem}[A value of a relevant inductive type is not erasable]
-  \label{thm:not_erasable_of_informative}
-  \uses{def:Erasable, def:InformativeInd, def:IndDeclOf, def:UpstreamAsks, def:IndBlockBelow, def:lean4lean-grounding}
-  \lean{LeanToLambdaBox.not_erasable_of_informative, LeanToLambdaBox.indSpine_not_prop, LeanToLambdaBox.peel_ne_prop, LeanToLambdaBox.indSpine_ne_forallE}
-  \leanok
-  If a type former is inductively declared and its declared result sort never evaluates to zero
-  --- an \emph{informative} inductive --- then no term typed at a spine headed by it is erasable:
-  it is neither a proof nor a type former, so the box rule cannot reach it.
-
-  The Lean statement \code{not\_erasable\_of\_informative} takes the environment's
-  well-formedness, the upstream ask bundle, and a context of types; its two supporting lemmas
-  \code{indSpine\_not\_prop} and \code{peel\_ne\_prop} carry the propositional half, and
-  \code{indSpine\_ne\_forallE} the product half.
+\label{thm:not_erasable_of_informative}
+\uses{def:Erasable, def:InformativeInd, def:IndDeclOf, def:UpstreamAsks, def:IndBlockBelow, def:lean4lean-grounding}
+\lean{LeanToLambdaBox.not_erasable_of_informative, LeanToLambdaBox.indSpine_not_prop, LeanToLambdaBox.peel_ne_prop, LeanToLambdaBox.indSpine_ne_forallE}
+\leanok
+\lead{Given} a type former is inductively declared and its result sort never evaluates to
+\code{Sort 0} (\emph{informative});
+\lead{Then} no term typed at a spine headed by it is erasable: \hl{neither a proof nor a type
+former}, so the box rule cannot reach it.
+\lead{Lean} takes the environment's well-formedness, the upstream ask, and a context of types.
+\lead{Status} \stProved{}, \stInherited{} through lean4lean, conditional on \stAssumed{}
+\code{UpstreamAsks}.
 \end{theorem}
 \begin{proof}
-  \leanok
-  \uses{lem:IndInfo-inj, asm:UpstreamAsks-constsOrigin, asm:UpstreamAsks-mkAppsInv, asm:UpstreamAsks-constArityInv, asm:lean4lean-trust}
-  \Erasable{} offers two disjuncts. The proof disjunct would make the inductive spine a
-  proposition: the spine's typing is peeled onto the former's declared type, whose result sort is
-  never zero, and peeling such a type can never end at \code{Sort 0}, since each peel step keeps
-  the two types definitionally equal and sort inversion would then equate a never-zero sort with
-  \code{Sort 0}. The type-former disjunct would make the spine definitionally equal to a sort or a
-  product, which the declaration data refutes.
+\leanok
+\uses{lem:IndInfo-inj, asm:UpstreamAsks-constsOrigin, asm:UpstreamAsks-mkAppsInv, asm:UpstreamAsks-constArityInv, asm:lean4lean-trust}
+\lead{Idea} \Erasable{} offers two disjuncts, both refuted.
+\begin{enumerate}
+\item Proof: would make the spine a proposition, but a never-zero result sort can't peel to
+\code{Sort 0}.
+\item Type-former: would make the spine defeq to a sort or product, refuted by the declaration
+data.
+\end{enumerate}
 \end{proof}
 
 \begin{remark}
-  This is the non-erasability side condition of the whole development: it is what makes a
-  first-order answer survive erasure un-boxed, and the first-order layer of
-  Chapter~\ref{chap:correctness} consumes it. Its measured footprint is the standard one together
-  with \code{sorryAx}. [S, Sec. 7.3]'s erasure relation excludes the box rule by exactly such an
-  irrelevance side condition; this is its model-side negation.
+\lead{Why} The non-erasability side condition of the whole development: what lets a first-order
+answer survive un-boxed (Chapter~\ref{chap:correctness}). [S, Sec.~7.3]'s erasure relation
+excludes the box rule by such a side condition; this is its model-side negation.
 \end{remark}
 
 \begin{lemma}[Peeling the typing of a translated spine]
-  \label{lem:trExprS_spine_peel}
-  \uses{def:IndBlockBelow, def:lean4lean-grounding}
-  \lean{LeanToLambdaBox.trExprS_spine_peel}
-  \leanok
-  If a head and a whole application both translate, and the head is typed, then there is a list of
-  translated arguments of the right length and the application's type is reached by peeling the
-  head's type through them.
-
-  The Lean statement \code{trExprS\_spine\_peel} quantifies over the argument list and returns the
-  argument translations index-wise, together with the peeled type and the application's typing. It
-  takes no upstream ask --- contrast Theorem~\ref{thm:not_erasable_of_informative}, whose
-  \emph{untranslated} spine does --- and it is the peeling engine of the two saturation results
-  below.
+\label{lem:trExprS_spine_peel}
+\uses{def:IndBlockBelow, def:lean4lean-grounding}
+\lean{LeanToLambdaBox.trExprS_spine_peel}
+\leanok
+\lead{In short} If a head and a whole application both translate and the head is typed, translated
+arguments of the right length exist, and the application's type is reached by peeling the head's
+type through them.
+\lead{Lean} \hl{takes no upstream ask} -- contrast Theorem~\ref{thm:not_erasable_of_informative}.
 \end{lemma}
 \begin{proof}
-  \leanok
-  \uses{asm:lean4lean-trust}
-  Induction along the spine. The application arm of lean4lean's translation relation already
-  carries the typing of the function at a product and of the argument at its domain, so no
-  upstream ask is needed; unique typing collapses the two typings of the head.
+\leanok
+\uses{asm:lean4lean-trust}
+\lead{Idea} Induction along the spine: lean4lean's translation relation already carries each
+step's typing, and unique typing collapses the head's two typings.
 \end{proof}
 
 \begin{theorem}[The discriminant of a saturated eliminator has its own inductive type]
-  \label{thm:elim_major}
-  \uses{def:CasesOnShape, def:lean4lean-grounding}
-  \lean{LeanToLambdaBox.elim_major, LeanToLambdaBox.peel_major}
-  \leanok
-  In a closed, well-typed application of an inductive's eliminator with the segmentation the
-  eliminator's own block fixes --- so many arguments before the discriminant, one minor premise
-  per constructor after it, and possibly extra arguments --- the translation of the discriminant
-  is typed at a spine headed by that inductive.
-
-  The Lean statement \code{elim\_major} is at the empty modelled local context, takes the
-  eliminator's shape predicate and the two length equations, and is the one kernel corollary of
-  its file that takes \emph{no} upstream ask.
+\label{thm:elim_major}
+\uses{def:CasesOnShape, def:lean4lean-grounding}
+\lean{LeanToLambdaBox.elim_major, LeanToLambdaBox.peel_major}
+\leanok
+\lead{Given} a closed, well-typed application of an inductive's eliminator, segmented as its own
+block fixes;
+\lead{Then} the discriminant's translation is \hl{typed at a spine headed by that inductive}.
+\lead{Lean} at the empty modelled local context; the one kernel corollary of its file taking no
+upstream ask.
+\lead{Status} \stProved{}, \stInherited{} through lean4lean.
 \end{theorem}
 \begin{proof}
-  \leanok
-  \uses{lem:trExprS_spine_peel, asm:lean4lean-trust}
-  The eliminator's shape predicate places the major premise at a known position of the declared
-  type; Lemma~\ref{lem:trExprS_spine_peel} peels the spine's typing onto that type, and
-  \code{peel\_major} reads the position off, typing that argument at the inductive's spine.
+\leanok
+\uses{lem:trExprS_spine_peel, asm:lean4lean-trust}
+\lead{Idea} The shape predicate places the major premise at a known position;
+Lemma~\ref{lem:trExprS_spine_peel} peels the spine's typing onto the declared type.
 \end{proof}
 
 \begin{remark}
-  This is the typing premise of the iota arm of Chapter~\ref{chap:correctness}'s simulation: it is
-  what lets the simulation conclude that the scrutinee evaluates to a constructor of the right
-  inductive, hence that the \lbox{} case node selects the matching branch. It is [S, Sec. 7.4]'s
-  case step.
+\lead{Why} The typing premise of Chapter~\ref{chap:correctness}'s iota-arm simulation: it lets the
+scrutinee land on the right constructor, so the \lbox{} case node picks the matching branch. [S,
+Sec.~7.4]'s case step.
 \end{remark}
 
 \begin{definition}[A product telescope over an inductive spine]
-  \label{def:PiSpine}
-  \lean{LeanToLambdaBox.PiSpine}
-  \leanok
-  \code{PiSpine} says that a type is a telescope of exactly a given number of products whose body
-  is an application headed by a given inductive --- the shape a constructor's declared type has.
-
-  The Lean definition \code{PiSpine} is by recursion on the number of products.
+\label{def:PiSpine}
+\lean{LeanToLambdaBox.PiSpine}
+\leanok
+\lead{In short} \code{PiSpine}: a type is a telescope of exactly $n$ products over an application
+headed by a given inductive -- \hl{the shape a constructor's declared type has}.
+\lead{Lean} defined by recursion on the number of products.
 \end{definition}
 
 \begin{lemma}[Peeling a constructor's type exhausts its telescope]
-  \label{lem:peel_piSpine}
-  \uses{def:PiSpine, def:IndBlockBelow, def:UpstreamAsks, def:IndDeclOf, def:lean4lean-grounding}
-  \lean{LeanToLambdaBox.peel_piSpine, LeanToLambdaBox.peel_piSpine_head}
-  \leanok
-  Peeling a type definitionally equal to a product telescope over an inductive spine, at arguments
-  whose result is again an inductive spine, consumes the telescope exactly; and peeling it to its
-  end reaches the telescope's own result spine.
-
-  The Lean statements \code{peel\_piSpine} and \code{peel\_piSpine\_head} take the declaredness of
-  both inductives involved, as well as the upstream ask bundle.
+\label{lem:peel_piSpine}
+\uses{def:PiSpine, def:IndBlockBelow, def:UpstreamAsks, def:IndDeclOf, def:lean4lean-grounding}
+\lean{LeanToLambdaBox.peel_piSpine, LeanToLambdaBox.peel_piSpine_head}
+\leanok
+\lead{In short} Peeling a type defeq to a product telescope over an inductive spine, at arguments
+whose result is again an inductive spine, \hl{consumes the telescope exactly}; peeling to the end
+reaches the telescope's result spine.
+\lead{Lean} both take the declaredness of both inductives and the upstream ask.
 \end{lemma}
 \begin{proof}
-  \leanok
-  \uses{thm:not_erasable_of_informative, asm:UpstreamAsks-constArityInv, asm:lean4lean-trust}
-  A short spine would end at a product where an inductive spine is wanted; a long one would
-  require an inductive spine to be a product. Both are refuted by the statement that an inductive
-  spine is definitionally equal to no product type, which is the upstream ask read off the
-  declaration data and is proved alongside
-  Theorem~\ref{thm:not_erasable_of_informative}.
+\leanok
+\uses{thm:not_erasable_of_informative, asm:UpstreamAsks-constArityInv, asm:lean4lean-trust}
+\lead{Idea} A short spine would end at a product; a long one would need a spine to be a product.
+Both refuted by the ask that an inductive spine is defeq to no product type.
 \end{proof}
 
 \begin{theorem}[A well-typed constructor spine is saturated]
-  \label{thm:ctor_saturated}
-  \uses{def:CtorOf, def:IndInfo, def:IndArity, def:UpstreamAsks, def:PiSpine, def:lean4lean-grounding}
-  \lean{LeanToLambdaBox.ctor_saturated, LeanToLambdaBox.CtorOf.ctorResult_at}
-  \leanok
-  A closed application of the $k$-th constructor of an inductive whose translation is typed at a
-  spine of that inductive has exactly as many arguments as the block has parameters plus that
-  constructor has fields.
-
-  The Lean statement \code{ctor\_saturated} is at the empty modelled local context and takes the
-  constructor's coordinates and the block's arity data explicitly; its helper
-  \code{CtorOf.ctorResult\_at} exhibits the constructor's declared type as such a telescope.
+\label{thm:ctor_saturated}
+\uses{def:CtorOf, def:IndInfo, def:IndArity, def:UpstreamAsks, def:PiSpine, def:lean4lean-grounding}
+\lean{LeanToLambdaBox.ctor_saturated, LeanToLambdaBox.CtorOf.ctorResult_at}
+\leanok
+\lead{Given} a closed application of the $k$-th constructor of an inductive, translation typed at
+a spine of it;
+\lead{Then} it has \hl{exactly as many arguments as the block's parameters plus that constructor's
+fields}.
+\lead{Lean} at the empty context, taking the constructor's coordinates and arity data explicitly.
+\lead{Status} \stProved{}, \stInherited{} through lean4lean, conditional on \stAssumed{}
+\code{UpstreamAsks}.
 \end{theorem}
 \begin{proof}
-  \leanok
-  \uses{lem:peel_piSpine, lem:trExprS_spine_peel, lem:IndInfo-inj, asm:UpstreamAsks-constsOrigin, asm:lean4lean-trust}
-  The constructor's declared type is a product telescope of exactly that length over the
-  inductive's spine: \code{CtorOf.ctorResult\_at} identifies the constructor's block with the
-  arity's block by uniqueness and reads the registered constant off the block's staging.
-  Lemma~\ref{lem:trExprS_spine_peel} peels the translated spine's typing onto it, and
-  Lemma~\ref{lem:peel_piSpine} forces the length.
+\leanok
+\uses{lem:peel_piSpine, lem:trExprS_spine_peel, lem:IndInfo-inj, asm:UpstreamAsks-constsOrigin, asm:lean4lean-trust}
+\lead{Idea} The constructor's type is a telescope of that length over the inductive's spine.
+\begin{enumerate}
+\item Identify the constructor's block with the arity's block by uniqueness.
+\item Peel the translated spine's typing onto it (Lemma~\ref{lem:trExprS_spine_peel}).
+\item Force the length (Lemma~\ref{lem:peel_piSpine}).
+\end{enumerate}
 \end{proof}
 
 \begin{remark}
-  This is the fact that would license \lbox{}'s \emph{block} form for constructors --- the
-  Lean-side counterpart of MetaRocq's \code{constructors\_as\_blocks} --- even though this eraser
-  emits applied form anyway (Definition~\ref{def:Erasure-visitExpr}). A reader who knows [S] will
-  expect the block form and must be told the frontend chose otherwise.
+\lead{Deviation} Would license \lbox{}'s \emph{block} form, MetaRocq's
+\code{constructors\_as\_blocks} counterpart -- yet this eraser emits applied form anyway
+(Definition~\ref{def:Erasure-visitExpr}). A reader expecting block form must be told otherwise.
 \end{remark}
 
 \begin{theorem}[The eliminator's block is the inductive's block]
-  \label{thm:CasesOnShape-agree}
-  \uses{def:CasesOnShape, def:UpstreamAsks, def:IndArity, def:lean4lean-grounding}
-  \lean{LeanToLambdaBox.CasesOnShape.agree, LeanToLambdaBox.CasesOnShape.indBlockBelow, LeanToLambdaBox.IndArity.indBlockBelow}
-  \leanok
-  If a constant is an inductive's eliminator at a given segmentation and the inductive has
-  source-side arity data, then the number of arguments before the discriminant decomposes as the
-  parameters, one motive and the remaining indices, and the number of minor premises equals the
-  number of constructors.
-
-  The Lean statement \code{CasesOnShape.agree} takes the upstream ask bundle; its two helpers
-  exhibit, from each of the two hypotheses, a well-formed declaration list below the environment.
-  This is what lets the source-side iota rule, which counts \emph{parameters}, and the \lbox{}
-  case node, which counts \emph{fields}, be about the same block --- the pivot of
-  Chapter~\ref{chap:correctness}'s iota arm. Its measured footprint contains no \code{sorryAx}.
+\label{thm:CasesOnShape-agree}
+\uses{def:CasesOnShape, def:UpstreamAsks, def:IndArity, def:lean4lean-grounding}
+\lean{LeanToLambdaBox.CasesOnShape.agree, LeanToLambdaBox.CasesOnShape.indBlockBelow, LeanToLambdaBox.IndArity.indBlockBelow}
+\leanok
+\lead{Given} a constant is an inductive's eliminator at a segmentation, and the inductive has
+source-side arity data;
+\lead{Then} the pre-discriminant arguments decompose as parameters, one motive, the indices;
+minor premises equal the constructor count.
+\lead{Lean} \hl{lets the source-side iota rule and the \lbox{} case node be about the same block}
+-- the pivot of Chapter~\ref{chap:correctness}'s iota arm; its measured footprint has no
+\code{sorryAx}.
+\lead{Status} \stProved{}, conditional on \stAssumed{} \code{UpstreamAsks}.
 \end{theorem}
 \begin{proof}
-  \leanok
-  \uses{lem:IndInfo-inj, asm:UpstreamAsks-constsOrigin}
-  Each of the two hypotheses exhibits a well-formed declaration list below the environment; block
-  uniqueness identifies the two blocks and type-name uniqueness identifies the former inside it,
-  after which the arithmetic is read off the same block twice.
+\leanok
+\uses{lem:IndInfo-inj, asm:UpstreamAsks-constsOrigin}
+\lead{Idea} Each hypothesis exhibits a well-formed declaration list; block uniqueness identifies
+the two, and the arithmetic is read off the same block twice.
 \end{proof}
 
 \begin{lemma}[A tabled constant is a constant of the model]
-  \label{lem:constants_of_tabled}
-  \uses{def:ErasureSpec, def:Witness-SourceTableAdequate, def:TableSafe, def:lean4lean-grounding}
-  \lean{LeanToLambdaBox.constants_of_tabled}
-  \leanok
-  A constant for which the reified compiler table supplies a body is a declared constant of the
-  model.
-
-  The Lean statement \code{constants\_of\_tabled} takes the specification bundle, the table's
-  adequacy and the table's safety hypothesis, and concludes only the existence of the model
-  constant, not its shape.
+\label{lem:constants_of_tabled}
+\uses{def:ErasureSpec, def:Witness-SourceTableAdequate, def:TableSafe, def:lean4lean-grounding}
+\lean{LeanToLambdaBox.constants_of_tabled}
+\leanok
+\lead{In short} A constant the reified compiler table gives a body for is a declared constant of
+the model.
+\lead{Lean} takes the bundle, the table's adequacy and safety hypothesis, concluding \hl{only
+existence of the model constant, not its shape}.
 \end{lemma}
 \begin{proof}
-  \leanok
-  \uses{asm:ErasureSpec-decl_adequate}
-  Table adequacy pins the constant in the elaboration environment, the table's safety hypothesis
-  gives its safety level, and the declaration-adequacy field translates it into the model.
+\leanok
+\uses{asm:ErasureSpec-decl_adequate}
+\lead{Idea} Table adequacy pins the constant in the environment; safety gives its level;
+\code{decl\_adequate} translates it into the model.
 \end{proof}
 
 \begin{remark}
-  This is one of the two halves of the exclusion the environment relation of
-  Chapter~\ref{chap:lowering} needs at a tabled constant; the other half is
-  \code{constOrigin\_of\_constants} (Lemma~\ref{lem:consts_classified}). Their join --- that a
-  tabled constant is neither a constructor nor an inductive type name in the model --- is an
-  upstream ask and is \emph{not} proved here; until the pin bump lands it stands as a premise.
+\lead{Caveat} One of two halves Chapter~\ref{chap:lowering} needs at a tabled constant; the other
+is \code{constOrigin\_of\_constants} (Lemma~\ref{lem:consts_classified}). Their join -- neither
+constructor nor type name -- is an upstream ask, \hl{not proved here}, standing as a premise until
+the pin bump lands.
 \end{remark}
 
 \section{Deviations from the paper, and caveats}
 \label{sec:eraser:caveats}
 
-The eraser departs from [S] and [L] in five places that matter for reading the rest of this
-blueprint. \emph{Applied constructors} (cf.\ F-ETA2): MetaRocq's erasure target and agda2lambox both
-emit constructors as blocks carrying their arguments, while this eraser emits a bare constructor
-node applied through \lbox{} application, which is why every semantic statement of
-Chapter~\ref{chap:lambdabox} is pinned with the block-constructor flag off and why
-Theorem~\ref{thm:ctor_saturated}, which would license the block form, is proved and not used for
-it. \emph{Bare fixpoints} (F-ETA): the emitted fixpoint bodies are unapplied, so MetaRocq's
-expanded-program predicate is false on every benchmark program, and the capstone concludes the
-peregrine well-formedness predicate instead. \emph{A preparation pass with no MetaCoq
-counterpart}: \code{@[macro\_inline]} unfolding, matcher inlining, \code{\_unsafe\_rec}
-redirection and \code{@[csimp]} rewriting are what Lean's compiler needs and Rocq has no analogue
-of; the pass's doc comment says it ``may make the expression ill-typed'', and
-\code{ConfigPinned} pins the \code{@[csimp]} walk off. \emph{The oracle reroute}: MetaRocq's
-erasability test runs on the kernel it is verified against by construction, whereas here the test
-had to be re-implemented on lean4lean's verified executable checker and proved sound
-(Theorem~\ref{thm:isErasable-WF}), with the gap between the checker's obligation and an actual
-run closed separately (Theorem~\ref{thm:Oracle-kernel_isErasable_sound}), at the price of a
-33-name measured axiom footprint including \code{sorryAx}. \emph{Three configuration layers
-declared out of scope}: machine \code{Nat}, \code{@[csimp]} and \code{@[extern]}-as-axiom are
-exactly the features [R] describes as implemented, and exactly the three fields
-\code{ConfigPinned} pins away from their defaults.
+\begin{center}
+\begin{tabular}{lp{0.24\linewidth}p{0.50\linewidth}}
+\toprule
+Tag & Site & Symptom \\
+\midrule
+F-DEPTH & arity-check fuel & exhausts behind \code{@[irreducible]}; falls back, negative \\
+F-UNSAFEREC & \code{remove\_unsafe\_rec} & not injective: can collapse two kernames of a legal
+block \\
+F-PROP & \code{register\_inductive} & \code{propositional}, \code{kelim}, \code{finite} stay
+default; match-on-box never fires \\
+F-SPARSE & \code{visitCases} & sparse eliminator declared unreachable; writes a wrong \code{.ast} \\
+F-ETA2 & \code{visitConstructor} eta loops & re-erases the argument prefix per missing argument,
+for nothing \\
+F-ETA & \code{visitMutual} & bodies ship bare, unapplied; expanded-program predicate fails on all
+five benchmark programs \\
+F-QUOT, F-EQREC & \code{visitMutual} axiom arm & \code{Quot}/\code{Eq.rec} constants land as
+body-less axioms \\
+\bottomrule
+\end{tabular}
+\end{center}
 
-Four caveats travel with every statement of this chapter. Two \code{EraserAsks} fields are
-documented refuted in general, so results taking the bundle are conditionally vacuous on an
-environment exhibiting a counterexample. A \code{panic!} or \code{unreachable!} inside the eraser
-does not abort the run but yields $\Box$ and exits successfully, so several findings --- F-SPARSE
-above all --- manifest as a wrong \code{.ast} rather than as a failure. The theorem stack stops at
-the \code{Program} value: the S-expression printer that turns it into bytes is an unverified
-\code{partial def} that nothing in the development mentions. And the relational pass interface
-\code{LBPassR} declared at the end of \code{ErasureSpec.lean}, in MetaRocq's
-\code{optimize\_correct} shape, has no consumer anywhere in the repository and its doc comment
-forward-references a theorem that does not exist; it is an aspiration, not a current interface.
+\begin{itemize}
+\item \lead{Deviation} Constructors ship applied, not blocked -- opposite agda2lambox and
+\code{constructors\_as\_blocks} -- pinned off throughout.
+\item \lead{Deviation} Fixpoint bodies ship bare and unapplied (F-ETA); the capstone concludes
+peregrine well-formedness, not MetaRocq's expanded-program form.
+\item \lead{Deviation} The preparation pass has no MetaCoq counterpart; \code{ConfigPinned} pins
+its \code{@[csimp]} walk off.
+\item \lead{Deviation} The oracle reroute re-implements MetaRocq's test on lean4lean's checker, at
+a 33-name axiom footprint.
+\item \lead{Caveat} Two \code{EraserAsks} fields are refuted in general; results using the bundle
+are conditionally vacuous on a counterexample.
+\item \lead{Caveat} \code{panic!} yields $\Box$ and exits successfully, so F-SPARSE and others
+surface as a wrong \code{.ast}, not a failure.
+\end{itemize}

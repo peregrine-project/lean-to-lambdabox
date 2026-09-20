@@ -86,6 +86,21 @@ of declarations, existence of every cited declaration, and the two trust edges a
 `#print axioms` measured on every cited name. It writes `blueprint/.audit/` (report, node
 index, measured footprints; gitignored) and exits non-zero on any defect.
 
+## Writing style
+
+`STYLE.md` is the binding style guide: every node is schematic (`\lead{In short}`, `\lead{Given}` /
+`\lead{Then}` bullets, tables for rule lists, at most one `\hl{}` highlight, a status badge
+`\stProved` / `\stChecked` / `\stAssumed` / `\stInherited` / `\stOpen` / `\stOutside` wherever a status
+is asserted), every chapter opens with an "At a glance" block and closes with bulleted caveats. In print
+`\lean{}` typesets the cited declarations under the node title. `python3 blueprint/scripts/skeleton.py
+blueprint/src/chapters/<file> [git-ref]` checks that an edit left the graph skeleton (nodes, labels,
+`\lean`, `\leanok`, `\uses`) unchanged against a reference commit. Tables must not use `\multirow`
+(plasTeX has no shim for it); text-heavy columns take `p{<fraction>\linewidth}`.
+
+`leanblueprint pdf` runs latexmk without `-interaction=nonstopmode`, so a LaTeX error makes it wait
+forever on a prompt. To see the error, run from `blueprint/src`:
+`latexmk -xelatex -interaction=nonstopmode -halt-on-error -output-directory=../print print.tex`.
+
 ## Issues found
 
 `ISSUES-FOUND.md` lists what writing the blueprint turned up in the repository's code and
