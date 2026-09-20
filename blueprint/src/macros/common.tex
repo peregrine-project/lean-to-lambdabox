@@ -9,6 +9,9 @@
 % (this is what the [theorem] arguments mean) and never resets it.
 % If you want for instance to number them within chapters then you can add
 % [chapter] at the end of the next line.
+% All node environments are upright (definition style): their bodies are schematic -- lists,
+% run-in labels, badges -- which read badly in the italics of the plain style.
+\theoremstyle{definition}
 \newtheorem{theorem}{Theorem}
 \newtheorem{proposition}[theorem]{Proposition}
 \newtheorem{lemma}[theorem]{Lemma}
@@ -21,7 +24,7 @@
 % (a hypothesis bundle field, a standalone hypothesis binder, or an
 % inherited trust boundary). Upright-titled like a theorem, so restore
 % \theoremstyle{plain} after the definition-style block above.
-\theoremstyle{plain}
+\theoremstyle{definition}
 \newtheorem{assumption}[theorem]{Assumption}
 
 % Remark: prose asides that must NOT be dependency-graph nodes. Kept
@@ -46,3 +49,24 @@
 \newcommand{\code}[1]{\texttt{#1}}
 \newcommand{\ie}{i.e.,}
 \newcommand{\eg}{e.g.,}
+
+% --- schematic-style helpers -------------------------------------------------
+% Run-in label opening a line of a node: \lead{In short}, \lead{Given}, \lead{Then},
+% \lead{Lean}, \lead{Idea}, \lead{Steps}, \lead{Caveat}, \lead{Deviation}, \lead{Status}.
+\newcommand{\lead}[1]{\textbf{#1.}}
+% Highlight of the one phrase a skimming reader must not miss.
+\definecolor{bphl}{HTML}{9A3B00}
+\newcommand{\hl}[1]{\textcolor{bphl}{\textbf{#1}}}
+% Status badges. Use exactly one where a status is asserted.
+\definecolor{bpproved}{HTML}{1B7F3B}
+\definecolor{bpchecked}{HTML}{0B6E99}
+\definecolor{bpassumed}{HTML}{B35900}
+\definecolor{bpinherited}{HTML}{6A3FA0}
+\definecolor{bpopen}{HTML}{B00020}
+\definecolor{bpoutside}{HTML}{555555}
+\newcommand{\stProved}{\textcolor{bpproved}{\textbf{[PROVED]}}}           % proved in this repository
+\newcommand{\stChecked}{\textcolor{bpchecked}{\textbf{[CHECKED]}}}        % discharged by a checked term / kernel computation
+\newcommand{\stAssumed}{\textcolor{bpassumed}{\textbf{[ASSUMED]}}}        % a hypothesis binder or bundle field
+\newcommand{\stInherited}{\textcolor{bpinherited}{\textbf{[INHERITED]}}}  % trust inherited from lean4lean / Lean axioms
+\newcommand{\stOpen}{\textcolor{bpopen}{\textbf{[OPEN]}}}                 % open proof obligation
+\newcommand{\stOutside}{\textcolor{bpoutside}{\textbf{[OUTSIDE]}}}        % outside the verified perimeter

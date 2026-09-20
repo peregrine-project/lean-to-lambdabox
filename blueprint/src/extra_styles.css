@@ -23,3 +23,57 @@ div.corollary_thmcontent {
 div.proof_content {
 	border-left: .08rem solid grey;
 }
+
+/* --- schematic style: assumptions, compact lists, readable tables ------------------- */
+
+div.definition_thmcontent {
+	border-left: .1rem solid #1B7F3B;
+}
+
+/* Assumption nodes stand out: they are what the development does NOT prove. */
+div.assumption_thmcontent {
+	border-left: .2rem solid #B35900;
+	background: #FFF6EC;
+}
+
+div[class$="_thmcontent"] ul,
+div[class$="_thmcontent"] ol,
+div.proof_content ul,
+div.proof_content ol {
+	margin: .25rem 0 .35rem 1.1rem;
+	padding-left: .7rem;
+}
+
+div[class$="_thmcontent"] li,
+div.proof_content li {
+	margin: .12rem 0;
+}
+
+div[class$="_thmcontent"] li p,
+div.proof_content li p {
+	margin: 0;
+}
+
+table.tabular {
+	border-collapse: collapse;
+	margin: .6rem 0 .8rem 0;
+	font-size: .93em;
+}
+
+table.tabular td {
+	padding: .22rem .65rem;
+	vertical-align: top;
+}
+
+table.tabular td p {
+	margin: 0;
+}
+
+table.tabular tr:first-child td {
+	font-weight: 600;
+	background: #F2F2F2;
+}
+
+table.tabular tr:nth-child(even) td {
+	background: #FAFAFA;
+}

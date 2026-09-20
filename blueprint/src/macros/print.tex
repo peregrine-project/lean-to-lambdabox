@@ -11,7 +11,10 @@
 
 
 % Dummy macros that make sense only for web version.
-\newcommand{\lean}[1]{}
+% In print, \lean typesets the cited declarations under the node title (the web version links them).
+% \detokenize lets underscores and primes through; names break at the spaces after commas.
+\newcommand{\lean}[1]{{\par\noindent\footnotesize\textcolor{bpoutside}{\textsf{Lean:}
+  \ttfamily\detokenize{#1}}\par\smallskip}}
 \newcommand{\discussion}[1]{}
 \newcommand{\leanok}{}
 \newcommand{\mathlibok}{}
