@@ -223,6 +223,37 @@ def addAxiom (name: Name): EraseM Unit := do
   modify (fun s => { s with constants := s.constants.insert name kn, gdecls := s.gdecls.cons (kn, .constantDecl ⟨.none⟩) })
 
 /--
+Register `name` under the λbox body `t`. Used where Lean gives a declaration no value but its
+computational content is writable in λbox, so that the consumer gets a constant it can reduce
+instead of an axiom it has to be handed a realizer for.
+-/
+def addRealizer (name: Name) (t: LBTerm): EraseM Unit := do
+  if (← get).constants.contains name then panic! s!"Constant {name} is already defined, cannot add a realizer."
+  let kn := toKername name
+  checkKernameFresh name kn
+  modify (fun s => { s with constants := s.constants.insert name kn, gdecls := s.gdecls.cons (kn, .constantDecl ⟨.some t⟩) })
+
+/-- `n` anonymous λ-binders around `body`. -/
+def mkAnonLambdas (n: Nat) (body: LBTerm): LBTerm :=
+  (List.range n).foldl (fun t _ => LBTerm.lambda .anon t) body
+
+/--
+The λbox realizer of one of Lean's four quotient primitives, at the arity the kernel fixes for it.
+
+A quotient carries no runtime representation beyond its representative, so `Quot.mk` is the
+identity on it and `Quot.lift` applies the lifted function to it — which is also how Lean's own
+code generator compiles them. `Quot` is a type former and `Quot.ind` is proof-valued, so both are
+erased, and an erased constant's body is `□`.
+-/
+def quotRealizer: QuotKind → LBTerm
+  -- `Quot`, arity 2, and `Quot.ind`, arity 5.
+  | .type | .ind => .box
+  -- `Quot.mk : {α} → (r : α → α → Prop) → α → Quot r`.
+  | .ctor => mkAnonLambdas 3 (.bvar 0)
+  -- `Quot.lift : {α} → {r} → {β} → (f : α → β) → (∀ a b, r a b → f a = f b) → Quot r → β`.
+  | .lift => mkAnonLambdas 6 (.app (.bvar 2) (.bvar 0))
+
+/--
 The sort a Π-telescope ends in, read syntactically: MetaRocq's `destArity`
 (`ErasureFunction.v:1325`), which likewise does not reduce.
 -/
@@ -1067,6 +1098,9 @@ mutual
         modify (fun s => { s with inlinings := s.inlinings.cons (toKername name) })
       match ci.value? (allowOpaque := true), isExtern (← getEnv) name, (← read).config.extern with
       | .none, _, _ =>
+        if let .quotInfo qv := ci then
+          logInfo s!"No value found for name {name}, emitting the quotient realizer."
+          return ← addRealizer name (quotRealizer qv.kind)
         logInfo s!"No value found for name {name}, emitting axiom."
         return ← addAxiom name
       | .some _, false, _ => pure ()

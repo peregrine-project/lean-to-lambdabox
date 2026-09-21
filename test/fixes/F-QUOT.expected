@@ -1,0 +1,4 @@
+F-QUOT quot: bodyless=[]
+F-QUOT Quot.mk: (some (λ.λ.λ.bvar 0))
+F-QUOT Quot.lift: (some (λ.λ.λ.λ.λ.λ.(bvar 2 bvar 0)))
+lean-exit=0
