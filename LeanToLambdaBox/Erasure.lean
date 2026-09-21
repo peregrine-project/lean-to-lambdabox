@@ -397,6 +397,32 @@ def lambdaOrIntroToArity {α} [Inhabited α] (e type: Expr) (arity: Nat) (k: Exp
   | n+1 => lambdaMonocularOrIntro e type fun body bodytype fvarid =>
       lambdaOrIntroToArity body bodytype n (fun e fvarids => k e (.cons fvarid fvarids))
 
+/--
+Is `a`, an argument already supplied to an under-applied constructor or eliminator, a value
+that η-expansion may leave where it stands? A variable and an erased argument (a `□`) are:
+placing them under the new binders neither evaluates nor duplicates anything.
+-/
+def etaArgIsValue (lparams: List Name) (a: Expr): EraseM Bool := do
+  return a.isFVar || (← liftMetaM <| isErasable lparams a)
+
+/--
+Bind the arguments an under-applied constructor or eliminator was already supplied with
+*outside* the binders η-expansion is about to open, so that the expansion evaluates each of
+them once instead of on every application of the expansion.
+
+`bs` lists, for each argument to bind, its position in `args`, the type to bind it at and its
+erased value. The continuation is run on `args` with a fresh variable in each bound position,
+and its result is wrapped in one `let` per binding, the first of `bs` outermost:
+`let a₁ := ⟦a₁⟧; … let aₖ := ⟦aₖ⟧; λ x⃗. C a₁ … aₖ x⃗`.
+-/
+def withEtaPrefixLets (bs: List (Nat × Expr × LBTerm)) (args: Array Expr)
+    (k: Array Expr -> EraseM LBTerm): EraseM LBTerm :=
+  match bs with
+  | [] => k args
+  | (i, ty, v) :: bs =>
+    withLocalDecl (.mkSimple s!"a{i}") ty .default fun x => do
+      mkLetIn x v (← withEtaPrefixLets bs (args.set! i (.fvar x)) k)
+
 /-! ### Monotonicity lemmas for `partial_fixpoint` (verification infrastructure)
 
 The erasure family below (`visitExpr` & co.) is defined with `partial_fixpoint`
@@ -429,6 +455,21 @@ theorem withLocalDecl_mono {γ} [PartialOrder γ] {α} (n : Name) (type : Expr) 
   · apply monotone_const
   · apply monotone_of_monotone_apply; intro fvarid
     exact withReader_mono _ _ (monotone_apply fvarid _ hmono)
+
+@[partial_fixpoint_monotone]
+theorem withEtaPrefixLets_mono {γ} [PartialOrder γ] (bs : List (Nat × Expr × LBTerm))
+    (args : Array Expr) (k : γ → Array Expr → EraseM LBTerm) (hmono : monotone k) :
+    monotone (fun x => withEtaPrefixLets bs args (k x)) := by
+  induction bs generalizing args with
+  | nil => unfold withEtaPrefixLets; exact monotone_apply _ _ hmono
+  | cons b bs ih =>
+    obtain ⟨i, ty, v⟩ := b
+    unfold withEtaPrefixLets
+    apply withLocalDecl_mono
+    apply monotone_of_monotone_apply; intro fvarid
+    monotonicity
+    · exact ih _
+    · apply monotone_const
 
 @[partial_fixpoint_monotone]
 theorem withLocalDef_mono {γ} [PartialOrder γ] {α} (n : Name) (type val : Expr) (nd : Bool)
@@ -537,7 +578,8 @@ NB (verification): the erasure family below no longer calls this — `partial_fi
 cannot handle a recursive call inside the *argument* of another recursive call
 (nested recursion), which is what `withAppEtaToMinArity e arity (fun _ args =>
 visitCases …)` would be. It is specialized as `visitCasesEta`/`visitCtorEta`
-inside the mutual block, with identical behaviour. Kept for API compatibility.
+inside the mutual block, which additionally bind the supplied arguments outside the
+binders they open (`withEtaPrefixLets`). Kept for API compatibility.
 -/
 partial def withAppEtaToMinArity (e: Expr) (arity: Nat) (k: Expr -> Array Expr -> EraseM LBTerm): EraseM LBTerm := do
   let type ← liftMetaM do Meta.inferType e
@@ -731,7 +773,8 @@ mutual
   (`partial_fixpoint` cannot handle nested recursion — a recursive call inside an
   *argument* of another recursive call — which is what passing a continuation
   mentioning `visitCases` to `withAppEtaToMinArity` would be. Specializing turns
-  it into plain mutual recursion; the behaviour is byte-for-byte the original.) -/
+  it into plain mutual recursion; the behaviour is the original's, except that the
+  arguments already supplied are bound outside the binders the expansion opens.) -/
   def visitCasesEta (casesInfo : CasesInfo) (e : Expr) : EraseM LBTerm := do
     let type ← liftMetaM do Meta.inferType e
     e.withApp (fun f args => visitCasesEtaGo casesInfo type f args)
@@ -741,10 +784,21 @@ mutual
   def visitCasesEtaGo (casesInfo : CasesInfo) (type f : Expr) (args : Array Expr) : EraseM LBTerm :=
     if args.size >= casesInfo.arity then
       visitCases casesInfo args
-    else
-      forallMonocular type fun fvarid bodytype => do
-        let res ← visitCasesEtaGo casesInfo bodytype f (args.push (.fvar fvarid))
-        mkLambda fvarid res
+    else do
+      -- Erase the arguments already supplied and bind them outside the new binders: under
+      -- them they would be evaluated afresh on every application of the expansion. Only the
+      -- outermost round binds anything — every argument the recursion adds is a variable.
+      -- `visitCases` reads the major premise and the alternatives and drops the parameters,
+      -- the motive and the indices before them, which are therefore left where they are:
+      -- binding one would evaluate an argument the emitted program does not.
+      let bs ← args.zipIdx.foldlM (fun bs a => do
+        if a.2 < casesInfo.discrPos then return bs
+        if ← etaArgIsValue (← read).lparams a.1 then return bs
+        else return bs.push (a.2, ← liftMetaM (Meta.inferType a.1), ← visitExpr a.1)) #[]
+      withEtaPrefixLets bs.toList args fun args =>
+        forallMonocular type fun fvarid bodytype => do
+          let res ← visitCasesEtaGo casesInfo bodytype f (args.push (.fvar fvarid))
+          mkLambda fvarid res
   partial_fixpoint
 
   /-- `withAppEtaToMinArity` specialized to a `visitConstructor` continuation
@@ -758,10 +812,15 @@ mutual
   def visitCtorEtaGo (ctorname : Name) (arity : Nat) (type f : Expr) (args : Array Expr) : EraseM LBTerm :=
     if args.size >= arity then
       visitConstructor ctorname args
-    else
-      forallMonocular type fun fvarid bodytype => do
-        let res ← visitCtorEtaGo ctorname arity bodytype f (args.push (.fvar fvarid))
-        mkLambda fvarid res
+    else do
+      -- As in `visitCasesEtaGo`: the supplied arguments are bound outside the new binders.
+      let bs ← args.zipIdx.foldlM (fun bs a => do
+        if ← etaArgIsValue (← read).lparams a.1 then return bs
+        else return bs.push (a.2, ← liftMetaM (Meta.inferType a.1), ← visitExpr a.1)) #[]
+      withEtaPrefixLets bs.toList args fun args =>
+        forallMonocular type fun fvarid bodytype => do
+          let res ← visitCtorEtaGo ctorname arity bodytype f (args.push (.fvar fvarid))
+          mkLambda fvarid res
   partial_fixpoint
 
   def visitConstructor (ctorname: Name) (args: Array Expr): EraseM LBTerm := do
