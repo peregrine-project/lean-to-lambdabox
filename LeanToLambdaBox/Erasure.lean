@@ -349,6 +349,53 @@ def register_inductive (indinfo: InductiveVal): EraseM (InductiveId × Inductive
     modify (fun s => { s with gdecls := s.gdecls.cons (mutualBlockName, .inductiveDecl mutual_body) })
     return (← get).inductives[indinfo.name]!
 
+/--
+The λbox body of the recursor of a propositional inductive with singleton elimination; `none` at
+every other recursor, which keeps the body-less emission.
+
+Rocq has no primitive `Eq.rec`: `eq_rect` is an ordinary constant whose body is a `match` on a
+propositional singleton, and `remove_match_on_box` (`EOptimizePropDiscr.v:48`) collapses that one
+alternative by substituting `□` for the fields it binds. So the realizer is an ordinary `.case`,
+and the shape that may take it is the one whose fields the collapse may box: the eliminated
+inductive is a single non-recursive `Prop` with at most one constructor, all of whose fields are
+proofs. A `Prop` with a field that is *data* recovered from the result's indices (`Acc`) is refused
+here for the same reason `visitCases` refuses it — boxing that field computes a wrong program.
+
+The shape is read off the `RecursorVal` and the inductive it names, never off the constant's name.
+At the recursor's calling convention — parameters, motives, minors, indices, major premise — the
+body dispatches on the major premise and hands the constructor's fields to the single minor:
+
+    Eq.rec    ↦  λ _ _ _ _ _ _. case (Eq, 2)    (bvar 0) [([], bvar 2)]
+    And.rec   ↦  λ _ _ _ _ _.   case (And, 2)   (bvar 0) [([_,_], bvar 3 (bvar 1) (bvar 0))]
+    False.rec ↦  λ _ _.         case (False, 0) (bvar 0) []
+
+Under `remove_irrel_constr_args` the proof fields leave the alternative's binders, and the
+realizer supplies them as `□` instead — which is what the source term erases them to either way.
+-/
+def recursorRealizer (rv: RecursorVal): EraseM (Option LBTerm) := do
+  let [ind_name] := rv.all | return none
+  let .inductInfo ind ← getConstInfo ind_name | return none
+  unless isPropositionalArity ind.type && !ind.isRec && rv.numMotives == 1 do return none
+  unless ind.ctors.length ≤ 1 && rv.numMinors == ind.ctors.length do return none
+  if (← firstNonProofField ind).isSome then return none
+  let (indid, argmasks) ← register_inductive ind
+  let alts ← ind.ctors.mapM fun ctor_name => do
+    let .ctorInfo ci ← getConstInfo ctor_name
+      | throwError "Erasure.recursorRealizer: {ctor_name} is listed as a constructor of {ind_name} but is not one."
+    let argmask := argmasks[ci.cidx]!
+    let nargs := argmask.count .keep
+    -- The minor sits past the indices, the major premise and the fields this alternative binds;
+    -- `mkAlt`'s convention gives the first bound field the highest index, and an erased field is
+    -- supplied as `□`, which is what the source term erases it to.
+    let (_, body) := argmask.foldl (fun (kept, t) r =>
+      match r with
+      | .keep => (kept + 1, LBTerm.app t (.bvar (nargs - 1 - kept)))
+      | .erase => (kept, LBTerm.app t .box))
+      (0, LBTerm.bvar (rv.numIndices + 1 + nargs))
+    return (List.replicate nargs BinderName.anon, body)
+  let arity := rv.numParams + rv.numMotives + rv.numMinors + rv.numIndices + 1
+  return some <| mkAnonLambdas arity (.case (indid, ind.numParams) (.bvar 0) alts)
+
 def fvar_to_name (x: FVarId): EraseM BinderName := do
   let n := (← read).lctx.fvarIdToDecl |>.find! x |>.userName
   let s: String := n.toString
@@ -1101,6 +1148,10 @@ mutual
         if let .quotInfo qv := ci then
           logInfo s!"No value found for name {name}, emitting the quotient realizer."
           return ← addRealizer name (quotRealizer qv.kind)
+        if let .recInfo rv := ci then
+          if let some t := (← recursorRealizer rv) then
+            logInfo s!"No value found for name {name}, synthesizing its eliminator body."
+            return ← addRealizer name t
         logInfo s!"No value found for name {name}, emitting axiom."
         return ← addAxiom name
       | .some _, false, _ => pure ()

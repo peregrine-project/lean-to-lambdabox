@@ -1,0 +1,4 @@
+F-EQREC cast: bodyless=[] Eq.rec=(some (λ.λ.λ.λ.λ.λ.case bvar 0 [0|bvar 2]))
+F-EQREC and: bodyless=[] And.rec=(some (λ.λ.λ.λ.λ.case bvar 0 [2|((bvar 3 bvar 1) bvar 0)]))
+F-EQREC dead: bodyless=[] False.rec=(some (λ.λ.case bvar 0 []))
+lean-exit=0
