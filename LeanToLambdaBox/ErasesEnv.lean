@@ -33,6 +33,35 @@ namespace LeanToLambdaBox
 
 open Lean Lean4Lean
 
+/-! ## The emitted propositional flag, against the model -/
+
+/-- **The flag `iid`'s registered body carries is sound against the model**: a body the
+eraser marks propositional belongs to an inductive whose declared arity ends in `Prop` at
+every valuation. MetaRocq's `erases_one_inductive_body` states the flag as an equality,
+`ind_propositional = isPropositionalArity ind_type`
+(`../metarocq/erasure/theories/Extract.v:276`); this is the half of that equality a consumer
+spends, through `propositional_false_of_informative`, and the half
+`ErasureSpec.propositionalInd_of_arity` proves. The converse is refuted by an arity whose
+result sort sits under a `let` (`doc/rework/03-DEV-FIX.md`, F-ARITYLET).
+
+It is no clause of `IndBodyOf`, which carries no model environment:
+`Erasure.register_inductive` computes the flag on every inductive it registers —
+`Erasure.recursorRealizer` reaches it at `Eq`/`And`/`False` — so `= false` is not a fact
+about emitted output. -/
+def IndFlagSound (env : VEnv) (I : Name) (iid : InductiveId)
+    (mib : MutualInductiveBody) : Prop :=
+  ∀ oib, mib.bodies[iid.idx]? = some oib → oib.propositional = true → PropositionalInd env I
+
+/-- **The `= false` the ι and projection arms read.** An informative inductive is not
+propositional (`propositional_false_of_informative`), so its registered body carries the flag
+unset — which is what `WcbvEval.iota` and `WcbvEval.proj` test
+(`Semantics/Eval.lean:147`, `:183`). -/
+theorem IndFlagSound.notPropositional {env : VEnv} {I : Name} {iid : InductiveId}
+    {mib : MutualInductiveBody} {oib : OneInductiveBody} (h : IndFlagSound env I iid mib)
+    (hoib : mib.bodies[iid.idx]? = some oib) (hinf : InformativeInd env I) :
+    oib.propositional = false :=
+  propositional_false_of_informative (h oib hoib) hinf
+
 /-! ## `ErasesEnv` -/
 
 /--
@@ -59,7 +88,7 @@ inductive ErasesEnv (env : VEnv) (bo : Name → Option Expr) (lp : Name → List
         IndInfo env I iid np nfs → ReachableFrom Γspec t iid.mutualBlockName →
         IndDeclOf env I ∧ ∃ mib,
           LBTerm.envLookup Γspec iid.mutualBlockName = some (.inductiveDecl mib) ∧
-          IndBodyOf iid np nfs mib)
+          IndBodyOf iid np nfs mib ∧ IndFlagSound env I iid mib)
       (elims : ∀ {c I : Name} {dp nm : Nat},
         CasesOnShape env c I dp nm → InformativeInd env I → ConstOrigin env c →
         ReachableFrom Γspec t (toKername c) →
@@ -108,13 +137,14 @@ theorem ErasesEnv.axioms (h : ErasesEnv env bo lp Γspec t) :
 
 /-- `erases_deps`' `tConstruct`/`tCase`/`tProj` clause: `declared_inductive Σ` — the
 `IndDeclOf` conjunct, which `IndInfo` does not give, since it exhibits a block below `env` —
-and `declared_inductive Σ'` with the arity and propositionality data the target reads. -/
+and `declared_inductive Σ'` with the arity data the target reads, beside `IndFlagSound`, the
+propositional flag's equation against the model. -/
 theorem ErasesEnv.blocks (h : ErasesEnv env bo lp Γspec t) {I : Name} {iid : InductiveId}
     {np : Nat} {nfs : List Nat} (hi : IndInfo env I iid np nfs)
     (hr : ReachableFrom Γspec t iid.mutualBlockName) :
     IndDeclOf env I ∧ ∃ mib,
       LBTerm.envLookup Γspec iid.mutualBlockName = some (.inductiveDecl mib) ∧
-      IndBodyOf iid np nfs mib := by
+      IndBodyOf iid np nfs mib ∧ IndFlagSound env I iid mib := by
   cases h with | mk _ _ _ _ _ d _ => exact d hi hr
 
 /-- The `tCase` clause at the Lean eliminator **constant** the pass consumes: at a reached
@@ -143,11 +173,11 @@ semantics reads, and — when `n` is informative — its `casesOn` eliminator. T
 step establishes. -/
 structure IndCovered (env : VEnv) (Γspec : GlobalDeclarations) (n : Name) : Prop where
   /-- The block declaration, at the block kername `IndInfo` names, together with `n`'s own
-      declaration in `env`. -/
+      declaration in `env` and the propositional flag's equation against the model. -/
   block : ∀ iid np nfs, IndInfo env n iid np nfs →
     IndDeclOf env n ∧ ∃ mib,
       LBTerm.envLookup Γspec iid.mutualBlockName = some (.inductiveDecl mib) ∧
-      IndBodyOf iid np nfs mib
+      IndBodyOf iid np nfs mib ∧ IndFlagSound env n iid mib
   /-- The eliminator of an informative `n` is declared, at the segmentation `n`'s block
       fixes. `isCasesOnName c` and `c.getPrefix = n` pin one name, so this quantifier ranges
       over one constant. -/
@@ -228,10 +258,15 @@ builds, so it is no clause of this structure. -/
 structure LowerEnv (Γspec Γ : GlobalDeclarations) : Prop where
   /-- The emitted environment has distinct keys. -/
   keys : (Γ.map Prod.fst).Nodup
-  /-- A body declared by both is a `Lower` image, or one member of a lowered block. -/
+  /-- A body declared by both is a `Lower` image, or the η-expansion of one lowered block's
+      node: `Erasure.visitMutual` registers `Erasure.etaExpandFix defs j`
+      (`Erasure.lean:1276`), not `.fix defs j`, and at `principalArgIdx = 0` that is
+      `LBTerm.etaFix defs j` (F-ETA). The second disjunct exists because the registration
+      side produces the block shape rather than a `Lower` derivation;
+      `Lower.fixEta_of_block` is the converter. -/
   defs : ∀ kn b₀ b, DefnDecl Γspec kn b₀ → DefnDecl Γ kn b →
     Lower Γspec b₀ b ∨ ∃ kns bs defs j, LowerFix Γspec kns bs defs ∧
-      kns[j]? = some kn ∧ b = .fix defs j
+      kns[j]? = some kn ∧ b = LBTerm.etaFix defs j
   /-- Every definition that is not a runtime key survives the pruning as a definition.
       The eraser declares every definition, a recursive one with a `.fix` body, and
       `Lower.const` relates a block member to its own `.const`, so a weaker clause would
@@ -331,7 +366,9 @@ def demoIid : InductiveId := ⟨rootKername "DemoT", 0⟩
 propositional. -/
 def demoMib : MutualInductiveBody where
   npars := 0
-  bodies := [{ name := "T", ctors := [{ name := "mk", nargs := 0 }], projs := [] }]
+  bodies :=
+    [{ name := "T", propositional := false, ctors := [{ name := "mk", nargs := 0 }],
+       projs := [] }]
 
 /-- The fixture's eliminator body: one dropped motive, one minor, no fields. -/
 def demoElim : LBTerm := mkElimBody demoIid 0 1 [0]
@@ -416,12 +453,15 @@ theorem demoEnv_indCovered {env : VEnv} {bo : Name → Option Expr} {lp : Name �
     IndCovered env demoEnv demoInd where
   block iid np nfs hi := by
     obtain ⟨rfl, rfl, rfl⟩ := h.indUniq iid np nfs hi
-    exact ⟨h.indDecl, demoMib, rfl, rfl, _, rfl, rfl, rfl⟩
+    refine ⟨h.indDecl, demoMib, rfl, ⟨rfl, _, rfl, rfl⟩, fun oib hoib hp => ?_⟩
+    injection hoib with hoib
+    subst hoib
+    exact absurd hp (by decide)
   elims c dp nm hsh _ _ := by
     obtain ⟨hkn, rfl, rfl⟩ := h.elimUniq c dp nm hsh
     refine ⟨demoIid, 0, [0], ?_, h.ind, rfl⟩
     rw [hkn]
-    exact ⟨⟨demoElim, rfl, .cases⟩, demoMib, rfl, rfl, _, rfl, rfl, rfl⟩
+    exact ⟨⟨demoElim, rfl, .cases⟩, demoMib, rfl, ⟨rfl, _, rfl, rfl⟩, _, rfl, rfl⟩
 
 /-- The fixture's entries, in the readings `ErasesEnv` consumes. -/
 theorem demoEnv_specContent {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}

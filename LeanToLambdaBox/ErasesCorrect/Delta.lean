@@ -92,6 +92,21 @@ theorem Lower.fixBody_of_block {Γ : GlobalDeclarations} {kns : List Kername}
   rw [← hbb, getElem?_pos bs j (by rw [hblock.hb]; omega),
     ← getElem!_pos bs j (by rw [hblock.hb]; omega)]
 
+/-- A block member's own body has the **η-expansion** of the block's node as an image:
+`fixEta` at the member the declaration names. `Lower.fixBody_of_block`'s twin, at the
+body `Erasure.visitMutual` registers (`Erasure.etaExpandFix`, F-ETA). -/
+theorem Lower.fixEta_of_block {Γ : GlobalDeclarations} {kns : List Kername}
+    {bs bs' : List LBTerm} {ids : List FVarId} {defs : List (@FixDef LBTerm)} {j : Nat}
+    {kn : Kername} {b : LBTerm} (hblock : LowerBlock Γ kns bs bs' ids defs)
+    (hj : kns[j]? = some kn) (hd : DefnDecl Γ kn b) : Lower Γ b (LBTerm.etaFix defs j) := by
+  obtain ⟨hjl, hje⟩ := Lower.getElem!_of_getElem? hj
+  have hdecl := hblock.hdecl j hjl
+  rw [hje] at hdecl
+  have hbb : bs[j]! = b := by simpa using (hdecl.symm.trans hd)
+  refine Lower.fixEta' hblock ?_ (by rw [hblock.hd]; omega)
+  rw [← hbb, getElem?_pos bs j (by rw [hblock.hb]; omega),
+    ← getElem!_pos bs j (by rw [hblock.hb]; omega)]
+
 /-- **What a tabled constant's image evaluates like.** Either it is the constant itself,
 or — at a block member — it is an image of the constant's own body, the block's `.fix`
 node. Neither reading is available at a runtime key. -/
@@ -116,6 +131,14 @@ theorem Lower.const_body {Γ : GlobalDeclarations}
       exact ⟨hnk, .inr (Lower.fixBody_of_block
         ⟨hb, hb', hdf, hnd, hids, hilen, hfresh, hrarg, hdecl, hfl, hlow, hcl⟩ hj hd)⟩
   | @fixBody b₀ kns bs bs' ids defs j hb hb' hdf hnd hids hilen hfresh hrarg hdecl hfl hlow
+      hcl hj hjl =>
+      exfalso
+      obtain ⟨hjb, hjeq⟩ := Lower.getElem!_of_getElem? hj
+      have hlam := (⟨hb, hb', hdf, hnd, hids, hilen, hfresh, hrarg, hdecl, hfl, hlow,
+        hcl⟩ : LowerBlock Γ kns bs bs' ids defs).lambda_of_fixLambda j (by omega)
+      rw [hjeq, hs] at hlam
+      simp [isLambda] at hlam
+  | @fixEta b₀ nm kns bs bs' ids defs j hb hb' hdf hnd hids hilen hfresh hrarg hdecl hfl hlow
       hcl hj hjl =>
       exfalso
       obtain ⟨hjb, hjeq⟩ := Lower.getElem!_of_getElem? hj
@@ -188,7 +211,7 @@ theorem step_delta {env : VEnv} {bo : Name → Option Expr} {lp : Name → List 
         rcases henvL.defs _ b₀ bΓ hdefn hbΓ with hl | ⟨kns, bs, defs, j, hfix, hj, rfl⟩
         · exact hl
         · obtain ⟨bs', ids, hblock⟩ := hfix
-          exact Lower.fixBody_of_block hblock hj hdefn
+          exact Lower.fixEta_of_block hblock hj hdefn
       · exact ⟨hd', hbody, fun _ hw => hw⟩
     have hchoice : ∀ i, i < args.length → ∃ p : LBTerm × LBTerm,
         Erases env Us [] argsv[i]! p.1 ∧ Lower Γspec p.1 p.2 ∧

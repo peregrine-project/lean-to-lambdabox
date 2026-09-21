@@ -16,8 +16,9 @@ discriminant reaches a constructor spine. It takes no premise beyond `StepProj`'
 * the discriminant's induction hypothesis gives the target value, its boxed readings
   refuted by `not_erasable_of_informative` against the typing `TrProj` carries, whose
   `IndDeclOf` is `ErasesEnv.blocks`' first conjunct at the reached block kername;
-* the node's `propositional = false` comes from the second conjunct of that same clause
-  through `LowerEnv.inds`;
+* the node's `propositional = false` comes from that same clause's `IndFlagSound` against
+  the rule's own `hinf` (`IndFlagSound.notPropositional`), carried into `Γ` by
+  `LowerEnv.inds`;
 * the field's induction hypothesis is taken at the selected argument, and `WcbvEval.proj`
   assembles. The prefix the node drops is the one `SEval.proj`'s `hnp` names, by
   `IndArity.inj`, and the value is constructor-headed by the rule's own `hct`, whose index
@@ -55,8 +56,9 @@ theorem step_proj {env : VEnv} {bo : Name → Option Expr} {lp : Name → List N
       TrProj env Us.length (VLCtx.toCtx []) Sn i w ve := by
     cases hwt with | proj h1 h2 => exact ⟨_, h1, h2⟩
   obtain ⟨_, usS, _, params, _, _, hpc⟩ := hproj
-  obtain ⟨hdec, mib, hmib, -, oib, hoib, hprop, -⟩ :=
+  obtain ⟨hdec, mib, hmib, ⟨-, oib, hoib, -⟩, hflag⟩ :=
     hspec.blocks hs (reachableFrom_of_mem_constRefs (by simp [constRefs]))
+  have hprop : oib.propositional = false := hflag.notPropositional hoib hinf
   have hspecd : ErasesEnv env bo lp Γspec d := hspec.subterm (.proj .refl)
   obtain ⟨dv₀, dv', herdv, hlowdv, hEdisc, hspecdv⟩ := ihdiscr htrd herdisc hlowd hspecd
   obtain ⟨vv, htrvv, hdefvv⟩ := SEval.defeq henv hΔ htrd hdiscr
@@ -126,7 +128,9 @@ def iid : InductiveId := { mutualBlockName := blockKn, idx := 0 }
 /-- The emitted body, non-propositional, with the constructor's field count. -/
 def mib : MutualInductiveBody :=
   { npars := 1,
-    bodies := [{ name := "LP", ctors := [{ name := "mk", nargs := 2 }], projs := [] }] }
+    bodies :=
+      [{ name := "LP", propositional := false, ctors := [{ name := "mk", nargs := 2 }],
+         projs := [] }] }
 
 /-- The emitted environment: the block alone. -/
 def env : GlobalDeclarations := [(blockKn, .inductiveDecl mib)]

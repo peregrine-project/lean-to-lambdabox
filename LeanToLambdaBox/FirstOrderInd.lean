@@ -478,8 +478,8 @@ theorem FOSpine.spineHead {t : LBTerm} (h : FOSpine t) :
   | app _ _ ihf _ => exact ihf
 
 /-- **A constructor tree has a constructor tree for a lowered image.** The `.construct` arm
-goes through `Lower.source_construct`, which excludes both `fix` arms itself by
-`Lower.ne_fix_of_block` — a constructor node is neither a constant nor a λ — and returns a
+goes through `Lower.source_construct`, which excludes all three block arms itself by
+`Lower.ne_block_image` — a constructor node is neither a constant nor a λ — and returns a
 zero-length argument list; the `.app` arm goes through `Lower.source_app`, whose `elimApp`
 disjunct is refuted on the head, a `.const` there and a `.construct` here. The nullary route
 `Lower.source_construct_nil`, which keeps a `.fix` disjunct, is not used. -/

@@ -21,7 +21,9 @@ steps, in the order the module lands them:
 * the discriminant's induction hypothesis gives the target constructor value, its boxed
   readings refuted by `not_erasable_of_informative` against `elim_major`'s typing;
 * the node's arity data comes from `ElimDecl`'s block through `LowerEnv.inds`, and the
-  rule's own `hnp` names the same block by `IndArity.inj`;
+  rule's own `hnp` names the same block by `IndArity.inj`; the `propositional = false`
+  `WcbvEval.iota` reads is `ElimDecl`'s `IndNotPropositional`, which the clause's producers
+  discharge from their own `InformativeInd`;
 * the branch's induction hypothesis is taken at the *un-contracted* application of the
   selected minor, and `IotaBridge`'s β-chain rewrite under `wcbvEval_mkApps_head_congr`
   turns it into `WcbvEval.iota`, over-application included.
@@ -206,10 +208,11 @@ def LowerConstApp (Γ : GlobalDeclarations) (kn : Kername) (ts : List LBTerm)
     (∀ i, i < extra.length → Lower Γ extra[i]! extra'[i]!) ∧
     t = LBTerm.mkApps (.case (iid, np) disc' alts) extra')
 
-/-- **Inverting the pass at a constant-headed spine.** The `.fix` targets are excluded by
-the block's own `hfl` — an application is neither a constant nor a λ — so an argument at a
-time the derivation is either the `app` congruence or `elimApp`, and an `elimApp` at a
-shorter spine absorbs the remaining arguments into its `extra`. -/
+/-- **Inverting the pass at a constant-headed spine.** The block targets are excluded by
+`Lower.ne_block_image`, which reads the block's own `hfl` — an application is neither a
+constant nor a λ — so an argument at a time the derivation is either the `app` congruence
+or `elimApp`, and an `elimApp` at a shorter spine absorbs the remaining arguments into its
+`extra`. -/
 theorem Lower.source_constApp {Γ : GlobalDeclarations} {kn : Kername} :
     ∀ (n : Nat) (ts : List LBTerm), ts.length = n → ∀ {s t : LBTerm}, Lower Γ s t →
       s = LBTerm.mkApps (.const kn) ts → LowerConstApp Γ kn ts t := by
@@ -222,12 +225,13 @@ theorem Lower.source_constApp {Γ : GlobalDeclarations} {kn : Kername} :
       obtain ⟨hnk, -⟩ := Lower.source_const h rfl
       exact .inl ⟨hnk, t, [], rfl, h, rfl, by simp⟩
     · rw [List.concat_eq_append, LBTerm.mkApps_concat] at hs
-      have hnf := Lower.ne_fix_of_block h (by rw [hs]; exact fun _ => LBTerm.noConfusion)
+      have hni := Lower.ne_block_image h (by rw [hs]; exact fun _ => LBTerm.noConfusion)
         (by rw [hs]; rfl)
       cases h with
       | box | bvar | fvar | prim | const | lambda | letIn | proj | construct | «case» =>
           exact LBTerm.noConfusion hs
-      | fixConst | fixBody => exact absurd rfl (hnf _ _)
+      | fixConst | fixBody => exact absurd rfl (hni.1 _ _)
+      | fixEta => exact absurd hni.2 (by simp [isLambda])
       | @app f₀ f' a₀ a' hf ha =>
           injection hs with hff haa
           subst hff; subst haa
@@ -358,7 +362,7 @@ theorem step_iota {env : VEnv} {bo : Name → Option Expr} {lp : Name → List N
   have hsat : cargs.length = nps + nfs[cidx]! := ctor_saturated henv A hct hi htrvv hvvty
   obtain ⟨rfl, -⟩ := IndArity.inj A hnp hi.arity
   have hcidxlt : cidx < nfs.length := by omega
-  obtain ⟨-, mib, hmib, -, oib, hoib, hprop, -⟩ := helim
+  obtain ⟨-, mib, hmib, -, oib, hoib, hprop⟩ := helim
   have hmibΓ := henvL.inds _ _ hmib
   have hpropΓ : isPropositionalInductive Γ iid = false := by
     simp only [isPropositionalInductive, hmibΓ, hoib, hprop]

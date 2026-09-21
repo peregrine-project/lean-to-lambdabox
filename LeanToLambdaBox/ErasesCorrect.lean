@@ -430,7 +430,7 @@ theorem beta_reassociation_fires :
       ⟨kn, iid', np', dp', nfs', pre, disc, minors, helim, hpl, hml, heq⟩
   · exact ⟨f', a', heq, hf, ha⟩
   · exfalso
-    obtain ⟨⟨body, hbody, hEB⟩, ⟨mib', hmib, hnp, oib, hoib, -, hctors⟩⟩ := helim
+    obtain ⟨⟨body, hbody, hEB⟩, ⟨mib', hmib, ⟨hnp, oib, hoib, hctors⟩, -⟩⟩ := helim
     rw [LowerElimFixture.env] at hmib hbody
     have hargs := congrArg LBTerm.spineArgs heq
     rw [LBTerm.spineArgs_mkApps] at hargs

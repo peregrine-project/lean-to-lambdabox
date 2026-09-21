@@ -775,8 +775,8 @@ theorem not_elimBody_lambda_named {iid : InductiveId} {np dp : Nat} {nfs : List 
 specification body.** The emitted `.fix` fires (`hrarg` pins the principal argument to
 `0`), `LowerBlock.hfl` gives the unfolded body its λ head, and `Lower.constToFix` carries
 the relation across the substitution. The transport the β and δ arms of the simulation
-actually use is `Lower.appReady` (`ErasesCorrect/Steps.lean`), which takes no premise at
-all; `hfl` is what makes its `fixBody` sub-case a projection. -/
+spend is `Lower.appReady` (`ErasesCorrect/Steps.lean`), which takes a derivation rather
+than a block; `hfl` is what gives its two block sub-cases a λ to β-step into. -/
 theorem Lower.fixUnfold {Γ : GlobalDeclarations} (hΓ : ClosedBodies Γ) {kns : List Kername}
     {bs bs' : List LBTerm} {ids : List FVarId} {defs : List (@FixDef LBTerm)} {j : Nat}
     (hblock : LowerBlock Γ kns bs bs' ids defs) (hjl : j < defs.length) :
