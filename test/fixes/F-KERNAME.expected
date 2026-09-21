@@ -1,3 +1,4 @@
 F-KERNAME collision: error mentions-colliding-key=true : Erasure.toKername: 5 and «5» both mint the λbox key { mp := ModPath.MPfile [], id := "5" }.
+F-KERNAME ind-collision: error mentions-colliding-key=true : Erasure.toKername: the mutual inductive blocks [AB,  C] and [A, BC] both mint the λbox key { mp := ModPath.MPfile [], id := "ABC" }.
 F-KERNAME plain: ok declarations=13
 lean-exit=0

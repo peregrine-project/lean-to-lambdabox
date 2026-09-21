@@ -12,6 +12,13 @@ The test exercises `checkKernameFresh` at its `addAxiom` site directly, with the
 `.num`/`.str` witness pair, and separately erases an ordinary program with no such collision,
 which must still succeed and stay unaffected by the guard.
 
+`register_inductive` mints a mutual inductive block's key the same way, off
+`rootKername (String.join (indinfo.all.map toString))` — a plain concatenation, so it is exactly
+as prone to collision as a single name's key, on two mutual blocks whose members' names differ
+but concatenate the same: `[AB, C]` and `[A, BC]` both join to `"ABC"`. `checkIndKernameFresh`
+guards that registration point the same way `checkKernameFresh` guards `addAxiom`'s, and the test
+exercises it directly with that pair.
+
 With `FIXES_AST_DIR` set, the ordinary program's emitted `.ast` is written there, so
 `scripts/fixes.sh` can run it through `peregrine validate`/`eval`.
 -/
@@ -47,6 +54,23 @@ def checkCollision : MetaM Unit := do
     let mentionsCollision := !((msg.splitOn "both mint the λbox key").length == 1)
     IO.println s!"F-KERNAME collision: error mentions-colliding-key={mentionsCollision} : {msg}"
 
+/-- The `register_inductive` counterpart to `checkCollision`: register the mutual block `[AB, C]`
+under the key its members' names join to, then register `[A, BC]` — a different member list, the
+same joined key — and report whether the second registration is refused. -/
+def checkIndCollision : MetaM Unit := do
+  try
+    let ((), _) ← Erasure.run (do
+      let kn1 := rootKername (String.join ([`AB, `C].map toString))
+      checkIndKernameFresh [`AB, `C] kn1
+      modify (fun s => { s with indBlocks := s.indBlocks.cons (kn1, [`AB, `C]) })
+      let kn2 := rootKername (String.join ([`A, `BC].map toString))
+      checkIndKernameFresh [`A, `BC] kn2) {}
+    IO.println "F-KERNAME ind-collision: ok (not refused)"
+  catch e =>
+    let msg := (← e.toMessageData.toString).replace "\n" " "
+    let mentionsCollision := !((msg.splitOn "both mint the λbox key").length == 1)
+    IO.println s!"F-KERNAME ind-collision: error mentions-colliding-key={mentionsCollision} : {msg}"
+
 /-- Erase an ordinary program with no colliding names end to end; the guard must not fire on
 it. -/
 def checkPlain : MetaM Unit := do
@@ -58,6 +82,7 @@ def checkPlain : MetaM Unit := do
 
 #eval show MetaM Unit from do
   checkCollision
+  checkIndCollision
   checkPlain
 
 end FKername

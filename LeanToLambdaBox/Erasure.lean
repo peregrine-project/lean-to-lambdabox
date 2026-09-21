@@ -31,6 +31,11 @@ structure ErasureState: Type where
   /-- This field is only updated, not read. -/
   gdecls: GlobalDeclarations := []
   inlinings: List Kername := []
+  /-- The λbox key minted for each registered mutual inductive block, together with the
+  block's member list (`InductiveVal.all`), so a second block whose members mint the same key —
+  `rootKername` on `String.join` is not injective: `[AB, C]` and `[A, BC]` coincide — is caught
+  instead of silently overwriting the first block's entry in `gdecls`. -/
+  indBlocks: List (Kername × List Name) := []
 
 namespace Config
 
@@ -207,14 +212,30 @@ def isErasable (lparams : List Name) (e : Expr) : MetaM Bool := do
 
 /--
 Refuse if `kn`, the λbox key just minted for `name`, is already registered under a different
-Lean name. `toKername` collapses `.num`/`.str` name components that differ before
-`cleanIdent`'s escaping, so two distinct declarations can mint one key; without this check the
-second registration would silently overwrite the first in `gdecls` and the printer would emit
-only the survivor.
+Lean name — as a top-level constant, or (`register_inductive` mints keys the same way, on a
+mutual block's member names rather than a single one) as a mutual inductive block. `toKername`
+collapses `.num`/`.str` name components that differ before `cleanIdent`'s escaping, so two
+distinct declarations can mint one key; without this check the second registration would
+silently overwrite the first in `gdecls` and the printer would emit only the survivor.
 -/
 def checkKernameFresh (name: Name) (kn: Kername): EraseM Unit := do
   if let some (other, _) := (← get).constants.toList.find? (fun (n, k) => decide (k = kn) && decide (n ≠ name)) then
     throwError "Erasure.toKername: {other} and {name} both mint the λbox key {repr kn}."
+  if let some (_, members) := (← get).indBlocks.find? (fun (k, _) => decide (k = kn)) then
+    throwError "Erasure.toKername: the mutual inductive block {members} and {name} both mint the λbox key {repr kn}."
+
+/--
+The `register_inductive` counterpart to `checkKernameFresh`: refuse if `kn`, the λbox key just
+minted for the mutual inductive block `names`, is already registered — as a *different* mutual
+inductive block reaching the same key (same finding, symmetric: `[AB, C]` and `[A, BC]` mint one
+key, and so do a constant key and a block key), or as a top-level constant's key.
+-/
+def checkIndKernameFresh (names: List Name) (kn: Kername): EraseM Unit := do
+  if let some (_, other) := (← get).indBlocks.find? (fun (k, _) => decide (k = kn)) then
+    if other ≠ names then
+      throwError "Erasure.toKername: the mutual inductive blocks {other} and {names} both mint the λbox key {repr kn}."
+  if let some (other, _) := (← get).constants.toList.find? (fun (_, k) => decide (k = kn)) then
+    throwError "Erasure.toKername: {other} and the mutual inductive block {names} both mint the λbox key {repr kn}."
 
 def addAxiom (name: Name): EraseM Unit := do
   if (← get).constants.contains name then panic! s!"Constant {name} is already defined, cannot add axiom."
@@ -298,6 +319,7 @@ def register_inductive (indinfo: InductiveVal): EraseM (InductiveId × Inductive
   else
     let names := indinfo.all
     let mutualBlockName := indinfo.all |>.map toString |> String.join |> rootKername
+    checkIndKernameFresh names mutualBlockName
     -- Iterate through all the inductive types in the mutual definition
     let ind_bodies: List OneInductiveBody ← names.zipIdx.mapM fun (ind_name, idx) => do
       let .inductInfo inf ← getConstInfo ind_name | unreachable!
@@ -346,7 +368,8 @@ def register_inductive (indinfo: InductiveVal): EraseM (InductiveId × Inductive
       pure { name := toString ind_name, propositional := isPropositionalArity inf.type,
              ctors := ind_ctors, projs }
     let mutual_body := { npars := indinfo.numParams, bodies := ind_bodies }
-    modify (fun s => { s with gdecls := s.gdecls.cons (mutualBlockName, .inductiveDecl mutual_body) })
+    modify (fun s => { s with gdecls := s.gdecls.cons (mutualBlockName, .inductiveDecl mutual_body),
+                              indBlocks := s.indBlocks.cons (mutualBlockName, names) })
     return (← get).inductives[indinfo.name]!
 
 /--
