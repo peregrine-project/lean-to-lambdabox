@@ -41,10 +41,13 @@ def isArityCheck.loop (fuel : Nat) (ty : Expr) : Lean4Lean.TypeChecker.RecM Bool
 
 /-- Type-former branch: whnf-reduce and peel the whole `∀`-telescope of `ty`,
     succeeding iff it ends in a sort (faithful to `Meta.isTypeFormerType`). Fuelled
-    by the syntactic depth of the unreduced `ty`; if the reduced telescope is deeper,
+    by a fixed budget, not by `ty`'s own (unreduced, 8-bit-saturating) syntactic
+    depth: the loop's binder count is the *reduced* telescope's, which a definitional
+    alias can hide entirely behind a zero-depth `.const` head, so no bound on the
+    unreduced subject bounds it. If the reduced telescope still exceeds the budget,
     the loop throws and `Erasure.isErasable` falls back to `isErasableMeta`. -/
 def isArityCheck (ty : Expr) : Lean4Lean.TypeChecker.RecM Bool :=
-  isArityCheck.loop (ty.approxDepth.toNat + 1) ty
+  isArityCheck.loop 100000 ty
 
 /-- The full erasure relevance oracle on lean4lean's verified checker: infer the
     type of `e`, then succeed if that type is a `Prop` (proof) *or* passes the arity
