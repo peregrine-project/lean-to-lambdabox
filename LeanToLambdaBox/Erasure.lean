@@ -309,7 +309,11 @@ def register_inductive (indinfo: InductiveVal): EraseM (InductiveId × Inductive
 
       let ind_id: InductiveId := { mutualBlockName, idx }
       modify (fun s => { s with inductives := s.inductives.insert ind_name (ind_id, ind_argmasks)})
-      pure { name := toString ind_name, ctors := ind_ctors, projs }
+      -- `erase_one_inductive_body` (`ErasureFunction.v:1325-1338`) reads `ind_propositional` off
+      -- the declared arity, and `erases_mutual_inductive_body` (`Extract.v:276`) states it as an
+      -- equality, so it is not a flag the frontend may default.
+      pure { name := toString ind_name, propositional := isPropositionalArity inf.type,
+             ctors := ind_ctors, projs }
     let mutual_body := { npars := indinfo.numParams, bodies := ind_bodies }
     modify (fun s => { s with gdecls := s.gdecls.cons (mutualBlockName, .inductiveDecl mutual_body) })
     return (← get).inductives[indinfo.name]!
