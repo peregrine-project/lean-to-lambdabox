@@ -99,7 +99,9 @@ jobs:
         run: lake build VerifyBench && lake exe coverage --check
 
       # A ratchet, not a zero: the residue is the tooling, the frozen benchmark sources,
-      # `Optimize.lean` and `ErasesUniform.lean`, which `doc/coverage.md` accounts for.
+      # `Optimize.lean` and `ErasesUniform.lean`, which `doc/coverage.md` accounts for,
+      # plus `test/Vacuity.lean`'s two regression lemmas, which are outside the closure by
+      # construction — a regression file is not imported by the theorem it guards.
       # The budget fails when a module leaves the Green.lean-union-Capstone.lean closure,
       # which is the regression this guards; a drop below it is fine and the budget is
       # lowered by hand.
@@ -107,8 +109,8 @@ jobs:
         run: |
           out=$(lake exe hygiene --dead || true)
           n=$(printf '%s\n' "$out" | sed -n 's/^--dead: \([0-9]*\) .*/\1/p')
-          echo "declarations outside the closure: ${n:-unparsed} (budget 240)"
-          if [ -z "$n" ] || [ "$n" -gt 240 ]; then
+          echo "declarations outside the closure: ${n:-unparsed} (budget 242)"
+          if [ -z "$n" ] || [ "$n" -gt 242 ]; then
             printf '%s\n' "$out" >&2
             exit 1
           fi
