@@ -1129,10 +1129,19 @@ mutual
           unless numCtorAlts + 1 == casesInfo.altNumParams.size do
             throwError "Erasure.visitCases: {casesInfo.declName} has more than one catch-all alternative."
           let numHyps := match casesInfo.altNumParams[j]! with | .ctor _ n => n | .default n => n
-          let body ← visitExpr args[casesInfo.altsRange.lower + j]!
+          let altExpr := args[casesInfo.altsRange.lower + j]!
+          let body ← visitExpr altExpr
           if body.hasLooseBVar then
             throwError "Erasure.visitCases: the catch-all of {casesInfo.declName} erased to a term with a free de Bruijn index, which cannot be moved under the binders of an alternative."
-          logInfo s!"Expanding the catch-all of {casesInfo.declName} into {(altIdx.filter (·.isNone)).size} alternative(s)."
+          -- The catch-all is erased once below and applied to `□` per hypothesis: sound only
+          -- when every hypothesis is a proof, since `□` stands for an erased proof, not erased
+          -- data. As with `firstNonProofField`, check the premise instead of assuming it.
+          let badHyp? ← liftMetaM <| Meta.lambdaBoundedTelescope altExpr numHyps fun hs _ => do
+            for (h, i) in hs.zipIdx do
+              unless ← Meta.isProof h do return some i
+            return none
+          if let some i := badHyp? then
+            throwError "Erasure.visitCases: the catch-all of {casesInfo.declName} binds a hypothesis (number {i}) that is not a proof; λbox erases the catch-all once and applies it to `□` per hypothesis, which is sound only when every one of them is."
           pure <| .some <| (List.range numHyps).foldl (fun t _ => LBTerm.app t .box) body
       let mut alts := #[]
       for (alt?, cidx) in altIdx.zipIdx do
