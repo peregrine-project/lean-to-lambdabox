@@ -223,6 +223,42 @@ def addAxiom (name: Name): EraseM Unit := do
   modify (fun s => { s with constants := s.constants.insert name kn, gdecls := s.gdecls.cons (kn, .constantDecl ⟨.none⟩) })
 
 /--
+The sort a Π-telescope ends in, read syntactically: MetaRocq's `destArity`
+(`ErasureFunction.v:1325`), which likewise does not reduce.
+-/
+def arityResultSort: Expr → Option Level
+  | .forallE _ _ b _ => arityResultSort b
+  | .sort l => some l
+  | _ => none
+
+/--
+Does an inductive declared with type `type` live in `Prop`? This is MetaRocq's
+`isPropositionalArity` (`Extract.v:276`): the sort ending the declared arity is `Prop`, for every
+instantiation of the declaration's universe parameters.
+-/
+def isPropositionalArity (type: Expr): Bool :=
+  match arityResultSort type with
+  | some l => l.isAlwaysZero
+  | none => false
+
+/--
+The first field of a constructor of `ind` that is not a proof, as the constructor's name and the
+field's index among the fields. Parameters are not fields, and a field is a proof exactly when its
+type is a proposition.
+-/
+def firstNonProofField (ind: InductiveVal): EraseM (Option (Name × Nat)) := do
+  for ctor_name in ind.ctors do
+    let .ctorInfo ci ← getConstInfo ctor_name
+      | throwError "Erasure: {ctor_name} is listed as a constructor of {ind.name} but is not one."
+    let found ← liftMetaM <|
+      Meta.forallBoundedTelescope ci.type (.some <| ci.numParams + ci.numFields) fun vars _ => do
+        for (v, i) in vars[ci.numParams:].toArray.zipIdx do
+          unless ← Meta.isProof v do return some i
+        return none
+    if let some i := found then return some (ctor_name, i)
+  return none
+
+/--
 Get information about the inductive type, adding all its mutually-defined buddies to the context if necessary.
 -/
 def register_inductive (indinfo: InductiveVal): EraseM (InductiveId × InductiveArgMasks) := do
@@ -923,6 +959,16 @@ mutual
         throwError "Erasure.visitCases: {casesInfo.declName} eliminates {indName}, which machine-`Nat` mode represents as a primitive integer; only a plain `casesOn` can be compiled against that representation."
       unless casesInfo.altsRange.lower == casesInfo.discrPos + 1 do
         throwError "Erasure.visitCases: {casesInfo.declName} is a per-constructor elimination with a side condition, which λbox's `case` cannot express."
+      -- A `case` on a propositional inductive is collapsed downstream — `remove_match_on_box`
+      -- (`EOptimizePropDiscr.v:48`) and `eval_iota_sing` (`EWcbvEval.v:162`) — by substituting a
+      -- box for *every* binder of the single alternative, which is sound only when every field
+      -- bound there is a proof. Lean admits large elimination for a `Prop` whose non-proof fields
+      -- are recovered from the result indices (`Acc.intro`'s `x`, which `Acc.casesOn` binds), so
+      -- the shape is reachable and the collapse would box data. Refuse it on the shape rather
+      -- than on the name: an `Acc` clone compiles in Lean just as `Acc` does.
+      if isPropositionalArity indVal.type then
+        if let some (ctor_name, field) ← firstNonProofField indVal then
+          throwError "Erasure.visitCases: {casesInfo.declName} eliminates the propositional inductive {indName}, whose constructor {ctor_name} has a field (number {field}) that is not a proof; λbox collapses such an elimination by boxing every field of the alternative, which would lose that field's data."
       let (indid, argmasks) ← register_inductive indVal
       -- A λbox `case` has one alternative per constructor, in constructor order, binding that
       -- constructor's fields. Find the source alternative covering each constructor; a sparse
