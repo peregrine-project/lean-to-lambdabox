@@ -718,6 +718,20 @@ theorem Lower.constToFix {Γ : GlobalDeclarations} {kns : List Kername} {bs bs' 
         cases hcw
         rw [hself _ hnf]
         exact .fixBody hb hb' hd₀ hnd hids hilen hfresh hrarg hdecl hfl hlow hcl hj hjl
+    -- The η-wrapper is a λ over an application, so `ConstToFVar` walks into it and may
+    -- rename the binder; the arm's binder name is free for exactly this reason.
+    | @fixEta b nm kns₀ bs₀ bs₀' ids₀ defs₀ j hb hb' hd₀ hnd hids hilen hfresh hrarg
+        hdecl hfl hlow hcl hj hjl _ =>
+        intro hnf q' hcw
+        cases hcw with
+        | @lambda _ nm' _ b' hlam =>
+            cases hlam with
+            | @app _ f' _ a' hf ha =>
+                cases hf
+                cases ha
+                rw [hself _ (fun x hx hcc => hnf x hx (by
+                  simpa only [hasFVar_lambda, hasFVar_app, hasFVar_bvar, or_false] using hcc))]
+                exact .fixEta hb hb' hd₀ hnd hids hilen hfresh hrarg hdecl hfl hlow hcl hj hjl
     | @done m b _ ih =>
         rename_i hnf ns₂ a₂ hnl hca
         have : ns₂ = [] := List.eq_nil_of_length_eq_zero (by simpa using hnl)
@@ -944,6 +958,27 @@ theorem closedBodies_specEnv : ClosedBodies specEnv := by
 /-- (ii) The value-side fix arm: member 1's specification body relates to the block. -/
 theorem lowerfix_fixBody : Lower specEnv bs[1]! (.fix defs 1) :=
   Lower.fixBody' lowerfix_nv rfl (Nat.lt_succ_self 1)
+
+/-- **The η arm fires on the same block**, at the same member and the same premises: the
+body relates to the wrapper `Erasure.visitMutual` registers, not only to the bare node.
+Non-vacuity for `Lower.fixEta`. -/
+theorem lowerfix_fixEta : Lower specEnv bs[1]! (LBTerm.etaFix defs 1) :=
+  Lower.fixEta' lowerfix_nv rfl (Nat.lt_succ_self 1)
+
+/-- **Why `Lower.fixEta`'s binder name is free.** `ConstToFVar.lambda` renames the binder, so
+`Lower.constToFix` transports a wrapper to a renamed one; with the arm pinned to `.anon` this
+target would have no derivation at all. -/
+theorem lowerfix_fixEta_renamed :
+    Lower specEnv bs[0]! (.lambda (.named "z") (.app (.fix defs 0) (.bvar 0))) :=
+  .fixEta lowerfix_nv.hb lowerfix_nv.hb' lowerfix_nv.hd lowerfix_nv.hnd lowerfix_nv.hids
+    lowerfix_nv.hilen lowerfix_nv.hfresh lowerfix_nv.hrarg lowerfix_nv.hdecl lowerfix_nv.hfl
+    lowerfix_nv.hlow lowerfix_nv.hcl rfl (by decide)
+
+/-- And the `lambda` congruence arm does not reach it: member 0's body is `λx. □`, and `□`
+lowers to `□` alone. So a pinned arm leaves `Lower.constToFix` false at this very pair. -/
+theorem lowerfix_fixEta_not_by_lambda :
+    ¬ Lower specEnv .box (.app (.fix defs 0) (.bvar 0)) :=
+  fun h => LBTerm.noConfusion (Lower.source_box h rfl)
 
 /-- (ii) Member 1's fix unfolding, through `LowerBlock.substList_fixSubst`: the block
 substitution undoes `mkDef`'s closing and installs member 0's node at the call site. -/
