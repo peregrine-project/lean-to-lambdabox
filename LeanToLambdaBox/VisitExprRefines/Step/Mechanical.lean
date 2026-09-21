@@ -244,7 +244,8 @@ theorem ConstToFVar.abstracts {kns : List Kername} {ids : List FVarId} {x : FVar
 
 /-- The composite at a λ binder: the run opens the binder into `x`, erases, and closes with
 `toBvar x 0`; `Erases.uninstantiate` closes the erasure image and the two pass factors follow
-it. `Lower.lambda` leaves the emitted binder name free, so the run's own name is admissible. -/
+it. `Erases.lam` and `Lower.lambda` both leave the emitted binder name free, so `.anon` is as
+admissible a choice as the run's own name. -/
 theorem ErasesLBMode.lam (hfv : FVarFreeBodies Γspec) {x : FVarId}
     (hxids : ∀ nms ids, BlockKeyed tbl ctx nms ids → x ∉ ids)
     {n : Name} {ty b : Expr} {bi : BinderInfo} {ty' body' : VExpr} {deps : List FVarId}
@@ -262,10 +263,11 @@ theorem ErasesLBMode.lam (hfv : FVarFreeBodies Γspec) {x : FVarId}
     have := hbody.closed; simpa [Lean4Lean.VLCtx.bvars, hΔbv] using this
   refine ⟨fun hfx => ?_, fun nms ids hfx => ?_⟩
   · obtain ⟨t₀, her, hl⟩ := h.1 hfx
-    exact ⟨_, .lam hty (her.uninstantiate sc hc), .lambda (Lower.abstract hfv hl x 0)⟩
+    exact ⟨_, .lam (n' := .anon) hty (her.uninstantiate sc hc),
+      .lambda (Lower.abstract hfv hl x 0)⟩
   · obtain ⟨t₀, t₁, her, hl, hcf⟩ := h.2 nms ids hfx
-    exact ⟨.lambda (.named n.toString) (toBvar x 0 t₀), .lambda N (toBvar x 0 t₁),
-      .lam hty (her.uninstantiate sc hc), .lambda (Lower.abstract hfv hl x 0),
+    exact ⟨.lambda .anon (toBvar x 0 t₀), .lambda N (toBvar x 0 t₁),
+      .lam (n' := .anon) hty (her.uninstantiate sc hc), .lambda (Lower.abstract hfv hl x 0),
       .lambda (hcf.abstracts (hxids nms ids hfx) 0)⟩
 
 /-- The composite at a `let` binder. The value is erased *inside* the extended context, so
@@ -290,12 +292,12 @@ theorem ErasesLBMode.letE (hfv : FVarFreeBodies Γspec) {x : FVarId}
   refine ⟨fun hfx => ?_, fun nms ids hfx => ?_⟩
   · obtain ⟨v₀, herv, hlv⟩ := hv.1 hfx
     obtain ⟨t₀, her, hl⟩ := h.1 hfx
-    exact ⟨_, .letE hty hval (herv.strengthen_vlet scv) (her.uninstantiate scb hc),
+    exact ⟨_, .letE (n' := .anon) hty hval (herv.strengthen_vlet scv) (her.uninstantiate scb hc),
       .letIn hlv (Lower.abstract hfv hl x 0)⟩
   · obtain ⟨v₀, v₁, herv, hlv, hcv⟩ := hv.2 nms ids hfx
     obtain ⟨t₀, t₁, her, hl, hcf⟩ := h.2 nms ids hfx
-    exact ⟨.letIn (.named n.toString) v₀ (toBvar x 0 t₀), .letIn N v₁ (toBvar x 0 t₁),
-      .letE hty hval (herv.strengthen_vlet scv) (her.uninstantiate scb hc),
+    exact ⟨.letIn .anon v₀ (toBvar x 0 t₀), .letIn N v₁ (toBvar x 0 t₁),
+      .letE (n' := .anon) hty hval (herv.strengthen_vlet scv) (her.uninstantiate scb hc),
       .letIn hlv (Lower.abstract hfv hl x 0),
       .letIn hcv (hcf.abstracts (hxids nms ids hfx) 0)⟩
 

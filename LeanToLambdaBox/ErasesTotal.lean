@@ -223,7 +223,7 @@ theorem Erases.exists_of_trExprS_of_projInfo (henv : env.WF)
     intro hΔ hpi
     let .lam hpb := hpi
     let ⟨_, heb⟩ := ihb ⟨hΔ, nofun, hty⟩ hpb
-    exact ⟨_, .lam htr heb⟩
+    exact ⟨_, .lam (n' := .anon) htr heb⟩
   | @forallE _ _ _ _ _ n bi hty hbody htr hbtr ihty ihb =>
     intro hΔ _
     exact ⟨_, .box (.forallE hty hbody htr hbtr)
@@ -233,7 +233,7 @@ theorem Erases.exists_of_trExprS_of_projInfo (henv : env.WF)
     let .letE hpv hpb := hpi
     let ⟨_, hev⟩ := ihv hΔ hpv
     let ⟨_, heb⟩ := ihb ⟨hΔ, nofun, hval⟩ hpb
-    exact ⟨_, .letE htr hvtr hev heb⟩
+    exact ⟨_, .letE (n' := .anon) htr hvtr hev heb⟩
   | lit hcl htr ih =>
     intro hΔ _
     let ⟨_, he⟩ := ih hΔ (ProjInfo.toConstructor _)

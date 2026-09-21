@@ -97,7 +97,7 @@ theorem zeta_arm {env : VEnv} (henv : env.WF) {Us : List Name} {bo : Name → Op
     ∃ w₀ w', Erases env Us [] r w₀ ∧ Lower Γspec w₀ w' ∧ WcbvEval Γ eraseFlags t w' ∧
       ErasesEnv env bo lp Γspec w₀ := by
   rcases Erases.letE_inv her with hbw |
-    ⟨ty', val', v', b', htrtyE, htrvalE, herv, herb, rfl⟩
+    ⟨_, ty', val', v', b', htrtyE, htrvalE, herv, herb, rfl⟩
   · exact erases_correct_boxLow henv hwt hbw hlow hspec (.zeta hfl hvalEv hbodyEv)
   · obtain ⟨n₂, tv, tb, rfl, hlv, hlb⟩ := Lower.source_letIn hlow rfl
     cases hwt with
@@ -165,7 +165,7 @@ theorem beta_arm {env : VEnv} (henv : env.WF) {Us : List Name} {bo : Name → Op
           iha htra ha' hla (hspec.subterm (.appArg .refl))
         obtain ⟨fvv, htrfvv, hfdef⟩ := SEval.defeq henv hΔ htrf hf
         rcases Erases.lam_inv herfv with ⟨⟨we, htrw, herw⟩, rfl⟩ |
-          ⟨ty₂, b'', hty₂, hb'', rfl⟩
+          ⟨_, ty₂, b'', hty₂, hb'', rfl⟩
         · obtain rfl : fv' = .box := Lower.source_box hlfv rfl
           obtain ⟨rv, htrr, hrdef⟩ :=
             SEval.defeq henv hΔ (.app hTf hTa htrf htra) (.beta hfl hf ha hbody)
@@ -328,7 +328,7 @@ theorem erases_correct_of_steps {env : VEnv} {bo : Name → Option Expr} {lp : N
     induction hev with
     | @lam n ty bd bi =>
         intro rfl ve t₀ t hwt her hlow hspec
-        rcases Erases.lam_inv her with hbw | ⟨ty₂, b', hty₂, hb', rfl⟩
+        rcases Erases.lam_inv her with hbw | ⟨_, ty₂, b', hty₂, hb', rfl⟩
         · exact erases_correct_boxLow (fl := fl) henv hwt hbw hlow hspec (.lam n ty bd bi)
         · refine ⟨_, t, her, hlow, ?_, hspec⟩
           rcases Lower.source_lambda hlow rfl with ⟨n', b'', rfl⟩ | ⟨defs, j, rfl⟩

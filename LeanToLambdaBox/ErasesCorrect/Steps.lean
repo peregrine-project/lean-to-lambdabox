@@ -872,7 +872,7 @@ theorem erases_constSpine_value {env : VEnv} {bo : Name → Option Expr} {Us : L
   induction hev with
   | @lam n ty b bi =>
       intro kn args her
-      rcases Erases.lam_inv her with ⟨-, heq⟩ | ⟨ty', b', -, -, heq⟩ <;>
+      rcases Erases.lam_inv her with ⟨-, heq⟩ | ⟨_, ty', b', -, -, heq⟩ <;>
         exact (not_mkApps_const (fun _ _ => LBTerm.noConfusion)
           (fun _ => LBTerm.noConfusion) heq).elim
   | @beta f a n ty bd bi av r hfl hf ha hb ihf _ _ =>
@@ -891,7 +891,7 @@ theorem erases_constSpine_value {env : VEnv} {bo : Name → Option Expr} {Us : L
           exact .beta hfl hsev ha hb
   | @zeta n ty v b nd vv r hfl hv hbd _ _ =>
       intro kn args her
-      rcases Erases.letE_inv her with ⟨-, heq⟩ | ⟨ty', val', v', b', -, -, -, -, heq⟩ <;>
+      rcases Erases.letE_inv her with ⟨-, heq⟩ | ⟨_, ty', val', v', b', -, -, -, -, heq⟩ <;>
         exact (not_mkApps_const (fun _ _ => LBTerm.noConfusion)
           (fun _ => LBTerm.noConfusion) heq).elim
   | @deltaC c us ups args argsv b b' v hfl hbd hnd hinst hlen hargs hdef hcont _ _ =>
