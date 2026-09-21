@@ -10,11 +10,13 @@ program: the well-formedness `peregrine validate` checks, plus the constructor-s
 invariant `remove_params_optimization` consumes and `validate` omits. Every clause is stated
 over the environment **and** the term, mirroring MetaRocq's `expanded_eprogram_cstrs`.
 
-Fixpoint η — MetaRocq's `EEtaExpandedFix.expanded` — is **not** part of it: the erasure emits
-bare `tFix` constant bodies, so the clause is false on emitted output. It is stated separately
-as `LBExpandedFix`, and `PeregrinePre` is the conjunction peregrine's first pass actually
-requires. The gap is a shipping finding, not paperwork: `guarded_to_unguarded_fix` is the
-identity on terms and discharges its whole evaluation-preservation obligation from that clause.
+Fixpoint η — MetaRocq's `expanded_tFix` — is the `expandedFix` clause: `LBExpandedFix` for the
+spine, `FixLambda` for the member bodies and `LBFixSelfApplied` for the self-references, folded
+as `LBExpandedTFix`. It matters because `guarded_to_unguarded_fix` is the identity on terms and
+discharges its whole evaluation-preservation obligation from that clause. The remaining content
+of `EEtaExpandedFix.expanded` — that a de Bruijn index resolves at all, and that a constructor
+spine is saturated — is `closed` and `etaCtorsEnv`/`etaCtorsTm`, so `LBWfPeregrine` is the
+precondition entire and no separate `PeregrinePre` is stated.
 
 `NoBodylessRefs` is `axiom_free` at the emitted environment: no constant the program reaches
 is declared without a body. It is decidable, and it is the capstone's premise — a run that
@@ -217,13 +219,88 @@ theorem FixLambda.of_onProgram {Γ : GlobalDeclarations} {prog sub : LBTerm}
     h.1 defs j (heq ▸ hsub) defs[i]! (by rw [getElem!_pos defs i hi]; exact List.getElem_mem hi)
   rw [hb]; rfl
 
+/-! ## Fixpoint η
+
+`expanded_tFix` (`../metarocq/erasure/theories/EEtaExpandedFix.v:46-54`) is the one clause of
+`EEtaExpandedFix.expanded` that constrains a `.fix` node. Read on λ□ it splits three ways:
+the node occurs under a spine long enough (`LBExpandedFix`), every member body is λ-headed
+(`FixLambda`), and every self-reference inside a member body is itself applied past its own
+principal argument (`LBFixSelfApplied`). `LBExpandedTFix` is the three together.
+-/
+
+/-- The fix-clause of MetaRocq's `EEtaExpandedFix.expanded`, over environment and term: every
+`.fix` occurs applied, to a non-empty argument list longer than its principal argument index.
+`expanded_tFix`'s `args <> []`, `nth_error mfix idx = Some d` and `#|args| > d.(rarg)`
+(`EEtaExpandedFix.v:51-53`). -/
+def LBExpandedFix (Γ : GlobalDeclarations) (t : LBTerm) : Prop :=
+  OnProgram Γ t fun u => ∀ defs i n, FixSpine u defs i n →
+    n ≠ 0 ∧ ∀ fd, defs[i]? = some fd → fd.principalArgIdx < n
+
+/-- The spine length each enclosing binder demands of a de Bruijn index resolving to it —
+MetaRocq's `Γ : list nat` (`EEtaExpandedFix.v:33`) at a `.fix` block's own binders,
+`rev_map (fun d => 1 + d.(rarg)) mfix` (`:48`). Index `0` is the block's last member. Every
+other binder demands nothing and contributes `0`. -/
+def fixDemands (defs : List (@FixDef LBTerm)) : List Nat :=
+  (defs.map fun d => 1 + d.principalArgIdx).reverse
+
+/-- A de Bruijn occurrence located. `BVarDemand ctx k t m k'` says: reading `t` under the
+binder demands `ctx`, with `t` itself applied to `k` arguments, some maximal application spine
+inside `t` is headed by an index that its own context resolves to the demand `m`, and that
+spine carries `k'` arguments. These are the two premises of MetaRocq's `expanded_tRel_app`
+(`EEtaExpandedFix.v:34`) — `nth_error Γ n = Some m` and `#|args|` — located at the occurrence
+instead of read at the root, so that the demand is checked against the spine that actually
+carries it. An index `ctx` does not resolve is no occurrence at all: that `expanded` admits no
+such index is `LBWfPeregrine.closed`, not this. -/
+inductive BVarDemand : List Nat → Nat → LBTerm → Nat → Nat → Prop
+  | bvar {ctx k n m} : ctx[n]? = some m → BVarDemand ctx k (.bvar n) m k
+  | appFn {ctx k f a m k'} : BVarDemand ctx (k + 1) f m k' → BVarDemand ctx k (.app f a) m k'
+  | appArg {ctx k f a m k'} : BVarDemand ctx 0 a m k' → BVarDemand ctx k (.app f a) m k'
+  | lambda {ctx k nm b m k'} : BVarDemand (0 :: ctx) 0 b m k' →
+      BVarDemand ctx k (.lambda nm b) m k'
+  | letInVal {ctx k nm v b m k'} : BVarDemand ctx 0 v m k' →
+      BVarDemand ctx k (.letIn nm v b) m k'
+  | letInBody {ctx k nm v b m k'} : BVarDemand (0 :: ctx) 0 b m k' →
+      BVarDemand ctx k (.letIn nm v b) m k'
+  | constructArg {ctx k iid c args x m k'} : x ∈ args → BVarDemand ctx 0 x m k' →
+      BVarDemand ctx k (.construct iid c args) m k'
+  | caseDiscr {ctx k info discr alts m k'} : BVarDemand ctx 0 discr m k' →
+      BVarDemand ctx k (.case info discr alts) m k'
+  | caseAlt {ctx k info discr alts ns b m k'} : (ns, b) ∈ alts →
+      BVarDemand (List.replicate ns.length 0 ++ ctx) 0 b m k' →
+      BVarDemand ctx k (.case info discr alts) m k'
+  | proj {ctx k p e m k'} : BVarDemand ctx 0 e m k' → BVarDemand ctx k (.proj p e) m k'
+  | fixBody {ctx k defs j fd m k'} : fd ∈ defs →
+      BVarDemand (fixDemands defs ++ ctx) 0 fd.body m k' →
+      BVarDemand ctx k (.fix defs j) m k'
+
+/-- Every de Bruijn spine in `t` carries what its binder demands: in particular an index
+resolving into an enclosing `.fix` block's own binder region heads a spine of at least
+`1 + rarg` arguments. This is `expanded (ctx ++ Γ) d.(dbody)` inside `expanded_tFix`
+(`EEtaExpandedFix.v:48-49`) read through `expanded_tRel_app`'s `m <= #|args|` (`:34`). -/
+def FixSelfApplied (t : LBTerm) : Prop := ∀ m k, BVarDemand [] 0 t m k → m ≤ k
+
+/-- `FixSelfApplied` over environment and term. -/
+def LBFixSelfApplied (Γ : GlobalDeclarations) (t : LBTerm) : Prop :=
+  OnProgram Γ t FixSelfApplied
+
+/-- MetaRocq's `expanded_tFix` (`EEtaExpandedFix.v:46-54`) on the emitted program, all three
+of its term-level conjuncts: the spine (`LBExpandedFix`), the λ-headed member bodies
+(`FixLambda`, the clause's `isLambda d.(dbody)`, `:47`) and the applied self-references
+(`LBFixSelfApplied`). The clause's remaining premise, `Forall (expanded Γ) args` (`:50`), is
+the ambient recursion, carried here by every clause being read on the whole program; the
+`nth_error Γ n = Some m` that `expanded_tRel_app` needs of an index is `closed`. -/
+def LBExpandedTFix (Γ : GlobalDeclarations) (t : LBTerm) : Prop :=
+  LBExpandedFix Γ t ∧ OnProgram Γ t FixLambda ∧ LBFixSelfApplied Γ t
+
 /-! ## The output predicate -/
 
 /-- What `untyped_transform_pipeline` needs from the emitted program `(Γ, t)`, on the emitted
 program alone. Everything but `etaCtorsEnv`/`etaCtorsTm` and `printableNames` is `peregrine
 validate`'s check; those two are the constructor-saturation invariant `validate` omits and
 `remove_params_optimization` consumes, and `printableNames` is what the printer's quoted atoms
-need of a binder name. Fixpoint η is **not** claimed — see `LBExpandedFix`. -/
+need of a binder name. `expandedFix` is the fixpoint-η precondition
+`guarded_to_unguarded_fix` reads, which the emitted program satisfies since the registration
+point η-expands (`Erasure.etaExpandFix`). -/
 structure LBWfPeregrine (Γ : GlobalDeclarations) (t : LBTerm) : Prop where
   /-- No kername is declared twice. -/
   keys : (Γ.map Prod.fst).Pairwise (fun a b => Kername.beq a b = false)
@@ -241,8 +318,8 @@ structure LBWfPeregrine (Γ : GlobalDeclarations) (t : LBTerm) : Prop where
   ctorDecl : OnProgram Γ t (CtorsDeclared Γ)
   /-- Every `.case` is exhaustive at its inductive. -/
   casesExh : OnProgram Γ t (CasesExhaustive Γ)
-  /-- Every `.fix` definition has a λ-headed body. -/
-  fixLambda : OnProgram Γ t FixLambda
+  /-- Fixpoint η: MetaRocq's `expanded_tFix`, all three of its term-level conjuncts. -/
+  expandedFix : LBExpandedTFix Γ t
   /-- Every projection is a declared field of a single-constructor inductive. -/
   projDecl : OnProgram Γ t (ProjsDeclared Γ)
   /-- Constructor saturation, environment half: every constructor spine in a constant body
@@ -256,17 +333,10 @@ structure LBWfPeregrine (Γ : GlobalDeclarations) (t : LBTerm) : Prop where
   /-- Every binder name is printable. -/
   printableNames : OnProgram Γ t PrintableBinders
 
-/-- The fix-clause of MetaRocq's `EEtaExpandedFix.expanded`, over environment and term: every
-`.fix` occurs applied, to a non-empty argument list longer than its principal argument index. -/
-def LBExpandedFix (Γ : GlobalDeclarations) (t : LBTerm) : Prop :=
-  OnProgram Γ t fun u => ∀ defs i n, FixSpine u defs i n →
-    n ≠ 0 ∧ ∀ fd, defs[i]? = some fd → fd.principalArgIdx < n
-
-/-- What peregrine's first pass actually requires of its input. `LBWfPeregrine` is strictly
-weaker, and the difference is exactly `LBExpandedFix`, which is false on emitted output: the
-erasure emits bare `tFix` constant bodies. This is **not** concluded by the capstone. -/
-def PeregrinePre (Γ : GlobalDeclarations) (t : LBTerm) : Prop :=
-  LBWfPeregrine Γ t ∧ LBExpandedFix Γ t
+/-- `expanded_tFix`'s λ-headedness conjunct, projected out of the folded clause: what
+`FixLambda.of_onProgram` and `LowerBlock.hfl` read. -/
+theorem LBWfPeregrine.fixLambda {Γ : GlobalDeclarations} {t : LBTerm}
+    (h : LBWfPeregrine Γ t) : OnProgram Γ t FixLambda := h.expandedFix.2.1
 
 /-! ## Reachability -/
 
