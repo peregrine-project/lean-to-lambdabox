@@ -911,7 +911,9 @@ mutual
   *argument* of another recursive call — which is what passing a continuation
   mentioning `visitCases` to `withAppEtaToMinArity` would be. Specializing turns
   it into plain mutual recursion; the behaviour is the original's, except that the
-  arguments already supplied are bound outside the binders the expansion opens.) -/
+  already-supplied discriminee is bound outside the binders the expansion opens — the
+  already-supplied alternatives are left in place, since each is branch-guarded in the
+  emitted `case` and binding one would force it unconditionally.) -/
   def visitCasesEta (casesInfo : CasesInfo) (e : Expr) : EraseM LBTerm := do
     let type ← liftMetaM do Meta.inferType e
     e.withApp (fun f args => visitCasesEtaGo casesInfo type f args)
@@ -922,14 +924,19 @@ mutual
     if args.size >= casesInfo.arity then
       visitCases casesInfo args
     else do
-      -- Erase the arguments already supplied and bind them outside the new binders: under
-      -- them they would be evaluated afresh on every application of the expansion. Only the
+      -- Erase the discriminee already supplied and bind it outside the new binders: under
+      -- them it would be evaluated afresh on every application of the expansion. Only the
       -- outermost round binds anything — every argument the recursion adds is a variable.
       -- `visitCases` reads the major premise and the alternatives and drops the parameters,
-      -- the motive and the indices before them, which are therefore left where they are:
-      -- binding one would evaluate an argument the emitted program does not.
+      -- the motive and the indices before the discriminee, which are therefore left where
+      -- they are: binding one would evaluate an argument the emitted program does not.
+      -- The alternatives *after* the discriminee are left alone for the same reason and one
+      -- more: `visitCases` emits each of them inside its own branch of the `case`, reached
+      -- only when its constructor is selected, so binding one here would evaluate a branch
+      -- the emitted program does not — turning a value the source produces lazily into one
+      -- the target forces unconditionally, which can non-terminate where the source does not.
       let bs ← args.zipIdx.foldlM (fun bs a => do
-        if a.2 < casesInfo.discrPos then return bs
+        if a.2 != casesInfo.discrPos then return bs
         if ← etaArgIsValue (← read).lparams a.1 then return bs
         else return bs.push (a.2, ← liftMetaM (Meta.inferType a.1), ← visitExpr a.1)) #[]
       withEtaPrefixLets bs.toList args fun args =>
@@ -950,7 +957,9 @@ mutual
     if args.size >= arity then
       visitConstructor ctorname args
     else do
-      -- As in `visitCasesEtaGo`: the supplied arguments are bound outside the new binders.
+      -- As in `visitCasesEtaGo`, the supplied arguments are bound outside the new binders —
+      -- but here *all* of them, since a constructor's fields are all evaluated unconditionally
+      -- in the emitted block, unlike a `case`'s branch-guarded alternatives.
       let bs ← args.zipIdx.foldlM (fun bs a => do
         if ← etaArgIsValue (← read).lparams a.1 then return bs
         else return bs.push (a.2, ← liftMetaM (Meta.inferType a.1), ← visitExpr a.1)) #[]

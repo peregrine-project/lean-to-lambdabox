@@ -11,6 +11,21 @@ constr Nat.succ
    constr Nat.zero 
 
 
+== diverge.ast validate
+Validating AST:
+AST is valid
+== diverge.ast eval
+Compiling:
+Compiled successfully:
+
+constr Nat.succ 
+ constr Nat.succ 
+  constr Nat.succ 
+   constr Nat.succ 
+    constr Nat.succ 
+     constr Nat.zero 
+
+
 == elim.ast validate
 Validating AST:
 AST is valid

@@ -19,9 +19,17 @@ and the binder depth of every reference to `slowSum`. The prefix is bound once o
 η binders exactly when the spine starts with the `let`s and the depths are all `0`
 (before the fix: `spine=[λ, app]`/`[λ, case]`, `slowSum-depths=[1]`).
 
-With `FIXES_AST_DIR` set both programs are written there; `scripts/fixes.sh` runs them through
+`visitCasesEtaGo` only binds the *discriminee* this way — `elimSlow`'s zero alternative (`0`,
+already supplied, one of `Nat.casesOn`'s four arguments) is left where it stands, inside the
+`case` node `visitCases` builds for it. Binding an alternative outside the `case` would force it
+unconditionally, on every application, even on the branch not taken: `elimDiverge`/`divergeTest`
+below is the review's reproducer for that — a diverging zero alternative on a discriminee (`3`)
+that always selects the succ branch, so the source, and a correct erasure, never evaluate it.
+
+With `FIXES_AST_DIR` set the programs are written there; `scripts/fixes.sh` runs them through
 `peregrine validate` and `peregrine eval`, which is what checks that the let-bound programs are
-well-formed and still compute 3 and 3.
+well-formed and still compute 3, 3 and 5 — `divergeTest` evaluating to a value at all is the
+regression check: hoisting the zero alternative makes this hang instead.
 -/
 import LeanToLambdaBox.Erasure
 
@@ -46,6 +54,18 @@ the zero alternative, one short of its four arguments. -/
 def elimSlow : (Nat → Nat) → Nat := Nat.casesOn (motive := fun _ => Nat) (slowSum 12) 0
 
 def elimTest : Nat := elimSlow (fun _ => 1) + elimSlow (fun _ => 2)
+
+/-- Diverges unconditionally: the review's `spinF`. -/
+partial def spinF (n : Nat) : Nat := spinF (n + 1)
+
+/-- Same shape as `elimSlow`, but the already-supplied alternative diverges instead of merely
+being expensive: `Nat.casesOn` at a motive, the major premise `3` — always the succ constructor,
+so the zero alternative is never selected — and a zero alternative, `spinF 0`, one short of its
+four arguments. Lean's own `#eval` on the saturated form gives `5`; a correct erasure must too,
+since the zero alternative sits behind a branch the run never takes. -/
+def elimDiverge : (Nat → Nat) → Nat := Nat.casesOn (motive := fun _ => Nat) 3 (spinF 0)
+
+def divergeTest : Nat := elimDiverge (fun _ => 5)
 
 /-- The binder nodes above the first node that is neither a `lambda` nor a `letIn`, and that
 node's kind. -/
@@ -76,16 +96,17 @@ partial def constDepths (id : String) (depth : Nat) : LBTerm → List Nat
   | .fix defs _ => defs.flatMap (fun d => constDepths id (depth + defs.length) d.body)
   | .box | .bvar _ | .fvar _ | .prim _ => []
 
-/-- Erase `top`, report the spine and the `slowSum` depths of the body emitted for `defName`,
+/-- Erase `top`, report the spine and the `probe` depths of the body emitted for `defName`,
 and write the program to `$FIXES_AST_DIR/<label>.ast` when that directory is set. -/
-def check (label : String) (defName : String) (top : Name) : MetaM Unit := do
+def check (label : String) (defName : String) (top : Name) (probe : String := "slowSum") :
+    MetaM Unit := do
   let (p, _) ← erase (.const top []) { extern := .preferLogical, nat := .peano, csimp := false }
   let .untyped gdecls _ := p
   for (kn, d) in gdecls do
     if kn.id == defName then
       match d with
       | .constantDecl ⟨.some t⟩ =>
-        IO.println s!"F-ETA2 {label}: spine={spine t} slowSum-depths={constDepths "slowSum" 0 t}"
+        IO.println s!"F-ETA2 {label}: spine={spine t} {probe}-depths={constDepths probe 0 t}"
       | _ => IO.println s!"F-ETA2 {label}: {defName} has no body"
   if let some dir ← IO.getEnv "FIXES_AST_DIR" then
     IO.FS.writeFile s!"{dir}/{label}.ast" (Serialize.to_sexpr p).toString
@@ -93,5 +114,6 @@ def check (label : String) (defName : String) (top : Name) : MetaM Unit := do
 #eval show MetaM Unit from do
   check "cons" "consSlow" ``consTest
   check "elim" "elimSlow" ``elimTest
+  check "diverge" "elimDiverge" ``divergeTest "spinF"
 
 end FEta2
