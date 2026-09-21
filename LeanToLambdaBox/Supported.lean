@@ -63,10 +63,14 @@ inductive SupportError where
   | implementedBy (c : Name)
   /-- A metavariable. -/
   | mvar
-  /-- An elimination of a non-informative inductive into data: the emitted `.case` is stuck at
-      every flag point, because the erasure marks no inductive propositional. Keyed on the
-      *shape*, not the name — `Acc.casesOn` compiles in Lean, so a name-keyed exclusion would
-      not close the hole. -/
+  /-- An elimination of a non-informative inductive into data. The ι rules of the target
+      semantics fire only at a `false` propositional flag (`Semantics/Eval.lean:147`), and the
+      erasure sets that flag from the eliminated inductive's declared arity
+      (`Erasure.lean:368`): at an always-`Prop` arity the emitted `.case` collapses its single
+      alternative against `□` (`WcbvEval.iota_sing`) instead of selecting on a constructor, and
+      at more than one alternative it is stuck. Informativity is what puts the flag at `false`
+      (`propositional_false_of_informative`). Keyed on the *shape*, not the name —
+      `Acc.casesOn` compiles in Lean, so a name-keyed exclusion would not close the hole. -/
   | propElimIntoData (I : Name)
   /-- A constructor occurrence applied to fewer than `numParams + numFields` arguments: the
       erasure η-expands it and pushes the supplied prefix under the new binders, where weak
@@ -562,9 +566,11 @@ inductive SupportedTm (env : VEnv) (tbl : SourceTable) : Expr → List Expr → 
       (hcases : isCasesOnName c = false) (hrec : isRecursorName tbl c = false)
       (hsat : CtorSaturated tbl c args) (hknown : KnownHead env tbl c) :
       SupportedTm env tbl (.const c us) args
-  /-- A `casesOn` head, applied. `hind` names the inductive type the erasure recovers from the
-      head's name prefix; `hinf` is its informativity, without which the emitted `.case` is
-      stuck on the target, since the erasure marks no inductive propositional
+  /-- A `casesOn` head, applied. `hind` names the inductive type at the head's name prefix,
+      which `CasesInfoAgrees.indName` ties to the `Lean.CasesInfo.indName` the erasure
+      eliminates against (`Erasure.lean:1098`); `hinf` is its informativity, which is what puts
+      the inductive's emitted propositional flag at `false` (`Erasure.lean:368`,
+      `propositional_false_of_informative`) and so lets the target's ι rule fire at all
       (`SupportError.propElimIntoData`); `hlen` and `htel` are the minor premises, one per
       constructor and each a manifest λ-telescope of its constructor's field count, which is
       what keeps the erasure's intro branch from η-expanding
@@ -1097,6 +1103,16 @@ structure CasesInfoAgrees (ci : Lean.CasesInfo) (c : Name) (I : ReifiedInduct) :
   /-- Each alternative binds its constructor's fields. -/
   numFields : ∀ (j : Nat) (a : Lean.CasesAltInfo) (cb : ReifiedCtor),
     ci.altNumParams[j]? = some a → I.ctors[j]? = some cb → altNumFields a = cb.numFields
+  /-- The information eliminates the inductive the table holds at the head's name prefix. This
+      is what ties `Erasure.visitCases`' `casesInfo.indName` read (`Erasure.lean:1098`) to the
+      block the fragment pins; the two differ at a sparse `casesOn`, which `supportedHead`
+      refuses. `CasesInfoAgreesK.indName`'s twin. -/
+  indName : ci.indName = c.getPrefix
+  /-- Every alternative slot is its constructor's, in constructor order, never the catch-all
+      shape. `CasesInfoAgreesK.altCtor`'s twin, and what makes `Erasure.visitCases`'
+      per-constructor `findIdx?` (`Erasure.lean:1122-1124`) total. -/
+  altCtor : ∀ (j : Nat) (a : Lean.CasesAltInfo) (cb : ReifiedCtor),
+    ci.altNumParams[j]? = some a → I.ctors[j]? = some cb → ∃ nf, a = .ctor cb.name nf
 
 /-- **The kernel-side agreement, transported to the table.** `CasesInfoAgreesK` reads the
 `Lean.CasesInfo` against the `Lean.InductiveVal` the elaboration environment declares, and the
@@ -1107,17 +1123,20 @@ theorem CasesInfoAgrees.of_pinned {lenv : Lean.Environment} {tbl : SourceTable}
     (h : ∀ iv : InductiveVal, lenv.find? c.getPrefix = some (.inductInfo iv) →
       CasesInfoAgreesK lenv ci iv) :
     CasesInfoAgrees ci c I := by
-  obtain ⟨iv, hfind, -, -, -, hnp, hni, -, -, hcm, hcs⟩ :=
+  obtain ⟨iv, hfind, hname, -, -, hnp, hni, -, -, hcm, hcs⟩ :=
     htbl.inds _ I (mem_of_lookup hind)
   have hK := h iv hfind
   have hlen : iv.ctors.length = I.ctors.length := by rw [hcm]; simp
-  refine ⟨hdecl, ?_, ?_, hK.altsRange, hK.numAlts.trans hlen, ?_⟩
+  have hcn : ∀ (j : Nat) (cb : ReifiedCtor), I.ctors[j]? = some cb →
+      iv.ctors[j]? = some cb.name := by
+    intro j cb hcb; rw [hcm, List.getElem?_map, hcb]; rfl
+  refine ⟨hdecl, ?_, ?_, hK.altsRange, hK.numAlts.trans hlen, ?_, hK.indName.trans hname, ?_⟩
   · rw [hK.discrPos, hnp, hni]
   · rw [hK.arity, hnp, hni, hlen]
   · intro j a cb ha hcb
     obtain ⟨cv, hcvf, -, -, -, -, -, hnf, -⟩ := hcs j cb hcb
-    have hcn : iv.ctors[j]? = some cb.name := by rw [hcm, List.getElem?_map, hcb]; rfl
-    exact (hK.numFields j a cb.name cv ha hcn hcvf).trans hnf
+    exact (hK.numFields j a cb.name cv ha (hcn j cb hcb) hcvf).trans hnf
+  · exact fun j a cb ha hcb => hK.altCtor j a cb.name ha (hcn j cb hcb)
 
 /-! ## The blocks the run installs -/
 

@@ -7,7 +7,7 @@ block-level fixpoint. It is indexed by the specification environment `Γ` **and 
 --anti-epicycle` enforces this; `FVarId` is λ□'s own fvar syntax and is not on the banned
 list). The code writes the environment `Γ`: `Σ` is a reserved token in Lean.
 
-Fourteen arms: eleven congruence, one redex, two recursion. `lake exe hygiene --tables`
+Fifteen arms: eleven congruence, one redex, three recursion. `lake exe hygiene --tables`
 checks that every arm appears below. The **counterpart** column names the MetaRocq object the
 arm is answerable to — `iota_red` or `fixSubst` of `EWcbvEval`, the pass template `optimize`
 (`LeanToLambdaBox/Optimize.lean`, `[S §7.4]`, whose statement shape `Lower` reuses), or `none`
@@ -59,14 +59,15 @@ alternative's binder list — arm `done` at arity zero, arm `lam` peeling one bi
 `LowerAlts` is its pointwise lift over the block's field arities. Only the *number* of
 binders is pinned, because that is all `iota_red` reads.
 
-## Recursion (2) — `fixSubst`
+## Recursion (3) — `fixSubst`
 
 | Arm | Relates | Counterpart | Anchor and deviation |
 |---|---|---|---|
 | `fixConst` | `.const kn` to `.fix defs j`, for `kn` the block's *j*-th member, with `¬ RuntimeKey Γ kn` | `fixSubst` | The call site: `visitMutual` registers each member as the whole block's `.fix` node (`LeanToLambdaBox/Erasure.lean:904-918`). `hnk` is the same guard `const` carries and is load-bearing for the *inversion*: `ElimDecl` implies `DefnDecl`, so without it nothing keeps a `.fix` image off an eliminator constant and `Lower.source_const` cannot refute an eliminator head |
 | `fixBody` | the member's specification body to the same `.fix defs j` | `fixSubst` | The value side, and the arm the δ step needs: after the specification environment unfolds `kn`, the source configuration is the plain body while the target is the `.fix`. Its absence is what makes a functional pass, and a one-sided fix relation, false. Its source is constrained **only** by `hj : bs[j]? = some b`, so the arm's own `hfl` is what excludes it at a non-λ source |
+| `fixEta` | the member's specification body to `.lambda n (.app (.fix defs j) (.bvar 0))`, at a free binder name | `fixSubst` | What `visitMutual` registers for a member (`Erasure.etaExpandFix`, `LeanToLambdaBox/Erasure.lean:478`), and MetaRocq's `eta_fixpoint` (`../metarocq/template-rocq/theories/EtaExpand.v:72`) at `1 + rarg = 1`, the only shape `LowerBlock.hrarg` admits. The binder name is **free**, not `.anon`: `ConstToFVar.lambda` renames binders, so a pinned name falsifies `Lower.constToFix` (`LowerFix.lean`'s `lowerfix_fixEta_renamed`). `Lower.fixEta'` is the `.anon` instance, `LBTerm.etaFix defs j` |
 
-Both arms read their premises through `LowerBlock` (the fields are inlined into each arm:
+The three arms read their premises through `LowerBlock` (the fields are inlined into each arm:
 the kernel rejects the structure as a nested premise; `Lower.fixConst'` and `Lower.fixBody'`
 are the packaged forms). Three fields answer machine-checked refutations:
 

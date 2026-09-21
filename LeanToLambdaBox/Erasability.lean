@@ -418,14 +418,17 @@ theorem PropositionalInd.mono {env env' : VEnv} {I : Name} (hle : env ≤ env')
 arms need the emitted flag to be `false`: the registry does not assert `false` outright —
 `Erasure.recursorRealizer` registers `Eq`/`And`/`False` with `propositional := true` — it
 asserts MetaRocq's equation, and `false` is read off it against the consumer's own
-`InformativeInd` premise. -/
+`InformativeInd` premise. Only the soundness half of that equation is hypothesised, which is
+all this argument reads and all the model side proves:
+`ErasureSpec.propositionalInd_of_arity` derives it, and its converse is refuted by an arity
+whose final sort sits under a `let` (`doc/rework/03-DEV-FIX.md`, F-ARITYLET). -/
 theorem propositional_false_of_informative {env : VEnv} {I : Name} {p : Bool}
-    (heq : p = true ↔ PropositionalInd env I) (hinf : InformativeInd env I) : p = false := by
+    (heq : p = true → PropositionalInd env I) (hinf : InformativeInd env I) : p = false := by
   cases hp : p with
   | false => rfl
   | true =>
       exfalso
-      obtain ⟨ci, hci, l, hl, hz⟩ := heq.mp hp
+      obtain ⟨ci, hci, l, hl, hz⟩ := heq hp
       obtain ⟨ci', hci', l', hl', hnz⟩ := hinf
       rw [hci] at hci'
       cases Option.some.inj hci'

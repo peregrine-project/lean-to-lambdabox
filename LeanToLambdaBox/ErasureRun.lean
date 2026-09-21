@@ -3214,8 +3214,8 @@ theorem run_rec_exit_ok {vE : Expr → EraseM LBTerm} {names fixnames : List Nam
 /-- **The `F-UNSAFEREC` guard's reading.** A successful block exit says the members' keys are
 distinct: `visitMutual` refuses the block otherwise (`Erasure.lean:1262-1264`), which is what
 `remove_unsafe_rec` makes possible — it is not injective, so `[u, u._unsafe_rec]` maps to
-`[u, u]`. The unconditional claim about `getDeclInfo?` that `EraserAsks.block_keys_distinct`
-used to make is false; this is the run's replacement for it. -/
+`[u, u]`. The same distinctness stated unconditionally of `Lean.Compiler.LCNF.getDeclInfo?` is
+false, so the run is the only place it can be read. -/
 theorem run_rec_exit_nodup {names fixnames : List Name} {vE : Expr → EraseM LBTerm}
     {f : List FVarId → ErasureContext → ErasureContext}
     {g : ConstantInfo → ErasureContext → ErasureContext} {val : ConstantInfo → Expr}

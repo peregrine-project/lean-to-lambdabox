@@ -96,6 +96,47 @@ inductive propositional" (`Semantics/Flags.lean:24-30`, `ElimBody.lean:87-89`,
 `Erasability.lean:280`, `Supported.lean:66` and `:562`) are falsified as stated and must be
 restated over the fragment, or as a per-rung measurement.
 
+### F-ARITYLET — the arity walk stops at a `let`, where MetaRocq's walks through
+
+*Site.* `Erasure.arityResultSort`, `LeanToLambdaBox/Erasure.lean:281-285`, read by
+`isPropositionalArity` (`:291`) and hence — since F-PROP — by `register_inductive`'s
+`propositional` field (`:368`) and by `visitCases`' F-ACC refusal (`:1106`).
+
+*Defect.* `arityResultSort` walks `.forallE` alone and answers `none` at anything else.
+MetaRocq's `destArity` (`../metarocq/pcuic/theories/PCUICAst.v:486-490`), which
+`isPropositionalArity` (`PCUICFirstorder.v:103`) is defined over, walks `tLetIn` as well. A
+declared arity may carry a `let`: Lean accepts `inductive FooLet : (let _x := Nat; Prop)` and
+the elaborated `InductiveVal.type` keeps the `letE`. At such an inductive the emitted flag is
+`false` although the type former lives in `Prop`, so the emitted `.case` is stuck exactly as it
+was before F-PROP; `.mdata` in the same position behaves the same way, and `TrExprS` sees
+through both (`Lean4Lean/Verify/Typing/Expr.lean:164-170`).
+
+*Measure.* `scratch/round7/m4_arity_probe.lean`, run with `lake env lean`:
+
+    inductive FooLet : (let _x := Nat; Prop) where | mk : FooLet
+    #eval show CoreM Unit from do
+      let ci ← getConstInfo ``FooLet
+      IO.println s!"{repr (Erasure.arityResultSort ci.type)} {Erasure.isPropositionalArity ci.type}"
+
+    FooLet.type = Lean.Expr.letE `_x (sort 1) (const `Nat []) (sort 0) false
+    arityResultSort = none
+    isPropositionalArity = false
+
+*Proposed edit.* Give `arityResultSort` the two missing arms — `.letE _ _ _ b _ => arityResultSort b`
+(MetaRocq's `tLetIn` arm) and `.mdata _ b => arityResultSort b` — so the walk ends at the sort
+the kernel's own arity check ends at.
+
+*Consequence until it lands.* The equation MetaRocq states, `isPropositionalArity ind_type =
+ind_propositional` (`../metarocq/erasure/theories/Extract.v:276`), holds in **one direction
+only** on the model side, and the verification states that direction and no more:
+`ErasureSpec.propositionalInd_of_arity` (`ErasureSpec.lean`) derives `PropositionalInd env I`
+from a `true` flag, through `vResultSort_of_arityResultSort` and `decl_adequate`, with no new
+hypothesis; the converse is refuted by the measure above, so `BlockAdequate` gains no
+propositional clause and `doc/rework/10-MERGE-FIXES.md` §2.1's fallback is not taken. The
+direction the consumers spend is the derived one —
+`propositional_false_of_informative` reads `false` off a `true` flag contradicted by
+`InformativeInd` — so nothing downstream needs the refuted half.
+
 ### F-ETA — every emitted recursive body is a bare unapplied `.fix`
 
 *Site.* `visitMutual`, `LeanToLambdaBox/Erasure.lean:859-919`; the eraser's own TODO sits at

@@ -16,7 +16,7 @@ about an object no term denotes.
 
 `EraserAsks` collects what it assumes about **this repository's own** preprocessing and
 relevance oracle: `Erasure.prepare_erasure`'s three passes and `Erasure.isErasable`. Those
-are ordinary Lean definitions, so its five fields are class **C**: obligations with an owner,
+are ordinary Lean definitions, so its four fields are class **C**: obligations with an owner,
 whose honest end state is a proof. `EraserAsks.oracle_informative` is the first instalment —
 the type-former exclusion, derived from two weaker oracle clauses rather than assumed.
 
@@ -82,6 +82,21 @@ def KernelFields (lenv : Environment) (iv : InductiveVal) (nfs : List Nat) : Pro
       ∃ cv : ConstructorVal, lenv.find? cn = some (.ctorInfo cv) ∧ nfs[j]? = some cv.numFields ∧
         cv.induct = iv.name ∧ cv.cidx = j ∧ cv.numParams = iv.numParams
 
+/-- **A block's constructor names determine their positions.** `KernelFields` reads each
+constructor's own `ConstructorVal`, whose `cidx` is its position, and `lenv` answers one
+`ConstructorVal` per name; so a name occurring at two positions forces them equal. This is what
+`Erasure.visitCases`' per-constructor `findIdx?` over the alternatives
+(`Erasure.lean:1122-1124`) needs to land on the slot `CasesInfoAgreesK.altCtor` describes:
+`findIdx?` returns the *first* match, and only distinctness makes that the constructor's own. -/
+theorem KernelFields.ctors_inj {lenv : Environment} {iv : InductiveVal} {nfs : List Nat}
+    (h : KernelFields lenv iv nfs) {j k : Nat} {cn : Name}
+    (hj : iv.ctors[j]? = some cn) (hk : iv.ctors[k]? = some cn) : j = k := by
+  obtain ⟨cv, hcv, -, -, hj', -⟩ := h.2 j cn hj
+  obtain ⟨cv', hcv', -, -, hk', -⟩ := h.2 k cn hk
+  have hcc : cv = cv' := by injection Option.some.inj (hcv.symm.trans hcv')
+  subst hcc
+  exact hj'.symm.trans hk'
+
 /-- The elaborator's `Lean.CasesInfo` against the block `lenv` declares. The table-side twin
 is `CasesInfoAgrees`, which reads the same arithmetic off a `ReifiedInduct`. -/
 structure CasesInfoAgreesK (lenv : Environment) (ci : Lean.CasesInfo)
@@ -98,6 +113,18 @@ structure CasesInfoAgreesK (lenv : Environment) (ci : Lean.CasesInfo)
   numFields : ∀ (j : Nat) (a : Lean.CasesAltInfo) (cn : Name) (cv : ConstructorVal),
     ci.altNumParams[j]? = some a → iv.ctors[j]? = some cn →
     lenv.find? cn = some (.ctorInfo cv) → altNumFields a = cv.numFields
+  /-- The information names the inductive type the major premise is typed at, which is the
+      block `Erasure.visitCases` reads the alternatives against (`Erasure.lean:1098`) and which
+      for a `casesOn` auxiliary is not the head's name prefix. `Lean.getCasesInfo?` reads it off
+      the discriminant's inferred type (`Lean/Meta/CasesInfo.lean:66`). -/
+  indName : ci.indName = iv.name
+  /-- Every alternative slot is its constructor's, in constructor order: `Lean.getCasesInfo?`
+      builds slot `j` from the constructor its minor premise's motive argument is headed by
+      (`Lean/Meta/CasesInfo.lean:71-84`), and a plain `casesOn` has one minor premise per
+      constructor in that order, never the catch-all shape `.default` a sparse `casesOn`
+      carries. The slot's field count is `numFields` and is not restated here. -/
+  altCtor : ∀ (j : Nat) (a : Lean.CasesAltInfo) (cn : Name),
+    ci.altNumParams[j]? = some a → iv.ctors[j]? = some cn → ∃ nf, a = .ctor cn nf
 
 /-! ## Lookup adequacy -/
 
@@ -318,6 +345,60 @@ theorem ErasureSpec.decl_adequate_of_kernelFind {lenv : Environment} {env : VEnv
   obtain ⟨ves, hwf, rfl⟩ := P.env_connect
   exact TrEnv.find? hwf.tr h hs
 
+/-- **The arity walk commutes with translation.** A Π-telescope ending in a sort translates to
+a Π-telescope ending in the translated sort: `Erasure.arityResultSort` (`Erasure.lean:281`) and
+`vResultSort` (`Erasability.lean:240`) read the same two arms, and `TrExprS` is structural on
+both. The converse fails — see `ErasureSpec.propositionalInd_of_arity`. -/
+theorem vResultSort_of_arityResultSort {env : VEnv} {Us : List Name} {u : Level} :
+    ∀ {Δ : VLCtx} {e : Expr} {ve : VExpr}, TrExprS env Us Δ e ve →
+      Erasure.arityResultSort e = some u →
+      ∃ u', vResultSort ve = some u' ∧ VLevel.ofLevel Us u = some u' := by
+  intro Δ e
+  induction e generalizing Δ with
+  | forallE _ _ _ _ _ ihb =>
+    intro ve htr har
+    cases htr with
+    | forallE _ _ _ htrb =>
+      obtain ⟨u', hu', hofl⟩ := ihb htrb har
+      exact ⟨u', hu', hofl⟩
+  | sort l =>
+    intro ve htr har
+    cases htr with
+    | sort hofl =>
+      cases Option.some.inj har
+      exact ⟨_, rfl, hofl⟩
+  | _ => intro ve htr har; simp [Erasure.arityResultSort] at har
+
+/-- **The emitted propositional flag is sound against the model.** An inductive type whose
+declared arity `Erasure.isPropositionalArity` accepts is `PropositionalInd` in `env`: the arity
+walk commutes with the translation `decl_adequate` supplies, `Lean.Level.isAlwaysZero` and
+`alwaysZeroB` agree across `VLevel.ofLevel` (`ofLevel_alwaysZeroB`), and `alwaysZeroB_sound`
+reads the valuation-wide equation off the decision. This is the half of MetaRocq's equation
+`isPropositionalArity ind_type = ind_propositional`
+(`../metarocq/erasure/theories/Extract.v:276`) that a consumer of the flag spends —
+`propositional_false_of_informative` contradicts a `true` flag against `InformativeInd`.
+
+The converse implication is **false**, and no clause of `ErasureSpec` assumes it:
+`Erasure.arityResultSort` walks `.forallE` alone, where MetaRocq's `destArity`
+(`../metarocq/pcuic/theories/PCUICAst.v:486-490`) walks `tLetIn` as well, so at
+`inductive FooLet : (let _x := Nat; Prop)` — which elaborates, and whose `InductiveVal.type`
+keeps the `letE` — `isPropositionalArity` answers `false` while the translated type is
+`.sort .zero` and `PropositionalInd` holds. Recorded against the shipping eraser in
+`doc/rework/03-DEV-FIX.md`, F-ARITYLET. -/
+theorem ErasureSpec.propositionalInd_of_arity {lenv : Environment} {env : VEnv} {Us : List Name}
+    {gw : Void IO.RealWorld → NameGenerator} (P : ErasureSpec lenv env Us gw)
+    {I : Name} {iv : InductiveVal} (hfind : lenv.find? I = some (.inductInfo iv))
+    (hsafe : DefinitionSafety.safe ≤ (ConstantInfo.inductInfo iv).safety)
+    (hprop : Erasure.isPropositionalArity iv.type = true) : PropositionalInd env I := by
+  obtain ⟨vc, hvc, -, -, htr⟩ := P.decl_adequate I (.inductInfo iv) hfind hsafe
+  rw [Erasure.isPropositionalArity] at hprop
+  cases har : Erasure.arityResultSort iv.type with
+  | none => rw [har] at hprop; exact absurd hprop (by simp)
+  | some u =>
+    rw [har] at hprop
+    obtain ⟨u', hu', hofl⟩ := vResultSort_of_arityResultSort htr har
+    exact ⟨vc, hvc, u', hu', alwaysZeroB_sound ((ofLevel_alwaysZeroB hofl).trans hprop)⟩
+
 
 /-! ## The eraser's own asks
 
@@ -372,27 +453,19 @@ structure EraserAsks (lenv : Environment) (env : VEnv) (Us : List Name)
     M.run lenv.toKernelEnv .safe ctx.lctx ctx.lparams {}
       (RecM.run (LeanToLambdaBox.isErasable e)) ≠ .ok true
   /-- At an inductive-type head the pure kernel run answers `true`: the oracle's completeness
-      at the one shape the fragment cannot exclude, reduced to the kernel arm. **Refuted in
-      general** at a telescope of ≥ 256 binders — `Lean.Expr.Data.approxDepth` is 8 bits, so
-      `isArityCheck`'s fuel is capped (`doc/rework/03-DEV-FIX.md`, F-DEPTH). Owner: this
-      repository, wave W5; discharged by three executable-shape lemmas lean4lean does not have,
-      plus a fuel that counts the reduced telescope. -/
+      at the one shape the fragment cannot exclude, reduced to the kernel arm. **Not a
+      theorem.** `Erasure.isArityCheck` walks the head's type under a fixed budget
+      (`Relevance.lean:49-50`), so a type whose *reduced* telescope is longer than that budget —
+      and any other kernel error raised inside `isArityCheck` — leaves the walk short of the
+      closing sort and routes the verdict to `Erasure.isErasableMeta`, of which only soundness
+      is assumed (`ErasureSpec.oracle_meta`). Owner: this repository, wave W5; discharged by
+      three executable-shape lemmas lean4lean does not have, together with a bound on the
+      reduced telescope, which a constant budget does not supply. -/
   kernel_ind_head_true : ∀ (lctx : LocalContext) (m : MLCtx) (e : Expr) (c : Name)
       (us : List Level) (ve : VExpr) (iid : InductiveId) (np : Nat) (nfs : List Nat),
     m.WF env Us → m.lctx = lctx → (∀ fv ∈ m.vlctx.fvars, kernelNGen.Reserves fv) →
     e.getAppFn = .const c us → IndInfo env c iid np nfs → TrExprS env Us m.vlctx e ve →
     M.run lenv.toKernelEnv .safe lctx Us {} (RecM.run (LeanToLambdaBox.isErasable e)) = .ok true
-  /-- The λ□ keys of a block's members are distinct. `Erasure.visitMutual` builds
-      `fixvarMap (ci.all.map Erasure.remove_unsafe_rec) ids` and `Erasure.mkDef` reads it back
-      by name, so a collapse here is a miscompilation, not a proof gap. **Refuted in general**
-      by a legal `mutual unsafe def u / u._unsafe_rec` block
-      (`doc/rework/03-DEV-FIX.md`, F-UNSAFEREC). Owner: this repository, wave W5; discharged by
-      the one-line `Nodup` guard that finding proposes. -/
-  block_keys_distinct : ∀ (n : Name) (cctx : Core.Context)
-    (ref : ST.Ref IO.RealWorld Core.State) (w : Void IO.RealWorld) (ci : ConstantInfo)
-    (w₁ : Void IO.RealWorld),
-    Lean.Compiler.LCNF.getDeclInfo? n cctx ref w = .ok (some ci) w₁ →
-    ((ci.all.map Erasure.remove_unsafe_rec).map toKername).Nodup
 
 /-! ## What the second bundle proves -/
 
