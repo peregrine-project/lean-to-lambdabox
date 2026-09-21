@@ -1,0 +1,3 @@
+F-KERNAME collision: error mentions-colliding-key=true : Erasure.toKername: 5 and «5» both mint the λbox key { mp := ModPath.MPfile [], id := "5" }.
+F-KERNAME plain: ok declarations=13
+lean-exit=0

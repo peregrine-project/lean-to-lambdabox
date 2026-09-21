@@ -205,9 +205,21 @@ def isErasable (lparams : List Name) (e : Expr) : MetaM Bool := do
     | .ok b => return b
     | .error _ => isErasableMeta e
 
+/--
+Refuse if `kn`, the λbox key just minted for `name`, is already registered under a different
+Lean name. `toKername` collapses `.num`/`.str` name components that differ before
+`cleanIdent`'s escaping, so two distinct declarations can mint one key; without this check the
+second registration would silently overwrite the first in `gdecls` and the printer would emit
+only the survivor.
+-/
+def checkKernameFresh (name: Name) (kn: Kername): EraseM Unit := do
+  if let some (other, _) := (← get).constants.toList.find? (fun (n, k) => decide (k = kn) && decide (n ≠ name)) then
+    throwError "Erasure.toKername: {other} and {name} both mint the λbox key {repr kn}."
+
 def addAxiom (name: Name): EraseM Unit := do
   if (← get).constants.contains name then panic! s!"Constant {name} is already defined, cannot add axiom."
   let kn := toKername name
+  checkKernameFresh name kn
   modify (fun s => { s with constants := s.constants.insert name kn, gdecls := s.gdecls.cons (kn, .constantDecl ⟨.none⟩) })
 
 /--
@@ -963,6 +975,7 @@ mutual
       let t ← withReader (fun env => { env with fixvars := .none, lparams := ci.levelParams }) do
         pure (← visitExpr (← prepare_erasure e))
       let kn := toKername name
+      checkKernameFresh name kn
       modify (fun s => { s with constants := s.constants.insert name kn, gdecls := s.gdecls.cons (kn, .constantDecl <| ⟨.some t⟩) })
       -- Post-erasure: structurally detect typeclass-dispatch artifacts and mark them inline.
       -- Skipped if @[inline] already added this constant, or if the body contains a `fix`
@@ -995,6 +1008,7 @@ mutual
         )
         for (n, i) in fixvarnames.zipIdx do
           let kn := toKername n
+          checkKernameFresh n kn
           modify (fun s => { s with constants := s.constants.insert n kn, gdecls := s.gdecls.cons (kn, .constantDecl ⟨.some <| .fix defs i⟩) })
   partial_fixpoint
 end
