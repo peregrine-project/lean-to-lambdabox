@@ -386,14 +386,25 @@ here for the same reason `visitCases` refuses it — boxing that field computes 
 
 The shape is read off the `RecursorVal` and the inductive it names, never off the constant's name.
 At the recursor's calling convention — parameters, motives, minors, indices, major premise — the
-body dispatches on the major premise and hands the constructor's fields to the single minor:
+body dispatches on the major premise and hands the constructor's fields the argmask *keeps* to
+the single minor, in `mkAlt`'s own convention (first kept field highest index) and every field the
+argmask marks `.erase` applied as `□` instead — the same split `register_inductive` already
+computes for this same constructor, reused rather than recomputed.
+
+At the default config (`remove_irrel_constr_args := false`, every field kept, so `nargs` is the
+constructor's field count):
 
     Eq.rec    ↦  λ _ _ _ _ _ _. case (Eq, 2)    (bvar 0) [([], bvar 2)]
     And.rec   ↦  λ _ _ _ _ _.   case (And, 2)   (bvar 0) [([_,_], bvar 3 (bvar 1) (bvar 0))]
     False.rec ↦  λ _ _.         case (False, 0) (bvar 0) []
 
-Under `remove_irrel_constr_args` the proof fields leave the alternative's binders, and the
-realizer supplies them as `□` instead — which is what the source term erases them to either way.
+With `remove_irrel_constr_args := true` instead, the argmask marks every field of a shape this
+function admits `.erase` — the check above already requires each to be a proof, and a proof is
+always erasable — so `And.rec`'s alternative binds no fields (`nargs = 0`) and its minor is
+applied to `□` twice, in place of `(bvar 1) (bvar 0)` above: `λ _ _ _ _ _. case (And, 2) (bvar 0)
+[([], bvar 1 □ □)]`. Either way the *value* the realizer computes is the same, since it is
+standing in for the very collapse (`remove_match_on_box`) that substitutes `□` for these fields
+regardless of what the argmask already removed.
 -/
 def recursorRealizer (rv: RecursorVal): EraseM (Option LBTerm) := do
   let [ind_name] := rv.all | return none
