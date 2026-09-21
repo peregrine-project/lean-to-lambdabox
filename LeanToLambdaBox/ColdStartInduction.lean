@@ -1,4 +1,5 @@
 import LeanToLambdaBox.ColdStartShape
+import LeanToLambdaBox.ErasesAlpha
 import LeanToLambdaBox.OutputShape
 
 /-!

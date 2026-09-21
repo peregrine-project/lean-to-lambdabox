@@ -41,6 +41,7 @@ import LeanToLambdaBox.ErasesAbstract
 import LeanToLambdaBox.ErasesStrengthen
 import LeanToLambdaBox.ErasesUniform
 import LeanToLambdaBox.ErasesTotal
+import LeanToLambdaBox.ErasesAlpha
 -- The source-side evaluation, its subject reduction, the simulation's arms and its closing.
 import LeanToLambdaBox.SourceEval
 import LeanToLambdaBox.SubjectReduction

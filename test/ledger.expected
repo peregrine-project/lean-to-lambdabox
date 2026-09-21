@@ -47,6 +47,11 @@
 'LeanToLambdaBox.Lower.constToFix' depends on axioms: [propext, Quot.sound]
 'LeanToLambdaBox.constants_of_tabled' depends on axioms: [propext, Classical.choice, Quot.sound]
 'LeanToLambdaBox.constOrigin_of_constants' depends on axioms: [propext, Classical.choice, Quot.sound]
+'LeanToLambdaBox.Witness.Expr.AlphaEq.refl' does not depend on any axioms
+'LeanToLambdaBox.Witness.Expr.AlphaEq.symm' does not depend on any axioms
+'LeanToLambdaBox.TrExprS.alpha' depends on axioms: [propext, Classical.choice, Quot.sound]
+'LeanToLambdaBox.Erases.alpha' depends on axioms: [propext, Classical.choice, Quot.sound]
+'LeanToLambdaBox.Witness.SourceTableAdequate.erases_prepared' depends on axioms: [propext, Classical.choice, Quot.sound]
 'LeanToLambdaBox.ErasureSpec.oracle_sound_of_run' depends on axioms: [propext,
  sorryAx,
  Classical.choice,

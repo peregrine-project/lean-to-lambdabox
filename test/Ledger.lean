@@ -16,7 +16,9 @@ evaluator, and one line per green rung. `bridgeEnv_of_regInv`, which composes th
 environment half of the capstone's bridge bundle, is measured on its own: its footprint is
 disjoint from the rungs' and carries no `sorryAx`. `ErasesEnv.tabled`'s discharge is measured as its
 two halves, `constants_of_tabled` and `constOrigin_of_constants`: the step between them is
-filed ask 4 and no theorem spans it.
+filed ask 4 and no theorem spans it. The five α rows are the transport a tabled body owes,
+because `ReifiedDecl.Prepared` pins it to the run's prepared body only up to
+`Witness.Expr.AlphaEq`; `SourceTableAdequate.erases_prepared` is the form a consumer spends.
 Provenance for the axiom names printed here lives in `doc/trust.md`, the single home of
 the trust rows; `#print axioms` measures a proved theorem's footprint and cannot measure a
 hypothesis, so the class of each binder — including `hev`, which `green_G5` is the first
@@ -46,6 +48,11 @@ import LeanToLambdaBox
 #print axioms LeanToLambdaBox.Lower.constToFix
 #print axioms LeanToLambdaBox.constants_of_tabled
 #print axioms LeanToLambdaBox.constOrigin_of_constants
+#print axioms LeanToLambdaBox.Witness.Expr.AlphaEq.refl
+#print axioms LeanToLambdaBox.Witness.Expr.AlphaEq.symm
+#print axioms LeanToLambdaBox.TrExprS.alpha
+#print axioms LeanToLambdaBox.Erases.alpha
+#print axioms LeanToLambdaBox.Witness.SourceTableAdequate.erases_prepared
 #print axioms LeanToLambdaBox.ErasureSpec.oracle_sound_of_run
 #print axioms LeanToLambdaBox.visitExpr_refines_erasesLB
 #print axioms LeanToLambdaBox.visitExpr_refines_erasesLBFix
