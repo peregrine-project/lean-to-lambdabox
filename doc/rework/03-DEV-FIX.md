@@ -3,17 +3,31 @@
 Every change that alters what the shipping eraser *executes* is made on `dev/fix`
 (branched from `dev/verify`), one commit per finding, and merged into `dev/verify`
 afterwards. Verification-only files (proofs, specifications, tools) never go through
-`dev/fix`. This file is the single index: applied edits in the first table (`F-FUEL` is
+`dev/fix`. This file is the single index: applied edits in the two tables below (`F-FUEL` is
 verification-authored code, not shipping code, landed to reproduce a pre-reroute verdict),
 and shipping findings reported to the owner but not edited here, each specified with its
-site, the command that measures it, and that command's real output. No wave depends on any
-of the unfixed findings landing, and no unit applies one.
+site, the command that measures it, and that command's real output. A finding fixed on this
+branch keeps its section below, marked *Fixed*. No wave depends on any of the unfixed
+findings landing, and no unit applies one.
 
 ## Applied edits
 
 | id | file | change | why | status |
 |---|---|---|---|---|
 | F-FUEL | `LeanToLambdaBox/Relevance.lean` | `isArityCheck.loop` throws on fuel exhaustion instead of returning `false` | The fuel is the depth of the *unreduced* type while the loop whnf-reduces, so a definitional alias for a ∀-telescope was judged relevant on the kernel branch (under-erasure); throwing routes such cases to `Erasure.isErasable`'s `.error` arm, i.e. to `isErasableMeta`, reproducing the pre-reroute verdict. `isArityCheck.WF` never mentions the fuel. | merged into `dev/verify` (9363fb9) |
+
+### Shipping edits
+
+One row per finding fixed on `dev/fix`, in landing order. Each commit carries the edit, its
+regression test under `test/fixes/`, and its row here; `scripts/fixes.sh` runs every test and
+diffs the marked lines of its output, and the `peregrine validate`/`eval` output of the
+programs it emits, against the committed expectations. The *commit* column names the commit
+by its subject, which `git log --grep` resolves — a hash written into the commit that carries
+it would be the hash the commit had before that row was added.
+
+| id | commit | files and functions | behaviour before | behaviour after | emitted bytes | test | verification obligations |
+|---|---|---|---|---|---|---|---|
+| F-SPARSE | `fix(F-SPARSE)` | `LeanToLambdaBox/Erasure.lean`: `visitCases`; new `LBTerm.hasLooseBVarFrom`/`LBTerm.hasLooseBVar` | A sparse `casesOn` panicked at the `unreachable!`, erased the whole elimination to `.box`, exited 0 and wrote a program `peregrine validate` accepts and `peregrine eval` either mis-evaluates or gets stuck on ("`Case: <15> branch not found`") | The inductive is read from `casesInfo.indName` and the catch-all is expanded into one alternative per uncovered constructor, in constructor order; the shapes that remain uncompilable (side-condition elimination, machine-`Nat`/`Int` discriminee, alternatives that do not match the constructors, a catch-all with a free index) `throwError`. No `unreachable!` and no path to a wrong `.ast` with exit 0 | yes — `Quicksort` only (65474 → 65686 bytes); `Arith`, `Sieve`, `BinaryTrees`, `Fannkuch` and rungs G1–G6 byte-identical | `test/fixes/F-SPARSE.lean` | `visitCases`'s body changed, so the `VisitExprRefines` step bodies that mirror it must be re-proved (no mutual member added or removed: the `partial_fixpoint` arity is unchanged). The fragment is unaffected — `Supported.supportedHead` still refuses `isSparseCasesOn`/`isMatcherName` heads, and `CasesOnShape` (`SourceEval.lean:163`) and `BlockAdequate.casesOnDecl` (`ErasureSpec.lean:202`) may keep `c.getPrefix = I`, which holds of every head they admit. Covering the expanded shape would need `indName` there plus an `Erases`/`Lower` arm for a catch-all alternative and an `ErasesCorrect/Iota.lean` case |
 
 ## Reported, not fixed
 
@@ -186,6 +200,12 @@ handle `CasesAltInfo.default`.
 
 *Status in the verification.* Visible as `SupportError.sparseCasesOn`, the value
 `supportedB` returns on this program, and as a named row in `doc/coverage.md`.
+
+*Fixed* on `dev/fix` by `fix(F-SPARSE)` — see the shipping-edits table. The inductive comes
+from `casesInfo.indName` and the catch-all is expanded into one alternative per uncovered
+constructor; every shape that cannot be compiled soundly now throws. The fragment is
+unchanged: `supportedHead` still refuses a sparse head, so `SupportError.sparseCasesOn` and
+the `doc/coverage.md` row stand.
 
 ### F-ACC — a `Prop`-valued inductive with an index-determined field
 

@@ -104,6 +104,30 @@ partial def _root_.LBTerm.containsFix : LBTerm → Bool
   | .fix _ _ => true
 
 /--
+True iff the term has a de Bruijn index that no binder of the term itself binds,
+counting binders exactly as `toBvar` does.
+-/
+partial def _root_.LBTerm.hasLooseBVarFrom : Nat → LBTerm → Bool
+  | _, .box | _, .fvar _ | _, .const _ | _, .prim _ => false
+  | depth, .bvar i => depth <= i
+  | depth, .lambda _ b => b.hasLooseBVarFrom (depth + 1)
+  | depth, .letIn _ v b => v.hasLooseBVarFrom depth || b.hasLooseBVarFrom (depth + 1)
+  | depth, .app a b => a.hasLooseBVarFrom depth || b.hasLooseBVarFrom depth
+  | depth, .construct _ _ args => args.any (·.hasLooseBVarFrom depth)
+  | depth, .case _ d alts =>
+    d.hasLooseBVarFrom depth || alts.any (fun (names, b) => b.hasLooseBVarFrom (depth + names.length))
+  | depth, .proj _ e => e.hasLooseBVarFrom depth
+  | depth, .fix defs _ => defs.any (fun d => d.body.hasLooseBVarFrom (depth + defs.length))
+
+/--
+True iff the term has a free de Bruijn index. Erasure builds terms locally nameless —
+an ambient variable is an `.fvar` until `abstract` turns it into an index — so this is
+false for every term `visitExpr` returns, which is what lets `visitCases` place such a
+term under the binders of an alternative without lifting it.
+-/
+def _root_.LBTerm.hasLooseBVar (t : LBTerm) : Bool := t.hasLooseBVarFrom 0
+
+/--
 True when the erased body, modulo a leading chain of lambdas, looks like a
 typeclass-dispatch artifact:
 - a bare `const` (alias such as `instDecidableEqNat := Nat.decEq`),
@@ -767,6 +791,10 @@ mutual
 
   def visitCases (casesInfo : CasesInfo) (args: Array Expr) : EraseM LBTerm := do
     let discr_nt ← visitExpr args[casesInfo.discrPos]!
+    -- The declaration's own prefix, which the machine-`Nat`/`Int` arms below key on: those arms
+    -- are for a plain `Nat.casesOn`/`Int.casesOn`. The inductive being eliminated is
+    -- `casesInfo.indName` (see the general arm); for a `casesOn` auxiliary generated for a
+    -- function the two differ, the prefix then being that function.
     let typeName := casesInfo.declName.getPrefix
 
     -- If we are using machine Nats then the inductive casesOn will not work.
@@ -814,14 +842,60 @@ mutual
         mkLetIn n_fvar discr_nt case_nt
       )
     | _, _ => do
-      let .inductInfo indVal ← getConstInfo typeName | unreachable!
+      -- `CasesInfo.indName` is read off the type of the major premise, so it names the
+      -- inductive for a sparse `casesOn` auxiliary as well, whose `declName` prefix does not.
+      let indName := casesInfo.indName
+      let .inductInfo indVal ← getConstInfo indName
+        | throwError "Erasure.visitCases: {casesInfo.declName} eliminates {indName}, which is not an inductive type."
+      let machineInts := match (← read).config.nat with | .machine => true | .peano => false
+      if machineInts && (indName == ``Nat || indName == ``Int) then
+        throwError "Erasure.visitCases: {casesInfo.declName} eliminates {indName}, which machine-`Nat` mode represents as a primitive integer; only a plain `casesOn` can be compiled against that representation."
+      unless casesInfo.altsRange.lower == casesInfo.discrPos + 1 do
+        throwError "Erasure.visitCases: {casesInfo.declName} is a per-constructor elimination with a side condition, which λbox's `case` cannot express."
       let (indid, argmasks) ← register_inductive indVal
+      -- A λbox `case` has one alternative per constructor, in constructor order, binding that
+      -- constructor's fields. Find the source alternative covering each constructor; a sparse
+      -- `casesOn` leaves some uncovered and supplies a catch-all instead. (An entry of
+      -- `altNumParams` names the constructor it eliminates, or is the catch-all, and carries
+      -- the number of fields resp. hypotheses it binds.)
+      let altIdx: Array (Option Nat) := indVal.ctors.toArray.map fun ctorName =>
+        casesInfo.altNumParams.findIdx? fun altInfo =>
+          match altInfo with | .ctor c _ => c == ctorName | .default _ => false
+      let numCtorAlts := casesInfo.altNumParams.countP
+        fun altInfo => match altInfo with | .ctor .. => true | .default _ => false
+      unless (altIdx.filterMap id).size == numCtorAlts do
+        throwError "Erasure.visitCases: the constructor alternatives of {casesInfo.declName} do not correspond one-to-one to the constructors of {indName}."
+      -- The catch-all, erased once and applied to a box for each of its hypotheses: those are
+      -- the proofs that the discriminee is none of the covered constructors. It does not bind
+      -- the fields of the constructors it stands for, so the alternatives built from it bind
+      -- them anonymously; the erased body is still locally nameless, so `abstract` shifts its
+      -- variables past those binders. `hasLooseBVar` checks the premise of that argument.
+      let dflt: Option LBTerm ←
+        if altIdx.all (·.isSome) then pure .none
+        else match casesInfo.altNumParams.findIdx? (fun altInfo => match altInfo with | .default _ => true | .ctor .. => false) with
+        | .none =>
+          throwError "Erasure.visitCases: {casesInfo.declName} covers only {numCtorAlts} of the {indVal.ctors.length} constructors of {indName} and has no catch-all alternative."
+        | .some j => do
+          unless numCtorAlts + 1 == casesInfo.altNumParams.size do
+            throwError "Erasure.visitCases: {casesInfo.declName} has more than one catch-all alternative."
+          let numHyps := match casesInfo.altNumParams[j]! with | .ctor _ n => n | .default n => n
+          let body ← visitExpr args[casesInfo.altsRange.lower + j]!
+          if body.hasLooseBVar then
+            throwError "Erasure.visitCases: the catch-all of {casesInfo.declName} erased to a term with a free de Bruijn index, which cannot be moved under the binders of an alternative."
+          logInfo s!"Expanding the catch-all of {casesInfo.declName} into {(altIdx.filter (·.isNone)).size} alternative(s)."
+          pure <| .some <| (List.range numHyps).foldl (fun t _ => LBTerm.app t .box) body
       let mut alts := #[]
-      for i in casesInfo.altsRange.toArray, altInfo in casesInfo.altNumParams /- which should proobably be called altNumFields -/, argmask in argmasks do
-        -- `altNumParams` is now `Array CasesAltInfo` (v4.29); extract the field/hyp count.
-        let numFields := match altInfo with | .ctor _ n => n | .default n => n
-        let alt ← visitAlt numFields argmask args[i]!
-        alts := alts.push alt
+      for (alt?, cidx) in altIdx.zipIdx do
+        let argmask := argmasks[cidx]!
+        match alt? with
+        | .some j =>
+          let numFields := match casesInfo.altNumParams[j]! with | .ctor _ n => n | .default n => n
+          alts := alts.push (← visitAlt numFields argmask args[casesInfo.altsRange.lower + j]!)
+        | .none =>
+          match dflt with
+          | .some body => alts := alts.push (List.replicate (argmask.count .keep) .anon, body)
+          | .none =>
+            throwError "Erasure.visitCases: constructor {indVal.ctors[cidx]!} of {indName} is left without an alternative."
       pure <| LBTerm.case (indid, indVal.numParams) discr_nt alts.toList
     )
 
