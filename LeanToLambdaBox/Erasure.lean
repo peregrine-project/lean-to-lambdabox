@@ -430,6 +430,25 @@ def mkDef (name: Name) (fixvarnames: List Name) (body: LBTerm): EraseM (@FixDef 
     body := toBvar ((← read).fixvars.get![n]!) i body
   return { name := .named name.toString, body }
 
+/--
+The fixpoint selecting member `i` of `defs`, η-expanded over the `principalArgIdx + 1`
+arguments that member consumes before recursing: `fun x₀ … xₙ => (fix defs i) x₀ … xₙ`.
+
+This is MetaRocq's `eta_fixpoint` (`template-rocq/theories/EtaExpand.v:72`), which Rocq
+applies before erasure. `EEtaExpandedFix.expanded` — the precondition of
+`guarded_to_unguarded_fix`, the first pass of peregrine's verified untyped pipeline —
+admits a `.fix` node only under an argument spine longer than the selected member's
+principal argument index, so a bare fixpoint registered as a constant body falsifies it.
+Evaluation is unaffected: both terms are values and agree on every application.
+-/
+def etaExpandFix (defs: List (@FixDef LBTerm)) (i: Nat): LBTerm :=
+  let arity := match defs[i]? with
+    | .some d => d.principalArgIdx + 1
+    | .none => 1
+  -- The outermost binder is the first argument, so it carries the largest index.
+  let applied: LBTerm := (List.range arity).foldr (fun k t => .app t (.bvar k)) (.fix defs i)
+  (List.range arity).foldl (fun t _ => .lambda .anon t) applied
+
 /-- Similar to Meta.withLocalDecl, but in EraseM.
     k will be passed some fresh FVarId and run in a context in which it is bound. -/
 def withLocalDecl (n: Name) (type: Expr) (bi: BinderInfo) (k: FVarId -> EraseM α): EraseM α := do
@@ -1195,7 +1214,6 @@ mutual
         let defs: List FixDef ← names.mapM (fun n => do
           let ci ← getConstInfo n -- here n is directly from the above ci.all, possibly _unsafe_rec
           let e: Expr := ci.value! (allowOpaque := true)
-          -- TODO: eta-expand fixpoints? (I think this must be done, unsure how far)
           let t: LBTerm ← withReader (fun env => { env with lparams := ci.levelParams }) do
             visitExpr (← prepare_erasure e)
           mkDef (remove_unsafe_rec n) fixvarnames t
@@ -1203,7 +1221,7 @@ mutual
         for (n, i) in fixvarnames.zipIdx do
           let kn := toKername n
           checkKernameFresh n kn
-          modify (fun s => { s with constants := s.constants.insert n kn, gdecls := s.gdecls.cons (kn, .constantDecl ⟨.some <| .fix defs i⟩) })
+          modify (fun s => { s with constants := s.constants.insert n kn, gdecls := s.gdecls.cons (kn, .constantDecl ⟨.some <| etaExpandFix defs i⟩) })
   partial_fixpoint
 end
 
