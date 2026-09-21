@@ -978,6 +978,12 @@ mutual
     else -- translate into a mutual fixpoint declaration
       let ids ← names.mapM (fun _ => mkFreshFVarId)
       let fixvarnames := names.map remove_unsafe_rec
+      -- `remove_unsafe_rec` strips one literal `_unsafe_rec` component, so it is not
+      -- injective: a block holding both `u` and `u._unsafe_rec` maps to `[u, u]` and would
+      -- register two declarations under one λbox key. Refuse rather than let the second
+      -- registration silently overwrite the first.
+      unless (fixvarnames.map toKername).Nodup do
+        throwError "Erasure.visitMutual: mutual block {names} maps to colliding λbox keys {fixvarnames}."
       withReader (fun env => { env with fixvars := fixvarnames |>.zip ids |> Std.HashMap.ofList |> .some }) do
         let defs: List FixDef ← names.mapM (fun n => do
           let ci ← getConstInfo n -- here n is directly from the above ci.all, possibly _unsafe_rec

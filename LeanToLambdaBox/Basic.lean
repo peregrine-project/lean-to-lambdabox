@@ -9,12 +9,12 @@ inductive ModPath where
 | MPfile  (dp : DirPath)
 | MPdot   (mp : ModPath) (id : Ident)
 -- MPBound is about functors (in the sense of ML module systems).
-deriving Inhabited, Repr
+deriving Inhabited, Repr, DecidableEq
 
 structure Kername where
   mp: ModPath
   id: Ident
-deriving Inhabited, Repr
+deriving Inhabited, Repr, DecidableEq
 
 def toModPath (n: Name): ModPath :=
   match n with

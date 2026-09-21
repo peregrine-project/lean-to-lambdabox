@@ -28,6 +28,7 @@ it would be the hash the commit had before that row was added.
 | id | commit | files and functions | behaviour before | behaviour after | emitted bytes | test | verification obligations |
 |---|---|---|---|---|---|---|---|
 | F-SPARSE | `fix(F-SPARSE)` | `LeanToLambdaBox/Erasure.lean`: `visitCases`; new `LBTerm.hasLooseBVarFrom`/`LBTerm.hasLooseBVar` | A sparse `casesOn` panicked at the `unreachable!`, erased the whole elimination to `.box`, exited 0 and wrote a program `peregrine validate` accepts and `peregrine eval` either mis-evaluates or gets stuck on ("`Case: <15> branch not found`") | The inductive is read from `casesInfo.indName` and the catch-all is expanded into one alternative per uncovered constructor, in constructor order; the shapes that remain uncompilable (side-condition elimination, machine-`Nat`/`Int` discriminee, alternatives that do not match the constructors, a catch-all with a free index) `throwError`. No `unreachable!` and no path to a wrong `.ast` with exit 0 | yes — `Quicksort` only (65474 → 65686 bytes); `Arith`, `Sieve`, `BinaryTrees`, `Fannkuch` and rungs G1–G6 byte-identical | `test/fixes/F-SPARSE.lean` | `visitCases`'s body changed, so the `VisitExprRefines` step bodies that mirror it must be re-proved (no mutual member added or removed: the `partial_fixpoint` arity is unchanged). The fragment is unaffected — `Supported.supportedHead` still refuses `isSparseCasesOn`/`isMatcherName` heads, and `CasesOnShape` (`SourceEval.lean:163`) and `BlockAdequate.casesOnDecl` (`ErasureSpec.lean:202`) may keep `c.getPrefix = I`, which holds of every head they admit. Covering the expanded shape would need `indName` there plus an `Erases`/`Lower` arm for a catch-all alternative and an `ErasesCorrect/Iota.lean` case |
+| F-UNSAFEREC | `fix(F-UNSAFEREC)` | `LeanToLambdaBox/Erasure.lean`: `visitMutual`; `LeanToLambdaBox/Basic.lean`: `ModPath`/`Kername` gain `deriving DecidableEq` (`List.Nodup`'s `Decidable` instance needs `DecidableEq` on the element type) | `remove_unsafe_rec` strips one literal `_unsafe_rec` component and is not injective: a `mutual` block legally declaring both `u` and `u._unsafe_rec` mapped to `[u, u]`, so two `FixDef`s were named `u` and two declarations were registered at the one λbox key `u` — `fixvarMap`'s second binding silently overwrote the first, no error, exit 0 | Once the block names are mapped through `remove_unsafe_rec`, `visitMutual` `throwError`s unless the mapped kernames are pairwise distinct (`List.Nodup`), before the `withReader`/registration that would otherwise collide | no — every tracked block (`VerifyBench`'s five programs and rungs G1–G6) is a singleton (`scratch/round7/C-fixes.md` §10(3): 63 blocks, 63 singletons), on which a one-element list's `Nodup` holds unconditionally, so the guard cannot fire; not re-measured by rebuilding `VerifyBench` here, which sits outside this task's shipping-closure build scope | `test/fixes/F-UNSAFEREC.lean` | `EraserAsks.block_keys_distinct` (`ErasureSpec.lean:385-395`) states an *unconditional* fact about `getDeclInfo?`'s mapped keys; the guard does not make that true, it makes the *run* fail on a violating block, so retiring the field means restating distinctness as a conclusion of a successful run and rewiring its consumers (`VisitExprRefines/Step/Env.lean`, `ErasureRun.lean`, `ColdStartRun.lean`, `Bridge.lean`'s `BlockKeyed.nms.Nodup` conjunct) rather than deleting it outright |
 
 ## Reported, not fixed
 
@@ -424,6 +425,15 @@ environment has no room for both under one key.
 *Consequence until it lands.* `EraserAsks.block_keys_distinct` is a class-**C** field rather than
 a fact the run recovers. With the guard the field becomes a consequence of the run's own
 conclusion and the field goes.
+
+*Fixed* on `dev/fix` by `fix(F-UNSAFEREC)` — see the shipping-edits table. The guard sits exactly
+where proposed, on `fixvarnames.map toKername` rather than on `fixvarnames` itself (the λ□ keys
+that would actually collide, robust to `toKername`'s own non-injectivity, F-KERNAME); it uses
+`throwError`, matching every other refusal in `visitMutual`'s caller `visitCases`, rather than the
+sketch's raw `throw <| .error .missing`. `List.Nodup`'s `Decidable` instance needs `DecidableEq` on
+`Kername`, which neither `Kername` nor `ModPath` had, so both gained `deriving DecidableEq` in
+`Basic.lean`. Retiring `EraserAsks.block_keys_distinct` is not part of this edit — see the
+shipping-edits table's last column.
 
 ### F-KERNAME — `toKername` is not injective
 
