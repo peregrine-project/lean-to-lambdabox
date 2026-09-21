@@ -68,6 +68,9 @@ def:eraseFlags, def:UpstreamAsks, def:SEvalFlags, def:lean4lean-grounding}
 \end{itemize}
 \lead{Lean} \code{ErasesCorrectStmt}, an \code{abbrev}; the source flags stay a parameter, the target flags are fixed.
 \lead{Paper} [S]'s five premises plus $\LowerEnv$ and \code{UpstreamAsks}.
+\lead{Since the snapshot} \stLanded{} \code{92105c6}: the statement carries the level column that
+\ErasesEnv{} and \code{SpecContent} now read, so its environment premise speaks of the declaration's
+own level scope.
 \end{definition}
 
 \begin{definition}[T5, folded through the composite relation]
@@ -899,6 +902,10 @@ erasure-then-lowering image of $v$.
 the source flags.
 \lead{Status} \stProved{}, \stInherited{} through lean4lean, conditional on \stAssumed{}
 \code{UpstreamAsks}.
+\lead{Since the snapshot} \stLanded{} Footprint: \code{erases\_correct}, \code{erases\_correct\_lb}
+and \code{step\_delta} each gained six \code{lean4lean} bridge axioms (\code{92105c6}, \code{d6e0e3a}),
+because the delta arm now derives the level-instantiated erasure itself instead of reading it from a
+clause no environment could satisfy. The capstone's and every rung's 33 names are unchanged.
 \end{theorem}
 \begin{proof}
 \leanok
@@ -1023,7 +1030,9 @@ accepted by closure $fo$ (never a bound variable);
 \begin{remark}
 \lead{Deviation} \code{informative}/\code{fields} descend from [L, Def.~6, 14]; \code{mono},
 \code{noIndices} are this development's own restrictions. MetaRocq's \code{firstorder\_ind} is false on
-\code{nat}, so this cites rather than transcribes it.
+\code{nat}, a defect in the cited artifact rather than a gap here, so this development cites it rather
+than transcribing it; the extra \code{mono} and \code{noIndices} restrictions are disclosed but never
+argued necessary.
 \end{remark}
 
 \begin{definition}[First-order inductive types]

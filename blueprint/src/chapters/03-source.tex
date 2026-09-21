@@ -476,6 +476,11 @@ eraser eta-expands but the relation has no eta rule (\code{underAppliedCtor},
 \code{Nat.div.go}/\code{Nat.modCore.go} and a \code{sparseCasesOn} additionally on Quicksort; an
 \code{etaContractedMinor} at \code{Decidable.casesOn} additionally on Fannkuch. \hl{Arith alone is
 in the fragment.}
+
+\lead{Since the snapshot} \stFixed{} Ten shipping findings carry a fix on \code{dev/fix}
+(\code{dd2e2ee}--\code{76055ea}), and none of them lifts a restriction of this table: the
+shipping code now enforces what the fragment already excluded. \code{Arith} is still the one
+program of five inside the fragment.
 \end{remark}
 
 \begin{definition}[Manifest lambda-telescopes]
@@ -505,9 +510,10 @@ under binders weak evaluation never reaches.
 \end{definition}
 
 \begin{remark}
-\lead{Caveat} Measured to fire zero times over the thirteen reified tables; disappears once
-finding F-ETA2 is repaired, since applied-form \lbox{} natively evaluates a partial constructor
-spine.
+\lead{Caveat} Measured to fire zero times over the thirteen reified tables. \lead{At the snapshot}
+the claim that this restriction disappears once F-ETA2 is repaired is \stRefuted{}: after
+peregrine's \code{constructors\_as\_blocks} pass a short constructor spine is ill formed and stuck,
+so an under-applied constructor is not evaluated natively.
 \end{remark}
 
 \begin{definition}[The four head exclusions]

@@ -121,10 +121,12 @@ negative;
 \end{definition}
 
 \begin{remark}
-\lead{Caveat} Finding \textbf{F-DEPTH}: fuel (\code{approxDepth}, 8 bits, saturating at 256) can
-exhaust behind an \code{@[irreducible]} alias, falling back and answering negatively -- a
-completeness defect bounding \code{kernel\_ind\_head\_true}
+\lead{Caveat} Finding \textbf{F-DEPTH}: at the snapshot fuel (\code{approxDepth}, 8 bits,
+saturating at 256) can exhaust behind an \code{@[irreducible]} alias, falling back and answering
+negatively -- a completeness defect bounding \code{kernel\_ind\_head\_true}
 (Theorem~\ref{thm:EraserAsks-oracle_informative}).
+\lead{Since the snapshot} \stFixed{} \code{33ba53e} replaces the fuel by a fixed budget, so both
+named counterexamples decide inside the kernel instead of falling back.
 \end{remark}
 
 \begin{definition}[The relevance decision the eraser makes]
@@ -195,6 +197,9 @@ telescope recursion below reassemble a whole-type witness from the body's.
 \code{ty'} is an arity up to definitional equality; likewise for the entry point, which starts the
 loop at \code{ty.approxDepth + 1}.
 \lead{Lean} both quantify universally over the fuel: neither claims it adequate.
+\lead{Since the snapshot} \stFixed{} \code{33ba53e} replaces the depth-derived fuel by a fixed
+budget, so both counterexamples of F-DEPTH decide inside the kernel; this lemma is proved for every
+fuel and needed no change.
 \end{lemma}
 \begin{proof}
 \leanok
@@ -349,9 +354,19 @@ oracle};
 \end{definition}
 
 \begin{remark}
-\lead{Caveat} Finding \textbf{F-PROP}: every emitted inductive leaves \code{propositional},
-\code{kelim}, \code{finite} at their defaults, so match-on-box never fires here. Unregistered:
+\lead{Caveat} Finding \textbf{F-PROP}: at the snapshot every emitted inductive leaves
+\code{propositional}, \code{kelim}, \code{finite} at their defaults --- 71 of 71 --- so match-on-box
+never fires, and an elimination of a \code{Prop} into data emits \emph{stuck}. Unregistered:
 \code{Erasure.filter} drops trailing elements, so a short mask silently truncates.
+\lead{Since the snapshot} \stFixed{} \code{d28459f} sets \code{propositional} from the declared
+arity by MetaRocq's recipe and removes the field's default; \code{kelim} stays defaulted, read by no
+pass. \code{f42d0aa} lands first and refuses, by shape, an elimination of a propositional inductive
+one of whose constructor fields is not a proof --- without it, setting the flag turns \code{Acc}'s
+data field into a box and a stuck program into a wrong one.
+\lead{At the snapshot} A second gap, found in the merge window and reported not fixed:
+\code{arityResultSort} walks only the \code{forallE} arm, where MetaRocq's \code{destArity} also
+walks \code{let}, so an arity ending in a \code{let} is emitted non-propositional although it is
+propositional (F-ARITYLET, \code{doc/rework/03-DEV-FIX.md} at \code{184155d}).
 \end{remark}
 
 \begin{definition}[Emitting binders]
@@ -434,6 +449,13 @@ agda2lambox and MetaRocq's \code{constructors\_as\_blocks} -- so Chapter~\ref{ch
 semantics is pinned with the block-constructor flag off. [R]'s Listing~2 shows block form; \hl{the
 shipping code disagrees, and the code wins}. Findings \textbf{F-SPARSE}, \textbf{F-ETA2} sit here
 (table, \S\ref{sec:eraser:caveats}).
+\lead{Since the snapshot} \stFixed{} \code{dd2e2ee}: \code{visitCases} reads the eliminated
+inductive from \code{casesInfo.indName} and expands a sparse catch-all into one alternative per
+uncovered constructor; every other uncompilable shape now throws instead of reaching an
+unreachability assertion (\code{b17477e} adds the check that the catch-all's own hypotheses are
+proofs). \code{c911803} binds an eta-expansion's supplied arguments once, outside the new binders;
+\code{e347ed7} narrows the eliminator loop to the discriminee after a measured regression --- the
+first form made an unselected, diverging alternative strict.
 \end{remark}
 
 \begin{definition}[The environment closure]
@@ -457,6 +479,13 @@ each under its own kername with a bare, unapplied fixpoint block} at its index.
 unapplied fixpoint bodies), \textbf{F-UNSAFEREC} (the stripped-name key map) and
 \textbf{F-QUOT}/\textbf{F-EQREC} (the body-less axiom arm) sit here (table,
 \S\ref{sec:eraser:caveats}).
+\lead{Since the snapshot} \stFixed{} The block registration refuses a block whose members map to
+colliding keys (\code{e88a265}) and a freshly minted key already registered under another name, for
+constants and for inductive blocks alike (\code{4e354a7}, \code{611f49e}); the key encoding is
+unchanged, so this refuses rather than repairs. The body-less arm now synthesises realizers for
+\code{Quot.mk}/\code{Quot.lift} (\code{046cbc4}) and for a recursor of an all-proof-field
+propositional inductive, \code{Eq.rec} among them (\code{ed692a6}); \code{False.rec} cannot have
+one. Recursive bodies are registered eta-wrapped (\code{42989c5}).
 \end{remark}
 
 \begin{definition}[The entry point]
@@ -620,11 +649,15 @@ Field & What it asserts & Class \\
 \end{definition}
 
 \begin{remark}
-\lead{Caveat} Two fields are documented \emph{refuted in general}: \code{kernel\_ind\_head\_true}
-by \textbf{F-DEPTH}, \code{block\_keys\_distinct} by \textbf{F-UNSAFEREC}. Both held on a corpus --
-$2{,}940$ of $2{,}940$ type formers, no failure over $200{,}000$-plus declaration-info answers --
-but since the bundle binds the capstone and all eight rungs, results taking it are conditionally
-vacuous on a counterexample.
+\lead{Caveat} \lead{At the snapshot} Two fields are documented \emph{refuted in general}:
+\code{kernel\_ind\_head\_true} by \textbf{F-DEPTH}, \code{block\_keys\_distinct} by
+\textbf{F-UNSAFEREC}. Both held on a corpus -- $2{,}940$ of $2{,}940$ type formers, no failure over
+$200{,}000$-plus declaration-info answers -- but since the bundle binds the capstone and all eight
+rungs, results taking it are conditionally vacuous on a counterexample.
+\lead{Since the snapshot} \stFixed{} \code{33ba53e} removes F-DEPTH's two counterexamples, and
+\code{184155d} restates \code{kernel\_ind\_head\_true}'s docstring at the residue; the same commit
+deletes \code{block\_keys\_distinct} outright, replacing it with a fact about a successful run
+(\code{db1c2b6}). \code{EraserAsks} has four fields, not five, since \code{184155d}.
 \end{remark}
 
 \section{What the bundles prove}
@@ -972,23 +1005,25 @@ the pin bump lands.
 \section{Deviations from the paper, and caveats}
 \label{sec:eraser:caveats}
 
-\begin{center}
-\begin{tabular}{lp{0.24\linewidth}p{0.50\linewidth}}
+\begin{center}\small
+\begin{tabular}{lp{0.20\linewidth}p{0.38\linewidth}p{0.22\linewidth}}
 \toprule
-Tag & Site & Symptom \\
+Tag & Site & Symptom at the snapshot & Since the snapshot \\
 \midrule
-F-DEPTH & arity-check fuel & exhausts behind \code{@[irreducible]}; falls back, negative \\
-F-UNSAFEREC & \code{remove\_unsafe\_rec} & not injective: can collapse two kernames of a legal
-block \\
+F-DEPTH & arity-check fuel & saturates at 256 and is 1 at a definitional alias; falls back,
+negative & \stFixed{} \code{33ba53e} \\
+F-UNSAFEREC & \code{remove\_unsafe\_rec} & not injective: collapses two keys of a legal block &
+\stFixed{} \code{e88a265}, the run refuses \\
 F-PROP & \code{register\_inductive} & \code{propositional}, \code{kelim}, \code{finite} stay
-default; match-on-box never fires \\
-F-SPARSE & \code{visitCases} & sparse eliminator declared unreachable; writes a wrong \code{.ast} \\
-F-ETA2 & \code{visitConstructor} eta loops & re-erases the argument prefix per missing argument,
-for nothing \\
-F-ETA & \code{visitMutual} & bodies ship bare, unapplied; expanded-program predicate fails on all
-five benchmark programs \\
-F-QUOT, F-EQREC & \code{visitMutual} axiom arm & \code{Quot}/\code{Eq.rec} constants land as
-body-less axioms \\
+default; match-on-box never fires & \stFixed{} \code{d28459f} with the guard \code{f42d0aa} \\
+F-SPARSE & \code{visitCases} & sparse eliminator declared unreachable; writes a wrong \code{.ast} &
+\stFixed{} \code{dd2e2ee}, \code{b17477e} \\
+F-ETA2 & \code{visitConstructor} eta loops & supplied arguments are erased \emph{under} the new
+binders, so weak evaluation drops them & \stFixed{} \code{c911803}, narrowed \code{e347ed7} \\
+F-ETA & \code{visitMutual} & bodies ship bare, unapplied; expandedness fails on all five programs &
+\stFixed{} \code{42989c5} \\
+F-QUOT, F-EQREC & \code{visitMutual} axiom arm & \code{Quot}/\code{Eq.rec} land as body-less axioms
+& \stFixed{} \code{046cbc4}, \code{ed692a6}; \code{False.rec} cannot be realized \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -996,14 +1031,21 @@ body-less axioms \\
 \begin{itemize}
 \item \lead{Deviation} Constructors ship applied, not blocked -- opposite agda2lambox and
 \code{constructors\_as\_blocks} -- pinned off throughout.
-\item \lead{Deviation} Fixpoint bodies ship bare and unapplied (F-ETA); the capstone concludes
-peregrine well-formedness, not MetaRocq's expanded-program form.
+\item \lead{Deviation} \lead{At the snapshot} Fixpoint bodies ship bare and unapplied (F-ETA); the
+capstone concludes peregrine well-formedness, not MetaRocq's expanded-program form.
+\lead{Since the snapshot} \stFixed{} \code{42989c5} eta-wraps every registered body, and
+\code{2ace82d} deletes the separate \code{PeregrinePre} predicate and folds the expanded-fixpoint
+clause into \code{LBWfPeregrine} itself. \lead{Planned} The eight rung environments are not
+regenerated, so the strengthened check is still \code{false} at G6, G7 and G8.
 \item \lead{Deviation} The preparation pass has no MetaCoq counterpart; \code{ConfigPinned} pins
 its \code{@[csimp]} walk off.
 \item \lead{Deviation} The oracle reroute re-implements MetaRocq's test on lean4lean's checker, at
 a 33-name axiom footprint.
-\item \lead{Caveat} Two \code{EraserAsks} fields are refuted in general; results using the bundle
-are conditionally vacuous on a counterexample.
+\item \lead{Caveat} \stRefuted{} Two \code{EraserAsks} fields are false of the shipping code in
+general, so results using the bundle are conditionally vacuous on a counterexample.
+\lead{Since the snapshot} F-DEPTH's two counterexamples are gone and the field's docstring is
+restated at its residue; the block-key field is deleted and replaced by a fact about a successful
+run (\code{184155d}).
 \item \lead{Caveat} \code{panic!} yields $\Box$ and exits successfully, so F-SPARSE and others
 surface as a wrong \code{.ast}, not a failure.
 \end{itemize}

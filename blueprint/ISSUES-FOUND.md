@@ -9,6 +9,12 @@ means it could not settle the entry; `unverified` means no second pass ran — t
 already in the repository's own register, `doc/rework/03-DEV-FIX.md` (F-* findings), are listed last under
 heading (F), only where this pass found detail beyond what that register says.
 
+> **Time scope.** Every entry describes `dev/verify` at `e7894de`. Since then, round 7 fixed the ten
+> code-bearing F-* findings on branch `dev/fix` (`dd2e2ee`..`76055ea`, merged into `dev/verify` at
+> `2036c85`) and refuted the `ErasesEnv.defns` clause (restated at `92105c6`); several entries under
+> (A), (B) and (F) are therefore resolved on `dev/verify`. The blueprint's chapter 12 carries the
+> per-finding status with commit hashes; this file is not re-verified against later commits.
+
 ## Counts
 
 | Heading | Major | Minor | Note | Total |

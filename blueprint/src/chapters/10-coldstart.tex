@@ -811,6 +811,7 @@ preservation.
 \leanok
 \lead{In short} A source term with no level parameter is unchanged by level instantiation, at any
 substitution.
+\lead{Since the snapshot} \stLanded{} Deleted with the clause it served (\code{92105c6}).
 \end{lemma}
 \begin{proof}
 \leanok
@@ -831,6 +832,8 @@ derivation at every scope} once the body has no level parameter left to instanti
 \item \lead{Then} $b$ erases to $b_0$ at the empty local context in every scope.
 \end{itemize}
 \lead{Status} \stProved{}.
+\lead{Since the snapshot} \stLanded{} Deleted (\code{92105c6}): once \code{defns} is read at the
+declaration's own level scope, no consumer needs a transport to every scope.
 \end{theorem}
 \begin{proof}
 \leanok
@@ -842,8 +845,9 @@ context, so the moved derivation is the original one at the new scope.
 \end{proof}
 \begin{remark}
 \lead{Deviation} Available only at level-parameter-free bodies; MetaCoq's environment erasure
-quantifies over every instantiation, since Rocq's constants are universe-polymorphic ([S], Sec. 7.3).
-Chapter~\ref{chap:source}'s \code{defns\_needs\_paramFree} refutes the unguarded clause.
+quantifies over every instantiation, since Rocq's constants are universe-polymorphic ([S], Sec.
+7.3). \lead{At the snapshot} \stRefuted{} The unguarded clause is not merely unproved but
+unsatisfiable at a polymorphic tabled body.
 \end{remark}
 
 \section{From the invariant to the environment relation}
@@ -901,6 +905,11 @@ body $b_0$, and the compiler body erases to $b_0$ at every scope and instantiati
 \end{itemize}
 \lead{Status} \stProved{}; measured at nine names (the three standard plus six level-instantiation
 reflection names), no \code{sorryAx}.
+\lead{At the snapshot} \stRefuted{} Its premise --- every tabled body level-parameter free --- is
+unsatisfiable at G2, G3, G4, G7 and G8, which carry 1, 1, 2, 15 and 15 polymorphic tabled bodies, so
+the theorem says nothing there.
+\lead{Since the snapshot} \stLanded{} Deleted (\code{92105c6}); its content collapses into
+Theorem~\ref{thm:RegInvShape-prime-erasesEnv} at the level column.
 \end{theorem}
 \begin{proof}
 \leanok
@@ -921,6 +930,10 @@ bodies, and that every tabled constant is a plain constant of the model;
 \item \lead{Then} $\ErasesEnv{}\ \code{env}\ \code{bo}\ \Gamma_{\mathrm{spec}}\ t$.
 \end{itemize}
 \lead{Status} \stProved{}.
+\lead{At the snapshot} \stRefuted{} Two of its premises --- the strengthened delta column and
+level-parameter freedom --- cannot hold at the five polymorphic rungs.
+\lead{Since the snapshot} \stLanded{} Restated at the declaration's own level scope; it no longer
+takes a level-parameter-freedom premise (\code{92105c6}).
 \end{theorem}
 \begin{proof}
 \leanok
@@ -1214,6 +1227,9 @@ reaches;
 (the open item below).
 \lead{Why} \code{ErasesEnv} counterparts MetaCoq's environment erasure ([S], Sec. 7.3); \LowerEnv{} is
 the extra Lean-specific layer for \Lower{}'s own steps.
+\lead{At the snapshot} \stVacuous{} At G2, G3, G4, G7 and G8 no environment inhabits the bundle: its
+\ErasesEnv{} field is unsatisfiable there, so those rungs' conclusions are empty
+(Chapter~\ref{chap:capstone}).
 \end{remark}
 \begin{theorem}[The bridge's two environment fields, derived]
 \label{thm:bridgeEnv_of_regInv}
@@ -1225,13 +1241,20 @@ once}.
 \begin{itemize}
 \item \lead{Given} the invariant holds at \code{sf} against $\Gamma_{\mathrm{spec}}$, the run is
 saturated for it, and every kername $t_0$ reaches is declared in $\Gamma_{\mathrm{spec}}$;
-\item every tabled body is level-parameter free with no maximum-level expression, and every tabled
-constant is a plain constant of the model;
+\item every tabled body is level-parameter free with no maximum-level expression --- \stRefuted{},
+below --- and every tabled constant is a plain constant of the model;
 \item \lead{Then} at once: the specification environment for \code{sf}, well-formedness
 $\code{LBWfSpec}\ \Gamma_{\mathrm{spec}}$, and both \code{ErasureBridge} fields.
 \end{itemize}
 \lead{Status} \stProved{}; one line of Lean, measured at nine names in \code{test/ledger.expected},
 no \code{sorryAx}.
+\lead{At the snapshot} \stRefuted{} That premise has \emph{no} reachability gate, so one polymorphic
+tabled body refutes it outright: it is false at G2, G3, G4, G7 and G8. Measured at kernel grade,
+modulo \code{lean4lean}'s \code{Level.hasParam\_eq} axiom, which the capstone already carries. The
+planned route to \code{hbridge} was therefore dead at those five rungs.
+\lead{Since the snapshot} \stLanded{} \code{92105c6} deletes the premise; its surviving
+maximum-level half moves to a decidable \code{TableSafe} clause, measured with no offender at any
+rung. The theorem sheds the six level-instantiation axioms that premise carried.
 \end{theorem}
 \begin{proof}
 \leanok
@@ -1247,21 +1270,33 @@ environment relation (Theorem~\ref{thm:RegInvShape-prime-erasesEnv}); the lowere
 \stOpen{} \lead{Open} Nothing in the repository produces a \code{RegInvShape'} for a state the
 shipping eraser actually reaches.
 \begin{itemize}
-\item Every theorem about a \emph{run} is proved; every theorem about the \emph{invariant} is proved;
-nothing joins them.
-\item The only inhabitants: Lemma~\ref{lem:RegInvShape-prime-empty} (the empty state) and a hand-built
-one-definition fixture in \code{SpecEnv.lean}.
-\item Consequence: the capstone's \code{shipping\_erase\_correct\_firstorder} carries hypothesis
-\code{hbridge} (a $\Gamma_{\mathrm{spec}}$ with both \code{ErasureBridge} fields at the final state),
-discharged at none of the eight green rungs. Theorem~\ref{thm:bridgeEnv_of_regInv} is its interface.
-\item \code{doc/rework/08-REPAIRS-W5.md} sketches the fix: share the erasure witness between the
-specification environment and the emitted body, at an environment that grows with the state.
-\item Three obstructions: \code{BridgeInv}'s fixed level scope versus \code{visitMutual}'s own
-\code{levelParams} per member; alpha-equivalence (a tabled body is pinned to the prepared source body
-only up to it, while \Lower{} is not alpha-closed on its source); and ``every specification
-environment'' versus ``one environment, produced''.
-\item Section~\ref{sec:coldstart:reginv}'s preservation kit is what such a theorem would use; it has no
-live proof path to the capstone yet.
+\item Every theorem about a \emph{run} is proved; every theorem about the \emph{invariant} is
+proved; nothing joins them. The only inhabitants are
+Lemma~\ref{lem:RegInvShape-prime-empty} and a hand-built one-definition fixture.
+\item Consequence: \code{shipping\_erase\_correct\_firstorder} carries \code{hbridge}, discharged at
+none of the eight rungs. Theorem~\ref{thm:bridgeEnv_of_regInv} is its interface.
+\item \lead{At the snapshot} \stRefuted{} A fourth defect sat beside the three obstructions: the
+interface's own level-parameter premise, and the \code{defns} clause of its conclusion, were
+unsatisfiable at the five polymorphic rungs.
+\item \lead{Three obstructions} \code{BridgeInv}'s fixed level scope against \code{visitMutual}'s
+own parameters per member (16 of G7's 30 tabled bodies are polymorphic); alpha-pinning of a tabled
+body; and ``every specification environment'' against ``one, produced''.
+\item \lead{Since the snapshot} \stLanded{} The level-scope defect is repaired (\code{92105c6},
+\code{d6e0e3a}) and the alpha obstruction is removed at the \Erases{} layer by \code{Erases.alpha}
+and \code{SourceTableAdequate.erases\_prepared} (\code{e7fb418}, \code{512e190}). A re-refutation
+found no new unsatisfiable clause; G7 survived five attack routes.
+\item \lead{Planned} Five specified units, stubs typechecked, none started
+(\code{doc/rework/09-REPAIRS-W7.md} at \code{cf2cb08}): quantify the level scope inside the eighteen
+motives; make $\Gamma_{\mathrm{spec}}$ an accumulator under a new monotonicity relation; prove the
+registry invariant preserved by the term walk; saturate it at the final state; discharge
+\code{hbridge}. \stPlanned{} at \code{184155d}, which stops at the earlier merge repairs.
+\item \lead{Planned} Three clauses repeat \code{defns}' scope error harmlessly at today's
+monomorphic rungs and owe the same restatement: \code{TableBlocks.informative},
+\code{ErasureSpec.oracle\_meta}, \code{EraserAsks.kernel\_ind\_head\_true}. \code{TabledLevels}, the
+premise that replaced the deleted one, has no reachability gate either and must be unified with
+\code{CompilerBodies}. And the run reads level parameters from the \emph{compiler} declaration while
+the table reads them from the \emph{kernel} one --- measured to agree at all nine affected names,
+stated nowhere.
 \end{itemize}
 
 \subsection*{Deviations from the paper and caveats}
@@ -1270,8 +1305,9 @@ live proof path to the capstone yet.
 \item Applied-versus-block constructors are fixed on the run (Theorem~\ref{thm:visitExpr_ctorSat},
 Theorem~\ref{thm:visitExpr_shape_all}); MetaCoq verifies a block/applied transformation instead ([S],
 Sec. 7.4). The saturation layer has no consumer.
-\item The delta column needs level-parameter-free bodies (Theorem~\ref{thm:erases_any_scope_of_paramFree});
-MetaCoq quantifies over every instantiation. The general clause is refuted in Chapter~\ref{chap:source}.
+\item \lead{Deviation} Quantifying the delta column over every level scope was a chosen divergence
+from [S], which states the clause at the constant's own universe context under typing side
+conditions; at the snapshot it was \stRefuted{}, and it is reverted at \code{92105c6}.
 \item \Lower{} has no MetaCoq counterpart, so \code{ErasureBridge} carries \code{LowerEnv} beside
 \code{ErasesEnv}.
 \item Two heartbeat budgets are set for reproducibility: four million for the induction, one million for

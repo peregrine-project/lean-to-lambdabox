@@ -214,6 +214,10 @@ LeanToLambdaBox.indBlockKername, LeanToLambdaBox.ctorFieldCounts}
 \lead{Lean} A one-field structure; the list is required well formed \emph{below} \emph{env}, which makes the predicate monotone. \code{indBlockKername} is the only place the frontend's naming convention enters the specification.
 \end{definition}
 
+\begin{remark}
+\lead{Caveat} \code{indBlockKername} joins a block's member names with no separator, so \code{[A, BC]} and \code{[AB, C]} mint one key. Latent: every block installed at the eight rungs is a singleton. \lead{Since the snapshot} \stFixed{} \code{611f49e} makes a run refuse a colliding block key; the encoding is unchanged, so the clause-level risk in \ErasesEnv{}'s \code{blocks} stands.
+\end{remark}
+
 \begin{definition}[Block data in source coordinates]
 \label{def:IndArity}
 \lean{LeanToLambdaBox.IndArity}
@@ -334,14 +338,19 @@ Rule & Source & Image & Side condition & [S] \\
 \item \code{ctor}'s argument list is empty; arguments arrive through \code{app}; no rule
 produces a case or fixpoint node, and an inductive type \emph{name} gets none either -- it is
 erasable, so $\Box$ is its only image (Lemma~\ref{lem:Erases-indInfo_erasable});
-\item both binder rules keep the \textbf{source} name, and \code{letE}'s non-dependence flag
-is ignored; \code{const} alone carries a constant-lookup premise, since \code{CtorOf}/
-\code{IndInfo} already exhibit \code{ctor}'s block.
+\item both binder rules keep the \textbf{source} name at the snapshot, and \code{letE}'s
+non-dependence flag is ignored; \code{const} alone carries a constant-lookup premise, since
+\code{CtorOf}/\code{IndInfo} already exhibit \code{ctor}'s block.
 \end{itemize}
 \lead{Lean} [S]'s \code{erases\_tCase} and its subsingleton-elimination rule, and
 \code{erases\_tFix}/\code{erases\_tCoFix}, have no counterpart (\Lower{}'s business; Lean has
 no coinduction); its sort/$\forall$ premises are absorbed into \code{box}. [L]'s counterpart
 is not the erasure function but the invariant of [L, Def.\ 10].
+\lead{Since the snapshot} \stLanded{} \code{e7fb418}: \code{lam} and \code{letE} bind the target
+name independently, matching \Lower{}, which already quantified it. Two consequences, both intended:
+\Erases{} is demonstrably non-deterministic on a $\lambda$ source, and no statement in the chain
+relates an emitted binder name to a source one. \code{512e190} adds \code{Erases.alpha}: source
+bodies equal up to binder names have the same images.
 \end{definition}
 
 \begin{definition}[The box alternative]
@@ -709,6 +718,7 @@ LeanToLambdaBox.erases_instL_closed}
 \end{itemize}
 \lead{Lean} Asks the substituted levels be readable in the target scope and the two lists have equal length.
 \lead{Status} \stProved{}.
+\lead{Since the snapshot} \stLanded{} \code{d6e0e3a}: \code{Erases.instantiateLevelParams} and its consumer form \code{Erases.instantiateLevelParams\_of\_stepDefeq} are proved from this theorem and lemmas the pin already has --- no new upstream ask --- and are what the delta arm now spends.
 \end{theorem}
 \begin{proof}
 \leanok
@@ -906,12 +916,14 @@ def:LBTerm-envLookup, def:GlobalDeclarations}
 \item \code{keys}: the environment's keys are distinct (the \code{fresh\_global} half of [S]'s well-formedness, so a shadowing entry cannot retarget a pass);
 \item \code{deps}: every kername the program reaches is declared;
 \item \code{tabled}: a constant the compiler table defines is a plain constant of the model; unlike the others it has no reachability trigger, refuting a reading only at constants the erasure emits no key for;
-\item \code{defns}: every reached, tabled constant's entry has a body erasing the compiler body at \textbf{every level scope and instantiation};
+\item \code{defns}: every reached, tabled constant's entry has a body erasing the compiler body at \textbf{every level scope and instantiation} --- \stRefuted{} (status line below);
 \item \code{axioms}: a reached, body-less, non-eliminator constant is declared body-less;
 \item \code{blocks}: a reached inductive block is in the environment's own list, with the target's arity/propositionality data;
 \item \code{elims}: a reached \code{casesOn} of a \emph{relevant} inductive has the canonical eliminator body.
 \end{itemize}
 \lead{Lean} No constructor clause: \code{blocks} already supplies its arity.
+\lead{At the snapshot} \stRefuted{} The \code{defns} clause is unsatisfiable. Read at the empty level scope the instantiation is the identity, and no arm of \Erases{} produces an image for a $\lambda$ whose domain is a level-parameter sort there (\code{no\_erases\_lam\_sort\_param}), so one universe-polymorphic tabled body refutes the clause. Mechanised twice, axioms \code{propext}/\code{Classical.choice}/\code{Quot.sound}, no \code{sorry}.
+\lead{Since the snapshot} \stLanded{} \code{92105c6}: the clause reads the tabled body at the declaration's own level parameters, through a new column \code{SourceTable.levels?} carried by \code{ErasesEnv}, \code{SpecContent}, \code{SpecEnv}, \code{RegInvShape'} and \code{ErasureBridge} --- MetaRocq's own shape. The clause is not unconditionally satisfiable: nothing in the type ties the column to the body table, and at the rungs only the table rules the bad instance out.
 \end{definition}
 
 \begin{lemma}[The seven accessors]
@@ -924,6 +936,7 @@ LeanToLambdaBox.ErasesEnv.elims}
 \uses{def:ErasesEnv}
 \lead{In short} The seven clauses are available as separate lemmas, the names the simulation's arms cite (Chapter~\ref{chap:correctness}).
 \lead{Lean} The block and eliminator accessors additionally take their trigger premises as explicit arguments (block data and its reachability; the eliminator's shape, its inductive's relevance, its origin, and its kername's reachability).
+\lead{Since the snapshot} \stLanded{} The \code{defns} accessor now yields the erasure at the declaration's own level scope (\code{92105c6}); the old universally quantified form cannot be written.
 \end{lemma}
 \begin{proof}
 \leanok
@@ -950,7 +963,7 @@ def:isCasesOnName}
 \lead{In short} $\code{SpecContent}\ \mathit{env}\ \mathit{bo}\ \Gamma_{\mathrm{spec}}$: \ErasesEnv{}'s five source-facing clauses with the entry's \hl{presence} in place of reachability -- program-independent, so maintainable as a loop invariant.
 \begin{itemize}
 \item \code{tabled} is excluded (it mentions no environment);
-\item the definition field records \textbf{one} level scope, where \ErasesEnv{} asks every scope;
+\item the definition field records \textbf{one} level scope, where \ErasesEnv{} asks every scope --- \lead{Since the snapshot} both read the same column (\code{92105c6}), so the asymmetry is gone;
 \item the two inductive fields conclude coverage in the sense of Definition~\ref{def:IndCovered}.
 \end{itemize}
 \end{definition}
@@ -1040,6 +1053,7 @@ LeanToLambdaBox.demoEnv_deps, LeanToLambdaBox.demoEnv_defns}
 \item \lead{Then} its keys are distinct and self-contained; it covers its own inductive; it satisfies the content bundle; its program reaches exactly its four kernames; every reached, tabled body erases to the fixture's entry, at every level scope.
 \end{itemize}
 \lead{Status} \stProved{}.
+\lead{Since the snapshot} \stLanded{} The fixture's all-scopes stability lemma (\code{demoEnv\_defns}) lost its last consumer and is deleted with the clause it served (\code{92105c6}).
 \end{theorem}
 \begin{proof}
 \leanok
@@ -1054,8 +1068,8 @@ all-scopes \code{defns} form from the bundle's stability field.
 \begin{itemize}
 \item Constructors are \emph{applied form}: \code{ctor} fires at the bare head, arguments via \code{app} (cf.\ F-ETA2); no case or fixpoint rule, \code{Lean.Expr} having neither node (\Lower{}'s business).
 \item \code{mdata}/\code{lit} are added; \code{proj}'s relevance premise, free in Rocq's typing, is shown necessary by Theorem~\ref{thm:erases_proj_needs_informative} (design tag N18).
-\item The de Bruijn variable rule splits into \code{bvar}/\code{fvar} for locally-nameless opening (Theorem~\ref{thm:Erases-abstract}); \ErasesEnv{} is dependency-selective, not pointwise, with \code{defns} over every level scope.
-\item \stOpen{} \ErasesEnv{} and \LowerEnv{} are the capstone's two bridge-bundle fields; no theorem yet produces either for a shipping run (Chapter~\ref{chap:trust}).
-\item The strong \code{defns} clause needs Theorem~\ref{thm:Erases-instL}'s \code{max}-free fragment, which \code{defns} itself does not mention.
+\item The de Bruijn variable rule splits into \code{bvar}/\code{fvar} for locally-nameless opening (Theorem~\ref{thm:Erases-abstract}); \ErasesEnv{} is dependency-selective, not pointwise.
+\item \stRefuted{} \lead{At the snapshot} \code{defns} over every level scope is unsatisfiable at a polymorphic tabled body; \stOpen{} \ErasesEnv{} and \LowerEnv{} remain the capstone's two bridge fields, produced by no theorem (Chapter~\ref{chap:trust}).
+\item \lead{Deviation} Quantifying \code{defns} over every scope was a chosen divergence: [S] states the clause once at the constant's own universe context and derives the instantiated form under typing side conditions. Reverted at \code{92105c6}.
 \item \code{ErasesUniform.lean} -- \code{ErasableStrengthen}, the \code{NoProj} conditions, and Theorem~\ref{thm:erases_uniform_closed} -- lies outside the capstone's import closure, with no consumer.
 \end{itemize}

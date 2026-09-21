@@ -86,6 +86,14 @@ of declarations, existence of every cited declaration, and the two trust edges a
 `#print axioms` measured on every cited name. It writes `blueprint/.audit/` (report, node
 index, measured footprints; gitignored) and exits non-zero on any defect.
 
+## Snapshot and status
+
+The cited Lean declarations are those of `dev/verify` at `e7894de`. What was learned or changed after
+that commit is recorded time-scoped (`At the snapshot` / `Since the snapshot` / `Planned`, with commit
+hashes and the badges `[VACUOUS]`, `[REFUTED]`, `[FIXED]`, `[LANDED]`, `[PLANNED]`; see `STYLE.md`
+section 8) without moving the snapshot: the graph and every `\lean{}` list are unchanged. Start from
+the introduction's section "Status since the snapshot"; the trust chapter carries the detail.
+
 ## Writing style
 
 `STYLE.md` is the binding style guide: every node is schematic (`\lead{In short}`, `\lead{Given}` /

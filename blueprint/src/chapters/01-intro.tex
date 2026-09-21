@@ -16,10 +16,43 @@ term language and, via \code{lean4lean}, its kernel theory.
 is matched by the emitted program's evaluation.
 \item \lead{Status} \stProved{} in Lean, no local \code{sorry}, but \textbf{conditional}: ten of fifteen
 binders are hypotheses; \stOpen{} on \code{hbridge}; \stInherited{} throughout, via \code{lean4lean}.
+\stVacuous{} \lead{At the snapshot} five of the eight instances --- G2, G3, G4, G7, G8 --- establish
+nothing: their hypotheses cannot all hold (Section~\ref{sec:intro:since}).
 \item \lead{Lean files} \code{Erasure.lean}, \code{Capstone.lean}, \code{ErasureSpec.lean},
 \code{Green.lean}.
 \item \lead{Paper} [S, Sec. 7.3--7.4]; [L]; the eraser's own design document is [R]
 (Section~\ref{sec:intro:references}).
+\end{itemize}
+
+\section{Status since the snapshot}
+\label{sec:intro:since}
+
+Every \code{\textbackslash lean} name cited in this blueprint is one of the snapshot commit \code{e7894de} of
+\code{dev/verify}. Six questions were put to the development after it; the answers, each with the
+chapter that carries the detail:
+
+\begin{itemize}
+\item \lead{Why \code{hbridge} is still open} Three structural obstructions --- one fixed level scope
+across the eighteen motives, tabled bodies pinned only up to alpha, and ``every specification
+environment'' against ``one, produced'' --- and a fourth defect found in round 7: the premise the
+planned route spends was unsatisfiable at five rungs (Chapter~\ref{chap:coldstart}).
+\item \lead{Provable, or false} \stRefuted{} The clause as written was false and was disproved in
+Lean; the fact it meant to state is held true. It has been restated at the declaration's own level
+scope (\code{92105c6}) --- Chapters~\ref{chap:erases} and~\ref{chap:coldstart}.
+\item \lead{MetaRocq} Every falsity found sat at a divergence this development chose, not one Lean
+forced: \hl{three chosen divergences are being reverted, four are forced and stay}
+(Section~\ref{sec:intro:correspondence}).
+\item \lead{Closing \code{hbridge} would not finish the verification} Five layers stand after it:
+\code{UpstreamAsks} and sixteen inherited \code{sorry} sites; \code{EraserAsks}; a conclusion
+restricted to first-order answers and forward simulation; everything downstream of the emitted
+program value; and the scope restrictions (Chapter~\ref{chap:trust}).
+\item \lead{Why the \code{lean4lean} asks stay pending} They are facts about \code{lean4lean}'s own
+kernel theory --- constant classification, \code{mkApps} inversion, \code{TrProj} --- owned there;
+the capstone holds modulo them (Chapter~\ref{chap:trust}).
+\item \lead{The eleven shipping findings} Ten carry a fix on branch \code{dev/fix}
+(\code{dd2e2ee}--\code{76055ea}), merged at \code{2036c85}; the eleventh needs no code edit. No fix
+lifts a scope restriction, and no further benchmark program enters the fragment
+(Chapter~\ref{chap:trust}).
 \end{itemize}
 
 \section{The problem and the object of verification}
@@ -115,14 +148,22 @@ eight instances (pinned configuration, translation, fragment verdict, body-less 
 output well-formedness), a sixth (compiler-body) at the first instance; the remaining ten are
 hypotheses. One, \code{hbridge} -- the two environment fields of \code{ErasureBridge}
 (\code{Capstone.lean:101}) -- is \stOpen{}: discharged nowhere.
+\stVacuous{} \lead{At the snapshot} \code{hbridge} was not merely undischarged at five of the eight
+instances: its \ErasesEnv{} field could not hold there at all (Chapter~\ref{chap:coldstart}).
 \item \lead{Eight instances} \code{Green.green\_G1} through \code{green\_G8}
 (\code{LeanToLambdaBox/Green.lean}), each a real \code{\#erase} run with a committed emitted
 program whose conclusion ends in a literal Peano numeral (so it cannot be $\Box$ or a stuck term).
-Environments are universally quantified: \emph{conditional} non-vacuity only.
+Environments are universally quantified, so the ladder gives \emph{conditional} non-vacuity ---
+and a literal answer does not rule out an unsatisfiable hypothesis: at the snapshot, G2, G3, G4,
+G7 and G8 had one (Chapter~\ref{chap:capstone}).
 \item \lead{Not concluded} MetaRocq's \code{expanded\_eprogram} (here \code{LBExpandedFix}), hence
 not \code{PeregrinePre}: every emitted recursive body is a bare fixpoint node, fifty of fifty
 measured (finding F-ETA). Concludes \code{LBWfPeregrine} (\code{Output.lean:227}) instead, which
 the emitted programs satisfy.
+\lead{Since the snapshot} \stLanded{} \code{visitMutual} now registers the eta-wrapped body
+(\code{42989c5}), \code{PeregrinePre} is deleted, and its content joins \code{LBWfPeregrine} as one
+expanded-fixpoint clause (\code{2ace82d}). The eight rung environments are not regenerated, so the
+strengthened check is still \code{false} at G6, G7 and G8.
 \end{itemize}
 
 \section{The architecture of the proof}
@@ -194,8 +235,9 @@ box rule (1): a box applied to an argument reduces to a box, [S, Sec. 7.1]; [L, 
 none: the argument is still evaluated and discarded, as in MetaRocq \\
 box rule (2): singleton case on a box, [S, Sec. 7.1]; [L, Def. 8] &
 \code{WcbvEval.iota\_sing}/\code{proj\_prop}, \code{Eval.lean:171}/\code{:200} &
-gated on a flag and propositional marking, never set by the eraser (0 of 71 measured): inert on
-emitted output --- F-PROP \\
+gated on a flag and propositional marking, never set by the eraser at the snapshot (0 of 71
+measured): inert on emitted output --- F-PROP. \lead{Since the snapshot} \stFixed{} on
+\code{dev/fix}: the flag is set from the declared arity (\code{d28459f}) \\
 box rule (3): a fixpoint on a boxed guard, [S, Sec. 7.1]; [L, Def. 8] &
 no separate rule: \code{WcbvEval.fix\_guarded}, \code{Eval.lean:210}, fires on argument count
 matching the principal index &
@@ -278,6 +320,29 @@ reads the compiler-body table \\
 \end{tabular}
 \end{center}
 
+\lead{Since the snapshot} The round-7 audit of this correspondence
+(\code{doc/rework/09-REPAIRS-W7.md}, \code{cf2cb08}) separates divergences Lean forces from
+divergences this development chose. Every falsity it found sat in the second column.
+
+\begin{center}\small
+\begin{tabular}{p{0.44\linewidth}p{0.46\linewidth}}
+\toprule
+Forced, and staying & Chosen, and being reverted \\
+\midrule
+monadic on-demand traversal with a mutable registry, not list recursion &
+\code{ErasesEnv.defns} quantified over every level scope, where [S] states the clause once at the
+constant's own universe context --- reverted at \code{92105c6} \\
+source bodies pinned only up to alpha, because of \code{inlineMatchers} &
+$\Gamma_{\mathrm{spec}}$ universally quantified in the run predicate, where [S] threads its
+dependency set as an accumulator --- \stPlanned{} \\
+the \Lower{} stage, since \code{Lean.Expr} has neither a case nor a fixpoint node &
+one fixed level scope across the eighteen motives, where [S] re-makes the extension per constant
+--- \stPlanned{} \\
+\code{lean4lean} typing in place of PCUIC typing & \\
+\bottomrule
+\end{tabular}
+\end{center}
+
 Five deviations matter most.
 
 \begin{itemize}
@@ -313,7 +378,10 @@ blue (ready to attempt), dark green (node and every ancestor proved).
 \item[\lead{Status badges}] \stProved{} proved in this repository; \stChecked{} discharged by a
 checked term or kernel computation at a rung; \stAssumed{} a hypothesis binder or bundle field;
 \stInherited{} trust inherited from \code{lean4lean}'s \code{sorry}s or Lean's reflection axioms;
-\stOpen{} an open proof obligation; \stOutside{} outside the verified perimeter.
+\stOpen{} an open proof obligation; \stOutside{} outside the verified perimeter. Four badges date a
+fact against the snapshot: \stVacuous{} proved from hypotheses that cannot all hold; \stRefuted{} a
+clause shown unsatisfiable; \stFixed{} fixed on \code{dev/fix} after the snapshot; \stLanded{}
+landed on \code{dev/verify} after the snapshot; \stPlanned{} specified, not yet done.
 \item[\lead{What green means here}] No \code{sorry} of its own, so every result node in
 Chapters~\ref{chap:lambdabox}--\ref{chap:capstone} is green in both senses. \hl{Green means ``proved
 from the hypotheses of its own statement,'' never ``unconditionally true''} --- for the capstone it
@@ -324,7 +392,9 @@ at all, so every path into the capstone visibly passes through one.
 \begin{tabular}{llp{0.67\linewidth}}
 \code{ErasureSpec} & 8 fields & Lean \code{Meta}/\code{Core} primitives, model connection \\
 \code{EraserAsks} & 5 fields & this repository's own code; 2 (kernel inductive head, block-key
-distinctness) refuted in general (F-DEPTH, F-UNSAFEREC), hold only on measured inputs \\
+distinctness) refuted in general (F-DEPTH, F-UNSAFEREC), true on every measured input.
+\lead{Since the snapshot} the second is deleted and derived from a successful run instead
+(\code{184155d}); the bundle has four fields \\
 \code{UpstreamAsks} & 4 fields & \code{lean4lean} lemmas a pin bump would supply \\
 \code{ErasureBridge} & 2 fields & the open problem \\
 \end{tabular}\\
@@ -342,6 +412,10 @@ non-standard reflection axioms of Lean's executable kernel --- the price of disc
 relevance oracle through \code{lean4lean}'s checker. \code{visitExpr\_refines\_erasesLB},
 \code{bridgeEnv\_of\_regInv}, \code{LBOptimize\_correct} and \code{lbEval\_sound} measure free of
 \code{sorryAx}. Moving an obligation into a binder moves no row.
+\lead{Since the snapshot} \code{erases\_correct}, \code{erases\_correct\_lb} and
+\code{step\_delta} each gained the same six \code{lean4lean} bridge axioms, which
+\code{bridgeEnv\_of\_regInv} shed; the capstone's and every rung's 33 names are unchanged
+(\code{92105c6}, \code{d6e0e3a}).
 \item[\lead{One further rule}] A statement more specific than its prose is flagged after the
 informal one; deviations from [S] or [L] are always named.
 \end{description}
@@ -405,6 +479,9 @@ $\iota$ and projection drop MetaRocq's parameter-count and saturation side condi
 \item \lead{Caveat} \code{hnb} is bound and never used in its proof; \code{hblk}, though forwarded
 to \code{erasure\_bridge\_of\_run}, is spent by no theorem in the closure --- two premises stronger
 than the proof requires.
+\item \lead{Caveat} This blueprint is pinned to \code{e7894de}. Facts learned after it are marked
+\lead{Since the snapshot} with their commit; a badge \stVacuous{} or \stRefuted{} says the snapshot
+itself was wrong, not that the repair is missing.
 \end{itemize}
 
 Chapter~\ref{chap:trust} records these, and every other finding, with its measurement.

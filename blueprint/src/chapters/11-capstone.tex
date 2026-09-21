@@ -5,7 +5,10 @@
 \begin{itemize}
 \item \lead{Goal} State \code{shipping\_erase\_correct\_firstorder} and instantiate it at eight real \code{\#erase} runs.
 \item \lead{Main results} Theorem~\ref{thm:shipping_erase_correct_firstorder} (the capstone, fifteen named hypotheses); Theorems~\ref{thm:Green-green_G1}--\ref{thm:Green-green_G8} (the eight green rungs, ending in a literal \lbox{} numeral).
-\item \lead{Status} \stProved{}, \stInherited{} through lean4lean; conditional on \stAssumed{} \code{ErasureSpec}, \code{EraserAsks}, \code{UpstreamAsks}, \code{ErasureBridge} (\code{hbridge}, inhabited nowhere).
+\item \lead{Status} \stProved{}, \stInherited{} through lean4lean; conditional on \stAssumed{}
+\code{ErasureSpec}, \code{EraserAsks}, \code{UpstreamAsks}, \code{ErasureBridge} (\code{hbridge},
+inhabited nowhere). \stVacuous{} \lead{At the snapshot} five instances --- G2, G3, G4, G7, G8 --- have
+unsatisfiable hypotheses (Section~\ref{sec:capstone:rungs}).
 \item \lead{Lean files} \code{Capstone.lean}, \code{Green.lean}, \code{Witness/SourceTable.lean}, \code{Witness/TrWitness.lean}.
 \item \lead{Paper} [S, Sec.~7.3--7.4], with three deliberate substitutions tracked in the closer.
 \end{itemize}
@@ -33,6 +36,9 @@ enters as \hl{\code{hbridge}} (Chapter~\ref{chap:trust}).
 -- four standard (\code{propext}, \code{sorryAx}, \code{Classical.choice}, \code{Quot.sound}), 29
 non-standard (two \code{bv\_decide} certificates, two lean4lean pointer-equality axioms, the rest
 reflection axioms). \code{sorryAx} is inherited from the pinned lean4lean checkout.
+\lead{Since the snapshot} The 33 names are unchanged; six of them moved into
+\code{erases\_correct}, \code{erases\_correct\_lb} and \code{step\_delta} and out of
+\code{bridgeEnv\_of\_regInv} (\code{92105c6}, \code{d6e0e3a}).
 
 \section{The reified source table}
 \label{sec:capstone:table}
@@ -130,6 +136,10 @@ fires (\code{Nat.add} included), naming inlined \code{let}s from the name genera
 an alpha-transport, and $\Lower$ is not alpha-closed on its source -- one of three obstructions to
 closing \code{hbridge}. Measured: five bodies match only up to binder names, at G7/G8
 (\code{Nat.add}, \code{Nat.mul}, \code{Nat.pow}, \code{Nat.pred}, \code{Nat.sub}).
+\lead{Since the snapshot} \stLanded{} \code{512e190} adds \code{Erases.alpha} and
+\code{SourceTableAdequate.erases\_prepared}: a tabled body and the run's prepared body have the same
+images, so this obstruction is closed at the \Erases{} layer, and
+Lemma~\ref{lem:Witness-SourceTableAdequate-body-prepared} gains its first consumer.
 \end{remark}
 
 \begin{definition}[Table adequacy]\label{def:Witness-SourceTableAdequate}
@@ -333,6 +343,14 @@ first-order inductive $I$, then $v$ has a \textbf{unique} erasure $tv_0$, its lo
 \code{eraseFlags}); local contexts and level scopes stay empty throughout; the argument-indexed
 premise uses \code{getElem!} on both lists.
 
+\lead{At the snapshot} \stVacuous{} At five of the eight instances the binder set cannot be
+inhabited: \code{hbridge}'s \ErasesEnv{} field demands an erasure of every reached tabled body at
+the empty level scope, which no polymorphic body has. G2, G3, G4, G7 and G8 reach 1, 1, 2, 15 and 15
+such bodies; G1, G5 and G6 reach none.
+\lead{Caveat} Conjunct (1) is the binder \code{hprep} and conjunct (5) the binder \code{hwf},
+re-exported unchanged; at every rung the well-formedness, box-freedom and evaluation conjuncts follow
+from the literal data alone, and conjuncts (2)--(4) are what the erasure derives.
+
 \lead{Status} \stProved{}; \stInherited{} through lean4lean; conditional on \stAssumed{} $P$
 (\code{ErasureSpec}), $E$ (\code{EraserAsks}), $A$ (\code{UpstreamAsks}), \code{ErasureBridge}.
 \end{theorem}
@@ -356,10 +374,12 @@ lowering.
 \code{hnb} is used nowhere -- the one genuinely unused binder. \code{hblk} is forwarded to the bridge
 theorem, but \code{TableBlocks} itself is consumed by no theorem in the closure: its only consumer is
 a lemma that is itself consumed by nothing.
-\lead{Deviation} Not concluded: MetaRocq's \code{expanded\_eprogram}. The eraser emits bare fixpoint
-bodies, so this stronger precondition fails of its output (F-ETA); the theorem concludes the weaker
-\code{LBWfPeregrine} instead. \code{NoBodylessRefs} is this repository's counterpart of MetaRocq's
-\code{axiom\_free}.
+\lead{Deviation} Not concluded at the snapshot: MetaRocq's \code{expanded\_eprogram}. The eraser
+emits bare fixpoint bodies (F-ETA), so the theorem concludes the weaker \code{LBWfPeregrine}.
+\code{NoBodylessRefs} is this repository's counterpart of MetaRocq's \code{axiom\_free}.
+\lead{Since the snapshot} \stFixed{} \code{42989c5} eta-wraps every registered body and
+\code{2ace82d} folds expandedness into \code{LBWfPeregrine}; \stPlanned{} the rung environments are
+not yet regenerated, so the strengthened clause is still \code{false} at G6, G7 and G8.
 \lead{Caveat} \code{hbridge} is inhabited \textbf{nowhere}: \code{bridgeEnv\_of\_regInv}
 (Chapter~\ref{chap:coldstart}) would derive it from a registration invariant no theorem establishes
 for the shipping eraser.
@@ -730,6 +750,29 @@ Every rung also carries the same always-standing binders -- $P$, $E$, $A$, \code
 \code{hblk}, \code{hprep}, \code{hrun}, \code{hbridge} -- omitted below; the table tracks only what
 varies.
 
+\lead{At the snapshot} \stVacuous{} Five rungs prove nothing. \code{ErasesEnv}'s definition clause,
+which each rung carries in its own \emph{conclusion}, demands an erasure of every reached tabled
+body at the empty level scope; no arm of \Erases{} supplies one for a $\lambda$ whose domain is a
+level-parameter sort, so a single polymorphic body makes the conclusion unsatisfiable. The
+refutation needs the conclusion alone --- not \code{hbridge}, not the run equation --- and is
+mechanised twice with clean axioms. \lead{Since the snapshot} \stLanded{} \code{92105c6} restates
+the clause at each declaration's own level scope; the old refutations no longer typecheck, and a
+re-refutation pass found no replacement, G7 surviving five attack routes.
+
+\begin{center}\small
+\begin{tabular}{lrl}
+\toprule
+rung & polymorphic reached tabled bodies & at the snapshot \\
+\midrule
+G1 & 0 & non-vacuous \\
+G2, G3 & 1 each (\code{OfNat.ofNat}) & \stVacuous{} \\
+G4 & 2 (\code{OfNat.ofNat}, \code{Prod.fst}) & \stVacuous{} \\
+G5, G6 & 0 & non-vacuous \\
+G7, G8 & 15 each (the arithmetic classes and their instances) & \stVacuous{} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
 \begin{center}
 \begin{tabular}{llllp{0.29\linewidth}p{0.22\linewidth}}
 \toprule
@@ -768,6 +811,8 @@ determinism fix the answer.
 \lead{In short} Four rungs of \hl{the same shape as G1} -- \code{spikeLit}, \code{spikeLet},
 \code{spikeProj}, \code{spikeFix} -- answering 4, 3, 1, 2. \code{hcb} stays a binder at all four.
 \lead{Status} \stProved{}; \stInherited{}; cond.\ on \stAssumed{} $P,E,A$, \code{ErasureBridge}.
+\lead{At the snapshot} \stVacuous{} at G2, G3 and G4, whose conclusions carry an unsatisfiable
+\ErasesEnv{} clause; G6 reaches no polymorphic tabled body and is unaffected.
 \end{theorem}
 
 \begin{proof} \leanok
@@ -797,6 +842,11 @@ two model-side bundles remain.
 forty declarations, a 14,497-byte \code{.ast} -- the ladder's most expensive kernel checks. Same
 binder shape as G2--G6.
 \lead{Status} \stProved{}; \stInherited{}; cond.\ on \stAssumed{} $P,E,A$, \code{ErasureBridge}.
+\lead{At the snapshot} \stVacuous{} Fifteen reached tabled bodies are universe-polymorphic, so the
+conclusion's \ErasesEnv{} clause is unsatisfiable --- the Arith instance included.
+\lead{Since the snapshot} \stLanded{} Repaired at \code{92105c6}; no new refutation was found, and
+the outstanding binders are the pre-existing ones (\code{hcb}, blocked on \code{lean4lean}'s
+\code{TrProj}, \code{hev}, \code{hvwt}, \code{hty}, \code{hfo}).
 \end{theorem}
 
 \begin{proof} \leanok
@@ -812,6 +862,11 @@ non-empty spine}.
 \lead{Then} Two extra binders -- the \code{Nat} bundle and \code{hargReach} -- and both evaluations
 read at the spine, not the bare constant.
 \lead{Status} \stProved{}; \stInherited{}; cond.\ on \stAssumed{} $P,E,A$, \code{ErasureBridge}.
+\lead{At the snapshot} \stVacuous{} Fifteen reached tabled bodies are universe-polymorphic, so the
+conclusion's \ErasesEnv{} clause is unsatisfiable --- the Arith instance included.
+\lead{Since the snapshot} \stLanded{} Repaired at \code{92105c6}; no new refutation was found, and
+the outstanding binders are the pre-existing ones (\code{hcb}, blocked on \code{lean4lean}'s
+\code{TrProj}, \code{hev}, \code{hvwt}, \code{hty}, \code{hfo}).
 \end{theorem}
 
 \begin{proof} \leanok
@@ -836,8 +891,10 @@ deliberately stale table that must be rejected.
 \item \code{scripts/ledger.sh}: diffs 40 \code{\#print axioms} against \code{test/ledger.expected};
 \code{lean4lean-sorries.sh} pins the trust boundary at sixteen \code{sorry} sites; \code{frozen.sh}
 holds the benchmark sources byte-identical against the sibling repository.
-\item \code{lake exe coverage}/\code{hygiene}: measures drift and enforces documentation policy, with a
-budget of 240 declarations outside the import closure of \code{Green.lean} and \code{Capstone.lean}.
+\item \code{lake exe coverage}/\code{hygiene}: measures drift and enforces documentation policy,
+with a budget of 240 declarations outside the import closure of \code{Green.lean} and
+\code{Capstone.lean}. \lead{Since the snapshot} 242 after the vacuity regression file
+(\code{cf2cb08}), 245 at \code{184155d}.
 \end{itemize}
 
 \section{Deviations from the paper, and caveats}
@@ -850,15 +907,18 @@ kernel $\delta$.
 \item \lead{Deviation} Constructors are emitted applied, never as blocks (F-ETA2); no fixpoint
 eta-expansion, so output meets \code{LBWfPeregrine} but not the stronger expanded-fixpoint condition
 (F-ETA).
-\item \lead{Caveat} Eight literal answers rule out a vacuous proof by $\Box$ or a stuck term; every
-computable hypothesis -- configuration, fragment, body-less-reference, well-formedness, evaluation,
-and at G1/G5 compiler bodies/source evaluation -- is checked at every rung it applies to.
+\item \lead{Caveat} Eight literal answers rule out a proof by $\Box$ or a stuck term, but not one
+by unsatisfiable hypotheses: \stVacuous{} \lead{At the snapshot} five rungs had exactly that
+(Section~\ref{sec:capstone:rungs}). Every computable hypothesis is still checked at every rung it
+applies to.
 \item \lead{Caveat} \code{lenv} and \code{env} stay universally quantified at every rung; \code{hrun}
 is an equation about an opaque world token no Lean term inhabits; \code{hbridge} is inhabited nowhere.
 \item \lead{Caveat} \code{hcb} is a binder at seven rungs, \code{hev} at seven; G5's \code{PUnit}
 bundle half is satisfied by no fixture.
-\item \lead{Caveat} Two \code{EraserAsks} fields are refuted in general -- the kernel inductive-head
-field at a telescope of 256+ binders (F-DEPTH), block-key distinctness on a colliding
-\code{\_unsafe\_rec} block (F-UNSAFEREC) -- though true on every measured input; both bound what
-``verified'' means here.
+\item \lead{Caveat} \stRefuted{} Two \code{EraserAsks} fields are false of the shipping code in
+general --- the kernel inductive-head field (F-DEPTH), block-key distinctness (F-UNSAFEREC) ---
+though true on every measured input; both bound what ``verified'' means here.
+\lead{Since the snapshot} \stFixed{}/\stLanded{} The first field's counterexamples are gone
+(\code{33ba53e}) and its docstring names the residue; the second is deleted and derived from a
+successful run instead (\code{db1c2b6}, \code{184155d}).
 \end{itemize}

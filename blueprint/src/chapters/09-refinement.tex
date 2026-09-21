@@ -1169,6 +1169,9 @@ LeanToLambdaBox.step_visitCasesEta, LeanToLambdaBox.step_visitCasesEtaGo}
 \uses{def:Step1, def:CasesHead}
 \lead{In short} The two eta entry points and loops \hl{satisfy their motives}, no premise beyond the
 interface.
+\lead{Since the snapshot} \stPlanned{} The eta loops now bind supplied arguments outside the new
+binders (\code{c911803}, \code{e347ed7}); the bodies changed, the signatures did not, so this step
+awaits the same re-proof.
 \end{lemma}
 \begin{proof}
 \leanok
@@ -1188,6 +1191,9 @@ LeanToLambdaBox.pass_subarray_next, LeanToLambdaBox.pass_list_next}
 \item \lead{Given} \code{UpstreamAsks};
 \item \lead{Then} \code{visitCases}' body satisfies motive 17.
 \end{itemize}
+\lead{Since the snapshot} \stPlanned{} \code{dd2e2ee} rewrote \code{visitCases}'s general arm, so
+this step must be re-proved against the new equations; no mutual member was added or removed, so the
+eighteen motives stand (\code{doc/rework/10-MERGE-FIXES.md} at \code{184155d}).
 \end{lemma}
 \begin{proof}
 \leanok
@@ -1443,6 +1449,9 @@ constructor nor a type former.
 the block's content is read off the final state by \code{SpecEnv} instead. The key-distinctness clause
 the first spends is refuted in general by a legal \code{mutual unsafe def} block whose
 \code{\_unsafe\_rec} companion collides (F-UNSAFEREC).
+\lead{Since the snapshot} \stLanded{} The run refuses such a block (\code{e88a265}) and the field is
+deleted in favour of \code{run\_rec\_exit\_nodup} (\code{184155d}); this file still names the
+deleted field and is scheduled for rewiring.
 \end{remark}
 
 \section*{Deviations from the paper; caveats}
@@ -1461,6 +1470,8 @@ bridge is false without it (\S\ref{sec:refinement:iota}'s two-field counterexamp
 \code{\#erase}'s default on three of five fields, so the machine-\code{Nat}, \code{@[csimp]} and
 \code{@[extern]} arms sit outside the statement's scope, not outside the code.
 \item \lead{Caveat} T8 concerns a term, never an environment; that half stays an assumption at every
-rung. The two T8 theorems' clean footprints are an artefact of hypothesised steps: the assembled bridge
-inherits \code{sorryAx} through step 1, and reflection axioms through it and four further steps.
+rung. The two T8 theorems' clean footprints are an artefact of hypothesised steps. \lead{Deviation}
+The single fixed level scope of the eighteen motives and the universally quantified
+$\Gamma_{\mathrm{spec}}$ of the run predicate are chosen divergences from [S], not forced ones, and
+are \stPlanned{} for reversal (\code{doc/rework/09-REPAIRS-W7.md} at \code{cf2cb08}).
 \end{itemize}

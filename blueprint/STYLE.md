@@ -237,3 +237,20 @@ proves it. A consumer that needs it must re-derive it.
    (`$\exists v'.\ \Erases\ v\ v' \wedge \WcbvEval\ t\ v'$`) are welcome where they are clearer
    than relational prose; never trade a hypothesis for the word budget.
 4. Do not run lake, leanblueprint, latexmk or xelatex. Edit no other file.
+
+## 8. Status updates (time-scoped facts)
+
+The Lean declarations this blueprint cites are those of one snapshot commit of `dev/verify`. Facts learned
+or changed later are recorded without pretending the snapshot moved:
+
+- Every such statement is time-scoped with a run-in label: `\lead{At the snapshot}` (a fact about the
+  snapshot commit itself, e.g. that a theorem is vacuous there), `\lead{Since the snapshot}` (landed on a
+  named branch, with the commit hash), `\lead{In progress}` / `\lead{Planned}` (with the unit or document
+  that specifies it). Never state a planned change as done, never state a landed change as part of the
+  snapshot.
+- Badges: `\stVacuous` (proved from hypotheses that cannot all hold), `\stRefuted` (a hypothesis or clause
+  shown unsatisfiable or false), `\stFixed` (fixed after the snapshot on the branch named), `\stLanded`
+  (landed on `dev/verify` after the snapshot), `\stPlanned` (specified, not yet done).
+- No node is added for a declaration that does not exist at the snapshot, and no `\lean{}` list changes:
+  later declarations are named in `\code{}` inside a remark or a status line.
+- Every such fact cites its source: a commit hash, or a document of `doc/rework/` at the commit named.

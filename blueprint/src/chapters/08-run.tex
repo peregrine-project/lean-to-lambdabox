@@ -542,6 +542,14 @@ index is \code{pre.length}}, and the list holds \code{x}'s value there.
 \section{The registration path}
 \label{sec:run:reg}
 
+\begin{remark}
+\lead{Since the snapshot} \stLanded{} \code{db1c2b6} extends this algebra to the guarded
+registration paths the shipping fixes added: \code{KernameFresh}/\code{IndKernameFresh} name what
+the two freshness guards leave behind, \code{run\_addRealizer\_ok} covers the realizer exit, and
+\code{run\_rec\_exit\_nodup} proves the registration exit's keys distinct -- the fact that replaces
+the deleted \code{EraserAsks} field.
+\end{remark}
+
 \begin{theorem}[The whole state effect of an axiom registration]
 \label{thm:Erasure-run_addAxiom_ok}
 \lean{Erasure.run_addAxiom_ok}
