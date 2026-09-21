@@ -26,7 +26,16 @@ if [ -z "$peregrine" ]; then
   if command -v peregrine > /dev/null 2>&1; then
     peregrine=$(command -v peregrine)
   else
-    peregrine="$root/../peregrine-tool/_build/default/bin/main.exe"
+    # The sibling `peregrine-tool` checkout. `$root` is the directory the suite runs in,
+    # which inside a `git worktree` is not the repository the sibling sits beside, so the
+    # main checkout is recovered from the common git directory and tried first.
+    main=$(git -C "$root" rev-parse --path-format=absolute --git-common-dir 2> /dev/null) &&
+      main=$(dirname -- "$main")
+    for cand in "${main:-$root}/../peregrine-tool/_build/default/bin/main.exe" \
+                "$root/../peregrine-tool/_build/default/bin/main.exe"; do
+      peregrine=$cand
+      [ -x "$peregrine" ] && break
+    done
   fi
 fi
 
