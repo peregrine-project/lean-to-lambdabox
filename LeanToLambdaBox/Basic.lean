@@ -9,12 +9,12 @@ inductive ModPath where
 | MPfile  (dp : DirPath)
 | MPdot   (mp : ModPath) (id : Ident)
 -- MPBound is about functors (in the sense of ML module systems).
-deriving Inhabited, Repr
+deriving Inhabited, Repr, DecidableEq
 
 structure Kername where
   mp: ModPath
   id: Ident
-deriving Inhabited, Repr
+deriving Inhabited, Repr, DecidableEq
 
 def toModPath (n: Name): ModPath :=
   match n with
@@ -160,8 +160,12 @@ deriving Inhabited, Repr
 
 structure OneInductiveBody where
   name : Ident
-  /-- True iff the inductive lives in Prop. -/
-  propositional : Bool := false -- I think, since erasure should remove anything which ends up in Prop
+  /-- True iff the inductive lives in Prop. Read by `remove_match_on_box` and by λbox's
+  `iota_sing`/`proj_prop` rules, which collapse an elimination of a boxed discriminee, so it has
+  no safe default and every producer must supply it. -/
+  propositional : Bool
+  /-- MetaRocq's `ind_kelim`, carried for faithfulness to the format: nothing in MetaRocq's
+  erasure pipeline or in peregrine reads it to decide anything. -/
   kelim : AllowedEliminations := .IntoAny
   ctors : List ConstructorBody
   projs : List ProjectionBody -- This is only about giving user-visible names to projections, but `peregrine` complains about wellformedness if it is empty.

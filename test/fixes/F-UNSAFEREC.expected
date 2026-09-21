@@ -1,0 +1,3 @@
+F-UNSAFEREC bad: error mentions-colliding-keys=true : Erasure.visitMutual: mutual block [FUnsafeRec.bad,  FUnsafeRec.bad._unsafe_rec] maps to colliding λbox keys [FUnsafeRec.bad, FUnsafeRec.bad].
+F-UNSAFEREC even: ok declarations=13 distinct-keys=13
+lean-exit=0

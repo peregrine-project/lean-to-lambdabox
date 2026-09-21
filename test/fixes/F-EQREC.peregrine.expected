@@ -1,0 +1,45 @@
+== and.ast validate
+Validating AST:
+AST is valid
+== and.ast eval
+Compiling:
+Compiled successfully:
+
+constr Nat.succ 
+ constr Nat.succ 
+  constr Nat.succ 
+   constr Nat.succ 
+    constr Nat.zero 
+
+
+== cast.ast validate
+Validating AST:
+AST is valid
+== cast.ast eval
+Compiling:
+Compiled successfully:
+
+constr Nat.succ 
+ constr Nat.succ 
+  constr Nat.succ 
+   constr Nat.succ 
+    constr Nat.succ 
+     constr Nat.succ 
+      constr Nat.succ 
+       constr Nat.succ 
+        constr Nat.succ 
+         constr Nat.zero 
+
+
+== dead.ast validate
+Validating AST:
+AST is valid
+== dead.ast eval
+Compiling:
+Compiled successfully:
+
+constr Nat.succ 
+ constr Nat.succ 
+  constr Nat.zero 
+
+

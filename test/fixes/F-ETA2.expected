@@ -1,0 +1,4 @@
+F-ETA2 cons: spine=[let, λ, app] slowSum-depths=[0]
+F-ETA2 elim: spine=[let, λ, case] slowSum-depths=[0]
+F-ETA2 diverge: spine=[let, λ, case] spinF-depths=[2]
+lean-exit=0

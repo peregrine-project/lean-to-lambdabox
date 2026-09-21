@@ -1,0 +1,4 @@
+F-PROP prop-and: [(And, true), (Nat, false), (OfNat, false)]
+F-PROP prop-eq: [(Eq, true), (Nat, false), (OfNat, false)]
+F-PROP data: [(Add, false), (HAdd, false), (List, false), (Nat, false), (OfNat, false), (PUnit, false)]
+lean-exit=0
