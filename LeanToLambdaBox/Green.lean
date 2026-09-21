@@ -225,16 +225,16 @@ theorem green_G1
       = .ok (.untyped g1Env (some g1Term), inls) w')
     (hbridge : ∀ (sf : Erasure.ErasureState) (wt : Void IO.RealWorld),
       Erasure.visitExpr eG1 {} { «config» := spikeConfig } cctx ref wp = .ok (g1Term, sf) wt →
-      ∃ Γspec : GlobalDeclarations, SpecEnv env g1Table.body? sf Γspec ∧
+      ∃ Γspec : GlobalDeclarations, SpecEnv env g1Table.body? g1Table.levels? sf Γspec ∧
         ∀ t₀ : LBTerm, Erases env [] [] eG1 t₀ → Lower Γspec t₀ g1Term →
-          ErasureBridge env g1Table.body? Γspec g1Env t₀)
+          ErasureBridge env g1Table.body? g1Table.levels? Γspec g1Env t₀)
     (hev : SEval env g1Table.body? [] fullFlags [] eG1 v)
     (hvwt : TrExprS env [] [] v vv)
     (hty : env.HasType 0 [] vv (VExpr.mkApps (.const ``Nat us) idx))
     (hfo : FirstOrderInd env ``Nat) :
     ∃ (Γspec : GlobalDeclarations) (t₀ tv₀ : LBTerm),
       Erases env [] [] eG1 t₀
-      ∧ ErasesEnv env g1Table.body? Γspec t₀
+      ∧ ErasesEnv env g1Table.body? g1Table.levels? Γspec t₀
       ∧ Lower Γspec t₀ g1Term
       ∧ LowerEnv Γspec g1Env
       ∧ LBWfPeregrine g1Env g1Term
@@ -378,16 +378,16 @@ theorem green_G2
       = .ok (.untyped g2Env (some g2Term), inls) w')
     (hbridge : ∀ (sf : Erasure.ErasureState) (wt : Void IO.RealWorld),
       Erasure.visitExpr eG2 {} { «config» := spikeConfig } cctx ref wp = .ok (g2Term, sf) wt →
-      ∃ Γspec : GlobalDeclarations, SpecEnv env g2Table.body? sf Γspec ∧
+      ∃ Γspec : GlobalDeclarations, SpecEnv env g2Table.body? g2Table.levels? sf Γspec ∧
         ∀ t₀ : LBTerm, Erases env [] [] eG2 t₀ → Lower Γspec t₀ g2Term →
-          ErasureBridge env g2Table.body? Γspec g2Env t₀)
+          ErasureBridge env g2Table.body? g2Table.levels? Γspec g2Env t₀)
     (hev : SEval env g2Table.body? [] fullFlags [] eG2 v)
     (hvwt : TrExprS env [] [] v vv)
     (hty : env.HasType 0 [] vv (VExpr.mkApps (.const ``Nat us) idx))
     (hfo : FirstOrderInd env ``Nat) :
     ∃ (Γspec : GlobalDeclarations) (t₀ tv₀ : LBTerm),
       Erases env [] [] eG2 t₀
-      ∧ ErasesEnv env g2Table.body? Γspec t₀
+      ∧ ErasesEnv env g2Table.body? g2Table.levels? Γspec t₀
       ∧ Lower Γspec t₀ g2Term
       ∧ LowerEnv Γspec g2Env
       ∧ LBWfPeregrine g2Env g2Term
@@ -479,16 +479,16 @@ theorem green_G3
       = .ok (.untyped g3Env (some g3Term), inls) w')
     (hbridge : ∀ (sf : Erasure.ErasureState) (wt : Void IO.RealWorld),
       Erasure.visitExpr eG3 {} { «config» := spikeConfig } cctx ref wp = .ok (g3Term, sf) wt →
-      ∃ Γspec : GlobalDeclarations, SpecEnv env g3Table.body? sf Γspec ∧
+      ∃ Γspec : GlobalDeclarations, SpecEnv env g3Table.body? g3Table.levels? sf Γspec ∧
         ∀ t₀ : LBTerm, Erases env [] [] eG3 t₀ → Lower Γspec t₀ g3Term →
-          ErasureBridge env g3Table.body? Γspec g3Env t₀)
+          ErasureBridge env g3Table.body? g3Table.levels? Γspec g3Env t₀)
     (hev : SEval env g3Table.body? [] fullFlags [] eG3 v)
     (hvwt : TrExprS env [] [] v vv)
     (hty : env.HasType 0 [] vv (VExpr.mkApps (.const ``Nat us) idx))
     (hfo : FirstOrderInd env ``Nat) :
     ∃ (Γspec : GlobalDeclarations) (t₀ tv₀ : LBTerm),
       Erases env [] [] eG3 t₀
-      ∧ ErasesEnv env g3Table.body? Γspec t₀
+      ∧ ErasesEnv env g3Table.body? g3Table.levels? Γspec t₀
       ∧ Lower Γspec t₀ g3Term
       ∧ LowerEnv Γspec g3Env
       ∧ LBWfPeregrine g3Env g3Term
@@ -600,16 +600,16 @@ theorem green_G4
       = .ok (.untyped g4Env (some g4Term), inls) w')
     (hbridge : ∀ (sf : Erasure.ErasureState) (wt : Void IO.RealWorld),
       Erasure.visitExpr eG4 {} { «config» := spikeConfig } cctx ref wp = .ok (g4Term, sf) wt →
-      ∃ Γspec : GlobalDeclarations, SpecEnv env g4Table.body? sf Γspec ∧
+      ∃ Γspec : GlobalDeclarations, SpecEnv env g4Table.body? g4Table.levels? sf Γspec ∧
         ∀ t₀ : LBTerm, Erases env [] [] eG4 t₀ → Lower Γspec t₀ g4Term →
-          ErasureBridge env g4Table.body? Γspec g4Env t₀)
+          ErasureBridge env g4Table.body? g4Table.levels? Γspec g4Env t₀)
     (hev : SEval env g4Table.body? [] fullFlags [] eG4 v)
     (hvwt : TrExprS env [] [] v vv)
     (hty : env.HasType 0 [] vv (VExpr.mkApps (.const ``Nat us) idx))
     (hfo : FirstOrderInd env ``Nat) :
     ∃ (Γspec : GlobalDeclarations) (t₀ tv₀ : LBTerm),
       Erases env [] [] eG4 t₀
-      ∧ ErasesEnv env g4Table.body? Γspec t₀
+      ∧ ErasesEnv env g4Table.body? g4Table.levels? Γspec t₀
       ∧ Lower Γspec t₀ g4Term
       ∧ LowerEnv Γspec g4Env
       ∧ LBWfPeregrine g4Env g4Term
@@ -853,9 +853,9 @@ theorem green_G5
       = .ok (.untyped g5Env (some g5Term), inls) w')
     (hbridge : ∀ (sf : Erasure.ErasureState) (wt : Void IO.RealWorld),
       Erasure.visitExpr eG5 {} { «config» := spikeConfig } cctx ref wp = .ok (g5Term, sf) wt →
-      ∃ Γspec : GlobalDeclarations, SpecEnv env g5Table.body? sf Γspec ∧
+      ∃ Γspec : GlobalDeclarations, SpecEnv env g5Table.body? g5Table.levels? sf Γspec ∧
         ∀ t₀ : LBTerm, Erases env [] [] eG5 t₀ → Lower Γspec t₀ g5Term →
-          ErasureBridge env g5Table.body? Γspec g5Env t₀)
+          ErasureBridge env g5Table.body? g5Table.levels? Γspec g5Env t₀)
     (F : SpikeNatFacts env ni)
     (U : SpikeUnitFacts env pi)
     (hd : StepDefeq env [] [] eG5 g5Body)
@@ -866,7 +866,7 @@ theorem green_G5
     (hfo : FirstOrderInd env ``Nat) :
     ∃ (Γspec : GlobalDeclarations) (t₀ tv₀ : LBTerm),
       Erases env [] [] eG5 t₀
-      ∧ ErasesEnv env g5Table.body? Γspec t₀
+      ∧ ErasesEnv env g5Table.body? g5Table.levels? Γspec t₀
       ∧ Lower Γspec t₀ g5Term
       ∧ LowerEnv Γspec g5Env
       ∧ LBWfPeregrine g5Env g5Term
@@ -970,16 +970,16 @@ theorem green_G6
       = .ok (.untyped g6Env (some g6Term), inls) w')
     (hbridge : ∀ (sf : Erasure.ErasureState) (wt : Void IO.RealWorld),
       Erasure.visitExpr eG6 {} { «config» := spikeConfig } cctx ref wp = .ok (g6Term, sf) wt →
-      ∃ Γspec : GlobalDeclarations, SpecEnv env g6Table.body? sf Γspec ∧
+      ∃ Γspec : GlobalDeclarations, SpecEnv env g6Table.body? g6Table.levels? sf Γspec ∧
         ∀ t₀ : LBTerm, Erases env [] [] eG6 t₀ → Lower Γspec t₀ g6Term →
-          ErasureBridge env g6Table.body? Γspec g6Env t₀)
+          ErasureBridge env g6Table.body? g6Table.levels? Γspec g6Env t₀)
     (hev : SEval env g6Table.body? [] fullFlags [] eG6 v)
     (hvwt : TrExprS env [] [] v vv)
     (hty : env.HasType 0 [] vv (VExpr.mkApps (.const ``Nat us) idx))
     (hfo : FirstOrderInd env ``Nat) :
     ∃ (Γspec : GlobalDeclarations) (t₀ tv₀ : LBTerm),
       Erases env [] [] eG6 t₀
-      ∧ ErasesEnv env g6Table.body? Γspec t₀
+      ∧ ErasesEnv env g6Table.body? g6Table.levels? Γspec t₀
       ∧ Lower Γspec t₀ g6Term
       ∧ LowerEnv Γspec g6Env
       ∧ LBWfPeregrine g6Env g6Term
@@ -1404,9 +1404,9 @@ clause of `ErasesEnv` at the argument's image is the same clause at the subject'
 read at the one key that image reaches — `Nat`'s block, which `hreach` places in the
 subject's closure and `ErasesEnv.blocks` then declares. -/
 theorem g8_argErasesEnv {env : VEnv} {Γspec : GlobalDeclarations} {t₀ : LBTerm}
-    (F : SpikeNatFacts env natIid) (herΓ : ErasesEnv env g8Table.body? Γspec t₀)
+    (F : SpikeNatFacts env natIid) (herΓ : ErasesEnv env g8Table.body? g8Table.levels? Γspec t₀)
     (hreach : ReachableFrom Γspec t₀ natIid.mutualBlockName) :
-    ErasesEnv env g8Table.body? Γspec (peanoLB 0) := by
+    ErasesEnv env g8Table.body? g8Table.levels? Γspec (peanoLB 0) := by
   obtain ⟨-, mib, hlook, -⟩ := herΓ.blocks F.natInd hreach
   refine .mk herΓ.keys ?_ herΓ.tabled ?_ ?_ ?_ ?_
   · intro kn hr; rw [reachableFrom_peanoLB_zero hlook hr, hlook]; rfl
@@ -1451,16 +1451,16 @@ theorem green_G7
       = .ok (.untyped g7Env (some g7Term), inls) w')
     (hbridge : ∀ (sf : Erasure.ErasureState) (wt : Void IO.RealWorld),
       Erasure.visitExpr eG7 {} { «config» := spikeConfig } cctx ref wp = .ok (g7Term, sf) wt →
-      ∃ Γspec : GlobalDeclarations, SpecEnv env g7Table.body? sf Γspec ∧
+      ∃ Γspec : GlobalDeclarations, SpecEnv env g7Table.body? g7Table.levels? sf Γspec ∧
         ∀ t₀ : LBTerm, Erases env [] [] eG7 t₀ → Lower Γspec t₀ g7Term →
-          ErasureBridge env g7Table.body? Γspec g7Env t₀)
+          ErasureBridge env g7Table.body? g7Table.levels? Γspec g7Env t₀)
     (hev : SEval env g7Table.body? [] fullFlags [] eG7 v)
     (hvwt : TrExprS env [] [] v vv)
     (hty : env.HasType 0 [] vv (VExpr.mkApps (.const ``Nat us) idx))
     (hfo : FirstOrderInd env ``Nat) :
     ∃ (Γspec : GlobalDeclarations) (t₀ tv₀ : LBTerm),
       Erases env [] [] eG7 t₀
-      ∧ ErasesEnv env g7Table.body? Γspec t₀
+      ∧ ErasesEnv env g7Table.body? g7Table.levels? Γspec t₀
       ∧ Lower Γspec t₀ g7Term
       ∧ LowerEnv Γspec g7Env
       ∧ LBWfPeregrine g7Env g7Term
@@ -1511,11 +1511,12 @@ theorem green_G8
       = .ok (.untyped g8Env (some g8Term), inls) w')
     (hbridge : ∀ (sf : Erasure.ErasureState) (wt : Void IO.RealWorld),
       Erasure.visitExpr eG8 {} { «config» := spikeConfig } cctx ref wp = .ok (g8Term, sf) wt →
-      ∃ Γspec : GlobalDeclarations, SpecEnv env g8Table.body? sf Γspec ∧
+      ∃ Γspec : GlobalDeclarations, SpecEnv env g8Table.body? g8Table.levels? sf Γspec ∧
         ∀ t₀ : LBTerm, Erases env [] [] eG8 t₀ → Lower Γspec t₀ g8Term →
-          ErasureBridge env g8Table.body? Γspec g8Env t₀)
+          ErasureBridge env g8Table.body? g8Table.levels? Γspec g8Env t₀)
     (hargReach : ∀ (Γspec : GlobalDeclarations) (t₀ : LBTerm), Erases env [] [] eG8 t₀ →
-      ErasesEnv env g8Table.body? Γspec t₀ → Lower Γspec t₀ g8Term → LowerEnv Γspec g8Env →
+      ErasesEnv env g8Table.body? g8Table.levels? Γspec t₀ → Lower Γspec t₀ g8Term →
+      LowerEnv Γspec g8Env →
       ReachableFrom Γspec t₀ natIid.mutualBlockName)
     (hev : SEval env g8Table.body? [] fullFlags [] (mkApps eG8 [g8Arg]) v)
     (hvwt : TrExprS env [] [] v vv)
@@ -1523,7 +1524,7 @@ theorem green_G8
     (hfo : FirstOrderInd env ``Nat) :
     ∃ (Γspec : GlobalDeclarations) (t₀ tv₀ : LBTerm),
       Erases env [] [] eG8 t₀
-      ∧ ErasesEnv env g8Table.body? Γspec t₀
+      ∧ ErasesEnv env g8Table.body? g8Table.levels? Γspec t₀
       ∧ Lower Γspec t₀ g8Term
       ∧ LowerEnv Γspec g8Env
       ∧ LBWfPeregrine g8Env g8Term

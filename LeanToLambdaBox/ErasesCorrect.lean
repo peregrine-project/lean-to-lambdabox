@@ -43,20 +43,21 @@ per arm.
 `const` applies to a type former — so the spine inversion leaves only the boxed prefix, and
 both sides box. -/
 theorem indVal_arm {env : VEnv} (henv : env.WF) {Us : List Name} {bo : Name → Option Expr}
+    {lp : Name → List Name}
     {fl : SEvalFlags} {Γspec Γ : GlobalDeclarations}
     (A : UpstreamAsks env) {cn : Name} {us : List Level} {iid : InductiveId} {np : Nat}
     {nfs : List Nat} {args argsv : List Expr}
     (hi : IndInfo env cn iid np nfs) (hlen : argsv.length = args.length)
     (hargs : ∀ i, i < args.length → SEval env bo Us fl [] args[i]! argsv[i]!)
-    (ihargs : ∀ i, i < args.length → Simulates env bo Us Γspec Γ args[i]! argsv[i]!)
+    (ihargs : ∀ i, i < args.length → Simulates env bo lp Us Γspec Γ args[i]! argsv[i]!)
     {ve : VExpr} {t₀ t : LBTerm}
     (hwt : TrExprS env Us [] (mkApps (.const cn us) args) ve)
     (her : Erases env Us [] (mkApps (.const cn us) args) t₀)
-    (hlow : Lower Γspec t₀ t) (hspec : ErasesEnv env bo Γspec t₀) :
+    (hlow : Lower Γspec t₀ t) (hspec : ErasesEnv env bo lp Γspec t₀) :
     ∃ w₀ w', Erases env Us [] (mkApps (.const cn us) argsv) w₀ ∧ Lower Γspec w₀ w' ∧
-      WcbvEval Γ eraseFlags t w' ∧ ErasesEnv env bo Γspec w₀ := by
+      WcbvEval Γ eraseFlags t w' ∧ ErasesEnv env bo lp Γspec w₀ := by
   have hargEv : ∀ (a : Expr), a ∈ args → ∀ (s u : LBTerm), Erases env Us [] a s →
-      ErasesEnv env bo Γspec s → Lower Γspec s u → ∃ x, WcbvEval Γ eraseFlags u x := by
+      ErasesEnv env bo lp Γspec s → Lower Γspec s u → ∃ x, WcbvEval Γ eraseFlags u x := by
     intro a ha s u hes hss hsu
     obtain ⟨w, htrw⟩ := trExprS_spine_mem args hwt a ha
     obtain ⟨i, hi', hia⟩ := Lower.mem_getElem! ha
@@ -82,18 +83,19 @@ theorem indVal_arm {env : VEnv} (henv : env.WF) {Us : List Name} {bo : Name → 
 /-- **`zeta`.** The `let` congruence: the bound value's image evaluates, and the body's
 image is the substitution instance `Lower.subst_comm` and `erases_subst_let` produce. -/
 theorem zeta_arm {env : VEnv} (henv : env.WF) {Us : List Name} {bo : Name → Option Expr}
+    {lp : Name → List Name}
     {fl : SEvalFlags} {Γspec Γ : GlobalDeclarations}
     (hΓcl : ClosedBodies Γspec) {n : Name} {ty val bd : Expr} {nd : Bool} {vv r : Expr}
     (hfl : fl.zeta) (hvalEv : SEval env bo Us fl [] val vv)
     (hbodyEv : SEval env bo Us fl [] (bd.instantiate1' vv 0) r)
-    (ihval : Simulates env bo Us Γspec Γ val vv)
-    (ihbody : Simulates env bo Us Γspec Γ (bd.instantiate1' vv 0) r)
+    (ihval : Simulates env bo lp Us Γspec Γ val vv)
+    (ihbody : Simulates env bo lp Us Γspec Γ (bd.instantiate1' vv 0) r)
     {ve : VExpr} {t₀ t : LBTerm}
     (hwt : TrExprS env Us [] (.letE n ty val bd nd) ve)
     (her : Erases env Us [] (.letE n ty val bd nd) t₀)
-    (hlow : Lower Γspec t₀ t) (hspec : ErasesEnv env bo Γspec t₀) :
+    (hlow : Lower Γspec t₀ t) (hspec : ErasesEnv env bo lp Γspec t₀) :
     ∃ w₀ w', Erases env Us [] r w₀ ∧ Lower Γspec w₀ w' ∧ WcbvEval Γ eraseFlags t w' ∧
-      ErasesEnv env bo Γspec w₀ := by
+      ErasesEnv env bo lp Γspec w₀ := by
   rcases Erases.letE_inv her with hbw |
     ⟨ty', val', v', b', htrtyE, htrvalE, herv, herb, rfl⟩
   · exact erases_correct_boxLow henv hwt hbw hlow hspec (.zeta hfl hvalEv hbodyEv)
@@ -134,20 +136,21 @@ congruence, where the function's image is β-ready by `Lower.appReady`; and a sa
 eliminator spine, where the β rule's own function premise is refuted because an eliminator
 spine one minor short heads no value. -/
 theorem beta_arm {env : VEnv} (henv : env.WF) {Us : List Name} {bo : Name → Option Expr}
+    {lp : Name → List Name}
     {fl : SEvalFlags} {Γspec Γ : GlobalDeclarations} (A : UpstreamAsks env)
     (hΓcl : ClosedBodies Γspec)
     {f a : Expr} {n : Name} {ty bd : Expr} {bi : BinderInfo} {av r : Expr}
     (hfl : fl.beta) (hf : SEval env bo Us fl [] f (.lam n ty bd bi))
     (ha : SEval env bo Us fl [] a av)
     (hbody : SEval env bo Us fl [] (bd.instantiate1' av 0) r)
-    (ihf : Simulates env bo Us Γspec Γ f (.lam n ty bd bi))
-    (iha : Simulates env bo Us Γspec Γ a av)
-    (ihbody : Simulates env bo Us Γspec Γ (bd.instantiate1' av 0) r)
+    (ihf : Simulates env bo lp Us Γspec Γ f (.lam n ty bd bi))
+    (iha : Simulates env bo lp Us Γspec Γ a av)
+    (ihbody : Simulates env bo lp Us Γspec Γ (bd.instantiate1' av 0) r)
     {ve : VExpr} {t₀ t : LBTerm}
     (hwt : TrExprS env Us [] (.app f a) ve) (her : Erases env Us [] (.app f a) t₀)
-    (hlow : Lower Γspec t₀ t) (hspec : ErasesEnv env bo Γspec t₀) :
+    (hlow : Lower Γspec t₀ t) (hspec : ErasesEnv env bo lp Γspec t₀) :
     ∃ w₀ w', Erases env Us [] r w₀ ∧ Lower Γspec w₀ w' ∧ WcbvEval Γ eraseFlags t w' ∧
-      ErasesEnv env bo Γspec w₀ := by
+      ErasesEnv env bo lp Γspec w₀ := by
   have hΔ : VLCtx.WF env Us.length ([] : VLCtx) := trivial
   have hΓv := hΔ.toCtx
   rcases Erases.app_inv her with hbw | ⟨f', a', hf', ha', rfl⟩
@@ -220,6 +223,7 @@ theorem beta_arm {env : VEnv} (henv : env.WF) {Us : List Name} {bo : Name → Op
 node's emitted arity comes from the block the program reaches, and the target value is
 built by `construct_atom` and `construct_app`. -/
 theorem ctorVal_arm {env : VEnv} (henv : env.WF) {Us : List Name} {bo : Name → Option Expr}
+    {lp : Name → List Name}
     {fl : SEvalFlags} {Γspec Γ : GlobalDeclarations}
     (A : UpstreamAsks env)
     (henvL : LowerEnv Γspec Γ) {cn I : Name} {us : List Level} {iid : InductiveId}
@@ -227,15 +231,15 @@ theorem ctorVal_arm {env : VEnv} (henv : env.WF) {Us : List Name} {bo : Name →
     (hc : CtorOf env cn I k) (hi : IndInfo env I iid np nfs)
     (harity : args.length ≤ np + nfs[k]!) (hlen : argsv.length = args.length)
     (hargs : ∀ i, i < args.length → SEval env bo Us fl [] args[i]! argsv[i]!)
-    (ihargs : ∀ i, i < args.length → Simulates env bo Us Γspec Γ args[i]! argsv[i]!)
+    (ihargs : ∀ i, i < args.length → Simulates env bo lp Us Γspec Γ args[i]! argsv[i]!)
     {ve : VExpr} {t₀ t : LBTerm}
     (hwt : TrExprS env Us [] (mkApps (.const cn us) args) ve)
     (her : Erases env Us [] (mkApps (.const cn us) args) t₀)
-    (hlow : Lower Γspec t₀ t) (hspec : ErasesEnv env bo Γspec t₀) :
+    (hlow : Lower Γspec t₀ t) (hspec : ErasesEnv env bo lp Γspec t₀) :
     ∃ w₀ w', Erases env Us [] (mkApps (.const cn us) argsv) w₀ ∧ Lower Γspec w₀ w' ∧
-      WcbvEval Γ eraseFlags t w' ∧ ErasesEnv env bo Γspec w₀ := by
+      WcbvEval Γ eraseFlags t w' ∧ ErasesEnv env bo lp Γspec w₀ := by
   have hargEv : ∀ (a : Expr), a ∈ args → ∀ (s u : LBTerm), Erases env Us [] a s →
-      ErasesEnv env bo Γspec s → Lower Γspec s u → ∃ x, WcbvEval Γ eraseFlags u x := by
+      ErasesEnv env bo lp Γspec s → Lower Γspec s u → ∃ x, WcbvEval Γ eraseFlags u x := by
     intro a ha s u hes hss hsu
     obtain ⟨w, htrw⟩ := trExprS_spine_mem args hwt a ha
     obtain ⟨i, hi', hia⟩ := Lower.mem_getElem! ha
@@ -267,7 +271,7 @@ theorem ctorVal_arm {env : VEnv} (henv : env.WF) {Us : List Name} {bo : Name →
         (CtorOf.lt_nfs A hc hi)
       have hchoice : ∀ i, i < args.length → ∃ p : LBTerm × LBTerm,
           Erases env Us [] argsv[i]! p.1 ∧ Lower Γspec p.1 p.2 ∧
-            WcbvEval Γ eraseFlags ts'[i]! p.2 ∧ ErasesEnv env bo Γspec p.1 := by
+            WcbvEval Γ eraseFlags ts'[i]! p.2 ∧ ErasesEnv env bo lp Γspec p.1 := by
         intro i hi'
         obtain ⟨w, htrw⟩ := trExprS_spine_mem args hwt args[i]! (Lower.getElem!_mem hi')
         obtain ⟨x, y, h1, h2, h3, h4⟩ :=
@@ -308,16 +312,17 @@ theorem ctorVal_arm {env : VEnv} (henv : env.WF) {Us : List Name} {bo : Name →
 **T5, with the three hard arms as hypotheses.** One induction on `hev`; every other arm is
 discharged here, off the eight binders `erases_correct` itself has and nothing more.
 -/
-theorem erases_correct_of_steps {env : VEnv} {bo : Name → Option Expr} {Us : List Name}
+theorem erases_correct_of_steps {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
+    {Us : List Name}
     {fl : SEvalFlags} {Γspec Γ : GlobalDeclarations}
-    (step_iota : StepIota env bo Us fl Γspec Γ)
-    (step_proj : StepProj env bo Us fl Γspec Γ)
-    (step_delta : StepDelta env bo Us fl Γspec Γ) :
-    ErasesCorrectStmt env bo Us fl Γspec Γ := by
-  intro e₀ v₀ ve₀ t₀₀ t₀ henv hwt₀ hev₀ her₀ hlow₀ hspec₀ henvL A
+    (step_iota : StepIota env bo lp Us fl Γspec Γ)
+    (step_proj : StepProj env bo lp Us fl Γspec Γ)
+    (step_delta : StepDelta env bo lp Us fl Γspec Γ) :
+    ErasesCorrectStmt env bo lp Us fl Γspec Γ := by
+  intro e₀ v₀ ve₀ t₀₀ t₀ henv hwt₀ hev₀ her₀ hlow₀ hspec₀ henvL hlvl A
   have hΓcl : ClosedBodies Γspec := henvL.specClosed
   have key : ∀ {Δ : VLCtx} {e v : Expr}, SEval env bo Us fl Δ e v → Δ = [] →
-      Simulates env bo Us Γspec Γ e v := by
+      Simulates env bo lp Us Γspec Γ e v := by
     clear hwt₀ her₀ hlow₀ hspec₀ hev₀
     intro Δ e v hev
     induction hev with
@@ -362,7 +367,7 @@ theorem erases_correct_of_steps {env : VEnv} {bo : Name → Option Expr} {Us : L
     | @deltaC c us ups args argsv b b' vres hfl hbd hnd hinst hlen hargs hdef hcont
         ihargs ihcont =>
         intro rfl
-        exact step_delta A henv henvL hfl hbd hnd hinst hlen
+        exact step_delta A henv henvL hlvl hfl hbd hnd hinst hlen
           (fun i hi => ⟨hargs i hi, ihargs i hi rfl⟩) hdef hcont (ihcont rfl)
     | @iota con I ctor us cus pre prev minors minorsv extra extrav cargs disc r np cidx
         nfs hfl hsh ho hct hnp hinf hpre hpres hdiscr hmin hmins hxlen hxs hidx hdef hcont

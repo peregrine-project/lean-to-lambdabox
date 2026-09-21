@@ -102,7 +102,7 @@ twenty-nine non-standard names, relative to `.lake/packages/lean4lean/Lean4Lean/
 outside the oracle, through the binder transports `BridgeInv.mkLocalDecl`/`.mkLetDecl`
 that the `visitLambda`, `visitLet` and `visitAlt` steps consume.
 
-### (a4) What the projection arm and the δ arm do **not** add
+### (a4) What the projection arm does **not** add, and what the δ arm does
 
 Measured, not assumed, by walking the constant graph of each arm rather than by comparing
 `#print axioms` lines. `step_proj`'s `sorryAx` roots are `step_iota`'s, name for name and set
@@ -116,14 +116,16 @@ one. So the `TrProj` exposure at a projection is **inhabitation**, not axioms: a
 projection in a real program has a `TrExprS` derivation only through `inferProj.WF`, which is
 `sorry` at the pin, so the proj arm is non-vacuous only on hand-built witnesses.
 
-The δ arm brings in no `instantiateLevelParams` axiom cluster: `ErasesEnv.defns` is already
-quantified over the instantiation, so `step_delta` names no lemma about
-`Expr.instantiateLevelParams` and the cluster has no subject in the ledger. Where it does
-appear is `RegInvShape'.defns`/`.erasesEnv` and `erases_any_scope_of_paramFree`
-(`LeanToLambdaBox/ColdStartShape.lean`, `LeanToLambdaBox/SpecEnv.lean`), which inherit
-lean4lean's `Erases.instL` footprint verbatim: `Expr.mkAppData_eq`, `Expr.mkData_eq`,
-`Expr.replace_eq`, `Level.hasParam_eq` and two `_native.bv_decide` axioms. None of those
-declarations is a ledger subject.
+The δ arm brings in the `instantiateLevelParams` axiom cluster, and it has ledger subjects.
+`ErasesEnv.defns` records the erasure of a tabled body at the declaration's own level scope,
+which is where `erases_constant_body` records it (`../metarocq/erasure/theories/Extract.v:264`),
+so `step_delta` derives the instantiated reading itself, by
+`Erases.instantiateLevelParams_of_stepDefeq` on `Erases.instL`. `step_delta`, `erases_correct`
+and `erases_correct_lb` therefore inherit lean4lean's `Erases.instL` footprint verbatim:
+`Expr.mkAppData_eq`, `Expr.mkData_eq`, `Expr.replace_eq`, `Level.hasParam_eq` and two
+`_native.bv_decide` axioms. Every one of the six is already in the capstone's cluster, so
+neither the capstone's footprint nor any rung's grows; `bridgeEnv_of_regInv` sheds the cluster
+with the level-parameter-freedom premise that used to carry it.
 
 ## (b) Class-**D**: permanent named binders
 
@@ -134,7 +136,7 @@ appear by name in the statements that take them, and `lake exe green-check` is t
 |---|---|---|
 | `hrun` | the `#erase` run produced the committed `.ast` | `green-check` re-runs `#erase` and byte-diffs the file; `IO.RealWorld` is opaque, so no Lean proof of this can exist |
 | `htbl` | the reified `SourceTable` is the live environment's slice, including the `prepare_erasure` run clause, which pins the compiler body up to α (`Witness.Expr.AlphaEq`: binder names and binder info ignored, nothing else) | `lake exe reify --check` compares field by field against the live environment, and cross-checks `Expr.eqv` against a Boolean written arm-for-arm against the relation |
-| `hsafe` | `TableSafe`: every declaration the reified table pins — constants, inductive types and their constructors — is safe in the ambient environment, the one column `SourceTableAdequate` does not record, plus two clauses about the table's own constant column: `notUnsafeRec`, no tabled constant is an `_unsafe_rec` companion, which is the guard `lookup_adequate.declInfo`'s membership arm takes, and `declCtor`, a tabled constant that `lenv` declares a constructor is in the table's constructor column too, which is what `Erasure.visitConstApp` needs to read the fragment's saturation condition at a `getCtorArity?` hit. Load-bearing four times: `Green.g1_compilerBodies`, `supportedB_sound`, `step6` and `step_visitConstApp` | `lake exe reify --check` reads the live declarations for the three safety clauses; the column is an upstream ask. `notUnsafeRec` is decidable on a concrete table and `declCtor` holds by construction of `Witness.reify%`, whose `.ctorInfo` arm reifies the constructor's own inductive block; no `reify` verb reads either |
+| `hsafe` | `TableSafe`: every declaration the reified table pins — constants, inductive types and their constructors — is safe in the ambient environment, the one column `SourceTableAdequate` does not record, plus two clauses about the table's own constant column: `notUnsafeRec`, no tabled constant is an `_unsafe_rec` companion, which is the guard `lookup_adequate.declInfo`'s membership arm takes, and `declCtor`, a tabled constant that `lenv` declares a constructor is in the table's constructor column too, which is what `Erasure.visitConstApp` needs to read the fragment's saturation condition at a `getCtorArity?` hit, and `noMaxLevels`, every tabled body is in the `max`-free level fragment, which is the fragment `Erases.instL` transports a body's erasure along and so what the δ arm's `TabledLevels` spends. Load-bearing five times: `Green.g1_compilerBodies`, `supportedB_sound`, `step6`, `step_visitConstApp` and `tabledLevels_of_table` | `lake exe reify --check` reads the live declarations for the three safety clauses; the column is an upstream ask. `notUnsafeRec`, `declCtor` and `noMaxLevels` are decidable on a concrete table, and the first two hold by construction of `Witness.reify%`, whose `.ctorInfo` arm reifies the constructor's own inductive block; no `reify` verb reads any of the three |
 | `env_connect` | the ambient `Lean.Environment` is `TrEnv`-related to the `VEnv` the specification quantifies over | upstream ask 4 would derive it |
 | `lookup_adequate` | a run's constant and inductive lookups agree with the specification environment. Three clauses are guarded or two-sided: `declInfo` puts the visited name in the block `Lean.Compiler.LCNF.getDeclInfo?` answers with, under the guard `Lean.Compiler.isUnsafeRecName? n = none` — the primitive prefers the `_unsafe_rec` twin, so the membership is false at such a name — and answers `none` only for a name `lenv` does not know, which is what makes the query total at a tabled head; `ctorArity` answers exactly for the constructors `lenv` declares and for no other name, whose negative direction is `Motive4`'s constructor exclusion; `casesInfo` answers exactly for the `casesOn` constants, at metadata agreeing with the declared block through `CasesInfoAgreesK`, whose `numAlts` and `discrPos` `CasesInfoAgrees.of_pinned` carries to the reified block | — |
 | `prim_monotone` | the four calls the erasure makes for their effect alone — `Lean.getEnv`, `Lean.logInfo`, `Lean.Meta.isInstance`, `Lean.Meta.inferType` — only advance the name generator, and `inferType`'s Π-telescope matches the subject's λ-telescope (`ForallMatchesLam`) | — |

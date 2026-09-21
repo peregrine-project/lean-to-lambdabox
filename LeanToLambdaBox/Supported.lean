@@ -1,4 +1,5 @@
 import LeanToLambdaBox.CasesNames
+import LeanToLambdaBox.ErasesAbstract
 import LeanToLambdaBox.ErasureSpec
 import LeanToLambdaBox.Semantics.Compute
 import LeanToLambdaBox.Witness.SourceTable
@@ -455,6 +456,10 @@ structure TableSafe (lenv : Lean.Environment) (tbl : SourceTable) : Prop where
       columns, and no `reify` verb reads it. -/
   declCtor : ∀ (c : Name) (cv : ConstructorVal), (tbl.decl? c).isSome →
     lenv.find? c = some (.ctorInfo cv) → (ctorOf? tbl c).isSome
+  /-- Every tabled body is in the `max`-free level fragment that `Erases.instL` transports
+      along, so the δ arm can read a body erased at the declaration's own level scope at the
+      call site's scope. Decidable on a concrete table, like `notUnsafeRec`. -/
+  noMaxLevels : ∀ (n : Name) (b : Expr), tbl.body? n = some b → NoMaxLevels b
 
 /-! ## The fragment -/
 

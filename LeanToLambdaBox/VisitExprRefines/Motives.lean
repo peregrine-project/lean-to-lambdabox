@@ -38,7 +38,7 @@ reader's fixvar mode. -/
 def RunRefines (env : VEnv) (Us : List Name) (tbl : SourceTable) (ctx : ErasureContext)
     (Δ : VLCtx) (s s' : ErasureState) (gen gen' : NameGenerator) (e : Expr) (t : LBTerm) : Prop :=
   RunConcl s s' ∧ IndRegistryModelled env s' ∧ gen ≤ gen' ∧
-    ∀ Γspec, SpecEnv env tbl.body? s' Γspec → ErasesLBMode tbl ctx env Us Γspec Δ e t
+    ∀ Γspec, SpecEnv env tbl.body? tbl.levels? s' Γspec → ErasesLBMode tbl ctx env Us Γspec Δ e t
 
 /-- `RunRefines` for `Erasure.visitAlt`, whose result is a `case` alternative rather than a
 term. -/
@@ -46,13 +46,14 @@ def RunRefinesAlt (env : VEnv) (Us : List Name) (tbl : SourceTable) (ctx : Erasu
     (Δ : VLCtx) (s s' : ErasureState) (gen gen' : NameGenerator) (nf : Nat) (m : Expr)
     (alt : List BinderName × LBTerm) : Prop :=
   RunConcl s s' ∧ IndRegistryModelled env s' ∧ gen ≤ gen' ∧
-    ∀ Γspec, SpecEnv env tbl.body? s' Γspec → ErasesLBAltMode tbl ctx env Us Γspec Δ nf m alt
+    ∀ Γspec, SpecEnv env tbl.body? tbl.levels? s' Γspec →
+      ErasesLBAltMode tbl ctx env Us Γspec Δ nf m alt
 
 /-- The head premise of `Erasure.visitAppArgs`' motive, read at the *initial* state: the caller
 holds the head's refinement there, and `SpecEnv.mono` re-reads a final-state environment at it. -/
 def HeadRefines (env : VEnv) (Us : List Name) (tbl : SourceTable) (ctx : ErasureContext)
     (Δ : VLCtx) (s : ErasureState) (e : Expr) (t : LBTerm) : Prop :=
-  ∀ Γspec, SpecEnv env tbl.body? s Γspec → ErasesLBMode tbl ctx env Us Γspec Δ e t
+  ∀ Γspec, SpecEnv env tbl.body? tbl.levels? s Γspec → ErasesLBMode tbl ctx env Us Γspec Δ e t
 
 /-- The fragment and translation conditions on the arguments of a spine, at the array the run
 carries them in. -/

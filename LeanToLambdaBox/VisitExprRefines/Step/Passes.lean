@@ -925,7 +925,7 @@ theorem step_visitCases {lenv : Environment} {env : VEnv} {Us : List Name}
       Subarray.array acc.2.1 = ci.altNumParams ∧ Subarray.start acc.2.1 = pre.length ∧
         Subarray.stop acc.2.1 = ci.altNumParams.size ∧
       acc.2.2 = rr.2.drop pre.length ∧
-      ∀ Γspec, SpecEnv env tbl.body? s₇ Γspec →
+      ∀ Γspec, SpecEnv env tbl.body? tbl.levels? s₇ Γspec →
         ∀ j, j < pre.length →
           ErasesLBAltMode tbl ctx env Us Γspec Δ (I.ctors.map (·.numFields))[j]!
             args[ci.altsRange.lower + j]! acc.1[j]!)
@@ -1047,7 +1047,7 @@ theorem step_visitCases {lenv : Environment} {env : VEnv} {Us : List Name}
     have hks : k < args.size := by omega
     rw [getElem!_pos (args.toList.take ci.arity) k (by simp; omega), hAL k hks,
       getElem!_pos args.toList k (by simpa using hks), List.getElem_take]
-  have hcase : ∀ Γspec, SpecEnv env tbl.body? s₃ Γspec →
+  have hcase : ∀ Γspec, SpecEnv env tbl.body? tbl.levels? s₃ Γspec →
       ErasesLBMode tbl ctx env Us Γspec Δ
         ((args.toList.take ci.arity).foldl Expr.app (.const con us))
         (.case (rr.1, iv.numParams) disc accF.1.toList) := by
@@ -1110,7 +1110,7 @@ theorem step_visitCases {lenv : Environment} {env : VEnv} {Us : List Name}
   have htailP := run_array_forIn_ok' ctx cctx ref
     (P := fun pre acc s₉ w₉ =>
       RunConcl s₃ s₉ ∧ IndRegistryModelled env s₉ ∧ gw w₃ ≤ gw w₉ ∧
-      ∀ Γspec, SpecEnv env tbl.body? s₉ Γspec →
+      ∀ Γspec, SpecEnv env tbl.body? tbl.levels? s₉ Γspec →
         ErasesLBMode tbl ctx env Us Γspec Δ
           (pre.foldl Expr.app ((args.toList.take ci.arity).foldl Expr.app (.const con us))) acc)
     ⟨RunConcl.rfl' _, hloopP.2.1, NameGenerator.LE.rfl, hcase⟩

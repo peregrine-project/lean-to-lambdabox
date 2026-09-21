@@ -167,7 +167,7 @@ abbrev VisitExprRefinesLB (env : VEnv) (Us : List Name) (tbl : SourceTable)
     TrExprS env Us Δ e ve → Supported env tbl e → ctx.fixvars = none →
     Erasure.visitExpr e s ctx cctx ref w = .ok (t, s') w' →
     BridgeInv env Us tbl cfg (gw w) ctx s Δ →
-    ∀ Γspec, SpecEnv env tbl.body? s' Γspec →
+    ∀ Γspec, SpecEnv env tbl.body? tbl.levels? s' Γspec →
       ErasesLB env Us Γspec Δ e t ∧ RunConcl s s' ∧ gw w ≤ gw w'
 
 /-- **T8 inside a mutual block.** The same run under the reader `Erasure.visitMutual` installs
@@ -183,7 +183,7 @@ abbrev VisitExprRefinesLBFix (env : VEnv) (Us : List Name) (tbl : SourceTable)
     BlockKeyed tbl ctx nms ids →
     Erasure.visitExpr e s ctx cctx ref w = .ok (t, s') w' →
     BridgeInv env Us tbl cfg (gw w) ctx s Δ →
-    ∀ Γspec, SpecEnv env tbl.body? s' Γspec →
+    ∀ Γspec, SpecEnv env tbl.body? tbl.levels? s' Γspec →
       ErasesLBFix env Us Γspec (nms.map toKername) ids Δ e t ∧ RunConcl s s' ∧ gw w ≤ gw w'
 
 /-- **T8, ambient mode.** Motive 1 of the induction, read at `ctx.fixvars = none`. -/
@@ -259,7 +259,7 @@ theorem visitExpr_refines_erasesLB_shape :
         TrExprS env Us Δ e ve → Supported env tbl e → ctx.fixvars = none →
         Erasure.visitExpr e s ctx cctx ref w = .ok (t, s') w' →
         BridgeInv env Us tbl cfg (gw w) ctx s Δ →
-        ∀ Γspec, SpecEnv env tbl.body? s' Γspec →
+        ∀ Γspec, SpecEnv env tbl.body? tbl.levels? s' Γspec →
           ErasesLB env Us Γspec Δ e t ∧ RunConcl s s' ∧ gw w ≤ gw w' :=
   Iff.rfl
 
@@ -273,7 +273,7 @@ theorem visitExpr_refines_erasesLBFix_shape :
         BlockKeyed tbl ctx nms ids →
         Erasure.visitExpr e s ctx cctx ref w = .ok (t, s') w' →
         BridgeInv env Us tbl cfg (gw w) ctx s Δ →
-        ∀ Γspec, SpecEnv env tbl.body? s' Γspec →
+        ∀ Γspec, SpecEnv env tbl.body? tbl.levels? s' Γspec →
           ErasesLBFix env Us Γspec (nms.map toKername) ids Δ e t ∧ RunConcl s s' ∧
             gw w ≤ gw w' :=
   Iff.rfl

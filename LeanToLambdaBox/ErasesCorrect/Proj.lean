@@ -38,9 +38,10 @@ open Lean Lean4Lean
 /-- **The projection arm.** The subject is the projection node, the induction hypotheses
 come with the rule's own subderivations, and the target is the emitted `.proj` node at the
 same triple. -/
-theorem step_proj {env : VEnv} {bo : Name → Option Expr} {Us : List Name}
+theorem step_proj {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
+    {Us : List Name}
     {fl : SEvalFlags} {Γspec Γ : GlobalDeclarations} :
-    StepProj env bo Us fl Γspec Γ := by
+    StepProj env bo lp Us fl Γspec Γ := by
   intro A Sn ctor i np nfR cidx cus disc r cargs henv henvL hfl hct hnp hdiscr ihdiscr hlt
     hdef hcont ihcont ve t₀ t hwt her hlow hspec
   have hΔ : VLCtx.WF env Us.length ([] : VLCtx) := trivial
@@ -56,7 +57,7 @@ theorem step_proj {env : VEnv} {bo : Name → Option Expr} {Us : List Name}
   obtain ⟨_, usS, _, params, _, _, hpc⟩ := hproj
   obtain ⟨hdec, mib, hmib, -, oib, hoib, hprop, -⟩ :=
     hspec.blocks hs (reachableFrom_of_mem_constRefs (by simp [constRefs]))
-  have hspecd : ErasesEnv env bo Γspec d := hspec.subterm (.proj .refl)
+  have hspecd : ErasesEnv env bo lp Γspec d := hspec.subterm (.proj .refl)
   obtain ⟨dv₀, dv', herdv, hlowdv, hEdisc, hspecdv⟩ := ihdiscr htrd herdisc hlowd hspecd
   obtain ⟨vv, htrvv, hdefvv⟩ := SEval.defeq henv hΔ htrd hdiscr
   have hvvty : env.HasType Us.length (VLCtx.toCtx []) vv
@@ -97,7 +98,7 @@ theorem step_proj {env : VEnv} {bo : Name → Option Expr} {Us : List Name}
     forall₂_getElem! hcts _ hlt
   have hlowfield : Lower Γspec cargs₀[np + i]! cargs'[np + i]! :=
     hcpt _ (by omega)
-  have hspecfield : ErasesEnv env bo Γspec cargs₀[np + i]! :=
+  have hspecfield : ErasesEnv env bo lp Γspec cargs₀[np + i]! :=
     hspecdv.subterm (subTerm_mkApps_arg _ _ _ (Lower.getElem!_mem (by omega)))
   obtain ⟨_, _, -, htrfield, -⟩ := hdef
   obtain ⟨r₀, r', herr, hlowr, hEr, hspecr⟩ :=

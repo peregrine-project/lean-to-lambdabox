@@ -323,7 +323,7 @@ theorem step_visitAppArgs : Step7 lenv env Us tbl cfg gw := by
   have hP := run_array_foldlM_ok ctx cctx ref
     (P := fun pre acc s₁ w₁ =>
       RunConcl s s₁ ∧ IndRegistryModelled env s₁ ∧ gw w ≤ gw w₁ ∧
-        ∀ Γspec, SpecEnv env tbl.body? s₁ Γspec →
+        ∀ Γspec, SpecEnv env tbl.body? tbl.levels? s₁ Γspec →
           ErasesLBMode tbl ctx env Us Γspec Δ (pre.foldl Expr.app e) acc)
     ⟨RunConcl.rfl' _, hinv.indcanon, NameGenerator.LE.rfl, hhd⟩
     (fun pre x post acc s₁ w₁ acc' s₂ w₂ hLpre hPacc hg => by
@@ -390,7 +390,8 @@ theorem step_visitExpr (E : EraserAsks lenv env Us gw) : Step1 lenv env Us tbl c
         hinv.lparams (hvlctx ▸ hve)
     have hnext : ∀ {t₀ : LBTerm} {s₂ : ErasureState} {w₂ : Void IO.RealWorld},
         RunConcl s s₂ ∧ IndRegistryModelled env s₂ ∧ gw w₁ ≤ gw w₂ ∧
-          (∀ Γspec, SpecEnv env tbl.body? s₂ Γspec → ErasesLBMode tbl ctx env Us Γspec Δ e t₀) →
+          (∀ Γspec, SpecEnv env tbl.body? tbl.levels? s₂ Γspec →
+            ErasesLBMode tbl ctx env Us Γspec Δ e t₀) →
         RunRefines env Us tbl ctx Δ s s₂ (gw w) (gw w₂) e t₀ :=
       fun ⟨h1, h2, h3, h4⟩ => ⟨h1, h2, NameGenerator.LE.trans hle₁ h3, h4⟩
     obtain ⟨hterm, hbodies, hkn⟩ := hsupp

@@ -569,13 +569,14 @@ an `ElimBody`, and a body-less non-eliminator's entry is `⟨none⟩`. The `Eras
 `ErasesEnv.runtimeKey_isCasesOn`; this is the `SpecContent` one, which is what a motive holding
 a `SpecEnv` and no program has. -/
 theorem SpecContent.runtimeKey_isCasesOn {env : VEnv} {bo : Name → Option Expr}
-    {Γspec : GlobalDeclarations} (H : SpecContent env bo Γspec) {c : Name}
+    {lp : Name → List Name} {Γspec : GlobalDeclarations} (H : SpecContent env bo lp Γspec)
+    {c : Name}
     (hco : ConstOrigin env c) (hrk : RuntimeKey Γspec (toKername c)) :
     isCasesOnName c = true := by
   obtain ⟨iid, np, dp, nfs, ⟨body, hlook, helim⟩, -⟩ := hrk
   by_cases hb : ∃ b, bo c = some b
   · obtain ⟨b, hb⟩ := hb
-    obtain ⟨b₀, Us, hlook', her⟩ := H.defns c b hb (by rw [hlook]; simp)
+    obtain ⟨b₀, hlook', her⟩ := H.defns c b hb (by rw [hlook]; simp)
     rw [hlook] at hlook'
     cases hlook'
     exact absurd (erases_ne_elimBody her (iid := iid) (np := np) (dp := dp) (nfs := nfs))
@@ -592,7 +593,8 @@ theorem SpecContent.runtimeKey_isCasesOn {env : VEnv} {bo : Name → Option Expr
 
 /-- A plain constant of the fragment is not a runtime key of any specification environment. -/
 theorem specEnv_not_runtimeKey {env : VEnv} {bo : Name → Option Expr}
-    {Γspec : GlobalDeclarations} (H : SpecContent env bo Γspec) {c : Name}
+    {lp : Name → List Name} {Γspec : GlobalDeclarations} (H : SpecContent env bo lp Γspec)
+    {c : Name}
     (hco : ConstOrigin env c) (hcas : isCasesOnName c = false) :
     ¬ RuntimeKey Γspec (toKername c) := by
   intro hrk
@@ -624,7 +626,7 @@ theorem visitConst_refines {env : VEnv} {Us : List Name} {tbl : SourceTable}
         isCasesOnName n = false → env.constants n = some ci → ConstOrigin env n →
         (tbl.decl? n).isSome → Supported env tbl e →
         RunConcl s s' ∧ IndRegistryModelled env s' ∧ gw w ≤ gw w' ∧
-          ∀ Γspec, SpecEnv env tbl.body? s' Γspec →
+          ∀ Γspec, SpecEnv env tbl.body? tbl.levels? s' Γspec →
             ErasesLBMode tbl ctx env Us Γspec Δ e t := by
   intro e s ctx cctx ref w t s' w' hrun Δ n us ci hinv he hcas hcst hco htab hsup
   subst he

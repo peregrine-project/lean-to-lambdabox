@@ -262,9 +262,10 @@ theorem Lower.source_constApp {Γ : GlobalDeclarations} {kn : Kername} :
 /-- **The ι arm.** The subject is the `casesOn` spine, the induction hypotheses come with
 the rule's own subderivations, and the target is the emitted `.case` node with the
 over-application riding outside it. -/
-theorem step_iota {env : VEnv} {bo : Name → Option Expr} {Us : List Name}
+theorem step_iota {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
+    {Us : List Name}
     {fl : SEvalFlags} {Γspec Γ : GlobalDeclarations} :
-    StepIota env bo Us fl Γspec Γ := by
+    StepIota env bo lp Us fl Γspec Γ := by
   intro A con I ctor us cus pre prev minors minorsv extra extrav cargs disc r np cidx nfsR
     henv henvL hfl hsh ho hct hnp hinf hpre hpres hdiscr ihdiscr hmin hmins hxlen hxs hidx
     hdef hcont ihcont ve t₀ t hwt her hlow hspec
@@ -275,7 +276,7 @@ theorem step_iota {env : VEnv} {bo : Name → Option Expr} {Us : List Name}
     .iota hfl hsh ho hct hnp hinf hpre (fun i hi => (hpres i hi).1) hdiscr hmin
       (fun i hi => (hmins i hi).1) hxlen (fun i hi => (hxs i hi).1) hidx hdef hcont
   have ihmem : ∀ a ∈ pre ++ disc :: minors ++ extra,
-      ∃ av, Simulates env bo Us Γspec Γ a av := by
+      ∃ av, Simulates env bo lp Us Γspec Γ a av := by
     intro a ha
     rcases List.mem_append.1 ha with h1 | h2
     · rcases List.mem_append.1 h1 with h3 | h4
@@ -288,7 +289,7 @@ theorem step_iota {env : VEnv} {bo : Name → Option Expr} {Us : List Name}
     · obtain ⟨i, hi, rfl⟩ := Lower.mem_getElem! h2
       exact ⟨_, (hxs i hi).2⟩
   have hargEv : ∀ a ∈ pre ++ disc :: minors ++ extra, ∀ (s u : LBTerm),
-      Erases env Us [] a s → ErasesEnv env bo Γspec s → Lower Γspec s u →
+      Erases env Us [] a s → ErasesEnv env bo lp Γspec s → Lower Γspec s u →
       ∃ x, WcbvEval Γ eraseFlags u x := by
     intro a ha s u hes hss hsu
     obtain ⟨w, htrw⟩ := trExprS_spine_mem _ hwt a ha
@@ -324,7 +325,7 @@ theorem step_iota {env : VEnv} {bo : Name → Option Expr} {Us : List Name}
     forall₂_split3 hts hpl (by rw [hml, hnme])
   obtain ⟨w, htrdisc⟩ := trExprS_spine_mem _ hwt disc (by simp)
   obtain ⟨ius, iargs, hwty⟩ := elim_major henv hsh rfl rfl hwt htrdisc
-  have hspecdisc : ErasesEnv env bo Γspec tdisc :=
+  have hspecdisc : ErasesEnv env bo lp Γspec tdisc :=
     hspec.subterm (subTerm_mkApps_arg _ _ _ (by simp))
   obtain ⟨dv₀, dv', herdv, hlowdv, hEdisc, hspecdv⟩ := ihdiscr htrdisc herdisc hdiscL hspecdisc
   obtain ⟨vv, htrvv, hdefvv⟩ := SEval.defeq henv hΔ htrdisc hdiscr
@@ -380,7 +381,7 @@ theorem step_iota {env : VEnv} {bo : Name → Option Expr} {Us : List Name}
     obtain ⟨hdl, hdp⟩ := lower_drop np hclen hcpt
     obtain ⟨hal', hap⟩ := lower_append hdl hdp hxl hxL
     exact Lower.mkApps hlowmin hal' hap
-  have hspeccont : ErasesEnv env bo Γspec
+  have hspeccont : ErasesEnv env bo lp Γspec
       (LBTerm.mkApps tminors[cidx]! (cargs₀.drop np ++ textra)) := by
     refine ErasesEnv.mkApps (hspec.subterm (subTerm_mkApps_arg _ _ _ ?_)) (fun x hx => ?_)
     · exact List.mem_append_left _ (List.mem_append_right _

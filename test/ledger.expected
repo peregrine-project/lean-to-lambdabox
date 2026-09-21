@@ -1,9 +1,36 @@
-'LeanToLambdaBox.erases_correct' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
-'LeanToLambdaBox.erases_correct_lb' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+'LeanToLambdaBox.erases_correct' depends on axioms: [propext,
+ sorryAx,
+ Classical.choice,
+ Quot.sound,
+ Lean.Expr.mkAppData_eq,
+ Lean.Expr.mkData_eq,
+ Lean.Expr.replace_eq,
+ Lean.Level.hasParam_eq,
+ Lean.Expr.mkData_flags._native.bv_decide.ax_1_12✝,
+ Lean.Expr.Data.looseBVarRange_le._native.bv_decide.ax_1_7]
+'LeanToLambdaBox.erases_correct_lb' depends on axioms: [propext,
+ sorryAx,
+ Classical.choice,
+ Quot.sound,
+ Lean.Expr.mkAppData_eq,
+ Lean.Expr.mkData_eq,
+ Lean.Expr.replace_eq,
+ Lean.Level.hasParam_eq,
+ Lean.Expr.mkData_flags._native.bv_decide.ax_1_12✝,
+ Lean.Expr.Data.looseBVarRange_le._native.bv_decide.ax_1_7]
 'LeanToLambdaBox.erases_correct_of_steps' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
 'LeanToLambdaBox.step_iota' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
 'LeanToLambdaBox.step_proj' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
-'LeanToLambdaBox.step_delta' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+'LeanToLambdaBox.step_delta' depends on axioms: [propext,
+ sorryAx,
+ Classical.choice,
+ Quot.sound,
+ Lean.Expr.mkAppData_eq,
+ Lean.Expr.mkData_eq,
+ Lean.Expr.replace_eq,
+ Lean.Level.hasParam_eq,
+ Lean.Expr.mkData_flags._native.bv_decide.ax_1_12✝,
+ Lean.Expr.Data.looseBVarRange_le._native.bv_decide.ax_1_7]
 'LeanToLambdaBox.ErasesEnv.runtimeKey_isCasesOn' depends on axioms: [propext, Classical.choice, Quot.sound]
 'LeanToLambdaBox.erases_elimSpine_no_value' depends on axioms: [propext, Classical.choice, Quot.sound]
 'LeanToLambdaBox.ErasesEnv.ctorArity' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -88,15 +115,7 @@
  Lean.PersistentHashMap.WF.toList'_insert,
  Lean.Expr.mkData_flags._native.bv_decide.ax_1_12✝,
  Lean.Expr.Data.looseBVarRange_le._native.bv_decide.ax_1_7]
-'LeanToLambdaBox.bridgeEnv_of_regInv' depends on axioms: [propext,
- Classical.choice,
- Quot.sound,
- Lean.Expr.mkAppData_eq,
- Lean.Expr.mkData_eq,
- Lean.Expr.replace_eq,
- Lean.Level.hasParam_eq,
- Lean.Expr.mkData_flags._native.bv_decide.ax_1_12✝,
- Lean.Expr.Data.looseBVarRange_le._native.bv_decide.ax_1_7]
+'LeanToLambdaBox.bridgeEnv_of_regInv' depends on axioms: [propext, Classical.choice, Quot.sound]
 'LeanToLambdaBox.Green.green_G1' depends on axioms: [propext,
  sorryAx,
  Classical.choice,

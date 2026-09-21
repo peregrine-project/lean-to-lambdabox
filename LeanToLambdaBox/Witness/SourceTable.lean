@@ -79,6 +79,12 @@ environment-erasure relation. -/
 def SourceTable.body? (tbl : SourceTable) : Name → Option Expr :=
   fun n => (tbl.decl? n).bind (·.body?)
 
+/-- The level-parameter column, beside `body?`: `cst_universes` of the declaration
+(`../metarocq/erasure/theories/Extract.v:264`), which is the scope the eraser erases the
+declaration's body at. An untabled name answers `[]`. -/
+def SourceTable.levels? (tbl : SourceTable) (n : Name) : List Name :=
+  ((tbl.decl? n).map (·.levelParams)).getD []
+
 /-- A successful `List.lookup` finds a member of the list. -/
 theorem mem_of_lookup {α : Type} {n : Name} {a : α} :
     ∀ {l : List (Name × α)}, l.lookup n = some a → (n, a) ∈ l
@@ -242,6 +248,19 @@ theorem SourceTableAdequate.body?_prepared {lenv : Environment} {tbl : SourceTab
   | some d =>
     rw [SourceTable.body?, SourceTable.decl?, hd] at hb
     exact (h.decls n d (mem_of_lookup hd)).2 b hb
+
+/-- Adequacy at the level column: a tabled name's level scope is the one `lenv` declares it
+with. `ReifiedDecl.Pinned`'s `levelParams` conjunct, read through the lookup interface. -/
+theorem SourceTableAdequate.levels?_eq {lenv : Environment} {tbl : SourceTable} {n : Name}
+    {ci : ConstantInfo} (h : SourceTableAdequate lenv tbl) (hd : (tbl.decl? n).isSome)
+    (hci : lenv.find? n = some ci) : tbl.levels? n = ci.levelParams := by
+  cases hl : tbl.decls.lookup n with
+  | none => rw [SourceTable.decl?, hl] at hd; simp at hd
+  | some d =>
+    obtain ⟨ci', hci', hlp, -⟩ := (h.decls n d (mem_of_lookup hl)).1
+    obtain rfl : ci' = ci := Option.some.inj (hci'.symm.trans hci)
+    rw [SourceTable.levels?, SourceTable.decl?, hl]
+    exact hlp.symm
 
 /-! ## Reification -/
 
