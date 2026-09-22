@@ -113,6 +113,18 @@ structure RegSaturated (env : VEnv) (Γspec : GlobalDeclarations) (s : ErasureSt
     ∃ (n : Name) (iid : InductiveId) (np : Nat) (nfs : List Nat),
       (s.inductives.get? n).isSome ∧ IndInfo env n iid np nfs ∧ kn = iid.mutualBlockName
 
+/-- A specification key that is not a runtime key has *some* emitted entry of the matching
+shape. MetaRocq's pruning statement (`erases_global_decls`, `../metarocq/erasure/theories/
+Extract.v:284`) reads the same way: the emitted environment answers the keys the
+specification keeps, not their bodies. -/
+structure SpecKeysEmitted (Γspec : GlobalDeclarations) (s : ErasureState) : Prop where
+  consts : ∀ (kn : Kername) (cb : ConstantBody),
+    LBTerm.envLookup Γspec kn = some (.constantDecl cb) → ¬ RuntimeKey Γspec kn →
+    ∃ cb' : ConstantBody, (kn, GlobalDecl.constantDecl cb') ∈ s.gdecls
+  inds : ∀ (kn : Kername) (mib : MutualInductiveBody),
+    LBTerm.envLookup Γspec kn = some (.inductiveDecl mib) →
+    ∃ mib' : MutualInductiveBody, (kn, GlobalDecl.inductiveDecl mib') ∈ s.gdecls
+
 /-- The invariant, read as a specification environment: the three fields are exactly the
 invariant's specification-side ones. -/
 theorem RegInvShape'.specEnv {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
@@ -151,23 +163,20 @@ theorem RegInvShape'.lowerEnv {env : VEnv} {bo : Name → Option Expr} {lp : Nam
   closed := H.closed
   specClosed := H.specClosed
 
-/-- **`RegSaturated`, from `RegKeyed` at the emitted environment.** `hsub` is the fact
-`08-REPAIRS-W5.md` §2.2 anticipates: once `Γspec` is built *from* the emitted environment
-(plus specification-only eliminator entries, which `RegKeyed` never answers for — no
-eliminator body is registered, `RegInvShape'.lowerEnv`'s docstring), every other entry of
-`Γspec` is an unchanged copy of the emitted one, so a lookup that succeeds in `Γspec` succeeds
-at the *same* declaration in `s.gdecls`. Reading that declaration's shape off `RegKeyed`
-supplies each clause directly, with no case left over to exclude — `_H` is not itself spent;
-it is the invariant every call site already carries alongside `hk`/`hsub`. -/
-theorem regSaturated_of_regKeyed {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
-    {Γspec : GlobalDeclarations} {s : ErasureState}
-    (_H : RegInvShape' env bo lp Γspec s) (hk : RegKeyed env s)
-    (hsub : ∀ kn d, LBTerm.envLookup Γspec kn = some d → LBTerm.envLookup s.gdecls kn = some d) :
+/-- **`RegSaturated`, from `RegKeyed` at the emitted environment and `SpecKeysEmitted`.**
+Reading each clause off the emitted entry's own *shape* is what `RegKeyed` supplies once
+`SpecKeysEmitted` transfers a specification key to some matching emitted entry — no case is
+left over to exclude, and neither field reads a body. -/
+theorem regSaturated_of_regKeyed {env : VEnv} {Γspec : GlobalDeclarations} {s : ErasureState}
+    (hk : RegKeyed env s) (hs : SpecKeysEmitted Γspec s) :
     RegSaturated env Γspec s where
-  consts kn b₀ hd _hrk := by
-    obtain ⟨n, hn, hns⟩ := hk.consts kn ⟨some b₀⟩ (envLookup_mem (hsub kn _ hd))
+  consts kn b₀ hd hrk := by
+    obtain ⟨cb', hmem⟩ := hs.consts kn ⟨some b₀⟩ hd hrk
+    obtain ⟨n, hn, hns⟩ := hk.consts kn cb' hmem
     exact ⟨n, hn.symm, hns⟩
-  inds kn d hd := hk.inds kn d (envLookup_mem (hsub kn _ hd))
+  inds kn d hd := by
+    obtain ⟨mib', hmem⟩ := hs.inds kn d hd
+    exact hk.inds kn mib' hmem
 
 /-! ## The δ column of `ErasesEnv`, from the registry -/
 
