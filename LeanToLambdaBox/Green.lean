@@ -1350,9 +1350,11 @@ environment never carries. The step that adds it is the **inductive** registrati
 `.case` node's: `SpecContent.blocks` fires at every declared block key and answers with
 `IndCovered`, whose `elims` field demands the informative inductive's `casesOn` declaration,
 so the entry is owed the moment `Erasure.register_inductive` puts the block key into
-`Γspec`. That is what makes the growth at such a step a `SpecGrow` —
-`SpecGrow.of_fresh`'s freshness clause — and it is measured here on the rungs whose tables
-hold a `casesOn` constant. -/
+`Γspec` — on **every** rung, including the four whose tables hold no `casesOn` name. The
+measurement is therefore taken at all eight, and at every eliminator key rather than at the
+tabled ones: `toKername` sends `I.casesOn` to a kername whose identifier is `casesOn`, and no
+rung emits such a key. The block key of the prefix is not covered here — it is emitted, and
+its freshness is `Erasure.checkIndKernameFresh`'s at the state the step runs from. -/
 
 /-- **G7's run eliminates with `Nat.casesOn`**: it is tabled and it is a `casesOn` name, so
 the measurement below is not vacuous. -/
@@ -1360,19 +1362,39 @@ theorem g7_natCasesOn_tabled :
     ``Nat.casesOn ∈ g7Table.decls.map Prod.fst ∧ isCasesOnName ``Nat.casesOn = true := by
   decide +kernel
 
-/-- **No eliminator key is emitted.** At each of the four rungs whose table holds a `casesOn`
-constant — `Nat.casesOn` at all four — the emitted environment declares no such key. `gdecls`
-only grows along a run, so a key absent from the final environment is absent at every
-intermediate state the run passes through. -/
-theorem elimKeys_undeclared :
-    (∀ n ∈ g5Table.decls.map Prod.fst, isCasesOnName n = true →
-      (LBTerm.envLookup g5Env (toKername n)).isNone) ∧
-    (∀ n ∈ g6Table.decls.map Prod.fst, isCasesOnName n = true →
-      (LBTerm.envLookup g6Env (toKername n)).isNone) ∧
-    (∀ n ∈ g7Table.decls.map Prod.fst, isCasesOnName n = true →
-      (LBTerm.envLookup g7Env (toKername n)).isNone) ∧
-    (∀ n ∈ g8Table.decls.map Prod.fst, isCasesOnName n = true →
-      (LBTerm.envLookup g8Env (toKername n)).isNone) := by decide +kernel
+/-- An eliminator name's kername carries the identifier `casesOn`: `toKername` keeps the last
+string component, which `cleanIdent` leaves alone. -/
+theorem toKername_id_of_isCasesOnName {c : Name} (h : isCasesOnName c = true) :
+    (toKername c).id = "casesOn" := by
+  cases c with
+  | anonymous => simp [isCasesOnName, lastComponent] at h
+  | num p n => simp [isCasesOnName, lastComponent] at h
+  | str p s =>
+    rw [isCasesOnName, lastComponent] at h
+    have hs : s = "casesOn" := by simpa using h
+    subst hs
+    rfl
+
+/-- **No emitted key is an eliminator's**, at all eight rungs. `gdecls` only grows along a
+run, so a key absent from the final environment is absent at every intermediate state. -/
+theorem noCasesOnKeys :
+    (∀ p : Kername × GlobalDecl, p ∈ g1Env → p.1.id ≠ "casesOn") ∧
+    (∀ p : Kername × GlobalDecl, p ∈ g2Env → p.1.id ≠ "casesOn") ∧
+    (∀ p : Kername × GlobalDecl, p ∈ g3Env → p.1.id ≠ "casesOn") ∧
+    (∀ p : Kername × GlobalDecl, p ∈ g4Env → p.1.id ≠ "casesOn") ∧
+    (∀ p : Kername × GlobalDecl, p ∈ g5Env → p.1.id ≠ "casesOn") ∧
+    (∀ p : Kername × GlobalDecl, p ∈ g6Env → p.1.id ≠ "casesOn") ∧
+    (∀ p : Kername × GlobalDecl, p ∈ g7Env → p.1.id ≠ "casesOn") ∧
+    (∀ p : Kername × GlobalDecl, p ∈ g8Env → p.1.id ≠ "casesOn") := by decide +kernel
+
+/-- An eliminator key is undeclared in an environment no key of which carries the
+identifier — the reading `noCasesOnKeys` has at each rung. -/
+theorem elimKey_undeclared_of_noCasesOnKeys {Γe : GlobalDeclarations}
+    (h : ∀ p : Kername × GlobalDecl, p ∈ Γe → p.1.id ≠ "casesOn") {c : Name}
+    (hc : isCasesOnName c = true) : LBTerm.envLookup Γe (toKername c) = none := by
+  cases hl : LBTerm.envLookup Γe (toKername c) with
+  | none => rfl
+  | some d => exact absurd (toKername_id_of_isCasesOnName hc) (h _ (envLookup_mem hl))
 
 /-- **The emitted environments are reference-closed**, which is what `Lower.specGrow` asks of
 the environment it is read at: every declared body names only declared keys. Decided on the
@@ -1384,26 +1406,20 @@ theorem g7_constsDeclaredEnv : ConstsDeclaredEnv g7Env :=
 theorem g8_constsDeclaredEnv : ConstsDeclaredEnv g8Env :=
   constsDeclaredEnv_of_check (by decide +kernel)
 
-/-- The one key, read at the shape the growth lemma rewrites with. -/
-theorem g7_natCasesOn_undeclared :
-    LBTerm.envLookup g7Env (toKername ``Nat.casesOn) = none := by decide +kernel
-
-/-- **The specification-side eliminator entry at G7's key is a growth.** Over any environment
-whose keys the emitted one answers — which is what the registration invariant maintains — the
-entry's key is fresh, so `SpecGrow.of_fresh` applies and the pass survives the step. `hb` is
-derivable where the accumulator carries its δ column, by
-`elimBlocksDeclared_of_constsDeclaredEnv`. -/
-theorem g7_elimCons_specGrow {Γ : GlobalDeclarations} {d : GlobalDecl}
-    (hsub : ∀ kn, (LBTerm.envLookup Γ kn).isSome → (LBTerm.envLookup g7Env kn).isSome)
-    (hb : ElimBlocksDeclared Γ) :
-    SpecGrow Γ ((toKername ``Nat.casesOn, d) :: Γ) := by
-  refine SpecGrow.of_fresh (pre := [(toKername ``Nat.casesOn, d)]) ?_ hb
-  intro p hp q hq hqk
-  rw [List.mem_singleton] at hp
-  subst hp
-  have hq2 : toKername ``Nat.casesOn = q.1 := hqk
+/-- **The specification-side prefix a registration conses is a growth.** Over any environment
+whose keys the emitted one answers — which is what the registration invariant maintains — a
+prefix of keys the emitted environment misses is fresh, so `SpecGrow.of_fresh` applies and
+the pass survives the step. At a rung the prefix's eliminator keys are supplied by
+`elimKey_undeclared_of_noCasesOnKeys` off `noCasesOnKeys`. `hb` is derivable where the
+accumulator carries its δ column, by `elimBlocksDeclared_of_constsDeclaredEnv`. -/
+theorem elimPrefix_specGrow {Γ Γe pre : GlobalDeclarations}
+    (hsub : ∀ kn, (LBTerm.envLookup Γ kn).isSome → (LBTerm.envLookup Γe kn).isSome)
+    (hpre : ∀ p ∈ pre, LBTerm.envLookup Γe p.1 = none) (hb : ElimBlocksDeclared Γ) :
+    SpecGrow Γ (pre ++ Γ) := by
+  refine SpecGrow.of_fresh ?_ hb
+  intro p hp q hq hcon
   have h1 := hsub q.1 (envLookup_isSome_of_mem hq)
-  rw [← hq2, g7_natCasesOn_undeclared] at h1
+  rw [← hcon, hpre p hp] at h1
   exact Bool.noConfusion h1
 
 /-- **Rung G8's spine translates.** The subject is function-typed, so the observable's

@@ -54,6 +54,65 @@ theorem not_mem_keys_of_fresh {E : GlobalDeclarations} {k : Kername}
   obtain ⟨q, hq, hqk⟩ := List.mem_map.mp hk
   exact hfresh q hq hqk
 
+/-- A lookup the prefix answers is the append's: `envLookup` is first-match-wins, so no
+freshness is needed in this direction. -/
+theorem envLookup_append_left : ∀ {pre Γ : GlobalDeclarations} {kn : Kername} {d : GlobalDecl},
+    LBTerm.envLookup pre kn = some d → LBTerm.envLookup (pre ++ Γ) kn = some d
+  | [], _, _, _, h => by simp [LBTerm.envLookup] at h
+  | (k, _) :: pre, Γ, kn, d, h => by
+      rw [LBTerm.envLookup] at h
+      rw [List.cons_append, LBTerm.envLookup]
+      cases hb : Kername.beq k kn with
+      | true => rw [hb] at h; simpa using h
+      | false => rw [hb] at h; simpa using envLookup_append_left (Γ := Γ) (by simpa using h)
+
+/-- A lookup of an append is the prefix's, or — the prefix missing — the tail's. -/
+theorem envLookup_append_cases : ∀ {pre Γ : GlobalDeclarations} {kn : Kername} {d : GlobalDecl},
+    LBTerm.envLookup (pre ++ Γ) kn = some d →
+    LBTerm.envLookup pre kn = some d ∨
+      (LBTerm.envLookup pre kn = none ∧ LBTerm.envLookup Γ kn = some d)
+  | [], _, _, _, h => .inr ⟨rfl, h⟩
+  | (k, _) :: pre, Γ, kn, d, h => by
+      rw [List.cons_append, LBTerm.envLookup] at h
+      rw [LBTerm.envLookup]
+      cases hb : Kername.beq k kn with
+      | true => rw [hb] at h; exact .inl (by simpa using h)
+      | false =>
+        rw [hb] at h
+        rcases envLookup_append_cases (pre := pre) (Γ := Γ) (by simpa using h) with h1 | ⟨h1, h2⟩
+        · exact .inl (by simpa using h1)
+        · exact .inr ⟨by simpa using h1, h2⟩
+
+/-- Closedness of an append is closedness of its two parts. -/
+theorem closedBodies_append {pre Γ : GlobalDeclarations} (hpre : ClosedBodies pre)
+    (h : ClosedBodies Γ) : ClosedBodies (pre ++ Γ) := by
+  intro kn b hb
+  rcases envLookup_append_cases hb with h1 | ⟨-, h2⟩
+  · exact hpre kn b h1
+  · exact h kn b h2
+
+/-- `closedBodies_append`' twin for the free-variable clause. -/
+theorem fvarFreeBodies_append {pre Γ : GlobalDeclarations} (hpre : FVarFreeBodies pre)
+    (h : FVarFreeBodies Γ) : FVarFreeBodies (pre ++ Γ) := by
+  intro kn b x hb
+  rcases envLookup_append_cases hb with h1 | ⟨-, h2⟩
+  · exact hpre kn b x h1
+  · exact h kn b x h2
+
+/-- An eliminator declaration of the prefix is one of the append: both of `ElimDecl`'s
+lookups are answered by the prefix, so the block it names travels with it. -/
+theorem ElimDecl.appendLeft {pre Γ : GlobalDeclarations} {kn : Kername} {iid : InductiveId}
+    {np dp : Nat} {nfs : List Nat} (h : ElimDecl pre kn iid np dp nfs) :
+    ElimDecl (pre ++ Γ) kn iid np dp nfs :=
+  ⟨⟨h.1.choose, envLookup_append_left h.1.choose_spec.1, h.1.choose_spec.2⟩,
+    ⟨h.2.choose, envLookup_append_left h.2.choose_spec.1, h.2.choose_spec.2⟩⟩
+
+/-- A runtime key of the prefix is a runtime key of the append. -/
+theorem RuntimeKey.appendLeft {pre Γ : GlobalDeclarations} {kn : Kername}
+    (h : RuntimeKey pre kn) : RuntimeKey (pre ++ Γ) kn :=
+  let ⟨iid, np, dp, nfs, hd⟩ := h
+  ⟨iid, np, dp, nfs, hd.appendLeft⟩
+
 /-- The key just inserted is known. -/
 theorem constants_isSome_insert_self (mp : Std.HashMap Name Kername) (n : Name)
     (k : Kername) : ((mp.insert n k).get? n).isSome := by
@@ -788,6 +847,57 @@ theorem SpecContent.cons {env : VEnv} {bo : Name → Option Expr} {lp : Name →
         (by rwa [envLookup_cons_ne (hd.elims c I dp nm hsh).symm] at hs)).lookupMono
       (fun _ _ => envLookup_cons_of_fresh hfresh)
 
+/-- **A whole new specification prefix.** `SpecContent.cons`' shape at the prefix an
+*inductive* registration conses — MetaRocq's `erases_global_ind`
+(`../metarocq/erasure/theories/Extract.v:290-293`) together with the `casesOn` declarations
+λ□ prunes: the block and one eliminator entry per informative member, which is what
+`SpecContent.blocks` demands the moment the block key is declared, through `IndCovered.elims`
+at each member (`ErasesEnv.lean:207`). A single entry cannot state it, and `SpecEntryOk`
+states the opposite, that the key is neither a block's nor an eliminator's.
+
+The prefix's own obligation is `SpecContent` read at `pre`: the four clauses quantified over
+every source name the prefix's keys answer for — `toKername` is not injective (F-KERNAME) —
+with `blocks` and `elims` read at `pre`, since the prefix carries every eliminator the block
+it declares obliges. `hfresh` is what keeps each part's lookups answered in the append. -/
+theorem SpecContent.append {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
+    {Γ pre : GlobalDeclarations} (H : SpecContent env bo lp Γ)
+    (Hpre : SpecContent env bo lp pre) (hfresh : ∀ p ∈ pre, ∀ q ∈ Γ, p.1 ≠ q.1) :
+    SpecContent env bo lp (pre ++ Γ) := by
+  have hmonoΓ : ∀ (kn : Kername) (d : GlobalDecl), LBTerm.envLookup Γ kn = some d →
+      LBTerm.envLookup (pre ++ Γ) kn = some d := fun kn d hd =>
+    envLookup_append_of_fresh (fun p hp => hfresh p hp (kn, d) (envLookup_mem hd)) hd
+  have hmonoP : ∀ (kn : Kername) (d : GlobalDecl), LBTerm.envLookup pre kn = some d →
+      LBTerm.envLookup (pre ++ Γ) kn = some d := fun _ _ => envLookup_append_left
+  refine ⟨?_, ?_, ?_, ?_, ?_⟩
+  · rw [List.map_append]
+    refine List.nodup_append.mpr ⟨Hpre.keys, H.keys, ?_⟩
+    intro a ha b hb
+    obtain ⟨p, hp, rfl⟩ := List.mem_map.mp ha
+    obtain ⟨q, hq, rfl⟩ := List.mem_map.mp hb
+    exact hfresh p hp q hq
+  · intro c b hbo hs
+    obtain ⟨d, hd⟩ := Option.isSome_iff_exists.1 hs
+    rcases envLookup_append_cases hd with h1 | ⟨-, h2⟩
+    · obtain ⟨b₀, hl, her⟩ := Hpre.defns c b hbo (by rw [h1]; rfl)
+      exact ⟨b₀, hmonoP _ _ hl, her⟩
+    · obtain ⟨b₀, hl, her⟩ := H.defns c b hbo (by rw [h2]; rfl)
+      exact ⟨b₀, hmonoΓ _ _ hl, her⟩
+  · intro c hbo hco hnc hs
+    obtain ⟨d, hd⟩ := Option.isSome_iff_exists.1 hs
+    rcases envLookup_append_cases hd with h1 | ⟨-, h2⟩
+    · exact hmonoP _ _ (Hpre.axioms c hbo hco hnc (by rw [h1]; rfl))
+    · exact hmonoΓ _ _ (H.axioms c hbo hco hnc (by rw [h2]; rfl))
+  · intro I iid np nfs hi hs
+    obtain ⟨d, hd⟩ := Option.isSome_iff_exists.1 hs
+    rcases envLookup_append_cases hd with h1 | ⟨-, h2⟩
+    · exact (Hpre.blocks I iid np nfs hi (by rw [h1]; rfl)).lookupMono hmonoP
+    · exact (H.blocks I iid np nfs hi (by rw [h2]; rfl)).lookupMono hmonoΓ
+  · intro c I dp nm hsh hs
+    obtain ⟨d, hd⟩ := Option.isSome_iff_exists.1 hs
+    rcases envLookup_append_cases hd with h1 | ⟨-, h2⟩
+    · exact (Hpre.elims c I dp nm hsh (by rw [h1]; rfl)).lookupMono hmonoP
+    · exact (H.elims c I dp nm hsh (by rw [h2]; rfl)).lookupMono hmonoΓ
+
 /-- **The invariant along growth.** The three specification-side clauses are facts about the
 grown environment and are premises; the six state-facing ones transport. `defs` is the clause
 the growth is for: it re-derives every previously emitted body's `Lower` fact at the larger
@@ -929,6 +1039,53 @@ theorem RegContent.gdeclsPrefix {env : VEnv} {bo : Name → Option Expr} {lp : N
     H.defns n b t hbo (defnDecl_of_append_axioms hpre (by rwa [DefnDecl, hg] at hb))
   declEnv := H.declEnv
 
+/-- **The content clause across `Erasure.register_inductive`.** The cold branch conses one
+block entry over a body-less prefix (`run_register_inductive_cold_ok`, `BodylessExt`), and
+neither shape declares a body at a tabled name's key, so the clause is carried with no side
+condition. -/
+theorem RegContent.register_inductive_run {env : VEnv} {bo : Name → Option Expr}
+    {lp : Name → List Name} {Γspec : GlobalDeclarations} {indinfo : InductiveVal}
+    {s : ErasureState} {ctx : ErasureContext} {cctx : Core.Context}
+    {ref : ST.Ref IO.RealWorld Core.State} {w : Void IO.RealWorld}
+    {r : InductiveId × InductiveArgMasks} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
+    (C : RegContent env bo lp Γspec s)
+    (hmiss : s.inductives.get? indinfo.name = none)
+    (hrun : register_inductive indinfo s ctx cctx ref w = .ok (r, s₁) w₁) :
+    RegContent env bo lp Γspec s₁ := by
+  obtain ⟨-, bodies, sM, rfl, -, -, hce, -, -⟩ :=
+    run_register_inductive_cold_ok (Ci := fun _ _ => True)
+      (fun _ _ _ _ _ _ _ => trivial) hmiss hrun
+  obtain ⟨pre, hpre, hshape⟩ := hce.gdeclsAx
+  have hgd : (registerIndState indinfo bodies sM).gdecls
+      = (mutualBlockKn indinfo,
+          GlobalDecl.inductiveDecl { npars := indinfo.numParams, bodies := bodies })
+        :: (pre ++ s.gdecls) := by
+    show (mutualBlockKn indinfo,
+      GlobalDecl.inductiveDecl { npars := indinfo.numParams, bodies := bodies })
+        :: sM.gdecls = _
+    rw [hpre]
+  refine RegContent.gdeclsCons (s := { s with gdecls := pre ++ s.gdecls })
+    (C.gdeclsPrefix rfl (fun p hp => (hshape p hp).1)) hgd ?_
+  intro n b t _ _ hd
+  exact absurd hd (by simp)
+
+/-- **The emitted environment only grows across `Erasure.register_inductive`.** What the
+saturation clause spends at the step: an entry the run had emitted is still emitted. -/
+theorem register_inductive_gdecls_mono {indinfo : InductiveVal} {s : ErasureState}
+    {ctx : ErasureContext} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
+    {w : Void IO.RealWorld} {r : InductiveId × InductiveArgMasks} {s₁ : ErasureState}
+    {w₁ : Void IO.RealWorld}
+    (hmiss : s.inductives.get? indinfo.name = none)
+    (hrun : register_inductive indinfo s ctx cctx ref w = .ok (r, s₁) w₁) :
+    ∀ p ∈ s.gdecls, p ∈ s₁.gdecls := by
+  obtain ⟨-, bodies, sM, rfl, -, -, hce, -, -⟩ :=
+    run_register_inductive_cold_ok (Ci := fun _ _ => True)
+      (fun _ _ _ _ _ _ _ => trivial) hmiss hrun
+  obtain ⟨pre, hpre, -⟩ := hce.gdeclsAx
+  intro p hp
+  show p ∈ (_ :: sM.gdecls)
+  exact List.mem_cons_of_mem _ (by rw [hpre]; exact List.mem_append_right _ hp)
+
 /-- **The accumulator at the cold start.** Every clause of the empty specification
 environment is vacuous — its lookups all miss — so a run beginning at the empty state begins
 with both halves of the accumulator in hand, with no specification environment posited in
@@ -1028,6 +1185,51 @@ theorem regInv_constCons_step {env : VEnv} {bo : Name → Option Expr} {lp : Nam
     obtain ⟨b₀', heq, her⟩ := hok.defns m b hkey hbo
     obtain rfl : b₀ = b₀' := by simpa using heq
     exact ⟨b₀, envLookup_cons_self, her, hlow'⟩
+
+/-- **`register_inductive`, declaring what it registers.** The specification environment
+gains a whole prefix, not one entry: `SpecContent.blocks` fires at the block key the run
+conses and `IndCovered.elims` then demands an `ElimDecl` for every informative member's
+`casesOn`, so the eliminator entries enter `Γspec` here and not at `Erasure.visitCases`,
+which registers nothing. `hpre` is what the prefix owes, in `SpecContent.append`'s reading;
+the five state-facing side conditions are `RegInvShape'.register_inductive_run`'s, read at
+the grown environment. The last conclusion is the emitted monotonicity `SpecKeysEmitted`
+spends at the step (`SpecKeysEmitted.append`, `SpecEnv.lean`).
+
+No configuration is pinned: `Erasure.register_inductive` calls `Erasure.addAxiom` at an
+`@[extern]` constructor under `extern = .preferAxiom` (`Erasure.lean:349-351`), and the
+entries it leaves are body-less, which is the arm `haxpre` asks the prefix to declare. -/
+theorem regInv_registerInd_step {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
+    {Γ pre : GlobalDeclarations} {indinfo : InductiveVal} {s : ErasureState}
+    {ctx : ErasureContext} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
+    {w : Void IO.RealWorld} {r : InductiveId × InductiveArgMasks} {s₁ : ErasureState}
+    {w₁ : Void IO.RealWorld}
+    (H : RegInvShape' env bo lp Γ s) (C : RegContent env bo lp Γ s)
+    (hpre : SpecContent env bo lp pre) (hfresh : ∀ p ∈ pre, ∀ q ∈ Γ, p.1 ≠ q.1)
+    (hcl : ClosedBodies pre) (hfv : FVarFreeBodies pre)
+    (hdenv : ConstsDeclaredEnv (pre ++ Γ))
+    (hmiss : s.inductives.get? indinfo.name = none)
+    (hrun : register_inductive indinfo s ctx cctx ref w = .ok (r, s₁) w₁)
+    (hkeys : (s₁.gdecls.map Prod.fst).Nodup)
+    (haxpre : ∀ p ∈ s₁.gdecls, p.2 = GlobalDecl.constantDecl ⟨none⟩ →
+      LBTerm.envLookup (pre ++ Γ) p.1 = some (.constantDecl ⟨none⟩))
+    (hblk : ∀ mib, LBTerm.envLookup s₁.gdecls (mutualBlockKn indinfo)
+        = some (.inductiveDecl mib) →
+      LBTerm.envLookup (pre ++ Γ) (mutualBlockKn indinfo) = some (.inductiveDecl mib))
+    (hnewc : ∀ n : Name, (s₁.constants.get? n).isSome → (s.constants.get? n).isSome ∨
+      LBTerm.envLookup (pre ++ Γ) (toKername n) = some (.constantDecl ⟨none⟩))
+    (hnewi : ∀ n : Name, (s₁.inductives.get? n).isSome → (s.inductives.get? n).isSome ∨
+      (IndCovered env (pre ++ Γ) n ∧ IndEmitted env (pre ++ Γ) s₁.gdecls n)) :
+    SpecGrow Γ (pre ++ Γ) ∧ RegInvShape' env bo lp (pre ++ Γ) s₁ ∧
+      RegContent env bo lp (pre ++ Γ) s₁ ∧ ∀ p ∈ s.gdecls, p ∈ s₁.gdecls := by
+  have hg : SpecGrow Γ (pre ++ Γ) :=
+    SpecGrow.of_fresh hfresh (elimBlocksDeclared_of_constsDeclaredEnv C.declEnv)
+  exact ⟨hg,
+    (H.specGrow hg C.declEnv (H.spec.append hpre hfresh)
+      (closedBodies_append hcl H.specClosed)
+      (fvarFreeBodies_append hfv H.specFVarFree)).register_inductive_run
+        hmiss hrun hkeys haxpre hblk hnewc hnewi,
+    (C.specGrow hg hdenv).register_inductive_run hmiss hrun,
+    register_inductive_gdecls_mono hmiss hrun⟩
 
 /-! ## Saturation at the final state
 
