@@ -166,7 +166,13 @@ def Motive5 (f : Name → EraseM Kername) : Prop :=
 /-- Motive 6 — `Erasure.visitMutual`: the declaration is registered. Its two branches erase the
 member bodies, the block branch under the reader that carries the block's fix variables, which
 is where the sub-runs conclude `ErasesLBFix` rather than `ErasesLB`; the content of what is
-registered is read off the final state by `SpecEnv`, not concluded here. -/
+registered is read off the final state by `SpecEnv`, not concluded here.
+
+What stops the motive reporting that content is the reader's *local* context, not its level
+scope: `Motive1` holds at every scope, so a sub-run at `ci.levelParams` has a motive to be read
+at, while `Erasure.visitMutual` leaves `lctx` in place across the switch, so `BridgeInv.mlc` at
+the sub-run asks the caller's context to be modelled at the member's column —
+`doc/rework/03-DEV-FIX.md`, F-DEPLCTX, where the two theorems that measure it are cited. -/
 def Motive6 (f : Name → EraseM Unit) : Prop :=
   (∀ n s ctx cctx ref w u s' w', f n s ctx cctx ref w = .ok (u, s') w' →
     ∀ Us Δ, BridgeInv env Us tbl cfg (gw w) ctx s Δ → Supported env tbl (.const n []) →

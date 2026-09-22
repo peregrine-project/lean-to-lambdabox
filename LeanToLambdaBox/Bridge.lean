@@ -317,13 +317,17 @@ structure BridgeInv (env : VEnv) (Us : List Name) (tbl : SourceTable) (cfg₀ : 
     (gen : NameGenerator) (ctx : ErasureContext) (s : ErasureState) (Δ : VLCtx) : Prop where
   /-- The reader's local context is modelled by `Δ`, witnessed by an ambient `MLCtx`. -/
   mlc : ∃ m : MLCtx, m.WF env Us ∧ m.lctx = ctx.lctx ∧ m.vlctx = Δ
-  /-- The reader's level scope **is** the ambient one. The entry reader sets it to `Us` and
-      the only `withReader` in the erasure that touches it is `Erasure.visitMutual`'s, which
-      moves to a dependency's own `levelParams`; the invariant is not carried into that
-      sub-run — `Motive6` reports registration alone — so equality holds throughout the term
-      walk. It is what moves the reader's translation witness, held at `Us`, to the scope an
-      oracle verdict was taken under, which is where `EraserAsks.oracle_informative` and
-      `ErasureSpec.oracle_refl` conclude. -/
+  /-- The reader's level scope **is** the ambient one. It is what moves the reader's
+      translation witness, held at `Us`, to the scope an oracle verdict was taken under, which
+      is where `EraserAsks.oracle_informative` and `ErasureSpec.oracle_refl` conclude.
+
+      This is not a restriction to one scope: the eighteen motives quantify `Us` per call
+      (`VisitExprRefines/Motives.lean`), so the field is the *equation* `ctx.lparams = Us` at
+      whatever scope the reader is in, and the sub-run `Erasure.visitMutual` starts under
+      `withReader (… lparams := ci.levelParams)` is covered at the member's own column. What
+      that `withReader` does **not** move is `lctx`, and `mlc` ties the modelled context to it,
+      so re-establishing the invariant at a member sub-run asks the *caller's* context to be
+      modelled at the member's column — `doc/rework/03-DEV-FIX.md`, F-DEPLCTX. -/
   lparams : ctx.lparams = Us
   /-- The reader's configuration is the one the statement is made at. `Erasure.run` builds the
       only reader from scratch and no `withReader` in the erasure touches `config`. -/

@@ -54,9 +54,10 @@ verification found, specified with the site, the command that measures it, and t
 command's output. No wave depends on any of them landing, and no unit applies one.
 
 Ordered as the design orders them (`doc/rework/01-DESIGN.md` §8.2): **F-PROP** first, because
-three other rows are downstream of it. The last three rows — **F-DEPTH**, **F-UNSAFEREC**,
-**F-KERNAME** — are `doc/rework/06-REPAIRS-W4.md` §3's findings, in the order that document
-raises them; each bounds one class-**C** field of `EraserAsks`.
+three other rows are downstream of it. **F-DEPTH**, **F-UNSAFEREC** and **F-KERNAME** are
+`doc/rework/06-REPAIRS-W4.md` §3's findings, in the order that document raises them; each
+bounds one class-**C** field of `EraserAsks`. **F-DEPLCTX**, last, is W7 U5's: it is what stops
+the bridge reporting a registered dependency's content.
 
 Every command below runs from the repository root. The `.ast` files are the five csimp-off
 duplicates under `VerifyBench/ast/`, regenerated with `lake build VerifyBench`.
@@ -616,3 +617,60 @@ a fresh kername from a `Name` — `addAxiom` and `visitMutual`'s two registratio
 when the minted key is already registered under a different Lean name. The injective-key variant
 is not taken; `toKername_not_injective` stays true and `Supported.kernameSepB`/
 `SupportError.kernameCollision` stand unchanged, now enforced rather than merely stated.
+
+### F-DEPLCTX — a dependency is erased under the caller's local context
+
+*Site.* `visitMutual`, `LeanToLambdaBox/Erasure.lean:889` (the non-recursive exit) and `:912`
+(the block's sibling loop); the consumer is `isErasable`, `LeanToLambdaBox/Erasure.lean:206-211`.
+
+*Defect.* Both sites re-enter a dependency with
+`withReader (fun env => { env with fixvars := …, lparams := ci.levelParams })`. They move the
+fixvar map and the level column and **leave `lctx` in place**, so the dependency's body — a
+closed term — is erased under whatever local context the term walk had open when it reached the
+`.const` node, and every relevance verdict taken below runs the kernel at the pair
+
+    (lctx := the caller's local context, lparams := the dependency's levelParams)
+
+whose declarations may mention level parameters the dependency's column does not have. MetaRocq
+has no such step: `erase_constant_body` erases `cst_body cb` in the **empty** context at
+`cst_universes cb` (`../metarocq/erasure/theories/Extract.v:264`), because the global
+environment is erased by a pass of its own rather than from inside the term traversal.
+
+*Measure.* The defect is latent rather than live, like F-KERNAME: lean4lean's checker does not
+validate `lparams` against the local context, so the mis-scoped pair is answered rather than
+refused, and at the two shapes measured it is answered the same way as the consistent pair.
+
+    lake env lean scratch/round7/u5_oracle_ctx.lean
+
+    caller's scope [u], verdict at [u]: true
+    caller's scope [u], verdict at [] : true
+    kernel run at [u]: .ok true
+    kernel run at [] : .ok true
+    y : x, kernel run at [u]: .ok false
+    y : x, kernel run at [] : .ok false
+    y : x, shipping oracle at [u]: false
+    y : x, shipping oracle at [] : false
+
+What is not latent is the model side. `MLCtx.WF env Us` asks `TrExprS env Us` of every entry's
+type (`.lake/packages/lean4lean/Lean4Lean/Verify/TypeChecker/Basic.lean:158`), so the caller's
+modelled context has no witness at the dependency's column as soon as one binder's type mentions
+a parameter the column drops, and `BridgeInv.mlc` ties the modelled context to the reader's
+`lctx`. Read at `Δ = []` — the context the erasure of a registered body is stated at, in
+`ErasesEnv.defns` as in `erase_constant_body` — the invariant at the sub-run asks the caller to
+have held no binder at all. Both facts, sorry-free and with clean axioms:
+
+    lake env lean scratch/round7/u5_lctx.lean
+
+    'LeanToLambdaBox.U5.mlctx_not_wf_at_empty' depends on axioms: [propext, Classical.choice, Quot.sound]
+    'LeanToLambdaBox.U5.bridgeInv_nil_lctx' depends on axioms: [propext, Classical.choice, Quot.sound]
+
+*Proposed edit.* Reset the local context alongside the level column at both sites —
+`withReader (fun env => { env with lctx := {}, fixvars := …, lparams := ci.levelParams })`. The
+dependency's body is closed, so nothing the erasure reads is lost, and the pair handed to the
+kernel becomes the one `erase_constant_body` erases at.
+
+*Consequence until it lands.* `Motive6` reports registration and not the block's content
+(`VisitExprRefines/Step/Env.lean`'s header): the bridge cannot rebuild `BridgeInv` at a member
+sub-run, so the content of what was registered is read off the final state by `SpecEnv` instead,
+and `blockKeyed_install` has no consumer. Nothing assumes the pair is well scoped; the
+verification declines to conclude at the sub-run rather than assuming its premise.

@@ -17,12 +17,19 @@ report registration rather than a term relation.
 * `visitExpr_runConcl` is the term walk's own state, generator and registry conclusion, which
   the two registration steps spend at the dependency bodies `Erasure.visitMutual` erases.
 
-`Motive6` reports registration and nothing about the block's content. The sub-runs erase a
-dependency at its own `levelParams`, where `BridgeInv.lparams` — the reader's level scope is
-the ambient one — is unsatisfiable at a polymorphic dependency of a closed subject, so the
-block's content is read off the final state by `SpecEnv` instead. That is a restriction of the
-motive's shape rather than a premise, and it is why `blockKeyed_install` has no consumer
-here.
+`Motive6` reports registration and nothing about the block's content, and the reason is no
+longer the level scope: the eighteen motives quantify it, so a sub-run made at a dependency's
+own `levelParams` has a motive to be read at. It is the reader's **local context**.
+`Erasure.visitMutual` moves `fixvars` and `lparams` and leaves `lctx` in place
+(`Erasure.lean:889`, `:912`), while `BridgeInv.mlc` asks for an `MLCtx` that is `WF` at the
+reader's scope *and* carries the reader's `lctx`; so the invariant at a member sub-run asks the
+caller's context to be modelled at the member's column, which fails at the first binder whose
+type mentions a level parameter the column drops. Read at `Δ = []`, the context
+`erase_constant_body` states a body's erasure at
+(`../metarocq/erasure/theories/Extract.v:264`), it asks the caller to have held no binder at
+all. `doc/rework/03-DEV-FIX.md`, F-DEPLCTX, carries the finding and the two theorems that
+measure it; the block's content is read off the final state by `SpecEnv` meanwhile, and that is
+why `blockKeyed_install` still has no consumer here.
 -/
 
 namespace LeanToLambdaBox
@@ -662,8 +669,8 @@ theorem step5 : Step5 lenv env tbl cfg gw := by
 /-- **Step 6.** All four exits of `Erasure.visitMutual` register the name it was called at, and
 the term walk's own run conclusion is what carries the state and generator facts across the
 body erasures. `Motive1`'s refinement half is not consumed: what the motive reports is
-registration, and the fragment and translation premises a body erasure would need are not
-available at a dependency's own level scope. -/
+registration, and the invariant a body erasure would need cannot be rebuilt at the sub-run —
+the reader keeps the caller's local context across the level-scope switch (F-DEPLCTX). -/
 theorem step6 (E : EraserAsks lenv env gw) (hsafe : TableSafe lenv tbl) :
     Step6 lenv env tbl cfg gw := by
   intro P htbl hcfg _hcb vExpr m1
