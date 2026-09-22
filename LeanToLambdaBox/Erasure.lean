@@ -1237,7 +1237,21 @@ mutual
     if nonrecursive
     then -- translate into a single nonrecursive constant declaration
       let e: Expr := ci.value! (allowOpaque := true)
-      let t ← withReader (fun env => { env with fixvars := .none, lparams := ci.levelParams }) do
+      -- The dependency is re-entered in the context its own body has, not the caller's:
+      -- `lctx := {}` alongside the level column. `erase_constant_body`
+      -- (`../metarocq/erasure/theories/Extract.v:264`) erases `cst_body cb` in the *empty*
+      -- context at `cst_universes cb`, because MetaRocq erases the global environment in a
+      -- pass of its own rather than from inside the term traversal; here the traversal is
+      -- what reaches the dependency, so the context has to be reset by hand. Behaviour is
+      -- unchanged — `ci.value!` is closed, so no `fvar` of the caller's context occurs in
+      -- it and every `Meta` call made below (`inferType`, `isErasable`, the telescopes)
+      -- answers the same in either context — but the pair `(lctx, lparams)` handed to the
+      -- relevance oracle is no longer mis-scoped: the caller's declarations may mention
+      -- level parameters the dependency's column does not have (F-DEPLCTX).
+      -- `fixvars` is reset here for the reason it always was: a non-recursive declaration
+      -- is not a member of the caller's block, so the caller's fix variables are not in
+      -- scope in its body.
+      let t ← withReader (fun env => { env with lctx := {}, fixvars := .none, lparams := ci.levelParams }) do
         pure (← visitExpr (← prepare_erasure e))
       let kn := toKername name
       checkKernameFresh name kn
@@ -1266,7 +1280,12 @@ mutual
         let defs: List FixDef ← names.mapM (fun n => do
           let ci ← getConstInfo n -- here n is directly from the above ci.all, possibly _unsafe_rec
           let e: Expr := ci.value! (allowOpaque := true)
-          let t: LBTerm ← withReader (fun env => { env with lparams := ci.levelParams }) do
+          -- The same reset as at the non-recursive exit above, for the same reason: a member
+          -- body is closed but for the block's own recursive references. `fixvars` is *not*
+          -- reset — it is the block's own map, installed by the `withReader` this loop runs
+          -- under, and it is exactly what the member's self- and sibling-references resolve
+          -- through (F-DEPLCTX).
+          let t: LBTerm ← withReader (fun env => { env with lctx := {}, lparams := ci.levelParams }) do
             visitExpr (← prepare_erasure e)
           mkDef (remove_unsafe_rec n) fixvarnames t
         )
