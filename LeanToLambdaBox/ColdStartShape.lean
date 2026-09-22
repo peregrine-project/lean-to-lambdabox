@@ -810,7 +810,8 @@ theorem RegInvShape'.specGrow {env : VEnv} {bo : Name → Option Expr} {lp : Nam
     have hd' : DefnDecl Γ kn b₀ := by
       rw [DefnDecl, hd]
       exact (hg.lookup hd).symm.trans h₀
-    exact Lower.specGrow hg henv (H.defs kn b₀ b hd' hb) (henv kn b₀ hd')
+    exact Lower.specGrow hg henv (H.defs kn b₀ b hd' hb)
+      (.of_constsDeclared hg (henv kn b₀ hd'))
   defsTotal n b₀ hn h₀ hrk := by
     obtain ⟨d, hd⟩ := Option.isSome_iff_exists.1 (H.consts n hn)
     have hd' : DefnDecl Γ (toKername n) b₀ := by
@@ -875,7 +876,8 @@ theorem RegContent.specGrow {env : VEnv} {bo : Name → Option Expr} {lp : Name 
     (hg : SpecGrow Γ Γ') (henv : ConstsDeclaredEnv Γ') : RegContent env bo lp Γ' s where
   defns n b t hbo hb :=
     let ⟨b₀, hd, her, hlow⟩ := H.defns n b t hbo hb
-    ⟨b₀, hg.defnDecl hd, her, Lower.specGrow hg H.declEnv hlow (H.declEnv _ _ hd)⟩
+    ⟨b₀, hg.defnDecl hd, her,
+      Lower.specGrow hg H.declEnv hlow (.of_constsDeclared hg (H.declEnv _ _ hd))⟩
   declEnv := henv
 
 /-- The content clause reads the emitted declarations and nothing else of the state. -/
@@ -1009,7 +1011,7 @@ theorem regInv_constCons_step {env : VEnv} {bo : Name → Option Expr} {lp : Nam
       (elimBlocksDeclared_of_constsDeclaredEnv C.declEnv)
   have hdecl' : ConstsDeclared ((toKername n, .constantDecl ⟨some b₀⟩) :: Γ) b₀ := hdecl.cons
   have hlow' : Lower ((toKername n, .constantDecl ⟨some b₀⟩) :: Γ) b₀ t :=
-    Lower.specGrow hg C.declEnv hlow hdecl
+    Lower.specGrow hg C.declEnv hlow (.of_constsDeclared hg hdecl)
   refine ⟨(toKername n, .constantDecl ⟨some b₀⟩) :: Γ, hg, ?_, ?_⟩
   · exact (H.specGrow hg C.declEnv (H.spec.cons hfΓ hok)
       (closedBodies_cons H.specClosed (fun b hb => by

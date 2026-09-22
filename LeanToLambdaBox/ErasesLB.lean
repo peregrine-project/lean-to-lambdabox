@@ -21,7 +21,8 @@ compilation steps at source level.
   side as one `ErasesLB` premise.
 * the four `*.specGrow` transports, which re-read a composite at a grown specification
   environment. `Erases` names no environment, so the growth is spent entirely inside
-  `Lower.specGrow`, whose side condition the composite carries as `ErasuresDeclared`.
+  `Lower.specGrow`, whose side condition the composite carries as `ErasuresStable`, read at
+  the images its own `Lower` premise relates to the emitted term.
 
 `ErasesLB.cases` carries premises `doc/rework/01-DESIGN.md` §4.7 does not print; its
 docstring says which and why.
@@ -471,48 +472,69 @@ theorem ErasesLBFix.fix {cn : Name} {us : List Level} {ci : VConstant}
 /-! ## Growth of the specification environment
 
 The composites bind their specification term existentially, so `Lower.specGrow`'s side
-condition is stated at the source: every erasure of it names only declared constants. -/
+condition is stated at the source — but only at the images the composite's own `Lower`
+premise relates to the emitted term, which is the witness the transport destructs. -/
 
-/-- Every erasure of `e` names only constants `Γ` declares: `Lower.specGrow`'s side
-condition, read at the source term because the composite binds its specification term. -/
+/-- Every erasure of `e` names only constants `Γ` declares. Not the transports' side
+condition: `Erases.const` carries no erasability guard, so a source constant the run boxes
+still has a `.const` image, and the universal is false wherever that key is undeclared. What
+reads it is the δ-closure of the prepared term (`ReachableFrom.isSome_of_declaredEnv`). -/
 def ErasuresDeclared (env : VEnv) (Us : List Name) (Γ : GlobalDeclarations) (Δ : VLCtx)
     (e : Expr) : Prop :=
   ∀ t₀, Erases env Us Δ e t₀ → ConstsDeclared Γ t₀
 
+/-- The transports' side condition, at the composite's own witness: every erasure of `e`
+that the pass lowers to `t` is runtime-key stable across the growth. Restricting to the
+images that lower to `t` is what keeps a boxed source constant out — `Lower Γ (.const kn) t`
+fails at `t = .box`, where the universal over all images would not. -/
+def ErasuresStable (env : VEnv) (Us : List Name) (Γ Γ' : GlobalDeclarations) (Δ : VLCtx)
+    (e : Expr) (t : LBTerm) : Prop :=
+  ∀ t₀, Erases env Us Δ e t₀ → Lower Γ t₀ t → RefsStable Γ Γ' t₀
+
+/-- The same at `LowerAlt`'s own target, which is the alternative the composite binds. -/
+def ErasuresStableAlt (env : VEnv) (Us : List Name) (Γ Γ' : GlobalDeclarations) (Δ : VLCtx)
+    (nf : Nat) (m : Expr) (alt : List BinderName × LBTerm) : Prop :=
+  ∀ m₀, Erases env Us Δ m m₀ → LowerAlt Γ nf m₀ alt → RefsStable Γ Γ' m₀
+
 /-- The composite survives growth of the specification environment. -/
 theorem ErasesLB.specGrow {env : VEnv} {Us : List Name} {Γ Γ' : GlobalDeclarations}
     {Δ : VLCtx} {e : Expr} {t : LBTerm} (hg : SpecGrow Γ Γ') (henv : ConstsDeclaredEnv Γ)
-    (hde : ErasuresDeclared env Us Γ Δ e) (h : ErasesLB env Us Γ Δ e t) :
+    (hst : ErasuresStable env Us Γ Γ' Δ e t) (h : ErasesLB env Us Γ Δ e t) :
     ErasesLB env Us Γ' Δ e t :=
   let ⟨t₀, he, hl⟩ := h
-  ⟨t₀, he, hl.specGrow hg henv (hde t₀ he)⟩
+  ⟨t₀, he, hl.specGrow hg henv (hst t₀ he hl)⟩
 
 /-- The alternative composite survives growth. -/
 theorem ErasesLBAlt.specGrow {env : VEnv} {Us : List Name} {Γ Γ' : GlobalDeclarations}
     {Δ : VLCtx} {nf : Nat} {m : Expr} {alt : List BinderName × LBTerm}
     (hg : SpecGrow Γ Γ') (henv : ConstsDeclaredEnv Γ)
-    (hde : ErasuresDeclared env Us Γ Δ m) (h : ErasesLBAlt env Us Γ Δ nf m alt) :
+    (hst : ErasuresStableAlt env Us Γ Γ' Δ nf m alt) (h : ErasesLBAlt env Us Γ Δ nf m alt) :
     ErasesLBAlt env Us Γ' Δ nf m alt :=
   let ⟨m₀, he, hl⟩ := h
-  ⟨m₀, he, hl.specGrow hg henv (hde m₀ he)⟩
+  ⟨m₀, he, hl.specGrow hg henv (hst m₀ he hl)⟩
 
-/-- The block composite survives growth: `ConstToFVar` names no environment. -/
+/-- The block composite survives growth: `ConstToFVar` names no environment, so the side
+condition is read at the `Lower` target the block reading binds, before the rewriting. -/
 theorem ErasesLBFix.specGrow {env : VEnv} {Us : List Name} {Γ Γ' : GlobalDeclarations}
     {kns : List Kername} {ids : List FVarId} {Δ : VLCtx} {e : Expr} {t : LBTerm}
     (hg : SpecGrow Γ Γ') (henv : ConstsDeclaredEnv Γ)
-    (hde : ErasuresDeclared env Us Γ Δ e) (h : ErasesLBFix env Us Γ kns ids Δ e t) :
+    (hst : ∀ t₁, ConstToFVar kns ids t₁ t → ErasuresStable env Us Γ Γ' Δ e t₁)
+    (h : ErasesLBFix env Us Γ kns ids Δ e t) :
     ErasesLBFix env Us Γ' kns ids Δ e t :=
   let ⟨t₀, t₁, he, hl, hc⟩ := h
-  ⟨t₀, t₁, he, hl.specGrow hg henv (hde t₀ he), hc⟩
+  ⟨t₀, t₁, he, hl.specGrow hg henv (hst t₁ hc t₀ he hl), hc⟩
 
-/-- The block alternative composite survives growth. -/
+/-- The block alternative composite survives growth, at the alternative before the
+rewriting. -/
 theorem ErasesLBFixAlt.specGrow {env : VEnv} {Us : List Name} {Γ Γ' : GlobalDeclarations}
     {kns : List Kername} {ids : List FVarId} {Δ : VLCtx} {nf : Nat} {m : Expr}
     {alt : List BinderName × LBTerm} (hg : SpecGrow Γ Γ') (henv : ConstsDeclaredEnv Γ)
-    (hde : ErasuresDeclared env Us Γ Δ m) (h : ErasesLBFixAlt env Us Γ kns ids Δ nf m alt) :
+    (hst : ∀ alt₁, ConstToFVar kns ids alt₁.2 alt.2 →
+      ErasuresStableAlt env Us Γ Γ' Δ nf m alt₁)
+    (h : ErasesLBFixAlt env Us Γ kns ids Δ nf m alt) :
     ErasesLBFixAlt env Us Γ' kns ids Δ nf m alt :=
   let ⟨alt₁, ha, hlen, hc⟩ := h
-  ⟨alt₁, ha.specGrow hg henv hde, hlen, hc⟩
+  ⟨alt₁, ha.specGrow hg henv (hst alt₁ hc), hlen, hc⟩
 
 /-! ## The spine premise, folded -/
 

@@ -34,8 +34,9 @@ that mentions the inductive) and packaged afterwards as `LowerBlock`, read throu
 `∀ i, i < …`, since `List.Forall₂` as a premise is a nested-inductive occurrence.
 
 `SpecGrow` is here too: the growth of the specification environment the pass survives, with
-`Lower.specGrow` its monotonicity law. The law needs more than the term's own references —
-`SpecGrowFixture.specGrow_needs_declaredEnv` is the counterexample — so it asks for
+`Lower.specGrow` its monotonicity law. Its term-side premise is `RefsStable`, runtime-key
+stability at the term's own references; that alone does not carry the law —
+`SpecGrowFixture.specGrow_needs_declaredEnv` is the counterexample — so it also asks for
 `ConstsDeclaredEnv`, λ□ well-formedness of the environment's δ column.
 
 `ConstToFVar` and `CloseConstAt` are here because `LowerBlock.hcl` needs them; the rest of
@@ -2310,6 +2311,14 @@ theorem envLookup_append_of_fresh : ∀ {pre Γ : GlobalDeclarations} {kn : Kern
 def ConstsDeclared (Γ : GlobalDeclarations) (t : LBTerm) : Prop :=
   ∀ kn ∈ constRefs t, (LBTerm.envLookup Γ kn).isSome
 
+/-- The keys `t` names, at which a growth must not create a runtime key: `Lower.const`'s
+anti-monotone premise, carried across the growth at exactly those keys. It is what the
+`const` arm of the monotonicity law spends, and it is weaker than `ConstsDeclared` — a
+reference the smaller environment has not declared at all is allowed, provided the larger
+one does not declare an eliminator there. -/
+def RefsStable (Γ Γ' : GlobalDeclarations) (t : LBTerm) : Prop :=
+  ∀ kn ∈ constRefs t, ¬ RuntimeKey Γ kn → ¬ RuntimeKey Γ' kn
+
 /-- Every declared body's own references are declared: the `tConst` case of MetaRocq's
 `wellformed` under `wf_glob` (`../metarocq/erasure/theories/EWellformed.v:166`, `:211`), the
 δ column of λ□ well-formedness. `SpecGrowFixture.specGrow_needs_declaredEnv` is why the
@@ -2428,6 +2437,18 @@ theorem ConstsDeclared.specGrow {Γ Γ' : GlobalDeclarations} {t : LBTerm}
     (h : SpecGrow Γ Γ') (hd : ConstsDeclared Γ t) : ConstsDeclared Γ' t :=
   fun kn hkn => h.isSome (hd kn hkn)
 
+/-- A term whose references the smaller environment declares is stable: the growth's third
+clause is exactly the declared case. This is how every call site that has declaredness in
+hand pays the law's term-side premise. -/
+theorem RefsStable.of_constsDeclared {Γ Γ' : GlobalDeclarations} {t : LBTerm}
+    (hg : SpecGrow Γ Γ') (hd : ConstsDeclared Γ t) : RefsStable Γ Γ' t :=
+  fun kn hkn hnrk hrk => hnrk (hg.runtimeKey (hd kn hkn) hrk)
+
+/-- Stability composes, which is what threads it through a run's successive steps. -/
+theorem RefsStable.trans {Γ Γ' Γ'' : GlobalDeclarations} {t : LBTerm}
+    (h : RefsStable Γ Γ' t) (h' : RefsStable Γ' Γ'' t) : RefsStable Γ Γ'' t :=
+  fun kn hkn hnrk => h' kn hkn (h kn hkn hnrk)
+
 /-- Growth is reflexive. -/
 theorem SpecGrow.refl (Γ : GlobalDeclarations) : SpecGrow Γ Γ :=
   ⟨[], rfl, by simp, fun _ _ h => h⟩
@@ -2511,23 +2532,43 @@ theorem SpecGrow.of_fresh {Γ pre : GlobalDeclarations}
   subst hdm
   exact ⟨iid, np, dp, nfs, ⟨body, hd, helim⟩, mib, hd', hbo, hnp⟩
 
+/-- **A fresh prefix is stable at `t`** when no prefix entry at one of `t`'s own references
+carries an eliminator body. A reference the smaller environment declares is handled by the
+growth's third clause; one it does not can only become a runtime key through the prefix, and
+the premise rules that out at the keys `t` names. Restricting the premise to `constRefs t` is
+what lets an eliminator prefix — `Erasure.register_inductive`'s — be stable at terms that do
+not name it, while `erases_ne_elimBody` pays it at a prefix of erasure images. -/
+theorem refsStable_of_freshPrefix {Γ pre : GlobalDeclarations} {t : LBTerm}
+    (hg : SpecGrow Γ (pre ++ Γ))
+    (hpre : ∀ kn ∈ constRefs t, ∀ p ∈ pre, p.1 = kn →
+      ∀ (body : LBTerm) (iid : InductiveId) (np dp : Nat) (nfs : List Nat),
+        p.2 = GlobalDecl.constantDecl ⟨some body⟩ → ¬ ElimBody iid np dp nfs body) :
+    RefsStable Γ (pre ++ Γ) t := by
+  intro kn hkn hnrk hrk
+  by_cases hd : (LBTerm.envLookup Γ kn).isSome
+  · exact hnrk (hg.runtimeKey hd hrk)
+  · obtain ⟨iid, np, dp, nfs, ⟨body, hlook, helim⟩, -⟩ := hrk
+    rcases List.mem_append.1 (envLookup_mem hlook) with hm | hm
+    · exact hpre kn hkn _ hm rfl body iid np dp nfs rfl helim
+    · exact hd (envLookup_isSome_of_mem (p := (kn, GlobalDecl.constantDecl ⟨some body⟩)) hm)
+
 /-! ### References of a part
 
 The four shapes whose sub-terms the pass descends into, read at `constRefs`. -/
 
 /-- A constructor node's arguments name only what the node names. -/
-theorem ConstsDeclared.args {Γ : GlobalDeclarations} {iid : InductiveId} {k : Nat}
-    {args : List LBTerm} (hd : ConstsDeclared Γ (.construct iid k args)) {i : Nat}
-    (hi : i < args.length) : ConstsDeclared Γ args[i]! := by
+theorem RefsStable.args {Γ Γ' : GlobalDeclarations} {iid : InductiveId} {k : Nat}
+    {args : List LBTerm} (hd : RefsStable Γ Γ' (.construct iid k args)) {i : Nat}
+    (hi : i < args.length) : RefsStable Γ Γ' args[i]! := by
   intro kn hkn
   refine hd kn ?_
   rw [constRefs, List.mem_cons]
   exact .inr (mem_constRefsArgs.2 ⟨args[i]!, Lower.getElem!_mem hi, hkn⟩)
 
 /-- A branch body names only what the `case` node names. -/
-theorem ConstsDeclared.alts {Γ : GlobalDeclarations} {ip : InductiveId × Nat} {d : LBTerm}
-    {alts : List (List BinderName × LBTerm)} (hd : ConstsDeclared Γ (.case ip d alts))
-    {i : Nat} (hi : i < alts.length) : ConstsDeclared Γ (alts[i]!).2 := by
+theorem RefsStable.alts {Γ Γ' : GlobalDeclarations} {ip : InductiveId × Nat} {d : LBTerm}
+    {alts : List (List BinderName × LBTerm)} (hd : RefsStable Γ Γ' (.case ip d alts))
+    {i : Nat} (hi : i < alts.length) : RefsStable Γ Γ' (alts[i]!).2 := by
   intro kn hkn
   refine hd kn ?_
   rw [constRefs, List.mem_cons]
@@ -2535,18 +2576,18 @@ theorem ConstsDeclared.alts {Γ : GlobalDeclarations} {ip : InductiveId × Nat} 
     (mem_constRefsAlts.2 ⟨alts[i]!, Lower.getElem!_mem hi, hkn⟩))
 
 /-- A discriminant names only what the `case` node names. -/
-theorem ConstsDeclared.discr {Γ : GlobalDeclarations} {ip : InductiveId × Nat} {d : LBTerm}
-    {alts : List (List BinderName × LBTerm)} (hd : ConstsDeclared Γ (.case ip d alts)) :
-    ConstsDeclared Γ d := by
+theorem RefsStable.discr {Γ Γ' : GlobalDeclarations} {ip : InductiveId × Nat} {d : LBTerm}
+    {alts : List (List BinderName × LBTerm)} (hd : RefsStable Γ Γ' (.case ip d alts)) :
+    RefsStable Γ Γ' d := by
   intro kn hkn
   refine hd kn ?_
   rw [constRefs, List.mem_cons]
   exact .inr (List.mem_append_left _ hkn)
 
 /-- A spine's head and arguments name only what the spine names. -/
-theorem ConstsDeclared.spine {Γ : GlobalDeclarations} {f : LBTerm} {l : List LBTerm}
-    (hd : ConstsDeclared Γ (LBTerm.mkApps f l)) :
-    ConstsDeclared Γ f ∧ ∀ x ∈ l, ConstsDeclared Γ x := by
+theorem RefsStable.spine {Γ Γ' : GlobalDeclarations} {f : LBTerm} {l : List LBTerm}
+    (hd : RefsStable Γ Γ' (LBTerm.mkApps f l)) :
+    RefsStable Γ Γ' f ∧ ∀ x ∈ l, RefsStable Γ Γ' x := by
   constructor
   · intro kn hkn
     exact hd kn (by rw [constRefs_mkApps]; exact List.mem_append_left _ hkn)
@@ -2557,22 +2598,23 @@ theorem ConstsDeclared.spine {Γ : GlobalDeclarations} {f : LBTerm} {l : List LB
 
 /-! ### The pass survives growth -/
 
-/-- **`Lower` is monotone along `SpecGrow`**, given that the term's own references and every
-declared body's references are declared. The `const` arm spends the growth's third clause at
-the term's own key; the three fix arms spend `ConstsDeclaredEnv` at the block's declared
-bodies, which the term's references do not reach. -/
+/-- **`Lower` is monotone along `SpecGrow`**, given that no growth turns one of the term's
+own references into a runtime key and that every declared body's references are declared.
+The `const` arm spends `RefsStable` at the term's own key; the three fix arms spend
+`ConstsDeclaredEnv` at the block's declared bodies and the growth's third clause at the
+block key, which the block declares. -/
 theorem Lower.specGrow {Γ Γ' : GlobalDeclarations} (hg : SpecGrow Γ Γ')
     (henv : ConstsDeclaredEnv Γ) {s t : LBTerm} (h : Lower Γ s t) :
-    ConstsDeclared Γ s → Lower Γ' s t := by
+    RefsStable Γ Γ' s → Lower Γ' s t := by
   induction h using Lower.rec
-    (motive_2 := fun nf m alt _ => ConstsDeclared Γ m → LowerAlt Γ' nf m alt) with
+    (motive_2 := fun nf m alt _ => RefsStable Γ Γ' m → LowerAlt Γ' nf m alt) with
   | box => exact fun _ => .box
   | bvar i => exact fun _ => .bvar i
   | fvar x => exact fun _ => .fvar x
   | prim p => exact fun _ => .prim p
   | @const kn hk =>
       intro hd
-      refine .const fun hrk => hk (hg.runtimeKey (hd kn ?_) hrk)
+      refine .const (hd kn ?_ hk)
       rw [constRefs]; exact List.mem_cons_self ..
   | lambda _ ih => exact fun hd => .lambda (ih hd)
   | letIn _ _ ihv ihb =>
@@ -2613,7 +2655,7 @@ theorem Lower.specGrow {Γ Γ' : GlobalDeclarations} (hg : SpecGrow Γ Γ')
       have hjk' : j < kns.length := by omega
       refine .fixConst hb hb' hdl hnd hids hilen hfresh hrarg
         (fun i hi => hg.defnDecl (hdecl i hi)) hfl
-        (fun i hi => ih i hi (henv _ _ (hdecl i hi))) hcl (fun hrk => hnk ?_) hj
+        (fun i hi => ih i hi (.of_constsDeclared hg (henv _ _ (hdecl i hi)))) hcl (fun hrk => hnk ?_) hj
       refine hg.runtimeKey ?_ hrk
       rw [← hjeq]
       exact Option.isSome_of_eq_some (hdecl j hjk')
@@ -2622,13 +2664,13 @@ theorem Lower.specGrow {Γ Γ' : GlobalDeclarations} (hg : SpecGrow Γ Γ')
       intro _
       exact .fixBody hb hb' hdl hnd hids hilen hfresh hrarg
         (fun i hi => hg.defnDecl (hdecl i hi)) hfl
-        (fun i hi => ih i hi (henv _ _ (hdecl i hi))) hcl hj hjl
+        (fun i hi => ih i hi (.of_constsDeclared hg (henv _ _ (hdecl i hi)))) hcl hj hjl
   | @fixEta b nm kns bs bs' ids defs j hb hb' hdl hnd hids hilen hfresh hrarg hdecl hfl hlow
       hcl hj hjl ih =>
       intro _
       exact .fixEta hb hb' hdl hnd hids hilen hfresh hrarg
         (fun i hi => hg.defnDecl (hdecl i hi)) hfl
-        (fun i hi => ih i hi (henv _ _ (hdecl i hi))) hcl hj hjl
+        (fun i hi => ih i hi (.of_constsDeclared hg (henv _ _ (hdecl i hi)))) hcl hj hjl
   | done _ ih => rename_i hd; exact LowerAlt.done (ih hd)
   | @lam nf n n' m alt _ ih =>
       rename_i hd
@@ -2637,7 +2679,7 @@ theorem Lower.specGrow {Γ Γ' : GlobalDeclarations} (hg : SpecGrow Γ Γ')
 /-- The alternative half of the same law, by induction on the field count. -/
 theorem LowerAlt.specGrow {Γ Γ' : GlobalDeclarations} (hg : SpecGrow Γ Γ')
     (henv : ConstsDeclaredEnv Γ) {nf : Nat} {m : LBTerm} {alt : List BinderName × LBTerm}
-    (h : LowerAlt Γ nf m alt) (hd : ConstsDeclared Γ m) : LowerAlt Γ' nf m alt := by
+    (h : LowerAlt Γ nf m alt) (hd : RefsStable Γ Γ' m) : LowerAlt Γ' nf m alt := by
   induction nf generalizing m alt with
   | zero => cases h with | done hl => exact .done (Lower.specGrow hg henv hl hd)
   | succ n ih =>
@@ -2943,13 +2985,14 @@ theorem constsDeclared_small : ConstsDeclared gsmall (.const aKn) := by
   rfl
 
 /-- **`Lower` is not monotone along `SpecGrow` on the term's own references alone.** The
-source's references are declared and the growth is one, yet the pass is lost: the missing
-condition is on the *environment*, not on the term — `ConstsDeclaredEnv`. -/
+source's references are stable — they are declared, so the growth's third clause covers them
+— and the growth is one, yet the pass is lost: the missing condition is on the *environment*,
+not on the term — `ConstsDeclaredEnv`. -/
 theorem specGrow_needs_declaredEnv :
     ∃ (Γ Γ' : GlobalDeclarations) (s t : LBTerm),
-      SpecGrow Γ Γ' ∧ ConstsDeclared Γ s ∧ Lower Γ s t ∧ ¬ Lower Γ' s t :=
+      SpecGrow Γ Γ' ∧ RefsStable Γ Γ' s ∧ Lower Γ s t ∧ ¬ Lower Γ' s t :=
   ⟨gsmall, ggrown, .const aKn, .fix defs 0, specGrow_small_grown,
-    constsDeclared_small, lower_small, not_lower_grown⟩
+    .of_constsDeclared specGrow_small_grown constsDeclared_small, lower_small, not_lower_grown⟩
 
 
 end SpecGrowFixture
