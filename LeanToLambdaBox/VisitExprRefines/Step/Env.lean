@@ -391,6 +391,96 @@ theorem reg_compose {s s' s₁ : ErasureState} {w w' w₁ : Void IO.RealWorld}
       IndRegistryModelled env s₁ :=
   ⟨h.1, hrc.trans h.2.1, NameGenerator.LE.trans hle h.2.2.1, h.2.2.2⟩
 
+/-! ## The two realizer exits, closed by exclusion
+
+`Erasure.visitMutual`'s body-less arm dispatches on the `ConstantInfo` before falling through
+to `Erasure.addAxiom`: a `.quotInfo` takes `Erasure.quotRealizer` and a `.recInfo` takes
+`Erasure.recursorRealizer`, whose `none` re-joins the fall-through, so the arm has four exits
+(`Erasure.lean:1239-1248`). Two of them emit a **bodied** entry at a name the model holds
+body-less. Neither body is an erasure image, so no specification clause reads it: MetaRocq's
+`erases_constant_body` relates an emitted body to the source body it erased
+(`../metarocq/erasure/theories/Extract.v:264`) and emits a body-less constant body-less, so
+the departure is Lean's, not a case the specification forgets.
+
+The fragment does not reach either. `Supported` refuses a quotient primitive by name
+(`PlainHead.notQuotPrim`) and a recursor of a tabled inductive at the head
+(`SupportedTm.const`'s `hrec`, restriction **N21**); the gap between "no recursor *of a tabled
+inductive*" and "no recursor" is `TableRecPrefixed`, a coherence property of the table, and
+the step from a name class to `lenv`'s answer is `SchemeNames`. Refuting `ci = .recInfo`
+closes both of that arm's sub-exits, so the `addAxiom` fall-through is the one exit left and
+`regInv_addAxiom_step` is what answers for it.
+
+`Erasure.recursorRealizer`'s own `Erasure.register_inductive` call (`Erasure.lean:436`) goes
+with them — it sits behind five guards that `return none` before it, on the realizer's success
+path — so the accumulator owes registration growth at `Erasure.visitConstructor`,
+`Erasure.visitProj` and `Erasure.visitCases` only.
+-/
+
+/-- Every tabled name carrying a recursor suffix has its inductive type tabled: the gap
+between `Supported.isRecursorName tbl c = false`, which N21 delivers, and "`c` is no
+recursor", which the exclusion needs. Decidable at a table. -/
+def TableRecPrefixed (tbl : SourceTable) : Prop :=
+  ∀ c ∈ tbl.decls.map Prod.fst, recSuffix c = true → (tbl.ind? c.getPrefix).isSome = true
+
+instance {tbl : SourceTable} : Decidable (TableRecPrefixed tbl) := by
+  unfold TableRecPrefixed; infer_instance
+
+/-- A tabled constant the fragment accepts as a bare head is in neither name class. The
+`casesApp` arm cannot inhabit an empty spine — its `harity` would need
+`I.numParams + 1 + I.numIndices + 1 + I.ctors.length ≤ 0`. -/
+theorem supported_const_names {env : VEnv} {tbl : SourceTable} {n : Name}
+    (hrp : TableRecPrefixed tbl) (hsup : Supported env tbl (.const n []))
+    (htab : (tbl.decl? n).isSome) :
+    quotPrimNames.contains n = false ∧ recSuffix n = false := by
+  have hmem : n ∈ tbl.decls.map Prod.fst := by
+    obtain ⟨d, hd⟩ := Option.isSome_iff_exists.mp htab
+    exact List.mem_map.mpr ⟨(n, d), mem_of_lookup (by rwa [SourceTable.decl?] at hd), rfl⟩
+  cases hsup.term with
+  | const hplain _ hrec _ _ =>
+    refine ⟨hplain.notQuotPrim, ?_⟩
+    cases hrs : recSuffix n with
+    | false => rfl
+    | true => simp [isRecursorName, hrs, hrp n hmem hrs] at hrec
+  | casesApp _ _ _ _ harity => simp at harity
+
+/-- **The two realizer exits are unreachable inside the fragment**, at `lenv`'s own
+declaration for a supported tabled head. -/
+theorem no_realizer_exit {lenv : Environment} {env : VEnv} {tbl : SourceTable} {n : Name}
+    {ci : ConstantInfo} (hS : SchemeNames lenv) (hrp : TableRecPrefixed tbl)
+    (hsup : Supported env tbl (.const n [])) (htab : (tbl.decl? n).isSome)
+    (hci : lenv.find? n = some ci) :
+    (∀ qv : QuotVal, ci ≠ .quotInfo qv) ∧ (∀ rv : RecursorVal, ci ≠ .recInfo rv) := by
+  obtain ⟨hq, hr⟩ := supported_const_names hrp hsup htab
+  refine ⟨fun qv hqv => ?_, fun rv hrv => ?_⟩
+  · rw [hqv] at hci; rw [hS.quot n qv hci] at hq; exact Bool.noConfusion hq
+  · rw [hrv] at hci; rw [hS.recr n rv hci] at hr; exact Bool.noConfusion hr
+
+/-- The same at the constant `Erasure.visitMutual` actually opens: `compilerInfo?` answers
+either `lenv.find? n` or the `_unsafe_rec` companion's, and the companion's *name* is in
+neither class whatever its kind. -/
+theorem no_realizer_exit_compiler {lenv : Environment} {env : VEnv} {tbl : SourceTable}
+    {n : Name} {ci : ConstantInfo} (hS : SchemeNames lenv) (hrp : TableRecPrefixed tbl)
+    (hsup : Supported env tbl (.const n [])) (htab : (tbl.decl? n).isSome)
+    (hci : compilerInfo? lenv n = some ci) :
+    (∀ qv : QuotVal, ci ≠ .quotInfo qv) ∧ (∀ rv : RecursorVal, ci ≠ .recInfo rv) := by
+  rw [compilerInfo?] at hci
+  cases hu : lenv.find? (Compiler.mkUnsafeRecName n) with
+  | none =>
+    rw [hu] at hci
+    simp at hci
+    exact no_realizer_exit hS hrp hsup htab hci
+  | some cu =>
+    rw [hu] at hci
+    simp at hci
+    subst hci
+    refine ⟨fun qv hqv => ?_, fun rv hrv => ?_⟩
+    · rw [hqv] at hu
+      have h := hS.quot _ qv hu
+      simp [quotPrimNames, Compiler.mkUnsafeRecName] at h
+    · rw [hrv] at hu
+      have h := hS.recr _ rv hu
+      simp [recSuffix, Compiler.mkUnsafeRecName, lastComponent] at h
+      exact absurd h (by decide +kernel)
 
 
 set_option maxHeartbeats 2000000 in

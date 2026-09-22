@@ -182,15 +182,27 @@ def isMatcherName (c : Name) : Bool :=
   | some s => "match_".isPrefixOf s || "splitter".isPrefixOf s
   | none => false
 
+/-- Is `c` named like a recursor — `I.rec`, one of the eliminators generated beside it, or one
+of the auxiliary recursors `I.rec_k` that a nested or mutual inductive block carries? The name
+test alone, without the table lookup `isRecursorName` adds, so that a consumer can read it at a
+name the table does not hold. The `rec_*` arm is measured: of this toolchain's 3342 `.recInfo`
+constants every one carries a suffix in this set, and 125 — the auxiliary recursors, e.g.
+`Lean.Syntax.rec_2` — carry only `rec_k` (`scratch/round7/w9a_measure.out`). A name test
+over-approximates in the safe direction: a definition called `I.rec_k` that is *not* a
+recursor leaves the fragment with `SupportError.recursorHead`, a coverage cost, never an
+accepted term the ι rule cannot evaluate. -/
+def recSuffix (c : Name) : Bool :=
+  match lastComponent c with
+  | some s =>
+    s == "rec" || "rec_".isPrefixOf s || s == "recOn" || s == "brecOn" || s == "below" ||
+      s == "ndrec"
+  | none => false
+
 /-- Is `c` a recursor of a tabled inductive type? Such a constant is outside the fragment:
 `Witness.reify%` tables it body-less, so δ cannot fire at it, no value arm classifies it, and
 the ι rule reads `casesOn` names only. -/
 def isRecursorName (tbl : SourceTable) (c : Name) : Bool :=
-  match lastComponent c with
-  | some s =>
-    (s == "rec" || s == "recOn" || s == "brecOn" || s == "below" || s == "ndrec") &&
-      (tbl.ind? c.getPrefix).isSome
-  | none => false
+  recSuffix c && (tbl.ind? c.getPrefix).isSome
 
 /-- The tabled constructor of `c`, with its inductive type, if `c` is one. -/
 def ctorOf? (tbl : SourceTable) (c : Name) : Option (Name × ReifiedCtor) :=
@@ -464,6 +476,26 @@ structure TableSafe (lenv : Lean.Environment) (tbl : SourceTable) : Prop where
       along, so the δ arm can read a body erased at the declaration's own level scope at the
       call site's scope. Decidable on a concrete table, like `notUnsafeRec`. -/
   noMaxLevels : ∀ (n : Name) (b : Expr), tbl.body? n = some b → NoMaxLevels b
+
+/-! ## The naming scheme -/
+
+/-- `lenv` declares its quotient primitives and its recursors under the names the two name
+classes above test for. Class **D** for `ErasureSpec`'s reason — no term denotes `lenv` — and
+taken beside `ErasureSpec` rather than inside it, since neither field mentions a level scope.
+It lives here rather than in `ErasureSpec` because both fields are stated against name tests
+this file defines, and `Supported` imports `ErasureSpec`.
+
+Both fields are measured at this toolchain (`scratch/round7/w9a_measure.out`, 230 479
+constants): the `.quotInfo` constants are exactly `quotPrimNames` — `Quot.sound` is an
+`.axiomInfo`, so the `quot` field is not weakened by it — and every one of the 3342 `.recInfo`
+constants carries a `recSuffix`. -/
+structure SchemeNames (lenv : Lean.Environment) : Prop where
+  /-- A quotient primitive is one of the four names `Erasure.quotRealizer` dispatches on. -/
+  quot : ∀ (c : Name) (qv : QuotVal), lenv.find? c = some (.quotInfo qv) →
+    quotPrimNames.contains c = true
+  /-- A recursor is declared under a recursor suffix. -/
+  recr : ∀ (c : Name) (rv : RecursorVal), lenv.find? c = some (.recInfo rv) →
+    recSuffix c = true
 
 /-! ## The fragment -/
 

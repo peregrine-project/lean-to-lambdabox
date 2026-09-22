@@ -1418,6 +1418,27 @@ on its own, and until W9-B lands nothing in the tree reads it — so this wave r
 reading rather than landing an unconsumed declaration (rule that a landed declaration needs a
 consumer in the tree or in the wave's next unit). -/
 
+/-! ### The recursor-suffix coherence of the tables, measured
+
+`no_realizer_exit` (`VisitExprRefines/Step/Env.lean`) closes `Erasure.visitMutual`'s two
+realizer exits by exclusion, and the gap it has to cross is between N21's
+`isRecursorName tbl c = false` — which carries the table lookup — and "`c` is no recursor",
+which `SchemeNames.recr` answers at the suffix alone. `TableRecPrefixed` is that gap. -/
+
+/-- **Every tabled name with a recursor suffix has its inductive tabled**, at all eight rungs.
+Unlike `noTabledCasesOnBodies` this is **vacuous** at every one of them: no tabled name at any
+rung carries a recursor suffix at all (`scratch/round7/w9a_measure.out`), so what the eight
+`decide`s report is that the ladder never exercises the gap, not that it crosses it. The
+property has a subject at a table that does hold a recursor — `Witness.reify%` tables one
+body-less whenever a body it walks names one — and the widened `recSuffix`, which catches the
+125 auxiliary recursors `I.rec_k` of this toolchain that the five-string test missed, is what
+gives it content there. -/
+theorem tableRecPrefixed_rungs :
+    TableRecPrefixed g1Table ∧ TableRecPrefixed g2Table ∧ TableRecPrefixed g3Table ∧
+    TableRecPrefixed g4Table ∧ TableRecPrefixed g5Table ∧ TableRecPrefixed g6Table ∧
+    TableRecPrefixed g7Table ∧ TableRecPrefixed g8Table := by
+  decide +kernel
+
 /-- **No emitted key is an eliminator's**, at all eight rungs. `gdecls` only grows along a
 run, so a key absent from the final environment is absent at every intermediate state. -/
 theorem noCasesOnKeys :

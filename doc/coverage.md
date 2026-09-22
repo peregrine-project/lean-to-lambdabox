@@ -140,7 +140,7 @@ map for. `NoBodylessRefs` is the capstone's own premise, decided on the emitted 
   collision rather than rejecting it — is `F-KERNAME` in `doc/rework/03-DEV-FIX.md`.
 
 Over the whole elaboration environment of `LeanToLambdaBox/Green.lean` the same check is
-230,476 constants against 230,476 distinct keys, so no collision is
+230,498 constants against 230,498 distinct keys, so no collision is
 excluded by the fragment that the environment does not already avoid.
 
 ### The nodes each program emits, and the projection heads behind them
