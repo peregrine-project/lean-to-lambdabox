@@ -86,7 +86,7 @@ theorem erasure_bridge_of_run
     (step_visitExpr E) step_visitLiteral (step_visitConstructor A) (step_visitConst A) step5
     (step6 E hsafe) step_visitAppArgs step_visitLet step_visitLambda step_visitProj
     step_visitApp (step_visitConstApp hsafe) step_visitCtorEta step_visitCtorEtaGo
-    step_visitCasesEta step_visitCasesEtaGo (step_visitCases A) step_visitAlt
+    step_visitCasesEta step_visitCasesEtaGo (step_visitCases A E) step_visitAlt
     P htbl hcfg hcb hwt hsup rfl hvis hinv Γspec hspec).1
 
 /-! ## The residual, as one named binder -/

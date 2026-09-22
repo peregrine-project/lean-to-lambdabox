@@ -202,6 +202,15 @@ structure PrimMonotone (gw : Void IO.RealWorld → NameGenerator) : Prop where
     (s₁ : ErasureState) (w₁ : Void IO.RealWorld),
     Erasure.liftMetaM (Lean.Meta.inferType e) s ctx cctx ref w = .ok (ty, s₁) w₁ →
     gw w ≤ gw w₁ ∧ ForallMatchesLam ty e
+  /-- Every other `Lean.MetaM` computation the family lifts. The merge added two, both proof
+      tests under a bounded telescope: `Erasure.firstNonProofField`'s, on a constructor's
+      fields (F-ACC), and `Erasure.visitCases`' on the catch-all's hypotheses (F-SPARSE).
+      Stated generically for the reason `RunClosedW.metaM` (`ColdStartInduction.lean:244`) is:
+      the two lambdas are anonymous, and this is that clause's only supplier. -/
+  metaM : ∀ {α : Type} {x : Lean.MetaM α} {a : α} {s s₁ : ErasureState}
+    {ctx : ErasureContext} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
+    {w w₁ : Void IO.RealWorld},
+    Erasure.liftMetaM x s ctx cctx ref w = .ok (a, s₁) w₁ → gw w ≤ gw w₁
 
 /-- The kernel's inductive blocks and the model's agree: `ErasureSpec.decl_adequate`'s
 block-level sibling, at the identifier `Erasure.register_inductive` mints. Class **D**. -/

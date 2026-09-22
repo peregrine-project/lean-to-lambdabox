@@ -1113,13 +1113,34 @@ theorem envLookup_of_mem_of_keys {Γ : GlobalDeclarations} {kn : Kername} {d : G
 
 /-- **`LowerBlock.hfl` at a block the emitted environment declares.** The block's own entry
 is one of the constant bodies `LBWfPeregrine.fixLambda` quantifies over, and `keys` makes
-that entry answer its lookup. -/
-theorem visitMutual_block_hfl {Γ : GlobalDeclarations} {t : LBTerm} {kn : Kername}
+that entry answer its lookup. The entry is the body as registered and the node is reached
+inside it, because F-ETA registers `Erasure.etaExpandFix defs j` rather than the bare node. -/
+theorem visitMutual_block_hfl {Γ : GlobalDeclarations} {t b : LBTerm} {kn : Kername}
     {defs : List (@FixDef LBTerm)} {j : Nat} (hwf : LBWfPeregrine Γ t)
-    (hmem : (kn, .constantDecl ⟨some (.fix defs j)⟩) ∈ Γ) :
+    (hmem : (kn, .constantDecl ⟨some b⟩) ∈ Γ) (hsub : SubTerm (.fix defs j) b) :
     ∀ i, i < defs.length → isLambda (defs[i]!).body = true :=
   FixLambda.of_onProgram
-    ⟨hwf.fixLambda.2 kn _ (envLookup_of_mem_of_keys hwf.keys hmem), hwf.fixLambda.2⟩ .refl rfl
+    ⟨hwf.fixLambda.2 kn _ (envLookup_of_mem_of_keys hwf.keys hmem), hwf.fixLambda.2⟩ hsub rfl
+
+/-- **The block's node is a subterm of the η-expansion registered for it** (F-ETA): the
+expansion is `principalArgIdx + 1` binders over the node applied to its own indices, and the
+node sits at the head of that spine. -/
+theorem subTerm_fix_etaExpandFix {defs : List (@FixDef LBTerm)} {j : Nat} :
+    SubTerm (.fix defs j) (etaExpandFix defs j) := by
+  have hspine : ∀ (l : List Nat) (t : LBTerm), SubTerm (.fix defs j) t →
+      SubTerm (.fix defs j) (l.foldr (fun m u => LBTerm.app u (.bvar m)) t) := by
+    intro l
+    induction l with
+    | nil => exact fun _ h => h
+    | cons _ rest ih => exact fun t h => .appFn (ih t h)
+  have hlam : ∀ (l : List Nat) (t : LBTerm), SubTerm (.fix defs j) t →
+      SubTerm (.fix defs j) (l.foldl (fun u _ => LBTerm.lambda .anon u) t) := by
+    intro l
+    induction l with
+    | nil => exact fun _ h => h
+    | cons _ rest ih => exact fun t h => ih _ (.lambda h)
+  unfold etaExpandFix
+  exact hlam _ _ (hspine _ _ .refl)
 
 /-! ### The block's entries, from the registration fold -/
 
@@ -1139,7 +1160,7 @@ theorem gdecls_mono_foldl_recConstStep (defs : List (@FixDef LBTerm)) :
 /-- Every step of the fold leaves its own entry behind. -/
 theorem mem_gdecls_foldl_recConstStep (defs : List (@FixDef LBTerm)) :
     ∀ (ps : List (Name × Nat)) (p : Name × Nat) (s : ErasureState), p ∈ ps →
-      (toKername p.1, .constantDecl ⟨some (.fix defs p.2)⟩) ∈
+      (toKername p.1, .constantDecl ⟨some (etaExpandFix defs p.2)⟩) ∈
         (ps.foldl (recConstStep defs) s).gdecls := by
   intro ps
   induction ps with
@@ -1155,7 +1176,7 @@ theorem mem_gdecls_foldl_recConstStep (defs : List (@FixDef LBTerm)) :
 /-- `Erasure.visitMutual`'s recursive exit declares the block at every member's kername. -/
 theorem mem_gdecls_recConstState {names : List Name} {defs : List (@FixDef LBTerm)}
     {s : ErasureState} {p : Name × Nat} (hp : p ∈ names.zipIdx) :
-    (toKername p.1, .constantDecl ⟨some (.fix defs p.2)⟩) ∈
+    (toKername p.1, .constantDecl ⟨some (etaExpandFix defs p.2)⟩) ∈
       (recConstState names defs s).gdecls := by
   rw [recConstState_eq]; exact mem_gdecls_foldl_recConstStep defs _ p s hp
 
@@ -1175,6 +1196,7 @@ theorem visitMutual_block_hfl_of_run {names : List Name} {defs : List (@FixDef L
     (hp : p ∈ names.zipIdx) :
     ∀ i, i < defs.length → isLambda (defs[i]!).body = true :=
   visitMutual_block_hfl hwf (stateLe_mem_gdecls hle (mem_gdecls_recConstState hp))
+    subTerm_fix_etaExpandFix
 
 /-! ### The supply, exercised at a two-member block
 

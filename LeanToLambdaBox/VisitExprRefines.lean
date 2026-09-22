@@ -136,12 +136,12 @@ theorem motives_of_steps
       exact step12 P htbl hcfg hcb vConst vArgs vCtorEta vCasesEta ih4 ih7 ih13 ih15
     · intro vCtorEtaGo ih14
       exact step13 P htbl hcfg hcb vCtorEtaGo ih14
-    · intro vCtor vCtorEtaGo ih3 ih14
-      exact step14 P htbl hcfg hcb vCtor vCtorEtaGo ih3 ih14
+    · intro vExpr vCtor vCtorEtaGo ih1 ih3 ih14
+      exact step14 P htbl hcfg hcb vExpr vCtor vCtorEtaGo ih1 ih3 ih14
     · intro vCasesEtaGo ih16
       exact step15 P htbl hcfg hcb vCasesEtaGo ih16
-    · intro vCasesEtaGo vCases ih16 ih17
-      exact step16 P htbl hcfg hcb vCasesEtaGo vCases ih16 ih17
+    · intro vExpr vCasesEtaGo vCases ih1 ih16 ih17
+      exact step16 P htbl hcfg hcb vExpr vCasesEtaGo vCases ih1 ih16 ih17
     · intro vExpr vAlt ih1 ih18
       exact step17 P htbl hcfg hcb vExpr vAlt ih1 ih18
     · intro vExpr ih1

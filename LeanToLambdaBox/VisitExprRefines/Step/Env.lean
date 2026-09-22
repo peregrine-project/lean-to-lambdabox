@@ -107,6 +107,7 @@ theorem runClosedW_indReg {lenv : Environment} {env : VEnv} {Us : List Name}
       (fun s _ => IndRegistryModelled env s₀ → IndRegistryModelled env s) where
   oracle h hq := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hq
   inferType h hq := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hq
+  metaM h hq := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hq
   constInfo h hq := by rw [run_getConstInfo_state _ _ _ _ _ h]; exact hq
   getEnv h hq := by rw [run_getEnv_state _ _ _ _ _ h]; exact hq
   logInfo h hq := by rw [run_logInfo_state _ _ _ _ _ h]; exact hq
@@ -126,11 +127,28 @@ theorem runClosedW_indReg {lenv : Environment} {env : VEnv} {Us : List Name}
     · exact absurd (hc.2.2.1.symm.trans hmach) (by simp)
   prep hc h hq := by rw [(run_prepare_erasure_concl E hc.1 h).1]; exact hq
   nrc hq _ _ _ := hq
+  rlz hq _ _ _ := hq
   rc hq _ _ := fun h0 => indRegistryModelled_recConstState _ _ (hq h0)
 
-/-- **The term walk's state, generator and registry conclusion.** The three `RunClosedW`
-instances the pinned configuration admits, composed and spent at one run of
-`Erasure.visitExpr`. -/
+/-- **The three run facts as one `RunClosedW` instance**: the state grew canonically from `s₀`,
+the generator only advanced from `w₀`, and a modelled inductive registry stayed modelled. Named
+because two callers spend it — the term walk and `Erasure.recursorRealizer`, whose own
+`register_inductive` F-EQREC puts on `Erasure.visitMutual`'s body-less path. -/
+theorem runClosedW_concl {lenv : Environment} {env : VEnv} {Us : List Name}
+    {gw : Void IO.RealWorld → NameGenerator} (S : ErasureSpec lenv env Us gw)
+    (E : EraserAsks lenv env Us gw) (s₀ : ErasureState) (w₀ : Void IO.RealWorld) :
+    RunClosedW ConfigPinned
+      (fun s w => (RunConcl s₀ s ∧ gw w₀ ≤ gw w) ∧
+        (IndRegistryModelled env s₀ → IndRegistryModelled env s)) :=
+  ((runClosedW_runConcl (Cfg := ConfigPinned) s₀
+      (fun hc h => (run_prepare_erasure_concl E hc.1 h).1)).and
+    (runClosedW_gen S w₀ S.prim_monotone.metaM
+      (fun hc h => (run_prepare_erasure_concl E hc.1 h).2)
+      (fun hc h => run_register_inductive_gen S hc h))).and
+    (runClosedW_indReg S E s₀)
+
+/-- **The term walk's state, generator and registry conclusion.** `runClosedW_concl`, spent at
+one run of `Erasure.visitExpr`. -/
 theorem visitExpr_runConcl {lenv : Environment} {env : VEnv} {Us : List Name}
     {gw : Void IO.RealWorld → NameGenerator} (S : ErasureSpec lenv env Us gw)
     (E : EraserAsks lenv env Us gw) {e : Expr} {s : ErasureState} {ctx : ErasureContext}
@@ -140,12 +158,7 @@ theorem visitExpr_runConcl {lenv : Environment} {env : VEnv} {Us : List Name}
     (hrun : Erasure.visitExpr e s ctx cctx ref w = .ok (t, s₁) w₁) :
     RunConcl s s₁ ∧ gw w ≤ gw w₁ ∧
       (IndRegistryModelled env s → IndRegistryModelled env s₁) := by
-  have K := (visitExpr_shapeW
-    (((runClosedW_runConcl (Cfg := ConfigPinned) s
-        (fun hc h => (run_prepare_erasure_concl E hc.1 h).1)).and
-      (runClosedW_gen S w (fun hc h => (run_prepare_erasure_concl E hc.1 h).2)
-        (fun hc h => run_register_inductive_gen S hc h))).and
-      (runClosedW_indReg S E s))).1
+  have K := (visitExpr_shapeW (runClosedW_concl S E s w)).1
     _ _ _ _ _ _ _ _ _ hrun ⟨⟨RunConcl.rfl' s, NameGenerator.LE.rfl⟩, id⟩ hcfg
   exact ⟨K.1.1.1, K.1.1.2, K.1.2⟩
 
@@ -179,6 +192,7 @@ theorem run_nonrec_exit_reg {vE : Expr → EraseM LBTerm}
     {u : Unit} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
     (hrun : (do
         let t ← withReader f (do let pe ← prepare_erasure e; vE pe)
+        checkKernameFresh n (toKername n)
         modify (fun s => { s with
           constants := s.constants.insert n (toKername n),
           gdecls := (toKername n, .constantDecl ⟨some t⟩) :: s.gdecls })
@@ -206,6 +220,10 @@ theorem run_nonrec_exit_reg {vE : Expr → EraseM LBTerm}
   subst hsp
   obtain ⟨hrct, hlet, hindt⟩ := hvE _ _ _ _ _ _ _ (by rw [hf]; exact hcfg) hvis
   rw [run_bind_ok] at hrun
+  obtain ⟨ug, sg, wg, hguard, hrun⟩ := hrun
+  obtain ⟨hsg, hwg, -⟩ := run_checkKernameFresh_ok hguard
+  rw [hsg, hwg] at hrun
+  rw [run_bind_ok] at hrun
   obtain ⟨u2, sm, wm, hmod, hrun⟩ := hrun
   rw [run_modify] at hmod
   cases hmod
@@ -228,11 +246,22 @@ theorem run_nonrec_exit_reg {vE : Expr → EraseM LBTerm}
   · exact (hrct.trans (runConcl_nonrecConstState n t st)).trans hP.1
   · exact NameGenerator.LE.trans (NameGenerator.LE.trans hlep hlet) hP.2.1
 
-/-- **The block exit registers every name of the block.** The identifier loop leaves the state
-alone, the sibling loop only grows it, and the registration loop is `recConstState`. -/
+/-- **The block exit registers every name of the block, and its keys are distinct.** The
+identifier loop leaves the state alone, the sibling loop only grows it, and the registration
+loop is `recConstState`. The distinctness is F-UNSAFEREC's guard read back off the successful
+run (`Erasure.lean:1262-1264`): `remove_unsafe_rec` is not injective, so it is a fact about
+*this* block rather than about `Lean.Compiler.LCNF.getDeclInfo?` in general, and this is the
+enclosing exit lemma that can state it — the other four exits of `Erasure.visitMutual` build no
+block. `ErasureRun.run_rec_exit_nodup` is the same reading at `run_rec_exit_ok`'s shape.
+
+The guard is spelled as an `if` with its continuation written out in both branches rather than as
+`unless … do`, which is the same term: `unless` raises a `letFun` join point over the shared
+continuation, and `isDefEq` does not see through it to the run, which `split` has already
+zeta-reduced. -/
 theorem run_rec_exit_reg {vE : Expr → EraseM LBTerm} {names fixnames : List Name}
     {f : List FVarId → ErasureContext → ErasureContext}
     {g : ConstantInfo → ErasureContext → ErasureContext} {val : ConstantInfo → Expr}
+    {msg : MessageData}
     (E : EraserAsks lenv env Us gw)
     (hfresh : ∀ (s' : ErasureState) (ctx' : ErasureContext) (w' : Void IO.RealWorld)
         (x : FVarId) (s'' : ErasureState) (w'' : Void IO.RealWorld),
@@ -252,22 +281,39 @@ theorem run_rec_exit_reg {vE : Expr → EraseM LBTerm} {names fixnames : List Na
     {u : Unit} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
     (hrun : (do
         let ids ← names.mapM (fun _ => mkFreshFVarId)
-        withReader (f ids) (do
-          let defs ← names.mapM (fun m => do
-            let ci ← getConstInfo m
-            let t ← withReader (g ci) (do let pe ← prepare_erasure (val ci); vE pe)
-            mkDef (remove_unsafe_rec m) fixnames t)
-          for p in fixnames.zipIdx do
-            modify (fun s => { s with
-              constants := s.constants.insert p.1 (toKername p.1),
-              gdecls := (toKername p.1, .constantDecl ⟨some (.fix defs p.2)⟩) :: s.gdecls })
-          pure ()) : EraseM Unit) s ctx cctx ref w = .ok (u, s₁) w₁)
+        if (fixnames.map toKername).Nodup then
+          withReader (f ids) (do
+            let defs ← names.mapM (fun m => do
+              let ci ← getConstInfo m
+              let t ← withReader (g ci) (do let pe ← prepare_erasure (val ci); vE pe)
+              mkDef (remove_unsafe_rec m) fixnames t)
+            for p in fixnames.zipIdx do
+              checkKernameFresh p.1 (toKername p.1)
+              modify (fun s => { s with
+                constants := s.constants.insert p.1 (toKername p.1),
+                gdecls := (toKername p.1,
+                  .constantDecl ⟨some (etaExpandFix defs p.2)⟩) :: s.gdecls })
+            pure ())
+        else do
+          throwError msg
+          withReader (f ids) (do
+            let defs ← names.mapM (fun m => do
+              let ci ← getConstInfo m
+              let t ← withReader (g ci) (do let pe ← prepare_erasure (val ci); vE pe)
+              mkDef (remove_unsafe_rec m) fixnames t)
+            for p in fixnames.zipIdx do
+              checkKernameFresh p.1 (toKername p.1)
+              modify (fun s => { s with
+                constants := s.constants.insert p.1 (toKername p.1),
+                gdecls := (toKername p.1,
+                  .constantDecl ⟨some (etaExpandFix defs p.2)⟩) :: s.gdecls })
+            pure ()) : EraseM Unit) s ctx cctx ref w = .ok (u, s₁) w₁)
     (hcfg : ConfigPinned ctx.config)
     (hind : IndRegistryModelled env s)
     (hf : ∀ (ids : List FVarId) (c : ErasureContext), (f ids c).config = c.config)
     (hg : ∀ (ci : ConstantInfo) (c : ErasureContext), (g ci c).config = c.config) :
     (s₁.constants.get? n).isSome ∧ RunConcl s s₁ ∧ gw w ≤ gw w₁ ∧
-      IndRegistryModelled env s₁ := by
+      IndRegistryModelled env s₁ ∧ (fixnames.map toKername).Nodup := by
   rw [run_bind_ok] at hrun
   obtain ⟨ids, sid, wid, hids, hrun⟩ := hrun
   have hid := run_list_mapM_ok _ cctx ref
@@ -280,6 +326,12 @@ theorem run_rec_exit_reg {vE : Expr → EraseM LBTerm} {names fixnames : List Na
       exact ⟨rfl, NameGenerator.LE.trans hle (hfresh _ _ _ _ _ _ hb)⟩)
     hids
   obtain ⟨hsid, hleid⟩ := hid
+  split at hrun
+  case isFalse =>
+    rw [run_bind_ok] at hrun
+    obtain ⟨a0, s0, w0, hthr, -⟩ := hrun
+    exact absurd hthr (run_throwError_ne_ok _ ctx cctx ref _ _ _ _ _)
+  case isTrue hnd =>
   rw [run_withReader, run_bind_ok] at hrun
   obtain ⟨defs, sd, wd, hdefs, hrun⟩ := hrun
   have hsib := run_list_mapM_ok _ cctx ref
@@ -307,12 +359,13 @@ theorem run_rec_exit_reg {vE : Expr → EraseM LBTerm} {names fixnames : List Na
     hdefs
   rw [run_bind_ok] at hrun
   obtain ⟨u4, sf, wf, hloop, hrun⟩ := hrun
-  obtain ⟨hsf, rfl⟩ := run_modify_forIn_ok hloop
+  obtain ⟨hsf, rfl, -⟩ := run_checkFresh_modify_forIn_ok hloop
   rw [run_pure] at hrun
   cases hrun
   have hreg : s₁ = recConstState fixnames defs sd := by rw [hsf]; rfl
   subst hreg
-  refine ⟨recConstState_get? hmem, ?_, ?_, indRegistryModelled_recConstState _ _ hsib.2.2⟩
+  refine ⟨recConstState_get? hmem, ?_, ?_,
+    indRegistryModelled_recConstState _ _ hsib.2.2, hnd⟩
   · exact (hsid ▸ hsib.1 : RunConcl s sd).trans (runConcl_recConstState fixnames defs sd)
   · exact NameGenerator.LE.trans hleid hsib.2.1
 
@@ -324,6 +377,8 @@ theorem reg_compose {s s' s₁ : ErasureState} {w w' w₁ : Void IO.RealWorld}
     (s₁.constants.get? n).isSome ∧ RunConcl s s₁ ∧ gw w ≤ gw w₁ ∧
       IndRegistryModelled env s₁ :=
   ⟨h.1, hrc.trans h.2.1, NameGenerator.LE.trans hle h.2.2.1, h.2.2.2⟩
+
+
 
 set_option maxHeartbeats 2000000 in
 theorem run_visitMutual_registers {lenv : Environment} {env : VEnv} {Us : List Name}
@@ -411,8 +466,13 @@ theorem run_visitMutual_registers {lenv : Environment} {env : VEnv} {Us : List N
   case isFalse =>
     split at hrun
     · exact run_nonrec_exit_reg P.prim_monotone E hvE hrun hcfg hind (fun _ => rfl)
-    · exact run_rec_exit_reg E hfresh hciM hvE hmem hrun hcfg hind (fun _ _ => rfl)
-        (fun _ _ => rfl)
+    · exact (run_rec_exit_reg (names := di.get!.all)
+        (val := fun ci => ci.value! (allowOpaque := true))
+        (g := fun ci env => { env with lparams := ci.levelParams })
+        (f := fun ids env => { env with
+          fixvars := some (Std.HashMap.ofList ((di.get!.all.map remove_unsafe_rec).zip ids)) })
+        E hfresh hciM hvE hmem hrun hcfg hind (fun _ _ => rfl)
+        (fun _ _ => rfl)).imp id (And.imp id (And.imp id And.left))
   case isTrue =>
     obtain ⟨s₀, w₀, u₀, hpre, hm⟩ := run_inline_prefix_decomp' hrun
     have hpc : RunConcl sb s₀ ∧ gw wb ≤ gw w₀ ∧ IndRegistryModelled env s₀ := by
@@ -429,30 +489,101 @@ theorem run_visitMutual_registers {lenv : Environment} {env : VEnv} {Us : List N
     obtain ⟨c1, sr, wr, hread, hm⟩ := hm
     rw [run_read] at hread
     cases hread
-    cases hval : di.get!.value? (allowOpaque := true) <;>
+    cases hval : di.get!.value? (allowOpaque := true) with
+    | none =>
+      -- F-QUOT and F-EQREC: the body-less arm dispatches on the `ConstantInfo` before it
+      -- falls through to `addAxiom`, so it has three registering exits rather than one.
+      simp only [hval] at hm
+      cases hci : di.get!
+      case quotInfo qv =>
+        rw [hci] at hm
+        simp only [] at hm
+        rw [run_bind_ok] at hm
+        obtain ⟨u3, s3, w3, hlogr, hm⟩ := hm
+        have hz2 := run_logInfo_state _ _ cctx ref _ hlogr
+        subst hz2
+        replace hlee := NameGenerator.LE.trans hlee
+          (P.prim_monotone.logInfo _ _ _ _ _ _ _ _ _ hlogr)
+        obtain ⟨hstA, hwA, -⟩ := run_addRealizer_ok hm
+        subst hstA
+        subst hwA
+        exact ⟨addRealizerState_get? n _ _, runConcl_addRealizerState n _ _, hlee, hpc.2.2⟩
+      case recInfo rv =>
+        rw [hci] at hm
+        simp only [] at hm
+        rw [run_bind_ok] at hm
+        obtain ⟨ro, so, wo, hrr, hm⟩ := hm
+        obtain ⟨⟨⟨hrco, hleo⟩, hrego⟩, -⟩ :=
+          run_recursorRealizer_okW (runClosedW_concl P E se we) hcfg hrr
+            ⟨⟨RunConcl.rfl' _, NameGenerator.LE.rfl⟩, id⟩
+        refine reg_compose hrco (NameGenerator.LE.trans hlee hleo) ?_
+        replace hrego := hrego hpc.2.2
+        cases ro with
+        | some t =>
+          simp only [] at hm
+          rw [run_bind_ok] at hm
+          obtain ⟨u3, s3, w3, hlogr, hm⟩ := hm
+          have hz2 := run_logInfo_state _ _ cctx ref _ hlogr
+          subst hz2
+          obtain ⟨hstA, hwA, -⟩ := run_addRealizer_ok hm
+          subst hstA
+          subst hwA
+          exact ⟨addRealizerState_get? n _ _, runConcl_addRealizerState n _ _,
+            P.prim_monotone.logInfo _ _ _ _ _ _ _ _ _ hlogr, hrego⟩
+        | none =>
+          simp only [] at hm
+          rw [run_bind_ok] at hm
+          obtain ⟨u3, s3, w3, hlogr, hm⟩ := hm
+          have hz2 := run_logInfo_state _ _ cctx ref _ hlogr
+          subst hz2
+          obtain ⟨hstA, hwA, -⟩ := run_addAxiom_ok hm
+          subst hstA
+          subst hwA
+          exact ⟨addAxiomState_get? n _, runConcl_addAxiomState n _,
+            P.prim_monotone.logInfo _ _ _ _ _ _ _ _ _ hlogr, hrego⟩
+      all_goals
+        rw [hci] at hm
+        simp only [] at hm
+        rw [run_bind_ok] at hm
+        obtain ⟨u3, s3, w3, hlogr, hm⟩ := hm
+        have hz2 := run_logInfo_state _ _ cctx ref _ hlogr
+        subst hz2
+        replace hlee := NameGenerator.LE.trans hlee
+          (P.prim_monotone.logInfo _ _ _ _ _ _ _ _ _ hlogr)
+        obtain ⟨hstA, hwA, -⟩ := run_addAxiom_ok hm
+        subst hstA
+        subst hwA
+        exact ⟨addAxiomState_get? n _, runConcl_addAxiomState n _, hlee, hpc.2.2⟩
+    | some v =>
       cases hext : isExtern env2 n <;>
         cases hcfgx : ctx.config.extern <;>
           simp only [hval, hext, hcfgx] at hm
-    all_goals
-      try
-        (rw [run_bind_ok] at hm
-         obtain ⟨u3, s3, w3, hlogr, hm⟩ := hm
-         have hz2 := run_logInfo_state _ _ cctx ref _ hlogr
-         subst hz2
-         replace hlee := NameGenerator.LE.trans hlee
-           (P.prim_monotone.logInfo _ _ _ _ _ _ _ _ _ hlogr))
-    all_goals
-      first
-        | (obtain ⟨hstA, hwA⟩ := run_addAxiom_ok hm
-           subst hstA
-           subst hwA
-           exact ⟨addAxiomState_get? n _, runConcl_addAxiomState n _, hlee, hpc.2.2⟩)
-        | (refine reg_compose (RunConcl.rfl' _) hlee ?_
-           split at hm
-           · exact run_nonrec_exit_reg P.prim_monotone E hvE hm hcfg hpc.2.2
-               (fun _ => rfl)
-           · exact run_rec_exit_reg E hfresh hciM hvE hmem hm hcfg hpc.2.2
-               (fun _ _ => rfl) (fun _ _ => rfl))
+      all_goals
+        try
+          (rw [run_bind_ok] at hm
+           obtain ⟨u3, s3, w3, hlogr, hm⟩ := hm
+           have hz2 := run_logInfo_state _ _ cctx ref _ hlogr
+           subst hz2
+           replace hlee := NameGenerator.LE.trans hlee
+             (P.prim_monotone.logInfo _ _ _ _ _ _ _ _ _ hlogr))
+      all_goals
+        first
+          | (obtain ⟨hstA, hwA, -⟩ := run_addAxiom_ok hm
+             subst hstA
+             subst hwA
+             exact ⟨addAxiomState_get? n _, runConcl_addAxiomState n _, hlee, hpc.2.2⟩)
+          | (refine reg_compose (RunConcl.rfl' _) hlee ?_
+             split at hm
+             · exact run_nonrec_exit_reg P.prim_monotone E hvE hm hcfg hpc.2.2
+                 (fun _ => rfl)
+             · exact (run_rec_exit_reg (names := di.get!.all)
+                 (val := fun ci => ci.value! (allowOpaque := true))
+                 (g := fun ci env => { env with lparams := ci.levelParams })
+                 (f := fun ids env => { env with
+                   fixvars := some
+                     (Std.HashMap.ofList ((di.get!.all.map remove_unsafe_rec).zip ids)) })
+                 E hfresh hciM hvE hmem hm hcfg hpc.2.2
+                 (fun _ _ => rfl) (fun _ _ => rfl)).imp id (And.imp id (And.imp id And.left)))
 
 end Exits
 
@@ -460,25 +591,25 @@ end Exits
 
 /-- **The pair `Erasure.visitMutual` installs is `BlockKeyed`.** The reader equation is the
 `withReader` the block branch runs under, the length is the identifier loop's, the distinctness
-is `EraserAsks.block_keys_distinct` read back through `toKername`, and the separation is the
-table's own key separation against `TableBlocks.members`. `hfb` is the correspondence between
-the run's `Lean.Compiler.LCNF.getDeclInfo?` answer and `Witness.fixBlock?`, which no clause of
-the specification bundle supplies. -/
-theorem blockKeyed_install {lenv : Environment} {env : VEnv} {Us : List Name}
-    {gw : Void IO.RealWorld → NameGenerator} {tbl : SourceTable} {ctx : ErasureContext}
-    {n : Name} {e : Expr} {ci : ConstantInfo} {ids : List FVarId} {cctx : Core.Context}
-    {ref : ST.Ref IO.RealWorld Core.State} {w w₁ : Void IO.RealWorld}
-    (E : EraserAsks lenv env Us gw) (hblk : TableBlocks lenv env tbl)
+is `hnd` read back through `toKername`, and the separation is the table's own key separation
+against `TableBlocks.members`. `hfb` is the correspondence between the run's
+`Lean.Compiler.LCNF.getDeclInfo?` answer and `Witness.fixBlock?`, which no clause of the
+specification bundle supplies.
+
+`hnd` was `EraserAsks.block_keys_distinct` until F-UNSAFEREC, which refutes that field's
+unconditional claim and makes distinctness a conclusion of a *successful* block exit instead:
+`run_rec_exit_reg`'s fifth conclusion, or `ErasureRun.run_rec_exit_nodup`. -/
+theorem blockKeyed_install {lenv : Environment} {env : VEnv} {tbl : SourceTable}
+    {ctx : ErasureContext} {n : Name} {e : Expr} {ci : ConstantInfo} {ids : List FVarId}
+    (hblk : TableBlocks lenv env tbl)
     (hsup : Supported env tbl e) (htab : (tbl.decl? n).isSome)
-    (hdi : (Lean.Compiler.LCNF.getDeclInfo? n : CoreM (Option ConstantInfo)) cctx ref w
-      = .ok (some ci) w₁)
+    (hnd : ((ci.all.map remove_unsafe_rec).map toKername).Nodup)
     (hfb : fixBlock? lenv n = some (ci.all.map remove_unsafe_rec))
     (hlen : ids.length = ci.all.length)
     (hfx : ctx.fixvars = some (fixvarMap (ci.all.map remove_unsafe_rec) ids)) :
     BlockKeyed tbl ctx (ci.all.map remove_unsafe_rec) ids := by
   refine ⟨hfx, by simp [hlen], List.Pairwise.of_map toKername
-    (fun _ _ hne hab => hne (congrArg toKername hab))
-    (E.block_keys_distinct n cctx ref w ci w₁ hdi), ?_⟩
+    (fun _ _ hne hab => hne (congrArg toKername hab)) hnd, ?_⟩
   intro m htm hin
   obtain ⟨m', hm', hkey⟩ := List.mem_map.mp hin
   have heq : m = m' := hsup.kernames m m' htm (hblk.members n _ htab hfb m' hm') hkey.symm

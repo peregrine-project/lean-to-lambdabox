@@ -415,8 +415,20 @@ def getConstantKernameBody (vMut : Name → EraseM Unit) (n: Name) : EraseM Kern
    vMut n
    return (← get).constants[n]!
 
+attribute [-instance] LeanToLambdaBox.instDecidableEqKername
+  LeanToLambdaBox.instDecidableEqModPath in
 /-- The abstract body of `Erasure.visitMutual`: the shipping definition, with its calls into the
-erasure family replaced by the induction's own functions. -/
+erasure family replaced by the induction's own functions.
+
+The two instances are removed for this declaration because `Kername` and `ModPath` carry a
+`DecidableEq` twice — `Basic.lean:12`/`:17`'s, the only one `Erasure.lean` can see, and
+`Semantics/Compute.lean:28-29`'s, which every module downstream of the semantics sees and which
+resolution prefers here, being the later declaration. F-UNSAFEREC's
+`unless (fixvarnames.map toKername).Nodup` guard carries that instance, so at the wrong one the
+copy is definitionally equal to the shipping body only through both derived decision procedures:
+measured, `bodyLe6` does not elaborate within 4·10⁶ heartbeats, and does within the default
+2·10⁵ once the instance is pinned. `Compute.lean`'s derive became redundant when F-UNSAFEREC
+added `Basic.lean`'s. -/
 def visitMutualBody (vExpr : Expr → EraseM LBTerm) (name: Name) : EraseM Unit := do
   let ci := (← Compiler.LCNF.getDeclInfo? name).get!
   let names := ci.all
@@ -430,6 +442,13 @@ def visitMutualBody (vExpr : Expr → EraseM LBTerm) (name: Name) : EraseM Unit 
       modify (fun s => { s with inlinings := s.inlinings.cons (toKername name) })
     match ci.value? (allowOpaque := true), isExtern (← getEnv) name, (← read).config.extern with
     | .none, _, _ =>
+      if let .quotInfo qv := ci then
+        logInfo s!"No value found for name {name}, emitting the quotient realizer."
+        return ← addRealizer name (quotRealizer qv.kind)
+      if let .recInfo rv := ci then
+        if let some t := (← recursorRealizer rv) then
+          logInfo s!"No value found for name {name}, synthesizing its eliminator body."
+          return ← addRealizer name t
       logInfo s!"No value found for name {name}, emitting axiom."
       return ← addAxiom name
     | .some _, false, _ => pure ()
@@ -447,6 +466,7 @@ def visitMutualBody (vExpr : Expr → EraseM LBTerm) (name: Name) : EraseM Unit 
     let t ← withReader (fun env => { env with fixvars := .none, lparams := ci.levelParams }) do
       pure (← vExpr (← prepare_erasure e))
     let kn := toKername name
+    checkKernameFresh name kn
     modify (fun s => { s with constants := s.constants.insert name kn, gdecls := s.gdecls.cons (kn, .constantDecl <| ⟨.some t⟩) })
     if (← read).config.auto_inline_typeclass_dispatch && !leanInline && !t.containsFix then
       let isInst ← Lean.Meta.isInstance name
@@ -459,6 +479,8 @@ def visitMutualBody (vExpr : Expr → EraseM LBTerm) (name: Name) : EraseM Unit 
   else
     let ids ← names.mapM (fun _ => mkFreshFVarId)
     let fixvarnames := names.map remove_unsafe_rec
+    unless (fixvarnames.map toKername).Nodup do
+      throwError "Erasure.visitMutual: mutual block {names} maps to colliding λbox keys {fixvarnames}."
     withReader (fun env => { env with fixvars := fixvarnames |>.zip ids |> Std.HashMap.ofList |> .some }) do
       let defs: List FixDef ← names.mapM (fun n => do
         let ci ← getConstInfo n
@@ -469,7 +491,8 @@ def visitMutualBody (vExpr : Expr → EraseM LBTerm) (name: Name) : EraseM Unit 
       )
       for (n, i) in fixvarnames.zipIdx do
         let kn := toKername n
-        modify (fun s => { s with constants := s.constants.insert n kn, gdecls := s.gdecls.cons (kn, .constantDecl ⟨.some <| .fix defs i⟩) })
+        checkKernameFresh n kn
+        modify (fun s => { s with constants := s.constants.insert n kn, gdecls := s.gdecls.cons (kn, .constantDecl ⟨.some <| etaExpandFix defs i⟩) })
 
 /-- The abstract body of `Erasure.visitAppArgs`: the shipping definition, with its calls into the
 erasure family replaced by the induction's own functions. -/
@@ -527,15 +550,19 @@ def visitCtorEtaBody (vCtorEtaGo : Name → Nat → Expr → Expr → Array Expr
 
 /-- The abstract body of `Erasure.visitCtorEtaGo`: the shipping definition, with its calls into the
 erasure family replaced by the induction's own functions. -/
-def visitCtorEtaGoBody (vCtor : Name → Array Expr → EraseM LBTerm)
+def visitCtorEtaGoBody (vExpr : Expr → EraseM LBTerm) (vCtor : Name → Array Expr → EraseM LBTerm)
    (vCtorEtaGo : Name → Nat → Expr → Expr → Array Expr → EraseM LBTerm)
    (ctorname : Name) (arity : Nat) (type f : Expr) (args : Array Expr) : EraseM LBTerm :=
   if args.size >= arity then
     vCtor ctorname args
-  else
-    forallMonocular type fun fvarid bodytype => do
-      let res ← vCtorEtaGo ctorname arity bodytype f (args.push (.fvar fvarid))
-      mkLambda fvarid res
+  else do
+    let bs ← args.zipIdx.foldlM (fun bs a => do
+      if ← etaArgIsValue (← read).lparams a.1 then return bs
+      else return bs.push (a.2, ← liftMetaM (Meta.inferType a.1), ← vExpr a.1)) #[]
+    withEtaPrefixLets bs.toList args fun args =>
+      forallMonocular type fun fvarid bodytype => do
+        let res ← vCtorEtaGo ctorname arity bodytype f (args.push (.fvar fvarid))
+        mkLambda fvarid res
 
 /-- The abstract body of `Erasure.visitCasesEta`: the shipping definition, with its calls into the
 erasure family replaced by the induction's own functions. -/
@@ -546,15 +573,21 @@ def visitCasesEtaBody (vCasesEtaGo : CasesInfo → Expr → Expr → Array Expr 
 
 /-- The abstract body of `Erasure.visitCasesEtaGo`: the shipping definition, with its calls into the
 erasure family replaced by the induction's own functions. -/
-def visitCasesEtaGoBody (vCasesEtaGo : CasesInfo → Expr → Expr → Array Expr → EraseM LBTerm)
+def visitCasesEtaGoBody (vExpr : Expr → EraseM LBTerm)
+   (vCasesEtaGo : CasesInfo → Expr → Expr → Array Expr → EraseM LBTerm)
    (vCases : CasesInfo → Array Expr → EraseM LBTerm)
    (casesInfo : CasesInfo) (type f : Expr) (args : Array Expr) : EraseM LBTerm :=
   if args.size >= casesInfo.arity then
     vCases casesInfo args
-  else
-    forallMonocular type fun fvarid bodytype => do
-      let res ← vCasesEtaGo casesInfo bodytype f (args.push (.fvar fvarid))
-      mkLambda fvarid res
+  else do
+    let bs ← args.zipIdx.foldlM (fun bs a => do
+      if a.2 != casesInfo.discrPos then return bs
+      if ← etaArgIsValue (← read).lparams a.1 then return bs
+      else return bs.push (a.2, ← liftMetaM (Meta.inferType a.1), ← vExpr a.1)) #[]
+    withEtaPrefixLets bs.toList args fun args =>
+      forallMonocular type fun fvarid bodytype => do
+        let res ← vCasesEtaGo casesInfo bodytype f (args.push (.fvar fvarid))
+        mkLambda fvarid res
 
 /-- The abstract body of `Erasure.visitCases`: the shipping definition, with its calls into the
 erasure family replaced by the induction's own functions. -/
@@ -594,13 +627,57 @@ def visitCasesBody (vExpr : Expr → EraseM LBTerm)
       mkLetIn n_fvar discr_nt case_nt
     )
   | _, _ => do
-    let .inductInfo indVal ← getConstInfo typeName | unreachable!
+    let indName := casesInfo.indName
+    let .inductInfo indVal ← getConstInfo indName
+      | throwError "Erasure.visitCases: {casesInfo.declName} eliminates {indName}, which is not an inductive type."
+    let machineInts := match (← read).config.nat with | .machine => true | .peano => false
+    if machineInts && (indName == ``Nat || indName == ``Int) then
+      throwError "Erasure.visitCases: {casesInfo.declName} eliminates {indName}, which machine-`Nat` mode represents as a primitive integer; only a plain `casesOn` can be compiled against that representation."
+    unless casesInfo.altsRange.lower == casesInfo.discrPos + 1 do
+      throwError "Erasure.visitCases: {casesInfo.declName} is a per-constructor elimination with a side condition, which λbox's `case` cannot express."
+    if isPropositionalArity indVal.type then
+      if let some (ctor_name, field) ← firstNonProofField indVal then
+        throwError "Erasure.visitCases: {casesInfo.declName} eliminates the propositional inductive {indName}, whose constructor {ctor_name} has a field (number {field}) that is not a proof; λbox collapses such an elimination by boxing every field of the alternative, which would lose that field's data."
     let (indid, argmasks) ← register_inductive indVal
+    let altIdx: Array (Option Nat) := indVal.ctors.toArray.map fun ctorName =>
+      casesInfo.altNumParams.findIdx? fun altInfo =>
+        match altInfo with | .ctor c _ => c == ctorName | .default _ => false
+    let numCtorAlts := casesInfo.altNumParams.countP
+      fun altInfo => match altInfo with | .ctor .. => true | .default _ => false
+    unless (altIdx.filterMap id).size == numCtorAlts do
+      throwError "Erasure.visitCases: the constructor alternatives of {casesInfo.declName} do not correspond one-to-one to the constructors of {indName}."
+    let dflt: Option LBTerm ←
+      if altIdx.all (·.isSome) then pure .none
+      else match casesInfo.altNumParams.findIdx? (fun altInfo => match altInfo with | .default _ => true | .ctor .. => false) with
+      | .none =>
+        throwError "Erasure.visitCases: {casesInfo.declName} covers only {numCtorAlts} of the {indVal.ctors.length} constructors of {indName} and has no catch-all alternative."
+      | .some j => do
+        unless numCtorAlts + 1 == casesInfo.altNumParams.size do
+          throwError "Erasure.visitCases: {casesInfo.declName} has more than one catch-all alternative."
+        let numHyps := match casesInfo.altNumParams[j]! with | .ctor _ n => n | .default n => n
+        let altExpr := args[casesInfo.altsRange.lower + j]!
+        let body ← vExpr altExpr
+        if body.hasLooseBVar then
+          throwError "Erasure.visitCases: the catch-all of {casesInfo.declName} erased to a term with a free de Bruijn index, which cannot be moved under the binders of an alternative."
+        let badHyp? ← liftMetaM <| Meta.lambdaBoundedTelescope altExpr numHyps fun hs _ => do
+          for (h, i) in hs.zipIdx do
+            unless ← Meta.isProof h do return some i
+          return none
+        if let some i := badHyp? then
+          throwError "Erasure.visitCases: the catch-all of {casesInfo.declName} binds a hypothesis (number {i}) that is not a proof; λbox erases the catch-all once and applies it to `□` per hypothesis, which is sound only when every one of them is."
+        pure <| .some <| (List.range numHyps).foldl (fun t _ => LBTerm.app t .box) body
     let mut alts := #[]
-    for i in casesInfo.altsRange.toArray, altInfo in casesInfo.altNumParams, argmask in argmasks do
-      let numFields := match altInfo with | .ctor _ n => n | .default n => n
-      let alt ← vAlt numFields argmask args[i]!
-      alts := alts.push alt
+    for (alt?, cidx) in altIdx.zipIdx do
+      let argmask := argmasks[cidx]!
+      match alt? with
+      | .some j =>
+        let numFields := match casesInfo.altNumParams[j]! with | .ctor _ n => n | .default n => n
+        alts := alts.push (← vAlt numFields argmask args[casesInfo.altsRange.lower + j]!)
+      | .none =>
+        match dflt with
+        | .some body => alts := alts.push (List.replicate (argmask.count .keep) .anon, body)
+        | .none =>
+          throwError "Erasure.visitCases: constructor {indVal.ctors[cidx]!} of {indName} is left without an alternative."
     pure <| LBTerm.case (indid, indVal.numParams) discr_nt alts.toList
   )
 
@@ -754,12 +831,13 @@ theorem bodyLe13 {vCtorEtaGo : Name → Nat → Expr → Expr → Array Expr →
 
 /-- The approximation conjunct at `Erasure.visitCtorEtaGo`: one step of the erasure functional
 stays below its fixpoint, and the family's own monotonicity proof is what says so. -/
-theorem bodyLe14 {vCtor : Name → Array Expr → EraseM LBTerm}
+theorem bodyLe14 {vExpr : Expr → EraseM LBTerm} {vCtor : Name → Array Expr → EraseM LBTerm}
     {vCtorEtaGo : Name → Nat → Expr → Expr → Array Expr → EraseM LBTerm}
+    (h1 : vExpr ⊑ Erasure.visitExpr)
     (h3 : vCtor ⊑ Erasure.visitConstructor) (h14 : vCtorEtaGo ⊑ Erasure.visitCtorEtaGo) :
-    visitCtorEtaGoBody vCtor vCtorEtaGo ⊑ Erasure.visitCtorEtaGo :=
+    visitCtorEtaGoBody vExpr vCtor vCtorEtaGo ⊑ Erasure.visitCtorEtaGo :=
   visitCtorEtaGo_eq_mutual ▸ (fix_step_le Erasure.visitExpr.mutual._proof_1
-    (mutual_le_of approx_rfl approx_rfl h3 approx_rfl approx_rfl approx_rfl approx_rfl approx_rfl
+    (mutual_le_of h1 approx_rfl h3 approx_rfl approx_rfl approx_rfl approx_rfl approx_rfl
       approx_rfl approx_rfl approx_rfl approx_rfl approx_rfl h14 approx_rfl approx_rfl approx_rfl
       approx_rfl)).2.2.2.2.2.2.2.2.2.2.2.2.2.1
 
@@ -775,12 +853,13 @@ theorem bodyLe15 {vCasesEtaGo : CasesInfo → Expr → Expr → Array Expr → E
 
 /-- The approximation conjunct at `Erasure.visitCasesEtaGo`: one step of the erasure functional
 stays below its fixpoint, and the family's own monotonicity proof is what says so. -/
-theorem bodyLe16 {vCasesEtaGo : CasesInfo → Expr → Expr → Array Expr → EraseM LBTerm}
-    {vCases : CasesInfo → Array Expr → EraseM LBTerm}
+theorem bodyLe16 {vExpr : Expr → EraseM LBTerm}
+    {vCasesEtaGo : CasesInfo → Expr → Expr → Array Expr → EraseM LBTerm}
+    {vCases : CasesInfo → Array Expr → EraseM LBTerm} (h1 : vExpr ⊑ Erasure.visitExpr)
     (h16 : vCasesEtaGo ⊑ Erasure.visitCasesEtaGo) (h17 : vCases ⊑ Erasure.visitCases) :
-    visitCasesEtaGoBody vCasesEtaGo vCases ⊑ Erasure.visitCasesEtaGo :=
+    visitCasesEtaGoBody vExpr vCasesEtaGo vCases ⊑ Erasure.visitCasesEtaGo :=
   visitCasesEtaGo_eq_mutual ▸ (fix_step_le Erasure.visitExpr.mutual._proof_1
-    (mutual_le_of approx_rfl approx_rfl approx_rfl approx_rfl approx_rfl approx_rfl approx_rfl
+    (mutual_le_of h1 approx_rfl approx_rfl approx_rfl approx_rfl approx_rfl approx_rfl
       approx_rfl approx_rfl approx_rfl approx_rfl approx_rfl approx_rfl approx_rfl approx_rfl h16
       h17 approx_rfl)).2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1
 
@@ -963,11 +1042,12 @@ abbrev Step14 (lenv : Environment) (env : VEnv) (Us : List Name) (tbl : SourceTa
     (cfg : ErasureConfig) (gw : Void IO.RealWorld → NameGenerator) : Prop :=
   ErasureSpec lenv env Us gw → SourceTableAdequate lenv tbl → ConfigPinned cfg →
   CompilerBodies lenv env tbl.body? →
-  ∀ (vCtor : Name → Array Expr → EraseM LBTerm)
+  ∀ (vExpr : Expr → EraseM LBTerm) (vCtor : Name → Array Expr → EraseM LBTerm)
     (vCtorEtaGo : Name → Nat → Expr → Expr → Array Expr → EraseM LBTerm),
+    Motive1 env Us tbl cfg gw vExpr →
     Motive3 env Us tbl cfg gw vCtor →
     Motive14 env Us tbl cfg gw vCtorEtaGo →
-    Motive14 env Us tbl cfg gw (visitCtorEtaGoBody vCtor vCtorEtaGo)
+    Motive14 env Us tbl cfg gw (visitCtorEtaGoBody vExpr vCtor vCtorEtaGo)
 
 /-- Step 15 — the induction's obligation at `Erasure.visitCasesEta`: given the motives of the
 members it calls, the motive holds of its body. -/
@@ -985,11 +1065,13 @@ abbrev Step16 (lenv : Environment) (env : VEnv) (Us : List Name) (tbl : SourceTa
     (cfg : ErasureConfig) (gw : Void IO.RealWorld → NameGenerator) : Prop :=
   ErasureSpec lenv env Us gw → SourceTableAdequate lenv tbl → ConfigPinned cfg →
   CompilerBodies lenv env tbl.body? →
-  ∀ (vCasesEtaGo : CasesInfo → Expr → Expr → Array Expr → EraseM LBTerm)
+  ∀ (vExpr : Expr → EraseM LBTerm)
+    (vCasesEtaGo : CasesInfo → Expr → Expr → Array Expr → EraseM LBTerm)
     (vCases : CasesInfo → Array Expr → EraseM LBTerm),
+    Motive1 env Us tbl cfg gw vExpr →
     Motive16 env Us tbl cfg gw vCasesEtaGo →
     Motive17 env Us tbl cfg gw vCases →
-    Motive16 env Us tbl cfg gw (visitCasesEtaGoBody vCasesEtaGo vCases)
+    Motive16 env Us tbl cfg gw (visitCasesEtaGoBody vExpr vCasesEtaGo vCases)
 
 /-- Step 17 — the induction's obligation at `Erasure.visitCases`: given the motives of the
 members it calls, the motive holds of its body. -/

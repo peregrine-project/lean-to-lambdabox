@@ -1,4 +1,7 @@
 import LeanToLambdaBox.VisitExprRefines.Motives
+-- `runClosedW_concl`: the three run facts as one `RunClosedW` instance, which F-ACC's
+-- `Erasure.firstNonProofField` walk is stepped against here as the term walk is there.
+import LeanToLambdaBox.VisitExprRefines.Step.Env
 
 /-!
 # The pass-facing steps of the bridge induction
@@ -433,6 +436,10 @@ theorem pass_register_inductive_entry {lenv : Environment} {env : VEnv} {Us : Li
     rw [hhit] at hk
     simp only [] at hk
     rw [run_bind_ok] at hk
+    obtain ⟨ug, sG, wG, hguard, hk⟩ := hk
+    obtain ⟨hsG, hwG, -⟩ := run_checkIndKernameFresh_ok hguard
+    rw [hsG, hwG] at hk
+    rw [run_bind_ok] at hk
     obtain ⟨bodies, sM, wM, hmap, htail⟩ := hk
     rw [run_bind_ok] at htail
     obtain ⟨u, sN, wN, hmod, htail2⟩ := htail
@@ -723,6 +730,158 @@ theorem step_visitConstructor {lenv : Environment} {env : VEnv} {Us : List Name}
     ((hinv.mono_state hrc hregm₃).mono hle) hhead hargs
   exact ⟨hrc.trans hgo.1, hgo.2.1, NameGenerator.LE.trans hle hgo.2.2.1, hgo.2.2.2⟩
 
+/-- **F-SPARSE's per-constructor slot lookup is the identity.** `CasesInfoAgrees.altCtor`
+names slot `j` after constructor `j` and `numAlts` makes the array exactly as long as the
+block, while a pinned block's constructor names are distinct — each reified constructor pins
+its own `cidx` and `lenv` answers one `ConstructorVal` per name. So `Erasure.visitCases`'
+`findIdx?` over the alternatives (`Erasure.lean:1122-1124`), which returns the *first* match,
+returns the constructor's own index. -/
+theorem pass_altIdx_self {lenv : Environment} {ci : Lean.CasesInfo} {con : Name}
+    {I : ReifiedInduct} {iv : InductiveVal}
+    (hpin : ReifiedInduct.Pinned lenv con.getPrefix I)
+    (hfind : lenv.find? con.getPrefix = some (.inductInfo iv))
+    (hagr : CasesInfoAgrees ci con I) {k : Nat} (hk : k < iv.ctors.length) :
+    (ci.altNumParams.findIdx? fun altInfo =>
+        match altInfo with
+        | .ctor c _ => c == iv.ctors[k]!
+        | .default _ => false) = some k := by
+  obtain ⟨iv', hfind', -, -, -, -, -, -, -, hctors', hcs⟩ := hpin
+  have hiveq : iv' = iv := by injection Option.some.inj (hfind'.symm.trans hfind)
+  rw [hiveq] at hctors'
+  have hctors := hctors'
+  have hlen : iv.ctors.length = I.ctors.length := by rw [hctors]; simp
+  have hcbget : ∀ j, j < I.ctors.length → iv.ctors[j]! = I.ctors[j]!.name := by
+    intro j hj
+    have h1 : iv.ctors[j]? = some I.ctors[j]!.name := by
+      rw [hctors, List.getElem?_map, getElem!_pos I.ctors j hj,
+        List.getElem?_eq_getElem hj]
+      rfl
+    rw [List.getElem!_eq_getElem?_getD, h1]
+    rfl
+  have hslot : ∀ j (hj : j < ci.altNumParams.size),
+      ci.altNumParams[j] = .ctor I.ctors[j]!.name (altNumFields ci.altNumParams[j]) := by
+    intro j hj
+    have hjc : j < I.ctors.length := by rw [← hagr.numAlts]; exact hj
+    obtain ⟨nf, hnf⟩ := hagr.altCtor j ci.altNumParams[j] I.ctors[j]!
+      (Array.getElem?_eq_getElem hj) (by rw [getElem!_pos I.ctors j hjc]; simp)
+    rw [hnf]; rfl
+  have hinj : ∀ j, j < I.ctors.length → I.ctors[j]!.name = I.ctors[k]!.name → j = k := by
+    intro j hj hname
+    have hkc : k < I.ctors.length := by omega
+    obtain ⟨cvj, hfj, -, hcij, hcijj, -, -, -, -⟩ :=
+      hcs j I.ctors[j]! (by rw [getElem!_pos I.ctors j hj]; simp)
+    obtain ⟨cvk, hfk, -, hcik, hcikk, -, -, -, -⟩ :=
+      hcs k I.ctors[k]! (by rw [getElem!_pos I.ctors k hkc]; simp)
+    rw [hname] at hfj
+    obtain rfl : cvj = cvk := by injection Option.some.inj (hfj.symm.trans hfk)
+    omega
+  have hksz : k < ci.altNumParams.size := by rw [hagr.numAlts]; omega
+  rw [Array.findIdx?_eq_some_iff_getElem]
+  refine ⟨hksz, ?_, ?_⟩
+  · rw [hslot k hksz]
+    simp [hcbget k (by omega)]
+  · intro j hj
+    have hjsz : j < ci.altNumParams.size := Nat.lt_trans hj hksz
+    have hjc : j < I.ctors.length := by rw [← hagr.numAlts]; exact hjsz
+    rw [hslot j hjsz]
+    simp only [beq_iff_eq, hcbget k (by omega)]
+    intro hname
+    exact absurd (hinj j hjc hname) (by omega)
+
+/-- The loop `Erasure.visitCases` walks, at an index array that is the identity: the element
+the `k`-th iteration sees is the `k`-th constructor's own slot, at the `k`-th position.
+`pass_altIdx_self` is what makes the array self-indexing. -/
+theorem pass_selfIdx_zipIdx_split {a : Array (Option Nat)} {pre post : List (Option Nat × Nat)}
+    {x : Option Nat × Nat}
+    (hself : ∀ (k : Nat) (hk : k < a.size), a[k] = some k)
+    (h : a.zipIdx.toList = pre ++ x :: post) :
+    x = (some pre.length, pre.length) ∧ pre.length < a.size := by
+  have hlen : a.zipIdx.toList.length = a.size := by simp
+  have hplt : pre.length < a.size := by
+    rw [← hlen, h]; simp
+  refine ⟨?_, hplt⟩
+  have h0 : a.zipIdx.toList[pre.length]? = some x := by
+    rw [h, List.getElem?_append_right (Nat.le_refl _)]
+    simp
+  rw [show a.zipIdx.toList = a.toList.zipIdx by simp, List.getElem?_zipIdx,
+    List.getElem?_eq_getElem (show pre.length < a.toList.length by simpa using hplt)] at h0
+  simp only [Option.map_some] at h0
+  have := Option.some.inj h0
+  rw [show a.toList[pre.length] = a[pre.length]'hplt from rfl, hself pre.length hplt] at this
+  simpa using this.symm
+
+/-- **A refusal whose test throws, stepped.** The throwing side cannot have produced `.ok`, so
+the continuation ran where the test left it. `Erasure.visitCases`' machine-numeral refusal
+(F-SPARSE, `Erasure.lean:1102-1103`) has this shape. -/
+theorem pass_throw_guard_then {c : Bool} {msg : MessageData} {k : EraseM LBTerm}
+    {s : ErasureState} {ctx : ErasureContext} {cctx : Core.Context}
+    {ref : ST.Ref IO.RealWorld Core.State} {w : Void IO.RealWorld}
+    {t : LBTerm} {s' : ErasureState} {w' : Void IO.RealWorld}
+    (hrun : (if c = true then (do throwError msg; k) else k) s ctx cctx ref w
+      = .ok (t, s') w') :
+    k s ctx cctx ref w = .ok (t, s') w' := by
+  split at hrun
+  · rw [run_bind_ok] at hrun
+    obtain ⟨a0, sa0, wa0, hthr, -⟩ := hrun
+    exact absurd hthr (run_throwError_ne_ok _ ctx cctx ref _ _ _ _ _)
+  · exact hrun
+
+/-- `pass_throw_guard_then` at an `unless`, whose throwing side is the other one. The
+side-condition and one-to-one refusals of `Erasure.visitCases` (F-SPARSE, `Erasure.lean:1104`,
+`:1127`) have this shape. -/
+theorem pass_throw_guard_else {c : Bool} {msg : MessageData} {k : EraseM LBTerm}
+    {s : ErasureState} {ctx : ErasureContext} {cctx : Core.Context}
+    {ref : ST.Ref IO.RealWorld Core.State} {w : Void IO.RealWorld}
+    {t : LBTerm} {s' : ErasureState} {w' : Void IO.RealWorld}
+    (hrun : (if c = true then k else (do throwError msg; k)) s ctx cctx ref w
+      = .ok (t, s') w') :
+    k s ctx cctx ref w = .ok (t, s') w' := by
+  split at hrun
+  · exact hrun
+  · rw [run_bind_ok] at hrun
+    obtain ⟨a0, sa0, wa0, hthr, -⟩ := hrun
+    exact absurd hthr (run_throwError_ne_ok _ ctx cctx ref _ _ _ _ _)
+
+/-- **F-ACC's refusal, stepped.** `Erasure.visitCases` tests the eliminated inductive's declared
+arity and, when it ends in `Prop`, walks the constructors for a field that is not a proof and
+refuses if it finds one (`Erasure.lean:1113-1115`). On a successful run the walk found nothing —
+or did not run — so the continuation runs at a state the walk only grew and a generator it only
+advanced. The continuation and the message are abstract, so the branch is stepped rather than
+assumed away, and the walk itself is `run_firstNonProofField_okW`. -/
+theorem pass_propArity_guard {lenv : Environment} {env : VEnv} {Us : List Name}
+    {gw : Void IO.RealWorld → NameGenerator} (P : ErasureSpec lenv env Us gw)
+    (E : EraserAsks lenv env Us gw) {b : Bool} {iv : InductiveVal}
+    {msg : Name → Nat → MessageData} {k : EraseM LBTerm}
+    {s : ErasureState} {ctx : ErasureContext} {cctx : Core.Context}
+    {ref : ST.Ref IO.RealWorld Core.State} {w : Void IO.RealWorld}
+    {t : LBTerm} {s' : ErasureState} {w' : Void IO.RealWorld}
+    (hrun : (if b = true then
+        (do
+          let r ← firstNonProofField iv
+          match r with
+          | some (cn, fi) => do throwError (msg cn fi); k
+          | _ => k)
+      else k) s ctx cctx ref w = .ok (t, s') w') :
+    ∃ (sG : ErasureState) (wG : Void IO.RealWorld),
+      RunConcl s sG ∧ gw w ≤ gw wG ∧
+        (IndRegistryModelled env s → IndRegistryModelled env sG) ∧
+        k sG ctx cctx ref wG = .ok (t, s') w' := by
+  split at hrun
+  · rw [run_bind_ok] at hrun
+    obtain ⟨fr, sf, wf, hfn, hrun⟩ := hrun
+    obtain ⟨⟨hrcf, hlef⟩, hregf⟩ :=
+      run_firstNonProofField_okW (runClosedW_concl P E s w) hfn
+        ⟨⟨RunConcl.rfl' _, NameGenerator.LE.rfl⟩, id⟩
+    cases fr with
+    | some pr =>
+      obtain ⟨cn0, fi0⟩ := pr
+      simp only [] at hrun
+      rw [run_bind_ok] at hrun
+      obtain ⟨a0, sa0, wa0, hthr, -⟩ := hrun
+      exact absurd hthr (run_throwError_ne_ok _ ctx cctx ref _ _ _ _ _)
+    | none => exact ⟨sf, wf, hrcf, hlef, hregf, hrun⟩
+  · exact ⟨s, w, RunConcl.rfl' _, NameGenerator.LE.rfl, id, hrun⟩
+
 /-! ## Step 13 — `Erasure.visitCtorEta` -/
 
 /-- The saturated constructor spine's entry point: `Meta.inferType` leaves the state alone and
@@ -772,12 +931,13 @@ theorem step_visitCasesEta {lenv : Environment} {env : VEnv} {Us : List Name}
 
 /-- The `casesOn` η loop, at a saturated spine: the elaborator's arity is the fragment's own
 (`CasesInfoAgrees.arity`), so the η-expansion branch is dead and the run is `Erasure.visitCases`
-on the nose. -/
+on the nose. F-ETA2's `let` prefix — `Erasure.etaArgIsValue` and `Erasure.withEtaPrefixLets` —
+sits in that dead branch, which is why the step is still one rewrite. -/
 theorem step_visitCasesEtaGo {lenv : Environment} {env : VEnv} {Us : List Name}
     {tbl : SourceTable} {cfg : ErasureConfig} {gw : Void IO.RealWorld → NameGenerator} :
     Step16 lenv env Us tbl cfg gw := by
-  intro _P _htbl _hcfg _hcb vGo vCases _h16 h17
-  refine ⟨?_, bodyLe16 _h16.2 h17.2⟩
+  intro _P _htbl _hcfg _hcb vExpr vGo vCases h1 _h16 h17
+  refine ⟨?_, bodyLe16 h1.2 _h16.2 h17.2⟩
   intro ci ty fe args s ctx cctx ref w t s' w' hrun Δ con us I hinv hhead har hsup hargs hex
   replace h17 := h17.1
   simp only [visitCasesEtaGoBody] at hrun
@@ -787,12 +947,13 @@ theorem step_visitCasesEtaGo {lenv : Environment} {env : VEnv} {Us : List Name}
 /-! ## Step 14 — the constructor η loop -/
 
 /-- The constructor η loop, at a saturated spine: the arity is met, so the run is
-`Erasure.visitConstructor` on the nose and the η-expansion branch is dead. -/
+`Erasure.visitConstructor` on the nose and the η-expansion branch is dead — F-ETA2's `let`
+prefix included. -/
 theorem step_visitCtorEtaGo {lenv : Environment} {env : VEnv} {Us : List Name}
     {tbl : SourceTable} {cfg : ErasureConfig} {gw : Void IO.RealWorld → NameGenerator} :
     Step14 lenv env Us tbl cfg gw := by
-  intro _P _htbl _hcfg _hcb vCtor vGo h3 _h14
-  refine ⟨?_, bodyLe14 h3.2 _h14.2⟩
+  intro _P _htbl _hcfg _hcb vExpr vCtor vGo h1 h3 _h14
+  refine ⟨?_, bodyLe14 h1.2 h3.2 _h14.2⟩
   intro cn ar ty fe args s ctx cctx ref w t s' w' hrun Δ us hinv hctor har hargs
   replace h3 := h3.1
   simp only [visitCtorEtaGoBody] at hrun
@@ -815,7 +976,7 @@ block's own arithmetic, which is `CasesInfoAgrees.discrPos` through the pin and 
 `ErasesLB.cases`' length equation hold. -/
 theorem step_visitCases {lenv : Environment} {env : VEnv} {Us : List Name}
     {tbl : SourceTable} {cfg : ErasureConfig} {gw : Void IO.RealWorld → NameGenerator}
-    (A : UpstreamAsks env) :
+    (A : UpstreamAsks env) (E : EraserAsks lenv env Us gw) :
     Step17 lenv env Us tbl cfg gw := by
   intro P htbl hcfg _hcb vExpr vAlt ih1 ih18
   refine ⟨?_, bodyLe17 ih1.2 ih18.2⟩
@@ -833,9 +994,11 @@ theorem step_visitCases {lenv : Environment} {env : VEnv} {Us : List Name}
   rw [← getElem!_pos args ci.discrPos hdplt] at hsupd hexd
   simp only [visitCasesBody] at hrun
   rw [hhead.agrees.decl] at hrun
+  -- F-SPARSE reads the eliminated block off `CasesInfo.indName`, not off the head's prefix
+  rw [hhead.agrees.indName] at hrun
   -- the block the head names, in the table and in the model
-  obtain ⟨iv, hfind, hivn, -, -, hivnp, hivni, hivall, hivmem, -, -⟩ :=
-    htbl.inds _ I (mem_of_lookup hhead.ind)
+  have hpin := htbl.inds _ I (mem_of_lookup hhead.ind)
+  obtain ⟨iv, hfind, hivn, -, -, hivnp, hivni, hivall, hivmem, hivctors, -⟩ := id hpin
   have hself : iv.name ∈ iv.all := by rw [hivn, hivall]; exact hivmem
   obtain ⟨iid₀, hII⟩ := indInfo_of_tabled P htbl hhead.ind
   have harity : IndArity env con.getPrefix I.numParams (I.ctors.map (·.numFields)) := hII.arity
@@ -865,11 +1028,20 @@ theorem step_visitCases {lenv : Environment} {env : VEnv} {Us : List Name}
     rw [hfind] at hfindc; exact (Option.some.inj hfindc).symm
   subst hceq
   simp only [] at hm2
+  -- F-SPARSE's three refusals and F-ACC's, each stepped to its test and its throwing side
+  -- killed; the surviving sides leave the state where they found it or grow it canonically
+  rw [run_bind_ok] at hm2
+  obtain ⟨rctx2, s₄', w₄', hrd2, hm2⟩ := hm2
+  rw [run_read] at hrd2
+  cases hrd2
+  replace hm2 := pass_throw_guard_then hm2
+  replace hm2 := pass_throw_guard_else hm2
+  obtain ⟨sG, wG, hrcG, hleG, hregG, hm2⟩ := pass_propArity_guard P E hm2
   rw [run_bind_ok] at hm2
   obtain ⟨rr, s₅, w₅, hregrun, hm3⟩ := hm2
   -- the registration's answer, and the model behind it
   have hrc₅ := run_register_inductive_runConcl hregrun
-  have hreg₅ := run_register_inductive_models P hfind hcfgc hreg₁ hregrun
+  have hreg₅ := run_register_inductive_models P hfind hcfgc (hregG hreg₁) hregrun
   have hle₅ := run_register_inductive_gen P hcfgc hregrun
   have hget := pass_register_inductive_entry P (by rw [hivn]; exact hfind) hself hcfgc hregrun
   have hmodel := hreg₅ iv.name rr I.numParams (I.ctors.map (·.numFields)) hget
@@ -911,70 +1083,99 @@ theorem step_visitCases {lenv : Environment} {env : VEnv} {Us : List Name}
   have haltslen : I.ctors.length ≤ ci.altNumParams.size :=
     Nat.le_of_eq hhead.agrees.numAlts.symm
   have hinv₅ : BridgeInv env Us tbl cfg (gw w₅) ctx s₅ Δ :=
-    (((hinv.mono_state hrc₁ hreg₁).mono hle₁).mono_state hrc₅ hreg₅).mono
-      (NameGenerator.LE.trans hle₄ hle₅)
+    ((((hinv.mono_state hrc₁ hreg₁).mono hle₁).mono_state hrcG (hregG hreg₁)).mono_state
+        hrc₅ hreg₅).mono
+      (NameGenerator.LE.trans hle₄ (NameGenerator.LE.trans hleG hle₅))
+  -- F-SPARSE: every constructor's slot is its own, so the index array is total, the
+  -- catch-all is never built and the loop walks the block in constructor order
+  have hctorsl : iv.ctors.length = I.ctors.length := by rw [hivctors]; simp
+  have hself : ∀ (k : Nat)
+      (hk : k < (iv.ctors.toArray.map fun ctorName =>
+        ci.altNumParams.findIdx? fun altInfo =>
+          match altInfo with
+          | .ctor c _ => c == ctorName
+          | .default _ => false).size),
+      (iv.ctors.toArray.map fun ctorName =>
+        ci.altNumParams.findIdx? fun altInfo =>
+          match altInfo with
+          | .ctor c _ => c == ctorName
+          | .default _ => false)[k] = some k := by
+    intro k hk
+    simp only [Array.size_map, List.size_toArray] at hk
+    rw [Array.getElem_map, List.getElem_toArray,
+      show iv.ctors[k] = iv.ctors[k]! by rw [getElem!_pos iv.ctors k hk]]
+    exact pass_altIdx_self hpin hfind hhead.agrees hk
+  have haltall : (iv.ctors.toArray.map fun ctorName =>
+      ci.altNumParams.findIdx? fun altInfo =>
+        match altInfo with
+        | .ctor c _ => c == ctorName
+        | .default _ => false).all (·.isSome) = true := by
+    rw [Array.all_eq_true]
+    intro k hk
+    rw [hself k hk]
+    rfl
+  replace hm3 := pass_throw_guard_else hm3
+  split at hm3
+  case isFalse hc => exact absurd haltall hc
+  case isTrue =>
+  rw [run_bind_ok] at hm3
+  obtain ⟨dflt, sD, wD, hdflt, hm3⟩ := hm3
+  rw [run_pure] at hdflt
+  cases hdflt
   rw [run_bind_ok] at hm3
   obtain ⟨accF, s₆, w₆, hloop, hfin⟩ := hm3
   rw [run_pure] at hfin
   cases hfin
-  -- the parallel `for` over the index range, the metadata and the masks
+  -- the alternatives' `for`, one slot per constructor
   have hloopP := run_array_forIn_ok' ctx cctx ref
     (P := fun pre acc s₇ w₇ =>
       RunConcl s₅ s₇ ∧ IndRegistryModelled env s₇ ∧ gw w₅ ≤ gw w₇ ∧
-      acc.1.size = pre.length ∧
-      Subarray.array acc.2.1 = ci.altNumParams ∧ Subarray.start acc.2.1 = pre.length ∧
-        Subarray.stop acc.2.1 = ci.altNumParams.size ∧
-      acc.2.2 = rr.2.drop pre.length ∧
+      acc.size = pre.length ∧
       ∀ Γspec, SpecEnv env tbl.body? tbl.levels? s₇ Γspec →
         ∀ j, j < pre.length →
           ErasesLBAltMode tbl ctx env Us Γspec Δ (I.ctors.map (·.numFields))[j]!
-            args[ci.altsRange.lower + j]! acc.1[j]!)
-    (by
-      refine ⟨RunConcl.rfl' _, hreg₅, NameGenerator.LE.rfl, by simp, ?_, ?_, ?_, rfl, by simp⟩
-      · simp [Std.toStream, Std.Rii.Sliceable.mkSlice]
-      · simp [Std.toStream, Std.Rii.Sliceable.mkSlice]
-      · simp [Std.toStream, Std.Rii.Sliceable.mkSlice])
+            args[ci.altsRange.lower + j]! acc[j]!)
+    ⟨RunConcl.rfl' _, hreg₅, NameGenerator.LE.rfl, by simp, by simp⟩
     (by
       intro pre x post acc s₇ w₇ acc' s₈ w₈ hL hPacc hf
-      obtain ⟨hrcA, hregA, hleA, hsizeA, harrA, hstartA, hstopA, hmaskA, haltA⟩ := hPacc
-      obtain ⟨hxv, hplt⟩ := pass_rco_split hL
+      obtain ⟨hrcA, hregA, hleA, hsizeA, haltA⟩ := hPacc
+      obtain ⟨hxv, hplt⟩ := pass_selfIdx_zipIdx_split hself hL
+      subst hxv
+      simp only [Array.size_map, List.size_toArray] at hplt
       have hjlt : pre.length < I.ctors.length := by omega
-      have hnext2 : Std.Stream.next? acc.2.2
-          = some (rr.2[pre.length]!, rr.2.drop (pre.length + 1)) := by
-        rw [hmaskA]; exact pass_list_next (by omega)
-      rw [hnext2] at hf
-      obtain ⟨st', hnext1, harr', hstart', hstop'⟩ :=
-        pass_subarray_next harrA hstartA hstopA (by omega)
-      rw [hnext1] at hf
       simp only [] at hf
-      replace hf : ((vAlt (altNumFields ci.altNumParams[pre.length]!) rr.2[pre.length]!
-            args[x]!) >>= fun alt =>
-              pure (ForInStep.yield (acc.1.push alt, st', rr.2.drop (pre.length + 1))))
-          s₇ ctx cctx ref w₇ = .ok (.yield acc', s₈) w₈ := hf
-      have haltlt : pre.length < ci.altNumParams.size := by omega
+      have haltlt : pre.length < ci.altNumParams.size := by
+        rw [hhead.agrees.numAlts]; exact hjlt
       have hai : ci.altNumParams[pre.length]? = some ci.altNumParams[pre.length]! := by
         rw [getElem!_pos ci.altNumParams pre.length haltlt, Array.getElem?_eq_getElem haltlt]
       have hcb : I.ctors[pre.length]? = some I.ctors[pre.length]! := by
         rw [getElem!_pos I.ctors pre.length hjlt, List.getElem?_eq_getElem hjlt]
-      rw [hhead.agrees.numFields pre.length _ _ hai hcb] at hf
+      have hnfeq := hhead.agrees.numFields pre.length _ _ hai hcb
       have hnfval : (I.ctors.map (·.numFields))[pre.length]! = I.ctors[pre.length]!.numFields := by
         rw [List.getElem!_eq_getElem?_getD, hnfsget pre.length hjlt]
         rfl
       have hmaskv : rr.2[pre.length]! = Array.replicate I.ctors[pre.length]!.numFields .keep := by
         rw [List.getElem!_eq_getElem?_getD, hmodel.2 pre.length _ (hnfsget pre.length hjlt)]
         rfl
-      rw [hmaskv] at hf
-      have hxlt : x < args.size := by omega
-      obtain ⟨hsupx0, hexx0⟩ := hargs x hxlt
-      rw [← getElem!_pos args x hxlt] at hsupx0 hexx0
-      have hminj : minors0[pre.length]? = some args[x]! := by
+      replace hf : ((vAlt I.ctors[pre.length]!.numFields
+            (Array.replicate I.ctors[pre.length]!.numFields .keep)
+            args[ci.altsRange.lower + pre.length]!) >>= fun alt =>
+              pure (ForInStep.yield (acc.push alt)))
+          s₇ ctx cctx ref w₇ = .ok (.yield acc', s₈) w₈ := by
+        rw [← hmaskv, ← hnfeq]; exact hf
+      have hxlt : ci.altsRange.lower + pre.length < args.size := by omega
+      obtain ⟨hsupx0, hexx0⟩ := hargs _ hxlt
+      rw [← getElem!_pos args _ hxlt] at hsupx0 hexx0
+      have hminj : minors0[pre.length]? = some args[ci.altsRange.lower + pre.length]! := by
         rw [hmin0, List.getElem?_take, if_pos hjlt, List.getElem?_drop,
-          show I.numParams + 1 + I.numIndices + 1 + pre.length = x by omega,
-          List.getElem?_eq_getElem (show x < args.toList.length by simpa using hxlt),
-          getElem!_pos args x hxlt]
+          show I.numParams + 1 + I.numIndices + 1 + pre.length
+            = ci.altsRange.lower + pre.length by omega,
+          List.getElem?_eq_getElem (show ci.altsRange.lower + pre.length < args.toList.length by
+            simpa using hxlt),
+          getElem!_pos args _ hxlt]
         simp
-      have htelx : IsLamTelescope I.ctors[pre.length]!.numFields args[x]! :=
-        htel0 pre.length _ _ hminj hcb
+      have htelx : IsLamTelescope I.ctors[pre.length]!.numFields
+          args[ci.altsRange.lower + pre.length]! := htel0 pre.length _ _ hminj hcb
       have hinv₇ : BridgeInv env Us tbl cfg (gw w₇) ctx s₇ Δ :=
         (hinv₅.mono_state hrcA hregA).mono hleA
       rw [run_bind_ok] at hf
@@ -983,39 +1184,27 @@ theorem step_visitCases {lenv : Environment} {env : VEnv} {Us : List Name}
       cases hp
       obtain ⟨hrcB, hregB, hleB, haltmode⟩ :=
         ih18 _ _ _ _ _ _ _ _ _ _ _ halt Δ hinv₇ rfl htelx hsupx0 hexx0
-      refine ⟨hrcA.trans hrcB, hregB, NameGenerator.LE.trans hleA hleB, ?_, harr', ?_, hstop',
-        ?_, ?_⟩
-      · simp [hsizeA]
-      · simp [hstart']
-      · simp
-      · intro Γspec hspec j hj
-        simp only [List.length_append, List.length_cons, List.length_nil] at hj
-        rcases Nat.lt_or_ge j pre.length with hjp | hjp
-        · have hprev := haltA Γspec (SpecEnv.mono hrcB.le hspec) j hjp
-          have hpush : (acc.1.push alt)[j]! = acc.1[j]! := by
-            rw [getElem!_pos (acc.1.push alt) j (by simp; omega),
-              getElem!_pos acc.1 j (by omega), Array.getElem_push_lt]
-          rw [hpush]
-          exact hprev
-        · have hjeq : j = pre.length := by omega
-          subst hjeq
-          have hpush : (acc.1.push alt)[pre.length]! = alt := by
-            rw [getElem!_pos (acc.1.push alt) pre.length (by simp; omega)]
-            rw [Array.getElem_push, dif_neg (by omega)]
-          rw [hpush, hnfval, ← hxv]
-          exact haltmode Γspec hspec)
+      refine ⟨hrcA.trans hrcB, hregB, NameGenerator.LE.trans hleA hleB, by simp [hsizeA], ?_⟩
+      intro Γspec hspec j hj
+      simp only [List.length_append, List.length_cons, List.length_nil] at hj
+      rcases Nat.lt_or_ge j pre.length with hjp | hjp
+      · have hprev := haltA Γspec (SpecEnv.mono hrcB.le hspec) j hjp
+        have hpush : (acc.push alt)[j]! = acc[j]! := by
+          rw [getElem!_pos (acc.push alt) j (by simp; omega),
+            getElem!_pos acc j (by omega), Array.getElem_push_lt]
+        rw [hpush]
+        exact hprev
+      · have hjeq : j = pre.length := by omega
+        subst hjeq
+        have hpush : (acc.push alt)[pre.length]! = alt := by
+          rw [getElem!_pos (acc.push alt) pre.length (by simp; omega)]
+          rw [Array.getElem_push, dif_neg (by omega)]
+        rw [hpush, hnfval]
+        exact haltmode Γspec hspec)
     (by
       intro pre x post acc s₇ w₇ acc' s₈ w₈ hL hPacc hf
-      obtain ⟨-, -, -, -, harrA, hstartA, hstopA, hmaskA, -⟩ := hPacc
-      obtain ⟨hxv, hplt⟩ := pass_rco_split hL
-      have hjlt : pre.length < I.ctors.length := by omega
-      have hnext2 : Std.Stream.next? acc.2.2
-          = some (rr.2[pre.length]!, rr.2.drop (pre.length + 1)) := by
-        rw [hmaskA]; exact pass_list_next (by omega)
-      rw [hnext2] at hf
-      obtain ⟨st', hnext1, -, -, -⟩ :=
-        pass_subarray_next harrA hstartA hstopA (show pre.length < ci.altNumParams.size by omega)
-      rw [hnext1] at hf
+      obtain ⟨hxv, -⟩ := pass_selfIdx_zipIdx_split hself hL
+      subst hxv
       simp only [] at hf
       rw [run_bind_ok] at hf
       obtain ⟨alt, s₉, w₉, halt, hp⟩ := hf
@@ -1030,7 +1219,7 @@ theorem step_visitCases {lenv : Environment} {env : VEnv} {Us : List Name}
     obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem ha
     have hi' : i < args.size := by simpa using hi
     simpa using hargs i hi'
-  have hrcT := hrc₅.trans hloopP.1
+  have hrcT := hrcG.trans (hrc₅.trans hloopP.1)
   have hindsome : (s₃.inductives.get? con.getPrefix).isSome := by
     refine hloopP.1.le.inds ?_
     rw [← hivn, hget]
@@ -1039,9 +1228,9 @@ theorem step_visitCases {lenv : Environment} {env : VEnv} {Us : List Name}
     P.block_adequate.casesOnDecl con con.getPrefix iv hhead.cases rfl hfind
   rw [show iv.numParams + 1 + iv.numIndices = ci.discrPos by rw [hdiscrP, hivnp, hivni]]
     at hshape0
-  have hnalen : accF.1.size = I.ctors.length := by
-    rw [hloopP.2.2.2.1, Array.length_toList, pass_rco_size]
-    omega
+  have hnalen : accF.size = I.ctors.length := by
+    rw [hloopP.2.2.2.1]
+    simp [← hctorsl]
   have htakeidx : ∀ k, k < ci.arity → (args.toList.take ci.arity)[k]! = args[k]! := by
     intro k hk
     have hks : k < args.size := by omega
@@ -1050,7 +1239,7 @@ theorem step_visitCases {lenv : Environment} {env : VEnv} {Us : List Name}
   have hcase : ∀ Γspec, SpecEnv env tbl.body? tbl.levels? s₃ Γspec →
       ErasesLBMode tbl ctx env Us Γspec Δ
         ((args.toList.take ci.arity).foldl Expr.app (.const con us))
-        (.case (rr.1, iv.numParams) disc accF.1.toList) := by
+        (.case (rr.1, iv.numParams) disc accF.toList) := by
     intro Γspec hspec
     obtain ⟨iid', np', nfs', hE, hII', hnmlen⟩ :=
       (hspec.inds _ hindsome).elims con ci.discrPos nm0 hshape0 hhead.informative hco0
@@ -1084,9 +1273,8 @@ theorem step_visitCases {lenv : Environment} {env : VEnv} {Us : List Name}
     · rw [Array.length_toList, hnalen, List.length_map]
     · intro i hi
       simp only [List.length_map] at hi
-      have hkey := hloopP.2.2.2.2.2.2.2.2 Γspec hspec i (by
-        rw [Array.length_toList, pass_rco_size]; omega)
-      rw [← pass_getElem!_toList accF.1 i (by omega)]
+      have hkey := hloopP.2.2.2.2 Γspec hspec i (by simp; omega)
+      rw [← pass_getElem!_toList accF i (by omega)]
       rw [show ((args.toList.take ci.arity).drop (ci.discrPos + 1))[i]!
           = args[ci.altsRange.lower + i]! from ?_]
       · exact hkey
@@ -1146,9 +1334,10 @@ theorem step_visitCases {lenv : Environment} {env : VEnv} {Us : List Name}
       simp at hpx)
     htail
   obtain ⟨hrcF, hregF, hleF, hmodeF⟩ := htailP
-  refine ⟨hrc₁.trans (hrc₅.trans (hloopP.1.trans hrcF)), hregF, ?_, fun Γspec hspec => ?_⟩
-  · exact NameGenerator.LE.trans hle₁ (NameGenerator.LE.trans hle₄
-      (NameGenerator.LE.trans hle₅ (NameGenerator.LE.trans hloopP.2.2.1 hleF)))
+  refine ⟨hrc₁.trans (hrcG.trans (hrc₅.trans (hloopP.1.trans hrcF))), hregF, ?_,
+    fun Γspec hspec => ?_⟩
+  · exact NameGenerator.LE.trans hle₁ (NameGenerator.LE.trans hle₄ (NameGenerator.LE.trans hleG
+      (NameGenerator.LE.trans hle₅ (NameGenerator.LE.trans hloopP.2.2.1 hleF))))
   · have h := hmodeF Γspec hspec
     rw [hslice, ← List.foldl_append, List.take_append_drop] at h
     exact h
