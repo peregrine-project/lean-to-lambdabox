@@ -19,7 +19,7 @@ glossed is Lean: `Lean.Expr`, `casesOn`/`rec`, `Expr.proj`, `Expr.lit`, `Expr.md
 
 **Companion documents.** This spec is normative; the numbered documents beside it are the wave
 log that measures progress against it — `doc/rework/07-STATUS.md` is the current snapshot, and
-the three most recent waves are:
+the most recent waves are:
 
 - `08-REPAIRS-W5.md` — W6, the closing round: reduces `hbridge` from `ErasureBridge`'s five
   original fields to two (`erasesEnv`, `lowerEnv`) and states the registration-invariant repair
@@ -29,6 +29,9 @@ the three most recent waves are:
   close `hbridge`.
 - `10-MERGE-FIXES.md` — the `dev/fix` merge: ten shipping fixes merged from `dev/fix`, and the
   eight-cluster (M1–M8) repair of the proofs they broke.
+- `11-REPAIRS-W8.md` — W8: records that U9's composition of `hbridge` is unsatisfiable at the
+  rungs, and specifies the nine units (W1–W9) that discharge the binder, two of them waiting
+  on the shipping fixes F-DEPLCTX and F-ARITYLET.
 
 ---
 
