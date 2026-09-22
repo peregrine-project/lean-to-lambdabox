@@ -145,24 +145,26 @@ MetaRocq's `erases_deps` carries structurally at its `tConst` arm
 (`../metarocq/erasure/theories/Extract.v:324-329`). `Lower Γspec t₀ t`, a premise of the
 binder, is not spent.
 
-The residue is the antecedents themselves: no theorem produces `RegInvShape'` and
-`RegContent` at a run, `RegKeyed` at a run, or `SpecKeysEmitted`, and `ErasuresDeclared` is
-refuted at a block member's sub-run. `doc/trust.md`'s `hbridge` row is the accounting.
+The first three are `RegAcc`, the triple a registration run accumulates
+(`ColdStartShape.lean`), read at the final state.
+
+The residue is the antecedents themselves: no theorem produces `RegAcc` at a run or
+`RegKeyed` at a run, and `ErasuresDeclared` is refuted at a block member's sub-run.
+`doc/trust.md`'s `hbridge` row is the accounting.
 -/
 theorem bridgeEnv_of_regContent {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
     {Γspec : GlobalDeclarations} {sf : ErasureState} {pe : Expr}
-    (hreg : RegInvShape' env bo lp Γspec sf) (hcon : RegContent env bo lp Γspec sf)
-    (hk : RegKeyed env sf) (hkeys : SpecKeysEmitted Γspec sf)
+    (A : RegAcc env bo lp Γspec sf) (hk : RegKeyed env sf)
     (hde : ErasuresDeclared env [] Γspec [] pe)
     (htab : ∀ c b, bo c = some b → ConstOrigin env c) (hlvl : TabledLevels env bo lp) :
     SpecEnv env bo lp sf Γspec ∧
       ∀ t₀ : LBTerm, Erases env [] [] pe t₀ →
         ErasureBridge env bo lp Γspec sf.gdecls t₀ := by
-  have hsat := regSaturated_of_regKeyed hk hkeys
-  refine ⟨hreg.specEnv, fun t₀ her => ?_⟩
+  have hsat := regSaturated_of_regKeyed hk A.keysEmitted
+  refine ⟨A.shape.specEnv, fun t₀ her => ?_⟩
   obtain ⟨-, -, hers, hlow⟩ :=
-    bridgeEnv_of_regInv hreg hsat
-      (fun _ hr => hr.isSome_of_declaredEnv (hde t₀ her) hcon.declEnv) htab hlvl
+    bridgeEnv_of_regInv A.shape hsat
+      (fun _ hr => hr.isSome_of_declaredEnv (hde t₀ her) A.content.declEnv) htab hlvl
   exact ⟨hers, hlow⟩
 
 /-! ## The capstone -/

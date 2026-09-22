@@ -1086,6 +1086,92 @@ theorem register_inductive_gdecls_mono {indinfo : InductiveVal} {s : ErasureStat
   show p ∈ (_ :: sM.gdecls)
   exact List.mem_cons_of_mem _ (by rw [hpre]; exact List.mem_append_right _ hp)
 
+/-! ## The saturation clause
+
+`SpecKeysEmitted` is the accumulator's third clause. It is stated here, beside the
+registration steps that maintain it, rather than at `SpecEnv` where its reader
+`regSaturated_of_regKeyed` lives.
+-/
+
+/-- A specification key that is not a runtime key has *some* emitted entry of the matching
+shape. MetaRocq's pruning statement (`erases_global_decls`, `../metarocq/erasure/theories/
+Extract.v:284`) reads the same way: the emitted environment answers the keys the
+specification keeps, not their bodies. -/
+structure SpecKeysEmitted (Γspec : GlobalDeclarations) (s : ErasureState) : Prop where
+  consts : ∀ (kn : Kername) (cb : ConstantBody),
+    LBTerm.envLookup Γspec kn = some (.constantDecl cb) → ¬ RuntimeKey Γspec kn →
+    ∃ cb' : ConstantBody, (kn, GlobalDecl.constantDecl cb') ∈ s.gdecls
+  inds : ∀ (kn : Kername) (mib : MutualInductiveBody),
+    LBTerm.envLookup Γspec kn = some (.inductiveDecl mib) →
+    ∃ mib' : MutualInductiveBody, (kn, GlobalDecl.inductiveDecl mib') ∈ s.gdecls
+
+/-- The empty specification environment declares no key, so both clauses are vacuous whatever
+the state. -/
+theorem SpecKeysEmitted.nil {s : ErasureState} : SpecKeysEmitted [] s where
+  consts kn cb hd _ := by simp [LBTerm.envLookup] at hd
+  inds kn mib hd := by simp [LBTerm.envLookup] at hd
+
+/-- **Saturation across one constant entry.** The consed specification key is answered by the
+entry the run emits at it; at every other key the lookup is the old one, and its runtime-key
+status is only harder to lose along the growth (`RuntimeKey.specGrow`). This is the third
+clause of the accumulator at a constant registration. -/
+theorem SpecKeysEmitted.cons {Γ : GlobalDeclarations} {s s' : ErasureState} {kn : Kername}
+    {cb cb' : ConstantBody} (K : SpecKeysEmitted Γ s)
+    (hg : SpecGrow Γ ((kn, .constantDecl cb) :: Γ))
+    (hmem : (kn, GlobalDecl.constantDecl cb') ∈ s'.gdecls)
+    (hsub : ∀ p ∈ s.gdecls, p ∈ s'.gdecls) :
+    SpecKeysEmitted ((kn, .constantDecl cb) :: Γ) s' where
+  consts k c hd hrk := by
+    by_cases hk : kn = k
+    · exact ⟨cb', hk ▸ hmem⟩
+    · rw [envLookup_cons_ne hk] at hd
+      obtain ⟨c', hm⟩ := K.consts k c hd (fun hc => hrk (hc.specGrow hg))
+      exact ⟨c', hsub _ hm⟩
+  inds k mib hd := by
+    by_cases hk : kn = k
+    · rw [hk, envLookup_cons_self] at hd; exact absurd hd (by simp)
+    · rw [envLookup_cons_ne hk] at hd
+      obtain ⟨mib', hm⟩ := K.inds k mib hd
+      exact ⟨mib', hsub _ hm⟩
+
+/-- **Saturation across a prefix growth.** The prefix answers for its own keys at the exit
+state, the tail for the keys it kept — a key the growth did not touch keeps its entry
+(`SpecGrow`) and its emitted answer (`hsub`), and its runtime-key status is only harder to
+lose, in both directions: `RuntimeKey.appendLeft` at a prefix key and `RuntimeKey.specGrow`
+at a tail key. This is what `regInv_registerInd_step`'s last conclusion is for. -/
+theorem SpecKeysEmitted.append {Γ pre : GlobalDeclarations} {s s' : ErasureState}
+    (K : SpecKeysEmitted Γ s) (Kpre : SpecKeysEmitted pre s')
+    (hg : SpecGrow Γ (pre ++ Γ)) (hsub : ∀ p ∈ s.gdecls, p ∈ s'.gdecls) :
+    SpecKeysEmitted (pre ++ Γ) s' where
+  consts kn cb hd hrk := by
+    rcases envLookup_append_cases hd with h1 | ⟨-, h2⟩
+    · exact Kpre.consts kn cb h1 (fun hc => hrk hc.appendLeft)
+    · obtain ⟨cb', hmem⟩ := K.consts kn cb h2 (fun hc => hrk (hc.specGrow hg))
+      exact ⟨cb', hsub _ hmem⟩
+  inds kn mib hd := by
+    rcases envLookup_append_cases hd with h1 | ⟨-, h2⟩
+    · exact Kpre.inds kn mib h1
+    · obtain ⟨mib', hmem⟩ := K.inds kn mib h2
+      exact ⟨mib', hsub _ hmem⟩
+
+/-! ## The accumulator
+
+The triple a registration run carries: the shape invariant, the content clause that pins one
+erasure witness per emitted body, and the saturation clause. `doc/rework/11-REPAIRS-W8.md`
+§2.5 quantifies exactly this triple at a run's entry and exit states.
+-/
+
+/-- **The accumulator.** The three clauses a registration run maintains between the
+specification environment it is *building* and its state. -/
+structure RegAcc (env : VEnv) (bo : Name → Option Expr) (lp : Name → List Name)
+    (Γ : GlobalDeclarations) (s : ErasureState) : Prop where
+  /-- The registration invariant's shape half. -/
+  shape : RegInvShape' env bo lp Γ s
+  /-- One erasure witness per emitted body, read both ways. -/
+  content : RegContent env bo lp Γ s
+  /-- Every kept specification key has an emitted answer. -/
+  keysEmitted : SpecKeysEmitted Γ s
+
 /-- **The accumulator at the cold start.** Every clause of the empty specification
 environment is vacuous — its lookups all miss — so a run beginning at the empty state begins
 with both halves of the accumulator in hand, with no specification environment posited in
@@ -1105,6 +1191,12 @@ theorem regInv_cold_start {env : VEnv} {bo : Name → Option Expr} {lp : Name �
   · intro kn b x hb; simp [DefnDecl, LBTerm.envLookup] at hb
   · intro kn b hb; simp [DefnDecl, LBTerm.envLookup] at hb
 
+/-- The accumulator at the cold start: `regInv_cold_start` with its third clause, which the
+empty specification environment makes vacuous. -/
+theorem RegAcc.coldStart {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name} :
+    RegAcc env bo lp [] {} :=
+  ⟨regInv_cold_start.1, regInv_cold_start.2, SpecKeysEmitted.nil⟩
+
 /-! ## Two registration steps at a growing specification environment
 
 Each is the shape one step of the preservation theorem has: from the accumulator at the
@@ -1117,33 +1209,26 @@ without an environment fixed in advance.
 the specification environment gains the same entry. -/
 theorem regInv_addAxiom_step {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
     {Γ : GlobalDeclarations} {s : ErasureState} {n : Name}
-    (H : RegInvShape' env bo lp Γ s) (C : RegContent env bo lp Γ s)
+    (A : RegAcc env bo lp Γ s)
     (hok : SpecEntryOk env bo lp (toKername n) (.constantDecl ⟨none⟩))
     (hfΓ : ∀ q ∈ Γ, q.1 ≠ toKername n) (hfs : ∀ q ∈ s.gdecls, q.1 ≠ toKername n) :
-    ∃ Γ' : GlobalDeclarations, SpecGrow Γ Γ' ∧
-      RegInvShape' env bo lp Γ' (addAxiomState n s) ∧
-      RegContent env bo lp Γ' (addAxiomState n s) := by
-  refine ⟨(toKername n, .constantDecl ⟨none⟩) :: Γ, ?_, ?_, ?_⟩
-  · exact SpecGrow.of_fresh (pre := [(toKername n, .constantDecl ⟨none⟩)])
+    ∃ Γ' : GlobalDeclarations, SpecGrow Γ Γ' ∧ RegAcc env bo lp Γ' (addAxiomState n s) := by
+  obtain ⟨H, C, K⟩ := A
+  have hg : SpecGrow Γ ((toKername n, .constantDecl ⟨none⟩) :: Γ) :=
+    SpecGrow.of_fresh (pre := [(toKername n, .constantDecl ⟨none⟩)])
       (fun p hp q hq => by
         rcases List.mem_singleton.1 hp with rfl
         exact fun hc => hfΓ q hq hc.symm)
       (elimBlocksDeclared_of_constsDeclaredEnv C.declEnv)
-  · refine (H.specGrow ?_ C.declEnv (H.spec.cons hfΓ hok)
+  have hsub : ∀ p ∈ s.gdecls, p ∈ (addAxiomState n s).gdecls := fun p hp => by
+    rw [addAxiomState_gdecls]; exact List.mem_cons_of_mem _ hp
+  refine ⟨(toKername n, .constantDecl ⟨none⟩) :: Γ, hg, ?_, ?_, ?_⟩
+  · exact (H.specGrow hg C.declEnv (H.spec.cons hfΓ hok)
       (closedBodies_cons H.specClosed (by simp))
       (fvarFreeBodies_cons H.specFVarFree (by simp))).addAxiom envLookup_cons_self hfs
-    exact SpecGrow.of_fresh (pre := [(toKername n, .constantDecl ⟨none⟩)])
-      (fun p hp q hq => by
-        rcases List.mem_singleton.1 hp with rfl
-        exact fun hc => hfΓ q hq hc.symm)
-      (elimBlocksDeclared_of_constsDeclaredEnv C.declEnv)
-  · refine (C.specGrow ?_ (constsDeclaredEnv_cons C.declEnv (by simp))).gdeclsCons
+  · exact (C.specGrow hg (constsDeclaredEnv_cons C.declEnv (by simp))).gdeclsCons
       (addAxiomState_gdecls n s) (by simp)
-    exact SpecGrow.of_fresh (pre := [(toKername n, .constantDecl ⟨none⟩)])
-      (fun p hp q hq => by
-        rcases List.mem_singleton.1 hp with rfl
-        exact fun hc => hfΓ q hq hc.symm)
-      (elimBlocksDeclared_of_constsDeclaredEnv C.declEnv)
+  · exact K.cons hg (by rw [addAxiomState_gdecls]; exact List.mem_cons_self) hsub
 
 /-- **`visitMutual`'s non-recursive exit, declaring what it registers.** The specification
 environment gains the erasure witness `hok` carries, and the emitted body is its `Lower`
@@ -1152,14 +1237,14 @@ them. `hlow` and `hdecl` are read at the environment *before* the step, which is
 sub-run's conclusion has. -/
 theorem regInv_constCons_step {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
     {Γ : GlobalDeclarations} {s : ErasureState} {n : Name} {t b₀ : LBTerm}
-    (H : RegInvShape' env bo lp Γ s) (C : RegContent env bo lp Γ s)
+    (A : RegAcc env bo lp Γ s)
     (hok : SpecEntryOk env bo lp (toKername n) (.constantDecl ⟨some b₀⟩))
     (hlow : Lower Γ b₀ t) (hdecl : ConstsDeclared Γ b₀) (hcl₀ : LBClosed b₀ 0)
     (hfv₀ : ∀ x : FVarId, ¬ hasFVar x b₀) (hclt : LBClosed t 0)
     (hfΓ : ∀ q ∈ Γ, q.1 ≠ toKername n) (hfs : ∀ q ∈ s.gdecls, q.1 ≠ toKername n) :
     ∃ Γ' : GlobalDeclarations, SpecGrow Γ Γ' ∧
-      RegInvShape' env bo lp Γ' (nonrecConstState n t s) ∧
-      RegContent env bo lp Γ' (nonrecConstState n t s) := by
+      RegAcc env bo lp Γ' (nonrecConstState n t s) := by
+  obtain ⟨H, C, K⟩ := A
   have hg : SpecGrow Γ ((toKername n, .constantDecl ⟨some b₀⟩) :: Γ) :=
     SpecGrow.of_fresh (pre := [(toKername n, .constantDecl ⟨some b₀⟩)])
       (fun p hp q hq => by
@@ -1169,7 +1254,7 @@ theorem regInv_constCons_step {env : VEnv} {bo : Name → Option Expr} {lp : Nam
   have hdecl' : ConstsDeclared ((toKername n, .constantDecl ⟨some b₀⟩) :: Γ) b₀ := hdecl.cons
   have hlow' : Lower ((toKername n, .constantDecl ⟨some b₀⟩) :: Γ) b₀ t :=
     Lower.specGrow hg C.declEnv hlow (.of_constsDeclared hg hdecl)
-  refine ⟨(toKername n, .constantDecl ⟨some b₀⟩) :: Γ, hg, ?_, ?_⟩
+  refine ⟨(toKername n, .constantDecl ⟨some b₀⟩) :: Γ, hg, ?_, ?_, ?_⟩
   · exact (H.specGrow hg C.declEnv (H.spec.cons hfΓ hok)
       (closedBodies_cons H.specClosed (fun b hb => by
         obtain rfl : b₀ = b := by simpa using hb
@@ -1185,6 +1270,8 @@ theorem regInv_constCons_step {env : VEnv} {bo : Name → Option Expr} {lp : Nam
     obtain ⟨b₀', heq, her⟩ := hok.defns m b hkey hbo
     obtain rfl : b₀ = b₀' := by simpa using heq
     exact ⟨b₀, envLookup_cons_self, her, hlow'⟩
+  · exact K.cons hg (by rw [nonrecConstState_gdecls]; exact List.mem_cons_self)
+      (fun p hp => by rw [nonrecConstState_gdecls]; exact List.mem_cons_of_mem _ hp)
 
 /-- **`register_inductive`, declaring what it registers.** The specification environment
 gains a whole prefix, not one entry: `SpecContent.blocks` fires at the block key the run
@@ -1192,8 +1279,9 @@ conses and `IndCovered.elims` then demands an `ElimDecl` for every informative m
 `casesOn`, so the eliminator entries enter `Γspec` here and not at `Erasure.visitCases`,
 which registers nothing. `hpre` is what the prefix owes, in `SpecContent.append`'s reading;
 the five state-facing side conditions are `RegInvShape'.register_inductive_run`'s, read at
-the grown environment. The last conclusion is the emitted monotonicity `SpecKeysEmitted`
-spends at the step (`SpecKeysEmitted.append`, `SpecEnv.lean`).
+the grown environment. `hkpre` is the saturation clause at the prefix — the block key is
+emitted and the eliminator keys are runtime keys, so it is what the prefix owes — and
+`SpecKeysEmitted.append` is what spends it, against `register_inductive_gdecls_mono`.
 
 No configuration is pinned: `Erasure.register_inductive` calls `Erasure.addAxiom` at an
 `@[extern]` constructor under `extern = .preferAxiom` (`Erasure.lean:349-351`), and the
@@ -1203,9 +1291,10 @@ theorem regInv_registerInd_step {env : VEnv} {bo : Name → Option Expr} {lp : N
     {ctx : ErasureContext} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
     {w : Void IO.RealWorld} {r : InductiveId × InductiveArgMasks} {s₁ : ErasureState}
     {w₁ : Void IO.RealWorld}
-    (H : RegInvShape' env bo lp Γ s) (C : RegContent env bo lp Γ s)
+    (A : RegAcc env bo lp Γ s)
     (hpre : SpecContent env bo lp pre) (hfresh : ∀ p ∈ pre, ∀ q ∈ Γ, p.1 ≠ q.1)
     (hcl : ClosedBodies pre) (hfv : FVarFreeBodies pre)
+    (hkpre : SpecKeysEmitted pre s₁)
     (hdenv : ConstsDeclaredEnv (pre ++ Γ))
     (hmiss : s.inductives.get? indinfo.name = none)
     (hrun : register_inductive indinfo s ctx cctx ref w = .ok (r, s₁) w₁)
@@ -1219,8 +1308,8 @@ theorem regInv_registerInd_step {env : VEnv} {bo : Name → Option Expr} {lp : N
       LBTerm.envLookup (pre ++ Γ) (toKername n) = some (.constantDecl ⟨none⟩))
     (hnewi : ∀ n : Name, (s₁.inductives.get? n).isSome → (s.inductives.get? n).isSome ∨
       (IndCovered env (pre ++ Γ) n ∧ IndEmitted env (pre ++ Γ) s₁.gdecls n)) :
-    SpecGrow Γ (pre ++ Γ) ∧ RegInvShape' env bo lp (pre ++ Γ) s₁ ∧
-      RegContent env bo lp (pre ++ Γ) s₁ ∧ ∀ p ∈ s.gdecls, p ∈ s₁.gdecls := by
+    SpecGrow Γ (pre ++ Γ) ∧ RegAcc env bo lp (pre ++ Γ) s₁ := by
+  obtain ⟨H, C, K⟩ := A
   have hg : SpecGrow Γ (pre ++ Γ) :=
     SpecGrow.of_fresh hfresh (elimBlocksDeclared_of_constsDeclaredEnv C.declEnv)
   exact ⟨hg,
@@ -1229,7 +1318,7 @@ theorem regInv_registerInd_step {env : VEnv} {bo : Name → Option Expr} {lp : N
       (fvarFreeBodies_append hfv H.specFVarFree)).register_inductive_run
         hmiss hrun hkeys haxpre hblk hnewc hnewi,
     (C.specGrow hg hdenv).register_inductive_run hmiss hrun,
-    register_inductive_gdecls_mono hmiss hrun⟩
+    K.append hkpre hg (register_inductive_gdecls_mono hmiss hrun)⟩
 
 /-! ## Saturation at the final state
 

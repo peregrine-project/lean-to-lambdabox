@@ -113,38 +113,6 @@ structure RegSaturated (env : VEnv) (Γspec : GlobalDeclarations) (s : ErasureSt
     ∃ (n : Name) (iid : InductiveId) (np : Nat) (nfs : List Nat),
       (s.inductives.get? n).isSome ∧ IndInfo env n iid np nfs ∧ kn = iid.mutualBlockName
 
-/-- A specification key that is not a runtime key has *some* emitted entry of the matching
-shape. MetaRocq's pruning statement (`erases_global_decls`, `../metarocq/erasure/theories/
-Extract.v:284`) reads the same way: the emitted environment answers the keys the
-specification keeps, not their bodies. -/
-structure SpecKeysEmitted (Γspec : GlobalDeclarations) (s : ErasureState) : Prop where
-  consts : ∀ (kn : Kername) (cb : ConstantBody),
-    LBTerm.envLookup Γspec kn = some (.constantDecl cb) → ¬ RuntimeKey Γspec kn →
-    ∃ cb' : ConstantBody, (kn, GlobalDecl.constantDecl cb') ∈ s.gdecls
-  inds : ∀ (kn : Kername) (mib : MutualInductiveBody),
-    LBTerm.envLookup Γspec kn = some (.inductiveDecl mib) →
-    ∃ mib' : MutualInductiveBody, (kn, GlobalDecl.inductiveDecl mib') ∈ s.gdecls
-
-/-- **Saturation across a prefix growth.** The prefix answers for its own keys at the exit
-state, the tail for the keys it kept — a key the growth did not touch keeps its entry
-(`SpecGrow`) and its emitted answer (`hsub`), and its runtime-key status is only harder to
-lose, in both directions: `RuntimeKey.appendLeft` at a prefix key and `RuntimeKey.specGrow`
-at a tail key. This is what `regInv_registerInd_step`'s fourth conclusion is for. -/
-theorem SpecKeysEmitted.append {Γ pre : GlobalDeclarations} {s s' : ErasureState}
-    (K : SpecKeysEmitted Γ s) (Kpre : SpecKeysEmitted pre s')
-    (hg : SpecGrow Γ (pre ++ Γ)) (hsub : ∀ p ∈ s.gdecls, p ∈ s'.gdecls) :
-    SpecKeysEmitted (pre ++ Γ) s' where
-  consts kn cb hd hrk := by
-    rcases envLookup_append_cases hd with h1 | ⟨-, h2⟩
-    · exact Kpre.consts kn cb h1 (fun hc => hrk hc.appendLeft)
-    · obtain ⟨cb', hmem⟩ := K.consts kn cb h2 (fun hc => hrk (hc.specGrow hg))
-      exact ⟨cb', hsub _ hmem⟩
-  inds kn mib hd := by
-    rcases envLookup_append_cases hd with h1 | ⟨-, h2⟩
-    · exact Kpre.inds kn mib h1
-    · obtain ⟨mib', hmem⟩ := K.inds kn mib h2
-      exact ⟨mib', hsub _ hmem⟩
-
 /-- The invariant, read as a specification environment: the three fields are exactly the
 invariant's specification-side ones. -/
 theorem RegInvShape'.specEnv {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
