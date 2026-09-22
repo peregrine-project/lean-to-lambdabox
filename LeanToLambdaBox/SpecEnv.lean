@@ -50,16 +50,18 @@ theorem SpecEnv.mono {env : VEnv} {bo : Name → Option Expr} {lp : Name → Lis
   fvarFree := H.fvarFree
 
 /-- A specification environment of a state is a specification environment of any program
-whose reachable kernames it declares and whose compiler table defines only plain constants.
-Those two clauses are the ones the state does not record — the first mentions a program, the
-second mentions no `Γspec` at all — so they are premises. -/
+whose reachable kernames it declares, whose compiler table defines only plain constants, and
+whose tabled bodies translate at their own level scope. Those three clauses are the ones the
+state does not record — the first mentions a program, the other two mention no `Γspec` at
+all — so they are premises. -/
 theorem SpecEnv.erasesEnv {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
     {s : ErasureState} {Γspec : GlobalDeclarations} (H : SpecEnv env bo lp s Γspec)
     {t : LBTerm}
     (hdeps : ∀ kn, ReachableFrom Γspec t kn → (LBTerm.envLookup Γspec kn).isSome)
-    (htab : ∀ c b, bo c = some b → ConstOrigin env c) :
+    (htab : ∀ c b, bo c = some b → ConstOrigin env c)
+    (hlvl : ∀ c b, bo c = some b → NoMaxLevels b ∧ ∃ vb, TrExprS env (lp c) [] b vb) :
     ErasesEnv env bo lp Γspec t :=
-  H.spec.erasesEnv hdeps htab
+  H.spec.erasesEnv hdeps htab hlvl
 
 /-- The four-entry fixture declares two bodies, the eliminator's and the definition's, and
 neither mentions a free variable. -/
@@ -151,18 +153,20 @@ theorem RegInvShape'.lowerEnv {env : VEnv} {bo : Name → Option Expr} {lp : Nam
 
 /-! ## The δ column of `ErasesEnv`, from the registry -/
 
-/-- **The environment relation of a run.** `SpecEnv.erasesEnv`'s two premises: `hdeps` is the
-program's own reachability, and `htab` is the one clause that mentions no specification
-environment, so no registry fact supplies it — at the bridge it is `constOrigin_of_tabled`.
-The δ column is the invariant's own `SpecContent.defns`, which records the declaration's level
-scope, the scope `ErasesEnv.defns` asks at. -/
+/-- **The environment relation of a run.** `SpecEnv.erasesEnv`'s three premises: `hdeps` is
+the program's own reachability, and `htab` and `hlvl` are the two clauses that mention no
+specification environment, so no registry fact supplies them — at the bridge they are
+`constOrigin_of_tabled` and `tabledLevels_of_table`. The δ column is the invariant's own
+`SpecContent.defns`, which records the declaration's level scope, the scope `ErasesEnv.defns`
+asks at. -/
 theorem RegInvShape'.erasesEnv {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
     {Γspec : GlobalDeclarations} {s : ErasureState} (H : RegInvShape' env bo lp Γspec s)
     {t : LBTerm}
     (hdeps : ∀ kn, ReachableFrom Γspec t kn → (LBTerm.envLookup Γspec kn).isSome)
-    (htab : ∀ c b, bo c = some b → ConstOrigin env c) :
+    (htab : ∀ c b, bo c = some b → ConstOrigin env c)
+    (hlvl : ∀ c b, bo c = some b → NoMaxLevels b ∧ ∃ vb, TrExprS env (lp c) [] b vb) :
     ErasesEnv env bo lp Γspec t :=
-  H.specEnv.erasesEnv hdeps htab
+  H.specEnv.erasesEnv hdeps htab hlvl
 
 /-! ## A cold run, end to end -/
 

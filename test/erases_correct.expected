@@ -11,5 +11,4 @@
               Lower Γspec t₀ t →
                 ErasesEnv env bo lp Γspec t₀ →
                   LowerEnv Γspec Γ →
-                    TabledLevels env bo lp →
-                      UpstreamAsks env → ∃ v₀ v', Erases env Us [] v v₀ ∧ Lower Γspec v₀ v' ∧ WcbvEval Γ eraseFlags t v'
+                    UpstreamAsks env → ∃ v₀ v', Erases env Us [] v v₀ ∧ Lower Γspec v₀ v' ∧ WcbvEval Γ eraseFlags t v'

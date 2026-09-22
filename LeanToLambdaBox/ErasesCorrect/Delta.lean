@@ -152,7 +152,8 @@ theorem Lower.const_body {Γ : GlobalDeclarations}
 /-- **The δ arm.** The head erases to the tabled constant's kername; the constructor
 reading is refuted by `ErasesEnv.tabled` through `constOrigin_not_ctorOf`, and the boxed
 readings fold. The entry's erasure is read at the call site's level scope by
-`Erases.instantiateLevelParams_of_stepDefeq`, at `TabledLevels`' two premises. The spine lowers as a congruence, since a tabled constant is no runtime key
+`Erases.instantiateLevelParams_of_stepDefeq`, at the two further conjuncts of the same
+`ErasesEnv.defns` reading. The spine lowers as a congruence, since a tabled constant is no runtime key
 — its specification body is an erasure image, and no erasure image is an eliminator body.
 The induction hypothesis is taken at the lowering whose head is what the target head
 evaluates to: the emitted body, or the block's node at a member. `WcbvEval.mkApps_congr`
@@ -162,7 +163,7 @@ theorem step_delta {env : VEnv} {bo : Name → Option Expr} {lp : Name → List 
     {Us : List Name}
     {fl : SEvalFlags} {Γspec Γ : GlobalDeclarations} :
     StepDelta env bo lp Us fl Γspec Γ := by
-  intro A c us ups args argsv b b' v henv henvL hlvl hfl hbd hnd hinst hlen hargs hdef hcont
+  intro A c us ups args argsv b b' v henv henvL hfl hbd hnd hinst hlen hargs hdef hcont
     ihcont ve t₀ t hwt her hlow hspec
   have hargEv : ∀ (a : Expr), a ∈ args → ∀ (s u : LBTerm), Erases env Us [] a s →
       ErasesEnv env bo lp Γspec s → Lower Γspec s u → ∃ x, WcbvEval Γ eraseFlags u x := by
@@ -192,9 +193,8 @@ theorem step_delta {env : VEnv} {bo : Name → Option Expr} {lp : Name → List 
     have hreach : ReachableFrom Γspec (LBTerm.mkApps (.const (toKername c)) ts) (toKername c) :=
       ReachableFrom.subterm (subTerm_mkApps_head ts .refl)
         (reachableFrom_of_mem_constRefs (by simp [constRefs]))
-    obtain ⟨b₀, hlook, herb⟩ := hspec.defns c b hbd hreach
+    obtain ⟨hnmb, b₀, vb, hlook, herb, htrb⟩ := hspec.defns c b hbd hreach
     have hdefn : DefnDecl Γspec (toKername c) b₀ := hlook
-    obtain ⟨hnmb, vb, htrb⟩ := hlvl c b hbd
     have herb' : Erases env Us [] b' b₀ :=
       Erases.instantiateLevelParams_of_stepDefeq herb hnmb htrb hinst hdef
     have hnk : ¬ RuntimeKey Γspec (toKername c) := by

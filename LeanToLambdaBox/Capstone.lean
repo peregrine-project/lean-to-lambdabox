@@ -117,7 +117,8 @@ structure ErasureBridge (env : VEnv) (bo : Name → Option Expr) (lp : Name → 
 registration path maintains — carries the specification environment's content, the emitted
 environment's shape and the relation between them; `RegSaturated` says the run registered
 everything that environment declares. `hdeps` is decidable at a concrete program, and `htab`
-is the one clause `ErasesEnv` reads off the compiler table rather than off any environment.
+and `hlvl` are the two clauses `ErasesEnv` reads off the compiler table rather than off any
+environment; `hlvl` is `tabledLevels_of_table` at a reified table.
 The `SpecEnv` is what `erasure_bridge_of_run` consumes; `LBWfSpec` is what the pass metatheory
 reads of `Γspec`.
 -/
@@ -125,11 +126,11 @@ theorem bridgeEnv_of_regInv {env : VEnv} {bo : Name → Option Expr} {lp : Name 
     {Γspec : GlobalDeclarations} {sf : ErasureState} {t₀ : LBTerm}
     (hreg : RegInvShape' env bo lp Γspec sf) (hsat : RegSaturated env Γspec sf)
     (hdeps : ∀ kn, ReachableFrom Γspec t₀ kn → (LBTerm.envLookup Γspec kn).isSome)
-    (htab : ∀ c b, bo c = some b → ConstOrigin env c) :
+    (htab : ∀ c b, bo c = some b → ConstOrigin env c) (hlvl : TabledLevels env bo lp) :
     SpecEnv env bo lp sf Γspec ∧ LBWfSpec Γspec ∧
       ErasesEnv env bo lp Γspec t₀ ∧ LowerEnv Γspec sf.gdecls :=
   ⟨hreg.specEnv, ⟨hreg.spec.keys, hreg.specClosed⟩,
-    hreg.erasesEnv hdeps htab, hreg.lowerEnv hsat⟩
+    hreg.erasesEnv hdeps htab hlvl, hreg.lowerEnv hsat⟩
 
 /-! ## The capstone -/
 
@@ -217,8 +218,7 @@ theorem shipping_erase_correct_firstorder
       obtain ⟨i, hi, rfl⟩ := Lower.mem_getElem! hx
       exact (ha₀ i (by omega)).2.2)
   obtain ⟨tv₀, tv, herv, hlowv, hevtgt⟩ :=
-    erases_correct P.envWF hwtsp hevp hspine hlowspine hspecspine B.lowerEnv
-      (tabledLevels_of_table htbl hsafe hcb) A
+    erases_correct P.envWF hwtsp hevp hspine hlowspine hspecspine B.lowerEnv A
   obtain ⟨hfos, huniq⟩ :=
     firstorder_erases_core (Us := []) P.envWF A hev.svalue hfo hvwt hty herv
   exact ⟨tv₀, tv, herv, hlowv, noBox_lower_of_foSpine hfos hlowv, huniq, hevtgt⟩

@@ -319,7 +319,7 @@ theorem erases_correct_of_steps {env : VEnv} {bo : Name → Option Expr} {lp : N
     (step_proj : StepProj env bo lp Us fl Γspec Γ)
     (step_delta : StepDelta env bo lp Us fl Γspec Γ) :
     ErasesCorrectStmt env bo lp Us fl Γspec Γ := by
-  intro e₀ v₀ ve₀ t₀₀ t₀ henv hwt₀ hev₀ her₀ hlow₀ hspec₀ henvL hlvl A
+  intro e₀ v₀ ve₀ t₀₀ t₀ henv hwt₀ hev₀ her₀ hlow₀ hspec₀ henvL A
   have hΓcl : ClosedBodies Γspec := henvL.specClosed
   have key : ∀ {Δ : VLCtx} {e v : Expr}, SEval env bo Us fl Δ e v → Δ = [] →
       Simulates env bo lp Us Γspec Γ e v := by
@@ -367,7 +367,7 @@ theorem erases_correct_of_steps {env : VEnv} {bo : Name → Option Expr} {lp : N
     | @deltaC c us ups args argsv b b' vres hfl hbd hnd hinst hlen hargs hdef hcont
         ihargs ihcont =>
         intro rfl
-        exact step_delta A henv henvL hlvl hfl hbd hnd hinst hlen
+        exact step_delta A henv henvL hfl hbd hnd hinst hlen
           (fun i hi => ⟨hargs i hi, ihargs i hi rfl⟩) hdef hcont (ihcont rfl)
     | @iota con I ctor us cus pre prev minors minorsv extra extrav cargs disc r np cidx
         nfs hfl hsh ho hct hnp hinf hpre hpres hdiscr hmin hmins hxlen hxs hidx hdef hcont

@@ -79,8 +79,9 @@ inductive ErasesEnv (env : VEnv) (bo : Name → Option Expr) (lp : Name → List
       (deps : ∀ kn, ReachableFrom Γspec t kn → (LBTerm.envLookup Γspec kn).isSome)
       (tabled : ∀ c b, bo c = some b → ConstOrigin env c)
       (defns : ∀ c b, bo c = some b → ReachableFrom Γspec t (toKername c) →
-        ∃ b₀, LBTerm.envLookup Γspec (toKername c) = some (.constantDecl ⟨some b₀⟩) ∧
-          Erases env (lp c) [] b b₀)
+        NoMaxLevels b ∧ ∃ (b₀ : LBTerm) (vb : VExpr),
+          LBTerm.envLookup Γspec (toKername c) = some (.constantDecl ⟨some b₀⟩) ∧
+          Erases env (lp c) [] b b₀ ∧ TrExprS env (lp c) [] b vb)
       (axioms : ∀ c, bo c = none → ConstOrigin env c → isCasesOnName c = false →
         ReachableFrom Γspec t (toKername c) →
         LBTerm.envLookup Γspec (toKername c) = some (.constantDecl ⟨none⟩))
@@ -116,14 +117,20 @@ theorem ErasesEnv.tabled (h : ErasesEnv env bo lp Γspec t) :
   cases h with | mk _ _ d _ _ _ _ => exact d
 
 /-- Every compiler body a reached constant carries erases, **at the declaration's own level
-scope**, to the entry the environment holds for it: the δ arm's own premise, in the δ arm's own
-direction. The instantiated reading the δ rule unfolds at is derived where it is spent, by
-`Erases.instantiateLevelParams_of_stepDefeq`, as `erases_subst_instance_decl` is in
-`../metarocq/erasure/theories/ErasureCorrectness.v:176`. -/
+scope**, to the entry the environment holds for it, and translates at that same scope in the
+`max`-free fragment: the δ arm's own premise, in the δ arm's own direction. The last two
+conjuncts are `erases_subst_instance_decl`'s typing premise
+(`../metarocq/erasure/theories/ErasureProperties.v:412`), and they ride on this clause rather
+than on a separate universal over the table because MetaRocq spends that premise at the single
+unfolded constant, under the same reachability gate
+(`../metarocq/erasure/theories/ErasureCorrectness.v:176`). The instantiated reading the δ rule
+unfolds at is derived where it is spent, by
+`Erases.instantiateLevelParams_of_stepDefeq`. -/
 theorem ErasesEnv.defns (h : ErasesEnv env bo lp Γspec t) :
     ∀ c b, bo c = some b → ReachableFrom Γspec t (toKername c) →
-      ∃ b₀, LBTerm.envLookup Γspec (toKername c) = some (.constantDecl ⟨some b₀⟩) ∧
-        Erases env (lp c) [] b b₀ := by
+      NoMaxLevels b ∧ ∃ (b₀ : LBTerm) (vb : VExpr),
+        LBTerm.envLookup Γspec (toKername c) = some (.constantDecl ⟨some b₀⟩) ∧
+        Erases env (lp c) [] b b₀ ∧ TrExprS env (lp c) [] b vb := by
   cases h with | mk _ _ _ d _ _ _ => exact d
 
 /-- A reached key whose constant has no compiler body — and is not an eliminator, whose
@@ -212,13 +219,19 @@ structure SpecContent (env : VEnv) (bo : Name → Option Expr) (lp : Name → Li
     (LBTerm.envLookup Γspec (toKername c)).isSome → IndCovered env Γspec I
 
 /-- **A specification environment's content, read at a program.** The clauses whose trigger
-is the program's reachability get it through `deps`; `htab` is a premise because it mentions
-no `Γspec` and so is no fact about the environment at all. -/
+is the program's reachability get it through `deps`; `htab` and `hlvl` are premises because
+they mention no `Γspec` and so are no facts about the environment at all. `hlvl` is the
+compiler table's level-scope obligation, `TabledLevels`, which the reachability gate of
+`defns` then restricts to the constants the program unfolds. -/
 theorem SpecContent.erasesEnv (H : SpecContent env bo lp Γspec) {t : LBTerm}
     (hdeps : ∀ kn, ReachableFrom Γspec t kn → (LBTerm.envLookup Γspec kn).isSome)
-    (htab : ∀ c b, bo c = some b → ConstOrigin env c) :
+    (htab : ∀ c b, bo c = some b → ConstOrigin env c)
+    (hlvl : ∀ c b, bo c = some b → NoMaxLevels b ∧ ∃ vb, TrExprS env (lp c) [] b vb) :
     ErasesEnv env bo lp Γspec t :=
-  .mk H.keys hdeps htab (fun c b hbo hr => H.defns c b hbo (hdeps _ hr))
+  .mk H.keys hdeps htab (fun c b hbo hr =>
+      let ⟨hnm, vb, htr⟩ := hlvl c b hbo
+      let ⟨b₀, hlook, her⟩ := H.defns c b hbo (hdeps _ hr)
+      ⟨hnm, b₀, vb, hlook, her, htr⟩)
     (fun c hbo hco hnc hr => H.axioms c hbo hco hnc (hdeps _ hr))
     (fun hi hr => (H.blocks _ _ _ _ hi (hdeps _ hr)).block _ _ _ hi)
     (fun hsh hinf hco hr => (H.elims _ _ _ _ hsh (hdeps _ hr)).elims _ _ _ hsh hinf hco)
@@ -411,6 +424,9 @@ structure DemoSource (env : VEnv) (bo : Name → Option Expr) (lp : Name → Lis
       scope. -/
   defnBody : ∀ c b, bo c = some b → toKername c = toKername demoDef →
     Erases env (lp c) [] b demoBody
+  /-- Every compiler body is `max`-free and translates at its own level scope: the fixture's
+      copy of `TabledLevels`, which `SpecContent.erasesEnv` takes as a premise. -/
+  levels : ∀ c b, bo c = some b → NoMaxLevels b ∧ ∃ vb, TrExprS env (lp c) [] b vb
   /-- The block of `demoInd`, at no parameters and one nullary constructor. -/
   ind : IndInfo env demoInd demoIid 0 [0]
   /-- `demoInd` is declared by a block of `env`'s own declaration list: upstream ask 2's
@@ -502,6 +518,6 @@ theorem demoEnv_deps :
 /-- The fixture is a specification environment for its own program. -/
 theorem demoEnv_erasesEnv {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
     (h : DemoSource env bo lp) : ErasesEnv env bo lp demoEnv demoProg :=
-  (demoEnv_specContent h).erasesEnv demoEnv_deps h.tabled
+  (demoEnv_specContent h).erasesEnv demoEnv_deps h.tabled h.levels
 
 end LeanToLambdaBox

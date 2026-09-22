@@ -29,7 +29,8 @@ arm files and holds what they share:
   minor short heads no value, and is the erasure of no source term that has one — with
   `ErasesEnv.runtimeKey_isCasesOn` and the erasure-image exclusions they run on;
 * `TabledLevels` and `Erases.instantiateLevelParams_of_stepDefeq` — the level scope a tabled
-  body is erased at, and the transport of that erasure to the scope the δ rule unfolds it at;
+  body is erased at, as the bridge asks it of a whole table, and the transport of that erasure
+  to the scope the δ rule unfolds it at, as the δ arm reads it off `ErasesEnv.defns`;
 * `Simulates`, `StepIota`, `StepProj`, `StepDelta` — the induction's motive and the three
   step interfaces — and `ErasesCorrectStmt`/`ErasesCorrectLBStmt`, the statements
   `ErasesCorrect/Close.lean` inhabits.
@@ -933,7 +934,7 @@ theorem ErasesEnv.runtimeKey_isCasesOn {env : VEnv} {bo : Name → Option Expr}
   obtain ⟨iid, np, dp, nfs, ⟨body, hlook, helim⟩, -⟩ := hrk
   by_cases hb : ∃ b, bo c = some b
   · obtain ⟨b, hb⟩ := hb
-    obtain ⟨b₀, hlook', her⟩ := h.defns c b hb hr
+    obtain ⟨-, b₀, -, hlook', her, -⟩ := h.defns c b hb hr
     rw [hlook] at hlook'
     cases hlook'
     exact absurd (erases_ne_elimBody her (iid := iid) (np := np) (dp := dp)
@@ -1093,22 +1094,26 @@ theorem erases_elimSpine_no_value {env : VEnv} {bo : Name → Option Expr}
 `SEval.deltaC` unfolds a tabled body at a parameter list the rule binds as a *variable*, while
 `ErasesEnv.defns` records the erasure at the declaration's own scope. What reconciles the two
 is `erases_subst_instance`'s typing premise (`ErasureProperties.v:383`) on both sides: the
-rule's own `hdef` translates the instantiated body, and `TabledLevels` translates the
-uninstantiated one.
+rule's own `hdef` translates the instantiated body, and `ErasesEnv.defns`' own last conjunct
+translates the uninstantiated one, at the constant the program reaches.
 -/
 
-/-- **What the δ arm needs of the compiler table, beside `ErasesEnv`.** Every tabled body is
-in the `max`-free fragment `Erases.instL` transports along, and translates at the level scope
-the environment relation records for it — `Σ ;;; [] |- b : T` of `erases_subst_instance_decl`
+/-- **What the compiler table owes about its level column.** Every tabled body is in the
+`max`-free fragment `Erases.instL` transports along, and translates at the level scope the
+environment relation records for it — `Σ ;;; [] |- b : T` of `erases_subst_instance_decl`
 (`../metarocq/erasure/theories/ErasureProperties.v:412`), which is what pays for the level
-arguments `Erases.const` and `Erases.ctor` leave unconstrained. At the capstone the first
-conjunct is `TableSafe.noMaxLevels` and the second is `CompilerBodies`. -/
+arguments `Erases.const` and `Erases.ctor` leave unconstrained. It is stated over the whole
+table because a table is where it is checked: `TableSafe.noMaxLevels` gives the first conjunct
+and `CompilerBodies` the second. The simulation does not take it — `bridgeEnv_of_regInv` does,
+and `ErasesEnv.defns` hands the δ arm only the constants the program reaches, which is where
+MetaRocq spends the premise (`ErasureCorrectness.v:176`). -/
 def TabledLevels (env : VEnv) (bo : Name → Option Expr) (lp : Name → List Name) : Prop :=
   ∀ c b, bo c = some b → NoMaxLevels b ∧ ∃ vb, TrExprS env (lp c) [] b vb
 
 /-- **`TabledLevels` at a reified table.** The `max`-free half is `TableSafe.noMaxLevels`; the
 translation is `CompilerBodies`, read against the table's level column, which
-`SourceTableAdequate.levels?_eq` identifies with the declaration's own. -/
+`SourceTableAdequate.levels?_eq` identifies with the declaration's own. This is
+`bridgeEnv_of_regInv`'s `hlvl`. -/
 theorem tabledLevels_of_table {lenv : Environment} {env : VEnv} {tbl : Witness.SourceTable}
     (htbl : Witness.SourceTableAdequate lenv tbl) (hsafe : TableSafe lenv tbl)
     (hcb : CompilerBodies lenv env tbl.body?) :
@@ -1215,7 +1220,7 @@ abbrev StepDelta (env : VEnv) (bo : Name → Option Expr) (lp : Name → List Na
   UpstreamAsks env →
   ∀ {c : Name} {us : List Level} {ups : List Name} {args argsv : List Expr}
       {b b' v : Expr},
-    env.WF → LowerEnv Γspec Γ → TabledLevels env bo lp → fl.delta →
+    env.WF → LowerEnv Γspec Γ → fl.delta →
     bo c = some b → (∀ I dp nm, ¬ CasesOnShape env c I dp nm) →
     b' = b.instantiateLevelParams ups us →
     argsv.length = args.length →
@@ -1229,15 +1234,16 @@ abbrev StepDelta (env : VEnv) (bo : Name → Option Expr) (lp : Name → List Na
 /-! ## The statements `ErasesCorrect/Close.lean` inhabits -/
 
 /-- **T5.** Eight binders carrying seven premises — `her`+`hlow` is `ErasesLB` unfolded, so
-that `hspec` can name the middle term, and `TabledLevels` is the δ arm's level-scope premise —
-plus the ninth, `UpstreamAsks env`, which drops with no restatement once the pin moves. -/
+that `hspec` can name the middle term — of which the last, `UpstreamAsks env`, drops with no
+restatement once the pin moves. The δ arm's level-scope premise is not among them: it is a
+conjunct of `ErasesEnv.defns`, under that clause's reachability gate. -/
 abbrev ErasesCorrectStmt (env : VEnv) (bo : Name → Option Expr) (lp : Name → List Name)
     (Us : List Name)
     (fl : SEvalFlags) (Γspec Γ : GlobalDeclarations) : Prop :=
   ∀ {e v : Expr} {ve : VExpr} {t₀ t : LBTerm},
     env.WF → TrExprS env Us [] e ve → SEval env bo Us fl [] e v →
     Erases env Us [] e t₀ → Lower Γspec t₀ t → ErasesEnv env bo lp Γspec t₀ →
-    LowerEnv Γspec Γ → TabledLevels env bo lp → UpstreamAsks env →
+    LowerEnv Γspec Γ → UpstreamAsks env →
     ∃ v₀ v', Erases env Us [] v v₀ ∧ Lower Γspec v₀ v' ∧ WcbvEval Γ eraseFlags t v'
 
 /-- **T5, folded.** The composite read through `ErasesLB`, with the environment premise at
@@ -1249,7 +1255,7 @@ abbrev ErasesCorrectLBStmt (env : VEnv) (bo : Name → Option Expr) (lp : Name �
     env.WF → TrExprS env Us [] e ve → SEval env bo Us fl [] e v →
     ErasesLB env Us Γspec [] e t →
     (∀ t₀, Erases env Us [] e t₀ → Lower Γspec t₀ t → ErasesEnv env bo lp Γspec t₀) →
-    LowerEnv Γspec Γ → TabledLevels env bo lp → UpstreamAsks env →
+    LowerEnv Γspec Γ → UpstreamAsks env →
     ∃ v', ErasesLB env Us Γspec [] v v' ∧ WcbvEval Γ eraseFlags t v'
 
 end LeanToLambdaBox
