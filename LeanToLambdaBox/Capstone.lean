@@ -42,9 +42,10 @@ per rung the same way, by kernel computation on the emitted program.
 The erasure half of the composition is `erasure_bridge_of_run`, a proved term; the simulation
 half is `erases_correct`, applied once at the spine the observable is read under. What remains
 is one named binder, `hbridge`, whose two fields wait on the specification environment the
-run's final state admits. `bridgeEnv_of_regInv` derives both from a registration invariant
-there, `doc/rework/08-REPAIRS-W5.md` §2 states what would produce that invariant and the three
-obstructions in the way, and `doc/trust.md`'s rows are the accounting.
+run's final state admits. `bridgeEnv_of_regContent` composes the binder's whole payload out of
+four facts about that state and nothing else; `doc/rework/08-REPAIRS-W5.md` §2 states what
+would produce the first two and the three obstructions in the way, and `doc/trust.md`'s rows
+are the accounting.
 -/
 
 namespace LeanToLambdaBox
@@ -96,9 +97,10 @@ theorem erasure_bridge_of_run
 /--
 What the capstone assumes beyond the erasure half, as one named binder: the two environment
 results the specification environment of the run's final state carries. Both are derived by
-`bridgeEnv_of_regInv` from `RegInvShape'` and `RegSaturated` at that state, and no theorem
-produces that invariant for a run of the shipping eraser — `doc/rework/08-REPAIRS-W5.md` §2 is
-the statement that would, and §2.3 the three measured obstructions in the way.
+`bridgeEnv_of_regContent` from the registration invariant, its content clause, `RegKeyed` and
+`ErasuresDeclared` at that state, and no theorem produces any of the four for a run of the
+shipping eraser — `doc/rework/08-REPAIRS-W5.md` §2 is the statement that would produce the
+first two, and §2.3 the three measured obstructions in the way.
 -/
 structure ErasureBridge (env : VEnv) (bo : Name → Option Expr) (lp : Name → List Name)
     (Γspec Γ : GlobalDeclarations) (t₀ : LBTerm) : Prop where
@@ -131,6 +133,40 @@ theorem bridgeEnv_of_regInv {env : VEnv} {bo : Name → Option Expr} {lp : Name 
       ErasesEnv env bo lp Γspec t₀ ∧ LowerEnv Γspec sf.gdecls :=
   ⟨hreg.specEnv, ⟨hreg.spec.keys, hreg.specClosed⟩,
     hreg.erasesEnv hdeps htab hlvl, hreg.lowerEnv hsat⟩
+
+/--
+**`hbridge`'s payload, composed out of the accumulated invariant.** Everything the binder
+carries follows from four facts about the run's final state, and nothing else: the
+registration invariant with its content clause, the emitted keys read by shape, the transfer
+of a specification lookup to the emitted one, and the declaredness of every erasure of the
+prepared term. `hdeps` is gone — `RegContent.declEnv` is the δ column of λ□ well-formedness
+and `ReachableFrom.isSome_of_declaredEnv` runs it to the closure, which is the condition
+MetaRocq's `erases_deps` carries structurally at its `tConst` arm
+(`../metarocq/erasure/theories/Extract.v:324-329`). `Lower Γspec t₀ t`, a premise of the
+binder, is not spent.
+
+The residue is the antecedents themselves: no theorem produces `RegInvShape'` and
+`RegContent` at a run (F-DEPLCTX bars the erasure a registration stores from being read off
+a member sub-run), `RegKeyed` at a run, or `hsub`, and `ErasuresDeclared` is refuted at a
+block member's sub-run. `doc/trust.md`'s `hbridge` row is the accounting.
+-/
+theorem bridgeEnv_of_regContent {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
+    {Γspec : GlobalDeclarations} {sf : ErasureState} {pe : Expr}
+    (hreg : RegInvShape' env bo lp Γspec sf) (hcon : RegContent env bo lp Γspec sf)
+    (hk : RegKeyed env sf)
+    (hsub : ∀ kn d, LBTerm.envLookup Γspec kn = some d →
+      LBTerm.envLookup sf.gdecls kn = some d)
+    (hde : ErasuresDeclared env [] Γspec [] pe)
+    (htab : ∀ c b, bo c = some b → ConstOrigin env c) (hlvl : TabledLevels env bo lp) :
+    SpecEnv env bo lp sf Γspec ∧
+      ∀ t₀ : LBTerm, Erases env [] [] pe t₀ →
+        ErasureBridge env bo lp Γspec sf.gdecls t₀ := by
+  have hsat := regSaturated_of_regKeyed hreg hk hsub
+  refine ⟨hreg.specEnv, fun t₀ her => ?_⟩
+  obtain ⟨-, -, hers, hlow⟩ :=
+    bridgeEnv_of_regInv hreg hsat
+      (fun _ hr => hr.isSome_of_declaredEnv (hde t₀ her) hcon.declEnv) htab hlvl
+  exact ⟨hers, hlow⟩
 
 /-! ## The capstone -/
 

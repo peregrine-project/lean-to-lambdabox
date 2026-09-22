@@ -2333,6 +2333,29 @@ theorem constsDeclaredEnv_of_check {Γ : GlobalDeclarations} (h : constsDeclared
   simp only at hall
   exact List.all_eq_true.1 hall _ hkn'
 
+/-- **The δ column carries the closure**: a seed of declared kernames stays declared under
+any number of δ-steps, because a step only adds the references of a declared body. -/
+theorem reachFrom_isSome_of_declaredEnv {Γ : GlobalDeclarations} (henv : ConstsDeclaredEnv Γ) :
+    ∀ (n : Nat) {seen : List Kername}, (∀ kn ∈ seen, (LBTerm.envLookup Γ kn).isSome) →
+      ∀ kn ∈ reachFrom Γ seen n, (LBTerm.envLookup Γ kn).isSome
+  | 0, _, h => h
+  | n + 1, _, h => by
+      intro kn hkn
+      rcases mem_expandRefs.1 hkn with hk | ⟨k, hk, b, hb, hcb⟩
+      · exact reachFrom_isSome_of_declaredEnv henv n h kn hk
+      · exact henv k b hb kn hcb
+
+/-- **`ErasesEnv.deps` from the δ column.** Everything reachable from a term whose own
+references are declared is declared, provided every declared body's references are. This is
+the closure MetaRocq builds into `erases_deps` itself: its `tConst` arm demands
+`erases_deps` of the declared body beside the declaration
+(`../metarocq/erasure/theories/Extract.v:324-329`), so a structural derivation already
+carries the transitive condition that `ReachableFrom` states separately. -/
+theorem ReachableFrom.isSome_of_declaredEnv {Γ : GlobalDeclarations} {t : LBTerm}
+    {kn : Kername} (ht : ConstsDeclared Γ t) (henv : ConstsDeclaredEnv Γ)
+    (h : ReachableFrom Γ t kn) : (LBTerm.envLookup Γ kn).isSome :=
+  reachFrom_isSome_of_declaredEnv henv _ ht kn (kernameElem_iff.1 h)
+
 /-- A declared key stays declared under a new entry, whatever the entry's key. -/
 theorem envLookup_cons_isSome {Γ : GlobalDeclarations} {k kn : Kername} {d : GlobalDecl}
     (h : (LBTerm.envLookup Γ kn).isSome) : (LBTerm.envLookup ((k, d) :: Γ) kn).isSome := by

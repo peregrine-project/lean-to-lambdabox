@@ -121,6 +121,7 @@
  Lean.Expr.mkData_flags._native.bv_decide.ax_1_12✝,
  Lean.Expr.Data.looseBVarRange_le._native.bv_decide.ax_1_7]
 'LeanToLambdaBox.bridgeEnv_of_regInv' depends on axioms: [propext, Classical.choice, Quot.sound]
+'LeanToLambdaBox.bridgeEnv_of_regContent' depends on axioms: [propext, Classical.choice, Quot.sound]
 'LeanToLambdaBox.Green.green_G1' depends on axioms: [propext,
  sorryAx,
  Classical.choice,

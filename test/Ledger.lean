@@ -12,9 +12,10 @@ seventeen of the eighteen steps, and everything closed on it. The other rows are
 theorems that exist — the simulation and its three arms, the
 corollaries of `ErasesEnv` and of `UpstreamAsks` the arms spend, the first-order answer,
 the pass layer's two transports, subject reduction, the `optimize` corollary, the certified
-evaluator, and one line per green rung. `bridgeEnv_of_regInv`, which composes the
-environment half of the capstone's bridge bundle, is measured on its own: its footprint is
-disjoint from the rungs' and carries no `sorryAx`. `ErasesEnv.tabled`'s discharge is measured as its
+evaluator, and one line per green rung. `bridgeEnv_of_regInv` and `bridgeEnv_of_regContent`,
+which compose the environment half of the capstone's bridge bundle — the second out of the
+four facts about the run's final state the binder is now reduced to — are measured on their
+own: their footprints are disjoint from the rungs' and carry no `sorryAx`. `ErasesEnv.tabled`'s discharge is measured as its
 two halves, `constants_of_tabled` and `constOrigin_of_constants`: the step between them is
 filed ask 4 and no theorem spans it. The five α rows are the transport a tabled body owes,
 because `ReifiedDecl.Prepared` pins it to the run's prepared body only up to
@@ -58,6 +59,7 @@ import LeanToLambdaBox
 #print axioms LeanToLambdaBox.visitExpr_refines_erasesLBFix
 #print axioms LeanToLambdaBox.shipping_erase_correct_firstorder
 #print axioms LeanToLambdaBox.bridgeEnv_of_regInv
+#print axioms LeanToLambdaBox.bridgeEnv_of_regContent
 #print axioms LeanToLambdaBox.Green.green_G1
 #print axioms LeanToLambdaBox.Green.green_G2
 #print axioms LeanToLambdaBox.Green.green_G3
