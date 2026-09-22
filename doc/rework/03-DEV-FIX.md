@@ -156,6 +156,10 @@ while the walk answers `none` — as PCUIC's `destArity` does at `tRel`, so the 
 lean4lean's zeta-reducing translation and `destArity`, not between this function and it. The
 verification keeps `ErasureSpec.propositionalInd_of_arity` and `IndFlagSound`'s sound half; what
 moves is `vResultSort_of_arityResultSort`, whose catch-all no longer closes the two new arms.
+The residue is mechanised in both halves, at the data `decl_adequate` supplies —
+`arityResultSort_letBVar` (the walk answers `none`), `trExprS_letBVarArity` (the translation
+answers `Sort 0`) and `arity_of_propositionalInd_false`, all in `ErasureSpec.lean` and
+`sorry`-free.
 
 ### F-ETA — every emitted recursive body is a bare unapplied `.fix`
 

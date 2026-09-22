@@ -531,8 +531,8 @@ theorem ErasureSpec.decl_adequate_of_kernelFind {lenv : Environment} {env : VEnv
 four arms: `.forallE` and `.sort`, which `vResultSort` (`Erasability.lean:240`) also reads and
 on which `TrExprS` is structural, and `.letE` and `.mdata`, which `TrExprS` erases — `.mdata` to
 the same image in the same context, `.letE` to the body's image in the context extended by the
-`vlet` entry, neither leaving a `vResultSort` node behind. The converse fails — see
-`ErasureSpec.propositionalInd_of_arity`. -/
+`vlet` entry, neither leaving a `vResultSort` node behind. The converse fails —
+`arity_of_propositionalInd_false`. -/
 theorem vResultSort_of_arityResultSort {env : VEnv} {Us : List Name} {u : Level} :
     ∀ {Δ : VLCtx} {e : Expr} {ve : VExpr}, TrExprS env Us Δ e ve →
       Erasure.arityResultSort e = some u →
@@ -561,15 +561,40 @@ theorem vResultSort_of_arityResultSort {env : VEnv} {Us : List Name} {u : Level}
     | mdata htre => exact ihe htre har
   | _ => intro ve htr har; simp [Erasure.arityResultSort] at har
 
-/-- **The walk stops at a `let`-bound sort.** The elaborated type of
-`inductive FooBVar : (let u := Prop; u)`, on which `Erasure.arityResultSort` answers `none`
-while `TrExprS.letE` substitutes the let's value and gives the image `.sort .zero`. The
-syntactic half of the counterexample `ErasureSpec.propositionalInd_of_arity`'s converse has;
-PCUIC's `destArity` (`../metarocq/pcuic/theories/PCUICAst.v:486-490`) answers `None` at `tRel`
-for the same shape. -/
-theorem arityResultSort_letBVar :
-    Erasure.arityResultSort (.letE `u (.sort (.succ .zero)) (.sort .zero) (.bvar 0) false)
-      = none := rfl
+/-- An arity whose final sort is reached only through the `let`'s own variable: the type Lean
+elaborates `inductive FooBVar : (let u := Prop; u)` to (`doc/rework/03-DEV-FIX.md`,
+F-ARITYLET's residue). -/
+def letBVarArity : Expr := .letE `u (.sort (.succ .zero)) (.sort .zero) (.bvar 0) false
+
+/-- **The walk stops at a `let`-bound sort.** `Erasure.arityResultSort` answers `none` at
+`letBVarArity`, as PCUIC's `destArity`
+(`../metarocq/pcuic/theories/PCUICAst.v:486-490`) answers `None` at `tRel`. -/
+theorem arityResultSort_letBVar : Erasure.arityResultSort letBVarArity = none := rfl
+
+/-- **The translation does not.** `TrExprS.letE` translates the body in the context extended
+by the `vlet` entry (`../lean4lean/Lean4Lean/Verify/Typing/Expr.lean:164`), where `VLCtx.find?`
+answers the let's *value* (`../lean4lean/Lean4Lean/Verify/VLCtx.lean:62-67`), so `letBVarArity`
+has image `Sort 0` at every environment and every level scope. -/
+theorem trExprS_letBVarArity {env : VEnv} {Us : List Name} :
+    TrExprS env Us [] letBVarArity (.sort .zero) :=
+  .letE (VEnv.IsDefEq.sortDF (l := .zero) (l' := .zero) trivial trivial
+      (rfl : VLevel.zero ≈ VLevel.zero))
+    (.sort rfl) (.sort rfl) (.bvar rfl)
+
+/-- A safe `Lean.InductiveVal` at `letBVarArity`, carrying the fields `decl_adequate` and
+`Erasure.isPropositionalArity` read: the level column, the safety and the declared type. -/
+def letBVarInduct : InductiveVal where
+  name := `FooBVar
+  levelParams := []
+  type := letBVarArity
+  numParams := 0
+  numIndices := 0
+  all := [`FooBVar]
+  ctors := []
+  numNested := 0
+  isRec := false
+  isUnsafe := false
+  isReflexive := false
 
 /-- **The emitted propositional flag is sound against the model.** An inductive type whose
 declared arity `Erasure.isPropositionalArity` accepts is `PropositionalInd` in `env`: the arity
@@ -580,17 +605,8 @@ reads the valuation-wide equation off the decision. This is the half of MetaRocq
 (`../metarocq/erasure/theories/Extract.v:276`) that a consumer of the flag spends —
 `propositional_false_of_informative` contradicts a `true` flag against `InformativeInd`.
 
-The converse implication is **false**, and no clause of `ErasureSpec` assumes it. The witness
-is `inductive FooBVar : (let u := Prop; u)`, whose elaborated type is
-`arityResultSort_letBVar`'s subject: the walk stops at the `.bvar` and answers `none`, while
-`TrExprS.letE` translates the body in the context extended by the `vlet` entry, where
-`VLCtx.find?` returns the let's *value* (`../lean4lean/Lean4Lean/Verify/VLCtx.lean:62-67`), so
-the image is `.sort .zero` and `PropositionalInd` holds. The gap is therefore between
-lean4lean's zeta-reducing translation and `destArity`, not between this walk and `destArity`.
-Closing it by reducing would cost the direction proved here: at `def MyArity := Prop`,
-`inductive FooAlias : MyArity`, a reducing walk would answer `Prop` while `TrExprS.const`
-keeps the `.const`, whose `vResultSort` is `none`. Recorded in
-`doc/rework/03-DEV-FIX.md`, F-ARITYLET. -/
+The converse implication is **false** — `arity_of_propositionalInd_false` — and no clause of
+`ErasureSpec` assumes it. Recorded in `doc/rework/03-DEV-FIX.md`, F-ARITYLET. -/
 theorem ErasureSpec.propositionalInd_of_arity {lenv : Environment} {env : VEnv} {Us : List Name}
     {gw : Void IO.RealWorld → NameGenerator} (P : ErasureSpec lenv env Us gw)
     {I : Name} {iv : InductiveVal} (hfind : lenv.find? I = some (.inductInfo iv))
@@ -605,6 +621,31 @@ theorem ErasureSpec.propositionalInd_of_arity {lenv : Environment} {env : VEnv} 
     obtain ⟨u', hu', hofl⟩ := vResultSort_of_arityResultSort htr har
     exact ⟨vc, hvc, u', hu', alwaysZeroB_sound ((ofLevel_alwaysZeroB hofl).trans hprop)⟩
 
+/-- **MetaRocq's equation has no second direction here.** `PropositionalInd env I` does not
+imply `Erasure.isPropositionalArity iv.type = true`, at exactly the data
+`ErasureSpec.decl_adequate` supplies about `I` — a modelled constant and a `TrConstant`
+translating its declared type. `letBVarInduct` is the witness: the walk answers `none`
+(`arityResultSort_letBVar`) while the translation answers `Sort 0`
+(`trExprS_letBVarArity`), so the flag is `false` at an inductive the model calls
+propositional.
+
+The gap is between lean4lean's zeta-reducing translation and `destArity`, not between this
+walk and `destArity`, which stops at `tRel` too; and no clause of `ErasureSpec` excludes the
+shape, `lenv` holding whatever the elaborator accepted. Closing it by reducing would cost the
+direction above: at `def MyArity := Prop`, `inductive FooAlias : MyArity`, a reducing walk
+would answer `Prop` while `TrExprS.const` keeps the `.const`, whose `vResultSort` is `none`.
+`ErasesEnv`'s `IndFlagSound` clause therefore states the sound half, not the equation
+(`doc/rework/03-DEV-FIX.md`, F-ARITYLET). -/
+theorem arity_of_propositionalInd_false :
+    ¬ ∀ (env : VEnv) (I : Name) (iv : InductiveVal) (vc : VConstant),
+        env.constants I = some vc → TrConstant .safe env (.inductInfo iv) vc →
+          PropositionalInd env I → Erasure.isPropositionalArity iv.type = true := by
+  intro h
+  refine absurd (h { VEnv.empty with
+      constants := fun n => if n = `FooBVar then some ⟨0, .sort .zero⟩ else none }
+    `FooBVar letBVarInduct ⟨0, .sort .zero⟩ (by simp)
+    ⟨by decide, rfl, trExprS_letBVarArity⟩
+    ⟨⟨0, .sort .zero⟩, by simp, .zero, rfl, fun _ => rfl⟩) (by decide)
 
 /-! ## The eraser's own asks
 

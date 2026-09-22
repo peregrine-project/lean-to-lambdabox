@@ -44,24 +44,17 @@ spends, through `propositional_false_of_informative`, and the half
 `ErasureSpec.propositionalInd_of_arity` proves.
 
 **Why the implication and not the equality.** The converse,
-`PropositionalInd env I → oib.propositional = true`, needs the converse of
-`vResultSort_of_arityResultSort`: from `TrExprS env Us [] iv.type vt` and
-`vResultSort vt = some l`, that `Erasure.arityResultSort iv.type = some u` with
-`VLevel.ofLevel Us u = some l`. That step is false, and no lean4lean lemma supplies it — the
-translation is what refutes it. The walk reads `destArity`'s `tLetIn` arm and Lean's
-annotation arm (F-ARITYLET, `doc/rework/03-DEV-FIX.md`), so neither `.letE` nor `.mdata`
-witnesses the gap; what does is zeta. `TrExprS.letE` translates the body in the context
-extended by the `vlet` entry (`../lean4lean/Lean4Lean/Verify/Typing/Expr.lean:164`), where a
-`.bvar` resolves to the let's *value*, so `inductive FooBVar : (let u := Prop; u)` has image
-`.sort .zero` while the walk stops at the `.bvar` and the flag comes out `false`. PCUIC's
-`destArity`
-(`../metarocq/pcuic/theories/PCUICAst.v:486-490`) answers `None` at `tRel` too, so the
-remaining gap is between lean4lean's translation and `destArity`, not between this repository
-and MetaRocq, and no shipping change closes it: a walk that reduced far enough to see through
-the `.bvar` would also see through an alias-headed arity, where `TrExprS.const` keeps the
-`.const` and `ErasureSpec.propositionalInd_of_arity` — the half spent here — would fail.
-This clause therefore says nothing at a body whose flag is unset, which is every body the
-ladder emits.
+`PropositionalInd env I → oib.propositional = true`, is refuted by
+`ErasureSpec.arity_of_propositionalInd_false` at `inductive FooBVar : (let u := Prop; u)`,
+whose declared arity the translation sees through by zeta and the walk does not. The walk
+already reads `destArity`'s `tLetIn` arm and Lean's annotation arm (F-ARITYLET,
+`doc/rework/03-DEV-FIX.md`), and PCUIC's `destArity`
+(`../metarocq/pcuic/theories/PCUICAst.v:486-490`) stops at `tRel` as the walk does, so the
+residue is between lean4lean's translation and `destArity`, not between this repository and
+MetaRocq. No shipping change closes it: a walk that reduced far enough would also see through
+an alias-headed arity, where `TrExprS.const` keeps the `.const` and
+`ErasureSpec.propositionalInd_of_arity` — the half spent here — would fail. This clause
+therefore says nothing at a body whose flag is unset, which is every body the ladder emits.
 
 It is no clause of `IndBodyOf`, which carries no model environment:
 `Erasure.register_inductive` computes the flag on every inductive it registers —
@@ -164,7 +157,7 @@ theorem ErasesEnv.axioms (h : ErasesEnv env bo lp Γspec t) :
 /-- `erases_deps`' `tConstruct`/`tCase`/`tProj` clause: `declared_inductive Σ` — the
 `IndDeclOf` conjunct, which `IndInfo` does not give, since it exhibits a block below `env` —
 and `declared_inductive Σ'` with the arity data the target reads, beside `IndFlagSound`, the
-propositional flag's equation against the model. -/
+propositional flag's soundness against the model. -/
 theorem ErasesEnv.blocks (h : ErasesEnv env bo lp Γspec t) {I : Name} {iid : InductiveId}
     {np : Nat} {nfs : List Nat} (hi : IndInfo env I iid np nfs)
     (hr : ReachableFrom Γspec t iid.mutualBlockName) :
@@ -199,7 +192,7 @@ semantics reads, and — when `n` is informative — its `casesOn` eliminator. T
 step establishes. -/
 structure IndCovered (env : VEnv) (Γspec : GlobalDeclarations) (n : Name) : Prop where
   /-- The block declaration, at the block kername `IndInfo` names, together with `n`'s own
-      declaration in `env` and the propositional flag's equation against the model. -/
+      declaration in `env` and the propositional flag's soundness against the model. -/
   block : ∀ iid np nfs, IndInfo env n iid np nfs →
     IndDeclOf env n ∧ ∃ mib,
       LBTerm.envLookup Γspec iid.mutualBlockName = some (.inductiveDecl mib) ∧

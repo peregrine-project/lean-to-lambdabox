@@ -155,8 +155,8 @@ about `benchArith`'s tabled body (`scratch/round7/u9_g8.lean`).
 * **F-ARITYLET** (`03-DEV-FIX.md`): `Erasure.arityResultSort` (`Erasure.lean:281-285`) stops
   at `.letE` and `.mdata` where the kernel's `destArity`
   (`../metarocq/pcuic/theories/PCUICAst.v:486-490`) and lean4lean's `TrExprS` see through, so
-  `IndFlagSound` has only its sound half (`ErasesEnv.lean:66`). W9 is the biconditional, after
-  the merge.
+  `IndFlagSound` has only its sound half (`ErasesEnv.lean:66`). W9 was to be the biconditional
+  after the merge; it is not available, and §2.9 records the refutation instead.
 
 ## 2. The units
 
@@ -855,6 +855,17 @@ arity and falsify `propositionalInd_of_arity`, the direction the consumers spend
 premise-free biconditional is available and none may be written as a guard. `IndFlagSound`
 keeps its statement and its consumers; the residue is recorded at the clause, in
 `03-DEV-FIX.md`'s F-ARITYLET row, and in `07-STATUS.md`'s vacuity census.
+
+*Landed* (`scratch/round7/W9-report.md`): the refutation, as a theorem rather than as the
+argument above. `arity_of_propositionalInd_false` (`ErasureSpec.lean`) is `§2.9`'s
+`arity_of_propositionalInd` with `P`, `hfind` and `hsafe` replaced by their joint output —
+`decl_adequate`'s `env.constants I = some vc` and `TrConstant .safe env (.inductInfo iv) vc`,
+the bundle's only route from `iv.type` to `env` — and it is false, at `letBVarInduct`. Its two
+halves are `arityResultSort_letBVar`, restated over the named subject `letBVarArity`, and
+`trExprS_letBVarArity`, the semantic half, which was prose until now and holds at every
+environment and every level scope. Sorry-free, `[propext, Classical.choice, Quot.sound]`.
+The bundle itself cannot be refuted in the tree — nothing constructs an `ErasureSpec` — but no
+field of it excludes the shape, and a field that did would be the guard rule (2) forbids.
 
 ## 3. What remains open after W8
 
