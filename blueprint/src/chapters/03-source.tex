@@ -16,7 +16,7 @@ sites, pinned fork).
 \item \lead{Lean files} \code{SourceEval.lean} ($\SEval$); \code{Supported.lean} (fragment,
 checker); \code{SpecEnv.lean} (a run's \lbox{} environment); \code{Upstream.lean}
 (\code{UpstreamAsks}).
-\item \lead{Paper} [S] has no source semantics to cite; $\SEval$'s value arms mirror [S,
+\item \lead{Paper} [JACM] has no source semantics to cite; $\SEval$'s value arms mirror [JACM,
 Fig.~12]'s \code{value\_head} classification.
 \end{itemize}
 
@@ -980,7 +980,7 @@ paying a definitional-equality obligation.
 \item \lead{Deviation} Delta is not kernel delta: the eraser reads compiler bodies after
 \code{csimp}/\code{@[extern]}/\code{@[implemented\_by]}, paying \code{StepDefeq} at the applied
 instance; \code{CompilerBodies} is discharged only at the first rung.
-\item \lead{Deviation} The coverage predicate has no counterpart in [S]: MetaCoq's erasure is total
+\item \lead{Deviation} The coverage predicate has no counterpart in [JACM]: MetaCoq's erasure is total
 on well-typed PCUIC, but this eraser ships and partly panics; only Arith is inside the fragment.
 \item \lead{Caveat} The recursor-head exclusion guards against vacuous coverage, since a recursor
 spine has no source evaluation. \code{@[implemented\_by]} is closed by \code{ConfigPinned}, not

@@ -6,7 +6,7 @@
 \item \lead{Goal} Verify, in Lean 4, the shipping \code{\#erase} eraser --- \code{Erasure.erase}
 and its term walk \code{Erasure.visitExpr}, the code that writes the \code{.ast} files the
 benchmark suite measures --- \hl{not an idealised model of it}.
-\item \lead{Architecture} Follows Sozeau et al.'s certified erasure for Rocq ([S, Sec. 7.3--7.4],
+\item \lead{Architecture} Follows Sozeau et al.'s certified erasure for Rocq ([JACM, Sec. 7.3--7.4],
 after Letouzey [L]): a target calculus with weak call-by-value semantics; an erasability
 specification and non-deterministic erasure relation refined by the implemented function; a forward
 simulation; a collapse of non-determinism at first-order observations --- re-formalised for Lean's
@@ -18,7 +18,7 @@ is matched by the emitted program's evaluation.
 binders are hypotheses; \stOpen{} on \code{hbridge}; \stInherited{} throughout, via \code{lean4lean}.
 \item \lead{Lean files} \code{Erasure.lean}, \code{Capstone.lean}, \code{ErasureSpec.lean},
 \code{Green.lean}.
-\item \lead{Paper} [S, Sec. 7.3--7.4]; [L]; the eraser's own design document is [R]
+\item \lead{Paper} [JACM, Sec. 7.3--7.4]; [L]; the eraser's own design document is [R]
 (Section~\ref{sec:intro:references}).
 \end{itemize}
 
@@ -51,7 +51,7 @@ not the kernel-facing recursor-based one; both are named hypotheses, not silent 
 \lead{Configuration} \code{ErasureConfig} (\code{Erasure.lean}) is a five-field record.
 
 \par\smallskip\noindent
-\begin{tabular}{p{0.35\linewidth}lp{0.43\linewidth}}
+\begin{tabular}{p{0.36\linewidth}lp{0.41\linewidth}}
 \toprule
 Field & Default & Pinned (\code{ConfigPinned}, \code{ErasureSpec.lean}) \\
 \midrule
@@ -142,14 +142,14 @@ each instance's evaluation into a kernel computation.
 translation fact is \code{lean4lean}'s. \SEval{} sits on top, its $\delta$ arm reading the
 compiler-body table, with subject reduction \code{SEval.defeq}. The eraser's fragment is
 \code{Supported}, checker \code{supportedB\_sound}.
-\item \lead{Erasure specification} (Chapter~\ref{chap:erases}). \Erasable{} is [S]'s
-\code{isErasable}. \Erases{}, [S, Fig. 18]: eleven rules, ten congruences plus one
+\item \lead{Erasure specification} (Chapter~\ref{chap:erases}). \Erasable{} is [JACM]'s
+\code{isErasable}. \Erases{}, [JACM, Fig. 18]: eleven rules, ten congruences plus one
 non-deterministic box rule, with the image's binder names quantified, so an $\alpha$-variant of a
-source term has the same erasures (\code{Erases.alpha}). \ErasesEnv{}, [S]'s \code{erases\_deps},
+source term has the same erasures (\code{Erases.alpha}). \ErasesEnv{}, [JACM]'s \code{erases\_deps},
 is one clause with seven conditions, of which the definition clause reads each tabled body at the
 declaration's own level parameters; \code{Erases.instL} transports that reading to any
 instantiation the reading scope knows.
-\item \lead{Forward simulation} (Chapter~\ref{chap:correctness}). \code{erases\_correct}, [S]'s
+\item \lead{Forward simulation} (Chapter~\ref{chap:correctness}). \code{erases\_correct}, [JACM]'s
 theorem of the same name: eight binders carrying seven premises, one induction on the source
 evaluation, the $\iota$, $\delta$ and projection arms as step lemmas. One simulation, on the
 composite.
@@ -161,7 +161,7 @@ terms. Carries the four Lean-specific steps: constructor constants to heads, sat
 \item \lead{Run model and refinement} (Chapters~\ref{chap:eraser}, \ref{chap:run},
 \ref{chap:refinement}). \code{ErasureRun.lean} is the algebra of the eraser's monadic runs.
 \code{visitExpr\_refines\_erasesLB} and its fixpoint companion say a successful run lands in
-composite \code{ErasesLB} --- the analogue of [S]'s \code{erases\_erase} and [L, Lemma 11]. One
+composite \code{ErasesLB} --- the analogue of [JACM]'s \code{erases\_erase} and [L, Lemma 11]. One
 eighteen-motive fixpoint induction whose steps the capstone supplies as proved terms.
 \item \lead{Cold start and bridge} (Chapter~\ref{chap:coldstart}). \code{erase\_run\_ok} splits the
 entry point into preparation and term walk; \code{prepare\_sound} transports the source evaluation
@@ -177,7 +177,7 @@ answer's constructor-tree shape and uniqueness, \code{noBox\_lower\_of\_foSpine}
 Everything above is proved \emph{from} the hypotheses of Chapter~\ref{chap:trust}: the graph in this
 blueprint shows the proofs, and the assumption nodes show where the proofs stop.
 
-\section{Correspondence with the certified erasure of [S] and [L]}
+\section{Correspondence with the certified erasure of [JACM] and [L]}
 \label{sec:intro:correspondence}
 
 The two tables below map each notion of the reference development onto its counterpart here and name
@@ -187,27 +187,27 @@ the deviation.
 \small
 \begin{tabular}{p{0.30\linewidth}p{0.30\linewidth}p{0.30\linewidth}}
 \toprule
-Notion in [S] / [L] & This development & Deviation \\
+Notion in [JACM] / [L] & This development & Deviation \\
 \midrule
-\lbox{} syntax, [S, Fig. 16]; CIC-with-box, [L, Sec. 3.2] &
+\lbox{} syntax, [JACM, Fig. 16]; CIC-with-box, [L, Sec. 3.2] &
 \code{LBTerm} &
 adds a free-variable and a primitive constructor (locally nameless); no cofixpoints \\
-weak call-by-value evaluation, [S, Sec. 5.6, 7.1]; weak reduction, [L, Def. 9] &
+weak call-by-value evaluation, [JACM, Sec. 5.6, 7.1]; weak reduction, [L, Def. 9] &
 \WcbvEval{}, flag-parameterised &
 big-step; both constructor regimes modelled, pinned at applied form; $\iota$/projection drop
 MetaRocq's parameter-count and saturation conditions \\
-box rule (1): a box applied to an argument reduces to a box, [S, Sec. 7.1]; [L, Def. 5] &
+box rule (1): a box applied to an argument reduces to a box, [JACM, Sec. 7.1]; [L, Def. 5] &
 \code{WcbvEval.app\_box} &
 none: the argument is still evaluated and discarded, as in MetaRocq \\
-box rule (2): singleton case on a box, [S, Sec. 7.1]; [L, Def. 8] &
+box rule (2): singleton case on a box, [JACM, Sec. 7.1]; [L, Def. 8] &
 \code{WcbvEval.iota\_sing}/\code{proj\_prop} &
 gated on a flag and on the registered propositional marking, which
 \code{Erasure.register\_inductive} computes from the declared arity; the fragment admits no
 propositional discriminee, so the rule is unreachable on covered output \\
-box rule (3): a fixpoint on a boxed guard, [S, Sec. 7.1]; [L, Def. 8] &
+box rule (3): a fixpoint on a boxed guard, [JACM, Sec. 7.1]; [L, Def. 8] &
 no separate rule: \code{WcbvEval.fix\_guarded} fires on argument count matching the principal index &
 a boxed principal argument unfolds like any other value \\
-values, [S, Fig. 12] &
+values, [JACM, Fig. 12] &
 \code{Value} &
 applied-form constructor spines are values \\
 \bottomrule
@@ -218,63 +218,63 @@ applied-form constructor spines are values \\
 \small
 \begin{tabular}{p{0.30\linewidth}p{0.30\linewidth}p{0.30\linewidth}}
 \toprule
-Notion in [S] / [L] & This development & Deviation \\
+Notion in [JACM] / [L] & This development & Deviation \\
 \midrule
-\code{isErasable}, [S, Sec. 7.2]; type scheme and proof, [L, Def. 1, 3] &
+\code{isErasable}, [JACM, Sec. 7.2]; type scheme and proof, [L, Def. 1, 3] &
 \Erasable{} &
 arity up to definitional equality; no \code{Prop}-\code{Type} cumulativity in Lean, so no
 sort-quality apparatus; proof irrelevance is definitional, used not re-proved \\
-the erasure relation, [S, Fig. 18]; the invariant of [L, Def. 10] &
+the erasure relation, [JACM, Fig. 18]; the invariant of [L, Def. 10] &
 \Erases{} --- eleven rules &
 variable rule splits in two (locally nameless); metadata/literal rules have no paper counterpart;
 constructor rule emits a bare head, arguments via application; \textbf{no case or fixpoint rule at
 all} (Lean's eliminators and recursion are constants, not term formers) \\
-the subsingleton side condition on the case rule, [S, Fig. 18, Sec. 3.6.3] &
+the subsingleton side condition on the case rule, [JACM, Fig. 18, Sec. 3.6.3] &
 nothing in \Erases{} &
 moves to the pass layer and the fragment predicate \\
-environment erasure \code{erases\_deps}, [S, Sec. 7.4] &
+environment erasure \code{erases\_deps}, [JACM, Sec. 7.4] &
 \ErasesEnv{}, one clause, seven conditions &
-the pointwise erasure [S] defines but never uses has no counterpart; the definition clause reads
+the pointwise erasure [JACM] defines but never uses has no counterpart; the definition clause reads
 the declaration's own level column, as \code{erases\_constant\_body} does \\
-the abstract environment, [S, Sec. 6.2] &
+the abstract environment, [JACM, Sec. 6.2] &
 \code{ErasureSpec}, eight fields, plus a reified source table and its adequacy &
 queries not squashed; adequacy of the reified slice is a named hypothesis mechanised outside Lean,
 not an interface property \\
-\code{erases\_erase}, [S, Sec. 7.3]; [L, Lemma 11] &
+\code{erases\_erase}, [JACM, Sec. 7.3]; [L, Lemma 11] &
 \code{visitExpr\_refines\_erasesLB} and fixpoint companion, into \code{ErasesLB} &
 not a pruning function (eta-expands to arity, splits \code{casesOn} spines, builds literal towers),
 so stated against the \emph{composite} of \Erases{} and \Lower{} \\
-\code{erases\_correct}, [S, Sec. 7.4]; forward simulation, [L, Thm. 13] &
+\code{erases\_correct}, [JACM, Sec. 7.4]; forward simulation, [L, Thm. 13] &
 \code{erases\_correct} &
 at the emitted environment, with \Lower{}/\LowerEnv{} factors and an upstream hypothesis bundle;
 source evaluation is hypothesised (no progress/standardization counterpart) \\
-\code{firstorder\_ind}, [S, Sec. 7.4]; data type and logic-free type, [L, Def. 14, 6] &
+\code{firstorder\_ind}, [JACM, Sec. 7.4]; data type and logic-free type, [L, Def. 14, 6] &
 \code{FirstOrderInd} &
 cited as origin, not transcribed: sort conjunct false on the naturals (reported upstream);
 monomorphism/index-freedom fields are scope restrictions booked to neither paper \\
-determinism of erasure at a first-order type, [S, Sec. 7.4] &
+determinism of erasure at a first-order type, [JACM, Sec. 7.4] &
 \code{firstorder\_erases\_deterministic}; capstone's
 \code{firstorder\_erases\_core}/\code{noBox\_lower\_of\_foSpine} &
 stated for the relation against itself (uniqueness): no erasure function is defined here \\
-\code{axiom\_free}, [S, Sec. 5.6] &
+\code{axiom\_free}, [JACM, Sec. 5.6] &
 \code{NoBodylessRefs} &
 decidable, on the emitted environment, a premise of the capstone only; no analogue needed (a
 body-less constant has no source value) \\
-\code{expanded\_eprogram}, [S, Sec. 7.4]; \code{eta\_fixpoint} on the Template program &
+\code{expanded\_eprogram}, [JACM, Sec. 7.4]; \code{eta\_fixpoint} on the Template program &
 \code{LBWfPeregrine.expandedFix} (\code{LBExpandedTFix}) &
 MetaRocq expands before erasure and inherits expandedness; Lean has no source-level expansion, so
 the eraser expands on the \lbox{} side and \Lower{}'s \code{fixEta} arm relates the two shapes \\
-first-order erasure correctness, [S, Sec. 7.4]; [L, Thm. 15] &
+first-order erasure correctness, [JACM, Sec. 7.4]; [L, Thm. 15] &
 \code{shipping\_erase\_correct\_firstorder} &
 $\Downarrow$-form off a hypothesised evaluation; observable over a closed first-order argument
-spine ([S]'s separate-compilation corollary folded in) \\
-\code{optimize} and its correctness, [S, Sec. 7.4] &
+spine ([JACM]'s separate-compilation corollary folded in) \\
+\code{optimize} and its correctness, [JACM, Sec. 7.4] &
 \code{LBOptimize\_correct} &
 off the shipping path, at block flags; the fragment admits no propositional discriminee, so it is a
 worked example, not a pipeline pass \\
 the four Lean-specific compilation steps &
 \Lower{}, \LowerEnv{} &
-\textbf{no counterpart in [S] or [L]}; anchored by \code{doc/rules-Lower.md} against MetaRocq's
+\textbf{no counterpart in [JACM] or [L]}; anchored by \code{doc/rules-Lower.md} against MetaRocq's
 iota-reduction and fixpoint substitution \\
 --- &
 \code{Supported}; \code{ConfigPinned} &
@@ -282,7 +282,7 @@ iota-reduction and fixpoint substitution \\
 plus the configuration restrictions \\
 --- &
 \SEval{} &
-\textbf{no counterpart}: [S] reuses PCUIC's evaluation; \code{lean4lean} has none; its $\delta$ arm
+\textbf{no counterpart}: [JACM] reuses PCUIC's evaluation; \code{lean4lean} has none; its $\delta$ arm
 reads the compiler-body table \\
 \bottomrule
 \end{tabular}
@@ -293,15 +293,15 @@ Divergences separate into those Lean forces and those this development chooses.
 
 \par\smallskip\noindent
 \small
-\begin{tabular}{p{0.44\linewidth}p{0.46\linewidth}}
+\begin{tabular}{p{0.46\linewidth}p{0.46\linewidth}}
 \toprule
 Forced by Lean, and staying & Chosen, and open to repair \\
 \midrule
 monadic on-demand traversal with a mutable registry, not list recursion &
-$\Gamma_{\mathrm{spec}}$ universally quantified in the run predicate, where [S] threads its
+$\Gamma_{\mathrm{spec}}$ universally quantified in the run predicate, where [JACM] threads its
 dependency set as an accumulator \\
 source bodies pinned only up to $\alpha$, because of \code{inlineMatchers} &
-one fixed level scope across the eighteen motives, where [S] re-makes the extension per constant \\
+one fixed level scope across the eighteen motives, where [JACM] re-makes the extension per constant \\
 the \Lower{} stage, since \code{Lean.Expr} has neither a case nor a fixpoint node & \\
 \code{lean4lean} typing in place of PCUIC typing & \\
 \bottomrule
@@ -314,7 +314,7 @@ Five deviations matter most.
 \begin{itemize}
 \item \lead{Applied-form constructors} (Chapter~\ref{chap:lambdabox}). peregrine's first pass needs
 applied form; the erasure flag point pins the non-block regime and \Erases{}'s constructor rule
-emits a bare head. [L] has no such distinction (constructors are context variables there); [S] does
+emits a bare head. [L] has no such distinction (constructors are context variables there); [JACM] does
 not discuss it. Measured: all 982 emitted constructor nodes carry an empty argument list.
 \item \lead{No case or fixpoint rule in \Erases{}} (Chapter~\ref{chap:erases}). Structural: Lean
 writes constructors, inductive names and constants all as \code{Expr.const}.
@@ -396,7 +396,7 @@ The theorem's inline binders are named one by one in Chapter~\ref{chap:trust}.
 term-translation fact on the source side is \code{lean4lean}'s. The pin carries sixteen
 \code{sorry} sites, enumerated in \code{test/lean4lean-sorries.expected}, re-measured by
 \code{scripts/lean4lean-sorries.sh}; results reaching them inherit \code{sorryAx}. The one
-\stInherited{} boundary here, as [S] inherits a normalization axiom, and it is an assumption node
+\stInherited{} boundary here, as [JACM] inherits a normalization axiom, and it is an assumption node
 with no Lean counterpart in Chapter~\ref{chap:trust}.
 \item[\lead{Measurement, not narration}] \code{test/ledger.expected} holds the literal
 \code{\#print axioms} output of forty-five invocations in \code{test/Ledger.lean}, CI diffs it. The
@@ -408,15 +408,15 @@ one of them already in that cluster. \code{visitExpr\_refines\_erasesLB},
 \code{bridgeEnv\_of\_regInv}, \code{LBOptimize\_correct} and \code{lbEval\_sound} measure free of
 \code{sorryAx}. Moving an obligation into a binder moves no row.
 \item[\lead{One further rule}] A statement more specific than its prose is flagged after the
-informal one; deviations from [S] or [L] are always named.
+informal one; deviations from [JACM] or [L] are always named.
 \end{description}
 
 \section{Reading order}
 \label{sec:intro:order}
 
 \begin{enumerate}
-\item \lead{Know [S, Sec. 7], want the delta.} Section~\ref{sec:intro:correspondence}, then
-Chapter~\ref{chap:erases} (the relation), Chapter~\ref{chap:lowering} (the part [S] does not have),
+\item \lead{Know [JACM, Sec. 7], want the delta.} Section~\ref{sec:intro:correspondence}, then
+Chapter~\ref{chap:erases} (the relation), Chapter~\ref{chap:lowering} (the part [JACM] does not have),
 Chapter~\ref{chap:capstone} (the theorem), Chapter~\ref{chap:trust} (what it assumes).
 \item \lead{Decide whether to trust \code{\#erase}'s output.} Section~\ref{sec:intro:theorem}, then
 Section~\ref{sec:intro:open} and Chapter~\ref{chap:trust} \emph{before}
@@ -429,7 +429,7 @@ function, its run algebra, the refinement), \ref{chap:coldstart} (the cold start
 \end{enumerate}
 
 \lead{External anchors} (not duplicated here): \code{doc/rules-Erases.md} (rule-by-rule table
-against [S, Fig. 18]), \code{doc/rules-Lower.md}, \code{doc/trust.md}, \code{doc/coverage.md};
+against [JACM, Fig. 18]), \code{doc/rules-Lower.md}, \code{doc/trust.md}, \code{doc/coverage.md};
 commands \code{lake exe green-check --all}, \code{lake exe reify --check}, \code{lake exe coverage},
 \code{bash scripts/ledger.sh}.
 
@@ -437,7 +437,7 @@ commands \code{lake exe green-check --all}, \code{lake exe reify --check}, \code
 \label{sec:intro:references}
 
 \begin{description}
-\item[{[S]}] Sozeau, Forster, Lennon-Bertrand, Botsch Nielsen, Tabareau, Winterhalter, \emph{Correct
+\item[{[JACM]}] Sozeau, Forster, Lennon-Bertrand, Botsch Nielsen, Tabareau, Winterhalter, \emph{Correct
 and Complete Type Checking and Certified Erasure for Coq, in Coq}, J.\ ACM 72(1), Article 8, January
 2025. Sec.\ 7: the certified erasure; also used: 5.6 (standardization, \code{axiom\_free}, values),
 3.6.3 (eliminations), 6.2 (abstract environment). Local copy: \code{references/MetaCoq\_paper.pdf}.
@@ -476,3 +476,59 @@ one run.
 \end{itemize}
 
 Chapter~\ref{chap:trust} records these, and every other finding, with its measurement.
+
+\section{Sources and where this development sits}
+\label{sec:intro:sources}
+
+Eight sources are cited across this blueprint. Chapter~\ref{chap:references} treats each in
+full, positions this development among them, and lists every divergence; this section gives the
+compact picture.
+
+\par\smallskip\noindent
+\small
+\begin{tabular}{lp{0.12\linewidth}p{0.14\linewidth}p{0.17\linewidth}p{0.17\linewidth}p{0.19\linewidth}}
+\toprule
+& kernel theory & kernel verif. & erasure theory & erasure verif. & erasure implem./pipeline \\
+\midrule
+Rocq & PCUIC decl. spec ([MR, CCC, JACM, HAB]) & MetaRocq SafeChecker ([CCC, JACM, HAB]) &
+lambda-box, \code{isErasable}, \code{erases} ([L, CCC, JACM, HAB]) & \code{erases\_correct},
+\code{erase\_correct\_firstorder} ([L, CCC, JACM, HAB]) & \code{ErasureFunction.v}; 13-phase
+pipeline; Malfunction/C/Wasm/CakeML/Rust/Elm ([JACM, HAB, L, R]) \\
+\midrule
+Lean & Lean's DTT ([CT]) & \code{lean4lean} (undigested; [CT] bounds it negatively) &
+Lean-side \Erases{} relation, \code{visitExpr} bridge ([JACM]/[HAB] as model) & THIS PROJECT
+(no source; [R] Sec. 6.3 names it as future work) & \code{\#erase} in LeanToLambdaBox ([R]);
+pipeline shared with the Rocq row \\
+\bottomrule
+\end{tabular}
+\normalsize
+
+\begin{itemize}
+\item \lead{[L]} Letouzey, TYPES 2002: the pen-and-paper origin of box, of the erasure function,
+and of the relation-over-function proof method \Erases{}/\Lower{} follows.
+\item \lead{[MR], [CCC]} Sozeau et al., JAR 2020 and POPL 2020: superseded predecessors, kept
+for the quoting-layer provenance and the historical-firsts citation only.
+\item \lead{[JACM]} Sozeau et al., J.\ ACM 2025: the theorem reference of record for every
+numbered erasure statement this blueprint mirrors.
+\item \lead{[HAB]} Sozeau, Habilitation 2026: the superset naming the post-erasure pipeline this
+development inherits in full and never re-verifies.
+\item \lead{[MRD]} the MetaRocq project website: the file-and-module tiebreaker whenever a paper
+and the code disagree.
+\item \lead{[R], [CT]} Dima's internship report and Carneiro's thesis draft: the two Lean-side
+sources, an unverified design precedent for the shipping eraser and the only Lean source-calculus
+metatheory, respectively.
+\end{itemize}
+
+\lead{The porting claim, made precise} This development reconstructs \code{[JACM]}
+Sec.~7.3--7.4 / \code{[HAB]} Ch.~6 for Lean: a Lean-side \Erases{} relation into the lambda-box
+MetaRocq already owns, a forward simulation for it, and a bridge from the shipping \code{\#erase}
+to that relation. Lambda-box's syntax and semantics, and the entire post-erasure pipeline, are
+shared rather than ported, fixed by MetaRocq and inherited from \code{[HAB]} Sec.~6.5--6.6 with
+no Lean-specific work. What is assumed rather than proved is the Lean kernel layer:
+\code{lean4lean} plus \code{[CT]} enter as a trust boundary with named holes, since nothing
+Lean-side yet has the status of weak-CBV standardization, canonicity, or principality that
+\code{[JACM]} spends. The shipping eraser's own Lean-specific layers -- machine \code{Nat},
+\code{csimp}, \code{@[extern]} axioms, matcher and \code{macro\_inline} preprocessing,
+constructor pruning -- have no counterpart in any reference and are each separately discharged
+or carried as a named assumption. Chapter~\ref{chap:references} gives the full grid, the porting
+claim's four refinements, and the divergence-by-divergence account.

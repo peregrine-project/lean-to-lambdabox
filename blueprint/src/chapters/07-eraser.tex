@@ -14,7 +14,7 @@ Theorem~\ref{thm:not_erasable_of_informative} (an informative inductive's value 
 lean4lean throughout.
 \item \lead{Lean files} \code{Erasure.lean}, \code{Relevance.lean}, \code{RelevanceCheck.lean},
 \code{CheckerAdequacy.lean}, \code{ErasureSpec.lean}, \code{CasesNames.lean}, \code{Origin.lean}.
-\item \lead{Paper} [S, Sec.~7.3] for the eraser; [S, Sec.~7.4] for \S\ref{sec:eraser:origin}'s
+\item \lead{Paper} [JACM, Sec.~7.3] for the eraser; [JACM, Sec.~7.4] for \S\ref{sec:eraser:origin}'s
 case-step premises.
 \end{itemize}
 
@@ -111,7 +111,7 @@ This section turns the oracle's per-node relevance decision from an assumption i
 \lean{LeanToLambdaBox.isErasable, LeanToLambdaBox.isErasableProp, LeanToLambdaBox.isArityCheck, LeanToLambdaBox.isArityCheck.loop}
 \leanok
 \lead{In short} Erasable when the type is a proposition (a proof) or an arity (a type former) --
-[S, Sec.~7.3]'s test, \hl{re-implemented on lean4lean's verified kernel} instead of Lean's
+[JACM, Sec.~7.3]'s test, \hl{re-implemented on lean4lean's verified kernel} instead of Lean's
 elaborator.
 \begin{itemize}
 \item \textbf{Proof branch}: infer the type via \code{inferType}, ask \code{isProp};
@@ -485,7 +485,7 @@ Eighteen mutually recursive functions, closed over one entry point.
 Definition~\ref{def:Erasure-visitMutual}'s two); \code{visitExpr} box-tests \emph{every} node
 first: on success, $\Box$, with \hl{no recursion at all}. The table below covers all eighteen.
 \begin{center}
-\begin{tabular}{ll}
+\begin{tabular}{p{0.26\linewidth}p{0.67\linewidth}}
 \toprule
 Function & Role \\
 \midrule
@@ -664,7 +664,7 @@ run lemmas) added for the Acc guard and the sparse catch-all's hypothesis scan.
 \lead{In short} The \code{CoreM}/\code{MetaM} calls the erasure makes for their effect alone: each
 only advances the name generator. Class D.
 \begin{center}
-\begin{tabular}{lp{0.62\linewidth}}
+\begin{tabular}{p{0.30\linewidth}p{0.62\linewidth}}
 \toprule
 Field & What it asserts \\
 \midrule
@@ -756,7 +756,7 @@ preparation passes and the oracle -- each an obligation with an owner. No field 
 reader's level scope: every clause is a statement about a run of the eraser's own code at the
 scope that run is made under, so the bundle carries no separate scope parameter.
 \begin{center}
-\begin{tabular}{p{0.25\linewidth}p{0.60\linewidth}l}
+\begin{tabular}{p{0.24\linewidth}p{0.61\linewidth}l}
 \toprule
 Field & What it asserts & Class \\
 \midrule
@@ -989,7 +989,7 @@ data.
 
 \begin{remark}
 \lead{Why} The non-erasability side condition of the whole development: what lets a first-order
-answer survive un-boxed (Chapter~\ref{chap:correctness}). [S, Sec.~7.3]'s erasure relation
+answer survive un-boxed (Chapter~\ref{chap:correctness}). [JACM, Sec.~7.3]'s erasure relation
 excludes the box rule by such a side condition; this is its model-side negation.
 \end{remark}
 
@@ -1031,7 +1031,7 @@ Lemma~\ref{lem:trExprS_spine_peel} peels the spine's typing onto the declared ty
 
 \begin{remark}
 \lead{Why} The typing premise of Chapter~\ref{chap:correctness}'s iota-arm simulation: it lets the
-scrutinee land on the right constructor, so the \lbox{} case node picks the matching branch. [S,
+scrutinee land on the right constructor, so the \lbox{} case node picks the matching branch. [JACM,
 Sec.~7.4]'s case step.
 \end{remark}
 
@@ -1144,7 +1144,7 @@ its own regression test under \code{test/fixes/}.
 
 \par\smallskip\noindent
 \begin{center}\small
-\begin{tabular}{lp{0.24\linewidth}p{0.42\linewidth}l}
+\begin{tabular}{p{0.21\linewidth}p{0.22\linewidth}p{0.28\linewidth}l}
 \toprule
 Guard or realizer & Site & What it does & Test \\
 \midrule

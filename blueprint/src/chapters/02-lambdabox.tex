@@ -7,7 +7,7 @@
 \item \lead{Main results} Theorem~\ref{thm:value_final} (normal forms evaluate to themselves); Theorem~\ref{thm:eval_to_value} (evaluation yields a value); Theorem~\ref{thm:eval_deterministic} (at most one value); Theorem~\ref{thm:WcbvEval-lbClosed} (evaluation preserves closedness); Theorem~\ref{thm:lbEval_sound} (the executable evaluator is sound).
 \item \lead{Status} \stProved{} throughout: nothing here mentions \code{Lean.Expr}, \TrExprS{} or \code{HasType}, so nothing inherits lean4lean's \code{sorryAx} or a trust edge to Chapter~\ref{chap:trust}.
 \item \lead{Lean files} \code{Basic.lean}, \code{Printing.lean}, \code{Closed.lean}, and under \code{Semantics/}: \code{Flags.lean}, \code{Env.lean}, \code{Values.lean}, \code{Eval.lean}, \code{Substitution.lean}, \code{Metatheory.lean}, \code{Compute.lean}.
-\item \lead{Paper} [S, \S7.1, \S7.4] for \WcbvEval{}; Letouzey's amendments [L, Def.~5, Def.~8] for the box and singleton-case rules.
+\item \lead{Paper} [JACM, \S7.1, \S7.4] for \WcbvEval{}; Letouzey's amendments [L, Def.~5, Def.~8] for the box and singleton-case rules.
 \end{itemize}
 
 \section{\texorpdfstring{The syntax of \lbox}{The syntax of lambda-box}}
@@ -93,7 +93,7 @@
 \end{definition}
 
 \begin{remark}
-\lead{Deviation} Against \code{E.term} of [S, Fig.~16]: \code{.fvar} is added (locally nameless, [R, \S4.7]), branches carry binder-name lists ([S, Fig.~18]), and \code{tCoFix} is dropped (\code{.prim} mirrors MetaRocq's own later addition, not a fourth change). Block vs.\ applied form is a \emph{flag} (Section~\ref{sec:lambdabox:flags}); the eraser emits applied form.
+\lead{Deviation} Against \code{E.term} of [JACM, Fig.~16]: \code{.fvar} is added (locally nameless, [R, \S4.7]), branches carry binder-name lists ([JACM, Fig.~18]), and \code{tCoFix} is dropped (\code{.prim} mirrors MetaRocq's own later addition, not a fourth change). Block vs.\ applied form is a \emph{flag} (Section~\ref{sec:lambdabox:flags}); the eraser emits applied form.
 \end{remark}
 
 \begin{definition}[Abstraction of a free variable]
@@ -372,7 +372,7 @@ Evaluation is flag-parametric, as in MetaRocq: the development names four points
 \label{def:WcbvFlags}
 \lean{LeanToLambdaBox.WcbvFlags}
 \leanok
-\lead{In short} A triple of Booleans parameterising weak call-by-value evaluation, matching MetaRocq's \code{EWcbvEval.WcbvFlags} [S, \S7.4].
+\lead{In short} A triple of Booleans parameterising weak call-by-value evaluation, matching MetaRocq's \code{EWcbvEval.WcbvFlags} [JACM, \S7.4].
 \begin{center}
 \begin{tabular}{p{0.24\linewidth}p{0.52\linewidth}l}
 \toprule
@@ -466,7 +466,7 @@ Evaluation is flag-parametric, as in MetaRocq: the development names four points
 \end{definition}
 
 \begin{remark}
-\lead{Why} The two spine clauses are stated \textbf{structurally over \code{.app}}, spine shape carried as a premise equation, so \code{Value} stays invertible by case analysis; MetaRocq indexes directly by $\mkApps f\ args$. Compare [S, Fig.~12].
+\lead{Why} The two spine clauses are stated \textbf{structurally over \code{.app}}, spine shape carried as a premise equation, so \code{Value} stays invertible by case analysis; MetaRocq indexes directly by $\mkApps f\ args$. Compare [JACM, Fig.~12].
 \end{remark}
 
 \section{Weak call-by-value evaluation}
@@ -477,7 +477,7 @@ Evaluation is flag-parametric, as in MetaRocq: the development names four points
 \lean{LeanToLambdaBox.WcbvEval, LeanToLambdaBox.WcbvEval.box, LeanToLambdaBox.WcbvEval.lam, LeanToLambdaBox.WcbvEval.fvar, LeanToLambdaBox.WcbvEval.prim, LeanToLambdaBox.WcbvEval.fix_atom, LeanToLambdaBox.WcbvEval.beta, LeanToLambdaBox.WcbvEval.app_box, LeanToLambdaBox.WcbvEval.zeta, LeanToLambdaBox.WcbvEval.delta, LeanToLambdaBox.WcbvEval.construct, LeanToLambdaBox.WcbvEval.construct_atom, LeanToLambdaBox.WcbvEval.construct_app, LeanToLambdaBox.WcbvEval.iota, LeanToLambdaBox.WcbvEval.iota_block, LeanToLambdaBox.WcbvEval.iota_sing, LeanToLambdaBox.WcbvEval.proj, LeanToLambdaBox.WcbvEval.proj_block, LeanToLambdaBox.WcbvEval.proj_prop, LeanToLambdaBox.WcbvEval.fix_guarded, LeanToLambdaBox.WcbvEval.fix_stuck, LeanToLambdaBox.WcbvEval.fix_unguarded, LeanToLambdaBox.WcbvEval.app_cong}
 \leanok
 \uses{def:WcbvFlags, def:isPropositionalInductive, def:constructorArity, def:isStuckApp, def:LBTerm-envLookup, def:LBTerm-subst, def:LBTerm-mkApps, def:LBTerm-fixSubst, def:LBTerm, def:GlobalDeclarations}
-\lead{In short} The target semantics of the whole verification, $\Gamma \vdash t \Downarrow_{fl} v$: \hl{twenty-two rules}, the Lean counterpart of MetaRocq's \code{EWcbvEval.eval} [S, \S7.1].
+\lead{In short} The target semantics of the whole verification, $\Gamma \vdash t \Downarrow_{fl} v$: \hl{twenty-two rules}, the Lean counterpart of MetaRocq's \code{EWcbvEval.eval} [JACM, \S7.1].
 \begin{center}
 \begin{tabular}{p{0.22\linewidth}p{0.31\linewidth}p{0.37\linewidth}}
 \toprule

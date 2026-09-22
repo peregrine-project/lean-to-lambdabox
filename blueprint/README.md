@@ -94,6 +94,16 @@ hashes and the badges `[VACUOUS]`, `[REFUTED]`, `[FIXED]`, `[LANDED]`, `[PLANNED
 section 8) without moving the snapshot: the graph and every `\lean{}` list are unchanged. Start from
 the introduction's section "Status since the snapshot"; the trust chapter carries the detail.
 
+## References and divergences
+
+`references/digests/` holds a digest of each reference source and `references/digests/README.md` the
+de-duplicated map (which source is canonical for which layer, the reworked two-prover diagram).
+`blueprint/analysis/divergences-erasure.md` is the verified list of divergences between this
+development and the MetaRocq erasure references (56 items, each with the reference element, our
+declaration, kind, reason, consequence); `blueprint/analysis/divergences-kernel.md` is the three-way
+kernel comparison (MetaRocq PCUIC, Carneiro's thesis, lean4lean). Chapter 13 of the blueprint
+presents both.
+
 ## Writing style
 
 `STYLE.md` is the binding style guide: every node is schematic (`\lead{In short}`, `\lead{Given}` /

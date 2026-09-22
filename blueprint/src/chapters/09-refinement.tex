@@ -15,7 +15,7 @@ several steps.
 \item \lead{Lean files} \code{ErasesLB.lean}, \code{IotaBridge.lean}, \code{VisitExprRefines.lean},
 \code{VisitExprRefines/Motives.lean}, \code{VisitExprRefines/Step/Env.lean},
 \code{VisitExprRefines/Step/Mechanical.lean}, \code{VisitExprRefines/Step/Passes.lean}.
-\item \lead{Paper} [S, Sec.~7.4]: proves the term-level half; \code{erases\_global} stays the
+\item \lead{Paper} [JACM, Sec.~7.4]: proves the term-level half; \code{erases\_global} stays the
 capstone's \code{ErasureBridge} binder, inhabited nowhere.
 \end{itemize}
 
@@ -90,7 +90,7 @@ the one \code{Lower.mkApps} consumes at its call site.
 \label{sec:refinement:intro}
 
 These eight rules are the composite's introduction form: \code{box}, \code{app}, \code{lit}, \code{proj},
-\code{ctor} match [S, Fig.~18]; \code{fix} and \code{cases} exist only because Lean's kernel has neither
+\code{ctor} match [JACM, Fig.~18]; \code{fix} and \code{cases} exist only because Lean's kernel has neither
 \code{tFix} nor \code{tCase}. This section measures \stChecked{} clean, no \code{sorryAx}.
 
 \begin{lemma}[Erasure is a spine congruence]
@@ -1354,7 +1354,7 @@ T8 is a statement about a \emph{term}. Motive 6 concludes only registration for 
 emitted environment's \emph{content} is read off the final state by \code{SpecEnv} instead. The two
 facts the capstone needs about it ($\Gamma_{\mathrm{spec}}$ erases the source environment, and lowers to
 the emitted one) remain the capstone's binder \code{ErasureBridge} (Definition~\ref{def:ErasureBridge}),
-inhabited nowhere: this chapter proves the term half of [S, Sec.~7.4], leaving
+inhabited nowhere: this chapter proves the term half of [JACM, Sec.~7.4], leaving
 \code{erases\_global} assumed.
 
 \begin{lemma}[Why BlockKeyed is shaped as it is]
@@ -1477,6 +1477,6 @@ bridge is false without it (\S\ref{sec:refinement:iota}'s two-field counterexamp
 \item \lead{Caveat} T8 concerns a term, never an environment; that half stays an assumption at every
 rung. The two T8 theorems' clean footprints are an artefact of hypothesised steps. \lead{Deviation}
 The single fixed level scope of the eighteen motives and the universally quantified
-$\Gamma_{\mathrm{spec}}$ of the run predicate are chosen divergences from [S], not forced ones: both
+$\Gamma_{\mathrm{spec}}$ of the run predicate are chosen divergences from [JACM], not forced ones: both
 are \stOpen{}, specified as units U5--U6 of \code{doc/rework/09-REPAIRS-W7.md}.
 \end{itemize}

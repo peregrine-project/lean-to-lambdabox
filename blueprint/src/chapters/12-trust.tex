@@ -100,7 +100,7 @@ The class-E rows are scope restrictions, stated and not formalised:
 
 \par\smallskip\noindent
 \small
-\begin{tabular}{lp{0.89\linewidth}}
+\begin{tabular}{lp{0.76\linewidth}}
 \toprule
 \textbf{id} & \textbf{restriction} \\
 \midrule
@@ -109,7 +109,7 @@ N2 & \code{@[extern]} axiomatisation: fails \code{NoBodylessRefs} (Definition~\r
 N3 & machine \code{Nat} \\
 N4 & the constructor argument mask \\
 N5 & auto-inlining and the \code{.ast.inlinings} sidecar \\
-N7 & termination: no source strong-normalisation result; the capstone keeps [S]'s conditional form \\
+N7 & termination: no source strong-normalisation result; the capstone keeps [JACM]'s conditional form \\
 N10 & serialisation \\
 N11 & the remaining sidecars \\
 N14 & size \\
@@ -118,7 +118,7 @@ N18 & elimination out of \code{Prop} \\
 max-free levels & every tabled body lies in the \code{max}-free fragment (\code{TableSafe.noMaxLevels}), the fragment erasure transports along under level instantiation \\
 -- & well-founded definitions: compiler bodies differ from kernel bodies; only propositional instances covered \\
 -- & peregrine's own untyped-transform precondition is \code{Admitted}; \code{validate} checks no expandedness \\
--- & MetaRocq's shipped \code{firstorder\_ind} is \code{false} on \code{nat}; this development cites [S] rather than transcribing it \\
+-- & MetaRocq's shipped \code{firstorder\_ind} is \code{false} on \code{nat}; this development cites [JACM] rather than transcribing it \\
 -- & no Rocq-side copy of $\Erases$ or $\Lower$ exists; \code{doc/rules-Erases.md}/\code{doc/rules-Lower.md} anchor instead \\
 \bottomrule
 \end{tabular}
@@ -996,7 +996,7 @@ needs and the frozen originals do not set.
 
 \par\smallskip\noindent
 \small
-\begin{tabular}{llp{0.30\linewidth}p{0.26\linewidth}}
+\begin{tabular}{llp{0.39\linewidth}p{0.26\linewidth}}
 \toprule
 \textbf{program} & \textbf{.ast bytes} & \textbf{in the fragment?} & \textbf{capstone} \\
 \midrule
@@ -1072,7 +1072,7 @@ not what it once did.
 
 \par\smallskip\noindent
 \small
-\begin{tabular}{lp{0.56\linewidth}p{0.22\linewidth}}
+\begin{tabular}{lp{0.53\linewidth}p{0.26\linewidth}}
 \toprule
 \textbf{id} & \textbf{what the code guarantees or guards} & \textbf{regression test} \\
 \midrule
@@ -1165,7 +1165,7 @@ and \textbf{neither builds the verified eraser}.
 
 \par\smallskip\noindent
 \small
-\begin{tabular}{lp{0.74\linewidth}}
+\begin{tabular}{lp{0.84\linewidth}}
 \toprule
 \textbf{class} & \textbf{what stands} \\
 \midrule
@@ -1196,6 +1196,6 @@ upstream work: \code{kernel\_ind\_head\_true} leaves a residue no constant budge
 \code{ConfigPinned} on three of five fields, so a default invocation is outside every theorem here.
 \item The step from the emitted program value to the \code{.ast} bytes peregrine reads is outside
 every theorem: the serialiser is a \code{partial def} with no equational lemma.
-\item Departures from [S]/[L]: applied-form constructors, the eta-expanded fixpoint wrapper the
+\item Departures from [JACM]/[L]: applied-form constructors, the eta-expanded fixpoint wrapper the
 registration emits, Lean-specific $\Lower$ steps, and the first-order restriction.
 \end{itemize}

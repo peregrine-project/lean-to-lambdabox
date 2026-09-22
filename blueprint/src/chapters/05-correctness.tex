@@ -7,7 +7,7 @@
 \item \lead{Main results} Theorem~\ref{thm:erases_correct} (T5, the forward simulation); Theorem~\ref{thm:erases_correct_lb} (T5 through the composite relation); Theorem~\ref{thm:firstorder_erases_core} (first-order values erase uniquely, box-free).
 \item \lead{Status} \stProved{} throughout; \stInherited{} through lean4lean in every theorem here, and through its reflection axioms in \code{erases\_correct}, \code{erases\_correct\_lb}, \code{step\_delta}; \stAssumed{} on \code{UpstreamAsks} for the step-arm theorems, T5, and the three first-order theorems.
 \item \lead{Lean files} \code{ErasesCorrect/Steps.lean}, \code{ErasesCorrect.lean}, \code{ErasesCorrect/Iota.lean}, \code{ErasesCorrect/Delta.lean}, \code{ErasesCorrect/Proj.lean}, \code{ErasesCorrect/Close.lean}, \code{SubjectReduction.lean}, \code{FixMetatheory.lean}, \code{FirstOrderInd.lean}.
-\item \lead{Paper} [S, Sect.~7.3--7.4]: T5 is the Lean counterpart of MetaRocq's forward simulation; Section~\ref{sec:correctness:paper} tracks every deviation.
+\item \lead{Paper} [JACM, Sect.~7.3--7.4]: T5 is the Lean counterpart of MetaRocq's forward simulation; Section~\ref{sec:correctness:paper} tracks every deviation.
 \end{itemize}
 
 \section{The statement: the motive, the step interfaces, T5}
@@ -69,7 +69,7 @@ def:eraseFlags, def:UpstreamAsks, def:SEvalFlags, def:lean4lean-grounding}
 \lead{Lean} \code{ErasesCorrectStmt}, an \code{abbrev}; the source flags stay a parameter, the target
 flags are fixed. Eight binders carry seven premises: $\ErasesEnv$'s environment premise reads the tabled
 body at the declaration's own level scope, not at the empty one.
-\lead{Paper} [S]'s five premises plus $\LowerEnv$ and \code{UpstreamAsks}.
+\lead{Paper} [JACM]'s five premises plus $\LowerEnv$ and \code{UpstreamAsks}.
 \end{definition}
 
 \begin{definition}[T5, folded through the composite relation]
@@ -1094,7 +1094,7 @@ not stated, since no reached block has another shape.
 \section{The first-order fragment and the observation}
 \label{sec:correctness:firstorder}
 
-T5's relation is non-deterministic; following [S, Sect.~7.3], it collapses on first-order values --- the
+T5's relation is non-deterministic; following [JACM, Sect.~7.3], it collapses on first-order values --- the
 observation the capstone reports.
 
 \begin{definition}[A first-order block]
@@ -1444,7 +1444,7 @@ arm, its entire content --- is vacuous at the only available instance. All eight
 
 \begin{center}
 \begin{tabular}{p{0.50\linewidth}p{0.42\linewidth}}
-\textbf{[S]} & \textbf{here} \\
+\textbf{[JACM]} & \textbf{here} \\
 \code{simple\_erases\_correct} (p.~8:62, stated not proved) & --- \\
 \code{erases\_correct} with \code{erases\_deps} (Sect.~7.4) & \code{erases\_correct} \\
 $\Sigma ; [\,] \vdash t \leadsto t'$ & $\Erases{}\ env\ Us\ [\,]\ e\ t_0$ \\
@@ -1471,10 +1471,10 @@ Proposition~\ref{prop:erases_elimSpine_no_value}.
 \item \lead{Deviation} Erasure is a relation, not a function; \code{Simulates} quantifies over its
 images, letting the delta arm treat recursive and non-recursive cases in one move, and making the
 first-order collapse necessary rather than convenient.
-\item \lead{Caveat} The observation is first-order and narrower than [S]'s: \code{List}, \code{Prod} are
+\item \lead{Caveat} The observation is first-order and narrower than [JACM]'s: \code{List}, \code{Prod} are
 excluded despite \code{List Nat} being first-order data; the checker is sound only against the table, and
 the only proved model instance is an empty inductive.
-\item \lead{Deviation} No \code{axiom\_free} premise: [S] needs one for a progress argument; here a
+\item \lead{Deviation} No \code{axiom\_free} premise: [JACM] needs one for a progress argument; here a
 body-less, non-constructor, non-type, non-eliminator constant heads no \SEval{} value.
 \item \lead{Caveat} T5 is conditional on \code{UpstreamAsks\ env}; its axiom footprint inherits
 \code{sorryAx} from the pinned lean4lean; the published statement discards the environment accumulator

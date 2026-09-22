@@ -13,7 +13,7 @@ pairwise distinct); Theorem~\ref{thm:Erasure-run_rec_exit_nodup} (a block's keys
 every successful run).
 \item \lead{Status} \stProved{} throughout; no hypothesis bundle and no trust edge to lean4lean.
 \item \lead{Lean files} \code{LeanToLambdaBox/ErasureRun.lean}.
-\item \lead{Paper} [S, Sec.~7.3]'s eraser is total, an induction on its own equations; this chapter
+\item \lead{Paper} [JACM, Sec.~7.3]'s eraser is total, an induction on its own equations; this chapter
 builds the analogous program logic for elaborator code with neither property.
 \end{itemize}
 
@@ -1074,7 +1074,7 @@ abstractions over the reversed, index-paired variable list \\
 
 \begin{remark}
 \lead{Deviation} MetaCoq's de Bruijn syntax gets locally-nameless-to-de-Bruijn conversion for free;
-this development performs it explicitly, a genuine addition with no counterpart in [S].
+this development performs it explicitly, a genuine addition with no counterpart in [JACM].
 \end{remark}
 
 \section{How the run model is consumed}
@@ -1099,14 +1099,14 @@ configuration violates.
 \label{sec:run:caveats}
 
 \begin{itemize}
-\item \lead{Deviation} \textbf{No environment pass.} [S, Sec.~7.3] erases a whole environment first;
+\item \lead{Deviation} \textbf{No environment pass.} [JACM, Sec.~7.3] erases a whole environment first;
 this eraser builds \lbox{} declarations \emph{during} the walk, demand-driven and memoised
 (Lemma~\ref{lem:Erasure-run_get_constant_kername_ok}), via \ErasesEnv's operational counterpart
 (Section~\ref{sec:run:reg}): a bodyless axiom, a constant with a body, or a block member.
 \item \lead{Deviation} \textbf{Program logic, not equational reasoning.} MetaCoq's proofs induct on
 equations; here it is Hoare rules, admissibility and approximation -- the price of verifying an
 eraser not written to be verified.
-\item \lead{Caveat} \textbf{Panics as successful branches.} [S] has no analogue: a panic carries a
+\item \lead{Caveat} \textbf{Panics as successful branches.} [JACM] has no analogue: a panic carries a
 default fall-through everywhere (Lemma~\ref{lem:Erasure-run_panic}), recording the ineffective
 duplicate guard, not excluding it -- unlike the F-KERNAME/F-UNSAFEREC guards
 (Definition~\ref{def:Erasure-KernameFresh}, Theorem~\ref{thm:Erasure-run_rec_exit_nodup}), which

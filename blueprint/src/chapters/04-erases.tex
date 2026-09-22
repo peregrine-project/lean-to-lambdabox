@@ -7,7 +7,7 @@
 \item \lead{Main results} Theorem~\ref{thm:Erases-exists_of_trExprS_of_projInfo} (erasure is total on the fragment); Theorem~\ref{thm:erases_uniform_closed} (a closed erasure is context-independent); Theorem~\ref{thm:demoEnv_erasesEnv} (the seven \ErasesEnv{} clauses are jointly satisfiable).
 \item \lead{Status} \stProved{} \Erases{}, its rule table, weakening, substitution and totality; \stInherited{} through lean4lean on lemmas routed through its conversion/unique-typing clusters; \stOpen{} \ErasesEnv{} and \LowerEnv{}, the capstone's bridge bundle, for a shipping run.
 \item \lead{Lean files} \code{Erasability.lean}, \code{Erases.lean}, \code{ErasesTotal.lean}, \code{Abstract.lean}, \code{ErasesAbstract.lean}, \code{ErasesAlpha.lean}, \code{ErasesStrengthen.lean}, \code{ErasesUniform.lean}, \code{ErasesEnv.lean}.
-\item \lead{Paper} [S, Sect.\ 7.3]: \code{isErasable}, \code{erases}, \code{erases\_deps}; [L, Def.\ 1, 3, 5, 10, Lemma 16].
+\item \lead{Paper} [JACM, Sect.\ 7.3]: \code{isErasable}, \code{erases}, \code{erases\_deps}; [L, Def.\ 1, 3, 5, 10, Lemma 16].
 \end{itemize}
 
 \section{Erasability: proofs and type formers}
@@ -23,7 +23,7 @@
 \item \code{IsArity}: one rule for \code{sort}, one congruence for \code{forallE};
 \item $\code{IsArityUpTo}\ \mathit{env}\ U\ \Gamma\ A$: some $A'$ with $A \equiv A'$ in $\Gamma$ under $U$ and \code{IsArity}\ $A'$.
 \end{itemize}
-\lead{Lean} Only the refined form is invariant under conversion, which is why \code{Erasable} uses it. [S, p.\ 8:61] leaves \code{isArity} implicit; [L, Def.\ 1] calls it a type scheme.
+\lead{Lean} Only the refined form is invariant under conversion, which is why \code{Erasable} uses it. [JACM, p.\ 8:61] leaves \code{isArity} implicit; [L, Def.\ 1] calls it a type scheme.
 \end{definition}
 
 \begin{definition}[Erasability]
@@ -36,7 +36,7 @@
 \item \lead{Given} some type $A$ of $e$;
 \item \lead{Then} $A : \mathrm{Sort}\ 0$ (so $e$ is a \textbf{proof}), or $A$ is an arity up to conversion (so $e$ is a \textbf{type former}).
 \end{itemize}
-\lead{Lean} [S]'s $\code{isErasable}\ \Sigma\ \Gamma\ t$ (p.\ 8:61) transposed to lean4lean's model terms; the existential matters since unique typing fails in the source calculus ([L, p.\ 6]).
+\lead{Lean} [JACM]'s $\code{isErasable}\ \Sigma\ \Gamma\ t$ (p.\ 8:61) transposed to lean4lean's model terms; the existential matters since unique typing fails in the source calculus ([L, p.\ 6]).
 \end{definition}
 
 \begin{lemma}[Syntactic arities are stable]
@@ -123,7 +123,7 @@ LeanToLambdaBox.Erasable.mono}
 \lean{LeanToLambdaBox.Erasable.app}
 \leanok
 \uses{def:Erasable, def:lean4lean-grounding}
-\lead{In short} If $f$ is irrelevant and $f\,a$ is well typed, $f\,a$ is irrelevant -- the licence for \lbox{}'s $\Box\ u \to \Box$ rule ([S, Sect.\ 7.1], [L, Def.\ 5]).
+\lead{In short} If $f$ is irrelevant and $f\,a$ is well typed, $f\,a$ is irrelevant -- the licence for \lbox{}'s $\Box\ u \to \Box$ rule ([JACM, Sect.\ 7.1], [L, Def.\ 5]).
 \begin{itemize}
 \item \lead{Given} $f$ irrelevant, $f\,a$ well typed (function type and argument typing separate);
 \item \lead{Then} proof case: $\mathrm{imax}\ u\ v \approx 0$ forces $B[a] : \mathrm{Sort}\ 0$; type-former case: the arity of $B$ pushes through substitution.
@@ -151,7 +151,7 @@ LeanToLambdaBox.neverZeroB}
 \item \code{vResultSort}: reads the result level off a $\Pi$-telescope;
 \item \code{neverZeroB}: decides ``never zero'' (successor: never; parameter: maybe; \code{max}: one side suffices; \code{imax}: iff its right side is).
 \end{itemize}
-\lead{Lean} \textbf{Semantic} -- lean4lean's own never-zero predicate, the one its kernel theory reads for large elimination -- not the syntactic ``successor'' test; the premise [S, Fig.\ 18] leaves unspelled. Gates \code{proj} and the source $\iota$ rule.
+\lead{Lean} \textbf{Semantic} -- lean4lean's own never-zero predicate, the one its kernel theory reads for large elimination -- not the syntactic ``successor'' test; the premise [JACM, Fig.\ 18] leaves unspelled. Gates \code{proj} and the source $\iota$ rule.
 \end{definition}
 
 \begin{lemma}[The relevance test is sound and complete]
@@ -271,7 +271,7 @@ LeanToLambdaBox.indBlockKername, LeanToLambdaBox.ctorFieldCounts}
 \leanok
 \uses{def:lean4lean-grounding}
 \lead{In short} $\code{IndDeclOf}\ \mathit{env}\ I$: $I$ is declared by a block of \emph{env}'s \hl{own} list -- one step stronger than \code{IndInfo}, and deliberately \emph{not} monotone.
-\lead{Lean} On no rule of \Erases{}; it is [S]'s \code{erases\_deps} \code{declared\_inductive} conjunct, supplied instead by \ErasesEnv{}'s \code{blocks} clause (Definition~\ref{def:ErasesEnv}).
+\lead{Lean} On no rule of \Erases{}; it is [JACM]'s \code{erases\_deps} \code{declared\_inductive} conjunct, supplied instead by \ErasesEnv{}'s \code{blocks} clause (Definition~\ref{def:ErasesEnv}).
 \end{definition}
 
 \begin{definition}[The constructor reading]
@@ -351,12 +351,12 @@ LeanToLambdaBox.Erases.proj, LeanToLambdaBox.Erases.lit, LeanToLambdaBox.Erases.
 def:LBTerm, def:Kername, def:lean4lean-grounding}
 \lead{In short} $\Erases\ \mathit{env}\ \mathit{Us}\ \Delta\ e\ t$ relates a source term $e$,
 read in context $\Delta$ as \TrExprS{} reads it, to a \lbox{} image $t$. \hl{Eleven rules},
-[S, Fig.\ 18]'s counterpart where one exists:
+[JACM, Fig.\ 18]'s counterpart where one exists:
 
 \medskip
-\noindent\begin{tabular}{llp{0.16\linewidth}p{0.34\linewidth}p{0.14\linewidth}}
+\noindent\begin{tabular}{llp{0.14\linewidth}p{0.37\linewidth}p{0.13\linewidth}}
 \toprule
-Rule & Source & Image & Side condition & [S] \\
+Rule & Source & Image & Side condition & [JACM] \\
 \midrule
 \code{box} & any $e$ & $\Box$ & $e$ translates to an erasable $\mathit{ve}$ & \code{erases\_box} \\
 \code{bvar} & $\code{bvar}\ i$ & $\code{bvar}\ i$ & $\Delta$ binds $i$ & \code{erases\_tRel} \\
@@ -382,7 +382,7 @@ erasable, so $\Box$ is its only image (Lemma~\ref{lem:Erases-indInfo_erasable});
 \code{const} alone carries a constant-lookup premise, since \code{CtorOf}/\code{IndInfo}
 already exhibit \code{ctor}'s block.
 \end{itemize}
-\lead{Lean} [S]'s \code{erases\_tCase} and its subsingleton-elimination rule, and
+\lead{Lean} [JACM]'s \code{erases\_tCase} and its subsingleton-elimination rule, and
 \code{erases\_tFix}/\code{erases\_tCoFix}, have no counterpart (\Lower{}'s business; Lean has
 no coinduction); its sort/$\forall$ premises are absorbed into \code{box}. [L]'s counterpart
 is not the erasure function but the invariant of [L, Def.\ 10].
@@ -472,7 +472,7 @@ result and apply the \code{ctor}/\code{const} rules.
 \end{proof}
 
 \begin{remark}
-\lead{Why} [S, Fig.\ 18] needs no such premise: Rocq's typing forbids a projection out of \code{Prop}, but Lean's \code{Expr.proj} occurs there (\code{h.1} on \code{And}). It removes no program: a propositional field is always a proof, and \code{box} is its rule.
+\lead{Why} [JACM, Fig.\ 18] needs no such premise: Rocq's typing forbids a projection out of \code{Prop}, but Lean's \code{Expr.proj} occurs there (\code{h.1} on \code{And}). It removes no program: a propositional field is always a proof, and \code{box} is its rule.
 \end{remark}
 
 \section{Monotonicity and totality}
@@ -483,7 +483,7 @@ result and apply the \code{ctor}/\code{const} rules.
 \lean{LeanToLambdaBox.Erases.mono}
 \leanok
 \uses{def:Erases}
-\lead{In short} An erasure derivation survives extending the model environment, $\mathit{env} \le \mathit{env}'$, with source and target unchanged -- [S, Sect.\ 7.3]'s global weakening.
+\lead{In short} An erasure derivation survives extending the model environment, $\mathit{env} \le \mathit{env}'$, with source and target unchanged -- [JACM, Sect.\ 7.3]'s global weakening.
 \lead{Status} \stProved{}.
 \end{theorem}
 \begin{proof}
@@ -499,7 +499,7 @@ result and apply the \code{ctor}/\code{const} rules.
 \lean{LeanToLambdaBox.Erases.sort_erasable, LeanToLambdaBox.Erases.forallE_erasable}
 \leanok
 \uses{def:Erasable, def:lean4lean-grounding}
-\lead{In short} A sort is a type former (its type is the next sort, an arity), and so is a $\Pi$-type (its type is the \code{imax} of its parts). The \code{box} rule covers both heads, absorbing [S, Fig.\ 18]'s sort and $\forall$ premises.
+\lead{In short} A sort is a type former (its type is the next sort, an arity), and so is a $\Pi$-type (its type is the \code{imax} of its parts). The \code{box} rule covers both heads, absorbing [JACM, Fig.\ 18]'s sort and $\forall$ premises.
 \lead{Lean} The $\Pi$ statement needs a well-formed environment and context; the sort statement binds an environment premise its proof never uses.
 \end{lemma}
 \begin{proof}
@@ -579,7 +579,7 @@ and a projection reads \code{ProjInfo}'s two premises.
 \end{proof}
 
 \begin{remark}
-\lead{Caveat} Existence of \emph{some} image ([S]'s \code{erases\_erase} analogue), not that the shipping eraser's graph lies in the relation (Chapter~\ref{chap:refinement}'s bridge). The classification hypothesis is discharged elsewhere (Chapter~\ref{chap:trust}), never a premise of \Erases{} itself.
+\lead{Caveat} Existence of \emph{some} image ([JACM]'s \code{erases\_erase} analogue), not that the shipping eraser's graph lies in the relation (Chapter~\ref{chap:refinement}'s bridge). The classification hypothesis is discharged elsewhere (Chapter~\ref{chap:trust}), never a premise of \Erases{} itself.
 \end{remark}
 
 \section{Closing a free variable: the \texorpdfstring{\lbox{}}{lambda-box}-side algebra}
@@ -644,7 +644,7 @@ LeanToLambdaBox.toBvarAlts_eq_map, LeanToLambdaBox.toBvarDefs_eq_map}
 \leanok
 \uses{def:Erases, def:LBTerm-shift, def:lean4lean-grounding}
 \lead{In short} Along a weakening of the local context, \hl{lifting the source matches shifting the target}: if $e$ erases to $t$, the lifted source erases to the shifted target.
-\lead{Lean} Carries lean4lean's bound-variable lift witness (fixing both cutoffs); asks only that the environment be ordered. The weakening half of [S, Sect.\ 7.3] and [L, Lemma 16], with the target side included, which the paper statements leave implicit.
+\lead{Lean} Carries lean4lean's bound-variable lift witness (fixing both cutoffs); asks only that the environment be ordered. The weakening half of [JACM, Sect.\ 7.3] and [L, Lemma 16], with the target side included, which the paper statements leave implicit.
 \lead{Status} \stProved{}.
 \end{theorem}
 \begin{proof}
@@ -996,9 +996,9 @@ is not a fact about emitted output alone.
 \uses{def:Erases, def:ConstOrigin, def:IndInfo, def:IndDeclOf, def:InformativeInd,
 def:ReachableFrom, def:ElimDecl, def:CasesOnShape, def:isCasesOnName, def:Kername,
 def:LBTerm-envLookup, def:GlobalDeclarations, def:NoMaxLevels, def:IndFlagSound}
-\lead{In short} $\ErasesEnv\ \mathit{env}\ \mathit{bo}\ \mathit{lp}\ \Gamma_{\mathrm{spec}}\ t$: $\Gamma_{\mathrm{spec}}$ is a correct, \hl{dependency-selective} erasure of the source environment seen from program $t$, with $\mathit{bo}$ the \textbf{compiler body table} and $\mathit{lp}$ the \textbf{level column} beside it -- the scope each tabled body is erased at. Seven clauses, each triggered by $t$'s reachability of a kername -- [S]'s \code{erases\_deps}, not the pointwise erasure of [S, Table 2]:
+\lead{In short} $\ErasesEnv\ \mathit{env}\ \mathit{bo}\ \mathit{lp}\ \Gamma_{\mathrm{spec}}\ t$: $\Gamma_{\mathrm{spec}}$ is a correct, \hl{dependency-selective} erasure of the source environment seen from program $t$, with $\mathit{bo}$ the \textbf{compiler body table} and $\mathit{lp}$ the \textbf{level column} beside it -- the scope each tabled body is erased at. Seven clauses, each triggered by $t$'s reachability of a kername -- [JACM]'s \code{erases\_deps}, not the pointwise erasure of [JACM, Table 2]:
 \begin{itemize}
-\item \code{keys}: the environment's keys are distinct (the \code{fresh\_global} half of [S]'s well-formedness, so a shadowing entry cannot retarget a pass);
+\item \code{keys}: the environment's keys are distinct (the \code{fresh\_global} half of [JACM]'s well-formedness, so a shadowing entry cannot retarget a pass);
 \item \code{deps}: every kername the program reaches is declared;
 \item \code{tabled}: a constant the compiler table defines is a plain constant of the model; unlike the others it has no reachability trigger, refuting a reading only at constants the erasure emits no key for;
 \item \code{defns}: every reached, tabled constant's entry has a body erasing the compiler body \hl{at the declaration's own level scope} $\mathit{lp}\ c$, that body is \code{NoMaxLevels}, and it translates at the same scope;
@@ -1162,6 +1162,6 @@ tabled-body's own-scope \code{NoMaxLevels}-ness and translation from \code{DemoS
 \item Constructors are \emph{applied form}: \code{ctor} fires at the bare head, arguments via \code{app} (cf.\ F-ETA2); no case or fixpoint rule, \code{Lean.Expr} having neither node (\Lower{}'s business).
 \item \code{mdata}/\code{lit} are added; \code{proj}'s relevance premise, free in Rocq's typing, is shown necessary by Theorem~\ref{thm:erases_proj_needs_informative}.
 \item The de Bruijn variable rule splits into \code{bvar}/\code{fvar} for locally-nameless opening (Theorem~\ref{thm:Erases-abstract}); \ErasesEnv{} is dependency-selective, not pointwise.
-\item \lead{Deviation} \code{defns} reads a tabled body's erasure at the declaration's \emph{own} level scope, matching [S]'s clause stated once at the constant's own universe context; \stOpen{} \ErasesEnv{} and \LowerEnv{} remain the capstone's two bridge fields, produced by no theorem for a shipping run (Chapter~\ref{chap:trust}).
+\item \lead{Deviation} \code{defns} reads a tabled body's erasure at the declaration's \emph{own} level scope, matching [JACM]'s clause stated once at the constant's own universe context; \stOpen{} \ErasesEnv{} and \LowerEnv{} remain the capstone's two bridge fields, produced by no theorem for a shipping run (Chapter~\ref{chap:trust}).
 \item \code{ErasesUniform.lean} -- \code{ErasableStrengthen}, the \code{NoProj} conditions, and Theorem~\ref{thm:erases_uniform_closed} -- lies outside the capstone's import closure, with no consumer.
 \end{itemize}

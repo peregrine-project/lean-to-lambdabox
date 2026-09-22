@@ -15,7 +15,7 @@ invariant at a state the shipping eraser reaches, so \code{ErasureBridge} stands
 \item \lead{Lean files} \code{ColdStartRun.lean}, \code{ColdStartInduction.lean}, \code{ColdStartShape.lean},
 \code{Bridge.lean}, the \code{RegInvShape'} part of \code{SpecEnv.lean}, and \code{Capstone.lean}'s
 bridge declarations.
-\item \lead{Paper} [S], Sec. 7.3--7.4: environment erasure and the block/applied constructor
+\item \lead{Paper} [JACM], Sec. 7.3--7.4: environment erasure and the block/applied constructor
 transformation.
 \end{itemize}
 
@@ -619,7 +619,7 @@ every \code{panic!} exit absorbed by the default disjunct.
 \end{proof}
 \begin{remark}
 \lead{Deviation} Established on the run; MetaCoq ships a verified block/applied transformation instead
-([S], Sec. 7.4).
+([JACM], Sec. 7.4).
 \lead{Caveat} A fixture confirms the saturated case is reachable, but this whole layer has no consumer
 until Section~\ref{sec:coldstart:bridge}'s open item closes.
 \end{remark}
@@ -717,7 +717,7 @@ structural.
 relates a \hl{fixed} specification environment $\Gamma_{\mathrm{spec}}$ --- MetaCoq's pre-lowering
 source image --- to the mutable state $s$. Twelve fields in three groups.
 \par\smallskip\noindent
-\begin{tabular}{lll}
+\begin{tabular}{llp{0.64\linewidth}}
 \toprule
 Group & Field & Meaning \\
 \midrule
@@ -1016,7 +1016,7 @@ table) and the level clause (likewise).
 \end{proof}
 \begin{remark}
 \lead{Why} Reading the delta column at the declaration's own scope is MetaCoq's own shape:
-\code{erases\_constant\_body} is applied at \code{cst\_universes} ([S], Sec. 7.3). The instantiated
+\code{erases\_constant\_body} is applied at \code{cst\_universes} ([JACM], Sec. 7.3). The instantiated
 reading is a theorem, Theorem~\ref{thm:Erases-instL}, not a clause of the environment relation.
 \end{remark}
 
@@ -1305,7 +1305,7 @@ reaches, each body at its own level scope;
 \begin{remark}
 \lead{Caveat} Both fields are Assumptions of Chapter~\ref{chap:trust}, unfulfilled at every green rung
 (the open item below).
-\lead{Why} \code{ErasesEnv} counterparts MetaCoq's environment erasure ([S], Sec. 7.3); \LowerEnv{} is
+\lead{Why} \code{ErasesEnv} counterparts MetaCoq's environment erasure ([JACM], Sec. 7.3); \LowerEnv{} is
 the extra Lean-specific layer for \Lower{}'s own steps.
 \end{remark}
 \begin{theorem}[The bridge's two environment fields, derived]
@@ -1359,10 +1359,10 @@ walk; saturate it at the final state; discharge \code{hbridge}.
 
 \begin{itemize}
 \item Applied-versus-block constructors are fixed on the run (Theorem~\ref{thm:visitExpr_ctorSat},
-Theorem~\ref{thm:visitExpr_shape_all}); MetaCoq verifies a block/applied transformation instead ([S],
+Theorem~\ref{thm:visitExpr_shape_all}); MetaCoq verifies a block/applied transformation instead ([JACM],
 Sec. 7.4). The saturation layer has no consumer.
-\item The delta column reads each body at the declaration's own level scope, as [S] does; the
-instantiated reading is derived where [S] derives it, in the $\delta$ arm of the simulation.
+\item The delta column reads each body at the declaration's own level scope, as [JACM] does; the
+instantiated reading is derived where [JACM] derives it, in the $\delta$ arm of the simulation.
 \item \Lower{} has no MetaCoq counterpart, so \code{ErasureBridge} carries \code{LowerEnv} beside
 \code{ErasesEnv}.
 \item The registration loop stores an eta-wrapped fixpoint, so the \code{defs} clause reads

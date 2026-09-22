@@ -17,7 +17,7 @@ clause \code{expandedFix}, from one kernel computation at every rung.
 \item \lead{Lean files} \code{Lower.lean}, \code{LowerFix.lean}, \code{FixUnfold.lean},
 \code{ElimBody.lean}, \code{Output.lean}, \code{OutputShape.lean}, \code{OutputCheck.lean},
 \code{Optimize.lean}.
-\item \lead{Paper} [S, \S7.3--7.4]: \code{optimize}/\code{remove\_match\_on\_box},
+\item \lead{Paper} [JACM, \S7.3--7.4]: \code{optimize}/\code{remove\_match\_on\_box},
 \code{axiom\_free}, \code{expanded\_eprogram\_cstrs}.
 \end{itemize}
 
@@ -124,7 +124,7 @@ verbatim; only the target differs. Its binder name is free, as \code{lambda}'s i
 \end{definition}
 
 \begin{remark}
-\lead{Caveat} Four things differ from [S]'s reader expectations.
+\lead{Caveat} Four things differ from [JACM]'s reader expectations.
 \begin{itemize}
 \item \textbf{non-deterministic} at a block member -- \code{const}/\code{fixConst} at its constant,
 \code{lambda}/\code{fixBody}/\code{fixEta} at its specification body: read ``emits $t'$'' as ``there
@@ -1109,7 +1109,7 @@ kernames a substitution can name, lifted to the closure.
 LeanToLambdaBox.noBodylessRefsB, LeanToLambdaBox.noBodylessRefs_iff}
 \leanok
 \uses{def:ReachableFrom}
-\lead{In short} No constant reachable from the emitted term is declared \hl{without a body} -- [S,
+\lead{In short} No constant reachable from the emitted term is declared \hl{without a body} -- [JACM,
 \S7.3]'s \code{axiom\_free}, with no realizer whitelist.
 \lead{Lean} decided by a list traversal, its adequacy proved separately.
 \end{definition}
@@ -1300,7 +1300,7 @@ LeanToLambdaBox.LBOptimizeArgs, LeanToLambdaBox.LBOptimizeAlts, LeanToLambdaBox.
 LeanToLambdaBox.LBOptimize_env, LeanToLambdaBox.optDecl}
 \leanok
 \uses{def:LBTerm, def:LBTerm-subst, def:isPropositionalInductive, def:GlobalDeclarations}
-\lead{In short} MetaRocq's \code{optimize} / \code{remove\_match\_on\_box} [S, \S7.4], as a
+\lead{In short} MetaRocq's \code{optimize} / \code{remove\_match\_on\_box} [JACM, \S7.4], as a
 \hl{function}.
 \begin{itemize}
 \item a \code{case} on a propositional single-constructor inductive collapses to its one alternative's
@@ -1380,7 +1380,7 @@ node; fixpoint unfolding commutes by the unfolding equation.
 cleanest result here. But it is stated at block-form flags while the shipping erasure emits applied form
 and concludes at the erasure flags, so it cannot compose with the capstone without re-proving its arms;
 and the erasure never marks an inductive propositional, so the flag is inert there. Outside the import
-closure of the capstone and rungs: a faithful re-proof of [S, \S7.4], not a shipping component.
+closure of the capstone and rungs: a faithful re-proof of [JACM, \S7.4], not a shipping component.
 \end{remark}
 
 \begin{lemma}[Three vacuity guards]
