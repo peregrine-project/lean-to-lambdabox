@@ -1,0 +1,29 @@
+== let-prop.ast validate
+Validating AST:
+AST is valid
+== let-prop.ast eval
+Compiling:
+Compiled successfully:
+
+constr Nat.succ 
+ constr Nat.succ 
+  constr Nat.succ 
+   constr Nat.succ 
+    constr Nat.succ 
+     constr Nat.zero 
+
+
+== param-prop.ast validate
+Validating AST:
+AST is valid
+== param-prop.ast eval
+Compiling:
+Compiled successfully:
+
+constr Nat.succ 
+ constr Nat.succ 
+  constr Nat.succ 
+   constr Nat.succ 
+    constr Nat.zero 
+
+

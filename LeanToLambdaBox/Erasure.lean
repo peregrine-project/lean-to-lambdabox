@@ -275,11 +275,32 @@ def quotRealizer: QuotKind → LBTerm
   | .lift => mkAnonLambdas 6 (.app (.bvar 2) (.bvar 0))
 
 /--
-The sort a Π-telescope ends in, read syntactically: MetaRocq's `destArity`
-(`ErasureFunction.v:1325`), which likewise does not reduce.
+The sort an arity ends in, read syntactically: MetaRocq's `destArity`
+(`../metarocq/pcuic/theories/PCUICAst.v:486-490`), which walks `tProd` **and `tLetIn`** and
+likewise does not reduce. A `Level` never mentions a term variable, so returning one from under
+a binder — which the `.forallE` arm has always done — is sound at the `.letE` arm too.
+
+The `.letE` arm is that `tLetIn` arm. A declared arity may carry a `let`:
+`inductive FooLet : (let _x := Nat; Prop)` elaborates and `InductiveVal.type` keeps the `letE`,
+where stopping at it reported a `Prop` as non-propositional and shipped its elimination stuck
+(F-ARITYLET). `.mdata` is the same case for Lean's annotation node, which every kernel walk
+sees through and which an arity can carry — `Lean.addDecl` accepts an inductive whose type is
+`.mdata … (.sort .zero)`.
+
+Those two arms, and no more, are where lean4lean's `TrExprS` is transparent besides `.forallE`
+and `.sort` (`../lean4lean/Lean4Lean/Verify/Typing/Expr.lean:164-170`), which is what keeps this
+walk in step with `vResultSort` of the translated type. It deliberately does **not** reduce: at
+`def MyArity := Prop`, `inductive FooAlias : MyArity` — which elaborates, with
+`InductiveVal.type = .const MyArity []` — `whnf` would answer `Prop` while the translated type
+is a `.const`, whose `vResultSort` is `none`, so a reducing walk would emit a `true` flag that
+`PropositionalInd` does not support and would falsify
+`ErasureSpec.propositionalInd_of_arity`, the direction of MetaRocq's equation that is proved
+and that the consumers spend. An alias-headed arity therefore stays unflagged, as it was.
 -/
 def arityResultSort: Expr → Option Level
   | .forallE _ _ b _ => arityResultSort b
+  | .letE _ _ _ b _ => arityResultSort b
+  | .mdata _ b => arityResultSort b
   | .sort l => some l
   | _ => none
 
