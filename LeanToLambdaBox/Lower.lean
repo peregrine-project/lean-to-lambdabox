@@ -2295,6 +2295,22 @@ pass's monotonicity asks for it and not for the term's references alone. -/
 def ConstsDeclaredEnv (Γ : GlobalDeclarations) : Prop :=
   ∀ kn b, DefnDecl Γ kn b → ConstsDeclared Γ b
 
+/-- The decidable twin of `ConstsDeclaredEnv`: the entry list read once. `envLookup` is the
+quantifier `decide` cannot reach, so the check reads the list and `envLookup_mem` turns a
+declaration back into an entry. -/
+def constsDeclaredEnvB (Γ : GlobalDeclarations) : Bool :=
+  Γ.all fun p => match p.2 with
+    | .constantDecl ⟨some b⟩ => (constRefs b).all fun kn => (LBTerm.envLookup Γ kn).isSome
+    | _ => true
+
+/-- A `true` verdict is the property. -/
+theorem constsDeclaredEnv_of_check {Γ : GlobalDeclarations} (h : constsDeclaredEnvB Γ = true) :
+    ConstsDeclaredEnv Γ := by
+  intro kn b hd kn' hkn'
+  have hall := List.all_eq_true.1 h _ (envLookup_mem hd)
+  simp only at hall
+  exact List.all_eq_true.1 hall _ hkn'
+
 /-- `Γ'` extends `Γ` by a prefix of fresh keys and turns no key `Γ` already declares into a
 runtime key. -/
 def SpecGrow (Γ Γ' : GlobalDeclarations) : Prop :=

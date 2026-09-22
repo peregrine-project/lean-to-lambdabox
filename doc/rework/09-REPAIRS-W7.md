@@ -611,8 +611,10 @@ theorem Lower.specGrow (hg : SpecGrow Γ Γ') (henv : ConstsDeclaredEnv Γ)
 
 It is a condition the proof-built `Γspec` satisfies rather than a restriction: a body enters
 `Γspec` only at the step that registers its constant, by which time its own sub-runs have
-registered — and the proof has declared — every key it names. **U7's accumulator must carry it
-as a clause**, beside `RegInvShape'` and `RegContent`.
+registered — and the proof has declared — every key it names. It is not a condition no
+environment meets: `Green.g7_constsDeclaredEnv` and `g8_constsDeclaredEnv` decide it, through
+`constsDeclaredEnvB`, at the two Arith rungs' *emitted* environments. **U7's accumulator must
+carry it as a clause**, beside `RegInvShape'` and `RegContent`.
 
 **The side condition lands at the source, not at the emitted term.** The motive sketch's
 `ConstsDeclared Γ₁ t` reads the run's output; `Lower`'s source is the *specification* term,

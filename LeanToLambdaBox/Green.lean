@@ -1370,6 +1370,16 @@ theorem elimKeys_undeclared :
     (∀ n ∈ g8Table.decls.map Prod.fst, isCasesOnName n = true →
       (LBTerm.envLookup g8Env (toKername n)).isNone) := by decide +kernel
 
+/-- **The emitted environments are reference-closed**, which is what `Lower.specGrow` asks of
+the environment it is read at: every declared body names only declared keys. Decided on the
+two Arith rungs, the ladder's largest. -/
+theorem g7_constsDeclaredEnv : ConstsDeclaredEnv g7Env :=
+  constsDeclaredEnv_of_check (by decide +kernel)
+
+/-- The same at the applied rung. -/
+theorem g8_constsDeclaredEnv : ConstsDeclaredEnv g8Env :=
+  constsDeclaredEnv_of_check (by decide +kernel)
+
 /-- The one key, read at the shape the growth lemma rewrites with. -/
 theorem g7_natCasesOn_undeclared :
     LBTerm.envLookup g7Env (toKername ``Nat.casesOn) = none := by decide +kernel
