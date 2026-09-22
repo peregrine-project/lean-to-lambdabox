@@ -203,7 +203,7 @@ set_option linter.unusedVariables false in
 **Rung G1 is green.** For the `#erase` run recorded in `VerifyBench/Spikes/G1.lean`, the
 emitted program is the lowered image of a specification environment that erases `spikeZero`,
 and the source evaluation's answer is reproduced as the literal λ□ numeral `0` —
-`.construct natIid 0 []`, not `□` and not a stuck term. `hcfg`, `hsup`, `hnb`, `hwf`, `hwt`,
+`.construct natIid 0 []`, not `□` and not a stuck term. `hcfg`, `hsup`, `hwf`, `hwt`,
 the capstone's `hcb` and the target-side evaluation are discharged here by checked terms;
 every remaining binder is a `doc/trust.md` row, `hev` among them, which `green_G5` is the
 first rung to inhabit.
@@ -248,7 +248,7 @@ theorem green_G1
       (g1_compilerBodies (P []) htbl hsafe)
       (trExprS_const_of_table (P []) htbl hsafe rfl)
       (supportedB_sound (P []) htbl hsafe g1_supported)
-      hprep hrun g1_noBodylessRefs g1_wf hbridge
+      hprep hrun g1_wf hbridge
   obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
     hobs [] [] ``Nat us idx v vv _ rfl (fun i hi => absurd hi (by simp))
       (trExprS_const_of_table (P []) htbl hsafe rfl) hev hvwt hty hfo
@@ -357,7 +357,7 @@ emitted program is the lowered image of a specification environment that erases 
 and the source evaluation's answer is reproduced as the literal λ□ peano numeral `4`, not
 `□` and not a stuck term. The peano tower and the `OfNat` class tower a literal brings are
 both in the emitted program.
-`hcfg`, `hsup`, `hnb`, `hwf`, `hwt` and the target-side evaluation are discharged here by
+`hcfg`, `hsup`, `hwf`, `hwt` and the target-side evaluation are discharged here by
 checked terms; `hcb` and `hev` stay binders, per `doc/trust.md`'s class-**C** rows.
 -/
 theorem green_G2
@@ -400,7 +400,7 @@ theorem green_G2
     shipping_erase_correct_firstorder P E A htbl hsafe hblk spike_configPinned hcb
       (trExprS_const_of_table (P []) htbl hsafe rfl)
       (supportedB_sound (P []) htbl hsafe g2_supported)
-      hprep hrun g2_noBodylessRefs g2_wf hbridge
+      hprep hrun g2_wf hbridge
   obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
     hobs [] [] ``Nat us idx v vv _ rfl (fun i hi => absurd hi (by simp))
       (trExprS_const_of_table (P []) htbl hsafe rfl) hev hvwt hty hfo
@@ -458,7 +458,7 @@ set_option linter.unusedVariables false in
 emitted program is the lowered image of a specification environment that erases `spikeLet`,
 and the source evaluation's answer is reproduced as the literal λ□ peano numeral `3`, not
 `□` and not a stuck term. The `let` is contracted by ζ on both sides.
-`hcfg`, `hsup`, `hnb`, `hwf`, `hwt` and the target-side evaluation are discharged here by
+`hcfg`, `hsup`, `hwf`, `hwt` and the target-side evaluation are discharged here by
 checked terms; `hcb` and `hev` stay binders, per `doc/trust.md`'s class-**C** rows.
 -/
 theorem green_G3
@@ -501,7 +501,7 @@ theorem green_G3
     shipping_erase_correct_firstorder P E A htbl hsafe hblk spike_configPinned hcb
       (trExprS_const_of_table (P []) htbl hsafe rfl)
       (supportedB_sound (P []) htbl hsafe g3_supported)
-      hprep hrun g3_noBodylessRefs g3_wf hbridge
+      hprep hrun g3_wf hbridge
   obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
     hobs [] [] ``Nat us idx v vv _ rfl (fun i hi => absurd hi (by simp))
       (trExprS_const_of_table (P []) htbl hsafe rfl) hev hvwt hty hfo
@@ -579,7 +579,7 @@ emitted program is the lowered image of a specification environment that erases 
 and the source evaluation's answer is reproduced as the literal λ□ peano numeral `1`, not
 `□` and not a stuck term. The projection is taken on both sides and the pair's two type
 parameters are erased.
-`hcfg`, `hsup`, `hnb`, `hwf`, `hwt` and the target-side evaluation are discharged here by
+`hcfg`, `hsup`, `hwf`, `hwt` and the target-side evaluation are discharged here by
 checked terms; `hcb` and `hev` stay binders, per `doc/trust.md`'s class-**C** rows.
 -/
 theorem green_G4
@@ -622,7 +622,7 @@ theorem green_G4
     shipping_erase_correct_firstorder P E A htbl hsafe hblk spike_configPinned hcb
       (trExprS_const_of_table (P []) htbl hsafe rfl)
       (supportedB_sound (P []) htbl hsafe g4_supported)
-      hprep hrun g4_noBodylessRefs g4_wf hbridge
+      hprep hrun g4_wf hbridge
   obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
     hobs [] [] ``Nat us idx v vv _ rfl (fun i hi => absurd hi (by simp))
       (trExprS_const_of_table (P []) htbl hsafe rfl) hev hvwt hty hfo
@@ -830,7 +830,7 @@ set_option linter.unusedVariables false in
 recorded in `VerifyBench/Spikes/G5.lean`, the emitted program is the lowered image of a
 specification environment that erases `spikeCase`, and the answer the source semantics
 computes — the peano numeral `1` — is reproduced as the literal λ□ numeral `1`, not `□` and
-not a stuck term. This is the first rung whose `hev` is a derivation: `hcfg`, `hsup`, `hnb`,
+not a stuck term. This is the first rung whose `hev` is a derivation: `hcfg`, `hsup`,
 `hwf`, `hwt`, the source evaluation and the target-side evaluation are all discharged here, and
 what is left of the trust rows is `hcb`, the two value-side typings, and the block data
 `SpikeNatFacts` and the three `StepDefeq`s carry.
@@ -879,7 +879,7 @@ theorem green_G5
     shipping_erase_correct_firstorder P E A htbl hsafe hblk spike_configPinned hcb
       (trExprS_const_of_table (P []) htbl hsafe rfl)
       (supportedB_sound (P []) htbl hsafe g5_supported)
-      hprep hrun g5_noBodylessRefs g5_wf hbridge
+      hprep hrun g5_wf hbridge
   obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
     hobs [] [] ``Nat us idx (peanoSrc 1) vv _ rfl (fun i hi => absurd hi (by simp))
       (trExprS_const_of_table (P []) htbl hsafe rfl) (g5_seval F U hd hdu hio) hvwt hty hfo
@@ -953,7 +953,7 @@ and the source evaluation's answer is reproduced as the literal λ□ peano nume
 `□` and not a stuck term. The constant the subject applies is recursive, so its emitted
 body is the η-expansion of a `.fix` node (F-ETA) and the target run β-reduces the wrapper
 before unfolding the fixpoint twice under the guard.
-`hcfg`, `hsup`, `hnb`, `hwf`, `hwt` and the target-side evaluation are discharged here by
+`hcfg`, `hsup`, `hwf`, `hwt` and the target-side evaluation are discharged here by
 checked terms; `hcb` and `hev` stay binders, per `doc/trust.md`'s class-**C** rows.
 -/
 theorem green_G6
@@ -996,7 +996,7 @@ theorem green_G6
     shipping_erase_correct_firstorder P E A htbl hsafe hblk spike_configPinned hcb
       (trExprS_const_of_table (P []) htbl hsafe rfl)
       (supportedB_sound (P []) htbl hsafe g6_supported)
-      hprep hrun g6_noBodylessRefs g6_wf hbridge
+      hprep hrun g6_wf hbridge
   obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
     hobs [] [] ``Nat us idx v vv _ rfl (fun i hi => absurd hi (by simp))
       (trExprS_const_of_table (P []) htbl hsafe rfl) hev hvwt hty hfo
@@ -1550,7 +1550,7 @@ emitted program is the lowered image of a specification environment that erases
 numeral `8`, not `□` and not a stuck term. The subject is a tracked benchmark program: forty
 emitted declarations, ten class projections, four η-expanded `.fix` blocks (F-ETA) and five
 `.case` nodes.
-`hcfg`, `hsup`, `hnb`, `hwf`, `hwt` and the target-side evaluation are discharged here by
+`hcfg`, `hsup`, `hwf`, `hwt` and the target-side evaluation are discharged here by
 checked terms; `hcb` and `hev` stay binders, per `doc/trust.md`'s class-**C** rows.
 -/
 theorem green_G7
@@ -1593,7 +1593,7 @@ theorem green_G7
     shipping_erase_correct_firstorder P E A htbl hsafe hblk spike_configPinned hcb
       (trExprS_const_of_table (P []) htbl hsafe rfl)
       (supportedB_sound (P []) htbl hsafe g7_supported)
-      hprep hrun g7_noBodylessRefs g7_wf hbridge
+      hprep hrun g7_wf hbridge
   obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
     hobs [] [] ``Nat us idx v vv _ rfl (fun i hi => absurd hi (by simp))
       (trExprS_const_of_table (P []) htbl hsafe rfl) hev hvwt hty hfo
@@ -1606,7 +1606,7 @@ set_option linter.unusedVariables false in
 **Rung G8 is green, and it is the applied one.** For the `#erase` run recorded in
 `VerifyBench/Spikes/G8.lean` the subject is function-typed, so the observation is made at a
 spine: the emitted term applied to the λ□ numeral `0` evaluates to the literal peano numeral
-`8`, the value the source semantics gives `benchArith Nat.zero`. `hcfg`, `hsup`, `hnb`,
+`8`, the value the source semantics gives `benchArith Nat.zero`. `hcfg`, `hsup`,
 `hwf`, `hwt`, the spine's translation, the argument's erasure and lowering, and the
 target-side evaluation are discharged here by checked terms. `hcb` and `hev` stay binders.
 The argument's environment clause (`g8_hargReach`, U9) reduces to a **source-side** binder,
@@ -1657,7 +1657,7 @@ theorem green_G8
     shipping_erase_correct_firstorder P E A htbl hsafe hblk spike_configPinned hcb
       (trExprS_const_of_table (P []) htbl hsafe rfl)
       (supportedB_sound (P []) htbl hsafe g8_supported)
-      hprep hrun g8_noBodylessRefs g8_wf hbridge
+      hprep hrun g8_wf hbridge
   obtain ⟨b, hbo⟩ := Option.isSome_iff_exists.1
     (show (g8Table.body? ``benchArith).isSome = true by decide +kernel)
   obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=

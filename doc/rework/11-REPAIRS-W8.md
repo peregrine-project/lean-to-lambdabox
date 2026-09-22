@@ -775,6 +775,34 @@ named residue.
 scan reports `#[]` for `shipping_erase_correct_firstorder` and `erasure_bridge_of_run`;
 `lake exe green-check --all`.
 
+*Landed*, with the gate corrected on two counts (rule 2). **`hnb` deleted**: the binder leaves
+`shipping_erase_correct_firstorder`'s signature and all eight rungs' applications of it; the
+docstring's vacuity claim is rewritten rather than carried (`Capstone.lean`). The eight
+`g<i>_noBodylessRefs` stay — F-W8-9 is right that they had **no** consumer before this landing:
+`Tools/Coverage.lean` did not already recompute a per-rung body-less column, so one is built —
+`RungFacts.nbTerm`, read the same way `wfTerm` reads `g<i>_wf` (`env.find?` on
+`g<i>_noBodylessRefs`), fed into a new `ladderSection` paragraph and `nbAll`. This item did not
+wait on anything and needed no restatement. **`hblk` and `compilerLevels` were already
+resolved, by W4**, landed after this section was written: `blockKeyed_install` has
+`visitMutual_block_mode` as its consumer, and `compilerLevels?_eq` is spent inline at
+`visitMutual_member_erases`/`_block` (`VisitExprRefines/Step/Env.lean:705`, `:735`) rather than
+through a separately named `compilerLevels_transport` — same equation, no second declaration.
+Both are simple presence checks this wave, confirmed unchanged.
+
+**The printed gate is wrong on both figures, mechanised (`scratch/round7/w8_dead.lean`).**
+`erasure_bridge_of_run`'s scan reports `#[hblk]`, not `#[]`, and by design: its own docstring
+already says `hblk` "is the standing block binder, consumed at the install site rather than
+here" (W4), and no argument list downstream of it mentions the fvar. The corrected gate reads
+`#[]` for `shipping_erase_correct_firstorder` only — met — and `#[hblk]` for
+`erasure_bridge_of_run`, unchanged and correct. `--dead` measures **339**, not the printed
+321: W1–W3 grew it past that figure before this unit and no wave since corrected the written
+budget (`doc/rework/07-STATUS.md`'s "321-declaration budget" is stale from `15a4af7`, the same
+staleness class as `doc/coverage.md`'s uncommitted regeneration, `git log` stopping at
+`4e5bd13`). This unit's own edits add nothing to the count: 339 before and after
+(`scratch/round7/W8.hygiene_dead.out`). Fixing the written 321/339 gap and refreshing
+`doc/coverage.md` and `doc/rework/07-STATUS.md` against the cumulative drift of W1–W7 is
+outside this unit's three items and is not attempted here.
+
 ### 2.9 W9 — the inductive flag as MetaRocq's equation
 
 **Waits for F-ARITYLET.** Once `Erasure.arityResultSort` walks `.letE` and `.mdata`,

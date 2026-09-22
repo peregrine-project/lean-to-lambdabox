@@ -34,10 +34,13 @@ The first-order side condition is `FirstOrderInd env I`, the closed predicate of
 `FirstOrderInd.lean`. The spine premises are `ErasesLB` unfolded with the argument's
 `ErasesEnv` conjunct, the length equation `Lower.mkApps` consumes, and the spine's translation.
 
-`hnb : NoBodylessRefs Γ t` is `erase_correct_firstorder`'s `axiom_free` analogue, decided per
-rung: without it a run reaching a body-less declaration would satisfy the conclusion
-vacuously, its source evaluation having no derivation. `hwf : LBWfPeregrine Γ t` is decided
-per rung the same way, by kernel computation on the emitted program.
+`hwf : LBWfPeregrine Γ t` is decided per rung by kernel computation on the emitted program.
+`NoBodylessRefs Γ t` — `erase_correct_firstorder`'s `axiom_free` analogue (`Output.lean`) — is
+not a premise here: the proof below never spends it, and the non-vacuity a body-less
+reference would threaten is `hev`'s to guard, not this composition's
+(`scratch/round7/z_dead.out`; `doc/rework/11-REPAIRS-W8.md` §2.8). `Green.g<i>_noBodylessRefs`
+stays a standalone `by decide +kernel` term per rung, and `doc/coverage.md`'s per-rung census
+is its reader.
 
 The erasure half of the composition is `erasure_bridge_of_run`, a proved term; the simulation
 half is `erases_correct`, applied once at the spine the observable is read under. What remains
@@ -199,7 +202,6 @@ theorem shipping_erase_correct_firstorder
     (hsup : Supported env tbl pe)
     (hprep : Erasure.prepare_erasure e {} { «config» := cfg } cctx ref w = .ok (pe, {}) wp)
     (hrun : Erasure.erase e cfg cctx ref w = .ok (.untyped Γ (some t), inls) w')
-    (hnb : NoBodylessRefs Γ t)
     (hwf : LBWfPeregrine Γ t)
     (hbridge : ∀ (sf : ErasureState) (wt : Void IO.RealWorld),
       Erasure.visitExpr pe {} { «config» := cfg } cctx ref wp = .ok (t, sf) wt →
