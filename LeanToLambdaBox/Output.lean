@@ -566,6 +566,14 @@ theorem constRefsDefs_eq : ∀ l : List (@FixDef LBTerm),
   | [] => rfl
   | fd :: rest => by simp [constRefsDefs, constRefsDefs_eq rest]
 
+/-- The kernames of a spine are the head's and the arguments'. -/
+theorem constRefs_mkApps : ∀ (l : List LBTerm) (f : LBTerm),
+    constRefs (LBTerm.mkApps f l) = constRefs f ++ l.flatMap constRefs
+  | [], f => by simp
+  | a :: l, f => by
+      rw [LBTerm.mkApps, constRefs_mkApps l (.app f a)]
+      simp [constRefs, List.append_assoc]
+
 /-- Membership in the arguments' kernames. -/
 theorem mem_constRefsArgs {kn : Kername} {l : List LBTerm} :
     kn ∈ constRefsArgs l ↔ ∃ x ∈ l, kn ∈ constRefs x := by
@@ -760,6 +768,18 @@ theorem envLookup_mem : ∀ {Γ : GlobalDeclarations} {kn : Kername} {d : Global
         rw [← Kername.eq_of_beq hb]
         exact List.mem_cons_self ..
       · exact List.mem_cons_of_mem _ (envLookup_mem h)
+
+/-- A key of an entry is a key the lookup answers. -/
+theorem envLookup_isSome_of_mem : ∀ {Γ : GlobalDeclarations} {p : Kername × GlobalDecl},
+    p ∈ Γ → (LBTerm.envLookup Γ p.1).isSome
+  | (k, d) :: rest, p, h => by
+      rw [LBTerm.envLookup]
+      split
+      · rfl
+      · rename_i hb
+        rcases List.mem_cons.1 h with rfl | h
+        · exact absurd (Kername.beq_self k) hb
+        · exact envLookup_isSome_of_mem h
 
 /-- A declared key is a key of the environment. -/
 theorem HasBody.mem_keys {Γ : GlobalDeclarations} {kn : Kername} (h : HasBody Γ kn) :

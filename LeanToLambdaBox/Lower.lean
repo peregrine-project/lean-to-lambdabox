@@ -3,6 +3,7 @@ import LeanToLambdaBox.Abstract
 import LeanToLambdaBox.FixMetatheory
 import LeanToLambdaBox.Semantics.Env
 import LeanToLambdaBox.ElimBody
+import LeanToLambdaBox.Output
 
 /-!
 # `Lower` — the term-level λ□ → λ□ pass relation
@@ -31,6 +32,11 @@ Block premises are inlined into the three fix arms (the kernel rejects a structu
 that mentions the inductive) and packaged afterwards as `LowerBlock`, read through
 `Lower.fixConst'`/`Lower.fixBody'`/`Lower.fixEta'`. List premises are in the indexed form `hlen` plus
 `∀ i, i < …`, since `List.Forall₂` as a premise is a nested-inductive occurrence.
+
+`SpecGrow` is here too: the growth of the specification environment the pass survives, with
+`Lower.specGrow` its monotonicity law. The law needs more than the term's own references —
+`SpecGrowFixture.specGrow_needs_declaredEnv` is the counterexample — so it asks for
+`ConstsDeclaredEnv`, λ□ well-formedness of the environment's δ column.
 
 `ConstToFVar` and `CloseConstAt` are here because `LowerBlock.hcl` needs them; the rest of
 the fixpoint closure is `LowerFix.lean`. Box-freedom (`NoBox`), the λ-headedness transports
@@ -190,12 +196,6 @@ theorem ElimDecl.uniq {Γ : GlobalDeclarations} {kn : Kername} {iid iid' : Induc
     subst hfs
     injection hip with hi hp
     exact ⟨hi, hp, by omega, rfl⟩
-  have shape : ∀ {i : InductiveId} {p d : Nat} {fs : List Nat} {b : LBTerm},
-      ElimBody i p d fs b → b = mkElimBody i p d fs ∨ b = mkElimBodyRec i p d fs := by
-    intro i p d fs b hb
-    cases hb with
-    | cases => exact .inl rfl
-    | recur => exact .inr rfl
   obtain ⟨⟨body, hlk, hb⟩, -⟩ := h
   obtain ⟨⟨body', hlk', hb'⟩, -⟩ := h'
   have hbody : body = body' := by
@@ -203,7 +203,7 @@ theorem ElimDecl.uniq {Γ : GlobalDeclarations} {kn : Kername} {iid iid' : Induc
     injection he with he; injection he with he; injection he with he
     exact Option.some.inj he
   subst hbody
-  rcases shape hb with he | he <;> rcases shape hb' with he' | he'
+  rcases hb.shape with he | he <;> rcases hb'.shape with he' | he'
   · exact hcases _ _ _ _ _ _ _ _ (he.symm.trans he')
   · exact absurd (he.symm.trans he' ▸ hml iid np dp nfs) (by rw [mkElimBodyRec]; simp [isLambda])
   · exact absurd (he'.symm.trans he ▸ hml iid' np' dp' nfs')
@@ -2263,6 +2263,267 @@ theorem Lower.source_construct_nil {Γ : GlobalDeclarations} {s t : LBTerm}
         (args := pre ++ disc :: minors ++ extra) (by cases pre <;> simp)
       rw [he] at hs; exact LBTerm.noConfusion hs
 
+/-! ## Growth of the specification environment
+
+The proof of the registration invariant builds `Γspec` as it goes, so the pass must survive
+the environment growing under it. `SpecGrow` is that growth — MetaRocq weakens `erases_deps`
+under one fresh declaration (`../metarocq/erasure/theories/EDeps.v:492`, `erases_deps_cons`)
+— with the third clause λ□'s own eliminator pruning forces: `Lower.const`'s premise is
+*anti*-monotone in `Γ`, and a fresh prefix carrying a block can complete an `ElimDecl` at a
+key the environment already declares.
+-/
+
+/-- A lookup survives a prefix whose keys all miss it. -/
+theorem envLookup_append_of_fresh : ∀ {pre Γ : GlobalDeclarations} {kn : Kername}
+    {d : GlobalDecl}, (∀ p ∈ pre, p.1 ≠ kn) → LBTerm.envLookup Γ kn = some d →
+    LBTerm.envLookup (pre ++ Γ) kn = some d
+  | [], _, _, _, _, h => h
+  | (k, v) :: pre, Γ, kn, d, hf, h => by
+      rw [List.cons_append, LBTerm.envLookup, if_neg]
+      · exact envLookup_append_of_fresh (fun p hp => hf p (List.mem_cons_of_mem _ hp)) h
+      · exact fun hb => hf (k, v) (List.mem_cons_self ..) (Kername.eq_of_beq hb)
+
+/-- Every `.const` node of `t`, and every block its nodes read, is declared in `Γ`:
+`ErasesEnv.deps` at the term's own references. -/
+def ConstsDeclared (Γ : GlobalDeclarations) (t : LBTerm) : Prop :=
+  ∀ kn ∈ constRefs t, (LBTerm.envLookup Γ kn).isSome
+
+/-- Every declared body's own references are declared: the `tConst` case of MetaRocq's
+`wellformed` under `wf_glob` (`../metarocq/erasure/theories/EWellformed.v:166`, `:211`), the
+δ column of λ□ well-formedness. `SpecGrowFixture.specGrow_needs_declaredEnv` is why the
+pass's monotonicity asks for it and not for the term's references alone. -/
+def ConstsDeclaredEnv (Γ : GlobalDeclarations) : Prop :=
+  ∀ kn b, DefnDecl Γ kn b → ConstsDeclared Γ b
+
+/-- `Γ'` extends `Γ` by a prefix of fresh keys and turns no key `Γ` already declares into a
+runtime key. -/
+def SpecGrow (Γ Γ' : GlobalDeclarations) : Prop :=
+  ∃ pre : GlobalDeclarations, Γ' = pre ++ Γ ∧ (∀ p ∈ pre, ∀ q ∈ Γ, p.1 ≠ q.1) ∧
+    ∀ kn, (LBTerm.envLookup Γ kn).isSome → RuntimeKey Γ' kn → RuntimeKey Γ kn
+
+/-- Growth preserves a declaration. -/
+theorem SpecGrow.lookup {Γ Γ' : GlobalDeclarations} (h : SpecGrow Γ Γ') {kn : Kername}
+    {d : GlobalDecl} (hd : LBTerm.envLookup Γ kn = some d) :
+    LBTerm.envLookup Γ' kn = some d := by
+  obtain ⟨pre, rfl, hf, -⟩ := h
+  exact envLookup_append_of_fresh (fun p hp => hf p hp (kn, d) (envLookup_mem hd)) hd
+
+/-- Growth preserves declaredness. -/
+theorem SpecGrow.isSome {Γ Γ' : GlobalDeclarations} (h : SpecGrow Γ Γ') {kn : Kername}
+    (hd : (LBTerm.envLookup Γ kn).isSome) : (LBTerm.envLookup Γ' kn).isSome := by
+  obtain ⟨d, hd⟩ := Option.isSome_iff_exists.1 hd
+  rw [h.lookup hd]; rfl
+
+/-- Growth preserves a definition. -/
+theorem SpecGrow.defnDecl {Γ Γ' : GlobalDeclarations} (h : SpecGrow Γ Γ') {kn : Kername}
+    {b : LBTerm} (hd : DefnDecl Γ kn b) : DefnDecl Γ' kn b := h.lookup hd
+
+/-- Growth preserves an eliminator declaration: both of `ElimDecl`'s lookups. -/
+theorem SpecGrow.elimDecl {Γ Γ' : GlobalDeclarations} (h : SpecGrow Γ Γ') {kn : Kername}
+    {iid : InductiveId} {np dp : Nat} {nfs : List Nat}
+    (hd : ElimDecl Γ kn iid np dp nfs) : ElimDecl Γ' kn iid np dp nfs :=
+  ⟨⟨hd.1.choose, h.lookup hd.1.choose_spec.1, hd.1.choose_spec.2⟩,
+    ⟨hd.2.choose, h.lookup hd.2.choose_spec.1, hd.2.choose_spec.2⟩⟩
+
+/-- Growth turns no declared key into a runtime key: the third clause, named. -/
+theorem SpecGrow.runtimeKey {Γ Γ' : GlobalDeclarations} (h : SpecGrow Γ Γ') {kn : Kername}
+    (hd : (LBTerm.envLookup Γ kn).isSome) (hrk : RuntimeKey Γ' kn) : RuntimeKey Γ kn := by
+  obtain ⟨-, -, -, h⟩ := h
+  exact h kn hd hrk
+
+/-- Growth preserves declaredness of a term's references. -/
+theorem ConstsDeclared.specGrow {Γ Γ' : GlobalDeclarations} {t : LBTerm}
+    (h : SpecGrow Γ Γ') (hd : ConstsDeclared Γ t) : ConstsDeclared Γ' t :=
+  fun kn hkn => h.isSome (hd kn hkn)
+
+/-- Growth is reflexive. -/
+theorem SpecGrow.refl (Γ : GlobalDeclarations) : SpecGrow Γ Γ :=
+  ⟨[], rfl, by simp, fun _ _ h => h⟩
+
+/-- Growth composes, which is what threads it through a run's successive steps. -/
+theorem SpecGrow.trans {Γ₀ Γ₁ Γ₂ : GlobalDeclarations} (h₁ : SpecGrow Γ₀ Γ₁)
+    (h₂ : SpecGrow Γ₁ Γ₂) : SpecGrow Γ₀ Γ₂ := by
+  obtain ⟨pre₁, rfl, hf₁, hr₁⟩ := h₁
+  obtain ⟨pre₂, rfl, hf₂, hr₂⟩ := h₂
+  refine ⟨pre₂ ++ pre₁, by rw [List.append_assoc], ?_, ?_⟩
+  · intro p hp q hq
+    rcases List.mem_append.1 hp with hp | hp
+    · exact hf₂ p hp q (List.mem_append_right _ hq)
+    · exact hf₁ p hp q hq
+  · intro kn hkn hrk
+    refine hr₁ kn hkn (hr₂ kn ?_ hrk)
+    obtain ⟨d, hd⟩ := Option.isSome_iff_exists.1 hkn
+    rw [envLookup_append_of_fresh (fun p hp => hf₁ p hp (kn, d) (envLookup_mem hd)) hd]
+    rfl
+
+/-- Every eliminator body `Γ` declares has its block declared in `Γ` too. `ElimDecl` bundles
+the two, so an environment whose eliminator entries are added with their blocks satisfies it,
+and one whose declared bodies are erasure images satisfies it vacuously
+(`erases_ne_elimBody`). -/
+def ElimBlocksDeclared (Γ : GlobalDeclarations) : Prop :=
+  ∀ (kn : Kername) (body : LBTerm) (iid : InductiveId) (np dp : Nat) (nfs : List Nat),
+    LBTerm.envLookup Γ kn = some (.constantDecl ⟨some body⟩) → ElimBody iid np dp nfs body →
+    (LBTerm.envLookup Γ iid.mutualBlockName).isSome
+
+/-- **A fresh prefix is a growth** over an environment whose eliminator bodies already have
+their blocks: `ElimDecl`'s two lookups are then answered by `Γ` itself, so no declared key
+becomes a runtime key. Without the side condition the prefix can complete an eliminator
+declaration `Γ` had only half of (`Round7M.freshPrefix_not_runtimeKey_stable`). -/
+theorem SpecGrow.of_fresh {Γ pre : GlobalDeclarations}
+    (hf : ∀ p ∈ pre, ∀ q ∈ Γ, p.1 ≠ q.1) (hb : ElimBlocksDeclared Γ) :
+    SpecGrow Γ (pre ++ Γ) := by
+  refine ⟨pre, rfl, hf, ?_⟩
+  intro kn hkn hrk
+  obtain ⟨iid, np, dp, nfs, ⟨body, hbody, helim⟩, mib, hmib, hbo, hnp⟩ := hrk
+  obtain ⟨d, hd⟩ := Option.isSome_iff_exists.1 hkn
+  have hd' : LBTerm.envLookup (pre ++ Γ) kn = some d :=
+    envLookup_append_of_fresh (fun p hp => hf p hp (kn, d) (envLookup_mem hd)) hd
+  have hdb : d = .constantDecl ⟨some body⟩ := by
+    rw [hd'] at hbody; exact Option.some.inj hbody
+  subst hdb
+  have hblk := hb kn body iid np dp nfs hd helim
+  obtain ⟨d', hd'⟩ := Option.isSome_iff_exists.1 hblk
+  have hd'' : LBTerm.envLookup (pre ++ Γ) iid.mutualBlockName = some d' :=
+    envLookup_append_of_fresh
+      (fun p hp => hf p hp (iid.mutualBlockName, d') (envLookup_mem hd')) hd'
+  have hdm : d' = .inductiveDecl mib := by rw [hd''] at hmib; exact Option.some.inj hmib
+  subst hdm
+  exact ⟨iid, np, dp, nfs, ⟨body, hd, helim⟩, mib, hd', hbo, hnp⟩
+
+/-! ### References of a part
+
+The four shapes whose sub-terms the pass descends into, read at `constRefs`. -/
+
+/-- A constructor node's arguments name only what the node names. -/
+theorem ConstsDeclared.args {Γ : GlobalDeclarations} {iid : InductiveId} {k : Nat}
+    {args : List LBTerm} (hd : ConstsDeclared Γ (.construct iid k args)) {i : Nat}
+    (hi : i < args.length) : ConstsDeclared Γ args[i]! := by
+  intro kn hkn
+  refine hd kn ?_
+  rw [constRefs, List.mem_cons]
+  exact .inr (mem_constRefsArgs.2 ⟨args[i]!, Lower.getElem!_mem hi, hkn⟩)
+
+/-- A branch body names only what the `case` node names. -/
+theorem ConstsDeclared.alts {Γ : GlobalDeclarations} {ip : InductiveId × Nat} {d : LBTerm}
+    {alts : List (List BinderName × LBTerm)} (hd : ConstsDeclared Γ (.case ip d alts))
+    {i : Nat} (hi : i < alts.length) : ConstsDeclared Γ (alts[i]!).2 := by
+  intro kn hkn
+  refine hd kn ?_
+  rw [constRefs, List.mem_cons]
+  exact .inr (List.mem_append_right _
+    (mem_constRefsAlts.2 ⟨alts[i]!, Lower.getElem!_mem hi, hkn⟩))
+
+/-- A discriminant names only what the `case` node names. -/
+theorem ConstsDeclared.discr {Γ : GlobalDeclarations} {ip : InductiveId × Nat} {d : LBTerm}
+    {alts : List (List BinderName × LBTerm)} (hd : ConstsDeclared Γ (.case ip d alts)) :
+    ConstsDeclared Γ d := by
+  intro kn hkn
+  refine hd kn ?_
+  rw [constRefs, List.mem_cons]
+  exact .inr (List.mem_append_left _ hkn)
+
+/-- A spine's head and arguments name only what the spine names. -/
+theorem ConstsDeclared.spine {Γ : GlobalDeclarations} {f : LBTerm} {l : List LBTerm}
+    (hd : ConstsDeclared Γ (LBTerm.mkApps f l)) :
+    ConstsDeclared Γ f ∧ ∀ x ∈ l, ConstsDeclared Γ x := by
+  constructor
+  · intro kn hkn
+    exact hd kn (by rw [constRefs_mkApps]; exact List.mem_append_left _ hkn)
+  · intro x hx kn hkn
+    refine hd kn ?_
+    rw [constRefs_mkApps]
+    exact List.mem_append_right _ (List.mem_flatMap.2 ⟨x, hx, hkn⟩)
+
+/-! ### The pass survives growth -/
+
+/-- **`Lower` is monotone along `SpecGrow`**, given that the term's own references and every
+declared body's references are declared. The `const` arm spends the growth's third clause at
+the term's own key; the three fix arms spend `ConstsDeclaredEnv` at the block's declared
+bodies, which the term's references do not reach. -/
+theorem Lower.specGrow {Γ Γ' : GlobalDeclarations} (hg : SpecGrow Γ Γ')
+    (henv : ConstsDeclaredEnv Γ) {s t : LBTerm} (h : Lower Γ s t) :
+    ConstsDeclared Γ s → Lower Γ' s t := by
+  induction h using Lower.rec
+    (motive_2 := fun nf m alt _ => ConstsDeclared Γ m → LowerAlt Γ' nf m alt) with
+  | box => exact fun _ => .box
+  | bvar i => exact fun _ => .bvar i
+  | fvar x => exact fun _ => .fvar x
+  | prim p => exact fun _ => .prim p
+  | @const kn hk =>
+      intro hd
+      refine .const fun hrk => hk (hg.runtimeKey (hd kn ?_) hrk)
+      rw [constRefs]; exact List.mem_cons_self ..
+  | lambda _ ih => exact fun hd => .lambda (ih hd)
+  | letIn _ _ ihv ihb =>
+      intro hd
+      refine .letIn (ihv fun kn hkn => hd kn ?_) (ihb fun kn hkn => hd kn ?_)
+      · rw [constRefs]; exact List.mem_append_left _ hkn
+      · rw [constRefs]; exact List.mem_append_right _ hkn
+  | app _ _ ihf iha =>
+      intro hd
+      refine .app (ihf fun kn hkn => hd kn ?_) (iha fun kn hkn => hd kn ?_)
+      · rw [constRefs]; exact List.mem_append_left _ hkn
+      · rw [constRefs]; exact List.mem_append_right _ hkn
+  | proj _ ih =>
+      intro hd
+      refine .proj (ih fun kn hkn => hd kn ?_)
+      rw [constRefs]; exact List.mem_cons_of_mem _ hkn
+  | @construct iid k args args' hlen _ ih =>
+      intro hd
+      exact .construct hlen fun i hi => ih i hi (hd.args hi)
+  | @«case» ip dd dd' alts alts' _ hlen hn _ ihd ihb =>
+      intro hd
+      exact .case (ihd hd.discr) hlen hn fun i hi => ihb i hi (hd.alts hi)
+  | @elimApp kn iid np dp nfs pre disc disc' minors alts extra extra'
+      hh hlen hmlen halen _ _ hxlen _ ihmin ihd ihx =>
+      intro hd
+      obtain ⟨-, hargs⟩ := hd.spine
+      refine .elimApp (hg.elimDecl hh) hlen hmlen halen (fun i hi => ihmin i hi ?_)
+        (ihd ?_) hxlen (fun i hi => ihx i hi ?_)
+      · exact hargs _ (List.mem_append_left _ (List.mem_append_right _
+          (List.mem_cons_of_mem _ (Lower.getElem!_mem (by omega)))))
+      · exact hargs _ (List.mem_append_left _ (List.mem_append_right _
+          (List.mem_cons_self ..)))
+      · exact hargs _ (List.mem_append_right _ (Lower.getElem!_mem hi))
+  | @fixConst kn kns bs bs' ids defs j hb hb' hdl hnd hids hilen hfresh hrarg hdecl hfl hlow
+      hcl hnk hj ih =>
+      intro _
+      obtain ⟨hjk, hjeq⟩ := Lower.getElem!_of_getElem? hj
+      have hjk' : j < kns.length := by omega
+      refine .fixConst hb hb' hdl hnd hids hilen hfresh hrarg
+        (fun i hi => hg.defnDecl (hdecl i hi)) hfl
+        (fun i hi => ih i hi (henv _ _ (hdecl i hi))) hcl (fun hrk => hnk ?_) hj
+      refine hg.runtimeKey ?_ hrk
+      rw [← hjeq]
+      exact Option.isSome_of_eq_some (hdecl j hjk')
+  | @fixBody b kns bs bs' ids defs j hb hb' hdl hnd hids hilen hfresh hrarg hdecl hfl hlow
+      hcl hj hjl ih =>
+      intro _
+      exact .fixBody hb hb' hdl hnd hids hilen hfresh hrarg
+        (fun i hi => hg.defnDecl (hdecl i hi)) hfl
+        (fun i hi => ih i hi (henv _ _ (hdecl i hi))) hcl hj hjl
+  | @fixEta b nm kns bs bs' ids defs j hb hb' hdl hnd hids hilen hfresh hrarg hdecl hfl hlow
+      hcl hj hjl ih =>
+      intro _
+      exact .fixEta hb hb' hdl hnd hids hilen hfresh hrarg
+        (fun i hi => hg.defnDecl (hdecl i hi)) hfl
+        (fun i hi => ih i hi (henv _ _ (hdecl i hi))) hcl hj hjl
+  | done _ ih => rename_i hd; exact LowerAlt.done (ih hd)
+  | @lam nf n n' m alt _ ih =>
+      rename_i hd
+      exact LowerAlt.lam (ih fun kn hkn => hd kn (by rw [constRefs]; exact hkn))
+
+/-- The alternative half of the same law, by induction on the field count. -/
+theorem LowerAlt.specGrow {Γ Γ' : GlobalDeclarations} (hg : SpecGrow Γ Γ')
+    (henv : ConstsDeclaredEnv Γ) {nf : Nat} {m : LBTerm} {alt : List BinderName × LBTerm}
+    (h : LowerAlt Γ nf m alt) (hd : ConstsDeclared Γ m) : LowerAlt Γ' nf m alt := by
+  induction nf generalizing m alt with
+  | zero => cases h with | done hl => exact .done (Lower.specGrow hg henv hl hd)
+  | succ n ih =>
+      cases h with
+      | @lam _ n₀ n' m₀ alt₀ h₀ =>
+          exact .lam (ih h₀ fun kn hkn => hd kn (by rw [constRefs]; exact hkn))
+
 /-! ## Non-vacuity, and what `hfl` excludes
 
 One fixture per arm whose premises read the environment: `elimApp` at its `.const`-headed
@@ -2352,5 +2613,224 @@ theorem lowerBlock_needs_lambda_bodies :
   fun h => Bool.noConfusion (h.hfl 0 Nat.zero_lt_one)
 
 end LowerCtorBodyFixture
+
+/-! ### What growth alone does not preserve
+
+`Lower.const`'s premise is anti-monotone in the environment, so the pass survives growth only
+because `SpecGrow`'s third clause and `ConstsDeclaredEnv` between them keep every guarded key
+declared. Drop the second and the law is false: the fixture's member body names a key the
+smaller environment does not declare, and the prefix declares it as an eliminator. -/
+
+namespace SpecGrowFixture
+
+open Lean (FVarId)
+
+/-- The declared member's kername. -/
+def aKn : Kername := ⟨.MPfile [], "sgA"⟩
+/-- The key the prefix declares an eliminator at, and `Γ` does not declare at all. -/
+def cKn : Kername := ⟨.MPfile [], "sgC"⟩
+/-- The block key the prefix declares beside it. -/
+def blkKn : Kername := ⟨.MPfile [], "sgBlk"⟩
+/-- The block identifier the eliminator dispatches on. -/
+def cIid : InductiveId := ⟨blkKn, 0⟩
+/-- A one-constructor, non-propositional block. -/
+def cMib : MutualInductiveBody := ⟨.finite, 0, [⟨"I", false, .IntoAny, [⟨"mk", 0⟩], []⟩]⟩
+
+/-- The member's declared body: a λ over the key the prefix makes an eliminator. -/
+def aBody : LBTerm := .lambda .anon (.const cKn)
+
+/-- The smaller environment: one definition, no block, and `cKn` undeclared. -/
+def gsmall : GlobalDeclarations := [(aKn, .constantDecl ⟨some aBody⟩)]
+
+/-- The prefix: the eliminator at `cKn` together with its block. -/
+def gpre : GlobalDeclarations :=
+  [(cKn, .constantDecl ⟨some (mkElimBody cIid 0 0 [0])⟩), (blkKn, .inductiveDecl cMib)]
+
+/-- The grown environment. -/
+def ggrown : GlobalDeclarations := gpre ++ gsmall
+
+/-- The block's fix variable. -/
+def x : FVarId := ⟨.mkSimple "sgV0"⟩
+/-- The block's fix-variable list. -/
+def ids : List FVarId := [x]
+/-- The block's one member. -/
+def kns : List Kername := [aKn]
+/-- Its declared body, as the block's source list. -/
+def bs : List LBTerm := [aBody]
+/-- The definition `mkDef` would emit for it. -/
+def defs : List (@FixDef LBTerm) :=
+  [{ name := .named "sgA", body := closeFix ids 0 aBody, principalArgIdx := 0 }]
+
+/-- At the grown environment the prefix's key is a runtime key. -/
+theorem runtimeKey_cKn : RuntimeKey ggrown cKn :=
+  ⟨cIid, 0, 0, [0], ⟨_, rfl, .cases⟩, cMib, rfl, ⟨rfl, _, rfl, rfl⟩, _, rfl, rfl⟩
+
+/-- The smaller environment declares no block, so it has no runtime key at all. -/
+theorem not_runtimeKey_small {kn : Kername} : ¬ RuntimeKey gsmall kn := by
+  rintro ⟨iid, np, dp, nfs, -, mib, hmib, -⟩
+  rw [gsmall, LBTerm.envLookup] at hmib
+  split at hmib
+  · exact absurd hmib (by simp)
+  · simp [LBTerm.envLookup] at hmib
+
+/-- The one-member block, every field discharged at the smaller environment. -/
+theorem lowerBlock : LowerBlock gsmall kns bs bs ids defs where
+  hb := rfl
+  hb' := rfl
+  hd := rfl
+  hnd := by decide
+  hids := by simp [ids]
+  hilen := rfl
+  hfresh := by
+    intro y _ i hi
+    have h0 : i = 0 := by have : i < 1 := hi; omega
+    subst h0
+    simp [bs, aBody, hasFVar]
+  hrarg := by decide
+  hdecl := by
+    intro i hi
+    have h0 : i = 0 := by have : i < 1 := hi; omega
+    subst h0
+    rfl
+  hfl := by decide
+  hlow := by
+    intro i hi
+    have h0 : i = 0 := by have : i < 1 := hi; omega
+    subst h0
+    exact .lambda (.const not_runtimeKey_small)
+  hcl := by
+    intro i hi
+    have h0 : i = 0 := by have : i < 1 := hi; omega
+    subst h0
+    exact ⟨aBody, .lambda (.miss (by decide)), rfl⟩
+
+/-- The member's constant lowers to the block's `.fix` node at the smaller environment. -/
+theorem lower_small : Lower gsmall (.const aKn) (.fix defs 0) :=
+  Lower.fixConst' lowerBlock not_runtimeKey_small rfl
+
+
+/-- The member's body is no eliminator body: an eliminator's telescope ends in a `case`. -/
+theorem not_elimBody_aBody {iid : InductiveId} {np dp : Nat} {nfs : List Nat} :
+    ¬ ElimBody iid np dp nfs aBody := by
+  intro h
+  rcases ElimBody.shape h with he | he
+  · rw [mkElimBody, show dp + 1 + nfs.length = (dp + nfs.length) + 1 by omega,
+      List.replicate_succ, mkLambdas, aBody] at he
+    injection he with _ he
+    cases hk : dp + nfs.length with
+    | zero => rw [hk, List.replicate_zero, mkLambdas] at he; exact LBTerm.noConfusion he
+    | succ k => rw [hk, List.replicate_succ, mkLambdas] at he; exact LBTerm.noConfusion he
+  · rw [mkElimBodyRec, aBody] at he; exact LBTerm.noConfusion he
+
+/-- The declared body at `aKn` is `aBody`. -/
+theorem defn_aKn {b : LBTerm} (h : DefnDecl ggrown aKn b) : b = aBody := by
+  rw [DefnDecl, show LBTerm.envLookup ggrown aKn = some (.constantDecl ⟨some aBody⟩) from rfl] at h
+  injection h with h; injection h with h; injection h with h
+  exact (Option.some.inj h).symm
+
+/-- The two bodies the grown environment declares. -/
+theorem body_of_grown {kn : Kername} {b : LBTerm} (h : DefnDecl ggrown kn b) :
+    b = aBody ∨ b = mkElimBody cIid 0 0 [0] := by
+  rw [DefnDecl, ggrown, gpre, gsmall, List.cons_append, List.cons_append, List.nil_append,
+    LBTerm.envLookup] at h
+  split at h
+  · injection h with h; injection h with h; injection h with h
+    exact .inr (Option.some.inj h).symm
+  · rw [LBTerm.envLookup] at h
+    split at h
+    · exact absurd h (by simp)
+    · rw [LBTerm.envLookup] at h
+      split at h
+      · injection h with h; injection h with h; injection h with h
+        exact .inl (Option.some.inj h).symm
+      · simp [LBTerm.envLookup] at h
+
+/-- The smaller environment's eliminator bodies — there are none — have their blocks. -/
+theorem elimBlocksDeclared_small : ElimBlocksDeclared gsmall := by
+  intro kn body iid np dp nfs hlk helim
+  rw [gsmall, LBTerm.envLookup] at hlk
+  split at hlk
+  · injection hlk with hlk; injection hlk with hlk; injection hlk with hlk
+    exact absurd ((Option.some.inj hlk) ▸ helim) not_elimBody_aBody
+  · simp [LBTerm.envLookup] at hlk
+
+/-- The prefix is a growth: its keys are fresh and the smaller environment declares no
+eliminator body whose block it could complete. -/
+theorem specGrow_small_grown : SpecGrow gsmall ggrown :=
+  SpecGrow.of_fresh (by decide) elimBlocksDeclared_small
+
+/-- **The grown environment relates the member's body to nothing**: the body is a λ over
+`cKn`, and at the grown environment `cKn` is a runtime key, which both arms whose source is
+a constant forbid. The fix arms regress to the same body, which the induction closes. -/
+theorem no_lower_aBody {s t : LBTerm} (h : Lower ggrown s t) : s ≠ aBody := by
+  induction h using Lower.rec (motive_2 := fun _ _ _ _ => True) with
+  | box | bvar | fvar | prim | const | letIn | app | proj | construct | «case» =>
+      exact fun hs => by simp [aBody] at hs
+  | @lambda n n' b b' hb _ =>
+      intro hs
+      rw [aBody] at hs
+      injection hs with _ hs
+      exact (Lower.source_const hb hs).1 runtimeKey_cKn
+  | @elimApp kn iid np dp nfs pre disc disc' minors alts extra extra' =>
+      intro hs
+      obtain ⟨g, c, he⟩ := mkApps_ne_nil_is_app (f := LBTerm.const kn)
+        (args := pre ++ disc :: minors ++ extra) (by cases pre <;> simp)
+      rw [he, aBody] at hs; exact LBTerm.noConfusion hs
+  | @fixConst kn kns bs bs' ids defs j => exact fun hs => by simp [aBody] at hs
+  | @fixBody b kns₂ bs₂ bs₂' ids₂ defs₂ j hb hb' hd hnd hids hilen hfresh hrarg hdecl hfl
+      hlow hcl hj hjl ih =>
+      intro hs
+      obtain ⟨hjb, hjeq⟩ := Lower.getElem!_of_getElem? hj
+      exact ih j (by omega) (hjeq.trans hs)
+  | @fixEta b nm kns₂ bs₂ bs₂' ids₂ defs₂ j hb hb' hd hnd hids hilen hfresh hrarg hdecl hfl
+      hlow hcl hj hjl ih =>
+      intro hs
+      obtain ⟨hjb, hjeq⟩ := Lower.getElem!_of_getElem? hj
+      exact ih j (by omega) (hjeq.trans hs)
+  | done | lam => trivial
+
+/-- Hence the member's constant lowers to nothing at the grown environment. -/
+theorem not_lower_grown : ¬ Lower ggrown (.const aKn) (.fix defs 0) := by
+  intro h
+  obtain ⟨kns₂, bs₂, bs₂', ids₂, hblk, hcase⟩ := Lower.target_fix h rfl
+  rcases hcase with ⟨kn, hkn, hj⟩ | ⟨hj, hjl⟩
+  · have hk : kn = aKn := by injection hkn with hk; exact hk.symm
+    obtain ⟨hjb, hjeq⟩ := Lower.getElem!_of_getElem? hj
+    have hjk : (0 : Nat) < kns₂.length := hjb
+    have hdec := hblk.hdecl 0 hjk
+    rw [hjeq, hk] at hdec
+    exact no_lower_aBody (hblk.hlow 0 hjk) (defn_aKn hdec)
+  · obtain ⟨hjb, hjeq⟩ := Lower.getElem!_of_getElem? hj
+    have hjk : (0 : Nat) < kns₂.length := hblk.hb ▸ hjb
+    have hdec := hblk.hdecl 0 hjk
+    rw [hjeq] at hdec
+    rcases body_of_grown hdec with he | he <;> simp [aBody, mkElimBody, mkLambdas] at he
+
+/-- The smaller environment is not reference-closed: that is what the counterexample turns on. -/
+theorem not_constsDeclaredEnv_small : ¬ ConstsDeclaredEnv gsmall := by
+  intro h
+  have hx := h aKn aBody rfl cKn (by rw [aBody, constRefs, constRefs]; exact List.mem_cons_self ..)
+  rw [show LBTerm.envLookup gsmall cKn = none from rfl] at hx
+  exact Bool.noConfusion hx
+
+/-- The source's own references are declared. -/
+theorem constsDeclared_small : ConstsDeclared gsmall (.const aKn) := by
+  intro kn hkn
+  rw [constRefs] at hkn
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at hkn
+  subst hkn
+  rfl
+
+/-- **`Lower` is not monotone along `SpecGrow` on the term's own references alone.** The
+source's references are declared and the growth is one, yet the pass is lost: the missing
+condition is on the *environment*, not on the term — `ConstsDeclaredEnv`. -/
+theorem specGrow_needs_declaredEnv :
+    ∃ (Γ Γ' : GlobalDeclarations) (s t : LBTerm),
+      SpecGrow Γ Γ' ∧ ConstsDeclared Γ s ∧ Lower Γ s t ∧ ¬ Lower Γ' s t :=
+  ⟨gsmall, ggrown, .const aKn, .fix defs 0, specGrow_small_grown,
+    constsDeclared_small, lower_small, not_lower_grown⟩
+
+
+end SpecGrowFixture
 
 end LeanToLambdaBox

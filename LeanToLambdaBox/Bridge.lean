@@ -207,6 +207,29 @@ theorem ErasesLBMode.block {tbl : SourceTable} {ctx : ErasureContext} {env : VEn
     (hbk : BlockKeyed tbl ctx nms ids) :
     ErasesLBFix env Us Γspec (nms.map toKername) ids Δ e t := h.2 nms ids hbk
 
+/-! ## Growth of the specification environment
+
+Both readings of the refinement conclusion are monotone along `SpecGrow`, which is what lets
+a sibling sub-run's conclusion be re-read at the environment a later step has grown. -/
+
+/-- The mode-indexed conclusion survives growth of the specification environment. -/
+theorem ErasesLBMode.specGrow {tbl : SourceTable} {ctx : ErasureContext} {env : VEnv}
+    {Us : List Name} {Γ Γ' : GlobalDeclarations} {Δ : VLCtx} {e : Expr} {t : LBTerm}
+    (hg : SpecGrow Γ Γ') (henv : ConstsDeclaredEnv Γ)
+    (hde : ErasuresDeclared env Us Γ Δ e) (h : ErasesLBMode tbl ctx env Us Γ Δ e t) :
+    ErasesLBMode tbl ctx env Us Γ' Δ e t :=
+  ⟨fun hfx => (h.1 hfx).specGrow hg henv hde,
+    fun nms ids hbk => (h.2 nms ids hbk).specGrow hg henv hde⟩
+
+/-- The alternative's mode-indexed conclusion survives growth. -/
+theorem ErasesLBAltMode.specGrow {tbl : SourceTable} {ctx : ErasureContext} {env : VEnv}
+    {Us : List Name} {Γ Γ' : GlobalDeclarations} {Δ : VLCtx} {nf : Nat} {m : Expr}
+    {alt : List BinderName × LBTerm} (hg : SpecGrow Γ Γ') (henv : ConstsDeclaredEnv Γ)
+    (hde : ErasuresDeclared env Us Γ Δ m) (h : ErasesLBAltMode tbl ctx env Us Γ Δ nf m alt) :
+    ErasesLBAltMode tbl ctx env Us Γ' Δ nf m alt :=
+  ⟨fun hfx => (h.1 hfx).specGrow hg henv hde,
+    fun nms ids hbk => (h.2 nms ids hbk).specGrow hg henv hde⟩
+
 /-! ## The inductive registry -/
 
 /-- **The inductive registry is the model's.** Every entry names the block identifier the model

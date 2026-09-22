@@ -1342,6 +1342,54 @@ observation is made at a spine, not at the term alone. -/
 theorem g8_eval : WcbvEval g8Env eraseFlags (.app g8Term (peanoLB 0)) g8Answer :=
   lbEval_sound (n := 64) (by rfl)
 
+/-! ### The eliminator keys the ladder's runs eliminate with
+
+`Erasure.visitCases` turns a `casesOn` application into a `.case` node and registers nothing,
+so an eliminator declaration is specification-side: it is added by the proof at the step that
+builds the node, at a key the emitted environment never carries. That is what makes the
+growth at such a step a `SpecGrow` — `SpecGrow.of_fresh`'s freshness clause — and it is
+measured here on the rungs whose tables hold a `casesOn` constant. -/
+
+/-- **G7's run eliminates with `Nat.casesOn`**: it is tabled and it is a `casesOn` name, so
+the measurement below is not vacuous. -/
+theorem g7_natCasesOn_tabled :
+    ``Nat.casesOn ∈ g7Table.decls.map Prod.fst ∧ isCasesOnName ``Nat.casesOn = true := by
+  decide +kernel
+
+/-- **No eliminator key is emitted.** At each of the four rungs whose table holds a `casesOn`
+constant — `Nat.casesOn` at all four — the emitted environment declares no such key. `gdecls`
+only grows along a run, so a key absent from the final environment is absent at every
+intermediate state the run passes through. -/
+theorem elimKeys_undeclared :
+    (∀ n ∈ g5Table.decls.map Prod.fst, isCasesOnName n = true →
+      (LBTerm.envLookup g5Env (toKername n)).isNone) ∧
+    (∀ n ∈ g6Table.decls.map Prod.fst, isCasesOnName n = true →
+      (LBTerm.envLookup g6Env (toKername n)).isNone) ∧
+    (∀ n ∈ g7Table.decls.map Prod.fst, isCasesOnName n = true →
+      (LBTerm.envLookup g7Env (toKername n)).isNone) ∧
+    (∀ n ∈ g8Table.decls.map Prod.fst, isCasesOnName n = true →
+      (LBTerm.envLookup g8Env (toKername n)).isNone) := by decide +kernel
+
+/-- The one key, read at the shape the growth lemma rewrites with. -/
+theorem g7_natCasesOn_undeclared :
+    LBTerm.envLookup g7Env (toKername ``Nat.casesOn) = none := by decide +kernel
+
+/-- **The specification-side eliminator entry at G7's key is a growth.** Over any environment
+whose keys the emitted one answers — which is what the registration invariant maintains — the
+entry's key is fresh, so `SpecGrow.of_fresh` applies and the pass survives the step. -/
+theorem g7_elimCons_specGrow {Γ : GlobalDeclarations} {d : GlobalDecl}
+    (hsub : ∀ kn, (LBTerm.envLookup Γ kn).isSome → (LBTerm.envLookup g7Env kn).isSome)
+    (hb : ElimBlocksDeclared Γ) :
+    SpecGrow Γ ((toKername ``Nat.casesOn, d) :: Γ) := by
+  refine SpecGrow.of_fresh (pre := [(toKername ``Nat.casesOn, d)]) ?_ hb
+  intro p hp q hq hqk
+  rw [List.mem_singleton] at hp
+  subst hp
+  have hq2 : toKername ``Nat.casesOn = q.1 := hqk
+  have h1 := hsub q.1 (envLookup_isSome_of_mem hq)
+  rw [← hq2, g7_natCasesOn_undeclared] at h1
+  exact Bool.noConfusion h1
+
 /-- **Rung G8's spine translates.** The subject is function-typed, so the observable's
 translation premise is read at the application, not at the constant. `TrExprS.app` over the
 two `trExprS_const_of_table` terms; the arrow type of `benchArith` comes from

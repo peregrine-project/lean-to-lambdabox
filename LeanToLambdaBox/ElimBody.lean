@@ -134,6 +134,15 @@ theorem ElimBody.closed {iid : InductiveId} {np dp : Nat} {nfs : List Nat} {h : 
   | .cases => mkElimBody_closed iid np dp nfs
   | .recur => mkElimBodyRec_closed iid np dp nfs
 
+/-- An eliminator body is one of the two shapes: the inductive has no other constructor,
+which is what refutes `ElimBody` at a body of any other shape. -/
+theorem ElimBody.shape {iid : InductiveId} {np dp : Nat} {nfs : List Nat} {b : LBTerm}
+    (h : ElimBody iid np dp nfs b) :
+    b = mkElimBody iid np dp nfs ∨ b = mkElimBodyRec iid np dp nfs := by
+  cases h with
+  | cases => exact .inl rfl
+  | recur => exact .inr rfl
+
 /-! ## Checked instances
 
 Three eliminators of the shipping fragment, at the `(np, dp, nfs)` their Lean
