@@ -463,6 +463,34 @@ premises (`ErasableStrengthen env (lp n)`, `NoProjBinders b`) if any sub-derivat
 needs strengthening from a non-empty `Δ` — after F-DEPLCTX it should not, the reader's context
 being empty. Probe: both statements elaborate, the second proved (`w8_sigs.lean`).
 
+*Landed* (`scratch/round7/W4-report.md`), with one boundary correction. The three theorems a
+member sub-run needs are in `VisitExprRefines/Step/Env.lean`, sorry-free: `bridgeInv_member`
+— the invariant at the reader the switch installs, `Δ = []` at the member's own column, which
+is F-DEPLCTX made positive; `visitMutual_block_mode`, `blockKeyed_install`'s consumer; and
+`visitMutual_member_erases` / `..._block`, which carry a sub-run's `ErasesLBMode` conclusion
+to the **tabled** body at the **tabled** column through `SourceTableAdequate.erases_prepared`
+(U4's α) and `compilerLevels?_eq`. `hfb` stays a premise, so no bundle field is added yet.
+
+The **`Motive6`/`Step6` extension is W5's, not this unit's.** The printed clause needs a `Γ₁`
+with `RegInvShape'`/`RegContent` at the *sub-run's* exit state, and the only hypothesis
+`Step6` has about that sub-run is `Motive1`, whose `RunRefines` (`Motives.lean:55`) carries no
+such clause: its fourth conjunct is guarded by a `SpecEnv` of the exit state, which is what
+the accumulator would have to produce. So a stronger `Motive6` and a stronger `Motive1` are
+one fixpoint induction, and the §2 table's `W5 depends on W4` is right about the *lemmas* and
+wrong about the motive — extending `Motive6` ahead of `RunRefines` costs a `sorry`.
+
+Nor is the weaker, ∀-`Γspec` clause a way round it, and the reason is the one §3 already
+names. At the **non-recursive** exit it would go through: `SpecEnv.mono` carries a final-state
+environment down to the sub-run's exit state, `Motive1` reports there, and
+`visitMutual_member_erases` is the rest. At the **block** exit it does not: the registered
+body is `Erasure.etaExpandFix defs j`, its `Lower` fact is `Lower.fixEta_of_block`, and
+`LowerBlock.hdecl` asks the environment to declare each member with *the run's own* erasure
+witness where `SpecContent.defns` supplies only *some* erasure of that body. That is the
+determinism gap `RegContent` was introduced to close, and closing it is what makes the
+environment an output. The second induction does not avoid it either — `visitExpr_shapeW`'s
+`RunClosedW` gives a registering exit only the emitted term's *shape*, never that it is an
+erasure image.
+
 ### 2.5 W5 — the aggregation
 
 **Waits for F-DEPLCTX**, through W4. The accumulator is threaded through the three refinement

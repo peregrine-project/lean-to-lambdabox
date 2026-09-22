@@ -13,21 +13,29 @@ report registration rather than a term relation.
   `Motive4` carries the constructor and type-former exclusions `Erases.const` needs, so the
   interface is `Step4` on the nose.
 * `blockKeyed_install` proves the four conditions of the reader description at the pair
-  `Erasure.visitMutual` installs.
+  `Erasure.visitMutual` installs, and `visitMutual_block_mode` reads a sub-run's conclusion
+  through it.
 * `visitExpr_runConcl` is the term walk's own state, generator and registry conclusion, which
   the two registration steps spend at the dependency bodies `Erasure.visitMutual` erases.
+* `bridgeInv_member`, `visitMutual_member_erases` and `visitMutual_member_erases_block` are
+  what a member sub-run's motive costs and what it reports.
 
-`Motive6` reports registration and nothing about the block's content, and neither half of the
-reader stands in the way. The eighteen motives quantify the level scope, so a sub-run made at
-a dependency's own `levelParams` has a motive to be read at; and `Erasure.visitMutual` moves
-`lctx` to `{}` alongside `fixvars` and `lparams` (`Erasure.lean:1275`, `:1309`), so
-`BridgeInv.mlc` — which asks for an `MLCtx` that is `WF` at the reader's scope *and* carries
-the reader's `lctx` — asks at a member sub-run for the empty context at the member's column,
-which is the `Δ = []` `erase_constant_body` states a body's erasure at
-(`../metarocq/erasure/theories/Extract.v:264`). That reset is F-DEPLCTX
-(`doc/rework/03-DEV-FIX.md`); spending it is a strengthening of `Motive6` no consumer here has
-taken, so the block's content is still read off the final state by `SpecEnv` and
-`blockKeyed_install` still has no consumer.
+`Erasure.visitMutual` moves `lctx` to `{}` alongside `fixvars` and `lparams`
+(`Erasure.lean:1275`, `:1309`), so `BridgeInv.mlc` — which asks for an `MLCtx` that is `WF` at
+the reader's scope *and* carries the reader's `lctx` — asks at a member sub-run for the empty
+context at the member's column, which is the `Δ = []` `erase_constant_body` states a body's
+erasure at (`../metarocq/erasure/theories/Extract.v:264`). That reset is F-DEPLCTX
+(`doc/rework/03-DEV-FIX.md`), and `bridgeInv_member` is the invariant it makes inhabitable
+there — the positive form of `U5.bridgeInv_member_nil_lctx`.
+
+`Motive6` still reports registration alone. Reporting the registered *content* needs, at the
+member sub-run, an accumulator `Γ₁` with `RegInvShape'` and `RegContent` at the sub-run's exit
+state, and `Motive1`'s conclusion (`RunRefines`, `Motives.lean:57`) carries no such clause —
+only `RunConcl`, the registry, the generator bound, and a reading at *some* `SpecEnv` of the
+exit state. That clause is the aggregation's, `doc/rework/11-REPAIRS-W8.md` §2.5, and the three
+theorems here are the pieces it spends at this member: the invariant at the installed reader,
+the block-mode reading of the sub-run's conclusion, and the transport of that conclusion to the
+*tabled* body at the *tabled* level column.
 -/
 
 namespace LeanToLambdaBox
@@ -620,6 +628,112 @@ theorem blockKeyed_install {lenv : Environment} {env : VEnv} {tbl : SourceTable}
   have heq : m = m' := hsup.kernames m m' htm (hblk.members n _ htab hfb m' hm') hkey.symm
   rw [heq]
   exact hm'
+
+/-! ## The member sub-run
+
+What `Erasure.visitMutual` hands a dependency's body: the reader of a *closed* body, at the
+declaration's own level column. `erase_constant_body` erases `cst_body cb` in the empty
+context at `cst_universes cb` (`../metarocq/erasure/theories/Extract.v:264`), and since
+F-DEPLCTX the installed reader is that context and that column.
+-/
+
+/-- **The invariant at the reader `Erasure.visitMutual` installs.** At `Δ = []` the modelled
+context is `MLCtx.nil`, which is `WF` at every level scope, so the `lctx := {}` of the switch
+(`Erasure.lean:1275`, `:1309`) is what makes `BridgeInv.mlc` hold at the member's own column:
+before F-DEPLCTX the field asked for the *caller's* context there, which
+`U5.mlctx_not_wf_at_empty` refutes at the binder shape of any universe-polymorphic
+declaration. The two freshness fields are vacuous at the empty context, and the fixvar
+disjunct is the mode the exit is in — `none` at the non-recursive exit, the block's own pair
+at the recursive one. -/
+theorem bridgeInv_member {env : VEnv} {tbl : SourceTable} {cfg : ErasureConfig}
+    {ctx : ErasureContext} {s : ErasureState} {gen : NameGenerator} {lps : List Name}
+    {fv : Option (Std.HashMap Name FVarId)}
+    (hcfg : ctx.config = cfg) (hcanon : CanonicalConstants s)
+    (hind : IndRegistryModelled env s)
+    (hfx : fv = none ∨ ∃ nms ids,
+      BlockKeyed tbl { ctx with lctx := {}, fixvars := fv, lparams := lps } nms ids ∧
+        ids.Nodup ∧ ∀ x ∈ ids, gen.Reserves x) :
+    BridgeInv env lps tbl cfg gen
+      { ctx with lctx := {}, fixvars := fv, lparams := lps } s [] := by
+  refine ⟨⟨.nil, trivial, rfl, rfl⟩, rfl, hcfg, ?_, ?_, ?_, hcanon, hind⟩
+  · intro x hx; simp at hx
+  · intro x hx; simp at hx
+  · rcases hfx with rfl | ⟨nms, ids, hbk, hnd, hres⟩
+    · exact .inl rfl
+    · exact .inr ⟨nms, ids, hbk, hnd, fun x hx => ⟨hres x hx, by simp⟩⟩
+
+/-- **A sub-run made under the block's reader concludes `ErasesLBFix`.** The mode-indexed
+conclusion's second half, read at the pair `blockKeyed_install` builds; `hnd` is the
+distinctness a *successful* block exit reports (`run_rec_exit_reg`'s fifth conclusion,
+`ErasureRun.run_rec_exit_nodup`), and `hfb` identifies the run's
+`Lean.Compiler.LCNF.getDeclInfo?` answer with `Witness.fixBlock?`. -/
+theorem visitMutual_block_mode {lenv : Environment} {env : VEnv} {tbl : SourceTable}
+    {Us : List Name} {Γ : GlobalDeclarations} {Δ : VLCtx} {n : Name} {ci : ConstantInfo}
+    {ids : List FVarId} {ctx : ErasureContext} {e : Expr} {t : LBTerm}
+    (hblk : TableBlocks lenv env tbl) (hsup : Supported env tbl e)
+    (htab : (tbl.decl? n).isSome)
+    (hnd : ((ci.all.map remove_unsafe_rec).map toKername).Nodup)
+    (hfb : fixBlock? lenv n = some (ci.all.map remove_unsafe_rec))
+    (hlen : ids.length = ci.all.length)
+    (hfx : ctx.fixvars = some (fixvarMap (ci.all.map remove_unsafe_rec) ids))
+    (h : ErasesLBMode tbl ctx env Us Γ Δ e t) :
+    ErasesLBFix env Us Γ ((ci.all.map remove_unsafe_rec).map toKername) ids Δ e t :=
+  h.2 _ _ (blockKeyed_install hblk hsup htab hnd hfb hlen hfx)
+
+/-- **The member's body, at the tabled body and the tabled column.** The run erases
+`prepare_erasure (ci.value! …)` at `ci.levelParams`, the *compiler* declaration's column;
+`SpecContent.defns` and `ErasesEnv.defns` ask for an erasure of `tbl.body? m` at
+`tbl.levels? m`. `SourceTableAdequate.erases_prepared` closes the first gap — the tabled body
+is pinned only up to `Expr.AlphaEq`, `Erases.alpha` being what crosses it — and
+`SourceTableAdequate.compilerLevels?_eq` the second. -/
+theorem visitMutual_member_erases {lenv : Environment} {env : VEnv} {tbl : SourceTable}
+    {Γ : GlobalDeclarations} {m : Name} {b pe v : Expr} {ci : ConstantInfo} {t : LBTerm}
+    {ctx ctxp : ErasureContext} {sp sp' : ErasureState} {cctx : Core.Context}
+    {ref : ST.Ref IO.RealWorld Core.State} {wp wp' : Void IO.RealWorld}
+    (htbl : SourceTableAdequate lenv tbl) (hd : (tbl.decl? m).isSome)
+    (hbo : tbl.body? m = some b) (hci : compilerInfo? lenv m = some ci)
+    (hv : ci.value? (allowOpaque := true) = some v) (hcs : ctxp.config.csimp = false)
+    (hprep : Erasure.prepare_erasure v sp ctxp cctx ref wp = .ok (pe, sp') wp')
+    (hfx : ctx.fixvars = none)
+    (hmode : ErasesLBMode tbl ctx env ci.levelParams Γ [] pe t) :
+    ErasesLB env (tbl.levels? m) Γ [] b t := by
+  obtain ⟨ci', v', hci', hv', hα⟩ := htbl.erases_prepared hbo
+  obtain rfl : ci' = ci := Option.some.inj (hci'.symm.trans hci)
+  obtain rfl : v' = v := Option.some.inj (hv'.symm.trans hv)
+  obtain ⟨t₀, her, hlow⟩ := hmode.ambient hfx
+  refine ⟨t₀, ?_, hlow⟩
+  rw [htbl.compilerLevels?_eq hd hci]
+  exact (hα sp sp' ctxp cctx ref wp wp' pe hcs hprep env _ [] t₀).1 her
+
+/-- **The same, inside the block.** `visitMutual_member_erases` at the recursive exit, where
+the member's self- and sibling-references have already become the block's fix variables, so
+the conclusion is `ErasesLBFix` and the third factor is `ConstToFVar`. -/
+theorem visitMutual_member_erases_block {lenv : Environment} {env : VEnv} {tbl : SourceTable}
+    {Γ : GlobalDeclarations} {n m : Name} {b pe v : Expr} {ci bci : ConstantInfo}
+    {ids : List FVarId} {t : LBTerm} {ctx ctxp : ErasureContext} {sp sp' : ErasureState}
+    {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
+    {wp wp' : Void IO.RealWorld}
+    (htbl : SourceTableAdequate lenv tbl) (hd : (tbl.decl? m).isSome)
+    (hbo : tbl.body? m = some b) (hci : compilerInfo? lenv m = some ci)
+    (hv : ci.value? (allowOpaque := true) = some v) (hcs : ctxp.config.csimp = false)
+    (hprep : Erasure.prepare_erasure v sp ctxp cctx ref wp = .ok (pe, sp') wp')
+    (hblk : TableBlocks lenv env tbl) (hsup : Supported env tbl pe)
+    (htab : (tbl.decl? n).isSome)
+    (hnd : ((bci.all.map remove_unsafe_rec).map toKername).Nodup)
+    (hfb : fixBlock? lenv n = some (bci.all.map remove_unsafe_rec))
+    (hlen : ids.length = bci.all.length)
+    (hfx : ctx.fixvars = some (fixvarMap (bci.all.map remove_unsafe_rec) ids))
+    (hmode : ErasesLBMode tbl ctx env ci.levelParams Γ [] pe t) :
+    ErasesLBFix env (tbl.levels? m) Γ ((bci.all.map remove_unsafe_rec).map toKername) ids []
+      b t := by
+  obtain ⟨ci', v', hci', hv', hα⟩ := htbl.erases_prepared hbo
+  obtain rfl : ci' = ci := Option.some.inj (hci'.symm.trans hci)
+  obtain rfl : v' = v := Option.some.inj (hv'.symm.trans hv)
+  obtain ⟨t₀, t₁, her, hlow, hcf⟩ :=
+    visitMutual_block_mode hblk hsup htab hnd hfb hlen hfx hmode
+  refine ⟨t₀, t₁, ?_, hlow, hcf⟩
+  rw [htbl.compilerLevels?_eq hd hci]
+  exact (hα sp sp' ctxp cctx ref wp wp' pe hcs hprep env _ [] t₀).1 her
 
 /-! ## The two registration steps -/
 

@@ -173,8 +173,19 @@ Neither the level scope nor the local context stands in the way of a stronger mo
 and since F-DEPLCTX merged (`doc/rework/03-DEV-FIX.md`) the switch resets `lctx` as well
 (`Erasure.lean:1275`, `:1309`), so `BridgeInv.mlc` at the sub-run asks for the *empty* context
 at the member's column — the `Δ = []` `erase_constant_body` states a body's erasure at
-(`../metarocq/erasure/theories/Extract.v:264`). Reporting the content is a strengthening no
-consumer has yet taken; this motive is the registration half alone. -/
+(`../metarocq/erasure/theories/Extract.v:264`). `bridgeInv_member`
+(`VisitExprRefines/Step/Env.lean`) is that invariant, and `visitMutual_member_erases` beside
+it is what a sub-run's conclusion says about the *tabled* body at the *tabled* column.
+
+A content clause is still out of reach here, and the two registering exits are out of reach
+for different reasons. At the non-recursive exit `SpecEnv.mono` carries a final-state
+environment down to the sub-run's exit state, so `Motive1` reports there and the registered
+body is that report's `Lower` image. At the block exit it does not: the registered body is
+`Erasure.etaExpandFix defs j`, whose `Lower` fact is `Lower.fixEta_of_block`, and
+`LowerBlock.hdecl` asks the environment to declare each member with *the run's own* erasure
+witness where a `SpecEnv` supplies only *some* erasure of that body — the determinism gap
+`RegContent` (`ColdStartShape.lean`) exists to close. Closing it makes the environment an
+output, built at the step, which is a clause of `RunRefines` as much as of this motive. -/
 def Motive6 (f : Name → EraseM Unit) : Prop :=
   (∀ n s ctx cctx ref w u s' w', f n s ctx cctx ref w = .ok (u, s') w' →
     ∀ Us Δ, BridgeInv env Us tbl cfg (gw w) ctx s Δ → Supported env tbl (.const n []) →
