@@ -1155,11 +1155,16 @@ structure TableBlocks (lenv : Lean.Environment) (env : VEnv) (tbl : SourceTable)
     fixBlock? lenv n = some nms →
     ∀ (m : Name) (b : Expr), m ∈ nms → tbl.body? m = some b → b.isLambda = true
   /-- No member is erasable, so none erases to `□` — stated as the negation the oracle's
-      soundness contradicts, with `InformativeInd` as its precedent. -/
+      soundness contradicts, with `InformativeInd` as its precedent. The member's body is
+      read at the member's **own** level scope, `tbl.levels? m`, which is the scope the
+      eraser erases it at (`Erasure.lean:912`) and the scope
+      `erases_constant_body (Σ, cst_universes cb)` reads it at
+      (`../metarocq/erasure/theories/Extract.v:264`). At the ambient `[]` no
+      universe-polymorphic member has a translation, so the clause would be vacuous there. -/
   informative : ∀ (n : Name) (nms : List Name), (tbl.decl? n).isSome →
     fixBlock? lenv n = some nms →
     ∀ (m : Name) (b : Expr) (vb : VExpr), m ∈ nms → tbl.body? m = some b →
-      TrExprS env [] [] b vb → ¬ Erasable env 0 [] vb
+      TrExprS env (tbl.levels? m) [] b vb → ¬ Erasable env (tbl.levels? m).length [] vb
 
 /-! ## Self-test -/
 
