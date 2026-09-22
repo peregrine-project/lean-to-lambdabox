@@ -1345,10 +1345,14 @@ theorem g8_eval : WcbvEval g8Env eraseFlags (.app g8Term (peanoLB 0)) g8Answer :
 /-! ### The eliminator keys the ladder's runs eliminate with
 
 `Erasure.visitCases` turns a `casesOn` application into a `.case` node and registers nothing,
-so an eliminator declaration is specification-side: it is added by the proof at the step that
-builds the node, at a key the emitted environment never carries. That is what makes the
-growth at such a step a `SpecGrow` — `SpecGrow.of_fresh`'s freshness clause — and it is
-measured here on the rungs whose tables hold a `casesOn` constant. -/
+so an eliminator declaration is specification-side: the proof adds it, at a key the emitted
+environment never carries. The step that adds it is the **inductive** registration, not the
+`.case` node's: `SpecContent.blocks` fires at every declared block key and answers with
+`IndCovered`, whose `elims` field demands the informative inductive's `casesOn` declaration,
+so the entry is owed the moment `Erasure.register_inductive` puts the block key into
+`Γspec`. That is what makes the growth at such a step a `SpecGrow` —
+`SpecGrow.of_fresh`'s freshness clause — and it is measured here on the rungs whose tables
+hold a `casesOn` constant. -/
 
 /-- **G7's run eliminates with `Nat.casesOn`**: it is tabled and it is a `casesOn` name, so
 the measurement below is not vacuous. -/
@@ -1386,7 +1390,9 @@ theorem g7_natCasesOn_undeclared :
 
 /-- **The specification-side eliminator entry at G7's key is a growth.** Over any environment
 whose keys the emitted one answers — which is what the registration invariant maintains — the
-entry's key is fresh, so `SpecGrow.of_fresh` applies and the pass survives the step. -/
+entry's key is fresh, so `SpecGrow.of_fresh` applies and the pass survives the step. `hb` is
+derivable where the accumulator carries its δ column, by
+`elimBlocksDeclared_of_constsDeclaredEnv`. -/
 theorem g7_elimCons_specGrow {Γ : GlobalDeclarations} {d : GlobalDecl}
     (hsub : ∀ kn, (LBTerm.envLookup Γ kn).isSome → (LBTerm.envLookup g7Env kn).isSome)
     (hb : ElimBlocksDeclared Γ) :

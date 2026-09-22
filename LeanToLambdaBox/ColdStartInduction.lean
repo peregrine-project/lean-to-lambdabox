@@ -2445,39 +2445,22 @@ are not here.
 
 /-- A body-less entry declares no body, so it cannot break closedness. -/
 theorem closedBodies_cons_none {Γ : GlobalDeclarations} {kn : Kername} (h : ClosedBodies Γ) :
-    ClosedBodies ((kn, .constantDecl ⟨none⟩) :: Γ) := by
-  intro k b hb
-  rw [DefnDecl] at hb
-  cases hkb : Kername.beq kn k with
-  | true =>
-    rw [← Kername.eq_of_beq hkb, envLookup_cons_self] at hb
-    exact absurd hb (by simp)
-  | false => exact h k b (envLookup_of_cons_ne (kername_ne_of_beq_false hkb) hb)
+    ClosedBodies ((kn, .constantDecl ⟨none⟩) :: Γ) :=
+  closedBodies_cons h (by simp)
 
 /-- A block entry declares no body either. -/
 theorem closedBodies_cons_ind {Γ : GlobalDeclarations} {kn : Kername}
     {mib : MutualInductiveBody} (h : ClosedBodies Γ) :
-    ClosedBodies ((kn, .inductiveDecl mib) :: Γ) := by
-  intro k b hb
-  rw [DefnDecl] at hb
-  cases hkb : Kername.beq kn k with
-  | true =>
-    rw [← Kername.eq_of_beq hkb, envLookup_cons_self] at hb
-    exact absurd hb (by simp)
-  | false => exact h k b (envLookup_of_cons_ne (kername_ne_of_beq_false hkb) hb)
+    ClosedBodies ((kn, .inductiveDecl mib) :: Γ) :=
+  closedBodies_cons h (by simp)
 
 /-- Consing a closed body keeps every body closed. -/
 theorem closedBodies_cons_some {Γ : GlobalDeclarations} {kn : Kername} {t : LBTerm}
     (hcl : LBClosed t 0) (h : ClosedBodies Γ) :
-    ClosedBodies ((kn, .constantDecl ⟨some t⟩) :: Γ) := by
-  intro k b hb
-  rw [DefnDecl] at hb
-  cases hkb : Kername.beq kn k with
-  | true =>
-    rw [← Kername.eq_of_beq hkb, envLookup_cons_self] at hb
-    have hbt : b = t := by simpa using hb.symm
-    subst hbt; exact hcl
-  | false => exact h k b (envLookup_of_cons_ne (kername_ne_of_beq_false hkb) hb)
+    ClosedBodies ((kn, .constantDecl ⟨some t⟩) :: Γ) :=
+  closedBodies_cons h (fun b hb => by
+    obtain rfl : t = b := by simpa using hb
+    exact hcl)
 
 /-- The body-less prefix `Erasure.register_inductive`'s cold branch prepends. -/
 theorem closedBodies_axiomPrefix :

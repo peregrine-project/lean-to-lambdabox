@@ -121,6 +121,28 @@ abstracted on the target and nowhere on the source. -/
 def FVarFreeBodies (Γ : GlobalDeclarations) : Prop :=
   ∀ (kn : Kername) (b : LBTerm) (x : FVarId), DefnDecl Γ kn b → ¬ hasFVar x b
 
+/-- Closedness survives one new entry, given it of whatever body the entry carries. A
+body-less entry and a block entry discharge the premise vacuously. -/
+theorem closedBodies_cons {Γ : GlobalDeclarations} {k : Kername} {d : GlobalDecl}
+    (h : ClosedBodies Γ) (hnew : ∀ b, d = .constantDecl ⟨some b⟩ → LBClosed b 0) :
+    ClosedBodies ((k, d) :: Γ) := by
+  intro kn b hb
+  rw [DefnDecl, LBTerm.envLookup] at hb
+  split at hb
+  · exact hnew b (Option.some.inj hb)
+  · exact h kn b hb
+
+/-- `closedBodies_cons`' twin for the free-variable clause. -/
+theorem fvarFreeBodies_cons {Γ : GlobalDeclarations} {k : Kername} {d : GlobalDecl}
+    (h : FVarFreeBodies Γ)
+    (hnew : ∀ (b : LBTerm) (x : FVarId), d = .constantDecl ⟨some b⟩ → ¬ hasFVar x b) :
+    FVarFreeBodies ((k, d) :: Γ) := by
+  intro kn b x hb
+  rw [DefnDecl, LBTerm.envLookup] at hb
+  split at hb
+  · exact hnew b x (Option.some.inj hb)
+  · exact h kn b x hb
+
 /-- **Two eliminator declarations at one key agree.** `LBTerm.envLookup` is a function, so
 both readings hold one body, and that body fixes the data: `mkElimBody` and `mkElimBodyRec`
 are each injective in `(iid, np, dp, nfs)` and are never equal to one another — one is a
@@ -2311,6 +2333,30 @@ theorem constsDeclaredEnv_of_check {Γ : GlobalDeclarations} (h : constsDeclared
   simp only at hall
   exact List.all_eq_true.1 hall _ hkn'
 
+/-- A declared key stays declared under a new entry, whatever the entry's key. -/
+theorem envLookup_cons_isSome {Γ : GlobalDeclarations} {k kn : Kername} {d : GlobalDecl}
+    (h : (LBTerm.envLookup Γ kn).isSome) : (LBTerm.envLookup ((k, d) :: Γ) kn).isSome := by
+  rw [LBTerm.envLookup]
+  split
+  · rfl
+  · exact h
+
+/-- A term's references stay declared under a new entry. -/
+theorem ConstsDeclared.cons {Γ : GlobalDeclarations} {k : Kername} {d : GlobalDecl}
+    {t : LBTerm} (h : ConstsDeclared Γ t) : ConstsDeclared ((k, d) :: Γ) t :=
+  fun kn hkn => envLookup_cons_isSome (h kn hkn)
+
+/-- The δ column survives a new entry, given it of whatever body the entry carries. -/
+theorem constsDeclaredEnv_cons {Γ : GlobalDeclarations} {k : Kername} {d : GlobalDecl}
+    (h : ConstsDeclaredEnv Γ)
+    (hnew : ∀ b, d = .constantDecl ⟨some b⟩ → ConstsDeclared ((k, d) :: Γ) b) :
+    ConstsDeclaredEnv ((k, d) :: Γ) := by
+  intro kn b hd
+  rw [DefnDecl, LBTerm.envLookup] at hd
+  split at hd
+  · exact hnew b (Option.some.inj hd)
+  · exact (h kn b hd).cons
+
 /-- `Γ'` extends `Γ` by a prefix of fresh keys and turns no key `Γ` already declares into a
 runtime key. -/
 def SpecGrow (Γ Γ' : GlobalDeclarations) : Prop :=
@@ -2347,6 +2393,13 @@ theorem SpecGrow.runtimeKey {Γ Γ' : GlobalDeclarations} (h : SpecGrow Γ Γ') 
   obtain ⟨-, -, -, h⟩ := h
   exact h kn hd hrk
 
+/-- Growth preserves a runtime key: `ElimDecl`'s two lookups both survive. The converse at a
+*declared* key is the third clause; this direction is free. -/
+theorem RuntimeKey.specGrow {Γ Γ' : GlobalDeclarations} (hg : SpecGrow Γ Γ') {kn : Kername}
+    (h : RuntimeKey Γ kn) : RuntimeKey Γ' kn :=
+  let ⟨iid, np, dp, nfs, hd⟩ := h
+  ⟨iid, np, dp, nfs, hg.elimDecl hd⟩
+
 /-- Growth preserves declaredness of a term's references. -/
 theorem ConstsDeclared.specGrow {Γ Γ' : GlobalDeclarations} {t : LBTerm}
     (h : SpecGrow Γ Γ') (hd : ConstsDeclared Γ t) : ConstsDeclared Γ' t :=
@@ -2380,6 +2433,35 @@ def ElimBlocksDeclared (Γ : GlobalDeclarations) : Prop :=
   ∀ (kn : Kername) (body : LBTerm) (iid : InductiveId) (np dp : Nat) (nfs : List Nat),
     LBTerm.envLookup Γ kn = some (.constantDecl ⟨some body⟩) → ElimBody iid np dp nfs body →
     (LBTerm.envLookup Γ iid.mutualBlockName).isSome
+
+/-- A lambda telescope names what its body names. -/
+theorem constRefs_mkLambdas (ns : List BinderName) (b : LBTerm) :
+    constRefs (mkLambdas ns b) = constRefs b := by
+  induction ns with
+  | nil => rfl
+  | cons n ns ih => rw [mkLambdas, constRefs, ih]
+
+/-- An eliminator body names its own block: the `.case` node `mkElimBody` dispatches with
+reads it, and `constRefs` reports a `.case` node's block. -/
+theorem mem_constRefs_elimBody {iid : InductiveId} {np dp : Nat} {nfs : List Nat} {b : LBTerm}
+    (h : ElimBody iid np dp nfs b) : iid.mutualBlockName ∈ constRefs b := by
+  have hcases : iid.mutualBlockName ∈ constRefs (mkElimBody iid np dp nfs) := by
+    rw [mkElimBody, constRefs_mkLambdas, constRefs]
+    exact List.mem_cons_self
+  rcases h.shape with rfl | rfl
+  · exact hcases
+  · show iid.mutualBlockName ∈ constRefs (mkElimBodyRec iid np dp nfs)
+    rw [mkElimBodyRec]
+    show iid.mutualBlockName ∈ constRefsDefs _
+    rw [constRefsDefs]
+    exact List.mem_append_left _ hcases
+
+/-- **The δ column pays `SpecGrow.of_fresh`'s side condition.** An eliminator body is one of
+its own references, so an environment whose declared bodies name only declared keys has every
+eliminator's block declared. -/
+theorem elimBlocksDeclared_of_constsDeclaredEnv {Γ : GlobalDeclarations}
+    (h : ConstsDeclaredEnv Γ) : ElimBlocksDeclared Γ :=
+  fun _ _ _ _ _ _ hd he => h _ _ hd _ (mem_constRefs_elimBody he)
 
 /-- **A fresh prefix is a growth** over an environment whose eliminator bodies already have
 their blocks: `ElimDecl`'s two lookups are then answered by `Γ` itself, so no declared key
