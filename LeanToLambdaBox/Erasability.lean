@@ -422,8 +422,8 @@ asserts MetaRocq's equation, and `false` is read off it against the consumer's o
 all this argument reads and all the model side proves:
 `ErasureSpec.propositionalInd_of_arity` derives it, and its converse is refuted by an arity
 whose final sort is the `let`-bound variable
-(`ErasureSpec.arity_of_propositionalInd_false`; F-ARITYLET's residue,
-`doc/rework/03-DEV-FIX.md`). -/
+(`arity_of_propositionalInd_false`, `ErasureSpec.lean:639`, no `ErasureSpec.` prefix;
+F-ARITYLET's residue, `doc/rework/03-DEV-FIX.md`). -/
 theorem propositional_false_of_informative {env : VEnv} {I : Name} {p : Bool}
     (heq : p = true → PropositionalInd env I) (hinf : InformativeInd env I) : p = false := by
   cases hp : p with

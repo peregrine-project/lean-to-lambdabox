@@ -45,7 +45,8 @@ spends, through `propositional_false_of_informative`, and the half
 
 **Why the implication and not the equality.** The converse,
 `PropositionalInd env I → oib.propositional = true`, is refuted by
-`ErasureSpec.arity_of_propositionalInd_false` at `inductive FooBVar : (let u := Prop; u)`,
+`arity_of_propositionalInd_false` (`ErasureSpec.lean:639`, no `ErasureSpec.` prefix) at
+`inductive FooBVar : (let u := Prop; u)`,
 whose declared arity the translation sees through by zeta and the walk does not. The walk
 already reads `destArity`'s `tLetIn` arm and Lean's annotation arm (F-ARITYLET,
 `doc/rework/03-DEV-FIX.md`), and PCUIC's `destArity`

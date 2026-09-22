@@ -1357,7 +1357,12 @@ rung emits such a key. The block key of the prefix is not covered here — it is
 its freshness is `Erasure.checkIndKernameFresh`'s at the state the step runs from. -/
 
 /-- **G7's run eliminates with `Nat.casesOn`**: it is tabled and it is a `casesOn` name, so
-the measurement below is not vacuous. -/
+the measurement below is not vacuous. What the rungs' own consistency needs is the stronger
+fact `noTabledCasesOnBodies` measures — tabled *without* a body, not merely tabled: were
+`Nat.casesOn` tabled with a compiler body, `ErasesEnv.runtimeKey_isCasesOn` would derive a
+contradiction from `SpecContent`'s unguarded `defns` clause at any reached eliminator key,
+making G5-G8's hypotheses unsatisfiable rather than false. This theorem only witnesses that
+G7's table has a subject for that measurement. -/
 theorem g7_natCasesOn_tabled :
     ``Nat.casesOn ∈ g7Table.decls.map Prod.fst ∧ isCasesOnName ``Nat.casesOn = true := by
   decide +kernel
@@ -1374,6 +1379,44 @@ theorem toKername_id_of_isCasesOnName {c : Name} (h : isCasesOnName c = true) :
     have hs : s = "casesOn" := by simpa using h
     subst hs
     rfl
+
+/-! ### The tabled-`casesOn` dependency, measured
+
+`SpecContent.defns` has no `isCasesOnName` guard where `.axioms` does (`ErasesEnv.lean:218`,
+`:222`), and must not have one: `ErasesEnv.runtimeKey_isCasesOn`
+(`ErasesCorrect/Steps.lean:921`) derives `bo c = none` at a runtime key from the unguarded
+clause, and the ι arm spends that (`:1077`). A guard would delete the branch that derivation
+reads and relocate its conclusion one level up as an assumed premise — what rule (2) forbids.
+So the dependency this buys is measured here instead of guarded away. -/
+
+/-- No tabled `casesOn` name carries a compiler body. Decidable at a table — the same shape
+`noCasesOnKeys` below decides at an emitted environment. -/
+def NoTabledCasesOnBody (tbl : SourceTable) : Prop :=
+  ∀ c ∈ tbl.decls.map Prod.fst, isCasesOnName c = true → (tbl.body? c).isNone = true
+
+instance : Decidable (NoTabledCasesOnBody tbl) := by
+  unfold NoTabledCasesOnBody; infer_instance
+
+/-- **The measurement**, at the four rungs whose table carries a `casesOn` name at all
+(`g7_natCasesOn_tabled` witnesses G7's). A tabled `casesOn` with a body would make the
+corresponding rung's hypotheses unsatisfiable, never false — the contradiction is a
+*theorem* (`ErasesEnv.runtimeKey_isCasesOn`), so this measurement is what tells the ladder
+that did not happen. -/
+theorem noTabledCasesOnBodies :
+    NoTabledCasesOnBody g5Table ∧ NoTabledCasesOnBody g6Table ∧
+    NoTabledCasesOnBody g7Table ∧ NoTabledCasesOnBody g8Table := by
+  decide +kernel
+
+/-! `SpecContent.runtimeKey_isCasesOn` (`VisitExprRefines/Step/Env.lean:821`) already reads
+this fact at a specification environment rather than at a program, which is where
+`register_inductive`'s prefix (W9-B) will need it: its `hb : ∃ b, bo c = some b` branch
+derives `False` from the same unguarded `defns` clause before the theorem returns, so
+`bo c = none` is available there for the taking. A standalone `runtimeKey_bodyless` lemma
+was considered and declined — its natural premise `hsome : (LBTerm.envLookup Γspec
+(toKername m)).isSome` is implied by `hrk : RuntimeKey Γspec (toKername m)` and never spent
+on its own, and until W9-B lands nothing in the tree reads it — so this wave records the
+reading rather than landing an unconsumed declaration (rule that a landed declaration needs a
+consumer in the tree or in the wave's next unit). -/
 
 /-- **No emitted key is an eliminator's**, at all eight rungs. `gdecls` only grows along a
 run, so a key absent from the final environment is absent at every intermediate state. -/

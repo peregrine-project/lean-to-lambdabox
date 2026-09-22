@@ -140,7 +140,7 @@ map for. `NoBodylessRefs` is the capstone's own premise, decided on the emitted 
   collision rather than rejecting it — is `F-KERNAME` in `doc/rework/03-DEV-FIX.md`.
 
 Over the whole elaboration environment of `LeanToLambdaBox/Green.lean` the same check is
-230,472 constants against 230,472 distinct keys, so no collision is
+230,476 constants against 230,476 distinct keys, so no collision is
 excluded by the fragment that the environment does not already avoid.
 
 ### The nodes each program emits, and the projection heads behind them
@@ -235,7 +235,7 @@ stuck term.
 
 Each rung's theorem and the hypotheses it still binds, read off `LeanToLambdaBox.Green`:
 
-| Rung | Theorem | `.ast` bytes | `hcb` | `hev` | `hbridge` | `hargReach` |
+| Rung | Theorem | `.ast` bytes | `hcb` | `hev` | `hbridge` | `hbody` |
 |---|---|---|---|---|---|---|
 | G1 | elaborates | 354 | — | binder | binder | — |
 | G2 | elaborates | 1,556 | binder | binder | binder | — |
@@ -244,7 +244,7 @@ Each rung's theorem and the hypotheses it still binds, read off `LeanToLambdaBox
 | G5 | elaborates | 966 | binder | — | binder | — |
 | G6 | elaborates | 885 | binder | binder | binder | — |
 | G7 | elaborates | 14,625 | binder | binder | binder | — |
-| G8 | elaborates | 14,291 | binder | binder | binder | — |
+| G8 | elaborates | 14,291 | binder | binder | binder | binder |
 
 `lenv` and `env` are universally quantified in every rung, so the ladder delivers
 **conditional** non-vacuity. No computation can make it unconditional, and this sentence is
@@ -288,7 +288,9 @@ and G8 — a carried figure, re-timed by `lake build LeanToLambdaBox.Green`.
 `NoBodylessRefs Γ t` no longer has even `hwf`'s shape: `shipping_erase_correct_firstorder`'s
 proof never spent its `hnb` binder, so W8 deletes it from the theorem and from all eight
 rungs' applications (`doc/rework/11-REPAIRS-W8.md` §2.8). `Green.g<i>_noBodylessRefs` stays a
-standalone `by decide +kernel` term, declared at all eight rungs, and this file's `nbTerm` column is its only remaining reader.
+standalone `by decide +kernel` term, declared at all eight rungs, and this file's `nbTerm` column is its only remaining reader — and
+that column reads `env.find?` alone, an existence census rather than a check of the term's
+content.
 
 `hbridge` is a binder at every rung too, and it now carries **two** fields, `erasesEnv` and
 `lowerEnv`, the environment half: `erasure_bridge_of_run` proves
@@ -306,10 +308,12 @@ spine — which is what puts that theorem and the arms it composes inside the cl
 computes. So what a rung says about the shipping erasure is conditional on the environment half
 and on nothing else the bridge once carried; `doc/trust.md` carries the row.
 
-G8 alone binds `hargReach`, the last column above: that the erasure of its subject reaches
-`Nat`'s block in the specification environment the capstone produces. It is what remains of the
-argument's own `ErasesEnv` conjunct after `Green.g8_argErasesEnv`, and it is a G8 fact because
-G1–G7 apply the observable clause at the empty spine.
+G8 alone binds `hbody`, the last column above (named `hargReach` before round 7 wave 4,
+`doc/trust.md`'s row): that **every** erasure of `benchArith`'s tabled body reaches `Nat`'s
+block, quantified over every specification environment rather than read at the run's own
+one — strictly stronger than the binder it replaced. It is what remains of the argument's own
+`ErasesEnv` conjunct after `Green.g8_argErasesEnv`, and it is a G8 fact because G1–G7 apply
+the observable clause at the empty spine.
 
 ### The printable-binder finding
 

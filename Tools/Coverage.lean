@@ -272,8 +272,11 @@ structure RungFacts where
   /-- Its committed `.ast`'s size in bytes. -/
   bytes : Nat
 
-/-- The hypotheses whose presence or absence at a rung the ladder section reports. -/
-def audited : List String := ["hcb", "hev", "hbridge", "hargReach"]
+/-- The hypotheses whose presence or absence at a rung the ladder section reports. The
+fourth was `hargReach` before round 7 wave 4 (W7/U9); the binder `Green.green_G8` actually
+carries is `hbody` (`doc/trust.md`'s row), which is what this list must name for the
+`binders.contains` check below to see it. -/
+def audited : List String := ["hcb", "hev", "hbridge", "hbody"]
 
 /-- The binder names of a `∀`-telescope. -/
 partial def binderNames : Expr → List String
@@ -667,7 +670,7 @@ stuck term.
 
 Each rung's theorem and the hypotheses it still binds, read off `LeanToLambdaBox.Green`:
 
-| Rung | Theorem | `.ast` bytes | `hcb` | `hev` | `hbridge` | `hargReach` |
+| Rung | Theorem | `.ast` bytes | `hcb` | `hev` | `hbridge` | `hbody` |
 |---|---|---|---|---|---|---|
 {String.intercalate "\n" (rs.map rungRow)}
 
@@ -714,7 +717,9 @@ and G8 — a carried figure, re-timed by `lake build LeanToLambdaBox.Green`.
 proof never spent its `hnb` binder, so W8 deletes it from the theorem and from all eight
 rungs' applications (`doc/rework/11-REPAIRS-W8.md` §2.8). `Green.g<i>_noBodylessRefs` stays a
 standalone `by decide +kernel` term, {if nbAll then "declared at all eight rungs" else
-"**missing at a rung**"}, and this file's `nbTerm` column is its only remaining reader.
+"**missing at a rung**"}, and this file's `nbTerm` column is its only remaining reader — and
+that column reads `env.find?` alone, an existence census rather than a check of the term's
+content.
 
 `hbridge` is a binder at every rung too, and it now carries **two** fields, `erasesEnv` and
 `lowerEnv`, the environment half: `erasure_bridge_of_run` proves
@@ -732,10 +737,12 @@ spine — which is what puts that theorem and the arms it composes inside the cl
 computes. So what a rung says about the shipping erasure is conditional on the environment half
 and on nothing else the bridge once carried; `doc/trust.md` carries the row.
 
-G8 alone binds `hargReach`, the last column above: that the erasure of its subject reaches
-`Nat`'s block in the specification environment the capstone produces. It is what remains of the
-argument's own `ErasesEnv` conjunct after `Green.g8_argErasesEnv`, and it is a G8 fact because
-G1–G7 apply the observable clause at the empty spine.
+G8 alone binds `hbody`, the last column above (named `hargReach` before round 7 wave 4,
+`doc/trust.md`'s row): that **every** erasure of `benchArith`'s tabled body reaches `Nat`'s
+block, quantified over every specification environment rather than read at the run's own
+one — strictly stronger than the binder it replaced. It is what remains of the argument's own
+`ErasesEnv` conjunct after `Green.g8_argErasesEnv`, and it is a G8 fact because G1–G7 apply
+the observable clause at the empty spine.
 
 ### The printable-binder finding
 
