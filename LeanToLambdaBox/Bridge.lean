@@ -161,7 +161,10 @@ theorem fixvarMap_ids_subset {nms nms' : List Name} {ids ids' : List FVarId}
 `Erasure.visitMutual` installs one pair and the zip admits many others. The length condition
 rules out the appended pair the block conjunct is refuted at
 (`erasesLBMode_block_refuted`); `nms.Nodup` rules out the duplicated pair, whose `ids` may hold
-a freshly opened binder. The fourth conjunct is a **separation**, quantified over the *tabled*
+a freshly opened binder — and it is a *conclusion of a successful run*
+(`Erasure.run_rec_exit_nodup`, F-UNSAFEREC), not a standing claim about
+`Lean.Compiler.LCNF.getDeclInfo?`, which is false. The fourth conjunct is a **separation**,
+quantified over the *tabled*
 names because that is where it is consumed — the miss branch of `Erasure.visitConst`.
 Unrestricted it is false (`toKername_not_injective`); at the tabled names it is decided by
 `kernameSepB`. -/

@@ -50,15 +50,15 @@ open Lean Erasure
 /-! ## The two name-pattern matchers -/
 
 /-- **`visitCases`' `(typeName, config.nat)` dispatch is a trichotomy.** Stated against the
-elaborator-generated matcher `Erasure.visitCases.match_7`; see the module docstring for why
+elaborator-generated matcher `Erasure.visitCases.match_17`; see the module docstring for why
 `split` is unusable at the call site. The two special arms report their `Config.Nat`
 discriminant, which is what tells a caller that they are the machine-numeral arms. -/
 theorem visitCases_match_tri {α : Sort u} (nm : Name) (cn : Erasure.Config.Nat)
     (A B : Unit → α) (G : Name → Erasure.Config.Nat → α) :
-    (cn = .machine ∧ Erasure.visitCases.match_7 (motive := fun _ _ => α) nm cn A B G = A ()) ∨
-    (cn = .machine ∧ Erasure.visitCases.match_7 (motive := fun _ _ => α) nm cn A B G = B ()) ∨
-    Erasure.visitCases.match_7 (motive := fun _ _ => α) nm cn A B G = G nm cn := by
-  unfold Erasure.visitCases.match_7
+    (cn = .machine ∧ Erasure.visitCases.match_17 (motive := fun _ _ => α) nm cn A B G = A ()) ∨
+    (cn = .machine ∧ Erasure.visitCases.match_17 (motive := fun _ _ => α) nm cn A B G = B ()) ∨
+    Erasure.visitCases.match_17 (motive := fun _ _ => α) nm cn A B G = G nm cn := by
+  unfold Erasure.visitCases.match_17
   cases nm with
   | anonymous => exact Or.inr (Or.inr rfl)
   | num p n => exact Or.inr (Or.inr rfl)
@@ -123,6 +123,11 @@ structure RunClosed (Q : ErasureState → Prop) : Prop where
     prepare_erasure e s ctx cctx ref w = .ok (pe, s') w' → Q s → Q s'
   nrc : ∀ {n : Name} {t : LBTerm} {s : ErasureState},
     Q s → NoFix t → LBClosed t 0 → NoBlock t → Q (nonrecConstState n t s)
+  /-- `Erasure.addRealizer`'s cons (F-QUOT, F-EQREC), at the shape of the realizer body.
+      The premises are `nrc`'s because the delta is: `addRealizerState` writes the entry
+      `nonrecConstState` writes. -/
+  rlz : ∀ {n : Name} {t : LBTerm} {s : ErasureState},
+    Q s → NoFix t → LBClosed t 0 → NoBlock t → Q (addRealizerState n t s)
   /-- The recursive block cons, **given the closedness and applied form of the block being
   stored**. Both are false of an arbitrary `defs` (`.fix [{body := .bvar 5}] 0` is not
   closed), so the induction derives them per call from the block's own shape:
@@ -231,6 +236,15 @@ structure RunClosedW (Cfg : ErasureConfig → Prop)
       {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
       {w w' : Void IO.RealWorld},
     liftMetaM (Lean.Meta.inferType e) s ctx cctx ref w = .ok (ty, s') w' → P s w → P s' w'
+  /-- Every other `Lean.MetaM` computation the family lifts. The merge added two, both
+      proof tests under a bounded telescope: `Erasure.firstNonProofField`'s, on a
+      constructor's fields (F-PROP, F-ACC), and `Erasure.visitCases`' on the catch-all's
+      hypotheses (F-SPARSE). Stated once and generically rather than at those two lambdas,
+      which are anonymous and would have to be transcribed. -/
+  metaM : ∀ {α : Type} {x : Lean.MetaM α} {a : α} {s s' : ErasureState} {ctx : ErasureContext}
+      {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
+      {w w' : Void IO.RealWorld},
+    liftMetaM x s ctx cctx ref w = .ok (a, s') w' → P s w → P s' w'
   /-- `Lean.getConstInfo`. -/
   constInfo : ∀ {n : Name} {ci : ConstantInfo} {s s' : ErasureState} {ctx : ErasureContext}
       {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
@@ -306,6 +320,11 @@ structure RunClosedW (Cfg : ErasureConfig → Prop)
   /-- `Erasure.visitMutual`'s non-recursive exit, given the shape of the body stored. -/
   nrc : ∀ {n : Name} {t : LBTerm} {s : ErasureState} {w : Void IO.RealWorld},
     P s w → NoFix t → LBClosed t 0 → NoBlock t → P (nonrecConstState n t s) w
+  /-- `Erasure.addRealizer`'s cons at the two realizer exits (F-QUOT, F-EQREC), given the
+      shape of the realizer body — `quotRealizer_shape` and `run_recursorRealizer_okW`
+      supply it where the clause is spent. -/
+  rlz : ∀ {n : Name} {t : LBTerm} {s : ErasureState} {w : Void IO.RealWorld},
+    P s w → NoFix t → LBClosed t 0 → NoBlock t → P (addRealizerState n t s) w
   /-- `Erasure.visitMutual`'s block exit, given the closedness and applied form of the block
       being stored. -/
   rc : ∀ {names : List Name} {defs : List (@FixDef LBTerm)} {s : ErasureState}
@@ -330,6 +349,7 @@ theorem runClosedW_of_runClosed {Cfg : ErasureConfig → Prop} {Q : ErasureState
     (H : RunClosed Q) : RunClosedW Cfg (fun s _ => Q s) where
   oracle h hQ := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hQ
   inferType h hQ := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hQ
+  metaM h hQ := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hQ
   constInfo h hQ := by rw [run_getConstInfo_state _ _ _ _ _ h]; exact hQ
   getEnv h hQ := by rw [run_getEnv_state _ _ _ _ _ h]; exact hQ
   logInfo h hQ := by rw [run_logInfo_state _ _ _ _ _ h]; exact hQ
@@ -343,6 +363,7 @@ theorem runClosedW_of_runClosed {Cfg : ErasureConfig → Prop} {Q : ErasureState
   reg _ _ h hQ := H.reg h hQ
   prep _ h hQ := H.prep h hQ
   nrc hQ hnf hcl hnb := H.nrc hQ hnf hcl hnb
+  rlz hQ hnf hcl hnb := H.rlz hQ hnf hcl hnb
   rc hQ hcl hnb := H.rc hQ hcl hnb
 
 /-! ## The binder helpers, world-indexed
@@ -509,6 +530,313 @@ theorem run_lambdaOrIntroToArity_okW [Inhabited α]
 
 end BinderW
 
+/-! ## The two realizer bodies
+
+`F-QUOT` and `F-EQREC` gave `Erasure.visitMutual`'s body-less arm two exits that register a
+*body*: `Erasure.quotRealizer`'s, written down, and `Erasure.recursorRealizer`'s, synthesized
+from the eliminated inductive. Neither is a `Erasure.visitExpr` output, so neither is covered
+by the induction's own motives, and both enter the emitted environment — so the three output
+conjuncts are owed of them separately. `Erasure.firstNonProofField` is stepped here too: it
+is on the path of both `recursorRealizer` and `Erasure.visitCases`' propositional check.
+-/
+
+section Realizers
+
+variable {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
+
+/-- `Erasure.mkAnonLambdas` at a successor: one binder around the rest. -/
+theorem mkAnonLambdas_succ (n : Nat) (b : LBTerm) :
+    mkAnonLambdas (n + 1) b = .lambda .anon (mkAnonLambdas n b) := by
+  simp only [mkAnonLambdas, List.range_succ, List.foldl_append, List.foldl_cons,
+    List.foldl_nil]
+
+theorem noFix_mkAnonLambdas : ∀ (n : Nat) {b : LBTerm}, NoFix b → NoFix (mkAnonLambdas n b)
+  | 0, _, h => h
+  | n + 1, _, h => by
+      rw [mkAnonLambdas_succ, NoFix_lambda]; exact noFix_mkAnonLambdas n h
+
+theorem noBlock_mkAnonLambdas :
+    ∀ (n : Nat) {b : LBTerm}, NoBlock b → NoBlock (mkAnonLambdas n b)
+  | 0, _, h => h
+  | n + 1, _, h => by
+      rw [mkAnonLambdas_succ, NoBlock_lambda]; exact noBlock_mkAnonLambdas n h
+
+theorem lbClosed_mkAnonLambdas : ∀ (n : Nat) {b : LBTerm} {k : Nat},
+    LBClosed b (k + n) → LBClosed (mkAnonLambdas n b) k
+  | 0, _, _, h => h
+  | n + 1, b, k, h => by
+      rw [mkAnonLambdas_succ, LBClosed_lambda]
+      refine lbClosed_mkAnonLambdas n (b := b) (k := k + 1) ?_
+      rwa [show k + 1 + n = k + (n + 1) by omega]
+
+/-- A spine of de Bruijn indices below the bound keeps the term it is applied to closed.
+The shape `Erasure.etaExpandFix` builds its applied core in. -/
+theorem lbClosed_foldr_app {k : Nat} :
+    ∀ (l : List Nat), (∀ m ∈ l, m < k) → ∀ t : LBTerm, LBClosed t k →
+      LBClosed (l.foldr (fun m u => LBTerm.app u (.bvar m)) t) k
+  | [], _, _, h => h
+  | m :: rest, hm, t, h => by
+      refine ⟨lbClosed_foldr_app rest (fun x hx => hm x (List.mem_cons_of_mem _ hx)) t h, ?_⟩
+      exact hm m List.mem_cons_self
+
+/-- **The η-expanded fixpoint a block registration writes is closed** (F-ETA). Its binders
+are exactly the indices its own spine supplies, so no bound on `principalArgIdx` is needed —
+unlike `Erasure.etaExpandFix_eq`, which pins the wrapper's shape. -/
+theorem lbClosed_etaExpandFix {defs : List (@FixDef LBTerm)} {j : Nat}
+    (h : ∀ m, LBClosed (LBTerm.fix defs j) m) : LBClosed (etaExpandFix defs j) 0 := by
+  unfold etaExpandFix
+  refine lbClosed_mkAnonLambdas _ (lbClosed_foldr_app _ (fun m hm => ?_) _ (h _))
+  simpa using hm
+
+/-- **The quotient realizer's shape.** Each of the four bodies is `□` or an anonymous
+λ-telescope over indices it binds itself. -/
+theorem quotRealizer_shape (k : QuotKind) :
+    NoFix (quotRealizer k) ∧ LBClosed (quotRealizer k) 0 ∧ NoBlock (quotRealizer k) := by
+  cases k with
+  | type => exact ⟨NoFix_box, trivial, NoBlock_box⟩
+  | ind => exact ⟨NoFix_box, trivial, NoBlock_box⟩
+  | ctor =>
+      exact ⟨noFix_mkAnonLambdas 3 (by simp), lbClosed_mkAnonLambdas 3 (by simp),
+        noBlock_mkAnonLambdas 3 (by simp)⟩
+  | lift =>
+      exact ⟨noFix_mkAnonLambdas 6 (by simp), lbClosed_mkAnonLambdas 6 (by simp),
+        noBlock_mkAnonLambdas 6 (by simp)⟩
+
+/-- A left fold over an argument mask that only ever applies the accumulated term to another
+one keeps the three output conjuncts, provided each step's argument has them. This is the
+shape `Erasure.recursorRealizer`'s alternative body is built in. -/
+theorem shape_foldl_app {β : Type} {k : Nat} (f : Nat × LBTerm → β → Nat × LBTerm)
+    (hf : ∀ (p : Nat × LBTerm) (b : β), NoFix p.2 → LBClosed p.2 k → NoBlock p.2 →
+      NoFix (f p b).2 ∧ LBClosed (f p b).2 k ∧ NoBlock (f p b).2)
+    (as : Array β) (p : Nat × LBTerm)
+    (h : NoFix p.2 ∧ LBClosed p.2 k ∧ NoBlock p.2) :
+    NoFix (as.foldl f p).2 ∧ LBClosed (as.foldl f p).2 k ∧ NoBlock (as.foldl f p).2 :=
+  Array.foldl_induction (motive := fun _ q => NoFix q.2 ∧ LBClosed q.2 k ∧ NoBlock q.2) h
+    (fun _ q hq => hf q _ hq.1 hq.2.1 hq.2.2)
+
+/-- **`Erasure.firstNonProofField`, stepped.** The proof test walks the constructors with
+`Lean.getConstInfo` and one lifted `Lean.MetaM` computation per constructor, and writes
+nothing, so a predicate closed under the family's steps crosses it. -/
+theorem run_firstNonProofField_okW {Cfg : ErasureConfig → Prop}
+    {P : ErasureState → Void IO.RealWorld → Prop} (H : RunClosedW Cfg P)
+    {ind : InductiveVal} {r : Option (Name × Nat)} {s s₁ : ErasureState}
+    {ctx : ErasureContext} {w w₁ : Void IO.RealWorld}
+    (hrun : firstNonProofField ind s ctx cctx ref w = .ok (r, s₁) w₁) (hP : P s w) :
+    P s₁ w₁ := by
+  unfold firstNonProofField at hrun
+  simp only [] at hrun
+  rw [run_bind_ok] at hrun
+  obtain ⟨acc, s₂, w₂, hloop, htail⟩ := hrun
+  have hP₂ : P s₂ w₂ := by
+    refine run_list_forIn_ok ctx cctx ref
+      (P := fun _ s' w' => P s' w') _ _ _ _ _ hP ?_ _ _ _ hloop
+    intro c _ a sa wa st sb wb hPa hb
+    rw [run_bind_ok] at hb
+    obtain ⟨ci, sc, wc, hci, hb⟩ := hb
+    obtain rfl := run_getConstInfo_state _ _ cctx ref _ hci
+    replace hPa := H.constInfo hci hPa
+    cases ci
+    case ctorInfo cv =>
+      simp only [] at hb
+      rw [run_bind_ok] at hb
+      obtain ⟨found, sd, wd, hmeta, hb⟩ := hb
+      replace hPa := H.metaM hmeta hPa
+      cases found <;>
+        (simp only [] at hb; rw [run_pure] at hb; cases hb; exact hPa)
+    all_goals
+      (simp only [] at hb
+       rw [run_bind_ok] at hb
+       obtain ⟨a0, s0, w0, hthr, -⟩ := hb
+       exact absurd hthr (run_throwError_ne_ok _ ctx cctx ref _ _ _ _ _))
+  obtain ⟨found, u⟩ := acc
+  cases found <;>
+    (simp only [] at htail; rw [run_pure] at htail; cases htail; exact hP₂)
+
+/-- **`Erasure.recursorRealizer`, stepped.** Its only state- and world-touching calls are
+`Lean.getConstInfo`, `Erasure.firstNonProofField` and the one `Erasure.register_inductive`
+on the inductive the first of them returned; and when it returns a body, that body is
+fix-free, de Bruijn closed and in applied form. Closedness rests on the arity's own `+ 1`:
+the discriminee is the major premise's index `0`, and an alternative's minor-premise index
+`numIndices + 1 + nargs` sits below `arity + nargs` because `numMotives` and `numMinors`
+contribute at least the motive the first guard has tested for. -/
+theorem run_recursorRealizer_okW {Cfg : ErasureConfig → Prop}
+    {P : ErasureState → Void IO.RealWorld → Prop} (H : RunClosedW Cfg P)
+    {rv : RecursorVal} {o : Option LBTerm} {s s₁ : ErasureState} {ctx : ErasureContext}
+    {w w₁ : Void IO.RealWorld} (hcfg : Cfg ctx.config)
+    (hrun : recursorRealizer rv s ctx cctx ref w = .ok (o, s₁) w₁) (hP : P s w) :
+    P s₁ w₁ ∧ ∀ t, o = some t → NoFix t ∧ LBClosed t 0 ∧ NoBlock t := by
+  have hnone : ∀ {s' : ErasureState} {w' : Void IO.RealWorld},
+      (pure none : EraseM (Option LBTerm)) s' ctx cctx ref w' = .ok (o, s₁) w₁ →
+      P s' w' → P s₁ w₁ ∧ ∀ t, o = some t → NoFix t ∧ LBClosed t 0 ∧ NoBlock t := by
+    intro s' w' h hP'
+    rw [run_pure] at h
+    cases h
+    exact ⟨hP', by simp⟩
+  unfold recursorRealizer at hrun
+  cases hall : rv.all with
+  | nil => rw [hall] at hrun; simp only [] at hrun; exact hnone hrun hP
+  | cons ind_name rest =>
+  cases rest with
+  | cons _ _ => rw [hall] at hrun; simp only [] at hrun; exact hnone hrun hP
+  | nil =>
+  rw [hall] at hrun
+  simp only [] at hrun
+  rw [run_bind_ok] at hrun
+  obtain ⟨ci, s₂, w₂, hci, hrun⟩ := hrun
+  obtain rfl := run_getConstInfo_state _ _ cctx ref _ hci
+  replace hP := H.constInfo hci hP
+  cases ci
+  case' inductInfo ind =>
+    simp only [] at hrun
+    split at hrun
+    case isFalse => exact hnone hrun hP
+    case isTrue hg1 =>
+    split at hrun
+    case isFalse => exact hnone hrun hP
+    case isTrue =>
+    rw [run_bind_ok] at hrun
+    obtain ⟨fnp, s₃, w₃, hfnp, hrun⟩ := hrun
+    replace hP := run_firstNonProofField_okW H hfnp hP
+    split at hrun
+    case isTrue => exact hnone hrun hP
+    case isFalse =>
+    rw [run_bind_ok] at hrun
+    obtain ⟨rr, s₄, w₄, hreg, hrun⟩ := hrun
+    replace hP := H.reg (.inl ⟨ind_name, _, _, _, _, hci⟩) hcfg hreg hP
+    obtain ⟨indid, argmasks⟩ := rr
+    simp only [] at hrun
+    rw [run_bind_ok] at hrun
+    obtain ⟨alts, s₅, w₅, halts, hp⟩ := hrun
+    -- the motive count the first guard tested, which puts the minor premise in scope
+    have hmot : rv.numMotives = 1 := by
+      simp only [Bool.and_eq_true, beq_iff_eq] at hg1
+      exact hg1.2
+    have hkey : P s₅ w₅ ∧ ∀ a ∈ alts, NoFix a.2 ∧
+        LBClosed a.2 (rv.numParams + rv.numMotives + rv.numMinors + rv.numIndices + 1
+          + a.1.length) ∧ NoBlock a.2 := by
+      refine run_list_mapM_ok ctx cctx ref
+        (P := fun (_ : List Name) (outs : List (List BinderName × LBTerm)) s' w' =>
+          P s' w' ∧ ∀ a ∈ outs, NoFix a.2 ∧
+            LBClosed a.2 (rv.numParams + rv.numMotives + rv.numMinors + rv.numIndices + 1
+              + a.1.length) ∧ NoBlock a.2)
+        ⟨hP, by intro a ha; simp at ha⟩ ?_ halts
+      intro pre c post outs sa wa b sb wb _ hPa hb
+      obtain ⟨hPa', hall'⟩ := hPa
+      rw [run_bind_ok] at hb
+      obtain ⟨cci, sc, wc, hcci, hb⟩ := hb
+      obtain rfl := run_getConstInfo_state _ _ cctx ref _ hcci
+      replace hPa' := H.constInfo hcci hPa'
+      cases cci
+      case ctorInfo cv =>
+        simp only [] at hb
+        rw [run_pure] at hb
+        cases hb
+        refine ⟨hPa', ?_⟩
+        intro a ha
+        rcases List.mem_append.mp ha with ha' | ha'
+        · exact hall' a ha'
+        · simp only [List.mem_singleton] at ha'
+          subst ha'
+          simp only [List.length_replicate]
+          refine shape_foldl_app _ ?_ _ _ ⟨NoFix_bvar _, ?_, NoBlock_bvar _⟩
+          · intro p r hnf hcl hnb
+            obtain ⟨kept, u⟩ := p
+            cases r with
+            | keep =>
+                refine ⟨⟨hnf, NoFix_bvar _⟩, ⟨hcl, ?_⟩, ⟨hnb, NoBlock_bvar _⟩⟩
+                simp only [LBClosed_bvar]
+                omega
+            | erase => exact ⟨⟨hnf, NoFix_box⟩, ⟨hcl, trivial⟩, ⟨hnb, NoBlock_box⟩⟩
+          · simp only [LBClosed_bvar]
+            omega
+      all_goals
+        (simp only [] at hb
+         exact absurd hb (run_throwError_ne_ok _ ctx cctx ref _ _ _ _ _))
+    obtain ⟨hPfin, hallfin⟩ := hkey
+    rw [run_pure] at hp
+    cases hp
+    refine ⟨hPfin, ?_⟩
+    intro t ht
+    cases ht
+    refine ⟨noFix_mkAnonLambdas _ ?_, lbClosed_mkAnonLambdas _ ?_,
+      noBlock_mkAnonLambdas _ ?_⟩
+    · rw [NoFix_case]
+      exact ⟨NoFix_bvar 0, fun a ha => (hallfin a ha).1⟩
+    · rw [LBClosed_case, LBClosedAlts_iff]
+      refine ⟨?_, fun a ha => ?_⟩
+      · simp only [LBClosed_bvar]
+        omega
+      · rw [Nat.zero_add]
+        exact (hallfin a ha).2.1
+    · rw [NoBlock_case]
+      exact ⟨NoBlock_bvar 0, fun a ha => (hallfin a ha).2.2⟩
+  all_goals (simp only [] at hrun; exact hnone hrun hP)
+
+/-- A term applied to a `□` per hypothesis keeps the three output conjuncts. The shape
+`Erasure.visitCases` gives the catch-all alternative it erases once and reuses (F-SPARSE). -/
+theorem shape_foldl_box {k : Nat} : ∀ (l : List Nat) (b : LBTerm),
+    NoFix b → LBClosed b k → NoBlock b →
+    NoFix (l.foldl (fun t _ => LBTerm.app t .box) b) ∧
+      LBClosed (l.foldl (fun t _ => LBTerm.app t .box) b) k ∧
+      NoBlock (l.foldl (fun t _ => LBTerm.app t .box) b)
+  | [], _, h1, h2, h3 => ⟨h1, h2, h3⟩
+  | _ :: rest, _, h1, h2, h3 =>
+      shape_foldl_box rest _ ⟨h1, NoFix_box⟩ ⟨h2, trivial⟩ ⟨h3, NoBlock_box⟩
+
+/-- **`Erasure.etaArgIsValue`, stepped.** One lifted relevance test and a pure disjunction. -/
+theorem run_etaArgIsValue_okW {Cfg : ErasureConfig → Prop}
+    {P : ErasureState → Void IO.RealWorld → Prop} (H : RunClosedW Cfg P)
+    {lp : List Name} {a : Expr} {b : Bool} {s s₁ : ErasureState} {ctx : ErasureContext}
+    {w w₁ : Void IO.RealWorld}
+    (hrun : etaArgIsValue lp a s ctx cctx ref w = .ok (b, s₁) w₁) (hP : P s w) : P s₁ w₁ := by
+  unfold etaArgIsValue at hrun
+  rw [run_bind_ok] at hrun
+  obtain ⟨b0, s0, w0, hm, hp⟩ := hrun
+  replace hP := H.metaM hm hP
+  rw [run_pure] at hp
+  cases hp
+  exact hP
+
+/-- **`Erasure.withEtaPrefixLets`, stepped** (F-ETA2). The η prefix binds each argument it
+has already erased in a `let` outside the new binders, so the result is the continuation's
+under one `.letIn` per entry: the three output conjuncts are the continuation's and the
+entries' own. The continuation runs at a reader the binders extended, whose configuration is
+the caller's, which is why `hk` quantifies it. -/
+theorem run_withEtaPrefixLets_okW {Cfg : ErasureConfig → Prop}
+    {P : ErasureState → Void IO.RealWorld → Prop} (H : RunClosedW Cfg P)
+    {k : Array Expr → EraseM LBTerm}
+    (hk : ∀ (args' : Array Expr) (ctx' : ErasureContext) (sa sb : ErasureState)
+        (wa wb : Void IO.RealWorld) (t : LBTerm),
+      Cfg ctx'.config → k args' sa ctx' cctx ref wa = .ok (t, sb) wb →
+      P sa wa → P sb wb ∧ NoFix t ∧ LBClosed t 0 ∧ NoBlock t) :
+    ∀ (bs : List (Nat × Expr × LBTerm)) (args : Array Expr) (s : ErasureState)
+      (ctx : ErasureContext) (w : Void IO.RealWorld) (t : LBTerm) (s' : ErasureState)
+      (w' : Void IO.RealWorld),
+      (∀ b ∈ bs, NoFix b.2.2 ∧ LBClosed b.2.2 0 ∧ NoBlock b.2.2) →
+      Cfg ctx.config → P s w →
+      withEtaPrefixLets bs args k s ctx cctx ref w = .ok (t, s') w' →
+      P s' w' ∧ NoFix t ∧ LBClosed t 0 ∧ NoBlock t
+  | [], args, s, ctx, w, t, s', w', _, hcfg, hP, hrun => hk args ctx s s' w w' t hcfg hrun hP
+  | b :: rest, args, s, ctx, w, t, s', w', hbs, hcfg, hP, hrun => by
+      obtain ⟨i, ty, v⟩ := b
+      rw [withEtaPrefixLets] at hrun
+      obtain ⟨x, ctx', w₀, hcf, hP', hk'⟩ :=
+        run_withLocalDecl_okW (fun h hq => H.fresh h hq) hP hrun
+      have hcfg' : Cfg ctx'.config := by rw [hcf]; exact hcfg
+      rw [run_bind_ok] at hk'
+      obtain ⟨body, sb, wb, hbody, hm⟩ := hk'
+      obtain ⟨hPb, hnf, hcl, hnb⟩ :=
+        run_withEtaPrefixLets_okW H hk rest _ _ _ _ _ _ _
+          (fun q hq => hbs q (List.mem_cons_of_mem _ hq)) hcfg' hP' hbody
+      obtain ⟨hs, hw, nm, rfl⟩ := run_mkLetIn_ok hm
+      subst hs
+      subst hw
+      obtain ⟨hnfv, hclv, hnbv⟩ := hbs (i, ty, v) List.mem_cons_self
+      exact ⟨hPb, ⟨hnfv, noFix_toBvar x 0 hnf⟩, ⟨hclv, lbClosed_toBvar x 0 hcl⟩,
+        ⟨hnbv, noBlock_toBvar x 0 hnb⟩⟩
+
+end Realizers
+
 /-! ## The registration exits, world-indexed and configuration-aware
 
 `ErasureRun.lean`'s world-indexed exit rules quantify the reader of the body erasure
@@ -532,6 +860,7 @@ theorem run_nonrec_exit_okW {vE : Expr → EraseM LBTerm} {f : ErasureContext �
     {u : Unit} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
     (hrun : (do
         let t ← withReader f (do let pe ← prepare_erasure e; vE pe)
+        checkKernameFresh n (toKername n)
         modify (fun s => { s with
           constants := s.constants.insert n (toKername n),
           gdecls := (toKername n, .constantDecl ⟨some t⟩) :: s.gdecls })
@@ -574,6 +903,11 @@ theorem run_nonrec_exit_okW {vE : Expr → EraseM LBTerm} {f : ErasureContext �
   obtain ⟨pe, sp, wp, hpr, hvis⟩ := hvis
   obtain ⟨hP', hnf, hcl, hnb⟩ := hvE hcf hvis (hprep hcf hpr hP)
   rw [run_bind_ok] at hrun
+  obtain ⟨ug, sg, wg, hguard, hrun⟩ := hrun
+  obtain ⟨hsg, hwg, -⟩ := run_checkKernameFresh_ok hguard
+  subst sg
+  subst wg
+  rw [run_bind_ok] at hrun
   obtain ⟨u2, sm, wm, hmod, hrun⟩ := hrun
   rw [run_modify] at hmod
   cases hmod
@@ -589,19 +923,24 @@ the two `withReader` updates the block loop makes. -/
 theorem run_rec_exit_okW {vE : Expr → EraseM LBTerm} {names fixnames : List Name}
     {f : List FVarId → ErasureContext → ErasureContext}
     {g : ConstantInfo → ErasureContext → ErasureContext} {val : ConstantInfo → Expr}
+    {msg : MessageData}
     {s : ErasureState} {ctx : ErasureContext} {w : Void IO.RealWorld}
     {u : Unit} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
     (hrun : (do
         let ids ← names.mapM (fun _ => mkFreshFVarId)
+        unless (fixnames.map toKername).Nodup do
+          throwError msg
         withReader (f ids) (do
           let defs ← names.mapM (fun m => do
             let ci ← getConstInfo m
             let t ← withReader (g ci) (do let pe ← prepare_erasure (val ci); vE pe)
             mkDef (remove_unsafe_rec m) fixnames t)
           for p in fixnames.zipIdx do
+            checkKernameFresh p.1 (toKername p.1)
             modify (fun s => { s with
               constants := s.constants.insert p.1 (toKername p.1),
-              gdecls := (toKername p.1, .constantDecl ⟨some (.fix defs p.2)⟩) :: s.gdecls })
+              gdecls := (toKername p.1,
+                .constantDecl ⟨some (etaExpandFix defs p.2)⟩) :: s.gdecls })
           pure ()) : EraseM Unit) s ctx cctx ref w = .ok (u, s₁) w₁)
     (hcfg : Cfg ctx.config) (hP : P s w)
     (hfresh : ∀ {x : FVarId} {s' s'' : ErasureState} {ctx' : ErasureContext}
@@ -636,6 +975,12 @@ theorem run_rec_exit_okW {vE : Expr → EraseM LBTerm} {names fixnames : List Na
     hP
     (fun _ _ _ _ _ _ _ _ _ _ hPa hb => hfresh hb hPa)
     hids
+  split at hrun
+  case isFalse =>
+    rw [run_bind_ok] at hrun
+    obtain ⟨a0, s0, w0, hthr, -⟩ := hrun
+    exact absurd hthr (run_throwError_ne_ok _ ctx cctx ref _ _ _ _ _)
+  dsimp only [] at hrun
   rw [run_withReader, run_bind_ok] at hrun
   obtain ⟨defs, sd, wd, hdefs, hrun⟩ := hrun
   have hcf : Cfg (f ids ctx).config := by rw [hf]; exact hcfg
@@ -669,7 +1014,7 @@ theorem run_rec_exit_okW {vE : Expr → EraseM LBTerm} {names fixnames : List Na
     hdefs
   rw [run_bind_ok] at hrun
   obtain ⟨u4, sf, wf, hloop, hrun⟩ := hrun
-  obtain ⟨hsf, hwf⟩ := run_modify_forIn_ok hloop
+  obtain ⟨hsf, hwf, -⟩ := run_checkFresh_modify_forIn_ok hloop
   subst hsf
   subst hwf
   rw [run_pure] at hrun
@@ -1030,34 +1375,89 @@ theorem visitExpr_shapeW {Cfg : ErasureConfig → Prop}
       obtain ⟨c1, sr, wr, hread, hm⟩ := hm
       rw [run_read] at hread
       cases hread
-      cases hval : di.get!.value? (allowOpaque := true) <;>
+      cases hval : di.get!.value? (allowOpaque := true) with
+      | none =>
+        simp only [hval] at hm
+        -- F-QUOT and F-EQREC: the quotient realizer, the synthesized eliminator body, then
+        -- the axiom fall-through.
+        cases hci : di.get!
+        case quotInfo qv =>
+          rw [hci] at hm
+          simp only [] at hm
+          rw [run_bind_ok] at hm
+          obtain ⟨u3, s3, w3, hlog, hm⟩ := hm
+          have hz2 := run_logInfo_state _ _ cctx ref _ hlog
+          subst hz2
+          replace hP' := H.logInfo hlog hP'
+          obtain ⟨hstR, hwR, -⟩ := run_addRealizer_ok hm
+          subst hstR
+          subst hwR
+          obtain ⟨hnfq, hclq, hnbq⟩ := quotRealizer_shape qv.kind
+          exact H.rlz hP' hnfq hclq hnbq
+        case recInfo rv =>
+          rw [hci] at hm
+          simp only [] at hm
+          rw [run_bind_ok] at hm
+          obtain ⟨ro, so, wo, hrr, hm⟩ := hm
+          obtain ⟨hPo, hshape⟩ := run_recursorRealizer_okW H hcfg hrr hP'
+          cases ro with
+          | some tr =>
+            simp only [] at hm
+            rw [run_bind_ok] at hm
+            obtain ⟨u3, s3, w3, hlog, hm⟩ := hm
+            have hz2 := run_logInfo_state _ _ cctx ref _ hlog
+            subst hz2
+            replace hPo := H.logInfo hlog hPo
+            obtain ⟨hstR, hwR, -⟩ := run_addRealizer_ok hm
+            subst hstR
+            subst hwR
+            obtain ⟨hnfr, hclr, hnbr⟩ := hshape tr rfl
+            exact H.rlz hPo hnfr hclr hnbr
+          | none =>
+            simp only [] at hm
+            rw [run_bind_ok] at hm
+            obtain ⟨u3, s3, w3, hlog, hm⟩ := hm
+            have hz2 := run_logInfo_state _ _ cctx ref _ hlog
+            subst hz2
+            replace hPo := H.logInfo hlog hPo
+            exact H.ax hm hPo
+        all_goals
+          rw [hci] at hm
+          simp only [] at hm
+          rw [run_bind_ok] at hm
+          obtain ⟨u3, s3, w3, hlog, hm⟩ := hm
+          have hz2 := run_logInfo_state _ _ cctx ref _ hlog
+          subst hz2
+          replace hP' := H.logInfo hlog hP'
+          exact H.ax hm hP'
+      | some v =>
         cases hext : isExtern env2 n <;>
           cases hcfgx : ctx.config.extern <;>
             simp only [hval, hext, hcfgx] at hm
-      all_goals
-        try
-          (rw [run_bind_ok] at hm
-           obtain ⟨u3, s3, w3, hlog, hm⟩ := hm
-           have hz2 := run_logInfo_state _ _ cctx ref _ hlog
-           subst hz2
-           replace hP' := H.logInfo hlog hP')
-      all_goals
-        first
-          | exact H.ax hm hP'
-          | (split at hm
-             case isTrue =>
-               exact run_nonrec_exit_okW hm hcfg hP' (fun hq => H.inl hq)
-                 (fun h hq => H.logInfo h hq) (fun h hq => H.isInstance h hq)
-                 (fun hc h hq => H.prep hc h hq) hvE
-                 (fun hq hnf hcl hnb => H.nrc hq hnf hcl hnb) (fun _ => rfl)
-             case isFalse =>
-               refine run_rec_exit_okW hm hcfg hP' (fun h hq => H.fresh h hq)
-                 (fun h hq => H.constInfo h hq) (fun hc h hq => H.prep hc h hq) hvE ?_
-                 (fun _ _ => rfl) (fun _ _ => rfl)
-               intro sR wR defsR hqR hlenR hbodiesR
-               exact H.rc hqR
-                 (rec_block_closed (by simp) hlenR (rec_bodies_closed hbodiesR))
-                 (rec_block_noBlock (rec_bodies_noBlock hbodiesR)))
+        all_goals
+          try
+            (rw [run_bind_ok] at hm
+             obtain ⟨u3, s3, w3, hlog, hm⟩ := hm
+             have hz2 := run_logInfo_state _ _ cctx ref _ hlog
+             subst hz2
+             replace hP' := H.logInfo hlog hP')
+        all_goals
+          first
+            | exact H.ax hm hP'
+            | (split at hm
+               case isTrue =>
+                 exact run_nonrec_exit_okW hm hcfg hP' (fun hq => H.inl hq)
+                   (fun h hq => H.logInfo h hq) (fun h hq => H.isInstance h hq)
+                   (fun hc h hq => H.prep hc h hq) hvE
+                   (fun hq hnf hcl hnb => H.nrc hq hnf hcl hnb) (fun _ => rfl)
+               case isFalse =>
+                 refine run_rec_exit_okW hm hcfg hP' (fun h hq => H.fresh h hq)
+                   (fun h hq => H.constInfo h hq) (fun hc h hq => H.prep hc h hq) hvE ?_
+                   (fun _ _ => rfl) (fun _ _ => rfl)
+                 intro sR wR defsR hqR hlenR hbodiesR
+                 exact H.rc hqR
+                   (rec_block_closed (by simp) hlenR (rec_bodies_closed hbodiesR))
+                   (rec_block_noBlock (rec_bodies_noBlock hbodiesR)))
     case isFalse =>
       split at hrun
       case isTrue =>
@@ -1220,17 +1620,59 @@ theorem visitExpr_shapeW {Cfg : ErasureConfig → Prop}
     rw [expr_withApp_eq] at hk
     exact ih14 _ _ _ _ _ _ _ _ _ _ _ _ _ hk hP hcfg
   -- Step 14: visitCtorEtaGo
-  · intro vConstructor vCtorEtaGo ih3 ih14
+  · intro vE vConstructor vCtorEtaGo ih1 ih3 ih14
     intro cn ar ty fe args s ctx cctx ref w t s' w' hrun hP hcfg
-    simp only [] at hrun
+    have hvE : ∀ {pe : Expr} {sb sc : ErasureState} {ctx' : ErasureContext}
+        {wb wc : Void IO.RealWorld} {tt : LBTerm},
+        Cfg ctx'.config → vE pe sb ctx' cctx ref wb = .ok (tt, sc) wc →
+        P sb wb → P sc wc ∧ NoFix tt ∧ LBClosed tt 0 ∧ NoBlock tt :=
+      fun hc h hp => ih1 _ _ _ _ _ _ _ _ _ h hp hc
+    dsimp only at hrun
     split at hrun
     · exact ih3 _ _ _ _ _ _ _ _ _ _ hrun hP hcfg
-    · rcases run_forallMonocular_okW (fun h hq => H.fresh h hq) hP hrun with
-        ⟨rfl, rfl, rfl⟩ | ⟨x, bt, ctx', w₀, hcf, hP₀, hk⟩
-      · exact ⟨hP, noFix_default, lbClosed_default 0, noBlock_default⟩
-      · have hcfg' : Cfg ctx'.config := by rw [hcf]; exact hcfg
-        rw [run_bind_ok] at hk
-        obtain ⟨res, s₁, w₁, hgo, hm⟩ := hk
+    · rw [run_bind_ok] at hrun
+      obtain ⟨bs, sb, wb, hfold, hrun⟩ := hrun
+      have hbs : P sb wb ∧ ∀ q ∈ bs, NoFix q.2.2 ∧ LBClosed q.2.2 0 ∧ NoBlock q.2.2 := by
+        refine run_array_foldlM_ok ctx cctx ref
+          (P := fun _ (acc : Array (Nat × Expr × LBTerm)) sx wx =>
+            P sx wx ∧ ∀ q ∈ acc, NoFix q.2.2 ∧ LBClosed q.2.2 0 ∧ NoBlock q.2.2)
+          ⟨hP, by intro q hq; simp at hq⟩ ?_ hfold
+        intro pre a post acc sa wa acc' sc wc _ hacc hg
+        obtain ⟨hPa, hall⟩ := hacc
+        rw [run_bind_ok] at hg
+        obtain ⟨c0, sr, wr, hread, hg⟩ := hg
+        rw [run_read] at hread
+        cases hread
+        rw [run_bind_ok] at hg
+        obtain ⟨bv, s1, w1, hev, hg⟩ := hg
+        replace hPa := run_etaArgIsValue_okW H hev hPa
+        split at hg
+        · rw [run_pure] at hg
+          cases hg
+          exact ⟨hPa, hall⟩
+        · rw [run_bind_ok] at hg
+          obtain ⟨tyv, s2, w2, hty, hg⟩ := hg
+          replace hPa := H.inferType hty hPa
+          rw [run_bind_ok] at hg
+          obtain ⟨vv, s3, w3, hv, hg⟩ := hg
+          obtain ⟨hP3, hnf, hcl, hnb⟩ := hvE hcfg hv hPa
+          rw [run_pure] at hg
+          cases hg
+          refine ⟨hP3, ?_⟩
+          intro q hq
+          rcases Array.mem_or_eq_of_mem_push hq with hq' | rfl
+          · exact hall q hq'
+          · exact ⟨hnf, hcl, hnb⟩
+      obtain ⟨hPb, hbs'⟩ := hbs
+      refine run_withEtaPrefixLets_okW H ?_ bs.toList _ _ _ _ _ _ _
+        (fun q hq => hbs' q (Array.mem_toList_iff.mp hq)) hcfg hPb hrun
+      intro args' ctx₀ sa sc wa wc tt hcfg₀ hk hPa
+      rcases run_forallMonocular_okW (fun h hq => H.fresh h hq) hPa hk with
+        ⟨rfl, rfl, rfl⟩ | ⟨x, bt, ctx', w₀, hcf, hP₀, hk'⟩
+      · exact ⟨hPa, noFix_default, lbClosed_default 0, noBlock_default⟩
+      · have hcfg' : Cfg ctx'.config := by rw [hcf]; exact hcfg₀
+        rw [run_bind_ok] at hk'
+        obtain ⟨res, s₁, w₁, hgo, hm⟩ := hk'
         obtain ⟨hP1, hnf, hcl, hnb⟩ := ih14 _ _ _ _ _ _ _ _ _ _ _ _ _ hgo hP₀ hcfg'
         obtain ⟨hs, hw, nm, rfl⟩ := run_mkLambda_ok hm
         subst hs
@@ -1248,17 +1690,63 @@ theorem visitExpr_shapeW {Cfg : ErasureConfig → Prop}
     rw [expr_withApp_eq] at hk
     exact ih16 _ _ _ _ _ _ _ _ _ _ _ _ hk hP hcfg
   -- Step 16: visitCasesEtaGo
-  · intro vCasesEtaGo vCases ih16 ih17
+  · intro vE vCasesEtaGo vCases ih1 ih16 ih17
     intro cinf ty fe args s ctx cctx ref w t s' w' hrun hP hcfg
-    simp only [] at hrun
+    have hvE : ∀ {pe : Expr} {sb sc : ErasureState} {ctx' : ErasureContext}
+        {wb wc : Void IO.RealWorld} {tt : LBTerm},
+        Cfg ctx'.config → vE pe sb ctx' cctx ref wb = .ok (tt, sc) wc →
+        P sb wb → P sc wc ∧ NoFix tt ∧ LBClosed tt 0 ∧ NoBlock tt :=
+      fun hc h hp => ih1 _ _ _ _ _ _ _ _ _ h hp hc
+    dsimp only at hrun
     split at hrun
     · exact ih17 _ _ _ _ _ _ _ _ _ _ hrun hP hcfg
-    · rcases run_forallMonocular_okW (fun h hq => H.fresh h hq) hP hrun with
-        ⟨rfl, rfl, rfl⟩ | ⟨x, bt, ctx', w₀, hcf, hP₀, hk⟩
-      · exact ⟨hP, noFix_default, lbClosed_default 0, noBlock_default⟩
-      · have hcfg' : Cfg ctx'.config := by rw [hcf]; exact hcfg
-        rw [run_bind_ok] at hk
-        obtain ⟨res, s₁, w₁, hgo, hm⟩ := hk
+    · rw [run_bind_ok] at hrun
+      obtain ⟨bs, sb, wb, hfold, hrun⟩ := hrun
+      have hbs : P sb wb ∧ ∀ q ∈ bs, NoFix q.2.2 ∧ LBClosed q.2.2 0 ∧ NoBlock q.2.2 := by
+        refine run_array_foldlM_ok ctx cctx ref
+          (P := fun _ (acc : Array (Nat × Expr × LBTerm)) sx wx =>
+            P sx wx ∧ ∀ q ∈ acc, NoFix q.2.2 ∧ LBClosed q.2.2 0 ∧ NoBlock q.2.2)
+          ⟨hP, by intro q hq; simp at hq⟩ ?_ hfold
+        intro pre a post acc sa wa acc' sc wc _ hacc hg
+        obtain ⟨hPa, hall⟩ := hacc
+        split at hg
+        · rw [run_pure] at hg
+          cases hg
+          exact ⟨hPa, hall⟩
+        rw [run_bind_ok] at hg
+        obtain ⟨c0, sr, wr, hread, hg⟩ := hg
+        rw [run_read] at hread
+        cases hread
+        rw [run_bind_ok] at hg
+        obtain ⟨bv, s1, w1, hev, hg⟩ := hg
+        replace hPa := run_etaArgIsValue_okW H hev hPa
+        split at hg
+        · rw [run_pure] at hg
+          cases hg
+          exact ⟨hPa, hall⟩
+        · rw [run_bind_ok] at hg
+          obtain ⟨tyv, s2, w2, hty, hg⟩ := hg
+          replace hPa := H.inferType hty hPa
+          rw [run_bind_ok] at hg
+          obtain ⟨vv, s3, w3, hv, hg⟩ := hg
+          obtain ⟨hP3, hnf, hcl, hnb⟩ := hvE hcfg hv hPa
+          rw [run_pure] at hg
+          cases hg
+          refine ⟨hP3, ?_⟩
+          intro q hq
+          rcases Array.mem_or_eq_of_mem_push hq with hq' | rfl
+          · exact hall q hq'
+          · exact ⟨hnf, hcl, hnb⟩
+      obtain ⟨hPb, hbs'⟩ := hbs
+      refine run_withEtaPrefixLets_okW H ?_ bs.toList _ _ _ _ _ _ _
+        (fun q hq => hbs' q (Array.mem_toList_iff.mp hq)) hcfg hPb hrun
+      intro args' ctx₀ sa sc wa wc tt hcfg₀ hk hPa
+      rcases run_forallMonocular_okW (fun h hq => H.fresh h hq) hPa hk with
+        ⟨rfl, rfl, rfl⟩ | ⟨x, bt, ctx', w₀, hcf, hP₀, hk'⟩
+      · exact ⟨hPa, noFix_default, lbClosed_default 0, noBlock_default⟩
+      · have hcfg' : Cfg ctx'.config := by rw [hcf]; exact hcfg₀
+        rw [run_bind_ok] at hk'
+        obtain ⟨res, s₁, w₁, hgo, hm⟩ := hk'
         obtain ⟨hP1, hnf, hcl, hnb⟩ := ih16 _ _ _ _ _ _ _ _ _ _ _ _ hgo hP₀ hcfg'
         obtain ⟨hs, hw, nm, rfl⟩ := run_mkLambda_ok hm
         subst hs
@@ -1420,47 +1908,78 @@ theorem visitExpr_shapeW {Cfg : ErasureConfig → Prop}
         have hsA := run_getConstInfo_state _ _ cctx ref _ hgci
         subst hsA
         replace hP1 := H.constInfo hgci hP1
-        cases cinfo <;> (try simp only [] at hmatch)
+        cases cinfo
         case inductInfo indVal =>
-          rw [run_bind_ok] at hmatch
-          obtain ⟨rr, sB, wB, hreg, hmatch⟩ := hmatch
-          have hPB := H.reg (Or.inl ⟨_, _, _, _, _, hgci⟩) hcfg hreg hP1
-          obtain ⟨indid, argmasks⟩ := rr
           simp only [] at hmatch
           rw [run_bind_ok] at hmatch
-          obtain ⟨accfin, sC, wC, hloop, hp⟩ := hmatch
-          rw [run_pure] at hp
-          cases hp
-          have hloopP := run_array_forIn_ok ctx cctx ref
-            (P := fun acc sX (wX : Void IO.RealWorld) =>
-              P sX wX ∧ ∀ a ∈ acc.1, NoFix a.2 ∧ LBClosed a.2 a.1.length ∧ NoBlock a.2)
-            _ _ _ _ _
-            ⟨hPB, by intro a ha; simp at ha⟩
-            (fun i _ acc sX wX st sY wY hacc hb => by
-              obtain ⟨hPX, hall⟩ := hacc
-              obtain ⟨alts, sAlt, sMask⟩ := acc
-              simp only [] at hb hall ⊢
-              cases hna : Std.Stream.next? sMask with
-              | none =>
-                rw [hna] at hb
-                simp only [] at hb
-                rw [run_pure] at hb
-                cases hb
-                exact ⟨hPX, hall⟩
-              | some p =>
-                obtain ⟨argmask, sMask'⟩ := p
-                rw [hna] at hb
-                simp only [] at hb
-                cases hna2 : Std.Stream.next? sAlt with
-                | none =>
-                  rw [hna2] at hb
-                  simp only [] at hb
-                  rw [run_pure] at hb
-                  cases hb
-                  exact ⟨hPX, hall⟩
-                | some p2 =>
-                  obtain ⟨altInfo, sAlt'⟩ := p2
-                  rw [hna2] at hb
+          obtain ⟨cfg2, sR, wR, hrd2, hmatch⟩ := hmatch
+          rw [run_read] at hrd2
+          cases hrd2
+          -- The three refusals, each an `if` whose throwing half the toolkit kills.
+          -- `split` is unusable on them: its internal `simp` runs out of steps on a
+          -- hypothesis this size, so each condition is decided by hand and the branch
+          -- selected with `if_pos`/`if_neg`.
+          split at hmatch
+          all_goals (simp only [Bool.true_and, Bool.false_and] at hmatch)
+          all_goals
+            (first
+              | rw [if_neg (fun h => Bool.noConfusion h)] at hmatch
+              | (by_cases hmi : (cinf.indName == `Nat || cinf.indName == `Int) = true
+                 case pos =>
+                   rw [if_pos hmi] at hmatch
+                   rw [run_bind_ok] at hmatch
+                   obtain ⟨a0, s0, w0, hthr, -⟩ := hmatch
+                   exact absurd hthr (run_throwError_ne_ok _ ctx cctx ref _ _ _ _ _)
+                 rw [if_neg hmi] at hmatch))
+          all_goals
+            (by_cases har : (cinf.altsRange.lower == cinf.discrPos + 1) = true
+             case neg =>
+               rw [if_neg har] at hmatch
+               rw [run_bind_ok] at hmatch
+               obtain ⟨a0, s0, w0, hthr, -⟩ := hmatch
+               exact absurd hthr (run_throwError_ne_ok _ ctx cctx ref _ _ _ _ _)
+             rw [if_pos har] at hmatch)
+          all_goals (by_cases hpa : isPropositionalArity indVal.type = true)
+          all_goals (first | rw [if_pos hpa] at hmatch | rw [if_neg hpa] at hmatch)
+          all_goals
+            (try (rw [run_bind_ok] at hmatch
+                  obtain ⟨fnp, sF, wF, hfnp, hmatch⟩ := hmatch
+                  replace hP1 := run_firstNonProofField_okW H hfnp hP1
+                  cases fnp <;> (try simp only [] at hmatch)))
+          all_goals
+            (try (rw [run_bind_ok] at hmatch
+                  obtain ⟨a0, s0, w0, hthr, -⟩ := hmatch
+                  exact absurd hthr (run_throwError_ne_ok _ ctx cctx ref _ _ _ _ _)))
+          all_goals
+            rw [run_bind_ok] at hmatch
+            obtain ⟨rr, sB, wB, hreg, hmatch⟩ := hmatch
+            replace hP1 := H.reg (Or.inl ⟨_, _, _, _, _, hgci⟩) hcfg hreg hP1
+            split at hmatch
+            case isFalse =>
+              rw [run_bind_ok] at hmatch
+              obtain ⟨a0, s0, w0, hthr, -⟩ := hmatch
+              exact absurd hthr (run_throwError_ne_ok _ ctx cctx ref _ _ _ _ _)
+            case isTrue =>
+            split at hmatch
+            · -- every constructor has its own alternative: no catch-all is built
+              rw [run_bind_ok] at hmatch
+              obtain ⟨dflt, sD, wD, hdf, hmatch⟩ := hmatch
+              rw [run_pure] at hdf
+              cases hdf
+              have hPst := hP1
+              rw [run_bind_ok] at hmatch
+              obtain ⟨accfin, sC, wC, hloop, hp⟩ := hmatch
+              have hall : P sC wC ∧ ∀ a ∈ accfin,
+                  NoFix a.2 ∧ LBClosed a.2 a.1.length ∧ NoBlock a.2 := by
+                refine run_array_forIn_ok ctx cctx ref
+                  (P := fun acc sX (wX : Void IO.RealWorld) => P sX wX ∧ ∀ a ∈ acc,
+                    NoFix a.2 ∧ LBClosed a.2 a.1.length ∧ NoBlock a.2)
+                  _ _ _ _ _ ⟨hPst, by intro a ha; simp at ha⟩ ?_ _ _ _ hloop
+                intro x _ acc sX wX st sY wY hacc hb
+                obtain ⟨hPX, hallX⟩ := hacc
+                obtain ⟨alt?, cidx⟩ := x
+                cases alt?
+                case some j =>
                   simp only [] at hb
                   rw [run_bind_ok] at hb
                   obtain ⟨alt, sZ, wZ, halt, hp2⟩ := hb
@@ -1469,30 +1988,118 @@ theorem visitExpr_shapeW {Cfg : ErasureConfig → Prop}
                   cases hp2
                   refine ⟨hPZ, ?_⟩
                   intro a ha
-                  rcases Array.mem_or_eq_of_mem_push ha with ha | rfl
-                  · exact hall a ha
-                  · exact ⟨hnfa, hcla, hnba⟩)
-            _ _ _ hloop
-          obtain ⟨hPfin, hallfin⟩ := hloopP
-          refine ⟨hPfin, ?_, ?_, ?_⟩
-          · rw [NoFix_case]
-            refine ⟨hnfd, ?_⟩
-            intro a ha
-            exact (hallfin a (Array.mem_toList_iff.mp ha)).1
-          · rw [LBClosed_case]
-            refine ⟨hcld, ?_⟩
-            rw [LBClosedAlts_iff]
-            intro a ha
-            rw [Nat.zero_add]
-            exact (hallfin a (Array.mem_toList_iff.mp ha)).2.1
-          · rw [NoBlock_case]
-            refine ⟨hnbd, ?_⟩
-            intro a ha
-            exact (hallfin a (Array.mem_toList_iff.mp ha)).2.2
+                  rcases Array.mem_or_eq_of_mem_push ha with ha' | rfl
+                  · exact hallX a ha'
+                  · exact ⟨hnfa, hcla, hnba⟩
+                case none =>
+                  simp only [] at hb
+                  rw [run_bind_ok] at hb
+                  obtain ⟨a0, s0, w0, hthr, -⟩ := hb
+                  exact absurd hthr (run_throwError_ne_ok _ ctx cctx ref _ _ _ _ _)
+              obtain ⟨hPfin, hallfin⟩ := hall
+              rw [run_pure] at hp
+              cases hp
+              refine ⟨hPfin, ?_, ?_, ?_⟩
+              · rw [NoFix_case]
+                exact ⟨hnfd, fun a ha => (hallfin a (Array.mem_toList_iff.mp ha)).1⟩
+              · rw [LBClosed_case, LBClosedAlts_iff]
+                refine ⟨hcld, fun a ha => ?_⟩
+                rw [Nat.zero_add]
+                exact (hallfin a (Array.mem_toList_iff.mp ha)).2.1
+              · rw [NoBlock_case]
+                exact ⟨hnbd, fun a ha => (hallfin a (Array.mem_toList_iff.mp ha)).2.2⟩
+            · -- the catch-all, erased once and applied to a `□` per hypothesis
+              cases hfi : cinf.altNumParams.findIdx?
+                  (fun altInfo =>
+                    Erasure.visitCases.match_7 (motive := fun _ => Bool) altInfo
+                      (fun _ => true) (fun _ _ => false))
+              case none =>
+                simp only [hfi] at hmatch
+                rw [run_bind_ok] at hmatch
+                obtain ⟨a0, s0, w0, hthr, -⟩ := hmatch
+                exact absurd hthr (run_throwError_ne_ok _ ctx cctx ref _ _ _ _ _)
+              case some j =>
+              simp only [hfi] at hmatch
+              split at hmatch
+              case isFalse =>
+                rw [run_bind_ok] at hmatch
+                obtain ⟨a0, s0, w0, hthr, -⟩ := hmatch
+                exact absurd hthr (run_throwError_ne_ok _ ctx cctx ref _ _ _ _ _)
+              case isTrue =>
+              rw [run_bind_ok] at hmatch
+              obtain ⟨bd, sE, wE, hbd, hmatch⟩ := hmatch
+              obtain ⟨hPE, hnfb, hclb, hnbb⟩ := ih1 _ _ _ _ _ _ _ _ _ hbd hP1 hcfg
+              split at hmatch
+              case isTrue =>
+                rw [run_bind_ok] at hmatch
+                obtain ⟨a0, s0, w0, hthr, -⟩ := hmatch
+                exact absurd hthr (run_throwError_ne_ok _ ctx cctx ref _ _ _ _ _)
+              case isFalse =>
+              rw [run_bind_ok] at hmatch
+              obtain ⟨bh, sG, wG, hbh, hmatch⟩ := hmatch
+              replace hPE := H.metaM hbh hPE
+              cases bh
+              case some i =>
+                simp only [] at hmatch
+                rw [run_bind_ok] at hmatch
+                obtain ⟨a0, s0, w0, hthr, -⟩ := hmatch
+                exact absurd hthr (run_throwError_ne_ok _ ctx cctx ref _ _ _ _ _)
+              case none =>
+              simp only [] at hmatch
+              rw [run_bind_ok] at hmatch
+              obtain ⟨dflt, sD, wD, hdf, hmatch⟩ := hmatch
+              rw [run_pure] at hdf
+              cases hdf
+              have hPst := hPE
+              rw [run_bind_ok] at hmatch
+              obtain ⟨accfin, sC, wC, hloop, hp⟩ := hmatch
+              have hall : P sC wC ∧ ∀ a ∈ accfin,
+                  NoFix a.2 ∧ LBClosed a.2 a.1.length ∧ NoBlock a.2 := by
+                refine run_array_forIn_ok ctx cctx ref
+                  (P := fun acc sX (wX : Void IO.RealWorld) => P sX wX ∧ ∀ a ∈ acc,
+                    NoFix a.2 ∧ LBClosed a.2 a.1.length ∧ NoBlock a.2)
+                  _ _ _ _ _ ⟨hPst, by intro a ha; simp at ha⟩ ?_ _ _ _ hloop
+                intro x _ acc sX wX st sY wY hacc hb
+                obtain ⟨hPX, hallX⟩ := hacc
+                obtain ⟨alt?, cidx⟩ := x
+                cases alt?
+                case some j =>
+                  simp only [] at hb
+                  rw [run_bind_ok] at hb
+                  obtain ⟨alt, sZ, wZ, halt, hp2⟩ := hb
+                  obtain ⟨hPZ, hnfa, hcla, hnba⟩ := ih18 _ _ _ _ _ _ _ _ _ _ _ halt hPX hcfg
+                  rw [run_pure] at hp2
+                  cases hp2
+                  refine ⟨hPZ, ?_⟩
+                  intro a ha
+                  rcases Array.mem_or_eq_of_mem_push ha with ha' | rfl
+                  · exact hallX a ha'
+                  · exact ⟨hnfa, hcla, hnba⟩
+                case none =>
+                  simp only [] at hb
+                  rw [run_pure] at hb
+                  cases hb
+                  refine ⟨hPX, ?_⟩
+                  intro a ha
+                  rcases Array.mem_or_eq_of_mem_push ha with ha' | rfl
+                  · exact hallX a ha'
+                  · obtain ⟨hnf2, hcl2, hnb2⟩ := shape_foldl_box _ _ hnfb hclb hnbb
+                    exact ⟨hnf2, hcl2.mono (Nat.zero_le _), hnb2⟩
+              obtain ⟨hPfin, hallfin⟩ := hall
+              rw [run_pure] at hp
+              cases hp
+              refine ⟨hPfin, ?_, ?_, ?_⟩
+              · rw [NoFix_case]
+                exact ⟨hnfd, fun a ha => (hallfin a (Array.mem_toList_iff.mp ha)).1⟩
+              · rw [LBClosed_case, LBClosedAlts_iff]
+                refine ⟨hcld, fun a ha => ?_⟩
+                rw [Nat.zero_add]
+                exact (hallfin a (Array.mem_toList_iff.mp ha)).2.1
+              · rw [NoBlock_case]
+                exact ⟨hnbd, fun a ha => (hallfin a (Array.mem_toList_iff.mp ha)).2.2⟩
         all_goals
-          (rw [run_panicWithPosWithDecl] at hmatch
-           cases hmatch
-           exact ⟨hP1, noFix_default, lbClosed_default 0, noBlock_default⟩)
+          (simp only [] at hmatch
+           exact absurd hmatch (run_throwError_ne_ok _ ctx cctx ref _ _ _ _ _))
     obtain ⟨hP3, hnfr, hclr, hnbr⟩ := hret
     rw [run_bind_ok] at htail
     obtain ⟨tfin, s₄, w₄, hloop2, hp2⟩ := htail
@@ -1630,6 +2237,7 @@ theorem runClosed_true : RunClosed (fun _ => True) where
   reg := fun _ _ => trivial
   prep := fun _ _ => trivial
   nrc := fun _ _ _ _ => trivial
+  rlz := fun _ _ _ _ => trivial
   rc := fun _ _ _ => trivial
 
 /-- **The output shape of the shipping eraser, in full.** Every successful run of
@@ -1696,6 +2304,7 @@ theorem RunClosedW.and {Cfg : ErasureConfig → Prop}
     RunClosedW Cfg (fun s w => P s w ∧ P' s w) where
   oracle h hq := ⟨H.oracle h hq.1, H'.oracle h hq.2⟩
   inferType h hq := ⟨H.inferType h hq.1, H'.inferType h hq.2⟩
+  metaM h hq := ⟨H.metaM h hq.1, H'.metaM h hq.2⟩
   constInfo h hq := ⟨H.constInfo h hq.1, H'.constInfo h hq.2⟩
   getEnv h hq := ⟨H.getEnv h hq.1, H'.getEnv h hq.2⟩
   logInfo h hq := ⟨H.logInfo h hq.1, H'.logInfo h hq.2⟩
@@ -1709,6 +2318,7 @@ theorem RunClosedW.and {Cfg : ErasureConfig → Prop}
   reg hp hc h hq := ⟨H.reg hp hc h hq.1, H'.reg hp hc h hq.2⟩
   prep hc h hq := ⟨H.prep hc h hq.1, H'.prep hc h hq.2⟩
   nrc hq hnf hcl hnb := ⟨H.nrc hq.1 hnf hcl hnb, H'.nrc hq.2 hnf hcl hnb⟩
+  rlz hq hnf hcl hnb := ⟨H.rlz hq.1 hnf hcl hnb, H'.rlz hq.2 hnf hcl hnb⟩
   rc hq hcl hnb := ⟨H.rc hq.1 hcl hnb, H'.rc hq.2 hcl hnb⟩
 
 /-- **The state half.** "The state has only grown canonically since `s₀`" is closed under
@@ -1723,6 +2333,7 @@ theorem runClosedW_runConcl {Cfg : ErasureConfig → Prop} (s₀ : ErasureState)
     RunClosedW Cfg (fun s _ => RunConcl s₀ s) where
   oracle h hq := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hq
   inferType h hq := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hq
+  metaM h hq := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hq
   constInfo h hq := by rw [run_getConstInfo_state _ _ _ _ _ h]; exact hq
   getEnv h hq := by rw [run_getEnv_state _ _ _ _ _ h]; exact hq
   logInfo h hq := by rw [run_logInfo_state _ _ _ _ _ h]; exact hq
@@ -1736,6 +2347,7 @@ theorem runClosedW_runConcl {Cfg : ErasureConfig → Prop} (s₀ : ErasureState)
   reg _ _ h hq := hq.trans (run_register_inductive_runConcl h)
   prep hc h hq := by rw [hprep hc h]; exact hq
   nrc hq _ _ _ := hq.trans (runConcl_nonrecConstState _ _ _)
+  rlz hq _ _ _ := hq.trans (runConcl_addRealizerState _ _ _)
   rc hq _ _ := hq.trans (runConcl_recConstState _ _ _)
 
 /-- **The generator half.** "The generator has only advanced since `w₀`" is closed under every
@@ -1746,6 +2358,10 @@ declared below it. -/
 theorem runClosedW_gen {lenv : Environment} {env : Lean4Lean.VEnv} {Us : List Name}
     {gw : Void IO.RealWorld → NameGenerator} (S : ErasureSpec lenv env Us gw)
     (w₀ : Void IO.RealWorld)
+    (hmeta : ∀ {α : Type} {x : Lean.MetaM α} {a : α} {s s₁ : ErasureState}
+        {ctx : ErasureContext} {cctx : Core.Context}
+        {ref : ST.Ref IO.RealWorld Core.State} {w w₁ : Void IO.RealWorld},
+      liftMetaM x s ctx cctx ref w = .ok (a, s₁) w₁ → gw w ≤ gw w₁)
     (hprep : ∀ {e : Expr} {s : ErasureState} {ctx : ErasureContext} {cctx : Core.Context}
         {ref : ST.Ref IO.RealWorld Core.State} {w : Void IO.RealWorld} {pe : Expr}
         {s₁ : ErasureState} {w₁ : Void IO.RealWorld},
@@ -1759,6 +2375,7 @@ theorem runClosedW_gen {lenv : Environment} {env : Lean4Lean.VEnv} {Us : List Na
     RunClosedW ConfigPinned (fun _ w => gw w₀ ≤ gw w) where
   oracle h hq := NameGenerator.LE.trans hq (S.oracle_refl _ _ _ _ _ _ _ _ _ h).1
   inferType h hq := NameGenerator.LE.trans hq (S.prim_monotone.inferType _ _ _ _ _ _ _ _ _ h).1
+  metaM h hq := NameGenerator.LE.trans hq (hmeta h)
   constInfo h hq := NameGenerator.LE.trans hq
     (S.lookup_adequate.constInfo _ _ _ _ _ _ (pass_getConstInfo_core h)).1
   getEnv h hq := NameGenerator.LE.trans hq (S.prim_monotone.getEnv _ _ _ _ _ _ _ _ h)
@@ -1775,10 +2392,11 @@ theorem runClosedW_gen {lenv : Environment} {env : Lean4Lean.VEnv} {Us : List Na
     NameGenerator.LE.trans hq
       (S.lookup_adequate.casesInfo _ _ _ _ _ _ ((run_liftCoreM_ok _ _ _ _ _).mp h).1).1
   inl hq := hq
-  ax h hq := by rw [(run_addAxiom_ok h).2]; exact hq
+  ax h hq := by rw [(run_addAxiom_ok h).2.1]; exact hq
   reg _ hc h hq := NameGenerator.LE.trans hq (hreg hc h)
   prep hc h hq := NameGenerator.LE.trans hq (hprep hc h)
   nrc hq _ _ _ := hq
+  rlz hq _ _ _ := hq
   rc hq _ _ := hq
 
 /-- **Two of the three conjuncts of the term walk's run conclusion, at a real run.** The state
@@ -1788,6 +2406,10 @@ to the preparation pass. The registry conjunct is added where `IndRegistryModell
 declared. -/
 theorem visitExpr_runConcl_gen {lenv : Environment} {env : Lean4Lean.VEnv} {Us : List Name}
     {gw : Void IO.RealWorld → NameGenerator} (S : ErasureSpec lenv env Us gw)
+    (hmeta : ∀ {α : Type} {x : Lean.MetaM α} {a : α} {s s₁ : ErasureState}
+        {ctx : ErasureContext} {cctx : Core.Context}
+        {ref : ST.Ref IO.RealWorld Core.State} {w w₁ : Void IO.RealWorld},
+      liftMetaM x s ctx cctx ref w = .ok (a, s₁) w₁ → gw w ≤ gw w₁)
     (hprep : ∀ {e : Expr} {s : ErasureState} {ctx : ErasureContext} {cctx : Core.Context}
         {ref : ST.Ref IO.RealWorld Core.State} {w : Void IO.RealWorld} {pe : Expr}
         {s₁ : ErasureState} {w₁ : Void IO.RealWorld},
@@ -1805,7 +2427,7 @@ theorem visitExpr_runConcl_gen {lenv : Environment} {env : Lean4Lean.VEnv} {Us :
     RunConcl s s₁ ∧ gw w ≤ gw w₁ :=
   ((visitExpr_shapeW ((runClosedW_runConcl (Cfg := ConfigPinned) s
       (fun hc h => (hprep hc h).1)).and
-    (runClosedW_gen S w (fun hc h => (hprep hc h).2) hreg))).1
+    (runClosedW_gen S w hmeta (fun hc h => (hprep hc h).2) hreg))).1
       _ _ _ _ _ _ _ _ _ hrun ⟨RunConcl.rfl' s, NameGenerator.LE.rfl⟩ hcfg).1
 
 /-! ## The emitted bodies are closed
@@ -1867,7 +2489,7 @@ theorem closedBodies_axiomPrefix :
       exact closedBodies_cons_none
         (closedBodies_axiomPrefix rest Γ (fun q hq => hpre q (List.mem_cons_of_mem _ hq)) h)
 
-/-- The block registration loop stores one `.fix` node per member. -/
+/-- The block registration loop stores one η-expanded `.fix` node per member (F-ETA). -/
 theorem closedBodies_foldl_recConstStep {defs : List (@FixDef LBTerm)}
     (hcl : ∀ j : Nat, LBClosed (.fix defs j) 0) :
     ∀ (L : List (Name × Nat)) (s : ErasureState), ClosedBodies s.gdecls →
@@ -1875,9 +2497,10 @@ theorem closedBodies_foldl_recConstStep {defs : List (@FixDef LBTerm)}
   | [], _, h => h
   | p :: rest, s, h => by
       refine closedBodies_foldl_recConstStep hcl rest _ ?_
-      show ClosedBodies (nonrecConstState p.1 (.fix defs p.2) s).gdecls
+      show ClosedBodies (nonrecConstState p.1 (etaExpandFix defs p.2) s).gdecls
       rw [nonrecConstState_gdecls]
-      exact closedBodies_cons_some (hcl p.2) h
+      exact closedBodies_cons_some
+        (lbClosed_etaExpandFix (fun m => (hcl p.2).mono (Nat.zero_le m))) h
 
 theorem closedBodies_recConstState {names : List Name} {defs : List (@FixDef LBTerm)}
     {s : ErasureState} (hcl : ∀ j : Nat, LBClosed (.fix defs j) 0)
@@ -1897,6 +2520,7 @@ theorem runClosedW_closedBodies {Cfg : ErasureConfig → Prop}
     RunClosedW Cfg (fun s _ => ClosedBodies s.gdecls) where
   oracle h hq := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hq
   inferType h hq := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hq
+  metaM h hq := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hq
   constInfo h hq := by rw [run_getConstInfo_state _ _ _ _ _ h]; exact hq
   getEnv h hq := by rw [run_getEnv_state _ _ _ _ _ h]; exact hq
   logInfo h hq := by rw [run_logInfo_state _ _ _ _ _ h]; exact hq
@@ -1909,13 +2533,17 @@ theorem runClosedW_closedBodies {Cfg : ErasureConfig → Prop}
   ax h hq := by
     rw [(run_addAxiom_ok h).1, addAxiomState_gdecls]
     exact closedBodies_cons_none hq
+  rlz hq _ hcl _ := by
+    rw [addRealizerState_gdecls]; exact closedBodies_cons_some hcl hq
   reg := by
     intro ii s₀ ctx cctx ref w r s₁ w₁ _ _ h hq
     cases hi : s₀.inductives.get? ii.name with
     | some rc0 => rw [(run_register_inductive_hit_ok hi h).2.1]; exact hq
     | none =>
-      obtain ⟨bodies, sM, rfl, -, -, hce, -, -⟩ := run_register_inductive_cold_ok hi h
-      obtain ⟨pre, hpre, hshape⟩ := hce.gdecls
+      obtain ⟨-, bodies, sM, rfl, -, -, hce, -, -⟩ :=
+        run_register_inductive_cold_ok (Ci := fun _ _ => True)
+          (fun _ _ _ _ _ _ _ => trivial) hi h
+      obtain ⟨pre, hpre, hshape⟩ := hce.gdeclsAx
       show ClosedBodies ((mutualBlockKn ii, _) :: sM.gdecls)
       refine closedBodies_cons_ind ?_
       rw [hpre]

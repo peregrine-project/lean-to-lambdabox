@@ -208,6 +208,7 @@ constructor, not propositional. -/
 def natSpecMib : MutualInductiveBody where
   npars := 0
   bodies := [{ name := "Nat",
+               propositional := false,
                ctors := [{ name := "zero", nargs := 0 }, { name := "succ", nargs := 1 }],
                projs := [] }]
 
@@ -237,7 +238,8 @@ theorem natEnv_elimCovered :
     ElimDecl natSpecEnv (toKername NatWitness.natC) NatWitness.natIid 0 1 [0, 1] ∧
       IndInfo NatWitness.natEnv NatWitness.natN NatWitness.natIid 0 [0, 1] ∧
       ([0, 1] : List Nat).length = 2 :=
-  ⟨⟨⟨_, natSpecEnv_elim, .cases⟩, natSpecMib, natSpecEnv_block, rfl, _, rfl, rfl, rfl⟩,
+  ⟨⟨⟨_, natSpecEnv_elim, .cases⟩, natSpecMib, natSpecEnv_block, ⟨rfl, _, rfl, rfl⟩,
+      _, rfl, rfl⟩,
     NatWitness.nat_indInfo, rfl⟩
 
 end LeanToLambdaBox

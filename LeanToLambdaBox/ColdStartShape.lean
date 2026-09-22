@@ -157,10 +157,13 @@ structure RegInvShape' (env : VEnv) (bo : Name → Option Expr) (lp : Name → L
   inds : ∀ n : Name, (s.inductives.get? n).isSome → IndCovered env Γspec n
   /-- The emitted keys are distinct. -/
   keys : (s.gdecls.map Prod.fst).Nodup
-  /-- A body declared by both is a `Lower` image, or one member of a lowered block. -/
+  /-- A body declared by both is a `Lower` image, or the η-expansion of one lowered block's
+      node. `LowerEnv.defs`, scoped to the registry: the registration loop writes
+      `Erasure.etaExpandFix defs j`, which at `principalArgIdx = 0` is `LBTerm.etaFix defs j`
+      (F-ETA). -/
   defs : ∀ kn b₀ b, DefnDecl Γspec kn b₀ → DefnDecl s.gdecls kn b →
     Lower Γspec b₀ b ∨ ∃ kns bs defs j, LowerFix Γspec kns bs defs ∧
-      kns[j]? = some kn ∧ b = .fix defs j
+      kns[j]? = some kn ∧ b = LBTerm.etaFix defs j
   /-- Every registered constant that `Γspec` declares with a body, and that is not a runtime
       key, is emitted with a body. `LowerEnv.defsTotal`, scoped to the registry. -/
   defsTotal : ∀ (n : Name) (b₀ : LBTerm), (s.constants.get? n).isSome →
@@ -208,6 +211,9 @@ theorem addAxiomState_gdecls (n : Name) (s : ErasureState) :
 
 theorem nonrecConstState_gdecls (n : Name) (t : LBTerm) (s : ErasureState) :
     (nonrecConstState n t s).gdecls = (toKername n, .constantDecl ⟨some t⟩) :: s.gdecls := rfl
+
+theorem addRealizerState_gdecls (n : Name) (t : LBTerm) (s : ErasureState) :
+    (addRealizerState n t s).gdecls = (toKername n, .constantDecl ⟨some t⟩) :: s.gdecls := rfl
 
 /-- **`addAxiom`.** Registering a body-less constant preserves the invariant, provided the
 specification environment declares it body-less too and its kername is fresh in the emitted
@@ -275,13 +281,14 @@ theorem RegInvShape'.addAxiom {env : VEnv} {bo : Name → Option Expr} {lp : Nam
 
 /-- **`visitMutual`'s non-recursive exit.** Registering a constant with an emitted body
 preserves the invariant: the specification environment declares that constant with a body,
-the emitted body is its `Lower` image (or one member of a lowered block, which is the shape
-the recursive exit produces), the emitted body is closed, and the kername is fresh. -/
+the emitted body is its `Lower` image (or the η-expansion of a lowered block's node, which is
+the shape the recursive exit produces), the emitted body is closed, and the kername is
+fresh. -/
 theorem RegInvShape'.constCons {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
     {Γspec : GlobalDeclarations} {s : ErasureState} {n : Name} {t b₀ : LBTerm}
     (H : RegInvShape' env bo lp Γspec s) (hspec : DefnDecl Γspec (toKername n) b₀)
     (hlow : Lower Γspec b₀ t ∨ ∃ kns bs defs j, LowerFix Γspec kns bs defs ∧
-      kns[j]? = some (toKername n) ∧ t = .fix defs j)
+      kns[j]? = some (toKername n) ∧ t = LBTerm.etaFix defs j)
     (hcl : LBClosed t 0) (hfresh : ∀ q ∈ s.gdecls, q.1 ≠ toKername n) :
     RegInvShape' env bo lp Γspec (nonrecConstState n t s) where
   spec := H.spec
@@ -354,6 +361,23 @@ theorem RegInvShape'.constCons {env : VEnv} {bo : Name → Option Expr} {lp : Na
     | false =>
       exact H.closed kn b (envLookup_of_cons_ne (kername_ne_of_beq_false hk) hb)
 
+/-- **`addRealizer`.** `Erasure.addRealizer` writes the entry `Erasure.addAxiom` writes with
+`⟨some t⟩` in place of `⟨none⟩` (F-QUOT, F-EQREC), and `addRealizerState` is `nonrecConstState`
+at that body, so the step is `RegInvShape'.constCons`. Where `RegInvShape'.addAxiom`'s
+hypothesis is the body-less specification entry, this one's is a `DefnDecl`: the specification
+environment declares the realized constant with a body the emitted one is an image of. The
+emitted body is *not* assumed to be the declared one — that would ask `Lower Γspec t t` of the
+two realizer shapes and say nothing the general clause does not. -/
+theorem RegInvShape'.addRealizer {env : VEnv} {bo : Name → Option Expr}
+    {lp : Name → List Name} {Γspec : GlobalDeclarations} {s : ErasureState} {n : Name}
+    {t b₀ : LBTerm} (H : RegInvShape' env bo lp Γspec s)
+    (hspec : DefnDecl Γspec (toKername n) b₀)
+    (hlow : Lower Γspec b₀ t ∨ ∃ kns bs defs j, LowerFix Γspec kns bs defs ∧
+      kns[j]? = some (toKername n) ∧ t = LBTerm.etaFix defs j)
+    (hcl : LBClosed t 0) (hfresh : ∀ q ∈ s.gdecls, q.1 ≠ toKername n) :
+    RegInvShape' env bo lp Γspec (addRealizerState n t s) :=
+  H.constCons hspec hlow hcl hfresh
+
 /-- The member kernames of an indexed list are the kernames of its members. -/
 theorem map_toKername_fst (l : List (Name × Nat)) :
     l.map (fun p => toKername p.1) = (l.map Prod.fst).map toKername := by
@@ -361,11 +385,28 @@ theorem map_toKername_fst (l : List (Name × Nat)) :
   | nil => rfl
   | cons a t ih => simpa using ih
 
+/-- The η-expansion the registration loop writes is the closed shape `LBTerm.etaFix` at a
+block whose members all carry `principalArgIdx = 0`, which `LowerBlock.hrarg` asserts.
+`Erasure.etaExpandFix_eq` read at that field. -/
+theorem LowerBlock.etaExpandFix_eq {Γ : GlobalDeclarations} {kns : List Kername}
+    {bs bs' : List LBTerm} {ids : List FVarId} {defs : List (@FixDef LBTerm)}
+    (hblk : LowerBlock Γ kns bs bs' ids defs) (j : Nat) :
+    etaExpandFix defs j = LBTerm.etaFix defs j :=
+  Erasure.etaExpandFix_eq hblk.hrarg
+
+/-- The η-expansion of a block's node is closed, given closed specification bodies:
+`LowerBlock.lbClosed_fix` under one binder the node's own `.bvar 0` fills. -/
+theorem LowerBlock.lbClosed_etaFix {Γ : GlobalDeclarations} {kns : List Kername}
+    {bs bs' : List LBTerm} {ids : List FVarId} {defs : List (@FixDef LBTerm)}
+    (hΓ : ClosedBodies Γ) (hblk : LowerBlock Γ kns bs bs' ids defs) (j : Nat) :
+    LBClosed (LBTerm.etaFix defs j) 0 :=
+  LeanToLambdaBox.lbClosed_etaFix (fun k : Nat => (hblk.lbClosed_fix hΓ j).mono (Nat.zero_le k))
+
 /-- **`visitMutual`'s recursive exit, one member at a time.** The fold `recConstState` runs
-is `recConstStep`, which is `nonrecConstState` at a `.fix` body, so the block's own
-`LowerFix` witness supplies every member's `defs` disjunct and `LowerBlock.lbClosed_fix`
-supplies its closedness. Freshness of a member's kername against the entries the earlier
-members have consed is the block's `Nodup`. -/
+is `recConstStep`, which is `nonrecConstState` at an η-expanded `.fix` body, so the block's
+own `LowerFix` witness supplies every member's `defs` disjunct and
+`LowerBlock.lbClosed_etaFix` supplies its closedness. Freshness of a member's kername against
+the entries the earlier members have consed is the block's `Nodup`. -/
 theorem regInvShape'_foldl_recConstStep {env : VEnv} {bo : Name → Option Expr}
     {lp : Name → List Name}
     {Γspec : GlobalDeclarations} {kns : List Kername} {bs bs' : List LBTerm}
@@ -387,8 +428,10 @@ theorem regInvShape'_foldl_recConstStep {env : VEnv} {bo : Name → Option Expr}
     have hdecl : DefnDecl Γspec (toKername p.1) bs[p.2]! := by
       have := hblk.hdecl p.2 hlt; rwa [hkey] at this
     have H' : RegInvShape' env bo lp Γspec (recConstStep defs s p) :=
-      H.constCons hdecl (.inr ⟨kns, bs, defs, p.2, ⟨bs', ids, hblk⟩, hj, rfl⟩)
-        (hblk.lbClosed_fix H.specClosed p.2) (hfresh p List.mem_cons_self)
+      H.constCons hdecl
+        (.inr ⟨kns, bs, defs, p.2, ⟨bs', ids, hblk⟩, hj, hblk.etaExpandFix_eq p.2⟩)
+        (hblk.etaExpandFix_eq p.2 ▸ hblk.lbClosed_etaFix H.specClosed p.2)
+        (hfresh p List.mem_cons_self)
     obtain ⟨hnh, hnt⟩ := List.nodup_cons.mp hnd
     refine regInvShape'_foldl_recConstStep hblk rest _ H'
       (fun r hr => hidx r (List.mem_cons_of_mem _ hr)) ?_ hnt
@@ -400,7 +443,7 @@ theorem regInvShape'_foldl_recConstStep {env : VEnv} {bo : Name → Option Expr}
 
 /-- **`visitMutual`'s recursive exit.** A whole block is registered at once: every member is
 declared in the specification environment with the body the block lowers, and the emitted
-body is the block's own `.fix` node at that member's index. -/
+body is the η-expansion of the block's own `.fix` node at that member's index. -/
 theorem RegInvShape'.recConst {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
     {Γspec : GlobalDeclarations} {s : ErasureState} {names : List Name}
     {kns : List Kername} {bs bs' : List LBTerm} {ids : List FVarId}
@@ -630,8 +673,10 @@ theorem RegInvShape'.register_inductive_run {env : VEnv} {bo : Name → Option E
     (hnewi : ∀ n : Name, (s₁.inductives.get? n).isSome → (s.inductives.get? n).isSome ∨
       (IndCovered env Γspec n ∧ IndEmitted env Γspec s₁.gdecls n)) :
     RegInvShape' env bo lp Γspec s₁ := by
-  obtain ⟨bodies, sM, rfl, -, -, hce, -, -⟩ := run_register_inductive_cold_ok hmiss hrun
-  obtain ⟨pre, hpre, hshape⟩ := hce.gdecls
+  obtain ⟨-, bodies, sM, rfl, -, -, hce, -, -⟩ :=
+    run_register_inductive_cold_ok (Ci := fun _ _ => True)
+      (fun _ _ _ _ _ _ _ => trivial) hmiss hrun
+  obtain ⟨pre, hpre, hshape⟩ := hce.gdeclsAx
   have hgd : (registerIndState indinfo bodies sM).gdecls
       = (mutualBlockKn indinfo,
           GlobalDecl.inductiveDecl { npars := indinfo.numParams, bodies := bodies })
