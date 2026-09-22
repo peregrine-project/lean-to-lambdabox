@@ -562,6 +562,59 @@ inductive step, W4's member content — and the risk is proof size plus the elev
 steps' mechanical rewrite, not truth. Probe: the three relations and the theorem elaborate
 (`w8_sigs.lean`).
 
+*Not landed* (`scratch/round7/W5-report.md`), with one restatement and one measured blocker.
+The accumulator itself is landed — `RegAcc` (`ColdStartShape.lean`), the triple this section
+quantifies, with `RegAcc.coldStart`, `SpecKeysEmitted.nil`/`.cons`, and the three registration
+steps restated to take and return it; `bridgeEnv_of_regContent` reads it in place of its first
+three premises. `visitExpr_regInv_all` is not stated.
+
+**The relations are restated: the accumulator is an independent conjunct, not a rewrite of the
+fourth.** F-W8-1 refutes the fifth conjunct and prescribes "drop the promise, transport at the
+growth site as the six `SpecEnv.mono` uses do". Dropping it leaves this section's fused
+`RunRefines` unprovable at *every* composition step: the fourth conjunct then reads the
+accumulator's own `Γ₁`, a sibling's conclusion has to cross the next sub-run's growth, and the
+step's only fact about that growth is `SpecGrow` — which does not carry a `Lower` conclusion.
+Mechanised at the tree's own fixture, `scratch/round7/w5_probe.lean`
+(`runRefines_fused_not_composable`, `[propext, Quot.sound]`): `Lower gsmall aBody aBody`,
+`SpecGrow gsmall ggrown`, `¬ Lower ggrown aBody aBody`, the prefix being the eliminator entries
+`Erasure.register_inductive` conses. There is no growth site to transport at either — the later
+sub-run binds its `Γ₂` existentially.
+
+The principled form keeps the fourth conjunct as it stands, `∀ Γspec, SpecEnv … s' Γspec →
+ErasesLBMode … Γspec …`, and adds the accumulator beside it as a conjunct mentioning no term:
+
+```lean
+  RunConcl s s' ∧ IndRegistryModelled env s' ∧ gen ≤ gen' ∧
+    (∀ Γspec, SpecEnv env tbl.body? tbl.levels? s' Γspec →
+      ErasesLBMode tbl ctx env Us Γspec Δ e t) ∧
+    ∀ Γ₀, RegAcc env tbl.body? tbl.levels? Γ₀ s →
+      ∃ Γ₁, SpecGrow Γ₀ Γ₁ ∧ RegAcc env tbl.body? tbl.levels? Γ₁ s'
+```
+
+Composition is then `SpecGrow.trans` with no term-side transport at all, the eleven transport
+steps keep their proofs unchanged, and `HeadRefines` needs no thread. §2.4's objection to "the
+weaker, ∀-`Γspec` clause" does not apply to this shape: what it refutes is instantiating at an
+environment *fixed in advance*, and the accumulator hands step 6 the environment of the member
+sub-run's **own exit state** — `RegAcc.shape.specEnv` there, `SpecEnv.mono` down to each earlier
+sub-run — so the witness `LowerBlock.hdecl` needs is the one the step itself declared. The
+environment is still an output; `visitExpr_regInv_all`'s printed statement is unchanged.
+
+**Blocker: steps 3, 10 and 17 have no `register_inductive` growth to take.** The table reads
+"W3's prefix supplies `IndCovered`". It does not: W3 (`W3-report.md` §2.1) landed
+`SpecContent.append` and `regInv_registerInd_step`, which *assume* `hpre : SpecContent env bo
+lp pre` together with seven further side conditions, and declined `IndPrefixOk`; nothing
+constructs the prefix from a run. `IndCovered` is never *introduced* anywhere in the tree — its
+only lemma is `IndCovered.lookupMono`, which transports one, and the `natEnv` fixture supplies
+its `elims` payload alone (`SpecEnv.lean`, `natEnv_elimCovered`) — and `RegInvShape'.inds`,
+`.indsEmitted` and `SpecContent.blocks` all fire at every member `Erasure.register_inductive`
+inserts. Until that producer exists — block entry plus one `mkElimBody` entry per informative
+member, `IndBodyOf`/`IndFlagSound`/`ElimDecl` from `BlockAdequate`, and an F-KERNAME
+collision-freeness clause for the prefix's `defns`/`axioms` — the eighteen motives cannot be
+inhabited, and the change to the relations is all-or-nothing. The unit's remainder is therefore
+re-planned as W5a (the `register_inductive` producer), W5b (`visitMutual`'s registering exits at
+a growing environment, of which the two constant ones are now landed), W5c (the motive conjunct,
+the eighteen steps and the aggregator).
+
 ### 2.6 W6 — `RegKeyed` at a run
 
 **Waits for F-DEPLCTX** only in its `inds` clause's provenance, not in its shape. The `consts`
