@@ -1,0 +1,4 @@
+F-DEPLCTX caller binders open at the call: standalone 0, under binders 2
+F-DEPLCTX registry identical: true (2605 bytes)
+F-DEPLCTX dep entry identical: true (310 bytes)
+lean-exit=0

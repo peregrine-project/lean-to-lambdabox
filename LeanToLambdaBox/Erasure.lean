@@ -275,11 +275,32 @@ def quotRealizer: QuotKind → LBTerm
   | .lift => mkAnonLambdas 6 (.app (.bvar 2) (.bvar 0))
 
 /--
-The sort a Π-telescope ends in, read syntactically: MetaRocq's `destArity`
-(`ErasureFunction.v:1325`), which likewise does not reduce.
+The sort an arity ends in, read syntactically: MetaRocq's `destArity`
+(`../metarocq/pcuic/theories/PCUICAst.v:486-490`), which walks `tProd` **and `tLetIn`** and
+likewise does not reduce. A `Level` never mentions a term variable, so returning one from under
+a binder — which the `.forallE` arm has always done — is sound at the `.letE` arm too.
+
+The `.letE` arm is that `tLetIn` arm. A declared arity may carry a `let`:
+`inductive FooLet : (let _x := Nat; Prop)` elaborates and `InductiveVal.type` keeps the `letE`,
+where stopping at it reported a `Prop` as non-propositional and shipped its elimination stuck
+(F-ARITYLET). `.mdata` is the same case for Lean's annotation node, which every kernel walk
+sees through and which an arity can carry — `Lean.addDecl` accepts an inductive whose type is
+`.mdata … (.sort .zero)`.
+
+Those two arms, and no more, are where lean4lean's `TrExprS` is transparent besides `.forallE`
+and `.sort` (`../lean4lean/Lean4Lean/Verify/Typing/Expr.lean:164-170`), which is what keeps this
+walk in step with `vResultSort` of the translated type. It deliberately does **not** reduce: at
+`def MyArity := Prop`, `inductive FooAlias : MyArity` — which elaborates, with
+`InductiveVal.type = .const MyArity []` — `whnf` would answer `Prop` while the translated type
+is a `.const`, whose `vResultSort` is `none`, so a reducing walk would emit a `true` flag that
+`PropositionalInd` does not support and would falsify
+`ErasureSpec.propositionalInd_of_arity`, the direction of MetaRocq's equation that is proved
+and that the consumers spend. An alias-headed arity therefore stays unflagged, as it was.
 -/
 def arityResultSort: Expr → Option Level
   | .forallE _ _ b _ => arityResultSort b
+  | .letE _ _ _ b _ => arityResultSort b
+  | .mdata _ b => arityResultSort b
   | .sort l => some l
   | _ => none
 
@@ -1237,7 +1258,21 @@ mutual
     if nonrecursive
     then -- translate into a single nonrecursive constant declaration
       let e: Expr := ci.value! (allowOpaque := true)
-      let t ← withReader (fun env => { env with fixvars := .none, lparams := ci.levelParams }) do
+      -- The dependency is re-entered in the context its own body has, not the caller's:
+      -- `lctx := {}` alongside the level column. `erase_constant_body`
+      -- (`../metarocq/erasure/theories/Extract.v:264`) erases `cst_body cb` in the *empty*
+      -- context at `cst_universes cb`, because MetaRocq erases the global environment in a
+      -- pass of its own rather than from inside the term traversal; here the traversal is
+      -- what reaches the dependency, so the context has to be reset by hand. Behaviour is
+      -- unchanged — `ci.value!` is closed, so no `fvar` of the caller's context occurs in
+      -- it and every `Meta` call made below (`inferType`, `isErasable`, the telescopes)
+      -- answers the same in either context — but the pair `(lctx, lparams)` handed to the
+      -- relevance oracle is no longer mis-scoped: the caller's declarations may mention
+      -- level parameters the dependency's column does not have (F-DEPLCTX).
+      -- `fixvars` is reset here for the reason it always was: a non-recursive declaration
+      -- is not a member of the caller's block, so the caller's fix variables are not in
+      -- scope in its body.
+      let t ← withReader (fun env => { env with lctx := {}, fixvars := .none, lparams := ci.levelParams }) do
         pure (← visitExpr (← prepare_erasure e))
       let kn := toKername name
       checkKernameFresh name kn
@@ -1266,7 +1301,12 @@ mutual
         let defs: List FixDef ← names.mapM (fun n => do
           let ci ← getConstInfo n -- here n is directly from the above ci.all, possibly _unsafe_rec
           let e: Expr := ci.value! (allowOpaque := true)
-          let t: LBTerm ← withReader (fun env => { env with lparams := ci.levelParams }) do
+          -- The same reset as at the non-recursive exit above, for the same reason: a member
+          -- body is closed but for the block's own recursive references. `fixvars` is *not*
+          -- reset — it is the block's own map, installed by the `withReader` this loop runs
+          -- under, and it is exactly what the member's self- and sibling-references resolve
+          -- through (F-DEPLCTX).
+          let t: LBTerm ← withReader (fun env => { env with lctx := {}, lparams := ci.levelParams }) do
             visitExpr (← prepare_erasure e)
           mkDef (remove_unsafe_rec n) fixvarnames t
         )
