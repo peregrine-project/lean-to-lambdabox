@@ -30,8 +30,12 @@ the most recent waves are:
 - `10-MERGE-FIXES.md` — the `dev/fix` merge: ten shipping fixes merged from `dev/fix`, and the
   eight-cluster (M1–M8) repair of the proofs they broke.
 - `11-REPAIRS-W8.md` — W8: records that U9's composition of `hbridge` is unsatisfiable at the
-  rungs, and specifies the nine units (W1–W9) that discharge the binder, two of them waiting
-  on the shipping fixes F-DEPLCTX and F-ARITYLET.
+  rungs, and specifies the nine units (W1–W9) that would discharge the binder, two of them
+  waiting on the shipping fixes F-DEPLCTX and F-ARITYLET. Both fixes landed and W1–W9 landed in
+  part (round 7 wave 4, `doc/rework/07-STATUS.md` §1/§4, `scratch/round7/W4-refute.md`):
+  `hbridge` is still a binder — the registration invariant `RegAcc` still has no producer at a
+  run of the shipping eraser (W5a/b/c, re-planned and not landed) — and `hargReach` is retired
+  in favour of a stronger, source-side binder, `hbody` (W7/U9).
 
 ---
 
