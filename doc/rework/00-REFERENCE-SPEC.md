@@ -36,6 +36,12 @@ the most recent waves are:
   `hbridge` is still a binder — the registration invariant `RegAcc` still has no producer at a
   run of the shipping eraser (W5a/b/c, re-planned and not landed) — and `hargReach` is retired
   in favour of a stronger, source-side binder, `hbody` (W7/U9).
+- `12-REPAIRS-W9.md` — W9: the complete remaining route to `hbridge`, in six units (W9-H, W9-A,
+  W9-B, W9-C, W9-D, W9-E) with typechecked statements. It decides the two questions wave 4 left
+  open — F-QUOT/F-EQREC's realizer exits are *excluded* by the fragment rather than admitted as
+  specification entries, and the tabled-`casesOn` dependency is *measured* rather than guarded —
+  and threads the accumulator through a second bundle of motives instead of rewriting
+  `RunRefines`.
 
 ---
 
