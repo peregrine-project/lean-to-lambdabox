@@ -1371,4 +1371,51 @@ theorem ConstExt.regKeyed {env : VEnv} {s s' : ErasureState} (h : ConstExt s s')
     · obtain ⟨n, iid, np, nfs, hns, hii, hkn⟩ := H.inds kn mib hmem
       exact ⟨n, iid, np, nfs, hind n hns, hii, hkn⟩
 
+/-- **The empty state emits nothing**, so both clauses are vacuous. -/
+theorem regKeyed_empty {env : VEnv} : RegKeyed env ({} : ErasureState) where
+  consts kn cb hmem := by simp at hmem
+  inds kn mib hmem := by simp at hmem
+
+/-- **Preserved across a block entry**, given the entry's own witness: some registered
+inductive whose model block identifier is keyed there. `registerIndState`'s cons is the one
+`Erasure.register_inductive` makes (`Erasure.lean:392`), and it is the only writer of an
+`.inductiveDecl`-shaped entry, so this is where the `inds` clause is paid. -/
+theorem RegKeyed.indCons {env : VEnv} {s s' : ErasureState} {kn : Kername}
+    {mib : MutualInductiveBody} (H : RegKeyed env s)
+    (hg : s'.gdecls = (kn, .inductiveDecl mib) :: s.gdecls)
+    (hc : ∀ n : Name, (s.constants.get? n).isSome → (s'.constants.get? n).isSome)
+    (hi : ∀ n : Name, (s.inductives.get? n).isSome → (s'.inductives.get? n).isSome)
+    (hnew : ∃ (n : Name) (iid : InductiveId) (np : Nat) (nfs : List Nat),
+      (s'.inductives.get? n).isSome ∧ IndInfo env n iid np nfs ∧ kn = iid.mutualBlockName) :
+    RegKeyed env s' where
+  consts k cb hmem := by
+    rw [hg] at hmem
+    rcases List.mem_cons.mp hmem with heq | hmem
+    · exact absurd heq (by simp)
+    · obtain ⟨n, hn, hns⟩ := H.consts k cb hmem
+      exact ⟨n, hn, hc n hns⟩
+  inds k mib' hmem := by
+    rw [hg] at hmem
+    rcases List.mem_cons.mp hmem with heq | hmem
+    · obtain ⟨rfl, -⟩ := Prod.mk.injEq .. ▸ heq
+      exact hnew
+    · obtain ⟨n, iid, np, nfs, hns, hii, hkn⟩ := H.inds k mib' hmem
+      exact ⟨n, iid, np, nfs, hi n hns, hii, hkn⟩
+
+/-- The block registration loop conses one constant entry per member. -/
+theorem regKeyed_foldl_recConstStep {env : VEnv} {defs : List (@FixDef LBTerm)} :
+    ∀ (L : List (Name × Nat)) (s : ErasureState), RegKeyed env s →
+      RegKeyed env (L.foldl (recConstStep defs) s)
+  | [], _, h => h
+  | p :: rest, s, h => regKeyed_foldl_recConstStep rest _
+      (ConstExt.regKeyed (ConstExt.addRealizer p.1 (etaExpandFix defs p.2) s)
+        (fun _ hn => hn) h)
+
+/-- `Erasure.visitMutual`'s block exit. -/
+theorem regKeyed_recConstState {env : VEnv} {names : List Name}
+    {defs : List (@FixDef LBTerm)} {s : ErasureState} (h : RegKeyed env s) :
+    RegKeyed env (recConstState names defs s) := by
+  rw [recConstState_eq]
+  exact regKeyed_foldl_recConstStep names.zipIdx s h
+
 end LeanToLambdaBox

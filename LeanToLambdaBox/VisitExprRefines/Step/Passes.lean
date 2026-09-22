@@ -1348,4 +1348,109 @@ theorem step_visitCases {lenv : Environment} {env : VEnv}
     rw [hslice, ← List.foldl_append, List.take_append_drop] at h
     exact h
 
+/-! ## `RegKeyed` at a run
+
+Every emitted key is a registered constant's kername or a registered inductive's block key,
+read off the entry's own shape (`ColdStartShape.RegKeyed`). It is a fact about the state
+alone, hence a `RunClosedW` motive and not a refinement conclusion: each registration
+primitive writes a statically known `GlobalDecl` constructor at a statically known key, so
+every `consts` clause is that writer's own and the only clause with content is the block
+registration's.
+
+That clause takes its model content from `ErasureSpec.BlockAdequate.fwd` at the
+`Lean.InductiveVal` the call was made at, whose provenance `RunClosedW.reg` carries — the
+`Lean.getConstInfo` run, read through `ErasureSpec.LookupAdequate.constInfo`, the
+machine-numeral arm refuted by `ConfigPinned` — and not from `Bridge.IndRegistryModelled`,
+whose `IndArity` premise the step has no reason to hold. `fwd`'s fourth premise and the
+member loop's `.inductInfo` match are `BlockAdequate.fields` and `BlockAdequate.selfName`.
+-/
+
+/-- **The block registration maintains `RegKeyed`.** The cold branch conses one body-less
+constant entry per `@[extern]` constructor — none, at a pinned configuration — and one block
+entry, at `mutualBlockKn ii`; `BlockAdequate.selfName` and `selfMem` put `ii.name` in the
+registry (`pass_register_inductive_entry`), and `BlockAdequate.fwd` at the index the member
+loop minted reads its model block. The hit branch leaves the state alone. -/
+theorem regKeyed_register_inductive {lenv : Environment} {env : VEnv} {Us : List Name}
+    {gw : Void IO.RealWorld → NameGenerator} {ii : InductiveVal} {hd : Name}
+    {s : ErasureState} {ctx : ErasureContext} {cctx : Core.Context}
+    {ref : ST.Ref IO.RealWorld Core.State} {w : Void IO.RealWorld}
+    {r : InductiveId × InductiveArgMasks} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
+    (P : ErasureSpec lenv env Us gw) (hfind : lenv.find? hd = some (.inductInfo ii))
+    (hcfg : ConfigPinned ctx.config)
+    (hrun : Erasure.register_inductive ii s ctx cctx ref w = .ok (r, s₁) w₁)
+    (H : RegKeyed env s) : RegKeyed env s₁ := by
+  have hdecl : lenv.find? ii.name = some (.inductInfo ii) := by
+    rw [P.block_adequate.selfName hd ii hfind]; exact hfind
+  have hget : s₁.inductives.get? ii.name = some r :=
+    pass_register_inductive_entry P hdecl (P.block_adequate.selfMem hd ii hfind) hcfg hrun
+  have hcl := (run_register_inductive_entries (Ci := fun nm ci => lenv.find? nm = some ci)
+    (fun nm ci s₀ s₂ w₀ w₂ h =>
+      let k := P.lookup_adequate.constInfo nm cctx ref w₀ ci w₂ (pass_getConstInfo_core h)
+      ⟨k.2, k.1⟩)
+    (fun le s₀ s₂ w₀ w₂ h => P.prim_monotone.getEnv s₀ ctx cctx ref w₀ le s₂ w₂ h)
+    (fun msg u s₀ s₂ w₀ w₂ h => P.prim_monotone.logInfo msg s₀ ctx cctx ref w₀ u s₂ w₂ h)
+    hcfg.2.2.2.1 hrun).2
+  cases hi : s.inductives.get? ii.name with
+  | some rc0 => rw [(run_register_inductive_hit_ok hi hrun).2.1]; exact H
+  | none =>
+    obtain ⟨-, bodies, sM, hs1, -, -, hce, hgrow, -⟩ :=
+      run_register_inductive_cold_ok (Ci := fun _ _ => True)
+        (fun _ _ _ _ _ _ _ => trivial) hi hrun
+    refine hs1 ▸ (ConstExt.regKeyed hce.toConstExt (fun _ hn => hgrow hn) H).indCons
+      (kn := mutualBlockKn ii) rfl (fun _ hn => hn) (fun _ hn => hn) ?_
+    rcases hcl ii.name r hget with hold | ⟨idx, inf, hidx, hCin, -, -⟩
+    · rw [hold] at hi; exact absurd hi (by simp)
+    · obtain ⟨nfs, hkfs⟩ := P.block_adequate.fields ii.name inf hCin
+      exact ⟨ii.name, ⟨indBlockKername ii.all, idx⟩, ii.numParams, nfs,
+        by rw [hs1] at hget; rw [hget]; simp,
+        P.block_adequate.fwd hd ii.name ii inf idx nfs hfind hidx hCin hkfs, rfl⟩
+
+/-- **`RegKeyed` as a `RunClosedW` motive.** The eleven ambient primitives and
+`Erasure.prepare_erasure` leave the state alone; `Erasure.addAxiom`,
+`Erasure.visitMutual`'s two term exits and `Erasure.addRealizer` are constant extensions;
+the block registration is `regKeyed_register_inductive`. -/
+theorem runClosedW_regKeyed {lenv : Environment} {env : VEnv}
+    {gw : Void IO.RealWorld → NameGenerator} (P : ∀ Us, ErasureSpec lenv env Us gw) :
+    RunClosedW ConfigPinned (fun s _ => RegKeyed env s) where
+  oracle h hq := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hq
+  inferType h hq := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hq
+  metaM _ h hq := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hq
+  constInfo h hq := by rw [run_getConstInfo_state _ _ _ _ _ h]; exact hq
+  getEnv h hq := by rw [run_getEnv_state _ _ _ _ _ h]; exact hq
+  logInfo h hq := by rw [run_logInfo_state _ _ _ _ _ h]; exact hq
+  isInstance h hq := by rw [run_liftCoreM_state _ _ _ _ _ h]; exact hq
+  fresh h hq := by rw [run_mkFreshFVarId_state _ _ _ _ _ h]; exact hq
+  declInfo h hq := by rw [run_liftCoreM_state _ _ _ _ _ h]; exact hq
+  ctorArity h hq := by rw [run_liftCoreM_state _ _ _ _ _ h]; exact hq
+  casesInfo h hq := by rw [run_liftCoreM_state _ _ _ _ _ h]; exact hq
+  inl := by
+    intro s w kn hq
+    exact ConstExt.regKeyed (s := s) (s' := { s with inlinings := kn :: s.inlinings })
+      (ConstExt.of_same rfl rfl) (fun _ hn => hn) hq
+  ax h hq := by
+    rw [(run_addAxiom_ok h).1]
+    exact ConstExt.regKeyed (BodylessExt.addAxiom _ _).toConstExt (fun _ hn => hn) hq
+  reg := by
+    intro ii s ctx cctx ref w r s' w' hprov hc h hq
+    rcases hprov with ⟨hd, sa, sb, wa, wb, hci⟩ | hmach
+    · exact regKeyed_register_inductive (P [])
+        (((P []).lookup_adequate.constInfo hd cctx ref wa _ wb
+          (pass_getConstInfo_core hci)).2) hc h hq
+    · exact absurd (hc.2.2.1.symm.trans hmach) (by simp)
+  prep hc h hq := by rw [(run_prepare_erasure_ok hc.1 h).1]; exact hq
+  nrc hq _ _ _ := ConstExt.regKeyed (ConstExt.addRealizer _ _ _) (fun _ hn => hn) hq
+  rlz hq _ _ _ := ConstExt.regKeyed (ConstExt.addRealizer _ _ _) (fun _ hn => hn) hq
+  rc hq _ _ := regKeyed_recConstState hq
+
+/-- **`RegKeyed` at a run of the term walk.** `regSaturated_of_regKeyed`'s first antecedent,
+at the final state of `Erasure.visitExpr`; `regKeyed_empty` starts it at a cold entry. -/
+theorem regKeyed_of_run {lenv : Environment} {env : VEnv}
+    {gw : Void IO.RealWorld → NameGenerator} {e : Expr} {t : LBTerm} {s s' : ErasureState}
+    {ctx : ErasureContext} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
+    {w w' : Void IO.RealWorld} (P : ∀ Us, ErasureSpec lenv env Us gw)
+    (hcfg : ConfigPinned ctx.config)
+    (hvis : Erasure.visitExpr e s ctx cctx ref w = .ok (t, s') w') (hk : RegKeyed env s) :
+    RegKeyed env s' :=
+  ((visitExpr_shapeW (runClosedW_regKeyed P)).1 _ _ _ _ _ _ _ _ _ hvis hk hcfg).1
+
 end LeanToLambdaBox

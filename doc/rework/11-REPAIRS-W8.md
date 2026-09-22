@@ -171,12 +171,12 @@ grow. "R" needs real reasoning, "M" is mechanical.
 | W3 | the eliminator entry at `register_inductive` | R | W1 | no |
 | W4 | `Motive6`'s content at a member sub-run | R | W2 | **F-DEPLCTX** |
 | W5 | the aggregation `visitExpr_regInv_all` | R, large | W2, W3, W4 | **F-DEPLCTX** |
-| W6 | `RegKeyed` at a run | R | — | **F-DEPLCTX** |
+| W6 | `RegKeyed` at a run | R | — | no (F-W8-8; the row was wrong) |
 | W7 | `hbridge` discharged, `hargReach` reduced | M | W1, W5, W6 | **F-DEPLCTX** |
 | W8 | the three dead slots | M | W4 | no |
 | W9 | the inductive flag as MetaRocq's equation | R | — | **F-ARITYLET** |
 
-W1, W2, W3 and W8's `compilerLevels` item can be worked today; the rest are gated.
+W1, W2, W3, W6 and W8's `compilerLevels` item can be worked today; the rest are gated.
 
 ### 2.1 W1 — `hsub` restated as `SpecKeysEmitted`
 
@@ -655,6 +655,30 @@ sixteen-clause `RunClosedW` instantiation whose only non-mechanical clause is th
 registration's; the shape-indexed restatement U8 landed is what makes each clause immediate,
 since a registration primitive writes a statically known `GlobalDecl` constructor.
 
+*Landed* (`scratch/round7/W6-report.md`), sorry-free, with three corrections. **F-W8-8 is
+right and the gate row was wrong**: the route reads the state alone, needs no `BridgeInv`, and
+was workable at this checkpoint. `regKeyed_of_run` and `runClosedW_regKeyed` are in
+`VisitExprRefines/Step/Passes.lean`, not `ColdStartInduction.lean`: the `inds` clause spends
+`pass_register_inductive_entry` (`:411`) for "a member of the block is in the registry", and
+`ColdStartInduction` is upstream of both it and `run_prepare_erasure_ok`. The shape half —
+`regKeyed_empty`, `RegKeyed.indCons`, `regKeyed_recConstState` — is in `ColdStartShape.lean`
+beside `ConstExt.regKeyed`. `htbl : SourceTableAdequate lenv tbl` is dropped: the motive sees
+no term, so no registration it observes is known to be tabled and the binder is unspent.
+
+**It costs two bundle fields, not none.** `BlockAdequate.fwd` has a fourth premise,
+`KernelFields lenv ivm nfs`, whose only producer in the tree is
+`Witness.SourceTableAdequate.inds` through `Supported.indInfo_of_tabled` — the tabled names
+alone — while `BlockAdequate.bwd`'s is `IndArity`, the conclusion. A registration made at
+whatever `Lean.getConstInfo` returned has neither. And `pass_register_inductive_entry` needs
+`lenv.find? ii.name = some (.inductInfo ii)` where the provenance disjunct gives only
+`lenv.find? hd = some (.inductInfo ii)`; without it the member loop's `unreachable!`
+(`Erasure.lean:346`) can leave the registry untouched while `Erasure.lean:392` conses the
+block entry, which is `RegKeyed.inds` false at the new key. Both gaps are closed by class-**D**
+fields of `BlockAdequate`, beside `selfMem` and of its kind — `selfName` (a declared inductive
+is declared under its own name) and `fields` (a declared block's constructor records are the
+kernel's own at their positions) — so the cost is `P`'s and nothing new reaches a rung's binder
+list. `ErasureSpec` is never constructed anywhere, so no site had to discharge them.
+
 ### 2.7 W7 — `hbridge` discharged, `hargReach` reduced
 
 **Waits for F-DEPLCTX**, through W5.
@@ -841,3 +865,7 @@ Two of this wave's nine units are unblocked by a two-line shipping edit that thr
 wave reports have now put on `dev/fix` (`U5-report.md` §5, `U7-report.md` §5, `U9-report.md`
 §6). Until F-DEPLCTX merges, W1, W2, W3 and W8's third item are the whole of what W8 can land,
 and `hbridge` stays a binder.
+
+W6 belongs in that list too, and not because of the merge: it reads the state alone (F-W8-8).
+It landed at §2.6, so the two antecedents of `bridgeEnv_of_regContent` that W7 still owes are
+`RegInvShape'` and `RegContent` at a run — the aggregation — and not `RegKeyed`.

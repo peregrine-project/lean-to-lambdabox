@@ -406,6 +406,21 @@ structure BlockAdequate (lenv : Environment) (env : VEnv) : Prop where
       registration loop of `Erasure.register_inductive` is indexed by membership in it. -/
   selfMem : ∀ (I : Name) (iv : InductiveVal), lenv.find? I = some (.inductInfo iv) →
     iv.name ∈ iv.all
+  /-- A declared inductive is declared under its own name. Class **D** like `selfMem`, and
+      read at the same place: `Erasure.register_inductive`'s member loop looks each member of
+      `iv.all` up by name and falls through `unreachable!` when the answer is not an
+      `.inductInfo` (`Erasure.lean:346`), so without this the block entry
+      `Erasure.lean:392` conses can be keyed at a block no member of which was registered. -/
+  selfName : ∀ (I : Name) (iv : InductiveVal), lenv.find? I = some (.inductInfo iv) →
+    iv.name = I
+  /-- A declared block's constructor records are the kernel's own, at their positions. This
+      is `fwd`'s fourth premise, stated of `lenv` rather than left to the caller: the only
+      other producer is `Witness.SourceTableAdequate.inds`, which answers for the tabled
+      names alone, so a registration made at whatever `Lean.getConstInfo` returned has none.
+      MetaRocq reads the same arithmetic off `declared_constructor`
+      (`../metarocq/common/theories/EnvironmentTyping.v:32`). Class **D**. -/
+  fields : ∀ (I : Name) (iv : InductiveVal), lenv.find? I = some (.inductInfo iv) →
+    ∃ nfs : List Nat, KernelFields lenv iv nfs
 
 /-! ## The bundle -/
 
