@@ -17,6 +17,19 @@ specification (cited `[R §x]`). The Zulip thread *Peregrine Project > lean fron
 glossed is Lean: `Lean.Expr`, `casesOn`/`rec`, `Expr.proj`, `Expr.lit`, `Expr.mdata`,
 `@[extern]`, `@[csimp]`, and lean4lean's `VEnv`/`VExpr`/`VLCtx`/`TrExprS`/`HasType`/`IsDefEq`.
 
+**Companion documents.** This spec is normative; the numbered documents beside it are the wave
+log that measures progress against it — `doc/rework/07-STATUS.md` is the current snapshot, and
+the three most recent waves are:
+
+- `08-REPAIRS-W5.md` — W6, the closing round: reduces `hbridge` from `ErasureBridge`'s five
+  original fields to two (`erasesEnv`, `lowerEnv`) and states the registration-invariant repair
+  that would discharge them.
+- `09-REPAIRS-W7.md` — W7: finds `ErasesEnv.defns` unsatisfiable at a universe-polymorphic tabled
+  body (five of eight rungs vacuous under it) and plans the nine-unit repair, U1–U9, meant to
+  close `hbridge`.
+- `10-MERGE-FIXES.md` — the `dev/fix` merge: ten shipping fixes merged from `dev/fix`, and the
+  eight-cluster (M1–M8) repair of the proofs they broke.
+
 ---
 
 ## 1. Objective
