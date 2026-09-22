@@ -175,9 +175,85 @@ structure LookupAdequate (lenv : Environment) (gw : Void IO.RealWorld → NameGe
 
 /-! ## The primitive calls made for their effect, and the kernel's blocks -/
 
+/-- A `Lean.MetaM` computation only advances the name generator, stated at the shape such a
+computation is *applied* in: `Lean.MetaM` is `ReaderT Meta.Context (StateRefT Meta.State
+CoreM)`, so a run takes a `Meta.Context`, a state reference, a `Core.Context`, a core state
+reference and a world token.
+
+The shape matters. At it, `>>=` is the underlying `EST.bind` definitionally, so the property
+composes through a `do` block (`MetaGenMono.bind`); at the `Erasure.liftMetaM` shape the other
+clauses use it does not, because `Lean.Meta.MetaM.run'` allocates a fresh `Meta.State`
+reference per call and therefore does not distribute over `>>=`. `PrimMonotone.liftMetaM` is
+the one clause that crosses between the two. -/
+def MetaGenMono (gw : Void IO.RealWorld → NameGenerator) {α : Type} (x : Lean.MetaM α) : Prop :=
+  ∀ (mctx : Meta.Context) (mref : ST.Ref IO.RealWorld Meta.State) (cctx : Core.Context)
+    (ref : ST.Ref IO.RealWorld Core.State) (w : Void IO.RealWorld) (a : α)
+    (w₁ : Void IO.RealWorld),
+    x mctx mref cctx ref w = .ok a w₁ → gw w ≤ gw w₁
+
+/-- Running a bind at the applied `Lean.MetaM` shape: `Erasure.run_bind` one monad layer up. -/
+theorem meta_run_bind {α β : Type} (x : Lean.MetaM α) (f : α → Lean.MetaM β)
+    (mctx : Meta.Context) (mref : ST.Ref IO.RealWorld Meta.State) (cctx : Core.Context)
+    (ref : ST.Ref IO.RealWorld Core.State) (w : Void IO.RealWorld) :
+    (x >>= f) mctx mref cctx ref w =
+      match x mctx mref cctx ref w with
+      | .ok a w₁ => f a mctx mref cctx ref w₁
+      | .error e w₁ => .error e w₁ := by
+  cases hx : x mctx mref cctx ref w with
+  | ok a w₁ => show EST.bind (x mctx mref cctx ref) _ w = _; unfold EST.bind; rw [hx]
+  | error e w₁ => show EST.bind (x mctx mref cctx ref) _ w = _; unfold EST.bind; rw [hx]
+
+section MetaGenMono
+
+variable {gw : Void IO.RealWorld → NameGenerator} {α β γ : Type}
+
+/-- `pure` leaves the world where it found it. -/
+theorem MetaGenMono.pure (a : α) : MetaGenMono gw (Pure.pure a : Lean.MetaM α) := by
+  intro _ _ _ _ _ _ _ h
+  cases h
+  exact NameGenerator.LE.rfl
+
+/-- A bind advances the generator exactly as far as its two halves do. -/
+theorem MetaGenMono.bind {x : Lean.MetaM α} {f : α → Lean.MetaM β}
+    (hx : MetaGenMono gw x) (hf : ∀ a, MetaGenMono gw (f a)) : MetaGenMono gw (x >>= f) := by
+  intro mctx mref cctx ref w b w₁ h
+  rw [meta_run_bind] at h
+  cases hx' : x mctx mref cctx ref w with
+  | ok a w' =>
+    rw [hx'] at h
+    exact NameGenerator.LE.trans (hx _ _ _ _ _ _ _ hx') (hf a _ _ _ _ _ _ _ h)
+  | error e w' => rw [hx'] at h; exact nomatch h
+
+/-- A `for` loop over a `List` advances the generator exactly as far as its body does. -/
+theorem MetaGenMono.forIn_list {f : γ → β → Lean.MetaM (ForInStep β)}
+    (hf : ∀ a b, MetaGenMono gw (f a b)) :
+    ∀ (l : List γ) (b : β), MetaGenMono gw (forIn l b f)
+  | [], _ => by rw [List.forIn_nil]; exact MetaGenMono.pure _
+  | a :: as, b => by
+      rw [List.forIn_cons]
+      refine MetaGenMono.bind (hf a b) (fun r => ?_)
+      cases r with
+      | done _ => exact MetaGenMono.pure _
+      | yield b' => exact MetaGenMono.forIn_list hf as b'
+
+/-- The same over an `Array`, which is the shape the two proof scans take. -/
+theorem MetaGenMono.forIn_array {f : γ → β → Lean.MetaM (ForInStep β)}
+    (hf : ∀ a b, MetaGenMono gw (f a b)) (as : Array γ) (b : β) :
+    MetaGenMono gw (forIn as b f) := by
+  rw [← Array.forIn_toList]
+  exact MetaGenMono.forIn_list hf _ _
+
+end MetaGenMono
+
 /-- The `CoreM`/`MetaM` calls the erasure makes for their effect alone: each only advances
 the name generator, and `Lean.Meta.inferType` additionally reports a Π-telescope matching the
-subject's λ-telescope, which is what `Erasure.lambdaOrIntroToArity` peels. Class **D**. -/
+subject's λ-telescope, which is what `Erasure.lambdaOrIntroToArity` peels. Class **D**.
+
+Every clause names one primitive. The two bounded telescopes name it *compositionally* —
+each advances the generator no further than the continuation it is called with — which is
+what keeps the two anonymous continuations the erasure passes them out of the bundle: they
+are covered by `PrimGenMono`, a derived predicate, not by a clause quantifying over
+arbitrary `Lean.MetaM` computations. -/
 structure PrimMonotone (gw : Void IO.RealWorld → NameGenerator) : Prop where
   /-- `Lean.getEnv`. -/
   getEnv : ∀ (s : ErasureState) (ctx : ErasureContext) (cctx : Core.Context)
@@ -202,15 +278,99 @@ structure PrimMonotone (gw : Void IO.RealWorld → NameGenerator) : Prop where
     (s₁ : ErasureState) (w₁ : Void IO.RealWorld),
     Erasure.liftMetaM (Lean.Meta.inferType e) s ctx cctx ref w = .ok (ty, s₁) w₁ →
     gw w ≤ gw w₁ ∧ ForallMatchesLam ty e
-  /-- Every other `Lean.MetaM` computation the family lifts. The merge added two, both proof
-      tests under a bounded telescope: `Erasure.firstNonProofField`'s, on a constructor's
-      fields (F-ACC), and `Erasure.visitCases`' on the catch-all's hypotheses (F-SPARSE).
-      Stated generically for the reason `RunClosedW.metaM` (`ColdStartInduction.lean:244`) is:
-      the two lambdas are anonymous, and this is that clause's only supplier. -/
-  metaM : ∀ {α : Type} {x : Lean.MetaM α} {a : α} {s s₁ : ErasureState}
-    {ctx : ErasureContext} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
-    {w w₁ : Void IO.RealWorld},
+  /-- `Lean.Meta.isProof`, the test `Erasure.firstNonProofField` runs on a constructor's
+      fields (`Erasure.lean:308`) and `Erasure.visitCases` on the catch-all's hypotheses
+      (`Erasure.lean:1152`). -/
+  isProof : ∀ e : Expr, MetaGenMono gw (Lean.Meta.isProof e)
+  /-- `Lean.Meta.forallBoundedTelescope`, the telescope `Erasure.firstNonProofField` opens
+      over a constructor's type (`Erasure.lean:306`). It binds fresh variables of its own, so
+      it advances the generator, and it advances it no further than its continuation does. -/
+  forallBoundedTelescope : ∀ {α : Type} (type : Expr) (maxFVars? : Option Nat)
+    (k : Array Expr → Expr → Lean.MetaM α) (cleanupAnnotations binderInfoForInstImplicit : Bool),
+    (∀ vs b, MetaGenMono gw (k vs b)) →
+    MetaGenMono gw (Lean.Meta.forallBoundedTelescope type maxFVars? k cleanupAnnotations
+      binderInfoForInstImplicit)
+  /-- `Lean.Meta.lambdaBoundedTelescope`, the telescope `Erasure.visitCases` opens over the
+      catch-all alternative (`Erasure.lean:1150`), at the same reading. -/
+  lambdaBoundedTelescope : ∀ {α : Type} (e : Expr) (maxFVars : Nat)
+    (k : Array Expr → Expr → Lean.MetaM α) (cleanupAnnotations : Bool),
+    (∀ vs b, MetaGenMono gw (k vs b)) →
+    MetaGenMono gw (Lean.Meta.lambdaBoundedTelescope e maxFVars k cleanupAnnotations)
+  /-- `Erasure.liftMetaM` (`Erasure.lean:174`), the family's only way of running a `MetaM`
+      computation: a generator bound at the applied shape survives the
+      `Lean.Meta.MetaM.run'` the lift goes through. This is the clause that carries the three
+      `MetaGenMono` ones above to the shape the run lemmas read, and the reason none of them
+      has to be restated at it. -/
+  liftMetaM : ∀ {α : Type} {x : Lean.MetaM α}, MetaGenMono gw x →
+    ∀ {a : α} {s s₁ : ErasureState} {ctx : ErasureContext} {cctx : Core.Context}
+      {ref : ST.Ref IO.RealWorld Core.State} {w w₁ : Void IO.RealWorld},
     Erasure.liftMetaM x s ctx cctx ref w = .ok (a, s₁) w₁ → gw w ≤ gw w₁
+
+/-- The `Lean.MetaM` computations whose generator bound is a *consequence* of
+`PrimMonotone`'s clauses for the named primitives: those built from `Lean.Meta.isProof` and
+the two bounded telescopes with `pure` and `>>=`. It carries no assumption of its own — every
+occurrence below is discharged by the combinators — and it is what lets the run interface
+demand a generator bound without quantifying over arbitrary `MetaM` computations. -/
+def PrimGenMono {α : Type} (x : Lean.MetaM α) : Prop :=
+  ∀ gw : Void IO.RealWorld → NameGenerator, PrimMonotone gw → MetaGenMono gw x
+
+section PrimGenMono
+
+variable {α β γ : Type}
+
+/-- `pure`. -/
+theorem PrimGenMono.pure (a : α) : PrimGenMono (Pure.pure a : Lean.MetaM α) :=
+  fun _ _ => MetaGenMono.pure a
+
+/-- A bind of two covered computations. -/
+theorem PrimGenMono.bind {x : Lean.MetaM α} {f : α → Lean.MetaM β}
+    (hx : PrimGenMono x) (hf : ∀ a, PrimGenMono (f a)) : PrimGenMono (x >>= f) :=
+  fun gw hpm => MetaGenMono.bind (hx gw hpm) (fun a => hf a gw hpm)
+
+/-- A `for` loop over an `Array` with a covered body. -/
+theorem PrimGenMono.forIn_array {f : γ → β → Lean.MetaM (ForInStep β)}
+    (hf : ∀ a b, PrimGenMono (f a b)) (as : Array γ) (b : β) : PrimGenMono (forIn as b f) :=
+  fun gw hpm => MetaGenMono.forIn_array (fun a b => hf a b gw hpm) as b
+
+/-- `Lean.Meta.isProof`. -/
+theorem PrimGenMono.isProof (e : Expr) : PrimGenMono (Lean.Meta.isProof e) :=
+  fun _ hpm => hpm.isProof e
+
+/-- `Lean.Meta.forallBoundedTelescope` at a covered continuation. -/
+theorem PrimGenMono.forallBoundedTelescope (type : Expr) (maxFVars? : Option Nat)
+    (k : Array Expr → Expr → Lean.MetaM α) (cleanupAnnotations binderInfoForInstImplicit : Bool)
+    (hk : ∀ vs b, PrimGenMono (k vs b)) :
+    PrimGenMono (Lean.Meta.forallBoundedTelescope type maxFVars? k cleanupAnnotations
+      binderInfoForInstImplicit) :=
+  fun gw hpm => hpm.forallBoundedTelescope type maxFVars? k cleanupAnnotations
+    binderInfoForInstImplicit (fun vs b => hk vs b gw hpm)
+
+/-- `Lean.Meta.lambdaBoundedTelescope` at a covered continuation. -/
+theorem PrimGenMono.lambdaBoundedTelescope (e : Expr) (maxFVars : Nat)
+    (k : Array Expr → Expr → Lean.MetaM α) (cleanupAnnotations : Bool)
+    (hk : ∀ vs b, PrimGenMono (k vs b)) :
+    PrimGenMono (Lean.Meta.lambdaBoundedTelescope e maxFVars k cleanupAnnotations) :=
+  fun gw hpm => hpm.lambdaBoundedTelescope e maxFVars k cleanupAnnotations
+    (fun vs b => hk vs b gw hpm)
+
+end PrimGenMono
+
+/-- **The proof scan both bounded telescopes are called with.** `Erasure.firstNonProofField`
+runs it on a constructor's fields (`Erasure.lean:307-309`) and `Erasure.visitCases` on the
+catch-all's hypotheses (`Erasure.lean:1151-1153`): one `Lean.Meta.isProof` per binder, stopping
+at the first that is not a proof. Stated once, at the array the caller scans, so that neither
+anonymous continuation has to be transcribed at its call site. -/
+theorem primGenMono_proofScan (xs : Array (Expr × Nat)) :
+    PrimGenMono (show Lean.MetaM (Option Nat) from do
+      for (v, i) in xs do
+        unless ← Lean.Meta.isProof v do return some i
+      return none) := by
+  refine PrimGenMono.bind (PrimGenMono.forIn_array (fun p _ => ?_) _ _) (fun r => ?_)
+  · obtain ⟨v, -⟩ := p
+    exact PrimGenMono.bind (PrimGenMono.isProof v)
+      (fun _ => by split <;> exact PrimGenMono.pure _)
+  · obtain ⟨o, -⟩ := r
+    cases o <;> exact PrimGenMono.pure _
 
 /-- The kernel's inductive blocks and the model's agree: `ErasureSpec.decl_adequate`'s
 block-level sibling, at the identifier `Erasure.register_inductive` mints. Class **D**. -/

@@ -107,7 +107,7 @@ theorem runClosedW_indReg {lenv : Environment} {env : VEnv} {Us : List Name}
       (fun s _ => IndRegistryModelled env s₀ → IndRegistryModelled env s) where
   oracle h hq := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hq
   inferType h hq := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hq
-  metaM h hq := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hq
+  metaM _ h hq := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hq
   constInfo h hq := by rw [run_getConstInfo_state _ _ _ _ _ h]; exact hq
   getEnv h hq := by rw [run_getEnv_state _ _ _ _ _ h]; exact hq
   logInfo h hq := by rw [run_logInfo_state _ _ _ _ _ h]; exact hq
@@ -142,7 +142,7 @@ theorem runClosedW_concl {lenv : Environment} {env : VEnv} {Us : List Name}
         (IndRegistryModelled env s₀ → IndRegistryModelled env s)) :=
   ((runClosedW_runConcl (Cfg := ConfigPinned) s₀
       (fun hc h => (run_prepare_erasure_concl E hc.1 h).1)).and
-    (runClosedW_gen S w₀ S.prim_monotone.metaM
+    (runClosedW_gen S w₀
       (fun hc h => (run_prepare_erasure_concl E hc.1 h).2)
       (fun hc h => run_register_inductive_gen S hc h))).and
     (runClosedW_indReg S E s₀)

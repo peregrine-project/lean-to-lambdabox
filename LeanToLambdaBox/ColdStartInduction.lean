@@ -236,15 +236,17 @@ structure RunClosedW (Cfg : ErasureConfig → Prop)
       {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
       {w w' : Void IO.RealWorld},
     liftMetaM (Lean.Meta.inferType e) s ctx cctx ref w = .ok (ty, s') w' → P s w → P s' w'
-  /-- Every other `Lean.MetaM` computation the family lifts. The merge added two, both
-      proof tests under a bounded telescope: `Erasure.firstNonProofField`'s, on a
-      constructor's fields (F-PROP, F-ACC), and `Erasure.visitCases`' on the catch-all's
-      hypotheses (F-SPARSE). Stated once and generically rather than at those two lambdas,
-      which are anonymous and would have to be transcribed. -/
+  /-- The `Lean.MetaM` computations the family lifts besides the oracle and `inferType`: two
+      proof tests under a bounded telescope, `Erasure.firstNonProofField`'s on a
+      constructor's fields (`Erasure.lean:305-309`) and `Erasure.visitCases`' on the
+      catch-all's hypotheses (`Erasure.lean:1150-1153`). Neither lambda is named, so the
+      clause reads them through `PrimGenMono`, the class of computations built from
+      `Lean.Meta.isProof` and the two telescopes; each call site discharges it by
+      composition. -/
   metaM : ∀ {α : Type} {x : Lean.MetaM α} {a : α} {s s' : ErasureState} {ctx : ErasureContext}
       {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
       {w w' : Void IO.RealWorld},
-    liftMetaM x s ctx cctx ref w = .ok (a, s') w' → P s w → P s' w'
+    PrimGenMono x → liftMetaM x s ctx cctx ref w = .ok (a, s') w' → P s w → P s' w'
   /-- `Lean.getConstInfo`. -/
   constInfo : ∀ {n : Name} {ci : ConstantInfo} {s s' : ErasureState} {ctx : ErasureContext}
       {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
@@ -349,7 +351,7 @@ theorem runClosedW_of_runClosed {Cfg : ErasureConfig → Prop} {Q : ErasureState
     (H : RunClosed Q) : RunClosedW Cfg (fun s _ => Q s) where
   oracle h hQ := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hQ
   inferType h hQ := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hQ
-  metaM h hQ := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hQ
+  metaM _ h hQ := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hQ
   constInfo h hQ := by rw [run_getConstInfo_state _ _ _ _ _ h]; exact hQ
   getEnv h hQ := by rw [run_getEnv_state _ _ _ _ _ h]; exact hQ
   logInfo h hQ := by rw [run_logInfo_state _ _ _ _ _ h]; exact hQ
@@ -640,7 +642,9 @@ theorem run_firstNonProofField_okW {Cfg : ErasureConfig → Prop}
       simp only [] at hb
       rw [run_bind_ok] at hb
       obtain ⟨found, sd, wd, hmeta, hb⟩ := hb
-      replace hPa := H.metaM hmeta hPa
+      replace hPa := H.metaM
+        (PrimGenMono.forallBoundedTelescope _ _ _ _ _ fun _ _ => primGenMono_proofScan _)
+        hmeta hPa
       cases found <;>
         (simp only [] at hb; rw [run_pure] at hb; cases hb; exact hPa)
     all_goals
@@ -783,16 +787,20 @@ theorem shape_foldl_box {k : Nat} : ∀ (l : List Nat) (b : LBTerm),
   | _ :: rest, _, h1, h2, h3 =>
       shape_foldl_box rest _ ⟨h1, NoFix_box⟩ ⟨h2, trivial⟩ ⟨h3, NoBlock_box⟩
 
-/-- **`Erasure.etaArgIsValue`, stepped.** One lifted relevance test and a pure disjunction. -/
+/-- **`Erasure.etaArgIsValue`, stepped.** One lifted relevance test and a pure disjunction.
+The test is the relevance oracle, so the step is `RunClosedW.oracle`, which reads it at the
+reader's own level scope — the scope both call sites hand it (`Erasure.lean:974`,
+`Erasure.lean:998`). -/
 theorem run_etaArgIsValue_okW {Cfg : ErasureConfig → Prop}
     {P : ErasureState → Void IO.RealWorld → Prop} (H : RunClosedW Cfg P)
     {lp : List Name} {a : Expr} {b : Bool} {s s₁ : ErasureState} {ctx : ErasureContext}
-    {w w₁ : Void IO.RealWorld}
+    {w w₁ : Void IO.RealWorld} (hlp : lp = ctx.lparams)
     (hrun : etaArgIsValue lp a s ctx cctx ref w = .ok (b, s₁) w₁) (hP : P s w) : P s₁ w₁ := by
+  subst hlp
   unfold etaArgIsValue at hrun
   rw [run_bind_ok] at hrun
   obtain ⟨b0, s0, w0, hm, hp⟩ := hrun
-  replace hP := H.metaM hm hP
+  replace hP := H.oracle hm hP
   rw [run_pure] at hp
   cases hp
   exact hP
@@ -1645,7 +1653,7 @@ theorem visitExpr_shapeW {Cfg : ErasureConfig → Prop}
         cases hread
         rw [run_bind_ok] at hg
         obtain ⟨bv, s1, w1, hev, hg⟩ := hg
-        replace hPa := run_etaArgIsValue_okW H hev hPa
+        replace hPa := run_etaArgIsValue_okW H rfl hev hPa
         split at hg
         · rw [run_pure] at hg
           cases hg
@@ -1719,7 +1727,7 @@ theorem visitExpr_shapeW {Cfg : ErasureConfig → Prop}
         cases hread
         rw [run_bind_ok] at hg
         obtain ⟨bv, s1, w1, hev, hg⟩ := hg
-        replace hPa := run_etaArgIsValue_okW H hev hPa
+        replace hPa := run_etaArgIsValue_okW H rfl hev hPa
         split at hg
         · rw [run_pure] at hg
           cases hg
@@ -2037,7 +2045,9 @@ theorem visitExpr_shapeW {Cfg : ErasureConfig → Prop}
               case isFalse =>
               rw [run_bind_ok] at hmatch
               obtain ⟨bh, sG, wG, hbh, hmatch⟩ := hmatch
-              replace hPE := H.metaM hbh hPE
+              replace hPE := H.metaM
+                (PrimGenMono.lambdaBoundedTelescope _ _ _ _ fun _ _ => primGenMono_proofScan _)
+                hbh hPE
               cases bh
               case some i =>
                 simp only [] at hmatch
@@ -2304,7 +2314,7 @@ theorem RunClosedW.and {Cfg : ErasureConfig → Prop}
     RunClosedW Cfg (fun s w => P s w ∧ P' s w) where
   oracle h hq := ⟨H.oracle h hq.1, H'.oracle h hq.2⟩
   inferType h hq := ⟨H.inferType h hq.1, H'.inferType h hq.2⟩
-  metaM h hq := ⟨H.metaM h hq.1, H'.metaM h hq.2⟩
+  metaM hc h hq := ⟨H.metaM hc h hq.1, H'.metaM hc h hq.2⟩
   constInfo h hq := ⟨H.constInfo h hq.1, H'.constInfo h hq.2⟩
   getEnv h hq := ⟨H.getEnv h hq.1, H'.getEnv h hq.2⟩
   logInfo h hq := ⟨H.logInfo h hq.1, H'.logInfo h hq.2⟩
@@ -2333,7 +2343,7 @@ theorem runClosedW_runConcl {Cfg : ErasureConfig → Prop} (s₀ : ErasureState)
     RunClosedW Cfg (fun s _ => RunConcl s₀ s) where
   oracle h hq := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hq
   inferType h hq := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hq
-  metaM h hq := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hq
+  metaM _ h hq := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hq
   constInfo h hq := by rw [run_getConstInfo_state _ _ _ _ _ h]; exact hq
   getEnv h hq := by rw [run_getEnv_state _ _ _ _ _ h]; exact hq
   logInfo h hq := by rw [run_logInfo_state _ _ _ _ _ h]; exact hq
@@ -2358,10 +2368,6 @@ declared below it. -/
 theorem runClosedW_gen {lenv : Environment} {env : Lean4Lean.VEnv} {Us : List Name}
     {gw : Void IO.RealWorld → NameGenerator} (S : ErasureSpec lenv env Us gw)
     (w₀ : Void IO.RealWorld)
-    (hmeta : ∀ {α : Type} {x : Lean.MetaM α} {a : α} {s s₁ : ErasureState}
-        {ctx : ErasureContext} {cctx : Core.Context}
-        {ref : ST.Ref IO.RealWorld Core.State} {w w₁ : Void IO.RealWorld},
-      liftMetaM x s ctx cctx ref w = .ok (a, s₁) w₁ → gw w ≤ gw w₁)
     (hprep : ∀ {e : Expr} {s : ErasureState} {ctx : ErasureContext} {cctx : Core.Context}
         {ref : ST.Ref IO.RealWorld Core.State} {w : Void IO.RealWorld} {pe : Expr}
         {s₁ : ErasureState} {w₁ : Void IO.RealWorld},
@@ -2375,7 +2381,8 @@ theorem runClosedW_gen {lenv : Environment} {env : Lean4Lean.VEnv} {Us : List Na
     RunClosedW ConfigPinned (fun _ w => gw w₀ ≤ gw w) where
   oracle h hq := NameGenerator.LE.trans hq (S.oracle_refl _ _ _ _ _ _ _ _ _ h).1
   inferType h hq := NameGenerator.LE.trans hq (S.prim_monotone.inferType _ _ _ _ _ _ _ _ _ h).1
-  metaM h hq := NameGenerator.LE.trans hq (hmeta h)
+  metaM hc h hq :=
+    NameGenerator.LE.trans hq (S.prim_monotone.liftMetaM (hc gw S.prim_monotone) h)
   constInfo h hq := NameGenerator.LE.trans hq
     (S.lookup_adequate.constInfo _ _ _ _ _ _ (pass_getConstInfo_core h)).1
   getEnv h hq := NameGenerator.LE.trans hq (S.prim_monotone.getEnv _ _ _ _ _ _ _ _ h)
@@ -2406,10 +2413,6 @@ to the preparation pass. The registry conjunct is added where `IndRegistryModell
 declared. -/
 theorem visitExpr_runConcl_gen {lenv : Environment} {env : Lean4Lean.VEnv} {Us : List Name}
     {gw : Void IO.RealWorld → NameGenerator} (S : ErasureSpec lenv env Us gw)
-    (hmeta : ∀ {α : Type} {x : Lean.MetaM α} {a : α} {s s₁ : ErasureState}
-        {ctx : ErasureContext} {cctx : Core.Context}
-        {ref : ST.Ref IO.RealWorld Core.State} {w w₁ : Void IO.RealWorld},
-      liftMetaM x s ctx cctx ref w = .ok (a, s₁) w₁ → gw w ≤ gw w₁)
     (hprep : ∀ {e : Expr} {s : ErasureState} {ctx : ErasureContext} {cctx : Core.Context}
         {ref : ST.Ref IO.RealWorld Core.State} {w : Void IO.RealWorld} {pe : Expr}
         {s₁ : ErasureState} {w₁ : Void IO.RealWorld},
@@ -2427,7 +2430,7 @@ theorem visitExpr_runConcl_gen {lenv : Environment} {env : Lean4Lean.VEnv} {Us :
     RunConcl s s₁ ∧ gw w ≤ gw w₁ :=
   ((visitExpr_shapeW ((runClosedW_runConcl (Cfg := ConfigPinned) s
       (fun hc h => (hprep hc h).1)).and
-    (runClosedW_gen S w hmeta (fun hc h => (hprep hc h).2) hreg))).1
+    (runClosedW_gen S w (fun hc h => (hprep hc h).2) hreg))).1
       _ _ _ _ _ _ _ _ _ hrun ⟨RunConcl.rfl' s, NameGenerator.LE.rfl⟩ hcfg).1
 
 /-! ## The emitted bodies are closed
@@ -2520,7 +2523,7 @@ theorem runClosedW_closedBodies {Cfg : ErasureConfig → Prop}
     RunClosedW Cfg (fun s _ => ClosedBodies s.gdecls) where
   oracle h hq := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hq
   inferType h hq := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hq
-  metaM h hq := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hq
+  metaM _ h hq := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hq
   constInfo h hq := by rw [run_getConstInfo_state _ _ _ _ _ h]; exact hq
   getEnv h hq := by rw [run_getEnv_state _ _ _ _ _ h]; exact hq
   logInfo h hq := by rw [run_logInfo_state _ _ _ _ _ h]; exact hq
