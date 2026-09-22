@@ -20,6 +20,8 @@ two halves, `constants_of_tabled` and `constOrigin_of_constants`: the step betwe
 filed ask 4 and no theorem spans it. The five α rows are the transport a tabled body owes,
 because `ReifiedDecl.Prepared` pins it to the run's prepared body only up to
 `Witness.Expr.AlphaEq`; `SourceTableAdequate.erases_prepared` is the form a consumer spends.
+`g8_hargReach` is U9's reduction of `green_G8`'s old `hargReach` binder to a source-side fact
+(`doc/rework/11-REPAIRS-W8.md` §2.7): its own footprint, measured beside the rung's.
 Provenance for the axiom names printed here lives in `doc/trust.md`, the single home of
 the trust rows; `#print axioms` measures a proved theorem's footprint and cannot measure a
 hypothesis, so the class of each binder — including `hev`, which `green_G5` is the first
@@ -70,6 +72,7 @@ import LeanToLambdaBox
 #print axioms LeanToLambdaBox.Green.green_G8
 #print axioms LeanToLambdaBox.Green.g5_seval
 #print axioms LeanToLambdaBox.Green.spikeNatFacts_natEnv
+#print axioms LeanToLambdaBox.Green.g8_hargReach
 
 #print axioms LeanToLambdaBox.SEval.defeq
 #print axioms LeanToLambdaBox.LBOptimize_correct

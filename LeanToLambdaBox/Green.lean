@@ -1505,6 +1505,41 @@ theorem g8_argErasesEnv {env : VEnv} {Γspec : GlobalDeclarations} {t₀ : LBTer
     exact herΓ.elims hsh hinf hco
       (by rw [reachableFrom_peanoLB_zero hlook hr]; exact hreach)
 
+/-- **The subject's erasure image is its own kername.** `eG8 = .const ``benchArith []`, so
+`Erases`' `ctor` and `box` arms are refuted by the lowering premise: their images are a
+`.construct`/`.box` node respectively, and `g8Term` is neither. Only the `const` arm survives,
+which is the equation itself. -/
+theorem g8_t0 {env : VEnv} {Γspec : GlobalDeclarations} {t₀ : LBTerm}
+    (her : Erases env [] [] eG8 t₀) (hlow : Lower Γspec t₀ g8Term) :
+    t₀ = .const (toKername ``benchArith) := by
+  cases her with
+  | box htr hb =>
+      exact absurd (hlow.source_box rfl) (by rw [g8Term]; exact fun h => LBTerm.noConfusion h)
+  | ctor hc hi =>
+      rcases hlow.source_construct_nil rfl with h | ⟨defs, j, h⟩ <;>
+        rw [g8Term] at h <;> exact absurd h (by exact fun h => LBTerm.noConfusion h)
+  | const hc ho => rfl
+
+/-- **`hargReach`, reduced (U9).** What the binder still needs, once its own antecedents are
+read: not the registration invariant — `ErasesEnv.defns` is one of `hargReach`'s own premises
+and is what supplies the tabled body's erasure here — but a source-side fact about that body,
+that every erasure of it reaches `Nat`'s block. `green_G8`'s `hbody` is exactly that fact;
+`hlowΓ` (`LowerEnv Γspec g8Env`), which the old binder also took, is not spent. -/
+theorem g8_hargReach {env : VEnv} {Γspec : GlobalDeclarations} {b : Expr} {t₀ : LBTerm}
+    (hbo : g8Table.body? ``benchArith = some b)
+    (hbody : ∀ b₀ : LBTerm, Erases env (g8Table.levels? ``benchArith) [] b b₀ →
+      ReachableFrom Γspec b₀ natIid.mutualBlockName)
+    (her : Erases env [] [] eG8 t₀)
+    (herΓ : ErasesEnv env g8Table.body? g8Table.levels? Γspec t₀)
+    (hlow : Lower Γspec t₀ g8Term) :
+    ReachableFrom Γspec t₀ natIid.mutualBlockName := by
+  obtain rfl := g8_t0 her hlow
+  have hself : ReachableFrom Γspec (.const (toKername ``benchArith))
+      (toKername ``benchArith) :=
+    kernameElem_iff.2 (subset_reachFrom _ (by simp [constRefs]))
+  obtain ⟨-, b₀, -, hlk, herb, -⟩ := herΓ.defns ``benchArith b hbo hself
+  exact hself.through_body hlk (hbody b₀ herb)
+
 /-! ### The rungs -/
 
 set_option linter.unusedVariables false in
@@ -1573,9 +1608,10 @@ set_option linter.unusedVariables false in
 spine: the emitted term applied to the λ□ numeral `0` evaluates to the literal peano numeral
 `8`, the value the source semantics gives `benchArith Nat.zero`. `hcfg`, `hsup`, `hnb`,
 `hwf`, `hwt`, the spine's translation, the argument's erasure and lowering, and the
-target-side evaluation are discharged here by checked terms. `hcb` and `hev` stay binders,
-and so does `hargReach`: the argument's environment clause follows from the subject's once
-its erasure reaches `Nat`'s block, and no theorem says a `Γspec` of the run does.
+target-side evaluation are discharged here by checked terms. `hcb` and `hev` stay binders.
+The argument's environment clause (`g8_hargReach`, U9) reduces to a **source-side** binder,
+`hbody`: every erasure of `benchArith`'s tabled body reaches `Nat`'s block, with the tabled
+body's own existence decided on the reified table rather than assumed.
 -/
 theorem green_G8
     {lenv : Lean.Environment} {env : VEnv} {gw : Void IO.RealWorld → NameGenerator}
@@ -1599,10 +1635,9 @@ theorem green_G8
       ∃ Γspec : GlobalDeclarations, SpecEnv env g8Table.body? g8Table.levels? sf Γspec ∧
         ∀ t₀ : LBTerm, Erases env [] [] eG8 t₀ → Lower Γspec t₀ g8Term →
           ErasureBridge env g8Table.body? g8Table.levels? Γspec g8Env t₀)
-    (hargReach : ∀ (Γspec : GlobalDeclarations) (t₀ : LBTerm), Erases env [] [] eG8 t₀ →
-      ErasesEnv env g8Table.body? g8Table.levels? Γspec t₀ → Lower Γspec t₀ g8Term →
-      LowerEnv Γspec g8Env →
-      ReachableFrom Γspec t₀ natIid.mutualBlockName)
+    (hbody : ∀ (Γspec : GlobalDeclarations) (b : Expr), g8Table.body? ``benchArith = some b →
+      ∀ b₀ : LBTerm, Erases env (g8Table.levels? ``benchArith) [] b b₀ →
+        ReachableFrom Γspec b₀ natIid.mutualBlockName)
     (hev : SEval env g8Table.body? [] fullFlags [] (mkApps eG8 [g8Arg]) v)
     (hvwt : TrExprS env [] [] v vv)
     (hty : env.HasType 0 [] vv (VExpr.mkApps (.const ``Nat us) idx))
@@ -1623,13 +1658,16 @@ theorem green_G8
       (trExprS_const_of_table (P []) htbl hsafe rfl)
       (supportedB_sound (P []) htbl hsafe g8_supported)
       hprep hrun g8_noBodylessRefs g8_wf hbridge
+  obtain ⟨b, hbo⟩ := Option.isSome_iff_exists.1
+    (show (g8Table.body? ``benchArith).isSome = true by decide +kernel)
   obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
     hobs [g8Arg] [peanoLB 0] ``Nat us idx v vv _ rfl
       (fun i hi => by
         obtain rfl : i = 0 := by simp at hi; omega
         exact ⟨peanoLB 0, .ctor F.natZero F.natInd,
           .construct rfl (fun j hj => absurd hj (by simp)),
-          g8_argErasesEnv F herΓ (hargReach Γspec t₀ her herΓ hlow hlowΓ)⟩)
+          g8_argErasesEnv F herΓ
+            (g8_hargReach hbo (hbody Γspec b hbo) her herΓ hlow)⟩)
       (g8_trExprS_spine (P []) htbl hsafe) hev hvwt hty hfo
   have htv : tv = g8Answer := eval_deterministic hevtgt g8_eval
   subst htv
