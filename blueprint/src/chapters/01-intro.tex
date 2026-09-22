@@ -484,51 +484,43 @@ Eight sources are cited across this blueprint. Chapter~\ref{chap:references} tre
 full, positions this development among them, and lists every divergence; this section gives the
 compact picture.
 
-\par\smallskip\noindent
-\small
-\begin{tabular}{lp{0.12\linewidth}p{0.14\linewidth}p{0.17\linewidth}p{0.17\linewidth}p{0.19\linewidth}}
+\begin{center}
+\includegraphics[width=0.8\linewidth]{fig/layers}
+\end{center}
+
+\par\smallskip\noindent \small
+\begin{tabular}{p{0.08\linewidth}p{0.40\linewidth}p{0.40\linewidth}}
 \toprule
-& kernel theory & kernel verif. & erasure theory & erasure verif. & erasure implem./pipeline \\
+tag & what it is & use it for \\
 \midrule
-Rocq & PCUIC decl. spec ([MR, CCC, JACM, HAB]) & MetaRocq SafeChecker ([CCC, JACM, HAB]) &
-lambda-box, \code{isErasable}, \code{erases} ([L, CCC, JACM, HAB]) & \code{erases\_correct},
-\code{erase\_correct\_firstorder} ([L, CCC, JACM, HAB]) & \code{ErasureFunction.v}; 13-phase
-pipeline; Malfunction/C/Wasm/CakeML/Rust/Elm ([JACM, HAB, L, R]) \\
-\midrule
-Lean & Lean's DTT ([CT]) & \code{lean4lean} (undigested; [CT] bounds it negatively) &
-Lean-side \Erases{} relation, \code{visitExpr} bridge ([JACM]/[HAB] as model) & THIS PROJECT
-(no source; [R] Sec. 6.3 names it as future work) & \code{\#erase} in LeanToLambdaBox ([R]);
-pipeline shared with the Rocq row \\
+\src{L} & Letouzey, TYPES 2002 & the pen-and-paper origin of box, the erasure function, the
+relation-over-function method \\
+\src{MR} & Sozeau et al., JAR 2020 & superseded; quoting-layer provenance only \\
+\src{CCC} & Sozeau et al., POPL 2020 & superseded by \src{JACM}; historical-firsts citation only \\
+\src{JACM} & Sozeau et al., J.\ ACM 2025 & the theorem reference of record, every numbered
+erasure statement \\
+\src{HAB} & Sozeau, Habilitation 2026 & the superset naming the post-erasure pipeline, inherited
+and never re-verified \\
+\src{MRD} & metarocq.github.io & the file-and-module tiebreaker when a paper and the code
+disagree \\
+\src{R} & Dima, MPRI report 2025 & an unverified design precedent for the shipping eraser \\
+\src{CT} & Carneiro, MSc thesis draft & the only Lean source-calculus metatheory \\
 \bottomrule
 \end{tabular}
 \normalsize
 
+\lead{The porting claim, made precise} This development reconstructs \src{JACM} Sec.~7.3--7.4 /
+\src{HAB} Ch.~6 for Lean: a Lean-side \Erases{} relation into the lambda-box MetaRocq already
+owns, a forward simulation for it, and a bridge from the shipping \code{\#erase} to that relation.
 \begin{itemize}
-\item \lead{[L]} Letouzey, TYPES 2002: the pen-and-paper origin of box, of the erasure function,
-and of the relation-over-function proof method \Erases{}/\Lower{} follows.
-\item \lead{[MR], [CCC]} Sozeau et al., JAR 2020 and POPL 2020: superseded predecessors, kept
-for the quoting-layer provenance and the historical-firsts citation only.
-\item \lead{[JACM]} Sozeau et al., J.\ ACM 2025: the theorem reference of record for every
-numbered erasure statement this blueprint mirrors.
-\item \lead{[HAB]} Sozeau, Habilitation 2026: the superset naming the post-erasure pipeline this
-development inherits in full and never re-verifies.
-\item \lead{[MRD]} the MetaRocq project website: the file-and-module tiebreaker whenever a paper
-and the code disagree.
-\item \lead{[R], [CT]} Dima's internship report and Carneiro's thesis draft: the two Lean-side
-sources, an unverified design precedent for the shipping eraser and the only Lean source-calculus
-metatheory, respectively.
+\item \lead{Ported} \src{L}/\src{JACM}'s method: a relation extending the shipping function, then
+a bridge from the function's graph to the relation.
+\item \lead{Shared} lambda-box's syntax and semantics (\src{HAB} Spec 20--21) and the entire
+post-erasure pipeline (\src{HAB} Sec.~6.5--6.6), fixed by MetaRocq and inherited with no
+Lean-specific work.
+\item \lead{Assumed} the Lean kernel layer: \code{lean4lean} plus \src{CT} as a trust boundary,
+since nothing Lean-side yet has the status of weak-CBV standardization, canonicity, or
+principality that \src{JACM} spends.
 \end{itemize}
-
-\lead{The porting claim, made precise} This development reconstructs \code{[JACM]}
-Sec.~7.3--7.4 / \code{[HAB]} Ch.~6 for Lean: a Lean-side \Erases{} relation into the lambda-box
-MetaRocq already owns, a forward simulation for it, and a bridge from the shipping \code{\#erase}
-to that relation. Lambda-box's syntax and semantics, and the entire post-erasure pipeline, are
-shared rather than ported, fixed by MetaRocq and inherited from \code{[HAB]} Sec.~6.5--6.6 with
-no Lean-specific work. What is assumed rather than proved is the Lean kernel layer:
-\code{lean4lean} plus \code{[CT]} enter as a trust boundary with named holes, since nothing
-Lean-side yet has the status of weak-CBV standardization, canonicity, or principality that
-\code{[JACM]} spends. The shipping eraser's own Lean-specific layers -- machine \code{Nat},
-\code{csimp}, \code{@[extern]} axioms, matcher and \code{macro\_inline} preprocessing,
-constructor pruning -- have no counterpart in any reference and are each separately discharged
-or carried as a named assumption. Chapter~\ref{chap:references} gives the full grid, the porting
-claim's four refinements, and the divergence-by-divergence account.
+Chapter~\ref{chap:references} gives the full grid, the porting claim's fourth refinement (the
+shipping eraser's own Lean-specific layers), and the divergence-by-divergence account.

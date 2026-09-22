@@ -1,0 +1,60 @@
+digraph layers {
+  rankdir=TB;
+  newrank=true;
+  fontname="Helvetica";
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=13, margin="0.15,0.10", width=3.2, fixedsize=false];
+  edge [fontname="Helvetica", fontsize=10];
+  nodesep=0.9;
+  ranksep=0.35;
+
+  /* status colours */
+  /* verified = #C7E9C0 / #1B7F3B border, assumed = #FDD9B5 / #B35900,
+     this project = #BDD7EE / #0B4F8A, shared = #E6E6E6 / #666666,
+     unverified impl = #F7C6C7 / #B00020 */
+
+  labelloc="t";
+  label="";
+
+  Rrow [shape=plaintext, label="Rocq  (MetaRocq)", fontsize=16];
+  Lrow [shape=plaintext, label="Lean  (this project)", fontsize=16];
+
+  R1 [label="kernel theory\nPCUIC decl. spec\n[MR][CCC][JACM][HAB]", fillcolor="#C7E9C0", color="#1B7F3B"];
+  R2 [label="kernel verification\nSafeChecker, sound+complete\n[CCC][JACM][HAB]", fillcolor="#C7E9C0", color="#1B7F3B"];
+  R3 [label="erasure theory\nlambda-box, isErasable, erases, EWcbvEval\n[L][CCC][JACM][HAB]", fillcolor="#C7E9C0", color="#1B7F3B"];
+  R4 [label="erasure verification\nerases_correct, erase_correct_firstorder\n[L][CCC][JACM][HAB]", fillcolor="#C7E9C0", color="#1B7F3B"];
+  R5 [label="erasure implementation\nErasureFunction.v, plugin,\nPeregrine Extract\n[CCC][JACM][HAB]", fillcolor="#C7E9C0", color="#1B7F3B"];
+  R6 [label="pipeline and backends\n13 Transform.t phases;\nMalfunction/C/Wasm/CakeML/Rust/Elm\n[JACM][HAB][L][R]", fillcolor="#C7E9C0", color="#1B7F3B"];
+  R1 -> R2 -> R3 -> R4 -> R5 -> R6 [style=invis];
+
+  L1 [label="kernel theory\nLean DTT: typing, def. eq.,\nunique typing\n[CT]", fillcolor="#FDD9B5", color="#B35900"];
+  L2 [label="kernel verification\nlean4lean checker (undigested)\n[CT] bounds it negatively", fillcolor="#FDD9B5", color="#B35900"];
+  L3 [label="erasure theory\nLean-side Erases relation,\nvisitExpr bridge\n[JACM]/[HAB] as model", fillcolor="#BDD7EE", color="#0B4F8A"];
+  L4 [label="erasure verification\nTHIS PROJECT, dev/verify\nno source", fillcolor="#BDD7EE", color="#0B4F8A"];
+  L5 [label="erasure implementation\n#erase in LeanToLambdaBox\n[R]", fillcolor="#F7C6C7", color="#B00020"];
+  L6 [label="pipeline and backends\nshared with the Rocq row\n[R] as a consumer", fillcolor="#E6E6E6", color="#666666"];
+  L1 -> L2 -> L3 -> L4 -> L5 -> L6 [style=invis];
+
+  { rank=same; Rrow; Lrow; }
+  { rank=same; R1; L1; }
+  { rank=same; R2; L2; }
+  { rank=same; R3; L3; }
+  { rank=same; R4; L4; }
+  { rank=same; R5; L5; }
+  { rank=same; R6; L6; }
+  Rrow -> R1 [style=invis]; Lrow -> L1 [style=invis];
+
+  L1 -> R1 [label="assumes", dir=forward, minlen=2, color="#B35900", fontcolor="#B35900", constraint=false];
+  L2 -> R2 [label="assumes", dir=forward, minlen=2, color="#B35900", fontcolor="#B35900", constraint=false];
+  L3 -> R3 [label="ports", dir=forward, minlen=2, color="#0B4F8A", fontcolor="#0B4F8A", constraint=false];
+  L4 -> R4 [label="ports", dir=forward, minlen=2, color="#0B4F8A", fontcolor="#0B4F8A", constraint=false];
+  L6 -> R6 [label="shares", dir=forward, minlen=2, color="#666666", fontcolor="#666666", constraint=false];
+
+  R6 -> legend [style=invis];
+  legend [shape=plaintext, label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="4">
+      <tr><td bgcolor="#C7E9C0">verified</td><td bgcolor="#FDD9B5">assumed</td>
+          <td bgcolor="#BDD7EE">this project</td><td bgcolor="#E6E6E6">shared</td>
+          <td bgcolor="#F7C6C7">unverified implementation</td></tr>
+    </table>
+  >];
+}

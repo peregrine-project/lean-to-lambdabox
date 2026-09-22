@@ -4,6 +4,11 @@
  * and proofs.
  * */
 
+img {
+	max-width: 100%;
+	height: auto;
+}
+
 div.theorem_thmcontent {
 	border-left: .15rem solid black;
 }

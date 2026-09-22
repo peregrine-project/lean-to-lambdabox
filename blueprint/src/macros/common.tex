@@ -70,3 +70,59 @@
 \newcommand{\stInherited}{\textcolor{bpinherited}{\textbf{[INHERITED]}}}  % trust inherited from lean4lean / Lean axioms
 \newcommand{\stOpen}{\textcolor{bpopen}{\textbf{[OPEN]}}}                 % open proof obligation
 \newcommand{\stOutside}{\textcolor{bpoutside}{\textbf{[OUTSIDE]}}}        % outside the verified perimeter
+
+% --- Chapter 13/1 helpers: source tags, divergence-kind badges, divergence ids ----
+% One colour per cited source. \src{JACM} -> coloured bold [JACM]; \srcs{JACM}{Sec. 7.3}
+% -> coloured bold [JACM, Sec. 7.3]. Used only in chapters 1 and 13.
+\definecolor{srcJACM}{HTML}{0072B2}
+\definecolor{srcCCC}{HTML}{56B4E9}
+\definecolor{srcHAB}{HTML}{009E73}
+\definecolor{srcMR}{HTML}{999999}
+\definecolor{srcMRD}{HTML}{CC79A7}
+\definecolor{srcL}{HTML}{D55E00}
+\definecolor{srcR}{HTML}{E69F00}
+\definecolor{srcCT}{HTML}{6A3FA0}
+\newcommand{\src}[1]{\textcolor{src#1}{\textbf{[#1]}}}
+\newcommand{\srcs}[2]{\textcolor{src#1}{\textbf{[#1, #2]}}}
+
+% Divergence-kind badges (chapter 13's six kinds). Three FORCED-* share one hue
+% (reds/oranges) shading from lightest (Lean) to darkest (lean4lean).
+\definecolor{kindFL}{HTML}{CC3311}
+\definecolor{kindFE}{HTML}{E67300}
+\definecolor{kindFK}{HTML}{9E4300}
+\definecolor{kindDS}{HTML}{0072B2}
+\definecolor{kindOP}{HTML}{D6006D}
+\definecolor{kindGP}{HTML}{7F7F7F}
+\newcommand{\kFL}{\textcolor{kindFL}{\textbf{[F-Lean]}}}
+\newcommand{\kFE}{\textcolor{kindFE}{\textbf{[F-Eraser]}}}
+\newcommand{\kFK}{\textcolor{kindFK}{\textbf{[F-l4l]}}}
+\newcommand{\kDS}{\textcolor{kindDS}{\textbf{[Design]}}}
+\newcommand{\kOP}{\textcolor{kindOP}{\textbf{[Open]}}}
+\newcommand{\kGP}{\textcolor{kindGP}{\textbf{[Gap]}}}
+
+% Divergence ids (\did{T1}, \did{B2}, ...): bold, coloured by the area letter
+% prefix (T target calculus, B erasability, R erasure relation, V environment,
+% C correctness, P pipeline, M method, U trust, S scope).
+\definecolor{didT}{HTML}{0072B2}
+\definecolor{didB}{HTML}{009E73}
+\definecolor{didR}{HTML}{CC3311}
+\definecolor{didV}{HTML}{E67300}
+\definecolor{didC}{HTML}{6A3FA0}
+\definecolor{didP}{HTML}{CC79A7}
+\definecolor{didM}{HTML}{D6006D}
+\definecolor{didU}{HTML}{555555}
+\definecolor{didS}{HTML}{228833}
+\newcommand{\didSetColor}[1]{%
+  \ifx#1T\def\didColorName{didT}\else
+  \ifx#1B\def\didColorName{didB}\else
+  \ifx#1R\def\didColorName{didR}\else
+  \ifx#1V\def\didColorName{didV}\else
+  \ifx#1C\def\didColorName{didC}\else
+  \ifx#1P\def\didColorName{didP}\else
+  \ifx#1M\def\didColorName{didM}\else
+  \ifx#1U\def\didColorName{didU}\else
+  \ifx#1S\def\didColorName{didS}\else
+  \def\didColorName{didU}%
+  \fi\fi\fi\fi\fi\fi\fi\fi\fi}
+\newcommand{\did}[1]{\didDispatch#1\didStop{#1}}
+\def\didDispatch#1#2\didStop#3{\didSetColor{#1}\textcolor{\didColorName}{\textbf{#3}}}
