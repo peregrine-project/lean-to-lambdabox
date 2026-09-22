@@ -101,6 +101,8 @@ at $e$ still holds at the same spine on \code{pe}.
 \item \lead{Then} for every spine \code{args}, body table, level scope, flag point and value $v$: if
 $\SEval{}\ (\mkApps\ e\ \code{args})\ v$, then $\SEval{}\ (\mkApps\ \code{pe}\ \code{args})\ v$.
 \end{itemize}
+\lead{Lean} \code{EraserAsks} is taken at the ambient environment and name generator; it fixes no
+level scope, so the conclusion quantifies the scope freely.
 \lead{Status} \stProved{} conditional on \stAssumed{} \code{EraserAsks}.
 \end{theorem}
 \begin{proof}
@@ -122,7 +124,7 @@ step cases once and serves every consumer.
 \lean{LeanToLambdaBox.RunClosed}
 \leanok
 \uses{def:Erasure-EraseM, def:Erasure-register_inductive, def:Erasure-prepare_erasure, def:Erasure-nonrecConstState, def:NoFix, def:LBClosed}
-\lead{In short} A six-field \code{Prop} structure, one field per place the erasure family touches the
+\lead{In short} A seven-field \code{Prop} structure, one field per place the erasure family touches the
 state.
 \begin{itemize}
 \item \code{inl}: the \code{@[inline]} bookkeeping cons;
@@ -131,6 +133,8 @@ state.
 \item \code{prep}: the preprocessing pass;
 \item \code{nrc}: \code{visitMutual}'s non-recursive exit, may assume the stored term fix-free, closed,
 applied;
+\item \code{rlz}: the realizer exit, at the same three assumptions --- a realizer entry is the entry
+\code{nrc} writes, with the synthesized body in place of the erased one;
 \item \code{rc}: the recursive exit, may assume only closedness and applied form (a fixpoint projection
 is never fix-free).
 \end{itemize}
@@ -157,16 +161,20 @@ by design. MetaCoq instead ships a verified block/applied transformation.
 \lean{LeanToLambdaBox.RunClosedW}
 \leanok
 \uses{def:RunClosed, def:Erasure-isErasable, def:Erasure-register_inductive, def:Erasure-prepare_erasure, def:Erasure-EraseM}
-\lead{In short} Sixteen fields, parameterised by a condition \code{Cfg} on the configuration and a
+\lead{In short} Eighteen fields, parameterised by a condition \code{Cfg} on the configuration and a
 predicate $P$ of the state \emph{and} world.
 \begin{itemize}
-\item ten, one per ambient primitive called: \code{oracle}, \code{inferType}, \code{constInfo},
-\code{getEnv}, \code{logInfo}, \code{isInstance}, \code{fresh}, \code{declInfo}, \code{ctorArity},
-\code{casesInfo} --- respectively \code{Erasure.isErasable}, \code{Lean.Meta.inferType},
+\item eleven, one per ambient primitive called: \code{oracle}, \code{inferType}, \code{metaM},
+\code{constInfo}, \code{getEnv}, \code{logInfo}, \code{isInstance}, \code{fresh}, \code{declInfo},
+\code{ctorArity}, \code{casesInfo} --- respectively \code{Erasure.isErasable},
+\code{Lean.Meta.inferType}, the family's other lifted \code{Lean.MetaM} computations,
 \code{Lean.getConstInfo}, \code{Lean.getEnv}, \code{Lean.logInfo}, \code{Lean.Meta.isInstance},
 \code{Lean.mkFreshFVarId}, \code{Lean.Compiler.LCNF.getDeclInfo?}, \code{Lean.Compiler.LCNF.getCtorArity?},
 \code{Lean.getCasesInfo?};
-\item the other six are \code{RunClosed}'s (Definition~\ref{def:RunClosed}), except \code{prep} and
+\item \code{metaM} reads its argument through \code{PrimGenMono}, the class of computations built from
+\code{Lean.Meta.isProof} and the two bounded telescopes, because the two proof tests it covers are
+unnamed lambdas;
+\item the other seven are \code{RunClosed}'s (Definition~\ref{def:RunClosed}), except \code{prep} and
 \code{reg} also read \code{Cfg}, and \code{reg} carries the inductive value's provenance: a
 \code{getConstInfo} run, or \code{nat} = \code{.machine}.
 \end{itemize}
@@ -187,8 +195,8 @@ is closed under them as a world-indexed one, at any \code{Cfg}.
 \begin{proof}
 \leanok
 \uses{def:RunClosed, def:RunClosedW, lem:Erasure-run_liftCoreM_ok}
-\lead{Idea} The ten primitive fields are discharged by the run algebra's state-transparency lemmas; the
-six \code{RunClosed} fields carry over with \code{Cfg} unread.
+\lead{Idea} The eleven primitive fields are discharged by the run algebra's state-transparency lemmas;
+the seven \code{RunClosed} fields carry over with \code{Cfg} unread.
 \end{proof}
 \begin{lemma}[The stored fixpoint block is closed and in applied form]
 \label{lem:rec_block_closed}
@@ -209,6 +217,29 @@ by applied form, it is applied form for every $j$.
 \uses{lem:lbClosed_fix_of_bodies, def:LBClosed}
 \lead{Idea} Closedness unfolds to ``every body closed at the block's length'', and each abstraction
 raises the level by one. Applied form has no binder arithmetic and is discharged directly.
+\end{proof}
+\begin{lemma}[The eta-wrapped fixpoint a block registration writes]
+\label{lem:lbClosed_etaExpandFix}
+\lean{LeanToLambdaBox.lbClosed_etaExpandFix, LeanToLambdaBox.LowerBlock.etaExpandFix_eq, LeanToLambdaBox.LowerBlock.lbClosed_etaFix}
+\leanok
+\uses{def:LBClosed, def:LowerBlock, def:LowerFix}
+\lead{In short} The registration loop stores \code{Erasure.etaExpandFix defs j}, not the bare fixpoint
+node, and that wrapper is \hl{closed with no bound on the principal argument}.
+\begin{itemize}
+\item closedness: the wrapper's binders are exactly the indices its own spine supplies, so a block
+whose projections are closed at every level yields a closed wrapper;
+\item shape: at a block whose members all carry $\code{principalArgIdx} = 0$ --- what
+\code{LowerBlock.hrarg} asserts --- the wrapper is $\code{LBTerm.etaFix}\ \code{defs}\ j$;
+\item closedness of that shape follows from closed specification bodies through
+\code{LowerBlock.lbClosed\_etaFix}.
+\end{itemize}
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:LBClosed, def:LowerBlock}
+\lead{Idea} Peel the anonymous binders one at a time, then fold the spine of de~Bruijn indices, each
+below the bound the binders raised. The shape equation is \code{Erasure.etaExpandFix\_eq} read at the
+block's own principal-argument field.
 \end{proof}
 \begin{lemma}[The binder helpers, world-indexed]
 \label{lem:run_withLocalDecl_okW}
@@ -237,26 +268,82 @@ algebra drops.
 \lead{Caveat} The arity-peeling helper's panic case reports $P$ at the exit rather than equal worlds
 --- an asymmetry with its four siblings.
 \end{remark}
+\begin{lemma}[The two realizer paths, world-indexed]
+\label{lem:run_recursorRealizer_okW}
+\lean{LeanToLambdaBox.run_recursorRealizer_okW, LeanToLambdaBox.run_firstNonProofField_okW, LeanToLambdaBox.quotRealizer_shape}
+\leanok
+\uses{def:RunClosedW, def:Erasure-register_inductive, def:NoFix, def:LBClosed}
+\lead{In short} The two bodies \code{visitMutual} synthesizes instead of erasing --- the quotient
+realizer and the eliminator realizer --- are \hl{fix-free, closed and applied}, and the runs that build
+them carry $P$.
+\begin{itemize}
+\item \lead{Given} \code{RunClosedW Cfg P} and a reader \code{Cfg} describes;
+\item \lead{Then} a \code{recursorRealizer} run carries $P$ from entry to exit, and any body it returns
+has the three output conjuncts;
+\item the proof test \code{firstNonProofField}, on the path of both the realizer and
+\code{visitCases}, writes nothing and carries $P$;
+\item each of the four quotient bodies is $\Box$ or an anonymous lambda telescope over indices it binds
+itself.
+\end{itemize}
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:RunClosedW, lem:Erasure-run_bind_ok, lem:Erasure-run_pure}
+\lead{Idea} Step every bind. \code{firstNonProofField} makes one \code{getConstInfo} and one lifted
+\code{PrimGenMono} computation per constructor; \code{recursorRealizer}'s other state-touching call is
+the single \code{register\_inductive} on the inductive the first returned. Closedness of the
+synthesized \code{case} rests on the arity's own $+\,1$: the discriminee is the major premise's index
+$0$, and an alternative's minor-premise index sits below the arity plus its field count.
+\end{proof}
+\begin{lemma}[The eta prefix, world-indexed]
+\label{lem:run_withEtaPrefixLets_okW}
+\lean{LeanToLambdaBox.run_withEtaPrefixLets_okW, LeanToLambdaBox.run_etaArgIsValue_okW}
+\leanok
+\uses{def:RunClosedW, def:Erasure-isErasable, def:Erasure-visitExpr}
+\lead{In short} The eta-expansion families bind each already-erased argument in a \code{let} outside
+the new binders, and the three output conjuncts survive that wrapping.
+\begin{itemize}
+\item \lead{Given} entries whose bodies are fix-free, closed and applied, and a continuation with the
+same conclusion at every reader \code{Cfg} describes;
+\item \lead{Then} the result --- the continuation's term under one \code{.letIn} per entry --- has the
+three conjuncts, and $P$ survives;
+\item the value test is the relevance oracle at the reader's own level scope, so it steps through
+\code{RunClosedW}'s \code{oracle} clause.
+\end{itemize}
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:RunClosedW, lem:run_withLocalDecl_okW, lem:Erasure-run_bind_ok}
+\lead{Idea} Induction on the entry list: each step opens one binder with the world-indexed binder
+lemma, recurses, and closes with the \code{let} introduction, whose two halves are the entry's own
+conjuncts and the recursive call's.
+\end{proof}
 \begin{lemma}[The two registering exits, world-indexed]
 \label{lem:run_nonrec_exit_okW}
 \lean{LeanToLambdaBox.run_nonrec_exit_okW, LeanToLambdaBox.run_rec_exit_okW}
 \leanok
 \uses{def:RunClosedW, def:Erasure-visitMutual, def:Erasure-nonrecConstState}
-\lead{In short} Two decompositions of \code{visitMutual}'s registering exits, keeping $P$ alive.
+\lead{In short} Two decompositions of \code{visitMutual}'s registering exits, keeping $P$ alive across
+the freshness and distinctness guards.
 \begin{itemize}
 \item non-recursive exit: given the \code{RunClosedW} clauses it exercises, an induction hypothesis for
-the body, and a configuration-preserving reader transform, $P$ holds at the exit;
+the body, and a configuration-preserving reader transform, $P$ holds at the exit; the
+\code{checkKernameFresh} guard is stepped, leaving the state and world unchanged;
 \item block exit: the same across the loop's two reader updates (fresh fixvar identifiers, then each
 sibling's own \code{levelParams}), with an invariant accumulating each sibling's closedness, applied
-form and closure equation.
+form and closure equation;
+\item the block exit's \code{Nodup} guard on the member kernames throws on a violating block, so the
+successful run is the only path stepped, and the loop stores \code{Erasure.etaExpandFix defs j} at
+member $j$.
 \end{itemize}
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:rec_block_closed, lem:Erasure-run_bind_ok, lem:Erasure-run_list_mapM_ok, thm:Erasure-run_mkDef_ok, lem:Erasure-run_pure}
 \lead{Idea} Both are the run algebra's exit lemmas with the sub-run's reader pinned to the caller's
-configuration by \code{rfl}. The block exit's loop invariant is exactly the input
-Lemma~\ref{lem:rec_block_closed} needs and \code{RunClosedW}'s \code{rc} clause consumes.
+configuration by \code{rfl}; the throwing side of each guard dies by \code{run\_throwError\_ne\_ok}.
+The block exit's loop invariant is exactly the input Lemma~\ref{lem:rec_block_closed} needs and
+\code{RunClosedW}'s \code{rc} clause consumes.
 \end{proof}
 \begin{lemma}[The two numeral dispatches, enumerated]
 \label{lem:visitCases_match_tri}
@@ -294,7 +381,7 @@ eraser's steps (Definition~\ref{def:RunClosedW});
 every member returning a term returns one fix-free, closed and applied.
 \end{itemize}
 The eighteen members:
-\begin{center}
+\par\smallskip\noindent
 \begin{tabular}{p{0.54\linewidth}p{0.38\linewidth}}
 \toprule
 Member(s) & Deviation \\
@@ -308,17 +395,18 @@ $^*$: motive also takes the accumulator seed's three conjuncts as hypotheses & \
 $^\dagger$: concludes closedness of the body under its own binders & \\
 \bottomrule
 \end{tabular}
-\end{center}
 \lead{Status} \stProved{}; pure run algebra --- no lean4lean, no \code{sorryAx}.
 \end{theorem}
 \begin{proof}
 \leanok
-\uses{lem:visitCases_match_tri, lem:run_withLocalDecl_okW, lem:run_nonrec_exit_okW, lem:rec_block_closed, lem:Erasure-run_panic, lem:Erasure-run_bind_ok, def:NoFix, def:LBClosed}
+\uses{lem:visitCases_match_tri, lem:run_withLocalDecl_okW, lem:run_nonrec_exit_okW, lem:run_recursorRealizer_okW, lem:run_withEtaPrefixLets_okW, lem:rec_block_closed, lem:Erasure-run_panic, lem:Erasure-run_bind_ok, def:NoFix, def:LBClosed}
 \lead{Idea} One application of the family's mutual fixpoint induction, admissibility discharged by its
 own lemmas, then eighteen step cases: unfold, step every bind, feed each primitive to
 \code{RunClosedW}, open binders via the world-indexed binder lemmas, and discharge every \code{panic!}
-arm (it returns the default term, fix-free, closed and applied). The two registering exits close via
-Lemma~\ref{lem:run_nonrec_exit_okW}, the two numeral dispatches via Lemma~\ref{lem:visitCases_match_tri}.
+arm (it returns the default term, fix-free, closed and applied). The registering exits close via
+Lemma~\ref{lem:run_nonrec_exit_okW}, the realizer exits via Lemma~\ref{lem:run_recursorRealizer_okW},
+the eta prefixes via Lemma~\ref{lem:run_withEtaPrefixLets_okW}, and the two numeral dispatches via
+Lemma~\ref{lem:visitCases_match_tri}.
 \end{proof}
 \begin{theorem}[The state-only induction, and its non-vacuity]
 \label{thm:visitExpr_shape}
@@ -353,7 +441,7 @@ configuration premise. Non-vacuity: at the trivial predicate every field's concl
 \item \lead{Given} nothing --- no condition on the state, the source expression, or the configuration;
 \item \lead{Then} $t$ is fix-free, closed at level $0$, and applied: no fixpoint in spine position, no
 loose index, no constructor carrying block arguments;
-\item the sixteen panic sites (\code{doc/panics.md}: four \code{panic!}, twelve \code{unreachable!})
+\item the sixteen panic sites (\code{doc/panics.md}: five \code{panic!}, eleven \code{unreachable!})
 are discharged, not excluded;
 \item three corollaries project the shape conjuncts separately and together.
 \end{itemize}
@@ -379,7 +467,7 @@ non-fix premise, and Lemma~\ref{lem:RegInvShape-prime-constCons}'s closedness in
 \begin{proof}
 \leanok
 \uses{def:RunClosedW}
-\lead{Idea} Field by field: each of the sixteen clauses is the pair of the two hypotheses' clauses.
+\lead{Idea} Field by field: each of the eighteen clauses is the pair of the two hypotheses' clauses.
 \end{proof}
 \begin{remark}
 \lead{Why} Lets the state, generator, and (Chapter~\ref{chap:refinement}) registry halves of one run
@@ -401,9 +489,9 @@ constant-registry canonicity --- is closed under every family step.
 \begin{proof}
 \leanok
 \uses{thm:Erasure-run_addAxiom_ok, thm:Erasure-run_register_inductive_runConcl, lem:Erasure-run_liftCoreM_ok, lem:Erasure-runConcl_nonrecConstState, def:Erasure-RunConcl}
-\lead{Idea} The ten primitive clauses are state-transparency rewrites. Each of the four writers is a
-\code{RunConcl} step already proved in the run algebra, composed with the incoming \code{RunConcl} by
-transitivity.
+\lead{Idea} The primitive clauses are state-transparency rewrites. Each writer --- the two axiom-like
+conses, the block registration and the two registering exits --- is a \code{RunConcl} step already
+proved in the run algebra, composed with the incoming \code{RunConcl} by transitivity.
 \end{proof}
 \begin{lemma}[The generator half of a run conclusion]
 \label{lem:runClosedW_gen}
@@ -421,8 +509,31 @@ saying \code{prepare\_erasure} and \code{register\_inductive} only advance the g
 \begin{proof}
 \leanok
 \uses{asm:ErasureSpec-prim_monotone, asm:ErasureSpec-lookup_adequate, asm:ErasureSpec-fresh_names, asm:ErasureSpec-oracle_refl}
-\lead{Idea} Each primitive's bound is its \code{ErasureSpec} clause; the four state writers leave the
-world alone.
+\lead{Idea} Each primitive's bound is its \code{ErasureSpec} clause; the state writers leave the world
+alone.
+\end{proof}
+\begin{theorem}[Two conjuncts of the run conclusion, at a real run]
+\label{thm:visitExpr_runConcl_gen}
+\lean{LeanToLambdaBox.visitExpr_runConcl_gen}
+\leanok
+\uses{def:ConfigPinned, def:ErasureSpec, def:Erasure-RunConcl, def:Erasure-visitExpr, def:Erasure-prepare_erasure, def:Erasure-register_inductive}
+\lead{In short} A successful \code{visitExpr} run at a pinned configuration \hl{grows the state
+canonically and only advances the name generator}.
+\begin{itemize}
+\item \lead{Given} \code{ErasureSpec}, and the two bounds this module cannot cite --- that
+\code{prepare\_erasure} leaves the state alone and advances the generator, and that
+\code{register\_inductive} advances it;
+\item \lead{Then} $\code{RunConcl}\ s\ s_1$ and $\code{gw}\ w \le \code{gw}\ w_1$.
+\end{itemize}
+\lead{Lean} The third conjunct a consumer wants, that the inductive registry stays modelled, is added
+where \code{IndRegistryModelled} is declared (Definition~\ref{def:IndRegistryModelled}).
+\lead{Status} \stProved{} conditional on \stAssumed{} \code{ErasureSpec}.
+\end{theorem}
+\begin{proof}
+\leanok
+\uses{thm:visitExpr_shapeW, lem:RunClosedW-and, lem:runClosedW_runConcl, lem:runClosedW_gen}
+\lead{Idea} Pair the two closure lemmas with Lemma~\ref{lem:RunClosedW-and} and read the first motive
+of Theorem~\ref{thm:visitExpr_shapeW} at the reflexive base.
 \end{proof}
 \begin{lemma}[Closedness of the emitted bodies]
 \label{lem:runClosedW_closedBodies}
@@ -435,10 +546,10 @@ at the cold entry.
 \end{lemma}
 \begin{proof}
 \leanok
-\uses{thm:visitExpr_shape_all, thm:Erasure-run_register_inductive_cold_ok, def:Erasure-ConstExt}
+\uses{thm:visitExpr_shape_all, lem:lbClosed_etaExpandFix, thm:Erasure-run_register_inductive_cold_ok, def:Erasure-ConstExt}
 \lead{Idea} The ambient primitives and the preparation leave \code{gdecls} alone; \code{addAxiom} and
-\code{register\_inductive} add only body-less entries and inductive blocks; \code{visitMutual}'s two
-exits store exactly the terms whose closedness the induction itself proves.
+\code{register\_inductive} add only body-less entries and inductive blocks; the realizer and the two
+\code{visitMutual} exits store exactly the terms whose closedness the induction itself proves.
 \end{proof}
 
 \section{Constructor saturation, on the run}
@@ -533,15 +644,22 @@ the constant registry, the inductive registry and \code{gdecls} all agree.
 \lean{LeanToLambdaBox.run_visitMutual_decomp, LeanToLambdaBox.run_inline_tail_decomp, LeanToLambdaBox.run_inline_prefix_decomp, LeanToLambdaBox.run_nonrec_exit_decomp, LeanToLambdaBox.run_rec_exit_decomp, LeanToLambdaBox.run_rec_exit_siblings, LeanToLambdaBox.run_rec_exit_siblings_closed}
 \leanok
 \uses{def:InlineExt, def:Erasure-visitMutual, def:Erasure-addAxiomState, def:Erasure-nonrecConstState}
-\lead{In short} A successful \code{visitMutual n} run is a declaration-info query then one of three
-registering exits, modulo \code{InlineExt} slack.
+\lead{In short} A successful \code{visitMutual n} run is a declaration-info query then \hl{one of five
+registering exits}, modulo \code{InlineExt} slack.
 \begin{itemize}
 \item the axiom exit;
+\item the quotient exit: the declaration is a \code{quotInfo} and the state gains the realizer body for
+its kind;
+\item the eliminator exit: the declaration is a \code{recInfo}, and the \code{recursorRealizer} run is
+handed back --- it either returns a body, registered as a realizer, or returns none and the run falls
+through to the axiom entry;
 \item the non-recursive exit: inner \code{prepare\_erasure} and \code{visitExpr} runs on the
 declaration's value, at a reader with no fixvar map and the declaration's own level parameters;
 \item the recursive block exit: per-sibling runs with naming and closure equations, each open body
 fix-free and de~Bruijn closed.
 \end{itemize}
+\lead{Lean} The eliminator disjunct hands back the realizer run, whose own \code{register\_inductive}
+is the block write a registry invariant must see before the realizer's entry.
 \end{lemma}
 \begin{proof}
 \leanok
@@ -595,15 +713,15 @@ structural.
 \lean{LeanToLambdaBox.RegInvShape'}
 \leanok
 \uses{def:IndEmitted, def:SpecContent, def:IndCovered, def:ElimDecl, def:Lower, def:LowerFix, def:Erasure-EraseM, def:Kername, def:LBTerm-envLookup}
-\lead{In short} $\code{RegInvShape'}\ \code{env}\ \code{bo}\ \Gamma_{\mathrm{spec}}\ s$ relates a
-\hl{fixed} specification environment $\Gamma_{\mathrm{spec}}$ --- MetaCoq's pre-lowering source image
---- to the mutable state $s$. Twelve fields in three groups.
-\begin{center}
+\lead{In short} $\code{RegInvShape'}\ \code{env}\ \code{bo}\ \code{lp}\ \Gamma_{\mathrm{spec}}\ s$
+relates a \hl{fixed} specification environment $\Gamma_{\mathrm{spec}}$ --- MetaCoq's pre-lowering
+source image --- to the mutable state $s$. Twelve fields in three groups.
+\par\smallskip\noindent
 \begin{tabular}{lll}
 \toprule
 Group & Field & Meaning \\
 \midrule
-$\Gamma_{\mathrm{spec}}$ alone & \code{spec} & meets \code{SpecContent} \\
+$\Gamma_{\mathrm{spec}}$ alone & \code{spec} & meets \code{SpecContent} at the level column \\
  & \code{specClosed} & bodies are de~Bruijn closed \\
  & \code{specFVarFree} & bodies mention no free variable \\
 \midrule
@@ -611,7 +729,7 @@ coverage & \code{consts} & registered constants are declared, at canonical kerna
  & \code{inds} & registered inductives are covered \\
 \midrule
 emitted $\Gamma$ & \code{keys} & emitted keys are distinct \\
- & \code{defs} & a shared body is \Lower{}'s image, or a lowered block's $j$-th member \\
+ & \code{defs} & a shared body is \Lower{}'s image, or the eta-expansion of a lowered block's $j$-th node \\
  & \code{defsTotal} & every non-runtime-key spec body is emitted with some body \\
  & \code{axioms} & a body-less spec constant is emitted body-less or pruned \\
  & \code{indsEmitted} & every registered block is emitted unchanged \\
@@ -619,14 +737,15 @@ emitted $\Gamma$ & \code{keys} & emitted keys are distinct \\
  & \code{closed} & all emitted bodies are closed \\
 \bottomrule
 \end{tabular}
-\end{center}
+\lead{Lean} The level column \code{lp} names, per source constant, the scope its compiler body is
+erased at; only \code{spec} reads it.
 \end{definition}
 \begin{remark}
 \lead{Deviation} $\Gamma_{\mathrm{spec}}$ is fixed, not grown: \Lower{} is not monotone (a block can
 turn a key into a runtime key).
 \lead{Caveat} \code{defsTotal}, \code{indsEmitted} are registry-scoped, vacuous at the empty state,
-unscoped only by Theorem~\ref{thm:RegInvShape-prime-lowerEnv}. \code{specEnv}, \code{lowerEnv},
-\code{defns}, \code{erasesEnv} are Section~\ref{sec:coldstart:specenv} theorems, not fields here.
+unscoped only by Theorem~\ref{thm:RegInvShape-prime-lowerEnv}. \code{specEnv}, \code{lowerEnv} and
+\code{erasesEnv} are Section~\ref{sec:coldstart:specenv} theorems, not fields here.
 \end{remark}
 \begin{lemma}[The invariant at the initial state]
 \label{lem:RegInvShape-prime-empty}
@@ -676,8 +795,8 @@ lookup-across-a-cons lemmas and a case split on ``the inserted name or one alrea
 \lead{In short} Storing one constant with an emitted body preserves the invariant.
 \begin{itemize}
 \item \lead{Given} $\Gamma_{\mathrm{spec}}$ declares $n$ with some body $b_0$;
-\item $t$ is either the \Lower{} image of $b_0$, or the $j$-th projection of a lowered fixpoint block
-whose $j$-th key is $n$;
+\item $t$ is either the \Lower{} image of $b_0$, or the eta-expansion of a lowered fixpoint block whose
+$j$-th key is $n$;
 \item $t$ is de~Bruijn closed at level $0$, and $n$'s kername is fresh among the emitted keys;
 \item \lead{Then} storing $n$ with body $t$ preserves the invariant.
 \end{itemize}
@@ -691,8 +810,32 @@ hypothesis, and freshness gives \code{keys}.
 \end{proof}
 \begin{remark}
 \lead{Why} The workhorse step: Lemma~\ref{lem:RegInvShape-prime-recConst} iterates it per block member,
-and on a real run its closedness premise comes from Theorem~\ref{thm:visitExpr_shape_all}.
+Lemma~\ref{lem:RegInvShape-prime-addRealizer} reuses it, and on a real run its closedness premise comes
+from Theorem~\ref{thm:visitExpr_shape_all}.
 \end{remark}
+\begin{lemma}[Registering a realizer]
+\label{lem:RegInvShape-prime-addRealizer}
+\lean{LeanToLambdaBox.RegInvShape'.addRealizer}
+\leanok
+\uses{def:RegInvShape-prime, def:Erasure-nonrecConstState, def:Lower, def:LowerFix, def:LBClosed}
+\lead{In short} The quotient and eliminator exits write the entry \code{addAxiom} writes with a body in
+place of none, so they \hl{preserve the invariant for the same reason a constant does}.
+\begin{itemize}
+\item \lead{Given} $\Gamma_{\mathrm{spec}}$ declares $n$ with some body $b_0$, the stored $t$ is
+\Lower{}'s image of $b_0$ or the eta-expansion of a lowered block's node at $n$'s index, $t$ is closed,
+and $n$'s kername is fresh among the emitted keys;
+\item \lead{Then} the invariant holds at the realizer-registering state.
+\end{itemize}
+\lead{Lean} The emitted body is not assumed to \emph{be} the declared one: that would ask
+$\Lower{}\ \Gamma_{\mathrm{spec}}\ t\ t$ of the two realizer shapes and say nothing the general clause
+does not.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{lem:RegInvShape-prime-constCons}
+\lead{Idea} \code{addRealizerState} is \code{nonrecConstState} at the realizer body, so the step is
+Lemma~\ref{lem:RegInvShape-prime-constCons} verbatim.
+\end{proof}
 \begin{lemma}[The block exit preserves the invariant]
 \label{lem:RegInvShape-prime-recConst}
 \lean{LeanToLambdaBox.RegInvShape'.recConst, LeanToLambdaBox.regInvShape'_foldl_recConstStep}
@@ -709,15 +852,15 @@ iterates the same step along the fold.
 \end{lemma}
 \begin{proof}
 \leanok
-\uses{lem:RegInvShape-prime-constCons, def:LowerBlock}
-\lead{Idea} The block-registering state folds the non-recursive step over the member list; the
-\code{defs} disjunct comes from the block's own \code{LowerBlock} witness, and freshness against
-earlier members is exactly the distinctness hypothesis.
+\uses{lem:RegInvShape-prime-constCons, lem:lbClosed_etaExpandFix, def:LowerBlock}
+\lead{Idea} The block-registering state folds the non-recursive step over the member list at the
+eta-expanded node; the \code{defs} disjunct comes from the block's own \code{LowerBlock} witness, its
+closedness from Lemma~\ref{lem:lbClosed_etaExpandFix}, and freshness against earlier members is exactly
+the distinctness hypothesis.
 \end{proof}
 \begin{remark}
-\lead{Caveat} The distinctness premise is \code{EraserAsks.block\_keys\_distinct}, which is refuted in
-general (finding F-UNSAFEREC: a mutual unsafe definition together with its unsafe-recursive twin); every
-statement downstream is bounded by that.
+\lead{Why} The distinctness premise is a conclusion of a successful run: \code{Erasure.visitMutual}
+throws unless the member kernames are pairwise distinct, so the guard supplies it.
 \end{remark}
 \begin{lemma}[A prefix of body-less entries]
 \label{lem:RegInvShape-prime-axiomCons}
@@ -805,56 +948,12 @@ transport, block cons, registry growth.
 \code{keys} field, read off the final state. A transport at a known-good state, not free-standing
 preservation.
 \end{remark}
-\begin{lemma}[A parameter-free body is its own instantiation]
-\label{lem:instantiateLevelParams_eq_self}
-\lean{LeanToLambdaBox.instantiateLevelParams_eq_self}
-\leanok
-\lead{In short} A source term with no level parameter is unchanged by level instantiation, at any
-substitution.
-\lead{Since the snapshot} \stLanded{} Deleted with the clause it served (\code{92105c6}).
-\end{lemma}
-\begin{proof}
-\leanok
-\uses{asm:lean-reflection-axioms}
-\lead{Idea} Unfold the instantiation and apply the corresponding core lemma, whose guard is exactly the
-absence of a level parameter.
-\end{proof}
-\begin{theorem}[Level-scope transport at a parameter-free body]
-\label{thm:erases_any_scope_of_paramFree}
-\lean{LeanToLambdaBox.erases_any_scope_of_paramFree}
-\leanok
-\uses{def:Erases, def:NoMaxLevels, def:lean4lean-grounding}
-\lead{In short} \lbox{} carries no universe levels, so \hl{an erasure derivation at one scope is a
-derivation at every scope} once the body has no level parameter left to instantiate.
-\begin{itemize}
-\item \lead{Given} $b$ has no level parameter and satisfies \code{NoMaxLevels};
-\item $b$ erases to $b_0$ at the empty local context in scope \code{Us};
-\item \lead{Then} $b$ erases to $b_0$ at the empty local context in every scope.
-\end{itemize}
-\lead{Status} \stProved{}.
-\lead{Since the snapshot} \stLanded{} Deleted (\code{92105c6}): once \code{defns} is read at the
-declaration's own level scope, no consumer needs a transport to every scope.
-\end{theorem}
-\begin{proof}
-\leanok
-\uses{lem:instantiateLevelParams_eq_self, thm:Erases-instL, asm:lean-reflection-axioms}
-\lead{Idea} Instantiate \code{Us} at level zero (well-formed in any scope) and move the derivation via
-the erasure relation's level-instantiation theorem (\code{NoMaxLevels}). The instantiation is the
-identity on a parameter-free body (Lemma~\ref{lem:instantiateLevelParams_eq_self}) and the empty
-context, so the moved derivation is the original one at the new scope.
-\end{proof}
-\begin{remark}
-\lead{Deviation} Available only at level-parameter-free bodies; MetaCoq's environment erasure
-quantifies over every instantiation, since Rocq's constants are universe-polymorphic ([S], Sec.
-7.3). \lead{At the snapshot} \stRefuted{} The unguarded clause is not merely unproved but
-unsatisfiable at a polymorphic tabled body.
-\end{remark}
 
 \section{From the invariant to the environment relation}
 \label{sec:coldstart:specenv}
 
-These four theorems live in \code{SpecEnv.lean}, shared with Chapter~\ref{chap:source}; they matter here
-because Theorem~\ref{thm:bridgeEnv_of_regInv} consumes them.
+These three theorems live in \code{SpecEnv.lean}, shared with Chapter~\ref{chap:source}; they matter
+here because Theorem~\ref{thm:bridgeEnv_of_regInv} consumes them.
 
 \begin{lemma}[The invariant, read as a specification environment]
 \label{lem:RegInvShape-prime-specEnv}
@@ -889,60 +988,37 @@ registered inductive's;
 \lead{Idea} All eight clauses of \code{LowerEnv} come from the correspondingly named clauses of the
 invariant; the two scoped clauses are unscoped by the two saturation premises.
 \end{proof}
-\begin{theorem}[The delta column, from the run's own records]
-\label{thm:RegInvShape-prime-defns}
-\lean{LeanToLambdaBox.RegInvShape'.defns}
-\leanok
-\uses{def:RegInvShape-prime, def:Erases, def:ReachableFrom, def:NoMaxLevels}
-\lead{In short} Every tabled, reached constant's compiler body erases to $\Gamma_{\mathrm{spec}}$'s
-declared body \hl{at every level scope}.
-\begin{itemize}
-\item \lead{Given} the invariant; every kername reachable from $t$ is declared in
-$\Gamma_{\mathrm{spec}}$; every tabled compiler body is level-parameter free with no maximum-level
-expression;
-\item \lead{Then} for every tabled $c$ that $t$ reaches, $\Gamma_{\mathrm{spec}}$ declares $c$ with a
-body $b_0$, and the compiler body erases to $b_0$ at every scope and instantiation.
-\end{itemize}
-\lead{Status} \stProved{}; measured at nine names (the three standard plus six level-instantiation
-reflection names), no \code{sorryAx}.
-\lead{At the snapshot} \stRefuted{} Its premise --- every tabled body level-parameter free --- is
-unsatisfiable at G2, G3, G4, G7 and G8, which carry 1, 1, 2, 15 and 15 polymorphic tabled bodies, so
-the theorem says nothing there.
-\lead{Since the snapshot} \stLanded{} Deleted (\code{92105c6}); its content collapses into
-Theorem~\ref{thm:RegInvShape-prime-erasesEnv} at the level column.
-\end{theorem}
-\begin{proof}
-\leanok
-\uses{def:RegInvShape-prime, lem:instantiateLevelParams_eq_self, thm:erases_any_scope_of_paramFree, def:SpecContent, asm:lean-reflection-axioms}
-\lead{Idea} Reachability puts the key in the environment; \code{SpecContent}'s delta clause reads its
-entry at the run's scope; the level-parameter premise makes the unguarded quantification reachable via
-Lemma~\ref{lem:instantiateLevelParams_eq_self} and Theorem~\ref{thm:erases_any_scope_of_paramFree}.
-\end{proof}
 \begin{theorem}[The environment relation of a run]
 \label{thm:RegInvShape-prime-erasesEnv}
 \lean{LeanToLambdaBox.RegInvShape'.erasesEnv}
 \leanok
-\uses{def:RegInvShape-prime, def:ErasesEnv, def:ConstOrigin, def:ReachableFrom}
-\lead{In short} \hl{\ErasesEnv{}} holds along everything the erased program reaches.
+\uses{def:RegInvShape-prime, def:ErasesEnv, def:ConstOrigin, def:ReachableFrom, def:NoMaxLevels, def:lean4lean-grounding}
+\lead{In short} \hl{\ErasesEnv{}} holds along everything the erased program reaches, with the delta
+column read at each declaration's own level scope.
 \begin{itemize}
-\item \lead{Given} the invariant, the reachability premise, level-parameter freedom of the tabled
-bodies, and that every tabled constant is a plain constant of the model;
-\item \lead{Then} $\ErasesEnv{}\ \code{env}\ \code{bo}\ \Gamma_{\mathrm{spec}}\ t$.
+\item \lead{Given} the invariant at $s$, and every kername $t$ reaches declared in
+$\Gamma_{\mathrm{spec}}$;
+\item every tabled constant is a plain constant of the model;
+\item every tabled body is maximum-level free and translates into the model at its own level scope
+$\code{lp}\ c$;
+\item \lead{Then} $\ErasesEnv{}\ \code{env}\ \code{bo}\ \code{lp}\ \Gamma_{\mathrm{spec}}\ t$.
 \end{itemize}
+\lead{Lean} The delta column is the invariant's own \code{SpecContent.defns}, which already records the
+declaration's scope; no level-parameter-freedom premise is asked for.
 \lead{Status} \stProved{}.
-\lead{At the snapshot} \stRefuted{} Two of its premises --- the strengthened delta column and
-level-parameter freedom --- cannot hold at the five polymorphic rungs.
-\lead{Since the snapshot} \stLanded{} Restated at the declaration's own level scope; it no longer
-takes a level-parameter-freedom premise (\code{92105c6}).
 \end{theorem}
 \begin{proof}
 \leanok
-\uses{lem:RegInvShape-prime-specEnv, thm:RegInvShape-prime-defns, lem:SpecEnv-erasesEnv, asm:lean-reflection-axioms}
-\lead{Idea} Chapter~\ref{chap:source}'s \code{SpecEnv.erasesEnv} takes three premises the state does not
-record: reachability (the hypothesis), the strengthened delta column
-(Theorem~\ref{thm:RegInvShape-prime-defns}), and the table clause (discharged at the bridge from the
-reified table).
+\uses{lem:RegInvShape-prime-specEnv, lem:SpecEnv-erasesEnv, def:SpecContent}
+\lead{Idea} Chapter~\ref{chap:source}'s \code{SpecEnv.erasesEnv} takes the three premises the state does
+not record: reachability (the hypothesis), the table clause (discharged at the bridge from the reified
+table) and the level clause (likewise).
 \end{proof}
+\begin{remark}
+\lead{Why} Reading the delta column at the declaration's own scope is MetaCoq's own shape:
+\code{erases\_constant\_body} is applied at \code{cst\_universes} ([S], Sec. 7.3). The instantiated
+reading is a theorem, Theorem~\ref{thm:Erases-instL}, not a clause of the environment relation.
+\end{remark}
 
 \section{The state-side contract of the bridge}
 \label{sec:coldstart:bridgeinv}
@@ -979,8 +1055,9 @@ the name itself is a block name.
 \end{definition}
 \begin{remark}
 \lead{Caveat} Injectivity is restricted to tabled names because unrestricted it is false (finding
-F-KERNAME); duplicate-freedom's shipping counterpart is the refuted
-\code{EraserAsks.block\_keys\_distinct}.
+F-KERNAME); duplicate-freedom is a conclusion of a successful run, the reading of
+\code{visitMutual}'s own distinctness guard, not a standing claim about
+\code{Lean.Compiler.LCNF.getDeclInfo?}.
 \end{remark}
 \begin{definition}[The refinement conclusion, in either fixvar mode]
 \label{def:ErasesLBMode}
@@ -1051,7 +1128,7 @@ is not taken.
 \uses{def:BlockKeyed, def:IndRegistryModelled, def:Erasure-CanonicalConstants, def:Erasure-EraseM, def:Witness-SourceTable, def:lean4lean-grounding}
 \lead{In short} Eight fields on what the eraser's reader, its state, the ambient name generator and the
 modelled local context agree on at every point of a run.
-\begin{center}
+\par\smallskip\noindent
 \begin{tabular}{lp{0.84\linewidth}}
 \toprule
 Field & Meaning \\
@@ -1066,7 +1143,8 @@ Field & Meaning \\
 \code{indcanon} & the inductive registry is modelled \\
 \bottomrule
 \end{tabular}
-\end{center}
+\lead{Lean} \code{lparams} is what moves the reader's translation witness, held at the ambient scope, to
+the scope an oracle verdict was taken under.
 \end{definition}
 \begin{remark}
 \lead{Caveat} \code{lparams} pins a single level scope, while \code{Erasure.visitMutual} re-enters a
@@ -1190,7 +1268,8 @@ specification environment the final state admits.
 pinned configuration, and \code{CompilerBodies};
 \item \code{pe} is \code{Supported} and translates into the model; \code{prepare\_erasure} took $e$ to
 \code{pe} from the empty state, and \code{visitExpr} then took \code{pe} to $t$;
-\item \lead{Then} at every $\Gamma_{\mathrm{spec}}$ the final state admits, there is $t_0$ with
+\item \lead{Then} at every $\Gamma_{\mathrm{spec}}$ the final state admits --- a \code{SpecEnv} at the
+table's body and level columns --- there is $t_0$ with
 $\Erases{}\ \code{env}\ []\ []\ \code{pe}\ t_0$ and $\Lower{}\ \Gamma_{\mathrm{spec}}\ t_0\ t$.
 \end{itemize}
 \lead{Status} \stProved{}; \stInherited{} through lean4lean; conditional on \stAssumed{}
@@ -1205,20 +1284,21 @@ where the bridge invariant holds by construction (empty reader and context trivi
 proved terms; its first motive read in the ambient mode unfolds to the conclusion's existential.
 \end{proof}
 \begin{remark}
-\lead{Caveat} \code{TableBlocks} is unused in the proof term and has no consumer anywhere. The
-footprint carries \code{sorryAx} plus the reflection axioms, routing the relevance decision through
-lean4lean's checker; the capstone's own footprint is 33 names including \code{sorryAx}.
+\lead{Caveat} The footprint carries \code{sorryAx} plus the reflection axioms, routing the relevance
+decision through lean4lean's checker; the capstone's own footprint is 33 names including
+\code{sorryAx}.
 \end{remark}
 \begin{definition}[The residual, as one named binder]
 \label{def:ErasureBridge}
 \lean{LeanToLambdaBox.ErasureBridge}
 \leanok
 \uses{def:ErasesEnv, def:LowerEnv, asm:ErasureBridge-erasesEnv, asm:ErasureBridge-lowerEnv}
-\lead{In short} $\code{ErasureBridge}\ \code{env}\ \code{bo}\ \Gamma_{\mathrm{spec}}\ \Gamma\ t_0$ bundles
+\lead{In short}
+$\code{ErasureBridge}\ \code{env}\ \code{bo}\ \code{lp}\ \Gamma_{\mathrm{spec}}\ \Gamma\ t_0$ bundles
 exactly two environment results.
 \begin{itemize}
 \item \code{erasesEnv}: $\Gamma_{\mathrm{spec}}$ erases the source environment along everything $t_0$
-reaches;
+reaches, each body at its own level scope;
 \item \code{lowerEnv}: $\Gamma$ is the lowered, pruned image of $\Gamma_{\mathrm{spec}}$.
 \end{itemize}
 \end{definition}
@@ -1227,9 +1307,6 @@ reaches;
 (the open item below).
 \lead{Why} \code{ErasesEnv} counterparts MetaCoq's environment erasure ([S], Sec. 7.3); \LowerEnv{} is
 the extra Lean-specific layer for \Lower{}'s own steps.
-\lead{At the snapshot} \stVacuous{} At G2, G3, G4, G7 and G8 no environment inhabits the bundle: its
-\ErasesEnv{} field is unsatisfiable there, so those rungs' conclusions are empty
-(Chapter~\ref{chap:capstone}).
 \end{remark}
 \begin{theorem}[The bridge's two environment fields, derived]
 \label{thm:bridgeEnv_of_regInv}
@@ -1241,24 +1318,18 @@ once}.
 \begin{itemize}
 \item \lead{Given} the invariant holds at \code{sf} against $\Gamma_{\mathrm{spec}}$, the run is
 saturated for it, and every kername $t_0$ reaches is declared in $\Gamma_{\mathrm{spec}}$;
-\item every tabled body is level-parameter free with no maximum-level expression --- \stRefuted{},
-below --- and every tabled constant is a plain constant of the model;
+\item every tabled constant is a plain constant of the model, and the table meets
+\code{TabledLevels}: every tabled body is maximum-level free and translates at its own level scope;
 \item \lead{Then} at once: the specification environment for \code{sf}, well-formedness
 $\code{LBWfSpec}\ \Gamma_{\mathrm{spec}}$, and both \code{ErasureBridge} fields.
 \end{itemize}
-\lead{Status} \stProved{}; one line of Lean, measured at nine names in \code{test/ledger.expected},
-no \code{sorryAx}.
-\lead{At the snapshot} \stRefuted{} That premise has \emph{no} reachability gate, so one polymorphic
-tabled body refutes it outright: it is false at G2, G3, G4, G7 and G8. Measured at kernel grade,
-modulo \code{lean4lean}'s \code{Level.hasParam\_eq} axiom, which the capstone already carries. The
-planned route to \code{hbridge} was therefore dead at those five rungs.
-\lead{Since the snapshot} \stLanded{} \code{92105c6} deletes the premise; its surviving
-maximum-level half moves to a decidable \code{TableSafe} clause, measured with no offender at any
-rung. The theorem sheds the six level-instantiation axioms that premise carried.
+\lead{Lean} One line of Lean; \code{TabledLevels} is discharged at a reified table from
+\code{TableSafe}'s maximum-level clause and \code{CompilerBodies}.
+\lead{Status} \stProved{}; three standard axioms, no \code{sorryAx}.
 \end{theorem}
 \begin{proof}
 \leanok
-\uses{lem:RegInvShape-prime-specEnv, thm:RegInvShape-prime-erasesEnv, thm:RegInvShape-prime-lowerEnv, def:RegInvShape-prime, asm:lean-reflection-axioms}
+\uses{lem:RegInvShape-prime-specEnv, thm:RegInvShape-prime-erasesEnv, thm:RegInvShape-prime-lowerEnv, def:RegInvShape-prime}
 \lead{Idea} Four projections: the specification environment (Lemma~\ref{lem:RegInvShape-prime-specEnv});
 \code{LBWfSpec} as the invariant's key-distinctness and specification-closedness clauses; the
 environment relation (Theorem~\ref{thm:RegInvShape-prime-erasesEnv}); the lowered image
@@ -1268,35 +1339,20 @@ environment relation (Theorem~\ref{thm:RegInvShape-prime-erasesEnv}); the lowere
 \subsection*{The open item}
 
 \stOpen{} \lead{Open} Nothing in the repository produces a \code{RegInvShape'} for a state the
-shipping eraser actually reaches.
+shipping eraser reaches.
 \begin{itemize}
 \item Every theorem about a \emph{run} is proved; every theorem about the \emph{invariant} is
 proved; nothing joins them. The only inhabitants are
 Lemma~\ref{lem:RegInvShape-prime-empty} and a hand-built one-definition fixture.
 \item Consequence: \code{shipping\_erase\_correct\_firstorder} carries \code{hbridge}, discharged at
 none of the eight rungs. Theorem~\ref{thm:bridgeEnv_of_regInv} is its interface.
-\item \lead{At the snapshot} \stRefuted{} A fourth defect sat beside the three obstructions: the
-interface's own level-parameter premise, and the \code{defns} clause of its conclusion, were
-unsatisfiable at the five polymorphic rungs.
-\item \lead{Three obstructions} \code{BridgeInv}'s fixed level scope against \code{visitMutual}'s
-own parameters per member (16 of G7's 30 tabled bodies are polymorphic); alpha-pinning of a tabled
-body; and ``every specification environment'' against ``one, produced''.
-\item \lead{Since the snapshot} \stLanded{} The level-scope defect is repaired (\code{92105c6},
-\code{d6e0e3a}) and the alpha obstruction is removed at the \Erases{} layer by \code{Erases.alpha}
-and \code{SourceTableAdequate.erases\_prepared} (\code{e7fb418}, \code{512e190}). A re-refutation
-found no new unsatisfiable clause; G7 survived five attack routes.
-\item \lead{Planned} Five specified units, stubs typechecked, none started
-(\code{doc/rework/09-REPAIRS-W7.md} at \code{cf2cb08}): quantify the level scope inside the eighteen
-motives; make $\Gamma_{\mathrm{spec}}$ an accumulator under a new monotonicity relation; prove the
-registry invariant preserved by the term walk; saturate it at the final state; discharge
-\code{hbridge}. \stPlanned{} at \code{184155d}, which stops at the earlier merge repairs.
-\item \lead{Planned} Three clauses repeat \code{defns}' scope error harmlessly at today's
-monomorphic rungs and owe the same restatement: \code{TableBlocks.informative},
-\code{ErasureSpec.oracle\_meta}, \code{EraserAsks.kernel\_ind\_head\_true}. \code{TabledLevels}, the
-premise that replaced the deleted one, has no reachability gate either and must be unified with
-\code{CompilerBodies}. And the run reads level parameters from the \emph{compiler} declaration while
-the table reads them from the \emph{kernel} one --- measured to agree at all nine affected names,
-stated nowhere.
+\item \lead{Route} \code{doc/rework/09-REPAIRS-W7.md} specifies five units: quantify the level scope
+inside the eighteen motives; make $\Gamma_{\mathrm{spec}}$ an accumulator under a growth relation that
+turns no already-declared key into a runtime key; prove the registry invariant preserved by the term
+walk; saturate it at the final state; discharge \code{hbridge}.
+\item \lead{Caveat} Two obstructions stand in the way: \code{BridgeInv}'s single level scope against
+\code{visitMutual}'s per-member \code{levelParams}, and ``every specification environment'' against
+``one, produced''.
 \end{itemize}
 
 \subsection*{Deviations from the paper and caveats}
@@ -1305,11 +1361,12 @@ stated nowhere.
 \item Applied-versus-block constructors are fixed on the run (Theorem~\ref{thm:visitExpr_ctorSat},
 Theorem~\ref{thm:visitExpr_shape_all}); MetaCoq verifies a block/applied transformation instead ([S],
 Sec. 7.4). The saturation layer has no consumer.
-\item \lead{Deviation} Quantifying the delta column over every level scope was a chosen divergence
-from [S], which states the clause at the constant's own universe context under typing side
-conditions; at the snapshot it was \stRefuted{}, and it is reverted at \code{92105c6}.
+\item The delta column reads each body at the declaration's own level scope, as [S] does; the
+instantiated reading is derived where [S] derives it, in the $\delta$ arm of the simulation.
 \item \Lower{} has no MetaCoq counterpart, so \code{ErasureBridge} carries \code{LowerEnv} beside
 \code{ErasesEnv}.
+\item The registration loop stores an eta-wrapped fixpoint, so the \code{defs} clause reads
+$\code{LBTerm.etaFix}$ where a bare \code{.fix} node would read more simply.
 \item Two heartbeat budgets are set for reproducibility: four million for the induction, one million for
 the block decomposition.
 \item Roughly half of \code{ColdStartRun.lean} and the whole saturation layer are proved but unconsumed.

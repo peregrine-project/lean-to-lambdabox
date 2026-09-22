@@ -6,7 +6,7 @@
 \item \lead{Goal} Define what it means for a \lbox{} term to correctly erase a Lean term, and prove the metatheory Chapters~\ref{chap:correctness} and~\ref{chap:refinement} spend.
 \item \lead{Main results} Theorem~\ref{thm:Erases-exists_of_trExprS_of_projInfo} (erasure is total on the fragment); Theorem~\ref{thm:erases_uniform_closed} (a closed erasure is context-independent); Theorem~\ref{thm:demoEnv_erasesEnv} (the seven \ErasesEnv{} clauses are jointly satisfiable).
 \item \lead{Status} \stProved{} \Erases{}, its rule table, weakening, substitution and totality; \stInherited{} through lean4lean on lemmas routed through its conversion/unique-typing clusters; \stOpen{} \ErasesEnv{} and \LowerEnv{}, the capstone's bridge bundle, for a shipping run.
-\item \lead{Lean files} \code{Erasability.lean}, \code{Erases.lean}, \code{ErasesTotal.lean}, \code{Abstract.lean}, \code{ErasesAbstract.lean}, \code{ErasesStrengthen.lean}, \code{ErasesUniform.lean}, \code{ErasesEnv.lean}.
+\item \lead{Lean files} \code{Erasability.lean}, \code{Erases.lean}, \code{ErasesTotal.lean}, \code{Abstract.lean}, \code{ErasesAbstract.lean}, \code{ErasesAlpha.lean}, \code{ErasesStrengthen.lean}, \code{ErasesUniform.lean}, \code{ErasesEnv.lean}.
 \item \lead{Paper} [S, Sect.\ 7.3]: \code{isErasable}, \code{erases}, \code{erases\_deps}; [L, Def.\ 1, 3, 5, 10, Lemma 16].
 \end{itemize}
 
@@ -196,6 +196,45 @@ LeanToLambdaBox.prodVTy, LeanToLambdaBox.andVTy}
 \lead{Idea} Compute each result sort; discharge \code{Prod} via Lemma~\ref{lem:neverZeroB_sound}; \code{And}'s level is zero.
 \end{proof}
 
+\begin{definition}[Propositionality of an inductive type former]
+\label{def:PropositionalInd}
+\lean{LeanToLambdaBox.PropositionalInd, LeanToLambdaBox.PropositionalInd.mono,
+LeanToLambdaBox.alwaysZeroB, LeanToLambdaBox.alwaysZeroB_sound,
+LeanToLambdaBox.alwaysZeroB_complete}
+\leanok
+\uses{def:InformativeInd, def:lean4lean-grounding}
+\lead{In short} $\code{PropositionalInd}\ \mathit{env}\ I$: \emph{env} declares $I$, and $I$'s
+result sort \hl{evaluates to \code{Prop}} under every instantiation of its universe parameters
+-- the model-side reading of the eraser's own propositionality decision.
+\begin{itemize}
+\item \code{alwaysZeroB}: decides ``always zero,'' dual to \code{neverZeroB} (successor and
+parameter fail, \code{max} needs both sides, \code{imax} only its right side); sound and
+complete;
+\item not the complement of \code{InformativeInd}: a $\mathrm{Sort}\ u$ family whose $u$ is
+neither always nor never zero satisfies neither test.
+\end{itemize}
+\lead{Lean} \code{alwaysZeroB\_complete} needs the level well formed at the width it is
+evaluated at, witnessed by the all-ones instantiation, where \code{neverZeroB\_complete} uses
+all-zero.
+\end{definition}
+
+\begin{lemma}[An informative inductive is not propositional]
+\label{lem:propositional_false_of_informative}
+\lean{LeanToLambdaBox.propositional_false_of_informative}
+\leanok
+\uses{def:PropositionalInd, def:InformativeInd}
+\lead{In short} A Boolean flag that is \code{true} only when $I$ is propositional is
+\code{false} at an \hl{informative} $I$ -- the exclusion between the two criteria, read the
+direction a consumer needs.
+\lead{Status} \stProved{}.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:PropositionalInd, def:InformativeInd}
+\lead{Idea} At \code{true}, unfold both witnesses at the same declaration and identify their
+result levels; a level that is both never and always zero is absurd.
+\end{proof}
+
 \section{Reading the kernel environment: blocks, constructors, constants}
 \label{sec:erases:readings}
 
@@ -215,7 +254,7 @@ LeanToLambdaBox.indBlockKername, LeanToLambdaBox.ctorFieldCounts}
 \end{definition}
 
 \begin{remark}
-\lead{Caveat} \code{indBlockKername} joins a block's member names with no separator, so \code{[A, BC]} and \code{[AB, C]} mint one key. Latent: every block installed at the eight rungs is a singleton. \lead{Since the snapshot} \stFixed{} \code{611f49e} makes a run refuse a colliding block key; the encoding is unchanged, so the clause-level risk in \ErasesEnv{}'s \code{blocks} stands.
+\lead{Caveat} \code{indBlockKername} joins a block's member names with no separator, so \code{[A, BC]} and \code{[AB, C]} mint one key. Every block installed at the eight rungs is a singleton; a run refuses a colliding block key (Chapter~\ref{chap:trust}), but the encoding itself is unchanged, so the clause-level risk in \ErasesEnv{}'s \code{blocks} stands whenever nothing enforces that guard.
 \end{remark}
 
 \begin{definition}[Block data in source coordinates]
@@ -325,10 +364,10 @@ Rule & Source & Image & Side condition & [S] \\
 \code{ctor} & $\code{const}\ c\ \mathit{us}$ & $\code{construct}\ \mathit{iid}\ k\ []$ & $\code{CtorOf}\ \mathit{env}\ c\ I\ k$, \code{IndInfo} for $I$ & \code{erases\_tConstruct} \\
 \code{const} & $\code{const}\ c\ \mathit{us}$ & $\code{const}\ (\code{toKername}\ c)$ & \emph{env} declares $c$, $\code{ConstOrigin}\ \mathit{env}\ c$ & \code{erases\_tConst} \\
 \code{app} & $f\ a$ & $f'\ a'$ & both erase & \code{erases\_tApp} \\
-\code{lam} & $\lambda x{:}A.\,b$ & $\lambda x.\,b'$ & $A$ translates, $b$ erases under $\lambda$ & \code{erases\_tLambda} \\
-\code{letE} & $\code{let}\ x{:}A := v;\ b$ & $\code{let}\ x := v';\ b'$ & $A,v$ translate, $v$ erases, $b$ erases under \code{let} & \code{erases\_tLetIn} \\
-\code{proj} & $\code{proj}\ S\ i\ e$ & $\code{proj}\ \langle \mathit{iid},\mathit{np},i\rangle\ t$ & $\code{IndInfo}\ \mathit{env}\ S\ \mathit{iid}\ \mathit{np}\ [\mathit{nf}]$, $i<\mathit{nf}$, $\code{InformativeInd}\ \mathit{env}\ S$ & \code{erases\_tProj} \\
-\code{lit} & $\code{lit}\ l$ & $t$ & $l$'s unfolding erases to $t$ & --- \\
+\code{lam} & $\lambda x{:}A.\,b$ & $\lambda x'.\,b'$ & $A$ translates, $b$ erases under $\lambda$ & \code{erases\_tLambda} \\
+\code{letE} & $\code{let}\ x{:}A := v;\ b$ & $\code{let}\ x' := v';\ b'$ & $A,v$ translate, $v$ erases, $b$ erases under \code{let} & \code{erases\_tLetIn} \\
+\code{proj} & $\code{proj}\ S\ i\ e$ & $\code{proj}\ \langle \mathit{iid},\mathit{np},i\rangle\ t$ & $\code{IndInfo}\ \mathit{env}\ S\ \mathit{iid}\ \mathit{np}\ [\mathit{nf}]$, $i<\mathit{nf}$, $\code{InformativeInd}\ \mathit{env}\ S$, $e$ erases to $t$ & \code{erases\_tProj} \\
+\code{lit} & $\code{lit}\ l$ & $t$ & $\mathit{env}$ contains $l$'s literal support, $l$'s unfolding erases to $t$ & --- \\
 \code{mdata} & $\code{mdata}\ d\ e$ & $t$ & $e$ erases to $t$ & --- \\
 \bottomrule
 \end{tabular}
@@ -338,19 +377,19 @@ Rule & Source & Image & Side condition & [S] \\
 \item \code{ctor}'s argument list is empty; arguments arrive through \code{app}; no rule
 produces a case or fixpoint node, and an inductive type \emph{name} gets none either -- it is
 erasable, so $\Box$ is its only image (Lemma~\ref{lem:Erases-indInfo_erasable});
-\item both binder rules keep the \textbf{source} name at the snapshot, and \code{letE}'s
-non-dependence flag is ignored; \code{const} alone carries a constant-lookup premise, since
-\code{CtorOf}/\code{IndInfo} already exhibit \code{ctor}'s block.
+\item both binder rules bind the \textbf{target} name independently of the source's, matching
+\Lower{}, which already quantifies it both ways; \code{letE}'s non-dependence flag is ignored;
+\code{const} alone carries a constant-lookup premise, since \code{CtorOf}/\code{IndInfo}
+already exhibit \code{ctor}'s block.
 \end{itemize}
 \lead{Lean} [S]'s \code{erases\_tCase} and its subsingleton-elimination rule, and
 \code{erases\_tFix}/\code{erases\_tCoFix}, have no counterpart (\Lower{}'s business; Lean has
 no coinduction); its sort/$\forall$ premises are absorbed into \code{box}. [L]'s counterpart
 is not the erasure function but the invariant of [L, Def.\ 10].
-\lead{Since the snapshot} \stLanded{} \code{e7fb418}: \code{lam} and \code{letE} bind the target
-name independently, matching \Lower{}, which already quantified it. Two consequences, both intended:
-\Erases{} is demonstrably non-deterministic on a $\lambda$ source, and no statement in the chain
-relates an emitted binder name to a source one. \code{512e190} adds \code{Erases.alpha}: source
-bodies equal up to binder names have the same images.
+\lead{Caveat} Because the target binder name is chosen independently of the source's,
+\Erases{} is non-deterministic already at a $\lambda$ source, and no statement in the chain
+relates an emitted binder name to a source one. Theorem~\ref{thm:Erases-alpha} is the payoff:
+source bodies equal up to binder names have the exact same image.
 \end{definition}
 
 \begin{definition}[The box alternative]
@@ -716,9 +755,8 @@ LeanToLambdaBox.erases_instL_closed}
 \item \lead{Given} $e$ erases to $t$ at parameters $\mathit{ps}$, in the \code{max}-free fragment;
 \item \lead{Then} the source with those parameters instantiated erases to the \emph{same} $t$ at the new scope.
 \end{itemize}
-\lead{Lean} Asks the substituted levels be readable in the target scope and the two lists have equal length.
+\lead{Lean} Asks the substituted levels be readable in the target scope and the two lists have equal length. \code{Erases.instantiateLevelParams} restates this theorem at the empty local context, against a \code{mapM}-checked level list; the $\delta$ arm's own by-name form, \code{Erases.instantiateLevelParams\_of\_stepDefeq} (\code{ErasesCorrect/Steps.lean}, Chapter~\ref{chap:correctness}), reduces to it by normalising the substitution to this positional shape.
 \lead{Status} \stProved{}.
-\lead{Since the snapshot} \stLanded{} \code{d6e0e3a}: \code{Erases.instantiateLevelParams} and its consumer form \code{Erases.instantiateLevelParams\_of\_stepDefeq} are proved from this theorem and lemmas the pin already has --- no new upstream ask --- and are what the delta arm now spends.
 \end{theorem}
 \begin{proof}
 \leanok
@@ -726,6 +764,34 @@ LeanToLambdaBox.erases_instL_closed}
 \lead{Idea} Induction with the target fixed: \code{box}/\code{lam}/\code{letE} move by
 Lemma~\ref{lem:substParams_strict} and \code{Erasable.instL}; \code{ctor}/\code{const}/
 \code{proj} are untouched (environment, not level, premises).
+\end{proof}
+
+\begin{theorem}[Erasure is stable under source alpha-equivalence]
+\label{thm:Erases-alpha}
+\lean{LeanToLambdaBox.TrExprS.alpha, LeanToLambdaBox.Erases.alpha}
+\leanok
+\uses{def:Erases, def:Witness-Expr-AlphaEq}
+\lead{In short} Renaming a source binder \hl{does not change the erasure}: an
+$\alpha$-variant of $e$, related by \code{Witness.Expr.AlphaEq} (same shape, binder names and
+binder info free), erases to the \emph{exact same} \lbox{} term, and translates to the same
+model term.
+\begin{itemize}
+\item \lead{Given} $e$ erases to $t$ (resp.\ translates to $\mathit{ve}$), and $e'$ is an
+$\alpha$-variant of $e$;
+\item \lead{Then} $e'$ erases to the same $t$ (resp.\ translates to the same $\mathit{ve}$).
+\end{itemize}
+\lead{Lean} True only because \code{lam}/\code{letE} bind the target name independently of the
+source's (Definition~\ref{def:Erases}); before that, an $\alpha$-variant could carry a
+different name into the image.
+\lead{Status} \stProved{}.
+\end{theorem}
+\begin{proof}
+\leanok
+\uses{def:Erases}
+\lead{Idea} Induction on the derivation, generalising the $\alpha$-related term: every
+non-binder rule inverts $\alpha$-equivalence by congruence; \code{box}, \code{lam} and
+\code{letE} carry their \code{TrExprS} premises across by the matching translation fact; a
+literal's one-step unfolding is compared to itself by reflexivity of \code{AlphaEq}.
 \end{proof}
 
 \section{Free-variable transport and context uniformity}
@@ -904,27 +970,54 @@ def:lean4lean-grounding}
 The remaining definitions lift the term-level relation to whole environments: \ErasesEnv{}
 for a compiled program, \LowerEnv{} for the pass layer's output (Chapter~\ref{chap:lowering}).
 
+\begin{definition}[Soundness of the emitted propositional flag]
+\label{def:IndFlagSound}
+\lean{LeanToLambdaBox.IndFlagSound, LeanToLambdaBox.IndFlagSound.notPropositional}
+\leanok
+\uses{def:IndInfo, def:PropositionalInd, def:InformativeInd, def:GlobalDeclarations}
+\lead{In short} $\code{IndFlagSound}\ \mathit{env}\ I\ \mathit{iid}\ \mathit{mib}$: whenever
+\emph{mib}'s $\mathit{iid}$-indexed body is flagged \hl{propositional}, $I$ is one against the
+model -- the half of the eraser's flag equation a consumer spends.
+\begin{itemize}
+\item \lead{Then} at a relevant $I$ (Definition~\ref{def:InformativeInd}), the flag reads
+\code{false}: \code{notPropositional} applies Lemma~\ref{lem:propositional_false_of_informative}
+at the two exhibited witnesses -- what \code{WcbvEval.iota} and \code{WcbvEval.proj} test
+before firing (Chapter~\ref{chap:lambdabox}).
+\end{itemize}
+\lead{Lean} No clause of \code{IndBodyOf} (Chapter~\ref{chap:lowering}), which carries no model
+environment: the registry computes the flag on every inductive it registers, so \code{=false}
+is not a fact about emitted output alone.
+\end{definition}
+
 \begin{definition}[Environment erasure]
 \label{def:ErasesEnv}
 \lean{LeanToLambdaBox.ErasesEnv, LeanToLambdaBox.ErasesEnv.mk}
 \leanok
 \uses{def:Erases, def:ConstOrigin, def:IndInfo, def:IndDeclOf, def:InformativeInd,
 def:ReachableFrom, def:ElimDecl, def:CasesOnShape, def:isCasesOnName, def:Kername,
-def:LBTerm-envLookup, def:GlobalDeclarations}
-\lead{In short} $\ErasesEnv\ \mathit{env}\ \mathit{bo}\ \Gamma_{\mathrm{spec}}\ t$: $\Gamma_{\mathrm{spec}}$ is a correct, \hl{dependency-selective} erasure of the source environment seen from program $t$, with $\mathit{bo}$ the \textbf{compiler body table}. Seven clauses, each triggered by $t$'s reachability of a kername -- [S]'s \code{erases\_deps}, not the pointwise erasure of [S, Table 2]:
+def:LBTerm-envLookup, def:GlobalDeclarations, def:NoMaxLevels, def:IndFlagSound}
+\lead{In short} $\ErasesEnv\ \mathit{env}\ \mathit{bo}\ \mathit{lp}\ \Gamma_{\mathrm{spec}}\ t$: $\Gamma_{\mathrm{spec}}$ is a correct, \hl{dependency-selective} erasure of the source environment seen from program $t$, with $\mathit{bo}$ the \textbf{compiler body table} and $\mathit{lp}$ the \textbf{level column} beside it -- the scope each tabled body is erased at. Seven clauses, each triggered by $t$'s reachability of a kername -- [S]'s \code{erases\_deps}, not the pointwise erasure of [S, Table 2]:
 \begin{itemize}
 \item \code{keys}: the environment's keys are distinct (the \code{fresh\_global} half of [S]'s well-formedness, so a shadowing entry cannot retarget a pass);
 \item \code{deps}: every kername the program reaches is declared;
 \item \code{tabled}: a constant the compiler table defines is a plain constant of the model; unlike the others it has no reachability trigger, refuting a reading only at constants the erasure emits no key for;
-\item \code{defns}: every reached, tabled constant's entry has a body erasing the compiler body at \textbf{every level scope and instantiation} --- \stRefuted{} (status line below);
+\item \code{defns}: every reached, tabled constant's entry has a body erasing the compiler body \hl{at the declaration's own level scope} $\mathit{lp}\ c$, that body is \code{NoMaxLevels}, and it translates at the same scope;
 \item \code{axioms}: a reached, body-less, non-eliminator constant is declared body-less;
-\item \code{blocks}: a reached inductive block is in the environment's own list, with the target's arity/propositionality data;
+\item \code{blocks}: a reached inductive block is in the environment's own list, with the target's arity data and \code{IndFlagSound};
 \item \code{elims}: a reached \code{casesOn} of a \emph{relevant} inductive has the canonical eliminator body.
 \end{itemize}
-\lead{Lean} No constructor clause: \code{blocks} already supplies its arity.
-\lead{At the snapshot} \stRefuted{} The \code{defns} clause is unsatisfiable. Read at the empty level scope the instantiation is the identity, and no arm of \Erases{} produces an image for a $\lambda$ whose domain is a level-parameter sort there (\code{no\_erases\_lam\_sort\_param}), so one universe-polymorphic tabled body refutes the clause. Mechanised twice, axioms \code{propext}/\code{Classical.choice}/\code{Quot.sound}, no \code{sorry}.
-\lead{Since the snapshot} \stLanded{} \code{92105c6}: the clause reads the tabled body at the declaration's own level parameters, through a new column \code{SourceTable.levels?} carried by \code{ErasesEnv}, \code{SpecContent}, \code{SpecEnv}, \code{RegInvShape'} and \code{ErasureBridge} --- MetaRocq's own shape. The clause is not unconditionally satisfiable: nothing in the type ties the column to the body table, and at the rungs only the table rules the bad instance out.
+\lead{Lean} No constructor clause: \code{blocks} already supplies its arity. The last two
+conjuncts of \code{defns} are \code{erases\_subst\_instance\_decl}'s typing premise
+(\code{ErasureProperties.v:412}); they ride on this clause, at the reachability gate, rather
+than on a separate universal over the table, mirroring where MetaRocq spends the same premise.
 \end{definition}
+
+\begin{remark}
+\lead{Caveat} Nothing in \ErasesEnv{}'s type ties $\mathit{lp}$ to the compiler body table
+$\mathit{bo}$: \code{defns} is satisfiable at the type, but only a run that erases every
+tabled body at its \emph{own} level parameters -- what the registration path does -- rules a
+bad choice of $\mathit{lp}$ out (Chapter~\ref{chap:trust}).
+\end{remark}
 
 \begin{lemma}[The seven accessors]
 \label{lem:ErasesEnv-keys}
@@ -935,8 +1028,7 @@ LeanToLambdaBox.ErasesEnv.elims}
 \leanok
 \uses{def:ErasesEnv}
 \lead{In short} The seven clauses are available as separate lemmas, the names the simulation's arms cite (Chapter~\ref{chap:correctness}).
-\lead{Lean} The block and eliminator accessors additionally take their trigger premises as explicit arguments (block data and its reachability; the eliminator's shape, its inductive's relevance, its origin, and its kername's reachability).
-\lead{Since the snapshot} \stLanded{} The \code{defns} accessor now yields the erasure at the declaration's own level scope (\code{92105c6}); the old universally quantified form cannot be written.
+\lead{Lean} The block and eliminator accessors additionally take their trigger premises as explicit arguments (block data and its reachability; the eliminator's shape, its inductive's relevance, its origin, and its kername's reachability). The \code{defns} accessor yields the erasure at the declaration's own level scope only; there is no universally quantified all-scopes form to write.
 \end{lemma}
 \begin{proof}
 \leanok
@@ -949,8 +1041,8 @@ LeanToLambdaBox.ErasesEnv.elims}
 \lean{LeanToLambdaBox.IndCovered}
 \leanok
 \uses{def:IndInfo, def:IndDeclOf, def:InformativeInd, def:ConstOrigin, def:ElimDecl,
-def:CasesOnShape}
-\lead{In short} $\Gamma_{\mathrm{spec}}$ \hl{covers} inductive $n$ when it declares $n$'s block with the target's numbers and, if $n$ is relevant, its \code{casesOn} eliminator at the block's segmentation -- \ErasesEnv{}'s two inductive clauses at a single name.
+def:CasesOnShape, def:IndFlagSound}
+\lead{In short} $\Gamma_{\mathrm{spec}}$ \hl{covers} inductive $n$ when it declares $n$'s block with the target's numbers and \code{IndFlagSound} and, if $n$ is relevant, its \code{casesOn} eliminator at the block's segmentation -- \ErasesEnv{}'s two inductive clauses at a single name.
 \lead{Lean} A two-field structure; the granularity at which one registration step of the shipping eraser establishes them.
 \end{definition}
 
@@ -960,10 +1052,10 @@ def:CasesOnShape}
 \leanok
 \uses{def:Erases, def:IndCovered, def:ConstOrigin, def:IndInfo, def:CasesOnShape,
 def:isCasesOnName}
-\lead{In short} $\code{SpecContent}\ \mathit{env}\ \mathit{bo}\ \Gamma_{\mathrm{spec}}$: \ErasesEnv{}'s five source-facing clauses with the entry's \hl{presence} in place of reachability -- program-independent, so maintainable as a loop invariant.
+\lead{In short} $\code{SpecContent}\ \mathit{env}\ \mathit{bo}\ \mathit{lp}\ \Gamma_{\mathrm{spec}}$: \ErasesEnv{}'s five source-facing clauses with the entry's \hl{presence} in place of reachability -- program-independent, so maintainable as a loop invariant.
 \begin{itemize}
 \item \code{tabled} is excluded (it mentions no environment);
-\item the definition field records \textbf{one} level scope, where \ErasesEnv{} asks every scope --- \lead{Since the snapshot} both read the same column (\code{92105c6}), so the asymmetry is gone;
+\item the definition field records the tabled body's erasure at its own level scope $\mathit{lp}\ c$, the same scope \ErasesEnv{}'s \code{defns} reads;
 \item the two inductive fields conclude coverage in the sense of Definition~\ref{def:IndCovered}.
 \end{itemize}
 \end{definition}
@@ -972,13 +1064,14 @@ def:isCasesOnName}
 \label{lem:SpecContent-erasesEnv}
 \lean{LeanToLambdaBox.SpecContent.erasesEnv}
 \leanok
-\uses{def:SpecContent, def:ErasesEnv}
+\uses{def:SpecContent, def:ErasesEnv, def:NoMaxLevels}
 \lead{In short} A specification environment's content, read at a program, is an environment erasure for it: reachability-triggered clauses come through a dependency-closure premise.
 \begin{itemize}
-\item \lead{Given} \code{SpecContent}, plus (separately) the all-scopes form of \code{defns} and the \code{tabled} clause;
+\item \lead{Given} \code{SpecContent}, plus (separately) the \code{tabled} clause and every
+tabled body's \code{NoMaxLevels}-ness and translatability at its own scope (\code{TabledLevels}) -- facts about the table, not about $\Gamma_{\mathrm{spec}}$;
 \item \lead{Then} \ErasesEnv{} holds.
 \end{itemize}
-\lead{Lean} Does \emph{not} use the bundle's own definition field; better described as transporting the other four fields plus the three listed premises.
+\lead{Lean} Does \emph{not} use the bundle's own definition field directly; better described as transporting the other four fields plus the two listed premises.
 \end{lemma}
 \begin{proof}
 \leanok
@@ -1002,7 +1095,7 @@ def:isCasesOnName}
 \lead{In short} $\LowerEnv\ \Gamma_{\mathrm{spec}}\ \Gamma$: the emitted \lbox{} environment $\Gamma$ is the \hl{lowered, pruned image} of $\Gamma_{\mathrm{spec}}$. Eight fields:
 \begin{itemize}
 \item \code{keys}: the emitted keys are distinct;
-\item \code{defs}: a shared-key body is pass-related, or one member of a lowered fixpoint block;
+\item \code{defs}: a shared-key body is pass-related, or the $\eta$-expansion (\code{LBTerm.etaFix}) of one lowered fixpoint block's node -- registration installs a block already $\eta$-expanded rather than by a \code{Lower} derivation;
 \item \code{defsTotal}: every non-runtime-key definition survives pruning as a definition -- without it, a pruned definition would satisfy \code{defs} vacuously while the target is stuck at its constant node;
 \item \code{axioms}: a body-less constant stays body-less or is pruned;
 \item \code{inds}: inductive blocks carry over unchanged, since the target's constructor-arity and propositionality queries read the specification's numbers;
@@ -1044,16 +1137,15 @@ def:CasesOnShape, def:OneInductiveBody, def:Kername}
 \label{thm:demoEnv_erasesEnv}
 \lean{LeanToLambdaBox.demoEnv_erasesEnv, LeanToLambdaBox.demoEnv_keys,
 LeanToLambdaBox.demoEnv_indCovered, LeanToLambdaBox.demoEnv_specContent,
-LeanToLambdaBox.demoEnv_deps, LeanToLambdaBox.demoEnv_defns}
+LeanToLambdaBox.demoEnv_deps}
 \leanok
 \uses{def:ErasesEnv, def:demoEnv}
 \lead{In short} Relative to the source-side bundle, the four-entry fixture \hl{is} a specification environment for its own program.
 \begin{itemize}
 \item \lead{Given} \code{DemoSource}'s eleven source-side facts;
-\item \lead{Then} its keys are distinct and self-contained; it covers its own inductive; it satisfies the content bundle; its program reaches exactly its four kernames; every reached, tabled body erases to the fixture's entry, at every level scope.
+\item \lead{Then} its keys are distinct and self-contained; it covers its own inductive; it satisfies the content bundle; its program reaches exactly its four kernames; every reached, tabled body erases to the fixture's entry, at its own level scope.
 \end{itemize}
 \lead{Status} \stProved{}.
-\lead{Since the snapshot} \stLanded{} The fixture's all-scopes stability lemma (\code{demoEnv\_defns}) lost its last consumer and is deleted with the clause it served (\code{92105c6}).
 \end{theorem}
 \begin{proof}
 \leanok
@@ -1061,15 +1153,15 @@ LeanToLambdaBox.demoEnv_deps, LeanToLambdaBox.demoEnv_defns}
 def:ReachableFrom}
 \lead{Idea} Compute the reachable set from the four lookup equations, establish the content
 bundle field by field, then apply Lemma~\ref{lem:SpecContent-erasesEnv}, supplying the
-all-scopes \code{defns} form from the bundle's stability field.
+tabled-body's own-scope \code{NoMaxLevels}-ness and translation from \code{DemoSource}'s
+\code{levels} field.
 \end{proof}
 
 \section*{Deviations and caveats}
 \begin{itemize}
 \item Constructors are \emph{applied form}: \code{ctor} fires at the bare head, arguments via \code{app} (cf.\ F-ETA2); no case or fixpoint rule, \code{Lean.Expr} having neither node (\Lower{}'s business).
-\item \code{mdata}/\code{lit} are added; \code{proj}'s relevance premise, free in Rocq's typing, is shown necessary by Theorem~\ref{thm:erases_proj_needs_informative} (design tag N18).
+\item \code{mdata}/\code{lit} are added; \code{proj}'s relevance premise, free in Rocq's typing, is shown necessary by Theorem~\ref{thm:erases_proj_needs_informative}.
 \item The de Bruijn variable rule splits into \code{bvar}/\code{fvar} for locally-nameless opening (Theorem~\ref{thm:Erases-abstract}); \ErasesEnv{} is dependency-selective, not pointwise.
-\item \stRefuted{} \lead{At the snapshot} \code{defns} over every level scope is unsatisfiable at a polymorphic tabled body; \stOpen{} \ErasesEnv{} and \LowerEnv{} remain the capstone's two bridge fields, produced by no theorem (Chapter~\ref{chap:trust}).
-\item \lead{Deviation} Quantifying \code{defns} over every scope was a chosen divergence: [S] states the clause once at the constant's own universe context and derives the instantiated form under typing side conditions. Reverted at \code{92105c6}.
+\item \lead{Deviation} \code{defns} reads a tabled body's erasure at the declaration's \emph{own} level scope, matching [S]'s clause stated once at the constant's own universe context; \stOpen{} \ErasesEnv{} and \LowerEnv{} remain the capstone's two bridge fields, produced by no theorem for a shipping run (Chapter~\ref{chap:trust}).
 \item \code{ErasesUniform.lean} -- \code{ErasableStrengthen}, the \code{NoProj} conditions, and Theorem~\ref{thm:erases_uniform_closed} -- lies outside the capstone's import closure, with no consumer.
 \end{itemize}

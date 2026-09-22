@@ -475,12 +475,8 @@ eraser eta-expands but the relation has no eta rule (\code{underAppliedCtor},
 \code{Bool.noConfusion} (F-EQREC) on Sieve, BinaryTrees, Quicksort, Fannkuch; well-founded
 \code{Nat.div.go}/\code{Nat.modCore.go} and a \code{sparseCasesOn} additionally on Quicksort; an
 \code{etaContractedMinor} at \code{Decidable.casesOn} additionally on Fannkuch. \hl{Arith alone is
-in the fragment.}
-
-\lead{Since the snapshot} \stFixed{} Ten shipping findings carry a fix on \code{dev/fix}
-(\code{dd2e2ee}--\code{76055ea}), and none of them lifts a restriction of this table: the
-shipping code now enforces what the fragment already excluded. \code{Arith} is still the one
-program of five inside the fragment.
+in the fragment.} The shipping code enforces every restriction this table states, so no fix lifts
+one; \code{Arith} is still the one program of five inside the fragment.
 \end{remark}
 
 \begin{definition}[Manifest lambda-telescopes]
@@ -510,10 +506,10 @@ under binders weak evaluation never reaches.
 \end{definition}
 
 \begin{remark}
-\lead{Caveat} Measured to fire zero times over the thirteen reified tables. \lead{At the snapshot}
-the claim that this restriction disappears once F-ETA2 is repaired is \stRefuted{}: after
-peregrine's \code{constructors\_as\_blocks} pass a short constructor spine is ill formed and stuck,
-so an under-applied constructor is not evaluated natively.
+\lead{Caveat} Measured to fire zero times over the thirteen reified tables. The restriction does
+not come from an unrepaired eta-expansion bug: after peregrine's \code{constructors\_as\_blocks}
+pass a short constructor spine is ill formed and stuck, so an under-applied constructor is not
+evaluated natively regardless.
 \end{remark}
 
 \begin{definition}[The four head exclusions]
@@ -614,10 +610,14 @@ alone does not exclude a collision between an inductive's key and a constant's.
 \lean{LeanToLambdaBox.TableSafe}
 \leanok
 \uses{def:Witness-SourceTable, def:CtorOf}
-\stAssumed{} \lead{In short} Five clauses saying every declaration the reified table pins is
-\hl{\code{safe}} in the elaboration environment: the constant, inductive and constructor columns
-(none \code{unsafe}/\code{partial}), no tabled \code{\_unsafe\_rec} companion name, and the two
-columns agreeing on what a constructor is.
+\stAssumed{} \lead{In short} Six clauses saying every declaration the reified table pins is
+\hl{\code{safe}} in the elaboration environment and every tabled body stays \code{max}-free: the
+constant, inductive and constructor columns (none \code{unsafe}/\code{partial}), no tabled
+\code{\_unsafe\_rec} companion name, the two columns agreeing on what a constructor is, and no
+tabled body using \code{Level.max}.
+\lead{Lean} The \code{max}-free clause, \code{noMaxLevels}, is what lets a delta step read a tabled
+body's erasure at the call site's level scope, paired with \code{CompilerBodies}
+(Chapter~\ref{chap:correctness}).
 \end{definition}
 
 \begin{remark}
@@ -625,7 +625,8 @@ columns agreeing on what a constructor is.
 read a \code{Lean.Environment}, which no Lean term denotes. Needed because table adequacy pins
 types, bodies and the constructor split, but not the safety flag, while every consumer reads a
 tabled name through the declaration-adequacy field, stated at safe declarations only. First three
-clauses mechanised by \code{lake exe reify --check}; the last two by construction. Excludes the
+clauses mechanised by \code{lake exe reify --check}; \code{notUnsafeRec} and \code{declCtor} by
+construction; \code{noMaxLevels} decidable per table, measured true at every rung. Excludes the
 \code{\_unsafe\_rec} shape where Lean's compiler lookup answers with the \emph{other}
 declaration's block (F-UNSAFEREC); see Assumption \code{hsafe}, Chapter~\ref{chap:trust}.
 \end{remark}
@@ -637,7 +638,8 @@ declaration's block (F-UNSAFEREC); see Assumption \code{hsafe}, Chapter~\ref{cha
 \uses{def:Erasable, def:Witness-compilerInfo, def:Witness-SourceTable}
 \stAssumed{} \lead{In short} Three clauses about the mutual blocks the eraser installs a
 \hl{fixvar map} for: every member tabled; every member's body lambda-headed (so the installed
-block is a well-formed fixpoint node); no member erasable.
+block is a well-formed fixpoint node); no member erasable, read at the member's \emph{own} level
+scope (the table's \code{levels?} column, not the ambient one).
 \end{definition}
 
 \begin{remark}
@@ -653,11 +655,13 @@ non-lambda bodies); the third is model-side, unreached by computation. See Assum
 \lean{LeanToLambdaBox.CasesInfoAgrees, LeanToLambdaBox.CasesInfoAgrees.of_pinned}
 \leanok
 \uses{def:Witness-SourceTableAdequate}
-\lead{In short} Six clauses: the shipping eraser's \code{Lean.CasesInfo} for a head \hl{agrees}
+\lead{In short} Eight clauses: the shipping eraser's \code{Lean.CasesInfo} for a head \hl{agrees}
 with the table's reified inductive on name, discriminant position, arity, alternatives' range,
-their count, each alternative's field count. A companion theorem transports the clauses from
-kernel-side agreement via table adequacy; the count clause refutes the eraser's two early loop
-exits.
+their count, each alternative's field count, the eliminated inductive's own name, and each
+alternative slot being its constructor's (never the catch-all shape). A companion theorem
+transports all eight clauses from kernel-side agreement via table adequacy; the count clause
+refutes the eraser's two early loop exits, and the last two make the per-constructor lookup
+\code{visitCases} runs total.
 \end{definition}
 
 \section{The fragment checker and its soundness}
@@ -812,11 +816,12 @@ its namespace, so dot-notation on a fragment value does not elaborate.
 \lean{LeanToLambdaBox.SpecEnv}
 \leanok
 \uses{def:SpecContent, def:IndCovered, def:ElimDecl, def:Kername, def:Erasure-EraseM}
-\lead{In short} $\mathrm{SpecEnv}\ env\ bo\ s\ \Gamma_{\mathrm{spec}}$ says $\Gamma_{\mathrm{spec}}$
-is \hl{adequate for the erasure run state $s$}: entries say of the source what the content
-predicate asks; every registered constant is declared at its canonical kername; every registered
-inductive is \emph{covered} (a block entry, plus an eliminator entry when informative); bodies
-mention no free variable, so lowering commutes with abstraction.
+\lead{In short} $\mathrm{SpecEnv}\ env\ bo\ lp\ s\ \Gamma_{\mathrm{spec}}$ says $\Gamma_{\mathrm{spec}}$
+is \hl{adequate for the erasure run state $s$}, reading each tabled name's level parameters off
+$lp$: entries say of the source what the content predicate asks; every registered constant is
+declared at its canonical kername; every registered inductive is \emph{covered} (a block entry,
+plus an eliminator entry when informative); bodies mention no free variable, so lowering commutes
+with abstraction.
 \lead{Lean} The state occurs only through the two registries' \emph{domains}; relevance guards the
 eliminator entry since a non-informative inductive's branch node is stuck at every flag point.
 \end{definition}
@@ -846,18 +851,19 @@ Chapter~\ref{chap:coldstart}'s registration invariant): recovered from bookkeepi
 \lean{LeanToLambdaBox.SpecEnv.erasesEnv}
 \leanok
 \uses{def:SpecEnv, def:ErasesEnv, def:ReachableFrom, def:Erases, def:ConstOrigin}
-\lead{In short} Given every kername reachable from a program is declared, every reached compiler
-body has its erasure stored at every level instantiation, and the compiler table defines only
-plain constants, a specification environment of a \emph{state} is one of the \hl{program}: it
-satisfies $\ErasesEnv$, the relation the simulation consumes.
+\lead{In short} Given every kername reachable from a program is declared, the compiler table
+defines only plain constants, and every tabled body is \code{max}-free and translates at its own
+declaration's level scope, a specification environment of a \emph{state} is one of the
+\hl{program}: it satisfies $\ErasesEnv$, the relation the simulation consumes.
+\lead{Lean} The delta column itself is not a premise here: it is $\Gamma_{\mathrm{spec}}$'s own content
+field, already recorded at the declaration's level scope.
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{def:SpecEnv, lem:SpecContent-erasesEnv}
 \lead{Idea} Immediate from the content field and the matching theorem: reachability-triggered
-clauses come from declaredness; the level-scope clause passes through since content records one
-scope where the relation asks for every one; the third premise is not about the environment at
-all.
+clauses come from declaredness; the delta clause is the content field, read at the scope it already
+records; the other two premises mention no $\Gamma_{\mathrm{spec}}$ at all.
 \end{proof}
 
 \begin{definition}[The run registered everything the environment declares]
@@ -873,32 +879,17 @@ inductive's.
 hypothesis at every consumer -- the capstone's saturation binder.
 \end{definition}
 
-\begin{lemma}[Why the delta column needs parameter-free bodies]
-\label{lem:defns_needs_paramFree}
-\lean{LeanToLambdaBox.defns_needs_paramFree}
-\leanok
-\uses{def:Erases}
-\lead{In short} The delta clause's quantifier over \hl{every level instantiation} is unsatisfiable
-for a body with its own level parameter: no erasure derivation exists at an instantiation sending
-the parameter outside the reading scope, so the cold-start theorem discharges the clause only at
-level-parameter-free bodies.
-\end{lemma}
-\begin{proof}
-\leanok
-\uses{def:Erases, asm:lean-reflection-axioms}
-\lead{Idea} Instantiate at a substitution sending the parameter outside scope; only the box arm
-applies to a sort, and inverting it demands a level-translation equation that is \code{none}.
-\end{proof}
-
 \begin{proposition}[The chain is not vacuous]
 \label{prop:lowerEnv_of_cold_run}
 \lean{LeanToLambdaBox.lowerEnv_of_cold_run, LeanToLambdaBox.fvarFree_idEnv,
 LeanToLambdaBox.demoEnv_specEnv, LeanToLambdaBox.fvarFree_demoEnv}
 \leanok
 \uses{def:LowerEnv, def:SpecContent, def:SpecEnv, def:RegSaturated}
-\lead{In short} Given the one-entry environment satisfies the content predicate, a run starting at
-the empty state and registering one lambda-bodied definition \hl{derives $\LowerEnv$ with every
-clause}; a four-entry demo fixture is likewise a specification environment for the initial state.
+\lead{In short} Given the one-entry environment satisfies the content predicate at some level map,
+a run starting at the empty state and registering one lambda-bodied definition \hl{derives
+$\LowerEnv$ with every clause}; a four-entry demo fixture is likewise a specification environment
+for the initial state.
+\lead{Lean} Both fixtures are level-parameter-free, so the level map is unconstrained.
 \end{proposition}
 \begin{proof}
 \leanok
@@ -918,6 +909,8 @@ LeanToLambdaBox.natSpecEnv_elim}
 \lead{In short} The \code{Nat} fixture's two-entry \lbox{} environment supplies what \hl{eliminator
 coverage} returns: the eliminator declaration at the \code{casesOn} kername, the model's block data
 beside it, the constructor count.
+\lead{Lean} \code{natSpecMib} records \code{Nat} as not propositional (\code{propositional :=
+false}), matching \code{Nat}'s \code{InformativeInd} reading.
 \end{proposition}
 \begin{proof}
 \leanok

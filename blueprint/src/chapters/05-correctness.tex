@@ -5,7 +5,7 @@
 \begin{itemize}
 \item \lead{Goal} Prove T5 (\code{erases\_correct}): a closed source term's evaluation is simulated by its erased, lowered \lbox{} program.
 \item \lead{Main results} Theorem~\ref{thm:erases_correct} (T5, the forward simulation); Theorem~\ref{thm:erases_correct_lb} (T5 through the composite relation); Theorem~\ref{thm:firstorder_erases_core} (first-order values erase uniquely, box-free).
-\item \lead{Status} \stProved{} throughout; \stInherited{} through lean4lean in every theorem here; \stAssumed{} on \code{UpstreamAsks} for the step-arm theorems, T5, and the three first-order theorems.
+\item \lead{Status} \stProved{} throughout; \stInherited{} through lean4lean in every theorem here, and through its reflection axioms in \code{erases\_correct}, \code{erases\_correct\_lb}, \code{step\_delta}; \stAssumed{} on \code{UpstreamAsks} for the step-arm theorems, T5, and the three first-order theorems.
 \item \lead{Lean files} \code{ErasesCorrect/Steps.lean}, \code{ErasesCorrect.lean}, \code{ErasesCorrect/Iota.lean}, \code{ErasesCorrect/Delta.lean}, \code{ErasesCorrect/Proj.lean}, \code{ErasesCorrect/Close.lean}, \code{SubjectReduction.lean}, \code{FixMetatheory.lean}, \code{FirstOrderInd.lean}.
 \item \lead{Paper} [S, Sect.~7.3--7.4]: T5 is the Lean counterpart of MetaRocq's forward simulation; Section~\ref{sec:correctness:paper} tracks every deviation.
 \end{itemize}
@@ -66,11 +66,10 @@ def:eraseFlags, def:UpstreamAsks, def:SEvalFlags, def:lean4lean-grounding}
 \item \lead{Then} there are $v_0, v'$ with $\Erases\ v\ v_0$, $\Lower\ \Gamma_{spec}\ v_0\ v'$ and
       $\WcbvEval\ \Gamma\ t\ v'$ at \code{eraseFlags}.
 \end{itemize}
-\lead{Lean} \code{ErasesCorrectStmt}, an \code{abbrev}; the source flags stay a parameter, the target flags are fixed.
+\lead{Lean} \code{ErasesCorrectStmt}, an \code{abbrev}; the source flags stay a parameter, the target
+flags are fixed. Eight binders carry seven premises: $\ErasesEnv$'s environment premise reads the tabled
+body at the declaration's own level scope, not at the empty one.
 \lead{Paper} [S]'s five premises plus $\LowerEnv$ and \code{UpstreamAsks}.
-\lead{Since the snapshot} \stLanded{} \code{92105c6}: the statement carries the level column that
-\ErasesEnv{} and \code{SpecContent} now read, so its environment premise speaks of the declaration's
-own level scope.
 \end{definition}
 
 \begin{definition}[T5, folded through the composite relation]
@@ -287,7 +286,8 @@ discriminant and one minor premise per constructor, $\mathtt{app}\ f\ a =
 \leanok
 \uses{lem:Lower-ne_fix_of_block, def:Lower}
 \lead{Idea} Case analysis on \Lower{}: an over-applied eliminator node re-associates into the congruence
-reading; \code{fix}-producing arms are excluded (an application is neither lambda nor constant).
+reading; the three block arms (\code{fixConst}, \code{fixBody}, \code{fixEta}) are excluded (an
+application is neither lambda nor constant).
 \end{proof}
 
 \begin{definition}[Beta-readiness of a target head]
@@ -306,7 +306,7 @@ application evaluates to $r$.
 
 \begin{lemma}[The beta transport across the pass]
 \label{lem:Lower-appReady}
-\lean{LeanToLambdaBox.Lower.appReady, LeanToLambdaBox.Lower.target_lambda}
+\lean{LeanToLambdaBox.Lower.appReady}
 \leanok
 \uses{def:BetaReady, def:Lower, def:ElimDecl}
 \lead{In short} At a well-behaved specification environment, a lambda's image is \hl{beta-ready} at the
@@ -315,15 +315,18 @@ image of its own body.
 \item \lead{Given} closed bodies, guarded fix; $\Lower{}\ (\mathtt{lambda}\ nm\ b_0)\ t$;
 \item \lead{Then} $\exists c$: $\Lower{}\ b_0\ c$, $\mathsf{BetaReady}\ \Gamma\ fl\ t\ c$.
 \end{itemize}
-\lead{Lean} \code{Lower.target\_lambda} records the target shapes a lambda can take.
+\lead{Lean} \code{Lower.appReady} is one half of \code{Lower.appReady\_aux}'s joint induction; the other
+half is the block-closure form the two block arms of Theorem~\ref{thm:step_delta} spend at a member's
+own body.
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{def:LowerBlock, thm:Lower-constToFix, prop:LowerBlock-substList_fixSubst,
 prop:LowerBlock-lambda_of_fixLambda, prop:Lower-closed}
-\lead{Idea} Case analysis on \Lower{} at a lambda: a lambda image beta-reduces outright; a block member's
-body unfolds the guarded fixpoint at index $0$ to a lambda, itself beta-ready; every other arm is refuted
-on shape.
+\lead{Idea} Induction on \Lower{} at a lambda: a lambda image beta-reduces outright; a block member's
+body unfolds the guarded fixpoint at index $0$ to a lambda, itself beta-ready; its $\eta$-wrapper
+(Definition~\ref{def:LBTerm-etaFix}) is beta-ready one beta step ahead of the same fact; every other arm
+is refuted on shape.
 \end{proof}
 
 \section{The environment accumulator and the emitted constructor arity}
@@ -748,7 +751,7 @@ $t = \mathsf{mkApps}\ (\mathtt{case}\ (iid, np)\ disc'\ alts)\ extra'$.
 \leanok
 \uses{lem:Lower-source_app, prop:Lower-source_const, lem:Lower-ne_fix_of_block}
 \lead{Idea} Induction on spine length: each argument is the application congruence or the eliminator
-rule; both \code{fix}-producing arms are excluded (an application is neither constant nor lambda).
+rule; the three block arms are excluded (an application is neither constant nor lambda).
 \end{proof}
 
 \begin{theorem}[The iota arm]
@@ -801,7 +804,8 @@ excluded by the guard; the first disjunct holds.
 
 \begin{lemma}[What a tabled constant's image is]
 \label{lem:Lower-const_body}
-\lean{LeanToLambdaBox.Lower.const_body, LeanToLambdaBox.Lower.fixBody_of_block}
+\lean{LeanToLambdaBox.Lower.const_body, LeanToLambdaBox.Lower.fixBody_of_block,
+LeanToLambdaBox.Lower.fixEta_of_block}
 \leanok
 \uses{def:Lower, def:ElimDecl, def:LowerBlock}
 \lead{In short} A tabled constant's image is \hl{itself, or its body's image}.
@@ -810,14 +814,75 @@ excluded by the guard; the first disjunct holds.
 \item \lead{Then} $kn$ is no runtime eliminator key, and $t = \mathtt{const}\ kn$ or $\Lower{}\ b\ t$.
 \end{itemize}
 \lead{Lean} \code{Lower.fixBody\_of\_block} gives the block's \code{fix} node as an image of a member's
-own body.
+own body; \code{Lower.fixEta\_of\_block} gives its $\eta$-wrapper (Definition~\ref{def:LBTerm-etaFix})
+the same way.
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{prop:LowerBlock-lambda_of_fixLambda, def:Lower}
 \lead{Idea} Case analysis on the \Lower{} arms yielding a constant subject: the constant rule gives the
-constant itself; block-from-constant gives the \code{fix} node (an image of the constant's body);
-lambda-body and eliminator arms are excluded on shape.
+constant itself; block-from-constant gives the \code{fix} node (an image of the constant's body); the two
+lambda-body arms (a member's own body, and its $\eta$-wrapper) and the eliminator arm are excluded on
+shape.
+\end{proof}
+
+The delta arm reads a tabled body's erasure at the declaration's own level scope, then must transport it
+to the call site's before it matches \code{StepDefeq}'s own instantiated spine.
+
+\begin{definition}[The level scope a tabled body is erased at]
+\label{def:TabledLevels}
+\lean{LeanToLambdaBox.TabledLevels}
+\leanok
+\uses{def:NoMaxLevels, def:lean4lean-grounding}
+\lead{In short} \code{TabledLevels}: every tabled body is \hl{max-free and typed at the level scope its
+own table entry names}.
+\begin{itemize}
+\item $bo\ c = \mathrm{some}\ b$ $\Rightarrow$ $b$ satisfies \code{NoMaxLevels}, and $b$ translates at
+level scope $lp\ c$.
+\end{itemize}
+\lead{Lean} Stated over the whole table, since a table is where it is checked; the simulation itself
+never takes it as a premise.
+\end{definition}
+
+\begin{lemma}[A reified table meets its own level obligation]
+\label{lem:tabledLevels_of_table}
+\lean{LeanToLambdaBox.tabledLevels_of_table}
+\leanok
+\uses{def:TabledLevels, def:Witness-SourceTable}
+\lead{In short} An adequate, safe, reified table \hl{satisfies \code{TabledLevels}}.
+\begin{itemize}
+\item \lead{Given} a table adequate for the kernel environment, safe, with \code{CompilerBodies};
+\item \lead{Then} \code{TabledLevels} holds of its body map and level column.
+\end{itemize}
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:TabledLevels}
+\lead{Idea} \code{TableSafe.noMaxLevels} gives the max-free half; \code{CompilerBodies} gives the
+translation, at the level column \code{SourceTableAdequate}'s own lemma identifies with the
+declaration's.
+\end{proof}
+
+\begin{lemma}[The delta arm's level-scope transport]
+\label{lem:Erases-instantiateLevelParams_of_stepDefeq}
+\lean{LeanToLambdaBox.Erases.instantiateLevelParams_of_stepDefeq}
+\leanok
+\uses{def:Erases, def:TabledLevels, thm:Erases-instL, def:StepDefeq}
+\lead{In short} A tabled body's erasure at its own scope \hl{transports to the call site's}, along
+\code{StepDefeq}'s own instantiation.
+\begin{itemize}
+\item \lead{Given} $b$ erases to $b_0$ at level scope $ps$, and satisfies \code{TabledLevels}'s two
+conjuncts; \code{StepDefeq} relates the constant spine to the instantiated-body spine;
+\item \lead{Then} the instantiated body $b'$ erases to the same $b_0$, at the call site's levels.
+\end{itemize}
+\lead{Lean} Peels \code{StepDefeq}'s own translation of the instantiated spine down to the instantiated
+body, then applies \code{Erases.instantiateLevelParams\_of\_trExprS}.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{thm:Erases-instL, lem:trExprS_spine_head, asm:lean-reflection-axioms}
+\lead{Idea} \code{StepDefeq}'s witness translates the instantiated spine; Lemma~\ref{lem:trExprS_spine_head}
+peels its head, and the level-instantiation theorem transports the erasure \code{TabledLevels} supplies.
 \end{proof}
 
 \begin{theorem}[The delta arm]
@@ -828,8 +893,8 @@ lambda-body and eliminator arms are excluded on shape.
 \lead{In short} $\code{StepDelta}\ env\ bo\ Us\ fl\ \Gamma_{spec}\ \Gamma$ holds: unfolding a \hl{compiler
 body} at the call site's universe levels is simulated, whether the emitted head is the body or the
 block's \code{fix} node.
-\lead{Status} \stProved{}, \stInherited{} through lean4lean, conditional on \stAssumed{}
-\code{UpstreamAsks}.
+\lead{Status} \stProved{}, \stInherited{} through lean4lean and its reflection axioms
+(Assumption~\ref{asm:lean-reflection-axioms}), conditional on \stAssumed{} \code{UpstreamAsks}.
 \end{theorem}
 \begin{proof}
 \leanok
@@ -837,11 +902,14 @@ block's \code{fix} node.
 lem:Erases-mkApps_forall2, lem:ErasesEnv-ofReach, lem:ErasesEnv-mkApps, lem:erases_correct_boxLow,
 lem:erases_ne_case, def:ErasesEnv, lem:ReachableFrom-through_body, def:LowerEnv,
 prop:WcbvEval-mkApps_congr, lem:WcbvEval-head_value_of_mkApps, lem:consts_classified,
-asm:lean4lean-trust}
-\lead{Idea} The head erases to the tabled constant's kername (\ErasesEnv{}'s \code{tabled} clause; boxed
-readings fold); the spine lowers as a congruence, a tabled constant being no runtime key. Induction runs
-at the composite image whose head is what the target head evaluates to; \lbox{}'s spine congruence moves
-the run onto the actual spine, replacing the head by one delta step or nothing.
+lem:Erases-instantiateLevelParams_of_stepDefeq, asm:lean4lean-trust, asm:lean-reflection-axioms}
+\lead{Idea} The head erases to the tabled constant's kername (\ErasesEnv{}'s \code{defns} clause, at the
+declaration's own level scope; boxed readings fold); Lemma~\ref{lem:Erases-instantiateLevelParams_of_stepDefeq}
+transports that erasure to the call site's levels. The spine lowers as a congruence, a tabled constant
+being no runtime key. Induction runs at the composite image whose head is what the target head evaluates
+to --- the body's image, or a member's \code{fix} node or its $\eta$-wrapper
+(Lemma~\ref{lem:Lower-const_body}); \lbox{}'s spine congruence moves the run onto the actual spine,
+replacing the head by one delta step or nothing.
 \end{proof}
 
 \begin{remark}
@@ -867,13 +935,13 @@ thm:SEval-defeq, lem:Lower-source_app, lem:Erases-sort_inv, prop:Lower-source_co
 def:LowerEnv, thm:not_erasable_of_informative, asm:lean4lean-trust}
 \lead{Idea} Shortest of the three: a projection lowers to a projection, no spine to invert. After the box
 reading, the erasure is a \code{proj} node at the source block; the discriminant's induction hypothesis
-gives the target constructor value; \ErasesEnv{}'s \code{blocks} clause through \LowerEnv{} gives the
-non-propositional flag, and the field's induction hypothesis, past the dropped parameter prefix, assembles
-the target's projection rule.
+gives the target constructor value; \ErasesEnv{}'s \code{blocks} clause gives the non-propositional flag
+against the rule's own informativity, carried into $\Gamma$ by \LowerEnv{}; the field's induction
+hypothesis, past the dropped parameter prefix, assembles the target's projection rule.
 \end{proof}
 
 \begin{remark}
-\lead{Caveat} The arm is non-vacuous today only on hand-built witnesses: its typing premise at a
+\lead{Caveat} The arm is non-vacuous only on hand-built witnesses: its typing premise at a
 projection is inhabitable only through lean4lean's projection judgement, whose kernel adequacy is
 \code{sorry} at the pin (Chapter~\ref{chap:trust}).
 \end{remark}
@@ -900,16 +968,14 @@ erasure-then-lowering image of $v$.
 \end{itemize}
 \lead{Lean} \code{erases\_correct}, \emph{is} Definition~\ref{def:ErasesCorrectStmt}; unconditional in
 the source flags.
-\lead{Status} \stProved{}, \stInherited{} through lean4lean, conditional on \stAssumed{}
-\code{UpstreamAsks}.
-\lead{Since the snapshot} \stLanded{} Footprint: \code{erases\_correct}, \code{erases\_correct\_lb}
-and \code{step\_delta} each gained six \code{lean4lean} bridge axioms (\code{92105c6}, \code{d6e0e3a}),
-because the delta arm now derives the level-instantiated erasure itself instead of reading it from a
-clause no environment could satisfy. The capstone's and every rung's 33 names are unchanged.
+\lead{Status} \stProved{}, \stInherited{} through lean4lean and its reflection axioms
+(Assumption~\ref{asm:lean-reflection-axioms}, inherited through the $\delta$ arm), conditional on
+\stAssumed{} \code{UpstreamAsks}.
 \end{theorem}
 \begin{proof}
 \leanok
-\uses{thm:erases_correct_of_steps, thm:step_iota, thm:step_proj, thm:step_delta, asm:lean4lean-trust}
+\uses{thm:erases_correct_of_steps, thm:step_iota, thm:step_proj, thm:step_delta, asm:lean4lean-trust,
+asm:lean-reflection-axioms}
 \lead{Idea} Theorem~\ref{thm:erases_correct_of_steps} applied to the three arm theorems; one line.
 \end{proof}
 
@@ -927,12 +993,12 @@ inside the capstone (Chapter~\ref{chap:capstone}).
 \lead{In short} $\code{ErasesCorrectLBStmt}\ env\ bo\ Us\ fl\ \Gamma_{spec}\ \Gamma$ holds: the same
 simulation read through \hl{\code{ErasesLB}}, the environment premise taken at whichever middle term the
 composite exhibits.
-\lead{Status} \stProved{}, \stInherited{} through lean4lean, conditional on \stAssumed{}
-\code{UpstreamAsks}.
+\lead{Status} \stProved{}, \stInherited{} through lean4lean and its reflection axioms
+(Assumption~\ref{asm:lean-reflection-axioms}), conditional on \stAssumed{} \code{UpstreamAsks}.
 \end{theorem}
 \begin{proof}
 \leanok
-\uses{thm:erases_correct, def:ErasesLB, asm:lean4lean-trust}
+\uses{thm:erases_correct, def:ErasesLB, asm:lean4lean-trust, asm:lean-reflection-axioms}
 \lead{Idea} Destructure the \code{ErasesLB} witness into its erasure and lowering halves, apply
 Theorem~\ref{thm:erases_correct} at the exhibited middle term, and repackage the conclusion as an
 \code{ErasesLB} witness.
@@ -1006,6 +1072,24 @@ convention.
 \lead{Idea} Induction, using that \code{toBvar} is the identity where its variable does not occur and
 introduces no free variable; the two-member statements are instances computed by unfolding.
 \end{proof}
+
+\begin{definition}[The eta-wrapper of a block's node]
+\label{def:LBTerm-etaFix}
+\lean{LeanToLambdaBox.LBTerm.etaFix}
+\leanok
+\uses{def:LBTerm}
+\lead{In short} $\code{etaFix}\ \mathit{defs}\ j$: a \hl{one-binder eta-expansion} of member $j$'s
+\code{fix} node, applied to its own bound variable.
+\begin{itemize}
+\item $\code{etaFix}\ \mathit{defs}\ j = \mathtt{lambda}\ \mathtt{anon}\ ((\mathtt{fix}\ \mathit{defs}\
+j)\ (\mathtt{bvar}\ 0))$;
+\item the shipping eraser's \code{Erasure.etaExpandFix} registers this as a member's body rather than the
+bare \code{fix} node (F-ETA); every block \Lower{} lowers has $\mathit{principalArgIdx} = 0$, so one
+binder is the only shape reached.
+\end{itemize}
+\lead{Lean} MetaRocq's \code{eta\_fixpoint} at $1+\mathit{rarg}=1$; the general $\mathit{rarg}+1$ form is
+not stated, since no reached block has another shape.
+\end{definition}
 
 \section{The first-order fragment and the observation}
 \label{sec:correctness:firstorder}

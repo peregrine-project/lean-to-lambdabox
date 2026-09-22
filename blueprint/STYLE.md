@@ -238,19 +238,18 @@ proves it. A consumer that needs it must re-derive it.
    than relational prose; never trade a hypothesis for the word budget.
 4. Do not run lake, leanblueprint, latexmk or xelatex. Edit no other file.
 
-## 8. Status updates (time-scoped facts)
+## 8. Current state only (no history)
 
-The Lean declarations this blueprint cites are those of one snapshot commit of `dev/verify`. Facts learned
-or changed later are recorded without pretending the snapshot moved:
-
-- Every such statement is time-scoped with a run-in label: `\lead{At the snapshot}` (a fact about the
-  snapshot commit itself, e.g. that a theorem is vacuous there), `\lead{Since the snapshot}` (landed on a
-  named branch, with the commit hash), `\lead{In progress}` / `\lead{Planned}` (with the unit or document
-  that specifies it). Never state a planned change as done, never state a landed change as part of the
-  snapshot.
-- Badges: `\stVacuous` (proved from hypotheses that cannot all hold), `\stRefuted` (a hypothesis or clause
-  shown unsatisfiable or false), `\stFixed` (fixed after the snapshot on the branch named), `\stLanded`
-  (landed on `dev/verify` after the snapshot), `\stPlanned` (specified, not yet done).
-- No node is added for a declaration that does not exist at the snapshot, and no `\lean{}` list changes:
-  later declarations are named in `\code{}` inside a remark or a status line.
-- Every such fact cites its source: a commit hash, or a document of `doc/rework/` at the commit named.
+The blueprint is a consistent, accurate picture of the branch it documents at the commit named in the
+introduction. It is not a changelog:
+- Never write "since the snapshot", "at the snapshot", "was fixed", "has been restated", "used to",
+  "additions since ...", or describe a state and then its later changes. State what IS. Git holds the
+  history.
+- What is not done is stated as an open item in the present tense (`\stOpen{}`, or a bullet under
+  "What is open"), citing the document that specifies it (e.g. `doc/rework/09-REPAIRS-W7.md`), never as
+  a plan with dates or as "in progress".
+- A finding that is fixed is simply not a finding any more; the fix's regression test or guard is
+  described as part of the code, without narrating the bug it removed, unless the limitation it leaves
+  behind still matters (then state the limitation).
+- The badges are exactly: `\stProved`, `\stChecked`, `\stAssumed`, `\stInherited`, `\stOpen`,
+  `\stOutside`. No time-scoped badges.

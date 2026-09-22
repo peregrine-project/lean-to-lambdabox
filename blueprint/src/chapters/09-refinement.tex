@@ -15,7 +15,7 @@ several steps.
 \item \lead{Lean files} \code{ErasesLB.lean}, \code{IotaBridge.lean}, \code{VisitExprRefines.lean},
 \code{VisitExprRefines/Motives.lean}, \code{VisitExprRefines/Step/Env.lean},
 \code{VisitExprRefines/Step/Mechanical.lean}, \code{VisitExprRefines/Step/Passes.lean}.
-\item \lead{Paper} [S, Sec.~7.4]: proves the term-level half; \code{erases\_global\_decls} stays the
+\item \lead{Paper} [S, Sec.~7.4]: proves the term-level half; \code{erases\_global} stays the
 capstone's \code{ErasureBridge} binder, inhabited nowhere.
 \end{itemize}
 
@@ -607,7 +607,10 @@ $\Box$), else dispatch on the term's constructor to the matching member or the s
 \begin{remark}
 Three points. \lead{Caveat} (a) The box rule is ``oracle says irrelevant, emit $\Box$'', soundness
 assumed. (b) \code{visitMutualBody} is the largest: the whole registration path, minting one fresh
-\code{FVarId} per member and registering each body as a \code{.fix} node. (c) The eighteen are
+\code{FVarId} per member, refusing a block whose members collide under \code{toKername}
+(F-UNSAFEREC), guarding every fresh key (F-KERNAME), and registering a block member's body as the
+eta-expansion of a \code{.fix} node (F-ETA) or, when it has none, an axiom or a synthesized quotient
+or recursor realizer (F-QUOT, F-EQREC). (c) The eighteen are
 \textbf{hand-maintained copies}; drift is caught by elaboration forcing each body definitionally equal to
 the real step. They keep the code's \code{panic!} leaves and machine-\code{Nat} arms outside the
 statement's scope, not outside the code.
@@ -667,9 +670,9 @@ no auto-inlining;
 \textbf{\#} & \textbf{calls} & \textbf{\#} & \textbf{calls} & \textbf{\#} & \textbf{calls} \\
 \hline
 1 & 1,2,8,9,10,11 & 7 & 1 & 13 & 14 \\
-2 & 3 & 8,9,10 & 1 & 14 & 3,14 \\
+2 & 3 & 8,9,10 & 1 & 14 & 1,3,14 \\
 3 & 2,4,7 & 11 & 1,7,12 & 15 & 16 \\
-4 & 5 & 12 & 4,7,13,15 & 16 & 16,17 \\
+4 & 5 & 12 & 4,7,13,15 & 16 & 1,16,17 \\
 5 & 6 & & & 17 & 1,18 \\
 6 & 1 & & & 18 & 1 \\
 \hline
@@ -684,8 +687,8 @@ Three files, by what the member does: \code{Step/Env.lean} (4--6, the registry);
 \code{Step/Mechanical.lean} (1, 7--9, 11, 12, 18, no compilation step of their own);
 \code{Step/Passes.lean} (2, 3, 10, 13--17, each emitting a \lbox{} node). Every declaration is a proved
 theorem, or twice a definition; they consume \code{ErasureSpec} (class D), \code{EraserAsks} (class C),
-\code{UpstreamAsks}, \code{SourceTableAdequate}, \code{TableSafe}, \code{TableBlocks} --- two
-\code{EraserAsks} fields are refuted in general (Chapter~\ref{chap:trust}).
+\code{UpstreamAsks}, \code{SourceTableAdequate}, \code{TableSafe}, \code{TableBlocks} --- one
+\code{EraserAsks} field is refuted in general (Chapter~\ref{chap:trust}).
 
 \begin{center}
 \begin{tabular}{cl}
@@ -763,7 +766,7 @@ LeanToLambdaBox.run_rec_exit_reg}
 \leanok
 \uses{def:ErasureSpec, def:ConfigPinned, def:TableSafe, def:EraserAsks, def:Erasure-visitMutual,
 def:Erasure-RunConcl, def:IndRegistryModelled}
-\lead{In short} At \textbf{all four exits}, a successful run of \code{visitMutual} $n$ \hl{ends with $n$
+\lead{In short} At \textbf{every exit}, a successful run of \code{visitMutual} $n$ \hl{ends with $n$
 registered}.
 \begin{itemize}
 \item \lead{Given} a tabled name $n$; the inductive registry modelled at entry;
@@ -775,9 +778,12 @@ advanced; the registry still modelled.
 \leanok
 \uses{lem:visitExpr_runConcl, lem:run_prepare_erasure_concl, asm:ErasureSpec-lookup_adequate}
 \lead{Idea} The run asks the compiler for block information; the lookup clause makes the answer
-non-\code{none}, and \code{TableSafe} excludes an \code{\_unsafe\_rec} companion. The four exits are
-decomposed at the \emph{abstract} eraser the induction hands the step. The non-recursive exit inserts $n$
-at its kername; the recursive exit's loop declares the block under every member's.
+non-\code{none}, and \code{TableSafe} excludes an \code{\_unsafe\_rec} companion. The exits are
+decomposed at the \emph{abstract} eraser the induction hands the step: a non-recursive definition
+inserts $n$ at its kername; a recursive block's loop declares it under every member's, after checking
+the block's keys are distinct (F-UNSAFEREC); a body-less name registers an axiom, or, when it is a
+quotient or a non-recursive \code{Prop} recursor, a synthesized realizer instead (F-QUOT, F-EQREC),
+which satisfies the same conclusion.
 \end{proof}
 
 \begin{lemma}[Congruences in either fixvar mode]
@@ -990,7 +996,7 @@ motive 1}.
 \leanok
 \uses{def:visitExprBody, lem:bodyLe1, lem:ErasesLBMode-box, lem:spine_facts,
 thm:ErasureSpec-oracle_sound_of_run, thm:EraserAsks-oracle_informative, asm:EraserAsks-oracle_false_refl,
-asm:EraserAsks-kernel_ind_head_true, asm:ErasureSpec-oracle_meta, asm:lean4lean-trust,
+asm:EraserAsks-kernel_ind_head_true, asm:lean4lean-trust,
 asm:lean-reflection-axioms}
 \lead{Idea} The oracle runs first: \code{true} gives the box rule; \code{false} lets the fragment's shape
 condition pick the arm, one per motive (\code{.bvar} refuted from the translation premise alone). The
@@ -1003,10 +1009,10 @@ Three points. \lead{Caveat} (a) \textbf{Panics are handled, not excluded}: at \c
 the code panics to the default $\Box$, and both shapes are erasable, so these arms conclude
 box-correctness. (b) \textbf{The single \code{sorryAx} entry point} of the bridge: via oracle soundness it
 reaches the executable-checker cluster, including \code{bv\_decide} certificates \code{\#print axioms}
-cannot see; its measured footprint also carries twenty-eight non-standard reflection axioms. (c)
-\textbf{Two \code{EraserAsks} fields it spends are refuted in general}: the kernel-head clause fails at
-telescopes of $256$+ binders, since \code{Lean.Expr}'s depth field is eight bits wide ---
-\code{EraserAsks} must not be presented as benign.
+cannot see; its measured footprint also carries twenty-nine non-standard reflection axioms. (c)
+\textbf{One \code{EraserAsks} field it spends is refuted in general}: the kernel-head clause is silent at
+a type former whose reduced telescope outruns the checker's fixed fuel, or at any other kernel error
+inside the arity walk --- \code{EraserAsks} must not be presented as benign.
 \end{remark}
 
 \begin{lemma}[Steps 7, 8, 9, 11 --- the members with no compilation step of their own]
@@ -1166,44 +1172,41 @@ motive 1's. Concluded by the projection rule in either mode.
 \lean{LeanToLambdaBox.step_visitCtorEta, LeanToLambdaBox.step_visitCtorEtaGo,
 LeanToLambdaBox.step_visitCasesEta, LeanToLambdaBox.step_visitCasesEtaGo}
 \leanok
-\uses{def:Step1, def:CasesHead}
+\uses{def:Step1, def:CasesHead, def:Motive1}
 \lead{In short} The two eta entry points and loops \hl{satisfy their motives}, no premise beyond the
 interface.
-\lead{Since the snapshot} \stPlanned{} The eta loops now bind supplied arguments outside the new
-binders (\code{c911803}, \code{e347ed7}); the bodies changed, the signatures did not, so this step
-awaits the same re-proof.
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:spine_facts, lem:bodyLe1, asm:ErasureSpec-prim_monotone}
 \lead{Idea} At the entry points, \code{inferType} leaves the state alone, advancing only the generator.
 In both loops the spine is already saturated, so the eta-expansion branch is dead and the run is the node
-builder outright --- where motives 14 and 16's slack shows (\S\ref{sec:refinement:motives}).
+builder outright, motive 1 erasing F-ETA2's new let-prefix inside that same dead branch --- where
+motives 14 and 16's slack shows (\S\ref{sec:refinement:motives}).
 \end{proof}
 
 \begin{lemma}[Step 17 --- the case node]
 \label{lem:step_visitCases}
-\lean{LeanToLambdaBox.step_visitCases, LeanToLambdaBox.pass_rco_split,
-LeanToLambdaBox.pass_subarray_next, LeanToLambdaBox.pass_list_next}
+\lean{LeanToLambdaBox.step_visitCases, LeanToLambdaBox.pass_altIdx_self,
+LeanToLambdaBox.pass_selfIdx_zipIdx_split, LeanToLambdaBox.pass_propArity_guard}
 \leanok
-\uses{def:Step1, def:CasesHead, def:UpstreamAsks}
+\uses{def:Step1, def:CasesHead, def:UpstreamAsks, def:EraserAsks}
 \begin{itemize}
-\item \lead{Given} \code{UpstreamAsks};
+\item \lead{Given} \code{UpstreamAsks} and \code{EraserAsks};
 \item \lead{Then} \code{visitCases}' body satisfies motive 17.
 \end{itemize}
-\lead{Since the snapshot} \stPlanned{} \code{dd2e2ee} rewrote \code{visitCases}'s general arm, so
-this step must be re-proved against the new equations; no mutual member was added or removed, so the
-eighteen motives stand (\code{doc/rework/10-MERGE-FIXES.md} at \code{184155d}).
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{lem:ErasesLBMode-lam, lem:pass_register_inductive_entry, lem:bodyLe1,
 asm:ErasureSpec-block_adequate, asm:lean-reflection-axioms}
-\lead{Idea} Pinned peano \code{Nat} kills the machine-numeral arms; the discriminee is erased by motive
-1. A \textbf{parallel loop} walks the metadata and the argument masks in lockstep (motive 18 per
-iteration); the over-application tail is erased by motive 1 again. Metadata agreement gives one
-alternative slot per constructor, refuting early exits; block-adequacy gives the segmentation the
-\code{cases} rule's length equation needs.
+\lead{Idea} Pinned peano \code{Nat} kills the machine-numeral arms; \code{CasesInfo.indName} names the
+eliminated block (F-SPARSE), and the refusals for a side condition, for one-to-one coverage and for a
+bad catch-all are each stepped and their throwing sides killed, alongside F-ACC's non-proof-field
+refusal (\code{EraserAsks} spent there). Each constructor's own \code{findIdx?} slot is itself
+(\code{pass\_altIdx\_self}), so the alternative loop is self-indexing and total, with no catch-all
+built; motive 18 supplies each alternative and motive 1 the discriminee and the over-application tail.
+Block-adequacy gives the segmentation the \code{cases} rule's length equation needs.
 \end{proof}
 
 \begin{remark}
@@ -1352,7 +1355,7 @@ emitted environment's \emph{content} is read off the final state by \code{SpecEn
 facts the capstone needs about it ($\Gamma_{\mathrm{spec}}$ erases the source environment, and lowers to
 the emitted one) remain the capstone's binder \code{ErasureBridge} (Definition~\ref{def:ErasureBridge}),
 inhabited nowhere: this chapter proves the term half of [S, Sec.~7.4], leaving
-\code{erases\_global\_decls} assumed.
+\code{erases\_global} assumed.
 
 \begin{lemma}[Why BlockKeyed is shaped as it is]
 \label{lem:erasesLBMode_block_refuted}
@@ -1397,7 +1400,7 @@ tabled names rather than assuming it globally.
 \begin{lemma}[Lambda-headedness is not a run invariant]
 \label{lem:run_mkDef_box_not_lambda}
 \lean{LeanToLambdaBox.run_mkDef_box_not_lambda, LeanToLambdaBox.visitMutual_block_hfl,
-LeanToLambdaBox.visitMutual_block_hfl_of_run}
+LeanToLambdaBox.visitMutual_block_hfl_of_run, LeanToLambdaBox.subTerm_fix_etaExpandFix}
 \leanok
 \uses{def:LBWfPeregrine, def:LowerBlock, def:Erasure-mkLambda}
 \lead{In short} A $\Box$-bodied member is registered \hl{without} a lambda, yet the \emph{emitted}
@@ -1406,7 +1409,9 @@ program always has one.
 \item (i) a block member whose erasure is $\Box$ is registered as a definition with a \textbf{non-lambda}
 body;
 \item (ii) nevertheless, at a block the \emph{emitted environment} declares, every member's body is
-lambda-headed, read off the program's well-formedness clause;
+lambda-headed, read off the program's well-formedness clause at the \emph{registered} entry: the
+\code{.fix} node is only a \textbf{subterm} of that entry, one binder down, since registration wraps it
+in the block's eta-expansion (F-ETA);
 \item (iii) likewise, at a block a run registered.
 \end{itemize}
 \end{lemma}
@@ -1414,8 +1419,9 @@ lambda-headed, read off the program's well-formedness clause;
 \leanok
 \uses{def:LBWfPeregrine}
 \lead{Idea} (i) direct computation at a $\Box$ body. (ii) the block's entry is one of the bodies
-well-formedness quantifies over; key-uniqueness makes it answer its own lookup, giving lambda-headedness.
-(iii) transports (ii) along the state-growth order.
+well-formedness quantifies over; key-uniqueness makes it answer its own lookup, and
+\code{subTerm\_fix\_etaExpandFix} locates the \code{.fix} node inside the eta-wrapper, giving
+lambda-headedness. (iii) transports (ii) along the state-growth order.
 \end{proof}
 
 \begin{remark}
@@ -1427,31 +1433,30 @@ input condition, not a formality. Part (iii) has no consumer at HEAD.
 \label{lem:blockKeyed_install}
 \lean{LeanToLambdaBox.blockKeyed_install, LeanToLambdaBox.env_motive_tabled}
 \leanok
-\uses{def:BlockKeyed, def:EraserAsks, def:TableBlocks, def:UpstreamAsks, def:Erasure-visitMutual,
+\uses{def:BlockKeyed, def:TableBlocks, def:UpstreamAsks, def:Erasure-visitMutual,
 def:fixvarMap}
 \lead{In short} The pair \code{visitMutual} installs for a block \hl{satisfies \code{BlockKeyed}}.
 \begin{itemize}
 \item (i) the map equation is the block branch's reader extension; the length condition is the identifier
-loop's; distinctness is the assumed key-distinctness clause pulled back along \code{toKername}; key
-separation is the table's own;
+loop's; distinctness is a supplied hypothesis, the F-UNSAFEREC guard read back off a successful block
+exit (\code{run\_rec\_exit\_reg}'s fifth conclusion); key separation is the table's own;
 \item (ii) a constant with a compiler-table body is a plain model constant, given it is neither a
 constructor nor a type former.
 \end{itemize}
 \end{lemma}
 \begin{proof}
 \leanok
-\uses{asm:EraserAsks-block_keys_distinct, asm:UpstreamAsks-constsOrigin}
-\lead{Idea} Four conjuncts, one per clause of \code{BlockKeyed}, each read off its own source.
+\uses{asm:UpstreamAsks-constsOrigin}
+\lead{Idea} Four conjuncts, one per clause of \code{BlockKeyed}: the first three read off their own
+source, the fourth off the supplied \code{Nodup} hypothesis.
 \end{proof}
 
 \begin{remark}
 \lead{Caveat} \textbf{Both results are unconsumed}, deliberately: motive 6 reports only registration, and
-the block's content is read off the final state by \code{SpecEnv} instead. The key-distinctness clause
-the first spends is refuted in general by a legal \code{mutual unsafe def} block whose
-\code{\_unsafe\_rec} companion collides (F-UNSAFEREC).
-\lead{Since the snapshot} \stLanded{} The run refuses such a block (\code{e88a265}) and the field is
-deleted in favour of \code{run\_rec\_exit\_nodup} (\code{184155d}); this file still names the
-deleted field and is scheduled for rewiring.
+the block's content is read off the final state by \code{SpecEnv} instead. Distinctness of a block's
+keys is not an assumed field: \code{Erasure.visitMutual} refuses a block whose members collide
+under \code{toKername} (F-UNSAFEREC), and \code{ErasureRun.run\_rec\_exit\_nodup} reads that guard back
+as a fact about a successful run.
 \end{remark}
 
 \section*{Deviations from the paper; caveats}
@@ -1472,6 +1477,6 @@ bridge is false without it (\S\ref{sec:refinement:iota}'s two-field counterexamp
 \item \lead{Caveat} T8 concerns a term, never an environment; that half stays an assumption at every
 rung. The two T8 theorems' clean footprints are an artefact of hypothesised steps. \lead{Deviation}
 The single fixed level scope of the eighteen motives and the universally quantified
-$\Gamma_{\mathrm{spec}}$ of the run predicate are chosen divergences from [S], not forced ones, and
-are \stPlanned{} for reversal (\code{doc/rework/09-REPAIRS-W7.md} at \code{cf2cb08}).
+$\Gamma_{\mathrm{spec}}$ of the run predicate are chosen divergences from [S], not forced ones: both
+are \stOpen{}, specified as units U5--U6 of \code{doc/rework/09-REPAIRS-W7.md}.
 \end{itemize}

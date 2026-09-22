@@ -9,7 +9,8 @@ relation can be stated.
 eighteen members); Theorem~\ref{thm:Erasure-run_register_inductive_runConcl} (registration only
 grows the environment); Theorem~\ref{thm:Erasure-run_addAxiom_ok} (axiom registration's state
 effect, unconditionally); Theorem~\ref{thm:Erasure-run_mkFreshFVarId_list} (minted identifiers are
-pairwise distinct).
+pairwise distinct); Theorem~\ref{thm:Erasure-run_rec_exit_nodup} (a block's keys are distinct on
+every successful run).
 \item \lead{Status} \stProved{} throughout; no hypothesis bundle and no trust edge to lean4lean.
 \item \lead{Lean files} \code{LeanToLambdaBox/ErasureRun.lean}.
 \item \lead{Paper} [S, Sec.~7.3]'s eraser is total, an induction on its own equations; this chapter
@@ -443,18 +444,23 @@ success matched by \code{pass\_core\_bind}.
 
 \begin{definition}[The modelled registration states]
 \label{def:Erasure-addAxiomState}
-\lean{Erasure.addAxiomState, Erasure.mutualBlockKn, Erasure.registerIndState}
+\lean{Erasure.addAxiomState, Erasure.addRealizerState, Erasure.mutualBlockKn,
+Erasure.registerIndState}
 \leanok
 \uses{def:Erasure-CanonicalConstants, def:GlobalDeclarations, def:Erasure-EraseM,
 def:OneInductiveBody}
-\lead{In short} The exact post-states of the three ways a run can register something.
+\lead{In short} The exact post-states of the four ways a run can register something.
 \begin{itemize}
 \item \code{addAxiomState n s}: registry gains \code{n} at \code{toKername n}; declarations gain one
 value-less constant under that kername;
+\item \code{addRealizerState n t s}: the same, with body \code{t} instead of none -- what
+\code{Erasure.addRealizer} conses for a quotient or recursor realizer (F-QUOT, F-EQREC);
 \item \code{mutualBlockKn ii}: the kername minted for a block, the root of its members' concatenated
 names;
 \item \code{registerIndState ii bodies s}: prepends one inductive declaration carrying the block's
-parameter count and bodies.
+parameter count and bodies, and -- F-KERNAME -- records the block's key against its member list in
+\code{indBlocks}, so a later block minting the same key is caught (Definition~\ref{def:Erasure-KernameFresh})
+instead of overwriting the entry.
 \end{itemize}
 \end{definition}
 
@@ -469,25 +475,47 @@ Erasure.recConstState_eq}
 \item \code{nonrecConstState n t s}: registry gains \code{n} at its canonical kername; declarations
 gain a constant with body \code{t};
 \item \code{recConstState names defs s}: fold registering each sibling at its own kername with body
-\code{defs} at that index; \code{recConstStep} is its step, \code{nonrecConstState} at a fixpoint
-body, and \code{recConstState\_eq} the \code{rfl} relating the two.
+\hl{\code{etaExpandFix defs} at that index} -- F-ETA's $\eta$-expanded fixpoint selection, in place
+of a bare \code{LBTerm.fix}, so the emitted body is guarded rather than a fixpoint applied to
+nothing; \code{recConstStep} is its step, \code{nonrecConstState} at that expanded body, and
+\code{recConstState\_eq} the \code{rfl} relating the two.
 \end{itemize}
 \end{definition}
 
-\begin{definition}[Axiom-only state extension]
+\begin{definition}[Constant-only state extension]
 \label{def:Erasure-ConstExt}
 \lean{Erasure.ConstExt, Erasure.AxiomExt, Erasure.ConstExt.rfl', Erasure.ConstExt.of_same,
 Erasure.ConstExt.trans, Erasure.AxiomExt.rfl', Erasure.AxiomExt.trans, Erasure.AxiomExt.addAxiom}
 \leanok
 \uses{def:Erasure-CanonicalConstants, def:Erasure-addAxiomState, def:GlobalDeclarations}
-\lead{In short} \code{ConstExt s s'}: \code{s'} extends \code{s} by \hl{axioms only}.
+\lead{In short} \code{ConstExt s s'}: \code{s'} extends \code{s} by \hl{constant declarations
+only}.
 \begin{itemize}
 \item canonicity is preserved, the registry's domain only grows, and declarations grow by a prefix
-of value-less constants, each keyed by a canonical kername the extended registry knows.
+of constant entries -- bodied or not -- each keyed by a canonical kername the extended registry
+knows; whether the prefix's bodies are empty is \code{BodylessExt}'s question, not this one's.
 \end{itemize}
-\lead{Lean} \code{AxiomExt} adds that the inductive registry is untouched; both reflexive,
-transitive; the modelled post-state of an axiom registration is indeed an \code{AxiomExt}
-extension.
+\lead{Lean} \code{AxiomExt} extends \code{BodylessExt} (Definition~\ref{def:Erasure-BodylessExt})
+by "the inductive registry is untouched"; all three reflexive, transitive; the modelled post-state
+of an axiom registration is an \code{AxiomExt} extension.
+\end{definition}
+
+\begin{definition}[Body-less state extension]
+\label{def:Erasure-BodylessExt}
+\lean{Erasure.BodylessExt, Erasure.BodylessExt.rfl', Erasure.BodylessExt.of_same,
+Erasure.BodylessExt.trans, Erasure.BodylessExt.addAxiom, Erasure.ConstExt.addRealizer}
+\leanok
+\uses{def:Erasure-ConstExt, def:Erasure-addAxiomState}
+\lead{In short} \code{BodylessExt s s'}: \code{ConstExt} with the new prefix pinned to \hl{value-less}
+entries -- what a run leaves behind when every constant it registers goes through
+\code{Erasure.addAxiom}.
+\begin{itemize}
+\item extends \code{ConstExt} by: every new declaration is a value-less constant at a canonical
+kername the extended registry knows;
+\item an \code{addAxiom} step is \code{BodylessExt} (F-QUOT's, F-EQREC's realizer registration is
+not: \code{Erasure.addRealizer} conses a \emph{bodied} entry, so it is only a \code{ConstExt} step,
+never a \code{BodylessExt} one).
+\end{itemize}
 \end{definition}
 
 \begin{definition}[State extension]
@@ -524,6 +552,13 @@ prefix.
 \lead{In short} Entry \code{rc} for name \code{n} is \emph{justified by} block \code{bodies} when
 \code{ii} names that block, a member of \code{bodies} is named \code{n}, and \hl{\code{rc}'s
 constructor-argument masks keep exactly that member's constructors' argument counts}.
+\begin{itemize}
+\item takes an abstract lookup predicate \code{Ci} standing for what \code{getConstInfo} reports
+during the run (the same \code{Ci} as in Theorem~\ref{thm:Erasure-run_register_inductive_cold_ok});
+\item the justified member's \code{propositional} flag is \code{Erasure.isPropositionalArity}'s
+decision on the declared type \code{Ci} reports for \code{n} (F-PROP; MetaRocq's
+\code{erases\_mutual\_inductive\_body}, \code{Extract.v:276}).
+\end{itemize}
 \lead{Lean} stable under extending \code{bodies} on the right.
 \end{definition}
 
@@ -542,30 +577,59 @@ index is \code{pre.length}}, and the list holds \code{x}'s value there.
 \section{The registration path}
 \label{sec:run:reg}
 
-\begin{remark}
-\lead{Since the snapshot} \stLanded{} \code{db1c2b6} extends this algebra to the guarded
-registration paths the shipping fixes added: \code{KernameFresh}/\code{IndKernameFresh} name what
-the two freshness guards leave behind, \code{run\_addRealizer\_ok} covers the realizer exit, and
-\code{run\_rec\_exit\_nodup} proves the registration exit's keys distinct -- the fact that replaces
-the deleted \code{EraserAsks} field.
-\end{remark}
-
-\begin{theorem}[The whole state effect of an axiom registration]
-\label{thm:Erasure-run_addAxiom_ok}
-\lean{Erasure.run_addAxiom_ok}
+\begin{definition}[The kername-freshness guards' content]
+\label{def:Erasure-KernameFresh}
+\lean{Erasure.KernameFresh, Erasure.IndKernameFresh}
 \leanok
-\uses{def:Erasure-addAxiomState, def:Erasure-register_inductive}
-\lead{In short} \hl{Unconditionally}, a successful run of \code{Erasure.addAxiom n} ends in state
-\code{addAxiomState n s} with the world token unchanged, on \emph{both} branches of the ``already
-defined'' guard.
+\uses{def:Erasure-EraseM, def:GlobalDeclarations, def:Kername}
+\lead{In short} F-KERNAME: \hl{what a successful freshness guard proves} about the key it just
+cleared, read off the two scans \code{Erasure.checkKernameFresh}/\code{checkIndKernameFresh}
+perform.
+\begin{itemize}
+\item \code{KernameFresh n kn s}: no constant other than \code{n} maps to \code{kn} in
+\code{s.constants}, and no registered block in \code{s.indBlocks} minted \code{kn};
+\item \code{IndKernameFresh names kn s}: no registered constant maps to \code{kn}, and the
+\emph{first} block of \code{s.indBlocks} minting \code{kn} -- if any, read by \code{List.find?}, since
+a second one is never reached -- is \code{names} itself.
+\end{itemize}
+\end{definition}
+
+\begin{lemma}[The freshness guards, stepped]
+\label{lem:Erasure-run_checkKernameFresh_ok}
+\lean{Erasure.run_checkKernameFresh_ok, Erasure.run_checkIndKernameFresh_ok}
+\leanok
+\uses{def:Erasure-KernameFresh, def:run-spelling}
+\lead{In short} A successful run of either guard \hl{leaves the state and world untouched and
+proves its freshness reading}.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{lem:Erasure-run_bind_ok, lem:Erasure-run_pure}
+\lead{Idea} Step \code{get}, case on the \code{List.find?} the guard tests: a hit throws
+(refuted by \code{run\_throwError\_ne\_ok}, part of Lemma~\ref{lem:Erasure-run_pure}), a miss is a
+\code{pure ()} whose \code{List.find?\_eq\_none} content is exactly the freshness reading.
+\end{proof}
+
+\begin{theorem}[The whole state effect of an axiom or realizer registration]
+\label{thm:Erasure-run_addAxiom_ok}
+\lean{Erasure.run_addAxiom_ok, Erasure.run_addRealizer_ok}
+\leanok
+\uses{def:Erasure-addAxiomState, def:Erasure-register_inductive, lem:Erasure-run_checkKernameFresh_ok}
+\lead{In short} \hl{Unconditionally}, a successful run of \code{Erasure.addAxiom n} (resp.
+\code{Erasure.addRealizer n t}) ends in state \code{addAxiomState n s} (resp.
+\code{addRealizerState n t s}) with the world token unchanged, on \emph{both} branches of the
+``already defined'' guard, and proves \code{KernameFresh n (toKername n) s}
+(Definition~\ref{def:Erasure-KernameFresh}) -- F-KERNAME's guard, stepped and read.
 \lead{Status} \stProved{}.
 \end{theorem}
 \begin{proof}
 \leanok
-\uses{lem:Erasure-run_bind_ok, lem:Erasure-run_pure, lem:Erasure-run_panic}
+\uses{lem:Erasure-run_bind_ok, lem:Erasure-run_pure, lem:Erasure-run_panic,
+lem:Erasure-run_checkKernameFresh_ok}
 \lead{Idea} Step \code{get}, split on the guard: \code{panic!} succeeds
-(Lemma~\ref{lem:Erasure-run_panic}) and falls through to the same \code{modify}, so both branches
-end at \code{addAxiomState n s} without moving the world.
+(Lemma~\ref{lem:Erasure-run_panic}) and falls through to the freshness guard then the same
+\code{modify}, so both branches end at the target state without moving the world; the two
+functions differ only in the conses body, so the same proof serves both.
 \end{proof}
 
 \begin{remark}
@@ -577,17 +641,20 @@ an already-known axiom still prepends a second, duplicate entry.
 \label{thm:Erasure-run_register_inductive_cold_ok}
 \lean{Erasure.run_register_inductive_cold_ok, Erasure.run_register_inductive_hit_ok}
 \leanok
-\uses{def:Erasure-ConstExt, def:Erasure-addAxiomState, def:Erasure-RegisteredBodyAt,
-def:Erasure-register_inductive}
+\uses{def:Erasure-BodylessExt, def:Erasure-addAxiomState, def:Erasure-RegisteredBodyAt,
+def:Erasure-register_inductive, def:Erasure-KernameFresh}
 \lead{In short} A \emph{hit} run changes nothing; a \emph{miss} run \hl{grows the inductive registry
 and the declaration list}.
 \begin{itemize}
-\item \lead{Given} the inductive registry knows the block (hit) or not (miss);
+\item \lead{Given} an abstract lookup predicate \code{Ci} standing for what \code{getConstInfo}
+reports during the run, and the inductive registry knows the block (hit) or not (miss);
 \item \lead{Then}, hit: the run returns the stored entry, state and world unchanged;
-\item \lead{Then}, miss: the run produces bodies \code{bodies} and state \code{sM} with final state
-\code{registerIndState ii bodies sM}, result \code{sM}'s entry for the block's name, one body per
-member, \code{sM} an axiom-only (\code{ConstExt}) extension of the entry state, the inductive
-registry only grown, and every entry in \code{sM} already present or justified by the emitted block.
+\item \lead{Then}, miss: F-KERNAME's block guard proves \code{IndKernameFresh} of the block's
+minted key (Definition~\ref{def:Erasure-KernameFresh}); the run produces bodies \code{bodies} and
+state \code{sM} with final state \code{registerIndState ii bodies sM}, result \code{sM}'s entry for
+the block's name, one body per member, \code{sM} a body-less (\code{BodylessExt}) extension of the
+entry state, the inductive registry only grown, and every entry in \code{sM} already present or
+justified (at \code{Ci}) by the emitted block.
 \end{itemize}
 \lead{Status} \stProved{}.
 \end{theorem}
@@ -595,8 +662,9 @@ registry only grown, and every entry in \code{sM} already present or justified b
 \leanok
 \uses{lem:Erasure-run_bind_ok, lem:Erasure-run_pure, lem:Erasure-run_list_mapM_ok,
 lem:Erasure-run_getConstInfo_state, thm:Erasure-run_addAxiom_ok, lem:Erasure-run_panic,
-def:Erasure-ConstExt, lem:Erasure-zipIdx_split_snd}
-\lead{Idea} Step the registry test (hit: \code{get}, \code{pure}); on miss, the prefix-indexed
+def:Erasure-BodylessExt, lem:Erasure-zipIdx_split_snd, lem:Erasure-run_checkKernameFresh_ok}
+\lead{Idea} Step the registry test (hit: \code{get}, \code{pure}); on miss, step the block
+freshness guard (Lemma~\ref{lem:Erasure-run_checkKernameFresh_ok}), then the prefix-indexed
 \code{mapM} rule carries the extension and justification across the member loop
 (Theorem~\ref{thm:Erasure-run_addAxiom_ok}, Lemma~\ref{lem:Erasure-zipIdx_split_snd} for position),
 then one declaration is prepended.
@@ -653,10 +721,11 @@ before.
 \begin{proof}
 \leanok
 \uses{thm:Erasure-run_register_inductive_cold_ok, thm:Erasure-run_register_inductive_cold_entries,
-def:Erasure-ConstExt, def:Erasure-StateLe, def:Erasure-RunConcl}
+def:Erasure-BodylessExt, def:Erasure-StateLe, def:Erasure-RunConcl}
 \lead{Idea} Case on the registry test: hit preserves state (\code{RunConcl} by reflexivity); miss's
-axiom-only extension plus the prepended declaration give \code{StateLe} and canonicity, and every
-prefix entry is the block declaration or a value-less constant, giving body-freedom.
+body-less extension, read at its \code{ConstExt} projection, plus the prepended declaration give
+\code{StateLe} and canonicity, and every prefix entry is the block declaration or a value-less
+constant, giving body-freedom.
 \end{proof}
 
 \begin{theorem}[The shape of an emitted fixpoint definition]
@@ -721,17 +790,18 @@ kername for \code{n}.
 \section{Hoare rules for \code{visitMutual}'s exits}
 \label{sec:run:exits}
 
-\begin{proposition}[\code{visitMutual} in Hoare form over its four exits]
+\begin{proposition}[\code{visitMutual} in Hoare form over its five exits]
 \label{prop:Erasure-run_visitMutual_ok}
 \lean{Erasure.run_visitMutual_ok}
 \leanok
 \uses{def:Erasure-addAxiomState, def:Erasure-nonrecConstState, def:Erasure-visitMutual,
 def:Erasure-prepare_erasure}
-\lead{In short} A predicate \code{Q} closed under all four exits \hl{survives every successful
+\lead{In short} A predicate \code{Q} closed under all five exits \hl{survives every successful
 \code{visitMutual} run}.
 \begin{itemize}
-\item \lead{Given} \code{Q} closed under: the inline entry; the axiom delta; a preprocessing-pass
-run; a shipping-\code{visitExpr} run yielding a body meeting predicates \code{Nf}, \code{Cl}; the
+\item \lead{Given} \code{Q} closed under: the inline entry; the axiom delta; the realizer delta
+(F-QUOT, F-EQREC); a \code{recursorRealizer} run, abstract; a preprocessing-pass run; a
+shipping-\code{visitExpr} run yielding a body meeting predicates \code{Nf}, \code{Cl}; the
 non-recursive registration, given \code{Nf}/\code{Cl}; and the block registration, given the block's
 length and that each body is the closure of a good erasure output -- then \code{Q} at entry gives
 \code{Q} at exit.
@@ -741,10 +811,10 @@ length and that each body is the closure of a good erasure output -- then \code{
 \leanok
 \uses{prop:Erasure-run_nonrec_exit_ok, lem:Erasure-run_bind_ok, lem:Erasure-run_liftCoreM_ok,
 lem:Erasure-run_getConstInfo_state, thm:Erasure-run_addAxiom_ok, lem:Erasure-run_pure}
-\lead{Idea} Step the declaration query and environment read; split three discriminants at once
-(has-value, externally-implemented, config) by nested cases, since \code{split} cannot: axiom
-(Theorem~\ref{thm:Erasure-run_addAxiom_ok}), the rest by
-Proposition~\ref{prop:Erasure-run_nonrec_exit_ok}.
+\lead{Idea} Step the declaration query and environment read; split four discriminants at once
+(quotient, recursor, has-value, externally-implemented, config) by nested cases, since \code{split}
+cannot: axiom and realizer (Theorem~\ref{thm:Erasure-run_addAxiom_ok}), the recursor-realizer clause
+handed straight to its hypothesis, the rest by Proposition~\ref{prop:Erasure-run_nonrec_exit_ok}.
 \end{proof}
 
 \begin{remark}
@@ -768,10 +838,12 @@ Rule & What it covers \\
 \midrule
 inline \emph{tail} & post-registration bookkeeping; prepends at most one inline-list entry \\
 inline \emph{prefix} & an optional attribute test, then the same continuation either way \\
-non-recursive exit & erases the preprocessed body under the reader update, prepends the constant,
-runs the inline tail \\
-recursive exit & mints one fresh variable per sibling, erases each body via \code{mkDef} under the
-fixpoint binding, prepends one registry entry per name \\
+non-recursive exit & steps the F-KERNAME freshness guard (silently, for this rule), erases the
+preprocessed body under the reader update, prepends the constant, runs the inline tail \\
+recursive exit & mints one fresh variable per sibling, refuses unless the members' kernames are
+distinct (F-UNSAFEREC; Theorem~\ref{thm:Erasure-run_rec_exit_nodup} reads that guard), erases each
+body via \code{mkDef} under the fixpoint binding, steps a freshness guard and prepends one
+$\eta$-expanded registry entry per name \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -781,9 +853,13 @@ per name, each the closure of a good erasure output over the block's names.
 \begin{proof}
 \leanok
 \uses{lem:Erasure-run_bind_ok, lem:Erasure-run_pure, lem:Erasure-run_list_mapM_ok,
-thm:Erasure-run_mkDef_ok, lem:Erasure-run_modify_forIn_ok, lem:Erasure-run_getConstInfo_state}
+thm:Erasure-run_mkDef_ok, lem:Erasure-run_modify_forIn_ok, lem:Erasure-run_getConstInfo_state,
+lem:Erasure-run_checkKernameFresh_ok}
 \lead{Idea} Each rule steps its \code{do}-block with the bind inversion: \code{mapM} for the sibling
-loop, the definition-shape theorem for \code{mkDef}, the fold rule for registration.
+loop, the definition-shape theorem for \code{mkDef}, the fold rule for registration; a guard's
+freshness reading is available but, for this Hoare form, discarded -- only \code{Q} at exit is
+concluded. The recursive exit's \code{Nodup} test is stepped by \code{split}, its throwing branch
+refuted by \code{run\_throwError\_ne\_ok} (part of Lemma~\ref{lem:Erasure-run_pure}).
 \end{proof}
 
 \begin{proposition}[The four exit rules, world-indexed]
@@ -802,9 +878,30 @@ the erasure run, so a caller re-establishing an invariant at entry sees the run 
 \begin{proof}
 \leanok
 \uses{prop:Erasure-run_nonrec_exit_ok, lem:Erasure-run_bind_ok, thm:Erasure-run_mkDef_ok,
-lem:Erasure-run_modify_forIn_ok, lem:Erasure-run_list_mapM_ok}
+lem:Erasure-run_modify_forIn_ok, lem:Erasure-run_list_mapM_ok, lem:Erasure-run_checkKernameFresh_ok}
 \lead{Idea} The same walks, world token carried; the definition builder and registration loop are
-world-preserving, needing no clause.
+world-preserving, needing no clause; the freshness guards are stepped and discarded as in the
+state-only form.
+\end{proof}
+
+\begin{theorem}[The F-UNSAFEREC guard's reading: a block's keys are distinct]
+\label{thm:Erasure-run_rec_exit_nodup}
+\lean{Erasure.run_rec_exit_nodup}
+\leanok
+\uses{def:run-spelling}
+\lead{In short} A successful recursive-exit run \hl{proves the members' kernames distinct} --
+\code{Erasure.remove\_unsafe\_rec} is not injective (it maps both \code{u} and its
+\code{u.\_unsafe\_rec} sibling to \code{u}), so the guard, not an unconditional fact about
+\code{Lean.Compiler.LCNF.getDeclInfo?}, is the only place this can be read: \code{EraserAsks} states
+no unconditional version of it.
+\lead{Status} \stProved{}.
+\end{theorem}
+\begin{proof}
+\leanok
+\uses{lem:Erasure-run_bind_ok, lem:Erasure-run_pure}
+\lead{Idea} Step the sibling \code{mapM}, then \code{split} on the \code{Nodup} test: the true
+branch is the conclusion directly, the false branch throws and is refuted by
+\code{run\_throwError\_ne\_ok} (part of Lemma~\ref{lem:Erasure-run_pure}).
 \end{proof}
 
 \begin{lemma}[Stepping past the inline prefix]
@@ -828,16 +925,18 @@ and one inline entry was gained; then the continuation ran.
 \begin{lemma}[Each registration delta is a run conclusion]
 \label{lem:Erasure-runConcl_nonrecConstState}
 \lean{Erasure.runConcl_inlinings, Erasure.runConcl_addAxiomState,
-Erasure.runConcl_nonrecConstState, Erasure.runConcl_foldl_recConstStep,
-Erasure.runConcl_recConstState, Erasure.nonrecConstState_get?, Erasure.addAxiomState_get?,
+Erasure.runConcl_nonrecConstState, Erasure.runConcl_addRealizerState,
+Erasure.runConcl_foldl_recConstStep, Erasure.runConcl_recConstState,
+Erasure.nonrecConstState_get?, Erasure.addAxiomState_get?, Erasure.addRealizerState_get?,
 Erasure.foldl_recConstStep_get?, Erasure.recConstState_get?}
 \leanok
 \uses{def:Erasure-RunConcl, def:Erasure-nonrecConstState, def:Erasure-addAxiomState}
-\lead{In short} Each of the four state deltas the eraser performs is \hl{a \code{RunConcl} step}.
+\lead{In short} Each of the five state deltas the eraser performs is \hl{a \code{RunConcl} step}.
 \begin{itemize}
 \item the inline entry writes only the inline list;
 \item the axiom exit registers one constant at its canonical kername, prepends one value-less
-declaration; the non-recursive exit does the same with a body;
+declaration; the non-recursive and the realizer exits do the same with a body, the realizer delta
+reducing to the non-recursive one verbatim;
 \item the block registration, a fold of the non-recursive step, composes out of the previous one.
 \end{itemize}
 \end{lemma}
@@ -1007,9 +1106,11 @@ this eraser builds \lbox{} declarations \emph{during} the walk, demand-driven an
 \item \lead{Deviation} \textbf{Program logic, not equational reasoning.} MetaCoq's proofs induct on
 equations; here it is Hoare rules, admissibility and approximation -- the price of verifying an
 eraser not written to be verified.
-\item \lead{Caveat} \textbf{Panics as successful branches.} [S] has no analogue: the model carries a
-default fall-through everywhere (Lemma~\ref{lem:Erasure-run_panic}); shipping consequences (the
-ineffective duplicate guard, defaulted binder helpers) are recorded, not excluded.
+\item \lead{Caveat} \textbf{Panics as successful branches.} [S] has no analogue: a panic carries a
+default fall-through everywhere (Lemma~\ref{lem:Erasure-run_panic}), recording the ineffective
+duplicate guard, not excluding it -- unlike the F-KERNAME/F-UNSAFEREC guards
+(Definition~\ref{def:Erasure-KernameFresh}, Theorem~\ref{thm:Erasure-run_rec_exit_nodup}), which
+genuinely throw, so their guarantees hold only of a successful run.
 \item \lead{Deviation} \textbf{No constructor-argument pruning.}
 Theorem~\ref{thm:Erasure-run_register_inductive_cold_entries}: pruning off, one of
 \code{ConfigPinned}'s five restrictions, every mask keeps a constructor's whole field count.
@@ -1017,6 +1118,5 @@ Theorem~\ref{thm:Erasure-run_register_inductive_cold_entries}: pruning off, one 
 through application nodes, not MetaCoq/CertiCoq's block node; Chapter~\ref{chap:coldstart}
 \emph{concludes} this rather than assuming it.
 \item \lead{Caveat} \textbf{Sources.} This chapter's declarations live in namespace \code{Erasure},
-not \code{LeanToLambdaBox.Erasure}. Some docstrings cross-reference names no longer in the tree; no
-statement is affected, and the blueprint repeats none of them.
+not \code{LeanToLambdaBox.Erasure}.
 \end{itemize}

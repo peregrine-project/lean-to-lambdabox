@@ -12,8 +12,8 @@ Theorem~\ref{thm:lbWfPeregrine_of_check} (a kernel verdict discharges well-forme
 Theorem~\ref{thm:LBOptimize_correct} (a verified template pass, not shipped).
 \item \lead{Status} \stProved{} throughout the pass metatheory, the inversion kit and the checker;
 \code{LowerEnv} (defined in Chapter~\ref{chap:erases}, consumed here) is \stAssumed{} in the capstone's
-bridge; the stronger precondition \code{PeregrinePre} is known false on the shipping output (finding
-F-ETA) -- the capstone concludes only the weaker Definition~\ref{def:LBWfPeregrine}.
+bridge; the capstone concludes Definition~\ref{def:LBWfPeregrine} in full, including its fixpoint-eta
+clause \code{expandedFix}, from one kernel computation at every rung.
 \item \lead{Lean files} \code{Lower.lean}, \code{LowerFix.lean}, \code{FixUnfold.lean},
 \code{ElimBody.lean}, \code{Output.lean}, \code{OutputShape.lean}, \code{OutputCheck.lean},
 \code{Optimize.lean}.
@@ -26,28 +26,30 @@ F-ETA) -- the capstone concludes only the weaker Definition~\ref{def:LBWfPeregri
 
 \begin{definition}[Environment queries of the pass]
 \label{def:ElimDecl}
-\lean{LeanToLambdaBox.DefnDecl, LeanToLambdaBox.IndBodyOf, LeanToLambdaBox.ElimDecl,
-LeanToLambdaBox.RuntimeKey, LeanToLambdaBox.ClosedBodies, LeanToLambdaBox.FVarFreeBodies}
+\lean{LeanToLambdaBox.DefnDecl, LeanToLambdaBox.IndBodyOf, LeanToLambdaBox.IndNotPropositional,
+LeanToLambdaBox.ElimDecl, LeanToLambdaBox.RuntimeKey, LeanToLambdaBox.ClosedBodies,
+LeanToLambdaBox.FVarFreeBodies}
 \leanok
 \uses{def:ElimBody, def:GlobalDeclarations, def:LBTerm, def:Kername, def:InductiveId,
 def:OneInductiveBody, def:LBTerm-envLookup, def:LBClosed, def:hasFVar}
-\lead{In short} Six predicates on a \emph{specification} environment $\Gamma$ -- the only thing about
+\lead{In short} Seven predicates on a \emph{specification} environment $\Gamma$ -- the only thing about
 the environment \hl{the pass ever reads}.
 \begin{itemize}
 \item \code{DefnDecl}\ \Gamma\ kn\ b: $kn$ is declared in $\Gamma$ with body $b$ (a definitional
 equation on \code{LBTerm.envLookup}, not an inductive characterisation);
-\item \code{IndBodyOf}\ iid\ np\ nfs\ mib: block $mib$ has $np$ parameters, $iid$ selects a
-non-propositional body with constructor field counts $nfs$;
+\item \code{IndBodyOf}\ iid\ np\ nfs\ mib: block $mib$ has $np$ parameters, $iid$ selects a body with
+constructor field counts $nfs$ -- silent on propositionality, which \code{ElimDecl} asks separately;
+\item \code{IndNotPropositional}\ iid\ mib: the body $iid$ selects is not propositional -- what
+\code{WcbvEval.iota}/\code{.proj} need before firing; true only of the inductives an elimination is
+\emph{at}, not of every inductive a run registers;
 \item \code{ElimDecl}\ \Gamma\ kn\ iid\ np\ dp\ nfs: $kn$ is an \emph{eliminator constant with its
-block} -- body one of the two canonical shapes (Definition~\ref{def:ElimBody}), block data matching;
+block} -- body one of the two canonical shapes (Definition~\ref{def:ElimBody}), block data matching
+and not propositional;
 \item \code{RuntimeKey}\ \Gamma\ kn: the existential closure of \code{ElimDecl} -- a key the pass
 \emph{consumes} into \code{case} nodes, its declaration pruned; a constructor is never a runtime key;
 \item \code{ClosedBodies}, \code{FVarFreeBodies}\ \Gamma: every declared body is closed, resp.\
 variable-free -- independent, since closedness says nothing at an \code{fvar} node.
 \end{itemize}
-\lead{Since the snapshot} \stLanded{} \code{ec84ccf}: \code{IndBodyOf} drops its
-``\code{propositional} is \code{false}'' conjunct, now carried beside the eliminator as
-\code{IndNotPropositional}, because the shipping eraser sets the flag (F-PROP, \code{d28459f}).
 \end{definition}
 
 \begin{lemma}[Eliminator data are determined by the key]
@@ -94,7 +96,7 @@ maps to itself, sound since the source declares no block member as \code{fix};
 \uses{def:ElimDecl, def:ConstToFVar, def:LBTerm, def:LBTerm-mkApps, def:FixDef,
 def:BinderName, def:GlobalDeclarations}
 \lead{In short} $\Lower\ \Gamma\ t\ t'$: $t'$ is a \lbox{} term \hl{the shipping eraser may emit}
-for $t$ over $\Gamma$ -- fourteen arms, indexed by $\Gamma$ alone.
+for $t$ over $\Gamma$ -- fifteen arms, indexed by $\Gamma$ alone.
 \begin{center}
 \begin{tabular}{p{0.27\linewidth}p{0.46\linewidth}p{0.18\linewidth}}
 \toprule
@@ -109,23 +111,27 @@ for $t$ over $\Gamma$ -- fourteen arms, indexed by $\Gamma$ alone.
 \code{LowerAlt} & \code{iota\_red} \\
 \code{fixConst} & a block member's constant to the block's \code{fix} node & \code{fixSubst} \\
 \code{fixBody} & a block member's specification body to the same \code{fix} node & \code{fixSubst} \\
+\code{fixEta} & the same body to the \hl{eta-expansion} of the same \code{fix} node, one binder
+applied to itself & \code{eta\_fixpoint} \\
 \bottomrule
 \end{tabular}
 \end{center}
 \lead{Lean} list premises are indexed (length plus bounded quantifier): a \code{List.Forall2} premise
-nests an inductive occurrence the kernel rejects.
-\lead{Since the snapshot} \stLanded{} \code{ec84ccf} adds a fifteenth arm, \code{fixEta}: a block
-member's body relates to the eta-expansion of the block's node, the shape \code{visitMutual} now
-registers (F-ETA, \code{42989c5}). Its target binder name must stay free, or \code{Lower.constToFix}
-fails -- mechanised before the arm landed.
+nests an inductive occurrence the kernel rejects. \code{fixEta}'s premises are \code{fixBody}'s
+verbatim; only the target differs. Its binder name is free, as \code{lambda}'s is: pinning it to
+\code{.anon} would falsify Theorem~\ref{thm:Lower-constToFix}, which must carry the wrapper through
+\code{ConstToFVar.lambda}'s renaming.
 \end{definition}
 
 \begin{remark}
 \lead{Caveat} Four things differ from [S]'s reader expectations.
 \begin{itemize}
-\item \textbf{non-deterministic} at a block member (\code{const}, \code{fixConst} both apply): read
-``emits $t'$'' as ``there is an emission $t'$'';
-\item no constructor-introduction or eta-expansion arm (two once existed, refuted; now finding F-ETA2);
+\item \textbf{non-deterministic} at a block member -- \code{const}/\code{fixConst} at its constant,
+\code{lambda}/\code{fixBody}/\code{fixEta} at its specification body: read ``emits $t'$'' as ``there
+is an emission $t'$'';
+\item no constructor-introduction arm (\code{Erases.ctor} already emits the applied-form node) and no
+eta-expansion arm beyond \code{fixEta}: the residual coverage restriction this leaves is finding
+F-ETA2, not a gap in the relation;
 \item no \code{fix} congruence arm (Proposition~\ref{prop:Lower-source_const});
 \item \code{elimApp} drops arguments before the discriminant with no premise: sound only forward, not a
 bisimulation.
@@ -159,15 +165,15 @@ genuine two-member mutual block; \code{hrarg} shows the emitter's own comment --
 principal-argument index irrelevant -- wrong under this evaluation relation.
 \end{remark}
 
-\begin{lemma}[The three arms in packaged form]
+\begin{lemma}[The four arms in packaged form]
 \label{lem:Lower-fixConst-prime}
-\lean{LeanToLambdaBox.Lower.fixConst', LeanToLambdaBox.Lower.fixBody',
+\lean{LeanToLambdaBox.Lower.fixConst', LeanToLambdaBox.Lower.fixBody', LeanToLambdaBox.Lower.fixEta',
 LeanToLambdaBox.Lower.elimApp'}
 \leanok
 \uses{def:Lower, def:LowerBlock, def:ElimDecl}
-\lead{In short} \code{fixConst}, \code{fixBody} and \code{elimApp}, re-exposed with their premises
-packaged through \hl{\code{LowerBlock}} and \code{LowerAlts} rather than inlined; every downstream
-fixpoint or eliminator derivation goes through these.
+\lead{In short} \code{fixConst}, \code{fixBody}, \code{fixEta} and \code{elimApp}, re-exposed with
+their premises packaged through \hl{\code{LowerBlock}} and \code{LowerAlts} rather than inlined;
+every downstream fixpoint or eliminator derivation goes through these.
 \lead{Lean} The inlining they undo
 is forced by the Lean kernel, which rejects a structure premise mentioning the inductive being defined.
 \end{lemma}
@@ -185,16 +191,17 @@ is forced by the Lean kernel, which rejects a structure premise mentioning the i
 \lean{LeanToLambdaBox.lbClosed_closeFix, LeanToLambdaBox.ConstToFVar.closed,
 LeanToLambdaBox.lbClosed_fix_of_block, LeanToLambdaBox.constToFVar_not_hasFVar,
 LeanToLambdaBox.closeConstAt_not_hasFVar, LeanToLambdaBox.fixNode_not_hasFVar,
-LeanToLambdaBox.toBvar_fixNode}
+LeanToLambdaBox.toBvar_fixNode, LeanToLambdaBox.lbClosed_etaFix, LeanToLambdaBox.etaFix_not_hasFVar}
 \leanok
 \uses{def:ConstToFVar, def:LBClosed, def:closeFix, def:hasFVar, def:toBvar}
 \lead{In short} The \code{fix} node a block builds is \hl{inert}: closed at every bound and free of
-every variable, once its lowered bodies are.
+every variable, once its lowered bodies are; its eta-wrapper inherits both, since its only extra
+content is the binder its own \code{bvar 0} fills.
 \begin{itemize}
 \item closing at base $0$ raises closedness to the block's width (neither \code{const} nor \code{fvar}
 binds an index);
 \item block closure of a variable-free body is variable-free at \emph{every} variable, including the
-block's own -- so abstraction is the identity on the \code{fix} node.
+block's own -- so abstraction is the identity on the \code{fix} node, and on its eta-wrapper.
 \end{itemize}
 \end{lemma}
 \begin{proof}
@@ -652,6 +659,7 @@ source has $\code{const}\ kns[j]$, a pair neither factor relates alone.
 \label{lem:LowerFixFixture-lowerfix_app_step}
 \lean{LeanToLambdaBox.LowerFixFixture.lowerfix_nv,
 LeanToLambdaBox.LowerFixFixture.lowerfix_fixConst_fires,
+LeanToLambdaBox.LowerFixFixture.lowerfix_fixEta,
 LeanToLambdaBox.LowerFixFixture.lowerfix_app_step,
 LeanToLambdaBox.LowerFixFixture.lowerfix_erasesLBFix,
 LeanToLambdaBox.LowerFixFixture.lowerfix_delta,
@@ -662,6 +670,8 @@ LeanToLambdaBox.LowerFixFixture.lowerfix_isLambda}
 twelve fields} of the bundle, with a real call between members.
 \begin{itemize}
 \item the call-site arm fires and the environment delta-steps the constant to the block;
+\item \code{fixEta} fires at the same member's body too, landing at the wrapper rather than the bare
+node -- a second target at the same source, alongside \code{fixBody};
 \item one application step through the block has the exact shape of a pass-correctness statement: the
 target evaluates to a pass image of what the source evaluates to;
 \item the three-factor composite is inhabited at the one pair no two-factor composite relates: the
@@ -923,12 +933,74 @@ outside \hl{alphanumeric-plus-underscore}.
 \lead{Idea} Kernel evaluation of the decidable proposition on the literal string.
 \end{proof}
 
+\begin{lemma}[Reading the lambda-headedness clause at one block]
+\label{lem:FixLambda-of_onProgram}
+\lean{LeanToLambdaBox.FixLambda.of_onProgram}
+\leanok
+\uses{def:OnProgram, def:NoDangling, def:SubTerm, def:atomValue}
+\lead{In short} At any \code{fix} node inside a program satisfying \code{FixLambda}, \hl{every block
+member is lambda-headed} -- in the indexed Boolean form the pass relation's bundle wants.
+\lead{Lean} a block stored in the environment rather than reached from the term is handled by first
+taking the environment half; the statement takes the subterm witness plus a shape equation.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:OnProgram, def:NoDangling, def:SubTerm}
+\lead{Idea} Apply the clause at the given subterm and rewrite the existential lambda form into the
+Boolean head test at each index.
+\end{proof}
+
+\begin{definition}[The fixpoint-eta spine clause]
+\label{def:LBExpandedFix}
+\lean{LeanToLambdaBox.LBExpandedFix}
+\leanok
+\uses{def:OnProgram, def:ConstructSpine}
+\lead{In short} MetaRocq's fixpoint eta-expansion clause, over environment and term: every
+\code{fix} node occurs \hl{applied past its own principal argument}.
+\lead{Lean} the fixpoint-spine relation of Definition~\ref{def:ConstructSpine}, read at every
+occurrence rather than only at the term's root.
+\end{definition}
+
+\begin{definition}[Self-applied fixpoint occurrences]
+\label{def:BVarDemand}
+\lean{LeanToLambdaBox.fixDemands, LeanToLambdaBox.BVarDemand, LeanToLambdaBox.FixSelfApplied,
+LeanToLambdaBox.LBFixSelfApplied}
+\leanok
+\uses{def:LBTerm, def:FixDef, def:OnProgram}
+\lead{In short} \code{BVarDemand} \hl{locates} a de Bruijn occurrence and what its enclosing binder
+demands of it; \code{FixSelfApplied} says every located occurrence meets its demand.
+\begin{itemize}
+\item \code{fixDemands}\ defs: one demand per block binder, $1 + $ its principal-argument index, in de
+Bruijn order -- what a self-reference into the block's own binder region must itself be applied to;
+\item \code{BVarDemand}\ ctx\ k\ t\ m\ k': under enclosing demands $ctx$, with $t$ itself applied to
+$k$ arguments, some maximal spine inside $t$ is headed by an index resolving in $ctx$ to demand $m$,
+carrying $k'$ arguments of its own;
+\item \code{FixSelfApplied}\ t: every occurrence \code{BVarDemand} locates at the empty context and no
+outer arguments meets its demand, $m \leq k'$;
+\item \code{LBFixSelfApplied}: \code{FixSelfApplied} over environment and term.
+\end{itemize}
+\lead{Lean} \code{BVarDemand} carries an explicit application count $k$ at every node, so a demand is
+checked against the spine that actually carries it, not read off the term's root.
+\end{definition}
+
+\begin{definition}[Fixpoint eta, folded]
+\label{def:LBExpandedTFix}
+\lean{LeanToLambdaBox.LBExpandedTFix}
+\leanok
+\uses{def:LBExpandedFix, def:NoDangling, def:BVarDemand}
+\lead{In short} MetaRocq's \code{expanded\_tFix}, all three term-level conjuncts \hl{together}: the
+spine clause, every member lambda-headed, every self-reference itself applied.
+\lead{Lean} \code{LBExpandedFix} $\wedge$ \code{OnProgram} \code{FixLambda} $\wedge$
+\code{LBFixSelfApplied}; the clause's remaining premise, that every enclosing index resolves at all,
+is \code{LBWfPeregrine.closed}, not this.
+\end{definition}
+
 \begin{definition}[The output boundary]
 \label{def:LBWfPeregrine}
-\lean{LeanToLambdaBox.LBWfPeregrine}
+\lean{LeanToLambdaBox.LBWfPeregrine, LeanToLambdaBox.LBWfPeregrine.fixLambda}
 \leanok
 \uses{def:OnProgram, def:NoDangling, def:NoFix, def:ConstructSpine, def:PrintableBinders,
-def:LBClosed, def:constructorArity, def:Kername}
+def:LBClosed, def:constructorArity, def:Kername, def:LBExpandedTFix, lem:FixLambda-of_onProgram}
 \lead{In short} What peregrine's untyped transform pipeline needs of the emitted program $(\Gamma,t)$,
 stated on the program \hl{alone}, as twelve clauses.
 \begin{center}
@@ -943,7 +1015,8 @@ stated on the program \hl{alone}, as twelve clauses.
 (5) \code{ctorApplied} & no constructor node carries arguments \\
 (6) \code{ctorDecl} & every constructor used is declared \\
 (7) \code{casesExh} & every \code{case} is exhaustive, with the right field counts \\
-(8) \code{fixLambda} & every fixpoint definition is lambda-headed \\
+(8) \code{expandedFix} & fixpoint eta: every \code{fix} node applied past its principal argument,
+every member lambda-headed, every self-reference itself applied (Definition~\ref{def:LBExpandedTFix}) \\
 (9) \code{projDecl} & every projection is an in-range field of a single-constructor inductive \\
 (10) \code{etaCtorsEnv} & every constructor spine in a constant body has at least its declared arity \\
 (11) \code{etaCtorsTm} & the same, for spines in the term \\
@@ -951,14 +1024,10 @@ stated on the program \hl{alone}, as twelve clauses.
 \bottomrule
 \end{tabular}
 \end{center}
-\lead{Lean} clauses (3)--(9) and (12) go through \code{OnProgram}; (10)--(11) are separate, since they
-also quantify over spine data.
-\lead{Since the snapshot} \stLanded{} \code{2ace82d}: clause (8) is replaced by one
-\code{expandedFix} clause folding lambda-headedness, the fixpoint-spine condition and a new
-per-occurrence \code{LBFixSelfApplied}; \code{fixLambda} survives as a derived theorem, and the
-decision procedure keeps twelve fields, so each rung's well-formedness stays one kernel
-computation. \lead{Planned} The strengthened check is \code{false} at G6, G7 and G8 until the rung
-environments are regenerated.
+\lead{Lean} clauses (3)--(7) and (9), (12) go through \code{OnProgram}; (8) is
+Definition~\ref{def:LBExpandedTFix} outright; (10)--(11) are separate, since they also quantify over
+spine data. \code{LBWfPeregrine.fixLambda} projects the member-lambda-headedness conjunct back out of
+(8), the shape \code{LowerBlock.hfl} and Lemma~\ref{lem:FixLambda-of_onProgram} read.
 \end{definition}
 
 \begin{remark}
@@ -966,45 +1035,6 @@ environments are regenerated.
 printability; saturation is what \code{remove\_params\_optimization} consumes. At every current rung
 the emitted term is a bare constant, so the \emph{term} halves of clauses (3)--(9), (11), (12) are
 vacuous: all content comes from the environment half.
-\end{remark}
-
-\begin{lemma}[Reading the lambda-headedness clause at one block]
-\label{lem:FixLambda-of_onProgram}
-\lean{LeanToLambdaBox.FixLambda.of_onProgram}
-\leanok
-\uses{def:OnProgram, def:NoDangling, def:SubTerm, def:atomValue}
-\lead{In short} At any \code{fix} node inside a program satisfying \code{fixLambda}, \hl{every block
-member is lambda-headed} -- in the indexed Boolean form the pass relation's bundle wants.
-\lead{Lean} a block stored in the environment rather than reached from the term is handled by first
-taking the environment half; the statement takes the subterm witness plus a shape equation.
-\end{lemma}
-\begin{proof}
-\leanok
-\uses{def:OnProgram, def:NoDangling, def:SubTerm}
-\lead{Idea} Apply the clause at the given subterm and rewrite the existential lambda form into the
-Boolean head test at each index.
-\end{proof}
-
-\begin{definition}[The clause the output fails, and the true precondition]
-\label{def:LBExpandedFix}
-\lean{LeanToLambdaBox.LBExpandedFix, LeanToLambdaBox.PeregrinePre}
-\leanok
-\uses{def:OnProgram, def:ConstructSpine, def:LBWfPeregrine}
-\lead{In short} \code{LBExpandedFix}: MetaRocq's fixpoint eta-expansion clause -- every fixpoint occurs
-\emph{applied}, to more arguments than its principal index. \code{PeregrinePre} conjoins it with
-Definition~\ref{def:LBWfPeregrine}: \hl{what peregrine's first pass actually requires}.
-\lead{Lean} plain definitions; the first through the fixpoint-spine relation of
-Definition~\ref{def:ConstructSpine}.
-\end{definition}
-
-\begin{remark}
-\lead{Caveat} \code{LBExpandedFix} is \textbf{false} at the snapshot: the eraser emits fifty bare
-fixpoint constant bodies (F-ETA), so the capstone concludes Definition~\ref{def:LBWfPeregrine}, not
-\code{PeregrinePre}.
-\lead{Since the snapshot} \stFixed{} \code{42989c5} wraps each registered body as MetaRocq's
-\code{eta\_fixpoint} does; an independent three-conjunct check goes from 4/10/11/10/15 bad fixpoints
-on the five programs to none. \stLanded{} \code{2ace82d} deletes \code{PeregrinePre} and folds its
-content into \code{LBWfPeregrine}.
 \end{remark}
 
 \section{Reachability and body-less constants}
@@ -1165,19 +1195,65 @@ function-side clause is available exactly where the guard removes the spine-root
 reads the computed spine data off the node.
 \end{proof}
 
+\begin{definition}[Deciding fixpoint eta]
+\label{def:fixSatB}
+\lean{LeanToLambdaBox.fixSpineInfo, LeanToLambdaBox.fixOkB, LeanToLambdaBox.fixSatB,
+LeanToLambdaBox.fixSatBFn, LeanToLambdaBox.fixSatBArgs, LeanToLambdaBox.fixSatBAlts,
+LeanToLambdaBox.fixSatBDefs, LeanToLambdaBox.fixSelfB, LeanToLambdaBox.fixSelfBArgs,
+LeanToLambdaBox.fixSelfBAlts, LeanToLambdaBox.fixSelfBDefs, LeanToLambdaBox.fixLambdaNode,
+LeanToLambdaBox.lbExpandedFixB, LeanToLambdaBox.lbFixSelfAppliedB, LeanToLambdaBox.lbExpandedTFixB}
+\leanok
+\uses{def:ConstructSpine, def:BVarDemand, def:LBExpandedFix, def:LBExpandedTFix, def:onProgramB,
+def:ctorSatB}
+\lead{In short} Two mutually recursive walks -- the computational reading of
+Definition~\ref{def:LBExpandedFix}'s and Definition~\ref{def:BVarDemand}'s guards.
+\begin{itemize}
+\item \code{fixSpineInfo}/\code{fixOkB}: a node's \code{.fix}-spine data, and the arity bound at it --
+the fixpoint analogue of \code{spineInfo}/\code{spineOkB};
+\item \code{fixSatB}: \code{LBExpandedFix}'s guard at every node, its function-side twin
+\code{fixSatBFn} skipping a spine root that heads a longer spine (the same guard
+Definition~\ref{def:ctorSatB} uses);
+\item \code{fixSelfB}\ t\ ctx\ k: \code{FixSelfApplied}'s guard, threading the binder demands $ctx$
+and the applied-argument count $k$ that \code{BVarDemand} locates an occurrence with;
+\item \code{lbExpandedFixB}, \code{lbFixSelfAppliedB}, \code{lbExpandedTFixB}: the three checks over
+environment and term, and their conjunction.
+\end{itemize}
+\end{definition}
+
+\begin{lemma}[Fixpoint eta, decided]
+\label{lem:fixSat_sound}
+\lean{LeanToLambdaBox.fixSpineInfo_of_isFixSpine, LeanToLambdaBox.IsFixSpine.fixHeaded,
+LeanToLambdaBox.fixOkB_sound, LeanToLambdaBox.fixSat_sound, LeanToLambdaBox.fixSelf_sound}
+
+\leanok
+\uses{def:fixSatB, def:LBExpandedTFix, lem:ctorSat_sound}
+\lead{In short} If the check succeeds, \hl{Definition~\ref{def:LBExpandedTFix} holds}: every
+\code{fix} spine, at its maximal application depth, clears its principal argument, and every
+located self-reference clears its own demand.
+\lead{Lean} the conjunction of the root and function-side readings, as at
+Lemma~\ref{lem:ctorSat_sound}, makes the induction go through.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:fixSatB, def:LBExpandedTFix}
+\lead{Idea} Induction on the spine-occurrence, resp.\ the located-occurrence, derivation with the
+conjunction as motive; \code{lbExpandedTFixB\_sound} packages the three readings through
+\code{onProgramB\_sound}/\code{progB\_sound}.
+\end{proof}
+
 \begin{definition}[The Boolean checker]
 \label{def:lbWfPeregrineB}
 \lean{LeanToLambdaBox.lbWfPeregrineB, LeanToLambdaBox.keysDistinctB, LeanToLambdaBox.declsWfB,
 LeanToLambdaBox.lbClosedB, LeanToLambdaBox.noBlockB, LeanToLambdaBox.noDanglingNode,
 LeanToLambdaBox.ctorsDeclaredNode, LeanToLambdaBox.altsMatchB, LeanToLambdaBox.casesExhNode,
-LeanToLambdaBox.fixLambdaNode, LeanToLambdaBox.projDeclNode, LeanToLambdaBox.printableNameB,
-LeanToLambdaBox.printableNode}
+LeanToLambdaBox.projDeclNode, LeanToLambdaBox.printableNameB, LeanToLambdaBox.printableNode}
 \leanok
-\uses{def:onProgramB, def:ctorSatB, def:LBWfPeregrine}
+\uses{def:onProgramB, def:ctorSatB, def:fixSatB, def:LBWfPeregrine}
 \lead{In short} Definition~\ref{def:LBWfPeregrine}, decided: an eleven-way conjunction for its
 \hl{twelve clauses}, the last conjunct carrying both saturation halves.
-\lead{Lean} each conjunct is a direct list check, a whole-term check through the first engine, or a
-per-node check through the second.
+\lead{Lean} each conjunct is a direct list check, a whole-term check through the first engine, a
+per-node check through the second, or -- at \code{expandedFix} -- Definition~\ref{def:fixSatB}'s
+engine directly.
 \end{definition}
 
 \begin{theorem}[A kernel verdict is the well-formedness premise]
@@ -1186,7 +1262,7 @@ per-node check through the second.
 LeanToLambdaBox.declsWfB_sound, LeanToLambdaBox.lbClosedB_sound,
 LeanToLambdaBox.noBlockB_sound, LeanToLambdaBox.noDangling_of_nodes,
 LeanToLambdaBox.ctorsDeclared_of_nodes, LeanToLambdaBox.casesExhaustive_of_nodes,
-LeanToLambdaBox.fixLambda_of_nodes, LeanToLambdaBox.projsDeclared_of_nodes,
+LeanToLambdaBox.lbExpandedTFixB_sound, LeanToLambdaBox.projsDeclared_of_nodes,
 LeanToLambdaBox.printableBinders_of_nodes, LeanToLambdaBox.altsMatchB_sound,
 LeanToLambdaBox.printableBinderName_of_check}
 \leanok
@@ -1199,11 +1275,12 @@ it.
 \end{theorem}
 \begin{proof}
 \leanok
-\uses{def:lbWfPeregrineB, lem:onProgramB_sound, lem:ctorSat_sound, def:LBWfPeregrine, def:NoDangling,
-def:PrintableBinders, def:NoFix}
+\uses{def:lbWfPeregrineB, lem:onProgramB_sound, lem:ctorSat_sound, lem:fixSat_sound,
+def:LBWfPeregrine, def:NoDangling, def:PrintableBinders, def:NoFix}
 \lead{Idea} Split the eleven-way conjunction and build the structure field by field, each from one
 engine's rule applied to that clause's soundness lemma; the saturation conjunct goes through the
-whole-term engine, then projects to each half.
+whole-term engine, then projects to each half; the \code{expandedFix} conjunct is
+Lemma~\ref{lem:fixSat_sound} applied directly.
 \end{proof}
 
 \begin{remark}
@@ -1331,16 +1408,14 @@ theorem applied to the second.
 \begin{itemize}
 \item \textbf{One-directional.} The eliminator arm drops arguments before the discriminant unchecked:
 sound for a forward simulation, not a bisimulation.
-\item \textbf{Non-deterministic.} At a block member, both \code{const} and \code{fixConst} apply:
-``the pass emits'' means ``there is an emission such that''.
+\item \textbf{Non-deterministic.} At a block member's constant, both \code{const} and
+\code{fixConst} apply; at its specification body, the plain \code{lambda} congruence,
+\code{fixBody} and \code{fixEta} all apply: ``the pass emits'' means ``there is an emission such
+that''.
 \item \textbf{A manufactured source dialect.} Eliminators are still constants, recursion still by
 environment reference, so the pass builds two node kinds MetaRocq's erasure gets free from Rocq's
 \code{match}/\code{fix} -- why the fixpoint node is not inert under box transport
 (Lemma~\ref{lem:noBox_lower_needs_noFix}).
 \item \textbf{Applied, not block, form.} The emitted output is applied-form, while the one fully
 verified pass, Theorem~\ref{thm:LBOptimize_correct}, is stated at block-form flags.
-\item \textbf{The weaker conclusion.} At the snapshot the emitted program satisfies
-Definition~\ref{def:LBWfPeregrine}, \emph{not} \code{PeregrinePre}: the fixpoint eta clause is false
-here, a named finding. \lead{Since the snapshot} the finding is fixed (\code{42989c5}) and the two
-predicates are merged into one (\code{2ace82d}).
 \end{itemize}

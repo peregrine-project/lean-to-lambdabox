@@ -120,7 +120,11 @@
 \lean{ConstructorBody, ProjectionBody, AllowedEliminations, OneInductiveBody, RecursivityKind, MutualInductiveBody}
 \leanok
 \uses{def:Kername}
-\lead{In short} What \lbox{} records about an inductive: a \code{ConstructorBody} (display name, field count \emph{after} pruning --- \code{nargs}, not the arity of Definition~\ref{def:constructorArity}, which adds parameter count), a \code{OneInductiveBody} (name, \code{propositional} mark, \code{kelim}, constructors, projections), a \code{MutualInductiveBody} (recursivity kind, \code{npars}, bodies).
+\lead{In short} What \lbox{} records about an inductive: a \code{ConstructorBody} (display name, field count \emph{after} pruning --- \code{nargs}, not the arity of Definition~\ref{def:constructorArity}, which adds parameter count), a \code{OneInductiveBody} (name, \hl{\code{propositional} mark}, \code{kelim}, constructors, projections), a \code{MutualInductiveBody} (recursivity kind, \code{npars}, bodies).
+\begin{itemize}
+\item \code{propositional} has \emph{no default}: the \code{iota\_sing}/\code{proj\_prop} rules (Section~\ref{sec:lambdabox:eval}) read it to collapse an elimination of a boxed discriminee, so every producer must supply the right value;
+\item \code{kelim} and the recursivity kind are carried for fidelity to MetaRocq's format; no pass in MetaRocq's erasure pipeline or in peregrine reads either to decide anything.
+\end{itemize}
 \end{definition}
 
 \begin{definition}[\texorpdfstring{The \lbox{} global environment}{The lambda-box global environment}]
@@ -849,7 +853,7 @@ Evaluation is flag-parametric, as in MetaRocq: the development names four points
 \begin{itemize}
 \item \textbf{Dropped side conditions.} Iota/projection rules skip MetaRocq's \code{npars}-match and saturation premises: \WcbvEval{} is more permissive than \code{EWcbvEval} on ill-formed input; determinism is unaffected.
 \item \textbf{No cofixpoints, no lazy terms.} \code{LBTerm} lacks \code{tCoFix}/\code{tLazy}; MetaRocq's cofixpoint rules and \code{isLazyApp} are unrepresentable. Lean has no coinductive types, so nothing is lost.
-\item \textbf{Prop-case is inert on emitted output.} A measurement, not a theorem: the shipping registration never sets \code{propositional} (F-PROP), \code{kelim}, or the recursivity kind.
+\item \textbf{\code{kelim} and the recursivity kind are dead weight.} \code{register\_inductive} sets \code{propositional} from the source arity; \code{kelim} stays at \code{IntoAny} and the recursivity kind at \code{finite}, read by no pass.
 \item \textbf{The handover is stated but unused.} Proposition~\ref{prop:WcbvEval-propcase_weaken} is what peregrine's pipeline needs; no theorem applies it.
 \item \textbf{The verified perimeter stops at the \code{Program} value.} The printer is an unverified \code{partial def}: ``the emitted program satisfies \ldots'' means that value, not parsed bytes.
 \item \textbf{A clean core.} \code{Semantics/} has no \code{sorry}, \code{axiom}, \code{partial}, \code{unsafe}, compiler-implemented declaration, \code{native\_decide}, or kernel-accelerated \code{decide}: witnesses are plain kernel reduction.

@@ -10,7 +10,7 @@ Theorem~\ref{thm:Oracle-kernel_isErasable_sound} (a real run inherits it);
 Theorem~\ref{thm:ErasureSpec-oracle_sound_of_run} (the shipping verdict is sound);
 Theorem~\ref{thm:not_erasable_of_informative} (an informative inductive's value is never erasable).
 \item \lead{Status} \stProved{} the oracle reroute; \stAssumed{} eight \code{ErasureSpec} fields
-(class D), five \code{EraserAsks} fields (class C, two refuted in general); \stInherited{} through
+(class D), four \code{EraserAsks} fields (class C, one not a theorem); \stInherited{} through
 lean4lean throughout.
 \item \lead{Lean files} \code{Erasure.lean}, \code{Relevance.lean}, \code{RelevanceCheck.lean},
 \code{CheckerAdequacy.lean}, \code{ErasureSpec.lean}, \code{CasesNames.lean}, \code{Origin.lean}.
@@ -84,7 +84,10 @@ describes as implemented -- sit outside the verified perimeter by construction, 
 accumulates the output, reader carries the ambient scope.
 \begin{description}
 \item[State] the registered-inductives memo table with field masks; the Name-to-kername memo
-table; the accumulating \lbox{} environment; kernames hinted for inlining.
+table; the accumulating \lbox{} environment; kernames hinted for inlining; the \lbox{} key
+minted for each registered mutual inductive block, paired with the block's own member list, so a
+second block reaching the same key is caught rather than silently overwriting the first
+(Definition~\ref{def:Erasure-checkKernameFresh}).
 \item[Reader] the local context; an optional map from each mutual-block member to its fresh
 variable; the universe parameters, threaded to the oracle; the configuration.
 \end{description}
@@ -117,16 +120,18 @@ sort, fail elsewhere, \textbf{throw} on exhausted fuel so the caller decides, ne
 negative;
 \item infer once, take the disjunction.
 \end{itemize}
-\lead{Lean} \code{isArityCheck} starts at fuel \code{ty.approxDepth + 1}.
+\lead{Lean} \code{isArityCheck} starts the loop at a fixed fuel of $100{,}000$, not a fuel derived
+from the unreduced type's syntactic depth.
 \end{definition}
 
 \begin{remark}
-\lead{Caveat} Finding \textbf{F-DEPTH}: at the snapshot fuel (\code{approxDepth}, 8 bits,
-saturating at 256) can exhaust behind an \code{@[irreducible]} alias, falling back and answering
-negatively -- a completeness defect bounding \code{kernel\_ind\_head\_true}
-(Theorem~\ref{thm:EraserAsks-oracle_informative}).
-\lead{Since the snapshot} \stFixed{} \code{33ba53e} replaces the fuel by a fixed budget, so both
-named counterexamples decide inside the kernel instead of falling back.
+\lead{Caveat} A fixed fuel decides every telescope of fewer than $100{,}000$ binders and every
+definitional alias inside the kernel, where the old depth-derived fuel (8 bits, saturating at
+256, and zero behind an \code{@[irreducible]} alias) could exhaust early and fall back. What a
+constant budget cannot bound is a \emph{reduced} telescope longer than it, or any other kernel
+error \code{isArityCheck} raises: both still route to the elaborator fallback and still leave
+Theorem~\ref{thm:EraserAsks-oracle_informative}'s bundle field
+(\code{kernel\_ind\_head\_true}) short of a theorem.
 \end{remark}
 
 \begin{definition}[The relevance decision the eraser makes]
@@ -195,11 +200,9 @@ telescope recursion below reassemble a whole-type witness from the body's.
 \leanok
 \lead{In short} If \code{ty} translates to \code{ty'} and the arity loop succeeds at any fuel,
 \code{ty'} is an arity up to definitional equality; likewise for the entry point, which starts the
-loop at \code{ty.approxDepth + 1}.
-\lead{Lean} both quantify universally over the fuel: neither claims it adequate.
-\lead{Since the snapshot} \stFixed{} \code{33ba53e} replaces the depth-derived fuel by a fixed
-budget, so both counterexamples of F-DEPTH decide inside the kernel; this lemma is proved for every
-fuel and needed no change.
+loop at the fixed fuel of Definition~\ref{def:isErasable}.
+\lead{Lean} both quantify universally over the fuel, so a fixed budget in the entry point needs no
+change to either statement.
 \end{lemma}
 \begin{proof}
 \leanok
@@ -299,7 +302,8 @@ formed;
 
 \section{Preparation, registration, binders}
 \label{sec:eraser:prepare}
-A normalisation pass, then registration of inductives and binders into the emitted environment.
+A normalisation pass, key-freshness guards, then registration of inductives and binders into the
+emitted environment.
 
 \begin{definition}[Pre-erasure preparation]
 \label{def:Erasure-prepare_erasure}
@@ -320,9 +324,10 @@ literals and variables as non-occurrences.
 
 \begin{remark}
 \lead{Deviation} No MetaCoq counterpart; its doc comment warns it may ill-type the term under
-\code{@[csimp]}, which \code{ConfigPinned} pins off. Finding \textbf{F-UNSAFEREC}:
-\code{remove\_unsafe\_rec} is not injective, so a legal \code{mutual unsafe def} block can collapse
-to a repeated key -- what \code{block\_keys\_distinct} excludes by assumption.
+\code{@[csimp]}, which \code{ConfigPinned} pins off. \code{remove\_unsafe\_rec} is not injective,
+so a legal \code{mutual unsafe def} block can map two members to one \lbox{} key;
+\code{visitMutual} refuses to register such a block (Definition~\ref{def:Erasure-checkKernameFresh})
+instead of assuming the collision never occurs.
 \end{remark}
 
 \begin{definition}[The prepared passes]
@@ -337,42 +342,95 @@ to a repeated key -- what \code{block\_keys\_distinct} excludes by assumption.
 both correct.
 \end{definition}
 
+\begin{definition}[Kername freshness guards]
+\label{def:Erasure-checkKernameFresh}
+\uses{def:Erasure-EraseM, def:Kername}
+\lean{Erasure.checkKernameFresh, Erasure.checkIndKernameFresh}
+\leanok
+\lead{In short} \code{toKername} collapses distinct Lean names to one \lbox{} key (it folds
+\code{.num}/\code{.str} components before escaping), so a second registration under a colliding
+key would \hl{silently overwrite the first} entry of \code{gdecls}. These two guards throw
+instead.
+\begin{itemize}
+\item \code{checkKernameFresh name kn}: refuses if \code{kn} is already minted by a different
+top-level constant, or by a registered inductive block;
+\item \code{checkIndKernameFresh names kn}: the block-registering counterpart, refusing if
+\code{kn} is already minted by a different block or by a top-level constant.
+\end{itemize}
+\lead{Lean} called from \code{addAxiom}, \code{addRealizer} and both of \code{visitMutual}'s
+registration points, and from \code{register\_inductive}.
+\end{definition}
+
+\begin{definition}[The propositional flag, read off the declared arity]
+\label{def:Erasure-isPropositionalArity}
+\uses{def:Erasure-ErasureConfig}
+\lean{Erasure.arityResultSort, Erasure.isPropositionalArity}
+\leanok
+\lead{In short} \code{isPropositionalArity} decides whether an inductive declared at type
+\code{type} lives in \code{Prop}: MetaRocq's \code{isPropositionalArity} (\code{Extract.v:276}),
+read syntactically off the sort ending the declared \code{forall}-telescope
+(\code{arityResultSort}, MetaRocq's \code{destArity}), with \hl{no reduction}.
+\lead{Lean} \code{arityResultSort} walks the \code{.forallE} arm alone; a telescope ending in a
+\code{let} is not read (Theorem~\ref{thm:ErasureSpec-propositionalInd_of_arity}'s caveat).
+\end{definition}
+
 \begin{definition}[Registering an inductive block]
 \label{def:Erasure-register_inductive}
-\uses{def:Erasure-EraseM, def:Erasure-isErasable, def:Kername, def:InductiveId, def:OneInductiveBody}
+\uses{def:Erasure-EraseM, def:Erasure-isErasable, def:Kername, def:InductiveId, def:OneInductiveBody, def:Erasure-checkKernameFresh, def:Erasure-isPropositionalArity}
 \lean{Erasure.register_inductive, Erasure.addAxiom, Erasure.ConstructorArgMask, Erasure.InductiveArgMasks, Erasure.ConstructorArgRelevance, Erasure.filter}
 \leanok
 \lead{In short} Memoised registration of a Lean inductive with its mutual companions; on a miss:
 \begin{enumerate}
-\item synthesise the block's kername from its members' names, concatenated;
+\item synthesise the block's kername from its members' names, concatenated, and refuse a
+collision (Definition~\ref{def:Erasure-checkKernameFresh});
 \item per constructor: a body-less axiom for \code{@[extern]}, and an argument mask -- all kept
 unless \code{remove\_irrel\_constr\_args} is on, when \hl{each field is tested with the relevance
 oracle};
+\item set \code{propositional} from the declared arity (Definition~\ref{def:Erasure-isPropositionalArity}),
+following MetaRocq's own equation for the field rather than a default;
 \item dummy projection names for a single-constructor, single-member, non-recursive block;
-\item cons one inductive declaration, carrying the block's parameter count.
+\item cons one inductive declaration, carrying the block's parameter count, and record the block's
+key and members.
 \end{enumerate}
+\lead{Lean} \code{kelim} stays at its default: no pass reads it.
 \end{definition}
 
 \begin{remark}
-\lead{Caveat} Finding \textbf{F-PROP}: at the snapshot every emitted inductive leaves
-\code{propositional}, \code{kelim}, \code{finite} at their defaults --- 71 of 71 --- so match-on-box
-never fires, and an elimination of a \code{Prop} into data emits \emph{stuck}. Unregistered:
-\code{Erasure.filter} drops trailing elements, so a short mask silently truncates.
-\lead{Since the snapshot} \stFixed{} \code{d28459f} sets \code{propositional} from the declared
-arity by MetaRocq's recipe and removes the field's default; \code{kelim} stays defaulted, read by no
-pass. \code{f42d0aa} lands first and refuses, by shape, an elimination of a propositional inductive
-one of whose constructor fields is not a proof --- without it, setting the flag turns \code{Acc}'s
-data field into a box and a stuck program into a wrong one.
-\lead{At the snapshot} A second gap, found in the merge window and reported not fixed:
-\code{arityResultSort} walks only the \code{forallE} arm, where MetaRocq's \code{destArity} also
-walks \code{let}, so an arity ending in a \code{let} is emitted non-propositional although it is
-propositional (F-ARITYLET, \code{doc/rework/03-DEV-FIX.md} at \code{184155d}).
+\lead{Caveat} \code{Erasure.filter} drops trailing elements, so a short mask silently truncates.
+\code{arityResultSort}'s \code{.forallE}-only walk misses an arity ending in a \code{let}-binding,
+which MetaRocq's \code{destArity} also walks: such a declaration is emitted non-propositional
+although it is propositional (open, \code{doc/rework/03-DEV-FIX.md}, F-ARITYLET).
 \end{remark}
+
+\begin{definition}[Realizers: the quotient primitives and a propositional-singleton recursor]
+\label{def:Erasure-addRealizer}
+\uses{def:Erasure-EraseM, def:Erasure-register_inductive, def:Erasure-isPropositionalArity, def:Kername}
+\lean{Erasure.addRealizer, Erasure.quotRealizer, Erasure.recursorRealizer, Erasure.firstNonProofField, Erasure.mkAnonLambdas}
+\leanok
+\lead{In short} Two ways to register a \lbox{} \emph{body} where Lean's own declaration has none,
+in place of the body-less axiom \code{addAxiom} would otherwise register.
+\begin{itemize}
+\item \code{addRealizer}: \code{addAxiom}'s twin, writing a supplied body instead of \code{none}
+(guarded by Definition~\ref{def:Erasure-checkKernameFresh} the same way);
+\item \code{quotRealizer}: the identity on \code{Quot.mk} and application on \code{Quot.lift} --
+a quotient carries no runtime representation beyond its representative -- \code{Quot} and
+\code{Quot.ind} stay $\Box$, being a type former and proof-valued respectively;
+\item \code{recursorRealizer}: the \code{.case} body standing in for
+\code{remove\_match\_on\_box}'s single-alternative collapse, at the one recursor shape the
+collapse may box safely -- a single non-recursive \code{Prop} with at most one constructor, none
+of whose fields Definition~\ref{def:Erasure-isPropositionalArity} and
+\code{firstNonProofField} let be anything but a proof. \code{Eq.rec}, \code{And.rec} and
+\code{False.rec} all take this shape; \code{False.rec}'s case has zero alternatives, since
+\code{False} has no constructor to dispatch on.
+\end{itemize}
+\lead{Lean} \code{firstNonProofField} is the same proof-field scan \code{visitCases}'s Acc guard
+runs (\S\ref{sec:eraser:visit}).
+\end{definition}
 
 \begin{definition}[Emitting binders]
 \label{def:Erasure-mkLambda}
 \uses{def:Erasure-EraseM, def:LBTerm, def:toBvar, def:BinderName, def:FixDef}
-\lean{Erasure.mkLambda, Erasure.mkLetIn, Erasure.mkAlt, Erasure.mkDef, Erasure.fvar_to_name, Erasure.withLocalDecl, Erasure.withLocalDef, Erasure.lambdaMonocular, Erasure.lambdaOrIntroToArity}
+\lean{Erasure.mkLambda, Erasure.mkLetIn, Erasure.mkAlt, Erasure.mkDef, Erasure.fvar_to_name, Erasure.withLocalDecl, Erasure.withLocalDef, Erasure.lambdaMonocular, Erasure.lambdaOrIntroToArity, Erasure.etaExpandFix}
 \leanok
 \lead{In short} Locally nameless: descend under a binder by minting a fresh variable, close it by
 naming and abstracting back to a de Bruijn index.
@@ -382,16 +440,37 @@ naming and abstracting back to a de Bruijn index.
 ASCII-graphic} (the parser rejects other names);
 \item \code{mkLambda}/\code{mkLetIn}: close one binder;
 \item \code{mkAlt}: close a case alternative, binding the \emph{last} field to index zero;
-\item \code{mkDef}: close one fixpoint member, principal-index zero.
+\item \code{mkDef}: close one fixpoint member, principal-index zero;
+\item \code{etaExpandFix}: wrap a registered recursive member in one anonymous binder applied to
+itself, \code{fun x => (fix defs i) x} -- MetaRocq's \code{eta\_fixpoint} at the one arity a
+member with principal index zero takes, so a registered fixpoint body is never a bare
+\code{.fix} node.
 \end{itemize}
 \end{definition}
 
 \begin{remark}
 \lead{Caveat} Source of Chapter~\ref{chap:lowering}'s printable-binder clause; the stronger
-all-ASCII form was \emph{refuted} at five rungs (Chapter~\ref{chap:capstone}). Two doc comments
-still hedge on binder order; Chapters~\ref{chap:lowering},~\ref{chap:refinement} settle it, but
-the hedge remains.
+all-ASCII form fails at five rungs (Chapter~\ref{chap:capstone}). Two doc comments still hedge on
+binder order; Chapters~\ref{chap:lowering},~\ref{chap:refinement} settle it, but the hedge
+remains.
 \end{remark}
+
+\begin{definition}[Binding already-supplied eta arguments outside the loop]
+\label{def:Erasure-withEtaPrefixLets}
+\uses{def:Erasure-EraseM, def:Erasure-isErasable, def:Erasure-mkLambda}
+\lean{Erasure.withEtaPrefixLets, Erasure.etaArgIsValue}
+\leanok
+\lead{In short} When an under-applied constructor or eliminator is eta-expanded
+(\S\ref{sec:eraser:visit}), an argument already supplied that is \hl{neither a variable nor
+erasable} is bound in a \code{let} \emph{outside} the new binders, so it is evaluated once
+instead of on every application of the expansion.
+\begin{itemize}
+\item \code{etaArgIsValue}: true of a variable or an erasable argument -- placing either under
+the new binders neither evaluates nor duplicates anything, so it is left in place;
+\item \code{withEtaPrefixLets}: given the positions, types and erased values to bind, wraps the
+continuation's result in one \code{let} per binding, outermost first.
+\end{itemize}
+\end{definition}
 
 \section{The erasure family and the entry point}
 \label{sec:eraser:visit}
@@ -399,7 +478,7 @@ Eighteen mutually recursive functions, closed over one entry point.
 
 \begin{definition}[The erasure family]
 \label{def:Erasure-visitExpr}
-\uses{def:Erasure-EraseM, def:Erasure-isErasable, def:Erasure-register_inductive, def:Erasure-mkLambda, def:LBTerm}
+\uses{def:Erasure-EraseM, def:Erasure-isErasable, def:Erasure-register_inductive, def:Erasure-mkLambda, def:Erasure-withEtaPrefixLets, def:LBTerm}
 \lean{Erasure.visitExpr, Erasure.visitLiteral, Erasure.visitLambda, Erasure.visitLet, Erasure.visitProj, Erasure.visitApp, Erasure.visitConst, Erasure.visitConstApp, Erasure.visitCasesEta, Erasure.visitCasesEtaGo, Erasure.visitCtorEta, Erasure.visitCtorEtaGo, Erasure.visitConstructor, Erasure.visitAppArgs, Erasure.visitCases, Erasure.visitAlt}
 \leanok
 \lead{In short} One mutual block of sixteen \code{partial\_fixpoint} definitions (eighteen with
@@ -419,9 +498,9 @@ Function & Role \\
 \code{visitConst} & a bare constant, as zero-arg \\
 \code{visitConstApp} & route to eliminator, constructor or plain \\
 \code{visitCasesEta} & eta-expand an eliminator \\
-\code{visitCasesEtaGo} & eliminator eta-expansion loop \\
+\code{visitCasesEtaGo} & eliminator eta-expansion loop, binding a non-value discriminee outside it \\
 \code{visitCtorEta} & eta-expand a constructor \\
-\code{visitCtorEtaGo} & constructor eta-expansion loop \\
+\code{visitCtorEtaGo} & constructor eta-expansion loop, binding every non-value argument outside it \\
 \code{visitConstructor} & emit a constructor \emph{applied} \\
 \code{visitAppArgs} & erase an argument list \\
 \code{visitCases} & emit an eliminator's case node \\
@@ -447,45 +526,51 @@ lemmas and two behaviour-preserving rewrites, one leaving dead code behind.
 \lead{Deviation} The constructor case emits \emph{applied} form, never a block -- opposite
 agda2lambox and MetaRocq's \code{constructors\_as\_blocks} -- so Chapter~\ref{chap:lambdabox}'s
 semantics is pinned with the block-constructor flag off. [R]'s Listing~2 shows block form; \hl{the
-shipping code disagrees, and the code wins}. Findings \textbf{F-SPARSE}, \textbf{F-ETA2} sit here
-(table, \S\ref{sec:eraser:caveats}).
-\lead{Since the snapshot} \stFixed{} \code{dd2e2ee}: \code{visitCases} reads the eliminated
-inductive from \code{casesInfo.indName} and expands a sparse catch-all into one alternative per
-uncovered constructor; every other uncompilable shape now throws instead of reaching an
-unreachability assertion (\code{b17477e} adds the check that the catch-all's own hypotheses are
-proofs). \code{c911803} binds an eta-expansion's supplied arguments once, outside the new binders;
-\code{e347ed7} narrows the eliminator loop to the discriminee after a measured regression --- the
-first form made an unselected, diverging alternative strict.
+shipping code disagrees, and the code wins}.
+\end{remark}
+
+\begin{remark}
+\lead{Caveat} \code{visitCases} reads the eliminated inductive from \code{casesInfo.indName}
+(not the declaration's own name prefix, which for a \code{casesOn} auxiliary generated for a
+function is that function's), refuses a per-constructor elimination with a side condition, a
+machine-numeral discriminee under a plain \code{casesOn}, and constructor alternatives that do
+not correspond one-to-one to the inductive's constructors. On a \hl{propositional inductive with
+a non-proof constructor field} (an \code{Acc} clone), it refuses outright rather than emit a
+\code{case} that \code{remove\_match\_on\_box} would collapse into a boxed, wrong program. A
+sparse \code{casesOn} -- fewer alternatives than constructors, with a catch-all -- expands the
+catch-all into one alternative per uncovered constructor, applied to $\Box$ per hypothesis the
+catch-all binds; that erasure must have no free de Bruijn index and every hypothesis must be a
+proof, both checked rather than assumed.
 \end{remark}
 
 \begin{definition}[The environment closure]
 \label{def:Erasure-visitMutual}
-\uses{def:Erasure-visitExpr, def:Erasure-prepare_erasure, def:Erasure-mkLambda, def:Erasure-EraseM, def:Kername, def:GlobalDeclarations}
+\uses{def:Erasure-visitExpr, def:Erasure-prepare_erasure, def:Erasure-mkLambda, def:Erasure-EraseM, def:Erasure-checkKernameFresh, def:Erasure-addRealizer, def:Kername, def:GlobalDeclarations}
 \lean{Erasure.visitMutual, Erasure.get_constant_kername}
 \leanok
 \lead{In short} The remaining two members close the environment over what the subject reaches:
 memoised kername lookup, erasing a mutual block on a miss, via the \emph{original} recursive
 definition where one exists.
 \begin{itemize}
-\item no compiler value, or \code{@[extern]} under the axiom policy: a body-less axiom;
-\item a lone declaration not mentioning its own name: erase it, cons a constant declaration;
-\item otherwise: mint one variable per member, erase each body under that map, and \hl{register
-each under its own kername with a bare, unapplied fixpoint block} at its index.
+\item no compiler value: a \code{Quot} primitive registers Definition~\ref{def:Erasure-addRealizer}'s
+quotient realizer, an eligible recursor its synthesized \code{case} body, and anything else a
+body-less axiom;
+\item \code{@[extern]} under the axiom policy: a body-less axiom;
+\item a lone declaration not mentioning its own name: erase it, refuse a colliding key
+(Definition~\ref{def:Erasure-checkKernameFresh}), cons a constant declaration;
+\item otherwise: refuse a block whose members map to colliding keys, mint one variable per
+member, erase each body under that map, and \hl{register each under its own kername, applied to
+its own binder} (Definition~\ref{def:Erasure-mkLambda}'s \code{etaExpandFix}), guarded again by
+Definition~\ref{def:Erasure-checkKernameFresh}.
 \end{itemize}
 \end{definition}
 
 \begin{remark}
-\lead{Deviation} MetaCoq's \code{erase\_global\_decls}, on demand. Findings \textbf{F-ETA} (bare,
-unapplied fixpoint bodies), \textbf{F-UNSAFEREC} (the stripped-name key map) and
-\textbf{F-QUOT}/\textbf{F-EQREC} (the body-less axiom arm) sit here (table,
-\S\ref{sec:eraser:caveats}).
-\lead{Since the snapshot} \stFixed{} The block registration refuses a block whose members map to
-colliding keys (\code{e88a265}) and a freshly minted key already registered under another name, for
-constants and for inductive blocks alike (\code{4e354a7}, \code{611f49e}); the key encoding is
-unchanged, so this refuses rather than repairs. The body-less arm now synthesises realizers for
-\code{Quot.mk}/\code{Quot.lift} (\code{046cbc4}) and for a recursor of an all-proof-field
-propositional inductive, \code{Eq.rec} among them (\code{ed692a6}); \code{False.rec} cannot have
-one. Recursive bodies are registered eta-wrapped (\code{42989c5}).
+\lead{Deviation} MetaCoq's \code{erase\_global\_decls}, on demand. \code{SupportError.recursorHead}
+and \code{SupportError.quotPrim} still refuse a quotient primitive or a recursor head at
+\code{supportedHead}, so a covered program's reachable set stays clear of a realizer key; that a
+covered program never registers one through an untabled name is measured, not assumed
+(\code{doc/coverage.md}).
 \end{remark}
 
 \begin{definition}[The entry point]
@@ -535,7 +620,8 @@ non-eliminator heads.
 \end{itemize}
 \lead{Lean} \code{CasesInfoAgreesK}: \code{casesOn}'s metadata agrees with the declared block --
 discriminant after parameters/motive/indices; one minor premise and one alternative per
-constructor, each binding exactly its fields.
+constructor, each binding exactly its fields; the information names the eliminated inductive, and
+each alternative slot is pinned to its own constructor, in constructor order.
 \end{definition}
 
 \begin{remark}
@@ -558,20 +644,53 @@ parameter and field counts, and conversely;
 the arithmetic \code{CasesInfoAgreesK} reads off};
 \item a declared inductive is a member of its own block.
 \end{itemize}
-\lead{Lean} six fields, one spelled \code{casesOnDecl} (no field may be named \code{casesOn}).
+\lead{Lean} six fields, one spelled \code{casesOnDecl} (no field may be named \code{casesOn}); a
+block's constructor names determine their positions (\code{KernelFields.ctors\_inj}), which is
+what lets \code{visitCases}' \code{findIdx?} over the alternatives land on a constructor's own
+slot.
 \end{definition}
+
+\section{The primitive calls made for their effect}
+\label{sec:eraser:prim}
+Eight named primitive calls the eraser makes for their effect alone, four of them (the proof
+test, the two bounded telescopes, and the shape-crossing clause that carries their bound to the
+run lemmas) added for the Acc guard and the sparse catch-all's hypothesis scan.
 
 \begin{definition}[The effectful calls only advance the generator]
 \label{def:PrimMonotone}
-\uses{def:Erasure-EraseM}
+\uses{def:Erasure-EraseM, def:Erasure-withEtaPrefixLets, def:Erasure-addRealizer, def:MetaGenMono}
 \lean{LeanToLambdaBox.PrimMonotone, LeanToLambdaBox.ForallMatchesLam}
 \leanok
-\lead{In short} Four effect-only calls (reading the environment, logging, checking an instance,
-inferring a type) only advance the fresh-name generator; type inference also reports a
-\code{forall}-telescope agreeing, in name and domain, with the subject's \code{lambda}-telescope.
-\lead{Lean} \code{ForallMatchesLam} is \hl{vacuously true when the subject is not a lambda, by
-design}, asserting nothing about a constant's or application's inferred type.
+\lead{In short} The \code{CoreM}/\code{MetaM} calls the erasure makes for their effect alone: each
+only advances the name generator. Class D.
+\begin{center}
+\begin{tabular}{lp{0.62\linewidth}}
+\toprule
+Field & What it asserts \\
+\midrule
+\code{getEnv}, \code{logInfo}, \code{isInstance} & the generator bound alone \\
+\code{inferType} & the bound, and a $\forall$-telescope matching the subject's $\lambda$-telescope
+(\code{ForallMatchesLam}) \\
+\code{isProof} & the bound for \code{Meta.isProof}, the test the Acc guard and the sparse
+catch-all's hypotheses run \\
+\code{forallBoundedTelescope} & \emph{compositional}: advances the generator no further than the
+continuation it is called with \\
+\code{lambdaBoundedTelescope} & the same, for the catch-all's telescope \\
+\code{liftMetaM} & carries a bound from the shape a \code{MetaM} computation is applied in to the
+shape \code{Erasure.liftMetaM} runs it at \\
+\bottomrule
+\end{tabular}
+\end{center}
+\lead{Lean} \code{isProof} and the two bounded telescopes are the three named primitives
+Definition~\ref{def:MetaGenMono}/\ref{def:PrimGenMono}'s compositional bound is stated over;
+\code{liftMetaM} is the one clause that crosses from that applied shape to the shape the run
+lemmas read. A single proof-scan lemma discharges both anonymous continuations the erasure passes
+to the bounded telescopes: \code{firstNonProofField}'s scan of a constructor's fields and
+\code{visitCases}' scan of the catch-all's hypotheses are the same loop, stated once.
 \end{definition}
+
+\section{The bundle}
+\label{sec:eraser:bundle}
 
 \begin{definition}[The specification of the eraser's primitives]
 \label{def:ErasureSpec}
@@ -589,9 +708,10 @@ Field & What it asserts & Class \\
 \code{lookup\_adequate} & Definition~\ref{def:LookupAdequate} & D \\
 \code{fresh\_names} & a fresh variable: unreserved, then reserved; generator only advances,
 also kernel-reserved & D \\
-\code{oracle\_refl} & a positive verdict reflects a pure kernel run, or the assumed-sound fallback
-& D \\
-\code{oracle\_meta} & a verdict off-scope is sound outright & D \\
+\code{oracle\_refl} & a positive verdict at the ambient scope reflects a pure kernel run, or the
+assumed-sound fallback & D \\
+\code{oracle\_meta} & a positive verdict off the ambient scope is sound \emph{at the scope it was
+taken under} & D \\
 \code{decl\_adequate} & a safe declaration is visible in the model, translated & D \\
 \code{prim\_monotone} & Definition~\ref{def:PrimMonotone} & D \\
 \code{block\_adequate} & Definition~\ref{def:BlockAdequate} & D \\
@@ -599,7 +719,10 @@ also kernel-reserved & D \\
 \end{tabular}
 \end{center}
 \lead{Lean} \hl{the top hypothesis of the capstone, every rung, the erasure bridge, the fragment's
-soundness lemmas and the cold-start induction}.
+soundness lemmas and the cold-start induction}. \code{oracle\_meta}'s scope is exactly
+\code{Erasure.isErasable}'s own call-site parameter, \code{ctx.lparams}: a consumer holding a
+translation witness at the reader's \code{Us} instead has \code{ctx.lparams = Us} and spends
+\code{oracle\_refl}, so no transport between the two scopes is assumed.
 \end{definition}
 
 \begin{remark}
@@ -625,11 +748,13 @@ a theorem that does not exist: an aspiration, not a current interface.
 
 \begin{definition}[What the eraser is asked for]
 \label{def:EraserAsks}
-\uses{def:preparePasses, def:Erasure-isErasable, def:isErasable, def:Erasure-prepare_erasure, def:SEval, def:IndInfo, def:Kername, asm:EraserAsks-passes_monotone, asm:EraserAsks-passes_sound, asm:EraserAsks-oracle_false_refl, asm:EraserAsks-kernel_ind_head_true, asm:EraserAsks-block_keys_distinct}
+\uses{def:preparePasses, def:Erasure-isErasable, def:isErasable, def:Erasure-prepare_erasure, def:SEval, def:IndInfo, def:Kername, asm:EraserAsks-passes_monotone, asm:EraserAsks-passes_sound, asm:EraserAsks-oracle_false_refl, asm:EraserAsks-kernel_ind_head_true}
 \lean{LeanToLambdaBox.EraserAsks}
 \leanok
-\lead{In short} Five \stAssumed{} clauses about \hl{this repository's own code} -- the
-preparation passes and the oracle -- each an obligation with an owner.
+\lead{In short} Four \stAssumed{} clauses about \hl{this repository's own code} -- the
+preparation passes and the oracle -- each an obligation with an owner. No field mentions a
+reader's level scope: every clause is a statement about a run of the eraser's own code at the
+scope that run is made under, so the bundle carries no separate scope parameter.
 \begin{center}
 \begin{tabular}{p{0.25\linewidth}p{0.60\linewidth}l}
 \toprule
@@ -637,27 +762,26 @@ Field & What it asserts & Class \\
 \midrule
 \code{passes\_monotone} & each call only advances the generator & C \\
 \code{passes\_sound} & each pass preserves evaluation under any application spine & C \\
-\code{oracle\_false\_refl} & a negative verdict: the pure kernel run did not answer positively
-& C \\
-\code{kernel\_ind\_head\_true} & at an inductive-type head the pure run answers positively & C \\
-\code{block\_keys\_distinct} & a mutual block's members get distinct \lbox{} kernames & C \\
+\code{oracle\_false\_refl} & a negative verdict: the pure kernel run at the same scope does not
+answer positively & C \\
+\code{kernel\_ind\_head\_true} & at an inductive-type head the pure run, at the scope it is made
+under, answers positively & C \\
 \bottomrule
 \end{tabular}
 \end{center}
 \lead{Lean} \code{oracle\_informative} is a \emph{derived theorem}
-(Theorem~\ref{thm:EraserAsks-oracle_informative}), not a sixth field.
+(Theorem~\ref{thm:EraserAsks-oracle_informative}), not a fifth field.
 \end{definition}
 
 \begin{remark}
-\lead{Caveat} \lead{At the snapshot} Two fields are documented \emph{refuted in general}:
-\code{kernel\_ind\_head\_true} by \textbf{F-DEPTH}, \code{block\_keys\_distinct} by
-\textbf{F-UNSAFEREC}. Both held on a corpus -- $2{,}940$ of $2{,}940$ type formers, no failure over
-$200{,}000$-plus declaration-info answers -- but since the bundle binds the capstone and all eight
-rungs, results taking it are conditionally vacuous on a counterexample.
-\lead{Since the snapshot} \stFixed{} \code{33ba53e} removes F-DEPTH's two counterexamples, and
-\code{184155d} restates \code{kernel\_ind\_head\_true}'s docstring at the residue; the same commit
-deletes \code{block\_keys\_distinct} outright, replacing it with a fact about a successful run
-(\code{db1c2b6}). \code{EraserAsks} has four fields, not five, since \code{184155d}.
+\lead{Caveat} One field, \code{kernel\_ind\_head\_true}, is not a theorem. \code{isArityCheck}
+bounds its arity walk by the fixed budget of Definition~\ref{def:isErasable}, not by the
+unreduced type's depth, so a type whose \emph{reduced} telescope still exceeds that budget -- or
+any other kernel error the walk raises -- leaves it short of the closing sort and routes the
+verdict to the assumed elaborator fallback instead of deciding inside the kernel. True over the
+covered corpus ($2{,}940$ of $2{,}940$ type formers, no failure over $200{,}000$-plus
+declaration-info answers), so a result using the bundle is conditionally vacuous on such a
+counterexample.
 \end{remark}
 
 \section{What the bundles prove}
@@ -701,6 +825,15 @@ applied}: not a discharge of the field.
 lookup lemma reads off a visible declaration.
 \end{proof}
 
+\begin{remark}
+\lead{Why} Theorem~\ref{thm:ErasureSpec-propositionalInd_of_arity} (Chapter~\ref{chap:trust})
+spends \code{decl\_adequate} to show a \code{true} verdict of
+Definition~\ref{def:Erasure-isPropositionalArity} sound against the model: the half of MetaRocq's
+propositional-flag equation a consumer needs, and the reason
+Definition~\ref{def:Erasure-register_inductive} states the field as an equation rather than a
+default.
+\end{remark}
+
 \begin{theorem}[The oracle reroute]
 \label{thm:ErasureSpec-oracle_sound_of_run}
 \uses{def:ErasureSpec, def:Erasure-isErasable, def:Oracle-MetaSound, def:Erasable, def:lean4lean-grounding}
@@ -743,7 +876,8 @@ verified checker. Still assumed: the \emph{reflection} step and the fallback arm
 ambient scope;
 \lead{Then} the head of that term's spine is \hl{not an inductive type name}.
 \lead{Lean} concludes for every constant head and instantiation at once, under the run-level
-premises of Theorem~\ref{thm:ErasureSpec-oracle_sound_of_run}.
+premises of Theorem~\ref{thm:ErasureSpec-oracle_sound_of_run}; both bundle clauses read at the
+one scope the run is made under, so no separate scope hypothesis is needed to line them up.
 \lead{Status} \stProved{}, conditional on \stAssumed{} \code{EraserAsks}.
 \end{theorem}
 \begin{proof}
@@ -754,9 +888,9 @@ kernel run answers positively there, the other that it did not.
 \end{proof}
 
 \begin{remark}
-\lead{Caveat} A theorem, not a sixth field -- the template for retiring fields: derive rather than
+\lead{Caveat} A theorem, not a fifth field -- the template for retiring fields: derive rather than
 assume. Chapter~\ref{chap:refinement} consumes it, but it is exactly as strong as
-\code{kernel\_ind\_head\_true}, refuted in general, and no stronger.
+\code{kernel\_ind\_head\_true}, which is not a theorem, and no stronger.
 \end{remark}
 
 \begin{lemma}[An inductive-type-name spine is erasable]
@@ -1005,25 +1139,37 @@ the pin bump lands.
 \section{Deviations from the paper, and caveats}
 \label{sec:eraser:caveats}
 
+The shipping eraser carries nine guards and realizers beyond what [R] describes, each with
+its own regression test under \code{test/fixes/}.
+
+\par\smallskip\noindent
 \begin{center}\small
-\begin{tabular}{lp{0.20\linewidth}p{0.38\linewidth}p{0.22\linewidth}}
+\begin{tabular}{lp{0.24\linewidth}p{0.42\linewidth}l}
 \toprule
-Tag & Site & Symptom at the snapshot & Since the snapshot \\
+Guard or realizer & Site & What it does & Test \\
 \midrule
-F-DEPTH & arity-check fuel & saturates at 256 and is 1 at a definitional alias; falls back,
-negative & \stFixed{} \code{33ba53e} \\
-F-UNSAFEREC & \code{remove\_unsafe\_rec} & not injective: collapses two keys of a legal block &
-\stFixed{} \code{e88a265}, the run refuses \\
-F-PROP & \code{register\_inductive} & \code{propositional}, \code{kelim}, \code{finite} stay
-default; match-on-box never fires & \stFixed{} \code{d28459f} with the guard \code{f42d0aa} \\
-F-SPARSE & \code{visitCases} & sparse eliminator declared unreachable; writes a wrong \code{.ast} &
-\stFixed{} \code{dd2e2ee}, \code{b17477e} \\
-F-ETA2 & \code{visitConstructor} eta loops & supplied arguments are erased \emph{under} the new
-binders, so weak evaluation drops them & \stFixed{} \code{c911803}, narrowed \code{e347ed7} \\
-F-ETA & \code{visitMutual} & bodies ship bare, unapplied; expandedness fails on all five programs &
-\stFixed{} \code{42989c5} \\
-F-QUOT, F-EQREC & \code{visitMutual} axiom arm & \code{Quot}/\code{Eq.rec} land as body-less axioms
-& \stFixed{} \code{046cbc4}, \code{ed692a6}; \code{False.rec} cannot be realized \\
+Kername freshness (Definition~\ref{def:Erasure-checkKernameFresh}) & \code{addAxiom},
+\code{addRealizer}, both of \code{visitMutual}'s exits & refuses a colliding \lbox{} key instead
+of silently overwriting the first registration & F-KERNAME \\
+Block-key \code{Nodup} guard & \code{visitMutual} & refuses a mutual block whose members map to
+colliding keys & F-UNSAFEREC \\
+The propositional flag & \code{register\_inductive} & sets \code{propositional} from the declared
+arity (Definition~\ref{def:Erasure-isPropositionalArity}) instead of a constant default & F-PROP \\
+The Acc guard & \code{visitCases} & refuses eliminating a propositional inductive with a
+non-proof constructor field & F-ACC \\
+The sparse \code{casesOn} expansion & \code{visitCases} & expands a catch-all into one
+alternative per uncovered constructor, checked for a free de Bruijn index and non-proof
+hypotheses & F-SPARSE \\
+Quotient and recursor realizers (Definition~\ref{def:Erasure-addRealizer}) & \code{visitMutual}'s
+axiom arm & synthesises a body for \code{Quot.mk}/\code{Quot.lift}/\code{Quot}/\code{Quot.ind}
+and for an eligible propositional-singleton recursor & F-QUOT, F-EQREC \\
+Fixed fuel & \code{isArityCheck} & bounds the arity walk by a constant instead of the unreduced
+type's syntactic depth & F-DEPTH \\
+Eta-wrapped fixpoints (\code{etaExpandFix}) & \code{visitMutual}'s registration loop & registers
+a recursive member applied to its own binder, never a bare \code{.fix} node & F-ETA \\
+Discriminee/argument-only binding (Definition~\ref{def:Erasure-withEtaPrefixLets}) &
+\code{visitCasesEtaGo}, \code{visitCtorEtaGo} & binds an already-supplied non-value argument
+outside the eta-expansion's new binders & F-ETA2 \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -1031,21 +1177,17 @@ F-QUOT, F-EQREC & \code{visitMutual} axiom arm & \code{Quot}/\code{Eq.rec} land 
 \begin{itemize}
 \item \lead{Deviation} Constructors ship applied, not blocked -- opposite agda2lambox and
 \code{constructors\_as\_blocks} -- pinned off throughout.
-\item \lead{Deviation} \lead{At the snapshot} Fixpoint bodies ship bare and unapplied (F-ETA); the
-capstone concludes peregrine well-formedness, not MetaRocq's expanded-program form.
-\lead{Since the snapshot} \stFixed{} \code{42989c5} eta-wraps every registered body, and
-\code{2ace82d} deletes the separate \code{PeregrinePre} predicate and folds the expanded-fixpoint
-clause into \code{LBWfPeregrine} itself. \lead{Planned} The eight rung environments are not
-regenerated, so the strengthened check is still \code{false} at G6, G7 and G8.
+\item \lead{Deviation} Every registered recursive fixpoint member is applied to its own binder
+(\code{etaExpandFix}), meeting the pipeline's expanded-fixpoint precondition; the capstone
+concludes it at every rung.
 \item \lead{Deviation} The preparation pass has no MetaCoq counterpart; \code{ConfigPinned} pins
 its \code{@[csimp]} walk off.
 \item \lead{Deviation} The oracle reroute re-implements MetaRocq's test on lean4lean's checker, at
 a 33-name axiom footprint.
-\item \lead{Caveat} \stRefuted{} Two \code{EraserAsks} fields are false of the shipping code in
-general, so results using the bundle are conditionally vacuous on a counterexample.
-\lead{Since the snapshot} F-DEPTH's two counterexamples are gone and the field's docstring is
-restated at its residue; the block-key field is deleted and replaced by a fact about a successful
-run (\code{184155d}).
-\item \lead{Caveat} \code{panic!} yields $\Box$ and exits successfully, so F-SPARSE and others
-surface as a wrong \code{.ast}, not a failure.
+\item \lead{Caveat} One \code{EraserAsks} field, \code{kernel\_ind\_head\_true}, is not a
+theorem, so a result using the bundle is conditionally vacuous on a counterexample outside the
+covered corpus; \code{auto\_inline\_typeclass\_dispatch} (F-PRODUCT) is unchanged, default off
+and pinned false by \code{ConfigPinned}, its disposition an owner decision.
+\item \lead{Caveat} \code{panic!} yields $\Box$ and exits successfully, so a refused shape that
+slips past a guard would surface as a wrong \code{.ast}, not a failure.
 \end{itemize}
