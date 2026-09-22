@@ -711,6 +711,18 @@ symmetric at `.mdata`, where `TrExprS` is transparent and `arityResultSort` will
 merge. If the converse needs a further premise, the honest fallback is to keep the sound half
 and record F-ARITYLET's residue at the clause, as `03-DEV-FIX.md` does today.
 
+*Resolved at the merge — the fallback, not the biconditional.* The induction is symmetric at
+both new arms, and `vResultSort_of_arityResultSort` takes them; what this unit assumed the
+merge would remove, it does not. The walk and `destArity` now agree, so the residue is no
+longer a `let`-carrying arity but zeta: `inductive FooBVar : (let u := Prop; u)` elaborates
+with a `.bvar`-headed body, where `TrExprS.letE` substitutes the let value and the image is
+`Sort 0`, while the walk — and PCUIC's `destArity` at `tRel` — answers `None`
+(`arityResultSort_letBVar`, `ErasureSpec.lean`). Reducing past it would flag an alias-headed
+arity and falsify `propositionalInd_of_arity`, the direction the consumers spend, so no
+premise-free biconditional is available and none may be written as a guard. `IndFlagSound`
+keeps its statement and its consumers; the residue is recorded at the clause, in
+`03-DEV-FIX.md`'s F-ARITYLET row, and in `07-STATUS.md`'s vacuity census.
+
 ## 3. What remains open after W8
 
 W8 closes one class-**C** binder and rewires two dead slots. It does not make the capstone
