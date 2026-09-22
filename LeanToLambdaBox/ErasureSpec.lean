@@ -18,7 +18,9 @@ about an object no term denotes.
 relevance oracle: `Erasure.prepare_erasure`'s three passes and `Erasure.isErasable`. Those
 are ordinary Lean definitions, so its four fields are class **C**: obligations with an owner,
 whose honest end state is a proof. `EraserAsks.oracle_informative` is the first instalment —
-the type-former exclusion, derived from two weaker oracle clauses rather than assumed.
+the type-former exclusion, derived from two weaker oracle clauses rather than assumed. No
+field of it mentions a reader's level scope: each is a statement about a run of the eraser's
+own code at the scope that run is made at, so the bundle takes no `Us`.
 
 `ConfigPinned` is the third input restriction, and it lives here because this is the module
 below every consumer of it.
@@ -440,18 +442,21 @@ structure ErasureSpec (lenv : Environment) (env : VEnv) (Us : List Name)
       M.run lenv.toKernelEnv .safe ctx.lctx ctx.lparams {}
           (RecM.run (LeanToLambdaBox.isErasable e)) = .ok true
       ∨ Oracle.MetaSound env Us ctx.lctx e)
-  /-- A `true` verdict at a level scope **other** than the ambient one is sound. Class **D**
-      with no proved arm, and a real scope limit rather than a formality: the verified checker
-      concludes at the scope it ran in, while the consumer holds its translation witness at
-      `Us`, and a term that translates at `Us` need not translate at a different scope. A
-      dependency erased at its own `levelParams` therefore lands here. At `Us = []` — the
-      capstone's scope — the field covers exactly the runs made below a polymorphic
-      declaration. -/
+  /-- A `true` verdict at a level scope **other** than the ambient one is sound **at the scope
+      it was taken under**. Class **D** with no proved arm, and a real scope limit rather than
+      a formality: the verdict is computed by `Erasure.isErasable ctx.lparams`, so
+      `ctx.lparams` is the only scope it speaks of. Read at the reader's `Us` instead, the
+      payload under the capstone is `Oracle.MetaSound env [] ctx.lctx e`, which holds outright
+      at every subject mentioning a level parameter — no such subject translates at `[]` —
+      and so is empty at exactly the runs the field covers, those made below a
+      universe-polymorphic declaration. There is no transport between the two scopes and none
+      is assumed: a consumer holding its translation witness at `Us` has `ctx.lparams = Us`
+      and spends `oracle_refl`. -/
   oracle_meta : ∀ (e : Expr) (s : ErasureState) (ctx : ErasureContext) (cctx : Core.Context)
     (ref : ST.Ref IO.RealWorld Core.State) (w : Void IO.RealWorld)
     (s₁ : ErasureState) (w₁ : Void IO.RealWorld),
     Erasure.liftMetaM (Erasure.isErasable ctx.lparams e) s ctx cctx ref w = .ok (true, s₁) w₁ →
-    ctx.lparams ≠ Us → Oracle.MetaSound env Us ctx.lctx e
+    ctx.lparams ≠ Us → Oracle.MetaSound env ctx.lparams ctx.lctx e
   /-- A declaration `lenv` makes visible at `.safe` is visible in `env` with a translated
       type — in particular an `Lean.InductiveVal` and its model constant.
 
@@ -587,7 +592,7 @@ def preparePasses : List (Expr → CoreM Expr) :=
 /-- What the correctness statement assumes about the eraser's **own** preprocessing and
 relevance oracle. Class **C**: each field is an obligation with an owner, and the honest end
 state of each is a proof. -/
-structure EraserAsks (lenv : Environment) (env : VEnv) (Us : List Name)
+structure EraserAsks (lenv : Environment) (env : VEnv)
     (gw : Void IO.RealWorld → NameGenerator) : Prop where
   /-- The four `Erasure.prepare_erasure` calls only advance the generator. Owner: this
       repository, wave W5; discharged by unfolding `Lean.Core.transform`'s generator discipline
@@ -613,12 +618,13 @@ structure EraserAsks (lenv : Environment) (env : VEnv) (Us : List Name)
         SEval env bo Us' fl Δ (mkApps e args) v → SEval env bo Us' fl Δ (mkApps e' args) v
   /-- A `false` verdict of `Erasure.isErasable` means the **pure kernel run** did not answer
       `true`. Near-definitional — the `| .ok b => return b` arm, modulo the `getEnv`/`getLCtx`
-      reads. Owner: this repository, wave W5; discharged by a `MetaM` reflection lemma. -/
+      reads — and so a statement about the two runs at the one scope both are made at,
+      `ctx.lparams`, with no reader's scope in it. Owner: this repository, wave W5; discharged
+      by a `MetaM` reflection lemma. -/
   oracle_false_refl : ∀ (e : Expr) (s : ErasureState) (ctx : ErasureContext)
     (cctx : Core.Context) (ref : ST.Ref IO.RealWorld Core.State) (w : Void IO.RealWorld)
     (s₁ : ErasureState) (w₁ : Void IO.RealWorld),
     Erasure.liftMetaM (Erasure.isErasable ctx.lparams e) s ctx cctx ref w = .ok (false, s₁) w₁ →
-    ctx.lparams = Us →
     M.run lenv.toKernelEnv .safe ctx.lctx ctx.lparams {}
       (RecM.run (LeanToLambdaBox.isErasable e)) ≠ .ok true
   /-- At an inductive-type head the pure kernel run answers `true`: the oracle's completeness
@@ -627,14 +633,20 @@ structure EraserAsks (lenv : Environment) (env : VEnv) (Us : List Name)
       (`Relevance.lean:49-50`), so a type whose *reduced* telescope is longer than that budget —
       and any other kernel error raised inside `isArityCheck` — leaves the walk short of the
       closing sort and routes the verdict to `Erasure.isErasableMeta`, of which only soundness
-      is assumed (`ErasureSpec.oracle_meta`). Owner: this repository, wave W5; discharged by
+      is assumed (`ErasureSpec.oracle_meta`). The scope `lps` is the run's own — the one
+      `Erasure.isErasable` is called at, which `Erasure.visitMutual` installs from the
+      declaration being entered — and not a reader's: at a fixed `[]` the premises are
+      uninhabited below a universe-polymorphic declaration, which is where the shipping
+      oracle's `casesOn` verdicts are taken. Owner: this repository, wave W5; discharged by
       three executable-shape lemmas lean4lean does not have, together with a bound on the
       reduced telescope, which a constant budget does not supply. -/
-  kernel_ind_head_true : ∀ (lctx : LocalContext) (m : MLCtx) (e : Expr) (c : Name)
-      (us : List Level) (ve : VExpr) (iid : InductiveId) (np : Nat) (nfs : List Nat),
-    m.WF env Us → m.lctx = lctx → (∀ fv ∈ m.vlctx.fvars, kernelNGen.Reserves fv) →
-    e.getAppFn = .const c us → IndInfo env c iid np nfs → TrExprS env Us m.vlctx e ve →
-    M.run lenv.toKernelEnv .safe lctx Us {} (RecM.run (LeanToLambdaBox.isErasable e)) = .ok true
+  kernel_ind_head_true : ∀ (lps : List Name) (lctx : LocalContext) (m : MLCtx) (e : Expr)
+      (c : Name) (us : List Level) (ve : VExpr) (iid : InductiveId) (np : Nat)
+      (nfs : List Nat),
+    m.WF env lps → m.lctx = lctx → (∀ fv ∈ m.vlctx.fvars, kernelNGen.Reserves fv) →
+    e.getAppFn = .const c us → IndInfo env c iid np nfs → TrExprS env lps m.vlctx e ve →
+    M.run lenv.toKernelEnv .safe lctx lps {}
+      (RecM.run (LeanToLambdaBox.isErasable e)) = .ok true
 
 /-! ## What the second bundle proves -/
 
@@ -661,24 +673,24 @@ theorem erasable_indSpine {env : VEnv} {Us : List Name} {Δ : VLCtx} (henv : env
           omega
   exact fun args => key args.length args rfl
 
-/-- **The type-former exclusion, derived.** A `false` verdict of `Erasure.isErasable` at the
-ambient level scope rules out an inductive-type head: the two oracle clauses contradict each
-other there. Stated at the `MLCtx`, so the three facts a bridge invariant supplies are
-explicit arguments. -/
-theorem EraserAsks.oracle_informative {lenv : Environment} {env : VEnv} {Us : List Name}
-    {gw : Void IO.RealWorld → NameGenerator} (E : EraserAsks lenv env Us gw)
+/-- **The type-former exclusion, derived.** A `false` verdict of `Erasure.isErasable` rules
+out an inductive-type head: the two oracle clauses contradict each other at the scope the
+verdict was taken under, `ctx.lparams`, which is the scope both clauses now read. Stated at
+the `MLCtx`, so the three facts a bridge invariant supplies are explicit arguments. -/
+theorem EraserAsks.oracle_informative {lenv : Environment} {env : VEnv}
+    {gw : Void IO.RealWorld → NameGenerator} (E : EraserAsks lenv env gw)
     {m : MLCtx} {ctx : ErasureContext} {e : Expr} {ve : VExpr} {s s₁ : ErasureState}
     {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State} {w w₁ : Void IO.RealWorld}
-    (hm : m.WF env Us) (hlctx : m.lctx = ctx.lctx)
+    (hm : m.WF env ctx.lparams) (hlctx : m.lctx = ctx.lctx)
     (hfresh : ∀ fv ∈ m.vlctx.fvars, kernelNGen.Reserves fv)
     (hor : Erasure.liftMetaM (Erasure.isErasable ctx.lparams e) s ctx cctx ref w
       = .ok (false, s₁) w₁)
-    (hlp : ctx.lparams = Us) (htr : TrExprS env Us m.vlctx e ve) :
+    (htr : TrExprS env ctx.lparams m.vlctx e ve) :
     ∀ c us, e.getAppFn = .const c us → ∀ iid np nfs, ¬ IndInfo env c iid np nfs := by
   intro c us hfn iid np nfs hind
-  refine E.oracle_false_refl e s ctx cctx ref w s₁ w₁ hor hlp ?_
-  rw [hlp]
-  exact E.kernel_ind_head_true ctx.lctx m e c us ve iid np nfs hm hlctx hfresh hfn hind htr
+  refine E.oracle_false_refl e s ctx cctx ref w s₁ w₁ hor ?_
+  exact E.kernel_ind_head_true ctx.lparams ctx.lctx m e c us ve iid np nfs hm hlctx hfresh
+    hfn hind htr
 
 /-! ## The relational pass interface -/
 

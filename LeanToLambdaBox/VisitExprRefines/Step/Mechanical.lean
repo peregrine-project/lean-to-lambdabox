@@ -345,13 +345,15 @@ theorem step_visitAppArgs : Step7 lenv env Us tbl cfg gw := by
 
 /-! ## Step 1 — `Erasure.visitExpr` -/
 
-/-- **Step 1.** The relevance oracle first: a `true` verdict is `ErasesLBMode.box`, at the
-ambient scope through the verified checker and at any other scope through the assumed
-`Oracle.MetaSound`. Otherwise the shape condition selects the arm, and each arm is one
-member's motive. A `false` verdict is also where the type-former exclusion is produced:
-`EraserAsks.oracle_informative` reads it off the two oracle clauses at the ambient scope, which
-`BridgeInv.lparams` says the reader is at, and the two spine arms hand it to `Motive11`. -/
-theorem step_visitExpr (E : EraserAsks lenv env Us gw) : Step1 lenv env Us tbl cfg gw := by
+/-- **Step 1.** The relevance oracle first: a `true` verdict is `ErasesLBMode.box`, through
+the verified checker at the scope the reader holds its translation witness at, which
+`BridgeInv.lparams` identifies with the scope the verdict was taken under. `oracle_meta`,
+which covers a verdict taken at any other scope, is unreachable here for that reason, and
+what it concludes there is erasability at *that* scope, not at the reader's. Otherwise the
+shape condition selects the arm, and each arm is one member's motive. A `false` verdict is
+also where the type-former exclusion is produced: `EraserAsks.oracle_informative` reads it
+off the two oracle clauses at `ctx.lparams`, and the two spine arms hand it to `Motive11`. -/
+theorem step_visitExpr (E : EraserAsks lenv env gw) : Step1 lenv env Us tbl cfg gw := by
   intro P _htbl _hcfg _hcb vExpr vLit vLet vLam vProj vApp ih1 ih2 ih8 ih9 ih10 ih11
   refine ⟨?_, bodyLe1 ih1.2 ih2.2 ih8.2 ih9.2 ih10.2 ih11.2⟩
   replace ih1 := ih1.1
@@ -374,22 +376,21 @@ theorem step_visitExpr (E : EraserAsks lenv env Us gw) : Step1 lenv env Us tbl c
     obtain ⟨ve, hve⟩ := hex
     obtain ⟨m, mwf, hlctx, hvlctx⟩ := hinv.mlc
     subst hvlctx
-    have her : Erasable env Us.length m.vlctx.toCtx ve := by
-      by_cases hlp : ctx.lparams = Us
-      · exact P.oracle_sound_of_run horc hlp mwf hlctx hinv.kfresh hve
-      · exact P.oracle_meta _ _ _ _ _ _ _ _ horc hlp m ve mwf hlctx hinv.kfresh hve
+    have her : Erasable env Us.length m.vlctx.toCtx ve :=
+      P.oracle_sound_of_run horc hinv.lparams mwf hlctx hinv.kfresh hve
     exact ⟨RunConcl.rfl' _, hinv.indcanon, hle₁, fun _ _ => ErasesLBMode.box hve her⟩
   · rw [if_neg hc] at hk
     have hinv' := hinv.mono hle₁
-    -- the head is not a type former: the oracle said `false` at the ambient level scope
+    -- the head is not a type former: the oracle said `false` at the scope of the call
     have hnind : ∀ (c' : Name) (us' : List Level), e.getAppFn = .const c' us' →
         ∀ (iid : InductiveId) (np : Nat) (nfs : List Nat), ¬ IndInfo env c' iid np nfs := by
       obtain ⟨ve, hve⟩ := hex
       obtain ⟨m, mwf, hlctx, hvlctx⟩ := hinv.mlc
-      refine E.oracle_informative mwf hlctx (hvlctx ▸ hinv.kfresh)
+      refine E.oracle_informative (by rw [hinv.lparams]; exact mwf) hlctx
+        (hvlctx ▸ hinv.kfresh)
         (show Erasure.liftMetaM (Erasure.isErasable ctx.lparams e) s ctx cctx ref w
             = .ok (false, s) w₁ from (Bool.not_eq_true c ▸ hc : c = false) ▸ horc)
-        hinv.lparams (hvlctx ▸ hve)
+        (by rw [hinv.lparams]; exact hvlctx ▸ hve)
     have hnext : ∀ {t₀ : LBTerm} {s₂ : ErasureState} {w₂ : Void IO.RealWorld},
         RunConcl s s₂ ∧ IndRegistryModelled env s₂ ∧ gw w₁ ≤ gw w₂ ∧
           (∀ Γspec, SpecEnv env tbl.body? tbl.levels? s₂ Γspec →

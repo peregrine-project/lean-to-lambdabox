@@ -67,7 +67,7 @@ theorem erasure_bridge_of_run
     {tbl : SourceTable} {cfg : ErasureConfig} {e pe : Expr} {ve : VExpr}
     {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
     {w wp wt : Void IO.RealWorld} {sp sf : ErasureState} {t : LBTerm}
-    (P : ErasureSpec lenv env [] gw) (E : EraserAsks lenv env [] gw)
+    (P : ErasureSpec lenv env [] gw) (E : EraserAsks lenv env gw)
     (A : UpstreamAsks env)
     (htbl : SourceTableAdequate lenv tbl) (hsafe : TableSafe lenv tbl)
     (hblk : TableBlocks lenv env tbl)
@@ -152,7 +152,7 @@ theorem shipping_erase_correct_firstorder
     {w wp w' : Void IO.RealWorld}
     {Γ : GlobalDeclarations} {t : LBTerm} {inls : List Kername}
     (P : ErasureSpec lenv env [] gw)
-    (E : EraserAsks lenv env [] gw)
+    (E : EraserAsks lenv env gw)
     (A : UpstreamAsks env)
     (htbl : SourceTableAdequate lenv tbl)
     (hsafe : TableSafe lenv tbl)

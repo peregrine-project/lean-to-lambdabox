@@ -321,8 +321,9 @@ structure BridgeInv (env : VEnv) (Us : List Name) (tbl : SourceTable) (cfg₀ : 
       the only `withReader` in the erasure that touches it is `Erasure.visitMutual`'s, which
       moves to a dependency's own `levelParams`; the invariant is not carried into that
       sub-run — `Motive6` reports registration alone — so equality holds throughout the term
-      walk. It is what lets a sub-run's oracle facts be read at `Us` on the nose, which is
-      what `EraserAsks.oracle_informative` asks for. -/
+      walk. It is what moves the reader's translation witness, held at `Us`, to the scope an
+      oracle verdict was taken under, which is where `EraserAsks.oracle_informative` and
+      `ErasureSpec.oracle_refl` conclude. -/
   lparams : ctx.lparams = Us
   /-- The reader's configuration is the one the statement is made at. `Erasure.run` builds the
       only reader from scratch and no `withReader` in the erasure touches `config`. -/

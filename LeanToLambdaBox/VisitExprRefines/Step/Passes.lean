@@ -850,7 +850,7 @@ advanced. The continuation and the message are abstract, so the branch is steppe
 assumed away, and the walk itself is `run_firstNonProofField_okW`. -/
 theorem pass_propArity_guard {lenv : Environment} {env : VEnv} {Us : List Name}
     {gw : Void IO.RealWorld → NameGenerator} (P : ErasureSpec lenv env Us gw)
-    (E : EraserAsks lenv env Us gw) {b : Bool} {iv : InductiveVal}
+    (E : EraserAsks lenv env gw) {b : Bool} {iv : InductiveVal}
     {msg : Name → Nat → MessageData} {k : EraseM LBTerm}
     {s : ErasureState} {ctx : ErasureContext} {cctx : Core.Context}
     {ref : ST.Ref IO.RealWorld Core.State} {w : Void IO.RealWorld}
@@ -976,7 +976,7 @@ block's own arithmetic, which is `CasesInfoAgrees.discrPos` through the pin and 
 `ErasesLB.cases`' length equation hold. -/
 theorem step_visitCases {lenv : Environment} {env : VEnv} {Us : List Name}
     {tbl : SourceTable} {cfg : ErasureConfig} {gw : Void IO.RealWorld → NameGenerator}
-    (A : UpstreamAsks env) (E : EraserAsks lenv env Us gw) :
+    (A : UpstreamAsks env) (E : EraserAsks lenv env gw) :
     Step17 lenv env Us tbl cfg gw := by
   intro P htbl hcfg _hcb vExpr vAlt ih1 ih18
   refine ⟨?_, bodyLe17 ih1.2 ih18.2⟩

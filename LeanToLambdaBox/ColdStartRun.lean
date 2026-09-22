@@ -605,8 +605,8 @@ applications of `EraserAsks.passes_sound`, one per call `run_prepare_erasure_ok`
 spine is quantified because the capstone reads its observable at `mkApps e args` while the
 passes run on `e` alone and are whole-tree `Lean.Core.transform` walks, so `f (mkApps e args)`
 is not `mkApps (f e) args`. -/
-theorem prepare_sound {lenv : Environment} {env : Lean4Lean.VEnv} {Us : List Name}
-    {gw : Void IO.RealWorld → NameGenerator} (E : EraserAsks lenv env Us gw)
+theorem prepare_sound {lenv : Environment} {env : Lean4Lean.VEnv}
+    {gw : Void IO.RealWorld → NameGenerator} (E : EraserAsks lenv env gw)
     {e pe : Expr} {s s₁ : ErasureState} {ctx : ErasureContext}
     {w w₁ : Void IO.RealWorld}
     (hcs : ctx.config.csimp = false)

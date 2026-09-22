@@ -65,8 +65,8 @@ is `EraserAsks.passes_monotone`, one application per call.
 With the `@[csimp]` gate closed the run is exactly the four lifted calls
 `run_prepare_erasure_ok` exposes, and each of the three functions it calls is a member of
 `preparePasses`. -/
-theorem run_prepare_erasure_concl {lenv : Environment} {env : VEnv} {Us : List Name}
-    {gw : Void IO.RealWorld → NameGenerator} (E : EraserAsks lenv env Us gw) {e : Expr}
+theorem run_prepare_erasure_concl {lenv : Environment} {env : VEnv}
+    {gw : Void IO.RealWorld → NameGenerator} (E : EraserAsks lenv env gw) {e : Expr}
     {s : ErasureState} {ctx : ErasureContext} {cctx : Core.Context}
     {ref : ST.Ref IO.RealWorld Core.State} {w : Void IO.RealWorld} {pe : Expr}
     {s₁ : ErasureState} {w₁ : Void IO.RealWorld} (hcs : ctx.config.csimp = false)
@@ -102,7 +102,7 @@ through `ErasureSpec.LookupAdequate.constInfo` into `run_register_inductive_mode
 machine-numeral registrations, refuted by `nat = .peano`. -/
 theorem runClosedW_indReg {lenv : Environment} {env : VEnv} {Us : List Name}
     {gw : Void IO.RealWorld → NameGenerator} (S : ErasureSpec lenv env Us gw)
-    (E : EraserAsks lenv env Us gw) (s₀ : ErasureState) :
+    (E : EraserAsks lenv env gw) (s₀ : ErasureState) :
     RunClosedW ConfigPinned
       (fun s _ => IndRegistryModelled env s₀ → IndRegistryModelled env s) where
   oracle h hq := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hq
@@ -136,7 +136,7 @@ because two callers spend it — the term walk and `Erasure.recursorRealizer`, w
 `register_inductive` F-EQREC puts on `Erasure.visitMutual`'s body-less path. -/
 theorem runClosedW_concl {lenv : Environment} {env : VEnv} {Us : List Name}
     {gw : Void IO.RealWorld → NameGenerator} (S : ErasureSpec lenv env Us gw)
-    (E : EraserAsks lenv env Us gw) (s₀ : ErasureState) (w₀ : Void IO.RealWorld) :
+    (E : EraserAsks lenv env gw) (s₀ : ErasureState) (w₀ : Void IO.RealWorld) :
     RunClosedW ConfigPinned
       (fun s w => (RunConcl s₀ s ∧ gw w₀ ≤ gw w) ∧
         (IndRegistryModelled env s₀ → IndRegistryModelled env s)) :=
@@ -151,7 +151,7 @@ theorem runClosedW_concl {lenv : Environment} {env : VEnv} {Us : List Name}
 one run of `Erasure.visitExpr`. -/
 theorem visitExpr_runConcl {lenv : Environment} {env : VEnv} {Us : List Name}
     {gw : Void IO.RealWorld → NameGenerator} (S : ErasureSpec lenv env Us gw)
-    (E : EraserAsks lenv env Us gw) {e : Expr} {s : ErasureState} {ctx : ErasureContext}
+    (E : EraserAsks lenv env gw) {e : Expr} {s : ErasureState} {ctx : ErasureContext}
     {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State} {w : Void IO.RealWorld}
     {t : LBTerm} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
     (hcfg : ConfigPinned ctx.config)
@@ -181,7 +181,7 @@ bookkeeping tail only grow the state; the `modify` between them is the registrat
 theorem run_nonrec_exit_reg {vE : Expr → EraseM LBTerm}
     {f : ErasureContext → ErasureContext} {e : Expr}
     {b1 b2 : ErasureContext → LBTerm → Bool} {msg1 msg2 : MessageData}
-    (hpm : PrimMonotone gw) (E : EraserAsks lenv env Us gw)
+    (hpm : PrimMonotone gw) (E : EraserAsks lenv env gw)
     (hvE : ∀ (e' : Expr) (s' : ErasureState) (ctx' : ErasureContext)
         (w' : Void IO.RealWorld) (t : LBTerm) (s'' : ErasureState) (w'' : Void IO.RealWorld),
       ConfigPinned ctx'.config →
@@ -262,7 +262,7 @@ theorem run_rec_exit_reg {vE : Expr → EraseM LBTerm} {names fixnames : List Na
     {f : List FVarId → ErasureContext → ErasureContext}
     {g : ConstantInfo → ErasureContext → ErasureContext} {val : ConstantInfo → Expr}
     {msg : MessageData}
-    (E : EraserAsks lenv env Us gw)
+    (E : EraserAsks lenv env gw)
     (hfresh : ∀ (s' : ErasureState) (ctx' : ErasureContext) (w' : Void IO.RealWorld)
         (x : FVarId) (s'' : ErasureState) (w'' : Void IO.RealWorld),
       (mkFreshFVarId : EraseM FVarId) s' ctx' cctx ref w' = .ok (x, s'') w'' → gw w' ≤ gw w'')
@@ -384,7 +384,7 @@ set_option maxHeartbeats 2000000 in
 theorem run_visitMutual_registers {lenv : Environment} {env : VEnv} {Us : List Name}
     {tbl : SourceTable} {s : ErasureState} {ctx : ErasureContext} {w : Void IO.RealWorld}
     {u : Unit} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
-    (P : ErasureSpec lenv env Us gw) (E : EraserAsks lenv env Us gw)
+    (P : ErasureSpec lenv env Us gw) (E : EraserAsks lenv env gw)
     (htbl : SourceTableAdequate lenv tbl) (hsafe : TableSafe lenv tbl)
     (htab : (tbl.decl? n).isSome) (hcfg : ConfigPinned ctx.config)
     (hind : IndRegistryModelled env s)
@@ -664,7 +664,7 @@ the term walk's own run conclusion is what carries the state and generator facts
 body erasures. `Motive1`'s refinement half is not consumed: what the motive reports is
 registration, and the fragment and translation premises a body erasure would need are not
 available at a dependency's own level scope. -/
-theorem step6 (E : EraserAsks lenv env Us gw) (hsafe : TableSafe lenv tbl) :
+theorem step6 (E : EraserAsks lenv env gw) (hsafe : TableSafe lenv tbl) :
     Step6 lenv env Us tbl cfg gw := by
   intro P htbl hcfg _hcb vExpr m1
   refine ⟨?_, bodyLe6 m1.2⟩
