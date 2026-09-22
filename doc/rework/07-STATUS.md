@@ -114,7 +114,7 @@ the verification obligation each closed; `doc/rework/10-MERGE-FIXES.md` is the r
 | F-KERNAME | `LeanToLambdaBox/Basic.lean:35` | `toKername (.num .anonymous 5) = toKername (.str .anonymous "5")` by `rfl`; latent — 228,987 constants, 228,987 distinct keys, 0 collisions | `4e354a7`; M2 |
 
 Two fixes reach `doc/coverage.md` as strict gains: F-QUOT/F-EQREC make `NoBodylessRefs` true on Fannkuch (a registering exit, not a refutation,
-§3.2/§2.8), and F-ETA's η-expansion is what lets `LBWfPeregrine.expandedFix` (M3) hold at all eight rungs rather than vacuously exclude five of them.
+§3.2/§2.8), and F-ETA's η-expansion is what lets `LBWfPeregrine.expandedFix` (M3) hold at the three rungs that register a fixpoint (G6, G7, G8); at the other five, which emit no `.fix` node, it is vacuously true.
 F-SPARSE, F-ACC and F-ETA2's second half are shipping-soundness fixes the fragment already excluded and still excludes — no coverage row moves.
 
 **F-PRODUCT, still not fixed and not meant to be.** `LeanToLambdaBox/Erasure.lean:85`, `:88-118`, `:896-903`:

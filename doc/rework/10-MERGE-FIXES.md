@@ -554,6 +554,11 @@ body the registration actually writes:
 The second disjunct exists because the registration side produces the block shape, not a `Lower`
 derivation; `fixEta_of_block` is the converter, exactly where `fixBody_of_block` was.
 
+**Superseded by C3** (W2-refute R3). The disjunct adds no strength: `LowerFix`' own `hdecl`
+identifies `b₀` with `bs[j]`, so `fixEta_of_block` returns the *first* disjunct, and the clause is
+back to `Lower Γspec b₀ b` with the registration side discharging it through that converter. The
+`LowerFix` predicate, whose only consumer this was, is deleted with it.
+
 ### 4.6 The δ step, and where the extra β is absorbed
 
 `ErasesCorrect/Delta.lean:182-192` is unchanged in structure. The witness `H` is still the emitted
@@ -632,7 +637,7 @@ carry the new disjunct — `ColdStartRun.lean` and `ErasureRun.lean`'s `recConst
 | artifact | what moves | how |
 |---|---|---|
 | `VerifyBench/ast/*.ast` | the five corpus programs: +32 bytes per registered fixpoint (F-ETA), `Fannkuch` +315 (F-EQREC), `Quicksort` +231 (F-SPARSE) | `lake build VerifyBench`; gitignored, rebuilt in CI |
-| `VerifyBench/ast/Spikes/G1..G8.ast` | tracked; the rungs that register a fixpoint (G5, G7, G8) gain the wrapper | rebuild the spikes, commit the bytes |
+| `VerifyBench/ast/Spikes/G1..G8.ast` | tracked; the rungs that register a fixpoint (G6, G7, G8) gain the wrapper | rebuild the spikes, commit the bytes |
 | `Green.lean`'s `g<i>Env`/`g<i>Term` | the literal transcription of those `.ast` | transcribe from the regenerated files; `lake exe green-check --all` re-derives every answer with `lbEval` from the byte-diffed `.ast`, which is the check that the transcription is faithful |
 | `Green.lean`'s tables | `g<i>Table` reify the *source* environment, which no fix changes | `lake exe reify --check` on all eight; expect no diff |
 | `doc/coverage.md` | the `NoBodylessRefs` column at `Fannkuch`, the N19 paragraph (C8), the new `expandedFix` measurement, the inductive census | `lake exe coverage`, then `--check` |

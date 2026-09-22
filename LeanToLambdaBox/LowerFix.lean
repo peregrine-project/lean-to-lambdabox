@@ -10,10 +10,10 @@ becomes a fresh fvar `ids[j]`, and `mkDef`'s `toBvar` chain closes the result. A
 `WcbvEval.fix_guarded` substitutes the block back for those binders. This module carries
 what `Lower` alone cannot say about that round trip:
 
-* `LowerFix` — the declaration-level form of `LowerBlock`, lowered bodies and fixvars
-  existential.
 * `ErasesLBFix` — the composite `Erases ⨟ Lower ⨟ ConstToFVar`, the motive a sub-run
   inside the block branch concludes.
+* `Lower.fixBody_of_block` and `Lower.fixEta_of_block` — the two fix arms whose source is a
+  member's body, read off the member's declaration.
 * `Lower.constToFix` — the transport: substituting the block's own `.fix` nodes for its
   fixvars in a `ConstToFVar` image lands back inside `Lower`.
 * `Lower.fixUnfold` — a member's unfolded definition is a λ still related to its body,
@@ -36,14 +36,7 @@ namespace LeanToLambdaBox
 open Lean (Name FVarId Expr)
 open Lean4Lean (VEnv VLCtx)
 
-/-! ## The two block-level definitions -/
-
-/-- Declaration-level block lowering: `defs` is a `Lower` image of the specification
-bodies `bs` under the names `kns`. Tolerates an unused fix binder — nothing here mirrors
-the eraser's source-side recursiveness test. -/
-def LowerFix (Γ : GlobalDeclarations) (kns : List Kername) (bs : List LBTerm)
-    (defs : List (@FixDef LBTerm)) : Prop :=
-  ∃ bs' ids, LowerBlock Γ kns bs bs' ids defs
+/-! ## The block-level definition -/
 
 /-- The block-body motive: erasure, lowering, and the block's const-to-fixvar rewriting
 composed. Inside a block the eraser emits `.fvar ids[j]` at a source `.const kns[j]`, a
@@ -232,6 +225,41 @@ theorem LowerBlock.substList_fixSubst {Γ : GlobalDeclarations} {kns : List Kern
     LBTerm.substList (LBTerm.fixSubst defs) (closeFix ids 0 t) = substFix ids defs t :=
   closeFix_substList_fixSubst (hblk.hilen.trans hblk.hd.symm) (hblk.lbClosed_fix hΓ)
     hblk.not_hasFVar_fix hcl
+
+/-! ## A block member's own body, read off its declaration
+
+The two fix arms whose source is a member's body, at the granularity a declaration is stated
+at: the index is recovered from the member's kername, so a consumer holding
+`DefnDecl Γ kn b` and the block needs no list arithmetic of its own. -/
+
+/-- A block member's own body has the block's `.fix` node as an image: `fixBody` at the
+member the declaration pins. -/
+theorem Lower.fixBody_of_block {Γ : GlobalDeclarations} {kns : List Kername}
+    {bs bs' : List LBTerm} {ids : List FVarId} {defs : List (@FixDef LBTerm)} {j : Nat}
+    {kn : Kername} {b : LBTerm} (hblock : LowerBlock Γ kns bs bs' ids defs)
+    (hj : kns[j]? = some kn) (hd : DefnDecl Γ kn b) : Lower Γ b (.fix defs j) := by
+  obtain ⟨hjl, hje⟩ := Lower.getElem!_of_getElem? hj
+  have hdecl := hblock.hdecl j hjl
+  rw [hje] at hdecl
+  have hbb : bs[j]! = b := by simpa using (hdecl.symm.trans hd)
+  refine Lower.fixBody' hblock ?_ (by rw [hblock.hd]; omega)
+  rw [← hbb, getElem?_pos bs j (by rw [hblock.hb]; omega),
+    ← getElem!_pos bs j (by rw [hblock.hb]; omega)]
+
+/-- A block member's own body has the **η-expansion** of the block's node as an image:
+`fixEta` at the member the declaration names. `Lower.fixBody_of_block`'s twin, at the
+body `Erasure.visitMutual` registers (`Erasure.etaExpandFix`, F-ETA). -/
+theorem Lower.fixEta_of_block {Γ : GlobalDeclarations} {kns : List Kername}
+    {bs bs' : List LBTerm} {ids : List FVarId} {defs : List (@FixDef LBTerm)} {j : Nat}
+    {kn : Kername} {b : LBTerm} (hblock : LowerBlock Γ kns bs bs' ids defs)
+    (hj : kns[j]? = some kn) (hd : DefnDecl Γ kn b) : Lower Γ b (LBTerm.etaFix defs j) := by
+  obtain ⟨hjl, hje⟩ := Lower.getElem!_of_getElem? hj
+  have hdecl := hblock.hdecl j hjl
+  rw [hje] at hdecl
+  have hbb : bs[j]! = b := by simpa using (hdecl.symm.trans hd)
+  refine Lower.fixEta' hblock ?_ (by rw [hblock.hd]; omega)
+  rw [← hbb, getElem?_pos bs j (by rw [hblock.hb]; omega),
+    ← getElem!_pos bs j (by rw [hblock.hb]; omega)]
 
 
 /-! ## `ConstToFVar` inversion
@@ -964,6 +992,18 @@ body relates to the wrapper `Erasure.visitMutual` registers, not only to the bar
 Non-vacuity for `Lower.fixEta`. -/
 theorem lowerfix_fixEta : Lower specEnv bs[1]! (LBTerm.etaFix defs 1) :=
   Lower.fixEta' lowerfix_nv rfl (Nat.lt_succ_self 1)
+
+/-- **`Lower` is not a function of its source.** `fixBody` and `fixEta` fire at the same
+specification body of the same block, so one source has two images: the bare node and the
+wrapper the registration loop writes. A property of the pass, recorded in
+`doc/rules-Lower.md`; every consumer reads `Lower` as a relation, and the inversion kit is
+stated per target shape for this reason. -/
+theorem lower_not_functional :
+    ¬ ∀ (Γ : GlobalDeclarations) (s t t' : LBTerm), Lower Γ s t → Lower Γ s t' → t = t' := by
+  intro h
+  have heq := h specEnv bs[1]! _ _ lowerfix_fixBody lowerfix_fixEta
+  rw [LBTerm.etaFix] at heq
+  exact LBTerm.noConfusion heq
 
 /-- **Why `Lower.fixEta`'s binder name is free.** `ConstToFVar.lambda` renames the binder, so
 `Lower.constToFix` transports a wrapper to a renamed one; with the arm pinned to `.anon` this

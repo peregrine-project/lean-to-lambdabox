@@ -41,8 +41,23 @@ every valuation. MetaRocq's `erases_one_inductive_body` states the flag as an eq
 `ind_propositional = isPropositionalArity ind_type`
 (`../metarocq/erasure/theories/Extract.v:276`); this is the half of that equality a consumer
 spends, through `propositional_false_of_informative`, and the half
-`ErasureSpec.propositionalInd_of_arity` proves. The converse is refuted by an arity whose
-result sort sits under a `let` (`doc/rework/03-DEV-FIX.md`, F-ARITYLET).
+`ErasureSpec.propositionalInd_of_arity` proves.
+
+**Why the implication and not the equality.** The converse,
+`PropositionalInd env I → oib.propositional = true`, needs the converse of
+`vResultSort_of_arityResultSort`: from `TrExprS env Us [] iv.type vt` and
+`vResultSort vt = some l`, that `Erasure.arityResultSort iv.type = some u` with
+`VLevel.ofLevel Us u = some l`. That step is false, and no lean4lean lemma supplies it — the
+translation is what refutes it. `TrExprS` is transparent exactly where `arityResultSort`
+answers `none`: at `.letE`, whose image is the body's under a `.vlet` binding
+(`../lean4lean/Lean4Lean/Verify/Typing/Expr.lean:164`), at `.mdata` (`:170`) and at `.lit`
+(`:169`). The `.letE` arm is F-ARITYLET's witness (`doc/rework/03-DEV-FIX.md`): an arity
+whose result sort sits under a `let` translates to `.sort .zero` while the flag comes out
+`false`. Closing the gap is a shipping change — `arityResultSort` walking those arms, as
+PCUIC's `destArity` walks `tLetIn` (`../metarocq/pcuic/theories/PCUICAst.v:486-490`) — after
+which the step is `vResultSort_of_arityResultSort`'s induction run backwards, the level
+transfer already being an equation (`ofLevel_alwaysZeroB`). Until then this clause says
+nothing at a body whose flag is unset, which is every body the ladder emits.
 
 It is no clause of `IndBodyOf`, which carries no model environment:
 `Erasure.register_inductive` computes the flag on every inductive it registers —
@@ -271,15 +286,11 @@ builds, so it is no clause of this structure. -/
 structure LowerEnv (Γspec Γ : GlobalDeclarations) : Prop where
   /-- The emitted environment has distinct keys. -/
   keys : (Γ.map Prod.fst).Nodup
-  /-- A body declared by both is a `Lower` image, or the η-expansion of one lowered block's
-      node: `Erasure.visitMutual` registers `Erasure.etaExpandFix defs j`
-      (`Erasure.lean:1276`), not `.fix defs j`, and at `principalArgIdx = 0` that is
-      `LBTerm.etaFix defs j` (F-ETA). The second disjunct exists because the registration
-      side produces the block shape rather than a `Lower` derivation;
-      `Lower.fixEta_of_block` is the converter. -/
-  defs : ∀ kn b₀ b, DefnDecl Γspec kn b₀ → DefnDecl Γ kn b →
-    Lower Γspec b₀ b ∨ ∃ kns bs defs j, LowerFix Γspec kns bs defs ∧
-      kns[j]? = some kn ∧ b = LBTerm.etaFix defs j
+  /-- A body declared by both is a `Lower` image. The η-expansion `Erasure.visitMutual`
+      registers for a block member (`Erasure.etaExpandFix defs j`, `Erasure.lean:1276`,
+      which at `principalArgIdx = 0` is `LBTerm.etaFix defs j`, F-ETA) is one: it is
+      `Lower.fixEta` at that member, which `Lower.fixEta_of_block` reads off the block. -/
+  defs : ∀ kn b₀ b, DefnDecl Γspec kn b₀ → DefnDecl Γ kn b → Lower Γspec b₀ b
   /-- Every definition that is not a runtime key survives the pruning as a definition.
       The eraser declares every definition, a recursive one with a `.fix` body, and
       `Lower.const` relates a block member to its own `.const`, so a weaker clause would
@@ -319,7 +330,7 @@ theorem lowerEnv_idEnv : LowerEnv idEnv idEnv where
     rw [DefnDecl, idEnv, LBTerm.envLookup] at h₀ hb
     split at hb
     · split at h₀
-      · cases hb; cases h₀; exact .inl (.lambda (.bvar 0))
+      · cases hb; cases h₀; exact .lambda (.bvar 0)
       · rename_i hpos hneg; exact absurd hpos hneg
     · simp [LBTerm.envLookup] at hb
   defsTotal := fun _ b₀ h₀ _ => ⟨b₀, h₀⟩

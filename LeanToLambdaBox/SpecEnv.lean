@@ -189,7 +189,7 @@ theorem lowerEnv_of_cold_run {env : VEnv} {bo : Name → Option Expr} {lp : Name
   have H : RegInvShape' env bo lp idEnv
       (nonrecConstState `id (.lambda .anon (.bvar 0)) {}) :=
     (RegInvShape'.empty hspec lowerEnv_idEnv.specClosed fvarFree_idEnv).constCons
-      (b₀ := .lambda .anon (.bvar 0)) rfl (.inl (.lambda (.bvar 0)))
+      (b₀ := .lambda .anon (.bvar 0)) rfl (.lambda (.bvar 0))
       (lowerEnv_idEnv.closed (rootKername "id") _ rfl) (by simp)
   refine H.lowerEnv ⟨?_, ?_⟩
   · intro kn b₀ h₀ _

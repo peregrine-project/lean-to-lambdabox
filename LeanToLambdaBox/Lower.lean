@@ -15,6 +15,12 @@ Fifteen arms: eleven congruence, `elimApp`, `fixConst`, `fixBody`, `fixEta`. The
 by `Γ` and by nothing else — no source term, no typing context, no run state — which is what
 keeps it a statement about λ□ alone; `doc/rules-Lower.md` carries the arm-by-arm anchors.
 
+It is a relation and **not a function**: at a block member the constant has two images
+(`const`, `fixConst`) and so does the member's body (`fixBody`, `fixEta`, the wrapper F-ETA
+registers). `LowerFixFixture.lower_not_functional` checks the second pair; no consumer reads
+`Lower` as functional, and the inversion kit is keyed on the target's shape rather than on
+uniqueness.
+
 Constructor introduction is **not** here: a constructor constant erases to `.construct iid k
 []` by `Erases.ctor` and its arguments arrive through `Erases.app`, so the pass sees a
 `.construct` node already and the `construct`/`app` congruence arms relate it. Neither
@@ -347,9 +353,11 @@ theorem toBvar_fixNode {kns : List Kername} {bs' : List LBTerm} {ids : List FVar
 
 mutual
 
-/-- The pass relation, fourteen arms. `Lower Γ t t'` says `t'` is a λ□ term the eraser
-may emit for the specification term `t` over `Γ`. Deliberately non-deterministic at a
-block member, where `const` and `fixConst` both apply. -/
+/-- The pass relation, fifteen arms. `Lower Γ t t'` says `t'` is a λ□ term the eraser
+may emit for the specification term `t` over `Γ`. Deliberately non-deterministic at a block
+member, twice over: at the member's constant, where `const` and `fixConst` both apply, and
+at the member's body, where `fixBody` and `fixEta` both apply. `LowerFixFixture`'s
+`lower_not_functional` is the second one machine-checked. -/
 inductive Lower (Γ : GlobalDeclarations) : LBTerm → LBTerm → Prop where
   | box : Lower Γ .box .box
   | bvar (i : Nat) : Lower Γ (.bvar i) (.bvar i)
