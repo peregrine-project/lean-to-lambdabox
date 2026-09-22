@@ -1,0 +1,6 @@
+F-ACC acc: refused : Erasure.visitCases: Acc.casesOn eliminates the propositional inductive Acc, whose constructor Acc.intro has a field (number 0) that is not a proof; λbox collapses such an elimination by boxing every field of the alternative, which would lose that field's data.
+F-ACC reach: refused : Erasure.visitCases: FAcc.Reach.casesOn eliminates the propositional inductive FAcc.Reach, whose constructor FAcc.Reach.intro has a field (number 0) that is not a proof; λbox collapses such an elimination by boxing every field of the alternative, which would lose that field's data.
+F-ACC and: accepted declarations=7
+F-ACC iff: accepted declarations=7
+F-ACC eq: accepted declarations=7
+lean-exit=0

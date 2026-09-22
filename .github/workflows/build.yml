@@ -33,6 +33,12 @@ jobs:
           test: false
           lint: false
 
+      # The shipping fixes' own regression suite. It runs against the shipping closure, not
+      # the verification. `peregrine` is absent in CI, so the `validate`/`eval` half reports
+      # itself skipped rather than failing.
+      - name: Shipping fix regressions
+        run: bash scripts/fixes.sh
+
       - name: Trust ledger
         run: bash scripts/ledger.sh
 
@@ -99,16 +105,20 @@ jobs:
         run: lake build VerifyBench && lake exe coverage --check
 
       # A ratchet, not a zero: the residue is the tooling, the frozen benchmark sources,
-      # `Optimize.lean` and `ErasesUniform.lean`, which `doc/coverage.md` accounts for.
-      # The budget fails when a module leaves the Green.lean-union-Capstone.lean closure,
-      # which is the regression this guards; a drop below it is fine and the budget is
-      # lowered by hand.
+      # `Optimize.lean` and `ErasesUniform.lean`, which `doc/coverage.md` accounts for
+      # (240), plus `test/Vacuity.lean`'s five regression lemmas (245) and, since the
+      # `dev/fix` merge, the ten shipping-fix regressions under `test/fixes/` (76 more,
+      # F-ACC/F-DEPTH/F-EQREC/F-ETA/F-ETA2/F-KERNAME/F-PROP/F-QUOT/F-SPARSE/F-UNSAFEREC.lean,
+      # 321 total) — each a regression file not imported by the theorem it guards, by the
+      # same construction `test/Vacuity.lean` already was. The budget fails when a module
+      # leaves the Green.lean-union-Capstone.lean closure, which is the regression this
+      # guards; a drop below it is fine and the budget is lowered by hand.
       - name: Dead-declaration closure
         run: |
           out=$(lake exe hygiene --dead || true)
           n=$(printf '%s\n' "$out" | sed -n 's/^--dead: \([0-9]*\) .*/\1/p')
-          echo "declarations outside the closure: ${n:-unparsed} (budget 240)"
-          if [ -z "$n" ] || [ "$n" -gt 240 ]; then
+          echo "declarations outside the closure: ${n:-unparsed} (budget 321)"
+          if [ -z "$n" ] || [ "$n" -gt 321 ]; then
             printf '%s\n' "$out" >&2
             exit 1
           fi

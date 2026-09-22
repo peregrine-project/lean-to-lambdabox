@@ -1,0 +1,6 @@
+F-ETA sum: sumTo=λ.app(fix#0,bvar0)
+F-ETA sum: bare-fix-bodies=0 expanded-violations=0
+F-ETA parity: isEven=λ.app(fix#0,bvar0)
+F-ETA parity: isOdd=λ.app(fix#1,bvar0)
+F-ETA parity: bare-fix-bodies=0 expanded-violations=0
+lean-exit=0

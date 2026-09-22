@@ -324,4 +324,116 @@ theorem not_informativeInd_and {env : VEnv} (h : env.constants ``And = some ⟨0
   cases Option.some.inj hl
   exact hnz [] rfl
 
+/-! ## The propositional decision, model side
+
+`Erasure.register_inductive` emits `propositional := isPropositionalArity inf.type`
+(`Erasure.lean:368`), which is `arityResultSort` then `Lean.Level.isAlwaysZero`
+(`Erasure.lean:281`, `:291`). MetaRocq states the emitted flag as an **equality**,
+`isPropositionalArity ind_type = ind_propositional`
+(`erases_one_inductive_body`, `../metarocq/erasure/theories/Extract.v:276`), so the model side
+needs the same decision:
+`vResultSort` mirrors `arityResultSort` arm for arm, and `alwaysZeroB` mirrors
+`Level.isAlwaysZero`. -/
+
+/-- Decides "this level is `Prop` at every valuation": `zero` is, a parameter and a successor
+are not, a `max` needs both sides, and an `imax` is zero exactly when its right argument is.
+`Lean.Level.isAlwaysZero`'s mirror (`Lean/Level.lean:212-218`) minus the `mvar` arm, which
+`VLevel` does not have. Sound and complete — `alwaysZeroB_sound`, `alwaysZeroB_complete`. -/
+def alwaysZeroB : VLevel → Bool
+  | .zero => true
+  | .param _ | .succ _ => false
+  | .max a b => alwaysZeroB a && alwaysZeroB b
+  | .imax _ b => alwaysZeroB b
+
+/-- Soundness of `alwaysZeroB`. -/
+theorem alwaysZeroB_sound : ∀ {l : VLevel}, alwaysZeroB l = true → ∀ ls, l.eval ls = 0
+  | .zero, _, _ => rfl
+  | .max a b, h, ls => by
+      simp only [alwaysZeroB, Bool.and_eq_true] at h
+      simp [VLevel.eval, alwaysZeroB_sound h.1 ls, alwaysZeroB_sound h.2 ls]
+  | .imax _ b, h, ls => by
+      simp only [alwaysZeroB] at h
+      simp [VLevel.eval, Lean.Nat.imax, alwaysZeroB_sound h ls]
+
+/-- Completeness of `alwaysZeroB`: the all-ones instantiation witnesses the failure, at any
+width the level is well-formed for. The parameter arm is why a valuation is needed at all —
+`neverZeroB_complete` can use the all-zero list, this one cannot. -/
+theorem alwaysZeroB_complete {n : Nat} : ∀ {l : VLevel}, alwaysZeroB l = false → l.WF n →
+    l.eval (List.replicate n 1) ≠ 0
+  | .succ _, _, _ => by simp [VLevel.eval]
+  | .param i, _, hwf => by
+      simp only [VLevel.WF] at hwf
+      simp [VLevel.eval, List.getD, hwf]
+  | .max a b, h, hwf => by
+      simp only [alwaysZeroB, Bool.and_eq_false_iff] at h
+      simp only [VLevel.eval]
+      have hl := Nat.le_max_left (a.eval (List.replicate n 1)) (b.eval (List.replicate n 1))
+      have hr := Nat.le_max_right (a.eval (List.replicate n 1)) (b.eval (List.replicate n 1))
+      intro he
+      rcases h with h | h
+      · exact alwaysZeroB_complete h hwf.1 (Nat.le_zero.mp (he ▸ hl))
+      · exact alwaysZeroB_complete h hwf.2 (Nat.le_zero.mp (he ▸ hr))
+  | .imax a b, h, hwf => by
+      simp only [alwaysZeroB] at h
+      have hb := alwaysZeroB_complete h hwf.2
+      simp only [VLevel.eval, Lean.Nat.imax]
+      rw [if_neg hb]
+      have hr := Nat.le_max_right (a.eval (List.replicate n 1)) (b.eval (List.replicate n 1))
+      exact fun he => hb (Nat.le_zero.mp (he ▸ hr))
+
+/-- The decision survives translation: `VLevel.ofLevel` is a homomorphism on the four arms
+`alwaysZeroB` reads, and fails outright on the `mvar` arm it does not.
+`Lean4Lean.ofLevel_isNeverZero`'s twin (`Lean4Lean/Verify/Typing/Lemmas.lean:1536`). -/
+theorem ofLevel_alwaysZeroB {Us : List Name} {u : Lean.Level} {u' : VLevel}
+    (h : VLevel.ofLevel Us u = some u') : alwaysZeroB u' = u.isAlwaysZero := by
+  induction u generalizing u' with simp [VLevel.ofLevel, bind] at h
+  | zero => cases h; rfl
+  | succ _ ih => obtain ⟨_, _, ⟨⟩⟩ := h; rfl
+  | max _ _ ih1 ih2 =>
+      obtain ⟨_, h1, _, h2, ⟨⟩⟩ := h
+      simp [alwaysZeroB, Lean.Level.isAlwaysZero, ih1 h1, ih2 h2]
+  | imax _ _ _ ih2 =>
+      obtain ⟨_, _, _, h2, ⟨⟩⟩ := h
+      simp [alwaysZeroB, Lean.Level.isAlwaysZero, ih2 h2]
+  | param n => exact h.2 ▸ rfl
+
+/-- The modelled inductive `I` is **propositional**: `env` knows it, and the result sort of
+its model type evaluates to `Prop` at every valuation. The model-side reading of
+`Erasure.isPropositionalArity`, and MetaRocq's `erases_one_inductive_body`
+(`../metarocq/erasure/theories/Extract.v:276`).
+
+Not the complement of `InformativeInd`: `IsNeverZero l` is `∀ ls, l.eval ls ≠ 0` and this is
+`∀ ls, l.eval ls = 0`, so the two are **exclusive and jointly incomplete** — a `Sort u` family
+is neither. `propositional_false_of_informative` spends the exclusion, which is the only
+implication that holds. -/
+def PropositionalInd (env : VEnv) (I : Name) : Prop :=
+  ∃ ci, env.constants I = some ci ∧ ∃ l, vResultSort ci.type = some l ∧ ∀ ls, l.eval ls = 0
+
+/-- Propositionality survives environment extension, as relevance does. -/
+theorem PropositionalInd.mono {env env' : VEnv} {I : Name} (hle : env ≤ env')
+    (h : PropositionalInd env I) : PropositionalInd env' I :=
+  let ⟨ci, hci, l, hl, hz⟩ := h; ⟨ci, hle.constants hci, l, hl, hz⟩
+
+/-- **An informative inductive is not propositional.** Spent wherever the ι and projection
+arms need the emitted flag to be `false`: the registry does not assert `false` outright —
+`Erasure.recursorRealizer` registers `Eq`/`And`/`False` with `propositional := true` — it
+asserts MetaRocq's equation, and `false` is read off it against the consumer's own
+`InformativeInd` premise. Only the soundness half of that equation is hypothesised, which is
+all this argument reads and all the model side proves:
+`ErasureSpec.propositionalInd_of_arity` derives it, and its converse is refuted by an arity
+whose final sort sits under a `let` (`doc/rework/03-DEV-FIX.md`, F-ARITYLET). -/
+theorem propositional_false_of_informative {env : VEnv} {I : Name} {p : Bool}
+    (heq : p = true → PropositionalInd env I) (hinf : InformativeInd env I) : p = false := by
+  cases hp : p with
+  | false => rfl
+  | true =>
+      exfalso
+      obtain ⟨ci, hci, l, hl, hz⟩ := heq hp
+      obtain ⟨ci', hci', l', hl', hnz⟩ := hinf
+      rw [hci] at hci'
+      cases Option.some.inj hci'
+      rw [hl] at hl'
+      cases Option.some.inj hl'
+      exact hnz [] (hz [])
+
 end LeanToLambdaBox

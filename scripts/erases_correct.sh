@@ -22,16 +22,18 @@ set_option pp.mvars false
 
 #check @LeanToLambdaBox.erases_correct
 
-example : ∀ {env : VEnv} {bo : Name → Option Expr} {Us : List Name} {fl : SEvalFlags}
-    {Γspec Γ : GlobalDeclarations}, ErasesCorrectStmt env bo Us fl Γspec Γ :=
+example : ∀ {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name} {Us : List Name}
+    {fl : SEvalFlags} {Γspec Γ : GlobalDeclarations},
+    ErasesCorrectStmt env bo lp Us fl Γspec Γ :=
   @erases_correct
 
-theorem erases_correct_target_shape {env : VEnv} {bo : Name → Option Expr} {Us : List Name}
+theorem erases_correct_target_shape {env : VEnv} {bo : Name → Option Expr}
+    {lp : Name → List Name} {Us : List Name}
     {fl : SEvalFlags} {Γspec Γ : GlobalDeclarations} :
-    ErasesCorrectStmt env bo Us fl Γspec Γ ↔
+    ErasesCorrectStmt env bo lp Us fl Γspec Γ ↔
     ∀ {e v : Expr} {ve : VExpr} {t₀ t : LBTerm},
       env.WF → TrExprS env Us [] e ve → SEval env bo Us fl [] e v →
-      Erases env Us [] e t₀ → Lower Γspec t₀ t → ErasesEnv env bo Γspec t₀ →
+      Erases env Us [] e t₀ → Lower Γspec t₀ t → ErasesEnv env bo lp Γspec t₀ →
       LowerEnv Γspec Γ → UpstreamAsks env →
       ∃ v₀ v', Erases env Us [] v v₀ ∧ Lower Γspec v₀ v' ∧ WcbvEval Γ eraseFlags t v' :=
   Iff.rfl

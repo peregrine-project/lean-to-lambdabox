@@ -1,0 +1,26 @@
+== parity.ast validate
+Validating AST:
+AST is valid
+== parity.ast eval
+Compiling:
+Compiled successfully:
+
+constr Bool.true 
+
+
+== sum.ast validate
+Validating AST:
+AST is valid
+== sum.ast eval
+Compiling:
+Compiled successfully:
+
+constr Nat.succ 
+ constr Nat.succ 
+  constr Nat.succ 
+   constr Nat.succ 
+    constr Nat.succ 
+     constr Nat.succ 
+      constr Nat.zero 
+
+

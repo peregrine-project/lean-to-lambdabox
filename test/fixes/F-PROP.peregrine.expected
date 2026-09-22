@@ -1,0 +1,41 @@
+== data.ast validate
+Validating AST:
+AST is valid
+== data.ast eval
+Compiling:
+Compiled successfully:
+
+constr Nat.succ 
+ constr Nat.succ 
+  constr Nat.succ 
+   constr Nat.zero 
+
+
+== prop-and.ast validate
+Validating AST:
+AST is valid
+== prop-and.ast eval
+Compiling:
+Compiled successfully:
+
+constr Nat.succ 
+ constr Nat.succ 
+  constr Nat.succ 
+   constr Nat.succ 
+    constr Nat.succ 
+     constr Nat.zero 
+
+
+== prop-eq.ast validate
+Validating AST:
+AST is valid
+== prop-eq.ast eval
+Compiling:
+Compiled successfully:
+
+constr Nat.succ 
+ constr Nat.succ 
+  constr Nat.succ 
+   constr Nat.zero 
+
+

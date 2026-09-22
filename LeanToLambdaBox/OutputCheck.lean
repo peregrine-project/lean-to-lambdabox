@@ -17,16 +17,16 @@ Two generic engines carry the twelve. `progB` checks a whole-term Boolean at the
 every constant body of `Γ`, and `progB_sound` is `OnProgram`'s introduction rule. `onProgramB`
 is `progB` at `subtermAll p`, the walk that visits every `SubTerm` of a term, so a clause
 stated as a per-node condition under `SubTerm` is discharged by reading that condition off
-`subtermAll_sound` — its statement is never restated here. Six clauses are of that shape:
-`constsOk`, `ctorDecl`, `casesExh`, `fixLambda`, `projDecl` and `printableNames`.
+`subtermAll_sound` — its statement is never restated here. Five clauses are of that shape:
+`constsOk`, `ctorDecl`, `casesExh`, `projDecl` and `printableNames`.
 
-The other six have their own fold. `keysDistinctB` (`keys`) and `declsWfB` (`declsWf`) look at
-`Γ` alone. `lbClosedB` (`closed`) threads a binder depth and `noBlockB` (`ctorApplied`) is a
+The other seven have their own fold. `keysDistinctB` (`keys`) and `declsWfB` (`declsWf`) look
+at `Γ` alone. `lbClosedB` (`closed`) threads a binder depth and `noBlockB` (`ctorApplied`) is a
 whole-term recursion, both spent through `progB`. `ctorSatB` (`etaCtorsEnv` and `etaCtorsTm`
 together) counts a constructor spine at its maximal application depth, which is what
 `ConstructSpine`'s `appFn` guard demands — hence the second function `ctorSatBFn`, which walks
 the function side of an application without treating a constructor found there as a spine
-root.
+root. `lbExpandedTFixB` (`expandedFix`) is three walks, one per conjunct of `expanded_tFix`.
 
 Every definition here is **structurally** recursive. A catch-all arm recursing at the same
 argument compiles by well-founded recursion, and a well-founded definition does not reduce in
@@ -645,6 +645,294 @@ theorem ctorSat_sound {Γ : GlobalDeclarations} {t : LBTerm} {iid : InductiveId}
       · rw [ctorSatB] at hc; exact ih.1 (ctorSatBDefs_mem hc hd)
       · rw [ctorSatBFn] at hc; exact ih.1 (ctorSatBDefs_mem hc hd)
 
+/-! ## Fixpoint η
+
+Three walks, one per conjunct of `expanded_tFix`. `fixSatB` counts a `.fix` spine at its
+maximal application depth, the way `ctorSatB` counts a constructor spine, so it has the same
+second function `fixSatBFn` for the function side of an application. `fixLambdaNode` is
+already a per-node check. `fixSelfB` threads the binder demands `expanded` carries in its
+`Γ : list nat`, pushing `fixDemands defs` at a block and `0` at every other binder, and an
+argument counter for the spine an index is found under.
+-/
+
+/-- The `IsFixSpine` data of `t`, if any: the block, the selected index and the number of
+arguments applied to it. -/
+def fixSpineInfo : LBTerm → Option (List (@FixDef LBTerm) × Nat × Nat)
+  | .fix defs i => some (defs, i, 0)
+  | .app f _ => match fixSpineInfo f with
+      | some (defs, i, n) => some (defs, i, n + 1)
+      | none => none
+  | _ => none
+
+/-- A `.fix` spine at `t`, if there is one, is applied past its principal argument. -/
+def fixOkB (t : LBTerm) : Bool :=
+  match fixSpineInfo t with
+  | some (defs, i, n) => 0 < n && defs[i]?.all fun fd => fd.principalArgIdx < n
+  | none => true
+
+/-- `fixSpineInfo` computes `IsFixSpine`. -/
+theorem fixSpineInfo_of_isFixSpine {t : LBTerm} {defs : List (@FixDef LBTerm)} {i n : Nat}
+    (h : IsFixSpine t defs i n) : fixSpineInfo t = some (defs, i, n) := by
+  induction h with
+  | fix => rfl
+  | app _ ih => rw [fixSpineInfo, ih]
+
+/-- A spine root is `.fix`-headed. -/
+theorem IsFixSpine.fixHeaded {t : LBTerm} {defs : List (@FixDef LBTerm)} {i n : Nat}
+    (h : IsFixSpine t defs i n) : FixHeaded t := ⟨defs, i, n, h⟩
+
+/-- The bound the node check carries, at the spine it is checked for. -/
+theorem fixOkB_sound {t : LBTerm} {defs : List (@FixDef LBTerm)} {i n : Nat}
+    (hb : fixOkB t = true) (h : IsFixSpine t defs i n) :
+    n ≠ 0 ∧ ∀ fd, defs[i]? = some fd → fd.principalArgIdx < n := by
+  rw [fixOkB, fixSpineInfo_of_isFixSpine h] at hb
+  simp only [Bool.and_eq_true, decide_eq_true_eq] at hb
+  refine ⟨Nat.pos_iff_ne_zero.1 hb.1, fun fd hfd => ?_⟩
+  have h2 := hb.2
+  rw [hfd] at h2
+  simpa using h2
+
+mutual
+/-- Every `.fix` spine in `t` is applied past its principal argument, each spine counted at
+its maximal application depth. -/
+def fixSatB : LBTerm → Bool
+  | .fix defs i => fixOkB (.fix defs i) && fixSatBDefs defs
+  | .app f a => fixOkB (.app f a) && fixSatBFn f && fixSatB a
+  | .lambda _ b => fixSatB b
+  | .letIn _ v b => fixSatB v && fixSatB b
+  | .construct _ _ args => fixSatBArgs args
+  | .case _ d alts => fixSatB d && fixSatBAlts alts
+  | .proj _ e => fixSatB e
+  | .box | .bvar _ | .fvar _ | .const _ | .prim _ => true
+
+/-- The function side of an application: a `.fix` found here heads a longer spine, whose
+arguments are counted at the outermost application, so this node carries no check of its own.
+This is `FixSpine.appFn`'s `¬ FixHeaded` guard. -/
+def fixSatBFn : LBTerm → Bool
+  | .fix defs _ => fixSatBDefs defs
+  | .app f a => fixSatBFn f && fixSatB a
+  | .lambda _ b => fixSatB b
+  | .letIn _ v b => fixSatB v && fixSatB b
+  | .construct _ _ args => fixSatBArgs args
+  | .case _ d alts => fixSatB d && fixSatBAlts alts
+  | .proj _ e => fixSatB e
+  | .box | .bvar _ | .fvar _ | .const _ | .prim _ => true
+
+/-- `fixSatB` over a constructor's arguments. -/
+def fixSatBArgs : List LBTerm → Bool
+  | [] => true
+  | t :: r => fixSatB t && fixSatBArgs r
+
+/-- `fixSatB` over case alternatives. -/
+def fixSatBAlts : List (List BinderName × LBTerm) → Bool
+  | [] => true
+  | (_, b) :: r => fixSatB b && fixSatBAlts r
+
+/-- `fixSatB` over the definitions of a `.fix` block. -/
+def fixSatBDefs : List (@FixDef LBTerm) → Bool
+  | [] => true
+  | d :: r => fixSatB d.body && fixSatBDefs r
+end
+
+/-- The check descends into each argument. -/
+theorem fixSatBArgs_mem : ∀ {l : List LBTerm} {x : LBTerm},
+    fixSatBArgs l = true → x ∈ l → fixSatB x = true
+  | _ :: _, x, h, hx => by
+      simp only [fixSatBArgs, Bool.and_eq_true] at h
+      rcases List.mem_cons.1 hx with rfl | hx
+      · exact h.1
+      · exact fixSatBArgs_mem h.2 hx
+
+/-- The check descends into each branch body. -/
+theorem fixSatBAlts_mem :
+    ∀ {l : List (List BinderName × LBTerm)} {ns : List BinderName} {b : LBTerm},
+      fixSatBAlts l = true → (ns, b) ∈ l → fixSatB b = true
+  | a :: _, ns, b, h, hx => by
+      obtain ⟨ns', b'⟩ := a
+      simp only [fixSatBAlts, Bool.and_eq_true] at h
+      rcases List.mem_cons.1 hx with heq | hx
+      · cases heq; exact h.1
+      · exact fixSatBAlts_mem h.2 hx
+
+/-- The check descends into each definition of a block. -/
+theorem fixSatBDefs_mem : ∀ {l : List (@FixDef LBTerm)} {d : @FixDef LBTerm},
+    fixSatBDefs l = true → d ∈ l → fixSatB d.body = true
+  | _ :: _, d, h, hx => by
+      simp only [fixSatBDefs, Bool.and_eq_true] at h
+      rcases List.mem_cons.1 hx with rfl | hx
+      · exact h.1
+      · exact fixSatBDefs_mem h.2 hx
+
+/-- The bound at a spine that is the whole term. -/
+theorem fixSatB_root {t : LBTerm} {defs : List (@FixDef LBTerm)} {i n : Nat}
+    (h : IsFixSpine t defs i n) (hc : fixSatB t = true) :
+    n ≠ 0 ∧ ∀ fd, defs[i]? = some fd → fd.principalArgIdx < n := by
+  cases h with
+  | fix =>
+      simp only [fixSatB, Bool.and_eq_true] at hc
+      exact fixOkB_sound hc.1 .fix
+  | app h' =>
+      simp only [fixSatB, Bool.and_eq_true] at hc
+      exact fixOkB_sound hc.1.1 (.app h')
+
+/-- `LBExpandedFix`, per term. The second conjunct is what the induction spends at
+`FixSpine.appFn`: on the function side of an application the check is `fixSatBFn`, and that
+arm carries the bound only because the spine there is not `.fix`-headed. -/
+theorem fixSat_sound {t : LBTerm} {defs : List (@FixDef LBTerm)} {i n : Nat}
+    (hsp : FixSpine t defs i n) :
+    (fixSatB t = true → n ≠ 0 ∧ ∀ fd, defs[i]? = some fd → fd.principalArgIdx < n) ∧
+    (¬ FixHeaded t → fixSatBFn t = true →
+      n ≠ 0 ∧ ∀ fd, defs[i]? = some fd → fd.principalArgIdx < n) := by
+  induction hsp with
+  | root h => exact ⟨fixSatB_root h, fun hnc => absurd h.fixHeaded hnc⟩
+  | appFn hnc _ ih =>
+      refine ⟨fun hc => ?_, fun _ hc => ?_⟩
+      · simp only [fixSatB, Bool.and_eq_true] at hc; exact ih.2 hnc hc.1.2
+      · simp only [fixSatBFn, Bool.and_eq_true] at hc; exact ih.2 hnc hc.1
+  | appArg _ ih =>
+      refine ⟨fun hc => ?_, fun _ hc => ?_⟩
+      · simp only [fixSatB, Bool.and_eq_true] at hc; exact ih.1 hc.2
+      · simp only [fixSatBFn, Bool.and_eq_true] at hc; exact ih.1 hc.2
+  | constructArg hx _ ih =>
+      refine ⟨fun hc => ?_, fun _ hc => ?_⟩
+      · rw [fixSatB] at hc; exact ih.1 (fixSatBArgs_mem hc hx)
+      · rw [fixSatBFn] at hc; exact ih.1 (fixSatBArgs_mem hc hx)
+  | lambda _ ih =>
+      refine ⟨fun hc => ?_, fun _ hc => ?_⟩
+      · rw [fixSatB] at hc; exact ih.1 hc
+      · rw [fixSatBFn] at hc; exact ih.1 hc
+  | letInVal _ ih =>
+      refine ⟨fun hc => ?_, fun _ hc => ?_⟩
+      · simp only [fixSatB, Bool.and_eq_true] at hc; exact ih.1 hc.1
+      · simp only [fixSatBFn, Bool.and_eq_true] at hc; exact ih.1 hc.1
+  | letInBody _ ih =>
+      refine ⟨fun hc => ?_, fun _ hc => ?_⟩
+      · simp only [fixSatB, Bool.and_eq_true] at hc; exact ih.1 hc.2
+      · simp only [fixSatBFn, Bool.and_eq_true] at hc; exact ih.1 hc.2
+  | caseDiscr _ ih =>
+      refine ⟨fun hc => ?_, fun _ hc => ?_⟩
+      · simp only [fixSatB, Bool.and_eq_true] at hc; exact ih.1 hc.1
+      · simp only [fixSatBFn, Bool.and_eq_true] at hc; exact ih.1 hc.1
+  | caseAlt ha _ ih =>
+      refine ⟨fun hc => ?_, fun _ hc => ?_⟩
+      · simp only [fixSatB, Bool.and_eq_true] at hc
+        exact ih.1 (fixSatBAlts_mem hc.2 ha)
+      · simp only [fixSatBFn, Bool.and_eq_true] at hc
+        exact ih.1 (fixSatBAlts_mem hc.2 ha)
+  | proj _ ih =>
+      refine ⟨fun hc => ?_, fun _ hc => ?_⟩
+      · rw [fixSatB] at hc; exact ih.1 hc
+      · rw [fixSatBFn] at hc; exact ih.1 hc
+  | fixBody hd _ ih =>
+      refine ⟨fun hc => ?_, fun hnc _ => absurd (IsFixSpine.fix).fixHeaded hnc⟩
+      simp only [fixSatB, Bool.and_eq_true] at hc
+      exact ih.1 (fixSatBDefs_mem hc.2 hd)
+
+mutual
+/-- `FixSelfApplied`, decided: `ctx` is the binder demands in scope and `k` the number of
+arguments `t` is itself applied to, so a de Bruijn head is read against the whole spine. -/
+def fixSelfB : LBTerm → List Nat → Nat → Bool
+  | .bvar n, ctx, k => match ctx[n]? with | some m => m ≤ k | none => true
+  | .app f a, ctx, k => fixSelfB f ctx (k + 1) && fixSelfB a ctx 0
+  | .lambda _ b, ctx, _ => fixSelfB b (0 :: ctx) 0
+  | .letIn _ v b, ctx, _ => fixSelfB v ctx 0 && fixSelfB b (0 :: ctx) 0
+  | .construct _ _ args, ctx, _ => fixSelfBArgs args ctx
+  | .case _ d alts, ctx, _ => fixSelfB d ctx 0 && fixSelfBAlts alts ctx
+  | .proj _ e, ctx, _ => fixSelfB e ctx 0
+  | .fix defs _, ctx, _ => fixSelfBDefs defs (fixDemands defs ++ ctx)
+  | .box, _, _ => true
+  | .fvar _, _, _ => true
+  | .const _, _, _ => true
+  | .prim _, _, _ => true
+
+/-- `fixSelfB` over a constructor's arguments. -/
+def fixSelfBArgs : List LBTerm → List Nat → Bool
+  | [], _ => true
+  | t :: r, ctx => fixSelfB t ctx 0 && fixSelfBArgs r ctx
+
+/-- `fixSelfB` over case alternatives, each below its own field binders, which demand
+nothing — `repeat 0 #|br.1| ++ Γ` (`EEtaExpandedFix.v:43`). -/
+def fixSelfBAlts : List (List BinderName × LBTerm) → List Nat → Bool
+  | [], _ => true
+  | (ns, b) :: r, ctx =>
+      fixSelfB b (List.replicate ns.length 0 ++ ctx) 0 && fixSelfBAlts r ctx
+
+/-- `fixSelfB` over the definitions of a `.fix` block, under the demands the caller has
+already pushed. -/
+def fixSelfBDefs : List (@FixDef LBTerm) → List Nat → Bool
+  | [], _ => true
+  | d :: r, ctx => fixSelfB d.body ctx 0 && fixSelfBDefs r ctx
+end
+
+/-- The check descends into each argument. -/
+theorem fixSelfBArgs_mem : ∀ {l : List LBTerm} {ctx : List Nat} {x : LBTerm},
+    fixSelfBArgs l ctx = true → x ∈ l → fixSelfB x ctx 0 = true
+  | _ :: _, ctx, x, h, hx => by
+      simp only [fixSelfBArgs, Bool.and_eq_true] at h
+      rcases List.mem_cons.1 hx with rfl | hx
+      · exact h.1
+      · exact fixSelfBArgs_mem h.2 hx
+
+/-- The check descends into each branch body, under that branch's own field binders. -/
+theorem fixSelfBAlts_mem :
+    ∀ {l : List (List BinderName × LBTerm)} {ctx : List Nat} {ns : List BinderName} {b : LBTerm},
+      fixSelfBAlts l ctx = true → (ns, b) ∈ l →
+        fixSelfB b (List.replicate ns.length 0 ++ ctx) 0 = true
+  | a :: _, ctx, ns, b, h, hx => by
+      obtain ⟨ns', b'⟩ := a
+      simp only [fixSelfBAlts, Bool.and_eq_true] at h
+      rcases List.mem_cons.1 hx with heq | hx
+      · cases heq; exact h.1
+      · exact fixSelfBAlts_mem h.2 hx
+
+/-- The check descends into each definition of a block. -/
+theorem fixSelfBDefs_mem : ∀ {l : List (@FixDef LBTerm)} {ctx : List Nat} {d : @FixDef LBTerm},
+    fixSelfBDefs l ctx = true → d ∈ l → fixSelfB d.body ctx 0 = true
+  | _ :: _, ctx, d, h, hx => by
+      simp only [fixSelfBDefs, Bool.and_eq_true] at h
+      rcases List.mem_cons.1 hx with rfl | hx
+      · exact h.1
+      · exact fixSelfBDefs_mem h.2 hx
+
+/-- Every located de Bruijn occurrence carries what its binder demands. -/
+theorem fixSelf_sound {ctx : List Nat} {k : Nat} {t : LBTerm} {m k' : Nat}
+    (h : BVarDemand ctx k t m k') : fixSelfB t ctx k = true → m ≤ k' := by
+  induction h with
+  | bvar hn => intro hc; rw [fixSelfB, hn] at hc; simpa using hc
+  | appFn _ ih => intro hc; simp only [fixSelfB, Bool.and_eq_true] at hc; exact ih hc.1
+  | appArg _ ih => intro hc; simp only [fixSelfB, Bool.and_eq_true] at hc; exact ih hc.2
+  | lambda _ ih => intro hc; rw [fixSelfB] at hc; exact ih hc
+  | letInVal _ ih => intro hc; simp only [fixSelfB, Bool.and_eq_true] at hc; exact ih hc.1
+  | letInBody _ ih => intro hc; simp only [fixSelfB, Bool.and_eq_true] at hc; exact ih hc.2
+  | constructArg hx _ ih => intro hc; rw [fixSelfB] at hc; exact ih (fixSelfBArgs_mem hc hx)
+  | caseDiscr _ ih => intro hc; simp only [fixSelfB, Bool.and_eq_true] at hc; exact ih hc.1
+  | caseAlt ha _ ih =>
+      intro hc
+      simp only [fixSelfB, Bool.and_eq_true] at hc
+      exact ih (fixSelfBAlts_mem hc.2 ha)
+  | proj _ ih => intro hc; rw [fixSelfB] at hc; exact ih hc
+  | fixBody hd _ ih => intro hc; rw [fixSelfB] at hc; exact ih (fixSelfBDefs_mem hc hd)
+
+/-- `LBExpandedFix`, decided. -/
+def lbExpandedFixB (Γ : GlobalDeclarations) (t : LBTerm) : Bool := progB Γ t fixSatB
+
+/-- `LBFixSelfApplied`, decided. -/
+def lbFixSelfAppliedB (Γ : GlobalDeclarations) (t : LBTerm) : Bool :=
+  progB Γ t fun u => fixSelfB u [] 0
+
+/-- `LBExpandedTFix`, decided: the three conjuncts of `expanded_tFix`. -/
+def lbExpandedTFixB (Γ : GlobalDeclarations) (t : LBTerm) : Bool :=
+  lbExpandedFixB Γ t && onProgramB Γ t fixLambdaNode && lbFixSelfAppliedB Γ t
+
+/-- `LBWfPeregrine.expandedFix`, decided. -/
+theorem lbExpandedTFixB_sound {Γ : GlobalDeclarations} {t : LBTerm}
+    (h : lbExpandedTFixB Γ t = true) : LBExpandedTFix Γ t := by
+  simp only [lbExpandedTFixB, lbExpandedFixB, lbFixSelfAppliedB, Bool.and_eq_true] at h
+  obtain ⟨⟨hfix, hlam⟩, hself⟩ := h
+  exact ⟨progB_sound (fun _ hu _ _ _ hsp => (fixSat_sound hsp).1 hu) hfix,
+    onProgramB_sound fixLambda_of_nodes hlam,
+    progB_sound (fun _ hu _ _ hd => fixSelf_sound hd hu) hself⟩
+
 /-! ## The entry point -/
 
 /-- `LBWfPeregrine`, decided: eleven conjuncts for its twelve clauses, the last saturation
@@ -657,7 +945,7 @@ def lbWfPeregrineB (Γ : GlobalDeclarations) (t : LBTerm) : Bool :=
     && progB Γ t noBlockB
     && onProgramB Γ t (ctorsDeclaredNode Γ)
     && onProgramB Γ t (casesExhNode Γ)
-    && onProgramB Γ t fixLambdaNode
+    && lbExpandedTFixB Γ t
     && onProgramB Γ t (projDeclNode Γ)
     && progB Γ t (ctorSatB Γ)
     && onProgramB Γ t printableNode
@@ -680,7 +968,7 @@ theorem lbWfPeregrine_of_check {Γ : GlobalDeclarations} {t : LBTerm}
       ctorApplied := progB_sound noBlockB_sound hblock
       ctorDecl := onProgramB_sound ctorsDeclared_of_nodes hctor
       casesExh := onProgramB_sound casesExhaustive_of_nodes hcase
-      fixLambda := onProgramB_sound fixLambda_of_nodes hfix
+      expandedFix := lbExpandedTFixB_sound hfix
       projDecl := onProgramB_sound projsDeclared_of_nodes hproj
       etaCtorsEnv := fun kn b iid k n hb hsp a ha => hsatP.2 kn b hb iid k n hsp a ha
       etaCtorsTm := fun iid k n hsp a ha => hsatP.1 iid k n hsp a ha
@@ -698,5 +986,41 @@ example :
 /-- The checker is not constantly `true`: the same term at an empty environment names a
 constant that resolves nowhere. -/
 example : lbWfPeregrineB [] (.const (rootKername "z")) = false := by decide +kernel
+
+/-! ### The fixpoint clause, separated
+
+One block, four bodies, each isolating one conjunct of `expanded_tFix`. -/
+
+/-- A one-member block whose body is `fun _ => b`. -/
+private def demoBlock (b : LBTerm) : List (@FixDef LBTerm) := [⟨.anon, .lambda .anon b, 0⟩]
+
+/-- The spine conjunct bites: a constant whose body is a **bare** `.fix` node — the shape the
+eraser registered before `Erasure.etaExpandFix` — is rejected, because `expanded_tFix` admits
+a `.fix` only under a non-empty spine. -/
+example : lbExpandedTFixB
+    [(rootKername "f", .constantDecl ⟨some (.fix (demoBlock (.bvar 0)) 0)⟩)]
+    (.const (rootKername "f")) = false := by decide +kernel
+
+/-- The η-expanded shape `Erasure.etaExpandFix` emits is accepted at the same block. -/
+example : lbExpandedTFixB
+    [(rootKername "f", .constantDecl
+        ⟨some (.lambda .anon (.app (.fix (demoBlock (.bvar 0)) 0) (.bvar 0)))⟩)]
+    (.const (rootKername "f")) = true := by decide +kernel
+
+/-- The self-application conjunct is not implied by the other two: this block is η-expanded
+and λ-headed, and is still rejected, because the member body's self-reference `.bvar 1`
+carries no argument where `fixDemands` asks for `1 + rarg = 1`. -/
+example : lbExpandedTFixB
+    [(rootKername "f", .constantDecl
+        ⟨some (.lambda .anon (.app (.fix (demoBlock (.bvar 1)) 0) (.bvar 0)))⟩)]
+    (.const (rootKername "f")) = false := by decide +kernel
+
+/-- The same block with the self-reference applied to one argument is accepted: the shape a
+`visitMutual` run emits, and the one the corpus measurement finds at all 56 self-references. -/
+example : lbExpandedTFixB
+    [(rootKername "f", .constantDecl
+        ⟨some (.lambda .anon
+          (.app (.fix (demoBlock (.app (.bvar 1) (.bvar 0))) 0) (.bvar 0)))⟩)]
+    (.const (rootKername "f")) = true := by decide +kernel
 
 end LeanToLambdaBox

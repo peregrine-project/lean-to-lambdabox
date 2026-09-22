@@ -244,7 +244,8 @@ theorem ConstToFVar.abstracts {kns : List Kername} {ids : List FVarId} {x : FVar
 
 /-- The composite at a λ binder: the run opens the binder into `x`, erases, and closes with
 `toBvar x 0`; `Erases.uninstantiate` closes the erasure image and the two pass factors follow
-it. `Lower.lambda` leaves the emitted binder name free, so the run's own name is admissible. -/
+it. `Erases.lam` and `Lower.lambda` both leave the emitted binder name free, so `.anon` is as
+admissible a choice as the run's own name. -/
 theorem ErasesLBMode.lam (hfv : FVarFreeBodies Γspec) {x : FVarId}
     (hxids : ∀ nms ids, BlockKeyed tbl ctx nms ids → x ∉ ids)
     {n : Name} {ty b : Expr} {bi : BinderInfo} {ty' body' : VExpr} {deps : List FVarId}
@@ -262,10 +263,11 @@ theorem ErasesLBMode.lam (hfv : FVarFreeBodies Γspec) {x : FVarId}
     have := hbody.closed; simpa [Lean4Lean.VLCtx.bvars, hΔbv] using this
   refine ⟨fun hfx => ?_, fun nms ids hfx => ?_⟩
   · obtain ⟨t₀, her, hl⟩ := h.1 hfx
-    exact ⟨_, .lam hty (her.uninstantiate sc hc), .lambda (Lower.abstract hfv hl x 0)⟩
+    exact ⟨_, .lam (n' := .anon) hty (her.uninstantiate sc hc),
+      .lambda (Lower.abstract hfv hl x 0)⟩
   · obtain ⟨t₀, t₁, her, hl, hcf⟩ := h.2 nms ids hfx
-    exact ⟨.lambda (.named n.toString) (toBvar x 0 t₀), .lambda N (toBvar x 0 t₁),
-      .lam hty (her.uninstantiate sc hc), .lambda (Lower.abstract hfv hl x 0),
+    exact ⟨.lambda .anon (toBvar x 0 t₀), .lambda N (toBvar x 0 t₁),
+      .lam (n' := .anon) hty (her.uninstantiate sc hc), .lambda (Lower.abstract hfv hl x 0),
       .lambda (hcf.abstracts (hxids nms ids hfx) 0)⟩
 
 /-- The composite at a `let` binder. The value is erased *inside* the extended context, so
@@ -290,12 +292,12 @@ theorem ErasesLBMode.letE (hfv : FVarFreeBodies Γspec) {x : FVarId}
   refine ⟨fun hfx => ?_, fun nms ids hfx => ?_⟩
   · obtain ⟨v₀, herv, hlv⟩ := hv.1 hfx
     obtain ⟨t₀, her, hl⟩ := h.1 hfx
-    exact ⟨_, .letE hty hval (herv.strengthen_vlet scv) (her.uninstantiate scb hc),
+    exact ⟨_, .letE (n' := .anon) hty hval (herv.strengthen_vlet scv) (her.uninstantiate scb hc),
       .letIn hlv (Lower.abstract hfv hl x 0)⟩
   · obtain ⟨v₀, v₁, herv, hlv, hcv⟩ := hv.2 nms ids hfx
     obtain ⟨t₀, t₁, her, hl, hcf⟩ := h.2 nms ids hfx
-    exact ⟨.letIn (.named n.toString) v₀ (toBvar x 0 t₀), .letIn N v₁ (toBvar x 0 t₁),
-      .letE hty hval (herv.strengthen_vlet scv) (her.uninstantiate scb hc),
+    exact ⟨.letIn .anon v₀ (toBvar x 0 t₀), .letIn N v₁ (toBvar x 0 t₁),
+      .letE (n' := .anon) hty hval (herv.strengthen_vlet scv) (her.uninstantiate scb hc),
       .letIn hlv (Lower.abstract hfv hl x 0),
       .letIn hcv (hcf.abstracts (hxids nms ids hfx) 0)⟩
 
@@ -323,7 +325,7 @@ theorem step_visitAppArgs : Step7 lenv env Us tbl cfg gw := by
   have hP := run_array_foldlM_ok ctx cctx ref
     (P := fun pre acc s₁ w₁ =>
       RunConcl s s₁ ∧ IndRegistryModelled env s₁ ∧ gw w ≤ gw w₁ ∧
-        ∀ Γspec, SpecEnv env tbl.body? s₁ Γspec →
+        ∀ Γspec, SpecEnv env tbl.body? tbl.levels? s₁ Γspec →
           ErasesLBMode tbl ctx env Us Γspec Δ (pre.foldl Expr.app e) acc)
     ⟨RunConcl.rfl' _, hinv.indcanon, NameGenerator.LE.rfl, hhd⟩
     (fun pre x post acc s₁ w₁ acc' s₂ w₂ hLpre hPacc hg => by
@@ -343,13 +345,15 @@ theorem step_visitAppArgs : Step7 lenv env Us tbl cfg gw := by
 
 /-! ## Step 1 — `Erasure.visitExpr` -/
 
-/-- **Step 1.** The relevance oracle first: a `true` verdict is `ErasesLBMode.box`, at the
-ambient scope through the verified checker and at any other scope through the assumed
-`Oracle.MetaSound`. Otherwise the shape condition selects the arm, and each arm is one
-member's motive. A `false` verdict is also where the type-former exclusion is produced:
-`EraserAsks.oracle_informative` reads it off the two oracle clauses at the ambient scope, which
-`BridgeInv.lparams` says the reader is at, and the two spine arms hand it to `Motive11`. -/
-theorem step_visitExpr (E : EraserAsks lenv env Us gw) : Step1 lenv env Us tbl cfg gw := by
+/-- **Step 1.** The relevance oracle first: a `true` verdict is `ErasesLBMode.box`, through
+the verified checker at the scope the reader holds its translation witness at, which
+`BridgeInv.lparams` identifies with the scope the verdict was taken under. `oracle_meta`,
+which covers a verdict taken at any other scope, is unreachable here for that reason, and
+what it concludes there is erasability at *that* scope, not at the reader's. Otherwise the
+shape condition selects the arm, and each arm is one member's motive. A `false` verdict is
+also where the type-former exclusion is produced: `EraserAsks.oracle_informative` reads it
+off the two oracle clauses at `ctx.lparams`, and the two spine arms hand it to `Motive11`. -/
+theorem step_visitExpr (E : EraserAsks lenv env gw) : Step1 lenv env Us tbl cfg gw := by
   intro P _htbl _hcfg _hcb vExpr vLit vLet vLam vProj vApp ih1 ih2 ih8 ih9 ih10 ih11
   refine ⟨?_, bodyLe1 ih1.2 ih2.2 ih8.2 ih9.2 ih10.2 ih11.2⟩
   replace ih1 := ih1.1
@@ -372,25 +376,25 @@ theorem step_visitExpr (E : EraserAsks lenv env Us gw) : Step1 lenv env Us tbl c
     obtain ⟨ve, hve⟩ := hex
     obtain ⟨m, mwf, hlctx, hvlctx⟩ := hinv.mlc
     subst hvlctx
-    have her : Erasable env Us.length m.vlctx.toCtx ve := by
-      by_cases hlp : ctx.lparams = Us
-      · exact P.oracle_sound_of_run horc hlp mwf hlctx hinv.kfresh hve
-      · exact P.oracle_meta _ _ _ _ _ _ _ _ horc hlp m ve mwf hlctx hinv.kfresh hve
+    have her : Erasable env Us.length m.vlctx.toCtx ve :=
+      P.oracle_sound_of_run horc hinv.lparams mwf hlctx hinv.kfresh hve
     exact ⟨RunConcl.rfl' _, hinv.indcanon, hle₁, fun _ _ => ErasesLBMode.box hve her⟩
   · rw [if_neg hc] at hk
     have hinv' := hinv.mono hle₁
-    -- the head is not a type former: the oracle said `false` at the ambient level scope
+    -- the head is not a type former: the oracle said `false` at the scope of the call
     have hnind : ∀ (c' : Name) (us' : List Level), e.getAppFn = .const c' us' →
         ∀ (iid : InductiveId) (np : Nat) (nfs : List Nat), ¬ IndInfo env c' iid np nfs := by
       obtain ⟨ve, hve⟩ := hex
       obtain ⟨m, mwf, hlctx, hvlctx⟩ := hinv.mlc
-      refine E.oracle_informative mwf hlctx (hvlctx ▸ hinv.kfresh)
+      refine E.oracle_informative (by rw [hinv.lparams]; exact mwf) hlctx
+        (hvlctx ▸ hinv.kfresh)
         (show Erasure.liftMetaM (Erasure.isErasable ctx.lparams e) s ctx cctx ref w
             = .ok (false, s) w₁ from (Bool.not_eq_true c ▸ hc : c = false) ▸ horc)
-        hinv.lparams (hvlctx ▸ hve)
+        (by rw [hinv.lparams]; exact hvlctx ▸ hve)
     have hnext : ∀ {t₀ : LBTerm} {s₂ : ErasureState} {w₂ : Void IO.RealWorld},
         RunConcl s s₂ ∧ IndRegistryModelled env s₂ ∧ gw w₁ ≤ gw w₂ ∧
-          (∀ Γspec, SpecEnv env tbl.body? s₂ Γspec → ErasesLBMode tbl ctx env Us Γspec Δ e t₀) →
+          (∀ Γspec, SpecEnv env tbl.body? tbl.levels? s₂ Γspec →
+            ErasesLBMode tbl ctx env Us Γspec Δ e t₀) →
         RunRefines env Us tbl ctx Δ s s₂ (gw w) (gw w₂) e t₀ :=
       fun ⟨h1, h2, h3, h4⟩ => ⟨h1, h2, NameGenerator.LE.trans hle₁ h3, h4⟩
     obtain ⟨hterm, hbodies, hkn⟩ := hsupp
@@ -1110,13 +1114,34 @@ theorem envLookup_of_mem_of_keys {Γ : GlobalDeclarations} {kn : Kername} {d : G
 
 /-- **`LowerBlock.hfl` at a block the emitted environment declares.** The block's own entry
 is one of the constant bodies `LBWfPeregrine.fixLambda` quantifies over, and `keys` makes
-that entry answer its lookup. -/
-theorem visitMutual_block_hfl {Γ : GlobalDeclarations} {t : LBTerm} {kn : Kername}
+that entry answer its lookup. The entry is the body as registered and the node is reached
+inside it, because F-ETA registers `Erasure.etaExpandFix defs j` rather than the bare node. -/
+theorem visitMutual_block_hfl {Γ : GlobalDeclarations} {t b : LBTerm} {kn : Kername}
     {defs : List (@FixDef LBTerm)} {j : Nat} (hwf : LBWfPeregrine Γ t)
-    (hmem : (kn, .constantDecl ⟨some (.fix defs j)⟩) ∈ Γ) :
+    (hmem : (kn, .constantDecl ⟨some b⟩) ∈ Γ) (hsub : SubTerm (.fix defs j) b) :
     ∀ i, i < defs.length → isLambda (defs[i]!).body = true :=
   FixLambda.of_onProgram
-    ⟨hwf.fixLambda.2 kn _ (envLookup_of_mem_of_keys hwf.keys hmem), hwf.fixLambda.2⟩ .refl rfl
+    ⟨hwf.fixLambda.2 kn _ (envLookup_of_mem_of_keys hwf.keys hmem), hwf.fixLambda.2⟩ hsub rfl
+
+/-- **The block's node is a subterm of the η-expansion registered for it** (F-ETA): the
+expansion is `principalArgIdx + 1` binders over the node applied to its own indices, and the
+node sits at the head of that spine. -/
+theorem subTerm_fix_etaExpandFix {defs : List (@FixDef LBTerm)} {j : Nat} :
+    SubTerm (.fix defs j) (etaExpandFix defs j) := by
+  have hspine : ∀ (l : List Nat) (t : LBTerm), SubTerm (.fix defs j) t →
+      SubTerm (.fix defs j) (l.foldr (fun m u => LBTerm.app u (.bvar m)) t) := by
+    intro l
+    induction l with
+    | nil => exact fun _ h => h
+    | cons _ rest ih => exact fun t h => .appFn (ih t h)
+  have hlam : ∀ (l : List Nat) (t : LBTerm), SubTerm (.fix defs j) t →
+      SubTerm (.fix defs j) (l.foldl (fun u _ => LBTerm.lambda .anon u) t) := by
+    intro l
+    induction l with
+    | nil => exact fun _ h => h
+    | cons _ rest ih => exact fun t h => ih _ (.lambda h)
+  unfold etaExpandFix
+  exact hlam _ _ (hspine _ _ .refl)
 
 /-! ### The block's entries, from the registration fold -/
 
@@ -1136,7 +1161,7 @@ theorem gdecls_mono_foldl_recConstStep (defs : List (@FixDef LBTerm)) :
 /-- Every step of the fold leaves its own entry behind. -/
 theorem mem_gdecls_foldl_recConstStep (defs : List (@FixDef LBTerm)) :
     ∀ (ps : List (Name × Nat)) (p : Name × Nat) (s : ErasureState), p ∈ ps →
-      (toKername p.1, .constantDecl ⟨some (.fix defs p.2)⟩) ∈
+      (toKername p.1, .constantDecl ⟨some (etaExpandFix defs p.2)⟩) ∈
         (ps.foldl (recConstStep defs) s).gdecls := by
   intro ps
   induction ps with
@@ -1152,7 +1177,7 @@ theorem mem_gdecls_foldl_recConstStep (defs : List (@FixDef LBTerm)) :
 /-- `Erasure.visitMutual`'s recursive exit declares the block at every member's kername. -/
 theorem mem_gdecls_recConstState {names : List Name} {defs : List (@FixDef LBTerm)}
     {s : ErasureState} {p : Name × Nat} (hp : p ∈ names.zipIdx) :
-    (toKername p.1, .constantDecl ⟨some (.fix defs p.2)⟩) ∈
+    (toKername p.1, .constantDecl ⟨some (etaExpandFix defs p.2)⟩) ∈
       (recConstState names defs s).gdecls := by
   rw [recConstState_eq]; exact mem_gdecls_foldl_recConstStep defs _ p s hp
 
@@ -1172,6 +1197,7 @@ theorem visitMutual_block_hfl_of_run {names : List Name} {defs : List (@FixDef L
     (hp : p ∈ names.zipIdx) :
     ∀ i, i < defs.length → isLambda (defs[i]!).body = true :=
   visitMutual_block_hfl hwf (stateLe_mem_gdecls hle (mem_gdecls_recConstState hp))
+    subTerm_fix_etaExpandFix
 
 /-! ### The supply, exercised at a two-member block
 

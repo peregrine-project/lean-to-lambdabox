@@ -28,6 +28,9 @@ arm files and holds what they share:
 * `SEval.no_elimSpine_value` and `erases_elimSpine_no_value` — an eliminator spine one
   minor short heads no value, and is the erasure of no source term that has one — with
   `ErasesEnv.runtimeKey_isCasesOn` and the erasure-image exclusions they run on;
+* `TabledLevels` and `Erases.instantiateLevelParams_of_stepDefeq` — the level scope a tabled
+  body is erased at, as the bridge asks it of a whole table, and the transport of that erasure
+  to the scope the δ rule unfolds it at, as the δ arm reads it off `ErasesEnv.defns`;
 * `Simulates`, `StepIota`, `StepProj`, `StepDelta` — the induction's motive and the three
   step interfaces — and `ErasesCorrectStmt`/`ErasesCorrectLBStmt`, the statements
   `ErasesCorrect/Close.lean` inhabits.
@@ -268,7 +271,8 @@ theorem unconcat_index {α : Type} [Inhabited α] {R : α → α → Prop} {l l'
 
 /-- **The two readings of a lowered application.** The `app` congruence, or a *saturated*
 eliminator spine: `elimApp` with a non-empty `extra` re-associates into the congruence
-reading, and `fixBody` is excluded because an application is not a λ. -/
+reading, and the three block arms are excluded by `Lower.ne_block_image`, an application
+being neither a constant nor a λ. -/
 theorem Lower.source_app {Γ : GlobalDeclarations}
     {s t f a : LBTerm} (h : Lower Γ s t) (hs : s = .app f a) :
     (∃ f' a', t = .app f' a' ∧ Lower Γ f f' ∧ Lower Γ a a') ∨
@@ -276,7 +280,7 @@ theorem Lower.source_app {Γ : GlobalDeclarations}
         (pre : List LBTerm) (disc : LBTerm) (minors : List LBTerm),
       ElimDecl Γ kn iid np dp nfs ∧ pre.length = dp ∧ minors.length = nfs.length ∧
       LBTerm.app f a = LBTerm.mkApps (.const kn) (pre ++ disc :: minors)) := by
-  have hnf := Lower.ne_fix_of_block h (by rw [hs]; exact fun _ => LBTerm.noConfusion)
+  have hni := Lower.ne_block_image h (by rw [hs]; exact fun _ => LBTerm.noConfusion)
     (by rw [hs]; rfl)
   cases h with
   | @app f₀ f' a₀ a' hf ha =>
@@ -285,7 +289,8 @@ theorem Lower.source_app {Γ : GlobalDeclarations}
       exact .inl ⟨f', a', rfl, hf, ha⟩
   | box | bvar | fvar | prim | const | lambda | letIn | proj | construct | «case» =>
       exact LBTerm.noConfusion hs
-  | fixConst | fixBody => exact absurd rfl (hnf _ _)
+  | fixConst | fixBody => exact absurd rfl (hni.1 _ _)
+  | fixEta => exact absurd hni.2 (by simp [isLambda])
   | @elimApp kn iid np dp nfs pre disc disc' minors alts extra extra'
       hh hlen hmlen halen hmin hdisc hxlen hx =>
       rcases List.eq_nil_or_concat extra with rfl | ⟨init, last, rfl⟩
@@ -355,9 +360,9 @@ theorem subTerm_mkApps_arg : ∀ (ts : List LBTerm) (f x : LBTerm), x ∈ ts →
 /-- Everything a specification environment says of a program it says of a subterm: the five
 reachability-triggered clauses are antitone in the term, and `keys` and `tabled` mention it
 at all. -/
-theorem ErasesEnv.subterm {env : VEnv} {bo : Name → Option Expr}
-    {Γspec : GlobalDeclarations} {d t : LBTerm} (h : ErasesEnv env bo Γspec t)
-    (hs : SubTerm d t) : ErasesEnv env bo Γspec d :=
+theorem ErasesEnv.subterm {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
+    {Γspec : GlobalDeclarations} {d t : LBTerm} (h : ErasesEnv env bo lp Γspec t)
+    (hs : SubTerm d t) : ErasesEnv env bo lp Γspec d :=
   .mk h.keys (fun kn hr => h.deps kn (hr.subterm hs)) h.tabled
     (fun c b hbo hr => h.defns c b hbo (hr.subterm hs))
     (fun c hbo hco hnc hr => h.axioms c hbo hco hnc (hr.subterm hs))
@@ -390,10 +395,10 @@ theorem ReachableFrom.mkApps_inv {Γ : GlobalDeclarations} {kn : Kername}
   · exact .inr (mem_reachFrom_flatMap l h)
 
 /-- The environment relation reads only the program's reachable kernames. -/
-theorem ErasesEnv.ofReach {env : VEnv} {bo : Name → Option Expr}
-    {Γspec : GlobalDeclarations} {t u : LBTerm} (h : ErasesEnv env bo Γspec t)
+theorem ErasesEnv.ofReach {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
+    {Γspec : GlobalDeclarations} {t u : LBTerm} (h : ErasesEnv env bo lp Γspec t)
     (hre : ∀ kn, ReachableFrom Γspec u kn → ReachableFrom Γspec t kn) :
-    ErasesEnv env bo Γspec u :=
+    ErasesEnv env bo lp Γspec u :=
   .mk h.keys (fun kn hr => h.deps kn (hre kn hr)) h.tabled
     (fun c b hbo hr => h.defns c b hbo (hre _ hr))
     (fun c hbo hco hnc hr => h.axioms c hbo hco hnc (hre _ hr))
@@ -401,17 +406,17 @@ theorem ErasesEnv.ofReach {env : VEnv} {bo : Name → Option Expr}
     (fun hsh hinf hco hr => h.elims hsh hinf hco (hre _ hr))
 
 /-- `□` is read against every specification environment. -/
-theorem ErasesEnv.box {env : VEnv} {bo : Name → Option Expr}
-    {Γspec : GlobalDeclarations} {t : LBTerm} (h : ErasesEnv env bo Γspec t) :
-    ErasesEnv env bo Γspec .box :=
+theorem ErasesEnv.box {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
+    {Γspec : GlobalDeclarations} {t : LBTerm} (h : ErasesEnv env bo lp Γspec t) :
+    ErasesEnv env bo lp Γspec .box :=
   h.ofReach (fun _ hr => absurd hr not_reachableFrom_box)
 
 /-- A contractum names no kername its two parts do not: the environment relation survives
 the substitution the β and ζ steps perform. -/
-theorem ErasesEnv.substPair {env : VEnv} {bo : Name → Option Expr}
-    {Γspec : GlobalDeclarations} {s b : LBTerm} (hs : ErasesEnv env bo Γspec s)
-    (hb : ErasesEnv env bo Γspec b) :
-    ErasesEnv env bo Γspec (LBTerm.subst s 0 b) := by
+theorem ErasesEnv.substPair {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
+    {Γspec : GlobalDeclarations} {s b : LBTerm} (hs : ErasesEnv env bo lp Γspec s)
+    (hb : ErasesEnv env bo lp Γspec b) :
+    ErasesEnv env bo lp Γspec (LBTerm.subst s 0 b) := by
   refine .mk hb.keys (fun kn hr => ?_) hb.tabled (fun c bb hbo hr => ?_)
     (fun c hbo hco hnc hr => ?_) (fun hi hr => ?_) (fun hsh hinf hco hr => ?_) <;>
     rcases ReachableFrom.substList (l := [s]) (t := b) hr with hbr | ⟨x, hx, hxr⟩
@@ -432,10 +437,10 @@ theorem ErasesEnv.substPair {env : VEnv} {bo : Name → Option Expr}
     exact hs.elims hsh hinf hco hxr
 
 /-- A spine is read against the environment its head and its arguments are. -/
-theorem ErasesEnv.mkApps {env : VEnv} {bo : Name → Option Expr}
+theorem ErasesEnv.mkApps {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
     {Γspec : GlobalDeclarations} {f : LBTerm} {l : List LBTerm}
-    (hf : ErasesEnv env bo Γspec f) (hl : ∀ x ∈ l, ErasesEnv env bo Γspec x) :
-    ErasesEnv env bo Γspec (LBTerm.mkApps f l) := by
+    (hf : ErasesEnv env bo lp Γspec f) (hl : ∀ x ∈ l, ErasesEnv env bo lp Γspec x) :
+    ErasesEnv env bo lp Γspec (LBTerm.mkApps f l) := by
   refine .mk hf.keys (fun kn hr => ?_) hf.tabled (fun c bb hbo hr => ?_)
     (fun c hbo hco hnc hr => ?_) (fun hi hr => ?_) (fun hsh hinf hco hr => ?_) <;>
     rcases ReachableFrom.mkApps_inv l f hr with hfr | ⟨x, hx, hxr⟩
@@ -517,13 +522,14 @@ pass, which is where `Lower.source_box` and the spine inversion are spent.
 
 /-- **The box arm at the composite.** Both sides box, and `□` lowers only to `□`. -/
 theorem erases_correct_boxLow {env : VEnv} (henv : env.WF) {Us : List Name}
-    {bo : Name → Option Expr} {fl : SEvalFlags} {Γspec Γ : GlobalDeclarations}
+    {bo : Name → Option Expr} {lp : Name → List Name} {fl : SEvalFlags}
+    {Γspec Γ : GlobalDeclarations}
     {e v : Expr} {ve : VExpr} {t₀ t : LBTerm}
     (htr : TrExprS env Us [] e ve) (hbox : ErasesBox env Us [] e t₀)
-    (hlow : Lower Γspec t₀ t) (hspec : ErasesEnv env bo Γspec t₀)
+    (hlow : Lower Γspec t₀ t) (hspec : ErasesEnv env bo lp Γspec t₀)
     (hev : SEval env bo Us fl [] e v) :
     ∃ v₀ v', Erases env Us [] v v₀ ∧ Lower Γspec v₀ v' ∧ WcbvEval Γ eraseFlags t v' ∧
-      ErasesEnv env bo Γspec v₀ := by
+      ErasesEnv env bo lp Γspec v₀ := by
   obtain ⟨hb, rfl⟩ := hbox
   have ht : t = .box := Lower.source_box hlow rfl
   obtain ⟨v', her, hEv⟩ := erases_correct_box (Γ := Γ) (Δ := []) henv trivial htr hb hev
@@ -534,18 +540,19 @@ theorem erases_correct_boxLow {env : VEnv} (henv : env.WF) {Us : List Name}
 target folds by `eval_box`, whose discarded arguments evaluate because the induction
 hypotheses at them do. -/
 theorem erases_correct_boxSpineLow {env : VEnv} (henv : env.WF) {Us : List Name}
-    {bo : Name → Option Expr} {fl : SEvalFlags} {Γspec Γ : GlobalDeclarations}
+    {bo : Name → Option Expr} {lp : Name → List Name} {fl : SEvalFlags}
+    {Γspec Γ : GlobalDeclarations}
     {hd : Expr} {pre suf : List Expr} {ts : List LBTerm}
     {ve : VExpr} {v : Expr} {t : LBTerm}
     (htr : TrExprS env Us [] (mkApps hd (pre ++ suf)) ve)
     (hbox : ∃ we, TrExprS env Us [] (mkApps hd pre) we ∧
       Erasable env Us.length (VLCtx.toCtx []) we)
     (hlow : Lower Γspec (LBTerm.mkApps .box ts) t)
-    (hspec : ErasesEnv env bo Γspec (LBTerm.mkApps .box ts))
+    (hspec : ErasesEnv env bo lp Γspec (LBTerm.mkApps .box ts))
     (hargs : ∀ s ∈ ts, ∀ u, Lower Γspec s u → ∃ x, WcbvEval Γ eraseFlags u x)
     (hev : SEval env bo Us fl [] (mkApps hd (pre ++ suf)) v) :
     ∃ v₀ v', Erases env Us [] v v₀ ∧ Lower Γspec v₀ v' ∧ WcbvEval Γ eraseFlags t v' ∧
-      ErasesEnv env bo Γspec v₀ := by
+      ErasesEnv env bo lp Γspec v₀ := by
   obtain ⟨hd', ts', rfl, hhd, hlen', hpt⟩ :=
     Lower.source_mkApps (fun _ _ => LBTerm.noConfusion) (fun _ => LBTerm.noConfusion)
       ts hlow
@@ -561,10 +568,11 @@ theorem erases_correct_boxSpineLow {env : VEnv} (henv : env.WF) {Us : List Name}
 
 /-! ## What the target does at a β-redex
 
-The β arm's function value erases to a λ, and a λ has two images: a λ, and — when the
-value is a block member's own specification body — that block's `.fix` node. At the second
-the target unfolds the fix instead of β-reducing, and the unfolding is a λ again, because
-`LowerBlock.hfl` says the emitted definition's body is one.
+The β arm's function value erases to a λ, and a λ has three images: a λ, and — when the
+value is a block member's own specification body — that block's `.fix` node or the
+η-expansion of it the registration writes. At the second the target unfolds the fix instead
+of β-reducing, and the unfolding is a λ again, because `LowerBlock.hfl` says the emitted
+definition's body is one; at the third one β precedes that unfolding.
 -/
 
 /-- The target reads `X` as a function that β-steps into `c`. -/
@@ -572,75 +580,196 @@ def BetaReady (Γ : GlobalDeclarations) (fl : WcbvFlags) (X c : LBTerm) : Prop :
   ∀ {f a av r : LBTerm}, WcbvEval Γ fl f X → WcbvEval Γ fl a av →
     WcbvEval Γ fl (LBTerm.subst1 av c) r → WcbvEval Γ fl (.app f a) r
 
-/-- A λ in the target comes from a λ, body to body: `lambda` is the only arm with a λ
-image. -/
-theorem Lower.target_lambda {Γ : GlobalDeclarations} {s t : LBTerm} {n : BinderName}
-    {b' : LBTerm} (h : Lower Γ s t) (ht : t = .lambda n b') :
-    ∃ m b, s = .lambda m b ∧ Lower Γ b b' := by
-  cases h with
-  | @lambda n₀ n' b₀ b₁ hb =>
-      injection ht with _ hbb
-      exact ⟨n₀, b₀, rfl, hbb ▸ hb⟩
-  | box | bvar | fvar | prim | const | letIn | app | proj | construct | «case» =>
-      exact LBTerm.noConfusion ht
-  | fixConst | fixBody => exact LBTerm.noConfusion ht
-  | @elimApp kn iid np dp nfs pre disc disc' minors alts extra extra' =>
-      obtain ⟨rfl, hc⟩ := mkApps_eq_lambda ht
-      exact LBTerm.noConfusion hc
+/-- Shifting by zero is the identity: the one arm of `shift` that is not a congruence adds
+`d` to an index. Spent where a β step substitutes into `LBTerm.etaFix`'s `.bvar 0`. -/
+theorem LBTerm.shift_zero : ∀ (t : LBTerm) (c : Nat), LBTerm.shift 0 c t = t := by
+  intro t
+  induction t using LBTerm.recData with
+  | hbox | hfvar | hconst | hprim => exact fun _ => rfl
+  | hbvar i => intro c; simp only [LBTerm.shift]; split <;> simp
+  | hlam n b ih => intro c; simp only [LBTerm.shift, ih]
+  | hletIn n v b ihv ihb => intro c; simp only [LBTerm.shift, ihv, ihb]
+  | happ f a ihf iha => intro c; simp only [LBTerm.shift, ihf, iha]
+  | hconstruct iid k args ih =>
+      intro c
+      simp only [LBTerm.shift, LBTerm.shiftArgs_eq_map]
+      rw [List.map_congr_left (fun x hx => ih x hx c), List.map_id_fun', id_eq]
+  | hcase info discr alts ihd iha =>
+      intro c
+      simp only [LBTerm.shift, ihd, LBTerm.shiftAlts_eq_map]
+      rw [List.map_congr_left (fun a ha => ?_), List.map_id_fun', id_eq]
+      rw [iha a ha (c + a.1.length)]
+  | hproj p e ih => intro c; simp only [LBTerm.shift, ih]
+  | hfix defs i ih =>
+      intro c
+      simp only [LBTerm.shift]
+      congr 1
+      have key : ∀ (l : List (@FixDef LBTerm)),
+          (∀ x ∈ l, LBTerm.shift 0 (c + defs.length) x.body = x.body) →
+          LBTerm.shiftDefs 0 (c + defs.length) l = l := by
+        intro l hshl
+        induction l with
+        | nil => rfl
+        | cons fd rest ihr =>
+            simp only [LBTerm.shiftDefs, hshl fd (List.mem_cons_self ..),
+              ihr (fun x hx => hshl x (List.mem_cons_of_mem _ hx))]
+      exact key defs (fun x hx => ih x hx _)
 
-/-- **The β transport.** A λ's image is β-ready at the same body: either it is a λ, or it
-is a block's `.fix` node, whose unfolding at `principalArgIdx = 0` is β-ready in turn. The
-`fixBody` case is a projection of `LowerBlock.hfl`: the emitted definition's body is a λ, so
-the unfolding is β-ready outright and no sub-case on the lowered body survives. -/
-theorem Lower.appReady {Γspec Γ : GlobalDeclarations} (hΓ : ClosedBodies Γspec)
-    {fl : WcbvFlags} (hg : fl.with_guarded_fix = true) {nm : BinderName} {b₀ : LBTerm}
-    {s t : LBTerm} (h : Lower Γspec s t) (hs : s = .lambda nm b₀) :
-    ∃ c, Lower Γspec b₀ c ∧ BetaReady Γ fl t c := by
-  revert hs
-  cases h with
-  | @lambda n₀ n' b₁ b' hb =>
-      intro hs
+/-- `substFix` leaves a term carrying none of the block's own identifiers alone. -/
+theorem substFix_eq_self {ids : List FVarId} {defs : List (@FixDef LBTerm)} {t : LBTerm}
+    (h : ∀ x ∈ ids, ¬ hasFVar x t) : substFix ids defs t = t :=
+  substFVarList_eq_self_of_not_hasFVar _ t (fun p hp => by
+    obtain ⟨q, hq, rfl⟩ := List.mem_map.mp hp
+    exact h q.1 (List.fst_mem_of_mem_zipIdx hq))
+
+/-- The η-wrapper's body under the β substitution: the block's node is closed, so only the
+`.bvar 0` moves, and it becomes the argument. -/
+theorem subst1_app_fix_bvar {defs : List (@FixDef LBTerm)} {j : Nat} (av : LBTerm)
+    (hcl : LBClosed (LBTerm.fix defs j) 0) :
+    LBTerm.subst1 av (.app (.fix defs j) (.bvar 0)) = .app (.fix defs j) av := by
+  show LBTerm.app (LBTerm.subst av 0 (.fix defs j)) (LBTerm.subst av 0 (.bvar 0)) = _
+  rw [hcl.subst_eq (Nat.le_refl 0) av]
+  congr 1
+  simp [LBTerm.subst, LBTerm.shift_zero]
+
+/-- **The β transport at a block's `.fix` node.** The fix fires at `principalArgIdx = 0`
+(`LowerBlock.hrarg`) and the unfolded body — a λ, by `LowerBlock.hfl` — carries the
+transport on. -/
+theorem betaReady_fix {Γspec Γ : GlobalDeclarations} {fl : WcbvFlags}
+    (hg : fl.with_guarded_fix = true) {kns : List Kername} {bs bs' : List LBTerm}
+    {ids : List FVarId} {defs : List (@FixDef LBTerm)} {j : Nat} {c : LBTerm}
+    (hblock : LowerBlock Γspec kns bs bs' ids defs) (hjl : j < defs.length)
+    (h : BetaReady Γ fl (LBTerm.substList (LBTerm.fixSubst defs) (defs[j]!).body) c) :
+    BetaReady Γ fl (.fix defs j) c := by
+  intro f a av r hf ha hr
+  obtain ⟨n₁, b₁, he⟩ :=
+    isLambda_eq_true (isLambda_substList (LBTerm.fixSubst defs) (hblock.hfl j hjl))
+  refine .fix_guarded (argsv := []) hg hf ha (getElem?_getElem! hjl)
+    (hblock.hrarg _ (Lower.getElem!_mem hjl)) ?_
+  rw [LBTerm.mkApps_nil]
+  exact h (by rw [he]; exact .lam n₁ b₁) (value_final (eval_to_value ha)) hr
+
+/-- **The β transport at the η-expanded node.** One `WcbvEval.beta` in front of the node's
+own transport: the wrapper's body substitutes to `(fix defs j) av`, the block's node being
+closed. This is the shape `Erasure.visitMutual` registers (F-ETA). -/
+theorem betaReady_etaFix {Γspec Γ : GlobalDeclarations} (hΓ : ClosedBodies Γspec)
+    {fl : WcbvFlags} {kns : List Kername} {bs bs' : List LBTerm} {ids : List FVarId}
+    {defs : List (@FixDef LBTerm)} {j : Nat} {c : LBTerm} {n : BinderName}
+    (hblock : LowerBlock Γspec kns bs bs' ids defs)
+    (h : BetaReady Γ fl (.fix defs j) c) :
+    BetaReady Γ fl (.lambda n (.app (.fix defs j) (.bvar 0))) c := by
+  intro f a av r hf ha hr
+  refine .beta hf ha ?_
+  rw [subst1_app_fix_bvar av (hblock.lbClosed_fix hΓ j)]
+  exact h (.fix_atom defs j) (value_final (eval_to_value ha)) hr
+
+/-- **The block arms' common step.** A member's own transport, read under the block closure,
+is the transport at the block's node: `LowerBlock.substList_fixSubst` identifies the dynamic
+unfolding with `substFix`, and `betaReady_fix` supplies the step. -/
+theorem Lower.betaReady_of_block {Γspec Γ : GlobalDeclarations} (hΓ : ClosedBodies Γspec)
+    {fl : WcbvFlags} (hg : fl.with_guarded_fix = true) {kns : List Kername}
+    {bs bs' : List LBTerm} {ids : List FVarId} {defs : List (@FixDef LBTerm)} {j : Nat}
+    {b₀ : LBTerm} (hblock : LowerBlock Γspec kns bs bs' ids defs) (hjl : j < defs.length)
+    (hmem : ∀ t' : LBTerm, ConstToFVar kns ids bs'[j]! t' →
+      ∃ c, Lower Γspec b₀ c ∧ BetaReady Γ fl (substFix ids defs t') c) :
+    ∃ c, Lower Γspec b₀ c ∧ BetaReady Γ fl (.fix defs j) c := by
+  have hjk : j < kns.length := by rw [← hblock.hd]; exact hjl
+  obtain ⟨u, hct, heq⟩ := hblock.hcl j hjk
+  obtain ⟨c, hc, hbr⟩ := hmem u hct
+  refine ⟨c, hc, betaReady_fix hg hblock hjl ?_⟩
+  have hbcl : LBClosed bs'[j]! 0 :=
+    Lower.closed hΓ (hblock.hlow j hjk) 0 (hΓ _ _ (hblock.hdecl j hjk))
+  rwa [heq, hblock.substList_fixSubst hΓ (hct.closed hbcl)]
+
+/-- **The β transport, with the block closure carried.** A λ's image is β-ready at an image
+of the λ's body: at `lambda` outright, at `fixBody` and `fixEta` through the block's own
+unfolding, which `LowerBlock.hfl` makes a λ again.
+
+The second conjunct is the same statement read under a block closure — `Lower.constToFix`'s
+transport — and it is what the two block arms spend at the member's own `hlow`. It is not
+replaceable by inverting the transported derivation body to body: the `fixEta` arm makes
+that inversion false, since `Lower Γ (.lambda nm (.bvar 0)) (LBTerm.etaFix defs j)` is
+derivable while `Lower Γ (.bvar 0) (.app (.fix defs j) (.bvar 0))` is refuted by
+`Lower.source_bvar`. The recursion therefore runs on the derivation, where the block a
+wrapper names is reached through the member's own `hlow`. -/
+theorem Lower.appReady_aux {Γspec Γ : GlobalDeclarations} (hΓ : ClosedBodies Γspec)
+    {fl : WcbvFlags} (hg : fl.with_guarded_fix = true) :
+    ∀ {s t : LBTerm}, Lower Γspec s t →
+      ∀ (nm : BinderName) (b₀ : LBTerm), s = .lambda nm b₀ →
+        (∃ c, Lower Γspec b₀ c ∧ BetaReady Γ fl t c) ∧
+        (∀ (kns : List Kername) (bs bs' : List LBTerm) (ids : List FVarId)
+            (defs : List (@FixDef LBTerm)), LowerBlock Γspec kns bs bs' ids defs →
+          (∀ x ∈ ids, ¬ hasFVar x t) → ∀ t' : LBTerm, ConstToFVar kns ids t t' →
+          ∃ c, Lower Γspec b₀ c ∧ BetaReady Γ fl (substFix ids defs t') c) := by
+  intro s t h
+  induction h using Lower.rec (motive_2 := fun _ _ _ _ => True) with
+  | box | bvar | fvar | prim | const | letIn | app | proj | construct | «case» | fixConst =>
+      exact fun _ _ hs => LBTerm.noConfusion hs
+  | @elimApp kn iid np dp nfs pre disc disc' minors alts extra extra' =>
+      intro nm b₀ hs
+      obtain ⟨g, b, he⟩ := mkApps_ne_nil_is_app (f := LBTerm.const kn)
+        (args := pre ++ disc :: minors ++ extra) (by cases pre <;> simp)
+      rw [he] at hs; exact LBTerm.noConfusion hs
+  | @lambda n₀ n' b₁ b' hb _ =>
+      intro nm b₀ hs
       injection hs with _ hbb
       subst hbb
-      exact ⟨b', hb, fun hf ha hr => .beta hf ha hr⟩
-  | box | bvar | fvar | prim | const | letIn | app | proj | construct | «case» =>
-      intro hs; exact LBTerm.noConfusion hs
-  | fixConst => intro hs; exact LBTerm.noConfusion hs
-  | @elimApp kn iid np dp nfs pre disc disc' minors alts extra extra' =>
-      intro hs
-      obtain ⟨-, hc⟩ := mkApps_eq_lambda hs
-      exact LBTerm.noConfusion hc
+      refine ⟨⟨b', hb, fun hf ha hr => .beta hf ha hr⟩, ?_⟩
+      intro kns bs bs' ids defs hblk hfv t' hct
+      cases hct with
+      | @lambda _ n₂ _ b'' hb'' =>
+          refine ⟨substFix ids defs b'', ?_, ?_⟩
+          · exact Lower.constToFix hΓ hblk
+              (fun x hx hc => hfv x hx (by simpa only [hasFVar_lambda] using hc)) hb hb''
+          · rw [substFix_lambda]
+            exact fun hf ha hr => .beta hf ha hr
   | @fixBody b kns bs bs' ids defs j hb hb' hd hnd hids hilen hfresh hrarg hdecl hfl hlow
-      hcl hj hjl =>
-      intro hs
+      hcl hj hjl ih =>
+      intro nm b₀ hs
       have hblock : LowerBlock Γspec kns bs bs' ids defs :=
         ⟨hb, hb', hd, hnd, hids, hilen, hfresh, hrarg, hdecl, hfl, hlow, hcl⟩
       have hjk : j < kns.length := by rw [← hd]; exact hjl
       obtain ⟨-, hbsj⟩ := Lower.getElem!_of_getElem? hj
-      have hlam : bs[j]! = .lambda nm b₀ := hbsj.trans hs
-      obtain ⟨u, hct, heq⟩ := hcl j hjk
-      have hbcl : LBClosed bs'[j]! 0 :=
-        Lower.closed hΓ (hlow j hjk) 0 (hΓ _ _ (hdecl j hjk))
-      have hucl : LBClosed u 0 := hct.closed hbcl
-      have hsub : LBTerm.substList (LBTerm.fixSubst defs) (defs[j]!).body
-          = substFix ids defs u := by
-        rw [heq]; exact hblock.substList_fixSubst hΓ hucl
-      have hdj : defs[j]? = some defs[j]! := getElem?_getElem! hjl
-      have hrarg' : (defs[j]!).principalArgIdx = ([] : List LBTerm).length :=
-        hrarg _ (Lower.getElem!_mem hjl)
-      have hlowU : Lower Γspec bs[j]! (substFix ids defs u) :=
-        Lower.constToFix hΓ hblock (fun x hx => hfresh x hx j hjk) (hlow j hjk) hct
-      have hlamU : isLambda (substFix ids defs u) = true := by
-        rw [← hsub]; exact isLambda_substList _ (hfl j hjl)
-      obtain ⟨n'', c, hUeq⟩ := isLambda_eq_true hlamU
-      rw [hlam, hUeq] at hlowU
-      obtain ⟨m, b₂, hmb, hbc⟩ := Lower.target_lambda hlowU rfl
-      injection hmb with _ hb₀
-      subst hb₀
-      refine ⟨c, hbc, fun {f a av r} hf ha hr => ?_⟩
-      refine .fix_guarded (argsv := []) hg hf ha hdj hrarg' ?_
-      rw [LBTerm.mkApps_nil, hsub, hUeq]
-      exact .beta (.lam _ _) (value_final (eval_to_value ha)) hr
+      have hmain := Lower.betaReady_of_block hΓ hg hblock hjl (fun t' hct' =>
+        (ih j hjk nm b₀ (hbsj.trans hs)).2 kns bs bs' ids defs hblock
+          (fun x hx => hfresh x hx j hjk) t' hct')
+      refine ⟨hmain, ?_⟩
+      intro kns₂ bs₂ bs₂' ids₂ defs₂ _ hfv t' hct'
+      cases hct'
+      rw [substFix_eq_self hfv]
+      exact hmain
+  | @fixEta b nm₀ kns bs bs' ids defs j hb hb' hd hnd hids hilen hfresh hrarg hdecl hfl hlow
+      hcl hj hjl ih =>
+      intro nm b₀ hs
+      have hblock : LowerBlock Γspec kns bs bs' ids defs :=
+        ⟨hb, hb', hd, hnd, hids, hilen, hfresh, hrarg, hdecl, hfl, hlow, hcl⟩
+      have hjk : j < kns.length := by rw [← hd]; exact hjl
+      obtain ⟨-, hbsj⟩ := Lower.getElem!_of_getElem? hj
+      have hnode := Lower.betaReady_of_block hΓ hg hblock hjl (fun t' hct' =>
+        (ih j hjk nm b₀ (hbsj.trans hs)).2 kns bs bs' ids defs hblock
+          (fun x hx => hfresh x hx j hjk) t' hct')
+      obtain ⟨c, hc, hbr⟩ := hnode
+      refine ⟨⟨c, hc, betaReady_etaFix hΓ hblock hbr⟩, ?_⟩
+      intro kns₂ bs₂ bs₂' ids₂ defs₂ _ hfv t' hct'
+      cases hct' with
+      | @lambda _ n₂ _ w hlam =>
+          cases hlam with
+          | @app _ f' _ a' hf' ha' =>
+              cases hf'
+              cases ha'
+              refine ⟨c, hc, ?_⟩
+              rw [substFix_eq_self (fun x hx hcc => hfv x hx (by
+                simpa only [hasFVar_lambda, hasFVar_app, hasFVar_bvar, or_false] using hcc))]
+              exact betaReady_etaFix hΓ hblock hbr
+  | done | lam => exact trivial
+
+/-- **The β transport.** `Lower.appReady_aux`'s first conjunct: what the β and δ arms of the
+simulation spend at a lowered λ. -/
+theorem Lower.appReady {Γspec Γ : GlobalDeclarations} (hΓ : ClosedBodies Γspec)
+    {fl : WcbvFlags} (hg : fl.with_guarded_fix = true) {nm : BinderName} {b₀ : LBTerm}
+    {s t : LBTerm} (h : Lower Γspec s t) (hs : s = .lambda nm b₀) :
+    ∃ c, Lower Γspec b₀ c ∧ BetaReady Γ fl t c :=
+  (Lower.appReady_aux hΓ hg h nm b₀ hs).1
 
 /-! ## The emitted arity of a reached block
 
@@ -661,13 +790,13 @@ theorem getElem!_of_map_eq {α β : Type} [Inhabited α] [Inhabited β] {f : α 
 /-- **The emitted constructor arity of a reached block.** `ErasesEnv.blocks` plus
 `LowerEnv.inds` put `IndBodyOf`'s numbers where `WcbvEval.construct_atom` and
 `construct_app` read them. -/
-theorem ErasesEnv.ctorArity {env : VEnv} {bo : Name → Option Expr}
-    {Γspec Γ : GlobalDeclarations} {t : LBTerm} (hspec : ErasesEnv env bo Γspec t)
+theorem ErasesEnv.ctorArity {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
+    {Γspec Γ : GlobalDeclarations} {t : LBTerm} (hspec : ErasesEnv env bo lp Γspec t)
     (henvL : LowerEnv Γspec Γ) {I : Name} {iid : InductiveId} {np k : Nat} {nfs : List Nat}
     (hi : IndInfo env I iid np nfs)
     (hr : ReachableFrom Γspec t iid.mutualBlockName) (hk : k < nfs.length) :
     constructorArity Γ iid k = some (np + nfs[k]!) := by
-  obtain ⟨-, mib, hspecl, hnp, oib, hoib, -, hctors⟩ := hspec.blocks hi hr
+  obtain ⟨-, mib, hspecl, ⟨hnp, oib, hoib, hctors⟩, -⟩ := hspec.blocks hi hr
   obtain ⟨cb, hcb, hnargs⟩ := getElem!_of_map_eq hctors hk
   simp only [constructorArity, henvL.inds _ _ hspecl, hoib, hcb, Option.map_some, hnp,
     hnargs]
@@ -798,17 +927,17 @@ image, and no erasure image is an `ElimBody` — and to no body-less non-elimina
 entry `axioms` pins to `⟨none⟩`. So the constant behind it is a `casesOn` name with no
 compiler body. -/
 theorem ErasesEnv.runtimeKey_isCasesOn {env : VEnv} {bo : Name → Option Expr}
-    {Γspec : GlobalDeclarations} {t : LBTerm} {c : Name}
-    (h : ErasesEnv env bo Γspec t) (hco : ConstOrigin env c)
+    {lp : Name → List Name} {Γspec : GlobalDeclarations} {t : LBTerm} {c : Name}
+    (h : ErasesEnv env bo lp Γspec t) (hco : ConstOrigin env c)
     (hr : ReachableFrom Γspec t (toKername c)) (hrk : RuntimeKey Γspec (toKername c)) :
     isCasesOnName c = true ∧ bo c = none := by
   obtain ⟨iid, np, dp, nfs, ⟨body, hlook, helim⟩, -⟩ := hrk
   by_cases hb : ∃ b, bo c = some b
   · obtain ⟨b, hb⟩ := hb
-    obtain ⟨b₀, hlook', her⟩ := h.defns c b hb hr
+    obtain ⟨-, b₀, -, hlook', her, -⟩ := h.defns c b hb hr
     rw [hlook] at hlook'
     cases hlook'
-    exact absurd (erases_ne_elimBody (her [] [] []) (iid := iid) (np := np) (dp := dp)
+    exact absurd (erases_ne_elimBody her (iid := iid) (np := np) (dp := dp)
       (nfs := nfs)) (by simpa using helim)
   · have hnone : bo c = none := by
       cases hbo : bo c with
@@ -868,7 +997,7 @@ theorem erases_constSpine_value {env : VEnv} {bo : Name → Option Expr} {Us : L
   induction hev with
   | @lam n ty b bi =>
       intro kn args her
-      rcases Erases.lam_inv her with ⟨-, heq⟩ | ⟨ty', b', -, -, heq⟩ <;>
+      rcases Erases.lam_inv her with ⟨-, heq⟩ | ⟨_, ty', b', -, -, heq⟩ <;>
         exact (not_mkApps_const (fun _ _ => LBTerm.noConfusion)
           (fun _ => LBTerm.noConfusion) heq).elim
   | @beta f a n ty bd bi av r hfl hf ha hb ihf _ _ =>
@@ -887,7 +1016,7 @@ theorem erases_constSpine_value {env : VEnv} {bo : Name → Option Expr} {Us : L
           exact .beta hfl hsev ha hb
   | @zeta n ty v b nd vv r hfl hv hbd _ _ =>
       intro kn args her
-      rcases Erases.letE_inv her with ⟨-, heq⟩ | ⟨ty', val', v', b', -, -, -, -, heq⟩ <;>
+      rcases Erases.letE_inv her with ⟨-, heq⟩ | ⟨_, ty', val', v', b', -, -, -, -, heq⟩ <;>
         exact (not_mkApps_const (fun _ _ => LBTerm.noConfusion)
           (fun _ => LBTerm.noConfusion) heq).elim
   | @deltaC c us ups args argsv b b' v hfl hbd hnd hinst hlen hargs hdef hcont _ _ =>
@@ -939,11 +1068,12 @@ The source head is the `casesOn` constant behind the key (`runtimeKey_isCasesOn`
 carries no compiler body; `ErasesEnv.elims` at the reached key turns any relevant
 `CasesOnShape` at it into an `ElimDecl`, which `ElimDecl.uniq` equates with the entry's own
 numbers, and `SEval.no_elimSpine_value` closes it against the under-application bound. -/
-theorem erases_elimSpine_no_value {env : VEnv} {bo : Name → Option Expr} {Us : List Name}
-    {fl : SEvalFlags} {Γspec : GlobalDeclarations} (A : UpstreamAsks env)
+theorem erases_elimSpine_no_value {env : VEnv} {bo : Name → Option Expr}
+    {lp : Name → List Name} {Us : List Name} {fl : SEvalFlags}
+    {Γspec : GlobalDeclarations} (A : UpstreamAsks env)
     {kn : Kername} {iid : InductiveId} {np dp : Nat} {nfs : List Nat}
     {args : List LBTerm} {e w : Expr}
-    (hspec : ErasesEnv env bo Γspec (LBTerm.mkApps (.const kn) args))
+    (hspec : ErasesEnv env bo lp Γspec (LBTerm.mkApps (.const kn) args))
     (hed : ElimDecl Γspec kn iid np dp nfs) (hlt : args.length < dp + 1 + nfs.length)
     (her : Erases env Us [] e (LBTerm.mkApps (.const kn) args)) :
     ¬ SEval env bo Us fl [] e w := by
@@ -959,25 +1089,83 @@ theorem erases_elimSpine_no_value {env : VEnv} {bo : Name → Option Expr} {Us :
   obtain ⟨-, -, rfl, rfl⟩ := ElimDecl.uniq hed' hed
   exact ⟨rfl, hnfs'.symm⟩
 
+/-! ## The level scope of a tabled body
+
+`SEval.deltaC` unfolds a tabled body at a parameter list the rule binds as a *variable*, while
+`ErasesEnv.defns` records the erasure at the declaration's own scope. What reconciles the two
+is `erases_subst_instance`'s typing premise (`ErasureProperties.v:383`) on both sides: the
+rule's own `hdef` translates the instantiated body, and `ErasesEnv.defns`' own last conjunct
+translates the uninstantiated one, at the constant the program reaches.
+-/
+
+/-- **What the compiler table owes about its level column.** Every tabled body is in the
+`max`-free fragment `Erases.instL` transports along, and translates at the level scope the
+environment relation records for it — `Σ ;;; [] |- b : T` of `erases_subst_instance_decl`
+(`../metarocq/erasure/theories/ErasureProperties.v:412`), which is what pays for the level
+arguments `Erases.const` and `Erases.ctor` leave unconstrained. It is stated over the whole
+table because a table is where it is checked: `TableSafe.noMaxLevels` gives the first conjunct
+and `CompilerBodies` the second. The simulation does not take it — `bridgeEnv_of_regInv` does,
+and `ErasesEnv.defns` hands the δ arm only the constants the program reaches, which is where
+MetaRocq spends the premise (`ErasureCorrectness.v:176`). -/
+def TabledLevels (env : VEnv) (bo : Name → Option Expr) (lp : Name → List Name) : Prop :=
+  ∀ c b, bo c = some b → NoMaxLevels b ∧ ∃ vb, TrExprS env (lp c) [] b vb
+
+/-- **`TabledLevels` at a reified table.** The `max`-free half is `TableSafe.noMaxLevels`; the
+translation is `CompilerBodies`, read against the table's level column, which
+`SourceTableAdequate.levels?_eq` identifies with the declaration's own. This is
+`bridgeEnv_of_regInv`'s `hlvl`. -/
+theorem tabledLevels_of_table {lenv : Environment} {env : VEnv} {tbl : Witness.SourceTable}
+    (htbl : Witness.SourceTableAdequate lenv tbl) (hsafe : TableSafe lenv tbl)
+    (hcb : CompilerBodies lenv env tbl.body?) :
+    TabledLevels env tbl.body? tbl.levels? := by
+  intro c b hbo
+  refine ⟨hsafe.noMaxLevels c b hbo, ?_⟩
+  obtain ⟨ci, hci, vb, -, htr, -, -⟩ := hcb c b hbo
+  have hd : (tbl.decl? c).isSome := by
+    cases h : tbl.decl? c with
+    | none => simp [Witness.SourceTable.body?, h] at hbo
+    | some d => simp
+  rw [htbl.levels?_eq hd hci]
+  exact ⟨vb, htr⟩
+
+/-- **The δ arm's transport.** The rule's `hdef` carries a translation of the instantiated
+spine, whose head is the instantiated body, and that is what rules out an instantiation the
+reading scope cannot follow. This is `erases_subst_instance_decl` at the one place MetaRocq
+spends it, the constant case of `erases_correct`
+(`../metarocq/erasure/theories/ErasureCorrectness.v:176`). -/
+theorem Erases.instantiateLevelParams_of_stepDefeq {env : VEnv} {ps Us ups : List Name}
+    {c : Name} {us : List Level} {argsv : List Expr} {b b' : Expr} {b₀ : LBTerm} {vb : VExpr}
+    (h : Erases env ps [] b b₀) (hnm : NoMaxLevels b) (hb : TrExprS env ps [] b vb)
+    (hinst : b' = b.instantiateLevelParams ups us)
+    (hdef : StepDefeq env Us [] (_root_.LeanToLambdaBox.mkApps (.const c us) argsv)
+      (_root_.LeanToLambdaBox.mkApps b' argsv)) :
+    Erases env Us [] b' b₀ := by
+  obtain ⟨-, v₂, -, htr₂, -⟩ := hdef
+  obtain ⟨w, htrb'⟩ := trExprS_spine_head argsv htr₂
+  subst hinst
+  exact Erases.instantiateLevelParams_of_trExprS h hnm hb htrb'
+
 /-! ## The motive and the three step interfaces -/
 
 /-- The simulation's claim at one source node: for every composite image of `e` that the
 environment relation answers, an image of `v`, a target evaluation reaching it, and the
 same environment relation at the image of `v`. The last conjunct is the accumulator the
 β, ζ, δ and ι arms take their induction hypothesis at the contractum under. -/
-def Simulates (env : VEnv) (bo : Name → Option Expr) (Us : List Name)
+def Simulates (env : VEnv) (bo : Name → Option Expr) (lp : Name → List Name)
+    (Us : List Name)
     (Γspec Γ : GlobalDeclarations) (e v : Expr) : Prop :=
   ∀ {ve : VExpr} {t₀ t : LBTerm},
     TrExprS env Us [] e ve → Erases env Us [] e t₀ → Lower Γspec t₀ t →
-    ErasesEnv env bo Γspec t₀ →
+    ErasesEnv env bo lp Γspec t₀ →
     ∃ v₀ v', Erases env Us [] v v₀ ∧ Lower Γspec v₀ v' ∧ WcbvEval Γ eraseFlags t v' ∧
-      ErasesEnv env bo Γspec v₀
+      ErasesEnv env bo lp Γspec v₀
 
 /-- The ι arm of `SEval`, with the induction hypothesis available at every subderivation.
 `UpstreamAsks env` is what `Origin.lean`'s corollaries take while the fork cannot be
 edited from here; `hnp` and `hinf` are the rule's own, and are what `CasesOnShape.agree`
 and `ErasesEnv.elims` read. -/
-abbrev StepIota (env : VEnv) (bo : Name → Option Expr) (Us : List Name) (fl : SEvalFlags)
+abbrev StepIota (env : VEnv) (bo : Name → Option Expr) (lp : Name → List Name)
+    (Us : List Name) (fl : SEvalFlags)
     (Γspec Γ : GlobalDeclarations) : Prop :=
   UpstreamAsks env →
   ∀ {con I ctor : Name} {us cus : List Level} {pre prev minors minorsv extra extrav
@@ -987,26 +1175,27 @@ abbrev StepIota (env : VEnv) (bo : Name → Option Expr) (Us : List Name) (fl : 
     CtorOf env ctor I cidx → IndArity env I np nfs → InformativeInd env I →
     prev.length = pre.length →
     (∀ i, i < pre.length → SEval env bo Us fl [] pre[i]! prev[i]! ∧
-        Simulates env bo Us Γspec Γ pre[i]! prev[i]!) →
+        Simulates env bo lp Us Γspec Γ pre[i]! prev[i]!) →
     SEval env bo Us fl [] disc (mkApps (.const ctor cus) cargs) →
-    Simulates env bo Us Γspec Γ disc (mkApps (.const ctor cus) cargs) →
+    Simulates env bo lp Us Γspec Γ disc (mkApps (.const ctor cus) cargs) →
     minorsv.length = minors.length →
     (∀ i, i < minors.length → SEval env bo Us fl [] minors[i]! minorsv[i]! ∧
-        Simulates env bo Us Γspec Γ minors[i]! minorsv[i]!) →
+        Simulates env bo lp Us Γspec Γ minors[i]! minorsv[i]!) →
     extrav.length = extra.length →
     (∀ i, i < extra.length → SEval env bo Us fl [] extra[i]! extrav[i]! ∧
-        Simulates env bo Us Γspec Γ extra[i]! extrav[i]!) →
+        Simulates env bo lp Us Γspec Γ extra[i]! extrav[i]!) →
     cidx < minors.length →
     StepDefeq env Us [] (mkApps (.const con us) (pre ++ disc :: minors ++ extra))
       (mkApps minors[cidx]! (cargs.drop np ++ extra)) →
     SEval env bo Us fl [] (mkApps minors[cidx]! (cargs.drop np ++ extra)) r →
-    Simulates env bo Us Γspec Γ (mkApps minors[cidx]! (cargs.drop np ++ extra)) r →
-    Simulates env bo Us Γspec Γ (mkApps (.const con us) (pre ++ disc :: minors ++ extra)) r
+    Simulates env bo lp Us Γspec Γ (mkApps minors[cidx]! (cargs.drop np ++ extra)) r →
+    Simulates env bo lp Us Γspec Γ (mkApps (.const con us) (pre ++ disc :: minors ++ extra)) r
 
 /-- The projection arm, with the induction hypothesis at the discriminant and at the
 selected field. The rule's own `hct` and `hnp` ride along: they are what classify the
 discriminant's value and pin the parameter prefix the two sides skip. -/
-abbrev StepProj (env : VEnv) (bo : Name → Option Expr) (Us : List Name) (fl : SEvalFlags)
+abbrev StepProj (env : VEnv) (bo : Name → Option Expr) (lp : Name → List Name)
+    (Us : List Name) (fl : SEvalFlags)
     (Γspec Γ : GlobalDeclarations) : Prop :=
   UpstreamAsks env →
   ∀ {S ctor : Name} {i np nf cidx : Nat} {cus : List Level} {disc r : Expr}
@@ -1014,18 +1203,19 @@ abbrev StepProj (env : VEnv) (bo : Name → Option Expr) (Us : List Name) (fl : 
     env.WF → LowerEnv Γspec Γ → fl.proj →
     CtorOf env ctor S cidx → IndArity env S np [nf] →
     SEval env bo Us fl [] disc (mkApps (.const ctor cus) cargs) →
-    Simulates env bo Us Γspec Γ disc (mkApps (.const ctor cus) cargs) →
+    Simulates env bo lp Us Γspec Γ disc (mkApps (.const ctor cus) cargs) →
     np + i < cargs.length →
     StepDefeq env Us [] (.proj S i disc) cargs[np + i]! →
     SEval env bo Us fl [] cargs[np + i]! r →
-    Simulates env bo Us Γspec Γ cargs[np + i]! r →
-    Simulates env bo Us Γspec Γ (.proj S i disc) r
+    Simulates env bo lp Us Γspec Γ cargs[np + i]! r →
+    Simulates env bo lp Us Γspec Γ (.proj S i disc) r
 
 /-- The δ arm, at a compiler body, with the induction hypothesis at the arguments and at
 the unfolded application. `UpstreamAsks env` is uniform with the other two interfaces: the
 constructor reading of the head is refuted by `constOrigin_not_ctorOf` on
 `ErasesEnv.tabled`. -/
-abbrev StepDelta (env : VEnv) (bo : Name → Option Expr) (Us : List Name) (fl : SEvalFlags)
+abbrev StepDelta (env : VEnv) (bo : Name → Option Expr) (lp : Name → List Name)
+    (Us : List Name) (fl : SEvalFlags)
     (Γspec Γ : GlobalDeclarations) : Prop :=
   UpstreamAsks env →
   ∀ {c : Name} {us : List Level} {ups : List Name} {args argsv : List Expr}
@@ -1035,33 +1225,36 @@ abbrev StepDelta (env : VEnv) (bo : Name → Option Expr) (Us : List Name) (fl :
     b' = b.instantiateLevelParams ups us →
     argsv.length = args.length →
     (∀ i, i < args.length → SEval env bo Us fl [] args[i]! argsv[i]! ∧
-        Simulates env bo Us Γspec Γ args[i]! argsv[i]!) →
+        Simulates env bo lp Us Γspec Γ args[i]! argsv[i]!) →
     StepDefeq env Us [] (mkApps (.const c us) argsv) (mkApps b' argsv) →
     SEval env bo Us fl [] (mkApps b' argsv) v →
-    Simulates env bo Us Γspec Γ (mkApps b' argsv) v →
-    Simulates env bo Us Γspec Γ (mkApps (.const c us) args) v
+    Simulates env bo lp Us Γspec Γ (mkApps b' argsv) v →
+    Simulates env bo lp Us Γspec Γ (mkApps (.const c us) args) v
 
 /-! ## The statements `ErasesCorrect/Close.lean` inhabits -/
 
-/-- **T5.** Seven binders carrying six premises — `her`+`hlow` is `ErasesLB` unfolded, so
-that `hspec` can name the middle term — plus the eighth, `UpstreamAsks env`, which drops
-with no restatement once the pin moves. -/
-abbrev ErasesCorrectStmt (env : VEnv) (bo : Name → Option Expr) (Us : List Name)
+/-- **T5.** Eight binders carrying seven premises — `her`+`hlow` is `ErasesLB` unfolded, so
+that `hspec` can name the middle term — of which the last, `UpstreamAsks env`, drops with no
+restatement once the pin moves. The δ arm's level-scope premise is not among them: it is a
+conjunct of `ErasesEnv.defns`, under that clause's reachability gate. -/
+abbrev ErasesCorrectStmt (env : VEnv) (bo : Name → Option Expr) (lp : Name → List Name)
+    (Us : List Name)
     (fl : SEvalFlags) (Γspec Γ : GlobalDeclarations) : Prop :=
   ∀ {e v : Expr} {ve : VExpr} {t₀ t : LBTerm},
     env.WF → TrExprS env Us [] e ve → SEval env bo Us fl [] e v →
-    Erases env Us [] e t₀ → Lower Γspec t₀ t → ErasesEnv env bo Γspec t₀ →
+    Erases env Us [] e t₀ → Lower Γspec t₀ t → ErasesEnv env bo lp Γspec t₀ →
     LowerEnv Γspec Γ → UpstreamAsks env →
     ∃ v₀ v', Erases env Us [] v v₀ ∧ Lower Γspec v₀ v' ∧ WcbvEval Γ eraseFlags t v'
 
 /-- **T5, folded.** The composite read through `ErasesLB`, with the environment premise at
 whichever middle term the composite exhibits. -/
-abbrev ErasesCorrectLBStmt (env : VEnv) (bo : Name → Option Expr) (Us : List Name)
+abbrev ErasesCorrectLBStmt (env : VEnv) (bo : Name → Option Expr) (lp : Name → List Name)
+    (Us : List Name)
     (fl : SEvalFlags) (Γspec Γ : GlobalDeclarations) : Prop :=
   ∀ {e v : Expr} {ve : VExpr} {t : LBTerm},
     env.WF → TrExprS env Us [] e ve → SEval env bo Us fl [] e v →
     ErasesLB env Us Γspec [] e t →
-    (∀ t₀, Erases env Us [] e t₀ → Lower Γspec t₀ t → ErasesEnv env bo Γspec t₀) →
+    (∀ t₀, Erases env Us [] e t₀ → Lower Γspec t₀ t → ErasesEnv env bo lp Γspec t₀) →
     LowerEnv Γspec Γ → UpstreamAsks env →
     ∃ v', ErasesLB env Us Γspec [] v v' ∧ WcbvEval Γ eraseFlags t v'
 

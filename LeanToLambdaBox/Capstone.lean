@@ -22,9 +22,11 @@ cannot be identified, since `Lean.Compiler.LCNF.macroInline` replaces a constant
 read under. `hprep` fixes `pe`; at a rung it is the subject itself, checked by
 `lake exe reify --prepared`.
 
-`LBExpandedFix` is **not** concluded: the erasure emits bare `tFix` constant bodies, so
-`PeregrinePre` does not hold of its output (finding F-ETA). The conclusion is
-`LBWfPeregrine`, which is what the emitted program does satisfy.
+The conclusion is `LBWfPeregrine`, and since F-ETA (the emitted body of a registered
+fixpoint is the η-expansion `LBTerm.etaFix`, not the bare `tFix` node) `LBWfPeregrine`'s
+`expandedFix` clause carries all three term-level conjuncts of MetaRocq's `expanded_tFix`
+(§4.7 of `doc/rework/10-MERGE-FIXES.md`); `PeregrinePre`, the separate predicate the earlier
+gap needed, is deleted.
 
 Three hypotheses are stated in the form this module can express. `hsup` is the fragment
 predicate `Supported`, which a rung discharges by computation through `supportedB_sound`.
@@ -65,7 +67,7 @@ theorem erasure_bridge_of_run
     {tbl : SourceTable} {cfg : ErasureConfig} {e pe : Expr} {ve : VExpr}
     {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
     {w wp wt : Void IO.RealWorld} {sp sf : ErasureState} {t : LBTerm}
-    (P : ErasureSpec lenv env [] gw) (E : EraserAsks lenv env [] gw)
+    (P : ErasureSpec lenv env [] gw) (E : EraserAsks lenv env gw)
     (A : UpstreamAsks env)
     (htbl : SourceTableAdequate lenv tbl) (hsafe : TableSafe lenv tbl)
     (hblk : TableBlocks lenv env tbl)
@@ -73,7 +75,7 @@ theorem erasure_bridge_of_run
     (hsup : Supported env tbl pe) (hwt : TrExprS env [] [] pe ve)
     (hprep : Erasure.prepare_erasure e {} { «config» := cfg } cctx ref w = .ok (pe, sp) wp)
     (hvis : Erasure.visitExpr pe sp { «config» := cfg } cctx ref wp = .ok (t, sf) wt)
-    {Γspec : GlobalDeclarations} (hspec : SpecEnv env tbl.body? sf Γspec) :
+    {Γspec : GlobalDeclarations} (hspec : SpecEnv env tbl.body? tbl.levels? sf Γspec) :
     ∃ t₀, Erases env [] [] pe t₀ ∧ Lower Γspec t₀ t := by
   obtain rfl : sp = ({} : ErasureState) := run_prepare_erasure_state hcfg.1 hprep
   have hinv : BridgeInv env [] tbl cfg (gw wp) { «config» := cfg } {} [] := by
@@ -86,7 +88,7 @@ theorem erasure_bridge_of_run
     (step_visitExpr E) step_visitLiteral (step_visitConstructor A) (step_visitConst A) step5
     (step6 E hsafe) step_visitAppArgs step_visitLet step_visitLambda step_visitProj
     step_visitApp (step_visitConstApp hsafe) step_visitCtorEta step_visitCtorEtaGo
-    step_visitCasesEta step_visitCasesEtaGo (step_visitCases A) step_visitAlt
+    step_visitCasesEta step_visitCasesEtaGo (step_visitCases A E) step_visitAlt
     P htbl hcfg hcb hwt hsup rfl hvis hinv Γspec hspec).1
 
 /-! ## The residual, as one named binder -/
@@ -98,12 +100,12 @@ results the specification environment of the run's final state carries. Both are
 produces that invariant for a run of the shipping eraser — `doc/rework/08-REPAIRS-W5.md` §2 is
 the statement that would, and §2.3 the three measured obstructions in the way.
 -/
-structure ErasureBridge (env : VEnv) (bo : Name → Option Expr)
+structure ErasureBridge (env : VEnv) (bo : Name → Option Expr) (lp : Name → List Name)
     (Γspec Γ : GlobalDeclarations) (t₀ : LBTerm) : Prop where
   /-- The specification environment erases the source environment. `RegInvShape'.erasesEnv`
-      derives it from the registration invariant at the run's final state, at the three
+      derives it from the registration invariant at the run's final state, at the two
       side conditions `bridgeEnv_of_regInv` names. -/
-  erasesEnv : ErasesEnv env bo Γspec t₀
+  erasesEnv : ErasesEnv env bo lp Γspec t₀
   /-- The emitted environment is the lowered, pruned specification environment.
       `RegInvShape'.lowerEnv` derives it from the same invariant at a saturated registry. -/
   lowerEnv : LowerEnv Γspec Γ
@@ -114,21 +116,21 @@ structure ErasureBridge (env : VEnv) (bo : Name → Option Expr)
 **The bridge's two environment fields, derived.** `RegInvShape'` — the invariant the
 registration path maintains — carries the specification environment's content, the emitted
 environment's shape and the relation between them; `RegSaturated` says the run registered
-everything that environment declares. `hdeps` is decidable at a concrete program, and
-`hlp`/`htab` are the two clauses `ErasesEnv` reads off the compiler table rather than off any
-environment. The `SpecEnv` is what `erasure_bridge_of_run` consumes; `LBWfSpec` is what the
-pass metatheory reads of `Γspec`.
+everything that environment declares. `hdeps` is decidable at a concrete program, and `htab`
+and `hlvl` are the two clauses `ErasesEnv` reads off the compiler table rather than off any
+environment; `hlvl` is `tabledLevels_of_table` at a reified table.
+The `SpecEnv` is what `erasure_bridge_of_run` consumes; `LBWfSpec` is what the pass metatheory
+reads of `Γspec`.
 -/
-theorem bridgeEnv_of_regInv {env : VEnv} {bo : Name → Option Expr}
+theorem bridgeEnv_of_regInv {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
     {Γspec : GlobalDeclarations} {sf : ErasureState} {t₀ : LBTerm}
-    (hreg : RegInvShape' env bo Γspec sf) (hsat : RegSaturated env Γspec sf)
+    (hreg : RegInvShape' env bo lp Γspec sf) (hsat : RegSaturated env Γspec sf)
     (hdeps : ∀ kn, ReachableFrom Γspec t₀ kn → (LBTerm.envLookup Γspec kn).isSome)
-    (hlp : ∀ c b, bo c = some b → b.hasLevelParam' = false ∧ NoMaxLevels b)
-    (htab : ∀ c b, bo c = some b → ConstOrigin env c) :
-    SpecEnv env bo sf Γspec ∧ LBWfSpec Γspec ∧
-      ErasesEnv env bo Γspec t₀ ∧ LowerEnv Γspec sf.gdecls :=
+    (htab : ∀ c b, bo c = some b → ConstOrigin env c) (hlvl : TabledLevels env bo lp) :
+    SpecEnv env bo lp sf Γspec ∧ LBWfSpec Γspec ∧
+      ErasesEnv env bo lp Γspec t₀ ∧ LowerEnv Γspec sf.gdecls :=
   ⟨hreg.specEnv, ⟨hreg.spec.keys, hreg.specClosed⟩,
-    hreg.erasesEnv hdeps hlp htab, hreg.lowerEnv hsat⟩
+    hreg.erasesEnv hdeps htab hlvl, hreg.lowerEnv hsat⟩
 
 /-! ## The capstone -/
 
@@ -137,9 +139,10 @@ set_option linter.unusedVariables false in
 **The shipping erasure is correct at a first-order answer.** For a term the erasure ran on
 under a pinned configuration, whose prepared form is inside the fragment and whose emitted
 program declares a body for every constant it reaches: `(Γ, t)` is the lowered image of a
-specification environment that erases the prepared term, it satisfies `LBWfPeregrine` — not
-`LBExpandedFix`, finding F-ETA — and every first-order answer the **source** evaluation
-produces is reproduced by it, uniquely and box-free. The binders' classes are `doc/trust.md`'s
+specification environment that erases the prepared term, it satisfies `LBWfPeregrine` —
+`expandedFix` included, since F-ETA's registered fixpoints are η-expanded — and every
+first-order answer the **source** evaluation produces is reproduced by it, uniquely and
+box-free. The binders' classes are `doc/trust.md`'s
 rows; the erasure half is `erasure_bridge_of_run`, the simulation `erases_correct` at the
 spine, the answer's shape and uniqueness `firstorder_erases_core`, and the rest `hbridge`.
 -/
@@ -150,7 +153,7 @@ theorem shipping_erase_correct_firstorder
     {w wp w' : Void IO.RealWorld}
     {Γ : GlobalDeclarations} {t : LBTerm} {inls : List Kername}
     (P : ErasureSpec lenv env [] gw)
-    (E : EraserAsks lenv env [] gw)
+    (E : EraserAsks lenv env gw)
     (A : UpstreamAsks env)
     (htbl : SourceTableAdequate lenv tbl)
     (hsafe : TableSafe lenv tbl)
@@ -165,13 +168,13 @@ theorem shipping_erase_correct_firstorder
     (hwf : LBWfPeregrine Γ t)
     (hbridge : ∀ (sf : ErasureState) (wt : Void IO.RealWorld),
       Erasure.visitExpr pe {} { «config» := cfg } cctx ref wp = .ok (t, sf) wt →
-      ∃ Γspec : GlobalDeclarations, SpecEnv env tbl.body? sf Γspec ∧
+      ∃ Γspec : GlobalDeclarations, SpecEnv env tbl.body? tbl.levels? sf Γspec ∧
         ∀ t₀ : LBTerm, Erases env [] [] pe t₀ → Lower Γspec t₀ t →
-          ErasureBridge env tbl.body? Γspec Γ t₀) :
+          ErasureBridge env tbl.body? tbl.levels? Γspec Γ t₀) :
     ∃ (Γspec : GlobalDeclarations) (t₀ : LBTerm),
       Erasure.prepare_erasure e {} { «config» := cfg } cctx ref w = .ok (pe, {}) wp
       ∧ Erases env [] [] pe t₀
-      ∧ ErasesEnv env tbl.body? Γspec t₀
+      ∧ ErasesEnv env tbl.body? tbl.levels? Γspec t₀
       ∧ Lower Γspec t₀ t
       ∧ LowerEnv Γspec Γ
       ∧ LBWfPeregrine Γ t
@@ -179,7 +182,7 @@ theorem shipping_erase_correct_firstorder
           (idx : List VExpr) (v : Expr) (vv vs : VExpr),
           targs.length = args.length →
           (∀ i, i < args.length → ∃ a₀, Erases env [] [] args[i]! a₀ ∧
-            Lower Γspec a₀ targs[i]! ∧ ErasesEnv env tbl.body? Γspec a₀) →
+            Lower Γspec a₀ targs[i]! ∧ ErasesEnv env tbl.body? tbl.levels? Γspec a₀) →
           TrExprS env [] [] (mkApps pe args) vs →
           SEval env tbl.body? [] fullFlags [] (mkApps e args) v →
           TrExprS env [] [] v vv →
@@ -203,14 +206,14 @@ theorem shipping_erase_correct_firstorder
   obtain ⟨a₀s, hlen₀, ha₀⟩ :=
     exists_list_of_index args.length
       (fun i a₀ => Erases env [] [] args[i]! a₀ ∧ Lower Γspec a₀ targs[i]! ∧
-        ErasesEnv env tbl.body? Γspec a₀) hargs
+        ErasesEnv env tbl.body? tbl.levels? Γspec a₀) hargs
   have hevp : SEval env tbl.body? [] fullFlags [] (mkApps pe args) v :=
     prepare_sound E hcfg.1 hprep args tbl.body? [] fullFlags [] v hev
   have hspine : Erases env [] [] (mkApps pe args) (LBTerm.mkApps t₀ a₀s) :=
     Erases.mkApps args a₀s her hlen₀ (fun i hi => (ha₀ i hi).1)
   have hlowspine : Lower Γspec (LBTerm.mkApps t₀ a₀s) (LBTerm.mkApps t targs) :=
     Lower.mkApps hlow (by rw [hlen, hlen₀]) (fun i hi => (ha₀ i (by omega)).2.1)
-  have hspecspine : ErasesEnv env tbl.body? Γspec (LBTerm.mkApps t₀ a₀s) :=
+  have hspecspine : ErasesEnv env tbl.body? tbl.levels? Γspec (LBTerm.mkApps t₀ a₀s) :=
     B.erasesEnv.mkApps (fun x hx => by
       obtain ⟨i, hi, rfl⟩ := Lower.mem_getElem! hx
       exact (ha₀ i (by omega)).2.2)

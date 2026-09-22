@@ -20,10 +20,14 @@ obtained by de Bruijn surgery, mirroring lean4lean's `TrExprS.weakBV`, `TrExprS.
 two agree only on terms with no such loose bvar, which is why `Erases.abstract` carries a
 `Closed` premise.
 
-The last section transports `Erases` along a **level instantiation**: the source and the
+The last two sections transport `Erases` along a **level instantiation**: the source and the
 `VLCtx` are instantiated and the λ□ target is unchanged, since λ□ carries no levels. It is
 strict — an equation, not lean4lean's `≈` — on `max`-free levels, which is what
-`NoMaxLevels` names.
+`NoMaxLevels` names. `Erases.instL` is the positional form, at a substitution of the scope
+the derivation is read at; `Erases.substParams_of_trExprS` is the by-name form the δ arm
+meets, where the substitution is arbitrary and what confines it is a translation of the
+instantiated term — `erases_subst_instance`'s typing premise
+(`../metarocq/erasure/theories/ErasureProperties.v:383`).
 -/
 
 namespace LeanToLambdaBox
@@ -771,5 +775,313 @@ theorem erases_instL_closed (env : VEnv) (nm : Name) (bi : BinderInfo) :
     (⟨trivial, trivial⟩ : NoMaxLevels (.lam nm (.sort (.param `u)) (.bvar 0) bi))
   simpa [Expr.instantiateLevelParams_eq, Expr.instantiateLevelParamsCore',
     Level.substParams', VLCtx.instL] using h
+
+/-! ## Level instantiation by name
+
+`Expr.instantiateLevelParams` substitutes *by name*, against a parameter list that need not
+be the scope a derivation was read at — `SEval.deltaC` binds it as a variable of the rule. The
+positional transport above therefore does not apply on the nose, and it cannot be made to: a
+name the substitution touches but the reading scope does not know has no `VLevel`.
+
+What rules such a substitution out is a translation of the **instantiated** term, which is
+`erases_subst_instance`'s `Σ ;;; Γ |- t : T` premise (`ErasureProperties.v:383`). Together
+with a translation of the term at its own scope — the same premise on the uninstantiated side
+— it pins the substitution on every parameter the term mentions, and the positional form
+covers the rest by substituting `0` there. `Erases.const` and `Erases.ctor` leave a constant's
+level arguments unconstrained, so the uninstantiated translation is what pays for them.
+-/
+
+/-- `p` occurs as a parameter of the level `l`. -/
+def LevelParamIn (p : Name) : Level → Prop
+  | .zero => False
+  | .mvar _ => False
+  | .param q => p = q
+  | .succ u => LevelParamIn p u
+  | .max a b => LevelParamIn p a ∨ LevelParamIn p b
+  | .imax a b => LevelParamIn p a ∨ LevelParamIn p b
+
+/-- `p` occurs as a level parameter of some `sort` or `const` node of `e`. -/
+def ExprParamIn (p : Name) : Expr → Prop
+  | .sort u => LevelParamIn p u
+  | .const _ us => ∃ u ∈ us, LevelParamIn p u
+  | .app f a => ExprParamIn p f ∨ ExprParamIn p a
+  | .lam _ t b _ => ExprParamIn p t ∨ ExprParamIn p b
+  | .forallE _ t b _ => ExprParamIn p t ∨ ExprParamIn p b
+  | .letE _ t v b _ => ExprParamIn p t ∨ ExprParamIn p v ∨ ExprParamIn p b
+  | .mdata _ e => ExprParamIn p e
+  | .proj _ _ e => ExprParamIn p e
+  | .bvar _ => False
+  | .fvar _ => False
+  | .mvar _ => False
+  | .lit _ => False
+
+/-- A level the reading scope translates mentions only that scope's parameters. -/
+theorem mem_of_levelParamIn {Us : List Name} {p : Name} :
+    ∀ {l : Level} {v : VLevel}, VLevel.ofLevel Us l = some v → LevelParamIn p l → p ∈ Us := by
+  intro l
+  induction l with
+  | zero => intro _ _ h; exact h.elim
+  | mvar => intro _ _ h; exact h.elim
+  | param q =>
+    intro v hv hp
+    subst hp
+    simp [VLevel.ofLevel] at hv
+    exact List.idxOf_lt_length_iff.mp hv.1
+  | succ u ih =>
+    intro v hv hp
+    simp [VLevel.ofLevel, bind] at hv
+    obtain ⟨a, ha, -⟩ := hv
+    exact ih ha hp
+  | max a b iha ihb =>
+    intro v hv hp
+    simp [VLevel.ofLevel, bind] at hv
+    obtain ⟨x, hx, y, hy, -⟩ := hv
+    exact hp.elim (iha hx) (ihb hy)
+  | imax a b iha ihb =>
+    intro v hv hp
+    simp [VLevel.ofLevel, bind] at hv
+    obtain ⟨x, hx, y, hy, -⟩ := hv
+    exact hp.elim (iha hx) (ihb hy)
+
+/-- A term the reading scope translates mentions only that scope's level parameters. This is
+what `Erases` alone does not give: its `const` and `ctor` arms drop the level arguments. -/
+theorem mem_of_exprParamIn {env : VEnv} {Us : List Name} {p : Name} :
+    ∀ {Δ : VLCtx} {e : Expr} {v : VExpr}, TrExprS env Us Δ e v → ExprParamIn p e → p ∈ Us := by
+  intro Δ e v h
+  induction h with
+  | bvar => intro h; exact h.elim
+  | fvar => intro h; exact h.elim
+  | sort h1 => exact mem_of_levelParamIn h1
+  | const _ h2 _ =>
+    rintro ⟨u, hu, hp⟩
+    obtain ⟨n, hn⟩ := List.getElem?_of_mem hu
+    obtain ⟨v, -, hv⟩ := mapM_ofLevel_getElem? h2 hn
+    exact mem_of_levelParamIn hv hp
+  | app _ _ _ _ ihf iha => intro h; exact h.elim ihf iha
+  | lam _ _ _ ihty ihb => intro h; exact h.elim ihty ihb
+  | forallE _ _ _ _ ihty ihb => intro h; exact h.elim ihty ihb
+  | letE _ _ _ _ ihty ihv ihb => intro h; exact h.elim ihty (fun h => h.elim ihv ihb)
+  | lit => intro h; exact h.elim
+  | mdata _ ih => exact ih
+  | proj _ _ ih => exact ih
+
+/-- The substitution's image at a mentioned parameter is known to the reading scope of the
+substituted level. `max`-free because `Level.substParams'` normalises at a `max` node. -/
+theorem ofLevel_subst_of_levelParamIn {Us : List Name} {F : Name → Level} {p : Name} :
+    ∀ {l : Level} {red : Bool} {v : VLevel},
+      VLevel.ofLevel Us (Level.substParams' F red l) = some v → NoMaxLevel l →
+      LevelParamIn p l → ∃ w, VLevel.ofLevel Us (F p) = some w := by
+  intro l
+  induction l with
+  | zero => intro _ _ _ _ h; exact h.elim
+  | mvar => intro _ _ _ _ h; exact h.elim
+  | param q => intro red v hv _ hp; subst hp; exact ⟨v, hv⟩
+  | succ u ih =>
+    intro red v hv hnm hp
+    rw [Level.substParams'] at hv
+    simp [VLevel.ofLevel, bind] at hv
+    obtain ⟨a, ha, -⟩ := hv
+    exact ih ha hnm hp
+  | max a b => intro _ _ _ h; exact h.elim
+  | imax a b => intro _ _ _ h; exact h.elim
+
+/-- The same at a term: a translation of the instantiated term knows the substitution's
+image at every parameter the term mentions. -/
+theorem ofLevel_subst_of_exprParamIn {env : VEnv} {Us : List Name} {F : Name → Level}
+    {p : Name} {red : Bool} :
+    ∀ {e : Expr} {Δ : VLCtx} {v : VExpr},
+      TrExprS env Us Δ (Expr.instantiateLevelParamsCore' red F e) v → NoMaxLevels e →
+      ExprParamIn p e → ∃ w, VLevel.ofLevel Us (F p) = some w := by
+  intro e
+  induction e with
+  | bvar => intro _ _ _ _ h; exact h.elim
+  | fvar => intro _ _ _ _ h; exact h.elim
+  | mvar => intro _ _ _ _ h; exact h.elim
+  | lit => intro _ _ _ _ h; exact h.elim
+  | sort u =>
+    intro Δ v htr hnm hp
+    rw [Expr.instantiateLevelParamsCore'] at htr
+    cases htr with | sort h1 => exact ofLevel_subst_of_levelParamIn h1 hnm hp
+  | const c us =>
+    intro Δ v htr hnm hp
+    rw [Expr.instantiateLevelParamsCore'] at htr
+    cases htr with
+    | const _ h2 _ =>
+      obtain ⟨u, hu, hpu⟩ := hp
+      obtain ⟨n, hn⟩ := List.getElem?_of_mem hu
+      have hn' : (us.map (Level.substParams' F red))[n]? = some (Level.substParams' F red u) := by
+        rw [List.getElem?_map, hn]; rfl
+      obtain ⟨w, -, hw⟩ := mapM_ofLevel_getElem? h2 hn'
+      exact ofLevel_subst_of_levelParamIn hw (hnm u hu) hpu
+  | app f a ihf iha =>
+    intro Δ v htr hnm hp
+    rw [Expr.instantiateLevelParamsCore'] at htr
+    cases htr with
+    | app _ _ htrf htra => exact hp.elim (fun h => ihf htrf hnm.1 h) (fun h => iha htra hnm.2 h)
+  | lam n t b bi ihty ihb =>
+    intro Δ v htr hnm hp
+    rw [Expr.instantiateLevelParamsCore'] at htr
+    cases htr with
+    | lam _ htrty htrb => exact hp.elim (fun h => ihty htrty hnm.1 h) (fun h => ihb htrb hnm.2 h)
+  | forallE n t b bi ihty ihb =>
+    intro Δ v htr hnm hp
+    rw [Expr.instantiateLevelParamsCore'] at htr
+    cases htr with
+    | forallE _ _ htrty htrb =>
+      exact hp.elim (fun h => ihty htrty hnm.1 h) (fun h => ihb htrb hnm.2 h)
+  | letE n t val b nd ihty ihv ihb =>
+    intro Δ v htr hnm hp
+    rw [Expr.instantiateLevelParamsCore'] at htr
+    cases htr with
+    | letE _ htrty htrv htrb =>
+      exact hp.elim (fun h => ihty htrty hnm.1 h)
+        (fun h => h.elim (fun h => ihv htrv hnm.2.1 h) (fun h => ihb htrb hnm.2.2 h))
+  | mdata d e ih =>
+    intro Δ v htr hnm hp
+    rw [Expr.instantiateLevelParamsCore'] at htr
+    cases htr with | mdata htr' => exact ih htr' hnm hp
+  | proj S i e ih =>
+    intro Δ v htr hnm hp
+    rw [Expr.instantiateLevelParamsCore'] at htr
+    cases htr with | proj htr' _ => exact ih htr' hnm hp
+
+/-- Level substitution reads its argument only at the parameters the level mentions. The
+`red` flag is a function of the level alone, so it is shared. -/
+theorem substParams_congr {F G : Name → Level} :
+    ∀ {l : Level} {red : Bool}, (∀ p, LevelParamIn p l → F p = G p) →
+      Level.substParams' F red l = Level.substParams' G red l := by
+  intro l
+  induction l with
+  | zero => intro _ _; rfl
+  | mvar => intro _ _; rfl
+  | param q => intro red h; exact h q rfl
+  | succ u ih => intro red h; rw [Level.substParams', Level.substParams', ih h]
+  | max a b iha ihb =>
+    intro red h
+    rw [Level.substParams', Level.substParams', iha (fun p hp => h p (.inl hp)),
+      ihb (fun p hp => h p (.inr hp))]
+  | imax a b iha ihb =>
+    intro red h
+    rw [Level.substParams', Level.substParams', iha (fun p hp => h p (.inl hp)),
+      ihb (fun p hp => h p (.inr hp))]
+
+/-- The term-level congruence of `substParams_congr`. -/
+theorem instantiateLevelParamsCore'_congr {F G : Name → Level} {red : Bool} :
+    ∀ {e : Expr}, (∀ p, ExprParamIn p e → F p = G p) →
+      Expr.instantiateLevelParamsCore' red F e = Expr.instantiateLevelParamsCore' red G e := by
+  intro e
+  induction e with
+  | bvar => intro _; rfl
+  | fvar => intro _; rfl
+  | mvar => intro _; rfl
+  | lit => intro _; rfl
+  | sort u =>
+    intro h
+    rw [Expr.instantiateLevelParamsCore', Expr.instantiateLevelParamsCore', substParams_congr h]
+  | const c us =>
+    intro h
+    rw [Expr.instantiateLevelParamsCore', Expr.instantiateLevelParamsCore']
+    refine congrArg _ (List.map_congr_left (fun u hu => substParams_congr ?_))
+    exact fun p hp => h p ⟨u, hu, hp⟩
+  | app f a ihf iha =>
+    intro h
+    rw [Expr.instantiateLevelParamsCore', Expr.instantiateLevelParamsCore',
+      ihf (fun p hp => h p (.inl hp)), iha (fun p hp => h p (.inr hp))]
+  | lam n t b bi ihty ihb =>
+    intro h
+    rw [Expr.instantiateLevelParamsCore', Expr.instantiateLevelParamsCore',
+      ihty (fun p hp => h p (.inl hp)), ihb (fun p hp => h p (.inr hp))]
+  | forallE n t b bi ihty ihb =>
+    intro h
+    rw [Expr.instantiateLevelParamsCore', Expr.instantiateLevelParamsCore',
+      ihty (fun p hp => h p (.inl hp)), ihb (fun p hp => h p (.inr hp))]
+  | letE n t val b nd ihty ihv ihb =>
+    intro h
+    rw [Expr.instantiateLevelParamsCore', Expr.instantiateLevelParamsCore',
+      ihty (fun p hp => h p (.inl hp)), ihv (fun p hp => h p (.inr (.inl hp))),
+      ihb (fun p hp => h p (.inr (.inr hp)))]
+  | mdata d e ih =>
+    intro h
+    rw [Expr.instantiateLevelParamsCore', Expr.instantiateLevelParamsCore', ih h]
+  | proj S i e ih =>
+    intro h
+    rw [Expr.instantiateLevelParamsCore', Expr.instantiateLevelParamsCore', ih h]
+
+/-- A positional lookup at a name's own index. -/
+theorem idxOf?_map_getD {α : Type _} {ps : List Name} {p : Name} (hp : p ∈ ps)
+    (g : Name → α) (d : α) :
+    ((List.idxOf? p ps).bind fun i => (ps.map g)[i]?).getD d = g p := by
+  have hlt : List.idxOf p ps < ps.length := List.idxOf_lt_length_iff.mpr hp
+  have hidx : List.idxOf? p ps = some (List.idxOf p ps) := by
+    have hg := List.idxOf_eq_getD_idxOf? p ps
+    cases hc : List.idxOf? p ps with
+    | none => rw [hc] at hg; simp at hg; omega
+    | some i => rw [hc] at hg; simp at hg; rw [hg]
+  rw [hidx]
+  show ((List.map g ps)[List.idxOf p ps]?).getD d = g p
+  rw [List.getElem?_map, List.getElem?_eq_getElem hlt, List.getElem_idxOf hlt]
+  rfl
+
+/-- The positional substitution `substParams_of_trExprS` runs on: the by-name image where the
+reading scope knows it, and `0` elsewhere, so the list translates outright. -/
+theorem mapM_ofLevel_ite (Us : List Name) (F : Name → Level) :
+    ∀ ps : List Name,
+      (ps.map fun p => if (VLevel.ofLevel Us (F p)).isSome then F p else .zero).mapM
+          (VLevel.ofLevel Us)
+        = some (ps.map fun p => (VLevel.ofLevel Us (F p)).getD .zero)
+  | [] => rfl
+  | p :: ps => by
+      simp only [List.map_cons, List.mapM_cons, mapM_ofLevel_ite Us F ps]
+      cases hp : VLevel.ofLevel Us (F p) <;> simp [hp, VLevel.ofLevel]
+
+/--
+**Erasure transports along a by-name level substitution.** `erases_subst_instance`
+(`../metarocq/erasure/theories/ErasureProperties.v:383`): the λ□ image is unchanged, and the
+two translations are that lemma's typing premises — `hb` at the scope the derivation is read
+at, `htr` at the scope it is transported to. `F` itself is arbitrary: where it sends a
+parameter `b` mentions, `htr` says the target scope knows the image; where it sends one `b`
+does not mention, nothing is claimed and the positional witness substitutes `0`.
+-/
+theorem Erases.substParams_of_trExprS {env : VEnv} {ps Us : List Name} {F : Name → Level}
+    {red : Bool} {b : Expr} {b₀ : LBTerm} {vb v : VExpr}
+    (h : Erases env ps [] b b₀) (hnm : NoMaxLevels b) (hb : TrExprS env ps [] b vb)
+    (htr : TrExprS env Us [] (Expr.instantiateLevelParamsCore' red F b) v) :
+    Erases env Us [] (Expr.instantiateLevelParamsCore' red F b) b₀ := by
+  have key := Erases.instL_core (env := env) (Us := Us) (ps := ps)
+    (ls := ps.map fun p => if (VLevel.ofLevel Us (F p)).isSome then F p else .zero)
+    (ls' := ps.map fun p => (VLevel.ofLevel Us (F p)).getD .zero) (Δ := [])
+    (mapM_ofLevel_ite Us F ps) (by simp) rfl red h hnm
+  have hagree : ∀ p, ExprParamIn p b →
+      ((List.idxOf? p ps).bind fun i =>
+        (ps.map fun q => if (VLevel.ofLevel Us (F q)).isSome then F q else .zero)[i]?).getD
+          (.param p) = F p := by
+    intro p hp
+    have hsome : (VLevel.ofLevel Us (F p)).isSome := by
+      obtain ⟨w, hw⟩ := ofLevel_subst_of_exprParamIn htr hnm hp
+      rw [hw]; rfl
+    rw [idxOf?_map_getD (mem_of_exprParamIn hb hp), if_pos hsome]
+  rw [instantiateLevelParamsCore'_congr hagree] at key
+  rwa [show VLCtx.instL [] (ps.map fun p => (VLevel.ofLevel Us (F p)).getD .zero)
+    = ([] : VLCtx) from rfl] at key
+
+/-- The user-facing form of `Erases.substParams_of_trExprS`, at `Expr.instantiateLevelParams`
+and an arbitrary parameter list — `SEval.deltaC`'s `ups`, which is a variable of that rule. -/
+theorem Erases.instantiateLevelParams_of_trExprS {env : VEnv} {ps Us ups : List Name}
+    {us : List Level} {b : Expr} {b₀ : LBTerm} {vb v : VExpr}
+    (h : Erases env ps [] b b₀) (hnm : NoMaxLevels b) (hb : TrExprS env ps [] b vb)
+    (htr : TrExprS env Us [] (b.instantiateLevelParams ups us) v) :
+    Erases env Us [] (b.instantiateLevelParams ups us) b₀ := by
+  rw [Expr.instantiateLevelParams_eq] at htr ⊢
+  exact Erases.substParams_of_trExprS h hnm hb htr
+
+/-- The positional reading at the empty local context: `Erases.instL` with `hus` in the role
+of `consistent_instance_ext` (`ErasureProperties.v:412`). -/
+theorem Erases.instantiateLevelParams {env : VEnv} {ps Us : List Name} {us : List Level}
+    {us' : List VLevel} {b : Expr} {b₀ : LBTerm}
+    (hus : us.mapM (VLevel.ofLevel Us) = some us') (hlen : ps.length = us.length)
+    (h : Erases env ps [] b b₀) (hnm : NoMaxLevels b) :
+    Erases env Us [] (b.instantiateLevelParams ps us) b₀ := by
+  have := Erases.instL (Us := Us) (ps := ps) (ls := us) (ls' := us') (Δ := []) hus hlen h hnm
+  rwa [show VLCtx.instL [] us' = ([] : VLCtx) from rfl] at this
 
 end LeanToLambdaBox

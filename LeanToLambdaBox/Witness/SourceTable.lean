@@ -79,6 +79,12 @@ environment-erasure relation. -/
 def SourceTable.body? (tbl : SourceTable) : Name → Option Expr :=
   fun n => (tbl.decl? n).bind (·.body?)
 
+/-- The level-parameter column, beside `body?`: `cst_universes` of the declaration
+(`../metarocq/erasure/theories/Extract.v:264`), which is the scope the eraser erases the
+declaration's body at. An untabled name answers `[]`. -/
+def SourceTable.levels? (tbl : SourceTable) (n : Name) : List Name :=
+  ((tbl.decl? n).map (·.levelParams)).getD []
+
 /-- A successful `List.lookup` finds a member of the list. -/
 theorem mem_of_lookup {α : Type} {n : Name} {a : α} :
     ∀ {l : List (Name × α)}, l.lookup n = some a → (n, a) ∈ l
@@ -225,6 +231,20 @@ structure SourceTableAdequate (lenv : Environment) (tbl : SourceTable) : Prop wh
   decls : ∀ n d, (n, d) ∈ tbl.decls →
     ReifiedDecl.Pinned lenv n d ∧ ReifiedDecl.Prepared lenv n d
   inds : ∀ n I, (n, I) ∈ tbl.inds → ReifiedInduct.Pinned lenv n I
+  /-- The **compiler** declaration carries the kernel declaration's level parameters. A
+      property of `Lean.Compiler.LCNF.getDeclInfo?` — `compilerInfo?` at the ambient
+      environment (`compilerInfo?_eq`) — and the one column of it the run reads that
+      `ReifiedDecl.Pinned` does not pin: `Erasure.visitMutual` opens a declaration with
+      `getDeclInfo?`, which answers the `_unsafe_rec` companion where the elaborator emitted
+      one, and installs `lparams := ci.levelParams` from *that* constant
+      (`Erasure.lean:889`, `:912`), while `SourceTable.levels?` and `CompilerBodies` read
+      `lenv.find?`. Without this the two scopes are unrelated and the erasure a run records
+      is at a scope no specification names. Spent by U7's `RegContent.defns`, which reads
+      the tabled body at `tbl.levels? n` against a run that erased it at the companion's
+      column. Class **D**, like the two clauses beside it, and checked per table by
+      `lake exe reify --check` (`TableMismatch.compilerLevels`). -/
+  compilerLevels : ∀ n d, (n, d) ∈ tbl.decls →
+    ∀ ci, compilerInfo? lenv n = some ci → ci.levelParams = d.levelParams
 
 /-- Adequacy transported to the lookup interface: a tabled body is the prepared body of the
 value the code generator reads for that name, up to `Expr.AlphaEq`. -/
@@ -242,6 +262,33 @@ theorem SourceTableAdequate.body?_prepared {lenv : Environment} {tbl : SourceTab
   | some d =>
     rw [SourceTable.body?, SourceTable.decl?, hd] at hb
     exact (h.decls n d (mem_of_lookup hd)).2 b hb
+
+/-- Adequacy at the level column: a tabled name's level scope is the one `lenv` declares it
+with. `ReifiedDecl.Pinned`'s `levelParams` conjunct, read through the lookup interface. -/
+theorem SourceTableAdequate.levels?_eq {lenv : Environment} {tbl : SourceTable} {n : Name}
+    {ci : ConstantInfo} (h : SourceTableAdequate lenv tbl) (hd : (tbl.decl? n).isSome)
+    (hci : lenv.find? n = some ci) : tbl.levels? n = ci.levelParams := by
+  cases hl : tbl.decls.lookup n with
+  | none => rw [SourceTable.decl?, hl] at hd; simp at hd
+  | some d =>
+    obtain ⟨ci', hci', hlp, -⟩ := (h.decls n d (mem_of_lookup hl)).1
+    obtain rfl : ci' = ci := Option.some.inj (hci'.symm.trans hci)
+    rw [SourceTable.levels?, SourceTable.decl?, hl]
+    exact hlp.symm
+
+/-- Adequacy at the level column the **run** installs: the scope `Erasure.visitMutual` enters
+a declaration's body under (`Erasure.lean:889`, `:912`) is the table's own column, so the
+erasure a run records and the erasure `ErasesEnv.defns` asks for are at the same scope.
+`SourceTableAdequate.compilerLevels` read through the lookup interface. -/
+theorem SourceTableAdequate.compilerLevels?_eq {lenv : Environment} {tbl : SourceTable}
+    {n : Name} {ci : ConstantInfo} (h : SourceTableAdequate lenv tbl)
+    (hd : (tbl.decl? n).isSome) (hci : compilerInfo? lenv n = some ci) :
+    tbl.levels? n = ci.levelParams := by
+  cases hl : tbl.decls.lookup n with
+  | none => rw [SourceTable.decl?, hl] at hd; simp at hd
+  | some d =>
+    rw [SourceTable.levels?, SourceTable.decl?, hl]
+    exact (h.compilerLevels n d (mem_of_lookup hl) ci hci).symm
 
 /-! ## Reification -/
 
@@ -341,6 +388,7 @@ def elabReify : TermElab := fun stx expectedType? => do
 inductive TableMismatch where
   | unknownDecl (n : Name)
   | declLevels (n : Name)
+  | compilerLevels (n : Name)
   | declType (n : Name)
   | declBody (n : Name)
   | alphaDisagreement (n : Name)
@@ -357,6 +405,8 @@ inductive TableMismatch where
 def TableMismatch.describe : TableMismatch → String
   | .unknownDecl n => s!"{n}: not in the environment"
   | .declLevels n => s!"{n}: level parameters differ"
+  | .compilerLevels n =>
+    s!"{n}: the compiler declaration's level parameters differ from the table's"
   | .declType n => s!"{n}: type differs"
   | .declBody n => s!"{n}: tabled body is not the prepared compiler body"
   | .alphaDisagreement n =>
@@ -398,7 +448,9 @@ partial def Expr.alphaEqB : Expr → Expr → Bool
   | _, _ => false
 
 /-- Check one tabled constant against the live environment: level parameters and type against
-`Lean.Environment.find?`, and the tabled body against a fresh `Erasure.prepare_erasure` run on
+`Lean.Environment.find?`, the level parameters again against `compilerInfo?` — the constant
+the run reads its scope from, which is the `_unsafe_rec` companion where there is one — and
+the tabled body against a fresh `Erasure.prepare_erasure` run on
 the constant's `erasedValue?` — the same column `Reify.visit` fills. Types are compared with
 `Lean.Expr.equal`, which is structural; the body is compared with `==`, which is `Lean.Expr.eqv`,
 the decision procedure for the relation `ReifiedDecl.Prepared` pins the body up to. A body that
@@ -411,6 +463,8 @@ def checkDecl (n : Name) (d : ReifiedDecl) :
   let mut ms := #[]
   let mut ns := #[]
   if ci.levelParams != d.levelParams then ms := ms.push (.declLevels n)
+  if let some cci := compilerInfo? (← getEnv) n then
+    if cci.levelParams != d.levelParams then ms := ms.push (.compilerLevels n)
   if !ci.type.equal d.type then ms := ms.push (.declType n)
   match d.body?, ← erasedValue? n ci with
   | some b, some v =>

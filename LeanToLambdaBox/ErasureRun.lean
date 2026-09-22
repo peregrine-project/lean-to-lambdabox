@@ -1525,22 +1525,38 @@ def addAxiomState (n : Name) (s : ErasureState) : ErasureState :=
     constants := s.constants.insert n (toKername n),
     gdecls := (toKername n, .constantDecl ⟨none⟩) :: s.gdecls }
 
-/-- **An axiom-only state extension.** The constant registry only grows and stays
-canonical, and `gdecls` grows by a prefix of *axiom* entries.
+def addRealizerState (n : Name) (t : LBTerm) (s : ErasureState) : ErasureState :=
+  { s with
+    constants := s.constants.insert n (toKername n),
+    gdecls := (toKername n, .constantDecl ⟨some t⟩) :: s.gdecls }
+
+/-- **A constant-only state extension.** The constant registry only grows and stays
+canonical, and `gdecls` grows by a prefix of *constant* entries.
 
 The prefix clause records the entries' **keys** as well as their shape: every one of them
 is the canonical kername of a constant the extended registry knows. That is what a key
 discipline downstream can run on — without it the prefix is anonymous and a coverage
 invariant (`ColdStartShape.ConstKeysCovered`) cannot cross a `register_inductive` call,
-whose cold branch emits one `addAxiom` per `@[extern]` constructor. -/
+whose cold branch emits one `addAxiom` per `@[extern]` constructor.
+
+The entries' *bodies* are left open: `Erasure.addRealizer` (F-QUOT, F-EQREC) conses
+`⟨some t⟩` where `Erasure.addAxiom` conses `⟨none⟩`. `BodylessExt` is this plus the
+body-less reading, for the runs that only `addAxiom`. -/
 structure ConstExt (s s' : ErasureState) : Prop where
   canon : CanonicalConstants s → CanonicalConstants s'
   dom : ∀ {n : Name}, (s.constants.get? n).isSome → (s'.constants.get? n).isSome
   gdecls : ∃ pre : GlobalDeclarations, s'.gdecls = pre ++ s.gdecls ∧
+    ∀ p ∈ pre, (∃ cb : ConstantBody, p.2 = GlobalDecl.constantDecl cb) ∧
+      ∃ m : Name, p.1 = toKername m ∧ (s'.constants.get? m).isSome
+
+/-- **A body-less extension.** `ConstExt` with the prefix pinned to *axiom* entries: what a
+run leaves behind when every constant it registers goes through `Erasure.addAxiom`. -/
+structure BodylessExt (s s' : ErasureState) : Prop extends ConstExt s s' where
+  gdeclsAx : ∃ pre : GlobalDeclarations, s'.gdecls = pre ++ s.gdecls ∧
     ∀ p ∈ pre, p.2 = GlobalDecl.constantDecl ⟨none⟩ ∧
       ∃ m : Name, p.1 = toKername m ∧ (s'.constants.get? m).isSome
 
-structure AxiomExt (s s' : ErasureState) : Prop extends ConstExt s s' where
+structure AxiomExt (s s' : ErasureState) : Prop extends BodylessExt s s' where
   inds : s'.inductives = s.inductives
 
 theorem ConstExt.rfl' (s : ErasureState) : ConstExt s s where
@@ -1569,17 +1585,40 @@ theorem ConstExt.trans {s s' s'' : ErasureState} (h : ConstExt s s') (h' : Const
       · obtain ⟨hd, m, hkey, hm⟩ := hax p h1
         exact ⟨hd, m, hkey, h'.dom hm⟩
 
-theorem AxiomExt.rfl' (s : ErasureState) : AxiomExt s s where
+theorem BodylessExt.rfl' (s : ErasureState) : BodylessExt s s where
   toConstExt := ConstExt.rfl' s
+  gdeclsAx := ⟨[], rfl, by simp⟩
+
+theorem BodylessExt.of_same {s s' : ErasureState} (hc : s'.constants = s.constants)
+    (hg : s'.gdecls = s.gdecls) : BodylessExt s s' where
+  toConstExt := ConstExt.of_same hc hg
+  gdeclsAx := ⟨[], by simpa using hg, by simp⟩
+
+theorem BodylessExt.trans {s s' s'' : ErasureState} (h : BodylessExt s s')
+    (h' : BodylessExt s' s'') : BodylessExt s s'' where
+  toConstExt := h.toConstExt.trans h'.toConstExt
+  gdeclsAx := by
+    obtain ⟨pre, hpre, hax⟩ := h.gdeclsAx
+    obtain ⟨pre', hpre', hax'⟩ := h'.gdeclsAx
+    refine ⟨pre' ++ pre, ?_, ?_⟩
+    · rw [hpre', hpre, List.append_assoc]
+    · intro p hp
+      rcases List.mem_append.mp hp with h1 | h1
+      · exact hax' p h1
+      · obtain ⟨hd, m, hkey, hm⟩ := hax p h1
+        exact ⟨hd, m, hkey, h'.toConstExt.dom hm⟩
+
+theorem AxiomExt.rfl' (s : ErasureState) : AxiomExt s s where
+  toBodylessExt := BodylessExt.rfl' s
   inds := rfl
 
 theorem AxiomExt.trans {s s' s'' : ErasureState} (h : AxiomExt s s') (h' : AxiomExt s' s'') :
     AxiomExt s s'' where
-  toConstExt := h.toConstExt.trans h'.toConstExt
+  toBodylessExt := h.toBodylessExt.trans h'.toBodylessExt
   inds := h'.inds.trans h.inds
 
-theorem AxiomExt.addAxiom (n : Name) (s : ErasureState) : AxiomExt s (addAxiomState n s) where
-  inds := rfl
+theorem BodylessExt.addAxiom (n : Name) (s : ErasureState) :
+    BodylessExt s (addAxiomState n s) where
   canon := by
     intro hc m k hm
     simp only [addAxiomState] at hm
@@ -1603,7 +1642,52 @@ theorem AxiomExt.addAxiom (n : Name) (s : ErasureState) : AxiomExt s (addAxiomSt
     intro p hp
     simp only [List.mem_singleton] at hp
     subst hp
+    refine ⟨⟨_, rfl⟩, n, rfl, ?_⟩
+    show (Std.HashMap.get? (Std.HashMap.insert s.constants n (toKername n)) n).isSome
+    rw [Std.HashMap.get?_insert]
+    simp
+  gdeclsAx := by
+    refine ⟨[(toKername n, .constantDecl ⟨none⟩)], rfl, ?_⟩
+    intro p hp
+    simp only [List.mem_singleton] at hp
+    subst hp
     refine ⟨rfl, n, rfl, ?_⟩
+    show (Std.HashMap.get? (Std.HashMap.insert s.constants n (toKername n)) n).isSome
+    rw [Std.HashMap.get?_insert]
+    simp
+
+theorem AxiomExt.addAxiom (n : Name) (s : ErasureState) : AxiomExt s (addAxiomState n s) where
+  toBodylessExt := BodylessExt.addAxiom n s
+  inds := rfl
+
+/-- **The realizer registration is a constant extension.** `Erasure.addRealizer` differs from
+`Erasure.addAxiom` only in the body it conses, so it is a `ConstExt` and not a `BodylessExt`. -/
+theorem ConstExt.addRealizer (n : Name) (t : LBTerm) (s : ErasureState) :
+    ConstExt s (addRealizerState n t s) where
+  canon := by
+    intro hc m k hm
+    simp only [addRealizerState] at hm
+    rw [Std.HashMap.get?_insert] at hm
+    split at hm
+    · rename_i heq
+      cases hm
+      have : n = m := by simpa using heq
+      subst this
+      rfl
+    · exact hc hm
+  dom := by
+    intro m hm
+    simp only [addRealizerState]
+    rw [Std.HashMap.get?_insert]
+    split
+    · simp
+    · exact hm
+  gdecls := by
+    refine ⟨[(toKername n, .constantDecl ⟨some t⟩)], rfl, ?_⟩
+    intro p hp
+    simp only [List.mem_singleton] at hp
+    subst hp
+    refine ⟨⟨_, rfl⟩, n, rfl, ?_⟩
     show (Std.HashMap.get? (Std.HashMap.insert s.constants n (toKername n)) n).isSome
     rw [Std.HashMap.get?_insert]
     simp
@@ -1663,26 +1747,39 @@ theorem RunConcl.trans {s s' s'' : ErasureState} (h : RunConcl s s') (h' : RunCo
 def mutualBlockKn (indinfo : InductiveVal) : Kername :=
   rootKername (String.join (indinfo.all.map toString))
 
+/-- The closing `modify` of `register_inductive`'s cold branch: the block's declaration, and
+— `F-KERNAME` — its key with the member list it was minted from, so a later block that mints
+the same key is caught by `checkIndKernameFresh` instead of overwriting this entry. -/
 def registerIndState (indinfo : InductiveVal) (bodies : List OneInductiveBody)
     (s : ErasureState) : ErasureState :=
   { s with
     gdecls := (mutualBlockKn indinfo,
-      .inductiveDecl { npars := indinfo.numParams, bodies := bodies }) :: s.gdecls }
+      .inductiveDecl { npars := indinfo.numParams, bodies := bodies }) :: s.gdecls,
+    indBlocks := (mutualBlockKn indinfo, indinfo.all) :: s.indBlocks }
 
-def RegisteredBodyAt (indinfo : InductiveVal) (bodies : List OneInductiveBody)
-    (n : Name) (rc : InductiveId × InductiveArgMasks) : Prop :=
+/-- What one member of a cold `register_inductive` leaves in the registry: the block key minted
+from `indinfo.all`, the member's own body at its index, that body's `propositional` flag as the
+decision `Erasure.isPropositionalArity` makes on the declared type `getConstInfo` reported for
+the member (`F-PROP`; MetaRocq's `erases_mutual_inductive_body`, `Extract.v:276`), and the
+constructor argument counts. `Ci` abstracts the `getConstInfo` report, exactly as in
+`run_register_inductive_cold_entries`. -/
+def RegisteredBodyAt (Ci : Name → ConstantInfo → Prop) (indinfo : InductiveVal)
+    (bodies : List OneInductiveBody) (n : Name) (rc : InductiveId × InductiveArgMasks) : Prop :=
   ∃ oib : OneInductiveBody,
     rc.1.mutualBlockName = mutualBlockKn indinfo ∧
     bodies[rc.1.idx]? = some oib ∧
     oib.name = toString n ∧
+    (∃ inf : InductiveVal, Ci n (.inductInfo inf) ∧
+      oib.propositional = isPropositionalArity inf.type) ∧
     oib.ctors.map (·.nargs) = rc.2.map (fun m => Array.count ConstructorArgRelevance.keep m)
 
-theorem RegisteredBodyAt.mono {indinfo : InductiveVal} {bodies more : List OneInductiveBody}
+theorem RegisteredBodyAt.mono {Ci : Name → ConstantInfo → Prop} {indinfo : InductiveVal}
+    {bodies more : List OneInductiveBody}
     {n : Name} {rc : InductiveId × InductiveArgMasks}
-    (h : RegisteredBodyAt indinfo bodies n rc) :
-    RegisteredBodyAt indinfo (bodies ++ more) n rc := by
-  obtain ⟨oib, h1, h2, h3, h4⟩ := h
-  refine ⟨oib, h1, ?_, h3, h4⟩
+    (h : RegisteredBodyAt Ci indinfo bodies n rc) :
+    RegisteredBodyAt Ci indinfo (bodies ++ more) n rc := by
+  obtain ⟨oib, h1, h2, h3, hprop, h4⟩ := h
+  refine ⟨oib, h1, ?_, h3, hprop, h4⟩
   have hlt : rc.1.idx < bodies.length := by
     rcases List.getElem?_eq_some_iff.mp h2 with ⟨hlt, -⟩
     exact hlt
@@ -1714,13 +1811,143 @@ theorem zipIdx_split_fst {α : Type _} {l : List α} {pre post : List (α × Nat
     simp only [Option.map_some, Option.some.injEq] at hx
     rw [← hx]
 
+/-! ### the kername-freshness guards (F-KERNAME) -/
+
+/-- The content of `Erasure.checkKernameFresh n kn`'s two tests when neither fires: no constant
+other than `n` has `kn` for its key, and no registered mutual inductive block minted `kn`. The
+scans run over `ErasureState.constants.toList` and `ErasureState.indBlocks`, which is how the
+guard reads them (`Erasure.lean:221-226`). -/
+def KernameFresh (n : Name) (kn : Kername) (s : ErasureState) : Prop :=
+  (∀ p ∈ s.constants.toList, p.2 = kn → p.1 = n) ∧ ∀ p ∈ s.indBlocks, p.1 ≠ kn
+
+/-- The content of `Erasure.checkIndKernameFresh names kn`'s two tests when neither fires: no
+registered constant minted `kn`, and the *first* registered block that minted it — if any — is
+`names` itself. The block half is stated on `List.find?` because that is what the guard reads:
+a second entry under the same key is never reached (`Erasure.lean:233-238`). -/
+def IndKernameFresh (names : List Name) (kn : Kername) (s : ErasureState) : Prop :=
+  (∀ p ∈ s.constants.toList, p.2 ≠ kn) ∧
+    ∀ k ms, s.indBlocks.find? (fun p => decide (p.1 = kn)) = some (k, ms) → ms = names
+
+theorem run_checkKernameFresh_ok {n : Name} {kn : Kername} {s : ErasureState}
+    {ctx : ErasureContext} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
+    {w : Void IO.RealWorld} {u : Unit} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
+    (hrun : checkKernameFresh n kn s ctx cctx ref w = .ok (u, s₁) w₁) :
+    s₁ = s ∧ w₁ = w ∧ KernameFresh n kn s := by
+  unfold checkKernameFresh at hrun
+  simp only [] at hrun
+  rw [run_bind_ok] at hrun
+  obtain ⟨s0, sA, wA, hget, hk⟩ := hrun
+  rw [run_get] at hget
+  cases hget
+  cases hf1 : List.find? (fun x => decide (x.snd = kn) && decide (x.fst ≠ n))
+      s.constants.toList with
+  | some p =>
+    obtain ⟨other, k⟩ := p
+    rw [hf1] at hk
+    simp only [] at hk
+    rw [run_bind_ok] at hk
+    obtain ⟨a0, sT, wT, hthr, -⟩ := hk
+    exact absurd hthr (run_throwError_ne_ok _ ctx cctx ref _ _ _ _ _)
+  | none =>
+    rw [hf1] at hk
+    simp only [] at hk
+    rw [run_bind_ok] at hk
+    obtain ⟨s2, sB, wB, hget2, hk2⟩ := hk
+    rw [run_get] at hget2
+    cases hget2
+    cases hf2 : List.find? (fun x => decide (x.fst = kn)) s.indBlocks with
+    | some q =>
+      obtain ⟨k2, members⟩ := q
+      rw [hf2] at hk2
+      simp only [] at hk2
+      exact absurd hk2 (run_throwError_ne_ok _ ctx cctx ref _ _ _ _ _)
+    | none =>
+      rw [hf2] at hk2
+      simp only [] at hk2
+      rw [run_pure] at hk2
+      cases hk2
+      refine ⟨rfl, rfl, ?_, ?_⟩
+      · intro p hp hpk
+        exact Decidable.byContradiction fun hc =>
+          List.find?_eq_none.mp hf1 p hp (by simp [hpk, hc])
+      · intro p hp hpk
+        exact List.find?_eq_none.mp hf2 p hp (by simp [hpk])
+
+theorem run_checkIndKernameFresh_ok {names : List Name} {kn : Kername} {s : ErasureState}
+    {ctx : ErasureContext} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
+    {w : Void IO.RealWorld} {u : Unit} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
+    (hrun : checkIndKernameFresh names kn s ctx cctx ref w = .ok (u, s₁) w₁) :
+    s₁ = s ∧ w₁ = w ∧ IndKernameFresh names kn s := by
+  unfold checkIndKernameFresh at hrun
+  simp only [] at hrun
+  rw [run_bind_ok] at hrun
+  obtain ⟨s0, sA, wA, hget, hk⟩ := hrun
+  rw [run_get] at hget
+  cases hget
+  have tail : ∀ (sB : ErasureState) (wB : Void IO.RealWorld),
+      ((do
+        let st ← get
+        match List.find? (fun x => decide (x.snd = kn)) st.constants.toList with
+        | some (other, snd) =>
+          Lean.throwError
+            (toMessageData "Erasure.toKername: " ++ toMessageData other ++
+              toMessageData " and the mutual inductive block " ++ toMessageData names ++
+              toMessageData " both mint the λbox key " ++ toMessageData (repr kn) ++
+              toMessageData ".")
+        | _ => pure ()) : EraseM Unit) sB ctx cctx ref wB = .ok (u, s₁) w₁ →
+      s₁ = sB ∧ w₁ = wB ∧ ∀ p ∈ sB.constants.toList, p.2 ≠ kn := by
+    intro sB wB h
+    rw [run_bind_ok] at h
+    obtain ⟨s2, sC, wC, hget2, h2⟩ := h
+    rw [run_get] at hget2
+    cases hget2
+    cases hf : List.find? (fun x => decide (x.snd = kn)) sB.constants.toList with
+    | some p =>
+      obtain ⟨other, k⟩ := p
+      rw [hf] at h2
+      simp only [] at h2
+      exact absurd h2 (run_throwError_ne_ok _ ctx cctx ref _ _ _ _ _)
+    | none =>
+      rw [hf] at h2
+      simp only [] at h2
+      rw [run_pure] at h2
+      cases h2
+      exact ⟨rfl, rfl, fun p hp hpk => List.find?_eq_none.mp hf p hp (by simp [hpk])⟩
+  cases hf1 : List.find? (fun x => decide (x.fst = kn)) s.indBlocks with
+  | some q =>
+    obtain ⟨k1, other⟩ := q
+    rw [hf1] at hk
+    simp only [] at hk
+    by_cases hne : other ≠ names
+    · rw [if_pos hne] at hk
+      rw [run_bind_ok] at hk
+      obtain ⟨a0, sT, wT, hthr, -⟩ := hk
+      exact absurd hthr (run_throwError_ne_ok _ ctx cctx ref _ _ _ _ _)
+    · rw [if_neg hne] at hk
+      obtain ⟨h1, h2, h3⟩ := tail s w hk
+      refine ⟨h1, h2, h3, ?_⟩
+      intro k' ms hms
+      rw [hf1] at hms
+      cases hms
+      exact Decidable.byContradiction hne
+  | none =>
+    rw [hf1] at hk
+    simp only [] at hk
+    obtain ⟨h1, h2, h3⟩ := tail s w hk
+    refine ⟨h1, h2, h3, ?_⟩
+    intro k' ms hms
+    rw [hf1] at hms
+    exact absurd hms (by simp)
+
 /-! ### R3 / R5 -/
 
+/-- `Erasure.addAxiom`'s state delta, and — `F-KERNAME` — the guard's surviving content: the
+key it is about to mint is held by no other constant and by no registered block. -/
 theorem run_addAxiom_ok {n : Name} {s : ErasureState} {ctx : ErasureContext}
     {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State} {w : Void IO.RealWorld}
     {u : Unit} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
     (hrun : addAxiom n s ctx cctx ref w = .ok (u, s₁) w₁) :
-    s₁ = addAxiomState n s ∧ w₁ = w := by
+    s₁ = addAxiomState n s ∧ w₁ = w ∧ KernameFresh n (toKername n) s := by
   unfold addAxiom at hrun
   simp only [] at hrun
   rw [run_bind_ok] at hrun
@@ -1729,15 +1956,51 @@ theorem run_addAxiom_ok {n : Name} {s : ErasureState} {ctx : ErasureContext}
   cases hget
   by_cases hc : s.constants.contains n = true
   · rw [if_pos hc, run_bind_ok] at hk
-    obtain ⟨_, sB, wB, hpanic, hmod⟩ := hk
+    obtain ⟨_, sB, wB, hpanic, hk⟩ := hk
     rw [run_panicWithPosWithDecl] at hpanic
     cases hpanic
+    rw [run_bind_ok] at hk
+    obtain ⟨_, sC, wC, hguard, hmod⟩ := hk
+    obtain ⟨rfl, rfl, hfresh⟩ := run_checkKernameFresh_ok hguard
     rw [run_modify] at hmod
     cases hmod
-    exact ⟨rfl, rfl⟩
-  · rw [if_neg hc, run_modify] at hk
-    cases hk
-    exact ⟨rfl, rfl⟩
+    exact ⟨rfl, rfl, hfresh⟩
+  · rw [if_neg hc, run_bind_ok] at hk
+    obtain ⟨_, sC, wC, hguard, hmod⟩ := hk
+    obtain ⟨rfl, rfl, hfresh⟩ := run_checkKernameFresh_ok hguard
+    rw [run_modify] at hmod
+    cases hmod
+    exact ⟨rfl, rfl, hfresh⟩
+
+/-- `Erasure.addRealizer`'s state delta, `run_addAxiom_ok`'s twin at a body. -/
+theorem run_addRealizer_ok {n : Name} {t : LBTerm} {s : ErasureState} {ctx : ErasureContext}
+    {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State} {w : Void IO.RealWorld}
+    {u : Unit} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
+    (hrun : addRealizer n t s ctx cctx ref w = .ok (u, s₁) w₁) :
+    s₁ = addRealizerState n t s ∧ w₁ = w ∧ KernameFresh n (toKername n) s := by
+  unfold addRealizer at hrun
+  simp only [] at hrun
+  rw [run_bind_ok] at hrun
+  obtain ⟨s0, sA, wA, hget, hk⟩ := hrun
+  rw [run_get] at hget
+  cases hget
+  by_cases hc : s.constants.contains n = true
+  · rw [if_pos hc, run_bind_ok] at hk
+    obtain ⟨_, sB, wB, hpanic, hk⟩ := hk
+    rw [run_panicWithPosWithDecl] at hpanic
+    cases hpanic
+    rw [run_bind_ok] at hk
+    obtain ⟨_, sC, wC, hguard, hmod⟩ := hk
+    obtain ⟨rfl, rfl, hfresh⟩ := run_checkKernameFresh_ok hguard
+    rw [run_modify] at hmod
+    cases hmod
+    exact ⟨rfl, rfl, hfresh⟩
+  · rw [if_neg hc, run_bind_ok] at hk
+    obtain ⟨_, sC, wC, hguard, hmod⟩ := hk
+    obtain ⟨rfl, rfl, hfresh⟩ := run_checkKernameFresh_ok hguard
+    rw [run_modify] at hmod
+    cases hmod
+    exact ⟨rfl, rfl, hfresh⟩
 
 theorem run_register_inductive_hit_ok {indinfo : InductiveVal}
     {rc0 : InductiveId × InductiveArgMasks}
@@ -1785,20 +2048,24 @@ theorem run_register_inductive_hit_mk {indinfo : InductiveVal}
 /-! ### R4 -/
 
 set_option maxHeartbeats 2000000 in
-theorem run_register_inductive_cold_ok
+theorem run_register_inductive_cold_ok {Ci : Name → ConstantInfo → Prop}
     {indinfo : InductiveVal} {s : ErasureState} {ctx : ErasureContext}
     {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State} {w : Void IO.RealWorld}
     {r : InductiveId × InductiveArgMasks} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
+    (hCi : ∀ (nm : Name) (ci : ConstantInfo) (s' s'' : ErasureState)
+        (w' w'' : Void IO.RealWorld),
+      (getConstInfo nm : EraseM ConstantInfo) s' ctx cctx ref w' = .ok (ci, s'') w'' → Ci nm ci)
     (hmiss : s.inductives.get? indinfo.name = none)
     (hrun : register_inductive indinfo s ctx cctx ref w = .ok (r, s₁) w₁) :
+    IndKernameFresh indinfo.all (mutualBlockKn indinfo) s ∧
     ∃ (bodies : List OneInductiveBody) (sM : ErasureState),
       s₁ = registerIndState indinfo bodies sM ∧
       r = sM.inductives[indinfo.name]! ∧
       bodies.length = indinfo.all.length ∧
-      ConstExt s sM ∧
+      BodylessExt s sM ∧
       (∀ {n : Name}, (s.inductives.get? n).isSome → (sM.inductives.get? n).isSome) ∧
       ∀ {n : Name} {rc : InductiveId × InductiveArgMasks}, sM.inductives.get? n = some rc →
-        s.inductives.get? n = some rc ∨ RegisteredBodyAt indinfo bodies n rc := by
+        s.inductives.get? n = some rc ∨ RegisteredBodyAt Ci indinfo bodies n rc := by
   unfold register_inductive at hrun
   simp only [] at hrun
   rw [run_bind_ok] at hrun
@@ -1807,6 +2074,11 @@ theorem run_register_inductive_cold_ok
   cases hget
   rw [hmiss] at hk
   simp only [] at hk
+  rw [run_bind_ok] at hk
+  obtain ⟨ug, sG, wG, hguard, hk⟩ := hk
+  obtain ⟨hsG, hwG, hifresh⟩ := run_checkIndKernameFresh_ok hguard
+  subst sG
+  subst wG
   rw [run_bind_ok] at hk
   obtain ⟨bodies, sM, wM, hmap, htail⟩ := hk
   rw [run_bind_ok] at htail
@@ -1819,14 +2091,14 @@ theorem run_register_inductive_cold_ok
   cases hget2
   rw [run_pure] at hp
   cases hp
-  refine ⟨bodies, sM, rfl, rfl, ?_⟩
+  refine ⟨hifresh, bodies, sM, rfl, rfl, ?_⟩
   have key := run_list_mapM_ok ctx cctx ref
     (P := fun (pre : List (Name × Nat)) (outs : List OneInductiveBody) s' _ =>
-      outs.length = pre.length ∧ ConstExt s s' ∧
+      outs.length = pre.length ∧ BodylessExt s s' ∧
       (∀ {n : Name}, (s.inductives.get? n).isSome → (s'.inductives.get? n).isSome) ∧
       ∀ {n : Name} {rc : InductiveId × InductiveArgMasks}, s'.inductives.get? n = some rc →
-        s.inductives.get? n = some rc ∨ RegisteredBodyAt indinfo outs n rc)
-    ⟨rfl, ConstExt.rfl' s, id, fun h => Or.inl h⟩ ?step hmap
+        s.inductives.get? n = some rc ∨ RegisteredBodyAt Ci indinfo outs n rc)
+    ⟨rfl, BodylessExt.rfl' s, id, fun h => Or.inl h⟩ ?step hmap
   · obtain ⟨hlen, hce, hgrow, hreg⟩ := key
     exact ⟨by rw [hlen, List.length_zipIdx], hce, hgrow, hreg⟩
   case step =>
@@ -1836,10 +2108,10 @@ theorem run_register_inductive_cold_ok
     have hidx : x.2 = pre.length := zipIdx_split_snd hL
     -- the invariant when the step leaves the state alone
     have htriv : ∀ b' : OneInductiveBody,
-        (outs ++ [b']).length = (pre ++ [x]).length ∧ ConstExt s sP ∧
+        (outs ++ [b']).length = (pre ++ [x]).length ∧ BodylessExt s sP ∧
         (∀ {n : Name}, (s.inductives.get? n).isSome → (sP.inductives.get? n).isSome) ∧
         ∀ {n : Name} {rc : InductiveId × InductiveArgMasks}, sP.inductives.get? n = some rc →
-          s.inductives.get? n = some rc ∨ RegisteredBodyAt indinfo (outs ++ [b']) n rc := by
+          s.inductives.get? n = some rc ∨ RegisteredBodyAt Ci indinfo (outs ++ [b']) n rc := by
       intro b'
       refine ⟨by simp [hlen], hce, hgrow, ?_⟩
       intro n rc h
@@ -1850,9 +2122,10 @@ theorem run_register_inductive_cold_ok
     obtain ⟨ci, sa, wa, hci, hrest⟩ := hbody
     have hsa : sa = sP := run_getConstInfo_state sP ctx cctx ref wP hci
     subst hsa
-    clear hci
-    split at hrest
-    case _ inf _ =>
+    cases ci
+    case inductInfo inf =>
+      have hCix : Ci x.1 (.inductInfo inf) := hCi x.1 _ _ _ _ _ hci
+      simp only [] at hrest
       rw [run_bind_ok] at hrest
       obtain ⟨res, sb, wb, hctors, hrest2⟩ := hrest
       have hQ := run_list_mapM_ok ctx cctx ref
@@ -1880,8 +2153,8 @@ theorem run_register_inductive_cold_ok
           cases hmod2
           rw [run_pure] at hfin
           cases hfin
-          refine ⟨by simp [hlen], hce.trans (hax.toConstExt.trans (ConstExt.of_same rfl rfl)),
-            ?_, ?_⟩
+          refine ⟨by simp [hlen],
+            hce.trans (hax.toBodylessExt.trans (BodylessExt.of_same rfl rfl)), ?_, ?_⟩
           · intro n hn
             show (Std.HashMap.get? (Std.HashMap.insert _ _ _) n).isSome
             rw [Std.HashMap.get?_insert]
@@ -1895,11 +2168,14 @@ theorem run_register_inductive_cold_ok
           split at hn
           · rename_i heq
             cases hn
-            refine Or.inr ⟨{ name := toString x.1, ctors := res.unzip.fst, projs := projs },
-              rfl, ?_, ?_, hmapeq⟩
+            have hxn : x.1 = n := by simpa using heq
+            refine Or.inr
+              ⟨{ name := toString x.1,
+                 propositional := isPropositionalArity inf.type,
+                 ctors := res.unzip.fst, projs := projs },
+               rfl, ?_, ?_, ⟨inf, hxn ▸ hCix, rfl⟩, hmapeq⟩
             · simp [hidx, hlen]
-            · have : x.1 = n := by simpa using heq
-              rw [this]
+            · rw [hxn]
           · rw [hax.inds] at hn
             rcases hreg hn with h' | h'
             · exact Or.inl h'
@@ -1924,7 +2200,7 @@ theorem run_register_inductive_cold_ok
           subst hsl
           rw [run_bind_ok] at h4
           obtain ⟨u2, sax, wax, hadd, h5⟩ := h4
-          obtain ⟨hst, hwt⟩ := run_addAxiom_ok hadd
+          obtain ⟨hst, hwt, -⟩ := run_addAxiom_ok hadd
           subst hst
           subst hwt
           rw [run_bind_ok] at h5
@@ -2001,6 +2277,7 @@ theorem run_register_inductive_cold_ok
               subst hp'
               first | rfl | simp
     all_goals
+      simp only [] at hrest
       rw [run_panicWithPosWithDecl] at hrest
       cases hrest
       exact htriv _
@@ -2046,6 +2323,11 @@ theorem run_register_inductive_cold_entries {Ci : Name → ConstantInfo → Prop
   cases hget
   rw [hmiss] at hk
   simp only [] at hk
+  rw [run_bind_ok] at hk
+  obtain ⟨ug, sG, wG, hguard, hk⟩ := hk
+  obtain ⟨hsG, hwG, -⟩ := run_checkIndKernameFresh_ok hguard
+  subst sG
+  subst wG
   rw [run_bind_ok] at hk
   obtain ⟨bodies, sM, wM, hmap, htail⟩ := hk
   rw [run_bind_ok] at htail
@@ -2149,7 +2431,7 @@ theorem run_register_inductive_cold_entries {Ci : Name → ConstantInfo → Prop
           have hwl := hLog _ u1 _ _ _ _ hlog
           rw [run_bind_ok] at h4
           obtain ⟨u2, sax, wax, hadd, h5⟩ := h4
-          obtain ⟨hst, hwt⟩ := run_addAxiom_ok hadd
+          obtain ⟨hst, hwt, -⟩ := run_addAxiom_ok hadd
           subst hst
           subst hwt
           rw [run_bind_ok] at h5
@@ -2295,13 +2577,15 @@ theorem run_register_inductive_runConcl {indinfo : InductiveVal}
     obtain ⟨-, hs, -⟩ := run_register_inductive_hit_ok hi hrun
     exact RunConcl.of_eq hs
   | none =>
-    obtain ⟨bodies, sM, hs1, -, -, hext, hgrow, -⟩ := run_register_inductive_cold_ok hi hrun
+    obtain ⟨-, bodies, sM, hs1, -, -, hext, hgrow, -⟩ :=
+      run_register_inductive_cold_ok (Ci := fun _ _ => True)
+        (fun _ _ _ _ _ _ _ => trivial) hi hrun
     subst hs1
-    obtain ⟨pre, hpre, -⟩ := hext.gdecls
+    obtain ⟨pre, hpre, -⟩ := hext.toConstExt.gdecls
     exact ⟨⟨hext.dom, hgrow, ⟨(mutualBlockKn indinfo,
         GlobalDecl.inductiveDecl { npars := indinfo.numParams, bodies := bodies }) :: pre,
       by show ((mutualBlockKn indinfo, _) :: sM.gdecls) = _; rw [List.cons_append, ← hpre]⟩⟩,
-      hext.canon⟩
+      hext.toConstExt.canon⟩
 
 /-- **The registry entries of a registration, both branches.** The hit branch changes nothing;
 the cold branch's are those of `run_register_inductive_cold_entries`. -/
@@ -2345,7 +2629,7 @@ per `@[extern]` constructor, via `addAxiom`), so it never records a constant *bo
 This is what lets a δ record — "the body stored for a fragment constant erases its source
 body" — cross the call for free. Keyed on entries rather than on the registry domain,
 because the domain *does* grow here and the `addAxiom` runs that grow it are not handed
-back (the miss branch exposes a `ConstExt`, not its per-name runs). -/
+back (the miss branch exposes a `BodylessExt`, not its per-name runs). -/
 theorem run_register_inductive_gdeclsConst {indinfo : InductiveVal}
     {s : ErasureState} {ctx : ErasureContext} {cctx : Core.Context}
     {ref : ST.Ref IO.RealWorld Core.State} {w : Void IO.RealWorld}
@@ -2361,9 +2645,11 @@ theorem run_register_inductive_gdeclsConst {indinfo : InductiveVal}
     rw [hs] at hm
     exact hm
   | none =>
-    obtain ⟨bodies, sM, hs1, -, -, hext, -, -⟩ := run_register_inductive_cold_ok hi hrun
+    obtain ⟨-, bodies, sM, hs1, -, -, hext, -, -⟩ :=
+      run_register_inductive_cold_ok (Ci := fun _ _ => True)
+        (fun _ _ _ _ _ _ _ => trivial) hi hrun
     subst hs1
-    obtain ⟨pre, hpre, hax⟩ := hext.gdecls
+    obtain ⟨pre, hpre, hax⟩ := hext.gdeclsAx
     show (kn, GlobalDecl.constantDecl ⟨some t⟩) ∈ s.gdecls
     have hm' : (kn, GlobalDecl.constantDecl ⟨some t⟩) ∈
         (mutualBlockKn indinfo, GlobalDecl.inductiveDecl
@@ -2466,6 +2752,23 @@ theorem run_mkDef_rarg {nm : Name} {fixvarnames : List Name} {body : LBTerm}
   cases hp
   rfl
 
+/-- **The η-expansion a block registration writes, at a block of `mkDef` definitions.**
+`Erasure.etaExpandFix` opens `principalArgIdx + 1` binders, and `mkDef` emits the `Basic.lean`
+default `0` at every member (`run_mkDef_rarg`), so the wrapper is the single binder
+`fun x => (fix defs j) x` — MetaRocq's `eta_fixpoint` (`template-rocq/theories/EtaExpand.v:72`)
+at `1 + rarg = 1`. Out of range the definition takes the same arity, so no bound on `j` is
+needed. -/
+theorem etaExpandFix_eq {defs : List (@FixDef LBTerm)} {j : Nat}
+    (h : ∀ d ∈ defs, d.principalArgIdx = 0) :
+    etaExpandFix defs j = .lambda .anon (.app (.fix defs j) (.bvar 0)) := by
+  unfold etaExpandFix
+  cases hd : defs[j]? with
+  | none => rfl
+  | some d =>
+    have : d.principalArgIdx = 0 := h d (List.mem_of_getElem? hd)
+    simp only [this]
+    rfl
+
 /-- **R10.** -/
 theorem run_modify_forIn_ok {γ : Type} {L : List γ} {g : γ → ErasureState → ErasureState}
     {s : ErasureState} {ctx : ErasureContext} {cctx : Core.Context}
@@ -2498,6 +2801,91 @@ theorem run_modify_forIn_ok {γ : Type} {L : List γ} {g : γ → ErasureState �
     cases hmod
     rw [run_pure] at hp2
     exact nomatch hp2
+
+/-- **R10, with a guard before the write.** `run_modify_forIn_ok` at a loop body that runs a
+state- and world-neutral action before its `modify` — the shape `visitMutual`'s registration
+loop has since `F-KERNAME` put `checkKernameFresh` between the key and the write. The prefix's
+own content comes out per step, at the state the earlier steps produced. -/
+theorem run_prefix_modify_forIn_ok {γ : Type} {L : List γ}
+    {g : γ → ErasureState → ErasureState} {pre : γ → EraseM Unit}
+    {R : γ → ErasureState → Prop}
+    {s : ErasureState} {ctx : ErasureContext} {cctx : Core.Context}
+    {ref : ST.Ref IO.RealWorld Core.State} {w : Void IO.RealWorld}
+    {u : PUnit} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
+    (hpre : ∀ (x : γ) (u' : Unit) (s' s'' : ErasureState) (w' w'' : Void IO.RealWorld),
+      pre x s' ctx cctx ref w' = .ok (u', s'') w'' → s'' = s' ∧ w'' = w' ∧ R x s')
+    (hrun : (forIn L PUnit.unit (fun x _ => do pre x; modify (g x); pure (.yield PUnit.unit)) :
+        EraseM PUnit) s ctx cctx ref w = .ok (u, s₁) w₁) :
+    s₁ = L.foldl (fun st x => g x st) s ∧ w₁ = w ∧
+      ∀ (p q : List γ) (x : γ), L = p ++ x :: q → R x (p.foldl (fun st y => g y st) s) := by
+  have key := run_list_forIn_ok' ctx cctx ref
+    (P := fun (done : List γ) (_ : PUnit) s' w' =>
+      s' = done.foldl (fun st x => g x st) s ∧ w' = w ∧
+      ∀ (p q : List γ) (x : γ), done = p ++ x :: q → R x (p.foldl (fun st y => g y st) s))
+    ⟨rfl, rfl, by intro p q x h; exact absurd h.symm (by simp)⟩ ?yield ?done hrun
+  · exact key
+  case yield =>
+    intro done y post acc' sa' wa' b' sb' wb' hL ⟨hs, hw, hR⟩ hbody
+    subst hs
+    subst hw
+    rw [run_bind_ok] at hbody
+    obtain ⟨u0, s0, w0, hg, hbody⟩ := hbody
+    obtain ⟨rfl, rfl, hRy⟩ := hpre y u0 _ _ _ _ hg
+    rw [run_bind_ok] at hbody
+    obtain ⟨uu, sc, wc, hmod, hp2⟩ := hbody
+    rw [run_modify] at hmod
+    cases hmod
+    rw [run_pure] at hp2
+    cases hp2
+    refine ⟨by rw [List.foldl_append]; rfl, rfl, ?_⟩
+    intro p q x hsplit
+    rcases List.append_eq_append_iff.mp hsplit with ⟨a, ha1, ha2⟩ | ⟨a, ha1, ha2⟩
+    · cases a with
+      | nil =>
+        simp only [List.append_nil] at ha1
+        subst ha1
+        simp only [List.nil_append, List.cons.injEq] at ha2
+        obtain ⟨rfl, -⟩ := ha2
+        exact hRy
+      | cons z a' => simp at ha2
+    · cases a with
+      | nil =>
+        simp only [List.append_nil] at ha1
+        subst ha1
+        simp only [List.nil_append, List.cons.injEq] at ha2
+        obtain ⟨rfl, -⟩ := ha2
+        exact hRy
+      | cons z a' =>
+        simp only [List.cons_append, List.cons.injEq] at ha2
+        obtain ⟨rfl, -⟩ := ha2
+        exact hR p a' x ha1
+  case done =>
+    intro done y post acc' sa' wa' b' sb' wb' hL hP hbody
+    rw [run_bind_ok] at hbody
+    obtain ⟨u0, s0, w0, hg, hbody⟩ := hbody
+    rw [run_bind_ok] at hbody
+    obtain ⟨uu, sc, wc, hmod, hp2⟩ := hbody
+    rw [run_modify] at hmod
+    cases hmod
+    rw [run_pure] at hp2
+    exact nomatch hp2
+
+/-- `run_prefix_modify_forIn_ok` at the prefix the block registration actually runs — the
+`F-KERNAME` guard on the member's own key — so that the loop's shape is matched first-order
+where it is used. -/
+theorem run_checkFresh_modify_forIn_ok {L : List (Name × Nat)}
+    {g : (Name × Nat) → ErasureState → ErasureState}
+    {s : ErasureState} {ctx : ErasureContext} {cctx : Core.Context}
+    {ref : ST.Ref IO.RealWorld Core.State} {w : Void IO.RealWorld}
+    {u : PUnit} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
+    (hrun : (forIn L PUnit.unit (fun x _ => do
+        checkKernameFresh x.1 (toKername x.1)
+        modify (g x)
+        pure (.yield PUnit.unit)) : EraseM PUnit) s ctx cctx ref w = .ok (u, s₁) w₁) :
+    s₁ = L.foldl (fun st x => g x st) s ∧ w₁ = w ∧
+      ∀ (p q : List (Name × Nat)) (x : Name × Nat), L = p ++ x :: q →
+        KernameFresh x.1 (toKername x.1) (p.foldl (fun st y => g y st) s) :=
+  run_prefix_modify_forIn_ok (fun _ _ _ _ _ _ h => run_checkKernameFresh_ok h) hrun
 
 /-- **R6.** -/
 theorem run_get_constant_kername_ok {n : Name}
@@ -2560,20 +2948,23 @@ def nonrecConstState (n : Name) (t : LBTerm) (s : ErasureState) : ErasureState :
     constants := s.constants.insert n (toKername n),
     gdecls := (toKername n, .constantDecl ⟨some t⟩) :: s.gdecls }
 
+/-- The block registration's state delta: one constant per member, at the **η-expanded**
+fixpoint `Erasure.etaExpandFix` (F-ETA), which is what `visitMutual`'s registration loop
+conses (`Erasure.lean:1276`). -/
 def recConstState (names : List Name) (defs : List (@FixDef LBTerm))
     (s : ErasureState) : ErasureState :=
   names.zipIdx.foldl
     (fun st p =>
       { st with
         constants := st.constants.insert p.1 (toKername p.1),
-        gdecls := (toKername p.1, .constantDecl ⟨some (.fix defs p.2)⟩) :: st.gdecls }) s
+        gdecls := (toKername p.1, .constantDecl ⟨some (etaExpandFix defs p.2)⟩) :: st.gdecls }) s
 
 /-- One step of the recursive block registration, named so that the `List.foldl`
 induction that walks `recConstState` has something to generalize over. It is literally
-the constant cons of the non-recursive exit at a `.fix` body. -/
+the constant cons of the non-recursive exit at an η-expanded fixpoint. -/
 def recConstStep (defs : List (@FixDef LBTerm)) (st : ErasureState) (p : Name × Nat) :
     ErasureState :=
-  nonrecConstState p.1 (.fix defs p.2) st
+  nonrecConstState p.1 (etaExpandFix defs p.2) st
 
 theorem recConstState_eq (names : List Name) (defs : List (@FixDef LBTerm))
     (s : ErasureState) :
@@ -2683,6 +3074,7 @@ theorem run_nonrec_exit_ok {vE : Expr → EraseM LBTerm}
     {u : Unit} {s₁ : ErasureState} {w₁ : Void IO.RealWorld} (hQ : Q s)
     (hrun : (do
         let t ← withReader f (do let pe ← prepare_erasure e; vE pe)
+        checkKernameFresh n (toKername n)
         modify (fun s => { s with
           constants := s.constants.insert n (toKername n),
           gdecls := (toKername n, .constantDecl ⟨some t⟩) :: s.gdecls })
@@ -2703,6 +3095,11 @@ theorem run_nonrec_exit_ok {vE : Expr → EraseM LBTerm}
   obtain ⟨pe, sp, wp, hpr, hvis⟩ := hvis
   replace hQ := hprep hpr hQ
   obtain ⟨hQ', hnf, hcl⟩ := hvE hvis hQ
+  rw [run_bind_ok] at hrun
+  obtain ⟨ug, sg, wg, hguard, hrun⟩ := hrun
+  obtain ⟨hsg, hwg, -⟩ := run_checkKernameFresh_ok hguard
+  subst sg
+  subst wg
   rw [run_bind_ok] at hrun
   obtain ⟨u2, sm, wm, hmod, hrun⟩ := hrun
   rw [run_modify] at hmod
@@ -2729,6 +3126,7 @@ knows nothing of `LBClosed`. -/
 theorem run_rec_exit_ok {vE : Expr → EraseM LBTerm} {names fixnames : List Name}
     {f : List FVarId → ErasureContext → ErasureContext}
     {g : ConstantInfo → ErasureContext → ErasureContext} {val : ConstantInfo → Expr}
+    {msg : MessageData}
     (hprep : ∀ {e' : Expr} {s' : ErasureState} {ctx' : ErasureContext}
         {w' : Void IO.RealWorld} {pe : Expr} {s'' : ErasureState} {w'' : Void IO.RealWorld},
       prepare_erasure e' s' ctx' cctx ref w' = .ok (pe, s'') w'' → Q s' → Q s'')
@@ -2744,15 +3142,19 @@ theorem run_rec_exit_ok {vE : Expr → EraseM LBTerm} {names fixnames : List Nam
     {u : Unit} {s₁ : ErasureState} {w₁ : Void IO.RealWorld} (hQ : Q s)
     (hrun : (do
         let ids ← names.mapM (fun _ => mkFreshFVarId)
+        unless (fixnames.map toKername).Nodup do
+          throwError msg
         withReader (f ids) (do
           let defs ← names.mapM (fun m => do
             let ci ← getConstInfo m
             let t ← withReader (g ci) (do let pe ← prepare_erasure (val ci); vE pe)
             mkDef (remove_unsafe_rec m) fixnames t)
           for p in fixnames.zipIdx do
+            checkKernameFresh p.1 (toKername p.1)
             modify (fun s => { s with
               constants := s.constants.insert p.1 (toKername p.1),
-              gdecls := (toKername p.1, .constantDecl ⟨some (.fix defs p.2)⟩) :: s.gdecls })
+              gdecls := (toKername p.1,
+                .constantDecl ⟨some (etaExpandFix defs p.2)⟩) :: s.gdecls })
           pure ()) : EraseM Unit) s ctx cctx ref w = .ok (u, s₁) w₁) : Q s₁ := by
   rw [run_bind_ok] at hrun
   obtain ⟨ids, sid, wid, hids, hrun⟩ := hrun
@@ -2765,6 +3167,12 @@ theorem run_rec_exit_ok {vE : Expr → EraseM LBTerm} {names fixnames : List Nam
       subst hz
       exact hQa)
     hids
+  split at hrun
+  case isFalse hnd =>
+    rw [run_bind_ok] at hrun
+    obtain ⟨a0, s0, w0, hthr, -⟩ := hrun
+    exact absurd hthr (run_throwError_ne_ok _ ctx cctx ref _ _ _ _ _)
+  dsimp only [] at hrun
   rw [run_withReader, run_bind_ok] at hrun
   obtain ⟨defs, sd, wd, hdefs, hrun⟩ := hrun
   replace hQ := run_list_mapM_ok _ cctx ref
@@ -2797,20 +3205,60 @@ theorem run_rec_exit_ok {vE : Expr → EraseM LBTerm} {names fixnames : List Nam
     hdefs
   rw [run_bind_ok] at hrun
   obtain ⟨u4, sf, wf, hloop, hrun⟩ := hrun
-  obtain ⟨hsf, -⟩ := run_modify_forIn_ok hloop
+  obtain ⟨hsf, -, -⟩ := run_checkFresh_modify_forIn_ok hloop
   subst hsf
   rw [run_pure] at hrun
   cases hrun
   exact hrec hQ.1 hQ.2.1 hQ.2.2
 
-set_option maxHeartbeats 1000000 in
-/-- **R7 — `visitMutual`, Hoare form over its four exits.** -/
+/-- **The `F-UNSAFEREC` guard's reading.** A successful block exit says the members' keys are
+distinct: `visitMutual` refuses the block otherwise (`Erasure.lean:1262-1264`), which is what
+`remove_unsafe_rec` makes possible — it is not injective, so `[u, u._unsafe_rec]` maps to
+`[u, u]`. The same distinctness stated unconditionally of `Lean.Compiler.LCNF.getDeclInfo?` is
+false, so the run is the only place it can be read. -/
+theorem run_rec_exit_nodup {names fixnames : List Name} {vE : Expr → EraseM LBTerm}
+    {f : List FVarId → ErasureContext → ErasureContext}
+    {g : ConstantInfo → ErasureContext → ErasureContext} {val : ConstantInfo → Expr}
+    {msg : MessageData}
+    {s : ErasureState} {ctx : ErasureContext} {w : Void IO.RealWorld}
+    {u : Unit} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
+    (hrun : (do
+        let ids ← names.mapM (fun _ => mkFreshFVarId)
+        unless (fixnames.map toKername).Nodup do
+          throwError msg
+        withReader (f ids) (do
+          let defs ← names.mapM (fun m => do
+            let ci ← getConstInfo m
+            let t ← withReader (g ci) (do let pe ← prepare_erasure (val ci); vE pe)
+            mkDef (remove_unsafe_rec m) fixnames t)
+          for p in fixnames.zipIdx do
+            checkKernameFresh p.1 (toKername p.1)
+            modify (fun s => { s with
+              constants := s.constants.insert p.1 (toKername p.1),
+              gdecls := (toKername p.1,
+                .constantDecl ⟨some (etaExpandFix defs p.2)⟩) :: s.gdecls })
+          pure ()) : EraseM Unit) s ctx cctx ref w = .ok (u, s₁) w₁) :
+    (fixnames.map toKername).Nodup := by
+  rw [run_bind_ok] at hrun
+  obtain ⟨ids, sid, wid, -, hrun⟩ := hrun
+  split at hrun
+  case isTrue hnd => exact hnd
+  case isFalse hnd =>
+    rw [run_bind_ok] at hrun
+    obtain ⟨a0, s0, w0, hthr, -⟩ := hrun
+    exact absurd hthr (run_throwError_ne_ok _ ctx cctx ref _ _ _ _ _)
+
+/-- **R7 — `visitMutual`, Hoare form over its five exits.** -/
 theorem run_visitMutual_ok {n : Name}
     {s : ErasureState} {ctx : ErasureContext} {w : Void IO.RealWorld}
     {u : Unit} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
     (hinl : ∀ {s' : ErasureState} {kn : Kername},
       Q s' → Q { s' with inlinings := kn :: s'.inlinings })
     (hax : ∀ {m : Name} {s' : ErasureState}, Q s' → Q (addAxiomState m s'))
+    (hrlz : ∀ {m : Name} {t : LBTerm} {s' : ErasureState}, Q s' → Q (addRealizerState m t s'))
+    (hrr : ∀ {rv : RecursorVal} {o : Option LBTerm} {s' s'' : ErasureState}
+        {ctx' : ErasureContext} {w' w'' : Void IO.RealWorld},
+      recursorRealizer rv s' ctx' cctx ref w' = .ok (o, s'') w'' → Q s' → Q s'')
     (hprep : ∀ {e' : Expr} {s' : ErasureState} {ctx' : ErasureContext}
         {w' : Void IO.RealWorld} {pe : Expr} {s'' : ErasureState} {w'' : Void IO.RealWorld},
       prepare_erasure e' s' ctx' cctx ref w' = .ok (pe, s'') w'' → Q s' → Q s'')
@@ -2851,25 +3299,77 @@ theorem run_visitMutual_ok {n : Name}
     rw [run_read] at hread
     cases hread
     -- The value/`@[extern]`/config match has three discriminants; `split` cannot
-    -- handle it, so resolve them by hand.
-    cases hval : di.get!.value? (allowOpaque := true) <;>
+    -- handle it, so resolve them by hand. The body-less arm is taken apart on its own:
+    -- it is the largest of the four and does not read the other two discriminants.
+    cases hval : di.get!.value? (allowOpaque := true) with
+    | none =>
+      simp only [hval] at hm
+      -- F-QUOT and F-EQREC: the quotient realizer, the synthesized eliminator body, then
+      -- the axiom fall-through.
+      cases hci : di.get!
+      case quotInfo qv =>
+        rw [hci] at hm
+        simp only [] at hm
+        rw [run_bind_ok] at hm
+        obtain ⟨u3, s3, w3, hlog, hm⟩ := hm
+        have hz2 := run_logInfo_state _ _ cctx ref _ hlog
+        subst hz2
+        obtain ⟨hstR, -, -⟩ := run_addRealizer_ok hm
+        subst hstR
+        exact hrlz hQ'
+      case recInfo rv =>
+        rw [hci] at hm
+        simp only [] at hm
+        rw [run_bind_ok] at hm
+        obtain ⟨o, so, wo, hrrun, hm⟩ := hm
+        replace hQ' := hrr hrrun hQ'
+        cases o with
+        | some t =>
+          simp only [] at hm
+          rw [run_bind_ok] at hm
+          obtain ⟨u3, s3, w3, hlog, hm⟩ := hm
+          have hz2 := run_logInfo_state _ _ cctx ref _ hlog
+          subst hz2
+          obtain ⟨hstR, -, -⟩ := run_addRealizer_ok hm
+          subst hstR
+          exact hrlz hQ'
+        | none =>
+          simp only [] at hm
+          rw [run_bind_ok] at hm
+          obtain ⟨u3, s3, w3, hlog, hm⟩ := hm
+          have hz2 := run_logInfo_state _ _ cctx ref _ hlog
+          subst hz2
+          obtain ⟨hstA, -, -⟩ := run_addAxiom_ok hm
+          subst hstA
+          exact hax hQ'
+      all_goals
+        rw [hci] at hm
+        simp only [] at hm
+        rw [run_bind_ok] at hm
+        obtain ⟨u3, s3, w3, hlog, hm⟩ := hm
+        have hz2 := run_logInfo_state _ _ cctx ref _ hlog
+        subst hz2
+        obtain ⟨hstA, -, -⟩ := run_addAxiom_ok hm
+        subst hstA
+        exact hax hQ'
+    | some v =>
       cases hext : isExtern env2 n <;>
         cases hcfg : ctx.config.extern <;>
           simp only [hval, hext, hcfg] at hm
-    all_goals
-      try
-        (rw [run_bind_ok] at hm
-         obtain ⟨u3, s3, w3, hlog, hm⟩ := hm
-         have hz2 := run_logInfo_state _ _ cctx ref _ hlog
-         subst hz2)
-    all_goals
-      first
-        | (obtain ⟨hstA, -⟩ := run_addAxiom_ok hm
-           subst hstA
-           exact hax hQ')
-        | (split at hm
-           case isTrue => exact run_nonrec_exit_ok hinl hprep hvE hnr hQ' hm
-           case isFalse => exact run_rec_exit_ok hprep hvE hrec hQ' hm)
+      all_goals
+        try
+          (rw [run_bind_ok] at hm
+           obtain ⟨u3, s3, w3, hlog, hm⟩ := hm
+           have hz2 := run_logInfo_state _ _ cctx ref _ hlog
+           subst hz2)
+      all_goals
+        first
+          | (obtain ⟨hstA, -, -⟩ := run_addAxiom_ok hm
+             subst hstA
+             exact hax hQ')
+          | (split at hm
+             case isTrue => exact run_nonrec_exit_ok hinl hprep hvE hnr hQ' hm
+             case isFalse => exact run_rec_exit_ok hprep hvE hrec hQ' hm)
   case isFalse =>
     split at hrun
     case isTrue => exact run_nonrec_exit_ok hinl hprep hvE hnr hQ hrun
@@ -3010,6 +3510,7 @@ theorem run_nonrec_exit_ok' {Nf Cl : LBTerm → Prop} {vE : Expr → EraseM LBTe
     {u : Unit} {s₁ : ErasureState} {w₁ : Void IO.RealWorld} (hP : P s w)
     (hrun : (do
         let t ← withReader f (do let pe ← prepare_erasure e; vE pe)
+        checkKernameFresh n (toKername n)
         modify (fun s => { s with
           constants := s.constants.insert n (toKername n),
           gdecls := (toKername n, .constantDecl ⟨some t⟩) :: s.gdecls })
@@ -3030,6 +3531,11 @@ theorem run_nonrec_exit_ok' {Nf Cl : LBTerm → Prop} {vE : Expr → EraseM LBTe
   obtain ⟨pe, sp, wp, hpr, hvis⟩ := hvis
   obtain ⟨hP', hnf, hcl⟩ := hvE hpr hvis hP
   rw [run_bind_ok] at hrun
+  obtain ⟨ug, sg, wg, hguard, hrun⟩ := hrun
+  obtain ⟨hsg, hwg, -⟩ := run_checkKernameFresh_ok hguard
+  subst sg
+  subst wg
+  rw [run_bind_ok] at hrun
   obtain ⟨u2, sm, wm, hmod, hrun⟩ := hrun
   rw [run_modify] at hmod
   cases hmod
@@ -3047,6 +3553,7 @@ theorem run_rec_exit_ok' {Nf Cl : LBTerm → Prop} {vE : Expr → EraseM LBTerm}
     {names fixnames : List Name}
     {f : List FVarId → ErasureContext → ErasureContext}
     {g : ConstantInfo → ErasureContext → ErasureContext} {val : ConstantInfo → Expr}
+    {msg : MessageData}
     (hfresh : ∀ {x : FVarId} {s' s'' : ErasureState} {ctx' : ErasureContext}
         {w' w'' : Void IO.RealWorld},
       (mkFreshFVarId : EraseM FVarId) s' ctx' cctx ref w' = .ok (x, s'') w'' →
@@ -3069,15 +3576,19 @@ theorem run_rec_exit_ok' {Nf Cl : LBTerm → Prop} {vE : Expr → EraseM LBTerm}
     {u : Unit} {s₁ : ErasureState} {w₁ : Void IO.RealWorld} (hP : P s w)
     (hrun : (do
         let ids ← names.mapM (fun _ => mkFreshFVarId)
+        unless (fixnames.map toKername).Nodup do
+          throwError msg
         withReader (f ids) (do
           let defs ← names.mapM (fun m => do
             let ci ← getConstInfo m
             let t ← withReader (g ci) (do let pe ← prepare_erasure (val ci); vE pe)
             mkDef (remove_unsafe_rec m) fixnames t)
           for p in fixnames.zipIdx do
+            checkKernameFresh p.1 (toKername p.1)
             modify (fun s => { s with
               constants := s.constants.insert p.1 (toKername p.1),
-              gdecls := (toKername p.1, .constantDecl ⟨some (.fix defs p.2)⟩) :: s.gdecls })
+              gdecls := (toKername p.1,
+                .constantDecl ⟨some (etaExpandFix defs p.2)⟩) :: s.gdecls })
           pure ()) : EraseM Unit) s ctx cctx ref w = .ok (u, s₁) w₁) : P s₁ w₁ := by
   rw [run_bind_ok] at hrun
   obtain ⟨ids, sid, wid, hids, hrun⟩ := hrun
@@ -3087,6 +3598,12 @@ theorem run_rec_exit_ok' {Nf Cl : LBTerm → Prop} {vE : Expr → EraseM LBTerm}
     hP
     (fun _ _ _ _ _ _ _ _ _ _ hPa hb => hfresh hb hPa)
     hids
+  split at hrun
+  case isFalse hnd =>
+    rw [run_bind_ok] at hrun
+    obtain ⟨a0, s0, w0, hthr, -⟩ := hrun
+    exact absurd hthr (run_throwError_ne_ok _ ctx cctx ref _ _ _ _ _)
+  dsimp only [] at hrun
   rw [run_withReader, run_bind_ok] at hrun
   obtain ⟨defs, sd, wd, hdefs, hrun⟩ := hrun
   replace hP := run_list_mapM_ok _ cctx ref
@@ -3118,7 +3635,7 @@ theorem run_rec_exit_ok' {Nf Cl : LBTerm → Prop} {vE : Expr → EraseM LBTerm}
     hdefs
   rw [run_bind_ok] at hrun
   obtain ⟨u4, sf, wf, hloop, hrun⟩ := hrun
-  obtain ⟨hsf, hwf⟩ := run_modify_forIn_ok hloop
+  obtain ⟨hsf, hwf, -⟩ := run_checkFresh_modify_forIn_ok hloop
   subst hsf
   subst hwf
   rw [run_pure] at hrun
@@ -3215,8 +3732,18 @@ theorem addAxiomState_get? (m : Name) (s : ErasureState) :
   rw [Std.HashMap.get?_insert]
   simp
 
+/-- The realizer exit's state delta is a `RunConcl` step: `runConcl_addAxiomState` at a body. -/
+theorem runConcl_addRealizerState (m : Name) (t : LBTerm) (s : ErasureState) :
+    RunConcl s (addRealizerState m t s) :=
+  runConcl_nonrecConstState m t s
+
+/-- Ditto for the realizer exit. -/
+theorem addRealizerState_get? (m : Name) (t : LBTerm) (s : ErasureState) :
+    ((addRealizerState m t s).constants.get? m).isSome :=
+  nonrecConstState_get? m t s
+
 /-- **The block registration is a `RunConcl` step.** `recConstState` is a fold of
-`recConstStep`, which *is* `nonrecConstState` at a `.fix` body (`recConstState_eq`), so the
+`recConstStep`, which *is* `nonrecConstState` at an η-expanded fixpoint (`recConstState_eq`), so the
 whole block registration composes out of `runConcl_nonrecConstState`: every sibling is
 registered under its own canonical kername, so canonicity survives, and `gdecls` only gets
 prepended to. `RunConclδ.recBlock` sits on it. -/
@@ -3224,7 +3751,7 @@ theorem runConcl_foldl_recConstStep (defs : List (@FixDef LBTerm)) :
     ∀ (L : List (Name × Nat)) (s : ErasureState), RunConcl s (L.foldl (recConstStep defs) s)
   | [], s => RunConcl.rfl' s
   | p :: rest, s =>
-    (runConcl_nonrecConstState p.1 (.fix defs p.2) s).trans
+    (runConcl_nonrecConstState p.1 (etaExpandFix defs p.2) s).trans
       (runConcl_foldl_recConstStep defs rest _)
 
 theorem runConcl_recConstState (names : List Name) (defs : List (@FixDef LBTerm))

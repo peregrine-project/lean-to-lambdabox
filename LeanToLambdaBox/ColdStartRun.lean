@@ -158,6 +158,7 @@ theorem run_nonrec_exit_decomp {f : ErasureContext → ErasureContext} {e : Expr
     {u : Unit} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
     (hrun : (do
         let t ← withReader f (do let pe ← prepare_erasure e; visitExpr pe)
+        checkKernameFresh n (toKername n)
         modify (fun s => { s with
           constants := s.constants.insert n (toKername n),
           gdecls := (toKername n, .constantDecl ⟨some t⟩) :: s.gdecls })
@@ -181,6 +182,11 @@ theorem run_nonrec_exit_decomp {f : ErasureContext → ErasureContext} {e : Expr
   rw [Erasure.run_withReader, Erasure.run_bind_ok] at hvis
   obtain ⟨pe, sp, wp, hpr, hvis⟩ := hvis
   rw [Erasure.run_bind_ok] at hrun
+  obtain ⟨ug, sg, wg, hguard, hrun⟩ := hrun
+  obtain ⟨hsg, hwg, -⟩ := Erasure.run_checkKernameFresh_ok hguard
+  subst sg
+  subst wg
+  rw [Erasure.run_bind_ok] at hrun
   obtain ⟨u2, sm, wm, hmod, hrun⟩ := hrun
   rw [Erasure.run_modify] at hmod
   cases hmod
@@ -197,29 +203,40 @@ per-definition runs themselves are not handed back — they sit under a `List.ma
 theorem run_rec_exit_decomp {names fixnames : List Name}
     {f : List FVarId → ErasureContext → ErasureContext}
     {g : ConstantInfo → ErasureContext → ErasureContext} {val : ConstantInfo → Expr}
+    {msg : MessageData}
     {s : ErasureState} {ctx : ErasureContext} {w : Void IO.RealWorld}
     {u : Unit} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
     (hrun : (do
         let ids ← names.mapM (fun _ => mkFreshFVarId)
+        unless (fixnames.map toKername).Nodup do
+          throwError msg
         withReader (f ids) (do
           let defs ← names.mapM (fun m => do
             let ci ← getConstInfo m
             let t ← withReader (g ci) (do let pe ← prepare_erasure (val ci); visitExpr pe)
             mkDef (remove_unsafe_rec m) fixnames t)
           for p in fixnames.zipIdx do
+            checkKernameFresh p.1 (toKername p.1)
             modify (fun s => { s with
               constants := s.constants.insert p.1 (toKername p.1),
-              gdecls := (toKername p.1, .constantDecl ⟨some (.fix defs p.2)⟩) :: s.gdecls })
+              gdecls := (toKername p.1,
+                .constantDecl ⟨some (etaExpandFix defs p.2)⟩) :: s.gdecls })
           pure ()) : EraseM Unit) s ctx cctx ref w = .ok (u, s₁) w₁) :
     ∃ (defs : List (@FixDef LBTerm)) (sd : ErasureState),
       s₁ = recConstState fixnames defs sd := by
   rw [Erasure.run_bind_ok] at hrun
   obtain ⟨ids, sid, wid, hids, hrun⟩ := hrun
+  split at hrun
+  case isFalse =>
+    rw [Erasure.run_bind_ok] at hrun
+    obtain ⟨a0, s0, w0, hthr, -⟩ := hrun
+    exact absurd hthr (Erasure.run_throwError_ne_ok _ ctx cctx ref _ _ _ _ _)
+  dsimp only at hrun
   rw [Erasure.run_withReader, Erasure.run_bind_ok] at hrun
   obtain ⟨defs, sd, wd, hdefs, hrun⟩ := hrun
   rw [Erasure.run_bind_ok] at hrun
   obtain ⟨u4, sf, wf, hloop, hrun⟩ := hrun
-  obtain ⟨hsf, -⟩ := Erasure.run_modify_forIn_ok hloop
+  obtain ⟨hsf, -, -⟩ := Erasure.run_checkFresh_modify_forIn_ok hloop
   subst hsf
   rw [Erasure.run_pure] at hrun
   cases hrun
@@ -236,19 +253,24 @@ back at unrelated states; `ErasureRun.run_rec_exit_siblings_chained` is the chai
 theorem run_rec_exit_siblings {names fixnames : List Name}
     {f : List FVarId → ErasureContext → ErasureContext}
     {g : ConstantInfo → ErasureContext → ErasureContext} {val : ConstantInfo → Expr}
+    {msg : MessageData}
     {s : ErasureState} {ctx : ErasureContext} {w : Void IO.RealWorld}
     {u : Unit} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
     (hrun : (do
         let ids ← names.mapM (fun _ => mkFreshFVarId)
+        unless (fixnames.map toKername).Nodup do
+          throwError msg
         withReader (f ids) (do
           let defs ← names.mapM (fun m => do
             let ci ← getConstInfo m
             let t ← withReader (g ci) (do let pe ← prepare_erasure (val ci); visitExpr pe)
             mkDef (remove_unsafe_rec m) fixnames t)
           for p in fixnames.zipIdx do
+            checkKernameFresh p.1 (toKername p.1)
             modify (fun s => { s with
               constants := s.constants.insert p.1 (toKername p.1),
-              gdecls := (toKername p.1, .constantDecl ⟨some (.fix defs p.2)⟩) :: s.gdecls })
+              gdecls := (toKername p.1,
+                .constantDecl ⟨some (etaExpandFix defs p.2)⟩) :: s.gdecls })
           pure ()) : EraseM Unit) s ctx cctx ref w = .ok (u, s₁) w₁) :
     ∃ (ids : List FVarId) (defs : List (@FixDef LBTerm)) (sd : ErasureState),
       ids.length = names.length ∧ defs.length = names.length ∧
@@ -269,6 +291,12 @@ theorem run_rec_exit_siblings {names fixnames : List Name}
       (P := fun (pre : List Name) (outs : List FVarId) (_ : ErasureState)
           (_ : Void IO.RealWorld) => outs.length = pre.length)
       rfl (fun _ _ _ _ _ _ _ _ _ _ h _ => by simp [h]) hids
+  split at hrun
+  case isFalse =>
+    rw [Erasure.run_bind_ok] at hrun
+    obtain ⟨a0, s0, w0, hthr, -⟩ := hrun
+    exact absurd hthr (Erasure.run_throwError_ne_ok _ ctx cctx ref _ _ _ _ _)
+  dsimp only at hrun
   rw [Erasure.run_withReader, Erasure.run_bind_ok] at hrun
   obtain ⟨defs, sd, wd, hdefs, hrun⟩ := hrun
   have hpkg := Erasure.run_list_mapM_ok _ cctx ref
@@ -310,7 +338,7 @@ theorem run_rec_exit_siblings {names fixnames : List Name}
     hdefs
   rw [Erasure.run_bind_ok] at hrun
   obtain ⟨u4, sf, wf, hloop, hrun⟩ := hrun
-  obtain ⟨hsf, -⟩ := Erasure.run_modify_forIn_ok hloop
+  obtain ⟨hsf, -, -⟩ := Erasure.run_checkFresh_modify_forIn_ok hloop
   subst hsf
   rw [Erasure.run_pure] at hrun
   cases hrun
@@ -324,19 +352,24 @@ With the runs in hand they are `visitExpr_noFix_closed`, which has no hypotheses
 theorem run_rec_exit_siblings_closed {names fixnames : List Name}
     {f : List FVarId → ErasureContext → ErasureContext}
     {g : ConstantInfo → ErasureContext → ErasureContext} {val : ConstantInfo → Expr}
+    {msg : MessageData}
     {s : ErasureState} {ctx : ErasureContext} {w : Void IO.RealWorld}
     {u : Unit} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
     (hrun : (do
         let ids ← names.mapM (fun _ => mkFreshFVarId)
+        unless (fixnames.map toKername).Nodup do
+          throwError msg
         withReader (f ids) (do
           let defs ← names.mapM (fun m => do
             let ci ← getConstInfo m
             let t ← withReader (g ci) (do let pe ← prepare_erasure (val ci); visitExpr pe)
             mkDef (remove_unsafe_rec m) fixnames t)
           for p in fixnames.zipIdx do
+            checkKernameFresh p.1 (toKername p.1)
             modify (fun s => { s with
               constants := s.constants.insert p.1 (toKername p.1),
-              gdecls := (toKername p.1, .constantDecl ⟨some (.fix defs p.2)⟩) :: s.gdecls })
+              gdecls := (toKername p.1,
+                .constantDecl ⟨some (etaExpandFix defs p.2)⟩) :: s.gdecls })
           pure ()) : EraseM Unit) s ctx cctx ref w = .ok (u, s₁) w₁) :
     ∃ (ids : List FVarId) (defs : List (@FixDef LBTerm)) (sd : ErasureState),
       ids.length = names.length ∧ defs.length = names.length ∧
@@ -375,15 +408,26 @@ being erased, not merely to know that some erasure happened:
 -- heartbeat budget is about an order of magnitude short of what that costs.
 set_option maxHeartbeats 1000000 in
 /-- **The state effect of one `visitMutual n` call, as a disjunction over its exits.** The
-three disjuncts are the three registering exits (`addAxiom`, the non-recursive constant,
-the recursive block); the `@[inline]` bookkeeping is the `InlineExt` slack. The middle
-disjunct hands back the inner `Erasure.visitExpr` run. -/
+five disjuncts are the five registering exits: the quotient realizer and the synthesized
+eliminator body (F-QUOT, F-EQREC), the axiom fall-through, the non-recursive constant and
+the recursive block. The `@[inline]` bookkeeping is the `InlineExt` slack. The
+non-recursive disjunct hands back the inner `Erasure.visitExpr` run, and the eliminator
+disjunct hands back the `Erasure.recursorRealizer` run, whose own `register_inductive` is
+the block write the registry invariant must see before the realizer's entry. -/
 theorem run_visitMutual_decomp {s : ErasureState} {ctx : ErasureContext}
     {w : Void IO.RealWorld} {u : Unit} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
     (hrun : visitMutual n s ctx cctx ref w = .ok (u, s₁) w₁) :
     ∃ (di : Option ConstantInfo) (wa : Void IO.RealWorld),
       (Compiler.LCNF.getDeclInfo? n : CoreM (Option ConstantInfo)) cctx ref w = .ok di wa ∧
       ((∃ s₀ : ErasureState, InlineExt s s₀ ∧ s₁ = addAxiomState n s₀) ∨
+       (∃ (qv : QuotVal) (s₀ : ErasureState), InlineExt s s₀ ∧ di.get! = .quotInfo qv ∧
+         s₁ = addRealizerState n (quotRealizer qv.kind) s₀) ∨
+       (∃ (rv : RecursorVal) (o : Option LBTerm) (s₀ so : ErasureState)
+          (w₀ wo : Void IO.RealWorld),
+         InlineExt s s₀ ∧ di.get! = .recInfo rv ∧
+         recursorRealizer rv s₀ ctx cctx ref w₀ = .ok (o, so) wo ∧
+         ((∃ t, o = some t ∧ s₁ = addRealizerState n t so) ∨
+           (o = none ∧ s₁ = addAxiomState n so))) ∨
        (∃ (pe : Expr) (t : LBTerm) (s₀ sp st : ErasureState)
           (w₀ wp wt : Void IO.RealWorld),
          InlineExt s s₀ ∧
@@ -419,34 +463,80 @@ theorem run_visitMutual_decomp {s : ErasureState} {ctx : ErasureContext}
     obtain ⟨c1, sr, wr, hread, hm⟩ := hm
     rw [Erasure.run_read] at hread
     cases hread
-    cases hval : di.get!.value? (allowOpaque := true) <;>
+    cases hval : di.get!.value? (allowOpaque := true) with
+    | none =>
+      simp only [hval] at hm
+      cases hci : di.get!
+      case quotInfo qv =>
+        rw [hci] at hm
+        simp only [] at hm
+        rw [Erasure.run_bind_ok] at hm
+        obtain ⟨u3, s3, w3, hlog, hm⟩ := hm
+        have hz2 := Erasure.run_logInfo_state _ _ cctx ref _ hlog
+        subst hz2
+        exact Or.inr (Or.inl ⟨qv, _, hinl, rfl, (Erasure.run_addRealizer_ok hm).1⟩)
+      case recInfo rv =>
+        rw [hci] at hm
+        simp only [] at hm
+        rw [Erasure.run_bind_ok] at hm
+        obtain ⟨ro, so, wo, hrr, hm⟩ := hm
+        cases ro with
+        | some t =>
+          simp only [] at hm
+          rw [Erasure.run_bind_ok] at hm
+          obtain ⟨u3, s3, w3, hlog, hm⟩ := hm
+          have hz2 := Erasure.run_logInfo_state _ _ cctx ref _ hlog
+          subst hz2
+          exact Or.inr (Or.inr (Or.inl
+            ⟨rv, some t, _, _, _, _, hinl, rfl, hrr,
+              Or.inl ⟨t, rfl, (Erasure.run_addRealizer_ok hm).1⟩⟩))
+        | none =>
+          simp only [] at hm
+          rw [Erasure.run_bind_ok] at hm
+          obtain ⟨u3, s3, w3, hlog, hm⟩ := hm
+          have hz2 := Erasure.run_logInfo_state _ _ cctx ref _ hlog
+          subst hz2
+          exact Or.inr (Or.inr (Or.inl
+            ⟨rv, none, _, _, _, _, hinl, rfl, hrr,
+              Or.inr ⟨rfl, (Erasure.run_addAxiom_ok hm).1⟩⟩))
+      all_goals
+        rw [hci] at hm
+        simp only [] at hm
+        rw [Erasure.run_bind_ok] at hm
+        obtain ⟨u3, s3, w3, hlog, hm⟩ := hm
+        have hz2 := Erasure.run_logInfo_state _ _ cctx ref _ hlog
+        subst hz2
+        exact Or.inl ⟨_, hinl, (Erasure.run_addAxiom_ok hm).1⟩
+    | some v =>
       cases hext : isExtern env2 n <;>
         cases hcfg : ctx.config.extern <;>
           simp only [hval, hext, hcfg] at hm
-    all_goals
-      try
-        (rw [Erasure.run_bind_ok] at hm
-         obtain ⟨u3, s3, w3, hlog, hm⟩ := hm
-         have hz2 := Erasure.run_logInfo_state _ _ cctx ref _ hlog
-         subst hz2)
-    all_goals
-      first
-        | exact Or.inl ⟨_, hinl, (Erasure.run_addAxiom_ok hm).1⟩
-        | (split at hm
-           case isTrue =>
-             obtain ⟨pe, t, sp, st, wp, wt, hpr, hvis, hext'⟩ := run_nonrec_exit_decomp hm
-             exact Or.inr (Or.inl ⟨pe, t, _, sp, st, _, wp, wt, hinl, hpr, hvis, hext'⟩)
-           case isFalse =>
-             obtain ⟨defs, sd, hsd⟩ := run_rec_exit_decomp hm
-             exact Or.inr (Or.inr ⟨_, defs, sd, hsd⟩))
+      all_goals
+        try
+          (rw [Erasure.run_bind_ok] at hm
+           obtain ⟨u3, s3, w3, hlog, hm⟩ := hm
+           have hz2 := Erasure.run_logInfo_state _ _ cctx ref _ hlog
+           subst hz2)
+      all_goals
+        first
+          | exact Or.inl ⟨_, hinl, (Erasure.run_addAxiom_ok hm).1⟩
+          | (split at hm
+             case isTrue =>
+               obtain ⟨pe, t, sp, st, wp, wt, hpr, hvis, hext'⟩ := run_nonrec_exit_decomp hm
+               exact Or.inr (Or.inr (Or.inr (Or.inl
+                 ⟨pe, t, _, sp, st, _, wp, wt, hinl, hpr, hvis, hext'⟩)))
+             case isFalse =>
+               obtain ⟨defs, sd, hsd⟩ := run_rec_exit_decomp hm
+               exact Or.inr (Or.inr (Or.inr (Or.inr ⟨_, defs, sd, hsd⟩))))
   case isFalse =>
     split at hrun
     case isTrue =>
       obtain ⟨pe, t, sp, st, wp, wt, hpr, hvis, hext'⟩ := run_nonrec_exit_decomp hrun
-      exact Or.inr (Or.inl ⟨pe, t, _, sp, st, _, wp, wt, InlineExt.rfl' _, hpr, hvis, hext'⟩)
+      exact Or.inr (Or.inr (Or.inr (Or.inl
+        ⟨pe, t, _, sp, st, _, wp, wt, InlineExt.rfl' _, hpr, hvis, hext'⟩)))
     case isFalse =>
       obtain ⟨defs, sd, hsd⟩ := run_rec_exit_decomp hrun
-      exact Or.inr (Or.inr ⟨_, defs, sd, hsd⟩)
+      exact Or.inr (Or.inr (Or.inr (Or.inr ⟨_, defs, sd, hsd⟩)))
 
 end Decomp
 
@@ -515,8 +605,8 @@ applications of `EraserAsks.passes_sound`, one per call `run_prepare_erasure_ok`
 spine is quantified because the capstone reads its observable at `mkApps e args` while the
 passes run on `e` alone and are whole-tree `Lean.Core.transform` walks, so `f (mkApps e args)`
 is not `mkApps (f e) args`. -/
-theorem prepare_sound {lenv : Environment} {env : Lean4Lean.VEnv} {Us : List Name}
-    {gw : Void IO.RealWorld → NameGenerator} (E : EraserAsks lenv env Us gw)
+theorem prepare_sound {lenv : Environment} {env : Lean4Lean.VEnv}
+    {gw : Void IO.RealWorld → NameGenerator} (E : EraserAsks lenv env gw)
     {e pe : Expr} {s s₁ : ErasureState} {ctx : ErasureContext}
     {w w₁ : Void IO.RealWorld}
     (hcs : ctx.config.csimp = false)

@@ -11,7 +11,7 @@ import LeanToLambdaBox.ElimBody
 shipping eraser emits for it. It carries the compilation steps the source-level erasure
 relation cannot state: the eliminator-to-`case` translation and the block-level fixpoint.
 
-Fourteen arms: eleven congruence, `elimApp`, `fixConst`, `fixBody`. The relation is indexed
+Fifteen arms: eleven congruence, `elimApp`, `fixConst`, `fixBody`, `fixEta`. The relation is indexed
 by `Γ` and by nothing else — no source term, no typing context, no run state — which is what
 keeps it a statement about λ□ alone; `doc/rules-Lower.md` carries the arm-by-arm anchors.
 
@@ -21,9 +21,9 @@ Constructor introduction is **not** here: a constructor constant erases to `.con
 η-expansion is here either; what they covered is a coverage restriction of the fragment, and
 the eraser-side finding is `F-ETA2` in `doc/rework/03-DEV-FIX.md`.
 
-Block premises are inlined into the two fix arms (the kernel rejects a structure premise
+Block premises are inlined into the three fix arms (the kernel rejects a structure premise
 that mentions the inductive) and packaged afterwards as `LowerBlock`, read through
-`Lower.fixConst'`/`Lower.fixBody'`. List premises are in the indexed form `hlen` plus
+`Lower.fixConst'`/`Lower.fixBody'`/`Lower.fixEta'`. List premises are in the indexed form `hlen` plus
 `∀ i, i < …`, since `List.Forall₂` as a premise is a nested-inductive occurrence.
 
 `ConstToFVar` and `CloseConstAt` are here because `LowerBlock.hcl` needs them; the rest of
@@ -48,23 +48,40 @@ open Lean (Name FVarId)
 
 /-- The λ□ inductive body the eraser emits for the block of `iid`, at the resolution the
 target semantics reads it: `constructorArity` reads `npars` and the per-constructor field
-counts, `isPropositionalInductive` reads `propositional`. -/
+counts.
+
+The `propositional` flag is **not** here. `Erasure.register_inductive` sets it to
+`isPropositionalArity inf.type` (`Erasure.lean:368`), and `Erasure.recursorRealizer`
+(`Erasure.lean:409`) reaches that call at `Eq`/`And`/`False`, so `= false` is not a fact about
+emitted output. MetaRocq states the flag as an equality against the declared arity
+(`erases_one_inductive_body`, `../metarocq/erasure/theories/Extract.v:276`); that equation
+needs the model environment, which this relation does not carry, so it is stated at
+`ErasesEnv.blocks` and `IndCovered.block`, and the `= false` the ι and projection arms read is
+`IndNotPropositional`, derived there from `InformativeInd`. -/
 def IndBodyOf (iid : InductiveId) (np : Nat) (nfs : List Nat)
     (mib : MutualInductiveBody) : Prop :=
   mib.npars = np ∧ ∃ oib, mib.bodies[iid.idx]? = some oib ∧
-    oib.propositional = false ∧ oib.ctors.map (·.nargs) = nfs
+    oib.ctors.map (·.nargs) = nfs
+
+/-- The body `iid` selects in `mib` is not propositional: what `isPropositionalInductive`
+reads before `WcbvEval.iota` and `WcbvEval.proj` fire (`Semantics/Eval.lean:147`, `:183`).
+Carried beside `IndBodyOf` rather than inside it, because it holds of the inductives an
+elimination is *at*, not of every inductive a run registers —
+`Erasability.propositional_false_of_informative` is what its producers discharge it with. -/
+def IndNotPropositional (iid : InductiveId) (mib : MutualInductiveBody) : Prop :=
+  ∃ oib, mib.bodies[iid.idx]? = some oib ∧ oib.propositional = false
 
 /-- `kn` is declared in `Γ` as an eliminator constant, **together with its block**: its body
 is one of the two canonical `ElimBody` shapes for `iid` at `np` parameters, `dp` dropped
-arguments and field arities `nfs`, and `iid`'s block is declared with those same numbers.
-The second conjunct is what puts the emitted `.case` node's arity data in scope on the
-target, where `constructorArity` and `isPropositionalInductive` read it. -/
+arguments and field arities `nfs`, and `iid`'s block is declared with those same numbers and
+is not propositional. The second conjunct is what puts the emitted `.case` node's arity data
+in scope on the target, where `constructorArity` and `isPropositionalInductive` read it. -/
 def ElimDecl (Γ : GlobalDeclarations) (kn : Kername) (iid : InductiveId) (np dp : Nat)
     (nfs : List Nat) : Prop :=
   (∃ body, LBTerm.envLookup Γ kn = some (.constantDecl ⟨some body⟩) ∧
     ElimBody iid np dp nfs body) ∧
   (∃ mib, LBTerm.envLookup Γ iid.mutualBlockName = some (.inductiveDecl mib) ∧
-    IndBodyOf iid np nfs mib)
+    IndBodyOf iid np nfs mib ∧ IndNotPropositional iid mib)
 
 /-- `kn` is declared in `Γ` with body `b`. -/
 def DefnDecl (Γ : GlobalDeclarations) (kn : Kername) (b : LBTerm) : Prop :=
@@ -411,6 +428,29 @@ inductive Lower (Γ : GlobalDeclarations) : LBTerm → LBTerm → Prop where
       (hcl : ∀ i, i < kns.length → CloseConstAt kns ids bs'[i]! (defs[i]!).body)
       (hj : bs[j]? = some b) (hjl : j < defs.length) :
       Lower Γ b (.fix defs j)
+  /-- The member's specification body relates to the **η-expansion** of the same `.fix`
+      node, beside `fixBody`'s bare one: `Erasure.visitMutual` registers
+      `Erasure.etaExpandFix defs j` (`Erasure.lean:1276`), and `Erasure.mkDef` pins
+      `principalArgIdx = 0`, so the wrapper is one binder — MetaRocq's `eta_fixpoint` at
+      `1 + rarg = 1`. The premises are `fixBody`'s verbatim. Read it through
+      `Lower.fixEta'`, whose target is the closed shape `LBTerm.etaFix defs j`.
+
+      The binder name is free, as it is at `lambda`: every λ the relation targets must
+      survive the renaming `ConstToFVar.lambda` performs, and pinning it to `.anon` here
+      falsifies `Lower.constToFix`. -/
+  | fixEta {b : LBTerm} {n : BinderName} {kns : List Kername} {bs bs' : List LBTerm}
+      {ids : List FVarId} {defs : List (@FixDef LBTerm)} {j : Nat}
+      (hb : bs.length = kns.length) (hb' : bs'.length = kns.length)
+      (hd : defs.length = kns.length) (hnd : kns.Nodup)
+      (hids : ids.Nodup) (hilen : ids.length = kns.length)
+      (hfresh : ∀ x ∈ ids, ∀ i, i < kns.length → ¬ hasFVar x bs'[i]!)
+      (hrarg : ∀ d ∈ defs, d.principalArgIdx = 0)
+      (hdecl : ∀ i, i < kns.length → DefnDecl Γ kns[i]! bs[i]!)
+      (hfl : ∀ i, i < defs.length → isLambda (defs[i]!).body = true)
+      (hlow : ∀ i, i < kns.length → Lower Γ bs[i]! bs'[i]!)
+      (hcl : ∀ i, i < kns.length → CloseConstAt kns ids bs'[i]! (defs[i]!).body)
+      (hj : bs[j]? = some b) (hjl : j < defs.length) :
+      Lower Γ b (.lambda n (.app (.fix defs j) (.bvar 0)))
 
 /-- Branch peeling: a minor's λ-chain becomes an alternative's binder list. Names are
 free; only their number — the field arity `iota_red` reads — is pinned. -/
@@ -468,6 +508,15 @@ theorem Lower.fixBody' {Γ : GlobalDeclarations} {kns : List Kername} {bs bs' : 
     (h : LowerBlock Γ kns bs bs' ids defs) (hj : bs[j]? = some b) (hjl : j < defs.length) :
     Lower Γ b (.fix defs j) :=
   .fixBody h.hb h.hb' h.hd h.hnd h.hids h.hilen h.hfresh h.hrarg h.hdecl h.hfl h.hlow
+    h.hcl hj hjl
+
+/-- `Lower.fixEta` read through `LowerBlock`, at the emitted binder name: the target is the
+closed shape `LBTerm.etaFix defs j`, which is what `Erasure.visitMutual` registers. -/
+theorem Lower.fixEta' {Γ : GlobalDeclarations} {kns : List Kername} {bs bs' : List LBTerm}
+    {ids : List FVarId} {defs : List (@FixDef LBTerm)} {j : Nat} {b : LBTerm}
+    (h : LowerBlock Γ kns bs bs' ids defs) (hj : bs[j]? = some b) (hjl : j < defs.length) :
+    Lower Γ b (LBTerm.etaFix defs j) :=
+  .fixEta h.hb h.hb' h.hd h.hnd h.hids h.hilen h.hfresh h.hrarg h.hdecl h.hfl h.hlow
     h.hcl hj hjl
 
 /-- `Lower.elimApp` read through `LowerAlts`. -/
@@ -669,8 +718,27 @@ theorem lbClosed_fix_of_block {kns : List Kername} {bs' : List LBTerm} {ids : Li
   rw [heq]
   exact (lbClosed_closeFix ids (hct.closed (hbs i hik))).mono (by omega)
 
+/-- The η-expansion of a closed `.fix` node is closed: its only extra content is the binder
+its own `.bvar 0` fills. Stated at a free binder name, since `Lower.fixEta`'s is free and
+`LBTerm.etaFix defs j` is the `.anon` instance. -/
+theorem lbClosed_etaFix {defs : List (@FixDef LBTerm)} {j k : Nat} {nm : BinderName}
+    (h : ∀ m, LBClosed (LBTerm.fix defs j) m) :
+    LBClosed (.lambda nm (.app (.fix defs j) (.bvar 0))) k :=
+  ⟨h (k + 1), Nat.succ_pos k⟩
+
+/-- The η-expansion of a block's node has no free variable either, and abstraction is
+therefore the identity on it. -/
+theorem etaFix_not_hasFVar {kns : List Kername} {bs' : List LBTerm} {ids : List FVarId}
+    {defs : List (@FixDef LBTerm)} {x : FVarId} {j : Nat} {nm : BinderName}
+    (hd : defs.length = kns.length)
+    (hcl : ∀ i, i < kns.length → CloseConstAt kns ids bs'[i]! (defs[i]!).body)
+    (hnf : ∀ i, i < kns.length → ¬ hasFVar x bs'[i]!) :
+    ¬ hasFVar x (.lambda nm (.app (.fix defs j) (.bvar 0))) := by
+  simp only [hasFVar_lambda, hasFVar_app, hasFVar_bvar, or_false]
+  exact fixNode_not_hasFVar hd hcl hnf
+
 /-- `Lower` preserves closedness at every bound, given closed specification bodies: the
-two fix arms read their definitions off `Γ`, and nothing else in the relation invents an
+three fix arms read their definitions off `Γ`, and nothing else in the relation invents an
 index. -/
 theorem Lower.closed {Γ : GlobalDeclarations} (hΓ : ClosedBodies Γ) {s t : LBTerm}
     (h : Lower Γ s t) : ∀ k, LBClosed s k → LBClosed t k := by
@@ -723,6 +791,10 @@ theorem Lower.closed {Γ : GlobalDeclarations} (hΓ : ClosedBodies Γ) {s t : LB
       intro k _
       exact lbClosed_fix_of_block hdl hilen hcl
         (fun i hi => ih i hi 0 (hΓ _ _ (hdecl i hi))) k
+  | @fixEta b n kns bs bs' ids defs j hb hb' hdl _ _ hilen _ _ hdecl _ _ hcl hj hjl ih =>
+      intro k _
+      exact lbClosed_etaFix (fun m => lbClosed_fix_of_block hdl hilen hcl
+        (fun i hi => ih i hi 0 (hΓ _ _ (hdecl i hi))) m)
   | done _ ih =>
       rename_i k hc
       simpa using ih k hc
@@ -835,6 +907,19 @@ theorem Lower.shift_comm {Γ : GlobalDeclarations} (hΓ : ClosedBodies Γ)
           (fun i hi => (Lower.closed hΓ (hlow i hi)) 0 (hΓ _ _ (hdecl i hi))) 0
       rw [hbcl.shift_eq (Nat.zero_le c) d, hfx.shift_eq (Nat.zero_le c) d]
       exact .fixBody hb hb' hdl hnd hids hilen hfresh hrarg hdecl hfl hlow hcl hj hjl
+  | @fixEta b nm kns bs bs' ids defs j hb hb' hdl hnd hids hilen hfresh hrarg hdecl hfl hlow
+      hcl hj hjl ih =>
+      intro d c
+      obtain ⟨hjb, hjeq⟩ := Lower.getElem!_of_getElem? hj
+      have hjk : j < kns.length := by omega
+      have hbcl : LBClosed b 0 := by
+        have := hΓ _ _ (hdecl j hjk)
+        rwa [hjeq] at this
+      have hfx : LBClosed (LBTerm.lambda nm (.app (.fix defs j) (.bvar 0))) 0 :=
+        lbClosed_etaFix (fun m => lbClosed_fix_of_block hdl hilen hcl
+          (fun i hi => (Lower.closed hΓ (hlow i hi)) 0 (hΓ _ _ (hdecl i hi))) m)
+      rw [hbcl.shift_eq (Nat.zero_le c) d, hfx.shift_eq (Nat.zero_le c) d]
+      exact .fixEta hb hb' hdl hnd hids hilen hfresh hrarg hdecl hfl hlow hcl hj hjl
   | done _ ih =>
       rename_i d c
       simpa using LowerAlt.done (ih d c)
@@ -945,6 +1030,19 @@ theorem Lower.subst_comm {Γ : GlobalDeclarations} (hΓ : ClosedBodies Γ)
           (fun i hi => (Lower.closed hΓ (hlow i hi)) 0 (hΓ _ _ (hdecl i hi))) 0
       rw [hbcl.subst_eq (Nat.zero_le d) a, hfx.subst_eq (Nat.zero_le d) a']
       exact .fixBody hb hb' hdl hnd hids hilen hfresh hrarg hdecl hfl hlow hcl hj hjl
+  | @fixEta b nm kns bs bs' ids defs j hb hb' hdl hnd hids hilen hfresh hrarg hdecl hfl hlow
+      hcl hj hjl ih =>
+      intro d
+      obtain ⟨hjb, hjeq⟩ := Lower.getElem!_of_getElem? hj
+      have hjk : j < kns.length := by omega
+      have hbcl : LBClosed b 0 := by
+        have hb0 := hΓ _ _ (hdecl j hjk)
+        rwa [hjeq] at hb0
+      have hfx : LBClosed (LBTerm.lambda nm (.app (.fix defs j) (.bvar 0))) 0 :=
+        lbClosed_etaFix (fun m => lbClosed_fix_of_block hdl hilen hcl
+          (fun i hi => (Lower.closed hΓ (hlow i hi)) 0 (hΓ _ _ (hdecl i hi))) m)
+      rw [hbcl.subst_eq (Nat.zero_le d) a, hfx.subst_eq (Nat.zero_le d) a']
+      exact .fixEta hb hb' hdl hnd hids hilen hfresh hrarg hdecl hfl hlow hcl hj hjl
   | done _ ih =>
       rename_i d
       simpa using LowerAlt.done (ih d)
@@ -1043,6 +1141,10 @@ theorem Lower.noFVar {Γ : GlobalDeclarations} (hfv : FVarFreeBodies Γ) {x : FV
       hcl hj hjl ih =>
       intro _
       exact fixNode_not_hasFVar hdl hcl (fun i hi => ih i hi (hfv _ _ _ (hdecl i hi)))
+  | @fixEta b nm kns bs bs' ids defs j hb hb' hdl hnd hids hilen hfresh hrarg hdecl hfl hlow
+      hcl hj hjl ih =>
+      intro _
+      exact etaFix_not_hasFVar hdl hcl (fun i hi => ih i hi (hfv _ _ _ (hdecl i hi)))
   | done _ ih => rename_i hh; exact ih hh
   | @lam nf n n' m alt _ ih => rename_i hh; exact ih hh
 
@@ -1131,6 +1233,19 @@ theorem Lower.abstract {Γ : GlobalDeclarations} (hfv : FVarFreeBodies Γ) {s t 
         rwa [hjeq] at hb0
       rw [toBvar_eq_of_not_hasFVar x lvl b hbfv, toBvar_fixNode hdl hcl hnf]
       exact .fixBody hb hb' hdl hnd hids hilen hfresh hrarg hdecl hfl hlow hcl hj hjl
+  | @fixEta b nm kns bs bs' ids defs j hb hb' hdl hnd hids hilen hfresh hrarg hdecl hfl hlow
+      hcl hj hjl _ih =>
+      intro lvl
+      obtain ⟨hjb, hjeq⟩ := Lower.getElem!_of_getElem? hj
+      have hjk : j < kns.length := by omega
+      have hnf : ∀ i, i < kns.length → ¬ hasFVar x bs'[i]! :=
+        fun i hi => Lower.noFVar hfv (hlow i hi) (hfv _ _ _ (hdecl i hi))
+      have hbfv : ¬ hasFVar x b := by
+        have hb0 := hfv _ _ x (hdecl j hjk)
+        rwa [hjeq] at hb0
+      rw [toBvar_eq_of_not_hasFVar x lvl b hbfv,
+        toBvar_eq_of_not_hasFVar x lvl _ (etaFix_not_hasFVar (nm := nm) hdl hcl hnf)]
+      exact .fixEta hb hb' hdl hnd hids hilen hfresh hrarg hdecl hfl hlow hcl hj hjl
   | done _ ih =>
       rename_i lvl
       simpa using LowerAlt.done (ih lvl)
@@ -1324,7 +1439,7 @@ theorem Lower.target_box {Γ : GlobalDeclarations} {s t : LBTerm} (h : Lower Γ 
   | box => rfl
   | bvar | fvar | prim | const | lambda | letIn | app | proj | construct | «case» =>
       exact LBTerm.noConfusion ht
-  | fixConst | fixBody => exact LBTerm.noConfusion ht
+  | fixConst | fixBody | fixEta => exact LBTerm.noConfusion ht
   | @elimApp kn iid np dp nfs pre disc disc' minors alts extra extra' =>
       rcases mkApps_head_or_app (LBTerm.case (iid, np) disc' alts) extra' with he | ⟨g, b, he⟩ <;>
         rw [he] at ht <;> exact LBTerm.noConfusion ht
@@ -1336,7 +1451,7 @@ theorem Lower.target_bvar {Γ : GlobalDeclarations} {s t : LBTerm} {i : Nat} (h 
   | bvar j => exact ht ▸ rfl
   | box | fvar | prim | const | lambda | letIn | app | proj | construct | «case» =>
       exact LBTerm.noConfusion ht
-  | fixConst | fixBody => exact LBTerm.noConfusion ht
+  | fixConst | fixBody | fixEta => exact LBTerm.noConfusion ht
   | @elimApp kn iid np dp nfs pre disc disc' minors alts extra extra' =>
       rcases mkApps_head_or_app (LBTerm.case (iid, np) disc' alts) extra' with he | ⟨g, b, he⟩ <;>
         rw [he] at ht <;> exact LBTerm.noConfusion ht
@@ -1348,7 +1463,7 @@ theorem Lower.target_fvar {Γ : GlobalDeclarations} {s t : LBTerm} {x : Lean.FVa
   | fvar y => exact ht ▸ rfl
   | box | bvar | prim | const | lambda | letIn | app | proj | construct | «case» =>
       exact LBTerm.noConfusion ht
-  | fixConst | fixBody => exact LBTerm.noConfusion ht
+  | fixConst | fixBody | fixEta => exact LBTerm.noConfusion ht
   | @elimApp kn iid np dp nfs pre disc disc' minors alts extra extra' =>
       rcases mkApps_head_or_app (LBTerm.case (iid, np) disc' alts) extra' with he | ⟨g, b, he⟩ <;>
         rw [he] at ht <;> exact LBTerm.noConfusion ht
@@ -1360,7 +1475,7 @@ theorem Lower.target_prim {Γ : GlobalDeclarations} {s t : LBTerm} {p : PrimVal}
   | prim q => exact ht ▸ rfl
   | box | bvar | fvar | const | lambda | letIn | app | proj | construct | «case» =>
       exact LBTerm.noConfusion ht
-  | fixConst | fixBody => exact LBTerm.noConfusion ht
+  | fixConst | fixBody | fixEta => exact LBTerm.noConfusion ht
   | @elimApp kn iid np dp nfs pre disc disc' minors alts extra extra' =>
       rcases mkApps_head_or_app (LBTerm.case (iid, np) disc' alts) extra' with he | ⟨g, b, he⟩ <;>
         rw [he] at ht <;> exact LBTerm.noConfusion ht
@@ -1374,7 +1489,7 @@ theorem Lower.target_const {Γ : GlobalDeclarations} {s t : LBTerm} {kn : Kernam
       exact ⟨by rw [he], by rw [← he]; exact hk⟩
   | box | bvar | fvar | prim | lambda | letIn | app | proj | construct | «case» =>
       exact LBTerm.noConfusion ht
-  | fixConst | fixBody => exact LBTerm.noConfusion ht
+  | fixConst | fixBody | fixEta => exact LBTerm.noConfusion ht
   | @elimApp kn iid np dp nfs pre disc disc' minors alts extra extra' =>
       rcases mkApps_head_or_app (LBTerm.case (iid, np) disc' alts) extra' with he | ⟨g, b, he⟩ <;>
         rw [he] at ht <;> exact LBTerm.noConfusion ht
@@ -1386,8 +1501,8 @@ theorem Lower.target_fix {Γ : GlobalDeclarations} {s t : LBTerm}
     ∃ kns bs bs' ids, LowerBlock Γ kns bs bs' ids defs ∧
       ((∃ kn, s = .const kn ∧ kns[j]? = some kn) ∨ (bs[j]? = some s ∧ j < defs.length)) := by
   cases h with
-  | box | bvar | fvar | prim | const | lambda | letIn | app | proj | construct | «case» =>
-      exact LBTerm.noConfusion ht
+  | box | bvar | fvar | prim | const | lambda | letIn | app | proj | construct | «case»
+  | fixEta => exact LBTerm.noConfusion ht
   | @elimApp kn iid np dp nfs pre disc disc' minors alts extra extra' =>
       rcases mkApps_head_or_app (LBTerm.case (iid, np) disc' alts) extra' with he | ⟨g, b, he⟩ <;>
         rw [he] at ht <;> exact LBTerm.noConfusion ht
@@ -1413,7 +1528,7 @@ theorem LowerAlt.arity {Γ : GlobalDeclarations} {nf : Nat} {m : LBTerm}
   | done => rfl
   | lam _ ih => simpa using ih
   | box | bvar | fvar | prim | const | lambda | letIn | app | proj | construct | «case»
-  | elimApp | fixConst | fixBody => trivial
+  | elimApp | fixConst | fixBody | fixEta => trivial
 
 
 /-- A constructor node in the target comes from the same node, argument by argument: with
@@ -1425,7 +1540,7 @@ theorem Lower.target_construct {Γ : GlobalDeclarations} {s t : LBTerm} {iid : I
   cases h with
   | box | bvar | fvar | prim | const | lambda | letIn | app | proj | «case» =>
       exact LBTerm.noConfusion ht
-  | fixConst | fixBody => exact LBTerm.noConfusion ht
+  | fixConst | fixBody | fixEta => exact LBTerm.noConfusion ht
   | @construct iid₀ k₀ args args₀ hlen hargs =>
       injection ht with hi hk hargs'
       subst hi; subst hk; subst hargs'
@@ -1810,17 +1925,35 @@ theorem LowerBlock.targetLambda_of_fixLambda {Γ : GlobalDeclarations} {kns : Li
   rw [heq, isLambda_closeFix, hcu.isLambda_eq] at this
   exact this
 
-/-- A λ-headed target comes from a λ-headed source: `lambda` is the only arm whose target
-is a λ, since `elimApp`'s is a `.case` spine and the two fix arms' is a `.fix`. -/
+/-- A λ-headed target comes from a λ-headed source: `lambda` and `fixEta` are the only arms
+whose target is a λ, since `elimApp`'s is a `.case` spine and the other two fix arms' is a
+`.fix`.
+
+Proved by induction, not by `cases`: `fixEta`'s source is a member body, whose λ-headedness
+comes from `LowerBlock.lambda_of_fixLambda`, which is *defined* through this lemma. The
+induction hypothesis at `hlow j` supplies it instead, against
+`LowerBlock.targetLambda_of_fixLambda`, which reads `hcl`/`hfl` only. -/
 theorem Lower.source_isLambda {Γ : GlobalDeclarations} {s t : LBTerm} (h : Lower Γ s t)
     (ht : isLambda t = true) : isLambda s = true := by
-  cases h with
+  revert ht
+  induction h using Lower.rec (motive_2 := fun _ _ _ _ => True) with
   | box | bvar | fvar | prim | const | letIn | app | proj | construct | «case»
-  | fixConst | fixBody => exact absurd ht (by simp [isLambda])
-  | lambda => rfl
+  | fixConst | fixBody => exact fun ht => absurd ht (by simp [isLambda])
+  | lambda => exact fun _ => rfl
   | @elimApp kn iid np dp nfs pre disc disc' minors alts extra extra' =>
+      intro ht
       rcases mkApps_head_or_app (LBTerm.case (iid, np) disc' alts) extra' with he | ⟨g, a, he⟩ <;>
         rw [he] at ht <;> exact absurd ht (by simp [isLambda])
+  | @fixEta b nm kns bs bs' ids defs j hb hb' hdl hnd hids hilen hfresh hrarg hdecl hfl hlow
+      hcl hj hjl ih =>
+      intro _
+      obtain ⟨hjb, hjeq⟩ := Lower.getElem!_of_getElem? hj
+      have hjk : j < kns.length := by omega
+      have hblock : LowerBlock Γ kns bs bs' ids defs :=
+        ⟨hb, hb', hdl, hnd, hids, hilen, hfresh, hrarg, hdecl, hfl, hlow, hcl⟩
+      have hlam := ih j hjk (hblock.targetLambda_of_fixLambda j hjk)
+      rwa [hjeq] at hlam
+  | done | lam => exact trivial
 
 /-- **A block member's specification body is λ-headed**, unconditionally: the emitted
 definition is, by `hfl`, and both halves of the transport are faithful on the head. -/
@@ -1861,16 +1994,30 @@ theorem Lower.ne_fix_of_block {Γ : GlobalDeclarations}
   · exact hc kn hk
   · rw [hl] at hlam; exact Bool.noConfusion hlam
 
+/-- **A source that is neither a constant nor a λ has no block image at all.** The three
+arms whose target is built from a block — `fixConst`, `fixBody`, `fixEta` — have a constant
+or a member body as source, and `LowerBlock.hfl` pins the latter to a λ. The second
+component covers `fixEta`, whose target is a λ rather than a `.fix` node, and covers it
+positively: every λ-headed target has a λ-headed source. -/
+theorem Lower.ne_block_image {Γ : GlobalDeclarations}
+    {s t : LBTerm} (h : Lower Γ s t) (hc : ∀ kn, s ≠ .const kn) (hl : isLambda s = false) :
+    (∀ defs j, t ≠ .fix defs j) ∧ isLambda t = false := by
+  refine ⟨Lower.ne_fix_of_block h hc hl, ?_⟩
+  cases htl : isLambda t with
+  | false => rfl
+  | true => rw [h.source_isLambda htl] at hl; exact Bool.noConfusion hl
+
 /-- `□` is lowered to `□`. -/
 theorem Lower.source_box {Γ : GlobalDeclarations} {s t : LBTerm}
     (h : Lower Γ s t) (hs : s = .box) : t = .box := by
-  have hnf := Lower.ne_fix_of_block h (by rw [hs]; exact fun _ => LBTerm.noConfusion)
+  have hni := Lower.ne_block_image h (by rw [hs]; exact fun _ => LBTerm.noConfusion)
     (by rw [hs]; rfl)
   cases h with
   | box => rfl
   | bvar | fvar | prim | const | lambda | letIn | app | proj | construct | «case» =>
       exact LBTerm.noConfusion hs
-  | fixConst | fixBody => exact absurd rfl (hnf _ _)
+  | fixConst | fixBody => exact absurd rfl (hni.1 _ _)
+  | fixEta => exact absurd hni.2 (by simp [isLambda])
   | @elimApp kn iid np dp nfs pre disc disc' minors alts extra extra' =>
       obtain ⟨g, b, he⟩ := mkApps_ne_nil_is_app (f := LBTerm.const kn)
         (args := pre ++ disc :: minors ++ extra) (by cases pre <;> simp)
@@ -1878,13 +2025,14 @@ theorem Lower.source_box {Γ : GlobalDeclarations} {s t : LBTerm}
 
 /-- A de Bruijn index is lowered to itself. -/
 theorem Lower.source_bvar {Γ : GlobalDeclarations} {s t : LBTerm} {i : Nat} (h : Lower Γ s t) (hs : s = .bvar i) : t = .bvar i := by
-  have hnf := Lower.ne_fix_of_block h (by rw [hs]; exact fun _ => LBTerm.noConfusion)
+  have hni := Lower.ne_block_image h (by rw [hs]; exact fun _ => LBTerm.noConfusion)
     (by rw [hs]; rfl)
   cases h with
   | bvar j => exact hs ▸ rfl
   | box | fvar | prim | const | lambda | letIn | app | proj | construct | «case» =>
       exact LBTerm.noConfusion hs
-  | fixConst | fixBody => exact absurd rfl (hnf _ _)
+  | fixConst | fixBody => exact absurd rfl (hni.1 _ _)
+  | fixEta => exact absurd hni.2 (by simp [isLambda])
   | @elimApp kn iid np dp nfs pre disc disc' minors alts extra extra' =>
       obtain ⟨g, b, he⟩ := mkApps_ne_nil_is_app (f := LBTerm.const kn)
         (args := pre ++ disc :: minors ++ extra) (by cases pre <;> simp)
@@ -1892,13 +2040,14 @@ theorem Lower.source_bvar {Γ : GlobalDeclarations} {s t : LBTerm} {i : Nat} (h 
 
 /-- A free variable is lowered to itself. -/
 theorem Lower.source_fvar {Γ : GlobalDeclarations} {s t : LBTerm} {x : FVarId} (h : Lower Γ s t) (hs : s = .fvar x) : t = .fvar x := by
-  have hnf := Lower.ne_fix_of_block h (by rw [hs]; exact fun _ => LBTerm.noConfusion)
+  have hni := Lower.ne_block_image h (by rw [hs]; exact fun _ => LBTerm.noConfusion)
     (by rw [hs]; rfl)
   cases h with
   | fvar y => exact hs ▸ rfl
   | box | bvar | prim | const | lambda | letIn | app | proj | construct | «case» =>
       exact LBTerm.noConfusion hs
-  | fixConst | fixBody => exact absurd rfl (hnf _ _)
+  | fixConst | fixBody => exact absurd rfl (hni.1 _ _)
+  | fixEta => exact absurd hni.2 (by simp [isLambda])
   | @elimApp kn iid np dp nfs pre disc disc' minors alts extra extra' =>
       obtain ⟨g, b, he⟩ := mkApps_ne_nil_is_app (f := LBTerm.const kn)
         (args := pre ++ disc :: minors ++ extra) (by cases pre <;> simp)
@@ -1906,13 +2055,14 @@ theorem Lower.source_fvar {Γ : GlobalDeclarations} {s t : LBTerm} {x : FVarId} 
 
 /-- A primitive is lowered to itself. -/
 theorem Lower.source_prim {Γ : GlobalDeclarations} {s t : LBTerm} {p : PrimVal} (h : Lower Γ s t) (hs : s = .prim p) : t = .prim p := by
-  have hnf := Lower.ne_fix_of_block h (by rw [hs]; exact fun _ => LBTerm.noConfusion)
+  have hni := Lower.ne_block_image h (by rw [hs]; exact fun _ => LBTerm.noConfusion)
     (by rw [hs]; rfl)
   cases h with
   | prim q => exact hs ▸ rfl
   | box | bvar | fvar | const | lambda | letIn | app | proj | construct | «case» =>
       exact LBTerm.noConfusion hs
-  | fixConst | fixBody => exact absurd rfl (hnf _ _)
+  | fixConst | fixBody => exact absurd rfl (hni.1 _ _)
+  | fixEta => exact absurd hni.2 (by simp [isLambda])
   | @elimApp kn iid np dp nfs pre disc disc' minors alts extra extra' =>
       obtain ⟨g, b, he⟩ := mkApps_ne_nil_is_app (f := LBTerm.const kn)
         (args := pre ++ disc :: minors ++ extra) (by cases pre <;> simp)
@@ -1922,7 +2072,7 @@ theorem Lower.source_prim {Γ : GlobalDeclarations} {s t : LBTerm} {p : PrimVal}
 theorem Lower.source_letIn {Γ : GlobalDeclarations} {s t : LBTerm} {n : BinderName} {v b : LBTerm}
     (h : Lower Γ s t) (hs : s = .letIn n v b) :
     ∃ n' v' b', t = .letIn n' v' b' ∧ Lower Γ v v' ∧ Lower Γ b b' := by
-  have hnf := Lower.ne_fix_of_block h (by rw [hs]; exact fun _ => LBTerm.noConfusion)
+  have hni := Lower.ne_block_image h (by rw [hs]; exact fun _ => LBTerm.noConfusion)
     (by rw [hs]; rfl)
   cases h with
   | @letIn n₀ n' v₀ v' b₀ b' hv hb =>
@@ -1931,7 +2081,8 @@ theorem Lower.source_letIn {Γ : GlobalDeclarations} {s t : LBTerm} {n : BinderN
       exact ⟨n', v', b', rfl, hv, hb⟩
   | box | bvar | fvar | prim | const | lambda | app | proj | construct | «case» =>
       exact LBTerm.noConfusion hs
-  | fixConst | fixBody => exact absurd rfl (hnf _ _)
+  | fixConst | fixBody => exact absurd rfl (hni.1 _ _)
+  | fixEta => exact absurd hni.2 (by simp [isLambda])
   | @elimApp kn iid np dp nfs pre disc disc' minors alts extra extra' =>
       obtain ⟨g, c, he⟩ := mkApps_ne_nil_is_app (f := LBTerm.const kn)
         (args := pre ++ disc :: minors ++ extra) (by cases pre <;> simp)
@@ -1940,7 +2091,7 @@ theorem Lower.source_letIn {Γ : GlobalDeclarations} {s t : LBTerm} {n : BinderN
 /-- A projection is lowered to a projection with the same triple. -/
 theorem Lower.source_proj {Γ : GlobalDeclarations} {s t : LBTerm} {p : ProjectionInfo} {e : LBTerm} (h : Lower Γ s t) (hs : s = .proj p e) :
     ∃ e', t = .proj p e' ∧ Lower Γ e e' := by
-  have hnf := Lower.ne_fix_of_block h (by rw [hs]; exact fun _ => LBTerm.noConfusion)
+  have hni := Lower.ne_block_image h (by rw [hs]; exact fun _ => LBTerm.noConfusion)
     (by rw [hs]; rfl)
   cases h with
   | @proj p₀ e₀ e' he =>
@@ -1949,7 +2100,8 @@ theorem Lower.source_proj {Γ : GlobalDeclarations} {s t : LBTerm} {p : Projecti
       exact ⟨e', rfl, he⟩
   | box | bvar | fvar | prim | const | lambda | letIn | app | construct | «case» =>
       exact LBTerm.noConfusion hs
-  | fixConst | fixBody => exact absurd rfl (hnf _ _)
+  | fixConst | fixBody => exact absurd rfl (hni.1 _ _)
+  | fixEta => exact absurd hni.2 (by simp [isLambda])
   | @elimApp kn iid np dp nfs pre disc disc' minors alts extra extra' =>
       obtain ⟨g, c, he⟩ := mkApps_ne_nil_is_app (f := LBTerm.const kn)
         (args := pre ++ disc :: minors ++ extra) (by cases pre <;> simp)
@@ -1960,7 +2112,7 @@ theorem Lower.source_construct {Γ : GlobalDeclarations} {s t : LBTerm} {iid : I
     (h : Lower Γ s t) (hs : s = .construct iid k args) :
     ∃ args', t = .construct iid k args' ∧ args'.length = args.length ∧
       ∀ i, i < args.length → Lower Γ args[i]! args'[i]! := by
-  have hnf := Lower.ne_fix_of_block h (by rw [hs]; exact fun _ => LBTerm.noConfusion)
+  have hni := Lower.ne_block_image h (by rw [hs]; exact fun _ => LBTerm.noConfusion)
     (by rw [hs]; rfl)
   cases h with
   | @construct iid₀ k₀ args₀ args' hlen ha =>
@@ -1969,7 +2121,8 @@ theorem Lower.source_construct {Γ : GlobalDeclarations} {s t : LBTerm} {iid : I
       exact ⟨args', rfl, hlen, ha⟩
   | box | bvar | fvar | prim | const | lambda | letIn | app | proj | «case» =>
       exact LBTerm.noConfusion hs
-  | fixConst | fixBody => exact absurd rfl (hnf _ _)
+  | fixConst | fixBody => exact absurd rfl (hni.1 _ _)
+  | fixEta => exact absurd hni.2 (by simp [isLambda])
   | @elimApp kn iid np dp nfs pre disc disc' minors alts₀ extra extra' =>
       obtain ⟨g, b, he⟩ := mkApps_ne_nil_is_app (f := LBTerm.const kn)
         (args := pre ++ disc :: minors ++ extra) (by cases pre <;> simp)
@@ -1982,7 +2135,7 @@ theorem Lower.source_case {Γ : GlobalDeclarations} {s t : LBTerm} {ip : Inducti
     ∃ d' alts', t = .case ip d' alts' ∧ Lower Γ d d' ∧ alts'.length = alts.length ∧
       (∀ i, i < alts.length → (alts'[i]!).1.length = (alts[i]!).1.length) ∧
       ∀ i, i < alts.length → Lower Γ (alts[i]!).2 (alts'[i]!).2 := by
-  have hnf := Lower.ne_fix_of_block h (by rw [hs]; exact fun _ => LBTerm.noConfusion)
+  have hni := Lower.ne_block_image h (by rw [hs]; exact fun _ => LBTerm.noConfusion)
     (by rw [hs]; rfl)
   cases h with
   | @«case» ip₀ d₀ d' alts₀ alts' hd hlen hn hb =>
@@ -1991,7 +2144,8 @@ theorem Lower.source_case {Γ : GlobalDeclarations} {s t : LBTerm} {ip : Inducti
       exact ⟨d', alts', rfl, hd, hlen, hn, hb⟩
   | box | bvar | fvar | prim | const | lambda | letIn | app | proj | construct =>
       exact LBTerm.noConfusion hs
-  | fixConst | fixBody => exact absurd rfl (hnf _ _)
+  | fixConst | fixBody => exact absurd rfl (hni.1 _ _)
+  | fixEta => exact absurd hni.2 (by simp [isLambda])
   | @elimApp kn iid np dp nfs pre disc disc' minors alts₀ extra extra' =>
       obtain ⟨g, b, he⟩ := mkApps_ne_nil_is_app (f := LBTerm.const kn)
         (args := pre ++ disc :: minors ++ extra) (by cases pre <;> simp)
@@ -2001,19 +2155,21 @@ theorem Lower.source_case {Γ : GlobalDeclarations} {s t : LBTerm} {ip : Inducti
 `fixConst`'s source is a constant, and `fixBody`'s is a member body the guard pins to a λ. -/
 theorem Lower.source_fix {Γ : GlobalDeclarations} {s t : LBTerm} {defs₀ : List (@FixDef LBTerm)} {i : Nat}
     (h : Lower Γ s t) (hs : s = .fix defs₀ i) : False := by
-  have hnf := Lower.ne_fix_of_block h (by rw [hs]; exact fun _ => LBTerm.noConfusion)
+  have hni := Lower.ne_block_image h (by rw [hs]; exact fun _ => LBTerm.noConfusion)
     (by rw [hs]; rfl)
   cases h with
   | box | bvar | fvar | prim | const | lambda | letIn | app | proj | construct | «case» =>
       exact LBTerm.noConfusion hs
-  | fixConst | fixBody => exact absurd rfl (hnf _ _)
+  | fixConst | fixBody => exact absurd rfl (hni.1 _ _)
+  | fixEta => exact absurd hni.2 (by simp [isLambda])
   | @elimApp kn iid np dp nfs pre disc disc' minors alts₀ extra extra' =>
       obtain ⟨g, b, he⟩ := mkApps_ne_nil_is_app (f := LBTerm.const kn)
         (args := pre ++ disc :: minors ++ extra) (by cases pre <;> simp)
       rw [he] at hs; exact LBTerm.noConfusion hs
 
 /-- What a λ can lower to: a λ, or a block's `.fix` node — a member's specification body is
-a λ, which is exactly the `fixBody` source a block admits. -/
+a λ, which is exactly the `fixBody` source a block admits. `fixEta`'s target lands in the
+first disjunct: the wrapper is a λ, so the statement does not change. -/
 theorem Lower.source_lambda {Γ : GlobalDeclarations} {s t : LBTerm} {n : BinderName}
     {b : LBTerm} (h : Lower Γ s t) (hs : s = .lambda n b) :
     (∃ n' b', t = .lambda n' b') ∨ ∃ defs j, t = .fix defs j := by
@@ -2023,16 +2179,18 @@ theorem Lower.source_lambda {Γ : GlobalDeclarations} {s t : LBTerm} {n : Binder
   | @lambda n₀ n' b₀ b' => exact .inl ⟨n', b', rfl⟩
   | @fixConst kn kns bs bs' ids defs j => exact .inr ⟨defs, j, rfl⟩
   | @fixBody b₀ kns bs bs' ids defs j => exact .inr ⟨defs, j, rfl⟩
+  | @fixEta b₀ n₀ kns bs bs' ids defs j => exact .inl ⟨n₀, _, rfl⟩
   | @elimApp kn iid np dp nfs pre disc disc' minors alts extra extra' =>
       obtain ⟨g, c, he⟩ := mkApps_ne_nil_is_app (f := LBTerm.const kn)
         (args := pre ++ disc :: minors ++ extra) (by cases pre <;> simp)
       rw [he] at hs; exact LBTerm.noConfusion hs
 
 /-- **What a constant can lower to: two images, both under `¬ RuntimeKey`.** Itself, by
-`const`, or a block's `.fix` node, by `fixConst`. The third arm whose source is
-unconstrained is `fixBody`, and the block's own `hfl` excludes it: it would force
-`isLambda (.const kn) = true`. This is why the two images are read off the derivation and
-not off the source's syntax, and it is what lets an `ElimDecl` at `kn` refute both. -/
+`const`, or a block's `.fix` node, by `fixConst`. The other two arms whose source is
+unconstrained are `fixBody` and `fixEta`, and the block's own `hfl` excludes both: either
+would force `isLambda (.const kn) = true`. This is why the two images are read off the
+derivation and not off the source's syntax, and it is what lets an `ElimDecl` at `kn` refute
+them. -/
 theorem Lower.source_const {Γ : GlobalDeclarations} {s t : LBTerm} {kn : Kername}
     (h : Lower Γ s t) (hs : s = .const kn) :
     ¬ RuntimeKey Γ kn ∧ (t = .const kn ∨ ∃ defs j, t = .fix defs j) := by
@@ -2059,9 +2217,18 @@ theorem Lower.source_const {Γ : GlobalDeclarations} {s t : LBTerm} {kn : Kernam
         hcl⟩ : LowerBlock Γ kns bs bs' ids defs).lambda_of_fixLambda j (by omega)
       rw [hjeq, hs] at hlam
       simp [isLambda] at hlam
+  | @fixEta b nm kns bs bs' ids defs j hb hb' hd hnd hids hilen hfresh hrarg hdecl hfl hlow
+      hcl hj hjl =>
+      exfalso
+      obtain ⟨hjb, hjeq⟩ := Lower.getElem!_of_getElem? hj
+      have hlam := (⟨hb, hb', hd, hnd, hids, hilen, hfresh, hrarg, hdecl, hfl, hlow,
+        hcl⟩ : LowerBlock Γ kns bs bs' ids defs).lambda_of_fixLambda j (by omega)
+      rw [hjeq, hs] at hlam
+      simp [isLambda] at hlam
 
 /-- What a nullary constructor node can lower to: itself, or a block's `.fix` node. A
-consumer drops the second by `Lower.ne_fix_of_block`: a constructor node is no λ. -/
+consumer drops the second by `Lower.ne_fix_of_block`: a constructor node is no λ. The same
+`hfl` that rules `fixBody` in rules `fixEta` out: a constructor node is no λ either. -/
 theorem Lower.source_construct_nil {Γ : GlobalDeclarations} {s t : LBTerm}
     {iid : InductiveId} {k : Nat} (h : Lower Γ s t) (hs : s = .construct iid k []) :
     t = .construct iid k [] ∨ ∃ defs j, t = .fix defs j := by
@@ -2070,6 +2237,14 @@ theorem Lower.source_construct_nil {Γ : GlobalDeclarations} {s t : LBTerm}
       exact LBTerm.noConfusion hs
   | @fixConst kn kns bs bs' ids defs j => exact .inr ⟨defs, j, rfl⟩
   | @fixBody b kns bs bs' ids defs j => exact .inr ⟨defs, j, rfl⟩
+  | @fixEta b nm kns bs bs' ids defs j hb hb' hd hnd hids hilen hfresh hrarg hdecl hfl hlow
+      hcl hj hjl =>
+      exfalso
+      obtain ⟨hjb, hjeq⟩ := Lower.getElem!_of_getElem? hj
+      have hlam := (⟨hb, hb', hd, hnd, hids, hilen, hfresh, hrarg, hdecl, hfl, hlow,
+        hcl⟩ : LowerBlock Γ kns bs bs' ids defs).lambda_of_fixLambda j (by omega)
+      rw [hjeq, hs] at hlam
+      simp [isLambda] at hlam
   | @construct iid' k' args args' hlen ha =>
       injection hs with hi hk hargs
       subst hi; subst hk; subst hargs
@@ -2096,11 +2271,14 @@ def elimKn : Kername := { mp := .MPfile [], id := "LEcasesOn" }
 /-- The block's one inductive: no parameters, two constructors of `0` and `1` fields. -/
 def iid : InductiveId := { mutualBlockName := blockKn, idx := 0 }
 
-/-- The emitted inductive body, non-propositional, with the two field counts. -/
+/-- The emitted inductive body, non-propositional, with the two field counts. `propositional`
+is written out: `F-PROP` removed its `false` default, because `Erasure.register_inductive`
+computes it from the declared arity. -/
 def mib : MutualInductiveBody :=
   { npars := 0,
-    bodies := [{ name := "LE", ctors := [{ name := "nil", nargs := 0 },
-                                         { name := "one", nargs := 1 }], projs := [] }] }
+    bodies := [{ name := "LE", propositional := false,
+                 ctors := [{ name := "nil", nargs := 0 },
+                           { name := "one", nargs := 1 }], projs := [] }] }
 
 /-- The block and its eliminator, whose body is the canonical non-recursive shape at one
 dropped argument (the motive) and two minors. -/
@@ -2108,9 +2286,10 @@ def env : GlobalDeclarations :=
   [(blockKn, .inductiveDecl mib),
    (elimKn, .constantDecl ⟨some (mkElimBody iid 0 1 [0, 1])⟩)]
 
-/-- Both conjuncts of `ElimDecl`: the eliminator's body and the block it dispatches on. -/
+/-- Both conjuncts of `ElimDecl`: the eliminator's body and the block it dispatches on,
+with the block's own `propositional = false`. -/
 theorem elimDecl : ElimDecl env elimKn iid 0 1 [0, 1] :=
-  ⟨⟨_, rfl, .cases⟩, ⟨mib, rfl, rfl, _, rfl, rfl, rfl⟩⟩
+  ⟨⟨_, rfl, .cases⟩, ⟨mib, rfl, ⟨rfl, _, rfl, rfl⟩, ⟨_, rfl, rfl⟩⟩⟩
 
 /-- Hence the eliminator constant is a runtime key, so neither `const` nor `fixConst`
 relates it — which is what `Lower.source_const` turns into an inversion. -/

@@ -17,6 +17,12 @@ moves the run the hypothesis produced onto the actual spine, replacing the head 
 step (`WcbvEval.delta`) or by nothing, and the argument values by the arguments. No fix
 unfolding is performed here: the recursive constant's own run is the hypothesis's.
 
+The two sides read the body at different level scopes: `ErasesEnv.defns` holds an erasure at
+the declaration's own, `SEval.deltaC` unfolds an instantiation of it at the call site's.
+`Erases.instantiateLevelParams_of_stepDefeq` moves the one to the other on the rule's own
+`hdef`, which is where MetaRocq spends `erases_subst_instance_decl`
+(`../metarocq/erasure/theories/ErasureCorrectness.v:176`).
+
 What the arm must first exclude is the *eliminator* reading of the spine, `Lower.elimApp`.
 It is excluded outright: `ErasesEnv.defns` exhibits the tabled constant's entry as an
 erasure image, and `erases_ne_elimBody` (`ErasesCorrect/Steps.lean`) says no erasure image
@@ -86,6 +92,21 @@ theorem Lower.fixBody_of_block {Γ : GlobalDeclarations} {kns : List Kername}
   rw [← hbb, getElem?_pos bs j (by rw [hblock.hb]; omega),
     ← getElem!_pos bs j (by rw [hblock.hb]; omega)]
 
+/-- A block member's own body has the **η-expansion** of the block's node as an image:
+`fixEta` at the member the declaration names. `Lower.fixBody_of_block`'s twin, at the
+body `Erasure.visitMutual` registers (`Erasure.etaExpandFix`, F-ETA). -/
+theorem Lower.fixEta_of_block {Γ : GlobalDeclarations} {kns : List Kername}
+    {bs bs' : List LBTerm} {ids : List FVarId} {defs : List (@FixDef LBTerm)} {j : Nat}
+    {kn : Kername} {b : LBTerm} (hblock : LowerBlock Γ kns bs bs' ids defs)
+    (hj : kns[j]? = some kn) (hd : DefnDecl Γ kn b) : Lower Γ b (LBTerm.etaFix defs j) := by
+  obtain ⟨hjl, hje⟩ := Lower.getElem!_of_getElem? hj
+  have hdecl := hblock.hdecl j hjl
+  rw [hje] at hdecl
+  have hbb : bs[j]! = b := by simpa using (hdecl.symm.trans hd)
+  refine Lower.fixEta' hblock ?_ (by rw [hblock.hd]; omega)
+  rw [← hbb, getElem?_pos bs j (by rw [hblock.hb]; omega),
+    ← getElem!_pos bs j (by rw [hblock.hb]; omega)]
+
 /-- **What a tabled constant's image evaluates like.** Either it is the constant itself,
 or — at a block member — it is an image of the constant's own body, the block's `.fix`
 node. Neither reading is available at a runtime key. -/
@@ -117,24 +138,35 @@ theorem Lower.const_body {Γ : GlobalDeclarations}
         hcl⟩ : LowerBlock Γ kns bs bs' ids defs).lambda_of_fixLambda j (by omega)
       rw [hjeq, hs] at hlam
       simp [isLambda] at hlam
+  | @fixEta b₀ nm kns bs bs' ids defs j hb hb' hdf hnd hids hilen hfresh hrarg hdecl hfl hlow
+      hcl hj hjl =>
+      exfalso
+      obtain ⟨hjb, hjeq⟩ := Lower.getElem!_of_getElem? hj
+      have hlam := (⟨hb, hb', hdf, hnd, hids, hilen, hfresh, hrarg, hdecl, hfl, hlow,
+        hcl⟩ : LowerBlock Γ kns bs bs' ids defs).lambda_of_fixLambda j (by omega)
+      rw [hjeq, hs] at hlam
+      simp [isLambda] at hlam
 
 /-! ## The arm -/
 
 /-- **The δ arm.** The head erases to the tabled constant's kername; the constructor
 reading is refuted by `ErasesEnv.tabled` through `constOrigin_not_ctorOf`, and the boxed
-readings fold. The spine lowers as a congruence, since a tabled constant is no runtime key
+readings fold. The entry's erasure is read at the call site's level scope by
+`Erases.instantiateLevelParams_of_stepDefeq`, at the two further conjuncts of the same
+`ErasesEnv.defns` reading. The spine lowers as a congruence, since a tabled constant is no runtime key
 — its specification body is an erasure image, and no erasure image is an eliminator body.
 The induction hypothesis is taken at the lowering whose head is what the target head
 evaluates to: the emitted body, or the block's node at a member. `WcbvEval.mkApps_congr`
 then moves the run it produced onto the spine, replacing the head by one `WcbvEval.delta`
 step or by nothing. -/
-theorem step_delta {env : VEnv} {bo : Name → Option Expr} {Us : List Name}
+theorem step_delta {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
+    {Us : List Name}
     {fl : SEvalFlags} {Γspec Γ : GlobalDeclarations} :
-    StepDelta env bo Us fl Γspec Γ := by
+    StepDelta env bo lp Us fl Γspec Γ := by
   intro A c us ups args argsv b b' v henv henvL hfl hbd hnd hinst hlen hargs hdef hcont
     ihcont ve t₀ t hwt her hlow hspec
   have hargEv : ∀ (a : Expr), a ∈ args → ∀ (s u : LBTerm), Erases env Us [] a s →
-      ErasesEnv env bo Γspec s → Lower Γspec s u → ∃ x, WcbvEval Γ eraseFlags u x := by
+      ErasesEnv env bo lp Γspec s → Lower Γspec s u → ∃ x, WcbvEval Γ eraseFlags u x := by
     intro a ha s u hes hss hsu
     obtain ⟨w, htrw⟩ := trExprS_spine_mem args hwt a ha
     obtain ⟨i, hi, hia⟩ := Lower.mem_getElem! ha
@@ -161,9 +193,10 @@ theorem step_delta {env : VEnv} {bo : Name → Option Expr} {Us : List Name}
     have hreach : ReachableFrom Γspec (LBTerm.mkApps (.const (toKername c)) ts) (toKername c) :=
       ReachableFrom.subterm (subTerm_mkApps_head ts .refl)
         (reachableFrom_of_mem_constRefs (by simp [constRefs]))
-    obtain ⟨b₀, hlook, herb⟩ := hspec.defns c b hbd hreach
+    obtain ⟨hnmb, b₀, vb, hlook, herb, htrb⟩ := hspec.defns c b hbd hreach
     have hdefn : DefnDecl Γspec (toKername c) b₀ := hlook
-    have herb' : Erases env Us [] b' b₀ := by rw [hinst]; exact herb Us ups us
+    have herb' : Erases env Us [] b' b₀ :=
+      Erases.instantiateLevelParams_of_stepDefeq herb hnmb htrb hinst hdef
     have hnk : ¬ RuntimeKey Γspec (toKername c) := by
       rintro ⟨iid, np, dp, nfs, ⟨body, hbody, helim⟩, -⟩
       rw [hlook] at hbody
@@ -178,11 +211,11 @@ theorem step_delta {env : VEnv} {bo : Name → Option Expr} {Us : List Name}
         rcases henvL.defs _ b₀ bΓ hdefn hbΓ with hl | ⟨kns, bs, defs, j, hfix, hj, rfl⟩
         · exact hl
         · obtain ⟨bs', ids, hblock⟩ := hfix
-          exact Lower.fixBody_of_block hblock hj hdefn
+          exact Lower.fixEta_of_block hblock hj hdefn
       · exact ⟨hd', hbody, fun _ hw => hw⟩
     have hchoice : ∀ i, i < args.length → ∃ p : LBTerm × LBTerm,
         Erases env Us [] argsv[i]! p.1 ∧ Lower Γspec p.1 p.2 ∧
-          WcbvEval Γ eraseFlags ts'[i]! p.2 ∧ ErasesEnv env bo Γspec p.1 := by
+          WcbvEval Γ eraseFlags ts'[i]! p.2 ∧ ErasesEnv env bo lp Γspec p.1 := by
       intro i hi
       obtain ⟨w, htrw⟩ := trExprS_spine_mem args hwt args[i]! (Lower.getElem!_mem hi)
       obtain ⟨x, y, h1, h2, h3, h4⟩ :=
@@ -202,7 +235,7 @@ theorem step_delta {env : VEnv} {bo : Name → Option Expr} {Us : List Name}
       have hip : i < ps.length := by simpa using hi
       rw [Lower.getElem!_map _ ps i hip, Lower.getElem!_map _ ps i hip]
       exact (hps i (by omega)).2.1
-    have hspeccon : ErasesEnv env bo Γspec (LBTerm.mkApps b₀ (ps.map Prod.fst)) := by
+    have hspeccon : ErasesEnv env bo lp Γspec (LBTerm.mkApps b₀ (ps.map Prod.fst)) := by
       refine ErasesEnv.mkApps
         (hspec.ofReach (fun kn hr => ReachableFrom.through_body hreach hlook hr))
         (fun x hx => ?_)

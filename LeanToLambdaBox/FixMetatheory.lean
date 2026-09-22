@@ -217,4 +217,19 @@ example (x₀ x₁ : FVarId) (h : x₀ ≠ x₁) :
   rw [closeFix_2block_unfold, closeFixFold_app, closeFix_2block_first x₀ x₁ h,
     closeFix_2block_last x₀ x₁]
 
+/-! ## The η-expansion of a block's node
+
+`Erasure.visitMutual` registers `Erasure.etaExpandFix defs j` as a member's body, not the bare
+`.fix defs j` (F-ETA). `etaExpandFix` wraps in `defs[j].principalArgIdx + 1` binders applied to
+their own indices; `Erasure.mkDef` emits `principalArgIdx = 0` at every member, so on any run the
+wrapper is exactly one binder. -/
+
+/-- MetaRocq's `eta_fixpoint` (`template-rocq/theories/EtaExpand.v:72`) at `1 + rarg = 1`
+binder, the only shape a lowered block admits (`LowerBlock.hrarg`): the fixpoint applied to its
+own binder. This is `Erasure.etaExpandFix`'s image at `principalArgIdx = 0`. The general
+`rarg + 1` form is not stated: no block `LowerBlock` admits has another shape, so it would be
+dead. -/
+def LBTerm.etaFix (defs : List (@FixDef LBTerm)) (j : Nat) : LBTerm :=
+  .lambda .anon (.app (.fix defs j) (.bvar 0))
+
 end LeanToLambdaBox

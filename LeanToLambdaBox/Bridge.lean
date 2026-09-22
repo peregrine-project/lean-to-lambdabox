@@ -161,7 +161,10 @@ theorem fixvarMap_ids_subset {nms nms' : List Name} {ids ids' : List FVarId}
 `Erasure.visitMutual` installs one pair and the zip admits many others. The length condition
 rules out the appended pair the block conjunct is refuted at
 (`erasesLBMode_block_refuted`); `nms.Nodup` rules out the duplicated pair, whose `ids` may hold
-a freshly opened binder. The fourth conjunct is a **separation**, quantified over the *tabled*
+a freshly opened binder — and it is a *conclusion of a successful run*
+(`Erasure.run_rec_exit_nodup`, F-UNSAFEREC), not a standing claim about
+`Lean.Compiler.LCNF.getDeclInfo?`, which is false. The fourth conjunct is a **separation**,
+quantified over the *tabled*
 names because that is where it is consumed — the miss branch of `Erasure.visitConst`.
 Unrestricted it is false (`toKername_not_injective`); at the tabled names it is decided by
 `kernameSepB`. -/
@@ -318,8 +321,9 @@ structure BridgeInv (env : VEnv) (Us : List Name) (tbl : SourceTable) (cfg₀ : 
       the only `withReader` in the erasure that touches it is `Erasure.visitMutual`'s, which
       moves to a dependency's own `levelParams`; the invariant is not carried into that
       sub-run — `Motive6` reports registration alone — so equality holds throughout the term
-      walk. It is what lets a sub-run's oracle facts be read at `Us` on the nose, which is
-      what `EraserAsks.oracle_informative` asks for. -/
+      walk. It is what moves the reader's translation witness, held at `Us`, to the scope an
+      oracle verdict was taken under, which is where `EraserAsks.oracle_informative` and
+      `ErasureSpec.oracle_refl` conclude. -/
   lparams : ctx.lparams = Us
   /-- The reader's configuration is the one the statement is made at. `Erasure.run` builds the
       only reader from scratch and no `withReader` in the erasure touches `config`. -/

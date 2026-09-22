@@ -31,6 +31,11 @@ structure ErasureState: Type where
   /-- This field is only updated, not read. -/
   gdecls: GlobalDeclarations := []
   inlinings: List Kername := []
+  /-- The λbox key minted for each registered mutual inductive block, together with the
+  block's member list (`InductiveVal.all`), so a second block whose members mint the same key —
+  `rootKername` on `String.join` is not injective: `[AB, C]` and `[A, BC]` coincide — is caught
+  instead of silently overwriting the first block's entry in `gdecls`. -/
+  indBlocks: List (Kername × List Name) := []
 
 namespace Config
 
@@ -102,6 +107,30 @@ partial def _root_.LBTerm.containsFix : LBTerm → Bool
   | .case _ d alts => d.containsFix || alts.any (fun (_, b) => b.containsFix)
   | .proj _ e => e.containsFix
   | .fix _ _ => true
+
+/--
+True iff the term has a de Bruijn index that no binder of the term itself binds,
+counting binders exactly as `toBvar` does.
+-/
+partial def _root_.LBTerm.hasLooseBVarFrom : Nat → LBTerm → Bool
+  | _, .box | _, .fvar _ | _, .const _ | _, .prim _ => false
+  | depth, .bvar i => depth <= i
+  | depth, .lambda _ b => b.hasLooseBVarFrom (depth + 1)
+  | depth, .letIn _ v b => v.hasLooseBVarFrom depth || b.hasLooseBVarFrom (depth + 1)
+  | depth, .app a b => a.hasLooseBVarFrom depth || b.hasLooseBVarFrom depth
+  | depth, .construct _ _ args => args.any (·.hasLooseBVarFrom depth)
+  | depth, .case _ d alts =>
+    d.hasLooseBVarFrom depth || alts.any (fun (names, b) => b.hasLooseBVarFrom (depth + names.length))
+  | depth, .proj _ e => e.hasLooseBVarFrom depth
+  | depth, .fix defs _ => defs.any (fun d => d.body.hasLooseBVarFrom (depth + defs.length))
+
+/--
+True iff the term has a free de Bruijn index. Erasure builds terms locally nameless —
+an ambient variable is an `.fvar` until `abstract` turns it into an index — so this is
+false for every term `visitExpr` returns, which is what lets `visitCases` place such a
+term under the binders of an alternative without lifting it.
+-/
+def _root_.LBTerm.hasLooseBVar (t : LBTerm) : Bool := t.hasLooseBVarFrom 0
 
 /--
 True when the erased body, modulo a leading chain of lambdas, looks like a
@@ -181,10 +210,105 @@ def isErasable (lparams : List Name) (e : Expr) : MetaM Bool := do
     | .ok b => return b
     | .error _ => isErasableMeta e
 
+/--
+Refuse if `kn`, the λbox key just minted for `name`, is already registered under a different
+Lean name — as a top-level constant, or (`register_inductive` mints keys the same way, on a
+mutual block's member names rather than a single one) as a mutual inductive block. `toKername`
+collapses `.num`/`.str` name components that differ before `cleanIdent`'s escaping, so two
+distinct declarations can mint one key; without this check the second registration would
+silently overwrite the first in `gdecls` and the printer would emit only the survivor.
+-/
+def checkKernameFresh (name: Name) (kn: Kername): EraseM Unit := do
+  if let some (other, _) := (← get).constants.toList.find? (fun (n, k) => decide (k = kn) && decide (n ≠ name)) then
+    throwError "Erasure.toKername: {other} and {name} both mint the λbox key {repr kn}."
+  if let some (_, members) := (← get).indBlocks.find? (fun (k, _) => decide (k = kn)) then
+    throwError "Erasure.toKername: the mutual inductive block {members} and {name} both mint the λbox key {repr kn}."
+
+/--
+The `register_inductive` counterpart to `checkKernameFresh`: refuse if `kn`, the λbox key just
+minted for the mutual inductive block `names`, is already registered — as a *different* mutual
+inductive block reaching the same key (same finding, symmetric: `[AB, C]` and `[A, BC]` mint one
+key, and so do a constant key and a block key), or as a top-level constant's key.
+-/
+def checkIndKernameFresh (names: List Name) (kn: Kername): EraseM Unit := do
+  if let some (_, other) := (← get).indBlocks.find? (fun (k, _) => decide (k = kn)) then
+    if other ≠ names then
+      throwError "Erasure.toKername: the mutual inductive blocks {other} and {names} both mint the λbox key {repr kn}."
+  if let some (other, _) := (← get).constants.toList.find? (fun (_, k) => decide (k = kn)) then
+    throwError "Erasure.toKername: {other} and the mutual inductive block {names} both mint the λbox key {repr kn}."
+
 def addAxiom (name: Name): EraseM Unit := do
   if (← get).constants.contains name then panic! s!"Constant {name} is already defined, cannot add axiom."
   let kn := toKername name
+  checkKernameFresh name kn
   modify (fun s => { s with constants := s.constants.insert name kn, gdecls := s.gdecls.cons (kn, .constantDecl ⟨.none⟩) })
+
+/--
+Register `name` under the λbox body `t`. Used where Lean gives a declaration no value but its
+computational content is writable in λbox, so that the consumer gets a constant it can reduce
+instead of an axiom it has to be handed a realizer for.
+-/
+def addRealizer (name: Name) (t: LBTerm): EraseM Unit := do
+  if (← get).constants.contains name then panic! s!"Constant {name} is already defined, cannot add a realizer."
+  let kn := toKername name
+  checkKernameFresh name kn
+  modify (fun s => { s with constants := s.constants.insert name kn, gdecls := s.gdecls.cons (kn, .constantDecl ⟨.some t⟩) })
+
+/-- `n` anonymous λ-binders around `body`. -/
+def mkAnonLambdas (n: Nat) (body: LBTerm): LBTerm :=
+  (List.range n).foldl (fun t _ => LBTerm.lambda .anon t) body
+
+/--
+The λbox realizer of one of Lean's four quotient primitives, at the arity the kernel fixes for it.
+
+A quotient carries no runtime representation beyond its representative, so `Quot.mk` is the
+identity on it and `Quot.lift` applies the lifted function to it — which is also how Lean's own
+code generator compiles them. `Quot` is a type former and `Quot.ind` is proof-valued, so both are
+erased, and an erased constant's body is `□`.
+-/
+def quotRealizer: QuotKind → LBTerm
+  -- `Quot`, arity 2, and `Quot.ind`, arity 5.
+  | .type | .ind => .box
+  -- `Quot.mk : {α} → (r : α → α → Prop) → α → Quot r`.
+  | .ctor => mkAnonLambdas 3 (.bvar 0)
+  -- `Quot.lift : {α} → {r} → {β} → (f : α → β) → (∀ a b, r a b → f a = f b) → Quot r → β`.
+  | .lift => mkAnonLambdas 6 (.app (.bvar 2) (.bvar 0))
+
+/--
+The sort a Π-telescope ends in, read syntactically: MetaRocq's `destArity`
+(`ErasureFunction.v:1325`), which likewise does not reduce.
+-/
+def arityResultSort: Expr → Option Level
+  | .forallE _ _ b _ => arityResultSort b
+  | .sort l => some l
+  | _ => none
+
+/--
+Does an inductive declared with type `type` live in `Prop`? This is MetaRocq's
+`isPropositionalArity` (`Extract.v:276`): the sort ending the declared arity is `Prop`, for every
+instantiation of the declaration's universe parameters.
+-/
+def isPropositionalArity (type: Expr): Bool :=
+  match arityResultSort type with
+  | some l => l.isAlwaysZero
+  | none => false
+
+/--
+The first field of a constructor of `ind` that is not a proof, as the constructor's name and the
+field's index among the fields. Parameters are not fields, and a field is a proof exactly when its
+type is a proposition.
+-/
+def firstNonProofField (ind: InductiveVal): EraseM (Option (Name × Nat)) := do
+  for ctor_name in ind.ctors do
+    let .ctorInfo ci ← getConstInfo ctor_name
+      | throwError "Erasure: {ctor_name} is listed as a constructor of {ind.name} but is not one."
+    let found ← liftMetaM <|
+      Meta.forallBoundedTelescope ci.type (.some <| ci.numParams + ci.numFields) fun vars _ => do
+        for (v, i) in vars[ci.numParams:].toArray.zipIdx do
+          unless ← Meta.isProof v do return some i
+        return none
+    if let some i := found then return some (ctor_name, i)
+  return none
 
 /--
 Get information about the inductive type, adding all its mutually-defined buddies to the context if necessary.
@@ -195,6 +319,7 @@ def register_inductive (indinfo: InductiveVal): EraseM (InductiveId × Inductive
   else
     let names := indinfo.all
     let mutualBlockName := indinfo.all |>.map toString |> String.join |> rootKername
+    checkIndKernameFresh names mutualBlockName
     -- Iterate through all the inductive types in the mutual definition
     let ind_bodies: List OneInductiveBody ← names.zipIdx.mapM fun (ind_name, idx) => do
       let .inductInfo inf ← getConstInfo ind_name | unreachable!
@@ -237,10 +362,73 @@ def register_inductive (indinfo: InductiveVal): EraseM (InductiveId × Inductive
 
       let ind_id: InductiveId := { mutualBlockName, idx }
       modify (fun s => { s with inductives := s.inductives.insert ind_name (ind_id, ind_argmasks)})
-      pure { name := toString ind_name, ctors := ind_ctors, projs }
+      -- `erase_one_inductive_body` (`ErasureFunction.v:1325-1338`) reads `ind_propositional` off
+      -- the declared arity, and `erases_mutual_inductive_body` (`Extract.v:276`) states it as an
+      -- equality, so it is not a flag the frontend may default.
+      pure { name := toString ind_name, propositional := isPropositionalArity inf.type,
+             ctors := ind_ctors, projs }
     let mutual_body := { npars := indinfo.numParams, bodies := ind_bodies }
-    modify (fun s => { s with gdecls := s.gdecls.cons (mutualBlockName, .inductiveDecl mutual_body) })
+    modify (fun s => { s with gdecls := s.gdecls.cons (mutualBlockName, .inductiveDecl mutual_body),
+                              indBlocks := s.indBlocks.cons (mutualBlockName, names) })
     return (← get).inductives[indinfo.name]!
+
+/--
+The λbox body of the recursor of a propositional inductive with singleton elimination; `none` at
+every other recursor, which keeps the body-less emission.
+
+Rocq has no primitive `Eq.rec`: `eq_rect` is an ordinary constant whose body is a `match` on a
+propositional singleton, and `remove_match_on_box` (`EOptimizePropDiscr.v:48`) collapses that one
+alternative by substituting `□` for the fields it binds. So the realizer is an ordinary `.case`,
+and the shape that may take it is the one whose fields the collapse may box: the eliminated
+inductive is a single non-recursive `Prop` with at most one constructor, all of whose fields are
+proofs. A `Prop` with a field that is *data* recovered from the result's indices (`Acc`) is refused
+here for the same reason `visitCases` refuses it — boxing that field computes a wrong program.
+
+The shape is read off the `RecursorVal` and the inductive it names, never off the constant's name.
+At the recursor's calling convention — parameters, motives, minors, indices, major premise — the
+body dispatches on the major premise and hands the constructor's fields the argmask *keeps* to
+the single minor, in `mkAlt`'s own convention (first kept field highest index) and every field the
+argmask marks `.erase` applied as `□` instead — the same split `register_inductive` already
+computes for this same constructor, reused rather than recomputed.
+
+At the default config (`remove_irrel_constr_args := false`, every field kept, so `nargs` is the
+constructor's field count):
+
+    Eq.rec    ↦  λ _ _ _ _ _ _. case (Eq, 2)    (bvar 0) [([], bvar 2)]
+    And.rec   ↦  λ _ _ _ _ _.   case (And, 2)   (bvar 0) [([_,_], bvar 3 (bvar 1) (bvar 0))]
+    False.rec ↦  λ _ _.         case (False, 0) (bvar 0) []
+
+With `remove_irrel_constr_args := true` instead, the argmask marks every field of a shape this
+function admits `.erase` — the check above already requires each to be a proof, and a proof is
+always erasable — so `And.rec`'s alternative binds no fields (`nargs = 0`) and its minor is
+applied to `□` twice, in place of `(bvar 1) (bvar 0)` above: `λ _ _ _ _ _. case (And, 2) (bvar 0)
+[([], bvar 1 □ □)]`. Either way the *value* the realizer computes is the same, since it is
+standing in for the very collapse (`remove_match_on_box`) that substitutes `□` for these fields
+regardless of what the argmask already removed.
+-/
+def recursorRealizer (rv: RecursorVal): EraseM (Option LBTerm) := do
+  let [ind_name] := rv.all | return none
+  let .inductInfo ind ← getConstInfo ind_name | return none
+  unless isPropositionalArity ind.type && !ind.isRec && rv.numMotives == 1 do return none
+  unless ind.ctors.length ≤ 1 && rv.numMinors == ind.ctors.length do return none
+  if (← firstNonProofField ind).isSome then return none
+  let (indid, argmasks) ← register_inductive ind
+  let alts ← ind.ctors.mapM fun ctor_name => do
+    let .ctorInfo ci ← getConstInfo ctor_name
+      | throwError "Erasure.recursorRealizer: {ctor_name} is listed as a constructor of {ind_name} but is not one."
+    let argmask := argmasks[ci.cidx]!
+    let nargs := argmask.count .keep
+    -- The minor sits past the indices, the major premise and the fields this alternative binds;
+    -- `mkAlt`'s convention gives the first bound field the highest index, and an erased field is
+    -- supplied as `□`, which is what the source term erases it to.
+    let (_, body) := argmask.foldl (fun (kept, t) r =>
+      match r with
+      | .keep => (kept + 1, LBTerm.app t (.bvar (nargs - 1 - kept)))
+      | .erase => (kept, LBTerm.app t .box))
+      (0, LBTerm.bvar (rv.numIndices + 1 + nargs))
+    return (List.replicate nargs BinderName.anon, body)
+  let arity := rv.numParams + rv.numMotives + rv.numMinors + rv.numIndices + 1
+  return some <| mkAnonLambdas arity (.case (indid, ind.numParams) (.bvar 0) alts)
 
 def fvar_to_name (x: FVarId): EraseM BinderName := do
   let n := (← read).lctx.fvarIdToDecl |>.find! x |>.userName
@@ -275,6 +463,25 @@ def mkDef (name: Name) (fixvarnames: List Name) (body: LBTerm): EraseM (@FixDef 
   for (n, i) in fixvarnames.reverse.zipIdx do
     body := toBvar ((← read).fixvars.get![n]!) i body
   return { name := .named name.toString, body }
+
+/--
+The fixpoint selecting member `i` of `defs`, η-expanded over the `principalArgIdx + 1`
+arguments that member consumes before recursing: `fun x₀ … xₙ => (fix defs i) x₀ … xₙ`.
+
+This is MetaRocq's `eta_fixpoint` (`template-rocq/theories/EtaExpand.v:72`), which Rocq
+applies before erasure. `EEtaExpandedFix.expanded` — the precondition of
+`guarded_to_unguarded_fix`, the first pass of peregrine's verified untyped pipeline —
+admits a `.fix` node only under an argument spine longer than the selected member's
+principal argument index, so a bare fixpoint registered as a constant body falsifies it.
+Evaluation is unaffected: both terms are values and agree on every application.
+-/
+def etaExpandFix (defs: List (@FixDef LBTerm)) (i: Nat): LBTerm :=
+  let arity := match defs[i]? with
+    | .some d => d.principalArgIdx + 1
+    | .none => 1
+  -- The outermost binder is the first argument, so it carries the largest index.
+  let applied: LBTerm := (List.range arity).foldr (fun k t => .app t (.bvar k)) (.fix defs i)
+  (List.range arity).foldl (fun t _ => .lambda .anon t) applied
 
 /-- Similar to Meta.withLocalDecl, but in EraseM.
     k will be passed some fresh FVarId and run in a context in which it is bound. -/
@@ -361,6 +568,32 @@ def lambdaOrIntroToArity {α} [Inhabited α] (e type: Expr) (arity: Nat) (k: Exp
   | n+1 => lambdaMonocularOrIntro e type fun body bodytype fvarid =>
       lambdaOrIntroToArity body bodytype n (fun e fvarids => k e (.cons fvarid fvarids))
 
+/--
+Is `a`, an argument already supplied to an under-applied constructor or eliminator, a value
+that η-expansion may leave where it stands? A variable and an erased argument (a `□`) are:
+placing them under the new binders neither evaluates nor duplicates anything.
+-/
+def etaArgIsValue (lparams: List Name) (a: Expr): EraseM Bool := do
+  return a.isFVar || (← liftMetaM <| isErasable lparams a)
+
+/--
+Bind the arguments an under-applied constructor or eliminator was already supplied with
+*outside* the binders η-expansion is about to open, so that the expansion evaluates each of
+them once instead of on every application of the expansion.
+
+`bs` lists, for each argument to bind, its position in `args`, the type to bind it at and its
+erased value. The continuation is run on `args` with a fresh variable in each bound position,
+and its result is wrapped in one `let` per binding, the first of `bs` outermost:
+`let a₁ := ⟦a₁⟧; … let aₖ := ⟦aₖ⟧; λ x⃗. C a₁ … aₖ x⃗`.
+-/
+def withEtaPrefixLets (bs: List (Nat × Expr × LBTerm)) (args: Array Expr)
+    (k: Array Expr -> EraseM LBTerm): EraseM LBTerm :=
+  match bs with
+  | [] => k args
+  | (i, ty, v) :: bs =>
+    withLocalDecl (.mkSimple s!"a{i}") ty .default fun x => do
+      mkLetIn x v (← withEtaPrefixLets bs (args.set! i (.fvar x)) k)
+
 /-! ### Monotonicity lemmas for `partial_fixpoint` (verification infrastructure)
 
 The erasure family below (`visitExpr` & co.) is defined with `partial_fixpoint`
@@ -393,6 +626,21 @@ theorem withLocalDecl_mono {γ} [PartialOrder γ] {α} (n : Name) (type : Expr) 
   · apply monotone_const
   · apply monotone_of_monotone_apply; intro fvarid
     exact withReader_mono _ _ (monotone_apply fvarid _ hmono)
+
+@[partial_fixpoint_monotone]
+theorem withEtaPrefixLets_mono {γ} [PartialOrder γ] (bs : List (Nat × Expr × LBTerm))
+    (args : Array Expr) (k : γ → Array Expr → EraseM LBTerm) (hmono : monotone k) :
+    monotone (fun x => withEtaPrefixLets bs args (k x)) := by
+  induction bs generalizing args with
+  | nil => unfold withEtaPrefixLets; exact monotone_apply _ _ hmono
+  | cons b bs ih =>
+    obtain ⟨i, ty, v⟩ := b
+    unfold withEtaPrefixLets
+    apply withLocalDecl_mono
+    apply monotone_of_monotone_apply; intro fvarid
+    monotonicity
+    · exact ih _
+    · apply monotone_const
 
 @[partial_fixpoint_monotone]
 theorem withLocalDef_mono {γ} [PartialOrder γ] {α} (n : Name) (type val : Expr) (nd : Bool)
@@ -501,7 +749,8 @@ NB (verification): the erasure family below no longer calls this — `partial_fi
 cannot handle a recursive call inside the *argument* of another recursive call
 (nested recursion), which is what `withAppEtaToMinArity e arity (fun _ args =>
 visitCases …)` would be. It is specialized as `visitCasesEta`/`visitCtorEta`
-inside the mutual block, with identical behaviour. Kept for API compatibility.
+inside the mutual block, which additionally bind the supplied arguments outside the
+binders they open (`withEtaPrefixLets`). Kept for API compatibility.
 -/
 partial def withAppEtaToMinArity (e: Expr) (arity: Nat) (k: Expr -> Array Expr -> EraseM LBTerm): EraseM LBTerm := do
   let type ← liftMetaM do Meta.inferType e
@@ -695,7 +944,10 @@ mutual
   (`partial_fixpoint` cannot handle nested recursion — a recursive call inside an
   *argument* of another recursive call — which is what passing a continuation
   mentioning `visitCases` to `withAppEtaToMinArity` would be. Specializing turns
-  it into plain mutual recursion; the behaviour is byte-for-byte the original.) -/
+  it into plain mutual recursion; the behaviour is the original's, except that the
+  already-supplied discriminee is bound outside the binders the expansion opens — the
+  already-supplied alternatives are left in place, since each is branch-guarded in the
+  emitted `case` and binding one would force it unconditionally.) -/
   def visitCasesEta (casesInfo : CasesInfo) (e : Expr) : EraseM LBTerm := do
     let type ← liftMetaM do Meta.inferType e
     e.withApp (fun f args => visitCasesEtaGo casesInfo type f args)
@@ -705,10 +957,26 @@ mutual
   def visitCasesEtaGo (casesInfo : CasesInfo) (type f : Expr) (args : Array Expr) : EraseM LBTerm :=
     if args.size >= casesInfo.arity then
       visitCases casesInfo args
-    else
-      forallMonocular type fun fvarid bodytype => do
-        let res ← visitCasesEtaGo casesInfo bodytype f (args.push (.fvar fvarid))
-        mkLambda fvarid res
+    else do
+      -- Erase the discriminee already supplied and bind it outside the new binders: under
+      -- them it would be evaluated afresh on every application of the expansion. Only the
+      -- outermost round binds anything — every argument the recursion adds is a variable.
+      -- `visitCases` reads the major premise and the alternatives and drops the parameters,
+      -- the motive and the indices before the discriminee, which are therefore left where
+      -- they are: binding one would evaluate an argument the emitted program does not.
+      -- The alternatives *after* the discriminee are left alone for the same reason and one
+      -- more: `visitCases` emits each of them inside its own branch of the `case`, reached
+      -- only when its constructor is selected, so binding one here would evaluate a branch
+      -- the emitted program does not — turning a value the source produces lazily into one
+      -- the target forces unconditionally, which can non-terminate where the source does not.
+      let bs ← args.zipIdx.foldlM (fun bs a => do
+        if a.2 != casesInfo.discrPos then return bs
+        if ← etaArgIsValue (← read).lparams a.1 then return bs
+        else return bs.push (a.2, ← liftMetaM (Meta.inferType a.1), ← visitExpr a.1)) #[]
+      withEtaPrefixLets bs.toList args fun args =>
+        forallMonocular type fun fvarid bodytype => do
+          let res ← visitCasesEtaGo casesInfo bodytype f (args.push (.fvar fvarid))
+          mkLambda fvarid res
   partial_fixpoint
 
   /-- `withAppEtaToMinArity` specialized to a `visitConstructor` continuation
@@ -722,10 +990,17 @@ mutual
   def visitCtorEtaGo (ctorname : Name) (arity : Nat) (type f : Expr) (args : Array Expr) : EraseM LBTerm :=
     if args.size >= arity then
       visitConstructor ctorname args
-    else
-      forallMonocular type fun fvarid bodytype => do
-        let res ← visitCtorEtaGo ctorname arity bodytype f (args.push (.fvar fvarid))
-        mkLambda fvarid res
+    else do
+      -- As in `visitCasesEtaGo`, the supplied arguments are bound outside the new binders —
+      -- but here *all* of them, since a constructor's fields are all evaluated unconditionally
+      -- in the emitted block, unlike a `case`'s branch-guarded alternatives.
+      let bs ← args.zipIdx.foldlM (fun bs a => do
+        if ← etaArgIsValue (← read).lparams a.1 then return bs
+        else return bs.push (a.2, ← liftMetaM (Meta.inferType a.1), ← visitExpr a.1)) #[]
+      withEtaPrefixLets bs.toList args fun args =>
+        forallMonocular type fun fvarid bodytype => do
+          let res ← visitCtorEtaGo ctorname arity bodytype f (args.push (.fvar fvarid))
+          mkLambda fvarid res
   partial_fixpoint
 
   def visitConstructor (ctorname: Name) (args: Array Expr): EraseM LBTerm := do
@@ -767,6 +1042,10 @@ mutual
 
   def visitCases (casesInfo : CasesInfo) (args: Array Expr) : EraseM LBTerm := do
     let discr_nt ← visitExpr args[casesInfo.discrPos]!
+    -- The declaration's own prefix, which the machine-`Nat`/`Int` arms below key on: those arms
+    -- are for a plain `Nat.casesOn`/`Int.casesOn`. The inductive being eliminated is
+    -- `casesInfo.indName` (see the general arm); for a `casesOn` auxiliary generated for a
+    -- function the two differ, the prefix then being that function.
     let typeName := casesInfo.declName.getPrefix
 
     -- If we are using machine Nats then the inductive casesOn will not work.
@@ -814,14 +1093,79 @@ mutual
         mkLetIn n_fvar discr_nt case_nt
       )
     | _, _ => do
-      let .inductInfo indVal ← getConstInfo typeName | unreachable!
+      -- `CasesInfo.indName` is read off the type of the major premise, so it names the
+      -- inductive for a sparse `casesOn` auxiliary as well, whose `declName` prefix does not.
+      let indName := casesInfo.indName
+      let .inductInfo indVal ← getConstInfo indName
+        | throwError "Erasure.visitCases: {casesInfo.declName} eliminates {indName}, which is not an inductive type."
+      let machineInts := match (← read).config.nat with | .machine => true | .peano => false
+      if machineInts && (indName == ``Nat || indName == ``Int) then
+        throwError "Erasure.visitCases: {casesInfo.declName} eliminates {indName}, which machine-`Nat` mode represents as a primitive integer; only a plain `casesOn` can be compiled against that representation."
+      unless casesInfo.altsRange.lower == casesInfo.discrPos + 1 do
+        throwError "Erasure.visitCases: {casesInfo.declName} is a per-constructor elimination with a side condition, which λbox's `case` cannot express."
+      -- A `case` on a propositional inductive is collapsed downstream — `remove_match_on_box`
+      -- (`EOptimizePropDiscr.v:48`) and `eval_iota_sing` (`EWcbvEval.v:162`) — by substituting a
+      -- box for *every* binder of the single alternative, which is sound only when every field
+      -- bound there is a proof. Lean admits large elimination for a `Prop` whose non-proof fields
+      -- are recovered from the result indices (`Acc.intro`'s `x`, which `Acc.casesOn` binds), so
+      -- the shape is reachable and the collapse would box data. Refuse it on the shape rather
+      -- than on the name: an `Acc` clone compiles in Lean just as `Acc` does.
+      if isPropositionalArity indVal.type then
+        if let some (ctor_name, field) ← firstNonProofField indVal then
+          throwError "Erasure.visitCases: {casesInfo.declName} eliminates the propositional inductive {indName}, whose constructor {ctor_name} has a field (number {field}) that is not a proof; λbox collapses such an elimination by boxing every field of the alternative, which would lose that field's data."
       let (indid, argmasks) ← register_inductive indVal
+      -- A λbox `case` has one alternative per constructor, in constructor order, binding that
+      -- constructor's fields. Find the source alternative covering each constructor; a sparse
+      -- `casesOn` leaves some uncovered and supplies a catch-all instead. (An entry of
+      -- `altNumParams` names the constructor it eliminates, or is the catch-all, and carries
+      -- the number of fields resp. hypotheses it binds.)
+      let altIdx: Array (Option Nat) := indVal.ctors.toArray.map fun ctorName =>
+        casesInfo.altNumParams.findIdx? fun altInfo =>
+          match altInfo with | .ctor c _ => c == ctorName | .default _ => false
+      let numCtorAlts := casesInfo.altNumParams.countP
+        fun altInfo => match altInfo with | .ctor .. => true | .default _ => false
+      unless (altIdx.filterMap id).size == numCtorAlts do
+        throwError "Erasure.visitCases: the constructor alternatives of {casesInfo.declName} do not correspond one-to-one to the constructors of {indName}."
+      -- The catch-all, erased once and applied to a box for each of its hypotheses: those are
+      -- the proofs that the discriminee is none of the covered constructors. It does not bind
+      -- the fields of the constructors it stands for, so the alternatives built from it bind
+      -- them anonymously; the erased body is still locally nameless, so `abstract` shifts its
+      -- variables past those binders. `hasLooseBVar` checks the premise of that argument.
+      let dflt: Option LBTerm ←
+        if altIdx.all (·.isSome) then pure .none
+        else match casesInfo.altNumParams.findIdx? (fun altInfo => match altInfo with | .default _ => true | .ctor .. => false) with
+        | .none =>
+          throwError "Erasure.visitCases: {casesInfo.declName} covers only {numCtorAlts} of the {indVal.ctors.length} constructors of {indName} and has no catch-all alternative."
+        | .some j => do
+          unless numCtorAlts + 1 == casesInfo.altNumParams.size do
+            throwError "Erasure.visitCases: {casesInfo.declName} has more than one catch-all alternative."
+          let numHyps := match casesInfo.altNumParams[j]! with | .ctor _ n => n | .default n => n
+          let altExpr := args[casesInfo.altsRange.lower + j]!
+          let body ← visitExpr altExpr
+          if body.hasLooseBVar then
+            throwError "Erasure.visitCases: the catch-all of {casesInfo.declName} erased to a term with a free de Bruijn index, which cannot be moved under the binders of an alternative."
+          -- The catch-all is erased once below and applied to `□` per hypothesis: sound only
+          -- when every hypothesis is a proof, since `□` stands for an erased proof, not erased
+          -- data. As with `firstNonProofField`, check the premise instead of assuming it.
+          let badHyp? ← liftMetaM <| Meta.lambdaBoundedTelescope altExpr numHyps fun hs _ => do
+            for (h, i) in hs.zipIdx do
+              unless ← Meta.isProof h do return some i
+            return none
+          if let some i := badHyp? then
+            throwError "Erasure.visitCases: the catch-all of {casesInfo.declName} binds a hypothesis (number {i}) that is not a proof; λbox erases the catch-all once and applies it to `□` per hypothesis, which is sound only when every one of them is."
+          pure <| .some <| (List.range numHyps).foldl (fun t _ => LBTerm.app t .box) body
       let mut alts := #[]
-      for i in casesInfo.altsRange.toArray, altInfo in casesInfo.altNumParams /- which should proobably be called altNumFields -/, argmask in argmasks do
-        -- `altNumParams` is now `Array CasesAltInfo` (v4.29); extract the field/hyp count.
-        let numFields := match altInfo with | .ctor _ n => n | .default n => n
-        let alt ← visitAlt numFields argmask args[i]!
-        alts := alts.push alt
+      for (alt?, cidx) in altIdx.zipIdx do
+        let argmask := argmasks[cidx]!
+        match alt? with
+        | .some j =>
+          let numFields := match casesInfo.altNumParams[j]! with | .ctor _ n => n | .default n => n
+          alts := alts.push (← visitAlt numFields argmask args[casesInfo.altsRange.lower + j]!)
+        | .none =>
+          match dflt with
+          | .some body => alts := alts.push (List.replicate (argmask.count .keep) .anon, body)
+          | .none =>
+            throwError "Erasure.visitCases: constructor {indVal.ctors[cidx]!} of {indName} is left without an alternative."
       pure <| LBTerm.case (indid, indVal.numParams) discr_nt alts.toList
     )
 
@@ -872,6 +1216,13 @@ mutual
         modify (fun s => { s with inlinings := s.inlinings.cons (toKername name) })
       match ci.value? (allowOpaque := true), isExtern (← getEnv) name, (← read).config.extern with
       | .none, _, _ =>
+        if let .quotInfo qv := ci then
+          logInfo s!"No value found for name {name}, emitting the quotient realizer."
+          return ← addRealizer name (quotRealizer qv.kind)
+        if let .recInfo rv := ci then
+          if let some t := (← recursorRealizer rv) then
+            logInfo s!"No value found for name {name}, synthesizing its eliminator body."
+            return ← addRealizer name t
         logInfo s!"No value found for name {name}, emitting axiom."
         return ← addAxiom name
       | .some _, false, _ => pure ()
@@ -889,6 +1240,7 @@ mutual
       let t ← withReader (fun env => { env with fixvars := .none, lparams := ci.levelParams }) do
         pure (← visitExpr (← prepare_erasure e))
       let kn := toKername name
+      checkKernameFresh name kn
       modify (fun s => { s with constants := s.constants.insert name kn, gdecls := s.gdecls.cons (kn, .constantDecl <| ⟨.some t⟩) })
       -- Post-erasure: structurally detect typeclass-dispatch artifacts and mark them inline.
       -- Skipped if @[inline] already added this constant, or if the body contains a `fix`
@@ -904,18 +1256,24 @@ mutual
     else -- translate into a mutual fixpoint declaration
       let ids ← names.mapM (fun _ => mkFreshFVarId)
       let fixvarnames := names.map remove_unsafe_rec
+      -- `remove_unsafe_rec` strips one literal `_unsafe_rec` component, so it is not
+      -- injective: a block holding both `u` and `u._unsafe_rec` maps to `[u, u]` and would
+      -- register two declarations under one λbox key. Refuse rather than let the second
+      -- registration silently overwrite the first.
+      unless (fixvarnames.map toKername).Nodup do
+        throwError "Erasure.visitMutual: mutual block {names} maps to colliding λbox keys {fixvarnames}."
       withReader (fun env => { env with fixvars := fixvarnames |>.zip ids |> Std.HashMap.ofList |> .some }) do
         let defs: List FixDef ← names.mapM (fun n => do
           let ci ← getConstInfo n -- here n is directly from the above ci.all, possibly _unsafe_rec
           let e: Expr := ci.value! (allowOpaque := true)
-          -- TODO: eta-expand fixpoints? (I think this must be done, unsure how far)
           let t: LBTerm ← withReader (fun env => { env with lparams := ci.levelParams }) do
             visitExpr (← prepare_erasure e)
           mkDef (remove_unsafe_rec n) fixvarnames t
         )
         for (n, i) in fixvarnames.zipIdx do
           let kn := toKername n
-          modify (fun s => { s with constants := s.constants.insert n kn, gdecls := s.gdecls.cons (kn, .constantDecl ⟨.some <| .fix defs i⟩) })
+          checkKernameFresh n kn
+          modify (fun s => { s with constants := s.constants.insert n kn, gdecls := s.gdecls.cons (kn, .constantDecl ⟨.some <| etaExpandFix defs i⟩) })
   partial_fixpoint
 end
 

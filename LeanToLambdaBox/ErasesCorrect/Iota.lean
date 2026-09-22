@@ -21,7 +21,9 @@ steps, in the order the module lands them:
 * the discriminant's induction hypothesis gives the target constructor value, its boxed
   readings refuted by `not_erasable_of_informative` against `elim_major`'s typing;
 * the node's arity data comes from `ElimDecl`'s block through `LowerEnv.inds`, and the
-  rule's own `hnp` names the same block by `IndArity.inj`;
+  rule's own `hnp` names the same block by `IndArity.inj`; the `propositional = false`
+  `WcbvEval.iota` reads is `ElimDecl`'s `IndNotPropositional`, which the clause's producers
+  discharge from their own `InformativeInd`;
 * the branch's induction hypothesis is taken at the *un-contracted* application of the
   selected minor, and `IotaBridge`'s β-chain rewrite under `wcbvEval_mkApps_head_congr`
   turns it into `WcbvEval.iota`, over-application included.
@@ -206,10 +208,11 @@ def LowerConstApp (Γ : GlobalDeclarations) (kn : Kername) (ts : List LBTerm)
     (∀ i, i < extra.length → Lower Γ extra[i]! extra'[i]!) ∧
     t = LBTerm.mkApps (.case (iid, np) disc' alts) extra')
 
-/-- **Inverting the pass at a constant-headed spine.** The `.fix` targets are excluded by
-the block's own `hfl` — an application is neither a constant nor a λ — so an argument at a
-time the derivation is either the `app` congruence or `elimApp`, and an `elimApp` at a
-shorter spine absorbs the remaining arguments into its `extra`. -/
+/-- **Inverting the pass at a constant-headed spine.** The block targets are excluded by
+`Lower.ne_block_image`, which reads the block's own `hfl` — an application is neither a
+constant nor a λ — so an argument at a time the derivation is either the `app` congruence
+or `elimApp`, and an `elimApp` at a shorter spine absorbs the remaining arguments into its
+`extra`. -/
 theorem Lower.source_constApp {Γ : GlobalDeclarations} {kn : Kername} :
     ∀ (n : Nat) (ts : List LBTerm), ts.length = n → ∀ {s t : LBTerm}, Lower Γ s t →
       s = LBTerm.mkApps (.const kn) ts → LowerConstApp Γ kn ts t := by
@@ -222,12 +225,13 @@ theorem Lower.source_constApp {Γ : GlobalDeclarations} {kn : Kername} :
       obtain ⟨hnk, -⟩ := Lower.source_const h rfl
       exact .inl ⟨hnk, t, [], rfl, h, rfl, by simp⟩
     · rw [List.concat_eq_append, LBTerm.mkApps_concat] at hs
-      have hnf := Lower.ne_fix_of_block h (by rw [hs]; exact fun _ => LBTerm.noConfusion)
+      have hni := Lower.ne_block_image h (by rw [hs]; exact fun _ => LBTerm.noConfusion)
         (by rw [hs]; rfl)
       cases h with
       | box | bvar | fvar | prim | const | lambda | letIn | proj | construct | «case» =>
           exact LBTerm.noConfusion hs
-      | fixConst | fixBody => exact absurd rfl (hnf _ _)
+      | fixConst | fixBody => exact absurd rfl (hni.1 _ _)
+      | fixEta => exact absurd hni.2 (by simp [isLambda])
       | @app f₀ f' a₀ a' hf ha =>
           injection hs with hff haa
           subst hff; subst haa
@@ -262,9 +266,10 @@ theorem Lower.source_constApp {Γ : GlobalDeclarations} {kn : Kername} :
 /-- **The ι arm.** The subject is the `casesOn` spine, the induction hypotheses come with
 the rule's own subderivations, and the target is the emitted `.case` node with the
 over-application riding outside it. -/
-theorem step_iota {env : VEnv} {bo : Name → Option Expr} {Us : List Name}
+theorem step_iota {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
+    {Us : List Name}
     {fl : SEvalFlags} {Γspec Γ : GlobalDeclarations} :
-    StepIota env bo Us fl Γspec Γ := by
+    StepIota env bo lp Us fl Γspec Γ := by
   intro A con I ctor us cus pre prev minors minorsv extra extrav cargs disc r np cidx nfsR
     henv henvL hfl hsh ho hct hnp hinf hpre hpres hdiscr ihdiscr hmin hmins hxlen hxs hidx
     hdef hcont ihcont ve t₀ t hwt her hlow hspec
@@ -275,7 +280,7 @@ theorem step_iota {env : VEnv} {bo : Name → Option Expr} {Us : List Name}
     .iota hfl hsh ho hct hnp hinf hpre (fun i hi => (hpres i hi).1) hdiscr hmin
       (fun i hi => (hmins i hi).1) hxlen (fun i hi => (hxs i hi).1) hidx hdef hcont
   have ihmem : ∀ a ∈ pre ++ disc :: minors ++ extra,
-      ∃ av, Simulates env bo Us Γspec Γ a av := by
+      ∃ av, Simulates env bo lp Us Γspec Γ a av := by
     intro a ha
     rcases List.mem_append.1 ha with h1 | h2
     · rcases List.mem_append.1 h1 with h3 | h4
@@ -288,7 +293,7 @@ theorem step_iota {env : VEnv} {bo : Name → Option Expr} {Us : List Name}
     · obtain ⟨i, hi, rfl⟩ := Lower.mem_getElem! h2
       exact ⟨_, (hxs i hi).2⟩
   have hargEv : ∀ a ∈ pre ++ disc :: minors ++ extra, ∀ (s u : LBTerm),
-      Erases env Us [] a s → ErasesEnv env bo Γspec s → Lower Γspec s u →
+      Erases env Us [] a s → ErasesEnv env bo lp Γspec s → Lower Γspec s u →
       ∃ x, WcbvEval Γ eraseFlags u x := by
     intro a ha s u hes hss hsu
     obtain ⟨w, htrw⟩ := trExprS_spine_mem _ hwt a ha
@@ -324,7 +329,7 @@ theorem step_iota {env : VEnv} {bo : Name → Option Expr} {Us : List Name}
     forall₂_split3 hts hpl (by rw [hml, hnme])
   obtain ⟨w, htrdisc⟩ := trExprS_spine_mem _ hwt disc (by simp)
   obtain ⟨ius, iargs, hwty⟩ := elim_major henv hsh rfl rfl hwt htrdisc
-  have hspecdisc : ErasesEnv env bo Γspec tdisc :=
+  have hspecdisc : ErasesEnv env bo lp Γspec tdisc :=
     hspec.subterm (subTerm_mkApps_arg _ _ _ (by simp))
   obtain ⟨dv₀, dv', herdv, hlowdv, hEdisc, hspecdv⟩ := ihdiscr htrdisc herdisc hdiscL hspecdisc
   obtain ⟨vv, htrvv, hdefvv⟩ := SEval.defeq henv hΔ htrdisc hdiscr
@@ -357,7 +362,7 @@ theorem step_iota {env : VEnv} {bo : Name → Option Expr} {Us : List Name}
   have hsat : cargs.length = nps + nfs[cidx]! := ctor_saturated henv A hct hi htrvv hvvty
   obtain ⟨rfl, -⟩ := IndArity.inj A hnp hi.arity
   have hcidxlt : cidx < nfs.length := by omega
-  obtain ⟨-, mib, hmib, -, oib, hoib, hprop, -⟩ := helim
+  obtain ⟨-, mib, hmib, -, oib, hoib, hprop⟩ := helim
   have hmibΓ := henvL.inds _ _ hmib
   have hpropΓ : isPropositionalInductive Γ iid = false := by
     simp only [isPropositionalInductive, hmibΓ, hoib, hprop]
@@ -380,7 +385,7 @@ theorem step_iota {env : VEnv} {bo : Name → Option Expr} {Us : List Name}
     obtain ⟨hdl, hdp⟩ := lower_drop np hclen hcpt
     obtain ⟨hal', hap⟩ := lower_append hdl hdp hxl hxL
     exact Lower.mkApps hlowmin hal' hap
-  have hspeccont : ErasesEnv env bo Γspec
+  have hspeccont : ErasesEnv env bo lp Γspec
       (LBTerm.mkApps tminors[cidx]! (cargs₀.drop np ++ textra)) := by
     refine ErasesEnv.mkApps (hspec.subterm (subTerm_mkApps_arg _ _ _ ?_)) (fun x hx => ?_)
     · exact List.mem_append_left _ (List.mem_append_right _

@@ -240,19 +240,21 @@ inductive Erases (env : VEnv) (Us : List Name) : VLCtx → Expr → LBTerm → P
   /-- Application is a congruence. -/
   | app {Δ f f' a a'} (hf : Erases env Us Δ f f') (ha : Erases env Us Δ a a') :
       Erases env Us Δ (.app f a) (.app f' a')
-  /-- A λ-abstraction extends `Δ` as `TrExprS.lam` does and records the **source** binder
-      name. The eraser's filter on non-ASCII names is a printer constraint, stated on the
-      output boundary rather than here. -/
-  | lam {Δ n ty bi b b'} {ty' : VExpr} (hty : TrExprS env Us Δ ty ty')
+  /-- A λ-abstraction extends `Δ` as `TrExprS.lam` does; the target binder name is
+      independent of the source's, as `Lower.lambda` already quantifies both (`Lower.lean:344`)
+      — `WcbvEval` reads binder counts, never names. The eraser's filter on non-ASCII names is
+      a printer constraint, stated on the output boundary rather than here. -/
+  | lam {Δ n n' ty bi b b'} {ty' : VExpr} (hty : TrExprS env Us Δ ty ty')
       (hb : Erases env Us ((none, .vlam ty') :: Δ) b b') :
-      Erases env Us Δ (.lam n ty b bi) (.lambda (.named n.toString) b')
-  /-- A `let` erases to a `let`: ζ is enabled in both semantics, the binder name is the
-      source's, and `Expr.letE`'s non-dependence flag is ignored. -/
-  | letE {Δ n ty nd v v' b b'} {ty' val' : VExpr}
+      Erases env Us Δ (.lam n ty b bi) (.lambda n' b')
+  /-- A `let` erases to a `let`: ζ is enabled in both semantics, the target binder name is
+      independent of the source's (as `lam` above), and `Expr.letE`'s non-dependence flag is
+      ignored. -/
+  | letE {Δ n n' ty nd v v' b b'} {ty' val' : VExpr}
       (hty : TrExprS env Us Δ ty ty') (hval : TrExprS env Us Δ v val')
       (hv : Erases env Us Δ v v')
       (hb : Erases env Us ((none, .vlet ty' val') :: Δ) b b') :
-      Erases env Us Δ (.letE n ty v b nd) (.letIn (.named n.toString) v' b')
+      Erases env Us Δ (.letE n ty v b nd) (.letIn n' v' b')
   /-- A structure projection erases the discriminant and reads its metadata off `IndInfo`:
       `S` is a block-level type former with `np` parameters and one constructor of `nf`
       fields. `hinf` is the relevance Fig. 18 gets from Rocq's typing, which forbids a
@@ -358,21 +360,21 @@ theorem Erases.app_inv {f a : Expr} (h : Erases env Us Δ (.app f a) t) :
 theorem Erases.lam_inv {n : Name} {ty b : Expr} {bi : BinderInfo}
     (h : Erases env Us Δ (.lam n ty b bi) t) :
     ErasesBox env Us Δ (.lam n ty b bi) t ∨
-      (∃ ty' b', TrExprS env Us Δ ty ty' ∧ Erases env Us ((none, .vlam ty') :: Δ) b b' ∧
-        t = .lambda (.named n.toString) b') := by
+      (∃ n' ty' b', TrExprS env Us Δ ty ty' ∧ Erases env Us ((none, .vlam ty') :: Δ) b b' ∧
+        t = .lambda n' b') := by
   cases h with
   | box htr her => exact .inl ⟨⟨_, htr, her⟩, rfl⟩
-  | lam hty hb => exact .inr ⟨_, _, hty, hb, rfl⟩
+  | lam hty hb => exact .inr ⟨_, _, _, hty, hb, rfl⟩
 
 theorem Erases.letE_inv {n : Name} {ty v b : Expr} {nd : Bool}
     (h : Erases env Us Δ (.letE n ty v b nd) t) :
     ErasesBox env Us Δ (.letE n ty v b nd) t ∨
-      (∃ ty' val' v' b', TrExprS env Us Δ ty ty' ∧ TrExprS env Us Δ v val' ∧
+      (∃ n' ty' val' v' b', TrExprS env Us Δ ty ty' ∧ TrExprS env Us Δ v val' ∧
         Erases env Us Δ v v' ∧ Erases env Us ((none, .vlet ty' val') :: Δ) b b' ∧
-        t = .letIn (.named n.toString) v' b') := by
+        t = .letIn n' v' b') := by
   cases h with
   | box htr her => exact .inl ⟨⟨_, htr, her⟩, rfl⟩
-  | letE hty hval hv hb => exact .inr ⟨_, _, _, _, hty, hval, hv, hb, rfl⟩
+  | letE hty hval hv hb => exact .inr ⟨_, _, _, _, _, hty, hval, hv, hb, rfl⟩
 
 theorem Erases.proj_inv {S : Name} {i : Nat} {e : Expr} (h : Erases env Us Δ (.proj S i e) t) :
     ErasesBox env Us Δ (.proj S i e) t ∨

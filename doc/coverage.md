@@ -37,11 +37,11 @@ it. Sizes are of the `.ast` those runs write.
 
 | Program | `.ast` bytes | Erase run | In the fragment? | Capstone |
 |---|---|---|---|---|
-| Arith | 14,113 | exit 0, no panic | **yes** — no `SupportError` at the entry term or at any tabled body | the applied capstone's subject, G7/G8 |
-| Sieve | 28,235 | exit 0, no panic | **no** — `recursorHead` at `Eq.rec`, through `Bool.noConfusion` (`F-EQREC`) | not a rung; reached only by the general statement |
-| BinaryTrees | 29,736 | exit 0, no panic | **no** — `F-EQREC` | not a rung; its `Tree` is one of the first-order witnesses |
-| Quicksort | 66,450 | exit 0, **one panic** | **no** — `F-EQREC`, the well-founded `Nat.div.go`/`Nat.modCore.go` route, and `sparseCasesOn` | none: the emitted program is wrong (`F-SPARSE`, `doc/rework/03-DEV-FIX.md`) |
-| Fannkuch | 40,013 | exit 0, no panic | **no** — `F-EQREC` and `etaContractedMinor` at `Decidable.casesOn` | **fails `NoBodylessRefs`** and is outside the capstone's domain: it reaches the body-less `Eq.rec` (`F-EQREC`) |
+| Arith | 14,241 | exit 0, no panic | **yes** — no `SupportError` at the entry term or at any tabled body | the applied capstone's subject, G7/G8 |
+| Sieve | 28,555 | exit 0, no panic | **no** — `recursorHead` at `Eq.rec`, through `Bool.noConfusion` (`F-EQREC`) | not a rung; reached only by the general statement |
+| BinaryTrees | 30,056 | exit 0, no panic | **no** — `F-EQREC` | not a rung; its `Tree` is one of the first-order witnesses |
+| Quicksort | 67,033 | exit 0, **one panic** | **no** — `F-EQREC`, the well-founded `Nat.div.go`/`Nat.modCore.go` route, and `sparseCasesOn` | none: the emitted program is wrong (`F-SPARSE`, `doc/rework/03-DEV-FIX.md`) |
+| Fannkuch | 40,808 | exit 0, no panic | **no** — `F-EQREC` and `etaContractedMinor` at `Decidable.casesOn` | not a rung; outside the capstone's fragment at `F-EQREC` and `etaContractedMinor`. `NoBodylessRefs` now **holds** here — `recursorRealizer` gives the reachable `Eq.rec` a body (§2.8's strict gain) — so the exclusion is the fragment check alone, not the capstone's own premise |
 
 The verdict column is the checker's, not a judgement: it is what `supportedTerm` returns over a
 `Witness.reify%` table built on the program's entry constant, at the entry term and at every
@@ -50,14 +50,16 @@ of the others, one row per program.
 
 The panic is `PANIC at Erasure.visitCases LeanToLambdaBox.Erasure:817:55`, and the run still
 exits 0 and still writes the file; both commands are in `doc/rework/03-DEV-FIX.md`. Emitted
-programs carrying a body-less constant: **Fannkuch**, and no other.
+programs carrying a body-less constant: **none**.
 
 `NoBodylessRefs Σ t` — no constant the emitted program reaches is declared without a body — is
 the capstone's premise and is decidable. The closure `ReachableFrom` computes reaches every
-declared kername of all five, so the body-less count of the emitted file decides it: four of
-the five satisfy it, and the exception is **Fannkuch**, whose reachable `Eq.rec` is declared
-body-less: a rung there would have an uninhabitable evaluation hypothesis and would be
-vacuously green. The closure includes the
+declared kername of all five, so the body-less count of the emitted file decides it:
+**all five** satisfy it. Before F-QUOT's and F-EQREC's registering exits (§2.8), Fannkuch's
+reachable `Eq.rec` was declared body-less and a rung there would have had an uninhabitable
+evaluation hypothesis and been vacuously green; `recursorRealizer` now gives it a body
+wherever a covered program reaches it, which is the strict gain the realizer census below
+records. The closure includes the
 inductive block of every `tConstruct`, `tCase` and `tProj` node, which is what
 `constructorArity` and `isPropositionalInductive` are answered from.
 
@@ -74,11 +76,14 @@ map for. `NoBodylessRefs` is the capstone's own premise, decided on the emitted 
 * **N19** — no under-applied constructor and no under-applied eliminator occurrence: a tabled
   constructor head is applied to at least `numParams + numFields`, a `casesOn` head to at least
   `dp + 1 + nm`. Reported as `SupportError.underAppliedCtor` / `.underAppliedElim`, and reported
-  **0 times** over the thirteen tables measured here — so the deletion of the two η arms
-  costs the tracked programs nothing, the R15 contingency is not triggered, and F-ETA2's
-  containment claim is measured rather than assumed. Its constructor half disappears entirely
-  once F-ETA2 is repaired: applied-form λ□ evaluates a partially applied constructor spine natively
-  (`Value.construct_app_val`, `LeanToLambdaBox/Semantics/Values.lean:105`).
+  **0 times** over the thirteen tables measured here, so the restriction excludes nothing
+  on the corpus though both halves stand: `visitCtorEta`'s saturation loop is not deletable —
+  peregrine's `constructors_as_blocks` rewrites an under-applied `tConstruct` spine into a short
+  block that `EWellformed.v:171-175` rejects — so the constructor half does **not** disappear
+  once F-ETA2 is repaired, the claim `doc/rework/03-DEV-FIX.md`'s F-ETA2 row calls out and
+  refutes (C-refute C8). What F-ETA2 fixed is a different defect, upstream of N19 entirely:
+  a supplied argument re-erased under the binders the η loop opens, measured contained at 0
+  occurrences here.
 * **N20** — every ι spine's dropped prefix, every unselected minor and every extra argument has
   a source value. Sufficient condition: each is already a syntactic value. It **fails on all
   five**, and the counts are the carried W3R measurement: non-value minors per total ι spine are
@@ -135,7 +140,7 @@ map for. `NoBodylessRefs` is the capstone's own premise, decided on the emitted 
   collision rather than rejecting it — is `F-KERNAME` in `doc/rework/03-DEV-FIX.md`.
 
 Over the whole elaboration environment of `LeanToLambdaBox/Green.lean` the same check is
-229,593 constants against 229,593 distinct keys, so no collision is
+230,223 constants against 230,223 distinct keys, so no collision is
 excluded by the fragment that the environment does not already avoid.
 
 ### The nodes each program emits, and the projection heads behind them
@@ -149,8 +154,8 @@ head is counted once per table.
 | Arith | 10 | 5 | 4 | 10 | 10 | 0 | 5 |
 | Sieve | 8 | 28 | 10 | 9 | 9 | 0 | 3 |
 | BinaryTrees | 9 | 20 | 10 | 11 | 11 | 0 | 4 |
-| Quicksort | 9 | 27 | 11 | 17 | 16 | 0 | 7 |
-| Fannkuch | 6 | 38 | 15 | 8 | 8 | 0 | 2 |
+| Quicksort | 9 | 28 | 11 | 17 | 16 | 0 | 7 |
+| Fannkuch | 6 | 39 | 15 | 8 | 8 | 0 | 2 |
 
 The 21 distinct heads across the five programs are typeclass structures and `PProd`:
 
@@ -169,15 +174,29 @@ projection machinery on all five, which is the same false exclusion it makes at 
 body for a `casesOn`-like head, so the reified table *is* built on compiler bodies and the
 "table closure" and the "eraser closure" coincide. The measurement is `supportedTerm` on the
 entry constant together with `supportedTerm` on **every** tabled body of `reify% <entry>` — a
-superset of `Supported.Reaches`' closure, so a zero here is stronger than the fragment check:
+superset of `Supported.Reaches`' closure, so a zero here is stronger than the fragment check.
+The last column is the census `doc/rework/10-MERGE-FIXES.md` §3.2 asks for: tabled names
+shaped like a recursor of a tabled inductive (`isRecursorName`) or a `Quot` primitive
+(`quotPrimNames`) — the population F-QUOT's and F-EQREC's registering exits draw from, not a
+restriction by itself, since `supportedHead` already refuses every one of them as an
+application head regardless of count:
 
-| Program | tabled decls | inds | entry term | erroring bodies | what they are | `NoBodylessRefs` |
-|---|---|---|---|---|---|---|
-| Arith | 43 | 12 | `ok` | 0 | — | holds |
-| Sieve | 81 | 17 | `ok` | 2 | `Bool.noConfusion` (recursorHead Eq.ndrec), `Eq.ndrec` (recursorHead Eq.rec) | holds |
-| BinaryTrees | 89 | 21 | `ok` | 2 | `Bool.noConfusion` (recursorHead Eq.ndrec), `Eq.ndrec` (recursorHead Eq.rec) | holds |
-| Quicksort | 126 | 26 | `ok` | 8 | `Bool.noConfusion` (recursorHead Eq.ndrec), `Eq.ndrec` (recursorHead Eq.rec), `Nat.below` (recursorHead Nat.rec), `Nat.brecOn.go` (recursorHead Nat.below), `Nat.div.go` (recursorHead False.rec), `Nat.modCore.go` (recursorHead Nat.brecOn), `Nat.modCore.go._f` (recursorHead False.rec), `quicksort_fuel` (sparseCasesOn quicksort_fuel._sparseCasesOn_1) | holds |
-| Fannkuch | 95 | 18 | `ok` | 5 | `Bool.noConfusion` (recursorHead Eq.ndrec), `Eq.ndrec` (recursorHead Eq.rec), `Eq.ndrec_symm` (recursorHead Eq.ndrec), `countFlipsAux` (etaContractedMinor Decidable.casesOn), `rotatePrefix` (etaContractedMinor Decidable.casesOn) | **fails**: `Eq.rec` |
+| Program | tabled decls | inds | entry term | erroring bodies | what they are | `NoBodylessRefs` | realizer census |
+|---|---|---|---|---|---|---|---|
+| Arith | 43 | 12 | `ok` | 0 | — | holds | 0 |
+| Sieve | 81 | 17 | `ok` | 2 | `Bool.noConfusion` (recursorHead Eq.ndrec), `Eq.ndrec` (recursorHead Eq.rec) | holds | 2 |
+| BinaryTrees | 89 | 21 | `ok` | 2 | `Bool.noConfusion` (recursorHead Eq.ndrec), `Eq.ndrec` (recursorHead Eq.rec) | holds | 2 |
+| Quicksort | 126 | 26 | `ok` | 8 | `Bool.noConfusion` (recursorHead Eq.ndrec), `Eq.ndrec` (recursorHead Eq.rec), `Nat.below` (recursorHead Nat.rec), `Nat.brecOn.go` (recursorHead Nat.below), `Nat.div.go` (recursorHead False.rec), `Nat.modCore.go` (recursorHead Nat.brecOn), `Nat.modCore.go._f` (recursorHead False.rec), `quicksort_fuel` (sparseCasesOn quicksort_fuel._sparseCasesOn_1) | holds | 6 |
+| Fannkuch | 95 | 18 | `ok` | 5 | `Bool.noConfusion` (recursorHead Eq.ndrec), `Eq.ndrec` (recursorHead Eq.rec), `Eq.ndrec_symm` (recursorHead Eq.ndrec), `countFlipsAux` (etaContractedMinor Decidable.casesOn), `rotatePrefix` (etaContractedMinor Decidable.casesOn) | holds | 2 |
+
+`grep -c '(constant_body None)' VerifyBench/ast/<Program>.ast` is this column's companion by
+hand: on the current tree it is 0 on all five — F-QUOT's and F-EQREC's realizer exits give
+`Eq.rec` a body wherever a covered program reaches it, and no program's entry term or tabled
+closure applies a `Quot` primitive or an untabled recursor as a head, so the residue §3.2 names
+— an untabled prefix reaching `recursorRealizer` — is measured absent here rather than assumed
+absent everywhere: the capstone's own argument for it is `supportedHead`'s refusal
+(`doc/rework/10-MERGE-FIXES.md` §3.2, last paragraph), and this table is the corpus-side check
+of that argument's premise, not a substitute for it.
 
 N8's claim — that the compiler bodies the eraser reads carry direct structural recursion rather
 than `brecOn` — holds of the tables as they now stand; the `brecOn` verdicts an earlier body
@@ -223,9 +242,9 @@ Each rung's theorem and the hypotheses it still binds, read off `LeanToLambdaBox
 | G3 | elaborates | 1,469 | binder | binder | binder | — |
 | G4 | elaborates | 2,284 | binder | binder | binder | — |
 | G5 | elaborates | 966 | binder | — | binder | — |
-| G6 | elaborates | 853 | binder | binder | binder | — |
-| G7 | elaborates | 14,497 | binder | binder | binder | — |
-| G8 | elaborates | 14,163 | binder | binder | binder | binder |
+| G6 | elaborates | 885 | binder | binder | binder | — |
+| G7 | elaborates | 14,625 | binder | binder | binder | — |
+| G8 | elaborates | 14,291 | binder | binder | binder | binder |
 
 `lenv` and `env` are universally quantified in every rung, so the ladder delivers
 **conditional** non-vacuity. No computation can make it unconditional, and this sentence is
@@ -348,8 +367,8 @@ them out of `doc/trust.md` rather than copying them.
 | Binder | What it assumes | External mechanism |
 |---|---|---|
 | `hrun` | the `#erase` run produced the committed `.ast` | `green-check` re-runs `#erase` and byte-diffs the file; `IO.RealWorld` is opaque, so no Lean proof of this can exist |
-| `htbl` | the reified `SourceTable` is the live environment's slice, including the `prepare_erasure` run clause, which pins the compiler body up to α (`Witness.Expr.AlphaEq`: binder names and binder info ignored, nothing else) | `lake exe reify --check` compares field by field against the live environment, and cross-checks `Expr.eqv` against a Boolean written arm-for-arm against the relation |
-| `hsafe` | `TableSafe`: every declaration the reified table pins — constants, inductive types and their constructors — is safe in the ambient environment, the one column `SourceTableAdequate` does not record, plus two clauses about the table's own constant column: `notUnsafeRec`, no tabled constant is an `_unsafe_rec` companion, which is the guard `lookup_adequate.declInfo`'s membership arm takes, and `declCtor`, a tabled constant that `lenv` declares a constructor is in the table's constructor column too, which is what `Erasure.visitConstApp` needs to read the fragment's saturation condition at a `getCtorArity?` hit. Load-bearing four times: `Green.g1_compilerBodies`, `supportedB_sound`, `step6` and `step_visitConstApp` | `lake exe reify --check` reads the live declarations for the three safety clauses; the column is an upstream ask. `notUnsafeRec` is decidable on a concrete table and `declCtor` holds by construction of `Witness.reify%`, whose `.ctorInfo` arm reifies the constructor's own inductive block; no `reify` verb reads either |
+| `htbl` | the reified `SourceTable` is the live environment's slice, including the `prepare_erasure` run clause, which pins the compiler body up to α (`Witness.Expr.AlphaEq`: binder names and binder info ignored, nothing else), and `compilerLevels`, that the **compiler** declaration `Lean.Compiler.LCNF.getDeclInfo?` answers with — the `_unsafe_rec` companion where the elaborator emitted one — carries the table's level column, which is the identification the run relies on when `Erasure.visitMutual` installs `lparams := ci.levelParams` from that constant while the table's column and `CompilerBodies` read `lenv.find?` | `lake exe reify --check` compares field by field against the live environment, `compilerLevels` included, and cross-checks `Expr.eqv` against a Boolean written arm-for-arm against the relation |
+| `hsafe` | `TableSafe`: every declaration the reified table pins — constants, inductive types and their constructors — is safe in the ambient environment, the one column `SourceTableAdequate` does not record, plus two clauses about the table's own constant column: `notUnsafeRec`, no tabled constant is an `_unsafe_rec` companion, which is the guard `lookup_adequate.declInfo`'s membership arm takes, and `declCtor`, a tabled constant that `lenv` declares a constructor is in the table's constructor column too, which is what `Erasure.visitConstApp` needs to read the fragment's saturation condition at a `getCtorArity?` hit, and `noMaxLevels`, every tabled body is in the `max`-free level fragment, which is the fragment `Erases.instL` transports a body's erasure along and so what `TabledLevels` — `bridgeEnv_of_regInv`'s level-scope premise, which the reachability gate of `ErasesEnv.defns` then hands the δ arm one constant at a time — spends. Load-bearing five times: `Green.g1_compilerBodies`, `supportedB_sound`, `step6`, `step_visitConstApp` and `tabledLevels_of_table` | `lake exe reify --check` reads the live declarations for the three safety clauses; the column is an upstream ask. `notUnsafeRec`, `declCtor` and `noMaxLevels` are decidable on a concrete table, and the first two hold by construction of `Witness.reify%`, whose `.ctorInfo` arm reifies the constructor's own inductive block; no `reify` verb reads any of the three |
 
 ## The dead-declaration budget
 
