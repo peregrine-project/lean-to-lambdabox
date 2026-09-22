@@ -1027,4 +1027,55 @@ theorem regInv_constCons_step {env : VEnv} {bo : Name → Option Expr} {lp : Nam
     obtain rfl : b₀ = b₀' := by simpa using heq
     exact ⟨b₀, envLookup_cons_self, her, hlow'⟩
 
+/-! ## Saturation at the final state
+
+`RegSaturated` (`SpecEnv.lean`) reads a *registered-name* fact off a *key*, the converse of
+`RegInvShape'.consts`/`.inds`. `RegKeyed` is that converse for the emitted environment alone,
+tagged by the entry's own shape rather than by mere presence: `A-hbridge.md`'s sketch triggers
+on `LBTerm.envLookup s.gdecls kn ≠ none` and disjoins on registry membership with no shape
+attached, which is unsatisfiable as a route to `RegSaturated.inds` — the "constant" disjunct
+carries no fact ruling out a name `n` whose canonical kername coincides with a block's (both
+`toKername` and `mutualBlockKn`'s `rootKername` are ad hoc string-based maps into one
+`Kername` space with no stated injectivity or disjointness between them, and they do collide:
+`toKername \`id = rootKername "id"`, by `decide`). Reading each disjunct off the shape it
+produces closes that gap without assuming the collision away: a `.constantDecl`-shaped entry
+answers `consts`, a `.inductiveDecl`-shaped one answers `inds`, and `GlobalDecl`'s two
+constructors are disjoint whichever shape a given key's entry turns out to have. -/
+
+/-- Every emitted key is a registered constant's canonical kername or a registered inductive's
+block key, read off the shape the emitted entry itself carries. `env` is a parameter, which
+`IndInfo` needs and `A-hbridge.md`'s sketch omits. -/
+structure RegKeyed (env : VEnv) (s : ErasureState) : Prop where
+  /-- A constant-shaped entry is some registered constant's canonical kername. -/
+  consts : ∀ kn cb, (kn, GlobalDecl.constantDecl cb) ∈ s.gdecls →
+    ∃ n : Name, kn = toKername n ∧ (s.constants.get? n).isSome
+  /-- A block-shaped entry is some registered inductive's block key. -/
+  inds : ∀ kn mib, (kn, GlobalDecl.inductiveDecl mib) ∈ s.gdecls →
+    ∃ (n : Name) (iid : InductiveId) (np : Nat) (nfs : List Nat),
+      (s.inductives.get? n).isSome ∧ IndInfo env n iid np nfs ∧ kn = iid.mutualBlockName
+
+/-- **Preserved across a constant-only extension.** `ConstExt.gdecls` already records, for
+every prefix entry, that it is `.constantDecl`-shaped and keyed at a registered constant's
+kername (`08-REPAIRS-W5.md` §2.2); a prefix entry can therefore only ever *answer* `consts`,
+never `inds`, which is what makes the `inds` case of a fresh key impossible rather than
+merely unproved. -/
+theorem ConstExt.regKeyed {env : VEnv} {s s' : ErasureState} (h : ConstExt s s')
+    (hind : ∀ n : Name, (s.inductives.get? n).isSome → (s'.inductives.get? n).isSome)
+    (H : RegKeyed env s) : RegKeyed env s' where
+  consts kn cb hmem := by
+    obtain ⟨pre, hpre, hshape⟩ := h.gdecls
+    rw [hpre] at hmem
+    rcases List.mem_append.mp hmem with hmem | hmem
+    · obtain ⟨-, m, hkm, hms⟩ := hshape (kn, .constantDecl cb) hmem
+      exact ⟨m, hkm, hms⟩
+    · obtain ⟨n, hn, hns⟩ := H.consts kn cb hmem
+      exact ⟨n, hn, h.dom hns⟩
+  inds kn mib hmem := by
+    obtain ⟨pre, hpre, hshape⟩ := h.gdecls
+    rw [hpre] at hmem
+    rcases List.mem_append.mp hmem with hmem | hmem
+    · exact absurd (hshape (kn, .inductiveDecl mib) hmem).1 (by simp)
+    · obtain ⟨n, iid, np, nfs, hns, hii, hkn⟩ := H.inds kn mib hmem
+      exact ⟨n, iid, np, nfs, hind n hns, hii, hkn⟩
+
 end LeanToLambdaBox

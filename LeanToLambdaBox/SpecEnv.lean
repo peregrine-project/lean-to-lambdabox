@@ -151,6 +151,24 @@ theorem RegInvShape'.lowerEnv {env : VEnv} {bo : Name → Option Expr} {lp : Nam
   closed := H.closed
   specClosed := H.specClosed
 
+/-- **`RegSaturated`, from `RegKeyed` at the emitted environment.** `hsub` is the fact
+`08-REPAIRS-W5.md` §2.2 anticipates: once `Γspec` is built *from* the emitted environment
+(plus specification-only eliminator entries, which `RegKeyed` never answers for — no
+eliminator body is registered, `RegInvShape'.lowerEnv`'s docstring), every other entry of
+`Γspec` is an unchanged copy of the emitted one, so a lookup that succeeds in `Γspec` succeeds
+at the *same* declaration in `s.gdecls`. Reading that declaration's shape off `RegKeyed`
+supplies each clause directly, with no case left over to exclude — `_H` is not itself spent;
+it is the invariant every call site already carries alongside `hk`/`hsub`. -/
+theorem regSaturated_of_regKeyed {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
+    {Γspec : GlobalDeclarations} {s : ErasureState}
+    (_H : RegInvShape' env bo lp Γspec s) (hk : RegKeyed env s)
+    (hsub : ∀ kn d, LBTerm.envLookup Γspec kn = some d → LBTerm.envLookup s.gdecls kn = some d) :
+    RegSaturated env Γspec s where
+  consts kn b₀ hd _hrk := by
+    obtain ⟨n, hn, hns⟩ := hk.consts kn ⟨some b₀⟩ (envLookup_mem (hsub kn _ hd))
+    exact ⟨n, hn.symm, hns⟩
+  inds kn d hd := hk.inds kn d (envLookup_mem (hsub kn _ hd))
+
 /-! ## The δ column of `ErasesEnv`, from the registry -/
 
 /-- **The environment relation of a run.** `SpecEnv.erasesEnv`'s three premises: `hdeps` is
