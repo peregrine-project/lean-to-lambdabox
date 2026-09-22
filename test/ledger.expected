@@ -43,7 +43,7 @@
 'LeanToLambdaBox.firstorder_erases_deterministic' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
 'LeanToLambdaBox.firstorder_no_box' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
 'LeanToLambdaBox.fOFields_of_asks' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
-'LeanToLambdaBox.LowerBlock.lambda_of_fixLambda' depends on axioms: [propext]
+'LeanToLambdaBox.LowerBlock.lambda_of_fixLambda' depends on axioms: [propext, Quot.sound]
 'LeanToLambdaBox.Lower.constToFix' depends on axioms: [propext, Quot.sound]
 'LeanToLambdaBox.constants_of_tabled' depends on axioms: [propext, Classical.choice, Quot.sound]
 'LeanToLambdaBox.constOrigin_of_constants' depends on axioms: [propext, Classical.choice, Quot.sound]

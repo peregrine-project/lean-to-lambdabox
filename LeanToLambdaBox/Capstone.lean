@@ -22,9 +22,11 @@ cannot be identified, since `Lean.Compiler.LCNF.macroInline` replaces a constant
 read under. `hprep` fixes `pe`; at a rung it is the subject itself, checked by
 `lake exe reify --prepared`.
 
-`LBExpandedFix` is **not** concluded: the erasure emits bare `tFix` constant bodies, so
-`PeregrinePre` does not hold of its output (finding F-ETA). The conclusion is
-`LBWfPeregrine`, which is what the emitted program does satisfy.
+The conclusion is `LBWfPeregrine`, and since F-ETA (the emitted body of a registered
+fixpoint is the η-expansion `LBTerm.etaFix`, not the bare `tFix` node) `LBWfPeregrine`'s
+`expandedFix` clause carries all three term-level conjuncts of MetaRocq's `expanded_tFix`
+(§4.7 of `doc/rework/10-MERGE-FIXES.md`); `PeregrinePre`, the separate predicate the earlier
+gap needed, is deleted.
 
 Three hypotheses are stated in the form this module can express. `hsup` is the fragment
 predicate `Supported`, which a rung discharges by computation through `supportedB_sound`.
@@ -136,9 +138,10 @@ set_option linter.unusedVariables false in
 **The shipping erasure is correct at a first-order answer.** For a term the erasure ran on
 under a pinned configuration, whose prepared form is inside the fragment and whose emitted
 program declares a body for every constant it reaches: `(Γ, t)` is the lowered image of a
-specification environment that erases the prepared term, it satisfies `LBWfPeregrine` — not
-`LBExpandedFix`, finding F-ETA — and every first-order answer the **source** evaluation
-produces is reproduced by it, uniquely and box-free. The binders' classes are `doc/trust.md`'s
+specification environment that erases the prepared term, it satisfies `LBWfPeregrine` —
+`expandedFix` included, since F-ETA's registered fixpoints are η-expanded — and every
+first-order answer the **source** evaluation produces is reproduced by it, uniquely and
+box-free. The binders' classes are `doc/trust.md`'s
 rows; the erasure half is `erasure_bridge_of_run`, the simulation `erases_correct` at the
 spine, the answer's shape and uniqueness `firstorder_erases_core`, and the rest `hbridge`.
 -/

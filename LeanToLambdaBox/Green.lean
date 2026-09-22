@@ -909,10 +909,13 @@ def spikeRecDef : @FixDef LBTerm :=
          ([.named "m"], .app (.construct natIid 1 []) (.app (.bvar 2) (.bvar 0)))]),
     principalArgIdx := 0 }
 
-/-- Rung G6's emitted environment, transcribed from `VerifyBench/ast/Spikes/G6.ast`. -/
+/-- Rung G6's emitted environment, transcribed from `VerifyBench/ast/Spikes/G6.ast`. The
+registered body of a recursive constant is the η-expansion of its block's node
+(`Erasure.etaExpandFix`, F-ETA), not the bare `.fix`; `spikeRec`'s single member has
+`principalArgIdx = 0`, so the wrapper is `LBTerm.etaFix`'s one binder. -/
 def g6Env : GlobalDeclarations :=
   [ (rootKername "spikeFix", .constantDecl ⟨some (.app (.const spikeRecKn) (peanoLB 2))⟩),
-    (spikeRecKn, .constantDecl ⟨some (.fix [spikeRecDef] 0)⟩),
+    (spikeRecKn, .constantDecl ⟨some (LBTerm.etaFix [spikeRecDef] 0)⟩),
     (rootKername "Nat", .inductiveDecl natBody) ]
 
 /-- Rung G6's emitted term. -/
@@ -948,7 +951,8 @@ set_option linter.unusedVariables false in
 emitted program is the lowered image of a specification environment that erases `spikeFix`,
 and the source evaluation's answer is reproduced as the literal λ□ peano numeral `2`, not
 `□` and not a stuck term. The constant the subject applies is recursive, so its emitted
-body is a `.fix` node and the target run unfolds it twice under the guard.
+body is the η-expansion of a `.fix` node (F-ETA) and the target run β-reduces the wrapper
+before unfolding the fixpoint twice under the guard.
 `hcfg`, `hsup`, `hnb`, `hwf`, `hwt` and the target-side evaluation are discharged here by
 checked terms; `hcb` and `hev` stay binders, per `doc/trust.md`'s class-**C** rows.
 -/
@@ -1213,7 +1217,7 @@ def arithTower (tag : String) : GlobalDeclarations :=
     classProjDecl "HMul" "hMul" 3,
     (rootKername "HMul", .inductiveDecl (classBody "HMul" 3)),
     natInstDecl "instSubNat" "Sub" "sub",
-    (dotKername "Nat" "sub", .constantDecl ⟨some (.fix [natSubFix tag] 0)⟩),
+    (dotKername "Nat" "sub", .constantDecl ⟨some (LBTerm.etaFix [natSubFix tag] 0)⟩),
     (dotKername "Nat" "pred", .constantDecl ⟨some (natPredBody tag)⟩),
     homInstDecl "instHSub" "HSub" "Sub" "sub"
       "inst._@.Init.Prelude.4034066273._hygCtx._hyg.5",
@@ -1229,11 +1233,11 @@ def arithTower (tag : String) : GlobalDeclarations :=
     classProjDecl "HAdd" "hAdd" 3,
     (rootKername "HAdd", .inductiveDecl (classBody "HAdd" 3)),
     natInstDecl "instNatPowNat" "NatPow" "pow",
-    (dotKername "Nat" "pow", .constantDecl ⟨some (.fix [natPowFix tag] 0)⟩),
+    (dotKername "Nat" "pow", .constantDecl ⟨some (LBTerm.etaFix [natPowFix tag] 0)⟩),
     (unitUnitKn, .constantDecl ⟨some (.construct punitIid 0 [])⟩),
     (rootKername "PUnit", .inductiveDecl punitBody),
-    (dotKername "Nat" "mul", .constantDecl ⟨some (.fix [natMulFix tag] 0)⟩),
-    (dotKername "Nat" "add", .constantDecl ⟨some (.fix [natAddFix tag] 0)⟩),
+    (dotKername "Nat" "mul", .constantDecl ⟨some (LBTerm.etaFix [natMulFix tag] 0)⟩),
+    (dotKername "Nat" "add", .constantDecl ⟨some (LBTerm.etaFix [natAddFix tag] 0)⟩),
     instOfNatNatDecl,
     (rootKername "Nat", .inductiveDecl natBody),
     ofNatDecl,
@@ -1429,7 +1433,8 @@ set_option linter.unusedVariables false in
 emitted program is the lowered image of a specification environment that erases
 `arithClosed`, and the source evaluation's answer is reproduced as the literal λ□ peano
 numeral `8`, not `□` and not a stuck term. The subject is a tracked benchmark program: forty
-emitted declarations, ten class projections, four `.fix` blocks and five `.case` nodes.
+emitted declarations, ten class projections, four η-expanded `.fix` blocks (F-ETA) and five
+`.case` nodes.
 `hcfg`, `hsup`, `hnb`, `hwf`, `hwt` and the target-side evaluation are discharged here by
 checked terms; `hcb` and `hev` stay binders, per `doc/trust.md`'s class-**C** rows.
 -/

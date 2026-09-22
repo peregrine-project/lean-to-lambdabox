@@ -139,8 +139,11 @@ def progs : List Prog :=
     { name := "Fannkuch", module := `VerifyBench.Src.Fannkuch, entry := `runBenchmark
       ast := "VerifyBench/ast/Fannkuch.ast", eraseRun := "exit 0, no panic"
       why := "`F-EQREC` and `etaContractedMinor` at `Decidable.casesOn`"
-      capstone := "**fails `NoBodylessRefs`** and is outside the capstone's domain: it \
-                   reaches the body-less `Eq.rec` (`F-EQREC`)" } ]
+      capstone := "not a rung; outside the capstone's fragment at `F-EQREC` and \
+                   `etaContractedMinor`. `NoBodylessRefs` now **holds** here — \
+                   `recursorRealizer` gives the reachable `Eq.rec` a body (§2.8's strict \
+                   gain) — so the exclusion is the fragment check alone, not the capstone's \
+                   own premise" } ]
 
 /-- What one reified table measures: its size, the fix blocks the environment installs for
 it, its `.proj` heads and their two informativeness verdicts, its metadata-headed spines,
@@ -163,6 +166,13 @@ structure TableFacts where
   errs : List (Name × SupportError)
   /-- Whether no two tabled names share a λ□ key. -/
   kernameSep : Bool
+  /-- The census §3.2 of `doc/rework/10-MERGE-FIXES.md` asks for: tabled names shaped like a
+  recursor of a tabled inductive (`isRecursorName`) or one of the four `Quot` primitives
+  (`quotPrimNames`) — the population F-QUOT's and F-EQREC's registering exits draw from. Not
+  a fragment restriction by itself: `supportedHead` already refuses every one of them as a
+  head (`quotPrimNames.contains`/`isRecursorName`, `Supported.lean:318,337`), so this counts
+  how large the population the refusal is measured against is, not a violation. -/
+  realizerNames : Nat
 
 /-- Add one term's `.proj` nodes, `.proj` heads and metadata-headed spines to a running
 count. -/
@@ -196,10 +206,11 @@ def measureTable (env : Environment) (tbl : SourceTable) : TableFacts := Id.run 
   let heads := acc.2.1.map fun S => match tbl.ind? S with
     | some I => (S, informativeB I, succSortB I)
     | none => (S, false, false)
+  let realizerNames := tbl.decls.countP fun (n, _) => isRecursorName tbl n || quotPrimNames.contains n
   return { decls := tbl.decls.length, inds := tbl.inds.length
            blocks := (blocks, singles, untabled, nonLam)
            projs := acc.1, heads := heads, mdataHeads := acc.2.2
-           errs := errs.toList, kernameSep := kernameSepB tbl }
+           errs := errs.toList, kernameSep := kernameSepB tbl, realizerNames := realizerNames }
 
 /-- What one program measures: its table, its emitted file and the entry-term verdict. -/
 structure ProgFacts where
@@ -321,7 +332,7 @@ def progRow (f : ProgFacts) : String :=
   s!"| {f.prog.name} | {comma f.bytes} | {f.prog.eraseRun} | {verdict} | {f.prog.capstone} |"
 
 /-- One program's row of the fragment table: the table it was measured on, the entry
-verdict, and every tabled body outside the fragment. -/
+verdict, every tabled body outside the fragment, and the realizer census. -/
 def fragmentRow (f : ProgFacts) : String :=
   let errs := f.tbl.errs.map fun (n, e) => s!"`{n}` ({errName e})"
   let what := if errs.isEmpty then "—" else String.intercalate ", " errs
@@ -329,7 +340,7 @@ def fragmentRow (f : ProgFacts) : String :=
     | [] => "holds"
     | ns => s!"**fails**: {String.intercalate ", " (ns.map (s!"`{·}`"))}"
   s!"| {f.prog.name} | {f.tbl.decls} | {f.tbl.inds} | {if f.entryOk then "`ok`" else "**error**"} \
-     | {f.tbl.errs.length} | {what} | {nbr} |"
+     | {f.tbl.errs.length} | {what} | {nbr} | {f.tbl.realizerNames} |"
 where
   /-- The checker's own name for an error, with the constant it names. -/
   errName : SupportError → String
@@ -397,9 +408,21 @@ dead-declaration budget. Each is attributed where it appears."
 
 /-- The program table and the paragraphs that read it. -/
 def programsSection (fs : List ProgFacts) (rungTbls : List TableFacts) : String :=
-  let bl := String.intercalate " and " (fs.filter (!·.bodyless.isEmpty) |>.map (·.prog.name))
+  let blProgs := fs.filter (!·.bodyless.isEmpty) |>.map (·.prog.name)
+  let bl := String.intercalate " and " blProgs
   let ok := String.intercalate " and " (fs.filter (fun f => f.entryOk && f.tbl.errs.isEmpty)
     |>.map (·.prog.name))
+  let bodylessVerdict :=
+    if blProgs.isEmpty then
+"**all five** satisfy it. Before F-QUOT's and F-EQREC's registering exits (§2.8), Fannkuch's
+reachable `Eq.rec` was declared body-less and a rung there would have had an uninhabitable
+evaluation hypothesis and been vacuously green; `recursorRealizer` now gives it a body
+wherever a covered program reaches it, which is the strict gain the realizer census below
+records."
+    else
+s!"{fs.length - blProgs.length} of the five satisfy it, and the exception is **{bl}**, whose
+reachable `Eq.rec` is declared body-less: a rung there would have an uninhabitable evaluation
+hypothesis and would be vacuously green."
   let allTbls := fs.map (·.tbl) ++ rungTbls
   let blocks := sumOver allTbls (·.blocks.1)
   let singles := sumOver allTbls (·.blocks.2.1)
@@ -432,14 +455,12 @@ of the others, one row per program.
 
 The panic is `PANIC at Erasure.visitCases LeanToLambdaBox.Erasure:817:55`, and the run still
 exits 0 and still writes the file; both commands are in `doc/rework/03-DEV-FIX.md`. Emitted
-programs carrying a body-less constant: **{bl}**, and no other.
+programs carrying a body-less constant: {if blProgs.isEmpty then "**none**" else s!"**{bl}**, and no other"}.
 
 `NoBodylessRefs Σ t` — no constant the emitted program reaches is declared without a body — is
 the capstone's premise and is decidable. The closure `ReachableFrom` computes reaches every
-declared kername of all five, so the body-less count of the emitted file decides it: four of
-the five satisfy it, and the exception is **{bl}**, whose reachable `Eq.rec` is declared
-body-less: a rung there would have an uninhabitable evaluation hypothesis and would be
-vacuously green. The closure includes the
+declared kername of all five, so the body-less count of the emitted file decides it:
+{bodylessVerdict} The closure includes the
 inductive block of every `tConstruct`, `tCase` and `tProj` node, which is what
 `constructorArity` and `isPropositionalInductive` are answered from.
 
@@ -456,11 +477,14 @@ map for. `NoBodylessRefs` is the capstone's own premise, decided on the emitted 
 * **N19** — no under-applied constructor and no under-applied eliminator occurrence: a tabled
   constructor head is applied to at least `numParams + numFields`, a `casesOn` head to at least
   `dp + 1 + nm`. Reported as `SupportError.underAppliedCtor` / `.underAppliedElim`, and reported
-  **{under} times** over the thirteen tables measured here — so the deletion of the two η arms
-  costs the tracked programs nothing, the R15 contingency is not triggered, and F-ETA2's
-  containment claim is measured rather than assumed. Its constructor half disappears entirely
-  once F-ETA2 is repaired: applied-form λ□ evaluates a partially applied constructor spine natively
-  (`Value.construct_app_val`, `LeanToLambdaBox/Semantics/Values.lean:105`).
+  **{under} times** over the thirteen tables measured here, so the restriction excludes nothing
+  on the corpus though both halves stand: `visitCtorEta`'s saturation loop is not deletable —
+  peregrine's `constructors_as_blocks` rewrites an under-applied `tConstruct` spine into a short
+  block that `EWellformed.v:171-175` rejects — so the constructor half does **not** disappear
+  once F-ETA2 is repaired, the claim `doc/rework/03-DEV-FIX.md`'s F-ETA2 row calls out and
+  refutes (C-refute C8). What F-ETA2 fixed is a different defect, upstream of N19 entirely:
+  a supplied argument re-erased under the binders the η loop opens, measured contained at 0
+  occurrences here.
 * **N20** — every ι spine's dropped prefix, every unselected minor and every extra argument has
   a source value. Sufficient condition: each is already a syntactic value. It **fails on all
   five**, and the counts are the carried W3R measurement: non-value minors per total ι spine are
@@ -558,11 +582,25 @@ projection machinery on all five, which is the same false exclusion it makes at 
 body for a `casesOn`-like head, so the reified table *is* built on compiler bodies and the
 \"table closure\" and the \"eraser closure\" coincide. The measurement is `supportedTerm` on the
 entry constant together with `supportedTerm` on **every** tabled body of `reify% <entry>` — a
-superset of `Supported.Reaches`' closure, so a zero here is stronger than the fragment check:
+superset of `Supported.Reaches`' closure, so a zero here is stronger than the fragment check.
+The last column is the census `doc/rework/10-MERGE-FIXES.md` §3.2 asks for: tabled names
+shaped like a recursor of a tabled inductive (`isRecursorName`) or a `Quot` primitive
+(`quotPrimNames`) — the population F-QUOT's and F-EQREC's registering exits draw from, not a
+restriction by itself, since `supportedHead` already refuses every one of them as an
+application head regardless of count:
 
-| Program | tabled decls | inds | entry term | erroring bodies | what they are | `NoBodylessRefs` |
-|---|---|---|---|---|---|---|
+| Program | tabled decls | inds | entry term | erroring bodies | what they are | `NoBodylessRefs` | realizer census |
+|---|---|---|---|---|---|---|---|
 {String.intercalate "\n" (fs.map fragmentRow)}
+
+`grep -c '(constant_body None)' VerifyBench/ast/<Program>.ast` is this column's companion by
+hand: on the current tree it is 0 on all five — F-QUOT's and F-EQREC's realizer exits give
+`Eq.rec` a body wherever a covered program reaches it, and no program's entry term or tabled
+closure applies a `Quot` primitive or an untabled recursor as a head, so the residue §3.2 names
+— an untabled prefix reaching `recursorRealizer` — is measured absent here rather than assumed
+absent everywhere: the capstone's own argument for it is `supportedHead`'s refusal
+(`doc/rework/10-MERGE-FIXES.md` §3.2, last paragraph), and this table is the corpus-side check
+of that argument's premise, not a substitute for it.
 
 N8's claim — that the compiler bodies the eraser reads carry direct structural recursion rather
 than `brecOn` — holds of the tables as they now stand; the `brecOn` verdicts an earlier body
