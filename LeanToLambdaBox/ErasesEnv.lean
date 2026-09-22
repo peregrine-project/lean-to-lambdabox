@@ -48,16 +48,20 @@ spends, through `propositional_false_of_informative`, and the half
 `vResultSort_of_arityResultSort`: from `TrExprS env Us [] iv.type vt` and
 `vResultSort vt = some l`, that `Erasure.arityResultSort iv.type = some u` with
 `VLevel.ofLevel Us u = some l`. That step is false, and no lean4lean lemma supplies it — the
-translation is what refutes it. `TrExprS` is transparent exactly where `arityResultSort`
-answers `none`: at `.letE`, whose image is the body's under a `.vlet` binding
-(`../lean4lean/Lean4Lean/Verify/Typing/Expr.lean:164`), at `.mdata` (`:170`) and at `.lit`
-(`:169`). The `.letE` arm is F-ARITYLET's witness (`doc/rework/03-DEV-FIX.md`): an arity
-whose result sort sits under a `let` translates to `.sort .zero` while the flag comes out
-`false`. Closing the gap is a shipping change — `arityResultSort` walking those arms, as
-PCUIC's `destArity` walks `tLetIn` (`../metarocq/pcuic/theories/PCUICAst.v:486-490`) — after
-which the step is `vResultSort_of_arityResultSort`'s induction run backwards, the level
-transfer already being an equation (`ofLevel_alwaysZeroB`). Until then this clause says
-nothing at a body whose flag is unset, which is every body the ladder emits.
+translation is what refutes it. The walk reads `destArity`'s `tLetIn` arm and Lean's
+annotation arm (F-ARITYLET, `doc/rework/03-DEV-FIX.md`), so neither `.letE` nor `.mdata`
+witnesses the gap; what does is zeta. `TrExprS.letE` translates the body in the context
+extended by the `vlet` entry (`../lean4lean/Lean4Lean/Verify/Typing/Expr.lean:164`), where a
+`.bvar` resolves to the let's *value*, so `inductive FooBVar : (let u := Prop; u)` has image
+`.sort .zero` while the walk stops at the `.bvar` and the flag comes out `false`. PCUIC's
+`destArity`
+(`../metarocq/pcuic/theories/PCUICAst.v:486-490`) answers `None` at `tRel` too, so the
+remaining gap is between lean4lean's translation and `destArity`, not between this repository
+and MetaRocq, and no shipping change closes it: a walk that reduced far enough to see through
+the `.bvar` would also see through an alias-headed arity, where `TrExprS.const` keeps the
+`.const` and `ErasureSpec.propositionalInd_of_arity` — the half spent here — would fail.
+This clause therefore says nothing at a body whose flag is unset, which is every body the
+ladder emits.
 
 It is no clause of `IndBodyOf`, which carries no model environment:
 `Erasure.register_inductive` computes the flag on every inductive it registers —
@@ -287,7 +291,7 @@ structure LowerEnv (Γspec Γ : GlobalDeclarations) : Prop where
   /-- The emitted environment has distinct keys. -/
   keys : (Γ.map Prod.fst).Nodup
   /-- A body declared by both is a `Lower` image. The η-expansion `Erasure.visitMutual`
-      registers for a block member (`Erasure.etaExpandFix defs j`, `Erasure.lean:1276`,
+      registers for a block member (`Erasure.etaExpandFix defs j`, `Erasure.lean:1316`,
       which at `principalArgIdx = 0` is `LBTerm.etaFix defs j`, F-ETA) is one: it is
       `Lower.fixEta` at that member, which `Lower.fixEta_of_block` reads off the block. -/
   defs : ∀ kn b₀ b, DefnDecl Γspec kn b₀ → DefnDecl Γ kn b → Lower Γspec b₀ b

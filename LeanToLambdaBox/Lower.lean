@@ -63,8 +63,8 @@ target semantics reads it: `constructorArity` reads `npars` and the per-construc
 counts.
 
 The `propositional` flag is **not** here. `Erasure.register_inductive` sets it to
-`isPropositionalArity inf.type` (`Erasure.lean:368`), and `Erasure.recursorRealizer`
-(`Erasure.lean:409`) reaches that call at `Eq`/`And`/`False`, so `= false` is not a fact about
+`isPropositionalArity inf.type` (`Erasure.lean:389`), and `Erasure.recursorRealizer`
+(`Erasure.lean:430`) reaches that call at `Eq`/`And`/`False`, so `= false` is not a fact about
 emitted output. MetaRocq states the flag as an equality against the declared arity
 (`erases_one_inductive_body`, `../metarocq/erasure/theories/Extract.v:276`); that equation
 needs the model environment, which this relation does not carry, so it is stated at
@@ -460,7 +460,7 @@ inductive Lower (Γ : GlobalDeclarations) : LBTerm → LBTerm → Prop where
       Lower Γ b (.fix defs j)
   /-- The member's specification body relates to the **η-expansion** of the same `.fix`
       node, beside `fixBody`'s bare one: `Erasure.visitMutual` registers
-      `Erasure.etaExpandFix defs j` (`Erasure.lean:1276`), and `Erasure.mkDef` pins
+      `Erasure.etaExpandFix defs j` (`Erasure.lean:1316`), and `Erasure.mkDef` pins
       `principalArgIdx = 0`, so the wrapper is one binder — MetaRocq's `eta_fixpoint` at
       `1 + rarg = 1`. The premises are `fixBody`'s verbatim. Read it through
       `Lower.fixEta'`, whose target is the closed shape `LBTerm.etaFix defs j`.

@@ -737,7 +737,7 @@ theorem step_visitConstructor {lenv : Environment} {env : VEnv}
 names slot `j` after constructor `j` and `numAlts` makes the array exactly as long as the
 block, while a pinned block's constructor names are distinct — each reified constructor pins
 its own `cidx` and `lenv` answers one `ConstructorVal` per name. So `Erasure.visitCases`'
-`findIdx?` over the alternatives (`Erasure.lean:1122-1124`), which returns the *first* match,
+`findIdx?` over the alternatives (`Erasure.lean:1143-1145`), which returns the *first* match,
 returns the constructor's own index. -/
 theorem pass_altIdx_self {lenv : Environment} {ci : Lean.CasesInfo} {con : Name}
     {I : ReifiedInduct} {iv : InductiveVal}
@@ -815,7 +815,7 @@ theorem pass_selfIdx_zipIdx_split {a : Array (Option Nat)} {pre post : List (Opt
 
 /-- **A refusal whose test throws, stepped.** The throwing side cannot have produced `.ok`, so
 the continuation ran where the test left it. `Erasure.visitCases`' machine-numeral refusal
-(F-SPARSE, `Erasure.lean:1102-1103`) has this shape. -/
+(F-SPARSE, `Erasure.lean:1123-1124`) has this shape. -/
 theorem pass_throw_guard_then {c : Bool} {msg : MessageData} {k : EraseM LBTerm}
     {s : ErasureState} {ctx : ErasureContext} {cctx : Core.Context}
     {ref : ST.Ref IO.RealWorld Core.State} {w : Void IO.RealWorld}
@@ -830,8 +830,8 @@ theorem pass_throw_guard_then {c : Bool} {msg : MessageData} {k : EraseM LBTerm}
   · exact hrun
 
 /-- `pass_throw_guard_then` at an `unless`, whose throwing side is the other one. The
-side-condition and one-to-one refusals of `Erasure.visitCases` (F-SPARSE, `Erasure.lean:1104`,
-`:1127`) have this shape. -/
+side-condition and one-to-one refusals of `Erasure.visitCases` (F-SPARSE, `Erasure.lean:1125`,
+`:1148`) have this shape. -/
 theorem pass_throw_guard_else {c : Bool} {msg : MessageData} {k : EraseM LBTerm}
     {s : ErasureState} {ctx : ErasureContext} {cctx : Core.Context}
     {ref : ST.Ref IO.RealWorld Core.State} {w : Void IO.RealWorld}
@@ -847,7 +847,7 @@ theorem pass_throw_guard_else {c : Bool} {msg : MessageData} {k : EraseM LBTerm}
 
 /-- **F-ACC's refusal, stepped.** `Erasure.visitCases` tests the eliminated inductive's declared
 arity and, when it ends in `Prop`, walks the constructors for a field that is not a proof and
-refuses if it finds one (`Erasure.lean:1113-1115`). On a successful run the walk found nothing —
+refuses if it finds one (`Erasure.lean:1134-1136`). On a successful run the walk found nothing —
 or did not run — so the continuation runs at a state the walk only grew and a generator it only
 advanced. The continuation and the message are abstract, so the branch is stepped rather than
 assumed away, and the walk itself is `run_firstNonProofField_okW`. -/

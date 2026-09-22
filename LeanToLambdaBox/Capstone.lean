@@ -146,8 +146,7 @@ MetaRocq's `erases_deps` carries structurally at its `tConst` arm
 binder, is not spent.
 
 The residue is the antecedents themselves: no theorem produces `RegInvShape'` and
-`RegContent` at a run (F-DEPLCTX bars the erasure a registration stores from being read off
-a member sub-run), `RegKeyed` at a run, or `hsub`, and `ErasuresDeclared` is refuted at a
+`RegContent` at a run, `RegKeyed` at a run, or `hsub`, and `ErasuresDeclared` is refuted at a
 block member's sub-run. `doc/trust.md`'s `hbridge` row is the accounting.
 -/
 theorem bridgeEnv_of_regContent {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}

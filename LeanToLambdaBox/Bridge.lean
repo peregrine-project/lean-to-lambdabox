@@ -347,10 +347,10 @@ structure BridgeInv (env : VEnv) (Us : List Name) (tbl : SourceTable) (cfg₀ : 
       This is not a restriction to one scope: the eighteen motives quantify `Us` per call
       (`VisitExprRefines/Motives.lean`), so the field is the *equation* `ctx.lparams = Us` at
       whatever scope the reader is in, and the sub-run `Erasure.visitMutual` starts under
-      `withReader (… lparams := ci.levelParams)` is covered at the member's own column. What
-      that `withReader` does **not** move is `lctx`, and `mlc` ties the modelled context to it,
-      so re-establishing the invariant at a member sub-run asks the *caller's* context to be
-      modelled at the member's column — `doc/rework/03-DEV-FIX.md`, F-DEPLCTX. -/
+      `withReader (… lparams := ci.levelParams)` is covered at the member's own column. That
+      `withReader` moves `lctx` to `{}` with it (F-DEPLCTX, `doc/rework/03-DEV-FIX.md`), and
+      `mlc` ties the modelled context to `lctx`, so re-establishing the invariant at a member
+      sub-run asks for the empty context at the member's column. -/
   lparams : ctx.lparams = Us
   /-- The reader's configuration is the one the statement is made at. `Erasure.run` builds the
       only reader from scratch and no `withReader` in the erasure touches `config`. -/

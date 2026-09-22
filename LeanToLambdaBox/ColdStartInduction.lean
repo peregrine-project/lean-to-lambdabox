@@ -238,8 +238,8 @@ structure RunClosedW (Cfg : ErasureConfig → Prop)
     liftMetaM (Lean.Meta.inferType e) s ctx cctx ref w = .ok (ty, s') w' → P s w → P s' w'
   /-- The `Lean.MetaM` computations the family lifts besides the oracle and `inferType`: two
       proof tests under a bounded telescope, `Erasure.firstNonProofField`'s on a
-      constructor's fields (`Erasure.lean:305-309`) and `Erasure.visitCases`' on the
-      catch-all's hypotheses (`Erasure.lean:1150-1153`). Neither lambda is named, so the
+      constructor's fields (`Erasure.lean:326-330`) and `Erasure.visitCases`' on the
+      catch-all's hypotheses (`Erasure.lean:1171-1174`). Neither lambda is named, so the
       clause reads them through `PrimGenMono`, the class of computations built from
       `Lean.Meta.isProof` and the two telescopes; each call site discharges it by
       composition. -/
@@ -789,8 +789,8 @@ theorem shape_foldl_box {k : Nat} : ∀ (l : List Nat) (b : LBTerm),
 
 /-- **`Erasure.etaArgIsValue`, stepped.** One lifted relevance test and a pure disjunction.
 The test is the relevance oracle, so the step is `RunClosedW.oracle`, which reads it at the
-reader's own level scope — the scope both call sites hand it (`Erasure.lean:974`,
-`Erasure.lean:998`). -/
+reader's own level scope — the scope both call sites hand it (`Erasure.lean:995`,
+`Erasure.lean:1019`). -/
 theorem run_etaArgIsValue_okW {Cfg : ErasureConfig → Prop}
     {P : ErasureState → Void IO.RealWorld → Prop} (H : RunClosedW Cfg P)
     {lp : List Name} {a : Expr} {b : Bool} {s s₁ : ErasureState} {ctx : ErasureContext}

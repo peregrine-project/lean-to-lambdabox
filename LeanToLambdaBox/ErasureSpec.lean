@@ -88,7 +88,7 @@ def KernelFields (lenv : Environment) (iv : InductiveVal) (nfs : List Nat) : Pro
 constructor's own `ConstructorVal`, whose `cidx` is its position, and `lenv` answers one
 `ConstructorVal` per name; so a name occurring at two positions forces them equal. This is what
 `Erasure.visitCases`' per-constructor `findIdx?` over the alternatives
-(`Erasure.lean:1122-1124`) needs to land on the slot `CasesInfoAgreesK.altCtor` describes:
+(`Erasure.lean:1143-1145`) needs to land on the slot `CasesInfoAgreesK.altCtor` describes:
 `findIdx?` returns the *first* match, and only distinctness makes that the constructor's own. -/
 theorem KernelFields.ctors_inj {lenv : Environment} {iv : InductiveVal} {nfs : List Nat}
     (h : KernelFields lenv iv nfs) {j k : Nat} {cn : Name}
@@ -116,7 +116,7 @@ structure CasesInfoAgreesK (lenv : Environment) (ci : Lean.CasesInfo)
     ci.altNumParams[j]? = some a → iv.ctors[j]? = some cn →
     lenv.find? cn = some (.ctorInfo cv) → altNumFields a = cv.numFields
   /-- The information names the inductive type the major premise is typed at, which is the
-      block `Erasure.visitCases` reads the alternatives against (`Erasure.lean:1098`) and which
+      block `Erasure.visitCases` reads the alternatives against (`Erasure.lean:1119`) and which
       for a `casesOn` auxiliary is not the head's name prefix. `Lean.getCasesInfo?` reads it off
       the discriminant's inferred type (`Lean/Meta/CasesInfo.lean:66`). -/
   indName : ci.indName = iv.name
@@ -281,11 +281,11 @@ structure PrimMonotone (gw : Void IO.RealWorld → NameGenerator) : Prop where
     Erasure.liftMetaM (Lean.Meta.inferType e) s ctx cctx ref w = .ok (ty, s₁) w₁ →
     gw w ≤ gw w₁ ∧ ForallMatchesLam ty e
   /-- `Lean.Meta.isProof`, the test `Erasure.firstNonProofField` runs on a constructor's
-      fields (`Erasure.lean:308`) and `Erasure.visitCases` on the catch-all's hypotheses
-      (`Erasure.lean:1152`). -/
+      fields (`Erasure.lean:329`) and `Erasure.visitCases` on the catch-all's hypotheses
+      (`Erasure.lean:1173`). -/
   isProof : ∀ e : Expr, MetaGenMono gw (Lean.Meta.isProof e)
   /-- `Lean.Meta.forallBoundedTelescope`, the telescope `Erasure.firstNonProofField` opens
-      over a constructor's type (`Erasure.lean:306`). It binds fresh variables of its own, so
+      over a constructor's type (`Erasure.lean:327`). It binds fresh variables of its own, so
       it advances the generator, and it advances it no further than its continuation does. -/
   forallBoundedTelescope : ∀ {α : Type} (type : Expr) (maxFVars? : Option Nat)
     (k : Array Expr → Expr → Lean.MetaM α) (cleanupAnnotations binderInfoForInstImplicit : Bool),
@@ -293,7 +293,7 @@ structure PrimMonotone (gw : Void IO.RealWorld → NameGenerator) : Prop where
     MetaGenMono gw (Lean.Meta.forallBoundedTelescope type maxFVars? k cleanupAnnotations
       binderInfoForInstImplicit)
   /-- `Lean.Meta.lambdaBoundedTelescope`, the telescope `Erasure.visitCases` opens over the
-      catch-all alternative (`Erasure.lean:1150`), at the same reading. -/
+      catch-all alternative (`Erasure.lean:1171`), at the same reading. -/
   lambdaBoundedTelescope : ∀ {α : Type} (e : Expr) (maxFVars : Nat)
     (k : Array Expr → Expr → Lean.MetaM α) (cleanupAnnotations : Bool),
     (∀ vs b, MetaGenMono gw (k vs b)) →
@@ -358,8 +358,8 @@ theorem PrimGenMono.lambdaBoundedTelescope (e : Expr) (maxFVars : Nat)
 end PrimGenMono
 
 /-- **The proof scan both bounded telescopes are called with.** `Erasure.firstNonProofField`
-runs it on a constructor's fields (`Erasure.lean:307-309`) and `Erasure.visitCases` on the
-catch-all's hypotheses (`Erasure.lean:1151-1153`): one `Lean.Meta.isProof` per binder, stopping
+runs it on a constructor's fields (`Erasure.lean:328-330`) and `Erasure.visitCases` on the
+catch-all's hypotheses (`Erasure.lean:1172-1174`): one `Lean.Meta.isProof` per binder, stopping
 at the first that is not a proof. Stated once, at the array the caller scans, so that neither
 anonymous continuation has to be transcribed at its call site. -/
 theorem primGenMono_proofScan (xs : Array (Expr × Nat)) :
@@ -511,10 +511,13 @@ theorem ErasureSpec.decl_adequate_of_kernelFind {lenv : Environment} {env : VEnv
   obtain ⟨ves, hwf, rfl⟩ := P.env_connect
   exact TrEnv.find? hwf.tr h hs
 
-/-- **The arity walk commutes with translation.** A Π-telescope ending in a sort translates to
-a Π-telescope ending in the translated sort: `Erasure.arityResultSort` (`Erasure.lean:281`) and
-`vResultSort` (`Erasability.lean:240`) read the same two arms, and `TrExprS` is structural on
-both. The converse fails — see `ErasureSpec.propositionalInd_of_arity`. -/
+/-- **The arity walk commutes with translation.** An arity ending in a sort translates to a
+Π-telescope ending in the translated sort. `Erasure.arityResultSort` (`Erasure.lean:300`) walks
+four arms: `.forallE` and `.sort`, which `vResultSort` (`Erasability.lean:240`) also reads and
+on which `TrExprS` is structural, and `.letE` and `.mdata`, which `TrExprS` erases — `.mdata` to
+the same image in the same context, `.letE` to the body's image in the context extended by the
+`vlet` entry, neither leaving a `vResultSort` node behind. The converse fails — see
+`ErasureSpec.propositionalInd_of_arity`. -/
 theorem vResultSort_of_arityResultSort {env : VEnv} {Us : List Name} {u : Level} :
     ∀ {Δ : VLCtx} {e : Expr} {ve : VExpr}, TrExprS env Us Δ e ve →
       Erasure.arityResultSort e = some u →
@@ -533,7 +536,25 @@ theorem vResultSort_of_arityResultSort {env : VEnv} {Us : List Name} {u : Level}
     | sort hofl =>
       cases Option.some.inj har
       exact ⟨_, rfl, hofl⟩
+  | letE _ _ _ _ _ _ _ ihb =>
+    intro ve htr har
+    cases htr with
+    | letE _ _ _ htrb => exact ihb htrb har
+  | mdata _ _ ihe =>
+    intro ve htr har
+    cases htr with
+    | mdata htre => exact ihe htre har
   | _ => intro ve htr har; simp [Erasure.arityResultSort] at har
+
+/-- **The walk stops at a `let`-bound sort.** The elaborated type of
+`inductive FooBVar : (let u := Prop; u)`, on which `Erasure.arityResultSort` answers `none`
+while `TrExprS.letE` substitutes the let's value and gives the image `.sort .zero`. The
+syntactic half of the counterexample `ErasureSpec.propositionalInd_of_arity`'s converse has;
+PCUIC's `destArity` (`../metarocq/pcuic/theories/PCUICAst.v:486-490`) answers `None` at `tRel`
+for the same shape. -/
+theorem arityResultSort_letBVar :
+    Erasure.arityResultSort (.letE `u (.sort (.succ .zero)) (.sort .zero) (.bvar 0) false)
+      = none := rfl
 
 /-- **The emitted propositional flag is sound against the model.** An inductive type whose
 declared arity `Erasure.isPropositionalArity` accepts is `PropositionalInd` in `env`: the arity
@@ -544,12 +565,16 @@ reads the valuation-wide equation off the decision. This is the half of MetaRocq
 (`../metarocq/erasure/theories/Extract.v:276`) that a consumer of the flag spends —
 `propositional_false_of_informative` contradicts a `true` flag against `InformativeInd`.
 
-The converse implication is **false**, and no clause of `ErasureSpec` assumes it:
-`Erasure.arityResultSort` walks `.forallE` alone, where MetaRocq's `destArity`
-(`../metarocq/pcuic/theories/PCUICAst.v:486-490`) walks `tLetIn` as well, so at
-`inductive FooLet : (let _x := Nat; Prop)` — which elaborates, and whose `InductiveVal.type`
-keeps the `letE` — `isPropositionalArity` answers `false` while the translated type is
-`.sort .zero` and `PropositionalInd` holds. Recorded against the shipping eraser in
+The converse implication is **false**, and no clause of `ErasureSpec` assumes it. The witness
+is `inductive FooBVar : (let u := Prop; u)`, whose elaborated type is
+`arityResultSort_letBVar`'s subject: the walk stops at the `.bvar` and answers `none`, while
+`TrExprS.letE` translates the body in the context extended by the `vlet` entry, where
+`VLCtx.find?` returns the let's *value* (`../lean4lean/Lean4Lean/Verify/VLCtx.lean:62-67`), so
+the image is `.sort .zero` and `PropositionalInd` holds. The gap is therefore between
+lean4lean's zeta-reducing translation and `destArity`, not between this walk and `destArity`.
+Closing it by reducing would cost the direction proved here: at `def MyArity := Prop`,
+`inductive FooAlias : MyArity`, a reducing walk would answer `Prop` while `TrExprS.const`
+keeps the `.const`, whose `vResultSort` is `none`. Recorded in
 `doc/rework/03-DEV-FIX.md`, F-ARITYLET. -/
 theorem ErasureSpec.propositionalInd_of_arity {lenv : Environment} {env : VEnv} {Us : List Name}
     {gw : Void IO.RealWorld → NameGenerator} (P : ErasureSpec lenv env Us gw)

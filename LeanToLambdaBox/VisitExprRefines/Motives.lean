@@ -24,7 +24,7 @@ the aggregator discharges it by `exact`.
 reads `∀ Us Δ, BridgeInv env Us tbl cfg … ctx s Δ → …`, and `BridgeInv.lparams` makes `Us` the
 reader's own `ctx.lparams`, so the eighteen statements hold at *every* scope at once. That is
 what `Erasure.visitMutual` needs: it re-enters a dependency under
-`withReader (… lparams := ci.levelParams)` (`Erasure.lean:889`, `:912`), and the motive of the
+`withReader (… lparams := ci.levelParams)` (`Erasure.lean:1275`, `:1309`), and the motive of the
 sub-run is then read at the member's own column rather than at the subject's. The specification
 bundle follows the quantifier — each `Stepᵢ` takes `∀ Us, ErasureSpec lenv env Us gw` — which is
 what MetaRocq's `abstract_make_wf_env_ext` gives it for free at every constant
@@ -168,11 +168,13 @@ member bodies, the block branch under the reader that carries the block's fix va
 is where the sub-runs conclude `ErasesLBFix` rather than `ErasesLB`; the content of what is
 registered is read off the final state by `SpecEnv`, not concluded here.
 
-What stops the motive reporting that content is the reader's *local* context, not its level
-scope: `Motive1` holds at every scope, so a sub-run at `ci.levelParams` has a motive to be read
-at, while `Erasure.visitMutual` leaves `lctx` in place across the switch, so `BridgeInv.mlc` at
-the sub-run asks the caller's context to be modelled at the member's column —
-`doc/rework/03-DEV-FIX.md`, F-DEPLCTX, where the two theorems that measure it are cited. -/
+Neither the level scope nor the local context stands in the way of a stronger motive:
+`Motive1` holds at every scope, so a sub-run at `ci.levelParams` has a motive to be read at,
+and since F-DEPLCTX merged (`doc/rework/03-DEV-FIX.md`) the switch resets `lctx` as well
+(`Erasure.lean:1275`, `:1309`), so `BridgeInv.mlc` at the sub-run asks for the *empty* context
+at the member's column — the `Δ = []` `erase_constant_body` states a body's erasure at
+(`../metarocq/erasure/theories/Extract.v:264`). Reporting the content is a strengthening no
+consumer has yet taken; this motive is the registration half alone. -/
 def Motive6 (f : Name → EraseM Unit) : Prop :=
   (∀ n s ctx cctx ref w u s' w', f n s ctx cctx ref w = .ok (u, s') w' →
     ∀ Us Δ, BridgeInv env Us tbl cfg (gw w) ctx s Δ → Supported env tbl (.const n []) →
@@ -486,7 +488,7 @@ def visitMutualBody (vExpr : Expr → EraseM LBTerm) (name: Name) : EraseM Unit 
   if nonrecursive
   then
     let e: Expr := ci.value! (allowOpaque := true)
-    let t ← withReader (fun env => { env with fixvars := .none, lparams := ci.levelParams }) do
+    let t ← withReader (fun env => { env with lctx := {}, fixvars := .none, lparams := ci.levelParams }) do
       pure (← vExpr (← prepare_erasure e))
     let kn := toKername name
     checkKernameFresh name kn
@@ -508,7 +510,7 @@ def visitMutualBody (vExpr : Expr → EraseM LBTerm) (name: Name) : EraseM Unit 
       let defs: List FixDef ← names.mapM (fun n => do
         let ci ← getConstInfo n
         let e: Expr := ci.value! (allowOpaque := true)
-        let t: LBTerm ← withReader (fun env => { env with lparams := ci.levelParams }) do
+        let t: LBTerm ← withReader (fun env => { env with lctx := {}, lparams := ci.levelParams }) do
           vExpr (← prepare_erasure e)
         mkDef (remove_unsafe_rec n) fixvarnames t
       )

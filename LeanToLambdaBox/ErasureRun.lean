@@ -2950,7 +2950,7 @@ def nonrecConstState (n : Name) (t : LBTerm) (s : ErasureState) : ErasureState :
 
 /-- The block registration's state delta: one constant per member, at the **η-expanded**
 fixpoint `Erasure.etaExpandFix` (F-ETA), which is what `visitMutual`'s registration loop
-conses (`Erasure.lean:1276`). -/
+conses (`Erasure.lean:1316`). -/
 def recConstState (names : List Name) (defs : List (@FixDef LBTerm))
     (s : ErasureState) : ErasureState :=
   names.zipIdx.foldl
@@ -3212,7 +3212,7 @@ theorem run_rec_exit_ok {vE : Expr → EraseM LBTerm} {names fixnames : List Nam
   exact hrec hQ.1 hQ.2.1 hQ.2.2
 
 /-- **The `F-UNSAFEREC` guard's reading.** A successful block exit says the members' keys are
-distinct: `visitMutual` refuses the block otherwise (`Erasure.lean:1262-1264`), which is what
+distinct: `visitMutual` refuses the block otherwise (`Erasure.lean:1297-1299`), which is what
 `remove_unsafe_rec` makes possible — it is not injective, so `[u, u._unsafe_rec]` maps to
 `[u, u]`. The same distinctness stated unconditionally of `Lean.Compiler.LCNF.getDeclInfo?` is
 false, so the run is the only place it can be read. -/

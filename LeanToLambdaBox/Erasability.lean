@@ -327,8 +327,8 @@ theorem not_informativeInd_and {env : VEnv} (h : env.constants ``And = some ⟨0
 /-! ## The propositional decision, model side
 
 `Erasure.register_inductive` emits `propositional := isPropositionalArity inf.type`
-(`Erasure.lean:368`), which is `arityResultSort` then `Lean.Level.isAlwaysZero`
-(`Erasure.lean:281`, `:291`). MetaRocq states the emitted flag as an **equality**,
+(`Erasure.lean:389`), which is `arityResultSort` then `Lean.Level.isAlwaysZero`
+(`Erasure.lean:300`, `:312`). MetaRocq states the emitted flag as an **equality**,
 `isPropositionalArity ind_type = ind_propositional`
 (`erases_one_inductive_body`, `../metarocq/erasure/theories/Extract.v:276`), so the model side
 needs the same decision:

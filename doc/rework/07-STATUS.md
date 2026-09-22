@@ -128,7 +128,7 @@ Three further clauses are vacuous at the ladder, carried forward from the pre-me
 
 * **`ErasesEnv.blocks`' `IndFlagSound` conjunct** is vacuous at all eight rungs — no emitted inductive body at any rung carries
   `propositional = true` (0 of 1/2/2/3/2/1/12/12 declared blocks at G1…G8). It replaced a checkable, true demand (`= false`, unconditionally) with
-  an equation whose sound half only is stated (the converse is refuted by an arity whose result sort sits under a `let`, F-ARITYLET), so the biconditional was correctly not written as a guard against that counterexample — but the clause has no subject at any rung to be non-vacuous about.
+  an equation whose sound half only is stated, so the biconditional was correctly not written as a guard against its counterexample — but the clause has no subject at any rung to be non-vacuous about. Since F-ARITYLET merged, the walk reads `destArity`'s `tLetIn` arm and the `let`-carrying arity is no longer the counterexample; what refutes the converse is zeta — `inductive FooBVar : (let u := Prop; u)`, whose image under `TrExprS.letE` is `Sort 0` while the walk stops at the `.bvar`, as PCUIC's `destArity` stops at `tRel`. The remaining gap is between lean4lean's translation and `destArity`, so W9's biconditional is not available and the sound half stands.
 * **`ErasesEnv.axioms`, `LowerEnv.axioms` and `SpecContent.axioms`** have no witness at any rung: 0 body-less emitted entries and 0 bodied emitted
   keys lacking a tabled body, at all eight rungs (`decide +kernel`). A standing vacuity, not introduced this wave — no rung reaches a quotient
   primitive or a recursor, so F-QUOT's and F-EQREC's registering exits are off every rung's path; `doc/coverage.md`'s realizer census is the only

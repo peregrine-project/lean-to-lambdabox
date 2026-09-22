@@ -17,19 +17,17 @@ report registration rather than a term relation.
 * `visitExpr_runConcl` is the term walk's own state, generator and registry conclusion, which
   the two registration steps spend at the dependency bodies `Erasure.visitMutual` erases.
 
-`Motive6` reports registration and nothing about the block's content, and the reason is no
-longer the level scope: the eighteen motives quantify it, so a sub-run made at a dependency's
-own `levelParams` has a motive to be read at. It is the reader's **local context**.
-`Erasure.visitMutual` moves `fixvars` and `lparams` and leaves `lctx` in place
-(`Erasure.lean:889`, `:912`), while `BridgeInv.mlc` asks for an `MLCtx` that is `WF` at the
-reader's scope *and* carries the reader's `lctx`; so the invariant at a member sub-run asks the
-caller's context to be modelled at the member's column, which fails at the first binder whose
-type mentions a level parameter the column drops. Read at `Δ = []`, the context
-`erase_constant_body` states a body's erasure at
-(`../metarocq/erasure/theories/Extract.v:264`), it asks the caller to have held no binder at
-all. `doc/rework/03-DEV-FIX.md`, F-DEPLCTX, carries the finding and the two theorems that
-measure it; the block's content is read off the final state by `SpecEnv` meanwhile, and that is
-why `blockKeyed_install` still has no consumer here.
+`Motive6` reports registration and nothing about the block's content, and neither half of the
+reader stands in the way. The eighteen motives quantify the level scope, so a sub-run made at
+a dependency's own `levelParams` has a motive to be read at; and `Erasure.visitMutual` moves
+`lctx` to `{}` alongside `fixvars` and `lparams` (`Erasure.lean:1275`, `:1309`), so
+`BridgeInv.mlc` — which asks for an `MLCtx` that is `WF` at the reader's scope *and* carries
+the reader's `lctx` — asks at a member sub-run for the empty context at the member's column,
+which is the `Δ = []` `erase_constant_body` states a body's erasure at
+(`../metarocq/erasure/theories/Extract.v:264`). That reset is F-DEPLCTX
+(`doc/rework/03-DEV-FIX.md`); spending it is a strengthening of `Motive6` no consumer here has
+taken, so the block's content is still read off the final state by `SpecEnv` and
+`blockKeyed_install` still has no consumer.
 -/
 
 namespace LeanToLambdaBox
@@ -256,7 +254,7 @@ theorem run_nonrec_exit_reg {vE : Expr → EraseM LBTerm}
 /-- **The block exit registers every name of the block, and its keys are distinct.** The
 identifier loop leaves the state alone, the sibling loop only grows it, and the registration
 loop is `recConstState`. The distinctness is F-UNSAFEREC's guard read back off the successful
-run (`Erasure.lean:1262-1264`): `remove_unsafe_rec` is not injective, so it is a fact about
+run (`Erasure.lean:1297-1299`): `remove_unsafe_rec` is not injective, so it is a fact about
 *this* block rather than about `Lean.Compiler.LCNF.getDeclInfo?` in general, and this is the
 enclosing exit lemma that can state it — the other four exits of `Erasure.visitMutual` build no
 block. `ErasureRun.run_rec_exit_nodup` is the same reading at `run_rec_exit_ok`'s shape.
@@ -475,7 +473,7 @@ theorem run_visitMutual_registers {lenv : Environment} {env : VEnv} {Us : List N
     · exact run_nonrec_exit_reg P.prim_monotone E hvE hrun hcfg hind (fun _ => rfl)
     · exact (run_rec_exit_reg (names := di.get!.all)
         (val := fun ci => ci.value! (allowOpaque := true))
-        (g := fun ci env => { env with lparams := ci.levelParams })
+        (g := fun ci env => { env with lctx := {}, lparams := ci.levelParams })
         (f := fun ids env => { env with
           fixvars := some (Std.HashMap.ofList ((di.get!.all.map remove_unsafe_rec).zip ids)) })
         E hfresh hciM hvE hmem hrun hcfg hind (fun _ _ => rfl)
@@ -585,7 +583,7 @@ theorem run_visitMutual_registers {lenv : Environment} {env : VEnv} {Us : List N
                  (fun _ => rfl)
              · exact (run_rec_exit_reg (names := di.get!.all)
                  (val := fun ci => ci.value! (allowOpaque := true))
-                 (g := fun ci env => { env with lparams := ci.levelParams })
+                 (g := fun ci env => { env with lctx := {}, lparams := ci.levelParams })
                  (f := fun ids env => { env with
                    fixvars := some
                      (Std.HashMap.ofList ((di.get!.all.map remove_unsafe_rec).zip ids)) })
@@ -669,8 +667,8 @@ theorem step5 : Step5 lenv env tbl cfg gw := by
 /-- **Step 6.** All four exits of `Erasure.visitMutual` register the name it was called at, and
 the term walk's own run conclusion is what carries the state and generator facts across the
 body erasures. `Motive1`'s refinement half is not consumed: what the motive reports is
-registration, and the invariant a body erasure would need cannot be rebuilt at the sub-run —
-the reader keeps the caller's local context across the level-scope switch (F-DEPLCTX). -/
+registration, and the invariant a body erasure would need is not rebuilt here — the reader the
+switch installs is the closed-body reader, so rebuilding it is available and unspent. -/
 theorem step6 (E : EraserAsks lenv env gw) (hsafe : TableSafe lenv tbl) :
     Step6 lenv env tbl cfg gw := by
   intro P htbl hcfg _hcb vExpr m1

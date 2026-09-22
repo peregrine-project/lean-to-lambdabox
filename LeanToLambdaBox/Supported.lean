@@ -66,7 +66,7 @@ inductive SupportError where
   /-- An elimination of a non-informative inductive into data. The ι rules of the target
       semantics fire only at a `false` propositional flag (`Semantics/Eval.lean:147`), and the
       erasure sets that flag from the eliminated inductive's declared arity
-      (`Erasure.lean:368`): at an always-`Prop` arity the emitted `.case` collapses its single
+      (`Erasure.lean:389`): at an always-`Prop` arity the emitted `.case` collapses its single
       alternative against `□` (`WcbvEval.iota_sing`) instead of selecting on a constructor, and
       at more than one alternative it is stuck. Informativity is what puts the flag at `false`
       (`propositional_false_of_informative`). Keyed on the *shape*, not the name —
@@ -568,8 +568,8 @@ inductive SupportedTm (env : VEnv) (tbl : SourceTable) : Expr → List Expr → 
       SupportedTm env tbl (.const c us) args
   /-- A `casesOn` head, applied. `hind` names the inductive type at the head's name prefix,
       which `CasesInfoAgrees.indName` ties to the `Lean.CasesInfo.indName` the erasure
-      eliminates against (`Erasure.lean:1098`); `hinf` is its informativity, which is what puts
-      the inductive's emitted propositional flag at `false` (`Erasure.lean:368`,
+      eliminates against (`Erasure.lean:1119`); `hinf` is its informativity, which is what puts
+      the inductive's emitted propositional flag at `false` (`Erasure.lean:389`,
       `propositional_false_of_informative`) and so lets the target's ι rule fire at all
       (`SupportError.propElimIntoData`); `hlen` and `htel` are the minor premises, one per
       constructor and each a manifest λ-telescope of its constructor's field count, which is
@@ -1104,13 +1104,13 @@ structure CasesInfoAgrees (ci : Lean.CasesInfo) (c : Name) (I : ReifiedInduct) :
   numFields : ∀ (j : Nat) (a : Lean.CasesAltInfo) (cb : ReifiedCtor),
     ci.altNumParams[j]? = some a → I.ctors[j]? = some cb → altNumFields a = cb.numFields
   /-- The information eliminates the inductive the table holds at the head's name prefix. This
-      is what ties `Erasure.visitCases`' `casesInfo.indName` read (`Erasure.lean:1098`) to the
+      is what ties `Erasure.visitCases`' `casesInfo.indName` read (`Erasure.lean:1119`) to the
       block the fragment pins; the two differ at a sparse `casesOn`, which `supportedHead`
       refuses. `CasesInfoAgreesK.indName`'s twin. -/
   indName : ci.indName = c.getPrefix
   /-- Every alternative slot is its constructor's, in constructor order, never the catch-all
       shape. `CasesInfoAgreesK.altCtor`'s twin, and what makes `Erasure.visitCases`'
-      per-constructor `findIdx?` (`Erasure.lean:1122-1124`) total. -/
+      per-constructor `findIdx?` (`Erasure.lean:1143-1145`) total. -/
   altCtor : ∀ (j : Nat) (a : Lean.CasesAltInfo) (cb : ReifiedCtor),
     ci.altNumParams[j]? = some a → I.ctors[j]? = some cb → ∃ nf, a = .ctor cb.name nf
 
@@ -1157,7 +1157,7 @@ structure TableBlocks (lenv : Lean.Environment) (env : VEnv) (tbl : SourceTable)
   /-- No member is erasable, so none erases to `□` — stated as the negation the oracle's
       soundness contradicts, with `InformativeInd` as its precedent. The member's body is
       read at the member's **own** level scope, `tbl.levels? m`, which is the scope the
-      eraser erases it at (`Erasure.lean:912`) and the scope
+      eraser erases it at (`Erasure.lean:1309`) and the scope
       `erases_constant_body (Σ, cst_universes cb)` reads it at
       (`../metarocq/erasure/theories/Extract.v:264`). At the ambient `[]` no
       universe-polymorphic member has a translation, so the clause would be vacuous there. -/
