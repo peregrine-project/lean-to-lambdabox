@@ -410,7 +410,14 @@ structure BlockAdequate (lenv : Environment) (env : VEnv) : Prop where
 /-! ## The bundle -/
 
 /-- The specification of the erasure's ambient primitives, at the elaboration environment
-`lenv`, its model `env`, the ambient level scope `Us` and the name-generator reading `gw`. -/
+`lenv`, its model `env`, the ambient level scope `Us` and the name-generator reading `gw`.
+
+`Us` occurs in one field, `oracle_refl`, and there under the premise `ctx.lparams = Us`, so the
+bundle says nothing about a call made at any other scope. The bridge therefore takes it at every
+scope — `∀ Us, ErasureSpec lenv env Us gw` — which is MetaRocq's per-constant
+`abstract_make_wf_env_ext` (`../metarocq/erasure/theories/ErasureFunction.v`) and is what lets a
+sub-run below `Erasure.visitMutual`'s `withReader (… lparams := ci.levelParams)` spend the
+kernel arm at the scope its verdict was taken under. -/
 structure ErasureSpec (lenv : Environment) (env : VEnv) (Us : List Name)
     (gw : Void IO.RealWorld → NameGenerator) : Prop where
   /-- `lenv` is modelled by `env` at safety `.safe`. `Lean4Lean.VEnvs.WF` is stated at
@@ -442,21 +449,6 @@ structure ErasureSpec (lenv : Environment) (env : VEnv) (Us : List Name)
       M.run lenv.toKernelEnv .safe ctx.lctx ctx.lparams {}
           (RecM.run (LeanToLambdaBox.isErasable e)) = .ok true
       ∨ Oracle.MetaSound env Us ctx.lctx e)
-  /-- A `true` verdict at a level scope **other** than the ambient one is sound **at the scope
-      it was taken under**. Class **D** with no proved arm, and a real scope limit rather than
-      a formality: the verdict is computed by `Erasure.isErasable ctx.lparams`, so
-      `ctx.lparams` is the only scope it speaks of. Read at the reader's `Us` instead, the
-      payload under the capstone is `Oracle.MetaSound env [] ctx.lctx e`, which holds outright
-      at every subject mentioning a level parameter — no such subject translates at `[]` —
-      and so is empty at exactly the runs the field covers, those made below a
-      universe-polymorphic declaration. There is no transport between the two scopes and none
-      is assumed: a consumer holding its translation witness at `Us` has `ctx.lparams = Us`
-      and spends `oracle_refl`. -/
-  oracle_meta : ∀ (e : Expr) (s : ErasureState) (ctx : ErasureContext) (cctx : Core.Context)
-    (ref : ST.Ref IO.RealWorld Core.State) (w : Void IO.RealWorld)
-    (s₁ : ErasureState) (w₁ : Void IO.RealWorld),
-    Erasure.liftMetaM (Erasure.isErasable ctx.lparams e) s ctx cctx ref w = .ok (true, s₁) w₁ →
-    ctx.lparams ≠ Us → Oracle.MetaSound env ctx.lparams ctx.lctx e
   /-- A declaration `lenv` makes visible at `.safe` is visible in `env` with a translated
       type — in particular an `Lean.InductiveVal` and its model constant.
 
@@ -633,7 +625,8 @@ structure EraserAsks (lenv : Environment) (env : VEnv)
       (`Relevance.lean:49-50`), so a type whose *reduced* telescope is longer than that budget —
       and any other kernel error raised inside `isArityCheck` — leaves the walk short of the
       closing sort and routes the verdict to `Erasure.isErasableMeta`, of which only soundness
-      is assumed (`ErasureSpec.oracle_meta`). The scope `lps` is the run's own — the one
+      is assumed (`ErasureSpec.oracle_refl`'s second disjunct). The scope `lps` is the run's
+      own — the one
       `Erasure.isErasable` is called at, which `Erasure.visitMutual` installs from the
       declaration being entered — and not a reader's: at a fixed `[]` the premises are
       uninhabited below a universe-polymorphic declaration, which is where the shipping

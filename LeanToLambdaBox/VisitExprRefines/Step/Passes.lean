@@ -294,12 +294,13 @@ theorem pass_peano_ctors {tbl : SourceTable} (h : peanoReadyB tbl = true) :
 /-- The peano arm rebuilds the literal as its kernel unfolding, one `Erasure.visitConstructor`
 call per `succ`: the case is `ErasesLB.lit` over the constructor motive, and the recursion is
 carried by the fixpoint induction rather than by a measure on the literal. -/
-theorem step_visitLiteral {lenv : Environment} {env : VEnv} {Us : List Name} {tbl : SourceTable}
+theorem step_visitLiteral {lenv : Environment} {env : VEnv} {tbl : SourceTable}
     {cfg : ErasureConfig} {gw : Void IO.RealWorld → NameGenerator} :
-    Step2 lenv env Us tbl cfg gw := by
-  intro P htbl hcfg _hcb vCtor h3
+    Step2 lenv env tbl cfg gw := by
+  intro P₀ htbl hcfg _hcb vCtor h3
   refine ⟨?_, bodyLe2 h3.2⟩
-  intro l s ctx cctx ref w t s' w' hrun Δ n hinv hl hpeano hpeanoB hsup hex
+  intro l s ctx cctx ref w t s' w' hrun Us Δ n hinv hl hpeano hpeanoB hsup hex
+  have P := P₀ Us
   subst hl
   replace h3 := h3.1
   have hpe : ctx.config.nat = .peano := by rw [hinv.cfg]; exact hcfg.2.2.1
@@ -316,7 +317,7 @@ theorem step_visitLiteral {lenv : Environment} {env : VEnv} {Us : List Name} {tb
     cases n with
     | zero =>
       simp only [hpe] at hrun
-      have hgo := h3 _ _ _ _ _ _ _ _ _ _ hrun Δ ([] : List Level) hinv ⟨_, _, hcz⟩
+      have hgo := h3 _ _ _ _ _ _ _ _ _ _ hrun _ Δ ([] : List Level) hinv ⟨_, _, hcz⟩
         (fun i hi => absurd hi (by simp))
       refine ⟨hgo.1, hgo.2.1, hgo.2.2.1, fun Γspec hspec => ?_⟩
       refine ErasesLBMode.lit hcl ?_
@@ -331,7 +332,7 @@ theorem step_visitLiteral {lenv : Environment} {env : VEnv} {Us : List Name} {tb
         have hi0 : i = 0 := by simpa using hi
         subst hi0
         exact ⟨pass_supported_lit hpeano hpeanoB hsup.kernames, hinner⟩
-      have hgo := h3 _ _ _ _ _ _ _ _ _ _ hrun Δ ([] : List Level) hinv ⟨_, _, hcs⟩ hargs
+      have hgo := h3 _ _ _ _ _ _ _ _ _ _ hrun _ Δ ([] : List Level) hinv ⟨_, _, hcs⟩ hargs
       refine ⟨hgo.1, hgo.2.1, hgo.2.2.1, fun Γspec hspec => ?_⟩
       refine ErasesLBMode.lit hcl ?_
       have := hgo.2.2.2 Γspec hspec
@@ -564,12 +565,13 @@ theorem pass_register_inductive_entry {lenv : Environment} {env : VEnv} {Us : Li
 /-- **Step 10.** The declaration fetch is the table's, the emitted field index is `i` because
 pruning is off, the parameter count is the model block's, the registry the emitted identifier
 comes from is the model's by `BridgeInv.indcanon`, and the discriminant is motive 1's. -/
-theorem step_visitProj {lenv : Environment} {env : VEnv} {Us : List Name} {tbl : SourceTable}
+theorem step_visitProj {lenv : Environment} {env : VEnv} {tbl : SourceTable}
     {cfg : ErasureConfig} {gw : Void IO.RealWorld → NameGenerator} :
-    Step10 lenv env Us tbl cfg gw := by
-  intro P htbl hcfg _hcb vExpr h1
+    Step10 lenv env tbl cfg gw := by
+  intro P₀ htbl hcfg _hcb vExpr h1
   refine ⟨?_, bodyLe10 h1.2⟩
-  intro tn i e s ctx cctx ref w t s' w' hrun Δ I np nf hinv hind hinf harity hi hsup hex
+  intro tn i e s ctx cctx ref w t s' w' hrun Us Δ I np nf hinv hind hinf harity hi hsup hex
+  have P := P₀ Us
   have hregm := hinv.indcanon
   replace h1 := h1.1
   obtain ⟨iv, hfind, hname, hnp, -⟩ := P.block_adequate.bwd tn np [nf] harity
@@ -612,7 +614,7 @@ theorem step_visitProj {lenv : Environment} {env : VEnv} {Us : List Name} {tbl :
   obtain ⟨t₀, s₃, w₃, hve, hp⟩ := hk
   rw [run_pure] at hp
   cases hp
-  have hgo := h1 e s₂ ctx cctx ref w₂ t₀ _ _ hve Δ
+  have hgo := h1 e s₂ ctx cctx ref w₂ t₀ _ _ hve _ Δ
     ((hinv.mono_state hrc hregm₂).mono (NameGenerator.LE.trans hle₁ hle₂)) hsup hex
   refine ⟨hrc.trans hgo.1, hgo.2.1,
     NameGenerator.LE.trans hle₁ (NameGenerator.LE.trans hle₂ hgo.2.2.1),
@@ -640,13 +642,14 @@ the head is `ErasesLB.ctor_head` at the registered block. The block self-members
 registration loop is indexed by is `BlockAdequate.selfMem`: the motive gives no table entry for
 the constructor's type, so it cannot come from `Witness.ReifiedInduct.Pinned` as it does at
 steps 10 and 17. -/
-theorem step_visitConstructor {lenv : Environment} {env : VEnv} {Us : List Name}
+theorem step_visitConstructor {lenv : Environment} {env : VEnv}
     {tbl : SourceTable} {cfg : ErasureConfig} {gw : Void IO.RealWorld → NameGenerator}
     (A : UpstreamAsks env) :
-    Step3 lenv env Us tbl cfg gw := by
-  intro P _htbl hcfg _hcb vLit vConst vArgs _h2 _h4 h7
+    Step3 lenv env tbl cfg gw := by
+  intro P₀ _htbl hcfg _hcb vLit vConst vArgs _h2 _h4 h7
   refine ⟨?_, bodyLe3 _h2.2 _h4.2 h7.2⟩
-  intro cn args s ctx cctx ref w t s' w' hrun Δ us hinv hctor hargs
+  intro cn args s ctx cctx ref w t s' w' hrun Us Δ us hinv hctor hargs
+  have P := P₀ Us
   have hregm := hinv.indcanon
   have hcfgc : ConfigPinned ctx.config := by rw [hinv.cfg]; exact hcfg
   replace h7 := h7.1
@@ -726,7 +729,7 @@ theorem step_visitConstructor {lenv : Environment} {env : VEnv} {Us : List Name}
       (NameGenerator.LE.trans hle₃ hle₄))
   have hhead : HeadRefines env Us tbl ctx Δ s₄ (.const cn us) (.construct r.1 cv.cidx []) :=
     fun _ _ => ErasesLBMode.ctor_head hck' (hivn ▸ hmod.1)
-  have hgo := h7 _ _ _ _ _ _ _ _ _ _ hk Δ (Expr.const cn us)
+  have hgo := h7 _ _ _ _ _ _ _ _ _ _ hk _ Δ (Expr.const cn us)
     ((hinv.mono_state hrc hregm₃).mono hle) hhead hargs
   exact ⟨hrc.trans hgo.1, hgo.2.1, NameGenerator.LE.trans hle hgo.2.2.1, hgo.2.2.2⟩
 
@@ -886,12 +889,13 @@ theorem pass_propArity_guard {lenv : Environment} {env : VEnv} {Us : List Name}
 
 /-- The saturated constructor spine's entry point: `Meta.inferType` leaves the state alone and
 only advances the generator, and `Expr.withApp` hands the spine to the loop. -/
-theorem step_visitCtorEta {lenv : Environment} {env : VEnv} {Us : List Name} {tbl : SourceTable}
+theorem step_visitCtorEta {lenv : Environment} {env : VEnv} {tbl : SourceTable}
     {cfg : ErasureConfig} {gw : Void IO.RealWorld → NameGenerator} :
-    Step13 lenv env Us tbl cfg gw := by
-  intro P _htbl _hcfg _hcb vGo h14
+    Step13 lenv env tbl cfg gw := by
+  intro P₀ _htbl _hcfg _hcb vGo h14
   refine ⟨?_, bodyLe13 h14.2⟩
-  intro cn ar e s ctx cctx ref w t s' w' hrun Δ us hinv hfn hctor har hargs
+  intro cn ar e s ctx cctx ref w t s' w' hrun Us Δ us hinv hfn hctor har hargs
+  have P := P₀ Us
   replace h14 := h14.1
   simp only [visitCtorEtaBody] at hrun
   rw [run_bind_ok] at hrun
@@ -900,7 +904,7 @@ theorem step_visitCtorEta {lenv : Environment} {env : VEnv} {Us : List Name} {tb
   subst hs₁
   have hle₁ := (P.prim_monotone.inferType _ _ _ _ _ _ _ _ _ hinfer).1
   rw [expr_withApp_eq] at hk
-  have hgo := h14 _ _ _ _ _ _ _ _ _ _ _ _ _ hk Δ us (hinv.mono hle₁) hctor har hargs
+  have hgo := h14 _ _ _ _ _ _ _ _ _ _ _ _ _ hk _ Δ us (hinv.mono hle₁) hctor har hargs
   rw [pass_srcSpine_self hfn] at hgo
   exact pass_runRefines_le hle₁ hgo
 
@@ -909,12 +913,13 @@ theorem step_visitCtorEta {lenv : Environment} {env : VEnv} {Us : List Name} {tb
 
 /-- The saturated `casesOn` spine's entry point. Mirrors `step_visitCtorEta`: the inferred type
 is discarded on the saturated path, and the spine goes to the loop. -/
-theorem step_visitCasesEta {lenv : Environment} {env : VEnv} {Us : List Name}
+theorem step_visitCasesEta {lenv : Environment} {env : VEnv}
     {tbl : SourceTable} {cfg : ErasureConfig} {gw : Void IO.RealWorld → NameGenerator} :
-    Step15 lenv env Us tbl cfg gw := by
-  intro P _htbl _hcfg _hcb vGo h16
+    Step15 lenv env tbl cfg gw := by
+  intro P₀ _htbl _hcfg _hcb vGo h16
   refine ⟨?_, bodyLe15 h16.2⟩
-  intro ci e s ctx cctx ref w t s' w' hrun Δ con us I hinv hfn hhead har hsup hargs hex
+  intro ci e s ctx cctx ref w t s' w' hrun Us Δ con us I hinv hfn hhead har hsup hargs hex
+  have P := P₀ Us
   replace h16 := h16.1
   simp only [visitCasesEtaBody] at hrun
   rw [run_bind_ok] at hrun
@@ -924,7 +929,7 @@ theorem step_visitCasesEta {lenv : Environment} {env : VEnv} {Us : List Name}
   have hle₁ := (P.prim_monotone.inferType _ _ _ _ _ _ _ _ _ hinfer).1
   rw [expr_withApp_eq] at hk
   have hsp := pass_srcSpine_self (e := e) hfn
-  have hgo := h16 _ _ _ _ _ _ _ _ _ _ _ _ hk Δ con us I (hinv.mono hle₁) hhead har
+  have hgo := h16 _ _ _ _ _ _ _ _ _ _ _ _ hk _ Δ con us I (hinv.mono hle₁) hhead har
     (by rw [hsp]; exact hsup) hargs (by rw [hsp]; exact hex)
   rw [hsp] at hgo
   exact pass_runRefines_le hle₁ hgo
@@ -933,32 +938,32 @@ theorem step_visitCasesEta {lenv : Environment} {env : VEnv} {Us : List Name}
 (`CasesInfoAgrees.arity`), so the η-expansion branch is dead and the run is `Erasure.visitCases`
 on the nose. F-ETA2's `let` prefix — `Erasure.etaArgIsValue` and `Erasure.withEtaPrefixLets` —
 sits in that dead branch, which is why the step is still one rewrite. -/
-theorem step_visitCasesEtaGo {lenv : Environment} {env : VEnv} {Us : List Name}
+theorem step_visitCasesEtaGo {lenv : Environment} {env : VEnv}
     {tbl : SourceTable} {cfg : ErasureConfig} {gw : Void IO.RealWorld → NameGenerator} :
-    Step16 lenv env Us tbl cfg gw := by
+    Step16 lenv env tbl cfg gw := by
   intro _P _htbl _hcfg _hcb vExpr vGo vCases h1 _h16 h17
   refine ⟨?_, bodyLe16 h1.2 _h16.2 h17.2⟩
-  intro ci ty fe args s ctx cctx ref w t s' w' hrun Δ con us I hinv hhead har hsup hargs hex
+  intro ci ty fe args s ctx cctx ref w t s' w' hrun Us Δ con us I hinv hhead har hsup hargs hex
   replace h17 := h17.1
   simp only [visitCasesEtaGoBody] at hrun
   rw [if_pos har] at hrun
-  exact h17 _ _ _ _ _ _ _ _ _ _ hrun Δ con us I hinv hhead har hsup hargs hex
+  exact h17 _ _ _ _ _ _ _ _ _ _ hrun _ Δ con us I hinv hhead har hsup hargs hex
 
 /-! ## Step 14 — the constructor η loop -/
 
 /-- The constructor η loop, at a saturated spine: the arity is met, so the run is
 `Erasure.visitConstructor` on the nose and the η-expansion branch is dead — F-ETA2's `let`
 prefix included. -/
-theorem step_visitCtorEtaGo {lenv : Environment} {env : VEnv} {Us : List Name}
+theorem step_visitCtorEtaGo {lenv : Environment} {env : VEnv}
     {tbl : SourceTable} {cfg : ErasureConfig} {gw : Void IO.RealWorld → NameGenerator} :
-    Step14 lenv env Us tbl cfg gw := by
+    Step14 lenv env tbl cfg gw := by
   intro _P _htbl _hcfg _hcb vExpr vCtor vGo h1 h3 _h14
   refine ⟨?_, bodyLe14 h1.2 h3.2 _h14.2⟩
-  intro cn ar ty fe args s ctx cctx ref w t s' w' hrun Δ us hinv hctor har hargs
+  intro cn ar ty fe args s ctx cctx ref w t s' w' hrun Us Δ us hinv hctor har hargs
   replace h3 := h3.1
   simp only [visitCtorEtaGoBody] at hrun
   rw [if_pos har] at hrun
-  exact h3 _ _ _ _ _ _ _ _ _ _ hrun Δ us hinv hctor hargs
+  exact h3 _ _ _ _ _ _ _ _ _ _ hrun _ Δ us hinv hctor hargs
 
 
 /-! ## Step 17 — `Erasure.visitCases`
@@ -974,15 +979,16 @@ loop: `CasesInfoAgrees.numAlts` gives one alternative slot per constructor, whic
 loop's two early exits, and `BlockAdequate.casesOnDecl` reports the model's segmentation at the
 block's own arithmetic, which is `CasesInfoAgrees.discrPos` through the pin and is what makes
 `ErasesLB.cases`' length equation hold. -/
-theorem step_visitCases {lenv : Environment} {env : VEnv} {Us : List Name}
+theorem step_visitCases {lenv : Environment} {env : VEnv}
     {tbl : SourceTable} {cfg : ErasureConfig} {gw : Void IO.RealWorld → NameGenerator}
     (A : UpstreamAsks env) (E : EraserAsks lenv env gw) :
-    Step17 lenv env Us tbl cfg gw := by
-  intro P htbl hcfg _hcb vExpr vAlt ih1 ih18
+    Step17 lenv env tbl cfg gw := by
+  intro P₀ htbl hcfg _hcb vExpr vAlt ih1 ih18
   refine ⟨?_, bodyLe17 ih1.2 ih18.2⟩
   replace ih1 := ih1.1
   replace ih18 := ih18.1
-  intro ci args s ctx cctx ref w t s' w' hrun Δ con us I hinv hhead har hsup hargs hex
+  intro ci args s ctx cctx ref w t s' w' hrun Us Δ con us I hinv hhead har hsup hargs hex
+  have P := P₀ Us
   have hcfgc : ConfigPinned ctx.config := by rw [hinv.cfg]; exact hcfg
   have hpe : ctx.config.nat = Config.Nat.peano := hcfgc.2.2.1
   -- the elaborator's segmentation, in the table's numbers
@@ -1005,7 +1011,7 @@ theorem step_visitCases {lenv : Environment} {env : VEnv} {Us : List Name}
   -- the discriminant sub-run
   rw [run_bind_ok] at hrun
   obtain ⟨disc, s₁, w₁, hdrun, hk⟩ := hrun
-  obtain ⟨hrc₁, hreg₁, hle₁, hdmode⟩ := ih1 _ _ _ _ _ _ _ _ _ hdrun Δ hinv hsupd hexd
+  obtain ⟨hrc₁, hreg₁, hle₁, hdmode⟩ := ih1 _ _ _ _ _ _ _ _ _ hdrun _ Δ hinv hsupd hexd
   rw [run_bind_ok] at hk
   obtain ⟨rctx, s₂, w₂, hrd, hk⟩ := hk
   rw [run_read] at hrd
@@ -1183,7 +1189,7 @@ theorem step_visitCases {lenv : Environment} {env : VEnv} {Us : List Name}
       rw [run_pure] at hp
       cases hp
       obtain ⟨hrcB, hregB, hleB, haltmode⟩ :=
-        ih18 _ _ _ _ _ _ _ _ _ _ _ halt Δ hinv₇ rfl htelx hsupx0 hexx0
+        ih18 _ _ _ _ _ _ _ _ _ _ _ halt _ Δ hinv₇ rfl htelx hsupx0 hexx0
       refine ⟨hrcA.trans hrcB, hregB, NameGenerator.LE.trans hleA hleB, by simp [hsizeA], ?_⟩
       intro Γspec hspec j hj
       simp only [List.length_append, List.length_cons, List.length_nil] at hj
@@ -1316,7 +1322,7 @@ theorem step_visitCases {lenv : Environment} {env : VEnv} {Us : List Name}
         exact List.mem_of_mem_drop hxm
       obtain ⟨hsx, hex⟩ := hmemargs x hxmem
       obtain ⟨hrcD, hregD, hleD, hmx⟩ :=
-        ih1 _ _ _ _ _ _ _ _ _ hvx Δ
+        ih1 _ _ _ _ _ _ _ _ _ hvx _ Δ
           ((((hinv₅.mono_state hloopP.1 hloopP.2.1).mono hloopP.2.2.1).mono_state hrcC
             hregC).mono hleC) hsx hex
       refine ⟨hrcC.trans hrcD, hregD, NameGenerator.LE.trans hleC hleD, fun Γspec hspec => ?_⟩

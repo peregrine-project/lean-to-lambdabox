@@ -213,7 +213,7 @@ theorem green_G1
     {vv : VExpr} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
     {w wp w' : Void IO.RealWorld} {inls : List Kername}
     {v : Expr} {us : List VLevel} {idx : List VExpr}
-    (P : ErasureSpec lenv env [] gw)
+    (P : ∀ Us, ErasureSpec lenv env Us gw)
     (htbl : SourceTableAdequate lenv g1Table)
     (hsafe : TableSafe lenv g1Table)
     (E : EraserAsks lenv env gw)
@@ -245,13 +245,13 @@ theorem green_G1
       ∧ WcbvEval g1Env eraseFlags g1Term (.construct natIid 0 []) := by
   obtain ⟨Γspec, t₀, -, her, herΓ, hlow, hlowΓ, hwf, hobs⟩ :=
     shipping_erase_correct_firstorder P E A htbl hsafe hblk spike_configPinned
-      (g1_compilerBodies P htbl hsafe)
-      (trExprS_const_of_table P htbl hsafe rfl)
-      (supportedB_sound P htbl hsafe g1_supported)
+      (g1_compilerBodies (P []) htbl hsafe)
+      (trExprS_const_of_table (P []) htbl hsafe rfl)
+      (supportedB_sound (P []) htbl hsafe g1_supported)
       hprep hrun g1_noBodylessRefs g1_wf hbridge
   obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
     hobs [] [] ``Nat us idx v vv _ rfl (fun i hi => absurd hi (by simp))
-      (trExprS_const_of_table P htbl hsafe rfl) hev hvwt hty hfo
+      (trExprS_const_of_table (P []) htbl hsafe rfl) hev hvwt hty hfo
   have htv : tv = g1Answer := eval_deterministic hevtgt g1_eval
   subst htv
   exact ⟨Γspec, t₀, tv₀, her, herΓ, hlow, hlowΓ, hwf, herv, hlowv, hnobox, huniq, g1_eval⟩
@@ -365,7 +365,7 @@ theorem green_G2
     {vv : VExpr} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
     {w wp w' : Void IO.RealWorld} {inls : List Kername}
     {v : Expr} {us : List VLevel} {idx : List VExpr}
-    (P : ErasureSpec lenv env [] gw)
+    (P : ∀ Us, ErasureSpec lenv env Us gw)
     (htbl : SourceTableAdequate lenv g2Table)
     (hsafe : TableSafe lenv g2Table)
     (E : EraserAsks lenv env gw)
@@ -398,12 +398,12 @@ theorem green_G2
       ∧ WcbvEval g2Env eraseFlags g2Term (peanoLB 4) := by
   obtain ⟨Γspec, t₀, -, her, herΓ, hlow, hlowΓ, hwf, hobs⟩ :=
     shipping_erase_correct_firstorder P E A htbl hsafe hblk spike_configPinned hcb
-      (trExprS_const_of_table P htbl hsafe rfl)
-      (supportedB_sound P htbl hsafe g2_supported)
+      (trExprS_const_of_table (P []) htbl hsafe rfl)
+      (supportedB_sound (P []) htbl hsafe g2_supported)
       hprep hrun g2_noBodylessRefs g2_wf hbridge
   obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
     hobs [] [] ``Nat us idx v vv _ rfl (fun i hi => absurd hi (by simp))
-      (trExprS_const_of_table P htbl hsafe rfl) hev hvwt hty hfo
+      (trExprS_const_of_table (P []) htbl hsafe rfl) hev hvwt hty hfo
   have htv : tv = g2Answer := eval_deterministic hevtgt g2_eval
   subst htv
   exact ⟨Γspec, t₀, tv₀, her, herΓ, hlow, hlowΓ, hwf, herv, hlowv, hnobox, huniq, g2_eval⟩
@@ -466,7 +466,7 @@ theorem green_G3
     {vv : VExpr} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
     {w wp w' : Void IO.RealWorld} {inls : List Kername}
     {v : Expr} {us : List VLevel} {idx : List VExpr}
-    (P : ErasureSpec lenv env [] gw)
+    (P : ∀ Us, ErasureSpec lenv env Us gw)
     (htbl : SourceTableAdequate lenv g3Table)
     (hsafe : TableSafe lenv g3Table)
     (E : EraserAsks lenv env gw)
@@ -499,12 +499,12 @@ theorem green_G3
       ∧ WcbvEval g3Env eraseFlags g3Term (peanoLB 3) := by
   obtain ⟨Γspec, t₀, -, her, herΓ, hlow, hlowΓ, hwf, hobs⟩ :=
     shipping_erase_correct_firstorder P E A htbl hsafe hblk spike_configPinned hcb
-      (trExprS_const_of_table P htbl hsafe rfl)
-      (supportedB_sound P htbl hsafe g3_supported)
+      (trExprS_const_of_table (P []) htbl hsafe rfl)
+      (supportedB_sound (P []) htbl hsafe g3_supported)
       hprep hrun g3_noBodylessRefs g3_wf hbridge
   obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
     hobs [] [] ``Nat us idx v vv _ rfl (fun i hi => absurd hi (by simp))
-      (trExprS_const_of_table P htbl hsafe rfl) hev hvwt hty hfo
+      (trExprS_const_of_table (P []) htbl hsafe rfl) hev hvwt hty hfo
   have htv : tv = g3Answer := eval_deterministic hevtgt g3_eval
   subst htv
   exact ⟨Γspec, t₀, tv₀, her, herΓ, hlow, hlowΓ, hwf, herv, hlowv, hnobox, huniq, g3_eval⟩
@@ -587,7 +587,7 @@ theorem green_G4
     {vv : VExpr} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
     {w wp w' : Void IO.RealWorld} {inls : List Kername}
     {v : Expr} {us : List VLevel} {idx : List VExpr}
-    (P : ErasureSpec lenv env [] gw)
+    (P : ∀ Us, ErasureSpec lenv env Us gw)
     (htbl : SourceTableAdequate lenv g4Table)
     (hsafe : TableSafe lenv g4Table)
     (E : EraserAsks lenv env gw)
@@ -620,12 +620,12 @@ theorem green_G4
       ∧ WcbvEval g4Env eraseFlags g4Term (peanoLB 1) := by
   obtain ⟨Γspec, t₀, -, her, herΓ, hlow, hlowΓ, hwf, hobs⟩ :=
     shipping_erase_correct_firstorder P E A htbl hsafe hblk spike_configPinned hcb
-      (trExprS_const_of_table P htbl hsafe rfl)
-      (supportedB_sound P htbl hsafe g4_supported)
+      (trExprS_const_of_table (P []) htbl hsafe rfl)
+      (supportedB_sound (P []) htbl hsafe g4_supported)
       hprep hrun g4_noBodylessRefs g4_wf hbridge
   obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
     hobs [] [] ``Nat us idx v vv _ rfl (fun i hi => absurd hi (by simp))
-      (trExprS_const_of_table P htbl hsafe rfl) hev hvwt hty hfo
+      (trExprS_const_of_table (P []) htbl hsafe rfl) hev hvwt hty hfo
   have htv : tv = g4Answer := eval_deterministic hevtgt g4_eval
   subst htv
   exact ⟨Γspec, t₀, tv₀, her, herΓ, hlow, hlowΓ, hwf, herv, hlowv, hnobox, huniq, g4_eval⟩
@@ -840,7 +840,7 @@ theorem green_G5
     {vv : VExpr} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
     {w wp w' : Void IO.RealWorld} {inls : List Kername} {ni pi : InductiveId}
     {us : List VLevel} {idx : List VExpr}
-    (P : ErasureSpec lenv env [] gw)
+    (P : ∀ Us, ErasureSpec lenv env Us gw)
     (htbl : SourceTableAdequate lenv g5Table)
     (hsafe : TableSafe lenv g5Table)
     (E : EraserAsks lenv env gw)
@@ -877,12 +877,12 @@ theorem green_G5
       ∧ WcbvEval g5Env eraseFlags g5Term (peanoLB 1) := by
   obtain ⟨Γspec, t₀, -, her, herΓ, hlow, hlowΓ, hwf, hobs⟩ :=
     shipping_erase_correct_firstorder P E A htbl hsafe hblk spike_configPinned hcb
-      (trExprS_const_of_table P htbl hsafe rfl)
-      (supportedB_sound P htbl hsafe g5_supported)
+      (trExprS_const_of_table (P []) htbl hsafe rfl)
+      (supportedB_sound (P []) htbl hsafe g5_supported)
       hprep hrun g5_noBodylessRefs g5_wf hbridge
   obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
     hobs [] [] ``Nat us idx (peanoSrc 1) vv _ rfl (fun i hi => absurd hi (by simp))
-      (trExprS_const_of_table P htbl hsafe rfl) (g5_seval F U hd hdu hio) hvwt hty hfo
+      (trExprS_const_of_table (P []) htbl hsafe rfl) (g5_seval F U hd hdu hio) hvwt hty hfo
   have htv : tv = g5Answer := eval_deterministic hevtgt g5_eval
   subst htv
   exact ⟨Γspec, t₀, tv₀, her, herΓ, hlow, hlowΓ, hwf, herv, hlowv, hnobox, huniq, g5_eval⟩
@@ -961,7 +961,7 @@ theorem green_G6
     {vv : VExpr} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
     {w wp w' : Void IO.RealWorld} {inls : List Kername}
     {v : Expr} {us : List VLevel} {idx : List VExpr}
-    (P : ErasureSpec lenv env [] gw)
+    (P : ∀ Us, ErasureSpec lenv env Us gw)
     (htbl : SourceTableAdequate lenv g6Table)
     (hsafe : TableSafe lenv g6Table)
     (E : EraserAsks lenv env gw)
@@ -994,12 +994,12 @@ theorem green_G6
       ∧ WcbvEval g6Env eraseFlags g6Term (peanoLB 2) := by
   obtain ⟨Γspec, t₀, -, her, herΓ, hlow, hlowΓ, hwf, hobs⟩ :=
     shipping_erase_correct_firstorder P E A htbl hsafe hblk spike_configPinned hcb
-      (trExprS_const_of_table P htbl hsafe rfl)
-      (supportedB_sound P htbl hsafe g6_supported)
+      (trExprS_const_of_table (P []) htbl hsafe rfl)
+      (supportedB_sound (P []) htbl hsafe g6_supported)
       hprep hrun g6_noBodylessRefs g6_wf hbridge
   obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
     hobs [] [] ``Nat us idx v vv _ rfl (fun i hi => absurd hi (by simp))
-      (trExprS_const_of_table P htbl hsafe rfl) hev hvwt hty hfo
+      (trExprS_const_of_table (P []) htbl hsafe rfl) hev hvwt hty hfo
   have htv : tv = g6Answer := eval_deterministic hevtgt g6_eval
   subst htv
   exact ⟨Γspec, t₀, tv₀, her, herΓ, hlow, hlowΓ, hwf, herv, hlowv, hnobox, huniq, g6_eval⟩
@@ -1443,7 +1443,7 @@ theorem green_G7
     {vv : VExpr} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
     {w wp w' : Void IO.RealWorld} {inls : List Kername}
     {v : Expr} {us : List VLevel} {idx : List VExpr}
-    (P : ErasureSpec lenv env [] gw)
+    (P : ∀ Us, ErasureSpec lenv env Us gw)
     (htbl : SourceTableAdequate lenv g7Table)
     (hsafe : TableSafe lenv g7Table)
     (E : EraserAsks lenv env gw)
@@ -1476,12 +1476,12 @@ theorem green_G7
       ∧ WcbvEval g7Env eraseFlags g7Term (peanoLB 8) := by
   obtain ⟨Γspec, t₀, -, her, herΓ, hlow, hlowΓ, hwf, hobs⟩ :=
     shipping_erase_correct_firstorder P E A htbl hsafe hblk spike_configPinned hcb
-      (trExprS_const_of_table P htbl hsafe rfl)
-      (supportedB_sound P htbl hsafe g7_supported)
+      (trExprS_const_of_table (P []) htbl hsafe rfl)
+      (supportedB_sound (P []) htbl hsafe g7_supported)
       hprep hrun g7_noBodylessRefs g7_wf hbridge
   obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
     hobs [] [] ``Nat us idx v vv _ rfl (fun i hi => absurd hi (by simp))
-      (trExprS_const_of_table P htbl hsafe rfl) hev hvwt hty hfo
+      (trExprS_const_of_table (P []) htbl hsafe rfl) hev hvwt hty hfo
   have htv : tv = g7Answer := eval_deterministic hevtgt g7_eval
   subst htv
   exact ⟨Γspec, t₀, tv₀, her, herΓ, hlow, hlowΓ, hwf, herv, hlowv, hnobox, huniq, g7_eval⟩
@@ -1502,7 +1502,7 @@ theorem green_G8
     {vv : VExpr} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
     {w wp w' : Void IO.RealWorld} {inls : List Kername}
     {v : Expr} {us : List VLevel} {idx : List VExpr}
-    (P : ErasureSpec lenv env [] gw)
+    (P : ∀ Us, ErasureSpec lenv env Us gw)
     (htbl : SourceTableAdequate lenv g8Table)
     (hsafe : TableSafe lenv g8Table)
     (E : EraserAsks lenv env gw)
@@ -1540,8 +1540,8 @@ theorem green_G8
       ∧ WcbvEval g8Env eraseFlags (.app g8Term (peanoLB 0)) (peanoLB 8) := by
   obtain ⟨Γspec, t₀, -, her, herΓ, hlow, hlowΓ, hwf, hobs⟩ :=
     shipping_erase_correct_firstorder P E A htbl hsafe hblk spike_configPinned hcb
-      (trExprS_const_of_table P htbl hsafe rfl)
-      (supportedB_sound P htbl hsafe g8_supported)
+      (trExprS_const_of_table (P []) htbl hsafe rfl)
+      (supportedB_sound (P []) htbl hsafe g8_supported)
       hprep hrun g8_noBodylessRefs g8_wf hbridge
   obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
     hobs [g8Arg] [peanoLB 0] ``Nat us idx v vv _ rfl
@@ -1550,7 +1550,7 @@ theorem green_G8
         exact ⟨peanoLB 0, .ctor F.natZero F.natInd,
           .construct rfl (fun j hj => absurd hj (by simp)),
           g8_argErasesEnv F herΓ (hargReach Γspec t₀ her herΓ hlow hlowΓ)⟩)
-      (g8_trExprS_spine P htbl hsafe) hev hvwt hty hfo
+      (g8_trExprS_spine (P []) htbl hsafe) hev hvwt hty hfo
   have htv : tv = g8Answer := eval_deterministic hevtgt g8_eval
   subst htv
   exact ⟨Γspec, t₀, tv₀, her, herΓ, hlow, hlowΓ, hwf, herv, hlowv, hnobox, huniq, g8_eval⟩

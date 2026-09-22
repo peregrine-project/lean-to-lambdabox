@@ -28,70 +28,70 @@ variable {lenv : Environment} {env : VEnv} {Us : List Name} {tbl : SourceTable}
 admissibility obligations are the run-ok toolkit paired with `admissible_and_le`, which is all
 the approximation conjunct costs, and the steps are hypotheses. -/
 theorem motives_of_steps
-    (step1 : Step1 lenv env Us tbl cfg gw)
-    (step2 : Step2 lenv env Us tbl cfg gw)
-    (step3 : Step3 lenv env Us tbl cfg gw)
-    (step4 : Step4 lenv env Us tbl cfg gw)
-    (step5 : Step5 lenv env Us tbl cfg gw)
-    (step6 : Step6 lenv env Us tbl cfg gw)
-    (step7 : Step7 lenv env Us tbl cfg gw)
-    (step8 : Step8 lenv env Us tbl cfg gw)
-    (step9 : Step9 lenv env Us tbl cfg gw)
-    (step10 : Step10 lenv env Us tbl cfg gw)
-    (step11 : Step11 lenv env Us tbl cfg gw)
-    (step12 : Step12 lenv env Us tbl cfg gw)
-    (step13 : Step13 lenv env Us tbl cfg gw)
-    (step14 : Step14 lenv env Us tbl cfg gw)
-    (step15 : Step15 lenv env Us tbl cfg gw)
-    (step16 : Step16 lenv env Us tbl cfg gw)
-    (step17 : Step17 lenv env Us tbl cfg gw)
-    (step18 : Step18 lenv env Us tbl cfg gw)
-    (P : ErasureSpec lenv env Us gw) (htbl : SourceTableAdequate lenv tbl)
+    (step1 : Step1 lenv env tbl cfg gw)
+    (step2 : Step2 lenv env tbl cfg gw)
+    (step3 : Step3 lenv env tbl cfg gw)
+    (step4 : Step4 lenv env tbl cfg gw)
+    (step5 : Step5 lenv env tbl cfg gw)
+    (step6 : Step6 lenv env tbl cfg gw)
+    (step7 : Step7 lenv env tbl cfg gw)
+    (step8 : Step8 lenv env tbl cfg gw)
+    (step9 : Step9 lenv env tbl cfg gw)
+    (step10 : Step10 lenv env tbl cfg gw)
+    (step11 : Step11 lenv env tbl cfg gw)
+    (step12 : Step12 lenv env tbl cfg gw)
+    (step13 : Step13 lenv env tbl cfg gw)
+    (step14 : Step14 lenv env tbl cfg gw)
+    (step15 : Step15 lenv env tbl cfg gw)
+    (step16 : Step16 lenv env tbl cfg gw)
+    (step17 : Step17 lenv env tbl cfg gw)
+    (step18 : Step18 lenv env tbl cfg gw)
+    (P : ∀ Us, ErasureSpec lenv env Us gw) (htbl : SourceTableAdequate lenv tbl)
     (hcfg : ConfigPinned cfg) (hcb : CompilerBodies lenv env tbl.body?) :
-    Motives env Us tbl cfg gw
+    Motives env tbl cfg gw
       Erasure.visitExpr Erasure.visitLiteral Erasure.visitConstructor Erasure.visitConst
       Erasure.get_constant_kername Erasure.visitMutual Erasure.visitAppArgs Erasure.visitLet
       Erasure.visitLambda Erasure.visitProj Erasure.visitApp Erasure.visitConstApp
       Erasure.visitCtorEta Erasure.visitCtorEtaGo Erasure.visitCasesEta Erasure.visitCasesEtaGo
       Erasure.visitCases Erasure.visitAlt := by
   have H :
-      Motive1 env Us tbl cfg gw Erasure.visitExpr ∧
-      Motive2 env Us tbl cfg gw Erasure.visitLiteral ∧
-      Motive3 env Us tbl cfg gw Erasure.visitConstructor ∧
-      Motive4 env Us tbl cfg gw Erasure.visitConst ∧
-      Motive5 env Us tbl cfg gw Erasure.get_constant_kername ∧
-      Motive6 env Us tbl cfg gw Erasure.visitMutual ∧
-      Motive7 env Us tbl cfg gw Erasure.visitAppArgs ∧
-      Motive8 env Us tbl cfg gw Erasure.visitLet ∧
-      Motive9 env Us tbl cfg gw Erasure.visitLambda ∧
-      Motive10 env Us tbl cfg gw Erasure.visitProj ∧
-      Motive11 env Us tbl cfg gw Erasure.visitApp ∧
-      Motive12 env Us tbl cfg gw Erasure.visitConstApp ∧
-      Motive13 env Us tbl cfg gw Erasure.visitCtorEta ∧
-      Motive14 env Us tbl cfg gw Erasure.visitCtorEtaGo ∧
-      Motive15 env Us tbl cfg gw Erasure.visitCasesEta ∧
-      Motive16 env Us tbl cfg gw Erasure.visitCasesEtaGo ∧
-      Motive17 env Us tbl cfg gw Erasure.visitCases ∧
-      Motive18 env Us tbl cfg gw Erasure.visitAlt := by
+      Motive1 env tbl cfg gw Erasure.visitExpr ∧
+      Motive2 env tbl cfg gw Erasure.visitLiteral ∧
+      Motive3 env tbl cfg gw Erasure.visitConstructor ∧
+      Motive4 env tbl cfg gw Erasure.visitConst ∧
+      Motive5 env tbl cfg gw Erasure.get_constant_kername ∧
+      Motive6 env tbl cfg gw Erasure.visitMutual ∧
+      Motive7 env tbl cfg gw Erasure.visitAppArgs ∧
+      Motive8 env tbl cfg gw Erasure.visitLet ∧
+      Motive9 env tbl cfg gw Erasure.visitLambda ∧
+      Motive10 env tbl cfg gw Erasure.visitProj ∧
+      Motive11 env tbl cfg gw Erasure.visitApp ∧
+      Motive12 env tbl cfg gw Erasure.visitConstApp ∧
+      Motive13 env tbl cfg gw Erasure.visitCtorEta ∧
+      Motive14 env tbl cfg gw Erasure.visitCtorEtaGo ∧
+      Motive15 env tbl cfg gw Erasure.visitCasesEta ∧
+      Motive16 env tbl cfg gw Erasure.visitCasesEtaGo ∧
+      Motive17 env tbl cfg gw Erasure.visitCases ∧
+      Motive18 env tbl cfg gw Erasure.visitAlt := by
     apply Erasure.visitExpr.mutual_fixpoint_induct
-      (motive_1 := Motive1 env Us tbl cfg gw)
-      (motive_2 := Motive2 env Us tbl cfg gw)
-      (motive_3 := Motive3 env Us tbl cfg gw)
-      (motive_4 := Motive4 env Us tbl cfg gw)
-      (motive_5 := Motive5 env Us tbl cfg gw)
-      (motive_6 := Motive6 env Us tbl cfg gw)
-      (motive_7 := Motive7 env Us tbl cfg gw)
-      (motive_8 := Motive8 env Us tbl cfg gw)
-      (motive_9 := Motive9 env Us tbl cfg gw)
-      (motive_10 := Motive10 env Us tbl cfg gw)
-      (motive_11 := Motive11 env Us tbl cfg gw)
-      (motive_12 := Motive12 env Us tbl cfg gw)
-      (motive_13 := Motive13 env Us tbl cfg gw)
-      (motive_14 := Motive14 env Us tbl cfg gw)
-      (motive_15 := Motive15 env Us tbl cfg gw)
-      (motive_16 := Motive16 env Us tbl cfg gw)
-      (motive_17 := Motive17 env Us tbl cfg gw)
-      (motive_18 := Motive18 env Us tbl cfg gw)
+      (motive_1 := Motive1 env tbl cfg gw)
+      (motive_2 := Motive2 env tbl cfg gw)
+      (motive_3 := Motive3 env tbl cfg gw)
+      (motive_4 := Motive4 env tbl cfg gw)
+      (motive_5 := Motive5 env tbl cfg gw)
+      (motive_6 := Motive6 env tbl cfg gw)
+      (motive_7 := Motive7 env tbl cfg gw)
+      (motive_8 := Motive8 env tbl cfg gw)
+      (motive_9 := Motive9 env tbl cfg gw)
+      (motive_10 := Motive10 env tbl cfg gw)
+      (motive_11 := Motive11 env tbl cfg gw)
+      (motive_12 := Motive12 env tbl cfg gw)
+      (motive_13 := Motive13 env tbl cfg gw)
+      (motive_14 := Motive14 env tbl cfg gw)
+      (motive_15 := Motive15 env tbl cfg gw)
+      (motive_16 := Motive16 env tbl cfg gw)
+      (motive_17 := Motive17 env tbl cfg gw)
+      (motive_18 := Motive18 env tbl cfg gw)
     · exact admissible_and_le _ _ (eraseM_admissible_ok₁ _)
     · exact admissible_and_le _ _ (eraseM_admissible_ok₁ _)
     · exact admissible_and_le _ _ (eraseM_admissible_ok₂ _)
@@ -188,25 +188,25 @@ abbrev VisitExprRefinesLBFix (env : VEnv) (Us : List Name) (tbl : SourceTable)
 
 /-- **T8, ambient mode.** Motive 1 of the induction, read at `ctx.fixvars = none`. -/
 theorem visitExpr_refines_erasesLB
-    (step1 : Step1 lenv env Us tbl cfg gw)
-    (step2 : Step2 lenv env Us tbl cfg gw)
-    (step3 : Step3 lenv env Us tbl cfg gw)
-    (step4 : Step4 lenv env Us tbl cfg gw)
-    (step5 : Step5 lenv env Us tbl cfg gw)
-    (step6 : Step6 lenv env Us tbl cfg gw)
-    (step7 : Step7 lenv env Us tbl cfg gw)
-    (step8 : Step8 lenv env Us tbl cfg gw)
-    (step9 : Step9 lenv env Us tbl cfg gw)
-    (step10 : Step10 lenv env Us tbl cfg gw)
-    (step11 : Step11 lenv env Us tbl cfg gw)
-    (step12 : Step12 lenv env Us tbl cfg gw)
-    (step13 : Step13 lenv env Us tbl cfg gw)
-    (step14 : Step14 lenv env Us tbl cfg gw)
-    (step15 : Step15 lenv env Us tbl cfg gw)
-    (step16 : Step16 lenv env Us tbl cfg gw)
-    (step17 : Step17 lenv env Us tbl cfg gw)
-    (step18 : Step18 lenv env Us tbl cfg gw)
-    (P : ErasureSpec lenv env Us gw) (htbl : SourceTableAdequate lenv tbl)
+    (step1 : Step1 lenv env tbl cfg gw)
+    (step2 : Step2 lenv env tbl cfg gw)
+    (step3 : Step3 lenv env tbl cfg gw)
+    (step4 : Step4 lenv env tbl cfg gw)
+    (step5 : Step5 lenv env tbl cfg gw)
+    (step6 : Step6 lenv env tbl cfg gw)
+    (step7 : Step7 lenv env tbl cfg gw)
+    (step8 : Step8 lenv env tbl cfg gw)
+    (step9 : Step9 lenv env tbl cfg gw)
+    (step10 : Step10 lenv env tbl cfg gw)
+    (step11 : Step11 lenv env tbl cfg gw)
+    (step12 : Step12 lenv env tbl cfg gw)
+    (step13 : Step13 lenv env tbl cfg gw)
+    (step14 : Step14 lenv env tbl cfg gw)
+    (step15 : Step15 lenv env tbl cfg gw)
+    (step16 : Step16 lenv env tbl cfg gw)
+    (step17 : Step17 lenv env tbl cfg gw)
+    (step18 : Step18 lenv env tbl cfg gw)
+    (P : ∀ Us, ErasureSpec lenv env Us gw) (htbl : SourceTableAdequate lenv tbl)
     (hcfg : ConfigPinned cfg) (hcb : CompilerBodies lenv env tbl.body?) :
     VisitExprRefinesLB env Us tbl cfg gw := by
   intro e ve Δ s s' ctx cctx ref w w' t hwt hsup hfx hrun hinv Γspec hspec
@@ -215,30 +215,30 @@ theorem visitExpr_refines_erasesLB
     step15 step16 step17 step18
     P htbl hcfg hcb
   obtain ⟨hm, -⟩ := M.motive1
-  obtain ⟨hrc, -, hle, hmode⟩ := hm e s ctx cctx ref w t s' w' hrun Δ hinv hsup ⟨ve, hwt⟩
+  obtain ⟨hrc, -, hle, hmode⟩ := hm e s ctx cctx ref w t s' w' hrun Us Δ hinv hsup ⟨ve, hwt⟩
   exact ⟨(hmode Γspec hspec).ambient hfx, hrc, hle⟩
 
 /-- **T8, block mode.** Motive 1 of the induction, read at a reader carrying a block's map. -/
 theorem visitExpr_refines_erasesLBFix
-    (step1 : Step1 lenv env Us tbl cfg gw)
-    (step2 : Step2 lenv env Us tbl cfg gw)
-    (step3 : Step3 lenv env Us tbl cfg gw)
-    (step4 : Step4 lenv env Us tbl cfg gw)
-    (step5 : Step5 lenv env Us tbl cfg gw)
-    (step6 : Step6 lenv env Us tbl cfg gw)
-    (step7 : Step7 lenv env Us tbl cfg gw)
-    (step8 : Step8 lenv env Us tbl cfg gw)
-    (step9 : Step9 lenv env Us tbl cfg gw)
-    (step10 : Step10 lenv env Us tbl cfg gw)
-    (step11 : Step11 lenv env Us tbl cfg gw)
-    (step12 : Step12 lenv env Us tbl cfg gw)
-    (step13 : Step13 lenv env Us tbl cfg gw)
-    (step14 : Step14 lenv env Us tbl cfg gw)
-    (step15 : Step15 lenv env Us tbl cfg gw)
-    (step16 : Step16 lenv env Us tbl cfg gw)
-    (step17 : Step17 lenv env Us tbl cfg gw)
-    (step18 : Step18 lenv env Us tbl cfg gw)
-    (P : ErasureSpec lenv env Us gw) (htbl : SourceTableAdequate lenv tbl)
+    (step1 : Step1 lenv env tbl cfg gw)
+    (step2 : Step2 lenv env tbl cfg gw)
+    (step3 : Step3 lenv env tbl cfg gw)
+    (step4 : Step4 lenv env tbl cfg gw)
+    (step5 : Step5 lenv env tbl cfg gw)
+    (step6 : Step6 lenv env tbl cfg gw)
+    (step7 : Step7 lenv env tbl cfg gw)
+    (step8 : Step8 lenv env tbl cfg gw)
+    (step9 : Step9 lenv env tbl cfg gw)
+    (step10 : Step10 lenv env tbl cfg gw)
+    (step11 : Step11 lenv env tbl cfg gw)
+    (step12 : Step12 lenv env tbl cfg gw)
+    (step13 : Step13 lenv env tbl cfg gw)
+    (step14 : Step14 lenv env tbl cfg gw)
+    (step15 : Step15 lenv env tbl cfg gw)
+    (step16 : Step16 lenv env tbl cfg gw)
+    (step17 : Step17 lenv env tbl cfg gw)
+    (step18 : Step18 lenv env tbl cfg gw)
+    (P : ∀ Us, ErasureSpec lenv env Us gw) (htbl : SourceTableAdequate lenv tbl)
     (hcfg : ConfigPinned cfg) (hcb : CompilerBodies lenv env tbl.body?) :
     VisitExprRefinesLBFix env Us tbl cfg gw := by
   intro e ve Δ s s' ctx cctx ref w w' t nms ids hwt hsup hfx hrun hinv Γspec hspec
@@ -247,7 +247,7 @@ theorem visitExpr_refines_erasesLBFix
     step15 step16 step17 step18
     P htbl hcfg hcb
   obtain ⟨hm, -⟩ := M.motive1
-  obtain ⟨hrc, -, hle, hmode⟩ := hm e s ctx cctx ref w t s' w' hrun Δ hinv hsup ⟨ve, hwt⟩
+  obtain ⟨hrc, -, hle, hmode⟩ := hm e s ctx cctx ref w t s' w' hrun Us Δ hinv hsup ⟨ve, hwt⟩
   exact ⟨(hmode Γspec hspec).block hfx, hrc, hle⟩
 
 /-- The ambient statement, unfolded, so that a reader need not trust the abbreviation. -/

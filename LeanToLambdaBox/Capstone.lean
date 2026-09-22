@@ -67,7 +67,7 @@ theorem erasure_bridge_of_run
     {tbl : SourceTable} {cfg : ErasureConfig} {e pe : Expr} {ve : VExpr}
     {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
     {w wp wt : Void IO.RealWorld} {sp sf : ErasureState} {t : LBTerm}
-    (P : ErasureSpec lenv env [] gw) (E : EraserAsks lenv env gw)
+    (P : ∀ Us, ErasureSpec lenv env Us gw) (E : EraserAsks lenv env gw)
     (A : UpstreamAsks env)
     (htbl : SourceTableAdequate lenv tbl) (hsafe : TableSafe lenv tbl)
     (hblk : TableBlocks lenv env tbl)
@@ -152,7 +152,7 @@ theorem shipping_erase_correct_firstorder
     {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
     {w wp w' : Void IO.RealWorld}
     {Γ : GlobalDeclarations} {t : LBTerm} {inls : List Kername}
-    (P : ErasureSpec lenv env [] gw)
+    (P : ∀ Us, ErasureSpec lenv env Us gw)
     (E : EraserAsks lenv env gw)
     (A : UpstreamAsks env)
     (htbl : SourceTableAdequate lenv tbl)
@@ -218,9 +218,9 @@ theorem shipping_erase_correct_firstorder
       obtain ⟨i, hi, rfl⟩ := Lower.mem_getElem! hx
       exact (ha₀ i (by omega)).2.2)
   obtain ⟨tv₀, tv, herv, hlowv, hevtgt⟩ :=
-    erases_correct P.envWF hwtsp hevp hspine hlowspine hspecspine B.lowerEnv A
+    erases_correct (P []).envWF hwtsp hevp hspine hlowspine hspecspine B.lowerEnv A
   obtain ⟨hfos, huniq⟩ :=
-    firstorder_erases_core (Us := []) P.envWF A hev.svalue hfo hvwt hty herv
+    firstorder_erases_core (Us := []) (P []).envWF A hev.svalue hfo hvwt hty herv
   exact ⟨tv₀, tv, herv, hlowv, noBox_lower_of_foSpine hfos hlowv, huniq, hevtgt⟩
 
 end LeanToLambdaBox

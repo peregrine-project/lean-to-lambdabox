@@ -626,10 +626,10 @@ variable {lenv : Environment} {env : VEnv} {Us : List Name} {tbl : SourceTable}
 /-- **Step 5.** The hit branch reads the registry, whose kernames are canonical by the
 invariant; the miss branch registers the name through `Erasure.visitMutual` and then reads it
 back, which is what makes the `panic!`-defaulting lookup total and canonical. -/
-theorem step5 : Step5 lenv env Us tbl cfg gw := by
+theorem step5 : Step5 lenv env tbl cfg gw := by
   intro _P _htbl _hcfg _hcb vMut m6
   refine ⟨?_, bodyLe5 m6.2⟩
-  intro n s ctx cctx ref w kn s' w' hrun Δ hinv hsup htab
+  intro n s ctx cctx ref w kn s' w' hrun Us Δ hinv hsup htab
   unfold getConstantKernameBody at hrun
   rw [run_bind_ok] at hrun
   obtain ⟨s₀, sa, wa, hget, hk⟩ := hrun
@@ -654,7 +654,7 @@ theorem step5 : Step5 lenv env Us tbl cfg gw := by
       cases hget2
       rw [run_pure] at hp
       cases hp
-      obtain ⟨hdom, hrc, hreg, hle⟩ := m6.1 _ _ _ _ _ _ _ _ _ hvm Δ hinv hsup htab
+      obtain ⟨hdom, hrc, hreg, hle⟩ := m6.1 _ _ _ _ _ _ _ _ _ hvm _ Δ hinv hsup htab
       obtain ⟨kn₀, hkn₀⟩ := Option.isSome_iff_exists.mp hdom
       exact ⟨by rw [hashMap_get!_of_get? hkn₀]; exact hrc.canon hinv.canon hkn₀, hdom, hrc,
         hreg, hle⟩
@@ -665,12 +665,12 @@ body erasures. `Motive1`'s refinement half is not consumed: what the motive repo
 registration, and the fragment and translation premises a body erasure would need are not
 available at a dependency's own level scope. -/
 theorem step6 (E : EraserAsks lenv env gw) (hsafe : TableSafe lenv tbl) :
-    Step6 lenv env Us tbl cfg gw := by
+    Step6 lenv env tbl cfg gw := by
   intro P htbl hcfg _hcb vExpr m1
   refine ⟨?_, bodyLe6 m1.2⟩
-  intro n s ctx cctx ref w u s' w' hrun Δ hinv _hsup htab
+  intro n s ctx cctx ref w u s' w' hrun Us Δ hinv _hsup htab
   have hrun' := run_ok_of_le₁ (bodyLe6 m1.2) hrun
-  obtain ⟨hdom, hrc, hle, hreg⟩ := run_visitMutual_registers P E htbl hsafe htab
+  obtain ⟨hdom, hrc, hle, hreg⟩ := run_visitMutual_registers (P Us) E htbl hsafe htab
     (by rw [hinv.cfg]; exact hcfg) hinv.indcanon hrun'
   exact ⟨hdom, hrc, hreg, hle⟩
 
@@ -745,21 +745,21 @@ reads; `step_visitConst` is the step interface.
 /-- **Step 4's content.** The block branch returns the member's fix variable, which is
 `ErasesLBFix.fixvar`; the plain branch returns the canonical kername, which is `Erases.const`
 composed with `Lower.const` — and inside a block, with `ConstToFVar.miss`. -/
-theorem visitConst_refines {env : VEnv} {Us : List Name} {tbl : SourceTable}
+theorem visitConst_refines {env : VEnv} {tbl : SourceTable}
     {cfg : ErasureConfig} {gw : Void IO.RealWorld → NameGenerator}
-    {vGck : Name → EraseM Kername} (m5 : Motive5 env Us tbl cfg gw vGck) :
+    {vGck : Name → EraseM Kername} (m5 : Motive5 env tbl cfg gw vGck) :
     ∀ (e : Expr) (s : ErasureState) (ctx : ErasureContext) (cctx : Core.Context)
       (ref : ST.Ref IO.RealWorld Core.State) (w : Void IO.RealWorld) (t : LBTerm)
       (s' : ErasureState) (w' : Void IO.RealWorld),
       visitConstBody vGck e s ctx cctx ref w = .ok (t, s') w' →
-      ∀ (Δ : VLCtx) (n : Name) (us : List Level) (ci : VConstant),
+      ∀ (Us : List Name) (Δ : VLCtx) (n : Name) (us : List Level) (ci : VConstant),
         BridgeInv env Us tbl cfg (gw w) ctx s Δ → e = .const n us →
         isCasesOnName n = false → env.constants n = some ci → ConstOrigin env n →
         (tbl.decl? n).isSome → Supported env tbl e →
         RunConcl s s' ∧ IndRegistryModelled env s' ∧ gw w ≤ gw w' ∧
           ∀ Γspec, SpecEnv env tbl.body? tbl.levels? s' Γspec →
             ErasesLBMode tbl ctx env Us Γspec Δ e t := by
-  intro e s ctx cctx ref w t s' w' hrun Δ n us ci hinv he hcas hcst hco htab hsup
+  intro e s ctx cctx ref w t s' w' hrun Us Δ n us ci hinv he hcas hcst hco htab hsup
   subst he
   have hsupc : Supported env tbl (.const n []) :=
     hsup.subterm (by simp [constNames]) (by
@@ -793,7 +793,7 @@ theorem visitConst_refines {env : VEnv} {Us : List Name} {tbl : SourceTable}
       obtain ⟨kn, s₂, w₂, hgck, hp⟩ := hk
       rw [run_pure] at hp
       cases hp
-      obtain ⟨hkn, hdom, hrc, hreg, hle⟩ := m5.1 _ _ _ _ _ _ _ _ _ hgck Δ hinv hsupc htab
+      obtain ⟨hkn, hdom, hrc, hreg, hle⟩ := m5.1 _ _ _ _ _ _ _ _ _ hgck _ Δ hinv hsupc htab
       subst hkn
       refine ⟨hrc, hreg, hle, fun Γspec hspec => ⟨?_, ?_⟩⟩
       · intro _
@@ -809,12 +809,12 @@ theorem visitConst_refines {env : VEnv} {Us : List Name} {tbl : SourceTable}
 
 /-- **Step 4.** With `Motive4`'s two exclusions the head is the `defn` column of `KnownHead`,
 whose `VEnv.contains` and `SourceTable.decl?` are exactly what `visitConst_refines` reads. -/
-theorem step_visitConst {lenv : Environment} {env : VEnv} {Us : List Name}
+theorem step_visitConst {lenv : Environment} {env : VEnv}
     {tbl : SourceTable} {cfg : ErasureConfig} {gw : Void IO.RealWorld → NameGenerator}
-    (A : UpstreamAsks env) : Step4 lenv env Us tbl cfg gw := by
+    (A : UpstreamAsks env) : Step4 lenv env tbl cfg gw := by
   intro _P _htbl _hcfg _hcb vGck m5
   refine ⟨?_, bodyLe4 m5.2⟩
-  intro e s ctx cctx ref w t s' w' hrun Δ nm us hinv he _hplain hcas hkn hsup hnc hni
+  intro e s ctx cctx ref w t s' w' hrun Us Δ nm us hinv he _hplain hcas hkn hsup hnc hni
   obtain ⟨vc, hvc, hco, htab⟩ :
       ∃ vc, env.constants nm = some vc ∧ ConstOrigin env nm ∧ (tbl.decl? nm).isSome := by
     cases hkn with
@@ -823,8 +823,8 @@ theorem step_visitConst {lenv : Environment} {env : VEnv} {Us : List Name}
     | defn hd hm =>
         obtain ⟨vc, hvc⟩ := hm
         exact ⟨vc, hvc, constOrigin_of_constants A hvc hnc hni, by rw [hd]; simp⟩
-  exact visitConst_refines m5 e s ctx cctx ref w t s' w' hrun Δ nm us vc hinv he hcas hvc hco
-    htab hsup
+  exact visitConst_refines m5 e s ctx cctx ref w t s' w' hrun Us Δ nm us vc hinv he hcas hvc
+    hco htab hsup
 
 /-! ## Why the block conjunct is keyed
 
