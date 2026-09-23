@@ -47,6 +47,18 @@ theorem envLookup_of_cons_ne {E : GlobalDeclarations} {k kn : Kername} {d d' : G
     LBTerm.envLookup E kn = some d' := by
   rwa [envLookup_cons_ne hne] at h
 
+/-- A key of a list whose keys are distinct answers with its own entry: `envLookup` is
+first-match-wins, so `Nodup` is what makes the first match the entry one holds. -/
+theorem envLookup_of_mem_nodup : ∀ {Γ : GlobalDeclarations} {p : Kername × GlobalDecl},
+    p ∈ Γ → (Γ.map Prod.fst).Nodup → LBTerm.envLookup Γ p.1 = some p.2
+  | (k, d) :: rest, p, hp, hnd => by
+      rw [List.map_cons, List.nodup_cons] at hnd
+      rcases List.mem_cons.1 hp with rfl | hp
+      · exact envLookup_cons_self
+      · have hne : k ≠ p.1 := fun h => hnd.1 (h ▸ List.mem_map.2 ⟨p, hp, rfl⟩)
+        rw [envLookup_cons_ne hne]
+        exact envLookup_of_mem_nodup hp hnd.2
+
 /-- A fresh key is not among the keys of the list. -/
 theorem not_mem_keys_of_fresh {E : GlobalDeclarations} {k : Kername}
     (hfresh : ∀ q ∈ E, q.1 ≠ k) : k ∉ E.map Prod.fst := by
@@ -1312,6 +1324,218 @@ theorem regInv_registerInd_step {env : VEnv} {bo : Name → Option Expr} {lp : N
         hmiss hrun hkeys haxpre hblk hnewc hnewi,
     (C.specGrow hg hdenv).register_inductive_run hmiss hrun,
     K.append hkpre hg (register_inductive_gdecls_mono hmiss hrun)⟩
+
+/-! ## The prefix a block registration conses
+
+`regInv_registerInd_step` takes the prefix as a parameter. What it is, as a function of the
+run's output: the block entry `Erasure.registerIndState` conses, together with one eliminator
+entry per member whose *emitted* body carries `propositional = false`. The filter is the
+emitted flag and not model informativity, because an eliminator entry at a propositional
+member is no `RuntimeKey` of the prefix — `ElimDecl`'s second conjunct carries
+`IndNotPropositional` — and `SpecKeysEmitted.consts` would then demand an emitted
+`.constantDecl` at a key the run never writes.
+
+MetaRocq's `erases_global_ind` (`../metarocq/erasure/theories/Extract.v:290-293`) plus the
+`casesOn` declarations λ□ prunes.
+-/
+
+/-- The per-member data one eliminator entry of an inductive prefix is built from: the
+member's name, its position in its block, the arguments its `casesOn` drops before the
+discriminant, and its constructors' field counts. -/
+structure ElimSlot where
+  /-- The member's name. -/
+  name : Name
+  /-- The member's position in `Lean.InductiveVal.all`. -/
+  idx : Nat
+  /-- The arguments the member's `casesOn` drops before the discriminant. -/
+  dropped : Nat
+  /-- The member's constructors' field counts. -/
+  fields : List Nat
+
+/-- The field-count list of a declared block, computed from `lenv` rather than exhibited:
+`KernelFields` pins the same list pointwise, so a block whose constructors `lenv` declares has
+this as its only `KernelFields` witness. -/
+def kernelFieldsOf (lenv : Environment) (iv : InductiveVal) : List Nat :=
+  iv.ctors.map fun cn =>
+    match lenv.find? cn with
+    | some (.ctorInfo cv) => cv.numFields
+    | _ => 0
+
+/-- `KernelFields` has one witness. -/
+theorem kernelFieldsOf_eq {lenv : Environment} {iv : InductiveVal} {nfs : List Nat}
+    (h : KernelFields lenv iv nfs) : nfs = kernelFieldsOf lenv iv := by
+  refine List.ext_getElem? (fun j => ?_)
+  rw [kernelFieldsOf, List.getElem?_map]
+  cases hj : iv.ctors[j]? with
+  | none =>
+    simp only [Option.map_none]
+    exact List.getElem?_eq_none (by rw [h.1]; exact List.getElem?_eq_none_iff.mp hj)
+  | some cn =>
+    obtain ⟨cv, hcvf, hnfj, -, -, -⟩ := h.2 j cn hj
+    rw [hnfj]
+    simp [hcvf]
+
+/-- The eliminator slots a cold `Erasure.register_inductive` owes: one per member `lenv`
+declares as an inductive and whose emitted body is not propositional. -/
+def elimSlots (lenv : Environment) (indinfo : InductiveVal)
+    (bodies : List OneInductiveBody) : List ElimSlot :=
+  indinfo.all.zipIdx.filterMap fun p =>
+    match lenv.find? p.1, bodies[p.2]? with
+    | some (.inductInfo ivm), some oib =>
+        if oib.propositional then none
+        else some ⟨p.1, p.2, ivm.numParams + 1 + ivm.numIndices, kernelFieldsOf lenv ivm⟩
+    | _, _ => none
+
+/-- One eliminator entry of the prefix: the member's `casesOn` key, at the non-recursive
+`ElimBody` shape for its block position. -/
+def elimEntry (kn : Kername) (np : Nat) (e : ElimSlot) : Kername × GlobalDecl :=
+  (toKername (Name.str e.name "casesOn"),
+    .constantDecl ⟨some (mkElimBody ⟨kn, e.idx⟩ np e.dropped e.fields)⟩)
+
+/-- The specification prefix: the block entry the run conses, and its slots' eliminators. -/
+def indPrefix (indinfo : InductiveVal) (bodies : List OneInductiveBody)
+    (es : List ElimSlot) : GlobalDeclarations :=
+  (mutualBlockKn indinfo, .inductiveDecl { npars := indinfo.numParams, bodies := bodies })
+    :: es.map (elimEntry (mutualBlockKn indinfo) indinfo.numParams)
+
+/-- A slot is at a member `lenv` declares, whose emitted body is not propositional, and its
+two numbers are read off that declaration. -/
+theorem elimSlots_spec {lenv : Environment} {indinfo : InductiveVal}
+    {bodies : List OneInductiveBody} {e : ElimSlot} (h : e ∈ elimSlots lenv indinfo bodies) :
+    indinfo.all[e.idx]? = some e.name ∧
+    (∃ ivm : InductiveVal, lenv.find? e.name = some (.inductInfo ivm) ∧
+      e.dropped = ivm.numParams + 1 + ivm.numIndices ∧ e.fields = kernelFieldsOf lenv ivm) ∧
+    ∃ oib, bodies[e.idx]? = some oib ∧ oib.propositional = false := by
+  rw [elimSlots, List.mem_filterMap] at h
+  obtain ⟨p, hp, hq⟩ := h
+  obtain ⟨n, i⟩ := p
+  have hidx : indinfo.all[i]? = some n := by
+    obtain ⟨-, hlt, hn⟩ := List.mem_zipIdx hp
+    simp only [Nat.zero_add] at hlt
+    simp only [Nat.sub_zero] at hn
+    rw [List.getElem?_eq_getElem hlt, hn]
+  simp only [] at hq
+  split at hq
+  · rename_i ivm oib hfind hbod
+    split at hq
+    · exact absurd hq (by simp)
+    · rename_i hprop
+      cases hq
+      exact ⟨hidx, ⟨ivm, hfind, rfl, rfl⟩, oib, hbod, by simpa using hprop⟩
+  · exact absurd hq (by simp)
+
+/-- The converse: a declared member with a non-propositional emitted body has a slot. -/
+theorem elimSlots_mem {lenv : Environment} {indinfo : InductiveVal}
+    {bodies : List OneInductiveBody} {I : Name} {i : Nat} {ivm : InductiveVal}
+    {oib : OneInductiveBody} (hidx : indinfo.all[i]? = some I)
+    (hfind : lenv.find? I = some (.inductInfo ivm)) (hbod : bodies[i]? = some oib)
+    (hprop : oib.propositional = false) :
+    (⟨I, i, ivm.numParams + 1 + ivm.numIndices, kernelFieldsOf lenv ivm⟩ : ElimSlot)
+      ∈ elimSlots lenv indinfo bodies := by
+  rw [elimSlots, List.mem_filterMap]
+  refine ⟨(I, i), ?_, ?_⟩
+  · refine List.mem_of_getElem? (i := i) ?_
+    rw [List.getElem?_zipIdx, hidx]
+    simp
+  · simp only [hfind, hbod, hprop]
+    simp
+
+/-- The prefix answers at the block key with the emitted block. -/
+theorem indPrefix_block {indinfo : InductiveVal} {bodies : List OneInductiveBody}
+    {es : List ElimSlot} :
+    LBTerm.envLookup (indPrefix indinfo bodies es) (mutualBlockKn indinfo)
+      = some (.inductiveDecl { npars := indinfo.numParams, bodies := bodies }) :=
+  envLookup_cons_self
+
+/-- A key the prefix answers is the block key or one of its slots' eliminator keys. -/
+theorem indPrefix_key_cases {indinfo : InductiveVal} {bodies : List OneInductiveBody}
+    {es : List ElimSlot} {kn : Kername} {d : GlobalDecl}
+    (h : LBTerm.envLookup (indPrefix indinfo bodies es) kn = some d) :
+    (kn = mutualBlockKn indinfo ∧
+      d = .inductiveDecl { npars := indinfo.numParams, bodies := bodies }) ∨
+    ∃ e ∈ es, kn = toKername (Name.str e.name "casesOn") ∧
+      d = .constantDecl ⟨some (mkElimBody ⟨mutualBlockKn indinfo, e.idx⟩ indinfo.numParams
+        e.dropped e.fields)⟩ := by
+  have hmem := envLookup_mem h
+  rw [indPrefix, List.mem_cons] at hmem
+  rcases hmem with heq | hmem
+  · exact Or.inl ⟨congrArg Prod.fst heq, congrArg Prod.snd heq⟩
+  · obtain ⟨e, he, heq⟩ := List.mem_map.mp hmem
+    exact Or.inr ⟨e, he, congrArg Prod.fst heq.symm, congrArg Prod.snd heq.symm⟩
+
+/-- A `casesOn` name is its own prefix's `casesOn`: `isCasesOnName` tests the last string
+component, which the `.num` and `.anonymous` shapes do not have. -/
+theorem eq_str_casesOn {c : Name} (h : isCasesOnName c = true) :
+    c = Name.str c.getPrefix "casesOn" := by
+  cases c with
+  | anonymous => exact absurd h (by simp [isCasesOnName, lastComponent])
+  | num p k => exact absurd h (by simp [isCasesOnName, lastComponent])
+  | str p t =>
+    have ht : t = "casesOn" := by
+      simp only [isCasesOnName, lastComponent, beq_iff_eq] at h
+      exact h
+    rw [ht]
+    rfl
+
+/-- **What the keys of a block registration's prefix owe.** `toKername` is not injective
+(`toKername_not_injective`), and neither it nor `Erases.indBlockKername` is injective against
+the other, so a prefix entry answers `SpecContent` for *every* source name at its key. The
+six clauses are the exclusions that leaves: two at the tabled names with a body, which is
+`SpecContent.defns`' own trigger (F-W9-1: the clause over *every* tabled name is false at a
+table carrying `Nat.casesOn`, and the eliminator half is redundant here with
+`Green.NoTabledCasesOnBody` through `toKername_of_cleanIdent_casesOn`), three quantified over
+the model rather than over a table, since `SpecContent.axioms`, `.blocks` and `.elims` are
+(F-B-6), and one at the block's own member list, which is what separates the prefix's
+eliminator keys from each other. -/
+structure BodiedKeysFresh (env : VEnv) (bo : Name → Option Expr)
+    (indinfo : InductiveVal) : Prop where
+  /-- No tabled name carrying a body prints as the block key. -/
+  bodied : ∀ (c : Name) (b : Expr), bo c = some b → toKername c ≠ mutualBlockKn indinfo
+  /-- No tabled name carrying a body is a `casesOn` name. `Green.NoTabledCasesOnBody` read at
+      the body table; with `toKername_of_cleanIdent_casesOn` it is what keeps a tabled body
+      off the prefix's eliminator keys. -/
+  notCasesOn : ∀ (c : Name) (b : Expr), bo c = some b → isCasesOnName c = false
+  /-- A plain constant printing as the block key is a type former of the block — whereupon
+      `constOrigin_not_indInfo` refutes it, so what the clause excludes is a *collision* with
+      the block's own name and not the block's own name. -/
+  consts : ∀ c : Name, ConstOrigin env c → toKername c = mutualBlockKn indinfo →
+    ∃ (iid : InductiveId) (np : Nat) (nfs : List Nat), IndInfo env c iid np nfs
+  /-- A modelled block keyed at the block key is this one. `Erasure.checkIndKernameFresh`
+      guards the emitted environment against a cross-block key collision; nothing guards the
+      model against one. -/
+  blocks : ∀ (I : Name) (iid : InductiveId) (np : Nat) (nfs : List Nat),
+    IndInfo env I iid np nfs → iid.mutualBlockName = mutualBlockKn indinfo → I ∈ indinfo.all
+  /-- No modelled eliminator's key is a block key. `SpecEntryOk.elims`' reading at a prefix
+      whose keys are a block's and its members' eliminators': `Erases.indBlockKername`'s image
+      is a root kername and `toKername` keys a `casesOn` name at its prefix's module path, so
+      what this excludes is a type former declared at the root under the name an
+      anonymous-prefixed `casesOn` prints as. -/
+  elims : ∀ (c I : Name) (dp nm : Nat) (ns : List Name), CasesOnShape env c I dp nm →
+    toKername c ≠ indBlockKername ns
+  /-- A member's module path identifies it, so the prefix's eliminator keys are distinct and
+      each answers for its own member. `toModPath` keeps a name's components unescaped, so it
+      identifies every name but a `.str`/`.num` decimal variant. -/
+  memberNames : ∀ I ∈ indinfo.all, ∀ J : Name, toModPath J = toModPath I → J = I
+
+/-- **The specification prefix one `Erasure.register_inductive` conses**, as
+`regInv_registerInd_step` reads it: every member of the block is covered, the entries say of
+the source what `SpecContent` asks, the block key is declared, and every other entry is an
+eliminator's — hence a runtime key of the prefix, which is what exempts it from
+`SpecKeysEmitted.consts`. -/
+structure IndPrefixOf (env : VEnv) (bo : Name → Option Expr) (lp : Name → List Name)
+    (indinfo : InductiveVal) (pre : GlobalDeclarations) : Prop where
+  /-- Every member of the block is covered by the prefix. -/
+  covered : ∀ I ∈ indinfo.all, IndCovered env pre I
+  /-- The prefix's entries say of the source what `SpecContent` asks. -/
+  content : SpecContent env bo lp pre
+  /-- The block key is declared. -/
+  block : ∃ mib : MutualInductiveBody,
+    LBTerm.envLookup pre (mutualBlockKn indinfo) = some (.inductiveDecl mib)
+  /-- Every entry is the block's or an eliminator's, the latter a runtime key. -/
+  entries : ∀ p ∈ pre,
+    (p.1 = mutualBlockKn indinfo ∧ ∃ mib, p.2 = GlobalDecl.inductiveDecl mib) ∨
+    (RuntimeKey pre p.1 ∧ ∃ (body : LBTerm) (iid : InductiveId) (np dp : Nat) (nfs : List Nat),
+      p.2 = .constantDecl ⟨some body⟩ ∧ ElimBody iid np dp nfs body)
 
 /-! ## Saturation at the final state
 

@@ -1558,4 +1558,318 @@ theorem indBlocksCover_of_run {lenv : Environment} {env : VEnv}
     (hk : IndBlocksCover lenv s) : IndBlocksCover lenv s' :=
   ((visitExpr_shapeW (runClosedW_indBlocksCover P)).1 _ _ _ _ _ _ _ _ _ hvis hk hcfg).1
 
+/-! ## The specification prefix of a block registration, produced from a run
+
+`regInv_registerInd_step` takes its prefix as a parameter; `indPrefixOf_of_run` produces it
+from the run, at the definitions of `ColdStartShape.lean`. Three ingredients beyond the run
+lemmas: `ErasureSpec.BlockAdequate` reads the emitted block against the model, `UpstreamAsks`
+pins each member's block coordinates and each eliminator's segmentation, and
+`blockKey_fresh_of_cover` refutes the escape disjunct of the two registry reports — a member
+already registered at the entry state would put the block key in `Γ` through
+`RegInvShape'.inds`, hence in `s.gdecls` through `SpecKeysEmitted.inds`, where the guard's own
+verdict says it is not.
+-/
+
+set_option maxHeartbeats 2000000 in
+/-- **The specification prefix, produced from a run.** The block entry the cold branch conses
+together with one eliminator entry per member whose emitted body is not propositional, with
+the four obligations of `IndPrefixOf` discharged and the block entry exposed in the shape
+`regInv_registerInd_step`'s `hblk` asks for. `hsafe` is the safety column
+`ErasureSpec.propositionalInd_of_arity` spends at each member. -/
+theorem indPrefixOf_of_run {lenv : Environment} {env : VEnv} {Us : List Name}
+    {gw : Void IO.RealWorld → NameGenerator} {bo : Name → Option Expr}
+    {lp : Name → List Name} {Γ : GlobalDeclarations} {indinfo : InductiveVal}
+    {s : ErasureState} {ctx : ErasureContext} {cctx : Core.Context}
+    {ref : ST.Ref IO.RealWorld Core.State} {w : Void IO.RealWorld}
+    {r : InductiveId × InductiveArgMasks} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
+    (P : ErasureSpec lenv env Us gw) (A : UpstreamAsks env)
+    (Acc : RegAcc env bo lp Γ s) (hcovs : IndBlocksCover lenv s)
+    (K : BodiedKeysFresh env bo indinfo)
+    (hsafe : ∀ (I : Name) (iv : InductiveVal), lenv.find? I = some (.inductInfo iv) →
+      DefinitionSafety.safe ≤ (ConstantInfo.inductInfo iv).safety)
+    (hcfg : ConfigPinned ctx.config)
+    (hfind : lenv.find? indinfo.name = some (.inductInfo indinfo))
+    (hmiss : s.inductives.get? indinfo.name = none)
+    (hrun : Erasure.register_inductive indinfo s ctx cctx ref w = .ok (r, s₁) w₁) :
+    ∃ pre : GlobalDeclarations, IndPrefixOf env bo lp indinfo pre ∧
+      ∀ mib, LBTerm.envLookup s₁.gdecls (mutualBlockKn indinfo) = some (.inductiveDecl mib) →
+        LBTerm.envLookup pre (mutualBlockKn indinfo) = some (.inductiveDecl mib) := by
+  have hself : indinfo.name ∈ indinfo.all := P.block_adequate.selfMem _ indinfo hfind
+  have hCi : ∀ (nm : Name) (ci : ConstantInfo) (s' s'' : ErasureState)
+      (w' w'' : Void IO.RealWorld),
+      (getConstInfo nm : EraseM ConstantInfo) s' ctx cctx ref w' = .ok (ci, s'') w'' →
+      lenv.find? nm = some ci ∧ gw w' ≤ gw w'' := fun nm ci _ _ w' w'' h =>
+    let k := P.lookup_adequate.constInfo nm cctx ref w' ci w'' (pass_getConstInfo_core h)
+    ⟨k.2, k.1⟩
+  obtain ⟨hfresh, bodies, sM, hs1, -, -, hce, hgrow, hreport⟩ :=
+    run_register_inductive_cold_ok (Ci := fun nm ci => lenv.find? nm = some ci)
+      (fun nm ci s' s'' w' w'' h => (hCi nm ci s' s'' w' w'' h).1) hmiss hrun
+  have hents := (run_register_inductive_cold_entries (Ci := fun nm ci => lenv.find? nm = some ci)
+    (gw := gw) hCi
+    (fun le s₀ s₂ w₀ w₂ h => P.prim_monotone.getEnv s₀ ctx cctx ref w₀ le s₂ w₂ h)
+    (fun msg u s₀ s₂ w₀ w₂ h => P.prim_monotone.logInfo msg s₀ ctx cctx ref w₀ u s₂ w₂ h)
+    hcfg.2.2.2.1 hmiss hrun).2
+  have hmembers : ∀ n ∈ indinfo.all,
+      (∃ iv : InductiveVal, lenv.find? n = some (.inductInfo iv)) →
+      (s₁.inductives.get? n).isSome :=
+    run_register_inductive_members
+      (fun nm ci _s' _s'' w' w'' hci _hnm hiv =>
+        let ⟨iv, hlen⟩ := hiv
+        ⟨iv, Option.some.inj (((hCi nm ci _s' _s'' w' w'' hci).1).symm.trans hlen)⟩)
+      hmiss hrun
+  have hinds : s₁.inductives = sM.inductives := by rw [hs1]; rfl
+  -- the escape disjunct of the two registry reports, refuted
+  have hnotreg : ∀ (n : Name) (iid : InductiveId) (np : Nat) (nfs : List Nat),
+      IndInfo env n iid np nfs → iid.mutualBlockName = mutualBlockKn indinfo →
+      ¬ (s.inductives.get? n).isSome := by
+    intro n iid np nfs hi hkn hsome
+    obtain ⟨-, mib, hlook, -, -⟩ := (Acc.shape.inds n hsome).block iid np nfs hi
+    rw [hkn] at hlook
+    obtain ⟨mib', hmem⟩ := Acc.keysEmitted.inds _ mib hlook
+    exact blockKey_fresh_of_cover hcovs hfresh hfind hself hmiss mib' hmem
+  -- what one declared member of the block leaves behind
+  have hdata : ∀ (I : Name) (iid : InductiveId) (np : Nat) (nfs : List Nat),
+      I ∈ indinfo.all → IndInfo env I iid np nfs →
+      ∃ (ivm : InductiveVal) (oib : OneInductiveBody),
+        lenv.find? I = some (.inductInfo ivm) ∧
+        indinfo.all[iid.idx]? = some I ∧
+        iid = ⟨mutualBlockKn indinfo, iid.idx⟩ ∧ np = indinfo.numParams ∧
+        ivm.numParams = np ∧ nfs = kernelFieldsOf lenv ivm ∧
+        bodies[iid.idx]? = some oib ∧ oib.ctors.map (·.nargs) = nfs ∧
+        (oib.propositional = true → PropositionalInd env I) := by
+    intro I iid np nfs hImem hi
+    obtain ⟨ivm, hfindI, hnameI, hnpI, hkfI⟩ := P.block_adequate.bwd I np nfs hi.arity
+    obtain ⟨i, hidx⟩ := List.getElem?_of_mem hImem
+    have hfwd := P.block_adequate.fwd indinfo.name I indinfo ivm i nfs hfind hidx hfindI hkfI
+    obtain ⟨rfl, rfl, -⟩ := IndInfo.inj A hi hfwd
+    have hkn : (⟨indBlockKername indinfo.all, i⟩ : InductiveId).mutualBlockName
+        = mutualBlockKn indinfo := rfl
+    obtain ⟨rc, hrc⟩ := Option.isSome_iff_exists.mp (hmembers I hImem ⟨ivm, hfindI⟩)
+    rcases hents I rc hrc with hold | ⟨idx, inf, hidx2, hCinf, hlen2, hrc1, hmask⟩
+    · exact absurd (by rw [hold]; rfl) (hnotreg I _ _ _ hfwd hkn)
+    · obtain rfl : inf = ivm := by
+        have h := Option.some.inj (hCinf.symm.trans hfindI)
+        injection h
+      have hidxeq : i = idx := by
+        have h2 := P.block_adequate.fwd indinfo.name I indinfo inf idx nfs hfind hidx2 hfindI hkfI
+        exact congrArg InductiveId.idx (IndInfo.inj A hfwd h2).1
+      subst hidxeq
+      rcases hreport (by rw [← hinds]; exact hrc) with hold
+        | ⟨oib, hkn2, hbod, -, ⟨inf2, hCinf2, hflag⟩, hctors⟩
+      · exact absurd (by rw [hold]; rfl) (hnotreg I _ _ _ hfwd hkn)
+      · have hinf2 : inf2 = inf := by
+          have h := Option.some.inj (hCinf2.symm.trans hfindI)
+          injection h
+        rw [hinf2] at hflag
+        refine ⟨inf, oib, hfindI, hidx2, rfl, rfl, hnpI, kernelFieldsOf_eq hkfI, ?_, ?_, ?_⟩
+        · rw [hrc1] at hbod; exact hbod
+        · rw [hctors]
+          refine List.ext_getElem? (fun j => ?_)
+          rw [List.getElem?_map]
+          cases hj : inf.ctors[j]? with
+          | none =>
+            rw [List.getElem?_eq_none (by rw [hlen2]; exact List.getElem?_eq_none_iff.mp hj),
+              List.getElem?_eq_none (by rw [hkfI.1]; exact List.getElem?_eq_none_iff.mp hj)]
+            rfl
+          | some cn =>
+            obtain ⟨cv, hcvf, hnfj, -, -, -⟩ := hkfI.2 j cn hj
+            obtain ⟨ci, hci, hmk⟩ := hmask j cn hj
+            obtain rfl : ci = .ctorInfo cv := Option.some.inj (hci.symm.trans hcvf)
+            rw [hmk cv rfl, hnfj]
+            simp only [Option.map_some]
+            congr 1
+            rw [Array.count, ← Array.countP_toList]
+            simp only [Array.toList_replicate, List.countP_eq_length_filter,
+              List.filter_replicate,
+              if_pos (by decide : (Erasure.ConstructorArgRelevance.keep
+                == Erasure.ConstructorArgRelevance.keep) = true),
+              List.length_replicate]
+        · intro hp
+          exact P.propositionalInd_of_arity hfindI (hsafe I inf hfindI) (hflag ▸ hp)
+  -- the slots, read back
+  have hslot : ∀ e ∈ elimSlots lenv indinfo bodies,
+      ∃ (inf : InductiveVal) (oib : OneInductiveBody) (nm : Nat),
+        lenv.find? e.name = some (.inductInfo inf) ∧ e.name ∈ indinfo.all ∧
+        IndInfo env e.name ⟨mutualBlockKn indinfo, e.idx⟩ indinfo.numParams e.fields ∧
+        bodies[e.idx]? = some oib ∧ oib.propositional = false ∧
+        oib.ctors.map (·.nargs) = e.fields ∧
+        CasesOnShape env (Name.str e.name "casesOn") e.name e.dropped nm := by
+    intro e he
+    obtain ⟨hidx, ⟨inf, hfindI, hdrop, hfld⟩, oib, hbod, hprop⟩ := elimSlots_spec he
+    have hmem : e.name ∈ indinfo.all := List.mem_of_getElem? hidx
+    obtain ⟨nfs, hkf⟩ := P.block_adequate.fields e.name inf hfindI
+    have hfeq : nfs = e.fields := by rw [hfld, kernelFieldsOf_eq hkf]
+    have hii := P.block_adequate.fwd indinfo.name e.name indinfo inf e.idx nfs hfind hidx
+      hfindI hkf
+    rw [hfeq] at hii
+    obtain ⟨-, oib', -, -, -, -, -, -, hbod', hctors, -⟩ := hdata e.name _ _ _ hmem hii
+    have hoo : oib' = oib := Option.some.inj (hbod'.symm.trans hbod)
+    rw [hoo] at hctors
+    obtain ⟨nm, vc, -, -, hsh⟩ := P.block_adequate.casesOnDecl (Name.str e.name "casesOn")
+      e.name inf rfl rfl hfindI
+    exact ⟨inf, oib, nm, hfindI, hmem, hii, hbod, hprop, hctors, hdrop ▸ hsh⟩
+  -- the prefix's keys are distinct
+  have hfreshKey : ∀ e ∈ elimSlots lenv indinfo bodies,
+      toKername (Name.str e.name "casesOn") ≠ mutualBlockKn indinfo := by
+    intro e he
+    obtain ⟨_inf, _oib, _nm, -, -, -, -, -, -, hsh⟩ := hslot e he
+    exact K.elims _ _ _ _ indinfo.all hsh
+  have hinj : ∀ e ∈ elimSlots lenv indinfo bodies, ∀ f ∈ elimSlots lenv indinfo bodies,
+      toKername (Name.str e.name "casesOn") = toKername (Name.str f.name "casesOn") → e = f := by
+    intro e he f hf hk
+    obtain ⟨_inf1, _oib1, _nm1, hfindE, hmemE, hiiE, -, -, -, -⟩ := hslot e he
+    obtain ⟨_inf2, _oib2, _nm2, hfindF, hmemF, hiiF, -, -, -, -⟩ := hslot f hf
+    have hname : e.name = f.name := by
+      refine K.memberNames f.name hmemF e.name ?_
+      have := congrArg Kername.mp hk
+      simpa [toKername] using this
+    obtain ⟨hidxE, ⟨infE, hfE, hdE, hfldE⟩, -⟩ := elimSlots_spec he
+    obtain ⟨hidxF, ⟨infF, hfF, hdF, hfldF⟩, -⟩ := elimSlots_spec hf
+    rw [hname] at hfE hiiE
+    obtain rfl : infE = infF := by
+      have h := Option.some.inj (hfE.symm.trans hfF)
+      injection h
+    have hidx : e.idx = f.idx := by
+      rw [hname] at hidxE
+      have hkfE : KernelFields lenv infE (kernelFieldsOf lenv infE) := by
+        obtain ⟨nfs, hkf⟩ := P.block_adequate.fields f.name infE hfF
+        exact (kernelFieldsOf_eq hkf) ▸ hkf
+      have h1 := P.block_adequate.fwd indinfo.name f.name indinfo infE e.idx
+        (kernelFieldsOf lenv infE) hfind hidxE hfF hkfE
+      have h2 := P.block_adequate.fwd indinfo.name f.name indinfo infE f.idx
+        (kernelFieldsOf lenv infE) hfind hidxF hfF hkfE
+      exact congrArg InductiveId.idx (IndInfo.inj A h1 h2).1
+    obtain ⟨n1, i1, d1, f1⟩ := e
+    obtain ⟨n2, i2, d2, f2⟩ := f
+    simp only [ElimSlot.mk.injEq]
+    exact ⟨hname, hidx, hdE.trans hdF.symm, hfldE.trans hfldF.symm⟩
+  have hnodup : ((indPrefix indinfo bodies (elimSlots lenv indinfo bodies)).map Prod.fst).Nodup := by
+    rw [indPrefix, List.map_cons, List.map_map, List.nodup_cons]
+    refine ⟨?_, ?_⟩
+    · intro hmem
+      obtain ⟨e, he, hk⟩ := List.mem_map.mp hmem
+      exact hfreshKey e he hk
+    · rw [List.Nodup, List.pairwise_map]
+      refine List.Pairwise.imp_of_mem ?_ (List.Pairwise.filterMap
+        (l := indinfo.all.zipIdx)
+        (R := fun p q => p.2 ≠ q.2)
+        (S := fun e f => e.idx ≠ f.idx) _ ?_ ?_)
+      · intro e f he hf hne hk
+        exact hne (congrArg ElimSlot.idx (hinj e he f hf hk))
+      · intro a a' hne b hb b' hb'
+        have hbi : b.idx = a.2 := by
+          split at hb
+          · split at hb
+            · exact absurd hb (by simp)
+            · cases hb; rfl
+          · exact absurd hb (by simp)
+        have hbi' : b'.idx = a'.2 := by
+          split at hb'
+          · split at hb'
+            · exact absurd hb' (by simp)
+            · cases hb'; rfl
+          · exact absurd hb' (by simp)
+        rw [hbi, hbi']; exact hne
+      · rw [← List.pairwise_map (f := Prod.snd) (R := (· ≠ ·)), List.zipIdx_map_snd]
+        exact List.nodup_range'
+  have hlookElim : ∀ e ∈ elimSlots lenv indinfo bodies,
+      LBTerm.envLookup (indPrefix indinfo bodies (elimSlots lenv indinfo bodies))
+          (toKername (Name.str e.name "casesOn"))
+        = some (.constantDecl ⟨some (mkElimBody ⟨mutualBlockKn indinfo, e.idx⟩
+            indinfo.numParams e.dropped e.fields)⟩) := by
+    intro e he
+    exact envLookup_of_mem_nodup
+      (p := elimEntry (mutualBlockKn indinfo) indinfo.numParams e)
+      (by rw [indPrefix]; exact List.mem_cons_of_mem _ (List.mem_map_of_mem he)) hnodup
+  have hcov : ∀ I ∈ indinfo.all,
+      IndCovered env (indPrefix indinfo bodies (elimSlots lenv indinfo bodies)) I := by
+    intro I hI
+    refine ⟨?_, ?_⟩
+    · intro iid np nfs hi
+      obtain ⟨inf, oib, hfindI, hidxI, hiid, hnp, -, -, hbod, hctors, hflag⟩ :=
+        hdata I iid np nfs hI hi
+      refine ⟨IndInfo.indDeclOf A hi, { npars := indinfo.numParams, bodies := bodies }, ?_,
+        ⟨hnp.symm, oib, hbod, hctors⟩, fun oib' hoib' hp => ?_⟩
+      · rw [hiid]; exact indPrefix_block
+      · obtain rfl : oib' = oib := Option.some.inj (hoib'.symm.trans hbod)
+        exact hflag hp
+    · intro c dp nm hsh hinf hco
+      obtain ⟨ds, env₀, decl, t, hds, hd, hle, ht, hnameI, hdp, hnm⟩ := hsh.2.2.2
+      obtain ⟨iid0, hi0⟩ :=
+        IndArity.indInfo (env := env) (I := I) (np := decl.nparams)
+          (nfs := ctorFieldCounts decl.nparams t)
+          ⟨ds, env₀, decl, t, hds, hd, hle, ht, hnameI, rfl, rfl⟩
+      obtain ⟨inf, oib, hfindI, hidxI, hiid, hnp, -, hnfs, hbod, hctors, hflag⟩ :=
+        hdata I iid0 _ _ hI hi0
+      obtain ⟨nm', vc, -, -, hsh'⟩ := P.block_adequate.casesOnDecl c I inf hsh.1 hsh.2.1 hfindI
+      obtain ⟨hdpeq, hnmeq⟩ := CasesOnShape.inj A hsh hsh'
+      have hpf : oib.propositional = false := propositional_false_of_informative hflag hinf
+      have hmemslot := elimSlots_mem (indinfo := indinfo) hidxI hfindI hbod hpf
+      have hckey : toKername c = toKername (Name.str I "casesOn") := by
+        rw [eq_str_casesOn hsh.1, hsh.2.1]
+      refine ⟨iid0, decl.nparams, ctorFieldCounts decl.nparams t, ⟨⟨_, ?_, .cases⟩, ?_⟩, hi0, ?_⟩
+      · rw [hckey]
+        have hl := hlookElim _ hmemslot
+        simp only [] at hl
+        rw [hl, hnp, ← hnfs, ← hdpeq, ← hiid, hnp]
+      · exact ⟨{ npars := indinfo.numParams, bodies := bodies },
+          by rw [hiid]; exact indPrefix_block,
+          ⟨hnp.symm, oib, hbod, hctors⟩, oib, hbod, hpf⟩
+      · rw [ctorFieldCounts, List.length_map]
+        exact hnm.symm
+  refine ⟨indPrefix indinfo bodies (elimSlots lenv indinfo bodies), ⟨hcov, ?_, ?_, ?_⟩, ?_⟩
+  · -- content
+    refine ⟨hnodup, ?_, ?_, ?_, ?_⟩
+    · intro c b hbo hs
+      obtain ⟨d, hd⟩ := Option.isSome_iff_exists.mp hs
+      rcases indPrefix_key_cases hd with ⟨hk, -⟩ | ⟨e, he, hk, -⟩
+      · exact absurd hk (K.bodied c b hbo)
+      · exact absurd (toKername_of_cleanIdent_casesOn hk) (by rw [K.notCasesOn c b hbo]; simp)
+    · intro c hbo hco hnc hs
+      obtain ⟨d, hd⟩ := Option.isSome_iff_exists.mp hs
+      rcases indPrefix_key_cases hd with ⟨hk, -⟩ | ⟨e, he, hk, -⟩
+      · obtain ⟨iid, np, nfs, hi⟩ := K.consts c hco hk
+        exact absurd hi (constOrigin_not_indInfo A hco iid np nfs)
+      · exact absurd (toKername_of_cleanIdent_casesOn hk) (by rw [hnc]; simp)
+    · intro I iid np nfs hi hs
+      obtain ⟨d, hd⟩ := Option.isSome_iff_exists.mp hs
+      rcases indPrefix_key_cases hd with ⟨hk, -⟩ | ⟨e, he, hk, -⟩
+      · exact hcov I (K.blocks I iid np nfs hi hk)
+      · obtain ⟨ds, env₀, decl, t, -, -, -, -, -, hkn, -, -⟩ := hi.block
+        obtain ⟨_i, _o, _n, -, -, -, -, -, -, hsh⟩ := hslot e he
+        exact absurd (hk ▸ hkn) (K.elims _ _ _ _ (decl.types.map (·.name)) hsh)
+    · intro c I dp nm hsh hs
+      obtain ⟨d, hd⟩ := Option.isSome_iff_exists.mp hs
+      rcases indPrefix_key_cases hd with ⟨hk, -⟩ | ⟨e, he, hk, -⟩
+      · exact absurd hk (K.elims c I dp nm indinfo.all hsh)
+      · obtain ⟨_i, _o, _n, -, hmemE, -, -, -, -, -⟩ := hslot e he
+        have hckey : toKername c = toKername (Name.str I "casesOn") := by
+          rw [eq_str_casesOn hsh.1, hsh.2.1]
+        have hIe : I = e.name := by
+          refine K.memberNames e.name hmemE I ?_
+          have h := congrArg Kername.mp (hckey.symm.trans hk)
+          simpa [toKername] using h
+        rw [hIe]
+        exact hcov e.name hmemE
+  · exact ⟨_, indPrefix_block⟩
+  · -- entries
+    intro p hp
+    rw [indPrefix, List.mem_cons] at hp
+    rcases hp with rfl | hp
+    · exact Or.inl ⟨rfl, _, rfl⟩
+    · obtain ⟨e, he, rfl⟩ := List.mem_map.mp hp
+      obtain ⟨_i, oib, _n, -, -, -, hbod, hpf, hctors, -⟩ := hslot e he
+      refine Or.inr ⟨⟨⟨mutualBlockKn indinfo, e.idx⟩, indinfo.numParams, e.dropped, e.fields,
+        ⟨_, ?_, .cases⟩, { npars := indinfo.numParams, bodies := bodies }, indPrefix_block,
+        ⟨rfl, oib, hbod, hctors⟩, oib, hbod, hpf⟩, _, _, _, _, _, rfl, .cases⟩
+      exact hlookElim e he
+  · intro mib hmib
+    rw [hs1, registerIndState] at hmib
+    simp only [] at hmib
+    rw [envLookup_cons_self] at hmib
+    have h := Option.some.inj hmib
+    injection h with h'
+    rw [← h']
+    exact indPrefix_block
+
 end LeanToLambdaBox
