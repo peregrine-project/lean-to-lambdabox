@@ -106,20 +106,22 @@ jobs:
 
       # A ratchet, not a zero: the residue is the tooling, the frozen benchmark sources,
       # `Optimize.lean` and `ErasesUniform.lean`, which `doc/coverage.md` accounts for
-      # (240), plus `test/Vacuity.lean`'s five regression lemmas (245) and, since the
-      # `dev/fix` merge, the twelve shipping-fix regressions under `test/fixes/` (94 more,
-      # F-ACC/F-ARITYLET/F-DEPLCTX/F-DEPTH/F-EQREC/F-ETA/F-ETA2/F-KERNAME/F-PROP/F-QUOT/
-      # F-SPARSE/F-UNSAFEREC.lean, 339 total) — each a regression file not imported by the
-      # theorem it guards, by the same construction `test/Vacuity.lean` already was. The
-      # budget fails when a module leaves the Green.lean-union-Capstone.lean closure, which
-      # is the regression this guards; a drop below it is fine and the budget is lowered by
-      # hand.
+      # (240), plus `test/Vacuity.lean`'s nine regression lemmas (249 — four more since
+      # `origin: derive ask 2's classification conjunct, refute its exclusion conjunct`
+      # added the counterexample records `not_upstreamAsks_natEnv`/`erases_natZ_two_ways`
+      # and their two witnesses) and, since the `dev/fix` merge, the twelve shipping-fix
+      # regressions under `test/fixes/` (94 more, F-ACC/F-ARITYLET/F-DEPLCTX/F-DEPTH/
+      # F-EQREC/F-ETA/F-ETA2/F-KERNAME/F-PROP/F-QUOT/F-SPARSE/F-UNSAFEREC.lean, 343 total)
+      # — each a regression file not imported by the theorem it guards, by the same
+      # construction `test/Vacuity.lean` already was. The budget fails when a module
+      # leaves the Green.lean-union-Capstone.lean closure, which is the regression this
+      # guards; a drop below it is fine and the budget is lowered by hand.
       - name: Dead-declaration closure
         run: |
           out=$(lake exe hygiene --dead || true)
           n=$(printf '%s\n' "$out" | sed -n 's/^--dead: \([0-9]*\) .*/\1/p')
-          echo "declarations outside the closure: ${n:-unparsed} (budget 339)"
-          if [ -z "$n" ] || [ "$n" -gt 339 ]; then
+          echo "declarations outside the closure: ${n:-unparsed} (budget 343)"
+          if [ -z "$n" ] || [ "$n" -gt 343 ]; then
             printf '%s\n' "$out" >&2
             exit 1
           fi
