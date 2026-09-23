@@ -1411,4 +1411,27 @@ theorem regKeyed_recConstState {env : VEnv} {names : List Name}
   rw [recConstState_eq]
   exact regKeyed_foldl_recConstStep names.zipIdx s h
 
+/-! ## The block key a registration mints is fresh in the emitted environment
+
+`Erasure.checkIndKernameFresh` scans `ErasureState.constants` and `ErasureState.indBlocks`
+and **not** `ErasureState.gdecls` (`Erasure.lean:233-238`), so its verdict says nothing on its
+own about the emitted environment (F-B-1). The block-shaped half of the gap is closed by
+`IndBlocksCover` (`ErasureRun.lean`), the mirror between the two fields
+`Erasure.register_inductive` writes together; the constant-shaped half needs no mirror, only
+`RegKeyed` and the canonicity of the constant registry, and is proved here beside them. -/
+
+/-- **The constant-shaped half needs no mirror**: `RegKeyed.consts` names a registered
+constant, `CanonicalConstants` says the registry holds that constant's canonical kername, and
+`Erasure.checkIndKernameFresh`'s first scan is exactly over that column. -/
+theorem constKey_fresh {env : VEnv} {s : ErasureState} {indinfo : InductiveVal}
+    (hk : RegKeyed env s) (hcanon : CanonicalConstants s)
+    (hfresh : IndKernameFresh indinfo.all (mutualBlockKn indinfo) s) :
+    ∀ cb : ConstantBody,
+      (mutualBlockKn indinfo, GlobalDecl.constantDecl cb) ∉ s.gdecls := by
+  intro cb hmem
+  obtain ⟨n, hkn, hns⟩ := hk.consts _ _ hmem
+  obtain ⟨k, hk'⟩ := Option.isSome_iff_exists.1 hns
+  have hcan : k = toKername n := hcanon hk'
+  exact hfresh.1 (n, k) (Std.HashMap.mem_toList_iff_getElem?_eq_some.2 hk') (by rw [hcan, ← hkn])
+
 end LeanToLambdaBox

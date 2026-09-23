@@ -2688,26 +2688,185 @@ theorem run_register_inductive_cold_constants {indinfo : InductiveVal} {s : Eras
       exact hP
 
 set_option maxHeartbeats 1000000 in
-/-- **Every member of a freshly registered block ends up in the registry.** `IndBlocksCover`'s
-`reg` case (the `RunClosedW` clause for `register_inductive`) needs every member of
-`indinfo.all` registered at the exit state, since the row the cold branch conses is
-`(mutualBlockKn indinfo, indinfo.all)` — `run_register_inductive_cold_ok`'s registry report
-runs the other way (`sM.inductives.get? n = some rc → …`), and `pass_register_inductive_entry`
-(`VisitExprRefines/Step/Passes.lean:411`) only answers this for `indinfo.name`, the one member
-a caller already knows resolves to an inductive. This is the same `run_list_mapM_ok` induction
-at every member, given that every member's `getConstInfo` answers `.inductInfo` (F-B-2); `Ci`
-is not threaded here (unneeded), only the shape fact `hCi` supplies at a name of the block. -/
-theorem run_register_inductive_members {indinfo : InductiveVal} {s : ErasureState}
+/-- **The block table grows by exactly the row the cold branch conses.** The only writer of
+`ErasureState.indBlocks` is the closing `modify` of `register_inductive`
+(`Erasure.lean:393`), so the member loop — `Erasure.addAxiom` at an `@[extern]` constructor
+included, since `addAxiomState` writes `constants` and `gdecls` alone — leaves the table
+alone and the exit state's table is the entry state's under one new row. Needed for
+`IndBlocksCover`'s `reg` case (F-B-1): `BodylessExt`, the only state relation
+`run_register_inductive_cold_ok` reports, says nothing about `indBlocks`, so an old block's
+row could not otherwise be found again at the exit state. -/
+theorem run_register_inductive_cold_blocks {indinfo : InductiveVal} {s : ErasureState}
+    {ctx : ErasureContext} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
+    {w : Void IO.RealWorld} {r : InductiveId × InductiveArgMasks} {s₁ : ErasureState}
+    {w₁ : Void IO.RealWorld}
+    (hmiss : s.inductives.get? indinfo.name = none)
+    (hrun : register_inductive indinfo s ctx cctx ref w = .ok (r, s₁) w₁) :
+    s₁.indBlocks = (mutualBlockKn indinfo, indinfo.all) :: s.indBlocks := by
+  unfold register_inductive at hrun
+  simp only [] at hrun
+  rw [run_bind_ok] at hrun
+  obtain ⟨s0, sA, wA, hget, hk⟩ := hrun
+  rw [run_get] at hget
+  cases hget
+  rw [hmiss] at hk
+  simp only [] at hk
+  rw [run_bind_ok] at hk
+  obtain ⟨ug, sG, wG, hguard, hk⟩ := hk
+  obtain ⟨hsG, hwG, -⟩ := run_checkIndKernameFresh_ok hguard
+  subst sG
+  subst wG
+  rw [run_bind_ok] at hk
+  obtain ⟨bodies, sM, wM, hmap, htail⟩ := hk
+  rw [run_bind_ok] at htail
+  obtain ⟨u, sN, wN, hmod, htail2⟩ := htail
+  rw [run_modify] at hmod
+  cases hmod
+  rw [run_bind_ok] at htail2
+  obtain ⟨sX, sY, wY, hget2, hp⟩ := htail2
+  rw [run_get] at hget2
+  cases hget2
+  rw [run_pure] at hp
+  cases hp
+  have key := run_list_mapM_ok ctx cctx ref
+    (P := fun (_pre : List (Name × Nat)) (_outs : List OneInductiveBody)
+        s' (_w' : Void IO.RealWorld) => s'.indBlocks = s.indBlocks)
+    rfl ?step hmap
+  · show (mutualBlockKn indinfo, indinfo.all) :: sM.indBlocks = _
+    rw [key]
+  case step =>
+    intro pre x post outs sP wP b sQ wQ hL hP hbody
+    rw [run_bind_ok] at hbody
+    obtain ⟨ci, sa, wa, hci, hrest⟩ := hbody
+    have hsa : sa = sP := run_getConstInfo_state sP ctx cctx ref wP hci
+    subst hsa
+    split at hrest
+    case _ _ inf =>
+      rw [run_bind_ok] at hrest
+      obtain ⟨res, sb, wb, hctors, hrest2⟩ := hrest
+      have inner := run_list_mapM_ok ctx cctx ref
+        (P := fun (_pre' : List Name) (_outs' : List (ConstructorBody × ConstructorArgMask))
+            s' (_w' : Void IO.RealWorld) => s'.indBlocks = sa.indBlocks)
+        rfl ?inner hctors
+      · split at hrest2
+        all_goals
+          rw [run_bind_ok] at hrest2
+          obtain ⟨projs, sc, wc, hpj, hrest3⟩ := hrest2
+          rw [run_pure] at hpj
+          have hsc : sc = sb := by cases hpj; rfl
+          have hwc : wc = wb := by cases hpj; rfl
+          subst hsc
+          subst hwc
+          rw [run_bind_ok] at hrest3
+          obtain ⟨uu, sd, wd, hmod2, hfin⟩ := hrest3
+          rw [run_modify] at hmod2
+          cases hmod2
+          rw [run_pure] at hfin
+          cases hfin
+          exact inner.trans hP
+      case inner =>
+        clear hctors
+        intro pre' cn post' outs' sA' wA' bres sB' wB' hL' hax' hb
+        rw [run_bind_ok] at hb
+        obtain ⟨envv, se, we, henv, h2⟩ := hb
+        have hse : se = sA' := run_getEnv_state sA' ctx cctx ref wA' henv
+        subst hse
+        rw [run_bind_ok] at h2
+        obtain ⟨c1, sr, wr, hread, h3⟩ := h2
+        rw [run_read] at hread
+        cases hread
+        split at h3
+        · rw [run_bind_ok] at h3
+          obtain ⟨u1, sl, wl, hlog, h4⟩ := h3
+          have hsl := run_logInfo_state _ ctx cctx ref _ hlog
+          subst hsl
+          rw [run_bind_ok] at h4
+          obtain ⟨u2, sax, wax, hadd, h5⟩ := h4
+          obtain ⟨hst, hwt, -⟩ := run_addAxiom_ok hadd
+          subst hst
+          subst hwt
+          rw [run_bind_ok] at h5
+          obtain ⟨ci2, s6, w6, hci2, h6⟩ := h5
+          have h6s := run_getConstInfo_state _ ctx cctx ref _ hci2
+          subst h6s
+          split at h6
+          case _ cinf =>
+            rw [run_bind_ok] at h6
+            obtain ⟨c2, s7, w7, hread2, h7⟩ := h6
+            rw [run_read] at hread2
+            cases hread2
+            split at h7
+            all_goals
+              rw [run_bind_ok] at h7
+              obtain ⟨am, s8, w8, ham, h8⟩ := h7
+              first
+                | (have hs8 := run_liftMetaM_state _ ctx cctx ref _ ham; subst hs8)
+                | (rw [run_pure] at ham; cases ham)
+              rw [run_pure] at h8
+              cases h8
+              exact hax'
+          case _ hne =>
+            rw [run_panicWithPosWithDecl] at h6
+            cases h6
+            exact hax'
+        · rw [run_bind_ok] at h3
+          obtain ⟨ci2, s6, w6, hci2, h6⟩ := h3
+          have h6s := run_getConstInfo_state _ ctx cctx ref _ hci2
+          subst h6s
+          split at h6
+          case _ cinf =>
+            rw [run_bind_ok] at h6
+            obtain ⟨c2, s7, w7, hread2, h7⟩ := h6
+            rw [run_read] at hread2
+            cases hread2
+            split at h7
+            all_goals
+              rw [run_bind_ok] at h7
+              obtain ⟨am, s8, w8, ham, h8⟩ := h7
+              first
+                | (have hs8 := run_liftMetaM_state _ ctx cctx ref _ ham; subst hs8)
+                | (rw [run_pure] at ham; cases ham)
+              rw [run_pure] at h8
+              cases h8
+              exact hax'
+          case _ hne =>
+            rw [run_panicWithPosWithDecl] at h6
+            cases h6
+            exact hax'
+    all_goals
+      rw [run_panicWithPosWithDecl] at hrest
+      cases hrest
+      exact hP
+
+set_option maxHeartbeats 1000000 in
+/-- **Every *declared* member of a freshly registered block ends up in the registry.**
+`IndBlocksCover`'s `reg` case (the `RunClosedW` clause for `register_inductive`) needs the
+members of the row the cold branch conses — `(mutualBlockKn indinfo, indinfo.all)` —
+registered at the exit state: `run_register_inductive_cold_ok`'s registry report runs the
+other way (`sM.inductives.get? n = some rc → …`), and `pass_register_inductive_entry`
+(`VisitExprRefines/Step/Passes.lean:411`) only answers this for `indinfo.name`, the one
+member a caller already knows resolves to an inductive. This is the same `run_list_mapM_ok`
+induction at every member (F-B-2).
+
+The conclusion is **guarded by `Decl`**, the caller's record of which members
+`Lean.getConstInfo` answers for with an `.inductInfo`: the member loop's match falls through
+to `unreachable!` at any other answer (`Erasure.lean:346`), leaving that member unregistered,
+so an unguarded conclusion would hold only under a further assumption that every member of
+`Lean.InductiveVal.all` is a declared inductive. `Decl` is spent where the guard is paid —
+at `indinfo.name` the provenance of the call supplies it. `Ci` is not threaded here
+(unneeded), only the shape fact `hCi` supplies at a guarded name of the block. -/
+theorem run_register_inductive_members {Decl : Name → Prop} {indinfo : InductiveVal}
+    {s : ErasureState}
     {ctx : ErasureContext} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
     {w : Void IO.RealWorld} {r : InductiveId × InductiveArgMasks} {s₁ : ErasureState}
     {w₁ : Void IO.RealWorld}
     (hCi : ∀ (nm : Name) (ci : ConstantInfo) (s' s'' : ErasureState)
         (w' w'' : Void IO.RealWorld),
       (getConstInfo nm : EraseM ConstantInfo) s' ctx cctx ref w' = .ok (ci, s'') w'' →
-      nm ∈ indinfo.all → ∃ inf : InductiveVal, ci = .inductInfo inf)
+      nm ∈ indinfo.all → Decl nm → ∃ inf : InductiveVal, ci = .inductInfo inf)
     (hmiss : s.inductives.get? indinfo.name = none)
     (hrun : register_inductive indinfo s ctx cctx ref w = .ok (r, s₁) w₁) :
-    ∀ n ∈ indinfo.all, (s₁.inductives.get? n).isSome := by
+    ∀ n ∈ indinfo.all, Decl n → (s₁.inductives.get? n).isSome := by
   unfold register_inductive at hrun
   simp only [] at hrun
   rw [run_bind_ok] at hrun
@@ -2735,14 +2894,14 @@ theorem run_register_inductive_members {indinfo : InductiveVal} {s : ErasureStat
   cases hp
   have key := run_list_mapM_ok ctx cctx ref
     (P := fun (pre : List (Name × Nat)) (_outs : List OneInductiveBody)
-        s' (_w' : Void IO.RealWorld) => ∀ p ∈ pre, (s'.inductives.get? p.1).isSome)
+        s' (_w' : Void IO.RealWorld) => ∀ p ∈ pre, Decl p.1 → (s'.inductives.get? p.1).isSome)
     (by simp) ?step hmap
-  · intro n hn
+  · intro n hn hdn
     obtain ⟨p, hp1, hp2⟩ : ∃ p ∈ indinfo.all.zipIdx, p.1 = n :=
       List.mem_map.mp (by rw [List.zipIdx_map_fst]; exact hn)
     have hsome := key p hp1
     rw [hp2] at hsome
-    exact hsome
+    exact hsome hdn
   case step =>
     intro pre x post outs sP wP b sQ wQ hL hP hbody
     rw [run_bind_ok] at hbody
@@ -2751,111 +2910,122 @@ theorem run_register_inductive_members {indinfo : InductiveVal} {s : ErasureStat
     subst hsa
     have hfst : indinfo.all[pre.length]? = some x.1 := zipIdx_split_fst hL
     have hcimem : x.1 ∈ indinfo.all := List.mem_of_getElem? hfst
-    obtain ⟨inf, hinf⟩ := hCi x.1 ci _ _ _ _ hci hcimem
-    rw [hinf] at hrest
-    simp only [] at hrest
-    rw [run_bind_ok] at hrest
-    obtain ⟨res, sb, wb, hctors, hrest2⟩ := hrest
-    have inner := run_list_mapM_ok ctx cctx ref
-      (P := fun (_pre' : List Name) (_outs' : List (ConstructorBody × ConstructorArgMask))
-          s' (_w' : Void IO.RealWorld) => AxiomExt sa s')
-      (AxiomExt.rfl' sa) ?inner hctors
-    · have hbind : sb.inductives = sa.inductives := inner.inds
-      split at hrest2
-      all_goals
-        rw [run_bind_ok] at hrest2
-        obtain ⟨projs, sc, wc, hpj, hrest3⟩ := hrest2
-        rw [run_pure] at hpj
-        have hsc : sc = sb := by cases hpj; rfl
-        have hwc : wc = wb := by cases hpj; rfl
-        subst hsc
-        subst hwc
-        rw [run_bind_ok] at hrest3
-        obtain ⟨uu, sd, wd, hmod2, hfin⟩ := hrest3
-        rw [run_modify] at hmod2
-        cases hmod2
-        rw [run_pure] at hfin
-        cases hfin
-        intro p hp3
-        rcases List.mem_append.mp hp3 with h1 | h1
-        · show (Std.HashMap.get? (Std.HashMap.insert _ _ _) p.1).isSome
-          rw [Std.HashMap.get?_insert]
-          split
-          · simp
-          · rw [hbind]; exact hP p h1
-        · simp only [List.mem_singleton] at h1
-          show (Std.HashMap.get? (Std.HashMap.insert _ _ _) p.1).isSome
-          rw [h1, Std.HashMap.get?_insert]
-          simp
-    case inner =>
-      clear hctors
-      intro pre' cn post' outs' sA' wA' bres sB' wB' hL' hax' hb
-      rw [run_bind_ok] at hb
-      obtain ⟨envv, se, we, henv, h2⟩ := hb
-      have hse : se = sA' := run_getEnv_state sA' ctx cctx ref wA' henv
-      subst hse
-      rw [run_bind_ok] at h2
-      obtain ⟨c1, sr, wr, hread, h3⟩ := h2
-      rw [run_read] at hread
-      cases hread
-      split at h3
-      · rw [run_bind_ok] at h3
-        obtain ⟨u1, sl, wl, hlog, h4⟩ := h3
-        have hsl := run_logInfo_state _ ctx cctx ref _ hlog
-        subst hsl
-        rw [run_bind_ok] at h4
-        obtain ⟨u2, sax, wax, hadd, h5⟩ := h4
-        obtain ⟨hst, hwt, -⟩ := run_addAxiom_ok hadd
-        subst hst
-        subst hwt
-        rw [run_bind_ok] at h5
-        obtain ⟨ci2, s6, w6, hci2, h6⟩ := h5
-        have h6s := run_getConstInfo_state _ ctx cctx ref _ hci2
-        subst h6s
-        split at h6
-        case _ cinf =>
-          rw [run_bind_ok] at h6
-          obtain ⟨c2, s7, w7, hread2, h7⟩ := h6
-          rw [run_read] at hread2
-          cases hread2
-          split at h7
-          all_goals
-            rw [run_bind_ok] at h7
-            obtain ⟨am, s8, w8, ham, h8⟩ := h7
-            first
-              | (have hs8 := run_liftMetaM_state _ ctx cctx ref _ ham; subst hs8)
-              | (rw [run_pure] at ham; cases ham)
-            rw [run_pure] at h8
-            cases h8
+    cases ci
+    case inductInfo inf =>
+      simp only [] at hrest
+      rw [run_bind_ok] at hrest
+      obtain ⟨res, sb, wb, hctors, hrest2⟩ := hrest
+      have inner := run_list_mapM_ok ctx cctx ref
+        (P := fun (_pre' : List Name) (_outs' : List (ConstructorBody × ConstructorArgMask))
+            s' (_w' : Void IO.RealWorld) => AxiomExt sa s')
+        (AxiomExt.rfl' sa) ?inner hctors
+      · have hbind : sb.inductives = sa.inductives := inner.inds
+        split at hrest2
+        all_goals
+          rw [run_bind_ok] at hrest2
+          obtain ⟨projs, sc, wc, hpj, hrest3⟩ := hrest2
+          rw [run_pure] at hpj
+          have hsc : sc = sb := by cases hpj; rfl
+          have hwc : wc = wb := by cases hpj; rfl
+          subst hsc
+          subst hwc
+          rw [run_bind_ok] at hrest3
+          obtain ⟨uu, sd, wd, hmod2, hfin⟩ := hrest3
+          rw [run_modify] at hmod2
+          cases hmod2
+          rw [run_pure] at hfin
+          cases hfin
+          intro p hp3 hdp
+          rcases List.mem_append.mp hp3 with h1 | h1
+          · show (Std.HashMap.get? (Std.HashMap.insert _ _ _) p.1).isSome
+            rw [Std.HashMap.get?_insert]
+            split
+            · simp
+            · rw [hbind]; exact hP p h1 hdp
+          · simp only [List.mem_singleton] at h1
+            show (Std.HashMap.get? (Std.HashMap.insert _ _ _) p.1).isSome
+            rw [h1, Std.HashMap.get?_insert]
+            simp
+      case inner =>
+        clear hctors
+        intro pre' cn post' outs' sA' wA' bres sB' wB' hL' hax' hb
+        rw [run_bind_ok] at hb
+        obtain ⟨envv, se, we, henv, h2⟩ := hb
+        have hse : se = sA' := run_getEnv_state sA' ctx cctx ref wA' henv
+        subst hse
+        rw [run_bind_ok] at h2
+        obtain ⟨c1, sr, wr, hread, h3⟩ := h2
+        rw [run_read] at hread
+        cases hread
+        split at h3
+        · rw [run_bind_ok] at h3
+          obtain ⟨u1, sl, wl, hlog, h4⟩ := h3
+          have hsl := run_logInfo_state _ ctx cctx ref _ hlog
+          subst hsl
+          rw [run_bind_ok] at h4
+          obtain ⟨u2, sax, wax, hadd, h5⟩ := h4
+          obtain ⟨hst, hwt, -⟩ := run_addAxiom_ok hadd
+          subst hst
+          subst hwt
+          rw [run_bind_ok] at h5
+          obtain ⟨ci2, s6, w6, hci2, h6⟩ := h5
+          have h6s := run_getConstInfo_state _ ctx cctx ref _ hci2
+          subst h6s
+          split at h6
+          case _ cinf =>
+            rw [run_bind_ok] at h6
+            obtain ⟨c2, s7, w7, hread2, h7⟩ := h6
+            rw [run_read] at hread2
+            cases hread2
+            split at h7
+            all_goals
+              rw [run_bind_ok] at h7
+              obtain ⟨am, s8, w8, ham, h8⟩ := h7
+              first
+                | (have hs8 := run_liftMetaM_state _ ctx cctx ref _ ham; subst hs8)
+                | (rw [run_pure] at ham; cases ham)
+              rw [run_pure] at h8
+              cases h8
+              exact hax'.trans (AxiomExt.addAxiom cn _)
+          case _ hne =>
+            rw [run_panicWithPosWithDecl] at h6
+            cases h6
             exact hax'.trans (AxiomExt.addAxiom cn _)
-        case _ hne =>
-          rw [run_panicWithPosWithDecl] at h6
-          cases h6
-          exact hax'.trans (AxiomExt.addAxiom cn _)
-      · rw [run_bind_ok] at h3
-        obtain ⟨ci2, s6, w6, hci2, h6⟩ := h3
-        have h6s := run_getConstInfo_state _ ctx cctx ref _ hci2
-        subst h6s
-        split at h6
-        case _ cinf =>
-          rw [run_bind_ok] at h6
-          obtain ⟨c2, s7, w7, hread2, h7⟩ := h6
-          rw [run_read] at hread2
-          cases hread2
-          split at h7
-          all_goals
-            rw [run_bind_ok] at h7
-            obtain ⟨am, s8, w8, ham, h8⟩ := h7
-            first
-              | (have hs8 := run_liftMetaM_state _ ctx cctx ref _ ham; subst hs8)
-              | (rw [run_pure] at ham; cases ham)
-            rw [run_pure] at h8
-            cases h8
+        · rw [run_bind_ok] at h3
+          obtain ⟨ci2, s6, w6, hci2, h6⟩ := h3
+          have h6s := run_getConstInfo_state _ ctx cctx ref _ hci2
+          subst h6s
+          split at h6
+          case _ cinf =>
+            rw [run_bind_ok] at h6
+            obtain ⟨c2, s7, w7, hread2, h7⟩ := h6
+            rw [run_read] at hread2
+            cases hread2
+            split at h7
+            all_goals
+              rw [run_bind_ok] at h7
+              obtain ⟨am, s8, w8, ham, h8⟩ := h7
+              first
+                | (have hs8 := run_liftMetaM_state _ ctx cctx ref _ ham; subst hs8)
+                | (rw [run_pure] at ham; cases ham)
+              rw [run_pure] at h8
+              cases h8
+              exact hax'
+          case _ hne =>
+            rw [run_panicWithPosWithDecl] at h6
+            cases h6
             exact hax'
-        case _ hne =>
-          rw [run_panicWithPosWithDecl] at h6
-          cases h6
-          exact hax'
+    all_goals
+      simp only [] at hrest
+      rw [run_panicWithPosWithDecl] at hrest
+      cases hrest
+      intro p hp3 hdp
+      rcases List.mem_append.mp hp3 with h1 | h1
+      · exact hP p h1 hdp
+      · simp only [List.mem_singleton] at h1
+        subst h1
+        obtain ⟨inf, hinf⟩ := hCi _ _ _ _ _ _ hci hcimem hdp
+        simp at hinf
 
 
 /-- **The run conclusion of `register_inductive`, both branches** — the honest replacement
@@ -3268,6 +3438,116 @@ def recConstStep (defs : List (@FixDef LBTerm)) (st : ErasureState) (p : Name ×
 theorem recConstState_eq (names : List Name) (defs : List (@FixDef LBTerm))
     (s : ErasureState) :
     recConstState names defs s = names.zipIdx.foldl (recConstStep defs) s := rfl
+
+/-! ### the block table mirrors the emitted blocks
+
+`Erasure.checkIndKernameFresh` scans `ErasureState.constants` and `ErasureState.indBlocks`
+and **not** `ErasureState.gdecls` (`Erasure.lean:233-238`), so its verdict says nothing on its
+own about the emitted environment: at a hand-made state whose `gdecls` already declares the
+block key while `indBlocks` is empty the guard passes and the registration conses a second
+entry under that key (F-B-1, mechanised in `scratch/round7/w9b_probe1.lean`). What rules such
+a state out is reachability, not the guard — `Erasure.register_inductive` writes the two
+fields in one `modify` (`Erasure.lean:392-393`) and is the only writer of either — and
+`IndBlocksCover` is that mirror, maintained along a run.
+
+Its member clause is **guarded by declaredness**: the member loop falls through
+`unreachable!` at a member `Lean.getConstInfo` does not answer for with an `.inductInfo`
+(`Erasure.lean:346`), leaving that member unregistered, so "every member of a registered
+block is registered" is true only of the members the elaboration environment declares as
+inductives. That is what the loop achieves (`run_register_inductive_members`) and it is all
+the freshness derivation needs: `blockKey_fresh_of_cover` spends it at `indinfo.name`, whose
+declaration the caller has from the provenance of the call. -/
+
+/-- Every block-shaped emitted entry has its row in `ErasureState.indBlocks` — the row
+`List.find?` returns, which is the one `Erasure.checkIndKernameFresh` reads — and every
+member of that row that `lenv` declares as an inductive is registered. -/
+structure IndBlocksCover (lenv : Lean.Environment) (s : ErasureState) : Prop where
+  /-- A `.inductiveDecl`-shaped entry's key is a block row's key, and that row's declared
+      members are registered. -/
+  mirror : ∀ (kn : Kername) (mib : MutualInductiveBody),
+    (kn, GlobalDecl.inductiveDecl mib) ∈ s.gdecls →
+    ∃ ms : List Name, s.indBlocks.find? (fun p => decide (p.1 = kn)) = some (kn, ms) ∧
+      ∀ n ∈ ms, (∃ iv : InductiveVal, lenv.find? n = some (.inductInfo iv)) →
+        (s.inductives.get? n).isSome
+
+/-- **The empty state emits nothing**, so the clause is vacuous. -/
+theorem indBlocksCover_empty {lenv : Lean.Environment} :
+    IndBlocksCover lenv ({} : ErasureState) where
+  mirror kn mib hmem := by simp at hmem
+
+/-- **Preserved across a constant-only extension** that leaves the block table alone: every
+prefix entry is `.constantDecl`-shaped, so none of them can answer the clause, and the
+registry only grows. -/
+theorem ConstExt.indBlocksCover {lenv : Lean.Environment} {s s' : ErasureState}
+    (h : ConstExt s s') (hb : s'.indBlocks = s.indBlocks)
+    (hind : ∀ n : Name, (s.inductives.get? n).isSome → (s'.inductives.get? n).isSome)
+    (H : IndBlocksCover lenv s) : IndBlocksCover lenv s' where
+  mirror kn mib hmem := by
+    obtain ⟨pre, hpre, hshape⟩ := h.gdecls
+    rw [hpre] at hmem
+    rcases List.mem_append.mp hmem with hmem | hmem
+    · exact absurd (hshape (kn, .inductiveDecl mib) hmem).1 (by simp)
+    · obtain ⟨ms, hfind, hreg⟩ := H.mirror kn mib hmem
+      exact ⟨ms, by rw [hb]; exact hfind, fun n hn hd => hind n (hreg n hn hd)⟩
+
+/-- **Preserved across the block cons**, given that the key is fresh in the emitted
+environment — without it the new row would shadow an older block's, `List.find?` being
+first-match-wins — and that the new row's declared members are registered. -/
+theorem IndBlocksCover.indCons {lenv : Lean.Environment} {s s' : ErasureState} {kn : Kername}
+    {mib : MutualInductiveBody} {ms : List Name} (H : IndBlocksCover lenv s)
+    (hg : s'.gdecls = (kn, .inductiveDecl mib) :: s.gdecls)
+    (hb : s'.indBlocks = (kn, ms) :: s.indBlocks)
+    (hi : ∀ n : Name, (s.inductives.get? n).isSome → (s'.inductives.get? n).isSome)
+    (hfresh : ∀ mib' : MutualInductiveBody, (kn, GlobalDecl.inductiveDecl mib') ∉ s.gdecls)
+    (hnew : ∀ n ∈ ms, (∃ iv : InductiveVal, lenv.find? n = some (.inductInfo iv)) →
+      (s'.inductives.get? n).isSome) :
+    IndBlocksCover lenv s' where
+  mirror k mib' hmem := by
+    rw [hg] at hmem
+    rcases List.mem_cons.mp hmem with heq | hmem
+    · obtain ⟨rfl, -⟩ := Prod.mk.injEq .. ▸ heq
+      exact ⟨ms, by rw [hb]; simp, hnew⟩
+    · have hne : ¬ (kn = k) := fun h => hfresh mib' (h ▸ hmem)
+      obtain ⟨ms', hfind, hreg⟩ := H.mirror k mib' hmem
+      refine ⟨ms', ?_, fun n hn hd => hi n (hreg n hn hd)⟩
+      rw [hb, List.find?_cons_of_neg (by simp [hne]), hfind]
+
+/-- The block exit's fold conses one constant entry per member and no block row. -/
+theorem indBlocksCover_foldl_recConstStep {lenv : Lean.Environment}
+    {defs : List (@FixDef LBTerm)} :
+    ∀ (L : List (Name × Nat)) (s : ErasureState), IndBlocksCover lenv s →
+      IndBlocksCover lenv (L.foldl (recConstStep defs) s)
+  | [], _, h => h
+  | p :: rest, s, h => indBlocksCover_foldl_recConstStep rest _
+      (ConstExt.indBlocksCover (ConstExt.addRealizer p.1 (etaExpandFix defs p.2) s) rfl
+        (fun _ hn => hn) h)
+
+/-- `Erasure.visitMutual`'s block exit. -/
+theorem indBlocksCover_recConstState {lenv : Lean.Environment} {names : List Name}
+    {defs : List (@FixDef LBTerm)} {s : ErasureState} (h : IndBlocksCover lenv s) :
+    IndBlocksCover lenv (recConstState names defs s) := by
+  rw [recConstState_eq]
+  exact indBlocksCover_foldl_recConstStep names.zipIdx s h
+
+/-- **The block key a cold registration is about to mint is fresh in the emitted
+environment**, from the guard `Erasure.checkIndKernameFresh` it has already passed, the
+mirror and the cold-branch test: an entry under that key would be a row whose member list the
+guard's second conjunct pins to `indinfo.all`, and `indinfo.name` is a declared member of it,
+so the registry would answer at `indinfo.name` where the branch found nothing. This is what
+`IndBlocksCover.indCons`' `hfresh` is waiting on, and the block half of the key discipline a
+registration step owes. -/
+theorem blockKey_fresh_of_cover {lenv : Lean.Environment} {s : ErasureState}
+    {indinfo : InductiveVal} (hcov : IndBlocksCover lenv s)
+    (hfresh : IndKernameFresh indinfo.all (mutualBlockKn indinfo) s)
+    (hdecl : lenv.find? indinfo.name = some (.inductInfo indinfo))
+    (hself : indinfo.name ∈ indinfo.all)
+    (hmiss : s.inductives.get? indinfo.name = none) :
+    ∀ mib : MutualInductiveBody,
+      (mutualBlockKn indinfo, GlobalDecl.inductiveDecl mib) ∉ s.gdecls := by
+  intro mib hmem
+  obtain ⟨ms, hfind, hreg⟩ := hcov.mirror _ _ hmem
+  obtain rfl : ms = indinfo.all := hfresh.2 _ _ hfind
+  exact absurd (hreg _ hself ⟨indinfo, hdecl⟩) (by rw [hmiss]; simp)
 
 section Helpers
 

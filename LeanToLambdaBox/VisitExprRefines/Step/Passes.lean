@@ -1453,4 +1453,109 @@ theorem regKeyed_of_run {lenv : Environment} {env : VEnv}
     RegKeyed env s' :=
   ((visitExpr_shapeW (runClosedW_regKeyed P)).1 _ _ _ _ _ _ _ _ _ hvis hk hcfg).1
 
+/-! ## `IndBlocksCover` at a run
+
+The mirror between the two fields `Erasure.register_inductive` writes in one `modify`
+(`ErasureRun.lean`), carried along a run of the term walk. Like `RegKeyed` it is a fact about
+the state alone, so it is a `RunClosedW` motive: every other writer is a constant extension
+that leaves `ErasureState.indBlocks` alone, and the one clause with content is the block
+registration's, where the new row's declared members come from
+`run_register_inductive_members` and the older rows survive because the key the run mints is
+fresh in the emitted environment (`blockKey_fresh_of_cover`). -/
+
+/-- **The block registration maintains `IndBlocksCover`.** The cold branch's member loop is a
+constant extension of the entry state that leaves the block table alone
+(`run_register_inductive_cold_blocks`), and the closing `modify` conses the entry and its row
+together; the new row's declared members are registered by `run_register_inductive_members`,
+whose `.inductInfo` guard `ErasureSpec.lookup_adequate` pays at a declared member, and the
+key it is filed under is fresh in `gdecls` by `blockKey_fresh_of_cover`. The hit branch
+leaves the state alone. -/
+theorem indBlocksCover_register_inductive {lenv : Environment} {env : VEnv} {Us : List Name}
+    {gw : Void IO.RealWorld → NameGenerator} {ii : InductiveVal} {hd : Name}
+    {s : ErasureState} {ctx : ErasureContext} {cctx : Core.Context}
+    {ref : ST.Ref IO.RealWorld Core.State} {w : Void IO.RealWorld}
+    {r : InductiveId × InductiveArgMasks} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
+    (P : ErasureSpec lenv env Us gw) (hfind : lenv.find? hd = some (.inductInfo ii))
+    (hrun : Erasure.register_inductive ii s ctx cctx ref w = .ok (r, s₁) w₁)
+    (H : IndBlocksCover lenv s) : IndBlocksCover lenv s₁ := by
+  have hdecl : lenv.find? ii.name = some (.inductInfo ii) := by
+    rw [P.block_adequate.selfName hd ii hfind]; exact hfind
+  have hself : ii.name ∈ ii.all := P.block_adequate.selfMem hd ii hfind
+  cases hi : s.inductives.get? ii.name with
+  | some rc0 => rw [(run_register_inductive_hit_ok hi hrun).2.1]; exact H
+  | none =>
+    obtain ⟨hfresh, bodies, sM, hs1, -, -, hce, hgrow, -⟩ :=
+      run_register_inductive_cold_ok (Ci := fun _ _ => True)
+        (fun _ _ _ _ _ _ _ => trivial) hi hrun
+    have hnew : ∀ n ∈ ii.all, (∃ iv : InductiveVal, lenv.find? n = some (.inductInfo iv)) →
+        (s₁.inductives.get? n).isSome :=
+      run_register_inductive_members
+        (fun nm ci _s' _s'' w' w'' hci _hnm hiv =>
+          let ⟨iv, hlen⟩ := hiv
+          ⟨iv, Option.some.inj (((P.lookup_adequate.constInfo nm cctx ref w' ci w''
+            (pass_getConstInfo_core hci)).2).symm.trans hlen)⟩)
+        hi hrun
+    have hbl : s₁.indBlocks = (mutualBlockKn ii, ii.all) :: s.indBlocks :=
+      run_register_inductive_cold_blocks hi hrun
+    have hblM : sM.indBlocks = s.indBlocks := by
+      rw [hs1] at hbl
+      injection hbl with _hrow h2
+    rw [hs1] at hnew ⊢
+    refine (ConstExt.indBlocksCover hce.toConstExt hblM (fun _ hn => hgrow hn) H).indCons
+      rfl rfl (fun _ hn => hn) ?_ hnew
+    intro mib hmem
+    obtain ⟨pre, hpre, hshape⟩ := hce.toConstExt.gdecls
+    rw [hpre] at hmem
+    rcases List.mem_append.mp hmem with h1 | h1
+    · exact absurd (hshape _ h1).1 (by simp)
+    · exact blockKey_fresh_of_cover H hfresh hdecl hself hi mib h1
+
+/-- **`IndBlocksCover` as a `RunClosedW` motive.** The eleven ambient primitives and
+`Erasure.prepare_erasure` leave the state alone; `Erasure.addAxiom`, `Erasure.visitMutual`'s
+two term exits and `Erasure.addRealizer` are constant extensions that write no block row; the
+block registration is `indBlocksCover_register_inductive`. -/
+theorem runClosedW_indBlocksCover {lenv : Environment} {env : VEnv}
+    {gw : Void IO.RealWorld → NameGenerator} (P : ∀ Us, ErasureSpec lenv env Us gw) :
+    RunClosedW ConfigPinned (fun s _ => IndBlocksCover lenv s) where
+  oracle h hq := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hq
+  inferType h hq := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hq
+  metaM _ h hq := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hq
+  constInfo h hq := by rw [run_getConstInfo_state _ _ _ _ _ h]; exact hq
+  getEnv h hq := by rw [run_getEnv_state _ _ _ _ _ h]; exact hq
+  logInfo h hq := by rw [run_logInfo_state _ _ _ _ _ h]; exact hq
+  isInstance h hq := by rw [run_liftCoreM_state _ _ _ _ _ h]; exact hq
+  fresh h hq := by rw [run_mkFreshFVarId_state _ _ _ _ _ h]; exact hq
+  declInfo h hq := by rw [run_liftCoreM_state _ _ _ _ _ h]; exact hq
+  ctorArity h hq := by rw [run_liftCoreM_state _ _ _ _ _ h]; exact hq
+  casesInfo h hq := by rw [run_liftCoreM_state _ _ _ _ _ h]; exact hq
+  inl := by
+    intro s w kn hq
+    exact ConstExt.indBlocksCover (s := s) (s' := { s with inlinings := kn :: s.inlinings })
+      (ConstExt.of_same rfl rfl) rfl (fun _ hn => hn) hq
+  ax h hq := by
+    rw [(run_addAxiom_ok h).1]
+    exact ConstExt.indBlocksCover (BodylessExt.addAxiom _ _).toConstExt rfl (fun _ hn => hn) hq
+  reg := by
+    intro ii s ctx cctx ref w r s' w' hprov hc h hq
+    rcases hprov with ⟨hd, sa, sb, wa, wb, hci⟩ | hmach
+    · exact indBlocksCover_register_inductive (P [])
+        (((P []).lookup_adequate.constInfo hd cctx ref wa _ wb
+          (pass_getConstInfo_core hci)).2) h hq
+    · exact absurd (hc.2.2.1.symm.trans hmach) (by simp)
+  prep hc h hq := by rw [(run_prepare_erasure_ok hc.1 h).1]; exact hq
+  nrc hq _ _ _ := ConstExt.indBlocksCover (ConstExt.addRealizer _ _ _) rfl (fun _ hn => hn) hq
+  rlz hq _ _ _ := ConstExt.indBlocksCover (ConstExt.addRealizer _ _ _) rfl (fun _ hn => hn) hq
+  rc hq _ _ := indBlocksCover_recConstState hq
+
+/-- **`IndBlocksCover` at a run of the term walk**, at the final state of
+`Erasure.visitExpr`; `indBlocksCover_empty` starts it at a cold entry. -/
+theorem indBlocksCover_of_run {lenv : Environment} {env : VEnv}
+    {gw : Void IO.RealWorld → NameGenerator} {e : Expr} {t : LBTerm} {s s' : ErasureState}
+    {ctx : ErasureContext} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
+    {w w' : Void IO.RealWorld} (P : ∀ Us, ErasureSpec lenv env Us gw)
+    (hcfg : ConfigPinned ctx.config)
+    (hvis : Erasure.visitExpr e s ctx cctx ref w = .ok (t, s') w')
+    (hk : IndBlocksCover lenv s) : IndBlocksCover lenv s' :=
+  ((visitExpr_shapeW (runClosedW_indBlocksCover P)).1 _ _ _ _ _ _ _ _ _ hvis hk hcfg).1
+
 end LeanToLambdaBox
