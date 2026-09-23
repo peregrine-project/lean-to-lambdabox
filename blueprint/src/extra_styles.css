@@ -9,6 +9,42 @@ img {
 	height: auto;
 }
 
+/* --- full-width content column -------------------------------------------
+ * The bundled leanblueprint theme (leanblueprint/static/blueprint.css) caps
+ * the reading column at `div.content-wrapper { max-width: 75ch; }` and
+ * centers it on wide viewports. That's the prose-width constraint the owner
+ * wants removed so wide tables have room to wrap less. This does not touch
+ * `nav.toc` (sidebar) or the dependency-graph page (dep_graph_document.html
+ * has no .content-wrapper element), so both keep their existing layout.
+ * ------------------------------------------------------------------------- */
+div.content-wrapper {
+	max-width: none !important;
+	width: 100%;
+	padding-left: 1.5rem;
+	padding-right: 1.5rem;
+}
+
+@media (min-width: 1024px) {
+	div.content-wrapper {
+		margin-left: 0;
+		margin-right: 0;
+	}
+}
+
+/* Keep tables and code from forcing horizontal scroll on the whole page at
+ * narrow widths; let them scroll internally instead. */
+table.tabular {
+	max-width: 100%;
+	display: block;
+	overflow-x: auto;
+}
+
+pre.verbatim,
+pre {
+	max-width: 100%;
+	overflow-x: auto;
+}
+
 div.theorem_thmcontent {
 	border-left: .15rem solid black;
 }
