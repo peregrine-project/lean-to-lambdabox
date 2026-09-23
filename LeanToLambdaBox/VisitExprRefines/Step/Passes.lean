@@ -1398,7 +1398,7 @@ theorem regKeyed_register_inductive {lenv : Environment} {env : VEnv} {Us : List
         (fun _ _ _ _ _ _ _ => trivial) hi hrun
     refine hs1 ▸ (ConstExt.regKeyed hce.toConstExt (fun _ hn => hgrow hn) H).indCons
       (kn := mutualBlockKn ii) rfl (fun _ hn => hn) (fun _ hn => hn) ?_
-    rcases hcl ii.name r hget with hold | ⟨idx, inf, hidx, hCin, -, -⟩
+    rcases hcl ii.name r hget with hold | ⟨idx, inf, hidx, hCin, -, -, -⟩
     · rw [hold] at hi; exact absurd hi (by simp)
     · obtain ⟨nfs, hkfs⟩ := P.block_adequate.fields ii.name inf hCin
       exact ⟨ii.name, ⟨indBlockKername ii.all, idx⟩, ii.numParams, nfs,

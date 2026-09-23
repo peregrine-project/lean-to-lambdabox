@@ -249,7 +249,7 @@ theorem run_register_inductive_models {lenv : Environment} {env : VEnv} {Us : Li
     (fun msg u s₀ s₂ w₀ w₂ h => P.prim_monotone.logInfo msg s₀ ctx cctx ref w₀ u s₂ w₂ h)
     hcfg.2.2.2.1 hrun).2
   intro n rc np nfs hget hia
-  rcases hcl n rc hget with hold | ⟨idx, inf, hidx, hCin, hid, hctors⟩
+  rcases hcl n rc hget with hold | ⟨idx, inf, hidx, hCin, -, hid, hctors⟩
   · exact hinv n rc np nfs hold hia
   · obtain ⟨iv, hfind, hivname, hivnp, hkf⟩ := P.block_adequate.bwd n np nfs hia
     have hiv : iv = inf := by
