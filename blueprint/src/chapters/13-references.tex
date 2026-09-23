@@ -242,38 +242,25 @@ Every place where a reference element has no counterpart here, a counterpart of 
 shape, or a counterpart carrying premises the reference does not, is one of six kinds.
 
 \par\smallskip\noindent
-\begin{tabular}{lp{0.10\linewidth}p{0.62\linewidth}}
+\begin{tabular}{lrlp{0.33\linewidth}}
 \toprule
-kind & count & meaning \\
+kind & count & bar & meaning \\
 \midrule
-\kFL & 14 & Lean's own term language or design leaves no other shape available \\
-\kFE & 13 & the shipping eraser's monadic, stateful, on-demand run forces the shape \\
-\kFK & 6 & the pinned \code{lean4lean} dependency forces the shape or the trust cost \\
-\kDS & 20 & a choice this development makes, open to a different one \\
-\kOP & 2 & specified but not yet discharged by any theorem \\
-\kGP & 1 & a real coverage boundary, outside what this development's pipeline reach covers \\
-\bottomrule
-\end{tabular}
-
-\par\smallskip\noindent
-\begin{tabular}{lrl}
-\toprule
-kind & count & \\
-\midrule
-\kFL & 14 & \textcolor{kindFL}{\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}} \\
-\kFE & 13 & \textcolor{kindFE}{\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}} \\
-\kFK & 6 & \textcolor{kindFK}{\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}} \\
-\kDS & 20 & \textcolor{kindDS}{\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}} \\
-\kOP & 2 & \textcolor{kindOP}{\rule{2mm}{2mm}\,\rule{2mm}{2mm}} \\
-\kGP & 1 & \textcolor{kindGP}{\rule{2mm}{2mm}} \\
+\kFL & 14 & \textcolor{kindFL}{\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}} & Lean's own term language or design leaves no other shape available \\
+\kFE & 13 & \textcolor{kindFE}{\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}} & the shipping eraser's monadic, stateful, on-demand run forces the shape \\
+\kFK & 6 & \textcolor{kindFK}{\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}} & the pinned \code{lean4lean} dependency forces the shape or the trust cost \\
+\kDS & 20 & \textcolor{kindDS}{\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}} & a choice this development makes, open to a different one \\
+\kOP & 2 & \textcolor{kindOP}{\rule{2mm}{2mm}\,\rule{2mm}{2mm}} & specified but not yet discharged by any theorem \\
+\kGP & 1 & \textcolor{kindGP}{\rule{2mm}{2mm}} & a real coverage boundary, outside what this development's pipeline reach covers \\
 \bottomrule
 \end{tabular}
 
 \par\smallskip\noindent \small
-\begin{tabular}{lp{0.09\linewidth}lp{0.55\linewidth}}
+\begin{longtable}{lp{0.09\linewidth}lp{0.55\linewidth}}
 \toprule
 id & area & kind & title \\
 \midrule
+\endhead
 \did{T1} & target calc. & \kFE & extra \code{fvar} constructor \\
 \did{T2} & target calc. & \kDS & \code{tVar}, \code{tEvar} have no counterpart \\
 \did{T3} & target calc. & \kFL & coinduction has no counterpart \\
@@ -297,14 +284,6 @@ id & area & kind & title \\
 \did{R9} & erasure rel. & \kFE & erasure is alpha-blind on its source \\
 \did{R10} & erasure rel. & \kFL & \Lower{} as a separate pass layer \\
 \did{R11} & erasure rel. & \kFK & every rule carrying a translation premise \\
-\bottomrule
-\end{tabular}
-
-\par\medskip\noindent \small
-\begin{tabular}{lp{0.09\linewidth}lp{0.55\linewidth}}
-\toprule
-id & area & kind & title \\
-\midrule
 \did{V1} & environment & \kFE & flat, not a 17-clause inductive \\
 \did{V2} & environment & \kDS & reachability-keyed, not a fixed dependency set \\
 \did{V3} & environment & \kFL & the compiler body table \\
@@ -338,7 +317,8 @@ id & area & kind & title \\
 \did{S1} & scope & \kDS & the configuration and its stated restrictions \\
 \did{S2} & scope & \kDS & the measured domain \\
 \did{S3} & scope & \kDS & the \code{max}-free level fragment \\
-\bottomrule\end{tabular}
+\bottomrule
+\end{longtable}
 \normalsize
 
 \subsection{Target calculus}
@@ -363,13 +343,6 @@ coverage boundary, not a forced one \\
 \did{T6} & \kFE & \code{def}'s \code{rarg} & \code{FixDef.\allowbreak principalArgIdx}
 (\ref{def:FixDef}), always 0 & eraser registers every fixpoint at index 0 & a later principal
 argument unfolds early, sound at call-by-value \\
-\bottomrule
-\end{tabular}
-
-\setlength{\tabcolsep}{3pt}\begin{tabular}{@{}lp{0.075\linewidth}p{0.17\linewidth}p{0.19\linewidth}p{0.21\linewidth}p{0.21\linewidth}@{}}
-\toprule
-id & kind & reference & here & why & consequence \\
-\midrule
 \did{T7} & \kDS & simulation stated at \code{default\_wcbv\_flags} & concluded at
 \code{eraseFlags} (\ref{def:eraseFlags}), carried by \code{propcase\_weaken} & \code{eraseFlags}
 uses no propositional-case rule, the stronger point & Lean conclusion implies the reference's
@@ -430,13 +403,6 @@ constant; excluded upstream (\did{U1}) \\
 (\ref{def:Erases}) carries \code{InformativeInd}, no discriminant typing premise &
 \code{Expr.proj} occurs on \code{Prop}-valued structures & covers strictly fewer projections;
 widening it is unsound \\
-\bottomrule
-\end{tabular}
-
-\setlength{\tabcolsep}{3pt}\begin{tabular}{@{}lp{0.075\linewidth}p{0.17\linewidth}p{0.19\linewidth}p{0.21\linewidth}p{0.21\linewidth}@{}}
-\toprule
-id & kind & reference & here & why & consequence \\
-\midrule
 \did{R6} & \kFL & none; \code{mdata}, \code{lit} have no PCUIC node & \code{Erases.mdata},
 \code{Erases.lit} (\ref{def:Erases}) & both nodes exist in the elaborator's syntax and reach the
 eraser & \code{Literal.strVal} stays outside the supported fragment \\
@@ -480,13 +446,6 @@ demand; a dependency-selective slice & no theorem covers the whole source enviro
 \did{V5} & \kFL & none & \code{ErasesEnv.elims} (\ref{lem:ErasesEnv-keys}) at every reached
 \code{casesOn} constant & \did{R1}: the case node's source is a constant & a reached key
 belongs to a \code{casesOn} constant with no compiler body \\
-\bottomrule
-\end{tabular}
-
-\setlength{\tabcolsep}{3pt}\begin{tabular}{@{}lp{0.075\linewidth}p{0.17\linewidth}p{0.19\linewidth}p{0.21\linewidth}p{0.21\linewidth}@{}}
-\toprule
-id & kind & reference & here & why & consequence \\
-\midrule
 \did{V6} & \kDS & \code{declared\_constant}, asked only at a reached constant &
 \code{ErasesEnv.tabled} (\ref{lem:ErasesEnv-keys}) quantifies over the whole table & \code{bo}
 ranges over every tabled name & a global fact about the table; discharge blocks on an upstream
@@ -521,13 +480,6 @@ lean4lean's \code{sorryAx} \\
 \did{C4} & \kFK & \code{erase} built on assumed \code{NormalizationIn} & no analogue; evaluation
 enters as hypothesis \code{hev} (\ref{asm:hev}) & nothing Lean-side has wcbv standardization or
 canonicity & a rung states consistency with a literal answer, not that it holds of one run \\
-\bottomrule
-\end{tabular}
-
-\setlength{\tabcolsep}{3pt}\begin{tabular}{@{}lp{0.075\linewidth}p{0.17\linewidth}p{0.19\linewidth}p{0.21\linewidth}p{0.21\linewidth}@{}}
-\toprule
-id & kind & reference & here & why & consequence \\
-\midrule
 \did{C5} & \kDS & \code{erase\_correct\_firstorder}: eval to a constructor-spine value &
 \code{FOSpine} plus \code{NoBox} (\ref{def:FOSpine}) & MetaRocq's \code{erase} already inhabits
 the relation everywhere; the link here is open (\did{M4}) & concludes determinism and
@@ -566,13 +518,6 @@ second image at a block member's body \\
 nothing downstream of lambda-box is redone; \code{LBWfPeregrine} states entry preconditions &
 \srcs{HAB}{Sec.\ 6.5--6.6} verifies everything from lambda-box onward & theorem's reach ends at
 the emitted program; peregrine's own obligation stays \code{Admitted} \\
-\bottomrule
-\end{tabular}
-
-\setlength{\tabcolsep}{3pt}\begin{tabular}{@{}lp{0.075\linewidth}p{0.17\linewidth}p{0.19\linewidth}p{0.21\linewidth}p{0.21\linewidth}@{}}
-\toprule
-id & kind & reference & here & why & consequence \\
-\midrule
 \did{P4} & \kDS & \code{remove\_match\_on\_box\_correct} takes \code{wf\_glob}, \code{closed}
 & \code{LBOptimize\_correct} (\ref{thm:LBOptimize_correct}) takes neither & a direct induction,
 each arm rebuilding its own rule & proved and unreached from the capstone's path \\
@@ -602,13 +547,6 @@ calls & environment conjuncts hold under one binder no rung discharges \\
 \did{M4} & \kOP & \code{erase\_global\_erases\_deps}, proved & \code{ErasureBridge}
 (\ref{def:ErasureBridge}), a named binder no theorem inhabits & same as \did{M3} &
 \code{doc/rework/\allowbreak 09-REPAIRS-W7.md} U5--U9 specify the closure \\
-\bottomrule
-\end{tabular}
-
-\setlength{\tabcolsep}{3pt}\begin{tabular}{@{}lp{0.075\linewidth}p{0.17\linewidth}p{0.19\linewidth}p{0.21\linewidth}p{0.21\linewidth}@{}}
-\toprule
-id & kind & reference & here & why & consequence \\
-\midrule
 \did{M5} & \kDS & neither Template-Rocq's quoting nor Rocq's extraction is formalised &
 \code{ErasureSpec} (\ref{def:ErasureSpec}), eight fields naming a Lean primitive or model
 connection each & a proof about abstract syntax cannot certify the elaborator is faithful &
