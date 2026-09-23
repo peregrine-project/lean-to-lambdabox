@@ -398,7 +398,7 @@ theorem IsArity.piBody_sort {A : VExpr} (h : IsArity A) : ∃ u, A.piBody = .sor
 theorem CtorOf.constant_ctorResult {env : VEnv} {c I : Name} {k : Nat} (h : CtorOf env c I k) :
     ∃ ci np nf nind, env.constants c = some ci ∧ ci.type.CtorResult I np nf nind := by
   obtain ⟨ds, env₀, decl, t, ctor, hds, hd, hle, hmem, hname, hk, hcn⟩ := h
-  obtain ⟨e₀, e₁, hdecl, hadd, hle₁⟩ := wf'_induct_origin hds hd
+  obtain ⟨e₀, e₁, hdecl, hadd, hle₁⟩ := VEnv.WF'.induct_origin hds hd
   obtain ⟨envT, envC, envR, hT, hC, hR, hP⟩ := VEnv.addInduct_stages hadd
   have hctor : ctor ∈ t.ctors := List.mem_of_getElem? hk
   have hcmem' : ctor ∈ decl.types.flatMap (·.ctors) := List.mem_flatMap.2 ⟨t, hmem, hctor⟩

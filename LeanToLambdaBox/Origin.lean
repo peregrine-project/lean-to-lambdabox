@@ -218,7 +218,7 @@ theorem indBlockBelow_type_uniq {env : VEnv} {decl : VInductDecl} (h : IndBlockB
     {t t' : VInductiveType} (ht : t ∈ decl.types) (ht' : t' ∈ decl.types)
     (hn : t.name = t'.name) : t = t' := by
   obtain ⟨ds, env₀, hds, -, hd⟩ := h
-  obtain ⟨e₀, e₁, -, hadd, -⟩ := wf'_induct_origin hds hd
+  obtain ⟨e₀, e₁, -, hadd, -⟩ := VEnv.WF'.induct_origin hds hd
   obtain ⟨envT, -, -, hT, -, -, -⟩ := VEnv.addInduct_stages hadd
   exact addConst_foldlM_name_inj hT t ht t' ht' hn
 
@@ -538,7 +538,7 @@ theorem CtorOf.ctorResult_at (A : UpstreamAsks env) {c I : Name} {k np : Nat}
   have hblk : IndBlockBelow env decl := ⟨ds, env₀, hds, hle, hd⟩
   obtain rfl : decl = decl' := indBlock_uniq A hblk hblk' ⟨t, hmem, hname⟩ ⟨t', ht', hname'⟩
   obtain rfl : t = t' := indBlockBelow_type_uniq hblk hmem ht' (hname.trans hname'.symm)
-  obtain ⟨e₀, e₁, hdecl, hadd, hle₁⟩ := wf'_induct_origin hds hd
+  obtain ⟨e₀, e₁, hdecl, hadd, hle₁⟩ := VEnv.WF'.induct_origin hds hd
   obtain ⟨envT, envC, envR, hT, hC, hR, hP⟩ := VEnv.addInduct_stages hadd
   have hctor : ctor ∈ t.ctors := List.mem_of_getElem? hk
   have hcmem' : ctor ∈ decl.types.flatMap (·.ctors) := List.mem_flatMap.2 ⟨t, hmem, hctor⟩

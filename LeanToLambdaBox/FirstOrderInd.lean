@@ -98,7 +98,7 @@ theorem FirstOrderInd.informativeInd {env : VEnv} {I : Name} (h : FirstOrderInd 
     InformativeInd env I := by
   obtain ⟨fo, hcl, hI⟩ := h
   obtain ⟨decl, ⟨ds, hds, hd⟩, hdecl, t, hmem, hname⟩ := hcl _ hI
-  obtain ⟨e₀, e₁, -, hadd, hle⟩ := wf'_induct_origin hds hd
+  obtain ⟨e₀, e₁, -, hadd, hle⟩ := VEnv.WF'.induct_origin hds hd
   obtain ⟨envT, envC, envR, hT, hC, hR, hP⟩ := VEnv.addInduct_stages hadd
   have hfind := VEnv.addTypes_find hT t hmem
   have hle' : envT ≤ env :=
@@ -401,7 +401,7 @@ theorem fOFields_of_asks {env : VEnv} {Us : List Name} (henv : env.WF) (A : Upst
     obtain rfl : t₂ = t := indBlockBelow_type_uniq hblk hmem₂ ht (hname₂.trans hname.symm)
     have hctor : ctor ∈ t₂.ctors := List.mem_of_getElem? hk
     -- the constructor's declared type is the type the head is typed at
-    obtain ⟨e₀, e₁, -, hadd, hle₁⟩ := wf'_induct_origin hds₂ hd₂
+    obtain ⟨e₀, e₁, -, hadd, hle₁⟩ := VEnv.WF'.induct_origin hds₂ hd₂
     obtain ⟨envT, envC, envR, hT₀, hC, hR, hP⟩ := VEnv.addInduct_stages hadd
     have hcstc : env.constants c = some ctor.toVConstant :=
       hcn ▸ hle₂.constants (hle₁.constants
