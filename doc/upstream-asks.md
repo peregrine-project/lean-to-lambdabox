@@ -20,10 +20,14 @@ consumers — `not_erasable_of_informative`, `indSpine_ne_forallE` (both `Origin
 `UpstreamAsks` now packages only items 2, 9 and 10, and item 6's obligation moved from a
 class-**C** hypothesis to an inherited `sorryAx` root. Item 2 has landed too, and is
 discharged upstream: what it pays is derived (`consts_classified`), and what `UpstreamAsks`
-still carries under its name is a refuted conjunct and five that need a downstream restatement
-rather than a fork change — item 2 below. Items 9 and 10 remain open: the pin bump discharges
-them with no change to any consumer's statement shape; a refusal blocks the arms that consume
-them, and `doc/trust.md` records which.
+still carries under its name is a refuted conjunct — `constOriginExcludes`, split out this round,
+inhabited at no environment declaring an inductive block (`doc/trust.md`'s `UpstreamAsks` row) —
+and five conjuncts that need a downstream restatement rather than a fork change — item 2 below.
+Items 9 and 10 remain open: **the round-4 pin did not cover them** — neither is named in
+`downstream-asks-round4.md`, so landing them would have needed no change to any consumer's
+statement shape but nothing happened to; a draft round-5 commission asks for both
+(`../lean4lean/downstream-asks-round5.md`, untracked in that checkout, not yet sent), and a
+refusal blocks the arms that consume them, which `doc/trust.md` records.
 
 Paths under `.lake/packages/lean4lean/Lean4Lean/` are given relative to that directory.
 
@@ -196,6 +200,29 @@ Paths under `.lake/packages/lean4lean/Lean4Lean/` are given relative to that dir
    is exactly this inversion. W3R briefly filed a second ask for the same content
    (`TrEnv'.induct_block`) and withdrew it as a duplicate; until item 4 lands, `FirstOrderInd` is
    reached only through `FOModel.firstOrderInd_E` and `hfo` stays a rung binder.
+
+   **The round-4 landing (`TrEnv'.inductInfo_inv`/`TrEnv.inductInfo_inv`,
+   `Verify/Environment/Lemmas.lean:1007,1040`, fully proved) does not by itself close this item.**
+   Round 7 wave 7's `HFO` unit (nothing committed to this repository; findings in
+   `scratch/round7/HFO-report.md`) tried to derive `hfo` from it and found the landed theorem's
+   conclusion, `InductOrigin`, carries no declaration list (`decl.WF env₀`, not
+   `env₀.WF' ds₀`), so the block it exhibits cannot be identified with the block `IndDeclOf`
+   exhibits — `FirstOrderDecl`'s member-list identity `decl.types.map (·.name) = iv.all` has no
+   route. The concrete missing fact is a fusion of `TrEnv'.find?_induct` with `TrEnv'.wf`,
+   stated as `TrEnv'.inductInfo_wf'` in `scratch/round7/HFO-report.md` §3 (elaborated against
+   `8cc17a5` in `scratch/round7/hfo_probe5.lean`) — a strengthening of the landed proof, not new
+   mathematics, since every arm of `TrEnv'.wf` already builds the list and every non-`induct` arm
+   preserves membership. A second, independent gap survives even with that fact landed: the
+   landed inversion reads `Lean.Kernel.Environment.find?`, while every fact a rung holds about an
+   inductive is stated at `Lean.Environment.find?`, and the two are not definitionally equal
+   (`scratch/round7/hfo_probe3.lean`) — closing it needs a class-**D** sibling of `decl_adequate`
+   at the inversion's conclusion, a specification-bundle decision this item does not make on its
+   own. The fork's own round-5 draft (`../lean4lean/downstream-asks-round5.md`, drafted,
+   untracked in that checkout) marks the induct/`AddInduct` inversion "Closed, not asked" on the
+   strength of the round-4 landing; that verdict needs revisiting with the missing fact above
+   before a round-5 commission is sent, exactly as the draft's own closing paragraph anticipates
+   ("if that turns out false, the corrected ask will name a concrete missing fact rather than
+   repeat this one").
 
 5. **The `Quot.ind` divergence** between the theory (`Theory/Quot.lean:11` and its
    neighbours) and the executable checker.
