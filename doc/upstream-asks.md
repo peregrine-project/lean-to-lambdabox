@@ -18,9 +18,12 @@ in its statement. Item 6 has landed, at the pin, `sorry` (`Injectivity.lean:45`)
 consumers — `not_erasable_of_informative`, `indSpine_ne_forallE` (both `Origin.lean`) and
 `FirstOrderInd.notSortNotPi` — cite `Lean4Lean.VEnv.IsDefEqU.const_arity_inv` directly, so
 `UpstreamAsks` now packages only items 2, 9 and 10, and item 6's obligation moved from a
-class-**C** hypothesis to an inherited `sorryAx` root. Items 2, 9 and 10 remain open: the pin
-bump discharges the rest of the structure with no change to any consumer's statement shape; a
-refusal blocks the arms that consume it, and `doc/trust.md` records which.
+class-**C** hypothesis to an inherited `sorryAx` root. Item 2 has landed too, and is
+discharged upstream: what it pays is derived (`consts_classified`), and what `UpstreamAsks`
+still carries under its name is a refuted conjunct and five that need a downstream restatement
+rather than a fork change — item 2 below. Items 9 and 10 remain open: the pin bump discharges
+them with no change to any consumer's statement shape; a refusal blocks the arms that consume
+them, and `doc/trust.md` records which.
 
 Paths under `.lake/packages/lean4lean/Lean4Lean/` are given relative to that directory.
 
@@ -60,9 +63,43 @@ Paths under `.lake/packages/lean4lean/Lean4Lean/` are given relative to that dir
          env₀.constants c = none ∧ env₁.constants c = some ci
    ```
 
-   Until the fork holds it, the consequences are the `constsOrigin` field of
-   `UpstreamAsks env` (`LeanToLambdaBox/Upstream.lean`), taken as one named class-**C**
-   hypothesis and unpacked by `LeanToLambdaBox/Origin.lean`; `doc/trust.md` carries the row.
+   **Landed at the pin**, `sorry`-free (`Theory/Typing/EnvLemmas.lean:373-384`). What it pays,
+   and what it does not:
+
+   * **The classification conjunct is derived.** `consts_classified` is a theorem, off
+     `Origin.lean`'s `constOrigin_of_wf`: a block's own `addConst` chain is a run of well-formed
+     `axiom` declarations (`wf'_axioms_foldlM`), the quotient's is too (`addQuot_chain`), and a
+     constant declaration is its own witness, so every constant a `VEnv.WF` environment declares
+     satisfies `ConstOrigin`. It has left `UpstreamAsks`.
+   * **`CtorOf → ¬ IndInfo` is derived** — `CtorOf.not_indInfo` (`SourceEval.lean`), off the
+     shape of the declared type. It has left `UpstreamAsks`.
+   * **The exclusion conjunct `ConstOrigin → ¬ CtorOf ∧ ¬ IndInfo` is refuted**, and is not an
+     ask: no environment declaring an inductive block satisfies it
+     (`test/Vacuity.lean`'s `not_upstreamAsks_natEnv`, off `CtorOf.constOrigin`).
+   * **The uniqueness conjuncts are not derivable from it either**, for the same reason, and
+     the two that fix λ□ coordinates are false.
+
+   The one cause is that the five readings — `ConstOrigin`, `CtorOf`, `IndInfo`,
+   `CasesOnShape`, `IndBlockBelow` — each exhibit *some* well-formed declaration list below
+   `env`, where MetaRocq's `declared_constant`/`declared_inductive` read `lookup_env Σ c`, a
+   function of the environment. A `VEnv` records constants, defeqs and pats and no
+   declarations, so a list below `env` need only produce a sub-environment: it may re-declare a
+   constructor as an axiom (which refutes the exclusion), and it may permute a block's
+   constructors or type formers, or flip a recursor's unread `k` flag, and still produce the
+   same environment. Permuting `t.ctors` changes `CtorOf`'s index `k` and `IndInfo`'s field
+   counts `nfs`, so **`k` and `nfs` are not functions of `(env, name)`** and `CtorOf.inj`,
+   `IndInfo.inj` and `indBlock_uniq` are false as stated. (`VInductDecl.WF` reads `t.ctors` and
+   `decl.types` only through membership and length, and reads `VRecursor.k` nowhere; these
+   witnesses are stated, not machine-checked — only the exclusion's is.)
+
+   The restatement closest to MetaRocq is to read the declaration off `env`'s **own** list:
+   `env.WF' ds` fixed, each predicate quantified over `d ∈ ds`. Within one list a constant has
+   exactly one introducing step — `consts_origin` plus the fact that a later step's environment
+   already binds it — so all six conjuncts follow, with no further fork change. **Item 2 is
+   therefore discharged upstream**: the residue is a downstream restatement of the five
+   predicates and of `Erases.const`/`Erases.ctor`, not a round-5 ask. Until it is done,
+   `UpstreamAsks` keeps the refuted exclusion as the separate field `constOriginExcludes` and
+   the five uniqueness conjuncts as `constsOrigin`; `doc/trust.md` carries the row.
 
    **Two conjuncts added by W3R** (`doc/rework/05-REPAIRS-W3.md` §13), both consequences of the
    same origin statement and both `VEnv`-only, so they change nothing about the ask's home or its
@@ -82,8 +119,10 @@ Paths under `.lake/packages/lean4lean/Lean4Lean/` are given relative to that dir
    stated in: `IndInfo`, `IndArity`, `CtorOf` and `CasesOnShape` each bound their declaration
    list by `env₀ ≤ env` rather than by `env` itself, so a conjunct phrased at `env`'s own list
    (`FirstOrderInd`'s `HasInduct`, the special case `env₀ = env`) is not applicable at any
-   consumer. The fork is free to derive it from the origin statement, where the recursor a block
-   generates is what distinguishes two blocks declaring one former.
+   consumer. The second is **false**: the recursor a block generates does not
+   distinguish two blocks declaring one former, because `VInductDecl.WF` reads a recursor's `k`
+   flag nowhere and reads `decl.types`/`t.ctors` only through membership and length. The bullets
+   above carry the restatement.
 
    Consumers: `ErasesEnv.blocks`' `IndDeclOf` conjunct — hence every rung's `ErasesEnv` — the
    derived `CasesOnShape.agree`, which is what pins `SEval.iota`'s parameter count to the rule's

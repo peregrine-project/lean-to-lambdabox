@@ -900,7 +900,7 @@ theorem env_motive_tabled {lenv : Environment} {env : VEnv} {Us : List Name}
     (hnc : ∀ I k, ¬ CtorOf env c I k) (hni : ∀ iid np nfs, ¬ IndInfo env c iid np nfs)
     (hb : tbl.body? c = some b) : ConstOrigin env c := by
   obtain ⟨vc, hvc⟩ := constants_of_tabled P ht hsafe hb
-  exact constOrigin_of_constants A hvc hnc hni
+  exact constOrigin_of_constants A P.envWF hvc hnc hni
 
 /-! ## What a specification environment says about a runtime key -/
 
@@ -1032,7 +1032,7 @@ theorem step_visitConst {lenv : Environment} {env : VEnv}
     | ctor _ hm => obtain ⟨I, k, h⟩ := hm; exact absurd h (hnc I k)
     | defn hd hm =>
         obtain ⟨vc, hvc⟩ := hm
-        exact ⟨vc, hvc, constOrigin_of_constants A hvc hnc hni, by rw [hd]; simp⟩
+        exact ⟨vc, hvc, constOrigin_of_constants A (_P []).envWF hvc hnc hni, by rw [hd]; simp⟩
   exact visitConst_refines m5 e s ctx cctx ref w t s' w' hrun Us Δ nm us vc hinv he hcas hvc
     hco htab hsup
 
