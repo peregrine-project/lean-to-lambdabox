@@ -24,49 +24,66 @@ Lean-specific compilation steps, and the source evaluation reading the compiler-
 The per-argument clause and the spine translation are what `erases_correct` requires of a spine;
 at `args = []` both are vacuous, which is where G1–G7 apply them.
 
-**`hbridge` is still a binder; `hargReach` no longer exists under that name.** Round 7 wave 4
-(`341e2a9..d16c1c2`, 17 commits: the second `dev/fix` merge plus units W1–W9 and one
-bookkeeping commit) worked `doc/rework/11-REPAIRS-W8.md`'s plan; its own re-refutation is
-`scratch/round7/W4-refute.md`. `hbridge` is unchanged in kind: `grep -rn "\bhbridge\b"
-LeanToLambdaBox/` is 24 hits, `shipping_erase_correct_firstorder`'s signature
-(`Capstone.lean:206-210`) and all eight of `Green.lean`'s rungs (`:226`, `:379`, `:480`, `:601`,
-`:854`, `:975`, `:1572`, `:1633`) still take it, and `erasure_bridge_env` — the theorem
-`doc/rework/09-REPAIRS-W7.md` §2.9 planned to give it that shape — is still stated nowhere
-(`grep -rn erasure_bridge_env LeanToLambdaBox/` is empty). `hargReach` is gone as a binder
-name: W7/U9 replaced `green_G8`'s `hargReach` with `hbody` (`Green.lean:1638-1640`), a
-*stronger*, source-side statement — every erasure of `benchArith`'s tabled body reaches `Nat`'s
-block, quantified over every `Γspec` rather than read at the run's own one — and `grep -rn
-hargReach LeanToLambdaBox/` now finds only the theorem name `g8_hargReach` (`Green.lean:1528`,
-a proved lemma `green_G8`'s proof calls, not a binder) and docstrings recording the rename.
-`doc/coverage.md`'s generator has not caught up: `Tools/Coverage.lean:276`'s `audited` list
-still reads `"hargReach"` rather than `"hbody"`, so the regenerated ladder table correctly
-shows `—` at G8's `hargReach` column (no rung binds that name any more) while the hardcoded
-sentence below it, `Tools/Coverage.lean:735`, still asserts "G8 alone binds `hargReach`" — the
-table and the prose next to it now contradict each other in the committed, up-to-date
-`doc/coverage.md`. Recorded here rather than fixed: `Tools/Coverage.lean` is outside this
-wave's file list.
+**`hbridge` is still a binder, byte-identical to wave 4's.** Round 7 wave 5 (`f65c86f..30b36d5`,
+three commits: `f37009c`, `doc/rework/12-REPAIRS-W9.md`'s plan; `eece730`, W9-H; `30b36d5`,
+W9-A) changed no statement the ladder reads — `git diff d16c1c2..HEAD -- LeanToLambdaBox/
+Capstone.lean` is empty, the `Green.lean` diff touches one docstring and appends declarations,
+and the capstone's binder list, the eight rung statements and the 33-name footprint are
+byte-identical to wave 4's (`scratch/round7/W5-refute.md` §0, §4.1–4.2). `hbridge` is unchanged
+in kind: `grep -rn "\bhbridge\b" LeanToLambdaBox/` is still 24 hits, `shipping_erase_correct_
+firstorder`'s signature (`Capstone.lean:206-210`, unmoved) and all eight of `Green.lean`'s
+rungs still take it — six at wave 4's line numbers (`:226`, `:379`, `:480`, `:601`, `:854`,
+`:975`) and G7/G8 shifted by the new content this wave inserts ahead of them (`:1636`, `:1697`,
+were `:1572`, `:1633`) — and `erasure_bridge_env`, the theorem `doc/rework/12-REPAIRS-W9.md`
+§2.6 (W9-E) plans to give it that shape, is still stated nowhere (`grep -rn erasure_bridge_env
+LeanToLambdaBox/` empty). `12-REPAIRS-W9.md` supersedes `doc/rework/09-REPAIRS-W7.md`/
+`11-REPAIRS-W8.md` as the operative plan for what is left; `hargReach`/`hbody` are unchanged
+from wave 4 (`hbody` at `Green.lean:1702-1704`, `g8_hargReach` at `:1592-1605`, both shifted the
+same +64 lines). The `Tools/Coverage.lean` contradiction wave 4 recorded rather than fixed
+(the `audited` list and the hardcoded G8 sentence stuck on `hargReach` while the table already
+showed `hbody`) **is fixed this wave**: W9-H corrects `audited` and the ladder-table header
+(`:276`, `:670`) and the hardcoded sentence (`:735`) to `hbody`, and the regenerated
+`doc/coverage.md` now agrees with itself.
 
-What actually moved: `hbridge`'s repair chain reaches further than wave 3 left it. W1 repairs
-the `hsub` premise wave 3 refuted, as `SpecKeysEmitted` (§4); W5 folds it with `RegInvShape'`
-and `RegContent` into one accumulator, `RegAcc` (`ColdStartShape.lean:1166-1173`); W6 proves
-`RegKeyed` *at a run* for the first time, `regKeyed_of_run`
-(`VisitExprRefines/Step/Passes.lean:1447`). None of it reaches the binder:
-`bridgeEnv_of_regContent` (`Capstone.lean:158-171`), the theorem that would spend all three, is
-still not on `shipping_erase_correct_firstorder`'s proof path — which reaches its conclusion
-through `erasure_bridge_of_run` plus the binder `hbridge`, unchanged — and still has **zero
-consumers anywhere in the tree** (`grep -rn bridgeEnv_of_regContent LeanToLambdaBox/ test/`:
-the declaration and the ledger row, nothing else). No theorem produces `RegAcc` at a run —
-that is W5a/b/c, re-planned this wave and not landed (§4) — so the route does not reduce
-either binder's cost today. Apart from the one path that does reach a rung
-(`Green.g8_t0 → Green.g8_hargReach → Green.green_G8`, W7/U9), this wave's landed or restated
-declarations sit in **seven** further components whose roots `scratch/round7/W4-refute.md` §4
-finds have zero consumers anywhere in the environment.
+What actually moved: nothing on `hbridge`'s own composition. `bridgeEnv_of_regContent`
+(`Capstone.lean:158-171`) is unchanged since wave 4 and still has **zero consumers anywhere in
+the tree** (`grep -rn bridgeEnv_of_regContent LeanToLambdaBox/ test/`: the declaration and the
+ledger row, nothing else); `regKeyed_of_run` (W6) likewise still has zero consumers; no theorem
+produces `RegAcc` at a run. `12-REPAIRS-W9.md` renamed wave 4's re-planned W5a/W5b/W5c to
+W9-B/W9-C/W9-D (plus W9-E for W7's `erasure_bridge_env`) and staged two smaller units, W9-H and
+W9-A, ahead of them to close two of wave 4's own carried-forward items first (§4's "Carried
+into the next wave", items 1 and, in substance, the realizer-exit question §1.1 of
+`12-REPAIRS-W9.md` decided). Both landed. `noTabledCasesOnBodies` (W9-H, `Green.lean:1405-
+1408`) *measures* rather than guards the tabled-`casesOn` dependency: four `decide +kernel`
+conjuncts at `g5Table..g8Table`. `no_realizer_exit_compiler` (W9-A, `VisitExprRefines/
+Step/Env.lean:461`) *excludes* F-QUOT's and F-EQREC's two body-less→bodied realizer exits from
+the fragment by name, at the cost of one new decidable table property (`TableRecPrefixed`) and
+one new class-**D** bundle (`SchemeNames`, two fields; §4 below). **Neither reaches a rung or
+the binder**: both sit in components with zero consumers of their own (§4).
+
+W9-B — the unit that would give `RegAcc` a producer at a run, and so give
+`bridgeEnv_of_regContent` its first consumer — was attempted and **returned blocked**:
+`regInv_registerInd_run` as `12-REPAIRS-W9.md` §2.3 prints it is not provable from its stated
+premises. The conclusion's `RegInvShape'.keys` (`(s₁.gdecls.map Prod.fst).Nodup`) needs a state
+invariant, `IndBlocksCover`, that nothing in the tree supplies, and mechanised counterexample
+states admit the guard's premises while violating the conclusion (`w9b_probe1.lean`,
+`m1_guard_blind`); two further run facts the unit needs are absent (`F-B-2`, `F-B-3`); and three
+specification-side obligations of `IndPrefixOf.content` need exclusions §2.3 names only one of
+(`F-B-6`, `F-B-7`) — `scratch/round7/W9-B-report.md` §2, F-B-1 through F-B-7. Following rule (2)
+and the standing prohibition on landing a consumer-less declaration, **nothing was committed**:
+every declaration W9-B would have landed exists only to feed `regInv_registerInd_run`, and
+landing it without that theorem would leave two more consumer-less roots beside the ones
+already standing. The report proposes a five-unit decomposition, B-i through B-v, in dependency
+order (§4 below); none is landed. Apart from the one path that already reached a rung before
+this wave (`Green.g8_t0 → Green.g8_hargReach → Green.green_G8`, W7/U9), this wave's own landed
+declarations sit in **three** further components whose roots have zero consumers, beside the
+**seven** `scratch/round7/W4-refute.md` §4 already found (§4).
 
 | Class | Binders |
 |---|---|
-| proved, or per rung a checked term | inside the theorem: the erasure half `erasure_bridge_of_run`, supplying all eighteen bridge steps; the answer's shape and uniqueness from `firstorder_erases_core`, and `NoBox tv` at the *lowered* value from `noBox_lower_of_foSpine`; the simulation, `erases_correct` applied once at the spine with `ErasesEnv.mkApps`; the observable's transport across the preparation passes from `prepare_sound`. At every rung: `hcfg : ConfigPinned`, `hsup : Supported`, `hwf : LBWfPeregrine` by `lbWfPeregrine_of_check (by decide +kernel)`, `hwt : TrExprS`, the target-side `WcbvEval`; `hcb : CompilerBodies` at G1 only; `hev : SEval` at G5 only. `hnb : NoBodylessRefs` is gone (W8, `e625855`): the proof never spent it, so it is deleted from the theorem and from all eight rungs' applications rather than carried as an unread premise — the theorem's own unused-binder scan is `#[]` |
+| proved, or per rung a checked term | inside the theorem: the erasure half `erasure_bridge_of_run`, supplying all eighteen bridge steps; the answer's shape and uniqueness from `firstorder_erases_core`, and `NoBox tv` at the *lowered* value from `noBox_lower_of_foSpine`; the simulation, `erases_correct` applied once at the spine with `ErasesEnv.mkApps`; the observable's transport across the preparation passes from `prepare_sound`. At every rung: `hcfg : ConfigPinned`, `hsup : Supported`, `hwf : LBWfPeregrine` by `lbWfPeregrine_of_check (by decide +kernel)`, `hwt : TrExprS`, the target-side `WcbvEval`; `hcb : CompilerBodies` at G1 only; `hev : SEval` at G5 only. `hnb : NoBodylessRefs` is gone (W8, `e625855`): the proof never spent it, so it is deleted from the theorem and from all eight rungs' applications rather than carried as an unread premise — the theorem's own unused-binder scan is `#[]`. Since round 7 wave 5 (W9-H, W9-A), beside `noCasesOnKeys`: `noTabledCasesOnBodies` (four rungs, `g5Table..g8Table`, `decide +kernel`) measures the tabled-`casesOn` dependency rather than guarding it, and `tableRecPrefixed_rungs` (all eight, `decide +kernel`) is **vacuous** at every one — no tabled name at any rung carries a recursor suffix. `no_realizer_exit`/`no_realizer_exit_compiler` are proved theorems excluding F-QUOT's/F-EQREC's two realizer exits from the fragment by name. None of these four is read by anything reaching a rung (§4) |
 | **C** — this repository's own code | `E : EraserAsks` — four fields, unchanged since W5: `passes_monotone`, `passes_sound`, `oracle_false_refl`, `kernel_ind_head_true` (residue: a *reduced* telescope longer than `isArityCheck`'s constant budget, and any other kernel error inside it). `block_keys_distinct` is deleted, F-UNSAFEREC's guard making distinctness a *conclusion* of a successful run (`run_rec_exit_reg`'s fifth conjunct) rather than a bundle field — though nothing today spends that conclusion: both call sites of `run_rec_exit_reg` discard it, and `run_rec_exit_nodup` and its would-be consumer `blockKeyed_install` each have no consumer of their own (§4). `hbridge`'s two fields — `erasesEnv` and `lowerEnv` — open, §4. `hbody` (named `hargReach` before W7/U9), at G8 alone — open, §4; reduced to a source-side statement quantified over every `Γspec`, strengthened but satisfiable (§4) |
-| **D** — specifications of Lean's `Meta`/`Core` primitives | `P : ∀ Us, ErasureSpec lenv env Us gw` — seven fields, unchanged: `env_connect`, `lookup_adequate`, `fresh_names`, `oracle_refl`, `decl_adequate`, `prim_monotone`, `block_adequate`; taken at every level scope since U5, which is what a sub-run below `Erasure.visitMutual`'s `withReader` needs. **`prim_monotone : PrimMonotone gw` is per-primitive**, not a blanket `MetaM` claim: eight clauses, one per named primitive (`getEnv`, `logInfo`, `isInstance`, `inferType`, `isProof`, `forallBoundedTelescope`, `lambdaBoundedTelescope`, `liftMetaM`), with the two bounded telescopes and `isProof` stated *compositionally* so the two anonymous continuations F-ACC/F-SPARSE introduced are covered by the derived `PrimGenMono` predicate rather than by a further universal (`ErasureSpec.lean:259-306`; C1, `8bdffca`, closing a finding raised against an earlier single unconditional `PrimMonotone.metaM` field, `scratch/round7/W2-refute.md` §5/R7). **`block_adequate : BlockAdequate lenv env` grew two fields this wave**, `selfName` and `fields` (W6, `ErasureSpec.lean:413-422`), each a property of `Lean.Environment.find?` alone — `fwd`'s fourth premise and the member loop's `.inductInfo` match had no producer at a registration without them (six fields → eight; `ErasureSpec`'s own top-level count stays seven, `block_adequate` being one field of it). `htbl : SourceTableAdequate`, `hsafe : TableSafe`, `hblk : TableBlocks`, `hprep` (the prepared term is the subject), `hrun` (the run produced the committed program) |
+| **D** — specifications of Lean's `Meta`/`Core` primitives | `P : ∀ Us, ErasureSpec lenv env Us gw` — seven fields, unchanged: `env_connect`, `lookup_adequate`, `fresh_names`, `oracle_refl`, `decl_adequate`, `prim_monotone`, `block_adequate`; taken at every level scope since U5, which is what a sub-run below `Erasure.visitMutual`'s `withReader` needs. **`prim_monotone : PrimMonotone gw` is per-primitive**, not a blanket `MetaM` claim: eight clauses, one per named primitive (`getEnv`, `logInfo`, `isInstance`, `inferType`, `isProof`, `forallBoundedTelescope`, `lambdaBoundedTelescope`, `liftMetaM`), with the two bounded telescopes and `isProof` stated *compositionally* so the two anonymous continuations F-ACC/F-SPARSE introduced are covered by the derived `PrimGenMono` predicate rather than by a further universal (`ErasureSpec.lean:259-306`; C1, `8bdffca`, closing a finding raised against an earlier single unconditional `PrimMonotone.metaM` field, `scratch/round7/W2-refute.md` §5/R7). **`block_adequate : BlockAdequate lenv env` grew two fields this wave**, `selfName` and `fields` (W6, `ErasureSpec.lean:413-422`), each a property of `Lean.Environment.find?` alone — `fwd`'s fourth premise and the member loop's `.inductInfo` match had no producer at a registration without them (six fields → eight; `ErasureSpec`'s own top-level count stays seven, `block_adequate` being one field of it). `htbl : SourceTableAdequate`, `hsafe : TableSafe`, `hblk : TableBlocks`, `hprep` (the prepared term is the subject), `hrun` (the run produced the committed program). Since round 7 wave 5 (W9-A), `SchemeNames lenv` — two more fields, both properties of `Lean.Environment.find?` alone (`quot`: a `.quotInfo` name is in `quotPrimNames`; `recr`: a `.recInfo` name carries `Supported.recSuffix`), taken beside `P` rather than inside it since neither mentions a level scope, and landed in `Supported.lean` rather than `ErasureSpec.lean` to avoid an import cycle (`Supported.lean` imports `ErasureSpec.lean`). Nothing in the tree constructs one, and its only readers, `no_realizer_exit`/`no_realizer_exit_compiler`, have zero consumers of their own (§4) |
 | upstream | `A : UpstreamAsks` — `constsOrigin`, `constArityInv`, `mkAppsInv`, `indSpineInj`: `doc/upstream-asks.md` items 2, 6, 9 and 10. `hvwt`, `hty` and `hfo` are class **C** too and stand at every rung; `doc/trust.md` has a row each, and `hfo`'s waits on upstream ask 4 |
 | inherited `sorryAx` roots | sixteen in the pinned lean4lean (`test/lean4lean-sorries.expected`), under `.lake/packages/lean4lean/Lean4Lean/`: `Theory/Typing/ChurchRosser.lean:1193,1212`; `Theory/Typing/EnvLemmas.lean:334` (fork-authored); `Theory/Typing/Injectivity.lean:12,21,34`; `Theory/Typing/UniqueTyping.lean:174`; `Verify/Environment.lean:208`; `Verify/TypeChecker/InferType.lean:398,410`; `Verify/TypeChecker/IsDefEq.lean:227,488`; `Verify/TypeChecker/Reduce.lean:145`; `Verify/TypeChecker/WHNF.lean:149`; `Verify/Typing/Lemmas.lean:747,995` |
 
@@ -96,7 +113,7 @@ dependency-closure premise `hdeps` used to carry the `instantiateLevelParams` ax
 moves no row, and why `decide +kernel` at a rung adds no name.
 
 ## 3. Coverage
-`doc/coverage.md` is generated by `lake exe coverage` from the tree; `lake exe coverage --check` is green at HEAD (`scratch/round7/gate4/03c-coverage-check-after-fix.out`, after one bookkeeping regeneration this round, `d16c1c2`, that moved the whole-environment kername count 230,402→230,472 and retired the `NoBodylessRefs`/`hnb` prose W8 made stale). Arith is in
+`doc/coverage.md` is generated by `lake exe coverage` from the tree; `lake exe coverage --check` is green at HEAD (`scratch/round7/W5-status.coverage-check.out`), after two more bookkeeping regenerations this round: `eece730` (W9-H) moves the whole-environment kername count 230,472→230,476 as its own new declarations enter it, and retires the stale `hargReach`/`hbody` table-header and prose (§1); `30b36d5` (W9-A) moves it again, 230,476→230,498, as `recSuffix`, `SchemeNames`, `TableRecPrefixed` and the two `no_realizer_exit` theorems enter it. `d16c1c2` (wave 4) is the regeneration before that, 230,402→230,472. The realizer census column (`Tools/Coverage.lean:209`, which reads `Supported.isRecursorName`) is **0 at every rung both before and after the widening** (`scratch/round7/w9a_measure.out`), so the correction changes no table row. Arith is in
 the fragment and is the subject of rungs G7 and G8. Sieve and
 BinaryTrees are out at `recursorHead` on `Eq.rec` through `Bool.noConfusion` (F-EQREC); Quicksort at F-EQREC, the well-founded
 `Nat.div.go`/`Nat.modCore.go` route and `sparseCasesOn`, with a wrong emitted program besides (F-SPARSE); Fannkuch at F-EQREC and `etaContractedMinor`
@@ -104,6 +121,18 @@ on `Decidable.casesOn`. Fannkuch's `NoBodylessRefs` failure — the one the caps
 body-less — is **closed**: `recursorRealizer` now gives that `Eq.rec` a `.case` body (F-QUOT's and F-EQREC's registering exit, §2.8 of
 `doc/rework/10-MERGE-FIXES.md`), a strict gain measured in `doc/coverage.md`'s realizer census, so all five corpus programs and all eight rungs now
 satisfy it; Fannkuch stays outside the fragment for the two reasons above alone.
+
+The `rec_*` widening (W9-A, §4) has one measured cost outside the ladder. Of this toolchain's
+3342 `.recInfo` constants every one now carries a `recSuffix`, but the wider test also catches
+**18** non-`.recInfo` constants under the same suffix class, **13** of them under a genuine
+inductive prefix — `Nat.rec_eq_recCompiled`, `Bool.rec_eq`, `Acc.rec_eq_recC`,
+`List.Perm.rec_heq`, and eight `Lean4Lean`-internal theorems
+(`scratch/round7/W5-refute.md` §4.4). `Nat` and `Bool` are tabled inductives at the rungs, so
+`Supported.isRecursorName` now answers `true` at those thirteen names for any table that tables
+them — a coverage cost, `SupportError.recursorHead` rather than acceptance, at a plain theorem
+that merely happens to be named like a recursor. All thirteen are theorems, unreachable from a
+computational body, so no rung moved; `recSuffix`'s own docstring census (3342/125/0,
+`Supported.lean:185-193`) reports only the `.recInfo` side of the widening, not this one.
 
 "Arith is covered" means `supportedB` returns `ok` at the entry term and at every tabled body of `reify% arithClosed`; that `green_G7` instantiates
 the capstone at the closed `arithClosed` and `green_G8` at `benchArith` applied to `0`; and that both conclusions end in the literal peano numeral
@@ -162,7 +191,7 @@ Three further clauses are vacuous at the ladder, carried forward from the pre-me
 
 ## 4. What is open
 
-### `hbridge` — the composition reaches further this wave, and still does not land
+### `hbridge` — the composition is unchanged this wave; W9-B's attempt, and why it did not close
 `bridgeEnv_of_regContent` (`Capstone.lean:158-171`) composes `hbridge`'s payload out of the
 same four antecedents about the run's final state as before, restated: `RegAcc` (W5's fold of
 `RegInvShape'`, its content clause `RegContent`, and the saturation clause `SpecKeysEmitted`
@@ -196,39 +225,137 @@ all — as **premises** rather than deriving them, because `IndCovered` (what ev
 freshly registered block needs) is never *introduced* anywhere in the tree:
 `Erasure.register_inductive` visits every member of `iv.all`, so a step that registers a fresh
 block owes coverage of every member, not only of the name it was called at, and nothing
-supplies it (`scratch/round7/W5-report.md` §3). Re-planned as **W5a** (the
-`register_inductive` → `IndCovered`/`SpecContent` producer, not built), **W5b** (the block exit
-and the two `recursorRealizer` realizer sites, F-W8-6; the two constant exits are landed as
-`RegAcc`-typed `regInv_addAxiom_step`/`regInv_constCons_step`) and **W5c** (the accumulator
-conjunct threaded through all eighteen `visitExpr` motives). W5c's first attempt — fusing the
-accumulator into `RunRefines`'s existing ∀-`Γspec` clause — is mechanised **impossible** in
-that form (`scratch/round7/w5_probe.lean`, `runRefines_fused_not_composable`, sorry-free): the
-composition of two sub-runs' growths has no `Lower` conclusion to carry across. W5's restated
-form threads the accumulator as an **independent** fifth conjunct of `RunRefines` instead
-(`visitExpr_regInv_all`'s printed statement is unchanged, and would be `RegAcc.coldStart`
-instantiating the new conjunct at `Γ₀ = []`); none of W5a/b/c is landed. Separately, `hde`
-itself is refuted at a block member's sub-run (`erasuresDeclared_false_at_app`,
-`scratch/round7/q_w8.lean`) and its narrower repair (F-W8-7, restricting `hde` to the `t₀` that
-actually lowers to `t`) is stated but not landed (`scratch/round7/W7-report.md`). The α gap
-(`ReifiedDecl.Prepared` pins a tabled body only up to `Expr.AlphaEq`, and `lake exe reify
---check` reports five of G7/G8's bodies matching only up to binder names) and the ∀-`Γspec`
-shape mismatch `RunRefines` still reads are untouched.
+supplies it. `doc/rework/12-REPAIRS-W9.md` renamed the three wave-4 re-planned pieces
+W5a/W5b/W5c to **W9-B** (the `register_inductive` prefix producer), **W9-C** (the block exit —
+the two `recursorRealizer` realizer sites are gone with W9-A's exclusion, below; the two
+non-recursive/body-less constant exits are still `RegAcc`-typed `regInv_addAxiom_step`/
+`regInv_constCons_step`, landed at wave 4's W5) and **W9-D** (the accumulator conjunct,
+restaged as its own second bundle of eighteen motives, `AccGrows`, proved by a second instance
+of `Erasure.visitExpr.mutual_fixpoint_induct` that reads the first bundle's conclusion as a
+hypothesis at one step only — a correction of wave 4's plan, not what it describes: `RunRefines`,
+`RunRefinesAlt`, `HeadRefines` and all eighteen existing step lemmas stay untouched under the
+new plan, where wave 4 had planned an independent fifth conjunct of `RunRefines` itself), plus
+**W9-E** for W7's `erasure_bridge_env`.
 
-**An unrecorded dependency the repair rests on (new this wave).** `SpecContent.defns` carries
-no `isCasesOnName` guard where `SpecContent.axioms` does, so a tabled `casesOn` with a compiler
-body would make `RegContent`'s content clause self-contradictory through
-`ErasesEnv.runtimeKey_isCasesOn`/`erases_ne_elimBody` — the route that made wave 3's attack on
-`hsub` look reachable through a body in the first place. Measured at HEAD
-(`scratch/round7/W4-refute.md` §1.1, `f_hbody.out`): at G5–G8 the only tabled `casesOn` name is
-`Nat.casesOn`, and its `body?` is `false` at every one — the table carries the *declaration*,
-not a compiler body — so the trigger never fires and `Green.g7_natCasesOn_tabled`'s reading
-holds. But that theorem states only "`Nat.casesOn` is tabled," not "tabled without a body," so
-a table regeneration that gave `Nat.casesOn` a compiler body would silently make
-`green_G5`…`green_G8` vacuous, and nothing in the tree records that dependency or guards
-against it.
+**W9-B was attempted this wave and returned blocked** (`scratch/round7/W9-B-report.md`; no
+tracked file changed, no commit made). `regInv_registerInd_run` as `12-REPAIRS-W9.md` §2.3
+printed it is not provable from its stated premises, and the gap is not a proof-technique one —
+seven findings, F-B-1 through F-B-7. The conclusion's `RegInvShape'.keys`
+(`(s₁.gdecls.map Prod.fst).Nodup`) needs a state invariant, `IndBlocksCover`, that nothing in
+the tree supplies: `Erasure.checkIndKernameFresh` is blind to `s.gdecls`, so a mechanised
+counterexample state (`w9b_probe1.lean`, `sBlind`) satisfies every stated premise while
+violating the conclusion (F-B-1); that invariant's own `reg` case needs a run fact the tree
+proves only at the block's head member, not at every member (F-B-2); `hnewc` needs
+`s₁.constants = s.constants` at `ConfigPinned`, which no theorem records (F-B-3); the
+`IndBodyOf` bridge `IndCovered.block` demands is short of a list-length fact
+`run_register_inductive_cold_entries` does not expose, though the fact sits inside that
+theorem's own proof and only needs threading out (F-B-4); `hfresh`'s eliminator half — that
+`Γ` does not already declare a member's `casesOn` key — is not in §2.3's payment table at all
+(F-B-5); and `IndPrefixOf.content`'s `axioms`/`blocks` and `keys` clauses are *env-ranged*
+where the plan's `BlockKeysFresh` is table-ranged, so F-KERNAME's non-injective `toKername`
+leaves two exclusions unpaid — saved at the rungs only by `cleanIdent`'s identity on a
+`_`-free root string, a lemma not in the tree (F-B-6, F-B-7). Four payments of §2.3's table do
+close as printed (`w9b_probe1.lean` §P: `mutualBlockKn iv = indBlockKername iv.all` by `rfl`;
+the eliminator body's `constRefs`/closedness/freshness; `IndFlagSound` from
+`ErasureSpec.propositionalInd_of_arity`'s sound half, its first consumer had the unit landed),
+and the block-key exclusion is restatable, table-ranged and restricted to *bodied* tabled names
+(`BodiedKeysFresh`, F-W9-1) — at the cost of leaving the eliminator conjunct undischarged, since
+the redundancy argument needs F-B-7's missing converse: `Green.noTabledCasesOnBodies` would
+**still** have had no consumer after a landed W9-B, contrary to §2.1's own *Consumers* line.
+Following rule (2) and the standing prohibition on landing a consumer-less declaration,
+**nothing was committed**: every declaration W9-B would have landed exists only to feed
+`regInv_registerInd_run`. The report proposes a five-unit decomposition in dependency order —
+**B-i** (three run lemmas closing F-B-1's block-shaped gap and F-B-3/F-B-4), **B-ii**
+(`IndBlocksCover` and its two derived freshness lemmas), **B-iii** (the F-KERNAME layer
+F-B-6/F-B-7 need), **B-iv** (`BodiedKeysFresh`/`IndPrefixOf` restated on the specification
+side), **B-v** (`regInv_registerInd_run` proper, now also taking `RegKeyed env s`,
+`CanonicalConstants s`, `IndBlocksCover s` and a `TableSafe`-style safety column beyond §2.3's
+stated premises) — none of which is landed. Separately, `hde` itself is refuted at a block
+member's sub-run (`erasuresDeclared_false_at_app`, `scratch/round7/q_w8.lean`) and its narrower
+repair (F-W8-7, restricting `hde` to the `t₀` that actually lowers to `t`) is stated but not
+landed (`scratch/round7/W7-report.md`). The α gap (`ReifiedDecl.Prepared` pins a tabled body
+only up to `Expr.AlphaEq`, and `lake exe reify --check` reports five of G7/G8's bodies matching
+only up to binder names) and the ∀-`Γspec` shape mismatch `RunRefines` still reads are
+untouched.
+
+**The tabled-`casesOn` dependency — measured this wave, not guarded (W9-H).**
+`SpecContent.defns` carries no `isCasesOnName` guard where `SpecContent.axioms` does, so a
+tabled `casesOn` with a compiler body would make `RegContent`'s content clause
+self-contradictory through `ErasesEnv.runtimeKey_isCasesOn`/`erases_ne_elimBody` — the route
+that made wave 3's attack on `hsub` look reachable through a body in the first place, and
+confirmed this wave as the load-bearing branch: `SpecContent.runtimeKey_isCasesOn`
+(`VisitExprRefines/Step/Env.lean:911`) opens `by_cases hb : ∃ b, bo c = some b` and refutes the
+positive branch *through* the unguarded `defns` clause; a guard deletes that branch's only
+argument, so wave 4's own carried-forward alternative — add the guard — would have been the
+wrong repair (`12-REPAIRS-W9.md` §1.2, `scratch/round7/W5-refute.md` §4.7). W9-H lands
+`Green.noTabledCasesOnBodies` (`Green.lean:1394-1408`), a four-conjunct `decide +kernel` at
+`g5Table..g8Table`: at G5–G8 the only tabled `casesOn` name is `Nat.casesOn`, and its `body?`
+is `none` at every one — the table carries the *declaration*, not a compiler body.
+
+**The measurement's coverage is narrower than the dependency it guards, and G1–G4 are safe for
+a different, unrecorded reason** (`scratch/round7/W5-refute.md`, F-G-1). Every rung's answer is
+a peano numeral, so every rung's `Γspec` declares `Nat`'s block, and `SpecContent.blocks` forces
+an `ElimDecl` at `Nat.casesOn` through `IndCovered.elims` at **all eight** rungs, not only the
+four `noTabledCasesOnBodies` is stated at. At G1–G4 `Nat.casesOn` is not tabled at all
+(`(g<i>Table.decl? ``Nat.casesOn).isSome = false`) — a weaker, different fact from "tabled
+without a body," and nothing in the tree states it, so a table regeneration that pulled
+`Nat.casesOn` into, say, G2 with a body would make `green_G2` vacuous and trip no check. A
+second gap is unmeasured (F-G-2): the dependency's actual trigger is
+`ErasesEnv.runtimeKey_isCasesOn`'s `bo c = some b` branch at a `c` whose *kername* is a declared
+eliminator key, not `isCasesOnName c = true` — so a tabled bodied `c` with `isCasesOnName c =
+false` whose `toKername c` collides with an eliminator key sits outside
+`NoTabledCasesOnBody`'s quantifier and would still break a rung; measured clean at all eight
+today (the colliding set is `[]` everywhere) but excluded by nothing general. `Green.
+g7_natCasesOn_tabled` keeps its role as the non-vacuity witness that the measurement has a
+subject, with a sentence added this wave distinguishing "tabled" (its own claim) from "tabled
+without a body" (what the rungs' consistency actually needs).
+
+### The two realizer exits — closed by exclusion, and zero consumers (W9-A)
+`Erasure.visitMutual`'s body-less arm dispatches on the looked-up `ConstantInfo` before falling
+through to `Erasure.addAxiom`: a `.quotInfo` takes `Erasure.quotRealizer` and a `.recInfo`
+takes `Erasure.recursorRealizer`, and both emit a **bodied** entry at a name the model holds
+body-less, so no specification clause can read either body — MetaRocq's `erases_constant_body`
+(`../metarocq/erasure/theories/Extract.v:264`) relates an emitted body only to the source body
+it erased. `12-REPAIRS-W9.md` §1.1 declines the alternative wave 4's successor plan proposed
+(admitting the two exits as `ElimDecl`-shaped specification entries) as the wrong half of the
+analogy — an eliminator key is *consumed* by `Lower`, a realizer key is *emitted*, and admitting
+the latter as a `RuntimeKey` breaks `Lower.const` exactly where it is accepted — and instead
+shows the fragment never reaches either exit. `no_realizer_exit_compiler`
+(`VisitExprRefines/Step/Env.lean:461`) proves it, at the cost of one new decidable table
+property, `TableRecPrefixed` (the gap between N21's `isRecursorName tbl c = false`, which
+carries a table lookup, and "`c` is no recursor," which the bare-name test `SchemeNames.recr`
+answers), and one new class-**D** bundle, `SchemeNames` (§1). A side effect: `Erasure.
+recursorRealizer`'s own `Erasure.register_inductive` call (`Erasure.lean:436`) is unreachable
+too, so W9-D's accumulator only owes registration growth at `visitConstructor`/`visitProj`/
+`visitCases` (steps 3, 10, 17), not at a fourth site inside `visitMutual`.
+
+`Supported.recSuffix`, factored out of `isRecursorName` and widened from a five-string set to
+`rec_*`, is a genuine correction rather than a refactor: 125 of this toolchain's 3342 `.recInfo`
+constants are the auxiliary recursors `I.rec_k` of nested and mutual inductives (e.g. `Lean.
+Syntax.rec_2`), which the five-string test missed, so before the widening a run at such a head
+reached the `.recInfo` exit instead of being excluded by N21. The widening's own coverage cost
+is §3's finding.
+
+Four further attacks this wave find no `False` and are recorded, not fixed, since they confirm
+rather than break something (`scratch/round7/W5-refute.md` §1): `IndPrefixOf.content`'s
+block-key and cross-block-key collisions are clean at all eight rungs though unexcluded in
+general (F-G-3, sharing F-B-6's root); an `ElimDecl` key is a `RuntimeKey` (`Lower.lean:108`)
+that `LowerEnv.defsTotal` (`ErasesEnv.lean:296`) excepts, so `Green.noCasesOnKeys` and
+`IndCovered.elims` are about opposite sides of the pruning and cannot collide (F-G-4);
+`no_realizer_exit`'s `us = []` restriction is the established idiom `visitConst_refines`
+(`Step/Env.lean:973`) already reduces to, not a coverage loss (F-G-5); and `no_realizer_exit_
+compiler`'s `compilerInfo?` is checked against the exact lookup `Erasure.visitMutual` makes
+(`Erasure.lean:1226`, `:1240`, `:1243`) (F-G-6).
+
+One stale citation this wave's own citation-fixing commit introduced: `Green.lean:1410` cites
+`SpecContent.runtimeKey_isCasesOn` at `VisitExprRefines/Step/Env.lean:821`; the declaration is
+at `:911` (`:821` is an unrelated `obtain` inside a different proof). `lake exe hygiene --cites`
+checks file paths, not line numbers or declaration names, so the battery does not catch it — the
+same blind spot wave 4 reported and W9-H fixed two instances of (`scratch/round7/W5-refute.md`
+§4.6).
 
 ### `hbody`'s residue (was `hargReach`, W7/U9) — strengthened, satisfiable, not refutable
-`Green.g8_hargReach` (`Green.lean:1528-1541`) reduces the binder further than U9 left it: `Lower
+`Green.g8_hargReach` (`Green.lean:1592-1605`) reduces the binder further than U9 left it: `Lower
 Γspec t₀ g8Term` forces `t₀ = .const (toKername ``benchArith)` through `Lower.source_const`
 (`.box` and `ctor` have no `Lower` arm to a `.const`), `ErasesEnv.defns` then produces the
 declared erasure `b₀` of `benchArith`'s tabled body, and `ReachableFrom.through_body` reduces
@@ -263,7 +390,7 @@ Unchanged this round.
 ### The disconnection census — this wave's declarations, and what reads them
 `scratch/round7/W4-refute.md` §4 walks every constant of the environment (imports included) for
 mentions of a target in its **type or proof value**, not by `grep`. Of the components W1–W9
-landed or restated, exactly **one** is read by anything that reaches a rung
+landed or restated through wave 4, exactly **one** is read by anything that reaches a rung
 (`Green.g8_t0 → Green.g8_hargReach → Green.green_G8`, W7/U9); the rest sit in **seven**
 components whose roots have zero consumers anywhere:
 
@@ -278,10 +405,36 @@ components whose roots have zero consumers anywhere:
   `visitMutual_block_mode`, `blockKeyed_install` (W4); `RegAcc.coldStart`,
   `regInv_constCons_step`, `regInv_addAxiom_step` (W5); `regKeyed_of_run`, `regKeyed_empty` and
   below them `runClosedW_regKeyed`, `regKeyed_register_inductive`, `RegKeyed.indCons`,
-  `regKeyed_recConstState` (W6); all eight `g<i>_noBodylessRefs` (W8, see below).
+  `regKeyed_recConstState` (W6); all eight `g<i>_noBodylessRefs` (W8, see below). None of these
+  seven gained a trunk this wave — measured name for name against `d16c1c2` and again at HEAD,
+  every one is still at **0** consumers (`scratch/round7/W5-refute.md` §3.2).
 
-Two of this wave's own "landed / kept" claims are true only one link deeper than before, not
-resolved: `hblk : TableBlocks` (kept at W8, since W4 already gave `blockKeyed_install` a
+**Wave 5 adds three more roots.** `no_realizer_exit_compiler` and everything that exists only
+to feed it — `no_realizer_exit`, `supported_const_names`, and `TableRecPrefixed`/`SchemeNames`
+through it — dead-end at the root: `no_realizer_exit_compiler`'s own intended reader, W9-D's
+`StepAcc6`, has not landed (`recSuffix`'s *other* consumer, `Supported.isRecursorName`, is real
+and pre-existing; the *new* chain `TableRecPrefixed`/`SchemeNames → no_realizer_exit →
+no_realizer_exit_compiler` is not). `Green.tableRecPrefixed_rungs`, the eight-rung measurement
+beside it, is a second root — **vacuous** at every rung by its own docstring, unlike
+`noTabledCasesOnBodies`, which has a subject at G7 (`g7_natCasesOn_tabled`). `Green.
+noTabledCasesOnBodies` itself is a third: its intended reader is W9-B's prefix, which did not
+land, so it too has no consumer today. A wider consumer scan this wave also finds **five**
+declarations below the wave-4 roots above that `W4-refute.md` §4.1 missed —
+`ConstsDeclared.specGrow`, `RefsStable.trans`, `SpecGrow.refl`, `SpecGrow.trans`,
+`RegContent.stateCongr`, all plumbing below the dead `bridgeEnv_of_regContent`/W2-transport
+roots — bringing the zero-consumer surface added since `d61db80` to **32** declarations; with
+the eight `g<i>_noBodylessRefs` `hnb`'s deletion (W8) already orphaned, the round-7 dead
+surface totals **40** (`scratch/round7/W5-refute.md` §3.1).
+
+**`07-STATUS.md`'s own carried-forward item — "stop landing leaves" — was honoured by W9-B,
+which found its route blocked and committed nothing, and violated by W9-A and W9-H, which
+landed three more leaves anyway** (`scratch/round7/W5-refute.md` §3.2). The measured facts they
+land are individually true and cheaply checked (§1), but by the same standard the
+`regKeyed_of_run` paragraph below states of wave 4's own W6, a declaration added to close a
+step and read by nothing is not distinguishable, from inside the tree, from a hypothesis.
+
+Two of wave 4's own "landed / kept" claims are true only one link deeper than before, not
+resolved (unmoved this round): `hblk : TableBlocks` (kept at W8, since W4 already gave `blockKeyed_install` a
 consumer, `visitMutual_block_mode → visitMutual_member_erases_block`) is a real, three-link
 chain now rather than the two-link dead end wave 3 measured — but its *top*,
 `visitMutual_member_erases_block`, still has zero consumers of its own, and
@@ -292,25 +445,35 @@ visitMutual_member_erases`/`_block`, chain length 2 → 4, both tops still zero-
 `W3-refute.md` R3a's "a repaired clause nothing reads is a hypothesis the ladder pays for and
 never spends" therefore still holds of both; only the chain length moved.
 
-**Cost without reach.** `regKeyed_of_run` is the one theorem this wave proved about a run of the
-shipping eraser, and it cost two new class-**D** fields on `BlockAdequate` (§1) that every rung
-now carries through `P` — and it has no consumer. The fields are individually consistent
+**Cost without reach.** `regKeyed_of_run` is the one theorem wave 4 (W6) proved about a run of
+the shipping eraser, and it cost two new class-**D** fields on `BlockAdequate` (§1) that every
+rung now carries through `P` — and it has no consumer. The fields are individually consistent
 (`Lean.Environment.find?` properties, §1), but by W9's own standard ("nothing in the tree
 constructs an `ErasureSpec`, so a field added to make a theorem go through is not
 distinguishable, from inside the tree, from assuming the theorem") the pair is a debt taken in
-advance of a reader that does not yet exist.
+advance of a reader that does not yet exist. The same pattern repeats this wave, smaller:
+`SchemeNames`'s two fields (§1, W9-A) are individually consistent too — measured true at
+230,479 constants, and F-G-6 (above) confirms neither is refutable inside the tree — but
+nothing constructs a `SchemeNames` either, and its only readers dead-end at
+`no_realizer_exit_compiler` (above). Not yet taken by any rung: `12-REPAIRS-W9.md` §2.5's
+`visitExpr_regInv_all` is where a `hS : SchemeNames lenv` field would first enter a rung's
+hypothesis list, and that theorem is not landed.
 
-**Two smaller findings from the same audit.** The eight `Green.g<i>_noBodylessRefs` lost their
-last reader when W8 deleted `hnb` (below): `Tools/Coverage.lean:305-309`'s `nbTerm` column reads
-only whether the *declaration exists* (`env.find?`), never what it says, so
-`doc/coverage.md`'s per-rung `NoBodylessRefs` column is an existence census, not a content
-check. And two docstrings cite a theorem under the wrong qualified name: `ErasesEnv.lean:48` and
-`Erasability.lean:425` cite `ErasureSpec.arity_of_propositionalInd_false` where the declaration
-W9 landed is `LeanToLambdaBox.arity_of_propositionalInd_false` (no `ErasureSpec.` prefix); `lake
-exe hygiene --cites` checks that a cited *file* exists, not that a cited *declaration* name
-does, so the battery does not catch it.
+**Two smaller findings from wave 4's audit, both closed this wave (W9-H).** The eight
+`Green.g<i>_noBodylessRefs` lost their last reader when W8 deleted `hnb` (below): `Tools/
+Coverage.lean`'s `nbTerm` column reads only whether the *declaration exists* (`env.find?`),
+never what it says, so `doc/coverage.md`'s per-rung `NoBodylessRefs` column is an existence
+census, not a content check — `Tools/Coverage.lean:717`'s generator prose now says so, and the
+regenerated `doc/coverage.md` carries the sentence. The two docstrings that cited a theorem
+under the wrong qualified name (`ErasesEnv.lean:48`, `Erasability.lean:425`:
+`ErasureSpec.arity_of_propositionalInd_false` where the declaration is `LeanToLambdaBox.
+arity_of_propositionalInd_false`, no `ErasureSpec.` prefix) are corrected. `lake exe hygiene
+--cites` still checks only that a cited *file* exists, not a cited *declaration* or *line* —
+the same blind spot that let one new stale citation (`Green.lean:1410`, above) land in the very
+commit that fixed the old ones.
 
-**Two binders this wave actually retired, and one it did not.** `hnb : NoBodylessRefs Γ t` is
+**Two binders wave 4 actually retired, and one it did not (unmoved this round).**
+`hnb : NoBodylessRefs Γ t` is
 **deleted** (W8, `e625855`), not merely dead: `shipping_erase_correct_firstorder`'s proof never
 spent it, so it is gone from the theorem's signature and from all eight rungs' applications of
 it, and `Capstone.lean`'s own unused-binder scan reads `#[]`. The deleted docstring's vacuity
@@ -346,8 +509,8 @@ three-`StepDefeq` cost for a single δ and ι. Unchanged this round.
 **Shipping findings from `dev/fix`.** `doc/rework/03-DEV-FIX.md`'s "Applied edits" table is the
 single index, now **twelve** shipping findings plus F-FUEL: the ten from the first merge —
 F-PROP, F-ETA, F-ETA2, F-SPARSE, F-EQREC, F-QUOT, F-ACC, F-DEPTH, F-UNSAFEREC, F-KERNAME, merged
-at `2036c853` and repaired at `doc/rework/10-MERGE-FIXES.md`'s M1–M8 — plus two more from this
-wave's second merge, `1352ac3` (`341e2a9`/`b3db162`, F-DEPLCTX/F-ARITYLET): **F-DEPLCTX**
+at `2036c853` and repaired at `doc/rework/10-MERGE-FIXES.md`'s M1–M8 — plus two more from wave
+4's second merge, `1352ac3` (`341e2a9`/`b3db162`, F-DEPLCTX/F-ARITYLET): **F-DEPLCTX**
 resets `ErasureContext.lctx` at `Erasure.visitMutual`'s two dependency re-entries, so a closed
 compiler body is erased in the context `erase_constant_body` erases it at rather than under
 whatever local context the caller's walk had open — the gate on `Motive6`'s content that W4
@@ -363,52 +526,68 @@ make `NoBodylessRefs` true on Fannkuch, and F-ETA's η-expansion is what lets
 rode in on the verification branch, off by default. Not a miscompile, no wave depends on it,
 and the `.ast.inlinings` channel it drives is a class-**E** row in `doc/trust.md`.
 
-### Carried into the next wave (`scratch/round7/W4-refute.md` §7)
-1. Record the `Nat.casesOn` dependency above as a stated theorem (`g7Table.body? ``Nat.casesOn
-   = none` at every rung that tables it) or as an `isCasesOnName` guard on `SpecContent.defns`,
-   so a table regeneration cannot silently vacuate five rungs.
-2. Stop landing leaves: rule (4) forbids a declaration that lost its last consumer, and a
-   declaration that never had one is the same debt taken in advance — nothing below W5a/b/c
-   should land until it has a reader.
-3. If W5a/b/c does not land next, `regKeyed_of_run` and `BlockAdequate`'s two new fields should
-   come back out together (cost without reach, above).
-4. Fix the two stale citations (`ErasesEnv.lean:48`, `Erasability.lean:425`) and say in
-   `Tools/Coverage.lean` that `nbTerm` is an existence check, not a content one.
-5. `ErasureSpec.propositionalInd_of_arity` needs a producer or a consumer of its own; paired
-   with `arity_of_propositionalInd_false` it is currently a two-sided statement about an
-   interface nothing in the tree crosses.
+### Carried into the next wave (`scratch/round7/W5-refute.md` §6, superseding wave 4's list)
+Wave 4's items 1 and 4 are done (measured, W9-H; fixed, W9-H). What replaces and survives them:
+
+1. Widen `noTabledCasesOnBodies` to all eight rungs (F-G-1). It is true at G1–G4 by a
+   `decide +kernel` the wave-5 audit already ran; the four extra conjuncts cost nothing and make
+   the tripwire cover the rungs the dependency actually reaches, rather than only the four whose
+   table tables `Nat.casesOn` at all.
+2. Add the eliminator-key and block-key collision censuses (F-G-2, F-G-3): both decidable per
+   table, both clean at all eight rungs today, neither in the tree — the rung-side half of
+   F-B-6/F-B-7, which W9-B's proposed B-iii/B-iv would need in general anyway.
+3. Fix `Green.lean:1410` (`SpecContent.runtimeKey_isCasesOn` is at `Step/Env.lean:911`, not
+   `:821`, above) and record the `rec_*` widening's inhabited false-exclusion class in
+   `recSuffix`'s docstring — 18 newly caught non-recursors, 13 under real inductive prefixes
+   including `Nat` and `Bool` (§3).
+4. Stop landing leaves: rule (4) forbids a declaration that lost its last consumer, and a
+   declaration that never had one is the same debt taken in advance. This was honoured by W9-B
+   (which found its route blocked and landed nothing) and violated by W9-A and W9-H (which
+   landed three more) — nothing below W9-B's own five-unit decomposition (B-i…B-v) should land
+   until it has a reader, and the **40**-declaration zero-consumer surface (above) is now the
+   wave's standing headline, not a one-off.
+5. If W9-B's decomposition does not close next, `regKeyed_of_run` and `BlockAdequate`'s two W6
+   fields — and now `SchemeNames`'s two W9-A fields — should come back out together (cost
+   without reach, above); this is wave 4's item 3, due a second wave running.
+6. `ErasureSpec.propositionalInd_of_arity` still needs a landed consumer; W9-B's P4 (above)
+   would be its first were B-v to land, but B-v is not landed.
 
 ## 5. Delivery
-Branch `dev/verify`: 317 commits ahead of `main`, 65 ahead of the last-pushed
-`origin/dev/verify` (`e7894de`), 17 of them this round (`341e2a9` F-DEPLCTX … `d16c1c2`
-bookkeeping, on top of `15a4af7`, wave 3's status commit). `lake build` green at 174 jobs
-(`scratch/round7/gate4/01-lake-build.out`); the only `sorry` warnings are lean4lean's sixteen
-(§1), and two standing linter warnings predate this round and sit outside it —
+Branch `dev/verify`: 321 commits ahead of `main`, 69 ahead of the last-pushed
+`origin/dev/verify` (`e7894de`), 3 of them this round (`f37009c` `12-REPAIRS-W9.md`'s plan,
+`eece730` W9-H, `30b36d5` W9-A — W9-B was attempted and landed nothing, above — on top of
+`f65c86f`, wave 4's status commit). `lake build` green at 174 jobs
+(`scratch/round7/W5-status.build.out`); the only `sorry` warnings are lean4lean's sixteen (§1),
+and two standing linter warnings predate this round and are unmoved by it —
 `LeanToLambdaBox/Semantics/Substitution.lean:231` (`recData` should be a `theorem`) and
-`LeanToLambdaBox/ColdStartShape.lean:439` (`simpa` where `simp` would do; line moved from `:380`
-as this wave's units added declarations above it). Tree-wide, including the two `dev/fix`
-merges' shipping fixes and their `test/fixes/` regression suite (`scripts/fixes.sh`, wired into
-`.github/workflows/build.yml` as its own step, after the build and before the ledger).
+`LeanToLambdaBox/ColdStartShape.lean:439` (`simpa` where `simp` would do). Tree-wide, including
+the two `dev/fix` merges' shipping fixes and their `test/fixes/` regression suite
+(`scripts/fixes.sh`, wired into `.github/workflows/build.yml` as its own step, after the build
+and before the ledger).
 
 `.github/workflows/build.yml` runs the whole battery on pushes to `main` and `dev/verify`, with
-only `LICENSE` in `paths-ignore`. Every check in it is green at HEAD
-(`scratch/round7/gate4/`, 23 commands, one run from a checkout at `92522f2` that found and fixed
-two bookkeeping regressions before landing as `d16c1c2` — §4's "Carried into the next wave"
-list is the substantive residue this round's own gate did not touch); `lake exe
+only `LICENSE` in `paths-ignore`. Every check in it is green at HEAD, re-run for this document
+from a clean tracked tree at `30b36d5` (`scratch/round7/W5-status.*.out`); a companion
+read-only audit the same session (`scratch/round7/W5-refute.md`) found the same — no `False`
+derivable from any rung or the capstone, no bookkeeping regression, nothing to fix — so §4's
+"Carried into the next wave" list is this round's entire substantive residue. `lake exe
 hygiene --schedule` reports **0 inversions** (`8 deletion rows, 45 deleted files, 18 live
 imports of them`, unmoved: no unit this wave deleted or scheduled a file). `lake exe hygiene
---dead` lands at exactly its **339**-declaration budget (`scratch/round7/gate4/16-hygiene-dead.out`,
-raised from 321 by this round's own bookkeeping commit, `d16c1c2`): the 240 `doc/coverage.md`
-accounts for (the tooling 107, the frozen benchmark sources 43, `LeanToLambdaBox/Optimize.lean`
-71 and `LeanToLambdaBox/ErasesUniform.lean` 19), plus `test/Vacuity.lean`'s five regression
-lemmas and the 94 declarations under the **twelve** `test/fixes/` shipping-fix regressions —
-two more than wave 3's ten, `F-ARITYLET.lean` (11 declarations) and `F-DEPLCTX.lean` (7) —
-none imported by the theorem it guards. The pin is lean4lean
-`20ec229f1a8c6358f3b3852c4e27d2be523d1b87` — `lakefile.toml`, both fields of
-`lake-manifest.json`, the first line of `test/lean4lean-sorries.expected` — unchanged this round,
-and every measurement here was taken at it. Both consumers still pin `main` — peregrine-tool's
-Lean test lakefile and the frontend benchmark's, in the sibling checkouts — resolved to
-`42f8f51` and `f54d17d`, ancestors of this branch, so neither builds the verified eraser.
+--dead` lands at exactly its **339**-declaration budget (`scratch/round7/W5-status.dead.out`,
+**unraised this round**: wave 5's nine new declarations all fall inside the `Green.lean`/
+`Supported.lean`/`VisitExprRefines/Step/Env.lean` closure the budget already covers, so the
+zero-consumer additions §4 measures do not move this figure — `hygiene --dead` operates at
+file/import granularity, not the proof-term consumer scan the disconnection census performs):
+the 240 `doc/coverage.md` accounts for (the tooling 107, the frozen benchmark sources 43,
+`LeanToLambdaBox/Optimize.lean` 71 and `LeanToLambdaBox/ErasesUniform.lean` 19), plus
+`test/Vacuity.lean`'s five regression lemmas and the 94 declarations under the **twelve**
+`test/fixes/` shipping-fix regressions, none imported by the theorem it guards. The pin is
+lean4lean `20ec229f1a8c6358f3b3852c4e27d2be523d1b87` — `lakefile.toml`, both fields of
+`lake-manifest.json`, the first line of `test/lean4lean-sorries.expected` — unchanged this
+round, and every measurement here was taken at it. Both consumers still pin `main` —
+peregrine-tool's Lean test lakefile and the frontend benchmark's, in the sibling checkouts —
+resolved to `42f8f51` and `f54d17d`, ancestors of this branch, so neither builds the verified
+eraser.
 
 | # | Verdict | Reason |
 |---|---|---|
@@ -416,7 +595,7 @@ Lean test lakefile and the frontend benchmark's, in the sibling checkouts — re
 | 1, 2, 5, 6, 8 | PASS as amended | eleven `Erases` rules — ten congruences plus `box`, `ctor` the eleventh — with no `.case` and no `.fix`, and `ctor`'s argument list literally `[]`; one L4 pass, `optimize`, with `LBOptimize_correct` and three non-vacuity guards, `LBCompile` split away so the composition has no subject (A9); T5's naming half clean at eight premises, U3.1's target, not five; `FirstOrderInd` decides true on `Nat`, `Bool` and `FOFixture.Tree`, with `List` and `Prod` excluded on purpose (A6/A15) |
 | 9 | PASS as renamed | `ErasureSpec.oracle_sound_of_run` — in the capstone's closure, discharged, not assumed |
 | 13 | PARTIAL | `green_G7` and `green_G8` elaborate; four of the capstone's fourteen binders are checked terms at both — `hcfg`, `hwt`, `hsup`, `hwf` — and ten stand, with `hcb` among them from G2 on (`hnb` is gone entirely, W8, not merely discharged); G8 carries one binder the other seven do not, `hbody` (named `hargReach` before W7/U9), for its non-empty spine |
-| 18, 20 | SPLIT | narration clean, comment fraction 29.0% tree-wide with 5 of 68 files under 20%; the exception list to the no-dead-code rule is **empty**, and `lake exe hygiene --dead` reports 339 declarations outside the closure (above) |
+| 18, 20 | SPLIT | narration clean, comment fraction 29.1% tree-wide with 5 of 68 files under 20%; the exception list to the no-dead-code rule is **empty**, and `lake exe hygiene --dead` reports 339 declarations outside the closure (above) |
 | 7 | FAIL — no subject | `Subsingleton` does not occur; the condition is `Erasable`, discharged by `Erases.sort_erasable`/`forallE_erasable` and by the oracle |
 | 21 | FAIL, deliberate | `LeanToLambdaBox/CheckerAdequacy.lean:41` keeps `namespace Lean4Lean.TypeChecker` until upstream ask 3 lands |
 | 22 | FAIL on the branch half | pin and CI pass; the verified eraser is on `dev/verify` and both consumers pin `main` |
