@@ -105,8 +105,11 @@ theorem FirstOrderInd.informativeInd {env : VEnv} {I : Name} (h : FirstOrderInd 
     ((VEnv.addCtors_le hC).trans ((VEnv.addRecs_le hR).trans (VEnv.addRules_le hP))).trans hle
   exact informativeInd_of_succ ⟨_, hname ▸ hle'.constants hfind, hdecl.informative t hmem⟩
 
+set_option linter.unusedVariables false in
 /-- Upstream ask 6 at a first-order type former: a spine headed by it is definitionally
-equal to no sort and to no Π-type. -/
+equal to no sort and to no Π-type. `A` is unused since the pin: the body now cites
+`Lean4Lean.VEnv.IsDefEqU.const_arity_inv` directly, and the parameter stays to keep
+`firstorder_erases_core`'s call site unchanged. -/
 theorem FirstOrderInd.notSortNotPi {env : VEnv} {I : Name} (A : UpstreamAsks env) {U : Nat}
     {Γ : List VExpr} (hΓ : OnCtx Γ (env.IsType U)) (hfo : FirstOrderInd env I)
     {ius : List VLevel} {iargs : List VExpr}
@@ -114,7 +117,7 @@ theorem FirstOrderInd.notSortNotPi {env : VEnv} {I : Name} (A : UpstreamAsks env
     (∀ u, ¬ env.IsDefEqU U Γ (VExpr.mkApps (.const I ius) iargs) (.sort u)) ∧
     (∀ X Y, ¬ env.IsDefEqU U Γ (VExpr.mkApps (.const I ius) iargs) (.forallE X Y)) := by
   obtain ⟨ds, decl, t, hds, hdecl, hmem, rfl⟩ := hfo.indDeclOf
-  exact A.constArityInv hds hΓ hdecl hmem hisT
+  exact VEnv.IsDefEqU.const_arity_inv hds hΓ hdecl hmem hisT
 
 /-! ## The Boolean checker -/
 
@@ -510,8 +513,9 @@ theorem noBox_lower_of_foSpine {Γspec : GlobalDeclarations} {tv₀ tv : LBTerm}
 
 /-- **The erasure of a first-order value is unique and a constructor tree.** One induction
 over the value's shape: a λ is excluded because its type is a Π and a first-order spine is not
-(`UpstreamAsks.constArityInv`); a sort, a Π-type and a type-former spine are excluded because
-they are erasable and a first-order value is not (`not_erasable_of_informative`); and a
+(`Lean4Lean.VEnv.IsDefEqU.const_arity_inv`); a sort, a Π-type and a type-former spine are
+excluded because they are erasable and a first-order value is not
+(`not_erasable_of_informative`); and a
 constructor spine erases by the congruence alone — its boxed readings by the same fact, its
 head by `constOrigin_not_ctorOf`, its arguments by the induction hypothesis at the field
 typings `fOFields_of_asks` supplies. `FOSpine.noBox` reads box-freedom off the shape. -/

@@ -11,12 +11,16 @@ list, which is why the asks added by W3R are 9 and 10.
 
 Four asks are **load-bearing for Wave 3**: item 2 (`WF'.consts_origin`), item 6
 (`IsDefEqU.const_arity_inv`), item 9 (`HasType.mkApps_inv`) and item 10
-(`IsDefEqU.indSpine_inj`). Editing the fork is a separate agent's work, so until the pin
-moves each is taken as one named, auditable class-**C** hypothesis — the four fields of
-`UpstreamAsks env` (`LeanToLambdaBox/Upstream.lean`), unweakened and unrestated — and every
-consumer carries it in its statement. The pin bump discharges the structure with no change to
-any consumer's statement shape; a refusal blocks the arms that consume it, and `doc/trust.md`
-records which.
+(`IsDefEqU.indSpine_inj`). Editing the fork is a separate agent's work, so until each lands it
+is taken as one named, auditable class-**C** hypothesis — a field of `UpstreamAsks env`
+(`LeanToLambdaBox/Upstream.lean`), unweakened and unrestated — and every consumer carries it
+in its statement. Item 6 has landed, at the pin, `sorry` (`Injectivity.lean:45`): its three
+consumers — `not_erasable_of_informative`, `indSpine_ne_forallE` (both `Origin.lean`) and
+`FirstOrderInd.notSortNotPi` — cite `Lean4Lean.VEnv.IsDefEqU.const_arity_inv` directly, so
+`UpstreamAsks` now packages only items 2, 9 and 10, and item 6's obligation moved from a
+class-**C** hypothesis to an inherited `sorryAx` root. Items 2, 9 and 10 remain open: the pin
+bump discharges the rest of the structure with no change to any consumer's statement shape; a
+refusal blocks the arms that consume it, and `doc/trust.md` records which.
 
 Paths under `.lake/packages/lean4lean/Lean4Lean/` are given relative to that directory.
 
@@ -160,10 +164,13 @@ Paths under `.lake/packages/lean4lean/Lean4Lean/` are given relative to that dir
 6. **`VEnv.IsDefEqU.const_arity_inv`** — an application headed by an inductive **type former**
    is definitionally equal to neither a sort nor a Π. Home:
    `Theory/Typing/Injectivity.lean`, beside `sort_inv`, `forallE_inv_stratified` and
-   `sort_forallE_inv`; all three are `sorry` at the pin and all three are already inherited here
-   through `Erasable.app`, so the honest expectation is that this one lands the same way and its
-   `sorryAx` root inherits into T5's ι and proj arms and into T7. Statement, in that file's
-   idiom:
+   `sort_forallE_inv`. **Landed at the pin, `sorry`** (`Injectivity.lean:39-45`, the `sorry`
+   token at `:45`) — stated-open upstream (the fork lands the declaration, not a proof; the
+   other three of that file's `sorry`s are its unproved root, same as the honest expectation
+   below predicted), closed on this side: `UpstreamAsks` no longer carries a `constArityInv`
+   field, and the consumers below cite the declaration directly, so the `sorryAx` root now
+   inherits into T5's ι and proj arms and into T7 as an inherited axiom rather than a class-C
+   hypothesis. Statement, in that file's idiom (now the fork's own, verbatim):
 
    ```lean
    theorem IsDefEqU.const_arity_inv {ds : List VDecl} {env : VEnv} {U : Nat} {Γ : List VExpr}
@@ -175,11 +182,14 @@ Paths under `.lake/packages/lean4lean/Lean4Lean/` are given relative to that dir
        (∀ A B, ¬ env.IsDefEqU U Γ (VExpr.mkApps (.const t.name us) args) (.forallE A B))
    ```
 
-   The fork is free to sharpen the hypotheses (`hty` is there so that the over-applied case is
-   excluded by typing rather than by a side condition). Consumers here, all theorems:
-   `not_erasable_of_informative` (T5's ι arm, T5's proj arm, T7's `firstorder_no_box`), directly,
-   and `fOFields_of_asks` (both T7 theorems), through `indSpine_ne_forallE`'s use inside
-   `peel_piSpine`. It is
+   `hty` is there so that the over-applied case is excluded by typing rather than by a side
+   condition — the fork lands it unsharpened, verbatim. Consumers, all theorems, all direct
+   citations now: `not_erasable_of_informative` (T5's ι
+   arm, T5's proj arm, T7's `firstorder_no_box`) and `indSpine_ne_forallE` (both
+   `Origin.lean`, the second feeding `peel_piSpine` and hence `fOFields_of_asks`, both T7
+   theorems), plus `FirstOrderInd.notSortNotPi` (`FirstOrderInd.lean`, feeding
+   `firstorder_erases_core` and hence `firstorder_erases_deterministic` and
+   `firstorder_no_box`) — a third direct consumer this item's earlier text omitted. It is
    **not** a consumer of the `SEval.ctorVal` arm any more: that arm carries `[S Fig. 12]`'s own
    `nargs ≤ cstr_arity` bound, read off `IndInfo`, so no-over-application is a premise of the
    source value relation rather than a kernel fact to be derived.

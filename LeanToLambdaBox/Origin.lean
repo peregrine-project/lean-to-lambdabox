@@ -184,7 +184,7 @@ theorem not_erasable_of_informative {env : VEnv} (henv : env.WF) (A : UpstreamAs
       obtain ⟨T', hdef', harity⟩ := har
       have hspine : env.IsDefEqU U Γ (VExpr.mkApps (.const tp.name us) args) T' :=
         VEnv.IsDefEqU.trans henv hΓ (VEnv.IsDefEqU.symm hTeq) hdef'
-      obtain ⟨hns, hnf⟩ := A.constArityInv hds hΓ hdecl htype hisT
+      obtain ⟨hns, hnf⟩ := VEnv.IsDefEqU.const_arity_inv hds hΓ hdecl htype hisT
       cases harity with
       | sort u => exact hns u hspine
       | forallE A' B' _ => exact hnf A' B' hspine
@@ -445,9 +445,12 @@ theorem piSpine_of_piBody {I : Name} : ∀ {ty : VExpr} {n : Nat}, ty.piArity = 
       subst harity
       exact hbody
 
+set_option linter.unusedVariables false in
 /-- A spine headed by an inductively declared type former is definitionally equal to no Π.
 Ask 6, with its declaration data read off `IndDeclOf` and its typing premise off the
-equation itself. -/
+equation itself. `A` is unused since the pin: the body now cites
+`Lean4Lean.VEnv.IsDefEqU.const_arity_inv` directly rather than `A.constArityInv`, and the
+parameter stays to keep `peel_piSpine`'s two call sites unchanged. -/
 theorem indSpine_ne_forallE {env : VEnv} (A : UpstreamAsks env) {U : Nat} {Γ : List VExpr}
     (hΓ : OnCtx Γ (env.IsType U)) {I : Name} (hdec : IndDeclOf env I)
     {us : List VLevel} {args : List VExpr} {A' B' : VExpr} :
@@ -455,7 +458,7 @@ theorem indSpine_ne_forallE {env : VEnv} (A : UpstreamAsks env) {U : Nat} {Γ : 
   intro h
   obtain ⟨ds, decl, t, hds, hdecl, ht, rfl⟩ := hdec
   obtain ⟨C, hC⟩ := h
-  exact (A.constArityInv hds hΓ hdecl ht ⟨C, hC.hasType.1⟩).2 _ _ ⟨C, hC⟩
+  exact (VEnv.IsDefEqU.const_arity_inv hds hΓ hdecl ht ⟨C, hC.hasType.1⟩).2 _ _ ⟨C, hC⟩
 
 /-- Peeling a constructor's declared type at a value typed in its own inductive exhausts the
 telescope exactly: a short spine ends at a Π where an inductive spine is wanted, and a long
