@@ -34,7 +34,7 @@ quantifier that no table satisfies. It is the separate named hypothesis
 namespace LeanToLambdaBox
 
 open Lean Lean4Lean Erasure
-open Lean4Lean.TypeChecker (MLCtx kernelNGen M RecM)
+open Lean4Lean.TypeChecker (MLCtx M RecM)
 
 /-! ## The configuration the statement is made at -/
 

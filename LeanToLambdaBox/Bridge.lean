@@ -24,7 +24,7 @@ of a run.
 namespace LeanToLambdaBox
 
 open Lean Lean4Lean Erasure Witness
-open Lean4Lean.TypeChecker (MLCtx kernelNGen)
+open Lean4Lean.TypeChecker (MLCtx)
 
 /-! ## The block-local fixvar map -/
 

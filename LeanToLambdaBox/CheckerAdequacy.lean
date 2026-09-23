@@ -12,12 +12,13 @@ oracle actually executes `Lean4Lean.TypeChecker.M.run … (RecM.run (isErasable 
 in the **ambient** `LocalContext` with the definition's `levelParams`.
 
 lean4lean itself supplies that lift — `VContext.ofMLCtx`, `VState.WF.initial` and
-`M.WF.run'`, each at an arbitrary ambient `MLCtx`; this file keeps only what it does not:
+`M.WF.run'`, each at an arbitrary ambient `MLCtx`; this file keeps only what it does not,
+neither of them in a `Lean4Lean` namespace (criterion 21):
 
-* `kernelNGen` — the kernel checker's initial name generator, named (the fork
-  spells it out inline as `({} : Lean4Lean.TypeChecker.State).ngen`, definitionally
-  the same value); `LeanToLambdaBox/Bridge.lean` and `ErasureSpec.lean` read it by
-  this name;
+* `LeanToLambdaBox.kernelNGen` — the kernel checker's initial name generator, named
+  downstream (the fork spells it out inline as `({} : Lean4Lean.TypeChecker.State).ngen`
+  rather than naming it); `LeanToLambdaBox/Bridge.lean`, `ErasureSpec.lean` and
+  `Witness/TrWitness.lean` read it by this name;
 * `LeanToLambdaBox.Oracle.kernel_isErasable_sound` — the payoff: a pure `M.run` of
   the verified check returning `.ok true` at a translated ambient `MLCtx` entails
   `Erasable`. Composition of `isErasable.WF` (soundness), `RecM.WF.run` (fuel), and
@@ -32,20 +33,16 @@ What `Oracle.kernel_isErasable_sound` carries is the unique-typing cluster, toge
 level-normalization path the executable checker walks. `doc/trust.md` holds the rows.
 -/
 
-namespace Lean4Lean.TypeChecker
+namespace LeanToLambdaBox
 
-open Lean hiding Environment Exception
-open Kernel
-open Lean4Lean
-open LeanToLambdaBox (Erasable)
+/-- The initial name generator of the kernel checker's state
+(`Lean4Lean.TypeChecker.State`), i.e. the value `({} : Lean4Lean.TypeChecker.State).ngen`
+the fork's `VState.WF.initial`/`M.WF.run'` spell out inline rather than naming.
+`Reserves` for this generator (`idx = 0`) holds of every fvar *not* of the shape
+`⟨.num `_kernel_fresh i⟩` — in particular of every `_uniq`-named runtime fvar. -/
+abbrev kernelNGen : Lean.NameGenerator := ({} : Lean4Lean.TypeChecker.State).ngen
 
-/-- The kernel type-checker's initial name generator (the default `State.ngen`,
-`Lean4Lean.TypeChecker.State`). `Reserves` for this generator (`idx = 0`) holds
-of every fvar *not* of the shape `⟨.num `_kernel_fresh i⟩` — in particular of
-every `_uniq`-named runtime fvar. -/
-def kernelNGen : NameGenerator := { namePrefix := `_kernel_fresh, idx := 0 }
-
-end Lean4Lean.TypeChecker
+end LeanToLambdaBox
 
 namespace LeanToLambdaBox.Oracle
 

@@ -28,7 +28,7 @@ by a checked term and not only stated.
 namespace LeanToLambdaBox.Witness
 
 open Lean Lean4Lean
-open Lean4Lean.TypeChecker (MLCtx kernelNGen M checkType)
+open Lean4Lean.TypeChecker (MLCtx M checkType)
 
 /-! ## The table route -/
 

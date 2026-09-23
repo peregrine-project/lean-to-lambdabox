@@ -597,7 +597,7 @@ eraser.
 | 13 | PARTIAL | `green_G7` and `green_G8` elaborate; four of the capstone's fourteen binders are checked terms at both — `hcfg`, `hwt`, `hsup`, `hwf` — and ten stand, with `hcb` among them from G2 on (`hnb` is gone entirely, W8, not merely discharged); G8 carries one binder the other seven do not, `hbody` (named `hargReach` before W7/U9), for its non-empty spine |
 | 18, 20 | SPLIT | narration clean, comment fraction 29.1% tree-wide with 5 of 68 files under 20%; the exception list to the no-dead-code rule is **empty**, and `lake exe hygiene --dead` reports 339 declarations outside the closure (above) |
 | 7 | FAIL — no subject | `Subsingleton` does not occur; the condition is `Erasable`, discharged by `Erases.sort_erasable`/`forallE_erasable` and by the oracle |
-| 21 | FAIL, deliberate | `LeanToLambdaBox/CheckerAdequacy.lean:35` keeps `namespace Lean4Lean.TypeChecker` (now `kernelNGen` alone, the round-4 pin having landed the block's other six declarations upstream, `doc/trust.md` (c1)) until upstream ask 3 lands in full |
+| 21 | PASS | `grep -rn "namespace Lean4Lean" LeanToLambdaBox/` is empty: the round-4 pin landed six of `CheckerAdequacy.lean`'s seven kernel-generic declarations upstream, and the seventh, `kernelNGen`, moved to `LeanToLambdaBox.kernelNGen`, an `abbrev` for the fork's inline `({} : Lean4Lean.TypeChecker.State).ngen` (`doc/trust.md` (c1)) |
 | 22 | FAIL on the branch half | pin and CI pass; the verified eraser is on `dev/verify` and both consumers pin `main` |
 
 ## 6. How to re-measure

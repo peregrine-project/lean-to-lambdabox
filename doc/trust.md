@@ -191,18 +191,19 @@ that is the only place in this repository where that is recorded.
 
 Four premises a reader may look for have **no row**, because none of them exists any longer. `StepPremises env bo Us fl Γspec` (with its `indSpine`, `elimTyping`, `proj` and `tabled` fields): four of its six fields became clauses of the restated `ErasesEnv` and of `SEval.iota`/`SEval.proj`, and the other two became `UpstreamAsks` fields, so the bundle is deleted. `IndSpineNotProp env`: a theorem, `Origin.lean`'s `indSpine_not_prop`, off asks 9 and 2. `FOFields env Us`: a theorem, `fOFields_of_asks`, off asks 9, 10 and ask 2's block uniqueness. `LowerEnv.specBlocks`: refuted, and deleted with `BlockBodiesLambda`; `LowerBlock.hfl` asserts the λ-headedness of the **emitted** definitions, and the condition that supplies it is read on the **input** side, as `TableBlocks.lamHeaded` together with `TableBlocks.informative` — the second a conjunct and not a formality, because `run_mkDef_box_not_lambda` shows that an erasable member is registered with a non-λ body.
 
-## (c1) One deferral, recorded as a deferral
+## (c1) One deferral, now discharged
 
 Criterion 21 asks that no declaration of this repository sit in the `Lean4Lean` namespace.
-`grep -rn "^namespace Lean4Lean" LeanToLambdaBox/` returns one line,
-`LeanToLambdaBox/CheckerAdequacy.lean:35`, and that is the expected state: the round-4 pin
-landed six of the block's seven kernel-generic declarations upstream verbatim (`VContext.
+`grep -rn "namespace Lean4Lean" LeanToLambdaBox/` returns nothing. The round-4 pin landed six
+of `CheckerAdequacy.lean`'s seven kernel-generic declarations upstream verbatim (`VContext.
 ofMLCtx`, `VState.WF.initial`, `M.WF.run'`, all deleted here in favor of the fork's own,
-`doc/upstream-asks.md` item 3), leaving `kernelNGen` alone — a name the fork does not
-introduce, spelling the value out inline instead — so the block, and the deferral, persist
-(`doc/rework/01-DESIGN.md` §8.3 item 3). This repository does not edit the fork and does not
-move the pin, so the grep is **not** run as a gate check while that ask is open. The row exists
-so that the criterion is not reported as passing when it is deferred.
+`doc/upstream-asks.md` item 3); the seventh, `kernelNGen`, is a name the fork does not
+introduce — it spells the value out inline as `({} : Lean4Lean.TypeChecker.State).ngen`
+instead — so rather than wait on that name landing, `kernelNGen` is now
+`LeanToLambdaBox.kernelNGen`, an `abbrev` for that same expression, defined and consumed
+entirely outside any `Lean4Lean` namespace (`doc/rework/01-DESIGN.md` §8.3 item 3). The row
+is kept for history: this repository still does not edit the fork or move the pin, so the
+grep is not wired into any script as a gate.
 
 ## (d) Class-**E**: scope restrictions and consumer facts
 
