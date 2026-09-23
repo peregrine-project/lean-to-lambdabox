@@ -990,13 +990,6 @@ theorem RegContent.specGrow {env : VEnv} {bo : Name → Option Expr} {lp : Name 
       Lower.specGrow hg H.declEnv hlow (.of_constsDeclared hg (H.declEnv _ _ hd))⟩
   declEnv := henv
 
-/-- The content clause reads the emitted declarations and nothing else of the state. -/
-theorem RegContent.stateCongr {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
-    {Γspec : GlobalDeclarations} {s s' : ErasureState} (H : RegContent env bo lp Γspec s)
-    (hg : s'.gdecls = s.gdecls) : RegContent env bo lp Γspec s' where
-  defns n b t hbo hb := H.defns n b t hbo (by rwa [DefnDecl, hg] at hb)
-  declEnv := H.declEnv
-
 /-- A body-less prefix declares no body, so a `DefnDecl` of the extended list is the tail's.
 -/
 theorem defnDecl_of_append_axioms : ∀ {pre Γ : GlobalDeclarations} {kn : Kername} {t : LBTerm},

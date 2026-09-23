@@ -2432,22 +2432,12 @@ theorem RuntimeKey.specGrow {Γ Γ' : GlobalDeclarations} (hg : SpecGrow Γ Γ')
   let ⟨iid, np, dp, nfs, hd⟩ := h
   ⟨iid, np, dp, nfs, hg.elimDecl hd⟩
 
-/-- Growth preserves declaredness of a term's references. -/
-theorem ConstsDeclared.specGrow {Γ Γ' : GlobalDeclarations} {t : LBTerm}
-    (h : SpecGrow Γ Γ') (hd : ConstsDeclared Γ t) : ConstsDeclared Γ' t :=
-  fun kn hkn => h.isSome (hd kn hkn)
-
 /-- A term whose references the smaller environment declares is stable: the growth's third
 clause is exactly the declared case. This is how every call site that has declaredness in
 hand pays the law's term-side premise. -/
 theorem RefsStable.of_constsDeclared {Γ Γ' : GlobalDeclarations} {t : LBTerm}
     (hg : SpecGrow Γ Γ') (hd : ConstsDeclared Γ t) : RefsStable Γ Γ' t :=
   fun kn hkn hnrk hrk => hnrk (hg.runtimeKey (hd kn hkn) hrk)
-
-/-- Stability composes, which is what threads it through a run's successive steps. -/
-theorem RefsStable.trans {Γ Γ' Γ'' : GlobalDeclarations} {t : LBTerm}
-    (h : RefsStable Γ Γ' t) (h' : RefsStable Γ' Γ'' t) : RefsStable Γ Γ'' t :=
-  fun kn hkn hnrk => h' kn hkn (h kn hkn hnrk)
 
 /-- Growth is reflexive. -/
 theorem SpecGrow.refl (Γ : GlobalDeclarations) : SpecGrow Γ Γ :=
@@ -2531,26 +2521,6 @@ theorem SpecGrow.of_fresh {Γ pre : GlobalDeclarations}
   have hdm : d' = .inductiveDecl mib := by rw [hd''] at hmib; exact Option.some.inj hmib
   subst hdm
   exact ⟨iid, np, dp, nfs, ⟨body, hd, helim⟩, mib, hd', hbo, hnp⟩
-
-/-- **A fresh prefix is stable at `t`** when no prefix entry at one of `t`'s own references
-carries an eliminator body. A reference the smaller environment declares is handled by the
-growth's third clause; one it does not can only become a runtime key through the prefix, and
-the premise rules that out at the keys `t` names. Restricting the premise to `constRefs t` is
-what lets an eliminator prefix — `Erasure.register_inductive`'s — be stable at terms that do
-not name it, while `erases_ne_elimBody` pays it at a prefix of erasure images. -/
-theorem refsStable_of_freshPrefix {Γ pre : GlobalDeclarations} {t : LBTerm}
-    (hg : SpecGrow Γ (pre ++ Γ))
-    (hpre : ∀ kn ∈ constRefs t, ∀ p ∈ pre, p.1 = kn →
-      ∀ (body : LBTerm) (iid : InductiveId) (np dp : Nat) (nfs : List Nat),
-        p.2 = GlobalDecl.constantDecl ⟨some body⟩ → ¬ ElimBody iid np dp nfs body) :
-    RefsStable Γ (pre ++ Γ) t := by
-  intro kn hkn hnrk hrk
-  by_cases hd : (LBTerm.envLookup Γ kn).isSome
-  · exact hnrk (hg.runtimeKey hd hrk)
-  · obtain ⟨iid, np, dp, nfs, ⟨body, hlook, helim⟩, -⟩ := hrk
-    rcases List.mem_append.1 (envLookup_mem hlook) with hm | hm
-    · exact hpre kn hkn _ hm rfl body iid np dp nfs rfl helim
-    · exact hd (envLookup_isSome_of_mem (p := (kn, GlobalDecl.constantDecl ⟨some body⟩)) hm)
 
 /-! ### References of a part
 
@@ -2968,13 +2938,6 @@ theorem not_lower_grown : ¬ Lower ggrown (.const aKn) (.fix defs 0) := by
     have hdec := hblk.hdecl 0 hjk
     rw [hjeq] at hdec
     rcases body_of_grown hdec with he | he <;> simp [aBody, mkElimBody, mkLambdas] at he
-
-/-- The smaller environment is not reference-closed: that is what the counterexample turns on. -/
-theorem not_constsDeclaredEnv_small : ¬ ConstsDeclaredEnv gsmall := by
-  intro h
-  have hx := h aKn aBody rfl cKn (by rw [aBody, constRefs, constRefs]; exact List.mem_cons_self ..)
-  rw [show LBTerm.envLookup gsmall cKn = none from rfl] at hx
-  exact Bool.noConfusion hx
 
 /-- The source's own references are declared. -/
 theorem constsDeclared_small : ConstsDeclared gsmall (.const aKn) := by

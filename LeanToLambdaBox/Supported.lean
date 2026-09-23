@@ -190,7 +190,14 @@ constants every one carries a suffix in this set, and 125 — the auxiliary recu
 `Lean.Syntax.rec_2` — carry only `rec_k` (`scratch/round7/w9a_measure.out`). A name test
 over-approximates in the safe direction: a definition called `I.rec_k` that is *not* a
 recursor leaves the fragment with `SupportError.recursorHead`, a coverage cost, never an
-accepted term the ι rule cannot evaluate. -/
+accepted term the ι rule cannot evaluate. That class is inhabited, not merely hypothetical: 18
+non-`.recInfo` constants of this toolchain fall under `rec_*`, 13 of them under a genuine
+inductive prefix — `Nat.rec_eq_recCompiled`, `Bool.rec_eq`, `Acc.rec_eq_recC`,
+`List.Perm.rec_heq`, and eight `Lean4Lean`-internal theorems (`scratch/round7/W5-refute.md`
+§4.4). `Nat` and `Bool` are tabled inductives at the ladder's rungs, so `isRecursorName` now
+answers `true` at those thirteen names for any table tabling them — a coverage cost, never a
+miscompile: all thirteen are theorems, unreachable from a computational body, so no rung
+moved. -/
 def recSuffix (c : Name) : Bool :=
   match lastComponent c with
   | some s =>

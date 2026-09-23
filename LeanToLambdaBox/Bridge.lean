@@ -207,37 +207,6 @@ theorem ErasesLBMode.block {tbl : SourceTable} {ctx : ErasureContext} {env : VEn
     (hbk : BlockKeyed tbl ctx nms ids) :
     ErasesLBFix env Us Γspec (nms.map toKername) ids Δ e t := h.2 nms ids hbk
 
-/-! ## Growth of the specification environment
-
-Both readings of the refinement conclusion are monotone along `SpecGrow`, which is what lets
-a sibling sub-run's conclusion be re-read at the environment a later step has grown. -/
-
-/-- The mode-indexed conclusion survives growth of the specification environment. The two
-readings bind different `Lower` targets — the ambient one's is `t` itself, the block one's is
-the term `ConstToFVar` rewrites into `t` — so each pays its own side condition. -/
-theorem ErasesLBMode.specGrow {tbl : SourceTable} {ctx : ErasureContext} {env : VEnv}
-    {Us : List Name} {Γ Γ' : GlobalDeclarations} {Δ : VLCtx} {e : Expr} {t : LBTerm}
-    (hg : SpecGrow Γ Γ') (henv : ConstsDeclaredEnv Γ)
-    (hst : ErasuresStable env Us Γ Γ' Δ e t)
-    (hstb : ∀ (kns : List Kername) (ids : List FVarId) (t₁ : LBTerm),
-      ConstToFVar kns ids t₁ t → ErasuresStable env Us Γ Γ' Δ e t₁)
-    (h : ErasesLBMode tbl ctx env Us Γ Δ e t) :
-    ErasesLBMode tbl ctx env Us Γ' Δ e t :=
-  ⟨fun hfx => (h.1 hfx).specGrow hg henv hst,
-    fun nms ids hbk => (h.2 nms ids hbk).specGrow hg henv fun t₁ => hstb _ ids t₁⟩
-
-/-- The alternative's mode-indexed conclusion survives growth, at its own two targets. -/
-theorem ErasesLBAltMode.specGrow {tbl : SourceTable} {ctx : ErasureContext} {env : VEnv}
-    {Us : List Name} {Γ Γ' : GlobalDeclarations} {Δ : VLCtx} {nf : Nat} {m : Expr}
-    {alt : List BinderName × LBTerm} (hg : SpecGrow Γ Γ') (henv : ConstsDeclaredEnv Γ)
-    (hst : ErasuresStableAlt env Us Γ Γ' Δ nf m alt)
-    (hstb : ∀ (kns : List Kername) (ids : List FVarId) (alt₁ : List BinderName × LBTerm),
-      ConstToFVar kns ids alt₁.2 alt.2 → ErasuresStableAlt env Us Γ Γ' Δ nf m alt₁)
-    (h : ErasesLBAltMode tbl ctx env Us Γ Δ nf m alt) :
-    ErasesLBAltMode tbl ctx env Us Γ' Δ nf m alt :=
-  ⟨fun hfx => (h.1 hfx).specGrow hg henv hst,
-    fun nms ids hbk => (h.2 nms ids hbk).specGrow hg henv fun alt₁ => hstb _ ids alt₁⟩
-
 /-! ## The inductive registry -/
 
 /-- **The inductive registry is the model's.** Every entry names the block identifier the model

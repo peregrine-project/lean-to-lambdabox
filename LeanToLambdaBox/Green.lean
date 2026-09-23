@@ -1350,11 +1350,9 @@ environment never carries. The step that adds it is the **inductive** registrati
 `.case` node's: `SpecContent.blocks` fires at every declared block key and answers with
 `IndCovered`, whose `elims` field demands the informative inductive's `casesOn` declaration,
 so the entry is owed the moment `Erasure.register_inductive` puts the block key into
-`Γspec` — on **every** rung, including the four whose tables hold no `casesOn` name. The
-measurement is therefore taken at all eight, and at every eliminator key rather than at the
-tabled ones: `toKername` sends `I.casesOn` to a kername whose identifier is `casesOn`, and no
-rung emits such a key. The block key of the prefix is not covered here — it is emitted, and
-its freshness is `Erasure.checkIndKernameFresh`'s at the state the step runs from. -/
+`Γspec` — on **every** rung, including the four whose tables hold no `casesOn` name.
+`toKername` sends `I.casesOn` to a kername whose identifier is `casesOn`, which is what lets
+the tabled-`casesOn` dependency below be tested directly against a source table. -/
 
 /-- **G7's run eliminates with `Nat.casesOn`**: it is tabled and it is a `casesOn` name, so
 the measurement below is not vacuous. What the rungs' own consistency needs is the stronger
@@ -1389,25 +1387,30 @@ clause, and the ι arm spends that (`:1077`). A guard would delete the branch th
 reads and relocate its conclusion one level up as an assumed premise — what rule (2) forbids.
 So the dependency this buys is measured here instead of guarded away. -/
 
-/-- No tabled `casesOn` name carries a compiler body. Decidable at a table — the same shape
-`noCasesOnKeys` below decides at an emitted environment. -/
+/-- No tabled `casesOn` name carries a compiler body. Decidable at a table. -/
 def NoTabledCasesOnBody (tbl : SourceTable) : Prop :=
   ∀ c ∈ tbl.decls.map Prod.fst, isCasesOnName c = true → (tbl.body? c).isNone = true
 
 instance : Decidable (NoTabledCasesOnBody tbl) := by
   unfold NoTabledCasesOnBody; infer_instance
 
-/-- **The measurement**, at the four rungs whose table carries a `casesOn` name at all
-(`g7_natCasesOn_tabled` witnesses G7's). A tabled `casesOn` with a body would make the
-corresponding rung's hypotheses unsatisfiable, never false — the contradiction is a
-*theorem* (`ErasesEnv.runtimeKey_isCasesOn`), so this measurement is what tells the ladder
-that did not happen. -/
+/-- **The measurement**, at all eight rungs. Every rung's answer is a peano numeral, so every
+rung's `Γspec` declares `Nat`'s block regardless of whether its own table tables
+`Nat.casesOn`, and `IndCovered.elims` forces `Nat.casesOn`'s `ElimDecl` there — so the
+dependency reaches all eight, not only the four whose table carries the name at all
+(`g7_natCasesOn_tabled` witnesses G7's non-vacuous case; G1–G4 hold vacuously, no table there
+carrying a `casesOn` name). A tabled `casesOn` with a body would make the corresponding
+rung's hypotheses unsatisfiable, never false — the contradiction is a *theorem*
+(`ErasesEnv.runtimeKey_isCasesOn`), so this measurement is what tells the ladder that did not
+happen. -/
 theorem noTabledCasesOnBodies :
+    NoTabledCasesOnBody g1Table ∧ NoTabledCasesOnBody g2Table ∧
+    NoTabledCasesOnBody g3Table ∧ NoTabledCasesOnBody g4Table ∧
     NoTabledCasesOnBody g5Table ∧ NoTabledCasesOnBody g6Table ∧
     NoTabledCasesOnBody g7Table ∧ NoTabledCasesOnBody g8Table := by
   decide +kernel
 
-/-! `SpecContent.runtimeKey_isCasesOn` (`VisitExprRefines/Step/Env.lean:821`) already reads
+/-! `SpecContent.runtimeKey_isCasesOn` (`VisitExprRefines/Step/Env.lean:911`) already reads
 this fact at a specification environment rather than at a program, which is where
 `register_inductive`'s prefix (W9-B) will need it: its `hb : ∃ b, bo c = some b` branch
 derives `False` from the same unguarded `defns` clause before the theorem returns, so
@@ -1417,74 +1420,6 @@ was considered and declined — its natural premise `hsome : (LBTerm.envLookup �
 on its own, and until W9-B lands nothing in the tree reads it — so this wave records the
 reading rather than landing an unconsumed declaration (rule that a landed declaration needs a
 consumer in the tree or in the wave's next unit). -/
-
-/-! ### The recursor-suffix coherence of the tables, measured
-
-`no_realizer_exit` (`VisitExprRefines/Step/Env.lean`) closes `Erasure.visitMutual`'s two
-realizer exits by exclusion, and the gap it has to cross is between N21's
-`isRecursorName tbl c = false` — which carries the table lookup — and "`c` is no recursor",
-which `SchemeNames.recr` answers at the suffix alone. `TableRecPrefixed` is that gap. -/
-
-/-- **Every tabled name with a recursor suffix has its inductive tabled**, at all eight rungs.
-Unlike `noTabledCasesOnBodies` this is **vacuous** at every one of them: no tabled name at any
-rung carries a recursor suffix at all (`scratch/round7/w9a_measure.out`), so what the eight
-`decide`s report is that the ladder never exercises the gap, not that it crosses it. The
-property has a subject at a table that does hold a recursor — `Witness.reify%` tables one
-body-less whenever a body it walks names one — and the widened `recSuffix`, which catches the
-125 auxiliary recursors `I.rec_k` of this toolchain that the five-string test missed, is what
-gives it content there. -/
-theorem tableRecPrefixed_rungs :
-    TableRecPrefixed g1Table ∧ TableRecPrefixed g2Table ∧ TableRecPrefixed g3Table ∧
-    TableRecPrefixed g4Table ∧ TableRecPrefixed g5Table ∧ TableRecPrefixed g6Table ∧
-    TableRecPrefixed g7Table ∧ TableRecPrefixed g8Table := by
-  decide +kernel
-
-/-- **No emitted key is an eliminator's**, at all eight rungs. `gdecls` only grows along a
-run, so a key absent from the final environment is absent at every intermediate state. -/
-theorem noCasesOnKeys :
-    (∀ p : Kername × GlobalDecl, p ∈ g1Env → p.1.id ≠ "casesOn") ∧
-    (∀ p : Kername × GlobalDecl, p ∈ g2Env → p.1.id ≠ "casesOn") ∧
-    (∀ p : Kername × GlobalDecl, p ∈ g3Env → p.1.id ≠ "casesOn") ∧
-    (∀ p : Kername × GlobalDecl, p ∈ g4Env → p.1.id ≠ "casesOn") ∧
-    (∀ p : Kername × GlobalDecl, p ∈ g5Env → p.1.id ≠ "casesOn") ∧
-    (∀ p : Kername × GlobalDecl, p ∈ g6Env → p.1.id ≠ "casesOn") ∧
-    (∀ p : Kername × GlobalDecl, p ∈ g7Env → p.1.id ≠ "casesOn") ∧
-    (∀ p : Kername × GlobalDecl, p ∈ g8Env → p.1.id ≠ "casesOn") := by decide +kernel
-
-/-- An eliminator key is undeclared in an environment no key of which carries the
-identifier — the reading `noCasesOnKeys` has at each rung. -/
-theorem elimKey_undeclared_of_noCasesOnKeys {Γe : GlobalDeclarations}
-    (h : ∀ p : Kername × GlobalDecl, p ∈ Γe → p.1.id ≠ "casesOn") {c : Name}
-    (hc : isCasesOnName c = true) : LBTerm.envLookup Γe (toKername c) = none := by
-  cases hl : LBTerm.envLookup Γe (toKername c) with
-  | none => rfl
-  | some d => exact absurd (toKername_id_of_isCasesOnName hc) (h _ (envLookup_mem hl))
-
-/-- **The emitted environments are reference-closed**, which is what `Lower.specGrow` asks of
-the environment it is read at: every declared body names only declared keys. Decided on the
-two Arith rungs, the ladder's largest. -/
-theorem g7_constsDeclaredEnv : ConstsDeclaredEnv g7Env :=
-  constsDeclaredEnv_of_check (by decide +kernel)
-
-/-- The same at the applied rung. -/
-theorem g8_constsDeclaredEnv : ConstsDeclaredEnv g8Env :=
-  constsDeclaredEnv_of_check (by decide +kernel)
-
-/-- **The specification-side prefix a registration conses is a growth.** Over any environment
-whose keys the emitted one answers — which is what the registration invariant maintains — a
-prefix of keys the emitted environment misses is fresh, so `SpecGrow.of_fresh` applies and
-the pass survives the step. At a rung the prefix's eliminator keys are supplied by
-`elimKey_undeclared_of_noCasesOnKeys` off `noCasesOnKeys`. `hb` is derivable where the
-accumulator carries its δ column, by `elimBlocksDeclared_of_constsDeclaredEnv`. -/
-theorem elimPrefix_specGrow {Γ Γe pre : GlobalDeclarations}
-    (hsub : ∀ kn, (LBTerm.envLookup Γ kn).isSome → (LBTerm.envLookup Γe kn).isSome)
-    (hpre : ∀ p ∈ pre, LBTerm.envLookup Γe p.1 = none) (hb : ElimBlocksDeclared Γ) :
-    SpecGrow Γ (pre ++ Γ) := by
-  refine SpecGrow.of_fresh ?_ hb
-  intro p hp q hq hcon
-  have h1 := hsub q.1 (envLookup_isSome_of_mem hq)
-  rw [← hcon, hpre p hp] at h1
-  exact Bool.noConfusion h1
 
 /-- **Rung G8's spine translates.** The subject is function-typed, so the observable's
 translation premise is read at the application, not at the constant. `TrExprS.app` over the
