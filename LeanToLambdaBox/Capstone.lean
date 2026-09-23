@@ -5,6 +5,7 @@ import LeanToLambdaBox.VisitExprRefines
 import LeanToLambdaBox.VisitExprRefines.Step.Env
 import LeanToLambdaBox.VisitExprRefines.Step.Mechanical
 import LeanToLambdaBox.VisitExprRefines.Step.Passes
+import LeanToLambdaBox.VisitExprRefines.StepAcc.Env
 import LeanToLambdaBox.VisitExprRefines.StepAcc.Mechanical
 import LeanToLambdaBox.VisitExprRefines.StepAcc.Passes
 

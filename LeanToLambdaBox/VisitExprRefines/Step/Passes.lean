@@ -845,12 +845,50 @@ theorem pass_throw_guard_else {c : Bool} {msg : MessageData} {k : EraseM LBTerm}
     obtain ⟨a0, sa0, wa0, hthr, -⟩ := hrun
     exact absurd hthr (run_throwError_ne_ok _ ctx cctx ref _ _ _ _ _)
 
+/-- **`Erasure.firstNonProofField` writes nothing.** `run_firstNonProofField_okW`'s state
+column, read on its own: the walk's only state-touching calls are `Lean.getConstInfo` and one
+lifted `Lean.MetaM` computation per constructor, and both are state-transparent. The
+world-indexed form cannot report this — `RunClosedW` is not inhabited at `(· = s)`, its
+registration clauses being false there — so the equation is stepped directly. -/
+theorem run_firstNonProofField_state {ind : InductiveVal} {r : Option (Name × Nat)}
+    {s s₁ : ErasureState} {ctx : ErasureContext} {cctx : Core.Context}
+    {ref : ST.Ref IO.RealWorld Core.State} {w w₁ : Void IO.RealWorld}
+    (hrun : firstNonProofField ind s ctx cctx ref w = .ok (r, s₁) w₁) : s₁ = s := by
+  unfold firstNonProofField at hrun
+  simp only [] at hrun
+  rw [run_bind_ok] at hrun
+  obtain ⟨acc, s₂, w₂, hloop, htail⟩ := hrun
+  have hP₂ : s₂ = s := by
+    refine run_list_forIn_ok ctx cctx ref (P := fun _ s' _ => s' = s) _ _ _ _ _ rfl ?_ _ _ _ hloop
+    intro c _ a sa wa st sb wb hPa hb
+    rw [run_bind_ok] at hb
+    obtain ⟨ci, sc, wc, hci, hb⟩ := hb
+    obtain rfl := run_getConstInfo_state _ _ cctx ref _ hci
+    cases ci
+    case ctorInfo cv =>
+      simp only [] at hb
+      rw [run_bind_ok] at hb
+      obtain ⟨found, sd, wd, hmeta, hb⟩ := hb
+      obtain rfl := run_liftMetaM_state _ _ _ _ _ hmeta
+      cases found <;>
+        (simp only [] at hb; rw [run_pure] at hb; cases hb; exact hPa)
+    all_goals
+      (simp only [] at hb
+       rw [run_bind_ok] at hb
+       obtain ⟨a0, s0, w0, hthr, -⟩ := hb
+       exact absurd hthr (run_throwError_ne_ok _ ctx cctx ref _ _ _ _ _))
+  obtain ⟨found, u⟩ := acc
+  cases found <;>
+    (simp only [] at htail; rw [run_pure] at htail; cases htail; exact hP₂)
+
 /-- **F-ACC's refusal, stepped.** `Erasure.visitCases` tests the eliminated inductive's declared
 arity and, when it ends in `Prop`, walks the constructors for a field that is not a proof and
 refuses if it finds one (`Erasure.lean:1134-1136`). On a successful run the walk found nothing —
-or did not run — so the continuation runs at a state the walk only grew and a generator it only
+or did not run — so the continuation runs at *the same state* and a generator the walk only
 advanced. The continuation and the message are abstract, so the branch is stepped rather than
-assumed away, and the walk itself is `run_firstNonProofField_okW`. -/
+assumed away; the walk's generator bound is `run_firstNonProofField_okW` and its state equation
+`run_firstNonProofField_state`. The state equation, rather than a `RunConcl`, is what the
+accumulator bundle needs at this guard: `AccGrows` crosses an equation and not a growth. -/
 theorem pass_propArity_guard {lenv : Environment} {env : VEnv} {Us : List Name}
     {gw : Void IO.RealWorld → NameGenerator} (P : ErasureSpec lenv env Us gw)
     (E : EraserAsks lenv env gw) {b : Bool} {iv : InductiveVal}
@@ -865,16 +903,14 @@ theorem pass_propArity_guard {lenv : Environment} {env : VEnv} {Us : List Name}
           | some (cn, fi) => do throwError (msg cn fi); k
           | _ => k)
       else k) s ctx cctx ref w = .ok (t, s') w') :
-    ∃ (sG : ErasureState) (wG : Void IO.RealWorld),
-      RunConcl s sG ∧ gw w ≤ gw wG ∧
-        (IndRegistryModelled env s → IndRegistryModelled env sG) ∧
-        k sG ctx cctx ref wG = .ok (t, s') w' := by
+    ∃ wG : Void IO.RealWorld, gw w ≤ gw wG ∧ k s ctx cctx ref wG = .ok (t, s') w' := by
   split at hrun
   · rw [run_bind_ok] at hrun
     obtain ⟨fr, sf, wf, hfn, hrun⟩ := hrun
-    obtain ⟨⟨hrcf, hlef⟩, hregf⟩ :=
+    obtain ⟨⟨-, hlef⟩, -⟩ :=
       run_firstNonProofField_okW (runClosedW_concl P E s w) hfn
         ⟨⟨RunConcl.rfl' _, NameGenerator.LE.rfl⟩, id⟩
+    obtain rfl := run_firstNonProofField_state hfn
     cases fr with
     | some pr =>
       obtain ⟨cn0, fi0⟩ := pr
@@ -882,8 +918,8 @@ theorem pass_propArity_guard {lenv : Environment} {env : VEnv} {Us : List Name}
       rw [run_bind_ok] at hrun
       obtain ⟨a0, sa0, wa0, hthr, -⟩ := hrun
       exact absurd hthr (run_throwError_ne_ok _ ctx cctx ref _ _ _ _ _)
-    | none => exact ⟨sf, wf, hrcf, hlef, hregf, hrun⟩
-  · exact ⟨s, w, RunConcl.rfl' _, NameGenerator.LE.rfl, id, hrun⟩
+    | none => exact ⟨wf, hlef, hrun⟩
+  · exact ⟨w, NameGenerator.LE.rfl, hrun⟩
 
 /-! ## Step 13 — `Erasure.visitCtorEta` -/
 
@@ -1042,12 +1078,12 @@ theorem step_visitCases {lenv : Environment} {env : VEnv}
   cases hrd2
   replace hm2 := pass_throw_guard_then hm2
   replace hm2 := pass_throw_guard_else hm2
-  obtain ⟨sG, wG, hrcG, hleG, hregG, hm2⟩ := pass_propArity_guard P E hm2
+  obtain ⟨wG, hleG, hm2⟩ := pass_propArity_guard P E hm2
   rw [run_bind_ok] at hm2
   obtain ⟨rr, s₅, w₅, hregrun, hm3⟩ := hm2
   -- the registration's answer, and the model behind it
   have hrc₅ := run_register_inductive_runConcl hregrun
-  have hreg₅ := run_register_inductive_models P hfind hcfgc (hregG hreg₁) hregrun
+  have hreg₅ := run_register_inductive_models P hfind hcfgc hreg₁ hregrun
   have hle₅ := run_register_inductive_gen P hcfgc hregrun
   have hget := pass_register_inductive_entry P (by rw [hivn]; exact hfind) hself hcfgc hregrun
   have hmodel := hreg₅ iv.name rr I.numParams (I.ctors.map (·.numFields)) hget
@@ -1089,8 +1125,7 @@ theorem step_visitCases {lenv : Environment} {env : VEnv}
   have haltslen : I.ctors.length ≤ ci.altNumParams.size :=
     Nat.le_of_eq hhead.agrees.numAlts.symm
   have hinv₅ : BridgeInv env Us tbl cfg (gw w₅) ctx s₅ Δ :=
-    ((((hinv.mono_state hrc₁ hreg₁).mono hle₁).mono_state hrcG (hregG hreg₁)).mono_state
-        hrc₅ hreg₅).mono
+    (((hinv.mono_state hrc₁ hreg₁).mono hle₁).mono_state hrc₅ hreg₅).mono
       (NameGenerator.LE.trans hle₄ (NameGenerator.LE.trans hleG hle₅))
   -- F-SPARSE: every constructor's slot is its own, so the index array is total, the
   -- catch-all is never built and the loop walks the block in constructor order
@@ -1225,7 +1260,7 @@ theorem step_visitCases {lenv : Environment} {env : VEnv}
     obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem ha
     have hi' : i < args.size := by simpa using hi
     simpa using hargs i hi'
-  have hrcT := hrcG.trans (hrc₅.trans hloopP.1)
+  have hrcT := hrc₅.trans hloopP.1
   have hindsome : (s₃.inductives.get? con.getPrefix).isSome := by
     refine hloopP.1.le.inds ?_
     rw [← hivn, hget]
@@ -1340,7 +1375,7 @@ theorem step_visitCases {lenv : Environment} {env : VEnv}
       simp at hpx)
     htail
   obtain ⟨hrcF, hregF, hleF, hmodeF⟩ := htailP
-  refine ⟨hrc₁.trans (hrcG.trans (hrc₅.trans (hloopP.1.trans hrcF))), hregF, ?_,
+  refine ⟨hrc₁.trans (hrc₅.trans (hloopP.1.trans hrcF)), hregF, ?_,
     fun Γspec hspec => ?_⟩
   · exact NameGenerator.LE.trans hle₁ (NameGenerator.LE.trans hle₄ (NameGenerator.LE.trans hleG
       (NameGenerator.LE.trans hle₅ (NameGenerator.LE.trans hloopP.2.2.1 hleF))))
