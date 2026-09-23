@@ -1096,6 +1096,81 @@ theorem RegContent.register_inductive_run {env : VEnv} {bo : Name → Option Exp
   intro n b t _ _ hd
   exact absurd hd (by simp)
 
+/-! ### The content clause at a block exit
+
+`Erasure.visitMutual`'s recursive exit registers a whole block at once, and member `i`'s
+`Lower` fact is `Lower.fixEta_of_block`, whose `LowerBlock.hdecl` premise reads *every*
+member's declaration. So the specification environment carries the whole block before the
+state fold begins — the shape `RegInvShape'.recConst` already has — and the content clause
+is maintained at that fixed environment, one consed entry at a time.
+-/
+
+/-- **A block member's declared body is the erasure the content clause names.** The block
+declares `bs[j]!` at `kns[j]!` and `SpecContent.defns` answers the same lookup with an erasure
+of the compiler body at the declaration's own level scope
+(`../metarocq/erasure/theories/Extract.v:264`, `erase_constant_body`), so the two terms are
+one. `toKername` is not injective (F-KERNAME), so this reads at every tabled name the member's
+key answers for, not at the member alone. -/
+theorem LowerBlock.erases_of_specContent {env : VEnv} {bo : Name → Option Expr}
+    {lp : Name → List Name} {Γspec : GlobalDeclarations} {kns : List Kername}
+    {bs bs' : List LBTerm} {ids : List FVarId} {defs : List (@FixDef LBTerm)}
+    (hblk : LowerBlock Γspec kns bs bs' ids defs) (hspec : SpecContent env bo lp Γspec)
+    {c : Name} {b : Expr} {j : Nat} (hbo : bo c = some b)
+    (hj : kns[j]? = some (toKername c)) :
+    Erases env (lp c) [] b bs[j]! := by
+  obtain ⟨hjl, hje⟩ := Lower.getElem!_of_getElem? hj
+  have hdecl : DefnDecl Γspec (toKername c) bs[j]! := by
+    have := hblk.hdecl j hjl; rwa [hje] at this
+  rw [DefnDecl] at hdecl
+  obtain ⟨b₀, hl, her⟩ := hspec.defns c b hbo (by rw [hdecl]; rfl)
+  obtain rfl : b₀ = bs[j]! := by rw [hdecl] at hl; simpa using hl.symm
+  exact her
+
+/-- **The content clause along the block registration loop, one member at a time.** The fold
+`recConstState` runs conses `(toKername p.1, .constantDecl ⟨some (etaExpandFix defs p.2)⟩)`,
+and the witness that entry owes is the member's own declared body: `LowerBlock.hdecl` for the
+declaration, `LowerBlock.erases_of_specContent` for the erasure reading and
+`Lower.fixEta_of_block` for the lowering. No freshness is needed — `RegContent.gdeclsCons`
+reads the consed key and nothing else. -/
+theorem regContent_foldl_recConstStep {env : VEnv} {bo : Name → Option Expr}
+    {lp : Name → List Name} {Γspec : GlobalDeclarations} {kns : List Kername}
+    {bs bs' : List LBTerm} {ids : List FVarId} {defs : List (@FixDef LBTerm)}
+    (hblk : LowerBlock Γspec kns bs bs' ids defs) (hspec : SpecContent env bo lp Γspec) :
+    ∀ (ps : List (Name × Nat)) (s : ErasureState), RegContent env bo lp Γspec s →
+      (∀ p ∈ ps, kns[p.2]? = some (toKername p.1)) →
+      RegContent env bo lp Γspec (ps.foldl (recConstStep defs) s)
+  | [], _, C, _ => C
+  | p :: rest, s, C, hidx => by
+    refine regContent_foldl_recConstStep hblk hspec rest _ ?_
+      (fun r hr => hidx r (List.mem_cons_of_mem _ hr))
+    refine C.gdeclsCons (k := toKername p.1)
+      (d := .constantDecl ⟨some (etaExpandFix defs p.2)⟩) rfl ?_
+    intro m b t hbo hkey hd
+    obtain rfl : etaExpandFix defs p.2 = t := by simpa using hd
+    have hj : kns[p.2]? = some (toKername m) := by
+      rw [hkey]; exact hidx p List.mem_cons_self
+    obtain ⟨hjl, hje⟩ := Lower.getElem!_of_getElem? hj
+    have hdecl : DefnDecl Γspec (toKername m) bs[p.2]! := by
+      have := hblk.hdecl p.2 hjl; rwa [hje] at this
+    exact ⟨bs[p.2]!, by rw [← hkey]; exact hdecl,
+      hblk.erases_of_specContent hspec hbo hj,
+      hblk.etaExpandFix_eq p.2 ▸ Lower.fixEta_of_block hblk hj hdecl⟩
+
+/-- **`visitMutual`'s recursive exit, at the content clause.** `RegInvShape'.recConst`'s twin:
+a whole block is registered at once and every member's emitted body is the η-expansion of the
+block's node, whose witness is the body the specification environment already declares at that
+member. -/
+theorem RegContent.recConst {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
+    {Γspec : GlobalDeclarations} {s : ErasureState} {names : List Name}
+    {kns : List Kername} {bs bs' : List LBTerm} {ids : List FVarId}
+    {defs : List (@FixDef LBTerm)} (C : RegContent env bo lp Γspec s)
+    (hspec : SpecContent env bo lp Γspec)
+    (hblk : LowerBlock Γspec kns bs bs' ids defs)
+    (hidx : ∀ p ∈ names.zipIdx, kns[p.2]? = some (toKername p.1)) :
+    RegContent env bo lp Γspec (recConstState names defs s) := by
+  rw [recConstState_eq]
+  exact regContent_foldl_recConstStep hblk hspec names.zipIdx s C hidx
+
 /-- **The emitted environment only grows across `Erasure.register_inductive`.** What the
 saturation clause spends at the step: an entry the run had emitted is still emitted. -/
 theorem register_inductive_gdecls_mono {indinfo : InductiveVal} {s : ErasureState}
@@ -1180,6 +1255,18 @@ theorem SpecKeysEmitted.append {Γ pre : GlobalDeclarations} {s s' : ErasureStat
     · exact Kpre.inds kn mib h1
     · obtain ⟨mib', hmem⟩ := K.inds kn mib h2
       exact ⟨mib', hsub _ hmem⟩
+
+/-- **Saturation across a block registration.** `SpecKeysEmitted.append` at the state
+`Erasure.visitMutual`'s recursive exit ends in: the registration loop only prepends, so every
+entry the run had emitted is still emitted. -/
+theorem SpecKeysEmitted.recConst {Γ pre : GlobalDeclarations} {s : ErasureState}
+    {names : List Name} {defs : List (@FixDef LBTerm)}
+    (K : SpecKeysEmitted Γ s) (Kpre : SpecKeysEmitted pre (recConstState names defs s))
+    (hg : SpecGrow Γ (pre ++ Γ)) :
+    SpecKeysEmitted (pre ++ Γ) (recConstState names defs s) :=
+  K.append Kpre hg (fun p hp => by
+    obtain ⟨q, hq⟩ := (runConcl_recConstState names defs s).le.gdecls
+    rw [hq]; exact List.mem_append_right _ hp)
 
 /-! ## The accumulator
 
@@ -1299,6 +1386,41 @@ theorem regInv_constCons_step {env : VEnv} {bo : Name → Option Expr} {lp : Nam
     exact ⟨b₀, envLookup_cons_self, her, hlow'⟩
   · exact K.cons hg (by rw [nonrecConstState_gdecls]; exact List.mem_cons_self)
       (fun p hp => by rw [nonrecConstState_gdecls]; exact List.mem_cons_of_mem _ hp)
+
+/-- **`visitMutual`'s block exit, declaring what it registers.** The specification environment
+gains the whole block prefix *before* the state fold, because member `i`'s emitted body is the
+η-expansion of the block's node and `Lower.fixEta_of_block` reads every member's declaration.
+`pre` is the block's own member entries, each `(toKername c, .constantDecl ⟨some bs[j]!⟩)`;
+their erasure readings are `hpre`'s, which is why no further erasure premise appears here.
+`hfs` and `hnd` are the state-side freshness and key distinctness `RegInvShape'.recConst`
+asks, the second being what a successful exit reports off F-UNSAFEREC's guard.
+
+`SpecGrow.of_fresh` needs no eliminator-side condition: the prefix entries are erasure images
+and no erasure image is an eliminator body (`erases_ne_elimBody`), so `ElimBlocksDeclared` is
+paid by the δ column alone. -/
+theorem regInv_recConst_step {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
+    {Γ pre : GlobalDeclarations} {s : ErasureState} {names : List Name}
+    {kns : List Kername} {bs bs' : List LBTerm} {ids : List FVarId}
+    {defs : List (@FixDef LBTerm)}
+    (A : RegAcc env bo lp Γ s)
+    (hpre : SpecContent env bo lp pre) (hfresh : ∀ p ∈ pre, ∀ q ∈ Γ, p.1 ≠ q.1)
+    (hcl : ClosedBodies pre) (hfv : FVarFreeBodies pre)
+    (hdenv : ConstsDeclaredEnv (pre ++ Γ))
+    (hkpre : SpecKeysEmitted pre (recConstState names defs s))
+    (hblk : LowerBlock (pre ++ Γ) kns bs bs' ids defs)
+    (hidx : ∀ p ∈ names.zipIdx, kns[p.2]? = some (toKername p.1))
+    (hfs : ∀ n ∈ names, ∀ q ∈ s.gdecls, q.1 ≠ toKername n)
+    (hnd : (names.map toKername).Nodup) :
+    SpecGrow Γ (pre ++ Γ) ∧ RegAcc env bo lp (pre ++ Γ) (recConstState names defs s) := by
+  obtain ⟨H, C, K⟩ := A
+  have hg : SpecGrow Γ (pre ++ Γ) :=
+    SpecGrow.of_fresh hfresh (elimBlocksDeclared_of_constsDeclaredEnv C.declEnv)
+  have hspec : SpecContent env bo lp (pre ++ Γ) := H.spec.append hpre hfresh
+  exact ⟨hg,
+    (H.specGrow hg C.declEnv hspec (closedBodies_append hcl H.specClosed)
+      (fvarFreeBodies_append hfv H.specFVarFree)).recConst hblk hidx hfs hnd,
+    (C.specGrow hg hdenv).recConst hspec hblk hidx,
+    K.recConst hkpre hg⟩
 
 /-- **`register_inductive`, declaring what it registers.** The specification environment
 gains a whole prefix, not one entry: `SpecContent.blocks` fires at the block key the run
