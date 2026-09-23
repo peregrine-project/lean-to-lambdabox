@@ -78,6 +78,17 @@ theorem envLookup_append_left : ∀ {pre Γ : GlobalDeclarations} {kn : Kername}
       | true => rw [hb] at h; simpa using h
       | false => rw [hb] at h; simpa using envLookup_append_left (Γ := Γ) (by simpa using h)
 
+/-- A key the tail declares the append declares: the prefix either answers it or does not,
+and either way the lookup lands on an entry. -/
+theorem envLookup_append_isSome : ∀ {pre Γ : GlobalDeclarations} {kn : Kername},
+    (LBTerm.envLookup Γ kn).isSome → (LBTerm.envLookup (pre ++ Γ) kn).isSome
+  | [], _, _, h => h
+  | (k, d) :: pre, Γ, kn, h => by
+      rw [List.cons_append, LBTerm.envLookup]
+      cases hb : Kername.beq k kn with
+      | true => simp
+      | false => simpa using envLookup_append_isSome (pre := pre) (Γ := Γ) h
+
 /-- A lookup of an append is the prefix's, or — the prefix missing — the tail's. -/
 theorem envLookup_append_cases : ∀ {pre Γ : GlobalDeclarations} {kn : Kername} {d : GlobalDecl},
     LBTerm.envLookup (pre ++ Γ) kn = some d →
@@ -118,6 +129,17 @@ theorem ElimDecl.appendLeft {pre Γ : GlobalDeclarations} {kn : Kername} {iid : 
     ElimDecl (pre ++ Γ) kn iid np dp nfs :=
   ⟨⟨h.1.choose, envLookup_append_left h.1.choose_spec.1, h.1.choose_spec.2⟩,
     ⟨h.2.choose, envLookup_append_left h.2.choose_spec.1, h.2.choose_spec.2⟩⟩
+
+/-- Coverage by the prefix is coverage by the append: both `IndCovered` clauses conclude in
+lookups the prefix already answers. -/
+theorem IndCovered.appendLeft {env : VEnv} {pre Γ : GlobalDeclarations} {n : Name}
+    (h : IndCovered env pre n) : IndCovered env (pre ++ Γ) n where
+  block iid np nfs hi :=
+    let ⟨hdecl, mib, hlook, hbod, hflag⟩ := h.block iid np nfs hi
+    ⟨hdecl, mib, envLookup_append_left hlook, hbod, hflag⟩
+  elims c dp nm hsh hinf hco :=
+    let ⟨iid, np, nfs, hel, hi, hnm⟩ := h.elims c dp nm hsh hinf hco
+    ⟨iid, np, nfs, hel.appendLeft, hi, hnm⟩
 
 /-- A runtime key of the prefix is a runtime key of the append. -/
 theorem RuntimeKey.appendLeft {pre Γ : GlobalDeclarations} {kn : Kername}
@@ -1536,6 +1558,41 @@ structure IndPrefixOf (env : VEnv) (bo : Name → Option Expr) (lp : Name → Li
     (p.1 = mutualBlockKn indinfo ∧ ∃ mib, p.2 = GlobalDecl.inductiveDecl mib) ∨
     (RuntimeKey pre p.1 ∧ ∃ (body : LBTerm) (iid : InductiveId) (np dp : Nat) (nfs : List Nat),
       p.2 = .constantDecl ⟨some body⟩ ∧ ElimBody iid np dp nfs body)
+  /-- Every key is the block's or a *modelled* eliminator's, at a member this block's
+      identifier keys. `entries` reads an entry's shape; this reads its key against the
+      model, which is what makes `SpecContent.elims` at the specification environment refute
+      a collision with a key the run is about to mint. -/
+  elimKeys : ∀ p ∈ pre, p.1 = mutualBlockKn indinfo ∨
+    ∃ (c I : Name) (dp nm : Nat) (iid : InductiveId) (np : Nat) (nfs : List Nat),
+      p.1 = toKername c ∧ CasesOnShape env c I dp nm ∧ IndInfo env I iid np nfs ∧
+      iid.mutualBlockName = mutualBlockKn indinfo
+
+/-! ## The two clauses `SpecKeysEmitted` exempts
+
+`SpecKeysEmitted.consts` exempts a runtime key — λ□ prunes the eliminator declarations, so
+the emitted environment answers for no such key — and the exemption is what leaves the
+specification environment free, as far as `RegAcc` says, to declare an eliminator body at a
+key no source name prints as. Such an entry would collide with the block key a registration
+mints, and nothing in the accumulator rules it out; the two clauses below are what a
+registration run carries instead. Both are vacuous at the empty specification environment and
+at the empty state, and `regInv_registerInd_run` re-establishes both at the grown pair.
+-/
+
+/-- **Every runtime key of the specification environment answers to a modelled `casesOn`
+constant.** The program-independent form of `ErasesEnv.runtimeKey_isCasesOn`, whose own
+derivation runs through a program's reachability and so is out of reach of the registration
+path: `SpecContent`'s clauses constrain an entry only through a source name keyed at it, so
+a key no source name prints as carries no obligation at all. -/
+def RuntimeKeysModelled (env : VEnv) (Γspec : GlobalDeclarations) : Prop :=
+  ∀ kn : Kername, RuntimeKey Γspec kn →
+    ∃ (c I : Name) (dp nm : Nat), CasesOnShape env c I dp nm ∧ kn = toKername c
+
+/-- **No emitted key is a runtime key of the specification environment.** The state-side
+reading of λ□'s pruning of the eliminator declarations (MetaRocq's `erases_global_decls`,
+`../metarocq/erasure/theories/Extract.v:284`): `Lower.const` refuses a runtime key, and the
+eraser registers no `casesOn` constant, so the emitted environment declares none. -/
+def EmittedNotRuntime (Γspec : GlobalDeclarations) (s : ErasureState) : Prop :=
+  ∀ kn : Kername, (LBTerm.envLookup s.gdecls kn).isSome → ¬ RuntimeKey Γspec kn
 
 /-! ## Saturation at the final state
 

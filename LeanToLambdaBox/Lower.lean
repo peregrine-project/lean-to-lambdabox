@@ -2490,6 +2490,34 @@ theorem mem_constRefs_elimBody {iid : InductiveId} {np dp : Nat} {nfs : List Nat
     rw [constRefsDefs]
     exact List.mem_append_left _ hcases
 
+/-- The alternatives of an eliminator body name no constant: each minor is a de Bruijn
+variable applied to de Bruijn variables. -/
+theorem constRefsAlts_elimAlts : ∀ ms : List Nat, constRefsAlts (elimAlts ms) = []
+  | [] => rfl
+  | m :: ms => by
+      rw [elimAlts, constRefsAlts, constRefsAlts_elimAlts ms, constRefs_mkApps]
+      simp only [constRefs, List.nil_append, List.append_nil]
+      have hbv : ∀ l : List Nat, (l.map LBTerm.bvar).flatMap constRefs = [] := by
+        intro l
+        induction l with
+        | nil => rfl
+        | cons a l ih => rw [List.map_cons, List.flatMap_cons, ih]; rfl
+      rw [fieldArgs_eq, hbv]
+
+/-- An eliminator body names its own block and nothing else: `mem_constRefs_elimBody`'s
+converse, which is what makes the block entry beside it pay `ConstsDeclaredEnv` at the
+eliminator's key. -/
+theorem constRefs_elimBody {iid : InductiveId} {np dp : Nat} {nfs : List Nat} {b : LBTerm}
+    (h : ElimBody iid np dp nfs b) : constRefs b = [iid.mutualBlockName] := by
+  have hcases : constRefs (mkElimBody iid np dp nfs) = [iid.mutualBlockName] := by
+    rw [mkElimBody, constRefs_mkLambdas, constRefs, constRefsAlts_elimAlts]
+    rfl
+  rcases h.shape with rfl | rfl
+  · exact hcases
+  · show constRefsDefs _ = _
+    rw [constRefsDefs, constRefsDefs, hcases]
+    rfl
+
 /-- **The δ column pays `SpecGrow.of_fresh`'s side condition.** An eliminator body is one of
 its own references, so an environment whose declared bodies name only declared keys has every
 eliminator's block declared. -/

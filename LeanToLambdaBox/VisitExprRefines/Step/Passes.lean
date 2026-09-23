@@ -1817,7 +1817,7 @@ theorem indPrefixOf_of_run {lenv : Environment} {env : VEnv} {Us : List Name}
           ⟨hnp.symm, oib, hbod, hctors⟩, oib, hbod, hpf⟩
       · rw [ctorFieldCounts, List.length_map]
         exact hnm.symm
-  refine ⟨indPrefix indinfo bodies (elimSlots lenv indinfo bodies), ⟨hcov, ?_, ?_, ?_⟩, ?_⟩
+  refine ⟨indPrefix indinfo bodies (elimSlots lenv indinfo bodies), ⟨hcov, ?_, ?_, ?_, ?_⟩, ?_⟩
   · -- content
     refine ⟨hnodup, ?_, ?_, ?_, ?_⟩
     · intro c b hbo hs
@@ -1863,6 +1863,15 @@ theorem indPrefixOf_of_run {lenv : Environment} {env : VEnv} {Us : List Name}
         ⟨_, ?_, .cases⟩, { npars := indinfo.numParams, bodies := bodies }, indPrefix_block,
         ⟨rfl, oib, hbod, hctors⟩, oib, hbod, hpf⟩, _, _, _, _, _, rfl, .cases⟩
       exact hlookElim e he
+  · -- elimKeys
+    intro p hp
+    rw [indPrefix, List.mem_cons] at hp
+    rcases hp with rfl | hp
+    · exact Or.inl rfl
+    · obtain ⟨e, he, rfl⟩ := List.mem_map.mp hp
+      obtain ⟨-, -, nm, -, -, hii, -, -, -, hsh⟩ := hslot e he
+      exact Or.inr ⟨Name.str e.name "casesOn", e.name, e.dropped, nm,
+        ⟨mutualBlockKn indinfo, e.idx⟩, indinfo.numParams, e.fields, rfl, hsh, hii, rfl⟩
   · intro mib hmib
     rw [hs1, registerIndState] at hmib
     simp only [] at hmib
@@ -1871,5 +1880,252 @@ theorem indPrefixOf_of_run {lenv : Environment} {env : VEnv} {Us : List Name}
     injection h with h'
     rw [← h']
     exact indPrefix_block
+
+/-! ## The accumulator across a block registration, produced from a run
+
+`regInv_registerInd_step` takes thirteen premises; `regInv_registerInd_run` produces them.
+The prefix and its block entry come from `indPrefixOf_of_run`; the key discipline from
+`blockKey_fresh_of_cover` and `constKey_fresh`, which is why `RegKeyed`, `CanonicalConstants`
+and `IndBlocksCover` are premises; `hnewc` and `hkeys` from the two pinned-config run
+lemmas, `hnewi` from `run_register_inductive_cold_registry` beside the prefix's coverage.
+
+Two premises are not about this call at all but about the pair the accumulator does not
+constrain. `RuntimeKeysModelled` refutes an eliminator entry of `Γspec` at the key the run
+mints — `SpecKeysEmitted.consts` exempts a runtime key, so without it `Γspec` may declare one
+at a key no source name prints as, and the prefix would not be fresh. `EmittedNotRuntime`
+refutes an emitted entry at a runtime key, which is what lets `RegInvShape'.defsTotal` read a
+body-less emitted entry back as a body-less specification entry and pay `haxpre`. Both are
+re-established at the grown pair, so the induction that spends them can carry them.
+-/
+
+set_option maxHeartbeats 1000000 in
+/-- **The registration step, at a run.** `regInv_registerInd_step`'s thirteen premises
+produced rather than assumed, with the prefix existential and the two clauses
+`SpecKeysEmitted` exempts carried across. -/
+theorem regInv_registerInd_run {lenv : Environment} {env : VEnv} {Us : List Name}
+    {gw : Void IO.RealWorld → NameGenerator} {bo : Name → Option Expr}
+    {lp : Name → List Name} {Γ : GlobalDeclarations} {indinfo : InductiveVal}
+    {s : ErasureState} {ctx : ErasureContext} {cctx : Core.Context}
+    {ref : ST.Ref IO.RealWorld Core.State} {w : Void IO.RealWorld}
+    {r : InductiveId × InductiveArgMasks} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
+    (P : ErasureSpec lenv env Us gw) (A : UpstreamAsks env)
+    (Acc : RegAcc env bo lp Γ s)
+    (hkeyed : RegKeyed env s) (hcanon : CanonicalConstants s)
+    (hcovs : IndBlocksCover lenv s)
+    (hrkm : RuntimeKeysModelled env Γ) (henr : EmittedNotRuntime Γ s)
+    (K : BodiedKeysFresh env bo indinfo)
+    (hsafe : ∀ (I : Name) (iv : InductiveVal), lenv.find? I = some (.inductInfo iv) →
+      DefinitionSafety.safe ≤ (ConstantInfo.inductInfo iv).safety)
+    (hcfg : ConfigPinned ctx.config)
+    (hfind : lenv.find? indinfo.name = some (.inductInfo indinfo))
+    (hmiss : s.inductives.get? indinfo.name = none)
+    (hrun : Erasure.register_inductive indinfo s ctx cctx ref w = .ok (r, s₁) w₁) :
+    ∃ pre : GlobalDeclarations, IndPrefixOf env bo lp indinfo pre ∧
+      SpecGrow Γ (pre ++ Γ) ∧ RegAcc env bo lp (pre ++ Γ) s₁ ∧
+      RuntimeKeysModelled env (pre ++ Γ) ∧ EmittedNotRuntime (pre ++ Γ) s₁ := by
+  obtain ⟨pre, HP, hblkpre⟩ :=
+    indPrefixOf_of_run P A Acc hcovs K hsafe hcfg hfind hmiss hrun
+  refine ⟨pre, HP, ?_⟩
+  have hself : indinfo.name ∈ indinfo.all := P.block_adequate.selfMem _ indinfo hfind
+  have hfreshG : IndKernameFresh indinfo.all (mutualBlockKn indinfo) s :=
+    (run_register_inductive_cold_ok (Ci := fun _ _ => True)
+      (fun _ _ _ _ _ _ _ => trivial) hmiss hrun).1
+  have hbfresh := blockKey_fresh_of_cover hcovs hfreshG hfind hself hmiss
+  have hcfresh := constKey_fresh hkeyed hcanon hfreshG
+  obtain ⟨mib₁, hgd⟩ := run_register_inductive_cold_gdecls hcfg.2.1 hmiss hrun
+  obtain ⟨mib₀, hpreblk⟩ := HP.block
+  have hblockNotIn : mutualBlockKn indinfo ∉ s.gdecls.map Prod.fst := by
+    intro hk
+    obtain ⟨q, hq, hqk⟩ := List.mem_map.mp hk
+    obtain ⟨k, d⟩ := q
+    simp only [] at hqk
+    subst hqk
+    cases d with
+    | constantDecl cb => exact hcfresh cb hq
+    | inductiveDecl mib => exact hbfresh mib hq
+  have hblockNot : ∀ mib, LBTerm.envLookup Γ (mutualBlockKn indinfo)
+      ≠ some (.inductiveDecl mib) := by
+    intro mib hlook
+    obtain ⟨mib', hmem⟩ := Acc.keysEmitted.inds _ mib hlook
+    exact hbfresh mib' hmem
+  -- the prefix is fresh against the specification environment
+  have hfresh : ∀ p ∈ pre, ∀ q ∈ Γ, p.1 ≠ q.1 := by
+    intro p hp q hq hpq
+    have hqlook : LBTerm.envLookup Γ q.1 = some q.2 :=
+      envLookup_of_mem_nodup hq Acc.shape.spec.keys
+    rcases HP.elimKeys p hp with hk | ⟨c, I, dp, nm, iid, np, nfs, hk, hsh, hi, hiid⟩
+    · rw [hk] at hpq
+      obtain ⟨k, d⟩ := q
+      simp only [] at hpq hqlook
+      subst hpq
+      cases d with
+      | inductiveDecl mib => exact hblockNot mib hqlook
+      | constantDecl cb =>
+        by_cases hrk : RuntimeKey Γ (mutualBlockKn indinfo)
+        · obtain ⟨c', I', dp', nm', hsh', hkc⟩ := hrkm _ hrk
+          exact K.elims c' I' dp' nm' indinfo.all hsh' hkc.symm
+        · obtain ⟨cb', hmem⟩ := Acc.keysEmitted.consts _ cb hqlook hrk
+          exact hcfresh cb' hmem
+    · have hs : (LBTerm.envLookup Γ (toKername c)).isSome := by
+        rw [← hk, hpq, hqlook]; rfl
+      obtain ⟨-, mib, hlook, -, -⟩ :=
+        (Acc.shape.spec.elims c I dp nm hsh hs).block iid np nfs hi
+      rw [hiid] at hlook
+      exact hblockNot mib hlook
+  have hg : SpecGrow Γ (pre ++ Γ) :=
+    SpecGrow.of_fresh hfresh (elimBlocksDeclared_of_constsDeclaredEnv Acc.content.declEnv)
+  -- the prefix's bodies are eliminators'
+  have hpreBody : ∀ (kn : Kername) (b : LBTerm), DefnDecl pre kn b →
+      ∃ (iid : InductiveId) (np dp : Nat) (nfs : List Nat), ElimBody iid np dp nfs b ∧
+        RuntimeKey pre kn := by
+    intro kn b hd
+    have hmem := envLookup_mem hd
+    rcases HP.entries _ hmem with ⟨-, mib, hshape⟩ | ⟨hrk, body, iid, np, dp, nfs, hshape, he⟩
+    · exact absurd hshape (by simp)
+    · simp only [GlobalDecl.constantDecl.injEq, ConstantBody.mk.injEq,
+        Option.some.injEq] at hshape
+      exact ⟨iid, np, dp, nfs, hshape ▸ he, hrk⟩
+  have hcl : ClosedBodies pre := by
+    intro kn b hd
+    obtain ⟨iid, np, dp, nfs, he, -⟩ := hpreBody kn b hd
+    exact he.closed
+  have hfv : FVarFreeBodies pre := by
+    intro kn b x hd
+    obtain ⟨iid, np, dp, nfs, he, -⟩ := hpreBody kn b hd
+    exact he.noFVar
+  -- the δ column at the grown environment
+  have hdenv : ConstsDeclaredEnv (pre ++ Γ) := by
+    intro kn b hd kn' hkn'
+    rcases envLookup_append_cases hd with h1 | ⟨-, h2⟩
+    · obtain ⟨iid, np, dp, nfs, -, hrk⟩ := hpreBody kn b h1
+      obtain ⟨iid', np', dp', nfs', ⟨body', hlook', he'⟩, mib, hmib, -, -⟩ := hrk
+      have hbe : body' = b := by
+        rw [h1] at hlook'
+        injection Option.some.inj hlook' with h'
+        injection h' with h''
+        exact (Option.some.inj h'').symm
+      subst hbe
+      rw [constRefs_elimBody he'] at hkn'
+      simp only [List.mem_singleton] at hkn'
+      subst hkn'
+      rw [envLookup_append_left hmib]
+      rfl
+    · exact envLookup_append_isSome (Acc.content.declEnv kn b h2 kn' hkn')
+  -- saturation at the prefix
+  have hkpre : SpecKeysEmitted pre s₁ := by
+    refine ⟨?_, ?_⟩
+    · intro kn cb hlook hrk
+      have hmem := envLookup_mem hlook
+      rcases HP.entries _ hmem with ⟨-, mib, hshape⟩ | ⟨hrk', -⟩
+      · exact absurd hshape (by simp)
+      · exact absurd hrk' hrk
+    · intro kn mib hlook
+      have hmem := envLookup_mem hlook
+      rcases HP.entries _ hmem with ⟨hk, -⟩ | ⟨-, body, iid, np, dp, nfs, hshape, -⟩
+      · refine ⟨mib₁, ?_⟩
+        rw [hgd, show kn = mutualBlockKn indinfo from hk]
+        exact List.mem_cons_self
+      · exact absurd hshape (by simp)
+  -- the state-facing side conditions
+  have hkeys : (s₁.gdecls.map Prod.fst).Nodup := by
+    rw [hgd, List.map_cons, List.nodup_cons]
+    exact ⟨hblockNotIn, Acc.shape.keys⟩
+  have haxpre : ∀ p ∈ s₁.gdecls, p.2 = GlobalDecl.constantDecl ⟨none⟩ →
+      LBTerm.envLookup (pre ++ Γ) p.1 = some (.constantDecl ⟨none⟩) := by
+    intro p hp hax
+    rw [hgd, List.mem_cons] at hp
+    rcases hp with rfl | hp
+    · exact absurd hax (by simp)
+    · obtain ⟨k, d⟩ := p
+      simp only [] at hax ⊢
+      subst hax
+      have hemit : LBTerm.envLookup s.gdecls k = some (.constantDecl ⟨none⟩) :=
+        envLookup_of_mem_nodup (p := (k, GlobalDecl.constantDecl ⟨none⟩)) hp Acc.shape.keys
+      have hnrk : ¬ RuntimeKey Γ k := henr k (by rw [hemit]; rfl)
+      obtain ⟨n, hkn, hns⟩ := hkeyed.consts k ⟨none⟩ hp
+      have hdecl : (LBTerm.envLookup Γ k).isSome := by rw [hkn]; exact Acc.shape.consts n hns
+      obtain ⟨d, hd⟩ := Option.isSome_iff_exists.mp hdecl
+      have hfin : d = GlobalDecl.constantDecl ⟨none⟩ := by
+        cases d with
+        | inductiveDecl mib =>
+          obtain ⟨mib', hmem⟩ := Acc.keysEmitted.inds _ mib hd
+          have hcl' := envLookup_of_mem_nodup (p := (k, GlobalDecl.inductiveDecl mib')) hmem
+            Acc.shape.keys
+          rw [hemit] at hcl'
+          exact absurd hcl' (by simp)
+        | constantDecl cb =>
+          obtain ⟨body⟩ := cb
+          cases body with
+          | none => rfl
+          | some b =>
+            have hdd : DefnDecl Γ (toKername n) b := by rw [DefnDecl, ← hkn]; exact hd
+            obtain ⟨b', hb'⟩ := Acc.shape.defsTotal n b hns hdd (by rw [← hkn]; exact hnrk)
+            rw [DefnDecl, ← hkn, hemit] at hb'
+            exact absurd hb' (by simp)
+      rw [← hfin]
+      exact envLookup_append_of_fresh
+        (fun q hq => hfresh q hq (k, d) (envLookup_mem hd)) hd
+  have hblk : ∀ mib, LBTerm.envLookup s₁.gdecls (mutualBlockKn indinfo)
+      = some (.inductiveDecl mib) →
+      LBTerm.envLookup (pre ++ Γ) (mutualBlockKn indinfo) = some (.inductiveDecl mib) :=
+    fun mib h => envLookup_append_left (hblkpre mib h)
+  have hnewc : ∀ n : Name, (s₁.constants.get? n).isSome → (s.constants.get? n).isSome ∨
+      LBTerm.envLookup (pre ++ Γ) (toKername n) = some (.constantDecl ⟨none⟩) := by
+    intro n hn
+    exact .inl (by rwa [run_register_inductive_cold_constants hcfg.2.1 hmiss hrun] at hn)
+  have hnewi : ∀ n : Name, (s₁.inductives.get? n).isSome → (s.inductives.get? n).isSome ∨
+      (IndCovered env (pre ++ Γ) n ∧ IndEmitted env (pre ++ Γ) s₁.gdecls n) := by
+    intro n hn
+    rcases run_register_inductive_cold_registry hmiss hrun n hn with hold | hmem
+    · exact .inl hold
+    · refine .inr ⟨(HP.covered n hmem).appendLeft, ?_⟩
+      intro iid np nfs hi d hd
+      obtain ⟨-, mib, hlook, -, -⟩ := (HP.covered n hmem).block iid np nfs hi
+      have hblockKey : iid.mutualBlockName = mutualBlockKn indinfo := by
+        rcases HP.entries _ (envLookup_mem hlook) with ⟨hk, -⟩ | ⟨-, _, _, _, _, _, hshape, -⟩
+        · exact hk
+        · exact absurd hshape (by simp)
+      rw [envLookup_append_left hlook] at hd
+      have hmd : mib = d := by injection Option.some.inj hd
+      subst hmd
+      rw [hblockKey] at hlook ⊢
+      have hs₁ : LBTerm.envLookup s₁.gdecls (mutualBlockKn indinfo)
+          = some (.inductiveDecl mib₁) := by rw [hgd]; exact envLookup_cons_self
+      have hme : mib₁ = mib := by
+        have h := hblkpre mib₁ hs₁
+        rw [hlook] at h
+        injection Option.some.inj h with hh
+        exact hh.symm
+      rw [hs₁, hme]
+  -- the two carried clauses, re-established
+  have hrkm' : RuntimeKeysModelled env (pre ++ Γ) := by
+    intro kn hrk
+    obtain ⟨iid, np, dp, nfs, hed⟩ := hrk
+    obtain ⟨body, hlook, he⟩ := hed.1
+    rcases envLookup_append_cases hlook with h1 | ⟨-, h2⟩
+    · rcases HP.elimKeys _ (envLookup_mem h1) with
+        hk | ⟨c, I, dp', nm, iid', np', nfs', hk, hsh, -, -⟩
+      · have hk' : kn = mutualBlockKn indinfo := hk
+        rw [hk', hpreblk] at h1
+        exact absurd h1 (by simp)
+      · exact ⟨c, I, dp', nm, hsh, hk⟩
+    · exact hrkm kn (hg.runtimeKey (by rw [h2]; rfl) ⟨iid, np, dp, nfs, hed⟩)
+  have henr' : EmittedNotRuntime (pre ++ Γ) s₁ := by
+    intro kn hkn hrk
+    rw [hgd] at hkn
+    by_cases hk : mutualBlockKn indinfo = kn
+    · subst hk
+      obtain ⟨iid, np, dp, nfs, ⟨body, hlook, -⟩, -⟩ := hrk
+      rw [envLookup_append_left hpreblk] at hlook
+      exact absurd hlook (by simp)
+    · rw [envLookup_cons_ne hk] at hkn
+      obtain ⟨d, hd⟩ := Option.isSome_iff_exists.mp hkn
+      have hsub : (LBTerm.envLookup Γ kn).isSome := by
+        cases hc : LBTerm.envLookup Γ kn with
+        | none => exact absurd hc (Acc.shape.sub kn (by rw [hd]; simp))
+        | some d' => rfl
+      exact henr kn hkn (hg.runtimeKey hsub hrk)
+  exact ⟨hg, (regInv_registerInd_step Acc HP.content hfresh hcl hfv hkpre hdenv hmiss hrun
+    hkeys haxpre hblk hnewc hnewi).2, hrkm', henr'⟩
 
 end LeanToLambdaBox

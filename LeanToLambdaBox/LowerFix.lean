@@ -110,6 +110,34 @@ theorem hasFVar_mkLambdas (x : FVarId) : ∀ (ns : List BinderName) (b : LBTerm)
   | cons n ns ih => intro b; rw [show mkLambdas (n :: ns) b = .lambda n (mkLambdas ns b) from rfl,
       hasFVar_lambda, ih]
 
+/-- The alternatives of an eliminator body mention no free variable. -/
+theorem hasFVarAlts_elimAlts (x : FVarId) : ∀ ms : List Nat, ¬ hasFVarAlts x (elimAlts ms)
+  | [] => id
+  | m :: ms => by
+      rw [elimAlts, hasFVarAlts]
+      rintro (h | h)
+      · rw [hasFVar_mkApps] at h
+        rcases h with h | ⟨t, ht, hx⟩
+        · exact h
+        · obtain ⟨i, -, rfl⟩ := fieldArgs_lt ht
+          exact hx
+      · exact hasFVarAlts_elimAlts x ms h
+
+/-- Both eliminator shapes mention no free variable: what `FVarFreeBodies` asks of an
+environment whose bodies are `mkElimBody`'s, beside `ElimBody.closed` for `ClosedBodies`. -/
+theorem ElimBody.noFVar {iid : InductiveId} {np dp : Nat} {nfs : List Nat} {b : LBTerm}
+    {x : FVarId} (h : ElimBody iid np dp nfs b) : ¬ hasFVar x b := by
+  have hcases : ¬ hasFVar x (mkElimBody iid np dp nfs) := by
+    rw [mkElimBody, hasFVar_mkLambdas, hasFVar]
+    rintro (h | h)
+    · exact h
+    · exact hasFVarAlts_elimAlts x nfs h
+  rcases h.shape with rfl | rfl
+  · exact hcases
+  · rintro (h | h)
+    · exact hcases h
+    · exact h
+
 /-- `shift` renumbers de Bruijn indices only: the free variables are untouched. -/
 theorem hasFVar_shift (x : FVarId) : ∀ (t : LBTerm) (d c : Nat),
     hasFVar x (LBTerm.shift d c t) ↔ hasFVar x t := by

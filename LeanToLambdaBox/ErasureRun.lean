@@ -2699,6 +2699,130 @@ theorem run_register_inductive_cold_constants {indinfo : InductiveVal} {s : Eras
       exact hP
 
 set_option maxHeartbeats 1000000 in
+/-- **The emitted environment grows by exactly the block entry at a pinned `extern` config.**
+The member loop's only `gdecls` writer is the `@[extern]` `Erasure.addAxiom` call
+(`Erasure.lean:349-351`), whose guard is unsatisfiable at `extern = .preferLogical`, so all
+that reaches `gdecls` is `registerIndState`'s own cons. Needed for `regInv_registerInd_run`'s
+`hkeys` and `haxpre`: `BodylessExt.gdeclsAx` leaves the axiom prefix anonymous, so neither the
+key discipline nor the body-less reading of the old entries survives it. -/
+theorem run_register_inductive_cold_gdecls {indinfo : InductiveVal} {s : ErasureState}
+    {ctx : ErasureContext} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
+    {w : Void IO.RealWorld} {r : InductiveId × InductiveArgMasks} {s₁ : ErasureState}
+    {w₁ : Void IO.RealWorld} (hext : ctx.config.extern = Config.Extern.preferLogical)
+    (hmiss : s.inductives.get? indinfo.name = none)
+    (hrun : register_inductive indinfo s ctx cctx ref w = .ok (r, s₁) w₁) :
+    ∃ mib : MutualInductiveBody,
+      s₁.gdecls = (mutualBlockKn indinfo, .inductiveDecl mib) :: s.gdecls := by
+  unfold register_inductive at hrun
+  simp only [] at hrun
+  rw [run_bind_ok] at hrun
+  obtain ⟨s0, sA, wA, hget, hk⟩ := hrun
+  rw [run_get] at hget
+  cases hget
+  rw [hmiss] at hk
+  simp only [] at hk
+  rw [run_bind_ok] at hk
+  obtain ⟨ug, sG, wG, hguard, hk⟩ := hk
+  obtain ⟨hsG, hwG, -⟩ := run_checkIndKernameFresh_ok hguard
+  subst sG
+  subst wG
+  rw [run_bind_ok] at hk
+  obtain ⟨bodies, sM, wM, hmap, htail⟩ := hk
+  rw [run_bind_ok] at htail
+  obtain ⟨u, sN, wN, hmod, htail2⟩ := htail
+  rw [run_modify] at hmod
+  cases hmod
+  rw [run_bind_ok] at htail2
+  obtain ⟨sX, sY, wY, hget2, hp⟩ := htail2
+  rw [run_get] at hget2
+  cases hget2
+  rw [run_pure] at hp
+  cases hp
+  have key := run_list_mapM_ok ctx cctx ref
+    (P := fun (_pre : List (Name × Nat)) (_outs : List OneInductiveBody)
+        s' (_w' : Void IO.RealWorld) => s'.gdecls = s.gdecls)
+    rfl ?step hmap
+  · refine ⟨{ npars := indinfo.numParams, bodies := bodies }, ?_⟩
+    show (mutualBlockKn indinfo,
+      GlobalDecl.inductiveDecl { npars := indinfo.numParams, bodies := bodies })
+        :: sM.gdecls = _
+    rw [key]
+  case step =>
+    intro pre x post outs sP wP b sQ wQ hL hP hbody
+    rw [run_bind_ok] at hbody
+    obtain ⟨ci, sa, wa, hci, hrest⟩ := hbody
+    have hsa : sa = sP := run_getConstInfo_state sP ctx cctx ref wP hci
+    subst hsa
+    split at hrest
+    case _ _ inf =>
+      rw [run_bind_ok] at hrest
+      obtain ⟨res, sb, wb, hctors, hrest2⟩ := hrest
+      have inner := run_list_mapM_ok ctx cctx ref
+        (P := fun (_pre' : List Name) (_outs' : List (ConstructorBody × ConstructorArgMask))
+            s' (_w' : Void IO.RealWorld) => s'.gdecls = sa.gdecls)
+        rfl ?inner hctors
+      · split at hrest2
+        all_goals
+          rw [run_bind_ok] at hrest2
+          obtain ⟨projs, sc, wc, hpj, hrest3⟩ := hrest2
+          rw [run_pure] at hpj
+          have hsc : sc = sb := by cases hpj; rfl
+          have hwc : wc = wb := by cases hpj; rfl
+          subst hsc
+          subst hwc
+          rw [run_bind_ok] at hrest3
+          obtain ⟨uu, sd, wd, hmod2, hfin⟩ := hrest3
+          rw [run_modify] at hmod2
+          cases hmod2
+          rw [run_pure] at hfin
+          cases hfin
+          exact inner.trans hP
+      case inner =>
+        clear hctors
+        intro pre' cn post' outs' sA' wA' bres sB' wB' hL' hP' hb
+        rw [run_bind_ok] at hb
+        obtain ⟨envv, se, we, henv, h2⟩ := hb
+        have hse : se = sA' := run_getEnv_state sA' ctx cctx ref wA' henv
+        subst hse
+        rw [run_bind_ok] at h2
+        obtain ⟨c1, sr, wr, hread, h3⟩ := h2
+        rw [run_read] at hread
+        cases hread
+        have hcond : (isExtern envv cn && (ctx.config.extern == Config.Extern.preferAxiom))
+            = false := by
+          rw [hext]; simp only [Bool.and_eq_false_iff]; exact Or.inr (by decide)
+        rw [hcond] at h3
+        simp only [Bool.false_eq_true, if_false] at h3
+        rw [run_bind_ok] at h3
+        obtain ⟨ci2, s6, w6, hci2, h4⟩ := h3
+        have h6s := run_getConstInfo_state _ ctx cctx ref _ hci2
+        subst h6s
+        split at h4
+        case _ cvv =>
+          rw [run_bind_ok] at h4
+          obtain ⟨c2, sr2, wr2, hread2, h5⟩ := h4
+          rw [run_read] at hread2
+          cases hread2
+          split at h5
+          all_goals
+            rw [run_bind_ok] at h5
+            obtain ⟨am, s7, w7, ham, h6⟩ := h5
+            first
+              | (have hs7 := run_liftMetaM_state _ ctx cctx ref _ ham; subst hs7)
+              | (rw [run_pure] at ham; cases ham)
+            rw [run_pure] at h6
+            cases h6
+            exact hP'
+        case _ hne2 =>
+          rw [run_panicWithPosWithDecl] at h4
+          cases h4
+          exact hP'
+    all_goals
+      rw [run_panicWithPosWithDecl] at hrest
+      cases hrest
+      exact hP
+
+set_option maxHeartbeats 1000000 in
 /-- **The block table grows by exactly the row the cold branch conses.** The only writer of
 `ErasureState.indBlocks` is the closing `modify` of `register_inductive`
 (`Erasure.lean:393`), so the member loop — `Erasure.addAxiom` at an `@[extern]` constructor
@@ -3037,6 +3161,166 @@ theorem run_register_inductive_members {Decl : Name → Prop} {indinfo : Inducti
         subst h1
         obtain ⟨inf, hinf⟩ := hCi _ _ _ _ _ _ hci hcimem hdp
         simp at hinf
+
+
+set_option maxHeartbeats 1000000 in
+/-- **Every name the cold branch newly registers is a member of the block.** The member loop
+inserts at `indinfo.all`'s own names and the closing `modify` writes no registry entry, so a
+name the exit state knows and the entry state does not is one of `indinfo.all`. This is
+`run_register_inductive_members`' converse, and what `regInv_registerInd_run`'s `hnewi` reads:
+`RegisteredBodyAt` reports the *body* a registered member left behind, never that the member
+is one of the block's names. -/
+theorem run_register_inductive_cold_registry {indinfo : InductiveVal} {s : ErasureState}
+    {ctx : ErasureContext} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
+    {w : Void IO.RealWorld} {r : InductiveId × InductiveArgMasks} {s₁ : ErasureState}
+    {w₁ : Void IO.RealWorld}
+    (hmiss : s.inductives.get? indinfo.name = none)
+    (hrun : register_inductive indinfo s ctx cctx ref w = .ok (r, s₁) w₁) :
+    ∀ n : Name, (s₁.inductives.get? n).isSome →
+      (s.inductives.get? n).isSome ∨ n ∈ indinfo.all := by
+  unfold register_inductive at hrun
+  simp only [] at hrun
+  rw [run_bind_ok] at hrun
+  obtain ⟨s0, sA, wA, hget, hk⟩ := hrun
+  rw [run_get] at hget
+  cases hget
+  rw [hmiss] at hk
+  simp only [] at hk
+  rw [run_bind_ok] at hk
+  obtain ⟨ug, sG, wG, hguard, hk⟩ := hk
+  obtain ⟨hsG, hwG, -⟩ := run_checkIndKernameFresh_ok hguard
+  subst sG
+  subst wG
+  rw [run_bind_ok] at hk
+  obtain ⟨bodies, sM, wM, hmap, htail⟩ := hk
+  rw [run_bind_ok] at htail
+  obtain ⟨u, sN, wN, hmod, htail2⟩ := htail
+  rw [run_modify] at hmod
+  cases hmod
+  rw [run_bind_ok] at htail2
+  obtain ⟨sX, sY, wY, hget2, hp⟩ := htail2
+  rw [run_get] at hget2
+  cases hget2
+  rw [run_pure] at hp
+  cases hp
+  have key := run_list_mapM_ok ctx cctx ref
+    (P := fun (_pre : List (Name × Nat)) (_outs : List OneInductiveBody)
+        s' (_w' : Void IO.RealWorld) => ∀ n : Name, (s'.inductives.get? n).isSome →
+          (s.inductives.get? n).isSome ∨ n ∈ indinfo.all)
+    (fun n hn => .inl hn) ?step hmap
+  · exact key
+  case step =>
+    intro pre x post outs sP wP b sQ wQ hL hP hbody
+    rw [run_bind_ok] at hbody
+    obtain ⟨ci, sa, wa, hci, hrest⟩ := hbody
+    have hsa : sa = sP := run_getConstInfo_state sP ctx cctx ref wP hci
+    subst hsa
+    have hfst : indinfo.all[pre.length]? = some x.1 := zipIdx_split_fst hL
+    have hcimem : x.1 ∈ indinfo.all := List.mem_of_getElem? hfst
+    split at hrest
+    case _ _ inf =>
+      rw [run_bind_ok] at hrest
+      obtain ⟨res, sb, wb, hctors, hrest2⟩ := hrest
+      have inner := run_list_mapM_ok ctx cctx ref
+        (P := fun (_pre' : List Name) (_outs' : List (ConstructorBody × ConstructorArgMask))
+            s' (_w' : Void IO.RealWorld) => s'.inductives = sa.inductives)
+        rfl ?inner hctors
+      · split at hrest2
+        all_goals
+          rw [run_bind_ok] at hrest2
+          obtain ⟨projs, sc, wc, hpj, hrest3⟩ := hrest2
+          rw [run_pure] at hpj
+          have hsc : sc = sb := by cases hpj; rfl
+          have hwc : wc = wb := by cases hpj; rfl
+          subst hsc
+          subst hwc
+          rw [run_bind_ok] at hrest3
+          obtain ⟨uu, sd, wd, hmod2, hfin⟩ := hrest3
+          rw [run_modify] at hmod2
+          cases hmod2
+          rw [run_pure] at hfin
+          cases hfin
+          intro n hn
+          rw [Std.HashMap.get?_insert] at hn
+          split at hn
+          · rename_i heq
+            refine .inr ?_
+            have hnx : x.1 = n := by simpa using heq
+            rw [← hnx]; exact hcimem
+          · rw [inner] at hn; exact hP n hn
+      case inner =>
+        clear hctors
+        intro pre' cn post' outs' sA' wA' bres sB' wB' hL' hP' hb
+        rw [run_bind_ok] at hb
+        obtain ⟨envv, se, we, henv, h2⟩ := hb
+        have hse : se = sA' := run_getEnv_state sA' ctx cctx ref wA' henv
+        subst hse
+        rw [run_bind_ok] at h2
+        obtain ⟨c1, sr, wr, hread, h3⟩ := h2
+        rw [run_read] at hread
+        cases hread
+        split at h3
+        · rw [run_bind_ok] at h3
+          obtain ⟨u1, sl, wl, hlog, h4⟩ := h3
+          have hsl := run_logInfo_state _ ctx cctx ref _ hlog
+          subst hsl
+          rw [run_bind_ok] at h4
+          obtain ⟨u2, sax, wax, hadd, h5⟩ := h4
+          obtain ⟨hst, hwt, -⟩ := run_addAxiom_ok hadd
+          subst hst
+          subst hwt
+          rw [run_bind_ok] at h5
+          obtain ⟨ci2, s6, w6, hci2, h6⟩ := h5
+          have h6s := run_getConstInfo_state _ ctx cctx ref _ hci2
+          subst h6s
+          split at h6
+          case _ cvv =>
+            rw [run_bind_ok] at h6
+            obtain ⟨c2, sr2, wr2, hread2, h7⟩ := h6
+            rw [run_read] at hread2
+            cases hread2
+            split at h7
+            all_goals
+              rw [run_bind_ok] at h7
+              obtain ⟨am, s7, w7, ham, h8⟩ := h7
+              first
+                | (have hs7 := run_liftMetaM_state _ ctx cctx ref _ ham; subst hs7)
+                | (rw [run_pure] at ham; cases ham)
+              rw [run_pure] at h8
+              cases h8
+              exact hP'
+          case _ hne2 =>
+            rw [run_panicWithPosWithDecl] at h6
+            cases h6
+            exact hP'
+        · rw [run_bind_ok] at h3
+          obtain ⟨ci2, s6, w6, hci2, h4⟩ := h3
+          have h6s := run_getConstInfo_state _ ctx cctx ref _ hci2
+          subst h6s
+          split at h4
+          case _ cvv =>
+            rw [run_bind_ok] at h4
+            obtain ⟨c2, sr2, wr2, hread2, h5⟩ := h4
+            rw [run_read] at hread2
+            cases hread2
+            split at h5
+            all_goals
+              rw [run_bind_ok] at h5
+              obtain ⟨am, s7, w7, ham, h6⟩ := h5
+              first
+                | (have hs7 := run_liftMetaM_state _ ctx cctx ref _ ham; subst hs7)
+                | (rw [run_pure] at ham; cases ham)
+              rw [run_pure] at h6
+              cases h6
+              exact hP'
+          case _ hne2 =>
+            rw [run_panicWithPosWithDecl] at h4
+            cases h4
+            exact hP'
+    all_goals
+      rw [run_panicWithPosWithDecl] at hrest
+      cases hrest
+      exact hP
 
 
 /-- **The run conclusion of `register_inductive`, both branches** — the honest replacement
