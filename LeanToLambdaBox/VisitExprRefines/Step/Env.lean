@@ -715,7 +715,8 @@ theorem blockKeyed_install {lenv : Environment} {env : VEnv} {tbl : SourceTable}
     (fun _ _ hne hab => hne (congrArg toKername hab)) hnd, ?_⟩
   intro m htm hin
   obtain ⟨m', hm', hkey⟩ := List.mem_map.mp hin
-  have heq : m = m' := hsup.kernames m m' htm (hblk.members n _ htab hfb m' hm') hkey.symm
+  have heq : m = m' :=
+    hsup.kernames m m' (Or.inl htm) (Or.inl (hblk.members n _ htab hfb m' hm')) hkey.symm
   rw [heq]
   exact hm'
 

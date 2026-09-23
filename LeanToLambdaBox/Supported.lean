@@ -313,21 +313,148 @@ theorem eq_of_nodup_map {α β : Type _} [DecidableEq β] {f : α → β} :
     · exact absurd (hf ▸ List.mem_map_of_mem hx') h.1
     · exact eq_of_nodup_map h.2 x hx' y hy' hf
 
-/-- `kernameSepB` decides the `Supported.kernames` clause. -/
+/-- `n` has a row in either column of the table — the scope `kernameSepB` decides, since it
+erases duplicates of `tbl.decls ++ tbl.inds` mapped through `toKername` and so separates a
+constant from an inductive as well as two constants. -/
+def Tabled (tbl : SourceTable) (n : Name) : Prop :=
+  (tbl.decl? n).isSome = true ∨ (tbl.ind? n).isSome = true
+
+/-- `kernameSepB` decides the `Supported.kernames` clause, across both columns. -/
 theorem kernames_of_kernameSepB {tbl : SourceTable} (h : kernameSepB tbl = true) :
-    ∀ m m' : Name, (tbl.decl? m).isSome → (tbl.decl? m').isSome →
+    ∀ m m' : Name, Tabled tbl m → Tabled tbl m' →
       toKername m = toKername m' → m = m' := by
   have heq : ((tbl.decls.map Prod.fst ++ tbl.inds.map Prod.fst).map toKername).eraseDups.length
       = tbl.decls.length + tbl.inds.length := by simpa [kernameSepB] using h
   have hnd : ((tbl.decls.map Prod.fst ++ tbl.inds.map Prod.fst).map toKername).Nodup :=
     nodup_of_length_eraseDups (by rw [heq]; simp)
-  have hmem : ∀ n : Name, (tbl.decl? n).isSome → n ∈ tbl.decls.map Prod.fst := by
-    intro n hn
-    obtain ⟨d, hd⟩ := Option.isSome_iff_exists.1 hn
-    exact List.mem_map_of_mem (mem_of_lookup hd)
+  have hmem : ∀ n : Name, Tabled tbl n →
+      n ∈ tbl.decls.map Prod.fst ++ tbl.inds.map Prod.fst := by
+    rintro n (hn | hn)
+    · obtain ⟨d, hd⟩ := Option.isSome_iff_exists.1 hn
+      exact List.mem_append_left _ (List.mem_map_of_mem (mem_of_lookup hd))
+    · obtain ⟨I, hI⟩ := Option.isSome_iff_exists.1 hn
+      exact List.mem_append_right _ (List.mem_map_of_mem (mem_of_lookup hI))
   intro m m' hm hm' hk
-  exact eq_of_nodup_map hnd m (List.mem_append_left _ (hmem m hm)) m'
-    (List.mem_append_left _ (hmem m' hm')) hk
+  exact eq_of_nodup_map hnd m (hmem m hm) m' (hmem m' hm') hk
+
+/-! ### `cleanIdent` at an eliminator key
+
+`toKername` is not injective, but it is injective *at* an identifier it does not escape:
+`Basic.cleanIdent` replaces every character it does not keep by an `_u…` escape, so an image
+carrying no `_` is its own preimage. That is the converse of `toKername_id_of_isCasesOnName`,
+and it is what tells a clause guarded by `isCasesOnName c = false` that `c`'s key is not an
+eliminator's.
+-/
+
+/-- The characters of a `String.foldl`-built concatenation: the accumulator's, then each
+summand's. -/
+theorem toList_foldl_append : ∀ (L : List String) (init : String),
+    (L.foldl (· ++ ·) init).toList = init.toList ++ L.flatMap String.toList
+  | [], init => by simp
+  | a :: L, init => by
+    simp [List.foldl, toList_foldl_append L (init ++ a), String.toList_append,
+      List.append_assoc]
+
+/-- The characters of a joined list of strings. -/
+theorem toList_join (L : List String) : (String.join L).toList = L.flatMap String.toList := by
+  simp [String.join, toList_foldl_append]
+
+/-- The characters `cleanIdent` emits: a kept character on its own, an escaped one as `_u`
+before its code point. -/
+theorem toList_cleanIdent (s : String) :
+    (cleanIdent s).toList = s.toList.flatMap fun c =>
+      if c.isAlphanum || c == '_' then [c] else '_' :: 'u' :: (toString c.toNat).toList := by
+  rw [cleanIdent, toList_join, List.flatMap_map]
+  refine congrArg (List.flatMap · s.toList) (funext fun a => ?_)
+  split
+  · show (Char.toString a).toList = [a]
+    simp [Char.toString]
+  · simp [String.toList_append]
+
+/-- A per-character expansion that either keeps its character or emits one containing `'_'`
+rebuilds its input whenever the output carries no `'_'`. -/
+theorem flatMap_eq_self_of_notMem {f : Char → List Char}
+    (hf : ∀ c, f c = [c] ∨ '_' ∈ f c) :
+    ∀ l : List Char, '_' ∉ l.flatMap f → l.flatMap f = l
+  | [], _ => rfl
+  | c :: l, h => by
+    rw [List.flatMap_cons] at h ⊢
+    rcases hf c with hc | hc
+    · rw [hc, List.singleton_append] at h ⊢
+      exact congrArg (c :: ·)
+        (flatMap_eq_self_of_notMem hf l fun hm => h (List.mem_cons_of_mem _ hm))
+    · exact absurd (List.mem_append_left _ hc) h
+
+/-- **`cleanIdent` is injective at an unescaped identifier**: a value it takes that carries no
+`'_'` is reached only from itself. -/
+theorem cleanIdent_eq_of_notMem_underscore {s t : String}
+    (h : cleanIdent s = t) (hu : '_' ∉ t.toList) : s = t := by
+  subst h
+  refine String.toList_inj.mp ?_
+  rw [toList_cleanIdent] at hu ⊢
+  exact (flatMap_eq_self_of_notMem (fun c => by
+    split
+    · exact Or.inl rfl
+    · exact Or.inr (List.mem_cons_self ..)) s.toList hu).symm
+
+/-- `Nat.digitChar` answers a decimal digit below ten. -/
+theorem digitChar_ten (k : Nat) (h : k < 10) :
+    Nat.digitChar k ∈ ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'] := by
+  match k, h with
+  | 0, _ => decide
+  | 1, _ => decide
+  | 2, _ => decide
+  | 3, _ => decide
+  | 4, _ => decide
+  | 5, _ => decide
+  | 6, _ => decide
+  | 7, _ => decide
+  | 8, _ => decide
+  | 9, _ => decide
+
+/-- Base ten emits decimal digits: a character of `Nat.toDigitsCore 10` is one of the
+accumulator's or a digit. -/
+theorem mem_toDigitsCore_ten : ∀ (fuel n : Nat) (ds : List Char) (c : Char),
+    c ∈ Nat.toDigitsCore 10 fuel n ds →
+      c ∈ ds ∨ c ∈ ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+  | 0, _, ds, c, h => Or.inl (by simpa [Nat.toDigitsCore] using h)
+  | fuel + 1, n, ds, c, h => by
+    rw [Nat.toDigitsCore] at h
+    have hd : Nat.digitChar (n % 10) ∈ ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'] :=
+      digitChar_ten _ (Nat.mod_lt n (by decide))
+    split at h
+    · rcases List.mem_cons.1 h with rfl | h
+      · exact Or.inr hd
+      · exact Or.inl h
+    · rcases mem_toDigitsCore_ten fuel (n / 10) _ c h with h' | h'
+      · rcases List.mem_cons.1 h' with rfl | h'
+        · exact Or.inr hd
+        · exact Or.inl h'
+      · exact Or.inr h'
+
+/-- A decimal printout is not an eliminator suffix: it carries digits only. -/
+theorem repr_ne_casesOn (n : Nat) : n.repr ≠ "casesOn" := by
+  intro h
+  have h1 : Nat.toDigits 10 n = "casesOn".toList := by
+    rw [← @String.toList_ofList (Nat.toDigits 10 n)]
+    exact congrArg String.toList h
+  have h2 : 'c' ∈ Nat.toDigits 10 n := by rw [h1]; decide
+  rcases mem_toDigitsCore_ten (n + 1) n [] 'c' h2 with h3 | h3
+  · cases h3
+  · exact absurd h3 (by decide)
+
+/-- **The converse of `toKername_id_of_isCasesOnName`.** A name whose λ□ key is a member's
+eliminator key is itself an eliminator name: `cleanIdent` keeps `"casesOn"`, the `.num` arm
+prints digits and the `.anonymous` arm prints nothing. -/
+theorem toKername_of_cleanIdent_casesOn {c I : Name}
+    (h : toKername c = toKername (Name.str I "casesOn")) : isCasesOnName c = true := by
+  have hid : (toKername c).id = "casesOn" := by rw [h]; rfl
+  cases c with
+  | anonymous => exact absurd hid (by decide)
+  | num _ nb => exact absurd hid (repr_ne_casesOn nb)
+  | str _ s =>
+    have hs : s = "casesOn" := cleanIdent_eq_of_notMem_underscore hid (by decide)
+    simp [isCasesOnName, lastComponent, hs]
 
 /-! ## The checker -/
 
@@ -644,9 +771,9 @@ structure Supported (env : VEnv) (tbl : SourceTable) (e : Expr) : Prop where
   /-- The shape of every reachable tabled body. -/
   bodies : ∀ (c : Name) (b : Expr), Reaches tbl e c → tbl.body? c = some b →
     SupportedTm env tbl b []
-  /-- No two tabled names share a λ□ key, so no emitted declaration shadows another
-      (`SupportError.kernameCollision`). -/
-  kernames : ∀ m m' : Name, (tbl.decl? m).isSome → (tbl.decl? m').isSome →
+  /-- No two tabled names — in either column — share a λ□ key, so no emitted declaration
+      shadows another (`SupportError.kernameCollision`). -/
+  kernames : ∀ m m' : Name, Tabled tbl m → Tabled tbl m' →
     toKername m = toKername m' → m = m'
 
 /-! ## The projection head, read back

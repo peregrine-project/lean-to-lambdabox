@@ -1747,6 +1747,17 @@ theorem RunConcl.trans {s s' s'' : ErasureState} (h : RunConcl s s') (h' : RunCo
 def mutualBlockKn (indinfo : InductiveVal) : Kername :=
   rootKername (String.join (indinfo.all.map toString))
 
+/-- **A singleton root-named block mints its own member's key.** `mutualBlockKn` reads the
+joined member printout as a root kername and `toKername` reads a root name's component as
+one, so the two agree as soon as `Name.toString` prints the member back as that component.
+The printer premise is the whole gap: `Lean.Name.escapePart` does not reduce, so it is not
+decided at a concrete name. -/
+theorem mutualBlockKn_eq_toKername {indinfo : InductiveVal} {s : String}
+    (hall : indinfo.all = [Name.str .anonymous s])
+    (hprint : toString (Name.str .anonymous s) = s) :
+    mutualBlockKn indinfo = toKername (Name.str .anonymous s) := by
+  simp [mutualBlockKn, hall, hprint, String.join, toKername, toModPath, rootKername]
+
 /-- The closing `modify` of `register_inductive`'s cold branch: the block's declaration, and
 — `F-KERNAME` — its key with the member list it was minted from, so a later block that mints
 the same key is caught by `checkIndKernameFresh` instead of overwriting this entry. -/

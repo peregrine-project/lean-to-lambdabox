@@ -270,7 +270,7 @@ separates its own kernames — the latter being a condition on the table, which 
 off the fragment premise its own subject carries. -/
 theorem pass_supported_lit {env : VEnv} {tbl : SourceTable} {n : Nat} (hpe : PeanoReady env)
     (hpb : peanoReadyB tbl = true)
-    (hkn : ∀ m m' : Name, (tbl.decl? m).isSome → (tbl.decl? m').isSome →
+    (hkn : ∀ m m' : Name, Tabled tbl m → Tabled tbl m' →
       toKername m = toKername m' → m = m') : Supported env tbl (.lit (.natVal n)) where
   term := .natLit hpe hpb
   bodies _ _ hr _ := absurd hr pass_lit_not_reaches
