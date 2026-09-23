@@ -41,7 +41,7 @@ Five classes are used throughout, in decreasing strength:
 
 ### (a1) lean4lean, inherited
 
-The pinned revision is `20ec229f1a8c6358f3b3852c4e27d2be523d1b87`; sites below are relative
+The pinned revision is `8cc17a54c41c5e364596f8e4039e1f2094523a88`; sites below are relative
 to `.lake/packages/lean4lean/Lean4Lean/`.
 `scripts/lean4lean-sorries.sh` lists every `sorry` in the package and diffs it against
 `test/lean4lean-sorries.expected`; the entries that reach this development do so through
@@ -195,12 +195,14 @@ Four premises a reader may look for have **no row**, because none of them exists
 
 Criterion 21 asks that no declaration of this repository sit in the `Lean4Lean` namespace.
 `grep -rn "^namespace Lean4Lean" LeanToLambdaBox/` returns one line,
-`LeanToLambdaBox/CheckerAdequacy.lean:41`, and that is the expected state: the seven
-kernel-generic declarations in that block move to the fork only when the pin bump lands
-(`doc/upstream-asks.md` item 3, `doc/rework/01-DESIGN.md` §8.3 item 3). This repository does
-not edit the fork and does not move the pin, so the grep is **not** run as a gate check while
-that ask is open. The row exists so that the criterion is not reported as passing when it is
-deferred.
+`LeanToLambdaBox/CheckerAdequacy.lean:35`, and that is the expected state: the round-4 pin
+landed six of the block's seven kernel-generic declarations upstream verbatim (`VContext.
+ofMLCtx`, `VState.WF.initial`, `M.WF.run'`, all deleted here in favor of the fork's own,
+`doc/upstream-asks.md` item 3), leaving `kernelNGen` alone — a name the fork does not
+introduce, spelling the value out inline instead — so the block, and the deferral, persist
+(`doc/rework/01-DESIGN.md` §8.3 item 3). This repository does not edit the fork and does not
+move the pin, so the grep is **not** run as a gate check while that ask is open. The row exists
+so that the criterion is not reported as passing when it is deferred.
 
 ## (d) Class-**E**: scope restrictions and consumer facts
 
