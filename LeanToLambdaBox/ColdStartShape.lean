@@ -47,12 +47,105 @@ theorem envLookup_of_cons_ne {E : GlobalDeclarations} {k kn : Kername} {d d' : G
     LBTerm.envLookup E kn = some d' := by
   rwa [envLookup_cons_ne hne] at h
 
+/-- A key of a list whose keys are distinct answers with its own entry: `envLookup` is
+first-match-wins, so `Nodup` is what makes the first match the entry one holds. -/
+theorem envLookup_of_mem_nodup : ∀ {Γ : GlobalDeclarations} {p : Kername × GlobalDecl},
+    p ∈ Γ → (Γ.map Prod.fst).Nodup → LBTerm.envLookup Γ p.1 = some p.2
+  | (k, d) :: rest, p, hp, hnd => by
+      rw [List.map_cons, List.nodup_cons] at hnd
+      rcases List.mem_cons.1 hp with rfl | hp
+      · exact envLookup_cons_self
+      · have hne : k ≠ p.1 := fun h => hnd.1 (h ▸ List.mem_map.2 ⟨p, hp, rfl⟩)
+        rw [envLookup_cons_ne hne]
+        exact envLookup_of_mem_nodup hp hnd.2
+
 /-- A fresh key is not among the keys of the list. -/
 theorem not_mem_keys_of_fresh {E : GlobalDeclarations} {k : Kername}
     (hfresh : ∀ q ∈ E, q.1 ≠ k) : k ∉ E.map Prod.fst := by
   intro hk
   obtain ⟨q, hq, hqk⟩ := List.mem_map.mp hk
   exact hfresh q hq hqk
+
+/-- A lookup the prefix answers is the append's: `envLookup` is first-match-wins, so no
+freshness is needed in this direction. -/
+theorem envLookup_append_left : ∀ {pre Γ : GlobalDeclarations} {kn : Kername} {d : GlobalDecl},
+    LBTerm.envLookup pre kn = some d → LBTerm.envLookup (pre ++ Γ) kn = some d
+  | [], _, _, _, h => by simp [LBTerm.envLookup] at h
+  | (k, _) :: pre, Γ, kn, d, h => by
+      rw [LBTerm.envLookup] at h
+      rw [List.cons_append, LBTerm.envLookup]
+      cases hb : Kername.beq k kn with
+      | true => rw [hb] at h; simpa using h
+      | false => rw [hb] at h; simpa using envLookup_append_left (Γ := Γ) (by simpa using h)
+
+/-- A key the tail declares the append declares: the prefix either answers it or does not,
+and either way the lookup lands on an entry. -/
+theorem envLookup_append_isSome : ∀ {pre Γ : GlobalDeclarations} {kn : Kername},
+    (LBTerm.envLookup Γ kn).isSome → (LBTerm.envLookup (pre ++ Γ) kn).isSome
+  | [], _, _, h => h
+  | (k, d) :: pre, Γ, kn, h => by
+      rw [List.cons_append, LBTerm.envLookup]
+      cases hb : Kername.beq k kn with
+      | true => simp
+      | false => simpa using envLookup_append_isSome (pre := pre) (Γ := Γ) h
+
+/-- A lookup of an append is the prefix's, or — the prefix missing — the tail's. -/
+theorem envLookup_append_cases : ∀ {pre Γ : GlobalDeclarations} {kn : Kername} {d : GlobalDecl},
+    LBTerm.envLookup (pre ++ Γ) kn = some d →
+    LBTerm.envLookup pre kn = some d ∨
+      (LBTerm.envLookup pre kn = none ∧ LBTerm.envLookup Γ kn = some d)
+  | [], _, _, _, h => .inr ⟨rfl, h⟩
+  | (k, _) :: pre, Γ, kn, d, h => by
+      rw [List.cons_append, LBTerm.envLookup] at h
+      rw [LBTerm.envLookup]
+      cases hb : Kername.beq k kn with
+      | true => rw [hb] at h; exact .inl (by simpa using h)
+      | false =>
+        rw [hb] at h
+        rcases envLookup_append_cases (pre := pre) (Γ := Γ) (by simpa using h) with h1 | ⟨h1, h2⟩
+        · exact .inl (by simpa using h1)
+        · exact .inr ⟨by simpa using h1, h2⟩
+
+/-- Closedness of an append is closedness of its two parts. -/
+theorem closedBodies_append {pre Γ : GlobalDeclarations} (hpre : ClosedBodies pre)
+    (h : ClosedBodies Γ) : ClosedBodies (pre ++ Γ) := by
+  intro kn b hb
+  rcases envLookup_append_cases hb with h1 | ⟨-, h2⟩
+  · exact hpre kn b h1
+  · exact h kn b h2
+
+/-- `closedBodies_append`' twin for the free-variable clause. -/
+theorem fvarFreeBodies_append {pre Γ : GlobalDeclarations} (hpre : FVarFreeBodies pre)
+    (h : FVarFreeBodies Γ) : FVarFreeBodies (pre ++ Γ) := by
+  intro kn b x hb
+  rcases envLookup_append_cases hb with h1 | ⟨-, h2⟩
+  · exact hpre kn b x h1
+  · exact h kn b x h2
+
+/-- An eliminator declaration of the prefix is one of the append: both of `ElimDecl`'s
+lookups are answered by the prefix, so the block it names travels with it. -/
+theorem ElimDecl.appendLeft {pre Γ : GlobalDeclarations} {kn : Kername} {iid : InductiveId}
+    {np dp : Nat} {nfs : List Nat} (h : ElimDecl pre kn iid np dp nfs) :
+    ElimDecl (pre ++ Γ) kn iid np dp nfs :=
+  ⟨⟨h.1.choose, envLookup_append_left h.1.choose_spec.1, h.1.choose_spec.2⟩,
+    ⟨h.2.choose, envLookup_append_left h.2.choose_spec.1, h.2.choose_spec.2⟩⟩
+
+/-- Coverage by the prefix is coverage by the append: both `IndCovered` clauses conclude in
+lookups the prefix already answers. -/
+theorem IndCovered.appendLeft {env : VEnv} {pre Γ : GlobalDeclarations} {n : Name}
+    (h : IndCovered env pre n) : IndCovered env (pre ++ Γ) n where
+  block iid np nfs hi :=
+    let ⟨hdecl, mib, hlook, hbod, hflag⟩ := h.block iid np nfs hi
+    ⟨hdecl, mib, envLookup_append_left hlook, hbod, hflag⟩
+  elims c dp nm hsh hinf hco :=
+    let ⟨iid, np, nfs, hel, hi, hnm⟩ := h.elims c dp nm hsh hinf hco
+    ⟨iid, np, nfs, hel.appendLeft, hi, hnm⟩
+
+/-- A runtime key of the prefix is a runtime key of the append. -/
+theorem RuntimeKey.appendLeft {pre Γ : GlobalDeclarations} {kn : Kername}
+    (h : RuntimeKey pre kn) : RuntimeKey (pre ++ Γ) kn :=
+  let ⟨iid, np, dp, nfs, hd⟩ := h
+  ⟨iid, np, dp, nfs, hd.appendLeft⟩
 
 /-- The key just inserted is known. -/
 theorem constants_isSome_insert_self (mp : Std.HashMap Name Kername) (n : Name)
@@ -157,13 +250,11 @@ structure RegInvShape' (env : VEnv) (bo : Name → Option Expr) (lp : Name → L
   inds : ∀ n : Name, (s.inductives.get? n).isSome → IndCovered env Γspec n
   /-- The emitted keys are distinct. -/
   keys : (s.gdecls.map Prod.fst).Nodup
-  /-- A body declared by both is a `Lower` image, or the η-expansion of one lowered block's
-      node. `LowerEnv.defs`, scoped to the registry: the registration loop writes
-      `Erasure.etaExpandFix defs j`, which at `principalArgIdx = 0` is `LBTerm.etaFix defs j`
-      (F-ETA). -/
-  defs : ∀ kn b₀ b, DefnDecl Γspec kn b₀ → DefnDecl s.gdecls kn b →
-    Lower Γspec b₀ b ∨ ∃ kns bs defs j, LowerFix Γspec kns bs defs ∧
-      kns[j]? = some kn ∧ b = LBTerm.etaFix defs j
+  /-- A body declared by both is a `Lower` image. `LowerEnv.defs`, scoped to the registry:
+      the registration loop writes `Erasure.etaExpandFix defs j`, which at
+      `principalArgIdx = 0` is `LBTerm.etaFix defs j` (F-ETA), and that is `Lower.fixEta` at
+      the member. -/
+  defs : ∀ kn b₀ b, DefnDecl Γspec kn b₀ → DefnDecl s.gdecls kn b → Lower Γspec b₀ b
   /-- Every registered constant that `Γspec` declares with a body, and that is not a runtime
       key, is emitted with a body. `LowerEnv.defsTotal`, scoped to the registry. -/
   defsTotal : ∀ (n : Name) (b₀ : LBTerm), (s.constants.get? n).isSome →
@@ -281,14 +372,12 @@ theorem RegInvShape'.addAxiom {env : VEnv} {bo : Name → Option Expr} {lp : Nam
 
 /-- **`visitMutual`'s non-recursive exit.** Registering a constant with an emitted body
 preserves the invariant: the specification environment declares that constant with a body,
-the emitted body is its `Lower` image (or the η-expansion of a lowered block's node, which is
-the shape the recursive exit produces), the emitted body is closed, and the kername is
-fresh. -/
+the emitted body is its `Lower` image, the emitted body is closed, and the kername is
+fresh. The recursive exit reaches the same premise through `Lower.fixEta_of_block`. -/
 theorem RegInvShape'.constCons {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
     {Γspec : GlobalDeclarations} {s : ErasureState} {n : Name} {t b₀ : LBTerm}
     (H : RegInvShape' env bo lp Γspec s) (hspec : DefnDecl Γspec (toKername n) b₀)
-    (hlow : Lower Γspec b₀ t ∨ ∃ kns bs defs j, LowerFix Γspec kns bs defs ∧
-      kns[j]? = some (toKername n) ∧ t = LBTerm.etaFix defs j)
+    (hlow : Lower Γspec b₀ t)
     (hcl : LBClosed t 0) (hfresh : ∀ q ∈ s.gdecls, q.1 ≠ toKername n) :
     RegInvShape' env bo lp Γspec (nonrecConstState n t s) where
   spec := H.spec
@@ -371,9 +460,7 @@ two realizer shapes and say nothing the general clause does not. -/
 theorem RegInvShape'.addRealizer {env : VEnv} {bo : Name → Option Expr}
     {lp : Name → List Name} {Γspec : GlobalDeclarations} {s : ErasureState} {n : Name}
     {t b₀ : LBTerm} (H : RegInvShape' env bo lp Γspec s)
-    (hspec : DefnDecl Γspec (toKername n) b₀)
-    (hlow : Lower Γspec b₀ t ∨ ∃ kns bs defs j, LowerFix Γspec kns bs defs ∧
-      kns[j]? = some (toKername n) ∧ t = LBTerm.etaFix defs j)
+    (hspec : DefnDecl Γspec (toKername n) b₀) (hlow : Lower Γspec b₀ t)
     (hcl : LBClosed t 0) (hfresh : ∀ q ∈ s.gdecls, q.1 ≠ toKername n) :
     RegInvShape' env bo lp Γspec (addRealizerState n t s) :=
   H.constCons hspec hlow hcl hfresh
@@ -403,8 +490,8 @@ theorem LowerBlock.lbClosed_etaFix {Γ : GlobalDeclarations} {kns : List Kername
   LeanToLambdaBox.lbClosed_etaFix (fun k : Nat => (hblk.lbClosed_fix hΓ j).mono (Nat.zero_le k))
 
 /-- **`visitMutual`'s recursive exit, one member at a time.** The fold `recConstState` runs
-is `recConstStep`, which is `nonrecConstState` at an η-expanded `.fix` body, so the block's
-own `LowerFix` witness supplies every member's `defs` disjunct and
+is `recConstStep`, which is `nonrecConstState` at an η-expanded `.fix` body, so
+`Lower.fixEta_of_block` supplies every member's `defs` premise off the block and
 `LowerBlock.lbClosed_etaFix` supplies its closedness. Freshness of a member's kername against
 the entries the earlier members have consed is the block's `Nodup`. -/
 theorem regInvShape'_foldl_recConstStep {env : VEnv} {bo : Name → Option Expr}
@@ -429,7 +516,7 @@ theorem regInvShape'_foldl_recConstStep {env : VEnv} {bo : Name → Option Expr}
       have := hblk.hdecl p.2 hlt; rwa [hkey] at this
     have H' : RegInvShape' env bo lp Γspec (recConstStep defs s p) :=
       H.constCons hdecl
-        (.inr ⟨kns, bs, defs, p.2, ⟨bs', ids, hblk⟩, hj, hblk.etaExpandFix_eq p.2⟩)
+        (hblk.etaExpandFix_eq p.2 ▸ Lower.fixEta_of_block hblk hj hdecl)
         (hblk.etaExpandFix_eq p.2 ▸ hblk.lbClosed_etaFix H.specClosed p.2)
         (hfresh p List.mem_cons_self)
     obtain ⟨hnh, hnt⟩ := List.nodup_cons.mp hnd
@@ -716,5 +803,1038 @@ theorem RegInvShape'.register_inductive_run {env : VEnv} {bo : Name → Option E
   · exact ⟨hC.inds n hold, hC.indsEmitted n hold⟩
   · exact hnew
 
+/-! ## The specification environment as an output
+
+`Γspec` above is fixed for the run. U6 makes it an accumulator, as `deps` is in MetaRocq's
+`erase_global_deps` (`../metarocq/erasure/theories/EDeps.v:492`, `erases_deps_cons`): a step
+may extend it by fresh keys, and `SpecGrow` is the extension the pass survives. What that
+costs the invariant is one transport per clause, below, and what it buys is a registration
+step that can *declare* what it registers instead of reading a declaration off an environment
+chosen in advance.
+-/
+
+/-- Coverage of one inductive is read through lookups alone, so it survives any extension
+that preserves them — `SpecGrow.lookup` at a growth, `envLookup_cons_of_fresh` at a cons. -/
+theorem IndCovered.lookupMono {env : VEnv} {Γ Γ' : GlobalDeclarations} {n : Name}
+    (hmono : ∀ (kn : Kername) (d : GlobalDecl), LBTerm.envLookup Γ kn = some d →
+      LBTerm.envLookup Γ' kn = some d) (H : IndCovered env Γ n) : IndCovered env Γ' n where
+  block iid np nfs hi :=
+    let ⟨hdecl, mib, hmib, hbody, hflag⟩ := H.block iid np nfs hi
+    ⟨hdecl, mib, hmono _ _ hmib, hbody, hflag⟩
+  elims c dp nm hsh hinf hco :=
+    let ⟨iid, np, nfs, ⟨⟨body, hb, he⟩, mib, hm, hbo, hnp⟩, hi, hnm⟩ :=
+      H.elims c dp nm hsh hinf hco
+    ⟨iid, np, nfs, ⟨⟨body, hmono _ _ hb, he⟩, mib, hmono _ _ hm, hbo, hnp⟩, hi, hnm⟩
+
+/-- **What `SpecContent` asks of one new entry.** `toKername` is not injective (F-KERNAME),
+so an entry keyed at `kn` answers for *every* source name mapping to `kn`: `defns` and
+`axioms` are that entry's two readings, quantified over those names. `blocks` and `elims`
+say the key is neither a modelled block's nor a modelled eliminator's, which is what keeps
+`SpecContent`'s two inductive clauses from firing at it — the shape a constant registration
+has, and not the shape an inductive registration has. -/
+structure SpecEntryOk (env : VEnv) (bo : Name → Option Expr) (lp : Name → List Name)
+    (kn : Kername) (d : GlobalDecl) : Prop where
+  /-- No modelled inductive's block is keyed here. -/
+  blocks : ∀ (I : Name) (iid : InductiveId) (np : Nat) (nfs : List Nat),
+    IndInfo env I iid np nfs → iid.mutualBlockName ≠ kn
+  /-- No modelled eliminator is keyed here. -/
+  elims : ∀ (c I : Name) (dp nm : Nat), CasesOnShape env c I dp nm → toKername c ≠ kn
+  /-- A tabled name keyed here has its body's erasure as the entry, at its own level scope. -/
+  defns : ∀ (n : Name) (b : Expr), toKername n = kn → bo n = some b →
+    ∃ b₀, d = .constantDecl ⟨some b₀⟩ ∧ Erases env (lp n) [] b b₀
+  /-- A body-less non-eliminator name keyed here has a body-less entry. -/
+  axioms : ∀ n : Name, toKername n = kn → bo n = none → ConstOrigin env n →
+    isCasesOnName n = false → d = .constantDecl ⟨none⟩
+
+/-- **One new specification entry.** The four clauses of `SpecEntryOk` are what the five
+clauses of `SpecContent` ask at the consed key; at every other key the lookup is the old
+one. -/
+theorem SpecContent.cons {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
+    {Γ : GlobalDeclarations} {kn : Kername} {d : GlobalDecl} (H : SpecContent env bo lp Γ)
+    (hfresh : ∀ q ∈ Γ, q.1 ≠ kn) (hd : SpecEntryOk env bo lp kn d) :
+    SpecContent env bo lp ((kn, d) :: Γ) where
+  keys := List.nodup_cons.mpr ⟨not_mem_keys_of_fresh hfresh, H.keys⟩
+  defns c b hbo hs := by
+    cases hk : Kername.beq kn (toKername c) with
+    | true =>
+      obtain ⟨b₀, rfl, her⟩ := hd.defns c b (Kername.eq_of_beq hk).symm hbo
+      exact ⟨b₀, by rw [← Kername.eq_of_beq hk]; exact envLookup_cons_self, her⟩
+    | false =>
+      have hne := kername_ne_of_beq_false hk
+      obtain ⟨b₀, hl, her⟩ := H.defns c b hbo (by rwa [envLookup_cons_ne hne] at hs)
+      exact ⟨b₀, envLookup_cons_of_fresh hfresh hl, her⟩
+  axioms c hbo hco hnc hs := by
+    cases hk : Kername.beq kn (toKername c) with
+    | true =>
+      rw [← Kername.eq_of_beq hk, envLookup_cons_self,
+        hd.axioms c (Kername.eq_of_beq hk).symm hbo hco hnc]
+    | false =>
+      have hne := kername_ne_of_beq_false hk
+      exact envLookup_cons_of_fresh hfresh
+        (H.axioms c hbo hco hnc (by rwa [envLookup_cons_ne hne] at hs))
+  blocks I iid np nfs hi hs :=
+    (H.blocks I iid np nfs hi
+        (by rwa [envLookup_cons_ne (hd.blocks I iid np nfs hi).symm] at hs)).lookupMono
+      (fun _ _ => envLookup_cons_of_fresh hfresh)
+  elims c I dp nm hsh hs :=
+    (H.elims c I dp nm hsh
+        (by rwa [envLookup_cons_ne (hd.elims c I dp nm hsh).symm] at hs)).lookupMono
+      (fun _ _ => envLookup_cons_of_fresh hfresh)
+
+/-- **A whole new specification prefix.** `SpecContent.cons`' shape at the prefix an
+*inductive* registration conses — MetaRocq's `erases_global_ind`
+(`../metarocq/erasure/theories/Extract.v:290-293`) together with the `casesOn` declarations
+λ□ prunes: the block and one eliminator entry per informative member, which is what
+`SpecContent.blocks` demands the moment the block key is declared, through `IndCovered.elims`
+at each member (`ErasesEnv.lean:207`). A single entry cannot state it, and `SpecEntryOk`
+states the opposite, that the key is neither a block's nor an eliminator's.
+
+The prefix's own obligation is `SpecContent` read at `pre`: the four clauses quantified over
+every source name the prefix's keys answer for — `toKername` is not injective (F-KERNAME) —
+with `blocks` and `elims` read at `pre`, since the prefix carries every eliminator the block
+it declares obliges. `hfresh` is what keeps each part's lookups answered in the append. -/
+theorem SpecContent.append {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
+    {Γ pre : GlobalDeclarations} (H : SpecContent env bo lp Γ)
+    (Hpre : SpecContent env bo lp pre) (hfresh : ∀ p ∈ pre, ∀ q ∈ Γ, p.1 ≠ q.1) :
+    SpecContent env bo lp (pre ++ Γ) := by
+  have hmonoΓ : ∀ (kn : Kername) (d : GlobalDecl), LBTerm.envLookup Γ kn = some d →
+      LBTerm.envLookup (pre ++ Γ) kn = some d := fun kn d hd =>
+    envLookup_append_of_fresh (fun p hp => hfresh p hp (kn, d) (envLookup_mem hd)) hd
+  have hmonoP : ∀ (kn : Kername) (d : GlobalDecl), LBTerm.envLookup pre kn = some d →
+      LBTerm.envLookup (pre ++ Γ) kn = some d := fun _ _ => envLookup_append_left
+  refine ⟨?_, ?_, ?_, ?_, ?_⟩
+  · rw [List.map_append]
+    refine List.nodup_append.mpr ⟨Hpre.keys, H.keys, ?_⟩
+    intro a ha b hb
+    obtain ⟨p, hp, rfl⟩ := List.mem_map.mp ha
+    obtain ⟨q, hq, rfl⟩ := List.mem_map.mp hb
+    exact hfresh p hp q hq
+  · intro c b hbo hs
+    obtain ⟨d, hd⟩ := Option.isSome_iff_exists.1 hs
+    rcases envLookup_append_cases hd with h1 | ⟨-, h2⟩
+    · obtain ⟨b₀, hl, her⟩ := Hpre.defns c b hbo (by rw [h1]; rfl)
+      exact ⟨b₀, hmonoP _ _ hl, her⟩
+    · obtain ⟨b₀, hl, her⟩ := H.defns c b hbo (by rw [h2]; rfl)
+      exact ⟨b₀, hmonoΓ _ _ hl, her⟩
+  · intro c hbo hco hnc hs
+    obtain ⟨d, hd⟩ := Option.isSome_iff_exists.1 hs
+    rcases envLookup_append_cases hd with h1 | ⟨-, h2⟩
+    · exact hmonoP _ _ (Hpre.axioms c hbo hco hnc (by rw [h1]; rfl))
+    · exact hmonoΓ _ _ (H.axioms c hbo hco hnc (by rw [h2]; rfl))
+  · intro I iid np nfs hi hs
+    obtain ⟨d, hd⟩ := Option.isSome_iff_exists.1 hs
+    rcases envLookup_append_cases hd with h1 | ⟨-, h2⟩
+    · exact (Hpre.blocks I iid np nfs hi (by rw [h1]; rfl)).lookupMono hmonoP
+    · exact (H.blocks I iid np nfs hi (by rw [h2]; rfl)).lookupMono hmonoΓ
+  · intro c I dp nm hsh hs
+    obtain ⟨d, hd⟩ := Option.isSome_iff_exists.1 hs
+    rcases envLookup_append_cases hd with h1 | ⟨-, h2⟩
+    · exact (Hpre.elims c I dp nm hsh (by rw [h1]; rfl)).lookupMono hmonoP
+    · exact (H.elims c I dp nm hsh (by rw [h2]; rfl)).lookupMono hmonoΓ
+
+/-- **The invariant along growth.** The three specification-side clauses are facts about the
+grown environment and are premises; the six state-facing ones transport. `defs` is the clause
+the growth is for: it re-derives every previously emitted body's `Lower` fact at the larger
+environment, which is `Lower.specGrow` at a declared body and therefore `ConstsDeclaredEnv`.
+`defsTotal` goes the easy way — its `¬ RuntimeKey` premise is the stronger one at `Γ'`. -/
+theorem RegInvShape'.specGrow {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
+    {Γ Γ' : GlobalDeclarations} {s : ErasureState} (H : RegInvShape' env bo lp Γ s)
+    (hg : SpecGrow Γ Γ') (henv : ConstsDeclaredEnv Γ) (hspec : SpecContent env bo lp Γ')
+    (hcl : ClosedBodies Γ') (hfv : FVarFreeBodies Γ') :
+    RegInvShape' env bo lp Γ' s where
+  spec := hspec
+  specClosed := hcl
+  specFVarFree := hfv
+  consts n hn := hg.isSome (H.consts n hn)
+  inds n hn := (H.inds n hn).lookupMono (fun _ _ => hg.lookup)
+  keys := H.keys
+  defs kn b₀ b h₀ hb := by
+    obtain ⟨d, hd⟩ := Option.isSome_iff_exists.1
+      (Option.isSome_iff_ne_none.2 (H.sub kn (by rw [DefnDecl] at hb; rw [hb]; simp)))
+    have hd' : DefnDecl Γ kn b₀ := by
+      rw [DefnDecl, hd]
+      exact (hg.lookup hd).symm.trans h₀
+    exact Lower.specGrow hg henv (H.defs kn b₀ b hd' hb)
+      (.of_constsDeclared hg (henv kn b₀ hd'))
+  defsTotal n b₀ hn h₀ hrk := by
+    obtain ⟨d, hd⟩ := Option.isSome_iff_exists.1 (H.consts n hn)
+    have hd' : DefnDecl Γ (toKername n) b₀ := by
+      rw [DefnDecl, hd]
+      exact (hg.lookup hd).symm.trans h₀
+    exact H.defsTotal n b₀ hn hd' fun hrk' => hrk (hrk'.specGrow hg)
+  axioms kn hkn := by
+    cases hq : LBTerm.envLookup Γ kn with
+    | none => exact .inr (by by_contra hc; exact (H.sub kn hc) hq)
+    | some d =>
+      refine H.axioms kn ?_
+      rw [hq, ← hkn, hg.lookup hq]
+  indsEmitted n hn iid np nfs hi d hd := by
+    obtain ⟨-, mib, hmib, -, -⟩ := (H.inds n hn).block iid np nfs hi
+    obtain rfl : mib = d := by rw [hg.lookup hmib] at hd; injection Option.some.inj hd
+    exact H.indsEmitted n hn iid np nfs hi mib hmib
+  sub kn hk := by
+    obtain ⟨d, hd⟩ := Option.isSome_iff_exists.1 (Option.isSome_iff_ne_none.2 (H.sub kn hk))
+    rw [hg.lookup hd]; simp
+  closed := H.closed
+
+/-! ## The content clause
+
+`RegInvShape'.defs` says the emitted body of a key is the `Lower` image of *the* body
+`Γspec` declares there; `SpecContent.defns` says that body is *some* erasure of the compiler
+body. `Erases` is not deterministic outside the first-order fragment, so the two readings do
+not compose: `RegContent` is the single clause carrying both at one witness, which is the
+determinism gap `doc/rework/08-REPAIRS-W5.md` §2.1 names. `declEnv` is the accumulator's
+second clause, the δ column `Lower.specGrow` spends and `SpecGrow.of_fresh` pays with
+`elimBlocksDeclared_of_constsDeclaredEnv`.
+-/
+
+/-- **One erasure witness, read both ways.** The emitted body of a tabled constant is the
+`Lower` image of a body `Γspec` declares, and that same body is an erasure of the compiler
+body at the declaration's own level scope (`../metarocq/erasure/theories/Extract.v:264`,
+`erase_constant_body`, which erases at `cst_universes` in the empty context). The block
+members are covered by the single `Lower` conjunct: the η-expansion the registration loop
+writes is `Lower.fixEta` at the member (`Lower.fixEta_of_block`). -/
+structure RegContent (env : VEnv) (bo : Name → Option Expr) (lp : Name → List Name)
+    (Γspec : GlobalDeclarations) (s : ErasureState) : Prop where
+  /-- Both readings of one witness, at every emitted body of a tabled name. -/
+  defns : ∀ (n : Name) (b : Expr) (t : LBTerm), bo n = some b →
+    DefnDecl s.gdecls (toKername n) t →
+    ∃ b₀ : LBTerm, DefnDecl Γspec (toKername n) b₀ ∧ Erases env (lp n) [] b b₀ ∧
+      Lower Γspec b₀ t
+  /-- Every declared body's own references are declared. -/
+  declEnv : ConstsDeclaredEnv Γspec
+
+/-- The content clause at the initial state: nothing is emitted, so only the δ column is
+left to hold. -/
+theorem RegContent.empty {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
+    {Γspec : GlobalDeclarations} (henv : ConstsDeclaredEnv Γspec) :
+    RegContent env bo lp Γspec {} where
+  defns n b t _ hb := by simp [DefnDecl, LBTerm.envLookup] at hb
+  declEnv := henv
+
+/-- **The content clause along growth.** The witness is transported by `SpecGrow.defnDecl`,
+its erasure reading mentions no environment, and its `Lower` reading is `Lower.specGrow` at a
+declared body. -/
+theorem RegContent.specGrow {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
+    {Γ Γ' : GlobalDeclarations} {s : ErasureState} (H : RegContent env bo lp Γ s)
+    (hg : SpecGrow Γ Γ') (henv : ConstsDeclaredEnv Γ') : RegContent env bo lp Γ' s where
+  defns n b t hbo hb :=
+    let ⟨b₀, hd, her, hlow⟩ := H.defns n b t hbo hb
+    ⟨b₀, hg.defnDecl hd, her,
+      Lower.specGrow hg H.declEnv hlow (.of_constsDeclared hg (H.declEnv _ _ hd))⟩
+  declEnv := henv
+
+/-- A body-less prefix declares no body, so a `DefnDecl` of the extended list is the tail's.
+-/
+theorem defnDecl_of_append_axioms : ∀ {pre Γ : GlobalDeclarations} {kn : Kername} {t : LBTerm},
+    (∀ p ∈ pre, p.2 = GlobalDecl.constantDecl ⟨none⟩) → DefnDecl (pre ++ Γ) kn t →
+    DefnDecl Γ kn t
+  | [], _, _, _, _, h => h
+  | (k, v) :: pre, Γ, kn, t, hpre, h => by
+      rw [DefnDecl, List.cons_append, LBTerm.envLookup] at h
+      split at h
+      · have hv : v = GlobalDecl.constantDecl ⟨none⟩ := hpre (k, v) List.mem_cons_self
+        rw [hv] at h
+        exact absurd h (by simp)
+      · exact defnDecl_of_append_axioms (fun p hp => hpre p (List.mem_cons_of_mem _ hp)) h
+
+/-- **One new emitted entry.** The content is owed only where the entry carries a body and
+the key is a tabled name's; the body-less and block conses discharge `hnew` vacuously. -/
+theorem RegContent.gdeclsCons {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
+    {Γ : GlobalDeclarations} {s s' : ErasureState} {k : Kername} {d : GlobalDecl}
+    (H : RegContent env bo lp Γ s) (hg : s'.gdecls = (k, d) :: s.gdecls)
+    (hnew : ∀ (n : Name) (b : Expr) (t : LBTerm), bo n = some b → toKername n = k →
+      d = .constantDecl ⟨some t⟩ →
+      ∃ b₀, DefnDecl Γ k b₀ ∧ Erases env (lp n) [] b b₀ ∧ Lower Γ b₀ t) :
+    RegContent env bo lp Γ s' where
+  defns n b t hbo hb := by
+    rw [DefnDecl, hg, LBTerm.envLookup] at hb
+    split at hb
+    · rename_i hk
+      obtain rfl : k = toKername n := Kername.eq_of_beq hk
+      exact hnew n b t hbo rfl (Option.some.inj hb)
+    · exact H.defns n b t hbo hb
+  declEnv := H.declEnv
+
+/-- **A whole body-less prefix**, the shape `ConstExt`'s `gdecls` clause hands back. -/
+theorem RegContent.gdeclsPrefix {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
+    {Γ : GlobalDeclarations} {s s' : ErasureState} {pre : GlobalDeclarations}
+    (H : RegContent env bo lp Γ s) (hg : s'.gdecls = pre ++ s.gdecls)
+    (hpre : ∀ p ∈ pre, p.2 = GlobalDecl.constantDecl ⟨none⟩) :
+    RegContent env bo lp Γ s' where
+  defns n b t hbo hb :=
+    H.defns n b t hbo (defnDecl_of_append_axioms hpre (by rwa [DefnDecl, hg] at hb))
+  declEnv := H.declEnv
+
+/-- **The content clause across `Erasure.register_inductive`.** The cold branch conses one
+block entry over a body-less prefix (`run_register_inductive_cold_ok`, `BodylessExt`), and
+neither shape declares a body at a tabled name's key, so the clause is carried with no side
+condition. -/
+theorem RegContent.register_inductive_run {env : VEnv} {bo : Name → Option Expr}
+    {lp : Name → List Name} {Γspec : GlobalDeclarations} {indinfo : InductiveVal}
+    {s : ErasureState} {ctx : ErasureContext} {cctx : Core.Context}
+    {ref : ST.Ref IO.RealWorld Core.State} {w : Void IO.RealWorld}
+    {r : InductiveId × InductiveArgMasks} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
+    (C : RegContent env bo lp Γspec s)
+    (hmiss : s.inductives.get? indinfo.name = none)
+    (hrun : register_inductive indinfo s ctx cctx ref w = .ok (r, s₁) w₁) :
+    RegContent env bo lp Γspec s₁ := by
+  obtain ⟨-, bodies, sM, rfl, -, -, hce, -, -⟩ :=
+    run_register_inductive_cold_ok (Ci := fun _ _ => True)
+      (fun _ _ _ _ _ _ _ => trivial) hmiss hrun
+  obtain ⟨pre, hpre, hshape⟩ := hce.gdeclsAx
+  have hgd : (registerIndState indinfo bodies sM).gdecls
+      = (mutualBlockKn indinfo,
+          GlobalDecl.inductiveDecl { npars := indinfo.numParams, bodies := bodies })
+        :: (pre ++ s.gdecls) := by
+    show (mutualBlockKn indinfo,
+      GlobalDecl.inductiveDecl { npars := indinfo.numParams, bodies := bodies })
+        :: sM.gdecls = _
+    rw [hpre]
+  refine RegContent.gdeclsCons (s := { s with gdecls := pre ++ s.gdecls })
+    (C.gdeclsPrefix rfl (fun p hp => (hshape p hp).1)) hgd ?_
+  intro n b t _ _ hd
+  exact absurd hd (by simp)
+
+/-! ### The content clause at a block exit
+
+`Erasure.visitMutual`'s recursive exit registers a whole block at once, and member `i`'s
+`Lower` fact is `Lower.fixEta_of_block`, whose `LowerBlock.hdecl` premise reads *every*
+member's declaration. So the specification environment carries the whole block before the
+state fold begins — the shape `RegInvShape'.recConst` already has — and the content clause
+is maintained at that fixed environment, one consed entry at a time.
+-/
+
+/-- **A block member's declared body is the erasure the content clause names.** The block
+declares `bs[j]!` at `kns[j]!` and `SpecContent.defns` answers the same lookup with an erasure
+of the compiler body at the declaration's own level scope
+(`../metarocq/erasure/theories/Extract.v:264`, `erase_constant_body`), so the two terms are
+one. `toKername` is not injective (F-KERNAME), so this reads at every tabled name the member's
+key answers for, not at the member alone. -/
+theorem LowerBlock.erases_of_specContent {env : VEnv} {bo : Name → Option Expr}
+    {lp : Name → List Name} {Γspec : GlobalDeclarations} {kns : List Kername}
+    {bs bs' : List LBTerm} {ids : List FVarId} {defs : List (@FixDef LBTerm)}
+    (hblk : LowerBlock Γspec kns bs bs' ids defs) (hspec : SpecContent env bo lp Γspec)
+    {c : Name} {b : Expr} {j : Nat} (hbo : bo c = some b)
+    (hj : kns[j]? = some (toKername c)) :
+    Erases env (lp c) [] b bs[j]! := by
+  obtain ⟨hjl, hje⟩ := Lower.getElem!_of_getElem? hj
+  have hdecl : DefnDecl Γspec (toKername c) bs[j]! := by
+    have := hblk.hdecl j hjl; rwa [hje] at this
+  rw [DefnDecl] at hdecl
+  obtain ⟨b₀, hl, her⟩ := hspec.defns c b hbo (by rw [hdecl]; rfl)
+  obtain rfl : b₀ = bs[j]! := by rw [hdecl] at hl; simpa using hl.symm
+  exact her
+
+/-- **The content clause along the block registration loop, one member at a time.** The fold
+`recConstState` runs conses `(toKername p.1, .constantDecl ⟨some (etaExpandFix defs p.2)⟩)`,
+and the witness that entry owes is the member's own declared body: `LowerBlock.hdecl` for the
+declaration, `LowerBlock.erases_of_specContent` for the erasure reading and
+`Lower.fixEta_of_block` for the lowering. No freshness is needed — `RegContent.gdeclsCons`
+reads the consed key and nothing else. -/
+theorem regContent_foldl_recConstStep {env : VEnv} {bo : Name → Option Expr}
+    {lp : Name → List Name} {Γspec : GlobalDeclarations} {kns : List Kername}
+    {bs bs' : List LBTerm} {ids : List FVarId} {defs : List (@FixDef LBTerm)}
+    (hblk : LowerBlock Γspec kns bs bs' ids defs) (hspec : SpecContent env bo lp Γspec) :
+    ∀ (ps : List (Name × Nat)) (s : ErasureState), RegContent env bo lp Γspec s →
+      (∀ p ∈ ps, kns[p.2]? = some (toKername p.1)) →
+      RegContent env bo lp Γspec (ps.foldl (recConstStep defs) s)
+  | [], _, C, _ => C
+  | p :: rest, s, C, hidx => by
+    refine regContent_foldl_recConstStep hblk hspec rest _ ?_
+      (fun r hr => hidx r (List.mem_cons_of_mem _ hr))
+    refine C.gdeclsCons (k := toKername p.1)
+      (d := .constantDecl ⟨some (etaExpandFix defs p.2)⟩) rfl ?_
+    intro m b t hbo hkey hd
+    obtain rfl : etaExpandFix defs p.2 = t := by simpa using hd
+    have hj : kns[p.2]? = some (toKername m) := by
+      rw [hkey]; exact hidx p List.mem_cons_self
+    obtain ⟨hjl, hje⟩ := Lower.getElem!_of_getElem? hj
+    have hdecl : DefnDecl Γspec (toKername m) bs[p.2]! := by
+      have := hblk.hdecl p.2 hjl; rwa [hje] at this
+    exact ⟨bs[p.2]!, by rw [← hkey]; exact hdecl,
+      hblk.erases_of_specContent hspec hbo hj,
+      hblk.etaExpandFix_eq p.2 ▸ Lower.fixEta_of_block hblk hj hdecl⟩
+
+/-- **`visitMutual`'s recursive exit, at the content clause.** `RegInvShape'.recConst`'s twin:
+a whole block is registered at once and every member's emitted body is the η-expansion of the
+block's node, whose witness is the body the specification environment already declares at that
+member. -/
+theorem RegContent.recConst {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
+    {Γspec : GlobalDeclarations} {s : ErasureState} {names : List Name}
+    {kns : List Kername} {bs bs' : List LBTerm} {ids : List FVarId}
+    {defs : List (@FixDef LBTerm)} (C : RegContent env bo lp Γspec s)
+    (hspec : SpecContent env bo lp Γspec)
+    (hblk : LowerBlock Γspec kns bs bs' ids defs)
+    (hidx : ∀ p ∈ names.zipIdx, kns[p.2]? = some (toKername p.1)) :
+    RegContent env bo lp Γspec (recConstState names defs s) := by
+  rw [recConstState_eq]
+  exact regContent_foldl_recConstStep hblk hspec names.zipIdx s C hidx
+
+/-- **The emitted environment only grows across `Erasure.register_inductive`.** What the
+saturation clause spends at the step: an entry the run had emitted is still emitted. -/
+theorem register_inductive_gdecls_mono {indinfo : InductiveVal} {s : ErasureState}
+    {ctx : ErasureContext} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
+    {w : Void IO.RealWorld} {r : InductiveId × InductiveArgMasks} {s₁ : ErasureState}
+    {w₁ : Void IO.RealWorld}
+    (hmiss : s.inductives.get? indinfo.name = none)
+    (hrun : register_inductive indinfo s ctx cctx ref w = .ok (r, s₁) w₁) :
+    ∀ p ∈ s.gdecls, p ∈ s₁.gdecls := by
+  obtain ⟨-, bodies, sM, rfl, -, -, hce, -, -⟩ :=
+    run_register_inductive_cold_ok (Ci := fun _ _ => True)
+      (fun _ _ _ _ _ _ _ => trivial) hmiss hrun
+  obtain ⟨pre, hpre, -⟩ := hce.gdeclsAx
+  intro p hp
+  show p ∈ (_ :: sM.gdecls)
+  exact List.mem_cons_of_mem _ (by rw [hpre]; exact List.mem_append_right _ hp)
+
+/-! ## The saturation clause
+
+`SpecKeysEmitted` is the accumulator's third clause. It is stated here, beside the
+registration steps that maintain it, rather than at `SpecEnv` where its reader
+`regSaturated_of_regKeyed` lives.
+-/
+
+/-- A specification key that is not a runtime key has *some* emitted entry of the matching
+shape. MetaRocq's pruning statement (`erases_global_decls`, `../metarocq/erasure/theories/
+Extract.v:284`) reads the same way: the emitted environment answers the keys the
+specification keeps, not their bodies. -/
+structure SpecKeysEmitted (Γspec : GlobalDeclarations) (s : ErasureState) : Prop where
+  consts : ∀ (kn : Kername) (cb : ConstantBody),
+    LBTerm.envLookup Γspec kn = some (.constantDecl cb) → ¬ RuntimeKey Γspec kn →
+    ∃ cb' : ConstantBody, (kn, GlobalDecl.constantDecl cb') ∈ s.gdecls
+  inds : ∀ (kn : Kername) (mib : MutualInductiveBody),
+    LBTerm.envLookup Γspec kn = some (.inductiveDecl mib) →
+    ∃ mib' : MutualInductiveBody, (kn, GlobalDecl.inductiveDecl mib') ∈ s.gdecls
+
+/-- The empty specification environment declares no key, so both clauses are vacuous whatever
+the state. -/
+theorem SpecKeysEmitted.nil {s : ErasureState} : SpecKeysEmitted [] s where
+  consts kn cb hd _ := by simp [LBTerm.envLookup] at hd
+  inds kn mib hd := by simp [LBTerm.envLookup] at hd
+
+/-- **Saturation across one constant entry.** The consed specification key is answered by the
+entry the run emits at it; at every other key the lookup is the old one, and its runtime-key
+status is only harder to lose along the growth (`RuntimeKey.specGrow`). This is the third
+clause of the accumulator at a constant registration. -/
+theorem SpecKeysEmitted.cons {Γ : GlobalDeclarations} {s s' : ErasureState} {kn : Kername}
+    {cb cb' : ConstantBody} (K : SpecKeysEmitted Γ s)
+    (hg : SpecGrow Γ ((kn, .constantDecl cb) :: Γ))
+    (hmem : (kn, GlobalDecl.constantDecl cb') ∈ s'.gdecls)
+    (hsub : ∀ p ∈ s.gdecls, p ∈ s'.gdecls) :
+    SpecKeysEmitted ((kn, .constantDecl cb) :: Γ) s' where
+  consts k c hd hrk := by
+    by_cases hk : kn = k
+    · exact ⟨cb', hk ▸ hmem⟩
+    · rw [envLookup_cons_ne hk] at hd
+      obtain ⟨c', hm⟩ := K.consts k c hd (fun hc => hrk (hc.specGrow hg))
+      exact ⟨c', hsub _ hm⟩
+  inds k mib hd := by
+    by_cases hk : kn = k
+    · rw [hk, envLookup_cons_self] at hd; exact absurd hd (by simp)
+    · rw [envLookup_cons_ne hk] at hd
+      obtain ⟨mib', hm⟩ := K.inds k mib hd
+      exact ⟨mib', hsub _ hm⟩
+
+/-- **Saturation across a prefix growth.** The prefix answers for its own keys at the exit
+state, the tail for the keys it kept — a key the growth did not touch keeps its entry
+(`SpecGrow`) and its emitted answer (`hsub`), and its runtime-key status is only harder to
+lose, in both directions: `RuntimeKey.appendLeft` at a prefix key and `RuntimeKey.specGrow`
+at a tail key. This is what `regInv_registerInd_step`'s last conclusion is for. -/
+theorem SpecKeysEmitted.append {Γ pre : GlobalDeclarations} {s s' : ErasureState}
+    (K : SpecKeysEmitted Γ s) (Kpre : SpecKeysEmitted pre s')
+    (hg : SpecGrow Γ (pre ++ Γ)) (hsub : ∀ p ∈ s.gdecls, p ∈ s'.gdecls) :
+    SpecKeysEmitted (pre ++ Γ) s' where
+  consts kn cb hd hrk := by
+    rcases envLookup_append_cases hd with h1 | ⟨-, h2⟩
+    · exact Kpre.consts kn cb h1 (fun hc => hrk hc.appendLeft)
+    · obtain ⟨cb', hmem⟩ := K.consts kn cb h2 (fun hc => hrk (hc.specGrow hg))
+      exact ⟨cb', hsub _ hmem⟩
+  inds kn mib hd := by
+    rcases envLookup_append_cases hd with h1 | ⟨-, h2⟩
+    · exact Kpre.inds kn mib h1
+    · obtain ⟨mib', hmem⟩ := K.inds kn mib h2
+      exact ⟨mib', hsub _ hmem⟩
+
+/-- **Saturation across a block registration.** `SpecKeysEmitted.append` at the state
+`Erasure.visitMutual`'s recursive exit ends in: the registration loop only prepends, so every
+entry the run had emitted is still emitted. -/
+theorem SpecKeysEmitted.recConst {Γ pre : GlobalDeclarations} {s : ErasureState}
+    {names : List Name} {defs : List (@FixDef LBTerm)}
+    (K : SpecKeysEmitted Γ s) (Kpre : SpecKeysEmitted pre (recConstState names defs s))
+    (hg : SpecGrow Γ (pre ++ Γ)) :
+    SpecKeysEmitted (pre ++ Γ) (recConstState names defs s) :=
+  K.append Kpre hg (fun p hp => by
+    obtain ⟨q, hq⟩ := (runConcl_recConstState names defs s).le.gdecls
+    rw [hq]; exact List.mem_append_right _ hp)
+
+/-! ## The accumulator
+
+The triple a registration run carries: the shape invariant, the content clause that pins one
+erasure witness per emitted body, and the saturation clause. `doc/rework/11-REPAIRS-W8.md`
+§2.5 quantifies exactly this triple at a run's entry and exit states.
+-/
+
+/-- **The accumulator.** The three clauses a registration run maintains between the
+specification environment it is *building* and its state. -/
+structure RegAcc (env : VEnv) (bo : Name → Option Expr) (lp : Name → List Name)
+    (Γ : GlobalDeclarations) (s : ErasureState) : Prop where
+  /-- The registration invariant's shape half. -/
+  shape : RegInvShape' env bo lp Γ s
+  /-- One erasure witness per emitted body, read both ways. -/
+  content : RegContent env bo lp Γ s
+  /-- Every kept specification key has an emitted answer. -/
+  keysEmitted : SpecKeysEmitted Γ s
+
+/-- **The accumulator at the cold start.** Every clause of the empty specification
+environment is vacuous — its lookups all miss — so a run beginning at the empty state begins
+with both halves of the accumulator in hand, with no specification environment posited in
+advance. That is what makes `Γspec` an output rather than an input. -/
+theorem regInv_cold_start {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name} :
+    RegInvShape' env bo lp [] {} ∧ RegContent env bo lp [] {} := by
+  have hnil : ∀ (kn : Kername), ¬ (LBTerm.envLookup ([] : GlobalDeclarations) kn).isSome := by
+    intro kn h; simp [LBTerm.envLookup] at h
+  have hspec : SpecContent env bo lp [] :=
+    { keys := by simp
+      defns := fun _ _ _ hs => absurd hs (hnil _)
+      axioms := fun _ _ _ _ hs => absurd hs (hnil _)
+      blocks := fun _ _ _ _ _ hs => absurd hs (hnil _)
+      elims := fun _ _ _ _ _ hs => absurd hs (hnil _) }
+  refine ⟨RegInvShape'.empty hspec ?_ ?_, RegContent.empty ?_⟩
+  · intro kn b hb; simp [DefnDecl, LBTerm.envLookup] at hb
+  · intro kn b x hb; simp [DefnDecl, LBTerm.envLookup] at hb
+  · intro kn b hb; simp [DefnDecl, LBTerm.envLookup] at hb
+
+/-- The accumulator at the cold start: `regInv_cold_start` with its third clause, which the
+empty specification environment makes vacuous. -/
+theorem RegAcc.coldStart {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name} :
+    RegAcc env bo lp [] {} :=
+  ⟨regInv_cold_start.1, regInv_cold_start.2, SpecKeysEmitted.nil⟩
+
+/-! ## Two registration steps at a growing specification environment
+
+Each is the shape one step of the preservation theorem has: from the accumulator at the
+entry state, an extension and the accumulator at the exit state. The specification entry is
+*built* at the step, which is how the step pays `RegInvShape'.constCons`' `hspec` premise
+without an environment fixed in advance.
+-/
+
+/-- **`addAxiom`, declaring what it registers.** The run conses a body-less emitted entry and
+the specification environment gains the same entry. -/
+theorem regInv_addAxiom_step {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
+    {Γ : GlobalDeclarations} {s : ErasureState} {n : Name}
+    (A : RegAcc env bo lp Γ s)
+    (hok : SpecEntryOk env bo lp (toKername n) (.constantDecl ⟨none⟩))
+    (hfΓ : ∀ q ∈ Γ, q.1 ≠ toKername n) (hfs : ∀ q ∈ s.gdecls, q.1 ≠ toKername n) :
+    ∃ Γ' : GlobalDeclarations, SpecGrow Γ Γ' ∧ RegAcc env bo lp Γ' (addAxiomState n s) := by
+  obtain ⟨H, C, K⟩ := A
+  have hg : SpecGrow Γ ((toKername n, .constantDecl ⟨none⟩) :: Γ) :=
+    SpecGrow.of_fresh (pre := [(toKername n, .constantDecl ⟨none⟩)])
+      (fun p hp q hq => by
+        rcases List.mem_singleton.1 hp with rfl
+        exact fun hc => hfΓ q hq hc.symm)
+      (elimBlocksDeclared_of_constsDeclaredEnv C.declEnv)
+  have hsub : ∀ p ∈ s.gdecls, p ∈ (addAxiomState n s).gdecls := fun p hp => by
+    rw [addAxiomState_gdecls]; exact List.mem_cons_of_mem _ hp
+  refine ⟨(toKername n, .constantDecl ⟨none⟩) :: Γ, hg, ?_, ?_, ?_⟩
+  · exact (H.specGrow hg C.declEnv (H.spec.cons hfΓ hok)
+      (closedBodies_cons H.specClosed (by simp))
+      (fvarFreeBodies_cons H.specFVarFree (by simp))).addAxiom envLookup_cons_self hfs
+  · exact (C.specGrow hg (constsDeclaredEnv_cons C.declEnv (by simp))).gdeclsCons
+      (addAxiomState_gdecls n s) (by simp)
+  · exact K.cons hg (by rw [addAxiomState_gdecls]; exact List.mem_cons_self) hsub
+
+/-- **`visitMutual`'s non-recursive exit, declaring what it registers.** The specification
+environment gains the erasure witness `hok` carries, and the emitted body is its `Lower`
+image — the two readings `RegContent.defns` bundles, established at the step that creates
+them. `hlow` and `hdecl` are read at the environment *before* the step, which is the shape a
+sub-run's conclusion has. -/
+theorem regInv_constCons_step {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
+    {Γ : GlobalDeclarations} {s : ErasureState} {n : Name} {t b₀ : LBTerm}
+    (A : RegAcc env bo lp Γ s)
+    (hok : SpecEntryOk env bo lp (toKername n) (.constantDecl ⟨some b₀⟩))
+    (hlow : Lower Γ b₀ t) (hdecl : ConstsDeclared Γ b₀) (hcl₀ : LBClosed b₀ 0)
+    (hfv₀ : ∀ x : FVarId, ¬ hasFVar x b₀) (hclt : LBClosed t 0)
+    (hfΓ : ∀ q ∈ Γ, q.1 ≠ toKername n) (hfs : ∀ q ∈ s.gdecls, q.1 ≠ toKername n) :
+    ∃ Γ' : GlobalDeclarations, SpecGrow Γ Γ' ∧
+      RegAcc env bo lp Γ' (nonrecConstState n t s) := by
+  obtain ⟨H, C, K⟩ := A
+  have hg : SpecGrow Γ ((toKername n, .constantDecl ⟨some b₀⟩) :: Γ) :=
+    SpecGrow.of_fresh (pre := [(toKername n, .constantDecl ⟨some b₀⟩)])
+      (fun p hp q hq => by
+        rcases List.mem_singleton.1 hp with rfl
+        exact fun hc => hfΓ q hq hc.symm)
+      (elimBlocksDeclared_of_constsDeclaredEnv C.declEnv)
+  have hdecl' : ConstsDeclared ((toKername n, .constantDecl ⟨some b₀⟩) :: Γ) b₀ := hdecl.cons
+  have hlow' : Lower ((toKername n, .constantDecl ⟨some b₀⟩) :: Γ) b₀ t :=
+    Lower.specGrow hg C.declEnv hlow (.of_constsDeclared hg hdecl)
+  refine ⟨(toKername n, .constantDecl ⟨some b₀⟩) :: Γ, hg, ?_, ?_, ?_⟩
+  · exact (H.specGrow hg C.declEnv (H.spec.cons hfΓ hok)
+      (closedBodies_cons H.specClosed (fun b hb => by
+        obtain rfl : b₀ = b := by simpa using hb
+        exact hcl₀))
+      (fvarFreeBodies_cons H.specFVarFree (fun b x hb => by
+        obtain rfl : b₀ = b := by simpa using hb
+        exact hfv₀ x))).constCons envLookup_cons_self hlow' hclt hfs
+  · refine (C.specGrow hg (constsDeclaredEnv_cons C.declEnv (fun b hb => by
+      obtain rfl : b₀ = b := by simpa using hb
+      exact hdecl'))).gdeclsCons (nonrecConstState_gdecls n t s) ?_
+    intro m b t' hbo hkey hd
+    obtain rfl : t = t' := by simpa using hd
+    obtain ⟨b₀', heq, her⟩ := hok.defns m b hkey hbo
+    obtain rfl : b₀ = b₀' := by simpa using heq
+    exact ⟨b₀, envLookup_cons_self, her, hlow'⟩
+  · exact K.cons hg (by rw [nonrecConstState_gdecls]; exact List.mem_cons_self)
+      (fun p hp => by rw [nonrecConstState_gdecls]; exact List.mem_cons_of_mem _ hp)
+
+/-- **`visitMutual`'s block exit, declaring what it registers.** The specification environment
+gains the whole block prefix *before* the state fold, because member `i`'s emitted body is the
+η-expansion of the block's node and `Lower.fixEta_of_block` reads every member's declaration.
+`pre` is the block's own member entries, each `(toKername c, .constantDecl ⟨some bs[j]!⟩)`;
+their erasure readings are `hpre`'s, which is why no further erasure premise appears here.
+`hfs` and `hnd` are the state-side freshness and key distinctness `RegInvShape'.recConst`
+asks, the second being what a successful exit reports off F-UNSAFEREC's guard.
+
+`SpecGrow.of_fresh` needs no eliminator-side condition: the prefix entries are erasure images
+and no erasure image is an eliminator body (`erases_ne_elimBody`), so `ElimBlocksDeclared` is
+paid by the δ column alone. -/
+theorem regInv_recConst_step {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
+    {Γ pre : GlobalDeclarations} {s : ErasureState} {names : List Name}
+    {kns : List Kername} {bs bs' : List LBTerm} {ids : List FVarId}
+    {defs : List (@FixDef LBTerm)}
+    (A : RegAcc env bo lp Γ s)
+    (hpre : SpecContent env bo lp pre) (hfresh : ∀ p ∈ pre, ∀ q ∈ Γ, p.1 ≠ q.1)
+    (hcl : ClosedBodies pre) (hfv : FVarFreeBodies pre)
+    (hdenv : ConstsDeclaredEnv (pre ++ Γ))
+    (hkpre : SpecKeysEmitted pre (recConstState names defs s))
+    (hblk : LowerBlock (pre ++ Γ) kns bs bs' ids defs)
+    (hidx : ∀ p ∈ names.zipIdx, kns[p.2]? = some (toKername p.1))
+    (hfs : ∀ n ∈ names, ∀ q ∈ s.gdecls, q.1 ≠ toKername n)
+    (hnd : (names.map toKername).Nodup) :
+    SpecGrow Γ (pre ++ Γ) ∧ RegAcc env bo lp (pre ++ Γ) (recConstState names defs s) := by
+  obtain ⟨H, C, K⟩ := A
+  have hg : SpecGrow Γ (pre ++ Γ) :=
+    SpecGrow.of_fresh hfresh (elimBlocksDeclared_of_constsDeclaredEnv C.declEnv)
+  have hspec : SpecContent env bo lp (pre ++ Γ) := H.spec.append hpre hfresh
+  exact ⟨hg,
+    (H.specGrow hg C.declEnv hspec (closedBodies_append hcl H.specClosed)
+      (fvarFreeBodies_append hfv H.specFVarFree)).recConst hblk hidx hfs hnd,
+    (C.specGrow hg hdenv).recConst hspec hblk hidx,
+    K.recConst hkpre hg⟩
+
+/-- **`register_inductive`, declaring what it registers.** The specification environment
+gains a whole prefix, not one entry: `SpecContent.blocks` fires at the block key the run
+conses and `IndCovered.elims` then demands an `ElimDecl` for every informative member's
+`casesOn`, so the eliminator entries enter `Γspec` here and not at `Erasure.visitCases`,
+which registers nothing. `hpre` is what the prefix owes, in `SpecContent.append`'s reading;
+the five state-facing side conditions are `RegInvShape'.register_inductive_run`'s, read at
+the grown environment. `hkpre` is the saturation clause at the prefix — the block key is
+emitted and the eliminator keys are runtime keys, so it is what the prefix owes — and
+`SpecKeysEmitted.append` is what spends it, against `register_inductive_gdecls_mono`.
+
+No configuration is pinned: `Erasure.register_inductive` calls `Erasure.addAxiom` at an
+`@[extern]` constructor under `extern = .preferAxiom` (`Erasure.lean:349-351`), and the
+entries it leaves are body-less, which is the arm `haxpre` asks the prefix to declare. -/
+theorem regInv_registerInd_step {env : VEnv} {bo : Name → Option Expr} {lp : Name → List Name}
+    {Γ pre : GlobalDeclarations} {indinfo : InductiveVal} {s : ErasureState}
+    {ctx : ErasureContext} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
+    {w : Void IO.RealWorld} {r : InductiveId × InductiveArgMasks} {s₁ : ErasureState}
+    {w₁ : Void IO.RealWorld}
+    (A : RegAcc env bo lp Γ s)
+    (hpre : SpecContent env bo lp pre) (hfresh : ∀ p ∈ pre, ∀ q ∈ Γ, p.1 ≠ q.1)
+    (hcl : ClosedBodies pre) (hfv : FVarFreeBodies pre)
+    (hkpre : SpecKeysEmitted pre s₁)
+    (hdenv : ConstsDeclaredEnv (pre ++ Γ))
+    (hmiss : s.inductives.get? indinfo.name = none)
+    (hrun : register_inductive indinfo s ctx cctx ref w = .ok (r, s₁) w₁)
+    (hkeys : (s₁.gdecls.map Prod.fst).Nodup)
+    (haxpre : ∀ p ∈ s₁.gdecls, p.2 = GlobalDecl.constantDecl ⟨none⟩ →
+      LBTerm.envLookup (pre ++ Γ) p.1 = some (.constantDecl ⟨none⟩))
+    (hblk : ∀ mib, LBTerm.envLookup s₁.gdecls (mutualBlockKn indinfo)
+        = some (.inductiveDecl mib) →
+      LBTerm.envLookup (pre ++ Γ) (mutualBlockKn indinfo) = some (.inductiveDecl mib))
+    (hnewc : ∀ n : Name, (s₁.constants.get? n).isSome → (s.constants.get? n).isSome ∨
+      LBTerm.envLookup (pre ++ Γ) (toKername n) = some (.constantDecl ⟨none⟩))
+    (hnewi : ∀ n : Name, (s₁.inductives.get? n).isSome → (s.inductives.get? n).isSome ∨
+      (IndCovered env (pre ++ Γ) n ∧ IndEmitted env (pre ++ Γ) s₁.gdecls n)) :
+    SpecGrow Γ (pre ++ Γ) ∧ RegAcc env bo lp (pre ++ Γ) s₁ := by
+  obtain ⟨H, C, K⟩ := A
+  have hg : SpecGrow Γ (pre ++ Γ) :=
+    SpecGrow.of_fresh hfresh (elimBlocksDeclared_of_constsDeclaredEnv C.declEnv)
+  exact ⟨hg,
+    (H.specGrow hg C.declEnv (H.spec.append hpre hfresh)
+      (closedBodies_append hcl H.specClosed)
+      (fvarFreeBodies_append hfv H.specFVarFree)).register_inductive_run
+        hmiss hrun hkeys haxpre hblk hnewc hnewi,
+    (C.specGrow hg hdenv).register_inductive_run hmiss hrun,
+    K.append hkpre hg (register_inductive_gdecls_mono hmiss hrun)⟩
+
+/-! ## The prefix a block registration conses
+
+`regInv_registerInd_step` takes the prefix as a parameter. What it is, as a function of the
+run's output: the block entry `Erasure.registerIndState` conses, together with one eliminator
+entry per member whose *emitted* body carries `propositional = false`. The filter is the
+emitted flag and not model informativity, because an eliminator entry at a propositional
+member is no `RuntimeKey` of the prefix — `ElimDecl`'s second conjunct carries
+`IndNotPropositional` — and `SpecKeysEmitted.consts` would then demand an emitted
+`.constantDecl` at a key the run never writes.
+
+MetaRocq's `erases_global_ind` (`../metarocq/erasure/theories/Extract.v:290-293`) plus the
+`casesOn` declarations λ□ prunes.
+-/
+
+/-- The per-member data one eliminator entry of an inductive prefix is built from: the
+member's name, its position in its block, the arguments its `casesOn` drops before the
+discriminant, and its constructors' field counts. -/
+structure ElimSlot where
+  /-- The member's name. -/
+  name : Name
+  /-- The member's position in `Lean.InductiveVal.all`. -/
+  idx : Nat
+  /-- The arguments the member's `casesOn` drops before the discriminant. -/
+  dropped : Nat
+  /-- The member's constructors' field counts. -/
+  fields : List Nat
+
+/-- The field-count list of a declared block, computed from `lenv` rather than exhibited:
+`KernelFields` pins the same list pointwise, so a block whose constructors `lenv` declares has
+this as its only `KernelFields` witness. -/
+def kernelFieldsOf (lenv : Environment) (iv : InductiveVal) : List Nat :=
+  iv.ctors.map fun cn =>
+    match lenv.find? cn with
+    | some (.ctorInfo cv) => cv.numFields
+    | _ => 0
+
+/-- `KernelFields` has one witness. -/
+theorem kernelFieldsOf_eq {lenv : Environment} {iv : InductiveVal} {nfs : List Nat}
+    (h : KernelFields lenv iv nfs) : nfs = kernelFieldsOf lenv iv := by
+  refine List.ext_getElem? (fun j => ?_)
+  rw [kernelFieldsOf, List.getElem?_map]
+  cases hj : iv.ctors[j]? with
+  | none =>
+    simp only [Option.map_none]
+    exact List.getElem?_eq_none (by rw [h.1]; exact List.getElem?_eq_none_iff.mp hj)
+  | some cn =>
+    obtain ⟨cv, hcvf, hnfj, -, -, -⟩ := h.2 j cn hj
+    rw [hnfj]
+    simp [hcvf]
+
+/-- The eliminator slots a cold `Erasure.register_inductive` owes: one per member `lenv`
+declares as an inductive and whose emitted body is not propositional. -/
+def elimSlots (lenv : Environment) (indinfo : InductiveVal)
+    (bodies : List OneInductiveBody) : List ElimSlot :=
+  indinfo.all.zipIdx.filterMap fun p =>
+    match lenv.find? p.1, bodies[p.2]? with
+    | some (.inductInfo ivm), some oib =>
+        if oib.propositional then none
+        else some ⟨p.1, p.2, ivm.numParams + 1 + ivm.numIndices, kernelFieldsOf lenv ivm⟩
+    | _, _ => none
+
+/-- One eliminator entry of the prefix: the member's `casesOn` key, at the non-recursive
+`ElimBody` shape for its block position. -/
+def elimEntry (kn : Kername) (np : Nat) (e : ElimSlot) : Kername × GlobalDecl :=
+  (toKername (Name.str e.name "casesOn"),
+    .constantDecl ⟨some (mkElimBody ⟨kn, e.idx⟩ np e.dropped e.fields)⟩)
+
+/-- The specification prefix: the block entry the run conses, and its slots' eliminators. -/
+def indPrefix (indinfo : InductiveVal) (bodies : List OneInductiveBody)
+    (es : List ElimSlot) : GlobalDeclarations :=
+  (mutualBlockKn indinfo, .inductiveDecl { npars := indinfo.numParams, bodies := bodies })
+    :: es.map (elimEntry (mutualBlockKn indinfo) indinfo.numParams)
+
+/-- A slot is at a member `lenv` declares, whose emitted body is not propositional, and its
+two numbers are read off that declaration. -/
+theorem elimSlots_spec {lenv : Environment} {indinfo : InductiveVal}
+    {bodies : List OneInductiveBody} {e : ElimSlot} (h : e ∈ elimSlots lenv indinfo bodies) :
+    indinfo.all[e.idx]? = some e.name ∧
+    (∃ ivm : InductiveVal, lenv.find? e.name = some (.inductInfo ivm) ∧
+      e.dropped = ivm.numParams + 1 + ivm.numIndices ∧ e.fields = kernelFieldsOf lenv ivm) ∧
+    ∃ oib, bodies[e.idx]? = some oib ∧ oib.propositional = false := by
+  rw [elimSlots, List.mem_filterMap] at h
+  obtain ⟨p, hp, hq⟩ := h
+  obtain ⟨n, i⟩ := p
+  have hidx : indinfo.all[i]? = some n := by
+    obtain ⟨-, hlt, hn⟩ := List.mem_zipIdx hp
+    simp only [Nat.zero_add] at hlt
+    simp only [Nat.sub_zero] at hn
+    rw [List.getElem?_eq_getElem hlt, hn]
+  simp only [] at hq
+  split at hq
+  · rename_i ivm oib hfind hbod
+    split at hq
+    · exact absurd hq (by simp)
+    · rename_i hprop
+      cases hq
+      exact ⟨hidx, ⟨ivm, hfind, rfl, rfl⟩, oib, hbod, by simpa using hprop⟩
+  · exact absurd hq (by simp)
+
+/-- The converse: a declared member with a non-propositional emitted body has a slot. -/
+theorem elimSlots_mem {lenv : Environment} {indinfo : InductiveVal}
+    {bodies : List OneInductiveBody} {I : Name} {i : Nat} {ivm : InductiveVal}
+    {oib : OneInductiveBody} (hidx : indinfo.all[i]? = some I)
+    (hfind : lenv.find? I = some (.inductInfo ivm)) (hbod : bodies[i]? = some oib)
+    (hprop : oib.propositional = false) :
+    (⟨I, i, ivm.numParams + 1 + ivm.numIndices, kernelFieldsOf lenv ivm⟩ : ElimSlot)
+      ∈ elimSlots lenv indinfo bodies := by
+  rw [elimSlots, List.mem_filterMap]
+  refine ⟨(I, i), ?_, ?_⟩
+  · refine List.mem_of_getElem? (i := i) ?_
+    rw [List.getElem?_zipIdx, hidx]
+    simp
+  · simp only [hfind, hbod, hprop]
+    simp
+
+/-- The prefix answers at the block key with the emitted block. -/
+theorem indPrefix_block {indinfo : InductiveVal} {bodies : List OneInductiveBody}
+    {es : List ElimSlot} :
+    LBTerm.envLookup (indPrefix indinfo bodies es) (mutualBlockKn indinfo)
+      = some (.inductiveDecl { npars := indinfo.numParams, bodies := bodies }) :=
+  envLookup_cons_self
+
+/-- A key the prefix answers is the block key or one of its slots' eliminator keys. -/
+theorem indPrefix_key_cases {indinfo : InductiveVal} {bodies : List OneInductiveBody}
+    {es : List ElimSlot} {kn : Kername} {d : GlobalDecl}
+    (h : LBTerm.envLookup (indPrefix indinfo bodies es) kn = some d) :
+    (kn = mutualBlockKn indinfo ∧
+      d = .inductiveDecl { npars := indinfo.numParams, bodies := bodies }) ∨
+    ∃ e ∈ es, kn = toKername (Name.str e.name "casesOn") ∧
+      d = .constantDecl ⟨some (mkElimBody ⟨mutualBlockKn indinfo, e.idx⟩ indinfo.numParams
+        e.dropped e.fields)⟩ := by
+  have hmem := envLookup_mem h
+  rw [indPrefix, List.mem_cons] at hmem
+  rcases hmem with heq | hmem
+  · exact Or.inl ⟨congrArg Prod.fst heq, congrArg Prod.snd heq⟩
+  · obtain ⟨e, he, heq⟩ := List.mem_map.mp hmem
+    exact Or.inr ⟨e, he, congrArg Prod.fst heq.symm, congrArg Prod.snd heq.symm⟩
+
+/-- A `casesOn` name is its own prefix's `casesOn`: `isCasesOnName` tests the last string
+component, which the `.num` and `.anonymous` shapes do not have. -/
+theorem eq_str_casesOn {c : Name} (h : isCasesOnName c = true) :
+    c = Name.str c.getPrefix "casesOn" := by
+  cases c with
+  | anonymous => exact absurd h (by simp [isCasesOnName, lastComponent])
+  | num p k => exact absurd h (by simp [isCasesOnName, lastComponent])
+  | str p t =>
+    have ht : t = "casesOn" := by
+      simp only [isCasesOnName, lastComponent, beq_iff_eq] at h
+      exact h
+    rw [ht]
+    rfl
+
+/-- **What the keys of a block registration's prefix owe.** `toKername` is not injective
+(`toKername_not_injective`), and neither it nor `Erases.indBlockKername` is injective against
+the other, so a prefix entry answers `SpecContent` for *every* source name at its key. The
+six clauses are the exclusions that leaves: two at the tabled names with a body, which is
+`SpecContent.defns`' own trigger (F-W9-1: the clause over *every* tabled name is false at a
+table carrying `Nat.casesOn`, and the eliminator half is redundant here with
+`Green.NoTabledCasesOnBody` through `toKername_of_cleanIdent_casesOn`), three quantified over
+the model rather than over a table, since `SpecContent.axioms`, `.blocks` and `.elims` are
+(F-B-6), and one at the block's own member list, which is what separates the prefix's
+eliminator keys from each other. -/
+structure BodiedKeysFresh (env : VEnv) (bo : Name → Option Expr)
+    (indinfo : InductiveVal) : Prop where
+  /-- No tabled name carrying a body prints as the block key. -/
+  bodied : ∀ (c : Name) (b : Expr), bo c = some b → toKername c ≠ mutualBlockKn indinfo
+  /-- No tabled name carrying a body is a `casesOn` name. `Green.NoTabledCasesOnBody` read at
+      the body table; with `toKername_of_cleanIdent_casesOn` it is what keeps a tabled body
+      off the prefix's eliminator keys. -/
+  notCasesOn : ∀ (c : Name) (b : Expr), bo c = some b → isCasesOnName c = false
+  /-- A plain constant printing as the block key is a type former of the block — whereupon
+      `constOrigin_not_indInfo` refutes it, so what the clause excludes is a *collision* with
+      the block's own name and not the block's own name. -/
+  consts : ∀ c : Name, ConstOrigin env c → toKername c = mutualBlockKn indinfo →
+    ∃ (iid : InductiveId) (np : Nat) (nfs : List Nat), IndInfo env c iid np nfs
+  /-- A modelled block keyed at the block key is this one. `Erasure.checkIndKernameFresh`
+      guards the emitted environment against a cross-block key collision; nothing guards the
+      model against one. -/
+  blocks : ∀ (I : Name) (iid : InductiveId) (np : Nat) (nfs : List Nat),
+    IndInfo env I iid np nfs → iid.mutualBlockName = mutualBlockKn indinfo → I ∈ indinfo.all
+  /-- No modelled eliminator's key is a block key. `SpecEntryOk.elims`' reading at a prefix
+      whose keys are a block's and its members' eliminators': `Erases.indBlockKername`'s image
+      is a root kername and `toKername` keys a `casesOn` name at its prefix's module path, so
+      what this excludes is a type former declared at the root under the name an
+      anonymous-prefixed `casesOn` prints as. -/
+  elims : ∀ (c I : Name) (dp nm : Nat) (ns : List Name), CasesOnShape env c I dp nm →
+    toKername c ≠ indBlockKername ns
+  /-- A member's module path identifies it, so the prefix's eliminator keys are distinct and
+      each answers for its own member. `toModPath` keeps a name's components unescaped, so it
+      identifies every name but a `.str`/`.num` decimal variant. -/
+  memberNames : ∀ I ∈ indinfo.all, ∀ J : Name, toModPath J = toModPath I → J = I
+
+/-- **The specification prefix one `Erasure.register_inductive` conses**, as
+`regInv_registerInd_step` reads it: every member of the block is covered, the entries say of
+the source what `SpecContent` asks, the block key is declared, and every other entry is an
+eliminator's — hence a runtime key of the prefix, which is what exempts it from
+`SpecKeysEmitted.consts`. -/
+structure IndPrefixOf (env : VEnv) (bo : Name → Option Expr) (lp : Name → List Name)
+    (indinfo : InductiveVal) (pre : GlobalDeclarations) : Prop where
+  /-- Every member of the block is covered by the prefix. -/
+  covered : ∀ I ∈ indinfo.all, IndCovered env pre I
+  /-- The prefix's entries say of the source what `SpecContent` asks. -/
+  content : SpecContent env bo lp pre
+  /-- The block key is declared. -/
+  block : ∃ mib : MutualInductiveBody,
+    LBTerm.envLookup pre (mutualBlockKn indinfo) = some (.inductiveDecl mib)
+  /-- Every entry is the block's or an eliminator's, the latter a runtime key. -/
+  entries : ∀ p ∈ pre,
+    (p.1 = mutualBlockKn indinfo ∧ ∃ mib, p.2 = GlobalDecl.inductiveDecl mib) ∨
+    (RuntimeKey pre p.1 ∧ ∃ (body : LBTerm) (iid : InductiveId) (np dp : Nat) (nfs : List Nat),
+      p.2 = .constantDecl ⟨some body⟩ ∧ ElimBody iid np dp nfs body)
+  /-- Every key is the block's or a *modelled* eliminator's, at a member this block's
+      identifier keys. `entries` reads an entry's shape; this reads its key against the
+      model, which is what makes `SpecContent.elims` at the specification environment refute
+      a collision with a key the run is about to mint. -/
+  elimKeys : ∀ p ∈ pre, p.1 = mutualBlockKn indinfo ∨
+    ∃ (c I : Name) (dp nm : Nat) (iid : InductiveId) (np : Nat) (nfs : List Nat),
+      p.1 = toKername c ∧ CasesOnShape env c I dp nm ∧ IndInfo env I iid np nfs ∧
+      iid.mutualBlockName = mutualBlockKn indinfo
+
+/-! ## The two clauses `SpecKeysEmitted` exempts
+
+`SpecKeysEmitted.consts` exempts a runtime key — λ□ prunes the eliminator declarations, so
+the emitted environment answers for no such key — and the exemption is what leaves the
+specification environment free, as far as `RegAcc` says, to declare an eliminator body at a
+key no source name prints as. Such an entry would collide with the block key a registration
+mints, and nothing in the accumulator rules it out; the two clauses below are what a
+registration run carries instead. Both are vacuous at the empty specification environment and
+at the empty state, and `regInv_registerInd_run` re-establishes both at the grown pair.
+-/
+
+/-- **Every runtime key of the specification environment answers to a modelled `casesOn`
+constant.** The program-independent form of `ErasesEnv.runtimeKey_isCasesOn`, whose own
+derivation runs through a program's reachability and so is out of reach of the registration
+path: `SpecContent`'s clauses constrain an entry only through a source name keyed at it, so
+a key no source name prints as carries no obligation at all. -/
+def RuntimeKeysModelled (env : VEnv) (Γspec : GlobalDeclarations) : Prop :=
+  ∀ kn : Kername, RuntimeKey Γspec kn →
+    ∃ (c I : Name) (dp nm : Nat), CasesOnShape env c I dp nm ∧ kn = toKername c
+
+/-- **No emitted key is a runtime key of the specification environment.** The state-side
+reading of λ□'s pruning of the eliminator declarations (MetaRocq's `erases_global_decls`,
+`../metarocq/erasure/theories/Extract.v:284`): `Lower.const` refuses a runtime key, and the
+eraser registers no `casesOn` constant, so the emitted environment declares none. -/
+def EmittedNotRuntime (Γspec : GlobalDeclarations) (s : ErasureState) : Prop :=
+  ∀ kn : Kername, (LBTerm.envLookup s.gdecls kn).isSome → ¬ RuntimeKey Γspec kn
+
+/-! ## Saturation at the final state
+
+`RegSaturated` (`SpecEnv.lean`) reads a *registered-name* fact off a *key*, the converse of
+`RegInvShape'.consts`/`.inds`. `RegKeyed` is that converse for the emitted environment alone,
+tagged by the entry's own shape rather than by mere presence: `A-hbridge.md`'s sketch triggers
+on `LBTerm.envLookup s.gdecls kn ≠ none` and disjoins on registry membership with no shape
+attached, which is unsatisfiable as a route to `RegSaturated.inds` — the "constant" disjunct
+carries no fact ruling out a name `n` whose canonical kername coincides with a block's (both
+`toKername` and `mutualBlockKn`'s `rootKername` are ad hoc string-based maps into one
+`Kername` space with no stated injectivity or disjointness between them, and they do collide:
+`toKername \`id = rootKername "id"`, by `decide`). Reading each disjunct off the shape it
+produces closes that gap without assuming the collision away: a `.constantDecl`-shaped entry
+answers `consts`, a `.inductiveDecl`-shaped one answers `inds`, and `GlobalDecl`'s two
+constructors are disjoint whichever shape a given key's entry turns out to have. -/
+
+/-- Every emitted key is a registered constant's canonical kername or a registered inductive's
+block key, read off the shape the emitted entry itself carries. `env` is a parameter, which
+`IndInfo` needs and `A-hbridge.md`'s sketch omits. -/
+structure RegKeyed (env : VEnv) (s : ErasureState) : Prop where
+  /-- A constant-shaped entry is some registered constant's canonical kername. -/
+  consts : ∀ kn cb, (kn, GlobalDecl.constantDecl cb) ∈ s.gdecls →
+    ∃ n : Name, kn = toKername n ∧ (s.constants.get? n).isSome
+  /-- A block-shaped entry is some registered inductive's block key. -/
+  inds : ∀ kn mib, (kn, GlobalDecl.inductiveDecl mib) ∈ s.gdecls →
+    ∃ (n : Name) (iid : InductiveId) (np : Nat) (nfs : List Nat),
+      (s.inductives.get? n).isSome ∧ IndInfo env n iid np nfs ∧ kn = iid.mutualBlockName
+
+/-- **Preserved across a constant-only extension.** `ConstExt.gdecls` already records, for
+every prefix entry, that it is `.constantDecl`-shaped and keyed at a registered constant's
+kername (`08-REPAIRS-W5.md` §2.2); a prefix entry can therefore only ever *answer* `consts`,
+never `inds`, which is what makes the `inds` case of a fresh key impossible rather than
+merely unproved. -/
+theorem ConstExt.regKeyed {env : VEnv} {s s' : ErasureState} (h : ConstExt s s')
+    (hind : ∀ n : Name, (s.inductives.get? n).isSome → (s'.inductives.get? n).isSome)
+    (H : RegKeyed env s) : RegKeyed env s' where
+  consts kn cb hmem := by
+    obtain ⟨pre, hpre, hshape⟩ := h.gdecls
+    rw [hpre] at hmem
+    rcases List.mem_append.mp hmem with hmem | hmem
+    · obtain ⟨-, m, hkm, hms⟩ := hshape (kn, .constantDecl cb) hmem
+      exact ⟨m, hkm, hms⟩
+    · obtain ⟨n, hn, hns⟩ := H.consts kn cb hmem
+      exact ⟨n, hn, h.dom hns⟩
+  inds kn mib hmem := by
+    obtain ⟨pre, hpre, hshape⟩ := h.gdecls
+    rw [hpre] at hmem
+    rcases List.mem_append.mp hmem with hmem | hmem
+    · exact absurd (hshape (kn, .inductiveDecl mib) hmem).1 (by simp)
+    · obtain ⟨n, iid, np, nfs, hns, hii, hkn⟩ := H.inds kn mib hmem
+      exact ⟨n, iid, np, nfs, hind n hns, hii, hkn⟩
+
+/-- **The empty state emits nothing**, so both clauses are vacuous. -/
+theorem regKeyed_empty {env : VEnv} : RegKeyed env ({} : ErasureState) where
+  consts kn cb hmem := by simp at hmem
+  inds kn mib hmem := by simp at hmem
+
+/-- **Preserved across a block entry**, given the entry's own witness: some registered
+inductive whose model block identifier is keyed there. `registerIndState`'s cons is the one
+`Erasure.register_inductive` makes (`Erasure.lean:392`), and it is the only writer of an
+`.inductiveDecl`-shaped entry, so this is where the `inds` clause is paid. -/
+theorem RegKeyed.indCons {env : VEnv} {s s' : ErasureState} {kn : Kername}
+    {mib : MutualInductiveBody} (H : RegKeyed env s)
+    (hg : s'.gdecls = (kn, .inductiveDecl mib) :: s.gdecls)
+    (hc : ∀ n : Name, (s.constants.get? n).isSome → (s'.constants.get? n).isSome)
+    (hi : ∀ n : Name, (s.inductives.get? n).isSome → (s'.inductives.get? n).isSome)
+    (hnew : ∃ (n : Name) (iid : InductiveId) (np : Nat) (nfs : List Nat),
+      (s'.inductives.get? n).isSome ∧ IndInfo env n iid np nfs ∧ kn = iid.mutualBlockName) :
+    RegKeyed env s' where
+  consts k cb hmem := by
+    rw [hg] at hmem
+    rcases List.mem_cons.mp hmem with heq | hmem
+    · exact absurd heq (by simp)
+    · obtain ⟨n, hn, hns⟩ := H.consts k cb hmem
+      exact ⟨n, hn, hc n hns⟩
+  inds k mib' hmem := by
+    rw [hg] at hmem
+    rcases List.mem_cons.mp hmem with heq | hmem
+    · obtain ⟨rfl, -⟩ := Prod.mk.injEq .. ▸ heq
+      exact hnew
+    · obtain ⟨n, iid, np, nfs, hns, hii, hkn⟩ := H.inds k mib' hmem
+      exact ⟨n, iid, np, nfs, hi n hns, hii, hkn⟩
+
+/-- The block registration loop conses one constant entry per member. -/
+theorem regKeyed_foldl_recConstStep {env : VEnv} {defs : List (@FixDef LBTerm)} :
+    ∀ (L : List (Name × Nat)) (s : ErasureState), RegKeyed env s →
+      RegKeyed env (L.foldl (recConstStep defs) s)
+  | [], _, h => h
+  | p :: rest, s, h => regKeyed_foldl_recConstStep rest _
+      (ConstExt.regKeyed (ConstExt.addRealizer p.1 (etaExpandFix defs p.2) s)
+        (fun _ hn => hn) h)
+
+/-- `Erasure.visitMutual`'s block exit. -/
+theorem regKeyed_recConstState {env : VEnv} {names : List Name}
+    {defs : List (@FixDef LBTerm)} {s : ErasureState} (h : RegKeyed env s) :
+    RegKeyed env (recConstState names defs s) := by
+  rw [recConstState_eq]
+  exact regKeyed_foldl_recConstStep names.zipIdx s h
+
+/-! ## The block key a registration mints is fresh in the emitted environment
+
+`Erasure.checkIndKernameFresh` scans `ErasureState.constants` and `ErasureState.indBlocks`
+and **not** `ErasureState.gdecls` (`Erasure.lean:233-238`), so its verdict says nothing on its
+own about the emitted environment (F-B-1). The block-shaped half of the gap is closed by
+`IndBlocksCover` (`ErasureRun.lean`), the mirror between the two fields
+`Erasure.register_inductive` writes together; the constant-shaped half needs no mirror, only
+`RegKeyed` and the canonicity of the constant registry, and is proved here beside them. -/
+
+/-- **The constant-shaped half needs no mirror**: `RegKeyed.consts` names a registered
+constant, `CanonicalConstants` says the registry holds that constant's canonical kername, and
+`Erasure.checkIndKernameFresh`'s first scan is exactly over that column. -/
+theorem constKey_fresh {env : VEnv} {s : ErasureState} {indinfo : InductiveVal}
+    (hk : RegKeyed env s) (hcanon : CanonicalConstants s)
+    (hfresh : IndKernameFresh indinfo.all (mutualBlockKn indinfo) s) :
+    ∀ cb : ConstantBody,
+      (mutualBlockKn indinfo, GlobalDecl.constantDecl cb) ∉ s.gdecls := by
+  intro cb hmem
+  obtain ⟨n, hkn, hns⟩ := hk.consts _ _ hmem
+  obtain ⟨k, hk'⟩ := Option.isSome_iff_exists.1 hns
+  have hcan : k = toKername n := hcanon hk'
+  exact hfresh.1 (n, k) (Std.HashMap.mem_toList_iff_getElem?_eq_some.2 hk') (by rw [hcan, ← hkn])
 
 end LeanToLambdaBox

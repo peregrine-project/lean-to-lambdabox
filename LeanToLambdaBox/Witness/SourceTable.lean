@@ -237,7 +237,7 @@ structure SourceTableAdequate (lenv : Environment) (tbl : SourceTable) : Prop wh
       `ReifiedDecl.Pinned` does not pin: `Erasure.visitMutual` opens a declaration with
       `getDeclInfo?`, which answers the `_unsafe_rec` companion where the elaborator emitted
       one, and installs `lparams := ci.levelParams` from *that* constant
-      (`Erasure.lean:889`, `:912`), while `SourceTable.levels?` and `CompilerBodies` read
+      (`Erasure.lean:1275`, `:1309`), while `SourceTable.levels?` and `CompilerBodies` read
       `lenv.find?`. Without this the two scopes are unrelated and the erasure a run records
       is at a scope no specification names. Spent by U7's `RegContent.defns`, which reads
       the tabled body at `tbl.levels? n` against a run that erased it at the companion's
@@ -277,7 +277,7 @@ theorem SourceTableAdequate.levels?_eq {lenv : Environment} {tbl : SourceTable} 
     exact hlp.symm
 
 /-- Adequacy at the level column the **run** installs: the scope `Erasure.visitMutual` enters
-a declaration's body under (`Erasure.lean:889`, `:912`) is the table's own column, so the
+a declaration's body under (`Erasure.lean:1275`, `:1309`) is the table's own column, so the
 erasure a run records and the erasure `ErasesEnv.defns` asks for are at the same scope.
 `SourceTableAdequate.compilerLevels` read through the lookup interface. -/
 theorem SourceTableAdequate.compilerLevels?_eq {lenv : Environment} {tbl : SourceTable}

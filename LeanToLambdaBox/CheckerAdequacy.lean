@@ -11,23 +11,18 @@ that lemma is phrased against an abstract `VContext`/`VState`; the shipping
 oracle actually executes `Lean4Lean.TypeChecker.M.run … (RecM.run (isErasable e))`
 in the **ambient** `LocalContext` with the definition's `levelParams`.
 
-lean4lean's `M.WF.run` connects `M.WF` to a *successful* `M.run`, but only for the
-**empty** local context (`VContext.mk'` hardwires `mlctx := .nil`). This file
-lifts that restriction *without forking lean4lean* — every ingredient is public:
+lean4lean itself supplies that lift — `VContext.ofMLCtx`, `VState.WF.initial` and
+`M.WF.run'`, each at an arbitrary ambient `MLCtx`; this file keeps only what it does not,
+neither of them in a `Lean4Lean` namespace (criterion 21):
 
-* `VContext.ofMLCtx` — a `VContext` at an arbitrary ambient `MLCtx` (not `.nil`);
-* `VState.WF.initial` — the initial `VState` (`{}`, whose `ngen` is the kernel's
-  `_kernel_fresh` generator) is `VState.WF` at that ambient context, given only
-  that every ambient fvar is `kernelNGen.Reserves` — which is *vacuous* for the
-  `_uniq`-named fvars a real `CoreM` produces (`Reserves` for an `idx = 0`
-  generator only constrains `.num _kernel_fresh _`-shaped names);
-* `M.WF.run'` — lean4lean's 7-line `M.WF.run`, transplanted with `.empty →
-  `.initial`;
+* `LeanToLambdaBox.kernelNGen` — the kernel checker's initial name generator, named
+  downstream (the fork spells it out inline as `({} : Lean4Lean.TypeChecker.State).ngen`
+  rather than naming it); `LeanToLambdaBox/Bridge.lean`, `ErasureSpec.lean` and
+  `Witness/TrWitness.lean` read it by this name;
 * `LeanToLambdaBox.Oracle.kernel_isErasable_sound` — the payoff: a pure `M.run` of
   the verified check returning `.ok true` at a translated ambient `MLCtx` entails
-  `Erasable`. It mentions `LeanToLambdaBox.isErasable`, so it is the one declaration
-  here that is not kernel-generic, and it lives in this development's own namespace;
-  the seven kernel-generic declarations above it stay in `Lean4Lean.TypeChecker`.
+  `Erasable`. Composition of `isErasable.WF` (soundness), `RecM.WF.run` (fuel), and
+  the fork's own `M.WF.run'` (run-adequacy at the ambient context).
 
 No new `axiom`/`sorry`: the trust inherited is exactly lean4lean's (its `Verify`
 `sorryAx`, and its `Expr`/`Level`/`PersistentHashMap`/`PersistentArray` modeling axioms
@@ -38,88 +33,16 @@ What `Oracle.kernel_isErasable_sound` carries is the unique-typing cluster, toge
 level-normalization path the executable checker walks. `doc/trust.md` holds the rows.
 -/
 
-namespace Lean4Lean.TypeChecker
+namespace LeanToLambdaBox
 
-open Lean hiding Environment Exception
-open Kernel
-open Lean4Lean
-open LeanToLambdaBox (Erasable)
+/-- The initial name generator of the kernel checker's state
+(`Lean4Lean.TypeChecker.State`), i.e. the value `({} : Lean4Lean.TypeChecker.State).ngen`
+the fork's `VState.WF.initial`/`M.WF.run'` spell out inline rather than naming.
+`Reserves` for this generator (`idx = 0`) holds of every fvar *not* of the shape
+`⟨.num `_kernel_fresh i⟩` — in particular of every `_uniq`-named runtime fvar. -/
+abbrev kernelNGen : Lean.NameGenerator := ({} : Lean4Lean.TypeChecker.State).ngen
 
-/-- The kernel type-checker's initial name generator (the default `State.ngen`,
-`Lean4Lean.TypeChecker.State`). `Reserves` for this generator (`idx = 0`) holds
-of every fvar *not* of the shape `⟨.num `_kernel_fresh i⟩` — in particular of
-every `_uniq`-named runtime fvar. -/
-def kernelNGen : NameGenerator := { namePrefix := `_kernel_fresh, idx := 0 }
-
-/-- Build a `VContext` at an *arbitrary* ambient `MLCtx` `m` (not just `.nil`),
-from a `VEnvs.WF` witness. Everything but `mlctx`/`lctx` is the `VContext.mk'`
-data; `lctx := m.lctx`, `lctx_eq := rfl`. -/
-def VContext.ofMLCtx {env : Environment} {ves : VEnvs} (wf : ves.WF env)
-    (safety : DefinitionSafety := .safe) (lparams : List Name := [])
-    (fuel : FuelConfig := {})
-    (m : MLCtx) (mwf : m.WF (ves.venv safety) lparams) : VContext where
-  env; safety; lparams; fuel
-  lctx := m.lctx
-  venv := ves.venv safety
-  hasPrimitives := wf.hasPrimitives
-  safePrimitives := wf.safePrimitives
-  trenv := wf.tr
-  mlctx := m
-  mlctx_wf := mwf
-  lctx_eq := rfl
-
-@[simp] theorem VContext.ofMLCtx_venv {env : Environment} {ves : VEnvs} (wf : ves.WF env)
-    {safety : DefinitionSafety} {lparams : List Name} {fuel : FuelConfig}
-    {m : MLCtx} (mwf : m.WF (ves.venv safety) lparams) :
-    (VContext.ofMLCtx wf safety lparams fuel m mwf).venv = ves.venv safety := rfl
-
-@[simp] theorem VContext.ofMLCtx_lparams {env : Environment} {ves : VEnvs} (wf : ves.WF env)
-    {safety : DefinitionSafety} {lparams : List Name} {fuel : FuelConfig}
-    {m : MLCtx} (mwf : m.WF (ves.venv safety) lparams) :
-    (VContext.ofMLCtx wf safety lparams fuel m mwf).lparams = lparams := rfl
-
-@[simp] theorem VContext.ofMLCtx_vlctx {env : Environment} {ves : VEnvs} (wf : ves.WF env)
-    {safety : DefinitionSafety} {lparams : List Name} {fuel : FuelConfig}
-    {m : MLCtx} (mwf : m.WF (ves.venv safety) lparams) :
-    (VContext.ofMLCtx wf safety lparams fuel m mwf).vlctx = m.vlctx := rfl
-
-/-- The initial `VState` (`{}`) is `VState.WF` at an ambient `VContext.ofMLCtx`,
-provided every ambient fvar is reserved by `kernelNGen` (the initial state's
-`ngen`). Transplant of `VState.WF.empty` with `.nil → m`: `trctx` becomes the
-generic `c.trlctx`, the two `Reserves` obligations become the `hfresh` premise,
-and `ectx` is witnessed at `Δ' := c.vlctx` (reflexive `FVLift'`, empty
-`eqvManager`) instead of `[]`. -/
-theorem VState.WF.initial {env : Environment} {ves : VEnvs} {wf : ves.WF env}
-    {safety : DefinitionSafety} {lparams : List Name} {fuel : FuelConfig}
-    {m : MLCtx} {mwf : m.WF (ves.venv safety) lparams}
-    (hfresh : ∀ fv ∈ m.vlctx.fvars, kernelNGen.Reserves fv) :
-    VState.WF (.ofMLCtx wf safety lparams fuel m mwf) {} where
-  trctx := (VContext.ofMLCtx wf safety lparams fuel m mwf).trlctx
-  ngen_wf := hfresh
-  ectx := ⟨_, .refl, (VContext.ofMLCtx wf safety lparams fuel m mwf).Δwf, .refl,
-    .empty, hfresh⟩
-  inferTypeI_wf := .empty
-  inferTypeC_wf := .empty
-  whnfCore_wf := .empty
-  whnf_wf := .empty
-  unfold_wf _ := by simp
-
-/-- `M.WF.run` generalized to the ambient local context `m.lctx`. Byte-for-byte
-the lean4lean proof, with the initial-state witness `.empty` replaced by
-`.initial hfresh`. -/
-theorem M.WF.run' {env : Environment} {ves : VEnvs} (wf : ves.WF env)
-    {safety : DefinitionSafety} {lparams : List Name} {fuel : FuelConfig}
-    {m : MLCtx} (mwf : m.WF (ves.venv safety) lparams)
-    (hfresh : ∀ fv ∈ m.vlctx.fvars, kernelNGen.Reserves fv)
-    {x : M α} {Q} (H : x.WF (.ofMLCtx wf safety lparams fuel m mwf) {} fun a _ => Q a) :
-    (M.run env safety m.lctx lparams fuel x).WF Q := by
-  intro a eq
-  simp [M.run, Functor.map, Except.map] at eq
-  split at eq <;> cases eq; rename_i eq
-  let ⟨_, _, _, _, H⟩ := H (VState.WF.initial hfresh) _ _ eq
-  exact H
-
-end Lean4Lean.TypeChecker
+end LeanToLambdaBox
 
 namespace LeanToLambdaBox.Oracle
 
@@ -143,7 +66,8 @@ theorem kernel_isErasable_sound {env : Environment} {ves : VEnvs} (wf : ves.WF e
       (RecM.run (LeanToLambdaBox.isErasable e)) = .ok true) :
     Erasable (ves.venv safety) lparams.length m.vlctx.toCtx ve :=
   M.WF.run' wf mwf hfresh
-    (RecM.WF.run (LeanToLambdaBox.isErasable.WF (c := .ofMLCtx wf safety lparams fuel m mwf) he))
+    (RecM.WF.run
+      (LeanToLambdaBox.isErasable.WF (c := .ofMLCtx wf safety lparams m mwf (fuel := fuel)) he))
     true hrun rfl
 
 end LeanToLambdaBox.Oracle

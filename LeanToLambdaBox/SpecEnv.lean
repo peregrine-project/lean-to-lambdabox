@@ -151,6 +151,21 @@ theorem RegInvShape'.lowerEnv {env : VEnv} {bo : Name → Option Expr} {lp : Nam
   closed := H.closed
   specClosed := H.specClosed
 
+/-- **`RegSaturated`, from `RegKeyed` at the emitted environment and `SpecKeysEmitted`.**
+Reading each clause off the emitted entry's own *shape* is what `RegKeyed` supplies once
+`SpecKeysEmitted` transfers a specification key to some matching emitted entry — no case is
+left over to exclude, and neither field reads a body. -/
+theorem regSaturated_of_regKeyed {env : VEnv} {Γspec : GlobalDeclarations} {s : ErasureState}
+    (hk : RegKeyed env s) (hs : SpecKeysEmitted Γspec s) :
+    RegSaturated env Γspec s where
+  consts kn b₀ hd hrk := by
+    obtain ⟨cb', hmem⟩ := hs.consts kn ⟨some b₀⟩ hd hrk
+    obtain ⟨n, hn, hns⟩ := hk.consts kn cb' hmem
+    exact ⟨n, hn.symm, hns⟩
+  inds kn d hd := by
+    obtain ⟨mib', hmem⟩ := hs.inds kn d hd
+    exact hk.inds kn mib' hmem
+
 /-! ## The δ column of `ErasesEnv`, from the registry -/
 
 /-- **The environment relation of a run.** `SpecEnv.erasesEnv`'s three premises: `hdeps` is
@@ -189,7 +204,7 @@ theorem lowerEnv_of_cold_run {env : VEnv} {bo : Name → Option Expr} {lp : Name
   have H : RegInvShape' env bo lp idEnv
       (nonrecConstState `id (.lambda .anon (.bvar 0)) {}) :=
     (RegInvShape'.empty hspec lowerEnv_idEnv.specClosed fvarFree_idEnv).constCons
-      (b₀ := .lambda .anon (.bvar 0)) rfl (.inl (.lambda (.bvar 0)))
+      (b₀ := .lambda .anon (.bvar 0)) rfl (.lambda (.bvar 0))
       (lowerEnv_idEnv.closed (rootKername "id") _ rfl) (by simp)
   refine H.lowerEnv ⟨?_, ?_⟩
   · intro kn b₀ h₀ _

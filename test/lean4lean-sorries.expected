@@ -1,10 +1,11 @@
-lean4lean rev 20ec229f1a8c6358f3b3852c4e27d2be523d1b87
+lean4lean rev 8cc17a54c41c5e364596f8e4039e1f2094523a88
 .lake/packages/lean4lean/Lean4Lean/Theory/Typing/ChurchRosser.lean:1193: Lean4Lean.VEnv.NormalEq.parRed
 .lake/packages/lean4lean/Lean4Lean/Theory/Typing/ChurchRosser.lean:1212: Lean4Lean.VEnv.NormalEq.parRed
 .lake/packages/lean4lean/Lean4Lean/Theory/Typing/EnvLemmas.lean:334: Lean4Lean.VEnv.WF.patsStrong
 .lake/packages/lean4lean/Lean4Lean/Theory/Typing/Injectivity.lean:12: Lean4Lean.VEnv.IsDefEqU.sort_inv
 .lake/packages/lean4lean/Lean4Lean/Theory/Typing/Injectivity.lean:21: Lean4Lean.VEnv.IsDefEqU.forallE_inv_stratified
 .lake/packages/lean4lean/Lean4Lean/Theory/Typing/Injectivity.lean:34: Lean4Lean.VEnv.IsDefEqU.sort_forallE_inv
+.lake/packages/lean4lean/Lean4Lean/Theory/Typing/Injectivity.lean:45: Lean4Lean.VEnv.IsDefEqU.const_arity_inv
 .lake/packages/lean4lean/Lean4Lean/Theory/Typing/UniqueTyping.lean:174: Lean4Lean.VEnv.IsDefEqU.weakN_iff
 .lake/packages/lean4lean/Lean4Lean/Verify/Environment.lean:208: Lean4Lean.addDecl.WF
 .lake/packages/lean4lean/Lean4Lean/Verify/TypeChecker/InferType.lean:398: Lean4Lean.TypeChecker.Inner.inferProj.WF_struct

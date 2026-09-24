@@ -92,20 +92,6 @@ An inductive type name is a type former, so `box` is its only image. Its declare
 the block's own, and `VInductDecl.WF` says that type is a Π-telescope ending in a sort.
 -/
 
-/-- A block declared in a `VEnv.WF'` list was added by a well-formed declaration step, and
-the environment it produced sits below the list's own. -/
-theorem wf'_induct_origin {ds : List VDecl} {env : VEnv} (H : VEnv.WF' ds env)
-    {decl : VInductDecl} (hd : VDecl.induct decl ∈ ds) :
-    ∃ env₀ env₁, decl.WF env₀ ∧ env₀.addInduct decl = some env₁ ∧ env₁ ≤ env := by
-  induction H with
-  | empty => cases hd
-  | decl hwf _ ih =>
-    rcases List.mem_cons.1 hd with rfl | hd'
-    · cases hwf with
-      | induct hdecl hadd => exact ⟨_, _, hdecl, hadd, VEnv.LE.rfl⟩
-    · obtain ⟨e₀, e₁, h1, h2, h3⟩ := ih hd'
-      exact ⟨e₀, e₁, h1, h2, h3.trans hwf.le⟩
-
 /-- A telescope whose Π-body is a sort is an arity. -/
 theorem IsArity.of_piBody : ∀ {ty : VExpr} {u : VLevel}, ty.piBody = .sort u → IsArity ty
   | .sort _, _, h => by cases h; exact .sort _
@@ -118,7 +104,7 @@ theorem IndInfo.constant_isArity {env : VEnv} {I : Name} {iid : InductiveId} {np
     {nfs : List Nat} (h : IndInfo env I iid np nfs) :
     ∃ ci, env.constants I = some ci ∧ IsArity ci.type := by
   obtain ⟨ds, env₀, decl, t, hds, hd, hle, ht, hname, hkn, hnp, hnfs⟩ := h.block
-  obtain ⟨e₀, e₁, hdecl, hadd, hle₁⟩ := wf'_induct_origin hds hd
+  obtain ⟨e₀, e₁, hdecl, hadd, hle₁⟩ := VEnv.WF'.induct_origin hds hd
   obtain ⟨envT, envC, envR, hT, hC, hR, hP⟩ := VEnv.addInduct_stages hadd
   have hmem : t ∈ decl.types := List.mem_of_getElem? ht
   obtain ⟨ℓ, hpi, -, -⟩ := hdecl.universes envT hT

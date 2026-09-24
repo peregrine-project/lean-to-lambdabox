@@ -24,7 +24,7 @@ of a run.
 namespace LeanToLambdaBox
 
 open Lean Lean4Lean Erasure Witness
-open Lean4Lean.TypeChecker (MLCtx kernelNGen)
+open Lean4Lean.TypeChecker (MLCtx)
 
 /-! ## The block-local fixvar map -/
 
@@ -249,7 +249,7 @@ theorem run_register_inductive_models {lenv : Environment} {env : VEnv} {Us : Li
     (fun msg u s₀ s₂ w₀ w₂ h => P.prim_monotone.logInfo msg s₀ ctx cctx ref w₀ u s₂ w₂ h)
     hcfg.2.2.2.1 hrun).2
   intro n rc np nfs hget hia
-  rcases hcl n rc hget with hold | ⟨idx, inf, hidx, hCin, hid, hctors⟩
+  rcases hcl n rc hget with hold | ⟨idx, inf, hidx, hCin, -, hid, hctors⟩
   · exact hinv n rc np nfs hold hia
   · obtain ⟨iv, hfind, hivname, hivnp, hkf⟩ := P.block_adequate.bwd n np nfs hia
     have hiv : iv = inf := by
@@ -317,13 +317,17 @@ structure BridgeInv (env : VEnv) (Us : List Name) (tbl : SourceTable) (cfg₀ : 
     (gen : NameGenerator) (ctx : ErasureContext) (s : ErasureState) (Δ : VLCtx) : Prop where
   /-- The reader's local context is modelled by `Δ`, witnessed by an ambient `MLCtx`. -/
   mlc : ∃ m : MLCtx, m.WF env Us ∧ m.lctx = ctx.lctx ∧ m.vlctx = Δ
-  /-- The reader's level scope **is** the ambient one. The entry reader sets it to `Us` and
-      the only `withReader` in the erasure that touches it is `Erasure.visitMutual`'s, which
-      moves to a dependency's own `levelParams`; the invariant is not carried into that
-      sub-run — `Motive6` reports registration alone — so equality holds throughout the term
-      walk. It is what moves the reader's translation witness, held at `Us`, to the scope an
-      oracle verdict was taken under, which is where `EraserAsks.oracle_informative` and
-      `ErasureSpec.oracle_refl` conclude. -/
+  /-- The reader's level scope **is** the ambient one. It is what moves the reader's
+      translation witness, held at `Us`, to the scope an oracle verdict was taken under, which
+      is where `EraserAsks.oracle_informative` and `ErasureSpec.oracle_refl` conclude.
+
+      This is not a restriction to one scope: the eighteen motives quantify `Us` per call
+      (`VisitExprRefines/Motives.lean`), so the field is the *equation* `ctx.lparams = Us` at
+      whatever scope the reader is in, and the sub-run `Erasure.visitMutual` starts under
+      `withReader (… lparams := ci.levelParams)` is covered at the member's own column. That
+      `withReader` moves `lctx` to `{}` with it (F-DEPLCTX, `doc/rework/03-DEV-FIX.md`), and
+      `mlc` ties the modelled context to `lctx`, so re-establishing the invariant at a member
+      sub-run asks for the empty context at the member's column. -/
   lparams : ctx.lparams = Us
   /-- The reader's configuration is the one the statement is made at. `Erasure.run` builds the
       only reader from scratch and no `withReader` in the erasure touches `config`. -/

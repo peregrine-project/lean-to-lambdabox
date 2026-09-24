@@ -31,49 +31,250 @@ open Lean Lean4Lean
 variable {env : VEnv} {c I I' : Name} {k k' dp nm dp' nm' np np' : Nat}
   {iid iid' : InductiveId} {nfs nfs' : List Nat}
 
+/-! ## Every declared constant is a plain constant
+
+A block's own `addConst` chain is a run of well-formed `axiom` declarations, so every constant
+a well-formed environment declares — a constructor and a type former included — is declared by
+an `axiom` of a well-formed list below `env`, which is what `ConstOrigin` asks for. Ask 2's
+classification conjunct follows; its exclusion conjunct does not, and is refuted by the same
+construction.
+-/
+
+/-- A successful `addConst` fold is a run of well-formed `axiom` declarations: every name it
+registers is declared by an `axiom` of a `VEnv.WF'` list ending at the fold's result. -/
+theorem wf'_axioms_foldlM {α : Type _} {nm : α → Name} {ci : α → VConstant} :
+    ∀ (l : List α) {init final : VEnv} {ds : List VDecl}, VEnv.WF' ds init →
+      (∀ a ∈ l, VConstant.WF init (ci a)) →
+      l.foldlM (fun (e : VEnv) a => e.addConst (nm a) (ci a)) init = some final →
+      ∃ ds', VEnv.WF' ds' final ∧ ds <:+ ds' ∧ ∀ a ∈ l, VDecl.axiom ⟨ci a, nm a⟩ ∈ ds' := by
+  intro l
+  induction l with
+  | nil =>
+    intro init final ds hds _ h
+    simp only [List.foldlM, pure, Option.some.injEq] at h
+    exact ⟨ds, h ▸ hds, List.suffix_refl _, by simp⟩
+  | cons x xs ih =>
+    intro init final ds hds hwf h
+    simp only [List.foldlM] at h
+    obtain ⟨e1, h1, h2⟩ := Option.bind_eq_some_iff.1 h
+    have hds1 : VEnv.WF' (.axiom ⟨ci x, nm x⟩ :: ds) e1 :=
+      .decl (.axiom (hwf x List.mem_cons_self) h1) hds
+    obtain ⟨ds', hds', hsuf, hmem⟩ :=
+      ih hds1 (fun a ha => (hwf a (List.mem_cons_of_mem _ ha)).mono (VEnv.addConst_le h1)) h2
+    refine ⟨ds', hds', (List.suffix_cons _ _).trans hsuf, fun a ha => ?_⟩
+    rcases List.mem_cons.1 ha with rfl | ha'
+    · exact hsuf.subset List.mem_cons_self
+    · exact hmem a ha'
+
+/-- Every constant an inductive block declares — type former, constructor or recursor — is
+declared by an `axiom` of a well-formed list below `env`: the block's `addConst` chain adds one
+constant at a time, and each stage's typing premise is the one `VInductDecl.WF` supplies. -/
+theorem constOrigin_of_induct {env env₀ env₁ : VEnv} {ds₀ : List VDecl} {decl : VInductDecl}
+    (hds : VEnv.WF' ds₀ env₀) (hdecl : decl.WF env₀)
+    (hadd : env₀.addInduct decl = some env₁) (hle : env₁ ≤ env) :
+    ∀ p ∈ decl.consts, ConstOrigin env p.1 := by
+  obtain ⟨envT, envC, envR, hT, hC, hR, hP⟩ := VEnv.addInduct_stages hadd
+  have hTC : decl.addTypesCtors env₀ = some envC := by
+    unfold VInductDecl.addTypesCtors; rw [hT]; exact hC
+  unfold VInductDecl.addTypes at hT
+  unfold VInductDecl.addCtors at hC
+  unfold VInductDecl.addRecs at hR
+  obtain ⟨dsT, hdsT, -, hmemT⟩ :=
+    wf'_axioms_foldlM (nm := (·.name)) (ci := (·.toVConstVal.toVConstant))
+      decl.types hds hdecl.types_wf hT
+  obtain ⟨dsC, hdsC, hsufC, hmemC⟩ :=
+    wf'_axioms_foldlM (nm := (·.name)) (ci := (·.toVConstant))
+      (decl.types.flatMap (·.ctors)) hdsT
+      (fun c hc => by
+        obtain ⟨t, ht, hct⟩ := List.mem_flatMap.1 hc
+        exact hdecl.ctors_wf envT hT t ht c hct) hC
+  obtain ⟨dsR, hdsR, hsufR, hmemR⟩ :=
+    wf'_axioms_foldlM (nm := (·.name)) (ci := (·.toVConstVal.toVConstant))
+      decl.recs hdsC (hdecl.recs_wf envC hTC) hR
+  have hleR : envR ≤ env := (VEnv.addRules_le hP).trans hle
+  intro p hp
+  rcases List.mem_append.1 hp with hp | hp
+  · rcases List.mem_append.1 hp with hp | hp
+    · obtain ⟨t, ht, rfl⟩ := List.mem_map.1 hp
+      exact ⟨dsR, envR, _, hdsR, hsufR.subset (hsufC.subset (hmemT t ht)), hleR, rfl⟩
+    · obtain ⟨c, hc, rfl⟩ := List.mem_map.1 hp
+      exact ⟨dsR, envR, _, hdsR, hsufR.subset (hmemC c hc), hleR, rfl⟩
+  · obtain ⟨r, hr, rfl⟩ := List.mem_map.1 hp
+    exact ⟨dsR, envR, _, hdsR, hmemR r hr, hleR, rfl⟩
+
+/-- **A constructor is also a plain constant**: its own block declares it, and a block's
+constants are declarable as axioms below `env`. -/
+theorem CtorOf.constOrigin {env : VEnv} {c I : Name} {k : Nat} (h : CtorOf env c I k) :
+    ConstOrigin env c := by
+  obtain ⟨ds, env₀, decl, t, ctor, hds, hd, hle, hmem, -, hk, hcn⟩ := h
+  obtain ⟨ds₀, e₀, e₁, -, h₀, hstep, hp⟩ := VEnv.WF'.step_of_mem hds hd
+  cases hstep with
+  | induct hdecl hadd =>
+    refine hcn ▸ constOrigin_of_induct h₀ hdecl hadd (hp.le.trans hle)
+      (ctor.name, ctor.toVConstant) ?_
+    exact List.mem_append_left _ (List.mem_append_right _ (List.mem_map_of_mem
+      (List.mem_flatMap.2 ⟨t, hmem, List.mem_of_getElem? hk⟩)))
+
+/-- **An inductive type former is also a plain constant**, by `CtorOf.constOrigin`'s route at
+the block's type formers. -/
+theorem IndInfo.constOrigin {env : VEnv} {I : Name} {iid : InductiveId} {np : Nat}
+    {nfs : List Nat} (h : IndInfo env I iid np nfs) : ConstOrigin env I := by
+  obtain ⟨ds, env₀, decl, t, hds, hd, hle, ht, hname, -, -, -⟩ := h.block
+  obtain ⟨ds₀, e₀, e₁, -, h₀, hstep, hp⟩ := VEnv.WF'.step_of_mem hds hd
+  cases hstep with
+  | induct hdecl hadd =>
+    refine hname ▸ constOrigin_of_induct h₀ hdecl hadd (hp.le.trans hle)
+      (t.name, t.toVConstVal.toVConstant) ?_
+    exact List.mem_append_left _ (List.mem_append_left _
+      (List.mem_map_of_mem (List.mem_of_getElem? ht)))
+
+/-- A fold of environment steps that each leave the constants alone leaves them alone. -/
+theorem foldlM_constants {α : Type _} {f : VEnv → α → Option VEnv}
+    (hf : ∀ {e e' : VEnv} {a : α}, f e a = some e' → e'.constants = e.constants) :
+    ∀ {l : List α} {init final : VEnv}, l.foldlM f init = some final →
+      final.constants = init.constants
+  | [], _, _, h => by simp only [List.foldlM, pure, Option.some.injEq] at h; exact h ▸ rfl
+  | _ :: _, _, _, h => by
+    simp only [List.foldlM] at h
+    obtain ⟨e1, h1, h2⟩ := Option.bind_eq_some_iff.1 h
+    rw [foldlM_constants hf h2, hf h1]
+
+/-- Registering an ι rule adds a `pats` entry and no constant. -/
+theorem addRecRule_constants {env env' : VEnv} {r ru} (h : env.addRecRule r ru = some env') :
+    env'.constants = env.constants := by
+  unfold VEnv.addRecRule at h
+  split at h
+  · cases h; rfl
+  · cases h
+
+/-- Stage 3 of `addInduct` adds no constant. -/
+theorem addRules_constants {decl : VInductDecl} {env env' : VEnv}
+    (h : decl.addRules env = some env') : env'.constants = env.constants := by
+  unfold VInductDecl.addRules at h
+  exact foldlM_constants (fun h' => foldlM_constants addRecRule_constants h') h
+
+/-- Registering the defining equations of a mutual block adds no constant. -/
+theorem addDefEqs_constants : ∀ {cis : List VDefVal} {env : VEnv},
+    (env.addDefEqs cis).constants = env.constants
+  | [], _ => rfl
+  | c :: cis, env => addDefEqs_constants (cis := cis) (env := env.addDefEq c.toDefEq)
+
+/-- A constant an `addConst` step registers is declared by an `axiom` of a well-formed list
+below `env`; one the step leaves alone was bound before it. -/
+theorem constOrigin_of_addConst {env envA envB : VEnv} {ds : List VDecl} {n : Name}
+    {cc : VConstant} {c : Name} {ci : VConstant} (hds : VEnv.WF' ds envA)
+    (hwf : VConstant.WF envA cc) (hadd : envA.addConst n cc = some envB)
+    (hle : envB ≤ env) (hnone : envA.constants c = none)
+    (hsome : envB.constants c = some ci) : ConstOrigin env c := by
+  obtain ⟨-, -, hother⟩ := VEnv.addConst_eq hadd
+  by_cases hn : n = c
+  · exact ⟨_, envB, .axiom ⟨cc, n⟩, .decl (.axiom hwf hadd) hds, List.mem_cons_self .., hle, hn⟩
+  · rw [hother c hn, hnone] at hsome; exact absurd hsome (by simp)
+
+/-- **Every declared constant of a well-formed environment is a plain constant.** Its one
+declaration step is either a constant declaration, which `ConstOrigin` reads directly, or a
+quotient or block step, whose constants are declarable as axioms below `env`. -/
+theorem constOrigin_of_wf {env : VEnv} (henv : env.WF) {c : Name} {ci : VConstant}
+    (hc : env.constants c = some ci) : ConstOrigin env c := by
+  obtain ⟨ds, hds⟩ := henv
+  obtain ⟨d, ds₀, env₀, env₁, -, h₀, hstep, hle, hnone, hsome⟩ := VEnv.WF'.consts_origin hds hc
+  cases hstep with
+  | «axiom» hwf hadd => exact constOrigin_of_addConst h₀ hwf hadd hle hnone hsome
+  | «def» hwf hadd =>
+    have hwf' : env₀.HasType _ [] _ _ := hwf
+    exact constOrigin_of_addConst h₀ (hwf'.isType (VEnv.WF.ordered ⟨_, h₀⟩) trivial) hadd
+      (VEnv.addDefEq_le.trans hle) hnone hsome
+  | «opaque» hwf hadd =>
+    have hwf' : env₀.HasType _ [] _ _ := hwf
+    exact constOrigin_of_addConst h₀ (hwf'.isType (VEnv.WF.ordered ⟨_, h₀⟩) trivial) hadd
+      hle hnone hsome
+  | «example» _ => rw [hnone] at hsome; exact absurd hsome (by simp)
+  | mutualDef hwf hadds _ =>
+    rw [addDefEqs_constants] at hsome
+    unfold VEnv.addConsts at hadds
+    rcases VEnv.addConst_foldlM_constants_inv hadds hsome with h' | ⟨a, ha, hn, -⟩
+    · rw [hnone] at h'; exact absurd h' (by simp)
+    · exact ⟨_, _, _, VEnv.WF'.decl (.mutualDef hwf hadds ‹_›) h₀, List.mem_cons_self ..,
+        hle, ⟨a, ha, hn⟩⟩
+  | quot hq hadd =>
+    obtain ⟨e1, e2, e3, e4, w1, s1, w2, s2, w3, s3, w4, s4, -, rfl⟩ := VEnv.addQuot_chain hq hadd
+    have d1 : VEnv.WF' _ e1 := .decl (.axiom (ci := ⟨quotConst, ``Quot⟩) w1 s1) h₀
+    have d2 : VEnv.WF' _ e2 := .decl (.axiom (ci := ⟨quotMkConst, ``Quot.mk⟩) w2 s2) d1
+    have d3 : VEnv.WF' _ e3 := .decl (.axiom (ci := ⟨quotLiftConst, ``Quot.lift⟩) w3 s3) d2
+    have d4 : VEnv.WF' _ e4 := .decl (.axiom (ci := ⟨quotIndConst, ``Quot.ind⟩) w4 s4) d3
+    have hle4 : e4 ≤ env := VEnv.addDefEq_le.trans hle
+    obtain ⟨-, -, o1⟩ := VEnv.addConst_eq s1
+    obtain ⟨-, -, o2⟩ := VEnv.addConst_eq s2
+    obtain ⟨-, -, o3⟩ := VEnv.addConst_eq s3
+    obtain ⟨-, -, o4⟩ := VEnv.addConst_eq s4
+    by_cases n1 : (``Quot : Name) = c
+    · exact ⟨_, e4, .axiom ⟨quotConst, ``Quot⟩, d4, by simp, hle4, n1⟩
+    by_cases n2 : (``Quot.mk : Name) = c
+    · exact ⟨_, e4, .axiom ⟨quotMkConst, ``Quot.mk⟩, d4, by simp, hle4, n2⟩
+    by_cases n3 : (``Quot.lift : Name) = c
+    · exact ⟨_, e4, .axiom ⟨quotLiftConst, ``Quot.lift⟩, d4, by simp, hle4, n3⟩
+    by_cases n4 : (``Quot.ind : Name) = c
+    · exact ⟨_, e4, .axiom ⟨quotIndConst, ``Quot.ind⟩, d4, by simp, hle4, n4⟩
+    · have h' : env₀.constants c = some ci := by
+        rw [← o1 c n1, ← o2 c n2, ← o3 c n3, ← o4 c n4]; exact hsome
+      rw [hnone] at h'; exact absurd h' (by simp)
+  | induct hdecl hadd =>
+    rename_i decl
+    obtain ⟨envT, envC, envR, hT, hC, hR, hP⟩ := VEnv.addInduct_stages hadd
+    rw [addRules_constants hP] at hsome
+    have hfold : decl.consts.foldlM (fun (e : VEnv) b => e.addConst b.1 b.2) env₀ = some envR := by
+      rw [← VInductDecl.addTypesCtorsRecs_eq]
+      unfold VInductDecl.addTypesCtorsRecs VInductDecl.addTypesCtors
+      simp [hT, hC, hR]
+    rcases VEnv.addConst_foldlM_constants_inv hfold hsome with h' | ⟨p, hp, hn, -⟩
+    · rw [hnone] at h'; exact absurd h' (by simp)
+    · exact hn ▸ constOrigin_of_induct h₀ hdecl hadd hle p hp
+
+/-! ## The origin corollaries -/
+
 /-- A name declared as a plain constant is not a constructor. -/
 theorem constOrigin_not_ctorOf (A : UpstreamAsks env) (h : ConstOrigin env c) :
     ∀ I k, ¬ CtorOf env c I k :=
-  (A.constsOrigin.2.2.2.2.2.1 c h).1
+  (A.constOriginExcludes c h).1
 
 /-- A name declared as a plain constant is not an inductive type name. -/
 theorem constOrigin_not_indInfo (A : UpstreamAsks env) (h : ConstOrigin env c) :
     ∀ iid np nfs, ¬ IndInfo env c iid np nfs :=
-  (A.constsOrigin.2.2.2.2.2.1 c h).2
+  (A.constOriginExcludes c h).2
 
 /-- The block declaring a given type former is unique, so its λ□ coordinates are. -/
 theorem IndInfo.inj (A : UpstreamAsks env) (h : IndInfo env I iid np nfs)
     (h' : IndInfo env I iid' np' nfs') : iid = iid' ∧ np = np' ∧ nfs = nfs' :=
-  A.constsOrigin.2.2.1 I iid np nfs iid' np' nfs' h h'
+  A.constsOrigin.2.1 I iid np nfs iid' np' nfs' h h'
 
 /-- A constructor belongs to one type at one index. -/
 theorem CtorOf.inj (A : UpstreamAsks env) (h : CtorOf env c I k) (h' : CtorOf env c I' k') :
     I = I' ∧ k = k' :=
-  A.constsOrigin.2.1 c I k I' k' h h'
+  A.constsOrigin.1 c I k I' k' h h'
 
 /-- The segmentation an eliminator's own block fixes is unique. -/
 theorem CasesOnShape.inj (A : UpstreamAsks env) (h : CasesOnShape env c I dp nm)
     (h' : CasesOnShape env c I dp' nm') : dp = dp' ∧ nm = nm' :=
-  A.constsOrigin.2.2.2.1 c I dp nm dp' nm' h h'
+  A.constsOrigin.2.2.1 c I dp nm dp' nm' h h'
 
 /-- Totality of the three readings: a declared constant is a constructor, an inductive type name
 or a plain constant. This is `Erases.exists_of_trExprS_of_projInfo`'s `hclass`. -/
-theorem consts_classified (A : UpstreamAsks env) (_hwf : env.WF) : ∀ c ci,
+theorem consts_classified (_A : UpstreamAsks env) (hwf : env.WF) : ∀ c ci,
     env.constants c = some ci →
     (∃ I k, CtorOf env c I k) ∨ (∃ iid np nfs, IndInfo env c iid np nfs) ∨ ConstOrigin env c :=
-  A.constsOrigin.2.2.2.2.1
+  fun _ _ hc => .inr (.inr (constOrigin_of_wf hwf hc))
 
 /-- A block below `env` that declares `I` is matched by a block of `env`'s own declaration
 list. `ErasesEnv.blocks`' `IndDeclOf` conjunct. -/
 theorem IndInfo.indDeclOf (A : UpstreamAsks env) (h : IndInfo env I iid np nfs) :
     IndDeclOf env I :=
-  A.constsOrigin.2.2.2.2.2.2.1 I iid np nfs h
+  A.constsOrigin.2.2.2.1 I iid np nfs h
 
 /-- Two blocks below `env` that declare the type former `I` are the same block. -/
 theorem indBlock_uniq (A : UpstreamAsks env) {decl decl' : VInductDecl}
     (h : IndBlockBelow env decl) (h' : IndBlockBelow env decl')
     (ht : ∃ t ∈ decl.types, t.name = I) (ht' : ∃ t ∈ decl'.types, t.name = I) : decl = decl' :=
-  A.constsOrigin.2.2.2.2.2.2.2 I decl decl' h h' ht ht'
+  A.constsOrigin.2.2.2.2 I decl decl' h h' ht ht'
 
 /-! ## Level relevance under instantiation -/
 
@@ -184,7 +385,7 @@ theorem not_erasable_of_informative {env : VEnv} (henv : env.WF) (A : UpstreamAs
       obtain ⟨T', hdef', harity⟩ := har
       have hspine : env.IsDefEqU U Γ (VExpr.mkApps (.const tp.name us) args) T' :=
         VEnv.IsDefEqU.trans henv hΓ (VEnv.IsDefEqU.symm hTeq) hdef'
-      obtain ⟨hns, hnf⟩ := A.constArityInv hds hΓ hdecl htype hisT
+      obtain ⟨hns, hnf⟩ := VEnv.IsDefEqU.const_arity_inv hds hΓ hdecl htype hisT
       cases harity with
       | sort u => exact hns u hspine
       | forallE A' B' _ => exact hnf A' B' hspine
@@ -218,7 +419,7 @@ theorem indBlockBelow_type_uniq {env : VEnv} {decl : VInductDecl} (h : IndBlockB
     {t t' : VInductiveType} (ht : t ∈ decl.types) (ht' : t' ∈ decl.types)
     (hn : t.name = t'.name) : t = t' := by
   obtain ⟨ds, env₀, hds, -, hd⟩ := h
-  obtain ⟨e₀, e₁, -, hadd, -⟩ := wf'_induct_origin hds hd
+  obtain ⟨e₀, e₁, -, hadd, -⟩ := VEnv.WF'.induct_origin hds hd
   obtain ⟨envT, -, -, hT, -, -, -⟩ := VEnv.addInduct_stages hadd
   exact addConst_foldlM_name_inj hT t ht t' ht' hn
 
@@ -445,9 +646,12 @@ theorem piSpine_of_piBody {I : Name} : ∀ {ty : VExpr} {n : Nat}, ty.piArity = 
       subst harity
       exact hbody
 
+set_option linter.unusedVariables false in
 /-- A spine headed by an inductively declared type former is definitionally equal to no Π.
 Ask 6, with its declaration data read off `IndDeclOf` and its typing premise off the
-equation itself. -/
+equation itself. `A` is unused since the pin: the body now cites
+`Lean4Lean.VEnv.IsDefEqU.const_arity_inv` directly rather than `A.constArityInv`, and the
+parameter stays to keep `peel_piSpine`'s two call sites unchanged. -/
 theorem indSpine_ne_forallE {env : VEnv} (A : UpstreamAsks env) {U : Nat} {Γ : List VExpr}
     (hΓ : OnCtx Γ (env.IsType U)) {I : Name} (hdec : IndDeclOf env I)
     {us : List VLevel} {args : List VExpr} {A' B' : VExpr} :
@@ -455,7 +659,7 @@ theorem indSpine_ne_forallE {env : VEnv} (A : UpstreamAsks env) {U : Nat} {Γ : 
   intro h
   obtain ⟨ds, decl, t, hds, hdecl, ht, rfl⟩ := hdec
   obtain ⟨C, hC⟩ := h
-  exact (A.constArityInv hds hΓ hdecl ht ⟨C, hC.hasType.1⟩).2 _ _ ⟨C, hC⟩
+  exact (VEnv.IsDefEqU.const_arity_inv hds hΓ hdecl ht ⟨C, hC.hasType.1⟩).2 _ _ ⟨C, hC⟩
 
 /-- Peeling a constructor's declared type at a value typed in its own inductive exhausts the
 telescope exactly: a short spine ends at a Π where an inductive spine is wanted, and a long
@@ -535,7 +739,7 @@ theorem CtorOf.ctorResult_at (A : UpstreamAsks env) {c I : Name} {k np : Nat}
   have hblk : IndBlockBelow env decl := ⟨ds, env₀, hds, hle, hd⟩
   obtain rfl : decl = decl' := indBlock_uniq A hblk hblk' ⟨t, hmem, hname⟩ ⟨t', ht', hname'⟩
   obtain rfl : t = t' := indBlockBelow_type_uniq hblk hmem ht' (hname.trans hname'.symm)
-  obtain ⟨e₀, e₁, hdecl, hadd, hle₁⟩ := wf'_induct_origin hds hd
+  obtain ⟨e₀, e₁, hdecl, hadd, hle₁⟩ := VEnv.WF'.induct_origin hds hd
   obtain ⟨envT, envC, envR, hT, hC, hR, hP⟩ := VEnv.addInduct_stages hadd
   have hctor : ctor ∈ t.ctors := List.mem_of_getElem? hk
   have hcmem' : ctor ∈ decl.types.flatMap (·.ctors) := List.mem_flatMap.2 ⟨t, hmem, hctor⟩
@@ -608,14 +812,12 @@ theorem constants_of_tabled {lenv : Environment} {env : VEnv} {Us : List Name}
     exact ⟨vc, hvc⟩
 
 /-- **A declared constant that is neither a constructor nor an inductive type name is a plain
-constant.** Ask 2's classification conjunct, with the two exclusions as premises. -/
-theorem constOrigin_of_constants (A : UpstreamAsks env) {ci : VConstant}
-    (hc : env.constants c = some ci) (hnc : ∀ I k, ¬ CtorOf env c I k)
-    (hni : ∀ iid np nfs, ¬ IndInfo env c iid np nfs) : ConstOrigin env c := by
-  rcases A.constsOrigin.2.2.2.2.1 c ci hc with ⟨I, k, h⟩ | ⟨iid, np, nfs, h⟩ | h
-  · exact absurd h (hnc I k)
-  · exact absurd h (hni iid np nfs)
-  · exact h
+constant.** `constOrigin_of_wf`, which asks for neither exclusion; the two exclusion premises
+and the ask stay so that the callers' statements are unchanged. -/
+theorem constOrigin_of_constants (_A : UpstreamAsks env) (henv : env.WF) {ci : VConstant}
+    (hc : env.constants c = some ci) (_hnc : ∀ I k, ¬ CtorOf env c I k)
+    (_hni : ∀ iid np nfs, ¬ IndInfo env c iid np nfs) : ConstOrigin env c :=
+  constOrigin_of_wf henv hc
 
 
 end LeanToLambdaBox

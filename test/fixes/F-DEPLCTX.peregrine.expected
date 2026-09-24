@@ -1,0 +1,13 @@
+== caller.ast validate
+Validating AST:
+AST is valid
+== caller.ast eval
+Compiling:
+Compiled successfully:
+
+constr Nat.succ 
+ constr Nat.succ 
+  constr Nat.succ 
+   constr Nat.zero 
+
+

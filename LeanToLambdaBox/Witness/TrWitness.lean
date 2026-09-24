@@ -16,9 +16,10 @@ Two routes, in decreasing strength:
   first to `SEval.defeq` carries both to the value of a source evaluation; that composition
   belongs above `SubjectReduction.lean`, which this module deliberately does not import.
 * **From the checker.** For a subject that is not a constant, `Lean4Lean.TypeChecker.checkType`
-  reports a translation and its type: `checkType.WF` composed with `CheckerAdequacy`'s
-  `M.WF.run'` turns a successful pure run into `TrExprS` plus `HasType`. The run equation is
-  then the binder, of the same executable kind as the rungs' `hrun`.
+  reports a translation and its type: `checkType.WF` composed with lean4lean's own
+  `M.WF.run'` (ambient-`MLCtx` run-adequacy, landed round 4) turns a successful pure run into
+  `TrExprS` plus `HasType`. The run equation is then the binder, of the same executable kind as
+  the rungs' `hrun`.
 
 `natAdd_trExprS` instantiates the table route on a `reify%`d table, so the route is exercised
 by a checked term and not only stated.
@@ -27,7 +28,7 @@ by a checked term and not only stated.
 namespace LeanToLambdaBox.Witness
 
 open Lean Lean4Lean
-open Lean4Lean.TypeChecker (MLCtx kernelNGen M checkType)
+open Lean4Lean.TypeChecker (MLCtx M checkType)
 
 /-! ## The table route -/
 
@@ -124,7 +125,7 @@ theorem hasType_const_of_table {lenv : Environment} {env : VEnv} {Us : List Name
 /-! ## The checker route -/
 
 /-- **A successful pure run of the checker reports a translation.** `checkType.WF` states the
-translation and its typing at an abstract `VContext`; `CheckerAdequacy.M.WF.run'` supplies the
+translation and its typing at an abstract `VContext`; lean4lean's `M.WF.run'` supplies the
 initial state at an ambient `MLCtx`, so an `M.run` returning `.ok ty` witnesses that the subject
 and the reported type both translate, at that ambient context. -/
 theorem trTyping_of_checkType_run {kenv : Kernel.Environment} {ves : VEnvs} (wf : ves.WF kenv)
@@ -138,7 +139,8 @@ theorem trTyping_of_checkType_run {kenv : Kernel.Environment} {ves : VEnvs} (wf 
       ∧ (ves.venv safety).HasType lparams.length m.vlctx.toCtx ve vty := by
   obtain ⟨ve, vty, -, h1, h2, h3⟩ :=
     Lean4Lean.TypeChecker.M.WF.run' wf mwf hfresh
-      (Lean4Lean.TypeChecker.checkType.WF (c := .ofMLCtx wf safety lparams fuel m mwf) hfv)
+      (Lean4Lean.TypeChecker.checkType.WF
+        (c := .ofMLCtx wf safety lparams m mwf (fuel := fuel)) hfv)
       ty hrun
   exact ⟨ve, vty, h1, h2, h3⟩
 

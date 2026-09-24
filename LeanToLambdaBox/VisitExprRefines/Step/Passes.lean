@@ -270,7 +270,7 @@ separates its own kernames — the latter being a condition on the table, which 
 off the fragment premise its own subject carries. -/
 theorem pass_supported_lit {env : VEnv} {tbl : SourceTable} {n : Nat} (hpe : PeanoReady env)
     (hpb : peanoReadyB tbl = true)
-    (hkn : ∀ m m' : Name, (tbl.decl? m).isSome → (tbl.decl? m').isSome →
+    (hkn : ∀ m m' : Name, Tabled tbl m → Tabled tbl m' →
       toKername m = toKername m' → m = m') : Supported env tbl (.lit (.natVal n)) where
   term := .natLit hpe hpb
   bodies _ _ hr _ := absurd hr pass_lit_not_reaches
@@ -294,12 +294,13 @@ theorem pass_peano_ctors {tbl : SourceTable} (h : peanoReadyB tbl = true) :
 /-- The peano arm rebuilds the literal as its kernel unfolding, one `Erasure.visitConstructor`
 call per `succ`: the case is `ErasesLB.lit` over the constructor motive, and the recursion is
 carried by the fixpoint induction rather than by a measure on the literal. -/
-theorem step_visitLiteral {lenv : Environment} {env : VEnv} {Us : List Name} {tbl : SourceTable}
+theorem step_visitLiteral {lenv : Environment} {env : VEnv} {tbl : SourceTable}
     {cfg : ErasureConfig} {gw : Void IO.RealWorld → NameGenerator} :
-    Step2 lenv env Us tbl cfg gw := by
-  intro P htbl hcfg _hcb vCtor h3
+    Step2 lenv env tbl cfg gw := by
+  intro P₀ htbl hcfg _hcb vCtor h3
   refine ⟨?_, bodyLe2 h3.2⟩
-  intro l s ctx cctx ref w t s' w' hrun Δ n hinv hl hpeano hpeanoB hsup hex
+  intro l s ctx cctx ref w t s' w' hrun Us Δ n hinv hl hpeano hpeanoB hsup hex
+  have P := P₀ Us
   subst hl
   replace h3 := h3.1
   have hpe : ctx.config.nat = .peano := by rw [hinv.cfg]; exact hcfg.2.2.1
@@ -316,7 +317,7 @@ theorem step_visitLiteral {lenv : Environment} {env : VEnv} {Us : List Name} {tb
     cases n with
     | zero =>
       simp only [hpe] at hrun
-      have hgo := h3 _ _ _ _ _ _ _ _ _ _ hrun Δ ([] : List Level) hinv ⟨_, _, hcz⟩
+      have hgo := h3 _ _ _ _ _ _ _ _ _ _ hrun _ Δ ([] : List Level) hinv ⟨_, _, hcz⟩
         (fun i hi => absurd hi (by simp))
       refine ⟨hgo.1, hgo.2.1, hgo.2.2.1, fun Γspec hspec => ?_⟩
       refine ErasesLBMode.lit hcl ?_
@@ -331,7 +332,7 @@ theorem step_visitLiteral {lenv : Environment} {env : VEnv} {Us : List Name} {tb
         have hi0 : i = 0 := by simpa using hi
         subst hi0
         exact ⟨pass_supported_lit hpeano hpeanoB hsup.kernames, hinner⟩
-      have hgo := h3 _ _ _ _ _ _ _ _ _ _ hrun Δ ([] : List Level) hinv ⟨_, _, hcs⟩ hargs
+      have hgo := h3 _ _ _ _ _ _ _ _ _ _ hrun _ Δ ([] : List Level) hinv ⟨_, _, hcs⟩ hargs
       refine ⟨hgo.1, hgo.2.1, hgo.2.2.1, fun Γspec hspec => ?_⟩
       refine ErasesLBMode.lit hcl ?_
       have := hgo.2.2.2 Γspec hspec
@@ -564,12 +565,13 @@ theorem pass_register_inductive_entry {lenv : Environment} {env : VEnv} {Us : Li
 /-- **Step 10.** The declaration fetch is the table's, the emitted field index is `i` because
 pruning is off, the parameter count is the model block's, the registry the emitted identifier
 comes from is the model's by `BridgeInv.indcanon`, and the discriminant is motive 1's. -/
-theorem step_visitProj {lenv : Environment} {env : VEnv} {Us : List Name} {tbl : SourceTable}
+theorem step_visitProj {lenv : Environment} {env : VEnv} {tbl : SourceTable}
     {cfg : ErasureConfig} {gw : Void IO.RealWorld → NameGenerator} :
-    Step10 lenv env Us tbl cfg gw := by
-  intro P htbl hcfg _hcb vExpr h1
+    Step10 lenv env tbl cfg gw := by
+  intro P₀ htbl hcfg _hcb vExpr h1
   refine ⟨?_, bodyLe10 h1.2⟩
-  intro tn i e s ctx cctx ref w t s' w' hrun Δ I np nf hinv hind hinf harity hi hsup hex
+  intro tn i e s ctx cctx ref w t s' w' hrun Us Δ I np nf hinv hind hinf harity hi hsup hex
+  have P := P₀ Us
   have hregm := hinv.indcanon
   replace h1 := h1.1
   obtain ⟨iv, hfind, hname, hnp, -⟩ := P.block_adequate.bwd tn np [nf] harity
@@ -612,7 +614,7 @@ theorem step_visitProj {lenv : Environment} {env : VEnv} {Us : List Name} {tbl :
   obtain ⟨t₀, s₃, w₃, hve, hp⟩ := hk
   rw [run_pure] at hp
   cases hp
-  have hgo := h1 e s₂ ctx cctx ref w₂ t₀ _ _ hve Δ
+  have hgo := h1 e s₂ ctx cctx ref w₂ t₀ _ _ hve _ Δ
     ((hinv.mono_state hrc hregm₂).mono (NameGenerator.LE.trans hle₁ hle₂)) hsup hex
   refine ⟨hrc.trans hgo.1, hgo.2.1,
     NameGenerator.LE.trans hle₁ (NameGenerator.LE.trans hle₂ hgo.2.2.1),
@@ -640,13 +642,14 @@ the head is `ErasesLB.ctor_head` at the registered block. The block self-members
 registration loop is indexed by is `BlockAdequate.selfMem`: the motive gives no table entry for
 the constructor's type, so it cannot come from `Witness.ReifiedInduct.Pinned` as it does at
 steps 10 and 17. -/
-theorem step_visitConstructor {lenv : Environment} {env : VEnv} {Us : List Name}
+theorem step_visitConstructor {lenv : Environment} {env : VEnv}
     {tbl : SourceTable} {cfg : ErasureConfig} {gw : Void IO.RealWorld → NameGenerator}
     (A : UpstreamAsks env) :
-    Step3 lenv env Us tbl cfg gw := by
-  intro P _htbl hcfg _hcb vLit vConst vArgs _h2 _h4 h7
+    Step3 lenv env tbl cfg gw := by
+  intro P₀ _htbl hcfg _hcb vLit vConst vArgs _h2 _h4 h7
   refine ⟨?_, bodyLe3 _h2.2 _h4.2 h7.2⟩
-  intro cn args s ctx cctx ref w t s' w' hrun Δ us hinv hctor hargs
+  intro cn args s ctx cctx ref w t s' w' hrun Us Δ us hinv hctor hargs
+  have P := P₀ Us
   have hregm := hinv.indcanon
   have hcfgc : ConfigPinned ctx.config := by rw [hinv.cfg]; exact hcfg
   replace h7 := h7.1
@@ -726,7 +729,7 @@ theorem step_visitConstructor {lenv : Environment} {env : VEnv} {Us : List Name}
       (NameGenerator.LE.trans hle₃ hle₄))
   have hhead : HeadRefines env Us tbl ctx Δ s₄ (.const cn us) (.construct r.1 cv.cidx []) :=
     fun _ _ => ErasesLBMode.ctor_head hck' (hivn ▸ hmod.1)
-  have hgo := h7 _ _ _ _ _ _ _ _ _ _ hk Δ (Expr.const cn us)
+  have hgo := h7 _ _ _ _ _ _ _ _ _ _ hk _ Δ (Expr.const cn us)
     ((hinv.mono_state hrc hregm₃).mono hle) hhead hargs
   exact ⟨hrc.trans hgo.1, hgo.2.1, NameGenerator.LE.trans hle hgo.2.2.1, hgo.2.2.2⟩
 
@@ -734,7 +737,7 @@ theorem step_visitConstructor {lenv : Environment} {env : VEnv} {Us : List Name}
 names slot `j` after constructor `j` and `numAlts` makes the array exactly as long as the
 block, while a pinned block's constructor names are distinct — each reified constructor pins
 its own `cidx` and `lenv` answers one `ConstructorVal` per name. So `Erasure.visitCases`'
-`findIdx?` over the alternatives (`Erasure.lean:1122-1124`), which returns the *first* match,
+`findIdx?` over the alternatives (`Erasure.lean:1143-1145`), which returns the *first* match,
 returns the constructor's own index. -/
 theorem pass_altIdx_self {lenv : Environment} {ci : Lean.CasesInfo} {con : Name}
     {I : ReifiedInduct} {iv : InductiveVal}
@@ -812,7 +815,7 @@ theorem pass_selfIdx_zipIdx_split {a : Array (Option Nat)} {pre post : List (Opt
 
 /-- **A refusal whose test throws, stepped.** The throwing side cannot have produced `.ok`, so
 the continuation ran where the test left it. `Erasure.visitCases`' machine-numeral refusal
-(F-SPARSE, `Erasure.lean:1102-1103`) has this shape. -/
+(F-SPARSE, `Erasure.lean:1123-1124`) has this shape. -/
 theorem pass_throw_guard_then {c : Bool} {msg : MessageData} {k : EraseM LBTerm}
     {s : ErasureState} {ctx : ErasureContext} {cctx : Core.Context}
     {ref : ST.Ref IO.RealWorld Core.State} {w : Void IO.RealWorld}
@@ -827,8 +830,8 @@ theorem pass_throw_guard_then {c : Bool} {msg : MessageData} {k : EraseM LBTerm}
   · exact hrun
 
 /-- `pass_throw_guard_then` at an `unless`, whose throwing side is the other one. The
-side-condition and one-to-one refusals of `Erasure.visitCases` (F-SPARSE, `Erasure.lean:1104`,
-`:1127`) have this shape. -/
+side-condition and one-to-one refusals of `Erasure.visitCases` (F-SPARSE, `Erasure.lean:1125`,
+`:1148`) have this shape. -/
 theorem pass_throw_guard_else {c : Bool} {msg : MessageData} {k : EraseM LBTerm}
     {s : ErasureState} {ctx : ErasureContext} {cctx : Core.Context}
     {ref : ST.Ref IO.RealWorld Core.State} {w : Void IO.RealWorld}
@@ -842,12 +845,50 @@ theorem pass_throw_guard_else {c : Bool} {msg : MessageData} {k : EraseM LBTerm}
     obtain ⟨a0, sa0, wa0, hthr, -⟩ := hrun
     exact absurd hthr (run_throwError_ne_ok _ ctx cctx ref _ _ _ _ _)
 
+/-- **`Erasure.firstNonProofField` writes nothing.** `run_firstNonProofField_okW`'s state
+column, read on its own: the walk's only state-touching calls are `Lean.getConstInfo` and one
+lifted `Lean.MetaM` computation per constructor, and both are state-transparent. The
+world-indexed form cannot report this — `RunClosedW` is not inhabited at `(· = s)`, its
+registration clauses being false there — so the equation is stepped directly. -/
+theorem run_firstNonProofField_state {ind : InductiveVal} {r : Option (Name × Nat)}
+    {s s₁ : ErasureState} {ctx : ErasureContext} {cctx : Core.Context}
+    {ref : ST.Ref IO.RealWorld Core.State} {w w₁ : Void IO.RealWorld}
+    (hrun : firstNonProofField ind s ctx cctx ref w = .ok (r, s₁) w₁) : s₁ = s := by
+  unfold firstNonProofField at hrun
+  simp only [] at hrun
+  rw [run_bind_ok] at hrun
+  obtain ⟨acc, s₂, w₂, hloop, htail⟩ := hrun
+  have hP₂ : s₂ = s := by
+    refine run_list_forIn_ok ctx cctx ref (P := fun _ s' _ => s' = s) _ _ _ _ _ rfl ?_ _ _ _ hloop
+    intro c _ a sa wa st sb wb hPa hb
+    rw [run_bind_ok] at hb
+    obtain ⟨ci, sc, wc, hci, hb⟩ := hb
+    obtain rfl := run_getConstInfo_state _ _ cctx ref _ hci
+    cases ci
+    case ctorInfo cv =>
+      simp only [] at hb
+      rw [run_bind_ok] at hb
+      obtain ⟨found, sd, wd, hmeta, hb⟩ := hb
+      obtain rfl := run_liftMetaM_state _ _ _ _ _ hmeta
+      cases found <;>
+        (simp only [] at hb; rw [run_pure] at hb; cases hb; exact hPa)
+    all_goals
+      (simp only [] at hb
+       rw [run_bind_ok] at hb
+       obtain ⟨a0, s0, w0, hthr, -⟩ := hb
+       exact absurd hthr (run_throwError_ne_ok _ ctx cctx ref _ _ _ _ _))
+  obtain ⟨found, u⟩ := acc
+  cases found <;>
+    (simp only [] at htail; rw [run_pure] at htail; cases htail; exact hP₂)
+
 /-- **F-ACC's refusal, stepped.** `Erasure.visitCases` tests the eliminated inductive's declared
 arity and, when it ends in `Prop`, walks the constructors for a field that is not a proof and
-refuses if it finds one (`Erasure.lean:1113-1115`). On a successful run the walk found nothing —
-or did not run — so the continuation runs at a state the walk only grew and a generator it only
+refuses if it finds one (`Erasure.lean:1134-1136`). On a successful run the walk found nothing —
+or did not run — so the continuation runs at *the same state* and a generator the walk only
 advanced. The continuation and the message are abstract, so the branch is stepped rather than
-assumed away, and the walk itself is `run_firstNonProofField_okW`. -/
+assumed away; the walk's generator bound is `run_firstNonProofField_okW` and its state equation
+`run_firstNonProofField_state`. The state equation, rather than a `RunConcl`, is what the
+accumulator bundle needs at this guard: `AccGrows` crosses an equation and not a growth. -/
 theorem pass_propArity_guard {lenv : Environment} {env : VEnv} {Us : List Name}
     {gw : Void IO.RealWorld → NameGenerator} (P : ErasureSpec lenv env Us gw)
     (E : EraserAsks lenv env gw) {b : Bool} {iv : InductiveVal}
@@ -862,16 +903,14 @@ theorem pass_propArity_guard {lenv : Environment} {env : VEnv} {Us : List Name}
           | some (cn, fi) => do throwError (msg cn fi); k
           | _ => k)
       else k) s ctx cctx ref w = .ok (t, s') w') :
-    ∃ (sG : ErasureState) (wG : Void IO.RealWorld),
-      RunConcl s sG ∧ gw w ≤ gw wG ∧
-        (IndRegistryModelled env s → IndRegistryModelled env sG) ∧
-        k sG ctx cctx ref wG = .ok (t, s') w' := by
+    ∃ wG : Void IO.RealWorld, gw w ≤ gw wG ∧ k s ctx cctx ref wG = .ok (t, s') w' := by
   split at hrun
   · rw [run_bind_ok] at hrun
     obtain ⟨fr, sf, wf, hfn, hrun⟩ := hrun
-    obtain ⟨⟨hrcf, hlef⟩, hregf⟩ :=
+    obtain ⟨⟨-, hlef⟩, -⟩ :=
       run_firstNonProofField_okW (runClosedW_concl P E s w) hfn
         ⟨⟨RunConcl.rfl' _, NameGenerator.LE.rfl⟩, id⟩
+    obtain rfl := run_firstNonProofField_state hfn
     cases fr with
     | some pr =>
       obtain ⟨cn0, fi0⟩ := pr
@@ -879,19 +918,20 @@ theorem pass_propArity_guard {lenv : Environment} {env : VEnv} {Us : List Name}
       rw [run_bind_ok] at hrun
       obtain ⟨a0, sa0, wa0, hthr, -⟩ := hrun
       exact absurd hthr (run_throwError_ne_ok _ ctx cctx ref _ _ _ _ _)
-    | none => exact ⟨sf, wf, hrcf, hlef, hregf, hrun⟩
-  · exact ⟨s, w, RunConcl.rfl' _, NameGenerator.LE.rfl, id, hrun⟩
+    | none => exact ⟨wf, hlef, hrun⟩
+  · exact ⟨w, NameGenerator.LE.rfl, hrun⟩
 
 /-! ## Step 13 — `Erasure.visitCtorEta` -/
 
 /-- The saturated constructor spine's entry point: `Meta.inferType` leaves the state alone and
 only advances the generator, and `Expr.withApp` hands the spine to the loop. -/
-theorem step_visitCtorEta {lenv : Environment} {env : VEnv} {Us : List Name} {tbl : SourceTable}
+theorem step_visitCtorEta {lenv : Environment} {env : VEnv} {tbl : SourceTable}
     {cfg : ErasureConfig} {gw : Void IO.RealWorld → NameGenerator} :
-    Step13 lenv env Us tbl cfg gw := by
-  intro P _htbl _hcfg _hcb vGo h14
+    Step13 lenv env tbl cfg gw := by
+  intro P₀ _htbl _hcfg _hcb vGo h14
   refine ⟨?_, bodyLe13 h14.2⟩
-  intro cn ar e s ctx cctx ref w t s' w' hrun Δ us hinv hfn hctor har hargs
+  intro cn ar e s ctx cctx ref w t s' w' hrun Us Δ us hinv hfn hctor har hargs
+  have P := P₀ Us
   replace h14 := h14.1
   simp only [visitCtorEtaBody] at hrun
   rw [run_bind_ok] at hrun
@@ -900,7 +940,7 @@ theorem step_visitCtorEta {lenv : Environment} {env : VEnv} {Us : List Name} {tb
   subst hs₁
   have hle₁ := (P.prim_monotone.inferType _ _ _ _ _ _ _ _ _ hinfer).1
   rw [expr_withApp_eq] at hk
-  have hgo := h14 _ _ _ _ _ _ _ _ _ _ _ _ _ hk Δ us (hinv.mono hle₁) hctor har hargs
+  have hgo := h14 _ _ _ _ _ _ _ _ _ _ _ _ _ hk _ Δ us (hinv.mono hle₁) hctor har hargs
   rw [pass_srcSpine_self hfn] at hgo
   exact pass_runRefines_le hle₁ hgo
 
@@ -909,12 +949,13 @@ theorem step_visitCtorEta {lenv : Environment} {env : VEnv} {Us : List Name} {tb
 
 /-- The saturated `casesOn` spine's entry point. Mirrors `step_visitCtorEta`: the inferred type
 is discarded on the saturated path, and the spine goes to the loop. -/
-theorem step_visitCasesEta {lenv : Environment} {env : VEnv} {Us : List Name}
+theorem step_visitCasesEta {lenv : Environment} {env : VEnv}
     {tbl : SourceTable} {cfg : ErasureConfig} {gw : Void IO.RealWorld → NameGenerator} :
-    Step15 lenv env Us tbl cfg gw := by
-  intro P _htbl _hcfg _hcb vGo h16
+    Step15 lenv env tbl cfg gw := by
+  intro P₀ _htbl _hcfg _hcb vGo h16
   refine ⟨?_, bodyLe15 h16.2⟩
-  intro ci e s ctx cctx ref w t s' w' hrun Δ con us I hinv hfn hhead har hsup hargs hex
+  intro ci e s ctx cctx ref w t s' w' hrun Us Δ con us I hinv hfn hhead har hsup hargs hex
+  have P := P₀ Us
   replace h16 := h16.1
   simp only [visitCasesEtaBody] at hrun
   rw [run_bind_ok] at hrun
@@ -924,7 +965,7 @@ theorem step_visitCasesEta {lenv : Environment} {env : VEnv} {Us : List Name}
   have hle₁ := (P.prim_monotone.inferType _ _ _ _ _ _ _ _ _ hinfer).1
   rw [expr_withApp_eq] at hk
   have hsp := pass_srcSpine_self (e := e) hfn
-  have hgo := h16 _ _ _ _ _ _ _ _ _ _ _ _ hk Δ con us I (hinv.mono hle₁) hhead har
+  have hgo := h16 _ _ _ _ _ _ _ _ _ _ _ _ hk _ Δ con us I (hinv.mono hle₁) hhead har
     (by rw [hsp]; exact hsup) hargs (by rw [hsp]; exact hex)
   rw [hsp] at hgo
   exact pass_runRefines_le hle₁ hgo
@@ -933,32 +974,32 @@ theorem step_visitCasesEta {lenv : Environment} {env : VEnv} {Us : List Name}
 (`CasesInfoAgrees.arity`), so the η-expansion branch is dead and the run is `Erasure.visitCases`
 on the nose. F-ETA2's `let` prefix — `Erasure.etaArgIsValue` and `Erasure.withEtaPrefixLets` —
 sits in that dead branch, which is why the step is still one rewrite. -/
-theorem step_visitCasesEtaGo {lenv : Environment} {env : VEnv} {Us : List Name}
+theorem step_visitCasesEtaGo {lenv : Environment} {env : VEnv}
     {tbl : SourceTable} {cfg : ErasureConfig} {gw : Void IO.RealWorld → NameGenerator} :
-    Step16 lenv env Us tbl cfg gw := by
+    Step16 lenv env tbl cfg gw := by
   intro _P _htbl _hcfg _hcb vExpr vGo vCases h1 _h16 h17
   refine ⟨?_, bodyLe16 h1.2 _h16.2 h17.2⟩
-  intro ci ty fe args s ctx cctx ref w t s' w' hrun Δ con us I hinv hhead har hsup hargs hex
+  intro ci ty fe args s ctx cctx ref w t s' w' hrun Us Δ con us I hinv hhead har hsup hargs hex
   replace h17 := h17.1
   simp only [visitCasesEtaGoBody] at hrun
   rw [if_pos har] at hrun
-  exact h17 _ _ _ _ _ _ _ _ _ _ hrun Δ con us I hinv hhead har hsup hargs hex
+  exact h17 _ _ _ _ _ _ _ _ _ _ hrun _ Δ con us I hinv hhead har hsup hargs hex
 
 /-! ## Step 14 — the constructor η loop -/
 
 /-- The constructor η loop, at a saturated spine: the arity is met, so the run is
 `Erasure.visitConstructor` on the nose and the η-expansion branch is dead — F-ETA2's `let`
 prefix included. -/
-theorem step_visitCtorEtaGo {lenv : Environment} {env : VEnv} {Us : List Name}
+theorem step_visitCtorEtaGo {lenv : Environment} {env : VEnv}
     {tbl : SourceTable} {cfg : ErasureConfig} {gw : Void IO.RealWorld → NameGenerator} :
-    Step14 lenv env Us tbl cfg gw := by
+    Step14 lenv env tbl cfg gw := by
   intro _P _htbl _hcfg _hcb vExpr vCtor vGo h1 h3 _h14
   refine ⟨?_, bodyLe14 h1.2 h3.2 _h14.2⟩
-  intro cn ar ty fe args s ctx cctx ref w t s' w' hrun Δ us hinv hctor har hargs
+  intro cn ar ty fe args s ctx cctx ref w t s' w' hrun Us Δ us hinv hctor har hargs
   replace h3 := h3.1
   simp only [visitCtorEtaGoBody] at hrun
   rw [if_pos har] at hrun
-  exact h3 _ _ _ _ _ _ _ _ _ _ hrun Δ us hinv hctor hargs
+  exact h3 _ _ _ _ _ _ _ _ _ _ hrun _ Δ us hinv hctor hargs
 
 
 /-! ## Step 17 — `Erasure.visitCases`
@@ -974,15 +1015,16 @@ loop: `CasesInfoAgrees.numAlts` gives one alternative slot per constructor, whic
 loop's two early exits, and `BlockAdequate.casesOnDecl` reports the model's segmentation at the
 block's own arithmetic, which is `CasesInfoAgrees.discrPos` through the pin and is what makes
 `ErasesLB.cases`' length equation hold. -/
-theorem step_visitCases {lenv : Environment} {env : VEnv} {Us : List Name}
+theorem step_visitCases {lenv : Environment} {env : VEnv}
     {tbl : SourceTable} {cfg : ErasureConfig} {gw : Void IO.RealWorld → NameGenerator}
     (A : UpstreamAsks env) (E : EraserAsks lenv env gw) :
-    Step17 lenv env Us tbl cfg gw := by
-  intro P htbl hcfg _hcb vExpr vAlt ih1 ih18
+    Step17 lenv env tbl cfg gw := by
+  intro P₀ htbl hcfg _hcb vExpr vAlt ih1 ih18
   refine ⟨?_, bodyLe17 ih1.2 ih18.2⟩
   replace ih1 := ih1.1
   replace ih18 := ih18.1
-  intro ci args s ctx cctx ref w t s' w' hrun Δ con us I hinv hhead har hsup hargs hex
+  intro ci args s ctx cctx ref w t s' w' hrun Us Δ con us I hinv hhead har hsup hargs hex
+  have P := P₀ Us
   have hcfgc : ConfigPinned ctx.config := by rw [hinv.cfg]; exact hcfg
   have hpe : ctx.config.nat = Config.Nat.peano := hcfgc.2.2.1
   -- the elaborator's segmentation, in the table's numbers
@@ -1005,7 +1047,7 @@ theorem step_visitCases {lenv : Environment} {env : VEnv} {Us : List Name}
   -- the discriminant sub-run
   rw [run_bind_ok] at hrun
   obtain ⟨disc, s₁, w₁, hdrun, hk⟩ := hrun
-  obtain ⟨hrc₁, hreg₁, hle₁, hdmode⟩ := ih1 _ _ _ _ _ _ _ _ _ hdrun Δ hinv hsupd hexd
+  obtain ⟨hrc₁, hreg₁, hle₁, hdmode⟩ := ih1 _ _ _ _ _ _ _ _ _ hdrun _ Δ hinv hsupd hexd
   rw [run_bind_ok] at hk
   obtain ⟨rctx, s₂, w₂, hrd, hk⟩ := hk
   rw [run_read] at hrd
@@ -1036,12 +1078,12 @@ theorem step_visitCases {lenv : Environment} {env : VEnv} {Us : List Name}
   cases hrd2
   replace hm2 := pass_throw_guard_then hm2
   replace hm2 := pass_throw_guard_else hm2
-  obtain ⟨sG, wG, hrcG, hleG, hregG, hm2⟩ := pass_propArity_guard P E hm2
+  obtain ⟨wG, hleG, hm2⟩ := pass_propArity_guard P E hm2
   rw [run_bind_ok] at hm2
   obtain ⟨rr, s₅, w₅, hregrun, hm3⟩ := hm2
   -- the registration's answer, and the model behind it
   have hrc₅ := run_register_inductive_runConcl hregrun
-  have hreg₅ := run_register_inductive_models P hfind hcfgc (hregG hreg₁) hregrun
+  have hreg₅ := run_register_inductive_models P hfind hcfgc hreg₁ hregrun
   have hle₅ := run_register_inductive_gen P hcfgc hregrun
   have hget := pass_register_inductive_entry P (by rw [hivn]; exact hfind) hself hcfgc hregrun
   have hmodel := hreg₅ iv.name rr I.numParams (I.ctors.map (·.numFields)) hget
@@ -1083,8 +1125,7 @@ theorem step_visitCases {lenv : Environment} {env : VEnv} {Us : List Name}
   have haltslen : I.ctors.length ≤ ci.altNumParams.size :=
     Nat.le_of_eq hhead.agrees.numAlts.symm
   have hinv₅ : BridgeInv env Us tbl cfg (gw w₅) ctx s₅ Δ :=
-    ((((hinv.mono_state hrc₁ hreg₁).mono hle₁).mono_state hrcG (hregG hreg₁)).mono_state
-        hrc₅ hreg₅).mono
+    (((hinv.mono_state hrc₁ hreg₁).mono hle₁).mono_state hrc₅ hreg₅).mono
       (NameGenerator.LE.trans hle₄ (NameGenerator.LE.trans hleG hle₅))
   -- F-SPARSE: every constructor's slot is its own, so the index array is total, the
   -- catch-all is never built and the loop walks the block in constructor order
@@ -1183,7 +1224,7 @@ theorem step_visitCases {lenv : Environment} {env : VEnv} {Us : List Name}
       rw [run_pure] at hp
       cases hp
       obtain ⟨hrcB, hregB, hleB, haltmode⟩ :=
-        ih18 _ _ _ _ _ _ _ _ _ _ _ halt Δ hinv₇ rfl htelx hsupx0 hexx0
+        ih18 _ _ _ _ _ _ _ _ _ _ _ halt _ Δ hinv₇ rfl htelx hsupx0 hexx0
       refine ⟨hrcA.trans hrcB, hregB, NameGenerator.LE.trans hleA hleB, by simp [hsizeA], ?_⟩
       intro Γspec hspec j hj
       simp only [List.length_append, List.length_cons, List.length_nil] at hj
@@ -1219,7 +1260,7 @@ theorem step_visitCases {lenv : Environment} {env : VEnv} {Us : List Name}
     obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem ha
     have hi' : i < args.size := by simpa using hi
     simpa using hargs i hi'
-  have hrcT := hrcG.trans (hrc₅.trans hloopP.1)
+  have hrcT := hrc₅.trans hloopP.1
   have hindsome : (s₃.inductives.get? con.getPrefix).isSome := by
     refine hloopP.1.le.inds ?_
     rw [← hivn, hget]
@@ -1316,7 +1357,7 @@ theorem step_visitCases {lenv : Environment} {env : VEnv} {Us : List Name}
         exact List.mem_of_mem_drop hxm
       obtain ⟨hsx, hex⟩ := hmemargs x hxmem
       obtain ⟨hrcD, hregD, hleD, hmx⟩ :=
-        ih1 _ _ _ _ _ _ _ _ _ hvx Δ
+        ih1 _ _ _ _ _ _ _ _ _ hvx _ Δ
           ((((hinv₅.mono_state hloopP.1 hloopP.2.1).mono hloopP.2.2.1).mono_state hrcC
             hregC).mono hleC) hsx hex
       refine ⟨hrcC.trans hrcD, hregD, NameGenerator.LE.trans hleC hleD, fun Γspec hspec => ?_⟩
@@ -1334,12 +1375,792 @@ theorem step_visitCases {lenv : Environment} {env : VEnv} {Us : List Name}
       simp at hpx)
     htail
   obtain ⟨hrcF, hregF, hleF, hmodeF⟩ := htailP
-  refine ⟨hrc₁.trans (hrcG.trans (hrc₅.trans (hloopP.1.trans hrcF))), hregF, ?_,
+  refine ⟨hrc₁.trans (hrc₅.trans (hloopP.1.trans hrcF)), hregF, ?_,
     fun Γspec hspec => ?_⟩
   · exact NameGenerator.LE.trans hle₁ (NameGenerator.LE.trans hle₄ (NameGenerator.LE.trans hleG
       (NameGenerator.LE.trans hle₅ (NameGenerator.LE.trans hloopP.2.2.1 hleF))))
   · have h := hmodeF Γspec hspec
     rw [hslice, ← List.foldl_append, List.take_append_drop] at h
     exact h
+
+/-! ## `RegKeyed` at a run
+
+Every emitted key is a registered constant's kername or a registered inductive's block key,
+read off the entry's own shape (`ColdStartShape.RegKeyed`). It is a fact about the state
+alone, hence a `RunClosedW` motive and not a refinement conclusion: each registration
+primitive writes a statically known `GlobalDecl` constructor at a statically known key, so
+every `consts` clause is that writer's own and the only clause with content is the block
+registration's.
+
+That clause takes its model content from `ErasureSpec.BlockAdequate.fwd` at the
+`Lean.InductiveVal` the call was made at, whose provenance `RunClosedW.reg` carries — the
+`Lean.getConstInfo` run, read through `ErasureSpec.LookupAdequate.constInfo`, the
+machine-numeral arm refuted by `ConfigPinned` — and not from `Bridge.IndRegistryModelled`,
+whose `IndArity` premise the step has no reason to hold. `fwd`'s fourth premise and the
+member loop's `.inductInfo` match are `BlockAdequate.fields` and `BlockAdequate.selfName`.
+-/
+
+/-- **The block registration maintains `RegKeyed`.** The cold branch conses one body-less
+constant entry per `@[extern]` constructor — none, at a pinned configuration — and one block
+entry, at `mutualBlockKn ii`; `BlockAdequate.selfName` and `selfMem` put `ii.name` in the
+registry (`pass_register_inductive_entry`), and `BlockAdequate.fwd` at the index the member
+loop minted reads its model block. The hit branch leaves the state alone. -/
+theorem regKeyed_register_inductive {lenv : Environment} {env : VEnv} {Us : List Name}
+    {gw : Void IO.RealWorld → NameGenerator} {ii : InductiveVal} {hd : Name}
+    {s : ErasureState} {ctx : ErasureContext} {cctx : Core.Context}
+    {ref : ST.Ref IO.RealWorld Core.State} {w : Void IO.RealWorld}
+    {r : InductiveId × InductiveArgMasks} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
+    (P : ErasureSpec lenv env Us gw) (hfind : lenv.find? hd = some (.inductInfo ii))
+    (hcfg : ConfigPinned ctx.config)
+    (hrun : Erasure.register_inductive ii s ctx cctx ref w = .ok (r, s₁) w₁)
+    (H : RegKeyed env s) : RegKeyed env s₁ := by
+  have hdecl : lenv.find? ii.name = some (.inductInfo ii) := by
+    rw [P.block_adequate.selfName hd ii hfind]; exact hfind
+  have hget : s₁.inductives.get? ii.name = some r :=
+    pass_register_inductive_entry P hdecl (P.block_adequate.selfMem hd ii hfind) hcfg hrun
+  have hcl := (run_register_inductive_entries (Ci := fun nm ci => lenv.find? nm = some ci)
+    (fun nm ci s₀ s₂ w₀ w₂ h =>
+      let k := P.lookup_adequate.constInfo nm cctx ref w₀ ci w₂ (pass_getConstInfo_core h)
+      ⟨k.2, k.1⟩)
+    (fun le s₀ s₂ w₀ w₂ h => P.prim_monotone.getEnv s₀ ctx cctx ref w₀ le s₂ w₂ h)
+    (fun msg u s₀ s₂ w₀ w₂ h => P.prim_monotone.logInfo msg s₀ ctx cctx ref w₀ u s₂ w₂ h)
+    hcfg.2.2.2.1 hrun).2
+  cases hi : s.inductives.get? ii.name with
+  | some rc0 => rw [(run_register_inductive_hit_ok hi hrun).2.1]; exact H
+  | none =>
+    obtain ⟨-, bodies, sM, hs1, -, -, hce, hgrow, -⟩ :=
+      run_register_inductive_cold_ok (Ci := fun _ _ => True)
+        (fun _ _ _ _ _ _ _ => trivial) hi hrun
+    refine hs1 ▸ (ConstExt.regKeyed hce.toConstExt (fun _ hn => hgrow hn) H).indCons
+      (kn := mutualBlockKn ii) rfl (fun _ hn => hn) (fun _ hn => hn) ?_
+    rcases hcl ii.name r hget with hold | ⟨idx, inf, hidx, hCin, -, -, -⟩
+    · rw [hold] at hi; exact absurd hi (by simp)
+    · obtain ⟨nfs, hkfs⟩ := P.block_adequate.fields ii.name inf hCin
+      exact ⟨ii.name, ⟨indBlockKername ii.all, idx⟩, ii.numParams, nfs,
+        by rw [hs1] at hget; rw [hget]; simp,
+        P.block_adequate.fwd hd ii.name ii inf idx nfs hfind hidx hCin hkfs, rfl⟩
+
+/-- **`RegKeyed` as a `RunClosedW` motive.** The eleven ambient primitives and
+`Erasure.prepare_erasure` leave the state alone; `Erasure.addAxiom`,
+`Erasure.visitMutual`'s two term exits and `Erasure.addRealizer` are constant extensions;
+the block registration is `regKeyed_register_inductive`. -/
+theorem runClosedW_regKeyed {lenv : Environment} {env : VEnv}
+    {gw : Void IO.RealWorld → NameGenerator} (P : ∀ Us, ErasureSpec lenv env Us gw) :
+    RunClosedW ConfigPinned (fun s _ => RegKeyed env s) where
+  oracle h hq := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hq
+  inferType h hq := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hq
+  metaM _ h hq := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hq
+  constInfo h hq := by rw [run_getConstInfo_state _ _ _ _ _ h]; exact hq
+  getEnv h hq := by rw [run_getEnv_state _ _ _ _ _ h]; exact hq
+  logInfo h hq := by rw [run_logInfo_state _ _ _ _ _ h]; exact hq
+  isInstance h hq := by rw [run_liftCoreM_state _ _ _ _ _ h]; exact hq
+  fresh h hq := by rw [run_mkFreshFVarId_state _ _ _ _ _ h]; exact hq
+  declInfo h hq := by rw [run_liftCoreM_state _ _ _ _ _ h]; exact hq
+  ctorArity h hq := by rw [run_liftCoreM_state _ _ _ _ _ h]; exact hq
+  casesInfo h hq := by rw [run_liftCoreM_state _ _ _ _ _ h]; exact hq
+  inl := by
+    intro s w kn hq
+    exact ConstExt.regKeyed (s := s) (s' := { s with inlinings := kn :: s.inlinings })
+      (ConstExt.of_same rfl rfl) (fun _ hn => hn) hq
+  ax h hq := by
+    rw [(run_addAxiom_ok h).1]
+    exact ConstExt.regKeyed (BodylessExt.addAxiom _ _).toConstExt (fun _ hn => hn) hq
+  reg := by
+    intro ii s ctx cctx ref w r s' w' hprov hc h hq
+    rcases hprov with ⟨hd, sa, sb, wa, wb, hci⟩ | hmach
+    · exact regKeyed_register_inductive (P [])
+        (((P []).lookup_adequate.constInfo hd cctx ref wa _ wb
+          (pass_getConstInfo_core hci)).2) hc h hq
+    · exact absurd (hc.2.2.1.symm.trans hmach) (by simp)
+  prep hc h hq := by rw [(run_prepare_erasure_ok hc.1 h).1]; exact hq
+  nrc hq _ _ _ := ConstExt.regKeyed (ConstExt.addRealizer _ _ _) (fun _ hn => hn) hq
+  rlz hq _ _ _ := ConstExt.regKeyed (ConstExt.addRealizer _ _ _) (fun _ hn => hn) hq
+  rc hq _ _ := regKeyed_recConstState hq
+
+/-- **`RegKeyed` at a run of the term walk.** `regSaturated_of_regKeyed`'s first antecedent,
+at the final state of `Erasure.visitExpr`; `regKeyed_empty` starts it at a cold entry. -/
+theorem regKeyed_of_run {lenv : Environment} {env : VEnv}
+    {gw : Void IO.RealWorld → NameGenerator} {e : Expr} {t : LBTerm} {s s' : ErasureState}
+    {ctx : ErasureContext} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
+    {w w' : Void IO.RealWorld} (P : ∀ Us, ErasureSpec lenv env Us gw)
+    (hcfg : ConfigPinned ctx.config)
+    (hvis : Erasure.visitExpr e s ctx cctx ref w = .ok (t, s') w') (hk : RegKeyed env s) :
+    RegKeyed env s' :=
+  ((visitExpr_shapeW (runClosedW_regKeyed P)).1 _ _ _ _ _ _ _ _ _ hvis hk hcfg).1
+
+/-! ## `IndBlocksCover` at a run
+
+The mirror between the two fields `Erasure.register_inductive` writes in one `modify`
+(`ErasureRun.lean`), carried along a run of the term walk. Like `RegKeyed` it is a fact about
+the state alone, so it is a `RunClosedW` motive: every other writer is a constant extension
+that leaves `ErasureState.indBlocks` alone, and the one clause with content is the block
+registration's, where the new row's declared members come from
+`run_register_inductive_members` and the older rows survive because the key the run mints is
+fresh in the emitted environment (`blockKey_fresh_of_cover`). -/
+
+/-- **The block registration maintains `IndBlocksCover`.** The cold branch's member loop is a
+constant extension of the entry state that leaves the block table alone
+(`run_register_inductive_cold_blocks`), and the closing `modify` conses the entry and its row
+together; the new row's declared members are registered by `run_register_inductive_members`,
+whose `.inductInfo` guard `ErasureSpec.lookup_adequate` pays at a declared member, and the
+key it is filed under is fresh in `gdecls` by `blockKey_fresh_of_cover`. The hit branch
+leaves the state alone. -/
+theorem indBlocksCover_register_inductive {lenv : Environment} {env : VEnv} {Us : List Name}
+    {gw : Void IO.RealWorld → NameGenerator} {ii : InductiveVal} {hd : Name}
+    {s : ErasureState} {ctx : ErasureContext} {cctx : Core.Context}
+    {ref : ST.Ref IO.RealWorld Core.State} {w : Void IO.RealWorld}
+    {r : InductiveId × InductiveArgMasks} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
+    (P : ErasureSpec lenv env Us gw) (hfind : lenv.find? hd = some (.inductInfo ii))
+    (hrun : Erasure.register_inductive ii s ctx cctx ref w = .ok (r, s₁) w₁)
+    (H : IndBlocksCover lenv s) : IndBlocksCover lenv s₁ := by
+  have hdecl : lenv.find? ii.name = some (.inductInfo ii) := by
+    rw [P.block_adequate.selfName hd ii hfind]; exact hfind
+  have hself : ii.name ∈ ii.all := P.block_adequate.selfMem hd ii hfind
+  cases hi : s.inductives.get? ii.name with
+  | some rc0 => rw [(run_register_inductive_hit_ok hi hrun).2.1]; exact H
+  | none =>
+    obtain ⟨hfresh, bodies, sM, hs1, -, -, hce, hgrow, -⟩ :=
+      run_register_inductive_cold_ok (Ci := fun _ _ => True)
+        (fun _ _ _ _ _ _ _ => trivial) hi hrun
+    have hnew : ∀ n ∈ ii.all, (∃ iv : InductiveVal, lenv.find? n = some (.inductInfo iv)) →
+        (s₁.inductives.get? n).isSome :=
+      run_register_inductive_members
+        (fun nm ci _s' _s'' w' w'' hci _hnm hiv =>
+          let ⟨iv, hlen⟩ := hiv
+          ⟨iv, Option.some.inj (((P.lookup_adequate.constInfo nm cctx ref w' ci w''
+            (pass_getConstInfo_core hci)).2).symm.trans hlen)⟩)
+        hi hrun
+    have hbl : s₁.indBlocks = (mutualBlockKn ii, ii.all) :: s.indBlocks :=
+      run_register_inductive_cold_blocks hi hrun
+    have hblM : sM.indBlocks = s.indBlocks := by
+      rw [hs1] at hbl
+      injection hbl with _hrow h2
+    rw [hs1] at hnew ⊢
+    refine (ConstExt.indBlocksCover hce.toConstExt hblM (fun _ hn => hgrow hn) H).indCons
+      rfl rfl (fun _ hn => hn) ?_ hnew
+    intro mib hmem
+    obtain ⟨pre, hpre, hshape⟩ := hce.toConstExt.gdecls
+    rw [hpre] at hmem
+    rcases List.mem_append.mp hmem with h1 | h1
+    · exact absurd (hshape _ h1).1 (by simp)
+    · exact blockKey_fresh_of_cover H hfresh hdecl hself hi mib h1
+
+/-- **`IndBlocksCover` as a `RunClosedW` motive.** The eleven ambient primitives and
+`Erasure.prepare_erasure` leave the state alone; `Erasure.addAxiom`, `Erasure.visitMutual`'s
+two term exits and `Erasure.addRealizer` are constant extensions that write no block row; the
+block registration is `indBlocksCover_register_inductive`. -/
+theorem runClosedW_indBlocksCover {lenv : Environment} {env : VEnv}
+    {gw : Void IO.RealWorld → NameGenerator} (P : ∀ Us, ErasureSpec lenv env Us gw) :
+    RunClosedW ConfigPinned (fun s _ => IndBlocksCover lenv s) where
+  oracle h hq := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hq
+  inferType h hq := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hq
+  metaM _ h hq := by rw [run_liftMetaM_state _ _ _ _ _ h]; exact hq
+  constInfo h hq := by rw [run_getConstInfo_state _ _ _ _ _ h]; exact hq
+  getEnv h hq := by rw [run_getEnv_state _ _ _ _ _ h]; exact hq
+  logInfo h hq := by rw [run_logInfo_state _ _ _ _ _ h]; exact hq
+  isInstance h hq := by rw [run_liftCoreM_state _ _ _ _ _ h]; exact hq
+  fresh h hq := by rw [run_mkFreshFVarId_state _ _ _ _ _ h]; exact hq
+  declInfo h hq := by rw [run_liftCoreM_state _ _ _ _ _ h]; exact hq
+  ctorArity h hq := by rw [run_liftCoreM_state _ _ _ _ _ h]; exact hq
+  casesInfo h hq := by rw [run_liftCoreM_state _ _ _ _ _ h]; exact hq
+  inl := by
+    intro s w kn hq
+    exact ConstExt.indBlocksCover (s := s) (s' := { s with inlinings := kn :: s.inlinings })
+      (ConstExt.of_same rfl rfl) rfl (fun _ hn => hn) hq
+  ax h hq := by
+    rw [(run_addAxiom_ok h).1]
+    exact ConstExt.indBlocksCover (BodylessExt.addAxiom _ _).toConstExt rfl (fun _ hn => hn) hq
+  reg := by
+    intro ii s ctx cctx ref w r s' w' hprov hc h hq
+    rcases hprov with ⟨hd, sa, sb, wa, wb, hci⟩ | hmach
+    · exact indBlocksCover_register_inductive (P [])
+        (((P []).lookup_adequate.constInfo hd cctx ref wa _ wb
+          (pass_getConstInfo_core hci)).2) h hq
+    · exact absurd (hc.2.2.1.symm.trans hmach) (by simp)
+  prep hc h hq := by rw [(run_prepare_erasure_ok hc.1 h).1]; exact hq
+  nrc hq _ _ _ := ConstExt.indBlocksCover (ConstExt.addRealizer _ _ _) rfl (fun _ hn => hn) hq
+  rlz hq _ _ _ := ConstExt.indBlocksCover (ConstExt.addRealizer _ _ _) rfl (fun _ hn => hn) hq
+  rc hq _ _ := indBlocksCover_recConstState hq
+
+/-- **`IndBlocksCover` at a run of the term walk**, at the final state of
+`Erasure.visitExpr`; `indBlocksCover_empty` starts it at a cold entry. -/
+theorem indBlocksCover_of_run {lenv : Environment} {env : VEnv}
+    {gw : Void IO.RealWorld → NameGenerator} {e : Expr} {t : LBTerm} {s s' : ErasureState}
+    {ctx : ErasureContext} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
+    {w w' : Void IO.RealWorld} (P : ∀ Us, ErasureSpec lenv env Us gw)
+    (hcfg : ConfigPinned ctx.config)
+    (hvis : Erasure.visitExpr e s ctx cctx ref w = .ok (t, s') w')
+    (hk : IndBlocksCover lenv s) : IndBlocksCover lenv s' :=
+  ((visitExpr_shapeW (runClosedW_indBlocksCover P)).1 _ _ _ _ _ _ _ _ _ hvis hk hcfg).1
+
+/-! ## The specification prefix of a block registration, produced from a run
+
+`regInv_registerInd_step` takes its prefix as a parameter; `indPrefixOf_of_run` produces it
+from the run, at the definitions of `ColdStartShape.lean`. Three ingredients beyond the run
+lemmas: `ErasureSpec.BlockAdequate` reads the emitted block against the model, `UpstreamAsks`
+pins each member's block coordinates and each eliminator's segmentation, and
+`blockKey_fresh_of_cover` refutes the escape disjunct of the two registry reports — a member
+already registered at the entry state would put the block key in `Γ` through
+`RegInvShape'.inds`, hence in `s.gdecls` through `SpecKeysEmitted.inds`, where the guard's own
+verdict says it is not.
+-/
+
+set_option maxHeartbeats 2000000 in
+/-- **The specification prefix, produced from a run.** The block entry the cold branch conses
+together with one eliminator entry per member whose emitted body is not propositional, with
+the four obligations of `IndPrefixOf` discharged and the block entry exposed in the shape
+`regInv_registerInd_step`'s `hblk` asks for. `hsafe` is the safety column
+`ErasureSpec.propositionalInd_of_arity` spends at each member. -/
+theorem indPrefixOf_of_run {lenv : Environment} {env : VEnv} {Us : List Name}
+    {gw : Void IO.RealWorld → NameGenerator} {bo : Name → Option Expr}
+    {lp : Name → List Name} {Γ : GlobalDeclarations} {indinfo : InductiveVal}
+    {s : ErasureState} {ctx : ErasureContext} {cctx : Core.Context}
+    {ref : ST.Ref IO.RealWorld Core.State} {w : Void IO.RealWorld}
+    {r : InductiveId × InductiveArgMasks} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
+    (P : ErasureSpec lenv env Us gw) (A : UpstreamAsks env)
+    (Acc : RegAcc env bo lp Γ s) (hcovs : IndBlocksCover lenv s)
+    (K : BodiedKeysFresh env bo indinfo)
+    (hsafe : ∀ (I : Name) (iv : InductiveVal), lenv.find? I = some (.inductInfo iv) →
+      DefinitionSafety.safe ≤ (ConstantInfo.inductInfo iv).safety)
+    (hcfg : ConfigPinned ctx.config)
+    (hfind : lenv.find? indinfo.name = some (.inductInfo indinfo))
+    (hmiss : s.inductives.get? indinfo.name = none)
+    (hrun : Erasure.register_inductive indinfo s ctx cctx ref w = .ok (r, s₁) w₁) :
+    ∃ pre : GlobalDeclarations, IndPrefixOf env bo lp indinfo pre ∧
+      ∀ mib, LBTerm.envLookup s₁.gdecls (mutualBlockKn indinfo) = some (.inductiveDecl mib) →
+        LBTerm.envLookup pre (mutualBlockKn indinfo) = some (.inductiveDecl mib) := by
+  have hself : indinfo.name ∈ indinfo.all := P.block_adequate.selfMem _ indinfo hfind
+  have hCi : ∀ (nm : Name) (ci : ConstantInfo) (s' s'' : ErasureState)
+      (w' w'' : Void IO.RealWorld),
+      (getConstInfo nm : EraseM ConstantInfo) s' ctx cctx ref w' = .ok (ci, s'') w'' →
+      lenv.find? nm = some ci ∧ gw w' ≤ gw w'' := fun nm ci _ _ w' w'' h =>
+    let k := P.lookup_adequate.constInfo nm cctx ref w' ci w'' (pass_getConstInfo_core h)
+    ⟨k.2, k.1⟩
+  obtain ⟨hfresh, bodies, sM, hs1, -, -, hce, hgrow, hreport⟩ :=
+    run_register_inductive_cold_ok (Ci := fun nm ci => lenv.find? nm = some ci)
+      (fun nm ci s' s'' w' w'' h => (hCi nm ci s' s'' w' w'' h).1) hmiss hrun
+  have hents := (run_register_inductive_cold_entries (Ci := fun nm ci => lenv.find? nm = some ci)
+    (gw := gw) hCi
+    (fun le s₀ s₂ w₀ w₂ h => P.prim_monotone.getEnv s₀ ctx cctx ref w₀ le s₂ w₂ h)
+    (fun msg u s₀ s₂ w₀ w₂ h => P.prim_monotone.logInfo msg s₀ ctx cctx ref w₀ u s₂ w₂ h)
+    hcfg.2.2.2.1 hmiss hrun).2
+  have hmembers : ∀ n ∈ indinfo.all,
+      (∃ iv : InductiveVal, lenv.find? n = some (.inductInfo iv)) →
+      (s₁.inductives.get? n).isSome :=
+    run_register_inductive_members
+      (fun nm ci _s' _s'' w' w'' hci _hnm hiv =>
+        let ⟨iv, hlen⟩ := hiv
+        ⟨iv, Option.some.inj (((hCi nm ci _s' _s'' w' w'' hci).1).symm.trans hlen)⟩)
+      hmiss hrun
+  have hinds : s₁.inductives = sM.inductives := by rw [hs1]; rfl
+  -- the escape disjunct of the two registry reports, refuted
+  have hnotreg : ∀ (n : Name) (iid : InductiveId) (np : Nat) (nfs : List Nat),
+      IndInfo env n iid np nfs → iid.mutualBlockName = mutualBlockKn indinfo →
+      ¬ (s.inductives.get? n).isSome := by
+    intro n iid np nfs hi hkn hsome
+    obtain ⟨-, mib, hlook, -, -⟩ := (Acc.shape.inds n hsome).block iid np nfs hi
+    rw [hkn] at hlook
+    obtain ⟨mib', hmem⟩ := Acc.keysEmitted.inds _ mib hlook
+    exact blockKey_fresh_of_cover hcovs hfresh hfind hself hmiss mib' hmem
+  -- what one declared member of the block leaves behind
+  have hdata : ∀ (I : Name) (iid : InductiveId) (np : Nat) (nfs : List Nat),
+      I ∈ indinfo.all → IndInfo env I iid np nfs →
+      ∃ (ivm : InductiveVal) (oib : OneInductiveBody),
+        lenv.find? I = some (.inductInfo ivm) ∧
+        indinfo.all[iid.idx]? = some I ∧
+        iid = ⟨mutualBlockKn indinfo, iid.idx⟩ ∧ np = indinfo.numParams ∧
+        ivm.numParams = np ∧ nfs = kernelFieldsOf lenv ivm ∧
+        bodies[iid.idx]? = some oib ∧ oib.ctors.map (·.nargs) = nfs ∧
+        (oib.propositional = true → PropositionalInd env I) := by
+    intro I iid np nfs hImem hi
+    obtain ⟨ivm, hfindI, hnameI, hnpI, hkfI⟩ := P.block_adequate.bwd I np nfs hi.arity
+    obtain ⟨i, hidx⟩ := List.getElem?_of_mem hImem
+    have hfwd := P.block_adequate.fwd indinfo.name I indinfo ivm i nfs hfind hidx hfindI hkfI
+    obtain ⟨rfl, rfl, -⟩ := IndInfo.inj A hi hfwd
+    have hkn : (⟨indBlockKername indinfo.all, i⟩ : InductiveId).mutualBlockName
+        = mutualBlockKn indinfo := rfl
+    obtain ⟨rc, hrc⟩ := Option.isSome_iff_exists.mp (hmembers I hImem ⟨ivm, hfindI⟩)
+    rcases hents I rc hrc with hold | ⟨idx, inf, hidx2, hCinf, hlen2, hrc1, hmask⟩
+    · exact absurd (by rw [hold]; rfl) (hnotreg I _ _ _ hfwd hkn)
+    · obtain rfl : inf = ivm := by
+        have h := Option.some.inj (hCinf.symm.trans hfindI)
+        injection h
+      have hidxeq : i = idx := by
+        have h2 := P.block_adequate.fwd indinfo.name I indinfo inf idx nfs hfind hidx2 hfindI hkfI
+        exact congrArg InductiveId.idx (IndInfo.inj A hfwd h2).1
+      subst hidxeq
+      rcases hreport (by rw [← hinds]; exact hrc) with hold
+        | ⟨oib, hkn2, hbod, -, ⟨inf2, hCinf2, hflag⟩, hctors⟩
+      · exact absurd (by rw [hold]; rfl) (hnotreg I _ _ _ hfwd hkn)
+      · have hinf2 : inf2 = inf := by
+          have h := Option.some.inj (hCinf2.symm.trans hfindI)
+          injection h
+        rw [hinf2] at hflag
+        refine ⟨inf, oib, hfindI, hidx2, rfl, rfl, hnpI, kernelFieldsOf_eq hkfI, ?_, ?_, ?_⟩
+        · rw [hrc1] at hbod; exact hbod
+        · rw [hctors]
+          refine List.ext_getElem? (fun j => ?_)
+          rw [List.getElem?_map]
+          cases hj : inf.ctors[j]? with
+          | none =>
+            rw [List.getElem?_eq_none (by rw [hlen2]; exact List.getElem?_eq_none_iff.mp hj),
+              List.getElem?_eq_none (by rw [hkfI.1]; exact List.getElem?_eq_none_iff.mp hj)]
+            rfl
+          | some cn =>
+            obtain ⟨cv, hcvf, hnfj, -, -, -⟩ := hkfI.2 j cn hj
+            obtain ⟨ci, hci, hmk⟩ := hmask j cn hj
+            obtain rfl : ci = .ctorInfo cv := Option.some.inj (hci.symm.trans hcvf)
+            rw [hmk cv rfl, hnfj]
+            simp only [Option.map_some]
+            congr 1
+            rw [Array.count, ← Array.countP_toList]
+            simp only [Array.toList_replicate, List.countP_eq_length_filter,
+              List.filter_replicate,
+              if_pos (by decide : (Erasure.ConstructorArgRelevance.keep
+                == Erasure.ConstructorArgRelevance.keep) = true),
+              List.length_replicate]
+        · intro hp
+          exact P.propositionalInd_of_arity hfindI (hsafe I inf hfindI) (hflag ▸ hp)
+  -- the slots, read back
+  have hslot : ∀ e ∈ elimSlots lenv indinfo bodies,
+      ∃ (inf : InductiveVal) (oib : OneInductiveBody) (nm : Nat),
+        lenv.find? e.name = some (.inductInfo inf) ∧ e.name ∈ indinfo.all ∧
+        IndInfo env e.name ⟨mutualBlockKn indinfo, e.idx⟩ indinfo.numParams e.fields ∧
+        bodies[e.idx]? = some oib ∧ oib.propositional = false ∧
+        oib.ctors.map (·.nargs) = e.fields ∧
+        CasesOnShape env (Name.str e.name "casesOn") e.name e.dropped nm := by
+    intro e he
+    obtain ⟨hidx, ⟨inf, hfindI, hdrop, hfld⟩, oib, hbod, hprop⟩ := elimSlots_spec he
+    have hmem : e.name ∈ indinfo.all := List.mem_of_getElem? hidx
+    obtain ⟨nfs, hkf⟩ := P.block_adequate.fields e.name inf hfindI
+    have hfeq : nfs = e.fields := by rw [hfld, kernelFieldsOf_eq hkf]
+    have hii := P.block_adequate.fwd indinfo.name e.name indinfo inf e.idx nfs hfind hidx
+      hfindI hkf
+    rw [hfeq] at hii
+    obtain ⟨-, oib', -, -, -, -, -, -, hbod', hctors, -⟩ := hdata e.name _ _ _ hmem hii
+    have hoo : oib' = oib := Option.some.inj (hbod'.symm.trans hbod)
+    rw [hoo] at hctors
+    obtain ⟨nm, vc, -, -, hsh⟩ := P.block_adequate.casesOnDecl (Name.str e.name "casesOn")
+      e.name inf rfl rfl hfindI
+    exact ⟨inf, oib, nm, hfindI, hmem, hii, hbod, hprop, hctors, hdrop ▸ hsh⟩
+  -- the prefix's keys are distinct
+  have hfreshKey : ∀ e ∈ elimSlots lenv indinfo bodies,
+      toKername (Name.str e.name "casesOn") ≠ mutualBlockKn indinfo := by
+    intro e he
+    obtain ⟨_inf, _oib, _nm, -, -, -, -, -, -, hsh⟩ := hslot e he
+    exact K.elims _ _ _ _ indinfo.all hsh
+  have hinj : ∀ e ∈ elimSlots lenv indinfo bodies, ∀ f ∈ elimSlots lenv indinfo bodies,
+      toKername (Name.str e.name "casesOn") = toKername (Name.str f.name "casesOn") → e = f := by
+    intro e he f hf hk
+    obtain ⟨_inf1, _oib1, _nm1, hfindE, hmemE, hiiE, -, -, -, -⟩ := hslot e he
+    obtain ⟨_inf2, _oib2, _nm2, hfindF, hmemF, hiiF, -, -, -, -⟩ := hslot f hf
+    have hname : e.name = f.name := by
+      refine K.memberNames f.name hmemF e.name ?_
+      have := congrArg Kername.mp hk
+      simpa [toKername] using this
+    obtain ⟨hidxE, ⟨infE, hfE, hdE, hfldE⟩, -⟩ := elimSlots_spec he
+    obtain ⟨hidxF, ⟨infF, hfF, hdF, hfldF⟩, -⟩ := elimSlots_spec hf
+    rw [hname] at hfE hiiE
+    obtain rfl : infE = infF := by
+      have h := Option.some.inj (hfE.symm.trans hfF)
+      injection h
+    have hidx : e.idx = f.idx := by
+      rw [hname] at hidxE
+      have hkfE : KernelFields lenv infE (kernelFieldsOf lenv infE) := by
+        obtain ⟨nfs, hkf⟩ := P.block_adequate.fields f.name infE hfF
+        exact (kernelFieldsOf_eq hkf) ▸ hkf
+      have h1 := P.block_adequate.fwd indinfo.name f.name indinfo infE e.idx
+        (kernelFieldsOf lenv infE) hfind hidxE hfF hkfE
+      have h2 := P.block_adequate.fwd indinfo.name f.name indinfo infE f.idx
+        (kernelFieldsOf lenv infE) hfind hidxF hfF hkfE
+      exact congrArg InductiveId.idx (IndInfo.inj A h1 h2).1
+    obtain ⟨n1, i1, d1, f1⟩ := e
+    obtain ⟨n2, i2, d2, f2⟩ := f
+    simp only [ElimSlot.mk.injEq]
+    exact ⟨hname, hidx, hdE.trans hdF.symm, hfldE.trans hfldF.symm⟩
+  have hnodup : ((indPrefix indinfo bodies (elimSlots lenv indinfo bodies)).map Prod.fst).Nodup := by
+    rw [indPrefix, List.map_cons, List.map_map, List.nodup_cons]
+    refine ⟨?_, ?_⟩
+    · intro hmem
+      obtain ⟨e, he, hk⟩ := List.mem_map.mp hmem
+      exact hfreshKey e he hk
+    · rw [List.Nodup, List.pairwise_map]
+      refine List.Pairwise.imp_of_mem ?_ (List.Pairwise.filterMap
+        (l := indinfo.all.zipIdx)
+        (R := fun p q => p.2 ≠ q.2)
+        (S := fun e f => e.idx ≠ f.idx) _ ?_ ?_)
+      · intro e f he hf hne hk
+        exact hne (congrArg ElimSlot.idx (hinj e he f hf hk))
+      · intro a a' hne b hb b' hb'
+        have hbi : b.idx = a.2 := by
+          split at hb
+          · split at hb
+            · exact absurd hb (by simp)
+            · cases hb; rfl
+          · exact absurd hb (by simp)
+        have hbi' : b'.idx = a'.2 := by
+          split at hb'
+          · split at hb'
+            · exact absurd hb' (by simp)
+            · cases hb'; rfl
+          · exact absurd hb' (by simp)
+        rw [hbi, hbi']; exact hne
+      · rw [← List.pairwise_map (f := Prod.snd) (R := (· ≠ ·)), List.zipIdx_map_snd]
+        exact List.nodup_range'
+  have hlookElim : ∀ e ∈ elimSlots lenv indinfo bodies,
+      LBTerm.envLookup (indPrefix indinfo bodies (elimSlots lenv indinfo bodies))
+          (toKername (Name.str e.name "casesOn"))
+        = some (.constantDecl ⟨some (mkElimBody ⟨mutualBlockKn indinfo, e.idx⟩
+            indinfo.numParams e.dropped e.fields)⟩) := by
+    intro e he
+    exact envLookup_of_mem_nodup
+      (p := elimEntry (mutualBlockKn indinfo) indinfo.numParams e)
+      (by rw [indPrefix]; exact List.mem_cons_of_mem _ (List.mem_map_of_mem he)) hnodup
+  have hcov : ∀ I ∈ indinfo.all,
+      IndCovered env (indPrefix indinfo bodies (elimSlots lenv indinfo bodies)) I := by
+    intro I hI
+    refine ⟨?_, ?_⟩
+    · intro iid np nfs hi
+      obtain ⟨inf, oib, hfindI, hidxI, hiid, hnp, -, -, hbod, hctors, hflag⟩ :=
+        hdata I iid np nfs hI hi
+      refine ⟨IndInfo.indDeclOf A hi, { npars := indinfo.numParams, bodies := bodies }, ?_,
+        ⟨hnp.symm, oib, hbod, hctors⟩, fun oib' hoib' hp => ?_⟩
+      · rw [hiid]; exact indPrefix_block
+      · obtain rfl : oib' = oib := Option.some.inj (hoib'.symm.trans hbod)
+        exact hflag hp
+    · intro c dp nm hsh hinf hco
+      obtain ⟨ds, env₀, decl, t, hds, hd, hle, ht, hnameI, hdp, hnm⟩ := hsh.2.2.2
+      obtain ⟨iid0, hi0⟩ :=
+        IndArity.indInfo (env := env) (I := I) (np := decl.nparams)
+          (nfs := ctorFieldCounts decl.nparams t)
+          ⟨ds, env₀, decl, t, hds, hd, hle, ht, hnameI, rfl, rfl⟩
+      obtain ⟨inf, oib, hfindI, hidxI, hiid, hnp, -, hnfs, hbod, hctors, hflag⟩ :=
+        hdata I iid0 _ _ hI hi0
+      obtain ⟨nm', vc, -, -, hsh'⟩ := P.block_adequate.casesOnDecl c I inf hsh.1 hsh.2.1 hfindI
+      obtain ⟨hdpeq, hnmeq⟩ := CasesOnShape.inj A hsh hsh'
+      have hpf : oib.propositional = false := propositional_false_of_informative hflag hinf
+      have hmemslot := elimSlots_mem (indinfo := indinfo) hidxI hfindI hbod hpf
+      have hckey : toKername c = toKername (Name.str I "casesOn") := by
+        rw [eq_str_casesOn hsh.1, hsh.2.1]
+      refine ⟨iid0, decl.nparams, ctorFieldCounts decl.nparams t, ⟨⟨_, ?_, .cases⟩, ?_⟩, hi0, ?_⟩
+      · rw [hckey]
+        have hl := hlookElim _ hmemslot
+        simp only [] at hl
+        rw [hl, hnp, ← hnfs, ← hdpeq, ← hiid, hnp]
+      · exact ⟨{ npars := indinfo.numParams, bodies := bodies },
+          by rw [hiid]; exact indPrefix_block,
+          ⟨hnp.symm, oib, hbod, hctors⟩, oib, hbod, hpf⟩
+      · rw [ctorFieldCounts, List.length_map]
+        exact hnm.symm
+  refine ⟨indPrefix indinfo bodies (elimSlots lenv indinfo bodies), ⟨hcov, ?_, ?_, ?_, ?_⟩, ?_⟩
+  · -- content
+    refine ⟨hnodup, ?_, ?_, ?_, ?_⟩
+    · intro c b hbo hs
+      obtain ⟨d, hd⟩ := Option.isSome_iff_exists.mp hs
+      rcases indPrefix_key_cases hd with ⟨hk, -⟩ | ⟨e, he, hk, -⟩
+      · exact absurd hk (K.bodied c b hbo)
+      · exact absurd (toKername_of_cleanIdent_casesOn hk) (by rw [K.notCasesOn c b hbo]; simp)
+    · intro c hbo hco hnc hs
+      obtain ⟨d, hd⟩ := Option.isSome_iff_exists.mp hs
+      rcases indPrefix_key_cases hd with ⟨hk, -⟩ | ⟨e, he, hk, -⟩
+      · obtain ⟨iid, np, nfs, hi⟩ := K.consts c hco hk
+        exact absurd hi (constOrigin_not_indInfo A hco iid np nfs)
+      · exact absurd (toKername_of_cleanIdent_casesOn hk) (by rw [hnc]; simp)
+    · intro I iid np nfs hi hs
+      obtain ⟨d, hd⟩ := Option.isSome_iff_exists.mp hs
+      rcases indPrefix_key_cases hd with ⟨hk, -⟩ | ⟨e, he, hk, -⟩
+      · exact hcov I (K.blocks I iid np nfs hi hk)
+      · obtain ⟨ds, env₀, decl, t, -, -, -, -, -, hkn, -, -⟩ := hi.block
+        obtain ⟨_i, _o, _n, -, -, -, -, -, -, hsh⟩ := hslot e he
+        exact absurd (hk ▸ hkn) (K.elims _ _ _ _ (decl.types.map (·.name)) hsh)
+    · intro c I dp nm hsh hs
+      obtain ⟨d, hd⟩ := Option.isSome_iff_exists.mp hs
+      rcases indPrefix_key_cases hd with ⟨hk, -⟩ | ⟨e, he, hk, -⟩
+      · exact absurd hk (K.elims c I dp nm indinfo.all hsh)
+      · obtain ⟨_i, _o, _n, -, hmemE, -, -, -, -, -⟩ := hslot e he
+        have hckey : toKername c = toKername (Name.str I "casesOn") := by
+          rw [eq_str_casesOn hsh.1, hsh.2.1]
+        have hIe : I = e.name := by
+          refine K.memberNames e.name hmemE I ?_
+          have h := congrArg Kername.mp (hckey.symm.trans hk)
+          simpa [toKername] using h
+        rw [hIe]
+        exact hcov e.name hmemE
+  · exact ⟨_, indPrefix_block⟩
+  · -- entries
+    intro p hp
+    rw [indPrefix, List.mem_cons] at hp
+    rcases hp with rfl | hp
+    · exact Or.inl ⟨rfl, _, rfl⟩
+    · obtain ⟨e, he, rfl⟩ := List.mem_map.mp hp
+      obtain ⟨_i, oib, _n, -, -, -, hbod, hpf, hctors, -⟩ := hslot e he
+      refine Or.inr ⟨⟨⟨mutualBlockKn indinfo, e.idx⟩, indinfo.numParams, e.dropped, e.fields,
+        ⟨_, ?_, .cases⟩, { npars := indinfo.numParams, bodies := bodies }, indPrefix_block,
+        ⟨rfl, oib, hbod, hctors⟩, oib, hbod, hpf⟩, _, _, _, _, _, rfl, .cases⟩
+      exact hlookElim e he
+  · -- elimKeys
+    intro p hp
+    rw [indPrefix, List.mem_cons] at hp
+    rcases hp with rfl | hp
+    · exact Or.inl rfl
+    · obtain ⟨e, he, rfl⟩ := List.mem_map.mp hp
+      obtain ⟨-, -, nm, -, -, hii, -, -, -, hsh⟩ := hslot e he
+      exact Or.inr ⟨Name.str e.name "casesOn", e.name, e.dropped, nm,
+        ⟨mutualBlockKn indinfo, e.idx⟩, indinfo.numParams, e.fields, rfl, hsh, hii, rfl⟩
+  · intro mib hmib
+    rw [hs1, registerIndState] at hmib
+    simp only [] at hmib
+    rw [envLookup_cons_self] at hmib
+    have h := Option.some.inj hmib
+    injection h with h'
+    rw [← h']
+    exact indPrefix_block
+
+/-! ## The accumulator across a block registration, produced from a run
+
+`regInv_registerInd_step` takes thirteen premises; `regInv_registerInd_run` produces them.
+The prefix and its block entry come from `indPrefixOf_of_run`; the key discipline from
+`blockKey_fresh_of_cover` and `constKey_fresh`, which is why `RegKeyed`, `CanonicalConstants`
+and `IndBlocksCover` are premises; `hnewc` and `hkeys` from the two pinned-config run
+lemmas, `hnewi` from `run_register_inductive_cold_registry` beside the prefix's coverage.
+
+Two premises are not about this call at all but about the pair the accumulator does not
+constrain. `RuntimeKeysModelled` refutes an eliminator entry of `Γspec` at the key the run
+mints — `SpecKeysEmitted.consts` exempts a runtime key, so without it `Γspec` may declare one
+at a key no source name prints as, and the prefix would not be fresh. `EmittedNotRuntime`
+refutes an emitted entry at a runtime key, which is what lets `RegInvShape'.defsTotal` read a
+body-less emitted entry back as a body-less specification entry and pay `haxpre`. Both are
+re-established at the grown pair, so the induction that spends them can carry them.
+-/
+
+set_option maxHeartbeats 1000000 in
+/-- **The registration step, at a run.** `regInv_registerInd_step`'s thirteen premises
+produced rather than assumed, with the prefix existential and the two clauses
+`SpecKeysEmitted` exempts carried across. -/
+theorem regInv_registerInd_run {lenv : Environment} {env : VEnv} {Us : List Name}
+    {gw : Void IO.RealWorld → NameGenerator} {bo : Name → Option Expr}
+    {lp : Name → List Name} {Γ : GlobalDeclarations} {indinfo : InductiveVal}
+    {s : ErasureState} {ctx : ErasureContext} {cctx : Core.Context}
+    {ref : ST.Ref IO.RealWorld Core.State} {w : Void IO.RealWorld}
+    {r : InductiveId × InductiveArgMasks} {s₁ : ErasureState} {w₁ : Void IO.RealWorld}
+    (P : ErasureSpec lenv env Us gw) (A : UpstreamAsks env)
+    (Acc : RegAcc env bo lp Γ s)
+    (hkeyed : RegKeyed env s) (hcanon : CanonicalConstants s)
+    (hcovs : IndBlocksCover lenv s)
+    (hrkm : RuntimeKeysModelled env Γ) (henr : EmittedNotRuntime Γ s)
+    (K : BodiedKeysFresh env bo indinfo)
+    (hsafe : ∀ (I : Name) (iv : InductiveVal), lenv.find? I = some (.inductInfo iv) →
+      DefinitionSafety.safe ≤ (ConstantInfo.inductInfo iv).safety)
+    (hcfg : ConfigPinned ctx.config)
+    (hfind : lenv.find? indinfo.name = some (.inductInfo indinfo))
+    (hmiss : s.inductives.get? indinfo.name = none)
+    (hrun : Erasure.register_inductive indinfo s ctx cctx ref w = .ok (r, s₁) w₁) :
+    ∃ pre : GlobalDeclarations, IndPrefixOf env bo lp indinfo pre ∧
+      SpecGrow Γ (pre ++ Γ) ∧ RegAcc env bo lp (pre ++ Γ) s₁ ∧
+      RuntimeKeysModelled env (pre ++ Γ) ∧ EmittedNotRuntime (pre ++ Γ) s₁ := by
+  obtain ⟨pre, HP, hblkpre⟩ :=
+    indPrefixOf_of_run P A Acc hcovs K hsafe hcfg hfind hmiss hrun
+  refine ⟨pre, HP, ?_⟩
+  have hself : indinfo.name ∈ indinfo.all := P.block_adequate.selfMem _ indinfo hfind
+  have hfreshG : IndKernameFresh indinfo.all (mutualBlockKn indinfo) s :=
+    (run_register_inductive_cold_ok (Ci := fun _ _ => True)
+      (fun _ _ _ _ _ _ _ => trivial) hmiss hrun).1
+  have hbfresh := blockKey_fresh_of_cover hcovs hfreshG hfind hself hmiss
+  have hcfresh := constKey_fresh hkeyed hcanon hfreshG
+  obtain ⟨mib₁, hgd⟩ := run_register_inductive_cold_gdecls hcfg.2.1 hmiss hrun
+  obtain ⟨mib₀, hpreblk⟩ := HP.block
+  have hblockNotIn : mutualBlockKn indinfo ∉ s.gdecls.map Prod.fst := by
+    intro hk
+    obtain ⟨q, hq, hqk⟩ := List.mem_map.mp hk
+    obtain ⟨k, d⟩ := q
+    simp only [] at hqk
+    subst hqk
+    cases d with
+    | constantDecl cb => exact hcfresh cb hq
+    | inductiveDecl mib => exact hbfresh mib hq
+  have hblockNot : ∀ mib, LBTerm.envLookup Γ (mutualBlockKn indinfo)
+      ≠ some (.inductiveDecl mib) := by
+    intro mib hlook
+    obtain ⟨mib', hmem⟩ := Acc.keysEmitted.inds _ mib hlook
+    exact hbfresh mib' hmem
+  -- the prefix is fresh against the specification environment
+  have hfresh : ∀ p ∈ pre, ∀ q ∈ Γ, p.1 ≠ q.1 := by
+    intro p hp q hq hpq
+    have hqlook : LBTerm.envLookup Γ q.1 = some q.2 :=
+      envLookup_of_mem_nodup hq Acc.shape.spec.keys
+    rcases HP.elimKeys p hp with hk | ⟨c, I, dp, nm, iid, np, nfs, hk, hsh, hi, hiid⟩
+    · rw [hk] at hpq
+      obtain ⟨k, d⟩ := q
+      simp only [] at hpq hqlook
+      subst hpq
+      cases d with
+      | inductiveDecl mib => exact hblockNot mib hqlook
+      | constantDecl cb =>
+        by_cases hrk : RuntimeKey Γ (mutualBlockKn indinfo)
+        · obtain ⟨c', I', dp', nm', hsh', hkc⟩ := hrkm _ hrk
+          exact K.elims c' I' dp' nm' indinfo.all hsh' hkc.symm
+        · obtain ⟨cb', hmem⟩ := Acc.keysEmitted.consts _ cb hqlook hrk
+          exact hcfresh cb' hmem
+    · have hs : (LBTerm.envLookup Γ (toKername c)).isSome := by
+        rw [← hk, hpq, hqlook]; rfl
+      obtain ⟨-, mib, hlook, -, -⟩ :=
+        (Acc.shape.spec.elims c I dp nm hsh hs).block iid np nfs hi
+      rw [hiid] at hlook
+      exact hblockNot mib hlook
+  have hg : SpecGrow Γ (pre ++ Γ) :=
+    SpecGrow.of_fresh hfresh (elimBlocksDeclared_of_constsDeclaredEnv Acc.content.declEnv)
+  -- the prefix's bodies are eliminators'
+  have hpreBody : ∀ (kn : Kername) (b : LBTerm), DefnDecl pre kn b →
+      ∃ (iid : InductiveId) (np dp : Nat) (nfs : List Nat), ElimBody iid np dp nfs b ∧
+        RuntimeKey pre kn := by
+    intro kn b hd
+    have hmem := envLookup_mem hd
+    rcases HP.entries _ hmem with ⟨-, mib, hshape⟩ | ⟨hrk, body, iid, np, dp, nfs, hshape, he⟩
+    · exact absurd hshape (by simp)
+    · simp only [GlobalDecl.constantDecl.injEq, ConstantBody.mk.injEq,
+        Option.some.injEq] at hshape
+      exact ⟨iid, np, dp, nfs, hshape ▸ he, hrk⟩
+  have hcl : ClosedBodies pre := by
+    intro kn b hd
+    obtain ⟨iid, np, dp, nfs, he, -⟩ := hpreBody kn b hd
+    exact he.closed
+  have hfv : FVarFreeBodies pre := by
+    intro kn b x hd
+    obtain ⟨iid, np, dp, nfs, he, -⟩ := hpreBody kn b hd
+    exact he.noFVar
+  -- the δ column at the grown environment
+  have hdenv : ConstsDeclaredEnv (pre ++ Γ) := by
+    intro kn b hd kn' hkn'
+    rcases envLookup_append_cases hd with h1 | ⟨-, h2⟩
+    · obtain ⟨iid, np, dp, nfs, -, hrk⟩ := hpreBody kn b h1
+      obtain ⟨iid', np', dp', nfs', ⟨body', hlook', he'⟩, mib, hmib, -, -⟩ := hrk
+      have hbe : body' = b := by
+        rw [h1] at hlook'
+        injection Option.some.inj hlook' with h'
+        injection h' with h''
+        exact (Option.some.inj h'').symm
+      subst hbe
+      rw [constRefs_elimBody he'] at hkn'
+      simp only [List.mem_singleton] at hkn'
+      subst hkn'
+      rw [envLookup_append_left hmib]
+      rfl
+    · exact envLookup_append_isSome (Acc.content.declEnv kn b h2 kn' hkn')
+  -- saturation at the prefix
+  have hkpre : SpecKeysEmitted pre s₁ := by
+    refine ⟨?_, ?_⟩
+    · intro kn cb hlook hrk
+      have hmem := envLookup_mem hlook
+      rcases HP.entries _ hmem with ⟨-, mib, hshape⟩ | ⟨hrk', -⟩
+      · exact absurd hshape (by simp)
+      · exact absurd hrk' hrk
+    · intro kn mib hlook
+      have hmem := envLookup_mem hlook
+      rcases HP.entries _ hmem with ⟨hk, -⟩ | ⟨-, body, iid, np, dp, nfs, hshape, -⟩
+      · refine ⟨mib₁, ?_⟩
+        rw [hgd, show kn = mutualBlockKn indinfo from hk]
+        exact List.mem_cons_self
+      · exact absurd hshape (by simp)
+  -- the state-facing side conditions
+  have hkeys : (s₁.gdecls.map Prod.fst).Nodup := by
+    rw [hgd, List.map_cons, List.nodup_cons]
+    exact ⟨hblockNotIn, Acc.shape.keys⟩
+  have haxpre : ∀ p ∈ s₁.gdecls, p.2 = GlobalDecl.constantDecl ⟨none⟩ →
+      LBTerm.envLookup (pre ++ Γ) p.1 = some (.constantDecl ⟨none⟩) := by
+    intro p hp hax
+    rw [hgd, List.mem_cons] at hp
+    rcases hp with rfl | hp
+    · exact absurd hax (by simp)
+    · obtain ⟨k, d⟩ := p
+      simp only [] at hax ⊢
+      subst hax
+      have hemit : LBTerm.envLookup s.gdecls k = some (.constantDecl ⟨none⟩) :=
+        envLookup_of_mem_nodup (p := (k, GlobalDecl.constantDecl ⟨none⟩)) hp Acc.shape.keys
+      have hnrk : ¬ RuntimeKey Γ k := henr k (by rw [hemit]; rfl)
+      obtain ⟨n, hkn, hns⟩ := hkeyed.consts k ⟨none⟩ hp
+      have hdecl : (LBTerm.envLookup Γ k).isSome := by rw [hkn]; exact Acc.shape.consts n hns
+      obtain ⟨d, hd⟩ := Option.isSome_iff_exists.mp hdecl
+      have hfin : d = GlobalDecl.constantDecl ⟨none⟩ := by
+        cases d with
+        | inductiveDecl mib =>
+          obtain ⟨mib', hmem⟩ := Acc.keysEmitted.inds _ mib hd
+          have hcl' := envLookup_of_mem_nodup (p := (k, GlobalDecl.inductiveDecl mib')) hmem
+            Acc.shape.keys
+          rw [hemit] at hcl'
+          exact absurd hcl' (by simp)
+        | constantDecl cb =>
+          obtain ⟨body⟩ := cb
+          cases body with
+          | none => rfl
+          | some b =>
+            have hdd : DefnDecl Γ (toKername n) b := by rw [DefnDecl, ← hkn]; exact hd
+            obtain ⟨b', hb'⟩ := Acc.shape.defsTotal n b hns hdd (by rw [← hkn]; exact hnrk)
+            rw [DefnDecl, ← hkn, hemit] at hb'
+            exact absurd hb' (by simp)
+      rw [← hfin]
+      exact envLookup_append_of_fresh
+        (fun q hq => hfresh q hq (k, d) (envLookup_mem hd)) hd
+  have hblk : ∀ mib, LBTerm.envLookup s₁.gdecls (mutualBlockKn indinfo)
+      = some (.inductiveDecl mib) →
+      LBTerm.envLookup (pre ++ Γ) (mutualBlockKn indinfo) = some (.inductiveDecl mib) :=
+    fun mib h => envLookup_append_left (hblkpre mib h)
+  have hnewc : ∀ n : Name, (s₁.constants.get? n).isSome → (s.constants.get? n).isSome ∨
+      LBTerm.envLookup (pre ++ Γ) (toKername n) = some (.constantDecl ⟨none⟩) := by
+    intro n hn
+    exact .inl (by rwa [run_register_inductive_cold_constants hcfg.2.1 hmiss hrun] at hn)
+  have hnewi : ∀ n : Name, (s₁.inductives.get? n).isSome → (s.inductives.get? n).isSome ∨
+      (IndCovered env (pre ++ Γ) n ∧ IndEmitted env (pre ++ Γ) s₁.gdecls n) := by
+    intro n hn
+    rcases run_register_inductive_cold_registry hmiss hrun n hn with hold | hmem
+    · exact .inl hold
+    · refine .inr ⟨(HP.covered n hmem).appendLeft, ?_⟩
+      intro iid np nfs hi d hd
+      obtain ⟨-, mib, hlook, -, -⟩ := (HP.covered n hmem).block iid np nfs hi
+      have hblockKey : iid.mutualBlockName = mutualBlockKn indinfo := by
+        rcases HP.entries _ (envLookup_mem hlook) with ⟨hk, -⟩ | ⟨-, _, _, _, _, _, hshape, -⟩
+        · exact hk
+        · exact absurd hshape (by simp)
+      rw [envLookup_append_left hlook] at hd
+      have hmd : mib = d := by injection Option.some.inj hd
+      subst hmd
+      rw [hblockKey] at hlook ⊢
+      have hs₁ : LBTerm.envLookup s₁.gdecls (mutualBlockKn indinfo)
+          = some (.inductiveDecl mib₁) := by rw [hgd]; exact envLookup_cons_self
+      have hme : mib₁ = mib := by
+        have h := hblkpre mib₁ hs₁
+        rw [hlook] at h
+        injection Option.some.inj h with hh
+        exact hh.symm
+      rw [hs₁, hme]
+  -- the two carried clauses, re-established
+  have hrkm' : RuntimeKeysModelled env (pre ++ Γ) := by
+    intro kn hrk
+    obtain ⟨iid, np, dp, nfs, hed⟩ := hrk
+    obtain ⟨body, hlook, he⟩ := hed.1
+    rcases envLookup_append_cases hlook with h1 | ⟨-, h2⟩
+    · rcases HP.elimKeys _ (envLookup_mem h1) with
+        hk | ⟨c, I, dp', nm, iid', np', nfs', hk, hsh, -, -⟩
+      · have hk' : kn = mutualBlockKn indinfo := hk
+        rw [hk', hpreblk] at h1
+        exact absurd h1 (by simp)
+      · exact ⟨c, I, dp', nm, hsh, hk⟩
+    · exact hrkm kn (hg.runtimeKey (by rw [h2]; rfl) ⟨iid, np, dp, nfs, hed⟩)
+  have henr' : EmittedNotRuntime (pre ++ Γ) s₁ := by
+    intro kn hkn hrk
+    rw [hgd] at hkn
+    by_cases hk : mutualBlockKn indinfo = kn
+    · subst hk
+      obtain ⟨iid, np, dp, nfs, ⟨body, hlook, -⟩, -⟩ := hrk
+      rw [envLookup_append_left hpreblk] at hlook
+      exact absurd hlook (by simp)
+    · rw [envLookup_cons_ne hk] at hkn
+      obtain ⟨d, hd⟩ := Option.isSome_iff_exists.mp hkn
+      have hsub : (LBTerm.envLookup Γ kn).isSome := by
+        cases hc : LBTerm.envLookup Γ kn with
+        | none => exact absurd hc (Acc.shape.sub kn (by rw [hd]; simp))
+        | some d' => rfl
+      exact henr kn hkn (hg.runtimeKey hsub hrk)
+  exact ⟨hg, (regInv_registerInd_step Acc HP.content hfresh hcl hfv hkpre hdenv hmiss hrun
+    hkeys haxpre hblk hnewc hnewi).2, hrkm', henr'⟩
 
 end LeanToLambdaBox

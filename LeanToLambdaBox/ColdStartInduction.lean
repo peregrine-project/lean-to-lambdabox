@@ -238,8 +238,8 @@ structure RunClosedW (Cfg : ErasureConfig → Prop)
     liftMetaM (Lean.Meta.inferType e) s ctx cctx ref w = .ok (ty, s') w' → P s w → P s' w'
   /-- The `Lean.MetaM` computations the family lifts besides the oracle and `inferType`: two
       proof tests under a bounded telescope, `Erasure.firstNonProofField`'s on a
-      constructor's fields (`Erasure.lean:305-309`) and `Erasure.visitCases`' on the
-      catch-all's hypotheses (`Erasure.lean:1150-1153`). Neither lambda is named, so the
+      constructor's fields (`Erasure.lean:326-330`) and `Erasure.visitCases`' on the
+      catch-all's hypotheses (`Erasure.lean:1171-1174`). Neither lambda is named, so the
       clause reads them through `PrimGenMono`, the class of computations built from
       `Lean.Meta.isProof` and the two telescopes; each call site discharges it by
       composition. -/
@@ -789,8 +789,8 @@ theorem shape_foldl_box {k : Nat} : ∀ (l : List Nat) (b : LBTerm),
 
 /-- **`Erasure.etaArgIsValue`, stepped.** One lifted relevance test and a pure disjunction.
 The test is the relevance oracle, so the step is `RunClosedW.oracle`, which reads it at the
-reader's own level scope — the scope both call sites hand it (`Erasure.lean:974`,
-`Erasure.lean:998`). -/
+reader's own level scope — the scope both call sites hand it (`Erasure.lean:995`,
+`Erasure.lean:1019`). -/
 theorem run_etaArgIsValue_okW {Cfg : ErasureConfig → Prop}
     {P : ErasureState → Void IO.RealWorld → Prop} (H : RunClosedW Cfg P)
     {lp : List Name} {a : Expr} {b : Bool} {s s₁ : ErasureState} {ctx : ErasureContext}
@@ -2445,39 +2445,22 @@ are not here.
 
 /-- A body-less entry declares no body, so it cannot break closedness. -/
 theorem closedBodies_cons_none {Γ : GlobalDeclarations} {kn : Kername} (h : ClosedBodies Γ) :
-    ClosedBodies ((kn, .constantDecl ⟨none⟩) :: Γ) := by
-  intro k b hb
-  rw [DefnDecl] at hb
-  cases hkb : Kername.beq kn k with
-  | true =>
-    rw [← Kername.eq_of_beq hkb, envLookup_cons_self] at hb
-    exact absurd hb (by simp)
-  | false => exact h k b (envLookup_of_cons_ne (kername_ne_of_beq_false hkb) hb)
+    ClosedBodies ((kn, .constantDecl ⟨none⟩) :: Γ) :=
+  closedBodies_cons h (by simp)
 
 /-- A block entry declares no body either. -/
 theorem closedBodies_cons_ind {Γ : GlobalDeclarations} {kn : Kername}
     {mib : MutualInductiveBody} (h : ClosedBodies Γ) :
-    ClosedBodies ((kn, .inductiveDecl mib) :: Γ) := by
-  intro k b hb
-  rw [DefnDecl] at hb
-  cases hkb : Kername.beq kn k with
-  | true =>
-    rw [← Kername.eq_of_beq hkb, envLookup_cons_self] at hb
-    exact absurd hb (by simp)
-  | false => exact h k b (envLookup_of_cons_ne (kername_ne_of_beq_false hkb) hb)
+    ClosedBodies ((kn, .inductiveDecl mib) :: Γ) :=
+  closedBodies_cons h (by simp)
 
 /-- Consing a closed body keeps every body closed. -/
 theorem closedBodies_cons_some {Γ : GlobalDeclarations} {kn : Kername} {t : LBTerm}
     (hcl : LBClosed t 0) (h : ClosedBodies Γ) :
-    ClosedBodies ((kn, .constantDecl ⟨some t⟩) :: Γ) := by
-  intro k b hb
-  rw [DefnDecl] at hb
-  cases hkb : Kername.beq kn k with
-  | true =>
-    rw [← Kername.eq_of_beq hkb, envLookup_cons_self] at hb
-    have hbt : b = t := by simpa using hb.symm
-    subst hbt; exact hcl
-  | false => exact h k b (envLookup_of_cons_ne (kername_ne_of_beq_false hkb) hb)
+    ClosedBodies ((kn, .constantDecl ⟨some t⟩) :: Γ) :=
+  closedBodies_cons h (fun b hb => by
+    obtain rfl : t = b := by simpa using hb
+    exact hcl)
 
 /-- The body-less prefix `Erasure.register_inductive`'s cold branch prepends. -/
 theorem closedBodies_axiomPrefix :

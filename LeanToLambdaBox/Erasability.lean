@@ -327,8 +327,8 @@ theorem not_informativeInd_and {env : VEnv} (h : env.constants ``And = some ⟨0
 /-! ## The propositional decision, model side
 
 `Erasure.register_inductive` emits `propositional := isPropositionalArity inf.type`
-(`Erasure.lean:368`), which is `arityResultSort` then `Lean.Level.isAlwaysZero`
-(`Erasure.lean:281`, `:291`). MetaRocq states the emitted flag as an **equality**,
+(`Erasure.lean:389`), which is `arityResultSort` then `Lean.Level.isAlwaysZero`
+(`Erasure.lean:300`, `:312`). MetaRocq states the emitted flag as an **equality**,
 `isPropositionalArity ind_type = ind_propositional`
 (`erases_one_inductive_body`, `../metarocq/erasure/theories/Extract.v:276`), so the model side
 needs the same decision:
@@ -421,7 +421,9 @@ asserts MetaRocq's equation, and `false` is read off it against the consumer's o
 `InformativeInd` premise. Only the soundness half of that equation is hypothesised, which is
 all this argument reads and all the model side proves:
 `ErasureSpec.propositionalInd_of_arity` derives it, and its converse is refuted by an arity
-whose final sort sits under a `let` (`doc/rework/03-DEV-FIX.md`, F-ARITYLET). -/
+whose final sort is the `let`-bound variable
+(`arity_of_propositionalInd_false`, `ErasureSpec.lean:639`, no `ErasureSpec.` prefix;
+F-ARITYLET's residue, `doc/rework/03-DEV-FIX.md`). -/
 theorem propositional_false_of_informative {env : VEnv} {I : Name} {p : Bool}
     (heq : p = true → PropositionalInd env I) (hinf : InformativeInd env I) : p = false := by
   cases hp : p with

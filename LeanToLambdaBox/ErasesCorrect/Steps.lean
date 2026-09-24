@@ -377,14 +377,6 @@ theorem not_reachableFrom_box {Γ : GlobalDeclarations} {kn : Kername} :
   rw [show constRefs (.box : LBTerm) = [] from rfl, reachFrom_nil] at h
   exact absurd h (by simp)
 
-/-- The kernames of a spine are the head's and the arguments'. -/
-theorem constRefs_mkApps : ∀ (l : List LBTerm) (f : LBTerm),
-    constRefs (LBTerm.mkApps f l) = constRefs f ++ l.flatMap constRefs
-  | [], f => by simp
-  | a :: l, f => by
-      rw [LBTerm.mkApps, constRefs_mkApps l (.app f a)]
-      simp [constRefs, List.append_assoc]
-
 /-- What a spine reaches, its head or one of its arguments reaches. -/
 theorem ReachableFrom.mkApps_inv {Γ : GlobalDeclarations} {kn : Kername}
     (l : List LBTerm) (f : LBTerm) (h : ReachableFrom Γ (LBTerm.mkApps f l) kn) :

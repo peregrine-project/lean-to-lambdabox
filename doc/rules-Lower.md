@@ -67,6 +67,14 @@ binders is pinned, because that is all `iota_red` reads.
 | `fixBody` | the member's specification body to the same `.fix defs j` | `fixSubst` | The value side, and the arm the δ step needs: after the specification environment unfolds `kn`, the source configuration is the plain body while the target is the `.fix`. Its absence is what makes a functional pass, and a one-sided fix relation, false. Its source is constrained **only** by `hj : bs[j]? = some b`, so the arm's own `hfl` is what excludes it at a non-λ source |
 | `fixEta` | the member's specification body to `.lambda n (.app (.fix defs j) (.bvar 0))`, at a free binder name | `fixSubst` | What `visitMutual` registers for a member (`Erasure.etaExpandFix`, `LeanToLambdaBox/Erasure.lean:478`), and MetaRocq's `eta_fixpoint` (`../metarocq/template-rocq/theories/EtaExpand.v:72`) at `1 + rarg = 1`, the only shape `LowerBlock.hrarg` admits. The binder name is **free**, not `.anon`: `ConstToFVar.lambda` renames binders, so a pinned name falsifies `Lower.constToFix` (`LowerFix.lean`'s `lowerfix_fixEta_renamed`). `Lower.fixEta'` is the `.anon` instance, `LBTerm.etaFix defs j` |
 
+`fixBody` and `fixEta` fire on the **same** source at the same block and the same premises, so
+a block member's body has two images and `Lower` is not a function of its source. That is a
+property of the pass, not a defect: `LowerFixFixture.lower_not_functional` checks it, the
+`const`/`fixConst` pair is the same phenomenon at the member's constant, and no consumer reads
+`Lower` as functional — the inversion kit (`Lower.source_*`) is keyed on the target's shape,
+and takes the `fixEta` case at the two places the target is a λ (`Lower.source_isLambda`,
+`Lower.source_lambda`).
+
 The three arms read their premises through `LowerBlock` (the fields are inlined into each arm:
 the kernel rejects the structure as a nested premise; `Lower.fixConst'` and `Lower.fixBody'`
 are the packaged forms). Three fields answer machine-checked refutations:
@@ -109,7 +117,10 @@ constructor), and no `DefnDeclFix` premise on `const`.
 `hcl` field mentions `CloseConstAt`, and the two fix arms inline that field, so they precede
 `Lower` itself, and so are the two `hfl` transports, which the inversion kit there consumes.
 `LowerFix.lean` holds the rest of the closure, and repairs one statement of `01-DESIGN.md`
-that is false as written; its fixture theorem is the refutation.
+that is false as written; its fixture theorem is the refutation. `LowerBlock` tolerates an
+unused fix binder: `visitMutual` decides recursiveness by `name_occurs` on the **source**
+body (`LeanToLambdaBox/Erasure.lean:885`), so erasure can remove the only self-reference and
+leave the binder unused.
 
 | Object | What it is | Anchor |
 |---|---|---|
@@ -117,7 +128,7 @@ that is false as written; its fixture theorem is the refutation.
 | `CloseConstAt kns ids t u` | `∃ t', ConstToFVar kns ids t t' ∧ u = closeFix ids 0 t'` | phrased through the existing `closeFix` so `closeFix_substList_fixSubst` applies verbatim and no `Kername`-keyed twin of `FixUnfold`'s theorems is needed |
 | `Lower.constToFix` | a fix unfolding (`WcbvEval.fix_guarded`'s `substList (fixSubst defs)`) puts `.fix defs i` where the lowered body has the sibling `.const knᵢ`; the result is still `Lower`-related to the same body | `fixSubst`; the transport that makes the fix arms usable. **Deviation:** it takes `hfv` — the fixvars do not already occur in `t` — in place of the design's inert `LBClosed t 0`, which `LowerFixFixture.constToFix_needs_freshness` refutes; at the call site `hfv` is `LowerBlock.hfresh` |
 | `Lower.fixUnfold` | a member's unfolded definition is a λ still related to its specification body, off `LowerBlock.hfl` and with no premise of its own | what the target does where the source δ-steps into a recursive body. The transport the simulation's β and δ arms actually spend is `Lower.appReady` (`LeanToLambdaBox/ErasesCorrect/Steps.lean`), which takes no premise either; `hfl` is what makes its `fixBody` sub-case a projection |
-| `LowerFix Γ kns bs defs` | `∃ bs' ids, LowerBlock …`, the declaration-level statement for `LowerEnv` | tolerates an unused fix binder: `visitMutual` decides recursiveness by `name_occurs` on the **source** body (`LeanToLambdaBox/Erasure.lean:885`), so erasure can remove the only self-reference and leave the binder unused |
+| `Lower.fixBody_of_block`, `Lower.fixEta_of_block` | the two body-source fix arms at the granularity a declaration is stated at: from `LowerBlock`, `kns[j]? = some kn` and `DefnDecl Γ kn b`, the member's body relates to `.fix defs j` and to `LBTerm.etaFix defs j` | what `LowerEnv.defs` is discharged by at a registered block member (`ColdStartShape.lean`), and what the δ step's head reading spends. They replace the `LowerFix` predicate — `∃ bs' ids, LowerBlock …` — whose only consumer was `LowerEnv.defs`' η disjunct, deleted because it collapses into the `Lower` disjunct through `fixEta_of_block` |
 | `ErasesLBFix` | `∃ t₀ t₁, Erases … t₀ ∧ Lower Γ t₀ t₁ ∧ ConstToFVar kns ids t₁ t` | the block-body motive: inside `visitMutual`'s block branch the eraser rewrites a source `.const` to `.fvar id` (`visitConst`, `LeanToLambdaBox/Erasure.lean:660-664`), a pair no two-factor composite can state |
 
 ## Against `optimize`

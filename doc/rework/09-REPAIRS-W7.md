@@ -586,6 +586,53 @@ registration primitives: it needs "a declared body is not an `ElimBody`", which 
 `FixDef`-name argument at a lowered block member. Probe: the refutation and both definitions
 elaborate (`w7_meas.lean`, `w7_sigs.lean`).
 
+#### 2.6.1 As landed: the environment condition the law needs
+
+The definitional half of U6 is in the tree (`Lower.lean`, `ErasesLB.lean`, `Bridge.lean`,
+`Green.lean`); the motive rewrite is not, because the accumulator's registering steps have no
+content to build `Γ₁` from until `RegContent` exists (§2.7). Three statements above change.
+
+**`Lower.specGrow` is false as printed.** `ConstsDeclared Γ t` at the source reaches the
+block's *other* declared bodies not at all, and `fixConst`'s sub-derivations run on them:
+`SpecGrowFixture.specGrow_needs_declaredEnv` (`Lower.lean`) exhibits `Γ` declaring one λ-bodied
+member whose body names an undeclared key, a growth declaring that key as an eliminator with
+its block, a `Lower Γ (.const kn) (.fix defs 0)` and the absence of any `Lower Γ'` derivation
+of the same pair. The law as landed adds the environment's own δ-column well-formedness — the
+`tConst` case of MetaRocq's `wellformed` under `wf_glob`
+(`../metarocq/erasure/theories/EWellformed.v:166`, `:211`):
+
+```lean
+def ConstsDeclaredEnv (Γ : GlobalDeclarations) : Prop :=
+  ∀ kn b, DefnDecl Γ kn b → ConstsDeclared Γ b
+
+theorem Lower.specGrow (hg : SpecGrow Γ Γ') (henv : ConstsDeclaredEnv Γ)
+    (h : Lower Γ s t) : ConstsDeclared Γ s → Lower Γ' s t
+```
+
+It is a condition the proof-built `Γspec` satisfies rather than a restriction: a body enters
+`Γspec` only at the step that registers its constant, by which time its own sub-runs have
+registered — and the proof has declared — every key it names. It is not a condition no
+environment meets: `Green.g7_constsDeclaredEnv` and `g8_constsDeclaredEnv` decide it, through
+`constsDeclaredEnvB`, at the two Arith rungs' *emitted* environments. **U7's accumulator must
+carry it as a clause**, beside `RegInvShape'` and `RegContent`.
+
+**The side condition lands at the source, not at the emitted term.** The motive sketch's
+`ConstsDeclared Γ₁ t` reads the run's output; `Lower`'s source is the *specification* term,
+which every composite binds existentially. What the composites take is therefore
+`ErasuresDeclared env Us Γ Δ e` — every erasure of the source term names only declared
+constants — and `ErasesLB`, `ErasesLBAlt`, `ErasesLBFix`, `ErasesLBFixAlt`, `ErasesLBMode` and
+`ErasesLBAltMode` each have their `.specGrow` under it.
+
+**The third clause's discharge is `ElimBlocksDeclared`.** `SpecGrow.of_fresh` asks that every
+eliminator body `Γ` declares already has its block declared in `Γ`; that is the weakest form of
+"a declared body is not an `ElimBody`" (`erases_ne_elimBody`), and it is what the run satisfies,
+since `ElimDecl` bundles entry and block. Measured against the run order at the rungs whose
+tables hold a `casesOn` constant — G5–G8, `Nat.casesOn` at each — `Green.elimKeys_undeclared`
+decides that no such key is declared in the emitted environment, `Green.g7_natCasesOn_tabled`
+that the measurement is not vacuous, and `Green.g7_elimCons_specGrow` closes the step: over any
+`Γ` whose keys the emitted environment answers, consing the specification-side eliminator entry
+is a `SpecGrow`.
+
 ### 2.7 U7 — the preservation theorem
 
 One content clause carrying both readings of a single erasure witness — `SpecContent.defns`

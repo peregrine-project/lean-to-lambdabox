@@ -17,6 +17,32 @@ specification (cited `[R §x]`). The Zulip thread *Peregrine Project > lean fron
 glossed is Lean: `Lean.Expr`, `casesOn`/`rec`, `Expr.proj`, `Expr.lit`, `Expr.mdata`,
 `@[extern]`, `@[csimp]`, and lean4lean's `VEnv`/`VExpr`/`VLCtx`/`TrExprS`/`HasType`/`IsDefEq`.
 
+**Companion documents.** This spec is normative; the numbered documents beside it are the wave
+log that measures progress against it — `doc/rework/07-STATUS.md` is the current snapshot, and
+the most recent waves are:
+
+- `08-REPAIRS-W5.md` — W6, the closing round: reduces `hbridge` from `ErasureBridge`'s five
+  original fields to two (`erasesEnv`, `lowerEnv`) and states the registration-invariant repair
+  that would discharge them.
+- `09-REPAIRS-W7.md` — W7: finds `ErasesEnv.defns` unsatisfiable at a universe-polymorphic tabled
+  body (five of eight rungs vacuous under it) and plans the nine-unit repair, U1–U9, meant to
+  close `hbridge`.
+- `10-MERGE-FIXES.md` — the `dev/fix` merge: ten shipping fixes merged from `dev/fix`, and the
+  eight-cluster (M1–M8) repair of the proofs they broke.
+- `11-REPAIRS-W8.md` — W8: records that U9's composition of `hbridge` is unsatisfiable at the
+  rungs, and specifies the nine units (W1–W9) that would discharge the binder, two of them
+  waiting on the shipping fixes F-DEPLCTX and F-ARITYLET. Both fixes landed and W1–W9 landed in
+  part (round 7 wave 4, `doc/rework/07-STATUS.md` §1/§4, `scratch/round7/W4-refute.md`):
+  `hbridge` is still a binder — the registration invariant `RegAcc` still has no producer at a
+  run of the shipping eraser (W5a/b/c, re-planned and not landed) — and `hargReach` is retired
+  in favour of a stronger, source-side binder, `hbody` (W7/U9).
+- `12-REPAIRS-W9.md` — W9: the complete remaining route to `hbridge`, in six units (W9-H, W9-A,
+  W9-B, W9-C, W9-D, W9-E) with typechecked statements. It decides the two questions wave 4 left
+  open — F-QUOT/F-EQREC's realizer exits are *excluded* by the fragment rather than admitted as
+  specification entries, and the tabled-`casesOn` dependency is *measured* rather than guarded —
+  and threads the accumulator through a second bundle of motives instead of rewriting
+  `RunRefines`.
+
 ---
 
 ## 1. Objective

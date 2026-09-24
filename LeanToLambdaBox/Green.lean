@@ -203,7 +203,7 @@ set_option linter.unusedVariables false in
 **Rung G1 is green.** For the `#erase` run recorded in `VerifyBench/Spikes/G1.lean`, the
 emitted program is the lowered image of a specification environment that erases `spikeZero`,
 and the source evaluation's answer is reproduced as the literal λ□ numeral `0` —
-`.construct natIid 0 []`, not `□` and not a stuck term. `hcfg`, `hsup`, `hnb`, `hwf`, `hwt`,
+`.construct natIid 0 []`, not `□` and not a stuck term. `hcfg`, `hsup`, `hwf`, `hwt`,
 the capstone's `hcb` and the target-side evaluation are discharged here by checked terms;
 every remaining binder is a `doc/trust.md` row, `hev` among them, which `green_G5` is the
 first rung to inhabit.
@@ -213,7 +213,7 @@ theorem green_G1
     {vv : VExpr} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
     {w wp w' : Void IO.RealWorld} {inls : List Kername}
     {v : Expr} {us : List VLevel} {idx : List VExpr}
-    (P : ErasureSpec lenv env [] gw)
+    (P : ∀ Us, ErasureSpec lenv env Us gw)
     (htbl : SourceTableAdequate lenv g1Table)
     (hsafe : TableSafe lenv g1Table)
     (E : EraserAsks lenv env gw)
@@ -245,13 +245,13 @@ theorem green_G1
       ∧ WcbvEval g1Env eraseFlags g1Term (.construct natIid 0 []) := by
   obtain ⟨Γspec, t₀, -, her, herΓ, hlow, hlowΓ, hwf, hobs⟩ :=
     shipping_erase_correct_firstorder P E A htbl hsafe hblk spike_configPinned
-      (g1_compilerBodies P htbl hsafe)
-      (trExprS_const_of_table P htbl hsafe rfl)
-      (supportedB_sound P htbl hsafe g1_supported)
-      hprep hrun g1_noBodylessRefs g1_wf hbridge
+      (g1_compilerBodies (P []) htbl hsafe)
+      (trExprS_const_of_table (P []) htbl hsafe rfl)
+      (supportedB_sound (P []) htbl hsafe g1_supported)
+      hprep hrun g1_wf hbridge
   obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
     hobs [] [] ``Nat us idx v vv _ rfl (fun i hi => absurd hi (by simp))
-      (trExprS_const_of_table P htbl hsafe rfl) hev hvwt hty hfo
+      (trExprS_const_of_table (P []) htbl hsafe rfl) hev hvwt hty hfo
   have htv : tv = g1Answer := eval_deterministic hevtgt g1_eval
   subst htv
   exact ⟨Γspec, t₀, tv₀, her, herΓ, hlow, hlowΓ, hwf, herv, hlowv, hnobox, huniq, g1_eval⟩
@@ -357,7 +357,7 @@ emitted program is the lowered image of a specification environment that erases 
 and the source evaluation's answer is reproduced as the literal λ□ peano numeral `4`, not
 `□` and not a stuck term. The peano tower and the `OfNat` class tower a literal brings are
 both in the emitted program.
-`hcfg`, `hsup`, `hnb`, `hwf`, `hwt` and the target-side evaluation are discharged here by
+`hcfg`, `hsup`, `hwf`, `hwt` and the target-side evaluation are discharged here by
 checked terms; `hcb` and `hev` stay binders, per `doc/trust.md`'s class-**C** rows.
 -/
 theorem green_G2
@@ -365,7 +365,7 @@ theorem green_G2
     {vv : VExpr} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
     {w wp w' : Void IO.RealWorld} {inls : List Kername}
     {v : Expr} {us : List VLevel} {idx : List VExpr}
-    (P : ErasureSpec lenv env [] gw)
+    (P : ∀ Us, ErasureSpec lenv env Us gw)
     (htbl : SourceTableAdequate lenv g2Table)
     (hsafe : TableSafe lenv g2Table)
     (E : EraserAsks lenv env gw)
@@ -398,12 +398,12 @@ theorem green_G2
       ∧ WcbvEval g2Env eraseFlags g2Term (peanoLB 4) := by
   obtain ⟨Γspec, t₀, -, her, herΓ, hlow, hlowΓ, hwf, hobs⟩ :=
     shipping_erase_correct_firstorder P E A htbl hsafe hblk spike_configPinned hcb
-      (trExprS_const_of_table P htbl hsafe rfl)
-      (supportedB_sound P htbl hsafe g2_supported)
-      hprep hrun g2_noBodylessRefs g2_wf hbridge
+      (trExprS_const_of_table (P []) htbl hsafe rfl)
+      (supportedB_sound (P []) htbl hsafe g2_supported)
+      hprep hrun g2_wf hbridge
   obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
     hobs [] [] ``Nat us idx v vv _ rfl (fun i hi => absurd hi (by simp))
-      (trExprS_const_of_table P htbl hsafe rfl) hev hvwt hty hfo
+      (trExprS_const_of_table (P []) htbl hsafe rfl) hev hvwt hty hfo
   have htv : tv = g2Answer := eval_deterministic hevtgt g2_eval
   subst htv
   exact ⟨Γspec, t₀, tv₀, her, herΓ, hlow, hlowΓ, hwf, herv, hlowv, hnobox, huniq, g2_eval⟩
@@ -458,7 +458,7 @@ set_option linter.unusedVariables false in
 emitted program is the lowered image of a specification environment that erases `spikeLet`,
 and the source evaluation's answer is reproduced as the literal λ□ peano numeral `3`, not
 `□` and not a stuck term. The `let` is contracted by ζ on both sides.
-`hcfg`, `hsup`, `hnb`, `hwf`, `hwt` and the target-side evaluation are discharged here by
+`hcfg`, `hsup`, `hwf`, `hwt` and the target-side evaluation are discharged here by
 checked terms; `hcb` and `hev` stay binders, per `doc/trust.md`'s class-**C** rows.
 -/
 theorem green_G3
@@ -466,7 +466,7 @@ theorem green_G3
     {vv : VExpr} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
     {w wp w' : Void IO.RealWorld} {inls : List Kername}
     {v : Expr} {us : List VLevel} {idx : List VExpr}
-    (P : ErasureSpec lenv env [] gw)
+    (P : ∀ Us, ErasureSpec lenv env Us gw)
     (htbl : SourceTableAdequate lenv g3Table)
     (hsafe : TableSafe lenv g3Table)
     (E : EraserAsks lenv env gw)
@@ -499,12 +499,12 @@ theorem green_G3
       ∧ WcbvEval g3Env eraseFlags g3Term (peanoLB 3) := by
   obtain ⟨Γspec, t₀, -, her, herΓ, hlow, hlowΓ, hwf, hobs⟩ :=
     shipping_erase_correct_firstorder P E A htbl hsafe hblk spike_configPinned hcb
-      (trExprS_const_of_table P htbl hsafe rfl)
-      (supportedB_sound P htbl hsafe g3_supported)
-      hprep hrun g3_noBodylessRefs g3_wf hbridge
+      (trExprS_const_of_table (P []) htbl hsafe rfl)
+      (supportedB_sound (P []) htbl hsafe g3_supported)
+      hprep hrun g3_wf hbridge
   obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
     hobs [] [] ``Nat us idx v vv _ rfl (fun i hi => absurd hi (by simp))
-      (trExprS_const_of_table P htbl hsafe rfl) hev hvwt hty hfo
+      (trExprS_const_of_table (P []) htbl hsafe rfl) hev hvwt hty hfo
   have htv : tv = g3Answer := eval_deterministic hevtgt g3_eval
   subst htv
   exact ⟨Γspec, t₀, tv₀, her, herΓ, hlow, hlowΓ, hwf, herv, hlowv, hnobox, huniq, g3_eval⟩
@@ -579,7 +579,7 @@ emitted program is the lowered image of a specification environment that erases 
 and the source evaluation's answer is reproduced as the literal λ□ peano numeral `1`, not
 `□` and not a stuck term. The projection is taken on both sides and the pair's two type
 parameters are erased.
-`hcfg`, `hsup`, `hnb`, `hwf`, `hwt` and the target-side evaluation are discharged here by
+`hcfg`, `hsup`, `hwf`, `hwt` and the target-side evaluation are discharged here by
 checked terms; `hcb` and `hev` stay binders, per `doc/trust.md`'s class-**C** rows.
 -/
 theorem green_G4
@@ -587,7 +587,7 @@ theorem green_G4
     {vv : VExpr} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
     {w wp w' : Void IO.RealWorld} {inls : List Kername}
     {v : Expr} {us : List VLevel} {idx : List VExpr}
-    (P : ErasureSpec lenv env [] gw)
+    (P : ∀ Us, ErasureSpec lenv env Us gw)
     (htbl : SourceTableAdequate lenv g4Table)
     (hsafe : TableSafe lenv g4Table)
     (E : EraserAsks lenv env gw)
@@ -620,12 +620,12 @@ theorem green_G4
       ∧ WcbvEval g4Env eraseFlags g4Term (peanoLB 1) := by
   obtain ⟨Γspec, t₀, -, her, herΓ, hlow, hlowΓ, hwf, hobs⟩ :=
     shipping_erase_correct_firstorder P E A htbl hsafe hblk spike_configPinned hcb
-      (trExprS_const_of_table P htbl hsafe rfl)
-      (supportedB_sound P htbl hsafe g4_supported)
-      hprep hrun g4_noBodylessRefs g4_wf hbridge
+      (trExprS_const_of_table (P []) htbl hsafe rfl)
+      (supportedB_sound (P []) htbl hsafe g4_supported)
+      hprep hrun g4_wf hbridge
   obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
     hobs [] [] ``Nat us idx v vv _ rfl (fun i hi => absurd hi (by simp))
-      (trExprS_const_of_table P htbl hsafe rfl) hev hvwt hty hfo
+      (trExprS_const_of_table (P []) htbl hsafe rfl) hev hvwt hty hfo
   have htv : tv = g4Answer := eval_deterministic hevtgt g4_eval
   subst htv
   exact ⟨Γspec, t₀, tv₀, her, herΓ, hlow, hlowΓ, hwf, herv, hlowv, hnobox, huniq, g4_eval⟩
@@ -830,7 +830,7 @@ set_option linter.unusedVariables false in
 recorded in `VerifyBench/Spikes/G5.lean`, the emitted program is the lowered image of a
 specification environment that erases `spikeCase`, and the answer the source semantics
 computes — the peano numeral `1` — is reproduced as the literal λ□ numeral `1`, not `□` and
-not a stuck term. This is the first rung whose `hev` is a derivation: `hcfg`, `hsup`, `hnb`,
+not a stuck term. This is the first rung whose `hev` is a derivation: `hcfg`, `hsup`,
 `hwf`, `hwt`, the source evaluation and the target-side evaluation are all discharged here, and
 what is left of the trust rows is `hcb`, the two value-side typings, and the block data
 `SpikeNatFacts` and the three `StepDefeq`s carry.
@@ -840,7 +840,7 @@ theorem green_G5
     {vv : VExpr} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
     {w wp w' : Void IO.RealWorld} {inls : List Kername} {ni pi : InductiveId}
     {us : List VLevel} {idx : List VExpr}
-    (P : ErasureSpec lenv env [] gw)
+    (P : ∀ Us, ErasureSpec lenv env Us gw)
     (htbl : SourceTableAdequate lenv g5Table)
     (hsafe : TableSafe lenv g5Table)
     (E : EraserAsks lenv env gw)
@@ -877,12 +877,12 @@ theorem green_G5
       ∧ WcbvEval g5Env eraseFlags g5Term (peanoLB 1) := by
   obtain ⟨Γspec, t₀, -, her, herΓ, hlow, hlowΓ, hwf, hobs⟩ :=
     shipping_erase_correct_firstorder P E A htbl hsafe hblk spike_configPinned hcb
-      (trExprS_const_of_table P htbl hsafe rfl)
-      (supportedB_sound P htbl hsafe g5_supported)
-      hprep hrun g5_noBodylessRefs g5_wf hbridge
+      (trExprS_const_of_table (P []) htbl hsafe rfl)
+      (supportedB_sound (P []) htbl hsafe g5_supported)
+      hprep hrun g5_wf hbridge
   obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
     hobs [] [] ``Nat us idx (peanoSrc 1) vv _ rfl (fun i hi => absurd hi (by simp))
-      (trExprS_const_of_table P htbl hsafe rfl) (g5_seval F U hd hdu hio) hvwt hty hfo
+      (trExprS_const_of_table (P []) htbl hsafe rfl) (g5_seval F U hd hdu hio) hvwt hty hfo
   have htv : tv = g5Answer := eval_deterministic hevtgt g5_eval
   subst htv
   exact ⟨Γspec, t₀, tv₀, her, herΓ, hlow, hlowΓ, hwf, herv, hlowv, hnobox, huniq, g5_eval⟩
@@ -953,7 +953,7 @@ and the source evaluation's answer is reproduced as the literal λ□ peano nume
 `□` and not a stuck term. The constant the subject applies is recursive, so its emitted
 body is the η-expansion of a `.fix` node (F-ETA) and the target run β-reduces the wrapper
 before unfolding the fixpoint twice under the guard.
-`hcfg`, `hsup`, `hnb`, `hwf`, `hwt` and the target-side evaluation are discharged here by
+`hcfg`, `hsup`, `hwf`, `hwt` and the target-side evaluation are discharged here by
 checked terms; `hcb` and `hev` stay binders, per `doc/trust.md`'s class-**C** rows.
 -/
 theorem green_G6
@@ -961,7 +961,7 @@ theorem green_G6
     {vv : VExpr} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
     {w wp w' : Void IO.RealWorld} {inls : List Kername}
     {v : Expr} {us : List VLevel} {idx : List VExpr}
-    (P : ErasureSpec lenv env [] gw)
+    (P : ∀ Us, ErasureSpec lenv env Us gw)
     (htbl : SourceTableAdequate lenv g6Table)
     (hsafe : TableSafe lenv g6Table)
     (E : EraserAsks lenv env gw)
@@ -994,12 +994,12 @@ theorem green_G6
       ∧ WcbvEval g6Env eraseFlags g6Term (peanoLB 2) := by
   obtain ⟨Γspec, t₀, -, her, herΓ, hlow, hlowΓ, hwf, hobs⟩ :=
     shipping_erase_correct_firstorder P E A htbl hsafe hblk spike_configPinned hcb
-      (trExprS_const_of_table P htbl hsafe rfl)
-      (supportedB_sound P htbl hsafe g6_supported)
-      hprep hrun g6_noBodylessRefs g6_wf hbridge
+      (trExprS_const_of_table (P []) htbl hsafe rfl)
+      (supportedB_sound (P []) htbl hsafe g6_supported)
+      hprep hrun g6_wf hbridge
   obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
     hobs [] [] ``Nat us idx v vv _ rfl (fun i hi => absurd hi (by simp))
-      (trExprS_const_of_table P htbl hsafe rfl) hev hvwt hty hfo
+      (trExprS_const_of_table (P []) htbl hsafe rfl) hev hvwt hty hfo
   have htv : tv = g6Answer := eval_deterministic hevtgt g6_eval
   subst htv
   exact ⟨Γspec, t₀, tv₀, her, herΓ, hlow, hlowΓ, hwf, herv, hlowv, hnobox, huniq, g6_eval⟩
@@ -1342,6 +1342,85 @@ observation is made at a spine, not at the term alone. -/
 theorem g8_eval : WcbvEval g8Env eraseFlags (.app g8Term (peanoLB 0)) g8Answer :=
   lbEval_sound (n := 64) (by rfl)
 
+/-! ### The eliminator keys the ladder's runs eliminate with
+
+`Erasure.visitCases` turns a `casesOn` application into a `.case` node and registers nothing,
+so an eliminator declaration is specification-side: the proof adds it, at a key the emitted
+environment never carries. The step that adds it is the **inductive** registration, not the
+`.case` node's: `SpecContent.blocks` fires at every declared block key and answers with
+`IndCovered`, whose `elims` field demands the informative inductive's `casesOn` declaration,
+so the entry is owed the moment `Erasure.register_inductive` puts the block key into
+`Γspec` — on **every** rung, including the four whose tables hold no `casesOn` name.
+`toKername` sends `I.casesOn` to a kername whose identifier is `casesOn`, which is what lets
+the tabled-`casesOn` dependency below be tested directly against a source table. -/
+
+/-- **G7's run eliminates with `Nat.casesOn`**: it is tabled and it is a `casesOn` name, so
+the measurement below is not vacuous. What the rungs' own consistency needs is the stronger
+fact `noTabledCasesOnBodies` measures — tabled *without* a body, not merely tabled: were
+`Nat.casesOn` tabled with a compiler body, `ErasesEnv.runtimeKey_isCasesOn` would derive a
+contradiction from `SpecContent`'s unguarded `defns` clause at any reached eliminator key,
+making G5-G8's hypotheses unsatisfiable rather than false. This theorem only witnesses that
+G7's table has a subject for that measurement. -/
+theorem g7_natCasesOn_tabled :
+    ``Nat.casesOn ∈ g7Table.decls.map Prod.fst ∧ isCasesOnName ``Nat.casesOn = true := by
+  decide +kernel
+
+/-- An eliminator name's kername carries the identifier `casesOn`: `toKername` keeps the last
+string component, which `cleanIdent` leaves alone. -/
+theorem toKername_id_of_isCasesOnName {c : Name} (h : isCasesOnName c = true) :
+    (toKername c).id = "casesOn" := by
+  cases c with
+  | anonymous => simp [isCasesOnName, lastComponent] at h
+  | num p n => simp [isCasesOnName, lastComponent] at h
+  | str p s =>
+    rw [isCasesOnName, lastComponent] at h
+    have hs : s = "casesOn" := by simpa using h
+    subst hs
+    rfl
+
+/-! ### The tabled-`casesOn` dependency, measured
+
+`SpecContent.defns` has no `isCasesOnName` guard where `.axioms` does (`ErasesEnv.lean:218`,
+`:222`), and must not have one: `ErasesEnv.runtimeKey_isCasesOn`
+(`ErasesCorrect/Steps.lean:921`) derives `bo c = none` at a runtime key from the unguarded
+clause, and the ι arm spends that (`:1077`). A guard would delete the branch that derivation
+reads and relocate its conclusion one level up as an assumed premise — what rule (2) forbids.
+So the dependency this buys is measured here instead of guarded away. -/
+
+/-- No tabled `casesOn` name carries a compiler body. Decidable at a table. -/
+def NoTabledCasesOnBody (tbl : SourceTable) : Prop :=
+  ∀ c ∈ tbl.decls.map Prod.fst, isCasesOnName c = true → (tbl.body? c).isNone = true
+
+instance : Decidable (NoTabledCasesOnBody tbl) := by
+  unfold NoTabledCasesOnBody; infer_instance
+
+/-- **The measurement**, at all eight rungs. Every rung's answer is a peano numeral, so every
+rung's `Γspec` declares `Nat`'s block regardless of whether its own table tables
+`Nat.casesOn`, and `IndCovered.elims` forces `Nat.casesOn`'s `ElimDecl` there — so the
+dependency reaches all eight, not only the four whose table carries the name at all
+(`g7_natCasesOn_tabled` witnesses G7's non-vacuous case; G1–G4 hold vacuously, no table there
+carrying a `casesOn` name). A tabled `casesOn` with a body would make the corresponding
+rung's hypotheses unsatisfiable, never false — the contradiction is a *theorem*
+(`ErasesEnv.runtimeKey_isCasesOn`), so this measurement is what tells the ladder that did not
+happen. -/
+theorem noTabledCasesOnBodies :
+    NoTabledCasesOnBody g1Table ∧ NoTabledCasesOnBody g2Table ∧
+    NoTabledCasesOnBody g3Table ∧ NoTabledCasesOnBody g4Table ∧
+    NoTabledCasesOnBody g5Table ∧ NoTabledCasesOnBody g6Table ∧
+    NoTabledCasesOnBody g7Table ∧ NoTabledCasesOnBody g8Table := by
+  decide +kernel
+
+/-! `SpecContent.runtimeKey_isCasesOn` (`VisitExprRefines/Step/Env.lean:911`) already reads
+this fact at a specification environment rather than at a program, which is where
+`register_inductive`'s prefix (W9-B) will need it: its `hb : ∃ b, bo c = some b` branch
+derives `False` from the same unguarded `defns` clause before the theorem returns, so
+`bo c = none` is available there for the taking. A standalone `runtimeKey_bodyless` lemma
+was considered and declined — its natural premise `hsome : (LBTerm.envLookup Γspec
+(toKername m)).isSome` is implied by `hrk : RuntimeKey Γspec (toKername m)` and never spent
+on its own, and until W9-B lands nothing in the tree reads it — so this wave records the
+reading rather than landing an unconsumed declaration (rule that a landed declaration needs a
+consumer in the tree or in the wave's next unit). -/
+
 /-- **Rung G8's spine translates.** The subject is function-typed, so the observable's
 translation premise is read at the application, not at the constant. `TrExprS.app` over the
 two `trExprS_const_of_table` terms; the arrow type of `benchArith` comes from
@@ -1425,6 +1504,41 @@ theorem g8_argErasesEnv {env : VEnv} {Γspec : GlobalDeclarations} {t₀ : LBTer
     exact herΓ.elims hsh hinf hco
       (by rw [reachableFrom_peanoLB_zero hlook hr]; exact hreach)
 
+/-- **The subject's erasure image is its own kername.** `eG8 = .const ``benchArith []`, so
+`Erases`' `ctor` and `box` arms are refuted by the lowering premise: their images are a
+`.construct`/`.box` node respectively, and `g8Term` is neither. Only the `const` arm survives,
+which is the equation itself. -/
+theorem g8_t0 {env : VEnv} {Γspec : GlobalDeclarations} {t₀ : LBTerm}
+    (her : Erases env [] [] eG8 t₀) (hlow : Lower Γspec t₀ g8Term) :
+    t₀ = .const (toKername ``benchArith) := by
+  cases her with
+  | box htr hb =>
+      exact absurd (hlow.source_box rfl) (by rw [g8Term]; exact fun h => LBTerm.noConfusion h)
+  | ctor hc hi =>
+      rcases hlow.source_construct_nil rfl with h | ⟨defs, j, h⟩ <;>
+        rw [g8Term] at h <;> exact absurd h (by exact fun h => LBTerm.noConfusion h)
+  | const hc ho => rfl
+
+/-- **`hargReach`, reduced (U9).** What the binder still needs, once its own antecedents are
+read: not the registration invariant — `ErasesEnv.defns` is one of `hargReach`'s own premises
+and is what supplies the tabled body's erasure here — but a source-side fact about that body,
+that every erasure of it reaches `Nat`'s block. `green_G8`'s `hbody` is exactly that fact;
+`hlowΓ` (`LowerEnv Γspec g8Env`), which the old binder also took, is not spent. -/
+theorem g8_hargReach {env : VEnv} {Γspec : GlobalDeclarations} {b : Expr} {t₀ : LBTerm}
+    (hbo : g8Table.body? ``benchArith = some b)
+    (hbody : ∀ b₀ : LBTerm, Erases env (g8Table.levels? ``benchArith) [] b b₀ →
+      ReachableFrom Γspec b₀ natIid.mutualBlockName)
+    (her : Erases env [] [] eG8 t₀)
+    (herΓ : ErasesEnv env g8Table.body? g8Table.levels? Γspec t₀)
+    (hlow : Lower Γspec t₀ g8Term) :
+    ReachableFrom Γspec t₀ natIid.mutualBlockName := by
+  obtain rfl := g8_t0 her hlow
+  have hself : ReachableFrom Γspec (.const (toKername ``benchArith))
+      (toKername ``benchArith) :=
+    kernameElem_iff.2 (subset_reachFrom _ (by simp [constRefs]))
+  obtain ⟨-, b₀, -, hlk, herb, -⟩ := herΓ.defns ``benchArith b hbo hself
+  exact hself.through_body hlk (hbody b₀ herb)
+
 /-! ### The rungs -/
 
 set_option linter.unusedVariables false in
@@ -1435,7 +1549,7 @@ emitted program is the lowered image of a specification environment that erases
 numeral `8`, not `□` and not a stuck term. The subject is a tracked benchmark program: forty
 emitted declarations, ten class projections, four η-expanded `.fix` blocks (F-ETA) and five
 `.case` nodes.
-`hcfg`, `hsup`, `hnb`, `hwf`, `hwt` and the target-side evaluation are discharged here by
+`hcfg`, `hsup`, `hwf`, `hwt` and the target-side evaluation are discharged here by
 checked terms; `hcb` and `hev` stay binders, per `doc/trust.md`'s class-**C** rows.
 -/
 theorem green_G7
@@ -1443,7 +1557,7 @@ theorem green_G7
     {vv : VExpr} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
     {w wp w' : Void IO.RealWorld} {inls : List Kername}
     {v : Expr} {us : List VLevel} {idx : List VExpr}
-    (P : ErasureSpec lenv env [] gw)
+    (P : ∀ Us, ErasureSpec lenv env Us gw)
     (htbl : SourceTableAdequate lenv g7Table)
     (hsafe : TableSafe lenv g7Table)
     (E : EraserAsks lenv env gw)
@@ -1476,12 +1590,12 @@ theorem green_G7
       ∧ WcbvEval g7Env eraseFlags g7Term (peanoLB 8) := by
   obtain ⟨Γspec, t₀, -, her, herΓ, hlow, hlowΓ, hwf, hobs⟩ :=
     shipping_erase_correct_firstorder P E A htbl hsafe hblk spike_configPinned hcb
-      (trExprS_const_of_table P htbl hsafe rfl)
-      (supportedB_sound P htbl hsafe g7_supported)
-      hprep hrun g7_noBodylessRefs g7_wf hbridge
+      (trExprS_const_of_table (P []) htbl hsafe rfl)
+      (supportedB_sound (P []) htbl hsafe g7_supported)
+      hprep hrun g7_wf hbridge
   obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
     hobs [] [] ``Nat us idx v vv _ rfl (fun i hi => absurd hi (by simp))
-      (trExprS_const_of_table P htbl hsafe rfl) hev hvwt hty hfo
+      (trExprS_const_of_table (P []) htbl hsafe rfl) hev hvwt hty hfo
   have htv : tv = g7Answer := eval_deterministic hevtgt g7_eval
   subst htv
   exact ⟨Γspec, t₀, tv₀, her, herΓ, hlow, hlowΓ, hwf, herv, hlowv, hnobox, huniq, g7_eval⟩
@@ -1491,18 +1605,19 @@ set_option linter.unusedVariables false in
 **Rung G8 is green, and it is the applied one.** For the `#erase` run recorded in
 `VerifyBench/Spikes/G8.lean` the subject is function-typed, so the observation is made at a
 spine: the emitted term applied to the λ□ numeral `0` evaluates to the literal peano numeral
-`8`, the value the source semantics gives `benchArith Nat.zero`. `hcfg`, `hsup`, `hnb`,
+`8`, the value the source semantics gives `benchArith Nat.zero`. `hcfg`, `hsup`,
 `hwf`, `hwt`, the spine's translation, the argument's erasure and lowering, and the
-target-side evaluation are discharged here by checked terms. `hcb` and `hev` stay binders,
-and so does `hargReach`: the argument's environment clause follows from the subject's once
-its erasure reaches `Nat`'s block, and no theorem says a `Γspec` of the run does.
+target-side evaluation are discharged here by checked terms. `hcb` and `hev` stay binders.
+The argument's environment clause (`g8_hargReach`, U9) reduces to a **source-side** binder,
+`hbody`: every erasure of `benchArith`'s tabled body reaches `Nat`'s block, with the tabled
+body's own existence decided on the reified table rather than assumed.
 -/
 theorem green_G8
     {lenv : Lean.Environment} {env : VEnv} {gw : Void IO.RealWorld → NameGenerator}
     {vv : VExpr} {cctx : Core.Context} {ref : ST.Ref IO.RealWorld Core.State}
     {w wp w' : Void IO.RealWorld} {inls : List Kername}
     {v : Expr} {us : List VLevel} {idx : List VExpr}
-    (P : ErasureSpec lenv env [] gw)
+    (P : ∀ Us, ErasureSpec lenv env Us gw)
     (htbl : SourceTableAdequate lenv g8Table)
     (hsafe : TableSafe lenv g8Table)
     (E : EraserAsks lenv env gw)
@@ -1519,10 +1634,9 @@ theorem green_G8
       ∃ Γspec : GlobalDeclarations, SpecEnv env g8Table.body? g8Table.levels? sf Γspec ∧
         ∀ t₀ : LBTerm, Erases env [] [] eG8 t₀ → Lower Γspec t₀ g8Term →
           ErasureBridge env g8Table.body? g8Table.levels? Γspec g8Env t₀)
-    (hargReach : ∀ (Γspec : GlobalDeclarations) (t₀ : LBTerm), Erases env [] [] eG8 t₀ →
-      ErasesEnv env g8Table.body? g8Table.levels? Γspec t₀ → Lower Γspec t₀ g8Term →
-      LowerEnv Γspec g8Env →
-      ReachableFrom Γspec t₀ natIid.mutualBlockName)
+    (hbody : ∀ (Γspec : GlobalDeclarations) (b : Expr), g8Table.body? ``benchArith = some b →
+      ∀ b₀ : LBTerm, Erases env (g8Table.levels? ``benchArith) [] b b₀ →
+        ReachableFrom Γspec b₀ natIid.mutualBlockName)
     (hev : SEval env g8Table.body? [] fullFlags [] (mkApps eG8 [g8Arg]) v)
     (hvwt : TrExprS env [] [] v vv)
     (hty : env.HasType 0 [] vv (VExpr.mkApps (.const ``Nat us) idx))
@@ -1540,17 +1654,20 @@ theorem green_G8
       ∧ WcbvEval g8Env eraseFlags (.app g8Term (peanoLB 0)) (peanoLB 8) := by
   obtain ⟨Γspec, t₀, -, her, herΓ, hlow, hlowΓ, hwf, hobs⟩ :=
     shipping_erase_correct_firstorder P E A htbl hsafe hblk spike_configPinned hcb
-      (trExprS_const_of_table P htbl hsafe rfl)
-      (supportedB_sound P htbl hsafe g8_supported)
-      hprep hrun g8_noBodylessRefs g8_wf hbridge
+      (trExprS_const_of_table (P []) htbl hsafe rfl)
+      (supportedB_sound (P []) htbl hsafe g8_supported)
+      hprep hrun g8_wf hbridge
+  obtain ⟨b, hbo⟩ := Option.isSome_iff_exists.1
+    (show (g8Table.body? ``benchArith).isSome = true by decide +kernel)
   obtain ⟨tv₀, tv, herv, hlowv, hnobox, huniq, hevtgt⟩ :=
     hobs [g8Arg] [peanoLB 0] ``Nat us idx v vv _ rfl
       (fun i hi => by
         obtain rfl : i = 0 := by simp at hi; omega
         exact ⟨peanoLB 0, .ctor F.natZero F.natInd,
           .construct rfl (fun j hj => absurd hj (by simp)),
-          g8_argErasesEnv F herΓ (hargReach Γspec t₀ her herΓ hlow hlowΓ)⟩)
-      (g8_trExprS_spine P htbl hsafe) hev hvwt hty hfo
+          g8_argErasesEnv F herΓ
+            (g8_hargReach hbo (hbody Γspec b hbo) her herΓ hlow)⟩)
+      (g8_trExprS_spine (P []) htbl hsafe) hev hvwt hty hfo
   have htv : tv = g8Answer := eval_deterministic hevtgt g8_eval
   subst htv
   exact ⟨Γspec, t₀, tv₀, her, herΓ, hlow, hlowΓ, hwf, herv, hlowv, hnobox, huniq, g8_eval⟩

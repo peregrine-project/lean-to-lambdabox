@@ -398,9 +398,11 @@ being erased, not merely to know that some erasure happened:
   with its input pinned to the declaration's own value
   (`di.get!.value! (allowOpaque := true)`);
 * the **reader context** the dependency is erased under, pinned to
-  `{ ctx with fixvars := none, lparams := di.get!.levelParams }` — the `withReader` of
-  `Erasure.visitMutual`'s non-recursive exit. Pinning it is what lets a caller transport a
-  reader-indexed invariant to the callee, since only `fixvars` and `lparams` move;
+  `{ ctx with lctx := {}, fixvars := none, lparams := di.get!.levelParams }` — the
+  `withReader` of `Erasure.visitMutual`'s non-recursive exit. Pinning it is what lets a
+  caller transport a reader-indexed invariant to the callee; the three fields that move are
+  the closed body's own, `erase_constant_body`'s empty context and the declaration's level
+  column (`doc/rework/03-DEV-FIX.md`, F-DEPLCTX), and `ctx.config` alone survives;
 * the **inlining slack at the entry** (`InlineExt s s₀`), so that the axiom and
   non-recursive disjuncts relate their own pre-state back to the call's. -/
 
@@ -432,9 +434,9 @@ theorem run_visitMutual_decomp {s : ErasureState} {ctx : ErasureContext}
           (w₀ wp wt : Void IO.RealWorld),
          InlineExt s s₀ ∧
          prepare_erasure (di.get!.value! (allowOpaque := true)) s₀
-             { ctx with fixvars := none, lparams := di.get!.levelParams } cctx ref w₀
-           = .ok (pe, sp) wp ∧
-         visitExpr pe sp { ctx with fixvars := none, lparams := di.get!.levelParams }
+             { ctx with lctx := {}, fixvars := none, lparams := di.get!.levelParams }
+             cctx ref w₀ = .ok (pe, sp) wp ∧
+         visitExpr pe sp { ctx with lctx := {}, fixvars := none, lparams := di.get!.levelParams }
              cctx ref wp = .ok (t, st) wt ∧
          InlineExt (nonrecConstState n t st) s₁) ∨
        (∃ (fixnames : List Name) (defs : List (@FixDef LBTerm)) (sd : ErasureState),

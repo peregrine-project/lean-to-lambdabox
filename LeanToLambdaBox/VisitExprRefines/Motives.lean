@@ -19,6 +19,17 @@ Each `Stepᵢ` names the abstract body of one member: the shipping definition wi
 calls replaced by the induction's abstract functions. Elaborating the body here is what makes
 the step provable in a file of its own — the induction's own step goal is that statement, and
 the aggregator discharges it by `exact`.
+
+**The level scope is quantified inside each motive**, not fixed outside the induction. A motive
+reads `∀ Us Δ, BridgeInv env Us tbl cfg … ctx s Δ → …`, and `BridgeInv.lparams` makes `Us` the
+reader's own `ctx.lparams`, so the eighteen statements hold at *every* scope at once. That is
+what `Erasure.visitMutual` needs: it re-enters a dependency under
+`withReader (… lparams := ci.levelParams)` (`Erasure.lean:1275`, `:1309`), and the motive of the
+sub-run is then read at the member's own column rather than at the subject's. The specification
+bundle follows the quantifier — each `Stepᵢ` takes `∀ Us, ErasureSpec lenv env Us gw` — which is
+what MetaRocq's `abstract_make_wf_env_ext` gives it for free at every constant
+(`../metarocq/erasure/theories/ErasureFunction.v`). `EraserAsks` needs no such quantifier: after
+`doc/rework/09-REPAIRS-W7.md` §2 (C2) no field of it mentions a reader's level scope.
 -/
 
 namespace LeanToLambdaBox
@@ -34,7 +45,13 @@ set_option synthInstance.maxSize 4000
 /-- What a successful sub-run of a term-producing member concludes: the state grew canonically,
 the inductive registry is still the model's, the generator only advanced, and at every
 specification environment of the final state the emitted term is the source term's image in the
-reader's fixvar mode. -/
+reader's fixvar mode.
+
+`Us` is the level scope the relation is read at. It stays a parameter rather than a quantifier
+of the relation because the premises a motive pairs it with — `BridgeInv`, `TrExprS`, `ArgsOk` —
+are stated at the same scope; the quantifier that makes the bridge hold at every scope is the
+motive's own `∀ Us`, and `BridgeInv.lparams` is the equation `ctx.lparams = Us` that pins it to
+the reader. -/
 def RunRefines (env : VEnv) (Us : List Name) (tbl : SourceTable) (ctx : ErasureContext)
     (Δ : VLCtx) (s s' : ErasureState) (gen gen' : NameGenerator) (e : Expr) (t : LBTerm) : Prop :=
   RunConcl s s' ∧ IndRegistryModelled env s' ∧ gen ≤ gen' ∧
@@ -86,14 +103,14 @@ structure CasesHead (env : VEnv) (tbl : SourceTable) (ci : Lean.CasesInfo) (con 
 
 section Motives
 
-variable (env : VEnv) (Us : List Name) (tbl : SourceTable) (cfg : ErasureConfig)
+variable (env : VEnv) (tbl : SourceTable) (cfg : ErasureConfig)
   (gw : Void IO.RealWorld → NameGenerator)
 
 /-- Motive 1 — `Erasure.visitExpr`: a supported, translatable term erases to a term of the
 composite, in whichever fixvar mode the reader is in. -/
 def Motive1 (f : Expr → EraseM LBTerm) : Prop :=
   (∀ e s ctx cctx ref w t s' w', f e s ctx cctx ref w = .ok (t, s') w' →
-    ∀ Δ, BridgeInv env Us tbl cfg (gw w) ctx s Δ → Supported env tbl e →
+    ∀ Us Δ, BridgeInv env Us tbl cfg (gw w) ctx s Δ → Supported env tbl e →
       (∃ ve, TrExprS env Us Δ e ve) →
       RunRefines env Us tbl ctx Δ s s' (gw w) (gw w') e t) ∧
   f ⊑ Erasure.visitExpr
@@ -103,7 +120,7 @@ beyond the invariant are the fragment's own `natLit` rule and the verdict at the
 kername clause the recursive constructor call needs. -/
 def Motive2 (f : Literal → EraseM LBTerm) : Prop :=
   (∀ l s ctx cctx ref w t s' w', f l s ctx cctx ref w = .ok (t, s') w' →
-    ∀ Δ n, BridgeInv env Us tbl cfg (gw w) ctx s Δ → l = .natVal n →
+    ∀ Us Δ n, BridgeInv env Us tbl cfg (gw w) ctx s Δ → l = .natVal n →
       PeanoReady env → peanoReadyB tbl = true → Supported env tbl (.lit l) →
       (∃ ve, TrExprS env Us Δ (.lit l) ve) →
       RunRefines env Us tbl ctx Δ s s' (gw w) (gw w') (.lit l) t) ∧
@@ -113,7 +130,7 @@ def Motive2 (f : Literal → EraseM LBTerm) : Prop :=
 erases to the applied constructor node. -/
 def Motive3 (f : Name → Array Expr → EraseM LBTerm) : Prop :=
   (∀ cn args s ctx cctx ref w t s' w', f cn args s ctx cctx ref w = .ok (t, s') w' →
-    ∀ Δ (us : List Level), BridgeInv env Us tbl cfg (gw w) ctx s Δ →
+    ∀ Us Δ (us : List Level), BridgeInv env Us tbl cfg (gw w) ctx s Δ →
       (∃ I k, CtorOf env cn I k) → ArgsOk env Us tbl Δ args →
       RunRefines env Us tbl ctx Δ s s' (gw w) (gw w') (srcSpine (.const cn us) args) t) ∧
   f ⊑ Erasure.visitConstructor
@@ -127,7 +144,7 @@ to either head. Both are read off the run at the call sites — the constructor 
 the relevance oracle's `false` verdict through `EraserAsks.oracle_informative`. -/
 def Motive4 (f : Expr → EraseM LBTerm) : Prop :=
   (∀ e s ctx cctx ref w t s' w', f e s ctx cctx ref w = .ok (t, s') w' →
-    ∀ Δ n us, BridgeInv env Us tbl cfg (gw w) ctx s Δ → e = .const n us →
+    ∀ Us Δ n us, BridgeInv env Us tbl cfg (gw w) ctx s Δ → e = .const n us →
       PlainHead n → isCasesOnName n = false → KnownHead env tbl n → Supported env tbl e →
       (∀ (I : Name) (k : Nat), ¬ CtorOf env n I k) →
       (∀ (iid : InductiveId) (np : Nat) (nfs : List Nat), ¬ IndInfo env n iid np nfs) →
@@ -140,7 +157,7 @@ where `Erasure.visitConst` has already put it and what the registration below ne
 name is not an `_unsafe_rec` companion. -/
 def Motive5 (f : Name → EraseM Kername) : Prop :=
   (∀ n s ctx cctx ref w kn s' w', f n s ctx cctx ref w = .ok (kn, s') w' →
-    ∀ Δ, BridgeInv env Us tbl cfg (gw w) ctx s Δ → Supported env tbl (.const n []) →
+    ∀ Us Δ, BridgeInv env Us tbl cfg (gw w) ctx s Δ → Supported env tbl (.const n []) →
       (tbl.decl? n).isSome →
       kn = toKername n ∧ (s'.constants.get? n).isSome ∧
         RunConcl s s' ∧ IndRegistryModelled env s' ∧ gw w ≤ gw w') ∧
@@ -149,10 +166,29 @@ def Motive5 (f : Name → EraseM Kername) : Prop :=
 /-- Motive 6 — `Erasure.visitMutual`: the declaration is registered. Its two branches erase the
 member bodies, the block branch under the reader that carries the block's fix variables, which
 is where the sub-runs conclude `ErasesLBFix` rather than `ErasesLB`; the content of what is
-registered is read off the final state by `SpecEnv`, not concluded here. -/
+registered is read off the final state by `SpecEnv`, not concluded here.
+
+Neither the level scope nor the local context stands in the way of a stronger motive:
+`Motive1` holds at every scope, so a sub-run at `ci.levelParams` has a motive to be read at,
+and since F-DEPLCTX merged (`doc/rework/03-DEV-FIX.md`) the switch resets `lctx` as well
+(`Erasure.lean:1275`, `:1309`), so `BridgeInv.mlc` at the sub-run asks for the *empty* context
+at the member's column — the `Δ = []` `erase_constant_body` states a body's erasure at
+(`../metarocq/erasure/theories/Extract.v:264`). `bridgeInv_member`
+(`VisitExprRefines/Step/Env.lean`) is that invariant, and `visitMutual_member_erases` beside
+it is what a sub-run's conclusion says about the *tabled* body at the *tabled* column.
+
+A content clause is still out of reach here, and the two registering exits are out of reach
+for different reasons. At the non-recursive exit `SpecEnv.mono` carries a final-state
+environment down to the sub-run's exit state, so `Motive1` reports there and the registered
+body is that report's `Lower` image. At the block exit it does not: the registered body is
+`Erasure.etaExpandFix defs j`, whose `Lower` fact is `Lower.fixEta_of_block`, and
+`LowerBlock.hdecl` asks the environment to declare each member with *the run's own* erasure
+witness where a `SpecEnv` supplies only *some* erasure of that body — the determinism gap
+`RegContent` (`ColdStartShape.lean`) exists to close. Closing it makes the environment an
+output, built at the step, which is a clause of `RunRefines` as much as of this motive. -/
 def Motive6 (f : Name → EraseM Unit) : Prop :=
   (∀ n s ctx cctx ref w u s' w', f n s ctx cctx ref w = .ok (u, s') w' →
-    ∀ Δ, BridgeInv env Us tbl cfg (gw w) ctx s Δ → Supported env tbl (.const n []) →
+    ∀ Us Δ, BridgeInv env Us tbl cfg (gw w) ctx s Δ → Supported env tbl (.const n []) →
       (tbl.decl? n).isSome →
       (s'.constants.get? n).isSome ∧ RunConcl s s' ∧ IndRegistryModelled env s' ∧
         gw w ≤ gw w') ∧
@@ -162,7 +198,7 @@ def Motive6 (f : Name → EraseM Unit) : Prop :=
 supported argument array, is the spine. -/
 def Motive7 (f : LBTerm → Array Expr → EraseM LBTerm) : Prop :=
   (∀ hd args s ctx cctx ref w t s' w', f hd args s ctx cctx ref w = .ok (t, s') w' →
-    ∀ Δ (e : Expr), BridgeInv env Us tbl cfg (gw w) ctx s Δ →
+    ∀ Us Δ (e : Expr), BridgeInv env Us tbl cfg (gw w) ctx s Δ →
       HeadRefines env Us tbl ctx Δ s e hd → ArgsOk env Us tbl Δ args →
       RunRefines env Us tbl ctx Δ s s' (gw w) (gw w') (srcSpine e args) t) ∧
   f ⊑ Erasure.visitAppArgs
@@ -170,7 +206,7 @@ def Motive7 (f : LBTerm → Array Expr → EraseM LBTerm) : Prop :=
 /-- Motive 8 — `Erasure.visitLet`. -/
 def Motive8 (f : Expr → EraseM LBTerm) : Prop :=
   (∀ e s ctx cctx ref w t s' w', f e s ctx cctx ref w = .ok (t, s') w' →
-    ∀ Δ n ty v b nd, BridgeInv env Us tbl cfg (gw w) ctx s Δ → e = .letE n ty v b nd →
+    ∀ Us Δ n ty v b nd, BridgeInv env Us tbl cfg (gw w) ctx s Δ → e = .letE n ty v b nd →
       Supported env tbl e → (∃ ve, TrExprS env Us Δ e ve) →
       RunRefines env Us tbl ctx Δ s s' (gw w) (gw w') e t) ∧
   f ⊑ Erasure.visitLet
@@ -178,7 +214,7 @@ def Motive8 (f : Expr → EraseM LBTerm) : Prop :=
 /-- Motive 9 — `Erasure.visitLambda`. -/
 def Motive9 (f : Expr → EraseM LBTerm) : Prop :=
   (∀ e s ctx cctx ref w t s' w', f e s ctx cctx ref w = .ok (t, s') w' →
-    ∀ Δ n ty b bi, BridgeInv env Us tbl cfg (gw w) ctx s Δ → e = .lam n ty b bi →
+    ∀ Us Δ n ty b bi, BridgeInv env Us tbl cfg (gw w) ctx s Δ → e = .lam n ty b bi →
       Supported env tbl e → (∃ ve, TrExprS env Us Δ e ve) →
       RunRefines env Us tbl ctx Δ s s' (gw w) (gw w') e t) ∧
   f ⊑ Erasure.visitLambda
@@ -186,7 +222,7 @@ def Motive9 (f : Expr → EraseM LBTerm) : Prop :=
 /-- Motive 10 — `Erasure.visitProj`: a projection of a tabled, informative structure. -/
 def Motive10 (f : Name → Nat → Expr → EraseM LBTerm) : Prop :=
   (∀ tn i e s ctx cctx ref w t s' w', f tn i e s ctx cctx ref w = .ok (t, s') w' →
-    ∀ Δ (I : ReifiedInduct) (np nf : Nat), BridgeInv env Us tbl cfg (gw w) ctx s Δ →
+    ∀ Us Δ (I : ReifiedInduct) (np nf : Nat), BridgeInv env Us tbl cfg (gw w) ctx s Δ →
       tbl.ind? tn = some I → InformativeInd env tn → IndArity env tn np [nf] → i < nf →
       Supported env tbl e → (∃ ve, TrExprS env Us Δ e ve) →
       RunRefines env Us tbl ctx Δ s s' (gw w) (gw w') (.proj tn i e) t) ∧
@@ -198,7 +234,7 @@ by `EraserAsks.oracle_informative` rules out a type former at the spine's head, 
 constant arm below spends it at `Motive4`. -/
 def Motive11 (f : Expr → EraseM LBTerm) : Prop :=
   (∀ e s ctx cctx ref w t s' w', f e s ctx cctx ref w = .ok (t, s') w' →
-    ∀ Δ, BridgeInv env Us tbl cfg (gw w) ctx s Δ → Supported env tbl e →
+    ∀ Us Δ, BridgeInv env Us tbl cfg (gw w) ctx s Δ → Supported env tbl e →
       (∃ ve, TrExprS env Us Δ e ve) →
       (∀ (c : Name) (us : List Level), e.getAppFn = .const c us →
         ∀ (iid : InductiveId) (np : Nat) (nfs : List Nat), ¬ IndInfo env c iid np nfs) →
@@ -209,7 +245,7 @@ def Motive11 (f : Expr → EraseM LBTerm) : Prop :=
 former: the exclusion is `Motive11`'s, read at the head this member has already matched. -/
 def Motive12 (f : Expr → EraseM LBTerm) : Prop :=
   (∀ e s ctx cctx ref w t s' w', f e s ctx cctx ref w = .ok (t, s') w' →
-    ∀ Δ cn us, BridgeInv env Us tbl cfg (gw w) ctx s Δ → e.getAppFn = .const cn us →
+    ∀ Us Δ cn us, BridgeInv env Us tbl cfg (gw w) ctx s Δ → e.getAppFn = .const cn us →
       Supported env tbl e → (∃ ve, TrExprS env Us Δ e ve) →
       (∀ (iid : InductiveId) (np : Nat) (nfs : List Nat), ¬ IndInfo env cn iid np nfs) →
       RunRefines env Us tbl ctx Δ s s' (gw w) (gw w') e t) ∧
@@ -218,7 +254,7 @@ def Motive12 (f : Expr → EraseM LBTerm) : Prop :=
 /-- Motive 13 — `Erasure.visitCtorEta`, entered at a saturated constructor spine. -/
 def Motive13 (f : Name → Nat → Expr → EraseM LBTerm) : Prop :=
   (∀ cn ar e s ctx cctx ref w t s' w', f cn ar e s ctx cctx ref w = .ok (t, s') w' →
-    ∀ Δ us, BridgeInv env Us tbl cfg (gw w) ctx s Δ → e.getAppFn = .const cn us →
+    ∀ Us Δ us, BridgeInv env Us tbl cfg (gw w) ctx s Δ → e.getAppFn = .const cn us →
       (∃ I k, CtorOf env cn I k) → ar ≤ e.getAppArgs.size →
       ArgsOk env Us tbl Δ e.getAppArgs →
       RunRefines env Us tbl ctx Δ s s' (gw w) (gw w') e t) ∧
@@ -228,7 +264,7 @@ def Motive13 (f : Name → Nat → Expr → EraseM LBTerm) : Prop :=
 def Motive14 (f : Name → Nat → Expr → Expr → Array Expr → EraseM LBTerm) : Prop :=
   (∀ cn ar ty fe args s ctx cctx ref w t s' w',
     f cn ar ty fe args s ctx cctx ref w = .ok (t, s') w' →
-    ∀ Δ us, BridgeInv env Us tbl cfg (gw w) ctx s Δ →
+    ∀ Us Δ us, BridgeInv env Us tbl cfg (gw w) ctx s Δ →
       (∃ I k, CtorOf env cn I k) → ar ≤ args.size → ArgsOk env Us tbl Δ args →
       RunRefines env Us tbl ctx Δ s s' (gw w) (gw w') (srcSpine (.const cn us) args) t) ∧
   f ⊑ Erasure.visitCtorEtaGo
@@ -236,7 +272,7 @@ def Motive14 (f : Name → Nat → Expr → Expr → Array Expr → EraseM LBTer
 /-- Motive 15 — `Erasure.visitCasesEta`, entered at a saturated `casesOn` spine. -/
 def Motive15 (f : Lean.CasesInfo → Expr → EraseM LBTerm) : Prop :=
   (∀ ci e s ctx cctx ref w t s' w', f ci e s ctx cctx ref w = .ok (t, s') w' →
-    ∀ Δ con us I, BridgeInv env Us tbl cfg (gw w) ctx s Δ → e.getAppFn = .const con us →
+    ∀ Us Δ con us I, BridgeInv env Us tbl cfg (gw w) ctx s Δ → e.getAppFn = .const con us →
       CasesHead env tbl ci con I → ci.arity ≤ e.getAppArgs.size →
       Supported env tbl e → ArgsOk env Us tbl Δ e.getAppArgs →
       (∃ ve, TrExprS env Us Δ e ve) →
@@ -246,7 +282,7 @@ def Motive15 (f : Lean.CasesInfo → Expr → EraseM LBTerm) : Prop :=
 /-- Motive 16 — `Erasure.visitCasesEtaGo`, its saturated loop. -/
 def Motive16 (f : Lean.CasesInfo → Expr → Expr → Array Expr → EraseM LBTerm) : Prop :=
   (∀ ci ty fe args s ctx cctx ref w t s' w', f ci ty fe args s ctx cctx ref w = .ok (t, s') w' →
-    ∀ Δ con us I, BridgeInv env Us tbl cfg (gw w) ctx s Δ →
+    ∀ Us Δ con us I, BridgeInv env Us tbl cfg (gw w) ctx s Δ →
       CasesHead env tbl ci con I → ci.arity ≤ args.size →
       Supported env tbl (srcSpine (.const con us) args) → ArgsOk env Us tbl Δ args →
       (∃ ve, TrExprS env Us Δ (srcSpine (.const con us) args) ve) →
@@ -256,7 +292,7 @@ def Motive16 (f : Lean.CasesInfo → Expr → Expr → Array Expr → EraseM LBT
 /-- Motive 17 — `Erasure.visitCases`, the `case` node itself. -/
 def Motive17 (f : Lean.CasesInfo → Array Expr → EraseM LBTerm) : Prop :=
   (∀ ci args s ctx cctx ref w t s' w', f ci args s ctx cctx ref w = .ok (t, s') w' →
-    ∀ Δ con us I, BridgeInv env Us tbl cfg (gw w) ctx s Δ →
+    ∀ Us Δ con us I, BridgeInv env Us tbl cfg (gw w) ctx s Δ →
       CasesHead env tbl ci con I → ci.arity ≤ args.size →
       Supported env tbl (srcSpine (.const con us) args) → ArgsOk env Us tbl Δ args →
       (∃ ve, TrExprS env Us Δ (srcSpine (.const con us) args) ve) →
@@ -267,7 +303,7 @@ def Motive17 (f : Lean.CasesInfo → Array Expr → EraseM LBTerm) : Prop :=
 alternative with that many binders. -/
 def Motive18 (f : Nat → ConstructorArgMask → Expr → EraseM (List BinderName × LBTerm)) : Prop :=
   (∀ nf mask e s ctx cctx ref w r s' w', f nf mask e s ctx cctx ref w = .ok (r, s') w' →
-    ∀ Δ, BridgeInv env Us tbl cfg (gw w) ctx s Δ → mask = Array.replicate nf .keep →
+    ∀ Us Δ, BridgeInv env Us tbl cfg (gw w) ctx s Δ → mask = Array.replicate nf .keep →
       IsLamTelescope nf e → Supported env tbl e → (∃ ve, TrExprS env Us Δ e ve) →
       RunRefinesAlt env Us tbl ctx Δ s s' (gw w) (gw w') nf e r) ∧
   f ⊑ Erasure.visitAlt
@@ -278,7 +314,7 @@ end Motives
 
 /-- The eighteen motives at one eraser family. Read at the shipping family it is the bridge
 induction's conclusion; read at an abstract one it is what a step lemma is given. -/
-structure Motives (env : VEnv) (Us : List Name) (tbl : SourceTable) (cfg : ErasureConfig)
+structure Motives (env : VEnv) (tbl : SourceTable) (cfg : ErasureConfig)
     (gw : Void IO.RealWorld → NameGenerator)
     (f₁ : Expr → EraseM LBTerm) (f₂ : Literal → EraseM LBTerm)
     (f₃ : Name → Array Expr → EraseM LBTerm) (f₄ : Expr → EraseM LBTerm)
@@ -292,41 +328,41 @@ structure Motives (env : VEnv) (Us : List Name) (tbl : SourceTable) (cfg : Erasu
     (f₁₇ : Lean.CasesInfo → Array Expr → EraseM LBTerm)
     (f₁₈ : Nat → ConstructorArgMask → Expr → EraseM (List BinderName × LBTerm)) : Prop where
   /-- `Erasure.visitExpr`. -/
-  motive1 : Motive1 env Us tbl cfg gw f₁
+  motive1 : Motive1 env tbl cfg gw f₁
   /-- `Erasure.visitLiteral`. -/
-  motive2 : Motive2 env Us tbl cfg gw f₂
+  motive2 : Motive2 env tbl cfg gw f₂
   /-- `Erasure.visitConstructor`. -/
-  motive3 : Motive3 env Us tbl cfg gw f₃
+  motive3 : Motive3 env tbl cfg gw f₃
   /-- `Erasure.visitConst`. -/
-  motive4 : Motive4 env Us tbl cfg gw f₄
+  motive4 : Motive4 env tbl cfg gw f₄
   /-- `Erasure.get_constant_kername`. -/
-  motive5 : Motive5 env Us tbl cfg gw f₅
+  motive5 : Motive5 env tbl cfg gw f₅
   /-- `Erasure.visitMutual`. -/
-  motive6 : Motive6 env Us tbl cfg gw f₆
+  motive6 : Motive6 env tbl cfg gw f₆
   /-- `Erasure.visitAppArgs`. -/
-  motive7 : Motive7 env Us tbl cfg gw f₇
+  motive7 : Motive7 env tbl cfg gw f₇
   /-- `Erasure.visitLet`. -/
-  motive8 : Motive8 env Us tbl cfg gw f₈
+  motive8 : Motive8 env tbl cfg gw f₈
   /-- `Erasure.visitLambda`. -/
-  motive9 : Motive9 env Us tbl cfg gw f₉
+  motive9 : Motive9 env tbl cfg gw f₉
   /-- `Erasure.visitProj`. -/
-  motive10 : Motive10 env Us tbl cfg gw f₁₀
+  motive10 : Motive10 env tbl cfg gw f₁₀
   /-- `Erasure.visitApp`. -/
-  motive11 : Motive11 env Us tbl cfg gw f₁₁
+  motive11 : Motive11 env tbl cfg gw f₁₁
   /-- `Erasure.visitConstApp`. -/
-  motive12 : Motive12 env Us tbl cfg gw f₁₂
+  motive12 : Motive12 env tbl cfg gw f₁₂
   /-- `Erasure.visitCtorEta`. -/
-  motive13 : Motive13 env Us tbl cfg gw f₁₃
+  motive13 : Motive13 env tbl cfg gw f₁₃
   /-- `Erasure.visitCtorEtaGo`. -/
-  motive14 : Motive14 env Us tbl cfg gw f₁₄
+  motive14 : Motive14 env tbl cfg gw f₁₄
   /-- `Erasure.visitCasesEta`. -/
-  motive15 : Motive15 env Us tbl cfg gw f₁₅
+  motive15 : Motive15 env tbl cfg gw f₁₅
   /-- `Erasure.visitCasesEtaGo`. -/
-  motive16 : Motive16 env Us tbl cfg gw f₁₆
+  motive16 : Motive16 env tbl cfg gw f₁₆
   /-- `Erasure.visitCases`. -/
-  motive17 : Motive17 env Us tbl cfg gw f₁₇
+  motive17 : Motive17 env tbl cfg gw f₁₇
   /-- `Erasure.visitAlt`. -/
-  motive18 : Motive18 env Us tbl cfg gw f₁₈
+  motive18 : Motive18 env tbl cfg gw f₁₈
 
 /-! ## The abstract bodies
 
@@ -463,7 +499,7 @@ def visitMutualBody (vExpr : Expr → EraseM LBTerm) (name: Name) : EraseM Unit 
   if nonrecursive
   then
     let e: Expr := ci.value! (allowOpaque := true)
-    let t ← withReader (fun env => { env with fixvars := .none, lparams := ci.levelParams }) do
+    let t ← withReader (fun env => { env with lctx := {}, fixvars := .none, lparams := ci.levelParams }) do
       pure (← vExpr (← prepare_erasure e))
     let kn := toKername name
     checkKernameFresh name kn
@@ -485,7 +521,7 @@ def visitMutualBody (vExpr : Expr → EraseM LBTerm) (name: Name) : EraseM Unit 
       let defs: List FixDef ← names.mapM (fun n => do
         let ci ← getConstInfo n
         let e: Expr := ci.value! (allowOpaque := true)
-        let t: LBTerm ← withReader (fun env => { env with lparams := ci.levelParams }) do
+        let t: LBTerm ← withReader (fun env => { env with lctx := {}, lparams := ci.levelParams }) do
           vExpr (← prepare_erasure e)
         mkDef (remove_unsafe_rec n) fixvarnames t
       )
@@ -891,208 +927,208 @@ bridge is stated under. `visitExpr_refines_of_steps` takes all eighteen and prod
 
 /-- Step 1 — the induction's obligation at `Erasure.visitExpr`: given the motives of the
 members it calls, the motive holds of its body. -/
-abbrev Step1 (lenv : Environment) (env : VEnv) (Us : List Name) (tbl : SourceTable)
+abbrev Step1 (lenv : Environment) (env : VEnv) (tbl : SourceTable)
     (cfg : ErasureConfig) (gw : Void IO.RealWorld → NameGenerator) : Prop :=
-  ErasureSpec lenv env Us gw → SourceTableAdequate lenv tbl → ConfigPinned cfg →
+  (∀ Us, ErasureSpec lenv env Us gw) → SourceTableAdequate lenv tbl → ConfigPinned cfg →
   CompilerBodies lenv env tbl.body? →
   ∀ (vExpr : Expr → EraseM LBTerm) (vLit : Literal → EraseM LBTerm) (vLet : Expr → EraseM LBTerm)
     (vLam : Expr → EraseM LBTerm) (vProj : Name → Nat → Expr → EraseM LBTerm)
     (vApp : Expr → EraseM LBTerm),
-    Motive1 env Us tbl cfg gw vExpr →
-    Motive2 env Us tbl cfg gw vLit →
-    Motive8 env Us tbl cfg gw vLet →
-    Motive9 env Us tbl cfg gw vLam →
-    Motive10 env Us tbl cfg gw vProj →
-    Motive11 env Us tbl cfg gw vApp →
-    Motive1 env Us tbl cfg gw (visitExprBody vExpr vLit vLet vLam vProj vApp)
+    Motive1 env tbl cfg gw vExpr →
+    Motive2 env tbl cfg gw vLit →
+    Motive8 env tbl cfg gw vLet →
+    Motive9 env tbl cfg gw vLam →
+    Motive10 env tbl cfg gw vProj →
+    Motive11 env tbl cfg gw vApp →
+    Motive1 env tbl cfg gw (visitExprBody vExpr vLit vLet vLam vProj vApp)
 
 /-- Step 2 — the induction's obligation at `Erasure.visitLiteral`: given the motives of the
 members it calls, the motive holds of its body. -/
-abbrev Step2 (lenv : Environment) (env : VEnv) (Us : List Name) (tbl : SourceTable)
+abbrev Step2 (lenv : Environment) (env : VEnv) (tbl : SourceTable)
     (cfg : ErasureConfig) (gw : Void IO.RealWorld → NameGenerator) : Prop :=
-  ErasureSpec lenv env Us gw → SourceTableAdequate lenv tbl → ConfigPinned cfg →
+  (∀ Us, ErasureSpec lenv env Us gw) → SourceTableAdequate lenv tbl → ConfigPinned cfg →
   CompilerBodies lenv env tbl.body? →
   ∀ (vCtor : Name → Array Expr → EraseM LBTerm),
-    Motive3 env Us tbl cfg gw vCtor →
-    Motive2 env Us tbl cfg gw (visitLiteralBody vCtor)
+    Motive3 env tbl cfg gw vCtor →
+    Motive2 env tbl cfg gw (visitLiteralBody vCtor)
 
 /-- Step 3 — the induction's obligation at `Erasure.visitConstructor`: given the motives of the
 members it calls, the motive holds of its body. -/
-abbrev Step3 (lenv : Environment) (env : VEnv) (Us : List Name) (tbl : SourceTable)
+abbrev Step3 (lenv : Environment) (env : VEnv) (tbl : SourceTable)
     (cfg : ErasureConfig) (gw : Void IO.RealWorld → NameGenerator) : Prop :=
-  ErasureSpec lenv env Us gw → SourceTableAdequate lenv tbl → ConfigPinned cfg →
+  (∀ Us, ErasureSpec lenv env Us gw) → SourceTableAdequate lenv tbl → ConfigPinned cfg →
   CompilerBodies lenv env tbl.body? →
   ∀ (vLit : Literal → EraseM LBTerm) (vConst : Expr → EraseM LBTerm)
     (vArgs : LBTerm → Array Expr → EraseM LBTerm),
-    Motive2 env Us tbl cfg gw vLit →
-    Motive4 env Us tbl cfg gw vConst →
-    Motive7 env Us tbl cfg gw vArgs →
-    Motive3 env Us tbl cfg gw (visitConstructorBody vLit vConst vArgs)
+    Motive2 env tbl cfg gw vLit →
+    Motive4 env tbl cfg gw vConst →
+    Motive7 env tbl cfg gw vArgs →
+    Motive3 env tbl cfg gw (visitConstructorBody vLit vConst vArgs)
 
 /-- Step 4 — the induction's obligation at `Erasure.visitConst`: given the motives of the
 members it calls, the motive holds of its body. -/
-abbrev Step4 (lenv : Environment) (env : VEnv) (Us : List Name) (tbl : SourceTable)
+abbrev Step4 (lenv : Environment) (env : VEnv) (tbl : SourceTable)
     (cfg : ErasureConfig) (gw : Void IO.RealWorld → NameGenerator) : Prop :=
-  ErasureSpec lenv env Us gw → SourceTableAdequate lenv tbl → ConfigPinned cfg →
+  (∀ Us, ErasureSpec lenv env Us gw) → SourceTableAdequate lenv tbl → ConfigPinned cfg →
   CompilerBodies lenv env tbl.body? →
   ∀ (vGck : Name → EraseM Kername),
-    Motive5 env Us tbl cfg gw vGck →
-    Motive4 env Us tbl cfg gw (visitConstBody vGck)
+    Motive5 env tbl cfg gw vGck →
+    Motive4 env tbl cfg gw (visitConstBody vGck)
 
 /-- Step 5 — the induction's obligation at `Erasure.get_constant_kername`: given the motives of the
 members it calls, the motive holds of its body. -/
-abbrev Step5 (lenv : Environment) (env : VEnv) (Us : List Name) (tbl : SourceTable)
+abbrev Step5 (lenv : Environment) (env : VEnv) (tbl : SourceTable)
     (cfg : ErasureConfig) (gw : Void IO.RealWorld → NameGenerator) : Prop :=
-  ErasureSpec lenv env Us gw → SourceTableAdequate lenv tbl → ConfigPinned cfg →
+  (∀ Us, ErasureSpec lenv env Us gw) → SourceTableAdequate lenv tbl → ConfigPinned cfg →
   CompilerBodies lenv env tbl.body? →
   ∀ (vMut : Name → EraseM Unit),
-    Motive6 env Us tbl cfg gw vMut →
-    Motive5 env Us tbl cfg gw (getConstantKernameBody vMut)
+    Motive6 env tbl cfg gw vMut →
+    Motive5 env tbl cfg gw (getConstantKernameBody vMut)
 
 /-- Step 6 — the induction's obligation at `Erasure.visitMutual`: given the motives of the
 members it calls, the motive holds of its body. -/
-abbrev Step6 (lenv : Environment) (env : VEnv) (Us : List Name) (tbl : SourceTable)
+abbrev Step6 (lenv : Environment) (env : VEnv) (tbl : SourceTable)
     (cfg : ErasureConfig) (gw : Void IO.RealWorld → NameGenerator) : Prop :=
-  ErasureSpec lenv env Us gw → SourceTableAdequate lenv tbl → ConfigPinned cfg →
+  (∀ Us, ErasureSpec lenv env Us gw) → SourceTableAdequate lenv tbl → ConfigPinned cfg →
   CompilerBodies lenv env tbl.body? →
   ∀ (vExpr : Expr → EraseM LBTerm),
-    Motive1 env Us tbl cfg gw vExpr →
-    Motive6 env Us tbl cfg gw (visitMutualBody vExpr)
+    Motive1 env tbl cfg gw vExpr →
+    Motive6 env tbl cfg gw (visitMutualBody vExpr)
 
 /-- Step 7 — the induction's obligation at `Erasure.visitAppArgs`: given the motives of the
 members it calls, the motive holds of its body. -/
-abbrev Step7 (lenv : Environment) (env : VEnv) (Us : List Name) (tbl : SourceTable)
+abbrev Step7 (lenv : Environment) (env : VEnv) (tbl : SourceTable)
     (cfg : ErasureConfig) (gw : Void IO.RealWorld → NameGenerator) : Prop :=
-  ErasureSpec lenv env Us gw → SourceTableAdequate lenv tbl → ConfigPinned cfg →
+  (∀ Us, ErasureSpec lenv env Us gw) → SourceTableAdequate lenv tbl → ConfigPinned cfg →
   CompilerBodies lenv env tbl.body? →
   ∀ (vExpr : Expr → EraseM LBTerm),
-    Motive1 env Us tbl cfg gw vExpr →
-    Motive7 env Us tbl cfg gw (visitAppArgsBody vExpr)
+    Motive1 env tbl cfg gw vExpr →
+    Motive7 env tbl cfg gw (visitAppArgsBody vExpr)
 
 /-- Step 8 — the induction's obligation at `Erasure.visitLet`: given the motives of the
 members it calls, the motive holds of its body. -/
-abbrev Step8 (lenv : Environment) (env : VEnv) (Us : List Name) (tbl : SourceTable)
+abbrev Step8 (lenv : Environment) (env : VEnv) (tbl : SourceTable)
     (cfg : ErasureConfig) (gw : Void IO.RealWorld → NameGenerator) : Prop :=
-  ErasureSpec lenv env Us gw → SourceTableAdequate lenv tbl → ConfigPinned cfg →
+  (∀ Us, ErasureSpec lenv env Us gw) → SourceTableAdequate lenv tbl → ConfigPinned cfg →
   CompilerBodies lenv env tbl.body? →
   ∀ (vExpr : Expr → EraseM LBTerm),
-    Motive1 env Us tbl cfg gw vExpr →
-    Motive8 env Us tbl cfg gw (visitLetBody vExpr)
+    Motive1 env tbl cfg gw vExpr →
+    Motive8 env tbl cfg gw (visitLetBody vExpr)
 
 /-- Step 9 — the induction's obligation at `Erasure.visitLambda`: given the motives of the
 members it calls, the motive holds of its body. -/
-abbrev Step9 (lenv : Environment) (env : VEnv) (Us : List Name) (tbl : SourceTable)
+abbrev Step9 (lenv : Environment) (env : VEnv) (tbl : SourceTable)
     (cfg : ErasureConfig) (gw : Void IO.RealWorld → NameGenerator) : Prop :=
-  ErasureSpec lenv env Us gw → SourceTableAdequate lenv tbl → ConfigPinned cfg →
+  (∀ Us, ErasureSpec lenv env Us gw) → SourceTableAdequate lenv tbl → ConfigPinned cfg →
   CompilerBodies lenv env tbl.body? →
   ∀ (vExpr : Expr → EraseM LBTerm),
-    Motive1 env Us tbl cfg gw vExpr →
-    Motive9 env Us tbl cfg gw (visitLambdaBody vExpr)
+    Motive1 env tbl cfg gw vExpr →
+    Motive9 env tbl cfg gw (visitLambdaBody vExpr)
 
 /-- Step 10 — the induction's obligation at `Erasure.visitProj`: given the motives of the
 members it calls, the motive holds of its body. -/
-abbrev Step10 (lenv : Environment) (env : VEnv) (Us : List Name) (tbl : SourceTable)
+abbrev Step10 (lenv : Environment) (env : VEnv) (tbl : SourceTable)
     (cfg : ErasureConfig) (gw : Void IO.RealWorld → NameGenerator) : Prop :=
-  ErasureSpec lenv env Us gw → SourceTableAdequate lenv tbl → ConfigPinned cfg →
+  (∀ Us, ErasureSpec lenv env Us gw) → SourceTableAdequate lenv tbl → ConfigPinned cfg →
   CompilerBodies lenv env tbl.body? →
   ∀ (vExpr : Expr → EraseM LBTerm),
-    Motive1 env Us tbl cfg gw vExpr →
-    Motive10 env Us tbl cfg gw (visitProjBody vExpr)
+    Motive1 env tbl cfg gw vExpr →
+    Motive10 env tbl cfg gw (visitProjBody vExpr)
 
 /-- Step 11 — the induction's obligation at `Erasure.visitApp`: given the motives of the
 members it calls, the motive holds of its body. -/
-abbrev Step11 (lenv : Environment) (env : VEnv) (Us : List Name) (tbl : SourceTable)
+abbrev Step11 (lenv : Environment) (env : VEnv) (tbl : SourceTable)
     (cfg : ErasureConfig) (gw : Void IO.RealWorld → NameGenerator) : Prop :=
-  ErasureSpec lenv env Us gw → SourceTableAdequate lenv tbl → ConfigPinned cfg →
+  (∀ Us, ErasureSpec lenv env Us gw) → SourceTableAdequate lenv tbl → ConfigPinned cfg →
   CompilerBodies lenv env tbl.body? →
   ∀ (vExpr : Expr → EraseM LBTerm) (vArgs : LBTerm → Array Expr → EraseM LBTerm)
     (vConstApp : Expr → EraseM LBTerm),
-    Motive1 env Us tbl cfg gw vExpr →
-    Motive7 env Us tbl cfg gw vArgs →
-    Motive12 env Us tbl cfg gw vConstApp →
-    Motive11 env Us tbl cfg gw (visitAppBody vExpr vArgs vConstApp)
+    Motive1 env tbl cfg gw vExpr →
+    Motive7 env tbl cfg gw vArgs →
+    Motive12 env tbl cfg gw vConstApp →
+    Motive11 env tbl cfg gw (visitAppBody vExpr vArgs vConstApp)
 
 /-- Step 12 — the induction's obligation at `Erasure.visitConstApp`: given the motives of the
 members it calls, the motive holds of its body. -/
-abbrev Step12 (lenv : Environment) (env : VEnv) (Us : List Name) (tbl : SourceTable)
+abbrev Step12 (lenv : Environment) (env : VEnv) (tbl : SourceTable)
     (cfg : ErasureConfig) (gw : Void IO.RealWorld → NameGenerator) : Prop :=
-  ErasureSpec lenv env Us gw → SourceTableAdequate lenv tbl → ConfigPinned cfg →
+  (∀ Us, ErasureSpec lenv env Us gw) → SourceTableAdequate lenv tbl → ConfigPinned cfg →
   CompilerBodies lenv env tbl.body? →
   ∀ (vConst : Expr → EraseM LBTerm) (vArgs : LBTerm → Array Expr → EraseM LBTerm)
     (vCtorEta : Name → Nat → Expr → EraseM LBTerm) (vCasesEta : CasesInfo → Expr → EraseM LBTerm),
-    Motive4 env Us tbl cfg gw vConst →
-    Motive7 env Us tbl cfg gw vArgs →
-    Motive13 env Us tbl cfg gw vCtorEta →
-    Motive15 env Us tbl cfg gw vCasesEta →
-    Motive12 env Us tbl cfg gw (visitConstAppBody vConst vArgs vCtorEta vCasesEta)
+    Motive4 env tbl cfg gw vConst →
+    Motive7 env tbl cfg gw vArgs →
+    Motive13 env tbl cfg gw vCtorEta →
+    Motive15 env tbl cfg gw vCasesEta →
+    Motive12 env tbl cfg gw (visitConstAppBody vConst vArgs vCtorEta vCasesEta)
 
 /-- Step 13 — the induction's obligation at `Erasure.visitCtorEta`: given the motives of the
 members it calls, the motive holds of its body. -/
-abbrev Step13 (lenv : Environment) (env : VEnv) (Us : List Name) (tbl : SourceTable)
+abbrev Step13 (lenv : Environment) (env : VEnv) (tbl : SourceTable)
     (cfg : ErasureConfig) (gw : Void IO.RealWorld → NameGenerator) : Prop :=
-  ErasureSpec lenv env Us gw → SourceTableAdequate lenv tbl → ConfigPinned cfg →
+  (∀ Us, ErasureSpec lenv env Us gw) → SourceTableAdequate lenv tbl → ConfigPinned cfg →
   CompilerBodies lenv env tbl.body? →
   ∀ (vCtorEtaGo : Name → Nat → Expr → Expr → Array Expr → EraseM LBTerm),
-    Motive14 env Us tbl cfg gw vCtorEtaGo →
-    Motive13 env Us tbl cfg gw (visitCtorEtaBody vCtorEtaGo)
+    Motive14 env tbl cfg gw vCtorEtaGo →
+    Motive13 env tbl cfg gw (visitCtorEtaBody vCtorEtaGo)
 
 /-- Step 14 — the induction's obligation at `Erasure.visitCtorEtaGo`: given the motives of the
 members it calls, the motive holds of its body. -/
-abbrev Step14 (lenv : Environment) (env : VEnv) (Us : List Name) (tbl : SourceTable)
+abbrev Step14 (lenv : Environment) (env : VEnv) (tbl : SourceTable)
     (cfg : ErasureConfig) (gw : Void IO.RealWorld → NameGenerator) : Prop :=
-  ErasureSpec lenv env Us gw → SourceTableAdequate lenv tbl → ConfigPinned cfg →
+  (∀ Us, ErasureSpec lenv env Us gw) → SourceTableAdequate lenv tbl → ConfigPinned cfg →
   CompilerBodies lenv env tbl.body? →
   ∀ (vExpr : Expr → EraseM LBTerm) (vCtor : Name → Array Expr → EraseM LBTerm)
     (vCtorEtaGo : Name → Nat → Expr → Expr → Array Expr → EraseM LBTerm),
-    Motive1 env Us tbl cfg gw vExpr →
-    Motive3 env Us tbl cfg gw vCtor →
-    Motive14 env Us tbl cfg gw vCtorEtaGo →
-    Motive14 env Us tbl cfg gw (visitCtorEtaGoBody vExpr vCtor vCtorEtaGo)
+    Motive1 env tbl cfg gw vExpr →
+    Motive3 env tbl cfg gw vCtor →
+    Motive14 env tbl cfg gw vCtorEtaGo →
+    Motive14 env tbl cfg gw (visitCtorEtaGoBody vExpr vCtor vCtorEtaGo)
 
 /-- Step 15 — the induction's obligation at `Erasure.visitCasesEta`: given the motives of the
 members it calls, the motive holds of its body. -/
-abbrev Step15 (lenv : Environment) (env : VEnv) (Us : List Name) (tbl : SourceTable)
+abbrev Step15 (lenv : Environment) (env : VEnv) (tbl : SourceTable)
     (cfg : ErasureConfig) (gw : Void IO.RealWorld → NameGenerator) : Prop :=
-  ErasureSpec lenv env Us gw → SourceTableAdequate lenv tbl → ConfigPinned cfg →
+  (∀ Us, ErasureSpec lenv env Us gw) → SourceTableAdequate lenv tbl → ConfigPinned cfg →
   CompilerBodies lenv env tbl.body? →
   ∀ (vCasesEtaGo : CasesInfo → Expr → Expr → Array Expr → EraseM LBTerm),
-    Motive16 env Us tbl cfg gw vCasesEtaGo →
-    Motive15 env Us tbl cfg gw (visitCasesEtaBody vCasesEtaGo)
+    Motive16 env tbl cfg gw vCasesEtaGo →
+    Motive15 env tbl cfg gw (visitCasesEtaBody vCasesEtaGo)
 
 /-- Step 16 — the induction's obligation at `Erasure.visitCasesEtaGo`: given the motives of the
 members it calls, the motive holds of its body. -/
-abbrev Step16 (lenv : Environment) (env : VEnv) (Us : List Name) (tbl : SourceTable)
+abbrev Step16 (lenv : Environment) (env : VEnv) (tbl : SourceTable)
     (cfg : ErasureConfig) (gw : Void IO.RealWorld → NameGenerator) : Prop :=
-  ErasureSpec lenv env Us gw → SourceTableAdequate lenv tbl → ConfigPinned cfg →
+  (∀ Us, ErasureSpec lenv env Us gw) → SourceTableAdequate lenv tbl → ConfigPinned cfg →
   CompilerBodies lenv env tbl.body? →
   ∀ (vExpr : Expr → EraseM LBTerm)
     (vCasesEtaGo : CasesInfo → Expr → Expr → Array Expr → EraseM LBTerm)
     (vCases : CasesInfo → Array Expr → EraseM LBTerm),
-    Motive1 env Us tbl cfg gw vExpr →
-    Motive16 env Us tbl cfg gw vCasesEtaGo →
-    Motive17 env Us tbl cfg gw vCases →
-    Motive16 env Us tbl cfg gw (visitCasesEtaGoBody vExpr vCasesEtaGo vCases)
+    Motive1 env tbl cfg gw vExpr →
+    Motive16 env tbl cfg gw vCasesEtaGo →
+    Motive17 env tbl cfg gw vCases →
+    Motive16 env tbl cfg gw (visitCasesEtaGoBody vExpr vCasesEtaGo vCases)
 
 /-- Step 17 — the induction's obligation at `Erasure.visitCases`: given the motives of the
 members it calls, the motive holds of its body. -/
-abbrev Step17 (lenv : Environment) (env : VEnv) (Us : List Name) (tbl : SourceTable)
+abbrev Step17 (lenv : Environment) (env : VEnv) (tbl : SourceTable)
     (cfg : ErasureConfig) (gw : Void IO.RealWorld → NameGenerator) : Prop :=
-  ErasureSpec lenv env Us gw → SourceTableAdequate lenv tbl → ConfigPinned cfg →
+  (∀ Us, ErasureSpec lenv env Us gw) → SourceTableAdequate lenv tbl → ConfigPinned cfg →
   CompilerBodies lenv env tbl.body? →
   ∀ (vExpr : Expr → EraseM LBTerm)
     (vAlt : Nat → ConstructorArgMask → Expr → EraseM (List BinderName × LBTerm)),
-    Motive1 env Us tbl cfg gw vExpr →
-    Motive18 env Us tbl cfg gw vAlt →
-    Motive17 env Us tbl cfg gw (visitCasesBody vExpr vAlt)
+    Motive1 env tbl cfg gw vExpr →
+    Motive18 env tbl cfg gw vAlt →
+    Motive17 env tbl cfg gw (visitCasesBody vExpr vAlt)
 
 /-- Step 18 — the induction's obligation at `Erasure.visitAlt`: given the motives of the
 members it calls, the motive holds of its body. -/
-abbrev Step18 (lenv : Environment) (env : VEnv) (Us : List Name) (tbl : SourceTable)
+abbrev Step18 (lenv : Environment) (env : VEnv) (tbl : SourceTable)
     (cfg : ErasureConfig) (gw : Void IO.RealWorld → NameGenerator) : Prop :=
-  ErasureSpec lenv env Us gw → SourceTableAdequate lenv tbl → ConfigPinned cfg →
+  (∀ Us, ErasureSpec lenv env Us gw) → SourceTableAdequate lenv tbl → ConfigPinned cfg →
   CompilerBodies lenv env tbl.body? →
   ∀ (vExpr : Expr → EraseM LBTerm),
-    Motive1 env Us tbl cfg gw vExpr →
-    Motive18 env Us tbl cfg gw (visitAltBody vExpr)
+    Motive1 env tbl cfg gw vExpr →
+    Motive18 env tbl cfg gw (visitAltBody vExpr)
 
 end LeanToLambdaBox

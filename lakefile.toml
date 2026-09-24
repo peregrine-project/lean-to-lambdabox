@@ -6,9 +6,12 @@ defaultTargets = ["LeanToLambdaBox"]
 # (`VExpr`, `HasType`/`IsDefEq`, `TrExprS`/`VLCtx`, `TrEnv`, `inferType'.WF`).
 #
 # The pin is the head of the `trproj` branch of the barabbs/lean4lean fork, which extends
-# upstream (digama0/lean4lean) with ι-reduction support and a definition of `TrProj`. It is
-# on the v4.33.0-rc2 toolchain (matching `lean-toolchain`) and pulls batteries v4.33.0-rc2
-# transitively.
+# upstream (digama0/lean4lean) with ι-reduction support and a definition of `TrProj`, and, as
+# of the round-4 asks landing, well-formed-environment constant/inductive origin lemmas
+# (`VEnv.WF'.consts_origin`, `.induct_origin`, one still-`sorry` sibling), `VContext.ofMLCtx`/
+# `M.WF.run'` at an ambient local context, and kernel inductive-block inversion
+# (`TrEnv.inductInfo_inv`). It is on the v4.33.0-rc2 toolchain (matching `lean-toolchain`) and
+# pulls batteries v4.33.0-rc2 transitively.
 #
 # The `sorry` roots this pin makes inheritable are listed, with `file:line`, in
 # `doc/trust.md`; `scripts/lean4lean-sorries.sh` re-measures them against
@@ -16,7 +19,7 @@ defaultTargets = ["LeanToLambdaBox"]
 [[require]]
 name = "lean4lean"
 git = "https://github.com/barabbs/lean4lean"
-rev = "20ec229f1a8c6358f3b3852c4e27d2be523d1b87"
+rev = "8cc17a54c41c5e364596f8e4039e1f2094523a88"
 
 [[lean_lib]]
 name = "LeanToLambdaBox"

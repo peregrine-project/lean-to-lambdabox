@@ -66,7 +66,7 @@ inductive SupportError where
   /-- An elimination of a non-informative inductive into data. The ι rules of the target
       semantics fire only at a `false` propositional flag (`Semantics/Eval.lean:147`), and the
       erasure sets that flag from the eliminated inductive's declared arity
-      (`Erasure.lean:368`): at an always-`Prop` arity the emitted `.case` collapses its single
+      (`Erasure.lean:389`): at an always-`Prop` arity the emitted `.case` collapses its single
       alternative against `□` (`WcbvEval.iota_sing`) instead of selecting on a constructor, and
       at more than one alternative it is stuck. Informativity is what puts the flag at `false`
       (`propositional_false_of_informative`). Keyed on the *shape*, not the name —
@@ -182,15 +182,34 @@ def isMatcherName (c : Name) : Bool :=
   | some s => "match_".isPrefixOf s || "splitter".isPrefixOf s
   | none => false
 
+/-- Is `c` named like a recursor — `I.rec`, one of the eliminators generated beside it, or one
+of the auxiliary recursors `I.rec_k` that a nested or mutual inductive block carries? The name
+test alone, without the table lookup `isRecursorName` adds, so that a consumer can read it at a
+name the table does not hold. The `rec_*` arm is measured: of this toolchain's 3342 `.recInfo`
+constants every one carries a suffix in this set, and 125 — the auxiliary recursors, e.g.
+`Lean.Syntax.rec_2` — carry only `rec_k` (`scratch/round7/w9a_measure.out`). A name test
+over-approximates in the safe direction: a definition called `I.rec_k` that is *not* a
+recursor leaves the fragment with `SupportError.recursorHead`, a coverage cost, never an
+accepted term the ι rule cannot evaluate. That class is inhabited, not merely hypothetical: 18
+non-`.recInfo` constants of this toolchain fall under `rec_*`, 13 of them under a genuine
+inductive prefix — `Nat.rec_eq_recCompiled`, `Bool.rec_eq`, `Acc.rec_eq_recC`,
+`List.Perm.rec_heq`, and eight `Lean4Lean`-internal theorems (`scratch/round7/W5-refute.md`
+§4.4). `Nat` and `Bool` are tabled inductives at the ladder's rungs, so `isRecursorName` now
+answers `true` at those thirteen names for any table tabling them — a coverage cost, never a
+miscompile: all thirteen are theorems, unreachable from a computational body, so no rung
+moved. -/
+def recSuffix (c : Name) : Bool :=
+  match lastComponent c with
+  | some s =>
+    s == "rec" || "rec_".isPrefixOf s || s == "recOn" || s == "brecOn" || s == "below" ||
+      s == "ndrec"
+  | none => false
+
 /-- Is `c` a recursor of a tabled inductive type? Such a constant is outside the fragment:
 `Witness.reify%` tables it body-less, so δ cannot fire at it, no value arm classifies it, and
 the ι rule reads `casesOn` names only. -/
 def isRecursorName (tbl : SourceTable) (c : Name) : Bool :=
-  match lastComponent c with
-  | some s =>
-    (s == "rec" || s == "recOn" || s == "brecOn" || s == "below" || s == "ndrec") &&
-      (tbl.ind? c.getPrefix).isSome
-  | none => false
+  recSuffix c && (tbl.ind? c.getPrefix).isSome
 
 /-- The tabled constructor of `c`, with its inductive type, if `c` is one. -/
 def ctorOf? (tbl : SourceTable) (c : Name) : Option (Name × ReifiedCtor) :=
@@ -294,21 +313,148 @@ theorem eq_of_nodup_map {α β : Type _} [DecidableEq β] {f : α → β} :
     · exact absurd (hf ▸ List.mem_map_of_mem hx') h.1
     · exact eq_of_nodup_map h.2 x hx' y hy' hf
 
-/-- `kernameSepB` decides the `Supported.kernames` clause. -/
+/-- `n` has a row in either column of the table — the scope `kernameSepB` decides, since it
+erases duplicates of `tbl.decls ++ tbl.inds` mapped through `toKername` and so separates a
+constant from an inductive as well as two constants. -/
+def Tabled (tbl : SourceTable) (n : Name) : Prop :=
+  (tbl.decl? n).isSome = true ∨ (tbl.ind? n).isSome = true
+
+/-- `kernameSepB` decides the `Supported.kernames` clause, across both columns. -/
 theorem kernames_of_kernameSepB {tbl : SourceTable} (h : kernameSepB tbl = true) :
-    ∀ m m' : Name, (tbl.decl? m).isSome → (tbl.decl? m').isSome →
+    ∀ m m' : Name, Tabled tbl m → Tabled tbl m' →
       toKername m = toKername m' → m = m' := by
   have heq : ((tbl.decls.map Prod.fst ++ tbl.inds.map Prod.fst).map toKername).eraseDups.length
       = tbl.decls.length + tbl.inds.length := by simpa [kernameSepB] using h
   have hnd : ((tbl.decls.map Prod.fst ++ tbl.inds.map Prod.fst).map toKername).Nodup :=
     nodup_of_length_eraseDups (by rw [heq]; simp)
-  have hmem : ∀ n : Name, (tbl.decl? n).isSome → n ∈ tbl.decls.map Prod.fst := by
-    intro n hn
-    obtain ⟨d, hd⟩ := Option.isSome_iff_exists.1 hn
-    exact List.mem_map_of_mem (mem_of_lookup hd)
+  have hmem : ∀ n : Name, Tabled tbl n →
+      n ∈ tbl.decls.map Prod.fst ++ tbl.inds.map Prod.fst := by
+    rintro n (hn | hn)
+    · obtain ⟨d, hd⟩ := Option.isSome_iff_exists.1 hn
+      exact List.mem_append_left _ (List.mem_map_of_mem (mem_of_lookup hd))
+    · obtain ⟨I, hI⟩ := Option.isSome_iff_exists.1 hn
+      exact List.mem_append_right _ (List.mem_map_of_mem (mem_of_lookup hI))
   intro m m' hm hm' hk
-  exact eq_of_nodup_map hnd m (List.mem_append_left _ (hmem m hm)) m'
-    (List.mem_append_left _ (hmem m' hm')) hk
+  exact eq_of_nodup_map hnd m (hmem m hm) m' (hmem m' hm') hk
+
+/-! ### `cleanIdent` at an eliminator key
+
+`toKername` is not injective, but it is injective *at* an identifier it does not escape:
+`Basic.cleanIdent` replaces every character it does not keep by an `_u…` escape, so an image
+carrying no `_` is its own preimage. That is the converse of `toKername_id_of_isCasesOnName`,
+and it is what tells a clause guarded by `isCasesOnName c = false` that `c`'s key is not an
+eliminator's.
+-/
+
+/-- The characters of a `String.foldl`-built concatenation: the accumulator's, then each
+summand's. -/
+theorem toList_foldl_append : ∀ (L : List String) (init : String),
+    (L.foldl (· ++ ·) init).toList = init.toList ++ L.flatMap String.toList
+  | [], init => by simp
+  | a :: L, init => by
+    simp [List.foldl, toList_foldl_append L (init ++ a), String.toList_append,
+      List.append_assoc]
+
+/-- The characters of a joined list of strings. -/
+theorem toList_join (L : List String) : (String.join L).toList = L.flatMap String.toList := by
+  simp [String.join, toList_foldl_append]
+
+/-- The characters `cleanIdent` emits: a kept character on its own, an escaped one as `_u`
+before its code point. -/
+theorem toList_cleanIdent (s : String) :
+    (cleanIdent s).toList = s.toList.flatMap fun c =>
+      if c.isAlphanum || c == '_' then [c] else '_' :: 'u' :: (toString c.toNat).toList := by
+  rw [cleanIdent, toList_join, List.flatMap_map]
+  refine congrArg (List.flatMap · s.toList) (funext fun a => ?_)
+  split
+  · show (Char.toString a).toList = [a]
+    simp [Char.toString]
+  · simp [String.toList_append]
+
+/-- A per-character expansion that either keeps its character or emits one containing `'_'`
+rebuilds its input whenever the output carries no `'_'`. -/
+theorem flatMap_eq_self_of_notMem {f : Char → List Char}
+    (hf : ∀ c, f c = [c] ∨ '_' ∈ f c) :
+    ∀ l : List Char, '_' ∉ l.flatMap f → l.flatMap f = l
+  | [], _ => rfl
+  | c :: l, h => by
+    rw [List.flatMap_cons] at h ⊢
+    rcases hf c with hc | hc
+    · rw [hc, List.singleton_append] at h ⊢
+      exact congrArg (c :: ·)
+        (flatMap_eq_self_of_notMem hf l fun hm => h (List.mem_cons_of_mem _ hm))
+    · exact absurd (List.mem_append_left _ hc) h
+
+/-- **`cleanIdent` is injective at an unescaped identifier**: a value it takes that carries no
+`'_'` is reached only from itself. -/
+theorem cleanIdent_eq_of_notMem_underscore {s t : String}
+    (h : cleanIdent s = t) (hu : '_' ∉ t.toList) : s = t := by
+  subst h
+  refine String.toList_inj.mp ?_
+  rw [toList_cleanIdent] at hu ⊢
+  exact (flatMap_eq_self_of_notMem (fun c => by
+    split
+    · exact Or.inl rfl
+    · exact Or.inr (List.mem_cons_self ..)) s.toList hu).symm
+
+/-- `Nat.digitChar` answers a decimal digit below ten. -/
+theorem digitChar_ten (k : Nat) (h : k < 10) :
+    Nat.digitChar k ∈ ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'] := by
+  match k, h with
+  | 0, _ => decide
+  | 1, _ => decide
+  | 2, _ => decide
+  | 3, _ => decide
+  | 4, _ => decide
+  | 5, _ => decide
+  | 6, _ => decide
+  | 7, _ => decide
+  | 8, _ => decide
+  | 9, _ => decide
+
+/-- Base ten emits decimal digits: a character of `Nat.toDigitsCore 10` is one of the
+accumulator's or a digit. -/
+theorem mem_toDigitsCore_ten : ∀ (fuel n : Nat) (ds : List Char) (c : Char),
+    c ∈ Nat.toDigitsCore 10 fuel n ds →
+      c ∈ ds ∨ c ∈ ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+  | 0, _, ds, c, h => Or.inl (by simpa [Nat.toDigitsCore] using h)
+  | fuel + 1, n, ds, c, h => by
+    rw [Nat.toDigitsCore] at h
+    have hd : Nat.digitChar (n % 10) ∈ ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'] :=
+      digitChar_ten _ (Nat.mod_lt n (by decide))
+    split at h
+    · rcases List.mem_cons.1 h with rfl | h
+      · exact Or.inr hd
+      · exact Or.inl h
+    · rcases mem_toDigitsCore_ten fuel (n / 10) _ c h with h' | h'
+      · rcases List.mem_cons.1 h' with rfl | h'
+        · exact Or.inr hd
+        · exact Or.inl h'
+      · exact Or.inr h'
+
+/-- A decimal printout is not an eliminator suffix: it carries digits only. -/
+theorem repr_ne_casesOn (n : Nat) : n.repr ≠ "casesOn" := by
+  intro h
+  have h1 : Nat.toDigits 10 n = "casesOn".toList := by
+    rw [← @String.toList_ofList (Nat.toDigits 10 n)]
+    exact congrArg String.toList h
+  have h2 : 'c' ∈ Nat.toDigits 10 n := by rw [h1]; decide
+  rcases mem_toDigitsCore_ten (n + 1) n [] 'c' h2 with h3 | h3
+  · cases h3
+  · exact absurd h3 (by decide)
+
+/-- **The converse of `toKername_id_of_isCasesOnName`.** A name whose λ□ key is a member's
+eliminator key is itself an eliminator name: `cleanIdent` keeps `"casesOn"`, the `.num` arm
+prints digits and the `.anonymous` arm prints nothing. -/
+theorem toKername_of_cleanIdent_casesOn {c I : Name}
+    (h : toKername c = toKername (Name.str I "casesOn")) : isCasesOnName c = true := by
+  have hid : (toKername c).id = "casesOn" := by rw [h]; rfl
+  cases c with
+  | anonymous => exact absurd hid (by decide)
+  | num _ nb => exact absurd hid (repr_ne_casesOn nb)
+  | str _ s =>
+    have hs : s = "casesOn" := cleanIdent_eq_of_notMem_underscore hid (by decide)
+    simp [isCasesOnName, lastComponent, hs]
 
 /-! ## The checker -/
 
@@ -465,6 +611,26 @@ structure TableSafe (lenv : Lean.Environment) (tbl : SourceTable) : Prop where
       call site's scope. Decidable on a concrete table, like `notUnsafeRec`. -/
   noMaxLevels : ∀ (n : Name) (b : Expr), tbl.body? n = some b → NoMaxLevels b
 
+/-! ## The naming scheme -/
+
+/-- `lenv` declares its quotient primitives and its recursors under the names the two name
+classes above test for. Class **D** for `ErasureSpec`'s reason — no term denotes `lenv` — and
+taken beside `ErasureSpec` rather than inside it, since neither field mentions a level scope.
+It lives here rather than in `ErasureSpec` because both fields are stated against name tests
+this file defines, and `Supported` imports `ErasureSpec`.
+
+Both fields are measured at this toolchain (`scratch/round7/w9a_measure.out`, 230 479
+constants): the `.quotInfo` constants are exactly `quotPrimNames` — `Quot.sound` is an
+`.axiomInfo`, so the `quot` field is not weakened by it — and every one of the 3342 `.recInfo`
+constants carries a `recSuffix`. -/
+structure SchemeNames (lenv : Lean.Environment) : Prop where
+  /-- A quotient primitive is one of the four names `Erasure.quotRealizer` dispatches on. -/
+  quot : ∀ (c : Name) (qv : QuotVal), lenv.find? c = some (.quotInfo qv) →
+    quotPrimNames.contains c = true
+  /-- A recursor is declared under a recursor suffix. -/
+  recr : ∀ (c : Name) (rv : RecursorVal), lenv.find? c = some (.recInfo rv) →
+    recSuffix c = true
+
 /-! ## The fragment -/
 
 /-- **N19's constructor half**: a tabled constructor occurs applied to at least its
@@ -568,8 +734,8 @@ inductive SupportedTm (env : VEnv) (tbl : SourceTable) : Expr → List Expr → 
       SupportedTm env tbl (.const c us) args
   /-- A `casesOn` head, applied. `hind` names the inductive type at the head's name prefix,
       which `CasesInfoAgrees.indName` ties to the `Lean.CasesInfo.indName` the erasure
-      eliminates against (`Erasure.lean:1098`); `hinf` is its informativity, which is what puts
-      the inductive's emitted propositional flag at `false` (`Erasure.lean:368`,
+      eliminates against (`Erasure.lean:1119`); `hinf` is its informativity, which is what puts
+      the inductive's emitted propositional flag at `false` (`Erasure.lean:389`,
       `propositional_false_of_informative`) and so lets the target's ι rule fire at all
       (`SupportError.propElimIntoData`); `hlen` and `htel` are the minor premises, one per
       constructor and each a manifest λ-telescope of its constructor's field count, which is
@@ -605,9 +771,9 @@ structure Supported (env : VEnv) (tbl : SourceTable) (e : Expr) : Prop where
   /-- The shape of every reachable tabled body. -/
   bodies : ∀ (c : Name) (b : Expr), Reaches tbl e c → tbl.body? c = some b →
     SupportedTm env tbl b []
-  /-- No two tabled names share a λ□ key, so no emitted declaration shadows another
-      (`SupportError.kernameCollision`). -/
-  kernames : ∀ m m' : Name, (tbl.decl? m).isSome → (tbl.decl? m').isSome →
+  /-- No two tabled names — in either column — share a λ□ key, so no emitted declaration
+      shadows another (`SupportError.kernameCollision`). -/
+  kernames : ∀ m m' : Name, Tabled tbl m → Tabled tbl m' →
     toKername m = toKername m' → m = m'
 
 /-! ## The projection head, read back
@@ -1104,13 +1270,13 @@ structure CasesInfoAgrees (ci : Lean.CasesInfo) (c : Name) (I : ReifiedInduct) :
   numFields : ∀ (j : Nat) (a : Lean.CasesAltInfo) (cb : ReifiedCtor),
     ci.altNumParams[j]? = some a → I.ctors[j]? = some cb → altNumFields a = cb.numFields
   /-- The information eliminates the inductive the table holds at the head's name prefix. This
-      is what ties `Erasure.visitCases`' `casesInfo.indName` read (`Erasure.lean:1098`) to the
+      is what ties `Erasure.visitCases`' `casesInfo.indName` read (`Erasure.lean:1119`) to the
       block the fragment pins; the two differ at a sparse `casesOn`, which `supportedHead`
       refuses. `CasesInfoAgreesK.indName`'s twin. -/
   indName : ci.indName = c.getPrefix
   /-- Every alternative slot is its constructor's, in constructor order, never the catch-all
       shape. `CasesInfoAgreesK.altCtor`'s twin, and what makes `Erasure.visitCases`'
-      per-constructor `findIdx?` (`Erasure.lean:1122-1124`) total. -/
+      per-constructor `findIdx?` (`Erasure.lean:1143-1145`) total. -/
   altCtor : ∀ (j : Nat) (a : Lean.CasesAltInfo) (cb : ReifiedCtor),
     ci.altNumParams[j]? = some a → I.ctors[j]? = some cb → ∃ nf, a = .ctor cb.name nf
 
@@ -1157,7 +1323,7 @@ structure TableBlocks (lenv : Lean.Environment) (env : VEnv) (tbl : SourceTable)
   /-- No member is erasable, so none erases to `□` — stated as the negation the oracle's
       soundness contradicts, with `InformativeInd` as its precedent. The member's body is
       read at the member's **own** level scope, `tbl.levels? m`, which is the scope the
-      eraser erases it at (`Erasure.lean:912`) and the scope
+      eraser erases it at (`Erasure.lean:1309`) and the scope
       `erases_constant_body (Σ, cst_universes cb)` reads it at
       (`../metarocq/erasure/theories/Extract.v:264`). At the ambient `[]` no
       universe-polymorphic member has a translation, so the clause would be vacuous there. -/

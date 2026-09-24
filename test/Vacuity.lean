@@ -78,6 +78,40 @@ theorem erases_lam_sort_param_instantiated (env : VEnv) (Us : List Name) (n : Na
   Erases.instantiateLevelParams (us' := [.zero]) rfl rfl
     (erases_lam_sort_param_own_scope env n bi) ⟨trivial, trivial⟩
 
+/-! ## What no environment with an inductive block can give
+
+`UpstreamAsks.constOriginExcludes` asks that a name declared as a plain constant be neither a
+constructor nor an inductive type name. `ConstOrigin env c` reads the declaration off an
+*arbitrary* well-formed declaration list below `env`, where MetaRocq's `declared_constant`
+reads `lookup_env Σ c`, a function of the environment itself
+(`../metarocq/pcuic/theories/PCUICTyping.v`). A block's own `addConst` chain is a run of
+well-formed `axiom` declarations, so the reading is satisfied by every constant the block
+declares, and the ask is refuted at every environment that declares one.
+-/
+
+open NatWitness in
+/-- The fixture's constructor `Nat.zero` is a `ConstOrigin`. -/
+theorem natZ_constOrigin : ConstOrigin natEnv natZ := nat_ctorOf_zero.constOrigin
+
+open NatWitness in
+/-- So is the fixture's type former `Nat`. -/
+theorem natN_constOrigin : ConstOrigin natEnv natN := nat_indInfo.constOrigin
+
+open NatWitness in
+/-- **The exclusion ask is refuted**, so `UpstreamAsks` is inhabited at no environment
+declaring an inductive block, and every theorem taking it is vacuous there. -/
+theorem not_upstreamAsks_natEnv : ¬ UpstreamAsks natEnv := fun A =>
+  (A.constOriginExcludes _ natZ_constOrigin).1 _ _ nat_ctorOf_zero
+
+open NatWitness in
+/-- **What the refuted ask was excluding**: with `Erases.const` reading `ConstOrigin`, a
+constructor constant erases both to its λ□ constructor node and to a λ□ constant node. -/
+theorem erases_natZ_two_ways {Δ : VLCtx} {us : List Level} :
+    Erases natEnv [] Δ (.const natZ us) (.construct NatWitness.natIid 0 []) ∧
+    Erases natEnv [] Δ (.const natZ us) (.const (toKername natZ)) ∧
+    (LBTerm.construct NatWitness.natIid 0 [] ≠ .const (toKername natZ)) :=
+  ⟨.ctor nat_ctorOf_zero nat_indInfo, .const rfl natZ_constOrigin, by simp⟩
+
 end LeanToLambdaBox.Vacuity
 
 #print axioms LeanToLambdaBox.Vacuity.no_trExprS_sort_param
@@ -85,3 +119,7 @@ end LeanToLambdaBox.Vacuity
 #print axioms LeanToLambdaBox.Vacuity.erases_lam_sort_param_own_scope
 #print axioms LeanToLambdaBox.Vacuity.defns_clause_inhabited
 #print axioms LeanToLambdaBox.Vacuity.erases_lam_sort_param_instantiated
+#print axioms LeanToLambdaBox.Vacuity.natZ_constOrigin
+#print axioms LeanToLambdaBox.Vacuity.natN_constOrigin
+#print axioms LeanToLambdaBox.Vacuity.not_upstreamAsks_natEnv
+#print axioms LeanToLambdaBox.Vacuity.erases_natZ_two_ways

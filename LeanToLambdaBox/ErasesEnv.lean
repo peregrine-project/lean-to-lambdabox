@@ -41,8 +41,21 @@ every valuation. MetaRocq's `erases_one_inductive_body` states the flag as an eq
 `ind_propositional = isPropositionalArity ind_type`
 (`../metarocq/erasure/theories/Extract.v:276`); this is the half of that equality a consumer
 spends, through `propositional_false_of_informative`, and the half
-`ErasureSpec.propositionalInd_of_arity` proves. The converse is refuted by an arity whose
-result sort sits under a `let` (`doc/rework/03-DEV-FIX.md`, F-ARITYLET).
+`ErasureSpec.propositionalInd_of_arity` proves.
+
+**Why the implication and not the equality.** The converse,
+`PropositionalInd env I → oib.propositional = true`, is refuted by
+`arity_of_propositionalInd_false` (`ErasureSpec.lean:639`, no `ErasureSpec.` prefix) at
+`inductive FooBVar : (let u := Prop; u)`,
+whose declared arity the translation sees through by zeta and the walk does not. The walk
+already reads `destArity`'s `tLetIn` arm and Lean's annotation arm (F-ARITYLET,
+`doc/rework/03-DEV-FIX.md`), and PCUIC's `destArity`
+(`../metarocq/pcuic/theories/PCUICAst.v:486-490`) stops at `tRel` as the walk does, so the
+residue is between lean4lean's translation and `destArity`, not between this repository and
+MetaRocq. No shipping change closes it: a walk that reduced far enough would also see through
+an alias-headed arity, where `TrExprS.const` keeps the `.const` and
+`ErasureSpec.propositionalInd_of_arity` — the half spent here — would fail. This clause
+therefore says nothing at a body whose flag is unset, which is every body the ladder emits.
 
 It is no clause of `IndBodyOf`, which carries no model environment:
 `Erasure.register_inductive` computes the flag on every inductive it registers —
@@ -145,7 +158,7 @@ theorem ErasesEnv.axioms (h : ErasesEnv env bo lp Γspec t) :
 /-- `erases_deps`' `tConstruct`/`tCase`/`tProj` clause: `declared_inductive Σ` — the
 `IndDeclOf` conjunct, which `IndInfo` does not give, since it exhibits a block below `env` —
 and `declared_inductive Σ'` with the arity data the target reads, beside `IndFlagSound`, the
-propositional flag's equation against the model. -/
+propositional flag's soundness against the model. -/
 theorem ErasesEnv.blocks (h : ErasesEnv env bo lp Γspec t) {I : Name} {iid : InductiveId}
     {np : Nat} {nfs : List Nat} (hi : IndInfo env I iid np nfs)
     (hr : ReachableFrom Γspec t iid.mutualBlockName) :
@@ -180,7 +193,7 @@ semantics reads, and — when `n` is informative — its `casesOn` eliminator. T
 step establishes. -/
 structure IndCovered (env : VEnv) (Γspec : GlobalDeclarations) (n : Name) : Prop where
   /-- The block declaration, at the block kername `IndInfo` names, together with `n`'s own
-      declaration in `env` and the propositional flag's equation against the model. -/
+      declaration in `env` and the propositional flag's soundness against the model. -/
   block : ∀ iid np nfs, IndInfo env n iid np nfs →
     IndDeclOf env n ∧ ∃ mib,
       LBTerm.envLookup Γspec iid.mutualBlockName = some (.inductiveDecl mib) ∧
@@ -271,15 +284,11 @@ builds, so it is no clause of this structure. -/
 structure LowerEnv (Γspec Γ : GlobalDeclarations) : Prop where
   /-- The emitted environment has distinct keys. -/
   keys : (Γ.map Prod.fst).Nodup
-  /-- A body declared by both is a `Lower` image, or the η-expansion of one lowered block's
-      node: `Erasure.visitMutual` registers `Erasure.etaExpandFix defs j`
-      (`Erasure.lean:1276`), not `.fix defs j`, and at `principalArgIdx = 0` that is
-      `LBTerm.etaFix defs j` (F-ETA). The second disjunct exists because the registration
-      side produces the block shape rather than a `Lower` derivation;
-      `Lower.fixEta_of_block` is the converter. -/
-  defs : ∀ kn b₀ b, DefnDecl Γspec kn b₀ → DefnDecl Γ kn b →
-    Lower Γspec b₀ b ∨ ∃ kns bs defs j, LowerFix Γspec kns bs defs ∧
-      kns[j]? = some kn ∧ b = LBTerm.etaFix defs j
+  /-- A body declared by both is a `Lower` image. The η-expansion `Erasure.visitMutual`
+      registers for a block member (`Erasure.etaExpandFix defs j`, `Erasure.lean:1316`,
+      which at `principalArgIdx = 0` is `LBTerm.etaFix defs j`, F-ETA) is one: it is
+      `Lower.fixEta` at that member, which `Lower.fixEta_of_block` reads off the block. -/
+  defs : ∀ kn b₀ b, DefnDecl Γspec kn b₀ → DefnDecl Γ kn b → Lower Γspec b₀ b
   /-- Every definition that is not a runtime key survives the pruning as a definition.
       The eraser declares every definition, a recursive one with a `.fix` body, and
       `Lower.const` relates a block member to its own `.const`, so a weaker clause would
@@ -319,7 +328,7 @@ theorem lowerEnv_idEnv : LowerEnv idEnv idEnv where
     rw [DefnDecl, idEnv, LBTerm.envLookup] at h₀ hb
     split at hb
     · split at h₀
-      · cases hb; cases h₀; exact .inl (.lambda (.bvar 0))
+      · cases hb; cases h₀; exact .lambda (.bvar 0)
       · rename_i hpos hneg; exact absurd hpos hneg
     · simp [LBTerm.envLookup] at hb
   defsTotal := fun _ b₀ h₀ _ => ⟨b₀, h₀⟩

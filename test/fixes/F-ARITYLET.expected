@@ -1,0 +1,7 @@
+F-ARITYLET let arity FooLet: true
+F-ARITYLET param+let arity FooParam: true
+F-ARITYLET alias arity FooAlias (unflagged by design): false
+F-ARITYLET let-prop: [(FArityLet.FooLet, true), (Nat, false), (OfNat, false)]
+F-ARITYLET param-prop: [(FArityLet.FooParam, true), (Nat, false), (OfNat, false)]
+F-ARITYLET mdata arity FooMData: true
+lean-exit=0

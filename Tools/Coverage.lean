@@ -258,6 +258,11 @@ structure RungFacts where
   binders : List String
   /-- Whether `LeanToLambdaBox.Green` declares the rung's `hwf` term `g<i>_wf`. -/
   wfTerm : Bool
+  /-- Whether `LeanToLambdaBox.Green` declares the rung's `NoBodylessRefs` term
+  `g<i>_noBodylessRefs`. W8 drops `hnb` from `shipping_erase_correct_firstorder` and from all
+  eight rungs' applications of it (`doc/rework/11-REPAIRS-W8.md` §2.8: the proof never spent
+  it), so this field is that term's only remaining reader. -/
+  nbTerm : Bool
   /-- Every binder name of the rung's emitted program failing the alphanumeric class. -/
   alnumBad : List String
   /-- Every binder name of it failing the printability condition. -/
@@ -267,8 +272,11 @@ structure RungFacts where
   /-- Its committed `.ast`'s size in bytes. -/
   bytes : Nat
 
-/-- The hypotheses whose presence or absence at a rung the ladder section reports. -/
-def audited : List String := ["hcb", "hev", "hbridge", "hargReach"]
+/-- The hypotheses whose presence or absence at a rung the ladder section reports. The
+fourth was `hargReach` before round 7 wave 4 (W7/U9); the binder `Green.green_G8` actually
+carries is `hbody` (`doc/trust.md`'s row), which is what this list must name for the
+`binders.contains` check below to see it. -/
+def audited : List String := ["hcb", "hev", "hbridge", "hbody"]
 
 /-- The binder names of a `∀`-telescope. -/
 partial def binderNames : Expr → List String
@@ -297,9 +305,11 @@ unsafe def measureRungs : IO (List RungFacts × Nat × Nat) := do
       | some Γ, some t => progBinders Γ t
       | _, _ => []
     let wfN := Name.mkStr3 "LeanToLambdaBox" "Green" s!"g{i}_wf"
+    let nbN := Name.mkStr3 "LeanToLambdaBox" "Green" s!"g{i}_noBodylessRefs"
     out := out.push { name := s!"G{i}", present := (env.find? thm).isSome
                       binders := (env.find? thm).map (binderNames ·.type) |>.getD []
                       wfTerm := (env.find? wfN).isSome
+                      nbTerm := (env.find? nbN).isSome
                       alnumBad := nms.filter (!alnumName ·)
                       printBad := nms.filter (!printableName ·)
                       tbl := tbl, bytes := bytes }
@@ -629,6 +639,7 @@ def ladderSection (rs : List RungFacts) : String :=
     |>.map (·.name))
   let free := fun h => String.intercalate ", " (rs.filter (!·.binders.contains h) |>.map (·.name))
   let cbFree := free "hcb"; let cbCarried := carried "hcb"; let evFree := free "hev"
+  let nbAll := rs.all (·.nbTerm)
   let wfAll := rs.all (·.wfTerm)
   let f6Row := fun (r : RungFacts) =>
     s!"| {r.name} | {r.alnumBad.length} | {r.alnumBad.eraseDups.length} | {r.printBad.length} |"
@@ -659,7 +670,7 @@ stuck term.
 
 Each rung's theorem and the hypotheses it still binds, read off `LeanToLambdaBox.Green`:
 
-| Rung | Theorem | `.ast` bytes | `hcb` | `hev` | `hbridge` | `hargReach` |
+| Rung | Theorem | `.ast` bytes | `hcb` | `hev` | `hbridge` | `hbody` |
 |---|---|---|---|---|---|---|
 {String.intercalate "\n" (rs.map rungRow)}
 
@@ -668,7 +679,7 @@ Each rung's theorem and the hypotheses it still binds, read off `LeanToLambdaBox
 where that is said.
 
 What every rung settles by computation is `hcfg`, `hsup` (through `supportedB`'s kernel
-verdict), `hnb`, `hwf` and the target-side evaluation, which is what pins the answer to the
+verdict), `hwf` and the target-side evaluation, which is what pins the answer to the
 literal numeral; at G8 the evaluated term is the emitted term applied to its argument. `hwt`
 is settled too, by a checked term rather than a computation: each subject is `#erase <constant>`, so
 `Witness.trExprS_const_of_table` builds its `TrExprS` witness from `P`, `htbl` and `hsafe` —
@@ -698,10 +709,17 @@ constant.
 `hwf : LBWfPeregrine Γ t` is a checked term at every rung: `lbWfPeregrine_of_check` reduces
 all **twelve** clauses to one Boolean and `Green.g<i>_wf` is `by decide +kernel` on it,
 {if wfAll then "declared at all eight rungs" else "**missing at a rung**"}. It is a binder
-of the capstone rather than a field of `hbridge`, the same shape `hnb` already had, so no rung
-assumes what peregrine's first pass reads. The eight kernel checks cost about twelve seconds of
-elaboration, most of it at G7 and G8 — a carried figure, re-timed by `lake build
-LeanToLambdaBox.Green`.
+of the capstone rather than a field of `hbridge`, so no rung assumes what peregrine's first
+pass reads. The eight kernel checks cost about twelve seconds of elaboration, most of it at G7
+and G8 — a carried figure, re-timed by `lake build LeanToLambdaBox.Green`.
+
+`NoBodylessRefs Γ t` no longer has even `hwf`'s shape: `shipping_erase_correct_firstorder`'s
+proof never spent its `hnb` binder, so W8 deletes it from the theorem and from all eight
+rungs' applications (`doc/rework/11-REPAIRS-W8.md` §2.8). `Green.g<i>_noBodylessRefs` stays a
+standalone `by decide +kernel` term, {if nbAll then "declared at all eight rungs" else
+"**missing at a rung**"}, and this file's `nbTerm` column is its only remaining reader — and
+that column reads `env.find?` alone, an existence census rather than a check of the term's
+content.
 
 `hbridge` is a binder at every rung too, and it now carries **two** fields, `erasesEnv` and
 `lowerEnv`, the environment half: `erasure_bridge_of_run` proves
@@ -719,10 +737,12 @@ spine — which is what puts that theorem and the arms it composes inside the cl
 computes. So what a rung says about the shipping erasure is conditional on the environment half
 and on nothing else the bridge once carried; `doc/trust.md` carries the row.
 
-G8 alone binds `hargReach`, the last column above: that the erasure of its subject reaches
-`Nat`'s block in the specification environment the capstone produces. It is what remains of the
-argument's own `ErasesEnv` conjunct after `Green.g8_argErasesEnv`, and it is a G8 fact because
-G1–G7 apply the observable clause at the empty spine.
+G8 alone binds `hbody`, the last column above (named `hargReach` before round 7 wave 4,
+`doc/trust.md`'s row): that **every** erasure of `benchArith`'s tabled body reaches `Nat`'s
+block, quantified over every specification environment rather than read at the run's own
+one — strictly stronger than the binder it replaced. It is what remains of the argument's own
+`ErasesEnv` conjunct after `Green.g8_argErasesEnv`, and it is a G8 fact because G1–G7 apply
+the observable clause at the empty spine.
 
 ### The printable-binder finding
 
