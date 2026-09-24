@@ -13,7 +13,8 @@ Checks, over blueprint/src/chapters/*.tex:
   * annotation policy: \\leanok in a statement iff \\lean is present; result nodes carry a
     proof with \\leanok; definition and assumption nodes carry no proof;
   * no Lean declaration is cited by two nodes;
-  * every cited declaration exists, and the trust edges agree with `#print axioms`
+  * every cited declaration exists (in the library, or in one of the standalone test scripts
+    listed in SCRIPTS, whose footprints are measured by re-running the script), and the trust edges agree with `#print axioms`
     measured on every cited name: a result node uses asm:lean4lean-trust iff one of its
     declarations depends on sorryAx, and asm:lean-reflection-axioms iff one depends on an
     axiom other than propext / Classical.choice / Quot.sound / sorryAx;
@@ -90,6 +91,28 @@ def parse():
     return nodes, defects
 
 
+SCRIPTS = ['test/Vacuity.lean']  # standalone scripts whose declarations the blueprint may cite
+
+
+def parse_axioms(out, ax):
+    for m in re.finditer(r"^'(.*)' depends on axioms: \[([^\]]*)\]", out, re.M):
+        ax[m.group(1)] = sorted(x.strip() for x in m.group(2).replace('\n', ' ').split(','))
+    for m in re.finditer(r"^'(.*)' does not depend on any axioms", out, re.M):
+        ax[m.group(1)] = []
+
+
+def script_names(path):
+    """Fully qualified names a standalone script declares (textual: namespace + theorem/def/lemma)."""
+    names, ns = set(), []
+    for line in open(os.path.join(REPO, path), encoding='utf-8'):
+        m = re.match(r'\s*namespace\s+(\S+)', line)
+        if m: ns.append(m.group(1)); continue
+        if re.match(r'\s*end\s+\S+', line) and ns: ns.pop(); continue
+        m = re.match(r'\s*(?:private\s+|protected\s+)?(?:theorem|lemma|def|abbrev|structure|inductive)\s+([^\s:({]+)', line)
+        if m: names.add('.'.join(ns + [m.group(1)]))
+    return names
+
+
 def measure(names):
     os.makedirs(OUT, exist_ok=True)
     probe = os.path.join(OUT, 'Probe.lean')
@@ -98,10 +121,18 @@ def measure(names):
         f.writelines(f'#print axioms {d}\n' for d in names)
     out = subprocess.run(['lake', 'env', 'lean', probe], cwd=REPO, capture_output=True, text=True).stdout
     ax = {}
-    for m in re.finditer(r"^'(.*)' depends on axioms: \[([^\]]*)\]", out, re.M):
-        ax[m.group(1)] = sorted(x.strip() for x in m.group(2).replace('\n', ' ').split(','))
-    for m in re.finditer(r"^'(.*)' does not depend on any axioms", out, re.M):
-        ax[m.group(1)] = []
+    parse_axioms(out, ax)
+    # Declarations of standalone scripts (not modules of the library): re-run the script with the
+    # probes appended, so their footprints are measured as well.
+    for path in SCRIPTS:
+        wanted = [d for d in names if d not in ax and d in script_names(path)]
+        if not wanted:
+            continue
+        probe = os.path.join(OUT, 'Probe-' + os.path.basename(path))
+        with open(probe, 'w', encoding='utf-8') as f:
+            f.write(open(os.path.join(REPO, path), encoding='utf-8').read())
+            f.writelines(f'\n#print axioms {d}' for d in wanted)
+        parse_axioms(subprocess.run(['lake', 'env', 'lean', probe], cwd=REPO, capture_output=True, text=True).stdout, ax)
     return ax
 
 

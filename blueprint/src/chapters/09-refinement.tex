@@ -8,13 +8,17 @@
 \item \lead{Main results} Theorem~\ref{thm:motives_of_steps} (bridge induction: steps give motives);
 Theorem~\ref{thm:visitExpr_refines_erasesLB} (T8, ambient mode);
 Theorem~\ref{thm:visitExpr_refines_erasesLBFix} (T8, block mode); Theorem~\ref{thm:step_visitExpr}
-(step 1, the sole \code{sorryAx} entry point).
+(step 1, the sole \code{sorryAx} entry point); Theorem~\ref{thm:motives_of_steps_acc} (the
+accumulator induction).
 \item \lead{Status} \stProved{} throughout, conditional on the eighteen step hypotheses; \stInherited{}
 through lean4lean only at step 1; \stAssumed{} \code{EraserAsks}/\code{UpstreamAsks}/\code{TableSafe} at
-several steps.
+several steps; \stOpen{} the accumulator's step 6. \code{UpstreamAsks} holds at no environment declaring
+an inductive block, so every result taking it is vacuous there.
 \item \lead{Lean files} \code{ErasesLB.lean}, \code{IotaBridge.lean}, \code{VisitExprRefines.lean},
 \code{VisitExprRefines/Motives.lean}, \code{VisitExprRefines/Step/Env.lean},
-\code{VisitExprRefines/Step/Mechanical.lean}, \code{VisitExprRefines/Step/Passes.lean}.
+\code{VisitExprRefines/Step/Mechanical.lean}, \code{VisitExprRefines/Step/Passes.lean},
+\code{VisitExprRefines/MotivesAcc.lean}, \code{VisitExprRefines/StepAcc/Env.lean},
+\code{VisitExprRefines/StepAcc/Mechanical.lean}, \code{VisitExprRefines/StepAcc/Passes.lean}.
 \item \lead{Paper} [JACM, Sec.~7.4]: proves the term-level half; \code{erases\_global} stays the
 capstone's \code{ErasureBridge} binder, inhabited nowhere.
 \end{itemize}
@@ -84,6 +88,47 @@ the one \code{Lower.mkApps} consumes at its call site.
 \leanok
 \uses{def:ErasesLB}
 \lead{Idea} Unfolding \code{ErasesLB} turns one side into the other syntactically: \code{Iff.rfl}.
+\end{proof}
+
+\begin{definition}[Erasures stable under growth]
+\label{def:ErasuresStable}
+\lean{LeanToLambdaBox.ErasuresStable, LeanToLambdaBox.ErasuresStableAlt,
+LeanToLambdaBox.ErasuresDeclared}
+\leanok
+\uses{def:Erases, def:Lower, def:SpecGrow}
+\lead{In short} Side conditions for re-reading a composite at a \hl{grown specification environment}
+$\Gamma'$.
+\begin{itemize}
+\item \code{ErasuresStable}: every erasure $t_0$ of $e$ with $\Lower\ \Gamma\ t_0\ t$ is
+\code{RefsStable}: no key it references becomes a runtime key in $\Gamma'$;
+\item \code{ErasuresStableAlt}: the same at an alternative, through \code{LowerAlt};
+\item \code{ErasuresDeclared}: every erasure of $e$ names only constants $\Gamma$ declares.
+\end{itemize}
+\lead{Why} Only images that lower to $t$ count: a boxed source constant keeps a \code{.const} erasure
+image, so \code{ErasuresDeclared} fails wherever its key is undeclared.
+\end{definition}
+
+\begin{lemma}[Composites survive specification growth]
+\label{lem:ErasesLB-specGrow}
+\lean{LeanToLambdaBox.ErasesLB.specGrow, LeanToLambdaBox.ErasesLBAlt.specGrow,
+LeanToLambdaBox.ErasesLBFix.specGrow, LeanToLambdaBox.ErasesLBFixAlt.specGrow}
+\leanok
+\uses{def:ErasesLB, def:ErasesLBAlt, def:ErasesLBFix, def:ErasesLBFixAlt, def:ErasuresStable,
+def:SpecGrow}
+\lead{In short} Each of the four composites \hl{transports along \code{SpecGrow}}.
+\begin{itemize}
+\item \lead{Given} $\Gamma'$ extends $\Gamma$ by fresh keys (\code{SpecGrow}); every body $\Gamma$ declares
+references only declared keys (\code{ConstsDeclaredEnv}); the stability condition at the composite's own
+witness;
+\item \lead{Then} the composite at $\Gamma$ holds at $\Gamma'$.
+\end{itemize}
+\lead{Lean} the two block forms read the stability condition before the \code{ConstToFVar} rewriting.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{thm:Lower-specGrow, def:ErasuresStable}
+\lead{Idea} $\Erases$ names no environment, so the growth is spent inside the pass factor alone
+(\code{Lower.specGrow}, \code{LowerAlt.specGrow}).
 \end{proof}
 
 \section{Introduction rules of the composite}
@@ -533,9 +578,11 @@ def:lean4lean-grounding}
 \lead{In short} One motive per member: a refinement statement about an abstract $f$, conjoined with
 \hl{$f \sqsubseteq \code{Erasure.visitXxx}$}.
 \begin{itemize}
-\item \lead{Given} the run of $f$ succeeds, for every modelled $\Delta$ satisfying the bridge invariant;
-\lead{Then} the run concludes \code{RunRefines}.
+\item \lead{Given} the run of $f$ succeeds; then at \textbf{every} level scope $Us$ and every modelled
+$\Delta$ satisfying the bridge invariant; \lead{Then} the run concludes \code{RunRefines}.
 \end{itemize}
+\lead{Lean} the level scope is quantified inside each motive, after the run; \code{BridgeInv} pins it to
+the reader's \code{lparams}, so a dependency's sub-run is read at its own column.
 \begin{center}
 \begin{tabular}{lp{0.24\linewidth}p{0.60\linewidth}}
 \textbf{\#} & \textbf{function} & \textbf{motive says} \\
@@ -606,8 +653,9 @@ $\Box$), else dispatch on the term's constructor to the matching member or the s
 
 \begin{remark}
 Three points. \lead{Caveat} (a) The box rule is ``oracle says irrelevant, emit $\Box$'', soundness
-assumed. (b) \code{visitMutualBody} is the largest: the whole registration path, minting one fresh
-\code{FVarId} per member, refusing a block whose members collide under \code{toKername}
+assumed. (b) \code{visitMutualBody} is the largest: the whole registration path, re-entering each dependency
+body under a closed-body reader (empty local context, the declaration's own level column; F-DEPLCTX),
+minting one fresh \code{FVarId} per member, refusing a block whose members collide under \code{toKername}
 (F-UNSAFEREC), guarding every fresh key (F-KERNAME), and registering a block member's body as the
 eta-expansion of a \code{.fix} node (F-ETA) or, when it has none, an axiom or a synthesized quotient
 or recursor realizer (F-QUOT, F-EQREC). (c) The eighteen are
@@ -654,8 +702,8 @@ def:Witness-SourceTableAdequate}
 \lead{In short} The $i$-th interface: \hl{under four ambient premises}, given the motives of the members
 $i$ calls, member $i$'s body satisfies its motive.
 \begin{itemize}
-\item \code{ErasureSpec}: Lean's \code{Meta}/\code{Core} primitives, the environment-model connection,
-fresh names, the oracle's arms;
+\item \code{ErasureSpec} at \textbf{every} level scope: Lean's \code{Meta}/\code{Core} primitives, the
+environment-model connection, fresh names, the oracle's arms;
 \item \code{SourceTableAdequate}: the table faithfully copies its slice of the environment;
 \item \code{ConfigPinned}: no \code{@[csimp]}, no \code{@[extern]}, peano \code{Nat}, no argmask pruning,
 no auto-inlining;
@@ -688,7 +736,9 @@ Three files, by what the member does: \code{Step/Env.lean} (4--6, the registry);
 \code{Step/Passes.lean} (2, 3, 10, 13--17, each emitting a \lbox{} node). Every declaration is a proved
 theorem, or twice a definition; they consume \code{ErasureSpec} (class D), \code{EraserAsks} (class C),
 \code{UpstreamAsks}, \code{SourceTableAdequate}, \code{TableSafe}, \code{TableBlocks} --- one
-\code{EraserAsks} field is refuted in general (Chapter~\ref{chap:trust}).
+\code{EraserAsks} field is refuted in general (Chapter~\ref{chap:trust}). Steps 3, 4 and 17 take
+\code{UpstreamAsks}, which holds at no environment declaring an inductive block (\code{test/Vacuity.lean}):
+there they hold vacuously.
 
 \begin{center}
 \begin{tabular}{cl}
@@ -921,7 +971,7 @@ retained fields below index $i$ is $i$ --- so the emitted projection's field ind
 \end{lemma}
 \begin{proof}
 \leanok
-\uses{asm:ErasureSpec-block_adequate, asm:UpstreamAsks-constArityInv}
+\uses{asm:ErasureSpec-block_adequate, asm:UpstreamAsks-constsOrigin}
 \lead{Idea} The pinned configuration kills the \code{@[extern]} and pruning arms, so only the per-member
 update writes the registry, turning an answer into a model fact via the bridge invariant. Blocks agree by
 the upstream block-uniqueness ask; the mask fact is computation.
@@ -965,8 +1015,8 @@ non-\code{casesOn}} head concludes the mode-polymorphic composite.
 \begin{itemize}
 \item \lead{Given} the abstract kername resolver satisfies motive 5; the head \code{.const n us} is a
 plain, tabled, non-\code{casesOn} constant of the model;
-\item \lead{Then} the run facts hold, and at every specification environment of the final state, the
-mode-polymorphic composite.
+\item \lead{Then} at every level scope and modelled context satisfying the invariant, the run facts
+hold, and at every specification environment of the final state, the mode-polymorphic composite.
 \end{itemize}
 \end{lemma}
 \begin{proof}
@@ -1088,9 +1138,10 @@ alternative-level mode's introduction rule.
 \end{lemma}
 \begin{proof}
 \leanok
-\uses{lem:visitConst_refines, lem:bodyLe1, asm:UpstreamAsks-constsOrigin}
+\uses{lem:visitConst_refines, lem:bodyLe1, lem:consts_classified}
 \lead{Idea} With motive 4's two exclusions in hand, the head's classification collapses to its
-definition column, supplying what Lemma~\ref{lem:visitConst_refines} reads.
+definition column, supplying what Lemma~\ref{lem:visitConst_refines} reads; the constant's origin is
+Lemma~\ref{lem:consts_classified}'s, which does not spend \code{UpstreamAsks}.
 \end{proof}
 
 \begin{lemma}[Steps 5 and 6 --- the constant registry]
@@ -1109,11 +1160,67 @@ takes none.
 \uses{lem:run_visitMutual_registers, lem:visitExpr_runConcl, lem:bodyLe1}
 \lead{Idea} Step 5: the hit branch reads the registry (canonical by the bridge invariant); the miss
 branch calls \code{visitMutual} (motive 6), then re-reads. Step 6 is
-Lemma~\ref{lem:run_visitMutual_registers}. Motive 1's refinement half is \textbf{not} consumed: a
-dependency's level scope has no fragment/translation premises, so run facts come from
-Lemma~\ref{lem:visitExpr_runConcl} instead --- the precise sense in which T8 says nothing about the
-emitted environment.
+Lemma~\ref{lem:run_visitMutual_registers}. Motive 1's refinement half is \textbf{not} consumed: motive 6
+reports registration only, so run facts come from Lemma~\ref{lem:visitExpr_runConcl}; the invariant at
+the member's reader (Lemma~\ref{lem:bridgeInv_member}) is available and unspent --- the precise sense in
+which T8 says nothing about the emitted environment.
 \end{proof}
+
+\begin{lemma}[The invariant at a dependency's reader]
+\label{lem:bridgeInv_member}
+\lean{LeanToLambdaBox.bridgeInv_member}
+\leanok
+\uses{def:BridgeInv, def:BlockKeyed, def:Erasure-visitMutual}
+\lead{In short} The reader \code{visitMutual} installs for a dependency body \hl{satisfies the bridge
+invariant at the empty context} and the declaration's own level column.
+\begin{itemize}
+\item \lead{Given} the configuration, canonical constants and a modelled inductive registry at the
+state; a fixvar map that is \code{none}, or a \code{BlockKeyed} pair with distinct identifiers the
+generator reserves;
+\item \lead{Then} \code{BridgeInv} holds at $\Delta = []$ for the reader with empty local context, that
+fixvar map and any level scope.
+\end{itemize}
+\lead{Why} The eraser resets the local context on re-entry (F-DEPLCTX), as MetaRocq's
+\code{erase\_constant\_body} erases a body in the empty context.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:BridgeInv}
+\lead{Idea} The empty modelled context is well formed at every level scope; the two freshness fields are
+vacuous there; the fixvar disjunct is the supplied mode.
+\end{proof}
+
+\begin{lemma}[A member sub-run erases the tabled body]
+\label{lem:visitMutual_member_erases}
+\lean{LeanToLambdaBox.visitMutual_member_erases, LeanToLambdaBox.visitMutual_member_erases_block,
+LeanToLambdaBox.visitMutual_block_mode}
+\leanok
+\uses{def:ErasesLBMode, def:ErasesLB, def:ErasesLBFix, def:Witness-SourceTableAdequate, def:TableBlocks,
+def:Erasure-prepare_erasure}
+\lead{In short} A member sub-run's conclusion, stated at the compiler body and column, \hl{transfers to
+the tabled body at the tabled column}.
+\begin{itemize}
+\item \lead{Given} table adequacy; a tabled member with body $b$; its compiler value prepared to $pe$ at
+\code{csimp = false}; the mode-polymorphic composite from $pe$ to $t$ at the compiler's column, empty
+context;
+\item \lead{Then} with no fixvar map, $\mathrm{ErasesLB}$ from $b$ to $t$ at the tabled column;
+\item under the block's reader (\code{TableBlocks}, supported $pe$, distinct block keys), the in-block
+composite \code{ErasesLBFix} at the block's kernames.
+\end{itemize}
+\lead{Lean} \code{visitMutual\_block\_mode} is the block reading alone, at the pair
+Lemma~\ref{lem:blockKeyed_install} builds.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{lem:blockKeyed_install, lem:Witness-SourceTableAdequate-levels-eq}
+\lead{Idea} Table adequacy (\code{erases\_prepared}) pins the tabled body to the prepared compiler body up
+to alpha, which $\Erases$ crosses; the level-column lemma identifies the two columns.
+\end{proof}
+
+\begin{remark}
+\lead{Caveat} Neither lemma has a consumer: motive 6 reports registration only, and the content a
+registering exit emits is the accumulator's (\S\ref{sec:refinement:acc}).
+\end{remark}
 
 \begin{lemma}[Step 2 --- the peano tower]
 \label{lem:step_visitLiteral}
@@ -1199,14 +1306,31 @@ LeanToLambdaBox.pass_selfIdx_zipIdx_split, LeanToLambdaBox.pass_propArity_guard}
 \begin{proof}
 \leanok
 \uses{lem:ErasesLBMode-lam, lem:pass_register_inductive_entry, lem:bodyLe1,
-asm:ErasureSpec-block_adequate, asm:lean-reflection-axioms}
+asm:ErasureSpec-block_adequate, def:Erasure-isPropositionalArity, asm:lean-reflection-axioms}
 \lead{Idea} Pinned peano \code{Nat} kills the machine-numeral arms; \code{CasesInfo.indName} names the
 eliminated block (F-SPARSE), and the refusals for a side condition, for one-to-one coverage and for a
 bad catch-all are each stepped and their throwing sides killed, alongside F-ACC's non-proof-field
 refusal (\code{EraserAsks} spent there). Each constructor's own \code{findIdx?} slot is itself
 (\code{pass\_altIdx\_self}), so the alternative loop is self-indexing and total, with no catch-all
 built; motive 18 supplies each alternative and motive 1 the discriminee and the over-application tail.
-Block-adequacy gives the segmentation the \code{cases} rule's length equation needs.
+Block-adequacy gives the segmentation the \code{cases} rule's length equation needs. F-ACC's guard tests
+\code{isPropositionalArity}, whose walk passes \code{let} and \code{mdata} binders (F-ARITYLET).
+\end{proof}
+
+\begin{lemma}[F-ACC's field walk writes nothing]
+\label{lem:run_firstNonProofField_state}
+\lean{LeanToLambdaBox.run_firstNonProofField_state}
+\leanok
+\uses{def:Erasure-isPropositionalArity}
+\lead{In short} A successful run of \code{Erasure.firstNonProofField} \hl{leaves the erasure state
+unchanged}.
+\lead{Why} The accumulator crosses F-ACC's guard by this state equation, not by a growth.
+\end{lemma}
+\begin{proof}
+\leanok
+\lead{Idea} The walk's only state-touching calls, \code{getConstInfo} and one lifted \code{MetaM} call per
+constructor, are state-transparent. The equation is stepped directly: \code{RunClosedW} is not inhabited
+at an equality motive.
 \end{proof}
 
 \begin{remark}
@@ -1226,8 +1350,8 @@ def:Witness-SourceTableAdequate, def:Erasure-visitExpr}
 \lead{In short} Given the eighteen steps and four ambient premises, \hl{all eighteen motives hold} of the
 shipping family.
 \begin{itemize}
-\item \lead{Given} the eighteen step obligations; the primitive specification, table adequacy, the pinned
-configuration, compiler-body typing;
+\item \lead{Given} the eighteen step obligations; the primitive specification at every level scope,
+table adequacy, the pinned configuration, compiler-body typing;
 \item \lead{Then} all eighteen motives hold of the shipping erasure family, \code{visitExpr} through
 \code{visitAlt}.
 \end{itemize}
@@ -1268,9 +1392,9 @@ producing $t$ and final state $s'$;
 
 \begin{remark}
 \lead{Why} The state/generator conclusions print inside the $\Gamma_{\mathrm{spec}}$ quantifier but hold
-uniformly, since it occurs free in neither --- needed because a sub-run's state facts must be available
+uniformly, as it occurs free in neither --- needed because a sub-run's state facts must be available
 before any environment is chosen. The block indices are names mapped through \code{toKername} (not
-invertible), since the eraser installs its map at names while the environment is keyed by kernames.
+invertible), because the eraser installs its map at names while the environment is keyed by kernames.
 \end{remark}
 
 \begin{theorem}[T8, ambient mode]
@@ -1282,8 +1406,8 @@ def:Witness-SourceTableAdequate}
 \lead{In short} Under the eighteen steps and four ambient premises, the shipping eraser \hl{refines the
 composite outside a block}.
 \begin{itemize}
-\item \lead{Given} the eighteen step hypotheses, then the four ambient bundles; universally quantified
-over the elaboration environment, model, universe scope, reified table, configuration, generator reading;
+\item \lead{Given} the eighteen step hypotheses, then the four ambient bundles, the primitive
+specification at every level scope; universally quantified over the elaboration environment, model, universe scope, reified table, configuration, generator reading;
 \item \lead{Then} \code{VisitExprRefinesLB} holds.
 \end{itemize}
 \lead{Lean} takes \textbf{no} \code{EraserAsks}/\code{UpstreamAsks}/\code{TableSafe} binder of its own
@@ -1347,6 +1471,277 @@ source.
 guards against the two abbreviations drifting from the design document's statements.
 \end{proof}
 
+\section{The accumulator induction}
+\label{sec:refinement:acc}
+
+A second instance of the same fixpoint induction carries a specification environment that each
+registration extends. Its eighteen motives keep the first bundle's premises and conclude only this growth.
+
+\begin{definition}[The accumulator at one state]
+\label{def:AccState}
+\lean{LeanToLambdaBox.AccState}
+\leanok
+\uses{def:RegAcc, def:RuntimeKeysModelled, def:RegKeyed, def:Erasure-CanonicalConstants}
+\lead{In short} A six-field relation between a specification environment $\Gamma$ and an erasure state
+$s$: \hl{what a registration step reads and re-establishes}.
+\begin{itemize}
+\item \code{acc}: \code{RegAcc}, the cold start's shape, content and emitted-keys triple;
+\item \code{rkm}: every runtime key of $\Gamma$ answers to a modelled \code{casesOn};
+\item \code{enr}: no emitted key is a runtime key of $\Gamma$;
+\item \code{keyed}: every emitted key is a registered constant's kername or a registered block's key;
+\item \code{canon}: the constant registry holds canonical kernames;
+\item \code{cover}: the block table mirrors the emitted blocks.
+\end{itemize}
+\end{definition}
+
+\begin{definition}[The accumulator along a sub-run]
+\label{def:AccGrows}
+\lean{LeanToLambdaBox.AccGrows}
+\leanok
+\uses{def:AccState, def:SpecGrow}
+\lead{In short} \code{AccGrows}\ $s\ s'$: \hl{every accumulator at $s$ extends to one at $s'$}.
+\[ \forall \Gamma_0,\ \mathrm{AccState}\ \Gamma_0\ s \to \exists \Gamma_1,\ \mathrm{SpecGrow}\ \Gamma_0\
+\Gamma_1 \wedge \mathrm{AccState}\ \Gamma_1\ s' . \]
+\lead{Why} No term occurs, so the clause stays out of \code{RunRefines} and the first bundle's steps.
+\end{definition}
+
+\begin{lemma}[Accumulator growth composes]
+\label{lem:AccGrows-trans}
+\lean{LeanToLambdaBox.AccGrows.trans, LeanToLambdaBox.AccGrows.rfl', LeanToLambdaBox.AccGrows.of_eq,
+LeanToLambdaBox.AccGrows.inl, LeanToLambdaBox.AccState.inlinings}
+\leanok
+\uses{def:AccGrows, def:AccState}
+\lead{In short} \code{AccGrows} is a \hl{preorder along runs}.
+\begin{itemize}
+\item reflexive, implied by a state equation, and transitive;
+\item \code{AccState} ignores the \code{@[inline]} bookkeeping list, so consing to it grows nothing.
+\end{itemize}
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:AccGrows}
+\lead{Idea} Compose the two extensions (\code{SpecGrow.trans}); at a state equation take
+$\Gamma_1 = \Gamma_0$.
+\end{proof}
+
+\begin{definition}[Tabled recursors have tabled inductives]
+\label{def:TableRecPrefixed}
+\lean{LeanToLambdaBox.TableRecPrefixed}
+\leanok
+\uses{def:Witness-SourceTable}
+\lead{In short} Every tabled name with a recursor suffix has \hl{its inductive type tabled}; decidable at a
+table.
+\end{definition}
+
+\begin{lemma}[The realizer exits are unreachable]
+\label{lem:no_realizer_exit}
+\lean{LeanToLambdaBox.no_realizer_exit, LeanToLambdaBox.no_realizer_exit_compiler,
+LeanToLambdaBox.supported_const_names}
+\leanok
+\uses{def:TableRecPrefixed, def:SchemeNames, def:Supported, def:Erasure-visitMutual}
+\lead{In short} Inside the fragment, \code{visitMutual}'s \hl{quotient and recursor realizer exits never
+fire}.
+\begin{itemize}
+\item \lead{Given} Lean's quotient and recursor name schemes (\code{SchemeNames}); \code{TableRecPrefixed};
+a supported, tabled head $n$;
+\item \lead{Then} $n$'s declaration, read in \code{lenv} or through \code{compilerInfo?} (an
+\code{\_unsafe\_rec} companion included), is neither a quotient nor a recursor.
+\end{itemize}
+\lead{Caveat} No consumer: accumulator step 6, which would spend it, is open.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:Supported}
+\lead{Idea} The fragment refuses a quotient primitive by name and a recursor of a tabled inductive at the
+head; \code{TableRecPrefixed} widens that to every recursor, and \code{SchemeNames} turns name classes
+into declaration kinds.
+\end{proof}
+
+\begin{definition}[The accumulator's ambient asks]
+\label{def:AccAsks}
+\lean{LeanToLambdaBox.AccAsks}
+\leanok
+\uses{def:EraserAsks, def:UpstreamAsks, def:TableSafe, def:TableBlocks, def:TableRecPrefixed,
+def:BodiedKeysFresh, def:SchemeNames}
+\lead{In short} An eight-field structure: what every accumulator step assumes \hl{beyond the first
+bundle's four premises}.
+\begin{itemize}
+\item \code{eraser}, \code{upstream}: \code{EraserAsks} and \code{UpstreamAsks};
+\item \code{safe}, \code{blocks}: \code{TableSafe} and \code{TableBlocks};
+\item \code{indSafe}: every declared inductive is safe;
+\item \code{fresh}: no tabled body's key collides with a block's or an eliminator's
+(\code{BodiedKeysFresh});
+\item \code{scheme}, \code{recPrefixed}: \code{SchemeNames} and \code{TableRecPrefixed}.
+\end{itemize}
+\lead{Caveat} \code{upstream} holds at no environment declaring an inductive block
+(\code{test/Vacuity.lean}), so neither does \code{AccAsks}.
+\end{definition}
+
+\begin{definition}[The eighteen accumulator motives]
+\label{def:MotiveAcc1}
+\lean{LeanToLambdaBox.MotiveAcc1, LeanToLambdaBox.MotiveAcc2, LeanToLambdaBox.MotiveAcc3,
+LeanToLambdaBox.MotiveAcc4, LeanToLambdaBox.MotiveAcc5, LeanToLambdaBox.MotiveAcc6,
+LeanToLambdaBox.MotiveAcc7, LeanToLambdaBox.MotiveAcc8, LeanToLambdaBox.MotiveAcc9,
+LeanToLambdaBox.MotiveAcc10, LeanToLambdaBox.MotiveAcc11, LeanToLambdaBox.MotiveAcc12,
+LeanToLambdaBox.MotiveAcc13, LeanToLambdaBox.MotiveAcc14, LeanToLambdaBox.MotiveAcc15,
+LeanToLambdaBox.MotiveAcc16, LeanToLambdaBox.MotiveAcc17, LeanToLambdaBox.MotiveAcc18}
+\leanok
+\uses{def:Motive1, def:AccGrows, def:BridgeInv, def:Supported}
+\lead{In short} $\mathrm{MotiveAcc}_i$ keeps the premises of $\mathrm{Motive}_i$ and \hl{concludes
+\code{AccGrows} instead}, conjoined with $f \sqsubseteq \code{Erasure.visitXxx}$.
+\begin{itemize}
+\item \lead{Given} a successful run of $f$ from $s$ to $s'$; at every level scope and modelled $\Delta$, the
+bridge invariant and the member's own head, fragment and translation premises;
+\item \lead{Then} $\mathrm{AccGrows}\ s\ s'$.
+\end{itemize}
+\lead{Lean} identical premise lists let each accumulator step route its sub-runs as the first bundle's
+step does.
+\end{definition}
+
+\begin{definition}[The accumulator bundle]
+\label{def:MotivesAcc}
+\lean{LeanToLambdaBox.MotivesAcc, LeanToLambdaBox.ShippingMotives}
+\leanok
+\uses{def:MotiveAcc1, def:Motives}
+\lead{In short} \code{MotivesAcc}: the eighteen accumulator motives at \hl{one} erasure family.
+\lead{Lean} \code{ShippingMotives}, an \code{abbrev}: the first bundle at the shipping family, a premise
+of every accumulator step.
+\end{definition}
+
+\begin{definition}[The eighteen accumulator step interfaces]
+\label{def:StepAcc1}
+\lean{LeanToLambdaBox.StepAcc1, LeanToLambdaBox.StepAcc2, LeanToLambdaBox.StepAcc3,
+LeanToLambdaBox.StepAcc4, LeanToLambdaBox.StepAcc5, LeanToLambdaBox.StepAcc6, LeanToLambdaBox.StepAcc7,
+LeanToLambdaBox.StepAcc8, LeanToLambdaBox.StepAcc9, LeanToLambdaBox.StepAcc10, LeanToLambdaBox.StepAcc11,
+LeanToLambdaBox.StepAcc12, LeanToLambdaBox.StepAcc13, LeanToLambdaBox.StepAcc14,
+LeanToLambdaBox.StepAcc15, LeanToLambdaBox.StepAcc16, LeanToLambdaBox.StepAcc17,
+LeanToLambdaBox.StepAcc18}
+\leanok
+\uses{def:MotiveAcc1, def:MotivesAcc, def:AccAsks, def:ErasureSpec, def:ConfigPinned,
+def:CompilerBodies, def:Witness-SourceTableAdequate, def:visitExprBody}
+\lead{In short} $\mathrm{StepAcc}_i$: given the accumulator motives of the members $i$ calls, member $i$'s
+body satisfies $\mathrm{MotiveAcc}_i$, \hl{under six ambient premises}.
+\begin{itemize}
+\item the first bundle's four: \code{ErasureSpec} at every level scope, \code{SourceTableAdequate},
+\code{ConfigPinned}, \code{CompilerBodies};
+\item \code{AccAsks};
+\item \code{ShippingMotives}: a sub-run's state, registry and generator facts are read off the first
+bundle.
+\end{itemize}
+\lead{Caveat} \stOpen{} \code{StepAcc6}, at \code{visitMutual}, has no proof; the other seventeen are
+proved.
+\end{definition}
+
+\begin{lemma}[The accumulator across a registration call]
+\label{lem:accGrows_register_inductive}
+\lean{LeanToLambdaBox.accGrows_register_inductive, LeanToLambdaBox.regKeyed_register_inductive,
+LeanToLambdaBox.indBlocksCover_register_inductive}
+\leanok
+\uses{def:AccGrows, def:AccAsks, def:ErasureSpec, def:ConfigPinned, def:Erasure-register_inductive,
+def:RegKeyed}
+\lead{In short} Every successful \code{register\_inductive} call at a declared inductive \hl{grows the
+accumulator}.
+\begin{itemize}
+\item \lead{Given} \code{ErasureSpec}, \code{AccAsks}, \code{ConfigPinned}; the inductive declared in
+\code{lenv}; a successful run from $s$ to $s_1$;
+\item \lead{Then} $\mathrm{AccGrows}\ s\ s_1$;
+\item \code{regKeyed\_register\_inductive}, \code{indBlocksCover\_register\_inductive}: the same call
+preserves \code{RegKeyed} and \code{IndBlocksCover}.
+\end{itemize}
+\lead{Caveat} Its consumers are exactly accumulator steps 3, 10 and 17.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{thm:regInv_registerInd_run, thm:regKeyed_of_run, lem:indBlocksCover_of_run,
+asm:ErasureSpec-block_adequate, asm:ErasureSpec-lookup_adequate}
+\lead{Idea} A registry hit leaves the state alone ($\Gamma_1 = \Gamma_0$); a miss is
+Theorem~\ref{thm:regInv_registerInd_run}. The block entry's model content comes from block adequacy; the
+table row's key is fresh in the emitted list.
+\end{proof}
+
+\begin{lemma}[Twelve accumulator steps that register nothing]
+\label{lem:stepAcc_visitExpr}
+\lean{LeanToLambdaBox.stepAcc_visitExpr, LeanToLambdaBox.stepAcc_visitLiteral,
+LeanToLambdaBox.stepAcc_visitConst, LeanToLambdaBox.stepAcc_getConstantKername,
+LeanToLambdaBox.stepAcc_visitAppArgs, LeanToLambdaBox.stepAcc_visitLet,
+LeanToLambdaBox.stepAcc_visitLambda, LeanToLambdaBox.stepAcc_visitApp,
+LeanToLambdaBox.stepAcc_visitConstApp, LeanToLambdaBox.stepAcc_visitCasesEta,
+LeanToLambdaBox.stepAcc_visitCasesEtaGo, LeanToLambdaBox.stepAcc_visitAlt}
+\leanok
+\uses{def:StepAcc1, def:TableSafe}
+\lead{In short} Accumulator steps 1, 2, 4, 5, 7, 8, 9, 11, 12, 15, 16 and 18 hold: \hl{each body only
+composes sub-runs} and state-transparent primitives.
+\lead{Lean} step 12 takes \code{TableSafe}; the others take no premise beyond the interface.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{lem:AccGrows-trans, lem:bodyLe1, asm:ErasureSpec-prim_monotone, asm:lean-reflection-axioms}
+\lead{Idea} Each step is \code{AccGrows.trans} over its sub-runs and \code{AccGrows.of\_eq} at every
+primitive; the invariant at the next sub-run's entry is read off \code{ShippingMotives}. Steps 4 and 5
+reach registration only through \code{visitMutual}. Steps 8, 9, 18 carry four reflection axioms.
+\end{proof}
+
+\begin{lemma}[Five accumulator steps that read a block]
+\label{lem:stepAcc_visitConstructor}
+\lean{LeanToLambdaBox.stepAcc_visitConstructor, LeanToLambdaBox.stepAcc_visitProj,
+LeanToLambdaBox.stepAcc_visitCases, LeanToLambdaBox.stepAcc_visitCtorEta,
+LeanToLambdaBox.stepAcc_visitCtorEtaGo}
+\leanok
+\uses{def:StepAcc1, def:CasesHead, def:CtorOf, def:IndArity}
+\lead{In short} Accumulator steps 3, 10, 17 (the members that register a block) and 13, 14 (the
+constructor eta loop) hold, at \hl{premises no environment satisfies}.
+\begin{itemize}
+\item 3, 10, 17: the registration grows the accumulator, the other sub-runs compose;
+\item 13, 14: \code{inferType} leaves the state alone; at a saturated spine the loop's run is the
+constructor member's.
+\end{itemize}
+\lead{Caveat} Each premise list reads a constructor or inductive block of the model positively, which
+\code{AccAsks.upstream} refutes; their content is \stOpen{} until \code{ConstOrigin} is read off the
+environment's own declaration list (\code{doc/rework/07-STATUS.md}, section 4).
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{lem:accGrows_register_inductive, lem:AccGrows-trans, lem:bodyLe1, lem:run_firstNonProofField_state,
+asm:ErasureSpec-block_adequate, asm:ErasureSpec-lookup_adequate}
+\lead{Idea} Declaration fetches leave the state alone; the registration is
+Lemma~\ref{lem:accGrows_register_inductive}; the discriminee, spine and alternatives compose by
+transitivity. Step 17 crosses F-ACC's guard by Lemma~\ref{lem:run_firstNonProofField_state}.
+\end{proof}
+
+\begin{theorem}[The accumulator induction]
+\label{thm:motives_of_steps_acc}
+\lean{LeanToLambdaBox.motives_of_steps_acc}
+\leanok
+\uses{def:StepAcc1, def:MotivesAcc, def:AccAsks, def:ErasureSpec, def:ConfigPinned, def:CompilerBodies,
+def:Witness-SourceTableAdequate, def:Erasure-visitExpr}
+\lead{In short} Given the eighteen accumulator steps and the first bundle at the shipping family, \hl{all
+eighteen accumulator motives hold} of the shipping family.
+\begin{itemize}
+\item \lead{Given} the eighteen accumulator step obligations; \code{ErasureSpec} at every level scope,
+\code{AccAsks}, table adequacy, \code{ConfigPinned}, \code{CompilerBodies}; \code{ShippingMotives};
+\item \lead{Then} \code{MotivesAcc} at \code{visitExpr} through \code{visitAlt}.
+\end{itemize}
+\lead{Status} \stProved{}, conditional on the eighteen step hypotheses and \stAssumed{} \code{AccAsks};
+\stOpen{} \code{StepAcc6} has no proof, so nothing instantiates it.
+\end{theorem}
+\begin{proof}
+\leanok
+\uses{def:MotiveAcc1, def:StepAcc1, lem:bodyLe1, def:visitExprBody}
+\lead{Idea} The fixpoint induction of Theorem~\ref{thm:motives_of_steps}, at the accumulator motives:
+admissibility is uniform, and each obligation is the matching step.
+\end{proof}
+
+\begin{remark}
+\lead{Caveat} The bundle does not reach the capstone:
+\begin{itemize}
+\item \code{StepAcc6} is \stOpen{}: it needs a decomposition of the block exit, a third motive bundle for
+declared constants, an $\Erases$ induction on eliminator prefixes, a constant-key entry layer and the
+block exit's prefix from a run (\code{doc/rework/07-STATUS.md}, section 4);
+\item no theorem outside the bundle produces an \code{AccState}, so the theorem has no consumer and
+\code{hbridge} stays a capstone binder.
+\end{itemize}
+\end{remark}
+
 \section{What T8 does not claim; four refutations}
 \label{sec:refinement:scope}
 
@@ -1355,7 +1750,8 @@ emitted environment's \emph{content} is read off the final state by \code{SpecEn
 facts the capstone needs about it ($\Gamma_{\mathrm{spec}}$ erases the source environment, and lowers to
 the emitted one) remain the capstone's binder \code{ErasureBridge} (Definition~\ref{def:ErasureBridge}),
 inhabited nowhere: this chapter proves the term half of [JACM, Sec.~7.4], leaving
-\code{erases\_global} assumed.
+\code{erases\_global} assumed. No producer of \code{hbridge} lies on the capstone's proof path; the
+accumulator induction (\S\ref{sec:refinement:acc}) stops at its open step 6.
 
 \begin{lemma}[Why BlockKeyed is shaped as it is]
 \label{lem:erasesLBMode_block_refuted}
@@ -1410,7 +1806,7 @@ program always has one.
 body;
 \item (ii) nevertheless, at a block the \emph{emitted environment} declares, every member's body is
 lambda-headed, read off the program's well-formedness clause at the \emph{registered} entry: the
-\code{.fix} node is only a \textbf{subterm} of that entry, one binder down, since registration wraps it
+\code{.fix} node is only a \textbf{subterm} of that entry, one binder down, because registration wraps it
 in the block's eta-expansion (F-ETA);
 \item (iii) likewise, at a block a run registered.
 \end{itemize}
@@ -1426,7 +1822,7 @@ lambda-headedness. (iii) transports (ii) along the state-growth order.
 
 \begin{remark}
 \lead{Caveat} A genuine boundary: \code{TableBlocks}'s clause excluding an erasable member is a real
-input condition, not a formality. Part (iii) has no consumer at HEAD.
+input condition, not a formality. Part (iii) has no consumer.
 \end{remark}
 
 \begin{lemma}[The pair the eraser installs is a valid description]
@@ -1446,14 +1842,16 @@ constructor nor a type former.
 \end{lemma}
 \begin{proof}
 \leanok
-\uses{asm:UpstreamAsks-constsOrigin}
-\lead{Idea} Four conjuncts, one per clause of \code{BlockKeyed}: the first three read off their own
-source, the fourth off the supplied \code{Nodup} hypothesis.
+\uses{lem:consts_classified}
+\lead{Idea} (i) Four conjuncts, one per clause of \code{BlockKeyed}: the first three read off their own
+source, the fourth off the supplied \code{Nodup} hypothesis. (ii) is
+Lemma~\ref{lem:consts_classified}'s constant-origin reading.
 \end{proof}
 
 \begin{remark}
-\lead{Caveat} \textbf{Both results are unconsumed}, deliberately: motive 6 reports only registration, and
-the block's content is read off the final state by \code{SpecEnv} instead. Distinctness of a block's
+\lead{Caveat} \textbf{Neither result reaches T8}: (i) feeds only the block reading of
+Lemma~\ref{lem:visitMutual_member_erases}, itself unconsumed; motive 6 reports only registration, and the
+block's content is read off the final state by \code{SpecEnv}. Distinctness of a block's
 keys is not an assumed field: \code{Erasure.visitMutual} refuses a block whose members collide
 under \code{toKername} (F-UNSAFEREC), and \code{ErasureRun.run\_rec\_exit\_nodup} reads that guard back
 as a fact about a successful run.
@@ -1464,19 +1862,17 @@ as a fact about a successful run.
 \begin{itemize}
 \item \lead{Deviation} Applied-form constructors (F-ETA2): the node carries no fields, arguments ride the
 spine, per the pinned \code{eraseFlags}; \code{agda2lambox} eta-expands to blocks instead.
-\item \lead{Deviation} \code{fix} and \code{cases} are compilation steps, not erasure rules: Lean's kernel
-has neither \code{tFix} nor \code{tCase}, so $\Erases$ has eleven rules and none of its own for \code{fix}
-or \code{cases}; \code{ErasesLB} exists to put them back.
+\item \lead{Deviation} \code{fix} and \code{cases} are compilation steps: Lean's kernel has neither
+\code{tFix} nor \code{tCase}, so $\Erases$'s eleven rules omit them and \code{ErasesLB} puts them back; the iota bridge needs closed
+field values.
 \item \lead{Deviation} The box rule is decided by an external oracle, not derived from typing: step 1
 spends its soundness and is the chapter's only \code{sorryAx} entry point.
-\item \lead{Deviation} The iota rule's closedness side condition is faithfulness, not slack: the reversal
-bridge is false without it (\S\ref{sec:refinement:iota}'s two-field counterexample).
-\item \lead{Deviation} The pinned configuration is not the default: \code{ConfigPinned} differs from
-\code{\#erase}'s default on three of five fields, so the machine-\code{Nat}, \code{@[csimp]} and
-\code{@[extern]} arms sit outside the statement's scope, not outside the code.
-\item \lead{Caveat} T8 concerns a term, never an environment; that half stays an assumption at every
-rung. The two T8 theorems' clean footprints are an artefact of hypothesised steps. \lead{Deviation}
-The single fixed level scope of the eighteen motives and the universally quantified
-$\Gamma_{\mathrm{spec}}$ of the run predicate are chosen divergences from [JACM], not forced ones: both
-are \stOpen{}, specified as units U5--U6 of \code{doc/rework/09-REPAIRS-W7.md}.
+\item \lead{Deviation} The pinned configuration differs from \code{\#erase}'s default on three of five
+fields, so the machine-\code{Nat}, \code{@[csimp]} and \code{@[extern]} arms sit outside the statement's
+scope.
+\item \lead{Deviation} \code{RunRefines} reads the emitted term at \emph{every} adequate
+$\Gamma_{\mathrm{spec}}$ of the final state, not at one produced environment: a chosen divergence from
+[JACM].
+\item \lead{Caveat} T8 concerns a term, never an environment; its clean footprint comes from hypothesised
+steps. Steps taking \code{UpstreamAsks} are vacuous at any environment declaring an inductive block.
 \end{itemize}

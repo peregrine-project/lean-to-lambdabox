@@ -7,10 +7,11 @@
 relation can be stated.
 \item \lead{Main results} Theorem~\ref{thm:Erasure-visitExpr_run_shape} (induction scales to all
 eighteen members); Theorem~\ref{thm:Erasure-run_register_inductive_runConcl} (registration only
-grows the environment); Theorem~\ref{thm:Erasure-run_addAxiom_ok} (axiom registration's state
-effect, unconditionally); Theorem~\ref{thm:Erasure-run_mkFreshFVarId_list} (minted identifiers are
-pairwise distinct); Theorem~\ref{thm:Erasure-run_rec_exit_nodup} (a block's keys are distinct on
-every successful run).
+grows the environment); Theorem~\ref{thm:Erasure-run_register_inductive_members} (a fresh block
+registers every declared member); Theorem~\ref{thm:Erasure-run_addAxiom_ok} (axiom registration's
+state effect, unconditionally); Theorem~\ref{thm:Erasure-run_mkFreshFVarId_list} (minted
+identifiers are pairwise distinct); Theorem~\ref{thm:Erasure-run_rec_exit_nodup} (a block's keys
+are distinct on every successful run).
 \item \lead{Status} \stProved{} throughout; no hypothesis bundle and no trust edge to lean4lean.
 \item \lead{Lean files} \code{LeanToLambdaBox/ErasureRun.lean}.
 \item \lead{Paper} [JACM, Sec.~7.3]'s eraser is total, an induction on its own equations; this chapter
@@ -462,6 +463,9 @@ parameter count and bodies, and -- F-KERNAME -- records the block's key against 
 \code{indBlocks}, so a later block minting the same key is caught (Definition~\ref{def:Erasure-KernameFresh})
 instead of overwriting the entry.
 \end{itemize}
+\lead{Lean} \code{mutualBlockKn\_eq\_toKername}: at a singleton, root-named block,
+\code{mutualBlockKn} agrees with \code{toKername} -- printing the sole member back as that root
+component is the whole gap.
 \end{definition}
 
 \begin{definition}[The two constant-registration states]
@@ -689,7 +693,8 @@ and a reading \code{gw} of the name generator (out of the world token) that ever
 environment read and log advances monotonically;
 \item \lead{Then}, on the miss branch: \code{gw} only advances, and every entry present afterwards
 was already present, or names the position-minted block identifier, the member reported by
-\code{Ci} as an inductive, each constructor's mask keeping its whole field count.
+\code{Ci} as an inductive, its mask list as long as that member's declared constructors (F-B-4),
+each mask keeping its whole field count.
 \end{itemize}
 \lead{Status} \stProved{}.
 \end{theorem}
@@ -698,7 +703,55 @@ was already present, or names the position-minted block identifier, the member r
 \uses{thm:Erasure-run_register_inductive_cold_ok, lem:Erasure-run_list_mapM_ok,
 lem:Erasure-run_getConstInfo_state, lem:Erasure-run_bind_ok}
 \lead{Idea} The same walk, the invariant additionally carrying \code{Ci} and the generator bound;
-with pruning off the mask replicates ``keep'' at each constructor's field count.
+with pruning off the mask replicates ``keep'' at each constructor's field count, and the inner
+\code{mapM} invariant's own length equality gives F-B-4's list-length conjunct for free.
+\end{proof}
+
+\begin{lemma}[The cold branch's other fields, one delta each]
+\label{lem:Erasure-run_register_inductive_cold_constants}
+\lean{Erasure.run_register_inductive_cold_constants, Erasure.run_register_inductive_cold_gdecls,
+Erasure.run_register_inductive_cold_blocks, Erasure.run_register_inductive_cold_registry}
+\leanok
+\uses{def:Erasure-register_inductive, def:Erasure-ErasureConfig}
+\lead{In short} At a pinned \code{extern} config, \hl{each state field's own cold-branch delta}.
+\begin{itemize}
+\item \lead{Given} \code{ctx.config.extern = .preferLogical} and a miss;
+\item \lead{Then} \code{constants} untouched; \code{gdecls} grows by exactly one block declaration
+at the minted key; \code{indBlocks} grows by exactly one row, that key paired with
+\code{indinfo.all}; every newly-known \code{inductives} name is a member of \code{indinfo.all}.
+\end{itemize}
+\lead{Lean} four separate field lemmas: \code{BodylessExt}'s bundled report exposes domain growth
+only, never these field equalities.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{lem:Erasure-run_list_mapM_ok, lem:Erasure-run_getConstInfo_state, thm:Erasure-run_addAxiom_ok}
+\lead{Idea} The pinned config makes the extern guard unsatisfiable, so every constructor iteration
+falls to the plain branch; \code{run\_list\_mapM\_ok} carries each field's own equality, otherwise
+unaffected, across the member and constructor loops.
+\end{proof}
+
+\begin{theorem}[Every declared member of a fresh block is registered]
+\label{thm:Erasure-run_register_inductive_members}
+\lean{Erasure.run_register_inductive_members}
+\leanok
+\uses{def:Erasure-register_inductive}
+\lead{In short} \hl{The converse of the registry delta}: on a miss, every member the elaboration
+environment declares as an inductive ends up known afterwards.
+\begin{itemize}
+\item \lead{Given} a predicate \code{Decl} recording which members a lookup \code{Ci} reports as an
+\code{.inductInfo}, and a miss;
+\item \lead{Then} every \code{n} in \code{indinfo.all} with \code{Decl n} is registered at the exit
+state.
+\end{itemize}
+\lead{Lean} guarded by \code{Decl}: the member loop falls through \code{unreachable!} at any other
+answer, leaving that member unregistered, so the unguarded claim is false.
+\end{theorem}
+\begin{proof}
+\leanok
+\uses{lem:Erasure-run_list_mapM_ok, lem:Erasure-zipIdx_split_snd}
+\lead{Idea} The same member-loop induction, invariant ``every declared prefix member is already
+registered''; a non-inductive answer at the member the guard needs contradicts \code{Decl}.
 \end{proof}
 
 \begin{theorem}[The run conclusion of a registration]
@@ -785,6 +838,78 @@ kername for \code{n}.
 \uses{lem:Erasure-run_bind_ok, lem:Erasure-run_pure}
 \lead{Idea} Step \code{get}, case on the registry lookup; hit is a \code{pure}, miss binds
 \code{visitMutual} and re-reads the registry.
+\end{proof}
+
+\section{The block table mirrors the emitted blocks}
+\label{sec:run:indblocks}
+
+\code{Erasure.checkIndKernameFresh} reads \code{s.constants} and \code{s.indBlocks}, never
+\code{s.gdecls}, so its freshness verdict alone says nothing about the emitted environment.
+\code{IndBlocksCover} is the invariant that keeps the two in step along a run.
+
+\begin{definition}[The block table mirrors the emitted environment]
+\label{def:Erasure-IndBlocksCover}
+\lean{Erasure.IndBlocksCover}
+\leanok
+\uses{def:Erasure-register_inductive, def:Erasure-KernameFresh}
+\lead{In short} \code{IndBlocksCover lenv s}: \hl{every block-shaped emitted entry has its row in
+\code{s.indBlocks}}, and every member of that row \code{lenv} declares as an inductive is
+registered.
+\begin{itemize}
+\item \code{mirror}: an \code{.inductiveDecl}-shaped entry's key finds a row under
+\code{List.find?} -- the same scan \code{checkIndKernameFresh} performs -- and every member of
+that row \code{lenv} declares as an inductive is in \code{s.inductives}.
+\end{itemize}
+\end{definition}
+
+\begin{lemma}[The mirror is preserved along a run]
+\label{lem:Erasure-indBlocksCover_empty}
+\lean{Erasure.indBlocksCover_empty, Erasure.ConstExt.indBlocksCover, Erasure.IndBlocksCover.indCons,
+Erasure.indBlocksCover_foldl_recConstStep, Erasure.indBlocksCover_recConstState}
+\leanok
+\uses{def:Erasure-IndBlocksCover, def:Erasure-ConstExt}
+\lead{In short} \hl{Every state transition the eraser performs keeps the mirror}.
+\par\smallskip\noindent
+\begin{center}
+\begin{tabular}{p{0.36\linewidth}p{0.56\linewidth}}
+\toprule
+Transition & Why the mirror survives \\
+\midrule
+the empty state & vacuous: nothing is emitted \\
+a constant-only extension, table untouched & no prefix entry is block-shaped \\
+one block cons, key fresh in the emitted environment & the new row answers itself; older rows
+answer as before \\
+the recursive-exit fold & conses constants only, never a block row \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:Erasure-IndBlocksCover}
+\lead{Idea} Case on which prefix entry answers the mirror's query: a constant-only prefix cannot,
+and a fresh key's own row is exhibited directly.
+\end{proof}
+
+\begin{lemma}[A fresh block key is unminted in the emitted environment]
+\label{lem:Erasure-blockKey_fresh_of_cover}
+\lean{Erasure.blockKey_fresh_of_cover}
+\leanok
+\uses{def:Erasure-IndBlocksCover, def:Erasure-KernameFresh}
+\lead{In short} \hl{F-KERNAME's block guard, read against the emitted environment}: a state
+satisfying the mirror and passing the freshness guard has minted no \code{.inductiveDecl} yet
+under that key.
+\begin{itemize}
+\item \lead{Given} \code{IndBlocksCover}, \code{IndKernameFresh indinfo.all (mutualBlockKn indinfo)
+s}, the block's own name declared in \code{lenv} and a member of its own block, and a miss;
+\item \lead{Then} no \code{.inductiveDecl} in \code{s.gdecls} already carries that key.
+\end{itemize}
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:Erasure-IndBlocksCover}
+\lead{Idea} Such an entry would give a mirror row named \code{indinfo.all} by the guard's second
+conjunct, so \code{indinfo.name} would already be registered -- contradicting the miss.
 \end{proof}
 
 \section{Hoare rules for \code{visitMutual}'s exits}
@@ -1093,6 +1218,11 @@ clauses cover the ambient primitives (state-transparent, world-advancing); two r
 simplification-attribute replacement, no external-constant axiomatisation, Peano naturals, no
 argument-mask pruning, no typeclass-dispatch inlining -- three of which the default \code{\#erase}
 configuration violates.
+\item \textbf{Registration invariants} (Chapter~\ref{chap:refinement}): the per-field cold-branch
+deltas (Lemma~\ref{lem:Erasure-run_register_inductive_cold_constants}) and
+\code{IndBlocksCover}'s mirror (Section~\ref{sec:run:indblocks}) are what an accumulated
+registration invariant reads at one block registration; that invariant's own preservation is
+proved there, not here.
 \end{itemize}
 
 \section{Deviations from the paper and caveats}

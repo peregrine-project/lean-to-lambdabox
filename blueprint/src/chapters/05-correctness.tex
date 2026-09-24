@@ -804,8 +804,7 @@ excluded by the guard; the first disjunct holds.
 
 \begin{lemma}[What a tabled constant's image is]
 \label{lem:Lower-const_body}
-\lean{LeanToLambdaBox.Lower.const_body, LeanToLambdaBox.Lower.fixBody_of_block,
-LeanToLambdaBox.Lower.fixEta_of_block}
+\lean{LeanToLambdaBox.Lower.const_body}
 \leanok
 \uses{def:Lower, def:ElimDecl, def:LowerBlock}
 \lead{In short} A tabled constant's image is \hl{itself, or its body's image}.
@@ -1166,9 +1165,9 @@ $\mathsf{mkApps}\ (\mathtt{const}\ I\ ius)\ iargs$ typeable;
 \end{lemma}
 \begin{proof}
 \leanok
-\uses{lem:FirstOrderInd-indDeclOf, def:UpstreamAsks}
+\uses{lem:FirstOrderInd-indDeclOf, def:UpstreamAsks, asm:lean4lean-trust}
 \lead{Idea} The closure exhibits the declaring block; the upstream ask about declared constants'
-arities applies at it.
+arities applies at it, through lean4lean's own arity-injectivity fact.
 \end{proof}
 
 \begin{remark}
@@ -1433,10 +1432,11 @@ LeanToLambdaBox.FOModel.wf'}
 \end{proof}
 
 \begin{remark}
-\lead{Caveat} The \emph{only} proved instance of \code{FirstOrderInd} in the tree, at an inductive with
-no constructors: the substantive branch of Theorem~\ref{thm:firstorder_erases_core} --- the constructor
-arm, its entire content --- is vacuous at the only available instance. All eight green rungs
-\emph{assume} $\code{FirstOrderInd}\ env\ \code{Nat}$, discharged nowhere.
+\lead{Caveat} The only proved \code{FirstOrderInd} instance has no constructors, so
+Theorem~\ref{thm:firstorder_erases_core}'s constructor arm is vacuous there. All eight green rungs
+assume it at \code{Nat} instead, discharged nowhere --- worse, \code{UpstreamAsks} there is
+unsatisfiable: \code{Nat.zero} already has two erasures under the current \code{ConstOrigin}
+reading, contradicting the theorem's own uniqueness.
 \end{remark}
 
 \section{Correspondence with the paper, and where this is weaker}

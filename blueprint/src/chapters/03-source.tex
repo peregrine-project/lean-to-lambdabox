@@ -10,9 +10,10 @@ membership); Propositions~\ref{prop:NatWitness-seval_iota_fires}
 and~\ref{prop:ProjWitness-seval_proj_fires} (iota, projection are not vacuous);
 Lemma~\ref{lem:SpecEnv-erasesEnv} (a run's bookkeeping yields the erasure environment relation).
 \item \lead{Status} \stProved{} the chapter's lemmas and checker-soundness theorem;
-\stAssumed{} \code{TableSafe}, \code{TableBlocks}, \code{UpstreamAsks}, \code{CompilerBodies}
-beyond the first rung; \stInherited{} anything routing through \TrExprS{} (sixteen \code{sorry}
-sites, pinned fork).
+\stAssumed{} \code{TableSafe}, \code{TableBlocks}, \code{SchemeNames}, \code{UpstreamAsks},
+\code{CompilerBodies} beyond the first rung -- one \code{UpstreamAsks} field is not merely
+assumed but \hl{refuted} at this chapter's own fixture; \stInherited{} anything routing through
+\TrExprS{} (sixteen \code{sorry} sites, pinned fork).
 \item \lead{Lean files} \code{SourceEval.lean} ($\SEval$); \code{Supported.lean} (fragment,
 checker); \code{SpecEnv.lean} (a run's \lbox{} environment); \code{Upstream.lean}
 (\code{UpstreamAsks}).
@@ -283,9 +284,8 @@ type is an arity whose Pi-body is a sort -- not a constructor spine.
 \end{proof}
 
 \begin{remark}
-\lead{Why} Discharges, in this repository, the first conjunct of
-Definition~\ref{def:UpstreamAsks}'s origin field -- redundant by that field's own account, kept so
-the field grants everything the upstream ask covers.
+\lead{Why} Definition~\ref{def:UpstreamAsks}'s origin field carries no conjunct restating this:
+proved here, it would be redundant to assume.
 \end{remark}
 
 \begin{lemma}[A stuck head stays a head]
@@ -516,7 +516,7 @@ evaluated natively regardless.
 \label{def:PlainHead}
 \lean{LeanToLambdaBox.PlainHead, LeanToLambdaBox.quotPrimNames, LeanToLambdaBox.ioLikeRoots,
 LeanToLambdaBox.isIoLike, LeanToLambdaBox.isSparseCasesOn, LeanToLambdaBox.isMatcherName,
-LeanToLambdaBox.isRecursorName}
+LeanToLambdaBox.recSuffix, LeanToLambdaBox.isRecursorName}
 \leanok
 \uses{def:SupportError, def:Witness-SourceTable}
 \lead{In short} Every head inside the fragment is \hl{plain}: four negative tests, plus a separate
@@ -524,14 +524,17 @@ recursor test.
 Not a \code{Quot} primitive (\code{Quot}, \code{Quot.mk/lift/ind}; \code{Quot.sound} is already
 erased, being \code{Prop}-typed); not \code{IO}-like (\code{IO}, \code{ST}, \code{Task},
 \code{String}, floats, machine ints); not a sparse \code{casesOn}; not a surviving matcher; and,
-separately, not a recursor whose prefix is a tabled inductive.
+separately, not a name carrying a \hl{recursor suffix} (\code{rec}, \code{rec\_*}, \code{recOn},
+\code{brecOn}, \code{below}, \code{ndrec}) whose prefix is a tabled inductive.
 \end{definition}
 
 \begin{remark}
-\lead{Caveat} Two harmless defects: the sparse-\code{casesOn} test also fires on a merely
+\lead{Caveat} Three harmless defects: the sparse-\code{casesOn} test also fires on a merely
 \emph{untabled} prefix; the recursor test fires only when the prefix \emph{is} tabled, so
 \code{Foo.rec} with \code{Foo} known only as a constant falls through to the constant branch --
-the vacuous coverage the exclusion exists to prevent.
+the vacuous coverage the exclusion exists to prevent; and the \code{rec\_*} suffix also matches a
+few non-recursor theorems named after a tabled inductive, excluding them too -- a coverage cost,
+never a miscompile, since none is reachable from a computational body.
 \end{remark}
 
 \begin{definition}[A head the table knows]
@@ -541,8 +544,9 @@ the vacuous coverage the exclusion exists to prevent.
 \uses{def:IndInfo, def:CtorOf, def:Witness-SourceTable}
 \lead{In short} Three arms, each carrying the model's reading of the name: \hl{a tabled type,
 constructor, or plain constant}; a recursor is not among them.
-\lead{Lean} The plain-constant arm needs Definition~\ref{def:UpstreamAsks}'s classification plus
-the run's two exclusions at the visited head.
+\lead{Lean} The plain-constant arm reads $\mathrm{ConstOrigin}$ off well-formedness alone --
+unconditional, not Definition~\ref{def:UpstreamAsks} -- together with the run's two exclusions at
+the visited head.
 \end{definition}
 
 \begin{definition}[The shape condition]
@@ -585,7 +589,7 @@ a metadata node under an application is excluded while one at the root is transp
 
 \begin{definition}[The fragment]
 \label{def:Supported}
-\lean{LeanToLambdaBox.Supported, LeanToLambdaBox.Reaches}
+\lean{LeanToLambdaBox.Supported, LeanToLambdaBox.Reaches, LeanToLambdaBox.Tabled}
 \leanok
 \uses{def:SupportedTm, def:Kername, def:Witness-SourceTable}
 \lead{In short} $\mathrm{Supported}\ env\ tbl\ e$ is \hl{the coverage predicate of the whole
@@ -594,16 +598,43 @@ development} -- capstone binder \code{hsup} and a binder of every rung.
 \item $e$ satisfies the shape condition at the empty spine;
 \item so does every tabled body delta-reachable from $e$ (\code{Reaches}: least relation closed
 under "named by the tabled body of a reachable name");
-\item no two tabled names share a \lbox{} key.
+\item no two names \hl{tabled in either column} -- constant or inductive -- share a \lbox{} key.
 \end{itemize}
+\lead{Lean} $\mathrm{Tabled}\ tbl\ n$ is the disjunction of the two lookups; the key-separation
+clause quantifies over it, not over the constant column alone.
 \end{definition}
 
 \begin{remark}
 \lead{Caveat} The key-separation clause guards the kername translation's non-injectivity
-(F-KERNAME, Lemma~\ref{lem:toKername_not_injective}): without it a second tabled constant could
-shadow the first. The deciding Boolean also checks the inductive column, so the recorded clause
-alone does not exclude a collision between an inductive's key and a constant's.
+(F-KERNAME, Lemma~\ref{lem:toKername_not_injective}): without it a second tabled name -- a
+constant or an inductive -- could shadow the first. Quantifying over $\mathrm{Tabled}$ closes the
+gap a constant-only clause would leave between the two columns.
 \end{remark}
+
+\begin{lemma}[A key's identifier pins its source name's shape]
+\label{lem:toKername_of_cleanIdent_casesOn}
+\lean{LeanToLambdaBox.cleanIdent_eq_of_notMem_underscore,
+LeanToLambdaBox.toKername_of_cleanIdent_casesOn}
+\leanok
+\uses{def:Kername, def:isCasesOnName}
+\lead{In short} \hl{The converse of \code{toKername\_id\_of\_isCasesOnName}}: a name whose \lbox{}
+key is some member's \code{casesOn} key is itself named \code{casesOn}.
+\begin{itemize}
+\item \code{cleanIdent} escapes every character it drops behind an \code{\_u} marker, so a value
+it produces carrying no underscore is reached only from itself;
+\item \code{"casesOn"} carries none, and a \code{.num} component's key prints only digits, so only
+a \code{.str} component literally reading \code{"casesOn"} can match one.
+\end{itemize}
+\lead{Lean} Bounds \code{toKername}'s non-injectivity (Lemma~\ref{lem:toKername_not_injective}) at
+an eliminator's key: the collision it leaves open is between two eliminator names, never between
+an eliminator and a plain one.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:Kername}
+\lead{Idea} Case on the name's constructor: \code{.anonymous} and \code{.num} are excluded by a
+decimal-digit computation; \code{.str} reduces to \code{cleanIdent}'s injectivity.
+\end{proof}
 
 \begin{definition}[The safety column of the reified table]
 \label{def:TableSafe}
@@ -649,6 +680,24 @@ forwarded to the bridge theorem but spent nowhere else. First two clauses mechan
 non-lambda bodies); the third is model-side, unreached by computation. See Assumption
 \code{hblk}, Chapter~\ref{chap:trust}.
 \end{remark}
+
+\begin{definition}[The naming scheme]
+\label{def:SchemeNames}
+\lean{LeanToLambdaBox.SchemeNames}
+\leanok
+\uses{def:PlainHead}
+\stAssumed{} \lead{In short} $\mathrm{SchemeNames}\ lenv$ says the elaboration environment
+\hl{declares its quotient primitives and its recursors under the names the head tests expect}.
+\begin{itemize}
+\item every \code{quotInfo} constant of $lenv$ is one of the four \code{quotPrimNames}
+(Definition~\ref{def:PlainHead});
+\item every \code{recInfo} constant of $lenv$ carries a recursor suffix.
+\end{itemize}
+\lead{Lean} Class \textbf{D}: no term denotes \code{lenv}, so both fields are hypotheses; measured
+true of this toolchain's 230,479 constants. Consumed by the refinement's realizer-exit steps
+(Chapter~\ref{chap:refinement}), kept separate from \code{ErasureSpec} since neither field names a
+level scope.
+\end{definition}
 
 \begin{definition}[The elaborator's branch metadata]
 \label{def:CasesInfoAgrees}
@@ -746,7 +795,7 @@ the fragment}.
 def:CtorSaturated, def:IsLamTelescope, lem:informativeInd_of_tabled, lem:indInfo_of_tabled}
 \lead{Idea} Structural induction on \code{Lean.Expr} mirroring the checker's shape function.
 \begin{enumerate}
-\item Key separation: list combinatorics on the deduplicated key list.
+\item Key separation: list combinatorics on the deduplicated key list of both columns.
 \item Constant case: plainness from the four negative tests.
 \item Eliminator arm: Lemma~\ref{lem:informativeInd_of_tabled} for informativity, telescope
 correspondence for the minors.
@@ -943,32 +992,50 @@ definitionally a Pi whose domain types the first argument, codomain the rest.
 \label{def:UpstreamAsks}
 \lean{LeanToLambdaBox.UpstreamAsks}
 \leanok
-\uses{def:IndBlockBelow, def:CtorOf, def:IndInfo, def:ConstOrigin, def:CasesOnShape, def:lean4lean-grounding, asm:UpstreamAsks-constsOrigin, asm:UpstreamAsks-constArityInv, asm:UpstreamAsks-mkAppsInv, asm:UpstreamAsks-indSpineInj}
+\uses{def:IndBlockBelow, def:CtorOf, def:IndInfo, def:ConstOrigin, def:CasesOnShape,
+def:lean4lean-grounding, asm:UpstreamAsks-constsOrigin, asm:UpstreamAsks-constOriginExcludes,
+asm:UpstreamAsks-mkAppsInv, asm:UpstreamAsks-indSpineInj}
 \stAssumed{} \lead{In short} One \code{Prop}-structure, four fields, packaging facts about
-lean4lean's kernel theory this development \hl{needs and cannot prove here}.
+lean4lean's kernel theory this development \hl{needs and cannot prove here} -- \hl{inhabited at no
+environment that declares an inductive block}.
 \begin{itemize}
-\item \textbf{Origin} (8 conjuncts): a constructor is not a type name; constructor/block/
-eliminator readings determine their data; every declared constant is exactly one of constructor,
-type name, plain constant; a block below $env$ matching a type former is matched, uniquely, in
-$env$'s own declaration list;
-\item \textbf{Arity inversion}: a type-former application is definitionally equal to neither a
-sort nor a Pi;
+\item \textbf{Origin, uniqueness} (5 conjuncts): a constructor belongs to one type at one index; a
+type former has one \lbox{} identifier and one arity; an eliminator's segmentation is fixed; a
+type former declared below $env$ is declared by $env$'s own list; two blocks below $env$ declaring
+the same former are the same block;
+\item \textbf{Origin, exclusion} -- \hl{refuted}: a name declared a plain constant is neither a
+constructor nor a type name;
 \item \textbf{Spine-typing inversion}: \code{sorryAx}-free, like the matching application-inversion
 lemma;
 \item \textbf{Spine injectivity}: equal spines on \emph{inductively declared} type formers share a
 head (needs declaredness: an ordinary definition refutes it without that).
 \end{itemize}
+\lead{Lean} The origin field's classification conjunct -- every declared constant is a
+constructor, a type name, or plain -- is not here: it is proved unconditionally from
+well-formedness alone, off the same declaration-list reading that refutes the exclusion conjunct.
 \end{definition}
 
 \begin{remark}
-\stAssumed{} \lead{Status} Nothing under this structure is proved here; the four fields are the
-\code{UpstreamAsks} assumption nodes of Chapter~\ref{chap:trust}
-(Assumptions~\ref{asm:UpstreamAsks-constsOrigin}, \ref{asm:UpstreamAsks-constArityInv},
-\ref{asm:UpstreamAsks-mkAppsInv}, \ref{asm:UpstreamAsks-indSpineInj}).
-Taken by erasure correctness, the bridge, the capstone and every green rung; a single pin bump
-discharges all four with no change to any consumer's statement shape. Two asks are deliberately
-not fields here, having no consumer; the first origin conjunct is proved in this repository by
-Lemma~\ref{lem:CtorOf-not_indInfo}.
+\lead{Non-vacuity} \hl{The exclusion conjunct is refuted}, not merely open: at the \code{Nat}
+fixture of Proposition~\ref{prop:NatWitness-seval_iota_fires}, the constructor \code{Nat.zero} and
+the type former \code{Nat} are each declarable as a plain constant too -- every name a
+well-formed list adds is one, by the same route \code{ConstOrigin} reads any other classification
+-- so \code{UpstreamAsks} has no witness at that environment. The fixture's erasure relation then
+relates \code{Nat.zero} to two distinct \lbox{} terms, a constructor node and a constant node: the
+uniqueness the refuted conjunct exists to keep is itself false at the one environment this
+development builds.
+\end{remark}
+
+\begin{remark}
+\stAssumed{} \lead{Status} Three of the four fields are open asks -- the \code{UpstreamAsks}
+assumption nodes of Chapter~\ref{chap:trust} (Assumptions~\ref{asm:UpstreamAsks-constsOrigin},
+\ref{asm:UpstreamAsks-mkAppsInv}, \ref{asm:UpstreamAsks-indSpineInj}). A pin bump discharges
+\code{mkAppsInv} and \code{indSpineInj} with no change to any consumer's statement shape;
+\code{constsOrigin}'s remaining conjuncts need the same five readings taken off $env$'s own
+declaration list rather than an arbitrary list below it. The fourth field
+(Assumption~\ref{asm:UpstreamAsks-constOriginExcludes}), the exclusion conjunct above, is refuted
+rather than open, so this structure is taken -- vacuously, at any environment declaring a block --
+by erasure correctness, the bridge, the capstone and every green rung.
 \end{remark}
 
 \section*{Deviations from the paper and caveats}

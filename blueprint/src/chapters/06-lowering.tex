@@ -7,6 +7,7 @@
 into one \lbox{}-to-\lbox{} pass, $\Lower$, and state what the emitted program must satisfy.
 \item \lead{Main results} Theorem~\ref{thm:closeFix_substList_fixSubst} (unfolding a closed block undoes
 its closing); Theorem~\ref{thm:Lower-constToFix} (installing a block preserves $\Lower$);
+Theorem~\ref{thm:Lower-specGrow} (the pass survives growth of the specification environment);
 Theorem~\ref{thm:reachFrom_saturated} (fixed fuel saturates reachability);
 Theorem~\ref{thm:lbWfPeregrine_of_check} (a kernel verdict discharges well-formedness);
 Theorem~\ref{thm:LBOptimize_correct} (a verified template pass, not shipped).
@@ -128,7 +129,8 @@ verbatim; only the target differs. Its binder name is free, as \code{lambda}'s i
 \begin{itemize}
 \item \textbf{non-deterministic} at a block member -- \code{const}/\code{fixConst} at its constant,
 \code{lambda}/\code{fixBody}/\code{fixEta} at its specification body: read ``emits $t'$'' as ``there
-is an emission $t'$'';
+is an emission $t'$''; $\Lower$ is provably not a function of its source
+(Lemma~\ref{lem:LowerFixFixture-lower_not_functional});
 \item no constructor-introduction arm (\code{Erases.ctor} already emits the applied-form node) and no
 eta-expansion arm beyond \code{fixEta}: the residual coverage restriction this leaves is finding
 F-ETA2, not a gap in the relation;
@@ -560,6 +562,29 @@ the block-node lemma fed with Proposition~\ref{prop:Lower-closed} at the declare
 conclusion is then the general theorem.
 \end{proof}
 
+\begin{lemma}[A member's own body, read off its declaration]
+\label{lem:Lower-fixEta_of_block}
+\lean{LeanToLambdaBox.Lower.fixBody_of_block, LeanToLambdaBox.Lower.fixEta_of_block}
+\leanok
+\uses{def:LowerBlock, def:Lower, def:ConstToFVar}
+\lead{In short} \code{fixBody} and \code{fixEta} restated at the \hl{granularity a declaration gives}:
+from the block plus one member's key and declared body alone, with no list index to compute.
+\begin{itemize}
+\item \lead{Given} a block $\code{LowerBlock}\ \Gamma\ kns\ bs\ bs'\ ids\ defs$, an index $j$ with
+$kns[j] = kn$, and $\code{DefnDecl}\ \Gamma\ kn\ b$;
+\item \lead{Then} $\Lower\ \Gamma\ b\ (\code{fix}\ defs\ j)$, respectively
+$\Lower\ \Gamma\ b\ (\code{etaFix}\ defs\ j)$.
+\end{itemize}
+\lead{Lean} the emitted environment's $\LowerEnv$ (Chapter~\ref{chap:erases}) reads the second form
+directly at a registered block member.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:LowerBlock, lem:Lower-fixConst-prime}
+\lead{Idea} Recover $bs[j]$ from the declaration and the block's length fields, then apply the packaged
+\code{fixBody}\ (resp.\ \code{fixEta}) constructor at that index.
+\end{proof}
+
 \begin{theorem}[Installing the block keeps the relation]
 \label{thm:Lower-constToFix}
 \lean{LeanToLambdaBox.Lower.constToFix, LeanToLambdaBox.ConstToFVar.mkApps_inv}
@@ -634,17 +659,6 @@ bodies; the conclusion exhibits the binder name and the lambda's body.
 substitution.
 \end{proof}
 
-\begin{definition}[Block lowering at the level of declarations]
-\label{def:LowerFix}
-\lean{LeanToLambdaBox.LowerFix}
-\leanok
-\uses{def:LowerBlock}
-\lead{In short} $\code{LowerFix}\ \Gamma\ kns\ bs\ defs$: $defs$ is a lowered image of specification
-bodies $bs$ under names $kns$, with lowered bodies and fix variables \hl{existentially quantified}.
-\lead{Lean} the existential closure of \code{LowerBlock} over its two hidden lists; it tolerates an
-unused fixpoint binder, since the eraser decides recursiveness on the \emph{source} body.
-\end{definition}
-
 \begin{definition}[The three-factor composite for a sub-run inside a block]
 \label{def:ErasesLBFix}
 \lean{LeanToLambdaBox.ErasesLBFix}
@@ -693,6 +707,23 @@ touches lean4lean's typing judgement (through the erasure derivation's constant 
 axiom footprint is nevertheless free of \code{sorryAx}.
 \end{remark}
 
+\begin{lemma}[\texorpdfstring{$\Lower$}{Lower} is not a function of its source]
+\label{lem:LowerFixFixture-lower_not_functional}
+\lean{LeanToLambdaBox.LowerFixFixture.lower_not_functional}
+\leanok
+\uses{lem:LowerFixFixture-lowerfix_app_step}
+\lead{In short} The same fixture body relates to \hl{two different targets}: \code{fixBody} gives the
+bare \code{fix} node, \code{fixEta} gives its wrapper, so no consumer may read $\Lower$ as functional.
+\lead{Lean} negates $\forall\ \Gamma\ s\ t\ t',\ \Lower\ \Gamma\ s\ t \to \Lower\ \Gamma\ s\ t' \to t =
+t'$; nothing in the development assumes the converse.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{lem:LowerFixFixture-lowerfix_app_step}
+\lead{Idea} Instantiate at the fixture's second member: \code{lowerfix\_fixBody} and
+\code{lowerfix\_fixEta} both fire, at a bare node and a wrapper that a case split shows unequal.
+\end{proof}
+
 \begin{lemma}[Box-freedom does not transport along the pass]
 \label{lem:noBox_lower_needs_noFix}
 \lean{LeanToLambdaBox.noBox_lower_needs_noFix}
@@ -707,6 +738,110 @@ relates a box-free \code{const} to the block's \code{fix} node, whose definition
 \uses{lem:LowerFixFixture-lowerfix_app_step, lem:Lower-fixConst-prime, def:NoBox}
 \lead{Idea} Instantiate at the fixture block, whose member $0$ returns the box; the block's box-freedom
 would project to that body, which is a box.
+\end{proof}
+
+\section{Growth of the specification environment}
+\label{sec:lowering:growth}
+
+The registration invariant (Chapter~\ref{chap:coldstart}) builds $\Gamma_{spec}$ incrementally, so the
+pass must survive it growing under a derivation already in hand.
+
+\begin{definition}[Growth, and what it must not do]
+\label{def:SpecGrow}
+\lean{LeanToLambdaBox.SpecGrow, LeanToLambdaBox.RefsStable, LeanToLambdaBox.ConstsDeclared,
+LeanToLambdaBox.ConstsDeclaredEnv, LeanToLambdaBox.ElimBlocksDeclared}
+\leanok
+\uses{def:ReachableFrom, def:ElimDecl, def:LBTerm-envLookup, def:GlobalDeclarations}
+\lead{In short} $\Gamma$ grows to $\Gamma'$ by a \hl{fresh prefix that turns no already-declared key
+into a runtime key}.
+\begin{itemize}
+\item \code{SpecGrow}\ \Gamma\ \Gamma': $\Gamma' = pre \mathbin{+\!\!+} \Gamma$, $pre$'s keys distinct
+from $\Gamma$'s, and every key $\Gamma$ declares that is not yet a runtime key stays not one;
+\item \code{ConstsDeclared}\ \Gamma\ t: every kername $t$ names is declared in $\Gamma$;
+\item \code{RefsStable}\ \Gamma\ \Gamma'\ t: the growth turns none of $t$'s own references into a
+runtime key -- weaker than \code{ConstsDeclared}, since a reference $\Gamma$ never declares is allowed,
+provided $\Gamma'$ does not turn it into one;
+\item \code{ConstsDeclaredEnv}\ \Gamma: every declared body's own references are declared -- the
+$\delta$ column of well-formedness, MetaRocq's \code{tConst} case of \code{wellformed} under
+\code{wf\_glob};
+\item \code{ElimBlocksDeclared}\ \Gamma: every eliminator body $\Gamma$ declares has its block declared
+too.
+\end{itemize}
+\lead{Lean} \code{constsDeclaredEnvB} is the decidable twin, one pass over the entry list.
+\end{definition}
+
+\begin{lemma}[Growth is a preorder, and a fresh prefix qualifies]
+\label{lem:SpecGrow-of_fresh}
+\lean{LeanToLambdaBox.SpecGrow.refl, LeanToLambdaBox.SpecGrow.trans, LeanToLambdaBox.SpecGrow.of_fresh,
+LeanToLambdaBox.elimBlocksDeclared_of_constsDeclaredEnv}
+\leanok
+\uses{def:SpecGrow}
+\lead{In short} \code{SpecGrow} is \hl{reflexive and composes}; over an environment where every
+eliminator body already declares its own block, any disjoint prefix qualifies.
+\begin{itemize}
+\item \code{SpecGrow}\ \Gamma\ \Gamma\ always, and \code{SpecGrow} composes across two growths --
+what threads it through a run's successive steps;
+\item \code{ConstsDeclaredEnv}\ \Gamma\ implies \code{ElimBlocksDeclared}\ \Gamma, since an eliminator
+body names only its own block; over the latter, a key-disjoint prefix is always a growth.
+\end{itemize}
+\lead{Lean} without the side condition a fresh prefix can complete an eliminator declaration $\Gamma$
+held only half of.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:SpecGrow}
+\lead{Idea} Reflexivity and composition read off the existential form directly. For a fresh prefix, a
+runtime key the grown environment reports at an already-declared key routes, through the prefix's
+disjointness, to an eliminator declaration $\Gamma$ already carries in full.
+\end{proof}
+
+\begin{theorem}[The pass survives growth]
+\label{thm:Lower-specGrow}
+\lean{LeanToLambdaBox.Lower.specGrow, LeanToLambdaBox.LowerAlt.specGrow}
+\leanok
+\uses{def:Lower, def:SpecGrow}
+\lead{In short} Over a growth whose declared bodies are all reference-closed, $\Lower$ \hl{crosses the
+growth} at any source whose own references are stable.
+\begin{itemize}
+\item \lead{Given} $\code{SpecGrow}\ \Gamma\ \Gamma'$, $\code{ConstsDeclaredEnv}\ \Gamma$,
+$\Lower\ \Gamma\ s\ t$, and $\code{RefsStable}\ \Gamma\ \Gamma'\ s$;
+\item \lead{Then} $\Lower\ \Gamma'\ s\ t$.
+\end{itemize}
+\lead{Lean} only the \code{const} arm spends \code{RefsStable}; the three fix arms instead carry
+\code{ConstsDeclaredEnv} to the block's declared bodies and the growth's third clause to the block's own
+key, which the block always declares.
+\lead{Status} \stProved{}.
+\end{theorem}
+\begin{proof}
+\leanok
+\uses{def:Lower, def:SpecGrow, lem:SpecGrow-of_fresh}
+\lead{Idea} Induction over the derivation: congruence arms recurse structurally, splitting the
+hypothesis at each subterm; \code{const} reads \code{RefsStable} directly; each fix arm transports its
+block's declarations along the growth and its own key along the growth's third clause.
+\end{proof}
+
+\begin{lemma}[\code{ConstsDeclaredEnv} cannot be dropped]
+\label{lem:SpecGrowFixture-specGrow_needs_declaredEnv}
+\lean{LeanToLambdaBox.SpecGrowFixture.specGrow_needs_declaredEnv}
+\leanok
+\uses{thm:Lower-specGrow, def:SpecGrow}
+\lead{In short} Theorem~\ref{thm:Lower-specGrow} is \hl{false} without \code{ConstsDeclaredEnv}: a
+stable, declared source alone is not enough.
+\begin{itemize}
+\item \lead{Given} a one-member block whose declared body names a key the smaller environment never
+declares, and a prefix declaring that key as an eliminator together with its block;
+\item the prefix is a growth, and the source's one reference is stable, since it is declared;
+\item \lead{Then} $\Lower$ holds at the smaller environment but fails at the grown one: the member's
+body now names a runtime key, which no arm whose source is a constant may cross.
+\end{itemize}
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{lem:SpecGrow-of_fresh, def:LowerBlock}
+\lead{Idea} Exhibit the explicit block and eliminator prefix; the smaller environment declares no
+eliminator at all, so it is vacuously $\code{ElimBlocksDeclared}$ and the prefix is a growth by
+Lemma~\ref{lem:SpecGrow-of_fresh}; at the grown environment the referenced key is a runtime key, so both
+arms whose source is a constant are excluded.
 \end{proof}
 
 \section{Eliminator bodies in the specification environment}
@@ -779,8 +914,9 @@ are each the \code{cases} constructor, definitionally.
 $\LowerEnv$ packages what the target needs of the emitted environment -- which bodies survive pruning,
 which are pass images or block members, that inductive declarations carry over unchanged, that pruning
 only removes -- and is owned by Chapter~\ref{chap:erases} (Definition~\ref{def:LowerEnv}), whose
-definitional clause is where Definition~\ref{def:Lower} and Definition~\ref{def:LowerFix} appear.
-Lambda-headedness is deliberately \emph{not} a clause of it: it is the block bundle's own \code{hfl}
+definitional clause is where Definition~\ref{def:Lower} appears, its $\eta$-wrapped arm read off a
+block member's own declaration by Lemma~\ref{lem:Lower-fixEta_of_block}. Lambda-headedness is
+deliberately \emph{not} a clause of it: it is the block bundle's own \code{hfl}
 field (Lemma~\ref{lem:LowerCtorBodyFixture-lowerBlock_needs_lambda_bodies}). $\LowerEnv$ is one of the
 two fields of the capstone's environment-bridge assumption, hence \emph{assumed} rather than proved for
 the shipping eraser; see Chapter~\ref{chap:trust}.
@@ -1101,6 +1237,29 @@ Theorem~\ref{thm:reachFrom_saturated};
 \lead{Idea} The subterm law is the seed inclusion by induction plus monotonicity; the body law composes
 two closures and cuts back with saturation; the substitution law is the corresponding fact about which
 kernames a substitution can name, lifted to the closure.
+\end{proof}
+
+\begin{lemma}[Declaredness closes under reachability]
+\label{lem:ReachableFrom-isSome_of_declaredEnv}
+\lean{LeanToLambdaBox.ReachableFrom.isSome_of_declaredEnv,
+LeanToLambdaBox.reachFrom_isSome_of_declaredEnv}
+\leanok
+\uses{def:ReachableFrom, def:SpecGrow}
+\lead{In short} Everything reachable from a term whose own references are declared \hl{stays declared},
+given every declared body's own references are too.
+\begin{itemize}
+\item \lead{Given} $\code{ConstsDeclared}\ \Gamma\ t$, $\code{ConstsDeclaredEnv}\ \Gamma$, and
+$\code{ReachableFrom}\ \Gamma\ t\ kn$;
+\item \lead{Then} $kn$ is declared in $\Gamma$.
+\end{itemize}
+\lead{Lean} the closure MetaRocq builds into \code{erases\_deps}'s own \code{tConst} arm, here proved
+separately over \code{ReachableFrom}'s fuelled search.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{thm:reachFrom_saturated, def:SpecGrow}
+\lead{Idea} Induction on the fuel: a step adds only references of an already-declared body, so
+declaredness of the seed propagates to everything the closure adds.
 \end{proof}
 
 \begin{definition}[The \code{axiom\_free} analogue]

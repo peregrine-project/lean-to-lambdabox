@@ -4,12 +4,12 @@
 \section*{At a glance}
 \begin{itemize}
 \item \lead{Goal} State \code{shipping\_erase\_correct\_firstorder} and instantiate it at eight real \code{\#erase} runs.
-\item \lead{Main results} Theorem~\ref{thm:shipping_erase_correct_firstorder} (the capstone, fifteen named hypotheses); Theorems~\ref{thm:Green-green_G1}--\ref{thm:Green-green_G8} (the eight green rungs, ending in a literal \lbox{} numeral).
+\item \lead{Main results} Theorem~\ref{thm:shipping_erase_correct_firstorder} (the capstone, fourteen named hypotheses); Theorems~\ref{thm:Green-green_G1}--\ref{thm:Green-green_G8} (the eight green rungs, each ending in a literal \lbox{} numeral).
 \item \lead{Status} \stProved{}, \stInherited{} through lean4lean; conditional on \stAssumed{}
 \code{ErasureSpec}, \code{EraserAsks}, \code{UpstreamAsks} and \code{ErasureBridge}
-(\code{hbridge}, \stOpen{}, inhabited nowhere). No rung is vacuous
-(Section~\ref{sec:capstone:rungs}).
-\item \lead{Lean files} \code{Capstone.lean}, \code{Green.lean}, \code{Witness/SourceTable.lean}, \code{Witness/TrWitness.lean}.
+(\code{hbridge}, \stOpen{}, inhabited nowhere). \hl{Every rung's hypothesis set is jointly
+unsatisfiable} (Section~\ref{sec:capstone:rungs}).
+\item \lead{Lean files} \code{Capstone.lean}, \code{Green.lean}, \code{Witness/SourceTable.lean}, \code{Witness/TrWitness.lean}; the refutation in \code{test/Vacuity.lean}.
 \item \lead{Paper} [JACM, Sec.~7.3--7.4], with three deliberate substitutions tracked in the closer.
 \end{itemize}
 
@@ -303,8 +303,8 @@ at the empty context translates with its reported type in the model environment.
 \begin{proof} \leanok
 \uses{def:lean4lean-grounding, lem:Lean4Lean-TypeChecker-M-WF-run-prime, def:Lean4Lean-TypeChecker-VContext-ofMLCtx, asm:ErasureSpec-env_connect, asm:lean4lean-trust, asm:lean-reflection-axioms}
 \lead{Idea} lean4lean's well-formedness lemma for \code{checkType} gives the translation and typing
-at an abstract verified context; checker adequacy supplies the initial state, so a pure \code{ok} run
-witnesses both.
+at an abstract verified context; lean4lean's \code{M.WF.run'} supplies the initial state at the
+ambient context, so a pure \code{ok} run witnesses both.
 \end{proof}
 
 \begin{remark}
@@ -313,24 +313,25 @@ for a run equation like \code{hrun}, at the cost of a measured footprint that co
 and the reflection axioms. \textbf{No rung uses it} -- all eight subjects are constants.
 \end{remark}
 
+
 \section{The capstone theorem}
 \label{sec:capstone:theorem}
 
 \begin{theorem}[The shipping erasure is correct at first-order answers]\label{thm:shipping_erase_correct_firstorder}
 \lean{LeanToLambdaBox.shipping_erase_correct_firstorder} \leanok
-\uses{def:Witness-SourceTableAdequate, def:TableSafe, def:TableBlocks, def:ConfigPinned, def:CompilerBodies, def:Supported, def:Erases, def:ErasesEnv, def:Lower, def:LowerEnv, def:SEval, def:SEvalFlags, def:WcbvEval, def:eraseFlags, def:NoBox, def:FirstOrderInd, def:LBWfPeregrine, def:NoBodylessRefs, def:SpecEnv, def:ErasureBridge, def:Erasure-erase, def:Erasure-prepare_erasure, def:Erasure-visitExpr, def:ErasureSpec, def:EraserAsks, def:UpstreamAsks, def:lean4lean-grounding, asm:htbl, asm:hsafe, asm:hblk, asm:hcb, asm:hprep, asm:hrun, asm:ErasureBridge-erasesEnv, asm:ErasureBridge-lowerEnv}
-\lead{In short} Under fifteen hypotheses, \hl{\code{Erasure.erase} emits the $\Lower$ image of an
+\uses{def:Witness-SourceTableAdequate, def:TableSafe, def:TableBlocks, def:ConfigPinned, def:CompilerBodies, def:Supported, def:Erases, def:ErasesEnv, def:Lower, def:LowerEnv, def:SEval, def:SEvalFlags, def:WcbvEval, def:eraseFlags, def:NoBox, def:FirstOrderInd, def:LBWfPeregrine, def:SpecEnv, def:ErasureBridge, def:Erasure-erase, def:Erasure-prepare_erasure, def:Erasure-visitExpr, def:ErasureSpec, def:EraserAsks, def:UpstreamAsks, def:lean4lean-grounding, asm:htbl, asm:hsafe, asm:hblk, asm:hcb, asm:hprep, asm:hrun, asm:ErasureBridge-erasesEnv, asm:ErasureBridge-lowerEnv}
+\lead{In short} Under fourteen hypotheses, \hl{\code{Erasure.erase} emits the $\Lower$ image of an
 erasure of $e$}, well formed for peregrine, whose \emph{first-order} answers the emitted program
 reproduces uniquely and box-free.
 
-\begin{center}
+\par\smallskip\noindent
 \begin{tabular}{lp{0.38\linewidth}lp{0.20\linewidth}}
 \toprule
 binder & what it says & class & status \\
 \midrule
-$P$ (\code{ErasureSpec}) & 8 fields: primitives + model connection & bundle & \stAssumed{} \\
+$P$ (\code{ErasureSpec}) & 7 fields: primitives + model connection, at \emph{every} level scope & bundle & \stAssumed{} \\
 $E$ (\code{EraserAsks}) & this repository's 4 obligations on the eraser & bundle & \stAssumed{} \\
-$A$ (\code{UpstreamAsks}) & 4 essential upstream obligations & bundle & \stAssumed{} \\
+$A$ (\code{UpstreamAsks}) & 4 upstream fields; \code{constOriginExcludes} is refuted & bundle & \stAssumed{} \\
 \code{htbl} & the table is adequate for \code{lenv} & env.\ fact & \stAssumed{} \\
 \code{hsafe} & every tabled declaration is safe & env.\ fact & \stAssumed{} \\
 \code{hblk} & every fix-installed block is tabled, $\lambda$-headed, non-erasable & env.\ fact & \stAssumed{} \\
@@ -340,14 +341,12 @@ $A$ (\code{UpstreamAsks}) & 4 essential upstream obligations & bundle & \stAssum
 \code{hsup} & $pe$ lies in the supported fragment for the table & decidable & \stChecked{} (all 8) \\
 \code{hprep} & preparing $e$ from empty state returns $pe$, empty state & run fact & \stAssumed{} \\
 \code{hrun} & \code{Erasure.erase e cfg} returns $(\Gamma, t)$, an inlining list & run fact & \stAssumed{} \\
-\code{hnb} & every constant $(\Gamma,t)$ reaches has a body & decidable & \stChecked{} (all 8) \\
 \code{hwf} & $(\Gamma,t)$ satisfies \code{LBWfPeregrine} & decidable & \stChecked{} (all 8) \\
 \code{hbridge} & \code{visitExpr}'s end state yields $\Gamma_{spec}$ with \code{SpecEnv} at the
 table's body and level columns, such that every $(\Erases, \Lower)$ pair from $pe$ to $t$ satisfies
 \code{ErasureBridge} & hole & \stOpen{} \\
 \bottomrule
 \end{tabular}
-\end{center}
 
 \lead{Then} there are $\Gamma_{spec}$ and $t_0$ such that:
 \begin{enumerate}
@@ -366,13 +365,9 @@ first-order inductive $I$, then $v$ has a \textbf{unique} erasure $tv_0$, its lo
 \end{enumerate}
 
 \lead{Lean} Both evaluations are fixed at flag sets (source: \code{fullFlags}; target:
-\code{eraseFlags}); the subject is read at the empty local context and the empty level scope, while
-the environment relation reads each tabled body at the table's level column; the argument-indexed
-premise uses \code{getElem!} on both lists.
-
-\lead{Caveat} Conjunct (1) is the binder \code{hprep} and conjunct (5) the binder \code{hwf},
-re-exported unchanged; at every rung the well-formedness, box-freedom and evaluation conjuncts follow
-from the literal data alone, and conjuncts (2)--(4) are what the erasure derives.
+\code{eraseFlags}); the subject is read at the empty local context and the empty level scope, and
+the proof reads $P$ there; the environment relation reads each tabled body at the table's level
+column; the argument-indexed premise uses \code{getElem!} on both lists.
 
 \lead{Status} \stProved{}; \stInherited{} through lean4lean; conditional on \stAssumed{} $P$
 (\code{ErasureSpec}), $E$ (\code{EraserAsks}), $A$ (\code{UpstreamAsks}), \code{ErasureBridge}.
@@ -393,18 +388,27 @@ lowering.
 \end{proof}
 
 \begin{remark}
-\lead{Caveat} Conjuncts (1), (5) are literally \code{hprep}, \code{hwf}: carried, not derived.
-\code{hnb} is used nowhere -- the one genuinely unused binder. \code{hblk} is forwarded to the bridge
-theorem, but \code{TableBlocks} itself is consumed by no theorem in the closure: its only consumer is
-a lemma that is itself consumed by nothing.
+\lead{Caveat}
+\begin{itemize}
+\item Conjuncts (1), (5) are literally \code{hprep}, \code{hwf}: carried, not derived.
+\item \code{hblk} is forwarded to the bridge theorem, which does not spend it.
+\item Under $A$ the observable applies only at an environment declaring no inductive type: it is
+guarded by \code{FirstOrderInd env I}, and $A$ fails wherever a block is declared
+(Section~\ref{sec:capstone:rungs}).
+\end{itemize}
 \lead{Why} \code{LBWfPeregrine}'s \code{expandedFix} clause carries all three term-level conjuncts
 of MetaRocq's \code{expanded\_tFix}, because the registration point emits the eta-expansion of a
-block's node rather than the bare node. \code{NoBodylessRefs} is this repository's counterpart of
-MetaRocq's \code{axiom\_free}.
-\lead{Caveat} \code{hbridge} is inhabited \textbf{nowhere}: \code{bridgeEnv\_of\_regInv}
-(Chapter~\ref{chap:coldstart}) would derive it from a registration invariant no theorem establishes
-for the shipping eraser. Its discharge is \stOpen{}, specified as units U5--U9 of
-\code{doc/rework/09-REPAIRS-W7.md}.
+block's node. \code{NoBodylessRefs}, the counterpart of MetaRocq's \code{axiom\_free}, is not a
+premise: the proof never spends it.
+\end{remark}
+
+\begin{remark}
+\lead{Why} Theorem~\ref{thm:bridgeEnv_of_regContent} (Chapter~\ref{chap:coldstart}) is
+\hl{what would discharge \code{hbridge}}: it composes both bridge fields from the accumulated
+registration invariant \code{RegAcc}, \code{RegKeyed} and \code{ErasuresDeclared} at the run's
+final state. Consumed by no theorem, so not on the capstone's proof path: no theorem produces
+\code{RegAcc} at a run of the whole eraser (\stOpen{}, \code{doc/rework/07-STATUS.md} Sec.~4),
+and \code{ErasuresDeclared} is refuted at a block member's sub-run.
 \end{remark}
 
 \section{The ladder's data}
@@ -501,7 +505,7 @@ argument, the Lean-versus-Rocq asymmetry the benchmark repository also documents
 \label{sec:capstone:checked}
 
 Four lemmas recur once per rung; each below is stated for G1, the other seven differing only in the
-committed literals.
+committed literals. Two measurements follow that no rung spends.
 
 \begin{lemma}[Each subject is inside the fragment]\label{lem:Green-g1_supported}
 \lean{LeanToLambdaBox.Green.g1_supported, LeanToLambdaBox.Green.g2_supported, LeanToLambdaBox.Green.g3_supported, LeanToLambdaBox.Green.g4_supported, LeanToLambdaBox.Green.g5_supported, LeanToLambdaBox.Green.g6_supported, LeanToLambdaBox.Green.g7_supported, LeanToLambdaBox.Green.g8_supported} \leanok
@@ -529,10 +533,10 @@ forty-round closure).
 \end{proof}
 
 \begin{remark}
-\lead{Caveat} Discharges \code{hnb}, which the capstone's proof never uses: the rungs settle a
-hypothesis the theorem does not spend. It is the exclusion mechanism at the \emph{program} level for
-a reachable body-less constant; all five benchmark programs satisfy it, \code{recursorRealizer}
-giving Fannkuch's reachable \code{Eq.rec} a body.
+\lead{Caveat} \hl{No theorem consumes these terms}: \code{NoBodylessRefs} is not a capstone
+premise. They are standalone measurements, read by \code{doc/coverage.md}'s per-rung census. All
+five benchmark programs satisfy \code{NoBodylessRefs}, \code{recursorRealizer} giving Fannkuch's
+reachable \code{Eq.rec} a body.
 \end{remark}
 
 \begin{lemma}[Each emitted program is well formed for peregrine]\label{lem:Green-g1_wf}
@@ -565,8 +569,8 @@ answer. At G8 the evaluated term is the emitted term \textbf{applied to} the num
 \begin{proof} \leanok
 \uses{thm:lbEval_sound, def:WcbvEval, def:Green-peanoLB}
 \lead{Idea} The certified evaluator runs in the kernel at each rung's fixed fuel; its soundness
-theorem transports the value to a derivation. With determinism, this is the ladder's
-\hl{anti-vacuity device}: the target value cannot be $\Box$ or stuck.
+theorem transports the value to a derivation. With determinism, this \hl{pins the target value}:
+it is neither $\Box$ nor stuck.
 \end{proof}
 
 \begin{lemma}[G1's compiler bodies are typed]\label{lem:Green-g1_compilerBodies}
@@ -584,10 +588,38 @@ monomorphically; \code{decl\_adequate} supplies the model typing after inverting
 \end{proof}
 
 \begin{remark}
-\lead{Caveat} \hl{The only rung at which \code{hcb} is discharged}. It stays a binder at G2--G8:
-\code{OfNat.ofNat}'s translation is unproven at the pin (G2--G4); an eliminator spine or recursive
-body (G5/G6); ten projection-bearing bodies among thirty, 28 of 44 declarations polymorphic (G7/G8).
+\lead{Caveat} \hl{The only rung at which \code{hcb} is discharged}. It stays a binder at G2--G8,
+blocked on lean4lean's \code{TrProj.weak'\_inv}/\code{TrProj.uniq}, unproven at the pin; at G7/G8
+ten of thirty tabled bodies carry a projection and 28 of 44 declarations are polymorphic.
 \end{remark}
+
+\begin{definition}[No tabled eliminator carries a body]\label{def:Green-NoTabledCasesOnBody}
+\lean{LeanToLambdaBox.Green.NoTabledCasesOnBody} \leanok
+\uses{def:Witness-SourceTable, def:isCasesOnName}
+\lead{In short} A table has \hl{no bodied \code{casesOn} entry}: every tabled name that
+\code{isCasesOnName} accepts has an empty body column.
+\lead{Lean} A decidable \code{Prop} on a source table.
+\end{definition}
+
+\begin{lemma}[No rung tables a bodied eliminator]\label{lem:Green-noTabledCasesOnBodies}
+\lean{LeanToLambdaBox.Green.noTabledCasesOnBodies, LeanToLambdaBox.Green.g7_natCasesOn_tabled, LeanToLambdaBox.Green.toKername_id_of_isCasesOnName} \leanok
+\uses{def:Green-NoTabledCasesOnBody, def:Green-g1Table, def:isCasesOnName, def:Kername}
+\lead{In short} All eight tables satisfy \code{NoTabledCasesOnBody}.
+\begin{itemize}
+\item G7's table does table \code{Nat.casesOn}, a \code{casesOn} name, so the check has a subject;
+\item \code{toKername} sends every \code{casesOn} name to a kername with identifier \code{casesOn}.
+\end{itemize}
+\lead{Why} A bodied tabled eliminator makes a rung's hypotheses unsatisfiable through
+Lemma~\ref{lem:ErasesEnv-runtimeKey_isCasesOn}; every rung's specification environment declares
+\code{Nat}'s block, whose \code{IndCovered} entry demands \code{Nat.casesOn}. No theorem consumes
+this measurement.
+\end{lemma}
+
+\begin{proof} \leanok
+\uses{def:Green-NoTabledCasesOnBody, def:Green-g1Table, def:isCasesOnName, def:Kername}
+\lead{Idea} \code{decide +kernel} on the eight literal tables and on G7's; the kername fact by cases
+on the name.
+\end{proof}
 
 \section{G5: the source evaluation, derived}
 \label{sec:capstone:g5}
@@ -606,7 +638,7 @@ G5's table records for the subject.
 
 \begin{remark}
 \lead{Why} The thunked nullary branch is not a fixture artefact: it is the shape Lean's match
-compiler gives a nullary alternative, and it is exactly what makes the iota rule's per-branch
+compiler gives a nullary alternative, and it is what makes the iota rule's per-branch
 obligation visible.
 \end{remark}
 
@@ -637,7 +669,7 @@ G5's table records the eliminator spine as the subject's body, and \code{PUnit.u
 ask 3.
 \end{definition}
 
-\begin{lemma}[The \code{Nat} bundle is satisfiable]\label{lem:Green-spikeNatFacts_natEnv}
+\begin{lemma}[The \code{Nat} bundle is satisfiable on its own]\label{lem:Green-spikeNatFacts_natEnv}
 \lean{LeanToLambdaBox.Green.spikeNatFacts_natEnv} \leanok
 \uses{def:Green-SpikeNatFacts, prop:NatWitness-seval_iota_fires}
 The \code{Nat} bundle holds at the source-evaluation chapter's model fixture.
@@ -646,8 +678,8 @@ The \code{Nat} bundle holds at the source-evaluation chapter's model fixture.
 \begin{proof} \leanok
 \uses{def:Green-SpikeNatFacts, prop:NatWitness-seval_iota_fires}
 \lead{Idea} That fixture's own theorems supply every field directly. Footprint
-\code{[propext, Classical.choice, Quot.sound]}: no \code{sorryAx}. The non-vacuity guard for G5's and
-G8's model-side bundle.
+\code{[propext, Classical.choice, Quot.sound]}: no \code{sorryAx}. \code{UpstreamAsks} fails at the
+same fixture, so this does not inhabit G5's or G8's hypothesis set.
 \end{proof}
 
 \begin{definition}[What the model must declare about \code{PUnit}]\label{def:Green-SpikeUnitFacts}
@@ -660,7 +692,7 @@ that constructor.
 \begin{remark}
 \lead{Caveat} Kept separate from the \code{Nat} bundle because the model fixture declares a single
 block; the two halves are satisfiable only at different fixtures. \textbf{This half is inhabited
-nowhere}: G5's non-vacuity holds modulo a bundle half whose consistency is not exhibited.
+nowhere}.
 \end{remark}
 
 \begin{lemma}[Source peano numerals are values]\label{lem:Green-peanoSrc_eval}
@@ -706,10 +738,9 @@ unselected nullary minor needs a beta step whose argument needs a delta step at 
 \end{proof}
 
 \begin{remark}
-\lead{Caveat} The only place the capstone's source-evaluation premise is a term, not a binder --
-the ladder's non-vacuity high-water mark. No witness is attempted at Arith: \code{benchArith 0} runs
-45 recursive calls, each owing a per-branch obligation for every unselected minor -- a recorded
-fallback, not an oversight.
+\lead{Caveat} The only place the capstone's source-evaluation premise is a term, not a binder. No
+witness is attempted at Arith: \code{benchArith 0} runs 45 recursive calls, each owing a per-branch
+obligation for every unselected minor.
 \end{remark}
 
 \section{G8: the applied rung}
@@ -763,40 +794,111 @@ reachability fact; two of $\ErasesEnv$'s seven conditions reuse the subject's de
 the rest rewrite every reached key to \code{Nat}'s.
 \end{proof}
 
+\begin{lemma}[G8's subject erases to its own kername]\label{lem:Green-g8_t0}
+\lean{LeanToLambdaBox.Green.g8_t0} \leanok
+\uses{def:Erases, def:Lower, def:Green-g1Table, def:Kername}
+If G8's source subject erases to $t_0$ and $t_0$ lowers to the committed G8 term, then $t_0$ is
+\hl{the constant node of \code{benchArith}'s kername}.
+\end{lemma}
+
+\begin{proof} \leanok
+\uses{def:Erases, def:Lower}
+\lead{Idea} Case on the erasure: the box and constructor arms lower to a box or constructor node,
+which the committed term is not; the constant arm is the claim.
+\end{proof}
+
+\begin{lemma}[The subject's reachability, from its tabled body]\label{lem:Green-g8_hargReach}
+\lean{LeanToLambdaBox.Green.g8_hargReach} \leanok
+\uses{def:ErasesEnv, def:ReachableFrom, def:Erases, def:Lower, def:Green-g1Table}
+\lead{In short} G8's per-argument reachability reduces to \hl{a source-side fact about
+\code{benchArith}'s tabled body}.
+\begin{itemize}
+\item \lead{Given} the table's body $b$ at \code{benchArith}, and every erasure of $b$ at the table's
+level scope reaching \code{Nat}'s block key in $\Gamma_{spec}$;
+\item the subject erases to $t_0$, $\ErasesEnv$ holds at $t_0$, and $t_0$ lowers to the G8 term;
+\item \lead{Then} $t_0$ reaches \code{Nat}'s block key in $\Gamma_{spec}$.
+\end{itemize}
+\end{lemma}
+
+\begin{proof} \leanok
+\uses{lem:Green-g8_t0, lem:ReachableFrom-through_body, def:ErasesEnv}
+\lead{Idea} $t_0$ is \code{benchArith}'s constant node (Lemma~\ref{lem:Green-g8_t0}); $\ErasesEnv$'s
+definition clause gives its specification body as an erasure of $b$; reachability passes through
+that body.
+\end{proof}
+
 \begin{remark}
-\lead{Caveat} Reduces the capstone's per-argument environment conjunct at G8 to one reachability fact,
-\code{hargReach}, which stays a binder. It is \emph{not} slack: at the empty specification
-environment the per-argument conjunct is false while the lowering of a bare constant still holds.
+\lead{Caveat} G8 binds the premise of Lemma~\ref{lem:Green-g8_hargReach} as \code{hbody},
+quantified over every $\Gamma_{spec}$ and every tabled body, stronger than the run-specific fact the
+proof spends. It is satisfiable on its own: the tabled body erases through peano literal towers that
+name \code{Nat}'s block.
 \end{remark}
 
 \section{The eight rungs}
 \label{sec:capstone:rungs}
 
-Every rung also carries the same always-standing binders -- $P$, $E$, $A$, \code{htbl}, \code{hsafe},
-\code{hblk}, \code{hprep}, \code{hrun}, \code{hbridge} -- omitted below; the table tracks only what
-varies.
+Every rung carries the same standing binders -- $P$, $E$, $A$, \code{htbl}, \code{hsafe},
+\code{hblk}, \code{hprep}, \code{hrun}, \code{hbridge}, \code{hvwt}, \code{hty}, \code{hfo} --
+omitted from the table, which tracks only what varies.
 
-\lead{Non-vacuity} No hypothesis of any rung is known unsatisfiable, and each conclusion ends in a
-literal \lbox{} numeral. \code{ErasesEnv}'s definition clause, which every rung carries in its own
-\emph{conclusion}, reads each tabled body at that declaration's own level scope, so a
-universe-polymorphic body is no obstacle; \code{test/Vacuity.lean} is the regression.
-
-\begin{center}
-\begin{tabular}{llllp{0.29\linewidth}p{0.22\linewidth}}
+\par\smallskip\noindent
+\begin{tabular}{llllp{0.24\linewidth}p{0.24\linewidth}}
 \toprule
-rung & subject & answer & \code{.ast} size & discharged by checked terms & binders still standing \\
+rung & subject & answer & \code{.ast} size & discharged by checked terms & further binders \\
 \midrule
-G1 & \code{spikeZero} & 0 & 354 B & \code{hcfg, hcb, hwt, hsup, hnb, hwf} & \code{hev, hvwt, hty, hfo} \\
-G2 & \code{spikeLit} & 4 & 1556 B & \code{hcfg, hwt, hsup, hnb, hwf} & \code{hcb, hev, hvwt, hty, hfo} \\
-G3 & \code{spikeLet} & 3 & 1469 B & \code{hcfg, hwt, hsup, hnb, hwf} & \code{hcb, hev, hvwt, hty, hfo} \\
-G4 & \code{spikeProj} & 1 & 2284 B & \code{hcfg, hwt, hsup, hnb, hwf} & \code{hcb, hev, hvwt, hty, hfo} \\
-G5 & \code{spikeCase} & 1 & 966 B & \code{hcfg, hwt, hsup, hnb, hwf, hev} (Prop.~\ref{prop:Green-g5_seval}) & \code{hcb, hvwt, hty, hfo} \\
-G6 & \code{spikeFix} & 2 & 885 B & \code{hcfg, hwt, hsup, hnb, hwf} & \code{hcb, hev, hvwt, hty, hfo} \\
-G7 & \code{arithClosed} & 8 & 14625 B & \code{hcfg, hwt, hsup, hnb, hwf} & \code{hcb, hev, hvwt, hty, hfo} \\
-G8 & \code{benchArith}~0 & 8 & 14291 B & \code{hcfg, hwt, hsup, hnb, hwf}, spine \& arg (Lem.~\ref{lem:Green-g8_trExprS_spine}, \ref{lem:Green-g8_argErasesEnv}) & \code{hcb, hev, hvwt, hty, hfo, hargReach} \\
+G1 & \code{spikeZero} & 0 & 354 B & \code{hcfg, hcb, hwt, hsup, hwf} & \code{hev} \\
+G2 & \code{spikeLit} & 4 & 1556 B & \code{hcfg, hwt, hsup, hwf} & \code{hcb, hev} \\
+G3 & \code{spikeLet} & 3 & 1469 B & \code{hcfg, hwt, hsup, hwf} & \code{hcb, hev} \\
+G4 & \code{spikeProj} & 1 & 2284 B & \code{hcfg, hwt, hsup, hwf} & \code{hcb, hev} \\
+G5 & \code{spikeCase} & 1 & 966 B & \code{hcfg, hwt, hsup, hwf}, \code{hev} (Prop.~\ref{prop:Green-g5_seval}) & \code{hcb}, both bundles, three \code{StepDefeq}s \\
+G6 & \code{spikeFix} & 2 & 885 B & \code{hcfg, hwt, hsup, hwf} & \code{hcb, hev} \\
+G7 & \code{arithClosed} & 8 & 14625 B & \code{hcfg, hwt, hsup, hwf} & \code{hcb, hev} \\
+G8 & \code{benchArith}~0 & 8 & 14291 B & \code{hcfg, hwt, hsup, hwf}, spine \& argument (Lem.~\ref{lem:Green-g8_trExprS_spine}, \ref{lem:Green-g8_argErasesEnv}, \ref{lem:Green-g8_hargReach}) & \code{hcb, hev}, \code{Nat} bundle, \code{hbody} \\
 \bottomrule
 \end{tabular}
-\end{center}
+
+\begin{remark}
+\lead{Caveat} \hl{The hypothesis set of every rung is jointly unsatisfiable}.
+\begin{itemize}
+\item \code{UpstreamAsks}' field \code{constOriginExcludes} fails at every environment declaring an
+inductive block: \code{test/Vacuity.lean}'s \code{not\_upstreamAsks\_natEnv} refutes $A$ at the
+\code{Nat} fixture.
+\item Every rung pairs $A$ with such a block: \code{hfo : FirstOrderInd env Nat} (all eight),
+$P$ with \code{htbl} at a table recording \code{Nat} (all eight), the \code{Nat} bundle (G5, G8).
+Each pairing is contradictory (\code{doc/rework/07-STATUS.md}, Sec.~1).
+\item \lead{Why} A green rung shows that a checked term meets the stated interface, \textbf{not}
+that the interface is inhabited.
+\item The uniqueness conjunct is false where $A$ fails: \code{erases\_natZ\_two\_ways} gives
+\code{Nat.zero} a constructor-node and a constant-node erasure.
+\item The repair reads \code{ConstOrigin}, \code{CtorOf}, \code{IndInfo}, \code{CasesOnShape},
+\code{IndBlockBelow} off \code{env}'s own declaration list (\stOpen{}).
+\end{itemize}
+\end{remark}
+
+\par\smallskip\noindent
+Which conclusion conjuncts carry content (\code{doc/rework/07-STATUS.md}, Sec.~3):
+
+\par\smallskip\noindent
+\begin{tabular}{p{0.34\linewidth}lp{0.36\linewidth}}
+\toprule
+conjunct & class & source \\
+\midrule
+preparation equation & contentless & \code{hprep}, verbatim \\
+\code{LBWfPeregrine g<i>Env g<i>Term} & contentless & \code{hwf}, the closed term \code{g<i>\_wf} \\
+\code{NoBox} of the answer & literal & a fact about the numeral \\
+\code{WcbvEval} to the answer & literal & the closed term \code{g<i>\_eval} \\
+$\ErasesEnv$ at $t_0$, $\LowerEnv\ \Gamma_{spec}\ \Gamma$ & contentless & \code{hbridge}'s two fields, re-exported \\
+$\Erases\ pe\ t_0$, $\Lower\ \Gamma_{spec}\ t_0\ t$ & content & \code{erasure\_bridge\_of\_run} \\
+$\Erases\ v\ tv_0$ with uniqueness, $\Lower\ \Gamma_{spec}\ tv_0$ answer & content & \code{erases\_correct}, \code{firstorder\_erases\_core} \\
+per-argument clause, spine translation & content at G8 only & Lemmas~\ref{lem:Green-g8_argErasesEnv}, \ref{lem:Green-g8_trExprS_spine}; empty spine at G1--G7 \\
+\bottomrule
+\end{tabular}
+
+\par\smallskip\noindent
+Vacuous at every rung: $\ErasesEnv$'s \code{IndFlagSound} conjunct (no emitted block is
+propositional) and the axiom clauses of $\ErasesEnv$, $\LowerEnv$, \code{SpecContent} (no body-less
+emitted entry). Vacuous at some rungs: \code{LBWfPeregrine}'s \code{etaCtorsTm}, \code{casesExh},
+\code{fixLambda}, \code{projDecl} and $\ErasesEnv$'s \code{elims}.
 
 \begin{theorem}[Rung G1 is green]\label{thm:Green-green_G1}
 \lean{LeanToLambdaBox.Green.green_G1} \leanok
@@ -804,13 +906,14 @@ G8 & \code{benchArith}~0 & 8 & 14291 B & \code{hcfg, hwt, hsup, hnb, hwf}, spine
 \lead{In short} The capstone at the \code{\#erase} run recorded in \code{VerifyBench/Spikes/G1.lean}:
 \hl{\code{spikeZero} erases, lowers and evaluates to the \lbox{} numeral 0}, the only rung
 discharging \code{hcb} too.
-\lead{Status} \stProved{}; \stInherited{}; cond.\ on \stAssumed{} $P,E,A$, \code{ErasureBridge}.
+\lead{Status} \stProved{}; \stInherited{}; cond.\ on \stAssumed{} $P,E,A$, \code{ErasureBridge};
+hypotheses jointly unsatisfiable (Section~\ref{sec:capstone:rungs}).
 \end{theorem}
 
 \begin{proof} \leanok
-\uses{thm:shipping_erase_correct_firstorder, lem:Green-spike_configPinned, lem:Green-g1_compilerBodies, lem:Witness-trExprS_const_of_table, thm:supportedB_sound, lem:Green-g1_supported, lem:Green-g1_noBodylessRefs, lem:Green-g1_wf, lem:Green-g1_eval, thm:eval_deterministic, asm:lean4lean-trust, asm:lean-reflection-axioms}
-\lead{Idea} Six checked terms discharge the table row's binders; the empty-list observable and
-determinism fix the answer.
+\uses{thm:shipping_erase_correct_firstorder, lem:Green-spike_configPinned, lem:Green-g1_compilerBodies, lem:Witness-trExprS_const_of_table, thm:supportedB_sound, lem:Green-g1_supported, lem:Green-g1_wf, lem:Green-g1_eval, thm:eval_deterministic, asm:lean4lean-trust, asm:lean-reflection-axioms}
+\lead{Idea} Five checked terms discharge the table row's binders, $P$ read at the empty level
+scope; the empty-list observable and determinism fix the answer.
 \end{proof}
 
 \begin{theorem}[Rungs G2, G3, G4 and G6]\label{thm:Green-green_G2}
@@ -821,12 +924,13 @@ determinism fix the answer.
 \lead{Why} G6's subject applies a recursive constant, whose emitted body is the eta-expansion of a
 \code{.fix} node: the target run beta-reduces the wrapper, then unfolds the fixpoint twice under the
 guard.
-\lead{Status} \stProved{}; \stInherited{}; cond.\ on \stAssumed{} $P,E,A$, \code{ErasureBridge}.
+\lead{Status} \stProved{}; \stInherited{}; cond.\ on \stAssumed{} $P,E,A$, \code{ErasureBridge};
+hypotheses jointly unsatisfiable (Section~\ref{sec:capstone:rungs}).
 \end{theorem}
 
 \begin{proof} \leanok
-\uses{thm:shipping_erase_correct_firstorder, lem:Green-spike_configPinned, lem:Witness-trExprS_const_of_table, thm:supportedB_sound, lem:Green-g1_supported, lem:Green-g1_noBodylessRefs, lem:Green-g1_wf, lem:Green-g1_eval, thm:eval_deterministic, asm:lean4lean-trust, asm:lean-reflection-axioms}
-\lead{Idea} As G1's, at each rung's own five checked terms, \code{hcb}/\code{hev} left as binders.
+\uses{thm:shipping_erase_correct_firstorder, lem:Green-spike_configPinned, lem:Witness-trExprS_const_of_table, thm:supportedB_sound, lem:Green-g1_supported, lem:Green-g1_wf, lem:Green-g1_eval, thm:eval_deterministic, asm:lean4lean-trust, asm:lean-reflection-axioms}
+\lead{Idea} As G1's, at each rung's own four checked terms, \code{hcb}/\code{hev} left as binders.
 \end{proof}
 
 \begin{theorem}[Rung G5 is green, and its source evaluation is not assumed]\label{thm:Green-green_G5}
@@ -834,13 +938,14 @@ guard.
 \uses{thm:shipping_erase_correct_firstorder, def:Green-SpikeNatFacts, def:Green-SpikeUnitFacts, def:Green-peanoSrc, def:Green-peanoLB, def:Green-g1Table, def:StepDefeq, asm:htbl, asm:hsafe, asm:hblk, asm:hcb, asm:hprep, asm:hrun, asm:hvwt, asm:hty, asm:hfo, asm:ErasureBridge-erasesEnv, asm:ErasureBridge-lowerEnv}
 \lead{In short} \code{spikeCase} answers 1, and \hl{its source evaluation is derived}
 (Proposition~\ref{prop:Green-g5_seval}) rather than bound.
-\lead{Then} \code{hcb}, the value-side facts \code{hvwt}/\code{hty}, the first-order hypothesis and the
-two model-side bundles remain.
-\lead{Status} \stProved{}; \stInherited{}; cond.\ on \stAssumed{} $P,E,A$, \code{ErasureBridge}.
+\lead{Then} \code{hcb}, the value-side facts \code{hvwt}/\code{hty}, the first-order hypothesis, the
+two model-side bundles and three \code{StepDefeq} facts remain.
+\lead{Status} \stProved{}; \stInherited{}; cond.\ on \stAssumed{} $P,E,A$, \code{ErasureBridge};
+hypotheses jointly unsatisfiable (Section~\ref{sec:capstone:rungs}).
 \end{theorem}
 
 \begin{proof} \leanok
-\uses{thm:shipping_erase_correct_firstorder, prop:Green-g5_seval, lem:Green-spike_configPinned, lem:Witness-trExprS_const_of_table, thm:supportedB_sound, lem:Green-g1_supported, lem:Green-g1_noBodylessRefs, lem:Green-g1_wf, lem:Green-g1_eval, thm:eval_deterministic, asm:lean4lean-trust, asm:lean-reflection-axioms}
+\uses{thm:shipping_erase_correct_firstorder, prop:Green-g5_seval, lem:Green-spike_configPinned, lem:Witness-trExprS_const_of_table, thm:supportedB_sound, lem:Green-g1_supported, lem:Green-g1_wf, lem:Green-g1_eval, thm:eval_deterministic, asm:lean4lean-trust, asm:lean-reflection-axioms}
 \lead{Idea} As G1, source evaluation supplied by Proposition~\ref{prop:Green-g5_seval}, not bound.
 \end{proof}
 
@@ -854,31 +959,34 @@ binder shape as G2--G6.
 \ErasesEnv{} clause reads each at its own level scope.
 \lead{Status} \stProved{}; \stInherited{}; cond.\ on \stAssumed{} $P,E,A$, \code{ErasureBridge};
 outstanding binders \code{hcb} (blocked on lean4lean's \code{TrProj}), \code{hev}, \code{hvwt},
-\code{hty}, \code{hfo}.
+\code{hty}, \code{hfo}; hypotheses jointly unsatisfiable (Section~\ref{sec:capstone:rungs}).
 \end{theorem}
 
 \begin{proof} \leanok
-\uses{thm:shipping_erase_correct_firstorder, lem:Green-spike_configPinned, lem:Witness-trExprS_const_of_table, thm:supportedB_sound, lem:Green-g1_supported, lem:Green-g1_noBodylessRefs, lem:Green-g1_wf, lem:Green-g1_eval, thm:eval_deterministic, asm:lean4lean-trust, asm:lean-reflection-axioms}
+\uses{thm:shipping_erase_correct_firstorder, lem:Green-spike_configPinned, lem:Witness-trExprS_const_of_table, thm:supportedB_sound, lem:Green-g1_supported, lem:Green-g1_wf, lem:Green-g1_eval, thm:eval_deterministic, asm:lean4lean-trust, asm:lean-reflection-axioms}
 \lead{Idea} As G1, at G7's own checked terms.
 \end{proof}
 
 \begin{theorem}[Rung G8 is green, and it is the applied one]\label{thm:Green-green_G8}
 \lean{LeanToLambdaBox.Green.green_G8} \leanok
-\uses{thm:shipping_erase_correct_firstorder, def:Green-SpikeNatFacts, def:Green-peanoLB, def:Green-g1Table, def:ReachableFrom, def:ErasesEnv, def:LowerEnv, asm:htbl, asm:hsafe, asm:hblk, asm:hcb, asm:hprep, asm:hrun, asm:hargReach, asm:hev, asm:hvwt, asm:hty, asm:hfo, asm:ErasureBridge-erasesEnv, asm:ErasureBridge-lowerEnv}
+\uses{thm:shipping_erase_correct_firstorder, def:Green-SpikeNatFacts, def:Green-peanoLB, def:Green-g1Table, def:ReachableFrom, def:ErasesEnv, def:Erases, asm:htbl, asm:hsafe, asm:hblk, asm:hcb, asm:hprep, asm:hrun, asm:hargReach, asm:hev, asm:hvwt, asm:hty, asm:hfo, asm:ErasureBridge-erasesEnv, asm:ErasureBridge-lowerEnv}
 \lead{In short} \code{benchArith} applied to \code{Nat.zero} answers 8; \hl{the only rung with a
 non-empty spine}.
-\lead{Then} Two extra binders -- the \code{Nat} bundle and \code{hargReach} -- and both evaluations
-read at the spine, not the bare constant.
+\lead{Then} Two extra binders -- the \code{Nat} bundle and \code{hbody}, the source-side
+reachability of \code{benchArith}'s tabled body -- and both evaluations read at the spine, not the
+bare constant.
 \lead{Status} \stProved{}; \stInherited{}; cond.\ on \stAssumed{} $P,E,A$, \code{ErasureBridge};
 outstanding binders \code{hcb} (blocked on lean4lean's \code{TrProj}), \code{hev}, \code{hvwt},
-\code{hty}, \code{hfo}, \code{hargReach}.
+\code{hty}, \code{hfo}, \code{hbody}; hypotheses jointly unsatisfiable
+(Section~\ref{sec:capstone:rungs}).
 \end{theorem}
 
 \begin{proof} \leanok
-\uses{thm:shipping_erase_correct_firstorder, lem:Green-g8_trExprS_spine, lem:Green-g8_argErasesEnv, lem:Green-spike_configPinned, lem:Witness-trExprS_const_of_table, thm:supportedB_sound, lem:Green-g1_supported, lem:Green-g1_noBodylessRefs, lem:Green-g1_wf, lem:Green-g1_eval, thm:eval_deterministic, def:Erases, def:Lower, asm:lean4lean-trust, asm:lean-reflection-axioms}
+\uses{thm:shipping_erase_correct_firstorder, lem:Green-g8_trExprS_spine, lem:Green-g8_argErasesEnv, lem:Green-g8_hargReach, lem:Green-spike_configPinned, lem:Witness-trExprS_const_of_table, thm:supportedB_sound, lem:Green-g1_supported, lem:Green-g1_wf, lem:Green-g1_eval, thm:eval_deterministic, def:Erases, def:Lower, asm:lean4lean-trust, asm:lean-reflection-axioms}
 \lead{Idea} As the other rungs, with the observable at the one-element argument list: the
 per-argument premise comes from the constructor arms of $\Erases$/$\Lower$ plus
-Lemma~\ref{lem:Green-g8_argErasesEnv}, the spine's translation from
+Lemmas~\ref{lem:Green-g8_argErasesEnv} and \ref{lem:Green-g8_hargReach} (the tabled body's
+existence by \code{decide +kernel}), the spine's translation from
 Lemma~\ref{lem:Green-g8_trExprS_spine}.
 \end{proof}
 
@@ -893,14 +1001,15 @@ one and runs the certified evaluator against the answer -- the external check of
 \item \code{lake exe reify --check/--blocks/--prepared}: re-derives a committed table from the live
 environment, re-checks \code{TableBlocks}, checks \code{hprep}; CI runs all three, plus a
 deliberately stale table that must be rejected.
-\item \code{scripts/ledger.sh}: diffs 43 \code{\#print axioms} against \code{test/ledger.expected};
-\code{lean4lean-sorries.sh} pins the trust boundary at sixteen \code{sorry} sites; \code{frozen.sh}
+\item \code{scripts/ledger.sh}: diffs 47 \code{\#print axioms} against \code{test/ledger.expected};
+\code{lean4lean-sorries.sh} pins the trust boundary at seventeen \code{sorry} sites; \code{frozen.sh}
 holds the benchmark sources byte-identical against the sibling repository; \code{fixes.sh} runs the
 shipping fixes' own regression suite against the shipping closure.
 \item \code{lake exe coverage}/\code{hygiene}: measures drift and enforces documentation policy,
-with a budget of 240 declarations outside the import closure of \code{Green.lean} and
-\code{Capstone.lean} -- the tooling, the frozen benchmark sources, the uniform-erasure module and
-the \lbox{} optimisation pass, each accounted for in \code{doc/coverage.md}.
+with a budget of 343 declarations outside the import closure of \code{Green.lean} and
+\code{Capstone.lean}, each accounted for in \code{doc/coverage.md}.
+\item \code{test/Vacuity.lean}, run by hand and outside the battery: the level-scope regression and
+the refutation of \code{UpstreamAsks} at the \code{Nat} fixture.
 \end{itemize}
 
 \section{Deviations from the paper, and caveats}
@@ -913,8 +1022,8 @@ kernel $\delta$.
 \item \lead{Deviation} Constructors are emitted applied, never as blocks (F-ETA2); fixpoints are
 eta-expanded at the registration point (F-ETA), so the emitted program satisfies
 \code{LBWfPeregrine}, \code{expandedFix} included.
-\item \lead{Caveat} Eight literal answers rule out a proof by $\Box$ or a stuck term; no hypothesis
-of any rung is known unsatisfiable, and every computable one is checked at every rung it applies to.
+\item \lead{Caveat} Every rung's hypotheses are jointly unsatisfiable, through \code{UpstreamAsks};
+eight literal answers rule out a proof by $\Box$ or a stuck term only within that vacuous statement.
 \item \lead{Caveat} \code{lenv} and \code{env} stay universally quantified at every rung; \code{hrun}
 is an equation about an opaque world token no Lean term inhabits; \code{hbridge} is inhabited nowhere.
 \item \lead{Caveat} \code{hcb} is a binder at seven rungs, \code{hev} at seven; G5's \code{PUnit}

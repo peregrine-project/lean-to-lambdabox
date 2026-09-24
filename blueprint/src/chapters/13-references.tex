@@ -246,11 +246,11 @@ shape, or a counterpart carrying premises the reference does not, is one of six 
 \toprule
 kind & count & bar & meaning \\
 \midrule
-\kFL & 14 & \textcolor{kindFL}{\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}} & Lean's own term language or design leaves no other shape available \\
-\kFE & 13 & \textcolor{kindFE}{\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}} & the shipping eraser's monadic, stateful, on-demand run forces the shape \\
-\kFK & 6 & \textcolor{kindFK}{\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}} & the pinned \code{lean4lean} dependency forces the shape or the trust cost \\
+\kFL & 13 & \textcolor{kindFL}{\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}} & Lean's own term language or design leaves no other shape available \\
+\kFE & 12 & \textcolor{kindFE}{\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}} & the shipping eraser's monadic, stateful, on-demand run forces the shape \\
+\kFK & 7 & \textcolor{kindFK}{\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}} & the pinned \code{lean4lean} dependency forces the shape or the trust cost \\
 \kDS & 20 & \textcolor{kindDS}{\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}} & a choice this development makes, open to a different one \\
-\kOP & 2 & \textcolor{kindOP}{\rule{2mm}{2mm}\,\rule{2mm}{2mm}} & specified but not yet discharged by any theorem \\
+\kOP & 3 & \textcolor{kindOP}{\rule{2mm}{2mm}\,\rule{2mm}{2mm}\,\rule{2mm}{2mm}} & specified but not yet discharged by any theorem \\
 \kGP & 1 & \textcolor{kindGP}{\rule{2mm}{2mm}} & a real coverage boundary, outside what this development's pipeline reach covers \\
 \bottomrule
 \end{tabular}
@@ -272,11 +272,11 @@ id & area & kind & title \\
 \did{B1} & erasability & \kFK & the arity disjunct closed under definitional equality \\
 \did{B2} & erasability & \kFL & relevance is semantic, not a resolved flag \\
 \did{B3} & erasability & \kDS & the oracle discharged against lean4lean's checker \\
-\did{B4} & erasability & \kFE & three further oracle clauses \\
+\did{B4} & erasability & \kFE & two further oracle clauses \\
 \did{R1} & erasure rel. & \kFL & no case rule \\
 \did{R2} & erasure rel. & \kFL & no fixpoint rule \\
-\did{R3} & erasure rel. & \kFL & the constant reading \\
-\did{R4} & erasure rel. & \kFL & the constructor reading \\
+\did{R3} & erasure rel. & \kFL & the three readings of \code{Expr.const} \\
+\did{R4} & erasure rel. & \kOP & the readings taken below the environment \\
 \did{R5} & erasure rel. & \kFL & the projection rule \\
 \did{R6} & erasure rel. & \kFL & two rules with no reference counterpart \\
 \did{R7} & erasure rel. & \kDS & sorts and Pi-types absorbed into box, by proof \\
@@ -290,7 +290,7 @@ id & area & kind & title \\
 \did{V4} & environment & \kFE & no total environment erasure \\
 \did{V5} & environment & \kFL & an eliminator-declaration clause \\
 \did{V6} & environment & \kDS & \code{tabled} has no reachability trigger \\
-\did{V7} & environment & \kFE & the propositional flag holds in one direction only \\
+\did{V7} & environment & \kFK & the propositional flag holds in one direction only \\
 \did{V8} & environment & \kFL & \LowerEnv{} in place of environment well-formedness \\
 \did{C1} & correctness & \kFL & the source semantics \\
 \did{C2} & correctness & \kFL & the premise list of the simulation \\
@@ -312,7 +312,7 @@ id & area & kind & title \\
 \did{M4} & method & \kOP & \code{hbridge} as an open item \\
 \did{M5} & method & \kDS & \code{ErasureSpec} as the analogue of trusting the quoting layer \\
 \did{M6} & method & \kFE & \code{EraserAsks}, the preparation passes and the oracle's other arms \\
-\did{U1} & trust & \kFK & four upstream asks as one premise \\
+\did{U1} & trust & \kFK & the upstream asks as one premise \\
 \did{U2} & trust & \kFK & what the pin leaves open \\
 \did{S1} & scope & \kDS & the configuration and its stated restrictions \\
 \did{S2} & scope & \kDS & the measured domain \\
@@ -323,6 +323,7 @@ id & area & kind & title \\
 
 \subsection{Target calculus}
 
+\par\smallskip\noindent
 \setlength{\tabcolsep}{3pt}\begin{tabular}{@{}lp{0.075\linewidth}p{0.17\linewidth}p{0.19\linewidth}p{0.21\linewidth}p{0.21\linewidth}@{}}
 \toprule
 id & kind & reference & here & why & consequence \\
@@ -355,6 +356,7 @@ coarser on names; nothing observable depends on them \\
 
 \subsection{Erasability}
 
+\par\smallskip\noindent
 \setlength{\tabcolsep}{3pt}\begin{tabular}{@{}lp{0.075\linewidth}p{0.17\linewidth}p{0.19\linewidth}p{0.21\linewidth}p{0.21\linewidth}@{}}
 \toprule
 id & kind & reference & here & why & consequence \\
@@ -370,9 +372,8 @@ complements \\
 \code{ErasureSpec.oracle\_refl} (\ref{asm:ErasureSpec-oracle_refl}) proves the kernel disjunct
 against lean4lean's checker & the one clause where an assumption becomes a proof & every rung's
 footprint carries 33 axiom names as the price \\
-\did{B4} & \kFE & none & \code{oracle\_meta}, \code{oracle\_false\_refl},
-\code{kernel\_ind\_head\_true} (\ref{asm:ErasureSpec-oracle_meta},
-\ref{asm:EraserAsks-oracle_false_refl}, \ref{asm:EraserAsks-kernel_ind_head_true}) & the
+\did{B4} & \kFE & none & \code{oracle\_false\_refl}, \code{kernel\_ind\_head\_true}
+(\ref{asm:EraserAsks-oracle_false_refl}, \ref{asm:EraserAsks-kernel_ind_head_true}) & the
 shipping oracle is a \code{MetaM} run with a fallback arm and fixed arity budget &
 \code{kernel\_ind\_head\_true} measured true at every tested inductive, not a theorem \\
 \bottomrule
@@ -380,6 +381,7 @@ shipping oracle is a \code{MetaM} run with a fallback arm and fixed arity budget
 
 \subsection{Erasure relation}
 
+\par\smallskip\noindent
 \setlength{\tabcolsep}{3pt}\begin{tabular}{@{}lp{0.075\linewidth}p{0.17\linewidth}p{0.19\linewidth}p{0.21\linewidth}p{0.21\linewidth}@{}}
 \toprule
 id & kind & reference & here & why & consequence \\
@@ -391,14 +393,19 @@ id & kind & reference & here & why & consequence \\
 \did{R2} & \kFL & \code{erases\_tFix} & no arm produces \code{.fix}; three \Lower{} arms do
 (\ref{def:Lower}) & top-level recursion is a declaration, decided at registration & \Lower{}
 has no fix congruence arm \\
-\did{R3} & \kFL & \code{erases\_tConst}, a distinct node & \code{Erases.const}
-(\ref{def:Erases}) carries a positive \code{ConstOrigin} & \code{Lean.Expr.const} writes
-constants, constructors and type formers alike & \code{const\_inv} has three alternatives,
-not one per node \\
-\did{R4} & \kFL & \code{erases\_tConstruct}, a \verb|~isPropositional| condition &
-\code{Erases.ctor} (\ref{def:Erases}) carries \code{CtorOf} plus \code{IndInfo} & the node is
-a bare head; arguments arrive through \code{app} & nothing excludes two readings of one
-constant; excluded upstream (\did{U1}) \\
+\did{R3} & \kFL & \code{erases\_tConst}, \code{erases\_tConstruct} (a
+\verb|~isPropositional| condition), keyed on distinct nodes & \code{Erases.const} carries
+\code{ConstOrigin}; \code{Erases.ctor} carries \code{CtorOf} plus \code{IndInfo}
+(\ref{def:Erases}) & \code{Lean.Expr.const} writes constants, constructors and type formers
+alike; arguments arrive through \code{app} & \code{const\_inv} has three alternatives; the
+propositionality gate sits at the elimination sites \\
+\did{R4} & \kOP & \code{declared\_constant}, \code{declared\_inductive} read
+\code{lookup\_env}, a function of the environment & \code{ConstOrigin} (\ref{def:ConstOrigin}),
+\code{CtorOf}, \code{IndInfo}, \code{CasesOnShape}, \code{IndBlockBelow} read any well-formed
+list below \code{env} & a positive reading, discharged from the list an introduction site holds &
+a constructor is also a \code{ConstOrigin}, so \code{Nat.zero} erases two ways and
+\code{constOriginExcludes} is refuted: \hl{no environment satisfies a rung's hypotheses};
+\code{doc/rework/07-STATUS.md} Sec.\ 4 specifies the repair \\
 \did{R5} & \kFL & \code{erases\_tProj} carries \code{Subsingleton} & \code{Erases.proj}
 (\ref{def:Erases}) carries \code{InformativeInd}, no discriminant typing premise &
 \code{Expr.proj} occurs on \code{Prop}-valued structures & covers strictly fewer projections;
@@ -429,6 +436,7 @@ none checked \\
 
 \subsection{Environment}
 
+\par\smallskip\noindent
 \setlength{\tabcolsep}{3pt}\begin{tabular}{@{}lp{0.075\linewidth}p{0.17\linewidth}p{0.19\linewidth}p{0.21\linewidth}p{0.21\linewidth}@{}}
 \toprule
 id & kind & reference & here & why & consequence \\
@@ -450,10 +458,11 @@ belongs to a \code{casesOn} constant with no compiler body \\
 \code{ErasesEnv.tabled} (\ref{lem:ErasesEnv-keys}) quantifies over the whole table & \code{bo}
 ranges over every tabled name & a global fact about the table; discharge blocks on an upstream
 ask \\
-\did{V7} & \kFE & \code{erase\_one\_inductive\_body} sets the flag from an equality &
-\code{IndFlagSound} (\ref{def:IndFlagSound}) is an implication & the converse is false: the
-arity walk skips a \code{let} that \code{destArity} follows & a \code{let}-arity inductive is
-emitted false though it lives in \code{Prop} \\
+\did{V7} & \kFK & \code{erase\_one\_inductive\_body} sets the flag from an equality &
+\code{IndFlagSound} (\ref{def:IndFlagSound}) is an implication, the proved half
+(\ref{thm:ErasureSpec-propositionalInd_of_arity}) & the converse is false: lean4lean's
+translation sees through a \code{let}-bound arity sort where \code{destArity} and the walk stop
+& the clause fires only at a \code{true} flag, which no rung's emitted block carries \\
 \did{V8} & \kFL & \code{wf\_glob} on one erased environment & \LowerEnv{}
 (\ref{def:LowerEnv}), eight fields, between two & \did{R10} creates a second environment &
 one more premise on every statement about the emitted program \\
@@ -462,6 +471,7 @@ one more premise on every statement about the emitted program \\
 
 \subsection{Correctness}
 
+\par\smallskip\noindent
 \setlength{\tabcolsep}{3pt}\begin{tabular}{@{}lp{0.075\linewidth}p{0.17\linewidth}p{0.19\linewidth}p{0.21\linewidth}p{0.21\linewidth}@{}}
 \toprule
 id & kind & reference & here & why & consequence \\
@@ -479,28 +489,32 @@ source metatheory is a pinned dependency, not a chapter here & \code{SEval.defeq
 lean4lean's \code{sorryAx} \\
 \did{C4} & \kFK & \code{erase} built on assumed \code{NormalizationIn} & no analogue; evaluation
 enters as hypothesis \code{hev} (\ref{asm:hev}) & nothing Lean-side has wcbv standardization or
-canonicity & a rung states consistency with a literal answer, not that it holds of one run \\
+canonicity & a source-evaluation witness exists at one rung (G5) only \\
 \did{C5} & \kDS & \code{erase\_correct\_firstorder}: eval to a constructor-spine value &
 \code{FOSpine} plus \code{NoBox} (\ref{def:FOSpine}) & MetaRocq's \code{erase} already inhabits
 the relation everywhere; the link here is open (\did{M4}) & concludes determinism and
 box-freedom, short of the function's output \\
 \did{C6} & \kOP & \code{firstorder\_erases\_deterministic} equates relation image to function
-output & determinism (\ref{thm:firstorder_erases_deterministic}) for two arbitrary derivations &
-same as \did{C5} & one step short of naming the shipping function's output \\
+output & determinism (\ref{thm:firstorder_erases_deterministic}) for two arbitrary derivations,
+under \code{UpstreamAsks} & same as \did{C5} & one step short of the shipping function's output;
+without \code{UpstreamAsks}, \code{Nat.zero} has two erasures (\did{R4}) \\
 \did{C7} & \kDS & \code{firstorder\_ind}, no monomorphism or index-freedom check &
 \code{FirstOrderDecl} (\ref{def:FirstOrderDecl}) adds \code{mono}, \code{noIndices} & shipped
 \code{firstorder\_ind} answers false on \code{nat} & narrower class of answer types than
 \src{JACM}'s \\
-\did{C8} & \kDS & \code{axiom\_free} on the source environment & \code{NoBodylessRefs}
-(\ref{def:NoBodylessRefs}) on the emitted side & decidable; a bodyless constant is stuck at its
-delta step & measured zero failures across corpus programs and rungs \\
+\did{C8} & \kDS & \code{axiom\_free} on the source environment, a premise & no premise;
+\code{NoBodylessRefs} (\ref{def:NoBodylessRefs}) decided per rung on the emitted side & the
+proof never spends it; a body-less constant has no source value, so \code{hev} carries the
+guard & measured true on all five corpus programs and all eight rungs \\
 \did{C9} & \kDS & reduction to a normal form, no further step & evaluation to an \code{SValue}
-(\ref{def:SValue}) & same as \did{C8} & same, measured zero failures \\
+(\ref{def:SValue}) & \SEval{} returns a value; weak call-by-value on both sides & no separate
+normal-form side condition \\
 \bottomrule
 \end{tabular}
 
 \subsection{Pipeline}
 
+\par\smallskip\noindent
 \setlength{\tabcolsep}{3pt}\begin{tabular}{@{}lp{0.075\linewidth}p{0.17\linewidth}p{0.19\linewidth}p{0.21\linewidth}p{0.21\linewidth}@{}}
 \toprule
 id & kind & reference & here & why & consequence \\
@@ -531,6 +545,7 @@ theorem \\
 
 \subsection{Method}
 
+\par\smallskip\noindent
 \setlength{\tabcolsep}{3pt}\begin{tabular}{@{}lp{0.075\linewidth}p{0.17\linewidth}p{0.19\linewidth}p{0.21\linewidth}p{0.21\linewidth}@{}}
 \toprule
 id & kind & reference & here & why & consequence \\
@@ -545,11 +560,13 @@ conclusion factors through \code{ErasesLB} \\
 incremental run model (\ref{def:RegInvShape-prime}) & accumulates across many side-effecting
 calls & environment conjuncts hold under one binder no rung discharges \\
 \did{M4} & \kOP & \code{erase\_global\_erases\_deps}, proved & \code{ErasureBridge}
-(\ref{def:ErasureBridge}), a named binder no theorem inhabits & same as \did{M3} &
-\code{doc/rework/\allowbreak 09-REPAIRS-W7.md} U5--U9 specify the closure \\
+(\ref{def:ErasureBridge}), the binder \code{hbridge}; \code{bridgeEnv\_of\_regContent} derives it
+from \code{RegAcc}, produced for one registration step only & same as \did{M3} & no theorem
+inhabits it; the whole-run step \code{StepAcc6} is open, \code{doc/rework/\allowbreak
+07-STATUS.md} Sec.\ 4 \\
 \did{M5} & \kDS & neither Template-Rocq's quoting nor Rocq's extraction is formalised &
-\code{ErasureSpec} (\ref{def:ErasureSpec}), eight fields naming a Lean primitive or model
-connection each & a proof about abstract syntax cannot certify the elaborator is faithful &
+\code{ErasureSpec} (\ref{def:ErasureSpec}), seven fields naming a Lean primitive or model
+connection each, assumed at every level scope & a proof about abstract syntax cannot certify the elaborator is faithful &
 the gap becomes a \code{Prop}-typed structure in every dependent statement \\
 \did{M6} & \kFE & none; MetaRocq's erasure has no preprocessing stage &
 \code{EraserAsks} (\ref{def:EraserAsks}), four fields on each preparation pass &
@@ -560,22 +577,26 @@ capstone's syntactic conjuncts read the prepared term, the observable reads the 
 
 \subsection{Trust}
 
+\par\smallskip\noindent
 \setlength{\tabcolsep}{3pt}\begin{tabular}{@{}lp{0.075\linewidth}p{0.17\linewidth}p{0.19\linewidth}p{0.21\linewidth}p{0.21\linewidth}@{}}
 \toprule
 id & kind & reference & here & why & consequence \\
 \midrule
 \did{U1} & \kFK & PCUIC's inversion, injectivity lemmas are theorems & \code{UpstreamAsks}
-(\ref{def:UpstreamAsks}), four fields: origin, arity inversion, spine typing inversion, spine
-injectivity & editing the pinned fork is outside this repository's work & a pin bump would
-discharge all four with no change to any consumer \\
-\did{U2} & \kFK & PCUIC's metatheory library is complete & five inherited \code{sorryAx} roots
-plus one fork-authored lemma (\ref{asm:lean4lean-trust}) & the pin & a real projection has a
-translation derivation only through one open cluster \\
+(\ref{def:UpstreamAsks}), four fields: origin uniqueness, origin exclusion, spine typing
+inversion, spine injectivity & editing the pinned fork is outside this repository's work & a pin
+bump discharges the last two; the origin fields wait on \did{R4}'s restatement, the exclusion
+being refuted \\
+\did{U2} & \kFK & PCUIC's metatheory library is complete & six inherited \code{sorryAx} roots,
+\code{const\_arity\_inv} among them, plus one fork-authored lemma (\ref{asm:lean4lean-trust}) &
+the pin & a real projection has a translation derivation only through \code{TrProj.weak'\_inv}
+and \code{TrProj.uniq}, both open \\
 \bottomrule
 \end{tabular}
 
 \subsection{Scope}
 
+\par\smallskip\noindent
 \setlength{\tabcolsep}{3pt}\begin{tabular}{@{}lp{0.075\linewidth}p{0.17\linewidth}p{0.19\linewidth}p{0.21\linewidth}p{0.21\linewidth}@{}}
 \toprule
 id & kind & reference & here & why & consequence \\
@@ -586,8 +607,9 @@ off & each shipping feature outside the theorem is a stated hypothesis & a reade
 which configuration the theorem describes \\
 \did{S2} & \kDS & the first-order theorem, any well-typed spine, any well-formed environment &
 \code{shipping\_erase\_correct\_firstorder} (\ref{thm:shipping_erase_correct_firstorder}),
-likewise universal; eight rungs measure it & a rung discharges every decidable hypothesis by
-computation & a green rung states a fact about every environment modelling its table \\
+likewise universal; eight rungs instantiate it & a rung discharges every decidable hypothesis by
+computation & a green rung shows checked terms meet the stated interface; no environment
+satisfies its hypotheses (\did{R4}) \\
 \did{S3} & \kDS & none; no syntactic restriction on levels & \code{NoMaxLevels}
 (\ref{def:NoMaxLevels}), a clause of \code{TableSafe} and \ErasesEnv{} & \did{R8}: the level
 substitution does not commute with \code{Level.max} & one more scope restriction, satisfied at
@@ -635,8 +657,11 @@ having a relation at all \\
 \midrule
 \multicolumn{2}{l}{\textbf{Environment relation}} \\
 \midrule
-\code{ErasesEnv.defns} reads a tabled body at its own level parameters & where
-\code{erases\_constant\_body} reads it \\
+\code{ErasesEnv.defns} reads a tabled body at its own level parameters, with its translation,
+under reachability & where \code{erases\_constant\_body} reads it; the typing premise of
+\code{erases\_subst\_instance\_decl}, under the same gate \\
+\code{visitMutual} erases a dependency's body in the empty local context &
+\code{erase\_constant\_body} on a closed body \\
 \code{ErasesEnv.axioms} & the \code{None, None} arm of \code{erases\_constant\_body} \\
 \code{ErasesEnv.blocks} & the declared-inductive pair of \code{erases\_deps\_t\{Constructor,
 Case, Proj\}} \\
@@ -669,8 +694,11 @@ a body-less plain constant has no value & how PCUIC treats an axiom \\
 \section*{Caveats}
 
 \begin{itemize}
-\item The two OPEN divergences (\did{C6}, \did{M4}) are specified, not narrated: the closing
-units are \code{doc/rework/09-REPAIRS-W7.md} U5--U9.
+\item The three OPEN divergences (\did{R4}, \did{C6}, \did{M4}) are specified in
+\code{doc/rework/07-STATUS.md} Sec.\ 4; \did{R4}'s repair comes first.
+\item The rows describe the shipping eraser with the twelve fixes of
+\code{doc/rework/03-DEV-FIX.md} applied; F-PRODUCT stays outside through \code{ConfigPinned}
+(\did{S1}).
 \item MetaRocq citations by file and line are against \code{rocq-metarocq-\{erasure,pcuic\}.1.5.1+9.1}
 in the \code{peregrine} opam switch.
 \item \did{T4} is a GAP, not a divergence this development or peregrine-tool's verified pipeline

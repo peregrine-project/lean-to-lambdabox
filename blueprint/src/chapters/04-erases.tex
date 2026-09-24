@@ -6,7 +6,7 @@
 \item \lead{Goal} Define what it means for a \lbox{} term to correctly erase a Lean term, and prove the metatheory Chapters~\ref{chap:correctness} and~\ref{chap:refinement} spend.
 \item \lead{Main results} Theorem~\ref{thm:Erases-exists_of_trExprS_of_projInfo} (erasure is total on the fragment); Theorem~\ref{thm:erases_uniform_closed} (a closed erasure is context-independent); Theorem~\ref{thm:demoEnv_erasesEnv} (the seven \ErasesEnv{} clauses are jointly satisfiable).
 \item \lead{Status} \stProved{} \Erases{}, its rule table, weakening, substitution and totality; \stInherited{} through lean4lean on lemmas routed through its conversion/unique-typing clusters; \stOpen{} \ErasesEnv{} and \LowerEnv{}, the capstone's bridge bundle, for a shipping run.
-\item \lead{Lean files} \code{Erasability.lean}, \code{Erases.lean}, \code{ErasesTotal.lean}, \code{Abstract.lean}, \code{ErasesAbstract.lean}, \code{ErasesAlpha.lean}, \code{ErasesStrengthen.lean}, \code{ErasesUniform.lean}, \code{ErasesEnv.lean}.
+\item \lead{Lean files} \code{Erasability.lean}, \code{Erases.lean}, \code{ErasesTotal.lean}, \code{Abstract.lean}, \code{ErasesAbstract.lean}, \code{ErasesAlpha.lean}, \code{ErasesStrengthen.lean}, \code{ErasesUniform.lean}, \code{ErasesEnv.lean}, \code{Origin.lean}.
 \item \lead{Paper} [JACM, Sect.\ 7.3]: \code{isErasable}, \code{erases}, \code{erases\_deps}; [L, Def.\ 1, 3, 5, 10, Lemma 16].
 \end{itemize}
 
@@ -292,7 +292,7 @@ LeanToLambdaBox.indBlockKername, LeanToLambdaBox.ctorFieldCounts}
 \item \code{VDeclDefines}: the per-declaration test; a block's type names and constructors, and the quotient declaration, count as neither;
 \item \hl{positive}: exhibits the declaration rather than excluding the other two readings.
 \end{itemize}
-\lead{Lean} That this reading excludes the other two is a kernel-theory theorem, entering as an upstream ask (Chapter~\ref{chap:trust}), never a premise here.
+\lead{Lean} The reading does \emph{not} exclude the other two: a constructor's or a type former's own constant is itself a \code{ConstOrigin} witness (Lemma~\ref{lem:CtorOf-constOrigin}). Only totality (Theorem~\ref{thm:Erases-exists_of_trExprS_of_projInfo}) is needed here, never exclusivity.
 \end{definition}
 
 \begin{lemma}[The readings are monotone]
@@ -330,6 +330,20 @@ LeanToLambdaBox.CtorOf.indInfo, LeanToLambdaBox.CtorOf.indArity}
 \leanok
 \uses{def:IndInfo, def:CtorOf}
 \lead{Idea} Forget or recover the index by list membership/indexing; the identifier is \code{indBlockKername} of the block's names.
+\end{proof}
+
+\begin{lemma}[A constructor or type former is also a plain constant]
+\label{lem:CtorOf-constOrigin}
+\lean{LeanToLambdaBox.CtorOf.constOrigin, LeanToLambdaBox.IndInfo.constOrigin}
+\leanok
+\uses{def:CtorOf, def:IndInfo, def:ConstOrigin}
+\lead{In short} The three readings \hl{are not exclusive}: a constructor's or a type former's own block declares it as an \code{axiom} step of a well-formed list below \emph{env}, so it is a \code{ConstOrigin} witness too.
+\lead{Lean} Unconditional -- no upstream ask is spent: a well-formed block's \code{addConst} chain is already a run of \code{axiom} steps.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:CtorOf, def:IndInfo, def:ConstOrigin}
+\lead{Idea} Peel the block's own declaration step from the list; the constant it adds sits at an \code{axiom} step of that same list, which \code{ConstOrigin} reads directly.
 \end{proof}
 
 \section{The erasure relation and its eleven rules}
@@ -415,7 +429,7 @@ def:InformativeInd}
 \begin{itemize}
 \item sort, $\Pi$-type: only \code{ErasesBox};
 \item bound/free variable: box, or the lookup premise;
-\item constant: box; or \code{ctor} (\code{CtorOf}, \code{IndInfo}); or \code{const} (lookup, \code{ConstOrigin}) -- nothing excludes two of the three, the kernel theory's business;
+\item constant: box; or \code{ctor} (\code{CtorOf}, \code{IndInfo}); or \code{const} (lookup, \code{ConstOrigin}) -- the readings overlap (Lemma~\ref{lem:CtorOf-constOrigin}), so one source constant can erase both ways;
 \item application, $\lambda$, \code{let}, projection, literal, \code{mdata}: box, or the matching structural premises.
 \end{itemize}
 \lead{Lean} One lemma is keyed on the \textbf{target}: any source erasing to $\code{construct}\ \mathit{iid}\ k\ \mathit{args}$ has $\mathit{args}=[]$ and exhibited block data (source left open, since \code{lit}/\code{mdata} pass images through).
@@ -510,15 +524,16 @@ result and apply the \code{ctor}/\code{const} rules.
 
 \begin{lemma}[A type former's declared type is an arity]
 \label{lem:IndInfo-constant_isArity}
-\lean{LeanToLambdaBox.IndInfo.constant_isArity, LeanToLambdaBox.wf'_induct_origin}
+\lean{LeanToLambdaBox.IndInfo.constant_isArity, Lean4Lean.VEnv.WF'.induct_origin}
 \leanok
-\uses{def:IndInfo, def:IsArity}
+\uses{def:IndInfo, def:IsArity, def:lean4lean-grounding}
 \lead{In short} A block in a well-formed declaration list was added by a well-formed step, so a type former's declared type is an arity -- the cost of having no \code{tInd} rule, and what makes an inductive type name erasable.
+\lead{Lean} \code{induct\_origin} is lean4lean's own lemma, cited directly (no repository-local duplicate).
 \end{lemma}
 \begin{proof}
 \leanok
 \uses{def:IndInfo, lem:IsArity-inst}
-\lead{Idea} Peel the list back to the step that added the block; its universe condition forces the declared type to end in a sort, then apply \code{IsArity.of\_piBody}.
+\lead{Idea} Peel the list back, by \code{VEnv.WF'.induct\_origin}, to the step that added the block; its universe condition forces the declared type to end in a sort, then apply \code{IsArity.of\_piBody}.
 \end{proof}
 
 \begin{lemma}[An inductive type name is erasable]
@@ -579,7 +594,7 @@ and a projection reads \code{ProjInfo}'s two premises.
 \end{proof}
 
 \begin{remark}
-\lead{Caveat} Existence of \emph{some} image ([JACM]'s \code{erases\_erase} analogue), not that the shipping eraser's graph lies in the relation (Chapter~\ref{chap:refinement}'s bridge). The classification hypothesis is discharged elsewhere (Chapter~\ref{chap:trust}), never a premise of \Erases{} itself.
+\lead{Caveat} Existence of \emph{some} image ([JACM]'s \code{erases\_erase} analogue), not that the shipping eraser's graph lies in the relation (Chapter~\ref{chap:refinement}'s bridge). The classification hypothesis holds unconditionally, off environment well-formedness alone (Lemma~\ref{lem:consts_classified}, Chapter~\ref{chap:eraser}), never a premise of \Erases{} itself.
 \end{remark}
 
 \section{Closing a free variable: the \texorpdfstring{\lbox{}}{lambda-box}-side algebra}
@@ -983,6 +998,10 @@ model -- the half of the eraser's flag equation a consumer spends.
 \code{false}: \code{notPropositional} applies Lemma~\ref{lem:propositional_false_of_informative}
 at the two exhibited witnesses -- what \code{WcbvEval.iota} and \code{WcbvEval.proj} test
 before firing (Chapter~\ref{chap:lambdabox}).
+\item \lead{Caveat} Soundness only: the converse is false. A \code{PropositionalInd} $I$
+can still carry the flag \code{false} -- a declared arity hidden behind a definitional alias is
+one witness: seeing through it would take a reducing walk, and the flag's arity walk does not
+(Chapter~\ref{chap:trust}).
 \end{itemize}
 \lead{Lean} No clause of \code{IndBodyOf} (Chapter~\ref{chap:lowering}), which carries no model
 environment: the registry computes the flag on every inductive it registers, so \code{=false}
@@ -1091,11 +1110,11 @@ tabled body's \code{NoMaxLevels}-ness and translatability at its own scope (\cod
 \label{def:LowerEnv}
 \lean{LeanToLambdaBox.LowerEnv}
 \leanok
-\uses{def:Lower, def:LowerFix, def:ElimDecl, def:LBTerm-envLookup, def:GlobalDeclarations}
+\uses{def:Lower, def:ElimDecl, def:LBTerm-envLookup, def:GlobalDeclarations}
 \lead{In short} $\LowerEnv\ \Gamma_{\mathrm{spec}}\ \Gamma$: the emitted \lbox{} environment $\Gamma$ is the \hl{lowered, pruned image} of $\Gamma_{\mathrm{spec}}$. Eight fields:
 \begin{itemize}
 \item \code{keys}: the emitted keys are distinct;
-\item \code{defs}: a shared-key body is pass-related, or the $\eta$-expansion (\code{LBTerm.etaFix}) of one lowered fixpoint block's node -- registration installs a block already $\eta$-expanded rather than by a \code{Lower} derivation;
+\item \code{defs}: a shared-key body is a \Lower{} image -- the $\eta$-expanded fixpoint-block node (\code{LBTerm.etaFix}) that registration installs at a block member is one, at the \code{fixEta} rule read off a block (Lemma~\ref{lem:Lower-fixEta_of_block}, Chapter~\ref{chap:lowering});
 \item \code{defsTotal}: every non-runtime-key definition survives pruning as a definition -- without it, a pruned definition would satisfy \code{defs} vacuously while the target is stuck at its constant node;
 \item \code{axioms}: a body-less constant stays body-less or is pruned;
 \item \code{inds}: inductive blocks carry over unchanged, since the target's constructor-arity and propositionality queries read the specification's numbers;

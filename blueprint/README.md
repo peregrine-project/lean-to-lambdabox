@@ -20,7 +20,7 @@ source .venv/bin/activate
 leanblueprint pdf      # print/print.pdf (xelatex)
 leanblueprint web      # web/index.html, web/dep_graph_document.html, lean_decls
 leanblueprint serve    # serves web/ on localhost so the JS dep graph renders
-lake env lean --run blueprint/CheckDecls.lean blueprint/lean_decls   # after `leanblueprint web`
+lake env lean --run blueprint/CheckDecls.lean blueprint/lean_decls test/Vacuity.lean   # after `leanblueprint web`
 python3 blueprint/scripts/audit.py               # after `lake build`; see "Audit" below
 ```
 

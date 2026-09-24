@@ -8,13 +8,16 @@ it \emph{maintains}, and what still connects the two only by assumption.
 \item \lead{Main results} Theorem~\ref{thm:erase_run_ok} (a run is a prep pass then a term walk, from
 the empty state, no hypotheses); Theorem~\ref{thm:visitExpr_shapeW} (one induction, eighteen motives);
 Theorem~\ref{thm:visitExpr_shape_all} (the output shape, no hypotheses at all);
-Theorem~\ref{thm:bridgeEnv_of_regInv} (the invariant assembles both \code{ErasureBridge} fields).
+Theorems~\ref{thm:regInv_registerInd_run} and~\ref{thm:regInv_recConst_step} (the accumulator across
+one registration); Theorem~\ref{thm:bridgeEnv_of_regContent} (the accumulator assembles \code{hbridge}'s
+payload).
 \item \lead{Status} \stProved{}: the entry point, the induction and its output-shape corollary, the
-constructor-saturation layer, and the invariant-to-environment lemmas. \stOpen{}: nothing produces the
-invariant at a state the shipping eraser reaches, so \code{ErasureBridge} stands unproved end to end.
+constructor-saturation layer, the invariant-to-environment lemmas, the accumulator's registration
+steps, and \code{RegKeyed} at a run. \stOpen{}: no theorem produces the accumulator at a run of the whole
+eraser, so \code{hbridge} stays a binder of the capstone.
 \item \lead{Lean files} \code{ColdStartRun.lean}, \code{ColdStartInduction.lean}, \code{ColdStartShape.lean},
-\code{Bridge.lean}, the \code{RegInvShape'} part of \code{SpecEnv.lean}, and \code{Capstone.lean}'s
-bridge declarations.
+\code{Bridge.lean}, the \code{RegInvShape'} part of \code{SpecEnv.lean}, the registration producers of
+\code{VisitExprRefines/Step/Passes.lean}, and \code{Capstone.lean}'s bridge declarations.
 \item \lead{Paper} [JACM], Sec. 7.3--7.4: environment erasure and the block/applied constructor
 transformation.
 \end{itemize}
@@ -110,7 +113,7 @@ level scope, so the conclusion quantifies the scope freely.
 \uses{thm:run_prepare_erasure_ok, asm:EraserAsks-passes_sound}
 \lead{Idea} Theorem~\ref{thm:run_prepare_erasure_ok} exposes the four sub-runs; each distinct pass is a
 member of \code{preparePasses}, and \code{EraserAsks.passes\_sound} chains the four evaluations. The
-spine stays quantified since a whole-tree transform does not commute with \mkApps{}.
+spine stays quantified because a whole-tree transform does not commute with \mkApps{}.
 \end{proof}
 
 \section{What every run produces: one induction, eighteen motives}
@@ -222,7 +225,7 @@ raises the level by one. Applied form has no binder arithmetic and is discharged
 \label{lem:lbClosed_etaExpandFix}
 \lean{LeanToLambdaBox.lbClosed_etaExpandFix, LeanToLambdaBox.LowerBlock.etaExpandFix_eq, LeanToLambdaBox.LowerBlock.lbClosed_etaFix}
 \leanok
-\uses{def:LBClosed, def:LowerBlock, def:LowerFix}
+\uses{def:LBClosed, def:LowerBlock}
 \lead{In short} The registration loop stores \code{Erasure.etaExpandFix defs j}, not the bare fixpoint
 node, and that wrapper is \hl{closed with no bound on the principal argument}.
 \begin{itemize}
@@ -478,7 +481,7 @@ conclusion be established by a single pass instead of three.
 \lean{LeanToLambdaBox.runClosedW_runConcl}
 \leanok
 \uses{def:RunClosedW, def:Erasure-RunConcl, def:Erasure-StateLe}
-\lead{In short} ``The state has only grown canonically since $s_0$'' is closed under every step.
+\lead{In short} ``The state is a canonical extension of $s_0$'' is closed under every step.
 \begin{itemize}
 \item \lead{Given} a base state $s_0$ and that the preparation pass leaves the state alone at every
 \code{Cfg}-reader;
@@ -498,8 +501,8 @@ proved in the run algebra, composed with the incoming \code{RunConcl} by transit
 \lean{LeanToLambdaBox.runClosedW_gen}
 \leanok
 \uses{def:RunClosedW, def:ConfigPinned, def:ErasureSpec}
-\lead{In short} ``The name generator has only advanced since $w_0$'' is closed under every step at a
-pinned configuration.
+\lead{In short} ``The name generator is at or beyond its state at $w_0$'' is closed under every step at
+a pinned configuration.
 \begin{itemize}
 \item \lead{Given} the primitive specifications \code{ErasureSpec}, a base world $w_0$, and bounds
 saying \code{prepare\_erasure} and \code{register\_inductive} only advance the generator;
@@ -654,12 +657,15 @@ its kind;
 handed back --- it either returns a body, registered as a realizer, or returns none and the run falls
 through to the axiom entry;
 \item the non-recursive exit: inner \code{prepare\_erasure} and \code{visitExpr} runs on the
-declaration's value, at a reader with no fixvar map and the declaration's own level parameters;
+declaration's value, at a reader with the empty local context, no fixvar map and the declaration's
+own level parameters --- only the caller's configuration survives (F-DEPLCTX);
 \item the recursive block exit: per-sibling runs with naming and closure equations, each open body
 fix-free and de~Bruijn closed.
 \end{itemize}
 \lead{Lean} The eliminator disjunct hands back the realizer run, whose own \code{register\_inductive}
-is the block write a registry invariant must see before the realizer's entry.
+is the block write a registry invariant must see before the realizer's entry. The empty local context
+is \code{erase\_constant\_body}'s: a closed dependency body is erased in the empty context, not the
+caller's.
 \end{lemma}
 \begin{proof}
 \leanok
@@ -712,7 +718,7 @@ structural.
 \label{def:RegInvShape-prime}
 \lean{LeanToLambdaBox.RegInvShape'}
 \leanok
-\uses{def:IndEmitted, def:SpecContent, def:IndCovered, def:ElimDecl, def:Lower, def:LowerFix, def:Erasure-EraseM, def:Kername, def:LBTerm-envLookup}
+\uses{def:IndEmitted, def:SpecContent, def:IndCovered, def:ElimDecl, def:Lower, def:Erasure-EraseM, def:Kername, def:LBTerm-envLookup}
 \lead{In short} $\code{RegInvShape'}\ \code{env}\ \code{bo}\ \code{lp}\ \Gamma_{\mathrm{spec}}\ s$
 relates a \hl{fixed} specification environment $\Gamma_{\mathrm{spec}}$ --- MetaCoq's pre-lowering
 source image --- to the mutable state $s$. Twelve fields in three groups.
@@ -729,7 +735,7 @@ coverage & \code{consts} & registered constants are declared, at canonical kerna
  & \code{inds} & registered inductives are covered \\
 \midrule
 emitted $\Gamma$ & \code{keys} & emitted keys are distinct \\
- & \code{defs} & a shared body is \Lower{}'s image, or the eta-expansion of a lowered block's $j$-th node \\
+ & \code{defs} & a shared body is \Lower{}'s image of the declared one \\
  & \code{defsTotal} & every non-runtime-key spec body is emitted with some body \\
  & \code{axioms} & a body-less spec constant is emitted body-less or pruned \\
  & \code{indsEmitted} & every registered block is emitted unchanged \\
@@ -741,11 +747,14 @@ emitted $\Gamma$ & \code{keys} & emitted keys are distinct \\
 erased at; only \code{spec} reads it.
 \end{definition}
 \begin{remark}
-\lead{Deviation} $\Gamma_{\mathrm{spec}}$ is fixed, not grown: \Lower{} is not monotone (a block can
-turn a key into a runtime key).
+\lead{Deviation} $\Gamma_{\mathrm{spec}}$ is a parameter of one invariant instance. Growing it is the
+separate relation \code{SpecGrow} (Section~\ref{sec:coldstart:acc}): \Lower{} is monotone only along a
+growth that turns no declared key into a runtime key.
 \lead{Caveat} \code{defsTotal}, \code{indsEmitted} are registry-scoped, vacuous at the empty state,
 unscoped only by Theorem~\ref{thm:RegInvShape-prime-lowerEnv}. \code{specEnv}, \code{lowerEnv} and
 \code{erasesEnv} are Section~\ref{sec:coldstart:specenv} theorems, not fields here.
+\lead{Caveat} A block member's emitted body is an eta-wrapped fixpoint; \code{defs} covers it through
+\Lower{}'s eta-fixpoint arm, which makes \Lower{} not a function at a block member.
 \end{remark}
 \begin{lemma}[The invariant at the initial state]
 \label{lem:RegInvShape-prime-empty}
@@ -791,12 +800,10 @@ lookup-across-a-cons lemmas and a case split on ``the inserted name or one alrea
 \label{lem:RegInvShape-prime-constCons}
 \lean{LeanToLambdaBox.RegInvShape'.constCons}
 \leanok
-\uses{def:RegInvShape-prime, def:Erasure-nonrecConstState, def:Lower, def:LowerFix, def:ElimDecl, def:LBClosed}
+\uses{def:RegInvShape-prime, def:Erasure-nonrecConstState, def:Lower, def:ElimDecl, def:LBClosed}
 \lead{In short} Storing one constant with an emitted body preserves the invariant.
 \begin{itemize}
-\item \lead{Given} $\Gamma_{\mathrm{spec}}$ declares $n$ with some body $b_0$;
-\item $t$ is either the \Lower{} image of $b_0$, or the eta-expansion of a lowered fixpoint block whose
-$j$-th key is $n$;
+\item \lead{Given} $\Gamma_{\mathrm{spec}}$ declares $n$ with some body $b_0$, and $\Lower\ \Gamma_{\mathrm{spec}}\ b_0\ t$;
 \item $t$ is de~Bruijn closed at level $0$, and $n$'s kername is fresh among the emitted keys;
 \item \lead{Then} storing $n$ with body $t$ preserves the invariant.
 \end{itemize}
@@ -817,13 +824,12 @@ from Theorem~\ref{thm:visitExpr_shape_all}.
 \label{lem:RegInvShape-prime-addRealizer}
 \lean{LeanToLambdaBox.RegInvShape'.addRealizer}
 \leanok
-\uses{def:RegInvShape-prime, def:Erasure-nonrecConstState, def:Lower, def:LowerFix, def:LBClosed}
+\uses{def:RegInvShape-prime, def:Erasure-nonrecConstState, def:Lower, def:LBClosed}
 \lead{In short} The quotient and eliminator exits write the entry \code{addAxiom} writes with a body in
 place of none, so they \hl{preserve the invariant for the same reason a constant does}.
 \begin{itemize}
 \item \lead{Given} $\Gamma_{\mathrm{spec}}$ declares $n$ with some body $b_0$, the stored $t$ is
-\Lower{}'s image of $b_0$ or the eta-expansion of a lowered block's node at $n$'s index, $t$ is closed,
-and $n$'s kername is fresh among the emitted keys;
+\Lower{}'s image of $b_0$, $t$ is closed, and $n$'s kername is fresh among the emitted keys;
 \item \lead{Then} the invariant holds at the realizer-registering state.
 \end{itemize}
 \lead{Lean} The emitted body is not assumed to \emph{be} the declared one: that would ask
@@ -854,9 +860,9 @@ iterates the same step along the fold.
 \leanok
 \uses{lem:RegInvShape-prime-constCons, lem:lbClosed_etaExpandFix, def:LowerBlock}
 \lead{Idea} The block-registering state folds the non-recursive step over the member list at the
-eta-expanded node; the \code{defs} disjunct comes from the block's own \code{LowerBlock} witness, its
-closedness from Lemma~\ref{lem:lbClosed_etaExpandFix}, and freshness against earlier members is exactly
-the distinctness hypothesis.
+eta-expanded node; each member's \Lower{} premise is \Lower{}'s eta-fixpoint arm read off the block's own
+\code{LowerBlock} witness, its closedness is Lemma~\ref{lem:lbClosed_etaExpandFix}, and freshness against
+earlier members is the distinctness hypothesis.
 \end{proof}
 \begin{remark}
 \lead{Why} The distinctness premise is a conclusion of a successful run: \code{Erasure.visitMutual}
@@ -879,7 +885,7 @@ distinct keys.
 \leanok
 \uses{def:RegInvShape-prime}
 \lead{Idea} The cons case is the lookup-across-a-cons lemmas at a fresh key, with \code{consts},
-\code{inds} and \code{defsTotal} unchanged since no name was registered; the prefix case inducts on the
+\code{inds} and \code{defsTotal} unchanged because no name is registered; the prefix case inducts on the
 prefix.
 \end{proof}
 \begin{lemma}[The emitted block entry]
@@ -917,7 +923,7 @@ invariant transports.
 \leanok
 \uses{def:RegInvShape-prime}
 \lead{Idea} Clauses not mentioning the moved registry rewrite across the equalities; \code{defsTotal}'s
-new-name case is vacuous, since a body-less $\Gamma_{\mathrm{spec}}$ entry declares no body and
+new-name case is vacuous, because a body-less $\Gamma_{\mathrm{spec}}$ entry declares no body and
 body-less is the only kind \code{addAxiom} adds.
 \end{proof}
 \begin{lemma}[The inductive path, at the run]
@@ -1019,6 +1025,411 @@ table) and the level clause (likewise).
 \code{erases\_constant\_body} is applied at \code{cst\_universes} ([JACM], Sec. 7.3). The instantiated
 reading is a theorem, Theorem~\ref{thm:Erases-instL}, not a clause of the environment relation.
 \end{remark}
+
+\section{The accumulator: a specification environment the run builds}
+\label{sec:coldstart:acc}
+
+Here $\Gamma_{\mathrm{spec}}$ is an output: each registration step extends it by fresh keys and carries
+a three-clause accumulator, as MetaRocq's \code{erase\_global\_deps} threads its dependency set.
+
+\begin{definition}[What one new specification entry owes]
+\label{def:SpecEntryOk}
+\lean{LeanToLambdaBox.SpecEntryOk}
+\leanok
+\uses{def:SpecContent, def:IndInfo, def:CasesOnShape, def:ConstOrigin, def:Erases}
+\lead{In short} What \code{SpecContent} asks of one constant entry $d$ at key \code{kn}, over
+\hl{every source name keyed there} (\code{toKername} is not injective, F-KERNAME).
+\begin{itemize}
+\item \code{blocks}, \code{elims}: \code{kn} is no modelled block's key and no modelled \code{casesOn}
+constant's key;
+\item \code{defns}: a tabled name at \code{kn} with body $b$ gets an entry with a body $b_0$, with
+$\Erases\ \code{env}\ (\code{lp}\ n)\ []\ b\ b_0$;
+\item \code{axioms}: a body-less, non-\code{casesOn} model constant at \code{kn} gets a body-less entry.
+\end{itemize}
+\end{definition}
+\begin{lemma}[Growing the specification content]
+\label{lem:SpecContent-append}
+\lean{LeanToLambdaBox.SpecContent.append, LeanToLambdaBox.SpecContent.cons}
+\leanok
+\uses{def:SpecContent, def:SpecEntryOk}
+\lead{In short} \code{SpecContent} survives consing one fresh entry that meets \code{SpecEntryOk}, and
+appending a prefix that meets \code{SpecContent} itself, every prefix key fresh in the tail.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:SpecContent, def:SpecEntryOk}
+\lead{Idea} At a fresh key the extension's lookup is the new entry's; elsewhere it is the old one. An
+inductive registration needs the prefix form: declaring a block key triggers \code{SpecContent.blocks},
+whose eliminator entries one cons cannot supply.
+\end{proof}
+\begin{lemma}[The invariant along growth]
+\label{lem:RegInvShape-prime-specGrow}
+\lean{LeanToLambdaBox.RegInvShape'.specGrow}
+\leanok
+\uses{def:RegInvShape-prime, def:SpecContent, def:Lower}
+\lead{In short} The registry invariant transports to a grown specification environment.
+\begin{itemize}
+\item \lead{Given} the invariant at $\Gamma$, and $\code{SpecGrow}\ \Gamma\ \Gamma'$: $\Gamma'$ prefixes
+fresh keys and turns no key $\Gamma$ declares into a runtime key;
+\item every body $\Gamma$ declares names only constants $\Gamma$ declares (\code{ConstsDeclaredEnv});
+\item \code{SpecContent}, closedness and free-variable freedom at $\Gamma'$;
+\item \lead{Then} the invariant holds at $\Gamma'$, same state.
+\end{itemize}
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:RegInvShape-prime, def:Lower}
+\lead{Idea} The three specification-side clauses are the premises. \code{defs} re-derives each emitted
+body's \Lower{} fact at $\Gamma'$ by \Lower{}'s growth lemma at a declared body; the other clauses
+transport by lookup preservation.
+\end{proof}
+\begin{definition}[The content clause]
+\label{def:RegContent}
+\lean{LeanToLambdaBox.RegContent}
+\leanok
+\uses{def:Erases, def:Lower, def:LBTerm-envLookup, def:Erasure-EraseM}
+\lead{In short} $\code{RegContent}\ \code{env}\ \code{bo}\ \code{lp}\ \Gamma_{\mathrm{spec}}\ s$ pins
+\hl{one erasure witness per emitted tabled body}, read both ways.
+\begin{itemize}
+\item \code{defns}: if tabled $n$ has compiler body $b$ and emitted body $t$, then
+$\Gamma_{\mathrm{spec}}$ declares some $b_0$ at $n$'s key with
+$\Erases\ \code{env}\ (\code{lp}\ n)\ []\ b\ b_0$ and $\Lower\ \Gamma_{\mathrm{spec}}\ b_0\ t$;
+\item \code{declEnv}: every body $\Gamma_{\mathrm{spec}}$ declares names only constants it declares.
+\end{itemize}
+\lead{Why} \Erases{} is not deterministic, so \code{RegInvShape'.defs} and \code{SpecContent.defns} do
+not compose; one witness carries both.
+\lead{Paper} MetaRocq's \code{erase\_constant\_body} erases at \code{cst\_universes} in the empty context.
+\end{definition}
+\begin{lemma}[The content clause, step by step]
+\label{lem:RegContent-specGrow}
+\lean{LeanToLambdaBox.RegContent.specGrow, LeanToLambdaBox.RegContent.empty, LeanToLambdaBox.RegContent.gdeclsCons, LeanToLambdaBox.RegContent.gdeclsPrefix, LeanToLambdaBox.RegContent.register_inductive_run}
+\leanok
+\uses{def:RegContent, def:Erasure-register_inductive}
+\lead{In short} The content clause holds at the empty state and survives growth and each emitted write.
+\begin{itemize}
+\item empty state: given \code{ConstsDeclaredEnv}\ $\Gamma_{\mathrm{spec}}$;
+\item growth: along $\code{SpecGrow}\ \Gamma\ \Gamma'$, given \code{ConstsDeclaredEnv}\ $\Gamma'$;
+\item one emitted cons, given the witness at a bodied tabled key; a body-less prefix, unconditionally;
+\item a cold \code{register\_inductive} run, with no side condition.
+\end{itemize}
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:RegContent, thm:Erasure-run_register_inductive_cold_ok}
+\lead{Idea} Growth moves the witness by lookup preservation and \Lower{}'s growth lemma; the erasure
+reading mentions no environment. The cold branch conses a block entry over a body-less prefix, and
+neither declares a body at a tabled key.
+\end{proof}
+\begin{lemma}[The content clause at a block exit]
+\label{lem:RegContent-recConst}
+\lean{LeanToLambdaBox.RegContent.recConst, LeanToLambdaBox.regContent_foldl_recConstStep, LeanToLambdaBox.LowerBlock.erases_of_specContent}
+\leanok
+\uses{def:RegContent, def:LowerBlock, def:SpecContent}
+\lead{In short} A block exit carries the content clause at a specification environment that already
+declares the whole block.
+\begin{itemize}
+\item \lead{Given} \code{RegContent} and \code{SpecContent} at $\Gamma_{\mathrm{spec}}$, the block's
+\code{LowerBlock} witness there, and the member names at the block's indices;
+\item \lead{Then} \code{RegContent} holds at the block-registering state;
+\item a member's declared body is the erasure \code{SpecContent.defns} names, at every tabled name its
+key answers for.
+\end{itemize}
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:LowerBlock, lem:RegContent-specGrow}
+\lead{Idea} Fold over the members. Each consed entry's witness is the member's declared body: its
+erasure reading from \code{SpecContent}, its lowering from \Lower{}'s eta-fixpoint arm read off the block.
+\end{proof}
+\begin{definition}[The saturation clause]
+\label{def:SpecKeysEmitted}
+\lean{LeanToLambdaBox.SpecKeysEmitted}
+\leanok
+\uses{def:LBTerm-envLookup, def:Erasure-EraseM}
+\lead{In short} Every specification key the pass keeps has an emitted entry of the same shape.
+\begin{itemize}
+\item \code{consts}: a constant key of $\Gamma_{\mathrm{spec}}$ that is no runtime key has some emitted
+constant entry;
+\item \code{inds}: a block key of $\Gamma_{\mathrm{spec}}$ has some emitted block entry.
+\end{itemize}
+\lead{Paper} MetaRocq's \code{erases\_global\_decls} reads the pruned environment the same way: keys,
+not bodies.
+\end{definition}
+\begin{lemma}[The saturation clause, step by step]
+\label{lem:SpecKeysEmitted-append}
+\lean{LeanToLambdaBox.SpecKeysEmitted.append, LeanToLambdaBox.SpecKeysEmitted.nil, LeanToLambdaBox.SpecKeysEmitted.cons, LeanToLambdaBox.SpecKeysEmitted.recConst, LeanToLambdaBox.register_inductive_gdecls_mono}
+\leanok
+\uses{def:SpecKeysEmitted, def:Erasure-register_inductive}
+\lead{In short} The saturation clause is vacuous at the empty $\Gamma_{\mathrm{spec}}$ and survives each
+growth whose new keys the exit state answers.
+\begin{itemize}
+\item one entry or a prefix: given the old clause, the new keys answered at the exit state, and every
+old emitted entry still emitted;
+\item the block exit and a cold \code{register\_inductive} run keep every emitted entry.
+\end{itemize}
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:SpecKeysEmitted}
+\lead{Idea} A kept key keeps its entry and its emitted answer, and its runtime-key status is only harder
+to lose along the growth, at a prefix key and at a tail key alike.
+\end{proof}
+\begin{definition}[The accumulator]
+\label{def:RegAcc}
+\lean{LeanToLambdaBox.RegAcc}
+\leanok
+\uses{def:RegInvShape-prime, def:RegContent, def:SpecKeysEmitted}
+\lead{In short} $\code{RegAcc}\ \code{env}\ \code{bo}\ \code{lp}\ \Gamma\ s$: the triple a registration
+run maintains between the $\Gamma$ it \hl{builds} and its state.
+\begin{itemize}
+\item \code{shape}: the registry invariant (Definition~\ref{def:RegInvShape-prime});
+\item \code{content}: the content clause (Definition~\ref{def:RegContent});
+\item \code{keysEmitted}: the saturation clause (Definition~\ref{def:SpecKeysEmitted}).
+\end{itemize}
+\end{definition}
+\begin{lemma}[The accumulator at the cold start]
+\label{lem:RegAcc-coldStart}
+\lean{LeanToLambdaBox.RegAcc.coldStart, LeanToLambdaBox.regInv_cold_start}
+\leanok
+\uses{def:RegAcc}
+\lead{In short} \code{RegAcc} holds at the empty $\Gamma$ and the empty state: no specification
+environment is posited in advance.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{lem:RegInvShape-prime-empty, lem:RegContent-specGrow, lem:SpecKeysEmitted-append}
+\lead{Idea} Every lookup in the empty list misses, so every clause is vacuous.
+\end{proof}
+\begin{lemma}[The two constant exits, declaring what they register]
+\label{lem:regInv_constCons_step}
+\lean{LeanToLambdaBox.regInv_constCons_step, LeanToLambdaBox.regInv_addAxiom_step}
+\leanok
+\uses{def:RegAcc, def:SpecEntryOk, def:Lower, def:LBClosed, def:Erasure-nonrecConstState, def:Erasure-addAxiomState}
+\lead{In short} The body-less exit and the non-recursive exit extend $\Gamma$ by the entry they register
+and carry the accumulator.
+\begin{itemize}
+\item \lead{Given} \code{RegAcc} at $(\Gamma, s)$, and $n$'s kername fresh in $\Gamma$ and among the
+emitted keys;
+\item body-less exit: \code{SpecEntryOk} at the body-less entry;
+\item non-recursive exit: \code{SpecEntryOk} at a body $b_0$, $\Lower\ \Gamma\ b_0\ t$, $b_0$'s constants
+declared in $\Gamma$, $b_0$ closed and free-variable free, $t$ closed;
+\item \lead{Then} some $\Gamma'$ with $\code{SpecGrow}\ \Gamma\ \Gamma'$ and \code{RegAcc} at $\Gamma'$ and
+the exit state.
+\end{itemize}
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{lem:SpecContent-append, lem:RegInvShape-prime-specGrow, lem:RegInvShape-prime-constCons, lem:RegInvShape-prime-addAxiom, lem:RegContent-specGrow, lem:SpecKeysEmitted-append}
+\lead{Idea} $\Gamma'$ conses the new entry. Grow each clause to $\Gamma'$, then apply the invariant's store
+step; the new content witness is $b_0$ itself.
+\end{proof}
+\begin{theorem}[The block exit at a growing specification environment]
+\label{thm:regInv_recConst_step}
+\lean{LeanToLambdaBox.regInv_recConst_step}
+\leanok
+\uses{def:RegAcc, def:LowerBlock, def:SpecContent, def:SpecKeysEmitted, def:Erasure-visitMutual}
+\lead{In short} \code{visitMutual}'s block exit extends $\Gamma$ by \hl{the whole block before the state
+fold} and carries the accumulator.
+\begin{itemize}
+\item \lead{Given} \code{RegAcc} at $(\Gamma, s)$; a prefix \code{pre} fresh against $\Gamma$, with
+\code{SpecContent}, closed and free-variable-free bodies;
+\item every body of $\code{pre} \mathbin{+\!\!+} \Gamma$ names declared constants; \code{pre}'s keys are
+answered at the exit state;
+\item the block's \code{LowerBlock} witness at $\code{pre} \mathbin{+\!\!+} \Gamma$; member names at the
+block's indices, fresh among the emitted keys, pairwise distinct;
+\item \lead{Then} $\code{SpecGrow}\ \Gamma\ (\code{pre} \mathbin{+\!\!+} \Gamma)$ and \code{RegAcc} at
+$\code{pre} \mathbin{+\!\!+} \Gamma$ and the block-registering state.
+\end{itemize}
+\lead{Lean} \code{pre} is the block's own member entries. Nothing consumes the theorem yet: its consumer
+is \code{visitMutual}'s accumulator step, which is open.
+\lead{Status} \stProved{}.
+\end{theorem}
+\begin{proof}
+\leanok
+\uses{lem:SpecContent-append, lem:RegInvShape-prime-specGrow, lem:RegInvShape-prime-recConst, lem:RegContent-specGrow, lem:RegContent-recConst, lem:SpecKeysEmitted-append}
+\lead{Idea} The block goes in first, because each member's \Lower{} fact reads every member's
+declaration. Grow the accumulator to $\code{pre} \mathbin{+\!\!+} \Gamma$ (no erasure image is an
+eliminator body, so freshness gives the growth), then take the three block steps.
+\end{proof}
+\begin{lemma}[A block registration, given its premises]
+\label{lem:regInv_registerInd_step}
+\lean{LeanToLambdaBox.regInv_registerInd_step}
+\leanok
+\uses{def:RegAcc, def:SpecContent, def:SpecKeysEmitted, def:Erasure-register_inductive, def:IndCovered, def:IndEmitted}
+\lead{In short} A cold \code{register\_inductive} run extends $\Gamma$ by a prefix and carries the
+accumulator, given thirteen premises.
+\begin{itemize}
+\item \lead{Given} \code{RegAcc} at $(\Gamma, s)$; a prefix \code{pre} fresh against $\Gamma$ with
+\code{SpecContent}, closed and free-variable-free bodies, saturated at the exit state $s_1$; every body
+of $\code{pre} \mathbin{+\!\!+} \Gamma$ names declared constants;
+\item a cold run from $s$ to $s_1$, with Lemma~\ref{lem:RegInvShape-prime-register_inductive_run}'s five
+final-state conditions read at $\code{pre} \mathbin{+\!\!+} \Gamma$;
+\item \lead{Then} $\code{SpecGrow}\ \Gamma\ (\code{pre} \mathbin{+\!\!+} \Gamma)$ and \code{RegAcc} at
+$\code{pre} \mathbin{+\!\!+} \Gamma$ and $s_1$.
+\end{itemize}
+\lead{Lean} No configuration is pinned.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{lem:SpecContent-append, lem:RegInvShape-prime-specGrow, lem:RegInvShape-prime-register_inductive_run, lem:RegContent-specGrow, lem:SpecKeysEmitted-append}
+\lead{Idea} Grow the accumulator to $\code{pre} \mathbin{+\!\!+} \Gamma$, then apply the invariant's run
+lemma, the content clause's run lemma, and the prefix saturation step.
+\end{proof}
+\begin{definition}[The prefix a block registration conses]
+\label{def:IndPrefixOf}
+\lean{LeanToLambdaBox.IndPrefixOf}
+\leanok
+\uses{def:IndCovered, def:SpecContent, def:ElimBody, def:CasesOnShape, def:IndInfo}
+\lead{In short} $\code{IndPrefixOf}\ \code{env}\ \code{bo}\ \code{lp}\ \code{indinfo}\ \code{pre}$: the
+block entry plus the \code{casesOn} entries \lbox{} prunes.
+\begin{itemize}
+\item \code{covered}: \code{pre} covers every member of the block;
+\item \code{content}: \code{SpecContent} holds at \code{pre};
+\item \code{block}: \code{pre} declares a block at the minted block key;
+\item \code{entries}: every other entry is a runtime key of \code{pre} with an eliminator body;
+\item \code{elimKeys}: every other key is a modelled \code{casesOn} constant's, of a member of this block.
+\end{itemize}
+\lead{Paper} MetaRocq's \code{erases\_global\_ind}, plus the \code{casesOn} declarations.
+\end{definition}
+\begin{definition}[Fresh keys for a block registration]
+\label{def:BodiedKeysFresh}
+\lean{LeanToLambdaBox.BodiedKeysFresh}
+\leanok
+\uses{def:ConstOrigin, def:IndInfo, def:CasesOnShape}
+\lead{In short} Six exclusions a block's prefix keys need, because \code{toKername} is not injective
+(F-KERNAME).
+\begin{itemize}
+\item \code{bodied}, \code{notCasesOn}: no tabled name with a body keys at the block key or is a
+\code{casesOn} name;
+\item \code{consts}: a model constant keyed at the block key is an inductive;
+\item \code{blocks}: an inductive whose block key this is belongs to the block;
+\item \code{elims}: no modelled \code{casesOn} constant keys at a block key;
+\item \code{memberNames}: no other name shares a member's module path.
+\end{itemize}
+\end{definition}
+\begin{definition}[The two clauses saturation exempts]
+\label{def:RuntimeKeysModelled}
+\lean{LeanToLambdaBox.RuntimeKeysModelled, LeanToLambdaBox.EmittedNotRuntime}
+\leanok
+\uses{def:CasesOnShape, def:LBTerm-envLookup}
+\lead{In short} Two facts a registration run carries beside the accumulator.
+\begin{itemize}
+\item $\code{RuntimeKeysModelled}\ \code{env}\ \Gamma_{\mathrm{spec}}$: every runtime key is a modelled
+\code{casesOn} constant's key;
+\item $\code{EmittedNotRuntime}\ \Gamma_{\mathrm{spec}}\ s$: no emitted key is a runtime key.
+\end{itemize}
+\lead{Why} \code{SpecKeysEmitted} exempts runtime keys, so \code{RegAcc} alone lets $\Gamma_{\mathrm{spec}}$
+declare an eliminator at the key a registration mints.
+\end{definition}
+\begin{definition}[Emitted keys, read by shape]
+\label{def:RegKeyed}
+\lean{LeanToLambdaBox.RegKeyed}
+\leanok
+\uses{def:IndInfo, def:Erasure-EraseM}
+\lead{In short} $\code{RegKeyed}\ \code{env}\ s$: every emitted key belongs to a registered name, read off
+\hl{the emitted entry's own shape}.
+\begin{itemize}
+\item \code{consts}: a constant-shaped entry sits at $\code{toKername}\ n$ for a registered constant $n$;
+\item \code{inds}: a block-shaped entry sits at the block key of a registered inductive's model block.
+\end{itemize}
+\lead{Why} \code{toKername} and the block-key map collide, so presence alone cannot say which registry
+answers; the shape can.
+\end{definition}
+\begin{lemma}[\code{RegKeyed}, writer by writer]
+\label{lem:RegKeyed-indCons}
+\lean{LeanToLambdaBox.RegKeyed.indCons, LeanToLambdaBox.regKeyed_empty, LeanToLambdaBox.ConstExt.regKeyed, LeanToLambdaBox.regKeyed_foldl_recConstStep, LeanToLambdaBox.regKeyed_recConstState}
+\leanok
+\uses{def:RegKeyed, def:Erasure-ConstExt}
+\lead{In short} \code{RegKeyed} holds at the empty state and survives each writer.
+\begin{itemize}
+\item a constant-only extension that keeps every registered inductive;
+\item a block entry, given a registered inductive whose model block key it is;
+\item the block registration loop.
+\end{itemize}
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:RegKeyed, def:Erasure-ConstExt}
+\lead{Idea} A constant extension adds only constant-shaped entries at registered canonical kernames,
+which answer \code{consts}. The block cons is the one writer of a block-shaped entry.
+\end{proof}
+\begin{theorem}[\code{RegKeyed} at a run]
+\label{thm:regKeyed_of_run}
+\lean{LeanToLambdaBox.regKeyed_of_run, LeanToLambdaBox.runClosedW_regKeyed}
+\leanok
+\uses{def:RegKeyed, def:RunClosedW, def:ErasureSpec, def:ConfigPinned, def:Erasure-visitExpr}
+\lead{In short} A successful \code{visitExpr} run \hl{carries \code{RegKeyed} from entry to exit}.
+\begin{itemize}
+\item \lead{Given} \code{ErasureSpec} at every level scope, a pinned reader configuration, and a
+successful run from $s$ to $s'$;
+\item \lead{Then} \code{RegKeyed} at $s$ gives \code{RegKeyed} at $s'$.
+\end{itemize}
+\lead{Lean} From \code{regKeyed\_empty}, this gives \code{RegKeyed} at the final state of a cold run.
+\lead{Status} \stProved{} conditional on \stAssumed{} \code{ErasureSpec}.
+\end{theorem}
+\begin{proof}
+\leanok
+\uses{thm:visitExpr_shapeW, lem:RegKeyed-indCons}
+\lead{Idea} \code{RegKeyed} is a \code{RunClosedW} motive: primitives and preparation leave the state
+alone, the axiom, exits and realizer are constant extensions, and the block registration is the block
+cons. The induction's first motive concludes.
+\end{proof}
+\begin{lemma}[The block table mirror at a run]
+\label{lem:indBlocksCover_of_run}
+\lean{LeanToLambdaBox.indBlocksCover_of_run, LeanToLambdaBox.runClosedW_indBlocksCover}
+\leanok
+\uses{def:RunClosedW, def:ErasureSpec, def:ConfigPinned, def:Erasure-visitExpr, def:Erasure-register_inductive}
+\lead{In short} A successful \code{visitExpr} run at a pinned configuration, under \code{ErasureSpec} at
+every scope, carries \code{IndBlocksCover} (the block table mirrors the emitted blocks) from entry to exit.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{thm:visitExpr_shapeW}
+\lead{Idea} A \code{RunClosedW} motive: only the block registration writes the block table. Its new
+row's members come from the run; older rows survive because the minted key is fresh in the emitted
+environment.
+\end{proof}
+\begin{theorem}[A block registration at a run]
+\label{thm:regInv_registerInd_run}
+\lean{LeanToLambdaBox.regInv_registerInd_run, LeanToLambdaBox.indPrefixOf_of_run}
+\leanok
+\uses{def:RegAcc, def:IndPrefixOf, def:BodiedKeysFresh, def:RuntimeKeysModelled, def:RegKeyed, def:ErasureSpec, def:UpstreamAsks, def:ConfigPinned, def:Erasure-register_inductive, def:Erasure-CanonicalConstants}
+\lead{In short} One cold \code{register\_inductive} run \hl{produces its own thirteen premises} and
+carries the accumulator across one block registration.
+\begin{itemize}
+\item \lead{Given} \code{ErasureSpec} at one scope and \code{UpstreamAsks}; \code{RegAcc} at $(\Gamma, s)$;
+\code{RegKeyed}, canonical constants and \code{IndBlocksCover} at $s$; both exempted clauses at
+$(\Gamma, s)$;
+\item \code{BodiedKeysFresh} at the block, every declared inductive safe, a pinned configuration;
+\item the ambient environment declares the block, the registry lacks it, and the run goes from $s$ to $s_1$;
+\item \lead{Then} some \code{pre} with \code{IndPrefixOf}, $\code{SpecGrow}\ \Gamma\ (\code{pre}
+\mathbin{+\!\!+} \Gamma)$, \code{RegAcc} at $(\code{pre} \mathbin{+\!\!+} \Gamma, s_1)$, and both exempted
+clauses there.
+\end{itemize}
+\lead{Caveat} \code{UpstreamAsks} holds at no environment declaring an inductive block
+(Chapter~\ref{chap:trust}).
+\lead{Status} \stProved{} conditional on \stAssumed{} \code{ErasureSpec}, \code{UpstreamAsks}.
+\end{theorem}
+\begin{proof}
+\leanok
+\uses{lem:regInv_registerInd_step, def:IndPrefixOf, def:RegKeyed, thm:Erasure-run_register_inductive_cold_ok}
+\lead{Idea} The prefix is the block entry plus one eliminator per non-propositional member, covered by
+\code{ErasureSpec}'s block adequacy. The minted key is fresh by \code{IndBlocksCover} and by
+\code{RegKeyed} with canonicity; the run lemmas give the five final-state conditions.
+\end{proof}
+\begin{lemma}[Saturation from keys read by shape]
+\label{lem:regSaturated_of_regKeyed}
+\lean{LeanToLambdaBox.regSaturated_of_regKeyed}
+\leanok
+\uses{def:RegSaturated, def:RegKeyed, def:SpecKeysEmitted}
+\lead{In short} \code{RegKeyed} and \code{SpecKeysEmitted} at the same state give \code{RegSaturated}.
+\end{lemma}
+\begin{proof}
+\leanok
+\uses{def:RegKeyed, def:SpecKeysEmitted}
+\lead{Idea} \code{SpecKeysEmitted} sends a kept specification key to an emitted entry of the same shape;
+\code{RegKeyed} reads the registered name off that shape. Neither reads a body.
+\end{proof}
 
 \section{The state-side contract of the bridge}
 \label{sec:coldstart:bridgeinv}
@@ -1147,9 +1558,10 @@ Field & Meaning \\
 the scope an oracle verdict was taken under.
 \end{definition}
 \begin{remark}
-\lead{Caveat} \code{lparams} pins a single level scope, while \code{Erasure.visitMutual} re-enters a
-member under its own \code{levelParams} --- one obstruction to Section~\ref{sec:coldstart:bridge}'s open
-item.
+\lead{Why} \code{lparams} is an equation at whatever scope the reader is in: the eighteen motives
+quantify the scope per call. At a member sub-run \code{Erasure.visitMutual} installs the empty local
+context at the member's own \code{levelParams} (F-DEPLCTX), so \code{mlc} asks there for the empty model
+context, which is well formed at every scope.
 \end{remark}
 \begin{lemma}[Three consequences of the modelled context]
 \label{lem:BridgeInv-trlctx}
@@ -1263,7 +1675,7 @@ container does not, so it transports along the monotonicity lemma; the shape cla
 \lead{In short} A run's prepared-and-walked output \hl{factors through \Erases{} then \Lower{}} at every
 specification environment the final state admits.
 \begin{itemize}
-\item \lead{Given} \code{ErasureSpec}, \code{EraserAsks}, \code{UpstreamAsks};
+\item \lead{Given} \code{ErasureSpec} at every level scope, \code{EraserAsks}, \code{UpstreamAsks};
 \item the three table hypotheses (\code{SourceTableAdequate}, \code{TableSafe}, \code{TableBlocks}), a
 pinned configuration, and \code{CompilerBodies};
 \item \code{pe} is \code{Supported} and translates into the model; \code{prepare\_erasure} took $e$ to
@@ -1272,6 +1684,7 @@ pinned configuration, and \code{CompilerBodies};
 table's body and level columns --- there is $t_0$ with
 $\Erases{}\ \code{env}\ []\ []\ \code{pe}\ t_0$ and $\Lower{}\ \Gamma_{\mathrm{spec}}\ t_0\ t$.
 \end{itemize}
+\lead{Lean} The proof does not spend \code{TableBlocks}.
 \lead{Status} \stProved{}; \stInherited{} through lean4lean; conditional on \stAssumed{}
 \code{ErasureSpec}, \code{EraserAsks}, \code{UpstreamAsks}.
 \end{theorem}
@@ -1303,8 +1716,8 @@ reaches, each body at its own level scope;
 \end{itemize}
 \end{definition}
 \begin{remark}
-\lead{Caveat} Both fields are Assumptions of Chapter~\ref{chap:trust}, unfulfilled at every green rung
-(the open item below).
+\lead{Caveat} Both fields are Assumptions of Chapter~\ref{chap:trust}, discharged at no rung (the open
+item below).
 \lead{Why} \code{ErasesEnv} counterparts MetaCoq's environment erasure ([JACM], Sec. 7.3); \LowerEnv{} is
 the extra Lean-specific layer for \Lower{}'s own steps.
 \end{remark}
@@ -1324,7 +1737,8 @@ saturated for it, and every kername $t_0$ reaches is declared in $\Gamma_{\mathr
 $\code{LBWfSpec}\ \Gamma_{\mathrm{spec}}$, and both \code{ErasureBridge} fields.
 \end{itemize}
 \lead{Lean} One line of Lean; \code{TabledLevels} is discharged at a reified table from
-\code{TableSafe}'s maximum-level clause and \code{CompilerBodies}.
+\code{TableSafe}'s maximum-level clause and \code{CompilerBodies}. Its one consumer is
+Theorem~\ref{thm:bridgeEnv_of_regContent}.
 \lead{Status} \stProved{}; three standard axioms, no \code{sorryAx}.
 \end{theorem}
 \begin{proof}
@@ -1335,24 +1749,53 @@ $\code{LBWfSpec}\ \Gamma_{\mathrm{spec}}$, and both \code{ErasureBridge} fields.
 environment relation (Theorem~\ref{thm:RegInvShape-prime-erasesEnv}); the lowered image
 (Theorem~\ref{thm:RegInvShape-prime-lowerEnv}) at saturation.
 \end{proof}
+\begin{theorem}[\code{hbridge}'s payload, from the accumulator]
+\label{thm:bridgeEnv_of_regContent}
+\lean{LeanToLambdaBox.bridgeEnv_of_regContent}
+\leanok
+\uses{def:RegAcc, def:RegKeyed, def:ErasureBridge, def:SpecEnv, def:ConstOrigin, def:TabledLevels, def:Erases}
+\lead{In short} The accumulator \hl{composes everything \code{hbridge} carries} from four facts about
+the final state.
+\begin{itemize}
+\item \lead{Given} \code{RegAcc} at $(\Gamma_{\mathrm{spec}}, \code{sf})$ and \code{RegKeyed} at
+\code{sf};
+\item every erasure of \code{pe} at the empty context names only constants $\Gamma_{\mathrm{spec}}$
+declares (\code{ErasuresDeclared});
+\item every tabled constant is a plain constant of the model, and \code{TabledLevels};
+\item \lead{Then} \code{SpecEnv} for \code{sf} at $\Gamma_{\mathrm{spec}}$, and \code{ErasureBridge}
+at every $t_0$ with $\Erases\ \code{env}\ []\ []\ \code{pe}\ t_0$.
+\end{itemize}
+\lead{Lean} Reachability is derived: the content clause's \code{declEnv} closes it. \code{hbridge}'s
+\Lower{} premise is not spent.
+\lead{Caveat} Nothing consumes the theorem. \code{ErasuresDeclared} fails wherever the run boxes a
+source constant $\Gamma_{\mathrm{spec}}$ does not declare: \Erases{} still has a \code{.const} image there.
+\lead{Status} \stProved{}; three standard axioms, no \code{sorryAx}.
+\end{theorem}
+\begin{proof}
+\leanok
+\uses{lem:regSaturated_of_regKeyed, thm:bridgeEnv_of_regInv, def:RegAcc}
+\lead{Idea} Saturation from Lemma~\ref{lem:regSaturated_of_regKeyed}; reachability from
+\code{declEnv} and \code{ErasuresDeclared}; then Theorem~\ref{thm:bridgeEnv_of_regInv} at the shape
+clause.
+\end{proof}
 
 \subsection*{The open item}
 
-\stOpen{} \lead{Open} Nothing in the repository produces a \code{RegInvShape'} for a state the
-shipping eraser reaches.
+\stOpen{} \lead{Open} No theorem produces \code{RegAcc} at a run of the whole eraser, so \code{hbridge}
+stays a binder of \code{shipping\_erase\_correct\_firstorder}, discharged at no rung.
 \begin{itemize}
-\item Every theorem about a \emph{run} is proved; every theorem about the \emph{invariant} is
-proved; nothing joins them. The only inhabitants are
-Lemma~\ref{lem:RegInvShape-prime-empty} and a hand-built one-definition fixture.
-\item Consequence: \code{shipping\_erase\_correct\_firstorder} carries \code{hbridge}, discharged at
-none of the eight rungs. Theorem~\ref{thm:bridgeEnv_of_regInv} is its interface.
-\item \lead{Route} \code{doc/rework/09-REPAIRS-W7.md} specifies five units: quantify the level scope
-inside the eighteen motives; make $\Gamma_{\mathrm{spec}}$ an accumulator under a growth relation that
-turns no already-declared key into a runtime key; prove the registry invariant preserved by the term
-walk; saturate it at the final state; discharge \code{hbridge}.
-\item \lead{Caveat} Two obstructions stand in the way: \code{BridgeInv}'s single level scope against
-\code{visitMutual}'s per-member \code{levelParams}, and ``every specification environment'' against
-``one, produced''.
+\item \lead{Status} \stProved{}: \code{RegAcc} at the cold start (Lemma~\ref{lem:RegAcc-coldStart}) and
+across one registration at a time (Lemma~\ref{lem:regInv_constCons_step},
+Theorems~\ref{thm:regInv_recConst_step} and~\ref{thm:regInv_registerInd_run}); \code{RegKeyed} at a run
+(Theorem~\ref{thm:regKeyed_of_run}).
+\item \lead{Goal} Chain the steps across a run: \code{visitMutual}'s step of the accumulator induction
+(\code{StepAcc6}), then the composition that retires \code{hbridge} (\code{erasure\_bridge\_env}).
+Theorem~\ref{thm:bridgeEnv_of_regContent} has no consumer until then.
+\item \lead{Where} \code{doc/rework/12-REPAIRS-W9.md}, Sec. 2.4--2.6 specifies both, with
+\code{ErasuresDeclared} restricted to the erasures that lower to the emitted term.
+\item \lead{Caveat} The block-registration step takes \code{UpstreamAsks}, which no environment declaring
+an inductive block satisfies; the declaration-list repair of \code{doc/rework/07-STATUS.md}, Sec. 4,
+removes that premise's refuted field.
 \end{itemize}
 
 \subsection*{Deviations from the paper and caveats}
@@ -1360,16 +1803,16 @@ walk; saturate it at the final state; discharge \code{hbridge}.
 \begin{itemize}
 \item Applied-versus-block constructors are fixed on the run (Theorem~\ref{thm:visitExpr_ctorSat},
 Theorem~\ref{thm:visitExpr_shape_all}); MetaCoq verifies a block/applied transformation instead ([JACM],
-Sec. 7.4). The saturation layer has no consumer.
+Sec. 7.4). The constructor-saturation layer has no consumer.
 \item The delta column reads each body at the declaration's own level scope, as [JACM] does; the
 instantiated reading is derived where [JACM] derives it, in the $\delta$ arm of the simulation.
 \item \Lower{} has no MetaCoq counterpart, so \code{ErasureBridge} carries \code{LowerEnv} beside
-\code{ErasesEnv}.
-\item The registration loop stores an eta-wrapped fixpoint, so the \code{defs} clause reads
-$\code{LBTerm.etaFix}$ where a bare \code{.fix} node would read more simply.
-\item Two heartbeat budgets are set for reproducibility: four million for the induction, one million for
-the block decomposition.
-\item Roughly half of \code{ColdStartRun.lean} and the whole saturation layer are proved but unconsumed.
+\code{ErasesEnv}. Its eta-fixpoint arm covers the stored eta-wrapped fixpoint and makes \Lower{} not a
+function.
+\item $\Gamma_{\mathrm{spec}}$ is built by the run under \code{SpecGrow}, as MetaRocq's
+\code{erase\_global\_deps} threads its dependency set.
+\item Proved but unconsumed: roughly half of \code{ColdStartRun.lean}, the constructor-saturation layer,
+Theorems~\ref{thm:regInv_recConst_step} and~\ref{thm:bridgeEnv_of_regContent}.
 \item No \code{sorry}, \code{partial}, \code{unsafe}, \code{axiom} or reflection-based decision
 procedure occurs in the three cold-start files; the only trust is the parameter bundles and the
 \code{Lean.Expr} reflection axioms.

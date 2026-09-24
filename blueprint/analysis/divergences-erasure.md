@@ -29,11 +29,11 @@ open, with the document specifying its closure.
 | B1 | erasability | `isErasable` (`Extract.v:18`) | `Erasable` over `VExpr` (`Erasability.lean:55`), arity disjunct closed under defeq (`:42`) | FORCED-LEAN4LEAN | typing exists only on lean4lean's `VExpr`; the closure matches `Meta.isTypeFormerType` |
 | B2 | erasability | `Sort.is_propositional` on a resolved sort (`PCUICFirstorder.v:109-113`) | `InformativeInd`/`PropositionalInd` via `VLevel.IsNeverZero` (`Erasability.lean:281,409`) | FORCED-LEAN | a Lean inductive's sort can be a level parameter, unresolved until instantiation |
 | B3 | erasability | `is_erasableb` reflected inside Rocq ([JACM] Sec 7.2) | `Oracle.kernel_isErasable_sound` against lean4lean's executable checker | DESIGN | a trust reduction, at 33 axiom names (`doc/trust.md` (a3)) |
-| B4 | erasability | -- | `oracle_meta`, `oracle_false_refl`, `kernel_ind_head_true` (`ErasureSpec.lean:455,624,643`) | FORCED-ERASER | the oracle is a `MetaM` run with a fallback arm and a fixed arity budget |
+| B4 | erasability | -- | `oracle_false_refl`, `kernel_ind_head_true` (`ErasureSpec.lean:697,717`) | FORCED-ERASER | the oracle is a `MetaM` run with a fallback arm and a fixed arity budget |
 | R1 | erasure relation | `erases_tCase` (`Extract.v:109-117`) | no rule; `Lower.elimApp` (`Lower.lean:385`) | FORCED-LEAN | `Lean.Expr` has no case node; a match is a `casesOn` application |
 | R2 | erasure relation | `erases_tFix` (`Extract.v:122-128`) | no rule; `Lower.fixConst`/`fixBody`/`fixEta` (`Lower.lean:402,418,441`) | FORCED-LEAN | recursion is a declaration in Lean, not a term former |
-| R3 | erasure relation | `erases_tConst` (`Extract.v:104`) | `Erases.const` with `ConstOrigin` (`Erases.lean:238`) | FORCED-LEAN | `Expr.const` writes constant, constructor and type former alike |
-| R4 | erasure relation | `erases_tConstruct` with `~~ isPropositional` (`Extract.v:106`) | `Erases.ctor` with `CtorOf` + `IndInfo`, no propositionality premise (`Erases.lean:231`) | FORCED-LEAN | the reading is positive, off a declaration list; propositionality gates the elimination sites |
+| R3 | erasure relation | `erases_tConst` (`Extract.v:104`), `erases_tConstruct` with `~~ isPropositional` (`:106`) | `Erases.const` with `ConstOrigin` (`Erases.lean:238`); `Erases.ctor` with `CtorOf` + `IndInfo`, no propositionality premise (`:231`) | FORCED-LEAN | `Expr.const` writes constant, constructor and type former alike; propositionality gates the elimination sites |
+| R4 | erasure relation | `declared_constant`/`declared_inductive` read `lookup_env Sigma c` (`PCUICTyping.v`) | `ConstOrigin`, `CtorOf`, `IndInfo` (`Erases.lean:69,144,173`), `CasesOnShape` (`SourceEval.lean:163`), `IndBlockBelow` (`Upstream.lean:43`) read any `VEnv.WF'` list below `env` | OPEN | the chosen reading makes every constant of a block a `ConstOrigin`, so `UpstreamAsks` is uninhabited; `07-STATUS.md` section 4 specifies the repair |
 | R5 | erasure relation | `erases_tProj` with `Subsingleton` (`Extract.v:118`) | `Erases.proj` with `InformativeInd`, no discriminant typing premise (`Erases.lean:266`) | FORCED-LEAN | `Expr.proj` occurs on `Prop` structures; `TrProj` pins parameters only up to defeq |
 | R6 | erasure relation | -- | `Erases.mdata`, `Erases.lit` (`Erases.lean:275,272`) | FORCED-LEAN | `Expr.mdata` and `Expr.lit` have no PCUIC node |
 | R7 | erasure relation | sort and Pi left to the box rule by typing | `Erases.sort_inv`, `forallE_inv` prove box is the only rule (`Erases.lean:301,305`) | DESIGN | makes two `unreachable!` sites of the shipping eraser provably dead |
@@ -47,16 +47,16 @@ open, with the document specifying its closure.
 | V4 | environment | `erases_global`/`erases_global_decls` (`Extract.v:284-295`) | no counterpart; only the selective `ErasesEnv` | FORCED-ERASER | the run registers on demand and emits no whole-environment image |
 | V5 | environment | -- | `ErasesEnv.elims` and `ElimDecl` (`ErasesEnv.lean:93`, `Lower.lean:66`) | FORCED-LEAN | the eliminator is a declaration here and a term node there |
 | V6 | environment | `declared_constant` inside the `tConst` clause | `ErasesEnv.tabled`, ungated by reachability (`ErasesEnv.lean:80`) | DESIGN | `bo` ranges over every tabled name, not only the reached ones |
-| V7 | environment | `isPropositionalArity ind_type = ind_propositional` (`Extract.v:276`) | `IndFlagSound`, one direction (`ErasesEnv.lean:51-53`) | FORCED-ERASER | the converse is refuted by an arity whose result sort sits under a `let` (F-ARITYLET) |
-| V8 | environment | `wf_glob` on the one erased environment (`EWellformed.v:199`) | `LowerEnv` (`ErasesEnv.lean:271-302`) and `LBWfSpec` (`:260`) | FORCED-LEAN | R10 creates a second lambda-box environment, pruned and lowered from the first |
+| V7 | environment | `isPropositionalArity ind_type = ind_propositional` (`Extract.v:276`) | `IndFlagSound`, one direction (`ErasesEnv.lean:64-70`) | FORCED-LEAN4LEAN | the converse is refuted by `arity_of_propositionalInd_false`: lean4lean's translation zeta-reduces a `let`-bound arity sort that `destArity` stops at |
+| V8 | environment | `wf_glob` on the one erased environment (`EWellformed.v:199`) | `LowerEnv` (`ErasesEnv.lean:284-311`) and `LBWfSpec` | FORCED-LEAN | R10 creates a second lambda-box environment, pruned and lowered from the first |
 | C1 | correctness | `Sigma \|-p t => v` on kernel bodies | `SEval env bo Us fl` with `StepDefeq` (`SourceEval.lean`) | FORCED-LEAN | V3; the defeq obligation reconnects the compiler body to the kernel term |
 | C2 | correctness | five premises of `erases_correct` (`ErasureCorrectness.v:52-56`) | eight binders, seven premises (`ErasesCorrect/Steps.lean:1240-1247`) | FORCED-LEAN | `Lower`, `LowerEnv` and `UpstreamAsks` have no reference counterpart |
 | C3 | correctness | PCUIC subject reduction and principality, proved | `SubjectReduction.lean` routed through lean4lean's `TrExprS.uniq`/`IsDefEq.uniqU` | FORCED-LEAN4LEAN | the source metatheory is a pinned dependency with its own `sorry` roots |
-| C4 | correctness | `NormalizationIn`; [JACM] Sec 5.6 standardisation | no analogue; `hev : SEval ...` is a hypothesis (`Capstone.lean:187`) | FORCED-LEAN4LEAN | nothing Lean-side has the status of wcbv standardisation (N7) |
+| C4 | correctness | `NormalizationIn`; [JACM] Sec 5.6 standardisation | no analogue; `hev : SEval ...` is a premise of the observable clause (`Capstone.lean:245`) | FORCED-LEAN4LEAN | nothing Lean-side has the status of wcbv standardisation (N7) |
 | C5 | correctness | `firstorder_evalue` (`ErasureFunctionProperties.v:2027`) | `FOSpine` plus `NoBox` and uniqueness (`FirstOrderInd.lean:518,605`) | DESIGN | box-freedom and determinism are what the consumer reads; the shape is exported apart |
-| C6 | correctness | `firstorder_erases_deterministic` concludes `t' = erase ... v` (`:2079`) | concludes `t1 = t2` for two relation derivations (`FirstOrderInd.lean:592`) | OPEN | the relation-to-function step at the environment is `hbridge`; `09-REPAIRS-W7.md` U5-U9 |
+| C6 | correctness | `firstorder_erases_deterministic` concludes `t' = erase ... v` (`:2079`) | concludes `t1 = t2` for two relation derivations, under `UpstreamAsks` (`FirstOrderInd.lean:596`) | OPEN | the relation-to-function step at the environment is `hbridge`; `07-STATUS.md` section 4 |
 | C7 | correctness | `firstorder_ind` (`PCUICFirstorder.v:67`): no monomorphy, no index clause | `FirstOrderDecl` with `mono` and `noIndices` (`FirstOrderInd.lean:65-77`) | DESIGN | declared scope restrictions, disclaimed at the definition site |
-| C8 | correctness | `axiom_free Sigma` (`ErasureFunctionProperties.v:2316`) | `NoBodylessRefs Gamma t` at the emitted environment (`Output.lean:932`) | DESIGN | decidable per rung, and where a stuck `delta` would otherwise make a rung vacuous |
+| C8 | correctness | `axiom_free Sigma`, a premise (`ErasureFunctionProperties.v:2316`) | no premise; `NoBodylessRefs Gamma t` decided per rung at the emitted environment (`Output.lean:952`) | DESIGN | the proof never spends it; the source semantics gives a body-less constant no value |
 | C9 | correctness | `red Sigma [] t v` to a normal form (`:2322`) | `SEval` to an `SValue` | DESIGN | weak call-by-value on both sides, matching the target's regime |
 | P1 | pipeline | `wf_eprogram` over `EEnvFlags`/`ETermFlags` (`EProgram.v:38`) | `LBWfPeregrine`, twelve unparameterised clauses (`Output.lean:304-334`) | DESIGN | one entry point is targeted, so one flag point suffices |
 | P2 | pipeline | `expanded_eprogram` inherited from a pre-erasure `eta_expand` (`EEtaExpandedFix.v:187`) | `LBExpandedTFix` concluded of the emitted program (`Output.lean:292`), fed by `Lower.fixEta` | FORCED-ERASER | Lean has no source-level expansion to inherit; recursion appears at registration |
@@ -66,14 +66,14 @@ open, with the document specifying its closure.
 | M1 | method | `erases_erase`, unconditional (`ErasureFunction.v:1228`) | `visitExpr_refines_erasesLB`, conditional on `Supported`, `BridgeInv`, `SpecEnv`, `ErasureSpec` (`VisitExprRefines.lean:190`) | FORCED-ERASER | the shipping eraser is partial, monadic, stateful and can panic |
 | M2 | method | `NormalizationIn` threaded abstractly | `Supported`/`supportedB`, a decidable fragment (`Supported.lean`) | FORCED-ERASER | nothing plays `NormalizationIn`'s role, so the gate is syntactic and checkable |
 | M3 | method | `erase_global_deps`, a total fold over a finite environment | the cold-start run model and the registry invariant (`ColdStartRun.lean`, `ColdStartShape.lean`) | FORCED-ERASER | registration is incremental and side-effecting |
-| M4 | method | `erase_global_erases_deps`, proved (`ErasureFunctionProperties.v:172`) | `ErasureBridge`, a named binder (`Capstone.lean:103-111,169-173`) | OPEN | no theorem produces `RegInvShape'` for a run; `09-REPAIRS-W7.md` U5-U9 |
-| M5 | method | Rocq's quoting and extraction, outside the proof development | `ErasureSpec`, eight class-D fields (`ErasureSpec.lean:414-477`) | DESIGN | the same gap, named and `Prop`-typed rather than left implicit |
-| M6 | method | -- | `EraserAsks`, four fields (`ErasureSpec.lean:595-649`) | FORCED-ERASER | `Erasure.prepare_erasure`'s passes precede the erasure and have no counterpart |
-| U1 | trust | PCUIC inversion and injectivity, proved | `UpstreamAsks`, four fields (`Upstream.lean:54-99`) | FORCED-LEAN4LEAN | asks 2, 6, 9, 10 of `doc/upstream-asks.md`, dischargeable only by the fork |
-| U2 | trust | a complete metatheory library | lean4lean's `sorryAx` roots; `hcb`, `hfo` open (`doc/trust.md` (a1),(a2),(a4)) | FORCED-LEAN4LEAN | the pin leaves `TrProj` and ask 4 unproven |
+| M4 | method | `erase_global_erases_deps`, proved (`ErasureFunctionProperties.v:172`) | `ErasureBridge`, the binder `hbridge` (`Capstone.lean:111,209`); `bridgeEnv_of_regContent` (`:161`) derives it from `RegAcc` | OPEN | `RegAcc` is produced for one registration step only; `StepAcc6` is open; `07-STATUS.md` section 4 |
+| M5 | method | Rocq's quoting and extraction, outside the proof development | `ErasureSpec`, seven class-D fields, assumed at every level scope (`ErasureSpec.lean:436-484`) | DESIGN | the same gap, named and `Prop`-typed rather than left implicit |
+| M6 | method | -- | `EraserAsks`, four fields (`ErasureSpec.lean:668-720`) | FORCED-ERASER | `Erasure.prepare_erasure`'s passes precede the erasure and have no counterpart |
+| U1 | trust | PCUIC inversion and injectivity, proved | `UpstreamAsks`, four fields (`Upstream.lean:64-106`) | FORCED-LEAN4LEAN | asks 2, 9, 10 of `doc/upstream-asks.md`; the fork can discharge only asks 9 and 10 |
+| U2 | trust | a complete metatheory library | lean4lean's `sorryAx` roots; `hcb`, `hfo` open (`doc/trust.md` (a1),(a2),(a4)) | FORCED-LEAN4LEAN | the pin leaves `TrProj.weak'_inv`, `TrProj.uniq` and ask 4 unproven |
 | S1 | scope | erasure for PCUIC, no configuration parameter | `ConfigPinned`, five restrictions (`ErasureSpec.lean:45-47`), plus N1-N18 | DESIGN | each shipping feature outside the theorem is a hypothesis, not an omission |
-| S2 | scope | any `t : mkApps (tInd i u) args` in any well-formed environment | eight rungs over one benchmark program plus five spike constants (`Green.lean`) | DESIGN | the rungs measure where every decidable hypothesis is discharged by computation |
-| S3 | scope | -- | `TableSafe.noMaxLevels`, the `max`-free level fragment (`Supported.lean:463`) | DESIGN | the side condition `Erases.instL` transports a body's erasure along (R8) |
+| S2 | scope | any `t : mkApps (tInd i u) args` in any well-formed environment | eight rungs over one benchmark program plus five spike constants (`Green.lean`) | DESIGN | the rungs check that terms meet the stated interface; no environment satisfies their hypotheses (R4) |
+| S3 | scope | -- | `TableSafe.noMaxLevels`, the `max`-free level fragment (`Supported.lean:612`) | DESIGN | the side condition `Erases.instL` transports a body's erasure along (R8) |
 
 ## 3. The divergences
 
@@ -125,11 +125,7 @@ emits the nodes.
 **Consequence.** A consumer running that pass leaves the calculus `WcbvEval` models, so the correctness statement says
 nothing about the program afterwards. The pass sits outside the pipeline `LBWfPeregrine` targets, but the omission is a
 real coverage boundary rather than a forced one.
-**Evidence.** `Basic.lean:90-106`; `Semantics/Eval.lean:26-48`. (corrected: the row cited as `doc/trust.md` (d)
-"peregrine" reads "its `run_untyped_transforms` precondition obligation is `Admitted`, and `validate` checks no
-expandedness" -- that is P3's finding, not this one; `doc/trust.md` has no row for the lazy-force gap, and the
-`EImplementLazyForce` pass is `peregrine-tool`'s, not MetaRocq's -- both corrected above. The GAP classification and
-consequence stand.)
+**Evidence.** `Basic.lean:90-106`; `Semantics/Eval.lean:26-48`. (verified)
 
 ### T5 -- primitives restricted to one tag, and unreachable from the relation
 
@@ -163,7 +159,7 @@ what the relation records.
 (`:69-71`). Both `erases_correct` (`ErasureCorrectness.v:51`) and `erase_correct_firstorder`
 (`ErasureFunctionProperties.v:2310`) are stated at `default_wcbv_flags`.
 **Ours.** The same record with the same three field names (`Semantics/Flags.lean:36-40`) and four named points
-(`:44-57`). `ErasesCorrectStmt` (`ErasesCorrect/Steps.lean:1247`) and the capstone (`Capstone.lean:193`) conclude at
+(`:44-57`). `ErasesCorrectStmt` (`ErasesCorrect/Steps.lean:1232`) and the capstone (`Capstone.lean:190`) conclude at
 `eraseFlags = <false, true, false>`, which is `opt_wcbv_flags`.
 **Nature.** DESIGN. **Reason.** `eraseFlags` is the stronger point: a derivation there uses no propositional-case rule.
 `WcbvEval.propcase_weaken` (`Semantics/Metatheory.lean:22`) carries the conclusion to `entryFlags = default_wcbv_flags`,
@@ -214,9 +210,7 @@ fixed only at instantiation, so a once-and-for-all Boolean is unsound. `IsNeverZ
 quantified over valuations.
 **Consequence.** The two are not complements -- a level zero at some valuations and not others satisfies neither, stated
 at `Erasability.lean:405-408` -- so consumers spend only the exclusion `propositional_false_of_informative`.
-**Evidence.** `Erasability.lean:232-282,400-410`; `Erases.lean:258-269,755-780`. (corrected: `PCUICFirstorder.v:105` is
-`isPropositionalArity`, not `isPropositional`, which is defined at `:109-113` and reads the arity's sort via `destArity`
-on `ind_type`, not the `ind_sort` record field directly -- line and description both fixed above.)
+**Evidence.** `Erasability.lean:232-282,400-410`; `Erases.lean:258-269,755-780`. (verified)
 
 ### B3 -- the oracle is discharged against lean4lean's executable checker
 
@@ -233,20 +227,17 @@ repackaged.
 named binder would not. `doc/trust.md` (a3) names the alternative and its size: about 40 lines in 5 hunks.
 **Evidence.** `ErasureSpec.lean:430-459`; `doc/trust.md` (a3), (b). (verified)
 
-### B4 -- three further oracle clauses with no reference counterpart
+### B4 -- two further oracle clauses with no reference counterpart
 
 **Reference.** none.
-**Ours.** `ErasureSpec.oracle_meta` (`ErasureSpec.lean:455-459`), `EraserAsks.oracle_false_refl` (`:624-629`) and
-`EraserAsks.kernel_ind_head_true` (`:643-649`).
+**Ours.** `EraserAsks.oracle_false_refl` (`ErasureSpec.lean:697`) and `EraserAsks.kernel_ind_head_true` (`:717`).
 **Nature.** FORCED-ERASER. **Reason.** The shipping oracle is a `MetaM` computation: it has a fallback arm whose
-soundness no term states, it is called at `ctx.lparams` rather than at a reader's scope, and `Erasure.isArityCheck`
-walks a head's type under a fixed budget (`Relevance.lean:49-50`), so a reduced telescope longer than the budget routes
-the verdict to the fallback.
+soundness no term states, and `Erasure.isArityCheck` walks a head's type under a fixed budget (`Relevance.lean:49-50`),
+so a reduced telescope longer than the budget routes the verdict to the fallback. The oracle's level scope needs no
+clause: `P` holds at every level scope (M5).
 **Consequence.** `kernel_ind_head_true` is explicitly not a theorem; `doc/trust.md` (c) records what would make it one
-and that it is measured `.ok true` at 2,940 of 2,940 inductive type formers. `oracle_meta` is empirically dead on the
-error route (0 fallback hits in 139,196 constants) and provable outright wherever the subject mentions a level
-parameter.
-**Evidence.** `ErasureSpec.lean:430-459,619-649`; `doc/trust.md` (b), (c). (verified)
+and that it is measured `.ok true` at 2,940 of 2,940 inductive type formers.
+**Evidence.** `ErasureSpec.lean:436-484,668-720`; `doc/trust.md` (b), (c). (verified)
 
 ### R1 -- no case rule in the erasure relation
 
@@ -278,24 +269,34 @@ node.
 `Lower.source_lambda`'s two-disjunct inversion is what reads them back.
 **Evidence.** `Lower.lean:353-450`; `LowerFix.lean`; `doc/rules-Lower.md`. (verified)
 
-### R3, R4 -- the three readings of `Expr.const`
+### R3, R4 -- the three readings of `Expr.const`, and where they are read
 
 **Reference.** PCUIC writes a constant `tConst`, a constructor `tConstruct` and a type name `tInd`, so `erases_tConst`
 (`Extract.v:104-105`) and `erases_tConstruct` (`:106-108`) are keyed on distinct nodes and neither needs a side
-condition saying which kind of name it holds.
+condition saying which kind of name it holds. Each reading is `declared_constant`/`declared_inductive`, which read
+`lookup_env Sigma c`, a function of the environment.
 **Ours.** `Erases.const` (`Erases.lean:238-239`) carries `hc : env.constants c = some ci` and `ho : ConstOrigin env c`
--- a positive reading exhibiting an axiom, definition, opaque constant, example or mutual-block member off a `VEnv.WF'`
-list below `env` (`:159-175`). `Erases.ctor` (`:231-232`) carries `CtorOf env c I k` (`:144-148`) and `IndInfo env I iid
-np nfs` (`:69-76`), and no propositionality premise. An inductive type name has no structural rule: `box` is its only
-image, and `erasable_indSpine` (`ErasureSpec.lean:655`) makes that sound.
-**Nature.** FORCED-LEAN. **Reason.** `Lean.Expr.const` writes all three, so the relation must say which reading it
-takes, positively, so an introduction site discharges it from the declaration list it already holds.
-**Consequence.** `Erases.const_inv` (`:329-337`) has three alternatives where the reference's inversion has one per
-node. Nothing in the relation excludes two readings at once; the exclusion is `UpstreamAsks.constsOrigin`
-(`Upstream.lean:64-78`), where the totality and disjointness live. The reference's `~~ isPropositional` premise on the
-constructor rule has no counterpart: the node is the bare head `.construct iid k []` and arguments arrive through `app`,
-so the gate sits at the elimination sites.
-**Evidence.** `Erases.lean:134-199,227-239,324-337`; `Upstream.lean:54-78`. (verified)
+(`:173-175`) -- a positive reading exhibiting an axiom, definition, opaque constant, example or mutual-block member off
+a `VEnv.WF'` list below `env`. `Erases.ctor` (`:231-232`) carries `CtorOf env c I k` (`:144-148`) and `IndInfo env I iid
+np nfs` (`:69-76`), and no propositionality premise. `CasesOnShape` (`SourceEval.lean:163`) and `IndBlockBelow`
+(`Upstream.lean:43`) read a block the same way. An inductive type name has no structural rule: `box` is its only image,
+and `erasable_indSpine` makes that sound.
+**Nature.** R3 (the three readings) is FORCED-LEAN; R4 (the list they are read off) is OPEN. **Reason.** `Lean.Expr.const`
+writes all three kinds of name, so the relation must say which reading it takes, positively, so an introduction site
+discharges it from the declaration list it holds. Reading that list off *any* well-formed list below `env`, rather than
+off `env`'s own, is a choice, and it is the wrong one: a block's own `addConst` chain is a run of well-formed `axiom`
+declarations, so every type former, constructor and recursor of a block is also a `ConstOrigin` (`Origin.lean`'s
+`CtorOf.constOrigin`, `IndInfo.constOrigin`).
+**Consequence.** `Erases.const_inv` (`Erases.lean:329-337`) has three alternatives where the reference's inversion has
+one per node; the reference's `~~ isPropositional` premise on the constructor rule sits at the elimination sites
+instead. The exclusion the readings need, `UpstreamAsks.constOriginExcludes` (`Upstream.lean:91`), is refuted at the
+fixture environment (`test/Vacuity.lean`'s `not_upstreamAsks_natEnv`), and `erases_natZ_two_ways` gives `Nat.zero` two
+distinct erasures there. Every rung binds `UpstreamAsks` beside a fact a block supplies, so no environment satisfies a
+rung's hypotheses. `doc/rework/07-STATUS.md` section 4 specifies the repair: read the five predicates off `env`'s own
+declaration list (`env.WF' ds`), as `lookup_env` does, after which `VEnv.WF'.consts_origin` gives exclusion and
+uniqueness with no further fork change.
+**Evidence.** `Erases.lean:134-199,227-239,324-337`; `Upstream.lean:64-106`; `Origin.lean:107-125`;
+`test/Vacuity.lean:85-115`. (verified)
 
 ### R5 -- the projection rule
 
@@ -309,7 +310,8 @@ because `TrProj.uniq` pins parameters only up to `IsDefEqU`.
 **Consequence.** The arm covers strictly fewer source projections than the reference's rule -- a field of a
 propositional structure is a proof, and `box` is its rule -- and widening it is unsound at `eraseFlags`, not merely
 unproved. `doc/trust.md` (a4) records the other face: `step_proj` consumes a `TrProj` from `TrExprS.proj`'s own premise
-and never builds one, so the arm is non-vacuous only on hand-built witnesses while `inferProj.WF` is `sorry` at the pin.
+and never builds one, so the arm is non-vacuous only on hand-built witnesses while `TrProj.weak'_inv` and `TrProj.uniq`
+are `sorry` at the pin.
 **Evidence.** `Erases.lean:258-269,755-780`; `doc/trust.md` (a4). (verified)
 
 ### R6 -- two rules with no reference counterpart
@@ -346,11 +348,11 @@ the erasure at `ps`, and `hnm : NoMaxLevels e`. It is spent at the same place, i
 `Erases.instantiateLevelParams_of_stepDefeq`.
 **Nature.** DESIGN. **Reason.** `Hls` carries `consistent_instance_ext`'s content. `NoMaxLevels` is this development's
 own restriction: the positional level substitution the proof runs on does not commute with `Level.max`.
-**Consequence.** A new scope restriction, recorded as `TableSafe.noMaxLevels` (`Supported.lean:463`) and as S3 below,
+**Consequence.** A new scope restriction, recorded as `TableSafe.noMaxLevels` (`Supported.lean:612`) and as S3 below,
 measured satisfied at every tabled body of all eight rungs. The typing premise the reference carries rides on
-`ErasesEnv.defns` (`ErasesEnv.lean:81-84`) under the same reachability gate the reference spends it under, rather than
+`ErasesEnv.defns` (`ErasesEnv.lean:94-97`) under the same reachability gate the reference spends it under, rather than
 on a separate universal over the table.
-**Evidence.** `ErasesAbstract.lean:724-761`; `ErasesEnv.lean:119-134`; `Supported.lean:455-465`. (verified)
+**Evidence.** `ErasesAbstract.lean:724-761`; `ErasesEnv.lean:87-110`; `Supported.lean:600-615`. (verified)
 
 ### R9 -- erasure is alpha-blind on its source
 
@@ -393,7 +395,7 @@ the kernel checks, so `erases` needs no premise beyond `isErasable` in the box c
 the eraser and every source-side relation are stated, and lean4lean's `VExpr`, over which `HasType` and `IsDefEq` are
 stated. `TrExprS` is the bridge, and it types while it translates.
 **Consequence.** `ErasesCorrectStmt` takes `TrExprS env Us [] e ve` where the reference takes `welltyped Sigma [] t`,
-and the capstone needs the value-side twins `hvwt` and `hty` as separate binders, which no rung discharges by a checked
+and the capstone needs the value-side twins `hvwt` and `hty` as premises of its observable clause, which no rung discharges by a checked
 term.
 **Evidence.** `Erases.lean:211-257`; `ErasesCorrect/Steps.lean:1240-1247`; `doc/trust.md` (c). (verified)
 
@@ -412,7 +414,7 @@ is and a structural recursion through cyclic mutual blocks is not.
 **Consequence.** `ReachableFrom` is not monotone along `Lower` in either direction -- a `.case` node names its block
 where the source spine had a `.const` -- so no reachability transfer between the two environments is available; the
 repaired form and its three obligations are at `doc/rework/09-REPAIRS-W7.md` section 2.0.
-**Evidence.** `ErasesEnv.lean:6-30,74-98,195-237`; `Output.lean:341-380`; `doc/rework/09-REPAIRS-W7.md` section 2.0. (corrected: the summary table's clause count for `erases_deps` read 18; the inductive at `Extract.v:306-366` has 17 constructors -- tBox, tRel, tVar, tEvar, tLambda, tLetIn, tApp, tConst, tConstruct, tCase, tProj, tFix, tCoFix, tPrimInt, tPrimFloat, tPrimString, tPrimArray -- fixed there; this block's own text never stated the count and needed no change.)
+**Evidence.** `ErasesEnv.lean:6-30,74-98,195-237`; `Output.lean:341-380`; `doc/rework/09-REPAIRS-W7.md` section 2.0. (verified)
 
 ### V3 -- the compiler body table replaces `cst_body`
 
@@ -465,43 +467,46 @@ whole table.
 **Nature.** DESIGN. **Reason.** `bo` ranges over every tabled name, and the reading it refutes is at a constant the
 erasure emits no key for, so there is no occurrence to trigger on.
 **Consequence.** The clause is a global fact about the table rather than about the program, which is why
-`bridgeEnv_of_regInv` takes it as the separate argument `htab` (`Capstone.lean:129`). Its discharge is blocked on
+`bridgeEnv_of_regInv` takes it as the separate argument `htab` (`Capstone.lean:137`). Its discharge is blocked on
 upstream ask 4: `Origin.lean` proves the two halves that surround it and nothing at the pin joins them.
-**Evidence.** `ErasesEnv.lean:112-117`; `Capstone.lean:125-133`; `doc/trust.md` (c). (verified)
+**Evidence.** `ErasesEnv.lean:126-130`; `Capstone.lean:133-141`; `doc/trust.md` (c). (verified)
 
 ### V7 -- the propositional flag holds in one direction only
 
 **Reference.** `erases_one_inductive_body` (`Extract.v:271-276`) ends in `isPropositionalArity oib.(ind_type) =
 oib'.(E.ind_propositional)`, an equality, and `erase_one_inductive_body` sets the field from that walk.
 **Ours.** `IndFlagSound env I iid mib := forall oib, mib.bodies[iid.idx]? = some oib -> oib.propositional = true ->
-PropositionalInd env I` (`ErasesEnv.lean:51-53`) -- an implication, carried beside `IndBodyOf` (`Lower.lean:49-55`),
-which holds no propositional clause at all. `ErasureSpec.propositionalInd_of_arity` (`ErasureSpec.lean:562-571`) proves
+PropositionalInd env I` (`ErasesEnv.lean:64-70`) -- an implication, carried beside `IndBodyOf` (`Lower.lean:49-55`),
+which holds no propositional clause at all. `ErasureSpec.propositionalInd_of_arity` (`ErasureSpec.lean:610`) proves
 that half from `decl_adequate` and the arity walk's commutation with translation.
-**Nature.** FORCED-ERASER. **Reason.** The converse is false at the shipping eraser: `Erasure.arityResultSort`
-(`Erasure.lean:281-285`) walks `forallE` alone where `destArity` walks `tLetIn` as well, so at an inductive whose
-declared arity carries a `let` the emitted flag is `false` although the type former lives in `Prop`. This is finding
-F-ARITYLET.
-**Consequence.** The half the consumers spend is available -- `IndFlagSound.notPropositional` (`ErasesEnv.lean:59-63`)
+**Nature.** FORCED-LEAN4LEAN. **Reason.** The converse is false: `arity_of_propositionalInd_false`
+(`ErasureSpec.lean:639`) refutes it at `inductive FooBVar : (let u := Prop; u)`. `Erasure.arityResultSort`
+(`Erasure.lean:300-305`) walks `forallE`, `letE` and `mdata`, and stops at the `let`'s bound variable exactly as PCUIC's
+`destArity` stops at `tRel` (`PCUICAst.v:486-490`); lean4lean's `TrExprS.letE` zeta-reduces the same arity to `Sort 0`
+(`trExprS_letBVarArity`). A walk that reduced further would break the sound half at an alias-headed arity, where
+`TrExprS.const` keeps the `.const`.
+**Consequence.** The half the consumers spend is available -- `IndFlagSound.notPropositional` (`ErasesEnv.lean:72`)
 gives the `= false` that `WcbvEval.iota` and `WcbvEval.proj` test -- and assuming the equality would assume something
-refuted. What is lost is completeness: an emitted `.case` on such an inductive is stuck at `eraseFlags` and the
-environment relation does not detect it; `Supported` is what keeps the shape out of the fragment.
-**Evidence.** `ErasesEnv.lean:36-63`; `Lower.lean:45-62`; `ErasureSpec.lean:520-571`; `doc/rework/03-DEV-FIX.md`
+refuted. The clause fires only at a `true` flag, and no block any rung emits carries one, so it is vacuous at all eight
+rungs; an emitted `.case` on a `let`-bound propositional arity is stuck at `eraseFlags`, and `SEval.iota`'s `hinf` has
+no derivation there.
+**Evidence.** `ErasesEnv.lean:36-75`; `Lower.lean:45-62`; `ErasureSpec.lean:580-660`; `doc/rework/03-DEV-FIX.md`
 F-ARITYLET. (verified)
 
 ### V8 -- `LowerEnv` in place of environment well-formedness
 
 **Reference.** `wf_glob` (`EWellformed.v:199`) and `wf_eprogram` (`EProgram.v:38`) state well-formedness of the erased
 environment; there is no relation between two lambda-box environments, because there is only one.
-**Ours.** `LowerEnv Gammaspec Gamma` (`ErasesEnv.lean:271-302`), eight fields: `keys`, `defs`, `defsTotal`, `axioms`,
-`inds`, `sub`, `closed`, `specClosed`. `defs` is a disjunction -- a `Lower` image, or the eta-expansion of one lowered
-block's node -- because the registration side produces the block shape rather than a `Lower` derivation.
+**Ours.** `LowerEnv Gammaspec Gamma` (`ErasesEnv.lean:284-311`), eight fields: `keys`, `defs`, `defsTotal`, `axioms`,
+`inds`, `sub`, `closed`, `specClosed`. `defs` asks a body declared by both to be a `Lower` image; the eta-expansion the
+registration side emits for a block member is one, `Lower.fixEta`, read off the block by `Lower.fixEta_of_block`.
 **Nature.** FORCED-LEAN. **Reason.** R10 creates a second lambda-box environment: the specification one the relations
 are stated against, and the emitted one the run produces. The pruning direction (`sub`) and its totality (`defsTotal`)
 both need stating, without which a definition pruned out of `Gamma` satisfies `defs` vacuously while the target is stuck
 at its `.const`.
 **Consequence.** One more premise on every statement about the emitted program, and a second well-formedness predicate,
-`LBWfSpec` (`:260-261`), for what the `Lower` metatheory reads of `Gammaspec`.
-**Evidence.** `ErasesEnv.lean:256-350`. (verified)
+`LBWfSpec`, for what the `Lower` metatheory reads of `Gammaspec`.
+**Evidence.** `ErasesEnv.lean:270-360`; `LowerFix.lean`. (verified)
 
 ### C1 -- the source semantics
 
@@ -556,13 +561,14 @@ relation usable without a full source metatheory.
 `ErasureFunctionProperties.v:2313`), citable because Rocq's metatheory supplies strong-normalisation witnesses
 PCUIC-side; [JACM] Sec 5.6 is the one place weak call-by-value standardisation is used.
 **Ours.** No analogue exists and none is assumed. The source evaluation enters as a hypothesis: `hev : SEval env
-tbl.body? [] fullFlags [] (mkApps e args) v` (`Capstone.lean:187`), discharged by a checked derivation at G5 only.
+tbl.body? [] fullFlags [] (mkApps e args) v`, a premise of the observable clause (`Capstone.lean:245`), discharged by a
+checked derivation at G5 only.
 **Nature.** FORCED-LEAN4LEAN. **Reason.** Nothing Lean-side has the status of wcbv standardisation or of canonicity;
 `Supported` (M2) takes the structural place `NormalizationIn` holds.
 **Consequence.** Restriction N7 of `doc/trust.md` (d): the capstone keeps the conditional form. A rung other than G5
-says that its conditions are consistent with a literal answer and not that they hold; at G7-G8 no witness is attempted,
+binds `hev` rather than proving it; at G7-G8 no witness is attempted,
 Arith's evaluation being 45 recursive calls each owing the unselected minor's derivation as well.
-**Evidence.** `Capstone.lean:181-193`; `doc/trust.md` (c) row `hev`, (d) row N7. (verified)
+**Evidence.** `Capstone.lean:190-264`; `doc/trust.md` (c) row `hev`, (d) row N7. (verified)
 
 ### C5, C6 -- the first-order observation and its uniqueness
 
@@ -571,10 +577,10 @@ Arith's evaluation being 45 recursive calls each owing the unselected minor's de
 `lookup_constructor_pars_args` and demanding saturation. `firstorder_erases_deterministic` (`:2079-2090`)
 concludes `t' = erase X_type Xext ... v`: the relation's image at a first-order value equals the extraction
 function's output.
-**Ours.** `firstorder_erases_core` (`FirstOrderInd.lean:518-524`) returns `FOSpine t` and `forall t', Erases env Us [] v
-t' -> t' = t` in one induction over `SValue`; `firstorder_no_box` (`:605-611`) projects box-freedom and
-`noBox_lower_of_foSpine` transports it to the lowered value; `firstorder_erases_deterministic` (`:592-599`) concludes
-`t1 = t2` for two arbitrary derivations.
+**Ours.** `firstorder_erases_core` (`FirstOrderInd.lean:522`) returns `FOSpine t` and `forall t', Erases env Us [] v
+t' -> t' = t` in one induction over `SValue`; `firstorder_no_box` (`:609`) projects box-freedom and
+`noBox_lower_of_foSpine` transports it to the lowered value; `firstorder_erases_deterministic` (`:596`) concludes
+`t1 = t2` for two arbitrary derivations. All three take `UpstreamAsks env`.
 **Nature.** DESIGN for the observation's shape; OPEN for the uniqueness target. **Reason.** The shape divergence is a
 choice: `NoBox` and the image's uniqueness are what the consumer reads, and `FOSpine` is exported separately for the
 `Lower` transport, box-freedom not transporting along `Lower`, whose `fixConst` arm relates a box-free constant to a
@@ -582,10 +588,11 @@ block whose definitions carry their own boxes. The uniqueness divergence is arch
 function already known by `erases_erase` to inhabit the relation everywhere, so pinning the image to it is free; here
 the relation-to-function link is M1 at the term level and `hbridge` at the environment level.
 **Consequence.** The capstone concludes relation-level determinism and box-freedom, one step short of "the emitted value
-is the function's output at `v`". Closing it needs the same content clause M4 waits on; `doc/rework/09-REPAIRS-W7.md`
-units U5-U9 specify it.
-**Evidence.** `FirstOrderInd.lean:15-38,518-611`; `Capstone.lean:220-224`; `doc/rework/09-REPAIRS-W7.md` sections
-2.5-2.9. (verified)
+is the function's output at `v`". The uniqueness holds only under `UpstreamAsks`, which no environment declaring an
+inductive inhabits; without it `Nat.zero` has two erasures (R4). Closing the step to the function needs the same
+content M4 waits on; `doc/rework/07-STATUS.md` section 4 specifies it.
+**Evidence.** `FirstOrderInd.lean:15-38,522-615`; `Capstone.lean:260-264`; `test/Vacuity.lean:107-113`;
+`doc/rework/07-STATUS.md` section 4. (verified)
 
 ### C7 -- the first-order predicate is strictly stronger
 
@@ -611,18 +618,19 @@ transfer from `lenv` to `env.constants` filed as upstream ask 4, so `hfo` is a b
 
 **Reference.** `erase_correct_firstorder` takes `axiom_free Sigma` and `red Sigma [] t v` with `not { v' & Sigma ;;; []
 |- v => v' }`.
-**Ours.** `hnb : NoBodylessRefs Gamma t` (`Capstone.lean:167`, `Output.lean:932-934`) reads the emitted environment: no
-constant the program reaches is declared without a body. The evaluation premise is `SEval` to an `SValue` (C1), with no
+**Ours.** The capstone takes neither. `NoBodylessRefs Gamma t` (`Output.lean:952-953`) -- no constant the program
+reaches is declared without a body -- is decided per rung as the standalone term `Green.g<i>_noBodylessRefs`, `by
+decide +kernel`, read by `doc/coverage.md`'s census. The evaluation premise is `SEval` to an `SValue` (C1), with no
 separate normal-form side condition, `SValue` being the value predicate `SEval` returns.
-**Nature.** DESIGN. **Reason.** `axiom_free` is a condition on the source environment; `NoBodylessRefs` is the same
-content on the emitted side, where it is decidable by `noBodylessRefsB` (`Output.lean:936`) and where
+**Nature.** DESIGN. **Reason.** The proof never spends axiom-freedom: the source semantics gives a body-less constant no
+value, so a run reaching one has no `hev` derivation and the non-vacuity the reference's premise protects is `hev`'s to
+guard (`Capstone.lean:37-44`). `NoBodylessRefs` is the same content as `axiom_free` on the emitted side, where
 `EWellformed.wellformed`'s own constant clause -- `has_axioms || isSome d.(cst_body)` (`EWellformed.v:143-147`) -- puts
-it. It is a premise rather than a conclusion because a run reaching a body-less constant is stuck at its `delta` step,
-so a rung would otherwise be vacuously green.
-**Consequence.** Measured 0 failures across the five corpus programs and the eight rungs. Restriction N2 records the
-source-side face: an `@[extern]` constant is emitted body-less and a program reaching one is outside the capstone's
-domain.
-**Evidence.** `Capstone.lean:167`; `Output.lean:928-945`; `doc/trust.md` (c) row `hnb`, (d) N2. (verified)
+it.
+**Consequence.** Measured true on all five corpus programs and all eight rungs. Restriction N2 records the source-side
+face: an `@[extern]` constant is emitted body-less and a program reaching one has no source evaluation to simulate.
+**Evidence.** `Capstone.lean:37-44`; `Output.lean:946-960`; `Green.lean` (`g<i>_noBodylessRefs`); `doc/trust.md` (d)
+N2. (verified)
 
 ### P1 -- output well-formedness is unparameterised
 
@@ -634,7 +642,7 @@ node (`EWellformed.v:37-60`); each pipeline phase declares its own flag point.
 `printableNames`. Every clause is stated over the environment and the term, mirroring `expanded_eprogram_cstrs`
 (`EEtaExpanded.v:557-558`).
 **Nature.** DESIGN. **Reason.** One entry point is targeted -- peregrine's `untyped_transform_pipeline` -- so one flag
-point suffices: `ctorApplied` fixes `cstr_as_blocks = false`, `constsOk` with `hnb` fixes `has_axioms = false`, and the
+point suffices: `ctorApplied` fixes `cstr_as_blocks = false`, `constsOk` asks every reached constant to be declared, and the
 node switches are all true for the nodes `LBTerm` has.
 **Consequence.** A consumer running the pipeline at another flag point reads nothing from this conclusion.
 **Evidence.** `Output.lean:5-27,295-339`; `doc/trust.md` (c) row `hwf`. (verified)
@@ -728,45 +736,44 @@ IO-like primitives.
 **Reference.** `erase_global_deps` computes the dependency-closed erased environment by a pure structural fold over a
 finite `global_env`, so `erase_global_erases_deps` (`ErasureFunctionProperties.v:172-177`) is proved by the same
 induction `erases_erase` walks, from `includes_deps Sigma Sigma' (term_global_deps et)`.
-**Ours.** `ErasureBridge` (`Capstone.lean:103-111`) carries `erasesEnv : ErasesEnv env bo lp Gammaspec t0` and `lowerEnv
-: LowerEnv Gammaspec Gamma`, and is a named binder of `shipping_erase_correct_firstorder` (`:169-173`).
-`bridgeEnv_of_regInv` (`:125-133`) derives both from `RegInvShape'` and `RegSaturated` at a run's final state, plus
-`hdeps`, `htab` and `hlvl`; it is itself proved. No theorem produces `RegInvShape'` for a run of the shipping eraser.
+**Ours.** `ErasureBridge` (`Capstone.lean:111-119`) carries `erasesEnv : ErasesEnv env bo lp Gammaspec t0` and `lowerEnv
+: LowerEnv Gammaspec Gamma`, and is the binder `hbridge` of `shipping_erase_correct_firstorder` (`:209`).
+`bridgeEnv_of_regContent` (`:161-174`) composes the binder's payload out of `RegAcc`, `RegKeyed`, `ErasuresDeclared` at the
+prepared term, `htab` and `hlvl`; it is proved, has no consumer, and is not on the capstone's proof path.
+`regInv_registerInd_run` (`VisitExprRefines/Step/Passes.lean:1940`) and `regInv_recConst_step`
+(`ColdStartShape.lean:1401`) preserve `RegAcc` across one block registration and one recursive-constant registration.
 **Nature.** OPEN. **Reason.** The environment is accumulated incrementally across many mutually recursive,
 side-effecting calls, so the coherence fact needs a run-level invariant threaded through the whole call graph rather
 than falling out of one fold.
-**Consequence.** The capstone's first six conjuncts and its observable clause hold under one binder that no rung
-inhabits. `doc/rework/08-REPAIRS-W5.md` section 2 states what would produce it and section 2.3 names three measured
-obstructions: the eighteen motives are stated at a fixed level scope while `Erasure.visitMutual` re-enters under each
-member's own `levelParams`; a tabled body is pinned only up to alpha; and `RunRefines` reads content at every `SpecEnv`
-of the final state where the repair produces one. `doc/rework/09-REPAIRS-W7.md` units U5-U9 are the unit specification
-that closes it -- U5 the level scope inside the motives, U6 `Gammaspec` as an output with a growth relation, U7 the
-preservation theorem, U8 saturation at the final state, U9 `hbridge` discharged -- and its section 3 states what closing
-it does not buy.
-**Evidence.** `Capstone.lean:94-133,169-173`; `doc/rework/09-REPAIRS-W7.md` sections 2.5-2.9, 3; `doc/trust.md` (c) row
-`hbridge`. (verified)
+**Consequence.** The capstone's environment conjuncts hold under one binder no theorem inhabits. The chain across a whole
+run is the accumulator bundle (`VisitExprRefines/MotivesAcc.lean`): seventeen of its eighteen steps are proved,
+`StepAcc6` (`visitMutual`'s step) is open, and `AccGrows` has no producer. `doc/rework/07-STATUS.md` section 4 specifies
+what `StepAcc6` needs; five of the proved steps rest on `AccAsks.upstream` and so on R4's vacuity.
+**Evidence.** `Capstone.lean:103-174,190-233`; `VisitExprRefines/MotivesAcc.lean:78,354,438`; `doc/rework/07-STATUS.md`
+section 4; `doc/trust.md` (c) row `hbridge`. (verified)
 
 ### M5 -- `ErasureSpec` as the analogue of trusting the quoting layer
 
 **Reference.** MetaRocq's PCUIC-level proofs start from an already-quoted term and end at a Rocq function. Neither
 Template-Rocq's quoting nor Rocq's program extraction is formalised inside `erasure/theories` or `pcuic/theories`; they
 are the trusted core, outside the development.
-**Ours.** `ErasureSpec lenv env Us gw` (`ErasureSpec.lean:414-477`), eight fields: `env_connect`, `lookup_adequate`,
-`fresh_names`, `oracle_refl`, `oracle_meta`, `decl_adequate`, `prim_monotone`, `block_adequate`. Each names a `Lean.*`
-primitive or the `lenv`-to-`env` connection, so each is a fact about an object no term denotes.
+**Ours.** `ErasureSpec lenv env Us gw` (`ErasureSpec.lean:436-484`), seven fields: `env_connect`, `lookup_adequate`,
+`fresh_names`, `oracle_refl`, `decl_adequate`, `prim_monotone`, `block_adequate`. Each names a `Lean.*` primitive or the
+`lenv`-to-`env` connection, so each is a fact about an object no term denotes. The capstone takes it as `P : forall Us,
+ErasureSpec lenv env Us gw`, at every level scope.
 **Nature.** DESIGN. **Reason.** A proof about an abstract syntax cannot certify from inside that the concrete elaborator
 producing terms of that syntax is faithful. The choice is to make the gap a `Prop`-typed structure appearing in every
 statement that depends on it.
 **Consequence.** `decl_adequate` is kept in an amended shape with the obstruction named:
 `ErasureSpec.decl_adequate_of_kernelFind` proves the statement from `env_connect` alone for the kernel environment's own
 lookup, and what it cannot cross is `Lean.Environment.find?` against `Lean.Kernel.Environment.find?`.
-**Evidence.** `ErasureSpec.lean:8-30,414-477`; `doc/trust.md` (b). (verified)
+**Evidence.** `ErasureSpec.lean:8-30,436-484`; `Capstone.lean:196`; `doc/trust.md` (b). (verified)
 
 ### M6 -- `EraserAsks`, the preparation passes and the oracle's other arms
 
 **Reference.** none. MetaRocq's erasure function has no preprocessing stage; the term it receives is the one the kernel
 typed.
-**Ours.** `EraserAsks lenv env gw` (`ErasureSpec.lean:595-649`), four fields: `passes_monotone`, `passes_sound`,
+**Ours.** `EraserAsks lenv env gw` (`ErasureSpec.lean:668-720`), four fields: `passes_monotone`, `passes_sound`,
 `oracle_false_refl`, `kernel_ind_head_true`. `passes_sound` asks that each of `Erasure.prepare_erasure`'s passes
 preserves the source evaluation of the subject under an arbitrary application spine, the spine quantified because the
 capstone reads its observable at `mkApps e args` while a pass is a whole-tree `Lean.Core.transform` walk.
@@ -777,36 +784,39 @@ ordinary Lean definitions with an owner, which is why the four fields are class 
 `e`, and the two cannot be identified -- `macroInline` replaces a constant by its body. `prepare_sound` is proved from
 `passes_sound`, and `hprep` pins `pe = e` per rung, checked by `lake exe reify --prepared`, green at all eight rung
 subjects.
-**Evidence.** `ErasureSpec.lean:16-24,595-649`; `Capstone.lean:17-23,165,210-211`; `doc/trust.md` (b) row `hprep`, (c)
+**Evidence.** `ErasureSpec.lean:16-24,668-720`; `Capstone.lean:17-23,206`; `doc/trust.md` (b) row `hprep`, (c)
 rows `E.passes_*`. (verified)
 
-### U1 -- four upstream asks as one premise
+### U1 -- the upstream asks as one premise
 
 **Reference.** PCUIC's inversion and injectivity lemmas are theorems of the development.
-**Ours.** `UpstreamAsks env` (`Upstream.lean:54-99`), four fields: `constsOrigin` (ask 2, the classification and
-uniqueness of a name's origin), `constArityInv` (ask 6, a spine headed by an inductive type former is definitionally
-equal to neither a sort nor a Pi), `mkAppsInv` (ask 9, spine typing inversion with `OrderedStrong` explicit),
-`indSpineInj` (ask 10, two definitionally equal spines headed by inductively declared formers have the same head).
+**Ours.** `UpstreamAsks env` (`Upstream.lean:64-106`), four fields packaging three asks: `constsOrigin` (ask 2's
+uniqueness corollaries), `constOriginExcludes` (ask 2's exclusion conjunct, refuted -- R4), `mkAppsInv` (ask 9, spine
+typing inversion with `OrderedStrong` explicit), `indSpineInj` (ask 10, two definitionally equal spines headed by
+inductively declared formers have the same head). Ask 2's classification conjunct is the theorem `consts_classified`,
+off `VEnv.WF'.consts_origin`; ask 6 is cited directly as `Lean4Lean.VEnv.IsDefEqU.const_arity_inv` (U2).
 **Nature.** FORCED-LEAN4LEAN. **Reason.** Editing the pinned fork is outside this repository's work.
 **Consequence.** `erases_correct`, `not_erasable_of_informative`, `indSpine_not_prop`, `elim_major`, `ctor_saturated`,
 `CasesOnShape.agree`, `fOFields_of_asks`, `firstorder_erases_deterministic`, `firstorder_no_box` and
-`erasure_bridge_of_run` all take it, so every rung carries it. A pin bump discharges all four at once with no change to
-any consumer's statement shape.
-**Evidence.** `Upstream.lean:1-99`; `doc/trust.md` (c) row `UpstreamAsks env`. (verified)
+`erasure_bridge_of_run` all take it, so every rung carries it. A pin bump discharges `mkAppsInv` and `indSpineInj` with
+no change to any consumer's statement shape; the two ask-2 fields wait on R4's restatement, not on the fork.
+**Evidence.** `Upstream.lean:1-106`; `Origin.lean:262`; `doc/trust.md` (c) row `UpstreamAsks env`. (verified)
 
 ### U2 -- what the pin leaves open
 
 **Reference.** PCUIC's metatheory library is complete for the erasure proof's needs.
-**Ours.** Five inherited `sorryAx` roots (`VEnv.IsDefEqU.sort_inv`, `forallE_inv_stratified`, `sort_forallE_inv`,
-`weakN_iff`, `VEnv.NormalEq.parRed`) plus the fork-authored `VEnv.WF.patsStrong`, reaching this development through
-`TrExprS.uniq` and `IsDefEq.uniqU`. Two further clusters bound what a rung can inhabit: `addDecl.WF`'s `inductDecl` case
-and the executable checker's `TrProj` lemmas, `inferProj.WF` and `inferProj.WF_struct` being entirely open.
+**Ours.** Six inherited `sorryAx` roots on the proof path: five reached through `TrExprS.uniq` and `IsDefEq.uniqU`
+(`VEnv.IsDefEqU.sort_inv`, `forallE_inv_stratified`, `sort_forallE_inv`, `weakN_iff`, `VEnv.NormalEq.parRed`), and
+`VEnv.IsDefEqU.const_arity_inv` (`Theory/Typing/Injectivity.lean:45`), cited directly by `not_erasable_of_informative`,
+`indSpine_ne_forallE` and `FirstOrderInd.notSortNotPi`; plus the fork-authored `VEnv.WF.patsStrong`. Two further
+clusters bound what a rung can inhabit: `addDecl.WF`'s `inductDecl` case and the executable checker's
+`TrProj.weak'_inv`/`TrProj.uniq`, both `sorry` at the pin.
 **Nature.** FORCED-LEAN4LEAN. **Reason.** The pin.
 **Consequence.** The projection exposure is inhabitation rather than axioms: `step_proj` consumes a `TrProj` from
 `TrExprS.proj`'s own premise and never builds one, so a projection in a real program has a `TrExprS` derivation only
-through `inferProj.WF`. `hcb : CompilerBodies` stays a binder at G2-G8 for the same reason -- ten of G7's thirty tabled
-bodies carry an `Expr.proj` -- and `hfo` and `ErasesEnv.tabled`'s exclusion both wait on ask 4.
-**Evidence.** `doc/trust.md` (a1), (a2), (a4), (c) rows `hcb`, `hfo`. (verified)
+through the open `TrProj` lemmas. `hcb : CompilerBodies` stays a binder at G2-G8 for the same reason -- ten of G7's
+thirty tabled bodies carry an `Expr.proj` -- and `hfo` and `ErasesEnv.tabled`'s exclusion both wait on ask 4.
+**Evidence.** `doc/trust.md` (a1), (a2), (a4), (c) rows `hcb`, `hfo`; `test/lean4lean-sorries.expected`. (verified)
 
 ### S1 -- the configuration and the stated restrictions
 
@@ -824,31 +834,33 @@ one.
 ### S2 -- the measured domain
 
 **Reference.** `erase_correct_firstorder` is stated for any `t : mkApps (tInd i u) args` in any well-formed environment.
-**Ours.** `shipping_erase_correct_firstorder` (`Capstone.lean:149-193`) is likewise universally quantified over `lenv`,
-`env`, `tbl`, `e` and the rest; what is measured is its instantiation at eight rungs, `green_G1` through `green_G8`
-(`Green.lean`), over five spike constants and Arith's `arithClosed` and `benchArith`.
+**Ours.** `shipping_erase_correct_firstorder` (`Capstone.lean:190-233`) is likewise universally quantified over `lenv`,
+`env`, `tbl`, `e` and the rest; eight rungs, `green_G1` through `green_G8` (`Green.lean`), instantiate it over five spike
+constants and Arith's `arithClosed` and `benchArith`.
 **Nature.** DESIGN. **Reason.** A rung is where every decidable hypothesis is discharged by computation --
-`supportedB_sound`, `lbWfPeregrine_of_check`, `by decide +kernel` for `hnb`, `spike_configPinned` for `hcfg` -- so the
-rungs measure the domain on which the statement has content.
-**Consequence.** A green rung is a statement about every environment modelling its table, not a closed-world claim about
-one run: `hev`, `hvwt`, `hty` and `hfo` stay bound and `lenv`/`env` universally quantified. Four of the five corpus
-programs -- Sieve, BinaryTrees, Quicksort, Fannkuch -- sit outside the rungs.
-**Evidence.** `Capstone.lean:149-193`; `Green.lean`; `doc/coverage.md`; `doc/rework/09-REPAIRS-W7.md` section 3. (verified)
+`supportedB_sound`, `lbWfPeregrine_of_check` for `hwf`, `spike_configPinned` for `hcfg`.
+**Consequence.** A green rung shows that checked terms meet the stated interface, and nothing more: every rung binds
+`UpstreamAsks env` beside `hfo`, `SpikeNatFacts` or a tabled block through `P`/`htbl`, each combination is `False`
+(R4), so no environment satisfies a rung's hypotheses. `hev`, `hvwt`, `hty` and `hfo` stay bound and `lenv`/`env`
+universally quantified. Four of the five corpus programs -- Sieve, BinaryTrees, Quicksort, Fannkuch -- sit outside the
+rungs.
+**Evidence.** `Capstone.lean:190-233`; `Green.lean`; `doc/coverage.md`; `doc/rework/07-STATUS.md` sections 1, 4.
+(verified)
 
 ### S3 -- the `max`-free level fragment
 
 **Reference.** none; `erases_subst_instance_decl` carries `consistent_instance_ext` and no syntactic restriction on the
 levels.
-**Ours.** `NoMaxLevels`, a clause of `TableSafe` (`Supported.lean:463`) and a conjunct of `ErasesEnv.defns`
-(`ErasesEnv.lean:82`), spent by `TabledLevels` (`ErasesCorrect/Steps.lean:1110-1111`) and transported by
-`tabledLevels_of_table` (`:1117`).
+**Ours.** `NoMaxLevels`, a clause of `TableSafe` (`Supported.lean:612`) and a conjunct of `ErasesEnv.defns`
+(`ErasesEnv.lean:94-97`) beside the body's translation, under the clause's reachability gate. The table-wide form is
+`TabledLevels` (`ErasesCorrect/Steps.lean:1102`), produced by `tabledLevels_of_table` (`:1109`) and taken as `hlvl` by
+`bridgeEnv_of_regInv` and `bridgeEnv_of_regContent`.
 **Nature.** DESIGN. **Reason.** R8: the positional level substitution `Erases.instL` runs on does not commute with
 `Level.max`.
 **Consequence.** One more scope restriction, decidable on a concrete table and measured satisfied at every tabled body
 of all eight rungs. `TabledLevels` asks for a translation of every tabled body, reached or not, and so overlaps `hcb :
-CompilerBodies`; unifying the two and gating them by reachability, as the reference gates its own typing premise, is
-open and recorded in `doc/rework/09-REPAIRS-W7.md` section 3.
-**Evidence.** `Supported.lean:455-465`; `ErasesEnv.lean:119-134`; `ErasesCorrect/Steps.lean:1105-1125`. (verified)
+CompilerBodies`; `ErasesEnv.defns` reads it only at reached constants, as the reference gates its own typing premise.
+**Evidence.** `Supported.lean:600-615`; `ErasesEnv.lean:87-110`; `ErasesCorrect/Steps.lean:1100-1120`. (verified)
 
 ## 4. What is aligned
 

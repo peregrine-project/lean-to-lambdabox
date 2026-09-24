@@ -55,7 +55,7 @@ jobs:
           leanblueprint web
 
       - name: Check blueprint declarations
-        run: lake env lean --run blueprint/CheckDecls.lean blueprint/lean_decls
+        run: lake env lean --run blueprint/CheckDecls.lean blueprint/lean_decls test/Vacuity.lean
 
       - name: Audit blueprint (labels, uses graph, leanok policy, trust edges vs #print axioms)
         run: python3 blueprint/scripts/audit.py
