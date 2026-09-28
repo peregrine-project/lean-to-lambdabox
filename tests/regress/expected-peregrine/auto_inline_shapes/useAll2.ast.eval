@@ -1,0 +1,16 @@
+Compiling:
+Compiled successfully:
+
+constr Nat.succ 
+ constr Nat.succ 
+  constr Nat.succ 
+   constr Nat.succ 
+    constr Nat.succ 
+     constr Nat.succ 
+      constr Nat.succ 
+       constr Nat.succ 
+        constr Nat.succ 
+         constr Nat.succ 
+          constr Nat.zero 
+
+

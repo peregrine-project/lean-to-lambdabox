@@ -75,10 +75,13 @@ structure ErasureConfig: Type where
   /--
   Whether to detect typeclass-dispatch artifacts after erasure and mark them as inline,
   so Peregrine collapses chains like `HAdd.hAdd → instHAdd → instAddNat → Nat.add` into
-  a direct call. Detection is structural (no name-matching):
-  - `Lean.Meta.isInstance name` — anything declared with `instance`, OR
-  - Trivial-alias shape on the erased body: a bare `const`/`proj`, or a single-ctor
-    structure literal whose fields are shallow.
+  a direct call. Detection is structural (no name-matching). The candidates are
+  - the instances (`Lean.Meta.isInstance`), and
+  - the definitions whose erased body has the shape of `LBTerm.isTrivialAlias`: after its leading
+    λs, a constant, a projection, or a constructor of index 0 without parameters or fields (such as
+    `false`). This covers projection functions such as `HAdd.hAdd`, aliases `def f := g` and
+    constant functions, but not structure literals, since the eraser applies a constructor to its
+    parameters and fields with `LBTerm.app`.
 
   Only non-recursive definitions are considered: a recursive definition is erased to a fixpoint
   and is never marked, since inlining it would unfold the recursion at every use.
@@ -135,18 +138,20 @@ where
     | .app f a => a.isValue && isConstructorApp f
     | _ => false
 
-/-- Strip leading lambdas (typeclass-instance parameters), exposing the body. -/
+/-- Strip leading lambdas, exposing the body. -/
 partial def _root_.LBTerm.stripLambdas : LBTerm → LBTerm
   | .lambda _ b => b.stripLambdas
   | t => t
 
 /--
-True when the erased body, modulo a leading chain of lambdas, looks like a
-typeclass-dispatch artifact:
-- a bare `const` (alias such as `instDecidableEqNat := Nat.decEq`),
-- a `proj` (alias to a field projection),
-- a single-ctor structure literal (the usual `Foo.mk arg₁ … argₙ` shape produced
-  by `instance : Foo := ⟨…⟩` after erasure).
+True when the erased body, after its leading lambdas, is
+- a `const`: an alias such as `def f := g`, or a constant function `fun _ => c`;
+- a `proj` of any term: in particular a projection function such as
+  `HAdd.hAdd := fun _ _ _ self => self.1`;
+- a `construct` of constructor index 0. The eraser applies every constructor to its parameters and
+  fields with `LBTerm.app` and leaves the argument list of `construct` empty, so this matches only
+  a constructor of index 0 without parameters or fields, such as `false` or `PUnit.unit`, and
+  never a structure literal.
 -/
 def _root_.LBTerm.isTrivialAlias (t : LBTerm) : Bool :=
   match t.stripLambdas with

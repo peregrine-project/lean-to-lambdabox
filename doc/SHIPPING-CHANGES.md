@@ -705,6 +705,51 @@ without peregrine.
 - **Regression test:** `tests/regress/auto_inline_noinline.lean` fails before (`useAll.ast.inlinings`
   and `useAll2.ast.inlinings` list `instNo` and `addNo`) and passes after.
 
+## S-11: The documentation of auto-inlining describes the shapes the code accepts
+
+- **Commit:** the commit whose subject starts with `shipping(S-11):`
+  (`git log --grep='^shipping(S-11):'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure.lean`: docstrings of `ErasureConfig.auto_inline_typeclass_dispatch`
+    (the list of candidates), `LBTerm.isTrivialAlias` and `LBTerm.stripLambdas`. No code changes.
+  - new `tests/regress/auto_inline_shapes.lean`, its expected outputs
+    `tests/regress/expected/auto_inline_shapes/` (4 files) and
+    `tests/regress/expected-peregrine/auto_inline_shapes/` (2 files).
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** defect D9 of S-2, confirmed on this branch. The docstring of the option said
+  that a non-instance is a candidate when its erased body is "a bare `const`/`proj`, or a
+  single-ctor structure literal whose fields are shallow", and that of `LBTerm.isTrivialAlias`
+  named "a single-ctor structure literal (the usual `Foo.mk arg₁ … argₙ` shape …)". The code tests,
+  after the leading λs, for `.const`, `.proj` or `.construct _ 0 _`. The eraser emits a
+  constructor as a `construct` node with an empty argument list, applied to its parameters and
+  fields with `LBTerm.app` (`erase.visitConstructor`), so the third case matches only a constructor
+  of index 0 without parameters or fields: never a structure literal, whatever its fields, and
+  `false` but not `true`. The first case also matches constant functions, which the documentation
+  called aliases. The docstring of `LBTerm.stripLambdas` said that the stripped λs are
+  typeclass-instance parameters; they are any parameters, and in a projection function they include
+  the structure argument. The docstrings now state what the code accepts. The code is kept: a
+  definition of any of these shapes is marked only after the checks of S-7 to S-10 (at most 40
+  nodes once inlined, a value, not recursive, not `@[noinline]`), and matching structure literals
+  would be a new feature.
+
+  The commit messages of `94a429c` and `8db2dd9`, which D9 also concerns, cannot be changed; S-2
+  records what they claim.
+- **Behaviour before:** reproduction: `tests/regress/auto_inline_shapes.lean` with the option on.
+  Marked: `addAlias : Nat → Nat → Nat := Nat.add` (a constant), `kfun (_ : Nat) : Nat := seven` (a
+  constant function), the projection function `P.b`, and `falseDef : Bool := false`. Not marked:
+  `trueDef : Bool := true`, `noneDef : Option Nat := none` (a constructor applied to its type
+  parameter) and the structure literal `pVal : P := ⟨Nat.zero, Nat.succ Nat.zero⟩`. This
+  contradicts the old documentation for `pVal` (a single-constructor structure literal with shallow
+  fields) and for `kfun` (not an alias).
+- **Behaviour after:** the same outputs and log messages, byte for byte; the documentation now
+  describes them. The 20 benchmarks erased with the option on give byte-identical `.ast` and
+  `.ast.inlinings` files. With `PEREGRINE` set, `useAll 2` evaluates to 10 under Peano naturals.
+- **Effect on emitted .ast (corpus):** byte-identical for all 284 files; `scripts/corpus-diff.sh`
+  against the corpus of S-10 reports 284 identical.
+- **Regression test:** the change does not alter behaviour, so no test fails before it.
+  `tests/regress/auto_inline_shapes.lean` guards the documented shapes: it pins the four marked and
+  the three unmarked definitions above. It passes before and after.
+
 ---
 
 ## Reported, not fixed
