@@ -3,8 +3,10 @@ import LeanToLambdaBox
 /-!
 `.mli` signatures of result types that `to_ml_type` translates (register entry S-2, claim C1):
 `Int`, `Option`, a flat pair, `Array`, and arrows and pairs under `List`, `Option` and `×`, which
-OCaml needs parenthesized; `rHof` has an arrow in argument position. Each signature was checked by
-linking the erased program with an OCaml harness written against it and running it.
+OCaml needs parenthesized; `rHof` has an arrow in argument position. A pair nested in a pair
+(`rNestL`, `rNestR`, and `rNestArg` in argument position) is parenthesized, since OCaml reads
+`A * B * C` as a triple (register entry S-3). Each signature was checked by linking the erased
+program with an OCaml harness written against it and running it.
 -/
 
 def rInt (n : Nat) : Int := Int.ofNat n - 10
@@ -33,3 +35,12 @@ def rArr (n : Nat) : Array Nat := Array.mk [n, n + 1]
 
 def rHof (f : Nat → Nat) : Nat := f 0
 #erase rHof to "rHof.ast" mli "rHof.mli"
+
+def rNestL (n : Nat) : (Nat × Nat) × Nat := ((n, n + 1), n + 2)
+#erase rNestL to "rNestL.ast" mli "rNestL.mli"
+
+def rNestR (n : Nat) : Nat × (Nat × Nat) := (n, (n + 1, n + 2))
+#erase rNestR to "rNestR.ast" mli "rNestR.mli"
+
+def rNestArg (p : (Nat × Nat) × Nat) : Nat := p.1.1 + p.1.2 + p.2
+#erase rNestArg to "rNestArg.ast" mli "rNestArg.mli"

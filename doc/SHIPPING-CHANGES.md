@@ -289,6 +289,50 @@ without peregrine.
   - `tests/regress/smoke.lean` passes with `fact3.ast` re-baselined (hygienic suffixes only); its
     other outputs and its peregrine outputs are unchanged.
 
+## S-3: Nested products are parenthesized in the `.mli` signature
+
+- **Commit:** the commit whose subject starts with `shipping(S-3):`
+  (`git log --grep='^shipping(S-3):'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure.lean`: `MLType.toString`, case `prod`: both components are printed
+    with `protCtor`, which parenthesizes arrows and products, instead of `protArrow`, which
+    parenthesizes only arrows.
+  - `tests/regress/mli_types.lean`: docstring; new cases `rNestL`, `rNestR`, `rNestArg`; their 9
+    expected outputs in `tests/regress/expected/mli_types/`.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** defect D1 of S-2, reproduced on this branch. A product nested in a product is
+  printed as an OCaml triple, while the erased value is a pair containing a pair, so an OCaml
+  harness written against the `.mli` type-checks and then crashes or reads garbage without any
+  warning. Before S-2 the same programs gave a warning and `unit`.
+- **Behaviour before:** the programs `rNestL n := ((n, n + 1), n + 2)`,
+  `rNestR n := (n, (n + 1, n + 2))`, `rNestArg (p : (Nat × Nat) × Nat) := p.1.1 + p.1.2 + p.2` and
+  `rNestFun n : (Nat × Nat) × (Nat → Nat) := ((n, n + 1), (· + n))` are erased with
+  `{remove_irrel_constr_args := true}` and compiled natively as for S-2 (peregrine with
+  `unbox.config` after the R-1 rewrite, malfunction, OCaml 4.14.2 without flambda, the
+  `via_malfunction` runtime objects), each linked with a harness written against its `.mli`:
+  - `rNestL.mli` is `val main: Z.t -> Z.t * Z.t * Z.t`; the harness
+    `let (a, b, c) = RNestL.main (Z.of_int 5)` prints a garbage number of about 235 digits (it
+    varies between runs), then `7 3195`;
+  - `rNestR.mli` is the same; its harness exits with status 139 (segmentation fault);
+  - `rNestArg.mli` is `val main: Z.t * Z.t * Z.t -> Z.t`; the harness passing `(5, 6, 7)` exits
+    with status 139;
+  - `rNestFun.mli` is `val main: Z.t -> Z.t * Z.t * (Z.t -> Z.t)`; its harness exits with status 139.
+- **Behaviour after:** the signatures are `val main: Z.t -> (Z.t * Z.t) * Z.t`,
+  `val main: Z.t -> Z.t * (Z.t * Z.t)`, `val main: (Z.t * Z.t) * Z.t -> Z.t` and
+  `val main: Z.t -> (Z.t * Z.t) * (Z.t -> Z.t)`. Harnesses written against them print `5 6 7`,
+  `5 6 7`, `18` and `5 6 15` (the Lean values; the function is applied to 10). The harnesses of
+  before no longer compile (`This expression has type (Z.t * Z.t) * Z.t but an expression was
+  expected of type 'a * 'b * 'c`). The `.ast` and `.ast.inlinings` of these programs are
+  byte-identical before and after, and products that are not nested print as before (`rPair`,
+  `rFunPair` and `rListPair` of `tests/regress/mli_types.lean` are unchanged).
+- **Effect on emitted .ast (corpus):** byte-identical for all 284 files (116 `.ast`,
+  116 `.ast.inlinings`, 52 `.mli`); `scripts/corpus-diff.sh` against the corpus of S-2 reports 284
+  identical. No corpus `.mli` contains a product: 51 are `val main: Z.t -> Z.t`, one is
+  `val main: Z.t -> unit`.
+- **Regression test:** `tests/regress/mli_types.lean`, cases `rNestL`, `rNestR` and `rNestArg`. It
+  fails before (their 3 `.mli` files are `Z.t * Z.t * Z.t` forms) and passes after; the 27 outputs
+  of its other cases are unchanged.
+
 ---
 
 ## Reported, not fixed

@@ -706,7 +706,7 @@ partial def MLType.toString: MLType -> String
   | list a => s!"{protCtor a} list"
   | option a => s!"{protCtor a} option"
   | array a => s!"{protCtor a} LeanArray.array"
-  | prod a b => s!"{protArrow a} * {protArrow b}"
+  | prod a b => s!"{protCtor a} * {protCtor b}"
 where
   protArrow (t: MLType): String := match t with
     | arrow .. => s!"({t.toString})"
