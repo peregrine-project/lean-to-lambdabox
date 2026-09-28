@@ -333,6 +333,57 @@ without peregrine.
   fails before (their 3 `.mli` files are `Z.t * Z.t * Z.t` forms) and passes after; the 27 outputs
   of its other cases are unchanged.
 
+## S-4: The benchmark Makefile compiles a `.mli` that names `LeanArray`
+
+- **Commit:** the commit whose subject starts with `shipping(S-4):`
+  (`git log --grep='^shipping(S-4):'`).
+- **Files and functions:**
+  - `benchmarks/via_malfunction/Makefile`: pattern rule `$(build)/%.cmi` (new prerequisite
+    `$(build)/LeanArray.cmi`; the command gains `-I $(build)`; one comment line added); new explicit
+    rules `$(build)/decidable.cmi`, `$(build)/eq.cmi` and `$(build)/LeanArray.cmi`, each with the
+    command the pattern rule gave it before (`$(OCAMLOPT) -c $<`), in place of the comments
+    `# <module>.cmi handled by generic rule (no prerequisites)`.
+  - new `tests/regress/makefile_cmi.lean` and `tests/regress/expected/makefile_cmi/cmi_commands.txt`.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** defect D2 of S-2, reproduced on this branch. Since S-2 the eraser writes
+  `Z.t LeanArray.array` for an `Array` in the `.mli`, but the Makefile compiles a generated `.mli`
+  without `-I $(build)`, the directory that holds `LeanArray.cmi`, and without building
+  `LeanArray.cmi` first; the build of a program with an `Array` in its signature stops there. The
+  three explicit rules are needed because the pattern rule now depends on `LeanArray.cmi`, which
+  would be a circular dependency for `LeanArray.cmi` itself; they keep the commands for these three
+  runtime interfaces as they were.
+- **Behaviour before:** reproduction: a fresh build directory `B` holds `rArr.ast`,
+  `rArr.ast.inlinings` and `rArr.mli` written by
+  `#erase rArr config {remove_irrel_constr_args := true} to ... mli ...` for
+  `rArr (n : Nat) : Array Nat := Array.mk [n, n + 1]`; `rArr.mli` is
+  `val main: Z.t -> Z.t LeanArray.array`. In `benchmarks/via_malfunction`,
+  `make build=B FLAMBDA=0 MALFUNCTION_NO_FLAMBDA_SWITCH=peregrine ARRAYML=JCFArrayOCaml4.ml
+  PEREGRINE=<wrapper applying the R-1 rewrite> -o B/rArr.mli -o B/rArr.ast -o B/rArr.ast.inlinings
+  B/rArr.cmi` runs `ocamlfind ocamlopt -package zarith -c B/rArr.mli`, which fails with
+  `Error: Unbound module LeanArray` (make exits with status 2). The target `B/rArr.cmx` fails the
+  same way after running peregrine. There, `rArr.cmi` comes before `axioms.cmx`, the only target
+  that leads to `LeanArray.cmi`, so adding `-I` alone would not be enough in a fresh directory.
+- **Behaviour after:** the same `make ... B/rArr.cmi` copies `LeanArray.mli`, compiles
+  `LeanArray.cmi`, then runs `ocamlfind ocamlopt -package zarith -I B -c B/rArr.mli`, and
+  succeeds. `make ... B/rArr.cmx` succeeds too. After `make ... B/LeanArray.cmx`, the objects link
+  with a harness written against `rArr.mli`
+  (`LeanArray.def__Array_size (Obj.repr ()) (RArr.main (Z.of_int 5))`), which prints `2`, the size
+  of `rArr 5 = #[5, 6]`. The benchmarks are unaffected: in a fresh build directory, `make -n` for
+  the binary of `even` lists the same commands before and after, except `-I $(build)` in the
+  compilation of `even.mli`; a real build of `even` with the options above gives byte-identical
+  `even.mli` and `even.mlf`, and the binary prints 1, 0 and 1 for the inputs 0, 7 and 1000, before
+  and after.
+- **Effect on emitted .ast (corpus):** byte-identical for all 284 files, since the Makefile's
+  erasure rules are unchanged; `scripts/corpus-diff.sh` against the corpus of S-3 reports 284
+  identical.
+- **Regression test:** `tests/regress/makefile_cmi.lean` erases `rArr` into a fresh build directory,
+  asks `make -n` for the commands that build `rArr.cmi` there (with `OCAMLOPT=ocamlopt`, so it needs
+  `make` but not OCaml), and writes them to `cmi_commands.txt`. It fails before
+  (`LeanArray.cmi is not built before rArr.cmi`: the only command is
+  `ocamlopt -c $(build)/rArr.mli`) and passes after, with the commands
+  `cp LeanArray.mli $(build)/LeanArray.mli`, `ocamlopt -c $(build)/LeanArray.mli` and
+  `ocamlopt -I $(build) -c $(build)/rArr.mli`.
+
 ---
 
 ## Reported, not fixed
