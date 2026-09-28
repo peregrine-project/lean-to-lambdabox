@@ -3,8 +3,8 @@
 #
 # Usage: scripts/regress.sh [--update] [TEST...]
 #
-# A test is a file tests/regress/<TEST>.lean that imports LeanToLambdaBox and writes its outputs with
-# `#erase ... to "<file>" [mli "<file>"]` (relative paths). Each test is elaborated in a fresh
+# A test is a file tests/regress/<TEST>.lean that writes its outputs to relative paths, normally
+# with `#erase ... to "<file>" [mli "<file>"]`. Each test is elaborated in a fresh
 # directory, and the set of files it writes must equal tests/regress/expected/<TEST>/ byte for byte.
 # A test also fails if Lean exits with an error, or if its output contains a PANIC message, unless
 # the test contains the line `-- regress: allow-panic`.

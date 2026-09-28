@@ -61,8 +61,9 @@ the corpora agree.
 
 ## Regression tests
 
-A regression test is a file `tests/regress/<name>.lean` that writes its outputs with
-`#erase ... to "<file>"`. Its expected outputs are `tests/regress/expected/<name>/`. Run
+A regression test is a file `tests/regress/<name>.lean` that writes its outputs into its working
+directory, normally with `#erase ... to "<file>"`. Its expected outputs are
+`tests/regress/expected/<name>/`. Run
 
     scripts/regress.sh [TEST...]
 
@@ -109,6 +110,184 @@ without peregrine.
   Makefile rules, and two runs of `scripts/corpus.sh` give byte-identical corpora.
 - **Regression test:** `tests/regress/smoke.lean` guards the README example under the default
   configuration and a closed recursive program under Peano naturals (`fact 3`).
+
+## S-2: Merge of `dev/zulip-issues`
+
+- **Commit:** the merge commit whose subject starts with `shipping(S-2):`
+  (`git log --grep='^shipping(S-2):'`). It is a `--no-ff` merge of `dev/zulip-issues` at `28955eb`
+  (`main` plus `94a429c`, `e46224f` and `8db2dd9`), and it also adds the tests and register text
+  listed below.
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure.lean`: `ErasureConfig` (new field `auto_inline_typeclass_dispatch`,
+    default `false`); new `LBTerm.stripLambdas`, `LBTerm.containsFix`, `LBTerm.isTrivialAlias`;
+    `erase.visitMutual` (the `@[inline]` check is computed first, as `leanInline`; new
+    post-erasure auto-inline step in the non-recursive branch); `MLType` (new constructors
+    `string`, `option`, `array`, `prod`); `MLType.toString` (now `partial`; `protArrow` and
+    `protCtor` replace `toStringProtected`); `to_ml_type` (new cases `Int`, `String`, `Option`,
+    `Array`, `Prod`).
+  - `benchmarks/via_malfunction/Makefile`: the `lake lean` rule also names `%.ast.inlinings` as a
+    target.
+  - `benchmarks/via_malfunction/nat-inline.ml` (15 attributes) and `int-inline.ml` (9 attributes):
+    `[@inlined]` becomes `[@inlined hint]` on Zarith calls.
+  - new `tests/regress/mli_types.lean`, `tests/regress/auto_inline.lean`,
+    `tests/regress/runtime_inlined_hint.lean`, their expected outputs in
+    `tests/regress/expected/<test>/`, and `tests/regress/expected-peregrine/auto_inline/`;
+  - `tests/regress/expected/smoke/fact3.ast`: re-baselined; its 6 hygienic suffixes grow by 1, as in
+    the corpus below (`fact3.ast` is written with a `config` clause);
+  - `scripts/regress.sh`: header comment only (a test may write its outputs without `#erase`);
+  - `doc/SHIPPING-CHANGES.md`: this entry; the paragraph on regression tests; R-17 and R-18
+    updated to the merged code; new R-24, R-25, R-26.
+- **Why necessary:** §5.1 of the specification requires merging `dev/zulip-issues` after checking,
+  before and after, each issue it claims to address. Its commit messages make five claims; each was
+  reproduced on this branch before and after the merge, with these verdicts:
+  - C1 (`94a429c`): the `.mli` printer covers `Int`, `String`, `Option`, `Array` and `Prod`, with
+    OCaml-correct precedence. **Partially correct**; defects D1, D2, D3.
+  - C2 (`94a429c`, `e46224f`, `8db2dd9`): `auto_inline_typeclass_dispatch` marks
+    typeclass-dispatch constants for inlining. **Correct as an option that is off by default and
+    leaves the default output unchanged; defective when turned on**: defects D5 to D10.
+  - C3 (`94a429c`): `[@inlined hint]` silences OCaml warning 55. **Correct; the generated code is
+    unchanged** (D12).
+  - C4 (`94a429c`): declaring `%.ast.inlinings` as an output of the `lake lean` rule prevents
+    peregrine's "no … inlinings file" failure. **Not fixed by this change alone** (D4).
+  - C5 (`94a429c`): the note `references/inlining_diagnosis.md` shows that the kernames match and
+    that the `instDecidableEqNat` symptom lies in peregrine. **The conclusion holds; the note's
+    candidate causes are wrong, and no commit contains the note** (D11).
+
+  The defects found in the branch are numbered D1 to D12 below. D1 to D9 remain at this commit and
+  are fixed in later entries of this register. D10, D11 and D12 are informational and are reported
+  as R-24, R-25 and R-26.
+- **Behaviour before:** the native checks of C1 compile the erased program with peregrine
+  (`unbox.config`, after rewriting `(primInt "N")` to `(primInt N)` because of R-1), malfunction and
+  `ocamlopt` 4.14.2 without flambda, and link it with the `via_malfunction` runtime and an OCaml
+  harness written against the emitted `.mli`.
+  - C1: a result of type `Int`, `Option Nat`, `Nat × Bool`, `List (Nat × Nat)`,
+    `Option (Nat → Nat)`, `(Nat → Nat) × Nat`, `Array Nat`, `(Nat × Nat) × Nat`, `Nat × (Nat × Nat)`
+    or `String` gets the signature `unit` (`unit list` for the list), with the warning
+    `failed to translate … into ML type, emitting unit instead`. `List (Nat → Nat)` is printed
+    `Z.t -> Z.t -> Z.t list`, which OCaml reads as a function of two arguments; a harness that
+    matches a list does not type-check (`This pattern should not be a list literal`).
+  - C2: `config {auto_inline_typeclass_dispatch := true}` is an error:
+    `'auto_inline_typeclass_dispatch' is not a field of structure 'Erasure.ErasureConfig'`.
+  - C3: `make build/<id>/axioms.cmx FLAMBDA=0 MALFUNCTION_NO_FLAMBDA_SWITCH=peregrine
+    ARRAYML=JCFArrayOCaml4.ml` in `benchmarks/via_malfunction` prints warning 55
+    (`Cannot inline: Function information unavailable`) 20 times, for `nat.ml` and `int.ml`.
+  - C4: in `benchmarks/via_malfunction`, after `make build/<id>/even.mlf` (with the options of C3 and
+    `PEREGRINE` set to a wrapper applying the R-1 rewrite), delete `even.ast.inlinings` and
+    `even.mlf` and run the same command: peregrine fails with
+    `option '--attributes': invalid element in list (build/<id>/even.ast.inlinings): no
+    build/<id>/even.ast.inlinings file or directory`, the error reported on Zulip on Feb 17. With a
+    copy of the Makefile whose `INLINING=1` rule for `%.mlf` also lists `$(build)/%.ast.inlinings` as a
+    prerequisite, make stops with `No rule to make target 'build/<id>/even.mlf'`, the failure
+    reported on Zulip on Feb 13 (`No rule to make target 'bin/even'`).
+  - C5: `scr n := isZeroIf n + (match isZeroDec n with | .isTrue _ => 10 | .isFalse _ => 20)`, with
+    `isZeroIf n := if n = 0 then 1 else 2` and `isZeroDec n : Decidable (n = 0) := inferInstance`,
+    erased with `{remove_irrel_constr_args := true}`: `instDecidableEqNat` has the same kername in
+    its call sites, its declaration and `scr.ast.inlinings`. After
+    `peregrine compile scr.ast unbox.config --attributes=scr.ast.inlinings`, `isZeroDec` calls
+    `$def__Nat_decEq`, but `isZeroIf` still computes
+    `(let ($discr (apply $def__instDecidableEqNat $n …)) (switch $discr …))`.
+- **Behaviour after:**
+  - C1: the same results get `Z.t`, `Z.t option`, `Z.t * bool`, `(Z.t * Z.t) list`,
+    `(Z.t -> Z.t) option`, `(Z.t -> Z.t) * Z.t`, `(Z.t -> Z.t) list` and `Z.t LeanArray.array`,
+    without warning, and the harnesses print the Lean values (`-7`, `None / Some 5`, `0 true`,
+    `5 6`, `6`, `6 5`, `6`, `2`). Remaining defects:
+    - D1: both nested products are printed `Z.t * Z.t * Z.t`, an OCaml triple, while the value is a
+      pair with a pair inside. The harness written against it crashes (exit status 139) for
+      `Nat × (Nat × Nat)` and prints garbage for `(Nat × Nat) × Nat`; with the signatures corrected
+      by hand to `Z.t * (Z.t * Z.t)` and `(Z.t * Z.t) * Z.t`, both print `5 6 7`. Before the merge
+      both were a warning and `unit`. `MLType.toString` prints the components of `prod` with
+      `protArrow`, which does not parenthesize products.
+    - D2: the benchmark Makefile cannot compile the `.mli` of an `Array` result: its `%.cmi` rule runs
+      `ocamlfind ocamlopt -package zarith -c build/<id>/<test>.mli` without `-I $(build)` and fails
+      with `Unbound module LeanArray`. The same file compiles with `-I`.
+    - D3: `String` is printed `string`, but nothing represents a Lean `String` as an OCaml string: a
+      program returning `String.mk …` references axioms that `axioms.ml` does not implement
+      (`malfunction cmx` fails with `Unbound value Axioms.def__String_mk`), and string literals
+      become `□` (R-4).
+    - A user inductive result type, the case raised on Zulip on Feb 10, still gets `unit` (R-17).
+  - C2: the option exists and is `false` by default. With it on, the 20 natio benchmarks erased with
+    `{remove_irrel_constr_args := true, auto_inline_typeclass_dispatch := true}` have the same `.ast`
+    as without the option, up to hygienic suffixes (see below), and longer `.ast.inlinings`
+    (binarytrees 3 to 19 entries, unionfind 16 to 37) that add instances and projection chains
+    (`instHAdd`, `instAddNat`, `HAdd.hAdd`, `OfNat.ofNat`, …). `peregrine eval --attributes=…` of
+    `binarytrees 4`, `triangle_rec 12`, `iflazy 7`, `even 9` and `const_fold 3` (Peano naturals,
+    logical externs) gives 610, 66, 42, 0 and 22, the values of Lean's `#eval`, before the merge,
+    after it, and with the option on. Remaining defects, all with the option on:
+    - D5: unbounded code growth. The `.mlf` of unionfind grows from 126 374 to 14 510 809 bytes and
+      peregrine's compile time from 0.04 s to 3.27 s (unionfind_noinline: 89 106 to 5 818 655 bytes);
+      among the marked constants are the monad instances `Id.instMonad`,
+      `UnionFind.StateT'.instMonad` and `UnionFind.ExceptT'.instMonad`. `e46224f` limited inlined
+      instances to 40 erased nodes; `8db2dd9` removed that limit (`autoInlineMaxBodySize`,
+      `LBTerm.size`) without saying so.
+    - D6: repeated work. Every instance is marked, whatever its body. With
+      `instance instTbl : Tbl := let s := slowSum 100000; ⟨fun i => s + i⟩` and
+      `useTbl n := (List.range n).foldl (fun acc i => acc + Tbl.get i) 0`, the native `useTbl 1000`
+      takes 0.007 s with the option off and 0.764 s with it on (`useTbl 3000`: 0.010 s and 2.257 s):
+      `slowSum 100000` is recomputed at every use.
+    - D7: the guard `!t.containsFix`, meant to refuse recursive bodies, never applies: `LBTerm.fix` is
+      built only in the recursive branch of `erase.visitMutual`, and the guard is in the
+      non-recursive branch.
+    - D8: `@[noinline]` is ignored: `@[noinline] instance instBar : Inhabited Nat := ⟨42⟩` is logged
+      `Auto-inlining typeclass instance instBar.` and listed in `.ast.inlinings`.
+    - D9: the documentation does not match the code. The docstring of the option promises "a
+      single-ctor structure literal whose fields are shallow", and that of `LBTerm.isTrivialAlias`
+      "a single-ctor structure literal (the usual `Foo.mk arg₁ … argₙ` shape …)"; the code
+      accepts `.construct _ 0 _` after stripping λs, which matches only argument-less constructors
+      of index 0, since constructors are emitted in applied form, and it also accepts constant
+      functions. With the option on, `fLit : Bool := false` and
+      `kfun (_ : Nat) : Nat := seven` are marked; `tLit : Bool := true` and the structure literal
+      `pLit : P := ⟨1, 2⟩` are not.
+    - D10 (R-24): the benchmark Makefile cannot turn the option on, and it does not make the `.ast`
+      smaller.
+  - C3: the same `make` prints no warning 55. The Cmm of `nat.ml` and `int.ml` (`-dcmm`) is the same
+    as before up to source locations: every Zarith call is still an out-of-line call
+    (`app "camlZ__…"`, 12 in `nat.ml`, 8 in `int.ml`). D12 (R-26).
+  - C4: the same experiment with the repository Makefile fails with the same peregrine error. With
+    the prerequisite added, make now re-runs `lake lean` and builds `even.mlf`: the co-target is one
+    half of the fix. Remaining defect:
+    - D4: the `%.mlf` rules do not list `%.ast.inlinings` as a prerequisite, so make does not
+      regenerate a missing `.ast.inlinings` before running peregrine.
+  - C5: the same `.mlf`. Peregrine's inlining pass (MetaRocq 1.5.1 `EInlining.inline`, extracted to
+    `peregrine-tool/_build/default/src/extraction/EInlining.ml:32-33`) does not rewrite `tCase`
+    scrutinees, and `if n = 0` puts `instDecidableEqNat n 0` in one. D11 (R-25).
+- **Effect on emitted .ast (corpus):** of 284 files, 214 are byte-identical and 70 `.ast` files
+  differ only in hygienic binder names; all 116 `.ast.inlinings` and 52 `.mli` files are
+  byte-identical. `scripts/corpus-diff.sh --normalize` reports 214 identical, 70 identical after
+  normalization, 0 differing. Every difference is a suffix `_hyg.N` of a binder name (the `_alt`
+  binders that `inlineMatchers` creates during erasure, and binders of definitions), whose number
+  grows by the number of `config` clauses elaborated in the same file before the name was created:
+  each `config` clause now takes one more macro scope, as `ErasureConfig` has one more field.
+  - Benchmarks (the Makefile writes `config {remove_irrel_constr_args := true,}` for `prune` and
+    `config {}` for `noprune`): in each variant 19 of the 20 `.ast` files differ, in 300 suffixes,
+    all by +1; `iflazy.ast` has no hygienic name and is identical.
+  - `examples/Defects` (7 `.ast` files) and `examples/PortProbe` (25): in a file written by the
+    k-th `#erase` with a `config` clause, or by a later `#erase` without one, the suffixes grow by 0
+    to k, and by k for the `_alt` binders created by that `#erase` (k is at most 22).
+  - `examples/Scope`: identical.
+
+  Without a `config` clause the output is unchanged: the 20 natio benchmarks erased with a bare
+  `#erase <test> to "<test>.ast" mli "<test>.mli"` give byte-identical `.ast`, `.ast.inlinings` and
+  `.mli` files (60) before and after the merge. Binder names carry no meaning in λ□, whose terms
+  use de Bruijn indices. In the logs, the signature logged for `#erase "abc"` (no `mli` path)
+  becomes `val main: string`, without the warning.
+- **Regression test:**
+  - `tests/regress/mli_types.lean` fails before (8 of its 9 `.mli` files differ) and passes after.
+    It holds the eight signatures checked natively above, and `(Nat → Nat) → Nat`, printed
+    `(Z.t -> Z.t) -> Z.t` before and after (checked natively too), which guards arrows in argument
+    position. The cases of D1 to D3 are left to their fixes.
+  - `tests/regress/auto_inline.lean` fails before (the option is not a field) and passes after. Its
+    outputs `default.ast` and `default.ast.inlinings` are byte-identical to those of the code before
+    the merge, `off.*` equals `default.*`, `on.ast` equals `default.ast`, and `on.ast.inlinings`
+    adds six constants. With `PEREGRINE` set, `on3.ast` validates, and `default3.ast` and `on3.ast`
+    evaluate to 3 with their inlinings.
+  - `tests/regress/runtime_inlined_hint.lean` checks the runtime files instead of calling `#erase`.
+    It fails before (`nat-inline.ml: 15 bare [@inlined] attribute(s)`) and, after, writes
+    `nat-inline.ml: [@inlined hint] 15, [@inlined] 0` and `int-inline.ml: [@inlined hint] 9,
+    [@inlined] 0`.
+  - C4 has no test, as the co-target alone changes no observable behaviour; the fix of D4 adds one.
+    C5 concerns peregrine and a file outside the repository.
+  - `tests/regress/smoke.lean` passes with `fact3.ast` re-baselined (hygienic suffixes only); its
+    other outputs and its peregrine outputs are unchanged.
 
 ---
 
@@ -328,9 +507,9 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
 
 ### R-17: The `.mli` signature falls back to `unit`
 
-- **What:** `to_ml_type` handles `Nat`, `Unit`/`PUnit`, `Bool`, `List` and arrows; any other type is
-  reported with a warning and printed as `unit`, which does not describe the value. The file has no
-  final newline.
+- **What:** `to_ml_type` handles `Nat`, `Int`, `Unit`/`PUnit`, `Bool`, `String`, `List`, `Option`,
+  `Array`, `Prod` and arrows; any other type, for instance a user inductive, is reported with a
+  warning and printed as `unit`, which does not describe the value. The file has no final newline.
 - **Where:** `LeanToLambdaBox/Erasure.lean`: `to_ml_type`, `gen_mli`, `eraseElab`.
 - **Reproduction:** `mli_fallback.mli` (`toMy : Nat → MyNat`, a user inductive) is
   `val main: Z.t -> unit`, with the warning
@@ -340,11 +519,11 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
 
 ### R-18: The benchmark Makefile does not re-erase after a frontend change
 
-- **What:** the rule that produces `%.ast` and `%.mli` depends on the generated `.lean` file and on
-  `../FromLeanCommon*`, not on the frontend sources, and `%.ast.inlinings` is not a declared output.
-  A build directory keeps the outputs of the frontend that first produced them.
+- **What:** the rule that produces `%.ast`, `%.ast.inlinings` and `%.mli` depends on the generated
+  `.lean` file and on `../FromLeanCommon*`, not on the frontend sources. A build directory keeps the
+  outputs of the frontend that first produced them.
 - **Where:** `benchmarks/via_malfunction/Makefile`: rule
-  `$(build)/%.ast $(build)/%.mli: $(build)/%.lean ../FromLeanCommon.lean ../FromLeanCommon/`.
+  `$(build)/%.ast $(build)/%.ast.inlinings $(build)/%.mli: $(build)/%.lean ../FromLeanCommon.lean ../FromLeanCommon/`.
 - **Reproduction:** in `benchmarks/via_malfunction`, after `make build/<id>/even.ast`, edit
   `LeanToLambdaBox/Erasure.lean` and run the same command: make prints
   `make: 'build/<id>/even.ast' is up to date.` `scripts/corpus.sh` deletes the outputs before
@@ -412,3 +591,64 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
   `unknown module prefix 'Erasure'`.
 - **Impact:** documentation only.
 - **Why not fixed:** not required by the verification goal unless it later becomes required.
+
+### R-24: Auto-inlining cannot be turned on in the benchmarks and does not shrink the `.ast`
+
+- **What:** `ErasureConfig.auto_inline_typeclass_dispatch` (defect D10 of S-2) is off by default,
+  and the benchmark Makefile has no variable for it: the only way is to override `ERASURE_CONFIG`
+  on the `make` command line, which also replaces the `remove_irrel_constr_args` setting that
+  `PRUNE_CONSTRUCTORS` adds. Commit `94a429c` expected the option to "shrink the AST bloat from
+  typeclass dispatch" (2 to 4 times); the option changes only `.ast.inlinings`, not the `.ast`, and
+  the constants it marks are shrunk only by peregrine's inlining, which keeps their declarations.
+- **Where:** `LeanToLambdaBox/Erasure.lean`: `ErasureConfig.auto_inline_typeclass_dispatch`,
+  `erase.visitMutual`; `benchmarks/via_malfunction/Makefile` (`ERASURE_CONFIG`).
+- **Reproduction:** `tests/regress/auto_inline.lean`: `on.ast` equals `default.ast`, and only
+  `on.ast.inlinings` differs. `grep -rn auto_inline benchmarks/` finds nothing.
+- **Impact:** informational: the option has no effect on any benchmark, and the size of the emitted
+  program is unchanged.
+- **Why not fixed:** not a defect of the eraser's output. A benchmark switch is a feature of the
+  benchmark pipeline that the verification goal does not require.
+
+### R-25: The inlining diagnosis note is not committed, and its candidate causes are wrong
+
+- **What:** commit `94a429c` lists `references/inlining_diagnosis.md` (defect D11 of S-2) among its
+  changes, but `references/.gitignore` (`*`) excludes the file and no commit contains it. The note's
+  conclusion holds: the kername of `instDecidableEqNat` is the same in its call sites, its
+  declaration and the `.ast.inlinings` file, so the symptom of Zulip (Feb 17: the constant is listed
+  but not inlined) lies in peregrine. Its three candidate causes (phase ordering, a filter on
+  λ-shaped bodies, an allow-list) and its statement that inlining removes the declaration are wrong.
+  Peregrine's inlining pass, MetaRocq 1.5.1 `EInlining.inline`, does not rewrite `tCase`
+  scrutinees, and `if n = 0` puts `instDecidableEqNat n 0` in a scrutinee; inlining keeps all
+  declarations. MetaRocq changed the `tCase` case to inline the scrutinee in commit `6b4d5ebc`
+  (`erasure/theories/EInlining.v:30`), on its `9.1` branch and in no release; peregrine requires
+  `rocq-metarocq-erasure-plugin` 1.5.1.
+- **Where:** `references/inlining_diagnosis.md` (ignored, not in the repository);
+  `peregrine-tool/_build/default/src/extraction/EInlining.ml:32-33` (extracted from MetaRocq 1.5.1
+  `EInlining.v`).
+- **Reproduction:** `git log --all -- references/inlining_diagnosis.md` prints nothing, and
+  `git check-ignore -v references/inlining_diagnosis.md` prints `references/.gitignore:1:*`. For the
+  program `scr` of S-2 (claim C5), compiled with
+  `peregrine compile scr.ast unbox.config --attributes=scr.ast.inlinings`, the `.mlf` keeps
+  `(let ($discr (apply $def__instDecidableEqNat $n …)) (switch $discr …))` in `isZeroIf`, while the
+  call outside a scrutinee, in `isZeroDec`, becomes `$def__Nat_decEq`.
+- **Impact:** informational: a constant marked for inlining that occurs in the scrutinee of a
+  `match` or `if`, such as `instDecidableEqNat`, stays a call in the compiled code.
+- **Why not fixed:** the cause is in peregrine's MetaRocq dependency, outside this repository, and
+  the note is not part of the repository.
+
+### R-26: `[@inlined hint]` silences warning 55 without inlining anything
+
+- **What:** the Zarith calls of `nat-inline.ml` and `int-inline.ml` carry `[@inlined hint]` (defect
+  D12 of S-2). With OCaml 4.14.2 without flambda, the generated code is the same as with `[@inlined]`:
+  every Zarith call stays an out-of-line call; only warning 55
+  (`Cannot inline: Function information unavailable`) is no longer printed. The question of Zulip
+  (Feb 17) whether these inlinings work has the answer no, for this compiler, and the warning that
+  showed it is gone.
+- **Where:** `benchmarks/via_malfunction/nat-inline.ml`, `benchmarks/via_malfunction/int-inline.ml`.
+- **Reproduction:** in `benchmarks/via_malfunction`,
+  `make build/<id>/axioms.cmx FLAMBDA=0 MALFUNCTION_NO_FLAMBDA_SWITCH=peregrine ARRAYML=JCFArrayOCaml4.ml`
+  prints warning 55 20 times before S-2 and never after. Compiling the copied `nat.ml` and `int.ml`
+  with `ocamlfind ocamlopt -package zarith -c -dcmm` gives the same Cmm before and after up to
+  source locations, with 12 and 8 calls `app "camlZ__…"`.
+- **Impact:** informational: no change in the generated code.
+- **Why not fixed:** not a defect: the change does what its commit message says.

@@ -67,6 +67,55 @@ structure ErasureConfig: Type where
   csimp: Bool := true
   /-- Whether to remove irrelevant arguments from constructors. -/
   remove_irrel_constr_args: Bool := false
+  /--
+  Whether to detect typeclass-dispatch artifacts after erasure and mark them as inline,
+  so Peregrine collapses chains like `HAdd.hAdd → instHAdd → instAddNat → Nat.add` into
+  a direct call. Detection is structural (no name-matching):
+  - `Lean.Meta.isInstance name` — anything declared with `instance`, OR
+  - Trivial-alias shape on the erased body: a bare `const`/`proj`, or a single-ctor
+    structure literal whose fields are shallow.
+
+  Inlining is always skipped if the erased body contains a `LBTerm.fix`, since
+  inlining recursion would unfold the recursive definition at every call site.
+
+  Off by default: marking constants for inlining is a *directive* to Peregrine
+  (everything marked will be inlined), so enable only after profiling shows it pays off.
+  -/
+  auto_inline_typeclass_dispatch: Bool := false
+
+/-- Strip leading lambdas (typeclass-instance parameters), exposing the body. -/
+partial def _root_.LBTerm.stripLambdas : LBTerm → LBTerm
+  | .lambda _ b => b.stripLambdas
+  | t => t
+
+/--
+True iff the term contains a `LBTerm.fix` subterm anywhere. Used to refuse
+inlining of recursive definitions, which would unfold recursion at each call site.
+-/
+partial def _root_.LBTerm.containsFix : LBTerm → Bool
+  | .box | .bvar _ | .fvar _ | .const _ | .prim _ => false
+  | .lambda _ b => b.containsFix
+  | .letIn _ v b => v.containsFix || b.containsFix
+  | .app a b => a.containsFix || b.containsFix
+  | .construct _ _ args => args.any (·.containsFix)
+  | .case _ d alts => d.containsFix || alts.any (fun (_, b) => b.containsFix)
+  | .proj _ e => e.containsFix
+  | .fix _ _ => true
+
+/--
+True when the erased body, modulo a leading chain of lambdas, looks like a
+typeclass-dispatch artifact:
+- a bare `const` (alias such as `instDecidableEqNat := Nat.decEq`),
+- a `proj` (alias to a field projection),
+- a single-ctor structure literal (the usual `Foo.mk arg₁ … argₙ` shape produced
+  by `instance : Foo := ⟨…⟩` after erasure).
+-/
+def _root_.LBTerm.isTrivialAlias (t : LBTerm) : Bool :=
+  match t.stripLambdas with
+  | .const _ => true
+  | .proj _ _ => true
+  | .construct _ 0 _ => true
+  | _ => false
 
 structure ErasureContext: Type where
   lctx: LocalContext := {}
@@ -581,14 +630,15 @@ where
     let ci := (← Compiler.LCNF.getDeclInfo? name).get!
     let names := ci.all -- possibly these are ._unsafe_rec
     let single_decl := names.length == 1
+    -- Lean's @[inline] attribute is name-based, so we can decide pre-erasure.
+    let leanInline := single_decl && match Compiler.getInlineAttribute? (← getEnv) name with
+      | .some .inline | .some .alwaysInline => true
+      | _ => false
     -- A single declaration may have to be output as an axiom.
     if single_decl then
-      match Compiler.getInlineAttribute? (← getEnv) name with
-      | .some inl => match inl with
-                     | .inline | .alwaysInline => logInfo s!"Name {name} is marked as inline."
-                                                  modify (fun s => { s with inlinings := s.inlinings.cons (toKername name) })
-                     | _ => pure ()
-      | .none => pure ()
+      if leanInline then
+        logInfo s!"Name {name} is marked as inline."
+        modify (fun s => { s with inlinings := s.inlinings.cons (toKername name) })
       match ci.value? (allowOpaque := true), isExtern (← getEnv) name, (← read).config.extern with
       | .none, _, _ =>
         logInfo s!"No value found for name {name}, emitting axiom."
@@ -609,6 +659,17 @@ where
         pure (← visitExpr (← prepare_erasure e))
       let kn := toKername name
       modify (fun s => { s with constants := s.constants.insert name kn, gdecls := s.gdecls.cons (kn, .constantDecl <| ⟨.some t⟩) })
+      -- Post-erasure: structurally detect typeclass-dispatch artifacts and mark them inline.
+      -- Skipped if @[inline] already added this constant, or if the body contains a `fix`
+      -- (inlining recursion would unfold the recursive definition at every call site).
+      if (← read).config.auto_inline_typeclass_dispatch && !leanInline && !t.containsFix then
+        let isInst ← Lean.Meta.isInstance name
+        if isInst then
+          logInfo s!"Auto-inlining typeclass instance {name}."
+          modify (fun s => { s with inlinings := s.inlinings.cons kn })
+        else if t.isTrivialAlias then
+          logInfo s!"Auto-inlining trivial alias {name}."
+          modify (fun s => { s with inlinings := s.inlinings.cons kn })
     else -- translate into a mutual fixpoint declaration
       let ids ← names.mapM (fun _ => mkFreshFVarId)
       let fixvarnames := names.map remove_unsafe_rec
@@ -629,22 +690,30 @@ inductive MLType: Type where
   | Z
   | unit
   | bool
+  | string
   | list (a: MLType)
+  | option (a: MLType)
+  | array (a: MLType)
+  | prod (a b: MLType)
 deriving Inhabited
 
-def MLType.toString: MLType -> String
-  | arrow a b => s!"{toStringProtected a} -> {b.toString}"
+partial def MLType.toString: MLType -> String
+  | arrow a b => s!"{protArrow a} -> {b.toString}"
   | Z => "Z.t"
   | unit => "unit"
   | bool => "bool"
-  | list a => s!"{a.toString} list"
+  | string => "string"
+  | list a => s!"{protCtor a} list"
+  | option a => s!"{protCtor a} option"
+  | array a => s!"{protCtor a} LeanArray.array"
+  | prod a b => s!"{protArrow a} * {protArrow b}"
 where
-  toStringProtected: MLType -> String
-  | arrow a b => s!"({toStringProtected a} -> {b.toString})"
-  | Z => "Z.t"
-  | unit => "unit"
-  | bool => "bool"
-  | list a => s!"{a.toString} list"
+  protArrow (t: MLType): String := match t with
+    | arrow .. => s!"({t.toString})"
+    | _ => t.toString
+  protCtor (t: MLType): String := match t with
+    | arrow .. | prod .. => s!"({t.toString})"
+    | _ => t.toString
 
 instance : ToString MLType := ⟨MLType.toString⟩
 
@@ -654,9 +723,14 @@ partial def to_ml_type (ty: Expr): MetaM MLType :=
     let varmltypes ← vartypes.mapM to_ml_type
     let bodymltype ← match (← Meta.whnf body) with
     | .const `Nat _ => pure .Z
+    | .const `Int _ => pure .Z
     | .const `Unit _ | .const `PUnit _ => pure .unit
     | .const `Bool _ => pure .bool
-    | .app (.const `List _) a => do pure <| .list (← to_ml_type a)
+    | .const `String _ => pure .string
+    | .app (.const `List _) a => pure <| .list (← to_ml_type a)
+    | .app (.const `Option _) a => pure <| .option (← to_ml_type a)
+    | .app (.const `Array _) a => pure <| .array (← to_ml_type a)
+    | .app (.app (.const `Prod _) a) b => pure <| .prod (← to_ml_type a) (← to_ml_type b)
     | t => logWarning s!"failed to translate {t} into ML type, emitting unit instead." ; pure .unit
     return varmltypes.foldr .arrow bodymltype
 
