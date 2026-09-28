@@ -630,21 +630,27 @@ inductive MLType: Type where
   | unit
   | bool
   | list (a: MLType)
+  | option (a: MLType)
+  | array (a: MLType)
+  | prod (a b: MLType)
 deriving Inhabited
 
-def MLType.toString: MLType -> String
-  | arrow a b => s!"{toStringProtected a} -> {b.toString}"
+partial def MLType.toString: MLType -> String
+  | arrow a b => s!"{protArrow a} -> {b.toString}"
   | Z => "Z.t"
   | unit => "unit"
   | bool => "bool"
-  | list a => s!"{a.toString} list"
+  | list a => s!"{protCtor a} list"
+  | option a => s!"{protCtor a} option"
+  | array a => s!"{protCtor a} LeanArray.array"
+  | prod a b => s!"{protCtor a} * {protCtor b}"
 where
-  toStringProtected: MLType -> String
-  | arrow a b => s!"({toStringProtected a} -> {b.toString})"
-  | Z => "Z.t"
-  | unit => "unit"
-  | bool => "bool"
-  | list a => s!"{a.toString} list"
+  protArrow (t: MLType): String := match t with
+    | arrow .. => s!"({t.toString})"
+    | _ => t.toString
+  protCtor (t: MLType): String := match t with
+    | arrow .. | prod .. => s!"({t.toString})"
+    | _ => t.toString
 
 instance : ToString MLType := ⟨MLType.toString⟩
 
@@ -654,9 +660,13 @@ partial def to_ml_type (ty: Expr): MetaM MLType :=
     let varmltypes ← vartypes.mapM to_ml_type
     let bodymltype ← match (← Meta.whnf body) with
     | .const `Nat _ => pure .Z
+    | .const `Int _ => pure .Z
     | .const `Unit _ | .const `PUnit _ => pure .unit
     | .const `Bool _ => pure .bool
-    | .app (.const `List _) a => do pure <| .list (← to_ml_type a)
+    | .app (.const `List _) a => pure <| .list (← to_ml_type a)
+    | .app (.const `Option _) a => pure <| .option (← to_ml_type a)
+    | .app (.const `Array _) a => pure <| .array (← to_ml_type a)
+    | .app (.app (.const `Prod _) a) b => pure <| .prod (← to_ml_type a) (← to_ml_type b)
     | t => logWarning s!"failed to translate {t} into ML type, emitting unit instead." ; pure .unit
     return varmltypes.foldr .arrow bodymltype
 

@@ -1,0 +1,1 @@
+val main: Z.t LeanArray.array -> Z.t LeanArray.array
