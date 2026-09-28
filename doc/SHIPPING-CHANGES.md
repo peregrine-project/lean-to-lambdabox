@@ -668,6 +668,43 @@ without peregrine.
   non-recursive instance that calls a recursive function (`instSum`) is marked. It passes before and
   after.
 
+## S-10: Auto-inlining does not mark constants tagged `@[noinline]`
+
+- **Commit:** the commit whose subject starts with `shipping(S-10):`
+  (`git log --grep='^shipping(S-10):'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure.lean`: `erase.visitMutual` (new local `leanNoinline`, read from
+    `Compiler.getInlineAttribute?`; in the non-recursive branch, a constant that the option would
+    mark is not marked if it is tagged `@[noinline]`, with a log message); `ErasureConfig`
+    (docstring of `auto_inline_typeclass_dispatch`).
+  - new `tests/regress/auto_inline_noinline.lean`, its expected outputs
+    `tests/regress/expected/auto_inline_noinline/` (4 files) and
+    `tests/regress/expected-peregrine/auto_inline_noinline/` (2 files).
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** defect D8 of S-2, reproduced on this branch. `@[noinline]` is the user's
+  request that a definition not be inlined. `erase.visitMutual` consulted only `@[inline]` and
+  `@[always_inline]`, so the option marked a `@[noinline]` instance or alias like any other, and
+  Peregrine inlined it. The example of S-2, `@[noinline] instance instBar : Inhabited Nat := ⟨42⟩`,
+  is no longer marked since S-8, because the literal `42` is erased to an application of
+  `OfNat.ofNat`, which is not a value; the reproduction below uses bodies that are values.
+- **Behaviour before:** reproduction: `tests/regress/auto_inline_noinline.lean`, which declares
+  `@[noinline] instance instNo : OpNo := ⟨fun n => n.succ⟩` and
+  `@[noinline] def addNo : Nat → Nat → Nat := Nat.add`, and the same without the attribute
+  (`instYes`, `addYes`), and erases `useAll n := addNo (OpNo.op n) (addYes (OpYes.op n) n)` with
+  the option on. `useAll.ast.inlinings` lists `instNo` and `addNo`, and the log says
+  `Auto-inlining typeclass instance instNo (inlined size 6).` and
+  `Auto-inlining trivial alias addNo (inlined size 1).`
+- **Behaviour after:** `instNo` and `addNo` are not listed, and the log says
+  `Not auto-inlining typeclass instance instNo: it is tagged @[noinline].` and the same for
+  `addNo`; `instYes` and `addYes` are still listed. The `.ast` files are byte-identical. With
+  `PEREGRINE` set, `useAll 2` evaluates to 8 under Peano naturals, before and after. The 20
+  benchmarks erased with the option on give byte-identical `.ast` and `.ast.inlinings` files: none
+  of their candidates is tagged `@[noinline]`.
+- **Effect on emitted .ast (corpus):** byte-identical for all 284 files; `scripts/corpus-diff.sh`
+  against the corpus of S-9 reports 284 identical. The corpus does not turn the option on.
+- **Regression test:** `tests/regress/auto_inline_noinline.lean` fails before (`useAll.ast.inlinings`
+  and `useAll2.ast.inlinings` list `instNo` and `addNo`) and passes after.
+
 ---
 
 ## Reported, not fixed

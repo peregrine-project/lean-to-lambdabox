@@ -83,6 +83,8 @@ structure ErasureConfig: Type where
   Only non-recursive definitions are considered: a recursive definition is erased to a fixpoint
   and is never marked, since inlining it would unfold the recursion at every use.
 
+  A constant tagged `@[noinline]` is never marked.
+
   A constant is marked only if its erased body is a value (`LBTerm.isValue`): the compiled program
   evaluates a top-level constant once, but an inlined body at every use.
 
@@ -670,6 +672,9 @@ where
     let leanInline := single_decl && match Compiler.getInlineAttribute? (← getEnv) name with
       | .some .inline | .some .alwaysInline => true
       | _ => false
+    let leanNoinline := match Compiler.getInlineAttribute? (← getEnv) name with
+      | .some .noinline => true
+      | _ => false
     -- A single declaration may have to be output as an axiom.
     if single_decl then
       if leanInline then
@@ -705,7 +710,9 @@ where
         let isInst ← Lean.Meta.isInstance name
         let kind := if isInst then "typeclass instance" else "trivial alias"
         if isInst || t.isTrivialAlias then
-          if !t.isValue then
+          if leanNoinline then
+            logInfo s!"Not auto-inlining {kind} {name}: it is tagged @[noinline]."
+          else if !t.isValue then
             logInfo s!"Not auto-inlining {kind} {name}: its body is not a value."
           else if size ≤ autoInlineMaxSize then
             logInfo s!"Auto-inlining {kind} {name} (inlined size {size})."
