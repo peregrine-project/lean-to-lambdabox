@@ -27,6 +27,4 @@ The blueprint renders this register.
 
 ## Entries
 
-There are no entries yet: no verification code exists on this branch. This file was created by the
-`ver-00-skeleton` unit as a skeleton only; entries are added as verification definitions and
-statements land and are checked against §3.1–§3.2.
+The register has no entries: the `verification` branch contains no verification code.
