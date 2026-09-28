@@ -1080,6 +1080,85 @@ without peregrine.
   `count.ast` and `sum.ast` validate and evaluate to 25 and 90. It fails before (47 panics, 23 of
   its 32 outputs differ, `peregrine eval` fails) and passes after.
 
+## S-14: A catch-all no longer re-evaluates a discriminant that is not a variable
+
+- **Commit:** the commit whose subject starts with `shipping(S-14):`
+  (`git log --grep='^shipping(S-14):'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure.lean`: `erase.visitCases` (docstring extended) and new
+    `erase.visitCasesOn`. `visitCases` erases the discriminant and collects the alternatives and
+    the catch-all as in S-13, then drops the catch-all if every constructor has an alternative.
+    If the catch-all is used and the erased discriminant is neither a variable nor □, it adds a
+    let-declaration `discr` whose value is the discriminant to the local context, replaces every
+    occurrence of the discriminant in the catch-all by `discr` (the catch-all stays well-typed,
+    since `discr` unfolds to the discriminant), builds the `case` with `discr` as its discriminant,
+    and returns `let discr := <erased discriminant> in <case>`. The extra arguments of an
+    over-applied `casesOn` are applied to the result, outside the `let`, as before.
+    `visitCasesOn` is the rest of S-13's `visitCases`, unchanged: the erasure of the catch-all, then
+    the machine-`Nat`, machine-`Int` and generic paths.
+  - new `tests/regress/sparse_discr.lean`, its expected outputs
+    `tests/regress/expected/sparse_discr/` (12 files) and
+    `tests/regress/expected-peregrine/sparse_discr/` (2 files).
+  - `tests/regress/expected/sparse_cases/{redCode,count,sum}.ast`: the declaration
+    `Sparse.redCode`, the only match of that test whose discriminant is not a variable.
+  - `doc/SHIPPING-CHANGES.md`: this entry; R-29 now points here.
+- **Why necessary:** R-29, a defect of S-13 and a performance regression against Lean v4.22
+  (`main`, and S-11 on this branch). In Lean v4.33, the matcher of a match with a wildcard passes
+  its discriminant to the wildcard's alternative inside the catch-all of its sparse `casesOn`
+  (`fun motive x h_1 h_2 => F._sparseCasesOn_1 x (h_1 ()) fun h => h_2 x`), and `inlineMatchers`
+  substitutes the discriminant for `x`. S-13 erases the catch-all as given, so a discriminant that
+  is a call is computed once as the scrutinee and once more in every branch of the catch-all. The
+  results are right, but a function that matches on its own recursive call computes that call
+  twice at every level, and takes time exponential in the depth of the recursion. Under v4.22 the
+  same match was a plain `casesOn` whose wildcard alternative received the constructor rebuilt from
+  the matched fields, so the discriminant was computed once, as it is in Lean's own compiled code.
+- **Behaviour before:** at the parent commit, with `tests/regress/sparse_discr.lean` copied in,
+  `lean` exits with status 1 and the error `expected one reference each: [stepN.ast refers to
+  Discr.step 3 times, predSub2.ast refers to Discr.sub2 2 times, negOr.ast refers to Discr.neg 2
+  times]`, and 4 of the 12 outputs differ from the expected ones (`stepN`, `predSub2`, `negOr` and
+  `all`). With `g` and `w` the let-bound alternatives of `.green` and of the wildcard,
+  `Discr.stepN = λn. let g := … in let w := … in case (Discr.step n) of red =>
+  (λh. w (Discr.step n)) □ | green => g Unit.unit | blue => (λh. w (Discr.step n)) □`, and
+  `Discr.step` puts its recursive call `step n` in the same three places. On the machine paths,
+  `Discr.predSub2 = λn. … let n := Discr.sub2 n in case (Nat.beq n 0) of false => … | true =>
+  (λh. w (Discr.sub2 n)) □`, and `Discr.negOr` likewise with `Discr.neg`. Built natively with the
+  tools of the benchmark pipeline (as in S-13), `stepN` erased with constructor pruning prints 1
+  (Lean's value) for 20, 22, 24, 26 and 28 after 0.012, 0.034, 0.120, 0.460 and 1.830 s; under
+  Peano naturals, `peregrine eval` of `stepN 16` and `stepN 20` prints 1 after 0.105 and 1.476 s.
+- **Behaviour after:** the test passes. For example,
+  `Discr.stepN = λn. let g := … in let w := … in let discr := Discr.step n in case discr of red =>
+  (λh. w discr) □ | green => g Unit.unit | blue => (λh. w discr) □`; `Discr.step` binds its
+  recursive call in the same way; `Discr.predSub2 = λn. … let discr := Discr.sub2 n in
+  let n := discr in case (Nat.beq n 0) of false => … | true => (λh. w discr) □`, and
+  `Discr.negOr` likewise. Natively, `stepN` prints 1 for each of 20 to 28 after 0.004 s, and for
+  1000 and 100000 after 0.004 and 0.006 s (for 1000000 the stack overflows, as the recursion of
+  `step` is not a tail call); `peregrine eval` of `stepN 20` and `stepN 200` takes 0.011 and
+  0.029 s. For comparison, S-11 (Lean v4.22) takes 0.004 to 0.007 s natively for 20 to 100000, and
+  Lean v4.33's own compiled code 0.006 to 0.008 s.
+
+  A match gets no `let` if its `casesOn` has no catch-all, if its catch-all is not used, or if its
+  discriminant is a variable. So the 12 tests other than `sparse_cases` and `sparse_discr` pass
+  unchanged, `compiler_api` (plain `casesOn` on the three paths) among them; in `sparse_cases`
+  only the declaration `Sparse.redCode` changes, and `count.ast` and `sum.ast` still evaluate to 25
+  and 90; and in the new test, `codeOf` (a plain `casesOn` on a call) and `shiftBy` (a match
+  applied to an extra argument, which `inlineMatchers` leaves as a β-redex whose parameter is the
+  discriminant) are byte-identical to the parent's output.
+- **Effect on emitted .ast (corpus):** byte-identical for all 284 files. In the corpus, every
+  `case` with a catch-all branch (`(λh. …) □`) has a variable discriminant: 267 on the generic
+  path, whose scrutinee is a variable, and 2 on the machine-`Nat` path (`Tiny.predOr0` in
+  `examples/PortProbe/predOr0.{default,prune}.ast`), whose `n` is bound to a variable.
+- **Regression test:** `tests/regress/sparse_discr.lean` erases a match with a used catch-all and a
+  discriminant that is a call on each path of `visitCases`: the generic path (`stepN`, and R-29's
+  `step`, which matches on its own recursive call), the machine `Nat` path (`predSub2`) and the
+  machine `Int` path (`negOr`); and, as controls, a plain `casesOn` on a call (`codeOf`) and a match
+  applied to an extra argument (`shiftBy`). The expected outputs show one `let discr` per such
+  match. An `#eval` counts, in each file, the references to the function that computes the
+  discriminant, and fails unless there is exactly one: a check of the emitted term, independent of
+  timing. With `PEREGRINE` set, `all.ast` (every function applied to arguments, under Peano
+  naturals) validates and evaluates to 26, Lean's value, which `#guard` checks. It fails before (the
+  `#eval` reports 3, 2 and 2 references; 4 of 12 outputs differ) and passes after. The expected
+  outputs of `sparse_cases` pin `Sparse.redCode` with its `let`.
+
 ---
 
 ## Reported, not fixed
@@ -1487,40 +1566,7 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
   with make 4.3, the version on CI's `ubuntu-latest`.
 - **Why not fixed:** not required by the verification goal unless it later becomes required.
 
-### R-29: A catch-all re-evaluates a discriminant that is not a variable
+### R-29: A catch-all re-evaluates a discriminant that is not a variable (fixed in S-14)
 
-- **What:** in Lean v4.33, the matcher of a match with a wildcard passes its discriminant to the
-  wildcard's alternative inside the catch-all of its sparse `casesOn`
-  (`fun motive x h_1 h_2 => F._sparseCasesOn_1 x (h_1 ()) fun h => h_2 x`), and `inlineMatchers`
-  substitutes the discriminant for `x`. When the discriminant is a call, as in
-  `match f n with | .red => … | c => g c`, the erased term computes it once as the scrutinee of the
-  `case` and once more in every branch of the catch-all:
-  `case (f n) of red => … | green => (λh. alt (f n)) □ | …`. Lean v4.22 passed the constructor
-  rebuilt from the matched fields instead, and Lean's compiler shares the value (`ToLCNF` caches
-  the translation of each expression). The eraser has no such sharing, and S-13 erases the
-  catch-all as Lean gives it.
-- **Where:** `LeanToLambdaBox/Erasure.lean`: `erase.visitCases` (the catch-all is erased as given),
-  `prepare_erasure` (`inlineMatchers`).
-- **Reproduction:** `tests/regress/expected/sparse_cases/redCode.ast`: `Sparse.redCode` computes
-  `Sparse.colorOf n` as the scrutinee and again in the three catch-all branches. The cost doubles
-  at every level of a recursion that matches on its own recursive call:
-
-      inductive Color | red | green | blue
-      def step : Nat → Color
-        | 0 => .green
-        | n + 1 => match step n with
-          | .red => .blue
-          | c => c
-      def stepN (n : Nat) : Nat := match step n with | .green => 1 | _ => 0
-
-  erased with `config {remove_irrel_constr_args := true}`, `step (n+1)` computes `step n` twice.
-  Built natively with the benchmark pipeline, `stepN` prints 1 (Lean's value) for 20, 22, 24 and
-  26 after 0.011 s, 0.033 s, 0.122 s and 0.465 s: the time grows by 4 when `n` grows by 2.
-- **Impact:** performance only. The results do not change, since the recomputed value is the same,
-  but a program can take exponential time where Lean's compiled code takes linear time. No
-  benchmark and no corpus program has a catch-all whose argument contains a call (every emitted
-  `.ast` of the corpus scanned).
-- **Why not fixed:** not required by the verification goal unless it later becomes required. The
-  emitted term is the erasure of the term that Lean elaborates; sharing the discriminant (let-binding
-  it and substituting the bound variable in the catch-all) would be an optimization on top of
-  erasure.
+Fixed in S-14, which describes the defect, its reproduction and the fix. The entry keeps its number
+so that references to R-29 stay valid.
