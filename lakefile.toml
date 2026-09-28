@@ -4,3 +4,8 @@ defaultTargets = ["LeanToLambdaBox"]
 
 [[lean_lib]]
 name = "LeanToLambdaBox"
+
+[[require]]
+name = "lean4lean"
+git = "https://github.com/barabbs/lean4lean"
+rev = "8223d223ed98661882e95d9d6a7126df7097cd76"
