@@ -17,9 +17,10 @@ character without a LaTeX rendering) stops the script with an error that names t
 register is never rendered partially. Two rules are specific to the registers:
 
   * the `#` title of a register is replaced by the chapter title;
-  * in doc/DIVERGENCES.md, the entries are the `###` sections under `## Entries`; free prose under
-    `## Entries` outside an entry is a status line of the file, not an entry, and is not rendered
-    (the script prints what it skips). With no entry, the chapter says that the register is empty.
+  * in doc/DIVERGENCES.md, the entries are the `###` sections under `## Entries`; the prose under
+    `## Entries` before the first entry is rendered as it is, followed by a table of the entries.
+    An `## Entries` section with neither prose nor entries is rendered as "The register has no
+    entries."
 
 The blueprint build (blueprint/build.sh) runs this script first; the audit runs it with --check.
 """
@@ -317,20 +318,11 @@ def entry_table(entries, src):
     return table('lp{0.8\\linewidth}', 'Entry & Title', rows)
 
 
-def block_text(b):
-    if b[0] in ('p', 'h'):
-        return b[-2] if b[0] == 'p' else b[2]
-    if b[0] == 'code':
-        return '\n'.join(b[1])
-    return '\n'.join(block_text(x) for item in b[2] for x in item)
-
-
-def check_complete(src, md_lines, tex, skipped=()):
-    """Every word of the Markdown, apart from the skipped blocks, occurs in the LaTeX at least as
-    often: a guard against a block that the converter drops."""
+def check_complete(src, md_lines, tex):
+    """Every word of the Markdown occurs in the LaTeX at least as often: a guard against a block
+    that the converter drops."""
     words = lambda t: collections.Counter(re.findall(r'[A-Za-z]{4,}', t))
     md, out = words('\n'.join(md_lines)), words(tex)
-    md -= words('\n'.join(block_text(b) for b in skipped))
     lost = sorted(w for w in md if out[w] < md[w])
     if lost:
         raise RenderError(f'{src}: the rendering lacks occurrences of: {", ".join(lost[:10])}')
@@ -371,19 +363,18 @@ def render_divergences():
     labels = set()
     out = [HEADER.format(src=src), '\\chapter{Divergences}\\label{chap:divergences}\n\n']
     entries_seen = False
-    body, skipped = [], []
+    body = []
     for h, content in groups:
         if h is not None and re.sub(r'`', '', h[2]).strip().lower() == 'entries':
             entries_seen = True
             sub = sections(content, 3)
-            skipped = [b for b in sub[0][1]]
-            if skipped:
-                print(f'render_registers: {src}: not rendered: {len(skipped)} block(s) of free prose '
-                      f'under "## Entries" (line {skipped[0][-1] if skipped[0][0] != "list" else h[3]})')
+            prose = sub[0][1]
             entries = [e for e, _ in sub[1:]]
             body.append(heading(2, h[2], src, h[3], labels))
+            body.append(tex_blocks(prose, src, labels))
             if not entries:
-                body.append('The register has no entries.\n\n')
+                if not prose:
+                    body.append('The register has no entries.\n\n')
             else:
                 body.append(entry_table(entries, src))
                 for e, c in sub[1:]:
@@ -401,7 +392,7 @@ def render_divergences():
             '\\code{blueprint/scripts/render\\_registers.py}; the sections below are the register\'s '
             'own text.\n',
             f'\\item \\lead{{Entries}} {n}.\n', '\\end{itemize}\n\n'] + body
-    check_complete(src, rest, ''.join(out), skipped)
+    check_complete(src, rest, ''.join(out))
     return ''.join(out)
 
 

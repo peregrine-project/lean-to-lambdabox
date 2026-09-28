@@ -87,9 +87,9 @@ replaces `leanblueprint checkdecls`, which needs a `checkdecls` dependency in th
 All are committed. `build.sh` rewrites the first three; the audit fails when any of the five is
 stale. The renderer converts the Markdown of a register block by block and stops with an error on a
 construct it does not handle (a table, a fenced code block, an unknown non-ASCII character), so a
-register is never rendered partially. In `doc/DIVERGENCES.md` it renders the preamble and the
-`###` entries under `## Entries`; free prose under `## Entries` outside an entry is not rendered,
-and the renderer prints what it skips.
+register is never rendered partially. In `doc/DIVERGENCES.md` the entries are the `###` sections
+under `## Entries`; the chapter renders the whole file, with a table of the entries after the prose
+that opens `## Entries`.
 
 ## Limitations
 
