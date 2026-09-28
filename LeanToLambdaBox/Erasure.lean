@@ -30,6 +30,11 @@ structure ErasureState: Type where
   /-- This field is only updated, not read. -/
   gdecls: GlobalDeclarations := []
   inlinings: List Kername := []
+  /--
+  For each constant in `inlinings` that has a body, the `LBTerm.inlinedSize` of that body: its
+  number of nodes once Peregrine has inlined into it the constants of `inlinings`.
+  -/
+  inlinedSizes: Std.HashMap Kername Nat := ∅
 
 namespace Config
 
@@ -67,6 +72,93 @@ structure ErasureConfig: Type where
   csimp: Bool := true
   /-- Whether to remove irrelevant arguments from constructors. -/
   remove_irrel_constr_args: Bool := false
+  /--
+  Whether to detect typeclass-dispatch artifacts after erasure and mark them as inline,
+  so Peregrine collapses chains like `HAdd.hAdd → instHAdd → instAddNat → Nat.add` into
+  a direct call. Detection is structural (no name-matching). The candidates are
+  - the instances (`Lean.Meta.isInstance`), and
+  - the definitions whose erased body has the shape of `LBTerm.isTrivialAlias`: after its leading
+    λs, a constant, a projection, or a constructor of index 0 without parameters or fields (such as
+    `false`). This covers projection functions such as `HAdd.hAdd`, aliases `def f := g` and
+    constant functions, but not structure literals, since the eraser applies a constructor to its
+    parameters and fields with `LBTerm.app`.
+
+  Only non-recursive definitions are considered: a recursive definition is erased to a fixpoint
+  and is never marked, since inlining it would unfold the recursion at every use.
+
+  A constant tagged `@[noinline]` is never marked.
+
+  A constant is marked only if its erased body is a value (`LBTerm.isValue`): the compiled program
+  evaluates a top-level constant once, but an inlined body at every use.
+
+  A constant is marked only if its body, with every marked constant inlined into it, has at most
+  `autoInlineMaxSize` nodes (`LBTerm.inlinedSize`), so Peregrine's inlining pass replaces each use
+  of a constant marked by this option by at most that many nodes.
+
+  Off by default: marking constants for inlining is a *directive* to Peregrine
+  (everything marked will be inlined), so enable only after profiling shows it pays off.
+  -/
+  auto_inline_typeclass_dispatch: Bool := false
+
+/-- Largest `LBTerm.inlinedSize` of a body that `ErasureConfig.auto_inline_typeclass_dispatch`
+marks for inlining. -/
+def autoInlineMaxSize : Nat := 40
+
+/--
+Number of nodes of the term after Peregrine's inlining pass, which replaces every constant listed
+in `.ast.inlinings` by its body, in which the listed constants are already replaced: a constant `kn`
+of `sizes` counts as `sizes[kn]` nodes, every other node as one.
+-/
+partial def _root_.LBTerm.inlinedSize (sizes : Std.HashMap Kername Nat) : LBTerm → Nat
+  | .const kn => sizes.getD kn 1
+  | .box | .bvar _ | .fvar _ | .prim _ => 1
+  | .lambda _ b => 1 + b.inlinedSize sizes
+  | .letIn _ v b => 1 + v.inlinedSize sizes + b.inlinedSize sizes
+  | .app a b => 1 + a.inlinedSize sizes + b.inlinedSize sizes
+  | .construct _ _ args => args.foldl (fun n a => n + a.inlinedSize sizes) 1
+  | .case _ d alts => alts.foldl (fun n (_, b) => n + b.inlinedSize sizes) (1 + d.inlinedSize sizes)
+  | .proj _ e => 1 + e.inlinedSize sizes
+  | .fix defs _ => defs.foldl (fun n d => n + d.body.inlinedSize sizes) 1
+
+/--
+True when the term is a value of weak call-by-value evaluation, with constants counted as values
+(the compiled program evaluates each top-level constant once): a λ, □, a primitive, a constant, or
+a constructor applied to such values. Evaluating it again at each use repeats no computation other
+than building it.
+-/
+partial def _root_.LBTerm.isValue (t : LBTerm) : Bool :=
+  match t with
+  | .lambda _ _ | .box | .prim _ | .const _ => true
+  | .construct .. | .app .. => isConstructorApp t
+  | _ => false
+where
+  /-- A constructor applied to values. -/
+  isConstructorApp : LBTerm → Bool
+    | .construct _ _ args => args.all LBTerm.isValue
+    | .app f a => a.isValue && isConstructorApp f
+    | _ => false
+
+/-- Strip leading lambdas, exposing the body. -/
+partial def _root_.LBTerm.stripLambdas : LBTerm → LBTerm
+  | .lambda _ b => b.stripLambdas
+  | t => t
+
+/--
+True when the erased body, after its leading lambdas, is
+- a `const`: an alias such as `def f := g`, or a constant function `fun _ => c`;
+- a `proj` of any term: in particular a projection function such as
+  `HAdd.hAdd := fun _ _ _ self => self.1`;
+- a `construct` of constructor index 0. The eraser applies every constructor to its parameters and
+  fields with `LBTerm.app` and leaves the argument list of `construct` empty, so this matches only
+  a constructor of index 0 without parameters or fields, such as `false` or `PUnit.unit`, and
+  never a structure literal.
+-/
+def _root_.LBTerm.isTrivialAlias (t : LBTerm) : Bool :=
+  match t.stripLambdas with
+  | .const _ => true
+  | .proj _ _ => true
+  | .construct _ 0 _ => true
+  | _ => false
 
 structure ErasureContext: Type where
   lctx: LocalContext := {}
@@ -581,14 +673,18 @@ where
     let ci := (← Compiler.LCNF.getDeclInfo? name).get!
     let names := ci.all -- possibly these are ._unsafe_rec
     let single_decl := names.length == 1
+    -- Lean's @[inline] attribute is name-based, so we can decide pre-erasure.
+    let leanInline := single_decl && match Compiler.getInlineAttribute? (← getEnv) name with
+      | .some .inline | .some .alwaysInline => true
+      | _ => false
+    let leanNoinline := match Compiler.getInlineAttribute? (← getEnv) name with
+      | .some .noinline => true
+      | _ => false
     -- A single declaration may have to be output as an axiom.
     if single_decl then
-      match Compiler.getInlineAttribute? (← getEnv) name with
-      | .some inl => match inl with
-                     | .inline | .alwaysInline => logInfo s!"Name {name} is marked as inline."
-                                                  modify (fun s => { s with inlinings := s.inlinings.cons (toKername name) })
-                     | _ => pure ()
-      | .none => pure ()
+      if leanInline then
+        logInfo s!"Name {name} is marked as inline."
+        modify (fun s => { s with inlinings := s.inlinings.cons (toKername name) })
       match ci.value? (allowOpaque := true), isExtern (← getEnv) name, (← read).config.extern with
       | .none, _, _ =>
         logInfo s!"No value found for name {name}, emitting axiom."
@@ -609,6 +705,25 @@ where
         pure (← visitExpr (← prepare_erasure e))
       let kn := toKername name
       modify (fun s => { s with constants := s.constants.insert name kn, gdecls := s.gdecls.cons (kn, .constantDecl <| ⟨.some t⟩) })
+      let size := t.inlinedSize (← get).inlinedSizes
+      if leanInline then
+        modify (fun s => { s with inlinedSizes := s.inlinedSizes.insert kn size })
+      -- Post-erasure: structurally detect typeclass-dispatch artifacts and mark them inline.
+      -- Skipped if @[inline] already added this constant. Recursive definitions are erased in the
+      -- other branch and are never marked.
+      if (← read).config.auto_inline_typeclass_dispatch && !leanInline then
+        let isInst ← Lean.Meta.isInstance name
+        let kind := if isInst then "typeclass instance" else "trivial alias"
+        if isInst || t.isTrivialAlias then
+          if leanNoinline then
+            logInfo s!"Not auto-inlining {kind} {name}: it is tagged @[noinline]."
+          else if !t.isValue then
+            logInfo s!"Not auto-inlining {kind} {name}: its body is not a value."
+          else if size ≤ autoInlineMaxSize then
+            logInfo s!"Auto-inlining {kind} {name} (inlined size {size})."
+            modify (fun s => { s with inlinings := s.inlinings.cons kn, inlinedSizes := s.inlinedSizes.insert kn size })
+          else
+            logInfo s!"Not auto-inlining {kind} {name}: inlined size {size} exceeds {autoInlineMaxSize}."
     else -- translate into a mutual fixpoint declaration
       let ids ← names.mapM (fun _ => mkFreshFVarId)
       let fixvarnames := names.map remove_unsafe_rec
@@ -623,6 +738,9 @@ where
         for (n, i) in fixvarnames.zipIdx do
           let kn := toKername n
           modify (fun s => { s with constants := s.constants.insert n kn, gdecls := s.gdecls.cons (kn, .constantDecl ⟨.some <| .fix defs i⟩) })
+          if leanInline then
+            let size := (LBTerm.fix defs i).inlinedSize (← get).inlinedSizes
+            modify (fun s => { s with inlinedSizes := s.inlinedSizes.insert kn size })
 
 inductive MLType: Type where
   | arrow (a b: MLType)
