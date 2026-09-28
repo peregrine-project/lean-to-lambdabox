@@ -1,0 +1,19 @@
+% Web version of the blueprint (plasTeX, through `leanblueprint web`).
+\documentclass{report}
+
+\usepackage{amssymb, amsthm, amsmath}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage[showmore, dep_graph]{blueprint}
+
+\input{macros/common}
+\input{macros/web}
+
+\title{Verified Lean to \texorpdfstring{$\lambda_\Box$}{lambda-box} erasure: blueprint}
+\author{lean-to-lambdabox}
+
+\begin{document}
+\maketitle
+\input{content}
+\end{document}

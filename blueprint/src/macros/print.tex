@@ -1,0 +1,16 @@
+% Macros for the print version only: the leanblueprint annotations, which the web version gets from
+% the leanblueprint plasTeX package.
+\newcommand{\lean}[1]{\par\noindent{\footnotesize\textcolor{furniture}{Lean: \texttt{\detokenize{#1}}}}\par}
+\newcommand{\discussion}[1]{}
+\newcommand{\leanok}{}
+\newcommand{\mathlibok}{}
+\newcommand{\notready}{}
+% \uses and \proves: invisible references, so that LaTeX warns about an undefined label.
+\ExplSyntaxOn
+\NewDocumentCommand{\uses}{m}
+ {\clist_map_inline:nn{#1}{\vphantom{\ref{##1}}}%
+  \ignorespaces}
+\NewDocumentCommand{\proves}{m}
+ {\clist_map_inline:nn{#1}{\vphantom{\ref{##1}}}%
+  \ignorespaces}
+\ExplSyntaxOff
