@@ -600,9 +600,39 @@ where
   visitAppArgs (f : LBTerm) (args : Array Expr) : EraseM LBTerm := do
       args.foldlM (fun e arg => do return LBTerm.app e (← visitExpr arg)) f
 
+  /--
+  Erase an application of a declaration that `getCasesInfo?` recognizes:
+  - `T.casesOn`: one alternative per constructor, in constructor order;
+  - a sparse `casesOn` made by the match compiler (`F._sparseCasesOn_<i>`): alternatives for some
+    constructors, in the order of the match, then a catch-all whose hypotheses (that none of those
+    constructors matched) are proofs;
+  - a per-constructor eliminator `T.c.elim`: a side condition that the discriminant is built with
+    `c`, then the alternative of `c` only.
+  Each constructor's branch is its alternative if it has one. Otherwise it is the catch-all applied to
+  one □ per hypothesis (the sparse `casesOn` reduces to the catch-all applied to a proof), or □ if
+  there is no catch-all (the side condition makes the branch unreachable).
+  -/
   visitCases (casesInfo : CasesInfo) (args: Array Expr) : EraseM LBTerm := do
     let discr_nt ← visitExpr args[casesInfo.discrPos]!
-    let typeName := casesInfo.declName.getPrefix
+    let typeName := casesInfo.indName
+    let .inductInfo indVal ← getConstInfo typeName | unreachable!
+    -- The number of fields and the alternative of each constructor that has one; the catch-all.
+    let mut ctorAlts : Std.HashMap Name (Nat × Expr) := {}
+    let mut catchAll : Option (Nat × Expr) := none
+    for i in casesInfo.altsRange, altInfo in casesInfo.altNumParams do
+      match altInfo with
+      | .ctor ctorName numFields => ctorAlts := ctorAlts.insert ctorName (numFields, args[i]!)
+      | .default numHyps => catchAll := some (numHyps, args[i]!)
+    -- The body of the branch of a constructor that has no alternative.
+    let missing_nt : LBTerm ←
+      match catchAll with
+      | some (numHyps, catchAllFun) =>
+        if indVal.ctors.all (ctorAlts.contains ·) then
+          pure .box
+        else do
+          let catchAll_nt ← visitExpr catchAllFun
+          pure <| (List.replicate numHyps LBTerm.box).foldl .app catchAll_nt
+      | none => pure .box
 
     -- If we are using machine Nats then the inductive casesOn will not work.
     let mut ret: LBTerm ← (match typeName, (← read).config.nat with
@@ -614,14 +644,17 @@ where
       assumes expressions are well-typed, which wouldn't be the case naïvely as (n - 1).succ is not defeq to n.
       Using casts to make the dependent types typecheck would be an option now that Eq.rec is added to the axioms.
       -/
-      let zero_arm := args[casesInfo.altsRange.lower]!
-      let zero_nt ← visitExpr zero_arm
-      let succ_arm := args[casesInfo.altsRange.lower + 1]! -- a function with one argument of type Nat
+      let zero_nt ← match ctorAlts[``Nat.zero]? with
+        | some (_, zero_arm) => visitExpr zero_arm
+        | none => pure missing_nt
       let bool_indval := (← getConstInfo ``Bool).inductiveVal!
       let (bool_indid, _) ← register_inductive bool_indval
       withLocalDecl `n (.const ``Nat []) .default (fun n_fvar => do
-        let gtz_arm := Expr.app succ_arm <| mkAppN (.const ``Nat.sub []) #[.fvar n_fvar, .lit (.natVal 1)] -- no longer takes an argument, n_fvar is free here
-        let gtz_nt: LBTerm ← visitExpr gtz_arm
+        let gtz_nt: LBTerm ← match ctorAlts[``Nat.succ]? with
+          | some (_, succ_arm) => -- a function with one argument of type Nat
+            let gtz_arm := Expr.app succ_arm <| mkAppN (.const ``Nat.sub []) #[.fvar n_fvar, .lit (.natVal 1)] -- no longer takes an argument, n_fvar is free here
+            visitExpr gtz_arm
+          | none => pure missing_nt
         let condition: LBTerm ← visitExpr <| mkAppN (.const ``Nat.beq []) #[.fvar n_fvar, .lit (.natVal 0)]
         let case_nt: LBTerm := .case (bool_indid, 0) condition [← mkAlt [] gtz_nt, ← mkAlt [] zero_nt]
         mkLetIn n_fvar discr_nt case_nt
@@ -634,28 +667,32 @@ where
       We build `LBTerm`s directly instead of building expressions and using visitExpr because visitExpr assumes typability.
       In effect, we can silently cast between Int and Nat.
       -/
-      let ofnat_fun := args[casesInfo.altsRange.lower]!
-      let negsucc_fun := args[casesInfo.altsRange.lower + 1]!
       let bool_indval := (← getConstInfo ``Bool).inductiveVal!
       let (bool_indid, _) ← register_inductive bool_indval
       withLocalDecl `n (.const ``Nat []) .default (fun n_fvar => do
-        let ofnat_nt: LBTerm := .app (← visitExpr ofnat_fun) (.fvar n_fvar)
-        let negsucc_nt: LBTerm :=
-          .app (← visitExpr negsucc_fun)
-          <| .app (← visitExpr (.const ``Int.neg []))
-          <| .app (← visitExpr (.const ``Nat.succ [])) (.fvar n_fvar)
+        let ofnat_nt: LBTerm ← match ctorAlts[``Int.ofNat]? with
+          | some (_, ofnat_fun) => do
+            let ofnat_f ← visitExpr ofnat_fun
+            pure <| .app ofnat_f (.fvar n_fvar)
+          | none => pure missing_nt
+        let negsucc_nt: LBTerm ← match ctorAlts[``Int.negSucc]? with
+          | some (_, negsucc_fun) => do
+            let negsucc_f ← visitExpr negsucc_fun
+            let int_neg ← visitExpr (.const ``Int.neg [])
+            let nat_succ ← visitExpr (.const ``Nat.succ [])
+            pure <| .app negsucc_f <| .app int_neg <| .app nat_succ (.fvar n_fvar)
+          | none => pure missing_nt
         let condition: LBTerm ← visitExpr <| mkAppN (.const ``Nat.ble []) #[.lit (.natVal 0), .fvar n_fvar]
         let case_nt: LBTerm := .case (bool_indid, 0) condition [← mkAlt [] negsucc_nt, ← mkAlt [] ofnat_nt]
         mkLetIn n_fvar discr_nt case_nt
       )
     | _, _ => do
-      let .inductInfo indVal ← getConstInfo typeName | unreachable!
       let (indid, argmasks) ← register_inductive indVal
       let mut alts := #[]
-      for i in casesInfo.altsRange, altInfo in casesInfo.altNumParams, argmask in argmasks do
-        let .ctor _ numFields := altInfo
-          | throwError "Erasure: unsupported catch-all alternative in {casesInfo.declName}"
-        let alt ← visitAlt numFields argmask args[i]!
+      for ctorName in indVal.ctors, argmask in argmasks do
+        let alt ← match ctorAlts[ctorName]? with
+          | some (numFields, alt) => visitAlt numFields argmask alt
+          | none => pure (List.replicate (argmask.count .keep) BinderName.anon, missing_nt)
         alts := alts.push alt
       pure <| LBTerm.case (indid, indVal.numParams) discr_nt alts.toList
     )

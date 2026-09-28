@@ -960,6 +960,126 @@ without peregrine.
   hygienic names. The 29 re-baselined goldens keep guarding what they guarded, and `smoke`,
   `mli_types` and the auto-inline tests pass unchanged apart from them.
 
+## S-13: Sparse `casesOn` and per-constructor eliminators are erased by constructor name
+
+- **Commit:** the commit whose subject starts with `shipping(S-13):`
+  (`git log --grep='^shipping(S-13):'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure.lean`: `erase.visitCases` (new docstring). The inductive type is
+    `casesInfo.indName` instead of the prefix of `casesInfo.declName`. The alternatives are collected
+    by constructor name from the `.ctor` entries of `casesInfo.altNumParams`, and the catch-all from
+    its `.default` entry. The branch of a constructor without an alternative is the catch-all
+    applied to one `□` per hypothesis, or `□` when there is no catch-all; the catch-all is erased
+    once, and only if some constructor lacks an alternative. The machine-`Nat` path (arms of
+    `Nat.zero` and `Nat.succ`), the machine-`Int` path (arms of `Int.ofNat` and `Int.negSucc`) and
+    the generic path (a loop over the constructors of the type) look up each arm by name. The
+    generic path no longer throws an error on a `.default` entry (the E4 edit of S-12).
+  - new `tests/regress/sparse_cases.lean`, its expected outputs
+    `tests/regress/expected/sparse_cases/` (32 files) and
+    `tests/regress/expected-peregrine/sparse_cases/` (4 files).
+  - `doc/SHIPPING-CHANGES.md`: this entry; new R-29.
+- **Why necessary:** the known defect of S-12 ("sparse `casesOn`"), a silent miscompilation: in
+  Lean v4.33, `getCasesInfo?` (`Lean/Meta/CasesInfo.lean:56`) also describes two kinds of
+  declarations that are not a `T.casesOn`, and `erase.visitCases` turned each application of them
+  into `□` after a panic, with exit status 0 and output that `peregrine validate` accepts.
+  - The sparse `casesOn` `F._sparseCasesOn_<i>` that the match compiler creates for a match with a
+    wildcard or inaccessible pattern. Its alternatives are those of the constructors that the match
+    names, in the order in which they first appear in the match (`collectCtors`,
+    `Lean/Meta/Match/Match.lean:543`), so not necessarily the constructor order; a last argument,
+    the catch-all, takes a proof of `Nat.hasNotBit mask x.ctorIdx`. Its definition
+    (`mkSparseCasesOn`, `Lean/Meta/Constructions/SparseCasesOn.lean:59`) is a `T.rec` whose minor
+    premise for a constructor without alternative applies the catch-all to such a proof; the
+    erasure of that application is the erased catch-all applied to `□`.
+  - The per-constructor eliminator `T.c.elim motive x h alt` (`mkConstructorElim`,
+    `Lean/Meta/Constructions/CtorElim.lean:165`), whose side condition `h : x.ctorIdx = i` makes
+    every constructor other than `c` unreachable; it has one alternative and no catch-all. The
+    derived `BEq` and `DecidableEq` of an inductive with at least 10 constructors use it.
+
+  Lean's own compiler treats both the same way (`ToLCNF.visitAlt` and `ToLCNF.visitCases`,
+  `Lean/Compiler/LCNF/ToLCNF.lean:584,621`): it applies the catch-all to erased arguments and
+  leaves constructors without an alternative out of the `cases`. A λ□ `case` needs one branch per
+  constructor, so an unreachable branch is `□`.
+- **Behaviour before:** at the parent commit, with `tests/regress/sparse_cases.lean` copied into a
+  checkout: `lake env lean` exits with status 0 after 47 messages
+  `PANIC at Erasure.erase.visitCases LeanToLambdaBox.Erasure:652:55: unreachable code has been
+  reached`, and every match that Lean compiles to a sparse `casesOn` or an eliminator is `□`: for
+  example `Sparse.isRed` is `λx. let _alt := … in let _alt := … in □` and `Sparse.viaElim` is
+  `λx h k. □ k`. `peregrine validate` accepts `count.ast` and `sum.ast`, and `peregrine eval` of
+  either fails with `Could not evaluate program: Case: <15> branch not found`. The corpus
+  reproductions of S-12 hold: `peregrine eval` of `examples/PortProbe/predOr0.peano.ast` and
+  `secondN.peano.ast` prints `constr con_15` / `constr con_105` and `constr con_15` /
+  `constr con_108`; natively, `rbmap_beans`, `rbmap_std`, `rbmap_mono` and `rbmap_raw` print 1
+  for 50 and 1000, `const_fold` crashes on every input, and `deriv` crashes or runs past a 60 s
+  timeout.
+- **Behaviour after:** no panic. The same reproduction gives, for example, with `r` and `w` the
+  let-bound alternatives of `.red` and of the wildcard,
+  `Sparse.isRed = λx. let r := … in let w := … in case x of red => r Unit.unit |
+  green => (λh. w x) □ | blue => (λh. w x) □ | black => (λh. w x) □`;
+  `Sparse.pick`, whose match lists `.c` before `.a`, gets each alternative in its constructor's
+  branch; the machine-`Nat` path gives, with `s` and `w` the alternatives of `n + 1` and of the
+  wildcard, `Sparse.predOr0 = λx. let s := … in let w := … in let n := x in
+  case (Nat.beq n 0) of false => (λn. s n) (Nat.sub n 1) | true => (λh. w x) □`; and
+  `Sparse.viaElim = λx h k. (case x of c0 _ => □ | c1 a b => λk. a + b * k | c2 => □ | … |
+  c9 _ => □) k`. With `PEREGRINE` set, `count.ast`
+  evaluates to 25 (all 25 results of the test equal Lean's values, which `#guard` checks) and
+  `sum.ast` to 90 (their sum). Further checks, with the tools of the benchmark pipeline
+  (peregrine with `unbox.config` after the R-1 rewrite, malfunction, OCaml 4.14.2 without flambda,
+  the runtime of `benchmarks/via_malfunction` with `decidable-pruned.ml` and
+  `JCFArrayOCaml4.ml`):
+  - `peregrine eval` of the corpus files `predOr0.peano.ast` and `secondN.peano.ast` prints
+    `Nat.succ (Nat.succ Nat.zero)` and `Nat.succ Nat.zero`, Lean's values of `predOr0 3` and
+    `secondN 3`;
+  - the 20 natio benchmarks, built natively and run on 0, 1, 2, 5, 10, 50 and 1000 (0, 1, 2, 5
+    and 8 for binarytrees, const_fold and deriv), print in all 134 runs the values of S-11, which
+    are those of Lean's `#eval`;
+  - the 11 functions of `tests/corpus/PortProbe.lean`, erased with constructor pruning and run
+    natively on 16 inputs from 0 to 101, print Lean's `#eval` values in all 176 runs; so do the 13
+    functions of `tests/regress/sparse_cases.lean`, each wrapped as a function `Nat → Nat` and
+    erased with constructor pruning, in all 208 runs; these cover the machine-`Nat` and
+    machine-`Int` paths, which peregrine cannot evaluate (R-1).
+
+  On a plain `T.casesOn` every constructor has an alternative, in constructor order, and there is
+  no catch-all, so `visitCases` makes the same calls in the same order as before: the 12 other
+  regression tests pass unchanged, `compiler_api` among them (the machine-`Nat` and machine-`Int`
+  paths and a user inductive), and 252 of the 284 corpus files are byte-identical.
+- **Effect on emitted .ast (corpus):** 252 of the 284 files are byte-identical to the corpus of
+  S-12; 32 differ (27 `.ast` and 5 `.ast.inlinings` files; every `.mli` is byte-identical), all
+  listed by S-12 under "sparse `casesOn`". In each file, the declarations that change are exactly
+  those that contain such a match, whose `□` is now the match:
+  - `benchmarks/{prune,noprune}/const_fold.ast`: `Expr.reassoc`, `Expr.appendAdd`,
+    `Expr.appendMul`, `Expr.constFolding`.
+  - `benchmarks/{prune,noprune}/deriv.ast`: `Deriv.Expr.ln`, `add`, `mul`, `pow`; the
+    declarations `Unit.unit` and `PUnit`, reachable only from these matches, are emitted again,
+    and `deriv.ast.inlinings` (both variants) lists `Unit.unit` again.
+  - `benchmarks/{prune,noprune}/rbmap_{beans,mono,raw,std}.ast`: `setBlack`, `isRed`,
+    `balance1`, `balance2`; the declaration order is that of S-11 again.
+  - `examples/PortProbe/`, each in its three configurations (`default`, `prune`, `peano`):
+    `colorCode` (`Tiny.isRed`), `secondN` (`Tiny.second`; the declaration order is that of S-11
+    again), `predOr0` (`Tiny.predOr0`; in `default` and `prune`, `Bool` and the axioms `Nat.beq`
+    and `Nat.sub` are emitted again), `shapeEq` (`Tiny.instBEqShape.beq`), `bigEq`
+    (`Tiny.instBEqBig.beq`, `Tiny.instDecidableEqBig.decEq`; the declarations and the entries of
+    `bigEq.*.ast.inlinings` change order).
+
+  Against the corpus of S-11 (Lean v4.22), with binder names and `_private` prefixes ignored, the
+  axioms of all 32 files are the same, the declarations are the same apart from the standard-library
+  differences listed in S-12, and the recovered matches differ from v4.22 only where v4.33's match
+  compiler does. A constructor that a wildcard covers gets `(λh. alt d) □`, where `d` is the
+  discriminant, in place of v4.22's `alt (C args)` with the constructor rebuilt from the matched
+  fields (for `RBNode.isRed`: `leaf => (λh. alt t) □` for `alt (leaf □ □)`); and the case trees of
+  `Deriv.Expr.mul`, `Deriv.Expr.pow` and `Expr.constFolding` have 33, 22 and 13 `case` nodes where
+  v4.22 had 35, 23 and 15.
+- **Regression test:** `tests/regress/sparse_cases.lean` erases a match of each kind on each path
+  of `visitCases`: the generic path with a catch-all for three constructors (`isRed`), alternatives
+  out of constructor order (`pick`), a catch-all that receives the scrutinee (`leftOr`), nested
+  matches (`second`), a discriminant that is not a variable (`redCode`, see R-29), a catch-all for a
+  constructor with a proof field with and without pruning (`optVal`) and a match applied to an extra
+  argument (`applyTo`); the machine `Nat` path with a catch-all for `Nat.zero` (`predOr0`) and for
+  `Nat.succ` (`isZero`); the machine `Int` path with a catch-all for `Int.ofNat` (`negPart`) and
+  for `Int.negSucc` (`natPart`); and eliminators, called directly with an extra argument
+  (`viaElim`) and through a derived `BEq` of 10 constructors (`bigEq`). With `PEREGRINE` set,
+  `count.ast` and `sum.ast` validate and evaluate to 25 and 90. It fails before (47 panics, 23 of
+  its 32 outputs differ, `peregrine eval` fails) and passes after.
+
 ---
 
 ## Reported, not fixed
@@ -1366,3 +1486,41 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
   message does not name the cause. The dry-run tests `makefile_cmi` and `makefile_inlinings` pass
   with make 4.3, the version on CI's `ubuntu-latest`.
 - **Why not fixed:** not required by the verification goal unless it later becomes required.
+
+### R-29: A catch-all re-evaluates a discriminant that is not a variable
+
+- **What:** in Lean v4.33, the matcher of a match with a wildcard passes its discriminant to the
+  wildcard's alternative inside the catch-all of its sparse `casesOn`
+  (`fun motive x h_1 h_2 => F._sparseCasesOn_1 x (h_1 ()) fun h => h_2 x`), and `inlineMatchers`
+  substitutes the discriminant for `x`. When the discriminant is a call, as in
+  `match f n with | .red => … | c => g c`, the erased term computes it once as the scrutinee of the
+  `case` and once more in every branch of the catch-all:
+  `case (f n) of red => … | green => (λh. alt (f n)) □ | …`. Lean v4.22 passed the constructor
+  rebuilt from the matched fields instead, and Lean's compiler shares the value (`ToLCNF` caches
+  the translation of each expression). The eraser has no such sharing, and S-13 erases the
+  catch-all as Lean gives it.
+- **Where:** `LeanToLambdaBox/Erasure.lean`: `erase.visitCases` (the catch-all is erased as given),
+  `prepare_erasure` (`inlineMatchers`).
+- **Reproduction:** `tests/regress/expected/sparse_cases/redCode.ast`: `Sparse.redCode` computes
+  `Sparse.colorOf n` as the scrutinee and again in the three catch-all branches. The cost doubles
+  at every level of a recursion that matches on its own recursive call:
+
+      inductive Color | red | green | blue
+      def step : Nat → Color
+        | 0 => .green
+        | n + 1 => match step n with
+          | .red => .blue
+          | c => c
+      def stepN (n : Nat) : Nat := match step n with | .green => 1 | _ => 0
+
+  erased with `config {remove_irrel_constr_args := true}`, `step (n+1)` computes `step n` twice.
+  Built natively with the benchmark pipeline, `stepN` prints 1 (Lean's value) for 20, 22, 24 and
+  26 after 0.011 s, 0.033 s, 0.122 s and 0.465 s: the time grows by 4 when `n` grows by 2.
+- **Impact:** performance only. The results do not change, since the recomputed value is the same,
+  but a program can take exponential time where Lean's compiled code takes linear time. No
+  benchmark and no corpus program has a catch-all whose argument contains a call (every emitted
+  `.ast` of the corpus scanned).
+- **Why not fixed:** not required by the verification goal unless it later becomes required. The
+  emitted term is the erasure of the term that Lean elaborates; sharing the discriminant (let-binding
+  it and substituting the bound variable in the catch-all) would be an optimization on top of
+  erasure.
