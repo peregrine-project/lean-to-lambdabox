@@ -92,3 +92,16 @@ div[class$="_thmcontent"] li p,
 div.proof_content li p {
 	margin: 0;
 }
+
+/* \lean names without a documentation link (scripts/unlink_lean_decls.py): the style of the links
+ * they replace, without the pointer. */
+span.lean_link {
+	font-weight: normal;
+	font-size: 90%;
+	font-style: italic;
+	padding-left: .5rem;
+}
+
+li > span.lean_decl {
+	font-family: monospace;
+}

@@ -1,2 +1,8 @@
 % Macros for the web version only. \lean, \leanok, \uses come from the leanblueprint plasTeX
 % package.
+
+% leanblueprint links each \lean name to <dochome>/find/#doc/<name>; the default <dochome> is the
+% Mathlib documentation, which does not document this repository, and the repository has no
+% documentation site (README.md, "Links of Lean names"). The address below is under the reserved
+% top-level domain .invalid; scripts/unlink_lean_decls.py, run by build.sh, removes these links.
+\dochome{https://no-doc-site.invalid}

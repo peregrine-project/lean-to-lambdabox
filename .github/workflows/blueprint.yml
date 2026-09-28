@@ -1,0 +1,104 @@
+# Audits and builds the blueprint (blueprint/) on every push to the `blueprint` branch, and publishes
+# the web version and the pdf to GitHub Pages. The steps are the local commands of
+# blueprint/README.md; the section "Continuous integration and the published site" there lists the
+# one-time repository settings the deployment needs.
+name: Blueprint
+on:
+  workflow_dispatch:
+  push:
+    branches:
+    - 'blueprint'
+permissions:
+  contents: read
+jobs:
+  build:
+    name: Audit and build the blueprint
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    # A newer push to the same ref cancels this build.
+    concurrency:
+      group: "${{ github.workflow }}-build-${{ github.ref }}"
+      cancel-in-progress: true
+    steps:
+      - name: Checkout branch ${{ github.ref_name }}
+        uses: actions/checkout@v7
+
+      # Installs the toolchain of lean-toolchain and builds the eraser and the lean4lean libraries
+      # that the audit imports (build_targets of blueprint/audit.toml; the same targets as
+      # build.yml), in the step whose `.lake` lean-action caches, so that later runs replay
+      # lean4lean instead of rebuilding it and the audit's own `lake build` has nothing left to do.
+      - name: Set up Lean and build
+        uses: leanprover/lean-action@v1
+        with:
+          use-github-cache: true
+          build: true
+          build-args: "LeanToLambdaBox Lean4Lean Lean4Lean.Theory Lean4Lean.Verify"
+          test: false
+          lint: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+          cache: pip
+          cache-dependency-path: blueprint/requirements.txt
+
+      - name: Install leanblueprint
+        run: python3 -m pip install -r blueprint/requirements.txt
+
+      # xelatex, latexmk, and the LaTeX packages and OpenType fonts that src/print.tex uses.
+      - name: Install TeX
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y latexmk texlive-xetex texlive-latex-recommended \
+            texlive-fonts-recommended texlive-plain-generic fonts-lmodern
+
+      # Before the build: the audit checks the committed generated chapters, which build.sh
+      # rewrites. It fails the job on any defect (exit status 1) or tool failure (2).
+      - name: Audit
+        run: python3 blueprint/scripts/audit.py
+
+      - name: Build the web version and the pdf
+        run: blueprint/build.sh all
+
+      - name: Check the declarations plasTeX collected
+        run: |
+          read -ra imports <<< "$(python3 blueprint/scripts/audit.py --print-imports)"
+          lake env lean --run blueprint/CheckDecls.lean check blueprint/lean_decls "${imports[@]}"
+
+      # build.sh skips the pdf when xelatex is missing; the site must contain it.
+      - name: Check that the site contains the pdf
+        run: test -s blueprint/web/blueprint.pdf
+
+      - name: Upload the audit report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: blueprint-audit
+          path: blueprint/.audit/
+          include-hidden-files: true
+          if-no-files-found: ignore
+
+      - name: Upload the site
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: blueprint/web/
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    # One Pages deployment of the repository at a time; a running deployment is never cancelled.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v5
