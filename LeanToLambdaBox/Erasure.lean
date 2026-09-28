@@ -30,6 +30,11 @@ structure ErasureState: Type where
   /-- This field is only updated, not read. -/
   gdecls: GlobalDeclarations := []
   inlinings: List Kername := []
+  /--
+  For each constant in `inlinings` that has a body, the `LBTerm.inlinedSize` of that body: its
+  number of nodes once Peregrine has inlined into it the constants of `inlinings`.
+  -/
+  inlinedSizes: Std.HashMap Kername Nat := ∅
 
 namespace Config
 
@@ -67,6 +72,93 @@ structure ErasureConfig: Type where
   csimp: Bool := true
   /-- Whether to remove irrelevant arguments from constructors. -/
   remove_irrel_constr_args: Bool := false
+  /--
+  Whether to detect typeclass-dispatch artifacts after erasure and mark them as inline,
+  so Peregrine collapses chains like `HAdd.hAdd → instHAdd → instAddNat → Nat.add` into
+  a direct call. Detection is structural (no name-matching). The candidates are
+  - the instances (`Lean.Meta.isInstance`), and
+  - the definitions whose erased body has the shape of `LBTerm.isTrivialAlias`: after its leading
+    λs, a constant, a projection, or a constructor of index 0 without parameters or fields (such as
+    `false`). This covers projection functions such as `HAdd.hAdd`, aliases `def f := g` and
+    constant functions, but not structure literals, since the eraser applies a constructor to its
+    parameters and fields with `LBTerm.app`.
+
+  Only non-recursive definitions are considered: a recursive definition is erased to a fixpoint
+  and is never marked, since inlining it would unfold the recursion at every use.
+
+  A constant tagged `@[noinline]` is never marked.
+
+  A constant is marked only if its erased body is a value (`LBTerm.isValue`): the compiled program
+  evaluates a top-level constant once, but an inlined body at every use.
+
+  A constant is marked only if its body, with every marked constant inlined into it, has at most
+  `autoInlineMaxSize` nodes (`LBTerm.inlinedSize`), so Peregrine's inlining pass replaces each use
+  of a constant marked by this option by at most that many nodes.
+
+  Off by default: marking constants for inlining is a *directive* to Peregrine
+  (everything marked will be inlined), so enable only after profiling shows it pays off.
+  -/
+  auto_inline_typeclass_dispatch: Bool := false
+
+/-- Largest `LBTerm.inlinedSize` of a body that `ErasureConfig.auto_inline_typeclass_dispatch`
+marks for inlining. -/
+def autoInlineMaxSize : Nat := 40
+
+/--
+Number of nodes of the term after Peregrine's inlining pass, which replaces every constant listed
+in `.ast.inlinings` by its body, in which the listed constants are already replaced: a constant `kn`
+of `sizes` counts as `sizes[kn]` nodes, every other node as one.
+-/
+partial def _root_.LBTerm.inlinedSize (sizes : Std.HashMap Kername Nat) : LBTerm → Nat
+  | .const kn => sizes.getD kn 1
+  | .box | .bvar _ | .fvar _ | .prim _ => 1
+  | .lambda _ b => 1 + b.inlinedSize sizes
+  | .letIn _ v b => 1 + v.inlinedSize sizes + b.inlinedSize sizes
+  | .app a b => 1 + a.inlinedSize sizes + b.inlinedSize sizes
+  | .construct _ _ args => args.foldl (fun n a => n + a.inlinedSize sizes) 1
+  | .case _ d alts => alts.foldl (fun n (_, b) => n + b.inlinedSize sizes) (1 + d.inlinedSize sizes)
+  | .proj _ e => 1 + e.inlinedSize sizes
+  | .fix defs _ => defs.foldl (fun n d => n + d.body.inlinedSize sizes) 1
+
+/--
+True when the term is a value of weak call-by-value evaluation, with constants counted as values
+(the compiled program evaluates each top-level constant once): a λ, □, a primitive, a constant, or
+a constructor applied to such values. Evaluating it again at each use repeats no computation other
+than building it.
+-/
+partial def _root_.LBTerm.isValue (t : LBTerm) : Bool :=
+  match t with
+  | .lambda _ _ | .box | .prim _ | .const _ => true
+  | .construct .. | .app .. => isConstructorApp t
+  | _ => false
+where
+  /-- A constructor applied to values. -/
+  isConstructorApp : LBTerm → Bool
+    | .construct _ _ args => args.all LBTerm.isValue
+    | .app f a => a.isValue && isConstructorApp f
+    | _ => false
+
+/-- Strip leading lambdas, exposing the body. -/
+partial def _root_.LBTerm.stripLambdas : LBTerm → LBTerm
+  | .lambda _ b => b.stripLambdas
+  | t => t
+
+/--
+True when the erased body, after its leading lambdas, is
+- a `const`: an alias such as `def f := g`, or a constant function `fun _ => c`;
+- a `proj` of any term: in particular a projection function such as
+  `HAdd.hAdd := fun _ _ _ self => self.1`;
+- a `construct` of constructor index 0. The eraser applies every constructor to its parameters and
+  fields with `LBTerm.app` and leaves the argument list of `construct` empty, so this matches only
+  a constructor of index 0 without parameters or fields, such as `false` or `PUnit.unit`, and
+  never a structure literal.
+-/
+def _root_.LBTerm.isTrivialAlias (t : LBTerm) : Bool :=
+  match t.stripLambdas with
+  | .const _ => true
+  | .proj _ _ => true
+  | .construct _ 0 _ => true
+  | _ => false
 
 structure ErasureContext: Type where
   lctx: LocalContext := {}
@@ -147,7 +239,7 @@ def register_inductive (indinfo: InductiveVal): EraseM (InductiveId × Inductive
       )
       -- If the type is a structure, add definitions for projections.
       let is_struct := names.length == 1 && inf.ctors.length == 1 && !inf.isRec
-      let projs: List projection_body ←
+      let projs: List ProjectionBody ←
         if is_struct then
           -- only generate projections for relevant fields
           let _ := Expr
@@ -169,7 +261,7 @@ def fvar_to_name (x: FVarId): EraseM BinderName := do
   let n := (← read).lctx.fvarIdToDecl |>.find! x |>.userName
   let s: String := n.toString
   -- check if s is ASCII graphic, otherwise the λbox parser will complain
-  if s.all (fun c => 33 <= c.toNat /\ c.toNat < 127) then
+  if s.all (fun (c : Char) => decide (33 <= c.toNat /\ c.toNat < 127)) then
     return .named n.toString
   else
     return .anon
@@ -329,6 +421,21 @@ def replaceUnsafeRecNames (value : Expr) : CoreM Expr :=
     | _ => return .continue
 
 /--
+Replace every constant `f` for which a `@[csimp]` theorem `@f = @g` is registered by `g`, with the same universe
+levels. Same traversal and rule as `Lean.Compiler.CSimp.replaceConstants` of Lean v4.22
+(`Lean/Compiler/CSimpAttr.lean`), which Lean v4.33 does not provide.
+-/
+def csimpReplaceConstants (env : Environment) (e : Expr) : Expr :=
+  let s := Compiler.CSimp.ext.getState env
+  e.replace fun e =>
+    if e.isConst then
+      match s.map.find? e.constName! with
+      | some entry => some (mkConst entry.toDeclName e.constLevels!)
+      | none => none
+    else
+      none
+
+/--
 Honor @[macro_inline] directives, inline auxiliary matchers, remove _unsafe_rec suffixes and perform csimp replacements.
 This is lifted from LCNF/ToDecl.lean .
 It processes the whole expression tree, so the code here doesn't have to be at the start of visitExpr,
@@ -348,7 +455,7 @@ def prepare_erasure (e: Expr): EraseM Expr := do
   e ← macroInline e
   if (← read).config.csimp then
     -- This has to be done after _unsafe_rec name replacement.
-    e := Compiler.CSimp.replaceConstants (← getEnv) e
+    e := csimpReplaceConstants (← getEnv) e
   pure e
 
 /--
@@ -493,12 +600,68 @@ where
   visitAppArgs (f : LBTerm) (args : Array Expr) : EraseM LBTerm := do
       args.foldlM (fun e arg => do return LBTerm.app e (← visitExpr arg)) f
 
+  /--
+  Erase an application of a declaration that `getCasesInfo?` recognizes:
+  - `T.casesOn`: one alternative per constructor, in constructor order;
+  - a sparse `casesOn` made by the match compiler (`F._sparseCasesOn_<i>`): alternatives for some
+    constructors, in the order of the match, then a catch-all whose hypotheses (that none of those
+    constructors matched) are proofs;
+  - a per-constructor eliminator `T.c.elim`: a side condition that the discriminant is built with
+    `c`, then the alternative of `c` only.
+  Each constructor's branch is its alternative if it has one. Otherwise it is the catch-all applied to
+  one □ per hypothesis (the sparse `casesOn` reduces to the catch-all applied to a proof), or □ if
+  there is no catch-all (the side condition makes the branch unreachable).
+  The match compiler passes the discriminant to the catch-all. If the catch-all is used and the
+  erased discriminant is neither a variable nor □, the discriminant is let-bound and the catch-all
+  uses the bound variable in its place, so that the discriminant is evaluated once.
+  -/
   visitCases (casesInfo : CasesInfo) (args: Array Expr) : EraseM LBTerm := do
-    let discr_nt ← visitExpr args[casesInfo.discrPos]!
-    let typeName := casesInfo.declName.getPrefix
+    let discr := args[casesInfo.discrPos]!
+    let discr_nt ← visitExpr discr
+    let .inductInfo indVal ← getConstInfo casesInfo.indName | unreachable!
+    -- The number of fields and the alternative of each constructor that has one; the catch-all.
+    let mut ctorAlts : Std.HashMap Name (Nat × Expr) := {}
+    let mut catchAll : Option (Nat × Expr) := none
+    for i in casesInfo.altsRange, altInfo in casesInfo.altNumParams do
+      match altInfo with
+      | .ctor ctorName numFields => ctorAlts := ctorAlts.insert ctorName (numFields, args[i]!)
+      | .default numHyps => catchAll := some (numHyps, args[i]!)
+    -- The catch-all is used only if some constructor has no alternative.
+    if indVal.ctors.all (ctorAlts.contains ·) then
+      catchAll := none
+    let mut ret : LBTerm ← match catchAll with
+      | some (numHyps, catchAllFun) =>
+        if discr_nt matches .fvar _ | .box then
+          visitCasesOn indVal ctorAlts catchAll discr_nt
+        else do
+          let type ← liftMetaM <| Meta.inferType discr
+          withLocalDef `discr type discr false fun x => do
+            let catchAllFun := catchAllFun.replace fun e => if e == discr then some (.fvar x) else none
+            mkLetIn x discr_nt (← visitCasesOn indVal ctorAlts (some (numHyps, catchAllFun)) (.fvar x))
+      | none => visitCasesOn indVal ctorAlts none discr_nt
+
+    -- The casesOn function may be overapplied, so handle the extra arguments.
+    for arg in args[casesInfo.arity:] do
+      ret := .app ret (← visitExpr arg)
+    return ret
+
+  /--
+  The `case` of `visitCases`, given the alternative and number of fields of each constructor that has
+  an alternative, the catch-all and its number of hypotheses if it is used, and the erased
+  discriminant.
+  -/
+  visitCasesOn (indVal : InductiveVal) (ctorAlts : Std.HashMap Name (Nat × Expr))
+      (catchAll : Option (Nat × Expr)) (discr_nt : LBTerm) : EraseM LBTerm := do
+    -- The body of the branch of a constructor that has no alternative.
+    let missing_nt : LBTerm ←
+      match catchAll with
+      | some (numHyps, catchAllFun) => do
+        let catchAll_nt ← visitExpr catchAllFun
+        pure <| (List.replicate numHyps LBTerm.box).foldl .app catchAll_nt
+      | none => pure .box
 
     -- If we are using machine Nats then the inductive casesOn will not work.
-    let mut ret: LBTerm ← (match typeName, (← read).config.nat with
+    match indVal.name, (← read).config.nat with
     | ``Nat, .machine => do
       /-
       Compile this to "let n = discr in Bool.casesOn (Nat.beq n 0) (succ_case (n - 1)) zero_case".
@@ -507,14 +670,17 @@ where
       assumes expressions are well-typed, which wouldn't be the case naïvely as (n - 1).succ is not defeq to n.
       Using casts to make the dependent types typecheck would be an option now that Eq.rec is added to the axioms.
       -/
-      let zero_arm := args[casesInfo.altsRange.start]!
-      let zero_nt ← visitExpr zero_arm
-      let succ_arm := args[casesInfo.altsRange.start + 1]! -- a function with one argument of type Nat
+      let zero_nt ← match ctorAlts[``Nat.zero]? with
+        | some (_, zero_arm) => visitExpr zero_arm
+        | none => pure missing_nt
       let bool_indval := (← getConstInfo ``Bool).inductiveVal!
       let (bool_indid, _) ← register_inductive bool_indval
       withLocalDecl `n (.const ``Nat []) .default (fun n_fvar => do
-        let gtz_arm := Expr.app succ_arm <| mkAppN (.const ``Nat.sub []) #[.fvar n_fvar, .lit (.natVal 1)] -- no longer takes an argument, n_fvar is free here
-        let gtz_nt: LBTerm ← visitExpr gtz_arm
+        let gtz_nt: LBTerm ← match ctorAlts[``Nat.succ]? with
+          | some (_, succ_arm) => -- a function with one argument of type Nat
+            let gtz_arm := Expr.app succ_arm <| mkAppN (.const ``Nat.sub []) #[.fvar n_fvar, .lit (.natVal 1)] -- no longer takes an argument, n_fvar is free here
+            visitExpr gtz_arm
+          | none => pure missing_nt
         let condition: LBTerm ← visitExpr <| mkAppN (.const ``Nat.beq []) #[.fvar n_fvar, .lit (.natVal 0)]
         let case_nt: LBTerm := .case (bool_indid, 0) condition [← mkAlt [] gtz_nt, ← mkAlt [] zero_nt]
         mkLetIn n_fvar discr_nt case_nt
@@ -527,34 +693,34 @@ where
       We build `LBTerm`s directly instead of building expressions and using visitExpr because visitExpr assumes typability.
       In effect, we can silently cast between Int and Nat.
       -/
-      let ofnat_fun := args[casesInfo.altsRange.start]!
-      let negsucc_fun := args[casesInfo.altsRange.start + 1]!
       let bool_indval := (← getConstInfo ``Bool).inductiveVal!
       let (bool_indid, _) ← register_inductive bool_indval
       withLocalDecl `n (.const ``Nat []) .default (fun n_fvar => do
-        let ofnat_nt: LBTerm := .app (← visitExpr ofnat_fun) (.fvar n_fvar)
-        let negsucc_nt: LBTerm :=
-          .app (← visitExpr negsucc_fun)
-          <| .app (← visitExpr (.const ``Int.neg []))
-          <| .app (← visitExpr (.const ``Nat.succ [])) (.fvar n_fvar)
+        let ofnat_nt: LBTerm ← match ctorAlts[``Int.ofNat]? with
+          | some (_, ofnat_fun) => do
+            let ofnat_f ← visitExpr ofnat_fun
+            pure <| .app ofnat_f (.fvar n_fvar)
+          | none => pure missing_nt
+        let negsucc_nt: LBTerm ← match ctorAlts[``Int.negSucc]? with
+          | some (_, negsucc_fun) => do
+            let negsucc_f ← visitExpr negsucc_fun
+            let int_neg ← visitExpr (.const ``Int.neg [])
+            let nat_succ ← visitExpr (.const ``Nat.succ [])
+            pure <| .app negsucc_f <| .app int_neg <| .app nat_succ (.fvar n_fvar)
+          | none => pure missing_nt
         let condition: LBTerm ← visitExpr <| mkAppN (.const ``Nat.ble []) #[.lit (.natVal 0), .fvar n_fvar]
         let case_nt: LBTerm := .case (bool_indid, 0) condition [← mkAlt [] negsucc_nt, ← mkAlt [] ofnat_nt]
         mkLetIn n_fvar discr_nt case_nt
       )
     | _, _ => do
-      let .inductInfo indVal ← getConstInfo typeName | unreachable!
       let (indid, argmasks) ← register_inductive indVal
       let mut alts := #[]
-      for i in casesInfo.altsRange, numFields in casesInfo.altNumParams /- which should proobably be called altNumFields -/, argmask in argmasks do
-        let alt ← visitAlt numFields argmask args[i]!
+      for ctorName in indVal.ctors, argmask in argmasks do
+        let alt ← match ctorAlts[ctorName]? with
+          | some (numFields, alt) => visitAlt numFields argmask alt
+          | none => pure (List.replicate (argmask.count .keep) BinderName.anon, missing_nt)
         alts := alts.push alt
       pure <| LBTerm.case (indid, indVal.numParams) discr_nt alts.toList
-    )
-
-    -- The casesOn function may be overapplied, so handle the extra arguments.
-    for arg in args[casesInfo.arity:] do
-      ret := .app ret (← visitExpr arg)
-    return ret
 
   /--
   Visit a `matcher`/`casesOn` alternative.
@@ -581,14 +747,18 @@ where
     let ci := (← Compiler.LCNF.getDeclInfo? name).get!
     let names := ci.all -- possibly these are ._unsafe_rec
     let single_decl := names.length == 1
+    -- Lean's @[inline] attribute is name-based, so we can decide pre-erasure.
+    let leanInline := single_decl && match Compiler.getInlineAttribute? (← getEnv) name with
+      | .some .inline | .some .alwaysInline => true
+      | _ => false
+    let leanNoinline := match Compiler.getInlineAttribute? (← getEnv) name with
+      | .some .noinline => true
+      | _ => false
     -- A single declaration may have to be output as an axiom.
     if single_decl then
-      match Compiler.getInlineAttribute? (← getEnv) name with
-      | .some inl => match inl with
-                     | .inline | .alwaysInline => logInfo s!"Name {name} is marked as inline."
-                                                  modify (fun s => { s with inlinings := s.inlinings.cons (toKername name) })
-                     | _ => pure ()
-      | .none => pure ()
+      if leanInline then
+        logInfo s!"Name {name} is marked as inline."
+        modify (fun s => { s with inlinings := s.inlinings.cons (toKername name) })
       match ci.value? (allowOpaque := true), isExtern (← getEnv) name, (← read).config.extern with
       | .none, _, _ =>
         logInfo s!"No value found for name {name}, emitting axiom."
@@ -609,6 +779,25 @@ where
         pure (← visitExpr (← prepare_erasure e))
       let kn := toKername name
       modify (fun s => { s with constants := s.constants.insert name kn, gdecls := s.gdecls.cons (kn, .constantDecl <| ⟨.some t⟩) })
+      let size := t.inlinedSize (← get).inlinedSizes
+      if leanInline then
+        modify (fun s => { s with inlinedSizes := s.inlinedSizes.insert kn size })
+      -- Post-erasure: structurally detect typeclass-dispatch artifacts and mark them inline.
+      -- Skipped if @[inline] already added this constant. Recursive definitions are erased in the
+      -- other branch and are never marked.
+      if (← read).config.auto_inline_typeclass_dispatch && !leanInline then
+        let isInst ← Lean.Meta.isInstance name
+        let kind := if isInst then "typeclass instance" else "trivial alias"
+        if isInst || t.isTrivialAlias then
+          if leanNoinline then
+            logInfo s!"Not auto-inlining {kind} {name}: it is tagged @[noinline]."
+          else if !t.isValue then
+            logInfo s!"Not auto-inlining {kind} {name}: its body is not a value."
+          else if size ≤ autoInlineMaxSize then
+            logInfo s!"Auto-inlining {kind} {name} (inlined size {size})."
+            modify (fun s => { s with inlinings := s.inlinings.cons kn, inlinedSizes := s.inlinedSizes.insert kn size })
+          else
+            logInfo s!"Not auto-inlining {kind} {name}: inlined size {size} exceeds {autoInlineMaxSize}."
     else -- translate into a mutual fixpoint declaration
       let ids ← names.mapM (fun _ => mkFreshFVarId)
       let fixvarnames := names.map remove_unsafe_rec
@@ -623,6 +812,9 @@ where
         for (n, i) in fixvarnames.zipIdx do
           let kn := toKername n
           modify (fun s => { s with constants := s.constants.insert n kn, gdecls := s.gdecls.cons (kn, .constantDecl ⟨.some <| .fix defs i⟩) })
+          if leanInline then
+            let size := (LBTerm.fix defs i).inlinedSize (← get).inlinedSizes
+            modify (fun s => { s with inlinedSizes := s.inlinedSizes.insert kn size })
 
 inductive MLType: Type where
   | arrow (a b: MLType)
@@ -630,21 +822,27 @@ inductive MLType: Type where
   | unit
   | bool
   | list (a: MLType)
+  | option (a: MLType)
+  | array (a: MLType)
+  | prod (a b: MLType)
 deriving Inhabited
 
-def MLType.toString: MLType -> String
-  | arrow a b => s!"{toStringProtected a} -> {b.toString}"
+partial def MLType.toString: MLType -> String
+  | arrow a b => s!"{protArrow a} -> {b.toString}"
   | Z => "Z.t"
   | unit => "unit"
   | bool => "bool"
-  | list a => s!"{a.toString} list"
+  | list a => s!"{protCtor a} list"
+  | option a => s!"{protCtor a} option"
+  | array a => s!"{protCtor a} LeanArray.array"
+  | prod a b => s!"{protCtor a} * {protCtor b}"
 where
-  toStringProtected: MLType -> String
-  | arrow a b => s!"({toStringProtected a} -> {b.toString})"
-  | Z => "Z.t"
-  | unit => "unit"
-  | bool => "bool"
-  | list a => s!"{a.toString} list"
+  protArrow (t: MLType): String := match t with
+    | arrow .. => s!"({t.toString})"
+    | _ => t.toString
+  protCtor (t: MLType): String := match t with
+    | arrow .. | prod .. => s!"({t.toString})"
+    | _ => t.toString
 
 instance : ToString MLType := ⟨MLType.toString⟩
 
@@ -654,9 +852,13 @@ partial def to_ml_type (ty: Expr): MetaM MLType :=
     let varmltypes ← vartypes.mapM to_ml_type
     let bodymltype ← match (← Meta.whnf body) with
     | .const `Nat _ => pure .Z
+    | .const `Int _ => pure .Z
     | .const `Unit _ | .const `PUnit _ => pure .unit
     | .const `Bool _ => pure .bool
-    | .app (.const `List _) a => do pure <| .list (← to_ml_type a)
+    | .app (.const `List _) a => pure <| .list (← to_ml_type a)
+    | .app (.const `Option _) a => pure <| .option (← to_ml_type a)
+    | .app (.const `Array _) a => pure <| .array (← to_ml_type a)
+    | .app (.app (.const `Prod _) a) b => pure <| .prod (← to_ml_type a) (← to_ml_type b)
     | t => logWarning s!"failed to translate {t} into ML type, emitting unit instead." ; pure .unit
     return varmltypes.foldr .arrow bodymltype
 
