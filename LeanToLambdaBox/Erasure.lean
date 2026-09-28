@@ -690,7 +690,6 @@ inductive MLType: Type where
   | Z
   | unit
   | bool
-  | string
   | list (a: MLType)
   | option (a: MLType)
   | array (a: MLType)
@@ -702,7 +701,6 @@ partial def MLType.toString: MLType -> String
   | Z => "Z.t"
   | unit => "unit"
   | bool => "bool"
-  | string => "string"
   | list a => s!"{protCtor a} list"
   | option a => s!"{protCtor a} option"
   | array a => s!"{protCtor a} LeanArray.array"
@@ -726,7 +724,6 @@ partial def to_ml_type (ty: Expr): MetaM MLType :=
     | .const `Int _ => pure .Z
     | .const `Unit _ | .const `PUnit _ => pure .unit
     | .const `Bool _ => pure .bool
-    | .const `String _ => pure .string
     | .app (.const `List _) a => pure <| .list (← to_ml_type a)
     | .app (.const `Option _) a => pure <| .option (← to_ml_type a)
     | .app (.const `Array _) a => pure <| .array (← to_ml_type a)

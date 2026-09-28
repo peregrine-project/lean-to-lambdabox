@@ -384,6 +384,59 @@ without peregrine.
   `cp LeanArray.mli $(build)/LeanArray.mli`, `ocamlopt -c $(build)/LeanArray.mli` and
   `ocamlopt -I $(build) -c $(build)/rArr.mli`.
 
+## S-5: `String` is no longer printed as `string` in the `.mli` signature
+
+- **Commit:** the commit whose subject starts with `shipping(S-5):`
+  (`git log --grep='^shipping(S-5):'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure.lean`: `MLType` (constructor `string` removed), `MLType.toString`
+    (case `string` removed), `to_ml_type` (case `String` removed). These are the `String` parts of
+    `94a429c`; the code for `String` is again that of `main`.
+  - `tests/regress/mli_types.lean`: docstring; new case `rStr`; its 3 expected outputs in
+    `tests/regress/expected/mli_types/`.
+  - `doc/SHIPPING-CHANGES.md`: this entry; R-17 no longer lists `String` among the handled types;
+    new R-27, a defect of the benchmark Makefile found while checking S-4.
+- **Why necessary:** defect D3 of S-2, reproduced on this branch. The `.mli` states the OCaml
+  representation of the value, and since S-2 it gave `string` for a Lean `String`, without a
+  warning. Nothing in the pipeline represents a Lean `String` as an OCaml `string`: a string
+  literal is erased to `□` after a panic (R-4), and the constructor `String.mk` and every `String`
+  operation are `@[extern]` constants, erased to axioms that the benchmark runtime does not
+  implement (R-21). A program that builds or inspects a string therefore cannot be linked, and one
+  that does neither links whatever type the `.mli` gives. The signature `string` made an
+  unfounded claim and removed the warning that says the type is not supported.
+
+  Two fixes were possible. Implementing `String` would mean choosing an OCaml representation of
+  Lean strings (UTF-8 bytes, or a list of code points as in `String.mk`), writing in the runtime
+  `String.mk` and each `String`, `Char` and `UInt32` operation that a program uses, and erasing
+  string literals (R-4). That is a new feature, which neither the verification goal nor any
+  benchmark requires. The fix taken withdraws the claim: `String` goes back to the fallback path
+  (warning and `unit`) that every type without a runtime representation takes (R-17).
+- **Behaviour before:** reproduction: `rStr n := String.mk (List.replicate n (Char.ofNat 97))`,
+  `strLen (s : String) : Nat := s.length`, `strId (s : String) : String := s` and the literal
+  `"abc"`, erased with `{remove_irrel_constr_args := true}`, give the signatures
+  `val main: Z.t -> string`, `val main: string -> Z.t`, `val main: string -> string` and
+  `val main: string`, with no warning. `rStr.ast` has the axioms `String.mk`, `Char.ofNatAux`,
+  `UInt32.ofBitVec`, `Nat.pow`, `Nat.decLt`, `Nat.beq` and `Nat.sub`, and `strLen.ast` has
+  `String.length`. The literal becomes `(Untyped () (Some tBox))`, after
+  `PANIC ... String literals not supported.` Compiled natively as for S-3, `rStr` fails in
+  `malfunction cmx` with `Unbound value Axioms.def__String_mk`, and `strLen` with
+  `Unbound value Axioms.def__String_length`. Only `strId`, which does not touch its argument,
+  links: its harness passes `"abc"` and prints `abc`.
+- **Behaviour after:** the four signatures are `val main: Z.t -> unit`, `val main: unit -> Z.t`,
+  `val main: unit -> unit` and `val main: unit`, byte-identical to those of `main` (`58701f8`),
+  and each `String` in them is reported with
+  `warning: failed to translate String into ML type, emitting unit instead.` The `.ast` and
+  `.ast.inlinings` files are byte-identical before and after. Linking still fails for `rStr` and
+  `strLen`, since the program itself needs the missing axioms (R-21).
+- **Effect on emitted .ast (corpus):** byte-identical for all 284 files; `scripts/corpus-diff.sh`
+  against the corpus of S-4 reports 284 identical. No corpus `.mli` involves `String`. In the logs
+  (`_meta/logs`, not part of the corpus), the signature logged for `#erase "abc"` in
+  `tests/corpus/Defects.lean` becomes `val main: unit`, with the warning above, as on `main`.
+- **Regression test:** `tests/regress/mli_types.lean`, case `rStr`, whose `#guard_msgs (warning)`
+  requires the warning. It fails before (Lean reports that the `#guard_msgs` docstring does not
+  match: no warning is produced) and passes after, with `rStr.mli` equal to
+  `val main: Z.t -> unit`; the outputs of the other cases are unchanged.
+
 ---
 
 ## Reported, not fixed
@@ -602,9 +655,10 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
 
 ### R-17: The `.mli` signature falls back to `unit`
 
-- **What:** `to_ml_type` handles `Nat`, `Int`, `Unit`/`PUnit`, `Bool`, `String`, `List`, `Option`,
-  `Array`, `Prod` and arrows; any other type, for instance a user inductive, is reported with a
-  warning and printed as `unit`, which does not describe the value. The file has no final newline.
+- **What:** `to_ml_type` handles `Nat`, `Int`, `Unit`/`PUnit`, `Bool`, `List`, `Option`, `Array`,
+  `Prod` and arrows; any other type, for instance a user inductive or `String` (S-5), is reported
+  with a warning and printed as `unit`, which does not describe the value. The file has no final
+  newline.
 - **Where:** `LeanToLambdaBox/Erasure.lean`: `to_ml_type`, `gen_mli`, `eraseElab`.
 - **Reproduction:** `mli_fallback.mli` (`toMy : Nat → MyNat`, a user inductive) is
   `val main: Z.t -> unit`, with the warning
@@ -747,3 +801,22 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
   source locations, with 12 and 8 calls `app "camlZ__…"`.
 - **Impact:** informational: no change in the generated code.
 - **Why not fixed:** not a defect: the change does what its commit message says.
+
+### R-27: The benchmark Makefile builds `axioms.cmx` without waiting for `LeanArray.cmx`
+
+- **What:** `axioms.ml` contains `include LeanArray`, but the rule for `$(build)/axioms.cmx` lists
+  `nat.cmx`, `int.cmx` and `eq.cmx` as prerequisites, not `LeanArray.cmx`. When `axioms.cmx` is
+  compiled before `LeanArray.cmx`, OCaml prints `Warning 58 [no-cmx-file]: no cmx file was found in
+  path for module LeanArray, and its interface was not compiled with -opaque` and compiles
+  `axioms.cmx` without the optimization information of `LeanArray`.
+- **Where:** `benchmarks/via_malfunction/Makefile`: rule `$(build)/axioms.cmx`.
+- **Reproduction:** in `benchmarks/via_malfunction`, with a build directory `B` that does not exist
+  yet, `make build=B FLAMBDA=0 MALFUNCTION_NO_FLAMBDA_SWITCH=peregrine ARRAYML=JCFArrayOCaml4.ml
+  B/axioms.cmx` prints the warning. The target `B/<test>.cmx` in a fresh directory prints it too.
+- **Impact:** a serial build of `bin/<test>` is not affected, since the link rule lists
+  `LeanArray.cmx` before `axioms.cmx`. A parallel build (`make -j`), or a build of `axioms.cmx` or
+  `<test>.cmx` on its own, can compile `axioms.cmx` without cross-module information for
+  `LeanArray`. That can change the machine code, and so the timings, of programs that use `Array`,
+  not their results.
+- **Why not fixed:** not required by the verification goal unless it later becomes required; it
+  concerns the build of the benchmark runtime, not the emitted programs.

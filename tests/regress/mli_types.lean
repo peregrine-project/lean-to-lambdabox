@@ -6,7 +6,9 @@ import LeanToLambdaBox
 OCaml needs parenthesized; `rHof` has an arrow in argument position. A pair nested in a pair
 (`rNestL`, `rNestR`, and `rNestArg` in argument position) is parenthesized, since OCaml reads
 `A * B * C` as a triple (register entry S-3). Each signature was checked by linking the erased
-program with an OCaml harness written against it and running it.
+program with an OCaml harness written against it and running it. `String` has no OCaml
+representation in the benchmark runtime, so `rStr` gets the fallback `unit` and the warning that
+`#guard_msgs` checks (register entry S-5).
 -/
 
 def rInt (n : Nat) : Int := Int.ofNat n - 10
@@ -44,3 +46,8 @@ def rNestR (n : Nat) : Nat × (Nat × Nat) := (n, (n + 1, n + 2))
 
 def rNestArg (p : (Nat × Nat) × Nat) : Nat := p.1.1 + p.1.2 + p.2
 #erase rNestArg to "rNestArg.ast" mli "rNestArg.mli"
+
+def rStr (n : Nat) : String := String.mk (List.replicate n (Char.ofNat 97))
+/-- warning: failed to translate String into ML type, emitting unit instead. -/
+#guard_msgs (warning) in
+#erase rStr to "rStr.ast" mli "rStr.mli"
