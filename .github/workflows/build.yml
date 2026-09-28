@@ -26,10 +26,16 @@ jobs:
       - name: Checkout branch ${{ github.ref_name }}
         uses: actions/checkout@v7
 
+      # Builds the eraser and the lean4lean libraries of the dependency in the step whose `.lake`
+      # lean-action caches, so later runs replay lean4lean instead of rebuilding it.
       - name: Set up Lean and build
         uses: leanprover/lean-action@v1
         with:
           use-github-cache: true
           build: true
+          build-args: "LeanToLambdaBox Lean4Lean Lean4Lean.Theory Lean4Lean.Verify"
           test: false
           lint: false
+
+      - name: Shipping regression tests
+        run: scripts/regress.sh
