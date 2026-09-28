@@ -216,8 +216,9 @@ $(build)/%.lean: test.lean.template | $(build)
 $(build)/%.ast $(build)/%.ast.inlinings $(build)/%.mli: $(build)/%.lean ../FromLeanCommon.lean ../FromLeanCommon/
 	lake lean $<
 
+# With INLINING=1, peregrine reads the inlining attributes from the .ast.inlinings file, so it is a prerequisite.
 ifeq ($(INLINING),1)
-$(build)/%.mlf: $(build)/%.ast
+$(build)/%.mlf: $(build)/%.ast $(build)/%.ast.inlinings
 	$(PEREGRINE) compile $< $(PEREGRINE_CONFIG) --attributes=$<.inlinings > /dev/null
 else
 $(build)/%.mlf: $(build)/%.ast

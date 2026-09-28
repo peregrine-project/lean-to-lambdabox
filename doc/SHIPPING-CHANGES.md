@@ -437,6 +437,55 @@ without peregrine.
   match: no warning is produced) and passes after, with `rStr.mli` equal to
   `val main: Z.t -> unit`; the outputs of the other cases are unchanged.
 
+## S-6: The benchmark Makefile regenerates a missing `.ast.inlinings` before running peregrine
+
+- **Commit:** the commit whose subject starts with `shipping(S-6):`
+  (`git log --grep='^shipping(S-6):'`).
+- **Files and functions:**
+  - `benchmarks/via_malfunction/Makefile`: the `INLINING=1` pattern rule `$(build)/%.mlf` gains the
+    prerequisite `$(build)/%.ast.inlinings`, and a comment line above the `ifeq` says why; its
+    command is unchanged. The `INLINING=0` rule is unchanged.
+  - new `tests/regress/makefile_inlinings.lean` and
+    `tests/regress/expected/makefile_inlinings/mlf_commands.txt`.
+  - `doc/SHIPPING-CHANGES.md`: this entry; new R-28, found while running the new test with GNU
+    make 4.3.
+- **Why necessary:** defect D4 of S-2 (claim C4), reproduced on this branch. With `INLINING=1` the
+  rule for `%.mlf` runs `peregrine compile %.ast <config> --attributes=%.ast.inlinings`, but its
+  only prerequisite is `%.ast`. Since `94a429c`, `%.ast.inlinings` is a target of the rule that
+  runs `lake lean`, so make knows how to rebuild it, but make rebuilds a file only when a target
+  depends on it. When the `.ast` is present and up to date and the `.ast.inlinings` is missing
+  (for instance in a build directory filled by a frontend that did not write the file yet, the
+  situation of the Zulip report of Feb 17), make runs peregrine on a missing file. The target
+  added by `94a429c` is what makes the new prerequisite possible: without it, as at `a104486`,
+  the prerequisite gives `No rule to make target` (Zulip, Feb 13).
+- **Behaviour before:** reproduction: in `benchmarks/via_malfunction`, with the options
+  `FLAMBDA=0 MALFUNCTION_NO_FLAMBDA_SWITCH=peregrine ARRAYML=JCFArrayOCaml4.ml
+  PEREGRINE=<wrapper applying the R-1 rewrite>` (build directory `build/7ee730d2`),
+  `make build/7ee730d2/even.mlf` succeeds from scratch. After deleting `even.ast.inlinings` and
+  `even.mlf`, the same command runs peregrine alone, which fails with
+  `peregrine: option '--attributes': invalid element in list (build/7ee730d2/even.ast.inlinings):
+  no build/7ee730d2/even.ast.inlinings file or directory`, and make exits with status 2: the error
+  reported on Zulip on Feb 17. Every later run fails the same way, and so does `make bin/even`,
+  until the file is restored by hand.
+- **Behaviour after:** the same command first runs `lake lean build/7ee730d2/even.lean`, which
+  rewrites `even.ast`, `even.ast.inlinings` and `even.mli`, then runs peregrine, and succeeds; the
+  next run prints `make: 'build/7ee730d2/even.mlf' is up to date.` With `even.ast.inlinings`
+  deleted, `make bin/even` erases, compiles and links, and the binary prints 1, 0 and 1 for the
+  inputs 0, 7 and 1000. The regenerated `even.ast` and `even.mli` are byte-identical to those of a
+  build from scratch. In a fresh build directory, `make -n bin/even` lists the same commands before
+  and after, with `INLINING=1` and with `INLINING=0`.
+- **Effect on emitted .ast (corpus):** byte-identical for all 284 files, since the erasure rule is
+  unchanged; `scripts/corpus-diff.sh` against the corpus of S-5 reports 284 identical.
+- **Regression test:** `tests/regress/makefile_inlinings.lean` erases `rInl` into a fresh build
+  directory and asks `make -n` for the commands that build `rInl.mlf` there, with
+  `PEREGRINE=peregrine` and the generated `rInl.lean` taken as old (`-o`), so it needs `make` but
+  neither peregrine nor OCaml. With every output present, the only command is peregrine's. With
+  `rInl.ast.inlinings` deleted, `lake lean $(build)/rInl.lean` comes before it. With the file
+  deleted and `INLINING=0`, the only command is peregrine's, without `--attributes`. The three
+  lists are written to `mlf_commands.txt`. Before, the second list is the peregrine command alone
+  and the test fails with `rInl.ast.inlinings missing: expected the lake lean command before the
+  peregrine command`; after, it passes with GNU make 4.4.1 and with make 4.3.
+
 ---
 
 ## Reported, not fixed
@@ -820,3 +869,25 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
   not their results.
 - **Why not fixed:** not required by the verification goal unless it later becomes required; it
   concerns the build of the benchmark runtime, not the emitted programs.
+
+### R-28: The benchmark Makefile needs GNU make 4.4 and does not say so
+
+- **What:** `benchmarks/via_malfunction/Makefile` uses two features that are new in GNU make 4.4:
+  the function `$(let ...)` in `register_test`, and the special target `.NOTINTERMEDIATE`. Older
+  versions do not reject them. There `$(let ...)` expands to nothing, so the variable `benches` is
+  empty and no rule `$(build)/<test>_main.ml` exists; and `.NOTINTERMEDIATE` is an ordinary target,
+  so a file that make creates through a chain of pattern rules is removed as an intermediate file
+  at the end of the run. Neither the Makefile nor `benchmarks/via_malfunction/README.md` states the
+  requirement.
+- **Where:** `benchmarks/via_malfunction/Makefile`: `define register_test` and `.NOTINTERMEDIATE:`;
+  `benchmarks/via_malfunction/README.md`.
+- **Reproduction:** with GNU make 4.3, in `benchmarks/via_malfunction`,
+  `make -n FLAMBDA=0 MALFUNCTION_NO_FLAMBDA_SWITCH=peregrine ARRAYML=JCFArrayOCaml4.ml build=B
+  bin=C C/even` stops with `No rule to make target 'C/even'`, where make 4.4.1 lists the whole
+  build; `make -p` shows `benches :=` empty with make 4.3 and 20 programs with make 4.4.1. In the
+  setting of `tests/regress/makefile_inlinings.lean`, make 4.3 ends the run with
+  `rm $(build)/rInl.ast.inlinings`: the file regenerated for peregrine is removed again.
+- **Impact:** low. With make older than 4.4 the benchmark binaries cannot be built, and the
+  message does not name the cause. The dry-run tests `makefile_cmi` and `makefile_inlinings` pass
+  with make 4.3, the version on CI's `ubuntu-latest`.
+- **Why not fixed:** not required by the verification goal unless it later becomes required.
