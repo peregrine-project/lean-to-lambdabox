@@ -566,6 +566,67 @@ without peregrine.
   `twice3.ast.inlinings` list `instMonadSt`) and passes after. With `PEREGRINE` set, `chain2.ast`
   and `twice3.ast` validate and evaluate to 10 and 7.
 
+## S-8: Auto-inlining marks only constants whose erased body is a value
+
+- **Commit:** the commit whose subject starts with `shipping(S-8):`
+  (`git log --grep='^shipping(S-8):'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure.lean`: new `LBTerm.isValue` (with its auxiliary
+    `LBTerm.isValue.isConstructorApp`); `ErasureConfig` (docstring of
+    `auto_inline_typeclass_dispatch`); `erase.visitMutual`: in the non-recursive branch, a constant
+    that the option would mark is not marked if its erased body is not a value, with a log message.
+  - new `tests/regress/auto_inline_values.lean`, its expected outputs
+    `tests/regress/expected/auto_inline_values/` (4 files) and
+    `tests/regress/expected-peregrine/auto_inline_values/` (2 files).
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** defect D6 of S-2, reproduced on this branch. The option marks an instance
+  whatever its body. The compiled program evaluates a top-level constant once; once the constant is
+  inlined, its body is evaluated at every use, so a body that computes is computed again each time.
+  The bound of S-7 does not prevent this, since a small body can start a long computation. The
+  example of S-2, `instTbl` (`let s := slowSum 100000; ⟨fun i => s + i⟩`), is refused by that bound
+  (inlined size 75), but smaller bodies of the same kind are marked. The fix marks a constant only if
+  its erased body is a value (`LBTerm.isValue`): a λ, □, a primitive, a constant, or a constructor
+  applied to such values. Evaluating such a body at each use repeats no computation other than
+  building it. A constant counts as a value because it refers to a top-level definition, which the
+  compiled program evaluates once.
+- **Behaviour before:** reproduction: `slowSum : Nat → Nat` adds `n + (n-1) + … + 1` by recursion,
+  `instSlow : Inhabited Nat := ⟨slowSum 100000⟩` with
+  `useSlow n := (List.range n).foldl (fun acc _ => acc + (default : Nat)) 0`, and
+  `instLet : Tbl := let s := slowSum 100000; ⟨Nat.add s⟩` (with `class Tbl where get : Nat → Nat`)
+  with `useLet n := (List.range n).foldl (fun acc i => acc + Tbl.get (self := instLet) i) 0`. Both
+  programs are erased with
+  `config {remove_irrel_constr_args := true, auto_inline_typeclass_dispatch := true}` and built
+  natively as for S-7 (benchmark Makefile, `FLAMBDA=0`, OCaml 4.14.2, peregrine after the R-1
+  rewrite).
+  - `instSlow` and `instLet` are marked (inlined sizes 26 and 28).
+  - `useSlow 1000` takes 0.64 s and `useSlow 3000` 1.85 s; `useLet 1000` takes 0.68 s and
+    `useLet 3000` 2.05 s. `slowSum 100000` is computed once per list element.
+  - Benchmarks with the option on (as for S-7): qsort, qsort_fin and qsort_single mark `instMinNat`
+    and `Nat.instMax` (inlined size 25), whose bodies are the applications `minOfLe …` and
+    `maxOfLe …` that build a dictionary.
+- **Behaviour after:** same reproduction.
+  - `instSlow` and `instLet` are not marked, with the log messages
+    `Not auto-inlining typeclass instance instSlow: its body is not a value.` and the same for
+    `instLet`.
+  - `useSlow 1000` and `useSlow 3000` take 0.006 s each, and `useLet` 0.004 s and 0.005 s. The
+    printed results are unchanged: 5000050000000 and 15000150000000 for `useSlow`, 5000050499500 and
+    15000154498500 for `useLet`.
+  - Benchmarks: `instMinNat` and `Nat.instMax` are no longer marked, in the three qsort benchmarks
+    only (47 to 45, 52 to 50 and 46 to 44 marked constants; qsort `.mlf` 34 583 to 34 009 bytes).
+    Running times, minimum of 5 runs, before / after: qsort 1000: 0.371 / 0.369 s; qsort_fin 1000:
+    0.382 / 0.385 s; qsort_single 100000: 0.179 / 0.177 s; the results are unchanged. The other 17
+    benchmarks mark the same constants, and their `.mlf` files are identical.
+- **Effect on emitted .ast (corpus):** byte-identical for all 284 files; `scripts/corpus-diff.sh`
+  against the corpus of S-7 reports 284 identical. The corpus does not turn the option on. With the
+  option on (outside the corpus), the 20 benchmark `.ast` files are byte-identical before and after,
+  and only the `.ast.inlinings` files of qsort, qsort_fin and qsort_single change, each losing
+  `instMinNat` and `Nat.instMax`.
+- **Regression test:** `tests/regress/auto_inline_values.lean` erases `useAll`, which uses
+  `instSlow`, `instLet` and `instLam` (`⟨fun i => slowSum i⟩`, a value), with the option on, and
+  `useAll 2` under Peano naturals. It fails before (`useAll.ast.inlinings` lists `instSlow` and
+  `instLet`) and passes after, where only `instLam` of the three is listed. With `PEREGRINE` set,
+  `useAll2.ast` validates and evaluates to 25.
+
 ---
 
 ## Reported, not fixed

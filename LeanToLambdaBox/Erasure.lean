@@ -83,6 +83,9 @@ structure ErasureConfig: Type where
   Inlining is always skipped if the erased body contains a `LBTerm.fix`, since
   inlining recursion would unfold the recursive definition at every call site.
 
+  A constant is marked only if its erased body is a value (`LBTerm.isValue`): the compiled program
+  evaluates a top-level constant once, but an inlined body at every use.
+
   A constant is marked only if its body, with every marked constant inlined into it, has at most
   `autoInlineMaxSize` nodes (`LBTerm.inlinedSize`), so Peregrine's inlining pass replaces each use
   of a constant marked by this option by at most that many nodes.
@@ -111,6 +114,24 @@ partial def _root_.LBTerm.inlinedSize (sizes : Std.HashMap Kername Nat) : LBTerm
   | .case _ d alts => alts.foldl (fun n (_, b) => n + b.inlinedSize sizes) (1 + d.inlinedSize sizes)
   | .proj _ e => 1 + e.inlinedSize sizes
   | .fix defs _ => defs.foldl (fun n d => n + d.body.inlinedSize sizes) 1
+
+/--
+True when the term is a value of weak call-by-value evaluation, with constants counted as values
+(the compiled program evaluates each top-level constant once): a λ, □, a primitive, a constant, or
+a constructor applied to such values. Evaluating it again at each use repeats no computation other
+than building it.
+-/
+partial def _root_.LBTerm.isValue (t : LBTerm) : Bool :=
+  match t with
+  | .lambda _ _ | .box | .prim _ | .const _ => true
+  | .construct .. | .app .. => isConstructorApp t
+  | _ => false
+where
+  /-- A constructor applied to values. -/
+  isConstructorApp : LBTerm → Bool
+    | .construct _ _ args => args.all LBTerm.isValue
+    | .app f a => a.isValue && isConstructorApp f
+    | _ => false
 
 /-- Strip leading lambdas (typeclass-instance parameters), exposing the body. -/
 partial def _root_.LBTerm.stripLambdas : LBTerm → LBTerm
@@ -698,7 +719,9 @@ where
         let isInst ← Lean.Meta.isInstance name
         let kind := if isInst then "typeclass instance" else "trivial alias"
         if isInst || t.isTrivialAlias then
-          if size ≤ autoInlineMaxSize then
+          if !t.isValue then
+            logInfo s!"Not auto-inlining {kind} {name}: its body is not a value."
+          else if size ≤ autoInlineMaxSize then
             logInfo s!"Auto-inlining {kind} {name} (inlined size {size})."
             modify (fun s => { s with inlinings := s.inlinings.cons kn, inlinedSizes := s.inlinedSizes.insert kn size })
           else
