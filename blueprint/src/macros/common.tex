@@ -1,0 +1,31 @@
+% Macros shared by the web and the print version. Chapters define no macro of their own.
+
+% Theorem-like environments: the nodes of the dependency graph.
+\newtheorem{theorem}{Theorem}[chapter]
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+
+% Inline code (escape underscores: \code{prepare\_erasure}).
+\newcommand{\code}[1]{\texttt{#1}}
+
+% Schematic style: a bold run-in label, and at most one highlight per node.
+\newcommand{\lead}[1]{\textbf{#1.}\ }
+\definecolor{hlcolor}{HTML}{8B1A1A}
+\newcommand{\hl}[1]{\textbf{\textcolor{hlcolor}{#1}}}
+
+% Status badges.
+\definecolor{badgecolor}{HTML}{555555}
+\newcommand{\stProved}{\textbf{\textcolor{badgecolor}{[PROVED]}}}
+\newcommand{\stInherited}{\textbf{\textcolor{badgecolor}{[INHERITED]}}}
+\newcommand{\stShipping}{\textbf{\textcolor{badgecolor}{[SHIPPING CODE]}}}
+\newcommand{\stOpen}{\textbf{\textcolor{badgecolor}{[OPEN]}}}
+
+% Node furniture. \srcloc{path}{line}: where the node's first \lean declaration is (checked by the
+% audit). \inherited{names}: the declarations of lean4lean (sorry sources and axioms) that the
+% node's declarations depend on, exactly (checked by the audit); escape underscores.
+\definecolor{furniture}{HTML}{6A6A6A}
+\newcommand{\srcloc}[2]{\par{\small\textcolor{furniture}{\texttt{#1:#2}}}\par}
+\newcommand{\inherited}[1]{\par{\small\textcolor{furniture}{Inherited from lean4lean: \texttt{#1}}}\par}

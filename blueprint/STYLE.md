@@ -1,0 +1,119 @@
+# Blueprint style (binding)
+
+**Goal.** A reader grasps any node in 15 seconds and any chapter's shape in one minute. Write
+schematically: bullets with bold run-in labels, one highlight per node, tables for anything
+enumerable. Apply Strunk's rules: active voice, positive form, definite concrete language, omit
+needless words, one idea per sentence, parallel form for parallel ideas.
+
+## 1. Present state only
+
+The blueprint describes the commit it is built from. It is not a changelog.
+
+- State what is. Never write "previously", "since the last version", "was fixed", "no longer",
+  "used to", "now", "yet", or describe a state and then its changes. Git holds the history.
+- What is not done is an open item in the present tense (`\stOpen{}`, or a row of the chapter
+  "What is open"), never a plan with dates.
+- Planned statements appear only once the owner has approved them; a node documents a declaration
+  that exists.
+- The registers are rendered as they are (their entries record changes, with a before and an
+  after); the prose around them follows this section.
+
+## 2. Nodes
+
+- Environments: `definition` (def, abbrev, structure, inductive, class, instance), `theorem`
+  (headline results), `lemma` (everything else, and families: one node for parallel
+  declarations), `proposition`, `corollary`. A `remark` is prose, not a node.
+- Shape, in this order: `\begin{env}[Title]`, `\label`, `\lean{...}`, `\leanok`, `\uses{...}`,
+  `\srcloc{path}{line}`, `\inherited{...}` (when the audit measures inherited trust), the body,
+  `\end{env}`; for a result, a sibling `\begin{proof}` `\uses{...}` `\leanok` ... `\end{proof}`
+  after it, never inside it.
+- `\label`: `<prefix>:<principal Lean name>`, prefix `def`, `lem`, `prop`, `thm`, `cor`, the name
+  with `.` replaced by `-` (`def:Erasure-erase`). Unique; never renamed.
+- `\lean{...}`: names of the compiled environment only; never invent one. Each name belongs to one
+  node.
+- `\leanok`: exactly as the audit computes it (README, section Audit). Never add it by hand to make
+  a node green.
+- `\uses{...}`: labels only. In the statement, what the statement mentions; in the proof, what the
+  proof relies on.
+- `\inherited{...}`: the lean4lean sorry sources and axioms that the audit measures for the node,
+  underscores escaped.
+
+### Result template
+
+```latex
+\begin{theorem}[Short title, 2-6 words]
+  \label{thm:...}
+  \lean{...}
+  \leanok
+  \uses{...}
+  \srcloc{path}{line}
+  \lead{In short} One sentence, at most 25 words, with \hl{the key phrase}.
+  \begin{itemize}
+  \item \lead{Given} one hypothesis per bullet, with the reason it is there;
+  \item \lead{Then} the conclusion.
+  \end{itemize}
+  \lead{Reference} the paper section and the MetaRocq file:identifier it follows.
+\end{theorem}
+\begin{proof}
+  \uses{...}
+  \leanok
+  \lead{Idea} One sentence. \lead{Steps} at most 4 items.
+\end{proof}
+```
+
+Budget: statement at most 90 words (the final theorem at most 150); proof at most 40.
+
+### Definition template
+
+```latex
+\begin{definition}[Short title]
+  \label{def:...}
+  \lean{...}
+  \leanok
+  \uses{...}
+  \srcloc{path}{line}
+  \lead{In short} What it is and what it is for, one sentence.
+  \begin{itemize}
+  \item \code{field\_or\_ctor}: meaning in at most 15 words;
+  \end{itemize}
+\end{definition}
+```
+
+A relation with many rules is one table (`Rule | Premises | Conclusion`). A node that describes
+shipping code opens its body with `\stShipping{}`.
+
+## 3. Chapters
+
+- Opener, after `\chapter{...}\label{chap:...}`: `\section*{At a glance}` with bullets `\lead{Goal}`,
+  `\lead{Main results}`, `\lead{Status}`, `\lead{Lean files}`, and `\lead{Reference}` when the
+  chapter has a counterpart in the references.
+- Sections open with at most two sentences of orientation; no other prose between nodes unless it
+  fixes notation.
+- Closer, in a chapter with nodes: `\section*{Caveats}`, at most 6 bullets of at most 30 words:
+  only facts that limit what the chapter's nodes mean.
+- Files under `src/generated/` are written by scripts: never edit them; change the source (the
+  register, the Lean code) and regenerate.
+
+## 4. Macros (`src/macros/common.tex`)
+
+| Macro | Use |
+|---|---|
+| `\lead{Label}` | bold run-in label, a noun phrase of one to three words; in nodes: In short, Given, Then, Where, Lean, Idea, Steps, Caveat, Why, Reference |
+| `\hl{phrase}` | the one phrase of a node a skimmer must not miss |
+| `\code{...}` | inline code; escape `_` as `\_` |
+| `\stProved`, `\stInherited`, `\stShipping`, `\stOpen` | status badges: proved; trust inherited from lean4lean; shipping code, described, not verified; not done |
+| `\srcloc{path}{line}` | where the node's first declaration is (checked) |
+| `\inherited{names}` | the lean4lean trust the node depends on (checked) |
+
+Allowed LaTeX: `itemize`, `enumerate`, `tabular` with booktabs rules and `p{...}` columns (no
+`\multirow`, no `longtable`: plasTeX renders neither), `\emph`, `\textbf`, `\ref`, math, and the
+macros above. No new package, no `\cite`, no footnote, no macro defined in a chapter. ASCII only;
+a title with math needs `\texorpdfstring{math}{text}`.
+
+## 5. Words
+
+- Sentences at most 25 words; at most one dash aside per paragraph.
+- Ban: "it should be noted", "in other words", "simply", "of course", "clearly", evaluative
+  adjectives, and rhetorical contrasts ("not X but Y") when "Y" suffices.
+- Line numbers live only in `\srcloc{}` and in generated tables.
+- Prefer a table or bullets to a sentence that enumerates three or more things.

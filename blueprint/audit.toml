@@ -1,0 +1,24 @@
+# Configuration of blueprint/scripts/audit.py.
+
+# Lake targets that must be built before the audit (`lake build <targets>`).
+build_targets = ["LeanToLambdaBox", "Lean4Lean", "Lean4Lean.Theory", "Lean4Lean.Verify"]
+
+# Modules imported to check the blueprint: every \lean{} name must be a declaration of this
+# environment. `X.*` stands for the module X and all its submodules (read from the source tree of
+# the root package and of the packages under .lake/packages).
+imports = ["LeanToLambdaBox", "Lean4Lean", "Lean4Lean.Theory.*", "Lean4Lean.Verify.*"]
+
+# Axioms a node may depend on and still carry \leanok.
+standard_axioms = ["propext", "Classical.choice", "Quot.sound"]
+
+# Module prefix of the inherited development. Its axioms and its sorry sources (declarations whose
+# own type or value uses sorryAx) are allowed, and every node that depends on one lists it in
+# \inherited{...}.
+inherited_prefix = "Lean4Lean"
+
+# Module prefix of the shipping code, whose partial and monadic declarations the trust chapter
+# tabulates.
+shipping_prefix = "LeanToLambdaBox"
+
+# Any other sorry source (a declaration outside the inherited development whose own type or value
+# uses sorryAx), and any other axiom, keeps a node from carrying \leanok.

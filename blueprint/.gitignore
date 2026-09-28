@@ -1,0 +1,14 @@
+# Build outputs of blueprint/build.sh and blueprint/scripts/audit.py.
+/web/
+/print/
+/lean_decls
+/.audit/
+/src/web.paux
+/src/*.aux
+/src/*.log
+/src/*.fls
+/src/*.fdb_latexmk
+/src/*.out
+/src/*.toc
+/src/*.synctex.gz
+__pycache__/

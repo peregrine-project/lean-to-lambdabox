@@ -1,0 +1,40 @@
+\chapter{What is open}\label{chap:open}
+
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} List what is not done.
+\item \lead{Status} \stOpen{} \hl{the whole verification}: its scope, its statements and their
+  proofs.
+\end{itemize}
+
+\section{The verification}\label{sec:open-verification}
+
+\begin{tabular}{lp{0.7\linewidth}}
+\toprule
+Item & State \\
+\midrule
+Scope & \stOpen{} The inputs the theorem covers: those whose verification needs nothing beyond
+  lean4lean \code{master}. Being determined from the lean4lean sources. \\
+Statements & \stOpen{} The final theorem and its lemmas. None is stated in Lean; this blueprint
+  states none. \\
+Hypotheses & \stOpen{} Each hypothesis of the final theorem, with the reason it is there. \\
+Proofs & \stOpen{} None exists. \\
+Divergences & \stOpen{} The register has no entry (Chapter~\ref{chap:divergences}); entries arrive
+  with the definitions and statements that diverge. \\
+\bottomrule
+\end{tabular}
+
+\begin{itemize}
+\item \lead{Checkpoint 1} The scope note gives the scope with evidence from the lean4lean sources,
+  example programs inside it, the planned statements typechecked as stubs, and the reference each
+  follows. It awaits the owner's approval.
+\item \lead{Blueprint} Nodes for the planned statements are added once the owner approves the scope
+  note.
+\end{itemize}
+
+\section{The shipping code}\label{sec:open-shipping}
+
+\begin{itemize}
+\item \lead{Defects} The shipping-change register lists the defects it reports without fixing them
+  (Section~\ref{reg:reported-not-fixed}).
+\end{itemize}
