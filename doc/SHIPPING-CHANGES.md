@@ -486,6 +486,86 @@ without peregrine.
   and the test fails with `rInl.ast.inlinings missing: expected the lake lean command before the
   peregrine command`; after, it passes with GNU make 4.4.1 and with make 4.3.
 
+## S-7: Auto-inlining marks a constant only if its inlined body is small
+
+- **Commit:** the commit whose subject starts with `shipping(S-7):`
+  (`git log --grep='^shipping(S-7):'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Basic.lean`: `ModPath` and `Kername` also derive `BEq` and `Hashable`, so that
+    kernames can key a hash map.
+  - `LeanToLambdaBox/Erasure.lean`: `ErasureState` (new field `inlinedSizes`); `ErasureConfig`
+    (docstring of `auto_inline_typeclass_dispatch`); new `autoInlineMaxSize` (40) and
+    `LBTerm.inlinedSize`; `erase.visitMutual`: in the non-recursive branch, the inlined size of the
+    erased body is computed and recorded for an `@[inline]` constant, and a constant that the option
+    would mark is marked only if its inlined size is at most `autoInlineMaxSize`, with a log message
+    that gives the size or the refusal; in the recursive branch, the inlined size of the fixpoint of
+    an `@[inline]` constant is recorded.
+  - new `tests/regress/auto_inline_size.lean`, its expected outputs
+    `tests/regress/expected/auto_inline_size/` (8 files) and
+    `tests/regress/expected-peregrine/auto_inline_size/` (4 files).
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** defect D5 of S-2, reproduced on this branch. With the option on, every instance
+  and every trivial alias is marked, whatever its size. Peregrine's inlining pass (MetaRocq
+  `EInlining.inline_env`) replaces each use of a marked constant by its body, into which the marked
+  constants were already inlined, so the code grows without bound. `e46224f` limited the erased
+  body of an instance to 40 nodes; `8db2dd9` removed the limit. A limit on the erased body alone
+  does not bound the growth either: in a chain of instances where each one calls the method of the
+  previous one twice, every body has at most 12 nodes, and the inlined code doubles at each level
+  (see below). The limit is therefore put on what Peregrine substitutes: the body with the marked
+  constants, including `@[inline]` ones, inlined into it (`LBTerm.inlinedSize`). The bound 40 is
+  the value of `e46224f`. On the 20 benchmarks, every constant still marked measures at most 38
+  and every refused one at least 140, so any bound from 38 to 139 marks the same constants.
+- **Behaviour before:** reproduction: the 20 `natio` benchmarks are erased with
+  `config {remove_irrel_constr_args := true, auto_inline_typeclass_dispatch := true}` (source file
+  elaborated with `lake env lean` in `benchmarks/via_malfunction`), and each `.ast` is compiled with
+  `peregrine compile <t>.ast unbox.config --attributes=<t>.ast.inlinings` after the R-1 rewrite.
+  - unionfind: 37 constants are marked, among them `UnionFind.StateT'.instMonad` and
+    `UnionFind.ExceptT'.instMonad`. The `.mlf` has 14 510 809 bytes (126 374 with the option off)
+    and peregrine takes 3.34 s (0.05 s). The benchmark Makefile (`FLAMBDA=0`, switch `peregrine`,
+    OCaml 4.14.2, `ARRAYML=JCFArrayOCaml4.ml`, the given `.ast` files) builds the binary in 15.2 s
+    (0.9 s), and the binary has 36 297 424 bytes (2 972 176). unionfind_noinline: 5 818 655 bytes
+    (89 106).
+  - `tests/regress/auto_inline_size.lean` (option on): `instMonadSt`, a `Monad` instance, and the
+    four instances `i0` to `i3` of the chain are marked; `chain.mlf` has 3 208 bytes and
+    `twice.mlf` 20 223. With the chain extended to eleven levels (`j0` to `j10`, each calling the
+    previous method twice), all eleven are marked, and the `.mlf` of a program calling level 3, 6 or
+    10 has 3 208, 26 332 or 425 747 bytes.
+- **Behaviour after:** same reproduction.
+  - unionfind: 35 constants are marked; the two monad instances are refused (inlined sizes 881 and
+    1 098). The `.mlf` has 129 332 bytes, peregrine takes 0.05 s, the Makefile builds the binary in
+    0.8 s, and the binary has 2 900 376 bytes. unionfind_noinline: 88 726 bytes, without its two
+    monad instances. In qsort, qsort_fin and qsort_single, `Array.instGetElem?NatLtSize` (140) and
+    `Vector.instGetElemNatLt` (146) are no longer marked (qsort `.mlf`: 34 933 to 34 583 bytes). The
+    other 15 benchmarks mark the same constants as before, and their `.mlf` files are identical.
+  - The binaries print the same results. Running times, minimum of 5 runs, with the option off /
+    on before / on after: binarytrees 17: 0.75 / 0.38 / 0.39 s; qsort 1000: 0.51 / 0.36 / 0.37 s;
+    triangle_rec 10000000 (with `ulimit -s unlimited`): 7.51 / 0.109 / 0.107 s; unionfind 100000:
+    0.75 / 0.37 / 0.72 s. The speedup of unionfind came from inlining its two monad instances, at
+    the price of the code growth above; it is lost. The other speedups are kept.
+  - `tests/regress/auto_inline_size.lean`: `instMonadSt` is refused (inlined size 453); `i0`, `i1`
+    and `i3` are marked (8, 30 and 16) and `i2` is refused (74), after which `i3` refers to `i2`
+    without inlining it. `chain.mlf` has 1 416 bytes and `twice.mlf` 7 892. In the eleven-level
+    chain, `j0` and the odd levels are marked, and the three programs give 1 416, 2 292 and 3 468
+    bytes.
+  - `peregrine eval` of `chain 2` and `(twice 3).1` under Peano naturals, with their inlinings,
+    gives 10 and 7, before and after.
+  - Each decision is logged, for example `Auto-inlining typeclass instance i1 (inlined size 30).`
+    and `Not auto-inlining typeclass instance i2: inlined size 74 exceeds 40.`
+  - The bound concerns Peregrine's inlining pass. Its beta-reduction pass (MetaRocq `EBeta.betared`)
+    then substitutes the arguments of an inlined λ into its body, which copies an argument once per
+    occurrence of the bound variable.
+- **Effect on emitted .ast (corpus):** byte-identical for all 284 files; `scripts/corpus-diff.sh`
+  against the corpus of S-6 reports 284 identical. The corpus does not turn the option on, and the
+  `.ast.inlinings` of other configurations lists only `@[inline]` constants, which this change
+  does not affect. With the option on (outside the corpus), the 20 benchmark `.ast` files are
+  byte-identical before and after, and only the `.ast.inlinings` files of the five benchmarks named
+  above change, each losing the constants named above.
+- **Regression test:** `tests/regress/auto_inline_size.lean` erases `twice` and `chain` with the
+  option on, and `(twice 3).1` and `chain 2` under Peano naturals. It fails before
+  (`chain.ast.inlinings` and `chain2.ast.inlinings` list `i2`, and `twice.ast.inlinings` and
+  `twice3.ast.inlinings` list `instMonadSt`) and passes after. With `PEREGRINE` set, `chain2.ast`
+  and `twice3.ast` validate and evaluate to 10 and 7.
+
 ---
 
 ## Reported, not fixed

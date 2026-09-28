@@ -30,6 +30,11 @@ structure ErasureState: Type where
   /-- This field is only updated, not read. -/
   gdecls: GlobalDeclarations := []
   inlinings: List Kername := []
+  /--
+  For each constant in `inlinings` that has a body, the `LBTerm.inlinedSize` of that body: its
+  number of nodes once Peregrine has inlined into it the constants of `inlinings`.
+  -/
+  inlinedSizes: Std.HashMap Kername Nat := ∅
 
 namespace Config
 
@@ -78,10 +83,34 @@ structure ErasureConfig: Type where
   Inlining is always skipped if the erased body contains a `LBTerm.fix`, since
   inlining recursion would unfold the recursive definition at every call site.
 
+  A constant is marked only if its body, with every marked constant inlined into it, has at most
+  `autoInlineMaxSize` nodes (`LBTerm.inlinedSize`), so Peregrine's inlining pass replaces each use
+  of a constant marked by this option by at most that many nodes.
+
   Off by default: marking constants for inlining is a *directive* to Peregrine
   (everything marked will be inlined), so enable only after profiling shows it pays off.
   -/
   auto_inline_typeclass_dispatch: Bool := false
+
+/-- Largest `LBTerm.inlinedSize` of a body that `ErasureConfig.auto_inline_typeclass_dispatch`
+marks for inlining. -/
+def autoInlineMaxSize : Nat := 40
+
+/--
+Number of nodes of the term after Peregrine's inlining pass, which replaces every constant listed
+in `.ast.inlinings` by its body, in which the listed constants are already replaced: a constant `kn`
+of `sizes` counts as `sizes[kn]` nodes, every other node as one.
+-/
+partial def _root_.LBTerm.inlinedSize (sizes : Std.HashMap Kername Nat) : LBTerm → Nat
+  | .const kn => sizes.getD kn 1
+  | .box | .bvar _ | .fvar _ | .prim _ => 1
+  | .lambda _ b => 1 + b.inlinedSize sizes
+  | .letIn _ v b => 1 + v.inlinedSize sizes + b.inlinedSize sizes
+  | .app a b => 1 + a.inlinedSize sizes + b.inlinedSize sizes
+  | .construct _ _ args => args.foldl (fun n a => n + a.inlinedSize sizes) 1
+  | .case _ d alts => alts.foldl (fun n (_, b) => n + b.inlinedSize sizes) (1 + d.inlinedSize sizes)
+  | .proj _ e => 1 + e.inlinedSize sizes
+  | .fix defs _ => defs.foldl (fun n d => n + d.body.inlinedSize sizes) 1
 
 /-- Strip leading lambdas (typeclass-instance parameters), exposing the body. -/
 partial def _root_.LBTerm.stripLambdas : LBTerm → LBTerm
@@ -659,17 +688,21 @@ where
         pure (← visitExpr (← prepare_erasure e))
       let kn := toKername name
       modify (fun s => { s with constants := s.constants.insert name kn, gdecls := s.gdecls.cons (kn, .constantDecl <| ⟨.some t⟩) })
+      let size := t.inlinedSize (← get).inlinedSizes
+      if leanInline then
+        modify (fun s => { s with inlinedSizes := s.inlinedSizes.insert kn size })
       -- Post-erasure: structurally detect typeclass-dispatch artifacts and mark them inline.
       -- Skipped if @[inline] already added this constant, or if the body contains a `fix`
       -- (inlining recursion would unfold the recursive definition at every call site).
       if (← read).config.auto_inline_typeclass_dispatch && !leanInline && !t.containsFix then
         let isInst ← Lean.Meta.isInstance name
-        if isInst then
-          logInfo s!"Auto-inlining typeclass instance {name}."
-          modify (fun s => { s with inlinings := s.inlinings.cons kn })
-        else if t.isTrivialAlias then
-          logInfo s!"Auto-inlining trivial alias {name}."
-          modify (fun s => { s with inlinings := s.inlinings.cons kn })
+        let kind := if isInst then "typeclass instance" else "trivial alias"
+        if isInst || t.isTrivialAlias then
+          if size ≤ autoInlineMaxSize then
+            logInfo s!"Auto-inlining {kind} {name} (inlined size {size})."
+            modify (fun s => { s with inlinings := s.inlinings.cons kn, inlinedSizes := s.inlinedSizes.insert kn size })
+          else
+            logInfo s!"Not auto-inlining {kind} {name}: inlined size {size} exceeds {autoInlineMaxSize}."
     else -- translate into a mutual fixpoint declaration
       let ids ← names.mapM (fun _ => mkFreshFVarId)
       let fixvarnames := names.map remove_unsafe_rec
@@ -684,6 +717,9 @@ where
         for (n, i) in fixvarnames.zipIdx do
           let kn := toKername n
           modify (fun s => { s with constants := s.constants.insert n kn, gdecls := s.gdecls.cons (kn, .constantDecl ⟨.some <| .fix defs i⟩) })
+          if leanInline then
+            let size := (LBTerm.fix defs i).inlinedSize (← get).inlinedSizes
+            modify (fun s => { s with inlinedSizes := s.inlinedSizes.insert kn size })
 
 inductive MLType: Type where
   | arrow (a b: MLType)
