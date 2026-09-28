@@ -611,11 +611,14 @@ where
   Each constructor's branch is its alternative if it has one. Otherwise it is the catch-all applied to
   one □ per hypothesis (the sparse `casesOn` reduces to the catch-all applied to a proof), or □ if
   there is no catch-all (the side condition makes the branch unreachable).
+  The match compiler passes the discriminant to the catch-all. If the catch-all is used and the
+  erased discriminant is neither a variable nor □, the discriminant is let-bound and the catch-all
+  uses the bound variable in its place, so that the discriminant is evaluated once.
   -/
   visitCases (casesInfo : CasesInfo) (args: Array Expr) : EraseM LBTerm := do
-    let discr_nt ← visitExpr args[casesInfo.discrPos]!
-    let typeName := casesInfo.indName
-    let .inductInfo indVal ← getConstInfo typeName | unreachable!
+    let discr := args[casesInfo.discrPos]!
+    let discr_nt ← visitExpr discr
+    let .inductInfo indVal ← getConstInfo casesInfo.indName | unreachable!
     -- The number of fields and the alternative of each constructor that has one; the catch-all.
     let mut ctorAlts : Std.HashMap Name (Nat × Expr) := {}
     let mut catchAll : Option (Nat × Expr) := none
@@ -623,19 +626,42 @@ where
       match altInfo with
       | .ctor ctorName numFields => ctorAlts := ctorAlts.insert ctorName (numFields, args[i]!)
       | .default numHyps => catchAll := some (numHyps, args[i]!)
+    -- The catch-all is used only if some constructor has no alternative.
+    if indVal.ctors.all (ctorAlts.contains ·) then
+      catchAll := none
+    let mut ret : LBTerm ← match catchAll with
+      | some (numHyps, catchAllFun) =>
+        if discr_nt matches .fvar _ | .box then
+          visitCasesOn indVal ctorAlts catchAll discr_nt
+        else do
+          let type ← liftMetaM <| Meta.inferType discr
+          withLocalDef `discr type discr false fun x => do
+            let catchAllFun := catchAllFun.replace fun e => if e == discr then some (.fvar x) else none
+            mkLetIn x discr_nt (← visitCasesOn indVal ctorAlts (some (numHyps, catchAllFun)) (.fvar x))
+      | none => visitCasesOn indVal ctorAlts none discr_nt
+
+    -- The casesOn function may be overapplied, so handle the extra arguments.
+    for arg in args[casesInfo.arity:] do
+      ret := .app ret (← visitExpr arg)
+    return ret
+
+  /--
+  The `case` of `visitCases`, given the alternative and number of fields of each constructor that has
+  an alternative, the catch-all and its number of hypotheses if it is used, and the erased
+  discriminant.
+  -/
+  visitCasesOn (indVal : InductiveVal) (ctorAlts : Std.HashMap Name (Nat × Expr))
+      (catchAll : Option (Nat × Expr)) (discr_nt : LBTerm) : EraseM LBTerm := do
     -- The body of the branch of a constructor that has no alternative.
     let missing_nt : LBTerm ←
       match catchAll with
-      | some (numHyps, catchAllFun) =>
-        if indVal.ctors.all (ctorAlts.contains ·) then
-          pure .box
-        else do
-          let catchAll_nt ← visitExpr catchAllFun
-          pure <| (List.replicate numHyps LBTerm.box).foldl .app catchAll_nt
+      | some (numHyps, catchAllFun) => do
+        let catchAll_nt ← visitExpr catchAllFun
+        pure <| (List.replicate numHyps LBTerm.box).foldl .app catchAll_nt
       | none => pure .box
 
     -- If we are using machine Nats then the inductive casesOn will not work.
-    let mut ret: LBTerm ← (match typeName, (← read).config.nat with
+    match indVal.name, (← read).config.nat with
     | ``Nat, .machine => do
       /-
       Compile this to "let n = discr in Bool.casesOn (Nat.beq n 0) (succ_case (n - 1)) zero_case".
@@ -695,12 +721,6 @@ where
           | none => pure (List.replicate (argmask.count .keep) BinderName.anon, missing_nt)
         alts := alts.push alt
       pure <| LBTerm.case (indid, indVal.numParams) discr_nt alts.toList
-    )
-
-    -- The casesOn function may be overapplied, so handle the extra arguments.
-    for arg in args[casesInfo.arity:] do
-      ret := .app ret (← visitExpr arg)
-    return ret
 
   /--
   Visit a `matcher`/`casesOn` alternative.
