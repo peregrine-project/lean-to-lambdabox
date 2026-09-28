@@ -80,8 +80,8 @@ structure ErasureConfig: Type where
   - Trivial-alias shape on the erased body: a bare `const`/`proj`, or a single-ctor
     structure literal whose fields are shallow.
 
-  Inlining is always skipped if the erased body contains a `LBTerm.fix`, since
-  inlining recursion would unfold the recursive definition at every call site.
+  Only non-recursive definitions are considered: a recursive definition is erased to a fixpoint
+  and is never marked, since inlining it would unfold the recursion at every use.
 
   A constant is marked only if its erased body is a value (`LBTerm.isValue`): the compiled program
   evaluates a top-level constant once, but an inlined body at every use.
@@ -137,20 +137,6 @@ where
 partial def _root_.LBTerm.stripLambdas : LBTerm → LBTerm
   | .lambda _ b => b.stripLambdas
   | t => t
-
-/--
-True iff the term contains a `LBTerm.fix` subterm anywhere. Used to refuse
-inlining of recursive definitions, which would unfold recursion at each call site.
--/
-partial def _root_.LBTerm.containsFix : LBTerm → Bool
-  | .box | .bvar _ | .fvar _ | .const _ | .prim _ => false
-  | .lambda _ b => b.containsFix
-  | .letIn _ v b => v.containsFix || b.containsFix
-  | .app a b => a.containsFix || b.containsFix
-  | .construct _ _ args => args.any (·.containsFix)
-  | .case _ d alts => d.containsFix || alts.any (fun (_, b) => b.containsFix)
-  | .proj _ e => e.containsFix
-  | .fix _ _ => true
 
 /--
 True when the erased body, modulo a leading chain of lambdas, looks like a
@@ -713,9 +699,9 @@ where
       if leanInline then
         modify (fun s => { s with inlinedSizes := s.inlinedSizes.insert kn size })
       -- Post-erasure: structurally detect typeclass-dispatch artifacts and mark them inline.
-      -- Skipped if @[inline] already added this constant, or if the body contains a `fix`
-      -- (inlining recursion would unfold the recursive definition at every call site).
-      if (← read).config.auto_inline_typeclass_dispatch && !leanInline && !t.containsFix then
+      -- Skipped if @[inline] already added this constant. Recursive definitions are erased in the
+      -- other branch and are never marked.
+      if (← read).config.auto_inline_typeclass_dispatch && !leanInline then
         let isInst ← Lean.Meta.isInstance name
         let kind := if isInst then "typeclass instance" else "trivial alias"
         if isInst || t.isTrivialAlias then

@@ -627,6 +627,47 @@ without peregrine.
   `instLet`) and passes after, where only `instLam` of the three is listed. With `PEREGRINE` set,
   `useAll2.ast` validates and evaluates to 25.
 
+## S-9: The dead `containsFix` guard of auto-inlining is removed
+
+- **Commit:** the commit whose subject starts with `shipping(S-9):`
+  (`git log --grep='^shipping(S-9):'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure.lean`: `LBTerm.containsFix` removed; `erase.visitMutual`: the condition
+    `!t.containsFix` of the auto-inline step and its comment removed, and the comment now says that
+    recursive definitions are never marked; `ErasureConfig`: the paragraph of the docstring of
+    `auto_inline_typeclass_dispatch` about `LBTerm.fix` is replaced by one that says that only
+    non-recursive definitions are considered.
+  - new `tests/regress/auto_inline_recursive.lean`, its expected outputs
+    `tests/regress/expected/auto_inline_recursive/` (4 files) and
+    `tests/regress/expected-peregrine/auto_inline_recursive/` (2 files).
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** defect D7 of S-2, confirmed on this branch. `8db2dd9` added the guard
+  `!t.containsFix`, documented as refusing to inline recursive bodies, in the non-recursive branch
+  of `erase.visitMutual`. The term `t` there is the result of `visitExpr`, and `LBTerm.fix` is built
+  only in the recursive branch of `erase.visitMutual` (the declaration `.fix defs i`), so `t` never
+  contains one and the guard never applies. Recursive definitions were never candidates, since the
+  auto-inline step exists only in the non-recursive branch. The guard and its documentation
+  described a protection that the code gets elsewhere, and they suggested that a body calling a
+  recursive function is refused, which it is not (it contains a constant, not a fixpoint). The
+  change removes the dead code and states where the protection comes from.
+- **Behaviour before:** reproduction: `tests/regress/auto_inline_recursive.lean` with the option on.
+  `depthInst : (n : Nat) → Depth n`, recursive and declared an instance with `attribute [instance]`,
+  is erased to a fixpoint and is not marked; `instSum : Tbl := ⟨fun i => sumTo i⟩`, which calls the
+  recursive `sumTo`, is marked (inlined size 6). A copy of the eraser at the commit of S-8 that logs
+  every non-recursive body for which `containsFix` holds logs nothing on the corpus examples, the
+  nine regression tests and the 20 benchmarks erased with the option on (164 `.ast` files, 88 of
+  them with a fixpoint).
+- **Behaviour after:** the same: outputs and log messages of the test above are byte-identical, and
+  so are the `.ast`, `.ast.inlinings` and `.mlf` files of the 20 benchmarks erased with the option
+  on. With `PEREGRINE` set, `useBoth 2` evaluates to 6 under Peano naturals, before and after.
+- **Effect on emitted .ast (corpus):** byte-identical for all 284 files; `scripts/corpus-diff.sh`
+  against the corpus of S-8 reports 284 identical.
+- **Regression test:** the change does not alter behaviour, so no test fails before it.
+  `tests/regress/auto_inline_recursive.lean` guards what the removed guard claimed and what holds
+  without it: with the option on, a recursive instance (`depthInst`) is not marked, and a
+  non-recursive instance that calls a recursive function (`instSum`) is marked. It passes before and
+  after.
+
 ---
 
 ## Reported, not fixed
