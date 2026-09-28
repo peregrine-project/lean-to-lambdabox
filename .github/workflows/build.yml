@@ -33,3 +33,6 @@ jobs:
           build: true
           test: false
           lint: false
+
+      - name: Shipping regression tests
+        run: scripts/regress.sh
