@@ -12,7 +12,8 @@ EraseProof.TrS.inst_fvar EraseProof.erasePure_erases v7-core-main
 EraseProof.LBEval.closed EraseProof.erasePure_erases v7-core-main
 EraseProof.SrcEval.value EraseProof.erases_correct v4-sim-main
 EraseProof.Pure.isErasable_agree EraseProof.visit_agree v6-frame-b
-EraseProof.SrcEval.defeq EraseProof.ErasableS.eval v2-erasable-eval
+EraseProof.ErasableS.eval EraseProof.erases_correct v4-sim-main
+EraseProof.ErasableS.atom EraseProof.erases_correct v4-sim-main
 EraseProof.Pure.inferType_sound EraseProof.Pure.isErasable_sound v5-sound
 EraseProof.IsErasable.inst EraseProof.Erases.inst v3-rel-subst
 EraseProof.IsErasable.instL EraseProof.Erases.instLevels v3-rel-levels
