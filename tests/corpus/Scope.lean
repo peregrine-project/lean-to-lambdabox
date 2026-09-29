@@ -89,6 +89,10 @@ end Scope
 #erase (Scope.cand Scope.ctrue (Scope.cisZero Scope.czero)) to "cand.ast"
 #erase @Scope.pid to "pid.ast"
 #erase @Scope.pcomp to "pcomp.ast"
+-- With their universes given, `pid` and `pcomp` are in the fragment of the pure path (`@Scope.pid`
+-- and `@Scope.pcomp` leave them as metavariables).
+#erase @Scope.pid.{1} to "pidU1.ast"
+#erase @Scope.pcomp.{1,1,1} to "pcompU111.ast"
 #erase Scope.cfour to "cfour.ast"
 #erase Scope.typeArg to "typeArg.ast"
 #erase Scope.typeFormerArg to "typeFormerArg.ast"
