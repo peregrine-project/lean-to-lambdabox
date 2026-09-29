@@ -1240,6 +1240,150 @@ without peregrine.
   a change of these errors, or an `#erase` that starts to succeed, shows. The regression tests are
   unchanged and pass.
 
+## S-16: The erasure traversal is total and generic over its backend
+
+- **Commit:** the commit whose subject starts with `shipping(S-16):`
+  (`git log --grep='^shipping(S-16):'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Basic.lean`: `toBvar` is no longer `partial`: it is defined by structural
+    recursion, together with the new `toBvarList`, `toBvarAlts` and `toBvarDefs`, which apply it to
+    the arguments of a `construct`, the alternatives of a `case` and the definitions of a `fix`
+    (in place of `List.map`).
+  - `LeanToLambdaBox/Erasure.lean`:
+    - new class `Backend m`: the environment and `Meta` operations of the traversal (`findConst?`,
+      `unknownConstant`, `declInfo?`, `unsafeRecBase?`, `freshFVarId`, `instantiate1`,
+      `isErasable`, `inferType`, `casesInfo?`, `ctorArity?`, `argMask`, `isExtern`,
+      `inlineAttr?`, `isInstance`, `prepare`, `log`, `outOfFuel`); `isErasable`, `inferType` and
+      `argMask` receive the traversal's `LocalContext`;
+    - new `instance : Backend CoreM`, whose operations are the calls the traversal made before:
+      `Environment.find?`, `throwUnknownConstant`, `Compiler.LCNF.getDeclInfo?`,
+      `Compiler.isUnsafeRecName?`, `mkFreshFVarId`, `Expr.instantiate1`, `isErasable` and
+      `Meta.inferType` run by the new `runMetaM` (the former `liftMetaM`, in `CoreM`),
+      `getCasesInfo?`, `getCtorArity?`, the new `argMaskCore` (the argument-mask code of
+      `register_inductive`, moved unchanged), `isExtern`, `Compiler.getInlineAttribute?`,
+      `Meta.isInstance`, `prepareErasure` (the former `prepare_erasure`, which now receives the
+      configuration), `logInfo`, and `throwError` for `outOfFuel`;
+    - new `EraseT m := StateT ErasureState (ReaderT ErasureContext m)` in place of `EraseM`
+      (which was `EraseT CoreM`); `run` is generic;
+    - new `getConst`: `getConstInfo` through the backend (`findConst?`, then `unknownConstant`);
+    - generic over the backend, with bodies otherwise unchanged: `addAxiom`,
+      `register_inductive`, `fvar_to_name`, `mkLambda`, `mkLetIn`, `mkAlt`, `mkDef`,
+      `withLocalDecl`, `withLocalDef`, `lambdaMonocular`, `letMonocular`, `forallMonocular`,
+      `lambdaMonocularOrIntro`, `lambdaOrIntroToArity`, `remove_unsafe_rec`, `name_occurs`;
+    - `withAppEtaToMinArity` is no longer `partial`: it takes a `fuel` argument, and its `go`
+      recurses structurally on it;
+    - the functions of the `where` block of `erase` (`visitExpr`, `visitLiteral`, `visitLambda`,
+      `visitLet`, `visitProj`, `visitApp`, `visitConst`, `visitConstApp`, `visitConstructor`,
+      `visitAppArgs`, `visitCases`, `visitCasesOn`, `visitAlt`, `get_constant_kername`,
+      `visitMutual`) become the top-level `mutual` block `Erasure.visitExpr`, …, generic over the
+      backend. Each takes a first argument `fuel`, fails with `Backend.outOfFuel` at 0 and calls
+      the functions of the block with `fuel - 1`; they are defined by structural recursion on it.
+      Their bodies are otherwise unchanged;
+    - new `travFuel := 2 ^ 32`; `erase` is no longer `partial`: it runs
+      `visitExpr travFuel` after `prepare` with the `CoreM` backend, as before.
+  - new `tests/regress/traversal_total.lean`, its expected outputs
+    `tests/regress/expected/traversal_total/` (4 files) and
+    `tests/regress/expected-peregrine/traversal_total/` (2 files).
+  - `tests/regress/compiler_api.lean`, `tests/regress/sparse_cases.lean`: the module docstrings
+    name `Erasure.visitCases` in place of `erase.visitCases`.
+  - `doc/SHIPPING-CHANGES.md`: this entry; the "Where" fields of R-4, R-5, R-6, R-8, R-9, R-10,
+    R-11, R-12, R-13, R-21 and R-24, and the reproduction of R-4, name the new functions.
+- **Why necessary:** the verification (DESIGN Q8, S-A) proves a theorem about the traversal that
+  `#erase` runs. A `partial` definition is an opaque constant: it has no equations, so nothing about
+  `erase`, its `where` block, `withAppEtaToMinArity` or `toBvar` can be proved. The traversal
+  cannot be structural on the term, since `visitMutual` erases the body of another constant and
+  `lambdaMonocular` instantiates the body it visits; a fuel argument that bounds the depth of the
+  recursion makes it total without changing the calls it makes. The traversal also ran in `CoreM`,
+  whose state and `Meta` operations are opaque to proofs; being generic over the backend lets the
+  verified path run this same traversal with a pure backend (DESIGN Q8, S-D) instead of a copy of
+  it, while `#erase` keeps the `CoreM` backend.
+- **Behaviour before:** `erase`, its `where` functions, `withAppEtaToMinArity` and `toBvar` are
+  `partial`. Reproduction: `tests/regress/traversal_total.lean` at the parent commit fails with 21
+  errors (`Unknown identifier visitExpr`, `Unknown identifier Backend.outOfFuel`, …), and a file
+  stating `toBvar x 0 (.letIn .anon (.fvar x) (.fvar x)) = .letIn .anon (.bvar 0) (.bvar 1) := rfl`
+  fails with `Type mismatch`, because `toBvar` does not unfold.
+- **Behaviour after:** `#erase` gives the same outputs and the same log messages; a `PANIC`
+  message names the new function (`PANIC at Erasure.visitLiteral` in place of
+  `PANIC at Erasure.erase.visitLiteral`). The traversal functions and `toBvar` have equation
+  lemmas (`Erasure.visitExpr.eq_1`: `visitExpr 0 e = liftM (Backend.outOfFuel "visitExpr")`;
+  `visitExpr.eq_2`: at `fuel + 1` on `.app`, the body of `visitExpr`; likewise for the other
+  functions and for `withAppEtaToMinArity.go`), and `rfl` computes `toBvar`. With fuel 2,
+  `visitExpr` on `fun (x : Nat) => x` fails with `erasure: recursion bound reached in visitExpr`;
+  with fuel 3 it gives `λx. x`. `#erase` runs with fuel `2 ^ 32`, which no program reaches: the
+  recursion is as deep as before and exhausts the stack first (R-6). All axioms of `visitExpr` and
+  `visitMutual` are `propext`, `Classical.choice` and `Quot.sound`; `toBvar` has none.
+- **Effect on emitted .ast (corpus):** byte-identical for all 704 files; `scripts/corpus-diff.sh`
+  against the corpus of S-15 reports 704 identical. The corpus logs are identical except for the
+  location lines of the 4 `PANIC` messages of `Defects.lean` (the function names and line numbers)
+  and their backtraces.
+- **Regression test:** `tests/regress/traversal_total.lean` states, for every backend, the equations
+  of `visitExpr` at fuel 0 and at `fuel + 1` on a free variable, of `visitAppArgs` and of
+  `visitMutual` at fuel 0 (proved by `rw` with the equation lemmas); the value of `toBvar` under a λ,
+  a let, a case with two alternatives and a fixpoint with two definitions (proved by `rfl`); the
+  fuel error and the result at sufficient fuel of `visitExpr` with the `CoreM` backend
+  (`#guard_msgs`); and it pins the output of a program that goes through every function of the
+  traversal: a let of a literal, a projection, a match with its alternatives, a constructor
+  η-expanded to its arity (`List.map T.b`), a mutual recursion (`ev`/`od`), under Peano naturals
+  (`all.ast`, which peregrine evaluates to 10, Lean's value) and under the default configuration
+  (`go.ast`). It fails before (21 errors; the outputs are the same) and passes after.
+
+## S-17: The traversal's context lists its locals, and binder names come from that list
+
+- **Commit:** the commit whose subject starts with `shipping(S-17):`
+  (`git log --grep='^shipping(S-17):'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure.lean`:
+    - `ErasureContext` becomes `TravCtx`, with the fields `lctx`, `locals`, `fixvars` and `config`:
+      the new field `locals : List Local` holds the same binders as `lctx`, innermost first;
+    - new structure `Local` (`fvarId`, `userName`, `type`, `value?`);
+    - new `binderNameOf`: the name test of `fvar_to_name`, as a function of the user name (an ASCII
+      graphic name is kept, any other becomes anonymous); new `fixDefName`: the name that `mkDef`
+      gave a fixpoint definition;
+    - `withLocalDecl` and `withLocalDef` push the new binder onto `locals` (with its value for a
+      `let`) as well as into `lctx`;
+    - `fvar_to_name` is `binderNameOf` of the user name of the variable's entry in `locals`, in
+      place of a lookup in `lctx`; `mkDef` names the definition with `fixDefName`;
+    - `Backend.isErasable` and `Backend.inferType` also receive the list of locals; the `CoreM`
+      backend ignores it and runs `Meta` in `lctx`, as before; `EraseT m` reads a `TravCtx`.
+  - new `tests/regress/traversal_locals.lean`, its expected outputs
+    `tests/regress/expected/traversal_locals/` (6 files) and
+    `tests/regress/expected-peregrine/traversal_locals/` (2 files).
+  - `tests/regress/traversal_total.lean`: its equation of `visitExpr` on a free variable passes the
+    list of locals to `Backend.isErasable`.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** DESIGN Q8, S-B. The verified backend's oracle types free variables from a list
+  of locals: a `LocalContext` lookup goes through a `PersistentHashMap`, whose operations are
+  opaque to proofs (lean4lean states them as axioms). The erasure relation of the verification
+  fixes the λ□ name of a binder as a function of its Lean user name (`binderNameOf`) and the name of
+  a fixpoint definition as a function of the constant's name (`fixDefName`), so the traversal
+  computes them from these. Keeping `lctx` leaves the `CoreM` backend unchanged.
+- **Behaviour before:** `fvar_to_name` reads the binder's user name from `lctx`
+  (`lctx.fvarIdToDecl.find!`), and the context has no list of locals. Reproduction:
+  `tests/regress/traversal_locals.lean` at the parent commit fails with 9 errors
+  (`Unknown identifier binderNameOf`, `Invalid field locals`, …); its six output files are those
+  expected.
+- **Behaviour after:** `#erase` gives the same outputs and the same log messages. After
+  `withLocalDecl a` and `withLocalDef b`, `locals` is `[b (with its value), a]` and `lctx` holds
+  both. `binderNameOf` gives `x ↦ "x"`, `α₁ ↦ anonymous`, `a.b ↦ "a.b"`, `«a b» ↦ anonymous`, as
+  `fvar_to_name` did. A variable without an entry in `locals` makes `fvar_to_name` panic
+  (`Option.get!`), as a variable without an entry in `lctx` did (`PersistentHashMap.find!`);
+  the traversal introduces every variable it names with `withLocalDecl` or `withLocalDef`, and no
+  corpus or regression log has a new `PANIC`.
+- **Effect on emitted .ast (corpus):** byte-identical for all 704 files; `scripts/corpus-diff.sh`
+  against the corpus of S-16 reports 704 identical. The corpus logs are identical except for the
+  line numbers in the locations of the 4 `PANIC` messages of `Defects.lean`, and their backtraces.
+- **Regression test:** `tests/regress/traversal_locals.lean` checks `binderNameOf` and `fixDefName`
+  on ASCII, non-ASCII and hierarchical names, and the contents of `locals` and `lctx` after a
+  `withLocalDecl` and a `withLocalDef` (`#guard_msgs`); and it pins the output of programs with a
+  binder at every place where the traversal introduces one: a λ with an ASCII and a non-ASCII
+  binder, a `let`, a constructor η-expanded to its arity (`List.map T.b`), a `casesOn` with an
+  alternative that is not a λ (`g`, η-expanded through its type) and one that is, a sparse
+  `casesOn` whose discriminant is let-bound (`discr`, S-14), a `Nat` match in machine mode (`n`),
+  and a recursive definition (the fixpoint definition `Loc.step`): `names.ast`, `step.ast`
+  (default configuration) and `all.ast` (Peano naturals, which peregrine evaluates to 11, Lean's
+  value). A binder missing from `locals` would make the test fail on the panic. It fails before
+  (9 errors; the outputs are the same) and passes after.
+
 ---
 
 ## Reported, not fixed
@@ -1293,10 +1437,10 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
 - **What:** string literals, and Nat literals above `2^62 - 1` in machine mode, reach `panic!`. A
   Lean panic prints `PANIC ...` and continues with the default value, here `□`, so `#erase`
   succeeds, writes the file and exits with status 0.
-- **Where:** `LeanToLambdaBox/Erasure.lean`: `erase.visitLiteral`.
+- **Where:** `LeanToLambdaBox/Erasure.lean`: `visitLiteral`.
 - **Reproduction:** `strlit.ast` (`#erase "abc"`) is `(Untyped () (Some tBox))`; in `biglit.ast`
   (`5000000000000000000 : Nat`) the literal is `tBox`. The log contains
-  `PANIC at Erasure.erase.visitLiteral`. Both files pass `peregrine validate`.
+  `PANIC at Erasure.visitLiteral`. Both files pass `peregrine validate`.
 - **Impact:** silent miscompilation.
 - **Why not fixed:** not required by the verification goal unless it later becomes required.
 
@@ -1307,7 +1451,7 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
   `unreachable!`; the panic's default yields a branch with no binders, which no longer matches the
   constructor's arity.
 - **Where:** `LeanToLambdaBox/Erasure.lean`: `forallMonocular`, `lambdaMonocularOrIntro`,
-  `lambdaOrIntroToArity` (called by `erase.visitAlt`); `withAppEtaToMinArity` has the same
+  `lambdaOrIntroToArity` (called by `visitAlt`); `withAppEtaToMinArity` has the same
   limitation.
 - **Reproduction:** `nonsyn_pi.ast` (`viaCases 3`, where the successor alternative is
   `g : MyFun` with `def MyFun := Nat → Nat`; Lean value 2). The log contains
@@ -1320,7 +1464,7 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
 
 - **What:** with `nat := .peano`, a literal `n` is translated by `n` nested calls
   (`visitLiteral` → `visitConstructor` → `visitAppArgs` → `visitExpr`).
-- **Where:** `LeanToLambdaBox/Erasure.lean`: `erase.visitLiteral` (Peano branch).
+- **Where:** `LeanToLambdaBox/Erasure.lean`: `visitLiteral` (Peano branch).
 - **Reproduction:** a file containing `import LeanToLambdaBox` and
   `#erase (1000000 : Nat) config {nat := .peano, extern := .preferLogical} to "p.ast"` makes Lean
   abort (exit status 134) with `deep recursion was detected at 'interpreter'`; `200000` succeeds and
@@ -1352,7 +1496,7 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
   receives the field. The eraser turns the proof into `□` and binds the field in the branch; the
   value exists only in the index argument, which is dropped. Setting the propositional flag (R-7)
   does not help, since MetaRocq's rule for a case on `□` fills the fields with `□`.
-- **Where:** `LeanToLambdaBox/Erasure.lean`: `erase.visitCases` (generic path).
+- **Where:** `LeanToLambdaBox/Erasure.lean`: `visitCases` (generic path).
 - **Reproduction:** `index_field.ast` (`getN 1 (Foo.mk 1)`, `#reduce` gives 1): `peregrine eval`
   fails with `Case: <15> branch not found`; with the flag of `Foo` set to `true` by hand in a copy,
   it prints `constr con_15` / `constr con_107` instead of `Nat.succ Nat.zero`.
@@ -1366,7 +1510,7 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
   axioms) is emitted as `ConstantDecl None`. Casts along equalities (`h ▸ x`, matches on `rfl`) go
   through `Eq.rec`, well-founded recursion reaches `False.rec`, and noncomputable recursion reaches
   `T.rec`; none of them gets a λ□ definition.
-- **Where:** `LeanToLambdaBox/Erasure.lean`: `erase.visitMutual` (the branch where `ci.value?` is
+- **Where:** `LeanToLambdaBox/Erasure.lean`: `visitMutual` (the branch where `ci.value?` is
   `none`), `addAxiom`.
 - **Reproduction:** `eq_cast.ast` (`castTo Nat rfl 3`): `peregrine eval` fails with
   `Axioms found ... .Eq.rec`; `wf_rec.ast` (`log2 8`, well-founded recursion):
@@ -1379,7 +1523,7 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
 
 - **What:** projection declarations are generated only for a non-recursive inductive with one
   constructor alone in its block, but `Expr.proj` on any structure is translated to `tProj`.
-- **Where:** `LeanToLambdaBox/Erasure.lean`: `register_inductive` (`is_struct`), `erase.visitProj`.
+- **Where:** `LeanToLambdaBox/Erasure.lean`: `register_inductive` (`is_struct`), `visitProj`.
 - **Reproduction:** `rec_struct_proj.ast` (`structure RS where val : Nat; kids : List RS`,
   `rsVal ⟨3, []⟩`): `peregrine validate` fails with
   `Projection .Defects_u46RS,0:0,0 not found`.
@@ -1393,7 +1537,7 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
   its guarded-fixpoint evaluation reads `rarg`. Current outputs work because the compiler's
   pre-definitions are λs and evaluation is call by value.
 - **Where:** `LeanToLambdaBox/Basic.lean`: `FixDef` (`principalArgIdx := 0`);
-  `LeanToLambdaBox/Erasure.lean`: `erase.visitMutual`, `mkDef`.
+  `LeanToLambdaBox/Erasure.lean`: `visitMutual`, `mkDef`.
 - **Reproduction:** every recursive definition, e.g. corpus `examples/PortProbe/fact.default.ast`:
   `(def (nNamed "Tiny.fact") (tLambda ...) 0)`. A body that is not a λ: corpus
   `examples/UnsafeRec/ugOne.default.ast`, from `unsafe def ug : CN.{0} → CN.{0} :=
@@ -1408,7 +1552,7 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
 
 - **What:** the rules that turn `@[extern]` constants into axioms and record `@[inline]` /
   `@[always_inline]` constants run only for blocks with a single declaration.
-- **Where:** `LeanToLambdaBox/Erasure.lean`: `erase.visitMutual`.
+- **Where:** `LeanToLambdaBox/Erasure.lean`: `visitMutual`.
 - **Reproduction:** `mutual_inline.ast.inlinings` does not list `fooI`, which is `@[inline]` in a
   mutual block. For `@[extern]`: with the default configuration, a recursive `@[extern "f"] def`
   becomes an axiom, while the same definition inside a `mutual` block is erased to its `tFix` (this
@@ -1421,8 +1565,8 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
 - **What:** the eraser always uses a constant's logical definition, while Lean's compiler runs its
   `@[implemented_by]` implementation. When the two disagree, the erased program and Lean's compiled
   code compute different values.
-- **Where:** `LeanToLambdaBox/Erasure.lean`: `erase.visitMutual` (uses `ci.value?`),
-  `erase.visitConstApp` (no `implemented_by` check).
+- **Where:** `LeanToLambdaBox/Erasure.lean`: `visitMutual` (uses `ci.value?`),
+  `visitConstApp` (no `implemented_by` check).
 - **Reproduction:** `implemented_by.ast` (`fastId 2`, where `fastId n := n + 1` is implemented by
   `slowId n := n`): `#eval fastId 2` prints 2; `peregrine eval implemented_by.ast` prints 3.
 - **Impact:** differs from Lean's compiled code for such constants; the logical definition is what
@@ -1533,7 +1677,7 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
   set (`Nat`, `Int`, `Eq.rec`, `Decidable`, eight `Array` operations). Any other axiom (for instance
   `False.rec`, `Quot.lift`, `Array.pop`, `UInt32` operations) erases without error and fails when
   the OCaml program is linked.
-- **Where:** `LeanToLambdaBox/Erasure.lean`: `erase.visitMutual`, `addAxiom`;
+- **Where:** `LeanToLambdaBox/Erasure.lean`: `visitMutual`, `addAxiom`;
   `benchmarks/via_malfunction/axioms.ml`.
 - **Reproduction:** `wf_rec.ast` references the axiom `False.rec`; no file in
   `benchmarks/via_malfunction/` defines `def__False_rec`.
@@ -1570,7 +1714,7 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
   typeclass dispatch" (2 to 4 times); the option changes only `.ast.inlinings`, not the `.ast`, and
   the constants it marks are shrunk only by peregrine's inlining, which keeps their declarations.
 - **Where:** `LeanToLambdaBox/Erasure.lean`: `ErasureConfig.auto_inline_typeclass_dispatch`,
-  `erase.visitMutual`; `benchmarks/via_malfunction/Makefile` (`ERASURE_CONFIG`).
+  `visitMutual`; `benchmarks/via_malfunction/Makefile` (`ERASURE_CONFIG`).
 - **Reproduction:** `tests/regress/auto_inline.lean`: `on.ast` equals `default.ast`, and only
   `on.ast.inlinings` differs. `grep -rn auto_inline benchmarks/` finds nothing.
 - **Impact:** informational: the option has no effect on any benchmark, and the size of the emitted

@@ -7,7 +7,7 @@ entry S-12), each on an input that exercises it:
 - `fvar_to_name`: an ASCII binder name is kept, a non-ASCII one (`α₁`) becomes anonymous;
 - `csimpReplaceConstants`: `List.foldr` is replaced by `List.foldrTR` when `csimp` is on (the
   default), and kept when it is off;
-- `erase.visitCases`: the alternatives of `Nat.casesOn` and `Int.casesOn` in machine mode, and of
+- `Erasure.visitCases`: the alternatives of `Nat.casesOn` and `Int.casesOn` in machine mode, and of
   the `casesOn` of a user inductive.
 Every match covers all constructors and has no wildcard.
 -/
