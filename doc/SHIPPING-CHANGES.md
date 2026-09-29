@@ -1327,6 +1327,63 @@ without peregrine.
   (`all.ast`, which peregrine evaluates to 10, Lean's value) and under the default configuration
   (`go.ast`). It fails before (21 errors; the outputs are the same) and passes after.
 
+## S-17: The traversal's context lists its locals, and binder names come from that list
+
+- **Commit:** the commit whose subject starts with `shipping(S-17):`
+  (`git log --grep='^shipping(S-17):'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure.lean`:
+    - `ErasureContext` becomes `TravCtx`, with the fields `lctx`, `locals`, `fixvars` and `config`:
+      the new field `locals : List Local` holds the same binders as `lctx`, innermost first;
+    - new structure `Local` (`fvarId`, `userName`, `type`, `value?`);
+    - new `binderNameOf`: the name test of `fvar_to_name`, as a function of the user name (an ASCII
+      graphic name is kept, any other becomes anonymous); new `fixDefName`: the name that `mkDef`
+      gave a fixpoint definition;
+    - `withLocalDecl` and `withLocalDef` push the new binder onto `locals` (with its value for a
+      `let`) as well as into `lctx`;
+    - `fvar_to_name` is `binderNameOf` of the user name of the variable's entry in `locals`, in
+      place of a lookup in `lctx`; `mkDef` names the definition with `fixDefName`;
+    - `Backend.isErasable` and `Backend.inferType` also receive the list of locals; the `CoreM`
+      backend ignores it and runs `Meta` in `lctx`, as before; `EraseT m` reads a `TravCtx`.
+  - new `tests/regress/traversal_locals.lean`, its expected outputs
+    `tests/regress/expected/traversal_locals/` (6 files) and
+    `tests/regress/expected-peregrine/traversal_locals/` (2 files).
+  - `tests/regress/traversal_total.lean`: its equation of `visitExpr` on a free variable passes the
+    list of locals to `Backend.isErasable`.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** DESIGN Q8, S-B. The verified backend's oracle types free variables from a list
+  of locals: a `LocalContext` lookup goes through a `PersistentHashMap`, whose operations are
+  opaque to proofs (lean4lean states them as axioms). The erasure relation of the verification
+  fixes the λ□ name of a binder as a function of its Lean user name (`binderNameOf`) and the name of
+  a fixpoint definition as a function of the constant's name (`fixDefName`), so the traversal
+  computes them from these. Keeping `lctx` leaves the `CoreM` backend unchanged.
+- **Behaviour before:** `fvar_to_name` reads the binder's user name from `lctx`
+  (`lctx.fvarIdToDecl.find!`), and the context has no list of locals. Reproduction:
+  `tests/regress/traversal_locals.lean` at the parent commit fails with 9 errors
+  (`Unknown identifier binderNameOf`, `Invalid field locals`, …); its six output files are those
+  expected.
+- **Behaviour after:** `#erase` gives the same outputs and the same log messages. After
+  `withLocalDecl a` and `withLocalDef b`, `locals` is `[b (with its value), a]` and `lctx` holds
+  both. `binderNameOf` gives `x ↦ "x"`, `α₁ ↦ anonymous`, `a.b ↦ "a.b"`, `«a b» ↦ anonymous`, as
+  `fvar_to_name` did. A variable without an entry in `locals` makes `fvar_to_name` panic
+  (`Option.get!`), as a variable without an entry in `lctx` did (`PersistentHashMap.find!`);
+  the traversal introduces every variable it names with `withLocalDecl` or `withLocalDef`, and no
+  corpus or regression log has a new `PANIC`.
+- **Effect on emitted .ast (corpus):** byte-identical for all 704 files; `scripts/corpus-diff.sh`
+  against the corpus of S-16 reports 704 identical. The corpus logs are identical except for the
+  line numbers in the locations of the 4 `PANIC` messages of `Defects.lean`, and their backtraces.
+- **Regression test:** `tests/regress/traversal_locals.lean` checks `binderNameOf` and `fixDefName`
+  on ASCII, non-ASCII and hierarchical names, and the contents of `locals` and `lctx` after a
+  `withLocalDecl` and a `withLocalDef` (`#guard_msgs`); and it pins the output of programs with a
+  binder at every place where the traversal introduces one: a λ with an ASCII and a non-ASCII
+  binder, a `let`, a constructor η-expanded to its arity (`List.map T.b`), a `casesOn` with an
+  alternative that is not a λ (`g`, η-expanded through its type) and one that is, a sparse
+  `casesOn` whose discriminant is let-bound (`discr`, S-14), a `Nat` match in machine mode (`n`),
+  and a recursive definition (the fixpoint definition `Loc.step`): `names.ast`, `step.ast`
+  (default configuration) and `all.ast` (Peano naturals, which peregrine evaluates to 11, Lean's
+  value). A binder missing from `locals` would make the test fail on the panic. It fails before
+  (9 errors; the outputs are the same) and passes after.
+
 ---
 
 ## Reported, not fixed

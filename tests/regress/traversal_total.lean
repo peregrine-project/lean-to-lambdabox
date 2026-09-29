@@ -28,8 +28,10 @@ example (e : Expr) :
 
 example (n : Nat) (x : FVarId) :
     visitExpr (m := m) (n + 1) (.fvar x) =
-      (do if (← Backend.isErasable (m := m) (← read).lctx (.fvar x)) then return .box
-          pure (.fvar x) : EraseT m LBTerm) := by
+      (do
+        if (← Backend.isErasable (m := m) (← read).lctx (← read).locals (.fvar x)) then
+          return .box
+        pure (.fvar x) : EraseT m LBTerm) := by
   rw [visitExpr]
 
 example (n : Nat) (f : LBTerm) (args : Array Expr) :
