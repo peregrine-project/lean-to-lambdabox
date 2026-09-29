@@ -8,6 +8,7 @@ import EraseProof.Test.NV1
 import EraseProof.Typing.Abstract
 import EraseProof.Typing.Basic
 import EraseProof.Typing.Inst
+import EraseProof.Typing.InstLevels
 import EraseProof.Typing.Uniq
 import EraseProof.Typing.Weak
 
