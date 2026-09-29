@@ -1,4 +1,5 @@
 import EraseProof.Env
+import EraseProof.Test.Bridge
 import EraseProof.Typing.Basic
 import EraseProof.Typing.Uniq
 import EraseProof.Typing.Weak

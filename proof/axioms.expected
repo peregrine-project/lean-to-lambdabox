@@ -2,8 +2,9 @@
 # One line per declaration: <declaration> <axioms> <sorry labels>
 #   <axioms>: its `#print axioms`, comma-separated in the order propext, Classical.choice,
 #             Quot.sound, sorryAx; `-` for none.
-#   <sorry labels>: the lean4lean `sorry` declarations it reaches (L1-L8, see
-#             tools/Report.lean `sorryLabels`), comma-separated; `-` for none.
+#   <sorry labels>: the lean4lean `sorry` declarations it reaches (L1-L8, and TrProj for tests;
+#             see tools/Report.lean `sorryLabels`, `testOnlySorryLabels`), comma-separated;
+#             `-` for none.
 # proof/scripts/check.sh compares this file with the computed .check/axioms.actual.
 EraseProof.ProgEnv.lookup propext,Classical.choice,Quot.sound -
 EraseProof.ProgEnv.ordered propext,Classical.choice,Quot.sound -
@@ -13,3 +14,16 @@ EraseProof.TrS.det propext -
 EraseProof.TrS.fvarsIn propext,Classical.choice,Quot.sound -
 EraseProof.TrS.weakBV propext,Quot.sound -
 EraseProof.TrS.weakFV propext,Classical.choice,Quot.sound -
+EraseProof.Test.Bridge.addConsts_fresh propext,Quot.sound -
+EraseProof.Test.Bridge.constants_none_of_le - -
+EraseProof.Test.Bridge.foldl_insert_of_forall_ne propext,Classical.choice,Quot.sound -
+EraseProof.Test.Bridge.foldl_insert_of_mem propext,Classical.choice,Quot.sound -
+EraseProof.Test.Bridge.fresh_of_addConst propext,Quot.sound -
+EraseProof.Test.Bridge.insertDefs_hashMap propext,Quot.sound -
+EraseProof.Test.Bridge.insert_step propext,Classical.choice,Quot.sound -
+EraseProof.Test.Bridge.unsafe_le propext -
+EraseProof.Test.ProgEnv.toTrEnv' propext,Classical.choice,Quot.sound,sorryAx L1,TrProj
+EraseProof.Test.TrS.toTrExprS propext,Classical.choice,Quot.sound,sorryAx TrProj
+EraseProof.Test.Bridge.ProgEnv.toTrEnv'_hashMap propext,Classical.choice,Quot.sound,sorryAx L1,TrProj
+EraseProof.Test.Bridge.TrConst.toTrConstant propext,Classical.choice,Quot.sound,sorryAx TrProj
+EraseProof.Test.Bridge.TrDef.toTrDefVal propext,Classical.choice,Quot.sound,sorryAx TrProj

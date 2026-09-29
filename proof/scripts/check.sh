@@ -10,7 +10,8 @@
 #                  proof/**/*.lean outside comments and strings.
 #   report    C3-C7, C9, run by `lake env lean --run tools/Report.lean` in proof/: axiom
 #                  footprints within propext, Classical.choice, Quot.sound, sorryAx (no
-#                  Verify/Axioms.lean or native axiom); sorryAx only from lean4lean's L1-L8;
+#                  Verify/Axioms.lean or native axiom); sorryAx only from lean4lean's L1-L8
+#                  (tests: also TrProj);
 #                  lean4lean's TrExprS/TrExpr/TrProj and the tests unreachable from non-test
 #                  declarations; no leaves with respect to ROOTS.txt; footprints of roots and test
 #                  theorems equal axioms.expected; every source file imported; the entries of
