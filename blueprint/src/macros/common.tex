@@ -22,10 +22,16 @@
 \newcommand{\stInherited}{\textbf{\textcolor{badgecolor}{[INHERITED]}}}
 \newcommand{\stShipping}{\textbf{\textcolor{badgecolor}{[SHIPPING CODE]}}}
 \newcommand{\stOpen}{\textbf{\textcolor{badgecolor}{[OPEN]}}}
+\newcommand{\stPlanned}{\textbf{\textcolor{badgecolor}{[PLANNED]}}}
 
 % Node furniture. \srcloc{path}{line}: where the node's first \lean declaration is (checked by the
-% audit). \inherited{names}: the declarations of lean4lean (sorry sources and axioms) that the
-% node's declarations depend on, exactly (checked by the audit); escape underscores.
+% audit). \inherited{labels}: the labels (L1, ..., TrProj; Section sec:trust-inherited) of the
+% lean4lean sorry sources that the node's declarations depend on, exactly (checked by the audit).
+% \planned: the node states a declaration that does not exist yet; its \lean names are the names
+% the declarations will have (checked by the audit: none of them exists).
 \definecolor{furniture}{HTML}{6A6A6A}
 \newcommand{\srcloc}[2]{\par{\small\textcolor{furniture}{\texttt{#1:#2}}}\par}
-\newcommand{\inherited}[1]{\par{\small\textcolor{furniture}{Inherited from lean4lean: \texttt{#1}}}\par}
+\newcommand{\inherited}[1]{\par{\small\textcolor{furniture}{Inherited from lean4lean
+  (Section~\ref{sec:trust-inherited}): #1}}\par}
+\newcommand{\planned}{\par{\small\textcolor{furniture}{\stPlanned{} Not formalized: the declaration
+  does not exist.}}\par}

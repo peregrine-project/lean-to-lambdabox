@@ -2,10 +2,11 @@ import Lean
 /-!
 Blueprint checker: the Lean side of `blueprint/scripts/audit.py`.
 
-Run from the repository root, after `lake build` of the targets listed in `blueprint/audit.toml`:
+Run with `lake env` of the package whose environment resolves every import (`env_dir` of
+`blueprint/audit.toml`, the proof package `proof/`), after `lake build` of the targets listed there:
 
-    lake env lean --run blueprint/CheckDecls.lean check   <names-file>            <module>...
-    lake env lean --run blueprint/CheckDecls.lean measure <names-file> <out.json> <module>...
+    cd proof && lake env lean --run ../blueprint/CheckDecls.lean check   <names-file>            <module>...
+    cd proof && lake env lean --run ../blueprint/CheckDecls.lean measure <names-file> <out.json> <module>...
 
 `<module>...` are the modules to import (the environment the blueprint is checked against).
 
@@ -15,25 +16,32 @@ Run from the repository root, after `lake build` of the targets listed in `bluep
   the root `lakefile.toml`.
 * `measure` writes a JSON object with three fields:
   - `names`: for each name of `<names-file>`: whether it exists, its module, line and kind, the axioms
-    it depends on (the closure over the constants its type and value use, as `#print axioms`
-    computes it), and its sorry sources: the declarations of that closure whose own type or value
+    it depends on (the closure over the constants its type, value and constructors use, as
+    `#print axioms` follows them), whether they equal what `Lean.collectAxioms` (`#print axioms`)
+    computes, and its sorry sources: the declarations of that closure whose own type or value
     uses `sorryAx`; axioms and sorry sources come with their module and line;
   - `census`: every declaration of the inherited modules (prefix `$BP_INHERITED_PREFIX`, default
     `Lean4Lean`) and of the shipping modules (prefix `$BP_SHIPPING_PREFIX`, default
     `LeanToLambdaBox`) that is an `axiom` or whose own type or value uses `sorryAx`;
   - `shipping`: every user-facing declaration of the shipping modules, with its kind (`partial def`
     for a `partial` definition, which is an opaque constant for the kernel) and the head constant
-    of its result type (to spot the monadic code: `MetaM`, `CoreM`, `EraseM`, ...).
+    of its result type (to spot the monadic code: `MetaM`, `CoreM`, `EraseM`, ...);
+  - `covered`: every user-facing declaration of the verification modules (prefix
+    `$BP_COVER_PREFIX`, default `EraseProof`) that has a source position (auxiliary declarations
+    that Lean generates, such as `below`, `brecOn`, `ctorIdx`, have none), with its module, line
+    and kind: the declarations that the blueprint's nodes must cite.
 -/
 open Lean
 
-/-- The constants that the type and the value of `ci` use directly. -/
+/-- The constants that `ci` uses directly, as `#print axioms` (`Lean.CollectAxioms`) follows them:
+its type, its value (definitions, theorems, opaques) and its constructors (inductives). -/
 def directDeps (ci : ConstantInfo) : Array Name :=
   let t := ci.type.getUsedConstants
   match ci with
   | .defnInfo v => t ++ v.value.getUsedConstants
   | .thmInfo v => t ++ v.value.getUsedConstants
   | .opaqueInfo v => t ++ v.value.getUsedConstants
+  | .inductInfo v => t ++ v.ctors.toArray
   | _ => t
 
 /-- Whether the type or value of `ci` itself uses `sorryAx`. -/
@@ -105,6 +113,15 @@ def closure (env : Environment) (cache : IO.Ref (Std.HashMap Name (Array Name)))
       unless seen.contains d do todo := todo.push d
   return (axioms.qsort (·.toString < ·.toString), sorries.qsort (·.toString < ·.toString))
 
+instance : MonadEnv (StateM Environment) where
+  getEnv := get
+  modifyEnv := modify
+
+/-- The axioms of `n` as `#print axioms` computes them (`Lean.collectAxioms`), to cross-check
+`closure`. -/
+def leanAxioms (env : Environment) (n : Name) : Array Name :=
+  ((collectAxioms n : StateM Environment (Array Name)).run' env).qsort (·.toString < ·.toString)
+
 def jsonNames (env : Environment) (ns : Array Name) : Json :=
   Json.arr <| ns.map fun n => Json.mkObj [("name", toString n), ("module", moduleOf env n),
     ("line", match lineOf env n with | some l => toJson l | none => Json.null)]
@@ -148,7 +165,10 @@ unsafe def main (args : List String) : IO UInt32 := do
       let n := s.toName
       if env.contains n then
         let (axs, srcs) ← closure env cache n
+        let lax := leanAxioms env n
         entries := entries.push (s, Json.mkObj [("exists", true), ("module", moduleOf env n),
+          ("axioms_agree", toJson (lax.map toString == axs.map toString)),
+          ("lean_axioms", toJson (lax.map toString)),
           ("line", match lineOf env n with | some l => toJson l | none => Json.null),
           ("kind", kindOf env n), ("axioms", jsonNames env axs),
           ("sorry_sources", jsonNames env srcs)])
@@ -156,10 +176,13 @@ unsafe def main (args : List String) : IO UInt32 := do
         entries := entries.push (s, Json.mkObj [("exists", false)])
     let mut census : Array Json := #[]
     let mut shipping : Array Json := #[]
+    let mut covered : Array Json := #[]
     let inh := (← IO.getEnv "BP_INHERITED_PREFIX").getD "Lean4Lean"
     let ship := (← IO.getEnv "BP_SHIPPING_PREFIX").getD "LeanToLambdaBox"
+    let cover := (← IO.getEnv "BP_COVER_PREFIX").getD "EraseProof"
     let pkgOf (m : String) : String :=
-      if m.startsWith inh then "inherited" else if m.startsWith ship then "shipping" else ""
+      if m.startsWith inh then "inherited" else if m.startsWith ship then "shipping"
+      else if m.startsWith cover then "covered" else ""
     let consts := (env.constants.fold (init := #[]) fun acc n ci =>
       let m := moduleOf env n
       if (pkgOf m).isEmpty then acc else acc.push (n, ci, m)).qsort
@@ -175,10 +198,14 @@ unsafe def main (args : List String) : IO UInt32 := do
         shipping := shipping.push <| Json.mkObj [("name", toString n), ("module", m),
           ("kind", kindOf env n), ("result", resultHead ci.type),
           ("line", match lineOf env n with | some l => toJson l | none => Json.null)]
+      if pkg == "covered" && isUserFacing env n ci && (lineOf env n).isSome then
+        covered := covered.push <| Json.mkObj [("name", toString n), ("module", m),
+          ("kind", kindOf env n),
+          ("line", match lineOf env n with | some l => toJson l | none => Json.null)]
     let j := Json.mkObj [("modules", toJson mods), ("names", Json.mkObj (entries.toList)),
-      ("census", Json.arr census), ("shipping", Json.arr shipping)]
+      ("census", Json.arr census), ("shipping", Json.arr shipping), ("covered", Json.arr covered)]
     IO.FS.writeFile out (j.pretty ++ "\n")
-    IO.println s!"measured {names.size} names; census {census.size}; shipping {shipping.size}"
+    IO.println s!"measured {names.size} names; census {census.size}; shipping {shipping.size}; covered {covered.size}"
     return 0
   | _ =>
     IO.eprintln "usage: lake env lean --run blueprint/CheckDecls.lean (check <names> | measure <names> <out.json>) <module>..."

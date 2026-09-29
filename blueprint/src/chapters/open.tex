@@ -3,38 +3,84 @@
 \section*{At a glance}
 \begin{itemize}
 \item \lead{Goal} List what is not done.
-\item \lead{Status} \stOpen{} \hl{the whole verification}: its scope, its statements and their
-  proofs.
+\item \lead{Status} \stOpen{} \hl{every statement about the eraser}, the shipping code of the
+  verified path, the divergence entries of the planned artifacts, and all non-vacuity instances
+  but NV-1's model side.
 \end{itemize}
 
-\section{The verification}\label{sec:open-verification}
+\section{Planned statements}\label{sec:open-planned}
 
-\begin{tabular}{lp{0.7\linewidth}}
+The planned nodes, per chapter; none of their declarations exists. The table is generated from the
+chapters by \code{blueprint/scripts/audit.py}.
+
+\input{generated/planned}
+
+\begin{itemize}
+\item \lead{Not stated} the state invariant of \code{erasePure\_erases}, fixed after the review of
+  the traversal; the case lemmas of \code{erases\_correct} and \code{erasePure\_erases}; the
+  non-vacuity instances other than NV-1's model side (Section~\ref{sec:tests-instances}).
+\item \lead{Adversarial reviews} before their proofs: the fixpoint rules of the source semantics
+  and \code{ErasesBlock} (DV-7, DV-8); the traversal's frame lemmas and state invariant; the
+  closing of recursive blocks.
+\item \lead{\code{hrun} of NV-1} by symbolic evaluation of the traversal at the pure backend.
+\end{itemize}
+
+\section{Roots of the proof package}\label{sec:open-roots}
+
+Every declaration of \code{EraseProof} outside the tests is reachable from a root of
+\code{proof/ROOTS.txt}; each root names its planned consumer, the declaration that uses it. The final
+form is the single root \code{erase\_correct}. The table is generated from
+\code{proof/ROOTS.txt}.
+
+\input{generated/roots}
+
+\section{Shipping code of the verified path}\label{sec:open-shipping}
+
+\begin{tabular}{lp{0.34\linewidth}p{0.44\linewidth}}
 \toprule
-Item & State \\
+Entry & Content & Nodes \\
 \midrule
-Scope & \stOpen{} The inputs the theorem covers: those whose verification needs nothing beyond
-  lean4lean \code{master}. Being determined from the lean4lean sources. \\
-Statements & \stOpen{} The final theorem and its lemmas. None is stated in Lean; this blueprint
-  states none. \\
-Hypotheses & \stOpen{} Each hypothesis of the final theorem, with the reason it is there. \\
-Proofs & \stOpen{} None exists. \\
-Divergences & \stOpen{} The register has no entry (Chapter~\ref{chap:divergences}); entries arrive
-  with the definitions and statements that diverge. \\
+S-18 & errors, environment view, dependency closure & Definitions~\ref{def:Erasure-EraseError},
+  \ref{def:Erasure-EnvView}, \ref{def:Erasure-findConst}, \ref{def:Erasure-collectDeps} \\
+S-19 & the pure oracle and backend operations & Definitions~\ref{def:Erasure-Pure-instLevels},
+  \ref{def:Erasure-Pure-isErasable}, \ref{def:Erasure-PureM} \\
+S-20 & the pure backend completed; \code{erasePure} & Definitions~\ref{def:Erasure-isRecursiveDecl},
+  \ref{def:Erasure-erasePure} \\
+S-21 & routing; \code{\#erase} calls \code{eraseEntry} & Definition~\ref{def:Erasure-eraseEntry} \\
 \bottomrule
 \end{tabular}
 
 \begin{itemize}
-\item \lead{Checkpoint 1} The scope note gives the scope with evidence from the lean4lean sources,
-  example programs inside it, the planned statements typechecked as stubs, and the reference each
-  follows. It awaits the owner's approval.
-\item \lead{Blueprint} Nodes for the planned statements are added once the owner approves the scope
-  note.
-\end{itemize}
-
-\section{The shipping code}\label{sec:open-shipping}
-
-\begin{itemize}
-\item \lead{Defects} The shipping-change register lists the defects it reports without fixing them
+\item \lead{Defects} the shipping-change register lists the defects it reports without fixing them
   (Section~\ref{reg:reported-not-fixed}).
 \end{itemize}
+
+\section{Divergence entries}\label{sec:open-divergences}
+
+The register (Chapter~\ref{chap:divergences}) holds the entries of the landed artifacts. The
+approved design has these further divergences, each an entry once its artifact lands.
+
+\begin{tabular}{lp{0.3\linewidth}p{0.52\linewidth}}
+\toprule
+Id & Artifact & What differs \\
+\midrule
+DV-1 & \code{SrcEval}, \code{Erases} & source syntax is Lean's, typed through \code{TrS};
+  \code{let} is kept \\
+DV-4 & \code{IsErasable} & level zero in place of \code{is\_propositional}; no SProp \\
+DV-7 & recursive constants & recursion lives in constants, compiled to \code{tFix} with
+  recursive argument 0 \\
+DV-8 & \code{ErasesBlock} & no \code{isLambda} premises, no fixpoint $\eta$-expansion \\
+DV-9 & outputs of \code{erasePure} & not \code{expanded\_eprogram} \\
+DV-11 & atoms & $\delta$-less evident type formers and proofs are values, erased to $\Box$ \\
+DV-13 & the relation and traversal & locally nameless; bodies erased under the caller's locals \\
+DV-14 & \code{KernameInj} & names are mangled; injectivity checked on the closure \\
+DV-15 & \code{binderNameOf} & non-ASCII binder names become anonymous \\
+DV-16 & \code{LBEval} & no \code{tVar}, \code{tEvar}, \code{tCoFix}, \code{tLazy},
+  \code{tForce} \\
+DV-17 & \code{erasePure}, \code{erase\_correct} & fuel; partial correctness \\
+DV-18 & the pure oracle & own retyping procedure, sound and not complete, kernel $\delta$ \\
+DV-19 & \code{erase\_correct} & no first-order corollary \\
+DV-20 & \code{erases\_correct} & Letouzey Theorem 13 big-step; Theorems 12, 15 omitted \\
+DV-22 & \code{SrcEval} & call by value, big step \\
+\bottomrule
+\end{tabular}

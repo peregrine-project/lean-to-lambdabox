@@ -1,24 +1,105 @@
 # Configuration of blueprint/scripts/audit.py.
 
-# Lake targets that must be built before the audit (`lake build <targets>`).
-build_targets = ["LeanToLambdaBox", "Lean4Lean", "Lean4Lean.Theory", "Lean4Lean.Verify"]
+# The directory whose `lake env` resolves every module of `imports` (the proof package sees the
+# root package, lean4lean and itself).
+env_dir = "proof"
 
-# Modules imported to check the blueprint: every \lean{} name must be a declaration of this
-# environment. `X.*` stands for the module X and all its submodules (read from the source tree of
-# the root package and of the packages under .lake/packages).
-imports = ["LeanToLambdaBox", "Lean4Lean", "Lean4Lean.Theory.*", "Lean4Lean.Verify.*"]
+# Modules imported to check the blueprint: every \lean{} name of a node that is not planned must
+# be a declaration of this environment. `X.*` stands for the module X and all its submodules (read
+# from the source trees of the root package, of the proof package and of the packages under
+# .lake/packages).
+imports = ["LeanToLambdaBox", "Lean4Lean", "Lean4Lean.Theory.*", "Lean4Lean.Verify.*",
+           "EraseProof.*"]
 
-# Axioms a node may depend on and still carry \leanok.
+# Axioms a node may depend on and still carry \leanok. sorryAx is allowed only through the
+# inherited sorry sources listed below.
 standard_axioms = ["propext", "Classical.choice", "Quot.sound"]
 
-# Module prefix of the inherited development. Its axioms and its sorry sources (declarations whose
-# own type or value uses sorryAx) are allowed, and every node that depends on one lists it in
-# \inherited{...}.
+# Module prefix of the inherited development (lean4lean). Its sorry sources are the declarations
+# whose own type or value uses sorryAx; a node lists the ones it depends on in \inherited{...} by
+# their labels below.
 inherited_prefix = "Lean4Lean"
 
 # Module prefix of the shipping code, whose partial and monadic declarations the trust chapter
 # tabulates.
 shipping_prefix = "LeanToLambdaBox"
 
-# Any other sorry source (a declaration outside the inherited development whose own type or value
-# uses sorryAx), and any other axiom, keeps a node from carrying \leanok.
+# Module prefix of the verification library: every declaration a user wrote in these modules is
+# cited by a node that is not planned.
+cover_prefix = "EraseProof"
+
+# The no-leaves register of the proof package, rendered as a table (relative to the repository
+# root).
+roots_file = "proof/ROOTS.txt"
+
+# Name prefix of the tests. A node whose declarations all have this prefix is a test node.
+test_prefix = "EraseProof.Test."
+
+# Lake builds run before the audit: `lake build <targets>` in each directory (relative to the
+# repository root). The root package holds the eraser and pins lean4lean; the proof package
+# `proof/` holds the verification library and requires the root package by path.
+[[build]]
+dir = "."
+targets = ["LeanToLambdaBox", "Lean4Lean", "Lean4Lean.Theory", "Lean4Lean.Verify"]
+
+[[build]]
+dir = "proof"
+targets = ["EraseProof"]
+
+# The lean4lean sorry sources the blueprint names, with their labels. `allowed`: "all" = a node
+# may depend on it and keep \leanok; "tests" = only a test node may; "none" = no node may. Any
+# sorry source outside this list, and any axiom outside standard_axioms, keeps a node from
+# carrying \leanok.
+[[inherited_sorry]]
+label = "L1"
+name = "Lean4Lean.VInductDecl.WF"
+what = "well-formedness of an inductive declaration (sorry definition)"
+allowed = "all"
+
+[[inherited_sorry]]
+label = "L2"
+name = "Lean4Lean.VEnv.addInduct"
+what = "adding an inductive declaration to an environment (sorry definition)"
+allowed = "all"
+
+[[inherited_sorry]]
+label = "L3"
+name = "Lean4Lean.VEnv.addInduct_WF"
+what = "adding an inductive keeps an environment ordered (sorry proof)"
+allowed = "all"
+
+[[inherited_sorry]]
+label = "L4"
+name = "Lean4Lean.VEnv.IsDefEqU.sort_inv"
+what = "sort injectivity (sorry proof)"
+allowed = "all"
+
+[[inherited_sorry]]
+label = "L5"
+name = "Lean4Lean.VEnv.IsDefEqU.forallE_inv_stratified"
+what = "Pi injectivity (sorry proof)"
+allowed = "all"
+
+[[inherited_sorry]]
+label = "L6"
+name = "Lean4Lean.VEnv.IsDefEqU.sort_forallE_inv"
+what = "a sort is not definitionally equal to a Pi (sorry proof)"
+allowed = "all"
+
+[[inherited_sorry]]
+label = "L7"
+name = "Lean4Lean.VEnv.IsDefEqU.weakN_iff"
+what = "strengthening (sorry in a proof)"
+allowed = "none"
+
+[[inherited_sorry]]
+label = "L8"
+name = "Lean4Lean.VEnv.NormalEq.parRed"
+what = "a confluence step (sorry in a proof)"
+allowed = "none"
+
+[[inherited_sorry]]
+label = "TrProj"
+name = "Lean4Lean.TrProj"
+what = "the translation of projections (sorry definition)"
+allowed = "tests"

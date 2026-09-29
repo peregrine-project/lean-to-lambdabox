@@ -50,6 +50,7 @@ UNICODE = {
     '\u03a0': r'\ensuremath{\Pi}',
     '\u03a3': r'\ensuremath{\Sigma}',
     '\u2192': r'\ensuremath{\to}',
+    '\U0001d4d4': r'\ensuremath{\mathcal{E}}',   # Letouzey's extraction function
     '\u2190': r'\ensuremath{\leftarrow}',
     '\u21a6': r'\ensuremath{\mapsto}',
     '\u21d2': r'\ensuremath{\Rightarrow}',

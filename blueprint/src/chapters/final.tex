@@ -1,0 +1,90 @@
+\chapter{The final theorem}\label{chap:final}
+
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} Partial correctness of \code{\#erase} on every in-scope input.
+\item \lead{Main results} \code{erase\_correct}.
+\item \lead{Status} \stPlanned{}; expected footprint exactly L1--L6.
+\item \lead{Lean files} planned: \code{proof/EraseProof/Main.lean}.
+\item \lead{Reference} MetaRocq \code{erase\_correct}
+  (\code{erasure/theories/ErasureFunctionProperties.v}); MetaCoq paper Sections 7.3--7.4.
+\end{itemize}
+
+\section{The theorem}\label{sec:final-main}
+
+\begin{theorem}[Correctness of \texorpdfstring{\code{\#erase}}{\#erase}]
+  \label{thm:EraseProof-erase_correct}
+  \lean{EraseProof.erase_correct, EraseProof.erase_correct.atom_agree}
+  \planned
+  \uses{def:EraseProof-ProgEnv, def:EraseProof-ViewAgrees, def:EraseProof-TrS,
+    def:Erasure-eraseEntry, def:EraseProof-SrcEval, def:EraseProof-evalEnvOf,
+    def:EraseProof-Erases, def:EraseProof-LBEval}
+  \lead{In short} If \code{\#erase} returns a program \code{p} for an in-scope term \code{e} and
+  \code{e} evaluates to \code{v}, then \code{p} is \code{untyped lenv (some t)} and \hl{\code{t}
+  evaluates in $\lambda_\Box$ to an erasure of \code{v}}.
+  \begin{itemize}
+  \item \lead{Given} \code{henv : ProgEnv P venv}, \code{hview : ViewAgrees view P},
+        \code{he : TrS venv Us [] e e'}: the input is in scope;
+  \item \code{hrun : eraseEntry view cfg e = pure (p, inl)}: the output of \code{\#erase};
+  \item \code{hev : SrcEval (evalEnvOf view cfg P) e v}: the source evaluates;
+  \item \lead{Then} for some \code{lenv}, \code{t}, \code{v'}: \code{p = untyped lenv (some t)},
+        \code{v'} erases \code{v}, and \code{LBEval defaultFlags lenv t v'}.
+  \end{itemize}
+  \lead{Reference} MetaRocq \code{erase\_correct}, at \code{default\_wcbv\_flags}.
+\end{theorem}
+\begin{proof}
+  \uses{lem:EraseProof-eraseEntry_pure, lem:EraseProof-collectDeps_spec,
+    lem:EraseProof-collectDeps_sub, thm:EraseProof-erasePure_erases,
+    lem:EraseProof-SrcEval-restrict, thm:EraseProof-erases_correct, lem:EraseProof-Erases-congr_ac}
+  \lead{Idea} Composition; the internal step \code{atom\_agree} shows that the atom tests of the
+  closure and of \code{P} agree on the closure's constants.
+  \lead{Steps}
+  \begin{enumerate}
+  \item \code{eraseEntry\_pure}: the result is \code{erasePure}'s on the closure \code{decls};
+  \item \code{collectDeps\_spec}, \code{collectDeps\_sub}: injective names, closed, inside
+        \code{P};
+  \item \code{erasePure\_erases}, then \code{SrcEval.restrict} and \code{erases\_correct};
+  \item \code{Erases.congr\_ac} with \code{atom\_agree} returns to \code{P}'s atom test.
+  \end{enumerate}
+\end{proof}
+
+\section{Hypotheses}\label{sec:final-hypotheses}
+
+Every hypothesis is of a kind MetaRocq's \code{erase\_correct} takes; none stands in for a result
+lean4lean lacks.
+
+\begin{tabular}{p{0.18\linewidth}p{0.2\linewidth}p{0.52\linewidth}}
+\toprule
+Hypothesis & MetaRocq & Why it is there \\
+\midrule
+\code{henv} & \code{wf\_ext Sigma} & all typing facts about the environment; lean4lean's
+  \code{TrEnv'} restated on a list without inductives, plus the \code{all} condition the eraser
+  reads and the elaborator guarantees \\
+\code{hview} & \code{Sigma} $\sim$\code{\_ext X} & the environment \code{\#erase} reads is
+  \code{P} on \code{P}'s names \\
+\code{he} & \code{welltyped Sigma [] t} & erasability is defined by typing \\
+\code{hrun} & \code{erase ... = t'} & names the output of \code{\#erase}; it replaces MetaRocq's
+  \code{NormalizationIn}, since lean4lean has no normalization (DV-17) \\
+\code{hev} & \code{Sigma |- t} $\Downarrow$ \code{v} & the proof is by induction on source
+  evaluation \\
+\bottomrule
+\end{tabular}
+
+\begin{itemize}
+\item \lead{Absent} \code{normalization\_in} (partial correctness instead); \code{axiom\_free}
+  (atoms are values, other axioms stuck, as in \code{erases\_correct}); \code{firstorder\_ind} (no
+  inductives, DV-19); any property of the oracle (proved, Chapter~\ref{chap:oracle}).
+\item \lead{Not assumed} unique typing, injectivity and subject reduction come from lean4lean's
+  theorems and sorries L1--L6 (Section~\ref{sec:trust-inherited}).
+\item \lead{Consequences of \code{hrun}} name injectivity and closedness of the $\lambda_\Box$
+  environment (\code{collectDeps\_spec}, \code{erasePure\_erases}).
+\end{itemize}
+
+\section*{Caveats}
+\begin{itemize}
+\item \lead{Caveat} Partial correctness: nothing is claimed when \code{\#erase} fails or the source
+  does not evaluate.
+\item \lead{Caveat} A view that marks every constant \code{@[extern]} makes every evaluation
+  through a constant stuck, and the theorem vacuous on it; the view is trusted glue.
+\item \lead{Caveat} The theorem is only as sound as the lean4lean sorries L3--L6.
+\end{itemize}

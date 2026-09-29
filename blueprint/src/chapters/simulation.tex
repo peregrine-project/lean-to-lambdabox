@@ -1,0 +1,68 @@
+\chapter{The simulation}\label{chap:simulation}
+
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} Every evaluation of a well-typed closed source term is matched by a
+  $\lambda_\Box$ evaluation of each of its erasures.
+\item \lead{Main results} \code{erases\_correct}, the relation-level simulation.
+\item \lead{Status} \stPlanned{}; expected footprint L1--L6.
+\item \lead{Lean files} planned: \code{proof/EraseProof/Simulation.lean},
+  \code{Simulation/\{Cases, Fix\}.lean}.
+\item \lead{Reference} MetaRocq \code{erases\_correct}
+  (\code{erasure/theories/ErasureCorrectness.v}); MetaCoq paper Section 7.4, p.~8:64; Letouzey
+  Theorem 13, big-step.
+\end{itemize}
+
+\section{The theorem}\label{sec:simulation-main}
+
+\begin{theorem}[Relation-level simulation]
+  \label{thm:EraseProof-erases_correct}
+  \lean{EraseProof.erases_correct}
+  \planned
+  \uses{def:EraseProof-ProgEnv, def:EraseProof-SubEnv, def:EraseProof-KernameInj,
+    def:EraseProof-LenvClosed, def:EraseProof-TrS, def:EraseProof-Erases,
+    def:EraseProof-ErasesDeps, def:EraseProof-SrcEval, def:EraseProof-LBEval}
+  \lead{In short} If a well-typed closed \code{e} evaluates to \code{v} and \code{t} erases
+  \code{e} with erased dependencies, then \hl{\code{t} evaluates in $\lambda_\Box$ to an erasure
+  of \code{v}}.
+  \begin{itemize}
+  \item \lead{Given} \code{henv : ProgEnv P venv} and \code{hsub : SubEnv sigma.decls P}: typing in
+        \code{P}'s model, evaluation in its sub-environment (\code{wf\_ext}; DV-3);
+  \item \code{hinj : KernameInj sigma.decls}: $\lambda_\Box$ names identify source constants
+        (DV-14); \code{hlc : LenvClosed lenv};
+  \item \code{he : TrS venv Us [] e e'}: \code{e} is well typed (\code{welltyped});
+  \item \code{her}, \code{hdeps}, \code{hblocks}: \code{t} erases \code{e}, and the environment
+        holds erased dependencies and blocks (\code{erases}, \code{erases\_deps});
+  \item \code{hev : SrcEval sigma e v};
+  \item \lead{Then} some \code{v'} erases \code{v} and \code{LBEval defaultFlags lenv t v'}.
+  \end{itemize}
+  \lead{Reference} MetaRocq \code{erases\_correct}; Letouzey Theorem 13 at call by value (DV-20,
+  DV-22).
+\end{theorem}
+\begin{proof}
+  \uses{lem:EraseProof-SrcEval-defeq, lem:EraseProof-ErasableS-eval, lem:EraseProof-ErasableS-atom,
+    lem:EraseProof-Erases-inst, lem:EraseProof-Erases-inst_let, lem:EraseProof-Erases-instLevels,
+    lem:EraseProof-Erases-app_inv, lem:EraseProof-Erases-atomSpine_box,
+    lem:EraseProof-ErasesDeps-eval, lem:EraseProof-ErasesDeps-csubst, lem:EraseProof-LBEval-closed,
+    lem:EraseProof-Erases-closed, lem:EraseProof-IsErasable-app, lem:EraseProof-TrS-det,
+    lem:EraseProof-SrcEval-value}
+  \lead{Idea} Induction on \code{SrcEval}, one case lemma per rule, as MetaRocq's proof.
+  \lead{Steps}
+  \begin{enumerate}
+  \item $\beta$, $\zeta$: invert the erasure, substitute (\code{Erases.inst},
+        \code{Erases.inst\_let});
+  \item $\delta$ and recursive constants: the stored body or block (\code{ErasesDeps},
+        \code{BlocksErased}, \code{Erases.instLevels});
+  \item erased heads: \code{box} evaluates by $\Box$-application (\code{IsErasable.app},
+        \code{ErasableS.eval}); atoms by \code{Erases.atomSpine\_box}.
+  \end{enumerate}
+\end{proof}
+
+\section*{Caveats}
+\begin{itemize}
+\item \lead{Caveat} Big-step at call by value only; Letouzey's Theorems 12 and 15 have no
+  counterpart (DV-20).
+\item \lead{Caveat} The theorem is about relations: that the eraser's output satisfies
+  \code{her}, \code{hdeps} and \code{hblocks} is \code{erasePure\_erases}
+  (Chapter~\ref{chap:core}).
+\end{itemize}

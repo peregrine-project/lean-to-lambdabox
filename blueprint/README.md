@@ -2,23 +2,28 @@
 
 A [leanblueprint](https://github.com/PatrickMassot/leanblueprint) of the verification of the
 `#erase` eraser of `lean-to-lambdabox`. It is a picture of the commit it is built from: the scope,
-the trust boundary, the definitions and theorems with their status, the two registers
-(`doc/SHIPPING-CHANGES.md`, `doc/DIVERGENCES.md`) and what is open. It describes the present
-state only; the history is in git.
+the trust boundary, the definitions and theorems with their status (proved, or planned: stated
+under the name the declaration will have), the two registers (`doc/SHIPPING-CHANGES.md`,
+`doc/DIVERGENCES.md`) and what is open. It describes the present state only; the history is in
+git. The Lean code it documents is the shipping code (`LeanToLambdaBox/`) and the proof package
+(`proof/`, library `EraseProof`).
 
 ## Layout
 
 ```
-audit.toml              configuration of the audit (imports, allowed axioms, inherited prefix)
+audit.toml              configuration of the audit (builds, imports, allowed axioms, labelled
+                        lean4lean sorries, coverage prefix, roots file)
 build.sh                builds the web and pdf versions
-CheckDecls.lean         Lean side of the audit (existence, axioms, sorry sources, censuses)
+CheckDecls.lean         Lean side of the audit (existence, axioms, sorry sources, censuses,
+                        the declarations of the proof package)
 requirements.txt        the Python packages of the build (leanblueprint, plasTeX), pinned
 scripts/audit.py        the audit
 scripts/render_registers.py   renders the registers and the pins as chapters
 scripts/unlink_lean_decls.py  removes the documentation links of the \lean names (web version)
 STYLE.md                how chapters and nodes are written (binding)
 src/content.tex         chapter order
-src/chapters/*.tex      hand-written chapters: intro, trust, open
+src/chapters/*.tex      hand-written chapters: intro, scope, trust, model, pure, source,
+                        relation, simulation, oracle, core, final, tests, open
 src/generated/*.tex     generated chapters and tables (never edit them)
 src/macros/             common.tex (shared macros), web.tex, print.tex
 src/web.tex, print.tex  drivers of the web and print versions
@@ -68,21 +73,27 @@ change.
 ```
 python3 blueprint/scripts/audit.py              # builds the Lake targets of audit.toml first
 python3 blueprint/scripts/audit.py --no-build   # when they are built
-python3 blueprint/scripts/audit.py --update     # also rewrites the two census tables
+python3 blueprint/scripts/audit.py --update     # also rewrites the five generated tables
 ```
 
-The first `lake build` of the targets (the eraser and the lean4lean libraries `Lean4Lean`,
-`Lean4Lean.Theory`, `Lean4Lean.Verify`) takes about two minutes. The audit then runs
-`lake env lean --run blueprint/CheckDecls.lean measure ...` on every cited declaration and checks:
+The audit first runs `lake build` of the `[[build]]` entries of `audit.toml`: in the root the
+eraser and the lean4lean libraries `Lean4Lean`, `Lean4Lean.Theory`, `Lean4Lean.Verify` (about two
+minutes the first time), then in `proof/` the library `EraseProof`. It then runs
+`lake env lean --run blueprint/CheckDecls.lean measure ...` in `proof/` (`env_dir`: that package
+resolves the eraser, lean4lean and `EraseProof`) on every cited declaration and checks:
 
 | Check | Rule |
 |---|---|
 | Nodes | every node (`definition`, `lemma`, `proposition`, `theorem`, `corollary`) has a unique `\label` with the prefix of its environment (`def:`, `lem:`, `prop:`, `thm:`, `cor:`) and a non-empty `\lean{...}`; no declaration is cited twice |
 | Graph | every `\uses` resolves to a node; no node uses itself; no cycle; a proof follows its statement, never inside it; a result has a proof, a definition none |
-| Existence | every `\lean` name is a declaration of the environment of `audit.toml`'s imports |
-| `\leanok` | in a statement iff every cited declaration exists and its axioms are allowed; in the proof of a result iff its statement has it |
-| Allowed axioms | `propext`, `Classical.choice`, `Quot.sound`; the axioms declared in lean4lean; `sorryAx` only when every sorry source is in lean4lean. A sorry source is a declaration of the closure whose own type or value uses `sorryAx` |
-| `\inherited{...}` | lists exactly the lean4lean sorry sources and axioms the node's declarations depend on |
+| Planned nodes | a node marked `\planned` cites only names that do not exist, and carries no `\leanok`, `\srcloc` or `\inherited`; a node that is not planned uses no planned node |
+| Existence | every `\lean` name of a node that is not planned is a declaration of the environment of `audit.toml`'s imports |
+| `\leanok` | in a statement iff the node is not planned, every cited declaration exists and its axioms are allowed; in the proof of a result iff its statement has it |
+| Allowed axioms | `propext`, `Classical.choice`, `Quot.sound`, and `sorryAx` only when every sorry source is a labelled lean4lean sorry of `audit.toml` allowed for the node: L1-L6 for every node, `TrProj` for test nodes (all names in `EraseProof.Test`), L7, L8 for none. A sorry source is a declaration of the closure whose own type or value uses `sorryAx`. No lean4lean axiom is allowed |
+| Axiom closure | the measured axioms of every cited declaration equal `Lean.collectAxioms` (`#print axioms`); the closure follows types, values and constructors |
+| `\inherited{...}` | lists exactly the labels of the lean4lean sorry sources the node's declarations depend on |
+| Coverage | every declaration of the modules `EraseProof*` that has a source position is cited by a node that is not planned |
+| Roots | every line of `proof/ROOTS.txt` names a root cited by a formalized node and a consumer cited by a planned node whose statement or proof uses the root's node |
 | `\srcloc{path}{line}` | is the file and line of the node's first declaration |
 | Hygiene | ASCII only outside `\lean{}`; underscores escaped in `\code`, `\texttt`, `\inherited`, `\srcloc` |
 | Generated chapters | `render_registers.py --check` passes, and the census tables equal what the environment gives |
@@ -91,10 +102,10 @@ It writes `blueprint/.audit/report.md` (defects, per-node axioms and inherited t
 lean4lean census with the entries the nodes reach), `measure.json` and the Lake logs, prints a
 summary with the inherited sorries the nodes reach, and exits with status 1 on a defect.
 
-After `build.sh web`, `lake env lean --run blueprint/CheckDecls.lean check blueprint/lean_decls
-$(python3 blueprint/scripts/audit.py --print-imports)` checks the names that plasTeX collected. It
-replaces `leanblueprint checkdecls`, which needs a `checkdecls` dependency in the root
-`lakefile.toml`.
+After `build.sh web`, `python3 blueprint/scripts/audit.py --check-lean-decls blueprint/lean_decls`
+checks that the names plasTeX collected exist, except the names of planned nodes (it runs
+`CheckDecls.lean check` in `proof/`). It replaces `leanblueprint checkdecls`, which needs a
+`checkdecls` dependency in the root `lakefile.toml` and knows no planned nodes.
 
 ## Generated files
 
@@ -103,10 +114,13 @@ replaces `leanblueprint checkdecls`, which needs a `checkdecls` dependency in th
 | `src/generated/shipping-changes.tex` | `scripts/render_registers.py` | `doc/SHIPPING-CHANGES.md` |
 | `src/generated/divergences.tex` | `scripts/render_registers.py` | `doc/DIVERGENCES.md` |
 | `src/generated/pins.tex` | `scripts/render_registers.py` | `lean-toolchain`, `lake-manifest.json` |
+| `src/generated/inherited-sorries.tex` | `scripts/audit.py --update` | `audit.toml`, the Lean environment |
+| `src/generated/roots.tex` | `scripts/audit.py --update` | `proof/ROOTS.txt` |
+| `src/generated/planned.tex` | `scripts/audit.py --update` | the chapters |
 | `src/generated/census-shipping.tex` | `scripts/audit.py --update` | the Lean environment |
 | `src/generated/census-lean4lean.tex` | `scripts/audit.py --update` | the Lean environment |
 
-All are committed. `build.sh` rewrites the first three; the audit fails when any of the five is
+All are committed. `build.sh` rewrites the first three; the audit fails when any of the eight is
 stale. The renderer converts the Markdown of a register block by block and stops with an error on a
 construct it does not handle (a table, a fenced code block, an unknown non-ASCII character), so a
 register is never rendered partially. In `doc/DIVERGENCES.md` the entries are the `###` sections
@@ -126,9 +140,9 @@ that opens `## Entries`.
 2. Python 3.14 with `requirements.txt`; `latexmk`, `texlive-xetex`, `texlive-latex-recommended`,
    `texlive-fonts-recommended`, `texlive-plain-generic` and `fonts-lmodern` from apt.
 3. `python3 blueprint/scripts/audit.py`, before the build, so that it checks the committed generated
-   chapters. A defect fails the job. The report (`blueprint/.audit/`) is uploaded as the artifact
+   chapters; it also builds the proof package `proof/`. A defect fails the job. The report (`blueprint/.audit/`) is uploaded as the artifact
    `blueprint-audit`, also when the audit fails.
-4. `blueprint/build.sh all`, then `CheckDecls.lean check` on `blueprint/lean_decls`, and a check
+4. `blueprint/build.sh all`, then `audit.py --check-lean-decls blueprint/lean_decls`, and a check
    that `blueprint/web/blueprint.pdf` exists (`build.sh` skips the pdf without xelatex).
 5. `actions/upload-pages-artifact` with `blueprint/web/`.
 

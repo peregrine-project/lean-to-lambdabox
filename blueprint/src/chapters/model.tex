@@ -1,0 +1,481 @@
+\chapter{The model side}\label{chap:model}
+
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} Relate Lean terms and programs to lean4lean's model of Lean's kernel, and prove
+  the structural facts the simulation needs about this relation.
+\item \lead{Main results} The translation \code{TrS} is deterministic, scoped, monotone,
+  well-typed, stable under weakening, substitution and abstraction, and unique up to
+  definitional equality; a program environment \code{ProgEnv} is ordered, well-formed, and
+  contains every declaration with its type and, for unfoldable constants, its defining equation.
+\item \lead{Status} \stProved{} every node except \code{TrS.instLevels} (\stPlanned{}); the
+  uniqueness lemmas and \code{ProgEnv.wf} inherit lean4lean sorries (\stInherited{}).
+\item \lead{Lean files} \code{proof/EraseProof/Typing/\{Basic, Weak, Inst, Abstract, Uniq\}.lean},
+  \code{proof/EraseProof/Env.lean}, \code{proof/EraseProof/Env/Unfold.lean},
+  \code{proof/EraseProof/Source/EvalEnv.lean}.
+\item \lead{Reference} lean4lean's \code{TrExprS} and \code{TrEnv'} (\code{Verify/}); MetaRocq's
+  typing of the global environment (\code{wf\_ext}, MetaCoq paper Section 3.6).
+\end{itemize}
+
+\section{The translation of terms}\label{sec:model-trs}
+
+A Lean term is in the model when \code{TrS} relates it to a \code{VExpr}; the lemmas are ports of
+lean4lean's lemmas about \code{TrExprS} without the literal and projection cases.
+
+\begin{definition}[The translation \texorpdfstring{\code{TrS}}{TrS}]
+  \label{def:EraseProof-TrS}
+  \lean{EraseProof.TrS}
+  \leanok
+  \srcloc{proof/EraseProof/Typing/Basic.lean}{15}
+  \lead{In short} \code{TrS venv Us Delta e e'}: the Lean term \code{e} has the image \code{e'} in
+  the model \code{venv}, with level parameters \code{Us}, in the context \code{Delta}; lean4lean's
+  \code{TrExprS} \hl{without the \code{lit} and \code{proj} rules} (DV-2,
+  Section~\ref{reg:dv-2}).
+
+  \begin{tabular}{lp{0.34\linewidth}p{0.38\linewidth}}
+  \toprule
+  Rule & Premises & Conclusion \\
+  \midrule
+  \code{bvar}, \code{fvar} & the variable has image \code{e} in \code{Delta} & the variable
+    translates to \code{e} \\
+  \code{sort} & the level translates & \code{Sort u} to \code{sort u'} \\
+  \code{const} & the constant is in \code{venv}, its levels translate, their number is right &
+    \code{c.\{us\}} to \code{c.\{us'\}} \\
+  \code{app} & function and argument translate, with typed images & \code{f a} to
+    \code{f' a'} \\
+  \code{lam}, \code{forallE} & the domain translates to a type; the body under a
+    \code{vlam} entry & $\lambda$ and $\Pi$ to their images \\
+  \code{letE} & the value is typed; the body under a \code{vlet} entry & \code{let} to the image
+    of its body \\
+  \code{mdata} & the term translates & metadata is transparent \\
+  \bottomrule
+  \end{tabular}
+\end{definition}
+
+\begin{lemma}[Determinism]
+  \label{lem:EraseProof-TrS-det}
+  \lean{EraseProof.TrS.det}
+  \leanok
+  \uses{def:EraseProof-TrS}
+  \srcloc{proof/EraseProof/Typing/Basic.lean}{42}
+  \lead{In short} In a fixed context \hl{the translation is a function}: two images of one term
+  are equal.
+  \lead{Reference} none in lean4lean; MetaRocq's Template-to-PCUIC \code{trans} is a function.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-TrS}
+  \leanok
+  \lead{Idea} Induction on the first derivation, inverting the second.
+\end{proof}
+
+\begin{lemma}[Scoping]
+  \label{lem:EraseProof-TrS-fvarsIn}
+  \lean{EraseProof.TrS.fvarsIn}
+  \leanok
+  \uses{def:EraseProof-TrS}
+  \srcloc{proof/EraseProof/Typing/Basic.lean}{58}
+  \lead{In short} The free variables of a translated term are \hl{in the context}.
+  \lead{Reference} lean4lean \code{TrExprS.fvarsIn}; MetaRocq \code{subject\_closed}
+  (\code{pcuic/theories/Typing/PCUICClosedTyp.v}).
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-TrS}
+  \leanok
+  \lead{Idea} Induction on the derivation.
+\end{proof}
+
+\begin{lemma}[Monotonicity in the environment]
+  \label{lem:EraseProof-TrS-mono}
+  \lean{EraseProof.TrS.mono}
+  \leanok
+  \uses{def:EraseProof-TrS}
+  \srcloc{proof/EraseProof/Typing/Basic.lean}{76}
+  \lead{In short} A translation in \code{venv} is \hl{a translation in every extension} of
+  \code{venv}.
+  \lead{Reference} lean4lean \code{TrExprS.mono}; MetaRocq global weakening
+  (\code{weakening\_env\_declared\_constant}).
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-TrS}
+  \leanok
+  \lead{Idea} Induction; typing premises by lean4lean's \code{HasType.mono}.
+\end{proof}
+
+\begin{lemma}[Well-typed images]
+  \label{lem:EraseProof-TrS-wf}
+  \lean{EraseProof.TrS.wf}
+  \leanok
+  \uses{def:EraseProof-TrS}
+  \srcloc{proof/EraseProof/Typing/Basic.lean}{92}
+  \lead{In short} In an ordered environment and a well-formed context, \hl{the image is
+  well-typed}.
+  \lead{Reference} lean4lean \code{TrExprS.wf}; none in MetaRocq, where PCUIC typing is native.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-TrS}
+  \leanok
+  \lead{Idea} Induction; the \code{const} case by lean4lean's \code{HasType.const}.
+\end{proof}
+
+\begin{lemma}[Weakening over free-variable entries]
+  \label{lem:EraseProof-TrS-weakFV}
+  \lean{EraseProof.TrS.weakFV, EraseProof.TrS.weakFV'}
+  \leanok
+  \uses{def:EraseProof-TrS}
+  \srcloc{proof/EraseProof/Typing/Weak.lean}{43}
+  \lead{In short} Inserting free-variable entries keeps the source term and \hl{lifts the image}.
+  \lead{Reference} lean4lean \code{TrExprS.weakFV}, \code{weakFV'}; none in MetaRocq, whose
+  contexts have no free-variable entries.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-TrS}
+  \leanok
+  \lead{Idea} \code{weakFV'} by induction with a general lift; \code{weakFV} is its instance.
+\end{proof}
+
+\begin{lemma}[Weakening over de Bruijn entries]
+  \label{lem:EraseProof-TrS-weakBV}
+  \lean{EraseProof.TrS.weakBV}
+  \leanok
+  \uses{def:EraseProof-TrS}
+  \srcloc{proof/EraseProof/Typing/Weak.lean}{52}
+  \lead{In short} Inserting de Bruijn entries \hl{lifts both} the source term and the image.
+  \lead{Reference} lean4lean \code{TrExprS.weakBV}; none in MetaRocq.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-TrS}
+  \leanok
+  \lead{Idea} Induction on the derivation.
+\end{proof}
+
+\begin{lemma}[Substitution for a \texorpdfstring{$\lambda$}{lambda}-bound entry]
+  \label{lem:EraseProof-TrS-inst}
+  \lean{EraseProof.TrS.inst, EraseProof.TrS.instN, EraseProof.TrS.instN_var}
+  \leanok
+  \uses{def:EraseProof-TrS, lem:EraseProof-TrS-weakBV}
+  \srcloc{proof/EraseProof/Typing/Inst.lean}{92}
+  \lead{In short} If \code{b} translates under a $\lambda$-entry of type \code{A} and \code{a}
+  translates to \code{a'} of type \code{A}, then \hl{\code{b[a]} translates to \code{b'[a']}}.
+  \begin{itemize}
+  \item \code{instN}: the same at any depth; \code{instN\_var}: its variable case.
+  \end{itemize}
+  \lead{Reference} lean4lean \code{TrExprS.inst}, \code{instN}, \code{instN\_var}.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-TrS-weakBV}
+  \leanok
+  \lead{Idea} Induction for \code{instN}; the variable case weakens \code{a} by
+  \code{TrS.weakBV}.
+\end{proof}
+
+\begin{lemma}[Substitution for a \texttt{let}-bound entry]
+  \label{lem:EraseProof-TrS-inst_let}
+  \lean{EraseProof.TrS.inst_let, EraseProof.TrS.instN_let, EraseProof.TrS.instN_let_var}
+  \leanok
+  \uses{def:EraseProof-TrS}
+  \srcloc{proof/EraseProof/Typing/Inst.lean}{171}
+  \lead{In short} If \code{b} translates under a \code{let}-entry of value \code{v'} and \code{v}
+  translates to \code{v'}, then \code{b[v]} translates to \hl{the same image}.
+  \lead{Reference} lean4lean \code{TrExprS.inst\_let}, \code{instN\_let},
+  \code{instN\_let\_var}.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-TrS}
+  \leanok
+  \lead{Idea} Induction for \code{instN\_let}, with its variable case.
+\end{proof}
+
+\begin{lemma}[Abstraction]
+  \label{lem:EraseProof-TrS-uninstantiateN}
+  \lean{EraseProof.TrS.uninstantiateN, EraseProof.TrS.abstract}
+  \leanok
+  \uses{def:EraseProof-TrS}
+  \srcloc{proof/EraseProof/Typing/Abstract.lean}{50}
+  \lead{In short} If \code{e} opened with a fresh free variable \code{x} translates under the entry
+  of \code{x}, then \code{e} translates to \hl{the same image} under the de Bruijn entry in its
+  place.
+  \lead{Reference} lean4lean \code{TrExprS.uninstantiateN}, \code{abstract}; none in MetaRocq.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-TrS}
+  \leanok
+  \lead{Idea} \code{abstract} by induction; then abstract \code{x} out of the opened term.
+\end{proof}
+
+\begin{lemma}[Opening with a free variable]
+  \label{lem:EraseProof-TrS-inst_fvar}
+  \lean{EraseProof.TrS.inst_fvar}
+  \leanok
+  \uses{def:EraseProof-TrS}
+  \srcloc{proof/EraseProof/Typing/Abstract.lean}{61}
+  \lead{In short} If \code{e} translates under a de Bruijn entry, then \code{e} opened with a free
+  variable translates to \hl{the same image} under that variable's entry.
+  \lead{Reference} lean4lean \code{TrExprS.inst\_fvar}; none in MetaRocq.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-TrS}
+  \leanok
+  \lead{Idea} Port of lean4lean's proof, without the literal and projection cases.
+\end{proof}
+
+\begin{lemma}[Uniqueness up to definitional equality]
+  \label{lem:EraseProof-TrS-uniq}
+  \lean{EraseProof.TrS.uniq}
+  \leanok
+  \uses{def:EraseProof-TrS, lem:EraseProof-TrS-wf}
+  \srcloc{proof/EraseProof/Typing/Uniq.lean}{18}
+  \inherited{L1, L2, L3, L4, L5}
+  \lead{In short} In a well-formed environment, translations of one term in definitionally equal
+  contexts are \hl{definitionally equal}.
+  \lead{Reference} lean4lean \code{TrExprS.uniq}; none in MetaRocq, whose translation is a
+  function.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-TrS-wf}
+  \leanok
+  \lead{Idea} Induction; the cases go through lean4lean's \code{VLCtx.IsDefEq.find?\_uniq} and
+  \code{IsDefEqU.of\_l}, which rest on unique typing and hence on L1--L5.
+\end{proof}
+
+\begin{lemma}[Context conversion]
+  \label{lem:EraseProof-TrS-defeqDFC}
+  \lean{EraseProof.TrS.defeqDFC}
+  \leanok
+  \uses{def:EraseProof-TrS}
+  \srcloc{proof/EraseProof/Typing/Uniq.lean}{55}
+  \inherited{L1, L2, L3, L4, L5}
+  \lead{In short} A translation in \code{Delta1} has \hl{a translation in every definitionally
+  equal context} \code{Delta2}.
+  \lead{Reference} lean4lean \code{TrExprS.defeqDFC}; MetaCoq paper p.~8:43, context conversion.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-TrS-uniq}
+  \leanok
+  \lead{Idea} Induction; typing premises transported through \code{TrS.uniq}.
+\end{proof}
+
+\begin{lemma}[Universe instantiation]
+  \label{lem:EraseProof-TrS-instLevels}
+  \lean{EraseProof.TrS.instLevels}
+  \planned
+  \uses{def:EraseProof-TrS, def:Erasure-Pure-instLevels}
+  \lead{In short} Instantiating the level parameters of a translated term with
+  \code{Pure.instLevels} translates to \hl{the instantiated image}, under the instantiated
+  context.
+  \lead{Reference} lean4lean \code{TrExprS.instL}; MetaRocq \code{subst\_instance}.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-TrS, def:Erasure-Pure-instLevels}
+  \lead{Idea} Induction, with lean4lean's \code{IsDefEq.instL} for the typing premises.
+\end{proof}
+
+\section{Program environments}\label{sec:model-env}
+
+A program is a newest-first list of Lean declarations; \code{ProgEnv} relates it to a model
+environment, one kernel step per declaration.
+
+\begin{definition}[Declaration lookup]
+  \label{def:EraseProof-findDecl}
+  \lean{EraseProof.findDecl}
+  \leanok
+  \srcloc{proof/EraseProof/Env.lean}{18}
+  \lead{In short} \code{findDecl decls c}: the first declaration named \code{c}; MetaRocq's
+  \code{lookup\_env}.
+\end{definition}
+
+\begin{definition}[Translated declarations]
+  \label{def:EraseProof-TrConst}
+  \lean{EraseProof.TrConst, EraseProof.TrDef}
+  \leanok
+  \uses{def:EraseProof-TrS}
+  \srcloc{proof/EraseProof/Env.lean}{23}
+  \lead{In short} lean4lean's \code{TrConstant} and \code{TrDefVal} over \code{TrS}.
+  \begin{itemize}
+  \item \code{TrConst}: same number of level parameters; the type translates;
+  \item \code{TrDef}: \code{TrConst}, same name, and the value translates in the value
+        environment (the block's environment for a mutual block).
+  \end{itemize}
+\end{definition}
+
+\begin{definition}[Program environments]
+  \label{def:EraseProof-ProgEnv}
+  \lean{EraseProof.ProgEnv}
+  \leanok
+  \uses{def:EraseProof-TrConst}
+  \srcloc{proof/EraseProof/Env.lean}{34}
+  \lead{In short} \code{ProgEnv P venv}: the declarations \code{P} have the model \code{venv};
+  lean4lean's \code{TrEnv'} at safety \code{unsafe}, \hl{over a list, without inductives}, with the
+  \code{all} condition (DV-3, Section~\ref{reg:dv-3}).
+
+  \begin{tabular}{lp{0.56\linewidth}p{0.2\linewidth}}
+  \toprule
+  Rule & Premises & Model step \\
+  \midrule
+  \code{nil} & -- & the empty environment \\
+  \code{axiom} & the type translates and is well-formed; the name is fresh & add a constant \\
+  \code{defn} & \code{all} is the name itself; \code{TrDef}; well-formed; fresh & add a constant
+    and its defining equation \\
+  \code{thm} & as \code{defn}, and the type is a proposition & add a constant \\
+  \code{opaque} & as \code{defn} & add a constant \\
+  \code{block} & distinct names; each \code{all} lists the block; every member's value
+    translates in the block's environment; fresh & add all constants, then all equations \\
+  \bottomrule
+  \end{tabular}
+\end{definition}
+
+\begin{lemma}[Monotonicity of translated declarations]
+  \label{lem:EraseProof-TrConst-mono}
+  \lean{EraseProof.TrConst.mono, EraseProof.TrDef.mono}
+  \leanok
+  \uses{def:EraseProof-TrConst, lem:EraseProof-TrS-mono}
+  \srcloc{proof/EraseProof/Env.lean}{122}
+  \lead{In short} \code{TrConst} and \code{TrDef} \hl{survive environment extension}.
+  \lead{Reference} MetaRocq global weakening (\code{weakening\_env\_declared\_constant}).
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-TrS-mono}
+  \leanok
+  \lead{Idea} \code{TrS.mono} on each translated part.
+\end{proof}
+
+\begin{lemma}[The model is ordered]
+  \label{lem:EraseProof-ProgEnv-ordered}
+  \lean{EraseProof.ProgEnv.ordered, EraseProof.toDefEq_wf}
+  \leanok
+  \uses{def:EraseProof-ProgEnv}
+  \srcloc{proof/EraseProof/Env.lean}{74}
+  \lead{In short} The model of a program is lean4lean-\code{Ordered}, \hl{without any lean4lean
+  sorry}.
+  \lead{Reference} the \code{wf} part of MetaRocq's \code{wf\_ext}.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-ProgEnv}
+  \leanok
+  \lead{Idea} Own induction on \code{ProgEnv} with lean4lean's \code{Ordered} rules, avoiding
+  \code{VEnv.WF.ordered}, which reaches L3.
+\end{proof}
+
+\begin{lemma}[The model is well-formed]
+  \label{lem:EraseProof-ProgEnv-wf}
+  \lean{EraseProof.ProgEnv.wf}
+  \leanok
+  \uses{def:EraseProof-ProgEnv}
+  \srcloc{proof/EraseProof/Env.lean}{92}
+  \inherited{L1, L2}
+  \lead{In short} The model of a program satisfies lean4lean's \code{VEnv.WF}, which is
+  \hl{defined through the sorries L1 and L2}.
+  \lead{Reference} lean4lean \code{TrEnv'.wf}; MetaRocq \code{wf\_ext}.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-ProgEnv}
+  \leanok
+  \lead{Idea} Induction on \code{ProgEnv}, one \code{VDecl.WF} rule per step.
+\end{proof}
+
+\begin{lemma}[Lookup]
+  \label{lem:EraseProof-ProgEnv-lookup}
+  \lean{EraseProof.ProgEnv.lookup, EraseProof.findDecl_cons, EraseProof.forall₂_exists_of_mem_left}
+  \leanok
+  \uses{def:EraseProof-ProgEnv, def:EraseProof-findDecl, lem:EraseProof-TrConst-mono}
+  \srcloc{proof/EraseProof/Env.lean}{143}
+  \lead{In short} Every declaration of \code{P} is a constant of the model \hl{with its translated
+  type}.
+  \lead{Reference} MetaRocq \code{lookup\_on\_global\_env}
+  (\code{common/theories/EnvironmentTyping.v}).
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-TrConst-mono}
+  \leanok
+  \lead{Idea} Induction on \code{ProgEnv}; names are fresh when added; \code{TrConst.mono} lifts
+  the found translation.
+\end{proof}
+
+\begin{lemma}[Lookup of definitions and theorems]
+  \label{lem:EraseProof-ProgEnv-lookupDef}
+  \lean{EraseProof.ProgEnv.lookupDef}
+  \leanok
+  \uses{def:EraseProof-ProgEnv, def:EraseProof-findDecl, lem:EraseProof-TrConst-mono}
+  \srcloc{proof/EraseProof/Env/Unfold.lean}{30}
+  \lead{In short} A definition or theorem of \code{P} has a translated definition in the model,
+  with \hl{its defining equation} (definitions) or a propositional type (theorems).
+  \lead{Reference} MetaRocq \code{declared\_constant\_inv}.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-TrConst-mono}
+  \leanok
+  \lead{Idea} Induction on \code{ProgEnv}, as for \code{ProgEnv.lookup}.
+\end{proof}
+
+\section{The evaluation environment}\label{sec:model-evalenv}
+
+The source semantics evaluates over a sub-environment of the program; these nodes fix which
+constants unfold and relate unfolding to the model.
+
+\begin{definition}[Sub-environments]
+  \label{def:EraseProof-SubEnv}
+  \lean{EraseProof.SubEnv}
+  \leanok
+  \uses{def:EraseProof-findDecl}
+  \srcloc{proof/EraseProof/Env/Unfold.lean}{16}
+  \lead{In short} \code{SubEnv decls P}: every declaration of \code{decls} is the one
+  \code{findDecl} finds in \code{P}; the closure of MetaRocq's \code{erase\_global\_deps} (DV-3).
+\end{definition}
+
+\begin{definition}[Evaluation environments]
+  \label{def:EraseProof-EvalEnv}
+  \lean{EraseProof.EvalEnv, EraseProof.EvalEnv.unfold?}
+  \leanok
+  \uses{def:EraseProof-findDecl}
+  \srcloc{proof/EraseProof/Source/EvalEnv.lean}{15}
+  \lead{In short} The declarations with the configuration's remapping; \code{unfold?} gives
+  \hl{the bodies the $\delta$ rule may use}.
+  \begin{itemize}
+  \item \code{decls}: the declarations; \code{axiomatized}: the constants remapped to foreign code
+        (DV-12, Section~\ref{reg:dv-12});
+  \item \code{unfold? c}: the value of a definition or theorem named \code{c} that is not
+        remapped; axioms and opaques never unfold (DV-10, Section~\ref{reg:dv-10}).
+  \end{itemize}
+\end{definition}
+
+\begin{lemma}[Unfoldable constants]
+  \label{lem:EraseProof-EvalEnv-unfold_some}
+  \lean{EraseProof.EvalEnv.unfold?_some}
+  \leanok
+  \uses{def:EraseProof-EvalEnv}
+  \srcloc{proof/EraseProof/Source/EvalEnv.lean}{31}
+  \lead{In short} An unfoldable constant is \hl{the first declaration of its name}, and a
+  definition or a theorem.
+  \lead{Reference} the premises of \code{eval\_delta} (\code{pcuic/theories/PCUICWcbvEval.v}).
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-EvalEnv}
+  \leanok
+  \lead{Idea} Case analysis on \code{unfold?}.
+\end{proof}
+
+\begin{lemma}[Unfolding in the model]
+  \label{lem:EraseProof-ProgEnv-unfold}
+  \lean{EraseProof.ProgEnv.unfold}
+  \leanok
+  \uses{def:EraseProof-ProgEnv, def:EraseProof-SubEnv, def:EraseProof-EvalEnv}
+  \srcloc{proof/EraseProof/Env/Unfold.lean}{94}
+  \lead{In short} If the evaluation environment is a sub-environment of \code{P}, every constant it
+  unfolds has in the model a translated definition that is \hl{$\delta$-equal to its value}, or
+  is a theorem.
+  \lead{Reference} MetaRocq \code{declared\_constant\_inv}; the $\delta$ case of
+  \code{subject\_reduction\_eval}.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-EvalEnv-unfold_some, lem:EraseProof-ProgEnv-lookupDef}
+  \leanok
+  \lead{Idea} \code{unfold?\_some} then \code{ProgEnv.lookupDef}, moving the lookup from
+  \code{decls} to \code{P} by \code{SubEnv}.
+\end{proof}
+
+\section*{Caveats}
+\begin{itemize}
+\item \lead{Caveat} \code{ProgEnv} has no rule for inductives, quotients or ignored declarations;
+  a real Lean environment is never a \code{ProgEnv}, only a program's closure can be.
+\item \lead{Caveat} \code{ProgEnv.wf}, \code{TrS.uniq} and \code{TrS.defeqDFC} are only as sound
+  as the lean4lean sorries they list.
+\end{itemize}

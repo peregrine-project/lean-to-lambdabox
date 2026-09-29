@@ -1,7 +1,18 @@
 % Chapter order. Files under generated/ are written by blueprint/scripts/render_registers.py
-% (registers, pins) and by blueprint/scripts/audit.py --update (censuses); never edit them.
+% (registers, pins) and by blueprint/scripts/audit.py --update (tables from audit.toml,
+% proof/ROOTS.txt and the Lean environment); never edit them.
 \input{chapters/intro}
+\input{chapters/scope}
 \input{chapters/trust}
+\input{chapters/model}
+\input{chapters/pure}
+\input{chapters/source}
+\input{chapters/relation}
+\input{chapters/simulation}
+\input{chapters/oracle}
+\input{chapters/core}
+\input{chapters/final}
+\input{chapters/tests}
 \input{generated/shipping-changes}
 \input{generated/divergences}
 \input{chapters/open}

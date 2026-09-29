@@ -13,8 +13,11 @@ The blueprint describes the commit it is built from. It is not a changelog.
   "used to", "now", "yet", or describe a state and then its changes. Git holds the history.
 - What is not done is an open item in the present tense (`\stOpen{}`, or a row of the chapter
   "What is open"), never a plan with dates.
-- Planned statements appear only once the owner has approved them; a node documents a declaration
-  that exists.
+- A planned node (marked `\planned`) states a declaration of the owner-approved design (the
+  planned statements and definitions) under the name the declaration will have; it is written in
+  the present tense as a statement ("`X` is ..."), and the badge says that it is not formalized.
+  Every other node documents a declaration that exists. When the declaration lands, the node drops
+  `\planned` and gains `\leanok` (as the audit computes it) and `\srcloc`.
 - The registers are rendered as they are (their entries record changes, with a before and an
   after); the prose around them follows this section.
 
@@ -23,20 +26,25 @@ The blueprint describes the commit it is built from. It is not a changelog.
 - Environments: `definition` (def, abbrev, structure, inductive, class, instance), `theorem`
   (headline results), `lemma` (everything else, and families: one node for parallel
   declarations), `proposition`, `corollary`. A `remark` is prose, not a node.
-- Shape, in this order: `\begin{env}[Title]`, `\label`, `\lean{...}`, `\leanok`, `\uses{...}`,
-  `\srcloc{path}{line}`, `\inherited{...}` (when the audit measures inherited trust), the body,
-  `\end{env}`; for a result, a sibling `\begin{proof}` `\uses{...}` `\leanok` ... `\end{proof}`
-  after it, never inside it.
+- Shape, in this order: `\begin{env}[Title]`, `\label`, `\lean{...}`, `\leanok` or `\planned`,
+  `\uses{...}`, `\srcloc{path}{line}` (not on a planned node), `\inherited{...}` (when the audit
+  measures inherited trust), the body, `\end{env}`; for a result, a sibling `\begin{proof}`
+  `\uses{...}` `\leanok` ... `\end{proof}` after it, never inside it (a planned node's proof has
+  no `\leanok`).
 - `\label`: `<prefix>:<principal Lean name>`, prefix `def`, `lem`, `prop`, `thm`, `cor`, the name
   with `.` replaced by `-` (`def:Erasure-erase`). Unique; never renamed.
-- `\lean{...}`: names of the compiled environment only; never invent one. Each name belongs to one
-  node.
+- `\lean{...}`: names of the compiled environment only, or, on a planned node, the names of the
+  approved design; never invent one. Each name belongs to one node. Every declaration of the
+  verification library (`proof/EraseProof`) is cited by a node that is not planned: a helper goes
+  into the `\lean` list of the node it serves.
+- `\planned`: the node's declarations do not exist (the audit checks it); a node that is not
+  planned never uses a planned node.
 - `\leanok`: exactly as the audit computes it (README, section Audit). Never add it by hand to make
   a node green.
 - `\uses{...}`: labels only. In the statement, what the statement mentions; in the proof, what the
   proof relies on.
-- `\inherited{...}`: the lean4lean sorry sources and axioms that the audit measures for the node,
-  underscores escaped.
+- `\inherited{...}`: the labels (`L1`, ..., `TrProj`; `audit.toml`, rendered in the trust chapter)
+  of the lean4lean sorry sources that the audit measures for the node.
 
 ### Result template
 
@@ -101,9 +109,10 @@ shipping code opens its body with `\stShipping{}`.
 | `\lead{Label}` | bold run-in label, a noun phrase of one to three words; in nodes: In short, Given, Then, Where, Lean, Idea, Steps, Caveat, Why, Reference |
 | `\hl{phrase}` | the one phrase of a node a skimmer must not miss |
 | `\code{...}` | inline code; escape `_` as `\_` |
-| `\stProved`, `\stInherited`, `\stShipping`, `\stOpen` | status badges: proved; trust inherited from lean4lean; shipping code, described, not verified; not done |
+| `\stProved`, `\stInherited`, `\stShipping`, `\stPlanned`, `\stOpen` | status badges: proved; trust inherited from lean4lean; shipping code, described, not verified; not formalized; not done |
+| `\planned` | marks a planned node and prints its badge (checked: its declarations do not exist) |
 | `\srcloc{path}{line}` | where the node's first declaration is (checked) |
-| `\inherited{names}` | the lean4lean trust the node depends on (checked) |
+| `\inherited{labels}` | the lean4lean sorries the node depends on, by label (checked) |
 
 Allowed LaTeX: `itemize`, `enumerate`, `tabular` with booktabs rules and `p{...}` columns (no
 `\multirow`, no `longtable`: plasTeX renders neither), `\emph`, `\textbf`, `\ref`, math, and the
