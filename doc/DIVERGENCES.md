@@ -462,7 +462,13 @@ The blueprint renders this register.
   in the λ□ environment contains a free variable. And `proof/EraseProof/Relation/Basic.lean`, the
   rule `EraseProof.Erases.fvar` of `EraseProof.Erases`: the erasure relation relates the
   traversal's free variables to themselves, under a context `Lean4Lean.VLCtx` whose free-variable
-  entries type them.
+  entries type them. And `proof/EraseProof/Relation/Abstract.lean`: `EraseProof.abstract1`, the
+  shifting abstraction of lean4lean's `Expr.abstract1` (`Lean4Lean/Verify/Axioms.lean:443`) on λ□
+  terms, with `EraseProof.Erases.uninstantiateN`: closing a binder on both sides keeps the
+  relation, when the admissible targets of recursive constants do not mention the variable
+  (`EraseProof.RcFresh`); and `EraseProof.substFVars`, a simultaneous substitution of free
+  variables, with `EraseProof.Erases.substRc`: substituting free variables on the λ□ side that
+  the source term does not contain keeps the relation, with the admissible targets substituted.
 - **Reference artifact:** MetaRocq's erasure function `erase`
   (`erasure/theories/ErasureFunction.v:989`) and erasure relation `erases`
   (`erasure/theories/Extract.v:88`; MetaCoq paper §7.2–§7.3, Figs. 17–18), which work on de Bruijn
@@ -481,7 +487,13 @@ The blueprint renders this register.
   relation is stated on these open terms: a free variable erases to itself
   (`EraseProof.Erases.fvar`, MetaRocq's `erases_tVar`, which applies to no typed term there), and
   where the relation judges erasability (`EraseProof.ErasableS`), the free-variable entries of the
-  lean4lean context give these variables their types.
+  lean4lean context give these variables their types. Closing a binder is stated with the
+  shifting abstraction, the inverse of the source side's opening `Expr.instantiate1'`
+  (`Lean4Lean/Verify/Axioms.lean:404`), as lean4lean states it for its translation
+  (`Lean4Lean.TrExprS.uninstantiateN`, `Lean4Lean/Verify/Typing/Lemmas.lean:2132`), not with the
+  traversal's non-shifting `abstract`. The members of a recursive block refer to each other by
+  free variables while they are erased; replacing these by the block's fixpoints
+  (`EraseProof.Erases.substRc`) turns the targets of the block's constants into the stored `tFix`.
 - **Why it is forced:** the theorem is about the shipping eraser (spec §2), whose traversal is
   written this way: `withLocalDecl` and `withLocalDef` (`LeanToLambdaBox/Erasure.lean`) open a
   binder with a fresh free variable pushed onto the locals, the oracle is called with these
@@ -491,7 +503,10 @@ The blueprint renders this register.
 - **What was considered instead:** a de Bruijn rewrite of the traversal, a large shipping change
   that no output needs (spec §5.1 allows only strictly necessary shipping changes); resetting the
   locals in `visitMutual`, a shipping change that the frame lemma
-  `EraseProof.Pure.isErasable_agree` makes unnecessary.
+  `EraseProof.Pure.isErasable_agree` makes unnecessary; stating the binder lemma with the
+  traversal's non-shifting `abstract`, which undoes the opening only on terms without loose
+  indices beyond the variable's depth, a condition the lemma would then need as an extra
+  hypothesis.
 
 ### DV-14
 

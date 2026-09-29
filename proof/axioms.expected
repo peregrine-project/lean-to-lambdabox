@@ -16,6 +16,8 @@ EraseProof.Erases.app_inv propext,Classical.choice,Quot.sound -
 EraseProof.Erases.closed propext,Classical.choice,Quot.sound -
 EraseProof.Erases.congr_ac propext,Classical.choice,Quot.sound -
 EraseProof.Erases.instLevels propext,Classical.choice,Quot.sound -
+EraseProof.Erases.substRc propext,Classical.choice,Quot.sound -
+EraseProof.Erases.uninstantiateN propext,Classical.choice,Quot.sound -
 EraseProof.ErasesDeps.eval propext,Classical.choice,Quot.sound -
 EraseProof.ErasesDeps.ext propext,Classical.choice,Quot.sound -
 EraseProof.IsErasable.app propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5,L6
@@ -33,7 +35,6 @@ EraseProof.SrcEval.restrict propext,Classical.choice,Quot.sound -
 EraseProof.SrcEval.value propext,Classical.choice,Quot.sound -
 EraseProof.TrS.fvarsIn propext,Classical.choice,Quot.sound -
 EraseProof.TrS.inst_fvar propext,Classical.choice,Quot.sound -
-EraseProof.TrS.uninstantiateN propext,Classical.choice,Quot.sound -
 EraseProof.Test.Atoms.defHead_kept propext -
 EraseProof.Test.Atoms.levelDependent_kept propext -
 EraseProof.Test.Bridge.addConsts_fresh propext,Quot.sound -
