@@ -2,6 +2,7 @@ import EraseProof.Atoms
 import EraseProof.Env
 import EraseProof.Env.Unfold
 import EraseProof.Oracle.Agree
+import EraseProof.Oracle.Infer
 import EraseProof.Oracle.Whnf
 import EraseProof.Source.Defeq
 import EraseProof.Source.Eval
