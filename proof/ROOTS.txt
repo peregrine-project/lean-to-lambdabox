@@ -12,5 +12,6 @@ EraseProof.TrS.weakFV EraseProof.TrS.inst_fvar v1-trs-abstract
 EraseProof.TrS.weakBV EraseProof.TrS.inst v1-trs-inst
 EraseProof.ProgEnv.ordered EraseProof.SrcEval.defeq v2-sr-eval
 EraseProof.ProgEnv.wf EraseProof.SrcEval.defeq v2-sr-eval
-EraseProof.ProgEnv.lookup EraseProof.ProgEnv.unfold v1-progenv-unfold
+EraseProof.ProgEnv.lookup EraseProof.ErasableS.atom v2-erasable-eval
+EraseProof.ProgEnv.unfold EraseProof.SrcEval.defeq v2-sr-eval
 EraseProof.TrS.defeqDFC EraseProof.Erases.inst_let v3-rel-subst
