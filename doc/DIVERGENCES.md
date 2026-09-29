@@ -47,7 +47,9 @@ The blueprint renders this register.
 - **What differs:** `EraseProof.TrS` has the rules of `Lean4Lean.TrExprS` except `lit` and `proj`:
   literals (`Expr.lit`) and projections (`Expr.proj`) have no translation, so terms containing
   them are outside the fragment. Like `Lean4Lean.TrExprS` and unlike `trans`, it is a relation
-  (its image is unique: `EraseProof.TrS.det`).
+  (its image is unique: `EraseProof.TrS.det`). Every derivation of `EraseProof.TrS` is one of
+  `Lean4Lean.TrExprS` (test `EraseProof.Test.TrS.toTrExprS`, whose statement reaches the `sorry` of
+  `Lean4Lean.TrProj`).
 - **Why it is forced:** the lemmas of `Lean4Lean.TrExprS` handle `proj` with `sorry` proofs
   (`Lean4Lean/Verify/Typing/Lemmas.lean:642,723,727,893,938,1240,1509`); reusing them puts
   projection sorries into a fragment without projections. The `lit` rule translates a literal
@@ -59,6 +61,50 @@ The blueprint renders this register.
 - **What was considered instead:** `Lean4Lean.TrExprS` with a side condition excluding
   projections and literals: the hypotheses would still mention `Lean4Lean.TrProj`, and its lemmas
   would reach the `sorry` proofs of the `proj` cases.
+
+### DV-3
+
+- **Our artifact:** `proof/EraseProof/Env.lean`, `EraseProof.ProgEnv`, with `EraseProof.TrConst`,
+  `EraseProof.TrDef` and `EraseProof.findDecl`: the relation between a program's declarations and
+  their model in lean4lean.
+- **Reference artifact:** the well-formed global environment `wf_ext Σ`
+  (`pcuic/theories/PCUICTyping.v:507`; MetaCoq paper §3.6), a hypothesis of `erases_correct`
+  (`erasure/theories/ErasureCorrectness.v:51`), whose declarations are a newest-first list searched
+  by `lookup_env` (`common/theories/Environment.v:483`); and lean4lean's relation between a kernel
+  environment and its model, `Lean4Lean.TrEnv'` (`Lean4Lean/Verify/Environment/Basic.lean:128`),
+  which `EraseProof.ProgEnv` restates.
+- **What differs:** the environment is a newest-first list of Lean `ConstantInfo`s, searched like
+  `lookup_env` by `EraseProof.findDecl`, instead of a Lean `Environment` or the constant map of
+  `Lean4Lean.TrEnv'`. `EraseProof.ProgEnv` has the rules `axiom`, `defn`, `thm`, `opaque` and
+  `mutualDef` (named `block`) of `Lean4Lean.TrEnv'` at safety `.unsafe`, with `EraseProof.TrS` in
+  place of `Lean4Lean.TrExprS`; `EraseProof.TrConst` and `EraseProof.TrDef` restate
+  `Lean4Lean.TrConstant` and `Lean4Lean.TrDefVal` without their safety conjunct, which holds for
+  every declaration at `.unsafe`. It has no `ignore` rule (at `.unsafe` no declaration is
+  ignored), no `quot` rule, no `induct` rule, and no freshness premise on a constant map (a name is
+  fresh in the model because `Lean4Lean.VEnv.addConst` succeeds). It has one premise that
+  `Lean4Lean.TrEnv'` lacks: the field `all` is what Lean's elaborator sets, the declaration's own
+  name for a single definition, theorem or opaque constant, and the block's names in order for
+  each member of a block. Every `EraseProof.ProgEnv` gives a `Lean4Lean.TrEnv'` at `.unsafe` of
+  the same model, with a constant map that holds each of the program's declarations under its name
+  (test `EraseProof.Test.ProgEnv.toTrEnv'`, whose statement reaches the `sorry` definitions
+  `Lean4Lean.TrProj` and `Lean4Lean.VInductDecl.WF`). Compared with `wf_ext Σ`, the environment has no inductive declarations,
+  and its typing is lean4lean's (DV-5).
+- **Why it is forced:** a Lean `Environment` always contains the inductive types of `Init`, and
+  `Lean4Lean.TrEnv'` at `.unsafe` relates no constant map that contains an inductive type
+  (lean4lean's `TrEnv'.no_inductInfo`, `Lean4Lean/Verify/Environment/Extension.lean:18`), because
+  lean4lean `master` has no inductive types (DV-6); so a program is stated as an inductive-free
+  list of declarations. The rule `quot` needs a constant named `Eq`
+  (`Lean4Lean.VEnv.QuotReady`, `Lean4Lean/Theory/Quot.lean:13`), which is an inductive type in
+  every Lean environment. `Lean4Lean.TrEnv'` is stated with `Lean4Lean.TrExprS`, whose projection
+  rule and lemmas carry `sorry` (DV-2). The eraser reads `all` to lay out a block of mutual
+  definitions (`visitMutual`, `LeanToLambdaBox/Erasure.lean`), and lean4lean's kernel does not
+  check it (`addDefinition` to `addMutual`, `Lean4Lean/Environment.lean:36-118`), so the premise
+  states what the elaborator guarantees.
+- **What was considered instead:** `Lean4Lean.TrEnv'` of a real Lean environment, which does not
+  hold for any (`TrEnv'.no_inductInfo`); `Lean4Lean.TrEnv'` of a kernel environment
+  built from the program's declarations, whose hypotheses would mention `Lean4Lean.TrProj`
+  through `Lean4Lean.TrExprS` (DV-2); no `all` premise, under which the eraser's reading of `all`
+  is unconstrained.
 
 ### DV-5
 
@@ -110,3 +156,116 @@ The blueprint renders this register.
   Π-types that the simulation proof needs fails there; master proves that injectivity
   (`Lean4Lean.VEnv.IsDefEqU.forallE_inv`, `Lean4Lean/Theory/Typing/Injectivity.lean:23`) only
   under `Lean4Lean.VEnv.WF`, whose inductive part is the `sorry` definition above.
+
+### DV-10
+
+- **Our artifact:** `proof/EraseProof/Source/EvalEnv.lean`, `EraseProof.EvalEnv.unfold?`, the
+  constants the source semantics unfolds: it returns the value of a definition or theorem and
+  nothing for an opaque constant.
+- **Reference artifact:** the δ rule of PCUIC's weak call-by-value evaluation, `eval_delta`
+  (`pcuic/theories/PCUICWcbvEval.v:247`; MetaCoq paper §5.6), which unfolds every constant whose
+  declaration has a body (`cst_body decl = Some body`).
+- **What differs:** a Lean `opaque` declaration (`ConstantInfo.opaqueInfo`) has a value, but
+  `EraseProof.EvalEnv.unfold?` does not return it, so evaluation does not unfold the constant.
+  The shipping eraser emits the opaque's value as the body of its λ□ constant
+  (`ci.value? (allowOpaque := true)` in `LeanToLambdaBox/Erasure.lean`), so λ□ evaluation unfolds
+  what the source semantics leaves stuck.
+- **Why it is forced:** lean4lean's model gives an opaque constant no defining equation (rule
+  `opaque` of `Lean4Lean.TrEnv'`, `Lean4Lean/Verify/Environment/Basic.lean:164-169`, adds the
+  constant only), and `EraseProof.ProgEnv` follows it; so unfolding an opaque is not a
+  definitional equality of the model. The proof relates each evaluation step of the source to a
+  typed definitional equality of the model; for a δ step, `EraseProof.ProgEnv.unfold` gives it
+  for definitions (their defining equation) and theorems (their type is a proposition, so proof
+  irrelevance equates them with their value), and nothing gives it for opaques, whose type need
+  not be a proposition.
+- **What was considered instead:** unfolding opaques as `eval_delta` does: evaluation steps would
+  no longer be definitional equalities of the model, and type preservation fails for terms whose
+  type depends on an opaque's value (with `opaque c : T := t` and an axiom `f : (x : T) → F x`,
+  `f c : F c` evaluates to `f t : F t`, and the model does not equate `F c` with `F t`).
+
+### DV-12
+
+- **Our artifact:** `proof/EraseProof/Source/EvalEnv.lean`, `EraseProof.EvalEnv` with its field
+  `axiomatized`, and `EraseProof.EvalEnv.unfold?`: the evaluation environment carries the
+  constants the configuration remaps to foreign code, and evaluation does not unfold them.
+- **Reference artifact:** the environment of PCUIC's weak call-by-value evaluation `eval`
+  (`pcuic/theories/PCUICWcbvEval.v:231`), whose rule `eval_delta` (`:247`) unfolds a constant
+  exactly when its declaration has a body; and `erases_constant_body`
+  (`erasure/theories/Extract.v:264`), which erases a constant with a body to one with a body and
+  a constant without a body to one without.
+- **What differs:** a definition or theorem for which `axiomatized` holds has a Lean value but no
+  δ rule in the source semantics: it is stuck, like the λ□ axiom the eraser emits for it. Which
+  constants are remapped is an input of the source semantics, besides the declarations.
+- **Why it is forced:** under the configuration `extern := .preferAxiom` (the default of
+  `ErasureConfig`, `LeanToLambdaBox/Erasure.lean`), the shipping eraser emits a declaration tagged
+  `@[extern]` as a λ□ axiom, although it has a Lean value, so that it is linked with a foreign
+  implementation (Dima §4.2). Neither lean4lean's model nor λ□ evaluation models that
+  implementation; the source semantics can only leave the constant stuck, as λ□ evaluation leaves
+  the axiom.
+- **What was considered instead:** a scope condition excluding programs that mention a remapped
+  constant: it also excludes programs that never evaluate the constant.
+
+### DV-16
+
+- **Our artifact:** `proof/EraseProof/Target.lean`, `EraseProof.LBEval`, λ□ weak call-by-value
+  evaluation, with its atoms `EraseProof.lbAtom`, stated on the shipping AST `LBTerm`
+  (`LeanToLambdaBox/Basic.lean`); with it the functions `EraseProof.csubst`, `EraseProof.closedn`,
+  `EraseProof.hasFVar` and the environment condition `EraseProof.LenvClosed`.
+- **Reference artifact:** MetaRocq's λ□ evaluation `eval` (`erasure/theories/EWcbvEval.v:119`) on
+  the λ□ terms `term` (`erasure/theories/EAst.v:29`), with `atom`
+  (`erasure/theories/EWcbvEval.v:36`), `csubst` (`erasure/theories/ECSubst.v:14`), `closedn`
+  (`erasure/theories/ELiftSubst.v:90`) and `closed_env` (`erasure/theories/EGlobalEnv.v:181`);
+  MetaCoq paper §7.1 (Fig. 16 and the amended evaluation rules, p. 8:60).
+- **What differs:** `LBTerm` has no `tVar`, `tEvar`, `tCoFix`, `tLazy` or `tForce`, and its only
+  primitive values are 63-bit integers. So `EraseProof.LBEval` has no rules `eval_cofix_case`
+  (`erasure/theories/EWcbvEval.v:198`), `eval_cofix_proj` (`:205`) or `eval_force` (`:279`), its
+  rule `prim` (`eval_prim`, `:275`) evaluates an integer to itself, and `EraseProof.lbAtom` has no
+  case for `tCoFix` or `tLazy`. `LBTerm` has a constructor that `term` lacks, `fvar`, a free
+  variable named by a Lean `FVarId`: `EraseProof.LBEval` has no rule for it, `EraseProof.csubst`
+  leaves it unchanged and `EraseProof.closedn` counts it as closed, as MetaRocq's `csubst` and
+  `closedn` treat `tVar`; `EraseProof.hasFVar` tests whether it occurs, and has no MetaRocq
+  counterpart; `EraseProof.LenvClosed` requires, besides the closedness of `closed_env`, that no
+  body stored in the λ□ environment contains a free variable. The rules for constructors in block
+  form, `eval_iota_block` (`:151`), `eval_proj_block` (`:228`) and `eval_construct_block`
+  (`:254`), are absent; each requires the flag `with_constructor_as_block` to be true, which it is
+  not in `default_wcbv_flags` (`:69`), the flags of `erases_correct`
+  (`erasure/theories/ErasureCorrectness.v:51`). At flags where that flag is false,
+  `EraseProof.LBEval` has exactly the rules of `eval` whose term constructors `LBTerm` has.
+- **Why it is forced:** the theorem is about the shipping eraser (spec §2), whose output is an
+  `LBTerm`, the λ□ that peregrine reads; evaluation is stated on that type. The terms without a
+  constructor in `LBTerm` cannot occur in the eraser's output, so their rules have nothing to
+  apply to. The constructor `fvar` is part of the shipping AST because the traversal is locally
+  nameless (DV-13): it opens binders with free variables and closes them with `abstract` and
+  `toBvar` (`LeanToLambdaBox/Basic.lean`) before a body is stored, which `EraseProof.LenvClosed`
+  records. MetaRocq's erasure works on de Bruijn indices and maps `tVar` only to `tVar`
+  (`erasure/theories/ErasureFunction.v:996`), which typed terms do not contain (PCUIC's typing has
+  no rule for it), so `closed_env` needs no such clause. The block rules cannot fire at the flags
+  of `erases_correct`, at which the simulation evaluates; results stated for every flag, such as
+  `EraseProof.LBEval.closed`, are about the relation without them.
+- **What was considered instead:** extending `LBTerm` with the missing constructors, a shipping
+  change that no output of the eraser needs (spec §5.1 allows only strictly necessary shipping
+  changes); stating evaluation on a separate transcription of `term` reached through a translation
+  from `LBTerm`, which every statement would pass through and which would still need an image for
+  `fvar`; including the block rules, which the statements never use at their flags.
+
+### DV-21
+
+- **Our artifact:** `proof/EraseProof/Env.lean`, `EraseProof.ProgEnv`: its rule `axiom` admits
+  axioms, declarations without a value, in the program's environment.
+- **Reference artifact:** Letouzey §3.4 (p. 10), "from now to the end of this paper we will only
+  consider contexts with no assumptions", the hypothesis of Theorems 12, 13 and 15. MetaRocq's
+  `erases_correct` (`erasure/theories/ErasureCorrectness.v:51`) has no such hypothesis: `wf_ext Σ`
+  admits constants without a body, and `axiom_free` (`erasure/theories/Extract.v:381`) is a
+  hypothesis only of the first-order results, such as `erase_correct_firstorder`
+  (`erasure/theories/ErasureFunctionProperties.v:2310`).
+- **What differs:** programs may depend on axioms: `EraseProof.ProgEnv` relates lists containing
+  Lean `axiom` declarations to models in which they are constants without a defining equation.
+  This follows MetaRocq and diverges from Letouzey.
+- **Why it is forced:** the spec (§2) puts in scope every input whose verification needs nothing
+  beyond lean4lean `master`, and `master` models axioms (rule `axiom` of `Lean4Lean.TrEnv'`,
+  `Lean4Lean/Verify/Environment/Basic.lean:134`). Letouzey needs the hypothesis for canonicity (a
+  closed term of an inductive type reduces to a constructor), in the ι cases of the proof of
+  Theorem 12 (Appendix A, cases 1 and 2) and in Theorem 15; the fragment has no inductive types
+  and no ι-reduction (DV-6).
+- **What was considered instead:** excluding axioms from `EraseProof.ProgEnv`, as Letouzey does:
+  it narrows the scope the spec fixes without a gap in `master` that forces it.

@@ -14,7 +14,8 @@ or `EraseProof.*`):
   lean4lean and no `._native.` axiom occurs. The footprints are cross-checked against
   `Lean.collectAxioms` itself.
 * C5 `sorry`: every `sorryAx` a declaration reaches comes from one of lean4lean's `sorry`
-  declarations L1–L8 (`sorryLabels`). The report lists the labels each root and test reaches.
+  declarations L1–L8 (`sorryLabels`), or, for a test, also `TrProj` (`testOnlySorryLabels`). The
+  report lists the labels each root and test reaches.
 * C6 `hygiene`: no non-test declaration reaches a constant named `Lean4Lean.TrExprS*`,
   `Lean4Lean.TrExpr`, `Lean4Lean.TrExpr.*` or `Lean4Lean.TrProj*`, or a declaration of the test
   namespace `EraseProof.Test`.
@@ -60,16 +61,20 @@ def sorryLabels : Array (String × Name) := #[
   ("L7", `Lean4Lean.VEnv.IsDefEqU.weakN_iff),
   ("L8", `Lean4Lean.VEnv.NormalEq.parRed)]
 
-/-- Further `sorry` declarations that only test declarations may reach, with labels. -/
-def testOnlySorryLabels : Array (String × Name) := #[]
+/-- Further `sorry` declarations that only test declarations may reach, with labels: lean4lean's
+`TrProj` (`Lean4Lean/Verify/Typing/Expr.lean:68`), which the bridge tests reach through `TrExprS`
+and `TrEnv'` (exception E-1). -/
+def testOnlySorryLabels : Array (String × Name) := #[("TrProj", `Lean4Lean.TrProj)]
 
-/-- The modules declaring `sorryLabels`; imported so that the names are checked. -/
+/-- The modules declaring `sorryLabels` and `testOnlySorryLabels`; imported so that the names are
+checked. -/
 def labelModules : Array Name := #[
   `Lean4Lean.Theory.Inductive,
   `Lean4Lean.Theory.Typing.InductiveLemmas,
   `Lean4Lean.Theory.Typing.Injectivity,
   `Lean4Lean.Theory.Typing.UniqueTyping,
-  `Lean4Lean.Theory.Typing.ChurchRosser]
+  `Lean4Lean.Theory.Typing.ChurchRosser,
+  `Lean4Lean.Verify.Typing.Expr]
 
 /-- lean4lean's bridge to Lean expressions, which the library ports instead of using (C6). -/
 def isForbiddenBridge (n : Name) : Bool :=
@@ -353,8 +358,9 @@ def expectedHeader : String :=
 # One line per declaration: <declaration> <axioms> <sorry labels>
 #   <axioms>: its `#print axioms`, comma-separated in the order propext, Classical.choice,
 #             Quot.sound, sorryAx; `-` for none.
-#   <sorry labels>: the lean4lean `sorry` declarations it reaches (L1-L8, see
-#             tools/Report.lean `sorryLabels`), comma-separated; `-` for none.
+#   <sorry labels>: the lean4lean `sorry` declarations it reaches (L1-L8, and TrProj for tests;
+#             see tools/Report.lean `sorryLabels`, `testOnlySorryLabels`), comma-separated;
+#             `-` for none.
 # proof/scripts/check.sh compares this file with the computed .check/axioms.actual.
 "
 
@@ -535,7 +541,7 @@ def main (args : List String) : IO UInt32 := do
     let tables := if isTest c then sorryLabels ++ testOnlySorryLabels else sorryLabels
     for s in fp.sorries do
       if (labelOf? tables s).isNone then
-        fail "sorry" s!"{c} reaches sorryAx through {s}, which is not among L1-L8"
+        fail "sorry" s!"{c} reaches sorryAx through {s}, which is not among {showList (tables.map (·.1))}"
     if !isAux c then
       let holders := fp.sorries.toArray.qsort Name.lt
       footLines := footLines.push
