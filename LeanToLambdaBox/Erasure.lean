@@ -161,10 +161,32 @@ def _root_.LBTerm.isTrivialAlias (t : LBTerm) : Bool :=
   | _ => false
 
 
-structure ErasureContext: Type where
-  lctx: LocalContext := {}
-  fixvars: Option (Std.HashMap Name FVarId) := .none
-  config: ErasureConfig
+/-- A local binder of the traversal: a free variable with its user name, type and, for a `let`, value. -/
+structure Local where
+  fvarId : FVarId
+  userName : Name
+  type : Expr
+  value? : Option Expr
+deriving Inhabited
+
+/--
+The reader context of the traversal. `lctx` and `locals` hold the same binders, innermost first in
+`locals`: `lctx` for `Meta`, `locals` for the binder names and for a backend without `Meta`.
+-/
+structure TravCtx where
+  lctx : LocalContext := {}
+  locals : List Local := []
+  fixvars : Option (Std.HashMap Name FVarId) := none
+  «config» : ErasureConfig
+
+/-- The λ□ name of a binder with the user name `n`: `n` if it is ASCII graphic, since the λ□ parser
+rejects other names, and anonymous otherwise. -/
+def binderNameOf (n : Name) : BinderName :=
+  let s := n.toString
+  if s.all (fun (c : Char) => decide (33 ≤ c.toNat ∧ c.toNat < 127)) then .named s else .anon
+
+/-- The λ□ name of the fixpoint definition of the constant `n`. -/
+def fixDefName (n : Name) : BinderName := .named n.toString
 
 /--
 The environment and `Meta` operations that the erasure traversal uses. The traversal (`visitExpr` and
@@ -187,10 +209,12 @@ class Backend (m : Type → Type) where
   /-- Instantiate the loose bound variable 0 of the first argument with the second (`CoreM`:
   `Expr.instantiate1`). -/
   instantiate1 : Expr → Expr → Expr
-  /-- Whether a term is a proof or a type former, in a local context (`CoreM`: `isErasable`). -/
-  isErasable : LocalContext → Expr → m Bool
-  /-- The type of a term in a local context (`CoreM`: `Meta.inferType`). -/
-  inferType : LocalContext → Expr → m Expr
+  /-- Whether a term is a proof or a type former, in the traversal's local context, given as a
+  `LocalContext` and as its list of locals (`CoreM`: `isErasable` in the `LocalContext`). -/
+  isErasable : LocalContext → List Local → Expr → m Bool
+  /-- The type of a term in the traversal's local context, given as a `LocalContext` and as its list
+  of locals (`CoreM`: `Meta.inferType` in the `LocalContext`). -/
+  inferType : LocalContext → List Local → Expr → m Expr
   /-- The `casesOn`-like eliminator information of a constant (`CoreM`: `getCasesInfo?`). -/
   casesInfo? : Name → m (Option CasesInfo)
   /-- The arity of a constructor (`CoreM`: `Compiler.LCNF.getCtorArity?`). -/
@@ -214,10 +238,11 @@ class Backend (m : Type → Type) where
 /--
 The erasure traversal's monad over a backend `m`.
 
-Above the backend there is a read-only local context of Lean types, which the backend's type
-inference receives, and a state handling the global environment of the extracted program.
+Above the backend there is a read-only context (`TravCtx`) with the local context of Lean types,
+which the backend's type inference receives, and a state handling the global environment of the
+extracted program.
 -/
-abbrev EraseT (m : Type → Type) := StateT ErasureState <| ReaderT ErasureContext m
+abbrev EraseT (m : Type → Type) := StateT ErasureState <| ReaderT TravCtx m
 
 def run [Monad m] (x : EraseT m α) (config: ErasureConfig): m (α × ErasureState) :=
   x |>.run {} |>.run { config }
@@ -316,8 +341,8 @@ instance : Backend CoreM where
   unsafeRecBase? := Compiler.isUnsafeRecName?
   freshFVarId := mkFreshFVarId
   instantiate1 := Expr.instantiate1
-  isErasable lctx e := runMetaM lctx (isErasable e)
-  inferType lctx e := runMetaM lctx (Meta.inferType e)
+  isErasable lctx _ e := runMetaM lctx (isErasable e)
+  inferType lctx _ e := runMetaM lctx (Meta.inferType e)
   casesInfo? := getCasesInfo?
   ctorArity? := getCtorArity?
   argMask := argMaskCore
@@ -390,14 +415,9 @@ def register_inductive (indinfo: InductiveVal): EraseT m (InductiveId × Inducti
     modify (fun s => { s with gdecls := s.gdecls.cons (mutualBlockName, .inductiveDecl mutual_body) })
     return (← get).inductives[indinfo.name]!
 
+/-- The λ□ name of the local `x`: `binderNameOf` of its user name. -/
 def fvar_to_name (x: FVarId): EraseT m BinderName := do
-  let n := (← read).lctx.fvarIdToDecl |>.find! x |>.userName
-  let s: String := n.toString
-  -- check if s is ASCII graphic, otherwise the λbox parser will complain
-  if s.all (fun (c : Char) => decide (33 <= c.toNat /\ c.toNat < 127)) then
-    return .named n.toString
-  else
-    return .anon
+  return binderNameOf ((← read).locals.find? (·.fvarId == x)).get!.userName
 
 def mkLambda (x: FVarId) (body: LBTerm): EraseT m LBTerm := do return .lambda (← fvar_to_name x) (abstract x body)
 
@@ -422,18 +442,20 @@ def mkDef (name: Name) (fixvarnames: List Name) (body: LBTerm): EraseT m (@FixDe
   let mut body := body
   for (n, i) in fixvarnames.reverse.zipIdx do
     body := toBvar ((← read).fixvars.get![n]!) i body
-  return { name := .named name.toString, body }
+  return { name := fixDefName name, body }
 
 /-- Similar to Meta.withLocalDecl, but in EraseT.
     k will be passed some fresh FVarId and run in a context in which it is bound. -/
 def withLocalDecl (n: Name) (type: Expr) (bi: BinderInfo) (k: FVarId -> EraseT m α): EraseT m α := do
   let fvarid <- Backend.freshFVarId (m := m);
-  withReader (fun ctx => { ctx with lctx := ctx.lctx.mkLocalDecl fvarid n type bi }) (k fvarid)
+  withReader (fun ctx => { ctx with lctx := ctx.lctx.mkLocalDecl fvarid n type bi,
+                                    locals := ⟨fvarid, n, type, none⟩ :: ctx.locals }) (k fvarid)
 
 /-- Like Meta.withLetDecl. -/
 def withLocalDef (n: Name) (type val: Expr) (nd: Bool) (k: FVarId -> EraseT m α): EraseT m α := do
   let fvarid <- Backend.freshFVarId (m := m);
-  withReader (fun ctx => { ctx with lctx := ctx.lctx.mkLetDecl fvarid n type val nd }) (k fvarid)
+  withReader (fun ctx => { ctx with lctx := ctx.lctx.mkLetDecl fvarid n type val nd,
+                                    locals := ⟨fvarid, n, type, some val⟩ :: ctx.locals }) (k fvarid)
 
 /--
 A version of Meta.lambdaTelescope that
@@ -513,7 +535,7 @@ Panics if the type of e does not start with at least arity .forallE constructors
 `fuel` bounds the number of arguments added.
 -/
 def withAppEtaToMinArity (fuel : Nat) (e: Expr) (arity: Nat) (k: Expr -> Array Expr -> EraseT m LBTerm): EraseT m LBTerm := do
-  let type ← Backend.inferType (m := m) (← read).lctx e
+  let type ← Backend.inferType (m := m) (← read).lctx (← read).locals e
   e.withApp (fun f args => go fuel type f args)
 where
   -- Invariant: type is the type of f *args.
@@ -555,7 +577,7 @@ mutual
   def visitExpr : Nat → Expr → EraseT m LBTerm
   | 0, _ => Backend.outOfFuel (m := m) "visitExpr"
   | fuel+1, e => do
-    if (← Backend.isErasable (m := m) (← read).lctx e) then
+    if (← Backend.isErasable (m := m) (← read).lctx (← read).locals e) then
       return .box
     match e with
     | .app ..      => visitApp fuel e
@@ -739,7 +761,7 @@ mutual
         if discr_nt matches .fvar _ | .box then
           visitCasesOn fuel indVal ctorAlts catchAll discr_nt
         else do
-          let type ← Backend.inferType (m := m) (← read).lctx discr
+          let type ← Backend.inferType (m := m) (← read).lctx (← read).locals discr
           withLocalDef `discr type discr false fun x => do
             let catchAllFun := catchAllFun.replace fun e => if e == discr then some (.fvar x) else none
             mkLetIn x discr_nt (← visitCasesOn fuel indVal ctorAlts (some (numHyps, catchAllFun)) (.fvar x))
@@ -837,7 +859,7 @@ mutual
   def visitAlt : Nat → Nat → ConstructorArgMask → Expr → EraseT m (List BinderName × LBTerm)
   | 0, _, _, _ => Backend.outOfFuel (m := m) "visitAlt"
   | fuel+1, numFields, argmask, e => do
-    lambdaOrIntroToArity e (← Backend.inferType (m := m) (← read).lctx e) numFields fun e fvarids => do
+    lambdaOrIntroToArity e (← Backend.inferType (m := m) (← read).lctx (← read).locals e) numFields fun e fvarids => do
       mkAlt (filter argmask fvarids.toArray).toList (← visitExpr fuel e)
 
   def get_constant_kername : Nat → Name → EraseT m Kername
