@@ -9,6 +9,7 @@ import EraseProof.Oracle.Agree
 import EraseProof.Oracle.AtomShapes
 import EraseProof.Oracle.Infer
 import EraseProof.Oracle.Whnf
+import EraseProof.Relation.Atoms
 import EraseProof.Relation.Basic
 import EraseProof.Source.Defeq
 import EraseProof.Source.Eval
