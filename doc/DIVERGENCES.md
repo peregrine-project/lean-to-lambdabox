@@ -335,7 +335,8 @@ The blueprint renders this register.
   no forcing reason); atomhood decided at each occurrence (makes the theorem false, above); the
   head's declared type read up to the kernel's δ (the class would no longer be read syntactically,
   as `isPropositionalArity` reads the declared arity, and the eraser's boxing of the class would
-  have to follow the oracle's δ steps through definitions).
+  have to follow the oracle's δ steps through definitions; the oracle does box the constants this
+  reading would add, such as `R` and `hR` of `EraseProof.Test.Oracle.irreducibleAlias`).
 
 ### DV-12
 
@@ -444,6 +445,60 @@ The blueprint renders this register.
   changes); stating evaluation on a separate transcription of `term` reached through a translation
   from `LBTerm`, which every statement would pass through and which would still need an image for
   `fvar`; including the block rules, which the statements never use at their flags.
+
+### DV-18
+
+- **Our artifact:** `proof/EraseProof/Oracle.lean`, `EraseProof.Pure.isErasable_sound`, with
+  `EraseProof.Pure.isArity_sound` and `EraseProof.Pure.alwaysZero_sound`, and the soundness of the
+  steps they rest on, `EraseProof.Pure.inferType_sound` (`proof/EraseProof/Oracle/Infer.lean`) and
+  `EraseProof.Pure.whnf_sound` (`proof/EraseProof/Oracle/Whnf.lean`): the eraser decides
+  erasability with its own oracle, the shipping `Erasure.Pure.isErasable`
+  (`LeanToLambdaBox/Erasure/Pure.lean`), with its type inference `Erasure.Pure.inferType`, its
+  weak-head reduction `Erasure.Pure.whnf`, its arity test `Erasure.Pure.isArity` and its level
+  test `Erasure.Pure.alwaysZero`.
+- **Reference artifact:** `is_erasableb` (`erasure/theories/ErasureFunction.v:894`; MetaCoq paper
+  §7.2, Fig. 17), which decides erasability with MetaRocq's verified type checker: it infers a type
+  with `type_of_typing` (`safechecker/theories/PCUICSafeRetyping.v:806`), tests it with `is_arity`
+  (`erasure/theories/ErasureFunction.v:784`), and otherwise reduces the type's type to a sort and
+  tests it with `Sort.is_propositional` (`common/theories/Universes.v:1528`); `is_erasableP`
+  (`erasure/theories/ErasureFunction.v:915`) proves that it reflects `isErasable`
+  (`erasure/theories/Extract.v:18`) in both directions. Its reductions unfold every constant with
+  a body (`hnf`, `safechecker/theories/PCUICSafeReduce.v:1839`, at `RedFlags.default`,
+  `pcuic/theories/PCUICNormal.v:26`).
+- **What differs:** the oracle is an infer-only retyping procedure of the eraser itself, with fuel,
+  over the program's declarations and the eraser's locals: it infers a type of the term, answers
+  "erasable" if that type reduces to an arity, and otherwise reduces the type's type to a sort and
+  answers "erasable" exactly when the sort is structurally `≈ 0`. Only the `true` direction of
+  `is_erasableP` is proved: an "erasable" answer gives `EraseProof.ErasableS`
+  (`EraseProof.Pure.isErasable_sound`). There is no completeness: the oracle may answer "keep" on
+  an erasable term, and it fails, with an error and no answer, when its fuel runs out or a type
+  does not reduce to a Π or a sort. Its reductions unfold every definition, as those of
+  `is_erasableb` do, whatever the elaborator attribute `@[irreducible]` says: on an environment
+  whose aliases `IProp : Type := Prop` and `Endo : Type := A → A` are `@[irreducible]` in Lean, it
+  types `fun (_ : R) (x : A) => x` and `fI a` and keeps them, and it boxes `R : IProp` and the
+  proof `hR : R` (`EraseProof.Test.Oracle.irreducibleAlias`).
+- **Why it is forced:** the verified checker available for Lean is lean4lean's, and its soundness
+  carries debts that the fragment does not need. Every soundness theorem of lean4lean's type
+  checker goes through `Methods.withFuel.WF` (`Lean4Lean/Verify/TypeChecker.lean:48`), which
+  reaches the `sorry` lemmas of `Lean4Lean.TrProj` (`Lean4Lean/Verify/Typing/Expr.lean:68`), the
+  projection, recursor and η-structure sorries `reduceProjCore.WF`
+  (`Lean4Lean/Verify/TypeChecker/Reduce.lean:143`), `reduceRecursor.WF`
+  (`Lean4Lean/Verify/TypeChecker/WHNF.lean:6`), `inferProj.WF`
+  (`Lean4Lean/Verify/TypeChecker/InferType.lean:388`), `tryEtaStructCore.WF` and
+  `isDefEqUnitLike.WF` (`Lean4Lean/Verify/TypeChecker/IsDefEq.lean:225,486`), the strengthening
+  sorry `Lean4Lean.VEnv.IsDefEqU.weakN_iff` (`Lean4Lean/Theory/Typing/UniqueTyping.lean:172`),
+  and the axioms of `Lean4Lean/Verify/Axioms.lean` (the pure meaning of `Expr.instantiate1`,
+  `Expr.abstract`, `Level.normalize` and others) together with `bv_decide` axioms. MetaRocq's
+  `is_erasableb` rests on a checker without such debts. The soundness of the eraser's own oracle
+  reaches only lean4lean's sorries L1–L5, which the simulation needs anyway. General completeness
+  would need canonicity (no neutral term is convertible to a sort or a Π), which lean4lean
+  `master` does not prove, and the correctness theorem needs only soundness.
+- **What was considered instead:** lean4lean's checker on the eraser's path (the debts above);
+  reductions that skip `@[irreducible]` in the arity and sort tests, as Lean's `Meta` does at
+  default transparency: the oracle would keep the proof `hR : R` of `R : IProp`, as the `Meta`
+  path does (`doc/SHIPPING-CHANGES.md`, R-14), a further divergence from `is_erasableb` with no
+  forcing reason; skipping `@[irreducible]` in type inference too: the oracle then fails on
+  `fun (_ : R) (x : A) => x`, whose domain has a sort only through `IProp`.
 
 ### DV-21
 
