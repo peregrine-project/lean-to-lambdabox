@@ -64,6 +64,7 @@ UNICODE = {
     '\u2265': r'\ensuremath{\ge}',
     '\u2260': r'\ensuremath{\ne}',
     '\u2261': r'\ensuremath{\equiv}',
+    '\u2248': r'\ensuremath{\approx}',
     '\u2208': r'\ensuremath{\in}',
     '\u2227': r'\ensuremath{\wedge}',
     '\u2228': r'\ensuremath{\vee}',

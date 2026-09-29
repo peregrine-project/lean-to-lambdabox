@@ -45,8 +45,8 @@
     lem:EraseProof-Erases-inst, lem:EraseProof-Erases-inst_let, lem:EraseProof-Erases-instLevels,
     lem:EraseProof-Erases-app_inv, lem:EraseProof-Erases-atomSpine_box,
     lem:EraseProof-ErasesDeps-eval, lem:EraseProof-ErasesDeps-csubst, lem:EraseProof-LBEval-closed,
-    lem:EraseProof-Erases-closed, lem:EraseProof-IsErasable-app, lem:EraseProof-TrS-det,
-    lem:EraseProof-SrcEval-value}
+    lem:EraseProof-Erases-closed, lem:EraseProof-IsErasable-app, lem:EraseProof-IsErasable-lam_inv,
+    lem:EraseProof-TrS-det, lem:EraseProof-SrcEval-value}
   \lead{Idea} Induction on \code{SrcEval}, one case lemma per rule, as MetaRocq's proof.
   \lead{Steps}
   \begin{enumerate}
@@ -55,7 +55,8 @@
   \item $\delta$ and recursive constants: the stored body or block (\code{ErasesDeps},
         \code{BlocksErased}, \code{Erases.instLevels});
   \item erased heads: \code{box} evaluates by $\Box$-application (\code{IsErasable.app},
-        \code{ErasableS.eval}); atoms by \code{Erases.atomSpine\_box}.
+        \code{IsErasable.lam\_inv}, \code{ErasableS.eval}); atoms by
+        \code{Erases.atomSpine\_box}.
   \end{enumerate}
 \end{proof}
 

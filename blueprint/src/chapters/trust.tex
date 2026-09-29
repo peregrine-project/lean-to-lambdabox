@@ -4,10 +4,10 @@
 \begin{itemize}
 \item \lead{Goal} State what is proved, what is trusted without proof, what a result inherits from
   lean4lean, and what the eraser is made of.
-\item \lead{Main results} The model side, the source and target semantics, soundness of the
-  oracle's reduction and type inference, and the oracle's frame lemma. \hl{No statement about the
-  traversal or \code{\#erase} is proved}: \code{erasePure\_erases} and the final theorem are
-  planned nodes.
+\item \lead{Main results} The model side, the source and target semantics, erasability and the
+  erasure relation with their lemmas, and soundness of the pure oracle. \hl{No statement about the
+  simulation, the traversal or \code{\#erase} is proved}: \code{erases\_correct},
+  \code{erasePure\_erases} and the final theorem are planned nodes.
 \item \lead{Status} \stProved{} the landed nodes; \stInherited{} the lean4lean sorries that some
   of them reach; \stShipping{} the shipping code, described by definition nodes.
 \item \lead{Lean files} \code{proof/EraseProof/} (the verification library \code{EraseProof});
@@ -22,14 +22,19 @@
   \begin{itemize}
   \item the translation \code{TrS}, the program environments \code{ProgEnv} and their lemmas
         (Chapter~\ref{chap:model});
-  \item the atom class, the source semantics \code{SrcEval}, its values and subject reduction
-        \code{SrcEval.defeq} (Chapter~\ref{chap:source});
-  \item $\lambda_\Box$ evaluation \code{LBEval} and \code{LBEval.closed}
-        (Chapter~\ref{chap:relation});
-  \item soundness of the shipping oracle's \code{Pure.whnf} and \code{Pure.inferType}, and the
-        oracle's frame lemma \code{Pure.isErasable\_agree} (Chapter~\ref{chap:oracle});
-  \item NV-1's model-side hypotheses, the two bridge tests and the determinism of
-        $\lambda_\Box$ evaluation (Chapter~\ref{chap:tests}).
+  \item erasability and its stability under substitution, universe instantiation, application
+        and evaluation; the atom class, the source semantics \code{SrcEval}, its values, subject
+        reduction \code{SrcEval.defeq} and evaluation in a sub-environment
+        \code{SrcEval.restrict} (Chapter~\ref{chap:source});
+  \item $\lambda_\Box$ evaluation \code{LBEval}, the erasure relation \code{Erases}, the erased
+        dependencies \code{ErasesDeps} and their lemmas, except the substitution lemmas
+        \code{Erases.inst} and \code{Erases.inst\_let} (Chapter~\ref{chap:relation});
+  \item soundness of the shipping oracle (\code{Pure.isErasable\_sound}), its answer on atoms
+        (\code{Pure.isErasable\_atom}) and its frame lemma \code{Pure.isErasable\_agree}
+        (Chapter~\ref{chap:oracle});
+  \item NV-1's model-side hypotheses, the bridge tests, the determinism of $\lambda_\Box$
+        evaluation, the register tests and two instances of oracle soundness
+        (Chapter~\ref{chap:tests}).
   \end{itemize}
 \item \lead{Planned} every node marked \stPlanned: the statements of the approved design, under
   their planned names; the audit checks that none of these declarations exists.
