@@ -24,6 +24,12 @@ EraseProof.Test.Bridge.fresh_of_addConst propext,Quot.sound -
 EraseProof.Test.Bridge.insertDefs_hashMap propext,Quot.sound -
 EraseProof.Test.Bridge.insert_step propext,Classical.choice,Quot.sound -
 EraseProof.Test.Bridge.unsafe_le propext -
+EraseProof.Test.LBEval.deterministic propext -
+EraseProof.Test.LBEval.headOf_mkApps propext -
+EraseProof.Test.LBEval.mkApps_construct_inj propext -
+EraseProof.Test.LBEval.mkApps_fix_inj propext -
+EraseProof.Test.LBEval.mkApps_inj propext -
+EraseProof.Test.LBEval.spineArgs_mkApps propext -
 EraseProof.Test.NV1.cnV_ty propext,Quot.sound -
 EraseProof.Test.NV1.cn_unfold propext -
 EraseProof.Test.NV1.hAAty propext,Quot.sound -
