@@ -317,13 +317,14 @@ The blueprint renders this register.
   type, which never δ-reduces: a proof whose proposition is headed by a definition that unfolds to
   a Π can be applied, and the oracle then answers from the arguments' types (with `axiom hq : Q`,
   `def Q : Prop := ∀ P : Prop, P → P`, `axiom A : Type` and `axiom a : A`, it keeps the ill-typed
-  spine `hq A a`). The head's sort is read at the occurrence because a Lean level can be `0`,
-  whereas `isPropositional` reads an inductive's declared sort, which no Rocq universe instance
-  turns into `Prop`. Atomhood does not depend on the occurrence because the eraser erases a
-  universe-polymorphic body once, at its level parameters, where the oracle keeps the
-  level-dependent proof `hq.{v}` (it boxes `hq.{0}`): were `hq.{0}` a value, a body passing
-  `hq.{v}`, evaluated at level `0`, would reach a value in the source while its λ□ image is stuck on
-  the axiom `hq`, and erasure would not commute with level instantiation, as
+  spine `hq A a`: `EraseProof.Test.Atoms.defHead_kept`). The head's sort is read at the
+  occurrence because a Lean level can be `0`, whereas `isPropositional` reads an inductive's
+  declared sort, which no Rocq universe instance turns into `Prop`. Atomhood does not depend on the
+  occurrence because the eraser erases a universe-polymorphic body once, at its level parameters,
+  where the oracle keeps the level-dependent proof `hq.{v}` (it boxes `hq.{0}`:
+  `EraseProof.Test.Atoms.levelDependent_kept`): were `hq.{0}` a value, a body passing `hq.{v}`,
+  evaluated at level `0`, would reach a value in the source while its λ□ image is stuck on the
+  axiom `hq`, and erasure would not commute with level instantiation, as
   `erases_subst_instance_decl` (`erasure/theories/ErasureProperties.v:412`) states it does.
 - **What was considered instead:** every constant without a δ rule stuck (the theorem then says
   nothing about the programs above); a semantic class (needs canonicity); heads that are
