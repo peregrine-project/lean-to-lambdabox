@@ -1472,6 +1472,111 @@ without peregrine.
   `one (fun a : A => a)` (`nv1.ast`, which peregrine validates and evaluates to
   `λz. (λa. a) z`). It fails before (21 errors; the outputs are the same) and passes after.
 
+## S-19: A pure erasability oracle and the monad of a pure backend, which `#erase` does not use yet
+
+- **Commit:** the commit whose subject starts with `shipping(S-19):`
+  (`git log --grep='^shipping(S-19):'`).
+- **Files and functions:**
+  - new `LeanToLambdaBox/Erasure/Pure.lean` (module `LeanToLambdaBox.Erasure.Pure`; it imports
+    `LeanToLambdaBox.Erasure` and `LeanToLambdaBox.Erasure.Collect`):
+    - the oracle, in namespace `Erasure.Pure`:
+      - `instLevel ps us`: the level with each parameter of `ps` replaced by the level at the same
+        position of `us`, without normalization; `instLevels ps us`: the same on every sort and
+        constant of a term;
+      - `Ctx`, whose only field `decls : List ConstantInfo` holds the declarations the oracle
+        reads;
+      - `alwaysZero`: a level that is zero under every assignment of its parameters, read off its
+        shape (`zero`, `max` of two such levels, `imax` whose right side is one);
+      - `findLocal`: the local of a free variable in a list of `Erasure.Local`s;
+      - `whnf cx fuel ls e`: the weak-head normal form of `e` by head β (with lean4lean's
+        `Expr.instantiate1'`), ζ (a `let`, a local of `ls` with a value), `mdata` removal, and δ of
+        every definition (`defnInfo`) of `cx.decls` used at its number of universe levels, whether
+        or not it is `@[irreducible]`;
+      - `inferType cx fuel ls Γ e`: the type of `e`, inferred without checking. Inside `e` bound
+        variables stay de Bruijn indices: `Γ` holds the types of the binders entered, and `bvar i`
+        has type `Γ[i]` lifted by `i + 1` (lean4lean's `Expr.liftLooseBVars'`). A free variable has
+        its type in `ls`, a constant the type of its declaration at the given levels. The type of
+        the function of an application is reduced by `whnf` to a Π, and the types of the domain and
+        codomain of a Π to sorts;
+      - `isArity cx fuel ls T`: `whnf` of `T` is a sort, or a Π whose codomain is an arity;
+      - `isErasable cx fuel ls e`: the type `T` of `e` is an arity, or the type of `T` reduces to a
+        sort that is `alwaysZero`.
+
+      Each of `whnf`, `inferType`, `isArity` recurses on its fuel and fails with
+      `EraseError.fuel` when it runs out. A literal, a projection, a metavariable, a loose bound
+      variable, or a constant or free variable the oracle does not know gives `outOfFragment`; a
+      constant at the wrong number of levels, an application whose function type does not reduce to
+      a Π, and a Π whose domain or codomain type does not reduce to a sort give `failed`;
+    - `Erasure.oracleFuel := 2 ^ 20`, the fuel of one oracle call;
+    - `Erasure.PureCtx` (fields `decls : List ConstantInfo` and `view : EnvView`),
+      `Erasure.PureState` (field `next : Nat`) and
+      `Erasure.PureM := ReaderT PureCtx (StateT PureState (Except EraseError))`, the monad of a
+      backend without `Meta`; `Erasure.EraseT.runPure x st tc pc ps` runs an action `x` of
+      `EraseT PureM` from the traversal's state `st` and context `tc` and the backend's context
+      `pc` and state `ps`;
+    - operations of `PureM`: `Erasure.PureM.findConst?` (`findConst` on `decls`),
+      `Erasure.PureM.freshFVarId` (the free variable `_pure.<next>`, then `next + 1`),
+      `Erasure.PureM.instantiate1` (`Expr.instantiate1'`), `Erasure.PureM.isErasable ls e`
+      (`Pure.isErasable ⟨decls⟩ oracleFuel ls e`, whose error it throws),
+      `Erasure.PureM.casesInfo?` and `Erasure.PureM.ctorArity?` (always `none`).
+  - `LeanToLambdaBox.lean`: imports the new module.
+  - new `tests/regress/pure_oracle.lean`, its expected outputs
+    `tests/regress/expected/pure_oracle/` (2 files) and
+    `tests/regress/expected-peregrine/pure_oracle/` (1 file).
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** DESIGN Q6 and Q8, S-D. The erasability test of `#erase`, `Erasure.isErasable`,
+  runs `Meta.inferType`, `Meta.isProp` and `Meta.isTypeFormerType` in `MetaM`, whose state and
+  operations are opaque to proofs, so its answers cannot be proved sound. The verification proves
+  that an "erasable" answer of the oracle is sound (`Pure.isErasable_sound`), which needs the
+  oracle to be a total function on data: lists of declarations and locals, fuel, and lean4lean's
+  `Expr.instantiate1'` and `Expr.liftLooseBVars'`, which are definitions (Lean's
+  `Expr.instantiate1` and `Expr.liftLooseBVars` are related to them only by lean4lean's axioms
+  `Expr.instantiate1_eq` and `Expr.liftLooseBVars_eq`). The kernel can evaluate it (`decide`). Its
+  reductions unfold every definition, as the reductions of MetaRocq's `is_erasableb`
+  (`erasure/theories/ErasureFunction.v:894`), at `RedFlags.default`, unfold every constant with a
+  body; this is decision 13 of checkpoint 1. `PureM`, its operations and `EraseT.runPure` are the
+  backend with which the verified path is to run the traversal of S-16 (S-20 completes the
+  backend), and the verification's statements about that run are stated with `EraseT.runPure`.
+  The `Meta` oracle `Erasure.isErasable` is unchanged, and `#erase` keeps using it.
+- **Behaviour before:** none of these declarations exists. Reproduction:
+  `tests/regress/pure_oracle.lean` at the parent commit fails with 49 errors (`Unknown constant
+  Pure.isErasable`, `Unknown identifier PureM.isErasable`, `Unknown constant Pure.Ctx`, …); its two
+  output files are those expected.
+- **Behaviour after:** `#erase` is unchanged: nothing calls the new functions. The kernel evaluates
+  the oracle at `oracleFuel` (`decide`), on environments built by hand: the ill-typed spine `hq A a`
+  of a proof `hq : Q`, where `Q : Prop := ∀ P : Prop, P → P`, `a : A` and `A : Type`, is kept; the
+  proof `hq.{v} : P.{v}` of `P.{v} : Sort v` is kept at the parameter `v` and erased at level `0`;
+  with `IProp : Type := Prop`, `R : IProp`, `hR : R`, `Endo : Type := A → A`, `fI : Endo` and
+  `a : A`, the oracle types and keeps `fun (_ : R) (x : A) => x` and `fI a`, and erases `R` and
+  `hR`. With fuel 1 the oracle fails on `fI a` with `fuel "inferType"`, and with fuel 8 it keeps
+  it. `PureM.freshFVarId` from the counter 3 gives `_pure.3`, then `_pure.4`, and leaves 5. Over
+  the declarations that `collectDeps` collects from the elaboration environment for
+  `pidHR : R := pid hR`, with `IProp` made `@[irreducible]` after `R` and `hR` are declared, the
+  oracle erases `R`, `hR` and `pidHR` and keeps `pid.{1}`, while `#erase Irr.pidHR` keeps `R` and
+  `hR` (R-14). `instLevel`, `Ctx`, `findLocal`, `oracleFuel`, `PureCtx`, `PureState`, `PureM` and
+  the operations of `PureM` other than `isErasable` depend on no axiom; `instLevels`,
+  `alwaysZero`, `whnf`, `inferType`, `isArity`, `Pure.isErasable` and `PureM.isErasable` on
+  `propext`; `EraseT.runPure` on `propext`, `Classical.choice` and `Quot.sound`, as `EraseT` does
+  (the hash maps of `ErasureState` and `TravCtx`). None depends on an axiom of lean4lean. `whnf`,
+  `inferType`, `isArity`, `alwaysZero`, `instLevel` and `instLevels` have equation lemmas.
+- **Effect on emitted .ast (corpus):** byte-identical for all 704 files; `scripts/corpus-diff.sh`
+  against the corpus of S-18 reports 704 identical. The corpus logs are identical except for the
+  job counts of `lake` (37 jobs become 38 for the build of the package, 52 become 53 for each
+  `lake lean` of the benchmarks) and the addresses in the backtraces of the 4 `PANIC` messages of
+  `Defects.lean`.
+- **Regression test:** `tests/regress/pure_oracle.lean` proves by `decide`, at `oracleFuel`, the
+  oracle's answers above on the three environments built by hand (the environments and terms of
+  the verification's register tests `defHead_kept`, `levelDependent_kept` and `irreducibleAlias`,
+  DESIGN Q13); proves by `decide` that fuel 1 and fuel 0 give `fuel` and fuel 8 an answer, and
+  pins the messages with `#guard_msgs`; proves by `decide` the results of `PureM.findConst?`,
+  `casesInfo?`, `ctorArity?` and `isErasable` (its answers, the error it throws on an unknown free
+  variable, and the types it reads from a list of locals, one of them with a value), and by `rfl`
+  one instance of `PureM.instantiate1`; pins with `#guard_msgs` `PureM.freshFVarId` and a run of
+  `EraseT.runPure`; pins with `#guard_msgs` the oracle's answers over the elaboration environment
+  on `Irr.R`, `Irr.hR`, `Irr.pidHR` and `Irr.pid.{1}`; and pins the output of `#erase` on
+  `Irr.pidHR` (`pidHR.ast`, which peregrine validates). It fails before (49 errors; the outputs are
+  the same) and passes after.
+
 ---
 
 ## Reported, not fixed
