@@ -3,6 +3,7 @@ import EraseProof.Env
 import EraseProof.Env.Unfold
 import EraseProof.Oracle.Agree
 import EraseProof.Oracle.Whnf
+import EraseProof.Source.Defeq
 import EraseProof.Source.Eval
 import EraseProof.Source.EvalEnv
 import EraseProof.Source.Steps
