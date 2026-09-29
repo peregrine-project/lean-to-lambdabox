@@ -5,7 +5,9 @@
 #   <sorry labels>: the lean4lean `sorry` declarations it reaches (L1-L8, see
 #             tools/Report.lean `sorryLabels`), comma-separated; `-` for none.
 # proof/scripts/check.sh compares this file with the computed .check/axioms.actual.
+EraseProof.ProgEnv.lookup propext,Classical.choice,Quot.sound -
+EraseProof.ProgEnv.ordered propext,Classical.choice,Quot.sound -
+EraseProof.ProgEnv.wf propext,Classical.choice,Quot.sound,sorryAx L1,L2
 EraseProof.TrS.det propext -
 EraseProof.TrS.fvarsIn propext,Classical.choice,Quot.sound -
-EraseProof.TrS.mono propext -
 EraseProof.TrS.wf propext,Quot.sound -

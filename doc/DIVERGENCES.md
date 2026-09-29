@@ -60,6 +60,47 @@ The blueprint renders this register.
   projections and literals: the hypotheses would still mention `Lean4Lean.TrProj`, and its lemmas
   would reach the `sorry` proofs of the `proj` cases.
 
+### DV-3
+
+- **Our artifact:** `proof/EraseProof/Env.lean`, `EraseProof.ProgEnv`, with `EraseProof.TrConst`,
+  `EraseProof.TrDef` and `EraseProof.findDecl`: the relation between a program's declarations and
+  their model in lean4lean.
+- **Reference artifact:** the well-formed global environment `wf_ext Σ`
+  (`pcuic/theories/PCUICTyping.v:507`; MetaCoq paper §3.6), a hypothesis of `erases_correct`
+  (`erasure/theories/ErasureCorrectness.v:51`), whose declarations are a newest-first list searched
+  by `lookup_env` (`common/theories/Environment.v:483`); and lean4lean's relation between a kernel
+  environment and its model, `Lean4Lean.TrEnv'` (`Lean4Lean/Verify/Environment/Basic.lean:128`),
+  which `EraseProof.ProgEnv` restates.
+- **What differs:** the environment is a newest-first list of Lean `ConstantInfo`s, searched like
+  `lookup_env` by `EraseProof.findDecl`, instead of a Lean `Environment` or the constant map of
+  `Lean4Lean.TrEnv'`. `EraseProof.ProgEnv` has the rules `axiom`, `defn`, `thm`, `opaque` and
+  `mutualDef` (named `block`) of `Lean4Lean.TrEnv'` at safety `.unsafe`, with `EraseProof.TrS` in
+  place of `Lean4Lean.TrExprS`; `EraseProof.TrConst` and `EraseProof.TrDef` restate
+  `Lean4Lean.TrConstant` and `Lean4Lean.TrDefVal` without their safety conjunct, which holds for
+  every declaration at `.unsafe`. It has no `ignore` rule (at `.unsafe` no declaration is
+  ignored), no `quot` rule, no `induct` rule, and no freshness premise on a constant map (a name is
+  fresh in the model because `Lean4Lean.VEnv.addConst` succeeds). It has one premise that
+  `Lean4Lean.TrEnv'` lacks: the field `all` is what Lean's elaborator sets, the declaration's own
+  name for a single definition, theorem or opaque constant, and the block's names in order for
+  each member of a block. Compared with `wf_ext Σ`, the environment has no inductive declarations,
+  and its typing is lean4lean's (DV-5).
+- **Why it is forced:** a Lean `Environment` always contains the inductive types of `Init`, and
+  `Lean4Lean.TrEnv'` at `.unsafe` relates no constant map that contains an inductive type
+  (lean4lean's `TrEnv'.no_inductInfo`, `Lean4Lean/Verify/Environment/Extension.lean:18`), because
+  lean4lean `master` has no inductive types (DV-6); so a program is stated as an inductive-free
+  list of declarations. The rule `quot` needs a constant named `Eq`
+  (`Lean4Lean.VEnv.QuotReady`, `Lean4Lean/Theory/Quot.lean:13`), which is an inductive type in
+  every Lean environment. `Lean4Lean.TrEnv'` is stated with `Lean4Lean.TrExprS`, whose projection
+  rule and lemmas carry `sorry` (DV-2). The eraser reads `all` to lay out a block of mutual
+  definitions (`visitMutual`, `LeanToLambdaBox/Erasure.lean`), and lean4lean's kernel does not
+  check it (`addDefinition` to `addMutual`, `Lean4Lean/Environment.lean:36-118`), so the premise
+  states what the elaborator guarantees.
+- **What was considered instead:** `Lean4Lean.TrEnv'` of a real Lean environment, which does not
+  hold for any (`TrEnv'.no_inductInfo`); `Lean4Lean.TrEnv'` of a kernel environment
+  built from the program's declarations, whose hypotheses would mention `Lean4Lean.TrProj`
+  through `Lean4Lean.TrExprS` (DV-2); no `all` premise, under which the eraser's reading of `all`
+  is unconstrained.
+
 ### DV-5
 
 - **Our artifact:** `proof/EraseProof/Typing/Basic.lean`: all typing in `EraseProof` is
@@ -110,3 +151,25 @@ The blueprint renders this register.
   Π-types that the simulation proof needs fails there; master proves that injectivity
   (`Lean4Lean.VEnv.IsDefEqU.forallE_inv`, `Lean4Lean/Theory/Typing/Injectivity.lean:23`) only
   under `Lean4Lean.VEnv.WF`, whose inductive part is the `sorry` definition above.
+
+### DV-21
+
+- **Our artifact:** `proof/EraseProof/Env.lean`, `EraseProof.ProgEnv`: its rule `axiom` admits
+  axioms, declarations without a value, in the program's environment.
+- **Reference artifact:** Letouzey §3.4 (p. 10), "from now to the end of this paper we will only
+  consider contexts with no assumptions", the hypothesis of Theorems 12, 13 and 15. MetaRocq's
+  `erases_correct` (`erasure/theories/ErasureCorrectness.v:51`) has no such hypothesis: `wf_ext Σ`
+  admits constants without a body, and `axiom_free` (`erasure/theories/Extract.v:381`) is a
+  hypothesis only of the first-order results, such as `erase_correct_firstorder`
+  (`erasure/theories/ErasureFunctionProperties.v:2310`).
+- **What differs:** programs may depend on axioms: `EraseProof.ProgEnv` relates lists containing
+  Lean `axiom` declarations to models in which they are constants without a defining equation.
+  This follows MetaRocq and diverges from Letouzey.
+- **Why it is forced:** the spec (§2) puts in scope every input whose verification needs nothing
+  beyond lean4lean `master`, and `master` models axioms (rule `axiom` of `Lean4Lean.TrEnv'`,
+  `Lean4Lean/Verify/Environment/Basic.lean:134`). Letouzey needs the hypothesis for canonicity (a
+  closed term of an inductive type reduces to a constructor), in the ι cases of the proof of
+  Theorem 12 (Appendix A, cases 1 and 2) and in Theorem 15; the fragment has no inductive types
+  and no ι-reduction (DV-6).
+- **What was considered instead:** excluding axioms from `EraseProof.ProgEnv`, as Letouzey does:
+  it narrows the scope the spec fixes without a gap in `master` that forces it.

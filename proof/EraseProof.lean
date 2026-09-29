@@ -1,3 +1,4 @@
+import EraseProof.Env
 import EraseProof.Typing.Basic
 
 /-!

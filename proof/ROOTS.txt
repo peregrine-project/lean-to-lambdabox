@@ -8,5 +8,7 @@
 # may be reachable from another root.
 EraseProof.TrS.det EraseProof.erases_correct v4-sim-main
 EraseProof.TrS.fvarsIn EraseProof.erasePure_erases v7-core-main
-EraseProof.TrS.mono EraseProof.ProgEnv.lookup v1-progenv
 EraseProof.TrS.wf EraseProof.TrS.uniq v1-uniq
+EraseProof.ProgEnv.ordered EraseProof.SrcEval.defeq v2-sr-eval
+EraseProof.ProgEnv.wf EraseProof.SrcEval.defeq v2-sr-eval
+EraseProof.ProgEnv.lookup EraseProof.ProgEnv.unfold v1-progenv-unfold
