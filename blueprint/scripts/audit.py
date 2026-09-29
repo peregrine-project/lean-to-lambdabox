@@ -103,8 +103,10 @@ def parse(defects):
     for path in tex_sources():
         name = os.path.relpath(path, os.path.join(BP, 'src'))
         raw = open(path, encoding='utf-8').read()
+        # \lean{...} may span lines: blank its contents, keeping the line breaks
+        masked = re.sub(r'\\lean\{[^}]*\}', lambda m: re.sub(r'[^\n]', ' ', m.group(0)), raw)
         for i, line in enumerate(raw.split('\n'), 1):
-            if any(ord(c) > 127 for c in re.sub(r'\\lean\{[^}]*\}', '', line)):
+            if any(ord(c) > 127 for c in masked.split('\n')[i - 1]):
                 defects[name].append(f'L{i}: non-ASCII character outside \\lean{{}}')
             for m in re.finditer(r'\\(code|texttt|inherited|srcloc)\{((?:[^{}]|\{[^{}]*\})*)\}', line):
                 bare = re.sub(r'\\ensuremath\{[^{}]*\}|(?<!\\)\$[^$]*\$', '', m.group(2))

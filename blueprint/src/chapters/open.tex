@@ -3,10 +3,10 @@
 \section*{At a glance}
 \begin{itemize}
 \item \lead{Goal} List what is not done.
-\item \lead{Status} \stOpen{} erasability and its stability lemmas, the erasure relation, the
-  simulation, the oracle's erasability soundness and atom lemma, \hl{every statement about the
-  traversal and \code{\#erase}}, the divergence entries of the planned artifacts, and all
-  non-vacuity instances but NV-1's model side.
+\item \lead{Status} \stOpen{} the substitution lemmas \code{Erases.inst} and
+  \code{Erases.inst\_let}, \code{KernameInj}, the simulation \code{erases\_correct}, \hl{every
+  statement about the traversal and \code{\#erase}}, four divergence entries, and the non-vacuity
+  instances other than NV-1's model side and the oracle instances.
 \end{itemize}
 
 \section{Planned statements}\label{sec:open-planned}
@@ -23,6 +23,9 @@ chapters by \code{blueprint/scripts/audit.py}.
 \item \lead{Adversarial reviews} before their proofs: the fixpoint rules of the source semantics
   and \code{ErasesBlock} (DV-7, DV-8); the traversal's frame lemmas and state invariant; the
   closing of recursive blocks.
+\item \lead{Unused hypothesis} \code{ErasesDeps.eval} takes \code{hb : BlocksErased}, which its
+  proof does not use and MetaRocq's \code{erases\_deps\_eval} does not take; whether the statement
+  keeps it is open.
 \item \lead{\code{hrun} of NV-1} by symbolic evaluation of the traversal at the pure backend.
 \end{itemize}
 
@@ -54,30 +57,24 @@ approved design has these further divergences, each an entry once its artifact l
 \toprule
 Id & Artifact & What differs \\
 \midrule
-DV-4 & \code{IsErasable} & level zero in place of \code{is\_propositional}; no SProp \\
-DV-8 & \code{ErasesBlock} & no \code{isLambda} premises, no fixpoint $\eta$-expansion \\
 DV-9 & outputs of \code{erasePure} & not \code{expanded\_eprogram} \\
-DV-13 & the relation and traversal & locally nameless; bodies erased under the caller's locals \\
-DV-14 & \code{KernameInj} & names are mangled; injectivity checked on the closure \\
-DV-15 & \code{binderNameOf} & non-ASCII binder names become anonymous \\
 DV-17 & \code{erasePure}, \code{erase\_correct} & fuel; partial correctness \\
-DV-18 & the pure oracle & own retyping procedure, sound and not complete, kernel $\delta$ \\
 DV-19 & \code{erase\_correct} & no first-order corollary \\
 DV-20 & \code{erases\_correct} & Letouzey Theorem 13 big-step; Theorems 12, 15 omitted \\
 \bottomrule
 \end{tabular}
 
-Entries of the register whose design names planned artifacts too, cited once these land:
+Register entries whose row in the approved design names artifacts that the entry does not cite:
 
-\begin{tabular}{lp{0.8\linewidth}}
+\begin{tabular}{lp{0.4\linewidth}p{0.4\linewidth}}
 \toprule
-Id & Planned artifacts \\
+Id & Landed, not cited & Planned \\
 \midrule
-DV-1, DV-6 & the relation \code{Erases} \\
-DV-3 & the use of \code{collectDeps} in the core lemmas \\
-DV-7 & \code{Erases.constRec}, \code{RecIn}, \code{ErasesBlock}, \code{BlocksErased} \\
-DV-11 & the premise of \code{Erases.const} and \code{constRec}; the register tests
-  \code{defHead\_kept}, \code{levelDependent\_kept} \\
-DV-12 & \code{evalEnvOf}; the remapped branch of \code{ErasesDecl} \\
+DV-3 & \code{SubEnv} & the use of \code{collectDeps} in the core lemmas \\
+DV-6 & \code{ProgEnv}, \code{SrcEval}, \code{Erases} & -- \\
+DV-11 & -- & the instances NV-5, NV-6, NV-7 \\
+DV-13 & -- & \code{closeFix}, \code{closeFix\_substl}, \code{abstract\_eq\_abstract1},
+  \code{visit\_agree}, \code{visitAppArgs\_agree}, \code{visitMutual\_agree} \\
+DV-14 & -- & \code{KernameInj} \\
 \bottomrule
 \end{tabular}

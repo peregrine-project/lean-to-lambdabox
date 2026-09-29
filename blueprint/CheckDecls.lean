@@ -138,16 +138,22 @@ def jsonNames (env : Environment) (ns : Array Name) : Json :=
   Json.arr <| ns.map fun n => Json.mkObj [("name", toString n), ("module", moduleOf env n),
     ("line", match lineOf env n with | some l => toJson l | none => Json.null)]
 
+/-- Whether `s` is `pre` followed by one or more digits: the names Lean numbers (`eq_1`,
+`match_2`, `proof_3`). -/
+def isNumbered (pre s : String) : Bool :=
+  s.startsWith pre && s.length > pre.length && (s.drop pre.length).all Char.isDigit
+
 /-- A declaration a user wrote (not a constructor, recursor, projection, matcher or other
-auxiliary declaration that Lean generates). -/
+auxiliary declaration that Lean generates, such as the equation lemmas `f.eq_1`, `f.eq_def`,
+`f.eq_unfold`). A user name that only starts with `eq_`, such as `eq_of_beq`, is user-facing. -/
 def isUserFacing (env : Environment) (n : Name) (ci : ConstantInfo) : Bool :=
+  let s := n.getString!
   !n.isInternalDetail && !isPrivateName n && !isAuxRecursor env n && !isNoConfusion env n &&
   !env.isProjectionFn n && !Meta.isMatcherCore env n &&
   !(match ci with | .ctorInfo _ | .recInfo _ => true | _ => false) &&
-  !(n.getString!.endsWith "_unsafe_rec") &&
-  !(["sizeOf_spec", "injEq", "inj", "eq_1", "eq_def", "sizeOf_spec"].contains n.getString!) &&
-  !n.getString!.startsWith "eq_" && !n.getString!.startsWith "match_" &&
-  !n.getString!.startsWith "proof_"
+  !(s.endsWith "_unsafe_rec") &&
+  !(["sizeOf_spec", "injEq", "inj", "eq_def", "eq_unfold"].contains s) &&
+  !isNumbered "eq_" s && !isNumbered "match_" s && !isNumbered "proof_" s
 
 unsafe def importEnv (mods : List String) : IO Environment := do
   initSearchPath (← findSysroot)

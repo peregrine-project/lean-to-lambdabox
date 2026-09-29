@@ -6,10 +6,10 @@
   stated over lean4lean's formal model of Lean's kernel, for every input in the scope of
   Chapter~\ref{chap:scope}.
 \item \lead{Status} \stProved{} the model side, the source semantics with subject reduction,
-  $\lambda_\Box$ evaluation, and soundness of the oracle's reduction and type inference.
-  \stShipping{} the verified path of \code{\#erase}: \code{\#erase} runs it on programs in the
-  fragment. \stPlanned{} \hl{the erasure relation, the simulation, soundness of the traversal and
-  the final theorem}.
+  erasability, $\lambda_\Box$ evaluation, the erasure relation with its dependencies and lemmas,
+  and soundness of the pure oracle. \stShipping{} the verified path of \code{\#erase}:
+  \code{\#erase} runs it on programs in the fragment. \stPlanned{} \hl{the substitution lemmas of
+  the relation, the simulation, soundness of the traversal and the final theorem}.
 \item \lead{Lean files} \code{LeanToLambdaBox/} (the shipping code) and \code{proof/} (the Lake
   package \code{EraseProof}, the verification library).
 \item \lead{Registers} \code{doc/SHIPPING-CHANGES.md} (Chapter~\ref{chap:shipping-changes}) and

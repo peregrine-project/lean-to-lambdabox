@@ -6,11 +6,12 @@
   programs, relate the restated relations to lean4lean's, and pin the design choices of the
   divergence register by tests.
 \item \lead{Main results} The model-side hypotheses of NV-1; \code{TrS} and \code{ProgEnv} are
-  instances of lean4lean's \code{TrExprS} and \code{TrEnv'}.
-\item \lead{Status} \stProved{} NV-1's model side, the bridge tests and determinism of
-  $\lambda_\Box$ evaluation; \stPlanned{} the register tests and the other instances.
-\item \lead{Lean files} \code{proof/EraseProof/Test/\{NV1, Bridge, LBEval\}.lean}; namespace
-  \code{EraseProof.Test}.
+  instances of lean4lean's \code{TrExprS} and \code{TrEnv'}; the register tests of DV-11 and
+  DV-18; two instances of \code{Pure.isErasable\_sound}.
+\item \lead{Status} \stProved{} every node; \stOpen{} the instances of the main statements other
+  than NV-1's model side (Section~\ref{sec:tests-instances}).
+\item \lead{Lean files} \code{proof/EraseProof/Test/\{NV1, Bridge, LBEval, Atoms, Oracle\}.lean};
+  namespace \code{EraseProof.Test}.
 \end{itemize}
 
 \section{Non-vacuity instance NV-1}\label{sec:tests-nv1}
@@ -121,54 +122,127 @@
   \code{appCong} separate it from the other application rules.
 \end{proof}
 
-\section{Planned tests}\label{sec:tests-planned}
+\section{Register tests}\label{sec:tests-register}
+
+The divergence register cites these tests. Each runs the shipping oracle at
+\code{Erasure.oracleFuel} on a formal environment and is checked by \code{decide}.
 
 \begin{lemma}[Register test: definition heads are not atoms]
   \label{lem:EraseProof-Test-Atoms-defHead_kept}
-  \lean{EraseProof.Test.Atoms.defHead_kept}
-  \planned
-  \uses{def:Erasure-Pure-isErasable, def:EraseProof-EvalEnv-isAtom}
+  \lean{EraseProof.Test.Atoms.defHead_kept, EraseProof.Test.Atoms.DefHead.ty0E,
+    EraseProof.Test.Atoms.DefHead.ty1E, EraseProof.Test.Atoms.DefHead.AE,
+    EraseProof.Test.Atoms.DefHead.A_val, EraseProof.Test.Atoms.DefHead.a_val,
+    EraseProof.Test.Atoms.DefHead.Q_val, EraseProof.Test.Atoms.DefHead.hq_val,
+    EraseProof.Test.Atoms.DefHead.decls, EraseProof.Test.Atoms.DefHead.view,
+    EraseProof.Test.Atoms.DefHead.σ, EraseProof.Test.Atoms.DefHead.cx,
+    EraseProof.Test.Atoms.DefHead.e0}
+  \leanok
+  \uses{def:Erasure-Pure-isErasable, def:EraseProof-EvalEnv-isAtom, def:EraseProof-evalEnvOf}
+  \srcloc{proof/EraseProof/Test/Atoms.lean}{60}
   \lead{In short} With \code{def Q : Prop := forall P : Prop, P -> P} and \code{axiom hq : Q}, the
-  oracle \hl{keeps the spine \code{hq A a}}, so a proof headed by a definition cannot be an atom
-  (DV-11).
+  oracle \hl{keeps the ill-typed spine \code{hq A a}}, and \code{hq} is not an atom: a proof
+  headed by a definition cannot be one (DV-11).
 \end{lemma}
 \begin{proof}
   \uses{def:Erasure-Pure-isErasable}
+  \leanok
   \lead{Idea} \code{decide}.
 \end{proof}
 
 \begin{lemma}[Register test: atomhood does not depend on levels]
   \label{lem:EraseProof-Test-Atoms-levelDependent_kept}
-  \lean{EraseProof.Test.Atoms.levelDependent_kept}
-  \planned
-  \uses{def:Erasure-Pure-isErasable, def:EraseProof-EvalEnv-isAtom}
+  \lean{EraseProof.Test.Atoms.levelDependent_kept, EraseProof.Test.Atoms.LevelDep.P_val,
+    EraseProof.Test.Atoms.LevelDep.hq_val, EraseProof.Test.Atoms.LevelDep.decls,
+    EraseProof.Test.Atoms.LevelDep.view, EraseProof.Test.Atoms.LevelDep.σ,
+    EraseProof.Test.Atoms.LevelDep.cx}
+  \leanok
+  \uses{def:Erasure-Pure-isErasable, def:EraseProof-EvalEnv-isAtom, def:EraseProof-evalEnvOf}
+  \srcloc{proof/EraseProof/Test/Atoms.lean}{92}
   \lead{In short} For \code{axiom hq.\{v\} : P.\{v\}} the oracle keeps \code{hq.\{v\}} and boxes
-  \code{hq.\{0\}}, so \hl{atomhood cannot depend on the occurrence's levels} (DV-11).
+  \code{hq.\{0\}}, and \code{hq} is not an atom: \hl{atomhood cannot depend on the occurrence's
+  levels} (DV-11).
 \end{lemma}
 \begin{proof}
   \uses{def:Erasure-Pure-isErasable}
+  \leanok
   \lead{Idea} \code{decide}.
 \end{proof}
 
 \begin{lemma}[Register test: the oracle's \texorpdfstring{$\delta$}{delta}]
   \label{lem:EraseProof-Test-Oracle-irreducibleAlias}
-  \lean{EraseProof.Test.Oracle.irreducibleAlias}
-  \planned
-  \uses{def:Erasure-Pure-isErasable}
-  \lead{In short} Through the \code{@[irreducible]} aliases \code{IProp := Prop} and \code{Endo := A
-  -> A}, the oracle types and keeps \code{fun (\_ : R) (x : A) => x} and \code{fI a}, and
-  \hl{boxes \code{R} and \code{hR}}, as the kernel's $\delta$ does (DV-18).
+  \lean{EraseProof.Test.Oracle.irreducibleAlias, EraseProof.Test.IrrAlias.ty1E,
+    EraseProof.Test.IrrAlias.AE, EraseProof.Test.IrrAlias.A_val, EraseProof.Test.IrrAlias.IProp_val,
+    EraseProof.Test.IrrAlias.R_val, EraseProof.Test.IrrAlias.hR_val,
+    EraseProof.Test.IrrAlias.Endo_val, EraseProof.Test.IrrAlias.fI_val,
+    EraseProof.Test.IrrAlias.a_val, EraseProof.Test.IrrAlias.decls, EraseProof.Test.IrrAlias.view,
+    EraseProof.Test.IrrAlias.σ, EraseProof.Test.IrrAlias.cx, EraseProof.Test.IrrAlias.guardE,
+    EraseProof.Test.IrrAlias.appE, EraseProof.Test.IrrAlias.RE, EraseProof.Test.IrrAlias.hRE}
+  \leanok
+  \uses{def:Erasure-Pure-isErasable, def:EraseProof-evalEnvOf}
+  \srcloc{proof/EraseProof/Test/Oracle.lean}{72}
+  \lead{In short} Through the aliases \code{IProp := Prop} and \code{Endo := A -> A},
+  \code{@[irreducible]} in the corpus programs, the oracle types and keeps \code{fun (\_ : R) (x :
+  A) => x} and \code{fI a}, and \hl{boxes \code{R} and \code{hR}}, as the kernel's $\delta$ does
+  (DV-18).
 \end{lemma}
 \begin{proof}
   \uses{def:Erasure-Pure-isErasable}
+  \leanok
   \lead{Idea} \code{decide}.
+\end{proof}
+
+\section{Soundness instances of the oracle}\label{sec:tests-oracle}
+
+\begin{definition}[The environment D1]
+  \label{def:EraseProof-Test-D1-decls}
+  \lean{EraseProof.Test.D1.decls, EraseProof.Test.D1.A_val, EraseProof.Test.D1.P_val,
+    EraseProof.Test.D1.hP_val, EraseProof.Test.D1.F_val, EraseProof.Test.D1.view,
+    EraseProof.Test.D1.σ, EraseProof.Test.D1.cx, EraseProof.Test.D1.vA, EraseProof.Test.D1.vP,
+    EraseProof.Test.D1.ty1, EraseProof.Test.D1.AC, EraseProof.Test.D1.PC, EraseProof.Test.D1.hPC,
+    EraseProof.Test.D1.FC, EraseProof.Test.D1.env1, EraseProof.Test.D1.env2,
+    EraseProof.Test.D1.env3, EraseProof.Test.D1.env4}
+  \leanok
+  \uses{def:EraseProof-evalEnvOf}
+  \srcloc{proof/EraseProof/Test/Oracle.lean}{105}
+  \lead{In short} The axioms \hl{\code{A : Type}, \code{P : Prop}, \code{hP : P}, \code{F : Type ->
+  Type}}, newest first, with their lean4lean model \code{env4}, built step by step
+  (\code{env1}, ..., \code{env4}).
+\end{definition}
+
+\begin{lemma}[Instances of oracle soundness]
+  \label{lem:EraseProof-Test-Oracle-sound_A}
+  \lean{EraseProof.Test.Oracle.sound_A, EraseProof.Test.Oracle.sound_hP,
+    EraseProof.Test.Oracle.oracle_A, EraseProof.Test.Oracle.oracle_hP,
+    EraseProof.Test.Oracle.ok_of_toOption, EraseProof.Test.D1.henv, EraseProof.Test.D1.hsub,
+    EraseProof.Test.D1.atom_A, EraseProof.Test.D1.atom_hP, EraseProof.Test.D1.atom_F,
+    EraseProof.Test.D1.atom_P, EraseProof.Test.D1.e4A, EraseProof.Test.D1.e4P,
+    EraseProof.Test.D1.e4hP, EraseProof.Test.D1.hPty2, EraseProof.Test.D1.hAty,
+    EraseProof.Test.D1.hPty, EraseProof.Test.D1.hhPty}
+  \leanok
+  \uses{lem:EraseProof-Pure-isErasable_sound, def:EraseProof-Test-D1-decls}
+  \srcloc{proof/EraseProof/Test/Oracle.lean}{209}
+  \inherited{L1, L2, L3, L4, L5}
+  \lead{In short} \code{Pure.isErasable\_sound} applied on D1 with no locals: \hl{every hypothesis is
+  a checked term}, and the conclusions are that \code{A} and \code{hP} are erasable.
+  \begin{itemize}
+  \item \code{D1.henv : ProgEnv decls env4}, \code{D1.hsub : SubEnv decls decls}, the translations
+        of \code{A} and \code{hP}, and the oracle's answers \code{oracle\_A}, \code{oracle\_hP}
+        (by \code{decide});
+  \item \code{atom\_A}, ...: the four axioms are atoms.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-Pure-isErasable_sound}
+  \leanok
+  \lead{Idea} Apply the theorem; its footprint is the instances' footprint.
 \end{proof}
 
 \section{Non-vacuity instances}\label{sec:tests-instances}
 
 Each instance discharges every hypothesis of a main statement by a checked term, in namespace
-\code{EraseProof.Test.NV}\emph{k}, with axioms among \code{propext}, \code{Classical.choice},
-\code{Quot.sound}.
+\code{EraseProof.Test.NV}\emph{k}; the hypotheses use the axioms \code{propext},
+\code{Classical.choice}, \code{Quot.sound} only, and an instance inherits the lean4lean sorries of
+the statement it applies.
 
 \begin{tabular}{lp{0.42\linewidth}p{0.36\linewidth}}
 \toprule
@@ -182,6 +256,8 @@ NV-4 & a two-member unsafe block & \stOpen{} \\
 NV-5 & \code{(fun (alpha : Type) (x : alpha) => x) A} & \stOpen{} \\
 NV-6 & \code{(fun (h : P) (y : Type) => y) hP} & \stOpen{} \\
 NV-7 & \code{(fun (\_ : P.\{0\}) (x : A) => x) hp} & \stOpen{} \\
+oracle & \code{A} and \code{hP} of D1 & \stProved{} both instances of
+  \code{Pure.isErasable\_sound} (Section~\ref{sec:tests-oracle}) \\
 \bottomrule
 \end{tabular}
 
