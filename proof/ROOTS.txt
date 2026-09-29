@@ -18,3 +18,4 @@ EraseProof.SrcEval.zeta_step EraseProof.SrcEval.defeq v2-sr-eval
 EraseProof.SrcEval.delta_step EraseProof.SrcEval.defeq v2-sr-eval
 EraseProof.SrcEval.fixApp_step EraseProof.SrcEval.defeq v2-sr-eval
 EraseProof.SrcEval.appCong_step EraseProof.SrcEval.defeq v2-sr-eval
+EraseProof.Pure.whnf_sound EraseProof.Pure.isErasable_sound v5-sound
