@@ -25,3 +25,12 @@ EraseProof.Erases.mono_rc EraseProof.erasePure_erases v7-core-main
 EraseProof.RecIn.ext EraseProof.erasePure_erases v7-core-main
 EraseProof.Erases.congr_ac EraseProof.erase_correct v8-main
 EraseProof.Erases.app_inv EraseProof.erases_correct v4-sim-main
+EraseProof.ArityShape.of_arityShape EraseProof.Pure.isErasable_atom v5-atom-main
+EraseProof.ArityShape.inst EraseProof.Pure.isErasable_atom v5-atom-main
+EraseProof.ArityShape.instLevels EraseProof.Pure.isErasable_atom v5-atom-main
+EraseProof.PropShape.of_evidentProp EraseProof.Pure.isErasable_atom v5-atom-main
+EraseProof.PropShape.inst EraseProof.Pure.isErasable_atom v5-atom-main
+EraseProof.PropShape.instLevels EraseProof.Pure.isErasable_atom v5-atom-main
+EraseProof.ConstSpine.ne_forallE EraseProof.Pure.isErasable_atom v5-atom-main
+EraseProof.Pure.whnf_arityShape EraseProof.Pure.isErasable_atom v5-atom-main
+EraseProof.Pure.whnf_propShape EraseProof.Pure.isErasable_atom v5-atom-main

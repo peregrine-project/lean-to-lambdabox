@@ -6,6 +6,10 @@
 #             see tools/Report.lean `sorryLabels`, `testOnlySorryLabels`), comma-separated;
 #             `-` for none.
 # proof/scripts/check.sh compares this file with the computed .check/axioms.actual.
+EraseProof.ArityShape.inst - -
+EraseProof.ArityShape.instLevels propext -
+EraseProof.ArityShape.of_arityShape propext,Quot.sound -
+EraseProof.ConstSpine.ne_forallE - -
 EraseProof.ErasableS.atom propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
 EraseProof.ErasableS.eval propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
 EraseProof.Erases.app_inv propext,Classical.choice,Quot.sound -
@@ -17,11 +21,16 @@ EraseProof.IsErasable.inst propext,Quot.sound -
 EraseProof.IsErasable.instL propext,Quot.sound -
 EraseProof.IsErasable.lam_inv propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5,L6
 EraseProof.LBEval.closed propext,Quot.sound -
+EraseProof.PropShape.inst propext -
+EraseProof.PropShape.instLevels propext -
+EraseProof.PropShape.of_evidentProp propext,Quot.sound -
 EraseProof.Pure.inferType_sound propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
 EraseProof.Pure.isErasable_agree propext,Quot.sound -
+EraseProof.Pure.whnf_arityShape propext -
+EraseProof.Pure.whnf_propShape propext -
 EraseProof.RecIn.ext propext,Classical.choice,Quot.sound -
-EraseProof.SrcEval.value propext,Classical.choice,Quot.sound -
 EraseProof.SrcEval.restrict propext,Classical.choice,Quot.sound -
+EraseProof.SrcEval.value propext,Classical.choice,Quot.sound -
 EraseProof.TrS.fvarsIn propext,Classical.choice,Quot.sound -
 EraseProof.TrS.inst_fvar propext,Classical.choice,Quot.sound -
 EraseProof.TrS.uninstantiateN propext,Classical.choice,Quot.sound -
