@@ -232,11 +232,15 @@ The blueprint renders this register.
   `EraseProof.BlocksCong`: recursion in the source semantics; and
   `proof/EraseProof/Relation/Basic.lean`: the rule `EraseProof.Erases.constRec` of
   `EraseProof.Erases` and the admissible targets `EraseProof.RecIn`: recursion in the erasure
-  relation.
+  relation; and `proof/EraseProof/Relation/Deps.lean`: `EraseProof.ErasesBlock`, the recursive
+  branch of `EraseProof.ErasesDecl`, and `EraseProof.BlocksErased`: recursion in the λ□
+  environment.
 - **Reference artifact:** PCUIC's fixpoints: the term `tFix`, a value (`atom`,
   `pcuic/theories/PCUICWcbvEval.v:51`), unfolded when applied by `eval_fix` (`:273`) and excluded
   as a head of `eval_app_cong` (`:311`, `isFixApp`); their erasure `erases_tFix`
-  (`erasure/theories/Extract.v:122`); Letouzey Def. 3 (the fixpoint case of 𝓔).
+  (`erasure/theories/Extract.v:122`); Letouzey Def. 3 (the fixpoint case of 𝓔); and
+  `globals_erased_with_deps` (`erasure/theories/EDeps.v:594`), which gives every declared constant
+  an erased λ□ declaration whose body has erased dependencies.
 - **What differs:** Lean has no fixpoint term; recursion lives in constants. A constant is
   recursive (`EraseProof.RecursiveDecl`) when its block has several members or its value mentions
   its own name in a value position (`EraseProof.OccursV`). `EraseProof.SrcEval` treats a recursive
@@ -254,7 +258,16 @@ The blueprint renders this register.
   over a λ□ environment, the admissible targets of a constant are the `tFix` stored as its body
   (`EraseProof.RecIn`). They stand for the self-references of a block member's value once
   `cunfold_fix` has unfolded the member, where `erases_tFix` relates a PCUIC `tFix` to a λ□ `tFix`
-  of erased bodies.
+  of erased bodies. In the λ□ environment, the body of a recursive declaration is a `tFix` of its
+  whole block (the recursive branch of `EraseProof.ErasesDecl`): member `j` is named
+  `Erasure.fixDefName` of the block's `j`-th declaration, has `rarg = 0`, and unfolds by
+  `cunfold_fix` to an erasure of that declaration's Lean value in the empty context, with the
+  fixpoints stored in the λ□ environment as the targets of recursive constants
+  (`EraseProof.ErasesBlock`); `erases_tFix` relates each body of a PCUIC `tFix` to a λ□ body under
+  the fixpoint's own binders (`fix_context mfix`). `EraseProof.BlocksErased` asks that every
+  fixpoint the λ□ environment stores at the kername of a declaration of the evaluation environment
+  be such a block, with bodies whose dependencies are erased: the part of
+  `globals_erased_with_deps` about constants whose λ□ body is a `tFix`.
 - **Why it is forced:** Lean's `Expr` has no fixpoint node: a recursive Lean definition is a
   constant whose value mentions itself, a member of a block (rule `block` of
   `EraseProof.ProgEnv`, whose values are translated in the model that contains the block). The
@@ -267,14 +280,43 @@ The blueprint renders this register.
   eraser closes into a `tFix` (`mkDef`, `LeanToLambdaBox/Erasure.lean`) and `cunfold_fix` unfolds,
   they are the block's `tFix` terms. No rule of `erases` relates a constant to a `tFix`, so the
   relation needs `EraseProof.Erases.constRec`, and `EraseProof.RecIn` ties its targets to what the
-  λ□ environment stores.
+  λ□ environment stores. That stored `tFix` is not the erasure of a subterm of the source term, so
+  when the source unfolds a recursive constant (`EraseProof.SrcEval.fixApp`) and λ□ unfolds the
+  fixpoint (`eval_fix`), the relation between the member's Lean value and its unfolded λ□ body can
+  only come from the λ□ environment: `EraseProof.ErasesBlock` states it, and
+  `EraseProof.BlocksErased` gives it for every stored fixpoint, as `globals_erased_with_deps` gives
+  erased bodies for `eval_delta`.
 - **What was considered instead:** unfolding recursive constants when evaluated, as the others:
   it matches λ□'s `tFix` only when each member's value is a λ, so that one unfolding reaches a
   value; it would need a shipping change that η-expands members whose value is not a λ, which the
   theorem does not need (spec §5.1). In the relation, relating a constant only to its `tConst`, as
   `erases_tConst` does: the unfolded λ□ body of a block member, which `eval_fix` evaluates, has
   the block's `tFix` terms where the member's Lean value has constants, so no erasure would relate
-  the two.
+  the two. In the λ□ environment, relating the members' bodies under the fixpoint's binders, as
+  `erases_tFix` does: a member's Lean value has no binders for the block, and refers to the
+  members as constants.
+
+### DV-8
+
+- **Our artifact:** `proof/EraseProof/Relation/Deps.lean`, `EraseProof.ErasesBlock`: each member
+  of a recursive block unfolds to an erasure of its Lean value, whatever the shape of that value;
+  the λ□ bodies are those the eraser emits, not η-expanded.
+- **Reference artifact:** `erases_tFix` (`erasure/theories/Extract.v:122-127`; MetaCoq paper §7.3,
+  Fig. 18), whose premises include `isLambda (dbody d)` and `E.isLambda (E.dbody d')`; Letouzey §4,
+  the η-expansion of fixpoint bodies (arity control).
+- **What differs:** `EraseProof.ErasesBlock` has no premise that a member's Lean value or its λ□
+  body is a λ, and it relates the bodies as the shipping eraser emits them: a member whose value
+  is not a λ has a λ□ body that is not a λ.
+- **Why it is forced:** recursive constants in scope may have values that are not λs: Lean accepts
+  `unsafe def ug : CN.{0} → CN.{0} := (fun _ n => n) (fun x => ug x)` (corpus
+  `tests/corpus/UnsafeRec.lean`), lean4lean's model types it (rule `block` of
+  `EraseProof.ProgEnv`), and the shipping eraser erases the value as it is (`visitMutual`, `mkDef`,
+  `LeanToLambdaBox/Erasure.lean`; SHIPPING-CHANGES R-11). With the `isLambda` premises, no block
+  containing such a member would be related to its λ□ image, and the theorem would exclude these
+  inputs.
+- **What was considered instead:** requiring λ-bodied members, which excludes in-scope inputs;
+  η-expanding non-λ members in the shipping eraser, which changes their output and which the
+  theorem does not need (spec §5.1).
 
 ### DV-10
 
@@ -384,6 +426,8 @@ The blueprint renders this register.
   a program, whose remapped constants are those of the shipping eraser's own test
   `Erasure.axiomatized` (`LeanToLambdaBox/Erasure/Pure.lean`): a single declaration that the view
   marks `@[extern]`, under the configuration `extern := .preferAxiom`.
+  `proof/EraseProof/Relation/Deps.lean`, the remapped branch of `EraseProof.ErasesDecl`: a remapped
+  constant, which has a Lean value, is related to a λ□ declaration without a body.
 - **Reference artifact:** the environment of PCUIC's weak call-by-value evaluation `eval`
   (`pcuic/theories/PCUICWcbvEval.v:231`), whose rule `eval_delta` (`:247`) unfolds a constant
   exactly when its declaration has a body; and `erases_constant_body`
@@ -393,7 +437,8 @@ The blueprint renders this register.
   δ rule in the source semantics: it is stuck, like the λ□ axiom the eraser emits for it. Which
   constants are remapped is an input of the source semantics, besides the declarations; for a
   program, `EraseProof.evalEnvOf` derives it from the configuration and the trusted view's
-  `isExtern`, exactly as the eraser does.
+  `isExtern`, exactly as the eraser does. `EraseProof.ErasesDecl` relates such a constant to a λ□
+  declaration without a body, a pair for which `erases_constant_body` is `False`.
 - **Why it is forced:** under the configuration `extern := .preferAxiom` (the default of
   `ErasureConfig`, `LeanToLambdaBox/Erasure.lean`), the shipping eraser emits a declaration tagged
   `@[extern]` as a λ□ axiom, although it has a Lean value, so that it is linked with a foreign
@@ -446,6 +491,34 @@ The blueprint renders this register.
   that no output needs (spec §5.1 allows only strictly necessary shipping changes); resetting the
   locals in `visitMutual`, a shipping change that the frame lemma
   `EraseProof.Pure.isErasable_agree` makes unnecessary.
+
+### DV-14
+
+- **Our artifact:** `proof/EraseProof/Relation/Deps.lean`, the rule `EraseProof.ErasesDeps.const`
+  of `EraseProof.ErasesDeps`: the λ□ constant `tConst (toKername c)` has erased dependencies when
+  `c` is a declaration of the evaluation environment whose λ□ declaration at `toKername c` erases
+  it (`EraseProof.ErasesDecl`) and whose λ□ body, if any, has erased dependencies; the rule is
+  indexed by the source constant `c`, not by the kername.
+- **Reference artifact:** `erases_deps_tConst` (`erasure/theories/Extract.v:324-329`; MetaCoq
+  paper §7.4, p. 8:64), where the PCUIC declaration and the λ□ declaration are found at the same
+  kername `kn`, the name of the `tConst`.
+- **What differs:** Lean names become λ□ kernames through `toKername`
+  (`LeanToLambdaBox/Basic.lean`), so a Lean constant and its λ□ constant have different names, and
+  the rule relates the declaration of `c` to the λ□ declaration at `toKername c`. When two
+  declarations of the evaluation environment have the same kername, the rule may justify the same
+  `tConst` by either.
+- **Why it is forced:** the shipping eraser names the λ□ constant of `c` by `toKername c`
+  (`visitMutual`, `LeanToLambdaBox/Erasure.lean`), and `toKername` is not injective: the escaping
+  of `cleanIdent` and the numeric name components make distinct names coincide (SHIPPING-CHANGES
+  R-3). So a kername does not determine the source declaration, and the rule names the
+  declaration it uses. The eraser's dependency collection rejects programs whose collected
+  declarations share a kername (`findCollision`, `LeanToLambdaBox/Erasure/Collect.lean`;
+  SHIPPING-CHANGES S-18), so the ambiguity does not arise on the declarations it erases.
+- **What was considered instead:** an injective mangling, a shipping change that alters the bytes
+  of every name with special characters and that the theorem does not need (spec §5.1);
+  `EraseProof.ErasesDeps` over all declarations of the program rather than the evaluation
+  environment, which fails when two constants of the program outside the dependency closure share
+  a kername.
 
 ### DV-15
 
