@@ -358,6 +358,43 @@ The blueprint renders this register.
 - **What was considered instead:** a scope condition excluding programs that mention a remapped
   constant: it also excludes programs that never evaluate the constant.
 
+### DV-13
+
+- **Our artifact:** `proof/EraseProof/Oracle/Whnf.lean`, `EraseProof.LocalsOK`: the eraser's
+  locals, a list of free variables with their types and, for a `let`, their values, related to a
+  lean4lean context `Lean4Lean.VLCtx` with free-variable entries only; and
+  `proof/EraseProof/Oracle/Agree.lean`, `EraseProof.Pure.isErasable_agree`, with
+  `EraseProof.ClosedDecls`, `EraseProof.LocalsSupport` and `EraseProof.LocalsAgree`: over closed
+  declarations, the erasability oracle answers alike under two lists of locals that agree on the
+  free variables the term reaches through the locals' types and values. With them,
+  `proof/EraseProof/Target.lean`, `EraseProof.hasFVar` and `EraseProof.LenvClosed`: no body stored
+  in the λ□ environment contains a free variable.
+- **Reference artifact:** MetaRocq's erasure function `erase`
+  (`erasure/theories/ErasureFunction.v:989`) and erasure relation `erases`
+  (`erasure/theories/Extract.v:88`; MetaCoq paper §7.2–§7.3, Figs. 17–18), which work on de Bruijn
+  indices under a context `Γ` of typed binders (rule `erases_tRel`, `:89`; named variables occur
+  only in `erases_tVar`, `:90`, and typed terms contain none); and `erase_constant_body`
+  (`erasure/theories/ErasureFunction.v:1309`), which erases a constant's body in the empty
+  context.
+- **What differs:** the erasure is locally nameless. Under a binder, the term is opened with a
+  fresh free variable, recorded with its type (and, for a `let`, its value) in a list of locals,
+  and the erased body is closed again by turning that variable into a bound variable. The oracle
+  runs on open terms under these locals, not under a context of de Bruijn binders;
+  `EraseProof.LocalsOK` gives the locals their meaning in the model. A constant's body is erased
+  under the locals of the place where the traversal first meets the constant, not in the empty
+  context: `EraseProof.Pure.isErasable_agree` equates the oracle's answers under the two, since a
+  declaration's body is closed (`EraseProof.ClosedDecls`) and so reaches no local.
+- **Why it is forced:** the theorem is about the shipping eraser (spec §2), whose traversal is
+  written this way: `withLocalDecl` and `withLocalDef` (`LeanToLambdaBox/Erasure.lean`) open a
+  binder with a fresh free variable pushed onto the locals, the oracle is called with these
+  locals, `abstract` and `toBvar` (`LeanToLambdaBox/Basic.lean`) close the erased body, `mkDef`
+  closes the members of a block of mutual definitions, which the traversal refers to by free
+  variables, and `visitMutual` erases a constant's body without resetting the caller's locals.
+- **What was considered instead:** a de Bruijn rewrite of the traversal, a large shipping change
+  that no output needs (spec §5.1 allows only strictly necessary shipping changes); resetting the
+  locals in `visitMutual`, a shipping change that the frame lemma
+  `EraseProof.Pure.isErasable_agree` makes unnecessary.
+
 ### DV-16
 
 - **Our artifact:** `proof/EraseProof/Target.lean`, `EraseProof.LBEval`, λ□ weak call-by-value
