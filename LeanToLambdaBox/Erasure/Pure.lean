@@ -2,12 +2,15 @@ import LeanToLambdaBox.Erasure
 import LeanToLambdaBox.Erasure.Collect
 
 /-!
-# The pure erasability oracle and the pure backend's monad
+# The pure erasability oracle and the pure backend
 
 `Erasure.Pure.isErasable` decides whether a term is erasable (a proof or a type former) over a list
 of declarations, by infer-only retyping and weak-head reduction with the kernel's δ, with fuel.
 `Erasure.PureM` is the monad of the backend without `Meta`, whose environment is the program's
-closure (`collectDeps`), and `Erasure.PureM.*` are the backend operations that read it.
+closure (`collectDeps`), and `Erasure.PureM.*` are the backend operations that read it; with them,
+`PureM` is an instance of `Erasure.Backend`. `Erasure.erasePure` runs the traversal of `#erase`
+(`Erasure.visitExpr`) with this backend. `nameOccurs`, `isRecursiveDecl` and `axiomatized` are the
+traversal's recursion and `@[extern]` tests as this backend runs them.
 -/
 
 open Lean
@@ -196,6 +199,76 @@ def casesInfo? (_ : Name) : PureM (Option Lean.CasesInfo) := pure none
 /-- S-D: no constructors on the pure path. Reference: none. -/
 def ctorArity? (_ : Name) : PureM (Option Nat) := pure none
 
+/-- S-F: `declInfo? := findConst?` (no `LCNF.getDeclInfo?` redirect to `_unsafe_rec`). Reference:
+the kernel term, as `MR E/ErasureFunction.v:1309 erase_constant_body` erases `cst_body`. -/
+def declInfo? (c : Name) : PureM (Option ConstantInfo) := findConst? c
+
+/-- S-F: no `_unsafe_rec` redirect. Reference: none. -/
+def unsafeRecBase? (_ : Name) : PureM (Option Name) := pure none
+
+/-- S-F: `prepare := id` (no `macro_inline`, matcher inlining, csimp or `_unsafe_rec` renaming;
+DESIGN.md Q7). Reference: MetaRocq's `erase` erases the kernel term. -/
+def prepare (e : Expr) : PureM Expr := pure e
+
 end PureM
+
+/-- The pure backend (S-D, S-F): the operations of `PureM`, with `unsafeRecBase?` always `none`;
+type inference is the oracle's `Pure.inferType` at `oracleFuel` on the traversal's locals; every
+constructor field is kept; `isExtern` and `inlineAttr?` read the view; no constant is an instance;
+`log` does nothing; a constant missing from the declarations is `outOfFragment`, and fuel
+exhaustion is the error `fuel`. Reference: the environment and retyping operations that
+`MR E/ErasureFunction.v:989 erase` uses. -/
+instance : Backend PureM where
+  findConst? := PureM.findConst?
+  unknownConstant n := throw (.outOfFragment s!"unknown constant {n}")
+  declInfo? := PureM.declInfo?
+  unsafeRecBase? _ := none
+  freshFVarId := PureM.freshFVarId
+  instantiate1 := PureM.instantiate1
+  isErasable _ ls e := PureM.isErasable ls e
+  inferType _ ls e := do
+    match Pure.inferType ⟨(← read).decls⟩ oracleFuel ls [] e with
+    | .ok t => pure t
+    | .error err => throw err
+  casesInfo? := PureM.casesInfo?
+  ctorArity? := PureM.ctorArity?
+  argMask _ ci := pure (Array.replicate ci.numFields .keep)
+  isExtern n := return (← read).view.isExtern n
+  inlineAttr? n := return (← read).view.inlineAttr? n
+  isInstance _ := pure false
+  prepare _ e := PureM.prepare e
+  log _ := pure ()
+  outOfFuel site := throw (.fuel site)
+
+/-- The shipping traversal (`erase`) run with the pure backend (S-A..S-D), assembling its result
+as today's `erase` does. Reference: `MR E/ErasureFunction.v:989 erase` and
+`MR E/ErasureFunction.v:1602 erase_global_deps`, the pair `(Σ', t')` of
+`MR E/ErasureFunctionProperties.v:657 erase_correct`. -/
+def erasePure (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo) (e : Expr) :
+    Except EraseError (Program × List Kername) := do
+  let ((t, s), _) ← (visitExpr (m := PureM) travFuel e).runPure {} { «config» := cfg } ⟨decls, view⟩ {}
+  pure (.untyped s.gdecls (some t), s.inlinings)
+
+/-! ## The recursion and `@[extern]` tests of the pure backend (S-F) -/
+
+/-- `name_occurs` as the pure backend runs it: exact names, no `_unsafe_rec` stripping (S-F).
+Reference: none (Lean's environment-level recursion, DV-7). -/
+def nameOccurs (name : Name) : Expr → Bool
+  | .const n' _ => name == n'
+  | .lam _ _ e _ | .mdata _ e | .proj _ _ e => nameOccurs name e
+  | .app a b | .letE _ _ a b _ => nameOccurs name a || nameOccurs name b
+  | _ => false
+
+/-- The eraser's recursion test (`visitMutual`: `nonrecursive := single_decl && !name_occurs`),
+at the pure backend. Reference: none (DV-7); pinned to `EraseProof.RecursiveDecl` by
+`EraseProof.isRecursiveDecl_eq`. -/
+def isRecursiveDecl (ci : ConstantInfo) : Bool :=
+  ci.all.length != 1 || nameOccurs ci.name (ci.value! (allowOpaque := true))
+
+/-- The eraser's `@[extern]` remapping test (`visitMutual`, single declarations): the declaration
+becomes a λ□ axiom. Reference: the `Some`/`None` case that `MR E/Extract.v:264
+erases_constant_body` excludes (DV-12). -/
+def axiomatized (view : EnvView) (cfg : ErasureConfig) (ci : ConstantInfo) : Bool :=
+  ci.all.length == 1 && view.isExtern ci.name && cfg.extern == .preferAxiom
 
 end Erasure
