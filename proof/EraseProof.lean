@@ -4,6 +4,7 @@ import EraseProof.Env.Unfold
 import EraseProof.Erasability
 import EraseProof.Erasability.Eval
 import EraseProof.Erasability.Inv
+import EraseProof.Oracle
 import EraseProof.Oracle.Agree
 import EraseProof.Oracle.AtomShapes
 import EraseProof.Oracle.Infer
@@ -19,6 +20,7 @@ import EraseProof.Test.Atoms
 import EraseProof.Test.Bridge
 import EraseProof.Test.LBEval
 import EraseProof.Test.NV1
+import EraseProof.Test.Oracle
 import EraseProof.Typing.Abstract
 import EraseProof.Typing.Basic
 import EraseProof.Typing.Inst
