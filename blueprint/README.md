@@ -90,7 +90,7 @@ resolves the eraser, lean4lean and `EraseProof`) on every cited declaration and 
 | Existence | every `\lean` name of a node that is not planned is a declaration of the environment of `audit.toml`'s imports |
 | `\leanok` | in a statement iff the node is not planned, every cited declaration exists and its axioms are allowed; in the proof of a result iff its statement has it |
 | Allowed axioms | `propext`, `Classical.choice`, `Quot.sound`, and `sorryAx` only when every sorry source is a labelled lean4lean sorry of `audit.toml` allowed for the node: L1-L6 for every node, `TrProj` for test nodes (all names in `EraseProof.Test`), L7, L8 for none. A sorry source is a declaration of the closure whose own type or value uses `sorryAx`. No lean4lean axiom is allowed |
-| Axiom closure | the measured axioms of every cited declaration equal `Lean.collectAxioms` (`#print axioms`); the closure follows types, values and constructors |
+| Axiom closure | the measured axioms of every cited declaration equal `Lean.collectAxioms` (`#print axioms`), for an inductive together with its constructors (the axioms Lean stores for an imported inductive can miss those only its constructors reach); the closure follows types, values and constructors |
 | `\inherited{...}` | lists exactly the labels of the lean4lean sorry sources the node's declarations depend on |
 | Coverage | every declaration of the modules `EraseProof*` that has a source position is cited by a node that is not planned |
 | Roots | every line of `proof/ROOTS.txt` names a root cited by a formalized node and a consumer cited by a planned node whose statement or proof uses the root's node |

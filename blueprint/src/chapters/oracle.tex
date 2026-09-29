@@ -6,9 +6,11 @@
   and its answer depends only on the locals the term reaches.
 \item \lead{Main results} \code{Pure.isErasable\_sound}, \code{Pure.isErasable\_atom},
   \code{Pure.isErasable\_agree}.
-\item \lead{Status} \stPlanned{} every node; soundness has the expected footprint L1--L5.
-\item \lead{Lean files} planned: \code{proof/EraseProof/Oracle.lean},
-  \code{Oracle/\{Whnf, Infer, AtomShapes, Atom, Agree\}.lean}.
+\item \lead{Status} \stProved{} the contexts, soundness of \code{Pure.whnf} and
+  \code{Pure.inferType} (inheriting L1--L5), and the frame lemma; \stPlanned{} the arity and level
+  tests, \code{Pure.isErasable\_sound} and \code{Pure.isErasable\_atom}.
+\item \lead{Lean files} \code{proof/EraseProof/Oracle/\{Whnf, Infer, Agree\}.lean}; planned:
+  \code{Oracle.lean}, \code{Oracle/\{AtomShapes, Atom\}.lean}.
 \item \lead{Reference} MetaRocq \code{is\_erasableb} and \code{is\_erasableP}
   (\code{erasure/theories/ErasureFunction.v}), \code{hnf\_sound}, \code{type\_of\_typing}
   (\code{safechecker/theories/}).
@@ -19,19 +21,48 @@
 \begin{definition}[Contexts of the traversal and the oracle]
   \label{def:EraseProof-LocalsOK}
   \lean{EraseProof.LocalsOK, EraseProof.OracleCtx}
-  \planned
+  \leanok
   \uses{def:EraseProof-TrS, def:Erasure-TravCtx}
+  \srcloc{proof/EraseProof/Oracle/Whnf.lean}{21}
   \lead{In short} \code{LocalsOK venv Us ls Delta}: the traversal's locals \hl{mirror a lean4lean
   context} of free-variable entries, each type and \code{let} value translated and typed;
-  \code{OracleCtx}: that context under the de Bruijn binders the oracle entered.
+  \code{OracleCtx}: that context under the de Bruijn binders the oracle entered, whose types the
+  oracle keeps in its list \code{Gamma}.
   \lead{Reference} \code{wf\_local} for the context of MetaRocq's \code{erase}; DV-13.
 \end{definition}
+
+\begin{lemma}[Oracle contexts]
+  \label{lem:EraseProof-LocalsOK-wf}
+  \lean{EraseProof.LocalsOK.wf, EraseProof.OracleCtx.wf, EraseProof.OracleCtx.weak,
+    EraseProof.TrS.weak_nil, EraseProof.LocalsOK.find_value, EraseProof.LocalsOK.find_type,
+    EraseProof.OracleCtx.find_bvar}
+  \leanok
+  \uses{def:EraseProof-LocalsOK}
+  \srcloc{proof/EraseProof/Oracle/Whnf.lean}{74}
+  \lead{In short} The contexts are \hl{well formed}, and what the oracle reads from them
+  translates.
+  \begin{itemize}
+  \item \code{LocalsOK.wf}, \code{OracleCtx.wf}: well-formed lean4lean contexts;
+  \item \code{OracleCtx.weak}, \code{TrS.weak\_nil}: closed translations lift into the oracle's
+        context;
+  \item \code{LocalsOK.find\_value}, \code{find\_type}, \code{OracleCtx.find\_bvar}: a local's
+        value and type, and a binder's lifted type, translate to the entry's.
+  \end{itemize}
+  \lead{Reference} \code{wf\_local} and \code{weakening}
+  (\code{pcuic/theories/Typing/PCUICWeakeningTyp.v}); \code{type\_Rel}.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-TrS-wf, lem:EraseProof-TrS-weakBV, lem:EraseProof-TrS-closed}
+  \leanok
+  \lead{Idea} Inductions on \code{LocalsOK} and \code{OracleCtx}; weakening by \code{TrS.weakBV}.
+\end{proof}
 
 \begin{definition}[Frame vocabulary]
   \label{def:EraseProof-LocalsAgree}
   \lean{EraseProof.LocalsAgree, EraseProof.LocalsSupport, EraseProof.ClosedDecls}
-  \planned
+  \leanok
   \uses{def:Erasure-Pure-isErasable}
+  \srcloc{proof/EraseProof/Oracle/Agree.lean}{30}
   \lead{In short} \code{LocalsSupport S ls}: the locals of variables in \code{S} mention only
   \code{S}; \code{LocalsAgree S ls1 ls2}: \hl{the two lists agree on \code{S}};
   \code{ClosedDecls}: the declarations have no free variable. None has a MetaRocq counterpart
@@ -42,33 +73,55 @@
 
 \begin{lemma}[Weak-head normalization]
   \label{lem:EraseProof-Pure-whnf_sound}
-  \lean{EraseProof.Pure.whnf_sound}
-  \planned
+  \lean{EraseProof.Pure.whnf_sound, EraseProof.Pure.whnf_defeqU}
+  \leanok
   \uses{def:Erasure-Pure-isErasable, def:EraseProof-LocalsOK, def:EraseProof-ProgEnv,
     def:EraseProof-SubEnv}
-  \lead{In short} \code{Pure.whnf} computes \hl{a typed definitional equality} of the model.
+  \srcloc{proof/EraseProof/Oracle/Whnf.lean}{317}
+  \inherited{L1, L2, L3, L4, L5}
+  \lead{In short} A successful \code{Pure.whnf} on a translated, typed term computes \hl{a typed
+  definitional equality} of the model.
+  \begin{itemize}
+  \item \lead{Given} \code{henv}, \code{hsub}: the oracle's declarations are a sub-environment of
+        \code{P}; \code{hloc}, \code{hGamma}: the contexts translate;
+  \item \code{he}, \code{hT}: \code{e} translates to \code{e'} of type \code{A};
+        \code{h}: \code{whnf} returns \code{w};
+  \item \lead{Then} \code{w} translates to some \code{w'} with \code{e'} $\equiv$ \code{w'} at
+        \code{A};
+  \item \code{whnf\_defeqU}: the untyped form, with no typing hypothesis.
+  \end{itemize}
   \lead{Reference} \code{hnf\_sound} (\code{safechecker/theories/PCUICSafeReduce.v}).
 \end{lemma}
 \begin{proof}
   \uses{lem:EraseProof-TrS-inst, lem:EraseProof-TrS-inst_let, lem:EraseProof-TrS-instLevels,
-    lem:EraseProof-TrS-uniq, lem:EraseProof-ProgEnv-lookupDef}
-  \lead{Idea} Fuel induction: $\beta$ by \code{TrS.inst}, $\zeta$ by \code{TrS.inst\_let} and the
-  let-bound locals, $\delta$ by the model's defining equations.
+    lem:EraseProof-TrS-wf, lem:EraseProof-ProgEnv-lookupDefn, lem:EraseProof-LocalsOK-wf,
+    lem:EraseProof-ProgEnv-wf}
+  \leanok
+  \lead{Idea} Fuel induction for \code{whnf\_defeqU}: $\beta$ by \code{TrS.inst}, $\zeta$ by
+  \code{TrS.inst\_let} and the let-bound locals, $\delta$ by \code{ProgEnv.lookupDefn} and
+  \code{TrS.instLevels}; typing by lean4lean's \code{IsDefEqU.of\_l}.
 \end{proof}
 
 \begin{lemma}[Type inference]
   \label{lem:EraseProof-Pure-inferType_sound}
   \lean{EraseProof.Pure.inferType_sound}
-  \planned
+  \leanok
   \uses{def:Erasure-Pure-isErasable, def:EraseProof-LocalsOK, def:EraseProof-ProgEnv,
     def:EraseProof-SubEnv}
-  \lead{In short} \code{Pure.inferType} computes \hl{a type in the model}.
+  \srcloc{proof/EraseProof/Oracle/Infer.lean}{85}
+  \inherited{L1, L2, L3, L4, L5}
+  \lead{In short} A successful \code{Pure.inferType} on a translated term computes \hl{a
+  translated type of the term's image} in the model; hypotheses as \code{Pure.whnf\_sound}, with
+  no typing hypothesis.
   \lead{Reference} \code{type\_of\_typing} (\code{safechecker/theories/PCUICSafeRetyping.v}).
 \end{lemma}
 \begin{proof}
-  \uses{lem:EraseProof-Pure-whnf_sound, lem:EraseProof-TrS-weakBV}
-  \lead{Idea} Fuel induction; bound variables by \code{TrS.weakBV}, applications by unique typing
-  and $\Pi$ inversion.
+  \uses{lem:EraseProof-Pure-whnf_sound, lem:EraseProof-LocalsOK-wf, lem:EraseProof-ProgEnv-lookup,
+    lem:EraseProof-TrS-instLevels, lem:EraseProof-TrS-inst_let}
+  \leanok
+  \lead{Idea} Fuel induction: variables by the context lemmas, constants by \code{ProgEnv.lookup}
+  and \code{TrS.instLevels}, applications and $\Pi$ by \code{Pure.whnf\_sound} with unique typing
+  and $\Pi$ inversion, \code{let} by \code{TrS.inst\_let}.
 \end{proof}
 
 \begin{lemma}[Arity test]
@@ -144,16 +197,28 @@
 
 \begin{lemma}[Oracle frame]
   \label{lem:EraseProof-Pure-isErasable_agree}
-  \lean{EraseProof.Pure.isErasable_agree}
-  \planned
+  \lean{EraseProof.Pure.isErasable_agree, EraseProof.Pure.whnf_agree,
+    EraseProof.Pure.inferType_agree, EraseProof.Pure.isArity_agree,
+    EraseProof.Pure.instLevel_hasMVar', EraseProof.Pure.fvarsIn_instLevels,
+    EraseProof.Except.bind_congr_ok, EraseProof.Except.ok_of_bind}
+  \leanok
   \uses{def:Erasure-Pure-isErasable, def:EraseProof-LocalsAgree}
-  \lead{In short} With closed declarations, the oracle's answer \hl{depends only on the locals
-  reachable from the term}.
+  \srcloc{proof/EraseProof/Oracle/Agree.lean}{279}
+  \lead{In short} With closed declarations, the oracle answers alike on two lists of locals that
+  agree on a set \code{S} closed under the locals and containing the term's free variables: its
+  answer \hl{depends only on the locals reachable from the term}.
+  \begin{itemize}
+  \item \code{whnf\_agree}, \code{inferType\_agree}, \code{isArity\_agree}: the same for the parts,
+        whose results stay within \code{S};
+  \item \code{instLevel\_hasMVar'}, \code{fvarsIn\_instLevels}, \code{Except.*}: level and
+        \code{Except} plumbing.
+  \end{itemize}
   \lead{Reference} none: MetaRocq erases a constant body in the empty context; DV-13.
 \end{lemma}
 \begin{proof}
   \uses{def:EraseProof-LocalsAgree}
-  \lead{Idea} Fuel induction through \code{whnf} and \code{inferType}.
+  \leanok
+  \lead{Idea} Fuel inductions through \code{whnf}, \code{inferType} and \code{isArity}.
 \end{proof}
 
 \section*{Caveats}

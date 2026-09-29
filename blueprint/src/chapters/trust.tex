@@ -4,22 +4,33 @@
 \begin{itemize}
 \item \lead{Goal} State what is proved, what is trusted without proof, what a result inherits from
   lean4lean, and what the eraser is made of.
-\item \lead{Main results} The model side (Chapter~\ref{chap:model}), NV-1's model-side
-  hypotheses and the two bridge tests (Chapter~\ref{chap:tests}). \hl{No statement about the eraser is proved}: the final theorem and
-  its lemmas are planned nodes.
+\item \lead{Main results} The model side, the source and target semantics, soundness of the
+  oracle's reduction and type inference, and the oracle's frame lemma. \hl{No statement about the
+  traversal or \code{\#erase} is proved}: \code{erasePure\_erases} and the final theorem are
+  planned nodes.
 \item \lead{Status} \stProved{} the landed nodes; \stInherited{} the lean4lean sorries that some
   of them reach; \stShipping{} the shipping code, described by definition nodes.
 \item \lead{Lean files} \code{proof/EraseProof/} (the verification library \code{EraseProof});
-  \code{LeanToLambdaBox/\{Basic, Erasure, Printing\}.lean} (the shipping code).
+  \code{LeanToLambdaBox/\{Basic, Erasure, Printing\}.lean} and
+  \code{LeanToLambdaBox/Erasure/\{Collect, Pure, Entry, Command\}.lean} (the shipping code).
 \end{itemize}
 
 \section{What is proved}\label{sec:trust-proved}
 
 \begin{itemize}
-\item \lead{Proved} every node that is not marked \stPlanned: the translation \code{TrS}, the
-  program environments \code{ProgEnv} and their lemmas (Chapter~\ref{chap:model}); the
-  model-side hypotheses of the non-vacuity instance NV-1 and the two bridge tests
-  (Chapter~\ref{chap:tests}).
+\item \lead{Proved} every node that is not marked \stPlanned{} and is not shipping code:
+  \begin{itemize}
+  \item the translation \code{TrS}, the program environments \code{ProgEnv} and their lemmas
+        (Chapter~\ref{chap:model});
+  \item the atom class, the source semantics \code{SrcEval}, its values and subject reduction
+        \code{SrcEval.defeq} (Chapter~\ref{chap:source});
+  \item $\lambda_\Box$ evaluation \code{LBEval} and \code{LBEval.closed}
+        (Chapter~\ref{chap:relation});
+  \item soundness of the shipping oracle's \code{Pure.whnf} and \code{Pure.inferType}, and the
+        oracle's frame lemma \code{Pure.isErasable\_agree} (Chapter~\ref{chap:oracle});
+  \item NV-1's model-side hypotheses, the two bridge tests and the determinism of
+        $\lambda_\Box$ evaluation (Chapter~\ref{chap:tests}).
+  \end{itemize}
 \item \lead{Planned} every node marked \stPlanned: the statements of the approved design, under
   their planned names; the audit checks that none of these declarations exists.
 \item \lead{Axioms} a proved node depends on \code{propext}, \code{Classical.choice},
@@ -47,8 +58,9 @@ The printer and the file writes & \code{Serialize}, and the writes of \code{.ast
   \ref{def:Erasure-eraseElab}) \\
 The inlining sidecar & the constants \code{.ast.inlinings} asks Peregrine to inline \\
 Peregrine & compiles the emitted program \\
-The \code{Meta} path & out-of-scope inputs keep the shipping traversal with the elaborator's
-  oracle (Definition~\ref{def:Erasure-isErasable}) \\
+The \code{Meta} path & out-of-fragment inputs keep the shipping traversal with the elaborator's
+  oracle and Lean's compiler passes (Definitions~\ref{def:Erasure-isErasable},
+  \ref{def:Erasure-prepareErasure}) \\
 \bottomrule
 \end{tabular}
 
@@ -92,7 +104,11 @@ The table is generated from \code{blueprint/audit.toml} and the Lean environment
 \section{The shipping code}\label{sec:trust-shipping}
 
 The eraser is Lean meta-code. Its traversal is total, bounded by fuel, and generic over a backend
-monad; \code{\#erase} runs it with the \code{CoreM} backend, which asks the elaborator for types.
+monad. \code{\#erase} runs it with the pure backend on programs in the fragment
+(Chapter~\ref{chap:pure}), and with the \code{CoreM} backend, which asks the elaborator for types,
+on the others. The pure path uses lean4lean's pure functions \code{Expr.instantiate1'},
+\code{Expr.liftLooseBVars'} and \code{Level.hasMVar'} (module \code{Lean4Lean.Verify.Axioms}),
+and no shipping node reaches an axiom of that module.
 
 \begin{definition}[Erased terms]
   \label{def:LBTerm}
@@ -240,7 +256,7 @@ monad; \code{\#erase} runs it with the \code{CoreM} backend, which asks the elab
     def:Erasure-prepareErasure}
   \srcloc{LeanToLambdaBox/Erasure.lean}{960}
   \stShipping{} \lead{In short} Erases a term and its dependencies to a program by a
-  \hl{fuel-bounded, generic traversal}, run with the \code{CoreM} backend.
+  \hl{fuel-bounded, generic traversal}; \code{erase} runs it with the \code{CoreM} backend.
   \begin{itemize}
   \item \code{erase e config}: runs the backend's \code{prepare}, then \code{visitExpr travFuel}
         in \code{EraseT CoreM}; returns the program (the emitted declarations and the main term)
@@ -271,18 +287,19 @@ monad; \code{\#erase} runs it with the \code{CoreM} backend, which asks the elab
 
 \begin{definition}[The command \texorpdfstring{\code{\#erase}}{\#erase}]
   \label{def:Erasure-eraseElab}
-  \lean{Erasure.eraseElab}
+  \lean{Erasure.eraseElab, Erasure.erasestx}
   \leanok
-  \uses{def:Erasure-erase, def:Serialize, def:Erasure-ErasureConfig}
-  \srcloc{LeanToLambdaBox/Erasure.lean}{1018}
-  \stShipping{} \lead{In short} Elaborates the term, erases it with \code{erase}, and writes the
-  program, the constants to inline and the \code{.mli} signature: to files when \code{to} and
-  \code{mli} are given, to the message log otherwise.
+  \uses{def:Erasure-eraseEntry, def:Erasure-EnvView, def:Serialize, def:Erasure-ErasureConfig}
+  \srcloc{LeanToLambdaBox/Erasure/Command.lean}{18}
+  \stShipping{} \lead{In short} Elaborates the term, erases it with \hl{\code{eraseEntry} over
+  \code{EnvView.ofEnvironment}}, and writes the program, the constants to inline and the
+  \code{.mli} signature: to files when \code{to} and \code{mli} are given, to the message log
+  otherwise.
   \begin{itemize}
   \item the \code{config} term is evaluated with \code{unsafe Elab.Term.evalTerm};
   \item the \code{.mli} signature comes from the Lean type of the term (\code{gen\_mli});
-  \item every input takes the \code{CoreM} path: the planned entry point \code{eraseEntry}
-        (Definition~\ref{def:Erasure-eraseEntry}) does not exist.
+  \item an error of the pure path stops the command with \code{erasure failed: ...}
+        (Definition~\ref{def:Erasure-eraseEntry}).
   \end{itemize}
 \end{definition}
 
@@ -297,7 +314,8 @@ The table is generated from the Lean environment by \code{blueprint/scripts/audi
 \item \lead{Caveat} A green shipping node means that its declarations exist and use standard axioms
   only. It says nothing about their behaviour.
 \item \lead{Caveat} The \code{CoreM} backend runs the elaborator's type inference and Lean's
-  compiler passes; they are outside every Lean statement.
+  compiler passes; they are outside every Lean statement, and only out-of-fragment programs reach
+  them.
 \item \lead{Caveat} A \code{panic!} or \code{unreachable!} of the eraser returns a default value and
   continues (register entries R-4 and R-5, Chapter~\ref{chap:shipping-changes}).
 \end{itemize}

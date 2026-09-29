@@ -7,9 +7,9 @@
   divergence register by tests.
 \item \lead{Main results} The model-side hypotheses of NV-1; \code{TrS} and \code{ProgEnv} are
   instances of lean4lean's \code{TrExprS} and \code{TrEnv'}.
-\item \lead{Status} \stProved{} NV-1's model side and the bridge tests; \stPlanned{} the register
-  tests, determinism of $\lambda_\Box$ evaluation, and the other instances.
-\item \lead{Lean files} \code{proof/EraseProof/Test/\{NV1, Bridge\}.lean}; namespace
+\item \lead{Status} \stProved{} NV-1's model side, the bridge tests and determinism of
+  $\lambda_\Box$ evaluation; \stPlanned{} the register tests and the other instances.
+\item \lead{Lean files} \code{proof/EraseProof/Test/\{NV1, Bridge, LBEval\}.lean}; namespace
   \code{EraseProof.Test}.
 \end{itemize}
 
@@ -95,21 +95,33 @@
   \lead{Idea} Induction on \code{ProgEnv}, building the map by insertions into a hash map.
 \end{proof}
 
-\section{Planned tests}\label{sec:tests-planned}
+\section{Determinism of \texorpdfstring{$\lambda_\Box$}{lambda-box} evaluation}\label{sec:tests-lbeval}
 
 \begin{lemma}[Determinism of \texorpdfstring{$\lambda_\Box$}{lambda-box} evaluation]
   \label{lem:EraseProof-Test-LBEval-deterministic}
-  \lean{EraseProof.Test.LBEval.deterministic}
-  \planned
+  \lean{EraseProof.Test.LBEval.deterministic, EraseProof.Test.LBEval.spineArgs,
+    EraseProof.Test.LBEval.headOf_mkApps, EraseProof.Test.LBEval.spineArgs_mkApps,
+    EraseProof.Test.LBEval.mkApps_inj, EraseProof.Test.LBEval.mkApps_fix_inj,
+    EraseProof.Test.LBEval.mkApps_construct_inj}
+  \leanok
   \uses{def:EraseProof-LBEval}
-  \lead{In short} $\lambda_\Box$ evaluation is \hl{deterministic}; the instances use it to show
-  that the final theorem's witness is the one exhibited.
+  \srcloc{proof/EraseProof/Test/LBEval.lean}{70}
+  \lead{In short} $\lambda_\Box$ evaluation is \hl{deterministic}, for every flag setting; the
+  instances use it to show that the final theorem's witness is the one exhibited.
+  \begin{itemize}
+  \item \code{spineArgs}, \code{mkApps\_inj} and its variants: application spines are injective
+        in their head and arguments.
+  \end{itemize}
   \lead{Reference} \code{eval\_deterministic} (\code{erasure/theories/EWcbvEval.v}).
 \end{lemma}
 \begin{proof}
   \uses{def:EraseProof-LBEval}
-  \lead{Idea} Induction on the first evaluation.
+  \leanok
+  \lead{Idea} Induction on the first evaluation, inverting the second; the head tests of
+  \code{appCong} separate it from the other application rules.
 \end{proof}
+
+\section{Planned tests}\label{sec:tests-planned}
 
 \begin{lemma}[Register test: definition heads are not atoms]
   \label{lem:EraseProof-Test-Atoms-defHead_kept}

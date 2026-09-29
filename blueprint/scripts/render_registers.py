@@ -48,6 +48,7 @@ UNICODE = {
     '\u03b6': r'\ensuremath{\zeta}',
     '\u03c1': r'\ensuremath{\rho}',
     '\u03a0': r'\ensuremath{\Pi}',
+    '\u0393': r'\ensuremath{\Gamma}',
     '\u03a3': r'\ensuremath{\Sigma}',
     '\u2192': r'\ensuremath{\to}',
     '\U0001d4d4': r'\ensuremath{\mathcal{E}}',   # Letouzey's extraction function

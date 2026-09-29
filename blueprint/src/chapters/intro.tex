@@ -5,9 +5,11 @@
 \item \lead{Goal} A machine-checked theorem about the shipping eraser behind \code{\#erase},
   stated over lean4lean's formal model of Lean's kernel, for every input in the scope of
   Chapter~\ref{chap:scope}.
-\item \lead{Status} \stProved{} the model side: the translation of terms and programs into
-  lean4lean's model and its lemmas. \stPlanned{} \hl{every statement about the eraser}, including
-  the final theorem, and the shipping code of the verified path.
+\item \lead{Status} \stProved{} the model side, the source semantics with subject reduction,
+  $\lambda_\Box$ evaluation, and soundness of the oracle's reduction and type inference.
+  \stShipping{} the verified path of \code{\#erase}: \code{\#erase} runs it on programs in the
+  fragment. \stPlanned{} \hl{the erasure relation, the simulation, soundness of the traversal and
+  the final theorem}.
 \item \lead{Lean files} \code{LeanToLambdaBox/} (the shipping code) and \code{proof/} (the Lake
   package \code{EraseProof}, the verification library).
 \item \lead{Registers} \code{doc/SHIPPING-CHANGES.md} (Chapter~\ref{chap:shipping-changes}) and
@@ -91,7 +93,7 @@ Chapter & Content \\
 \ref{chap:trust} & The trust boundary: what is proved, what is trusted, what is inherited from
   lean4lean, the shipping code \\
 \ref{chap:model} & The model side: \code{TrS}, \code{ProgEnv} and their lemmas \\
-\ref{chap:pure} & The pure path: the planned shipping code the theorem is about \\
+\ref{chap:pure} & The pure path: the shipping code the theorem is about \\
 \ref{chap:source} & Erasability and the source semantics \\
 \ref{chap:relation} & $\lambda_\Box$ evaluation and the erasure relation \\
 \ref{chap:simulation} & The relation-level simulation \code{erases\_correct} \\
