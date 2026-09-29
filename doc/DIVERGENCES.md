@@ -232,9 +232,8 @@ The blueprint renders this register.
   `EraseProof.BlocksCong`: recursion in the source semantics; and
   `proof/EraseProof/Relation/Basic.lean`: the rule `EraseProof.Erases.constRec` of
   `EraseProof.Erases` and the admissible targets `EraseProof.RecIn`: recursion in the erasure
-  relation; and `proof/EraseProof/Relation/Deps.lean`: `EraseProof.ErasesBlock`, the recursive
-  branch of `EraseProof.ErasesDecl`, and `EraseProof.BlocksErased`: recursion in the λ□
-  environment.
+  relation; and `proof/EraseProof/Relation/Deps.lean`: `EraseProof.ErasesBlock` and the recursive
+  branch of `EraseProof.ErasesDecl`: recursion in the λ□ environment.
 - **Reference artifact:** PCUIC's fixpoints: the term `tFix`, a value (`atom`,
   `pcuic/theories/PCUICWcbvEval.v:51`), unfolded when applied by `eval_fix` (`:273`) and excluded
   as a head of `eval_app_cong` (`:311`, `isFixApp`); their erasure `erases_tFix`
@@ -264,10 +263,7 @@ The blueprint renders this register.
   `cunfold_fix` to an erasure of that declaration's Lean value in the empty context, with the
   fixpoints stored in the λ□ environment as the targets of recursive constants
   (`EraseProof.ErasesBlock`); `erases_tFix` relates each body of a PCUIC `tFix` to a λ□ body under
-  the fixpoint's own binders (`fix_context mfix`). `EraseProof.BlocksErased` asks that every
-  fixpoint the λ□ environment stores at the kername of a declaration of the evaluation environment
-  be such a block, with bodies whose dependencies are erased: the part of
-  `globals_erased_with_deps` about constants whose λ□ body is a `tFix`.
+  the fixpoint's own binders (`fix_context mfix`).
 - **Why it is forced:** Lean's `Expr` has no fixpoint node: a recursive Lean definition is a
   constant whose value mentions itself, a member of a block (rule `block` of
   `EraseProof.ProgEnv`, whose values are translated in the model that contains the block). The
@@ -283,9 +279,7 @@ The blueprint renders this register.
   λ□ environment stores. That stored `tFix` is not the erasure of a subterm of the source term, so
   when the source unfolds a recursive constant (`EraseProof.SrcEval.fixApp`) and λ□ unfolds the
   fixpoint (`eval_fix`), the relation between the member's Lean value and its unfolded λ□ body can
-  only come from the λ□ environment: `EraseProof.ErasesBlock` states it, and
-  `EraseProof.BlocksErased` gives it for every stored fixpoint, as `globals_erased_with_deps` gives
-  erased bodies for `eval_delta`.
+  only come from the λ□ environment: `EraseProof.ErasesBlock` states it.
 - **What was considered instead:** unfolding recursive constants when evaluated, as the others:
   it matches λ□'s `tFix` only when each member's value is a λ, so that one unfolding reaches a
   value; it would need a shipping change that η-expands members whose value is not a λ, which the

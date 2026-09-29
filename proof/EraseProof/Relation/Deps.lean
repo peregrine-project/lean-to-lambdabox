@@ -6,9 +6,8 @@ import EraseProof.Relation.Basic
 `ErasesDeps σ lenv t`: every constant that the λ□ term `t` mentions, transitively, is the kername
 of a declaration of `σ.decls` whose λ□ body in `lenv` erases its Lean body (`ErasesDecl`):
 MetaRocq's `erases_deps` (`MR E/Extract.v:306`) on the fragment's λ□ constructors, indexed by the
-source constant. A recursive declaration's body is a `tFix` of its block (`ErasesBlock`), and
-`BlocksErased` says that every fixpoint stored for a program constant is such a block. This module
-proves that `ErasesDeps` survives fresh growth of the λ□ environment (`ErasesDeps.ext`, MR
+source constant. A recursive declaration's body is a `tFix` of its block (`ErasesBlock`). This
+module proves that `ErasesDeps` survives fresh growth of the λ□ environment (`ErasesDeps.ext`, MR
 `erases_deps_cons`), closed substitution (`ErasesDeps.csubst`) and λ□ evaluation
 (`ErasesDeps.eval`, MR `erases_deps_eval`).
 -/
@@ -66,13 +65,6 @@ inductive ErasesDeps (venv : VEnv) (σ : EvalEnv) (lenv : GlobalDeclarations) : 
       ErasesDeps venv σ lenv (.const (toKername c))
   /-- `erases_deps_tFix` (`:352`). -/
   | fix : (∀ d ∈ defs, ErasesDeps venv σ lenv d.body) → ErasesDeps venv σ lenv (.fix defs i)
-
-/-- Fixpoints stored for program constants are erased blocks. Reference: the part of
-`MR E/EDeps.v:594 globals_erased_with_deps` that `erases_deps` cannot carry (DV-7). -/
-def BlocksErased (venv : VEnv) (σ : EvalEnv) (lenv : GlobalDeclarations) : Prop :=
-  ∀ c ci defs i, findDecl σ.decls c = some ci →
-    lookupConst lenv (toKername c) = some ⟨some (.fix defs i)⟩ →
-    ErasesDecl venv σ lenv ci ⟨some (.fix defs i)⟩ ∧ ∀ d ∈ defs, ErasesDeps venv σ lenv d.body
 
 section
 variable {venv : VEnv} {σ : EvalEnv} {lenv : GlobalDeclarations}
@@ -212,7 +204,7 @@ theorem ErasesDeps.cunfoldFix (hd : ∀ d ∈ defs, ErasesDeps venv σ lenv d.bo
 
 /-- Dependencies are preserved by λ□ evaluation. Reference: `erases_deps_eval`
 (`MR E/EDeps.v:275`). -/
-theorem ErasesDeps.eval (hb : BlocksErased venv σ lenv) (h : ErasesDeps venv σ lenv t)
+theorem ErasesDeps.eval (h : ErasesDeps venv σ lenv t)
     (hev : LBEval defaultFlags lenv t v) : ErasesDeps venv σ lenv v := by
   induction hev with
   | box => exact .box
