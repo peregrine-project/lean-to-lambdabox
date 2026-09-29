@@ -27,9 +27,11 @@
   recursion; and literals, projections, \code{Quot}, metavariables.
 \item \lead{Benchmarks} none is in scope: every program of \code{benchmarks/} takes or returns
   \code{Nat}, \code{Unit}, \code{List} or \code{Bool}.
-\item \lead{Out-of-scope inputs} \code{\#erase} routes them to the unchanged \code{Meta} path
-  (Definition~\ref{def:Erasure-eraseEntry}); the routing lemma puts every in-scope input on the
-  verified path (Lemma~\ref{lem:EraseProof-collectDeps_not_outOfFragment}).
+\item \lead{Routing} \code{\#erase} sends a program whose closure leaves the fragment (an
+  inductive, literal, projection, quotient or metavariable) to the unchanged \code{Meta} path, and
+  every other program to the pure path (Definition~\ref{def:Erasure-eraseEntry}); the routing
+  lemma puts every in-scope input on the pure path
+  (Lemma~\ref{lem:EraseProof-collectDeps_not_outOfFragment}).
 \end{itemize}
 
 \section{Evidence from lean4lean \texorpdfstring{\code{master}}{master}}\label{sec:scope-evidence}

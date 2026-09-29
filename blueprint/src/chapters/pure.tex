@@ -4,11 +4,11 @@
 \begin{itemize}
 \item \lead{Goal} The shipping code the final theorem is about: the dependency closure, a pure
   erasability oracle, a pure backend for the shipping traversal, and the entry point that routes
-  in-scope inputs to it.
+  in-fragment inputs to it.
 \item \lead{Main results} None: this chapter holds shipping definitions.
-\item \lead{Status} \stPlanned{} every node: planned shipping entries S-18 to S-21 on branch
-  \code{shipping}; the names are the planned names (namespace \code{Erasure}).
-\item \lead{Lean files} \code{LeanToLambdaBox/Erasure.lean} and new shipping modules.
+\item \lead{Status} \stShipping{} every node: shipping entries S-18 to S-21 on branch
+  \code{shipping} (Chapter~\ref{chap:shipping-changes}); \code{\#erase} runs \code{eraseEntry}.
+\item \lead{Lean files} \code{LeanToLambdaBox/Erasure/\{Collect, Pure, Entry, Command\}.lean}.
 \item \lead{Reference} MetaRocq's \code{erase}, \code{is\_erasableb} and \code{erase\_global\_deps}
   (\code{erasure/theories/ErasureFunction.v}).
 \end{itemize}
@@ -17,49 +17,61 @@
 
 \begin{definition}[Errors of the pure path]
   \label{def:Erasure-EraseError}
-  \lean{Erasure.EraseError}
-  \planned
-  \lead{In short} \code{outOfFragment} routes \code{\#erase} to the \code{Meta} path; the others
-  (\code{nameCollision}, \code{fuel}, \code{failed}) are \hl{errors of \code{\#erase}}, never
-  answers.
+  \lean{Erasure.EraseError, Erasure.EraseError.describe}
+  \leanok
+  \srcloc{LeanToLambdaBox/Erasure/Collect.lean}{21}
+  \stShipping{} \lead{In short} \code{outOfFragment} routes \code{\#erase} to the \code{Meta} path;
+  the others (\code{nameCollision}, \code{fuel}, \code{failed}) are \hl{errors of
+  \code{\#erase}}, never answers.
+  \begin{itemize}
+  \item \code{describe}: the text of an error in the message \code{erasure failed: ...}.
+  \end{itemize}
 \end{definition}
 
 \begin{definition}[Environment view]
   \label{def:Erasure-EnvView}
   \lean{Erasure.EnvView, Erasure.EnvView.ofEnvironment}
-  \planned
-  \lead{In short} What the pure path reads about the Lean environment: \code{find?},
-  \code{isExtern}, \code{inlineAttr?}; the counterpart of MetaRocq's abstract environment.
+  \leanok
+  \srcloc{LeanToLambdaBox/Erasure/Collect.lean}{31}
+  \stShipping{} \lead{In short} What the pure path reads about the Lean environment:
+  \code{find?}, \code{isExtern}, \code{inlineAttr?}; the counterpart of MetaRocq's abstract
+  environment.
   \begin{itemize}
-  \item \code{ofEnvironment}: builds the view from the elaboration environment; \hl{trusted glue},
-        as MetaRocq's quoting is trusted.
+  \item \code{ofEnvironment}: the view \code{\#erase} builds from the elaboration environment
+        (\code{Environment.find?}, \code{isExtern}, \code{getInlineAttribute?}); \hl{trusted
+        glue}, as MetaRocq's quoting is trusted.
   \end{itemize}
 \end{definition}
 
 \begin{definition}[Lookup in a declaration list]
   \label{def:Erasure-findConst}
   \lean{Erasure.findConst}
-  \planned
-  \lead{In short} \code{findConst decls c}: the first declaration of \code{decls} named \code{c};
-  MetaRocq's \code{lookup\_env}.
+  \leanok
+  \srcloc{LeanToLambdaBox/Erasure/Collect.lean}{47}
+  \stShipping{} \lead{In short} \code{findConst decls c}: the first declaration of \code{decls}
+  named \code{c}; MetaRocq's \code{lookup\_env}.
 \end{definition}
 
 \begin{definition}[Dependency closure]
   \label{def:Erasure-collectDeps}
   \lean{Erasure.collectDeps, Erasure.exprConsts, Erasure.declDeps, Erasure.closure,
-    Erasure.findCollision, Erasure.collectFuel}
-  \planned
+    Erasure.findCollision, Erasure.collectFuel, instDecidableEqModPath, instDecidableEqKername}
+  \leanok
   \uses{def:Erasure-EraseError, def:Erasure-EnvView}
-  \lead{In short} \code{collectDeps view e}: the program's own environment, \hl{the closure of
-  \code{e} through types, values and block members}, or the first out-of-fragment construct.
+  \srcloc{LeanToLambdaBox/Erasure/Collect.lean}{109}
+  \stShipping{} \lead{In short} \code{collectDeps view e}: the program's own environment, \hl{the
+  closure of \code{e} through types, values and block members}, or the first out-of-fragment
+  construct.
   \begin{itemize}
   \item \code{exprConsts}, \code{declDeps}: the names a term or declaration mentions, or
         \code{outOfFragment} at an inductive, constructor, recursor, quotient, literal,
-        projection or metavariable;
-  \item \code{closure}: depth-first, bounded by \code{collectFuel} $= 2^{32}$ steps; a view
-        that answers with a declaration of another name is rejected;
+        projection, free variable or metavariable;
+  \item \code{closure}: depth-first, bounded by \code{collectFuel} $= 2^{32}$ steps; an unknown
+        constant is \code{outOfFragment}; a view that answers with a declaration of another name
+        is rejected;
   \item \code{findCollision}: two constants with the same $\lambda_\Box$ name (R-3) give
-        \code{nameCollision}, after the fragment scan.
+        \code{nameCollision}, after the fragment scan; it compares kernames with the derived
+        \code{DecidableEq} instances.
   \end{itemize}
   \lead{Reference} the environment \code{erase\_global\_deps} keeps, computed on the source side
   (DV-3).
@@ -70,9 +82,11 @@
 \begin{definition}[Universe instantiation]
   \label{def:Erasure-Pure-instLevels}
   \lean{Erasure.Pure.instLevels, Erasure.Pure.instLevel}
-  \planned
-  \lead{In short} Substitutes levels for level parameters in a term, \hl{without normalizing}
-  levels, so that kernel reduction decides it.
+  \leanok
+  \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{36}
+  \stShipping{} \lead{In short} Substitutes levels for level parameters in a term, \hl{without
+  normalizing} levels, so that kernel reduction decides it; the oracle and the source
+  semantics' $\delta$ rule use it.
   \lead{Reference} PCUIC \code{subst\_instance\_constr}.
 \end{definition}
 
@@ -80,14 +94,17 @@
   \label{def:Erasure-Pure-isErasable}
   \lean{Erasure.Pure.isErasable, Erasure.Pure.Ctx, Erasure.Pure.alwaysZero, Erasure.Pure.findLocal,
     Erasure.Pure.whnf, Erasure.Pure.inferType, Erasure.Pure.isArity, Erasure.oracleFuel}
-  \planned
-  \uses{def:Erasure-EraseError, def:Erasure-Pure-instLevels, def:Erasure-TravCtx}
-  \lead{In short} \code{Pure.isErasable cx fuel ls e}: \code{e} is erasable if its type is an arity
-  or its type's sort is evidently zero; every reduction uses \hl{the kernel's $\delta$}.
+  \leanok
+  \uses{def:Erasure-EraseError, def:Erasure-Pure-instLevels, def:Erasure-TravCtx,
+    def:Erasure-findConst}
+  \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{136}
+  \stShipping{} \lead{In short} \code{Pure.isErasable cx fuel ls e}: \code{e} is erasable if its
+  type is an arity or its type's sort is evidently zero; every reduction uses \hl{the kernel's
+  $\delta$}.
   \begin{itemize}
   \item \code{Ctx}: the program's declarations; \code{findLocal}: a traversal local by variable;
   \item \code{whnf}: head $\beta$, $\zeta$ (also of let-bound locals), $\delta$ of every
-        definition, \code{mdata};
+        definition at its number of levels, \code{mdata};
   \item \code{inferType}: infer-only retyping; binders the oracle enters are de Bruijn, free
         variables are the traversal's locals;
   \item \code{isArity} after \code{whnf}; \code{alwaysZero}: \code{zero}, \code{max} of two,
@@ -105,33 +122,39 @@
   \lean{Erasure.PureM, Erasure.PureCtx, Erasure.PureState, Erasure.EraseT.runPure,
     Erasure.PureM.findConst?, Erasure.PureM.declInfo?, Erasure.PureM.unsafeRecBase?,
     Erasure.PureM.freshFVarId, Erasure.PureM.instantiate1, Erasure.PureM.isErasable,
-    Erasure.PureM.casesInfo?, Erasure.PureM.ctorArity?, Erasure.PureM.prepare}
-  \planned
+    Erasure.PureM.casesInfo?, Erasure.PureM.ctorArity?, Erasure.PureM.prepare,
+    Erasure.instBackendPureM}
+  \leanok
   \uses{def:Erasure-EraseT, def:Erasure-findConst, def:Erasure-Pure-isErasable,
     def:Erasure-EnvView}
-  \lead{In short} $\mathrm{PureM} = $ \code{ReaderT PureCtx (StateT PureState (Except
-  EraseError))}: the traversal's backend \hl{without \code{Meta}}.
+  \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{166}
+  \stShipping{} \lead{In short} $\mathrm{PureM} = $ \code{ReaderT PureCtx (StateT PureState
+  (Except EraseError))}: the traversal's backend \hl{without \code{Meta}}.
   \begin{itemize}
   \item \code{PureCtx}: the closure and the view; \code{PureState}: a counter for fresh
         variables;
   \item \code{findConst?} $=$ \code{declInfo?}: lookup in the closure, no \code{\_unsafe\_rec}
-        redirect; \code{instantiate1}: a shipping copy of the pure \code{Expr.instantiate1'} of
-        lean4lean's model, so that shipping code imports no lean4lean module;
-  \item \code{isErasable}: the pure oracle at \code{oracleFuel}; \code{casesInfo?},
-        \code{ctorArity?}: none;
-  \item \code{prepare}: the identity (no \code{macro\_inline}, matcher inlining or \code{csimp}).
+        redirect; \code{instantiate1}: lean4lean's pure \code{Expr.instantiate1'};
+  \item \code{isErasable}, \code{inferType}: the pure oracle at \code{oracleFuel};
+        \code{casesInfo?}, \code{ctorArity?}: none;
+  \item \code{prepare}: the identity (no \code{macro\_inline}, matcher inlining or
+        \code{csimp});
+  \item the instance: every constructor field kept, no instances, no logging; a constant missing
+        from the closure is \code{outOfFragment}, fuel exhaustion the error \code{fuel}.
   \end{itemize}
 \end{definition}
 
 \begin{definition}[Recursion and remapping tests]
   \label{def:Erasure-isRecursiveDecl}
   \lean{Erasure.isRecursiveDecl, Erasure.nameOccurs, Erasure.axiomatized}
-  \planned
+  \leanok
   \uses{def:Erasure-EnvView, def:Erasure-ErasureConfig}
-  \lead{In short} The traversal's tests at the pure backend, with exact names.
+  \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{262}
+  \stShipping{} \lead{In short} The tests of \code{visitMutual} as the pure backend runs them,
+  with exact names; the traversal does not call these functions.
   \begin{itemize}
   \item \code{isRecursiveDecl}: a block member, or a declaration whose value mentions its own name
-        (\code{nameOccurs}); such constants are compiled to \code{tFix} (DV-7);
+        (\code{nameOccurs}); \hl{such constants are compiled to \code{tFix}} (DV-7);
   \item \code{axiomatized}: the configuration remaps the \code{@[extern]} declaration to a
         $\lambda_\Box$ axiom (DV-12).
   \end{itemize}
@@ -140,10 +163,12 @@
 \begin{definition}[Erasure on the pure path]
   \label{def:Erasure-erasePure}
   \lean{Erasure.erasePure}
-  \planned
-  \uses{def:Erasure-erase, def:Erasure-PureM, def:Erasure-isRecursiveDecl, def:ASTType}
-  \lead{In short} \code{erasePure view cfg decls e}: \hl{the shipping traversal run with the pure
-  backend} on the closure \code{decls}, assembling the program as \code{erase} does.
+  \leanok
+  \uses{def:Erasure-erase, def:Erasure-PureM, def:ASTType}
+  \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{243}
+  \stShipping{} \lead{In short} \code{erasePure view cfg decls e}: \hl{the shipping traversal
+  \code{visitExpr} run with the pure backend} on the closure \code{decls}, assembling the program
+  as \code{erase} does.
   \lead{Reference} MetaRocq \code{erase} and \code{erase\_global\_deps}, the pair of
   \code{erase\_correct}.
 \end{definition}
@@ -151,21 +176,26 @@
 \begin{definition}[The entry point]
   \label{def:Erasure-eraseEntry}
   \lean{Erasure.eraseEntry, Erasure.route, Erasure.Route}
-  \planned
+  \leanok
   \uses{def:Erasure-collectDeps, def:Erasure-erasePure, def:Erasure-erase}
-  \lead{In short} What \code{\#erase} runs: \code{collectDeps}, then
+  \srcloc{LeanToLambdaBox/Erasure/Entry.lean}{39}
+  \stShipping{} \lead{In short} What \code{\#erase} runs: \code{route} calls \code{collectDeps},
+  then
   \begin{itemize}
   \item \code{ok decls}: \code{erasePure}; its errors are errors of \code{\#erase}, with
         \hl{no fallback to \code{Meta}};
-  \item \code{outOfFragment}: the \code{CoreM} path, unchanged;
+  \item \code{outOfFragment}: the \code{CoreM} path \code{erase}, unchanged;
   \item any other error: an error of \code{\#erase}.
   \end{itemize}
 \end{definition}
 
 \section*{Caveats}
 \begin{itemize}
-\item \lead{Caveat} The pure path skips Lean's compiler passes, so its output may differ from the
-  \code{Meta} path's on in-scope inputs; the register records each difference when S-21 lands.
+\item \lead{Caveat} The pure path skips Lean's compiler passes: on 8 in-fragment corpus files its
+  output differs from the \code{Meta} path's, and on 4 only the pure path has one (register entry
+  S-21).
 \item \lead{Caveat} \code{EnvView.ofEnvironment} decides which constants are \code{@[extern]}, and
   so which constants the source semantics treats as stuck.
+\item \lead{Caveat} The pure backend logs nothing: the \code{Meta} path's messages about axioms and
+  inlining do not appear for in-fragment programs.
 \end{itemize}

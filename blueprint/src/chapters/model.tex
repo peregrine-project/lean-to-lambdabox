@@ -4,15 +4,16 @@
 \begin{itemize}
 \item \lead{Goal} Relate Lean terms and programs to lean4lean's model of Lean's kernel, and prove
   the structural facts the simulation needs about this relation.
-\item \lead{Main results} The translation \code{TrS} is deterministic, scoped, monotone,
-  well-typed, stable under weakening, substitution and abstraction, and unique up to
-  definitional equality; a program environment \code{ProgEnv} is ordered, well-formed, and
+\item \lead{Main results} The translation \code{TrS} is deterministic, scoped, closed,
+  monotone, well-typed, stable under weakening, substitution, abstraction and universe
+  instantiation, and unique up to definitional equality; a program environment \code{ProgEnv} is ordered, well-formed, and
   contains every declaration with its type and, for unfoldable constants, its defining equation.
-\item \lead{Status} \stProved{} every node except \code{TrS.instLevels} (\stPlanned{}); the
-  uniqueness lemmas and \code{ProgEnv.wf} inherit lean4lean sorries (\stInherited{}).
-\item \lead{Lean files} \code{proof/EraseProof/Typing/\{Basic, Weak, Inst, Abstract, Uniq\}.lean},
-  \code{proof/EraseProof/Env.lean}, \code{proof/EraseProof/Env/Unfold.lean},
-  \code{proof/EraseProof/Source/EvalEnv.lean}.
+\item \lead{Status} \stProved{} every node; the uniqueness lemmas and \code{ProgEnv.wf} inherit
+  lean4lean sorries (\stInherited{}).
+\item \lead{Lean files} \code{proof/EraseProof/Typing/\{Basic, Weak, Inst, Abstract, Uniq,
+  InstLevels\}.lean}, \code{proof/EraseProof/Env.lean}, \code{proof/EraseProof/Env/Unfold.lean},
+  \code{proof/EraseProof/Source/EvalEnv.lean}; three lemmas sit next to their first users in
+  \code{Source/Steps.lean} and \code{Oracle/Whnf.lean}.
 \item \lead{Reference} lean4lean's \code{TrExprS} and \code{TrEnv'} (\code{Verify/}); MetaRocq's
   typing of the global environment (\code{wf\_ext}, MetaCoq paper Section 3.6).
 \end{itemize}
@@ -256,17 +257,44 @@ lean4lean's lemmas about \code{TrExprS} without the literal and projection cases
 
 \begin{lemma}[Universe instantiation]
   \label{lem:EraseProof-TrS-instLevels}
-  \lean{EraseProof.TrS.instLevels}
-  \planned
+  \lean{EraseProof.TrS.instLevels, EraseProof.find_zip, EraseProof.mapM_get,
+    EraseProof.ofLevel_instLevel, EraseProof.mapM_instLevel}
+  \leanok
   \uses{def:EraseProof-TrS, def:Erasure-Pure-instLevels}
-  \lead{In short} Instantiating the level parameters of a translated term with
-  \code{Pure.instLevels} translates to \hl{the instantiated image}, under the instantiated
-  context.
-  \lead{Reference} lean4lean \code{TrExprS.instL}; MetaRocq \code{subst\_instance}.
+  \srcloc{proof/EraseProof/Typing/InstLevels.lean}{110}
+  \lead{In short} Instantiating the level parameters \code{ps} of a translated term with the
+  shipping \code{Pure.instLevels ps us} translates to \hl{the instantiated image}
+  \code{e'.instL us'}, under the instantiated context, exactly.
+  \begin{itemize}
+  \item \lead{Given} \code{us} translates to \code{us'} over \code{Us}, and has the length of
+        \code{ps};
+  \item \code{ofLevel\_instLevel}, \code{mapM\_instLevel}: the same for one level and for a
+        constant's levels; \code{find\_zip}, \code{mapM\_get}: list lookups they use.
+  \end{itemize}
+  \lead{Reference} lean4lean \code{TrExprS.instL}; MetaRocq \code{subst\_instance\_constr}.
 \end{lemma}
 \begin{proof}
   \uses{def:EraseProof-TrS, def:Erasure-Pure-instLevels}
-  \lead{Idea} Induction, with lean4lean's \code{IsDefEq.instL} for the typing premises.
+  \leanok
+  \lead{Idea} Induction; no level normalization, so the result is a \code{TrS}, not a
+  \code{TrExpr}; typing premises by lean4lean's \code{IsDefEq.instL}.
+\end{proof}
+
+\begin{lemma}[Translated terms are closed]
+  \label{lem:EraseProof-TrS-closed}
+  \lean{EraseProof.TrS.closed, EraseProof.VLCtx.find?_inl_lt}
+  \leanok
+  \uses{def:EraseProof-TrS}
+  \srcloc{proof/EraseProof/Oracle/Whnf.lean}{62}
+  \lead{In short} A translated term has \hl{no loose bound variable beyond the context's de Bruijn
+  entries}.
+  \lead{Reference} lean4lean \code{TrExprS.closed}; MetaRocq \code{subject\_closed}
+  (\code{pcuic/theories/Typing/PCUICClosedTyp.v}).
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-TrS}
+  \leanok
+  \lead{Idea} Induction; the \code{bvar} case by \code{VLCtx.find?\_inl\_lt}.
 \end{proof}
 
 \section{Program environments}\label{sec:model-env}
@@ -404,6 +432,39 @@ environment, one kernel step per declaration.
   \uses{lem:EraseProof-TrConst-mono}
   \leanok
   \lead{Idea} Induction on \code{ProgEnv}, as for \code{ProgEnv.lookup}.
+\end{proof}
+
+\begin{lemma}[Defining equations of definitions]
+  \label{lem:EraseProof-ProgEnv-lookupDefn}
+  \lean{EraseProof.ProgEnv.lookupDefn}
+  \leanok
+  \uses{def:EraseProof-ProgEnv, def:EraseProof-findDecl}
+  \srcloc{proof/EraseProof/Oracle/Whnf.lean}{149}
+  \lead{In short} A definition of \code{P} has a translated definition in the model whose
+  \hl{defining equation is a definitional equality of the model}; the oracle's $\delta$ uses it.
+  \lead{Reference} MetaRocq \code{declared\_constant\_inv}, for a constant with a body.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-TrConst-mono}
+  \leanok
+  \lead{Idea} Induction on \code{ProgEnv}; for a block member, the block's equation.
+\end{proof}
+
+\begin{lemma}[Typed values of definitions and theorems]
+  \label{lem:EraseProof-ProgEnv-lookupDef_wf}
+  \lean{EraseProof.ProgEnv.lookupDef_wf}
+  \leanok
+  \uses{def:EraseProof-ProgEnv, def:EraseProof-findDecl}
+  \srcloc{proof/EraseProof/Source/Steps.lean}{38}
+  \lead{In short} A definition or theorem of \code{P} has a translated definition whose
+  \hl{value has its type} (\code{VDefVal.WF}); proof irrelevance for theorems needs it.
+  \lead{Reference} MetaRocq \code{declared\_constant\_inv}, the typing of \code{cst\_body}.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-TrConst-mono}
+  \leanok
+  \lead{Idea} Induction on \code{ProgEnv}, whose rules \code{defn}, \code{thm} and \code{block}
+  have the typing as a premise.
 \end{proof}
 
 \section{The evaluation environment}\label{sec:model-evalenv}

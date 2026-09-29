@@ -6,9 +6,12 @@
   prove that evaluation preserves typing and erasability.
 \item \lead{Main results} Subject reduction for evaluation (\code{SrcEval.defeq}); stability of
   erasability under substitution, application and evaluation.
-\item \lead{Status} \stPlanned{} every node.
-\item \lead{Lean files} planned: \code{proof/EraseProof/Erasability.lean}, \code{Atoms.lean},
-  \code{Source/Eval.lean}, \code{Source/Restrict.lean}.
+\item \lead{Status} \stProved{} the atom class, recursive declarations, the source semantics,
+  \code{SrcEval.value} and \code{SrcEval.defeq} (inheriting L1--L5); \stPlanned{} erasability and
+  its stability lemmas, \code{evalEnvOf}, \code{ConstsIn} and \code{SrcEval.restrict}.
+\item \lead{Lean files} \code{proof/EraseProof/Atoms.lean},
+  \code{proof/EraseProof/Source/\{Eval, Steps, Defeq\}.lean}; planned:
+  \code{Erasability.lean}, \code{Source/Restrict.lean}.
 \item \lead{Reference} MetaRocq \code{isErasable} (\code{erasure/theories/Extract.v}), PCUIC
   \code{eval} (\code{pcuic/theories/PCUICWcbvEval.v}); Letouzey Definition 1 and Lemma 2.
 \end{itemize}
@@ -105,8 +108,9 @@
   \label{def:EraseProof-EvalEnv-isAtom}
   \lean{EraseProof.EvalEnv.isAtom, EraseProof.arityShape, EraseProof.EvidentZero,
     EraseProof.DeltaFree, EraseProof.EvidentProp}
-  \planned
-  \uses{def:EraseProof-EvalEnv}
+  \leanok
+  \uses{def:EraseProof-EvalEnv, def:EraseProof-findDecl, def:Erasure-Pure-instLevels}
+  \srcloc{proof/EraseProof/Atoms.lean}{60}
   \lead{In short} The constants that are source values and erase only to $\Box$:
   \hl{$\delta$-less constants whose declared type is evidently an arity, or evidently a
   proposition} headed by an axiom or opaque (DV-11).
@@ -114,8 +118,9 @@
   \item \code{DeltaFree}: axioms and opaques, which no $\delta$ rule unfolds;
   \item \code{arityShape}: the binder count and final level of a syntactic arity;
   \item \code{EvidentZero}: a level zero under every assignment, recognised structurally;
-  \item \code{EvidentProp}: \code{Pi xs, h.\{vs\} as} with \code{h} $\delta$-less and its sort at
-        the occurrence evidently zero.
+  \item \code{EvidentProp}: \code{Pi xs, h.\{vs\} as} with \code{h} $\delta$-less, a syntactic arity
+        of exactly as many binders as arguments, and its sort at the occurrence
+        (\code{Pure.instLevel}) evidently zero.
   \end{itemize}
   \lead{Reference} \code{tInd} and \code{tConstruct} in PCUIC's \code{atom}; MetaRocq
   \code{isPropositionalArity} (\code{pcuic/theories/PCUICFirstorder.v}).
@@ -124,7 +129,8 @@
 \begin{definition}[Recursive declarations]
   \label{def:EraseProof-RecursiveDecl}
   \lean{EraseProof.RecursiveDecl, EraseProof.OccursV}
-  \planned
+  \leanok
+  \srcloc{proof/EraseProof/Source/Eval.lean}{26}
   \lead{In short} A declaration is recursive when it is \hl{in a block of several members or
   mentions itself} in a value position (\code{OccursV}); the eraser compiles these to \code{tFix}
   (DV-7).
@@ -155,9 +161,10 @@
 \begin{definition}[Weak call-by-value evaluation]
   \label{def:EraseProof-SrcEval}
   \lean{EraseProof.SrcEval, EraseProof.SrcAtom, EraseProof.BlocksCong}
-  \planned
+  \leanok
   \uses{def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-isAtom, def:EraseProof-RecursiveDecl,
     def:Erasure-Pure-instLevels}
+  \srcloc{proof/EraseProof/Source/Eval.lean}{45}
   \lead{In short} \code{SrcEval sigma e v}: the closed Lean term \code{e} evaluates to \code{v}, big
   step, call by value, \hl{with \code{let} kept} (DV-1, DV-22).
 
@@ -179,14 +186,15 @@
 
   Axioms, non-atom opaques and remapped constants have no rule: they are stuck.
   \lead{Reference} PCUIC \code{eval} (\code{pcuic/theories/PCUICWcbvEval.v}); MetaCoq paper
-  Section 5.6; Letouzey Definition 9.
+  Section 5.6; Letouzey Definition 9; DV-1, DV-7, DV-11, DV-22 (Chapter~\ref{chap:divergences}).
 \end{definition}
 
 \begin{definition}[Source values]
   \label{def:EraseProof-SrcValue}
   \lean{EraseProof.SrcValue, EraseProof.AtomSpine}
-  \planned
+  \leanok
   \uses{def:EraseProof-SrcEval}
+  \srcloc{proof/EraseProof/Source/Eval.lean}{84}
   \lead{In short} The shapes of evaluation results: $\lambda$, sorts, $\Pi$, recursive constants,
   and \hl{spines headed by an atom constant} (\code{AtomSpine}).
   \lead{Reference} PCUIC \code{value}; MetaCoq paper Fig.~12.
@@ -195,34 +203,78 @@
 \begin{lemma}[Results are values]
   \label{lem:EraseProof-SrcEval-value}
   \lean{EraseProof.SrcEval.value}
-  \planned
+  \leanok
   \uses{def:EraseProof-SrcEval, def:EraseProof-SrcValue}
+  \srcloc{proof/EraseProof/Source/Eval.lean}{95}
   \lead{In short} Every evaluation result is \hl{a source value}.
   \lead{Reference} \code{eval\_to\_value} (\code{pcuic/theories/PCUICWcbvEval.v}).
 \end{lemma}
 \begin{proof}
   \uses{def:EraseProof-SrcEval}
-  \lead{Idea} Induction on \code{SrcEval}.
+  \leanok
+  \lead{Idea} Induction on \code{SrcEval}; \code{appCong} excludes the heads that are not atom
+  spines (\code{BlocksCong}).
+\end{proof}
+
+\begin{lemma}[Typed steps of evaluation]
+  \label{lem:EraseProof-SrcEval-beta_step}
+  \lean{EraseProof.SrcEval.beta_step, EraseProof.SrcEval.zeta_step, EraseProof.SrcEval.delta_step,
+    EraseProof.SrcEval.fixApp_step, EraseProof.SrcEval.appCong_step,
+    EraseProof.SrcEval.unfold_step, EraseProof.SrcEval.delta_defn_step,
+    EraseProof.SrcEval.delta_thm_step, EraseProof.EvalEnv.unfold?_value}
+  \leanok
+  \uses{def:EraseProof-SrcEval, def:EraseProof-ProgEnv, def:EraseProof-SubEnv}
+  \srcloc{proof/EraseProof/Source/Steps.lean}{158}
+  \inherited{L1, L2, L3, L4, L5}
+  \lead{In short} The cases of \code{SrcEval.defeq}: each of the rules \code{beta}, \code{zeta},
+  \code{delta}, \code{fixApp}, \code{appCong} \hl{preserves translation and typing}, given the
+  statement for its premises.
+  \begin{itemize}
+  \item \code{unfold\_step}: an unfolded constant is definitionally equal to its value at the
+        constant's levels, by \code{delta\_defn\_step} (defining equation) or
+        \code{delta\_thm\_step} (proof irrelevance);
+  \item \code{EvalEnv.unfold?\_value}: \code{unfold?} returns the declaration's value.
+  \end{itemize}
+  \lead{Reference} the cases of \code{subject\_reduction\_eval}
+  (\code{pcuic/theories/PCUICClassification.v}).
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-TrS-inst, lem:EraseProof-TrS-inst_let, lem:EraseProof-TrS-instLevels,
+    lem:EraseProof-TrS-uniq, lem:EraseProof-TrS-defeqDFC, lem:EraseProof-TrS-det,
+    lem:EraseProof-ProgEnv-unfold, lem:EraseProof-ProgEnv-lookupDef_wf,
+    lem:EraseProof-ProgEnv-ordered, lem:EraseProof-ProgEnv-wf}
+  \leanok
+  \lead{Idea} $\beta$: unique typing and $\Pi$-injectivity give the argument the $\lambda$'s domain,
+  then \code{TrS.inst}; $\zeta$: context conversion, then \code{TrS.inst\_let}; $\delta$:
+  lean4lean's \code{extra} rule or proof irrelevance; applications: \code{appDF}.
 \end{proof}
 
 \begin{lemma}[Subject reduction for evaluation]
   \label{lem:EraseProof-SrcEval-defeq}
   \lean{EraseProof.SrcEval.defeq}
-  \planned
+  \leanok
   \uses{def:EraseProof-SrcEval, def:EraseProof-ProgEnv, def:EraseProof-SubEnv}
-  \lead{In short} If \code{e} is well typed in \code{P}'s model and evaluates to \code{v}, then
-  \code{v} translates to \code{v'} and \hl{\code{e'} and \code{v'} are definitionally equal} at
-  the type of \code{e'}.
+  \srcloc{proof/EraseProof/Source/Defeq.lean}{20}
+  \inherited{L1, L2, L3, L4, L5}
+  \lead{In short} Evaluation of a translated, typed closed term is \hl{a typed definitional
+  equality} of the model.
+  \begin{itemize}
+  \item \lead{Given} \code{henv : ProgEnv P venv}, \code{hsub : SubEnv sigma.decls P}: typing in
+        \code{P}'s model, evaluation over a sub-environment;
+  \item \code{he : TrS venv Us [] e e'}, \code{hT : e' : T} in the model;
+        \code{hev : SrcEval sigma e v};
+  \item \lead{Then} \code{v} translates to some \code{v'} with \code{e'} $\equiv$ \code{v'} at
+        \code{T}.
+  \end{itemize}
   \lead{Reference} \code{subject\_reduction\_eval}, \code{wcbveval\_red}
-  (\code{pcuic/theories/PCUICClassification.v}); Letouzey Lemma 2.
+  (\code{pcuic/theories/PCUICClassification.v}); MetaCoq paper Section 5.4; Letouzey Lemma 2.
 \end{lemma}
 \begin{proof}
-  \uses{lem:EraseProof-TrS-inst, lem:EraseProof-TrS-inst_let, lem:EraseProof-TrS-instLevels,
-    lem:EraseProof-TrS-uniq, lem:EraseProof-ProgEnv-unfold, lem:EraseProof-ProgEnv-ordered,
-    lem:EraseProof-ProgEnv-wf}
-  \lead{Idea} Induction on \code{SrcEval}, one typed step per rule: $\beta$ and $\zeta$ by
-  substitution, $\delta$ by \code{ProgEnv.unfold}, theorems by proof irrelevance; expected
-  footprint L1--L5.
+  \uses{lem:EraseProof-SrcEval-beta_step}
+  \leanok
+  \lead{Idea} Induction on \code{SrcEval}: the typed steps for \code{beta}, \code{zeta},
+  \code{delta}, \code{fixApp}, \code{appCong}; reflexivity for \code{fixAtom}, \code{constAtom},
+  \code{atom}; \code{mdata} by inversion of \code{TrS}.
 \end{proof}
 
 \begin{lemma}[Evaluation in the closure]
@@ -277,4 +329,6 @@
   stuck, while the eraser emits the opaque's body.
 \item \lead{Caveat} Evaluation is call by value (DV-22); evaluations in other orders are not
   covered.
+\item \lead{Caveat} A recursive constant of any type is a value (DV-7): \code{unsafe def x : CN :=
+  x} evaluates to itself, while Lean's compiled code loops on it.
 \end{itemize}

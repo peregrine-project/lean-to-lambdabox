@@ -70,7 +70,7 @@ LABELS = {x['name']: x for x in CONF['inherited_sorry']}   # sorry source -> its
 KINDS = ['definition', 'lemma', 'proposition', 'theorem', 'corollary']
 PREFIX = dict(definition='def', lemma='lem', proposition='prop', theorem='thm', corollary='cor')
 RESULTS = {'lemma', 'proposition', 'theorem', 'corollary'}
-MONADS = {'Lean.Meta.MetaM', 'Lean.Core.CoreM', 'Erasure.EraseM', 'Lean.Elab.Command.CommandElab',
+MONADS = {'Lean.Meta.MetaM', 'Lean.Core.CoreM', 'Lean.Elab.Command.CommandElab',
           'Lean.Elab.Command.CommandElabM', 'Lean.Elab.Term.TermElabM', 'IO', 'EIO', 'BaseIO'}
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

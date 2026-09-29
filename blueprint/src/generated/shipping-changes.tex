@@ -4,7 +4,7 @@
 \section*{At a glance}
 \begin{itemize}
 \item \lead{Source} \code{doc/SHIPPING-CHANGES.md}, rendered by \code{blueprint/scripts/render\_registers.py}; every section below is the register's own text.
-\item \lead{Changes} 17 entries, one commit each, subject \code{shipping(S-<n>): ...}.
+\item \lead{Changes} 21 entries, one commit each, subject \code{shipping(S-<n>): ...}.
 \item \lead{Reported, not fixed} 29 entries.
 \end{itemize}
 
@@ -29,6 +29,10 @@ Entry & Title \\
 \ref{reg:S-15} & The corpus gains the scope-note examples, irreducible-alias programs and unsafe recursion \\
 \ref{reg:S-16} & The erasure traversal is total and generic over its backend \\
 \ref{reg:S-17} & The traversal's context lists its locals, and binder names come from that list \\
+\ref{reg:S-18} & The dependency closure of a program is computed by \texttt{collectDeps}, which \texttt{\#erase} does not call yet \\
+\ref{reg:S-19} & A pure erasability oracle and the monad of a pure backend, which \texttt{\#erase} does not use yet \\
+\ref{reg:S-20} & The pure backend is complete, and \texttt{erasePure} runs the traversal with it, which \texttt{\#erase} does not call yet \\
+\ref{reg:S-21} & \texttt{\#erase} erases programs in the fragment with the pure path \\
 \bottomrule
 \end{tabular}
 
@@ -125,6 +129,14 @@ A regression test is a file \texttt{tests/\allowbreak{}regress/\allowbreak{}\tex
 \end{quote}
 
 It builds the package, elaborates each test in a fresh directory, and compares the files written with the expected ones byte for byte. A test fails if Lean reports an error, if a \texttt{PANIC} message appears (unless the test contains the line \texttt{-{}- regress: allow-panic}), or if any file is missing, extra or different. With \texttt{PEREGRINE=\textless{}path to the peregrine binary\textgreater{}}, it also runs the lines \texttt{-{}- peregrine: validate \textless{}file\textgreater{} [\textless{}option\textgreater{}...]} and \texttt{-{}- peregrine: eval \textless{}file\textgreater{} [\textless{}option\textgreater{}...]} of each test; each must succeed and, when \texttt{tests/\allowbreak{}regress/\allowbreak{}expected-peregrine/\allowbreak{}\textless{}name\textgreater{}/\allowbreak{}\textless{}file\textgreater{}.\textless{}verb\textgreater{}} exists, print exactly that. \texttt{scripts/\allowbreak{}regress.sh -{}-update [TEST...]} rewrites the expected files from the current checkout. CI (\texttt{.github/\allowbreak{}workflows/\allowbreak{}build.yml}) runs \texttt{scripts/\allowbreak{}regress.sh} after the build, without peregrine.
+
+The pure path of the eraser (\texttt{Erasure.erasePure}, S-20), which \texttt{\#erase} takes on the programs in the fragment (S-21), is compared with the \texttt{Meta} path (\texttt{Erasure.erase}) on the corpus examples by
+
+\begin{quote}
+\texttt{scripts/\allowbreak{}pure-harness.sh~[-{}-update]~[-{}-keep~DIR]}
+\end{quote}
+
+It elaborates each file \texttt{tests/\allowbreak{}corpus/\allowbreak{}\textless{}Stem\textgreater{}.lean} with the harness \texttt{tests/\allowbreak{}harness/\allowbreak{}PureHarness.lean} imported. For each \texttt{\#erase ... to \textquotedbl{}\textless{}f\textgreater{}\textquotedbl{}}, the harness computes \texttt{collectDeps} over the elaboration environment; for a program in the fragment it runs \texttt{erasePure} and the \texttt{Meta} path (\texttt{Erasure.erase}), and, at every call of the pure oracle in the pure run, the \texttt{Meta} oracle on the same term in the same local context. Then \texttt{\#erase} runs as usual. The summary has one line per \texttt{\#erase}: out of the fragment and why; or the results of both paths, whether their outputs are byte-identical, which of them the file written by \texttt{\#erase} equals, the number of oracle calls, and the calls at which the two oracles answer differently. It must equal \texttt{tests/\allowbreak{}harness/\allowbreak{}expected/\allowbreak{}pure-harness.txt}; \texttt{-{}-update} rewrites that file. CI runs the harness after \texttt{scripts/\allowbreak{}regress.sh}.
 
 \section{\texorpdfstring{S-1: Change register, corpus and regression harness}{S-1: Change register, corpus and regression harness}}\label{reg:S-1}
 
@@ -648,6 +660,250 @@ No file under \texttt{LeanToLambdaBox/}, no package file, no file under \texttt{
 \item \textbf{Regression test:} \texttt{tests/\allowbreak{}regress/\allowbreak{}traversal\_\allowbreak{}locals.lean} checks \texttt{binderNameOf} and \texttt{fixDefName} on ASCII, non-ASCII and hierarchical names, and the contents of \texttt{locals} and \texttt{lctx} after a \texttt{withLocalDecl} and a \texttt{withLocalDef} (\texttt{\#guard\_\allowbreak{}msgs}); and it pins the output of programs with a binder at every place where the traversal introduces one: a \ensuremath{\lambda} with an ASCII and a non-ASCII binder, a \texttt{let}, a constructor \ensuremath{\eta}-expanded to its arity (\texttt{List.map T.b}), a \texttt{casesOn} with an alternative that is not a \ensuremath{\lambda} (\texttt{g}, \ensuremath{\eta}-expanded through its type) and one that is, a sparse \texttt{casesOn} whose discriminant is let-bound (\texttt{discr}, S-14), a \texttt{Nat} match in machine mode (\texttt{n}), and a recursive definition (the fixpoint definition \texttt{Loc.step}): \texttt{names.ast}, \texttt{step.ast} (default configuration) and \texttt{all.ast} (Peano naturals, which peregrine evaluates to 11, Lean's value). A binder missing from \texttt{locals} would make the test fail on the panic. It fails before (9 errors; the outputs are the same) and passes after.
 \end{itemize}
 
+\section{\texorpdfstring{S-18: The dependency closure of a program is computed by \texttt{collectDeps}, which \texttt{\#erase} does not call yet}{S-18: The dependency closure of a program is computed by collectDeps, which \#erase does not call yet}}\label{reg:S-18}
+
+\begin{itemize}
+\item \textbf{Commit:} the commit whose subject starts with \texttt{shipping(S-18):} (\texttt{git log -{}-grep='\textasciicircum{}shipping(S-18):'}).
+\item \textbf{Files and functions:}
+
+\begin{itemize}
+\item new \texttt{LeanToLambdaBox/\allowbreak{}Erasure/\allowbreak{}Collect.lean} (module \texttt{LeanToLambdaBox.Erasure.Collect}; it imports \texttt{LeanToLambdaBox.Basic} and lean4lean's \texttt{Lean4Lean.Verify.Axioms}):
+
+\begin{itemize}
+\item derived \texttt{DecidableEq} instances for \texttt{ModPath} and \texttt{Kername} (\texttt{instDecidableEqModPath}, \texttt{instDecidableEqKername});
+\item \texttt{Erasure.EraseError}, with the constructors \texttt{outOfFragment}, \texttt{nameCollision}, \texttt{fuel}, \texttt{failed};
+\item \texttt{Erasure.EnvView}, with the fields \texttt{find?}, \texttt{isExtern}, \texttt{inlineAttr?}, and \texttt{Erasure.EnvView.ofEnvironment}, which reads them from an \texttt{Environment} (\texttt{Environment.find?}, \texttt{isExtern}, \texttt{Compiler.getInlineAttribute?});
+\item \texttt{Erasure.findConst}: lookup by name in a list of declarations;
+\item \texttt{Erasure.exprConsts}: the constants of a term, or \texttt{outOfFragment} for a free variable, a metavariable, a universe metavariable (tested with lean4lean's \texttt{Level.hasMVar'}), a literal or a projection;
+\item \texttt{Erasure.declDeps}: the names that an axiom, a definition, a theorem or an opaque depends on (its type, its value, the members \texttt{all} of its block), or \texttt{outOfFragment} for a quotient, an inductive type, a constructor or a recursor;
+\item \texttt{Erasure.closure}: the depth-first closure of a list of names, each name expanded once, with a bound on its steps (\texttt{fuel} when reached); a name the view does not have is \texttt{outOfFragment}, and a view that answers with a declaration of another name is \texttt{failed};
+\item \texttt{Erasure.findCollision}: two declarations of a list with the same kername (\texttt{toKername});
+\item \texttt{Erasure.collectFuel := 2 \textasciicircum{} 32} and \texttt{Erasure.collectDeps view e}: the closure of the constants of \texttt{e}, and \texttt{nameCollision} if two of its declarations have the same kername.
+\end{itemize}
+\item \texttt{LeanToLambdaBox.lean}: imports the new module.
+\item new \texttt{tests/\allowbreak{}regress/\allowbreak{}collect\_\allowbreak{}deps.lean}, its expected outputs \texttt{tests/\allowbreak{}regress/\allowbreak{}expected/\allowbreak{}collect\_\allowbreak{}deps/} (2 files) and \texttt{tests/\allowbreak{}regress/\allowbreak{}expected-peregrine/\allowbreak{}collect\_\allowbreak{}deps/} (2 files).
+\item \texttt{doc/\allowbreak{}SHIPPING-CHANGES.md}: this entry.
+\end{itemize}
+\item \textbf{Why necessary:} DESIGN Q8, S-C. The verified path erases a program over its own environment, the dependency closure of the term, not over the whole Lean environment, and \texttt{collectDeps} computes that closure from a view of the environment. DESIGN Q8 S-E routes on its result: a program whose closure meets an inductive type, a literal, a projection, a metavariable or an unknown constant (\texttt{outOfFragment}) is to keep the unchanged path. The verification's statements \texttt{collectDeps\_\allowbreak{}spec}, \texttt{collectDeps\_\allowbreak{}sub} and \texttt{collectDeps\_\allowbreak{}not\_\allowbreak{}outOfFragment} are about this function, so it is total and works on lists, which proofs and kernel evaluation see through. It tests universe metavariables with lean4lean's structural \texttt{Level.hasMVar'}: Lean's \texttt{Level.hasMVar} reads a cached field, which lean4lean relates to \texttt{hasMVar'} only by an axiom (\texttt{Level.hasMVar\_\allowbreak{}eq}, \texttt{Lean4Lean/\allowbreak{}Verify/\allowbreak{}Axioms.lean:289}). The collision check makes the kernames of the closure distinct, since \texttt{toKername} is not injective (R-3). \texttt{findCollision} compares kernames with the derived \texttt{BEq}; the \texttt{DecidableEq} instances decide the equality of kernames that the verification states (\texttt{KernameInj}).
+\item \textbf{Behaviour before:} none of these declarations exists. Reproduction: \texttt{tests/\allowbreak{}regress/\allowbreak{}collect\_\allowbreak{}deps.lean} at the parent commit fails with 21 errors (\texttt{Unknown identifier collectDeps}, \texttt{Unknown identifier EnvView.ofEnvironment}, \texttt{The expected type EnvView is not an inductive type}, \ldots{}); its two output files are those expected.
+\item \textbf{Behaviour after:} \texttt{\#erase} is unchanged: nothing calls the new functions. Over the elaboration environment (\texttt{EnvView.ofEnvironment}), \texttt{collectDeps} gives \texttt{[A, CN, one]} for \texttt{one (fun a : A =\textgreater{} a)} (\texttt{axiom A : Type}, \texttt{def CN := (A \ensuremath{\to} A) \ensuremath{\to} A \ensuremath{\to} A}, \texttt{def one : CN := fun s z =\textgreater{} s z}); \texttt{[one, ub, ua, A, CN, useU]} for a constant \texttt{useU} that uses a two-member \texttt{unsafe} block \texttt{ua}/\texttt{ub}, so the block is closed under its members; \texttt{outOfFragment \textquotedbl{}level metavariable\textquotedbl{}} for \texttt{@pid} at a universe metavariable; \texttt{outOfFragment \textquotedbl{}literal\textquotedbl{}} for \texttt{\ensuremath{\langle\!\langle}a b\ensuremath{\rangle\!\rangle}}, whose closure contains \texttt{a\_\allowbreak{}u32b} (the same kername) and a literal, so the scan of the fragment comes before the collision check; and \texttt{nameCollision c\_\allowbreak{}u32d \ensuremath{\langle\!\langle}c d\ensuremath{\rangle\!\rangle}} for an in-fragment closure with those two constants. The kernel evaluates \texttt{collectDeps} with its bound \texttt{2 \textasciicircum{} 32} (\texttt{decide}). No new declaration depends on an axiom of lean4lean: \texttt{exprConsts}, \texttt{declDeps}, \texttt{closure}, \texttt{findConst} and the two instances depend on no axiom, \texttt{findCollision}, \texttt{collectDeps} and \texttt{EnvView.ofEnvironment} on \texttt{propext}, \texttt{Classical.choice} and \texttt{Quot.sound}. Every file that imports \texttt{LeanToLambdaBox} now also imports \texttt{Lean4Lean.Verify.Axioms} and, through it, 25 modules of \texttt{batteries} and 2 more of \texttt{lean4lean} (28 modules): their declarations, including lean4lean's axioms and \texttt{@[simp]} axioms about \texttt{Expr} and \texttt{Level}, are in scope. For every constant declared outside these 28 modules, the \texttt{@[inline]}-family attribute, \texttt{@[extern]}, \texttt{@[implemented\_\allowbreak{}by]}, the reducibility, the instance status and the \texttt{@[csimp]} replacement are the same with and without them (64119 constants with a value other than the default, all equal); the 16 \texttt{@[csimp]} lemmas that the 28 modules add all replace functions declared in \texttt{batteries} (\texttt{Batteries.Data.List.Basic}, e.g. \texttt{List.sublists}). The first \texttt{lake lean} of the benchmark pipeline in \texttt{benchmarks/\allowbreak{}via\_\allowbreak{}malfunction} builds the 28 modules once.
+\item \textbf{Effect on emitted .ast (corpus):} byte-identical for all 704 files; \texttt{scripts/\allowbreak{}corpus-diff.sh} against the corpus of S-17 reports 704 identical. The corpus logs are identical except for the job counts of \texttt{lake} (6 jobs become 37 for the build of the package, 21 become 52 for each \texttt{lake lean} of the benchmarks) and the addresses in the backtraces of the 4 \texttt{PANIC} messages of \texttt{Defects.lean}. In a benchmark workspace where the 28 modules are not built yet, the first benchmark log also lists their build.
+\item \textbf{Regression test:} \texttt{tests/\allowbreak{}regress/\allowbreak{}collect\_\allowbreak{}deps.lean} proves by \texttt{decide} that \texttt{collectDeps} gives \texttt{[A, CN, one]} for \texttt{one (fun a : A =\textgreater{} a)} over a view built by hand; checks with \texttt{\#guard\_\allowbreak{}msgs} its results over the elaboration environment on that program, on the \texttt{unsafe} block, on \texttt{@pid} at a universe metavariable, on the collision-first program and on the in-fragment collision (as above); proves by \texttt{decide}, over views built by hand, the closure \texttt{[A, B]} of \texttt{B := A}, that the collision-first program is \texttt{outOfFragment}, that the in-fragment collision is \texttt{nameCollision}, that a constant missing from the view is \texttt{outOfFragment}, and that a view answering \texttt{find? a} with a declaration named \texttt{b} gives \texttt{failed}; and pins the output of \texttt{\#erase} on \texttt{one (fun a : A =\textgreater{} a)} (\texttt{nv1.ast}, which peregrine validates and evaluates to \texttt{\ensuremath{\lambda}z. (\ensuremath{\lambda}a. a) z}). It fails before (21 errors; the outputs are the same) and passes after.
+\end{itemize}
+
+\section{\texorpdfstring{S-19: A pure erasability oracle and the monad of a pure backend, which \texttt{\#erase} does not use yet}{S-19: A pure erasability oracle and the monad of a pure backend, which \#erase does not use yet}}\label{reg:S-19}
+
+\begin{itemize}
+\item \textbf{Commit:} the commit whose subject starts with \texttt{shipping(S-19):} (\texttt{git log -{}-grep='\textasciicircum{}shipping(S-19):'}).
+\item \textbf{Files and functions:}
+
+\begin{itemize}
+\item new \texttt{LeanToLambdaBox/\allowbreak{}Erasure/\allowbreak{}Pure.lean} (module \texttt{LeanToLambdaBox.Erasure.Pure}; it imports \texttt{LeanToLambdaBox.Erasure} and \texttt{LeanToLambdaBox.Erasure.Collect}):
+
+\begin{itemize}
+\item the oracle, in namespace \texttt{Erasure.Pure}:
+
+\begin{itemize}
+\item \texttt{instLevel ps us}: the level with each parameter of \texttt{ps} replaced by the level at the same position of \texttt{us}, without normalization; \texttt{instLevels ps us}: the same on every sort and constant of a term;
+\item \texttt{Ctx}, whose only field \texttt{decls : List ConstantInfo} holds the declarations the oracle reads;
+\item \texttt{alwaysZero}: a level that is zero under every assignment of its parameters, read off its shape (\texttt{zero}, \texttt{max} of two such levels, \texttt{imax} whose right side is one);
+\item \texttt{findLocal}: the local of a free variable in a list of \texttt{Erasure.Local}s;
+\item \texttt{whnf cx fuel ls e}: the weak-head normal form of \texttt{e} by head \ensuremath{\beta} (with lean4lean's \texttt{Expr.instantiate1'}), \ensuremath{\zeta} (a \texttt{let}, a local of \texttt{ls} with a value), \texttt{mdata} removal, and \ensuremath{\delta} of every definition (\texttt{defnInfo}) of \texttt{cx.decls} used at its number of universe levels, whether or not it is \texttt{@[irreducible]};
+\item \texttt{inferType cx fuel ls \ensuremath{\Gamma} e}: the type of \texttt{e}, inferred without checking. Inside \texttt{e} bound variables stay de Bruijn indices: \texttt{\ensuremath{\Gamma}} holds the types of the binders entered, and \texttt{bvar i} has type \texttt{\ensuremath{\Gamma}[i]} lifted by \texttt{i + 1} (lean4lean's \texttt{Expr.liftLooseBVars'}). A free variable has its type in \texttt{ls}, a constant the type of its declaration at the given levels. The type of the function of an application is reduced by \texttt{whnf} to a \ensuremath{\Pi}, and the types of the domain and codomain of a \ensuremath{\Pi} to sorts;
+\item \texttt{isArity cx fuel ls T}: \texttt{whnf} of \texttt{T} is a sort, or a \ensuremath{\Pi} whose codomain is an arity;
+\item \texttt{isErasable cx fuel ls e}: the type \texttt{T} of \texttt{e} is an arity, or the type of \texttt{T} reduces to a sort that is \texttt{alwaysZero}.
+\end{itemize}
+
+Each of \texttt{whnf}, \texttt{inferType}, \texttt{isArity} recurses on its fuel and fails with \texttt{EraseError.fuel} when it runs out. A literal, a projection, a metavariable, a loose bound variable, or a constant or free variable the oracle does not know gives \texttt{outOfFragment}; a constant at the wrong number of levels, an application whose function type does not reduce to a \ensuremath{\Pi}, and a \ensuremath{\Pi} whose domain or codomain type does not reduce to a sort give \texttt{failed};
+\item \texttt{Erasure.oracleFuel := 2 \textasciicircum{} 20}, the fuel of one oracle call;
+\item \texttt{Erasure.PureCtx} (fields \texttt{decls : List ConstantInfo} and \texttt{view : EnvView}), \texttt{Erasure.PureState} (field \texttt{next : Nat}) and \texttt{Erasure.PureM := ReaderT PureCtx (StateT PureState (Except EraseError))}, the monad of a backend without \texttt{Meta}; \texttt{Erasure.EraseT.runPure x st tc pc ps} runs an action \texttt{x} of \texttt{EraseT PureM} from the traversal's state \texttt{st} and context \texttt{tc} and the backend's context \texttt{pc} and state \texttt{ps};
+\item operations of \texttt{PureM}: \texttt{Erasure.PureM.findConst?} (\texttt{findConst} on \texttt{decls}), \texttt{Erasure.PureM.freshFVarId} (the free variable \texttt{\_\allowbreak{}pure.\textless{}next\textgreater{}}, then \texttt{next + 1}), \texttt{Erasure.PureM.instantiate1} (\texttt{Expr.instantiate1'}), \texttt{Erasure.PureM.isErasable ls e} (\texttt{Pure.isErasable \ensuremath{\langle}decls\ensuremath{\rangle} oracleFuel ls e}, whose error it throws), \texttt{Erasure.PureM.casesInfo?} and \texttt{Erasure.PureM.ctorArity?} (always \texttt{none}).
+\end{itemize}
+\item \texttt{LeanToLambdaBox.lean}: imports the new module.
+\item new \texttt{tests/\allowbreak{}regress/\allowbreak{}pure\_\allowbreak{}oracle.lean}, its expected outputs \texttt{tests/\allowbreak{}regress/\allowbreak{}expected/\allowbreak{}pure\_\allowbreak{}oracle/} (2 files) and \texttt{tests/\allowbreak{}regress/\allowbreak{}expected-peregrine/\allowbreak{}pure\_\allowbreak{}oracle/} (1 file).
+\item \texttt{doc/\allowbreak{}SHIPPING-CHANGES.md}: this entry.
+\end{itemize}
+\item \textbf{Why necessary:} DESIGN Q6 and Q8, S-D. The erasability test of \texttt{\#erase}, \texttt{Erasure.isErasable}, runs \texttt{Meta.inferType}, \texttt{Meta.isProp} and \texttt{Meta.isTypeFormerType} in \texttt{MetaM}, whose state and operations are opaque to proofs, so its answers cannot be proved sound. The verification proves that an "erasable" answer of the oracle is sound (\texttt{Pure.isErasable\_\allowbreak{}sound}), which needs the oracle to be a total function on data: lists of declarations and locals, fuel, and lean4lean's \texttt{Expr.instantiate1'} and \texttt{Expr.liftLooseBVars'}, which are definitions (Lean's \texttt{Expr.instantiate1} and \texttt{Expr.liftLooseBVars} are related to them only by lean4lean's axioms \texttt{Expr.instantiate1\_\allowbreak{}eq} and \texttt{Expr.liftLooseBVars\_\allowbreak{}eq}). The kernel can evaluate it (\texttt{decide}). Its reductions unfold every definition, as the reductions of MetaRocq's \texttt{is\_\allowbreak{}erasableb} (\texttt{erasure/\allowbreak{}theories/\allowbreak{}ErasureFunction.v:894}), at \texttt{RedFlags.default}, unfold every constant with a body; this is decision 13 of checkpoint 1. \texttt{PureM}, its operations and \texttt{EraseT.runPure} are the backend with which the verified path is to run the traversal of S-16 (S-20 completes the backend), and the verification's statements about that run are stated with \texttt{EraseT.runPure}. The \texttt{Meta} oracle \texttt{Erasure.isErasable} is unchanged, and \texttt{\#erase} keeps using it.
+\item \textbf{Behaviour before:} none of these declarations exists. Reproduction: \texttt{tests/\allowbreak{}regress/\allowbreak{}pure\_\allowbreak{}oracle.lean} at the parent commit fails with 49 errors (\texttt{Unknown constant Pure.isErasable}, \texttt{Unknown identifier PureM.isErasable}, \texttt{Unknown constant Pure.Ctx}, \ldots{}); its two output files are those expected.
+\item \textbf{Behaviour after:} \texttt{\#erase} is unchanged: nothing calls the new functions. The kernel evaluates the oracle at \texttt{oracleFuel} (\texttt{decide}), on environments built by hand: the ill-typed spine \texttt{hq A a} of a proof \texttt{hq : Q}, where \texttt{Q : Prop := \ensuremath{\forall} P : Prop, P \ensuremath{\to} P}, \texttt{a : A} and \texttt{A : Type}, is kept; the proof \texttt{hq.\{v\} : P.\{v\}} of \texttt{P.\{v\} : Sort v} is kept at the parameter \texttt{v} and erased at level \texttt{0}; with \texttt{IProp : Type := Prop}, \texttt{R : IProp}, \texttt{hR : R}, \texttt{Endo : Type := A \ensuremath{\to} A}, \texttt{fI : Endo} and \texttt{a : A}, the oracle types and keeps \texttt{fun (\_\allowbreak{} : R) (x : A) =\textgreater{} x} and \texttt{fI a}, and erases \texttt{R} and \texttt{hR}. With fuel 1 the oracle fails on \texttt{fI a} with \texttt{fuel \textquotedbl{}inferType\textquotedbl{}}, and with fuel 8 it keeps it. \texttt{PureM.freshFVarId} from the counter 3 gives \texttt{\_\allowbreak{}pure.3}, then \texttt{\_\allowbreak{}pure.4}, and leaves 5. Over the declarations that \texttt{collectDeps} collects from the elaboration environment for \texttt{pidHR : R := pid hR}, with \texttt{IProp} made \texttt{@[irreducible]} after \texttt{R} and \texttt{hR} are declared, the oracle erases \texttt{R}, \texttt{hR} and \texttt{pidHR} and keeps \texttt{pid.\{1\}}, while \texttt{\#erase Irr.pidHR} keeps \texttt{R} and \texttt{hR} (R-14). \texttt{instLevel}, \texttt{Ctx}, \texttt{findLocal}, \texttt{oracleFuel}, \texttt{PureCtx}, \texttt{PureState}, \texttt{PureM} and the operations of \texttt{PureM} other than \texttt{isErasable} depend on no axiom; \texttt{instLevels}, \texttt{alwaysZero}, \texttt{whnf}, \texttt{inferType}, \texttt{isArity}, \texttt{Pure.isErasable} and \texttt{PureM.isErasable} on \texttt{propext}; \texttt{EraseT.runPure} on \texttt{propext}, \texttt{Classical.choice} and \texttt{Quot.sound}, as \texttt{EraseT} does (the hash maps of \texttt{ErasureState} and \texttt{TravCtx}). None depends on an axiom of lean4lean. \texttt{whnf}, \texttt{inferType}, \texttt{isArity}, \texttt{alwaysZero}, \texttt{instLevel} and \texttt{instLevels} have equation lemmas.
+\item \textbf{Effect on emitted .ast (corpus):} byte-identical for all 704 files; \texttt{scripts/\allowbreak{}corpus-diff.sh} against the corpus of S-18 reports 704 identical. The corpus logs are identical except for the job counts of \texttt{lake} (37 jobs become 38 for the build of the package, 52 become 53 for each \texttt{lake lean} of the benchmarks) and the addresses in the backtraces of the 4 \texttt{PANIC} messages of \texttt{Defects.lean}.
+\item \textbf{Regression test:} \texttt{tests/\allowbreak{}regress/\allowbreak{}pure\_\allowbreak{}oracle.lean} proves by \texttt{decide}, at \texttt{oracleFuel}, the oracle's answers above on the three environments built by hand (the environments and terms of the verification's register tests \texttt{defHead\_\allowbreak{}kept}, \texttt{levelDependent\_\allowbreak{}kept} and \texttt{irreducibleAlias}, DESIGN Q13); proves by \texttt{decide} that fuel 1 and fuel 0 give \texttt{fuel} and fuel 8 an answer, and pins the messages with \texttt{\#guard\_\allowbreak{}msgs}; proves by \texttt{decide} the results of \texttt{PureM.findConst?}, \texttt{casesInfo?}, \texttt{ctorArity?} and \texttt{isErasable} (its answers, the error it throws on an unknown free variable, and the types it reads from a list of locals, one of them with a value), and by \texttt{rfl} one instance of \texttt{PureM.instantiate1}; pins with \texttt{\#guard\_\allowbreak{}msgs} \texttt{PureM.freshFVarId} and a run of \texttt{EraseT.runPure}; pins with \texttt{\#guard\_\allowbreak{}msgs} the oracle's answers over the elaboration environment on \texttt{Irr.R}, \texttt{Irr.hR}, \texttt{Irr.pidHR} and \texttt{Irr.pid.\{1\}}; and pins the output of \texttt{\#erase} on \texttt{Irr.pidHR} (\texttt{pidHR.ast}, which peregrine validates). It fails before (49 errors; the outputs are the same) and passes after.
+\end{itemize}
+
+\section{\texorpdfstring{S-20: The pure backend is complete, and \texttt{erasePure} runs the traversal with it, which \texttt{\#erase} does not call yet}{S-20: The pure backend is complete, and erasePure runs the traversal with it, which \#erase does not call yet}}\label{reg:S-20}
+
+\begin{itemize}
+\item \textbf{Commit:} the commit whose subject starts with \texttt{shipping(S-20):} (\texttt{git log -{}-grep='\textasciicircum{}shipping(S-20):'}).
+\item \textbf{Files and functions:}
+
+\begin{itemize}
+\item \texttt{LeanToLambdaBox/\allowbreak{}Erasure/\allowbreak{}Pure.lean}:
+
+\begin{itemize}
+\item new operations of \texttt{PureM}: \texttt{Erasure.PureM.declInfo?} (\texttt{findConst?}: the declaration itself, where the \texttt{CoreM} backend's \texttt{Compiler.LCNF.getDeclInfo?} prefers an \texttt{\_\allowbreak{}unsafe\_\allowbreak{}rec} version), \texttt{Erasure.PureM.unsafeRecBase?} (always \texttt{none}) and \texttt{Erasure.PureM.prepare} (returns its term);
+\item new instance \texttt{Erasure.instBackendPureM : Backend PureM}. \texttt{findConst?}, \texttt{declInfo?}, \texttt{freshFVarId}, \texttt{instantiate1}, \texttt{casesInfo?}, \texttt{ctorArity?} and \texttt{prepare} are the operations of \texttt{PureM}, and \texttt{isErasable} is \texttt{PureM.isErasable} on the traversal's locals; \texttt{unsafeRecBase?}, a field without the monad, is \texttt{none}; \texttt{inferType} is \texttt{Pure.inferType} at \texttt{oracleFuel} on the locals, whose error it throws; \texttt{argMask} keeps every field; \texttt{isExtern} and \texttt{inlineAttr?} read the view; \texttt{isInstance} is \texttt{false}; \texttt{log} does nothing; \texttt{unknownConstant n} throws \texttt{outOfFragment \textquotedbl{}unknown constant n\textquotedbl{}}, and \texttt{outOfFuel site} throws \texttt{fuel site};
+\item new \texttt{Erasure.erasePure view cfg decls e}: runs \texttt{visitExpr travFuel e} with this backend (\texttt{EraseT.runPure} from the empty traversal state, the configuration \texttt{cfg}, the backend context \texttt{\ensuremath{\langle}decls, view\ensuremath{\rangle}} and the counter 0), and assembles the program \texttt{.untyped gdecls (some t)} and the inlinings as \texttt{erase} does, without \texttt{prepare};
+\item new \texttt{Erasure.nameOccurs} (the traversal's \texttt{name\_\allowbreak{}occurs} with exact names), \texttt{Erasure.isRecursiveDecl} (the block \texttt{all} does not have exactly one member, or the value mentions the constant's own name) and \texttt{Erasure.axiomatized} (a single declaration tagged \texttt{@[extern]}, under \texttt{extern := .preferAxiom});
+\item the module docstring.
+\end{itemize}
+\item new \texttt{tests/\allowbreak{}regress/\allowbreak{}pure\_\allowbreak{}backend.lean}, its expected outputs \texttt{tests/\allowbreak{}regress/\allowbreak{}expected/\allowbreak{}pure\_\allowbreak{}backend/} (20 files) and \texttt{tests/\allowbreak{}regress/\allowbreak{}expected-peregrine/\allowbreak{}pure\_\allowbreak{}backend/} (7 files).
+\item new \texttt{tests/\allowbreak{}harness/\allowbreak{}PureHarness.lean} (the harness), \texttt{tests/\allowbreak{}harness/\allowbreak{}expected/\allowbreak{}pure-harness.txt} (its expected summary) and \texttt{scripts/\allowbreak{}pure-harness.sh}.
+\item \texttt{.github/\allowbreak{}workflows/\allowbreak{}build.yml}: new step "Pure path next to the Meta path on the corpus".
+\item \texttt{doc/\allowbreak{}SHIPPING-CHANGES.md}: this entry, and the section "Regression tests".
+\end{itemize}
+\item \textbf{Why necessary:} DESIGN Q7 and Q8, S-F, with the \texttt{erasePure} of S-D. The verification proves its theorem about \texttt{erasePure}: the traversal of \texttt{\#erase} run with a backend whose every operation is a function on data. With the operations of S-19 and those added here, \texttt{PureM} is an instance of \texttt{Backend}, so \texttt{erasePure} runs the traversal of S-16 itself, not a copy of it. On this backend the traversal erases kernel values, as MetaRocq's \texttt{erase} erases the kernel term (\texttt{erasure/\allowbreak{}theories/\allowbreak{}ErasureFunction.v:1309}, \texttt{erase\_\allowbreak{}constant\_\allowbreak{}body} on \texttt{cst\_\allowbreak{}body}): \texttt{prepare} is the identity, since \texttt{macro\_\allowbreak{}inline} and matcher inlining give a term that is not an erasure of the kernel value, and csimp rests on an \texttt{Eq} theorem; \texttt{declInfo?} finds the declaration itself and \texttt{unsafeRecBase?} is \texttt{none}, since a user constant \texttt{x.\_\allowbreak{}unsafe\_\allowbreak{}rec} is unrelated to \texttt{x}. \texttt{nameOccurs}, \texttt{isRecursiveDecl} and \texttt{axiomatized} are the tests of \texttt{visitMutual} at this backend, which the verification's specification reads (\texttt{RecursiveDecl}, and the \texttt{@[extern]} remapping of the evaluation environment). PLAN \S{}3 makes the harness the gate of this entry: on the corpus programs in the fragment, the outputs and oracle answers of the pure path must equal those of the \texttt{Meta} path, except where DESIGN Q6 and Q8 (S-E) expect a difference.
+\item \textbf{Behaviour before:} none of these declarations exists. Reproduction: \texttt{tests/\allowbreak{}regress/\allowbreak{}pure\_\allowbreak{}backend.lean} at the parent commit fails with 38 errors (\texttt{Unknown identifier erasePure}, \texttt{Unknown constant nameOccurs}, failed synthesis of \texttt{Backend PureM}, \ldots{}); its eight \texttt{\#erase} outputs are those expected. The harness does not compile (\texttt{erasePure} is unknown).
+\item \textbf{Behaviour after:} \texttt{\#erase} is unchanged: nothing it runs calls the new declarations.
+
+\begin{itemize}
+\item At the pure backend the traversal's \texttt{name\_\allowbreak{}occurs} is \texttt{nameOccurs} by definition: \texttt{\ensuremath{\forall} n e, name\_\allowbreak{}occurs (m := PureM) n e = nameOccurs n e} holds by \texttt{rfl}. The kernel unfolds both structural recursions; the elaborator needs \texttt{smartUnfolding} off, or \texttt{delta name\_\allowbreak{}occurs nameOccurs} first. So \texttt{visitMutual}'s test \texttt{single\_\allowbreak{}decl \&\& !name\_\allowbreak{}occurs name value} is \texttt{!isRecursiveDecl ci} for the declaration \texttt{ci} that \texttt{declInfo? name} finds.
+\item Over the elaboration environment, \texttt{isRecursiveDecl} holds for the \texttt{unsafe} recursive \texttt{uf} and not for \texttt{one}, \texttt{oneU} and the \texttt{@[extern]} definition \texttt{ext}; \texttt{axiomatized} holds for \texttt{ext} under the default configuration only.
+\item \texttt{erasePure}, after \texttt{collectDeps}, gives the output of \texttt{\#erase} on \texttt{one (fun a : A =\textgreater{} a)} (NV-1; peregrine evaluates it to \texttt{\ensuremath{\lambda}z. (\ensuremath{\lambda}a. a) z}) and on the unsafe recursion \texttt{uf one.\{0\}} (a fixpoint; peregrine evaluates it to the value of \texttt{oneU}). It keeps the call \texttt{mfirst one one} that \texttt{\#erase} replaces by \texttt{one} (\texttt{@[macro\_\allowbreak{}inline] mfirst}). It erases \texttt{pidHR : R := pid hR}, whose type \texttt{R : IProp} is a proposition only through the \texttt{@[irreducible]} alias \texttt{IProp := Prop}, to \texttt{(Untyped () (Some tBox))}, where \texttt{\#erase} keeps it. It makes the \texttt{@[extern]} definition \texttt{ext} an axiom under the default configuration and keeps its body under \texttt{extern := .preferLogical}. It logs nothing, where \texttt{\#erase} logs, e.g., \texttt{No value found for name PB.R, emitting axiom.} A constant missing from the declarations fails with \texttt{outOfFragment \textquotedbl{}unknown constant\textquotedbl{}} (from the oracle), an ill-typed application with \texttt{failed \textquotedbl{}not a function\textquotedbl{}}, and \texttt{visitExpr} at fuel 1 with \texttt{fuel \textquotedbl{}visitApp\textquotedbl{}}.
+\item The harness on the corpus: of 292 \texttt{\#erase} commands, 119 are out of the fragment, 2 have a \texttt{collectDeps} error, and 171 are in the fragment (25 of \texttt{Scope.lean}, 122 of \texttt{Examples.lean}, 12 of \texttt{Names.lean}, 6 of \texttt{IrrAlias.lean}, 6 of \texttt{UnsafeRec.lean}; each program of the last four files is erased under two configurations). The output of the pure path equals the output of the \texttt{Meta} path byte for byte on 159 of them, and on every in-fragment program except these:
+
+\begin{itemize}
+\item \texttt{attrEx} (both configurations): \texttt{\#erase} inlines the \texttt{@[macro\_\allowbreak{}inline]} \texttt{mfirst}, so its \texttt{attrEx} is \texttt{inlTwo}; the pure path keeps \texttt{mfirst inlTwo three} and declares \texttt{mfirst}, \texttt{three} and \texttt{add} in addition;
+\item \texttt{irrAxiomArg}, \texttt{irrThmArg}: the proof arguments \texttt{hR}, \texttt{hR2} become \texttt{\ensuremath{\Box}}, and their declarations disappear;
+\item \texttt{pidHR}: \texttt{(Untyped () (Some tBox))};
+\item \texttt{useFI}, \texttt{useLamHR}: \texttt{\#erase} fails (\texttt{function expected}, \texttt{type expected}), and the pure path gives an output;
+\item \texttt{N\_\allowbreak{}collision} (both configurations): \texttt{collectDeps} reports \texttt{nameCollision Nm.two\_\allowbreak{}u39 Nm.two'}.
+\end{itemize}
+
+The 6 outputs of \texttt{UnsafeRec.lean} are byte-identical on both paths. The pure oracle never fails. Of its 5735 calls, 10 get an answer that differs from the \texttt{Meta} oracle's: \texttt{Irr.fI Irr.two} in \texttt{useFI} (the pure oracle keeps it; \texttt{Meta} fails with \texttt{function expected}), and \texttt{hR} in \texttt{irrAxiomArg}, \texttt{hR2} in \texttt{irrThmArg}, \texttt{Irr.pidHR} and \texttt{Irr.lamHR Irr.two} in \texttt{useLamHR} (the pure oracle erases them; \texttt{Meta} keeps them), each under both configurations. These are the calls of DESIGN Q6 ("Decision 13 = A: measured") without the two in its copies of \texttt{irrAxiomArg} and \texttt{irrThmArg}, which the corpus does not contain; on the 67 in-fragment programs of \texttt{Examples.lean} and \texttt{Names.lean} the pure run makes 2351 oracle calls under each configuration, the number measured there. The files that \texttt{\#erase} writes during the harness run are byte-identical to the corpus.
+\item Axioms: \texttt{PureM.declInfo?}, \texttt{PureM.unsafeRecBase?} and \texttt{PureM.prepare} depend on none; \texttt{nameOccurs} and \texttt{axiomatized} on \texttt{propext}; \texttt{isRecursiveDecl}, the instance and \texttt{erasePure} on \texttt{propext}, \texttt{Classical.choice} and \texttt{Quot.sound}. None depends on an axiom of lean4lean.
+\end{itemize}
+\item \textbf{Effect on emitted .ast (corpus):} byte-identical for all 704 files; \texttt{scripts/\allowbreak{}corpus-diff.sh} against the corpus of S-19 reports 704 identical. The corpus logs are identical except for the addresses in the backtraces of the 4 \texttt{PANIC} messages of \texttt{Defects.lean}.
+\item \textbf{Regression test:} \texttt{tests/\allowbreak{}regress/\allowbreak{}pure\_\allowbreak{}backend.lean} proves by \texttt{rfl} the operations of the instance (\texttt{declInfo?}, \texttt{findConst?}, \texttt{unsafeRecBase?}, \texttt{remove\_\allowbreak{}unsafe\_\allowbreak{}rec}, \texttt{prepare}, \texttt{isInstance}, \texttt{log}, \texttt{instantiate1}, \texttt{isErasable}) and that \texttt{name\_\allowbreak{}occurs} is \texttt{nameOccurs} at the pure backend (pointwise and as functions); proves that \texttt{visitMutual}'s test is \texttt{isRecursiveDecl}; pins with \texttt{\#guard\_\allowbreak{}msgs} \texttt{isRecursiveDecl} and \texttt{axiomatized} on declarations of the elaboration environment, the errors of \texttt{erasePure} above, and the results of \texttt{unknownConstant}, \texttt{outOfFuel} and \texttt{argMask}; and, with a command \texttt{\#erase\_\allowbreak{}pure} defined in the test (\texttt{collectDeps} and \texttt{erasePure} on a term elaborated as \texttt{\#erase} elaborates it), pins next to the output of \texttt{\#erase} the outputs of the pure path on the programs above (\texttt{nv1}, \texttt{ufOne}, \texttt{useM}, \texttt{pidHR}, \texttt{useExt}, \texttt{useExtL}), which peregrine validates, evaluating \texttt{nv1} and \texttt{ufOne}. It fails before (38 errors; the outputs of \texttt{\#erase} are the same) and passes after. \texttt{scripts/\allowbreak{}pure-harness.sh} pins the summary of the comparison above; before, the harness does not compile.
+\end{itemize}
+
+\section{\texorpdfstring{S-21: \texttt{\#erase} erases programs in the fragment with the pure path}{S-21: \#erase erases programs in the fragment with the pure path}}\label{reg:S-21}
+
+\begin{itemize}
+\item \textbf{Commit:} the commit whose subject starts with \texttt{shipping(S-21):} (\texttt{git log -{}-grep='\textasciicircum{}shipping(S-21):'}).
+\item \textbf{Files and functions:}
+
+\begin{itemize}
+\item new \texttt{LeanToLambdaBox/\allowbreak{}Erasure/\allowbreak{}Entry.lean}:
+
+\begin{itemize}
+\item \texttt{Erasure.Route} (\texttt{viaPure r}, \texttt{viaMeta});
+\item \texttt{Erasure.route view cfg e}: \texttt{collectDeps view e = ok decls} gives \texttt{viaPure (erasePure view cfg decls e)}, \texttt{outOfFragment} gives \texttt{viaMeta}, and every other error \texttt{err} gives \texttt{viaPure (error err)};
+\item \texttt{Erasure.eraseEntry view cfg e : CoreM (Program \ensuremath{\times} List Kername)}: \texttt{viaPure (ok r)} returns \texttt{r}, \texttt{viaPure (error err)} throws \texttt{erasure failed: \textless{}err.describe\textgreater{}}, \texttt{viaMeta} runs \texttt{erase e cfg};
+\item \texttt{Erasure.EraseError.describe}, the text of an error in that message.
+\end{itemize}
+\item new \texttt{LeanToLambdaBox/\allowbreak{}Erasure/\allowbreak{}Command.lean}: the \texttt{\#erase} syntax \texttt{Erasure.erasestx} and its elaborator \texttt{Erasure.eraseElab}, moved from \texttt{LeanToLambdaBox/\allowbreak{}Erasure.lean}. The moved code is unchanged except for one step: \texttt{erase e cfg} becomes \texttt{eraseEntry view cfg e}, with \texttt{view := EnvView.ofEnvironment (\ensuremath{\leftarrow} getEnv)}.
+\item \texttt{LeanToLambdaBox/\allowbreak{}Erasure.lean}: the syntax and the elaborator are removed.
+\item \texttt{LeanToLambdaBox.lean}: imports the two new modules.
+\item corpus sources:
+
+\begin{itemize}
+\item \texttt{tests/\allowbreak{}corpus/\allowbreak{}Scope.lean} gains \texttt{\#erase @Scope.pid.\{1\}} (\texttt{pidU1.ast}) and \texttt{\#erase @Scope.pcomp.\{1,1,1\}} (\texttt{pcompU111.ast});
+\item \texttt{tests/\allowbreak{}corpus/\allowbreak{}IrrAlias.lean} loses the \texttt{\#guard\_\allowbreak{}msgs} around the four \texttt{\#erase} of \texttt{useFI} and \texttt{useLamHR};
+\item \texttt{tests/\allowbreak{}corpus/\allowbreak{}Names.lean} wraps the two \texttt{\#erase Nm.both} (\texttt{N\_\allowbreak{}collision}) in \texttt{\#guard\_\allowbreak{}msgs}.
+\end{itemize}
+\item new \texttt{tests/\allowbreak{}regress/\allowbreak{}entry\_\allowbreak{}route.lean}, with its expected outputs \texttt{tests/\allowbreak{}regress/\allowbreak{}expected/\allowbreak{}entry\_\allowbreak{}route/} (10 files) and \texttt{tests/\allowbreak{}regress/\allowbreak{}expected-peregrine/\allowbreak{}entry\_\allowbreak{}route/} (7 files).
+\item \texttt{tests/\allowbreak{}regress/\allowbreak{}pure\_\allowbreak{}backend.lean} and \texttt{tests/\allowbreak{}regress/\allowbreak{}pure\_\allowbreak{}oracle.lean}: docstrings, and the messages pinned for \texttt{\#erase} of \texttt{pidHR}; the expected \texttt{pure\_\allowbreak{}backend/\allowbreak{}useM.ast}, \texttt{pure\_\allowbreak{}backend/\allowbreak{}pidHR.ast} and \texttt{pure\_\allowbreak{}oracle/\allowbreak{}pidHR.ast}.
+\item \texttt{tests/\allowbreak{}harness/\allowbreak{}expected/\allowbreak{}pure-harness.txt}.
+\item \texttt{doc/\allowbreak{}SHIPPING-CHANGES.md}: this entry; the section "Regression tests"; R-3 and R-14 (programs in the fragment); R-15 and R-17 (where \texttt{eraseElab} is).
+\end{itemize}
+\item \textbf{Why necessary:} DESIGN Q8 (S-E) and PLAN \S{}3 (S-21). The verification's final theorem is about the result of \texttt{eraseEntry} (its hypothesis \texttt{eraseEntry view cfg e = pure (p, inl)}). It is a theorem about \texttt{\#erase} only if \texttt{\#erase} runs \texttt{eraseEntry}. On an input in scope, \texttt{collectDeps} does not answer \texttt{outOfFragment}, so \texttt{eraseEntry} returns only a result of \texttt{erasePure}. A program outside the fragment keeps the \texttt{Meta} path unchanged. An error of the pure path is an error of \texttt{\#erase}, not a fallback to \texttt{Meta}: a fallback would give an input in scope a result that is not verified. The elaborator moves because \texttt{Entry.lean} imports \texttt{Pure.lean}, which imports \texttt{Erasure.lean}: the elaborator cannot call \texttt{eraseEntry} from \texttt{Erasure.lean}.
+\item \textbf{Behaviour before:} \texttt{\#erase} runs \texttt{erase e cfg}, the \texttt{Meta} path, on every program. Reproduction: \texttt{tests/\allowbreak{}regress/\allowbreak{}entry\_\allowbreak{}route.lean} at the parent commit fails with 25 errors (\texttt{route} and \texttt{eraseEntry} unknown, \texttt{\#route} not elaborated). Its \texttt{\#erase} outputs:
+
+\begin{itemize}
+\item \texttt{useM.ast}: \texttt{useM := one}, since \texttt{@[macro\_\allowbreak{}inline] mfirst} is inlined;
+\item \texttt{pidHR.ast}: \texttt{pid R hR}, which declares \texttt{pid} and the axioms \texttt{R} and \texttt{hR}. The command logs \texttt{No value found for name ER.R, emitting axiom.};
+\item \texttt{both.ast}: a program with two declarations named \texttt{ER.two\_\allowbreak{}u39}.
+\end{itemize}
+\item \textbf{Behaviour after:} \texttt{\#erase} runs \texttt{eraseEntry} over the elaboration environment.
+
+\begin{itemize}
+\item \textbf{Outside the fragment:} a program on which \texttt{collectDeps} answers \texttt{outOfFragment} takes the unchanged \texttt{Meta} path: its closure has an inductive type, a constructor, a recursor, a quotient, a literal, a projection, a free variable, a metavariable, a universe metavariable or an unknown constant. Its output and messages are those of the parent commit.
+\item \textbf{In the fragment:} a program takes the pure path, and \texttt{\#erase} writes the output of \texttt{erasePure}. The \texttt{Meta} path differs in the following ways:
+
+\begin{itemize}
+\item \texttt{@[macro\_\allowbreak{}inline]} and matcher inlining do not happen;
+\item a proof whose type is a proposition only through an \texttt{@[irreducible]} alias is erased;
+\item a program on which \texttt{Meta} type inference fails through such an alias gets an output;
+\item the pure backend logs nothing, so the messages \texttt{No value found for name \ldots{}, emitting axiom.} and \texttt{Name \ldots{} is marked as inline.} do not appear. The messages of the \texttt{.mli} step (\texttt{val main: \ldots{}}, \texttt{failed to translate \ldots{}}) are unchanged.
+\end{itemize}
+\item \textbf{Errors:} a name collision in the closure is an error of \texttt{\#erase}, for example \texttt{erasure failed: the constants ER.two\_\allowbreak{}u39 and ER.two' have the same kername}. So is an error of \texttt{erasePure}: \texttt{outOfFragment \textquotedbl{}unknown constant \ldots{}\textquotedbl{}}, \texttt{fuel}, or \texttt{failed}.
+\item \textbf{Test outputs:} in \texttt{tests/\allowbreak{}regress/\allowbreak{}entry\_\allowbreak{}route.lean}, \texttt{\#route} shows these routes:
+
+\begin{itemize}
+\item \texttt{useM}, \texttt{pidHR} and \texttt{@pid.\{1\}} take \texttt{viaPure ok}, and \texttt{eraseEntry} returns the pure result. For \texttt{useM} and \texttt{pidHR} this differs from \texttt{Meta}'s result; for \texttt{@pid.\{1\}} it is equal;
+\item \texttt{useMN := mfirstN Nat.zero Nat.zero} takes \texttt{viaMeta (inductive type)}, and \texttt{@pid} takes \texttt{viaMeta (level metavariable)}. \texttt{eraseEntry} returns \texttt{Meta}'s result;
+\item \texttt{both} takes \texttt{viaPure error}.
+\end{itemize}
+
+\texttt{useM.ast} keeps \texttt{mfirst one one}, and peregrine evaluates it to \texttt{\ensuremath{\lambda}s. \ensuremath{\lambda}z. s z}. \texttt{pidHR.ast} is \texttt{(Untyped () (Some tBox))}, and \texttt{\#erase ER.both} fails.
+\item \textbf{Harness} (\texttt{scripts/\allowbreak{}pure-harness.sh}), 294 \texttt{\#erase} in all:
+
+\begin{itemize}
+\item 119 are out of the fragment;
+\item 2 are \texttt{collectDeps} errors (\texttt{N\_\allowbreak{}collision}, both configurations);
+\item 173 are in the fragment, and the file written by \texttt{\#erase} is the pure output for all 173:
+
+\begin{itemize}
+\item 161 are also byte-identical to \texttt{Meta}'s output;
+\item 8 differ from it (\texttt{attrEx}, \texttt{irrAxiomArg}, \texttt{irrThmArg}, \texttt{pidHR}, both configurations);
+\item 4 have no \texttt{Meta} output (\texttt{useFI}, \texttt{useLamHR}, both configurations).
+\end{itemize}
+\item The pure oracle makes 5751 calls and never fails. As in S-20, 10 of its answers differ from \texttt{Meta}'s.
+\end{itemize}
+\item \textbf{peregrine} on the in-fragment outputs (C11): on each of the 173 outputs of the harness, \texttt{peregrine validate} and \texttt{peregrine eval -{}-anf=false} were run on the corpus file, 346 checks in all. 336 pass. The 10 excluded checks fail as expected:
+
+\begin{itemize}
+\item \texttt{N\_\allowbreak{}quoteNs} (validate, eval): the namespace component \texttt{q\textquotedbl{}q} is printed without escaping (R-2), and peregrine's parser rejects the file;
+\item \texttt{sixOnAxioms} (eval): \texttt{Axioms found};
+\item \texttt{ugOne} (validate, eval): \texttt{Fixpoint body is not a lambda} (R-11).
+\end{itemize}
+\item Axioms: \texttt{Route} depends on none. \texttt{route}, \texttt{eraseEntry} and \texttt{EraseError.describe} depend on \texttt{propext}, \texttt{Classical.choice} and \texttt{Quot.sound}.
+\end{itemize}
+\item \textbf{Effect on emitted .ast (corpus):} the corpus has 712 files. \texttt{scripts/\allowbreak{}corpus-diff.sh} against the corpus of S-20 reports:
+
+\begin{itemize}
+\item 692 files identical. These include every benchmark file and every output of a program outside the fragment.
+\item 8 files differing. Each is now the output of the pure path, and each equals the \texttt{erasePure} output of S-20's harness:
+
+\begin{itemize}
+\item \texttt{examples/\allowbreak{}Examples/\allowbreak{}attrEx.\{default,peano\}.ast}: \texttt{attrEx := mfirst inlTwo three}, where it was \texttt{inlTwo}, with the declarations of \texttt{three}, \texttt{add} and \texttt{mfirst} in addition. The \texttt{.inlinings} are identical;
+\item \texttt{examples/\allowbreak{}Examples/\allowbreak{}irrAxiomArg.\{default,peano\}.ast}: \texttt{guardR \ensuremath{\Box} six}, where it was \texttt{guardR hR six}; the axiom \texttt{Ex.hR} is no longer declared;
+\item \texttt{examples/\allowbreak{}Examples/\allowbreak{}irrThmArg.\{default,peano\}.ast}: \texttt{guardR2 \ensuremath{\Box} six}; the declaration \texttt{Ex.hR2 := \ensuremath{\Box}} is no longer emitted;
+\item \texttt{examples/\allowbreak{}IrrAlias/\allowbreak{}pidHR.\{default,peano\}.ast}: \texttt{(Untyped () (Some tBox))}.
+\end{itemize}
+\item 4 files only in S-20: \texttt{examples/\allowbreak{}Names/\allowbreak{}N\_\allowbreak{}collision.\{default,peano\}.ast} and their \texttt{.inlinings}. \texttt{\#erase} fails on these programs now.
+\item 12 files only in S-21:
+
+\begin{itemize}
+\item \texttt{examples/\allowbreak{}IrrAlias/\allowbreak{}useFI.\{default,peano\}.ast} and \texttt{useLamHR.\{default,peano\}.ast}, with their \texttt{.inlinings}. \texttt{\#erase} failed on these programs before;
+\item \texttt{examples/\allowbreak{}Scope/\allowbreak{}pidU1.ast} and \texttt{pcompU111.ast}, with their \texttt{.inlinings}. These are new corpus programs.
+\end{itemize}
+\end{itemize}
+
+The 6 outputs of \texttt{UnsafeRec.lean} are byte-identical. The corpus logs differ in three ways, and nowhere else:
+
+\begin{itemize}
+\item the messages above: the pure backend's missing log lines, the new \texttt{.mli} lines of \texttt{useFI} and \texttt{useLamHR} and of the two new \texttt{Scope} programs, and the missing \texttt{.mli} lines of \texttt{N\_\allowbreak{}collision};
+\item job counts, from the two new modules;
+\item backtrace frames of the 4 \texttt{PANIC} messages of \texttt{Defects.lean}. The \texttt{PANIC} counts are those of S-20.
+\end{itemize}
+\item \textbf{Regression test:} \texttt{tests/\allowbreak{}regress/\allowbreak{}entry\_\allowbreak{}route.lean}. It defines a command \texttt{\#route t [config c]} and uses it to pin, for each program:
+
+\begin{itemize}
+\item the route (\texttt{viaPure ok}, \texttt{viaPure error (\ldots{})}, \texttt{viaMeta (\textless{}what\textgreater{})});
+\item whether \texttt{eraseEntry} returns the result of the pure path or of the \texttt{Meta} path.
+\end{itemize}
+
+It pins the output of \texttt{\#erase} on:
+
+\begin{itemize}
+\item three programs in the fragment: \texttt{useM}, \texttt{pidHR}, \texttt{@pid.\{1\}}. peregrine validates and evaluates them;
+\item two programs outside it: \texttt{useMN} (validated) and \texttt{@pid}.
+\end{itemize}
+
+It pins the error of \texttt{\#erase} on the colliding \texttt{both}. It fails before (25 errors; \texttt{useM.ast} and \texttt{pidHR.ast} differ, and \texttt{both.ast} is written) and passes after. \texttt{tests/\allowbreak{}regress/\allowbreak{}pure\_\allowbreak{}backend.lean} and \texttt{pure\_\allowbreak{}oracle.lean} pin the new \texttt{\#erase} outputs of \texttt{useM} and \texttt{pidHR}, which now equal the pure path's. \texttt{scripts/\allowbreak{}pure-harness.sh} pins the summary above.
+\end{itemize}
+
 \section{\texorpdfstring{Reported, not fixed}{Reported, not fixed}}\label{reg:reported-not-fixed}
 
 Each entry below was reproduced on this branch. Unless stated otherwise, the reproduction is an example in \texttt{tests/\allowbreak{}corpus/\allowbreak{}Defects.lean} whose output lies in \texttt{examples/\allowbreak{}Defects/} of a corpus, and \texttt{peregrine} is \texttt{../\allowbreak{}peregrine-tool/\allowbreak{}\_\allowbreak{}build/\allowbreak{}default/\allowbreak{}bin/\allowbreak{}main.exe}.
@@ -677,8 +933,8 @@ Each entry below was reproduced on this branch. Unless stated otherwise, the rep
 \begin{itemize}
 \item \textbf{What:} \texttt{cleanIdent} replaces every character outside \texttt{[A-Za-z0-9\_\allowbreak{}]} by \texttt{\_\allowbreak{}u\textless{}code\textgreater{}}, so \texttt{a b} and \texttt{a\_\allowbreak{}u32b} get the same identifier; numeric name components and digit strings coincide; a mutual block's kername is the concatenation of its members' names (\texttt{[A, B]} and \texttt{AB} coincide); and the module (\texttt{DirPath}) is always empty.
 \item \textbf{Where:} \texttt{LeanToLambdaBox/\allowbreak{}Basic.lean}: \texttt{cleanIdent}, \texttt{toKername}, \texttt{toModPath}, \texttt{rootKername}; \texttt{LeanToLambdaBox/\allowbreak{}Erasure.lean}: \texttt{register\_\allowbreak{}inductive} (\texttt{mutualBlockName}).
-\item \textbf{Reproduction:} \texttt{collide.ast} (\texttt{colA.\ensuremath{\langle\!\langle}a b\ensuremath{\rangle\!\rangle} + colA.a\_\allowbreak{}u32b}): \texttt{peregrine validate} fails with \texttt{Duplicate definition .Defects.colA.a\_\allowbreak{}u32b}.
-\item \textbf{Impact:} distinct Lean constants can be emitted under one \ensuremath{\lambda}\ensuremath{\Box} name.
+\item \textbf{Reproduction:} \texttt{collide.ast} (\texttt{colA.\ensuremath{\langle\!\langle}a b\ensuremath{\rangle\!\rangle} + colA.a\_\allowbreak{}u32b}): \texttt{peregrine validate} fails with \texttt{Duplicate definition .Defects.colA.a\_\allowbreak{}u32b}. A program in the fragment of the pure path is not affected: \texttt{collectDeps} finds the collision and \texttt{\#erase} fails (S-21), e.g. on \texttt{Nm.both} in \texttt{tests/\allowbreak{}corpus/\allowbreak{}Names.lean} with \texttt{erasure failed: the constants Nm.two\_\allowbreak{}u39 and Nm.two' have the same kername}.
+\item \textbf{Impact:} distinct Lean constants can be emitted under one \ensuremath{\lambda}\ensuremath{\Box} name, for programs outside the fragment.
 \item \textbf{Why not fixed:} not required by the verification goal unless it later becomes required.
 \end{itemize}
 
@@ -787,8 +1043,8 @@ Each entry below was reproduced on this branch. Unless stated otherwise, the rep
 \begin{itemize}
 \item \textbf{What:} \texttt{isErasable} uses \texttt{Meta.inferType}, \texttt{Meta.isProp} and \texttt{Meta.isTypeFormerType}; the last one weak-head normalizes at default transparency, which does not unfold \texttt{@[irreducible]} definitions. A type behind an irreducible alias is therefore kept as a relevant term, and so is a proof whose proposition's sort is behind such an alias. Where \texttt{Meta.inferType} needs to unfold the alias to a \ensuremath{\Pi}-type or a sort, \texttt{\#erase} fails.
 \item \textbf{Where:} \texttt{LeanToLambdaBox/\allowbreak{}Erasure.lean}: \texttt{isErasable}.
-\item \textbf{Reproduction:} \texttt{irreducible\_\allowbreak{}alias.ast}: \texttt{mkT : MyType}, with \texttt{@[irreducible] def MyType := Type}, is emitted as the declaration \texttt{mkT := id \ensuremath{\Box} \ensuremath{\Box}} instead of being erased. In the corpus files \texttt{tests/\allowbreak{}corpus/\allowbreak{}IrrAlias.lean} and \texttt{tests/\allowbreak{}corpus/\allowbreak{}Examples.lean}, with \texttt{@[irreducible] def IProp : Type := Prop}, \texttt{axiom R : IProp} and \texttt{axiom hR : R}: \texttt{examples/\allowbreak{}IrrAlias/\allowbreak{}pidHR.default.ast} (\texttt{pid hR}) declares the axioms \texttt{Irr.R} and \texttt{Irr.hR}, and \texttt{examples/\allowbreak{}Examples/\allowbreak{}irrAxiomArg.default.ast} (\texttt{guardR hR six}) declares \texttt{Ex.hR}. \texttt{\#erase} of \texttt{Irr.useFI := fI two}, with \texttt{fI : EndoC} and \texttt{@[irreducible] def EndoC : Type 1 := CNat \ensuremath{\to} CNat}, fails with \texttt{function expected}; \texttt{\#erase} of \texttt{Irr.useLamHR := guardR (lamHR two) six}, with \texttt{theorem lamHR : CNat \ensuremath{\to} R}, fails with \texttt{type expected}.
-\item \textbf{Impact:} under-erasure. In \texttt{irreducible\_\allowbreak{}alias.ast} the value computed is unaffected; a kept proof axiom stops \texttt{peregrine eval} (\texttt{Axioms found \ldots{} .Irr.R, .Irr.hR}); and \texttt{\#erase} refuses some programs.
+\item \textbf{Reproduction:} \texttt{irreducible\_\allowbreak{}alias.ast}: \texttt{mkT : MyType}, with \texttt{@[irreducible] def MyType := Type}, is emitted as the declaration \texttt{mkT := id \ensuremath{\Box} \ensuremath{\Box}} instead of being erased. Programs in the fragment of the pure path are not affected: \texttt{\#erase} erases them with the pure oracle, which unfolds \texttt{@[irreducible]} definitions (S-19, S-21). In the corpus files \texttt{tests/\allowbreak{}corpus/\allowbreak{}IrrAlias.lean} and \texttt{tests/\allowbreak{}corpus/\allowbreak{}Examples.lean}, with \texttt{@[irreducible] def IProp : Type := Prop}, \texttt{axiom R : IProp} and \texttt{axiom hR : R}, \texttt{examples/\allowbreak{}IrrAlias/\allowbreak{}pidHR.default.ast} (\texttt{pid hR}) is \texttt{\ensuremath{\Box}}, \texttt{examples/\allowbreak{}Examples/\allowbreak{}irrAxiomArg.default.ast} (\texttt{guardR hR six}) passes \texttt{\ensuremath{\Box}} for \texttt{hR}, and \texttt{Irr.useFI := fI two} (with \texttt{@[irreducible] def EndoC : Type 1 := CNat \ensuremath{\to} CNat}) and \texttt{Irr.useLamHR := guardR (lamHR two) six} are erased; with the \texttt{Meta} oracle, the first two keep \texttt{hR} and the last two fail (\texttt{function expected}, \texttt{type expected}).
+\item \textbf{Impact:} under-erasure, for programs outside the fragment. In \texttt{irreducible\_\allowbreak{}alias.ast} the value computed is unaffected; a kept proof axiom stops \texttt{peregrine eval}; and \texttt{\#erase} refuses some programs.
 \item \textbf{Why not fixed:} not required by the verification goal unless it later becomes required.
 \end{itemize}
 
@@ -796,7 +1052,7 @@ Each entry below was reproduced on this branch. Unless stated otherwise, the rep
 
 \begin{itemize}
 \item \textbf{What:} without an output path, the branch meant to log the attributes configuration logs the program a second time.
-\item \textbf{Where:} \texttt{LeanToLambdaBox/\allowbreak{}Erasure.lean}: \texttt{eraseElab} (the \texttt{.none} case of the \texttt{.inlinings} match).
+\item \textbf{Where:} \texttt{LeanToLambdaBox/\allowbreak{}Erasure/\allowbreak{}Command.lean}: \texttt{eraseElab} (the \texttt{.none} case of the \texttt{.inlinings} match).
 \item \textbf{Reproduction:} a file containing \texttt{import LeanToLambdaBox}, \texttt{def seven : Nat := 7} and \texttt{\#erase seven}: the messages contain the program twice and no \texttt{(attributes\_\allowbreak{}config ...)}.
 \item \textbf{Impact:} cosmetic.
 \item \textbf{Why not fixed:} not required by the verification goal unless it later becomes required.
@@ -816,7 +1072,7 @@ Each entry below was reproduced on this branch. Unless stated otherwise, the rep
 
 \begin{itemize}
 \item \textbf{What:} \texttt{to\_\allowbreak{}ml\_\allowbreak{}type} handles \texttt{Nat}, \texttt{Int}, \texttt{Unit}/\texttt{PUnit}, \texttt{Bool}, \texttt{List}, \texttt{Option}, \texttt{Array}, \texttt{Prod} and arrows; any other type, for instance a user inductive or \texttt{String} (S-5), is reported with a warning and printed as \texttt{unit}, which does not describe the value. The file has no final newline.
-\item \textbf{Where:} \texttt{LeanToLambdaBox/\allowbreak{}Erasure.lean}: \texttt{to\_\allowbreak{}ml\_\allowbreak{}type}, \texttt{gen\_\allowbreak{}mli}, \texttt{eraseElab}.
+\item \textbf{Where:} \texttt{LeanToLambdaBox/\allowbreak{}Erasure.lean}: \texttt{to\_\allowbreak{}ml\_\allowbreak{}type}, \texttt{gen\_\allowbreak{}mli}; \texttt{LeanToLambdaBox/\allowbreak{}Erasure/\allowbreak{}Command.lean}: \texttt{eraseElab}.
 \item \textbf{Reproduction:} \texttt{mli\_\allowbreak{}fallback.mli} (\texttt{toMy : Nat \ensuremath{\to} MyNat}, a user inductive) is \texttt{val main: Z.t -\textgreater{} unit}, with the warning \texttt{failed to translate Defects.MyNat into ML type, emitting unit instead}.
 \item \textbf{Impact:} an OCaml harness written against such a signature is type-unsound.
 \item \textbf{Why not fixed:} not required by the verification goal unless it later becomes required.

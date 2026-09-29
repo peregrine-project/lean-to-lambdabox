@@ -18,7 +18,8 @@ Run with `lake env` of the package whose environment resolves every import (`env
   - `names`: for each name of `<names-file>`: whether it exists, its module, line and kind, the axioms
     it depends on (the closure over the constants its type, value and constructors use, as
     `#print axioms` follows them), whether they equal what `Lean.collectAxioms` (`#print axioms`)
-    computes, and its sorry sources: the declarations of that closure whose own type or value
+    computes (for an inductive, together with its constructors: `leanAxioms`), and its sorry
+    sources: the declarations of that closure whose own type or value
     uses `sorryAx`; axioms and sorry sources come with their module and line;
   - `census`: every declaration of the inherited modules (prefix `$BP_INHERITED_PREFIX`, default
     `Lean4Lean`) and of the shipping modules (prefix `$BP_SHIPPING_PREFIX`, default
@@ -118,9 +119,20 @@ instance : MonadEnv (StateM Environment) where
   modifyEnv := modify
 
 /-- The axioms of `n` as `#print axioms` computes them (`Lean.collectAxioms`), to cross-check
-`closure`. -/
+`closure`; for an inductive, the union with `#print axioms` of its constructors. For an imported
+declaration `#print axioms` reads the axioms its module stored when it was compiled; the module
+computes them with one cache for all its declarations, and a declaration visited inside the
+cycle between an inductive and its constructors is cached before the cycle closes. So the stored
+axioms of an inductive can miss those that only its constructors reach
+(`EraseProof.AtomSpine`: none, while `EraseProof.AtomSpine.const` gives `propext`). -/
 def leanAxioms (env : Environment) (n : Name) : Array Name :=
-  ((collectAxioms n : StateM Environment (Array Name)).run' env).qsort (·.toString < ·.toString)
+  let get (c : Name) : Array Name := (collectAxioms c : StateM Environment (Array Name)).run' env
+  let own := get n
+  let all := match env.find? n with
+    | some (.inductInfo v) =>
+      v.ctors.foldl (fun (acc : Array Name) c => acc ++ (get c).filter (fun a => !acc.contains a)) own
+    | _ => own
+  all.qsort (·.toString < ·.toString)
 
 def jsonNames (env : Environment) (ns : Array Name) : Json :=
   Json.arr <| ns.map fun n => Json.mkObj [("name", toString n), ("module", moduleOf env n),
