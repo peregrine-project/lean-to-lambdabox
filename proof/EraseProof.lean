@@ -6,6 +6,7 @@ import EraseProof.Erasability.Eval
 import EraseProof.Erasability.Inv
 import EraseProof.Oracle
 import EraseProof.Oracle.Agree
+import EraseProof.Oracle.Atom
 import EraseProof.Oracle.AtomShapes
 import EraseProof.Oracle.Infer
 import EraseProof.Oracle.Whnf

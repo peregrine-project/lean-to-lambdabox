@@ -342,14 +342,18 @@ The blueprint renders this register.
   program that instantiates a polymorphic function at a base type or passes such a proof by value
   evaluates, and the correctness theorem says nothing about it. The class is syntactic
   ("evident") because the eraser must box each atom from the declared types alone, without a
-  typing hypothesis: a semantic class (every erasable constant without a δ rule) would need the
-  eraser's oracle `Erasure.Pure.isErasable` to box all of them, which needs canonicity (no neutral
-  term is definitionally equal to a sort), and lean4lean `master` does not prove it. The head is
-  `EraseProof.DeltaFree` because the head of a propositional constructor's type is an inductive
-  type, which never δ-reduces: a proof whose proposition is headed by a definition that unfolds to
-  a Π can be applied, and the oracle then answers from the arguments' types (with `axiom hq : Q`,
-  `def Q : Prop := ∀ P : Prop, P → P`, `axiom A : Type` and `axiom a : A`, it keeps the ill-typed
-  spine `hq A a`: `EraseProof.Test.Atoms.defHead_kept`). The head's sort is read at the
+  typing hypothesis, and on this class it provably does: on an atom spine the oracle never answers
+  "keep" (`EraseProof.Pure.isErasable_atom`, `proof/EraseProof/Oracle/Atom.lean`, whose level test
+  is `EraseProof.EvidentZero` by `EraseProof.Pure.alwaysZero_eq`); a semantic class (every
+  erasable constant without a δ rule) would need the eraser's oracle `Erasure.Pure.isErasable` to
+  box all of them, which needs canonicity (no neutral term is definitionally equal to a sort), and
+  lean4lean `master` does not prove it. The head is `EraseProof.DeltaFree` because the head of a
+  propositional constructor's type is an inductive type, which never δ-reduces: a proof whose
+  proposition is headed by a definition that unfolds to a Π can be applied, and the oracle then
+  answers from the arguments' types (with `axiom hq : Q`, `def Q : Prop := ∀ P : Prop, P → P`,
+  `axiom A : Type` and `axiom a : A`, it keeps the ill-typed spine `hq A a`:
+  `EraseProof.Test.Atoms.defHead_kept`), so `EraseProof.Pure.isErasable_atom`, which has no
+  typing hypothesis, fails for such heads. The head's sort is read at the
   occurrence because a Lean level can be `0`, whereas `isPropositional` reads an inductive's
   declared sort, which no Rocq universe instance turns into `Prop`. Atomhood does not depend on the
   occurrence because the eraser erases a universe-polymorphic body once, at its level parameters,
@@ -519,7 +523,8 @@ The blueprint renders this register.
 - **Our artifact:** `proof/EraseProof/Oracle.lean`, `EraseProof.Pure.isErasable_sound`, with
   `EraseProof.Pure.isArity_sound` and `EraseProof.Pure.alwaysZero_sound`, and the soundness of the
   steps they rest on, `EraseProof.Pure.inferType_sound` (`proof/EraseProof/Oracle/Infer.lean`) and
-  `EraseProof.Pure.whnf_sound` (`proof/EraseProof/Oracle/Whnf.lean`): the eraser decides
+  `EraseProof.Pure.whnf_sound` (`proof/EraseProof/Oracle/Whnf.lean`), and, on atom spines,
+  `EraseProof.Pure.isErasable_atom` (`proof/EraseProof/Oracle/Atom.lean`): the eraser decides
   erasability with its own oracle, the shipping `Erasure.Pure.isErasable`
   (`LeanToLambdaBox/Erasure/Pure.lean`), with its type inference `Erasure.Pure.inferType`, its
   weak-head reduction `Erasure.Pure.whnf`, its arity test `Erasure.Pure.isArity` and its level
@@ -538,8 +543,9 @@ The blueprint renders this register.
   "erasable" if that type reduces to an arity, and otherwise reduces the type's type to a sort and
   answers "erasable" exactly when the sort is structurally `≈ 0`. Only the `true` direction of
   `is_erasableP` is proved: an "erasable" answer gives `EraseProof.ErasableS`
-  (`EraseProof.Pure.isErasable_sound`). There is no completeness: the oracle may answer "keep" on
-  an erasable term, and it fails, with an error and no answer, when its fuel runs out or a type
+  (`EraseProof.Pure.isErasable_sound`). There is no general completeness: the oracle may answer
+  "keep" on an erasable term, except on the atom spines of DV-11, where it answers "erasable" or
+  fails (`EraseProof.Pure.isErasable_atom`), and it fails, with an error and no answer, when its fuel runs out or a type
   does not reduce to a Π or a sort. Its reductions unfold every definition, as those of
   `is_erasableb` do, whatever the elaborator attribute `@[irreducible]` says: on an environment
   whose aliases `IProp : Type := Prop` and `Endo : Type := A → A` are `@[irreducible]` in Lean, it
