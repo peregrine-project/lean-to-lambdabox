@@ -4,3 +4,5 @@ import LeanToLambdaBox.Basic
 import LeanToLambdaBox.Erasure
 import LeanToLambdaBox.Erasure.Collect
 import LeanToLambdaBox.Erasure.Pure
+import LeanToLambdaBox.Erasure.Entry
+import LeanToLambdaBox.Erasure.Command

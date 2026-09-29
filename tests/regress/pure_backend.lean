@@ -2,8 +2,8 @@ import LeanToLambdaBox
 
 /-!
 `Erasure.erasePure view cfg decls e` runs the traversal of `#erase` (`Erasure.visitExpr`) with the
-pure backend `PureM` over the declarations `decls` (register entry S-20). `#erase` does not call it
-yet. The test checks:
+pure backend `PureM` over the declarations `decls` (register entry S-20). `#erase` calls it on the
+programs in the fragment (S-21). The test checks:
 - the operations of the instance `Backend PureM`: `declInfo?` is `findConst?`, `unsafeRecBase?` is
   always `none`, `prepare` returns its term, no constant is an instance, `log` does nothing,
   `instantiate1` is lean4lean's `Expr.instantiate1'` (by `rfl`); every constructor field is kept,
@@ -13,11 +13,11 @@ yet. The test checks:
 - `isRecursiveDecl` and `axiomatized` on declarations of the elaboration environment;
 - `#erase_pure t [config c] to "f"`, defined below, which elaborates `t` and `c` as `#erase` does
   and writes the output of `collectDeps` and `erasePure` in the format of `#erase`, next to
-  `#erase` on the same programs: a Church-style application (`nv1`), unsafe recursion
-  (`ufOne`: a fixpoint), a `@[macro_inline]` function, which only `#erase` inlines (`useM`), an
-  `@[extern]` definition under both `extern` settings (`useExt`, `useExtL`), a proof whose
-  proposition is one only through an `@[irreducible]` alias, which only the pure path erases
-  (`pidHR`);
+  `#erase` on the same programs, which are in the fragment, so that `#erase` writes the same
+  output: a Church-style application (`nv1`), unsafe recursion (`ufOne`: a fixpoint), a
+  `@[macro_inline]` function, whose call the pure path keeps (`useM`), an `@[extern]` definition
+  under both `extern` settings (`useExt`, `useExtL`), a proof whose proposition is one only
+  through an `@[irreducible]` alias, which the pure path erases (`pidHR`);
 - errors: a constant missing from the declarations, an ill-typed application (the oracle's
   `failed`), and too little fuel.
 -/
@@ -117,7 +117,7 @@ def oneU : CNu.{u} := fun _ s z => s z
 /-- A recursive constant: `uf n = n`. -/
 unsafe def uf (n : CNu.{0}) : CNu.{0} := (fun _ => n) (fun (x : CNu.{0}) => uf x)
 
-/-- `mfirst a b = a`, inlined by `#erase` before erasure. -/
+/-- `mfirst a b = a`, inlined by the `Meta` path before erasure. -/
 @[macro_inline] def mfirst (a _b : CN) : CN := a
 def useM : CN := mfirst one one
 
@@ -179,10 +179,6 @@ info: val main: unit -> unit
 
 #erase_pure PB.pidHR to "pidHR.pure.ast"
 /--
-info: No value found for name PB.R, emitting axiom.
----
-info: No value found for name PB.hR, emitting axiom.
----
 warning: failed to translate PB.R into ML type, emitting unit instead.
 ---
 info: val main: unit

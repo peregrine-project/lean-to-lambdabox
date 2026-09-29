@@ -5,8 +5,8 @@ import LeanToLambdaBox
 traversal's locals `ls`, whether `e` is erasable: it infers the type of `e`, and answers "erasable"
 when that type is an arity or its sort is always zero. Every reduction it makes unfolds every
 definition, `@[irreducible]` ones included (the kernel's δ); when its fuel runs out it fails with
-`fuel` (register entry S-19). `Erasure.PureM` is the monad of the backend that is to run the
-traversal with this oracle. `#erase` calls neither:
+`fuel` (register entry S-19). `Erasure.PureM` is the monad of the backend that runs the traversal
+with this oracle, on the programs that `#erase` sends to the pure path (S-21). The test checks:
 - by kernel evaluation (`decide`) at `Erasure.oracleFuel`, on environments built by hand:
   - `hq A a`, an ill-typed spine of the proof `hq : Q` whose proposition
     `Q := ∀ P : Prop, P → P` is a definition, is kept;
@@ -19,8 +19,7 @@ traversal with this oracle. `#erase` calls neither:
   `casesInfo?`, `ctorArity?`) and `EraseT.runPure`, on small inputs;
 - over the declarations that `collectDeps` collects from the elaboration environment, where
   `IProp` is `@[irreducible]`, the oracle erases `R`, `hR` and `pidHR := pid hR` and keeps
-  `pid.{1}`, while `#erase` keeps `R` and `hR` (R-14); the output of `#erase` on `pidHR` is pinned
-  (`pidHR.ast`).
+  `pid.{1}`; `#erase`, which takes the pure path on `pidHR`, erases it to `□` (`pidHR.ast`).
 -/
 
 -- peregrine: validate pidHR.ast
@@ -241,10 +240,6 @@ end Irr
     s!"pid: {show' (Pure.isErasable cx oracleFuel [] (.const ``Irr.pid [.succ .zero]))}"]
 
 /--
-info: No value found for name Irr.R, emitting axiom.
----
-info: No value found for name Irr.hR, emitting axiom.
----
 warning: failed to translate Irr.R into ML type, emitting unit instead.
 ---
 info: val main: unit
