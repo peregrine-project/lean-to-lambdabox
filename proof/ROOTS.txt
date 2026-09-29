@@ -16,3 +16,4 @@ EraseProof.SrcEval.defeq EraseProof.ErasableS.eval v2-erasable-eval
 EraseProof.Pure.inferType_sound EraseProof.Pure.isErasable_sound v5-sound
 EraseProof.IsErasable.inst EraseProof.Erases.inst v3-rel-subst
 EraseProof.IsErasable.instL EraseProof.Erases.instLevels v3-rel-levels
+EraseProof.SrcEval.restrict EraseProof.erase_correct v8-main

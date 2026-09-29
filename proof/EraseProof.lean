@@ -8,6 +8,7 @@ import EraseProof.Oracle.Whnf
 import EraseProof.Source.Defeq
 import EraseProof.Source.Eval
 import EraseProof.Source.EvalEnv
+import EraseProof.Source.Restrict
 import EraseProof.Source.Steps
 import EraseProof.Target
 import EraseProof.Test.Bridge

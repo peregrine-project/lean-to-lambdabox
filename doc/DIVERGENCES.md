@@ -341,6 +341,10 @@ The blueprint renders this register.
 - **Our artifact:** `proof/EraseProof/Source/EvalEnv.lean`, `EraseProof.EvalEnv` with its field
   `axiomatized`, and `EraseProof.EvalEnv.unfold?`: the evaluation environment carries the
   constants the configuration remaps to foreign code, and evaluation does not unfold them.
+  `proof/EraseProof/Source/Restrict.lean`, `EraseProof.evalEnvOf`: the evaluation environment of
+  a program, whose remapped constants are those of the shipping eraser's own test
+  `Erasure.axiomatized` (`LeanToLambdaBox/Erasure/Pure.lean`): a single declaration that the view
+  marks `@[extern]`, under the configuration `extern := .preferAxiom`.
 - **Reference artifact:** the environment of PCUIC's weak call-by-value evaluation `eval`
   (`pcuic/theories/PCUICWcbvEval.v:231`), whose rule `eval_delta` (`:247`) unfolds a constant
   exactly when its declaration has a body; and `erases_constant_body`
@@ -348,7 +352,9 @@ The blueprint renders this register.
   a constant without a body to one without.
 - **What differs:** a definition or theorem for which `axiomatized` holds has a Lean value but no
   δ rule in the source semantics: it is stuck, like the λ□ axiom the eraser emits for it. Which
-  constants are remapped is an input of the source semantics, besides the declarations.
+  constants are remapped is an input of the source semantics, besides the declarations; for a
+  program, `EraseProof.evalEnvOf` derives it from the configuration and the trusted view's
+  `isExtern`, exactly as the eraser does.
 - **Why it is forced:** under the configuration `extern := .preferAxiom` (the default of
   `ErasureConfig`, `LeanToLambdaBox/Erasure.lean`), the shipping eraser emits a declaration tagged
   `@[extern]` as a λ□ axiom, although it has a Lean value, so that it is linked with a foreign
