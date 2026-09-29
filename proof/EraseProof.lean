@@ -7,6 +7,7 @@ import EraseProof.Erasability.Inv
 import EraseProof.Oracle.Agree
 import EraseProof.Oracle.Infer
 import EraseProof.Oracle.Whnf
+import EraseProof.Relation.Basic
 import EraseProof.Source.Defeq
 import EraseProof.Source.Eval
 import EraseProof.Source.EvalEnv
