@@ -7,9 +7,8 @@
 #             `-` for none.
 # proof/scripts/check.sh compares this file with the computed .check/axioms.actual.
 EraseProof.LBEval.closed propext,Quot.sound -
-EraseProof.ProgEnv.lookup propext,Classical.choice,Quot.sound -
 EraseProof.Pure.isErasable_agree propext,Quot.sound -
-EraseProof.Pure.whnf_sound propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
+EraseProof.Pure.inferType_sound propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
 EraseProof.SrcEval.appCong_step propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
 EraseProof.SrcEval.beta_step propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
 EraseProof.SrcEval.delta_step propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
