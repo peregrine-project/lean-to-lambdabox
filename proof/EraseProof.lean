@@ -11,6 +11,7 @@ import EraseProof.Source.EvalEnv
 import EraseProof.Source.Restrict
 import EraseProof.Source.Steps
 import EraseProof.Target
+import EraseProof.Test.Atoms
 import EraseProof.Test.Bridge
 import EraseProof.Test.LBEval
 import EraseProof.Test.NV1

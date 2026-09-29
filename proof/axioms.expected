@@ -17,6 +17,8 @@ EraseProof.SrcEval.restrict propext,Classical.choice,Quot.sound -
 EraseProof.TrS.fvarsIn propext,Classical.choice,Quot.sound -
 EraseProof.TrS.inst_fvar propext,Classical.choice,Quot.sound -
 EraseProof.TrS.uninstantiateN propext,Classical.choice,Quot.sound -
+EraseProof.Test.Atoms.defHead_kept propext -
+EraseProof.Test.Atoms.levelDependent_kept propext -
 EraseProof.Test.Bridge.addConsts_fresh propext,Quot.sound -
 EraseProof.Test.Bridge.constants_none_of_le - -
 EraseProof.Test.Bridge.foldl_insert_of_forall_ne propext,Classical.choice,Quot.sound -
