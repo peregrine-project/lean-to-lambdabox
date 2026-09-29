@@ -25,9 +25,15 @@ or `EraseProof.*`):
   another root.
 * `expected`: the footprints of the roots and of the test theorems equal `axioms.expected`.
 * `modules`: every `.lean` file of the library's source tree is imported.
+* C9 `divergences`: every entry `### DV-<n>` of the divergence register has exactly the fields
+  `dvFields`, in order, and its artifact field cites a declaration of the library; every code span
+  of an entry that is a name `EraseProof.*` or `Lean4Lean.*` is a declaration, a path
+  `proof/*.lean` is a file of this package, and a lean4lean path `Lean4Lean/*.lean[:lines]` is a
+  file of the lean4lean checkout with those lines.
 
 Options: `--import M` (repeatable; replaces the default `EraseProof`), `--roots FILE`
-(`ROOTS.txt`), `--expected FILE` (`axioms.expected`), `--out DIR` (`.check`), `--src DIR` (`.`).
+(`ROOTS.txt`), `--expected FILE` (`axioms.expected`), `--out DIR` (`.check`), `--src DIR` (`.`),
+`--divergences FILE` (`../doc/DIVERGENCES.md`), `--lean4lean DIR` (`../.lake/packages/lean4lean`).
 It writes `DIR/footprints.txt` (every declaration) and `DIR/axioms.actual` (the file
 `axioms.expected` should be), prints one line per check, and exits with 1 if a check fails.
 -/
@@ -77,6 +83,8 @@ structure Config where
   expected : System.FilePath := "axioms.expected"
   out : System.FilePath := ".check"
   src : System.FilePath := "."
+  divergences : System.FilePath := "../doc/DIVERGENCES.md"
+  lean4lean : System.FilePath := "../.lake/packages/lean4lean"
 
 partial def parseArgs (cfg : Config) : List String → Except String Config
   | [] => .ok cfg
@@ -85,6 +93,8 @@ partial def parseArgs (cfg : Config) : List String → Except String Config
   | "--expected" :: f :: rest => parseArgs { cfg with expected := f } rest
   | "--out" :: f :: rest => parseArgs { cfg with out := f } rest
   | "--src" :: f :: rest => parseArgs { cfg with src := f } rest
+  | "--divergences" :: f :: rest => parseArgs { cfg with divergences := f } rest
+  | "--lean4lean" :: f :: rest => parseArgs { cfg with lean4lean := f } rest
   | a :: _ => .error s!"unknown or incomplete option {a}"
 
 /-! ## Names -/
@@ -348,6 +358,62 @@ def expectedHeader : String :=
 # proof/scripts/check.sh compares this file with the computed .check/axioms.actual.
 "
 
+/-! ## The divergence register (C9) -/
+
+/-- The fields of a register entry, in order (`doc/DIVERGENCES.md`, spec §3.5). -/
+def dvFields : List String :=
+  ["Our artifact", "Reference artifact", "What differs", "Why it is forced",
+   "What was considered instead"]
+
+/-- An entry `### DV-<n>` of the register: its fields `- **<name>:** <text>` (continuation lines
+appended) and any other text. -/
+structure DvEntry where
+  id : String
+  fields : Array (String × String) := #[]
+  stray : Array String := #[]
+
+/-- The entries of the register: a line `### <id> ...` opens an entry, any other heading closes
+it. -/
+def parseRegister (text : String) : Array DvEntry := Id.run do
+  let mut out : Array DvEntry := #[]
+  let mut cur : Option DvEntry := none
+  for l in lines text do
+    if l.startsWith "#" then
+      if let some e := cur then out := out.push e
+      cur := none
+      if l.startsWith "### " then
+        cur := some { id := (fields (l.drop 4).toString).headD "" }
+    else if let some e := cur then
+      if l.startsWith "- **" then
+        match (l.drop 4).toString.splitOn ":**" with
+        | name :: body@(_ :: _) =>
+          let text := (":**".intercalate body).trimAscii.toString
+          cur := some { e with fields := e.fields.push (name, text) }
+        | _ => cur := some { e with stray := e.stray.push l }
+      else if !l.isEmpty then
+        match e.fields.back? with
+        | some (n, b) => cur := some { e with fields := e.fields.pop.push (n, b ++ " " ++ l) }
+        | none => cur := some { e with stray := e.stray.push l }
+  if let some e := cur then out := out.push e
+  return out
+
+/-- The code spans (text between backquotes) of `s`. -/
+def codeSpans (s : String) : List String :=
+  go (s.splitOn "`") false
+where
+  go : List String → Bool → List String
+    | [], _ => []
+    | x :: xs, inside => if inside then x :: go xs false else go xs true
+
+def isDvId (s : String) : Bool :=
+  s.startsWith "DV-" && (s.drop 3).toString.length > 0 && (s.drop 3).toString.all Char.isDigit
+
+/-- The line numbers of a citation suffix such as `642,723,768–835`. -/
+def citedLines (s : String) : Option (List Nat) :=
+  ((s.replace "–" "-").splitOn ",").foldr (init := some []) fun part acc => do
+    let ns ← (part.splitOn "-").mapM String.toNat?
+    return ns ++ (← acc)
+
 /-! ## Main -/
 
 def main (args : List String) : IO UInt32 := do
@@ -384,6 +450,50 @@ def main (args : List String) : IO UInt32 := do
       let mod := ((rel.dropEnd ".lean".length).toString.replace "/" ".").toName
       if !ourMods.contains mod then
         fail "modules" s!"{f} (module {mod}) is not imported by {imports.toList}"
+
+  -- C9 divergences: the register's entries and what they cite.
+  if !(← cfg.divergences.pathExists) then
+    fail "divergences" s!"{cfg.divergences} does not exist"
+  else
+    let entries := parseRegister (← IO.FS.readFile cfg.divergences)
+    let mut ids : Array String := #[]
+    for e in entries do
+      if !isDvId e.id then fail "divergences" s!"entry `{e.id}`: the id is not DV-<n>"
+      if ids.contains e.id then fail "divergences" s!"entry {e.id} occurs twice"
+      ids := ids.push e.id
+      for l in e.stray do fail "divergences" s!"{e.id}: text outside the fields: {l}"
+      let names := e.fields.toList.map (·.1)
+      if names != dvFields then
+        fail "divergences" s!"{e.id}: fields {names}, expected {dvFields}"
+      let artifact := (e.fields.find? (·.1 == "Our artifact")).map (·.2) |>.getD ""
+      if !(codeSpans artifact).any (fun c => c.startsWith s!"{lib}." && env.contains c.toName) then
+        fail "divergences" s!"{e.id}: the artifact field cites no declaration of {lib}"
+      for (_, body) in e.fields do
+        for c in codeSpans body do
+          if c.any Char.isWhitespace then continue
+          if c.startsWith s!"{lib}." || c.startsWith "Lean4Lean." then
+            if !env.contains c.toName then
+              fail "divergences" s!"{e.id} cites `{c}`, which is not a declaration"
+          else if c.startsWith "proof/" then
+            let f := cfg.src / (c.drop "proof/".length).toString
+            if !(← f.pathExists) then
+              fail "divergences" s!"{e.id} cites `{c}`, which does not exist"
+          else if c.startsWith "Lean4Lean/" then
+            let (path, sfx) := match c.splitOn ":" with
+              | [p] => (p, none)
+              | p :: rest => (p, some (":".intercalate rest))
+              | [] => (c, none)
+            let f := cfg.lean4lean / path
+            if !(← f.pathExists) then
+              fail "divergences" s!"{e.id} cites `{c}`: {f} does not exist"
+            else if let some sfx := sfx then
+              let t ← IO.FS.readFile f
+              let n := (t.splitOn "\n").length - (if t.endsWith "\n" then 1 else 0)
+              match citedLines sfx with
+              | none => fail "divergences" s!"{e.id} cites `{c}`: malformed line numbers"
+              | some ls =>
+                if ls.any (fun k => k == 0 || k > n) then
+                  fail "divergences" s!"{e.id} cites `{c}`: {path} has {n} lines"
 
   -- The labels name `sorry` declarations of lean4lean.
   for (l, n) in sorryLabels ++ testOnlySorryLabels do
@@ -551,7 +661,7 @@ def main (args : List String) : IO UInt32 := do
   IO.println s!"report: {ours.size} declarations ({checked.size} checked, {tests.size} tests) in {ourMods.size} module(s); {roots.size} root(s)"
   for l in report do IO.println l
   let fs ← failures.get
-  for check in ["axioms", "sorry", "hygiene", "leaves", "expected", "modules"] do
+  for check in ["axioms", "sorry", "hygiene", "leaves", "expected", "modules", "divergences"] do
     let n := (fs.filter (· == check)).size
     IO.println s!"{check}: {if n == 0 then "ok" else s!"{n} failure(s)"}"
   return if fs.isEmpty then 0 else 1

@@ -6,3 +6,7 @@
 #   <task id>: optional, the unit that lands the consumer.
 # Every declaration of EraseProof outside EraseProof.Test must be reachable from a root; no root
 # may be reachable from another root.
+EraseProof.TrS.det EraseProof.erases_correct v4-sim-main
+EraseProof.TrS.fvarsIn EraseProof.erasePure_erases v7-core-main
+EraseProof.TrS.mono EraseProof.ProgEnv.lookup v1-progenv
+EraseProof.TrS.wf EraseProof.TrS.uniq v1-uniq
