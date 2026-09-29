@@ -8,4 +8,6 @@
 EraseProof.TrS.det propext -
 EraseProof.TrS.fvarsIn propext,Classical.choice,Quot.sound -
 EraseProof.TrS.mono propext -
+EraseProof.TrS.weakBV propext,Quot.sound -
+EraseProof.TrS.weakFV propext,Classical.choice,Quot.sound -
 EraseProof.TrS.wf propext,Quot.sound -
