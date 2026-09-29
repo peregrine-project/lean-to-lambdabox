@@ -64,8 +64,8 @@ Examples/R_underProofEx.peano.ast: out of the fragment: inductive type
 Examples/R_zero.peano.ast: out of the fragment: inductive type
 Examples/add2.default.ast: pure ok; Meta ok; outputs identical; #erase = pure and Meta; oracle 36 calls, 0 differ
 Examples/add2.peano.ast: pure ok; Meta ok; outputs identical; #erase = pure and Meta; oracle 36 calls, 0 differ
-Examples/attrEx.default.ast: pure ok; Meta ok; outputs differ; #erase = Meta; oracle 44 calls, 0 differ
-Examples/attrEx.peano.ast: pure ok; Meta ok; outputs differ; #erase = Meta; oracle 44 calls, 0 differ
+Examples/attrEx.default.ast: pure ok; Meta ok; outputs differ; #erase = pure; oracle 44 calls, 0 differ
+Examples/attrEx.peano.ast: pure ok; Meta ok; outputs differ; #erase = pure; oracle 44 calls, 0 differ
 Examples/axiomArg.default.ast: pure ok; Meta ok; outputs identical; #erase = pure and Meta; oracle 57 calls, 0 differ
 Examples/axiomArg.peano.ast: pure ok; Meta ok; outputs identical; #erase = pure and Meta; oracle 57 calls, 0 differ
 Examples/compEx.default.ast: pure ok; Meta ok; outputs identical; #erase = pure and Meta; oracle 60 calls, 0 differ
@@ -84,13 +84,13 @@ Examples/haveVal.default.ast: pure ok; Meta ok; outputs identical; #erase = pure
 Examples/haveVal.peano.ast: pure ok; Meta ok; outputs identical; #erase = pure and Meta; oracle 53 calls, 0 differ
 Examples/implEx.default.ast: pure ok; Meta ok; outputs identical; #erase = pure and Meta; oracle 23 calls, 0 differ
 Examples/implEx.peano.ast: pure ok; Meta ok; outputs identical; #erase = pure and Meta; oracle 23 calls, 0 differ
-Examples/irrAxiomArg.default.ast: pure ok; Meta ok; outputs differ; #erase = Meta; oracle 57 calls, 1 differ
+Examples/irrAxiomArg.default.ast: pure ok; Meta ok; outputs differ; #erase = pure; oracle 57 calls, 1 differ
   oracle: hR | pure ok true | Meta ok false
-Examples/irrAxiomArg.peano.ast: pure ok; Meta ok; outputs differ; #erase = Meta; oracle 57 calls, 1 differ
+Examples/irrAxiomArg.peano.ast: pure ok; Meta ok; outputs differ; #erase = pure; oracle 57 calls, 1 differ
   oracle: hR | pure ok true | Meta ok false
-Examples/irrThmArg.default.ast: pure ok; Meta ok; outputs differ; #erase = Meta; oracle 57 calls, 1 differ
+Examples/irrThmArg.default.ast: pure ok; Meta ok; outputs differ; #erase = pure; oracle 57 calls, 1 differ
   oracle: hR2 | pure ok true | Meta ok false
-Examples/irrThmArg.peano.ast: pure ok; Meta ok; outputs differ; #erase = Meta; oracle 57 calls, 1 differ
+Examples/irrThmArg.peano.ast: pure ok; Meta ok; outputs differ; #erase = pure; oracle 57 calls, 1 differ
   oracle: hR2 | pure ok true | Meta ok false
 Examples/isZeroSix.default.ast: pure ok; Meta ok; outputs identical; #erase = pure and Meta; oracle 63 calls, 0 differ
 Examples/isZeroSix.peano.ast: pure ok; Meta ok; outputs identical; #erase = pure and Meta; oracle 63 calls, 0 differ
@@ -188,17 +188,17 @@ Examples/underProofEx.default.ast: pure ok; Meta ok; outputs identical; #erase =
 Examples/underProofEx.peano.ast: pure ok; Meta ok; outputs identical; #erase = pure and Meta; oracle 30 calls, 0 differ
 Examples/zero.default.ast: pure ok; Meta ok; outputs identical; #erase = pure and Meta; oracle 5 calls, 0 differ
 Examples/zero.peano.ast: pure ok; Meta ok; outputs identical; #erase = pure and Meta; oracle 5 calls, 0 differ
-IrrAlias/pidHR.default.ast: pure ok; Meta ok; outputs differ; #erase = Meta; oracle 1 calls, 1 differ
+IrrAlias/pidHR.default.ast: pure ok; Meta ok; outputs differ; #erase = pure; oracle 1 calls, 1 differ
   oracle: Irr.pidHR | pure ok true | Meta ok false
-IrrAlias/pidHR.peano.ast: pure ok; Meta ok; outputs differ; #erase = Meta; oracle 1 calls, 1 differ
+IrrAlias/pidHR.peano.ast: pure ok; Meta ok; outputs differ; #erase = pure; oracle 1 calls, 1 differ
   oracle: Irr.pidHR | pure ok true | Meta ok false
-IrrAlias/useFI.default.ast: pure ok; Meta error function expected Irr.fI Irr.two; outputs no Meta output; #erase no output; oracle 23 calls, 1 differ
+IrrAlias/useFI.default.ast: pure ok; Meta error function expected Irr.fI Irr.two; outputs no Meta output; #erase = pure; oracle 23 calls, 1 differ
   oracle: Irr.fI Irr.two | pure ok false | Meta error function expected Irr.fI Irr.two
-IrrAlias/useFI.peano.ast: pure ok; Meta error function expected Irr.fI Irr.two; outputs no Meta output; #erase no output; oracle 23 calls, 1 differ
+IrrAlias/useFI.peano.ast: pure ok; Meta error function expected Irr.fI Irr.two; outputs no Meta output; #erase = pure; oracle 23 calls, 1 differ
   oracle: Irr.fI Irr.two | pure ok false | Meta error function expected Irr.fI Irr.two
-IrrAlias/useLamHR.default.ast: pure ok; Meta error type expected Irr.R; outputs no Meta output; #erase no output; oracle 23 calls, 1 differ
+IrrAlias/useLamHR.default.ast: pure ok; Meta error type expected Irr.R; outputs no Meta output; #erase = pure; oracle 23 calls, 1 differ
   oracle: Irr.lamHR Irr.two | pure ok true | Meta ok false
-IrrAlias/useLamHR.peano.ast: pure ok; Meta error type expected Irr.R; outputs no Meta output; #erase no output; oracle 23 calls, 1 differ
+IrrAlias/useLamHR.peano.ast: pure ok; Meta error type expected Irr.R; outputs no Meta output; #erase = pure; oracle 23 calls, 1 differ
   oracle: Irr.lamHR Irr.two | pure ok true | Meta ok false
 Names/N_R_collision.peano.ast: out of the fragment: inductive type
 Names/N_R_dotBoth.peano.ast: out of the fragment: inductive type
@@ -284,7 +284,9 @@ Scope/letProof.peano.ast: pure ok; Meta ok; outputs identical; #erase = pure and
 Scope/letType.ast: pure ok; Meta ok; outputs identical; #erase = pure and Meta; oracle 25 calls, 0 differ
 Scope/letVal.ast: pure ok; Meta ok; outputs identical; #erase = pure and Meta; oracle 38 calls, 0 differ
 Scope/pcomp.ast: out of the fragment: level metavariable
+Scope/pcompU111.ast: pure ok; Meta ok; outputs identical; #erase = pure and Meta; oracle 12 calls, 0 differ
 Scope/pid.ast: out of the fragment: level metavariable
+Scope/pidU1.ast: pure ok; Meta ok; outputs identical; #erase = pure and Meta; oracle 4 calls, 0 differ
 Scope/typeArg.ast: pure ok; Meta ok; outputs identical; #erase = pure and Meta; oracle 47 calls, 0 differ
 Scope/typeFormerArg.ast: pure ok; Meta ok; outputs identical; #erase = pure and Meta; oracle 26 calls, 0 differ
 Scope/upolyFun.ast: pure ok; Meta ok; outputs identical; #erase = pure and Meta; oracle 55 calls, 0 differ
@@ -300,6 +302,6 @@ UnsafeRec/ufOne.default.ast: pure ok; Meta ok; outputs identical; #erase = pure 
 UnsafeRec/ufOne.peano.ast: pure ok; Meta ok; outputs identical; #erase = pure and Meta; oracle 15 calls, 0 differ
 UnsafeRec/ugOne.default.ast: pure ok; Meta ok; outputs identical; #erase = pure and Meta; oracle 15 calls, 0 differ
 UnsafeRec/ugOne.peano.ast: pure ok; Meta ok; outputs identical; #erase = pure and Meta; oracle 15 calls, 0 differ
-totals: 292 #erase, 171 in the fragment, 119 out of the fragment, 2 collectDeps errors
-in the fragment: 159 identical, 8 differ, 4 without Meta output, 0 without pure output
-oracle: 5735 calls, 10 differ from Meta, 0 failures of the pure oracle
+totals: 294 #erase, 173 in the fragment, 119 out of the fragment, 2 collectDeps errors
+in the fragment: 161 identical, 8 differ, 4 without Meta output, 0 without pure output
+oracle: 5751 calls, 10 differ from Meta, 0 failures of the pure oracle
