@@ -10,6 +10,7 @@ import EraseProof.Oracle.AtomShapes
 import EraseProof.Oracle.Infer
 import EraseProof.Oracle.Whnf
 import EraseProof.Relation.Abstract
+import EraseProof.Relation.Atoms
 import EraseProof.Relation.Basic
 import EraseProof.Relation.Deps
 import EraseProof.Relation.Levels
