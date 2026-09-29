@@ -133,6 +133,36 @@ The blueprint renders this register.
   through `Lean4Lean.TrExprS` (DV-2); no `all` premise, under which the eraser's reading of `all`
   is unconstrained.
 
+### DV-4
+
+- **Our artifact:** `proof/EraseProof/Erasability.lean`, `EraseProof.IsErasable`, with
+  `EraseProof.IsArity`: a term of the model is erasable when some type of it is an arity, or has a
+  sort whose level is equivalent to zero.
+- **Reference artifact:** `isErasable` (`erasure/theories/Extract.v:18`; MetaCoq paper §7.3,
+  Fig. 18), which asks for a type `T` of the term that is an arity (`isArity`,
+  `pcuic/theories/PCUICTyping.v:29`) or whose sort `u` satisfies `Sort.is_propositional u`
+  (`common/theories/Universes.v:1528`: `u` is `Prop` or `SProp`); Letouzey Def. 1 (type schemes)
+  and the □ clause of Def. 3.
+- **What differs:** the propositional case asks for `u ≈ .zero`, that is, the level `u`
+  evaluates to zero under every assignment of the level parameters (`Lean4Lean.VLevel.Equiv`,
+  `Lean4Lean/Theory/VLevel.lean:58`, over `Lean4Lean.VLevel.eval`, `:34-39`), in place of
+  `Sort.is_propositional u`, and has no `SProp` case. `EraseProof.IsArity` is `isArity` on
+  `Lean4Lean.VExpr`: sorts and Π-types ending in a sort, without the `tLetIn` clause of `isArity`.
+- **Why it is forced:** Lean has no `SProp`, and its `Prop` is `Sort 0`, where a level is an
+  expression over level parameters with `succ`, `max` and `imax` (`Lean4Lean.VLevel`,
+  `Lean4Lean/Theory/VLevel.lean:8-13`). A sort is therefore a proposition under every
+  instantiation of the level parameters exactly when its level evaluates to zero under every
+  assignment: `Sort (imax u 0)` is `Prop` for every `u`, while `Sort u` is `Prop` for some
+  instantiations only. lean4lean's typing identifies sorts whose levels are equivalent in this sense
+  (`sortDF`, `Lean4Lean/Theory/Typing/Basic.lean:22`), so only a test up to this equivalence is
+  invariant under definitional equality. `Lean4Lean.VExpr` has no `let`
+  (`Lean4Lean/Theory/VExpr.lean:7-13`): `EraseProof.TrS` translates a `let` to its body with the
+  value substituted, so no model type has a `tLetIn` clause to follow.
+- **What was considered instead:** the syntactic test `u = .zero` (a type whose sort is written
+  `Sort 0`): it misses propositions whose sort is written `imax u 0` or `max 0 0`, which the model
+  equates with `Sort 0`, so erasability would depend on how a sort is written rather than on its
+  level.
+
 ### DV-5
 
 - **Our artifact:** `proof/EraseProof/Typing/Basic.lean`: all typing in `EraseProof` is
