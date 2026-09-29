@@ -14,3 +14,4 @@ EraseProof.SrcEval.value EraseProof.erases_correct v4-sim-main
 EraseProof.Pure.isErasable_agree EraseProof.visit_agree v6-frame-b
 EraseProof.SrcEval.defeq EraseProof.ErasableS.eval v2-erasable-eval
 EraseProof.Pure.inferType_sound EraseProof.Pure.isErasable_sound v5-sound
+EraseProof.SrcEval.restrict EraseProof.erase_correct v8-main
