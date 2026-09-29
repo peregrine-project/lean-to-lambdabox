@@ -1,6 +1,7 @@
 import EraseProof.Atoms
 import EraseProof.Env
 import EraseProof.Env.Unfold
+import EraseProof.Oracle.Agree
 import EraseProof.Source.Eval
 import EraseProof.Source.EvalEnv
 import EraseProof.Target
