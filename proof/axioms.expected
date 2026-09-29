@@ -14,6 +14,7 @@ EraseProof.Erases.closed propext,Classical.choice,Quot.sound -
 EraseProof.Erases.congr_ac propext,Classical.choice,Quot.sound -
 EraseProof.Erases.inst propext,Classical.choice,Quot.sound -
 EraseProof.Erases.instLevels propext,Classical.choice,Quot.sound -
+EraseProof.Erases.inst_let propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
 EraseProof.Erases.substRc propext,Classical.choice,Quot.sound -
 EraseProof.Erases.uninstantiateN propext,Classical.choice,Quot.sound -
 EraseProof.ErasesDeps.eval propext,Classical.choice,Quot.sound -

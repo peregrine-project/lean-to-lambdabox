@@ -1,5 +1,6 @@
 import EraseProof.Relation.Basic
 import EraseProof.Typing.Inst
+import EraseProof.Typing.Uniq
 import EraseProof.Oracle.Whnf
 import EraseProof.Env
 
@@ -14,6 +15,13 @@ substitution lemma under binders (`Erases.instN`, MetaRocq's `erases_subst`), wh
 erasability under substitution and weakening at any depth (`IsErasable.instN`,
 `IsErasable.weakN`) and the relation's weakening for closed terms (`Erases.weakBV`), at the
 substituted variable.
+
+The ζ case, MetaRocq's `erases_subst0` behind the ζ case of `erases_correct`
+(`MR E/ErasureCorrectness.v:112-136`), substitutes an argument translated to a term definitionally
+equal to the `let` value (`Erases.inst_let`). The erasure of the body, translated in the `let`
+context, first moves to the context whose value is the argument's translation (`Erases.defeqDFC`,
+MetaRocq's `erases_context_conversion`); there the `let` entry is substituted under binders
+(`Erases.instN_let`).
 -/
 
 open Lean Lean4Lean Erasure
@@ -115,6 +123,15 @@ theorem VLCtx.InstN.bvLift (W : VLCtx.InstN Δ₀ e₀ A₀ dk k Δ₁ Δ) :
     have := VLCtx.BVLift.skip (d.inst e₀ k) ih
     cases d <;> exact this
 
+/-- Substituting the `let` entry of `Δ₀`'s extension (`VLCtx.InstLet`,
+`l4l Verify/Typing/Lemmas.lean:538`) leaves `Δ₀` under `dk` de Bruijn entries: the result context
+is a de Bruijn lift of `Δ₀` (`VLCtx.BVLift`, `:451`). Reference: none (lean4lean's contexts). -/
+theorem VLCtx.InstLet.bvLift (W : VLCtx.InstLet Δ₀ e₀ A₀ dk k Δ₁ Δ) :
+    VLCtx.BVLift Δ₀ Δ dk 0 k 0 := by
+  induction W with
+  | zero => exact .refl
+  | @succ _ k _ _ d _ ih => exact VLCtx.BVLift.skip d ih
+
 section
 variable {venv : VEnv} {P : List ConstantInfo}
 
@@ -147,6 +164,54 @@ theorem Erases.weakBV (henv : venv.Ordered) (W : VLCtx.BVLift Δ Δ' dn dk n k)
     have he'' := he'.weakBV henv W
     rw [Expr.liftLooseBVars_eq_self hc.looseBVarRange_le] at he''
     exact .box ⟨_, he'', hE.weakN henv W.toCtx⟩
+
+/-! ## Context conversion -/
+
+/-- Context conversion: an erasure of a term translated in `Δ₁` is an erasure in every context
+definitionally equal to `Δ₁` (`VLCtx.IsDefEq`, `l4l Verify/Typing/Lemmas.lean:754`). Reference:
+`erases_context_conversion` (`MR E/ErasureProperties.v:189`), whose induction on the typing
+derivation is here one on the relation, with the translation `ht` in the role of the typing; the
+translations move by `TrS.defeqDFC` and `TrS.uniq` (`TrExprS.defeqDFC`, `TrExprS.uniq`,
+`l4l Verify/Typing/Lemmas.lean:985,941`). -/
+theorem Erases.defeqDFC (henv : venv.WF) (hΔ : VLCtx.IsDefEq venv Us.length Δ₁ Δ₂)
+    (ht : TrS venv Us Δ₁ e e₁) (h : Erases venv Us ac rc Δ₁ e t) :
+    Erases venv Us ac rc Δ₂ e t := by
+  induction h generalizing Δ₂ e₁ with
+  | bvar => exact .bvar
+  | fvar => exact .fvar
+  | const hc => exact .const hc
+  | constRec hc hr => exact .constRec hc hr
+  | lam hA _ ih =>
+    let .lam hty hA₁ hb₁ := ht
+    cases TrS.det hA hA₁
+    have ⟨_, hA₂⟩ := TrS.defeqDFC henv hΔ hA
+    have ⟨_, hty⟩ := hty
+    have hAA := (hA.uniq henv hΔ hA₂).of_l henv hΔ.wf.toCtx hty
+    exact .lam hA₂ (ih (hΔ.cons nofun (.vlam hAA)) hb₁)
+  | letE hT hv _ _ ihv ihb =>
+    let .letE h1 hT₁ hv₁ hb₁ := ht
+    cases TrS.det hT hT₁
+    cases TrS.det hv hv₁
+    have ⟨_, hT₂⟩ := TrS.defeqDFC henv hΔ hT
+    have ⟨_, hv₂⟩ := TrS.defeqDFC henv hΔ hv
+    have ⟨_, h0⟩ := h1.isType henv hΔ.wf.toCtx
+    have t0 := (hT.uniq henv hΔ hT₂).of_l henv hΔ.wf.toCtx h0
+    have t1 := (hv.uniq henv hΔ hv₂).of_l henv hΔ.wf.toCtx h1
+    exact .letE hT₂ hv₂ (ihv hΔ hv₁) (ihb (hΔ.cons nofun (.vlet t1 t0)) hb₁)
+  | app _ _ ihf iha =>
+    let .app _ _ hf ha := ht
+    exact .app (ihf hΔ hf) (iha hΔ ha)
+  | mdata _ ih =>
+    let .mdata he := ht
+    exact .mdata (ih hΔ he)
+  | box hb =>
+    obtain ⟨e', he', T, hT, hE⟩ := hb
+    have ⟨_, he''⟩ := TrS.defeqDFC henv hΔ he'
+    have hT' := hT.defeqU_l henv hΔ.wf.toCtx (he'.uniq henv hΔ he'')
+    refine .box ⟨_, he'', T, hT'.defeqDFC henv hΔ.defeqCtx, ?_⟩
+    obtain hE | ⟨u, hu, hu0⟩ := hE
+    · exact .inl hE
+    · exact .inr ⟨u, hu.defeqDFC henv hΔ.defeqCtx, hu0⟩
 
 /-! ## Substitution -/
 
@@ -200,6 +265,62 @@ theorem Erases.inst (henv : ProgEnv P venv) (hrc : RcClosed rc)
   | .box ⟨_, hb', hE⟩ =>
     .box ⟨_, hb'.inst henv.ordered hA hta, IsErasable.inst henv.ordered hA hE⟩
   | hb => Erases.instN henv.ordered hrc ha hta hA .zero hb
+
+/-- ζ-substitution under binders: instantiating the de Bruijn variable at depth `dk` of a `let`
+entry whose value is `a''` (`VLCtx.InstLet`) by a closed term `a` translated to `a''` and erased to
+`ta` gives an erasure of the instantiated term, the λ□ side substituted by `csubst ta dk`.
+Reference: `erases_subst` (`MR E/ESubstitution.v:403`), for one closed substituted term of a
+`vdef` entry. -/
+theorem Erases.instN_let (henv : venv.Ordered) (hrc : RcClosed rc)
+    (ha : Erases venv Us ac rc [] a ta) (hta : TrS venv Us [] a a'')
+    (W : VLCtx.InstLet [] a'' T' dk k Δ₁ Δ) (hb : Erases venv Us ac rc Δ₁ b t) :
+    Erases venv Us ac rc Δ (b.instantiate1' a dk) (csubst ta dk t) := by
+  induction hb generalizing Δ dk k with
+  | @bvar _ i =>
+    simp only [Expr.instantiate1', csubst]
+    by_cases h1 : i < dk
+    · rw [if_pos h1, if_neg (by omega), if_neg (by omega)]
+      exact .bvar
+    · rw [if_neg h1]
+      by_cases h2 : i = dk
+      · subst h2
+        rw [if_pos rfl, if_pos rfl]
+        have hc : Closed a 0 := hta.closed
+        rw [Expr.liftLooseBVars_eq_self hc.looseBVarRange_le]
+        exact ha.weakBV henv (VLCtx.InstLet.bvLift W) hc
+      · rw [if_neg h2, if_neg (by omega), if_pos (by omega)]
+        exact .bvar
+  | fvar => exact .fvar
+  | lam hA₁ _ ih =>
+    exact .lam (hta.instN_let henv W hA₁) (ih (W.succ (d := .vlam _)))
+  | letE hT hv _ _ ihv ihb =>
+    exact .letE (hta.instN_let henv W hT) (hta.instN_let henv W hv) (ihv W)
+      (ihb (W.succ (d := .vlet ..)))
+  | app _ _ ihf iha => exact .app (ihf W) (iha W)
+  | const hc => exact .const hc
+  | constRec hc hr =>
+    rw [csubst_closed ta _ (closedn_mono _ (Nat.zero_le _) (hrc _ _ hr))]
+    exact .constRec hc hr
+  | mdata _ ih => exact .mdata (ih W)
+  | box hb =>
+    obtain ⟨e', he', hE⟩ := hb
+    exact .box ⟨_, hta.instN_let henv W he', W.toCtx ▸ hE⟩
+
+/-- The ζ case: in the erasure of a body translated in the `let` context (`hbt`), the `let` value
+may be replaced by a definitionally equal one and substituted. Reference: the ζ case of
+`erases_correct` (`MR E/ErasureCorrectness.v:112-136`), `erases_context_conversion`
+(`MR E/ErasureProperties.v:189`) then `erases_subst` (`MR E/ESubstitution.v:403`) at `Γ = Δ = []`,
+i.e. `erases_subst0` (`:612`); `hbt` is their typing premise `Σ ;;; Γ ⊢ t : T` (`:407`, `:614`);
+Let. Lemma 16. -/
+theorem Erases.inst_let (henv : ProgEnv P venv) (hrc : RcClosed rc)
+    (hb : Erases venv Us ac rc [(none, .vlet T' v₀)] b t) (ha : Erases venv Us ac rc [] a ta)
+    (hta : TrS venv Us [] a a'') (hdf : venv.IsDefEq Us.length [] v₀ a'' T')
+    (hbt : TrS venv Us [(none, .vlet T' v₀)] b b') :
+    Erases venv Us ac rc [] (b.instantiate1' a) (csubst ta 0 t) := by
+  have ⟨_, hT⟩ := hdf.isType henv.ordered trivial
+  have hΔ : VLCtx.IsDefEq venv Us.length [(none, .vlet T' v₀)] [(none, .vlet T' a'')] :=
+    .cons .nil nofun (.vlet hdf hT)
+  exact Erases.instN_let henv.ordered hrc ha hta .zero (Erases.defeqDFC henv.wf hΔ hbt hb)
 
 end
 
