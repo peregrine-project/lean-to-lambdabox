@@ -47,7 +47,9 @@ The blueprint renders this register.
 - **What differs:** `EraseProof.TrS` has the rules of `Lean4Lean.TrExprS` except `lit` and `proj`:
   literals (`Expr.lit`) and projections (`Expr.proj`) have no translation, so terms containing
   them are outside the fragment. Like `Lean4Lean.TrExprS` and unlike `trans`, it is a relation
-  (its image is unique: `EraseProof.TrS.det`).
+  (its image is unique: `EraseProof.TrS.det`). Every derivation of `EraseProof.TrS` is one of
+  `Lean4Lean.TrExprS` (test `EraseProof.Test.TrS.toTrExprS`, whose statement reaches the `sorry` of
+  `Lean4Lean.TrProj`).
 - **Why it is forced:** the lemmas of `Lean4Lean.TrExprS` handle `proj` with `sorry` proofs
   (`Lean4Lean/Verify/Typing/Lemmas.lean:642,723,727,893,938,1240,1509`); reusing them puts
   projection sorries into a fragment without projections. The `lit` rule translates a literal
@@ -82,7 +84,10 @@ The blueprint renders this register.
   fresh in the model because `Lean4Lean.VEnv.addConst` succeeds). It has one premise that
   `Lean4Lean.TrEnv'` lacks: the field `all` is what Lean's elaborator sets, the declaration's own
   name for a single definition, theorem or opaque constant, and the block's names in order for
-  each member of a block. Compared with `wf_ext Σ`, the environment has no inductive declarations,
+  each member of a block. Every `EraseProof.ProgEnv` gives a `Lean4Lean.TrEnv'` at `.unsafe` of
+  the same model, with a constant map that holds each of the program's declarations under its name
+  (test `EraseProof.Test.ProgEnv.toTrEnv'`, whose statement reaches the `sorry` definitions
+  `Lean4Lean.TrProj` and `Lean4Lean.VInductDecl.WF`). Compared with `wf_ext Σ`, the environment has no inductive declarations,
   and its typing is lean4lean's (DV-5).
 - **Why it is forced:** a Lean `Environment` always contains the inductive types of `Init`, and
   `Lean4Lean.TrEnv'` at `.unsafe` relates no constant map that contains an inductive type
