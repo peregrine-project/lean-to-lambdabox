@@ -14,7 +14,6 @@ EraseProof.Pure.isErasable_agree EraseProof.visit_agree v6-frame-b
 EraseProof.ErasableS.eval EraseProof.erases_correct v4-sim-main
 EraseProof.ErasableS.atom EraseProof.erases_correct v4-sim-main
 EraseProof.Pure.isErasable_sound EraseProof.erasePure_erases v7-core-main
-EraseProof.IsErasable.inst EraseProof.Erases.inst v3-rel-subst
 EraseProof.Erases.instLevels EraseProof.erases_correct v4-sim-main
 EraseProof.SrcEval.restrict EraseProof.erase_correct v8-main
 EraseProof.IsErasable.app EraseProof.erases_correct v4-sim-main
@@ -28,3 +27,5 @@ EraseProof.ErasesDeps.eval EraseProof.erases_correct v4-sim-main
 EraseProof.Erases.uninstantiateN EraseProof.erasePure_erases v7-core-main
 EraseProof.Erases.substRc EraseProof.erasePure_erases v7-core-main
 EraseProof.Pure.isErasable_atom EraseProof.erasePure_erases v7-core-main
+EraseProof.Erases.inst EraseProof.erases_correct v4-sim-main
+EraseProof.Erases.inst_let EraseProof.erases_correct v4-sim-main
