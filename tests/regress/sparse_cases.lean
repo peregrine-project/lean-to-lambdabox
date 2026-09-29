@@ -3,7 +3,7 @@ import LeanToLambdaBox
 /-!
 Matches that Lean v4.33 compiles to a sparse `casesOn` (alternatives for some constructors, then a
 catch-all) or to per-constructor eliminators `T.c.elim` (register entry S-13), on each path of
-`erase.visitCases`:
+`Erasure.visitCases`:
 - the generic path: a catch-all for three constructors (`isRed`), alternatives given in another
   order than the constructors' (`pick`: `.c`, then `.a`), a catch-all that receives the scrutinee
   (`leftOr`), nested matches on `List` (`second`), a discriminant that is not a variable
