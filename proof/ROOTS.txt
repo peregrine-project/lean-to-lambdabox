@@ -1,0 +1,8 @@
+# Root register of the no-leaves check (proof/tools/Report.lean, check "leaves").
+# One line per root theorem: <declaration> <planned consumer> [<task id>]
+#   <declaration>: full name of a landed theorem of EraseProof outside EraseProof.Test.
+#   <planned consumer>: full stub name of the declaration that will use it, which has not
+#     landed yet; or FINAL for the final theorem, which has no consumer.
+#   <task id>: optional, the unit that lands the consumer.
+# Every declaration of EraseProof outside EraseProof.Test must be reachable from a root; no root
+# may be reachable from another root.

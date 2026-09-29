@@ -7,7 +7,7 @@ its MetaRocq sources. The verification effort follows these references as closel
 differences between Lean's kernel/`lean4lean`'s model and Rocq/PCUIC/MetaRocq allow; every place it
 does not, for any reason, is recorded here.
 
-Each entry has an id `D-<n>` and exactly these fields:
+Each entry has an id `DV-<n>` and exactly these fields:
 
 - **Our artifact:** file and declaration on the `verification` branch that carries the divergence.
 - **Reference artifact:** the paper section/figure/theorem (§3.1 or §3.2) and the MetaRocq
@@ -27,4 +27,4 @@ The blueprint renders this register.
 
 ## Entries
 
-The register has no entries: the `verification` branch contains no verification code.
+The register has no entries: the library `EraseProof` (`proof/`) has no declarations.
