@@ -1,0 +1,12 @@
+name = "erase_proof"
+version = "0.1.0"
+defaultTargets = ["EraseProof"]
+# Share the root package's dependency checkouts (lean4lean, batteries) and their builds.
+packagesDir = "../.lake/packages"
+
+[[require]]
+name = "lean_to_lambdabox"
+path = ".."
+
+[[lean_lib]]
+name = "EraseProof"

@@ -1,0 +1,17 @@
+# Root register of the no-leaves check (proof/tools/Report.lean, check "leaves").
+# One line per root theorem: <declaration> <planned consumer> [<task id>]
+#   <declaration>: full name of a landed theorem of EraseProof outside EraseProof.Test.
+#   <planned consumer>: full stub name of the declaration that will use it, which has not
+#     landed yet; or FINAL for the final theorem, which has no consumer.
+#   <task id>: optional, the unit that lands the consumer.
+# Every declaration of EraseProof outside EraseProof.Test must be reachable from a root; no root
+# may be reachable from another root.
+EraseProof.TrS.det EraseProof.erases_correct v4-sim-main
+EraseProof.TrS.fvarsIn EraseProof.erasePure_erases v7-core-main
+EraseProof.TrS.uninstantiateN EraseProof.Erases.uninstantiateN v3-rel-abstract
+EraseProof.TrS.inst_fvar EraseProof.erasePure_erases v7-core-main
+EraseProof.ProgEnv.ordered EraseProof.SrcEval.defeq v2-sr-eval
+EraseProof.ProgEnv.wf EraseProof.SrcEval.defeq v2-sr-eval
+EraseProof.ProgEnv.lookup EraseProof.ErasableS.atom v2-erasable-eval
+EraseProof.ProgEnv.unfold EraseProof.SrcEval.defeq v2-sr-eval
+EraseProof.TrS.defeqDFC EraseProof.Erases.inst_let v3-rel-subst

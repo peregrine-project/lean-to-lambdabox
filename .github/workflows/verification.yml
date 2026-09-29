@@ -1,0 +1,45 @@
+name: Verification
+on:
+  workflow_dispatch:
+  push:
+    branches:
+    - 'verification'
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  verification:
+    name: Build and check the proof package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch ${{ github.ref_name }}
+        uses: actions/checkout@v7
+
+      # Builds the eraser and the lean4lean libraries; lean-action caches the root `.lake`, which
+      # also holds the dependency checkouts that proof/ shares (proof/lakefile.toml `packagesDir`).
+      - name: Set up Lean and build the root package
+        uses: leanprover/lean-action@v1
+        with:
+          use-github-cache: true
+          build: true
+          build-args: "LeanToLambdaBox Lean4Lean Lean4Lean.Theory Lean4Lean.Verify"
+          test: false
+          lint: false
+
+      # Builds the library EraseProof and caches proof/.lake.
+      - name: Build the proof package
+        uses: leanprover/lean-action@v1
+        with:
+          lake-package-directory: proof
+          use-github-cache: true
+          build: true
+          test: false
+          lint: false
+
+      - name: Shipping regression tests
+        run: scripts/regress.sh
+
+      - name: Proof checks
+        run: proof/scripts/check.sh --no-regress

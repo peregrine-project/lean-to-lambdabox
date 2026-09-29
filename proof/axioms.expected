@@ -1,0 +1,41 @@
+# Axiom footprints of the roots (ROOTS.txt) and of the test theorems (namespace EraseProof.Test).
+# One line per declaration: <declaration> <axioms> <sorry labels>
+#   <axioms>: its `#print axioms`, comma-separated in the order propext, Classical.choice,
+#             Quot.sound, sorryAx; `-` for none.
+#   <sorry labels>: the lean4lean `sorry` declarations it reaches (L1-L8, and TrProj for tests;
+#             see tools/Report.lean `sorryLabels`, `testOnlySorryLabels`), comma-separated;
+#             `-` for none.
+# proof/scripts/check.sh compares this file with the computed .check/axioms.actual.
+EraseProof.ProgEnv.lookup propext,Classical.choice,Quot.sound -
+EraseProof.ProgEnv.ordered propext,Classical.choice,Quot.sound -
+EraseProof.ProgEnv.unfold propext,Classical.choice,Quot.sound -
+EraseProof.ProgEnv.wf propext,Classical.choice,Quot.sound,sorryAx L1,L2
+EraseProof.TrS.defeqDFC propext,Quot.sound,sorryAx L1,L2,L3,L4,L5
+EraseProof.TrS.det propext -
+EraseProof.TrS.fvarsIn propext,Classical.choice,Quot.sound -
+EraseProof.TrS.inst_fvar propext,Classical.choice,Quot.sound -
+EraseProof.TrS.uninstantiateN propext,Classical.choice,Quot.sound -
+EraseProof.Test.Bridge.addConsts_fresh propext,Quot.sound -
+EraseProof.Test.Bridge.constants_none_of_le - -
+EraseProof.Test.Bridge.foldl_insert_of_forall_ne propext,Classical.choice,Quot.sound -
+EraseProof.Test.Bridge.foldl_insert_of_mem propext,Classical.choice,Quot.sound -
+EraseProof.Test.Bridge.fresh_of_addConst propext,Quot.sound -
+EraseProof.Test.Bridge.insertDefs_hashMap propext,Quot.sound -
+EraseProof.Test.Bridge.insert_step propext,Classical.choice,Quot.sound -
+EraseProof.Test.Bridge.unsafe_le propext -
+EraseProof.Test.NV1.cnV_ty propext,Quot.sound -
+EraseProof.Test.NV1.cn_unfold propext -
+EraseProof.Test.NV1.hAAty propext,Quot.sound -
+EraseProof.Test.NV1.hAty propext,Quot.sound -
+EraseProof.Test.NV1.he propext,Quot.sound -
+EraseProof.Test.NV1.henv propext,Classical.choice,Quot.sound -
+EraseProof.Test.NV1.oneWF propext,Quot.sound -
+EraseProof.Test.NV1.pCN propext,Classical.choice,Quot.sound -
+EraseProof.Test.NV1.trCN propext,Quot.sound -
+EraseProof.Test.NV1.trOne propext,Quot.sound -
+EraseProof.Test.NV1.venv0_A propext,Quot.sound -
+EraseProof.Test.ProgEnv.toTrEnv' propext,Classical.choice,Quot.sound,sorryAx L1,TrProj
+EraseProof.Test.TrS.toTrExprS propext,Classical.choice,Quot.sound,sorryAx TrProj
+EraseProof.Test.Bridge.ProgEnv.toTrEnv'_hashMap propext,Classical.choice,Quot.sound,sorryAx L1,TrProj
+EraseProof.Test.Bridge.TrConst.toTrConstant propext,Classical.choice,Quot.sound,sorryAx TrProj
+EraseProof.Test.Bridge.TrDef.toTrDefVal propext,Classical.choice,Quot.sound,sorryAx TrProj
