@@ -356,11 +356,12 @@ The blueprint renders this register.
   where the oracle keeps the level-dependent proof `hq.{v}` (it boxes `hq.{0}`:
   `EraseProof.Test.Atoms.levelDependent_kept`): were `hq.{0}` a value, a body passing `hq.{v}`,
   evaluated at level `0`, would reach a value in the source while its λ□ image is stuck on the
-  axiom `hq`, and erasure would not commute with level instantiation, as
-  `erases_subst_instance_decl` (`erasure/theories/ErasureProperties.v:412`) states it does. An atom
-  is a value of the source semantics, while no rule of λ□ evaluation returns a `tConst`: the
-  erasure of an atom that is the result of an evaluation must be the result of the λ□ evaluation,
-  so it cannot be a `tConst`; it is `□`, which λ□ has for `tInd` too.
+  axiom `hq`, and erasure would not commute with level instantiation, which
+  `erases_subst_instance_decl` (`erasure/theories/ErasureProperties.v:412`) states and
+  `EraseProof.Erases.instLevels` proves (the relation's atom test `ac` reads a constant's name, not
+  its levels). An atom is a value of the source semantics, while no rule of λ□ evaluation returns
+  a `tConst`: the erasure of an atom that is the result of an evaluation must be the result of the
+  λ□ evaluation, so it cannot be a `tConst`; it is `□`, which λ□ has for `tInd` too.
 - **What was considered instead:** every constant without a δ rule stuck (the theorem then says
   nothing about the programs above); a semantic class (needs canonicity); heads that are
   definitions (the oracle keeps proofs with such heads, above); heads that δ-reduce to an

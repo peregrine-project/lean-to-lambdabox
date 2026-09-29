@@ -15,10 +15,10 @@ EraseProof.ErasableS.eval propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L
 EraseProof.Erases.app_inv propext,Classical.choice,Quot.sound -
 EraseProof.Erases.closed propext,Classical.choice,Quot.sound -
 EraseProof.Erases.congr_ac propext,Classical.choice,Quot.sound -
+EraseProof.Erases.instLevels propext,Classical.choice,Quot.sound -
 EraseProof.Erases.mono_rc propext,Classical.choice,Quot.sound -
 EraseProof.IsErasable.app propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5,L6
 EraseProof.IsErasable.inst propext,Quot.sound -
-EraseProof.IsErasable.instL propext,Quot.sound -
 EraseProof.IsErasable.lam_inv propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5,L6
 EraseProof.LBEval.closed propext,Quot.sound -
 EraseProof.PropShape.inst propext -
