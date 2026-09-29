@@ -205,6 +205,49 @@ The blueprint renders this register.
 - **What was considered instead:** a scope condition excluding programs that mention a remapped
   constant: it also excludes programs that never evaluate the constant.
 
+### DV-16
+
+- **Our artifact:** `proof/EraseProof/Target.lean`, `EraseProof.LBEval`, λ□ weak call-by-value
+  evaluation, with its atoms `EraseProof.lbAtom`, stated on the shipping AST `LBTerm`
+  (`LeanToLambdaBox/Basic.lean`); with it the functions `EraseProof.csubst`, `EraseProof.closedn`,
+  `EraseProof.hasFVar` and the environment condition `EraseProof.LenvClosed`.
+- **Reference artifact:** MetaRocq's λ□ evaluation `eval` (`erasure/theories/EWcbvEval.v:119`) on
+  the λ□ terms `term` (`erasure/theories/EAst.v:29`), with `atom`
+  (`erasure/theories/EWcbvEval.v:36`), `csubst` (`erasure/theories/ECSubst.v:14`), `closedn`
+  (`erasure/theories/ELiftSubst.v:90`) and `closed_env` (`erasure/theories/EGlobalEnv.v:181`);
+  MetaCoq paper §7.1 (Fig. 16 and the amended evaluation rules, p. 8:60).
+- **What differs:** `LBTerm` has no `tVar`, `tEvar`, `tCoFix`, `tLazy` or `tForce`, and its only
+  primitive values are 63-bit integers. So `EraseProof.LBEval` has no rules `eval_cofix_case`
+  (`erasure/theories/EWcbvEval.v:198`), `eval_cofix_proj` (`:205`) or `eval_force` (`:279`), its
+  rule `prim` (`eval_prim`, `:275`) evaluates an integer to itself, and `EraseProof.lbAtom` has no
+  case for `tCoFix` or `tLazy`. `LBTerm` has a constructor that `term` lacks, `fvar`, a free
+  variable named by a Lean `FVarId`: `EraseProof.LBEval` has no rule for it, `EraseProof.csubst`
+  leaves it unchanged and `EraseProof.closedn` counts it as closed, as MetaRocq's `csubst` and
+  `closedn` treat `tVar`; `EraseProof.hasFVar` tests whether it occurs, and has no MetaRocq
+  counterpart; `EraseProof.LenvClosed` requires, besides the closedness of `closed_env`, that no
+  body stored in the λ□ environment contains a free variable. The rules for constructors in block
+  form, `eval_iota_block` (`:151`), `eval_proj_block` (`:228`) and `eval_construct_block`
+  (`:254`), are absent; each requires the flag `with_constructor_as_block` to be true, which it is
+  not in `default_wcbv_flags` (`:69`), the flags of `erases_correct`
+  (`erasure/theories/ErasureCorrectness.v:51`). At flags where that flag is false,
+  `EraseProof.LBEval` has exactly the rules of `eval` whose term constructors `LBTerm` has.
+- **Why it is forced:** the theorem is about the shipping eraser (spec §2), whose output is an
+  `LBTerm`, the λ□ that peregrine reads; evaluation is stated on that type. The terms without a
+  constructor in `LBTerm` cannot occur in the eraser's output, so their rules have nothing to
+  apply to. The constructor `fvar` is part of the shipping AST because the traversal is locally
+  nameless (DV-13): it opens binders with free variables and closes them with `abstract` and
+  `toBvar` (`LeanToLambdaBox/Basic.lean`) before a body is stored, which `EraseProof.LenvClosed`
+  records. MetaRocq's erasure works on de Bruijn indices and maps `tVar` only to `tVar`
+  (`erasure/theories/ErasureFunction.v:996`), which typed terms do not contain (PCUIC's typing has
+  no rule for it), so `closed_env` needs no such clause. The block rules cannot fire at the flags
+  of `erases_correct`, at which the simulation evaluates; results stated for every flag, such as
+  `EraseProof.LBEval.closed`, are about the relation without them.
+- **What was considered instead:** extending `LBTerm` with the missing constructors, a shipping
+  change that no output of the eraser needs (spec §5.1 allows only strictly necessary shipping
+  changes); stating evaluation on a separate transcription of `term` reached through a translation
+  from `LBTerm`, which every statement would pass through and which would still need an image for
+  `fvar`; including the block rules, which the statements never use at their flags.
+
 ### DV-21
 
 - **Our artifact:** `proof/EraseProof/Env.lean`, `EraseProof.ProgEnv`: its rule `axiom` admits
