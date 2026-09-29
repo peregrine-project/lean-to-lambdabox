@@ -13,9 +13,5 @@ EraseProof.ProgEnv.lookup EraseProof.ErasableS.atom v2-erasable-eval
 EraseProof.LBEval.closed EraseProof.erasePure_erases v7-core-main
 EraseProof.SrcEval.value EraseProof.erases_correct v4-sim-main
 EraseProof.Pure.isErasable_agree EraseProof.visit_agree v6-frame-b
-EraseProof.SrcEval.beta_step EraseProof.SrcEval.defeq v2-sr-eval
-EraseProof.SrcEval.zeta_step EraseProof.SrcEval.defeq v2-sr-eval
-EraseProof.SrcEval.delta_step EraseProof.SrcEval.defeq v2-sr-eval
-EraseProof.SrcEval.fixApp_step EraseProof.SrcEval.defeq v2-sr-eval
-EraseProof.SrcEval.appCong_step EraseProof.SrcEval.defeq v2-sr-eval
+EraseProof.SrcEval.defeq EraseProof.ErasableS.eval v2-erasable-eval
 EraseProof.Pure.whnf_sound EraseProof.Pure.isErasable_sound v5-sound

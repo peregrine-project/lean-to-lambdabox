@@ -235,8 +235,9 @@ The blueprint renders this register.
 - **Why it is forced:** lean4lean's model gives an opaque constant no defining equation (rule
   `opaque` of `Lean4Lean.TrEnv'`, `Lean4Lean/Verify/Environment/Basic.lean:164-169`, adds the
   constant only), and `EraseProof.ProgEnv` follows it; so unfolding an opaque is not a
-  definitional equality of the model. The proof relates each evaluation step of the source to a
-  typed definitional equality of the model; for a δ step, `EraseProof.ProgEnv.unfold` gives it
+  definitional equality of the model. The proof relates each evaluation of the source to a typed
+  definitional equality of the model (`EraseProof.SrcEval.defeq`, subject reduction); for a δ
+  step, `EraseProof.ProgEnv.unfold` gives it
   for definitions (their defining equation) and theorems (their type is a proposition, so proof
   irrelevance equates them with their value), and nothing gives it for opaques, whose type need
   not be a proposition.
