@@ -32,7 +32,8 @@ The corpus is everything the eraser emits for a fixed set of inputs:
   with `PRUNE_CONSTRUCTORS=0`. Each run yields `<test>.ast`, `<test>.ast.inlinings` and
   `<test>.mli`: 120 files.
 - **Examples.** The files `tests/corpus/*.lean`. Each one imports `LeanToLambdaBox` and writes its
-  outputs with `#erase ... to "<file>"`:
+  outputs with `#erase ... to "<file>"`. A file must elaborate without error; an `#erase` that fails
+  is wrapped in `#guard_msgs`, which pins its error, and writes no file.
   - `PortProbe.lean`: Nat functions, a Prop-carrying argument, a subtype, a structure with a Prop
     field, wildcard matches, derived `BEq`/`DecidableEq` (3 and 10 constructors); each erased with
     the default configuration, with constructor pruning, and applied to a literal under
@@ -41,6 +42,24 @@ The corpus is everything the eraser emits for a fixed set of inputs:
     booleans, polymorphic combinators, proof and type arguments, `let` of values, types and proofs,
     universe polymorphism, a Prop-typed axiom used as an argument).
   - `Defects.lean`: reproductions of the `R-<n>` entries below.
+  - `Examples.lean`, `Names.lean`, `NearMiss.lean`: the example programs of the scope note
+    (checkpoint 1). `Examples.lean` has 61 programs without an inductive type in their dependency
+    closure (Church numerals and booleans, universe-polymorphic combinators at `Sort 2`, `Sort 1`
+    and `Prop`, type and type-former arguments, sort and type aliases, proof arguments by axiom,
+    theorem and λ, `let` and `have`, an opaque, `@[implemented_by]`, `@[inline]` and
+    `@[macro_inline]`, a `Prop` alias made `@[irreducible]`, relevant axioms) and 48 readouts, which
+    apply such a program to `Nat`, `Nat.succ`, `Nat.zero` (or `Bool`, `true`, `false`).
+    `Names.lean` has 7 programs of the same kind whose constant names need escaping or collide as
+    kernames, and 2 readouts. `NearMiss.lean` has 8 programs that each add one feature outside
+    that fragment (a literal, a projection, a match, structural recursion, a quotient, a
+    `partial def`, a term metavariable, a universe metavariable), and 2 readouts. Each program is
+    erased under `{nat := .peano}` to `<name>.peano.ast` and under the default configuration to
+    `<name>.default.ast`; each readout under `{nat := .peano}` only.
+  - `IrrAlias.lean`: 3 programs without an inductive type whose types are propositions or Π-types
+    only through an `@[irreducible]` alias, erased as the programs of `Examples.lean`.
+  - `UnsafeRec.lean`: 3 programs without an inductive type that use `unsafe` recursion (a recursive
+    constant, a two-member mutual block, a recursive constant whose value is not a λ), erased as
+    the programs of `Examples.lean`.
 
 Regenerate it from the current checkout with
 
@@ -1159,6 +1178,68 @@ without peregrine.
   `#eval` reports 3, 2 and 2 references; 4 of 12 outputs differ) and passes after. The expected
   outputs of `sparse_cases` pin `Sparse.redCode` with its `let`.
 
+## S-15: The corpus gains the scope-note examples, irreducible-alias programs and unsafe recursion
+
+- **Commit:** the commit whose subject starts with `shipping(S-15):`
+  (`git log --grep='^shipping(S-15):'`).
+- **Files and functions:**
+  - new `tests/corpus/Examples.lean`, `tests/corpus/Names.lean`, `tests/corpus/NearMiss.lean`:
+    the example files of the scope note (checkpoint 1), with its commands replaced by `#erase`.
+    Each `#example "<n>" t` became `#erase t config {nat := .peano} to "<n>.peano.ast"` and
+    `#erase t to "<n>.default.ast"`, each `#readout "<n>" t` the first of these two; the closure
+    checks, `#reduce_as` and the two closing `#eval`s of `Examples.lean` are dropped, and the
+    declarations are unchanged. In `NearMiss.lean`, the two `#erase`s of `(_ : NM.CNat)` fail and
+    are wrapped in `#guard_msgs (error, substring := true)` on `unknown metavariable` (the
+    metavariable's id depends on what the file elaborates before it).
+  - new `tests/corpus/IrrAlias.lean`: `Irr.useFI := fI two` with `fI : EndoC` and
+    `@[irreducible] def EndoC : Type 1 := CNat → CNat`; `Irr.useLamHR := guardR (lamHR two) six`
+    with `theorem lamHR : CNat → R := fun _ => hR`; `Irr.pidHR := pid hR`; where `axiom R : IProp`,
+    `axiom hR : R` and `@[irreducible] def IProp : Type := Prop`. The four `#erase`s of `useFI` and
+    `useLamHR` fail and are wrapped in `#guard_msgs (error)` with their exact errors.
+  - new `tests/corpus/UnsafeRec.lean`, over `CN.{u} := (α : Type u) → (α → α) → α → α`:
+    `URec.uf one.{0}` with `unsafe def uf (n : CN.{0}) : CN.{0} := (fun _ => n) (fun x => uf x)`;
+    `URec.ua bfalse one.{0}` with the mutual block `unsafe def ua b n := b _ (fun m => m)
+    (fun m => ub btrue (csucc m)) n` and `ub` symmetric, over Church booleans in `Type 2`; and
+    `URec.ug one.{0}` with `unsafe def ug : CN.{0} → CN.{0} := (fun _ n => n) (fun x => ug x)`,
+    whose value is an application.
+  - `doc/SHIPPING-CHANGES.md`: this entry; the corpus description above; the reproductions of
+    R-11 and R-14.
+
+  No file under `LeanToLambdaBox/`, no package file, no file under `benchmarks/` or `scripts/`
+  and no regression test changes.
+- **Why necessary:** the verification plans a second erasure path for programs without inductive
+  types, to be checked against today's path, and with `peregrine validate` and `eval`, on every
+  corpus program of that fragment. Before this change the corpus had 25 such programs
+  (`Scope.lean`). None of them has an `@[irreducible]` alias, a `@[macro_inline]` constant, an
+  opaque, a name that collides or needs escaping, a universe-polymorphic type that is a proposition
+  at universe 0, or recursion. Without the new files, those checks would cover neither the
+  behaviours in which the two paths are expected to differ (an irreducible alias, `@[macro_inline]`)
+  nor recursion (`tFix`). The new files add 74 programs of the fragment: 61 in `Examples.lean`, 7 in
+  `Names.lean`, 3 in `IrrAlias.lean` and 3 in `UnsafeRec.lean`.
+- **Behaviour before:** the eraser as at S-14. `scripts/corpus.sh` writes 284 files.
+- **Behaviour after:** the eraser is unchanged. `scripts/corpus.sh` writes 704 files, with no
+  `PANIC` in the logs of the new files. On the new programs:
+  - `#erase Irr.useFI` fails with `function expected` on `Irr.fI Irr.two`, and
+    `#erase Irr.useLamHR` with `type expected` on `Irr.R` (R-14). `Irr.pidHR` is emitted with the
+    axioms `Irr.R` and `Irr.hR` (R-14): it validates, and `peregrine eval` stops with
+    `Axioms found … .Irr.R, .Irr.hR`.
+  - `URec.uf` is a one-member `tFix`; the program validates and evaluates to `one`.
+    `URec.ua` and `URec.ub` are two declarations, each the two-member `tFix` of the block (at
+    index 0 and 1); `ua bfalse one` validates and evaluates to `csucc one`, a λ. `URec.ug` is a
+    `tFix` whose body is an application; `peregrine validate` and `eval` reject the program with
+    `Fixpoint body is not a lambda` (R-11).
+  - The emitted files of `Examples.lean`, `Names.lean` and `NearMiss.lean` are those the scope
+    note reports (erased at S-13), up to hygienic name suffixes and, in `N_private.*`, the main
+    module's name in `_private.<module>.0`.
+- **Effect on emitted .ast (corpus):** the 284 files of S-14 are byte-identical. 420 files are new
+  (210 `.ast`, 210 `.ast.inlinings`, no `.mli`): `examples/Examples/` 340, `examples/Names/` 32,
+  `examples/NearMiss/` 32, `examples/IrrAlias/` 4 (`pidHR`), `examples/UnsafeRec/` 12.
+- **Regression test:** the eraser is unchanged, so no test fails before. The new corpus files
+  guard the fragment's behaviours listed above, byte for byte through the corpus, and the failing
+  `#erase`s through `#guard_msgs`: `scripts/corpus.sh` stops if a corpus file reports an error, so
+  a change of these errors, or an `#erase` that starts to succeed, shows. The regression tests are
+  unchanged and pass.
+
 ---
 
 ## Reported, not fixed
@@ -1314,8 +1395,13 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
 - **Where:** `LeanToLambdaBox/Basic.lean`: `FixDef` (`principalArgIdx := 0`);
   `LeanToLambdaBox/Erasure.lean`: `erase.visitMutual`, `mkDef`.
 - **Reproduction:** every recursive definition, e.g. corpus `examples/PortProbe/fact.default.ast`:
-  `(def (nNamed "Tiny.fact") (tLambda ...) 0)`.
-- **Impact:** none observed; a fixpoint whose body is not a λ is not guaranteed to be well formed.
+  `(def (nNamed "Tiny.fact") (tLambda ...) 0)`. A body that is not a λ: corpus
+  `examples/UnsafeRec/ugOne.default.ast`, from `unsafe def ug : CN.{0} → CN.{0} :=
+  (fun _ n => n) (fun x => ug x)`, has `(def (nNamed "URec.ug") (tApp ...) 0)`, and
+  `peregrine validate` rejects it: `Error while checking .URec.ug: Fixpoint body is not a lambda`.
+- **Impact:** none observed on recursive definitions whose value is a λ, which includes every
+  compiler pre-definition; a recursive `unsafe def` whose value is not a λ gives a program that
+  peregrine rejects.
 - **Why not fixed:** not required by the verification goal unless it later becomes required.
 
 ### R-12: Mutual blocks skip the `@[extern]` and `@[inline]` handling
@@ -1347,11 +1433,22 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
 
 - **What:** `isErasable` uses `Meta.inferType`, `Meta.isProp` and `Meta.isTypeFormerType`; the last
   one weak-head normalizes at default transparency, which does not unfold `@[irreducible]`
-  definitions. A type behind an irreducible alias is therefore kept as a relevant term.
+  definitions. A type behind an irreducible alias is therefore kept as a relevant term, and so is
+  a proof whose proposition's sort is behind such an alias. Where `Meta.inferType` needs to unfold
+  the alias to a Π-type or a sort, `#erase` fails.
 - **Where:** `LeanToLambdaBox/Erasure.lean`: `isErasable`.
 - **Reproduction:** `irreducible_alias.ast`: `mkT : MyType`, with `@[irreducible] def MyType := Type`,
-  is emitted as the declaration `mkT := id □ □` instead of being erased.
-- **Impact:** under-erasure; the value computed is unaffected in the observed case.
+  is emitted as the declaration `mkT := id □ □` instead of being erased. In the corpus files
+  `tests/corpus/IrrAlias.lean` and `tests/corpus/Examples.lean`, with
+  `@[irreducible] def IProp : Type := Prop`, `axiom R : IProp` and `axiom hR : R`:
+  `examples/IrrAlias/pidHR.default.ast` (`pid hR`) declares the axioms `Irr.R` and `Irr.hR`, and
+  `examples/Examples/irrAxiomArg.default.ast` (`guardR hR six`) declares `Ex.hR`. `#erase` of
+  `Irr.useFI := fI two`, with `fI : EndoC` and `@[irreducible] def EndoC : Type 1 := CNat → CNat`,
+  fails with `function expected`; `#erase` of `Irr.useLamHR := guardR (lamHR two) six`, with
+  `theorem lamHR : CNat → R`, fails with `type expected`.
+- **Impact:** under-erasure. In `irreducible_alias.ast` the value computed is unaffected; a kept
+  proof axiom stops `peregrine eval` (`Axioms found … .Irr.R, .Irr.hR`); and `#erase` refuses
+  some programs.
 - **Why not fixed:** not required by the verification goal unless it later becomes required.
 
 ### R-15: `#erase` without `to` logs the program in place of the attributes
