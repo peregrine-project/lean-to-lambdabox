@@ -19,6 +19,9 @@ structure WcbvFlags where
   with_guarded_fix : Bool
   with_constructor_as_block : Bool
 
+/-- The flags of `erases_correct`. Reference: `MR E/EWcbvEval.v:69 default_wcbv_flags`. -/
+def defaultFlags : WcbvFlags := ⟨true, true, false⟩
+
 mutual
 /-- Closed substitution of `t` for index `k`. Reference: `MR E/ECSubst.v:14 csubst`. -/
 def csubst (t : LBTerm) (k : Nat) : LBTerm → LBTerm

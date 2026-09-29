@@ -6,14 +6,30 @@
 #             see tools/Report.lean `sorryLabels`, `testOnlySorryLabels`), comma-separated;
 #             `-` for none.
 # proof/scripts/check.sh compares this file with the computed .check/axioms.actual.
+EraseProof.ErasableS.atom propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
+EraseProof.ErasableS.eval propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
+EraseProof.Erases.app_inv propext,Classical.choice,Quot.sound -
+EraseProof.Erases.atomSpine_box propext,Classical.choice,Quot.sound -
+EraseProof.Erases.closed propext,Classical.choice,Quot.sound -
+EraseProof.Erases.congr_ac propext,Classical.choice,Quot.sound -
+EraseProof.Erases.instLevels propext,Classical.choice,Quot.sound -
+EraseProof.Erases.substRc propext,Classical.choice,Quot.sound -
+EraseProof.Erases.uninstantiateN propext,Classical.choice,Quot.sound -
+EraseProof.ErasesDeps.eval propext,Classical.choice,Quot.sound -
+EraseProof.ErasesDeps.ext propext,Classical.choice,Quot.sound -
+EraseProof.IsErasable.app propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5,L6
+EraseProof.IsErasable.inst propext,Quot.sound -
+EraseProof.IsErasable.lam_inv propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5,L6
 EraseProof.LBEval.closed propext,Quot.sound -
-EraseProof.Pure.inferType_sound propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
 EraseProof.Pure.isErasable_agree propext,Quot.sound -
-EraseProof.SrcEval.defeq propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
+EraseProof.Pure.isErasable_atom propext,Quot.sound -
+EraseProof.Pure.isErasable_sound propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
+EraseProof.SrcEval.restrict propext,Classical.choice,Quot.sound -
 EraseProof.SrcEval.value propext,Classical.choice,Quot.sound -
 EraseProof.TrS.fvarsIn propext,Classical.choice,Quot.sound -
 EraseProof.TrS.inst_fvar propext,Classical.choice,Quot.sound -
-EraseProof.TrS.uninstantiateN propext,Classical.choice,Quot.sound -
+EraseProof.Test.Atoms.defHead_kept propext -
+EraseProof.Test.Atoms.levelDependent_kept propext -
 EraseProof.Test.Bridge.addConsts_fresh propext,Quot.sound -
 EraseProof.Test.Bridge.constants_none_of_le - -
 EraseProof.Test.Bridge.foldl_insert_of_forall_ne propext,Classical.choice,Quot.sound -
@@ -22,6 +38,19 @@ EraseProof.Test.Bridge.fresh_of_addConst propext,Quot.sound -
 EraseProof.Test.Bridge.insertDefs_hashMap propext,Quot.sound -
 EraseProof.Test.Bridge.insert_step propext,Classical.choice,Quot.sound -
 EraseProof.Test.Bridge.unsafe_le propext -
+EraseProof.Test.D1.atom_A propext -
+EraseProof.Test.D1.atom_F propext -
+EraseProof.Test.D1.atom_P propext -
+EraseProof.Test.D1.atom_hP propext -
+EraseProof.Test.D1.e4A propext,Quot.sound -
+EraseProof.Test.D1.e4P propext,Quot.sound -
+EraseProof.Test.D1.e4hP propext,Quot.sound -
+EraseProof.Test.D1.hAty propext,Quot.sound -
+EraseProof.Test.D1.hPty propext,Quot.sound -
+EraseProof.Test.D1.hPty2 propext,Quot.sound -
+EraseProof.Test.D1.henv propext,Classical.choice,Quot.sound -
+EraseProof.Test.D1.hhPty propext,Quot.sound -
+EraseProof.Test.D1.hsub propext -
 EraseProof.Test.LBEval.deterministic propext -
 EraseProof.Test.LBEval.headOf_mkApps propext -
 EraseProof.Test.LBEval.mkApps_construct_inj propext -
@@ -39,6 +68,12 @@ EraseProof.Test.NV1.pCN propext,Classical.choice,Quot.sound -
 EraseProof.Test.NV1.trCN propext,Quot.sound -
 EraseProof.Test.NV1.trOne propext,Quot.sound -
 EraseProof.Test.NV1.venv0_A propext,Quot.sound -
+EraseProof.Test.Oracle.irreducibleAlias propext -
+EraseProof.Test.Oracle.ok_of_toOption propext -
+EraseProof.Test.Oracle.oracle_A propext -
+EraseProof.Test.Oracle.oracle_hP propext -
+EraseProof.Test.Oracle.sound_A propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
+EraseProof.Test.Oracle.sound_hP propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
 EraseProof.Test.ProgEnv.toTrEnv' propext,Classical.choice,Quot.sound,sorryAx L1,TrProj
 EraseProof.Test.TrS.toTrExprS propext,Classical.choice,Quot.sound,sorryAx TrProj
 EraseProof.Test.Bridge.ProgEnv.toTrEnv'_hashMap propext,Classical.choice,Quot.sound,sorryAx L1,TrProj
