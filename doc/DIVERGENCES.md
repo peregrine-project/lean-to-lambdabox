@@ -152,6 +152,54 @@ The blueprint renders this register.
   (`Lean4Lean.VEnv.IsDefEqU.forallE_inv`, `Lean4Lean/Theory/Typing/Injectivity.lean:23`) only
   under `Lean4Lean.VEnv.WF`, whose inductive part is the `sorry` definition above.
 
+### DV-10
+
+- **Our artifact:** `proof/EraseProof/Source/EvalEnv.lean`, `EraseProof.EvalEnv.unfold?`, the
+  constants the source semantics unfolds: it returns the value of a definition or theorem and
+  nothing for an opaque constant.
+- **Reference artifact:** the δ rule of PCUIC's weak call-by-value evaluation, `eval_delta`
+  (`pcuic/theories/PCUICWcbvEval.v:247`; MetaCoq paper §5.6), which unfolds every constant whose
+  declaration has a body (`cst_body decl = Some body`).
+- **What differs:** a Lean `opaque` declaration (`ConstantInfo.opaqueInfo`) has a value, but
+  `EraseProof.EvalEnv.unfold?` does not return it, so evaluation does not unfold the constant.
+  The shipping eraser emits the opaque's value as the body of its λ□ constant
+  (`ci.value? (allowOpaque := true)` in `LeanToLambdaBox/Erasure.lean`), so λ□ evaluation unfolds
+  what the source semantics leaves stuck.
+- **Why it is forced:** lean4lean's model gives an opaque constant no defining equation (rule
+  `opaque` of `Lean4Lean.TrEnv'`, `Lean4Lean/Verify/Environment/Basic.lean:164-169`, adds the
+  constant only), and `EraseProof.ProgEnv` follows it; so unfolding an opaque is not a
+  definitional equality of the model. The proof relates each evaluation step of the source to a
+  typed definitional equality of the model; for a δ step, `EraseProof.ProgEnv.unfold` gives it
+  for definitions (their defining equation) and theorems (their type is a proposition, so proof
+  irrelevance equates them with their value), and nothing gives it for opaques, whose type need
+  not be a proposition.
+- **What was considered instead:** unfolding opaques as `eval_delta` does: evaluation steps would
+  no longer be definitional equalities of the model, and type preservation fails for terms whose
+  type depends on an opaque's value (with `opaque c : T := t` and an axiom `f : (x : T) → F x`,
+  `f c : F c` evaluates to `f t : F t`, and the model does not equate `F c` with `F t`).
+
+### DV-12
+
+- **Our artifact:** `proof/EraseProof/Source/EvalEnv.lean`, `EraseProof.EvalEnv` with its field
+  `axiomatized`, and `EraseProof.EvalEnv.unfold?`: the evaluation environment carries the
+  constants the configuration remaps to foreign code, and evaluation does not unfold them.
+- **Reference artifact:** the environment of PCUIC's weak call-by-value evaluation `eval`
+  (`pcuic/theories/PCUICWcbvEval.v:231`), whose rule `eval_delta` (`:247`) unfolds a constant
+  exactly when its declaration has a body; and `erases_constant_body`
+  (`erasure/theories/Extract.v:264`), which erases a constant with a body to one with a body and
+  a constant without a body to one without.
+- **What differs:** a definition or theorem for which `axiomatized` holds has a Lean value but no
+  δ rule in the source semantics: it is stuck, like the λ□ axiom the eraser emits for it. Which
+  constants are remapped is an input of the source semantics, besides the declarations.
+- **Why it is forced:** under the configuration `extern := .preferAxiom` (the default of
+  `ErasureConfig`, `LeanToLambdaBox/Erasure.lean`), the shipping eraser emits a declaration tagged
+  `@[extern]` as a λ□ axiom, although it has a Lean value, so that it is linked with a foreign
+  implementation (Dima §4.2). Neither lean4lean's model nor λ□ evaluation models that
+  implementation; the source semantics can only leave the constant stuck, as λ□ evaluation leaves
+  the axiom.
+- **What was considered instead:** a scope condition excluding programs that mention a remapped
+  constant: it also excludes programs that never evaluate the constant.
+
 ### DV-21
 
 - **Our artifact:** `proof/EraseProof/Env.lean`, `EraseProof.ProgEnv`: its rule `axiom` admits
