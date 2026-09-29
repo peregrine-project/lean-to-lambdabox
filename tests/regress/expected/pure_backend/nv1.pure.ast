@@ -1,0 +1,1 @@
+(Untyped ((((MPdot (MPfile ()) "PB") "one") (ConstantDecl (constant_body (Some (tLambda (nNamed "s") (tLambda (nNamed "z") (tApp (tRel 1) (tRel 0))))))))) (Some (tApp (tConst ((MPdot (MPfile ()) "PB") "one")) (tLambda (nNamed "a") (tRel 0)))))

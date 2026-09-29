@@ -6,14 +6,13 @@
 #   <task id>: optional, the unit that lands the consumer.
 # Every declaration of EraseProof outside EraseProof.Test must be reachable from a root; no root
 # may be reachable from another root.
-EraseProof.TrS.det EraseProof.erases_correct v4-sim-main
 EraseProof.TrS.fvarsIn EraseProof.erasePure_erases v7-core-main
 EraseProof.TrS.uninstantiateN EraseProof.Erases.uninstantiateN v3-rel-abstract
 EraseProof.TrS.inst_fvar EraseProof.erasePure_erases v7-core-main
-EraseProof.ProgEnv.ordered EraseProof.SrcEval.defeq v2-sr-eval
-EraseProof.ProgEnv.wf EraseProof.SrcEval.defeq v2-sr-eval
-EraseProof.ProgEnv.lookup EraseProof.ErasableS.atom v2-erasable-eval
-EraseProof.ProgEnv.unfold EraseProof.SrcEval.defeq v2-sr-eval
-EraseProof.TrS.defeqDFC EraseProof.Erases.inst_let v3-rel-subst
+EraseProof.LBEval.closed EraseProof.erasePure_erases v7-core-main
+EraseProof.SrcEval.value EraseProof.erases_correct v4-sim-main
+EraseProof.Pure.isErasable_agree EraseProof.visit_agree v6-frame-b
+EraseProof.SrcEval.defeq EraseProof.ErasableS.eval v2-erasable-eval
+EraseProof.Pure.inferType_sound EraseProof.Pure.isErasable_sound v5-sound
 EraseProof.IsErasable.inst EraseProof.Erases.inst v3-rel-subst
 EraseProof.IsErasable.instL EraseProof.Erases.instLevels v3-rel-levels
