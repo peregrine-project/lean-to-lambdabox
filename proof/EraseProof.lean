@@ -1,5 +1,6 @@
 import EraseProof.Env
 import EraseProof.Typing.Basic
+import EraseProof.Typing.Inst
 import EraseProof.Typing.Uniq
 import EraseProof.Typing.Weak
 
