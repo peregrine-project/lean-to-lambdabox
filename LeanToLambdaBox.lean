@@ -2,3 +2,4 @@
 -- Import modules here that should be built as part of the library.
 import LeanToLambdaBox.Basic
 import LeanToLambdaBox.Erasure
+import LeanToLambdaBox.Erasure.Collect

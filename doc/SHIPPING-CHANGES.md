@@ -1384,6 +1384,94 @@ without peregrine.
   value). A binder missing from `locals` would make the test fail on the panic. It fails before
   (9 errors; the outputs are the same) and passes after.
 
+## S-18: The dependency closure of a program is computed by `collectDeps`, which `#erase` does not call yet
+
+- **Commit:** the commit whose subject starts with `shipping(S-18):`
+  (`git log --grep='^shipping(S-18):'`).
+- **Files and functions:**
+  - new `LeanToLambdaBox/Erasure/Collect.lean` (module `LeanToLambdaBox.Erasure.Collect`; it
+    imports `LeanToLambdaBox.Basic` and lean4lean's `Lean4Lean.Verify.Axioms`):
+    - derived `DecidableEq` instances for `ModPath` and `Kername` (`instDecidableEqModPath`,
+      `instDecidableEqKername`);
+    - `Erasure.EraseError`, with the constructors `outOfFragment`, `nameCollision`, `fuel`,
+      `failed`;
+    - `Erasure.EnvView`, with the fields `find?`, `isExtern`, `inlineAttr?`, and
+      `Erasure.EnvView.ofEnvironment`, which reads them from an `Environment`
+      (`Environment.find?`, `isExtern`, `Compiler.getInlineAttribute?`);
+    - `Erasure.findConst`: lookup by name in a list of declarations;
+    - `Erasure.exprConsts`: the constants of a term, or `outOfFragment` for a free variable, a
+      metavariable, a universe metavariable (tested with lean4lean's `Level.hasMVar'`), a literal or
+      a projection;
+    - `Erasure.declDeps`: the names that an axiom, a definition, a theorem or an opaque depends on
+      (its type, its value, the members `all` of its block), or `outOfFragment` for a quotient, an
+      inductive type, a constructor or a recursor;
+    - `Erasure.closure`: the depth-first closure of a list of names, each name expanded once, with
+      a bound on its steps (`fuel` when reached); a name the view does not have is
+      `outOfFragment`, and a view that answers with a declaration of another name is `failed`;
+    - `Erasure.findCollision`: two declarations of a list with the same kername (`toKername`);
+    - `Erasure.collectFuel := 2 ^ 32` and `Erasure.collectDeps view e`: the closure of the
+      constants of `e`, and `nameCollision` if two of its declarations have the same kername.
+  - `LeanToLambdaBox.lean`: imports the new module.
+  - new `tests/regress/collect_deps.lean`, its expected outputs
+    `tests/regress/expected/collect_deps/` (2 files) and
+    `tests/regress/expected-peregrine/collect_deps/` (2 files).
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** DESIGN Q8, S-C. The verified path erases a program over its own environment,
+  the dependency closure of the term, not over the whole Lean environment, and `collectDeps`
+  computes that closure from a view of the environment. DESIGN Q8 S-E routes on its result: a
+  program whose closure meets an inductive type, a literal, a projection, a metavariable or an
+  unknown constant (`outOfFragment`) is to keep the unchanged path. The verification's statements
+  `collectDeps_spec`, `collectDeps_sub` and `collectDeps_not_outOfFragment` are about this
+  function, so it is total and works on lists, which proofs and kernel evaluation see through. It
+  tests universe metavariables with lean4lean's structural `Level.hasMVar'`: Lean's
+  `Level.hasMVar` reads a cached field, which lean4lean relates to `hasMVar'` only by an axiom
+  (`Level.hasMVar_eq`, `Lean4Lean/Verify/Axioms.lean:289`). The collision check makes the kernames
+  of the closure distinct, since `toKername` is not injective (R-3). `findCollision` compares
+  kernames with the derived `BEq`; the `DecidableEq` instances decide the equality of kernames that
+  the verification states (`KernameInj`).
+- **Behaviour before:** none of these declarations exists. Reproduction:
+  `tests/regress/collect_deps.lean` at the parent commit fails with 21 errors
+  (`Unknown identifier collectDeps`, `Unknown identifier EnvView.ofEnvironment`, `The expected type
+  EnvView is not an inductive type`, …); its two output files are those expected.
+- **Behaviour after:** `#erase` is unchanged: nothing calls the new functions. Over the elaboration
+  environment (`EnvView.ofEnvironment`), `collectDeps` gives `[A, CN, one]` for
+  `one (fun a : A => a)` (`axiom A : Type`, `def CN := (A → A) → A → A`,
+  `def one : CN := fun s z => s z`); `[one, ub, ua, A, CN, useU]` for a constant `useU` that uses a
+  two-member `unsafe` block `ua`/`ub`, so the block is closed under its members;
+  `outOfFragment "level metavariable"` for `@pid` at a universe metavariable;
+  `outOfFragment "literal"` for `«a b»`, whose closure contains `a_u32b` (the same kername) and a
+  literal, so the scan of the fragment comes before the collision check; and
+  `nameCollision c_u32d «c d»` for an in-fragment closure with those two constants. The kernel
+  evaluates `collectDeps` with its bound `2 ^ 32` (`decide`). No new declaration depends on an axiom
+  of lean4lean: `exprConsts`, `declDeps`, `closure`, `findConst` and the two instances depend on no
+  axiom, `findCollision`, `collectDeps` and `EnvView.ofEnvironment` on `propext`,
+  `Classical.choice` and `Quot.sound`. Every file that imports `LeanToLambdaBox` now also imports
+  `Lean4Lean.Verify.Axioms` and, through it, 25 modules of `batteries` and 2 more of `lean4lean`
+  (28 modules): their declarations, including lean4lean's axioms and `@[simp]` axioms about `Expr`
+  and `Level`, are in scope. For every constant declared outside these 28 modules, the
+  `@[inline]`-family attribute, `@[extern]`, `@[implemented_by]`, the reducibility, the instance
+  status and the `@[csimp]` replacement are the same with and without them (64119 constants with a
+  value other than the default, all equal); the 16 `@[csimp]` lemmas that the 28 modules add all
+  replace functions declared in `batteries` (`Batteries.Data.List.Basic`, e.g. `List.sublists`).
+  The first `lake lean` of the benchmark pipeline in `benchmarks/via_malfunction` builds the 28
+  modules once.
+- **Effect on emitted .ast (corpus):** byte-identical for all 704 files; `scripts/corpus-diff.sh`
+  against the corpus of S-17 reports 704 identical. The corpus logs are identical except for the
+  job counts of `lake` (6 jobs become 37 for the build of the package, 21 become 52 for each
+  `lake lean` of the benchmarks) and the addresses in the backtraces of the 4 `PANIC` messages of
+  `Defects.lean`. In a benchmark workspace where the 28 modules are not built yet, the first
+  benchmark log also lists their build.
+- **Regression test:** `tests/regress/collect_deps.lean` proves by `decide` that `collectDeps` gives
+  `[A, CN, one]` for `one (fun a : A => a)` over a view built by hand; checks with `#guard_msgs` its
+  results over the elaboration environment on that program, on the `unsafe` block, on `@pid` at a
+  universe metavariable, on the collision-first program and on the in-fragment collision (as
+  above); proves by `decide`, over views built by hand, the closure `[A, B]` of `B := A`, that the
+  collision-first program is `outOfFragment`, that the in-fragment collision is `nameCollision`,
+  that a constant missing from the view is `outOfFragment`, and that a view answering `find? a` with
+  a declaration named `b` gives `failed`; and pins the output of `#erase` on
+  `one (fun a : A => a)` (`nv1.ast`, which peregrine validates and evaluates to
+  `λz. (λa. a) z`). It fails before (21 errors; the outputs are the same) and passes after.
+
 ---
 
 ## Reported, not fixed
