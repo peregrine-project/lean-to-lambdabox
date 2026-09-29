@@ -35,32 +35,9 @@ noncomputable def useLamHR : CNat := guardR (lamHR two) six
 
 end Irr
 
--- `#erase` fails on `useFI` and `useLamHR` (R-14): the `Meta` type inference behind the eraser's
--- erasability test does not unfold the `@[irreducible]` aliases. `#guard_msgs` pins the error;
--- no file is written.
-/--
-error: function expected
-  Irr.fI Irr.two
--/
-#guard_msgs (error) in
 #erase Irr.useFI config {nat := .peano} to "useFI.peano.ast"
-/--
-error: function expected
-  Irr.fI Irr.two
--/
-#guard_msgs (error) in
 #erase Irr.useFI to "useFI.default.ast"
-/--
-error: type expected
-  Irr.R
--/
-#guard_msgs (error) in
 #erase Irr.useLamHR config {nat := .peano} to "useLamHR.peano.ast"
-/--
-error: type expected
-  Irr.R
--/
-#guard_msgs (error) in
 #erase Irr.useLamHR to "useLamHR.default.ast"
 #erase Irr.pidHR config {nat := .peano} to "pidHR.peano.ast"
 #erase Irr.pidHR to "pidHR.default.ast"

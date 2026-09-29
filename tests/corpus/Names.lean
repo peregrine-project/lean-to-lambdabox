@@ -42,7 +42,13 @@ private def privTwo : Nm.CNat := Nm.two'
 
 #erase Nm.two' config {nat := .peano} to "N_prime.peano.ast"
 #erase Nm.two' to "N_prime.default.ast"
+-- `two'` and `two_u39` have the same kername, and `#erase` fails (R-3). `#guard_msgs` pins the
+-- error; no file is written.
+/-- error: erasure failed: the constants Nm.two_u39 and Nm.two' have the same kername -/
+#guard_msgs (error) in
 #erase Nm.both config {nat := .peano} to "N_collision.peano.ast"
+/-- error: erasure failed: the constants Nm.two_u39 and Nm.two' have the same kername -/
+#guard_msgs (error) in
 #erase Nm.both to "N_collision.default.ast"
 #erase (Nm.both Nat Nat.succ Nat.zero) config {nat := .peano} to "N_R_collision.peano.ast"
 #erase Nm.dbl₂ config {nat := .peano} to "N_subscript.peano.ast"

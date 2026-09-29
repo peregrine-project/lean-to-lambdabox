@@ -96,6 +96,22 @@ print exactly that. `scripts/regress.sh --update [TEST...]` rewrites the expecte
 current checkout. CI (`.github/workflows/build.yml`) runs `scripts/regress.sh` after the build,
 without peregrine.
 
+The pure path of the eraser (`Erasure.erasePure`, S-20), which `#erase` takes on the programs in the
+fragment (S-21), is compared with the `Meta` path (`Erasure.erase`) on the corpus examples by
+
+    scripts/pure-harness.sh [--update] [--keep DIR]
+
+It elaborates each file `tests/corpus/<Stem>.lean` with the harness `tests/harness/PureHarness.lean`
+imported. For each `#erase ... to "<f>"`, the harness computes `collectDeps` over the elaboration
+environment; for a program in the fragment it runs `erasePure` and the `Meta` path
+(`Erasure.erase`), and, at every call of the pure oracle in the pure run, the `Meta` oracle on the
+same term in the same local context. Then `#erase` runs as usual. The summary has one line per
+`#erase`: out of the fragment and why; or the results of both paths, whether their outputs are
+byte-identical, which of them the file written by `#erase` equals, the number of oracle calls, and
+the calls at which the two oracles answer differently. It must equal
+`tests/harness/expected/pure-harness.txt`; `--update` rewrites that file. CI runs the harness after
+`scripts/regress.sh`.
+
 ---
 
 ## S-1: Change register, corpus and regression harness
@@ -1384,6 +1400,454 @@ without peregrine.
   value). A binder missing from `locals` would make the test fail on the panic. It fails before
   (9 errors; the outputs are the same) and passes after.
 
+## S-18: The dependency closure of a program is computed by `collectDeps`, which `#erase` does not call yet
+
+- **Commit:** the commit whose subject starts with `shipping(S-18):`
+  (`git log --grep='^shipping(S-18):'`).
+- **Files and functions:**
+  - new `LeanToLambdaBox/Erasure/Collect.lean` (module `LeanToLambdaBox.Erasure.Collect`; it
+    imports `LeanToLambdaBox.Basic` and lean4lean's `Lean4Lean.Verify.Axioms`):
+    - derived `DecidableEq` instances for `ModPath` and `Kername` (`instDecidableEqModPath`,
+      `instDecidableEqKername`);
+    - `Erasure.EraseError`, with the constructors `outOfFragment`, `nameCollision`, `fuel`,
+      `failed`;
+    - `Erasure.EnvView`, with the fields `find?`, `isExtern`, `inlineAttr?`, and
+      `Erasure.EnvView.ofEnvironment`, which reads them from an `Environment`
+      (`Environment.find?`, `isExtern`, `Compiler.getInlineAttribute?`);
+    - `Erasure.findConst`: lookup by name in a list of declarations;
+    - `Erasure.exprConsts`: the constants of a term, or `outOfFragment` for a free variable, a
+      metavariable, a universe metavariable (tested with lean4lean's `Level.hasMVar'`), a literal or
+      a projection;
+    - `Erasure.declDeps`: the names that an axiom, a definition, a theorem or an opaque depends on
+      (its type, its value, the members `all` of its block), or `outOfFragment` for a quotient, an
+      inductive type, a constructor or a recursor;
+    - `Erasure.closure`: the depth-first closure of a list of names, each name expanded once, with
+      a bound on its steps (`fuel` when reached); a name the view does not have is
+      `outOfFragment`, and a view that answers with a declaration of another name is `failed`;
+    - `Erasure.findCollision`: two declarations of a list with the same kername (`toKername`);
+    - `Erasure.collectFuel := 2 ^ 32` and `Erasure.collectDeps view e`: the closure of the
+      constants of `e`, and `nameCollision` if two of its declarations have the same kername.
+  - `LeanToLambdaBox.lean`: imports the new module.
+  - new `tests/regress/collect_deps.lean`, its expected outputs
+    `tests/regress/expected/collect_deps/` (2 files) and
+    `tests/regress/expected-peregrine/collect_deps/` (2 files).
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** DESIGN Q8, S-C. The verified path erases a program over its own environment,
+  the dependency closure of the term, not over the whole Lean environment, and `collectDeps`
+  computes that closure from a view of the environment. DESIGN Q8 S-E routes on its result: a
+  program whose closure meets an inductive type, a literal, a projection, a metavariable or an
+  unknown constant (`outOfFragment`) is to keep the unchanged path. The verification's statements
+  `collectDeps_spec`, `collectDeps_sub` and `collectDeps_not_outOfFragment` are about this
+  function, so it is total and works on lists, which proofs and kernel evaluation see through. It
+  tests universe metavariables with lean4lean's structural `Level.hasMVar'`: Lean's
+  `Level.hasMVar` reads a cached field, which lean4lean relates to `hasMVar'` only by an axiom
+  (`Level.hasMVar_eq`, `Lean4Lean/Verify/Axioms.lean:289`). The collision check makes the kernames
+  of the closure distinct, since `toKername` is not injective (R-3). `findCollision` compares
+  kernames with the derived `BEq`; the `DecidableEq` instances decide the equality of kernames that
+  the verification states (`KernameInj`).
+- **Behaviour before:** none of these declarations exists. Reproduction:
+  `tests/regress/collect_deps.lean` at the parent commit fails with 21 errors
+  (`Unknown identifier collectDeps`, `Unknown identifier EnvView.ofEnvironment`, `The expected type
+  EnvView is not an inductive type`, …); its two output files are those expected.
+- **Behaviour after:** `#erase` is unchanged: nothing calls the new functions. Over the elaboration
+  environment (`EnvView.ofEnvironment`), `collectDeps` gives `[A, CN, one]` for
+  `one (fun a : A => a)` (`axiom A : Type`, `def CN := (A → A) → A → A`,
+  `def one : CN := fun s z => s z`); `[one, ub, ua, A, CN, useU]` for a constant `useU` that uses a
+  two-member `unsafe` block `ua`/`ub`, so the block is closed under its members;
+  `outOfFragment "level metavariable"` for `@pid` at a universe metavariable;
+  `outOfFragment "literal"` for `«a b»`, whose closure contains `a_u32b` (the same kername) and a
+  literal, so the scan of the fragment comes before the collision check; and
+  `nameCollision c_u32d «c d»` for an in-fragment closure with those two constants. The kernel
+  evaluates `collectDeps` with its bound `2 ^ 32` (`decide`). No new declaration depends on an axiom
+  of lean4lean: `exprConsts`, `declDeps`, `closure`, `findConst` and the two instances depend on no
+  axiom, `findCollision`, `collectDeps` and `EnvView.ofEnvironment` on `propext`,
+  `Classical.choice` and `Quot.sound`. Every file that imports `LeanToLambdaBox` now also imports
+  `Lean4Lean.Verify.Axioms` and, through it, 25 modules of `batteries` and 2 more of `lean4lean`
+  (28 modules): their declarations, including lean4lean's axioms and `@[simp]` axioms about `Expr`
+  and `Level`, are in scope. For every constant declared outside these 28 modules, the
+  `@[inline]`-family attribute, `@[extern]`, `@[implemented_by]`, the reducibility, the instance
+  status and the `@[csimp]` replacement are the same with and without them (64119 constants with a
+  value other than the default, all equal); the 16 `@[csimp]` lemmas that the 28 modules add all
+  replace functions declared in `batteries` (`Batteries.Data.List.Basic`, e.g. `List.sublists`).
+  The first `lake lean` of the benchmark pipeline in `benchmarks/via_malfunction` builds the 28
+  modules once.
+- **Effect on emitted .ast (corpus):** byte-identical for all 704 files; `scripts/corpus-diff.sh`
+  against the corpus of S-17 reports 704 identical. The corpus logs are identical except for the
+  job counts of `lake` (6 jobs become 37 for the build of the package, 21 become 52 for each
+  `lake lean` of the benchmarks) and the addresses in the backtraces of the 4 `PANIC` messages of
+  `Defects.lean`. In a benchmark workspace where the 28 modules are not built yet, the first
+  benchmark log also lists their build.
+- **Regression test:** `tests/regress/collect_deps.lean` proves by `decide` that `collectDeps` gives
+  `[A, CN, one]` for `one (fun a : A => a)` over a view built by hand; checks with `#guard_msgs` its
+  results over the elaboration environment on that program, on the `unsafe` block, on `@pid` at a
+  universe metavariable, on the collision-first program and on the in-fragment collision (as
+  above); proves by `decide`, over views built by hand, the closure `[A, B]` of `B := A`, that the
+  collision-first program is `outOfFragment`, that the in-fragment collision is `nameCollision`,
+  that a constant missing from the view is `outOfFragment`, and that a view answering `find? a` with
+  a declaration named `b` gives `failed`; and pins the output of `#erase` on
+  `one (fun a : A => a)` (`nv1.ast`, which peregrine validates and evaluates to
+  `λz. (λa. a) z`). It fails before (21 errors; the outputs are the same) and passes after.
+
+## S-19: A pure erasability oracle and the monad of a pure backend, which `#erase` does not use yet
+
+- **Commit:** the commit whose subject starts with `shipping(S-19):`
+  (`git log --grep='^shipping(S-19):'`).
+- **Files and functions:**
+  - new `LeanToLambdaBox/Erasure/Pure.lean` (module `LeanToLambdaBox.Erasure.Pure`; it imports
+    `LeanToLambdaBox.Erasure` and `LeanToLambdaBox.Erasure.Collect`):
+    - the oracle, in namespace `Erasure.Pure`:
+      - `instLevel ps us`: the level with each parameter of `ps` replaced by the level at the same
+        position of `us`, without normalization; `instLevels ps us`: the same on every sort and
+        constant of a term;
+      - `Ctx`, whose only field `decls : List ConstantInfo` holds the declarations the oracle
+        reads;
+      - `alwaysZero`: a level that is zero under every assignment of its parameters, read off its
+        shape (`zero`, `max` of two such levels, `imax` whose right side is one);
+      - `findLocal`: the local of a free variable in a list of `Erasure.Local`s;
+      - `whnf cx fuel ls e`: the weak-head normal form of `e` by head β (with lean4lean's
+        `Expr.instantiate1'`), ζ (a `let`, a local of `ls` with a value), `mdata` removal, and δ of
+        every definition (`defnInfo`) of `cx.decls` used at its number of universe levels, whether
+        or not it is `@[irreducible]`;
+      - `inferType cx fuel ls Γ e`: the type of `e`, inferred without checking. Inside `e` bound
+        variables stay de Bruijn indices: `Γ` holds the types of the binders entered, and `bvar i`
+        has type `Γ[i]` lifted by `i + 1` (lean4lean's `Expr.liftLooseBVars'`). A free variable has
+        its type in `ls`, a constant the type of its declaration at the given levels. The type of
+        the function of an application is reduced by `whnf` to a Π, and the types of the domain and
+        codomain of a Π to sorts;
+      - `isArity cx fuel ls T`: `whnf` of `T` is a sort, or a Π whose codomain is an arity;
+      - `isErasable cx fuel ls e`: the type `T` of `e` is an arity, or the type of `T` reduces to a
+        sort that is `alwaysZero`.
+
+      Each of `whnf`, `inferType`, `isArity` recurses on its fuel and fails with
+      `EraseError.fuel` when it runs out. A literal, a projection, a metavariable, a loose bound
+      variable, or a constant or free variable the oracle does not know gives `outOfFragment`; a
+      constant at the wrong number of levels, an application whose function type does not reduce to
+      a Π, and a Π whose domain or codomain type does not reduce to a sort give `failed`;
+    - `Erasure.oracleFuel := 2 ^ 20`, the fuel of one oracle call;
+    - `Erasure.PureCtx` (fields `decls : List ConstantInfo` and `view : EnvView`),
+      `Erasure.PureState` (field `next : Nat`) and
+      `Erasure.PureM := ReaderT PureCtx (StateT PureState (Except EraseError))`, the monad of a
+      backend without `Meta`; `Erasure.EraseT.runPure x st tc pc ps` runs an action `x` of
+      `EraseT PureM` from the traversal's state `st` and context `tc` and the backend's context
+      `pc` and state `ps`;
+    - operations of `PureM`: `Erasure.PureM.findConst?` (`findConst` on `decls`),
+      `Erasure.PureM.freshFVarId` (the free variable `_pure.<next>`, then `next + 1`),
+      `Erasure.PureM.instantiate1` (`Expr.instantiate1'`), `Erasure.PureM.isErasable ls e`
+      (`Pure.isErasable ⟨decls⟩ oracleFuel ls e`, whose error it throws),
+      `Erasure.PureM.casesInfo?` and `Erasure.PureM.ctorArity?` (always `none`).
+  - `LeanToLambdaBox.lean`: imports the new module.
+  - new `tests/regress/pure_oracle.lean`, its expected outputs
+    `tests/regress/expected/pure_oracle/` (2 files) and
+    `tests/regress/expected-peregrine/pure_oracle/` (1 file).
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** DESIGN Q6 and Q8, S-D. The erasability test of `#erase`, `Erasure.isErasable`,
+  runs `Meta.inferType`, `Meta.isProp` and `Meta.isTypeFormerType` in `MetaM`, whose state and
+  operations are opaque to proofs, so its answers cannot be proved sound. The verification proves
+  that an "erasable" answer of the oracle is sound (`Pure.isErasable_sound`), which needs the
+  oracle to be a total function on data: lists of declarations and locals, fuel, and lean4lean's
+  `Expr.instantiate1'` and `Expr.liftLooseBVars'`, which are definitions (Lean's
+  `Expr.instantiate1` and `Expr.liftLooseBVars` are related to them only by lean4lean's axioms
+  `Expr.instantiate1_eq` and `Expr.liftLooseBVars_eq`). The kernel can evaluate it (`decide`). Its
+  reductions unfold every definition, as the reductions of MetaRocq's `is_erasableb`
+  (`erasure/theories/ErasureFunction.v:894`), at `RedFlags.default`, unfold every constant with a
+  body; this is decision 13 of checkpoint 1. `PureM`, its operations and `EraseT.runPure` are the
+  backend with which the verified path is to run the traversal of S-16 (S-20 completes the
+  backend), and the verification's statements about that run are stated with `EraseT.runPure`.
+  The `Meta` oracle `Erasure.isErasable` is unchanged, and `#erase` keeps using it.
+- **Behaviour before:** none of these declarations exists. Reproduction:
+  `tests/regress/pure_oracle.lean` at the parent commit fails with 49 errors (`Unknown constant
+  Pure.isErasable`, `Unknown identifier PureM.isErasable`, `Unknown constant Pure.Ctx`, …); its two
+  output files are those expected.
+- **Behaviour after:** `#erase` is unchanged: nothing calls the new functions. The kernel evaluates
+  the oracle at `oracleFuel` (`decide`), on environments built by hand: the ill-typed spine `hq A a`
+  of a proof `hq : Q`, where `Q : Prop := ∀ P : Prop, P → P`, `a : A` and `A : Type`, is kept; the
+  proof `hq.{v} : P.{v}` of `P.{v} : Sort v` is kept at the parameter `v` and erased at level `0`;
+  with `IProp : Type := Prop`, `R : IProp`, `hR : R`, `Endo : Type := A → A`, `fI : Endo` and
+  `a : A`, the oracle types and keeps `fun (_ : R) (x : A) => x` and `fI a`, and erases `R` and
+  `hR`. With fuel 1 the oracle fails on `fI a` with `fuel "inferType"`, and with fuel 8 it keeps
+  it. `PureM.freshFVarId` from the counter 3 gives `_pure.3`, then `_pure.4`, and leaves 5. Over
+  the declarations that `collectDeps` collects from the elaboration environment for
+  `pidHR : R := pid hR`, with `IProp` made `@[irreducible]` after `R` and `hR` are declared, the
+  oracle erases `R`, `hR` and `pidHR` and keeps `pid.{1}`, while `#erase Irr.pidHR` keeps `R` and
+  `hR` (R-14). `instLevel`, `Ctx`, `findLocal`, `oracleFuel`, `PureCtx`, `PureState`, `PureM` and
+  the operations of `PureM` other than `isErasable` depend on no axiom; `instLevels`,
+  `alwaysZero`, `whnf`, `inferType`, `isArity`, `Pure.isErasable` and `PureM.isErasable` on
+  `propext`; `EraseT.runPure` on `propext`, `Classical.choice` and `Quot.sound`, as `EraseT` does
+  (the hash maps of `ErasureState` and `TravCtx`). None depends on an axiom of lean4lean. `whnf`,
+  `inferType`, `isArity`, `alwaysZero`, `instLevel` and `instLevels` have equation lemmas.
+- **Effect on emitted .ast (corpus):** byte-identical for all 704 files; `scripts/corpus-diff.sh`
+  against the corpus of S-18 reports 704 identical. The corpus logs are identical except for the
+  job counts of `lake` (37 jobs become 38 for the build of the package, 52 become 53 for each
+  `lake lean` of the benchmarks) and the addresses in the backtraces of the 4 `PANIC` messages of
+  `Defects.lean`.
+- **Regression test:** `tests/regress/pure_oracle.lean` proves by `decide`, at `oracleFuel`, the
+  oracle's answers above on the three environments built by hand (the environments and terms of
+  the verification's register tests `defHead_kept`, `levelDependent_kept` and `irreducibleAlias`,
+  DESIGN Q13); proves by `decide` that fuel 1 and fuel 0 give `fuel` and fuel 8 an answer, and
+  pins the messages with `#guard_msgs`; proves by `decide` the results of `PureM.findConst?`,
+  `casesInfo?`, `ctorArity?` and `isErasable` (its answers, the error it throws on an unknown free
+  variable, and the types it reads from a list of locals, one of them with a value), and by `rfl`
+  one instance of `PureM.instantiate1`; pins with `#guard_msgs` `PureM.freshFVarId` and a run of
+  `EraseT.runPure`; pins with `#guard_msgs` the oracle's answers over the elaboration environment
+  on `Irr.R`, `Irr.hR`, `Irr.pidHR` and `Irr.pid.{1}`; and pins the output of `#erase` on
+  `Irr.pidHR` (`pidHR.ast`, which peregrine validates). It fails before (49 errors; the outputs are
+  the same) and passes after.
+
+## S-20: The pure backend is complete, and `erasePure` runs the traversal with it, which `#erase` does not call yet
+
+- **Commit:** the commit whose subject starts with `shipping(S-20):`
+  (`git log --grep='^shipping(S-20):'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure/Pure.lean`:
+    - new operations of `PureM`: `Erasure.PureM.declInfo?` (`findConst?`: the declaration itself,
+      where the `CoreM` backend's `Compiler.LCNF.getDeclInfo?` prefers an `_unsafe_rec` version),
+      `Erasure.PureM.unsafeRecBase?` (always `none`) and `Erasure.PureM.prepare` (returns its term);
+    - new instance `Erasure.instBackendPureM : Backend PureM`. `findConst?`, `declInfo?`,
+      `freshFVarId`, `instantiate1`, `casesInfo?`, `ctorArity?` and `prepare` are the operations of
+      `PureM`, and `isErasable` is `PureM.isErasable` on the traversal's locals; `unsafeRecBase?`,
+      a field without the monad, is `none`; `inferType` is `Pure.inferType` at `oracleFuel` on the
+      locals, whose error it throws; `argMask` keeps every field; `isExtern` and `inlineAttr?` read
+      the view; `isInstance` is `false`; `log` does nothing; `unknownConstant n` throws
+      `outOfFragment "unknown constant n"`, and `outOfFuel site` throws `fuel site`;
+    - new `Erasure.erasePure view cfg decls e`: runs `visitExpr travFuel e` with this backend
+      (`EraseT.runPure` from the empty traversal state, the configuration `cfg`, the backend
+      context `⟨decls, view⟩` and the counter 0), and assembles the program
+      `.untyped gdecls (some t)` and the inlinings as `erase` does, without `prepare`;
+    - new `Erasure.nameOccurs` (the traversal's `name_occurs` with exact names),
+      `Erasure.isRecursiveDecl` (the block `all` does not have exactly one member, or the value
+      mentions the constant's own name) and `Erasure.axiomatized` (a single declaration tagged
+      `@[extern]`, under `extern := .preferAxiom`);
+    - the module docstring.
+  - new `tests/regress/pure_backend.lean`, its expected outputs
+    `tests/regress/expected/pure_backend/` (20 files) and
+    `tests/regress/expected-peregrine/pure_backend/` (7 files).
+  - new `tests/harness/PureHarness.lean` (the harness), `tests/harness/expected/pure-harness.txt`
+    (its expected summary) and `scripts/pure-harness.sh`.
+  - `.github/workflows/build.yml`: new step "Pure path next to the Meta path on the corpus".
+  - `doc/SHIPPING-CHANGES.md`: this entry, and the section "Regression tests".
+- **Why necessary:** DESIGN Q7 and Q8, S-F, with the `erasePure` of S-D. The verification proves its
+  theorem about `erasePure`: the traversal of `#erase` run with a backend whose every operation is a
+  function on data. With the operations of S-19 and those added here, `PureM` is an instance of
+  `Backend`, so `erasePure` runs the traversal of S-16 itself, not a copy of it. On this backend the
+  traversal erases kernel values, as MetaRocq's `erase` erases the kernel term
+  (`erasure/theories/ErasureFunction.v:1309`, `erase_constant_body` on `cst_body`): `prepare` is the
+  identity, since `macro_inline` and matcher inlining give a term that is not an erasure of the
+  kernel value, and csimp rests on an `Eq` theorem; `declInfo?` finds the declaration itself and
+  `unsafeRecBase?` is `none`, since a user constant `x._unsafe_rec` is unrelated to `x`.
+  `nameOccurs`, `isRecursiveDecl` and `axiomatized` are the tests of `visitMutual` at this backend,
+  which the verification's specification reads (`RecursiveDecl`, and the `@[extern]` remapping of
+  the evaluation environment). PLAN §3 makes the harness the gate of this entry: on the corpus
+  programs in the fragment, the outputs and oracle answers of the pure path must equal those of the
+  `Meta` path, except where DESIGN Q6 and Q8 (S-E) expect a difference.
+- **Behaviour before:** none of these declarations exists. Reproduction:
+  `tests/regress/pure_backend.lean` at the parent commit fails with 38 errors (`Unknown identifier
+  erasePure`, `Unknown constant nameOccurs`, failed synthesis of `Backend PureM`, …); its eight
+  `#erase` outputs are those expected. The harness does not compile (`erasePure` is unknown).
+- **Behaviour after:** `#erase` is unchanged: nothing it runs calls the new declarations.
+  - At the pure backend the traversal's `name_occurs` is `nameOccurs` by definition:
+    `∀ n e, name_occurs (m := PureM) n e = nameOccurs n e` holds by `rfl`. The kernel unfolds both
+    structural recursions; the elaborator needs `smartUnfolding` off, or
+    `delta name_occurs nameOccurs` first. So `visitMutual`'s test
+    `single_decl && !name_occurs name value` is `!isRecursiveDecl ci` for the declaration `ci` that
+    `declInfo? name` finds.
+  - Over the elaboration environment, `isRecursiveDecl` holds for the `unsafe` recursive `uf` and
+    not for `one`, `oneU` and the `@[extern]` definition `ext`; `axiomatized` holds for `ext` under
+    the default configuration only.
+  - `erasePure`, after `collectDeps`, gives the output of `#erase` on `one (fun a : A => a)` (NV-1;
+    peregrine evaluates it to `λz. (λa. a) z`) and on the unsafe recursion `uf one.{0}` (a
+    fixpoint; peregrine evaluates it to the value of `oneU`). It keeps the call `mfirst one one` that `#erase`
+    replaces by `one` (`@[macro_inline] mfirst`). It erases `pidHR : R := pid hR`, whose type
+    `R : IProp` is a proposition only through the `@[irreducible]` alias `IProp := Prop`, to
+    `(Untyped () (Some tBox))`, where `#erase` keeps it. It makes the `@[extern]` definition `ext`
+    an axiom under the default configuration and keeps its body under
+    `extern := .preferLogical`. It logs nothing, where `#erase` logs, e.g., `No value found for
+    name PB.R, emitting axiom.` A constant missing from the declarations fails with
+    `outOfFragment "unknown constant"` (from the oracle), an ill-typed application with
+    `failed "not a function"`, and `visitExpr` at fuel 1 with `fuel "visitApp"`.
+  - The harness on the corpus: of 292 `#erase` commands, 119 are out of the fragment, 2 have a
+    `collectDeps` error, and 171 are in the fragment (25 of `Scope.lean`, 122 of `Examples.lean`,
+    12 of `Names.lean`, 6 of `IrrAlias.lean`, 6 of `UnsafeRec.lean`; each program of the last four
+    files is erased under two configurations). The output of the pure path equals the output of the
+    `Meta` path byte for byte on 159 of them, and on every in-fragment program except these:
+    - `attrEx` (both configurations): `#erase` inlines the `@[macro_inline]` `mfirst`, so its
+      `attrEx` is `inlTwo`; the pure path keeps `mfirst inlTwo three` and declares `mfirst`,
+      `three` and `add` in addition;
+    - `irrAxiomArg`, `irrThmArg`: the proof arguments `hR`, `hR2` become `□`, and their declarations
+      disappear;
+    - `pidHR`: `(Untyped () (Some tBox))`;
+    - `useFI`, `useLamHR`: `#erase` fails (`function expected`, `type expected`), and the pure path
+      gives an output;
+    - `N_collision` (both configurations): `collectDeps` reports `nameCollision Nm.two_u39 Nm.two'`.
+
+    The 6 outputs of `UnsafeRec.lean` are byte-identical on both paths. The pure oracle never fails.
+    Of its 5735 calls, 10 get an answer that differs from the `Meta` oracle's: `Irr.fI Irr.two` in
+    `useFI` (the pure oracle keeps it; `Meta` fails with `function expected`), and `hR` in
+    `irrAxiomArg`, `hR2` in `irrThmArg`, `Irr.pidHR` and `Irr.lamHR Irr.two` in `useLamHR` (the
+    pure oracle erases them; `Meta` keeps them), each under both configurations. These are the
+    calls of DESIGN Q6 ("Decision 13 = A: measured") without the two in its copies of
+    `irrAxiomArg` and `irrThmArg`, which the corpus does not contain; on the 67 in-fragment programs
+    of `Examples.lean` and `Names.lean` the pure run makes 2351 oracle calls under each
+    configuration, the number measured there. The files that `#erase` writes during the harness run
+    are byte-identical to the corpus.
+  - Axioms: `PureM.declInfo?`, `PureM.unsafeRecBase?` and `PureM.prepare` depend on none;
+    `nameOccurs` and `axiomatized` on `propext`; `isRecursiveDecl`, the instance and `erasePure` on
+    `propext`, `Classical.choice` and `Quot.sound`. None depends on an axiom of lean4lean.
+- **Effect on emitted .ast (corpus):** byte-identical for all 704 files; `scripts/corpus-diff.sh`
+  against the corpus of S-19 reports 704 identical. The corpus logs are identical except for the
+  addresses in the backtraces of the 4 `PANIC` messages of `Defects.lean`.
+- **Regression test:** `tests/regress/pure_backend.lean` proves by `rfl` the operations of the
+  instance (`declInfo?`, `findConst?`, `unsafeRecBase?`, `remove_unsafe_rec`, `prepare`,
+  `isInstance`, `log`, `instantiate1`, `isErasable`) and that `name_occurs` is `nameOccurs` at the
+  pure backend (pointwise and as functions); proves that `visitMutual`'s test is `isRecursiveDecl`;
+  pins with `#guard_msgs` `isRecursiveDecl` and `axiomatized` on declarations of the elaboration
+  environment, the errors of `erasePure` above, and the results of `unknownConstant`, `outOfFuel`
+  and `argMask`; and, with a command `#erase_pure` defined in the test (`collectDeps` and
+  `erasePure` on a term elaborated as `#erase` elaborates it), pins next to the output of `#erase`
+  the outputs of the pure path on the programs above (`nv1`, `ufOne`, `useM`, `pidHR`, `useExt`,
+  `useExtL`), which peregrine validates, evaluating `nv1` and `ufOne`. It fails before (38 errors;
+  the outputs of `#erase` are the same) and passes after. `scripts/pure-harness.sh` pins the summary
+  of the comparison above; before, the harness does not compile.
+
+---
+
+## S-21: `#erase` erases programs in the fragment with the pure path
+
+- **Commit:** the commit whose subject starts with `shipping(S-21):`
+  (`git log --grep='^shipping(S-21):'`).
+- **Files and functions:**
+  - new `LeanToLambdaBox/Erasure/Entry.lean`:
+    - `Erasure.Route` (`viaPure r`, `viaMeta`);
+    - `Erasure.route view cfg e`: `collectDeps view e = ok decls` gives `viaPure (erasePure view
+      cfg decls e)`, `outOfFragment` gives `viaMeta`, and every other error `err` gives
+      `viaPure (error err)`;
+    - `Erasure.eraseEntry view cfg e : CoreM (Program × List Kername)`: `viaPure (ok r)` returns
+      `r`, `viaPure (error err)` throws `erasure failed: <err.describe>`, `viaMeta` runs
+      `erase e cfg`;
+    - `Erasure.EraseError.describe`, the text of an error in that message.
+  - new `LeanToLambdaBox/Erasure/Command.lean`: the `#erase` syntax `Erasure.erasestx` and its
+    elaborator `Erasure.eraseElab`, moved from `LeanToLambdaBox/Erasure.lean`. The moved code is
+    unchanged except for one step: `erase e cfg` becomes `eraseEntry view cfg e`, with
+    `view := EnvView.ofEnvironment (← getEnv)`.
+  - `LeanToLambdaBox/Erasure.lean`: the syntax and the elaborator are removed.
+  - `LeanToLambdaBox.lean`: imports the two new modules.
+  - corpus sources:
+    - `tests/corpus/Scope.lean` gains `#erase @Scope.pid.{1}` (`pidU1.ast`) and
+      `#erase @Scope.pcomp.{1,1,1}` (`pcompU111.ast`);
+    - `tests/corpus/IrrAlias.lean` loses the `#guard_msgs` around the four `#erase` of `useFI` and
+      `useLamHR`;
+    - `tests/corpus/Names.lean` wraps the two `#erase Nm.both` (`N_collision`) in `#guard_msgs`.
+  - new `tests/regress/entry_route.lean`, with its expected outputs
+    `tests/regress/expected/entry_route/` (10 files) and
+    `tests/regress/expected-peregrine/entry_route/` (7 files).
+  - `tests/regress/pure_backend.lean` and `tests/regress/pure_oracle.lean`: docstrings, and the
+    messages pinned for `#erase` of `pidHR`; the expected `pure_backend/useM.ast`,
+    `pure_backend/pidHR.ast` and `pure_oracle/pidHR.ast`.
+  - `tests/harness/expected/pure-harness.txt`.
+  - `doc/SHIPPING-CHANGES.md`: this entry; the section "Regression tests"; R-3 and R-14 (programs
+    in the fragment); R-15 and R-17 (where `eraseElab` is).
+- **Why necessary:** DESIGN Q8 (S-E) and PLAN §3 (S-21). The verification's final theorem is about
+  the result of `eraseEntry` (its hypothesis `eraseEntry view cfg e = pure (p, inl)`). It is a
+  theorem about `#erase` only if `#erase` runs `eraseEntry`. On an input in scope, `collectDeps`
+  does not answer `outOfFragment`, so `eraseEntry` returns only a result of `erasePure`. A
+  program outside the fragment keeps the `Meta` path unchanged. An error of the pure path is an
+  error of `#erase`, not a fallback to `Meta`: a fallback would give an input in scope a result
+  that is not verified. The elaborator moves because `Entry.lean` imports `Pure.lean`, which
+  imports `Erasure.lean`: the elaborator cannot call `eraseEntry` from `Erasure.lean`.
+- **Behaviour before:** `#erase` runs `erase e cfg`, the `Meta` path, on every program.
+  Reproduction: `tests/regress/entry_route.lean` at the parent commit fails with 25 errors
+  (`route` and `eraseEntry` unknown, `#route` not elaborated). Its `#erase` outputs:
+  - `useM.ast`: `useM := one`, since `@[macro_inline] mfirst` is inlined;
+  - `pidHR.ast`: `pid R hR`, which declares `pid` and the axioms `R` and `hR`. The command logs
+    `No value found for name ER.R, emitting axiom.`;
+  - `both.ast`: a program with two declarations named `ER.two_u39`.
+- **Behaviour after:** `#erase` runs `eraseEntry` over the elaboration environment.
+  - **Outside the fragment:** a program on which `collectDeps` answers `outOfFragment` takes the
+    unchanged `Meta` path: its closure has an inductive type, a constructor, a recursor, a
+    quotient, a literal, a projection, a free variable, a metavariable, a universe metavariable or
+    an unknown constant. Its output and messages are those of the parent commit.
+  - **In the fragment:** a program takes the pure path, and `#erase` writes the output of
+    `erasePure`. The `Meta` path differs in the following ways:
+    - `@[macro_inline]` and matcher inlining do not happen;
+    - a proof whose type is a proposition only through an `@[irreducible]` alias is erased;
+    - a program on which `Meta` type inference fails through such an alias gets an output;
+    - the pure backend logs nothing, so the messages `No value found for name …, emitting axiom.`
+      and `Name … is marked as inline.` do not appear. The messages of the `.mli` step
+      (`val main: …`, `failed to translate …`) are unchanged.
+  - **Errors:** a name collision in the closure is an error of `#erase`, for example
+    `erasure failed: the constants ER.two_u39 and ER.two' have the same kername`. So is an error of
+    `erasePure`: `outOfFragment "unknown constant …"`, `fuel`, or `failed`.
+  - **Test outputs:** in `tests/regress/entry_route.lean`, `#route` shows these routes:
+    - `useM`, `pidHR` and `@pid.{1}` take `viaPure ok`, and `eraseEntry` returns the pure result.
+      For `useM` and `pidHR` this differs from `Meta`'s result; for `@pid.{1}` it is equal;
+    - `useMN := mfirstN Nat.zero Nat.zero` takes `viaMeta (inductive type)`, and `@pid` takes
+      `viaMeta (level metavariable)`. `eraseEntry` returns `Meta`'s result;
+    - `both` takes `viaPure error`.
+
+    `useM.ast` keeps `mfirst one one`, and peregrine evaluates it to `λs. λz. s z`. `pidHR.ast` is
+    `(Untyped () (Some tBox))`, and `#erase ER.both` fails.
+  - **Harness** (`scripts/pure-harness.sh`), 294 `#erase` in all:
+    - 119 are out of the fragment;
+    - 2 are `collectDeps` errors (`N_collision`, both configurations);
+    - 173 are in the fragment, and the file written by `#erase` is the pure output for all 173:
+      - 161 are also byte-identical to `Meta`'s output;
+      - 8 differ from it (`attrEx`, `irrAxiomArg`, `irrThmArg`, `pidHR`, both configurations);
+      - 4 have no `Meta` output (`useFI`, `useLamHR`, both configurations).
+    - The pure oracle makes 5751 calls and never fails. As in S-20, 10 of its answers differ from
+      `Meta`'s.
+  - **peregrine** on the in-fragment outputs (C11): on each of the 173 outputs of the harness,
+    `peregrine validate` and `peregrine eval --anf=false` were run on the corpus file, 346 checks
+    in all. 336 pass. The 10 excluded checks fail as expected:
+    - `N_quoteNs` (validate, eval): the namespace component `q"q` is printed without escaping
+      (R-2), and peregrine's parser rejects the file;
+    - `sixOnAxioms` (eval): `Axioms found`;
+    - `ugOne` (validate, eval): `Fixpoint body is not a lambda` (R-11).
+  - Axioms: `Route` depends on none. `route`, `eraseEntry` and `EraseError.describe` depend on
+    `propext`, `Classical.choice` and `Quot.sound`.
+- **Effect on emitted .ast (corpus):** the corpus has 712 files. `scripts/corpus-diff.sh` against
+  the corpus of S-20 reports:
+  - 692 files identical. These include every benchmark file and every output of a program outside
+    the fragment.
+  - 8 files differing. Each is now the output of the pure path, and each equals the `erasePure`
+    output of S-20's harness:
+    - `examples/Examples/attrEx.{default,peano}.ast`: `attrEx := mfirst inlTwo three`, where it was
+      `inlTwo`, with the declarations of `three`, `add` and `mfirst` in addition. The
+      `.inlinings` are identical;
+    - `examples/Examples/irrAxiomArg.{default,peano}.ast`: `guardR □ six`, where it was
+      `guardR hR six`; the axiom `Ex.hR` is no longer declared;
+    - `examples/Examples/irrThmArg.{default,peano}.ast`: `guardR2 □ six`; the declaration
+      `Ex.hR2 := □` is no longer emitted;
+    - `examples/IrrAlias/pidHR.{default,peano}.ast`: `(Untyped () (Some tBox))`.
+  - 4 files only in S-20: `examples/Names/N_collision.{default,peano}.ast` and their
+    `.inlinings`. `#erase` fails on these programs now.
+  - 12 files only in S-21:
+    - `examples/IrrAlias/useFI.{default,peano}.ast` and `useLamHR.{default,peano}.ast`, with their
+      `.inlinings`. `#erase` failed on these programs before;
+    - `examples/Scope/pidU1.ast` and `pcompU111.ast`, with their `.inlinings`. These are new
+      corpus programs.
+
+  The 6 outputs of `UnsafeRec.lean` are byte-identical. The corpus logs differ in three ways,
+  and nowhere else:
+  - the messages above: the pure backend's missing log lines, the new `.mli` lines of `useFI`
+    and `useLamHR` and of the two new `Scope` programs, and the missing `.mli` lines of
+    `N_collision`;
+  - job counts, from the two new modules;
+  - backtrace frames of the 4 `PANIC` messages of `Defects.lean`. The `PANIC` counts are those of
+    S-20.
+- **Regression test:** `tests/regress/entry_route.lean`. It defines a command `#route t [config c]`
+  and uses it to pin, for each program:
+  - the route (`viaPure ok`, `viaPure error (…)`, `viaMeta (<what>)`);
+  - whether `eraseEntry` returns the result of the pure path or of the `Meta` path.
+
+  It pins the output of `#erase` on:
+  - three programs in the fragment: `useM`, `pidHR`, `@pid.{1}`. peregrine validates and
+    evaluates them;
+  - two programs outside it: `useMN` (validated) and `@pid`.
+
+  It pins the error of `#erase` on the colliding `both`. It fails before (25 errors; `useM.ast`
+  and `pidHR.ast` differ, and `both.ast` is written) and passes after.
+  `tests/regress/pure_backend.lean` and `pure_oracle.lean` pin the new `#erase` outputs of `useM`
+  and `pidHR`, which now equal the pure path's. `scripts/pure-harness.sh` pins the summary above.
+
 ---
 
 ## Reported, not fixed
@@ -1428,8 +1892,12 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
 - **Where:** `LeanToLambdaBox/Basic.lean`: `cleanIdent`, `toKername`, `toModPath`, `rootKername`;
   `LeanToLambdaBox/Erasure.lean`: `register_inductive` (`mutualBlockName`).
 - **Reproduction:** `collide.ast` (`colA.«a b» + colA.a_u32b`): `peregrine validate` fails with
-  `Duplicate definition .Defects.colA.a_u32b`.
-- **Impact:** distinct Lean constants can be emitted under one λ□ name.
+  `Duplicate definition .Defects.colA.a_u32b`. A program in the fragment of the pure path is not
+  affected: `collectDeps` finds the collision and `#erase` fails (S-21), e.g. on `Nm.both` in
+  `tests/corpus/Names.lean` with `erasure failed: the constants Nm.two_u39 and Nm.two' have the
+  same kername`.
+- **Impact:** distinct Lean constants can be emitted under one λ□ name, for programs outside the
+  fragment.
 - **Why not fixed:** not required by the verification goal unless it later becomes required.
 
 ### R-4: Unsupported literals are erased to □ after a panic
@@ -1582,25 +2050,26 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
   the alias to a Π-type or a sort, `#erase` fails.
 - **Where:** `LeanToLambdaBox/Erasure.lean`: `isErasable`.
 - **Reproduction:** `irreducible_alias.ast`: `mkT : MyType`, with `@[irreducible] def MyType := Type`,
-  is emitted as the declaration `mkT := id □ □` instead of being erased. In the corpus files
-  `tests/corpus/IrrAlias.lean` and `tests/corpus/Examples.lean`, with
-  `@[irreducible] def IProp : Type := Prop`, `axiom R : IProp` and `axiom hR : R`:
-  `examples/IrrAlias/pidHR.default.ast` (`pid hR`) declares the axioms `Irr.R` and `Irr.hR`, and
-  `examples/Examples/irrAxiomArg.default.ast` (`guardR hR six`) declares `Ex.hR`. `#erase` of
-  `Irr.useFI := fI two`, with `fI : EndoC` and `@[irreducible] def EndoC : Type 1 := CNat → CNat`,
-  fails with `function expected`; `#erase` of `Irr.useLamHR := guardR (lamHR two) six`, with
-  `theorem lamHR : CNat → R`, fails with `type expected`.
-- **Impact:** under-erasure. In `irreducible_alias.ast` the value computed is unaffected; a kept
-  proof axiom stops `peregrine eval` (`Axioms found … .Irr.R, .Irr.hR`); and `#erase` refuses
-  some programs.
+  is emitted as the declaration `mkT := id □ □` instead of being erased. Programs in the fragment
+  of the pure path are not affected: `#erase` erases them with the pure oracle, which unfolds
+  `@[irreducible]` definitions (S-19, S-21). In the corpus files `tests/corpus/IrrAlias.lean` and
+  `tests/corpus/Examples.lean`, with `@[irreducible] def IProp : Type := Prop`, `axiom R : IProp`
+  and `axiom hR : R`, `examples/IrrAlias/pidHR.default.ast` (`pid hR`) is `□`,
+  `examples/Examples/irrAxiomArg.default.ast` (`guardR hR six`) passes `□` for `hR`, and
+  `Irr.useFI := fI two` (with `@[irreducible] def EndoC : Type 1 := CNat → CNat`) and
+  `Irr.useLamHR := guardR (lamHR two) six` are erased; with the `Meta` oracle, the first two keep
+  `hR` and the last two fail (`function expected`, `type expected`).
+- **Impact:** under-erasure, for programs outside the fragment. In `irreducible_alias.ast` the value
+  computed is unaffected; a kept proof axiom stops `peregrine eval`; and `#erase` refuses some
+  programs.
 - **Why not fixed:** not required by the verification goal unless it later becomes required.
 
 ### R-15: `#erase` without `to` logs the program in place of the attributes
 
 - **What:** without an output path, the branch meant to log the attributes configuration logs the
   program a second time.
-- **Where:** `LeanToLambdaBox/Erasure.lean`: `eraseElab` (the `.none` case of the `.inlinings`
-  match).
+- **Where:** `LeanToLambdaBox/Erasure/Command.lean`: `eraseElab` (the `.none` case of the
+  `.inlinings` match).
 - **Reproduction:** a file containing `import LeanToLambdaBox`, `def seven : Nat := 7` and
   `#erase seven`: the messages contain the program twice and no `(attributes_config ...)`.
 - **Impact:** cosmetic.
@@ -1622,7 +2091,8 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
   `Prod` and arrows; any other type, for instance a user inductive or `String` (S-5), is reported
   with a warning and printed as `unit`, which does not describe the value. The file has no final
   newline.
-- **Where:** `LeanToLambdaBox/Erasure.lean`: `to_ml_type`, `gen_mli`, `eraseElab`.
+- **Where:** `LeanToLambdaBox/Erasure.lean`: `to_ml_type`, `gen_mli`;
+  `LeanToLambdaBox/Erasure/Command.lean`: `eraseElab`.
 - **Reproduction:** `mli_fallback.mli` (`toMy : Nat → MyNat`, a user inductive) is
   `val main: Z.t -> unit`, with the warning
   `failed to translate Defects.MyNat into ML type, emitting unit instead`.

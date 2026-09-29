@@ -35,6 +35,33 @@ The blueprint renders this register.
 
 ## Entries
 
+### DV-1
+
+- **Our artifact:** `proof/EraseProof/Source/Eval.lean`, `EraseProof.SrcEval`: the source
+  semantics evaluates Lean terms (`Expr`), the eraser's input, whose types are those of their
+  images under `EraseProof.TrS` in lean4lean's syntax `VExpr`.
+- **Reference artifact:** PCUIC's weak call-by-value evaluation `eval`
+  (`pcuic/theories/PCUICWcbvEval.v:231`; MetaCoq paper §5.6) and the erasure relation `erases`
+  (`erasure/theories/Extract.v:88`; §7.3, Fig. 18), both on PCUIC terms, the syntax that PCUIC's
+  typing judges; Letouzey §3.1 (CIC terms).
+- **What differs:** the syntax that evaluates and the syntax that is typed are different: `Expr`,
+  with `let` (`Expr.letE`) and metadata (`Expr.mdata`), for evaluation, and lean4lean's `VExpr`
+  (`Lean4Lean/Theory/VExpr.lean:7-13`), which has neither, for typing; `EraseProof.TrS` relates
+  them. In PCUIC both are the same terms. `EraseProof.SrcEval` evaluates a `let` as `eval_zeta`
+  does (`pcuic/theories/PCUICWcbvEval.v:241`): the value first, then the body with the value
+  substituted; metadata is transparent (rule `EraseProof.SrcEval.mdata`).
+- **Why it is forced:** the eraser consumes `Expr`, and the λ□ image of a `let` evaluates its
+  value first (`eval_zeta`, `erasure/theories/EWcbvEval.v:134`; rule `EraseProof.LBEval.zeta`).
+  `VExpr` has no `let`: `EraseProof.TrS` translates `let x := v; b` to the translation of `b` in a
+  context whose entry for `x` is the translation of `v` (rule `EraseProof.TrS.letE`, as rule `letE`
+  of `Lean4Lean.TrExprS`, `Lean4Lean/Verify/Typing/Expr.lean:97-101`), that is, with the value
+  substituted. A semantics on `VExpr` therefore never evaluates a `let` value, and relating it to
+  λ□ evaluation, which does, when the value diverges would need a normalization theorem, which
+  lean4lean `master` does not have.
+- **What was considered instead:** a semantics on `VExpr`: with the recursive
+  `unsafe def loop : A → A := fun x => loop x` and `a : A`, the term `let x := loop a; a` has the
+  image `a`, a value, while its λ□ image evaluates `loop a` first and diverges.
+
 ### DV-2
 
 - **Our artifact:** `proof/EraseProof/Typing/Basic.lean`, `EraseProof.TrS`, the translation of
@@ -157,6 +184,41 @@ The blueprint renders this register.
   (`Lean4Lean.VEnv.IsDefEqU.forallE_inv`, `Lean4Lean/Theory/Typing/Injectivity.lean:23`) only
   under `Lean4Lean.VEnv.WF`, whose inductive part is the `sorry` definition above.
 
+### DV-7
+
+- **Our artifact:** `proof/EraseProof/Source/Eval.lean`: `EraseProof.RecursiveDecl` (with
+  `EraseProof.OccursV`), the rules `EraseProof.SrcEval.fixAtom` and `EraseProof.SrcEval.fixApp` of
+  `EraseProof.SrcEval`, the value shape `EraseProof.SrcValue.fixConst` and the head condition
+  `EraseProof.BlocksCong`: recursion in the source semantics.
+- **Reference artifact:** PCUIC's fixpoints: the term `tFix`, a value (`atom`,
+  `pcuic/theories/PCUICWcbvEval.v:51`), unfolded when applied by `eval_fix` (`:273`) and excluded
+  as a head of `eval_app_cong` (`:311`, `isFixApp`); their erasure `erases_tFix`
+  (`erasure/theories/Extract.v:122`); Letouzey Def. 3 (the fixpoint case of 𝓔).
+- **What differs:** Lean has no fixpoint term; recursion lives in constants. A constant is
+  recursive (`EraseProof.RecursiveDecl`) when its block has several members or its value mentions
+  its own name in a value position (`EraseProof.OccursV`). `EraseProof.SrcEval` treats a recursive
+  constant as a PCUIC `tFix` with `rarg = 0`: the constant evaluates to itself
+  (`EraseProof.SrcEval.fixAtom`, `eval_delta` to a `tFix` value), and applied to an argument it
+  evaluates the argument, then its value, at the occurrence's levels, applied to the argument's
+  value (`EraseProof.SrcEval.fixApp`, `eval_fix` with `rarg = 0` and no earlier arguments).
+  Recursive constants of every type are values, including those whose value is not a λ: with
+  `unsafe def x : A → A := x`, `x` is a value of `EraseProof.SrcEval`, as its image, a `tFix`, is
+  a value of λ□, while Lean's own evaluation of `x` (`lean --run`) does not terminate.
+  Non-recursive constants unfold when evaluated (`EraseProof.SrcEval.delta`, `eval_delta`). Which
+  constants are recursive is a syntactic property of the declaration.
+- **Why it is forced:** Lean's `Expr` has no fixpoint node: a recursive Lean definition is a
+  constant whose value mentions itself, a member of a block (rule `block` of
+  `EraseProof.ProgEnv`, whose values are translated in the model that contains the block). The
+  eraser compiles a declaration to a member of a λ□ `tFix` exactly when it is not a single
+  declaration whose value does not mention its own name (`name_occurs` in `visitMutual`,
+  `LeanToLambdaBox/Erasure.lean`), and λ□ has fixpoint values only for these blocks. For the
+  source semantics to be simulated, the constants it treats as fixpoints must be exactly these,
+  so the split is the eraser's test, which `EraseProof.RecursiveDecl` states on the declaration.
+- **What was considered instead:** unfolding recursive constants when evaluated, as the others:
+  it matches λ□'s `tFix` only when each member's value is a λ, so that one unfolding reaches a
+  value; it would need a shipping change that η-expands members whose value is not a λ, which the
+  theorem does not need (spec §5.1).
+
 ### DV-10
 
 - **Our artifact:** `proof/EraseProof/Source/EvalEnv.lean`, `EraseProof.EvalEnv.unfold?`, the
@@ -173,8 +235,9 @@ The blueprint renders this register.
 - **Why it is forced:** lean4lean's model gives an opaque constant no defining equation (rule
   `opaque` of `Lean4Lean.TrEnv'`, `Lean4Lean/Verify/Environment/Basic.lean:164-169`, adds the
   constant only), and `EraseProof.ProgEnv` follows it; so unfolding an opaque is not a
-  definitional equality of the model. The proof relates each evaluation step of the source to a
-  typed definitional equality of the model; for a δ step, `EraseProof.ProgEnv.unfold` gives it
+  definitional equality of the model. The proof relates each evaluation of the source to a typed
+  definitional equality of the model (`EraseProof.SrcEval.defeq`, subject reduction); for a δ
+  step, `EraseProof.ProgEnv.unfold` gives it
   for definitions (their defining equation) and theorems (their type is a proposition, so proof
   irrelevance equates them with their value), and nothing gives it for opaques, whose type need
   not be a proposition.
@@ -182,6 +245,66 @@ The blueprint renders this register.
   no longer be definitional equalities of the model, and type preservation fails for terms whose
   type depends on an opaque's value (with `opaque c : T := t` and an axiom `f : (x : T) → F x`,
   `f c : F c` evaluates to `f t : F t`, and the model does not equate `F c` with `F t`).
+
+### DV-11
+
+- **Our artifact:** `proof/EraseProof/Atoms.lean`, `EraseProof.EvalEnv.isAtom`, with
+  `EraseProof.arityShape`, `EraseProof.EvidentZero`, `EraseProof.DeltaFree` and
+  `EraseProof.EvidentProp`; `proof/EraseProof/Source/Eval.lean`, the rule
+  `EraseProof.SrcEval.constAtom` and the values `EraseProof.AtomSpine` (in
+  `EraseProof.SrcValue.spine`): the constants without a δ rule that are values of the source
+  semantics.
+- **Reference artifact:** PCUIC's atoms `atom` (`pcuic/theories/PCUICWcbvEval.v:51`), which contain
+  the inductive types `tInd` and the constructors `tConstruct`; `eval_atom` (`:331`) evaluates them
+  to themselves, `eval_app_cong` (`:311`) evaluates their applications, and `value` (`:500`) lists
+  the results; a constant without a body has no rule (`eval_delta`, `:247`, needs
+  `cst_body decl = Some body`). On the erasure side, `erases` (`erasure/theories/Extract.v:88`) has
+  no rule for `tInd`, which erases only to `□` (`erases_box`, `:140`), and `erases_tConstruct`
+  (`:106`) requires the inductive not to be propositional (`isPropositional`,
+  `pcuic/theories/PCUICFirstorder.v:109`, which reads the inductive's declared arity
+  syntactically: `isPropositionalArity`, `:103`, with `destArity`, `pcuic/theories/PCUICAst.v:486`).
+- **What differs:** a constant without a δ rule in the source semantics is a value when its
+  declared type is evidently an arity (`EraseProof.arityShape`: syntactically
+  `Π x₁…xₙ, Sort u`) or evidently a proposition (`EraseProof.EvidentProp`): a Π-telescope over an
+  application `h.{vs} a₁…aₙ` whose head `h` is an axiom or an opaque constant
+  (`EraseProof.DeltaFree`) with declared type a syntactic arity `Π y₁…yₙ, Sort u` of exactly `n`
+  binders, and whose sort at that occurrence, `u` with `h`'s level parameters instantiated by
+  `vs` (`Erasure.Pure.instLevel`), is evidently zero (`EraseProof.EvidentZero`). Such a constant
+  evaluates to itself (`EraseProof.SrcEval.constAtom`), and the applications it heads are values
+  (`EraseProof.AtomSpine`). Atomhood is a property of the constant, decided on declared types, not
+  on the levels of an occurrence: a proof `hq.{v} : P.{v}` (with `axiom P.{v} : Sort v`) whose
+  propositionality depends on its own level parameter is not an atom, not even at `hq.{0}`. Every
+  other constant without a δ rule is stuck.
+- **Why it is forced:** the fragment has no inductive types (DV-6), so its base types and the
+  canonical proofs of atomic propositions are axioms; without a rule that makes them values, no
+  program that instantiates a polymorphic function at a base type or passes such a proof by value
+  evaluates, and the correctness theorem says nothing about it. The class is syntactic
+  ("evident") because the eraser must box each atom from the declared types alone, without a
+  typing hypothesis: a semantic class (every erasable constant without a δ rule) would need the
+  eraser's oracle `Erasure.Pure.isErasable` to box all of them, which needs canonicity (no neutral
+  term is definitionally equal to a sort), and lean4lean `master` does not prove it. The head is
+  `EraseProof.DeltaFree` because the head of a propositional constructor's type is an inductive
+  type, which never δ-reduces: a proof whose proposition is headed by a definition that unfolds to
+  a Π can be applied, and the oracle then answers from the arguments' types (with `axiom hq : Q`,
+  `def Q : Prop := ∀ P : Prop, P → P`, `axiom A : Type` and `axiom a : A`, it keeps the ill-typed
+  spine `hq A a`). The head's sort is read at the occurrence because a Lean level can be `0`,
+  whereas `isPropositional` reads an inductive's declared sort, which no Rocq universe instance
+  turns into `Prop`. Atomhood does not depend on the occurrence because the eraser erases a
+  universe-polymorphic body once, at its level parameters, where the oracle keeps the
+  level-dependent proof `hq.{v}` (it boxes `hq.{0}`): were `hq.{0}` a value, a body passing
+  `hq.{v}`, evaluated at level `0`, would reach a value in the source while its λ□ image is stuck on
+  the axiom `hq`, and erasure would not commute with level instantiation, as
+  `erases_subst_instance_decl` (`erasure/theories/ErasureProperties.v:412`) states it does.
+- **What was considered instead:** every constant without a δ rule stuck (the theorem then says
+  nothing about the programs above); a semantic class (needs canonicity); heads that are
+  definitions (the oracle keeps proofs with such heads, above); heads that δ-reduce to an
+  `EraseProof.DeltaFree` head (further from the reference, and the eraser's boxing of the class
+  would have to follow the oracle's δ steps through definitions); the head's declared sort instead
+  of its sort at the occurrence (leaves proofs of `P.{0}`, with `axiom P.{v} : Sort v`, stuck with
+  no forcing reason); atomhood decided at each occurrence (makes the theorem false, above); the
+  head's declared type read up to the kernel's δ (the class would no longer be read syntactically,
+  as `isPropositionalArity` reads the declared arity, and the eraser's boxing of the class would
+  have to follow the oracle's δ steps through definitions).
 
 ### DV-12
 
@@ -205,10 +328,55 @@ The blueprint renders this register.
 - **What was considered instead:** a scope condition excluding programs that mention a remapped
   constant: it also excludes programs that never evaluate the constant.
 
+### DV-16
+
+- **Our artifact:** `proof/EraseProof/Target.lean`, `EraseProof.LBEval`, λ□ weak call-by-value
+  evaluation, with its atoms `EraseProof.lbAtom`, stated on the shipping AST `LBTerm`
+  (`LeanToLambdaBox/Basic.lean`); with it the functions `EraseProof.csubst`, `EraseProof.closedn`,
+  `EraseProof.hasFVar` and the environment condition `EraseProof.LenvClosed`.
+- **Reference artifact:** MetaRocq's λ□ evaluation `eval` (`erasure/theories/EWcbvEval.v:119`) on
+  the λ□ terms `term` (`erasure/theories/EAst.v:29`), with `atom`
+  (`erasure/theories/EWcbvEval.v:36`), `csubst` (`erasure/theories/ECSubst.v:14`), `closedn`
+  (`erasure/theories/ELiftSubst.v:90`) and `closed_env` (`erasure/theories/EGlobalEnv.v:181`);
+  MetaCoq paper §7.1 (Fig. 16 and the amended evaluation rules, p. 8:60).
+- **What differs:** `LBTerm` has no `tVar`, `tEvar`, `tCoFix`, `tLazy` or `tForce`, and its only
+  primitive values are 63-bit integers. So `EraseProof.LBEval` has no rules `eval_cofix_case`
+  (`erasure/theories/EWcbvEval.v:198`), `eval_cofix_proj` (`:205`) or `eval_force` (`:279`), its
+  rule `prim` (`eval_prim`, `:275`) evaluates an integer to itself, and `EraseProof.lbAtom` has no
+  case for `tCoFix` or `tLazy`. `LBTerm` has a constructor that `term` lacks, `fvar`, a free
+  variable named by a Lean `FVarId`: `EraseProof.LBEval` has no rule for it, `EraseProof.csubst`
+  leaves it unchanged and `EraseProof.closedn` counts it as closed, as MetaRocq's `csubst` and
+  `closedn` treat `tVar`; `EraseProof.hasFVar` tests whether it occurs, and has no MetaRocq
+  counterpart; `EraseProof.LenvClosed` requires, besides the closedness of `closed_env`, that no
+  body stored in the λ□ environment contains a free variable. The rules for constructors in block
+  form, `eval_iota_block` (`:151`), `eval_proj_block` (`:228`) and `eval_construct_block`
+  (`:254`), are absent; each requires the flag `with_constructor_as_block` to be true, which it is
+  not in `default_wcbv_flags` (`:69`), the flags of `erases_correct`
+  (`erasure/theories/ErasureCorrectness.v:51`). At flags where that flag is false,
+  `EraseProof.LBEval` has exactly the rules of `eval` whose term constructors `LBTerm` has.
+- **Why it is forced:** the theorem is about the shipping eraser (spec §2), whose output is an
+  `LBTerm`, the λ□ that peregrine reads; evaluation is stated on that type. The terms without a
+  constructor in `LBTerm` cannot occur in the eraser's output, so their rules have nothing to
+  apply to. The constructor `fvar` is part of the shipping AST because the traversal is locally
+  nameless (DV-13): it opens binders with free variables and closes them with `abstract` and
+  `toBvar` (`LeanToLambdaBox/Basic.lean`) before a body is stored, which `EraseProof.LenvClosed`
+  records. MetaRocq's erasure works on de Bruijn indices and maps `tVar` only to `tVar`
+  (`erasure/theories/ErasureFunction.v:996`), which typed terms do not contain (PCUIC's typing has
+  no rule for it), so `closed_env` needs no such clause. The block rules cannot fire at the flags
+  of `erases_correct`, at which the simulation evaluates; results stated for every flag, such as
+  `EraseProof.LBEval.closed`, are about the relation without them.
+- **What was considered instead:** extending `LBTerm` with the missing constructors, a shipping
+  change that no output of the eraser needs (spec §5.1 allows only strictly necessary shipping
+  changes); stating evaluation on a separate transcription of `term` reached through a translation
+  from `LBTerm`, which every statement would pass through and which would still need an image for
+  `fvar`; including the block rules, which the statements never use at their flags.
+
 ### DV-21
 
 - **Our artifact:** `proof/EraseProof/Env.lean`, `EraseProof.ProgEnv`: its rule `axiom` admits
-  axioms, declarations without a value, in the program's environment.
+  axioms, declarations without a value, in the program's environment; and
+  `proof/EraseProof/Source/Eval.lean`, `EraseProof.SrcEval`, which evaluates programs that use
+  them.
 - **Reference artifact:** Letouzey §3.4 (p. 10), "from now to the end of this paper we will only
   consider contexts with no assumptions", the hypothesis of Theorems 12, 13 and 15. MetaRocq's
   `erases_correct` (`erasure/theories/ErasureCorrectness.v:51`) has no such hypothesis: `wf_ext Σ`
@@ -216,8 +384,12 @@ The blueprint renders this register.
   hypothesis only of the first-order results, such as `erase_correct_firstorder`
   (`erasure/theories/ErasureFunctionProperties.v:2310`).
 - **What differs:** programs may depend on axioms: `EraseProof.ProgEnv` relates lists containing
-  Lean `axiom` declarations to models in which they are constants without a defining equation.
-  This follows MetaRocq and diverges from Letouzey.
+  Lean `axiom` declarations to models in which they are constants without a defining equation. In
+  evaluation an axiom has no δ rule: an axiom whose declared type is evidently an arity or a
+  proposition (`EraseProof.EvalEnv.isAtom`, DV-11) is a value (`EraseProof.SrcEval.constAtom`),
+  and any other axiom is stuck (no rule of `EraseProof.SrcEval` evaluates it), as a constant
+  without a body is in PCUIC's `eval` (`pcuic/theories/PCUICWcbvEval.v:231`). This follows
+  MetaRocq and diverges from Letouzey.
 - **Why it is forced:** the spec (§2) puts in scope every input whose verification needs nothing
   beyond lean4lean `master`, and `master` models axioms (rule `axiom` of `Lean4Lean.TrEnv'`,
   `Lean4Lean/Verify/Environment/Basic.lean:134`). Letouzey needs the hypothesis for canonicity (a
@@ -226,3 +398,30 @@ The blueprint renders this register.
   and no ι-reduction (DV-6).
 - **What was considered instead:** excluding axioms from `EraseProof.ProgEnv`, as Letouzey does:
   it narrows the scope the spec fixes without a gap in `master` that forces it.
+
+### DV-22
+
+- **Our artifact:** `proof/EraseProof/Source/Eval.lean`, `EraseProof.SrcEval`: the source
+  semantics is big-step, call-by-value evaluation.
+- **Reference artifact:** Letouzey §3.4, Definition 9 (weak reductions: the β, ι, δ, ζ and □
+  steps, closed under application, on either side, and under case analysis, but not under λ, so
+  in any order), for which Theorem 13 (backward simulation) is stated step by step. MetaRocq's
+  `erases_correct` (`erasure/theories/ErasureCorrectness.v:51`) is stated for PCUIC's big-step
+  weak call-by-value evaluation `eval` (`pcuic/theories/PCUICWcbvEval.v:231`; MetaCoq paper §5.6),
+  which `EraseProof.SrcEval` follows.
+- **What differs:** `EraseProof.SrcEval` fixes one order, call-by-value: an application evaluates
+  its function and its argument before the β-step (`EraseProof.SrcEval.beta`), and a `let` its
+  value before its body (`EraseProof.SrcEval.zeta`). Reductions in any other order, which
+  Definition 9 admits, are not steps of the source semantics, which is big-step: it relates a term
+  to its value, not to its one-step reducts.
+- **Why it is forced:** the target is λ□'s call-by-value evaluation (`EraseProof.LBEval`,
+  MetaRocq's `eval`, `erasure/theories/EWcbvEval.v:119`, which peregrine implements), and a value
+  reached in another order need not be reached by it: with the recursive
+  `unsafe def loop : A → A := fun x => loop x` and `a : A`, `(fun _ => a) (loop a)` reduces to `a`
+  by one β-step, while λ□ evaluation of its image evaluates `loop a` first and diverges. So the
+  theorem, which is about the λ□ evaluator, needs a source semantics that evaluates in the
+  evaluator's order; MetaRocq's `erases_correct` is stated in the same way.
+- **What was considered instead:** weak reduction in any order, as Definition 9, with a
+  step-by-step simulation, as Theorem 13: it relates single steps and says nothing about the value
+  the call-by-value evaluator reaches, and a value reached in another order need not be reached by
+  it (above).
