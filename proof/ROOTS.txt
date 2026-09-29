@@ -7,7 +7,6 @@
 # Every declaration of EraseProof outside EraseProof.Test must be reachable from a root; no root
 # may be reachable from another root.
 EraseProof.TrS.fvarsIn EraseProof.erasePure_erases v7-core-main
-EraseProof.TrS.uninstantiateN EraseProof.Erases.uninstantiateN v3-rel-abstract
 EraseProof.TrS.inst_fvar EraseProof.erasePure_erases v7-core-main
 EraseProof.LBEval.closed EraseProof.erasePure_erases v7-core-main
 EraseProof.SrcEval.value EraseProof.erases_correct v4-sim-main
@@ -15,22 +14,17 @@ EraseProof.Pure.isErasable_agree EraseProof.visit_agree v6-frame-b
 EraseProof.ErasableS.eval EraseProof.erases_correct v4-sim-main
 EraseProof.ErasableS.atom EraseProof.erases_correct v4-sim-main
 EraseProof.Pure.isErasable_sound EraseProof.erasePure_erases v7-core-main
-EraseProof.IsErasable.instL EraseProof.Erases.instLevels v3-rel-levels
+EraseProof.Erases.instLevels EraseProof.erases_correct v4-sim-main
 EraseProof.SrcEval.restrict EraseProof.erase_correct v8-main
 EraseProof.IsErasable.app EraseProof.erases_correct v4-sim-main
 EraseProof.IsErasable.lam_inv EraseProof.erases_correct v4-sim-main
 EraseProof.Erases.closed EraseProof.erasePure_erases v7-core-main
-EraseProof.Erases.mono_rc EraseProof.erasePure_erases v7-core-main
-EraseProof.RecIn.ext EraseProof.erasePure_erases v7-core-main
 EraseProof.Erases.congr_ac EraseProof.erase_correct v8-main
 EraseProof.Erases.app_inv EraseProof.erases_correct v4-sim-main
-EraseProof.ArityShape.of_arityShape EraseProof.Pure.isErasable_atom v5-atom-main
-EraseProof.ArityShape.inst EraseProof.Pure.isErasable_atom v5-atom-main
-EraseProof.ArityShape.instLevels EraseProof.Pure.isErasable_atom v5-atom-main
-EraseProof.PropShape.of_evidentProp EraseProof.Pure.isErasable_atom v5-atom-main
-EraseProof.PropShape.inst EraseProof.Pure.isErasable_atom v5-atom-main
-EraseProof.PropShape.instLevels EraseProof.Pure.isErasable_atom v5-atom-main
-EraseProof.ConstSpine.ne_forallE EraseProof.Pure.isErasable_atom v5-atom-main
-EraseProof.Pure.whnf_arityShape EraseProof.Pure.isErasable_atom v5-atom-main
-EraseProof.Pure.whnf_propShape EraseProof.Pure.isErasable_atom v5-atom-main
+EraseProof.Erases.atomSpine_box EraseProof.erases_correct v4-sim-main
+EraseProof.ErasesDeps.ext EraseProof.erasePure_erases v7-core-main
+EraseProof.ErasesDeps.eval EraseProof.erases_correct v4-sim-main
+EraseProof.Erases.uninstantiateN EraseProof.erasePure_erases v7-core-main
+EraseProof.Erases.substRc EraseProof.erasePure_erases v7-core-main
+EraseProof.Pure.isErasable_atom EraseProof.erasePure_erases v7-core-main
 EraseProof.Erases.inst EraseProof.erases_correct v4-sim-main

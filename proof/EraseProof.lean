@@ -6,10 +6,15 @@ import EraseProof.Erasability.Eval
 import EraseProof.Erasability.Inv
 import EraseProof.Oracle
 import EraseProof.Oracle.Agree
+import EraseProof.Oracle.Atom
 import EraseProof.Oracle.AtomShapes
 import EraseProof.Oracle.Infer
 import EraseProof.Oracle.Whnf
+import EraseProof.Relation.Abstract
+import EraseProof.Relation.Atoms
 import EraseProof.Relation.Basic
+import EraseProof.Relation.Deps
+import EraseProof.Relation.Levels
 import EraseProof.Relation.Subst
 import EraseProof.Source.Defeq
 import EraseProof.Source.Eval

@@ -232,11 +232,15 @@ The blueprint renders this register.
   `EraseProof.BlocksCong`: recursion in the source semantics; and
   `proof/EraseProof/Relation/Basic.lean`: the rule `EraseProof.Erases.constRec` of
   `EraseProof.Erases` and the admissible targets `EraseProof.RecIn`: recursion in the erasure
-  relation.
+  relation; and `proof/EraseProof/Relation/Deps.lean`: `EraseProof.ErasesBlock`, the recursive
+  branch of `EraseProof.ErasesDecl`, and `EraseProof.BlocksErased`: recursion in the λ□
+  environment.
 - **Reference artifact:** PCUIC's fixpoints: the term `tFix`, a value (`atom`,
   `pcuic/theories/PCUICWcbvEval.v:51`), unfolded when applied by `eval_fix` (`:273`) and excluded
   as a head of `eval_app_cong` (`:311`, `isFixApp`); their erasure `erases_tFix`
-  (`erasure/theories/Extract.v:122`); Letouzey Def. 3 (the fixpoint case of 𝓔).
+  (`erasure/theories/Extract.v:122`); Letouzey Def. 3 (the fixpoint case of 𝓔); and
+  `globals_erased_with_deps` (`erasure/theories/EDeps.v:594`), which gives every declared constant
+  an erased λ□ declaration whose body has erased dependencies.
 - **What differs:** Lean has no fixpoint term; recursion lives in constants. A constant is
   recursive (`EraseProof.RecursiveDecl`) when its block has several members or its value mentions
   its own name in a value position (`EraseProof.OccursV`). `EraseProof.SrcEval` treats a recursive
@@ -254,7 +258,16 @@ The blueprint renders this register.
   over a λ□ environment, the admissible targets of a constant are the `tFix` stored as its body
   (`EraseProof.RecIn`). They stand for the self-references of a block member's value once
   `cunfold_fix` has unfolded the member, where `erases_tFix` relates a PCUIC `tFix` to a λ□ `tFix`
-  of erased bodies.
+  of erased bodies. In the λ□ environment, the body of a recursive declaration is a `tFix` of its
+  whole block (the recursive branch of `EraseProof.ErasesDecl`): member `j` is named
+  `Erasure.fixDefName` of the block's `j`-th declaration, has `rarg = 0`, and unfolds by
+  `cunfold_fix` to an erasure of that declaration's Lean value in the empty context, with the
+  fixpoints stored in the λ□ environment as the targets of recursive constants
+  (`EraseProof.ErasesBlock`); `erases_tFix` relates each body of a PCUIC `tFix` to a λ□ body under
+  the fixpoint's own binders (`fix_context mfix`). `EraseProof.BlocksErased` asks that every
+  fixpoint the λ□ environment stores at the kername of a declaration of the evaluation environment
+  be such a block, with bodies whose dependencies are erased: the part of
+  `globals_erased_with_deps` about constants whose λ□ body is a `tFix`.
 - **Why it is forced:** Lean's `Expr` has no fixpoint node: a recursive Lean definition is a
   constant whose value mentions itself, a member of a block (rule `block` of
   `EraseProof.ProgEnv`, whose values are translated in the model that contains the block). The
@@ -267,14 +280,43 @@ The blueprint renders this register.
   eraser closes into a `tFix` (`mkDef`, `LeanToLambdaBox/Erasure.lean`) and `cunfold_fix` unfolds,
   they are the block's `tFix` terms. No rule of `erases` relates a constant to a `tFix`, so the
   relation needs `EraseProof.Erases.constRec`, and `EraseProof.RecIn` ties its targets to what the
-  λ□ environment stores.
+  λ□ environment stores. That stored `tFix` is not the erasure of a subterm of the source term, so
+  when the source unfolds a recursive constant (`EraseProof.SrcEval.fixApp`) and λ□ unfolds the
+  fixpoint (`eval_fix`), the relation between the member's Lean value and its unfolded λ□ body can
+  only come from the λ□ environment: `EraseProof.ErasesBlock` states it, and
+  `EraseProof.BlocksErased` gives it for every stored fixpoint, as `globals_erased_with_deps` gives
+  erased bodies for `eval_delta`.
 - **What was considered instead:** unfolding recursive constants when evaluated, as the others:
   it matches λ□'s `tFix` only when each member's value is a λ, so that one unfolding reaches a
   value; it would need a shipping change that η-expands members whose value is not a λ, which the
   theorem does not need (spec §5.1). In the relation, relating a constant only to its `tConst`, as
   `erases_tConst` does: the unfolded λ□ body of a block member, which `eval_fix` evaluates, has
   the block's `tFix` terms where the member's Lean value has constants, so no erasure would relate
-  the two.
+  the two. In the λ□ environment, relating the members' bodies under the fixpoint's binders, as
+  `erases_tFix` does: a member's Lean value has no binders for the block, and refers to the
+  members as constants.
+
+### DV-8
+
+- **Our artifact:** `proof/EraseProof/Relation/Deps.lean`, `EraseProof.ErasesBlock`: each member
+  of a recursive block unfolds to an erasure of its Lean value, whatever the shape of that value;
+  the λ□ bodies are those the eraser emits, not η-expanded.
+- **Reference artifact:** `erases_tFix` (`erasure/theories/Extract.v:122-127`; MetaCoq paper §7.3,
+  Fig. 18), whose premises include `isLambda (dbody d)` and `E.isLambda (E.dbody d')`; Letouzey §4,
+  the η-expansion of fixpoint bodies (arity control).
+- **What differs:** `EraseProof.ErasesBlock` has no premise that a member's Lean value or its λ□
+  body is a λ, and it relates the bodies as the shipping eraser emits them: a member whose value
+  is not a λ has a λ□ body that is not a λ.
+- **Why it is forced:** recursive constants in scope may have values that are not λs: Lean accepts
+  `unsafe def ug : CN.{0} → CN.{0} := (fun _ n => n) (fun x => ug x)` (corpus
+  `tests/corpus/UnsafeRec.lean`), lean4lean's model types it (rule `block` of
+  `EraseProof.ProgEnv`), and the shipping eraser erases the value as it is (`visitMutual`, `mkDef`,
+  `LeanToLambdaBox/Erasure.lean`; SHIPPING-CHANGES R-11). With the `isLambda` premises, no block
+  containing such a member would be related to its λ□ image, and the theorem would exclude these
+  inputs.
+- **What was considered instead:** requiring λ-bodied members, which excludes in-scope inputs;
+  η-expanding non-λ members in the shipping eraser, which changes their output and which the
+  theorem does not need (spec §5.1).
 
 ### DV-10
 
@@ -312,7 +354,9 @@ The blueprint renders this register.
   `EraseProof.SrcValue.spine`): the constants without a δ rule that are values of the source
   semantics; and `proof/EraseProof/Relation/Basic.lean`, the premise `ac c = false` of the rules
   `EraseProof.Erases.const` and `EraseProof.Erases.constRec` of `EraseProof.Erases`, whose
-  parameter `ac` is the atom test: atoms erase only to `□`.
+  parameter `ac` is the atom test: atoms erase only to `□`; and
+  `proof/EraseProof/Relation/Atoms.lean`, `EraseProof.Erases.atomSpine_box`: an erasure of an
+  atom spine that is a result of λ□ evaluation is `□`.
 - **Reference artifact:** PCUIC's atoms `atom` (`pcuic/theories/PCUICWcbvEval.v:51`), which contain
   the inductive types `tInd` and the constructors `tConstruct`; `eval_atom` (`:331`) evaluates them
   to themselves, `eval_app_cong` (`:311`) evaluates their applications, and `value` (`:500`) lists
@@ -342,25 +386,30 @@ The blueprint renders this register.
   program that instantiates a polymorphic function at a base type or passes such a proof by value
   evaluates, and the correctness theorem says nothing about it. The class is syntactic
   ("evident") because the eraser must box each atom from the declared types alone, without a
-  typing hypothesis: a semantic class (every erasable constant without a δ rule) would need the
-  eraser's oracle `Erasure.Pure.isErasable` to box all of them, which needs canonicity (no neutral
-  term is definitionally equal to a sort), and lean4lean `master` does not prove it. The head is
-  `EraseProof.DeltaFree` because the head of a propositional constructor's type is an inductive
-  type, which never δ-reduces: a proof whose proposition is headed by a definition that unfolds to
-  a Π can be applied, and the oracle then answers from the arguments' types (with `axiom hq : Q`,
-  `def Q : Prop := ∀ P : Prop, P → P`, `axiom A : Type` and `axiom a : A`, it keeps the ill-typed
-  spine `hq A a`: `EraseProof.Test.Atoms.defHead_kept`). The head's sort is read at the
+  typing hypothesis, and on this class it provably does: on an atom spine the oracle never answers
+  "keep" (`EraseProof.Pure.isErasable_atom`, `proof/EraseProof/Oracle/Atom.lean`, whose level test
+  is `EraseProof.EvidentZero` by `EraseProof.Pure.alwaysZero_eq`); a semantic class (every
+  erasable constant without a δ rule) would need the eraser's oracle `Erasure.Pure.isErasable` to
+  box all of them, which needs canonicity (no neutral term is definitionally equal to a sort), and
+  lean4lean `master` does not prove it. The head is `EraseProof.DeltaFree` because the head of a
+  propositional constructor's type is an inductive type, which never δ-reduces: a proof whose
+  proposition is headed by a definition that unfolds to a Π can be applied, and the oracle then
+  answers from the arguments' types (with `axiom hq : Q`, `def Q : Prop := ∀ P : Prop, P → P`,
+  `axiom A : Type` and `axiom a : A`, it keeps the ill-typed spine `hq A a`:
+  `EraseProof.Test.Atoms.defHead_kept`), so `EraseProof.Pure.isErasable_atom`, which has no
+  typing hypothesis, fails for such heads. The head's sort is read at the
   occurrence because a Lean level can be `0`, whereas `isPropositional` reads an inductive's
   declared sort, which no Rocq universe instance turns into `Prop`. Atomhood does not depend on the
   occurrence because the eraser erases a universe-polymorphic body once, at its level parameters,
   where the oracle keeps the level-dependent proof `hq.{v}` (it boxes `hq.{0}`:
   `EraseProof.Test.Atoms.levelDependent_kept`): were `hq.{0}` a value, a body passing `hq.{v}`,
   evaluated at level `0`, would reach a value in the source while its λ□ image is stuck on the
-  axiom `hq`, and erasure would not commute with level instantiation, as
-  `erases_subst_instance_decl` (`erasure/theories/ErasureProperties.v:412`) states it does. An atom
-  is a value of the source semantics, while no rule of λ□ evaluation returns a `tConst`: the
-  erasure of an atom that is the result of an evaluation must be the result of the λ□ evaluation,
-  so it cannot be a `tConst`; it is `□`, which λ□ has for `tInd` too.
+  axiom `hq`, and erasure would not commute with level instantiation, which
+  `erases_subst_instance_decl` (`erasure/theories/ErasureProperties.v:412`) states and
+  `EraseProof.Erases.instLevels` proves (the relation's atom test `ac` reads a constant's name, not
+  its levels). An atom is a value of the source semantics, while no rule of λ□ evaluation returns
+  a `tConst`: the erasure of an atom that is the result of an evaluation must be the result of the
+  λ□ evaluation, so it cannot be a `tConst`; it is `□`, which λ□ has for `tInd` too.
 - **What was considered instead:** every constant without a δ rule stuck (the theorem then says
   nothing about the programs above); a semantic class (needs canonicity); heads that are
   definitions (the oracle keeps proofs with such heads, above); heads that δ-reduce to an
@@ -384,6 +433,8 @@ The blueprint renders this register.
   a program, whose remapped constants are those of the shipping eraser's own test
   `Erasure.axiomatized` (`LeanToLambdaBox/Erasure/Pure.lean`): a single declaration that the view
   marks `@[extern]`, under the configuration `extern := .preferAxiom`.
+  `proof/EraseProof/Relation/Deps.lean`, the remapped branch of `EraseProof.ErasesDecl`: a remapped
+  constant, which has a Lean value, is related to a λ□ declaration without a body.
 - **Reference artifact:** the environment of PCUIC's weak call-by-value evaluation `eval`
   (`pcuic/theories/PCUICWcbvEval.v:231`), whose rule `eval_delta` (`:247`) unfolds a constant
   exactly when its declaration has a body; and `erases_constant_body`
@@ -393,7 +444,8 @@ The blueprint renders this register.
   δ rule in the source semantics: it is stuck, like the λ□ axiom the eraser emits for it. Which
   constants are remapped is an input of the source semantics, besides the declarations; for a
   program, `EraseProof.evalEnvOf` derives it from the configuration and the trusted view's
-  `isExtern`, exactly as the eraser does.
+  `isExtern`, exactly as the eraser does. `EraseProof.ErasesDecl` relates such a constant to a λ□
+  declaration without a body, a pair for which `erases_constant_body` is `False`.
 - **Why it is forced:** under the configuration `extern := .preferAxiom` (the default of
   `ErasureConfig`, `LeanToLambdaBox/Erasure.lean`), the shipping eraser emits a declaration tagged
   `@[extern]` as a λ□ axiom, although it has a Lean value, so that it is linked with a foreign
@@ -416,7 +468,13 @@ The blueprint renders this register.
   in the λ□ environment contains a free variable. And `proof/EraseProof/Relation/Basic.lean`, the
   rule `EraseProof.Erases.fvar` of `EraseProof.Erases`: the erasure relation relates the
   traversal's free variables to themselves, under a context `Lean4Lean.VLCtx` whose free-variable
-  entries type them.
+  entries type them. And `proof/EraseProof/Relation/Abstract.lean`: `EraseProof.abstract1`, the
+  shifting abstraction of lean4lean's `Expr.abstract1` (`Lean4Lean/Verify/Axioms.lean:443`) on λ□
+  terms, with `EraseProof.Erases.uninstantiateN`: closing a binder on both sides keeps the
+  relation, when the admissible targets of recursive constants do not mention the variable
+  (`EraseProof.RcFresh`); and `EraseProof.substFVars`, a simultaneous substitution of free
+  variables, with `EraseProof.Erases.substRc`: substituting free variables on the λ□ side that
+  the source term does not contain keeps the relation, with the admissible targets substituted.
 - **Reference artifact:** MetaRocq's erasure function `erase`
   (`erasure/theories/ErasureFunction.v:989`) and erasure relation `erases`
   (`erasure/theories/Extract.v:88`; MetaCoq paper §7.2–§7.3, Figs. 17–18), which work on de Bruijn
@@ -435,7 +493,13 @@ The blueprint renders this register.
   relation is stated on these open terms: a free variable erases to itself
   (`EraseProof.Erases.fvar`, MetaRocq's `erases_tVar`, which applies to no typed term there), and
   where the relation judges erasability (`EraseProof.ErasableS`), the free-variable entries of the
-  lean4lean context give these variables their types.
+  lean4lean context give these variables their types. Closing a binder is stated with the
+  shifting abstraction, the inverse of the source side's opening `Expr.instantiate1'`
+  (`Lean4Lean/Verify/Axioms.lean:404`), as lean4lean states it for its translation
+  (`Lean4Lean.TrExprS.uninstantiateN`, `Lean4Lean/Verify/Typing/Lemmas.lean:2132`), not with the
+  traversal's non-shifting `abstract`. The members of a recursive block refer to each other by
+  free variables while they are erased; replacing these by the block's fixpoints
+  (`EraseProof.Erases.substRc`) turns the targets of the block's constants into the stored `tFix`.
 - **Why it is forced:** the theorem is about the shipping eraser (spec §2), whose traversal is
   written this way: `withLocalDecl` and `withLocalDef` (`LeanToLambdaBox/Erasure.lean`) open a
   binder with a fresh free variable pushed onto the locals, the oracle is called with these
@@ -445,7 +509,38 @@ The blueprint renders this register.
 - **What was considered instead:** a de Bruijn rewrite of the traversal, a large shipping change
   that no output needs (spec §5.1 allows only strictly necessary shipping changes); resetting the
   locals in `visitMutual`, a shipping change that the frame lemma
-  `EraseProof.Pure.isErasable_agree` makes unnecessary.
+  `EraseProof.Pure.isErasable_agree` makes unnecessary; stating the binder lemma with the
+  traversal's non-shifting `abstract`, which undoes the opening only on terms without loose
+  indices beyond the variable's depth, a condition the lemma would then need as an extra
+  hypothesis.
+
+### DV-14
+
+- **Our artifact:** `proof/EraseProof/Relation/Deps.lean`, the rule `EraseProof.ErasesDeps.const`
+  of `EraseProof.ErasesDeps`: the λ□ constant `tConst (toKername c)` has erased dependencies when
+  `c` is a declaration of the evaluation environment whose λ□ declaration at `toKername c` erases
+  it (`EraseProof.ErasesDecl`) and whose λ□ body, if any, has erased dependencies; the rule is
+  indexed by the source constant `c`, not by the kername.
+- **Reference artifact:** `erases_deps_tConst` (`erasure/theories/Extract.v:324-329`; MetaCoq
+  paper §7.4, p. 8:64), where the PCUIC declaration and the λ□ declaration are found at the same
+  kername `kn`, the name of the `tConst`.
+- **What differs:** Lean names become λ□ kernames through `toKername`
+  (`LeanToLambdaBox/Basic.lean`), so a Lean constant and its λ□ constant have different names, and
+  the rule relates the declaration of `c` to the λ□ declaration at `toKername c`. When two
+  declarations of the evaluation environment have the same kername, the rule may justify the same
+  `tConst` by either.
+- **Why it is forced:** the shipping eraser names the λ□ constant of `c` by `toKername c`
+  (`visitMutual`, `LeanToLambdaBox/Erasure.lean`), and `toKername` is not injective: the escaping
+  of `cleanIdent` and the numeric name components make distinct names coincide (SHIPPING-CHANGES
+  R-3). So a kername does not determine the source declaration, and the rule names the
+  declaration it uses. The eraser's dependency collection rejects programs whose collected
+  declarations share a kername (`findCollision`, `LeanToLambdaBox/Erasure/Collect.lean`;
+  SHIPPING-CHANGES S-18), so the ambiguity does not arise on the declarations it erases.
+- **What was considered instead:** an injective mangling, a shipping change that alters the bytes
+  of every name with special characters and that the theorem does not need (spec §5.1);
+  `EraseProof.ErasesDeps` over all declarations of the program rather than the evaluation
+  environment, which fails when two constants of the program outside the dependency closure share
+  a kername.
 
 ### DV-15
 
@@ -519,7 +614,8 @@ The blueprint renders this register.
 - **Our artifact:** `proof/EraseProof/Oracle.lean`, `EraseProof.Pure.isErasable_sound`, with
   `EraseProof.Pure.isArity_sound` and `EraseProof.Pure.alwaysZero_sound`, and the soundness of the
   steps they rest on, `EraseProof.Pure.inferType_sound` (`proof/EraseProof/Oracle/Infer.lean`) and
-  `EraseProof.Pure.whnf_sound` (`proof/EraseProof/Oracle/Whnf.lean`): the eraser decides
+  `EraseProof.Pure.whnf_sound` (`proof/EraseProof/Oracle/Whnf.lean`), and, on atom spines,
+  `EraseProof.Pure.isErasable_atom` (`proof/EraseProof/Oracle/Atom.lean`): the eraser decides
   erasability with its own oracle, the shipping `Erasure.Pure.isErasable`
   (`LeanToLambdaBox/Erasure/Pure.lean`), with its type inference `Erasure.Pure.inferType`, its
   weak-head reduction `Erasure.Pure.whnf`, its arity test `Erasure.Pure.isArity` and its level
@@ -538,8 +634,9 @@ The blueprint renders this register.
   "erasable" if that type reduces to an arity, and otherwise reduces the type's type to a sort and
   answers "erasable" exactly when the sort is structurally `≈ 0`. Only the `true` direction of
   `is_erasableP` is proved: an "erasable" answer gives `EraseProof.ErasableS`
-  (`EraseProof.Pure.isErasable_sound`). There is no completeness: the oracle may answer "keep" on
-  an erasable term, and it fails, with an error and no answer, when its fuel runs out or a type
+  (`EraseProof.Pure.isErasable_sound`). There is no general completeness: the oracle may answer
+  "keep" on an erasable term, except on the atom spines of DV-11, where it answers "erasable" or
+  fails (`EraseProof.Pure.isErasable_atom`), and it fails, with an error and no answer, when its fuel runs out or a type
   does not reduce to a Π or a sort. Its reductions unfold every definition, as those of
   `is_erasableb` do, whatever the elaborator attribute `@[irreducible]` says: on an environment
   whose aliases `IProp : Type := Prop` and `Endo : Type := A → A` are `@[irreducible]` in Lean, it
