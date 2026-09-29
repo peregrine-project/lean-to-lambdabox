@@ -6,6 +6,8 @@
 #             see tools/Report.lean `sorryLabels`, `testOnlySorryLabels`), comma-separated;
 #             `-` for none.
 # proof/scripts/check.sh compares this file with the computed .check/axioms.actual.
+EraseProof.IsErasable.inst propext,Quot.sound -
+EraseProof.IsErasable.instL propext,Quot.sound -
 EraseProof.ProgEnv.lookup propext,Classical.choice,Quot.sound -
 EraseProof.ProgEnv.ordered propext,Classical.choice,Quot.sound -
 EraseProof.ProgEnv.unfold propext,Classical.choice,Quot.sound -

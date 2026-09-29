@@ -1,5 +1,6 @@
 import EraseProof.Env
 import EraseProof.Env.Unfold
+import EraseProof.Erasability
 import EraseProof.Source.EvalEnv
 import EraseProof.Test.Bridge
 import EraseProof.Test.NV1
