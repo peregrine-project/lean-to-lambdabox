@@ -9,7 +9,8 @@
 EraseProof.TrS.det EraseProof.erases_correct v4-sim-main
 EraseProof.TrS.fvarsIn EraseProof.erasePure_erases v7-core-main
 EraseProof.TrS.weakFV EraseProof.TrS.inst_fvar v1-trs-abstract
-EraseProof.TrS.weakBV EraseProof.TrS.inst v1-trs-inst
+EraseProof.TrS.inst EraseProof.SrcEval.defeq v2-sr-eval
+EraseProof.TrS.inst_let EraseProof.SrcEval.defeq v2-sr-eval
 EraseProof.ProgEnv.ordered EraseProof.SrcEval.defeq v2-sr-eval
 EraseProof.ProgEnv.wf EraseProof.SrcEval.defeq v2-sr-eval
 EraseProof.ProgEnv.lookup EraseProof.ProgEnv.unfold v1-progenv-unfold
