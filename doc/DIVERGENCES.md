@@ -354,7 +354,9 @@ The blueprint renders this register.
   `EraseProof.SrcValue.spine`): the constants without a δ rule that are values of the source
   semantics; and `proof/EraseProof/Relation/Basic.lean`, the premise `ac c = false` of the rules
   `EraseProof.Erases.const` and `EraseProof.Erases.constRec` of `EraseProof.Erases`, whose
-  parameter `ac` is the atom test: atoms erase only to `□`.
+  parameter `ac` is the atom test: atoms erase only to `□`; and
+  `proof/EraseProof/Relation/Atoms.lean`, `EraseProof.Erases.atomSpine_box`: an erasure of an
+  atom spine that is a result of λ□ evaluation is `□`.
 - **Reference artifact:** PCUIC's atoms `atom` (`pcuic/theories/PCUICWcbvEval.v:51`), which contain
   the inductive types `tInd` and the constructors `tConstruct`; `eval_atom` (`:331`) evaluates them
   to themselves, `eval_app_cong` (`:311`) evaluates their applications, and `value` (`:500`) lists
