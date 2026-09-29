@@ -4,6 +4,7 @@ import EraseProof.Env.Unfold
 import EraseProof.Oracle.Agree
 import EraseProof.Source.Eval
 import EraseProof.Source.EvalEnv
+import EraseProof.Source.Steps
 import EraseProof.Target
 import EraseProof.Test.Bridge
 import EraseProof.Test.LBEval

@@ -8,15 +8,14 @@
 # proof/scripts/check.sh compares this file with the computed .check/axioms.actual.
 EraseProof.LBEval.closed propext,Quot.sound -
 EraseProof.ProgEnv.lookup propext,Classical.choice,Quot.sound -
-EraseProof.ProgEnv.ordered propext,Classical.choice,Quot.sound -
-EraseProof.ProgEnv.unfold propext,Classical.choice,Quot.sound -
-EraseProof.ProgEnv.wf propext,Classical.choice,Quot.sound,sorryAx L1,L2
 EraseProof.Pure.isErasable_agree propext,Quot.sound -
+EraseProof.SrcEval.appCong_step propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
+EraseProof.SrcEval.beta_step propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
+EraseProof.SrcEval.delta_step propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
+EraseProof.SrcEval.fixApp_step propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
 EraseProof.SrcEval.value propext,Classical.choice,Quot.sound -
-EraseProof.TrS.defeqDFC propext,Quot.sound,sorryAx L1,L2,L3,L4,L5
-EraseProof.TrS.det propext -
+EraseProof.SrcEval.zeta_step propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
 EraseProof.TrS.fvarsIn propext,Classical.choice,Quot.sound -
-EraseProof.TrS.instLevels propext,Quot.sound -
 EraseProof.TrS.inst_fvar propext,Classical.choice,Quot.sound -
 EraseProof.TrS.uninstantiateN propext,Classical.choice,Quot.sound -
 EraseProof.Test.Bridge.addConsts_fresh propext,Quot.sound -
