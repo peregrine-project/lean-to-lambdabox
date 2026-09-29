@@ -7,7 +7,6 @@
 # Every declaration of EraseProof outside EraseProof.Test must be reachable from a root; no root
 # may be reachable from another root.
 EraseProof.TrS.fvarsIn EraseProof.erasePure_erases v7-core-main
-EraseProof.TrS.uninstantiateN EraseProof.Erases.uninstantiateN v3-rel-abstract
 EraseProof.TrS.inst_fvar EraseProof.erasePure_erases v7-core-main
 EraseProof.LBEval.closed EraseProof.erasePure_erases v7-core-main
 EraseProof.SrcEval.value EraseProof.erases_correct v4-sim-main
@@ -34,3 +33,5 @@ EraseProof.PropShape.instLevels EraseProof.Pure.isErasable_atom v5-atom-main
 EraseProof.ConstSpine.ne_forallE EraseProof.Pure.isErasable_atom v5-atom-main
 EraseProof.Pure.whnf_arityShape EraseProof.Pure.isErasable_atom v5-atom-main
 EraseProof.Pure.whnf_propShape EraseProof.Pure.isErasable_atom v5-atom-main
+EraseProof.Erases.uninstantiateN EraseProof.erasePure_erases v7-core-main
+EraseProof.Erases.substRc EraseProof.erasePure_erases v7-core-main
