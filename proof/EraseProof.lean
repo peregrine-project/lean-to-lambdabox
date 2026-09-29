@@ -1,6 +1,7 @@
 import EraseProof.Env
 import EraseProof.Env.Unfold
 import EraseProof.Source.EvalEnv
+import EraseProof.Test.NV1
 import EraseProof.Typing.Basic
 import EraseProof.Typing.Inst
 import EraseProof.Typing.Uniq

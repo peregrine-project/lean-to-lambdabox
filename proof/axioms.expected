@@ -15,3 +15,14 @@ EraseProof.TrS.fvarsIn propext,Classical.choice,Quot.sound -
 EraseProof.TrS.inst propext,Classical.choice,Quot.sound -
 EraseProof.TrS.inst_let propext,Classical.choice,Quot.sound -
 EraseProof.TrS.weakFV propext,Classical.choice,Quot.sound -
+EraseProof.Test.NV1.cnV_ty propext,Quot.sound -
+EraseProof.Test.NV1.cn_unfold propext -
+EraseProof.Test.NV1.hAAty propext,Quot.sound -
+EraseProof.Test.NV1.hAty propext,Quot.sound -
+EraseProof.Test.NV1.he propext,Quot.sound -
+EraseProof.Test.NV1.henv propext,Classical.choice,Quot.sound -
+EraseProof.Test.NV1.oneWF propext,Quot.sound -
+EraseProof.Test.NV1.pCN propext,Classical.choice,Quot.sound -
+EraseProof.Test.NV1.trCN propext,Quot.sound -
+EraseProof.Test.NV1.trOne propext,Quot.sound -
+EraseProof.Test.NV1.venv0_A propext,Quot.sound -
