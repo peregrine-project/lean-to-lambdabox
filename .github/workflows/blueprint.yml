@@ -54,17 +54,17 @@ jobs:
             texlive-fonts-recommended texlive-plain-generic fonts-lmodern
 
       # Before the build: the audit checks the committed generated chapters, which build.sh
-      # rewrites. It fails the job on any defect (exit status 1) or tool failure (2).
+      # rewrites. It builds the proof package proof/ (library EraseProof) with `lake build`, and
+      # fails the job on any defect (exit status 1) or tool failure (2).
       - name: Audit
         run: python3 blueprint/scripts/audit.py
 
       - name: Build the web version and the pdf
         run: blueprint/build.sh all
 
+      # The names of planned nodes are skipped: their declarations do not exist yet.
       - name: Check the declarations plasTeX collected
-        run: |
-          read -ra imports <<< "$(python3 blueprint/scripts/audit.py --print-imports)"
-          lake env lean --run blueprint/CheckDecls.lean check blueprint/lean_decls "${imports[@]}"
+        run: python3 blueprint/scripts/audit.py --check-lean-decls blueprint/lean_decls
 
       # build.sh skips the pdf when xelatex is missing; the site must contain it.
       - name: Check that the site contains the pdf

@@ -2,30 +2,97 @@
 
 \section*{At a glance}
 \begin{itemize}
-\item \lead{Goal} State what is proved about the eraser, what the eraser is made of, and what a
-  result built on lean4lean inherits.
-\item \lead{Main results} None: \hl{no theorem about the eraser exists}.
-\item \lead{Status} \stShipping{} the shipping code, described by definition nodes;
-  \stInherited{} the sorry sources and axioms of lean4lean, tabulated, reached by no node.
-\item \lead{Lean files} \code{Basic.lean}, \code{Erasure.lean} and \code{Printing.lean} under
-  \code{LeanToLambdaBox/}.
+\item \lead{Goal} State what is proved, what is trusted without proof, what a result inherits from
+  lean4lean, and what the eraser is made of.
+\item \lead{Main results} The model side (Chapter~\ref{chap:model}), NV-1's model-side
+  hypotheses and the two bridge tests (Chapter~\ref{chap:tests}). \hl{No statement about the eraser is proved}: the final theorem and
+  its lemmas are planned nodes.
+\item \lead{Status} \stProved{} the landed nodes; \stInherited{} the lean4lean sorries that some
+  of them reach; \stShipping{} the shipping code, described by definition nodes.
+\item \lead{Lean files} \code{proof/EraseProof/} (the verification library \code{EraseProof});
+  \code{LeanToLambdaBox/\{Basic, Erasure, Printing\}.lean} (the shipping code).
 \end{itemize}
 
 \section{What is proved}\label{sec:trust-proved}
 
 \begin{itemize}
-\item \lead{Theorems} None. The Lean library of the repository is the shipping code; no
-  declaration states a property of the eraser.
-\item \lead{Hypotheses} None, since there is no statement.
-\item \lead{Divergences} None: the register is empty (Chapter~\ref{chap:divergences}).
-\item \lead{Tests} The shipping regression tests (\code{scripts/regress.sh}) compare the eraser's
-  outputs on fixed inputs with committed expected files.
+\item \lead{Proved} every node that is not marked \stPlanned: the translation \code{TrS}, the
+  program environments \code{ProgEnv} and their lemmas (Chapter~\ref{chap:model}); the
+  model-side hypotheses of the non-vacuity instance NV-1 and the two bridge tests
+  (Chapter~\ref{chap:tests}).
+\item \lead{Planned} every node marked \stPlanned: the statements of the approved design, under
+  their planned names; the audit checks that none of these declarations exists.
+\item \lead{Axioms} a proved node depends on \code{propext}, \code{Classical.choice},
+  \code{Quot.sound}, and on \code{sorryAx} only through the lean4lean sorries it lists
+  (Section~\ref{sec:trust-inherited}); \hl{no axiom of lean4lean} is allowed.
+\item \lead{Checks} \code{blueprint/scripts/audit.py} measures every node; the proof package's
+  \code{proof/scripts/check.sh} checks the footprints of \code{proof/axioms.expected}, forbidden
+  tokens and the no-leaves rule of \code{proof/ROOTS.txt} (Chapter~\ref{chap:open}).
 \end{itemize}
+
+\section{Trusted, not verified}\label{sec:trust-trusted}
+
+The final theorem (Chapter~\ref{chap:final}) speaks about the pure path of \code{\#erase} on the
+kernel term. The following are outside every statement, as MetaRocq trusts its quoting.
+
+\begin{tabular}{p{0.3\linewidth}p{0.62\linewidth}}
+\toprule
+Trusted part & What it does \\
+\midrule
+Elaboration & produces the kernel term \code{e} of \code{\#erase t} \\
+\code{EnvView.ofEnvironment} & reads the Lean environment, including which constants are
+  \code{@[extern]} (Definition~\ref{def:Erasure-EnvView}) \\
+The printer and the file writes & \code{Serialize}, and the writes of \code{.ast},
+  \code{.ast.inlinings} and \code{.mli} (Definitions~\ref{def:Serialize},
+  \ref{def:Erasure-eraseElab}) \\
+The inlining sidecar & the constants \code{.ast.inlinings} asks Peregrine to inline \\
+Peregrine & compiles the emitted program \\
+The \code{Meta} path & out-of-scope inputs keep the shipping traversal with the elaborator's
+  oracle (Definition~\ref{def:Erasure-isErasable}) \\
+\bottomrule
+\end{tabular}
+
+\begin{itemize}
+\item \lead{Partial correctness} lean4lean has no normalization theorem: nothing is claimed when
+  the eraser fails or the source does not evaluate.
+\item \lead{Kernel terms} the theorem is about the kernel term, not Lean's compiled code: the
+  eraser uses logical definitions, not \code{@[implemented\_by]} implementations (R-13), and
+  emits opaque bodies that the source semantics does not unfold.
+\item \lead{Stuck evaluations} an evaluation that reaches a computational axiom, a non-atom opaque
+  or a remapped \code{@[extern]} constant has no source value, and the theorem says nothing about
+  it.
+\end{itemize}
+
+\section{Inherited trust: lean4lean}\label{sec:trust-inherited}
+
+\begin{itemize}
+\item \lead{Pin} the lean4lean package of Section~\ref{sec:intro-pins}, branch \code{master}.
+\item \lead{Labels} the table gives each lean4lean sorry the blueprint names a label; a node lists
+  the labels it depends on (\emph{Inherited from lean4lean}), and the audit checks the list.
+\item \lead{L1, L2} sorry definitions: they fix what \code{VEnv.WF} means for inductives, and no
+  in-scope environment contains an inductive.
+\item \lead{L3--L6} claims lean4lean states and does not prove. \hl{The final theorem is only as
+  sound as L3--L6}: nothing is known about whether they hold on the environments in scope, and
+  \code{VEnv.WF} admits an unsafe block whose member proves \code{forall p : Prop, p}.
+\item \lead{L7, L8} no node may depend on them.
+\item \lead{TrProj} only test nodes may depend on it: the bridge tests state lean4lean's
+  \code{TrExprS} and \code{TrEnv'}, whose definitions reach \code{TrProj := sorry} (exception
+  E-1 of the proof checks).
+\end{itemize}
+
+The table is generated from \code{blueprint/audit.toml} and the Lean environment by
+\code{blueprint/scripts/audit.py}; the last column counts the nodes that depend on each entry.
+
+\input{generated/inherited-sorries}
+
+\subsection{Census of lean4lean}\label{sec:trust-census-lean4lean}
+
+\input{generated/census-lean4lean}
 
 \section{The shipping code}\label{sec:trust-shipping}
 
-The eraser is Lean meta-code: it runs in the elaborator's monads and asks the elaborator for types.
-Its recursive traversal consists of \code{partial} definitions, which the kernel cannot unfold.
+The eraser is Lean meta-code. Its traversal is total, bounded by fuel, and generic over a backend
+monad; \code{\#erase} runs it with the \code{CoreM} backend, which asks the elaborator for types.
 
 \begin{definition}[Erased terms]
   \label{def:LBTerm}
@@ -45,13 +112,24 @@ Its recursive traversal consists of \code{partial} definitions, which the kernel
   \end{itemize}
 \end{definition}
 
+\begin{definition}[Abstraction of a free variable]
+  \label{def:abstract}
+  \lean{abstract, toBvar}
+  \leanok
+  \uses{def:LBTerm}
+  \srcloc{LeanToLambdaBox/Basic.lean}{143}
+  \stShipping{} \lead{In short} \code{abstract x t} replaces the free variable \code{x} by the
+  bound variable of the binders crossed, \hl{without shifting} other indices; \code{toBvar} is
+  its structural recursion.
+\end{definition}
+
 \begin{definition}[Global declarations]
   \label{def:GlobalDecl}
   \lean{GlobalDecl, ConstantBody, MutualInductiveBody, OneInductiveBody, ConstructorBody,
     ProjectionBody}
   \leanok
   \uses{def:LBTerm}
-  \srcloc{LeanToLambdaBox/Basic.lean}{171}
+  \srcloc{LeanToLambdaBox/Basic.lean}{188}
   \stShipping{} \lead{In short} The declarations of an erased environment.
   \begin{itemize}
   \item \code{constantDecl}: a constant with an optional body (none for an axiom);
@@ -65,7 +143,7 @@ Its recursive traversal consists of \code{partial} definitions, which the kernel
   \lean{ASTType, Program}
   \leanok
   \uses{def:LBTerm, def:GlobalDecl}
-  \srcloc{LeanToLambdaBox/Basic.lean}{179}
+  \srcloc{LeanToLambdaBox/Basic.lean}{196}
   \stShipping{} \lead{In short} What \code{\#erase} emits: \code{untyped} of a list of named global
   declarations and an optional main term, the \code{Untyped} program of Peregrine's format.
 \end{definition}
@@ -86,44 +164,66 @@ Its recursive traversal consists of \code{partial} definitions, which the kernel
   \end{itemize}
 \end{definition}
 
-\begin{definition}[The erasure monad]
-  \label{def:Erasure-EraseM}
-  \lean{Erasure.EraseM, Erasure.ErasureState, Erasure.ErasureContext, Erasure.run}
+\begin{definition}[Traversal context and names]
+  \label{def:Erasure-TravCtx}
+  \lean{Erasure.TravCtx, Erasure.Local, Erasure.binderNameOf, Erasure.fixDefName}
   \leanok
-  \uses{def:GlobalDecl, def:Erasure-ErasureConfig}
-  \srcloc{LeanToLambdaBox/Erasure.lean}{168}
-  \stShipping{} \lead{In short} $\mathrm{EraseM} = $ \code{StateT ErasureState (ReaderT
-  ErasureContext CoreM)}: \hl{Lean's core monad}, with a state and a context.
+  \uses{def:Erasure-ErasureConfig}
+  \srcloc{LeanToLambdaBox/Erasure.lean}{172}
+  \stShipping{} \lead{In short} The traversal's reader context, and the $\lambda_\Box$ names of
+  binders and fixpoint members.
   \begin{itemize}
-  \item state: the inductive types and constants registered so far, the emitted declarations, the
-        constants to inline and their inlined sizes;
-  \item context: a Lean local context, the fixpoint variables in scope, the configuration.
+  \item \code{TravCtx}: a Lean local context \code{lctx}, the same binders as a list
+        \code{locals} of \code{Local}s (innermost first), the fixpoint variables in scope, the
+        configuration;
+  \item \code{binderNameOf n}: \code{n} if it is printable ASCII, anonymous otherwise (DV-15);
+  \item \code{fixDefName n}: the name of the fixpoint member for the constant \code{n}.
   \end{itemize}
 \end{definition}
 
-\begin{definition}[Erasability oracle]
+\begin{definition}[Backends and the erasure monad]
+  \label{def:Erasure-EraseT}
+  \lean{Erasure.EraseT, Erasure.Backend, Erasure.ErasureState, Erasure.run}
+  \leanok
+  \uses{def:GlobalDecl, def:Erasure-TravCtx}
+  \srcloc{LeanToLambdaBox/Erasure.lean}{238}
+  \stShipping{} \lead{In short} $\mathrm{EraseT}\ m = $ \code{StateT ErasureState (ReaderT TravCtx
+  m)} over \hl{a backend monad \code{m}}.
+  \begin{itemize}
+  \item \code{Backend m}: the environment and type operations the traversal uses (constant
+        lookup, fresh variables, instantiation, erasability, type inference, \code{casesOn} and
+        constructor information, \code{@[extern]} and inline attributes, preprocessing, logging,
+        the out-of-fuel error);
+  \item the \code{CoreM} instance calls the Lean functions the traversal uses on the \code{Meta}
+        path: \code{Environment.find?}, \code{Meta.inferType}, \code{isErasable}, and others;
+  \item \code{ErasureState}: the registered inductives and constants, the emitted declarations,
+        the constants to inline and their inlined sizes.
+  \end{itemize}
+\end{definition}
+
+\begin{definition}[Erasability oracle of the \texorpdfstring{\code{Meta}}{Meta} path]
   \label{def:Erasure-isErasable}
   \lean{Erasure.isErasable}
   \leanok
-  \srcloc{LeanToLambdaBox/Erasure.lean}{183}
+  \srcloc{LeanToLambdaBox/Erasure.lean}{254}
   \stShipping{} \lead{In short} A term is erased to $\Box$ iff its type is a proposition or a
   type former, as \hl{decided by the elaborator}.
   \begin{itemize}
   \item \lead{Lean} a \code{MetaM} function calling \code{Meta.inferType}, \code{Meta.isProp} and
-        \code{Meta.isTypeFormerType};
+        \code{Meta.isTypeFormerType}; the \code{CoreM} backend's \code{isErasable};
   \item \lead{Caveat} these belong to Lean's elaborator (\code{Lean.Meta}), a different program
         from the kernel that lean4lean models.
   \end{itemize}
 \end{definition}
 
 \begin{definition}[Preprocessing]
-  \label{def:Erasure-prepare_erasure}
-  \lean{Erasure.prepare_erasure}
+  \label{def:Erasure-prepareErasure}
+  \lean{Erasure.prepareErasure}
   \leanok
-  \uses{def:Erasure-EraseM}
-  \srcloc{LeanToLambdaBox/Erasure.lean}{438}
-  \stShipping{} \lead{In short} Rewrites the input term with passes of Lean's compiler before
-  erasure.
+  \uses{def:Erasure-ErasureConfig}
+  \srcloc{LeanToLambdaBox/Erasure.lean}{300}
+  \stShipping{} \lead{In short} The \code{CoreM} backend's \code{prepare}: rewrites the input term
+  with passes of Lean's compiler before erasure.
   \begin{itemize}
   \item \lead{Steps} unsafe-recursion names replaced, \code{macroInline}, \code{inlineMatchers},
         \code{macroInline} again, then (option \code{csimp}) the \code{@[csimp]} replacements;
@@ -134,21 +234,22 @@ Its recursive traversal consists of \code{partial} definitions, which the kernel
 
 \begin{definition}[The eraser]
   \label{def:Erasure-erase}
-  \lean{Erasure.erase, Erasure.erase.visitExpr}
+  \lean{Erasure.erase, Erasure.visitExpr, Erasure.travFuel}
   \leanok
-  \uses{def:LBTerm, def:ASTType, def:Erasure-ErasureConfig, def:Erasure-EraseM,
-    def:Erasure-isErasable, def:Erasure-prepare_erasure}
-  \srcloc{LeanToLambdaBox/Erasure.lean}{461}
-  \stShipping{} \lead{In short} Erases a term and its dependencies to a program; the traversal is
-  \hl{partial, hence opaque to proofs}.
+  \uses{def:LBTerm, def:abstract, def:ASTType, def:Erasure-EraseT, def:Erasure-isErasable,
+    def:Erasure-prepareErasure}
+  \srcloc{LeanToLambdaBox/Erasure.lean}{960}
+  \stShipping{} \lead{In short} Erases a term and its dependencies to a program by a
+  \hl{fuel-bounded, generic traversal}, run with the \code{CoreM} backend.
   \begin{itemize}
-  \item \code{erase e config}: runs \code{prepare\_erasure} then \code{visitExpr} in
-        \code{EraseM}; returns the program (the emitted declarations and the main term) and the
-        constants to inline;
+  \item \code{erase e config}: runs the backend's \code{prepare}, then \code{visitExpr travFuel}
+        in \code{EraseT CoreM}; returns the program (the emitted declarations and the main term)
+        and the constants to inline;
   \item \code{visitExpr}: an erasable term becomes $\Box$; otherwise one case per \code{Expr}
-        constructor, through the \code{where} functions of \code{erase};
-  \item \lead{Lean} \code{erase} is a \code{CoreM} definition; \code{visitExpr} and its siblings
-        are \code{partial def}s (Section~\ref{sec:trust-census}).
+        constructor, through the mutually recursive functions of the traversal
+        (\code{visitApp}, \code{visitConst}, \code{visitMutual}, and others);
+  \item \code{travFuel} $= 2^{32}$: every function of the traversal takes fuel and fails with
+        the backend's \code{outOfFuel} at zero.
   \end{itemize}
 \end{definition}
 
@@ -173,13 +274,15 @@ Its recursive traversal consists of \code{partial} definitions, which the kernel
   \lean{Erasure.eraseElab}
   \leanok
   \uses{def:Erasure-erase, def:Serialize, def:Erasure-ErasureConfig}
-  \srcloc{LeanToLambdaBox/Erasure.lean}{869}
-  \stShipping{} \lead{In short} Elaborates the term, erases it, and writes the program, the
-  constants to inline and the \code{.mli} signature: to files when \code{to} and \code{mli} are
-  given, to the message log otherwise.
+  \srcloc{LeanToLambdaBox/Erasure.lean}{1018}
+  \stShipping{} \lead{In short} Elaborates the term, erases it with \code{erase}, and writes the
+  program, the constants to inline and the \code{.mli} signature: to files when \code{to} and
+  \code{mli} are given, to the message log otherwise.
   \begin{itemize}
   \item the \code{config} term is evaluated with \code{unsafe Elab.Term.evalTerm};
-  \item the \code{.mli} signature comes from the Lean type of the term (\code{gen\_mli}).
+  \item the \code{.mli} signature comes from the Lean type of the term (\code{gen\_mli});
+  \item every input takes the \code{CoreM} path: the planned entry point \code{eraseEntry}
+        (Definition~\ref{def:Erasure-eraseEntry}) does not exist.
   \end{itemize}
 \end{definition}
 
@@ -189,25 +292,12 @@ The table is generated from the Lean environment by \code{blueprint/scripts/audi
 
 \input{generated/census-shipping}
 
-\section{Inherited trust: lean4lean}\label{sec:trust-lean4lean}
-
-\begin{itemize}
-\item \lead{Pin} the lean4lean package of Section~\ref{sec:intro-pins}.
-\item \lead{Rule} A result built on lean4lean may depend on its sorry sources and axioms. Its node
-  lists each of them (\emph{Inherited from lean4lean}); the audit checks the list against the Lean
-  environment.
-\end{itemize}
-
-The tables are generated from the Lean environment by \code{blueprint/scripts/audit.py}.
-
-\input{generated/census-lean4lean}
-
 \section*{Caveats}
 \begin{itemize}
 \item \lead{Caveat} A green shipping node means that its declarations exist and use standard axioms
   only. It says nothing about their behaviour.
-\item \lead{Caveat} The eraser runs as Lean meta-code in the elaborator. Its execution, and Lean's
-  compiler passes that it calls, are outside every Lean statement.
+\item \lead{Caveat} The \code{CoreM} backend runs the elaborator's type inference and Lean's
+  compiler passes; they are outside every Lean statement.
 \item \lead{Caveat} A \code{panic!} or \code{unreachable!} of the eraser returns a default value and
   continues (register entries R-4 and R-5, Chapter~\ref{chap:shipping-changes}).
 \end{itemize}

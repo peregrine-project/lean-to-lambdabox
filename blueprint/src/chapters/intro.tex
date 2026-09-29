@@ -2,18 +2,19 @@
 
 \section*{At a glance}
 \begin{itemize}
-\item \lead{Goal} A machine-checked theorem about the shipping eraser behind \code{\#erase}, stated
-  over lean4lean's formal model of Lean's kernel.
-\item \lead{Status} \stOpen{} \hl{Nothing is verified}: the repository contains no verification
-  declaration. The scope and the statements are being determined; checkpoint 1, the scope note,
-  awaits the owner's approval.
-\item \lead{Lean files} \code{Basic.lean}, \code{Erasure.lean} and \code{Printing.lean} under
-  \code{LeanToLambdaBox/}: the shipping code.
+\item \lead{Goal} A machine-checked theorem about the shipping eraser behind \code{\#erase},
+  stated over lean4lean's formal model of Lean's kernel, for every input in the scope of
+  Chapter~\ref{chap:scope}.
+\item \lead{Status} \stProved{} the model side: the translation of terms and programs into
+  lean4lean's model and its lemmas. \stPlanned{} \hl{every statement about the eraser}, including
+  the final theorem, and the shipping code of the verified path.
+\item \lead{Lean files} \code{LeanToLambdaBox/} (the shipping code) and \code{proof/} (the Lake
+  package \code{EraseProof}, the verification library).
 \item \lead{Registers} \code{doc/SHIPPING-CHANGES.md} (Chapter~\ref{chap:shipping-changes}) and
   \code{doc/DIVERGENCES.md} (Chapter~\ref{chap:divergences}), rendered by a script.
 \end{itemize}
 
-\section{What is being verified}\label{sec:intro-what}
+\section{What is verified}\label{sec:intro-what}
 
 \begin{itemize}
 \item \lead{The eraser} \code{lean-to-lambdabox} is the Lean~4 frontend of Peregrine. The command
@@ -26,10 +27,14 @@
   \item \code{f.mli}: an OCaml signature for the compiled program.
   \end{itemize}
   Section~\ref{sec:trust-shipping} describes the code.
-\item \lead{The goal} A theorem about this shipping code itself, built on lean4lean's model of
-  Lean's kernel. It covers the inputs whose verification needs nothing beyond what lean4lean
-  \code{master} provides; determining that scope is open (Chapter~\ref{chap:open}).
-\item \lead{The references} The verification follows these as closely as the differences between
+\item \lead{The theorem} \code{erase\_correct} (Chapter~\ref{chap:final}): if \code{\#erase}
+  returns a program for an in-scope term and the term evaluates, the program's main term
+  evaluates in $\lambda_\Box$ to an erasure of the term's value. It mirrors MetaRocq's
+  \code{erase\_correct}.
+\item \lead{The scope} closed terms of the $\lambda\Pi$ fragment with \code{let} whose constants are
+  axioms, definitions, theorems or opaques, well typed in lean4lean's model; no inductive types
+  (Chapter~\ref{chap:scope}).
+\item \lead{The references} the verification follows these as closely as the differences between
   Lean and Rocq allow; every divergence from the first two is an entry of
   \code{doc/DIVERGENCES.md}.
 \end{itemize}
@@ -39,7 +44,7 @@
 Reference & Relevant part \\
 \midrule
 Letouzey, \emph{A New Extraction for Coq}, TYPES 2002 & Section 3: the extraction function and
-  its correctness (Theorems 12, 13, 15) \\
+  its correctness (Definitions 3, 9, 10; Lemmas 2, 11; Theorem 13) \\
 Sozeau et al., \emph{Correct and Complete Type Checking and Certified Erasure for Coq, in Coq},
   J. ACM 72(1), 2025 & Section 7: the target $\lambda_\Box$, the erasure function and relation,
   \code{erases\_correct}; the MetaRocq sources under \code{erasure/theories/} \\
@@ -64,7 +69,7 @@ Branch & Merges from & Content \\
 \midrule
 \code{shipping} & -- & the shipping code on the lean4lean base, and the strictly necessary fixes;
   the register \code{doc/SHIPPING-CHANGES.md} \\
-\code{verification} & \code{shipping} & the verification code and the register
+\code{verification} & \code{shipping} & the proof package \code{proof/} and the register
   \code{doc/DIVERGENCES.md}; it never edits shipping files \\
 \code{blueprint} & \code{verification} & this blueprint, under \code{blueprint/} \\
 \bottomrule
@@ -82,10 +87,19 @@ Branch & Merges from & Content \\
 \toprule
 Chapter & Content \\
 \midrule
-\ref{chap:trust} & The trust boundary: what is proved, the shipping code, what is inherited from
-  lean4lean \\
-\ref{chap:shipping-changes} & The shipping-change register, rendered \\
-\ref{chap:divergences} & The divergence register, rendered \\
+\ref{chap:scope} & The scope: which inputs, and the evidence from lean4lean \\
+\ref{chap:trust} & The trust boundary: what is proved, what is trusted, what is inherited from
+  lean4lean, the shipping code \\
+\ref{chap:model} & The model side: \code{TrS}, \code{ProgEnv} and their lemmas \\
+\ref{chap:pure} & The pure path: the planned shipping code the theorem is about \\
+\ref{chap:source} & Erasability and the source semantics \\
+\ref{chap:relation} & $\lambda_\Box$ evaluation and the erasure relation \\
+\ref{chap:simulation} & The relation-level simulation \code{erases\_correct} \\
+\ref{chap:oracle} & Soundness of the pure oracle \\
+\ref{chap:core} & The shipping core: \code{erasePure\_erases} and the entry point \\
+\ref{chap:final} & The final theorem and its hypotheses \\
+\ref{chap:tests} & Tests and non-vacuity instances \\
+\ref{chap:shipping-changes}, \ref{chap:divergences} & The two registers, rendered \\
 \ref{chap:open} & What is open \\
 \bottomrule
 \end{tabular}
@@ -94,11 +108,13 @@ Chapter & Content \\
 \item \lead{Nodes} Every definition and result cites its Lean declarations (\code{\textbackslash
   lean}). In the dependency graph, a green border means the declarations exist and depend on
   allowed axioms only.
-\item \lead{Allowed axioms} \code{propext}, \code{Classical.choice}, \code{Quot.sound}, and the
-  sorry sources and axioms of lean4lean; a node that depends on the latter lists them
-  (\emph{Inherited from lean4lean}).
+\item \lead{Planned nodes} A node marked \stPlanned{} states a declaration of the approved design
+  that does not exist; its \code{\textbackslash lean} names are its planned names.
+\item \lead{Allowed axioms} \code{propext}, \code{Classical.choice}, \code{Quot.sound}, and
+  \code{sorryAx} through the lean4lean sorries a node lists (\emph{Inherited from lean4lean},
+  Section~\ref{sec:trust-inherited}).
 \item \lead{Badges} \stShipping{} shipping code, described, not verified; \stInherited{} trust
-  inherited from lean4lean; \stOpen{} not done; \stProved{} proved.
+  inherited from lean4lean; \stPlanned{} not formalized; \stOpen{} not done; \stProved{} proved.
 \item \lead{Checks} \code{blueprint/scripts/audit.py} checks every node against the Lean
   environment and the generated chapters against their sources (\code{blueprint/README.md}).
 \end{itemize}

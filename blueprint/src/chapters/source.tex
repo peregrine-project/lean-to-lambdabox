@@ -1,0 +1,280 @@
+\chapter{Erasability and source semantics}\label{chap:source}
+
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} Define which source terms are erasable, how closed source terms evaluate, and
+  prove that evaluation preserves typing and erasability.
+\item \lead{Main results} Subject reduction for evaluation (\code{SrcEval.defeq}); stability of
+  erasability under substitution, application and evaluation.
+\item \lead{Status} \stPlanned{} every node.
+\item \lead{Lean files} planned: \code{proof/EraseProof/Erasability.lean}, \code{Atoms.lean},
+  \code{Source/Eval.lean}, \code{Source/Restrict.lean}.
+\item \lead{Reference} MetaRocq \code{isErasable} (\code{erasure/theories/Extract.v}), PCUIC
+  \code{eval} (\code{pcuic/theories/PCUICWcbvEval.v}); Letouzey Definition 1 and Lemma 2.
+\end{itemize}
+
+\section{Erasability}\label{sec:source-erasable}
+
+\begin{definition}[Erasable terms]
+  \label{def:EraseProof-IsErasable}
+  \lean{EraseProof.IsErasable, EraseProof.IsArity, EraseProof.ErasableS}
+  \planned
+  \uses{def:EraseProof-TrS}
+  \lead{In short} A term is erasable when \hl{some type of it is an arity or a proposition}.
+  \begin{itemize}
+  \item \code{IsArity}: \code{Pi x1 ... xn, Sort u} in the model;
+  \item \code{IsErasable venv U Gamma e}: some type \code{T} of \code{e} is an arity, or has a sort
+        equivalent to level zero (no SProp, DV-4);
+  \item \code{ErasableS}: a source term whose \code{TrS} image is erasable.
+  \end{itemize}
+  \lead{Reference} MetaRocq \code{isErasable}; MetaCoq paper Section 7.3; Letouzey Definition 1.
+\end{definition}
+
+\begin{lemma}[Erasability under substitution]
+  \label{lem:EraseProof-IsErasable-inst}
+  \lean{EraseProof.IsErasable.inst}
+  \planned
+  \uses{def:EraseProof-IsErasable}
+  \lead{In short} If \code{b} is erasable under \code{A} and \code{a : A}, then \hl{\code{b[a]} is
+  erasable}.
+  \lead{Reference} \code{is\_type\_subst} (\code{erasure/theories/ESubstitution.v}); Letouzey
+  Lemma 2.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-IsErasable}
+  \lead{Idea} lean4lean's \code{HasType.instN} and \code{IsDefEq.instN}.
+\end{proof}
+
+\begin{lemma}[Erasability under universe instantiation]
+  \label{lem:EraseProof-IsErasable-instL}
+  \lean{EraseProof.IsErasable.instL}
+  \planned
+  \uses{def:EraseProof-IsErasable}
+  \lead{In short} Erasability is \hl{stable under universe instantiation}.
+  \lead{Reference} \code{isErasable\_subst\_instance} (\code{erasure/theories/ErasureProperties.v}).
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-IsErasable}
+  \lead{Idea} lean4lean's \code{IsDefEq.instL}.
+\end{proof}
+
+\begin{lemma}[Erasability under environment extension]
+  \label{lem:EraseProof-IsErasable-mono}
+  \lean{EraseProof.IsErasable.mono}
+  \planned
+  \uses{def:EraseProof-IsErasable}
+  \lead{In short} Erasability in \code{venv} is \hl{erasability in every extension}.
+  \lead{Reference} \code{Is\_type\_extends} (\code{erasure/theories/ESubstitution.v}).
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-IsErasable}
+  \lead{Idea} lean4lean's \code{IsDefEq.mono}.
+\end{proof}
+
+\begin{lemma}[Erasable functions]
+  \label{lem:EraseProof-IsErasable-app}
+  \lean{EraseProof.IsErasable.app}
+  \planned
+  \uses{def:EraseProof-IsErasable, def:EraseProof-ProgEnv}
+  \lead{In short} In a program's model, a well-typed \hl{application of an erasable function is
+  erasable}.
+  \lead{Reference} \code{Is\_type\_app} (\code{erasure/theories/EArities.v}); Letouzey Lemma 2.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-ProgEnv-wf}
+  \lead{Idea} Unique typing and $\Pi$ and sort inversion of lean4lean, under
+  \code{ProgEnv.wf}; expected footprint L1--L6.
+\end{proof}
+
+\begin{lemma}[Erasable \texorpdfstring{$\lambda$}{lambda}]
+  \label{lem:EraseProof-IsErasable-lam_inv}
+  \lean{EraseProof.IsErasable.lam_inv}
+  \planned
+  \uses{def:EraseProof-IsErasable, def:EraseProof-ProgEnv}
+  \lead{In short} The \hl{body of an erasable $\lambda$ is erasable}.
+  \lead{Reference} \code{Is\_type\_lambda} (\code{erasure/theories/EArities.v}).
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-ProgEnv-wf}
+  \lead{Idea} As \code{IsErasable.app}; expected footprint L1--L6.
+\end{proof}
+
+\section{Atoms and recursive constants}\label{sec:source-atoms}
+
+\begin{definition}[Atom constants]
+  \label{def:EraseProof-EvalEnv-isAtom}
+  \lean{EraseProof.EvalEnv.isAtom, EraseProof.arityShape, EraseProof.EvidentZero,
+    EraseProof.DeltaFree, EraseProof.EvidentProp}
+  \planned
+  \uses{def:EraseProof-EvalEnv}
+  \lead{In short} The constants that are source values and erase only to $\Box$:
+  \hl{$\delta$-less constants whose declared type is evidently an arity, or evidently a
+  proposition} headed by an axiom or opaque (DV-11).
+  \begin{itemize}
+  \item \code{DeltaFree}: axioms and opaques, which no $\delta$ rule unfolds;
+  \item \code{arityShape}: the binder count and final level of a syntactic arity;
+  \item \code{EvidentZero}: a level zero under every assignment, recognised structurally;
+  \item \code{EvidentProp}: \code{Pi xs, h.\{vs\} as} with \code{h} $\delta$-less and its sort at
+        the occurrence evidently zero.
+  \end{itemize}
+  \lead{Reference} \code{tInd} and \code{tConstruct} in PCUIC's \code{atom}; MetaRocq
+  \code{isPropositionalArity} (\code{pcuic/theories/PCUICFirstorder.v}).
+\end{definition}
+
+\begin{definition}[Recursive declarations]
+  \label{def:EraseProof-RecursiveDecl}
+  \lean{EraseProof.RecursiveDecl, EraseProof.OccursV}
+  \planned
+  \lead{In short} A declaration is recursive when it is \hl{in a block of several members or
+  mentions itself} in a value position (\code{OccursV}); the eraser compiles these to \code{tFix}
+  (DV-7).
+\end{definition}
+
+\begin{definition}[The evaluation environment of a program]
+  \label{def:EraseProof-evalEnvOf}
+  \lean{EraseProof.evalEnvOf}
+  \planned
+  \uses{def:EraseProof-EvalEnv, def:Erasure-isRecursiveDecl, def:Erasure-EnvView}
+  \lead{In short} \code{evalEnvOf view cfg P}: the declarations \code{P}, with \hl{the constants
+  \code{\#erase} remaps} (\code{axiomatized}) as stuck (DV-12).
+\end{definition}
+
+\begin{definition}[Constants of a term and closed environments]
+  \label{def:EraseProof-ConstsIn}
+  \lean{EraseProof.ConstsIn, EraseProof.DepClosed}
+  \planned
+  \lead{In short} \code{ConstsIn p e}: \hl{every constant of \code{e} satisfies \code{p}};
+  \code{DepClosed decls}: the list is closed under the dependencies of its members (types, values,
+  block members).
+  \lead{Reference} \code{term\_global\_deps} (\code{erasure/theories/EAstUtils.v}),
+  \code{erase\_global\_deps}.
+\end{definition}
+
+\section{Source evaluation}\label{sec:source-eval}
+
+\begin{definition}[Weak call-by-value evaluation]
+  \label{def:EraseProof-SrcEval}
+  \lean{EraseProof.SrcEval, EraseProof.SrcAtom, EraseProof.BlocksCong}
+  \planned
+  \uses{def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-isAtom, def:EraseProof-RecursiveDecl,
+    def:Erasure-Pure-instLevels}
+  \lead{In short} \code{SrcEval sigma e v}: the closed Lean term \code{e} evaluates to \code{v}, big
+  step, call by value, \hl{with \code{let} kept} (DV-1, DV-22).
+
+  \begin{tabular}{lp{0.64\linewidth}}
+  \toprule
+  Rule & Meaning \\
+  \midrule
+  \code{beta}, \code{zeta} & $\beta$ with a value argument; \code{let} with a value \\
+  \code{delta} & a non-recursive unfoldable constant evaluates as its body, levels instantiated \\
+  \code{fixAtom}, \code{fixApp} & a recursive constant is a value; applied, its body is unfolded
+    (PCUIC \code{tFix} with recursive argument 0, DV-7) \\
+  \code{constAtom} & an atom constant is a value (DV-11) \\
+  \code{appCong} & an application whose function value is not a $\lambda$, sort, $\Pi$ or
+    recursive constant (\code{BlocksCong}) \\
+  \code{mdata}, \code{atom} & metadata is transparent; $\lambda$, sorts and $\Pi$
+    (\code{SrcAtom}) are values \\
+  \bottomrule
+  \end{tabular}
+
+  Axioms, non-atom opaques and remapped constants have no rule: they are stuck.
+  \lead{Reference} PCUIC \code{eval} (\code{pcuic/theories/PCUICWcbvEval.v}); MetaCoq paper
+  Section 5.6; Letouzey Definition 9.
+\end{definition}
+
+\begin{definition}[Source values]
+  \label{def:EraseProof-SrcValue}
+  \lean{EraseProof.SrcValue, EraseProof.AtomSpine}
+  \planned
+  \uses{def:EraseProof-SrcEval}
+  \lead{In short} The shapes of evaluation results: $\lambda$, sorts, $\Pi$, recursive constants,
+  and \hl{spines headed by an atom constant} (\code{AtomSpine}).
+  \lead{Reference} PCUIC \code{value}; MetaCoq paper Fig.~12.
+\end{definition}
+
+\begin{lemma}[Results are values]
+  \label{lem:EraseProof-SrcEval-value}
+  \lean{EraseProof.SrcEval.value}
+  \planned
+  \uses{def:EraseProof-SrcEval, def:EraseProof-SrcValue}
+  \lead{In short} Every evaluation result is \hl{a source value}.
+  \lead{Reference} \code{eval\_to\_value} (\code{pcuic/theories/PCUICWcbvEval.v}).
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-SrcEval}
+  \lead{Idea} Induction on \code{SrcEval}.
+\end{proof}
+
+\begin{lemma}[Subject reduction for evaluation]
+  \label{lem:EraseProof-SrcEval-defeq}
+  \lean{EraseProof.SrcEval.defeq}
+  \planned
+  \uses{def:EraseProof-SrcEval, def:EraseProof-ProgEnv, def:EraseProof-SubEnv}
+  \lead{In short} If \code{e} is well typed in \code{P}'s model and evaluates to \code{v}, then
+  \code{v} translates to \code{v'} and \hl{\code{e'} and \code{v'} are definitionally equal} at
+  the type of \code{e'}.
+  \lead{Reference} \code{subject\_reduction\_eval}, \code{wcbveval\_red}
+  (\code{pcuic/theories/PCUICClassification.v}); Letouzey Lemma 2.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-TrS-inst, lem:EraseProof-TrS-inst_let, lem:EraseProof-TrS-instLevels,
+    lem:EraseProof-TrS-uniq, lem:EraseProof-ProgEnv-unfold, lem:EraseProof-ProgEnv-ordered,
+    lem:EraseProof-ProgEnv-wf}
+  \lead{Idea} Induction on \code{SrcEval}, one typed step per rule: $\beta$ and $\zeta$ by
+  substitution, $\delta$ by \code{ProgEnv.unfold}, theorems by proof irrelevance; expected
+  footprint L1--L5.
+\end{proof}
+
+\begin{lemma}[Evaluation in the closure]
+  \label{lem:EraseProof-SrcEval-restrict}
+  \lean{EraseProof.SrcEval.restrict}
+  \planned
+  \uses{def:EraseProof-SrcEval, def:EraseProof-evalEnvOf, def:EraseProof-ConstsIn,
+    def:EraseProof-SubEnv}
+  \lead{In short} An evaluation over \code{P} of a term whose constants lie in a dependency-closed
+  sub-environment \hl{is an evaluation over that sub-environment}, and stays in it.
+  \lead{Reference} none on the PCUIC side; the $\lambda_\Box$ analogue
+  \code{weakening\_eval\_env}; DV-3.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-SrcEval}
+  \lead{Idea} Induction on \code{SrcEval}; unfolded bodies stay in the closure.
+\end{proof}
+
+\begin{lemma}[Erasability under evaluation]
+  \label{lem:EraseProof-ErasableS-eval}
+  \lean{EraseProof.ErasableS.eval}
+  \planned
+  \uses{def:EraseProof-IsErasable, def:EraseProof-SrcEval}
+  \lead{In short} The \hl{result of evaluating an erasable term is erasable}.
+  \lead{Reference} \code{Is\_type\_eval} (\code{erasure/theories/EArities.v}); Letouzey Lemma 2.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-SrcEval-defeq, lem:EraseProof-IsErasable-inst}
+  \lead{Idea} \code{SrcEval.defeq} and the stability of erasability under definitional
+  equality; expected footprint L1--L5.
+\end{proof}
+
+\begin{lemma}[Atoms are erasable]
+  \label{lem:EraseProof-ErasableS-atom}
+  \lean{EraseProof.ErasableS.atom}
+  \planned
+  \uses{def:EraseProof-IsErasable, def:EraseProof-EvalEnv-isAtom}
+  \lead{In short} A well-typed occurrence of an atom constant is erasable \hl{at every level
+  instantiation}.
+  \lead{Reference} none directly: \code{tInd} has no \code{erases} rule, and propositional
+  constructors erase only by \code{erases\_box}; DV-11.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-TrS-instLevels, lem:EraseProof-ProgEnv-lookup}
+  \lead{Idea} Evident zeroness survives level instantiation; the declared type comes from
+  \code{ProgEnv.lookup}.
+\end{proof}
+
+\section*{Caveats}
+\begin{itemize}
+\item \lead{Caveat} Opaques do not unfold (DV-10): an evaluation reaching a non-atom opaque is
+  stuck, while the eraser emits the opaque's body.
+\item \lead{Caveat} Evaluation is call by value (DV-22); evaluations in other orders are not
+  covered.
+\end{itemize}

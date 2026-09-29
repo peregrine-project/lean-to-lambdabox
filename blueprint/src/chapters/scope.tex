@@ -1,0 +1,155 @@
+\chapter{Scope}\label{chap:scope}
+
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} State which \code{\#erase} inputs the verification covers, and why: those whose
+  verification needs nothing beyond lean4lean \code{master}.
+\item \lead{Main results} The scope is the predicate \code{InScope}: a closed Lean term, well
+  typed through \code{TrS} in the model of an inductive-free program environment that the eraser's
+  view agrees with.
+\item \lead{Status} \stPlanned{} \code{ViewAgrees} and \code{InScope}; their parts \code{TrS} and
+  \code{ProgEnv} are proved definitions (Chapter~\ref{chap:model}).
+\item \lead{Reference} MetaRocq \code{erase\_correct}'s hypotheses \code{wf\_ext},
+  \code{Sigma} $\sim$\code{\_ext X}, \code{welltyped}; lean4lean \code{TrEnv'}.
+\end{itemize}
+
+\section{What the scope is}\label{sec:scope-summary}
+
+\begin{itemize}
+\item \lead{In scope} closed Lean terms built from $\lambda$, application, $\Pi$, sorts,
+  \code{let}, metadata and constants, whose constants (transitively, through types and values) are
+  axioms, definitions (including \code{unsafe} recursive definitions and mutual blocks), theorems
+  or opaques, and which are well typed in lean4lean's \code{IsDefEq} through its translation.
+\item \lead{In practice} Church-encoded programs over axiomatized base types, with universe
+  polymorphism, proofs, type arguments and \code{let}.
+\item \lead{Out of scope} \hl{everything that needs an inductive type}: \code{Nat}, \code{Bool},
+  structures, classes, \code{match} on data, structural, well-founded and \code{partial}
+  recursion; and literals, projections, \code{Quot}, metavariables.
+\item \lead{Benchmarks} none is in scope: every program of \code{benchmarks/} takes or returns
+  \code{Nat}, \code{Unit}, \code{List} or \code{Bool}.
+\item \lead{Out-of-scope inputs} \code{\#erase} routes them to the unchanged \code{Meta} path
+  (Definition~\ref{def:Erasure-eraseEntry}); the routing lemma puts every in-scope input on the
+  verified path (Lemma~\ref{lem:EraseProof-collectDeps_not_outOfFragment}).
+\end{itemize}
+
+\section{Evidence from lean4lean \texorpdfstring{\code{master}}{master}}\label{sec:scope-evidence}
+
+\subsection{What the model has}\label{sec:scope-has}
+
+\begin{tabular}{p{0.2\linewidth}p{0.4\linewidth}p{0.32\linewidth}}
+\toprule
+Feature & In lean4lean \code{master} & Consequence \\
+\midrule
+Terms & \code{VExpr}: \code{bvar}, \code{sort}, \code{const}, \code{app}, \code{lam},
+  \code{forallE} (\code{Theory/VExpr.lean}) & $\lambda$, application, $\Pi$, sorts, constants \\
+Typing & one judgment \code{IsDefEq} with 13 rules, among them \code{beta}, \code{eta},
+  \code{proofIrrel}, \code{extra} (\code{Theory/Typing/Basic.lean}) & $\beta$, $\eta$, proof
+  irrelevance, level equivalence \\
+Definitions & a constant and a defining equation (\code{TrEnv'.defn}) & $\delta$ \\
+Mutual and unsafe definitions & \code{TrEnv'.mutualDef} & unsafe recursion \\
+Theorems, opaques & a constant with a typed value, no equation & in scope; opaques do not unfold
+  (DV-10) \\
+Axioms & a constant & in scope (DV-21) \\
+\code{let}, \code{mdata} & \code{TrExprS.letE} substitutes the value; metadata is transparent &
+  in scope; the source semantics keeps \code{let} (DV-1) \\
+\bottomrule
+\end{tabular}
+
+\subsection{What the model lacks}\label{sec:scope-lacks}
+
+\begin{tabular}{p{0.2\linewidth}p{0.44\linewidth}p{0.28\linewidth}}
+\toprule
+Missing & Evidence & Consequence \\
+\midrule
+Inductive types & \code{VInductDecl.WF} and \code{VEnv.addInduct} are sorry definitions (L1,
+  L2); the relation \code{AddInduct} has no constructors, so \code{TrEnv'.induct} never fires &
+  out: data types, \code{match}, recursors, \code{partial def} \\
+Projections & \code{TrProj := sorry}; every lemma about it is a sorry proof & out \\
+Literals & the rule \code{TrExprS.lit} needs constants named \code{Nat}, \code{String},
+  inductives in a real Lean environment & out; \code{TrS} drops the rule (DV-2) \\
+\code{Quot} & \code{TrEnv'.quot} needs a constant \code{Eq}, an inductive in a real environment &
+  out; \code{ProgEnv} has no \code{quot} rule (DV-3) \\
+Metavariables & no rule of \code{TrExprS}; \code{VLevel.ofLevel} rejects level metavariables &
+  out \\
+Normalization & no normalization theorem & partial correctness (DV-17) \\
+Unique typing, injectivity & theorems resting on L1--L5, and the sorries L4, L6 themselves &
+  inherited (Section~\ref{sec:trust-inherited}) \\
+\bottomrule
+\end{tabular}
+
+\subsection{How the scope follows}\label{sec:scope-follows}
+
+\begin{itemize}
+\item \lead{Missing or sorry rules} inductives, projections and metavariables have no usable
+  rule.
+\item \lead{Rules over inductives} literals and \code{Quot} need constants that a real Lean
+  environment declares as inductives, which \code{ProgEnv} cannot contain.
+\item \lead{One condition of ours} \code{ProgEnv} requires \code{ConstantInfo.all} to be what the
+  elaborator sets: a declaration lists itself, a block member its block. lean4lean's kernel does
+  not check \code{all}; the eraser reads it to find recursive constants.
+\item \lead{Sub-environments} a real Lean environment always contains \code{Init}'s inductives, so
+  the theorem speaks about a program environment \code{P} that the eraser's view agrees with on
+  \code{P}'s names (DV-3).
+\end{itemize}
+
+\section{The scope as a predicate}\label{sec:scope-predicate}
+
+\begin{definition}[The view agrees with the program]
+  \label{def:EraseProof-ViewAgrees}
+  \lean{EraseProof.ViewAgrees}
+  \planned
+  \uses{def:Erasure-EnvView}
+  \lead{In short} \code{ViewAgrees view P}: \hl{\code{view.find?} returns each declaration of
+  \code{P} under its name}.
+  \lead{Reference} \code{Sigma} $\sim$\code{\_ext X} (\code{abstract\_env\_ext\_rel}), a
+  hypothesis of MetaRocq's \code{erase\_correct}.
+\end{definition}
+
+\begin{definition}[The scope]
+  \label{def:EraseProof-InScope}
+  \lean{EraseProof.InScope}
+  \planned
+  \uses{def:EraseProof-ViewAgrees, def:EraseProof-ProgEnv, def:EraseProof-TrS}
+  \lead{In short} \code{InScope view e}: \hl{some program environment \code{P} with model
+  \code{venv}} agrees with the view, and \code{e} translates in \code{venv}:
+  \code{ProgEnv P venv}, \code{ViewAgrees view P}, \code{TrS venv Us [] e e'}.
+  \lead{Reference} the hypotheses \code{wf\_ext}, \code{Sigma} $\sim$\code{\_ext X},
+  \code{welltyped} of MetaRocq's \code{erase\_correct}.
+\end{definition}
+
+\section{Examples}\label{sec:scope-examples}
+
+\begin{tabular}{p{0.46\linewidth}p{0.46\linewidth}}
+\toprule
+Inside & What it exercises \\
+\midrule
+\code{mul two three}, \code{pow two three}, \code{pred six} over Church numerals & $\lambda$,
+  application, $\delta$, erased type arguments \\
+\code{pid}, \code{comp}, \code{pflip} at \code{Sort 2}, \code{Sort 1}, \code{Sort 0} & universe
+  polymorphism, instances at \code{Prop} \\
+\code{guard hP six} with \code{axiom hP : P} & a proof axiom passed by value (an atom, DV-11) \\
+\code{let x := two; add x x} & \code{let} of values, types and proofs \\
+\code{succ opaqueTwo} & an opaque, stuck in the source \\
+\code{uf one}, \code{uf} unsafe recursive & unsafe recursion, erased to a \code{tFix} \\
+\bottomrule
+\end{tabular}
+
+\begin{tabular}{p{0.46\linewidth}p{0.46\linewidth}}
+\toprule
+Outside & Gap \\
+\midrule
+every benchmark, structures, classes, \code{if}, \code{match} on data & inductives \\
+structural, well-founded or \code{partial} recursion & inductives \\
+\code{s.1}; \code{5}, \code{"x"} & projections; literals \\
+\code{Quot.lift f h (Quot.mk r a)} & \code{Quot} needs \code{Eq} \\
+\code{(\_ : CNat)}, \code{@pid} with its level open & metavariables \\
+\bottomrule
+\end{tabular}
+
+\section*{Caveats}
+\begin{itemize}
+\item \lead{Caveat} The eraser may still fail on an in-scope input (fuel, oracle failure, name
+  collision): no output, no claim.
+\item \lead{Caveat} The routing test is syntactic and the scope semantic; only the direction
+  "in scope implies routed to the verified path" is claimed.
+\end{itemize}

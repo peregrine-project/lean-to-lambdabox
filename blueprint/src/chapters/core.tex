@@ -1,0 +1,216 @@
+\chapter{The shipping core}\label{chap:core}
+
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} The pure path computes what the simulation assumes: the closure is a
+  sub-environment with injective names, and the traversal's output is an erasure with erased
+  dependencies.
+\item \lead{Main results} \code{erasePure\_erases}, the function-level lemma; the routing lemma
+  \code{collectDeps\_not\_outOfFragment}; the glue \code{eraseEntry\_pure}.
+\item \lead{Status} \stPlanned{} every node; \code{erasePure\_erases} has the expected footprint
+  L1--L5.
+\item \lead{Lean files} planned: \code{proof/EraseProof/Core.lean},
+  \code{Core/\{Collect, Scope, Glue, Frame, State, Steps, CloseFix, Block\}.lean}.
+\item \lead{Reference} MetaRocq \code{erases\_erase} (\code{erasure/theories/ErasureFunction.v}),
+  \code{erase\_global\_erases\_deps} (\code{ErasureFunctionProperties.v}).
+\end{itemize}
+
+\section{The closure and the routing}\label{sec:core-collect}
+
+\begin{lemma}[What the closure guarantees]
+  \label{lem:EraseProof-collectDeps_spec}
+  \lean{EraseProof.collectDeps_spec}
+  \planned
+  \uses{def:Erasure-collectDeps, def:EraseProof-KernameInj, def:EraseProof-ConstsIn,
+    def:EraseProof-LocalsAgree}
+  \lead{In short} For every view, a closure \code{collectDeps} returns has \hl{injective names},
+  distinct declarations that the view returns, is dependency-closed and closed, and contains the
+  constants of the term.
+  \lead{Reference} the closure and naming properties of \code{erase\_global\_deps} that
+  \code{erase\_correct} relies on; DV-3, DV-14.
+\end{lemma}
+\begin{proof}
+  \uses{def:Erasure-collectDeps}
+  \lead{Idea} Fuel induction over \code{closure}; injectivity from \code{findCollision = none}.
+\end{proof}
+
+\begin{lemma}[The closure is inside the program]
+  \label{lem:EraseProof-collectDeps_sub}
+  \lean{EraseProof.collectDeps_sub}
+  \planned
+  \uses{def:Erasure-collectDeps, def:EraseProof-ProgEnv, def:EraseProof-ViewAgrees,
+    def:EraseProof-SubEnv}
+  \lead{In short} On an in-scope input, the closure is \hl{a sub-environment of \code{P}}.
+  \lead{Reference} none directly (DV-3).
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-collectDeps_spec, lem:EraseProof-ProgEnv-lookup}
+  \lead{Idea} Every name the closure reaches is a constant of a \code{TrS}-typed term, hence in
+  \code{P}; \code{ViewAgrees} fixes its declaration.
+\end{proof}
+
+\begin{lemma}[Routing]
+  \label{lem:EraseProof-collectDeps_not_outOfFragment}
+  \lean{EraseProof.collectDeps_not_outOfFragment}
+  \planned
+  \uses{def:Erasure-collectDeps, def:EraseProof-InScope}
+  \lead{In short} \hl{An in-scope input never reaches the \code{Meta} path}: \code{collectDeps}
+  never answers \code{outOfFragment} on it.
+  \lead{Reference} none (the entry point).
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-TrS-fvarsIn, lem:EraseProof-ProgEnv-lookup}
+  \lead{Idea} Every constant of a \code{TrS}-typed term is in \code{P}'s model, hence an axiom,
+  definition, theorem or opaque; closed typed terms have no literal, projection or metavariable.
+\end{proof}
+
+\section{The traversal}\label{sec:core-traversal}
+
+\begin{lemma}[The recursion test]
+  \label{lem:EraseProof-isRecursiveDecl_eq}
+  \lean{EraseProof.isRecursiveDecl_eq}
+  \planned
+  \uses{def:Erasure-isRecursiveDecl, def:EraseProof-RecursiveDecl}
+  \lead{In short} The traversal's recursion test \hl{is \code{RecursiveDecl}}.
+  \lead{Reference} none (DV-7).
+\end{lemma}
+\begin{proof}
+  \uses{def:Erasure-isRecursiveDecl}
+  \lead{Idea} Unfold both; \code{nameOccurs} is \code{OccursV}.
+\end{proof}
+
+\begin{lemma}[Two abstractions agree]
+  \label{lem:EraseProof-abstract_eq_abstract1}
+  \lean{EraseProof.abstract_eq_abstract1}
+  \planned
+  \uses{def:abstract, def:EraseProof-substFVars, def:EraseProof-closedn}
+  \lead{In short} On closed terms the shipping \code{abstract} (no shifting) \hl{equals
+  \code{abstract1}} (shifting).
+  \lead{Reference} none (DV-13).
+\end{lemma}
+\begin{proof}
+  \uses{def:abstract}
+  \lead{Idea} Structural induction on the total \code{toBvar}.
+\end{proof}
+
+\begin{definition}[Closing a recursive block]
+  \label{def:EraseProof-closeFix}
+  \lean{EraseProof.closeFix, EraseProof.fixTargets}
+  \planned
+  \uses{def:abstract, def:EraseProof-cunfoldFix}
+  \lead{In short} \code{closeFix xs r}: \code{mkDef}'s loop, turning the fix variable of member
+  \code{j} of an \code{m}-member block into \code{bvar (m-1-j)}; \code{fixTargets xs defs} maps
+  \code{xs[j]} to \hl{\code{tFix defs j}}.
+\end{definition}
+
+\begin{lemma}[Closed block bodies]
+  \label{lem:EraseProof-closeFix_closed}
+  \lean{EraseProof.closeFix_closed}
+  \planned
+  \uses{def:EraseProof-closeFix, def:EraseProof-closedn}
+  \lead{In short} \code{closeFix} of a closed body is \hl{closed under the block's binders}.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-closeFix}
+  \lead{Idea} Induction on the fix variables.
+\end{proof}
+
+\begin{lemma}[Unfolding a closed block]
+  \label{lem:EraseProof-closeFix_substl}
+  \lean{EraseProof.closeFix_substl}
+  \planned
+  \uses{def:EraseProof-closeFix, def:EraseProof-cunfoldFix, def:EraseProof-substFVars}
+  \lead{In short} After \code{substl (fixSubst defs)}, as \code{cunfold\_fix} does, \hl{fix
+  variable \code{xs[j]} has become \code{tFix defs j}}.
+  \lead{Reference} none (DV-13); MetaRocq \code{cunfold\_fix}.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-closeFix_closed}
+  \lead{Idea} Induction on the fix variables, with closedness of the bodies.
+\end{proof}
+
+\begin{lemma}[Traversal frame]
+  \label{lem:EraseProof-visit_agree}
+  \lean{EraseProof.visit_agree, EraseProof.visitAppArgs_agree, EraseProof.visitMutual_agree}
+  \planned
+  \uses{def:Erasure-erase, def:Erasure-PureM, def:EraseProof-LocalsAgree}
+  \lead{In short} With closed declarations, a run of \code{visitExpr} (and \code{visitAppArgs},
+  \code{visitMutual}) at the pure backend \hl{does not depend on the locals the term cannot
+  reach}; constant bodies are thus erased as in the empty context.
+  \lead{Reference} none: MetaRocq's \code{erase\_constant\_body} erases in the empty context;
+  DV-13.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-Pure-isErasable_agree}
+  \lead{Idea} Joint fuel induction over the traversal's equation lemmas; oracle calls by
+  \code{Pure.isErasable\_agree}.
+\end{proof}
+
+\begin{theorem}[The pure traversal computes an erasure]
+  \label{thm:EraseProof-erasePure_erases}
+  \lean{EraseProof.erasePure_erases}
+  \planned
+  \uses{def:Erasure-erasePure, def:Erasure-collectDeps, def:EraseProof-ProgEnv,
+    def:EraseProof-ViewAgrees, def:EraseProof-TrS, def:EraseProof-Erases,
+    def:EraseProof-ErasesDeps, def:EraseProof-LenvClosed, def:EraseProof-evalEnvOf}
+  \lead{In short} If \code{erasePure} returns \code{p} on the closure of an in-scope term, then
+  \code{p} is \code{untyped lenv (some t)} with \hl{\code{t} an erasure of \code{e}}.
+  \begin{itemize}
+  \item \lead{Given} \code{henv}, \code{hview}, \code{he}: the input is in scope;
+        \code{hdecls}: the closure; \code{hrun}: the run's result;
+  \item \lead{Then} \code{Erases ... e t}, \code{ErasesDeps ... t}, \code{BlocksErased} and
+        \code{LenvClosed lenv}, over \code{evalEnvOf view cfg decls}.
+  \end{itemize}
+  \lead{Reference} \code{erases\_erase} with \code{erase\_global\_erases\_deps} and
+  \code{erase\_constant\_body}; MetaCoq paper Section 7.3; Letouzey Lemma 11.
+\end{theorem}
+\begin{proof}
+  \uses{lem:EraseProof-collectDeps_spec, lem:EraseProof-visit_agree,
+    lem:EraseProof-Pure-isErasable_sound, lem:EraseProof-Pure-isErasable_atom,
+    lem:EraseProof-isRecursiveDecl_eq, lem:EraseProof-abstract_eq_abstract1,
+    lem:EraseProof-closeFix_substl, lem:EraseProof-Erases-uninstantiateN,
+    lem:EraseProof-Erases-substRc, lem:EraseProof-Erases-closed, lem:EraseProof-Erases-mono_rc,
+    lem:EraseProof-RecIn-ext, lem:EraseProof-ErasesDeps-ext, lem:EraseProof-TrS-inst_fvar,
+    lem:EraseProof-TrS-fvarsIn, lem:EraseProof-LBEval-closed}
+  \lead{Idea} Fuel induction over the traversal with a state invariant on the emitted
+  environment.
+  \lead{Steps}
+  \begin{enumerate}
+  \item binders: open with \code{TrS.inst\_fvar}, close with \code{Erases.uninstantiateN} and
+        \code{abstract\_eq\_abstract1};
+  \item oracle calls: \code{Pure.isErasable\_sound}, atoms by \code{Pure.isErasable\_atom};
+  \item constants: bodies erased in the empty context (\code{visit\_agree}), recursive blocks
+        closed by \code{closeFix\_substl} and \code{Erases.substRc};
+  \item environment growth: \code{RecIn.ext}, \code{ErasesDeps.ext}.
+  \end{enumerate}
+\end{proof}
+
+\section{The entry point}\label{sec:core-entry}
+
+\begin{lemma}[\texorpdfstring{\code{\#erase}}{\#erase} runs the pure path]
+  \label{lem:EraseProof-eraseEntry_pure}
+  \lean{EraseProof.eraseEntry_pure, EraseProof.CoreM.pure_inj, EraseProof.CoreM.throwError_ne_pure,
+    EraseProof.EIO.bind_err, EraseProof.someCtx, EraseProof.someRef, EraseProof.someW}
+  \planned
+  \uses{def:Erasure-eraseEntry, def:EraseProof-InScope}
+  \lead{In short} On an in-scope input, \hl{a result of \code{eraseEntry} is a result of
+  \code{erasePure}} on the closure.
+  \begin{itemize}
+  \item \code{CoreM.pure\_inj}, \code{CoreM.throwError\_ne\_pure}, \code{EIO.bind\_err}: facts
+        about \code{CoreM}, stated at arbitrary context, state and world (\code{someCtx},
+        \code{someRef}, \code{someW}).
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-collectDeps_not_outOfFragment}
+  \lead{Idea} Case analysis on \code{collectDeps}: \code{outOfFragment} is excluded by the routing
+  lemma, other errors and pure-path errors are \code{throwError}, never \code{pure}.
+\end{proof}
+
+\section*{Caveats}
+\begin{itemize}
+\item \lead{Caveat} The state invariant of \code{erasePure\_erases} is not stated: it is fixed
+  after the adversarial review of the traversal (Chapter~\ref{chap:open}).
+\item \lead{Caveat} The eraser's own failures (fuel, oracle failure, name collision) give no
+  output and no claim.
+\end{itemize}

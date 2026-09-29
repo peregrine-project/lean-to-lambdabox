@@ -1,0 +1,180 @@
+\chapter{Tests and non-vacuity}\label{chap:tests}
+
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} Show that the hypotheses of the main statements can be discharged on concrete
+  programs, relate the restated relations to lean4lean's, and pin the design choices of the
+  divergence register by tests.
+\item \lead{Main results} The model-side hypotheses of NV-1; \code{TrS} and \code{ProgEnv} are
+  instances of lean4lean's \code{TrExprS} and \code{TrEnv'}.
+\item \lead{Status} \stProved{} NV-1's model side and the bridge tests; \stPlanned{} the register
+  tests, determinism of $\lambda_\Box$ evaluation, and the other instances.
+\item \lead{Lean files} \code{proof/EraseProof/Test/\{NV1, Bridge\}.lean}; namespace
+  \code{EraseProof.Test}.
+\end{itemize}
+
+\section{Non-vacuity instance NV-1}\label{sec:tests-nv1}
+
+\begin{definition}[The program of NV-1]
+  \label{def:EraseProof-Test-NV1-decls0}
+  \lean{EraseProof.Test.NV1.decls0, EraseProof.Test.NV1.e0, EraseProof.Test.NV1.tyA,
+    EraseProof.Test.NV1.A_val, EraseProof.Test.NV1.cnE, EraseProof.Test.NV1.oneE,
+    EraseProof.Test.NV1.CN_val, EraseProof.Test.NV1.one_val, EraseProof.Test.NV1.venv0,
+    EraseProof.Test.NV1.e0', EraseProof.Test.NV1.vA, EraseProof.Test.NV1.ty1,
+    EraseProof.Test.NV1.vAA, EraseProof.Test.NV1.cnV, EraseProof.Test.NV1.oneV,
+    EraseProof.Test.NV1.Aconst, EraseProof.Test.NV1.CNdef, EraseProof.Test.NV1.onedef,
+    EraseProof.Test.NV1.envA, EraseProof.Test.NV1.envCN0, EraseProof.Test.NV1.envCN,
+    EraseProof.Test.NV1.envOne0}
+  \leanok
+  \srcloc{proof/EraseProof/Test/NV1.lean}{50}
+  \lead{In short} \code{axiom A : Type}, \code{def CN := (A -> A) -> A -> A}, \code{def one : CN :=
+  fun s z => s z}, and the erased term \hl{\code{one (fun a : A => a)}}.
+  \begin{itemize}
+  \item \code{decls0}, \code{e0}: the declarations, newest first, and the term;
+  \item \code{venv0}, \code{e0'}: their lean4lean model and translation, built step by step
+        (\code{envA}, \code{envCN0}, \code{envCN}, \code{envOne0}).
+  \end{itemize}
+\end{definition}
+
+\begin{lemma}[NV-1: the model-side hypotheses]
+  \label{lem:EraseProof-Test-NV1-henv}
+  \lean{EraseProof.Test.NV1.henv, EraseProof.Test.NV1.he, EraseProof.Test.NV1.venv0_A,
+    EraseProof.Test.NV1.hAty, EraseProof.Test.NV1.hAAty, EraseProof.Test.NV1.cnV_ty,
+    EraseProof.Test.NV1.cn_unfold, EraseProof.Test.NV1.trCN, EraseProof.Test.NV1.trOne,
+    EraseProof.Test.NV1.oneWF, EraseProof.Test.NV1.pCN}
+  \leanok
+  \uses{def:EraseProof-Test-NV1-decls0, def:EraseProof-ProgEnv, def:EraseProof-TrS}
+  \srcloc{proof/EraseProof/Test/NV1.lean}{166}
+  \lead{In short} \code{henv : ProgEnv decls0 venv0} and \code{he : TrS venv0 [] [] e0 e0'}:
+  \hl{the environment and typing hypotheses} of the main statements hold on NV-1.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-ProgEnv}
+  \leanok
+  \lead{Idea} One \code{ProgEnv} rule per declaration; typing derivations in lean4lean's
+  \code{HasType}, with \code{CN} unfolded by its defining equation.
+\end{proof}
+
+\section{Bridge tests}\label{sec:tests-bridge}
+
+\begin{lemma}[\texorpdfstring{\code{TrS}}{TrS} is an instance of \texorpdfstring{\code{TrExprS}}{TrExprS}]
+  \label{lem:EraseProof-Test-TrS-toTrExprS}
+  \lean{EraseProof.Test.TrS.toTrExprS}
+  \leanok
+  \uses{def:EraseProof-TrS}
+  \srcloc{proof/EraseProof/Test/Bridge.lean}{23}
+  \inherited{TrProj}
+  \lead{In short} Every derivation of \code{TrS} is \hl{one of lean4lean's \code{TrExprS}}
+  (DV-2, Section~\ref{reg:dv-2}).
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-TrS}
+  \leanok
+  \lead{Idea} Induction, rule for rule.
+\end{proof}
+
+\begin{lemma}[\texorpdfstring{\code{ProgEnv}}{ProgEnv} is an instance of \texorpdfstring{\code{TrEnv'}}{TrEnv'}]
+  \label{lem:EraseProof-Test-ProgEnv-toTrEnv}
+  \lean{EraseProof.Test.ProgEnv.toTrEnv', EraseProof.Test.Bridge.ProgEnv.toTrEnv'_hashMap,
+    EraseProof.Test.Bridge.TrConst.toTrConstant, EraseProof.Test.Bridge.TrDef.toTrDefVal,
+    EraseProof.Test.Bridge.addConsts_fresh, EraseProof.Test.Bridge.constants_none_of_le,
+    EraseProof.Test.Bridge.foldl_insert_of_forall_ne, EraseProof.Test.Bridge.foldl_insert_of_mem,
+    EraseProof.Test.Bridge.fresh_of_addConst, EraseProof.Test.Bridge.insertDefs_hashMap,
+    EraseProof.Test.Bridge.insert_step, EraseProof.Test.Bridge.unsafe_le}
+  \leanok
+  \uses{def:EraseProof-ProgEnv, lem:EraseProof-Test-TrS-toTrExprS}
+  \srcloc{proof/EraseProof/Test/Bridge.lean}{196}
+  \inherited{L1, TrProj}
+  \lead{In short} A program environment is related by lean4lean's \code{TrEnv'} at safety
+  \code{unsafe} to \hl{a constant map containing every declaration} (DV-3,
+  Section~\ref{reg:dv-3}).
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-Test-TrS-toTrExprS}
+  \leanok
+  \lead{Idea} Induction on \code{ProgEnv}, building the map by insertions into a hash map.
+\end{proof}
+
+\section{Planned tests}\label{sec:tests-planned}
+
+\begin{lemma}[Determinism of \texorpdfstring{$\lambda_\Box$}{lambda-box} evaluation]
+  \label{lem:EraseProof-Test-LBEval-deterministic}
+  \lean{EraseProof.Test.LBEval.deterministic}
+  \planned
+  \uses{def:EraseProof-LBEval}
+  \lead{In short} $\lambda_\Box$ evaluation is \hl{deterministic}; the instances use it to show
+  that the final theorem's witness is the one exhibited.
+  \lead{Reference} \code{eval\_deterministic} (\code{erasure/theories/EWcbvEval.v}).
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-LBEval}
+  \lead{Idea} Induction on the first evaluation.
+\end{proof}
+
+\begin{lemma}[Register test: definition heads are not atoms]
+  \label{lem:EraseProof-Test-Atoms-defHead_kept}
+  \lean{EraseProof.Test.Atoms.defHead_kept}
+  \planned
+  \uses{def:Erasure-Pure-isErasable, def:EraseProof-EvalEnv-isAtom}
+  \lead{In short} With \code{def Q : Prop := forall P : Prop, P -> P} and \code{axiom hq : Q}, the
+  oracle \hl{keeps the spine \code{hq A a}}, so a proof headed by a definition cannot be an atom
+  (DV-11).
+\end{lemma}
+\begin{proof}
+  \uses{def:Erasure-Pure-isErasable}
+  \lead{Idea} \code{decide}.
+\end{proof}
+
+\begin{lemma}[Register test: atomhood does not depend on levels]
+  \label{lem:EraseProof-Test-Atoms-levelDependent_kept}
+  \lean{EraseProof.Test.Atoms.levelDependent_kept}
+  \planned
+  \uses{def:Erasure-Pure-isErasable, def:EraseProof-EvalEnv-isAtom}
+  \lead{In short} For \code{axiom hq.\{v\} : P.\{v\}} the oracle keeps \code{hq.\{v\}} and boxes
+  \code{hq.\{0\}}, so \hl{atomhood cannot depend on the occurrence's levels} (DV-11).
+\end{lemma}
+\begin{proof}
+  \uses{def:Erasure-Pure-isErasable}
+  \lead{Idea} \code{decide}.
+\end{proof}
+
+\begin{lemma}[Register test: the oracle's \texorpdfstring{$\delta$}{delta}]
+  \label{lem:EraseProof-Test-Oracle-irreducibleAlias}
+  \lean{EraseProof.Test.Oracle.irreducibleAlias}
+  \planned
+  \uses{def:Erasure-Pure-isErasable}
+  \lead{In short} Through the \code{@[irreducible]} aliases \code{IProp := Prop} and \code{Endo := A
+  -> A}, the oracle types and keeps \code{fun (\_ : R) (x : A) => x} and \code{fI a}, and
+  \hl{boxes \code{R} and \code{hR}}, as the kernel's $\delta$ does (DV-18).
+\end{lemma}
+\begin{proof}
+  \uses{def:Erasure-Pure-isErasable}
+  \lead{Idea} \code{decide}.
+\end{proof}
+
+\section{Non-vacuity instances}\label{sec:tests-instances}
+
+Each instance discharges every hypothesis of a main statement by a checked term, in namespace
+\code{EraseProof.Test.NV}\emph{k}, with axioms among \code{propext}, \code{Classical.choice},
+\code{Quot.sound}.
+
+\begin{tabular}{lp{0.42\linewidth}p{0.36\linewidth}}
+\toprule
+Instance & Program & State \\
+\midrule
+NV-1 & \code{one (fun a : A => a)} & \stProved{} \code{henv}, \code{he}; \stOpen{} \code{hev}, the
+  relation-level instance, \code{hview}, \code{hrun}, the final instance \\
+NV-2 & \code{dbl two}, with a \code{let} in \code{dbl} & \stOpen{} \\
+NV-3 & \code{uf one}, unsafe recursion & \stOpen{} \\
+NV-4 & a two-member unsafe block & \stOpen{} \\
+NV-5 & \code{(fun (alpha : Type) (x : alpha) => x) A} & \stOpen{} \\
+NV-6 & \code{(fun (h : P) (y : Type) => y) hP} & \stOpen{} \\
+NV-7 & \code{(fun (\_ : P.\{0\}) (x : A) => x) hp} & \stOpen{} \\
+\bottomrule
+\end{tabular}
+
+\section*{Caveats}
+\begin{itemize}
+\item \lead{Caveat} The bridge tests depend on \code{TrProj := sorry}; no node outside the tests
+  may (Section~\ref{sec:trust-inherited}).
+\end{itemize}
