@@ -8,13 +8,14 @@
 #   tokens    C2   no sorry, admit, axiom, opaque, native_decide, native, bv_decide, unsafe,
 #                  implemented_by, extern (and the other tokens of scripts/scan_tokens.py) in
 #                  proof/**/*.lean outside comments and strings.
-#   report    C3-C7, run by `lake env lean --run tools/Report.lean` in proof/: axiom footprints
-#                  within propext, Classical.choice, Quot.sound, sorryAx (no Verify/Axioms.lean or
-#                  native axiom); sorryAx only from lean4lean's L1-L8; lean4lean's TrExprS/TrExpr/
-#                  TrProj and the tests unreachable from non-test declarations; no leaves with
-#                  respect to ROOTS.txt; footprints of roots and test theorems equal
-#                  axioms.expected; every source file imported. See the header of
-#                  tools/Report.lean.
+#   report    C3-C7, C9, run by `lake env lean --run tools/Report.lean` in proof/: axiom
+#                  footprints within propext, Classical.choice, Quot.sound, sorryAx (no
+#                  Verify/Axioms.lean or native axiom); sorryAx only from lean4lean's L1-L8;
+#                  lean4lean's TrExprS/TrExpr/TrProj and the tests unreachable from non-test
+#                  declarations; no leaves with respect to ROOTS.txt; footprints of roots and test
+#                  theorems equal axioms.expected; every source file imported; the entries of
+#                  doc/DIVERGENCES.md well-formed, citing existing declarations, files and lines.
+#                  See the header of tools/Report.lean.
 #   regress   C10  the shipping regression tests, scripts/regress.sh (skipped with --no-regress).
 #
 # Logs go to proof/.check/<step>.log; the report also writes proof/.check/footprints.txt and
@@ -32,7 +33,7 @@ regress=1
 for a in "$@"; do
   case $a in
     --no-regress) regress=0 ;;
-    -h|--help) sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "error: unknown argument $a" >&2; exit 2 ;;
   esac
 done

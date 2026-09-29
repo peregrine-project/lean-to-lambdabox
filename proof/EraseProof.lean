@@ -1,3 +1,5 @@
+import EraseProof.Typing.Basic
+
 /-!
 # EraseProof
 
