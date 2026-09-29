@@ -10,3 +10,5 @@ EraseProof.TrS.det EraseProof.erases_correct v4-sim-main
 EraseProof.TrS.fvarsIn EraseProof.erasePure_erases v7-core-main
 EraseProof.TrS.mono EraseProof.ProgEnv.lookup v1-progenv
 EraseProof.TrS.wf EraseProof.TrS.uniq v1-uniq
+EraseProof.TrS.weakFV EraseProof.TrS.inst_fvar v1-trs-abstract
+EraseProof.TrS.weakBV EraseProof.TrS.inst v1-trs-inst
