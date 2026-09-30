@@ -15,7 +15,8 @@
 #                  lean4lean's TrExprS/TrExpr/TrProj and the tests unreachable from non-test
 #                  declarations; no leaves with respect to ROOTS.txt; footprints of roots and test
 #                  theorems equal axioms.expected; every source file imported; the entries of
-#                  doc/DIVERGENCES.md well-formed, citing existing declarations, files and lines.
+#                  doc/DIVERGENCES.md well-formed, citing existing declarations, files and lines,
+#                  and every DV-<n> that the register, proof/ or LeanToLambdaBox/ cites an entry.
 #                  See the header of tools/Report.lean.
 #   regress   C10  the shipping regression tests, scripts/regress.sh (skipped with --no-regress).
 #
