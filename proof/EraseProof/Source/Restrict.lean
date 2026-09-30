@@ -10,7 +10,9 @@ The final theorem evaluates over the program `P`; the eraser's facts range over 
 dependencies of its members. Then every lookup that evaluation makes (`findDecl`,
 `EvalEnv.unfold?`, `EvalEnv.isAtom`) gives the same answer in both environments, and every term
 that evaluation reaches has its constants in `decls`. The evaluation environment of a program is `evalEnvOf`,
-whose remapped constants are the shipping eraser's own `Erasure.axiomatized`.
+whose remapped constants are the shipping eraser's own `Erasure.axiomatized`. `DepClosed` and
+`KernameInj` state two properties of the closure that `collectDeps` checks: it is closed under the
+dependencies of its members, and its declarations have distinct kernames.
 -/
 
 open Lean Lean4Lean Erasure
@@ -34,6 +36,13 @@ def DepClosed (decls : List ConstantInfo) : Prop :=
     (∀ v, ci.value? (allowOpaque := true) = some v →
       ConstsIn (fun c => (findDecl decls c).isSome) v) ∧
     ∀ n ∈ ci.all, (findDecl decls n).isSome
+
+/-- Kernames of the program's constants are distinct (the collision check of `collectDeps`).
+Reference: none; in `MR E/Extract.v:324 erases_deps_tConst` source and target share the same
+`kn` (DV-14). -/
+def KernameInj (decls : List ConstantInfo) : Prop :=
+  ∀ c₁ c₂, (findDecl decls c₁).isSome → (findDecl decls c₂).isSome →
+    toKername c₁ = toKername c₂ → c₁ = c₂
 
 /-- The evaluation environment of `P` under the configuration's remapping. Reference: as
 `EvalEnv` (DV-12). -/

@@ -30,11 +30,15 @@ or `EraseProof.*`):
   `dvFields`, in order, and its artifact field cites a declaration of the library; every code span
   of an entry that is a name `EraseProof.*` or `Lean4Lean.*` is a declaration, a path
   `proof/*.lean` is a file of this package, and a lean4lean path `Lean4Lean/*.lean[:lines]` is a
-  file of the lean4lean checkout with those lines.
+  file of the lean4lean checkout with those lines; every id `DV-<n>` that the register, the
+  library's source files or the shipping sources (`LeanToLambdaBox/`) cite is an entry of the
+  register.
 
 Options: `--import M` (repeatable; replaces the default `EraseProof`), `--roots FILE`
 (`ROOTS.txt`), `--expected FILE` (`axioms.expected`), `--out DIR` (`.check`), `--src DIR` (`.`),
-`--divergences FILE` (`../doc/DIVERGENCES.md`), `--lean4lean DIR` (`../.lake/packages/lean4lean`).
+`--divergences FILE` (`../doc/DIVERGENCES.md`), `--lean4lean DIR` (`../.lake/packages/lean4lean`),
+`--shipping DIR` (`..`, the root package, whose `LeanToLambdaBox.lean` and `LeanToLambdaBox/` are
+scanned for `DV-<n>` citations).
 It writes `DIR/footprints.txt` (every declaration) and `DIR/axioms.actual` (the file
 `axioms.expected` should be), prints one line per check, and exits with 1 if a check fails.
 -/
@@ -90,6 +94,7 @@ structure Config where
   src : System.FilePath := "."
   divergences : System.FilePath := "../doc/DIVERGENCES.md"
   lean4lean : System.FilePath := "../.lake/packages/lean4lean"
+  shipping : System.FilePath := ".."
 
 partial def parseArgs (cfg : Config) : List String → Except String Config
   | [] => .ok cfg
@@ -100,6 +105,7 @@ partial def parseArgs (cfg : Config) : List String → Except String Config
   | "--src" :: f :: rest => parseArgs { cfg with src := f } rest
   | "--divergences" :: f :: rest => parseArgs { cfg with divergences := f } rest
   | "--lean4lean" :: f :: rest => parseArgs { cfg with lean4lean := f } rest
+  | "--shipping" :: f :: rest => parseArgs { cfg with shipping := f } rest
   | a :: _ => .error s!"unknown or incomplete option {a}"
 
 /-! ## Names -/
@@ -414,6 +420,12 @@ where
 def isDvId (s : String) : Bool :=
   s.startsWith "DV-" && (s.drop 3).toString.length > 0 && (s.drop 3).toString.all Char.isDigit
 
+/-- The register ids `DV-<n>` that `s` cites, in order, with repetitions. -/
+def dvCitations (s : String) : List String :=
+  ((s.splitOn "DV-").drop 1).filterMap fun part =>
+    let ds := (part.takeWhile Char.isDigit).toString
+    if ds.isEmpty then none else some s!"DV-{ds}"
+
 /-- The line numbers of a citation suffix such as `642,723,768–835`. -/
 def citedLines (s : String) : Option (List Nat) :=
   ((s.replace "–" "-").splitOn ",").foldr (init := some []) fun part acc => do
@@ -500,6 +512,15 @@ def main (args : List String) : IO UInt32 := do
               | some ls =>
                 if ls.any (fun k => k == 0 || k > n) then
                   fail "divergences" s!"{e.id} cites `{c}`: {path} has {n} lines"
+    -- Every id that the register, the library or the shipping sources cite is an entry.
+    let shippingFiles := (← leanFiles (cfg.shipping / "LeanToLambdaBox")).push
+      (cfg.shipping / "LeanToLambdaBox.lean")
+    for f in #[cfg.divergences] ++ files ++ shippingFiles do
+      if !(← f.pathExists) then continue
+      let cited := (dvCitations (← IO.FS.readFile f)).eraseDups
+      for d in cited do
+        if !ids.contains d then
+          fail "divergences" s!"{f} cites {d}, which is not an entry of {cfg.divergences}"
 
   -- The labels name `sorry` declarations of lean4lean.
   for (l, n) in sorryLabels ++ testOnlySorryLabels do

@@ -1,4 +1,15 @@
 import EraseProof.Atoms
+import EraseProof.Core
+import EraseProof.Core.Block
+import EraseProof.Core.CloseFix
+import EraseProof.Core.Collect
+import EraseProof.Core.Frame
+import EraseProof.Core.FrameA
+import EraseProof.Core.Glue
+import EraseProof.Core.Order
+import EraseProof.Core.Scope
+import EraseProof.Core.State
+import EraseProof.Core.Steps
 import EraseProof.Env
 import EraseProof.Env.Unfold
 import EraseProof.Erasability
@@ -30,6 +41,8 @@ import EraseProof.Test.Bridge
 import EraseProof.Test.LBEval
 import EraseProof.Test.NV1
 import EraseProof.Test.NV2
+import EraseProof.Test.NV3
+import EraseProof.Test.NV4
 import EraseProof.Test.NV5
 import EraseProof.Test.NV6
 import EraseProof.Test.NV7
