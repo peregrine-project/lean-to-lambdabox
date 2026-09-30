@@ -6,12 +6,14 @@
 #             see tools/Report.lean `sorryLabels`, `testOnlySorryLabels`), comma-separated;
 #             `-` for none.
 # proof/scripts/check.sh compares this file with the computed .check/axioms.actual.
+EraseProof.abstract_eq_abstract1 propext,Classical.choice,Quot.sound -
 EraseProof.addAxiom_ok propext,Classical.choice,Quot.sound -
-EraseProof.collectDeps_not_outOfFragment propext,Classical.choice,Quot.sound -
 EraseProof.collectDeps_spec propext,Classical.choice,Quot.sound -
 EraseProof.collectDeps_sub propext,Classical.choice,Quot.sound -
+EraseProof.eraseEntry_pure propext,Classical.choice,Quot.sound -
 EraseProof.erases_correct propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5,L6
 EraseProof.get_constant_kername_ok propext,Classical.choice,Quot.sound -
+EraseProof.isRecursiveDecl_eq propext,Classical.choice,Quot.sound -
 EraseProof.oracle_agree propext,Classical.choice,Quot.sound -
 EraseProof.visitApp_agree propext,Classical.choice,Quot.sound -
 EraseProof.visitConstApp_agree propext,Classical.choice,Quot.sound -
