@@ -6,15 +6,7 @@
 #             see tools/Report.lean `sorryLabels`, `testOnlySorryLabels`), comma-separated;
 #             `-` for none.
 # proof/scripts/check.sh compares this file with the computed .check/axioms.actual.
-EraseProof.erases_correct_appCong propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5,L6
-EraseProof.erases_correct_atom propext,Classical.choice,Quot.sound -
-EraseProof.erases_correct_beta propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5,L6
-EraseProof.erases_correct_constAtom propext,Classical.choice,Quot.sound -
-EraseProof.erases_correct_delta propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
-EraseProof.erases_correct_fixApp propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5,L6
-EraseProof.erases_correct_fixAtom propext,Classical.choice,Quot.sound -
-EraseProof.erases_correct_mdata propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
-EraseProof.erases_correct_zeta propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
+EraseProof.erases_correct propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5,L6
 EraseProof.Erases.closed propext,Classical.choice,Quot.sound -
 EraseProof.Erases.congr_ac propext,Classical.choice,Quot.sound -
 EraseProof.Erases.substRc propext,Classical.choice,Quot.sound -
