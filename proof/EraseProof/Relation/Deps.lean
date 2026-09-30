@@ -212,7 +212,7 @@ theorem ErasesDeps.cunfoldFix (hd : ∀ d ∈ defs, ErasesDeps venv σ lenv d.bo
 
 /-- Dependencies are preserved by λ□ evaluation. Reference: `erases_deps_eval`
 (`MR E/EDeps.v:275`). -/
-theorem ErasesDeps.eval (hb : BlocksErased venv σ lenv) (h : ErasesDeps venv σ lenv t)
+theorem ErasesDeps.eval (h : ErasesDeps venv σ lenv t)
     (hev : LBEval defaultFlags lenv t v) : ErasesDeps venv σ lenv v := by
   induction hev with
   | box => exact .box
