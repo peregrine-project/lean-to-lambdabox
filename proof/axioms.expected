@@ -54,7 +54,7 @@ EraseProof.Test.LBEval.mkApps_inj propext -
 EraseProof.Test.LBEval.spineArgs_mkApps propext -
 EraseProof.Test.NV1.cnV_ty propext,Quot.sound -
 EraseProof.Test.NV1.cn_unfold propext -
-EraseProof.Test.NV1.concl propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5,L6
+EraseProof.Test.NV1.concl propext,Classical.choice,Quot.sound -
 EraseProof.Test.NV1.erOne propext,Classical.choice,Quot.sound -
 EraseProof.Test.NV1.hAAty propext,Quot.sound -
 EraseProof.Test.NV1.hAty propext,Quot.sound -
@@ -68,6 +68,7 @@ EraseProof.Test.NV1.hev propext,Classical.choice,Quot.sound -
 EraseProof.Test.NV1.hinj propext,Classical.choice,Quot.sound -
 EraseProof.Test.NV1.hlc propext,Classical.choice,Quot.sound -
 EraseProof.Test.NV1.hsub propext -
+EraseProof.Test.NV1.inst propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5,L6
 EraseProof.Test.NV1.lbev propext,Classical.choice,Quot.sound -
 EraseProof.Test.NV1.lookup0 propext,Classical.choice,Quot.sound -
 EraseProof.Test.NV1.mem_names propext,Classical.choice,Quot.sound -
@@ -80,7 +81,7 @@ EraseProof.Test.NV1.venv0_A propext,Quot.sound -
 EraseProof.Test.NV1.witness propext,Classical.choice,Quot.sound -
 EraseProof.Test.NV2.cn_unfold propext -
 EraseProof.Test.NV2.cnatV_ty propext,Quot.sound -
-EraseProof.Test.NV2.concl propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5,L6
+EraseProof.Test.NV2.concl propext,Classical.choice,Quot.sound -
 EraseProof.Test.NV2.dblV_ty propext,Quot.sound -
 EraseProof.Test.NV2.endoV_ty propext -
 EraseProof.Test.NV2.erAlpha propext,Quot.sound -
@@ -97,6 +98,7 @@ EraseProof.Test.NV2.hev propext,Classical.choice,Quot.sound -
 EraseProof.Test.NV2.hinj propext,Classical.choice,Quot.sound -
 EraseProof.Test.NV2.hlc propext,Classical.choice,Quot.sound -
 EraseProof.Test.NV2.hsub propext -
+EraseProof.Test.NV2.inst propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5,L6
 EraseProof.Test.NV2.lbev propext,Classical.choice,Quot.sound -
 EraseProof.Test.NV2.lookup2 propext,Classical.choice,Quot.sound -
 EraseProof.Test.NV2.m_ty propext -

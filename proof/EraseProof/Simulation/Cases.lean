@@ -21,13 +21,6 @@ open Lean Lean4Lean Erasure
 
 namespace EraseProof
 
-/-- Kernames of the program's constants are distinct (the collision check of `collectDeps`).
-Reference: none; in `MR E/Extract.v:324 erases_deps_tConst` source and target share the same
-`kn` (DV-14). -/
-def KernameInj (decls : List ConstantInfo) : Prop :=
-  ∀ c₁ c₂, (findDecl decls c₁).isSome → (findDecl decls c₂).isSome →
-    toKername c₁ = toKername c₂ → c₁ = c₂
-
 section
 variable {venv : VEnv} {P : List ConstantInfo} {σ : EvalEnv} {lenv : GlobalDeclarations}
 
