@@ -93,7 +93,7 @@ resolves the eraser, lean4lean and `EraseProof`) on every cited declaration and 
 | Axiom closure | the measured axioms of every cited declaration equal `Lean.collectAxioms` (`#print axioms`), for an inductive together with its constructors (the axioms Lean stores for an imported inductive can miss those only its constructors reach); the closure follows types, values and constructors |
 | `\inherited{...}` | lists exactly the labels of the lean4lean sorry sources the node's declarations depend on |
 | Coverage | every declaration of the modules `EraseProof*` that has a source position is cited by a node that is not planned |
-| Roots | every line of `proof/ROOTS.txt` names a root cited by a formalized node and a consumer cited by a planned node whose statement or proof uses the root's node; a line whose unit is a decision of the plan (`O-<n>`) names a placeholder consumer: no planned statement uses the root, so the consumer's node must not use the root's node, and `roots.tex` marks the row |
+| Roots | every line of `proof/ROOTS.txt` names a root cited by a formalized node and a consumer cited by a planned node whose statement or proof uses the root's node, or `FINAL` for the final theorem, which has no consumer; a line whose unit is a decision of the plan (`O-<n>`) names a placeholder consumer: no planned statement uses the root, so the consumer's node must not use the root's node, and `roots.tex` marks the row |
 | `\srcloc{path}{line}` | is the file and line of the node's first declaration |
 | Hygiene | ASCII only outside `\lean{}`; underscores escaped in `\code`, `\texttt`, `\inherited`, `\srcloc` |
 | Generated chapters | `render_registers.py --check` passes, and the census tables equal what the environment gives |
@@ -116,7 +116,7 @@ checks that the names plasTeX collected exist, except the names of planned nodes
 | `src/generated/pins.tex` | `scripts/render_registers.py` | `lean-toolchain`, `lake-manifest.json` |
 | `src/generated/inherited-sorries.tex` | `scripts/audit.py --update` | `audit.toml`, the Lean environment |
 | `src/generated/roots.tex` | `scripts/audit.py --update` | `proof/ROOTS.txt` |
-| `src/generated/planned.tex` | `scripts/audit.py --update` | the chapters |
+| `src/generated/planned.tex` | `scripts/audit.py --update` | the chapters (a sentence when no node is planned) |
 | `src/generated/census-shipping.tex` | `scripts/audit.py --update` | the Lean environment |
 | `src/generated/census-lean4lean.tex` | `scripts/audit.py --update` | the Lean environment |
 

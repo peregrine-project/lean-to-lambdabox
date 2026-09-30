@@ -405,12 +405,12 @@
 \end{lemma}
 \begin{proof}
   \uses{lem:EraseProof-ProgEnv-lookup, lem:EraseProof-SubEnv-findDecl_of_some,
-    lem:EraseProof-TrS-uniq, lem:EraseProof-TrS-instLevels, lem:EraseProof-ProgEnv-wf,
-    lem:EraseProof-IsErasable-instL, lem:EraseProof-ProgEnv-ordered}
+    lem:EraseProof-TrS-instLevels, lem:EraseProof-ProgEnv-wf, lem:EraseProof-IsErasable-instL,
+    lem:EraseProof-ProgEnv-ordered}
   \leanok
   \lead{Idea} \code{ProgEnv.lookup} gives the declared type at the constant's own level
   parameters: an arity, or of sort equivalent to zero; lean4lean's \code{HasType.instL} moves it to
-  the use levels, weakening to the context.
+  the use levels and weakens it; its \code{HasType.uniq} types application spines.
 \end{proof}
 
 \section*{Caveats}

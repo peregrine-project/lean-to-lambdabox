@@ -5,12 +5,12 @@
 \item \lead{Goal} A machine-checked theorem about the shipping eraser behind \code{\#erase},
   stated over lean4lean's formal model of Lean's kernel, for every input in the scope of
   Chapter~\ref{chap:scope}.
-\item \lead{Status} \stProved{} the model side, the source semantics with subject reduction,
-  erasability, $\lambda_\Box$ evaluation, the erasure relation with its dependencies and lemmas,
-  soundness of the pure oracle, the relation-level simulation \code{erases\_correct}, and the
-  soundness of the shipping traversal \code{erasePure\_erases} with the entry-point lemma.
-  \stShipping{} the verified path of \code{\#erase}: \code{\#erase} runs it on programs in the
-  fragment. \stPlanned{} \hl{the final theorem \code{erase\_correct}}, which composes them.
+\item \lead{Status} \stProved{} \hl{the final theorem \code{erase\_correct}}, with the lean4lean
+  sorries L1--L6 inherited, and everything it composes: the model side, the source semantics with
+  subject reduction, erasability, $\lambda_\Box$ evaluation, the erasure relation, soundness of
+  the pure oracle, the relation-level simulation \code{erases\_correct}, and the soundness of the
+  shipping traversal \code{erasePure\_erases} with the entry-point lemma. \stShipping{} the
+  verified path of \code{\#erase}: \code{\#erase} runs it on programs in the fragment.
 \item \lead{Lean files} \code{LeanToLambdaBox/} (the shipping code) and \code{proof/} (the Lake
   package \code{EraseProof}, the verification library).
 \item \lead{Registers} \code{doc/SHIPPING-CHANGES.md} (Chapter~\ref{chap:shipping-changes}) and
@@ -112,7 +112,8 @@ Chapter & Content \\
   lean}). In the dependency graph, a green border means the declarations exist and depend on
   allowed axioms only.
 \item \lead{Planned nodes} A node marked \stPlanned{} states a declaration of the approved design
-  that does not exist; its \code{\textbackslash lean} names are its planned names.
+  that does not exist; its \code{\textbackslash lean} names are its planned names. No node is
+  planned.
 \item \lead{Allowed axioms} \code{propext}, \code{Classical.choice}, \code{Quot.sound}, and
   \code{sorryAx} through the lean4lean sorries a node lists (\emph{Inherited from lean4lean},
   Section~\ref{sec:trust-inherited}).

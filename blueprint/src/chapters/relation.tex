@@ -5,9 +5,8 @@
 \item \lead{Goal} Transcribe MetaRocq's $\lambda_\Box$ evaluation on the shipping \code{LBTerm},
   define the erasure relation on the fragment, and prove its substitution, closure and
   environment lemmas.
-\item \lead{Main results} \code{LBEval.closed} (evaluation keeps terms closed);
-  \code{Erases.closed}, \code{Erases.instLevels}, \code{Erases.uninstantiateN},
-  \code{Erases.substRc}; \code{ErasesDeps.ext}, \code{ErasesDeps.eval} (dependencies survive
+\item \lead{Main results} \code{Erases.closed}, \code{Erases.instLevels},
+  \code{Erases.uninstantiateN}, \code{Erases.substRc}; \code{ErasesDeps.ext}, \code{ErasesDeps.eval} (dependencies survive
   environment growth and evaluation); \code{Erases.inst}, \code{Erases.inst\_let} (substitution).
 \item \lead{Status} \stProved{} every node; \stInherited{} L1--L5 in the $\zeta$-substitution
   \code{Erases.inst\_let} and its context conversion; every other node is within the standard
@@ -25,7 +24,7 @@
   \label{def:EraseProof-WcbvFlags}
   \lean{EraseProof.WcbvFlags}
   \leanok
-  \srcloc{proof/EraseProof/Target.lean}{16}
+  \srcloc{proof/EraseProof/Target.lean}{15}
   \lead{In short} MetaRocq's \code{WcbvFlags}, the three flags the rules of
   $\lambda_\Box$ evaluation read: \hl{\code{with\_prop\_case}, \code{with\_guarded\_fix},
   \code{with\_constructor\_as\_block}}.
@@ -36,7 +35,7 @@
   \lean{EraseProof.defaultFlags}
   \leanok
   \uses{def:EraseProof-WcbvFlags}
-  \srcloc{proof/EraseProof/Target.lean}{22}
+  \srcloc{proof/EraseProof/Target.lean}{21}
   \lead{In short} MetaRocq's \code{default\_wcbv\_flags}: \hl{propositional case on, guarded
   fixpoints on}, constructors not as blocks.
 \end{definition}
@@ -47,7 +46,7 @@
     EraseProof.substl, EraseProof.mkApps}
   \leanok
   \uses{def:LBTerm}
-  \srcloc{proof/EraseProof/Target.lean}{26}
+  \srcloc{proof/EraseProof/Target.lean}{25}
   \lead{In short} MetaRocq's closed substitution \code{csubst}, its iteration \code{substl} and
   \code{mkApps}, on \code{LBTerm}, with one function per list sort of the mutual type.
 \end{definition}
@@ -57,7 +56,7 @@
   \lean{EraseProof.closedn, EraseProof.closednL, EraseProof.closednB, EraseProof.closednD}
   \leanok
   \uses{def:LBTerm}
-  \srcloc{proof/EraseProof/Target.lean}{56}
+  \srcloc{proof/EraseProof/Target.lean}{55}
   \lead{In short} \code{closedn k t}: every loose bound variable of \code{t} is below \code{k};
   MetaRocq's \code{closedn}.
 \end{definition}
@@ -67,7 +66,7 @@
   \lean{EraseProof.cunfoldFix, EraseProof.fixSubst}
   \leanok
   \uses{def:EraseProof-csubst}
-  \srcloc{proof/EraseProof/Target.lean}{119}
+  \srcloc{proof/EraseProof/Target.lean}{118}
   \lead{In short} MetaRocq's \code{fix\_subst} and \code{cunfold\_fix}: \hl{a member's body with the
   block's fixpoints substituted}, and its recursive-argument index.
 \end{definition}
@@ -78,7 +77,7 @@
     EraseProof.ctorIsPropParsDecl, EraseProof.indIsPropAndPars, EraseProof.iotaRed}
   \leanok
   \uses{def:GlobalDecl, def:EraseProof-csubst}
-  \srcloc{proof/EraseProof/Target.lean}{123}
+  \srcloc{proof/EraseProof/Target.lean}{122}
   \lead{In short} MetaRocq's lookups in a $\lambda_\Box$ environment (\code{lookup\_constant},
   \code{lookup\_inductive}, \code{lookup\_constructor}, ...) and \code{iota\_red}.
 \end{definition}
@@ -91,7 +90,7 @@
   \leanok
   \uses{def:EraseProof-WcbvFlags, def:EraseProof-csubst, def:EraseProof-cunfoldFix,
     def:EraseProof-lookupConst}
-  \srcloc{proof/EraseProof/Target.lean}{183}
+  \srcloc{proof/EraseProof/Target.lean}{182}
   \lead{In short} \code{LBEval fl lenv t v}: MetaRocq's \code{EWcbvEval.eval}, \hl{one rule per
   MetaRocq rule whose term constructor exists in \code{LBTerm}} (DV-16).
   \begin{itemize}
@@ -110,7 +109,7 @@
   \lean{EraseProof.hasFVar, EraseProof.hasFVarL, EraseProof.hasFVarB, EraseProof.hasFVarD}
   \leanok
   \uses{def:LBTerm}
-  \srcloc{proof/EraseProof/Target.lean}{82}
+  \srcloc{proof/EraseProof/Target.lean}{81}
   \lead{In short} \code{hasFVar x t}: \hl{the free variable \code{x} occurs in \code{t}}; MetaRocq's
   terms have no free variables (DV-13, DV-16).
 \end{definition}
@@ -120,7 +119,7 @@
   \lean{EraseProof.LenvClosed}
   \leanok
   \uses{def:EraseProof-closedn, def:EraseProof-hasFVar, def:EraseProof-lookupConst}
-  \srcloc{proof/EraseProof/Target.lean}{129}
+  \srcloc{proof/EraseProof/Target.lean}{128}
   \lead{In short} \code{LenvClosed lenv}: every stored body is closed \hl{and has no free
   variable}.
   \lead{Reference} MetaRocq \code{closed\_env}, plus the absence of free variables (DV-13).
@@ -138,32 +137,25 @@
   (\code{erasure/theories/EGlobalEnv.v}), as \code{erases\_deps\_cons} uses it.
 \end{definition}
 
-\begin{lemma}[Evaluation keeps terms closed]
-  \label{lem:EraseProof-LBEval-closed}
-  \lean{EraseProof.LBEval.closed, EraseProof.closedn_mono, EraseProof.closednL_mono,
-    EraseProof.closednB_mono, EraseProof.closednD_mono, EraseProof.csubstD_length,
-    EraseProof.closedn_csubst, EraseProof.closednL_csubst, EraseProof.closednB_csubst,
-    EraseProof.closednD_csubst, EraseProof.closedn_mkApps, EraseProof.closedn_substl,
-    EraseProof.closednB_getElem?, EraseProof.closednD_getElem?, EraseProof.closedn_cunfoldFix}
+\begin{lemma}[Closedness under a larger bound]
+  \label{lem:EraseProof-closedn_mono}
+  \lean{EraseProof.closedn_mono, EraseProof.closednL_mono, EraseProof.closednB_mono,
+    EraseProof.closednD_mono, EraseProof.csubstD_length}
   \leanok
-  \uses{def:EraseProof-LBEval, def:EraseProof-LenvClosed}
-  \srcloc{proof/EraseProof/Target.lean}{422}
-  \lead{In short} In a closed environment, \hl{a closed term evaluates to a closed value}.
+  \uses{def:EraseProof-closedn, def:EraseProof-csubst}
+  \srcloc{proof/EraseProof/Target.lean}{252}
+  \lead{In short} A term closed under \code{k} binders is \hl{closed under every \code{k' >= k}}.
   \begin{itemize}
-  \item \code{closedn\_mono}, \code{closedn\_csubst}, \code{closedn\_substl},
-        \code{closedn\_cunfoldFix}: closedness under a larger bound, closed substitution and
-        fixpoint unfolding (MetaRocq \code{closed\_upwards}, \code{closed\_csubst},
-        \code{closed\_substl}, \code{closed\_cunfold\_fix});
   \item the \code{L}, \code{B}, \code{D} variants: the same on argument lists, case branches and
-        fixpoint bodies.
+        fixpoint bodies;
+  \item \code{csubstD\_length}: substitution keeps the number of fixpoint bodies.
   \end{itemize}
-  \lead{Reference} \code{eval\_closed} (\code{erasure/theories/EWcbvEval.v}).
+  \lead{Reference} MetaRocq \code{closed\_upwards} (\code{erasure/theories/ELiftSubst.v}).
 \end{lemma}
 \begin{proof}
-  \uses{def:EraseProof-LBEval, def:EraseProof-csubst, def:EraseProof-cunfoldFix}
+  \uses{def:EraseProof-closedn}
   \leanok
-  \lead{Idea} Induction on \code{LBEval}, with closedness of substitution; \code{delta} reads a
-  closed body from \code{LenvClosed}.
+  \lead{Idea} Mutual structural induction on the term.
 \end{proof}
 
 \section{The erasure relation}\label{sec:relation-erases}
@@ -266,7 +258,7 @@
   \lead{Reference} \code{erases\_closed} (\code{erasure/theories/ErasureProperties.v}).
 \end{lemma}
 \begin{proof}
-  \uses{lem:EraseProof-TrS-det, lem:EraseProof-LBEval-closed}
+  \uses{lem:EraseProof-TrS-det, lem:EraseProof-closedn_mono}
   \leanok
   \lead{Idea} Induction on \code{Erases}; a bound variable is found in the context; binders by
   \code{TrS.det}; recursive targets by \code{closedn\_mono}.
@@ -404,7 +396,7 @@
   \lead{Reference} lean4lean \code{TrExprS.uninstantiateN}; none in MetaRocq (DV-13).
 \end{lemma}
 \begin{proof}
-  \uses{lem:EraseProof-TrS-uninstantiateN, lem:EraseProof-LBEval-closed}
+  \uses{lem:EraseProof-TrS-uninstantiateN, lem:EraseProof-closedn_mono}
   \leanok
   \lead{Idea} Induction on \code{e}, following \code{TrS.uninstantiateN}; recursive targets by
   \code{abstract1\_eq\_self} under \code{RcFresh}.
@@ -551,7 +543,7 @@ erased body. The $\beta$ and $\zeta$ cases of the simulation use it.
 \end{lemma}
 \begin{proof}
   \uses{lem:EraseProof-Erases-weakBV, lem:EraseProof-IsErasable-instN, lem:EraseProof-TrS-inst,
-    lem:EraseProof-LBEval-closed, lem:EraseProof-TrS-closed}
+    lem:EraseProof-closedn_mono, lem:EraseProof-TrS-closed}
   \leanok
   \lead{Idea} Induction on \code{Erases}; the substituted variable by \code{Erases.weakBV};
   recursive targets are closed, so \code{csubst} fixes them.
@@ -616,7 +608,7 @@ erased body. The $\beta$ and $\zeta$ cases of the simulation use it.
 \end{lemma}
 \begin{proof}
   \uses{lem:EraseProof-Erases-weakBV, lem:EraseProof-TrS-inst_let, lem:EraseProof-Erases-instN,
-    lem:EraseProof-LBEval-closed, lem:EraseProof-TrS-closed}
+    lem:EraseProof-closedn_mono, lem:EraseProof-TrS-closed}
   \leanok
   \lead{Idea} Induction on \code{Erases}, as \code{Erases.instN}.
 \end{proof}
@@ -657,6 +649,4 @@ erased body. The $\beta$ and $\zeta$ cases of the simulation use it.
   fixpoints: the fragment has none (DV-6).
 \item \lead{Caveat} Binders are opened with free variables (locally nameless), unlike MetaRocq's de
   Bruijn \code{erase} (DV-13).
-\item \lead{Caveat} \code{LBEval.closed} has no consumer on the path to \code{erase\_correct}; the
-  closedness of the environment is the hypothesis \code{hlc} (Chapter~\ref{chap:open}).
 \end{itemize}

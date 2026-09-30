@@ -3,9 +3,11 @@
 \section*{At a glance}
 \begin{itemize}
 \item \lead{Goal} Partial correctness of \code{\#erase} on every in-scope input.
-\item \lead{Main results} \code{erase\_correct}.
-\item \lead{Status} \stPlanned{}; expected footprint exactly L1--L6.
-\item \lead{Lean files} planned: \code{proof/EraseProof/Main.lean}.
+\item \lead{Main results} \code{erase\_correct}; its instance on NV-1, \code{Test.NV1.final}
+  (Section~\ref{sec:tests-nv1-run}).
+\item \lead{Status} \stProved{}; \stInherited{} exactly L1--L6, the footprint check C12 of
+  \code{proof/scripts/check.sh} pins.
+\item \lead{Lean files} \code{proof/EraseProof/Main.lean}.
 \item \lead{Reference} MetaRocq \code{erase\_correct}
   (\code{erasure/theories/ErasureFunctionProperties.v}); MetaCoq paper Sections 7.3--7.4.
 \end{itemize}
@@ -15,10 +17,12 @@
 \begin{theorem}[Correctness of \texorpdfstring{\code{\#erase}}{\#erase}]
   \label{thm:EraseProof-erase_correct}
   \lean{EraseProof.erase_correct, EraseProof.erase_correct.atom_agree}
-  \planned
+  \leanok
   \uses{def:EraseProof-ProgEnv, def:EraseProof-ViewAgrees, def:EraseProof-TrS,
     def:Erasure-eraseEntry, def:EraseProof-SrcEval, def:EraseProof-evalEnvOf,
     def:EraseProof-Erases, def:EraseProof-LBEval, def:EraseProof-defaultFlags}
+  \srcloc{proof/EraseProof/Main.lean}{26}
+  \inherited{L1, L2, L3, L4, L5, L6}
   \lead{In short} If \code{\#erase} returns a program \code{p} for an in-scope term \code{e} and
   \code{e} evaluates to \code{v}, then \code{p} is \code{untyped lenv (some t)} and \hl{\code{t}
   evaluates in $\lambda_\Box$ to an erasure of \code{v}}.
@@ -36,8 +40,9 @@
   \uses{lem:EraseProof-eraseEntry_pure, lem:EraseProof-collectDeps_spec,
     lem:EraseProof-collectDeps_sub, thm:EraseProof-erasePure_erases,
     lem:EraseProof-SrcEval-restrict, thm:EraseProof-erases_correct, lem:EraseProof-Erases-congr_ac}
-  \lead{Idea} Composition; the internal step \code{atom\_agree} shows that the atom tests of the
-  closure and of \code{P} agree on the closure's constants.
+  \leanok
+  \lead{Idea} Composition; the internal step \code{atom\_agree}, by \code{ConstsIn.mono}, shows
+  that the atom tests of the closure and of \code{P} agree on the value's constants.
   \lead{Steps}
   \begin{enumerate}
   \item \code{eraseEntry\_pure}: the result is \code{erasePure}'s on the closure \code{decls};
@@ -78,6 +83,8 @@ Hypothesis & MetaRocq & Why it is there \\
   theorems and sorries L1--L6 (Section~\ref{sec:trust-inherited}).
 \item \lead{Consequences of \code{hrun}} name injectivity and closedness of the $\lambda_\Box$
   environment (\code{collectDeps\_spec}, \code{erasePure\_erases}).
+\item \lead{Non-vacuity} \code{Test.NV1.final} discharges every hypothesis by a checked term
+  (Section~\ref{sec:tests-nv1-run}).
 \end{itemize}
 
 \section*{Caveats}
@@ -87,4 +94,8 @@ Hypothesis & MetaRocq & Why it is there \\
 \item \lead{Caveat} A view that marks every constant \code{@[extern]} makes every evaluation
   through a constant stuck, and the theorem vacuous on it; the view is trusted glue.
 \item \lead{Caveat} The theorem is only as sound as the lean4lean sorries L3--L6.
+\item \lead{Caveat} Nothing is claimed about the constants to inline, \code{inl}, which
+  \code{\#erase} writes to \code{.ast.inlinings}.
+\item \lead{Caveat} Recursive blocks are emitted as bare \code{tFix}, not $\eta$-expanded; the
+  theorem says nothing about $\eta$-expansion (DV-9).
 \end{itemize}

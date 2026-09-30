@@ -7,9 +7,10 @@
 \item \lead{Main results} The model side, the source and target semantics, erasability and the
   erasure relation with their lemmas, soundness of the pure oracle, the relation-level simulation
   \code{erases\_correct}, and the function-level lemma \code{erasePure\_erases} about the shipping
-  traversal. \hl{The final theorem \code{erase\_correct} about \code{\#erase} is a planned node}.
-\item \lead{Status} \stProved{} the landed nodes; \stInherited{} the lean4lean sorries that some
-  of them reach; \stShipping{} the shipping code, described by definition nodes.
+  traversal, and \hl{the final theorem \code{erase\_correct} about \code{\#erase}}.
+\item \lead{Status} \stProved{} every node that is not shipping code; \stInherited{} the lean4lean
+  sorries that some of them reach; \stShipping{} the shipping code, described by definition
+  nodes.
 \item \lead{Lean files} \code{proof/EraseProof/} (the verification library \code{EraseProof});
   \code{LeanToLambdaBox/\{Basic, Erasure, Printing\}.lean} and
   \code{LeanToLambdaBox/Erasure/\{Collect, Pure, Entry, Command\}.lean} (the shipping code).
@@ -18,7 +19,7 @@
 \section{What is proved}\label{sec:trust-proved}
 
 \begin{itemize}
-\item \lead{Proved} every node that is not marked \stPlanned{} and is not shipping code:
+\item \lead{Proved} every node that is not shipping code:
   \begin{itemize}
   \item the translation \code{TrS}, the program environments \code{ProgEnv} and their lemmas
         (Chapter~\ref{chap:model});
@@ -38,18 +39,21 @@
         \code{collectDeps\_sub}, the routing lemma, the traversal's frame lemma
         \code{visit\_agree}, its state invariant, \code{erasePure\_erases} and the entry-point
         lemma \code{eraseEntry\_pure} (Chapter~\ref{chap:core});
-  \item the instances NV-1 to NV-7 of \code{erases\_correct}, the bridge tests, the determinism of
+  \item the final theorem \code{erase\_correct} about \code{\#erase} (Chapter~\ref{chap:final});
+  \item its instance on NV-1 through the kernel-checked run of \code{\#erase}'s entry point, the
+        instances NV-1 to NV-7 of \code{erases\_correct}, the bridge tests, the determinism of
         $\lambda_\Box$ evaluation, the register tests and two instances of oracle soundness
         (Chapter~\ref{chap:tests}).
   \end{itemize}
-\item \lead{Planned} every node marked \stPlanned: the final theorem \code{erase\_correct}, under
-  its planned name; the audit checks that its declarations do not exist.
+\item \lead{Planned} no node.
 \item \lead{Axioms} a proved node depends on \code{propext}, \code{Classical.choice},
   \code{Quot.sound}, and on \code{sorryAx} only through the lean4lean sorries it lists
   (Section~\ref{sec:trust-inherited}); \hl{no axiom of lean4lean} is allowed.
 \item \lead{Checks} \code{blueprint/scripts/audit.py} measures every node; the proof package's
   \code{proof/scripts/check.sh} checks the footprints of \code{proof/axioms.expected}, forbidden
-  tokens and the no-leaves rule of \code{proof/ROOTS.txt} (Chapter~\ref{chap:open}).
+  tokens, the no-leaves rule of \code{proof/ROOTS.txt} (Section~\ref{sec:open-roots}), and the
+  final form: the single root \code{erase\_correct}, whose footprint and that of
+  \code{Test.NV1.final} are the standard axioms plus exactly L1--L6.
 \end{itemize}
 
 \section{Trusted, not verified}\label{sec:trust-trusted}
@@ -99,8 +103,8 @@ The \code{Meta} path & out-of-fragment inputs keep the shipping traversal with t
   \code{VEnv.WF} admits an unsafe block whose member proves \code{forall p : Prop, p}.
 \item \lead{L7, L8} no node may depend on them.
 \item \lead{TrProj} only test nodes may depend on it: the bridge tests state lean4lean's
-  \code{TrExprS} and \code{TrEnv'}, whose definitions reach \code{TrProj := sorry} (exception
-  E-1 of the proof checks).
+  \code{TrExprS} and \code{TrEnv'}, whose definitions reach \code{TrProj := sorry}; five
+  declarations of the two bridge-test nodes reach it.
 \end{itemize}
 
 The table is generated from \code{blueprint/audit.toml} and the Lean environment by
