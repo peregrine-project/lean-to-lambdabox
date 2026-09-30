@@ -44,9 +44,11 @@ EraseProof.Test.NV1.cnV_ty propext,Quot.sound -
 EraseProof.Test.NV1.cn_unfold propext -
 EraseProof.Test.NV1.concl propext,Classical.choice,Quot.sound -
 EraseProof.Test.NV1.erOne propext,Classical.choice,Quot.sound -
+EraseProof.Test.NV1.eraseEntry_of_erasePure propext,Classical.choice,Quot.sound -
 EraseProof.Test.NV1.hAAty propext,Quot.sound -
 EraseProof.Test.NV1.hAty propext,Quot.sound -
 EraseProof.Test.NV1.hblocks propext,Classical.choice,Quot.sound -
+EraseProof.Test.NV1.hcollect propext,Classical.choice,Quot.sound -
 EraseProof.Test.NV1.hdeps propext,Classical.choice,Quot.sound -
 EraseProof.Test.NV1.he propext,Quot.sound -
 EraseProof.Test.NV1.henv propext,Classical.choice,Quot.sound -
