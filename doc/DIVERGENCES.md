@@ -600,13 +600,13 @@ The blueprint renders this register.
   not contain keeps the relation, with the admissible targets substituted. And
   `proof/EraseProof/Core/Glue.lean`, `EraseProof.abstract_eq_abstract1`: on a term without loose
   indices, the traversal's `abstract` is `EraseProof.abstract1` at index `0`. And
-  `proof/EraseProof/Core/Frame.lean`, `EraseProof.visit_agree` and `EraseProof.visitAppArgs_agree`:
-  over closed declarations, the traversal at the pure backend runs alike under two lists of locals
-  that agree on the free variables the visited term reaches through the locals' types and values;
-  with `EraseProof.visitMutual_agree`: the erasure of a constant's declaration does not depend on
-  the caller's locals. And `proof/EraseProof/Core/Steps.lean`, `EraseProof.CtxOK`: the context
-  invariant of the traversal's correctness proof, whose locals mirror a context of free-variable
-  entries and whose counter allocates only variables fresh for that context; with the steps
+  `proof/EraseProof/Core/Frame.lean`, `EraseProof.visit_agree`: over closed declarations, the
+  traversal at the pure backend runs alike under two lists of locals that agree on the free
+  variables the visited term reaches through the locals' types and values; on a closed term, such
+  as a constant's body, it runs alike under any two lists of locals. And
+  `proof/EraseProof/Core/Steps.lean`, `EraseProof.CtxOK`: the context invariant of the traversal's
+  correctness proof, whose locals mirror a context of free-variable entries and whose counter
+  allocates only variables fresh for that context; with the steps
   `EraseProof.visitExpr_lam_step` and `EraseProof.visitExpr_letE_step`: a binder's body, opened
   with a fresh variable and erased, is closed by the traversal's `abstract`, and a `let` value is
   erased under the `let`'s own local; and `EraseProof.visitMutual_nonrec_step`: a constant's value
@@ -640,10 +640,10 @@ The blueprint renders this register.
   under the locals of the place where the traversal first meets the constant, not in the empty
   context: `EraseProof.Pure.isErasable_agree` equates the oracle's answers under the two, since a
   declaration's body is closed (`EraseProof.ClosedDecls`) and so reaches no local, and
-  `EraseProof.visitMutual_agree` equates the traversal's runs. A `let` value is erased under the
-  `let`'s own local, not in the outer context; `EraseProof.visit_agree` equates the runs under the
-  two, since the value does not mention that local. The erasure
-  relation is stated on these open terms: a free variable erases to itself
+  `EraseProof.visit_agree` equates the traversal's runs on the body. A `let` value is erased
+  under the `let`'s own local, not in the outer context; `EraseProof.visit_agree` equates the runs
+  under the two, since the value does not mention that local. The erasure relation is stated on
+  these open terms: a free variable erases to itself
   (`EraseProof.Erases.fvar`, MetaRocq's `erases_tVar`, which applies to no typed term there), and
   where the relation judges erasability (`EraseProof.ErasableS`), the free-variable entries of the
   lean4lean context give these variables their types. Closing a binder is stated with the
@@ -668,9 +668,9 @@ The blueprint renders this register.
 - **What was considered instead:** a de Bruijn rewrite of the traversal, a large shipping change
   that no output needs (spec §5.1 allows only strictly necessary shipping changes); resetting the
   locals in `visitMutual`, or visiting a `let` value before pushing the `let`'s local, shipping
-  changes that the frame lemmas `EraseProof.Pure.isErasable_agree`, `EraseProof.visit_agree` and
-  `EraseProof.visitMutual_agree` make unnecessary; stating the binder lemma with the
-  traversal's non-shifting `abstract`, which undoes the opening only on terms without loose
+  changes that the frame lemmas `EraseProof.Pure.isErasable_agree` and `EraseProof.visit_agree`
+  make unnecessary; stating the binder lemma with the traversal's non-shifting `abstract`, which
+  undoes the opening only on terms without loose
   indices beyond the variable's depth, a condition the lemma would then need as an extra
   hypothesis.
 
@@ -771,7 +771,7 @@ The blueprint renders this register.
   (`erasure/theories/ErasureFunction.v:996`), which typed terms do not contain (PCUIC's typing has
   no rule for it), so `closed_env` needs no such clause. The block rules cannot fire at the flags
   of `erases_correct`, at which the simulation evaluates; results stated for every flag, such as
-  `EraseProof.LBEval.closed`, are about the relation without them.
+  `EraseProof.LBEval.eq_box_of_headOf`, are about the relation without them.
 - **What was considered instead:** extending `LBTerm` with the missing constructors, a shipping
   change that no output of the eraser needs (spec §5.1 allows only strictly necessary shipping
   changes); stating evaluation on a separate transcription of `term` reached through a translation
@@ -789,7 +789,10 @@ The blueprint renders this register.
   their results for every fuel, about the runs that return a result. The traversal that erases a
   term is fuelled in the same way: `EraseProof.erasePure_erases`
   (`proof/EraseProof/Core.lean`) is about a run of `Erasure.erasePure` that returns a program,
-  and is proved by induction on the traversal's fuel (`EraseProof.traversal_spec`).
+  and is proved by induction on the traversal's fuel (`EraseProof.traversal_spec`). The final
+  theorem `EraseProof.erase_correct` (`proof/EraseProof/Main.lean`) is partial correctness: it is
+  about a run of the entry point of `#erase`, `Erasure.eraseEntry`
+  (`LeanToLambdaBox/Erasure/Entry.lean`), that returns a program (its hypothesis `hrun`).
 - **Reference artifact:** MetaRocq's erasability test `is_erasableb`
   (`erasure/theories/ErasureFunction.v:894`) and erasure function `erase` (`:989`; MetaCoq paper
   §7.2, Fig. 17): total functions, whose reductions terminate by well-founded recursion under the
@@ -798,7 +801,8 @@ The blueprint renders this register.
   `pcuic/theories/PCUICSN.v:44`; a parameter of `is_erasableb` and of the section of `erase`,
   `erasure/theories/ErasureFunction.v:969`); the correctness of `erase`, `erases_erase`
   (`erasure/theories/ErasureFunction.v:1228`), takes the same hypothesis and holds for every
-  input.
+  input, and so does the correctness of the erasure of a program, `erase_correct`
+  (`erasure/theories/ErasureFunctionProperties.v:657`), about `erase` and `erase_global_deps`.
 - **What differs:** the oracle's functions recurse on a fuel argument and fail with the error
   `fuel` when it runs out (`Erasure.EraseError`, `LeanToLambdaBox/Erasure/Collect.lean`); on the
   eraser's path the fuel of an oracle call is `Erasure.oracleFuel`. No statement has a
@@ -807,7 +811,10 @@ The blueprint renders this register.
   a run that exhausts its fuel gives no answer and carries no guarantee, and on the eraser's path
   it is an error of `#erase`, never an output. The eraser's other computations, the dependency
   collection (`Erasure.collectFuel`) and the traversal (`Erasure.travFuel`,
-  `LeanToLambdaBox/Erasure.lean`), are fuelled in the same way.
+  `LeanToLambdaBox/Erasure.lean`), are fuelled in the same way. `EraseProof.erase_correct`
+  assumes that `Erasure.eraseEntry` returns a program and says nothing about a run that fails; on
+  an input in scope such a run, for example one that exhausts a fuel, is an error of `#erase`
+  (`erasure failed: …`), never an output.
 - **Why it is forced:** lean4lean `master` proves no normalization theorem for its typing, and the
   spec (§2) excludes hypotheses that stand in for results lean4lean lacks; a normalization
   hypothesis would be one. It would also be false in the fragment: the model gives a recursive
@@ -877,6 +884,36 @@ The blueprint renders this register.
   path does (`doc/SHIPPING-CHANGES.md`, R-14), a further divergence from `is_erasableb` with no
   forcing reason; skipping `@[irreducible]` in type inference too: the oracle then fails on
   `fun (_ : R) (x : A) => x`, whose domain has a sort only through `IProp`.
+
+### DV-19
+
+- **Our artifact:** `proof/EraseProof/Main.lean`, `EraseProof.erase_correct`, the final theorem
+  about `#erase`: the λ□ value of the emitted term is related to the source value by the erasure
+  relation `EraseProof.Erases`, and no first-order corollary is stated.
+- **Reference artifact:** MetaRocq's first-order results (MetaCoq paper §7.3, p. 8:63):
+  `erase_correct_firstorder` (`erasure/theories/ErasureFunctionProperties.v:2310`), which, for a
+  closed term whose type is a first-order inductive type (`firstorder_ind`,
+  `pcuic/theories/PCUICFirstorder.v:67`) in an axiom-free environment (`axiom_free`,
+  `erasure/theories/Extract.v:381`), concludes that the erased term evaluates to the erasure that
+  `erase` computes of the source value, and that this λ□ value is first-order, a tree of
+  constructor applications (`firstorder_evalue`,
+  `erasure/theories/ErasureFunctionProperties.v:2027`); and `firstorder_erases_deterministic`
+  (`erasure/theories/ErasureFunctionProperties.v:2079`), by which every erasure of a value of a
+  first-order inductive type is the one `erase` computes.
+- **What differs:** `EraseProof.erase_correct` concludes what MetaRocq's `erase_correct`
+  (`erasure/theories/ErasureFunctionProperties.v:657`) concludes: the λ□ value is an erasure of
+  the source value. Nothing states that it is a first-order value, or that the source value
+  determines it.
+- **Why it is forced:** both first-order results are about terms whose type is an inductive type
+  (`mkApps (tInd i u) args`), and `firstorder_ind` holds only of a name declared as an inductive
+  type. The fragment has none: lean4lean `master` has no inductive types
+  (`Lean4Lean.VInductDecl.WF` and `Lean4Lean.VEnv.addInduct` are `sorry` definitions,
+  `Lean4Lean/Theory/Inductive.lean:5,7`; DV-6), so `EraseProof.ProgEnv` admits no inductive
+  declaration and no term in scope has an inductive result type. The hypothesis `axiom_free`
+  belongs to these results only (DV-21).
+- **What was considered instead:** stating the first-order corollary for the fragment: its
+  hypothesis that the result type is a first-order inductive type never holds in scope, so the
+  statement would be vacuous.
 
 ### DV-20
 
