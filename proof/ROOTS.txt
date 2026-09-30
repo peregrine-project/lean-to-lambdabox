@@ -9,7 +9,11 @@
 EraseProof.TrS.fvarsIn EraseProof.erasePure_erases v7-core-main
 EraseProof.TrS.inst_fvar EraseProof.erasePure_erases v7-core-main
 EraseProof.LBEval.closed EraseProof.erasePure_erases v7-core-main
-EraseProof.Pure.isErasable_agree EraseProof.visit_agree v6-frame-b
+EraseProof.oracle_agree EraseProof.visit_agree v6-frame-b
+EraseProof.visitLambda_agree EraseProof.visit_agree v6-frame-b
+EraseProof.visitLet_agree EraseProof.visit_agree v6-frame-b
+EraseProof.visitApp_agree EraseProof.visit_agree v6-frame-b
+EraseProof.visitConstApp_agree EraseProof.visit_agree v6-frame-b
 EraseProof.Pure.isErasable_sound EraseProof.erasePure_erases v7-core-main
 EraseProof.SrcEval.restrict EraseProof.erase_correct v8-main
 EraseProof.Erases.closed EraseProof.erasePure_erases v7-core-main
