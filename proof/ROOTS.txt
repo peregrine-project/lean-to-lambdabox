@@ -6,7 +6,6 @@
 #   <task id>: optional, the unit that lands the consumer.
 # Every declaration of EraseProof outside EraseProof.Test must be reachable from a root; no root
 # may be reachable from another root.
-EraseProof.TrS.fvarsIn EraseProof.erasePure_erases v7-core-main
 EraseProof.TrS.inst_fvar EraseProof.erasePure_erases v7-core-main
 EraseProof.LBEval.closed EraseProof.erasePure_erases v7-core-main
 EraseProof.Pure.isErasable_agree EraseProof.visit_agree v6-frame-b
@@ -20,3 +19,5 @@ EraseProof.Erases.substRc EraseProof.erasePure_erases v7-core-main
 EraseProof.Pure.isErasable_atom EraseProof.erasePure_erases v7-core-main
 EraseProof.erases_correct EraseProof.erase_correct v8-main
 EraseProof.collectDeps_spec EraseProof.erase_correct v8-main
+EraseProof.collectDeps_sub EraseProof.erase_correct v8-main
+EraseProof.collectDeps_not_outOfFragment EraseProof.eraseEntry_pure v6-glue

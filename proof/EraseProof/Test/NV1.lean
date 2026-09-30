@@ -1,4 +1,5 @@
 import EraseProof.Simulation
+import EraseProof.Core.Scope
 import EraseProof.Test.LBEval
 
 /-!
@@ -18,7 +19,8 @@ as the newest-first declaration list `decls0` with its lean4lean model `venv0`, 
 list view and the λ□ environment `lenv0` that `#erase` emits. `inst` applies the theorem; `concl`
 exhibits its conclusion with the witness `v0' = λz. (λa. a) z`, and `witness` shows, by
 determinism of λ□ evaluation, that every witness of the theorem is this λ, not `□`. The source
-evaluation `hev` takes a δ, a β and three atom steps.
+evaluation `hev` takes a δ, a β and three atom steps. `hview` discharges the view hypothesis of the
+final theorem `erase_correct` for the list view `view0`.
 -/
 
 open Lean Lean4Lean Erasure
@@ -192,6 +194,14 @@ theorem he : TrS venv0 [] [] e0 e0' := by
 
 /-- The program's view: list lookup, nothing `@[extern]`, no inline attribute. -/
 def view0 : EnvView := ⟨fun n => decls0.find? (·.name == n), fun _ => false, fun _ => none⟩
+
+/-- The list view agrees with the program: the hypothesis `hview` of `erase_correct` on NV-1.
+Reference: `Σ ∼_ext X` (`abstract_env_ext_rel`), a hypothesis of `erase_correct`
+(`MR erasure/theories/ErasureFunctionProperties.v:657`). -/
+theorem hview : ViewAgrees view0 decls0 := by
+  intro ci h
+  simp only [decls0, List.mem_cons, List.not_mem_nil, or_false] at h
+  rcases h with rfl | rfl | rfl <;> rfl
 
 /-- The program's evaluation environment under the default configuration. -/
 def σ0 : EvalEnv := evalEnvOf view0 {} decls0
