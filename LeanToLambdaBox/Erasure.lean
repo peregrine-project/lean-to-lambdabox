@@ -179,8 +179,8 @@ structure TravCtx where
   fixvars : Option (Std.HashMap Name FVarId) := none
   «config» : ErasureConfig
 
-/-- The λ□ name of a binder with the user name `n`: `n` if it is ASCII graphic, since the λ□ parser
-rejects other names, and anonymous otherwise. -/
+/-- The λ□ name of a binder with user name `n`: `n.toString` if ASCII graphic, anonymous otherwise;
+a name with `"` or `\` prints with `«»`, so the printer never meets them unescaped (R-2). -/
 def binderNameOf (n : Name) : BinderName :=
   let s := n.toString
   if s.all (fun (c : Char) => decide (33 ≤ c.toNat ∧ c.toNat < 127)) then .named s else .anon
