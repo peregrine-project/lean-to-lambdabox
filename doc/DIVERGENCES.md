@@ -275,7 +275,8 @@ The blueprint renders this register.
   `EraseProof.Erases.inst_let`; the fixpoints stored in a λ□ environment whose bodies are closed
   (`EraseProof.LenvClosed`) are closed (`EraseProof.RecIn.rcClosed`,
   `proof/EraseProof/Simulation/Cases.lean`), which is why `EraseProof.erases_correct` has the
-  hypothesis `hlc`.
+  hypothesis `hlc`. And `proof/EraseProof/Core/Glue.lean`, `EraseProof.isRecursiveDecl_eq`: the
+  pure backend's recursion test `Erasure.isRecursiveDecl` is `EraseProof.RecursiveDecl`.
 - **Reference artifact:** PCUIC's fixpoints: the term `tFix`, a value (`atom`,
   `pcuic/theories/PCUICWcbvEval.v:51`), unfolded when applied by `eval_fix` (`:273`) and excluded
   as a head of `eval_app_cong` (`:311`, `isFixApp`); their erasure `erases_tFix`
@@ -552,7 +553,9 @@ The blueprint renders this register.
   admissible targets of recursive constants do not mention the variable (`EraseProof.RcFresh`); and
   `EraseProof.substFVars`, a simultaneous substitution of free variables, with
   `EraseProof.Erases.substRc`: substituting free variables on the λ□ side that the source term does
-  not contain keeps the relation, with the admissible targets substituted.
+  not contain keeps the relation, with the admissible targets substituted. And
+  `proof/EraseProof/Core/Glue.lean`, `EraseProof.abstract_eq_abstract1`: on a term without loose
+  indices, the traversal's `abstract` is `EraseProof.abstract1` at index `0`.
 - **Reference artifact:** MetaRocq's erasure function `erase`
   (`erasure/theories/ErasureFunction.v:989`) and erasure relation `erases`
   (`erasure/theories/Extract.v:88`; MetaCoq paper §7.2–§7.3, Figs. 17–18), which work on de Bruijn

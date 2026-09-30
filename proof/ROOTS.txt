@@ -22,7 +22,6 @@ EraseProof.Pure.isErasable_atom EraseProof.erasePure_erases v7-core-main
 EraseProof.erases_correct EraseProof.erase_correct v8-main
 EraseProof.collectDeps_spec EraseProof.erase_correct v8-main
 EraseProof.collectDeps_sub EraseProof.erase_correct v8-main
-EraseProof.collectDeps_not_outOfFragment EraseProof.eraseEntry_pure v6-glue
 EraseProof.LenvExt.refl EraseProof.erasePure_erases v7-core-main
 EraseProof.LenvExt.trans EraseProof.erasePure_erases v7-core-main
 EraseProof.StateOK.empty EraseProof.erasePure_erases v7-core-main
@@ -32,3 +31,6 @@ EraseProof.StateOK.blocksErased EraseProof.erasePure_erases v7-core-main
 EraseProof.StateOK.registerDef EraseProof.erasePure_erases v7-core-main
 EraseProof.addAxiom_ok EraseProof.erasePure_erases v7-core-main
 EraseProof.get_constant_kername_ok EraseProof.erasePure_erases v7-core-main
+EraseProof.eraseEntry_pure EraseProof.erase_correct v8-main
+EraseProof.isRecursiveDecl_eq EraseProof.erasePure_erases v7-core-main
+EraseProof.abstract_eq_abstract1 EraseProof.erasePure_erases v7-core-main
