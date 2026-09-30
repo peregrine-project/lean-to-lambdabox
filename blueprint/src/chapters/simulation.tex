@@ -4,60 +4,280 @@
 \begin{itemize}
 \item \lead{Goal} Every evaluation of a well-typed closed source term is matched by a
   $\lambda_\Box$ evaluation of each of its erasures.
-\item \lead{Main results} \code{erases\_correct}, the relation-level simulation.
-\item \lead{Status} \stPlanned{}; expected footprint L1--L6.
-\item \lead{Lean files} planned: \code{proof/EraseProof/Simulation.lean},
-  \code{Simulation/\{Cases, Fix\}.lean}.
+\item \lead{Main results} \code{erases\_correct}, the relation-level simulation, with one case
+  lemma per rule of \code{SrcEval}.
+\item \lead{Status} \stProved{} every node; \stInherited{} \code{erases\_correct} depends on
+  L1--L6.
+\item \lead{Lean files} \code{proof/EraseProof/Simulation.lean},
+  \code{proof/EraseProof/Simulation/\{Cases, Fix\}.lean}.
 \item \lead{Reference} MetaRocq \code{erases\_correct}
-  (\code{erasure/theories/ErasureCorrectness.v}); MetaCoq paper Section 7.4, p.~8:64; Letouzey
+  (\code{erasure/theories/ErasureCorrectness.v}); MetaCoq paper Section 7.3, p.~8:64; Letouzey
   Theorem 13, big-step.
 \end{itemize}
 
 \section{The theorem}\label{sec:simulation-main}
 
+\begin{definition}[Injective names]
+  \label{def:EraseProof-KernameInj}
+  \lean{EraseProof.KernameInj}
+  \leanok
+  \uses{def:EraseProof-findDecl}
+  \srcloc{proof/EraseProof/Simulation/Cases.lean}{24}
+  \lead{In short} \code{KernameInj decls}: the declarations of \code{decls} have \hl{distinct
+  $\lambda_\Box$ names} (\code{toKername}); the name mangling is not injective (R-3), so the
+  closure checks it (DV-14).
+\end{definition}
+
 \begin{theorem}[Relation-level simulation]
   \label{thm:EraseProof-erases_correct}
   \lean{EraseProof.erases_correct}
-  \planned
+  \leanok
   \uses{def:EraseProof-ProgEnv, def:EraseProof-SubEnv, def:EraseProof-KernameInj,
     def:EraseProof-LenvClosed, def:EraseProof-TrS, def:EraseProof-Erases,
     def:EraseProof-ErasesDeps, def:EraseProof-SrcEval, def:EraseProof-LBEval,
     def:EraseProof-defaultFlags}
+  \srcloc{proof/EraseProof/Simulation.lean}{21}
+  \inherited{L1, L2, L3, L4, L5, L6}
   \lead{In short} If a well-typed closed \code{e} evaluates to \code{v} and \code{t} erases
   \code{e} with erased dependencies, then \hl{\code{t} evaluates in $\lambda_\Box$ to an erasure
   of \code{v}}.
   \begin{itemize}
-  \item \lead{Given} \code{henv : ProgEnv P venv} and \code{hsub : SubEnv sigma.decls P}: typing in
-        \code{P}'s model, evaluation in its sub-environment (\code{wf\_ext}; DV-3);
-  \item \code{hinj : KernameInj sigma.decls}: $\lambda_\Box$ names identify source constants
-        (DV-14); \code{hlc : LenvClosed lenv};
-  \item \code{he : TrS venv Us [] e e'}: \code{e} is well typed (\code{welltyped});
-  \item \code{her}, \code{hdeps}, \code{hblocks}: \code{t} erases \code{e}, and the environment
-        holds erased dependencies and blocks (\code{erases}, \code{erases\_deps});
-  \item \code{hev : SrcEval sigma e v};
-  \item \lead{Then} some \code{v'} erases \code{v} and \code{LBEval defaultFlags lenv t v'}.
+  \item \lead{Given} \code{henv}, \code{hsub}, \code{hinj}, \code{hlc}, \code{he}, \code{her},
+        \code{hdeps}, \code{hblocks}, \code{hev}: the table below gives each with its reason;
+  \item \lead{Then} some \code{v'} erases \code{v}, and \code{LBEval defaultFlags lenv t v'}.
   \end{itemize}
   \lead{Reference} MetaRocq \code{erases\_correct}; Letouzey Theorem 13 at call by value (DV-20,
   DV-22).
 \end{theorem}
 \begin{proof}
-  \uses{lem:EraseProof-SrcEval-defeq, lem:EraseProof-ErasableS-eval, lem:EraseProof-ErasableS-atom,
-    lem:EraseProof-Erases-inst, lem:EraseProof-Erases-inst_let, lem:EraseProof-Erases-instLevels,
-    lem:EraseProof-Erases-app_inv, lem:EraseProof-Erases-atomSpine_box,
-    lem:EraseProof-ErasesDeps-eval, lem:EraseProof-ErasesDeps-csubst, lem:EraseProof-LBEval-closed,
-    lem:EraseProof-Erases-closed, lem:EraseProof-IsErasable-app, lem:EraseProof-IsErasable-lam_inv,
-    lem:EraseProof-TrS-det, lem:EraseProof-SrcEval-value}
-  \lead{Idea} Induction on \code{SrcEval}, one case lemma per rule, as MetaRocq's proof.
-  \lead{Steps}
-  \begin{enumerate}
-  \item $\beta$, $\zeta$: invert the erasure, substitute (\code{Erases.inst},
-        \code{Erases.inst\_let});
-  \item $\delta$ and recursive constants: the stored body or block (\code{ErasesDeps},
-        \code{BlocksErased}, \code{Erases.instLevels});
-  \item erased heads: \code{box} evaluates by $\Box$-application (\code{IsErasable.app},
-        \code{IsErasable.lam\_inv}, \code{ErasableS.eval}); atoms by
-        \code{Erases.atomSpine\_box}.
-  \end{enumerate}
+  \uses{lem:EraseProof-erases_correct_beta, lem:EraseProof-erases_correct_zeta,
+    lem:EraseProof-erases_correct_delta, lem:EraseProof-erases_correct_fixAtom,
+    lem:EraseProof-erases_correct_fixApp, lem:EraseProof-erases_correct_appCong,
+    lem:EraseProof-erases_correct_atom}
+  \leanok
+  \lead{Idea} Induction on \code{SrcEval}, with the translation, the erasure and its dependencies
+  generalized; each of the nine rules is one case lemma, as in MetaRocq's proof.
+\end{proof}
+
+Each hypothesis is one MetaRocq's \code{erases\_correct} takes, or a fact that MetaRocq gets from
+shared names or from fixpoints inside terms.
+
+\begin{tabular}{p{0.2\linewidth}p{0.3\linewidth}p{0.4\linewidth}}
+\toprule
+Hypothesis & MetaRocq & Why it is there \\
+\midrule
+\code{henv : ProgEnv P venv} & \code{wf\_ext Sigma} & unique typing, $\Pi$-injectivity and subject
+  reduction hold in \code{P}'s model (DV-3) \\
+\code{hsub : SubEnv sigma.decls P} & one \code{Sigma} for both & evaluation and dependencies range
+  over a sub-environment of \code{P}, the closure that \code{\#erase} erases (DV-3) \\
+\code{hinj : KernameInj sigma.decls} & none: \code{erases\_deps\_tConst} shares \code{kn} & a
+  $\lambda_\Box$ name must identify its source declaration (DV-14) \\
+\code{hlc : LenvClosed lenv} & none & recursive targets come from the $\lambda_\Box$ environment,
+  and substitution must leave them unchanged (DV-7) \\
+\code{he : TrS venv Us [] e e'} & \code{welltyped Sigma [] t} & erasability is defined by typing;
+  subject reduction needs a typed term \\
+\code{her : Erases ... e t} & \code{erases Sigma [] t t'} & the erasure relation \\
+\code{hdeps : ErasesDeps ... t} & \code{erases\_deps Sigma Sigma' t'} & $\delta$ reads erased
+  bodies from \code{lenv} \\
+\code{hblocks : BlocksErased ...} & part of \code{globals\_erased\_with\_deps} & unfolded
+  fixpoints, and \code{constRec} at a non-recursive constant, read their erasure there (DV-7) \\
+\code{hev : SrcEval sigma e v} & \code{Sigma |-p t} $\Downarrow$ \code{v} & the proof is by
+  induction on source evaluation \\
+\bottomrule
+\end{tabular}
+
+\section{Case lemmas}\label{sec:simulation-cases}
+
+Each lemma proves one rule of \code{SrcEval}, taking the induction hypotheses of the rule's
+premises as hypotheses. Every case first sends an erasure to $\Box$ to the uniform case.
+
+\begin{lemma}[Erasures to \texorpdfstring{$\Box$}{box}]
+  \label{lem:EraseProof-erases_correct_box}
+  \lean{EraseProof.erases_correct_box}
+  \leanok
+  \uses{def:EraseProof-Erases, def:EraseProof-SrcEval, def:EraseProof-LBEval}
+  \srcloc{proof/EraseProof/Simulation/Cases.lean}{68}
+  \inherited{L1, L2, L3, L4, L5}
+  \lead{In short} If \code{e} is erasable and evaluates to \code{v}, then \hl{\code{v} erases to
+  $\Box$}, which $\lambda_\Box$ evaluates to itself.
+  \lead{Reference} the \code{erases\_box} cases of \code{erases\_correct}, through
+  \code{Is\_type\_eval} (\code{erasure/theories/EArities.v}).
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-ErasableS-eval}
+  \leanok
+  \lead{Idea} \code{ErasableS.eval}.
+\end{proof}
+
+\begin{lemma}[Case \texorpdfstring{$\beta$}{beta}]
+  \label{lem:EraseProof-erases_correct_beta}
+  \lean{EraseProof.erases_correct_beta, EraseProof.RecIn.rcClosed}
+  \leanok
+  \uses{def:EraseProof-Erases, def:EraseProof-SrcEval, def:EraseProof-LBEval,
+    def:EraseProof-LenvClosed}
+  \srcloc{proof/EraseProof/Simulation/Cases.lean}{77}
+  \inherited{L1, L2, L3, L4, L5, L6}
+  \lead{In short} The function's erasure evaluates to $\Box$, and so does the application, or to
+  a $\lambda$ whose body, \hl{with the argument's value substituted}, erases the source's body.
+  \begin{itemize}
+  \item \code{RecIn.rcClosed}: the fixpoints of a closed environment are closed (MetaRocq
+        \code{closed\_env}).
+  \end{itemize}
+  \lead{Reference} the \code{eval\_beta} case of \code{erases\_correct}; Letouzey Theorem 13.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-erases_correct_box, lem:EraseProof-Erases-app_inv,
+    lem:EraseProof-SrcEval-defeq, lem:EraseProof-Erases-inst, lem:EraseProof-ErasesDeps-eval,
+    lem:EraseProof-ErasesDeps-csubst, lem:EraseProof-IsErasable-lam_inv,
+    lem:EraseProof-IsErasable-inst, lem:EraseProof-TrS-inst, lem:EraseProof-TrS-det}
+  \leanok
+  \lead{Idea} Subject reduction types the argument's value at the domain; \code{Erases.inst}
+  substitutes; a $\Box$ function has an erasable body (\code{IsErasable.lam\_inv}).
+\end{proof}
+
+\begin{lemma}[Case \texorpdfstring{$\zeta$}{zeta}]
+  \label{lem:EraseProof-erases_correct_zeta}
+  \lean{EraseProof.erases_correct_zeta}
+  \leanok
+  \uses{def:EraseProof-Erases, def:EraseProof-SrcEval, def:EraseProof-LBEval,
+    def:EraseProof-LenvClosed}
+  \srcloc{proof/EraseProof/Simulation/Cases.lean}{137}
+  \inherited{L1, L2, L3, L4, L5}
+  \lead{In short} The \code{let} value's erasure evaluates to an erasure of its value, which
+  \hl{substituted into the erased body} erases the source's substituted body.
+  \lead{Reference} the \code{eval\_zeta} case of \code{erases\_correct}; Letouzey Theorem 13.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-erases_correct_box, lem:EraseProof-erases_correct_beta,
+    lem:EraseProof-SrcEval-defeq, lem:EraseProof-TrS-defeqDFC, lem:EraseProof-TrS-inst_let,
+    lem:EraseProof-Erases-inst_let, lem:EraseProof-ErasesDeps-eval,
+    lem:EraseProof-ErasesDeps-csubst}
+  \leanok
+  \lead{Idea} The body's translation in the \code{let} context is \code{Erases.inst\_let}'s
+  \code{hbt}; subject reduction relates the value's translation to the \code{let} value
+  (\code{SrcEval.defeq}).
+\end{proof}
+
+\begin{lemma}[Case \texorpdfstring{$\delta$}{delta}]
+  \label{lem:EraseProof-erases_correct_delta}
+  \lean{EraseProof.erases_correct_delta, EraseProof.EvalEnv.unfold?_axiomatized}
+  \leanok
+  \uses{def:EraseProof-Erases, def:EraseProof-SrcEval, def:EraseProof-LBEval,
+    def:EraseProof-KernameInj, def:EraseProof-ErasesDeps}
+  \srcloc{proof/EraseProof/Simulation/Cases.lean}{175}
+  \inherited{L1, L2, L3, L4, L5}
+  \lead{In short} For a non-recursive constant, the $\lambda_\Box$ declaration at its kername is
+  \hl{its own}, whose body erases its value at the occurrence's levels.
+  \begin{itemize}
+  \item \code{KernameInj} identifies the declaration; a \code{tFix} stored there
+        (\code{constRec}) is its erasure by \code{BlocksErased};
+  \item \code{EvalEnv.unfold?\_axiomatized}: an unfoldable constant is not remapped (DV-12).
+  \end{itemize}
+  \lead{Reference} the \code{eval\_delta} case of \code{erases\_correct}; Letouzey Theorem 13.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-erases_correct_box, lem:EraseProof-SrcEval-beta_step,
+    lem:EraseProof-Erases-instLevels, lem:EraseProof-EvalEnv-unfold_some}
+  \leanok
+  \lead{Idea} \code{ErasesDecl} gives the stored body; \code{Erases.instLevels} moves it to the
+  occurrence's levels.
+\end{proof}
+
+\begin{lemma}[Values and metadata]
+  \label{lem:EraseProof-erases_correct_atom}
+  \lean{EraseProof.erases_correct_atom, EraseProof.erases_correct_constAtom,
+    EraseProof.erases_correct_mdata}
+  \leanok
+  \uses{def:EraseProof-Erases, def:EraseProof-SrcEval, def:EraseProof-LBEval}
+  \srcloc{proof/EraseProof/Simulation/Cases.lean}{295}
+  \inherited{L1, L2, L3, L4, L5}
+  \lead{In short} The rules \code{atom}, \code{constAtom} and \code{mdata}: \hl{values erase to
+  $\lambda_\Box$ values}, and metadata is transparent.
+  \begin{itemize}
+  \item \code{atom}: a $\lambda$, sort or $\Pi$ erases to a $\lambda$ or to $\Box$;
+  \item \code{constAtom}: an atom constant erases only to $\Box$ (DV-11);
+  \item \code{mdata}: the induction hypothesis, or the uniform case.
+  \end{itemize}
+  \lead{Reference} the \code{eval\_atom} case of \code{erases\_correct}, on \code{tInd} for atom
+  constants.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-erases_correct_box}
+  \leanok
+  \lead{Idea} Case analysis on the erasure.
+\end{proof}
+
+\begin{lemma}[Stuck applications]
+  \label{lem:EraseProof-erases_correct_appCong}
+  \lean{EraseProof.erases_correct_appCong, EraseProof.ErasableS.atomSpine}
+  \leanok
+  \uses{def:EraseProof-Erases, def:EraseProof-SrcEval, def:EraseProof-LBEval}
+  \srcloc{proof/EraseProof/Simulation/Cases.lean}{240}
+  \inherited{L1, L2, L3, L4, L5, L6}
+  \lead{In short} An application whose head evaluates to an atom spine \hl{evaluates to $\Box$},
+  an erasure of its value.
+  \begin{itemize}
+  \item \code{ErasableS.atomSpine}: an atom spine is erasable (MetaRocq \code{Is\_type\_app} on
+        \code{tInd}-headed spines).
+  \end{itemize}
+  \lead{Reference} the \code{eval\_app\_cong} case of \code{erases\_correct}.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-erases_correct_box, lem:EraseProof-SrcEval-value,
+    lem:EraseProof-Erases-atomSpine_box, lem:EraseProof-ErasableS-atom,
+    lem:EraseProof-IsErasable-app, lem:EraseProof-SrcEval-defeq}
+  \leanok
+  \lead{Idea} \code{SrcEval.value} makes the head's value an atom spine; its erasure evaluates to
+  $\Box$ (\code{Erases.atomSpine\_box}).
+\end{proof}
+
+\begin{lemma}[Recursive constants as values]
+  \label{lem:EraseProof-erases_correct_fixAtom}
+  \lean{EraseProof.erases_correct_fixAtom}
+  \leanok
+  \uses{def:EraseProof-Erases, def:EraseProof-LBEval, def:EraseProof-KernameInj,
+    def:EraseProof-ErasesDeps}
+  \srcloc{proof/EraseProof/Simulation/Fix.lean}{74}
+  \lead{In short} A recursive constant erases to $\Box$, to its stored \code{tFix}, or to its
+  \code{tConst}, which \hl{evaluates by $\delta$ to that \code{tFix}}.
+  \lead{Reference} the \code{eval\_delta} case of \code{erases\_correct} to a \code{tFix} value,
+  and its \code{eval\_atom} case; DV-7.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-erases_correct_delta, lem:EraseProof-EvalEnv-unfold_some}
+  \leanok
+  \lead{Idea} \code{KernameInj} identifies the declaration; \code{ErasesDecl} makes its body a
+  \code{tFix}.
+\end{proof}
+
+\begin{lemma}[Applied recursive constants]
+  \label{lem:EraseProof-erases_correct_fixApp}
+  \lean{EraseProof.erases_correct_fixApp, EraseProof.BlocksErased.unfold,
+    EraseProof.LBEval.ne_const, EraseProof.ErasableS.eval_inv}
+  \leanok
+  \uses{def:EraseProof-Erases, def:EraseProof-SrcEval, def:EraseProof-LBEval,
+    def:EraseProof-ErasesDeps, def:EraseProof-cunfoldFix}
+  \srcloc{proof/EraseProof/Simulation/Fix.lean}{108}
+  \inherited{L1, L2, L3, L4, L5, L6}
+  \lead{In short} The head evaluates to $\Box$ or to the stored \code{tFix}, which \hl{unfolds at
+  \code{rarg = 0}} to an erasure of the constant's value.
+  \begin{itemize}
+  \item \code{BlocksErased.unfold}: the stored \code{tFix} unfolds to an erasure of the value
+        (MetaRocq \code{erases\_deps\_cunfold\_fix});
+  \item \code{LBEval.ne\_const}: a $\lambda_\Box$ value is never a \code{tConst};
+  \item \code{ErasableS.eval\_inv}: a typed term with an erasable value is erasable
+        (\code{Is\_type\_eval\_inv}).
+  \end{itemize}
+  \lead{Reference} the \code{eval\_fix} case of \code{erases\_correct}; Letouzey Theorem 13; DV-7.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-erases_correct_box, lem:EraseProof-erases_correct_delta,
+    lem:EraseProof-SrcEval-defeq, lem:EraseProof-SrcEval-beta_step,
+    lem:EraseProof-Erases-instLevels, lem:EraseProof-IsErasable-app,
+    lem:EraseProof-ErasableS-eval, lem:EraseProof-ErasesDeps-eval}
+  \leanok
+  \lead{Idea} $\lambda_\Box$ evaluates the application by \code{eval\_fix} with no earlier
+  arguments; the unfolded body moves to the occurrence's levels by \code{Erases.instLevels}.
 \end{proof}
 
 \section*{Caveats}

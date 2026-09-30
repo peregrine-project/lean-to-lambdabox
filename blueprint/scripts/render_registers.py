@@ -71,6 +71,7 @@ UNICODE = {
     '\u00ac': r'\ensuremath{\neg}',
     '\u22a2': r'\ensuremath{\vdash}',
     '\u25b8': r'\ensuremath{\blacktriangleright}',
+    '\u25c0': r'\ensuremath{\blacktriangleleft}',   # Letouzey's invariant
     '\u00b7': r'\ensuremath{\cdot}',
     '\u2081': r'\ensuremath{_1}',
     '\u2082': r'\ensuremath{_2}',

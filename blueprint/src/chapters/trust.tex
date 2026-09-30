@@ -5,9 +5,9 @@
 \item \lead{Goal} State what is proved, what is trusted without proof, what a result inherits from
   lean4lean, and what the eraser is made of.
 \item \lead{Main results} The model side, the source and target semantics, erasability and the
-  erasure relation with their lemmas, and soundness of the pure oracle. \hl{No statement about the
-  simulation, the traversal or \code{\#erase} is proved}: \code{erases\_correct},
-  \code{erasePure\_erases} and the final theorem are planned nodes.
+  erasure relation with their lemmas, soundness of the pure oracle, and the relation-level
+  simulation \code{erases\_correct}. \hl{No statement about the traversal or \code{\#erase} is
+  proved}: \code{erasePure\_erases} and the final theorem are planned nodes.
 \item \lead{Status} \stProved{} the landed nodes; \stInherited{} the lean4lean sorries that some
   of them reach; \stShipping{} the shipping code, described by definition nodes.
 \item \lead{Lean files} \code{proof/EraseProof/} (the verification library \code{EraseProof});
@@ -27,14 +27,16 @@
         reduction \code{SrcEval.defeq} and evaluation in a sub-environment
         \code{SrcEval.restrict} (Chapter~\ref{chap:source});
   \item $\lambda_\Box$ evaluation \code{LBEval}, the erasure relation \code{Erases}, the erased
-        dependencies \code{ErasesDeps} and their lemmas, except the substitution lemmas
-        \code{Erases.inst} and \code{Erases.inst\_let} (Chapter~\ref{chap:relation});
+        dependencies \code{ErasesDeps} and their lemmas, substitution included
+        (Chapter~\ref{chap:relation});
+  \item the relation-level simulation \code{erases\_correct} and its case lemmas
+        (Chapter~\ref{chap:simulation});
   \item soundness of the shipping oracle (\code{Pure.isErasable\_sound}), its answer on atoms
         (\code{Pure.isErasable\_atom}) and its frame lemma \code{Pure.isErasable\_agree}
         (Chapter~\ref{chap:oracle});
-  \item NV-1's model-side hypotheses, the bridge tests, the determinism of $\lambda_\Box$
-        evaluation, the register tests and two instances of oracle soundness
-        (Chapter~\ref{chap:tests}).
+  \item the instances NV-1, NV-2, NV-5, NV-6, NV-7 of \code{erases\_correct}, the bridge tests,
+        the determinism of $\lambda_\Box$ evaluation, the register tests and two instances of
+        oracle soundness (Chapter~\ref{chap:tests}).
   \end{itemize}
 \item \lead{Planned} every node marked \stPlanned: the statements of the approved design, under
   their planned names; the audit checks that none of these declarations exists.

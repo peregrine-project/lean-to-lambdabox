@@ -5,16 +5,21 @@
 \item \lead{Goal} Show that the hypotheses of the main statements can be discharged on concrete
   programs, relate the restated relations to lean4lean's, and pin the design choices of the
   divergence register by tests.
-\item \lead{Main results} The model-side hypotheses of NV-1; \code{TrS} and \code{ProgEnv} are
-  instances of lean4lean's \code{TrExprS} and \code{TrEnv'}; the register tests of DV-11 and
-  DV-18; two instances of \code{Pure.isErasable\_sound}.
-\item \lead{Status} \stProved{} every node; \stOpen{} the instances of the main statements other
-  than NV-1's model side (Section~\ref{sec:tests-instances}).
-\item \lead{Lean files} \code{proof/EraseProof/Test/\{NV1, Bridge, LBEval, Atoms, Oracle\}.lean};
+\item \lead{Main results} Five instances of \code{erases\_correct} (NV-1, NV-2, NV-5, NV-6,
+  NV-7), each with a unique non-$\Box$ witness; \code{TrS} and \code{ProgEnv} are instances of
+  lean4lean's \code{TrExprS} and \code{TrEnv'}; the register tests of DV-11 and DV-18; two
+  instances of \code{Pure.isErasable\_sound}.
+\item \lead{Status} \stProved{} every node; \stOpen{} NV-3, NV-4, and the instances of
+  \code{erasePure\_erases} and \code{erase\_correct} (Section~\ref{sec:tests-instances}).
+\item \lead{Lean files}
+  \code{proof/EraseProof/Test/\{NV1, NV2, NV5, NV6, NV7, Bridge, LBEval, Atoms, Oracle\}.lean};
   namespace \code{EraseProof.Test}.
 \end{itemize}
 
 \section{Non-vacuity instance NV-1}\label{sec:tests-nv1}
+
+\code{erases\_correct} on \code{one (fun a : A => a)}: the source evaluation takes a $\delta$, a
+$\beta$ and three atom steps.
 
 \begin{definition}[The program of NV-1]
   \label{def:EraseProof-Test-NV1-decls0}
@@ -25,15 +30,34 @@
     EraseProof.Test.NV1.vAA, EraseProof.Test.NV1.cnV, EraseProof.Test.NV1.oneV,
     EraseProof.Test.NV1.Aconst, EraseProof.Test.NV1.CNdef, EraseProof.Test.NV1.onedef,
     EraseProof.Test.NV1.envA, EraseProof.Test.NV1.envCN0, EraseProof.Test.NV1.envCN,
-    EraseProof.Test.NV1.envOne0}
+    EraseProof.Test.NV1.envOne0, EraseProof.Test.NV1.view0, EraseProof.Test.NV1.σ0,
+    EraseProof.Test.NV1.v0}
   \leanok
-  \srcloc{proof/EraseProof/Test/NV1.lean}{50}
+  \uses{def:EraseProof-evalEnvOf}
+  \srcloc{proof/EraseProof/Test/NV1.lean}{54}
   \lead{In short} \code{axiom A : Type}, \code{def CN := (A -> A) -> A -> A}, \code{def one : CN :=
   fun s z => s z}, and the erased term \hl{\code{one (fun a : A => a)}}.
   \begin{itemize}
   \item \code{decls0}, \code{e0}: the declarations, newest first, and the term;
   \item \code{venv0}, \code{e0'}: their lean4lean model and translation, built step by step
-        (\code{envA}, \code{envCN0}, \code{envCN}, \code{envOne0}).
+        (\code{envA}, \code{envCN0}, \code{envCN}, \code{envOne0});
+  \item \code{view0}, \code{sigma0}: a list view and its evaluation environment; \code{v0}: the
+        value \code{fun z => (fun a => a) z}.
+  \end{itemize}
+\end{definition}
+
+\begin{definition}[The erased program of NV-1]
+  \label{def:EraseProof-Test-NV1-lenv0}
+  \lean{EraseProof.Test.NV1.lenv0, EraseProof.Test.NV1.oneL, EraseProof.Test.NV1.t0,
+    EraseProof.Test.NV1.v0'}
+  \leanok
+  \uses{def:GlobalDecl, def:LBTerm}
+  \srcloc{proof/EraseProof/Test/NV1.lean}{236}
+  \lead{In short} The $\lambda_\Box$ environment \code{lenv0} holds \hl{\code{one} with its erased
+  body}, as \code{\#erase} emits it.
+  \begin{itemize}
+  \item \code{t0}: \code{one (fun a => a)}, the erasure of \code{e0};
+  \item \code{v0'}: \code{fun z => (fun a => a) z}, the erasure of \code{v0}.
   \end{itemize}
 \end{definition}
 
@@ -45,7 +69,7 @@
     EraseProof.Test.NV1.oneWF, EraseProof.Test.NV1.pCN}
   \leanok
   \uses{def:EraseProof-Test-NV1-decls0, def:EraseProof-ProgEnv, def:EraseProof-TrS}
-  \srcloc{proof/EraseProof/Test/NV1.lean}{166}
+  \srcloc{proof/EraseProof/Test/NV1.lean}{170}
   \lead{In short} \code{henv : ProgEnv decls0 venv0} and \code{he : TrS venv0 [] [] e0 e0'}:
   \hl{the environment and typing hypotheses} of the main statements hold on NV-1.
 \end{lemma}
@@ -54,6 +78,133 @@
   \leanok
   \lead{Idea} One \code{ProgEnv} rule per declaration; typing derivations in lean4lean's
   \code{HasType}, with \code{CN} unfolded by its defining equation.
+\end{proof}
+
+\begin{lemma}[NV-1: the relation-level instance]
+  \label{lem:EraseProof-Test-NV1-concl}
+  \lean{EraseProof.Test.NV1.concl, EraseProof.Test.NV1.witness, EraseProof.Test.NV1.hev,
+    EraseProof.Test.NV1.hsub, EraseProof.Test.NV1.mem_names, EraseProof.Test.NV1.hinj,
+    EraseProof.Test.NV1.lookup0, EraseProof.Test.NV1.hlc, EraseProof.Test.NV1.hblocks,
+    EraseProof.Test.NV1.trAA, EraseProof.Test.NV1.erOne, EraseProof.Test.NV1.her,
+    EraseProof.Test.NV1.hdeps, EraseProof.Test.NV1.lbev, EraseProof.Test.NV1.herv}
+  \leanok
+  \uses{thm:EraseProof-erases_correct, lem:EraseProof-Test-NV1-henv,
+    def:EraseProof-Test-NV1-lenv0}
+  \srcloc{proof/EraseProof/Test/NV1.lean}{302}
+  \inherited{L1, L2, L3, L4, L5, L6}
+  \lead{In short} \code{concl} applies \code{erases\_correct} on NV-1 with \hl{every hypothesis a
+  checked term}; its only witness is the $\lambda$ \code{v0'}.
+  \begin{itemize}
+  \item \code{hev}, \code{hsub}, \code{hinj}, \code{hlc}, \code{hblocks}, \code{her},
+        \code{hdeps}: the hypotheses besides \code{henv} and \code{he};
+  \item \code{lbev}, \code{herv}: \code{t0} evaluates to \code{v0'}, which erases \code{v0};
+  \item \code{witness}: every witness of \code{concl} is \code{v0'}.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{thm:EraseProof-erases_correct, lem:EraseProof-Test-LBEval-deterministic}
+  \leanok
+  \lead{Idea} Apply the theorem; \code{witness} by determinism of $\lambda_\Box$ evaluation; the
+  footprint is the theorem's.
+\end{proof}
+
+\section{Non-vacuity instance NV-2}\label{sec:tests-nv2}
+
+\code{erases\_correct} on \code{dbl two}, whose evaluation takes $\delta$, $\beta$ and $\zeta$.
+
+\begin{definition}[The program of NV-2]
+  \label{def:EraseProof-Test-NV2-decls2}
+  \lean{EraseProof.Test.NV2.decls2, EraseProof.Test.NV2.e2, EraseProof.Test.NV2.tyE,
+    EraseProof.Test.NV2.cnE, EraseProof.Test.NV2.endoE, EraseProof.Test.NV2.cnatE,
+    EraseProof.Test.NV2.twoE, EraseProof.Test.NV2.spE, EraseProof.Test.NV2.dblBodyE,
+    EraseProof.Test.NV2.dblE, EraseProof.Test.NV2.CNat_val, EraseProof.Test.NV2.two_val,
+    EraseProof.Test.NV2.dbl_val, EraseProof.Test.NV2.ty1, EraseProof.Test.NV2.ty2,
+    EraseProof.Test.NV2.vCN, EraseProof.Test.NV2.endoV, EraseProof.Test.NV2.zV,
+    EraseProof.Test.NV2.cnatV, EraseProof.Test.NV2.ssz, EraseProof.Test.NV2.twoV,
+    EraseProof.Test.NV2.spV, EraseProof.Test.NV2.dblV, EraseProof.Test.NV2.CNdef,
+    EraseProof.Test.NV2.twodef, EraseProof.Test.NV2.dbldef, EraseProof.Test.NV2.envCN0,
+    EraseProof.Test.NV2.envCN, EraseProof.Test.NV2.envTwo0, EraseProof.Test.NV2.envTwo,
+    EraseProof.Test.NV2.envDbl0, EraseProof.Test.NV2.venv2, EraseProof.Test.NV2.e2',
+    EraseProof.Test.NV2.ctxD, EraseProof.Test.NV2.view2, EraseProof.Test.NV2.σ2,
+    EraseProof.Test.NV2.v2}
+  \leanok
+  \uses{def:EraseProof-evalEnvOf}
+  \srcloc{proof/EraseProof/Test/NV2.lean}{74}
+  \lead{In short} \code{def CNat : Type 1 := forall a : Type, (a -> a) -> a -> a}, \code{def two},
+  \code{def dbl (n : CNat) : CNat := let m := n; fun a s z => m a s (m a s z)}, and the term
+  \hl{\code{dbl two}}.
+  \begin{itemize}
+  \item \code{decls2}, \code{e2}: the declarations, newest first, and the term;
+  \item \code{venv2}, \code{e2'}: their lean4lean model and translation, built step by step;
+  \item \code{view2}, \code{sigma2}: the evaluation environment; \code{v2}: the value of \code{e2}.
+  \end{itemize}
+\end{definition}
+
+\begin{definition}[The erased program of NV-2]
+  \label{def:EraseProof-Test-NV2-lenv2}
+  \lean{EraseProof.Test.NV2.lenv2, EraseProof.Test.NV2.twoL, EraseProof.Test.NV2.spL,
+    EraseProof.Test.NV2.dblBodyL, EraseProof.Test.NV2.dblL, EraseProof.Test.NV2.t2,
+    EraseProof.Test.NV2.v2'}
+  \leanok
+  \uses{def:GlobalDecl, def:LBTerm}
+  \srcloc{proof/EraseProof/Test/NV2.lean}{375}
+  \lead{In short} The $\lambda_\Box$ environment \code{lenv2} holds \code{two} and \code{dbl} with
+  their erased bodies; \hl{the type argument of \code{m} erases to $\Box$}.
+  \begin{itemize}
+  \item \code{t2}: \code{dbl two}; \code{v2'}: \code{fun a s z => two' box s (two' box s z)}, with
+        \code{two'} the erased body of \code{two}.
+  \end{itemize}
+\end{definition}
+
+\begin{lemma}[NV-2: the model-side hypotheses]
+  \label{lem:EraseProof-Test-NV2-henv}
+  \lean{EraseProof.Test.NV2.henv, EraseProof.Test.NV2.he, EraseProof.Test.NV2.endoV_ty,
+    EraseProof.Test.NV2.zV_ty, EraseProof.Test.NV2.cnatV_ty, EraseProof.Test.NV2.cn_unfold,
+    EraseProof.Test.NV2.vCN_ty, EraseProof.Test.NV2.sz_ty, EraseProof.Test.NV2.ssz_ty,
+    EraseProof.Test.NV2.twoV_ty, EraseProof.Test.NV2.m_ty, EraseProof.Test.NV2.mα_ty,
+    EraseProof.Test.NV2.mαs_ty, EraseProof.Test.NV2.spV_ty, EraseProof.Test.NV2.dblV_ty,
+    EraseProof.Test.NV2.trTy, EraseProof.Test.NV2.trEndo, EraseProof.Test.NV2.trAlpha,
+    EraseProof.Test.NV2.trCnat, EraseProof.Test.NV2.trTwo, EraseProof.Test.NV2.trSp,
+    EraseProof.Test.NV2.trDbl, EraseProof.Test.NV2.pCN, EraseProof.Test.NV2.pTwo}
+  \leanok
+  \uses{def:EraseProof-Test-NV2-decls2, def:EraseProof-ProgEnv, def:EraseProof-TrS}
+  \srcloc{proof/EraseProof/Test/NV2.lean}{296}
+  \lead{In short} \code{henv : ProgEnv decls2 venv2} and \code{he : TrS venv2 [] [] e2 e2'}; the
+  model types \code{m a} \hl{through \code{CNat}'s defining equation}.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-ProgEnv}
+  \leanok
+  \lead{Idea} One \code{ProgEnv} rule per declaration; typing derivations in lean4lean's
+  \code{HasType}, with one $\delta$-conversion of \code{CNat} for \code{two} and two for
+  \code{dbl}.
+\end{proof}
+
+\begin{lemma}[NV-2: the relation-level instance]
+  \label{lem:EraseProof-Test-NV2-concl}
+  \lean{EraseProof.Test.NV2.concl, EraseProof.Test.NV2.witness, EraseProof.Test.NV2.hev,
+    EraseProof.Test.NV2.hsub, EraseProof.Test.NV2.mem_names, EraseProof.Test.NV2.hinj,
+    EraseProof.Test.NV2.lookup2, EraseProof.Test.NV2.hlc, EraseProof.Test.NV2.hblocks,
+    EraseProof.Test.NV2.erTwo, EraseProof.Test.NV2.erAlpha, EraseProof.Test.NV2.erSp,
+    EraseProof.Test.NV2.erDbl, EraseProof.Test.NV2.her, EraseProof.Test.NV2.hdeps,
+    EraseProof.Test.NV2.lbev, EraseProof.Test.NV2.herv}
+  \leanok
+  \uses{thm:EraseProof-erases_correct, lem:EraseProof-Test-NV2-henv,
+    def:EraseProof-Test-NV2-lenv2}
+  \srcloc{proof/EraseProof/Test/NV2.lean}{473}
+  \inherited{L1, L2, L3, L4, L5, L6}
+  \lead{In short} \code{concl} applies \code{erases\_correct} on NV-2 with \hl{every hypothesis a
+  checked term}; its only witness is the $\lambda$ \code{v2'}.
+  \begin{itemize}
+  \item \code{erTwo}, \code{erAlpha}, \code{erSp}, \code{erDbl}: the erasures of the bodies, the
+        type argument by \code{Erases.box};
+  \item \code{witness}: every witness of \code{concl} is \code{v2'}.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{thm:EraseProof-erases_correct, lem:EraseProof-Test-LBEval-deterministic}
+  \leanok
+  \lead{Idea} As NV-1.
 \end{proof}
 
 \section{Bridge tests}\label{sec:tests-bridge}
@@ -237,25 +388,182 @@ The divergence register cites these tests. Each runs the shipping oracle at
   \lead{Idea} Apply the theorem; its footprint is the instances' footprint.
 \end{proof}
 
+\section{Non-vacuity instances on atoms}\label{sec:tests-atoms}
+
+\code{erases\_correct} on three programs that evaluate only through the atom rule
+\code{constAtom} (DV-11). Each evaluates by $\beta$ to \code{fun x => x}, whose erasure is the
+only witness.
+
+\begin{lemma}[D1: the hypotheses on the environment]
+  \label{lem:EraseProof-Test-D1-hinj}
+  \lean{EraseProof.Test.D1.hinj, EraseProof.Test.D1.mem_names, EraseProof.Test.D1.hlc,
+    EraseProof.Test.D1.hblocks}
+  \leanok
+  \uses{def:EraseProof-Test-D1-decls, def:EraseProof-KernameInj, def:EraseProof-LenvClosed,
+    def:EraseProof-ErasesDeps}
+  \srcloc{proof/EraseProof/Test/NV5.lean}{43}
+  \lead{In short} On D1 with the empty $\lambda_\Box$ environment: \hl{distinct kernames}
+  (\code{hinj}), a closed environment (\code{hlc}) and no stored fixpoint (\code{hblocks}).
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-Test-D1-decls}
+  \leanok
+  \lead{Idea} \code{mem\_names} lists D1's four names; \code{decide} on each pair.
+\end{proof}
+
+\begin{definition}[The program of NV-5]
+  \label{def:EraseProof-Test-NV5-e}
+  \lean{EraseProof.Test.NV5.e, EraseProof.Test.NV5.idE, EraseProof.Test.NV5.v,
+    EraseProof.Test.NV5.idV, EraseProof.Test.NV5.e', EraseProof.Test.NV5.t,
+    EraseProof.Test.NV5.t'}
+  \leanok
+  \uses{def:EraseProof-Test-D1-decls, def:LBTerm}
+  \srcloc{proof/EraseProof/Test/NV5.lean}{73}
+  \lead{In short} \hl{\code{(fun (a : Type) (x : a) => x) A}} over D1: a type former as an
+  argument; its image \code{e'}, its erasure \code{t}, the value \code{v} and its erasure
+  \code{t'}.
+\end{definition}
+
+\begin{lemma}[NV-5: a type former as an argument]
+  \label{lem:EraseProof-Test-NV5-inst}
+  \lean{EraseProof.Test.NV5.inst, EraseProof.Test.NV5.concl, EraseProof.Test.NV5.witness,
+    EraseProof.Test.NV5.hev, EraseProof.Test.NV5.idV_ty, EraseProof.Test.NV5.he,
+    EraseProof.Test.NV5.her, EraseProof.Test.NV5.hdeps}
+  \leanok
+  \uses{thm:EraseProof-erases_correct, def:EraseProof-Test-NV5-e,
+    lem:EraseProof-Test-D1-hinj, lem:EraseProof-Test-Oracle-sound_A}
+  \srcloc{proof/EraseProof/Test/NV5.lean}{125}
+  \inherited{L1, L2, L3, L4, L5, L6}
+  \lead{In short} \code{inst} applies \code{erases\_correct} with \hl{every hypothesis a checked
+  term}; \code{A} evaluates by \code{constAtom} and erases to $\Box$.
+  \begin{itemize}
+  \item \code{concl}: the conclusion with the witness \code{fun x => x}; \code{witness}: it is the
+        only one.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{thm:EraseProof-erases_correct, lem:EraseProof-Test-LBEval-deterministic}
+  \leanok
+  \lead{Idea} As NV-1; \code{D1.henv}, \code{D1.hsub} come from the oracle instances.
+\end{proof}
+
+\begin{definition}[The program of NV-6]
+  \label{def:EraseProof-Test-NV6-e}
+  \lean{EraseProof.Test.NV6.e, EraseProof.Test.NV6.kE, EraseProof.Test.NV6.v,
+    EraseProof.Test.NV6.kV, EraseProof.Test.NV6.e', EraseProof.Test.NV6.t,
+    EraseProof.Test.NV6.t'}
+  \leanok
+  \uses{def:EraseProof-Test-D1-decls, def:LBTerm}
+  \srcloc{proof/EraseProof/Test/NV6.lean}{28}
+  \lead{In short} \hl{\code{(fun (h : P) (y : Type) => y) hP}} over D1: a proof as an argument;
+  its image, its erasure, its value and the value's erasure.
+\end{definition}
+
+\begin{lemma}[NV-6: a proof as an argument]
+  \label{lem:EraseProof-Test-NV6-inst}
+  \lean{EraseProof.Test.NV6.inst, EraseProof.Test.NV6.concl, EraseProof.Test.NV6.witness,
+    EraseProof.Test.NV6.hev, EraseProof.Test.NV6.kV_ty, EraseProof.Test.NV6.he,
+    EraseProof.Test.NV6.her, EraseProof.Test.NV6.hdeps, EraseProof.Test.NV6.hP_not_const}
+  \leanok
+  \uses{thm:EraseProof-erases_correct, def:EraseProof-Test-NV6-e,
+    lem:EraseProof-Test-D1-hinj, lem:EraseProof-Test-Oracle-sound_A}
+  \srcloc{proof/EraseProof/Test/NV6.lean}{81}
+  \inherited{L1, L2, L3, L4, L5, L6}
+  \lead{In short} \code{inst} applies \code{erases\_correct} with every hypothesis a checked term;
+  the proof \code{hP} evaluates by \code{constAtom}.
+  \begin{itemize}
+  \item \code{concl}, \code{witness}: the witness \code{fun y => y}, the only one;
+  \item \code{hP\_not\_const}: the atom \code{hP} \hl{erases only to $\Box$} (DV-11).
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{thm:EraseProof-erases_correct, lem:EraseProof-Test-LBEval-deterministic}
+  \leanok
+  \lead{Idea} As NV-5.
+\end{proof}
+
+\begin{definition}[The program of NV-7]
+  \label{def:EraseProof-Test-NV7-e}
+  \lean{EraseProof.Test.NV7.e, EraseProof.Test.NV7.decls, EraseProof.Test.NV7.A_val,
+    EraseProof.Test.NV7.P_val, EraseProof.Test.NV7.hp_val, EraseProof.Test.NV7.view,
+    EraseProof.Test.NV7.σ, EraseProof.Test.NV7.cx, EraseProof.Test.NV7.vA,
+    EraseProof.Test.NV7.ty1, EraseProof.Test.NV7.vP0, EraseProof.Test.NV7.AC,
+    EraseProof.Test.NV7.PC, EraseProof.Test.NV7.hpC, EraseProof.Test.NV7.env1,
+    EraseProof.Test.NV7.env2, EraseProof.Test.NV7.env3, EraseProof.Test.NV7.v,
+    EraseProof.Test.NV7.fE, EraseProof.Test.NV7.fV, EraseProof.Test.NV7.e',
+    EraseProof.Test.NV7.t, EraseProof.Test.NV7.t'}
+  \leanok
+  \uses{def:EraseProof-evalEnvOf, def:LBTerm}
+  \srcloc{proof/EraseProof/Test/NV7.lean}{147}
+  \lead{In short} \code{(fun (h : P.\{0\}) (x : A) => x) hp} over the axioms \code{A : Type},
+  \hl{\code{P.\{v\} : Sort v}}, \code{hp : P.\{0\}}, with the model \code{env3}.
+\end{definition}
+
+\begin{lemma}[NV-7: the hypotheses on the environment]
+  \label{lem:EraseProof-Test-NV7-henv}
+  \lean{EraseProof.Test.NV7.henv, EraseProof.Test.NV7.hsub, EraseProof.Test.NV7.mem_names,
+    EraseProof.Test.NV7.hinj, EraseProof.Test.NV7.hlc, EraseProof.Test.NV7.hblocks,
+    EraseProof.Test.NV7.atom_hp, EraseProof.Test.NV7.oracle_hp, EraseProof.Test.NV7.e3A,
+    EraseProof.Test.NV7.e3P, EraseProof.Test.NV7.e3hp, EraseProof.Test.NV7.hP0ty,
+    EraseProof.Test.NV7.hAty, EraseProof.Test.NV7.hhpty}
+  \leanok
+  \uses{def:EraseProof-Test-NV7-e, def:EraseProof-ProgEnv, def:EraseProof-EvalEnv-isAtom,
+    def:Erasure-Pure-isErasable}
+  \srcloc{proof/EraseProof/Test/NV7.lean}{96}
+  \lead{In short} \code{henv}, \code{hsub}, \code{hinj}, \code{hlc}, \code{hblocks} hold, and
+  \hl{\code{hp} is an atom} that the shipping oracle boxes, although \code{P}'s sort depends on a
+  level parameter.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-ProgEnv}
+  \leanok
+  \lead{Idea} One \code{ProgEnv} rule per axiom; \code{atom\_hp} and \code{oracle\_hp} by
+  \code{decide}.
+\end{proof}
+
+\begin{lemma}[NV-7: a proof at a universe-polymorphic proposition]
+  \label{lem:EraseProof-Test-NV7-inst}
+  \lean{EraseProof.Test.NV7.inst, EraseProof.Test.NV7.concl, EraseProof.Test.NV7.witness,
+    EraseProof.Test.NV7.hev, EraseProof.Test.NV7.fV_ty, EraseProof.Test.NV7.he,
+    EraseProof.Test.NV7.her, EraseProof.Test.NV7.hdeps}
+  \leanok
+  \uses{thm:EraseProof-erases_correct, lem:EraseProof-Test-NV7-henv}
+  \srcloc{proof/EraseProof/Test/NV7.lean}{194}
+  \inherited{L1, L2, L3, L4, L5, L6}
+  \lead{In short} \code{inst} applies \code{erases\_correct} with every hypothesis a checked term;
+  \hl{\code{hp} evaluates by \code{constAtom}} and erases to $\Box$.
+  \begin{itemize}
+  \item \code{concl}, \code{witness}: the witness \code{fun x => x}, the only one.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{thm:EraseProof-erases_correct, lem:EraseProof-Test-LBEval-deterministic}
+  \leanok
+  \lead{Idea} As NV-5.
+\end{proof}
+
 \section{Non-vacuity instances}\label{sec:tests-instances}
 
 Each instance discharges every hypothesis of a main statement by a checked term, in namespace
-\code{EraseProof.Test.NV}\emph{k}; the hypotheses use the axioms \code{propext},
-\code{Classical.choice}, \code{Quot.sound} only, and an instance inherits the lean4lean sorries of
-the statement it applies.
+\code{EraseProof.Test.NV}\emph{k}. The hypotheses and the exhibited witnesses use the axioms
+\code{propext}, \code{Classical.choice}, \code{Quot.sound} only; the application of the statement
+(\code{concl} in NV-1 and NV-2, \code{inst} in NV-5 to NV-7) inherits its lean4lean sorries.
 
 \begin{tabular}{lp{0.42\linewidth}p{0.36\linewidth}}
 \toprule
 Instance & Program & State \\
 \midrule
-NV-1 & \code{one (fun a : A => a)} & \stProved{} \code{henv}, \code{he}; \stOpen{} \code{hev}, the
-  relation-level instance, \code{hview}, \code{hrun}, the final instance \\
-NV-2 & \code{dbl two}, with a \code{let} in \code{dbl} & \stOpen{} \\
+NV-1 & \code{one (fun a : A => a)} & \stProved{} \code{erases\_correct}
+  (Section~\ref{sec:tests-nv1}); \stOpen{} \code{hview}, \code{hrun}, the instance of
+  \code{erase\_correct} \\
+NV-2 & \code{dbl two}, with a \code{let} in \code{dbl} & \stProved{} \code{erases\_correct}
+  (Section~\ref{sec:tests-nv2}) \\
 NV-3 & \code{uf one}, unsafe recursion & \stOpen{} \\
 NV-4 & a two-member unsafe block & \stOpen{} \\
-NV-5 & \code{(fun (alpha : Type) (x : alpha) => x) A} & \stOpen{} \\
-NV-6 & \code{(fun (h : P) (y : Type) => y) hP} & \stOpen{} \\
-NV-7 & \code{(fun (\_ : P.\{0\}) (x : A) => x) hp} & \stOpen{} \\
+NV-5 & \code{(fun (a : Type) (x : a) => x) A} & \stProved{} \code{erases\_correct}
+  (Section~\ref{sec:tests-atoms}) \\
+NV-6 & \code{(fun (h : P) (y : Type) => y) hP} & \stProved{} \code{erases\_correct} \\
+NV-7 & \code{(fun (\_ : P.\{0\}) (x : A) => x) hp} & \stProved{} \code{erases\_correct} \\
 oracle & \code{A} and \code{hP} of D1 & \stProved{} both instances of
   \code{Pure.isErasable\_sound} (Section~\ref{sec:tests-oracle}) \\
 \bottomrule
@@ -265,4 +573,6 @@ oracle & \code{A} and \code{hP} of D1 & \stProved{} both instances of
 \begin{itemize}
 \item \lead{Caveat} The bridge tests depend on \code{TrProj := sorry}; no node outside the tests
   may (Section~\ref{sec:trust-inherited}).
+\item \lead{Caveat} No instance evaluates a recursive constant: the rules \code{fixAtom} and
+  \code{fixApp} of \code{erases\_correct} have no instance (NV-3, NV-4 are open).
 \end{itemize}
