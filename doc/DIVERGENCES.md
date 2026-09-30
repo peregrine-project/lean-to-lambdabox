@@ -399,7 +399,12 @@ The blueprint renders this register.
 - **Why it is forced:** the fragment has no inductive types (DV-6), so its base types and the
   canonical proofs of atomic propositions are axioms; without a rule that makes them values, no
   program that instantiates a polymorphic function at a base type or passes such a proof by value
-  evaluates, and the correctness theorem says nothing about it. The class is syntactic
+  evaluates, and the correctness theorem says nothing about it. With the rule, the programs
+  `(fun (α : Type) (x : α) => x) A`, `(fun (h : P) (y : Type) => y) hP` and
+  `(fun (h : P.{0}) (x : A) => x) hp` (with `axiom P.{v} : Sort v`, `axiom hp : P.{0}`) evaluate
+  through `EraseProof.SrcEval.constAtom` on `A`, `hP` and `hp`, and `EraseProof.erases_correct`
+  applies to them with every hypothesis a checked term (`EraseProof.Test.NV5.inst`,
+  `EraseProof.Test.NV6.inst`, `EraseProof.Test.NV7.inst`). The class is syntactic
   ("evident") because the eraser must box each atom from the declared types alone, without a
   typing hypothesis, and on this class it provably does: on an atom spine the oracle never answers
   "keep" (`EraseProof.Pure.isErasable_atom`, `proof/EraseProof/Oracle/Atom.lean`, whose level test
