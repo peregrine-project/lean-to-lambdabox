@@ -1,7 +1,8 @@
-import EraseProof.Env
+import EraseProof.Simulation
+import EraseProof.Test.LBEval
 
 /-!
-# Non-vacuity instance NV-1: the model side
+# Non-vacuity instance NV-1 of `erases_correct`
 
 The program
 
@@ -11,12 +12,15 @@ The program
     #erase one (fun a : A => a)
 
 as the newest-first declaration list `decls0` with its lean4lean model `venv0`, and the erased term
-`e0` with its translation `e0'`. `henv` and `he` discharge, on this program, the hypotheses of the
-correctness theorems that play the roles of `wf_ext Σ` and of the typing of the erased term in
-`erases_correct` (`MR erasure/theories/ErasureCorrectness.v:51`).
+`e0` with its translation `e0'`. Every hypothesis of `erases_correct`
+(`MR erasure/theories/ErasureCorrectness.v:51`) is discharged by a checked term: `henv`, `hsub`,
+`hinj`, `hlc`, `he`, `her`, `hdeps`, `hblocks`, `hev`, with the evaluation environment `σ0` of a
+list view and the λ□ environment `lenv0` that `#erase` emits. The instance `concl` has a witness,
+and it is the λ `v0' = λz. (λa. a) z` (`witness`, by determinism of λ□ evaluation), not `□`. The
+source evaluation `hev` takes a δ, a β and three atom steps.
 -/
 
-open Lean Lean4Lean
+open Lean Lean4Lean Erasure
 
 namespace EraseProof.Test.NV1
 
@@ -182,5 +186,129 @@ theorem he : TrS venv0 [] [] e0 e0' := by
   have hid : venv0.HasType 0 [] (.lam vA (.bvar 0)) vAA := .lam (hAty venv0_A) (.bvar .zero)
   exact .app (A := vAA) (B := vAA) hone hid (.const rfl rfl rfl)
     (.lam ⟨_, hAty venv0_A⟩ (.const venv0_A rfl rfl) (.bvar (A := vA) rfl))
+
+/-! ## The evaluation environment and the source evaluation -/
+
+/-- The program's view: list lookup, nothing `@[extern]`, no inline attribute. -/
+def view0 : EnvView := ⟨fun n => decls0.find? (·.name == n), fun _ => false, fun _ => none⟩
+
+/-- The program's evaluation environment under the default configuration. -/
+def σ0 : EvalEnv := evalEnvOf view0 {} decls0
+
+/-- `fun z => (fun a => a) z`: the value of `e0`. -/
+def v0 : Expr := .lam `z tyA (.app (.lam `a tyA (.bvar 0) .default) (.bvar 0)) .default
+
+/-- `e0` evaluates to `v0`: δ unfolds `one` to a λ, the argument is a λ, and β gives a λ. The
+source-evaluation hypothesis of `erases_correct` on NV-1. Reference: the hypothesis
+`Σ |-p t ⇓ v` of `erases_correct` (`MR erasure/theories/ErasureCorrectness.v:51`). -/
+theorem hev : SrcEval σ0 e0 v0 :=
+  .beta (.delta rfl rfl rfl (.atom trivial)) (.atom trivial) (.atom trivial)
+
+/-- Every declaration is the first of its name, so the evaluation environment is a
+sub-environment of the program: the hypothesis `hsub` of `erases_correct` on NV-1. -/
+theorem hsub : SubEnv σ0.decls decls0 := by
+  intro ci h
+  simp only [σ0, evalEnvOf, decls0, List.mem_cons, List.not_mem_nil, or_false] at h
+  rcases h with rfl | rfl | rfl <;> rfl
+
+/-- The program's constants are `one`, `CN` and `A`. -/
+theorem mem_names {c : Name} (h : (findDecl decls0 c).isSome = true) :
+    c = `one ∨ c = `CN ∨ c = `A := by
+  rw [findDecl, List.find?_isSome] at h
+  obtain ⟨x, hx, hc⟩ := h
+  simp only [decls0, List.mem_cons, List.not_mem_nil, or_false] at hx
+  rcases hx with rfl | rfl | rfl <;>
+    simp [ConstantInfo.name, ConstantInfo.toConstantVal, one_val, CN_val, A_val] at hc <;>
+    subst hc <;> simp
+
+/-- The program's kernames are distinct: the hypothesis `hinj` of `erases_correct` on NV-1. -/
+theorem hinj : KernameInj σ0.decls := by
+  intro c₁ c₂ h₁ h₂ hk
+  rcases mem_names h₁ with rfl | rfl | rfl <;> rcases mem_names h₂ with rfl | rfl | rfl <;>
+    first | rfl | (revert hk; decide)
+
+/-! ## The erased program -/
+
+/-- `λs. λz. s z`: the λ□ body of `one`. -/
+def oneL : LBTerm :=
+  .lambda (binderNameOf `s) (.lambda (binderNameOf `z) (.app (.bvar 1) (.bvar 0)))
+
+/-- The λ□ environment: `one` with its erased body, as `#erase` emits it. -/
+def lenv0 : GlobalDeclarations := [(toKername `one, .constantDecl ⟨some oneL⟩)]
+
+/-- `one (λa. a)`: the erasure of `e0`. -/
+def t0 : LBTerm := .app (.const (toKername `one)) (.lambda (binderNameOf `a) (.bvar 0))
+
+/-- `λz. (λa. a) z`: the erasure of `v0`. -/
+def v0' : LBTerm :=
+  .lambda (binderNameOf `z) (.app (.lambda (binderNameOf `a) (.bvar 0)) (.bvar 0))
+
+/-- The only declaration of `lenv0` is `one`'s. -/
+theorem lookup0 {kn : Kername} {cb : ConstantBody} (h : lookupConst lenv0 kn = some cb) :
+    cb = ⟨some oneL⟩ := by
+  simp only [lookupConst, lenv0, List.find?_cons, List.find?_nil] at h
+  by_cases hk : (toKername `one == kn) = true
+  · simp only [hk] at h
+    exact (Option.some.inj h).symm
+  · simp only [Bool.not_eq_true] at hk
+    simp only [hk] at h
+    cases h
+
+/-- `lenv0`'s body is closed: the hypothesis `hlc` of `erases_correct` on NV-1. -/
+theorem hlc : LenvClosed lenv0 := by
+  intro kn cb b h hb
+  cases lookup0 h
+  cases hb
+  exact ⟨rfl, fun _ => rfl⟩
+
+/-- `lenv0` stores no fixpoint: the hypothesis `hblocks` of `erases_correct` on NV-1. -/
+theorem hblocks : BlocksErased venv0 σ0 lenv0 := by
+  intro c ci defs i _ hl
+  cases lookup0 hl
+
+/-- `A → A` translates in any context of `venv0`. -/
+theorem trAA {Δ : VLCtx} : TrS venv0 [] Δ (.forallE `x tyA tyA .default) vAA :=
+  .forallE ⟨_, hAty venv0_A⟩ ⟨_, hAty venv0_A⟩ (.const venv0_A rfl rfl) (.const venv0_A rfl rfl)
+
+/-- `one`'s value erases to `oneL`. -/
+theorem erOne : Erases venv0 [] σ0.isAtom (RecIn lenv0) [] oneE oneL :=
+  .lam trAA (.lam (.const venv0_A rfl rfl) (.app .bvar .bvar))
+
+/-- `e0` erases to `t0`: the hypothesis `her` of `erases_correct` on NV-1. Reference: the
+hypothesis `Σ;;; [] |- t ⇝ℇ t'` of `erases_correct`
+(`MR erasure/theories/ErasureCorrectness.v:51`). -/
+theorem her : Erases venv0 [] σ0.isAtom (RecIn lenv0) [] e0 t0 :=
+  .app (.const (by decide)) (.lam (.const venv0_A rfl rfl) .bvar)
+
+/-- `t0`'s dependency `one` is erased in `lenv0`: the hypothesis `hdeps` of `erases_correct` on
+NV-1. Reference: the hypothesis `erases_deps Σ Σ' t'` of `erases_correct`
+(`MR erasure/theories/ErasureCorrectness.v:51`). -/
+theorem hdeps : ErasesDeps venv0 σ0 lenv0 t0 :=
+  .app (.const (ci := .defnInfo one_val) rfl rfl
+      (Or.inr (Or.inr ⟨by decide, by decide, oneL, rfl, erOne⟩))
+      (fun _ hb => by cases hb; exact .lambda (.lambda (.app .bvar .bvar))))
+    (.lambda .bvar)
+
+/-! ## The conclusion -/
+
+/-- `t0` evaluates to `v0'` in `lenv0`: δ unfolds `one`, then β. -/
+theorem lbev : LBEval defaultFlags lenv0 t0 v0' :=
+  .beta (.delta rfl rfl (.atom rfl)) (.atom rfl) (.atom rfl)
+
+/-- `v0` erases to `v0'`. -/
+theorem herv : Erases venv0 [] σ0.isAtom (RecIn lenv0) [] v0 v0' :=
+  .lam (.const venv0_A rfl rfl) (.app (.lam (.const venv0_A rfl rfl) .bvar) .bvar)
+
+/-- `erases_correct` on NV-1: every hypothesis is a checked term. Reference: `erases_correct`
+(`MR erasure/theories/ErasureCorrectness.v:51`). -/
+theorem concl : ∃ v', Erases venv0 [] σ0.isAtom (RecIn lenv0) [] v0 v' ∧
+    LBEval defaultFlags lenv0 t0 v' :=
+  erases_correct henv hsub hinj hlc he her hdeps hblocks hev
+
+/-- Every witness of `concl` is `v0'`, a λ: λ□ evaluation is deterministic and `t0` evaluates to
+`v0'` (`lbev`). Reference: `eval_deterministic` (`MR erasure/theories/EWcbvEval.v:1375`). -/
+theorem witness {v' : LBTerm} (h : Erases venv0 [] σ0.isAtom (RecIn lenv0) [] v0 v' ∧
+    LBEval defaultFlags lenv0 t0 v') : v' = v0' :=
+  LBEval.deterministic h.2 lbev
 
 end EraseProof.Test.NV1
