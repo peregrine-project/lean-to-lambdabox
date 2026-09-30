@@ -552,7 +552,12 @@ The blueprint renders this register.
   admissible targets of recursive constants do not mention the variable (`EraseProof.RcFresh`); and
   `EraseProof.substFVars`, a simultaneous substitution of free variables, with
   `EraseProof.Erases.substRc`: substituting free variables on the λ□ side that the source term does
-  not contain keeps the relation, with the admissible targets substituted.
+  not contain keeps the relation, with the admissible targets substituted. And
+  `proof/EraseProof/Core/Frame.lean`, `EraseProof.visit_agree` and `EraseProof.visitAppArgs_agree`:
+  over closed declarations, the traversal at the pure backend runs alike under two lists of locals
+  that agree on the free variables the visited term reaches through the locals' types and values;
+  with `EraseProof.visitMutual_agree`: the erasure of a constant's declaration does not depend on
+  the caller's locals.
 - **Reference artifact:** MetaRocq's erasure function `erase`
   (`erasure/theories/ErasureFunction.v:989`) and erasure relation `erases`
   (`erasure/theories/Extract.v:88`; MetaCoq paper §7.2–§7.3, Figs. 17–18), which work on de Bruijn
@@ -567,7 +572,10 @@ The blueprint renders this register.
   `EraseProof.LocalsOK` gives the locals their meaning in the model. A constant's body is erased
   under the locals of the place where the traversal first meets the constant, not in the empty
   context: `EraseProof.Pure.isErasable_agree` equates the oracle's answers under the two, since a
-  declaration's body is closed (`EraseProof.ClosedDecls`) and so reaches no local. The erasure
+  declaration's body is closed (`EraseProof.ClosedDecls`) and so reaches no local, and
+  `EraseProof.visitMutual_agree` equates the traversal's runs. A `let` value is erased under the
+  `let`'s own local, not in the outer context; `EraseProof.visit_agree` equates the runs under the
+  two, since the value does not mention that local. The erasure
   relation is stated on these open terms: a free variable erases to itself
   (`EraseProof.Erases.fvar`, MetaRocq's `erases_tVar`, which applies to no typed term there), and
   where the relation judges erasability (`EraseProof.ErasableS`), the free-variable entries of the
@@ -583,11 +591,13 @@ The blueprint renders this register.
   binder with a fresh free variable pushed onto the locals, the oracle is called with these
   locals, `abstract` and `toBvar` (`LeanToLambdaBox/Basic.lean`) close the erased body, `mkDef`
   closes the members of a block of mutual definitions, which the traversal refers to by free
-  variables, and `visitMutual` erases a constant's body without resetting the caller's locals.
+  variables, `visitLet` erases a `let`'s value after pushing the `let`'s local, and `visitMutual`
+  erases a constant's body without resetting the caller's locals.
 - **What was considered instead:** a de Bruijn rewrite of the traversal, a large shipping change
   that no output needs (spec §5.1 allows only strictly necessary shipping changes); resetting the
-  locals in `visitMutual`, a shipping change that the frame lemma
-  `EraseProof.Pure.isErasable_agree` makes unnecessary; stating the binder lemma with the
+  locals in `visitMutual`, or visiting a `let` value before pushing the `let`'s local, shipping
+  changes that the frame lemmas `EraseProof.Pure.isErasable_agree`, `EraseProof.visit_agree` and
+  `EraseProof.visitMutual_agree` make unnecessary; stating the binder lemma with the
   traversal's non-shifting `abstract`, which undoes the opening only on terms without loose
   indices beyond the variable's depth, a condition the lemma would then need as an extra
   hypothesis.
