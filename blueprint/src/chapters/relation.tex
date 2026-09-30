@@ -509,7 +509,7 @@ erased body. The $\beta$ and $\zeta$ cases of the simulation use it.
   (\code{erasure/theories/ESubstitution.v}); \code{IsErasable.inst} is the depth-0 case.
 \end{lemma}
 \begin{proof}
-  \uses{def:EraseProof-IsErasable}
+  \uses{def:EraseProof-IsErasable, lem:EraseProof-IsErasable-inst}
   \leanok
   \lead{Idea} lean4lean's \code{HasType.instN} and \code{HasType.weakN} on the type and its sort.
 \end{proof}
@@ -551,7 +551,7 @@ erased body. The $\beta$ and $\zeta$ cases of the simulation use it.
 \end{lemma}
 \begin{proof}
   \uses{lem:EraseProof-Erases-weakBV, lem:EraseProof-IsErasable-instN, lem:EraseProof-TrS-inst,
-    lem:EraseProof-LBEval-closed}
+    lem:EraseProof-LBEval-closed, lem:EraseProof-TrS-closed}
   \leanok
   \lead{Idea} Induction on \code{Erases}; the substituted variable by \code{Erases.weakBV};
   recursive targets are closed, so \code{csubst} fixes them.
@@ -574,7 +574,8 @@ erased body. The $\beta$ and $\zeta$ cases of the simulation use it.
   Lemma 16.
 \end{lemma}
 \begin{proof}
-  \uses{lem:EraseProof-Erases-instN, lem:EraseProof-TrS-inst, lem:EraseProof-IsErasable-inst}
+  \uses{lem:EraseProof-Erases-instN, lem:EraseProof-TrS-inst, lem:EraseProof-IsErasable-inst,
+    lem:EraseProof-ProgEnv-ordered}
   \leanok
   \lead{Idea} A body erased to $\Box$ stays erasable (\code{IsErasable.inst}); every other body by
   \code{Erases.instN} at depth 0.
@@ -593,7 +594,7 @@ erased body. The $\beta$ and $\zeta$ cases of the simulation use it.
   with the translation in the role of the typing derivation.
 \end{lemma}
 \begin{proof}
-  \uses{lem:EraseProof-TrS-defeqDFC, lem:EraseProof-TrS-uniq}
+  \uses{lem:EraseProof-TrS-defeqDFC, lem:EraseProof-TrS-uniq, lem:EraseProof-TrS-det}
   \leanok
   \lead{Idea} Induction on \code{Erases}; translations move by \code{TrS.defeqDFC} and
   \code{TrS.uniq}.
@@ -614,7 +615,8 @@ erased body. The $\beta$ and $\zeta$ cases of the simulation use it.
   substituted term of a \code{vdef} entry.
 \end{lemma}
 \begin{proof}
-  \uses{lem:EraseProof-Erases-weakBV, lem:EraseProof-TrS-inst_let}
+  \uses{lem:EraseProof-Erases-weakBV, lem:EraseProof-TrS-inst_let, lem:EraseProof-Erases-instN,
+    lem:EraseProof-LBEval-closed, lem:EraseProof-TrS-closed}
   \leanok
   \lead{Idea} Induction on \code{Erases}, as \code{Erases.instN}.
 \end{proof}
@@ -642,7 +644,8 @@ erased body. The $\beta$ and $\zeta$ cases of the simulation use it.
   \code{erases\_subst0}; Letouzey Lemma 16.
 \end{lemma}
 \begin{proof}
-  \uses{lem:EraseProof-Erases-defeqDFC, lem:EraseProof-Erases-instN_let}
+  \uses{lem:EraseProof-Erases-defeqDFC, lem:EraseProof-Erases-instN_let,
+    lem:EraseProof-ProgEnv-ordered, lem:EraseProof-ProgEnv-wf}
   \leanok
   \lead{Idea} Convert the context to the one whose value is \code{a}'s translation
   (\code{Erases.defeqDFC}), then substitute (\code{Erases.instN\_let}).
@@ -654,4 +657,6 @@ erased body. The $\beta$ and $\zeta$ cases of the simulation use it.
   fixpoints: the fragment has none (DV-6).
 \item \lead{Caveat} Binders are opened with free variables (locally nameless), unlike MetaRocq's de
   Bruijn \code{erase} (DV-13).
+\item \lead{Caveat} \code{LBEval.closed} has no consumer on the path to \code{erase\_correct}; the
+  closedness of the environment is the hypothesis \code{hlc} (Chapter~\ref{chap:open}).
 \end{itemize}

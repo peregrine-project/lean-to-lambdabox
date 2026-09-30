@@ -5,9 +5,9 @@
 \item \lead{Goal} State what is proved, what is trusted without proof, what a result inherits from
   lean4lean, and what the eraser is made of.
 \item \lead{Main results} The model side, the source and target semantics, erasability and the
-  erasure relation with their lemmas, soundness of the pure oracle, and the relation-level
-  simulation \code{erases\_correct}. \hl{No statement about the traversal or \code{\#erase} is
-  proved}: \code{erasePure\_erases} and the final theorem are planned nodes.
+  erasure relation with their lemmas, soundness of the pure oracle, the relation-level simulation
+  \code{erases\_correct}, and the function-level lemma \code{erasePure\_erases} about the shipping
+  traversal. \hl{The final theorem \code{erase\_correct} about \code{\#erase} is a planned node}.
 \item \lead{Status} \stProved{} the landed nodes; \stInherited{} the lean4lean sorries that some
   of them reach; \stShipping{} the shipping code, described by definition nodes.
 \item \lead{Lean files} \code{proof/EraseProof/} (the verification library \code{EraseProof});
@@ -34,12 +34,16 @@
   \item soundness of the shipping oracle (\code{Pure.isErasable\_sound}), its answer on atoms
         (\code{Pure.isErasable\_atom}) and its frame lemma \code{Pure.isErasable\_agree}
         (Chapter~\ref{chap:oracle});
-  \item the instances NV-1, NV-2, NV-5, NV-6, NV-7 of \code{erases\_correct}, the bridge tests,
-        the determinism of $\lambda_\Box$ evaluation, the register tests and two instances of
-        oracle soundness (Chapter~\ref{chap:tests}).
+  \item the shipping core: the closure lemmas \code{collectDeps\_spec} and
+        \code{collectDeps\_sub}, the routing lemma, the traversal's frame lemma
+        \code{visit\_agree}, its state invariant, \code{erasePure\_erases} and the entry-point
+        lemma \code{eraseEntry\_pure} (Chapter~\ref{chap:core});
+  \item the instances NV-1 to NV-7 of \code{erases\_correct}, the bridge tests, the determinism of
+        $\lambda_\Box$ evaluation, the register tests and two instances of oracle soundness
+        (Chapter~\ref{chap:tests}).
   \end{itemize}
-\item \lead{Planned} every node marked \stPlanned: the statements of the approved design, under
-  their planned names; the audit checks that none of these declarations exists.
+\item \lead{Planned} every node marked \stPlanned: the final theorem \code{erase\_correct}, under
+  its planned name; the audit checks that its declarations do not exist.
 \item \lead{Axioms} a proved node depends on \code{propext}, \code{Classical.choice},
   \code{Quot.sound}, and on \code{sorryAx} only through the lean4lean sorries it lists
   (Section~\ref{sec:trust-inherited}); \hl{no axiom of lean4lean} is allowed.

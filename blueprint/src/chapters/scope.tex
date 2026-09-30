@@ -7,8 +7,9 @@
 \item \lead{Main results} The scope is the predicate \code{InScope}: a closed Lean term, well
   typed through \code{TrS} in the model of an inductive-free program environment that the eraser's
   view agrees with.
-\item \lead{Status} \stPlanned{} \code{ViewAgrees} and \code{InScope}; their parts \code{TrS} and
-  \code{ProgEnv} are proved definitions (Chapter~\ref{chap:model}).
+\item \lead{Status} \stProved{} every node: \code{ViewAgrees}, \code{InScope}, and their parts
+  \code{TrS} and \code{ProgEnv} (Chapter~\ref{chap:model}). The routing lemma
+  \code{collectDeps\_not\_outOfFragment} is in Chapter~\ref{chap:core}.
 \item \lead{Reference} MetaRocq \code{erase\_correct}'s hypotheses \code{wf\_ext},
   \code{Sigma} $\sim$\code{\_ext X}, \code{welltyped}; lean4lean \code{TrEnv'}.
 \end{itemize}
@@ -99,8 +100,9 @@ Unique typing, injectivity & theorems resting on L1--L5, and the sorries L4, L6 
 \begin{definition}[The view agrees with the program]
   \label{def:EraseProof-ViewAgrees}
   \lean{EraseProof.ViewAgrees}
-  \planned
+  \leanok
   \uses{def:Erasure-EnvView}
+  \srcloc{proof/EraseProof/Core/Scope.lean}{20}
   \lead{In short} \code{ViewAgrees view P}: \hl{\code{view.find?} returns each declaration of
   \code{P} under its name}.
   \lead{Reference} \code{Sigma} $\sim$\code{\_ext X} (\code{abstract\_env\_ext\_rel}), a
@@ -110,8 +112,9 @@ Unique typing, injectivity & theorems resting on L1--L5, and the sorries L4, L6 
 \begin{definition}[The scope]
   \label{def:EraseProof-InScope}
   \lean{EraseProof.InScope}
-  \planned
+  \leanok
   \uses{def:EraseProof-ViewAgrees, def:EraseProof-ProgEnv, def:EraseProof-TrS}
+  \srcloc{proof/EraseProof/Core/Scope.lean}{26}
   \lead{In short} \code{InScope view e}: \hl{some program environment \code{P} with model
   \code{venv}} agrees with the view, and \code{e} translates in \code{venv}:
   \code{ProgEnv P venv}, \code{ViewAgrees view P}, \code{TrS venv Us [] e e'}.

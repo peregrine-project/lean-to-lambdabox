@@ -7,9 +7,10 @@
   Chapter~\ref{chap:scope}.
 \item \lead{Status} \stProved{} the model side, the source semantics with subject reduction,
   erasability, $\lambda_\Box$ evaluation, the erasure relation with its dependencies and lemmas,
-  soundness of the pure oracle, and the relation-level simulation \code{erases\_correct}.
+  soundness of the pure oracle, the relation-level simulation \code{erases\_correct}, and the
+  soundness of the shipping traversal \code{erasePure\_erases} with the entry-point lemma.
   \stShipping{} the verified path of \code{\#erase}: \code{\#erase} runs it on programs in the
-  fragment. \stPlanned{} \hl{soundness of the traversal and the final theorem}.
+  fragment. \stPlanned{} \hl{the final theorem \code{erase\_correct}}, which composes them.
 \item \lead{Lean files} \code{LeanToLambdaBox/} (the shipping code) and \code{proof/} (the Lake
   package \code{EraseProof}, the verification library).
 \item \lead{Registers} \code{doc/SHIPPING-CHANGES.md} (Chapter~\ref{chap:shipping-changes}) and

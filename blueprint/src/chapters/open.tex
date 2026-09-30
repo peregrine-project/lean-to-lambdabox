@@ -3,9 +3,9 @@
 \section*{At a glance}
 \begin{itemize}
 \item \lead{Goal} List what is not done.
-\item \lead{Status} \stOpen{} \hl{every statement about the traversal and \code{\#erase}}, three
-  divergence entries, the non-vacuity instances NV-3 and NV-4, and NV-1's \code{hview},
-  \code{hrun} and instance of \code{erase\_correct}.
+\item \lead{Status} \stOpen{} \hl{the final theorem \code{erase\_correct}}, the only planned node;
+  NV-1's \code{hrun} and its instance of \code{erase\_correct}; the divergence entry DV-19; three
+  roots without a consumer; the shipping defects of Section~\ref{sec:open-shipping}.
 \end{itemize}
 
 \section{Planned statements}\label{sec:open-planned}
@@ -16,12 +16,13 @@ chapters by \code{blueprint/scripts/audit.py}.
 \input{generated/planned}
 
 \begin{itemize}
-\item \lead{Not stated} the state invariant of \code{erasePure\_erases}, fixed after the review of
-  the traversal; the step lemmas of \code{erasePure\_erases}; the non-vacuity instances NV-3 and
-  NV-4 (Section~\ref{sec:tests-instances}).
-\item \lead{Adversarial reviews} before their proofs: the traversal's frame lemmas and state
-  invariant; the closing of recursive blocks.
-\item \lead{\code{hrun} of NV-1} by symbolic evaluation of the traversal at the pure backend.
+\item \lead{\code{erase\_correct}} composes proved nodes: \code{eraseEntry\_pure},
+  \code{collectDeps\_spec}, \code{collectDeps\_sub}, \code{erasePure\_erases},
+  \code{SrcEval.restrict}, \code{erases\_correct} and \code{Erases.congr\_ac}
+  (Chapter~\ref{chap:final}).
+\item \lead{\code{hrun} of NV-1} \code{eraseEntry view0 \{\} e0 = pure (p0, [])}, by symbolic
+  evaluation of the traversal at the pure backend; with it, the instance of \code{erase\_correct}
+  on NV-1 (Section~\ref{sec:tests-instances}).
 \end{itemize}
 
 \section{Roots of the proof package}\label{sec:open-roots}
@@ -33,40 +34,49 @@ form is the single root \code{erase\_correct}. The table is generated from
 
 \input{generated/roots}
 
+\begin{itemize}
+\item \lead{Roots without a consumer} \code{LBEval.closed}, \code{visitAppArgs\_agree} and
+  \code{visitMutual\_agree}: no proved or planned statement uses them. \code{ROOTS.txt} names
+  \code{erase\_correct} as a placeholder consumer (unit O-4), and the planned proof of
+  \code{erase\_correct} does not use them.
+\item \lead{Their removal} the plan drops the three theorems and the helpers only
+  \code{LBEval.closed} uses (decision O-13, stub change C-11); the documented commit keeps them.
+\end{itemize}
+
 \section{Shipping defects}\label{sec:open-shipping}
 
 \begin{itemize}
 \item \lead{Reported, not fixed} the shipping-change register lists the defects it reports without
   fixing them (Section~\ref{reg:reported-not-fixed}).
+\item \lead{Unrecorded dead code} \code{mkCase} in \code{LeanToLambdaBox/Erasure.lean} has no
+  caller, and its result type names \code{EraseM}, which Lean binds as an auto-bound implicit; the
+  register has no entry for it.
 \item \lead{Peregrine on the pure path} of the 346 \code{validate} and \code{eval} checks on the
   173 in-fragment corpus outputs, 10 fail: unescaped names (R-2), a fixpoint body that is not a
-  $\lambda$ (R-11), and an evaluation that reaches an axiom (register entry S-21).
+  $\lambda$ (R-11), and an evaluation that reaches an axiom (register entry S-21). Check C11 of
+  \code{proof/scripts/check.sh} runs these checks and excludes exactly these 10.
 \end{itemize}
 
 \section{Divergence entries}\label{sec:open-divergences}
 
 The register (Chapter~\ref{chap:divergences}) holds the entries of the landed artifacts. The
-approved design has these further divergences, each an entry once its artifact lands.
+approved design has one further divergence, an entry once its artifact lands.
 
 \begin{tabular}{lp{0.3\linewidth}p{0.52\linewidth}}
 \toprule
 Id & Artifact & What differs \\
 \midrule
-DV-9 & outputs of \code{erasePure} & not \code{expanded\_eprogram} \\
-DV-17 & \code{erasePure}, \code{erase\_correct} & fuel; partial correctness \\
 DV-19 & \code{erase\_correct} & no first-order corollary \\
 \bottomrule
 \end{tabular}
 
-Register entries whose row in the approved design names artifacts that the entry does not cite:
+Register entries whose row in the approved design names a planned artifact:
 
 \begin{tabular}{lp{0.4\linewidth}p{0.4\linewidth}}
 \toprule
-Id & Landed, not cited & Planned \\
+Id & Cited & Planned \\
 \midrule
-DV-3 & \code{SubEnv} & the use of \code{collectDeps} in the core lemmas \\
-DV-6 & \code{ProgEnv}, \code{SrcEval}, \code{Erases} & -- \\
-DV-13 & -- & \code{closeFix}, \code{closeFix\_substl}, \code{abstract\_eq\_abstract1},
-  \code{visit\_agree}, \code{visitAppArgs\_agree}, \code{visitMutual\_agree} \\
+DV-17 & the oracle's soundness theorems, \code{erasePure\_erases}, \code{traversal\_spec} &
+  \code{erase\_correct} (partial correctness) \\
 \bottomrule
 \end{tabular}
