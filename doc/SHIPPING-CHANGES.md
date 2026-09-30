@@ -93,8 +93,8 @@ extra or different. With `PEREGRINE=<path to the peregrine binary>`, it also run
 `-- peregrine: validate <file> [<option>...]` and `-- peregrine: eval <file> [<option>...]` of each
 test; each must succeed and, when `tests/regress/expected-peregrine/<name>/<file>.<verb>` exists,
 print exactly that. `scripts/regress.sh --update [TEST...]` rewrites the expected files from the
-current checkout. CI (`.github/workflows/build.yml`) runs `scripts/regress.sh` after the build,
-without peregrine.
+current checkout. CI (`.github/workflows/build.yml`, on pushes to `main` and `shipping` and on
+pull requests) runs `scripts/regress.sh` after the build, without peregrine.
 
 The pure path of the eraser (`Erasure.erasePure`, S-20), which `#erase` takes on the programs in the
 fragment (S-21), is compared with the `Meta` path (`Erasure.erase`) on the corpus examples by
@@ -1889,6 +1889,30 @@ the calls at which the two oracles answer differently. It must equal
   addresses in the backtraces of the 4 `PANIC` messages of `Defects.lean`.
 - **Regression test:** the change does not alter behaviour, so no test fails before it, and no new
   test is added. The 20 tests of `tests/regress/` and `scripts/pure-harness.sh` pass unchanged.
+
+## S-23: CI builds and tests the `shipping` branch when it is pushed
+
+- **Commit:** the commit whose subject starts with `shipping(S-23):`
+  (`git log --grep='^shipping(S-23):'`).
+- **Files and functions:**
+  - `.github/workflows/build.yml`: the `push` trigger lists the branch `shipping` next to `main`.
+  - `doc/SHIPPING-CHANGES.md`: this entry; the section "Regression tests" says when CI runs.
+- **Why necessary:** the workflow ran on pushes to `main` and on pull requests only, so a push of
+  `shipping`, the branch that holds every change of this register, built nothing and ran neither
+  `scripts/regress.sh` nor `scripts/pure-harness.sh`: a change that breaks the build, a
+  regression test or the harness was caught only after `shipping` was merged elsewhere.
+- **Behaviour before:** the `on.push.branches` list of `build.yml` is `['main']`; GitHub starts no
+  run of the workflow for a push of `shipping`.
+- **Behaviour after:** the list is `['main', 'shipping']`; a push of `shipping` runs the build, the
+  regression tests and the harness, as a push of `main` does. The emitted programs do not change.
+- **Effect on emitted .ast (corpus):** byte-identical for all 712 files; `scripts/corpus-diff.sh`
+  against the corpus of S-22 reports 712 identical. The corpus logs are identical except for the
+  addresses in the backtraces of the 4 `PANIC` messages of `Defects.lean` and a job count of `lake`
+  in the log of the pruned benchmarks (`[18/55]` becomes `[17/24]`: the build of S-22's corpus had
+  recompiled the modules that S-22 edits).
+- **Regression test:** the change concerns CI only, so no test under `tests/regress/` can fail
+  before it; the workflow's own run on a push of `shipping` checks it. The 20 regression tests and
+  `scripts/pure-harness.sh` pass unchanged.
 
 ---
 
