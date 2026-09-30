@@ -1,7 +1,7 @@
 import LeanToLambdaBox
 
 /-!
-Corpus examples inside the verification scope (the checkpoint-1 examples): every constant in the
+Corpus examples inside the verification scope: every constant in the
 dependency closure of each erased term is a definition, theorem, axiom or opaque, and every
 expression in the closure is built from sort/forallE/lam/app/letE/const/bvar only. Each program is
 erased under `{nat := .peano}` to `<name>.peano.ast` and under the default configuration to

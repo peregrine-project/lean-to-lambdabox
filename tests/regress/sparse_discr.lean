@@ -5,7 +5,7 @@ Matches whose discriminant is not a variable and whose sparse `casesOn` uses its
 (register entry S-14). Lean v4.33's match compiler passes the discriminant to the catch-all; the
 eraser binds the discriminant with `let discr := …` and the catch-all uses `discr`, so the
 discriminant is evaluated once:
-- the generic path: `stepN`, and `step`, which matches on its own recursive call (R-29's example:
+- the generic path: `stepN`, and `step`, which matches on its own recursive call (S-14's example:
   `step n` evaluates `step (n - 1)` once, so it takes linear time, not exponential time);
 - the machine `Nat` path (`predSub2`) and the machine `Int` path (`negOr`), which already bind the
   discriminant to `n`; `n` is now bound to `discr`.
