@@ -224,7 +224,7 @@ term's support. A constant's value is therefore erased as in the empty context.
   \lean{EraseProof.LocalsBlind}
   \leanok
   \uses{def:Erasure-PureM, def:Erasure-TravCtx}
-  \srcloc{proof/EraseProof/Core/Frame.lean}{30}
+  \srcloc{proof/EraseProof/Core/Frame.lean}{29}
   \lead{In short} \code{LocalsBlind pc x}: the runs of \code{x} at the pure backend \hl{are the
   same under any two lists of locals}, from any state and reader context.
   \lead{Reference} none (DV-13).
@@ -270,7 +270,7 @@ term's support. A constant's value is therefore erased as in the empty context.
     EraseProof.prepare_yields}
   \leanok
   \uses{def:Erasure-erase, def:EraseProof-LocalsBlind, def:EraseProof-LocalsAgree}
-  \srcloc{proof/EraseProof/Core/Frame.lean}{296}
+  \srcloc{proof/EraseProof/Core/Frame.lean}{295}
   \lead{In short} One unfolding of \code{visitExpr} and \code{visitAppArgs} runs alike under
   agreeing locals; one unfolding of \code{visitMutual}, \code{get\_constant\_kername} and
   \code{visitConst} \hl{does not read the locals}.
@@ -291,11 +291,10 @@ term's support. A constant's value is therefore erased as in the empty context.
 
 \begin{lemma}[Traversal frame]
   \label{lem:EraseProof-visit_agree}
-  \lean{EraseProof.visit_agree, EraseProof.traversal_agree, EraseProof.visitAppArgs_agree,
-    EraseProof.visitMutual_agree}
+  \lean{EraseProof.visit_agree, EraseProof.traversal_agree}
   \leanok
   \uses{def:Erasure-erase, def:Erasure-PureM, def:EraseProof-LocalsAgree}
-  \srcloc{proof/EraseProof/Core/Frame.lean}{399}
+  \srcloc{proof/EraseProof/Core/Frame.lean}{398}
   \lead{In short} With closed declarations, a run of \code{visitExpr} at the pure backend \hl{does
   not depend on the locals the term cannot reach}.
   \begin{itemize}
@@ -303,7 +302,7 @@ term's support. A constant's value is therefore erased as in the empty context.
         \code{FVarsIn S e};
   \item \lead{Then} the runs under \code{ls1} and \code{ls2} are equal;
   \item \code{traversal\_agree}: the property for every function of the traversal, at every fuel;
-        \code{visitAppArgs\_agree}, \code{visitMutual\_agree}: two of its projections.
+        \code{visit\_agree} is its first component.
   \end{itemize}
   \lead{Reference} none: MetaRocq's \code{erase\_constant\_body} erases in the empty context;
   DV-13.
@@ -976,6 +975,4 @@ as \code{tFix defs j}.
   output and no claim.
 \item \lead{Caveat} \code{erasePure\_erases} says nothing about $\eta$-expansion: blocks are
   stored as bare \code{tFix} (DV-9).
-\item \lead{Caveat} \code{visitAppArgs\_agree} and \code{visitMutual\_agree} have no consumer on
-  the path to \code{erase\_correct} (Chapter~\ref{chap:open}).
 \end{itemize}

@@ -5,21 +5,23 @@
 \item \lead{Goal} Show that the hypotheses of the main statements can be discharged on concrete
   programs, relate the restated relations to lean4lean's, and pin the design choices of the
   divergence register by tests.
-\item \lead{Main results} Seven instances of \code{erases\_correct} (NV-1 to NV-7), each with a
-  unique non-$\Box$ witness, NV-3 and NV-4 through recursive constants; \code{TrS} and
+\item \lead{Main results} The final theorem \code{erase\_correct} on NV-1, through the
+  kernel-checked run of \code{\#erase}; seven instances of \code{erases\_correct} (NV-1 to NV-7),
+  each with a unique non-$\Box$ witness, NV-3 and NV-4 through recursive constants; \code{TrS} and
   \code{ProgEnv} are instances of lean4lean's \code{TrExprS} and \code{TrEnv'}; the register
   tests of DV-11 and DV-18; two instances of \code{Pure.isErasable\_sound}.
-\item \lead{Status} \stProved{} every node; \stOpen{} NV-1's \code{hrun} and the instances of
-  \code{erasePure\_erases} and \code{erase\_correct} (Section~\ref{sec:tests-instances}).
+\item \lead{Status} \stProved{} every node; \stInherited{} the instances of \code{erases\_correct}
+  and \code{erase\_correct} inherit L1--L6 from their theorem, those of oracle soundness L1--L5,
+  and the bridge tests \code{TrProj}.
 \item \lead{Lean files}
-  \code{proof/EraseProof/Test/\{NV1, NV2, NV3, NV4, NV5, NV6, NV7, Bridge, LBEval, Atoms,
+  \code{proof/EraseProof/Test/\{NV1, NV1Run, NV2, NV3, NV4, NV5, NV6, NV7, Bridge, LBEval, Atoms,
   Oracle\}.lean}; namespace \code{EraseProof.Test}.
 \end{itemize}
 
 \section{Non-vacuity instance NV-1}\label{sec:tests-nv1}
 
 \code{erases\_correct} on \code{one (fun a : A => a)}: the source evaluation takes a $\delta$, a
-$\beta$ and three atom steps.
+$\beta$ and three atom steps. Section~\ref{sec:tests-nv1-run} runs \code{\#erase} on it.
 
 \begin{definition}[The program of NV-1]
   \label{def:EraseProof-Test-NV1-decls0}
@@ -121,6 +123,156 @@ $\beta$ and three atom steps.
   \uses{thm:EraseProof-erases_correct, lem:EraseProof-Test-LBEval-deterministic}
   \leanok
   \lead{Idea} Apply the theorem; \code{witness} by determinism of $\lambda_\Box$ evaluation; the
+  footprint is the theorem's.
+\end{proof}
+
+\section{NV-1 through \texorpdfstring{\code{\#erase}}{\#erase}}\label{sec:tests-nv1-run}
+
+\code{erase\_correct} on NV-1: the kernel checks the run of \code{\#erase}'s entry point on
+\code{e0}, one traversal call at a time, and the final theorem applies with every hypothesis a
+checked term.
+
+\begin{definition}[The run data of NV-1]
+  \label{def:EraseProof-Test-NV1-p0}
+  \lean{EraseProof.Test.NV1.p0, EraseProof.Test.NV1.decls0', EraseProof.Test.NV1.stRun,
+    EraseProof.Test.NV1.lS, EraseProof.Test.NV1.lZ, EraseProof.Test.NV1.lA}
+  \leanok
+  \uses{def:EraseProof-Test-NV1-decls0, def:EraseProof-Test-NV1-lenv0, def:ASTType,
+    def:Erasure-EraseT, def:Erasure-TravCtx, def:EraseProof-ExprSpec}
+  \srcloc{proof/EraseProof/Test/NV1Run.lean}{320}
+  \lead{In short} \code{p0 = untyped lenv0 (some t0)}: \hl{the program \code{\#erase} emits for
+  NV-1}.
+  \begin{itemize}
+  \item \code{decls0'}: the closure of \code{e0}, in \code{collectDeps}' order \code{A},
+        \code{CN}, \code{one};
+  \item \code{stRun}: the traversal state after the run, with \code{one} registered and the
+        $\lambda_\Box$ environment \code{lenv0};
+  \item \code{lS}, \code{lZ}, \code{lA}: the locals of the binders \code{s}, \code{z}, \code{a},
+        at the counter's first three variables.
+  \end{itemize}
+\end{definition}
+
+\begin{lemma}[NV-1: the closure and the route]
+  \label{lem:EraseProof-Test-NV1-hcollect}
+  \lean{EraseProof.Test.NV1.hcollect, EraseProof.Test.NV1.eraseEntry_of_erasePure}
+  \leanok
+  \uses{def:Erasure-collectDeps, def:Erasure-eraseEntry, def:Erasure-erasePure,
+    def:EraseProof-Test-NV1-decls0, def:EraseProof-Test-NV1-p0}
+  \srcloc{proof/EraseProof/Test/NV1Run.lean}{28}
+  \lead{In short} \code{collectDeps view0 e0 = ok decls0'}, so \hl{\code{eraseEntry} on NV-1
+  returns what \code{erasePure} returns over \code{decls0'}}.
+  \lead{Reference} the environment of \code{erase\_global\_deps}
+  (\code{erasure/theories/ErasureFunction.v}).
+\end{lemma}
+\begin{proof}
+  \uses{def:Erasure-collectDeps}
+  \leanok
+  \lead{Idea} \code{hcollect} by kernel evaluation (\code{rfl}); the route by unfolding
+  \code{eraseEntry} and \code{route} at \code{hcollect}.
+\end{proof}
+
+\begin{lemma}[Unfolding the traversal at the pure backend]
+  \label{lem:EraseProof-Test-NV1-oracle_keep}
+  \lean{EraseProof.Test.NV1.oracle_keep, EraseProof.Test.NV1.visitExpr_fvar_run,
+    EraseProof.Test.NV1.visitExpr_lam_run, EraseProof.Test.NV1.visitAppArgs_one_run,
+    EraseProof.Test.NV1.visitExpr_appFVar_run, EraseProof.Test.NV1.visitConst_run,
+    EraseProof.Test.NV1.visitExpr_constApp_run, EraseProof.Test.NV1.get_constant_kername_run,
+    EraseProof.Test.NV1.visitMutual_one_run}
+  \leanok
+  \uses{def:Erasure-erase, def:Erasure-PureM}
+  \srcloc{proof/EraseProof/Test/NV1Run.lean}{46}
+  \lead{In short} One equation per traversal call: from the runs of its callees and \hl{the
+  oracle's answer \code{false}}, the call returns the erased term.
+  \begin{itemize}
+  \item \code{oracle\_keep}: after the answer \code{false}, \code{visitExpr} continues with its
+        case branch;
+  \item \code{visitExpr\_\{fvar, lam, appFVar, constApp\}\_run}, \code{visitAppArgs\_one\_run},
+        \code{visitConst\_run}: a variable, a $\lambda$, an application of a variable or of a
+        constant;
+  \item \code{get\_constant\_kername\_run}: an unregistered constant runs \code{visitMutual} and
+        returns its kername;
+  \item \code{visitMutual\_one\_run}: \code{one}'s value is erased and registered as a constant.
+  \end{itemize}
+  \lead{Reference} the \code{tVar}, \code{tLambda}, \code{tApp}, \code{tConst} cases of
+  \code{erase}, and \code{erase\_global\_deps} (\code{erasure/theories/ErasureFunction.v}).
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-visitLambda_agree, lem:EraseProof-visitExpr_box,
+    lem:EraseProof-visitExpr_lam_step, lem:EraseProof-visitMutual_nonrec_step}
+  \leanok
+  \lead{Idea} Rewrite with the traversal's equation lemmas at \code{PureM} and the run lemmas of
+  the frame and step nodes (\code{runPure\_bind}, \code{isErasable\_run}, \code{fresh\_run},
+  \code{mkLambda\_run}, \code{name\_occurs\_eq}); the state maps are read by
+  \code{getElem?\_insert\_self}.
+\end{proof}
+
+\begin{lemma}[NV-1: the oracle's answers]
+  \label{lem:EraseProof-Test-NV1-oracle_oneE}
+  \lean{EraseProof.Test.NV1.oracle_oneE, EraseProof.Test.NV1.oracle_lamZ,
+    EraseProof.Test.NV1.oracle_app, EraseProof.Test.NV1.oracle_s, EraseProof.Test.NV1.oracle_z,
+    EraseProof.Test.NV1.oracle_e0, EraseProof.Test.NV1.oracle_lamA,
+    EraseProof.Test.NV1.oracle_a}
+  \leanok
+  \uses{def:Erasure-Pure-isErasable, def:EraseProof-Test-NV1-decls0, def:EraseProof-Test-NV1-p0}
+  \srcloc{proof/EraseProof/Test/NV1Run.lean}{233}
+  \lead{In short} The pure oracle \hl{keeps every term the run visits}: \code{one}'s value and
+  its subterms, \code{e0}, and the argument \code{fun a => a} with its body.
+\end{lemma}
+\begin{proof}
+  \uses{def:Erasure-Pure-isErasable}
+  \leanok
+  \lead{Idea} Kernel evaluation of the oracle (\code{rfl}).
+\end{proof}
+
+\begin{lemma}[NV-1: the run of \texorpdfstring{\code{\#erase}}{\#erase}]
+  \label{lem:EraseProof-Test-NV1-hrun}
+  \lean{EraseProof.Test.NV1.hrun, EraseProof.Test.NV1.hpure, EraseProof.Test.NV1.e0_run,
+    EraseProof.Test.NV1.kername_one_run, EraseProof.Test.NV1.oneE_run,
+    EraseProof.Test.NV1.body_lamZ_run, EraseProof.Test.NV1.body_app_run,
+    EraseProof.Test.NV1.arg_run, EraseProof.Test.NV1.abstract_oneL}
+  \leanok
+  \uses{def:Erasure-eraseEntry, def:Erasure-erasePure, def:EraseProof-Test-NV1-decls0,
+    def:EraseProof-Test-NV1-lenv0, def:EraseProof-Test-NV1-p0}
+  \srcloc{proof/EraseProof/Test/NV1Run.lean}{329}
+  \lead{In short} \code{hrun : eraseEntry view0 \{\} e0 = pure (p0, [])}: \hl{the hypothesis
+  \code{hrun} of \code{erase\_correct}} holds on NV-1.
+  \begin{itemize}
+  \item \code{hpure}: \code{erasePure} over \code{decls0'} returns \code{(p0, [])};
+  \item \code{e0\_run}: \code{visitExpr} on \code{e0} from the empty states returns \code{t0} and
+        \code{stRun}, at every fuel from 14 on;
+  \item the other names: the sub-runs, from \code{s z} up to \code{one}'s value and the argument.
+  \end{itemize}
+  \lead{Reference} \code{erase} and \code{erase\_global\_deps}
+  (\code{erasure/theories/ErasureFunction.v}).
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-Test-NV1-hcollect, lem:EraseProof-Test-NV1-oracle_keep,
+    lem:EraseProof-Test-NV1-oracle_oneE}
+  \leanok
+  \lead{Idea} Compose the unfolding lemmas bottom-up at the oracle's answers; \code{travFuel} is
+  \code{(travFuel - 14) + 14}.
+\end{proof}
+
+\begin{lemma}[NV-1: the instance of \texorpdfstring{\code{erase\_correct}}{erase\_correct}]
+  \label{lem:EraseProof-Test-NV1-final}
+  \lean{EraseProof.Test.NV1.final}
+  \leanok
+  \uses{thm:EraseProof-erase_correct, def:EraseProof-Test-NV1-p0, def:EraseProof-Test-NV1-decls0,
+    def:EraseProof-Test-NV1-lenv0, def:EraseProof-Erases, def:EraseProof-LBEval}
+  \srcloc{proof/EraseProof/Test/NV1Run.lean}{337}
+  \inherited{L1, L2, L3, L4, L5, L6}
+  \lead{In short} \code{final} applies \code{erase\_correct} to \code{henv}, \code{hview},
+  \code{he}, \code{hrun}, \code{hev}, \hl{every hypothesis a checked term}.
+  \begin{itemize}
+  \item \lead{Then} \code{p0 = untyped lenv0 (some t0)}, \code{v0'} erases \code{v0}, and
+        \code{t0} evaluates to \code{v0' = fun z => (fun a => a) z}, the only witness.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{thm:EraseProof-erase_correct, lem:EraseProof-Test-NV1-henv,
+    lem:EraseProof-Test-NV1-hview, lem:EraseProof-Test-NV1-hrun, lem:EraseProof-Test-NV1-concl}
+  \leanok
+  \lead{Idea} Apply the theorem, inject \code{p0}, and fix the value by \code{witness}; the
   footprint is the theorem's.
 \end{proof}
 
@@ -848,16 +1000,18 @@ only witness.
 
 Each instance discharges every hypothesis of a main statement by a checked term, in namespace
 \code{EraseProof.Test.NV}\emph{k}: \code{inst} applies the statement, \code{concl} is its
-conclusion at the exhibited witness, and \code{witness} shows that witness unique. The hypotheses,
-\code{concl} and \code{witness} use the axioms \code{propext}, \code{Classical.choice},
-\code{Quot.sound} only; \code{inst} inherits the statement's lean4lean sorries.
+conclusion at the exhibited witness, and \code{witness} shows that witness unique; NV-1's
+instance of \code{erase\_correct} is \code{final}. The hypotheses, \code{concl} and \code{witness}
+use the axioms \code{propext}, \code{Classical.choice}, \code{Quot.sound} only; \code{inst} and
+\code{final} inherit their theorem's lean4lean sorries.
 
 \begin{tabular}{lp{0.42\linewidth}p{0.36\linewidth}}
 \toprule
 Instance & Program & State \\
 \midrule
-NV-1 & \code{one (fun a : A => a)} & \stProved{} \code{erases\_correct} and \code{hview}
-  (Section~\ref{sec:tests-nv1}); \stOpen{} \code{hrun}, the instance of \code{erase\_correct} \\
+NV-1 & \code{one (fun a : A => a)} & \stProved{} \code{erases\_correct}
+  (Section~\ref{sec:tests-nv1}); \code{erase\_correct}, with \code{hrun} the run of
+  \code{\#erase} (Section~\ref{sec:tests-nv1-run}) \\
 NV-2 & \code{dbl two}, with a \code{let} in \code{dbl} & \stProved{} \code{erases\_correct}
   (Section~\ref{sec:tests-nv2}) \\
 NV-3 & \code{uf one}, unsafe recursion & \stProved{} \code{erases\_correct}
@@ -877,7 +1031,9 @@ oracle & \code{A} and \code{hP} of D1 & \stProved{} both instances of
 \begin{itemize}
 \item \lead{Caveat} The bridge tests depend on \code{TrProj := sorry}; no node outside the tests
   may (Section~\ref{sec:trust-inherited}).
-\item \lead{Caveat} The instances are relation-level: \code{her}, \code{hdeps} and
-  \code{hblocks} are exhibited by hand, not computed by \code{erasePure}; no instance applies
-  \code{erasePure\_erases}.
+\item \lead{Caveat} Only NV-1 runs the eraser. NV-2 to NV-7 are relation-level: \code{her},
+  \code{hdeps} and \code{hblocks} are exhibited by hand, not computed by \code{erasePure}.
+\item \lead{Caveat} The kernel checks NV-1's run of \code{eraseEntry} over the list view
+  \code{view0}. Check C11 runs it over \code{EnvView.ofEnvironment}, compares the printing with
+  \code{p0}'s, and runs Peregrine on it; CI skips C11.
 \end{itemize}
