@@ -234,13 +234,15 @@ The blueprint renders this register.
   `EraseProof.Erases` and the admissible targets `EraseProof.RecIn`: recursion in the erasure
   relation; and `proof/EraseProof/Relation/Deps.lean`: `EraseProof.ErasesBlock`, the recursive
   branch of `EraseProof.ErasesDecl`, and `EraseProof.BlocksErased`: recursion in the λ□
-  environment.
+  environment; and `proof/EraseProof/Simulation/Fix.lean`: `EraseProof.erases_correct_fixAtom`
+  and `EraseProof.erases_correct_fixApp`, the cases of the simulation for the two recursion rules.
 - **Reference artifact:** PCUIC's fixpoints: the term `tFix`, a value (`atom`,
   `pcuic/theories/PCUICWcbvEval.v:51`), unfolded when applied by `eval_fix` (`:273`) and excluded
   as a head of `eval_app_cong` (`:311`, `isFixApp`); their erasure `erases_tFix`
-  (`erasure/theories/Extract.v:122`); Letouzey Def. 3 (the fixpoint case of 𝓔); and
+  (`erasure/theories/Extract.v:122`); Letouzey Def. 3 (the fixpoint case of 𝓔);
   `globals_erased_with_deps` (`erasure/theories/EDeps.v:594`), which gives every declared constant
-  an erased λ□ declaration whose body has erased dependencies.
+  an erased λ□ declaration whose body has erased dependencies; and the `eval_fix` case of
+  `erases_correct` (`erasure/theories/ErasureCorrectness.v:579-748`).
 - **What differs:** Lean has no fixpoint term; recursion lives in constants. A constant is
   recursive (`EraseProof.RecursiveDecl`) when its block has several members or its value mentions
   its own name in a value position (`EraseProof.OccursV`). `EraseProof.SrcEval` treats a recursive
@@ -274,7 +276,8 @@ The blueprint renders this register.
   `EraseProof.ProgEnv`, whose values are translated in the model that contains the block). The
   eraser compiles a declaration to a member of a λ□ `tFix` exactly when it is not a single
   declaration whose value does not mention its own name (`name_occurs` in `visitMutual`,
-  `LeanToLambdaBox/Erasure.lean`), and λ□ has fixpoint values only for these blocks. For the
+  `LeanToLambdaBox/Erasure.lean`) and is not remapped to an axiom (DV-12), and λ□ has fixpoint
+  values only for these blocks. For the
   source semantics to be simulated, the constants it treats as fixpoints must be exactly these,
   so the split is the eraser's test, which `EraseProof.RecursiveDecl` states on the declaration.
   In a block member's value, the members are constants; in the member's λ□ body, which the
@@ -286,7 +289,14 @@ The blueprint renders this register.
   fixpoint (`eval_fix`), the relation between the member's Lean value and its unfolded λ□ body can
   only come from the λ□ environment: `EraseProof.ErasesBlock` states it, and
   `EraseProof.BlocksErased` gives it for every stored fixpoint, as `globals_erased_with_deps` gives
-  erased bodies for `eval_delta`. A non-recursive constant that `EraseProof.Erases.constRec`
+  erased bodies for `eval_delta`. The `fixApp` case of the simulation
+  (`EraseProof.erases_correct_fixApp`) reads it there (`EraseProof.BlocksErased.unfold`): the
+  head's λ□ value is `□` or the stored `tFix`, never a `tConst` (`EraseProof.LBEval.ne_const`),
+  and the `tFix` unfolds by `eval_fix` with `rarg = 0` and no earlier arguments, where the
+  reference's `eval_fix` case takes the unfolded body from `erases_tFix`. In the `fixAtom` case
+  (`EraseProof.erases_correct_fixAtom`), a recursive constant erased to its `tConst` evaluates by
+  `eval_delta` to the stored `tFix`, its value in λ□, which `EraseProof.Erases.constRec` relates
+  to the constant, the source's value. A non-recursive constant that `EraseProof.Erases.constRec`
   relates to a `tFix` stored at its kername needs it too: the dependencies of that `tFix`
   (`EraseProof.ErasesDeps.fix`) do not lead back to the constant's declaration, so the δ case of
   the simulation (`EraseProof.erases_correct_delta`) reads the declaration's erasure from
