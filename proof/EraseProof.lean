@@ -29,6 +29,7 @@ import EraseProof.Test.Atoms
 import EraseProof.Test.Bridge
 import EraseProof.Test.LBEval
 import EraseProof.Test.NV1
+import EraseProof.Test.NV2
 import EraseProof.Test.Oracle
 import EraseProof.Typing.Abstract
 import EraseProof.Typing.Basic
