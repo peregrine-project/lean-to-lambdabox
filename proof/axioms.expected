@@ -6,32 +6,27 @@
 #             see tools/Report.lean `sorryLabels`, `testOnlySorryLabels`), comma-separated;
 #             `-` for none.
 # proof/scripts/check.sh compares this file with the computed .check/axioms.actual.
-EraseProof.abstract_eq_abstract1 propext,Classical.choice,Quot.sound -
-EraseProof.addAxiom_ok propext,Classical.choice,Quot.sound -
 EraseProof.collectDeps_spec propext,Classical.choice,Quot.sound -
 EraseProof.collectDeps_sub propext,Classical.choice,Quot.sound -
 EraseProof.eraseEntry_pure propext,Classical.choice,Quot.sound -
 EraseProof.erases_correct propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5,L6
-EraseProof.get_constant_kername_ok propext,Classical.choice,Quot.sound -
 EraseProof.isRecursiveDecl_eq propext,Classical.choice,Quot.sound -
 EraseProof.visitAppArgs_agree propext,Classical.choice,Quot.sound -
+EraseProof.visitExpr_app_step propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
+EraseProof.visitExpr_const_step propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
+EraseProof.visitExpr_fvar_step propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
+EraseProof.visitExpr_lam_step propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
+EraseProof.visitExpr_letE_step propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
+EraseProof.visitExpr_mdata_step propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
+EraseProof.visitExpr_other_step propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
 EraseProof.visitMutual_agree propext,Classical.choice,Quot.sound -
-EraseProof.visit_agree propext,Classical.choice,Quot.sound -
+EraseProof.visitMutual_nonrec_step propext,Classical.choice,Quot.sound -
 EraseProof.Erases.congr_ac propext,Classical.choice,Quot.sound -
 EraseProof.Erases.substRc propext,Classical.choice,Quot.sound -
-EraseProof.Erases.uninstantiateN propext,Classical.choice,Quot.sound -
 EraseProof.LBEval.closed propext,Quot.sound -
-EraseProof.LenvExt.refl propext -
-EraseProof.LenvExt.trans propext,Quot.sound -
-EraseProof.Pure.isErasable_atom propext,Quot.sound -
-EraseProof.Pure.isErasable_sound propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
 EraseProof.SrcEval.restrict propext,Classical.choice,Quot.sound -
 EraseProof.StateOK.blocksErased propext,Classical.choice,Quot.sound -
-EraseProof.StateOK.congr propext,Classical.choice,Quot.sound -
 EraseProof.StateOK.empty propext,Classical.choice,Quot.sound -
-EraseProof.StateOK.kername propext,Classical.choice,Quot.sound -
-EraseProof.StateOK.registerDef propext,Classical.choice,Quot.sound -
-EraseProof.TrS.inst_fvar propext,Classical.choice,Quot.sound -
 EraseProof.Test.Atoms.defHead_kept propext -
 EraseProof.Test.Atoms.levelDependent_kept propext -
 EraseProof.Test.Bridge.addConsts_fresh propext,Quot.sound -

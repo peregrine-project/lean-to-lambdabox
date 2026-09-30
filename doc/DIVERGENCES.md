@@ -560,7 +560,13 @@ The blueprint renders this register.
   over closed declarations, the traversal at the pure backend runs alike under two lists of locals
   that agree on the free variables the visited term reaches through the locals' types and values;
   with `EraseProof.visitMutual_agree`: the erasure of a constant's declaration does not depend on
-  the caller's locals.
+  the caller's locals. And `proof/EraseProof/Core/Steps.lean`, `EraseProof.CtxOK`: the context
+  invariant of the traversal's correctness proof, whose locals mirror a context of free-variable
+  entries and whose counter allocates only variables fresh for that context; with the steps
+  `EraseProof.visitExpr_lam_step` and `EraseProof.visitExpr_letE_step`: a binder's body, opened
+  with a fresh variable and erased, is closed by the traversal's `abstract`, and a `let` value is
+  erased under the `let`'s own local; and `EraseProof.visitMutual_nonrec_step`: a constant's value
+  is erased under the caller's locals, as in the empty context.
 - **Reference artifact:** MetaRocq's erasure function `erase`
   (`erasure/theories/ErasureFunction.v:989`) and erasure relation `erases`
   (`erasure/theories/Extract.v:88`; MetaCoq paper §7.2–§7.3, Figs. 17–18), which work on de Bruijn

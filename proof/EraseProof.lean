@@ -3,8 +3,10 @@ import EraseProof.Core.Collect
 import EraseProof.Core.Frame
 import EraseProof.Core.FrameA
 import EraseProof.Core.Glue
+import EraseProof.Core.Order
 import EraseProof.Core.Scope
 import EraseProof.Core.State
+import EraseProof.Core.Steps
 import EraseProof.Env
 import EraseProof.Env.Unfold
 import EraseProof.Erasability
