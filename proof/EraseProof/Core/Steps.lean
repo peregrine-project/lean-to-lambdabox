@@ -17,8 +17,9 @@ that mirror the model context (`CtxOK`). This module proves one step per case of
 each from the statement at smaller fuels (`ih`, `ihM`): a sort, a Π and terms without a
 translation (`visitExpr_other_step`, with the `box` case `visitExpr_box` shared by every step), a
 free variable, a λ, a `let`, an application, a constant, metadata, and `visitMutual` on a
-declaration that is not a recursive definition (`visitMutual_nonrec_step`). The steps for recursive
-declarations and the induction itself are elsewhere.
+declaration that is not a recursive definition (`visitMutual_nonrec_step`). The step for recursive
+declarations is `visitMutual_rec_step` (`Core/Block.lean`), and the induction is `traversal_spec`
+(`Core.lean`).
 
 Reference: `erases_erase` (`MR E/ErasureFunction.v:1228`), case by case over `erase`
 (`MR E/ErasureFunction.v:989`), with `erase_constant_body` (`MR E/ErasureFunction.v:1309`) and
