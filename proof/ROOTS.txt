@@ -6,23 +6,15 @@
 #   <task id>: optional, the unit that lands the consumer.
 # Every declaration of EraseProof outside EraseProof.Test must be reachable from a root; no root
 # may be reachable from another root.
-EraseProof.LBEval.closed EraseProof.erasePure_erases v7-core-main
-EraseProof.visitAppArgs_agree EraseProof.erasePure_erases v7-core-main
-EraseProof.visitMutual_agree EraseProof.erasePure_erases v7-core-main
+# PLAN §9 O-4, pending the arbiter's decision (report prove-v7-core-main): no planned statement
+# uses the next three roots. Their planned consumer erasePure_erases landed without them, and
+# erase_correct does not use them either; it stands below as a placeholder consumer until the
+# decision, so that check C7 still covers every other declaration.
+EraseProof.LBEval.closed EraseProof.erase_correct O-4
+EraseProof.visitAppArgs_agree EraseProof.erase_correct O-4
+EraseProof.visitMutual_agree EraseProof.erase_correct O-4
 EraseProof.SrcEval.restrict EraseProof.erase_correct v8-main
 EraseProof.Erases.congr_ac EraseProof.erase_correct v8-main
 EraseProof.erases_correct EraseProof.erase_correct v8-main
-EraseProof.collectDeps_spec EraseProof.erase_correct v8-main
-EraseProof.collectDeps_sub EraseProof.erase_correct v8-main
-EraseProof.StateOK.empty EraseProof.erasePure_erases v7-core-main
-EraseProof.StateOK.blocksErased EraseProof.erasePure_erases v7-core-main
 EraseProof.eraseEntry_pure EraseProof.erase_correct v8-main
-EraseProof.visitExpr_fvar_step EraseProof.erasePure_erases v7-core-main
-EraseProof.visitExpr_lam_step EraseProof.erasePure_erases v7-core-main
-EraseProof.visitExpr_letE_step EraseProof.erasePure_erases v7-core-main
-EraseProof.visitExpr_app_step EraseProof.erasePure_erases v7-core-main
-EraseProof.visitExpr_const_step EraseProof.erasePure_erases v7-core-main
-EraseProof.visitExpr_mdata_step EraseProof.erasePure_erases v7-core-main
-EraseProof.visitExpr_other_step EraseProof.erasePure_erases v7-core-main
-EraseProof.visitMutual_nonrec_step EraseProof.erasePure_erases v7-core-main
-EraseProof.visitMutual_rec_step EraseProof.erasePure_erases v7-core-main
+EraseProof.erasePure_erases EraseProof.erase_correct v8-main

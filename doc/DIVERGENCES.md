@@ -111,7 +111,10 @@ The blueprint renders this register.
   `proof/EraseProof/Source/Restrict.lean`, `EraseProof.SrcEval.restrict`, with
   `EraseProof.DepClosed` and `EraseProof.ConstsIn`: an evaluation over `P` is an evaluation over
   every sub-environment that is closed under the dependencies of its members and contains the
-  evaluated term's constants.
+  evaluated term's constants. `proof/EraseProof/Core.lean`, `EraseProof.erasePure_erases`, types
+  its term in the model of `P` and relates the eraser's output with the atoms and λ□
+  dependencies of the dependency closure `decls` that `Erasure.collectDeps` computes, a
+  sub-environment of `P` (`EraseProof.collectDeps_sub`).
 - **Reference artifact:** the well-formed global environment `wf_ext Σ`
   (`pcuic/theories/PCUICTyping.v:507`; MetaCoq paper §3.6), a hypothesis of `erases_correct`
   (`erasure/theories/ErasureCorrectness.v:51`), whose declarations are a newest-first list searched
@@ -392,6 +395,43 @@ The blueprint renders this register.
 - **What was considered instead:** requiring λ-bodied members, which excludes in-scope inputs;
   η-expanding non-λ members in the shipping eraser, which changes their output and which the
   theorem does not need (spec §5.1).
+
+### DV-9
+
+- **Our artifact:** `proof/EraseProof/Core.lean`, `EraseProof.erasePure_erases`, the correctness
+  of the outputs of the shipping `Erasure.erasePure` (`LeanToLambdaBox/Erasure/Pure.lean`): the
+  output term is an erasure of the input (`EraseProof.Erases`) with erased dependencies
+  (`EraseProof.ErasesDeps`), in a λ□ environment with erased blocks (`EraseProof.BlocksErased`)
+  and closed bodies (`EraseProof.LenvClosed`); the theorem says nothing about η-expansion. The
+  environment stores a recursive constant as the bare fixpoint `tFix defs j` of its erased block
+  (`EraseProof.ErasesBlock`), with `rarg = 0` and the members' erased values as the bodies.
+- **Reference artifact:** `expanded` (`erasure/theories/EEtaExpandedFix.v:33`) and
+  `expanded_eprogram` (`erasure/theories/EEtaExpandedFix.v:187`), which MetaRocq proves of the
+  outputs of its erasure on η-expanded inputs (`expanded_erase`,
+  `erasure/theories/ErasureFunctionProperties.v:1903`; `expanded_erase_global`, `:1922`) and
+  which its switch from guarded to unguarded fixpoint evaluation takes as a precondition, through
+  `isEtaExp` (`eval_opt_to_target`, `erasure/theories/EEtaExpandedFix.v:1684`); the
+  well-formedness of λ□ fixpoints, whose bodies are λs (`erasure/theories/EWellformed.v:163`).
+- **What differs:** the outputs of `Erasure.erasePure` are not `expanded_eprogram` in general,
+  and `EraseProof.erasePure_erases` does not claim it. A constant body that is a bare `tFix` is
+  never `expanded`: `expanded_tFix` needs `args <> []`
+  (`erasure/theories/EEtaExpandedFix.v:51`) and `expanded_mkApps` excludes fixpoint heads
+  (`:39`; also `isEtaExp_tFix`, `:1504`). A member whose Lean value is not a λ has a λ□ body that
+  is not a λ, which `expanded_tFix` and the well-formedness of fixpoints reject; `peregrine
+  validate` rejects such an output (SHIPPING-CHANGES R-11).
+- **Why it is forced:** Lean has no fixpoint term: recursion lives in constants, which the
+  shipping eraser emits as bare `tFix` blocks stored as the constants' bodies (DV-7), and it
+  erases a member's value as it is (DV-8). An `expanded_eprogram` output needs a shipping change
+  (η-expanding recursive constants at their use sites, and members whose value is not a λ), and
+  shipping changes are made only when strictly necessary (spec §5.1): the theorem is about λ□
+  evaluation (`EraseProof.LBEval`, `eval`), of which expansion is no premise. MetaRocq needs
+  expansion to switch fixpoint evaluation to the unguarded rules; with `rarg = 0`, which every
+  emitted fixpoint has, the guarded rule `eval_fix` (`erasure/theories/EWcbvEval.v:171`) has the
+  premises of the unguarded `eval_fix'` (`:189`), and `eval_fix_value` (`:180`) never applies.
+- **What was considered instead:** η-expanding in the shipping eraser, at the use sites of
+  recursive constants and in members whose value is not a λ: a shipping change that no statement
+  needs (the gap is recorded as SHIPPING-CHANGES R-11); stating `expanded_eprogram` of the
+  output, which is false on the eraser's outputs.
 
 ### DV-10
 
@@ -746,14 +786,19 @@ The blueprint renders this register.
   `EraseProof.Pure.whnf_sound` (`proof/EraseProof/Oracle/Whnf.lean`): the eraser's erasability
   oracle `Erasure.Pure.isErasable` (`LeanToLambdaBox/Erasure/Pure.lean`) and its type inference,
   weak-head reduction and arity test run with fuel, and these theorems state the soundness of
-  their results for every fuel, about the runs that return a result.
+  their results for every fuel, about the runs that return a result. The traversal that erases a
+  term is fuelled in the same way: `EraseProof.erasePure_erases`
+  (`proof/EraseProof/Core.lean`) is about a run of `Erasure.erasePure` that returns a program,
+  and is proved by induction on the traversal's fuel (`EraseProof.traversal_spec`).
 - **Reference artifact:** MetaRocq's erasability test `is_erasableb`
   (`erasure/theories/ErasureFunction.v:894`) and erasure function `erase` (`:989`; MetaCoq paper
   §7.2, Fig. 17): total functions, whose reductions terminate by well-founded recursion under the
   hypothesis `normalization_in` that every well-typed term of every well-formed environment
   related to the abstract one is strongly normalizing (`NormalizationIn`,
   `pcuic/theories/PCUICSN.v:44`; a parameter of `is_erasableb` and of the section of `erase`,
-  `erasure/theories/ErasureFunction.v:969`).
+  `erasure/theories/ErasureFunction.v:969`); the correctness of `erase`, `erases_erase`
+  (`erasure/theories/ErasureFunction.v:1228`), takes the same hypothesis and holds for every
+  input.
 - **What differs:** the oracle's functions recurse on a fuel argument and fail with the error
   `fuel` when it runs out (`Erasure.EraseError`, `LeanToLambdaBox/Erasure/Collect.lean`); on the
   eraser's path the fuel of an oracle call is `Erasure.oracleFuel`. No statement has a
