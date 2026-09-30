@@ -1,7 +1,7 @@
 import LeanToLambdaBox
 
 /-!
-Corpus near-miss programs (checkpoint 1), OUTSIDE the verification scope, for contrast with
+Corpus near-miss programs, OUTSIDE the verification scope, for contrast with
 `Examples.lean`. Each one adds exactly one excluded feature to a Church-numeral program: a Nat
 literal, a structure projection, a match, structural recursion, a quotient, a `partial def`, an
 unassigned metavariable, a universe metavariable. Each program is erased under `{nat := .peano}` to

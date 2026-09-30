@@ -11,14 +11,14 @@ types, literals, projections and metavariables (`EraseError.outOfFragment` other
 
 open Lean
 
--- S-C: decidable equality of kernames, for `findCollision`. Reference: `reflect_kername`
+-- Decidable equality of kernames, for `findCollision`. Reference: `reflect_kername`
 -- (`MR common/theories/Kernames.v:325`).
 deriving instance DecidableEq for ModPath
 deriving instance DecidableEq for Kername
 
 namespace Erasure
 
-/-- Errors of the pure path (S-C, S-D). `outOfFragment` routes `#erase` to the unchanged `Meta`
+/-- Errors of the pure path. `outOfFragment` routes `#erase` to the unchanged `Meta`
 path; the others are errors of `#erase`. Reference: none; MetaRocq's `erase` is total under
 `NormalizationIn` (`MR E/ErasureFunction.v:989 erase`), our run is fuelled (DV-17). -/
 inductive EraseError where
@@ -28,7 +28,7 @@ inductive EraseError where
   | failed (msg : String)
 deriving Inhabited
 
-/-- What the pure path reads about the Lean environment (DESIGN.md Q2): the implementation-side
+/-- What the pure path reads about the Lean environment: the implementation-side
 environment, the counterpart of MetaRocq's abstract environment `X` related to `Σ` by
 `abstract_env_ext_rel` (hypothesis of `MR E/ErasureFunctionProperties.v:657 erase_correct`).
 Built by `EnvView.ofEnvironment`, trusted glue as quoting is in MetaRocq (MC p. 8:5). -/
@@ -37,19 +37,19 @@ structure EnvView where
   isExtern : Name → Bool
   inlineAttr? : Name → Option Compiler.InlineAttributeKind
 
-/-- Trusted glue (DESIGN.md Q2, S-D): the view `#erase` builds from the elaboration environment.
+/-- Trusted glue: the view `#erase` builds from the elaboration environment.
 Reference: none (MetaRocq's quoting is likewise trusted, MC p. 8:5). -/
 def EnvView.ofEnvironment (env : Environment) : EnvView where
   find? := env.find?
   isExtern := Lean.isExtern env
   inlineAttr? := Compiler.getInlineAttribute? env
 
-/-- List lookup of a declaration by name (S-D). Reference: `lookup_env`
+/-- List lookup of a declaration by name. Reference: `lookup_env`
 (`MR common/theories/Environment.v:483`). -/
 def findConst (decls : List ConstantInfo) (c : Name) : Option ConstantInfo :=
   decls.find? (·.name == c)
 
-/-! ## `collectDeps`: the program's closure and the routing criterion (S-C) -/
+/-! ## `collectDeps`: the program's closure and the routing criterion -/
 
 /-- The constants an expression mentions, or the master gap that puts it outside the fragment.
 Reference: `term_global_deps` (`MR E/EAstUtils.v:406`), on the source side. -/
