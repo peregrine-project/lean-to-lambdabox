@@ -7,12 +7,11 @@ The traversal `Erasure.visitExpr` and the functions it calls (`LeanToLambdaBox/E
 at the pure backend `Erasure.PureM` over closed declarations (`EraseProof.ClosedDecls`), give the
 same result under two lists of locals that agree on a set `S` of free variables containing the
 visited term's and closed under the locals' types and values (`EraseProof.LocalsSupport`,
-`EraseProof.LocalsAgree`): `EraseProof.visit_agree` and `EraseProof.visitAppArgs_agree`; the runs of
-`Erasure.visitMutual` do not depend on the locals at all: `EraseProof.visitMutual_agree`. The three
-are corollaries of one induction on the fuel, `EraseProof.traversal_agree`, which assembles the
-steps of `Core/FrameA.lean` with the steps below for `Erasure.visitExpr`, `Erasure.visitAppArgs`,
-`Erasure.visitConst`, `Erasure.get_constant_kername` and `Erasure.visitMutual`. Runs that do not
-read the locals are stated with `EraseProof.LocalsBlind`.
+`EraseProof.LocalsAgree`): `EraseProof.visit_agree`, a corollary of one induction on the fuel,
+`EraseProof.traversal_agree`, which assembles the steps of `Core/FrameA.lean` with the steps below
+for `Erasure.visitExpr`, `Erasure.visitAppArgs`, `Erasure.visitConst`,
+`Erasure.get_constant_kername` and `Erasure.visitMutual`; the runs of the last three do not depend
+on the locals at all (`EraseProof.LocalsBlind`).
 
 Reference: none; MetaRocq erases a constant body in the empty context
 (`MR E/ErasureFunction.v:1309 erase_constant_body`), where this traversal keeps the caller's locals
@@ -397,8 +396,8 @@ theorem traversal_agree (hcl : ClosedDecls pc.decls) (fuel : Nat) :
       visitConstApp_agree (fun _ _ _ => hC _ _ _ _ _ _) hA⟩
 
 /-- Traversal frame: a run of `visitExpr` on a term whose free variables lie in `S` does not
-depend on the locals outside `S`, given closed declarations. Proved jointly with
-`visitAppArgs_agree` and `visitMutual_agree` by fuel induction. Used for a `let` value
+depend on the locals outside `S`, given closed declarations. The first component of
+`traversal_agree`. Used for a `let` value
 (`ls₁ = l :: ls`, `ls₂ = ls`, `S := (· ≠ l.fvarId)`) and a constant body (`ls₂ = []`,
 `S := fun _ => False`). Reference: none; MetaRocq erases a constant body in the empty context
 (`MR E/ErasureFunction.v:1309 erase_constant_body`); DV-13. -/
@@ -409,23 +408,5 @@ theorem visit_agree {S : FVarId → Prop} {pc : PureCtx} {tc : TravCtx} {st : Er
     (visitExpr (m := PureM) fuel e).runPure st { tc with locals := ls₁ } pc ps =
       (visitExpr (m := PureM) fuel e).runPure st { tc with locals := ls₂ } pc ps :=
   (traversal_agree hcl fuel).1 hS hag he
-
-/-- `visit_agree` for `visitAppArgs`. Reference: none (DV-13). -/
-theorem visitAppArgs_agree {S : FVarId → Prop} {pc : PureCtx} {tc : TravCtx}
-    {st : ErasureState} {ps : PureState} {ls₁ ls₂ : List Local} {fuel : Nat} {f : LBTerm}
-    {args : Array Expr} (hcl : ClosedDecls pc.decls) (hS : LocalsSupport S ls₁)
-    (hag : LocalsAgree S ls₁ ls₂) (he : ∀ a ∈ args, FVarsIn S a) :
-    (visitAppArgs (m := PureM) fuel f args).runPure st { tc with locals := ls₁ } pc ps =
-      (visitAppArgs (m := PureM) fuel f args).runPure st { tc with locals := ls₂ } pc ps :=
-  (traversal_agree hcl fuel).2.1 hS hag he
-
-/-- `visit_agree` for `visitMutual`: declarations are closed, so the caller's locals are never
-read. Reference: none; `MR E/ErasureFunction.v:1309 erase_constant_body` erases in the empty
-context (DV-13). -/
-theorem visitMutual_agree {pc : PureCtx} {tc : TravCtx} {st : ErasureState} {ps : PureState}
-    {ls₁ ls₂ : List Local} {fuel : Nat} {n : Name} (hcl : ClosedDecls pc.decls) :
-    (visitMutual (m := PureM) fuel n).runPure st { tc with locals := ls₁ } pc ps =
-      (visitMutual (m := PureM) fuel n).runPure st { tc with locals := ls₂ } pc ps :=
-  (traversal_agree hcl fuel).2.2.1 n st ps tc ls₁ ls₂
 
 end EraseProof

@@ -600,13 +600,13 @@ The blueprint renders this register.
   not contain keeps the relation, with the admissible targets substituted. And
   `proof/EraseProof/Core/Glue.lean`, `EraseProof.abstract_eq_abstract1`: on a term without loose
   indices, the traversal's `abstract` is `EraseProof.abstract1` at index `0`. And
-  `proof/EraseProof/Core/Frame.lean`, `EraseProof.visit_agree` and `EraseProof.visitAppArgs_agree`:
-  over closed declarations, the traversal at the pure backend runs alike under two lists of locals
-  that agree on the free variables the visited term reaches through the locals' types and values;
-  with `EraseProof.visitMutual_agree`: the erasure of a constant's declaration does not depend on
-  the caller's locals. And `proof/EraseProof/Core/Steps.lean`, `EraseProof.CtxOK`: the context
-  invariant of the traversal's correctness proof, whose locals mirror a context of free-variable
-  entries and whose counter allocates only variables fresh for that context; with the steps
+  `proof/EraseProof/Core/Frame.lean`, `EraseProof.visit_agree`: over closed declarations, the
+  traversal at the pure backend runs alike under two lists of locals that agree on the free
+  variables the visited term reaches through the locals' types and values; on a closed term, such
+  as a constant's body, it runs alike under any two lists of locals. And
+  `proof/EraseProof/Core/Steps.lean`, `EraseProof.CtxOK`: the context invariant of the traversal's
+  correctness proof, whose locals mirror a context of free-variable entries and whose counter
+  allocates only variables fresh for that context; with the steps
   `EraseProof.visitExpr_lam_step` and `EraseProof.visitExpr_letE_step`: a binder's body, opened
   with a fresh variable and erased, is closed by the traversal's `abstract`, and a `let` value is
   erased under the `let`'s own local; and `EraseProof.visitMutual_nonrec_step`: a constant's value
@@ -640,10 +640,10 @@ The blueprint renders this register.
   under the locals of the place where the traversal first meets the constant, not in the empty
   context: `EraseProof.Pure.isErasable_agree` equates the oracle's answers under the two, since a
   declaration's body is closed (`EraseProof.ClosedDecls`) and so reaches no local, and
-  `EraseProof.visitMutual_agree` equates the traversal's runs. A `let` value is erased under the
-  `let`'s own local, not in the outer context; `EraseProof.visit_agree` equates the runs under the
-  two, since the value does not mention that local. The erasure
-  relation is stated on these open terms: a free variable erases to itself
+  `EraseProof.visit_agree` equates the traversal's runs on the body. A `let` value is erased
+  under the `let`'s own local, not in the outer context; `EraseProof.visit_agree` equates the runs
+  under the two, since the value does not mention that local. The erasure relation is stated on
+  these open terms: a free variable erases to itself
   (`EraseProof.Erases.fvar`, MetaRocq's `erases_tVar`, which applies to no typed term there), and
   where the relation judges erasability (`EraseProof.ErasableS`), the free-variable entries of the
   lean4lean context give these variables their types. Closing a binder is stated with the
@@ -668,9 +668,9 @@ The blueprint renders this register.
 - **What was considered instead:** a de Bruijn rewrite of the traversal, a large shipping change
   that no output needs (spec §5.1 allows only strictly necessary shipping changes); resetting the
   locals in `visitMutual`, or visiting a `let` value before pushing the `let`'s local, shipping
-  changes that the frame lemmas `EraseProof.Pure.isErasable_agree`, `EraseProof.visit_agree` and
-  `EraseProof.visitMutual_agree` make unnecessary; stating the binder lemma with the
-  traversal's non-shifting `abstract`, which undoes the opening only on terms without loose
+  changes that the frame lemmas `EraseProof.Pure.isErasable_agree` and `EraseProof.visit_agree`
+  make unnecessary; stating the binder lemma with the traversal's non-shifting `abstract`, which
+  undoes the opening only on terms without loose
   indices beyond the variable's depth, a condition the lemma would then need as an extra
   hypothesis.
 
@@ -771,7 +771,7 @@ The blueprint renders this register.
   (`erasure/theories/ErasureFunction.v:996`), which typed terms do not contain (PCUIC's typing has
   no rule for it), so `closed_env` needs no such clause. The block rules cannot fire at the flags
   of `erases_correct`, at which the simulation evaluates; results stated for every flag, such as
-  `EraseProof.LBEval.closed`, are about the relation without them.
+  `EraseProof.LBEval.eq_box_of_headOf`, are about the relation without them.
 - **What was considered instead:** extending `LBTerm` with the missing constructors, a shipping
   change that no output of the eraser needs (spec §5.1 allows only strictly necessary shipping
   changes); stating evaluation on a separate transcription of `term` reached through a translation
