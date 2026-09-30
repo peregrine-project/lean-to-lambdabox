@@ -1,4 +1,5 @@
 import EraseProof.Atoms
+import EraseProof.Core.Block
 import EraseProof.Core.CloseFix
 import EraseProof.Core.Collect
 import EraseProof.Core.Frame

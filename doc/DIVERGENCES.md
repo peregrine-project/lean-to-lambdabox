@@ -276,7 +276,11 @@ The blueprint renders this register.
   (`EraseProof.LenvClosed`) are closed (`EraseProof.RecIn.rcClosed`,
   `proof/EraseProof/Simulation/Cases.lean`), which is why `EraseProof.erases_correct` has the
   hypothesis `hlc`. And `proof/EraseProof/Core/Glue.lean`, `EraseProof.isRecursiveDecl_eq`: the
-  pure backend's recursion test `Erasure.isRecursiveDecl` is `EraseProof.RecursiveDecl`.
+  pure backend's recursion test `Erasure.isRecursiveDecl` is `EraseProof.RecursiveDecl`. And
+  `proof/EraseProof/Core/Block.lean`, `EraseProof.visitMutual_rec_step`: `visitMutual` on a
+  recursive declaration (its test is `EraseProof.RecursiveDecl`, by `EraseProof.visitMutual_test`
+  and `EraseProof.isRecursiveDecl_eq`) erases the whole block and registers member `j` as
+  `tFix defs j` of an erased block (`EraseProof.block_finish`, `EraseProof.ErasesBlock`).
 - **Reference artifact:** PCUIC's fixpoints: the term `tFix`, a value (`atom`,
   `pcuic/theories/PCUICWcbvEval.v:51`), unfolded when applied by `eval_fix` (`:273`) and excluded
   as a head of `eval_app_cong` (`:311`, `isFixApp`); their erasure `erases_tFix`
@@ -573,7 +577,12 @@ The blueprint renders this register.
   loose index beyond the block's binders; and `EraseProof.closeFix_substl`: instantiated by the
   block's fixpoints as `cunfold_fix` does, the closed body is the body with fix variable `xs[j]`
   replaced by `tFix defs j` (`EraseProof.fixTargets`), the substitution that
-  `EraseProof.Erases.substRc` takes.
+  `EraseProof.Erases.substRc` takes. And `proof/EraseProof/Core/Block.lean`: the members of a
+  recursive block are erased with fresh fix variables as the members' admissible targets
+  (`EraseProof.rcBlock`, `EraseProof.body_step`), `mkDef` closes each erased body by
+  `EraseProof.closeFix` (`EraseProof.mkDef_run`), and the stored block has no free variable
+  (`EraseProof.closeFix_hasFVar`); `EraseProof.block_finish` turns the fix variables into the
+  registered fixpoints by `EraseProof.closeFix_substl` and `EraseProof.Erases.substRc`.
 - **Reference artifact:** MetaRocq's erasure function `erase`
   (`erasure/theories/ErasureFunction.v:989`) and erasure relation `erases`
   (`erasure/theories/Extract.v:88`; MetaCoq paper §7.2–§7.3, Figs. 17–18), which work on de Bruijn
