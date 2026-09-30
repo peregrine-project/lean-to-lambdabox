@@ -27,3 +27,5 @@ EraseProof.visitExpr_const_step EraseProof.erasePure_erases v7-core-main
 EraseProof.visitExpr_mdata_step EraseProof.erasePure_erases v7-core-main
 EraseProof.visitExpr_other_step EraseProof.erasePure_erases v7-core-main
 EraseProof.visitMutual_nonrec_step EraseProof.erasePure_erases v7-core-main
+EraseProof.closeFix_closed EraseProof.erasePure_erases v7-core-main
+EraseProof.closeFix_substl EraseProof.erasePure_erases v7-core-main

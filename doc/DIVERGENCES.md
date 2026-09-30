@@ -566,14 +566,23 @@ The blueprint renders this register.
   `EraseProof.visitExpr_lam_step` and `EraseProof.visitExpr_letE_step`: a binder's body, opened
   with a fresh variable and erased, is closed by the traversal's `abstract`, and a `let` value is
   erased under the `let`'s own local; and `EraseProof.visitMutual_nonrec_step`: a constant's value
-  is erased under the caller's locals, as in the empty context.
+  is erased under the caller's locals, as in the empty context. And
+  `proof/EraseProof/Core/CloseFix.lean`, `EraseProof.closeFix`: `mkDef`'s closing loop of the
+  traversal's non-shifting `toBvar`, which turns the fix variable of member `j` of an `m`-member
+  block into `bvar (m-1-j)`; with `EraseProof.closeFix_closed`: a closed body so closed has no
+  loose index beyond the block's binders; and `EraseProof.closeFix_substl`: instantiated by the
+  block's fixpoints as `cunfold_fix` does, the closed body is the body with fix variable `xs[j]`
+  replaced by `tFix defs j` (`EraseProof.fixTargets`), the substitution that
+  `EraseProof.Erases.substRc` takes.
 - **Reference artifact:** MetaRocq's erasure function `erase`
   (`erasure/theories/ErasureFunction.v:989`) and erasure relation `erases`
   (`erasure/theories/Extract.v:88`; MetaCoq paper §7.2–§7.3, Figs. 17–18), which work on de Bruijn
   indices under a context `Γ` of typed binders (rule `erases_tRel`, `:89`; named variables occur
   only in `erases_tVar`, `:90`, and typed terms contain none); and `erase_constant_body`
   (`erasure/theories/ErasureFunction.v:1309`), which erases a constant's body in the empty
-  context.
+  context; the rule `erases_tFix` (`erasure/theories/Extract.v:122`), which relates the bodies of
+  a `tFix` de Bruijn, under the fixpoint's binders, and `cunfold_fix`
+  (`erasure/theories/EGlobalEnv.v:238`), which instantiates them with `fix_subst` (`:210`).
 - **What differs:** the erasure is locally nameless. Under a binder, the term is opened with a
   fresh free variable, recorded with its type (and, for a `let`, its value) in a list of locals,
   and the erased body is closed again by turning that variable into a bound variable. The oracle
@@ -595,6 +604,11 @@ The blueprint renders this register.
   traversal's non-shifting `abstract`. The members of a recursive block refer to each other by
   free variables while they are erased; replacing these by the block's fixpoints
   (`EraseProof.Erases.substRc`) turns the targets of the block's constants into the stored `tFix`.
+  The stored bodies are closed by `mkDef`'s loop of non-shifting `toBvar` steps
+  (`EraseProof.closeFix`), not built under the fixpoint's binders; `EraseProof.closeFix_substl`
+  shows that `cunfold_fix`'s instantiation of such a body is that replacement. It is stated for
+  the loop as a whole, since the loop's later steps abstract at indices above `0`, which
+  `EraseProof.abstract_eq_abstract1` (the traversal's `abstract`, at index `0`) does not cover.
 - **Why it is forced:** the theorem is about the shipping eraser (spec §2), whose traversal is
   written this way: `withLocalDecl` and `withLocalDef` (`LeanToLambdaBox/Erasure.lean`) open a
   binder with a fresh free variable pushed onto the locals, the oracle is called with these
