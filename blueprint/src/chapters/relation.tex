@@ -9,12 +9,11 @@
   \code{Erases.closed}, \code{Erases.instLevels}, \code{Erases.uninstantiateN},
   \code{Erases.substRc}; \code{ErasesDeps.ext}, \code{ErasesDeps.eval} (dependencies survive
   environment growth and evaluation); \code{Erases.inst}, \code{Erases.inst\_let} (substitution).
-\item \lead{Status} \stProved{} the target language, the relation, its dependencies and their
-  lemmas, all within the standard axioms; \stPlanned{} \code{KernameInj} and the substitution
-  lemmas \code{Erases.inst}, \code{Erases.inst\_let}.
+\item \lead{Status} \stProved{} every node; \stInherited{} L1--L5 in the $\zeta$-substitution
+  \code{Erases.inst\_let} and its context conversion; every other node is within the standard
+  axioms.
 \item \lead{Lean files} \code{proof/EraseProof/Target.lean},
-  \code{proof/EraseProof/Relation/\{Basic, Deps, Levels, Abstract, Atoms\}.lean}; planned:
-  \code{Relation/Subst.lean}.
+  \code{proof/EraseProof/Relation/\{Basic, Deps, Subst, Levels, Abstract, Atoms\}.lean}.
 \item \lead{Reference} MetaRocq \code{EWcbvEval.eval}, \code{Extract.erases},
   \code{erases\_deps} (\code{erasure/theories/}); MetaCoq paper Sections 7.1, 7.3, 7.4; Letouzey
   Definitions 3 and 10, Lemma 16.
@@ -211,14 +210,6 @@
   unchanged}.
 \end{definition}
 
-\begin{definition}[Injective names]
-  \label{def:EraseProof-KernameInj}
-  \lean{EraseProof.KernameInj}
-  \planned
-  \lead{In short} The $\lambda_\Box$ names of the program's constants are \hl{distinct}: the name
-  mangling is not injective (R-3), so the closure checks it (DV-14).
-\end{definition}
-
 \begin{definition}[Erased dependencies]
   \label{def:EraseProof-ErasesDeps}
   \lean{EraseProof.ErasesDeps, EraseProof.ErasesDecl, EraseProof.ErasesBlock,
@@ -237,7 +228,8 @@
   \item \code{ErasesBlock}: member \code{j} of a block, named by \code{fixDefName}, unfolds at
         recursive argument 0 to an erasure of its Lean value, without MetaRocq's \code{isLambda}
         premises (DV-7, DV-8);
-  \item \code{BlocksErased}: every stored fixpoint of a program constant is an erased block.
+  \item \code{BlocksErased}: a fixpoint stored at the kername of a declaration of the evaluation
+        environment erases that declaration, with erased dependencies in its bodies.
   \end{itemize}
   \lead{Reference} \code{erases\_constant\_body}, \code{erases\_deps}, \code{erases\_tFix}
   (\code{erasure/theories/Extract.v}); \code{globals\_erased\_with\_deps}
@@ -370,38 +362,6 @@
   \lead{Idea} Case analysis on the last rule.
 \end{proof}
 
-\begin{lemma}[Substitution]
-  \label{lem:EraseProof-Erases-inst}
-  \lean{EraseProof.Erases.inst}
-  \planned
-  \uses{def:EraseProof-Erases, def:EraseProof-csubst, def:EraseProof-RcClosed,
-    def:EraseProof-ProgEnv}
-  \lead{In short} If \code{t} erases \code{b} under a $\lambda$-entry of type \code{A'} and
-  \code{ta} erases an argument \code{a : A'}, then \hl{\code{csubst ta 0 t} erases \code{b[a]}}.
-  \lead{Reference} \code{erases\_subst0} (\code{erasure/theories/ESubstitution.v}); Letouzey
-  Lemma 16.
-\end{lemma}
-\begin{proof}
-  \uses{lem:EraseProof-TrS-inst, lem:EraseProof-IsErasable-inst}
-  \lead{Idea} Induction on \code{Erases}; the \code{box} case by \code{IsErasable.inst}.
-\end{proof}
-
-\begin{lemma}[Substitution of a \texttt{let} value]
-  \label{lem:EraseProof-Erases-inst_let}
-  \lean{EraseProof.Erases.inst_let}
-  \planned
-  \uses{def:EraseProof-Erases, def:EraseProof-csubst, def:EraseProof-RcClosed,
-    def:EraseProof-ProgEnv}
-  \lead{In short} As \code{Erases.inst}, for a \code{let}-entry whose value is \hl{replaced by a
-  definitionally equal one}.
-  \lead{Reference} \code{erases\_subst0} as the $\zeta$ case of \code{erases\_correct} uses it;
-  Letouzey Lemma 16.
-\end{lemma}
-\begin{proof}
-  \uses{lem:EraseProof-TrS-defeqDFC, lem:EraseProof-TrS-uniq, lem:EraseProof-TrS-inst_let}
-  \lead{Idea} Context conversion by \code{TrS.defeqDFC}; expected footprint L1--L5.
-\end{proof}
-
 \begin{lemma}[Universe instantiation]
   \label{lem:EraseProof-Erases-instLevels}
   \lean{EraseProof.Erases.instLevels}
@@ -516,8 +476,6 @@
   \lead{In short} \hl{$\lambda_\Box$ evaluation at \code{defaultFlags} preserves
   \code{ErasesDeps}}.
   \begin{itemize}
-  \item \lead{Given} \code{hb : BlocksErased venv sigma lenv}, which the proof does not use;
-        MetaRocq's \code{erases\_deps\_eval} has no such hypothesis;
   \item \code{ErasesDeps.substl}, \code{mkApps\_iff}, \code{cunfoldFix}: iterated substitution,
         application spines and fixpoint unfolding (MetaRocq \code{erases\_deps\_substl},
         \code{erases\_deps\_mkApps}, \code{erases\_deps\_cunfold\_fix}).
@@ -529,6 +487,165 @@
   \leanok
   \lead{Idea} Induction on \code{LBEval}; $\delta$ takes the body's dependencies from
   \code{ErasesDeps.const}, fixpoints from \code{ErasesDeps.fix}.
+\end{proof}
+
+\section{Substitution}\label{sec:relation-subst}
+
+Letouzey's Lemma 16 as MetaRocq's \code{erases\_subst0}: substituting an erased argument into an
+erased body. The $\beta$ and $\zeta$ cases of the simulation use it.
+
+\begin{lemma}[Erasability at any depth]
+  \label{lem:EraseProof-IsErasable-instN}
+  \lean{EraseProof.IsErasable.instN, EraseProof.IsErasable.weakN, EraseProof.IsArity.liftN}
+  \leanok
+  \uses{def:EraseProof-IsErasable}
+  \srcloc{proof/EraseProof/Relation/Subst.lean}{53}
+  \lead{In short} Erasability is stable under \hl{substitution and weakening below any number of
+  binders}.
+  \begin{itemize}
+  \item \code{IsErasable.weakN}, \code{IsArity.liftN}: the same for weakening and for arities.
+  \end{itemize}
+  \lead{Reference} \code{is\_type\_subst}, \code{Is\_type\_weakening}
+  (\code{erasure/theories/ESubstitution.v}); \code{IsErasable.inst} is the depth-0 case.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-IsErasable}
+  \leanok
+  \lead{Idea} lean4lean's \code{HasType.instN} and \code{HasType.weakN} on the type and its sort.
+\end{proof}
+
+\begin{lemma}[Weakening for closed terms]
+  \label{lem:EraseProof-Erases-weakBV}
+  \lean{EraseProof.Erases.weakBV}
+  \leanok
+  \uses{def:EraseProof-Erases}
+  \srcloc{proof/EraseProof/Relation/Subst.lean}{140}
+  \lead{In short} An erasure stays an erasure when de Bruijn entries are inserted \hl{below every
+  loose index} of the source term; the $\lambda_\Box$ side is unchanged.
+  \lead{Reference} \code{erases\_weakening'} (\code{erasure/theories/ESubstitution.v}), for terms
+  closed below the inserted entries.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-TrS-weakBV, lem:EraseProof-IsErasable-instN}
+  \leanok
+  \lead{Idea} Induction on \code{Erases}, with \code{TrS.weakBV} and \code{IsErasable.weakN}.
+\end{proof}
+
+\begin{lemma}[Substitution under binders]
+  \label{lem:EraseProof-Erases-instN}
+  \lean{EraseProof.Erases.instN, EraseProof.VLCtx.InstN.bvLift, EraseProof.csubst_closed,
+    EraseProof.csubstL_closed, EraseProof.csubstB_closed, EraseProof.csubstD_closed}
+  \leanok
+  \uses{def:EraseProof-Erases, def:EraseProof-csubst, def:EraseProof-RcClosed}
+  \srcloc{proof/EraseProof/Relation/Subst.lean}{218}
+  \lead{In short} Instantiating the variable of a $\lambda$-entry at depth \code{dk} by a closed
+  \code{a} erased to \code{ta} gives an erasure, \hl{the $\lambda_\Box$ side substituted by
+  \code{csubst ta dk}}.
+  \begin{itemize}
+  \item \code{VLCtx.InstN.bvLift}: the instantiated context is a de Bruijn lift of the empty one;
+  \item \code{csubst\_closed} and its variants: \code{csubst} leaves a term closed below the index
+        unchanged (MetaRocq \code{csubst\_closed}).
+  \end{itemize}
+  \lead{Reference} \code{erases\_subst} (\code{erasure/theories/ESubstitution.v}), for one closed
+  substituted term.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-Erases-weakBV, lem:EraseProof-IsErasable-instN, lem:EraseProof-TrS-inst,
+    lem:EraseProof-LBEval-closed}
+  \leanok
+  \lead{Idea} Induction on \code{Erases}; the substituted variable by \code{Erases.weakBV};
+  recursive targets are closed, so \code{csubst} fixes them.
+\end{proof}
+
+\begin{lemma}[Substitution]
+  \label{lem:EraseProof-Erases-inst}
+  \lean{EraseProof.Erases.inst}
+  \leanok
+  \uses{def:EraseProof-Erases, def:EraseProof-csubst, def:EraseProof-RcClosed,
+    def:EraseProof-ProgEnv}
+  \srcloc{proof/EraseProof/Relation/Subst.lean}{258}
+  \lead{In short} If \code{t} erases \code{b} under a $\lambda$-entry of type \code{A'} and
+  \code{ta} erases an argument \code{a : A'}, then \hl{\code{csubst ta 0 t} erases \code{b[a]}}.
+  \begin{itemize}
+  \item \lead{Given} \code{henv : ProgEnv P venv}, for \code{wf Sigma}; \code{hrc}: recursive
+        targets are closed; \code{hta}, \code{hA}: \code{a} translates and has type \code{A'}.
+  \end{itemize}
+  \lead{Reference} \code{erases\_subst0} (\code{erasure/theories/ESubstitution.v}); Letouzey
+  Lemma 16.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-Erases-instN, lem:EraseProof-TrS-inst, lem:EraseProof-IsErasable-inst}
+  \leanok
+  \lead{Idea} A body erased to $\Box$ stays erasable (\code{IsErasable.inst}); every other body by
+  \code{Erases.instN} at depth 0.
+\end{proof}
+
+\begin{lemma}[Context conversion]
+  \label{lem:EraseProof-Erases-defeqDFC}
+  \lean{EraseProof.Erases.defeqDFC}
+  \leanok
+  \uses{def:EraseProof-Erases}
+  \srcloc{proof/EraseProof/Relation/Subst.lean}{170}
+  \inherited{L1, L2, L3, L4, L5}
+  \lead{In short} An erasure of a term translated in \code{Delta1} is an erasure in \hl{every
+  context definitionally equal to \code{Delta1}}.
+  \lead{Reference} \code{erases\_context\_conversion} (\code{erasure/theories/ErasureProperties.v}),
+  with the translation in the role of the typing derivation.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-TrS-defeqDFC, lem:EraseProof-TrS-uniq}
+  \leanok
+  \lead{Idea} Induction on \code{Erases}; translations move by \code{TrS.defeqDFC} and
+  \code{TrS.uniq}.
+\end{proof}
+
+\begin{lemma}[\texorpdfstring{$\zeta$}{zeta}-substitution under binders]
+  \label{lem:EraseProof-Erases-instN_let}
+  \lean{EraseProof.Erases.instN_let, EraseProof.VLCtx.InstLet.bvLift}
+  \leanok
+  \uses{def:EraseProof-Erases, def:EraseProof-csubst, def:EraseProof-RcClosed}
+  \srcloc{proof/EraseProof/Relation/Subst.lean}{269}
+  \lead{In short} As \code{Erases.instN}, for \hl{a \code{let}-entry whose value is the
+  translation of \code{a}}.
+  \begin{itemize}
+  \item \code{VLCtx.InstLet.bvLift}: the substituted context is a de Bruijn lift of the empty one.
+  \end{itemize}
+  \lead{Reference} \code{erases\_subst} (\code{erasure/theories/ESubstitution.v}), for one closed
+  substituted term of a \code{vdef} entry.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-Erases-weakBV, lem:EraseProof-TrS-inst_let}
+  \leanok
+  \lead{Idea} Induction on \code{Erases}, as \code{Erases.instN}.
+\end{proof}
+
+\begin{lemma}[Substitution of a \texttt{let} value]
+  \label{lem:EraseProof-Erases-inst_let}
+  \lean{EraseProof.Erases.inst_let}
+  \leanok
+  \uses{def:EraseProof-Erases, def:EraseProof-csubst, def:EraseProof-RcClosed,
+    def:EraseProof-ProgEnv, def:EraseProof-TrS}
+  \srcloc{proof/EraseProof/Relation/Subst.lean}{309}
+  \inherited{L1, L2, L3, L4, L5}
+  \lead{In short} If \code{t} erases \code{b} under the entry \code{let : T' := v0} and \code{ta}
+  erases \code{a}, whose translation is definitionally equal to \code{v0}, then \hl{\code{csubst ta
+  0 t} erases \code{b[a]}}.
+  \begin{itemize}
+  \item \lead{Given} \code{henv}, \code{hrc}, \code{ha}, \code{hta} as in \code{Erases.inst};
+        \code{hdf}: \code{v0} and the translation of \code{a} are equal at \code{T'};
+  \item \code{hbt : TrS venv Us [(none, .vlet T' v0)] b b'}: \code{b} translates in the
+        \code{let} context, MetaRocq's typing premise of \code{erases\_subst}; the $\zeta$ case
+        gets it from the source's translation.
+  \end{itemize}
+  \lead{Reference} the $\zeta$ case of \code{erases\_correct}
+  (\code{erasure/theories/ErasureCorrectness.v}): \code{erases\_context\_conversion}, then
+  \code{erases\_subst0}; Letouzey Lemma 16.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-Erases-defeqDFC, lem:EraseProof-Erases-instN_let}
+  \leanok
+  \lead{Idea} Convert the context to the one whose value is \code{a}'s translation
+  (\code{Erases.defeqDFC}), then substitute (\code{Erases.instN\_let}).
 \end{proof}
 
 \section*{Caveats}

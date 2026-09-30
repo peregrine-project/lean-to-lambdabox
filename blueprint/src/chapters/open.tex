@@ -3,10 +3,9 @@
 \section*{At a glance}
 \begin{itemize}
 \item \lead{Goal} List what is not done.
-\item \lead{Status} \stOpen{} the substitution lemmas \code{Erases.inst} and
-  \code{Erases.inst\_let}, \code{KernameInj}, the simulation \code{erases\_correct}, \hl{every
-  statement about the traversal and \code{\#erase}}, four divergence entries, and the non-vacuity
-  instances other than NV-1's model side and the oracle instances.
+\item \lead{Status} \stOpen{} \hl{every statement about the traversal and \code{\#erase}}, three
+  divergence entries, the non-vacuity instances NV-3 and NV-4, and NV-1's \code{hview},
+  \code{hrun} and instance of \code{erase\_correct}.
 \end{itemize}
 
 \section{Planned statements}\label{sec:open-planned}
@@ -18,14 +17,10 @@ chapters by \code{blueprint/scripts/audit.py}.
 
 \begin{itemize}
 \item \lead{Not stated} the state invariant of \code{erasePure\_erases}, fixed after the review of
-  the traversal; the case lemmas of \code{erases\_correct} and \code{erasePure\_erases}; the
-  non-vacuity instances other than NV-1's model side (Section~\ref{sec:tests-instances}).
-\item \lead{Adversarial reviews} before their proofs: the fixpoint rules of the source semantics
-  and \code{ErasesBlock} (DV-7, DV-8); the traversal's frame lemmas and state invariant; the
-  closing of recursive blocks.
-\item \lead{Unused hypothesis} \code{ErasesDeps.eval} takes \code{hb : BlocksErased}, which its
-  proof does not use and MetaRocq's \code{erases\_deps\_eval} does not take; whether the statement
-  keeps it is open.
+  the traversal; the step lemmas of \code{erasePure\_erases}; the non-vacuity instances NV-3 and
+  NV-4 (Section~\ref{sec:tests-instances}).
+\item \lead{Adversarial reviews} before their proofs: the traversal's frame lemmas and state
+  invariant; the closing of recursive blocks.
 \item \lead{\code{hrun} of NV-1} by symbolic evaluation of the traversal at the pure backend.
 \end{itemize}
 
@@ -60,7 +55,6 @@ Id & Artifact & What differs \\
 DV-9 & outputs of \code{erasePure} & not \code{expanded\_eprogram} \\
 DV-17 & \code{erasePure}, \code{erase\_correct} & fuel; partial correctness \\
 DV-19 & \code{erase\_correct} & no first-order corollary \\
-DV-20 & \code{erases\_correct} & Letouzey Theorem 13 big-step; Theorems 12, 15 omitted \\
 \bottomrule
 \end{tabular}
 
@@ -72,9 +66,7 @@ Id & Landed, not cited & Planned \\
 \midrule
 DV-3 & \code{SubEnv} & the use of \code{collectDeps} in the core lemmas \\
 DV-6 & \code{ProgEnv}, \code{SrcEval}, \code{Erases} & -- \\
-DV-11 & -- & the instances NV-5, NV-6, NV-7 \\
 DV-13 & -- & \code{closeFix}, \code{closeFix\_substl}, \code{abstract\_eq\_abstract1},
   \code{visit\_agree}, \code{visitAppArgs\_agree}, \code{visitMutual\_agree} \\
-DV-14 & -- & \code{KernameInj} \\
 \bottomrule
 \end{tabular}
