@@ -617,8 +617,9 @@ The blueprint renders this register.
   R-3). So a kername does not determine the source declaration, and the rule names the
   declaration it uses. The eraser's dependency collection rejects programs whose collected
   declarations share a kername (`findCollision`, `LeanToLambdaBox/Erasure/Collect.lean`;
-  SHIPPING-CHANGES S-18), so the ambiguity does not arise on the declarations it erases, and
-  `EraseProof.KernameInj` states that check.
+  SHIPPING-CHANGES S-18), so the ambiguity does not arise on the declarations it erases,
+  `EraseProof.KernameInj` states that check, and `EraseProof.collectDeps_spec`
+  (`proof/EraseProof/Core/Collect.lean`) proves it of every successful run.
 - **What was considered instead:** an injective mangling, a shipping change that alters the bytes
   of every name with special characters and that the theorem does not need (spec §5.1);
   `EraseProof.ErasesDeps` over all declarations of the program rather than the evaluation
