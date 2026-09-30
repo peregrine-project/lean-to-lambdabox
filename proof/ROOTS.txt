@@ -6,13 +6,6 @@
 #   <task id>: optional, the unit that lands the consumer.
 # Every declaration of EraseProof outside EraseProof.Test must be reachable from a root; no root
 # may be reachable from another root.
-# PLAN §9 O-4, pending the arbiter's decision (report prove-v7-core-main): no planned statement
-# uses the next three roots. Their planned consumer erasePure_erases landed without them, and
-# erase_correct does not use them either; it stands below as a placeholder consumer until the
-# decision, so that check C7 still covers every other declaration.
-EraseProof.LBEval.closed EraseProof.erase_correct O-4
-EraseProof.visitAppArgs_agree EraseProof.erase_correct O-4
-EraseProof.visitMutual_agree EraseProof.erase_correct O-4
 EraseProof.SrcEval.restrict EraseProof.erase_correct v8-main
 EraseProof.Erases.congr_ac EraseProof.erase_correct v8-main
 EraseProof.erases_correct EraseProof.erase_correct v8-main
