@@ -15,12 +15,12 @@ open Lean
 
 namespace Erasure
 
-/-- Where `#erase` sends an input (S-E). Reference: none. -/
+/-- Where `#erase` sends an input. Reference: none. -/
 inductive Route where
   | viaPure (r : Except EraseError (Program × List Kername))
   | viaMeta
 
-/-- The routing decision (S-E): in-fragment programs take the pure path; `outOfFragment` goes to
+/-- The routing decision: in-fragment programs take the pure path; `outOfFragment` goes to
 the unchanged `Meta` path; every other `collectDeps` error is an error of `#erase`. Reference:
 none. -/
 def route (view : EnvView) (cfg : ErasureConfig) (e : Expr) : Route :=
@@ -36,7 +36,7 @@ def EraseError.describe : EraseError → String
   | .fuel site => s!"out of fuel in {site}"
   | .failed msg => msg
 
-/-- The `#erase` entry point after S-E. Reference: the erasure run of
+/-- The `#erase` entry point. Reference: the erasure run of
 `MR E/ErasureFunctionProperties.v:657 erase_correct`
 (`erase … = t'`, `erase_global_deps … = Σ'`). -/
 def eraseEntry (view : EnvView) (cfg : ErasureConfig) (e : Expr) :

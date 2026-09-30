@@ -17,7 +17,7 @@ open Lean
 
 namespace Erasure
 
-/-! ## The pure oracle (S-D, DESIGN.md Q6) -/
+/-! ## The pure oracle -/
 
 namespace Pure
 
@@ -147,23 +147,23 @@ def isErasable (cx : Ctx) (fuel : Nat) (ls : List Local) (e : Expr) :
 
 end Pure
 
-/-- Fuel of one oracle call on the pure path (DESIGN.md Q6). Reference: none (DV-17). -/
+/-- Fuel of one oracle call on the pure path. Reference: none (DV-17). -/
 def oracleFuel : Nat := 2 ^ 20
 
-/-! ## The pure backend (S-D) -/
+/-! ## The pure backend -/
 
-/-- What the pure backend reads (S-D): the program's closure and the trusted view. Reference: the
+/-- What the pure backend reads: the program's closure and the trusted view. Reference: the
 abstract environment `X` of `MR E/ErasureFunction.v:989 erase`. -/
 structure PureCtx where
   decls : List ConstantInfo
   view : EnvView
 
-/-- The pure backend's state (S-D): the counter that allocates fresh free variables. Reference:
+/-- The pure backend's state: the counter that allocates fresh free variables. Reference:
 none (MetaRocq's `erase` is de Bruijn, DV-13). -/
 structure PureState where
   next : Nat := 0
 
-/-- The pure backend (S-D). Reference: none (MetaRocq's `erase` is a pure Equations function). -/
+/-- The pure backend. Reference: none (MetaRocq's `erase` is a pure Equations function). -/
 abbrev PureM := ReaderT PureCtx (StateT PureState (Except EraseError))
 
 /-- Run a traversal action at the pure backend. Reference: none. -/
@@ -173,19 +173,19 @@ def EraseT.runPure {α} (x : EraseT PureM α) (st : ErasureState) (tc : TravCtx)
 
 namespace PureM
 
-/-- S-D: `findConst? := findConst decls`. Reference: `lookup_env`
+/-- `findConst? := findConst decls`. Reference: `lookup_env`
 (`MR common/theories/Environment.v:483`). -/
 def findConst? (c : Name) : PureM (Option ConstantInfo) := return findConst (← read).decls c
 
-/-- S-D: fresh free variables from the counter `next`. Reference: none (DV-13). -/
+/-- Fresh free variables from the counter `next`. Reference: none (DV-13). -/
 def freshFVarId : PureM FVarId :=
   modifyGet fun s => (⟨.num `_pure s.next⟩, { s with next := s.next + 1 })
 
-/-- S-D: `instantiate1 := Expr.instantiate1'` (lean4lean's pure model, `l4l
+/-- `instantiate1 := Expr.instantiate1'` (lean4lean's pure model, `l4l
 Verify/Axioms.lean:404`, a definition; avoids the `instantiate1_eq` axiom). Reference: none. -/
 def instantiate1 (b a : Expr) : Expr := b.instantiate1' a
 
-/-- S-D: the oracle, on the traversal's locals, with `oracleFuel`. Reference:
+/-- The oracle, on the traversal's locals, with `oracleFuel`. Reference:
 `MR E/ErasureFunction.v:894 is_erasableb`. -/
 def isErasable (ls : List Local) (e : Expr) : PureM Bool := do
   let pc ← read
@@ -193,26 +193,26 @@ def isErasable (ls : List Local) (e : Expr) : PureM Bool := do
   | .ok b => pure b
   | .error err => throw err
 
-/-- S-D: no `casesOn` on the pure path (the fragment has no inductives). Reference: none. -/
+/-- No `casesOn` on the pure path (the fragment has no inductives). Reference: none. -/
 def casesInfo? (_ : Name) : PureM (Option Lean.CasesInfo) := pure none
 
-/-- S-D: no constructors on the pure path. Reference: none. -/
+/-- No constructors on the pure path. Reference: none. -/
 def ctorArity? (_ : Name) : PureM (Option Nat) := pure none
 
-/-- S-F: `declInfo? := findConst?` (no `LCNF.getDeclInfo?` redirect to `_unsafe_rec`). Reference:
+/-- `declInfo? := findConst?` (no `LCNF.getDeclInfo?` redirect to `_unsafe_rec`). Reference:
 the kernel term, as `MR E/ErasureFunction.v:1309 erase_constant_body` erases `cst_body`. -/
 def declInfo? (c : Name) : PureM (Option ConstantInfo) := findConst? c
 
-/-- S-F: no `_unsafe_rec` redirect. Reference: none. -/
+/-- No `_unsafe_rec` redirect. Reference: none. -/
 def unsafeRecBase? (_ : Name) : PureM (Option Name) := pure none
 
-/-- S-F: `prepare := id` (no `macro_inline`, matcher inlining, csimp or `_unsafe_rec` renaming;
-DESIGN.md Q7). Reference: MetaRocq's `erase` erases the kernel term. -/
+/-- `prepare := id` (no `macro_inline`, matcher inlining, csimp or `_unsafe_rec` renaming).
+Reference: MetaRocq's `erase` erases the kernel term. -/
 def prepare (e : Expr) : PureM Expr := pure e
 
 end PureM
 
-/-- The pure backend (S-D, S-F): the operations of `PureM`, with `unsafeRecBase?` always `none`;
+/-- The pure backend: the operations of `PureM`, with `unsafeRecBase?` always `none`;
 type inference is the oracle's `Pure.inferType` at `oracleFuel` on the traversal's locals; every
 constructor field is kept; `isExtern` and `inlineAttr?` read the view; no constant is an instance;
 `log` does nothing; a constant missing from the declarations is `outOfFragment`, and fuel
@@ -240,8 +240,8 @@ instance : Backend PureM where
   log _ := pure ()
   outOfFuel site := throw (.fuel site)
 
-/-- The shipping traversal (`erase`) run with the pure backend (S-A..S-D), assembling its result
-as today's `erase` does. Reference: `MR E/ErasureFunction.v:989 erase` and
+/-- The traversal of `#erase` (`visitExpr`) run with the pure backend, assembling its result as
+`erase` does. Reference: `MR E/ErasureFunction.v:989 erase` and
 `MR E/ErasureFunction.v:1602 erase_global_deps`, the pair `(Σ', t')` of
 `MR E/ErasureFunctionProperties.v:657 erase_correct`. -/
 def erasePure (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo) (e : Expr) :
@@ -249,9 +249,9 @@ def erasePure (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo)
   let ((t, s), _) ← (visitExpr (m := PureM) travFuel e).runPure {} { «config» := cfg } ⟨decls, view⟩ {}
   pure (.untyped s.gdecls (some t), s.inlinings)
 
-/-! ## The recursion and `@[extern]` tests of the pure backend (S-F) -/
+/-! ## The recursion and `@[extern]` tests of the pure backend -/
 
-/-- `name_occurs` as the pure backend runs it: exact names, no `_unsafe_rec` stripping (S-F).
+/-- `name_occurs` as the pure backend runs it: exact names, no `_unsafe_rec` stripping.
 Reference: none (Lean's environment-level recursion, DV-7). -/
 def nameOccurs (name : Name) : Expr → Bool
   | .const n' _ => name == n'
