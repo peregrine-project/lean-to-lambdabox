@@ -540,16 +540,19 @@ The blueprint renders this register.
   declarations, the erasability oracle answers alike under two lists of locals that agree on the
   free variables the term reaches through the locals' types and values. With them,
   `proof/EraseProof/Target.lean`, `EraseProof.hasFVar` and `EraseProof.LenvClosed`: no body stored
-  in the λ□ environment contains a free variable. And `proof/EraseProof/Relation/Basic.lean`, the
-  rule `EraseProof.Erases.fvar` of `EraseProof.Erases`: the erasure relation relates the
-  traversal's free variables to themselves, under a context `Lean4Lean.VLCtx` whose free-variable
-  entries type them. And `proof/EraseProof/Relation/Abstract.lean`: `EraseProof.abstract1`, the
-  shifting abstraction of lean4lean's `Expr.abstract1` (`Lean4Lean/Verify/Axioms.lean:443`) on λ□
-  terms, with `EraseProof.Erases.uninstantiateN`: closing a binder on both sides keeps the
-  relation, when the admissible targets of recursive constants do not mention the variable
-  (`EraseProof.RcFresh`); and `EraseProof.substFVars`, a simultaneous substitution of free
-  variables, with `EraseProof.Erases.substRc`: substituting free variables on the λ□ side that
-  the source term does not contain keeps the relation, with the admissible targets substituted.
+  in the λ□ environment contains a free variable; `proof/EraseProof/Core/State.lean`,
+  `EraseProof.Erases.hasFVar_eq_false`: the erasure of a term without free variables has none, so
+  the body of a constant, which `EraseProof.StateOK.registerDef` stores, has none. And
+  `proof/EraseProof/Relation/Basic.lean`, the rule `EraseProof.Erases.fvar` of `EraseProof.Erases`:
+  the erasure relation relates the traversal's free variables to themselves, under a context
+  `Lean4Lean.VLCtx` whose free-variable entries type them. And
+  `proof/EraseProof/Relation/Abstract.lean`: `EraseProof.abstract1`, the shifting abstraction of
+  lean4lean's `Expr.abstract1` (`Lean4Lean/Verify/Axioms.lean:443`) on λ□ terms, with
+  `EraseProof.Erases.uninstantiateN`: closing a binder on both sides keeps the relation, when the
+  admissible targets of recursive constants do not mention the variable (`EraseProof.RcFresh`); and
+  `EraseProof.substFVars`, a simultaneous substitution of free variables, with
+  `EraseProof.Erases.substRc`: substituting free variables on the λ□ side that the source term does
+  not contain keeps the relation, with the admissible targets substituted.
 - **Reference artifact:** MetaRocq's erasure function `erase`
   (`erasure/theories/ErasureFunction.v:989`) and erasure relation `erases`
   (`erasure/theories/Extract.v:88`; MetaCoq paper §7.2–§7.3, Figs. 17–18), which work on de Bruijn

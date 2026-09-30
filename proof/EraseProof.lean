@@ -2,6 +2,7 @@ import EraseProof.Atoms
 import EraseProof.Core.Collect
 import EraseProof.Core.FrameA
 import EraseProof.Core.Scope
+import EraseProof.Core.State
 import EraseProof.Env
 import EraseProof.Env.Unfold
 import EraseProof.Erasability
