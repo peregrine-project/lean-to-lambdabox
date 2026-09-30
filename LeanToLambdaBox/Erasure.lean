@@ -22,7 +22,7 @@ abbrev InductiveArgMasks := List ConstructorArgMask
 def filter (mask: ConstructorArgMask) (arr: Array α): Array α :=
   mask.zip arr |>.filterMap (fun (r, a) => match r with | .erase => .none | .keep => .some a)
 /--
-State carried by EraseM to handle constants and inductive types registered in the global environment.
+State carried by `EraseT` to handle constants and inductive types registered in the global environment.
 -/
 structure ErasureState: Type where
   inductives: Std.HashMap Name (InductiveId × InductiveArgMasks) := ∅
