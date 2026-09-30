@@ -20,6 +20,7 @@ import EraseProof.Source.Defeq
 import EraseProof.Source.Eval
 import EraseProof.Source.EvalEnv
 import EraseProof.Source.Restrict
+import EraseProof.Simulation.Cases
 import EraseProof.Source.Steps
 import EraseProof.Target
 import EraseProof.Test.Atoms

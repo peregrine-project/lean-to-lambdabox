@@ -232,8 +232,9 @@ The blueprint renders this register.
   `EraseProof.BlocksCong`: recursion in the source semantics; and
   `proof/EraseProof/Relation/Basic.lean`: the rule `EraseProof.Erases.constRec` of
   `EraseProof.Erases` and the admissible targets `EraseProof.RecIn`: recursion in the erasure
-  relation; and `proof/EraseProof/Relation/Deps.lean`: `EraseProof.ErasesBlock` and the recursive
-  branch of `EraseProof.ErasesDecl`: recursion in the λ□ environment.
+  relation; and `proof/EraseProof/Relation/Deps.lean`: `EraseProof.ErasesBlock`, the recursive
+  branch of `EraseProof.ErasesDecl`, and `EraseProof.BlocksErased`: recursion in the λ□
+  environment.
 - **Reference artifact:** PCUIC's fixpoints: the term `tFix`, a value (`atom`,
   `pcuic/theories/PCUICWcbvEval.v:51`), unfolded when applied by `eval_fix` (`:273`) and excluded
   as a head of `eval_app_cong` (`:311`, `isFixApp`); their erasure `erases_tFix`
@@ -263,7 +264,11 @@ The blueprint renders this register.
   `cunfold_fix` to an erasure of that declaration's Lean value in the empty context, with the
   fixpoints stored in the λ□ environment as the targets of recursive constants
   (`EraseProof.ErasesBlock`); `erases_tFix` relates each body of a PCUIC `tFix` to a λ□ body under
-  the fixpoint's own binders (`fix_context mfix`).
+  the fixpoint's own binders (`fix_context mfix`). `EraseProof.BlocksErased` asks that every
+  fixpoint the λ□ environment stores at the kername of a declaration of the evaluation environment
+  erase that declaration (`EraseProof.ErasesDecl`; for a recursive declaration, such a block), with
+  bodies whose dependencies are erased: the part of `globals_erased_with_deps` about constants
+  whose λ□ body is a `tFix`.
 - **Why it is forced:** Lean's `Expr` has no fixpoint node: a recursive Lean definition is a
   constant whose value mentions itself, a member of a block (rule `block` of
   `EraseProof.ProgEnv`, whose values are translated in the model that contains the block). The
@@ -279,7 +284,13 @@ The blueprint renders this register.
   λ□ environment stores. That stored `tFix` is not the erasure of a subterm of the source term, so
   when the source unfolds a recursive constant (`EraseProof.SrcEval.fixApp`) and λ□ unfolds the
   fixpoint (`eval_fix`), the relation between the member's Lean value and its unfolded λ□ body can
-  only come from the λ□ environment: `EraseProof.ErasesBlock` states it.
+  only come from the λ□ environment: `EraseProof.ErasesBlock` states it, and
+  `EraseProof.BlocksErased` gives it for every stored fixpoint, as `globals_erased_with_deps` gives
+  erased bodies for `eval_delta`. A non-recursive constant that `EraseProof.Erases.constRec`
+  relates to a `tFix` stored at its kername needs it too: the dependencies of that `tFix`
+  (`EraseProof.ErasesDeps.fix`) do not lead back to the constant's declaration, so the δ case of
+  the simulation (`EraseProof.erases_correct_delta`) reads the declaration's erasure from
+  `EraseProof.BlocksErased`.
 - **What was considered instead:** unfolding recursive constants when evaluated, as the others:
   it matches λ□'s `tFix` only when each member's value is a λ, so that one unfolding reaches a
   value; it would need a shipping change that η-expands members whose value is not a λ, which the
@@ -514,7 +525,10 @@ The blueprint renders this register.
   of `EraseProof.ErasesDeps`: the λ□ constant `tConst (toKername c)` has erased dependencies when
   `c` is a declaration of the evaluation environment whose λ□ declaration at `toKername c` erases
   it (`EraseProof.ErasesDecl`) and whose λ□ body, if any, has erased dependencies; the rule is
-  indexed by the source constant `c`, not by the kername.
+  indexed by the source constant `c`, not by the kername. And
+  `proof/EraseProof/Simulation/Cases.lean`, `EraseProof.KernameInj`: the declarations of the
+  evaluation environment have distinct kernames, a hypothesis of the δ case of the simulation
+  (`EraseProof.erases_correct_delta`).
 - **Reference artifact:** `erases_deps_tConst` (`erasure/theories/Extract.v:324-329`; MetaCoq
   paper §7.4, p. 8:64), where the PCUIC declaration and the λ□ declaration are found at the same
   kername `kn`, the name of the `tConst`.
@@ -522,14 +536,18 @@ The blueprint renders this register.
   (`LeanToLambdaBox/Basic.lean`), so a Lean constant and its λ□ constant have different names, and
   the rule relates the declaration of `c` to the λ□ declaration at `toKername c`. When two
   declarations of the evaluation environment have the same kername, the rule may justify the same
-  `tConst` by either.
+  `tConst` by either. The simulation therefore takes injectivity of `toKername` on the evaluation
+  environment's declarations as a hypothesis (`EraseProof.KernameInj`): with it, the declaration
+  that `EraseProof.ErasesDeps.const` names for the `tConst` of a constant is that constant's own,
+  as the shared `kn` guarantees in the reference.
 - **Why it is forced:** the shipping eraser names the λ□ constant of `c` by `toKername c`
   (`visitMutual`, `LeanToLambdaBox/Erasure.lean`), and `toKername` is not injective: the escaping
   of `cleanIdent` and the numeric name components make distinct names coincide (SHIPPING-CHANGES
   R-3). So a kername does not determine the source declaration, and the rule names the
   declaration it uses. The eraser's dependency collection rejects programs whose collected
   declarations share a kername (`findCollision`, `LeanToLambdaBox/Erasure/Collect.lean`;
-  SHIPPING-CHANGES S-18), so the ambiguity does not arise on the declarations it erases.
+  SHIPPING-CHANGES S-18), so the ambiguity does not arise on the declarations it erases, and
+  `EraseProof.KernameInj` states that check.
 - **What was considered instead:** an injective mangling, a shipping change that alters the bytes
   of every name with special characters and that the theorem does not need (spec §5.1);
   `EraseProof.ErasesDeps` over all declarations of the program rather than the evaluation
