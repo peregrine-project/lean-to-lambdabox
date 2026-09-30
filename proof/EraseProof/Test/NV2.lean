@@ -16,9 +16,10 @@ as the newest-first declaration list `decls2` with its lean4lean model `venv2`, 
 (`MR erasure/theories/ErasureCorrectness.v:51`) is discharged by a checked term: `henv`, `hsub`,
 `hinj`, `hlc`, `he`, `her`, `hdeps`, `hblocks`, `hev`. The source evaluation takes δ (`dbl`, `two`),
 β and ζ; the erasure of `dbl`'s body has `□` for the type argument `α` of `m`, and the model types
-`m α` through `CNat`'s defining equation. The instance `concl` has a witness, and it is the λ
-`v2' = λα. λs. λz. two' □ s (two' □ s z)`, where `two'` is `two`'s erased body (`witness`, by
-determinism of λ□ evaluation), not `□`.
+`m α` through `CNat`'s defining equation. `inst` applies the theorem; `concl` exhibits its
+conclusion with the witness `v2' = λα. λs. λz. two' □ s (two' □ s z)`, where `two'` is `two`'s
+erased body, and `witness` shows, by determinism of λ□ evaluation, that every witness of the
+theorem is this λ, not `□`.
 -/
 
 open Lean Lean4Lean Erasure
@@ -460,7 +461,7 @@ theorem hdeps : ErasesDeps venv2 σ2 lenv2 t2 :=
       (Or.inr (Or.inr ⟨by decide, by decide, twoL, rfl, erTwo⟩))
       (fun _ hb => by cases hb; exact .lambda (.lambda (.lambda (.app .bvar (.app .bvar .bvar))))))
 
-/-! ## The conclusion -/
+/-! ## The instance and its conclusion -/
 
 /-- `t2` evaluates to `v2'` in `lenv2`: δ unfolds `dbl` and `two`, then β and ζ. -/
 theorem lbev : LBEval defaultFlags lenv2 t2 v2' :=
@@ -472,12 +473,18 @@ theorem herv : Erases venv2 [] σ2.isAtom (RecIn lenv2) [] v2 v2' :=
 
 /-- `erases_correct` on NV-2: every hypothesis is a checked term. Reference: `erases_correct`
 (`MR erasure/theories/ErasureCorrectness.v:51`). -/
-theorem concl : ∃ v', Erases venv2 [] σ2.isAtom (RecIn lenv2) [] v2 v' ∧
+theorem inst : ∃ v', Erases venv2 [] σ2.isAtom (RecIn lenv2) [] v2 v' ∧
     LBEval defaultFlags lenv2 t2 v' :=
   erases_correct henv hsub hinj hlc he her hdeps hblocks hev
 
-/-- Every witness of `concl` is `v2'`, a λ: λ□ evaluation is deterministic and `t2` evaluates to
-`v2'` (`lbev`). Reference: `eval_deterministic` (`MR erasure/theories/EWcbvEval.v:1375`). -/
+/-- The conclusion of `erases_correct` on NV-2 holds with the non-`□` witness `v2'`. -/
+theorem concl : Erases venv2 [] σ2.isAtom (RecIn lenv2) [] v2 v2' ∧
+    LBEval defaultFlags lenv2 t2 v2' :=
+  ⟨herv, lbev⟩
+
+/-- Every witness of `erases_correct` on NV-2 is `v2'`, a λ: λ□ evaluation is deterministic and
+`t2` evaluates to `v2'` (`lbev`). Reference: `eval_deterministic`
+(`MR erasure/theories/EWcbvEval.v:1375`). -/
 theorem witness {v' : LBTerm} (h : Erases venv2 [] σ2.isAtom (RecIn lenv2) [] v2 v' ∧
     LBEval defaultFlags lenv2 t2 v') : v' = v2' :=
   LBEval.deterministic h.2 lbev

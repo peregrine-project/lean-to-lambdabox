@@ -541,9 +541,10 @@ The blueprint renders this register.
   `c` is a declaration of the evaluation environment whose λ□ declaration at `toKername c` erases
   it (`EraseProof.ErasesDecl`) and whose λ□ body, if any, has erased dependencies; the rule is
   indexed by the source constant `c`, not by the kername. And
-  `proof/EraseProof/Simulation/Cases.lean`, `EraseProof.KernameInj`: the declarations of the
-  evaluation environment have distinct kernames, a hypothesis of the δ case of the simulation
-  (`EraseProof.erases_correct_delta`).
+  `proof/EraseProof/Source/Restrict.lean`, `EraseProof.KernameInj`: the declarations of the
+  evaluation environment have distinct kernames, the hypothesis `hinj` of
+  `EraseProof.erases_correct` and of its δ and `fixAtom` cases
+  (`EraseProof.erases_correct_delta`, `EraseProof.erases_correct_fixAtom`).
 - **Reference artifact:** `erases_deps_tConst` (`erasure/theories/Extract.v:324-329`; MetaCoq
   paper §7.4, p. 8:64), where the PCUIC declaration and the λ□ declaration are found at the same
   kername `kn`, the name of the `tConst`.
