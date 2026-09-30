@@ -6,13 +6,10 @@
 #             see tools/Report.lean `sorryLabels`, `testOnlySorryLabels`), comma-separated;
 #             `-` for none.
 # proof/scripts/check.sh compares this file with the computed .check/axioms.actual.
-EraseProof.closeFix_closed propext,Quot.sound -
-EraseProof.closeFix_substl propext,Classical.choice,Quot.sound -
 EraseProof.collectDeps_spec propext,Classical.choice,Quot.sound -
 EraseProof.collectDeps_sub propext,Classical.choice,Quot.sound -
 EraseProof.eraseEntry_pure propext,Classical.choice,Quot.sound -
 EraseProof.erases_correct propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5,L6
-EraseProof.isRecursiveDecl_eq propext,Classical.choice,Quot.sound -
 EraseProof.visitAppArgs_agree propext,Classical.choice,Quot.sound -
 EraseProof.visitExpr_app_step propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
 EraseProof.visitExpr_const_step propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
@@ -23,8 +20,8 @@ EraseProof.visitExpr_mdata_step propext,Classical.choice,Quot.sound,sorryAx L1,L
 EraseProof.visitExpr_other_step propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
 EraseProof.visitMutual_agree propext,Classical.choice,Quot.sound -
 EraseProof.visitMutual_nonrec_step propext,Classical.choice,Quot.sound -
+EraseProof.visitMutual_rec_step propext,Classical.choice,Quot.sound -
 EraseProof.Erases.congr_ac propext,Classical.choice,Quot.sound -
-EraseProof.Erases.substRc propext,Classical.choice,Quot.sound -
 EraseProof.LBEval.closed propext,Quot.sound -
 EraseProof.SrcEval.restrict propext,Classical.choice,Quot.sound -
 EraseProof.StateOK.blocksErased propext,Classical.choice,Quot.sound -

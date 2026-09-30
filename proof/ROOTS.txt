@@ -11,14 +11,12 @@ EraseProof.visitAppArgs_agree EraseProof.erasePure_erases v7-core-main
 EraseProof.visitMutual_agree EraseProof.erasePure_erases v7-core-main
 EraseProof.SrcEval.restrict EraseProof.erase_correct v8-main
 EraseProof.Erases.congr_ac EraseProof.erase_correct v8-main
-EraseProof.Erases.substRc EraseProof.erasePure_erases v7-core-main
 EraseProof.erases_correct EraseProof.erase_correct v8-main
 EraseProof.collectDeps_spec EraseProof.erase_correct v8-main
 EraseProof.collectDeps_sub EraseProof.erase_correct v8-main
 EraseProof.StateOK.empty EraseProof.erasePure_erases v7-core-main
 EraseProof.StateOK.blocksErased EraseProof.erasePure_erases v7-core-main
 EraseProof.eraseEntry_pure EraseProof.erase_correct v8-main
-EraseProof.isRecursiveDecl_eq EraseProof.erasePure_erases v7-core-main
 EraseProof.visitExpr_fvar_step EraseProof.erasePure_erases v7-core-main
 EraseProof.visitExpr_lam_step EraseProof.erasePure_erases v7-core-main
 EraseProof.visitExpr_letE_step EraseProof.erasePure_erases v7-core-main
@@ -27,5 +25,4 @@ EraseProof.visitExpr_const_step EraseProof.erasePure_erases v7-core-main
 EraseProof.visitExpr_mdata_step EraseProof.erasePure_erases v7-core-main
 EraseProof.visitExpr_other_step EraseProof.erasePure_erases v7-core-main
 EraseProof.visitMutual_nonrec_step EraseProof.erasePure_erases v7-core-main
-EraseProof.closeFix_closed EraseProof.erasePure_erases v7-core-main
-EraseProof.closeFix_substl EraseProof.erasePure_erases v7-core-main
+EraseProof.visitMutual_rec_step EraseProof.erasePure_erases v7-core-main
