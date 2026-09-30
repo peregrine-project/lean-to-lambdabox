@@ -1,3 +1,20 @@
+# The checks of proof/scripts/check.sh, on the verification branch. What CI runs, and where:
+#   build                         C1: the two lean-action steps; check.sh replays them.
+#   non-vacuity instances         C8: the tests EraseProof.Test.* (instances NV-1..NV-7, register
+#                                 tests) are modules of the library, so the proof build checks them;
+#                                 the report pins their footprints (axioms.expected).
+#   inherited-sorry check         C5: every sorryAx comes from lean4lean's L1-L8 (tests: also
+#                                 TrProj), and each root and test reaches the labels listed in
+#                                 axioms.expected.
+#   final-theorem footprint       C12: EraseProof.erase_correct reaches exactly propext,
+#                                 Classical.choice, Quot.sound and sorryAx from L1-L6, as does its
+#                                 NV-1 instance EraseProof.Test.NV1.final.
+#   no-leaves                     C7 with C12: every declaration outside EraseProof.Test is reachable
+#                                 from the single root EraseProof.erase_correct.
+#   shipping regression tests     C10: scripts/regress.sh.
+# The proof checks also run C2 (forbidden tokens), C3/C4 (axioms), C6 (port hygiene) and C9 (the
+# divergence register). C11 (peregrine on the emitted programs) needs a peregrine binary and runs
+# locally only.
 name: Verification
 on:
   workflow_dispatch:
@@ -19,7 +36,7 @@ jobs:
 
       # Builds the eraser and the lean4lean libraries; lean-action caches the root `.lake`, which
       # also holds the dependency checkouts that proof/ shares (proof/lakefile.toml `packagesDir`).
-      - name: Set up Lean and build the root package
+      - name: Set up Lean and build the root package (C1)
         uses: leanprover/lean-action@v1
         with:
           use-github-cache: true
@@ -28,8 +45,9 @@ jobs:
           test: false
           lint: false
 
-      # Builds the library EraseProof and caches proof/.lake.
-      - name: Build the proof package
+      # Builds the library EraseProof, its tests and non-vacuity instances included, and caches
+      # proof/.lake.
+      - name: Build the proof package and its non-vacuity instances (C1, C8)
         uses: leanprover/lean-action@v1
         with:
           lake-package-directory: proof
@@ -38,8 +56,16 @@ jobs:
           test: false
           lint: false
 
-      - name: Shipping regression tests
+      - name: Shipping regression tests (C10)
         run: scripts/regress.sh
 
-      - name: Proof checks
-        run: proof/scripts/check.sh --no-regress
+      - name: Proof checks (C2-C9, C12)
+        run: proof/scripts/check.sh --no-regress --no-peregrine
+
+      # The report's per-declaration lines and check results, on the run's summary page.
+      - name: Report summary
+        if: always()
+        run: |
+          if [ -f proof/.check/report.log ]; then
+            { echo '```'; cat proof/.check/report.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          fi

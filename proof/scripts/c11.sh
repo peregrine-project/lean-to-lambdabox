@@ -21,10 +21,17 @@
 #                                     well-formedness check rejects its tFix body (R-11; DV-8)
 #    An excluded check that passes is reported as stale, without failing. --no-exclusions runs the
 #    excluded checks as ordinary ones.
+# 3. NV-1, the program of the non-vacuity instances EraseProof.Test.NV1 (not in the corpus):
+#    proof/tools/NV1Emit.lean runs #erase's entry point on it and writes DIR/nv1/NV1.ast, and fails
+#    unless the file is the printing of Test.NV1.p0, the program Test.NV1.final is about (this needs
+#    the proof package built, as check.sh does first). `peregrine validate` and
+#    `peregrine eval --anf=false` must pass on it, and eval must print NV1_VALUE: the value
+#    λz. (λa. a) z, Test.NV1.v0', which Test.NV1.final shows is the λ□ value of the program.
 #
 # Output: one line per check ("ok", "FAIL", "excluded", "EXCLUDED-BUT-PASSES") and a total line.
 # DIR (default: a temporary directory, removed when C11 passes) must not exist or be empty; it keeps
-# the harness outputs (DIR/harness) and the output of every peregrine run (DIR/peregrine).
+# the harness outputs (DIR/harness), NV-1's program (DIR/nv1) and the output of every peregrine run
+# (DIR/peregrine).
 #
 # Exit status: 0 if the harness passes and every check that is not excluded passes, 1 otherwise,
 # 2 on a usage error.
@@ -39,7 +46,7 @@ while [ $# -gt 0 ]; do
   case $1 in
     --no-exclusions) excl=0 ;;
     --out) shift; [ $# -gt 0 ] || { echo "error: --out needs a directory" >&2; exit 2; }; out=$1 ;;
-    -h|--help) sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,37p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "error: unknown argument $1" >&2; exit 2 ;;
   esac
   shift
@@ -115,8 +122,33 @@ done < <(sed -n 's/^\([^ :]*\): pure ok; .*; #erase = pure.*$/\1/p' "$SUMMARY")
 if [ $nprog -eq 0 ]; then
   echo "FAIL: the harness summary lists no in-fragment program"; fail=$((fail + 1))
 fi
-echo "C11: $nprog in-fragment outputs, $n checks: $pass passed, $fail failed, $skip excluded" \
-  "($stale excluded checks pass)"
+
+# ---- 3. NV-1 ----------------------------------------------------------------------------------
+# peregrine's printing of Test.NV1.v0' = λz. (λa. a) z.
+NV1_VALUE='(LAM z [((LAM a [(Rel 0)]) @ (Rel 0))])'
+mkdir -p "$OUT/nv1"
+nv1=$OUT/nv1/NV1.ast
+if (cd "$ROOT/proof" && lake env lean --run tools/NV1Emit.lean "$nv1") >"$OUT/nv1/emit.log" 2>&1
+then
+  for verb in validate eval; do
+    n=$((n + 1))
+    if [ $verb = eval ]; then args=(eval "$nv1" --anf=false); else args=(validate "$nv1"); fi
+    log=$OUT/peregrine/NV1.ast.$verb
+    if (cd "$OUT/cwd" && "$PEREGRINE" "${args[@]}") >"$log" 2>&1 \
+      && { [ $verb = validate ] || grep -qxF "$NV1_VALUE" "$log"; }; then
+      pass=$((pass + 1)); echo "ok $verb NV-1 (Test.NV1.p0)"
+    else
+      fail=$((fail + 1)); echo "FAIL $verb NV-1 (Test.NV1.p0)"; sed 's/^/    /' "$log" | head -n 5
+      [ $verb = validate ] || echo "    expected the value $NV1_VALUE"
+    fi
+  done
+else
+  echo "FAIL NV-1: proof/tools/NV1Emit.lean failed"; sed 's/^/    /' "$OUT/nv1/emit.log" | head -n 10
+  fail=$((fail + 1))
+fi
+
+echo "C11: $nprog in-fragment corpus outputs and NV-1, $n checks: $pass passed, $fail failed," \
+  "$skip excluded ($stale excluded checks pass)"
 if [ $fail -ne 0 ]; then
   echo "outputs kept in $OUT"
   exit 1

@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 # Run the checks of the proof package.
 #
-# Usage: proof/scripts/check.sh [--no-regress] [--no-peregrine]
+# Usage: proof/scripts/check.sh [--no-regress] [--no-peregrine] [--no-final]
 #
 #   build     C1   `lake build` of the root package (the eraser and the lean4lean libraries) and of
-#                  proof/ (library EraseProof, which builds its tests).
+#                  proof/ (library EraseProof).
+#             C8   the tests (namespace EraseProof.Test: the non-vacuity instances and the register
+#                  tests) are modules of the library, so this builds them; `report` pins their
+#                  footprints.
 #   tokens    C2   no sorry, admit, axiom, opaque, native_decide, native, bv_decide, unsafe,
 #                  implemented_by, extern (and the other tokens of scripts/scan_tokens.py) in
 #                  proof/**/*.lean outside comments and strings.
-#   report    C3-C7, C9, run by `lake env lean --run tools/Report.lean` in proof/: axiom
+#   report    C3-C7, C9, C12, run by `lake env lean --run tools/Report.lean` in proof/: axiom
 #                  footprints within propext, Classical.choice, Quot.sound, sorryAx (no
 #                  Verify/Axioms.lean or native axiom); sorryAx only from lean4lean's L1-L8
 #                  (tests: also TrProj);
@@ -16,14 +19,21 @@
 #                  declarations; no leaves with respect to ROOTS.txt; footprints of roots and test
 #                  theorems equal axioms.expected; every source file imported; the entries of
 #                  doc/DIVERGENCES.md well-formed, citing existing declarations, files and lines,
-#                  and every DV-<n> that the register, proof/ or LeanToLambdaBox/ cites an entry.
+#                  and every DV-<n> that the register, proof/ or LeanToLambdaBox/ cites an entry;
+#                  C12, the final form: ROOTS.txt is the single root EraseProof.erase_correct, whose
+#                  footprint is exactly propext, Classical.choice, Quot.sound and sorryAx from
+#                  lean4lean's L1-L6, as is the footprint of its instance on NV-1,
+#                  EraseProof.Test.NV1.final, whose hypothesis terms and collectDeps run lie in
+#                  propext, Classical.choice, Quot.sound (skipped with --no-final).
 #                  See the header of tools/Report.lean.
 #   regress   C10  the shipping regression tests, scripts/regress.sh (skipped with --no-regress);
 #                  with PEREGRINE set, also their `-- peregrine:` lines.
 #   peregrine C11  proof/scripts/c11.sh: `peregrine validate` and `peregrine eval --anf=false` on the
 #                  pure-path output of every in-fragment corpus program, minus the exclusions of
-#                  DESIGN Q13 listed there. Runs only with PEREGRINE=<peregrine binary> in the
-#                  environment, so GitHub CI skips it; skipped with --no-peregrine.
+#                  DESIGN Q13 listed there, and on NV-1's program (EraseProof.Test.NV1.p0, as
+#                  #erase emits it), whose value must be λz. (λa. a) z. Runs only with
+#                  PEREGRINE=<peregrine binary> in the environment, so GitHub CI skips it; skipped
+#                  with --no-peregrine.
 #
 # Logs go to proof/.check/<step>.log; the report also writes proof/.check/footprints.txt and
 # proof/.check/axioms.actual (what axioms.expected should contain), and C11 keeps its outputs in
@@ -39,11 +49,13 @@ LOG=$PROOF/.check
 
 regress=1
 peregrine=1
+final=()
 for a in "$@"; do
   case $a in
     --no-regress) regress=0 ;;
     --no-peregrine) peregrine=0 ;;
-    -h|--help) sed -n '2,33p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --no-final) final=(--no-final) ;;
+    -h|--help) sed -n '2,43p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "error: unknown argument $a" >&2; exit 2 ;;
   esac
 done
@@ -68,7 +80,7 @@ run() {
 
 build_root() ( cd "$ROOT" && lake build LeanToLambdaBox Lean4Lean Lean4Lean.Theory Lean4Lean.Verify )
 build_proof() ( cd "$PROOF" && lake build )
-report() ( cd "$PROOF" && lake env lean --run tools/Report.lean )
+report() ( cd "$PROOF" && lake env lean --run tools/Report.lean ${final[@]+"${final[@]}"} )
 c11() { rm -rf "$LOG/c11" && "$PROOF/scripts/c11.sh" --out "$LOG/c11"; }
 
 run build-root build_root || exit 1

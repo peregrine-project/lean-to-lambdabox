@@ -33,12 +33,20 @@ or `EraseProof.*`):
   file of the lean4lean checkout with those lines; every id `DV-<n>` that the register, the
   library's source files or the shipping sources (`LeanToLambdaBox/`) cite is an entry of the
   register.
+* C12 `final`: the final form. `ROOTS.txt` is the single line `EraseProof.erase_correct FINAL`, so
+  C7 checks reachability from the final theorem `erase_correct` (tests are roots by themselves).
+  `erase_correct` is a theorem whose footprint is exactly `propext`, `Classical.choice`,
+  `Quot.sound`, `sorryAx`, with the `sorryAx` from exactly L1–L6 (`finalLabels`: no L7, L8,
+  `TrProj` or unlabelled source). Its instance on NV-1, `EraseProof.Test.NV1.final`, is a theorem
+  with the same footprint that applies `erase_correct` to NV-1's hypothesis terms
+  (`finalHypotheses`); these and `EraseProof.Test.NV1.hcollect` are theorems within `propext`,
+  `Classical.choice`, `Quot.sound`. Skipped with `--no-final`.
 
 Options: `--import M` (repeatable; replaces the default `EraseProof`), `--roots FILE`
 (`ROOTS.txt`), `--expected FILE` (`axioms.expected`), `--out DIR` (`.check`), `--src DIR` (`.`),
 `--divergences FILE` (`../doc/DIVERGENCES.md`), `--lean4lean DIR` (`../.lake/packages/lean4lean`),
 `--shipping DIR` (`..`, the root package, whose `LeanToLambdaBox.lean` and `LeanToLambdaBox/` are
-scanned for `DV-<n>` citations).
+scanned for `DV-<n>` citations), `--no-final` (skips C12).
 It writes `DIR/footprints.txt` (every declaration) and `DIR/axioms.actual` (the file
 `axioms.expected` should be), prints one line per check, and exits with 1 if a check fails.
 -/
@@ -86,6 +94,26 @@ def isForbiddenBridge (n : Name) : Bool :=
   n == `Lean4Lean.TrExpr || s.startsWith "Lean4Lean.TrExprS" ||
     s.startsWith "Lean4Lean.TrExpr." || s.startsWith "Lean4Lean.TrProj"
 
+/-- The final theorem, the only root of `ROOTS.txt` in the final form (C12). -/
+def finalTheorem : Name := `EraseProof.erase_correct
+
+/-- The lean4lean `sorry`s that the final theorem and its instance reach, exactly (C12): L1–L6, the
+inherited sorries of DESIGN Q11. -/
+def finalLabels : Array String := #["L1", "L2", "L3", "L4", "L5", "L6"]
+
+/-- The instance of the final theorem on NV-1 (C12). -/
+def finalInstance : Name := `EraseProof.Test.NV1.final
+
+/-- NV-1's terms for the hypotheses of the final theorem, which `finalInstance` passes to it
+(C12). -/
+def finalHypotheses : Array Name := #[
+  `EraseProof.Test.NV1.henv, `EraseProof.Test.NV1.hview, `EraseProof.Test.NV1.he,
+  `EraseProof.Test.NV1.hrun, `EraseProof.Test.NV1.hev]
+
+/-- The theorems of NV-1 whose footprints lie in `propext`, `Classical.choice`, `Quot.sound`, with
+no `sorryAx` (C12): the hypothesis terms, and the run of `collectDeps` that `hrun` rests on. -/
+def finalStd3 : Array Name := finalHypotheses.push `EraseProof.Test.NV1.hcollect
+
 structure Config where
   imports : Array Name := #[]
   roots : System.FilePath := "ROOTS.txt"
@@ -95,6 +123,7 @@ structure Config where
   divergences : System.FilePath := "../doc/DIVERGENCES.md"
   lean4lean : System.FilePath := "../.lake/packages/lean4lean"
   shipping : System.FilePath := ".."
+  final : Bool := true
 
 partial def parseArgs (cfg : Config) : List String → Except String Config
   | [] => .ok cfg
@@ -106,6 +135,7 @@ partial def parseArgs (cfg : Config) : List String → Except String Config
   | "--divergences" :: f :: rest => parseArgs { cfg with divergences := f } rest
   | "--lean4lean" :: f :: rest => parseArgs { cfg with lean4lean := f } rest
   | "--shipping" :: f :: rest => parseArgs { cfg with shipping := f } rest
+  | "--no-final" :: rest => parseArgs { cfg with final := false } rest
   | a :: _ => .error s!"unknown or incomplete option {a}"
 
 /-! ## Names -/
@@ -685,12 +715,48 @@ def main (args : List String) : IO UInt32 := do
     if !want.contains d then
       fail "expected" s!"{cfg.expected} lists {d}, which is neither a root nor a test theorem"
 
+  -- C12 the final form.
+  if cfg.final then
+    let rootLines := ((lines rootsText).filter (!isComment ·)).map fields
+    if rootLines != [[finalTheorem.toString, "FINAL"]] then
+      fail "final" s!"{cfg.roots} is not the single line `{finalTheorem} FINAL`"
+    let allLabels := sorryLabels ++ testOnlySorryLabels
+    let theoremFp? (d : Name) : Option Footprint :=
+      match env.find? d with
+      | some (.thmInfo _) => if isOurs env d then some (fpOf d) else none
+      | _ => none
+    let describe (fp : Footprint) : String :=
+      let unlabelled := fp.sorries.toArray.filter fun h => (labelOf? allLabels h).isNone
+      let extra := if unlabelled.isEmpty then "" else
+        s!" (sorryAx also through {showList (unlabelled.map toString)})"
+      s!"{axiomsField fp} {showList (labelsOf allLabels fp)}{extra}"
+    let finalFp := s!"{showList (allowedAxioms.map toString)} {showList finalLabels}"
+    for d in #[finalTheorem, finalInstance] do
+      match theoremFp? d with
+      | none => fail "final" s!"{d} is not a theorem of {lib}"
+      | some fp =>
+        if describe fp != finalFp then
+          fail "final" s!"{d}: footprint {describe fp}, expected {finalFp}"
+    if env.contains finalInstance then
+      let used := uses env finalInstance
+      for h in #[finalTheorem] ++ finalHypotheses do
+        if !used.contains h then fail "final" s!"{finalInstance} does not mention {h}"
+    let std3 := allowedAxioms.filter (· != ``sorryAx)
+    for d in finalStd3 do
+      match theoremFp? d with
+      | none => fail "final" s!"{d} is not a theorem of {lib}"
+      | some fp =>
+        if !fp.sorries.isEmpty || fp.axioms.toArray.any (!std3.contains ·) then
+          fail "final" s!"{d}: footprint {describe fp}, expected within {showList (std3.map toString)} -"
+
   IO.println s!"report: {ours.size} declarations ({checked.size} checked, {tests.size} tests) in {ourMods.size} module(s); {roots.size} root(s)"
   for l in report do IO.println l
   let fs ← failures.get
-  for check in ["axioms", "sorry", "hygiene", "leaves", "expected", "modules", "divergences"] do
+  for check in ["axioms", "sorry", "hygiene", "leaves", "expected", "modules", "divergences",
+      "final"] do
     let n := (fs.filter (· == check)).size
-    IO.println s!"{check}: {if n == 0 then "ok" else s!"{n} failure(s)"}"
+    if check == "final" && !cfg.final then IO.println "final: skipped (--no-final)"
+    else IO.println s!"{check}: {if n == 0 then "ok" else s!"{n} failure(s)"}"
   return if fs.isEmpty then 0 else 1
 
 end EraseProofReport
