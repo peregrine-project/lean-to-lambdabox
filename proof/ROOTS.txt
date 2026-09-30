@@ -6,8 +6,4 @@
 #   <task id>: optional, the unit that lands the consumer.
 # Every declaration of EraseProof outside EraseProof.Test must be reachable from a root; no root
 # may be reachable from another root.
-EraseProof.SrcEval.restrict EraseProof.erase_correct v8-main
-EraseProof.Erases.congr_ac EraseProof.erase_correct v8-main
-EraseProof.erases_correct EraseProof.erase_correct v8-main
-EraseProof.eraseEntry_pure EraseProof.erase_correct v8-main
-EraseProof.erasePure_erases EraseProof.erase_correct v8-main
+EraseProof.erase_correct FINAL
