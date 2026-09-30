@@ -30,6 +30,7 @@ import EraseProof.Test.Bridge
 import EraseProof.Test.LBEval
 import EraseProof.Test.NV1
 import EraseProof.Test.NV2
+import EraseProof.Test.NV4
 import EraseProof.Test.NV5
 import EraseProof.Test.NV6
 import EraseProof.Test.NV7
