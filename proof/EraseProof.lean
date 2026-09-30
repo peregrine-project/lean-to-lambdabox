@@ -15,6 +15,7 @@ import EraseProof.Env.Unfold
 import EraseProof.Erasability
 import EraseProof.Erasability.Eval
 import EraseProof.Erasability.Inv
+import EraseProof.Main
 import EraseProof.Oracle
 import EraseProof.Oracle.Agree
 import EraseProof.Oracle.Atom
