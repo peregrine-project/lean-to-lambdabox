@@ -6,7 +6,9 @@
 #             see tools/Report.lean `sorryLabels`, `testOnlySorryLabels`), comma-separated;
 #             `-` for none.
 # proof/scripts/check.sh compares this file with the computed .check/axioms.actual.
+EraseProof.collectDeps_not_outOfFragment propext,Classical.choice,Quot.sound -
 EraseProof.collectDeps_spec propext,Classical.choice,Quot.sound -
+EraseProof.collectDeps_sub propext,Classical.choice,Quot.sound -
 EraseProof.erases_correct propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5,L6
 EraseProof.Erases.closed propext,Classical.choice,Quot.sound -
 EraseProof.Erases.congr_ac propext,Classical.choice,Quot.sound -
@@ -18,7 +20,6 @@ EraseProof.Pure.isErasable_agree propext,Quot.sound -
 EraseProof.Pure.isErasable_atom propext,Quot.sound -
 EraseProof.Pure.isErasable_sound propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
 EraseProof.SrcEval.restrict propext,Classical.choice,Quot.sound -
-EraseProof.TrS.fvarsIn propext,Classical.choice,Quot.sound -
 EraseProof.TrS.inst_fvar propext,Classical.choice,Quot.sound -
 EraseProof.Test.Atoms.defHead_kept propext -
 EraseProof.Test.Atoms.levelDependent_kept propext -
@@ -69,6 +70,7 @@ EraseProof.Test.NV1.hev propext,Classical.choice,Quot.sound -
 EraseProof.Test.NV1.hinj propext,Classical.choice,Quot.sound -
 EraseProof.Test.NV1.hlc propext,Classical.choice,Quot.sound -
 EraseProof.Test.NV1.hsub propext -
+EraseProof.Test.NV1.hview propext -
 EraseProof.Test.NV1.inst propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5,L6
 EraseProof.Test.NV1.lbev propext,Classical.choice,Quot.sound -
 EraseProof.Test.NV1.lookup0 propext,Classical.choice,Quot.sound -
