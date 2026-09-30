@@ -17,17 +17,6 @@
 
 \section{The theorem}\label{sec:simulation-main}
 
-\begin{definition}[Injective names]
-  \label{def:EraseProof-KernameInj}
-  \lean{EraseProof.KernameInj}
-  \leanok
-  \uses{def:EraseProof-findDecl}
-  \srcloc{proof/EraseProof/Simulation/Cases.lean}{24}
-  \lead{In short} \code{KernameInj decls}: the declarations of \code{decls} have \hl{distinct
-  $\lambda_\Box$ names} (\code{toKername}); the name mangling is not injective (R-3), so the
-  closure checks it (DV-14).
-\end{definition}
-
 \begin{theorem}[Relation-level simulation]
   \label{thm:EraseProof-erases_correct}
   \lean{EraseProof.erases_correct}
@@ -96,7 +85,7 @@ premises as hypotheses. Every case first sends an erasure to $\Box$ to the unifo
   \lean{EraseProof.erases_correct_box}
   \leanok
   \uses{def:EraseProof-Erases, def:EraseProof-SrcEval, def:EraseProof-LBEval}
-  \srcloc{proof/EraseProof/Simulation/Cases.lean}{68}
+  \srcloc{proof/EraseProof/Simulation/Cases.lean}{61}
   \inherited{L1, L2, L3, L4, L5}
   \lead{In short} If \code{e} is erasable and evaluates to \code{v}, then \hl{\code{v} erases to
   $\Box$}, which $\lambda_\Box$ evaluates to itself.
@@ -115,7 +104,7 @@ premises as hypotheses. Every case first sends an erasure to $\Box$ to the unifo
   \leanok
   \uses{def:EraseProof-Erases, def:EraseProof-SrcEval, def:EraseProof-LBEval,
     def:EraseProof-LenvClosed}
-  \srcloc{proof/EraseProof/Simulation/Cases.lean}{77}
+  \srcloc{proof/EraseProof/Simulation/Cases.lean}{70}
   \inherited{L1, L2, L3, L4, L5, L6}
   \lead{In short} The function's erasure evaluates to $\Box$, and so does the application, or to
   a $\lambda$ whose body, \hl{with the argument's value substituted}, erases the source's body.
@@ -129,7 +118,8 @@ premises as hypotheses. Every case first sends an erasure to $\Box$ to the unifo
   \uses{lem:EraseProof-erases_correct_box, lem:EraseProof-Erases-app_inv,
     lem:EraseProof-SrcEval-defeq, lem:EraseProof-Erases-inst, lem:EraseProof-ErasesDeps-eval,
     lem:EraseProof-ErasesDeps-csubst, lem:EraseProof-IsErasable-lam_inv,
-    lem:EraseProof-IsErasable-inst, lem:EraseProof-TrS-inst, lem:EraseProof-TrS-det}
+    lem:EraseProof-IsErasable-inst, lem:EraseProof-TrS-inst, lem:EraseProof-TrS-det,
+    lem:EraseProof-ErasableS-eval, lem:EraseProof-ProgEnv-ordered, lem:EraseProof-ProgEnv-wf}
   \leanok
   \lead{Idea} Subject reduction types the argument's value at the domain; \code{Erases.inst}
   substitutes; a $\Box$ function has an erasable body (\code{IsErasable.lam\_inv}).
@@ -141,7 +131,7 @@ premises as hypotheses. Every case first sends an erasure to $\Box$ to the unifo
   \leanok
   \uses{def:EraseProof-Erases, def:EraseProof-SrcEval, def:EraseProof-LBEval,
     def:EraseProof-LenvClosed}
-  \srcloc{proof/EraseProof/Simulation/Cases.lean}{137}
+  \srcloc{proof/EraseProof/Simulation/Cases.lean}{130}
   \inherited{L1, L2, L3, L4, L5}
   \lead{In short} The \code{let} value's erasure evaluates to an erasure of its value, which
   \hl{substituted into the erased body} erases the source's substituted body.
@@ -151,7 +141,8 @@ premises as hypotheses. Every case first sends an erasure to $\Box$ to the unifo
   \uses{lem:EraseProof-erases_correct_box, lem:EraseProof-erases_correct_beta,
     lem:EraseProof-SrcEval-defeq, lem:EraseProof-TrS-defeqDFC, lem:EraseProof-TrS-inst_let,
     lem:EraseProof-Erases-inst_let, lem:EraseProof-ErasesDeps-eval,
-    lem:EraseProof-ErasesDeps-csubst}
+    lem:EraseProof-ErasesDeps-csubst, lem:EraseProof-ProgEnv-ordered, lem:EraseProof-ProgEnv-wf,
+    lem:EraseProof-TrS-det}
   \leanok
   \lead{Idea} The body's translation in the \code{let} context is \code{Erases.inst\_let}'s
   \code{hbt}; subject reduction relates the value's translation to the \code{let} value
@@ -164,7 +155,7 @@ premises as hypotheses. Every case first sends an erasure to $\Box$ to the unifo
   \leanok
   \uses{def:EraseProof-Erases, def:EraseProof-SrcEval, def:EraseProof-LBEval,
     def:EraseProof-KernameInj, def:EraseProof-ErasesDeps}
-  \srcloc{proof/EraseProof/Simulation/Cases.lean}{175}
+  \srcloc{proof/EraseProof/Simulation/Cases.lean}{168}
   \inherited{L1, L2, L3, L4, L5}
   \lead{In short} For a non-recursive constant, the $\lambda_\Box$ declaration at its kername is
   \hl{its own}, whose body erases its value at the occurrence's levels.
@@ -177,7 +168,8 @@ premises as hypotheses. Every case first sends an erasure to $\Box$ to the unifo
 \end{lemma}
 \begin{proof}
   \uses{lem:EraseProof-erases_correct_box, lem:EraseProof-SrcEval-beta_step,
-    lem:EraseProof-Erases-instLevels, lem:EraseProof-EvalEnv-unfold_some}
+    lem:EraseProof-Erases-instLevels, lem:EraseProof-EvalEnv-unfold_some,
+    lem:EraseProof-SrcEval-restrict}
   \leanok
   \lead{Idea} \code{ErasesDecl} gives the stored body; \code{Erases.instLevels} moves it to the
   occurrence's levels.
@@ -189,7 +181,7 @@ premises as hypotheses. Every case first sends an erasure to $\Box$ to the unifo
     EraseProof.erases_correct_mdata}
   \leanok
   \uses{def:EraseProof-Erases, def:EraseProof-SrcEval, def:EraseProof-LBEval}
-  \srcloc{proof/EraseProof/Simulation/Cases.lean}{295}
+  \srcloc{proof/EraseProof/Simulation/Cases.lean}{288}
   \inherited{L1, L2, L3, L4, L5}
   \lead{In short} The rules \code{atom}, \code{constAtom} and \code{mdata}: \hl{values erase to
   $\lambda_\Box$ values}, and metadata is transparent.
@@ -212,7 +204,7 @@ premises as hypotheses. Every case first sends an erasure to $\Box$ to the unifo
   \lean{EraseProof.erases_correct_appCong, EraseProof.ErasableS.atomSpine}
   \leanok
   \uses{def:EraseProof-Erases, def:EraseProof-SrcEval, def:EraseProof-LBEval}
-  \srcloc{proof/EraseProof/Simulation/Cases.lean}{240}
+  \srcloc{proof/EraseProof/Simulation/Cases.lean}{233}
   \inherited{L1, L2, L3, L4, L5, L6}
   \lead{In short} An application whose head evaluates to an atom spine \hl{evaluates to $\Box$},
   an erasure of its value.
@@ -225,7 +217,8 @@ premises as hypotheses. Every case first sends an erasure to $\Box$ to the unifo
 \begin{proof}
   \uses{lem:EraseProof-erases_correct_box, lem:EraseProof-SrcEval-value,
     lem:EraseProof-Erases-atomSpine_box, lem:EraseProof-ErasableS-atom,
-    lem:EraseProof-IsErasable-app, lem:EraseProof-SrcEval-defeq}
+    lem:EraseProof-IsErasable-app, lem:EraseProof-SrcEval-defeq, lem:EraseProof-Erases-app_inv,
+    lem:EraseProof-TrS-det}
   \leanok
   \lead{Idea} \code{SrcEval.value} makes the head's value an atom spine; its erasure evaluates to
   $\Box$ (\code{Erases.atomSpine\_box}).
@@ -244,7 +237,8 @@ premises as hypotheses. Every case first sends an erasure to $\Box$ to the unifo
   and its \code{eval\_atom} case; DV-7.
 \end{lemma}
 \begin{proof}
-  \uses{lem:EraseProof-erases_correct_delta, lem:EraseProof-EvalEnv-unfold_some}
+  \uses{lem:EraseProof-erases_correct_delta, lem:EraseProof-EvalEnv-unfold_some,
+    lem:EraseProof-SrcEval-restrict}
   \leanok
   \lead{Idea} \code{KernameInj} identifies the declaration; \code{ErasesDecl} makes its body a
   \code{tFix}.
@@ -273,8 +267,10 @@ premises as hypotheses. Every case first sends an erasure to $\Box$ to the unifo
 \begin{proof}
   \uses{lem:EraseProof-erases_correct_box, lem:EraseProof-erases_correct_delta,
     lem:EraseProof-SrcEval-defeq, lem:EraseProof-SrcEval-beta_step,
-    lem:EraseProof-Erases-instLevels, lem:EraseProof-IsErasable-app,
-    lem:EraseProof-ErasableS-eval, lem:EraseProof-ErasesDeps-eval}
+    lem:EraseProof-Erases-instLevels, lem:EraseProof-IsErasable-app, lem:EraseProof-ErasableS-eval,
+    lem:EraseProof-ErasesDeps-eval, lem:EraseProof-Erases-app_inv,
+    lem:EraseProof-EvalEnv-unfold_some, lem:EraseProof-ProgEnv-unfold, lem:EraseProof-ProgEnv-wf,
+    lem:EraseProof-SrcEval-restrict, lem:EraseProof-TrS-det}
   \leanok
   \lead{Idea} $\lambda_\Box$ evaluates the application by \code{eval\_fix} with no earlier
   arguments; the unfolded body moves to the occurrence's levels by \code{Erases.instLevels}.

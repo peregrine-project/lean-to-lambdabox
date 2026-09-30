@@ -181,7 +181,7 @@ lean4lean's lemmas about \code{TrExprS} without the literal and projection cases
   \code{instN\_let\_var}.
 \end{lemma}
 \begin{proof}
-  \uses{def:EraseProof-TrS}
+  \uses{def:EraseProof-TrS, lem:EraseProof-TrS-weakBV}
   \leanok
   \lead{Idea} Induction for \code{instN\_let}, with its variable case.
 \end{proof}
@@ -214,7 +214,8 @@ lean4lean's lemmas about \code{TrExprS} without the literal and projection cases
   \lead{Reference} lean4lean \code{TrExprS.inst\_fvar}; none in MetaRocq.
 \end{lemma}
 \begin{proof}
-  \uses{def:EraseProof-TrS}
+  \uses{def:EraseProof-TrS, lem:EraseProof-TrS-inst, lem:EraseProof-TrS-inst_let,
+    lem:EraseProof-TrS-weakFV}
   \leanok
   \lead{Idea} Port of lean4lean's proof, without the literal and projection cases.
 \end{proof}
@@ -429,7 +430,7 @@ environment, one kernel step per declaration.
   \lead{Reference} MetaRocq \code{declared\_constant\_inv}.
 \end{lemma}
 \begin{proof}
-  \uses{lem:EraseProof-TrConst-mono}
+  \uses{lem:EraseProof-TrConst-mono, lem:EraseProof-ProgEnv-lookup}
   \leanok
   \lead{Idea} Induction on \code{ProgEnv}, as for \code{ProgEnv.lookup}.
 \end{proof}
@@ -445,7 +446,7 @@ environment, one kernel step per declaration.
   \lead{Reference} MetaRocq \code{declared\_constant\_inv}, for a constant with a body.
 \end{lemma}
 \begin{proof}
-  \uses{lem:EraseProof-TrConst-mono}
+  \uses{lem:EraseProof-TrConst-mono, lem:EraseProof-ProgEnv-lookup}
   \leanok
   \lead{Idea} Induction on \code{ProgEnv}; for a block member, the block's equation.
 \end{proof}
@@ -461,7 +462,7 @@ environment, one kernel step per declaration.
   \lead{Reference} MetaRocq \code{declared\_constant\_inv}, the typing of \code{cst\_body}.
 \end{lemma}
 \begin{proof}
-  \uses{lem:EraseProof-TrConst-mono}
+  \uses{lem:EraseProof-TrConst-mono, lem:EraseProof-ProgEnv-lookup}
   \leanok
   \lead{Idea} Induction on \code{ProgEnv}, whose rules \code{defn}, \code{thm} and \code{block}
   have the typing as a premise.

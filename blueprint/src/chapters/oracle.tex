@@ -51,7 +51,8 @@
   (\code{pcuic/theories/Typing/PCUICWeakeningTyp.v}); \code{type\_Rel}.
 \end{lemma}
 \begin{proof}
-  \uses{lem:EraseProof-TrS-wf, lem:EraseProof-TrS-weakBV, lem:EraseProof-TrS-closed}
+  \uses{lem:EraseProof-TrS-wf, lem:EraseProof-TrS-weakBV, lem:EraseProof-TrS-closed,
+    lem:EraseProof-TrS-weakFV}
   \leanok
   \lead{Idea} Inductions on \code{LocalsOK} and \code{OracleCtx}; weakening by \code{TrS.weakBV}.
 \end{proof}
@@ -94,7 +95,8 @@
 \begin{proof}
   \uses{lem:EraseProof-TrS-inst, lem:EraseProof-TrS-inst_let, lem:EraseProof-TrS-instLevels,
     lem:EraseProof-TrS-wf, lem:EraseProof-ProgEnv-lookupDefn, lem:EraseProof-LocalsOK-wf,
-    lem:EraseProof-ProgEnv-wf}
+    lem:EraseProof-ProgEnv-wf, lem:EraseProof-ProgEnv-ordered, lem:EraseProof-Pure-isErasable_agree,
+    lem:EraseProof-TrS-closed}
   \leanok
   \lead{Idea} Fuel induction for \code{whnf\_defeqU}: $\beta$ by \code{TrS.inst}, $\zeta$ by
   \code{TrS.inst\_let} and the let-bound locals, $\delta$ by \code{ProgEnv.lookupDefn} and
@@ -116,7 +118,9 @@
 \end{lemma}
 \begin{proof}
   \uses{lem:EraseProof-Pure-whnf_sound, lem:EraseProof-LocalsOK-wf, lem:EraseProof-ProgEnv-lookup,
-    lem:EraseProof-TrS-instLevels, lem:EraseProof-TrS-inst_let}
+    lem:EraseProof-TrS-instLevels, lem:EraseProof-TrS-inst_let, lem:EraseProof-ProgEnv-ordered,
+    lem:EraseProof-ProgEnv-wf, lem:EraseProof-Pure-isErasable_agree, lem:EraseProof-TrS-closed,
+    lem:EraseProof-TrS-inst}
   \leanok
   \lead{Idea} Fuel induction: variables by the context lemmas, constants by \code{ProgEnv.lookup}
   and \code{TrS.instLevels}, applications and $\Pi$ by \code{Pure.whnf\_sound} with unique typing
@@ -136,7 +140,8 @@
   \lead{Reference} \code{is\_arityP} (\code{erasure/theories/ErasureFunction.v}), true direction.
 \end{lemma}
 \begin{proof}
-  \uses{lem:EraseProof-Pure-whnf_sound, lem:EraseProof-Pure-isErasable_agree}
+  \uses{lem:EraseProof-Pure-whnf_sound, lem:EraseProof-Pure-isErasable_agree,
+    lem:EraseProof-LocalsOK-wf, lem:EraseProof-ProgEnv-wf}
   \leanok
   \lead{Idea} Fuel induction through \code{Pure.whnf}: a sort is an arity; a $\Pi$ continues in
   its codomain, under the extended oracle context.
@@ -181,7 +186,8 @@
 \begin{proof}
   \uses{lem:EraseProof-Pure-inferType_sound, lem:EraseProof-Pure-isArity_sound,
     lem:EraseProof-Pure-alwaysZero_sound, lem:EraseProof-Pure-whnf_sound,
-    lem:EraseProof-Pure-isErasable_agree}
+    lem:EraseProof-Pure-isErasable_agree, lem:EraseProof-LocalsOK-wf,
+    lem:EraseProof-ProgEnv-ordered}
   \leanok
   \lead{Idea} Follow the oracle: the inferred type is a type (\code{Pure.inferType\_sound}); either
   it is convertible to an arity (\code{isArity\_sound}), or its sort reduces to a level

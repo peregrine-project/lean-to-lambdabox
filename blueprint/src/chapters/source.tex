@@ -93,7 +93,7 @@
   \lead{Reference} \code{Is\_type\_app} (\code{erasure/theories/EArities.v}); Letouzey Lemma 2.
 \end{lemma}
 \begin{proof}
-  \uses{lem:EraseProof-ProgEnv-wf, lem:EraseProof-ProgEnv-ordered}
+  \uses{lem:EraseProof-ProgEnv-wf, lem:EraseProof-ProgEnv-ordered, lem:EraseProof-IsErasable-inst}
   \leanok
   \lead{Idea} Unique typing identifies the erasable type with the function's $\Pi$-type;
   \code{forallE\_cod} reads the codomain by $\Pi$- and sort injectivity and sort $\not\equiv \Pi$,
@@ -111,7 +111,7 @@
   \lead{Reference} \code{Is\_type\_lambda} (\code{erasure/theories/EArities.v}).
 \end{lemma}
 \begin{proof}
-  \uses{lem:EraseProof-IsErasable-app, lem:EraseProof-ProgEnv-wf}
+  \uses{lem:EraseProof-IsErasable-app, lem:EraseProof-ProgEnv-wf, lem:EraseProof-ProgEnv-ordered}
   \leanok
   \lead{Idea} Unique typing identifies the erasable type with the $\lambda$'s $\Pi$-type, then
   \code{IsErasable.forallE\_cod}.
@@ -237,7 +237,7 @@
   \uses{lem:EraseProof-TrS-inst, lem:EraseProof-TrS-inst_let, lem:EraseProof-TrS-instLevels,
     lem:EraseProof-TrS-uniq, lem:EraseProof-TrS-defeqDFC, lem:EraseProof-TrS-det,
     lem:EraseProof-ProgEnv-unfold, lem:EraseProof-ProgEnv-lookupDef_wf,
-    lem:EraseProof-ProgEnv-ordered, lem:EraseProof-ProgEnv-wf}
+    lem:EraseProof-ProgEnv-ordered, lem:EraseProof-ProgEnv-wf, lem:EraseProof-EvalEnv-unfold_some}
   \leanok
   \lead{Idea} $\beta$: unique typing and $\Pi$-injectivity give the argument the $\lambda$'s domain,
   then \code{TrS.inst}; $\zeta$: context conversion, then \code{TrS.inst\_let}; $\delta$:
@@ -279,7 +279,7 @@
   \lean{EraseProof.evalEnvOf}
   \leanok
   \uses{def:EraseProof-EvalEnv, def:Erasure-isRecursiveDecl, def:Erasure-EnvView}
-  \srcloc{proof/EraseProof/Source/Restrict.lean}{38}
+  \srcloc{proof/EraseProof/Source/Restrict.lean}{47}
   \lead{In short} \code{evalEnvOf view cfg P}: the declarations \code{P}, with \hl{the constants
   \code{\#erase} remaps} as stuck: those the shipping test \code{Erasure.axiomatized} marks
   (DV-12).
@@ -290,7 +290,7 @@
   \lean{EraseProof.ConstsIn, EraseProof.DepClosed}
   \leanok
   \uses{def:EraseProof-findDecl}
-  \srcloc{proof/EraseProof/Source/Restrict.lean}{20}
+  \srcloc{proof/EraseProof/Source/Restrict.lean}{22}
   \lead{In short} \code{ConstsIn p e}: \hl{every constant of \code{e} satisfies \code{p}};
   \code{DepClosed decls}: the list is closed under the dependencies of its members (types, values,
   block members).
@@ -298,12 +298,23 @@
   \code{erase\_global\_deps} (\code{erasure/theories/ErasureFunction.v}).
 \end{definition}
 
+\begin{definition}[Injective names]
+  \label{def:EraseProof-KernameInj}
+  \lean{EraseProof.KernameInj}
+  \leanok
+  \uses{def:EraseProof-findDecl}
+  \srcloc{proof/EraseProof/Source/Restrict.lean}{40}
+  \lead{In short} \code{KernameInj decls}: the declarations of \code{decls} have \hl{distinct
+  $\lambda_\Box$ names} (\code{toKername}); the name mangling is not injective (R-3), so the
+  closure checks it (DV-14).
+\end{definition}
+
 \begin{lemma}[Lookups in a sub-environment]
   \label{lem:EraseProof-SubEnv-findDecl_of_some}
   \lean{EraseProof.SubEnv.findDecl_of_some, EraseProof.SubEnv.findDecl_eq}
   \leanok
   \uses{def:EraseProof-SubEnv}
-  \srcloc{proof/EraseProof/Source/Restrict.lean}{128}
+  \srcloc{proof/EraseProof/Source/Restrict.lean}{137}
   \lead{In short} A declaration found in a sub-environment \hl{is the one found in the
   environment}; on the sub-environment's names, both lookups agree.
   \lead{Reference} \code{lookup\_env\_extends\_NoDup} (\code{common/theories/Environment.v}).
@@ -324,7 +335,7 @@
   \leanok
   \uses{def:EraseProof-SrcEval, def:EraseProof-evalEnvOf, def:EraseProof-ConstsIn,
     def:EraseProof-SubEnv}
-  \srcloc{proof/EraseProof/Source/Restrict.lean}{203}
+  \srcloc{proof/EraseProof/Source/Restrict.lean}{212}
   \lead{In short} An evaluation over \code{P} of a term whose constants lie in a dependency-closed
   sub-environment \code{decls} \hl{is an evaluation over \code{decls}}, and its value has its
   constants in \code{decls}.
@@ -394,7 +405,8 @@
 \end{lemma}
 \begin{proof}
   \uses{lem:EraseProof-ProgEnv-lookup, lem:EraseProof-SubEnv-findDecl_of_some,
-    lem:EraseProof-TrS-uniq, lem:EraseProof-TrS-instLevels, lem:EraseProof-ProgEnv-wf}
+    lem:EraseProof-TrS-uniq, lem:EraseProof-TrS-instLevels, lem:EraseProof-ProgEnv-wf,
+    lem:EraseProof-IsErasable-instL, lem:EraseProof-ProgEnv-ordered}
   \leanok
   \lead{Idea} \code{ProgEnv.lookup} gives the declared type at the constant's own level
   parameters: an arity, or of sort equivalent to zero; lean4lean's \code{HasType.instL} moves it to
