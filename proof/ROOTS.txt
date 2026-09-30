@@ -25,3 +25,5 @@ EraseProof.erases_correct_constAtom EraseProof.erases_correct v4-sim-main
 EraseProof.erases_correct_appCong EraseProof.erases_correct v4-sim-main
 EraseProof.erases_correct_mdata EraseProof.erases_correct v4-sim-main
 EraseProof.erases_correct_atom EraseProof.erases_correct v4-sim-main
+EraseProof.erases_correct_fixAtom EraseProof.erases_correct v4-sim-main
+EraseProof.erases_correct_fixApp EraseProof.erases_correct v4-sim-main

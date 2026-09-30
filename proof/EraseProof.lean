@@ -17,6 +17,7 @@ import EraseProof.Relation.Deps
 import EraseProof.Relation.Levels
 import EraseProof.Relation.Subst
 import EraseProof.Simulation.Cases
+import EraseProof.Simulation.Fix
 import EraseProof.Source.Defeq
 import EraseProof.Source.Eval
 import EraseProof.Source.EvalEnv
