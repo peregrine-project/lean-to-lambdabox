@@ -19,3 +19,4 @@ EraseProof.Erases.uninstantiateN EraseProof.erasePure_erases v7-core-main
 EraseProof.Erases.substRc EraseProof.erasePure_erases v7-core-main
 EraseProof.Pure.isErasable_atom EraseProof.erasePure_erases v7-core-main
 EraseProof.erases_correct EraseProof.erase_correct v8-main
+EraseProof.collectDeps_spec EraseProof.erase_correct v8-main

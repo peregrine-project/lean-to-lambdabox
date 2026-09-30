@@ -1,4 +1,5 @@
 import EraseProof.Atoms
+import EraseProof.Core.Collect
 import EraseProof.Env
 import EraseProof.Env.Unfold
 import EraseProof.Erasability
