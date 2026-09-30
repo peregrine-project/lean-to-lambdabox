@@ -687,6 +687,46 @@ The blueprint renders this register.
   forcing reason; skipping `@[irreducible]` in type inference too: the oracle then fails on
   `fun (_ : R) (x : A) => x`, whose domain has a sort only through `IProp`.
 
+### DV-20
+
+- **Our artifact:** `proof/EraseProof/Simulation.lean`, `EraseProof.erases_correct`, the
+  relation-level simulation: an evaluation (`EraseProof.SrcEval`) of a well-typed closed source
+  term to a value is matched by a λ□ evaluation (`EraseProof.LBEval` at `EraseProof.defaultFlags`)
+  of any erasure of the term (`EraseProof.Erases`) whose dependencies are erased
+  (`EraseProof.ErasesDeps`), to an erasure of the source value.
+- **Reference artifact:** Letouzey §3.4: Theorem 12 (forward simulation, CIC□ → CIC: if
+  `(Γ, t) ◀ (Γ0, t0)` and `t →rw u`, then `t0 →rw+ u0` for some `u0` with `(Γ, u) ◀ (Γ0, u0)`;
+  Appendix A), Theorem 13 (backward simulation, CIC → CIC□: if `(Γ, t) ◀ (Γ0, t0)` and
+  `t0 →rw u0`, then `(Γ, u) ◀ (Γ0, u0)` for some `u` with `t →rw u` or `t →*□w u`; Appendix B) and
+  Theorem 15 (adequacy: every `→rw□w` derivation from `𝓔(t)`, for a well-typed closed `t` whose
+  type is a logic-free data type, terminates on the CIC normal form of `t`; Appendix C).
+  MetaRocq's `erases_correct` (`erasure/theories/ErasureCorrectness.v:51`; MetaCoq paper §7.3,
+  p. 8:64), which `EraseProof.erases_correct` follows: a big-step statement over PCUIC's `eval`
+  (`pcuic/theories/PCUICWcbvEval.v:231`) and λ□'s `eval` (`erasure/theories/EWcbvEval.v:119`) at
+  `default_wcbv_flags`.
+- **What differs:** of Letouzey's three theorems, only Theorem 13 has a counterpart, and it is
+  proved big-step at call-by-value, as MetaRocq's `erases_correct` is: a whole source evaluation
+  to a value, not a single weak step, is matched by a whole λ□ evaluation, not by one step or by
+  □-steps, and the invariant ◀ (Definition 10) is the erasure relation `EraseProof.Erases`
+  (MetaRocq's `erases`, `erasure/theories/Extract.v:88`). Theorems 12 and 15 are omitted: nothing
+  states that a λ□ step is matched by source steps (Theorem 12), or that the λ□ reductions of an
+  erased closed term of a logic-free data type terminate on the term's normal form (Theorem 15).
+- **Why it is forced:** Theorem 15 needs strong normalization of the source, for its termination
+  half (Appendix C maps each step of the erased term to at least one source step by Theorem 12, and
+  concludes by strong normalization), and data types (Definition 14), which are inductive types;
+  lean4lean `master` has neither: it proves no normalization theorem, and
+  `Lean4Lean.VInductDecl.WF` and `Lean4Lean.VEnv.addInduct` are `sorry` definitions
+  (`Lean4Lean/Theory/Inductive.lean:5,7`; DV-6). Theorem 12 serves only Theorem 15's
+  termination argument. MetaRocq, the machine-checked reference, replaces both by
+  `erases_correct`, which takes the source evaluation as a hypothesis and so needs no
+  normalization; `EraseProof.erases_correct` follows it.
+- **What was considered instead:** proving Theorem 12 on its own: without Theorem 15 it has no
+  consumer on the path to the final theorem; a small-step Theorem 13 over weak reduction in any
+  order, which says nothing about the value that λ□'s call-by-value evaluator reaches (DV-22);
+  strong normalization as a hypothesis, a stand-in for a result lean4lean `master` lacks (spec
+  §2), and false in the fragment, which has diverging recursive unsafe constants (DV-22's
+  `loop`).
+
 ### DV-21
 
 - **Our artifact:** `proof/EraseProof/Env.lean`, `EraseProof.ProgEnv`: its rule `axiom` admits

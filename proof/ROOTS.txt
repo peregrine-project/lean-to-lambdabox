@@ -18,12 +18,4 @@ EraseProof.ErasesDeps.ext EraseProof.erasePure_erases v7-core-main
 EraseProof.Erases.uninstantiateN EraseProof.erasePure_erases v7-core-main
 EraseProof.Erases.substRc EraseProof.erasePure_erases v7-core-main
 EraseProof.Pure.isErasable_atom EraseProof.erasePure_erases v7-core-main
-EraseProof.erases_correct_beta EraseProof.erases_correct v4-sim-main
-EraseProof.erases_correct_zeta EraseProof.erases_correct v4-sim-main
-EraseProof.erases_correct_delta EraseProof.erases_correct v4-sim-main
-EraseProof.erases_correct_constAtom EraseProof.erases_correct v4-sim-main
-EraseProof.erases_correct_appCong EraseProof.erases_correct v4-sim-main
-EraseProof.erases_correct_mdata EraseProof.erases_correct v4-sim-main
-EraseProof.erases_correct_atom EraseProof.erases_correct v4-sim-main
-EraseProof.erases_correct_fixAtom EraseProof.erases_correct v4-sim-main
-EraseProof.erases_correct_fixApp EraseProof.erases_correct v4-sim-main
+EraseProof.erases_correct EraseProof.erase_correct v8-main
