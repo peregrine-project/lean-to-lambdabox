@@ -18,6 +18,9 @@ CheckDecls.lean         Lean side of the audit (existence, axioms, sorry sources
                         the declarations of the proof package)
 requirements.txt        the Python packages of the build (leanblueprint, plasTeX), pinned
 scripts/audit.py        the audit
+scripts/kinds.py        node kinds and their colours, shapes and badges; writes the kinds tables
+scripts/kindgraph.py    lays out the dependency graphs (Graphviz, through pygraphviz)
+scripts/bpkinds.py      plasTeX package: badges, graph pages and their CSS in the web version
 scripts/render_registers.py   renders the registers and the pins as chapters
 scripts/unlink_lean_decls.py  removes the documentation links of the \lean names (web version)
 STYLE.md                how chapters and nodes are written (binding)
@@ -27,12 +30,14 @@ src/chapters/*.tex      hand-written chapters: intro, scope, trust, model, pure,
 src/generated/*.tex     generated chapters and tables (never edit them)
 src/macros/             common.tex (shared macros), web.tex, print.tex
 src/web.tex, print.tex  drivers of the web and print versions
+templates/dep_graph.html  the template of the dependency-graph pages
 ```
 
 ## Build
 
 One-time setup: a Python 3.14 venv with the packages of `requirements.txt` (leanblueprint, plasTeX;
-the `pygraphviz` wheel bundles Graphviz), and for the pdf `latexmk` and `xelatex`.
+the `pygraphviz` wheel bundles Graphviz, which lays out the dependency graphs), and for the pdf
+`latexmk` and `xelatex`.
 
 ```
 python3 -m venv <venv> && <venv>/bin/pip install -r blueprint/requirements.txt
@@ -40,15 +45,114 @@ export PATH="<venv>/bin:$PATH"
 blueprint/build.sh          # or: blueprint/build.sh web | blueprint/build.sh pdf
 ```
 
-`build.sh` first runs `scripts/render_registers.py`, then `plastex` (web version in
-`blueprint/web/`, and the list of cited declarations in `blueprint/lean_decls`) followed by
-`scripts/unlink_lean_decls.py`, then `latexmk` (`blueprint/print/print.pdf`). With the default
+`build.sh` first runs `scripts/render_registers.py` and `scripts/kinds.py`, then `plastex` (web
+version in `blueprint/web/`, and the list of cited declarations in `blueprint/lean_decls`) followed
+by `scripts/unlink_lean_decls.py`, then `latexmk` (`blueprint/print/print.pdf`). With the default
 target `all`, it then copies the pdf to `blueprint/web/blueprint.pdf`, which the title page of the
 web version links to; `blueprint/web/` is then the whole site. `leanblueprint web` and
 `leanblueprint pdf` run plasTeX and latexmk only: they neither render the registers nor remove the
-documentation links. `leanblueprint serve` serves `blueprint/web/` so that the dependency graph
-renders. The latexmk configuration runs xelatex with `-interaction=nonstopmode -halt-on-error`, so a
-LaTeX error stops the build instead of waiting on a prompt.
+documentation links. The web version needs no server: its graphs are SVG drawn at build time, and
+`index.html` opens from disk. The latexmk configuration runs xelatex with
+`-interaction=nonstopmode -halt-on-error`, so a LaTeX error stops the build instead of waiting on a
+prompt.
+
+`<venv>/bin/python blueprint/scripts/kindgraph.py OUTDIR` writes the DOT, SVG and PNG of every
+dependency graph, to look at a layout without building the site.
+
+## Node kinds and dependency graphs
+
+Every node has a kind and a status. `scripts/kinds.py` derives both from the chapters,
+`proof/ROOTS.txt` and the Lean names, and holds their colours, shapes and badges; the audit checks
+the derivation. The introduction (Section "Kinds, statuses and dependency graphs") shows the same
+legend, generated.
+
+### Kinds
+
+The layer of a Lean name is test for `EraseProof.Test.*`, proof for `EraseProof.*`, lean4lean for
+`Lean4Lean.*` and shipping for any other name. The audit checks that the names of a node share one
+layer and that the module of each declaration has the layer of its name (`EraseProof.Test*`,
+`EraseProof*`, `Lean4Lean*`, `LeanToLambdaBox*`).
+
+| Kind | Badge | Graph node | Fill, line | Derived from |
+|---|---|---|---|---|
+| final | FINAL THEOREM | double octagon, large | `#F0C24B`, `#7A5A00` | the node of the declaration on the `FINAL` line of `proof/ROOTS.txt`; the audit checks there is exactly one, a `theorem` environment |
+| milestone | MILESTONE | hexagon, large | `#8FBCE6`, `#0B5394` | any other `theorem` environment of the proof layer; the audit checks that the final theorem depends on it (through `\uses`) |
+| step | STEP LEMMA | double ellipse | `#C4DBF2`, `#0B5394` | a result of the proof layer that the proof of the final theorem or of a milestone `\uses` directly |
+| lemma | LEMMA | ellipse | `#E6F0FA`, `#0B5394` | any other result of the proof layer |
+| definition | DEFINITION | box | `#E6F0FA`, `#0B5394` | any other definition of the proof layer |
+| shipping | SHIPPING CODE | box with two tabs | `#F9D3AE`, `#9A4A00` | a node of the shipping layer; the audit checks that such a node, and no other, opens with `\stShipping` |
+| test | TEST | note | `#EBDDF0`, `#7B3F8C` | a node of the test layer |
+| lean4lean | LEAN4LEAN SORRY | cylinder | `#CDEBDD`, `#0A6B4B` | in the graphs only: one node per labelled lean4lean sorry of `audit.toml` that some node lists in `\inherited` |
+
+The fills are light tints of hues of the Okabe-Ito palette (yellow, blue, orange, reddish purple,
+bluish green), a palette made for colour-blind readers. Every kind has its own shape (the step
+lemma differs from the lemma by its double outline), so no kind depends on colour alone. Dark text
+on every fill has a contrast of at least 8.7:1, and every line colour at least 5.8:1 on white and
+on the tints of the frames. The plasTeX theme has no dark mode, and every graph draws on its own
+white background.
+
+### Statuses
+
+| Status | Graph border | Badge after the heading | Derived from |
+|---|---|---|---|
+| proved | thin, `#333333` | none (the check mark of `\leanok`) | otherwise |
+| inherits | thick, crimson `#B2182B` | INHERITS and the labels | `\inherited{...}` lists lean4lean sorries (the audit measures them) |
+| planned | dashed, white fill | PLANNED | `\planned` |
+
+### Where the conventions appear
+
+- **Headings.** After the heading of every node, its kind badge and, for the statuses inherits and
+  planned, a status badge: in the web version from `scripts/bpkinds.py`
+  (`thm_header_extras_tpl`), in the pdf from `generated/kinds.tex` (`\bpsetkind`, read by a hook on
+  `\label` in `macros/print.tex`). In the web version the bar beside a node takes the line colour
+  of its kind.
+- **Chapter openers.** `\lead{Nodes} \bpnodes{chap:...}` prints the chapter's nodes by kind, and in
+  the web version links to the chapter's graph; the audit checks that every chapter with nodes
+  has this line, with its own label.
+- **Text.** `\bpkind{key}` prints a kind badge (`final`, `milestone`, `step`, `lemma`,
+  `definition`, `shipping`, `test`, `leanfourlean`); the status words `\stProved`,
+  `\stInherited`, `\stShipping` take the colours of the lemma line, the inherits border and the
+  shipping line; `\inherited` prints in crimson.
+- **Introduction.** `generated/kinds-legend.tex` (kinds, statuses, arrows) and
+  `generated/kinds-chapters.tex` (nodes per chapter and kind).
+
+### Graphs
+
+`scripts/kindgraph.py` lays out every graph at build time with the Graphviz library of the pinned
+`pygraphviz` wheel (Graphviz 14.1.5), and the pages show the SVG. Every graph has the `\uses`
+arrows (a statement use wins over a proof use of the same pair: dashed), an arrow from each
+lean4lean sorry to every node that lists it, and none that a path of other arrows implies
+(transitive reduction). An arrow into the final theorem or a milestone is blue, one into a test
+violet, one from a lean4lean sorry dotted crimson.
+
+| Page | Content and layout |
+|---|---|
+| `dep_graph_chapters.html` (Chapter map; table of contents: "Dependency graph by chapter") | one box per chapter with its nodes by kind, and one for the lean4lean sorries; an arrow between two boxes carries the number of arrows between their nodes; dot, top to bottom; a box links to the chapter's graph |
+| `dep_graph_document.html` (All nodes; table of contents: "Dependency graph") | every node. Block layout: each block (a chapter of the proof library; the shipping code, framed by chapter; the tests, framed by section; the lean4lean sorries) is laid out by dot on its own, top to bottom; dot then places the blocks, as boxes of their size, along the arrows between them, so a block sits below the blocks it uses; Graphviz's `nop2` engine routes the arrows between blocks around the nodes. Those arrows are faint, except those into the final theorem or a milestone. The title of a chapter's frame links to the chapter's graph |
+| `dep_graph_chap-<name>.html` (one per chapter with nodes) | the chapter's nodes (framed by section in the tests chapter), with the nodes of other chapters that they use on the left and that use them on the right, faded and labelled with their chapter number; dot, left to right, with invisible barriers that keep those columns apart |
+
+On every graph page: a bar links the pages; a field finds a node by its Lean name; a click on a
+node shows its statement and draws only its arrows and neighbours; `#<label>` in the address does
+the same, and the link "graph" in the heading of every node opens its chapter's graph there.
+
+### How the web version gets them
+
+`src/web.tex` loads the plasTeX package `scripts/bpkinds.py` (found through `packages-dirs` in
+`src/plastex.cfg`), and passes `tpl=../templates/dep_graph.html` to the blueprint package. The
+package uses the extension points of plastexdepgraph 0.0.5 and leanblueprint 0.0.20 only, and
+patches no installed file:
+
+- plastexdepgraph's document graph becomes a `KindGraph`, which hands the SVG to the template;
+  a pre-cleanup callback writes the other graph pages with the same template;
+- `document.userdata['thm_header_extras_tpl']` and `['thm_header_hidden_extras_tpl']` carry the
+  badges and the "graph" link; `['dep_graph']['legend']` the legend;
+- the commands `\bpkind` and `\bpnodes`, and `styles/bpkinds.css`, written from `kinds.css()`.
+
+`templates/dep_graph.html` starts from plastexdepgraph 0.0.5's template (its sha256 is in the
+template's header) and keeps its statement modals; update both together. The build stops when the
+`\uses` arrows plasTeX collected differ from those the scripts read from the chapters. If Graphviz
+finds touching nodes in the graph of all nodes, it draws the arrows between blocks straight; the
+build prints a warning and goes on (`BLOCK_SEP` in `kindgraph.py` sets the spacing).
 
 ## Links of Lean names
 
@@ -96,11 +200,14 @@ resolves the eraser, lean4lean and `EraseProof`) on every cited declaration and 
 | Roots | every line of `proof/ROOTS.txt` names a root cited by a formalized node and a consumer cited by a planned node whose statement or proof uses the root's node, or `FINAL` for the final theorem, which has no consumer; a line whose unit is a decision of the plan (`O-<n>`) names a placeholder consumer: no planned statement uses the root, so the consumer's node must not use the root's node, and `roots.tex` marks the row |
 | `\srcloc{path}{line}` | is the file and line of the node's first declaration |
 | Hygiene | ASCII only outside `\lean{}`; underscores escaped in `\code`, `\texttt`, `\inherited`, `\srcloc` |
-| Generated chapters | `render_registers.py --check` passes, and the census tables equal what the environment gives |
+| Present state | no word that narrates history (`STYLE.md` section 1: previously, since the last version, was fixed, no longer, used to, now, yet), as a whole word outside comments, in the hand-written chapters and the generated tables; the rendered registers record changes and are exempt |
+| Kinds | the rules of section "Node kinds and dependency graphs": the names of a node share one layer; the module of each declaration has the layer of its name; one final node, a `theorem` environment; the final theorem depends on every milestone; `\stShipping` opens exactly the nodes of shipping code; every chapter with nodes cites `\bpnodes` with its own label |
+| Generated chapters | `render_registers.py --check` passes, the census tables equal what the environment gives, and the tables of `scripts/kinds.py` equal what it writes |
 
-It writes `blueprint/.audit/report.md` (defects, per-node axioms and inherited trust, the full
-lean4lean census with the entries the nodes reach), `measure.json` and the Lake logs, prints a
-summary with the inherited sorries the nodes reach, and exits with status 1 on a defect.
+It writes `blueprint/.audit/report.md` (defects, per-node kind, status, axioms and inherited trust,
+the full lean4lean census with the entries the nodes reach), `measure.json` and the Lake logs,
+prints a summary with the number of nodes of each kind and the inherited sorries the nodes reach,
+and exits with status 1 on a defect.
 
 After `build.sh web`, `python3 blueprint/scripts/audit.py --check-lean-decls blueprint/lean_decls`
 checks that the names plasTeX collected exist, except the names of planned nodes (it runs
@@ -119,9 +226,12 @@ checks that the names plasTeX collected exist, except the names of planned nodes
 | `src/generated/planned.tex` | `scripts/audit.py --update` | the chapters (a sentence when no node is planned) |
 | `src/generated/census-shipping.tex` | `scripts/audit.py --update` | the Lean environment |
 | `src/generated/census-lean4lean.tex` | `scripts/audit.py --update` | the Lean environment |
+| `src/generated/kinds.tex` | `scripts/kinds.py` | the chapters, `proof/ROOTS.txt`, `audit.toml` |
+| `src/generated/kinds-legend.tex` | `scripts/kinds.py` | the chapters, `scripts/kinds.py` |
+| `src/generated/kinds-chapters.tex` | `scripts/kinds.py` | the chapters |
 
-All are committed. `build.sh` rewrites the first three; the audit fails when any of the eight is
-stale. The renderer converts the Markdown of a register block by block and stops with an error on a
+All are committed. `build.sh` rewrites the first three and the last three; the audit fails when any
+of the eleven is stale. The renderer converts the Markdown of a register block by block and stops with an error on a
 construct it does not handle (a table, a fenced code block, an unknown non-ASCII character), so a
 register is never rendered partially. In `doc/DIVERGENCES.md` the entries are the `###` sections
 under `## Entries`; the chapter renders the whole file, with a table of the entries after the prose
@@ -137,13 +247,15 @@ that opens `## Entries`.
    Lean4Lean.Theory Lean4Lean.Verify` (the `build_targets` of `audit.toml`). It restores and saves
    `.lake` in the GitHub cache, keyed by toolchain, manifest and commit, so a later run replays the
    lean4lean build. `build.yml` builds the same targets with the same cache key prefix.
-2. Python 3.14 with `requirements.txt`; `latexmk`, `texlive-xetex`, `texlive-latex-recommended`,
+2. Python 3.14 with `requirements.txt` (its `pygraphviz` wheel brings the Graphviz library that
+   lays out the graphs); `latexmk`, `texlive-xetex`, `texlive-latex-recommended`,
    `texlive-fonts-recommended`, `texlive-plain-generic` and `fonts-lmodern` from apt.
 3. `python3 blueprint/scripts/audit.py`, before the build, so that it checks the committed generated
    chapters; it also builds the proof package `proof/`. A defect fails the job. The report (`blueprint/.audit/`) is uploaded as the artifact
    `blueprint-audit`, also when the audit fails.
-4. `blueprint/build.sh all`, then `audit.py --check-lean-decls blueprint/lean_decls`, and a check
-   that `blueprint/web/blueprint.pdf` exists (`build.sh` skips the pdf without xelatex).
+4. `blueprint/build.sh all`, then `audit.py --check-lean-decls blueprint/lean_decls`, a check
+   that `blueprint/web/blueprint.pdf` exists (`build.sh` skips the pdf without xelatex), and one
+   that the graph pages exist.
 5. `actions/upload-pages-artifact` with `blueprint/web/`.
 
 Its job `deploy` publishes that artifact with `actions/deploy-pages`, with the permissions
@@ -153,7 +265,8 @@ group `pages`, which runs one deployment at a time and never cancels a running o
 
 The site is at the Pages address of the repository,
 `https://peregrine-project.github.io/lean-to-lambdabox/` unless a custom domain is set:
-`index.html` (web version), `dep_graph_document.html` (dependency graph), `blueprint.pdf`.
+`index.html` (web version), `dep_graph_chapters.html` (chapter map), `dep_graph_document.html`
+(graph of all nodes), `dep_graph_chap-<name>.html` (graph of a chapter), `blueprint.pdf`.
 
 One-time repository settings, by an administrator:
 
@@ -172,3 +285,6 @@ One-time repository settings, by an administrator:
 - The census covers the lean4lean libraries that are built (`Lean4Lean`, `Lean4Lean.Theory`,
   `Lean4Lean.Verify`), not `Lean4Lean.Tests` or `Lean4Lean.Experimental`.
 - The pdf has overfull lines where long code does not break.
+- The graph of all nodes has every node of the blueprint; its labels are legible once zoomed in. The
+  chapter map and the graphs of the chapters are the readable overviews.
+- The pdf has no dependency graph; the web version has them all.
