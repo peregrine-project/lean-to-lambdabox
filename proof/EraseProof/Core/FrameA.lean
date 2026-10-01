@@ -286,11 +286,9 @@ theorem visitApp_agree {S : FVarId → Prop} {tc : TravCtx} {ls₁ ls₂ : List 
       ihA hS hag (FVarsIn.getAppArgs he)
 
 /-- One unfolding of `Erasure.visitConstApp` at the pure backend runs alike under two lists of
-locals that agree on `S`, given the same property, at one less fuel, of `Erasure.visitConst`
-(`ihC`, for the head) and of `Erasure.visitAppArgs` (`ihA`, for the arguments): the pure backend
-has no `casesOn` and no constructors (`Erasure.PureM.casesInfo?`, `Erasure.PureM.ctorArity?`), so
-the application is erased as the erased head applied to the erased arguments. Reference: none;
-the `tApp` case of `MR E/ErasureFunction.v:989 erase` (`:1009`) (DV-13). -/
+locals that agree on `S`, given the same property, at one less fuel, of `Erasure.visitConst` and of
+`Erasure.visitAppArgs`. Reference: none; the `tApp` case of `MR E/ErasureFunction.v:989 erase`
+(`:1009`) (DV-13). -/
 theorem visitConstApp_agree {S : FVarId → Prop} {tc : TravCtx} {ls₁ ls₂ : List Local}
     {fuel : Nat} {e : Expr}
     (ihC : ∀ {S : FVarId → Prop} {tc : TravCtx} {st : ErasureState} {ps : PureState}

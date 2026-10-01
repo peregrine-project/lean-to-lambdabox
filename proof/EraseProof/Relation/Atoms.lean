@@ -26,19 +26,22 @@ theorem LBEval.eq_box_of_headOf (hev : LBEval fl lenv s t) (hh : headOf t = .box
     induction as generalizing h with
     | nil => rfl
     | cons a as ih => exact ih (.app h a)
-  induction hev with
+  induction hev using LBEval.ind with
   | box => rfl
   | beta _ _ _ _ _ ih => exact ih hh
   | zeta _ _ _ ih => exact ih hh
   | iota _ _ _ _ _ _ _ _ ih => exact ih hh
+  | iotaBlock _ _ _ _ _ _ _ _ ih => exact ih hh
   | iotaSing _ _ _ _ _ _ ih => exact ih hh
   | fix _ _ _ _ _ _ _ ih => exact ih hh
   | fixValue => simp only [headOf, hm] at hh; cases hh
   | fix' _ _ _ _ _ _ _ ih => exact ih hh
   | delta _ _ _ ih => exact ih hh
   | proj _ _ _ _ _ _ _ ih => exact ih hh
+  | projBlock _ _ _ _ _ _ _ ih => exact ih hh
   | projProp => rfl
   | construct => simp only [headOf, hm] at hh; cases hh
+  | constructBlock => cases hh
   | @appCong _ f' _ _ _ hb _ ihf =>
     have hf : f' = .box := ihf hh
     subst hf

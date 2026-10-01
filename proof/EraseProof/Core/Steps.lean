@@ -34,12 +34,12 @@ namespace EraseProof
 Reference: none (DV-13). -/
 abbrev pureFVar (k : Nat) : FVarId := ⟨.num `_pure k⟩
 
-/-- The traversal's context invariant at the pure backend, over the model context `Δ`: the
-locals mirror `Δ` (`LocalsOK`, free-variable entries only); every variable the counter will
-allocate is fresh for `Δ` and for the admissible targets `rc`, which are closed; the fix variables
-of the block being erased have their targets in `rc`; the configuration is `cfg`. Reference: the
-context `Γ` of `erases_erase` (`MR E/ErasureFunction.v:1228`), here a list of locals opened with
-fresh variables (DV-13), with the fix variables of a recursive block (DV-7). -/
+/-- The traversal's context invariant at the pure backend, over the model context `Δ`: the locals
+mirror `Δ` (`LocalsOK`); every variable the counter will allocate is fresh for `Δ` and for the
+admissible targets `rc`, which are closed; the fix variables of the block being erased have their
+targets in `rc`; the configuration is `cfg`. Reference: the context `Γ` of `erases_erase` (`MR
+E/ErasureFunction.v:1228`), here locals opened with fresh variables (DV-13), with the fix variables
+of a recursive block (DV-7). -/
 structure CtxOK (venv : VEnv) (Us : List Name) (rc : Name → LBTerm → Prop) (cfg : ErasureConfig)
     (tc : TravCtx) (Δ : VLCtx) (ps : PureState) : Prop where
   locals : LocalsOK venv Us tc.locals Δ
@@ -50,10 +50,10 @@ structure CtxOK (venv : VEnv) (Us : List Name) (rc : Name → LBTerm → Prop) (
 
 /-- What a run of the traversal from the states `st`, `ps` to `st'`, `ps'` guarantees: the state
 invariant holds after it (`StateOK`), the λ□ environment grows by fresh kernames (`LenvExt`), the
-counter does not decrease, and every constant it registers is in the scope `S`. Reference: the
-invariant `includes_deps` (`MR E/ErasureFunctionProperties.v:41`) of `erase_global_deps`
-(`MR E/ErasureFunction.v:1602`), and `erase_global_deps_fresh`
-(`MR E/ErasureFunctionProperties.v:1206`). -/
+counter does not decrease, and every constant it registers is in the scope `S`. Reference:
+`includes_deps` (`MR E/ErasureFunctionProperties.v:41`), the invariant of `erase_global_deps` (`MR
+E/ErasureFunction.v:1602`), and `erase_global_deps_fresh` (`MR E/ErasureFunctionProperties.v:1206`).
+-/
 structure Grows (venv : VEnv) (σ : EvalEnv) (S : Name → Prop) (st st' : ErasureState)
     (ps ps' : PureState) : Prop where
   ok : StateOK venv σ st'
@@ -61,14 +61,13 @@ structure Grows (venv : VEnv) (σ : EvalEnv) (S : Name → Prop) (st st' : Erasu
   next : ps.next ≤ ps'.next
   scope : ∀ c kn, st.constants[c]? = none → st'.constants[c]? = some kn → S c
 
-/-- The correctness of `visitExpr fuel e` at the pure backend over the declarations `decls`, the
-statement `erasePure_erases` proves by induction on the fuel: from a state with `StateOK`, under
-locals that mirror `Δ` (`CtxOK`), on a term translated in `Δ` whose value positions mention only
-constants of a scope `S` or fix variables of the block being erased, a successful run returns an
-erasure of `e` (`Erases`, with the atoms of `evalEnvOf view cfg decls` and the admissible targets
-`rc`) whose λ□ dependencies are erased in the final environment, and it `Grows` within `S`.
-Reference: `erases_erase` (`MR E/ErasureFunction.v:1228`) with `erase_global_erases_deps`
-(`MR E/ErasureFunctionProperties.v:172`). -/
+/-- The correctness of `visitExpr fuel e` at the pure backend over `decls`: from a state with
+`StateOK`, under locals that mirror `Δ` (`CtxOK`), on a term translated in `Δ` whose value positions
+mention only constants of a scope `S` or fix variables of the block being erased, a successful run
+returns an erasure of `e` (`Erases`, with the targets `rc`) whose λ□ dependencies are erased in the
+final environment, and it `Grows` within `S`. Reference: `erases_erase` (`MR
+E/ErasureFunction.v:1228`) with `erase_global_erases_deps` (`MR E/ErasureFunctionProperties.v:172`).
+-/
 def ExprSpec (venv : VEnv) (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo)
     (fuel : Nat) (e : Expr) : Prop :=
   ∀ ⦃Us : List Name⦄ ⦃Δ : VLCtx⦄ ⦃rc : Name → LBTerm → Prop⦄ ⦃S : Name → Prop⦄ ⦃e' : VExpr⦄
@@ -237,6 +236,7 @@ theorem ErasesDeps.abstract1 {lenv : GlobalDeclarations} {t : LBTerm} {x : FVarI
     obtain ⟨d₀, hd₀, hb⟩ := mem_abstract1D hd
     rw [hb]
     exact ih d₀ hd₀ _
+  | prim => intro; exact .prim
 
 
 variable {P decls : List ConstantInfo} {view : EnvView} {cfg : ErasureConfig}
@@ -278,12 +278,10 @@ theorem CtxOK.push {Us : List Name} {rc : Name → LBTerm → Prop} {tc : TravCt
     omega
   · exact hctx.fresh k (Nat.le_of_succ_le hk) h
 
-/-- The `lam` step of `erasePure_erases`, from `visitExpr` at the fuels up to `fuel` (`ih`): the
-body, opened with a fresh variable, translates in the context extended by its free-variable entry
-(`TrS.inst_fvar`) and is erased there; its erasure is closed (`Erases.closed`), so the traversal's
-`abstract` is `abstract1` (`abstract_eq_abstract1`), which erases the source body under the λ's
-de Bruijn entry (`Erases.uninstantiateN`). Reference: the `tLambda` case of `erases_erase`
-(`MR E/ErasureFunction.v:1228`), rule `erases_tLambda` (`MR E/Extract.v:93`); DV-13. -/
+/-- The `lam` step of `erasePure_erases`: given `ExprSpec` at the fuels up to `fuel`, `visitExpr` at
+`fuel + 1` meets `ExprSpec` on a λ-abstraction, whose body is opened with a fresh variable and
+closed again by the traversal's `abstract`. Reference: the `tLambda` case of `erases_erase` (`MR
+E/ErasureFunction.v:1228`), rule `erases_tLambda` (`MR E/Extract.v:93`); DV-13. -/
 theorem visitExpr_lam_step (hG : CoreEnv venv P decls) {fuel : Nat}
     (ih : ∀ m ≤ fuel, ∀ e, ExprSpec venv view cfg decls m e) {n : Name} {A b : Expr}
     {bi : BinderInfo} : ExprSpec venv view cfg decls (fuel + 1) (.lam n A b bi) := by
@@ -488,14 +486,12 @@ theorem AtomSpine.of_getAppFn {σ : EvalEnv} {c : Name} {us : List Level} (ha : 
   | .bvar _, h | .fvar _, h | .mvar _, h | .sort _, h | .lam .., h | .forallE .., h
   | .letE .., h | .lit _, h | .mdata .., h | .proj .., h => nomatch h
 
-/-- `visitConst` at the pure backend, from `visitMutual` at the fuels up to `j` (`ihM`), on a
-constant that is no atom and is in the scope or a fix variable: a fix variable of the block being
-erased erases the constant to its admissible target (`Erases.constRec`, DV-7); another constant
-erases to the `tConst` of its kername, which `get_constant_kername` returns after registering the
-constant through `visitMutual` if needed (`get_constant_kername_ok`, `StateOK.kername`).
-Reference: the `tConst` case of `erases_erase` (`MR E/ErasureFunction.v:1228`), rule
-`erases_tConst` (`MR E/Extract.v:104`), and `erase_global_erases_deps`
-(`MR E/ErasureFunctionProperties.v:172`). -/
+/-- `visitConst` at the pure backend, given `MutualSpec` at the fuels up to `j`, on a constant that
+is not an atom and is in the scope or a fix variable: a successful run returns an erasure of the
+constant, its admissible target (DV-7) or the `tConst` of its kername, whose λ□ dependencies are
+erased, and it `Grows` within the scope. Reference: the `tConst` case of `erases_erase` (`MR
+E/ErasureFunction.v:1228`), rule `erases_tConst` (`MR E/Extract.v:104`), and
+`erase_global_erases_deps` (`MR E/ErasureFunctionProperties.v:172`). -/
 theorem visitConst_spec {j : Nat}
     (ihM : ∀ m ≤ j, ∀ c, MutualSpec venv view cfg decls m c) {Us : List Name} {Δ : VLCtx}
     {rc : Name → LBTerm → Prop} {st st' : ErasureState} {tc : TravCtx} {ps ps' : PureState}
@@ -819,16 +815,11 @@ theorem name_occurs_eq : name_occurs (m := PureM) = nameOccurs := by
   induction e <;> simp [name_occurs, nameOccurs, remove_unsafe_rec, *]
   rfl
 
-/-- The non-recursive `const` step of `erasePure_erases`, from `visitExpr` at the fuels up to
-`fuel` (`ih`): `visitMutual` on a declaration that is an axiom, is remapped (`axiomatized`), or
-is a definition, theorem or opaque that is not recursive (`hnr`). An axiom or a remapped
-declaration is registered by `addAxiom` (`addAxiom_ok`). Otherwise the value is erased as in the
-empty context (`visit_agree`, DV-13), in a scope that holds no member of the declaration's block
-(`CoreEnv.valueScope`), so the declaration is still unregistered when `StateOK.registerDef`
-registers it; the auto-inlining bookkeeping after it keeps the state (`KeepsCG`). Reference:
-`erase_constant_body` (`MR E/ErasureFunction.v:1309`) in the `ConstantDecl` step of
-`erase_global_deps` (`MR E/ErasureFunction.v:1602`); `erase_global_deps_fresh`
-(`MR E/ErasureFunctionProperties.v:1206`). -/
+/-- The non-recursive `const` step of `erasePure_erases`: given `ExprSpec` at the fuels up to
+`fuel`, `visitMutual` at `fuel + 1` meets `MutualSpec` on a declaration that has no value, is
+remapped (`axiomatized`) or is not recursive (`hnr`). Reference: `erase_constant_body` (`MR
+E/ErasureFunction.v:1309`) in the `ConstantDecl` step of `erase_global_deps` (`MR
+E/ErasureFunction.v:1602`); `erase_global_deps_fresh` (`MR E/ErasureFunctionProperties.v:1206`). -/
 theorem visitMutual_nonrec_step (hG : CoreEnv venv P decls) {fuel : Nat}
     (ih : ∀ m ≤ fuel, ∀ e, ExprSpec venv view cfg decls m e) {c : Name} {ci : ConstantInfo}
     (hci : findDecl decls c = some ci)

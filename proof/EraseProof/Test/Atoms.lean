@@ -57,12 +57,10 @@ definition's Π to arguments of the wrong types. -/
 def e0 : Expr := .app (.app (.const `hq []) AE) (.const `a [])
 end DefHead
 
-/-- Register test (DV-11): a proof whose proposition is headed by a definition that unfolds to a
-Π can be applied, and the oracle's answer then depends on the arguments' types: on the spine
-`hq A a` it answers "keep". So `Pure.isErasable_atom`, which holds on every spine of an atom
-without a typing hypothesis, would be false if definition heads were atoms; under the design's
-class `hq` is not one. Reference: none (DV-11; the head of a propositional constructor's type is
-an inductive, which never δ-reduces). -/
+/-- Register test (DV-11): on the spine `hq A a` of a proof `hq` whose proposition is headed by a
+definition that unfolds to a Π, the oracle answers "keep", so a proof whose type is headed by a
+definition is not an atom (`Pure.isErasable_atom` holds on every spine of an atom). Reference: none
+(DV-11; the head of a propositional constructor's type is an inductive, which never δ-reduces). -/
 theorem defHead_kept :
     (Pure.isErasable DefHead.cx oracleFuel [] DefHead.e0).toOption = some false ∧
     DefHead.σ.isAtom `hq = false := by

@@ -246,8 +246,8 @@ source-evaluation hypothesis of `erases_correct` on NV-3. Reference: the hypothe
 of `erases_correct` (`MR erasure/theories/ErasureCorrectness.v:51`), with `eval_fix`
 (`MR pcuic/theories/PCUICWcbvEval.v:273`). -/
 theorem hev : SrcEval σ3 e3 oneE :=
-  .fixApp (.fixAtom unfold_uf rec_uf rfl) unfold_uf rec_uf
-    (.delta unfold_one rec_one rfl (.atom trivial))
+  .fixApp (.fixAtom unfold_uf rec_uf) unfold_uf rec_uf
+    (.delta unfold_one rec_one (.atom trivial))
     (.beta (.atom trivial) (.atom trivial) (.beta (.atom trivial) (.atom trivial) (.atom trivial)))
 
 /-! ## The erased program -/

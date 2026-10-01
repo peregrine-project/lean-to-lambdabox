@@ -30,11 +30,10 @@ variable {venv : VEnv} {P decls : List ConstantInfo} {view : EnvView} {cfg : Era
 
 /-- The fuel induction of `erasePure_erases`: over a closure `decls` of a program `P` (`CoreEnv`),
 at every fuel, every run of `visitExpr` meets `ExprSpec` and every run of `visitMutual` meets
-`MutualSpec`. A run at fuel `0` fails; at fuel `n + 1` each case of the traversal is one step
-lemma, from the statement at the fuels up to `n`. Reference: the induction of `erases_erase`
-(`MR E/ErasureFunction.v:1228`) over `erase` (`MR E/ErasureFunction.v:989`), together with
-`erase_global_erases_deps` (`MR E/ErasureFunctionProperties.v:172`); the fuel replaces the
-well-founded recursion of `erase` (DV-17). -/
+`MutualSpec`. Reference: the induction of `erases_erase` (`MR E/ErasureFunction.v:1228`) over
+`erase` (`MR E/ErasureFunction.v:989`), with `erase_global_erases_deps` (`MR
+E/ErasureFunctionProperties.v:172`); the fuel replaces the well-founded recursion of `erase`
+(DV-17). -/
 theorem traversal_spec (hG : CoreEnv venv P decls) (n : Nat) :
     (∀ e, ExprSpec venv view cfg decls n e) ∧ ∀ c, MutualSpec venv view cfg decls n c := by
   induction n using Nat.strongRecOn with
@@ -68,16 +67,13 @@ theorem traversal_spec (hG : CoreEnv venv P decls) (n : Nat) :
         · rfl
         · exact absurd ⟨v, hv, hax, h⟩ hb
 
-/-- The run that `erasePure` performs: `visitExpr` at `Erasure.travFuel` from the empty state,
-with no locals and no fix variables, on a closed translated term whose constants are declared in
-the closure `decls`. Its result is an erasure of the term with the registered constants as the
-only targets (`RecIn`), its λ□ dependencies are erased, and the final λ□ environment has erased
-blocks and closed bodies. It is `traversal_spec` at the initial context (`CtxOK` with no targets
-and the empty context), the scope of all declared constants (`ScopeOK` by `DepClosed`) and the
-empty state (`StateOK.empty`); the final `StateOK` gives `BlocksErased` (with `KernameInj`) and
-`LenvClosed`. Reference: `erases_erase` (`MR E/ErasureFunction.v:1228`) in the empty context,
-with `erase_global_erases_deps` (`MR E/ErasureFunctionProperties.v:172`) for the environment that
-`erase_global_deps` (`MR E/ErasureFunction.v:1602`) returns. -/
+/-- The run that `erasePure` performs: `visitExpr` at `Erasure.travFuel` from the empty state, with
+no locals and no fix variables, on a closed translated term whose constants are declared in `decls`,
+returns an erasure of the term with the registered constants as targets (`RecIn`), whose λ□
+dependencies are erased, in a λ□ environment with erased blocks and closed bodies. Reference:
+`erases_erase` (`MR E/ErasureFunction.v:1228`) in the empty context, with `erase_global_erases_deps`
+(`MR E/ErasureFunctionProperties.v:172`) for the environment that `erase_global_deps` (`MR
+E/ErasureFunction.v:1602`) returns. -/
 theorem visitExpr_initial (hG : CoreEnv venv P decls)
     {Us : List Name} {e : Expr} {e' : VExpr} {t : LBTerm} {s : ErasureState} {ps : PureState}
     (he : TrS venv Us [] e e') (hcs : ConstsIn (fun c => (findDecl decls c).isSome) e)

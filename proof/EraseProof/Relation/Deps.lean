@@ -66,6 +66,8 @@ inductive ErasesDeps (venv : VEnv) (σ : EvalEnv) (lenv : GlobalDeclarations) : 
       ErasesDeps venv σ lenv (.const (toKername c))
   /-- `erases_deps_tFix` (`:352`). -/
   | fix : (∀ d ∈ defs, ErasesDeps venv σ lenv d.body) → ErasesDeps venv σ lenv (.fix defs i)
+  /-- `erases_deps_tPrimInt` (`:358`); `LBTerm.prim` holds machine integers only (DV-16). -/
+  | prim : ErasesDeps venv σ lenv (.prim p)
 
 /-- Fixpoints stored for program constants are erased blocks. Reference: the part of
 `MR E/EDeps.v:594 globals_erased_with_deps` that `erases_deps` cannot carry (DV-7). -/
@@ -132,6 +134,7 @@ theorem ErasesDeps.ext (hx : LenvExt lenv lenv') (h : ErasesDeps venv σ lenv t)
   | app _ _ ihf iha => exact .app ihf iha
   | const hc hl hd _ ih => exact .const hc (lookupConst_ext hx hl) (hd.ext hx) ih
   | fix _ ih => exact .fix ih
+  | prim => exact .prim
 
 /-! ## Substitution -/
 
@@ -168,6 +171,7 @@ theorem ErasesDeps.csubst (ha : ErasesDeps venv σ lenv a) (hb : ErasesDeps venv
     obtain ⟨d', hd', he⟩ := mem_csubstD hd
     rw [he]
     exact ih d' hd'
+  | prim => exact .prim
 
 /-- Substituting terms with erased dependencies. Reference: `erases_deps_substl`
 (`MR E/EDeps.v:208`). -/
@@ -214,7 +218,7 @@ theorem ErasesDeps.cunfoldFix (hd : ∀ d ∈ defs, ErasesDeps venv σ lenv d.bo
 (`MR E/EDeps.v:275`). -/
 theorem ErasesDeps.eval (h : ErasesDeps venv σ lenv t)
     (hev : LBEval defaultFlags lenv t v) : ErasesDeps venv σ lenv v := by
-  induction hev with
+  induction hev using LBEval.ind with
   | box => exact .box
   | beta _ _ _ ih1 ih2 ih3 =>
     cases h with
@@ -225,6 +229,7 @@ theorem ErasesDeps.eval (h : ErasesDeps venv σ lenv t)
     cases h with
     | letIn hv hbody => exact ih2 (ErasesDeps.csubst (ih1 hv) hbody)
   | iota => cases h
+  | iotaBlock => cases h
   | iotaSing => cases h
   | fix _ _ _ hu _ ih1 ih2 ih3 =>
     cases h with
@@ -249,12 +254,14 @@ theorem ErasesDeps.eval (h : ErasesDeps venv σ lenv t)
       cases hc
       exact ih (hdeps _ hbody)
   | proj => cases h
+  | projBlock => cases h
   | projProp => cases h
   | construct _ _ _ _ _ ih1 _ =>
     cases h with
     | app hf _ =>
       obtain ⟨hc, -⟩ := ErasesDeps.mkApps_iff.1 (ih1 hf)
       cases hc
+  | constructBlock => cases h
   | appCong _ _ _ ih1 ih2 =>
     cases h with
     | app hf ha => exact .app (ih1 hf) (ih2 ha)

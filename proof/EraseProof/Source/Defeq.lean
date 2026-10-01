@@ -26,7 +26,7 @@ theorem SrcEval.defeq (henv : ProgEnv P venv) (hsub : SubEnv σ.decls P)
   induction hev generalizing e' T with
   | beta _ _ _ ihf iha ihb => exact SrcEval.beta_step henv ihf iha ihb he hT
   | zeta _ _ ihv ihb => exact SrcEval.zeta_step henv ihv ihb he hT
-  | delta hu _ _ _ ihb => exact SrcEval.delta_step henv hsub hu ihb he hT
+  | delta hu _ _ ihb => exact SrcEval.delta_step henv hsub hu ihb he hT
   | fixAtom => exact ⟨_, he, hT⟩
   | fixApp _ hu _ _ _ ihf iha ihb => exact SrcEval.fixApp_step henv hsub hu ihf iha ihb he hT
   | constAtom => exact ⟨_, he, hT⟩

@@ -49,6 +49,7 @@ import EraseProof.Test.NV5
 import EraseProof.Test.NV6
 import EraseProof.Test.NV7
 import EraseProof.Test.Oracle
+import EraseProof.Test.Stub
 import EraseProof.Typing.Abstract
 import EraseProof.Typing.Basic
 import EraseProof.Typing.Inst

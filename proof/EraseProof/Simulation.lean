@@ -32,12 +32,12 @@ theorem erases_correct (henv : ProgEnv P venv) (hsub : SubEnv σ.decls P)
   | beta hf ha hb ihf iha ihb =>
     exact erases_correct_beta henv hsub hlc ihf iha ihb hf ha hb he her hdeps
   | zeta hv hb ihv ihb => exact erases_correct_zeta henv hsub hlc ihv ihb hv hb he her hdeps
-  | delta hu hr hlen hb ihb =>
-    exact erases_correct_delta henv hsub hinj hblocks ihb hu hr hlen hb he her hdeps
-  | fixAtom hu hr _ => exact erases_correct_fixAtom hinj hu hr her hdeps
+  | delta hu hr hb ihb =>
+    exact erases_correct_delta henv hsub hinj hblocks ihb hu hr hb he her hdeps
+  | fixAtom hu hr => exact erases_correct_fixAtom hinj hu hr her hdeps
   | fixApp hf hu hr ha hb ihf iha ihb =>
     exact erases_correct_fixApp henv hsub hblocks ihf iha ihb hf hu hr ha hb he her hdeps
-  | constAtom _ ha _ => exact erases_correct_constAtom ha her
+  | constAtom _ ha => exact erases_correct_constAtom ha her
   | appCong hf hbc ha ihf iha =>
     exact erases_correct_appCong henv hsub ihf iha hf hbc ha he her hdeps
   | mdata hev ih => exact erases_correct_mdata henv hsub ih hev he her hdeps
