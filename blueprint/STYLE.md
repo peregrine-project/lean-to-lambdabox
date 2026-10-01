@@ -25,7 +25,8 @@ The blueprint describes the commit it is built from. It is not a changelog.
 
 - Environments: `definition` (def, abbrev, structure, inductive, class, instance), `theorem`
   (headline results), `lemma` (everything else, and families: one node for parallel
-  declarations), `proposition`, `corollary`. A `remark` is prose, not a node.
+  declarations), `proposition`, `corollary`; `imported` (a lean4lean module) only in
+  `generated/lean4lean-imports.tex`, which the audit writes. A `remark` is prose, not a node.
 - Kinds follow from the environment and the Lean names (README, "Node kinds and dependency
   graphs"): a `theorem` of the proof library is a milestone, so the final theorem must depend on
   it; never choose an environment for its colour.
@@ -34,8 +35,9 @@ The blueprint describes the commit it is built from. It is not a changelog.
   measures inherited trust), the body, `\end{env}`; for a result, a sibling `\begin{proof}`
   `\uses{...}` `\leanok` ... `\end{proof}` after it, never inside it (a planned node's proof has
   no `\leanok`).
-- `\label`: `<prefix>:<principal Lean name>`, prefix `def`, `lem`, `prop`, `thm`, `cor`, the name
-  with `.` replaced by `-` (`def:Erasure-erase`). Unique; never renamed.
+- `\label`: `<prefix>:<principal Lean name>`, prefix `def`, `lem`, `prop`, `thm`, `cor` (`imp` for
+  an imported node, with its module), the name with `.` replaced by `-` (`def:Erasure-erase`).
+  Unique; never renamed.
 - `\lean{...}`: names of the compiled environment only, or, on a planned node, the names of the
   approved design; never invent one. Each name belongs to one node. Every declaration of the
   verification library (`proof/EraseProof`) is cited by a node that is not planned: a helper goes
@@ -43,9 +45,11 @@ The blueprint describes the commit it is built from. It is not a changelog.
 - `\planned`: the node's declarations do not exist (the audit checks it); a node that is not
   planned never uses a planned node.
 - `\leanok`: exactly as the audit computes it (README, section Audit). Never add it by hand to make
-  a node green.
+  a node look formalized.
 - `\uses{...}`: labels only. In the statement, what the statement mentions; in the proof, what the
-  proof relies on.
+  proof relies on. The `\uses` of the final theorem and of the milestones make the step lemmas:
+  the audit checks that they name only nodes the Lean declarations use directly, and every result
+  they use directly.
 - `\inherited{...}`: the labels (`L1`, ..., `TrProj`; `audit.toml`, rendered in the trust chapter)
   of the lean4lean sorry sources that the audit measures for the node.
 
@@ -90,8 +94,9 @@ Budget: statement at most 90 words (the final theorem at most 150); proof at mos
 \end{definition}
 ```
 
-A relation with many rules is one table (`Rule | Premises | Conclusion`). A node that describes
-shipping code opens its body with `\stShipping{}`.
+A relation with many rules is one table (`Rule | Premises | Conclusion`). A node body carries no
+status word (`\stShipping`, `\stProved`, ...): the badges after its heading give its kind and
+status (checked).
 
 ## 3. Chapters
 
@@ -113,12 +118,13 @@ shipping code opens its body with `\stShipping{}`.
 | `\lead{Label}` | bold run-in label, a noun phrase of one to three words; in nodes: In short, Given, Then, Where, Lean, Idea, Steps, Caveat, Why, Reference |
 | `\hl{phrase}` | the one phrase of a node a skimmer must not miss |
 | `\code{...}` | inline code; escape `_` as `\_` |
-| `\stProved`, `\stInherited`, `\stShipping`, `\stPlanned`, `\stOpen` | status badges: proved; trust inherited from lean4lean; shipping code, described, not verified; not formalized; not done |
+| `\stProved`, `\stInherited`, `\stShipping`, `\stPlanned`, `\stOpen` | status words of the prose (not of node bodies): proved; trust inherited from lean4lean; shipping code, described, not verified; not formalized; not done |
 | `\planned` | marks a planned node and prints its badge (checked: its declarations do not exist) |
 | `\srcloc{path}{line}` | where the node's first declaration is (checked) |
 | `\inherited{labels}` | the lean4lean sorries the node depends on, by label (checked) |
-| `\bpkind{key}` | the badge of a node kind (`final`, `milestone`, `step`, `lemma`, `definition`, `shipping`, `test`, `leanfourlean`; README, "Node kinds and dependency graphs") |
+| `\bpkind{key}` | the badge of a node kind (`final`, `milestone`, `step`, `lemma`, `definition`, `shipping`, `test`, `leanfourlean`, `leanfourleansorry`; README, "Node kinds and dependency graphs") |
 | `\bpnodes{chap:...}` | the nodes of a chapter by kind, in its opener (generated counts; checked) |
+| `\usedbystatements`, `\usedbyproofs` | in an imported node (generated only): the nodes whose declarations use its declarations directly |
 
 Allowed LaTeX: `itemize`, `enumerate`, `tabular` with booktabs rules and `p{...}` columns (no
 `\multirow`, no `longtable`: plasTeX renders neither), `\emph`, `\textbf`, `\ref`, math, and the

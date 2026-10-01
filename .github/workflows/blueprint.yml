@@ -70,12 +70,14 @@ jobs:
       - name: Check that the site contains the pdf
         run: test -s blueprint/web/blueprint.pdf
 
-      # scripts/bpkinds.py writes the chapter map and one graph page per chapter with nodes.
+      # scripts/bpkinds.py writes the chapter map, one graph page per chapter with nodes, and the
+      # graph of the lean4lean nodes.
       - name: Check that the site contains the graph pages
         run: |
           test -s blueprint/web/dep_graph_document.html
           test -s blueprint/web/dep_graph_chapters.html
           test -s blueprint/web/dep_graph_chap-final.html
+          test -s blueprint/web/dep_graph_lean4lean.html
 
       - name: Upload the audit report
         if: ${{ !cancelled() }}

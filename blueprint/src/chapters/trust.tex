@@ -3,14 +3,15 @@
 \section*{At a glance}
 \begin{itemize}
 \item \lead{Goal} State what is proved, what is trusted without proof, what a result inherits from
-  lean4lean, and what the eraser is made of.
+  lean4lean, what it uses from lean4lean, and what the eraser is made of.
 \item \lead{Main results} The model side, the source and target semantics, erasability and the
   erasure relation with their lemmas, soundness of the pure oracle, the relation-level simulation
   \code{erases\_correct}, and the function-level lemma \code{erasePure\_erases} about the shipping
   traversal, and \hl{the final theorem \code{erase\_correct} about \code{\#erase}}.
-\item \lead{Status} \stProved{} every node that is not shipping code; \stInherited{} the lean4lean
-  sorries that some of them reach; \stShipping{} the shipping code, described by definition
-  nodes.
+\item \lead{Status} \stProved{} every node of the proof library; \stInherited{} the lean4lean
+  sorries that some of them reach; \stShipping{} the shipping code, described by definition nodes;
+  the imported nodes describe the lean4lean declarations that the proof and the shipping code use,
+  with the sorries they inherit.
 \item \lead{Nodes} \bpnodes{chap:trust}
 \item \lead{Lean files} \code{proof/EraseProof/} (the verification library \code{EraseProof});
   \code{LeanToLambdaBox/\{Basic, Erasure, Printing\}.lean} and
@@ -133,21 +134,34 @@ The table is generated from \code{blueprint/audit.toml} and the Lean environment
 
 \input{generated/census-lean4lean}
 
+\section{What the proof uses from lean4lean}\label{sec:trust-imported}
+
+\begin{itemize}
+\item \lead{Nodes} one imported node per lean4lean module whose declarations the proof library
+  (outside its tests) or the shipping code uses directly, in a type or a proof term; each lists
+  those declarations, their inherited sorries, and the nodes that use them.
+\item \lead{Source} \code{blueprint/scripts/audit.py -{}-update} writes them from the Lean
+  environment, and the one-line descriptions from \code{blueprint/audit.toml}; the audit fails
+  when they are stale.
+\end{itemize}
+
+\input{generated/lean4lean-imports}
+
 \section{The shipping code}\label{sec:trust-shipping}
 
 The eraser is Lean meta-code. Its traversal is total, bounded by fuel, and generic over a backend
 monad. \code{\#erase} runs it with the pure backend on programs in the fragment
 (Chapter~\ref{chap:pure}), and with the \code{CoreM} backend, which asks the elaborator for types,
 on the others. The pure path uses lean4lean's pure functions \code{Expr.instantiate1'},
-\code{Expr.liftLooseBVars'} and \code{Level.hasMVar'} (module \code{Lean4Lean.Verify.Axioms}),
-and no shipping node reaches an axiom of that module.
+\code{Expr.liftLooseBVars'} and \code{Level.hasMVar'} (\ref{imp:Lean4Lean-Verify-Axioms}), and no
+shipping node reaches an axiom of that module.
 
 \begin{definition}[Erased terms]
   \label{def:LBTerm}
   \lean{LBTerm}
   \leanok
   \srcloc{LeanToLambdaBox/Basic.lean}{87}
-  \stShipping{} \lead{In short} The $\lambda_\Box$ terms the eraser builds: MetaRocq's
+  \lead{In short} The $\lambda_\Box$ terms the eraser builds: MetaRocq's
   \code{EAst.term} (\code{erasure/theories/EAst.v}) with \hl{free variables added}.
   \begin{itemize}
   \item \code{box}, \code{bvar}, \code{lambda}, \code{letIn}, \code{app}, \code{const},
@@ -166,7 +180,7 @@ and no shipping node reaches an axiom of that module.
   \leanok
   \uses{def:LBTerm}
   \srcloc{LeanToLambdaBox/Basic.lean}{143}
-  \stShipping{} \lead{In short} \code{abstract x t} replaces the free variable \code{x} by the
+  \lead{In short} \code{abstract x t} replaces the free variable \code{x} by the
   bound variable of the binders crossed, \hl{without shifting} other indices; \code{toBvar} is
   its structural recursion.
 \end{definition}
@@ -178,7 +192,7 @@ and no shipping node reaches an axiom of that module.
   \leanok
   \uses{def:LBTerm}
   \srcloc{LeanToLambdaBox/Basic.lean}{188}
-  \stShipping{} \lead{In short} The declarations of an erased environment.
+  \lead{In short} The declarations of an erased environment.
   \begin{itemize}
   \item \code{constantDecl}: a constant with an optional body (none for an axiom);
   \item \code{inductiveDecl}: a block of mutual inductive types: parameter count, and per type
@@ -192,7 +206,7 @@ and no shipping node reaches an axiom of that module.
   \leanok
   \uses{def:LBTerm, def:GlobalDecl}
   \srcloc{LeanToLambdaBox/Basic.lean}{196}
-  \stShipping{} \lead{In short} What \code{\#erase} emits: \code{untyped} of a list of named global
+  \lead{In short} What \code{\#erase} emits: \code{untyped} of a list of named global
   declarations and an optional main term, the \code{Untyped} program of Peregrine's format.
 \end{definition}
 
@@ -201,7 +215,7 @@ and no shipping node reaches an axiom of that module.
   \lean{Erasure.ErasureConfig, Erasure.Config.Extern, Erasure.Config.Nat}
   \leanok
   \srcloc{LeanToLambdaBox/Erasure.lean}{68}
-  \stShipping{} \lead{In short} The options of \code{\#erase ... config}.
+  \lead{In short} The options of \code{\#erase ... config}.
   \begin{itemize}
   \item \code{extern}: an \code{@[extern]} constant becomes an axiom (\code{preferAxiom}, the
         default) or keeps its Lean definition (\code{preferLogical});
@@ -218,7 +232,7 @@ and no shipping node reaches an axiom of that module.
   \leanok
   \uses{def:Erasure-ErasureConfig}
   \srcloc{LeanToLambdaBox/Erasure.lean}{172}
-  \stShipping{} \lead{In short} The traversal's reader context, and the $\lambda_\Box$ names of
+  \lead{In short} The traversal's reader context, and the $\lambda_\Box$ names of
   binders and fixpoint members.
   \begin{itemize}
   \item \code{TravCtx}: a Lean local context \code{lctx}, the same binders as a list
@@ -235,7 +249,7 @@ and no shipping node reaches an axiom of that module.
   \leanok
   \uses{def:GlobalDecl, def:Erasure-TravCtx}
   \srcloc{LeanToLambdaBox/Erasure.lean}{238}
-  \stShipping{} \lead{In short} $\mathrm{EraseT}\ m = $ \code{StateT ErasureState (ReaderT TravCtx
+  \lead{In short} $\mathrm{EraseT}\ m = $ \code{StateT ErasureState (ReaderT TravCtx
   m)} over \hl{a backend monad \code{m}}.
   \begin{itemize}
   \item \code{Backend m}: the environment and type operations the traversal uses (constant
@@ -254,7 +268,7 @@ and no shipping node reaches an axiom of that module.
   \lean{Erasure.isErasable}
   \leanok
   \srcloc{LeanToLambdaBox/Erasure.lean}{254}
-  \stShipping{} \lead{In short} A term is erased to $\Box$ iff its type is a proposition or a
+  \lead{In short} A term is erased to $\Box$ iff its type is a proposition or a
   type former, as \hl{decided by the elaborator}.
   \begin{itemize}
   \item \lead{Lean} a \code{MetaM} function calling \code{Meta.inferType}, \code{Meta.isProp} and
@@ -270,7 +284,7 @@ and no shipping node reaches an axiom of that module.
   \leanok
   \uses{def:Erasure-ErasureConfig}
   \srcloc{LeanToLambdaBox/Erasure.lean}{300}
-  \stShipping{} \lead{In short} The \code{CoreM} backend's \code{prepare}: rewrites the input term
+  \lead{In short} The \code{CoreM} backend's \code{prepare}: rewrites the input term
   with passes of Lean's compiler before erasure.
   \begin{itemize}
   \item \lead{Steps} unsafe-recursion names replaced, \code{macroInline}, \code{inlineMatchers},
@@ -287,7 +301,7 @@ and no shipping node reaches an axiom of that module.
   \uses{def:LBTerm, def:abstract, def:ASTType, def:Erasure-EraseT, def:Erasure-isErasable,
     def:Erasure-prepareErasure}
   \srcloc{LeanToLambdaBox/Erasure.lean}{960}
-  \stShipping{} \lead{In short} Erases a term and its dependencies to a program by a
+  \lead{In short} Erases a term and its dependencies to a program by a
   \hl{fuel-bounded, generic traversal}; \code{erase} runs it with the \code{CoreM} backend.
   \begin{itemize}
   \item \code{erase e config}: runs the backend's \code{prepare}, then \code{visitExpr travFuel}
@@ -307,7 +321,7 @@ and no shipping node reaches an axiom of that module.
   \leanok
   \uses{def:LBTerm, def:ASTType}
   \srcloc{LeanToLambdaBox/Printing.lean}{15}
-  \stShipping{} \lead{In short} The S-expression printer of programs, in Peregrine's \code{.ast}
+  \lead{In short} The S-expression printer of programs, in Peregrine's \code{.ast}
   format.
   \begin{itemize}
   \item \code{Serialize}: a class with one method, \code{to\_sexpr}, to the S-expressions
@@ -323,7 +337,7 @@ and no shipping node reaches an axiom of that module.
   \leanok
   \uses{def:Erasure-eraseEntry, def:Erasure-EnvView, def:Serialize, def:Erasure-ErasureConfig}
   \srcloc{LeanToLambdaBox/Erasure/Command.lean}{18}
-  \stShipping{} \lead{In short} Elaborates the term, erases it with \hl{\code{eraseEntry} over
+  \lead{In short} Elaborates the term, erases it with \hl{\code{eraseEntry} over
   \code{EnvView.ofEnvironment}}, and writes the program, the constants to inline and the
   \code{.mli} signature: to files when \code{to} and \code{mli} are given, to the message log
   otherwise.
@@ -343,8 +357,8 @@ The table is generated from the Lean environment by \code{blueprint/scripts/audi
 
 \section*{Caveats}
 \begin{itemize}
-\item \lead{Caveat} A green shipping node means that its declarations exist and use standard axioms
-  only. It says nothing about their behaviour.
+\item \lead{Caveat} A shipping node within standard axioms has declarations that exist and use
+  standard axioms only. It says nothing about their behaviour.
 \item \lead{Caveat} The \code{CoreM} backend runs the elaborator's type inference and Lean's
   compiler passes; they are outside every Lean statement, and only out-of-fragment programs reach
   them.

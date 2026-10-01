@@ -7,6 +7,9 @@
 \newtheorem{corollary}[theorem]{Corollary}
 \theoremstyle{definition}
 \newtheorem{definition}[theorem]{Definition}
+% The declarations of a lean4lean module that the proof library or the shipping code uses directly
+% (generated/lean4lean-imports.tex, written by blueprint/scripts/audit.py --update).
+\newtheorem{imported}[theorem]{Imported}
 
 % Inline code (escape underscores: \code{prepare\_erasure}).
 \newcommand{\code}[1]{\texttt{#1}}
@@ -19,10 +22,10 @@
 % Node kinds (blueprint/scripts/kinds.py; README, section "Node kinds and dependency graphs").
 % generated/kinds.tex, which both drivers read after this file, calls
 % \bpdefinekind{K}{fill}{line}{badge} for every kind K, \bpdefinestatus{S}{line} for every status
-% S, \bpdefinenodes{chapter}{badges} for every chapter with nodes and \bpsetkind{label}{K}{S} for
-% every node. \bpkind{K} prints the badge of kind K in the colours of the graphs, and
-% \bpnodes{chapter} the nodes of a chapter by kind: print.tex defines both, and the plasTeX
-% package scripts/bpkinds.py for the web version.
+% S, \bpdefinenodes{chapter}{badges} for every chapter with nodes and
+% \bpsetkind{label}{K}{S}{inherited sorries} for every node. \bpkind{K} prints the badge of kind K
+% in the colours of the graphs, and \bpnodes{chapter} the nodes of a chapter by kind: print.tex
+% defines both, and the plasTeX package scripts/bpkinds.py for the web version.
 \newcommand{\bpdefinekind}[4]{\definecolor{bpfill#1}{HTML}{#2}\definecolor{bpline#1}{HTML}{#3}%
   \expandafter\def\csname bpname#1\endcsname{#4}}
 \newcommand{\bpdefinestatus}[2]{\definecolor{bpstatus#1}{HTML}{#2}}
@@ -46,3 +49,10 @@
   (Section~\ref{sec:trust-inherited}): #1}}\par}
 \newcommand{\planned}{\par{\small\textcolor{furniture}{\stPlanned{} Not formalized: the declaration
   does not exist.}}\par}
+% \usedbystatements{\ref{...}, ...} and \usedbyproofs{\ref{...}, ...}: in an imported node, the nodes
+% whose declarations use its declarations directly, in their statements (or definitions) and in
+% their proofs only; the dependency graphs draw them as arrows (generated; checked by the audit).
+\newcommand{\usedbystatements}[1]{\par{\small\textcolor{furniture}{Used directly by the
+  statements and definitions of #1.}}\par}
+\newcommand{\usedbyproofs}[1]{\par{\small\textcolor{furniture}{Used directly by the proofs of
+  #1.}}\par}

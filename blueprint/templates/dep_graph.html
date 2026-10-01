@@ -4,9 +4,11 @@
     renders the other graph pages with it. It keeps upstream's statement modals and changes the rest:
     the graph is the SVG that scripts/kindgraph.py lays out at build time (graph.bp_svg) instead of
     DOT that the browser lays out, so the page needs no Graphviz in the browser (d3 only pans and
-    zooms); a bar links the graph pages; a field finds a node by name; a click on a node shows its
-    statement and only its arrows and neighbours; the URL fragment (#<label>) does the same. Update it
-    together with plastexdepgraph. -#}
+    zooms); a bar links the graph pages; a field finds a node by any of its Lean names (on the
+    chapter map, a chapter by its title or by a Lean name of its nodes); a click on a node shows its
+    statement and only its arrows and neighbours; the URL fragment (#<label>) does the same; the
+    title of a frame of one chapter's nodes opens the chapter's graph. Update it together with
+    plastexdepgraph. -#}
 {% macro icon(icon, id='', class='') %}
 <svg  {% if id %}id="{{id}}" {% endif %}class="icon icon-{{ icon }} {{ class }}"><use xlink:href="symbol-defs.svg#icon-{{ icon }}"></use></svg>
 {% endmacro %}
@@ -71,18 +73,19 @@
     {%- endfor %}
   </select></label>
   <span class="bp-find-box">
-    <input id="bp-find" list="bp-names" type="search" placeholder="Find a node by its Lean name" aria-label="Find a node by its Lean name" />
+    {%- set find_text = 'Find a chapter by its title or a Lean name' if graph.bp_kind == 'map' else 'Find a node by a Lean name' %}
+    <input id="bp-find" list="bp-names" type="search" placeholder="{{ find_text }}" aria-label="{{ find_text }}" />
     <datalist id="bp-names"></datalist>
     <span id="bp-find-msg" role="status"></span>
   </span>
   <button id="bp-fit" type="button">Fit</button>
-  <button id="bp-clear" type="button">Show all arrows</button>
+  <button id="bp-clear" type="button">{{ 'Show all chapters' if graph.bp_kind == 'map' else 'Show all arrows' }}</button>
 </nav>
 <div class="bp-graph-stage">
   <div id="graph">{{ graph.bp_svg }}</div>
   <details id="bp-legend" open>
     <summary>Legend</summary>
-    <p class="bp-help">{% if graph.bp_kind == 'map' %}A box is a chapter, with its nodes by kind; an arrow from one chapter to another carries the number of arrows from nodes of the first to nodes of the second. A click on a chapter opens its graph.{% else %}Drag to pan, scroll to zoom. A click on a node shows its statement, its arrows and its neighbours; a click on the background shows all arrows again.{% if graph.bp_kind == 'full' %} A click on the title of a chapter's frame opens the graph of the chapter.{% endif %}{% endif %}</p>
+    <p class="bp-help">{% if graph.bp_kind == 'map' %}A box is a chapter, or lean4lean, with its nodes by kind; an arrow from one box to another carries the number of arrows from nodes of the first to nodes of the second. A click on a box opens its graph.{% else %}Drag to pan, scroll to zoom. A click on a node shows its statement, its arrows and its neighbours; a click on the background shows all arrows again.{% if graph.bp_kind == 'full' %} A click on the title of a frame that holds the nodes of one chapter opens the graph of the chapter.{% endif %}{% endif %}</p>
     <dl class="legend">
       {%- for k, v in legend %}
       <dt>{{ k }}</dt><dd>{{ v }}</dd>
@@ -110,7 +113,7 @@
     <div class="thm_thmcontent">{{ thm }}</div>
 
     <a class="latex_link" href="{{ thm.url }}">In the text</a>
-    {% if thm.userdata.bp_graph_page and thm.userdata.bp_graph_page != graph.bp_page %}<a class="latex_link" href="{{ thm.userdata.bp_graph_page }}#{{ thm.id }}">In the graph of its chapter</a>{% endif %}
+    {% if thm.userdata.bp_graph_page and thm.userdata.bp_graph_page != graph.bp_page %}<a class="latex_link" href="{{ thm.userdata.bp_graph_page }}#{{ thm.id }}">{{ 'In the graph of lean4lean' if thm.userdata.bp_graph_page == 'dep_graph_lean4lean.html' else 'In the graph of its chapter' }}</a>{% endif %}
     {% if graph.bp_kind != 'full' %}<a class="latex_link" href="dep_graph_document.html#{{ thm.id }}">In the graph of all nodes</a>{% endif %}
     {% for extra in extra_modal_links %}
     {% include extra %}
@@ -237,10 +240,12 @@
     d3.select(this.parentNode.parentNode).style('display', 'none');
   });
 
-  // In the graph of all nodes, the title of a chapter's frame opens the graph of the chapter.
+  // In the graph of all nodes, the title of a frame of one chapter's nodes opens the graph of the
+  // chapter (cluster_<chapter label> or cluster_<chapter label>__<frame>), and the title of a frame
+  // of lean4lean the graph of lean4lean (cluster_lean4lean...).
   svg.selectAll('g.cluster').each(function () {
     const name = d3.select(this).select('title').text().trim();
-    const m = /^cluster_(chap:[^_]+)$/.exec(name);
+    const m = /^cluster_(chap:[^_]+|lean4lean)(?:__.*)?$/.exec(name);
     if (!m) { return; }
     d3.select(this).selectAll('text').classed('bp-frame-link', true)
       .on('click', function () {
@@ -262,7 +267,7 @@
     const hit = all.find(function (n) { return n.toLowerCase() === q; })
              || all.find(function (n) { return n.toLowerCase().endsWith('.' + q); })
              || all.find(function (n) { return n.toLowerCase().includes(q); });
-    $('#bp-find-msg').text(hit ? '' : 'no node of this graph matches');
+    $('#bp-find-msg').text(hit ? '' : '{{ 'no chapter matches' if graph.bp_kind == 'map' else 'no node of this graph matches' }}');
     if (hit) {
       focus(names[hit], true);
       history.replaceState(null, '', '#' + encodeURIComponent(names[hit]));

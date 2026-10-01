@@ -104,3 +104,28 @@ label = "TrProj"
 name = "Lean4Lean.TrProj"
 what = "the translation of projections (sorry definition)"
 allowed = "module:EraseProof.Test.Bridge"
+
+# The lean4lean modules whose declarations the proof library (outside its tests) or the shipping
+# code uses directly, with what each provides (TeX, ASCII). scripts/audit.py --update writes one
+# node per module (generated/lean4lean-imports.tex, in the trust chapter): its declarations used
+# directly, its axioms and inherited sorries as measured, and the nodes that use it. The audit
+# checks that every such module, and no other, has an entry here.
+[lean4lean_modules]
+"Lean4Lean.Std.Basic" = 'Lemmas about lists: \code{List.mapM}, pointwise relations (\code{List.Forall}$_2$) and lists without duplicates.'
+"Lean4Lean.Theory.VLevel" = 'Universe levels of the model (\code{VLevel}): well-formedness, evaluation, instantiation, equivalence, and the translation \code{ofLevel} of Lean levels.'
+"Lean4Lean.Theory.VExpr" = 'Expressions of the model (\code{VExpr}): lifting and instantiation of bound variables, and instantiation of universe levels.'
+"Lean4Lean.Theory.VEnv" = 'Environments of the model (\code{VEnv}): constants, definitional equations, the empty environment, adding a constant or an equation, and the extension order.'
+"Lean4Lean.Theory.VDecl" = 'Declarations of the model: constant values, definition values and the definitional equation of a definition.'
+"Lean4Lean.Theory.Typing.Basic" = 'The typing judgments of the model: definitional equality \code{IsDefEq} (and \code{IsDefEqU}, at some type), typing \code{HasType} and \code{IsType}; well-formed expressions, constants and equations.'
+"Lean4Lean.Theory.Typing.Env" = 'Well-formed declarations and environments (\code{VDecl.WF}, \code{VEnv.WF}); adding a list of constants or of equations to an environment.'
+"Lean4Lean.Theory.Typing.EnvLemmas" = 'Lemmas about adding constants and equations to an environment; a well-formed environment is ordered.'
+"Lean4Lean.Theory.Typing.Lemmas" = 'Structural lemmas of the typing judgments: the typing rules, weakening, instantiation of a variable and of universe levels, monotonicity in the environment, ordered environments.'
+"Lean4Lean.Theory.Typing.Strong" = 'Inversion of typing for $\lambda$ and for application.'
+"Lean4Lean.Theory.Typing.UniqueTyping" = 'Unique typing (\code{IsDefEq.uniq}) and its consequences for definitional equality.'
+"Lean4Lean.Theory.Typing.Injectivity" = 'Injectivity of definitional equality on sorts and on $\Pi$ types, and a sort is not a $\Pi$ type; lean4lean states the sorries L4--L6 here.'
+"Lean4Lean.Verify.Axioms" = '''Structural definitions of Lean functions on expressions and levels; the pure path of the shipping code calls \code{Expr.instantiate1'}, \code{Expr.liftLooseBVars'} and \code{Level.hasMVar'}. No node reaches the axioms of this module, which equate them with Lean's own functions.'''
+"Lean4Lean.Verify.Expr" = 'Lemmas about Lean expressions: application spines (\code{getAppArgs}, \code{mkAppList}, \code{withApp}) and \code{liftLooseBVars}.'
+"Lean4Lean.Verify.VLCtx" = 'Local contexts (\code{VLCtx}) of Lean free and bound variables, their lookup, and their translation \code{toCtx} to contexts of the model.'
+"Lean4Lean.Verify.Typing.Expr" = 'Closed Lean expressions and their free variables (\code{Closed}, \code{FVarsIn}); well-formed local declarations and local contexts.'
+"Lean4Lean.Verify.Typing.Lemmas" = 'Lemmas about local contexts: abstraction, lifting and instantiation of a context, lookup, definitional equality of contexts; free variables under instantiation.'
+"Lean4Lean.Verify.Environment.Lemmas" = 'Lemmas about adding a list of equations to an environment.'

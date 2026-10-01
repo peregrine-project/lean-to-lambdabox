@@ -30,7 +30,14 @@ Run with `lake env` of the package whose environment resolves every import (`env
   - `covered`: every user-facing declaration of the verification modules (prefix
     `$BP_COVER_PREFIX`, default `EraseProof`) that has a source position (auxiliary declarations
     that Lean generates, such as `below`, `brecOn`, `ctorIdx`, have none), with its module, line
-    and kind: the declarations that the blueprint's nodes must cite.
+    and kind: the declarations that the blueprint's nodes must cite;
+  - `deps`: for every citable declaration (`isCitable`) of the verification and shipping modules,
+    the citable declarations of the inherited, shipping and verification modules that it uses
+    directly, each with `type` (its own type uses it) or `value` (its value, or a constructor or
+    auxiliary declaration that belongs to it, uses it): a constant counts for the citable
+    declaration it belongs to (`ownerOf`);
+  - `decls`: module, line and kind of every declaration that `deps` names.
+  `names` also has an entry for every declaration of the inherited modules that `deps` names.
 -/
 open Lean
 
@@ -155,6 +162,24 @@ def isUserFacing (env : Environment) (n : Name) (ci : ConstantInfo) : Bool :=
   !(["sizeOf_spec", "injEq", "inj", "eq_def", "eq_unfold"].contains s) &&
   !isNumbered "eq_" s && !isNumbered "match_" s && !isNumbered "proof_" s
 
+/-- A declaration a node can cite: user-facing, with a source position. -/
+def isCitable (env : Environment) (n : Name) (ci : ConstantInfo) : Bool :=
+  isUserFacing env n ci && (lineOf env n).isSome
+
+/-- The citable declaration that the constant `n` belongs to: `n` itself, or the closest prefix of
+its name that is citable (the constructors, recursors, equation lemmas, matchers and other
+auxiliary declarations Lean generates for a declaration belong to it). A private name belongs to
+none. -/
+partial def ownerOf (env : Environment) (n : Name) : Option Name :=
+  if isPrivateName n then none else go n
+where
+  go (m : Name) : Option Name :=
+    match m with
+    | .anonymous => none
+    | _ => match env.find? m with
+      | some ci => if isCitable env m ci then some m else go m.getPrefix
+      | none => go m.getPrefix
+
 unsafe def importEnv (mods : List String) : IO Environment := do
   initSearchPath (← findSysroot)
   enableInitializersExecution
@@ -220,10 +245,47 @@ unsafe def main (args : List String) : IO UInt32 := do
         covered := covered.push <| Json.mkObj [("name", toString n), ("module", m),
           ("kind", kindOf env n),
           ("line", match lineOf env n with | some l => toJson l | none => Json.null)]
+    -- direct uses: every constant of the verification and shipping modules counts for its owner
+    let mut uses : Std.HashMap Name (Array (Name × String)) := {}
+    for (c, ci, m) in consts do
+      let pkg := pkgOf m
+      unless pkg == "covered" || pkg == "shipping" do continue
+      let some owner := ownerOf env c | continue
+      unless pkgOf (moduleOf env owner) == pkg do continue
+      let tdeps := ci.type.getUsedConstants
+      for d in directDeps ci do
+        let some t := ownerOf env d | continue
+        if t == owner || (pkgOf (moduleOf env t)).isEmpty then continue
+        let w := if c == owner && tdeps.contains d then "type" else "value"
+        let arr := uses.getD owner #[]
+        unless arr.contains (t, w) do uses := uses.insert owner (arr.push (t, w))
+    let users := uses.toArray.qsort (·.1.toString < ·.1.toString)
+    let mut namedSet : Std.HashSet Name := {}
+    for (o, ts) in users do
+      namedSet := namedSet.insert o
+      for (t, _) in ts do namedSet := namedSet.insert t
+    let named := namedSet.toArray.qsort (·.toString < ·.toString)
+    -- footprints of the inherited declarations that the verification or shipping code uses
+    for n in named do
+      if pkgOf (moduleOf env n) == "inherited" && !names.contains n.toString then
+        let (axs, srcs) ← closure env cache n
+        let lax := leanAxioms env n
+        entries := entries.push (n.toString, Json.mkObj [("exists", true),
+          ("module", moduleOf env n), ("axioms_agree", toJson (lax.map toString == axs.map toString)),
+          ("lean_axioms", toJson (lax.map toString)),
+          ("line", match lineOf env n with | some l => toJson l | none => Json.null),
+          ("kind", kindOf env n), ("axioms", jsonNames env axs),
+          ("sorry_sources", jsonNames env srcs)])
+    let deps := Json.mkObj <| users.toList.map fun (o, ts) =>
+      (toString o, Json.arr (ts.map fun (t, w) => Json.arr #[toString t, w]))
+    let decls := Json.mkObj <| named.toList.map fun n => (toString n, Json.mkObj [
+      ("module", moduleOf env n), ("kind", kindOf env n),
+      ("line", match lineOf env n with | some l => toJson l | none => Json.null)])
     let j := Json.mkObj [("modules", toJson mods), ("names", Json.mkObj (entries.toList)),
-      ("census", Json.arr census), ("shipping", Json.arr shipping), ("covered", Json.arr covered)]
+      ("census", Json.arr census), ("shipping", Json.arr shipping), ("covered", Json.arr covered),
+      ("deps", deps), ("decls", decls)]
     IO.FS.writeFile out (j.pretty ++ "\n")
-    IO.println s!"measured {names.size} names; census {census.size}; shipping {shipping.size}; covered {covered.size}"
+    IO.println s!"measured {names.size} names; census {census.size}; shipping {shipping.size}; covered {covered.size}; users {users.size}"
     return 0
   | _ =>
     IO.eprintln "usage: lake env lean --run blueprint/CheckDecls.lean (check <names> | measure <names> <out.json>) <module>..."

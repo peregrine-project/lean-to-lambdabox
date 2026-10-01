@@ -3,6 +3,7 @@
 /print/
 /lean_decls
 /.audit/
+/.build/
 /src/web.paux
 /src/*.aux
 /src/*.log

@@ -16,12 +16,13 @@ leanblueprint 0.0.20 only, and patches no file of theirs:
   graph of its chapter (thm_header_hidden_extras_tpl);
 * \\bpkind{kind}, the badge of a kind, and \\bpnodes{chapter}, the badges of the nodes of a chapter
   with a link to its graph (the print version defines both in macros/print.tex);
-* the CSS of the kinds, styles/bpkinds.css, written from kinds.css() at build time.
+* the CSS of the kinds, styles/bpkinds.css, written from kinds.css() at build time into
+  blueprint/.build/bpkinds/ (with the template of \\bpkind and \\bpnodes), which plasTeX copies.
 
 The graphs read the \\uses arrows from the chapters (scripts/audit.py parse), as the audit does; the
 build stops if they differ from the arrows plasTeX collected.
 """
-import collections, html, json, os, re, sys, tempfile
+import collections, html, json, os, re, sys
 from pathlib import Path
 
 from jinja2 import Template
@@ -38,6 +39,8 @@ import kinds  # noqa: E402
 
 log = getLogger()
 TEMPLATE = Path(HERE).parent / 'templates' / 'dep_graph.html'
+# Where the build writes the generated CSS and template of this package (ignored by git).
+BUILD_DIR = Path(HERE).parent / '.build' / 'bpkinds'
 
 BADGE_TPL = Template("""
     {% if obj.userdata.bp_kind %}<span class="bp-kind bp-kind-{{ obj.userdata.bp_kind }}"
@@ -49,15 +52,15 @@ BADGE_TPL = Template("""
 GRAPH_LINK_TPL = Template("""
     {% if obj.userdata.bp_graph_page %}<a class="icon bp-graph-link"
       href="{{ obj.userdata.bp_graph_page }}#{{ obj.id }}"
-      title="Show this node in the dependency graph of its chapter">graph</a>{% endif %}
+      title="Show this node in the dependency graph of its chapter (or of lean4lean)">graph</a>{% endif %}
 """)
 
 BPKIND_TEMPLATE = ('name: bpkind\n<span class="bp-kind bp-kind-{{ obj.attributes.cls }}">'
                    '{{ obj.attributes.badge }}</span>\n\n'
                    'name: bpnodes\n{% for k, badge, n in obj.attributes.counts %}'
                    '<span class="bp-kind bp-kind-{{ k }}">{{ badge }}</span>&#160;{{ n }} '
-                   '{% endfor %}{% if obj.attributes.page %}<a class="bp-chapter-graph" '
-                   'href="{{ obj.attributes.page }}">graph of this chapter</a>{% endif %}\n')
+                   '{% endfor %}{% for page, text in obj.attributes.pages %}<a class="bp-chapter-graph" '
+                   'href="{{ page }}">{{ text }}</a> {% endfor %}\n')
 STATE = {}          # set by ProcessOptions: 'counts' (kinds.chapter_counts)
 
 
@@ -91,7 +94,12 @@ class bpnodes(Command):
             count = collections.Counter()
         self.attributes['counts'] = [(k, kinds.KINDS[k]['badge'], count[k]) for k in kinds.KINDS
                                      if count[k]]
-        self.attributes['page'] = kindgraph.chapter_page(label) if count else ''
+        pages = []
+        if count and any(kinds.KINDS[k]['layer'] != 'lean4lean' for k in count if count[k]):
+            pages.append((kindgraph.chapter_page(label), 'graph of this chapter'))
+        if count and any(kinds.KINDS[k]['layer'] == 'lean4lean' for k in count if count[k]):
+            pages.append((kindgraph.chapter_page(kindgraph.LEAN4LEAN), 'graph of lean4lean'))
+        self.attributes['pages'] = pages
         return result
 
 
@@ -146,6 +154,8 @@ def swatch(shape, fill, line, penwidth=1.2, dashed=False, double=False):
                 f'<rect x="3" y="5.5" width="6" height="3.5" fill="{fill}" stroke="{line}" '
                 f'stroke-width="1"/><rect x="3" y="13" width="6" height="3.5" fill="{fill}" '
                 f'stroke="{line}" stroke-width="1"/>')
+    elif shape == 'folder':
+        body = (f'<path d="M4,5 h13 l3,-2.5 h9 l3,2.5 h10 v14.5 h-38 z" {a}/>')
     elif shape == 'cylinder':
         body = f'<path d="M5,5 v12 a18,3 0 0 0 36,0 v-12 a18,3 0 0 0 -36,0 a18,3 0 0 0 36,0" {a}/>'
     else:
@@ -167,24 +177,33 @@ def tex_plain(s):
                              .replace(r'Section~\ref{sec:trust-inherited}', 'chapter Trust boundary'))
 
 
+def border_swatch(line, penwidth, dashed=False):
+    """A border sample for the legend of a status: the corner of a node's outline, with no fill,
+    so that it matches no kind's swatch."""
+    dash = ' stroke-dasharray="4 2"' if dashed else ''
+    return (f'<svg class="bp-swatch" width="46" height="22" viewBox="0 0 46 22" aria-hidden="true">'
+            f'<path d="M6,19 V6 Q6,4 8,4 H40" fill="none" stroke="{line}" '
+            f'stroke-width="{max(1.0, penwidth * 0.9):.1f}"{dash}/></svg>')
+
+
 def legend_items():
     """The legend of the graph pages: (swatch and name, meaning), as HTML."""
     items = []
-    proved = kinds.STATUS['proved']
+    standard = kinds.STATUS['standard']
     for k, d in kinds.KINDS.items():
-        items.append((swatch(d['shape'], d['fill'], proved['line'], double=d['peripheries'] > 1)
+        items.append((swatch(d['shape'], d['fill'], standard['line'], double=d['peripheries'] > 1)
                       + html.escape(d['name']), html.escape(d['short'])))
     for s, d in kinds.STATUS.items():
-        items.append((swatch('box', d.get('fill', kinds.KINDS['lemma']['fill']), d['line'],
-                             d['penwidth'], 'dashed' in d['style']) + html.escape(d['name']),
-                      html.escape(d['short'])))
+        items.append((border_swatch(d['line'], d['penwidth'], 'dashed' in d['style'])
+                      + html.escape(d['name']), html.escape(d['short'])))
     for key, name, text, color, dash in kinds.EDGES:
         items.append((edge_swatch(color, dash) + html.escape(name[0].upper() + name[1:]),
                       html.escape(text)))
     for name, text in kinds.EDGE_NOTES:
         items.append((html.escape(name[0].upper() + name[1:]), html.escape(text)))
-    items.append(('Faded node', 'in the graph of a chapter: a node of another chapter (its number '
-                                'before the name) that an arrow joins to the chapter'))
+    items.append(('Faded node', 'in the graph of a chapter or of lean4lean: a node outside it that '
+                                'an arrow joins to it; its chapter number, or lean4lean, before '
+                                'its name'))
     return items
 
 
@@ -198,9 +217,10 @@ def ProcessOptions(options, document):
     parsed = audit.parse(collections.defaultdict(list))
     graphs = kindgraph.Graphs(parsed)
     STATE['counts'] = kinds.chapter_counts(parsed)
-    page_of = {v: kindgraph.chapter_page(c['label']) for v, c in graphs.chapter_of.items() if c}
+    page_of = {v: kindgraph.chapter_page(graphs.group(v)) for v in graphs.by if graphs.group(v)}
 
-    css_dir = Path(tempfile.mkdtemp(prefix='bpkinds-'))
+    css_dir = BUILD_DIR
+    css_dir.mkdir(parents=True, exist_ok=True)
     (css_dir / 'bpkinds.css').write_text(kinds.css(), encoding='utf-8')
     (css_dir / 'bpkinds.jinja2s').write_text(BPKIND_TEMPLATE, encoding='utf-8')
     document.addPackageResource([PackageCss(path=css_dir / 'bpkinds.css'),
@@ -210,10 +230,24 @@ def ProcessOptions(options, document):
 
     pages = []      # the graph pages, in the order of the navigation bar
 
-    def search_json(ids):
+    def search_json(ids, kind):
+        """The names the find field knows, each with the node it focuses: on a graph of nodes,
+        every Lean name of each node it draws (and the label of a lean4lean sorry); on the chapter
+        map, the title of each chapter and every Lean name of its nodes, with the chapter's box."""
         names = {}
-        for v in ids:
-            names[graphs.name(v)] = v
+        if kind == 'map':
+            box = {}
+            for v in list(graphs.by) + list(graphs.sorry):
+                layer = kinds.KINDS[graphs.kind(v)]['layer']
+                box[v] = 'lean4lean' if layer == 'lean4lean' else graphs.chapter_of[v]['label']
+            for c in graphs.chapters:
+                if c['label'] in box.values():
+                    names[f'{c["number"]} {c["title"]}'] = c['label']
+            names['lean4lean'] = 'lean4lean'
+            ids = list(box)
+        for v in sorted(ids, key=lambda v: v in graphs.sorry):
+            for n in graphs.names(v):
+                names.setdefault(n, box[v] if kind == 'map' else v)
         return json.dumps(dict(sorted(names.items())))
 
     def annotate():
@@ -257,8 +291,10 @@ def ProcessOptions(options, document):
                 page, kind, number = kindgraph.MAP_PAGE, 'map', None
             else:
                 page, kind = kindgraph.chapter_page(key), 'chapter'
-                number = next(c['number'] for c in graphs.chapters if c['label'] == key)
+                number = next((c['number'] for c in graphs.chapters if c['label'] == key), None)
             ids = [v for v in node_ids(svg) if v in graphs.by or v in graphs.sorry]
+            if kind == 'map':
+                ids = [v for v in node_ids(svg)]
             short = next((f'{c["number"]}  {c["title"]}' for c in graphs.chapters
                           if c['label'] == key), title)
             pages.append(dict(key=key, title=title, short=short, page=page, kind=kind,
@@ -269,7 +305,7 @@ def ProcessOptions(options, document):
         full = next(p for p in pages if p['kind'] == 'full')
         for graph in document.userdata['dep_graph'].get('graphs', {}).values():
             graph.bp_title, graph.bp_page, graph.bp_svg = full['title'], full['page'], full['svg']
-            graph.bp_search, graph.bp_kind = search_json(full['ids']), 'full'
+            graph.bp_search, graph.bp_kind = search_json(full['ids'], 'full'), 'full'
         document.rendererdata['html5']['extra_toc_items'].append(
             {'text': 'Dependency graph by chapter', 'url': kindgraph.MAP_PAGE})
 
@@ -286,9 +322,9 @@ def ProcessOptions(options, document):
                 continue
             graph = KindGraph()
             graph.document = document
-            graph.nodes = {labels[v] for v in p['ids'] if v in labels}
+            graph.nodes = {labels[v] for v in p['ids'] if v in labels and v in graphs.by}
             graph.bp_title, graph.bp_page, graph.bp_svg = p['title'], p['page'], p['svg']
-            graph.bp_search, graph.bp_kind = search_json(p['ids']), p['kind']
+            graph.bp_search, graph.bp_kind = search_json(p['ids'], p['kind']), p['kind']
             tpl.stream(graph=graph, dot='', context=document.context, title=p['title'],
                        legend=document.userdata['dep_graph']['legend'],
                        extra_modal_links=document.userdata['dep_graph'].get(
