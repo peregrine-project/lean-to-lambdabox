@@ -164,7 +164,7 @@ def t' : LBTerm := .lambda (binderNameOf `x) (.bvar 0)
 /-- `e` evaluates to `v`: β, with the proof `hp` an atom value (`constAtom`). Reference: the
 hypothesis `Σ ⊢ t ⇓ v` of `erases_correct` (`MR erasure/theories/ErasureCorrectness.v:51`). -/
 theorem hev : SrcEval σ e v :=
-  .beta (.atom trivial) (.constAtom (ci := .axiomInfo hp_val) rfl atom_hp rfl) (.atom trivial)
+  .beta (.atom trivial) (.constAtom (ci := .axiomInfo hp_val) rfl atom_hp) (.atom trivial)
 
 /-- `fV : P.{0} → A → A` in `env3`. -/
 theorem fV_ty : env3.HasType 0 [] fV (.forallE vP0 (.forallE vA vA)) :=

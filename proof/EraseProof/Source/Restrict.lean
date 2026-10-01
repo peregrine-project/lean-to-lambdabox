@@ -226,22 +226,22 @@ theorem SrcEval.restrict {view : EnvView} {cfg : ErasureConfig} (hsub : SubEnv d
     obtain ⟨ev, hv⟩ := ihv hc.2.1
     obtain ⟨eb, hr⟩ := ihb (hc.2.2.instantiate1' hv)
     exact ⟨.zeta ev eb, hr⟩
-  | delta hu hr hl _ ih =>
+  | delta hu hr _ ih =>
     rw [← evalEnvOf_unfold? hsub hc] at hu
     obtain ⟨eb, hv⟩ := ih (hcl.unfold? hu).instLevels
-    exact ⟨.delta hu hr hl eb, hv⟩
-  | fixAtom hu hr hl =>
+    exact ⟨.delta hu hr eb, hv⟩
+  | fixAtom hu hr =>
     rw [← evalEnvOf_unfold? hsub hc] at hu
-    exact ⟨.fixAtom hu hr hl, hc⟩
+    exact ⟨.fixAtom hu hr, hc⟩
   | fixApp _ hu hr _ _ ihf iha ihb =>
     obtain ⟨ef, hcf⟩ := ihf hc.1
     rw [← evalEnvOf_unfold? hsub hcf] at hu
     obtain ⟨ea, ha⟩ := iha hc.2
     obtain ⟨eb, hv⟩ := ihb ⟨(hcl.unfold? hu).instLevels, ha⟩
     exact ⟨.fixApp ef hu hr ea eb, hv⟩
-  | constAtom hd ha hl =>
+  | constAtom hd ha =>
     have hd' : findDecl decls _ = some _ := (hsub.findDecl_eq hc).trans hd
-    exact ⟨.constAtom hd' ((evalEnvOf_isAtom hsub hcl hc).trans ha) hl, hc⟩
+    exact ⟨.constAtom hd' ((evalEnvOf_isAtom hsub hcl hc).trans ha), hc⟩
   | appCong _ hb _ ihf iha =>
     obtain ⟨ef, hf⟩ := ihf hc.1
     obtain ⟨ea, ha⟩ := iha hc.2
