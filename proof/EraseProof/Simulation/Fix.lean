@@ -73,12 +73,11 @@ theorem BlocksErased.unfold (hblocks : BlocksErased venv σ lenv)
     exact ⟨_, hcu, her, ErasesDeps.cunfoldFix hdeps hcu⟩
   · rw [hr] at hr'; cases hr'
 
-/-- The `fixAtom` case of `erases_correct`: a recursive constant erases to `□`, to the `tFix`
-stored as its body (`Erases.constRec`), both λ□ values, or to its `tConst`, which λ□ evaluates by
-`eval_delta` to that `tFix`: the declaration found at the constant's kername is its own
-(`KernameInj`), and its body is a `tFix` of its block (`ErasesDecl`). Reference: the `eval_delta`
-case of `erases_correct` (`MR E/ErasureCorrectness.v:152`) to a `tFix` value, and its `eval_atom`
-case (`:1218`); DV-7. -/
+/-- The `fixAtom` case of `erases_correct`: a recursive constant, a value of the source, is matched
+by a λ□ evaluation of any erasure of it with erased dependencies, to an erasure of the constant:
+`□`, its stored `tFix`, or, from its `tConst`, that `tFix` by `eval_delta`. Reference: the
+`eval_delta` case of `erases_correct` (`MR E/ErasureCorrectness.v:152`) to a `tFix` value, and its
+`eval_atom` case (`:1218`); DV-7. -/
 theorem erases_correct_fixAtom (hinj : KernameInj σ.decls)
     (hu : σ.unfold? c = some (ci, body)) (hr : RecursiveDecl ci = true)
     (her : Erases venv Us σ.isAtom (RecIn lenv) [] (.const c us) t)
@@ -107,13 +106,11 @@ theorem erases_correct_fixAtom (hinj : KernameInj σ.decls)
       exact ⟨_, .constRec hac ⟨defs, i, rfl, hl⟩, .delta hl rfl (.atom rfl)⟩
     · rw [hr] at hr'; cases hr'
 
-/-- The `fixApp` case of `erases_correct`: the head's erasure evaluates to an erasure of the
-recursive constant, which is `□` (so the application evaluates to `□`, and the value is erasable)
-or the `tFix` stored as the constant's body (a λ□ value is never a `tConst`). That `tFix` unfolds
-with `rarg = 0` to an erasure of the constant's value (`BlocksErased`), at the occurrence's levels
-too (`Erases.instLevels`), and λ□ evaluates the application by `eval_fix` with no earlier
-arguments. Reference: the `eval_fix` case of `erases_correct` (`MR E/ErasureCorrectness.v:579`,
-`eval_fix` at `:598`, `:620`, `:688`, `:737`); Let. Thm 13 (fix). -/
+/-- The `fixApp` case of `erases_correct`: an application of a recursive constant, whose source
+evaluation unfolds the constant's value, is matched by a λ□ evaluation of any erasure of it with
+erased dependencies, by `eval_fix` with `rarg = 0` and no earlier arguments, or to `□`. Reference:
+the `eval_fix` case of `erases_correct` (`MR E/ErasureCorrectness.v:579`, `eval_fix` at `:598`,
+`:620`, `:688`, `:737`); Let. Thm 13 (fix). -/
 theorem erases_correct_fixApp (henv : ProgEnv P venv) (hsub : SubEnv σ.decls P)
     (hblocks : BlocksErased venv σ lenv)
     (ihf : ∀ {f₀ tf}, TrS venv Us [] f f₀ → Erases venv Us σ.isAtom (RecIn lenv) [] f tf →

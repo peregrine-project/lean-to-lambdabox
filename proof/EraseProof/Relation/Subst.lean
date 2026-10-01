@@ -169,10 +169,8 @@ theorem Erases.weakBV (henv : venv.Ordered) (W : VLCtx.BVLift Δ Δ' dn dk n k)
 
 /-- Context conversion: an erasure of a term translated in `Δ₁` is an erasure in every context
 definitionally equal to `Δ₁` (`VLCtx.IsDefEq`, `l4l Verify/Typing/Lemmas.lean:754`). Reference:
-`erases_context_conversion` (`MR E/ErasureProperties.v:189`), whose induction on the typing
-derivation is here one on the relation, with the translation `ht` in the role of the typing; the
-translations move by `TrS.defeqDFC` and `TrS.uniq` (`TrExprS.defeqDFC`, `TrExprS.uniq`,
-`l4l Verify/Typing/Lemmas.lean:985,941`). -/
+`erases_context_conversion` (`MR E/ErasureProperties.v:189`), with the translation `ht` in the role
+of its typing premise. -/
 theorem Erases.defeqDFC (henv : venv.WF) (hΔ : VLCtx.IsDefEq venv Us.length Δ₁ Δ₂)
     (ht : TrS venv Us Δ₁ e e₁) (h : Erases venv Us ac rc Δ₁ e t) :
     Erases venv Us ac rc Δ₂ e t := by
@@ -308,10 +306,9 @@ theorem Erases.instN_let (henv : venv.Ordered) (hrc : RcClosed rc)
 
 /-- The ζ case: in the erasure of a body translated in the `let` context (`hbt`), the `let` value
 may be replaced by a definitionally equal one and substituted. Reference: the ζ case of
-`erases_correct` (`MR E/ErasureCorrectness.v:112-136`), `erases_context_conversion`
-(`MR E/ErasureProperties.v:189`) then `erases_subst` (`MR E/ESubstitution.v:403`) at `Γ = Δ = []`,
-i.e. `erases_subst0` (`:612`); `hbt` is their typing premise `Σ ;;; Γ ⊢ t : T` (`:407`, `:614`);
-Let. Lemma 16. -/
+`erases_correct` (`MR E/ErasureCorrectness.v:112-136`): `erases_context_conversion` (`MR
+E/ErasureProperties.v:189`) then `erases_subst0` (`MR E/ESubstitution.v:612`), whose typing premise
+is `hbt` (`:614`); Let. Lemma 16. -/
 theorem Erases.inst_let (henv : ProgEnv P venv) (hrc : RcClosed rc)
     (hb : Erases venv Us ac rc [(none, .vlet T' v₀)] b t) (ha : Erases venv Us ac rc [] a ta)
     (hta : TrS venv Us [] a a'') (hdf : venv.IsDefEq Us.length [] v₀ a'' T')

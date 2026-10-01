@@ -293,12 +293,9 @@ theorem visitAppArgs_step {S : FVarId → Prop} {tc : TravCtx} {st : ErasureStat
       fun _ _ _ _ => ihl fun b hb => he' b (.tail _ hb)
 
 /-- One unfolding of `Erasure.visitExpr` at the pure backend runs alike under two lists of locals
-that agree on `S`, given the same property, at one less fuel, of `Erasure.visitExpr` (`ihE`, for
-metadata), `Erasure.visitLambda` (`ihL`), `Erasure.visitLet` (`ihLt`) and `Erasure.visitApp`
-(`ihA`, for applications and constants): the oracle call agrees (`EraseProof.oracle_agree`); a
-projection or a literal is never answered `false` by the oracle, whose type inference fails on
-them; the other branches do not read the locals. Reference: none; the cases of
-`MR E/ErasureFunction.v:989 erase` (DV-13). -/
+that agree on `S`, given the same property, at one less fuel, of `Erasure.visitExpr`,
+`Erasure.visitLambda`, `Erasure.visitLet` and `Erasure.visitApp`. Reference: none; the cases of `MR
+E/ErasureFunction.v:989 erase` (DV-13). -/
 theorem visitExpr_step {S : FVarId → Prop} {tc : TravCtx} {st : ErasureState} {ps : PureState}
     {ls₁ ls₂ : List Local} {fuel : Nat} {e : Expr} (hcl : ClosedDecls pc.decls)
     (ihE : ∀ {S : FVarId → Prop} {tc : TravCtx} {st : ErasureState} {ps : PureState}
@@ -339,14 +336,13 @@ theorem visitExpr_step {S : FVarId → Prop} {tc : TravCtx} {st : ErasureState} 
 
 /-! ## The frame lemmas -/
 
-/-- The traversal's frame property at every fuel, for every function of the traversal that the
-pure backend reaches: over closed declarations, `Erasure.visitExpr`, `Erasure.visitAppArgs`,
-`Erasure.visitLambda`, `Erasure.visitLet`, `Erasure.visitApp` and `Erasure.visitConstApp` run alike
-under two lists of locals that agree on a set `S` containing the visited terms' free variables and
-closed under the locals (`EraseProof.LocalsSupport`, `EraseProof.LocalsAgree`), and
-`Erasure.visitMutual`, `Erasure.get_constant_kername` and `Erasure.visitConst` do not read the
-locals. Proved by induction on the fuel with the steps of this file and of `Core/FrameA.lean`.
-Reference: none (DV-13). -/
+/-- The traversal's frame property at every fuel: over closed declarations, `Erasure.visitExpr`,
+`Erasure.visitAppArgs`, `Erasure.visitLambda`, `Erasure.visitLet`, `Erasure.visitApp` and
+`Erasure.visitConstApp` run alike at the pure backend under two lists of locals that agree on a set
+`S` containing the visited terms' free variables and closed under the locals
+(`EraseProof.LocalsSupport`, `EraseProof.LocalsAgree`), and `Erasure.visitMutual`,
+`Erasure.get_constant_kername` and `Erasure.visitConst` do not read the locals. Reference: none
+(DV-13). -/
 theorem traversal_agree (hcl : ClosedDecls pc.decls) (fuel : Nat) :
     (∀ {S : FVarId → Prop} {tc : TravCtx} {st : ErasureState} {ps : PureState}
       {ls₁ ls₂ : List Local} {e : Expr}, LocalsSupport S ls₁ → LocalsAgree S ls₁ ls₂ →

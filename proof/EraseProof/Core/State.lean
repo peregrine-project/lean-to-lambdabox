@@ -33,12 +33,11 @@ variable {venv : VEnv} {σ : EvalEnv} {lenv lenv' lenv'' : GlobalDeclarations}
 /-! ## The invariant -/
 
 /-- The traversal's state invariant over the model `venv` and the evaluation environment `σ`: every
-registered constant `c` has the kername `toKername c`, is a declaration of `σ`, and its entry
-erases its declaration (`ErasesDecl`, whose recursive branch carries its block's `ErasesBlock`)
-with erased dependencies; every entry of the λ□ environment belongs to a registered constant; every
-stored body is closed. Reference: `includes_deps` with `global_erased_with_deps`
-(`MR E/ErasureFunctionProperties.v:41,30`), the invariant of `erase_global_deps`
-(`MR E/ErasureFunction.v:1602`); `closed_env` (`MR E/EGlobalEnv.v:181`) for `closed`. -/
+registered constant `c` has the kername `toKername c`, is a declaration of `σ`, and its entry erases
+its declaration (`ErasesDecl`) with erased dependencies; every entry of the λ□ environment belongs
+to a registered constant; every stored body is closed. Reference: `includes_deps` with
+`global_erased_with_deps` (`MR E/ErasureFunctionProperties.v:41,30`), the invariant of
+`erase_global_deps` (`MR E/ErasureFunction.v:1602`); `closed_env` (`MR E/EGlobalEnv.v:181`). -/
 structure StateOK (venv : VEnv) (σ : EvalEnv) (st : ErasureState) : Prop where
   /-- A registered constant: its kername, its declaration, its erased entry and dependencies. -/
   registered : ∀ c kn, st.constants[c]? = some kn → kn = toKername c ∧
@@ -164,12 +163,12 @@ theorem StateOK.blocksErased {st : ErasureState} (hok : StateOK venv σ st)
   cases hb' _ rfl with
   | fix h => exact h d hd
 
-/-- Registering constants whose entries erase their declarations keeps the invariant, and the λ□
-environment grows by fresh kernames. The new entries `new` belong to newly registered constants;
-the registered constants stay registered; each newly registered constant has its own kername, and
-its entry, in the new environment, erases its declaration and has erased dependencies and a closed
-body. Reference: the `ConstantDecl` step of `erase_global_deps` (`MR E/ErasureFunction.v:1602`),
-with `erases_deps_cons` (`MR E/EDeps.v:492`). -/
+/-- Registering constants whose entries erase their declarations keeps the invariant: if the
+registered constants stay registered, the λ□ environment grows by entries `new` of newly registered
+constants, and each newly registered constant has its own kername and an entry that erases its
+declaration with erased dependencies and a closed body, then `StateOK` holds after, and the
+environment grows by fresh kernames. Reference: the `ConstantDecl` step of `erase_global_deps` (`MR
+E/ErasureFunction.v:1602`), with `erases_deps_cons` (`MR E/EDeps.v:492`). -/
 theorem StateOK.grow {st st' : ErasureState} {new : GlobalDeclarations}
     (hok : StateOK venv σ st) (hinj : KernameInj σ.decls)
     (hg : st'.gdecls = new ++ st.gdecls)
