@@ -51,10 +51,6 @@ def a_val : AxiomVal := { name := `a, levelParams := [], type := AE, isUnsafe :=
 def decls : List ConstantInfo :=
   [.axiomInfo a_val, .axiomInfo fI_val, .defnInfo Endo_val, .axiomInfo hR_val, .axiomInfo R_val,
    .defnInfo IProp_val, .axiomInfo A_val]
-/-- Nothing is `@[extern]`. -/
-def view : EnvView := ⟨fun n => decls.find? (·.name == n), fun _ => false, fun _ => none⟩
-/-- The evaluation environment. -/
-def σ : EvalEnv := evalEnvOf view {} decls
 /-- The oracle's context. -/
 def cx : Pure.Ctx := ⟨decls⟩
 /-- `fun (_ : R) (x : A) => x`: its type is a Π whose domain's sort is behind `IProp`. -/

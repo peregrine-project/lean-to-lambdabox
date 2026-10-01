@@ -14,8 +14,9 @@ or `EraseProof.*`):
   lean4lean and no `._native.` axiom occurs. The footprints are cross-checked against
   `Lean.collectAxioms` itself.
 * C5 `sorry`: every `sorryAx` a declaration reaches comes from one of lean4lean's `sorry`
-  declarations L1–L8 (`sorryLabels`), or, for a test, also `TrProj` (`testOnlySorryLabels`). The
-  report lists the labels each root and test reaches.
+  declarations L1–L6 (`allowedLabels`), or, for a declaration of the test module
+  `EraseProof.Test.Bridge` (`bridgeModule`), also `TrProj` (`testOnlySorryLabels`); none reaches
+  lean4lean's other `sorry`s, L7 and L8. The report lists the labels each root and test reaches.
 * C6 `hygiene`: no non-test declaration reaches a constant named `Lean4Lean.TrExprS*`,
   `Lean4Lean.TrExpr`, `Lean4Lean.TrExpr.*` or `Lean4Lean.TrProj*`, or a declaration of the test
   namespace `EraseProof.Test`.
@@ -24,16 +25,20 @@ or `EraseProof.*`):
   structure projections and the declarations `inductive` generates for it, those of its nested
   occurrences included, is one node; generated auxiliaries, `isAux`, are not checked); every root
   is a theorem of the library whose planned consumer has not landed; no root is reachable from
-  another root.
+  another root; every test that is not a theorem is reachable from a test theorem.
 * `expected`: the footprints of the roots and of the test theorems equal `axioms.expected`.
 * `modules`: every `.lean` file of the library's source tree is imported.
 * C9 `divergences`: every entry `### DV-<n>` of the divergence register has exactly the fields
   `dvFields`, in order, and its artifact field cites a declaration of the library; every code span
-  of an entry that is a name `EraseProof.*` or `Lean4Lean.*` is a declaration, a path
-  `proof/*.lean` is a file of this package, and a lean4lean path `Lean4Lean/*.lean[:lines]` is a
-  file of the lean4lean checkout with those lines; every id `DV-<n>` that the register, the
-  library's source files or the shipping sources (`LeanToLambdaBox/`) cite is an entry of the
-  register.
+  of an entry that is a name `EraseProof.*`, `Lean4Lean.*` or `Erasure.*` is a declaration; a path
+  `proof/*.lean` is a file of this package, a lean4lean path `Lean4Lean/*.lean[:lines]` a file of
+  the lean4lean checkout with those lines, a shipping path `LeanToLambdaBox/*.lean[:lines]` a file
+  of the root package with those lines, and, with `--metarocq DIR`, a MetaRocq path
+  `<dir>/theories/*.v[:lines]` a file of `DIR` with those lines; a span `:<lines>` cites lines of
+  the file the field cited last; a single MetaRocq line cited right after an identifier (the two
+  spans separated by nothing, `(` or `,`) is one of the four lines from it that mention the
+  identifier; every id `DV-<n>` that the register, the library's source files or the shipping
+  sources (`LeanToLambdaBox/`) cite is an entry of the register.
 * C12 `final`: the final form. `ROOTS.txt` is the single line `EraseProof.erase_correct FINAL`, so
   C7 checks reachability from the final theorem `erase_correct` (tests are roots by themselves).
   `erase_correct` is a theorem whose footprint is exactly `propext`, `Classical.choice`,
@@ -50,7 +55,8 @@ Options: `--import M` (repeatable; replaces the default `EraseProof`), `--roots 
 (`ROOTS.txt`), `--expected FILE` (`axioms.expected`), `--out DIR` (`.check`), `--src DIR` (`.`),
 `--divergences FILE` (`../doc/DIVERGENCES.md`), `--lean4lean DIR` (`../.lake/packages/lean4lean`),
 `--shipping DIR` (`..`, the root package, whose `LeanToLambdaBox.lean` and `LeanToLambdaBox/` are
-scanned for `DV-<n>` citations), `--no-final` (skips C12).
+scanned for `DV-<n>` citations), `--metarocq DIR` (a MetaRocq checkout; without it, MetaRocq
+citations are not checked), `--no-final` (skips C12).
 It writes `DIR/footprints.txt` (every declaration) and `DIR/axioms.actual` (the file
 `axioms.expected` should be), prints one line per check, and exits with 1 if a check fails.
 -/
@@ -66,7 +72,8 @@ def lib : Name := `EraseProof
 /-- The axioms a declaration of the library may depend on, in the order footprints print them. -/
 def allowedAxioms : Array Name := #[``propext, ``Classical.choice, ``Quot.sound, ``sorryAx]
 
-/-- lean4lean's `sorry` declarations (`master` 8223d223) that the library may reach, with labels. -/
+/-- lean4lean's `sorry` declarations (`master` 8223d223) under the library's imports, with labels.
+The library may reach those of `allowedLabels` only. -/
 def sorryLabels : Array (String × Name) := #[
   ("L1", `Lean4Lean.VInductDecl.WF),
   ("L2", `Lean4Lean.VEnv.addInduct),
@@ -77,10 +84,17 @@ def sorryLabels : Array (String × Name) := #[
   ("L7", `Lean4Lean.VEnv.IsDefEqU.weakN_iff),
   ("L8", `Lean4Lean.VEnv.NormalEq.parRed)]
 
-/-- Further `sorry` declarations that only test declarations may reach, with labels: lean4lean's
-`TrProj` (`Lean4Lean/Verify/Typing/Expr.lean:68`), which the bridge tests reach through `TrExprS`
-and `TrEnv'` (exception E-1). -/
+/-- The labels of `sorryLabels` that every declaration of the library may reach (C5): L1–L6. -/
+def allowedLabels : Array String := #["L1", "L2", "L3", "L4", "L5", "L6"]
+
+/-- Further `sorry` declarations that only the declarations of `bridgeModule` may reach, with
+labels: lean4lean's `TrProj` (`Lean4Lean/Verify/Typing/Expr.lean:68`), which the bridge tests reach
+through `TrExprS` and `TrEnv'`. -/
 def testOnlySorryLabels : Array (String × Name) := #[("TrProj", `Lean4Lean.TrProj)]
+
+/-- The test module that relates the library's translation and environments to lean4lean's
+bridge (`TrExprS`, `TrEnv'`); its declarations may also reach `testOnlySorryLabels` (C5). -/
+def bridgeModule : Name := `EraseProof.Test.Bridge
 
 /-- The modules declaring `sorryLabels` and `testOnlySorryLabels`; imported so that the names are
 checked. -/
@@ -101,8 +115,7 @@ def isForbiddenBridge (n : Name) : Bool :=
 /-- The final theorem, the only root of `ROOTS.txt` in the final form (C12). -/
 def finalTheorem : Name := `EraseProof.erase_correct
 
-/-- The lean4lean `sorry`s that the final theorem and its instance reach, exactly (C12): L1–L6, the
-inherited sorries of DESIGN Q11. -/
+/-- The lean4lean `sorry`s that the final theorem and its instance reach, exactly (C12): L1–L6. -/
 def finalLabels : Array String := #["L1", "L2", "L3", "L4", "L5", "L6"]
 
 /-- The approved statement of the final theorem, written out as a test proved by it (C12). -/
@@ -130,6 +143,7 @@ structure Config where
   divergences : System.FilePath := "../doc/DIVERGENCES.md"
   lean4lean : System.FilePath := "../.lake/packages/lean4lean"
   shipping : System.FilePath := ".."
+  metarocq : Option System.FilePath := none
   final : Bool := true
 
 partial def parseArgs (cfg : Config) : List String → Except String Config
@@ -142,6 +156,7 @@ partial def parseArgs (cfg : Config) : List String → Except String Config
   | "--divergences" :: f :: rest => parseArgs { cfg with divergences := f } rest
   | "--lean4lean" :: f :: rest => parseArgs { cfg with lean4lean := f } rest
   | "--shipping" :: f :: rest => parseArgs { cfg with shipping := f } rest
+  | "--metarocq" :: d :: rest => parseArgs { cfg with metarocq := some d } rest
   | "--no-final" :: rest => parseArgs { cfg with final := false } rest
   | a :: _ => .error s!"unknown or incomplete option {a}"
 
@@ -407,8 +422,9 @@ def expectedHeader : String :=
 # One line per declaration: <declaration> <axioms> <sorry labels>
 #   <axioms>: its `#print axioms`, comma-separated in the order propext, Classical.choice,
 #             Quot.sound, sorryAx; `-` for none.
-#   <sorry labels>: the lean4lean `sorry` declarations it reaches (L1-L8, and TrProj for tests;
-#             see tools/Report.lean `sorryLabels`, `testOnlySorryLabels`), comma-separated;
+#   <sorry labels>: the lean4lean `sorry` declarations it reaches (L1-L6, and TrProj for the
+#             tests of EraseProof.Test.Bridge; see tools/Report.lean `allowedLabels`,
+#             `testOnlySorryLabels`), comma-separated;
 #             `-` for none.
 # proof/scripts/check.sh compares this file with the computed .check/axioms.actual.
 "
@@ -475,6 +491,47 @@ def citedLines (s : String) : Option (List Nat) :=
     let ns ← (part.splitOn "-").mapM String.toNat?
     return ns ++ (← acc)
 
+/-- The code spans of `s` (text between backquotes), each with the text between it and the
+previous span (or the start of `s`). -/
+def codeSpansGaps (s : String) : List (String × String) :=
+  go (s.splitOn "`")
+where
+  go : List String → List (String × String)
+    | gap :: span :: rest => (gap, span) :: go rest
+    | _ => []
+
+/-- A MetaRocq source path `<dir>/theories/<F>.v`, with an optional `:<lines>` suffix. -/
+def isMetaRocqCite (c : String) : Bool :=
+  let path := (c.splitOn ":").headD c
+  path.endsWith ".v" && (path.splitOn "/theories/").length == 2 && !path.startsWith "/"
+
+/-- A citation of lines of the file cited last: `:<lines>`. -/
+def isRelativeCite (c : String) : Bool :=
+  c.startsWith ":" && c.length > 1 &&
+    (c.drop 1).toString.all fun ch => ch.isDigit || ch == ',' || ch == '-' || ch == '–'
+
+/-- A span that cites a file: a path of the library, of lean4lean, of the shipping code or of
+MetaRocq, or lines of the file cited last. -/
+def isFileCite (c : String) : Bool :=
+  c.startsWith "proof/" || c.startsWith "Lean4Lean/" || c.startsWith "LeanToLambdaBox/" ||
+    c == "LeanToLambdaBox.lean" || isMetaRocqCite c || isRelativeCite c
+
+/-- The identifier a span names, for the check that a cited line shows it: the first word, and of
+a dotted name its last component; none if that is not an identifier. -/
+def citedIdent? (span : String) : Option String :=
+  let w := (span.splitOn " ").headD ""
+  let w := (w.splitOn ".").getLastD w
+  if !w.isEmpty && !w.front.isDigit &&
+      w.all (fun ch => ch.isAlphanum || ch == '_' || ch == '\'') then some w else none
+
+/-- The parts of a line citation such as `642,723,768–835`: each a single line or a range. -/
+def citedParts (s : String) : Option (List (Nat × Option Nat)) :=
+  ((s.replace "–" "-").splitOn ",").mapM fun part =>
+    match part.splitOn "-" with
+    | [a] => a.toNat?.map (·, none)
+    | [a, b] => do pure (← a.toNat?, some (← b.toNat?))
+    | _ => none
+
 /-! ## Main -/
 
 def main (args : List String) : IO UInt32 := do
@@ -530,31 +587,64 @@ def main (args : List String) : IO UInt32 := do
       if !(codeSpans artifact).any (fun c => c.startsWith s!"{lib}." && env.contains c.toName) then
         fail "divergences" s!"{e.id}: the artifact field cites no declaration of {lib}"
       for (_, body) in e.fields do
-        for c in codeSpans body do
+        -- `last`: the file that a span `:<lines>` cites lines of, and whether it is MetaRocq's.
+        let mut last : Option (System.FilePath × Bool) := none
+        -- Set when the file cited last is MetaRocq's and no checkout is given.
+        let mut lastUnchecked := false
+        let mut prev : Option String := none
+        for (gap, c) in codeSpansGaps body do
+          let thisPrev := prev
+          prev := some c
           if c.any Char.isWhitespace then continue
-          if c.startsWith s!"{lib}." || c.startsWith "Lean4Lean." then
+          if c.startsWith s!"{lib}." || c.startsWith "Lean4Lean." || c.startsWith "Erasure." then
             if !env.contains c.toName then
               fail "divergences" s!"{e.id} cites `{c}`, which is not a declaration"
-          else if c.startsWith "proof/" then
-            let f := cfg.src / (c.drop "proof/".length).toString
-            if !(← f.pathExists) then
-              fail "divergences" s!"{e.id} cites `{c}`, which does not exist"
-          else if c.startsWith "Lean4Lean/" then
-            let (path, sfx) := match c.splitOn ":" with
-              | [p] => (p, none)
-              | p :: rest => (p, some (":".intercalate rest))
-              | [] => (c, none)
-            let f := cfg.lean4lean / path
-            if !(← f.pathExists) then
-              fail "divergences" s!"{e.id} cites `{c}`: {f} does not exist"
-            else if let some sfx := sfx then
-              let t ← IO.FS.readFile f
-              let n := (t.splitOn "\n").length - (if t.endsWith "\n" then 1 else 0)
-              match citedLines sfx with
-              | none => fail "divergences" s!"{e.id} cites `{c}`: malformed line numbers"
-              | some ls =>
-                if ls.any (fun k => k == 0 || k > n) then
-                  fail "divergences" s!"{e.id} cites `{c}`: {path} has {n} lines"
+            continue
+          if !isFileCite c then continue
+          -- A file citation: the file, and the lines it cites.
+          let (path, sfx) := match c.splitOn ":" with
+            | [p] => (p, none)
+            | p :: rest => (p, some (":".intercalate rest))
+            | [] => (c, none)
+          let target? : Option (System.FilePath × Bool) :=
+            if isRelativeCite c then last
+            else if c.startsWith "proof/" then some (cfg.src / (path.drop "proof/".length).toString, false)
+            else if c.startsWith "Lean4Lean/" then some (cfg.lean4lean / path, false)
+            else if c.startsWith "LeanToLambdaBox" then some (cfg.shipping / path, false)
+            else cfg.metarocq.map fun d => (d / path, true)
+          let some (f, mr) := target?
+            | if !isRelativeCite c then
+                lastUnchecked := true
+              else if !lastUnchecked then
+                fail "divergences" s!"{e.id} cites `{c}` with no file cited before it in the field"
+              continue
+          if !isRelativeCite c then
+            last := some (f, mr)
+            lastUnchecked := false
+          if !(← f.pathExists) then
+            fail "divergences" s!"{e.id} cites `{c}`: {f} does not exist"
+            continue
+          let some spec := (if isRelativeCite c then some (c.drop 1).toString else sfx) | continue
+          let src := (← IO.FS.readFile f).splitOn "\n"
+          let n := src.length - (if src.getLastD "" == "" then 1 else 0)
+          match citedParts spec with
+          | none => fail "divergences" s!"{e.id} cites `{c}`: malformed line numbers"
+          | some parts =>
+            for (a, b?) in parts do
+              if a == 0 || a > n || b?.any (fun b => b < a || b > n) then
+                fail "divergences" s!"{e.id} cites `{c}`: {f} has {n} lines"
+              -- A MetaRocq line cited right after an identifier shows that identifier.
+              else if mr && b?.isNone then
+                let g := gap.trimAscii.toString
+                if g == "" || g == "(" || g == "," then
+                  if let some p := thisPrev then
+                    if !isFileCite p then
+                      if let some name := citedIdent? p then
+                        let window := " ".intercalate ((src.drop (a - 1)).take 4)
+                        if !((window.splitOn name).length > 1) then
+                          fail "divergences" s!"{e.id} cites `{p}` at `{c}`, but {f}:{a}-{a + 3} does not mention {name}"
+    if cfg.metarocq.isNone then
+      IO.println "note: divergences: MetaRocq citations not checked (no --metarocq)"
     -- Every id that the register, the library or the shipping sources cite is an entry.
     let shippingFiles := (← leanFiles (cfg.shipping / "LeanToLambdaBox")).push
       (cfg.shipping / "LeanToLambdaBox.lean")
@@ -602,10 +692,16 @@ def main (args : List String) : IO UInt32 := do
       if lean.qsort Name.lt != (fp.axioms.toArray.qsort Name.lt) then
         fail "axioms" s!"{c}: computed footprint {own.toList} differs from #print axioms {lean.toList}"
     -- C5
-    let tables := if isTest c then sorryLabels ++ testOnlySorryLabels else sorryLabels
+    let tables := sorryLabels ++ testOnlySorryLabels
+    let allowed := if moduleOf? env c == some bridgeModule then
+      allowedLabels ++ testOnlySorryLabels.map (·.1) else allowedLabels
     for s in fp.sorries do
-      if (labelOf? tables s).isNone then
-        fail "sorry" s!"{c} reaches sorryAx through {s}, which is not among {showList (tables.map (·.1))}"
+      match labelOf? tables s with
+      | some l =>
+        if !allowed.contains l then
+          fail "sorry" s!"{c} reaches sorryAx through {s} ({l}), which is not among {showList allowed}"
+      | none =>
+        fail "sorry" s!"{c} reaches sorryAx through {s}, which is not a labelled lean4lean sorry"
     if !isAux c then
       let holders := fp.sorries.toArray.qsort Name.lt
       footLines := footLines.push
@@ -654,6 +750,11 @@ def main (args : List String) : IO UInt32 := do
         let n := (members.getD k #[]).size
         let block := if n > 1 then s!" (a node of {n} declarations)" else ""
         fail "leaves" s!"{k}{block} is not reachable from a root of ROOTS.txt"
+  -- Test definitions are used by test theorems.
+  let (testReached, _) := reach env members testThms
+  for c in tests do
+    if !testThms.contains c && !testReached.contains (leafKey env c) then
+      fail "leaves" s!"test {c} is not a theorem and no test theorem uses it"
   for r in roots do
     for r' in roots do
       if r != r' && env.contains r && env.contains r' then
