@@ -41,7 +41,10 @@ or `EraseProof.*`):
   `TrProj` or unlabelled source). Its instance on NV-1, `EraseProof.Test.NV1.final`, is a theorem
   with the same footprint that applies `erase_correct` to NV-1's hypothesis terms
   (`finalHypotheses`); these and `EraseProof.Test.NV1.hcollect` are theorems within `propext`,
-  `Classical.choice`, `Quot.sound`. Skipped with `--no-final`.
+  `Classical.choice`, `Quot.sound`. The test `EraseProof.Test.Stub.erase_correct`
+  (`finalStatement`), the approved statement written out, is a theorem that mentions
+  `erase_correct` and whose type is that of `erase_correct` (`Expr.eqv`). Skipped with
+  `--no-final`.
 
 Options: `--import M` (repeatable; replaces the default `EraseProof`), `--roots FILE`
 (`ROOTS.txt`), `--expected FILE` (`axioms.expected`), `--out DIR` (`.check`), `--src DIR` (`.`),
@@ -101,6 +104,9 @@ def finalTheorem : Name := `EraseProof.erase_correct
 /-- The lean4lean `sorry`s that the final theorem and its instance reach, exactly (C12): L1–L6, the
 inherited sorries of DESIGN Q11. -/
 def finalLabels : Array String := #["L1", "L2", "L3", "L4", "L5", "L6"]
+
+/-- The approved statement of the final theorem, written out as a test proved by it (C12). -/
+def finalStatement : Name := `EraseProof.Test.Stub.erase_correct
 
 /-- The instance of the final theorem on NV-1 (C12). -/
 def finalInstance : Name := `EraseProof.Test.NV1.final
@@ -748,6 +754,15 @@ def main (args : List String) : IO UInt32 := do
       let used := uses env finalInstance
       for h in #[finalTheorem] ++ finalHypotheses do
         if !used.contains h then fail "final" s!"{finalInstance} does not mention {h}"
+    match env.find? finalTheorem, env.find? finalStatement with
+    | some ci, some (.thmInfo st) =>
+      if !isOurs env finalStatement then
+        fail "final" s!"{finalStatement} is not a declaration of {lib}"
+      if !(uses env finalStatement).contains finalTheorem then
+        fail "final" s!"{finalStatement} does not mention {finalTheorem}"
+      if !ci.type.eqv st.type then
+        fail "final" s!"the type of {finalTheorem} is not that of {finalStatement}"
+    | _, _ => fail "final" s!"{finalStatement} is not a theorem of {lib}"
     let std3 := allowedAxioms.filter (· != ``sorryAx)
     for d in finalStd3 do
       match theoremFp? d with

@@ -24,7 +24,9 @@
 #                  footprint is exactly propext, Classical.choice, Quot.sound and sorryAx from
 #                  lean4lean's L1-L6, as is the footprint of its instance on NV-1,
 #                  EraseProof.Test.NV1.final, whose hypothesis terms and collectDeps run lie in
-#                  propext, Classical.choice, Quot.sound (skipped with --no-final).
+#                  propext, Classical.choice, Quot.sound; the test EraseProof.Test.Stub.erase_correct,
+#                  the approved statement written out, has the type of erase_correct exactly
+#                  (skipped with --no-final).
 #                  See the header of tools/Report.lean.
 #   regress   C10  the shipping regression tests, scripts/regress.sh (skipped with --no-regress);
 #                  with PEREGRINE set, also their `-- peregrine:` lines.
@@ -55,7 +57,7 @@ for a in "$@"; do
     --no-regress) regress=0 ;;
     --no-peregrine) peregrine=0 ;;
     --no-final) final=(--no-final) ;;
-    -h|--help) sed -n '2,43p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,45p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "error: unknown argument $a" >&2; exit 2 ;;
   esac
 done

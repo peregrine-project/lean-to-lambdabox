@@ -8,7 +8,8 @@
 #                                 axioms.expected.
 #   final-theorem footprint       C12: EraseProof.erase_correct reaches exactly propext,
 #                                 Classical.choice, Quot.sound and sorryAx from L1-L6, as does its
-#                                 NV-1 instance EraseProof.Test.NV1.final.
+#                                 NV-1 instance EraseProof.Test.NV1.final; its type is that of the
+#                                 approved statement, EraseProof.Test.Stub.erase_correct.
 #   no-leaves                     C7 with C12: every declaration outside EraseProof.Test is reachable
 #                                 from the single root EraseProof.erase_correct.
 #   shipping regression tests     C10: scripts/regress.sh.
