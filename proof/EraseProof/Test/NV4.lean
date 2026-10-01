@@ -736,29 +736,29 @@ theorem rec_ub : RecursiveDecl (.defnInfo ub_val) = true := by decide
 
 /-- `bfalse` evaluates, by δ, to its value. -/
 theorem ev_bfalse : SrcEval σ4 (.const `URec.bfalse []) bfalseE :=
-  .delta rfl rfl rfl (.atom trivial)
+  .delta rfl rfl (.atom trivial)
 
 /-- `btrue` evaluates, by δ, to its value. -/
 theorem ev_btrue : SrcEval σ4 (.const `URec.btrue []) btrueE :=
-  .delta rfl rfl rfl (.atom trivial)
+  .delta rfl rfl (.atom trivial)
 
 /-- `one.{0}` evaluates, by δ at the level `0`, to `one`'s value at the level `0`. -/
 theorem ev_one0 : SrcEval σ4 (.const `URec.one [.zero]) (oneE .zero) :=
-  .delta rfl rfl rfl (.atom trivial)
+  .delta rfl rfl (.atom trivial)
 
 /-- `ua bfalse` evaluates, by `fixAtom` and `fixApp` (`ua` unfolds when applied), to the λ that
 selects on `bfalse`. -/
 theorem ev_ua_bfalse :
     SrcEval σ4 (.app (.const `URec.ua []) (.const `URec.bfalse []))
       (.lam `n (cnC .zero) (appSelE bfalseE (.bvar 0) `URec.ub) .default) :=
-  .fixApp (.fixAtom unfold_ua rec_ua rfl) unfold_ua rec_ua ev_bfalse
+  .fixApp (.fixAtom unfold_ua rec_ua) unfold_ua rec_ua ev_bfalse
     (.beta (.atom trivial) (.atom trivial) (.atom trivial))
 
 /-- `ub btrue` evaluates, by `fixAtom` and `fixApp`, to the λ that selects on `btrue`. -/
 theorem ev_ub_btrue :
     SrcEval σ4 (.app (.const `URec.ub []) (.const `URec.btrue []))
       (.lam `n (cnC .zero) (appSelE btrueE (.bvar 0) `URec.ua) .default) :=
-  .fixApp (.fixAtom unfold_ub rec_ub rfl) unfold_ub rec_ub ev_btrue
+  .fixApp (.fixAtom unfold_ub rec_ub) unfold_ub rec_ub ev_btrue
     (.beta (.atom trivial) (.atom trivial) (.atom trivial))
 
 /-- `bfalse` selects its second branch: `bfalse (CN.{0} → CN.{0}) (fun m => m) (fun m => ub …)`
@@ -776,7 +776,7 @@ theorem ev_sel_true :
 
 /-- `csucc.{0} one.{0}'` evaluates, by δ at the level `0` and β, to `v4`. -/
 theorem ev_csucc : SrcEval σ4 (.app (.const `URec.csucc [.zero]) (oneE .zero)) v4 :=
-  .beta (.delta rfl rfl rfl (.atom trivial)) (.atom trivial) (.atom trivial)
+  .beta (.delta rfl rfl (.atom trivial)) (.atom trivial) (.atom trivial)
 
 /-- `ub btrue (csucc.{0} one.{0}')` evaluates to `v4`: `btrue` selects `fun m => m`. -/
 theorem ev_ub_call :

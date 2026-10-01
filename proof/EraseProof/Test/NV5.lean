@@ -93,7 +93,7 @@ def t' : LBTerm := .lambda (binderNameOf `x) (.bvar 0)
 /-- `e` evaluates to `v`: β, with `A` an atom value (`constAtom`). Reference: the hypothesis
 `Σ ⊢ t ⇓ v` of `erases_correct` (`MR erasure/theories/ErasureCorrectness.v:51`). -/
 theorem hev : SrcEval D1.σ e v :=
-  .beta (.atom trivial) (.constAtom (ci := .axiomInfo D1.A_val) rfl D1.atom_A rfl) (.atom trivial)
+  .beta (.atom trivial) (.constAtom (ci := .axiomInfo D1.A_val) rfl D1.atom_A) (.atom trivial)
 
 /-- `idV : Π (α : Type), α → α` in `D1.env4`. -/
 theorem idV_ty : D1.env4.HasType 0 [] idV (.forallE D1.ty1 (.forallE (.bvar 0) (.bvar 1))) :=
