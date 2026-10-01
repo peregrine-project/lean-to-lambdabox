@@ -49,11 +49,26 @@
 \item \lead{Axioms} a proved node depends on \code{propext}, \code{Classical.choice},
   \code{Quot.sound}, and on \code{sorryAx} only through the lean4lean sorries it lists
   (Section~\ref{sec:trust-inherited}); \hl{no axiom of lean4lean} is allowed.
-\item \lead{Checks} \code{blueprint/scripts/audit.py} measures every node; the proof package's
-  \code{proof/scripts/check.sh} checks the footprints of \code{proof/axioms.expected}, forbidden
-  tokens, the no-leaves rule of \code{proof/ROOTS.txt} (Section~\ref{sec:open-roots}), and the
-  final form: the single root \code{erase\_correct}, whose footprint and that of
-  \code{Test.NV1.final} are the standard axioms plus exactly L1--L6.
+\item \lead{Checks} \code{blueprint/scripts/audit.py} measures every node. The checks of the
+  proof package, \code{proof/scripts/check.sh} and the CI workflow of the \code{verification}
+  branch, cover:
+  \begin{itemize}
+  \item forbidden tokens (C2), the footprints of \code{proof/axioms.expected} (C3, C4), the
+        lean4lean sorries a declaration may reach (C5), and the no-leaves rule of
+        \code{proof/ROOTS.txt} (C7, Section~\ref{sec:open-roots});
+  \item that no declaration outside the tests reaches lean4lean's \code{TrExprS},
+        \code{TrProj} or a test (C6);
+  \item the shipping regression tests and the comparison of the pure path with the \code{Meta}
+        path on the corpus (C10);
+  \item the divergence register (C9): its fields, and its citations of declarations, files and
+        lines, MetaRocq's included;
+  \item the final form (C12): the single root \code{erase\_correct}, whose footprint and that of
+        \code{Test.NV1.final} are the standard axioms plus exactly L1--L6, and whose type is
+        that of the approved statement \code{Test.Stub.erase\_correct};
+  \item that \code{\#erase} emits on NV-1 exactly the program \code{Test.NV1.final} is about
+        (\code{nv1-emit}); with a Peregrine binary, locally, Peregrine's \code{validate} and
+        \code{eval} on the in-fragment corpus outputs and on NV-1 (C11).
+  \end{itemize}
 \end{itemize}
 
 \section{Trusted, not verified}\label{sec:trust-trusted}
@@ -102,9 +117,10 @@ The \code{Meta} path & out-of-fragment inputs keep the shipping traversal with t
   sound as L3--L6}: nothing is known about whether they hold on the environments in scope, and
   \code{VEnv.WF} admits an unsafe block whose member proves \code{forall p : Prop, p}.
 \item \lead{L7, L8} no node may depend on them.
-\item \lead{TrProj} only test nodes may depend on it: the bridge tests state lean4lean's
-  \code{TrExprS} and \code{TrEnv'}, whose definitions reach \code{TrProj := sorry}; five
-  declarations of the two bridge-test nodes reach it.
+\item \lead{TrProj} only the nodes of the module \code{EraseProof.Test.Bridge} may depend on it,
+  as check C5 allows: the bridge tests state lean4lean's \code{TrExprS} and \code{TrEnv'}, whose
+  definitions reach \code{TrProj := sorry}; five declarations of the two bridge-test nodes reach
+  it.
 \end{itemize}
 
 The table is generated from \code{blueprint/audit.toml} and the Lean environment by

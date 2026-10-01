@@ -47,9 +47,10 @@ dir = "proof"
 targets = ["EraseProof"]
 
 # The lean4lean sorry sources the blueprint names, with their labels. `allowed`: "all" = a node
-# may depend on it and keep \leanok; "tests" = only a test node may; "none" = no node may. Any
-# sorry source outside this list, and any axiom outside standard_axioms, keeps a node from
-# carrying \leanok.
+# may depend on it and keep \leanok; "tests" = only a test node may; "module:M" = only a node whose
+# declarations all belong to the module M may; "none" = no node may. Any sorry source outside this
+# list, and any axiom outside standard_axioms, keeps a node from carrying \leanok. The allowances
+# are those of check C5 of proof/scripts/check.sh.
 [[inherited_sorry]]
 label = "L1"
 name = "Lean4Lean.VInductDecl.WF"
@@ -102,4 +103,4 @@ allowed = "none"
 label = "TrProj"
 name = "Lean4Lean.TrProj"
 what = "the translation of projections (sorry definition)"
-allowed = "tests"
+allowed = "module:EraseProof.Test.Bridge"

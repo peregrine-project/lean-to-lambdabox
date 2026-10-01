@@ -65,6 +65,7 @@ UNICODE = {
     '\u2260': r'\ensuremath{\ne}',
     '\u2261': r'\ensuremath{\equiv}',
     '\u2248': r'\ensuremath{\approx}',
+    '\u2225': r'\ensuremath{\parallel}',     # squash brackets
     '\u2208': r'\ensuremath{\in}',
     '\u2227': r'\ensuremath{\wedge}',
     '\u2228': r'\ensuremath{\vee}',
@@ -76,6 +77,7 @@ UNICODE = {
     '\u2081': r'\ensuremath{_1}',
     '\u2082': r'\ensuremath{_2}',
     '\u2099': r'\ensuremath{_n}',
+    '\u207b': r'\ensuremath{^{-}}',          # CIC with superscript minus
     '\u00a7': r'\S{}',
     '\u00ab': r'\ensuremath{\langle\!\langle}',   # Lean name quotes
     '\u00bb': r'\ensuremath{\rangle\!\rangle}',

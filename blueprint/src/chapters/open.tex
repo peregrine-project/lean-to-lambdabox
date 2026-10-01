@@ -39,14 +39,19 @@ Every declaration of \code{EraseProof} outside the tests is reachable from a roo
 \begin{itemize}
 \item \lead{Reported, not fixed} the shipping-change register lists the defects it reports without
   fixing them (Section~\ref{reg:reported-not-fixed}).
-\item \lead{Unrecorded dead code} \code{mkCase} in \code{LeanToLambdaBox/Erasure.lean} has no
-  caller, and its result type names \code{EraseM}, which Lean binds as an auto-bound implicit; the
-  register has no entry for it.
 \item \lead{Peregrine on the pure path} of the 348 \code{validate} and \code{eval} checks on the
-  173 in-fragment corpus outputs and NV-1's program, 10 fail: unescaped names (R-2), a fixpoint
-  body that is not a $\lambda$ (R-11), and an evaluation that reaches an axiom (register entry
-  S-21). Check C11 of \code{proof/scripts/check.sh} excludes exactly these 10.
-\item \lead{Peregrine in CI} check C11 needs a Peregrine binary; the CI workflow skips it.
+  173 in-fragment corpus outputs and NV-1's program, 10 fail. Check C11 of
+  \code{proof/scripts/check.sh} excludes exactly these 10:
+  \begin{itemize}
+  \item \code{N\_quoteNs}, \code{validate} and \code{eval}: the printer does not escape a quote in
+        a module path (R-2);
+  \item \code{sixOnAxioms}, \code{eval}: the program declares axioms, and Peregrine's evaluator
+        rejects every program with an axiom;
+  \item \code{ugOne}, \code{validate} and \code{eval}: a fixpoint body that is not a $\lambda$
+        (R-11, DV-8).
+  \end{itemize}
+\item \lead{Peregrine in CI} the Peregrine runs of check C11 need a Peregrine binary; the CI
+  workflow skips them, and runs the step \code{nv1-emit}, which needs none.
 \end{itemize}
 
 \section{Outside the final theorem}\label{sec:open-outside}

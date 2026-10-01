@@ -161,7 +161,7 @@ older declarations. Scopes bound what the traversal may register.
   \lean{EraseProof.CoreEnv.valueScope}
   \leanok
   \uses{def:EraseProof-CoreEnv}
-  \srcloc{proof/EraseProof/Core/Order.lean}{315}
+  \srcloc{proof/EraseProof/Core/Order.lean}{312}
   \lead{In short} The value of a declaration of \code{decls} has a scope that \hl{holds no member
   of its own block}: the traversal never registers a constant while it erases the constant's
   value.
@@ -294,7 +294,7 @@ term's support. A constant's value is therefore erased as in the empty context.
   \lean{EraseProof.visit_agree, EraseProof.traversal_agree}
   \leanok
   \uses{def:Erasure-erase, def:Erasure-PureM, def:EraseProof-LocalsAgree}
-  \srcloc{proof/EraseProof/Core/Frame.lean}{398}
+  \srcloc{proof/EraseProof/Core/Frame.lean}{394}
   \lead{In short} With closed declarations, a run of \code{visitExpr} at the pure backend \hl{does
   not depend on the locals the term cannot reach}.
   \begin{itemize}
@@ -344,7 +344,7 @@ term's support. A constant's value is therefore erased as in the empty context.
     EraseProof.lookupConst_cons_self, EraseProof.Erases.hasFVar_eq_false}
   \leanok
   \uses{def:EraseProof-StateOK, def:EraseProof-LenvExt, def:EraseProof-KernameInj}
-  \srcloc{proof/EraseProof/Core/State.lean}{167}
+  \srcloc{proof/EraseProof/Core/State.lean}{166}
   \lead{In short} Registering constants whose entries erase their declarations \hl{keeps
   \code{StateOK}} and grows the $\lambda_\Box$ environment by fresh kernames.
   \begin{itemize}
@@ -370,7 +370,7 @@ term's support. A constant's value is therefore erased as in the empty context.
     EraseProof.get_constant_kername_ok}
   \leanok
   \uses{def:EraseProof-StateOK, def:Erasure-erase, def:Erasure-PureM}
-  \srcloc{proof/EraseProof/Core/State.lean}{271}
+  \srcloc{proof/EraseProof/Core/State.lean}{270}
   \lead{In short} Registering a definition with \hl{an erasure of its value}, or an axiom with an
   empty body, keeps \code{StateOK}.
   \begin{itemize}
@@ -482,7 +482,7 @@ the statement at smaller fuels.
     EraseProof.OccursV.mkAppList_head, EraseProof.AtomSpine.of_getAppFn}
   \leanok
   \uses{def:EraseProof-ExprSpec, def:EraseProof-CoreEnv}
-  \srcloc{proof/EraseProof/Core/Steps.lean}{657}
+  \srcloc{proof/EraseProof/Core/Steps.lean}{653}
   \inherited{L1, L2, L3, L4, L5}
   \lead{In short} The \code{app} and \code{const} steps: \hl{the erased head applied to the erased
   arguments} erases the spine.
@@ -511,7 +511,7 @@ the statement at smaller fuels.
     EraseProof.Pure.isErasable_type}
   \leanok
   \uses{def:EraseProof-ExprSpec, def:EraseProof-CoreEnv}
-  \srcloc{proof/EraseProof/Core/Steps.lean}{333}
+  \srcloc{proof/EraseProof/Core/Steps.lean}{331}
   \inherited{L1, L2, L3, L4, L5}
   \lead{In short} A kept free variable erases to itself; metadata is transparent; \hl{a sort or a
   $\Pi$ is always boxed}.
@@ -538,7 +538,7 @@ the statement at smaller fuels.
     EraseProof.KeepsCG.ite, EraseProof.KeepsCG.run, EraseProof.name_occurs_eq}
   \leanok
   \uses{def:EraseProof-ExprSpec, def:EraseProof-CoreEnv, def:EraseProof-RecursiveDecl}
-  \srcloc{proof/EraseProof/Core/Steps.lean}{822}
+  \srcloc{proof/EraseProof/Core/Steps.lean}{818}
   \lead{In short} \code{visitMutual} on an axiom, a remapped constant, or a non-recursive
   definition \hl{registers it with an erased entry}.
   \begin{itemize}
@@ -798,7 +798,7 @@ as \code{tFix defs j}.
   \lean{EraseProof.body_step}
   \leanok
   \uses{def:EraseProof-rcBlock, def:EraseProof-ExprSpec, def:EraseProof-CoreEnv}
-  \srcloc{proof/EraseProof/Core/Block.lean}{834}
+  \srcloc{proof/EraseProof/Core/Block.lean}{828}
   \lead{In short} Inside the block, \code{visitExpr} on a member's value \hl{erases it in the empty
   context} with the members' targets \code{rcBlock}, grows within the scope, and leaves every
   member unregistered.
@@ -817,7 +817,7 @@ as \code{tFix defs j}.
   \lean{EraseProof.block_finish, EraseProof.StateOK.block_unregistered, EraseProof.BodyOK.ext}
   \leanok
   \uses{def:EraseProof-rcBlock, def:EraseProof-StateOK, def:EraseProof-ErasesDeps}
-  \srcloc{proof/EraseProof/Core/Block.lean}{635}
+  \srcloc{proof/EraseProof/Core/Block.lean}{636}
   \lead{In short} Once every member's body is erased (\code{BodyOK}) and registered as \code{tFix
   defs j}, \hl{the block is erased} (\code{ErasesBlock}) and \code{StateOK} holds.
   \begin{itemize}
@@ -845,7 +845,7 @@ as \code{tFix defs j}.
     EraseProof.visitMutual_test}
   \leanok
   \uses{def:EraseProof-ExprSpec, def:EraseProof-CoreEnv, def:EraseProof-RecursiveDecl}
-  \srcloc{proof/EraseProof/Core/Block.lean}{1007}
+  \srcloc{proof/EraseProof/Core/Block.lean}{996}
   \lead{In short} \code{visitMutual} on a recursive, non-remapped definition \hl{erases its whole
   block} and registers member \code{j} as \code{tFix defs j} of the erased block.
   \begin{itemize}
@@ -897,7 +897,7 @@ as \code{tFix defs j}.
   \leanok
   \uses{def:EraseProof-CoreEnv, def:Erasure-erase, def:EraseProof-Erases,
     def:EraseProof-ErasesDeps, def:EraseProof-LenvClosed}
-  \srcloc{proof/EraseProof/Core.lean}{71}
+  \srcloc{proof/EraseProof/Core.lean}{70}
   \inherited{L1, L2, L3, L4, L5}
   \lead{In short} \code{visitExpr travFuel e} from the empty state, with no locals, on a closed
   translated term \hl{returns an erasure} with erased dependencies, erased blocks and closed
@@ -920,7 +920,7 @@ as \code{tFix defs j}.
   \uses{def:Erasure-erasePure, def:Erasure-collectDeps, def:EraseProof-ProgEnv,
     def:EraseProof-ViewAgrees, def:EraseProof-TrS, def:EraseProof-Erases,
     def:EraseProof-ErasesDeps, def:EraseProof-LenvClosed, def:EraseProof-evalEnvOf}
-  \srcloc{proof/EraseProof/Core.lean}{105}
+  \srcloc{proof/EraseProof/Core.lean}{101}
   \inherited{L1, L2, L3, L4, L5}
   \lead{In short} If \code{erasePure} returns \code{p} on the closure of an in-scope term
   \code{e}, then \code{p} is \code{untyped lenv (some t)} with \hl{\code{t} an erasure of

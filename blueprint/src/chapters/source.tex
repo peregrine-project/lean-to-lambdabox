@@ -189,7 +189,7 @@
   \lean{EraseProof.SrcValue, EraseProof.AtomSpine}
   \leanok
   \uses{def:EraseProof-SrcEval}
-  \srcloc{proof/EraseProof/Source/Eval.lean}{84}
+  \srcloc{proof/EraseProof/Source/Eval.lean}{83}
   \lead{In short} The shapes of evaluation results: $\lambda$, sorts, $\Pi$, recursive constants,
   and \hl{spines headed by an atom constant} (\code{AtomSpine}).
   \lead{Reference} PCUIC \code{value}; MetaCoq paper Fig.~12.
@@ -200,7 +200,7 @@
   \lean{EraseProof.SrcEval.value}
   \leanok
   \uses{def:EraseProof-SrcEval, def:EraseProof-SrcValue}
-  \srcloc{proof/EraseProof/Source/Eval.lean}{95}
+  \srcloc{proof/EraseProof/Source/Eval.lean}{94}
   \lead{In short} Every evaluation result is \hl{a source value}.
   \lead{Reference} \code{eval\_to\_value} (\code{pcuic/theories/PCUICWcbvEval.v}).
 \end{lemma}
@@ -410,7 +410,7 @@
   \leanok
   \lead{Idea} \code{ProgEnv.lookup} gives the declared type at the constant's own level
   parameters: an arity, or of sort equivalent to zero; lean4lean's \code{HasType.instL} moves it to
-  the use levels and weakens it; its \code{HasType.uniq} types application spines.
+  the use levels and weakens it; its \code{IsDefEq.uniq} types application spines.
 \end{proof}
 
 \section*{Caveats}
