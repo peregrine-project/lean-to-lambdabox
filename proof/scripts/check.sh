@@ -13,13 +13,17 @@
 #                  proof/**/*.lean outside comments and strings.
 #   report    C3-C7, C9, C12, run by `lake env lean --run tools/Report.lean` in proof/: axiom
 #                  footprints within propext, Classical.choice, Quot.sound, sorryAx (no
-#                  Verify/Axioms.lean or native axiom); sorryAx only from lean4lean's L1-L8
-#                  (tests: also TrProj);
+#                  Verify/Axioms.lean or native axiom); sorryAx only from lean4lean's L1-L6
+#                  (the tests of module EraseProof.Test.Bridge: also TrProj);
 #                  lean4lean's TrExprS/TrExpr/TrProj and the tests unreachable from non-test
-#                  declarations; no leaves with respect to ROOTS.txt; footprints of roots and test
+#                  declarations; no leaves with respect to ROOTS.txt, and every test that is not a
+#                  theorem used by a test theorem; footprints of roots and test
 #                  theorems equal axioms.expected; every source file imported; the entries of
-#                  doc/DIVERGENCES.md well-formed, citing existing declarations, files and lines,
-#                  and every DV-<n> that the register, proof/ or LeanToLambdaBox/ cites an entry;
+#                  doc/DIVERGENCES.md well-formed, citing existing declarations (EraseProof.*,
+#                  Lean4Lean.*, Erasure.*), files and lines (proof/, Lean4Lean/, LeanToLambdaBox/,
+#                  and, with METAROCQ=<MetaRocq checkout> in the environment, MetaRocq's
+#                  <dir>/theories/*.v, where a line cited right after an identifier shows it), and
+#                  every DV-<n> that the register, proof/ or LeanToLambdaBox/ cites an entry;
 #                  C12, the final form: ROOTS.txt is the single root EraseProof.erase_correct, whose
 #                  footprint is exactly propext, Classical.choice, Quot.sound and sorryAx from
 #                  lean4lean's L1-L6, as is the footprint of its instance on NV-1,
@@ -56,12 +60,14 @@ LOG=$PROOF/.check
 regress=1
 peregrine=1
 final=()
+metarocq=()
+if [ -n "${METAROCQ:-}" ]; then metarocq=(--metarocq "$(cd "$METAROCQ" && pwd)"); fi
 for a in "$@"; do
   case $a in
     --no-regress) regress=0 ;;
     --no-peregrine) peregrine=0 ;;
     --no-final) final=(--no-final) ;;
-    -h|--help) sed -n '2,49p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,53p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "error: unknown argument $a" >&2; exit 2 ;;
   esac
 done
@@ -86,7 +92,10 @@ run() {
 
 build_root() ( cd "$ROOT" && lake build LeanToLambdaBox Lean4Lean Lean4Lean.Theory Lean4Lean.Verify )
 build_proof() ( cd "$PROOF" && lake build )
-report() ( cd "$PROOF" && lake env lean --run tools/Report.lean ${final[@]+"${final[@]}"} )
+report() (
+  cd "$PROOF" &&
+    lake env lean --run tools/Report.lean ${final[@]+"${final[@]}"} ${metarocq[@]+"${metarocq[@]}"}
+)
 nv1_emit() {
   rm -rf "$LOG/nv1" && mkdir -p "$LOG/nv1" &&
     ( cd "$PROOF" && lake env lean --run tools/NV1Emit.lean "$LOG/nv1/NV1.ast" )

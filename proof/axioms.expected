@@ -2,8 +2,9 @@
 # One line per declaration: <declaration> <axioms> <sorry labels>
 #   <axioms>: its `#print axioms`, comma-separated in the order propext, Classical.choice,
 #             Quot.sound, sorryAx; `-` for none.
-#   <sorry labels>: the lean4lean `sorry` declarations it reaches (L1-L8, and TrProj for tests;
-#             see tools/Report.lean `sorryLabels`, `testOnlySorryLabels`), comma-separated;
+#   <sorry labels>: the lean4lean `sorry` declarations it reaches (L1-L6, and TrProj for the
+#             tests of EraseProof.Test.Bridge; see tools/Report.lean `allowedLabels`,
+#             `testOnlySorryLabels`), comma-separated;
 #             `-` for none.
 # proof/scripts/check.sh compares this file with the computed .check/axioms.actual.
 EraseProof.erase_correct propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5,L6

@@ -36,12 +36,15 @@ bundle conditions that MetaRocq states apart, as `EraseProof.LenvExt` bundles `e
 keeps in `wf_glob` (`erasure/theories/EWellformed.v:223`).
 
 Entries are headed `### DV-<n>`. They cite declarations by full name in backquotes (ours as
-`EraseProof.<name>`, lean4lean's as `Lean4Lean.<name>`), our files by their path in the repository
-(`proof/...`), lean4lean `master` sources by path and line (`Lean4Lean/...lean:<line>`), and
-MetaRocq sources by path relative to the MetaRocq repository and line. Check C9 of
-`proof/scripts/check.sh` fails if a cited `EraseProof.*` or `Lean4Lean.*` name is not a
-declaration, a cited file or line does not exist, an entry's fields differ from the list above, or
-an entry's artifact field cites no declaration of `EraseProof`.
+`EraseProof.<name>`, lean4lean's as `Lean4Lean.<name>`, the shipping code's as `Erasure.<name>`),
+our files by their path in the repository (`proof/...`, `LeanToLambdaBox/...`), lean4lean `master`
+sources by path and line (`Lean4Lean/...lean:<line>`), and MetaRocq sources by path relative to the
+MetaRocq repository and line, at commit `4b201296` (branch `9.1`); `:<line>` cites a line of the
+file cited last in the same field. Check C9 of `proof/scripts/check.sh` fails if a cited
+`EraseProof.*`, `Lean4Lean.*` or `Erasure.*` name is not a declaration, a cited file or line does
+not exist, a MetaRocq line cited right after an identifier does not mention it within four lines,
+an entry's fields differ from the list above, or an entry's artifact field cites no declaration of
+`EraseProof`; it checks MetaRocq citations when `METAROCQ` names a checkout, as CI does.
 
 The blueprint renders this register.
 
@@ -823,9 +826,9 @@ The blueprint renders this register.
   hypothesis `normalization_in` that every well-typed term of every well-formed environment
   related to the abstract one is strongly normalizing (`NormalizationIn`,
   `pcuic/theories/PCUICSN.v:44`; a parameter of `is_erasableb` and of the section of `erase`,
-  `erasure/theories/ErasureFunction.v:969`); the correctness of `erase`, `erases_erase`
-  (`erasure/theories/ErasureFunction.v:1228`), takes the same hypothesis and holds for every
-  input, and so does the correctness of the erasure of a program, `erase_correct`
+  where it is a `Context` (`erasure/theories/ErasureFunction.v:969`)); the correctness of `erase`,
+  `erases_erase` (`erasure/theories/ErasureFunction.v:1228`), takes the same hypothesis and holds
+  for every input, and so does the correctness of the erasure of a program, `erase_correct`
   (`erasure/theories/ErasureFunctionProperties.v:657`), about `erase` and `erase_global_deps`.
 - **What differs:** the oracle's functions recurse on a fuel argument and fail with the error
   `fuel` when it runs out (`Erasure.EraseError`, `LeanToLambdaBox/Erasure/Collect.lean`); on the
