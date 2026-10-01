@@ -436,6 +436,7 @@ theorem ErasesDeps.toBvars {t : LBTerm} (h : ErasesDeps venv σ lenv t) :
     obtain ⟨e₀, he₀, hb⟩ := mem_toBvarsD he
     rw [hb]
     exact ih e₀ he₀ _ _
+  | prim => intros; exact .prim
 
 /-- `mkDef`'s loop keeps the erased dependencies. Reference: `erases_deps_lift`
 (`MR E/EDeps.v:44`), for the traversal's abstraction (DV-13). -/

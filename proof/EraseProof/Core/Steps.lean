@@ -237,6 +237,7 @@ theorem ErasesDeps.abstract1 {lenv : GlobalDeclarations} {t : LBTerm} {x : FVarI
     obtain ⟨d₀, hd₀, hb⟩ := mem_abstract1D hd
     rw [hb]
     exact ih d₀ hd₀ _
+  | prim => intro; exact .prim
 
 
 variable {P decls : List ConstantInfo} {view : EnvView} {cfg : ErasureConfig}
