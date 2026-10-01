@@ -11,8 +11,8 @@
 # 2. The in-fragment programs are the summary lines "<Stem>/<f>: pure ok; ...; #erase = pure...":
 #    `collectDeps` puts the program in the fragment and `#erase` wrote the pure path's output. For
 #    each, <f> must equal <f>.pure byte for byte, and `peregrine validate <f>` and
-#    `peregrine eval <f> --anf=false` must exit with status 0, except these exclusions (DESIGN
-#    Q13, PLAN section 3 S-21), each for a reason the theorem does not cover:
+#    `peregrine eval <f> --anf=false` must exit with status 0, except these exclusions, each for a
+#    reason the theorem does not cover:
 #      N_quoteNs.*    validate, eval  the printer does not escape `"` in a module-path component
 #                                     (SHIPPING-CHANGES R-2), so peregrine cannot parse the file
 #      sixOnAxioms.*  eval            the output declares axioms, and peregrine's evaluator rejects
@@ -24,9 +24,10 @@
 # 3. NV-1, the program of the non-vacuity instances EraseProof.Test.NV1 (not in the corpus):
 #    proof/tools/NV1Emit.lean runs #erase's entry point on it and writes DIR/nv1/NV1.ast, and fails
 #    unless the file is the printing of Test.NV1.p0, the program Test.NV1.final is about (this needs
-#    the proof package built, as check.sh does first). `peregrine validate` and
-#    `peregrine eval --anf=false` must pass on it, and eval must print NV1_VALUE: the value
-#    λz. (λa. a) z, Test.NV1.v0', which Test.NV1.final shows is the λ□ value of the program.
+#    the proof package built, as check.sh does first; check.sh's step nv1-emit makes the same check
+#    without peregrine). `peregrine validate` and `peregrine eval --anf=false` must pass on it, and
+#    eval must print NV1_VALUE: the value λz. (λa. a) z, Test.NV1.v0', which Test.NV1.final shows
+#    is the λ□ value of the program.
 #
 # Output: one line per check ("ok", "FAIL", "excluded", "EXCLUDED-BUT-PASSES") and a total line.
 # DIR (default: a temporary directory, removed when C11 passes) must not exist or be empty; it keeps
@@ -46,7 +47,7 @@ while [ $# -gt 0 ]; do
   case $1 in
     --no-exclusions) excl=0 ;;
     --out) shift; [ $# -gt 0 ] || { echo "error: --out needs a directory" >&2; exit 2; }; out=$1 ;;
-    -h|--help) sed -n '2,37p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,38p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "error: unknown argument $1" >&2; exit 2 ;;
   esac
   shift
