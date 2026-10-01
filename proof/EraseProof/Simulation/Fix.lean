@@ -21,10 +21,12 @@ variable {venv : VEnv} {P : List ConstantInfo} {σ : EvalEnv} {lenv : GlobalDecl
 /-- λ□ values are never constants. Reference: `eval_to_value` (`MR E/EWcbvEval.v:771`), whose
 `value` (`:332`) has no `tConst` case (`atom`, `:36`). -/
 theorem LBEval.ne_const (h : LBEval fl lenv t v) : v ≠ .const kn := by
-  induction h with
-  | box | fixValue | projProp | construct | appCong | prim => exact LBTerm.noConfusion
-  | beta _ _ _ _ _ ih | zeta _ _ _ ih | iota _ _ _ _ _ _ _ _ ih | iotaSing _ _ _ _ _ _ ih
-  | fix _ _ _ _ _ _ _ ih | fix' _ _ _ _ _ _ _ ih | delta _ _ _ ih | proj _ _ _ _ _ _ _ ih => exact ih
+  induction h using LBEval.ind with
+  | box | fixValue | projProp | construct | constructBlock | appCong | prim =>
+    exact LBTerm.noConfusion
+  | beta _ _ _ _ _ ih | zeta _ _ _ ih | iota _ _ _ _ _ _ _ _ ih | iotaBlock _ _ _ _ _ _ _ _ ih
+  | iotaSing _ _ _ _ _ _ ih | fix _ _ _ _ _ _ _ ih | fix' _ _ _ _ _ _ _ ih | delta _ _ _ ih
+  | proj _ _ _ _ _ _ _ ih | projBlock _ _ _ _ _ _ _ ih => exact ih
   | atom ha =>
     rintro rfl
     exact Bool.false_ne_true ha

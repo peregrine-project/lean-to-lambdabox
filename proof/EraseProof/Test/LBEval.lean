@@ -65,13 +65,33 @@ theorem mkApps_construct_inj
   cases h1
   exact ⟨rfl, rfl, h2⟩
 
+/-- Two lists related pointwise to lists by a relation that is deterministic on each element are
+equal. Reference: the `eval_construct_block` case of `eval_deterministic`
+(`MR E/EWcbvEval.v:1375`). -/
+theorem forall₂_det {R : LBTerm → LBTerm → Prop}
+    (ih : List.Forall₂ (fun a a' => ∃ _ : R a a', ∀ {v}, R a v → a' = v) as as₁)
+    (h : List.Forall₂ R as as₂) : as₁ = as₂ := by
+  induction ih generalizing as₂ with
+  | nil => cases h; rfl
+  | cons hx _ ihs =>
+    cases h with
+    | cons hy hr =>
+      obtain ⟨_, e⟩ := hx
+      rw [e hy, ihs hr]
+
+/-- A constructor applied to arguments is an atom only when its flags do not store arguments in
+constructor blocks. Reference: `atom` (`MR E/EWcbvEval.v:36`), `tConstruct` case. -/
+theorem lbAtom_construct (hb : fl.with_constructor_as_block = true) :
+    lbAtom fl lenv (.construct ind c args) = false := by
+  cases args <;> simp [lbAtom, hb]
+
 end LBEval
 
 /-- λ□ evaluation is deterministic; used by the non-vacuity instances to show that the final
 theorem's witness is the one exhibited. Reference: `eval_deterministic`
 (`MR E/EWcbvEval.v:1375`). -/
 theorem LBEval.deterministic (h₁ : LBEval fl lenv t v₁) (h₂ : LBEval fl lenv t v₂) : v₁ = v₂ := by
-  induction h₁ generalizing v₂ with
+  induction h₁ using EraseProof.LBEval.ind generalizing v₂ with
   | box _ _ ihf _ =>
     cases h₂ with
     | box => rfl
@@ -92,7 +112,7 @@ theorem LBEval.deterministic (h₁ : LBEval fl lenv t v₁) (h₂ : LBEval fl le
     cases h₂ with
     | zeta h1 h2 => cases ih1 h1; exact ih2 h2
     | atom h => simp [lbAtom] at h
-  | iota _ _ hc hbr _ _ _ ihd ihr =>
+  | iota hb _ hc hbr _ _ _ ihd ihr =>
     cases h₂ with
     | iota _ hd hc' hbr' _ _ hr =>
       obtain ⟨-, rfl, rfl⟩ := mkApps_construct_inj (ihd hd)
@@ -101,13 +121,27 @@ theorem LBEval.deterministic (h₁ : LBEval fl lenv t v₁) (h₂ : LBEval fl le
       rw [hbr] at hbr'
       cases hbr'
       exact ihr hr
+    | iotaBlock hb' _ _ _ _ _ _ => rw [hb] at hb'; cases hb'
     | iotaSing _ hd _ _ _ =>
       exact absurd (congrArg headOf (ihd hd)) (by simp [headOf_mkApps, headOf])
+    | atom h => simp [lbAtom] at h
+  | iotaBlock hb _ hc hbr _ _ _ ihd ihr =>
+    cases h₂ with
+    | iota hb' _ _ _ _ _ _ => rw [hb] at hb'; cases hb'
+    | iotaBlock _ hd hc' hbr' _ _ hr =>
+      cases ihd hd
+      rw [hc] at hc'
+      cases hc'
+      rw [hbr] at hbr'
+      cases hbr'
+      exact ihr hr
+    | iotaSing _ hd _ _ _ => cases ihd hd
     | atom h => simp [lbAtom] at h
   | iotaSing _ _ _ hbrs _ ihd ihr =>
     cases h₂ with
     | iota _ hd _ _ _ _ _ =>
       exact absurd (congrArg headOf (ihd hd)) (by simp [headOf_mkApps, headOf])
+    | iotaBlock _ hd _ _ _ _ _ => cases ihd hd
     | iotaSing _ _ _ hbrs' hr =>
       rw [hbrs] at hbrs'
       cases hbrs'
@@ -172,20 +206,32 @@ theorem LBEval.deterministic (h₁ : LBEval fl lenv t v₁) (h₂ : LBEval fl le
       cases hb'
       exact ihr hr
     | atom h => simp [lbAtom] at h
-  | proj _ _ _ _ hget _ ihd ihr =>
+  | proj hb _ _ _ hget _ ihd ihr =>
     cases h₂ with
     | proj _ hd _ _ hget' hr =>
       obtain ⟨-, -, rfl⟩ := mkApps_construct_inj (ihd hd)
       rw [hget] at hget'
       cases hget'
       exact ihr hr
+    | projBlock hb' _ _ _ _ _ => rw [hb] at hb'; cases hb'
     | projProp _ hd _ =>
       exact absurd (congrArg headOf (ihd hd)) (by simp [headOf_mkApps, headOf])
+    | atom h => simp [lbAtom] at h
+  | projBlock hb _ _ _ hget _ ihd ihr =>
+    cases h₂ with
+    | proj hb' _ _ _ _ _ => rw [hb] at hb'; cases hb'
+    | projBlock _ hd _ _ hget' hr =>
+      cases ihd hd
+      rw [hget] at hget'
+      cases hget'
+      exact ihr hr
+    | projProp _ hd _ => cases ihd hd
     | atom h => simp [lbAtom] at h
   | projProp _ _ _ ihd =>
     cases h₂ with
     | proj _ hd _ _ _ _ =>
       exact absurd (congrArg headOf (ihd hd)) (by simp [headOf_mkApps, headOf])
+    | projBlock _ hd _ _ _ _ => cases ihd hd
     | projProp => rfl
     | atom h => simp [lbAtom] at h
   | construct _ _ _ _ _ ihf iha =>
@@ -197,6 +243,10 @@ theorem LBEval.deterministic (h₁ : LBEval fl lenv t v₁) (h₂ : LBEval fl le
       cases ihf hf
       simp [isConstructApp, headOf_mkApps, headOf] at hc
     | atom h => simp [lbAtom] at h
+  | constructBlock hb _ _ _ ih =>
+    cases h₂ with
+    | constructBlock _ _ _ h => rw [forall₂_det ih h]
+    | atom h => rw [lbAtom_construct hb] at h; cases h
   | appCong _ hc _ ihf iha =>
     cases h₂ with
     | appCong hf _ ha => rw [ihf hf, iha ha]
@@ -219,6 +269,7 @@ theorem LBEval.deterministic (h₁ : LBEval fl lenv t v₁) (h₂ : LBEval fl le
   | atom h =>
     cases h₂ with
     | atom => rfl
+    | constructBlock hb _ _ _ => rw [lbAtom_construct hb] at h; cases h
     | _ => simp [lbAtom] at h
 
 end EraseProof.Test

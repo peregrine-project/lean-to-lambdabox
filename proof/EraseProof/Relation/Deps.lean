@@ -218,7 +218,7 @@ theorem ErasesDeps.cunfoldFix (hd : ∀ d ∈ defs, ErasesDeps venv σ lenv d.bo
 (`MR E/EDeps.v:275`). -/
 theorem ErasesDeps.eval (h : ErasesDeps venv σ lenv t)
     (hev : LBEval defaultFlags lenv t v) : ErasesDeps venv σ lenv v := by
-  induction hev with
+  induction hev using LBEval.ind with
   | box => exact .box
   | beta _ _ _ ih1 ih2 ih3 =>
     cases h with
@@ -229,6 +229,7 @@ theorem ErasesDeps.eval (h : ErasesDeps venv σ lenv t)
     cases h with
     | letIn hv hbody => exact ih2 (ErasesDeps.csubst (ih1 hv) hbody)
   | iota => cases h
+  | iotaBlock => cases h
   | iotaSing => cases h
   | fix _ _ _ hu _ ih1 ih2 ih3 =>
     cases h with
@@ -253,12 +254,14 @@ theorem ErasesDeps.eval (h : ErasesDeps venv σ lenv t)
       cases hc
       exact ih (hdeps _ hbody)
   | proj => cases h
+  | projBlock => cases h
   | projProp => cases h
   | construct _ _ _ _ _ ih1 _ =>
     cases h with
     | app hf _ =>
       obtain ⟨hc, -⟩ := ErasesDeps.mkApps_iff.1 (ih1 hf)
       cases hc
+  | constructBlock => cases h
   | appCong _ _ _ ih1 ih2 =>
     cases h with
     | app hf ha => exact .app (ih1 hf) (ih2 ha)
