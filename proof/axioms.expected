@@ -35,7 +35,9 @@ EraseProof.Test.D1.hlc propext -
 EraseProof.Test.D1.hsub propext -
 EraseProof.Test.D1.mem_names propext,Classical.choice,Quot.sound -
 EraseProof.Test.LBEval.deterministic propext -
+EraseProof.Test.LBEval.forall₂_det - -
 EraseProof.Test.LBEval.headOf_mkApps propext -
+EraseProof.Test.LBEval.lbAtom_construct propext -
 EraseProof.Test.LBEval.mkApps_construct_inj propext -
 EraseProof.Test.LBEval.mkApps_fix_inj propext -
 EraseProof.Test.LBEval.mkApps_inj propext -

@@ -20,8 +20,9 @@ or `EraseProof.*`):
   `Lean4Lean.TrExpr`, `Lean4Lean.TrExpr.*` or `Lean4Lean.TrProj*`, or a declaration of the test
   namespace `EraseProof.Test`.
 * C7 `leaves`: every declaration outside `EraseProof.Test` is reachable from a root of `ROOTS.txt`
-  (through types and values; a mutual block, an inductive with its constructors, recursors and
-  structure projections, is one node; generated auxiliaries, `isAux`, are not checked); every root
+  (through types and values; a mutual block, an inductive with its constructors, recursors,
+  structure projections and the declarations `inductive` generates for it, those of its nested
+  occurrences included, is one node; generated auxiliaries, `isAux`, are not checked); every root
   is a theorem of the library whose planned consumer has not landed; no root is reachable from
   another root.
 * `expected`: the footprints of the roots and of the test theorems equal `axioms.expected`.
@@ -237,6 +238,12 @@ def inductiveGenerated : List String :=
    "noConfusionType", "ctorIdx", "toCtorIdx", "ctorElim", "ctorElimType", "ofNat",
    "ofNat_ctorIdx", "sizeOf_spec"]
 
+/-- A suffix `s` of a declaration `I.s` that `inductive` generates for an inductive `I`: one of
+`inductiveGenerated`, or one of them followed by `_<n>`, the auxiliary of the `n`-th nested
+occurrence of a nested inductive (`rec_1`, `below_1`, `brecOn_1`). -/
+def isInductiveGenerated (s : String) : Bool :=
+  inductiveGenerated.contains s || inductiveGenerated.any fun g => isNumbered (g ++ "_") s
+
 /-- Declarations `C.s` that `inductive` and `structure` generate for a constructor `C`. -/
 def ctorGenerated : List String := ["inj", "injEq", "sizeOf_spec", "elim", "noConfusion", "hinj"]
 
@@ -246,7 +253,7 @@ def leafKey (env : Environment) (c : Name) : Name :=
   let generated? : Option Name := match c with
     | .str p s =>
       match env.find? p with
-      | some (.inductInfo _) => if inductiveGenerated.contains s then some (inductKey env p) else none
+      | some (.inductInfo _) => if isInductiveGenerated s then some (inductKey env p) else none
       | some (.ctorInfo v) => if ctorGenerated.contains s then some (inductKey env v.induct) else none
       | _ => none
     | _ => none
