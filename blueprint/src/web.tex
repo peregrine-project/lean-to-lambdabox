@@ -5,10 +5,13 @@
 \usepackage{hyperref}
 \usepackage{xcolor}
 \usepackage{booktabs}
-\usepackage[showmore, dep_graph]{blueprint}
+\usepackage[showmore, dep_graph, tpl=../templates/dep_graph.html]{blueprint}
+% Node kinds and dependency graphs (scripts/bpkinds.py, found through plastex.cfg).
+\usepackage{bpkinds}
 
 \input{macros/common}
 \input{macros/web}
+\input{generated/kinds}
 
 \title{Verified Lean to \texorpdfstring{$\lambda_\Box$}{lambda-box} erasure: blueprint}
 \author{lean-to-lambdabox}

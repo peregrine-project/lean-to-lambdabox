@@ -3,9 +3,11 @@
 #
 #   blueprint/build.sh [web|pdf|all]      (default: all)
 #
-# 1. renders the registers and the pins into src/generated/ (scripts/render_registers.py);
-# 2. web: `plastex` on src/web.tex into web/ (what `leanblueprint web` runs; writes lean_decls),
-#    then scripts/unlink_lean_decls.py, which removes the documentation links of the \lean names;
+# 1. renders the registers and the pins into src/generated/ (scripts/render_registers.py), and the
+#    node kinds and their legends (scripts/kinds.py);
+# 2. web: `plastex` on src/web.tex into web/ (what `leanblueprint web` runs; writes lean_decls; the
+#    package scripts/bpkinds.py lays out the dependency graphs with scripts/kindgraph.py), then
+#    scripts/unlink_lean_decls.py, which removes the documentation links of the \lean names;
 # 3. pdf: `latexmk` on src/print.tex into print/ (what `leanblueprint pdf` runs), if xelatex exists;
 # 4. all, when both were built: copies print/print.pdf to web/blueprint.pdf, which the web version
 #    links to. web/ is then the whole site that CI publishes (.github/workflows/blueprint.yml).
@@ -20,6 +22,7 @@ pdf_built=0
 case $target in web|pdf|all) ;; *) echo "usage: $0 [web|pdf|all]" >&2; exit 2;; esac
 
 python3 "$here/scripts/render_registers.py"
+python3 "$here/scripts/kinds.py"
 
 if [[ $target == web || $target == all ]]; then
   command -v plastex >/dev/null || { echo "build.sh: plastex not on PATH (activate the leanblueprint venv)" >&2; exit 2; }

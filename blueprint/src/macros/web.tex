@@ -6,3 +6,8 @@
 % documentation site (README.md, "Links of Lean names"). The address below is under the reserved
 % top-level domain .invalid; scripts/unlink_lean_decls.py, run by build.sh, removes these links.
 \dochome{https://no-doc-site.invalid}
+
+% The plasTeX package scripts/bpkinds.py gives every node its badges, and defines \bpkind and
+% \bpnodes; generated/kinds.tex only defines the colours here.
+\newcommand{\bpsetkind}[3]{}
+\newcommand{\bpdefinenodes}[2]{}

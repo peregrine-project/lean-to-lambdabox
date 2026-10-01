@@ -108,17 +108,50 @@ Chapter & Content \\
 \end{tabular}
 
 \begin{itemize}
-\item \lead{Nodes} Every definition and result cites its Lean declarations (\code{\textbackslash
-  lean}). In the dependency graph, a green border means the declarations exist and depend on
-  allowed axioms only.
+\item \lead{Nodes} Every definition and result cites its Lean declarations
+  (\code{\textbackslash lean}); Section~\ref{sec:intro-kinds} gives its kind and status.
 \item \lead{Planned nodes} A node marked \stPlanned{} states a declaration of the approved design
   that does not exist; its \code{\textbackslash lean} names are its planned names. No node is
   planned.
 \item \lead{Allowed axioms} \code{propext}, \code{Classical.choice}, \code{Quot.sound}, and
   \code{sorryAx} through the lean4lean sorries a node lists (\emph{Inherited from lean4lean},
   Section~\ref{sec:trust-inherited}).
-\item \lead{Badges} \stShipping{} shipping code, described, not verified; \stInherited{} trust
-  inherited from lean4lean; \stPlanned{} not formalized; \stOpen{} not done; \stProved{} proved.
+\item \lead{Status words} \stProved{} proved; \stInherited{} trust inherited from lean4lean;
+  \stShipping{} shipping code, described, not verified; \stPlanned{} not formalized; \stOpen{} not
+  done. They take the colours of the kinds and statuses of Section~\ref{sec:intro-kinds}.
 \item \lead{Checks} \code{blueprint/scripts/audit.py} checks every node against the Lean
   environment and the generated chapters against their sources (\code{blueprint/README.md}).
 \end{itemize}
+
+\section{Kinds, statuses and dependency graphs}\label{sec:intro-kinds}
+
+\begin{itemize}
+\item \lead{Kind} \code{blueprint/scripts/kinds.py} derives the kind of every node from its Lean
+  declarations, and the audit checks the derivation. The kind sets the badge after the node's
+  heading, the bar beside the node in the web version, and the node's shape and fill in the
+  dependency graphs.
+\item \lead{Colour families} Blue for the proof library \code{EraseProof}, orange for the shipping
+  code, violet for the tests, green for lean4lean; gold for the final theorem.
+\item \lead{Status} The border of a graph node gives its status, and so does a second badge after
+  the heading of a node that inherits lean4lean sorries or is planned.
+\end{itemize}
+
+\input{generated/kinds-legend}
+
+\begin{itemize}
+\item \lead{Graphs} The web version lays out three kinds of dependency graph when it is built:
+  \begin{itemize}
+  \item the chapter map: one box per chapter, with its nodes by kind; an arrow between two
+    chapters carries the number of arrows between their nodes;
+  \item the graph of a chapter: its nodes, with the nodes of other chapters that they use (on the
+    left) and that use them (on the right), faded;
+  \item the graph of all nodes: a frame per chapter of the proof library, and one each for the
+    shipping code, the tests and the lean4lean sorries, arranged top to bottom so that a frame sits
+    below the frames it uses.
+  \end{itemize}
+\item \lead{Navigation} A click on a node shows its statement, its arrows and its neighbours. The
+  field above the graph finds a node by its Lean name. The link \emph{graph} in the heading of a
+  node opens the graph of its chapter at the node.
+\end{itemize}
+
+\input{generated/kinds-chapters}

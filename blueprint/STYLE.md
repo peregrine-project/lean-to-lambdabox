@@ -26,6 +26,9 @@ The blueprint describes the commit it is built from. It is not a changelog.
 - Environments: `definition` (def, abbrev, structure, inductive, class, instance), `theorem`
   (headline results), `lemma` (everything else, and families: one node for parallel
   declarations), `proposition`, `corollary`. A `remark` is prose, not a node.
+- Kinds follow from the environment and the Lean names (README, "Node kinds and dependency
+  graphs"): a `theorem` of the proof library is a milestone, so the final theorem must depend on
+  it; never choose an environment for its colour.
 - Shape, in this order: `\begin{env}[Title]`, `\label`, `\lean{...}`, `\leanok` or `\planned`,
   `\uses{...}`, `\srcloc{path}{line}` (not on a planned node), `\inherited{...}` (when the audit
   measures inherited trust), the body, `\end{env}`; for a result, a sibling `\begin{proof}`
@@ -93,8 +96,9 @@ shipping code opens its body with `\stShipping{}`.
 ## 3. Chapters
 
 - Opener, after `\chapter{...}\label{chap:...}`: `\section*{At a glance}` with bullets `\lead{Goal}`,
-  `\lead{Main results}`, `\lead{Status}`, `\lead{Lean files}`, and `\lead{Reference}` when the
-  chapter has a counterpart in the references.
+  `\lead{Main results}`, `\lead{Status}`, `\lead{Nodes} \bpnodes{chap:...}` (its own label; only in
+  a chapter with nodes), `\lead{Lean files}`, and `\lead{Reference}` when the chapter has a
+  counterpart in the references.
 - Sections open with at most two sentences of orientation; no other prose between nodes unless it
   fixes notation.
 - Closer, in a chapter with nodes: `\section*{Caveats}`, at most 6 bullets of at most 30 words:
@@ -113,6 +117,8 @@ shipping code opens its body with `\stShipping{}`.
 | `\planned` | marks a planned node and prints its badge (checked: its declarations do not exist) |
 | `\srcloc{path}{line}` | where the node's first declaration is (checked) |
 | `\inherited{labels}` | the lean4lean sorries the node depends on, by label (checked) |
+| `\bpkind{key}` | the badge of a node kind (`final`, `milestone`, `step`, `lemma`, `definition`, `shipping`, `test`, `leanfourlean`; README, "Node kinds and dependency graphs") |
+| `\bpnodes{chap:...}` | the nodes of a chapter by kind, in its opener (generated counts; checked) |
 
 Allowed LaTeX: `itemize`, `enumerate`, `tabular` with booktabs rules and `p{...}` columns (no
 `\multirow`, no `longtable`: plasTeX renders neither), `\emph`, `\textbf`, `\ref`, math, and the

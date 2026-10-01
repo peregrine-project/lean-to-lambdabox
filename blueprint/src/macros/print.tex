@@ -33,3 +33,30 @@
  {\clist_map_inline:nn{#1}{\vphantom{\ref{##1}}}%
   \ignorespaces}
 \ExplSyntaxOff
+% Kind badges. \bpkind{K} prints the badge of kind K. \bpnodes{chapter} prints the badges of the
+% nodes of a chapter with their numbers, which \bpdefinenodes (generated/kinds.tex) records.
+% \bpsetkind (generated/kinds.tex) records the kind and status of each label; inside a node
+% environment, \label then prints the badge of the node's kind and, for the statuses inherits and
+% planned, a status badge. The web version prints the same badges (scripts/bpkinds.py).
+\makeatletter
+\newcommand{\bpdefinenodes}[2]{\expandafter\def\csname bp@nodes@#1\endcsname{#2}}
+\newcommand{\bpnodes}[1]{\ifcsname bp@nodes@#1\endcsname\csname bp@nodes@#1\endcsname\fi}
+\newcommand{\bpkind}[1]{\fcolorbox{bpline#1}{bpfill#1}{\normalfont\textsf{\scriptsize\csname bpname#1\endcsname}}}
+\newcommand{\bp@statusbadge}[2]{\ \fcolorbox{bpstatus#1}{white}{\normalfont\textsf{\scriptsize\textcolor{bpstatus#1}{#2}}}}
+\newcommand{\bpsetkind}[3]{\expandafter\gdef\csname bp@kind@#1\endcsname{#2}%
+  \expandafter\gdef\csname bp@status@#1\endcsname{#3}}
+\def\bp@inherits{inherits}
+\def\bp@planned{planned}
+\newcommand{\bp@tag}[1]{\ifcsname bp@kind@#1\endcsname
+  \edef\bp@k{\csname bp@kind@#1\endcsname}\expandafter\bpkind\expandafter{\bp@k}%
+  \edef\bp@s{\csname bp@status@#1\endcsname}%
+  \ifx\bp@s\bp@inherits\bp@statusbadge{inherits}{INHERITS}\fi
+  \ifx\bp@s\bp@planned\bp@statusbadge{planned}{PLANNED}\fi
+  \ \fi}
+\newcommand{\bp@hooklabel}{\let\bp@label\label\def\label##1{\bp@label{##1}\bp@tag{##1}}}
+\AddToHook{env/definition/begin}{\bp@hooklabel}
+\AddToHook{env/lemma/begin}{\bp@hooklabel}
+\AddToHook{env/proposition/begin}{\bp@hooklabel}
+\AddToHook{env/theorem/begin}{\bp@hooklabel}
+\AddToHook{env/corollary/begin}{\bp@hooklabel}
+\makeatother

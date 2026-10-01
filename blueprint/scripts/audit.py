@@ -38,6 +38,12 @@ blueprint/src/chapters/*.tex and blueprint/src/generated/*.tex:
     library) is cited by a node that is not planned;
   * hygiene: no non-ASCII character outside \\lean{}, no unescaped underscore in \\code{},
     \\texttt{}, \\inherited{} or \\srcloc{};
+  * present state only (STYLE.md section 1): no word of HISTORY_WORDS in the hand-written chapters
+    and the generated tables, outside comments (the registers record changes and are exempt);
+  * node kinds (scripts/kinds.py check): the names of a node share one layer, the module of every
+    cited declaration has the layer of its name, exactly one node is the final theorem (a theorem
+    environment), the final theorem depends on every milestone, and a node opens with
+    \\stShipping exactly when it is shipping code; the tables kinds.py writes are up to date;
   * the generated chapters are up to date: render_registers.py --check (registers, pins), and the
     tables this script writes with --update:
       generated/inherited-sorries.tex  the labelled lean4lean sorry sources, where they are, and the
@@ -68,6 +74,11 @@ INH = CONF['inherited_prefix']
 SHIP = CONF['shipping_prefix']
 COVER = CONF['cover_prefix']
 TEST = CONF['test_prefix']
+# Words that narrate history (STYLE.md section 1), matched as whole words, case-insensitively.
+HISTORY_WORDS = ['previously', 'since the last version', 'was fixed', 'no longer', 'used to', 'now',
+                 'yet']
+# Generated chapters that render the registers, which record changes and are exempt.
+REGISTERS = {'shipping-changes.tex', 'divergences.tex'}
 ENV_DIR = os.path.join(REPO, CONF['env_dir'])
 LABELS = {x['name']: x for x in CONF['inherited_sorry']}   # sorry source -> its entry
 KINDS = ['definition', 'lemma', 'proposition', 'theorem', 'corollary']
@@ -78,6 +89,7 @@ MONADS = {'Lean.Meta.MetaM', 'Lean.Core.CoreM', 'Lean.Elab.Command.CommandElab',
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import render_registers  # noqa: E402
+import kinds  # noqa: E402
 
 
 # ---------------------------------------------------------------- parsing the chapters
@@ -127,7 +139,10 @@ def parse(defects):
                     defects[name].append(f'L{line}: proof nested inside a {m.group(1)} (it must follow it)')
                 labels = re.findall(r'\\label\{([^}]*)\}', body)
                 src = re.search(r'\\srcloc\{([^}]*)\}\{([^}]*)\}', body)
+                title = re.match(r'\s*\[((?:[^\[\]{}]|\{(?:[^{}]|\{[^{}]*\})*\})*)\]', body)
                 last = dict(file=name, line=line, kind=m.group(1), label=labels[0] if labels else None,
+                            title=title.group(1) if title else '',
+                            shipping_badge='\\stShipping' in body,
                             lean=args_of('lean', body), leanok=bool(re.search(r'\\leanok\b', body)),
                             uses=args_of('uses', body),
                             inherited=[unescape(x) for x in args_of('inherited', body)],
@@ -547,6 +562,26 @@ def main(argv):
                 defects[f].append(f'{tag}: \\srcloc{{{n["srcloc"][0]}}}{{{n["srcloc"][1]}}}, '
                                   f'but {n["lean"][0]} is at {want[0]}:{want[1]}')
 
+    # node kinds
+    for f, msg in kinds.check(nodes, names):
+        defects[f].append(msg)
+    for fname, text in kinds.generated(nodes):
+        path = os.path.join(GEN, fname)
+        if not os.path.exists(path) or open(path, encoding='utf-8').read() != text:
+            defects['generated'].append(f'{fname} is stale: run blueprint/scripts/kinds.py')
+
+    # present state only
+    history = re.compile(r'\b(' + '|'.join(re.escape(w).replace('\\ ', r'\s+') for w in HISTORY_WORDS)
+                         + r')\b', re.I)
+    for path in tex_sources():
+        if os.path.basename(path) in REGISTERS:
+            continue
+        name = os.path.relpath(path, os.path.join(BP, 'src'))
+        for i, line in enumerate(open(path, encoding='utf-8'), 1):
+            m = history.search(re.sub(r'(?<!\\)%.*', '', line))
+            if m:
+                defects[name].append(f'L{i}: "{m.group(0)}" narrates history (STYLE.md section 1)')
+
     # coverage of the verification library
     cited = {d for n in nodes if not n['planned'] for d in n['lean']}
     for c in data['covered']:
@@ -588,10 +623,13 @@ def main(argv):
             fh.write('\nNone.\n')
         for f in sorted(defects):
             fh.write(f'\n### {f}\n' + ''.join(f'- {d}\n' for d in defects[f]))
-        fh.write('\n## Nodes\n\n| label | kind | planned | leanok | axioms | inherited |\n|---|---|---|---|---|---|\n')
+        table = kinds.classify(nodes)
+        fh.write('\n## Nodes\n\n| label | environment | kind, status | planned | leanok | axioms | inherited |\n'
+                 '|---|---|---|---|---|---|---|\n')
         for n in nodes:
             fp = footprints.get(n['label'], {})
-            fh.write(f"| {n['label']} | {n['kind']} | {n['planned']} | {n['leanok']} | "
+            fh.write(f"| {n['label']} | {n['kind']} | {', '.join(table.get(n['label'], ('', '')))} | "
+                     f"{n['planned']} | {n['leanok']} | "
                      f"{', '.join(fp.get('axioms', []))} | {', '.join(fp.get('inherited', []))} |\n")
         fh.write('\n## Planned nodes (not yet formalized)\n\n' +
                  ''.join(f"- {n['label']}: {', '.join(n['lean'])}\n" for n in planned))
@@ -609,6 +647,8 @@ def main(argv):
     print(f'audit: {len(nodes)} nodes ({len(nodes) - len(planned)} formalized, {len(planned)} planned '
           f'= not yet formalized), {len(owners)} Lean names cited, {total} defects '
           f'-> blueprint/.audit/report.md')
+    kcount = collections.Counter(k for k, _ in kinds.classify(nodes).values())
+    print('audit: kinds: ' + ', '.join(f'{k} {kcount[k]}' for k in kinds.KINDS if kcount[k]))
     print(f'audit: inherited trust ({INH}): {sum(c["sorry"] for c in inh_rows)} sorry sources, '
           f'{sum(c["axiom"] for c in inh_rows)} axioms; reached by blueprint nodes: '
           + (', '.join(f'{x} ({len(reach[x])} nodes)' for x in sorted(reach)) if reach else 'none'))
