@@ -12,10 +12,13 @@
 #                                 approved statement, EraseProof.Test.Stub.erase_correct.
 #   no-leaves                     C7 with C12: every declaration outside EraseProof.Test is reachable
 #                                 from the single root EraseProof.erase_correct.
-#   shipping regression tests     C10: scripts/regress.sh.
-# The proof checks also run C2 (forbidden tokens), C3/C4 (axioms), C6 (port hygiene) and C9 (the
-# divergence register). C11 (peregrine on the emitted programs) needs a peregrine binary and runs
-# locally only.
+#   shipping regression tests     C10: scripts/regress.sh, and scripts/pure-harness.sh, which runs
+#                                 the pure path next to the Meta path on the corpus and checks the
+#                                 committed summary of the programs in the fragment.
+# The proof checks also run C2 (forbidden tokens), C3/C4 (axioms), C6 (port hygiene), C9 (the
+# divergence register) and the part of C11 that needs no peregrine (nv1-emit: #erase emits exactly
+# Test.NV1.p0 on NV-1). C11's peregrine runs on the emitted programs need a peregrine binary and
+# run locally only.
 name: Verification
 on:
   workflow_dispatch:
@@ -60,7 +63,10 @@ jobs:
       - name: Shipping regression tests (C10)
         run: scripts/regress.sh
 
-      - name: Proof checks (C2-C9, C12)
+      - name: Pure path next to the Meta path on the corpus (C10)
+        run: scripts/pure-harness.sh
+
+      - name: Proof checks (C2-C9, C11 without peregrine, C12)
         run: proof/scripts/check.sh --no-regress --no-peregrine
 
       # The report's per-declaration lines and check results, on the run's summary page.
