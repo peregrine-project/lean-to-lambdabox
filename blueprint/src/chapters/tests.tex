@@ -7,15 +7,16 @@
   divergence register by tests.
 \item \lead{Main results} The final theorem \code{erase\_correct} on NV-1, through the
   kernel-checked run of \code{\#erase}; seven instances of \code{erases\_correct} (NV-1 to NV-7),
-  each with a unique non-$\Box$ witness, NV-3 and NV-4 through recursive constants; \code{TrS} and
+  each with a unique non-$\Box$ witness, NV-3 and NV-4 through recursive constants; the approved
+  statement of \code{erase\_correct}, which check C12 compares with the theorem; \code{TrS} and
   \code{ProgEnv} are instances of lean4lean's \code{TrExprS} and \code{TrEnv'}; the register
   tests of DV-11 and DV-18; two instances of \code{Pure.isErasable\_sound}.
 \item \lead{Status} \stProved{} every node; \stInherited{} the instances of \code{erases\_correct}
-  and \code{erase\_correct} inherit L1--L6 from their theorem, those of oracle soundness L1--L5,
-  and the bridge tests \code{TrProj}.
+  and \code{erase\_correct} and the approved statement inherit L1--L6 from their theorem, those
+  of oracle soundness L1--L5, and the bridge tests \code{TrProj}.
 \item \lead{Lean files}
-  \code{proof/EraseProof/Test/\{NV1, NV1Run, NV2, NV3, NV4, NV5, NV6, NV7, Bridge, LBEval, Atoms,
-  Oracle\}.lean}; namespace \code{EraseProof.Test}.
+  \code{proof/EraseProof/Test/\{NV1, NV1Run, NV2, NV3, NV4, NV5, NV6, NV7, Stub, Bridge, LBEval,
+  Atoms, Oracle\}.lean}; namespace \code{EraseProof.Test}.
 \end{itemize}
 
 \section{Non-vacuity instance NV-1}\label{sec:tests-nv1}
@@ -661,6 +662,32 @@ block that calls itself through the other member.
   \lead{Idea} As NV-1.
 \end{proof}
 
+\section{The statement of the final theorem}\label{sec:tests-stub}
+
+The approved statement of \code{erase\_correct}, written out as a test, pins the theorem's type.
+
+\begin{lemma}[The approved statement]
+  \label{lem:EraseProof-Test-Stub-erase_correct}
+  \lean{EraseProof.Test.Stub.erase_correct}
+  \leanok
+  \uses{def:EraseProof-ProgEnv, def:EraseProof-ViewAgrees, def:EraseProof-TrS,
+    def:Erasure-eraseEntry, def:EraseProof-SrcEval, def:EraseProof-evalEnvOf,
+    def:EraseProof-Erases, def:EraseProof-LBEval, def:EraseProof-defaultFlags}
+  \srcloc{proof/EraseProof/Test/Stub.lean}{18}
+  \inherited{L1, L2, L3, L4, L5, L6}
+  \lead{In short} The statement of \code{erase\_correct} as approved, with the binders of its
+  section, \hl{proved by \code{erase\_correct}}.
+  \begin{itemize}
+  \item \lead{Why} Check C12 of \code{proof/scripts/check.sh} fails unless this test and
+        \code{erase\_correct} have the same type (\code{Expr.eqv}), binder order included.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{thm:EraseProof-erase_correct}
+  \leanok
+  \lead{Idea} \code{erase\_correct} applied to the five hypotheses.
+\end{proof}
+
 \section{Bridge tests}\label{sec:tests-bridge}
 
 \begin{lemma}[\texorpdfstring{\code{TrS}}{TrS} is an instance of \texorpdfstring{\code{TrExprS}}{TrExprS}]
@@ -708,23 +735,28 @@ block that calls itself through the other member.
   \lean{EraseProof.Test.LBEval.deterministic, EraseProof.Test.LBEval.spineArgs,
     EraseProof.Test.LBEval.headOf_mkApps, EraseProof.Test.LBEval.spineArgs_mkApps,
     EraseProof.Test.LBEval.mkApps_inj, EraseProof.Test.LBEval.mkApps_fix_inj,
-    EraseProof.Test.LBEval.mkApps_construct_inj}
+    EraseProof.Test.LBEval.mkApps_construct_inj, EraseProof.Test.LBEval.forall₂_det,
+    EraseProof.Test.LBEval.lbAtom_construct}
   \leanok
   \uses{def:EraseProof-LBEval}
-  \srcloc{proof/EraseProof/Test/LBEval.lean}{70}
+  \srcloc{proof/EraseProof/Test/LBEval.lean}{90}
   \lead{In short} $\lambda_\Box$ evaluation is \hl{deterministic}, for every flag setting; the
   instances use it to show that the final theorem's witness is the one exhibited.
   \begin{itemize}
   \item \code{spineArgs}, \code{mkApps\_inj} and its variants: application spines are injective
-        in their head and arguments.
+        in their head and arguments;
+  \item \code{forall}$_2$\code{\_det}: argument lists evaluated pointwise by a deterministic
+        relation are equal (the \code{constructBlock} case);
+  \item \code{lbAtom\_construct}: under \code{with\_constructor\_as\_block}, no constructor is an
+        atom.
   \end{itemize}
   \lead{Reference} \code{eval\_deterministic} (\code{erasure/theories/EWcbvEval.v}).
 \end{lemma}
 \begin{proof}
-  \uses{def:EraseProof-LBEval}
+  \uses{def:EraseProof-LBEval, lem:EraseProof-LBEval-ind}
   \leanok
-  \lead{Idea} Induction on the first evaluation, inverting the second; the head tests of
-  \code{appCong} separate it from the other application rules.
+  \lead{Idea} Induction on the first evaluation (\code{LBEval.ind}), inverting the second; the
+  head tests of \code{appCong} separate it from the other application rules.
 \end{proof}
 
 \section{Register tests}\label{sec:tests-register}
@@ -762,7 +794,7 @@ The divergence register cites these tests. Each runs the shipping oracle at
     EraseProof.Test.Atoms.LevelDep.cx}
   \leanok
   \uses{def:Erasure-Pure-isErasable, def:EraseProof-EvalEnv-isAtom, def:EraseProof-evalEnvOf}
-  \srcloc{proof/EraseProof/Test/Atoms.lean}{92}
+  \srcloc{proof/EraseProof/Test/Atoms.lean}{90}
   \lead{In short} For \code{axiom hq.\{v\} : P.\{v\}} the oracle keeps \code{hq.\{v\}} and boxes
   \code{hq.\{0\}}, and \code{hq} is not an atom: \hl{atomhood cannot depend on the occurrence's
   levels} (DV-11).
@@ -779,12 +811,12 @@ The divergence register cites these tests. Each runs the shipping oracle at
     EraseProof.Test.IrrAlias.AE, EraseProof.Test.IrrAlias.A_val, EraseProof.Test.IrrAlias.IProp_val,
     EraseProof.Test.IrrAlias.R_val, EraseProof.Test.IrrAlias.hR_val,
     EraseProof.Test.IrrAlias.Endo_val, EraseProof.Test.IrrAlias.fI_val,
-    EraseProof.Test.IrrAlias.a_val, EraseProof.Test.IrrAlias.decls, EraseProof.Test.IrrAlias.view,
-    EraseProof.Test.IrrAlias.σ, EraseProof.Test.IrrAlias.cx, EraseProof.Test.IrrAlias.guardE,
-    EraseProof.Test.IrrAlias.appE, EraseProof.Test.IrrAlias.RE, EraseProof.Test.IrrAlias.hRE}
+    EraseProof.Test.IrrAlias.a_val, EraseProof.Test.IrrAlias.decls, EraseProof.Test.IrrAlias.cx,
+    EraseProof.Test.IrrAlias.guardE, EraseProof.Test.IrrAlias.appE, EraseProof.Test.IrrAlias.RE,
+    EraseProof.Test.IrrAlias.hRE}
   \leanok
-  \uses{def:Erasure-Pure-isErasable, def:EraseProof-evalEnvOf}
-  \srcloc{proof/EraseProof/Test/Oracle.lean}{72}
+  \uses{def:Erasure-Pure-isErasable}
+  \srcloc{proof/EraseProof/Test/Oracle.lean}{68}
   \lead{In short} Through the aliases \code{IProp := Prop} and \code{Endo := A -> A},
   \code{@[irreducible]} in the corpus programs, the oracle types and keeps \code{fun (\_ : R) (x :
   A) => x} and \code{fI a}, and \hl{boxes \code{R} and \code{hR}}, as the kernel's $\delta$ does
@@ -808,7 +840,7 @@ The divergence register cites these tests. Each runs the shipping oracle at
     EraseProof.Test.D1.env3, EraseProof.Test.D1.env4}
   \leanok
   \uses{def:EraseProof-evalEnvOf}
-  \srcloc{proof/EraseProof/Test/Oracle.lean}{105}
+  \srcloc{proof/EraseProof/Test/Oracle.lean}{100}
   \lead{In short} The axioms \hl{\code{A : Type}, \code{P : Prop}, \code{hP : P}, \code{F : Type ->
   Type}}, newest first, with their lean4lean model \code{env4}, built step by step
   (\code{env1}, ..., \code{env4}).
@@ -825,7 +857,7 @@ The divergence register cites these tests. Each runs the shipping oracle at
     EraseProof.Test.D1.hPty, EraseProof.Test.D1.hhPty}
   \leanok
   \uses{lem:EraseProof-Pure-isErasable_sound, def:EraseProof-Test-D1-decls}
-  \srcloc{proof/EraseProof/Test/Oracle.lean}{209}
+  \srcloc{proof/EraseProof/Test/Oracle.lean}{204}
   \inherited{L1, L2, L3, L4, L5}
   \lead{In short} \code{Pure.isErasable\_sound} applied on D1 with no locals: \hl{every hypothesis is
   a checked term}, and the conclusions are that \code{A} and \code{hP} are erasable.
@@ -1029,11 +1061,12 @@ oracle & \code{A} and \code{hP} of D1 & \stProved{} both instances of
 
 \section*{Caveats}
 \begin{itemize}
-\item \lead{Caveat} The bridge tests depend on \code{TrProj := sorry}; no node outside the tests
-  may (Section~\ref{sec:trust-inherited}).
+\item \lead{Caveat} The bridge tests depend on \code{TrProj := sorry}; no other node may
+  (Section~\ref{sec:trust-inherited}).
 \item \lead{Caveat} Only NV-1 runs the eraser. NV-2 to NV-7 are relation-level: \code{her},
   \code{hdeps} and \code{hblocks} are exhibited by hand, not computed by \code{erasePure}.
 \item \lead{Caveat} The kernel checks NV-1's run of \code{eraseEntry} over the list view
-  \code{view0}. Check C11 runs it over \code{EnvView.ofEnvironment}, compares the printing with
-  \code{p0}'s, and runs Peregrine on it; CI skips C11.
+  \code{view0}. The step \code{nv1-emit} of \code{check.sh}, in CI, runs it over
+  \code{EnvView.ofEnvironment} and compares the printing with \code{p0}'s; check C11 runs
+  Peregrine on it, locally only.
 \end{itemize}
