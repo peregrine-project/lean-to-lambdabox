@@ -21,7 +21,7 @@ open Lean Lean4Lean Erasure
 namespace EraseProof
 
 section
-variable {venv : VEnv} {P decls : List ConstantInfo} {Us : List Name} {e v : Expr} {e' : VExpr}
+variable {venv : VEnv} {P decls : List ConstantInfo} {Us : List Name} {e : Expr} {e' : VExpr} {v : Expr}
 
 /-- Final theorem: partial correctness of `#erase` on in-scope inputs. If the entry point returns
 a program and the source evaluates, the program's term evaluates in λ□ (at `default_wcbv_flags`) to
