@@ -33,7 +33,7 @@ theorem hcollect : collectDeps view0 e0 = .ok decls0' := by
 
 /-- On NV-1, the entry point returns what the pure path returns over `decls0'`: `route` takes
 the pure path since `collectDeps` succeeds (`hcollect`). The instance of `eraseEntry_pure`'s
-routing on NV-1, in the direction `hrun` needs. Reference: none (S-E). -/
+routing on NV-1, in the direction `hrun` needs. Reference: none. -/
 theorem eraseEntry_of_erasePure {r : Program × List Kername}
     (h : erasePure view0 {} decls0' e0 = .ok r) : eraseEntry view0 {} e0 = pure r := by
   simp only [eraseEntry, route, hcollect, h]

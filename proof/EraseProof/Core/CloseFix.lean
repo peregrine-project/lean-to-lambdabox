@@ -27,7 +27,7 @@ open Lean Erasure
 namespace EraseProof
 
 /-- `mkDef`'s closing loop (shipping `Erasure.lean` `mkDef`): the fix variable of member `j` of an
-`m`-member block becomes `bvar (m-1-j)`, by the shipping non-shifting `toBvar` (made total by S-A).
+`m`-member block becomes `bvar (m-1-j)`, by the shipping non-shifting `toBvar`.
 Reference: none; MetaRocq's `erase` builds `tFix` bodies de Bruijn (DV-13). -/
 def closeFix (xs : List FVarId) (r : LBTerm) : LBTerm :=
   (xs.reverse.zipIdx).foldl (fun b (x, i) => toBvar x i b) r

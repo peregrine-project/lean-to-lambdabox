@@ -65,13 +65,12 @@ end IrrAlias
 
 namespace Oracle
 
-/-- Register test (DV-18): every reduction of the oracle uses the kernel's δ, as those of
-`is_erasableb` do. Through the aliases `IProp` and `Endo`, `@[irreducible]` in the corpus programs,
-it types `fun (_ : R) (x : A) => x` and `fI a` (keep), which `Meta`'s type inference at default
-transparency fails to type, and it boxes `R` and the proof `hR` of `R : IProp`, which `Meta` keeps
-(SHIPPING-CHANGES R-14, on the `Meta` path only). Reference: `MR E/ErasureFunction.v:894
-is_erasableb`, whose reductions unfold every constant with a body (`MR S/PCUICSafeReduce.v:1839
-hnf` at `MR P/PCUICNormal.v:26 RedFlags.default`), DV-18. -/
+/-- Register test (DV-18): the oracle reduces with the kernel's δ, which unfolds the
+`@[irreducible]` aliases `IProp` and `Endo`: it keeps `fun (_ : R) (x : A) => x` and `fI a`, which
+`Meta`'s type inference at default transparency fails to type, and it boxes `R` and the proof `hR`
+of `R : IProp`, which `Meta` keeps (SHIPPING-CHANGES R-14). Reference: `MR E/ErasureFunction.v:894
+is_erasableb`, whose reductions unfold every constant with a body (`MR S/PCUICSafeReduce.v:1839 hnf`
+at `MR P/PCUICNormal.v:26 RedFlags.default`), DV-18. -/
 theorem irreducibleAlias :
     (Pure.isErasable IrrAlias.cx oracleFuel [] IrrAlias.guardE).toOption = some false ∧
     (Pure.isErasable IrrAlias.cx oracleFuel [] IrrAlias.appE).toOption = some false ∧

@@ -633,19 +633,12 @@ theorem nodup_map_of_inj {α β : Type} {f : α → β} : ∀ {l : List α}, l.N
     obtain ⟨b, hb, hfb⟩ := List.mem_map.1 hm
     exact h.1 (hf b (.tail _ hb) a (.head _) hfb ▸ hb)
 
-/-- The close of `visitMutual` on a recursive block (closing step 2 of the traversal's
-correctness), from what its runs give: the members' values were erased into `defs` (`BodyOK`,
-growing within `S` from the bookkeeping state `sb`, which has the registered constants and the
-λ□ environment of `st`, and leaving the members unregistered), and the last loop registered each
-member `names[j]` as `tFix defs j`. Each member's erasure `r` is closed and mentions only the fix
-variables, so its closed body `closeFix ids r` is closed under the block's binders and has no
-free variable; instantiated as `cunfold_fix` does, it is `substFVars (fixTargets ids defs) r`
-(`closeFix_substl`), an erasure with the registered fixpoints as targets (`Erases.substRc`). So
-the block is erased (`ErasesBlock`), every member's entry erases its declaration, the invariant
-holds after the registration (`StateOK.grow`), and the whole run grows within `S` and registers
-`c`. Reference: `erases_tFix` (`MR E/Extract.v:122`) and the `ConstantDecl` step of
-`erase_global_deps` (`MR E/ErasureFunction.v:1602`), for Lean's environment-level recursion (DV-7)
-closed with free variables (DV-13). -/
+/-- The close of `visitMutual` on a recursive, non-remapped declaration `ci` of `c`: if the runs on
+the members' values grow within `S` from the bookkeeping state `sb` and erase the values into `defs`
+(`BodyOK`), and the last loop registers each member `names[j]` as `tFix defs j`, then the whole run
+grows within `S` and registers `c`. Reference: `erases_tFix` (`MR E/Extract.v:122`) and the
+`ConstantDecl` step of `erase_global_deps` (`MR E/ErasureFunction.v:1602`), for Lean's
+environment-level recursion (DV-7) closed with free variables (DV-13). -/
 theorem block_finish (hG : CoreEnv venv P decls) {c : Name} {ci : ConstantInfo} {v : Expr}
     (hci : findDecl decls c = some ci) (hv : ci.value? (allowOpaque := true) = some v)
     (hax : axiomatized view cfg ci = false) (hrec : RecursiveDecl ci = true)
@@ -820,27 +813,25 @@ theorem getConst_run {pc : PureCtx} {tc : TravCtx} {st : ErasureState} {ps : Pur
   rw [this]
   rfl
 
-/-- The pure backend's `prepare` returns its term (S-F). Reference: none. -/
+/-- The pure backend's `prepare` returns its term. Reference: none. -/
 theorem prepare_run {pc : PureCtx} {tc : TravCtx} {st : ErasureState} {ps : PureState}
     {cfg' : ErasureConfig} {e : Expr} :
     (liftM (Backend.prepare (m := PureM) cfg' e) : EraseT PureM Expr).runPure st tc pc ps =
       .ok ((e, st), ps) := rfl
 
 /-- At the pure backend, `visitMutual` does not rename the members (`remove_unsafe_rec` is the
-identity). Reference: none (S-F). -/
+identity). Reference: none. -/
 theorem map_remove_unsafe_rec : ∀ (l : List Name), l.map (remove_unsafe_rec (m := PureM)) = l
   | [] => rfl
   | n :: l => by rw [List.map_cons, map_remove_unsafe_rec l]; rfl
 
-/-- The erasure of one member's value inside the block (`visitMutual`'s `visitExpr fuel w`, from
-`visitExpr` at the fuels up to `fuel`, `ih`): the value is visited under the caller's locals and
-the block's fix variables, which is the run under no locals (`visit_agree`, the value is closed);
-there, with the members' targets `rcBlock` (their fix variables, allocated below the counter),
-the run erases the value in the empty context, grows within the scope `S`, and, run in a scope
-that holds no member of the block (`CoreEnv.valueScope`), leaves every member unregistered.
+/-- The erasure of one member's value inside its block: given `ExprSpec` at the fuels up to `fuel`,
+a run of `visitExpr fuel w` on the value `w` of a member, under the block's fix variables `ids`,
+grows within the scope `S`, leaves the members unregistered, and returns an erasure of `w` in the
+empty context with the fix variables as targets (`rcBlock`), whose λ□ dependencies are erased.
 Reference: the `tFix` case of `erases_erase` (`MR E/ErasureFunction.v:1228`), whose bodies are
-erased in the context of the block's binders (`MR E/Extract.v:122 erases_tFix`), here fix
-variables (DV-7, DV-13). -/
+erased under the block's binders (`MR E/Extract.v:122 erases_tFix`), here fix variables (DV-7,
+DV-13). -/
 theorem body_step (hG : CoreEnv venv P decls) {fuel : Nat}
     (ih : ∀ m ≤ fuel, ∀ e, ExprSpec venv view cfg decls m e)
     {names : List Name} {ids : List FVarId} (hnd : names.Nodup) (hlen : names.length = ids.length)
@@ -895,14 +886,11 @@ theorem body_step (hG : CoreEnv venv P decls) {fuel : Nat}
   | none => rfl
   | some kn => exact absurd (hgr'.scope n' kn (hun n' hn') h1) (hcS' n' (hcall ▸ hn'))
 
-/-- `visitMutual`'s recursive branch at the pure backend, from the state `sb` its bookkeeping
-leaves (the registered constants and λ□ environment of `st`), on a recursive, non-remapped
-declaration `ci` of `c` with a value: the allocation of the fix variables (`freshIds_run`), the
-erasure of every member's value (`body_step`, over `mapM_run`), `mkDef` (`mkDef_run`, the loop
-`closeFix` of the fix variables), and the registration loop, whose body `B` registers member
-`names[j]` as `tFix defs j` and otherwise keeps the state (`forIn_register`); `block_finish`
-closes. Reference: the `tFix` case of `erases_erase` (`MR E/ErasureFunction.v:1228`) and the
-`ConstantDecl` step of `erase_global_deps` (`MR E/ErasureFunction.v:1602`) (DV-7, DV-13). -/
+/-- `visitMutual`'s recursive branch at the pure backend, run from the state `sb` that its
+bookkeeping leaves, on a recursive, non-remapped declaration `ci` of `c` with a value, with a
+registration loop `B` that registers member `names[j]` as `tFix defs j`: the run grows within `S`
+and registers `c`. Reference: the `tFix` case of `erases_erase` (`MR E/ErasureFunction.v:1228`) and
+the `ConstantDecl` step of `erase_global_deps` (`MR E/ErasureFunction.v:1602`) (DV-7, DV-13). -/
 theorem visitMutual_block_run (hG : CoreEnv venv P decls) {fuel : Nat}
     (ih : ∀ m ≤ fuel, ∀ e, ExprSpec venv view cfg decls m e) {c : Name} {ci : ConstantInfo}
     {v : Expr} (hci : findDecl decls c = some ci) (hv : ci.value? (allowOpaque := true) = some v)
@@ -1005,17 +993,11 @@ theorem visitMutual_test (ci : ConstantInfo) :
   rw [name_occurs_eq, isRecursiveDecl, bne]
   cases ci.all.length == 1 <;> cases nameOccurs ci.name (ci.value! (allowOpaque := true)) <;> rfl
 
-/-- The recursive `const` step of `erasePure_erases`, from `visitExpr` at the fuels up to `fuel`
-(`ih`): `visitMutual` on a declaration that is a recursive (`RecursiveDecl`, which is
-`visitMutual`'s own test by `visitMutual_test` and `isRecursiveDecl_eq`), non-remapped definition
-with a value. After the bookkeeping of a single declaration (`@[inline]`, the `@[extern]` test,
-which keeps it since it is not remapped), `visitMutual` erases the whole block
-(`visitMutual_block_run`): every member's value, with the members' occurrences sent to fresh fix
-variables, closed by `mkDef`, and every member registered as `tFix defs j` of the erased block
-(`ErasesBlock`); the run grows within the scope and registers `c`. Reference: the `tFix` case of
-`erases_erase` (`MR E/ErasureFunction.v:1228`), rule `erases_tFix` (`MR E/Extract.v:122`), and
-the `ConstantDecl` step of `erase_global_deps` (`MR E/ErasureFunction.v:1602`), for Lean's
-environment-level recursion (DV-7) closed with free variables (DV-13). -/
+/-- The recursive `const` step of `erasePure_erases`: given `ExprSpec` at the fuels up to `fuel`,
+`visitMutual` at `fuel + 1` meets `MutualSpec` on a recursive (`RecursiveDecl`), non-remapped
+declaration with a value. Reference: the `tFix` case of `erases_erase` (`MR
+E/ErasureFunction.v:1228`), rule `erases_tFix` (`MR E/Extract.v:122`), and the `ConstantDecl` step
+of `erase_global_deps` (`MR E/ErasureFunction.v:1602`); DV-7, DV-13. -/
 theorem visitMutual_rec_step (hG : CoreEnv venv P decls) {fuel : Nat}
     (ih : ∀ m ≤ fuel, ∀ e, ExprSpec venv view cfg decls m e) {c : Name} {ci : ConstantInfo}
     {v : Expr} (hci : findDecl decls c = some ci) (hv : ci.value? (allowOpaque := true) = some v)
