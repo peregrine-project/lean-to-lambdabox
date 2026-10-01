@@ -1914,6 +1914,34 @@ the calls at which the two oracles answer differently. It must equal
   before it; the workflow's own run on a push of `shipping` checks it. The 20 regression tests and
   `scripts/pure-harness.sh` pass unchanged.
 
+## S-24: The docstring of `binderNameOf` gives the reason that holds
+
+- **Commit:** the commit whose subject starts with `shipping(S-24):`
+  (`git log --grep='^shipping(S-24):'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure.lean`: the docstring of `binderNameOf`. No code changes.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** the docstring said that a binder name is kept only when it is ASCII graphic
+  "since the λ□ parser rejects other names", the reason that `main`'s `fvar_to_name` gives in a
+  comment. It is false: the printer writes a binder name as a string literal, `(nNamed "<name>")`,
+  and peregrine reads non-ASCII characters in string literals (peregrine-tool `doc/format.md`,
+  "Generic S-expression conventions"). The files `(Untyped () (Some (tLambda (nNamed "α₁") (tRel
+  0))))` and the same with `"a b"` pass `peregrine validate` and `peregrine eval`, and the first
+  also `peregrine ocaml`, `c` and `wasm`. What the test does ensure is that no binder name contains
+  `"` or `\`, which the printer does not escape (R-2): `Name.toString` prints a name with either
+  character with `«»` (`«a"b»`, `a.«b"c»`), which is not ASCII.
+- **Behaviour before:** `#erase` output as in S-23; the docstring gives the parser as the reason.
+- **Behaviour after:** the same outputs; the docstring states the test and what it ensures.
+- **Effect on emitted .ast (corpus):** byte-identical for all 712 files; `scripts/corpus-diff.sh`
+  against the corpus of S-23 reports 712 identical. The corpus logs are identical except for the
+  addresses in the backtraces of the 4 `PANIC` messages of `Defects.lean` and a job count of `lake`
+  in the log of the pruned benchmarks (`[17/24]` becomes `[18/55]`: the build recompiles the
+  modules that import `LeanToLambdaBox/Erasure.lean`). The docstring keeps its two lines, so the
+  source positions in the `PANIC` messages do not move.
+- **Regression test:** the change does not alter behaviour, so no test fails before it, and no new
+  test is added. `tests/regress/traversal_locals.lean`, which checks `binderNameOf` on `x`, `α₁`,
+  `a.b` and `«a b»`, passes unchanged, as do the other tests and `scripts/pure-harness.sh`.
+
 ---
 
 ## Reported, not fixed
