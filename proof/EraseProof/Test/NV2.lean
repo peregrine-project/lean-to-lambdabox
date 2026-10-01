@@ -328,7 +328,7 @@ def v2 : Expr := dblBodyE twoE
 Reference: the hypothesis `Σ |-p t ⇓ v` of `erases_correct`
 (`MR erasure/theories/ErasureCorrectness.v:51`). -/
 theorem hev : SrcEval σ2 e2 v2 :=
-  .beta (.delta rfl rfl rfl (.atom trivial)) (.delta rfl rfl rfl (.atom trivial))
+  .beta (.delta rfl rfl (.atom trivial)) (.delta rfl rfl (.atom trivial))
     (.zeta (.atom trivial) (.atom trivial))
 
 /-- Every declaration is the first of its name, so the evaluation environment is a

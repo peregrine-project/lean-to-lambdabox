@@ -21,8 +21,9 @@ open Lean Lean4Lean Erasure
 namespace EraseProof
 
 /-- `lenv'` adds declarations with fresh kernames in front of `lenv` (how the traversal's state
-grows). Reference: `extends` of λ□ environments (`MR E/EGlobalEnv.v`), as `MR E/EDeps.v:492
-erases_deps_cons` uses it. -/
+grows). Reference: `extends_prefix` (`MR E/EGlobalEnv.v:189`) with every added kername
+`fresh_global` (`:191`) in `lenv`, a freshness that MetaRocq keeps in `wf_glob`
+(`MR E/EWellformed.v:223`); as `MR E/EDeps.v:492 erases_deps_cons` uses it. -/
 def LenvExt (lenv lenv' : GlobalDeclarations) : Prop :=
   ∃ new, lenv' = new ++ lenv ∧ ∀ kn ∈ new.map (·.1), lenv.find? (·.1 == kn) = none
 

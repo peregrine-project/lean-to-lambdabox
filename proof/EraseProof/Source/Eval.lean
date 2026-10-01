@@ -55,18 +55,17 @@ inductive SrcEval (σ : EvalEnv) : Expr → Expr → Prop
       SrcEval σ (.letE n T val b nd) v
   /-- `eval_delta` (`MR P/PCUICWcbvEval.v:247`), non-recursive constants. -/
   | delta : σ.unfold? c = some (ci, body) → RecursiveDecl ci = false →
-      us.length = ci.levelParams.length →
       SrcEval σ (Pure.instLevels ci.levelParams us body) v → SrcEval σ (.const c us) v
   /-- `eval_delta` to a `tFix` value (`MR P/PCUICWcbvEval.v:247`, `:51`). -/
   | fixAtom : σ.unfold? c = some (ci, body) → RecursiveDecl ci = true →
-      us.length = ci.levelParams.length → SrcEval σ (.const c us) (.const c us)
+      SrcEval σ (.const c us) (.const c us)
   /-- `eval_fix` (`MR P/PCUICWcbvEval.v:273`) with `rarg = 0`, `argsv = []`. -/
   | fixApp : SrcEval σ f (.const c us) → σ.unfold? c = some (ci, body) →
       RecursiveDecl ci = true → SrcEval σ a a' →
       SrcEval σ (.app (Pure.instLevels ci.levelParams us body) a') v → SrcEval σ (.app f a) v
   /-- `eval_atom` on `tInd`/propositional `tConstruct` (`MR P/PCUICWcbvEval.v:331`, `:51`). -/
   | constAtom : findDecl σ.decls c = some ci → σ.isAtom c = true →
-      us.length = ci.levelParams.length → SrcEval σ (.const c us) (.const c us)
+      SrcEval σ (.const c us) (.const c us)
   /-- `eval_app_cong` (`MR P/PCUICWcbvEval.v:311`). -/
   | appCong : SrcEval σ f f' → ¬ BlocksCong σ f' → SrcEval σ a a' →
       SrcEval σ (.app f a) (.app f' a')
@@ -98,7 +97,7 @@ theorem SrcEval.value (hev : SrcEval σ e v) : SrcValue σ v := by
   induction hev with
   | beta _ _ _ _ _ ih => exact ih
   | zeta _ _ _ ih => exact ih
-  | delta _ _ _ _ ih => exact ih
+  | delta _ _ _ ih => exact ih
   | fixAtom hu hr => exact .fixConst hu hr
   | fixApp _ _ _ _ _ _ _ ih => exact ih
   | constAtom _ ha => exact .spine (.const ha)

@@ -42,8 +42,8 @@ The corpus is everything the eraser emits for a fixed set of inputs:
     booleans, polymorphic combinators, proof and type arguments, `let` of values, types and proofs,
     universe polymorphism, a Prop-typed axiom used as an argument).
   - `Defects.lean`: reproductions of the `R-<n>` entries below.
-  - `Examples.lean`, `Names.lean`, `NearMiss.lean`: the example programs of the scope note
-    (checkpoint 1). `Examples.lean` has 61 programs without an inductive type in their dependency
+  - `Examples.lean`, `Names.lean`, `NearMiss.lean`: example programs inside and near the
+    verification scope. `Examples.lean` has 61 programs without an inductive type in their dependency
     closure (Church numerals and booleans, universe-polymorphic combinators at `Sort 2`, `Sort 1`
     and `Prop`, type and type-former arguments, sort and type aliases, proof arguments by axiom,
     theorem and λ, `let` and `have`, an opaque, `@[implemented_by]`, `@[inline]` and
@@ -93,8 +93,8 @@ extra or different. With `PEREGRINE=<path to the peregrine binary>`, it also run
 `-- peregrine: validate <file> [<option>...]` and `-- peregrine: eval <file> [<option>...]` of each
 test; each must succeed and, when `tests/regress/expected-peregrine/<name>/<file>.<verb>` exists,
 print exactly that. `scripts/regress.sh --update [TEST...]` rewrites the expected files from the
-current checkout. CI (`.github/workflows/build.yml`) runs `scripts/regress.sh` after the build,
-without peregrine.
+current checkout. CI (`.github/workflows/build.yml`, on pushes to `main` and `shipping` and on
+pull requests) runs `scripts/regress.sh` after the build, without peregrine.
 
 The pure path of the eraser (`Erasure.erasePure`, S-20), which `#erase` takes on the programs in the
 fragment (S-21), is compared with the `Meta` path (`Erasure.erase`) on the corpus examples by
@@ -1012,7 +1012,7 @@ the calls at which the two oracles answer differently. It must equal
   - new `tests/regress/sparse_cases.lean`, its expected outputs
     `tests/regress/expected/sparse_cases/` (32 files) and
     `tests/regress/expected-peregrine/sparse_cases/` (4 files).
-  - `doc/SHIPPING-CHANGES.md`: this entry; new R-29.
+  - `doc/SHIPPING-CHANGES.md`: this entry, and a report of the defect that S-14 fixes.
 - **Why necessary:** the known defect of S-12 ("sparse `casesOn`"), a silent miscompilation: in
   Lean v4.33, `getCasesInfo?` (`Lean/Meta/CasesInfo.lean:56`) also describes two kinds of
   declarations that are not a `T.casesOn`, and `erase.visitCases` turned each application of them
@@ -1106,7 +1106,7 @@ the calls at which the two oracles answer differently. It must equal
 - **Regression test:** `tests/regress/sparse_cases.lean` erases a match of each kind on each path
   of `visitCases`: the generic path with a catch-all for three constructors (`isRed`), alternatives
   out of constructor order (`pick`), a catch-all that receives the scrutinee (`leftOr`), nested
-  matches (`second`), a discriminant that is not a variable (`redCode`, see R-29), a catch-all for a
+  matches (`second`), a discriminant that is not a variable (`redCode`, see S-14), a catch-all for a
   constructor with a proof field with and without pruning (`optVal`) and a match applied to an extra
   argument (`applyTo`); the machine `Nat` path with a catch-all for `Nat.zero` (`predOr0`) and for
   `Nat.succ` (`isZero`); the machine `Int` path with a catch-all for `Int.ofNat` (`negPart`) and
@@ -1136,8 +1136,8 @@ the calls at which the two oracles answer differently. It must equal
     `tests/regress/expected-peregrine/sparse_discr/` (2 files).
   - `tests/regress/expected/sparse_cases/{redCode,count,sum}.ast`: the declaration
     `Sparse.redCode`, the only match of that test whose discriminant is not a variable.
-  - `doc/SHIPPING-CHANGES.md`: this entry; R-29 now points here.
-- **Why necessary:** R-29, a defect of S-13 and a performance regression against Lean v4.22
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** a defect of S-13 and a performance regression against Lean v4.22
   (`main`, and S-11 on this branch). In Lean v4.33, the matcher of a match with a wildcard passes
   its discriminant to the wildcard's alternative inside the catch-all of its sparse `casesOn`
   (`fun motive x h_1 h_2 => F._sparseCasesOn_1 x (h_1 ()) fun h => h_2 x`), and `inlineMatchers`
@@ -1183,7 +1183,7 @@ the calls at which the two oracles answer differently. It must equal
   path, whose scrutinee is a variable, and 2 on the machine-`Nat` path (`Tiny.predOr0` in
   `examples/PortProbe/predOr0.{default,prune}.ast`), whose `n` is bound to a variable.
 - **Regression test:** `tests/regress/sparse_discr.lean` erases a match with a used catch-all and a
-  discriminant that is a call on each path of `visitCases`: the generic path (`stepN`, and R-29's
+  discriminant that is a call on each path of `visitCases`: the generic path (`stepN`, and
   `step`, which matches on its own recursive call), the machine `Nat` path (`predSub2`) and the
   machine `Int` path (`negOr`); and, as controls, a plain `casesOn` on a call (`codeOf`) and a match
   applied to an extra argument (`shiftBy`). The expected outputs show one `let discr` per such
@@ -1194,18 +1194,16 @@ the calls at which the two oracles answer differently. It must equal
   `#eval` reports 3, 2 and 2 references; 4 of 12 outputs differ) and passes after. The expected
   outputs of `sparse_cases` pin `Sparse.redCode` with its `let`.
 
-## S-15: The corpus gains the scope-note examples, irreducible-alias programs and unsafe recursion
+## S-15: The corpus gains examples inside and near the verification scope, irreducible-alias programs and unsafe recursion
 
 - **Commit:** the commit whose subject starts with `shipping(S-15):`
   (`git log --grep='^shipping(S-15):'`).
 - **Files and functions:**
   - new `tests/corpus/Examples.lean`, `tests/corpus/Names.lean`, `tests/corpus/NearMiss.lean`:
-    the example files of the scope note (checkpoint 1), with its commands replaced by `#erase`.
-    Each `#example "<n>" t` became `#erase t config {nat := .peano} to "<n>.peano.ast"` and
-    `#erase t to "<n>.default.ast"`, each `#readout "<n>" t` the first of these two; the closure
-    checks, `#reduce_as` and the two closing `#eval`s of `Examples.lean` are dropped, and the
-    declarations are unchanged. In `NearMiss.lean`, the two `#erase`s of `(_ : NM.CNat)` fail and
-    are wrapped in `#guard_msgs (error, substring := true)` on `unknown metavariable` (the
+    example programs inside and near the verification scope. Each program `t` named `<n>` is
+    erased with `#erase t config {nat := .peano} to "<n>.peano.ast"` and
+    `#erase t to "<n>.default.ast"`, each readout with the first of these two. In
+    `NearMiss.lean`, the two `#erase`s of `(_ : NM.CNat)` fail and are wrapped in `#guard_msgs (error, substring := true)` on `unknown metavariable` (the
     metavariable's id depends on what the file elaborates before it).
   - new `tests/corpus/IrrAlias.lean`: `Irr.useFI := fI two` with `fI : EndoC` and
     `@[irreducible] def EndoC : Type 1 := CNat → CNat`; `Irr.useLamHR := guardR (lamHR two) six`
@@ -1304,14 +1302,14 @@ the calls at which the two oracles answer differently. It must equal
     name `Erasure.visitCases` in place of `erase.visitCases`.
   - `doc/SHIPPING-CHANGES.md`: this entry; the "Where" fields of R-4, R-5, R-6, R-8, R-9, R-10,
     R-11, R-12, R-13, R-21 and R-24, and the reproduction of R-4, name the new functions.
-- **Why necessary:** the verification (DESIGN Q8, S-A) proves a theorem about the traversal that
+- **Why necessary:** the verification proves a theorem about the traversal that
   `#erase` runs. A `partial` definition is an opaque constant: it has no equations, so nothing about
   `erase`, its `where` block, `withAppEtaToMinArity` or `toBvar` can be proved. The traversal
   cannot be structural on the term, since `visitMutual` erases the body of another constant and
   `lambdaMonocular` instantiates the body it visits; a fuel argument that bounds the depth of the
   recursion makes it total without changing the calls it makes. The traversal also ran in `CoreM`,
   whose state and `Meta` operations are opaque to proofs; being generic over the backend lets the
-  verified path run this same traversal with a pure backend (DESIGN Q8, S-D) instead of a copy of
+  verified path run this same traversal with a pure backend (S-19, S-20) instead of a copy of
   it, while `#erase` keeps the `CoreM` backend.
 - **Behaviour before:** `erase`, its `where` functions, `withAppEtaToMinArity` and `toBvar` are
   `partial`. Reproduction: `tests/regress/traversal_total.lean` at the parent commit fails with 21
@@ -1367,7 +1365,7 @@ the calls at which the two oracles answer differently. It must equal
   - `tests/regress/traversal_total.lean`: its equation of `visitExpr` on a free variable passes the
     list of locals to `Backend.isErasable`.
   - `doc/SHIPPING-CHANGES.md`: this entry.
-- **Why necessary:** DESIGN Q8, S-B. The verified backend's oracle types free variables from a list
+- **Why necessary:** the verified backend's oracle types free variables from a list
   of locals: a `LocalContext` lookup goes through a `PersistentHashMap`, whose operations are
   opaque to proofs (lean4lean states them as axioms). The erasure relation of the verification
   fixes the λ□ name of a binder as a function of its Lean user name (`binderNameOf`) and the name of
@@ -1432,9 +1430,9 @@ the calls at which the two oracles answer differently. It must equal
     `tests/regress/expected/collect_deps/` (2 files) and
     `tests/regress/expected-peregrine/collect_deps/` (2 files).
   - `doc/SHIPPING-CHANGES.md`: this entry.
-- **Why necessary:** DESIGN Q8, S-C. The verified path erases a program over its own environment,
+- **Why necessary:** the verified path erases a program over its own environment,
   the dependency closure of the term, not over the whole Lean environment, and `collectDeps`
-  computes that closure from a view of the environment. DESIGN Q8 S-E routes on its result: a
+  computes that closure from a view of the environment. S-21 routes on its result: a
   program whose closure meets an inductive type, a literal, a projection, a metavariable or an
   unknown constant (`outOfFragment`) is to keep the unchanged path. The verification's statements
   `collectDeps_spec`, `collectDeps_sub` and `collectDeps_not_outOfFragment` are about this
@@ -1540,7 +1538,7 @@ the calls at which the two oracles answer differently. It must equal
     `tests/regress/expected/pure_oracle/` (2 files) and
     `tests/regress/expected-peregrine/pure_oracle/` (1 file).
   - `doc/SHIPPING-CHANGES.md`: this entry.
-- **Why necessary:** DESIGN Q6 and Q8, S-D. The erasability test of `#erase`, `Erasure.isErasable`,
+- **Why necessary:** the erasability test of `#erase`, `Erasure.isErasable`,
   runs `Meta.inferType`, `Meta.isProp` and `Meta.isTypeFormerType` in `MetaM`, whose state and
   operations are opaque to proofs, so its answers cannot be proved sound. The verification proves
   that an "erasable" answer of the oracle is sound (`Pure.isErasable_sound`), which needs the
@@ -1550,7 +1548,7 @@ the calls at which the two oracles answer differently. It must equal
   `Expr.instantiate1_eq` and `Expr.liftLooseBVars_eq`). The kernel can evaluate it (`decide`). Its
   reductions unfold every definition, as the reductions of MetaRocq's `is_erasableb`
   (`erasure/theories/ErasureFunction.v:894`), at `RedFlags.default`, unfold every constant with a
-  body; this is decision 13 of checkpoint 1. `PureM`, its operations and `EraseT.runPure` are the
+  body. `PureM`, its operations and `EraseT.runPure` are the
   backend with which the verified path is to run the traversal of S-16 (S-20 completes the
   backend), and the verification's statements about that run are stated with `EraseT.runPure`.
   The `Meta` oracle `Erasure.isErasable` is unchanged, and `#erase` keeps using it.
@@ -1582,8 +1580,8 @@ the calls at which the two oracles answer differently. It must equal
   `Defects.lean`.
 - **Regression test:** `tests/regress/pure_oracle.lean` proves by `decide`, at `oracleFuel`, the
   oracle's answers above on the three environments built by hand (the environments and terms of
-  the verification's register tests `defHead_kept`, `levelDependent_kept` and `irreducibleAlias`,
-  DESIGN Q13); proves by `decide` that fuel 1 and fuel 0 give `fuel` and fuel 8 an answer, and
+  the verification's register tests `defHead_kept`, `levelDependent_kept` and
+  `irreducibleAlias`); proves by `decide` that fuel 1 and fuel 0 give `fuel` and fuel 8 an answer, and
   pins the messages with `#guard_msgs`; proves by `decide` the results of `PureM.findConst?`,
   `casesInfo?`, `ctorArity?` and `isErasable` (its answers, the error it throws on an unknown free
   variable, and the types it reads from a list of locals, one of them with a value), and by `rfl`
@@ -1625,7 +1623,7 @@ the calls at which the two oracles answer differently. It must equal
     (its expected summary) and `scripts/pure-harness.sh`.
   - `.github/workflows/build.yml`: new step "Pure path next to the Meta path on the corpus".
   - `doc/SHIPPING-CHANGES.md`: this entry, and the section "Regression tests".
-- **Why necessary:** DESIGN Q7 and Q8, S-F, with the `erasePure` of S-D. The verification proves its
+- **Why necessary:** the verification proves its
   theorem about `erasePure`: the traversal of `#erase` run with a backend whose every operation is a
   function on data. With the operations of S-19 and those added here, `PureM` is an instance of
   `Backend`, so `erasePure` runs the traversal of S-16 itself, not a copy of it. On this backend the
@@ -1636,9 +1634,9 @@ the calls at which the two oracles answer differently. It must equal
   `unsafeRecBase?` is `none`, since a user constant `x._unsafe_rec` is unrelated to `x`.
   `nameOccurs`, `isRecursiveDecl` and `axiomatized` are the tests of `visitMutual` at this backend,
   which the verification's specification reads (`RecursiveDecl`, and the `@[extern]` remapping of
-  the evaluation environment). PLAN §3 makes the harness the gate of this entry: on the corpus
-  programs in the fragment, the outputs and oracle answers of the pure path must equal those of the
-  `Meta` path, except where DESIGN Q6 and Q8 (S-E) expect a difference.
+  the evaluation environment). The harness is the gate of this entry: on the corpus programs in
+  the fragment, the outputs and oracle answers of the pure path equal those of the `Meta` path,
+  except for the differences listed under "Behaviour after".
 - **Behaviour before:** none of these declarations exists. Reproduction:
   `tests/regress/pure_backend.lean` at the parent commit fails with 38 errors (`Unknown identifier
   erasePure`, `Unknown constant nameOccurs`, failed synthesis of `Backend PureM`, …); its eight
@@ -1683,11 +1681,11 @@ the calls at which the two oracles answer differently. It must equal
     Of its 5735 calls, 10 get an answer that differs from the `Meta` oracle's: `Irr.fI Irr.two` in
     `useFI` (the pure oracle keeps it; `Meta` fails with `function expected`), and `hR` in
     `irrAxiomArg`, `hR2` in `irrThmArg`, `Irr.pidHR` and `Irr.lamHR Irr.two` in `useLamHR` (the
-    pure oracle erases them; `Meta` keeps them), each under both configurations. These are the
-    calls of DESIGN Q6 ("Decision 13 = A: measured") without the two in its copies of
-    `irrAxiomArg` and `irrThmArg`, which the corpus does not contain; on the 67 in-fragment programs
-    of `Examples.lean` and `Names.lean` the pure run makes 2351 oracle calls under each
-    configuration, the number measured there. The files that `#erase` writes during the harness run
+    pure oracle erases them; `Meta` keeps them), each under both configurations: the pure oracle
+    reduces with the kernel's δ, which unfolds the `@[irreducible]` aliases `EndoC` and `IProp`,
+    and the `Meta` oracle, at default transparency, does not. On the 67 in-fragment programs of
+    `Examples.lean` and `Names.lean` the pure run makes 2351 oracle calls under each
+    configuration. The files that `#erase` writes during the harness run
     are byte-identical to the corpus.
   - Axioms: `PureM.declInfo?`, `PureM.unsafeRecBase?` and `PureM.prepare` depend on none;
     `nameOccurs` and `axiomatized` on `propext`; `isRecursiveDecl`, the instance and `erasePure` on
@@ -1745,7 +1743,7 @@ the calls at which the two oracles answer differently. It must equal
   - `tests/harness/expected/pure-harness.txt`.
   - `doc/SHIPPING-CHANGES.md`: this entry; the section "Regression tests"; R-3 and R-14 (programs
     in the fragment); R-15 and R-17 (where `eraseElab` is).
-- **Why necessary:** DESIGN Q8 (S-E) and PLAN §3 (S-21). The verification's final theorem is about
+- **Why necessary:** the verification's final theorem is about
   the result of `eraseEntry` (its hypothesis `eraseEntry view cfg e = pure (p, inl)`). It is a
   theorem about `#erase` only if `#erase` runs `eraseEntry`. On an input in scope, `collectDeps`
   does not answer `outOfFragment`, so `eraseEntry` returns only a result of `erasePure`. A
@@ -1847,6 +1845,102 @@ the calls at which the two oracles answer differently. It must equal
   and `pidHR.ast` differ, and `both.ast` is written) and passes after.
   `tests/regress/pure_backend.lean` and `pure_oracle.lean` pin the new `#erase` outputs of `useM`
   and `pidHR`, which now equal the pure path's. `scripts/pure-harness.sh` pins the summary above.
+
+## S-22: Comments, docstrings and the register cite only what the repository contains
+
+- **Commit:** the commit whose subject starts with `shipping(S-22):`
+  (`git log --grep='^shipping(S-22):'`).
+- **Files and functions:** comments and docstrings only; no code changes.
+  - `LeanToLambdaBox/Erasure.lean`: the docstring of `ErasureState` names `EraseT`, the monad
+    that carries it, in place of `EraseM`.
+  - `LeanToLambdaBox/Erasure/Collect.lean`: the comment on the `DecidableEq` instances of
+    `ModPath` and `Kername`, the docstrings of `EraseError`, `EnvView`,
+    `EnvView.ofEnvironment` and `findConst`, and the heading of the `collectDeps` section.
+  - `LeanToLambdaBox/Erasure/Entry.lean`: the docstrings of `Route`, `route` and `eraseEntry`.
+  - `LeanToLambdaBox/Erasure/Pure.lean`: the headings of the oracle, backend and recursion-test
+    sections, and the docstrings of `oracleFuel`, `PureCtx`, `PureState`, `PureM`,
+    `PureM.findConst?`, `PureM.freshFVarId`, `PureM.instantiate1`, `PureM.isErasable`,
+    `PureM.casesInfo?`, `PureM.ctorArity?`, `PureM.declInfo?`, `PureM.unsafeRecBase?`,
+    `PureM.prepare`, the `Backend PureM` instance, `erasePure` and `nameOccurs`.
+  - `tests/corpus/Examples.lean`, `tests/corpus/Names.lean`, `tests/corpus/NearMiss.lean`: the
+    module docstrings.
+  - `tests/regress/sparse_discr.lean`: the module docstring cites S-14.
+  - `doc/SHIPPING-CHANGES.md`: this entry; the section "The fixed corpus"; the title and files of
+    S-15; the fields "Why necessary" of S-16 to S-21 and "Regression test" of S-19; the list of
+    oracle differences in S-20; the references of S-13 and S-14 to the defect that S-14 fixes,
+    whose entry R-29 under "Reported, not fixed" is removed.
+- **Why necessary:** these texts cited labels and documents that the repository does not contain:
+  the labels S-A to S-F of the changes S-16 to S-21 before they had register ids, questions of a
+  design document (`DESIGN.md Q2`, `Q6`, `Q7`, `Q8`, `Q13`), sections of a plan (`PLAN §3`), a
+  "checkpoint 1", its "decision 13" and a "scope note"; and the monad `EraseM`, which S-16 removed.
+  A reader cannot resolve any of them. The register listed R-29 under "Reported, not fixed" with
+  the note "fixed in S-14", although S-14 fixes it and describes it in full. The texts now cite the
+  register's entries or state the reason themselves.
+- **Behaviour before:** `#erase` output as in S-21. Reproduction: at the parent commit,
+  `grep -cE '\bS-[A-G]\b|DESIGN|PLAN|[Cc]heckpoint|EraseM\b|R-29'` counts 2 lines in
+  `LeanToLambdaBox/Erasure.lean`, 6 in `Erasure/Collect.lean`, 3 in `Erasure/Entry.lean`, 20 in
+  `Erasure/Pure.lean`, one in each of the three corpus files and one in
+  `tests/regress/sparse_discr.lean`.
+- **Behaviour after:** the same outputs and log messages. The same `grep` counts one line: the
+  commented-out `mkCase` in `LeanToLambdaBox/Erasure.lean`, byte-identical to `main`, which is not
+  a declaration.
+- **Effect on emitted .ast (corpus):** byte-identical for all 712 files; `scripts/corpus-diff.sh`
+  against the corpus of S-21 reports 712 identical. The corpus logs are identical except for the
+  addresses in the backtraces of the 4 `PANIC` messages of `Defects.lean`.
+- **Regression test:** the change does not alter behaviour, so no test fails before it, and no new
+  test is added. The 20 tests of `tests/regress/` and `scripts/pure-harness.sh` pass unchanged.
+
+## S-23: CI builds and tests the `shipping` branch when it is pushed
+
+- **Commit:** the commit whose subject starts with `shipping(S-23):`
+  (`git log --grep='^shipping(S-23):'`).
+- **Files and functions:**
+  - `.github/workflows/build.yml`: the `push` trigger lists the branch `shipping` next to `main`.
+  - `doc/SHIPPING-CHANGES.md`: this entry; the section "Regression tests" says when CI runs.
+- **Why necessary:** the workflow ran on pushes to `main` and on pull requests only, so a push of
+  `shipping`, the branch that holds every change of this register, built nothing and ran neither
+  `scripts/regress.sh` nor `scripts/pure-harness.sh`: a change that breaks the build, a
+  regression test or the harness was caught only after `shipping` was merged elsewhere.
+- **Behaviour before:** the `on.push.branches` list of `build.yml` is `['main']`; GitHub starts no
+  run of the workflow for a push of `shipping`.
+- **Behaviour after:** the list is `['main', 'shipping']`; a push of `shipping` runs the build, the
+  regression tests and the harness, as a push of `main` does. The emitted programs do not change.
+- **Effect on emitted .ast (corpus):** byte-identical for all 712 files; `scripts/corpus-diff.sh`
+  against the corpus of S-22 reports 712 identical. The corpus logs are identical except for the
+  addresses in the backtraces of the 4 `PANIC` messages of `Defects.lean` and a job count of `lake`
+  in the log of the pruned benchmarks (`[18/55]` becomes `[17/24]`: the build of S-22's corpus had
+  recompiled the modules that S-22 edits).
+- **Regression test:** the change concerns CI only, so no test under `tests/regress/` can fail
+  before it; the workflow's own run on a push of `shipping` checks it. The 20 regression tests and
+  `scripts/pure-harness.sh` pass unchanged.
+
+## S-24: The docstring of `binderNameOf` gives the reason that holds
+
+- **Commit:** the commit whose subject starts with `shipping(S-24):`
+  (`git log --grep='^shipping(S-24):'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure.lean`: the docstring of `binderNameOf`. No code changes.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** the docstring said that a binder name is kept only when it is ASCII graphic
+  "since the λ□ parser rejects other names", the reason that `main`'s `fvar_to_name` gives in a
+  comment. It is false: the printer writes a binder name as a string literal, `(nNamed "<name>")`,
+  and peregrine reads non-ASCII characters in string literals (peregrine-tool `doc/format.md`,
+  "Generic S-expression conventions"). The files `(Untyped () (Some (tLambda (nNamed "α₁") (tRel
+  0))))` and the same with `"a b"` pass `peregrine validate` and `peregrine eval`, and the first
+  also `peregrine ocaml`, `c` and `wasm`. What the test does ensure is that no binder name contains
+  `"` or `\`, which the printer does not escape (R-2): `Name.toString` prints a name with either
+  character with `«»` (`«a"b»`, `a.«b"c»`), which is not ASCII.
+- **Behaviour before:** `#erase` output as in S-23; the docstring gives the parser as the reason.
+- **Behaviour after:** the same outputs; the docstring states the test and what it ensures.
+- **Effect on emitted .ast (corpus):** byte-identical for all 712 files; `scripts/corpus-diff.sh`
+  against the corpus of S-23 reports 712 identical. The corpus logs are identical except for the
+  addresses in the backtraces of the 4 `PANIC` messages of `Defects.lean` and a job count of `lake`
+  in the log of the pruned benchmarks (`[17/24]` becomes `[18/55]`: the build recompiles the
+  modules that import `LeanToLambdaBox/Erasure.lean`). The docstring keeps its two lines, so the
+  source positions in the `PANIC` messages do not move.
+- **Regression test:** the change does not alter behaviour, so no test fails before it, and no new
+  test is added. `tests/regress/traversal_locals.lean`, which checks `binderNameOf` on `x`, `α₁`,
+  `a.b` and `«a b»`, passes unchanged, as do the other tests and `scripts/pure-harness.sh`.
 
 ---
 
@@ -2276,8 +2370,3 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
   message does not name the cause. The dry-run tests `makefile_cmi` and `makefile_inlinings` pass
   with make 4.3, the version on CI's `ubuntu-latest`.
 - **Why not fixed:** not required by the verification goal unless it later becomes required.
-
-### R-29: A catch-all re-evaluates a discriminant that is not a variable (fixed in S-14)
-
-Fixed in S-14, which describes the defect, its reproduction and the fix. The entry keeps its number
-so that references to R-29 stay valid.

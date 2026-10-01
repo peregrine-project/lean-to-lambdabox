@@ -213,7 +213,7 @@ def v0 : Expr := .lam `z tyA (.app (.lam `a tyA (.bvar 0) .default) (.bvar 0)) .
 source-evaluation hypothesis of `erases_correct` on NV-1. Reference: the hypothesis
 `Σ |-p t ⇓ v` of `erases_correct` (`MR erasure/theories/ErasureCorrectness.v:51`). -/
 theorem hev : SrcEval σ0 e0 v0 :=
-  .beta (.delta rfl rfl rfl (.atom trivial)) (.atom trivial) (.atom trivial)
+  .beta (.delta rfl rfl (.atom trivial)) (.atom trivial) (.atom trivial)
 
 /-- Every declaration is the first of its name, so the evaluation environment is a
 sub-environment of the program: the hypothesis `hsub` of `erases_correct` on NV-1. -/

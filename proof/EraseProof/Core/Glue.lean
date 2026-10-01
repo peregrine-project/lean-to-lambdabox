@@ -63,7 +63,7 @@ theorem CoreM.throwError_ne_pure {α} {a : α} {m : MessageData} :
   cases he
 
 /-- `#erase` glue (proved from the routing lemma): on an in-scope input, a result of the entry
-point is a result of the pure path. Reference: none (S-E). -/
+point is a result of the pure path. Reference: none. -/
 theorem eraseEntry_pure {view : EnvView} {cfg : ErasureConfig} {r}
     (hin : InScope view e) (hrun : eraseEntry view cfg e = pure r) :
     ∃ decls, collectDeps view e = .ok decls ∧ erasePure view cfg decls e = .ok r := by
@@ -160,8 +160,8 @@ theorem toBvarDefs_eq_abstract1D (x : FVarId) : ∀ (ds : List (@FixDef LBTerm))
       toBvarDefs_eq_abstract1D x ds h.2]
 end
 
-/-- The traversal's non-shifting abstraction (shipping `abstract`, `toBvar` made total by S-A)
-agrees with `abstract1` on closed terms. Reference: none (DV-13). -/
+/-- The traversal's non-shifting abstraction (shipping `abstract` and `toBvar`) agrees with
+`abstract1` on closed terms. Reference: none (DV-13). -/
 theorem abstract_eq_abstract1 (h : closedn 0 r = true) : _root_.abstract x r = abstract1 x 0 r :=
   toBvar_eq_abstract1 x r h
 

@@ -23,13 +23,28 @@ Each entry has an id `DV-<n>` and exactly these fields:
 An entry without a forcing reason is a defect, not a divergence: it must be removed and the
 statement or definition restated to match the reference instead.
 
+Differences of representation alone get no entry, since they change the content of no statement:
+the judgments `EraseProof.SrcEval`, `EraseProof.LBEval`, `EraseProof.Erases` and
+`EraseProof.ErasesDeps` are inductive propositions where MetaRocq's `eval`
+(`pcuic/theories/PCUICWcbvEval.v:231`, `erasure/theories/EWcbvEval.v:119`) lives in `Type` or
+`Set`: every statement here asserts or assumes that a derivation exists, and none computes with
+one, as MetaRocq's `erases_correct` (`erasure/theories/ErasureCorrectness.v:51`) concludes with a
+squashed evaluation `∥ … ∥`; the flags `EraseProof.WcbvFlags` are a structure passed explicitly
+where MetaRocq's `WcbvFlags` (`erasure/theories/EWcbvEval.v:34`) is a type class; and a helper may
+bundle conditions that MetaRocq states apart, as `EraseProof.LenvExt` bundles `extends_prefix`
+(`erasure/theories/EGlobalEnv.v:189`) with the freshness `fresh_global` (`:191`) that MetaRocq
+keeps in `wf_glob` (`erasure/theories/EWellformed.v:223`).
+
 Entries are headed `### DV-<n>`. They cite declarations by full name in backquotes (ours as
-`EraseProof.<name>`, lean4lean's as `Lean4Lean.<name>`), our files by their path in the repository
-(`proof/...`), lean4lean `master` sources by path and line (`Lean4Lean/...lean:<line>`), and
-MetaRocq sources by path relative to the MetaRocq repository and line. Check C9 of
-`proof/scripts/check.sh` fails if a cited `EraseProof.*` or `Lean4Lean.*` name is not a
-declaration, a cited file or line does not exist, an entry's fields differ from the list above, or
-an entry's artifact field cites no declaration of `EraseProof`.
+`EraseProof.<name>`, lean4lean's as `Lean4Lean.<name>`, the shipping code's as `Erasure.<name>`),
+our files by their path in the repository (`proof/...`, `LeanToLambdaBox/...`), lean4lean `master`
+sources by path and line (`Lean4Lean/...lean:<line>`), and MetaRocq sources by path relative to the
+MetaRocq repository and line, at commit `4b201296` (branch `9.1`); `:<line>` cites a line of the
+file cited last in the same field. Check C9 of `proof/scripts/check.sh` fails if a cited
+`EraseProof.*`, `Lean4Lean.*` or `Erasure.*` name is not a declaration, a cited file or line does
+not exist, a MetaRocq line cited right after an identifier does not mention it within four lines,
+an entry's fields differ from the list above, or an entry's artifact field cites no declaration of
+`EraseProof`; it checks MetaRocq citations when `METAROCQ` names a checkout, as CI does.
 
 The blueprint renders this register.
 
@@ -226,14 +241,17 @@ The blueprint renders this register.
 - **Our artifact:** the fragment: the source terms `EraseProof.TrS` translates
   (`proof/EraseProof/Typing/Basic.lean`); the programs `EraseProof.ProgEnv` relates to a model
   (`proof/EraseProof/Env.lean`); the rules of the source evaluation `EraseProof.SrcEval`
-  (`proof/EraseProof/Source/Eval.lean`); and the rules of the erasure relation
-  `EraseProof.Erases` (`proof/EraseProof/Relation/Basic.lean`).
+  (`proof/EraseProof/Source/Eval.lean`); the rules of the erasure relation
+  `EraseProof.Erases` (`proof/EraseProof/Relation/Basic.lean`); and the rules of the dependency
+  relation `EraseProof.ErasesDeps` (`proof/EraseProof/Relation/Deps.lean`).
 - **Reference artifact:** MetaRocq's erasure relation `erases` in full
   (`erasure/theories/Extract.v:88`; MetaCoq paper §7.3, Fig. 18), with its rules
   `erases_tConstruct` (`:106`), `erases_tCase` (`:109`), `erases_tProj` (`:118`), `erases_tFix`
-  (`:122`), `erases_tCoFix` (`:129`), `erases_tPrim` (`:137`), and PCUIC's weak call-by-value
-  evaluation `eval` (`pcuic/theories/PCUICWcbvEval.v:231`) with its ι-rules; Letouzey Def. 3 (all
-  cases of 𝓔, fixpoints) and Def. 8 (ι).
+  (`:122`), `erases_tCoFix` (`:129`), `erases_tPrim` (`:137`); its dependency relation
+  `erases_deps` (`erasure/theories/Extract.v:306`) with the rules `erases_deps_tConstruct`
+  (`:330`), `erases_deps_tCase` (`:336`) and `erases_deps_tProj` (`:345`); and PCUIC's weak
+  call-by-value evaluation `eval` (`pcuic/theories/PCUICWcbvEval.v:231`) with its ι-rules;
+  Letouzey Def. 3 (all cases of 𝓔, fixpoints) and Def. 8 (ι).
 - **What differs:** no constructors, case analysis, projections, source fixpoints, cofixpoints,
   primitive values or evars, and no ι-reduction: `EraseProof.TrS` has no rule for `Expr.proj`,
   `Expr.lit` or `Expr.mvar`, and Lean's `Expr` has no node for constructors, case analysis,
@@ -247,12 +265,18 @@ The blueprint renders this register.
   `EraseProof.Erases` has no counterpart of `erases_tConstruct`, `erases_tCase`, `erases_tProj`,
   `erases_tFix`, `erases_tCoFix` or `erases_tPrim`: its rules are those of variables, λ, `let`,
   application, constants (with DV-7's `EraseProof.Erases.constRec`), metadata and `□`.
+  `EraseProof.ErasesDeps` has no counterpart of `erases_deps_tConstruct`, `erases_deps_tCase` or
+  `erases_deps_tProj`: its rules are those of `□`, variables, λ, `let`, application, constants
+  (DV-14), fixpoints and integer primitives (DV-16).
 - **Why it is forced:** lean4lean `master` has no inductive types: `Lean4Lean.VInductDecl.WF` and
   `Lean4Lean.VEnv.addInduct` are `sorry` definitions (`Lean4Lean/Theory/Inductive.lean:5,7`), so
   the model has no constructors, recursors or ι-reduction; projections are translated through the
   `sorry` definition `Lean4Lean.TrProj` (`Lean4Lean/Verify/Typing/Expr.lean:68`); literals are
   values of the inductive types `Nat` and `String` (DV-2); the kernel's terms have no
-  metavariables.
+  metavariables. The rules `erases_deps_tConstruct`, `erases_deps_tCase` and `erases_deps_tProj`
+  have the premises `declared_constructor`, `declared_inductive` and `declared_projection` of the
+  source environment: a program in scope declares no inductive type, so these premises never hold
+  and the rules cannot apply.
 - **What was considered instead:** axiomatized inductive types (types, constructors and recursors
   as constants, ι as definitional equalities) in an ordered environment: the rule
   `Lean4Lean.VEnv.Ordered.defeq` (`Lean4Lean/Theory/Typing/Lemmas.lean:258`) admits any
@@ -726,41 +750,46 @@ The blueprint renders this register.
   otherwise: binders named `x` and `a.b` keep their names, binders named `α₁` or `«a b»` become
   anonymous.
 - **Why it is forced:** the relation describes the output of the shipping eraser (spec §2), which
-  names binders by `Erasure.binderNameOf`: peregrine's `.ast` format admits non-ASCII characters
-  only inside string literals, and names are bare atoms (peregrine-tool `doc/format.md`, lines 12
-  and 68-69). Lean's and λ□'s names have different types, so some conversion is needed where
-  MetaRocq needs none (PCUIC and λ□ share `name`).
+  names binders by `Erasure.binderNameOf`, the test of `main`'s `fvar_to_name` unchanged. Lean's
+  and λ□'s names have different types, so some conversion is needed where MetaRocq needs none
+  (PCUIC and λ□ share `name`).
 - **What was considered instead:** λ□ binder names left unconstrained in `EraseProof.Erases.lam`
   and `EraseProof.Erases.letE`: the relation would no longer describe the names the eraser prints,
   and it would depart further from `erases_tLambda`, which fixes the name; keeping every Lean name,
-  a shipping change whose output peregrine rejects.
+  a shipping change that the theorem does not need (spec §5.1), and which would need the printer to
+  escape `"` and `\` in names (SHIPPING-CHANGES R-2): `binderNameOf` never keeps a name with these
+  characters, which `Name.toString` prints with `«»`.
 
 ### DV-16
 
 - **Our artifact:** `proof/EraseProof/Target.lean`, `EraseProof.LBEval`, λ□ weak call-by-value
   evaluation, with its atoms `EraseProof.lbAtom`, stated on the shipping AST `LBTerm`
   (`LeanToLambdaBox/Basic.lean`); with it the functions `EraseProof.csubst`, `EraseProof.closedn`,
-  `EraseProof.hasFVar` and the environment condition `EraseProof.LenvClosed`.
+  `EraseProof.hasFVar` and the environment condition `EraseProof.LenvClosed`; and
+  `proof/EraseProof/Relation/Deps.lean`, the dependency relation `EraseProof.ErasesDeps` on the
+  same terms.
 - **Reference artifact:** MetaRocq's λ□ evaluation `eval` (`erasure/theories/EWcbvEval.v:119`) on
   the λ□ terms `term` (`erasure/theories/EAst.v:29`), with `atom`
   (`erasure/theories/EWcbvEval.v:36`), `csubst` (`erasure/theories/ECSubst.v:14`), `closedn`
   (`erasure/theories/ELiftSubst.v:90`) and `closed_env` (`erasure/theories/EGlobalEnv.v:181`);
-  MetaCoq paper §7.1 (Fig. 16 and the amended evaluation rules, p. 8:60).
+  the dependency relation `erases_deps` (`erasure/theories/Extract.v:306`); MetaCoq paper §7.1
+  (Fig. 16 and the amended evaluation rules, p. 8:60).
 - **What differs:** `LBTerm` has no `tVar`, `tEvar`, `tCoFix`, `tLazy` or `tForce`, and its only
   primitive values are 63-bit integers. So `EraseProof.LBEval` has no rules `eval_cofix_case`
   (`erasure/theories/EWcbvEval.v:198`), `eval_cofix_proj` (`:205`) or `eval_force` (`:279`), its
   rule `prim` (`eval_prim`, `:275`) evaluates an integer to itself, and `EraseProof.lbAtom` has no
-  case for `tCoFix` or `tLazy`. `LBTerm` has a constructor that `term` lacks, `fvar`, a free
-  variable named by a Lean `FVarId`: `EraseProof.LBEval` has no rule for it, `EraseProof.csubst`
-  leaves it unchanged and `EraseProof.closedn` counts it as closed, as MetaRocq's `csubst` and
-  `closedn` treat `tVar`; `EraseProof.hasFVar` tests whether it occurs, and has no MetaRocq
-  counterpart; `EraseProof.LenvClosed` requires, besides the closedness of `closed_env`, that no
-  body stored in the λ□ environment contains a free variable. The rules for constructors in block
-  form, `eval_iota_block` (`:151`), `eval_proj_block` (`:228`) and `eval_construct_block`
-  (`:254`), are absent; each requires the flag `with_constructor_as_block` to be true, which it is
-  not in `default_wcbv_flags` (`:69`), the flags of `erases_correct`
-  (`erasure/theories/ErasureCorrectness.v:51`). At flags where that flag is false,
-  `EraseProof.LBEval` has exactly the rules of `eval` whose term constructors `LBTerm` has.
+  case for `tCoFix` or `tLazy`; every other rule of `eval`, the rules for constructors in block
+  form `eval_iota_block` (`:151`), `eval_proj_block` (`:228`) and `eval_construct_block` (`:254`)
+  included, is a rule of `EraseProof.LBEval`. Likewise `EraseProof.ErasesDeps` has no rule
+  `erases_deps_tEvar` (`erasure/theories/Extract.v:310`), `erases_deps_tCoFix` (`:355`),
+  `erases_deps_tPrimFloat` (`:360`), `erases_deps_tPrimString` (`:362`) or
+  `erases_deps_tPrimArray` (`:364`); its rule `prim` is `erases_deps_tPrimInt` (`:358`). `LBTerm`
+  has a constructor that `term` lacks, `fvar`, a free variable named by a Lean `FVarId`:
+  `EraseProof.LBEval` has no rule for it, `EraseProof.csubst` leaves it unchanged and
+  `EraseProof.closedn` counts it as closed, as MetaRocq's `csubst` and `closedn` treat `tVar`;
+  `EraseProof.hasFVar` tests whether it occurs, and has no MetaRocq counterpart;
+  `EraseProof.LenvClosed` requires, besides the closedness of `closed_env`, that no body stored in
+  the λ□ environment contains a free variable.
 - **Why it is forced:** the theorem is about the shipping eraser (spec §2), whose output is an
   `LBTerm`, the λ□ that peregrine reads; evaluation is stated on that type. The terms without a
   constructor in `LBTerm` cannot occur in the eraser's output, so their rules have nothing to
@@ -769,14 +798,12 @@ The blueprint renders this register.
   `toBvar` (`LeanToLambdaBox/Basic.lean`) before a body is stored, which `EraseProof.LenvClosed`
   records. MetaRocq's erasure works on de Bruijn indices and maps `tVar` only to `tVar`
   (`erasure/theories/ErasureFunction.v:996`), which typed terms do not contain (PCUIC's typing has
-  no rule for it), so `closed_env` needs no such clause. The block rules cannot fire at the flags
-  of `erases_correct`, at which the simulation evaluates; results stated for every flag, such as
-  `EraseProof.LBEval.eq_box_of_headOf`, are about the relation without them.
+  no rule for it), so `closed_env` needs no such clause.
 - **What was considered instead:** extending `LBTerm` with the missing constructors, a shipping
   change that no output of the eraser needs (spec §5.1 allows only strictly necessary shipping
   changes); stating evaluation on a separate transcription of `term` reached through a translation
   from `LBTerm`, which every statement would pass through and which would still need an image for
-  `fvar`; including the block rules, which the statements never use at their flags.
+  `fvar`.
 
 ### DV-17
 
@@ -799,9 +826,9 @@ The blueprint renders this register.
   hypothesis `normalization_in` that every well-typed term of every well-formed environment
   related to the abstract one is strongly normalizing (`NormalizationIn`,
   `pcuic/theories/PCUICSN.v:44`; a parameter of `is_erasableb` and of the section of `erase`,
-  `erasure/theories/ErasureFunction.v:969`); the correctness of `erase`, `erases_erase`
-  (`erasure/theories/ErasureFunction.v:1228`), takes the same hypothesis and holds for every
-  input, and so does the correctness of the erasure of a program, `erase_correct`
+  where it is a `Context` (`erasure/theories/ErasureFunction.v:969`)); the correctness of `erase`,
+  `erases_erase` (`erasure/theories/ErasureFunction.v:1228`), takes the same hypothesis and holds
+  for every input, and so does the correctness of the erasure of a program, `erase_correct`
   (`erasure/theories/ErasureFunctionProperties.v:657`), about `erase` and `erase_global_deps`.
 - **What differs:** the oracle's functions recurse on a fuel argument and fail with the error
   `fuel` when it runs out (`Erasure.EraseError`, `LeanToLambdaBox/Erasure/Collect.lean`); on the
@@ -922,7 +949,10 @@ The blueprint renders this register.
   term to a value is matched by a λ□ evaluation (`EraseProof.LBEval` at `EraseProof.defaultFlags`)
   of any erasure of the term (`EraseProof.Erases`) whose dependencies are erased
   (`EraseProof.ErasesDeps`), to an erasure of the source value.
-- **Reference artifact:** Letouzey §3.4: Theorem 12 (forward simulation, CIC□ → CIC: if
+- **Reference artifact:** Letouzey §3.3: Theorem 7 (every reduction of `𝓔(t)`, for a well-typed
+  closed CIC⁻ term `t` whose type is logic-free, Definition 6, terminates on the CIC⁻ normal form
+  of `t`; strong reduction in the restricted calculus CIC⁻, with the □-reduction of Definition 5;
+  not proved in the paper). Letouzey §3.4: Theorem 12 (forward simulation, CIC□ → CIC: if
   `(Γ, t) ◀ (Γ0, t0)` and `t →rw u`, then `t0 →rw+ u0` for some `u0` with `(Γ, u) ◀ (Γ0, u0)`;
   Appendix A), Theorem 13 (backward simulation, CIC → CIC□: if `(Γ, t) ◀ (Γ0, t0)` and
   `t0 →rw u0`, then `(Γ, u) ◀ (Γ0, u0)` for some `u` with `t →rw u` or `t →*□w u`; Appendix B) and
@@ -932,28 +962,42 @@ The blueprint renders this register.
   p. 8:64), which `EraseProof.erases_correct` follows: a big-step statement over PCUIC's `eval`
   (`pcuic/theories/PCUICWcbvEval.v:231`) and λ□'s `eval` (`erasure/theories/EWcbvEval.v:119`) at
   `default_wcbv_flags`.
-- **What differs:** of Letouzey's three theorems, only Theorem 13 has a counterpart, and it is
+- **What differs:** of Letouzey's four theorems, only Theorem 13 has a counterpart, and it is
   proved big-step at call-by-value, as MetaRocq's `erases_correct` is: a whole source evaluation
   to a value, not a single weak step, is matched by a whole λ□ evaluation, not by one step or by
   □-steps, and the invariant ◀ (Definition 10) is the erasure relation `EraseProof.Erases`
-  (MetaRocq's `erases`, `erasure/theories/Extract.v:88`). Theorems 12 and 15 are omitted: nothing
-  states that a λ□ step is matched by source steps (Theorem 12), or that the λ□ reductions of an
-  erased closed term of a logic-free data type terminate on the term's normal form (Theorem 15).
-- **Why it is forced:** Theorem 15 needs strong normalization of the source, for its termination
-  half (Appendix C maps each step of the erased term to at least one source step by Theorem 12, and
-  concludes by strong normalization), and data types (Definition 14), which are inductive types;
-  lean4lean `master` has neither: it proves no normalization theorem, and
-  `Lean4Lean.VInductDecl.WF` and `Lean4Lean.VEnv.addInduct` are `sorry` definitions
-  (`Lean4Lean/Theory/Inductive.lean:5,7`; DV-6). Theorem 12 serves only Theorem 15's
-  termination argument. MetaRocq, the machine-checked reference, replaces both by
-  `erases_correct`, which takes the source evaluation as a hypothesis and so needs no
-  normalization; `EraseProof.erases_correct` follows it.
-- **What was considered instead:** proving Theorem 12 on its own: without Theorem 15 it has no
-  consumer on the path to the final theorem; a small-step Theorem 13 over weak reduction in any
-  order, which says nothing about the value that λ□'s call-by-value evaluator reaches (DV-22);
-  strong normalization as a hypothesis, a stand-in for a result lean4lean `master` lacks (spec
-  §2), and false in the fragment, which has diverging recursive unsafe constants (DV-22's
-  `loop`).
+  (MetaRocq's `erases`, `erasure/theories/Extract.v:88`). Theorems 7, 12 and 15 are omitted, with
+  the notions only they use, the □-reduction of Definition 5 as a reduction of its own and the
+  logic-free types of Definition 6: nothing states that the reductions of an erased closed term of
+  a logic-free type terminate on the term's normal form (Theorems 7 and 15), or that a λ□ step is
+  matched by source steps (Theorem 12).
+- **Why it is forced:** Theorem 7 is stated for strong reduction in CIC⁻, the calculus restricted by
+  Letouzey's conditions (i)–(iii) on logical eliminations and fixpoint guards, and Letouzey's §3.4
+  replaces it by the weak-reduction results because the targets do not reduce under λ; like
+  Theorem 15 it is a termination statement, which needs strong normalization of the source. Theorem
+  15 needs strong normalization of the source, for its termination half (Appendix C maps each step
+  of the erased term to at least one source step by Theorem 12, and concludes by strong
+  normalization), and data types (Definition 14), which are inductive types; lean4lean `master` has
+  neither: it proves no normalization theorem, and `Lean4Lean.VInductDecl.WF` and
+  `Lean4Lean.VEnv.addInduct` are `sorry` definitions (`Lean4Lean/Theory/Inductive.lean:5,7`;
+  DV-6). Theorem 12 relates single weak-reduction steps (Definition 9), which neither the model nor
+  λ□'s evaluator has (DV-22). Its big-step form, that a λ□ evaluation of an erasure is matched by a
+  source evaluation, is false in scope, because axioms are in scope (DV-21): with
+  `def P : Prop := ∀ X : Prop, X → X` and `axiom hP : P`, the eraser emits `□` for `hP`, which λ□
+  evaluates to `□`, while `EraseProof.SrcEval` has no rule for `hP`, an axiom, which no δ rule
+  unfolds, whose type is not an evident proposition (DV-11). Letouzey proves Theorem 12 for
+  contexts without assumptions only (§3.4, p. 10). MetaRocq, the machine-checked reference,
+  replaces Theorems 12 and 15 by `erases_correct`, which takes the source evaluation as a
+  hypothesis and so needs no normalization; `EraseProof.erases_correct` follows it.
+- **What was considered instead:** Theorem 12 in big-step form for axiom-free programs only,
+  Letouzey's hypothesis: it is still false in scope, where a proof can diverge under call-by-value
+  evaluation: with `def A : Type := Prop → Prop`, `def a : A := fun x => x` and the recursive
+  `unsafe def loopP : A → P := fun x => loopP x`, the eraser emits `□` for `loopP a`, which λ□
+  evaluates, while the source evaluation of `loopP a` unfolds `loopP` forever; a small-step
+  Theorem 13 over weak reduction in any order, which says nothing about the value that λ□'s
+  call-by-value evaluator reaches (DV-22); strong normalization as a hypothesis, a stand-in for a
+  result lean4lean `master` lacks (spec §2), and false in the fragment, which has diverging
+  recursive unsafe constants (DV-22's `loop`).
 
 ### DV-21
 

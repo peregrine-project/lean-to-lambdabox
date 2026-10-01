@@ -177,7 +177,6 @@ theorem erases_correct_delta (henv : ProgEnv P venv) (hsub : SubEnv σ.decls P)
       ErasesDeps venv σ lenv tb →
       ∃ v', Erases venv Us σ.isAtom (RecIn lenv) [] v v' ∧ LBEval defaultFlags lenv tb v')
     (hu : σ.unfold? c = some (ci, body)) (hr : RecursiveDecl ci = false)
-    (hlen : us.length = ci.levelParams.length)
     (hb : SrcEval σ (Pure.instLevels ci.levelParams us body) v)
     (he : TrS venv Us [] (.const c us) e')
     (her : Erases venv Us σ.isAtom (RecIn lenv) [] (.const c us) t)
@@ -186,8 +185,13 @@ theorem erases_correct_delta (henv : ProgEnv P venv) (hsub : SubEnv σ.decls P)
   have hfd := (EvalEnv.unfold?_some hu).1
   have hax := EvalEnv.unfold?_axiomatized hu
   have ⟨_, hb₀, _⟩ := SrcEval.unfold_step henv hsub hu he
-  obtain ⟨_, hus⟩ : ∃ us', us.mapM (VLevel.ofLevel Us) = some us' := by
-    cases he with | const _ hus _ => exact ⟨_, hus⟩
+  obtain ⟨_, hus, hlen⟩ : ∃ us', us.mapM (VLevel.ofLevel Us) = some us' ∧
+      us.length = ci.levelParams.length := by
+    cases he with
+    | const hc hus hlen =>
+      obtain ⟨ci', htr, hc', -⟩ := henv.unfold hsub hu
+      cases hc.symm.trans hc'
+      exact ⟨_, hus, hlen.trans htr.1.1.symm⟩
   have key : ∀ cb, ErasesDecl venv σ lenv ci cb → ∃ b', cb.cst_body = some b' ∧
       Erases venv Us σ.isAtom (RecIn lenv) [] (Pure.instLevels ci.levelParams us body) b' := by
     intro cb hd
@@ -199,7 +203,7 @@ theorem erases_correct_delta (henv : ProgEnv P venv) (hsub : SubEnv σ.decls P)
     · have := Erases.instLevels henv hus hlen herb
       exact ⟨b', hcb, this⟩
   cases her with
-  | box hbx => exact erases_correct_box henv hsub he hbx (.delta hu hr hlen hb)
+  | box hbx => exact erases_correct_box henv hsub he hbx (.delta hu hr hb)
   | const _ =>
     generalize hk : toKername c = kn at hdeps
     cases hdeps with

@@ -2,8 +2,9 @@
 # One line per declaration: <declaration> <axioms> <sorry labels>
 #   <axioms>: its `#print axioms`, comma-separated in the order propext, Classical.choice,
 #             Quot.sound, sorryAx; `-` for none.
-#   <sorry labels>: the lean4lean `sorry` declarations it reaches (L1-L8, and TrProj for tests;
-#             see tools/Report.lean `sorryLabels`, `testOnlySorryLabels`), comma-separated;
+#   <sorry labels>: the lean4lean `sorry` declarations it reaches (L1-L6, and TrProj for the
+#             tests of EraseProof.Test.Bridge; see tools/Report.lean `allowedLabels`,
+#             `testOnlySorryLabels`), comma-separated;
 #             `-` for none.
 # proof/scripts/check.sh compares this file with the computed .check/axioms.actual.
 EraseProof.erase_correct propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5,L6
@@ -35,7 +36,9 @@ EraseProof.Test.D1.hlc propext -
 EraseProof.Test.D1.hsub propext -
 EraseProof.Test.D1.mem_names propext,Classical.choice,Quot.sound -
 EraseProof.Test.LBEval.deterministic propext -
+EraseProof.Test.LBEval.forall₂_det - -
 EraseProof.Test.LBEval.headOf_mkApps propext -
+EraseProof.Test.LBEval.lbAtom_construct propext -
 EraseProof.Test.LBEval.mkApps_construct_inj propext -
 EraseProof.Test.LBEval.mkApps_fix_inj propext -
 EraseProof.Test.LBEval.mkApps_inj propext -
@@ -362,6 +365,7 @@ EraseProof.Test.Oracle.oracle_hP propext -
 EraseProof.Test.Oracle.sound_A propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
 EraseProof.Test.Oracle.sound_hP propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5
 EraseProof.Test.ProgEnv.toTrEnv' propext,Classical.choice,Quot.sound,sorryAx L1,TrProj
+EraseProof.Test.Stub.erase_correct propext,Classical.choice,Quot.sound,sorryAx L1,L2,L3,L4,L5,L6
 EraseProof.Test.TrS.toTrExprS propext,Classical.choice,Quot.sound,sorryAx TrProj
 EraseProof.Test.Bridge.ProgEnv.toTrEnv'_hashMap propext,Classical.choice,Quot.sound,sorryAx L1,TrProj
 EraseProof.Test.Bridge.TrConst.toTrConstant propext,Classical.choice,Quot.sound,sorryAx TrProj

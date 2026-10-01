@@ -17,13 +17,13 @@ open Lean Lean4Lean Erasure
 
 namespace EraseProof
 
-/-- The view `#erase` reads agrees with `P` on `P`'s names (DESIGN.md Q1.2). Reference:
+/-- The view `#erase` reads agrees with `P` on `P`'s names. Reference:
 `Σ ∼_ext X` (`abstract_env_ext_rel`, hypothesis of `MR E/ErasureFunctionProperties.v:657
 erase_correct`). -/
 def ViewAgrees (view : EnvView) (P : List ConstantInfo) : Prop :=
   ∀ ci ∈ P, view.find? ci.name = some ci
 
-/-- The inputs the final theorem covers (DESIGN.md Q1.2): `e` is well typed in master's model of
+/-- The inputs the final theorem covers: `e` is well typed in master's model of
 some inductive-free, well-formed environment that the view agrees with. Reference: the
 hypotheses `wf_ext Σ`, `Σ ∼_ext X`, `welltyped Σ [] t` of `MR E/ErasureFunctionProperties.v:657
 erase_correct`. -/
@@ -281,7 +281,7 @@ theorem collectDeps_sub {view : EnvView} (henv : ProgEnv P venv) (hview : ViewAg
   (collectDeps_scope henv hview he).1 decls h
 
 /-- Routing is justified by master alone: an in-scope input is never sent to the `Meta` path.
-Reference: none (shipping entry point, S-E). -/
+Reference: none (the shipping entry point's `Erasure.route`). -/
 theorem collectDeps_not_outOfFragment {view : EnvView} (h : InScope view e) :
     ∀ w, collectDeps view e ≠ .error (.outOfFragment w) :=
   let ⟨_, _, _, _, henv, hview, he⟩ := h

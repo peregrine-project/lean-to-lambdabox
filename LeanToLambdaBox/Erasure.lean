@@ -22,7 +22,7 @@ abbrev InductiveArgMasks := List ConstructorArgMask
 def filter (mask: ConstructorArgMask) (arr: Array α): Array α :=
   mask.zip arr |>.filterMap (fun (r, a) => match r with | .erase => .none | .keep => .some a)
 /--
-State carried by EraseM to handle constants and inductive types registered in the global environment.
+State carried by `EraseT` to handle constants and inductive types registered in the global environment.
 -/
 structure ErasureState: Type where
   inductives: Std.HashMap Name (InductiveId × InductiveArgMasks) := ∅
@@ -179,8 +179,8 @@ structure TravCtx where
   fixvars : Option (Std.HashMap Name FVarId) := none
   «config» : ErasureConfig
 
-/-- The λ□ name of a binder with the user name `n`: `n` if it is ASCII graphic, since the λ□ parser
-rejects other names, and anonymous otherwise. -/
+/-- The λ□ name of a binder with user name `n`: `n.toString` if ASCII graphic, anonymous otherwise;
+a name with `"` or `\` prints with `«»`, so the printer never meets them unescaped (R-2). -/
 def binderNameOf (n : Name) : BinderName :=
   let s := n.toString
   if s.all (fun (c : Char) => decide (33 ≤ c.toNat ∧ c.toNat < 127)) then .named s else .anon

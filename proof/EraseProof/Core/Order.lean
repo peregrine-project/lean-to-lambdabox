@@ -290,10 +290,9 @@ theorem findDecl_mem_suffix {pre post : List ConstantInfo} {d : Name} {cd : Cons
     exact List.mem_of_find?_eq_some h
 
 /-- The facts a run of the pure path rests on: the program `P` has the model `venv` (`prog`), and
-the declarations `decls` it reads, as `collectDeps` returns them (`collectDeps_spec`,
-`collectDeps_sub`), are a sub-environment of `P` (`sub`) with distinct kernames (`inj`), closed
-types and values (`closed`), closed under dependencies (`deps`). Reference: `wf_ext Σ` and
-`Σ ∼_ext X` of `erases_erase` (`MR E/ErasureFunction.v:1228`), and the closure that
+the declarations `decls` it reads are a sub-environment of `P` (`sub`) with distinct kernames
+(`inj`), closed types and values (`closed`), closed under dependencies (`deps`). Reference: `wf_ext
+Σ` and `Σ ∼_ext X` of `erases_erase` (`MR E/ErasureFunction.v:1228`), and the closure that
 `erase_global_deps` (`MR E/ErasureFunction.v:1602`) computes. -/
 structure CoreEnv (venv : VEnv) (P decls : List ConstantInfo) : Prop where
   prog : ProgEnv P venv
@@ -303,11 +302,9 @@ structure CoreEnv (venv : VEnv) (P decls : List ConstantInfo) : Prop where
   deps : DepClosed decls
 
 /-- A scope of the traversal: a set of constants declared in `decls`, closed under the members of
-their blocks and under the constants in value positions (`OccursV`) of their values, which are
-the positions the traversal erases. A traversal that starts on a term whose value positions
-mention only constants of a scope registers only constants of the scope. Reference: the
-dependencies `term_global_deps` (`MR E/EAstUtils.v:406`) that `erase_global_deps`
-(`MR E/ErasureFunction.v:1602`) follows, transitively. -/
+their blocks and under the constants in value positions (`OccursV`) of their values, the positions
+the traversal erases. Reference: the dependencies `term_global_deps` (`MR E/EAstUtils.v:406`) that
+`erase_global_deps` (`MR E/ErasureFunction.v:1602`) follows, transitively. -/
 def ScopeOK (decls : List ConstantInfo) (S : Name → Prop) : Prop :=
   ∀ c, S c → ∃ ci, findDecl decls c = some ci ∧ (∀ n ∈ ci.all, S n) ∧
     ∀ v, ci.value? (allowOpaque := true) = some v → ∀ d, OccursV d v = true → S d
