@@ -5,7 +5,9 @@
 \usepackage{hyperref}
 \usepackage{xcolor}
 \usepackage{booktabs}
-\usepackage[showmore, dep_graph, tpl=../templates/dep_graph.html]{blueprint}
+% thms: the node environments, with imported (macros/common.tex).
+\usepackage[showmore, dep_graph, tpl=../templates/dep_graph.html,
+  thms=definition+lemma+proposition+theorem+corollary+imported]{blueprint}
 % Node kinds and dependency graphs (scripts/bpkinds.py, found through plastex.cfg).
 \usepackage{bpkinds}
 

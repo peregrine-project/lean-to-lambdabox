@@ -72,6 +72,20 @@
 
 \section{Soundness}\label{sec:oracle-sound}
 
+\begin{lemma}[Binds of the oracle's monad]
+  \label{lem:EraseProof-Except-ok_of_bind}
+  \lean{EraseProof.Except.ok_of_bind, EraseProof.Except.bind_congr_ok}
+  \leanok
+  \srcloc{proof/EraseProof/Oracle/Agree.lean}{46}
+  \lead{In short} A successful bind of \code{Except} has a successful first step; two binds agree
+  when their first steps are equal and their continuations agree on its results.
+  \lead{Reference} none: monad plumbing.
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Case analysis on the first computation.
+\end{proof}
+
 \begin{lemma}[Weak-head normalization]
   \label{lem:EraseProof-Pure-whnf_sound}
   \lean{EraseProof.Pure.whnf_sound, EraseProof.Pure.whnf_defeqU}
@@ -96,7 +110,7 @@
 \begin{proof}
   \uses{lem:EraseProof-TrS-inst, lem:EraseProof-TrS-inst_let, lem:EraseProof-TrS-instLevels,
     lem:EraseProof-TrS-wf, lem:EraseProof-ProgEnv-lookupDefn, lem:EraseProof-LocalsOK-wf,
-    lem:EraseProof-ProgEnv-wf, lem:EraseProof-ProgEnv-ordered, lem:EraseProof-Pure-isErasable_agree,
+    lem:EraseProof-ProgEnv-wf, lem:EraseProof-ProgEnv-ordered, lem:EraseProof-Except-ok_of_bind,
     lem:EraseProof-TrS-closed}
   \leanok
   \lead{Idea} Fuel induction for \code{whnf\_defeqU}: $\beta$ by \code{TrS.inst}, $\zeta$ by
@@ -120,7 +134,7 @@
 \begin{proof}
   \uses{lem:EraseProof-Pure-whnf_sound, lem:EraseProof-LocalsOK-wf, lem:EraseProof-ProgEnv-lookup,
     lem:EraseProof-TrS-instLevels, lem:EraseProof-TrS-inst_let, lem:EraseProof-ProgEnv-ordered,
-    lem:EraseProof-ProgEnv-wf, lem:EraseProof-Pure-isErasable_agree, lem:EraseProof-TrS-closed,
+    lem:EraseProof-ProgEnv-wf, lem:EraseProof-Except-ok_of_bind, lem:EraseProof-TrS-closed,
     lem:EraseProof-TrS-inst}
   \leanok
   \lead{Idea} Fuel induction: variables by the context lemmas, constants by \code{ProgEnv.lookup}
@@ -141,7 +155,7 @@
   \lead{Reference} \code{is\_arityP} (\code{erasure/theories/ErasureFunction.v}), true direction.
 \end{lemma}
 \begin{proof}
-  \uses{lem:EraseProof-Pure-whnf_sound, lem:EraseProof-Pure-isErasable_agree,
+  \uses{lem:EraseProof-Pure-whnf_sound, lem:EraseProof-Except-ok_of_bind,
     lem:EraseProof-LocalsOK-wf, lem:EraseProof-ProgEnv-wf}
   \leanok
   \lead{Idea} Fuel induction through \code{Pure.whnf}: a sort is an arity; a $\Pi$ continues in
@@ -187,8 +201,7 @@
 \begin{proof}
   \uses{lem:EraseProof-Pure-inferType_sound, lem:EraseProof-Pure-isArity_sound,
     lem:EraseProof-Pure-alwaysZero_sound, lem:EraseProof-Pure-whnf_sound,
-    lem:EraseProof-Pure-isErasable_agree, lem:EraseProof-LocalsOK-wf,
-    lem:EraseProof-ProgEnv-ordered}
+    lem:EraseProof-Except-ok_of_bind, lem:EraseProof-LocalsOK-wf, lem:EraseProof-ProgEnv-ordered}
   \leanok
   \lead{Idea} Follow the oracle: the inferred type is a type (\code{Pure.inferType\_sound}); either
   it is convertible to an arity (\code{isArity\_sound}), or its sort reduces to a level
@@ -245,7 +258,7 @@
   \code{whnf\_sort}, \code{whnf\_prod}, \code{whne\_mkApps} (\code{pcuic/theories/}).
 \end{lemma}
 \begin{proof}
-  \uses{def:EraseProof-ArityShape}
+  \uses{def:EraseProof-ArityShape, lem:EraseProof-Except-ok_of_bind}
   \leanok
   \lead{Idea} Inductions on the shapes and on the fuel of \code{whnf}.
 \end{proof}
@@ -287,7 +300,7 @@
 \end{lemma}
 \begin{proof}
   \uses{lem:EraseProof-ArityShape-of_arityShape, lem:EraseProof-Pure-alwaysZero_eq,
-    lem:EraseProof-Pure-isErasable_agree}
+    lem:EraseProof-Except-ok_of_bind}
   \leanok
   \lead{Idea} Follow the oracle on the spine: an evident arity makes \code{isArity} answer true;
   an evident proposition's sort passes \code{alwaysZero} by \code{Pure.alwaysZero\_eq}.
@@ -299,8 +312,7 @@
   \label{lem:EraseProof-Pure-isErasable_agree}
   \lean{EraseProof.Pure.isErasable_agree, EraseProof.Pure.whnf_agree,
     EraseProof.Pure.inferType_agree, EraseProof.Pure.isArity_agree,
-    EraseProof.Pure.instLevel_hasMVar', EraseProof.Pure.fvarsIn_instLevels,
-    EraseProof.Except.bind_congr_ok, EraseProof.Except.ok_of_bind}
+    EraseProof.Pure.instLevel_hasMVar', EraseProof.Pure.fvarsIn_instLevels}
   \leanok
   \uses{def:Erasure-Pure-isErasable, def:EraseProof-LocalsAgree}
   \srcloc{proof/EraseProof/Oracle/Agree.lean}{279}
@@ -310,13 +322,12 @@
   \begin{itemize}
   \item \code{whnf\_agree}, \code{inferType\_agree}, \code{isArity\_agree}: the same for the parts,
         whose results stay within \code{S};
-  \item \code{instLevel\_hasMVar'}, \code{fvarsIn\_instLevels}, \code{Except.*}: level and
-        \code{Except} plumbing.
+  \item \code{instLevel\_hasMVar'}, \code{fvarsIn\_instLevels}: level plumbing.
   \end{itemize}
   \lead{Reference} none: MetaRocq erases a constant body in the empty context; DV-13.
 \end{lemma}
 \begin{proof}
-  \uses{def:EraseProof-LocalsAgree}
+  \uses{def:EraseProof-LocalsAgree, lem:EraseProof-Except-ok_of_bind}
   \leanok
   \lead{Idea} Fuel inductions through \code{whnf}, \code{inferType} and \code{isArity}.
 \end{proof}

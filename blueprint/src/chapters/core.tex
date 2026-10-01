@@ -49,8 +49,7 @@
   \lead{Reference} the closure and naming properties of \code{erase\_global\_deps}; DV-3, DV-14.
 \end{lemma}
 \begin{proof}
-  \uses{def:Erasure-collectDeps, lem:EraseProof-Pure-isErasable_agree,
-    lem:EraseProof-SrcEval-restrict}
+  \uses{def:Erasure-collectDeps, lem:EraseProof-Except-ok_of_bind, lem:EraseProof-SrcEval-restrict}
   \leanok
   \lead{Idea} Read the shipping checks: \code{exprConsts} rejects free variables and metavariables;
   \code{closure} expands every name of its work list; \code{findCollision = none} separates
@@ -253,7 +252,7 @@ term's support. A constant's value is therefore erased as in the empty context.
   \lead{Reference} none (DV-13); the cases of \code{erase} extend a de Bruijn context.
 \end{lemma}
 \begin{proof}
-  \uses{lem:EraseProof-Pure-isErasable_agree}
+  \uses{lem:EraseProof-Pure-isErasable_agree, lem:EraseProof-Except-ok_of_bind}
   \leanok
   \lead{Idea} Unfold one equation; the oracle's answers agree by \code{Pure.isErasable\_agree}.
 \end{proof}
@@ -467,9 +466,8 @@ the statement at smaller fuels.
   \uses{lem:EraseProof-visitExpr_box, lem:EraseProof-TrS-inst_fvar,
     lem:EraseProof-Erases-uninstantiateN, lem:EraseProof-Erases-closed,
     lem:EraseProof-abstract_eq_abstract1, lem:EraseProof-visit_agree, lem:EraseProof-ErasesDeps-ext,
-    lem:EraseProof-LocalsOK-wf, lem:EraseProof-ProgEnv-ordered,
-    lem:EraseProof-Pure-isErasable_agree, lem:EraseProof-TrS-fvarsIn,
-    lem:EraseProof-visitLambda_agree}
+    lem:EraseProof-LocalsOK-wf, lem:EraseProof-ProgEnv-ordered, lem:EraseProof-Except-ok_of_bind,
+    lem:EraseProof-TrS-fvarsIn, lem:EraseProof-visitLambda_agree}
   \leanok
   \lead{Idea} Open with \code{TrS.inst\_fvar}; close by \code{Erases.closed},
   \code{abstract\_eq\_abstract1} and \code{Erases.uninstantiateN}; the \code{let} value by
@@ -498,7 +496,7 @@ the statement at smaller fuels.
 \begin{proof}
   \uses{lem:EraseProof-visitExpr_box, lem:EraseProof-Pure-isErasable_atom,
     lem:EraseProof-StateOK-registerDef, lem:EraseProof-StateOK-grow, lem:EraseProof-ErasesDeps-ext,
-    lem:EraseProof-Pure-isErasable_agree, lem:EraseProof-visitExpr_lam_step,
+    lem:EraseProof-Except-ok_of_bind, lem:EraseProof-visitExpr_lam_step,
     lem:EraseProof-visitLambda_agree}
   \leanok
   \lead{Idea} Head first, then the arguments one at a time; \code{get\_constant\_kername\_ok} and
@@ -525,7 +523,7 @@ the statement at smaller fuels.
 \end{lemma}
 \begin{proof}
   \uses{lem:EraseProof-visitExpr_box, lem:EraseProof-ArityShape-of_arityShape,
-    lem:EraseProof-LocalsOK-wf, lem:EraseProof-Pure-isErasable_agree,
+    lem:EraseProof-LocalsOK-wf, lem:EraseProof-Except-ok_of_bind,
     lem:EraseProof-Pure-isErasable_atom, lem:EraseProof-TrS-closed}
   \leanok
   \lead{Idea} Case analysis on the oracle's answer and on \code{TrS}.
@@ -554,7 +552,7 @@ the statement at smaller fuels.
 \begin{proof}
   \uses{lem:EraseProof-visit_agree, lem:EraseProof-CoreEnv-valueScope,
     lem:EraseProof-StateOK-registerDef, lem:EraseProof-Erases-mono_rc,
-    lem:EraseProof-ProgEnv-value_suffix, lem:EraseProof-Pure-isErasable_agree,
+    lem:EraseProof-ProgEnv-value_suffix, lem:EraseProof-Except-ok_of_bind,
     lem:EraseProof-StateOK-grow, lem:EraseProof-isRecursiveDecl_eq, lem:EraseProof-visitExpr_box,
     lem:EraseProof-visitExpr_step, lem:EraseProof-visitLambda_agree}
   \leanok
@@ -768,7 +766,7 @@ as \code{tFix defs j}.
   \lead{Reference} none (DV-13); \code{erases\_tFix} builds bodies de Bruijn.
 \end{lemma}
 \begin{proof}
-  \uses{lem:EraseProof-visitLambda_agree}
+  \uses{lem:EraseProof-visitLambda_agree, lem:EraseProof-Except-ok_of_bind}
   \leanok
   \lead{Idea} Induction on the lists the loops traverse.
 \end{proof}
@@ -860,7 +858,7 @@ as \code{tFix defs j}.
 \begin{proof}
   \uses{lem:EraseProof-isRecursiveDecl_eq, lem:EraseProof-body_step, lem:EraseProof-mkDef_run,
     lem:EraseProof-block_finish, lem:EraseProof-CoreEnv-member, lem:EraseProof-ProgEnv-value_suffix,
-    lem:EraseProof-Pure-isErasable_agree, lem:EraseProof-StateOK-grow, lem:EraseProof-freshIds_run,
+    lem:EraseProof-Except-ok_of_bind, lem:EraseProof-StateOK-grow, lem:EraseProof-freshIds_run,
     lem:EraseProof-visitExpr_box, lem:EraseProof-visitExpr_step, lem:EraseProof-visitLambda_agree,
     lem:EraseProof-visitMutual_nonrec_step}
   \leanok
@@ -939,7 +937,7 @@ as \code{tFix defs j}.
 \end{theorem}
 \begin{proof}
   \uses{lem:EraseProof-collectDeps_spec, lem:EraseProof-collectDeps_sub,
-    lem:EraseProof-visitExpr_initial, lem:EraseProof-Pure-isErasable_agree}
+    lem:EraseProof-visitExpr_initial, lem:EraseProof-Except-ok_of_bind}
   \leanok
   \lead{Idea} \code{collectDeps\_spec} and \code{collectDeps\_sub} give \code{CoreEnv};
   \code{erasePure} is the initial run of \code{visitExpr}.

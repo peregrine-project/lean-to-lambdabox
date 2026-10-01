@@ -239,8 +239,13 @@ body.bp-graph-map svg.bp-graph g.node:hover text {
 	margin: 0;
 }
 
+/* A light tile behind every swatch, so that its outlines stay visible when the browser darkens
+ * the page. */
 svg.bp-swatch {
 	flex: none;
+	background: #FFFFFF;
+	border-radius: .2rem;
+	box-shadow: 0 0 0 1px #E2E2E2;
 }
 
 /* A click on a node: the node and its neighbours, and their arrows in full; the rest fades. */
@@ -256,9 +261,9 @@ svg.bp-focus-mode g.edge.bp-on polygon {
 	stroke-width: 2px;
 }
 
-g.node.bp-focus :is(polygon, ellipse, path, polyline) {
-	stroke: #111111;
-	stroke-width: 5px;
+/* The focused node keeps its outlines (kind and status) and gets a halo. */
+g.node.bp-focus {
+	filter: drop-shadow(0 0 3px #FFB000) drop-shadow(0 0 6px #FFB000) drop-shadow(0 0 2px #1A1A1A);
 }
 
 g.node {

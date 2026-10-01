@@ -7,232 +7,252 @@
 \bpdefinekind{definition}{E6F0FA}{0B5394}{DEFINITION}
 \bpdefinekind{shipping}{F9D3AE}{9A4A00}{SHIPPING CODE}
 \bpdefinekind{test}{EBDDF0}{7B3F8C}{TEST}
-\bpdefinekind{leanfourlean}{CDEBDD}{0A6B4B}{LEAN4LEAN SORRY}
+\bpdefinekind{leanfourlean}{CDEBDD}{0A6B4B}{LEAN4LEAN MODULE}
+\bpdefinekind{leanfourleansorry}{E8F5EE}{0A6B4B}{LEAN4LEAN SORRY}
 % \bpdefinestatus{status}{line}: the colour bpstatus<status>.
-\bpdefinestatus{proved}{333333}
+\bpdefinestatus{standard}{333333}
 \bpdefinestatus{inherits}{B2182B}
 \bpdefinestatus{planned}{333333}
 % \bpdefinenodes{chapter}{badges}: the nodes of a chapter by kind, which \bpnodes{chapter} prints.
 \bpdefinenodes{chap:scope}{\bpkind{definition}~2}
-\bpdefinenodes{chap:trust}{\bpkind{shipping}~12}
+\bpdefinenodes{chap:trust}{\bpkind{shipping}~12 \bpkind{leanfourlean}~18}
 \bpdefinenodes{chap:model}{\bpkind{lemma}~23 \bpkind{definition}~6}
 \bpdefinenodes{chap:pure}{\bpkind{shipping}~10}
 \bpdefinenodes{chap:source}{\bpkind{step}~1 \bpkind{lemma}~10 \bpkind{definition}~8}
 \bpdefinenodes{chap:relation}{\bpkind{step}~1 \bpkind{lemma}~20 \bpkind{definition}~14}
 \bpdefinenodes{chap:simulation}{\bpkind{milestone}~1 \bpkind{step}~7 \bpkind{lemma}~1}
-\bpdefinenodes{chap:oracle}{\bpkind{step}~1 \bpkind{lemma}~9 \bpkind{definition}~3}
+\bpdefinenodes{chap:oracle}{\bpkind{step}~1 \bpkind{lemma}~10 \bpkind{definition}~3}
 \bpdefinenodes{chap:core}{\bpkind{milestone}~1 \bpkind{step}~4 \bpkind{lemma}~27 \bpkind{definition}~7}
 \bpdefinenodes{chap:final}{\bpkind{final}~1}
 \bpdefinenodes{chap:tests}{\bpkind{test}~42}
-% \bpsetkind{label}{kind}{status}: every node (the print version puts the badges after its heading).
-\bpsetkind{lem:EraseProof-collectDeps_spec}{step}{proved}
-\bpsetkind{lem:EraseProof-collectDeps_sub}{step}{proved}
-\bpsetkind{lem:EraseProof-collectDeps_not_outOfFragment}{lemma}{proved}
-\bpsetkind{lem:EraseProof-ProgEnv-value_suffix}{lemma}{proved}
-\bpsetkind{def:EraseProof-CoreEnv}{definition}{proved}
-\bpsetkind{lem:EraseProof-CoreEnv-valueScope}{lemma}{proved}
-\bpsetkind{lem:EraseProof-isRecursiveDecl_eq}{lemma}{proved}
-\bpsetkind{lem:EraseProof-abstract_eq_abstract1}{lemma}{proved}
-\bpsetkind{def:EraseProof-LocalsBlind}{definition}{proved}
-\bpsetkind{lem:EraseProof-visitLambda_agree}{lemma}{proved}
-\bpsetkind{lem:EraseProof-visitExpr_step}{lemma}{proved}
-\bpsetkind{lem:EraseProof-visit_agree}{lemma}{proved}
-\bpsetkind{def:EraseProof-StateOK}{definition}{proved}
-\bpsetkind{lem:EraseProof-StateOK-grow}{lemma}{proved}
-\bpsetkind{lem:EraseProof-StateOK-registerDef}{lemma}{proved}
-\bpsetkind{def:EraseProof-ExprSpec}{definition}{proved}
-\bpsetkind{lem:EraseProof-visitExpr_box}{lemma}{inherits}
-\bpsetkind{lem:EraseProof-visitExpr_lam_step}{lemma}{inherits}
-\bpsetkind{lem:EraseProof-visitExpr_app_step}{lemma}{inherits}
-\bpsetkind{lem:EraseProof-visitExpr_fvar_step}{lemma}{inherits}
-\bpsetkind{lem:EraseProof-visitMutual_nonrec_step}{lemma}{proved}
-\bpsetkind{def:EraseProof-closeFix}{definition}{proved}
-\bpsetkind{def:EraseProof-toBvars}{definition}{proved}
-\bpsetkind{lem:EraseProof-closeFix_eq_toBvars}{lemma}{proved}
-\bpsetkind{lem:EraseProof-substl_eq_psubst}{lemma}{proved}
-\bpsetkind{lem:EraseProof-closeFix_closed}{lemma}{proved}
-\bpsetkind{lem:EraseProof-closeFix_substl}{lemma}{proved}
-\bpsetkind{lem:EraseProof-CoreEnv-member}{lemma}{proved}
-\bpsetkind{def:EraseProof-rcBlock}{definition}{proved}
-\bpsetkind{lem:EraseProof-freshIds_run}{lemma}{proved}
-\bpsetkind{lem:EraseProof-mkDef_run}{lemma}{proved}
-\bpsetkind{lem:EraseProof-closeFix_hasFVar}{lemma}{proved}
-\bpsetkind{lem:EraseProof-body_step}{lemma}{proved}
-\bpsetkind{lem:EraseProof-block_finish}{lemma}{proved}
-\bpsetkind{lem:EraseProof-visitMutual_rec_step}{lemma}{proved}
-\bpsetkind{lem:EraseProof-traversal_spec}{lemma}{inherits}
-\bpsetkind{lem:EraseProof-visitExpr_initial}{step}{inherits}
-\bpsetkind{thm:EraseProof-erasePure_erases}{milestone}{inherits}
-\bpsetkind{lem:EraseProof-eraseEntry_pure}{step}{proved}
-\bpsetkind{thm:EraseProof-erase_correct}{final}{inherits}
-\bpsetkind{def:EraseProof-TrS}{definition}{proved}
-\bpsetkind{lem:EraseProof-TrS-det}{lemma}{proved}
-\bpsetkind{lem:EraseProof-TrS-fvarsIn}{lemma}{proved}
-\bpsetkind{lem:EraseProof-TrS-mono}{lemma}{proved}
-\bpsetkind{lem:EraseProof-TrS-wf}{lemma}{proved}
-\bpsetkind{lem:EraseProof-TrS-weakFV}{lemma}{proved}
-\bpsetkind{lem:EraseProof-TrS-weakBV}{lemma}{proved}
-\bpsetkind{lem:EraseProof-TrS-inst}{lemma}{proved}
-\bpsetkind{lem:EraseProof-TrS-inst_let}{lemma}{proved}
-\bpsetkind{lem:EraseProof-TrS-uninstantiateN}{lemma}{proved}
-\bpsetkind{lem:EraseProof-TrS-inst_fvar}{lemma}{proved}
-\bpsetkind{lem:EraseProof-TrS-uniq}{lemma}{inherits}
-\bpsetkind{lem:EraseProof-TrS-defeqDFC}{lemma}{inherits}
-\bpsetkind{lem:EraseProof-TrS-instLevels}{lemma}{proved}
-\bpsetkind{lem:EraseProof-TrS-closed}{lemma}{proved}
-\bpsetkind{def:EraseProof-findDecl}{definition}{proved}
-\bpsetkind{def:EraseProof-TrConst}{definition}{proved}
-\bpsetkind{def:EraseProof-ProgEnv}{definition}{proved}
-\bpsetkind{lem:EraseProof-TrConst-mono}{lemma}{proved}
-\bpsetkind{lem:EraseProof-ProgEnv-ordered}{lemma}{proved}
-\bpsetkind{lem:EraseProof-ProgEnv-wf}{lemma}{inherits}
-\bpsetkind{lem:EraseProof-ProgEnv-lookup}{lemma}{proved}
-\bpsetkind{lem:EraseProof-ProgEnv-lookupDef}{lemma}{proved}
-\bpsetkind{lem:EraseProof-ProgEnv-lookupDefn}{lemma}{proved}
-\bpsetkind{lem:EraseProof-ProgEnv-lookupDef_wf}{lemma}{proved}
-\bpsetkind{def:EraseProof-SubEnv}{definition}{proved}
-\bpsetkind{def:EraseProof-EvalEnv}{definition}{proved}
-\bpsetkind{lem:EraseProof-EvalEnv-unfold_some}{lemma}{proved}
-\bpsetkind{lem:EraseProof-ProgEnv-unfold}{lemma}{proved}
-\bpsetkind{def:EraseProof-LocalsOK}{definition}{proved}
-\bpsetkind{lem:EraseProof-LocalsOK-wf}{lemma}{proved}
-\bpsetkind{def:EraseProof-LocalsAgree}{definition}{proved}
-\bpsetkind{lem:EraseProof-Pure-whnf_sound}{lemma}{inherits}
-\bpsetkind{lem:EraseProof-Pure-inferType_sound}{lemma}{inherits}
-\bpsetkind{lem:EraseProof-Pure-isArity_sound}{lemma}{inherits}
-\bpsetkind{lem:EraseProof-Pure-alwaysZero_sound}{lemma}{proved}
-\bpsetkind{lem:EraseProof-Pure-isErasable_sound}{lemma}{inherits}
-\bpsetkind{def:EraseProof-ArityShape}{definition}{proved}
-\bpsetkind{lem:EraseProof-ArityShape-of_arityShape}{lemma}{proved}
-\bpsetkind{lem:EraseProof-Pure-alwaysZero_eq}{lemma}{proved}
-\bpsetkind{lem:EraseProof-Pure-isErasable_atom}{lemma}{proved}
-\bpsetkind{lem:EraseProof-Pure-isErasable_agree}{step}{proved}
-\bpsetkind{def:Erasure-EraseError}{shipping}{proved}
-\bpsetkind{def:Erasure-EnvView}{shipping}{proved}
-\bpsetkind{def:Erasure-findConst}{shipping}{proved}
-\bpsetkind{def:Erasure-collectDeps}{shipping}{proved}
-\bpsetkind{def:Erasure-Pure-instLevels}{shipping}{proved}
-\bpsetkind{def:Erasure-Pure-isErasable}{shipping}{proved}
-\bpsetkind{def:Erasure-PureM}{shipping}{proved}
-\bpsetkind{def:Erasure-isRecursiveDecl}{shipping}{proved}
-\bpsetkind{def:Erasure-erasePure}{shipping}{proved}
-\bpsetkind{def:Erasure-eraseEntry}{shipping}{proved}
-\bpsetkind{def:EraseProof-WcbvFlags}{definition}{proved}
-\bpsetkind{def:EraseProof-defaultFlags}{definition}{proved}
-\bpsetkind{def:EraseProof-csubst}{definition}{proved}
-\bpsetkind{def:EraseProof-closedn}{definition}{proved}
-\bpsetkind{def:EraseProof-cunfoldFix}{definition}{proved}
-\bpsetkind{def:EraseProof-lookupConst}{definition}{proved}
-\bpsetkind{def:EraseProof-LBEval}{definition}{proved}
-\bpsetkind{lem:EraseProof-LBEval-ind}{lemma}{proved}
-\bpsetkind{def:EraseProof-hasFVar}{definition}{proved}
-\bpsetkind{def:EraseProof-LenvClosed}{definition}{proved}
-\bpsetkind{def:EraseProof-LenvExt}{definition}{proved}
-\bpsetkind{lem:EraseProof-closedn_mono}{lemma}{proved}
-\bpsetkind{def:EraseProof-Erases}{definition}{proved}
-\bpsetkind{def:EraseProof-RcClosed}{definition}{proved}
-\bpsetkind{def:EraseProof-ErasesDeps}{definition}{proved}
-\bpsetkind{def:EraseProof-substFVars}{definition}{proved}
-\bpsetkind{lem:EraseProof-Erases-closed}{lemma}{proved}
-\bpsetkind{lem:EraseProof-Erases-mono_rc}{lemma}{proved}
-\bpsetkind{lem:EraseProof-RecIn-ext}{lemma}{proved}
-\bpsetkind{lem:EraseProof-ErasesDeps-ext}{lemma}{proved}
-\bpsetkind{lem:EraseProof-Erases-congr_ac}{step}{proved}
-\bpsetkind{lem:EraseProof-Erases-app_inv}{lemma}{proved}
-\bpsetkind{lem:EraseProof-Erases-instLevels}{lemma}{proved}
-\bpsetkind{lem:EraseProof-Erases-uninstantiateN}{lemma}{proved}
-\bpsetkind{lem:EraseProof-Erases-substRc}{lemma}{proved}
-\bpsetkind{lem:EraseProof-Erases-atomSpine_box}{lemma}{proved}
-\bpsetkind{lem:EraseProof-ErasesDeps-csubst}{lemma}{proved}
-\bpsetkind{lem:EraseProof-ErasesDeps-eval}{lemma}{proved}
-\bpsetkind{lem:EraseProof-IsErasable-instN}{lemma}{proved}
-\bpsetkind{lem:EraseProof-Erases-weakBV}{lemma}{proved}
-\bpsetkind{lem:EraseProof-Erases-instN}{lemma}{proved}
-\bpsetkind{lem:EraseProof-Erases-inst}{lemma}{proved}
-\bpsetkind{lem:EraseProof-Erases-defeqDFC}{lemma}{inherits}
-\bpsetkind{lem:EraseProof-Erases-instN_let}{lemma}{proved}
-\bpsetkind{lem:EraseProof-Erases-inst_let}{lemma}{inherits}
-\bpsetkind{def:EraseProof-ViewAgrees}{definition}{proved}
-\bpsetkind{def:EraseProof-InScope}{definition}{proved}
-\bpsetkind{thm:EraseProof-erases_correct}{milestone}{inherits}
-\bpsetkind{lem:EraseProof-erases_correct_box}{lemma}{inherits}
-\bpsetkind{lem:EraseProof-erases_correct_beta}{step}{inherits}
-\bpsetkind{lem:EraseProof-erases_correct_zeta}{step}{inherits}
-\bpsetkind{lem:EraseProof-erases_correct_delta}{step}{inherits}
-\bpsetkind{lem:EraseProof-erases_correct_atom}{step}{inherits}
-\bpsetkind{lem:EraseProof-erases_correct_appCong}{step}{inherits}
-\bpsetkind{lem:EraseProof-erases_correct_fixAtom}{step}{proved}
-\bpsetkind{lem:EraseProof-erases_correct_fixApp}{step}{inherits}
-\bpsetkind{def:EraseProof-IsErasable}{definition}{proved}
-\bpsetkind{lem:EraseProof-IsErasable-inst}{lemma}{proved}
-\bpsetkind{lem:EraseProof-IsErasable-instL}{lemma}{proved}
-\bpsetkind{lem:EraseProof-IsErasable-app}{lemma}{inherits}
-\bpsetkind{lem:EraseProof-IsErasable-lam_inv}{lemma}{inherits}
-\bpsetkind{def:EraseProof-EvalEnv-isAtom}{definition}{proved}
-\bpsetkind{def:EraseProof-RecursiveDecl}{definition}{proved}
-\bpsetkind{def:EraseProof-SrcEval}{definition}{proved}
-\bpsetkind{def:EraseProof-SrcValue}{definition}{proved}
-\bpsetkind{lem:EraseProof-SrcEval-value}{lemma}{proved}
-\bpsetkind{lem:EraseProof-SrcEval-beta_step}{lemma}{inherits}
-\bpsetkind{lem:EraseProof-SrcEval-defeq}{lemma}{inherits}
-\bpsetkind{def:EraseProof-evalEnvOf}{definition}{proved}
-\bpsetkind{def:EraseProof-ConstsIn}{definition}{proved}
-\bpsetkind{def:EraseProof-KernameInj}{definition}{proved}
-\bpsetkind{lem:EraseProof-SubEnv-findDecl_of_some}{lemma}{proved}
-\bpsetkind{lem:EraseProof-SrcEval-restrict}{step}{proved}
-\bpsetkind{lem:EraseProof-ErasableS-eval}{lemma}{inherits}
-\bpsetkind{lem:EraseProof-ErasableS-atom}{lemma}{inherits}
-\bpsetkind{def:EraseProof-Test-NV1-decls0}{test}{proved}
-\bpsetkind{def:EraseProof-Test-NV1-lenv0}{test}{proved}
-\bpsetkind{lem:EraseProof-Test-NV1-henv}{test}{proved}
-\bpsetkind{lem:EraseProof-Test-NV1-hview}{test}{proved}
-\bpsetkind{lem:EraseProof-Test-NV1-concl}{test}{inherits}
-\bpsetkind{def:EraseProof-Test-NV1-p0}{test}{proved}
-\bpsetkind{lem:EraseProof-Test-NV1-hcollect}{test}{proved}
-\bpsetkind{lem:EraseProof-Test-NV1-oracle_keep}{test}{proved}
-\bpsetkind{lem:EraseProof-Test-NV1-oracle_oneE}{test}{proved}
-\bpsetkind{lem:EraseProof-Test-NV1-hrun}{test}{proved}
-\bpsetkind{lem:EraseProof-Test-NV1-final}{test}{inherits}
-\bpsetkind{def:EraseProof-Test-NV2-decls2}{test}{proved}
-\bpsetkind{def:EraseProof-Test-NV2-lenv2}{test}{proved}
-\bpsetkind{lem:EraseProof-Test-NV2-henv}{test}{proved}
-\bpsetkind{lem:EraseProof-Test-NV2-concl}{test}{inherits}
-\bpsetkind{def:EraseProof-Test-NV3-decls3}{test}{proved}
-\bpsetkind{def:EraseProof-Test-NV3-lenv3}{test}{proved}
-\bpsetkind{lem:EraseProof-Test-NV3-henv}{test}{proved}
-\bpsetkind{lem:EraseProof-Test-NV3-inst}{test}{inherits}
-\bpsetkind{def:EraseProof-Test-NV4-decls4}{test}{proved}
-\bpsetkind{def:EraseProof-Test-NV4-lenv4}{test}{proved}
-\bpsetkind{lem:EraseProof-Test-NV4-henv}{test}{proved}
-\bpsetkind{lem:EraseProof-Test-NV4-hev}{test}{proved}
-\bpsetkind{lem:EraseProof-Test-NV4-her}{test}{proved}
-\bpsetkind{lem:EraseProof-Test-NV4-inst}{test}{inherits}
-\bpsetkind{lem:EraseProof-Test-Stub-erase_correct}{test}{inherits}
-\bpsetkind{lem:EraseProof-Test-TrS-toTrExprS}{test}{inherits}
-\bpsetkind{lem:EraseProof-Test-ProgEnv-toTrEnv}{test}{inherits}
-\bpsetkind{lem:EraseProof-Test-LBEval-deterministic}{test}{proved}
-\bpsetkind{lem:EraseProof-Test-Atoms-defHead_kept}{test}{proved}
-\bpsetkind{lem:EraseProof-Test-Atoms-levelDependent_kept}{test}{proved}
-\bpsetkind{lem:EraseProof-Test-Oracle-irreducibleAlias}{test}{proved}
-\bpsetkind{def:EraseProof-Test-D1-decls}{test}{proved}
-\bpsetkind{lem:EraseProof-Test-Oracle-sound_A}{test}{inherits}
-\bpsetkind{lem:EraseProof-Test-D1-hinj}{test}{proved}
-\bpsetkind{def:EraseProof-Test-NV5-e}{test}{proved}
-\bpsetkind{lem:EraseProof-Test-NV5-inst}{test}{inherits}
-\bpsetkind{def:EraseProof-Test-NV6-e}{test}{proved}
-\bpsetkind{lem:EraseProof-Test-NV6-inst}{test}{inherits}
-\bpsetkind{def:EraseProof-Test-NV7-e}{test}{proved}
-\bpsetkind{lem:EraseProof-Test-NV7-henv}{test}{proved}
-\bpsetkind{lem:EraseProof-Test-NV7-inst}{test}{inherits}
-\bpsetkind{def:LBTerm}{shipping}{proved}
-\bpsetkind{def:abstract}{shipping}{proved}
-\bpsetkind{def:GlobalDecl}{shipping}{proved}
-\bpsetkind{def:ASTType}{shipping}{proved}
-\bpsetkind{def:Erasure-ErasureConfig}{shipping}{proved}
-\bpsetkind{def:Erasure-TravCtx}{shipping}{proved}
-\bpsetkind{def:Erasure-EraseT}{shipping}{proved}
-\bpsetkind{def:Erasure-isErasable}{shipping}{proved}
-\bpsetkind{def:Erasure-prepareErasure}{shipping}{proved}
-\bpsetkind{def:Erasure-erase}{shipping}{proved}
-\bpsetkind{def:Serialize}{shipping}{proved}
-\bpsetkind{def:Erasure-eraseElab}{shipping}{proved}
+% \bpsetkind{label}{kind}{status}{inherited sorries}: every node (the print version puts the badges after its heading).
+\bpsetkind{lem:EraseProof-collectDeps_spec}{step}{standard}{}
+\bpsetkind{lem:EraseProof-collectDeps_sub}{step}{standard}{}
+\bpsetkind{lem:EraseProof-collectDeps_not_outOfFragment}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-ProgEnv-value_suffix}{lemma}{standard}{}
+\bpsetkind{def:EraseProof-CoreEnv}{definition}{standard}{}
+\bpsetkind{lem:EraseProof-CoreEnv-valueScope}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-isRecursiveDecl_eq}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-abstract_eq_abstract1}{lemma}{standard}{}
+\bpsetkind{def:EraseProof-LocalsBlind}{definition}{standard}{}
+\bpsetkind{lem:EraseProof-visitLambda_agree}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-visitExpr_step}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-visit_agree}{lemma}{standard}{}
+\bpsetkind{def:EraseProof-StateOK}{definition}{standard}{}
+\bpsetkind{lem:EraseProof-StateOK-grow}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-StateOK-registerDef}{lemma}{standard}{}
+\bpsetkind{def:EraseProof-ExprSpec}{definition}{standard}{}
+\bpsetkind{lem:EraseProof-visitExpr_box}{lemma}{inherits}{L1, L2, L3, L4, L5}
+\bpsetkind{lem:EraseProof-visitExpr_lam_step}{lemma}{inherits}{L1, L2, L3, L4, L5}
+\bpsetkind{lem:EraseProof-visitExpr_app_step}{lemma}{inherits}{L1, L2, L3, L4, L5}
+\bpsetkind{lem:EraseProof-visitExpr_fvar_step}{lemma}{inherits}{L1, L2, L3, L4, L5}
+\bpsetkind{lem:EraseProof-visitMutual_nonrec_step}{lemma}{standard}{}
+\bpsetkind{def:EraseProof-closeFix}{definition}{standard}{}
+\bpsetkind{def:EraseProof-toBvars}{definition}{standard}{}
+\bpsetkind{lem:EraseProof-closeFix_eq_toBvars}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-substl_eq_psubst}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-closeFix_closed}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-closeFix_substl}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-CoreEnv-member}{lemma}{standard}{}
+\bpsetkind{def:EraseProof-rcBlock}{definition}{standard}{}
+\bpsetkind{lem:EraseProof-freshIds_run}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-mkDef_run}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-closeFix_hasFVar}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-body_step}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-block_finish}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-visitMutual_rec_step}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-traversal_spec}{lemma}{inherits}{L1, L2, L3, L4, L5}
+\bpsetkind{lem:EraseProof-visitExpr_initial}{step}{inherits}{L1, L2, L3, L4, L5}
+\bpsetkind{thm:EraseProof-erasePure_erases}{milestone}{inherits}{L1, L2, L3, L4, L5}
+\bpsetkind{lem:EraseProof-eraseEntry_pure}{step}{standard}{}
+\bpsetkind{thm:EraseProof-erase_correct}{final}{inherits}{L1, L2, L3, L4, L5, L6}
+\bpsetkind{def:EraseProof-TrS}{definition}{standard}{}
+\bpsetkind{lem:EraseProof-TrS-det}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-TrS-fvarsIn}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-TrS-mono}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-TrS-wf}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-TrS-weakFV}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-TrS-weakBV}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-TrS-inst}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-TrS-inst_let}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-TrS-uninstantiateN}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-TrS-inst_fvar}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-TrS-uniq}{lemma}{inherits}{L1, L2, L3, L4, L5}
+\bpsetkind{lem:EraseProof-TrS-defeqDFC}{lemma}{inherits}{L1, L2, L3, L4, L5}
+\bpsetkind{lem:EraseProof-TrS-instLevels}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-TrS-closed}{lemma}{standard}{}
+\bpsetkind{def:EraseProof-findDecl}{definition}{standard}{}
+\bpsetkind{def:EraseProof-TrConst}{definition}{standard}{}
+\bpsetkind{def:EraseProof-ProgEnv}{definition}{standard}{}
+\bpsetkind{lem:EraseProof-TrConst-mono}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-ProgEnv-ordered}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-ProgEnv-wf}{lemma}{inherits}{L1, L2}
+\bpsetkind{lem:EraseProof-ProgEnv-lookup}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-ProgEnv-lookupDef}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-ProgEnv-lookupDefn}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-ProgEnv-lookupDef_wf}{lemma}{standard}{}
+\bpsetkind{def:EraseProof-SubEnv}{definition}{standard}{}
+\bpsetkind{def:EraseProof-EvalEnv}{definition}{standard}{}
+\bpsetkind{lem:EraseProof-EvalEnv-unfold_some}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-ProgEnv-unfold}{lemma}{standard}{}
+\bpsetkind{def:EraseProof-LocalsOK}{definition}{standard}{}
+\bpsetkind{lem:EraseProof-LocalsOK-wf}{lemma}{standard}{}
+\bpsetkind{def:EraseProof-LocalsAgree}{definition}{standard}{}
+\bpsetkind{lem:EraseProof-Except-ok_of_bind}{step}{standard}{}
+\bpsetkind{lem:EraseProof-Pure-whnf_sound}{lemma}{inherits}{L1, L2, L3, L4, L5}
+\bpsetkind{lem:EraseProof-Pure-inferType_sound}{lemma}{inherits}{L1, L2, L3, L4, L5}
+\bpsetkind{lem:EraseProof-Pure-isArity_sound}{lemma}{inherits}{L1, L2, L3, L4, L5}
+\bpsetkind{lem:EraseProof-Pure-alwaysZero_sound}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-Pure-isErasable_sound}{lemma}{inherits}{L1, L2, L3, L4, L5}
+\bpsetkind{def:EraseProof-ArityShape}{definition}{standard}{}
+\bpsetkind{lem:EraseProof-ArityShape-of_arityShape}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-Pure-alwaysZero_eq}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-Pure-isErasable_atom}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-Pure-isErasable_agree}{lemma}{standard}{}
+\bpsetkind{def:Erasure-EraseError}{shipping}{standard}{}
+\bpsetkind{def:Erasure-EnvView}{shipping}{standard}{}
+\bpsetkind{def:Erasure-findConst}{shipping}{standard}{}
+\bpsetkind{def:Erasure-collectDeps}{shipping}{standard}{}
+\bpsetkind{def:Erasure-Pure-instLevels}{shipping}{standard}{}
+\bpsetkind{def:Erasure-Pure-isErasable}{shipping}{standard}{}
+\bpsetkind{def:Erasure-PureM}{shipping}{standard}{}
+\bpsetkind{def:Erasure-isRecursiveDecl}{shipping}{standard}{}
+\bpsetkind{def:Erasure-erasePure}{shipping}{standard}{}
+\bpsetkind{def:Erasure-eraseEntry}{shipping}{standard}{}
+\bpsetkind{def:EraseProof-WcbvFlags}{definition}{standard}{}
+\bpsetkind{def:EraseProof-defaultFlags}{definition}{standard}{}
+\bpsetkind{def:EraseProof-csubst}{definition}{standard}{}
+\bpsetkind{def:EraseProof-closedn}{definition}{standard}{}
+\bpsetkind{def:EraseProof-cunfoldFix}{definition}{standard}{}
+\bpsetkind{def:EraseProof-lookupConst}{definition}{standard}{}
+\bpsetkind{def:EraseProof-LBEval}{definition}{standard}{}
+\bpsetkind{lem:EraseProof-LBEval-ind}{lemma}{standard}{}
+\bpsetkind{def:EraseProof-hasFVar}{definition}{standard}{}
+\bpsetkind{def:EraseProof-LenvClosed}{definition}{standard}{}
+\bpsetkind{def:EraseProof-LenvExt}{definition}{standard}{}
+\bpsetkind{lem:EraseProof-closedn_mono}{lemma}{standard}{}
+\bpsetkind{def:EraseProof-Erases}{definition}{standard}{}
+\bpsetkind{def:EraseProof-RcClosed}{definition}{standard}{}
+\bpsetkind{def:EraseProof-ErasesDeps}{definition}{standard}{}
+\bpsetkind{def:EraseProof-substFVars}{definition}{standard}{}
+\bpsetkind{lem:EraseProof-Erases-closed}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-Erases-mono_rc}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-RecIn-ext}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-ErasesDeps-ext}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-Erases-congr_ac}{step}{standard}{}
+\bpsetkind{lem:EraseProof-Erases-app_inv}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-Erases-instLevels}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-Erases-uninstantiateN}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-Erases-substRc}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-Erases-atomSpine_box}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-ErasesDeps-csubst}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-ErasesDeps-eval}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-IsErasable-instN}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-Erases-weakBV}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-Erases-instN}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-Erases-inst}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-Erases-defeqDFC}{lemma}{inherits}{L1, L2, L3, L4, L5}
+\bpsetkind{lem:EraseProof-Erases-instN_let}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-Erases-inst_let}{lemma}{inherits}{L1, L2, L3, L4, L5}
+\bpsetkind{def:EraseProof-ViewAgrees}{definition}{standard}{}
+\bpsetkind{def:EraseProof-InScope}{definition}{standard}{}
+\bpsetkind{thm:EraseProof-erases_correct}{milestone}{inherits}{L1, L2, L3, L4, L5, L6}
+\bpsetkind{lem:EraseProof-erases_correct_box}{lemma}{inherits}{L1, L2, L3, L4, L5}
+\bpsetkind{lem:EraseProof-erases_correct_beta}{step}{inherits}{L1, L2, L3, L4, L5, L6}
+\bpsetkind{lem:EraseProof-erases_correct_zeta}{step}{inherits}{L1, L2, L3, L4, L5}
+\bpsetkind{lem:EraseProof-erases_correct_delta}{step}{inherits}{L1, L2, L3, L4, L5}
+\bpsetkind{lem:EraseProof-erases_correct_atom}{step}{inherits}{L1, L2, L3, L4, L5}
+\bpsetkind{lem:EraseProof-erases_correct_appCong}{step}{inherits}{L1, L2, L3, L4, L5, L6}
+\bpsetkind{lem:EraseProof-erases_correct_fixAtom}{step}{standard}{}
+\bpsetkind{lem:EraseProof-erases_correct_fixApp}{step}{inherits}{L1, L2, L3, L4, L5, L6}
+\bpsetkind{def:EraseProof-IsErasable}{definition}{standard}{}
+\bpsetkind{lem:EraseProof-IsErasable-inst}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-IsErasable-instL}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-IsErasable-app}{lemma}{inherits}{L1, L2, L3, L4, L5, L6}
+\bpsetkind{lem:EraseProof-IsErasable-lam_inv}{lemma}{inherits}{L1, L2, L3, L4, L5, L6}
+\bpsetkind{def:EraseProof-EvalEnv-isAtom}{definition}{standard}{}
+\bpsetkind{def:EraseProof-RecursiveDecl}{definition}{standard}{}
+\bpsetkind{def:EraseProof-SrcEval}{definition}{standard}{}
+\bpsetkind{def:EraseProof-SrcValue}{definition}{standard}{}
+\bpsetkind{lem:EraseProof-SrcEval-value}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-SrcEval-beta_step}{lemma}{inherits}{L1, L2, L3, L4, L5}
+\bpsetkind{lem:EraseProof-SrcEval-defeq}{lemma}{inherits}{L1, L2, L3, L4, L5}
+\bpsetkind{def:EraseProof-evalEnvOf}{definition}{standard}{}
+\bpsetkind{def:EraseProof-ConstsIn}{definition}{standard}{}
+\bpsetkind{def:EraseProof-KernameInj}{definition}{standard}{}
+\bpsetkind{lem:EraseProof-SubEnv-findDecl_of_some}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-SrcEval-restrict}{step}{standard}{}
+\bpsetkind{lem:EraseProof-ErasableS-eval}{lemma}{inherits}{L1, L2, L3, L4, L5}
+\bpsetkind{lem:EraseProof-ErasableS-atom}{lemma}{inherits}{L1, L2, L3, L4, L5}
+\bpsetkind{def:EraseProof-Test-NV1-decls0}{test}{standard}{}
+\bpsetkind{def:EraseProof-Test-NV1-lenv0}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NV1-henv}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NV1-hview}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NV1-concl}{test}{inherits}{L1, L2, L3, L4, L5, L6}
+\bpsetkind{def:EraseProof-Test-NV1-p0}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NV1-hcollect}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NV1-oracle_keep}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NV1-oracle_oneE}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NV1-hrun}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NV1-final}{test}{inherits}{L1, L2, L3, L4, L5, L6}
+\bpsetkind{def:EraseProof-Test-NV2-decls2}{test}{standard}{}
+\bpsetkind{def:EraseProof-Test-NV2-lenv2}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NV2-henv}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NV2-concl}{test}{inherits}{L1, L2, L3, L4, L5, L6}
+\bpsetkind{def:EraseProof-Test-NV3-decls3}{test}{standard}{}
+\bpsetkind{def:EraseProof-Test-NV3-lenv3}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NV3-henv}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NV3-inst}{test}{inherits}{L1, L2, L3, L4, L5, L6}
+\bpsetkind{def:EraseProof-Test-NV4-decls4}{test}{standard}{}
+\bpsetkind{def:EraseProof-Test-NV4-lenv4}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NV4-henv}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NV4-hev}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NV4-her}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NV4-inst}{test}{inherits}{L1, L2, L3, L4, L5, L6}
+\bpsetkind{lem:EraseProof-Test-Stub-erase_correct}{test}{inherits}{L1, L2, L3, L4, L5, L6}
+\bpsetkind{lem:EraseProof-Test-TrS-toTrExprS}{test}{inherits}{TrProj}
+\bpsetkind{lem:EraseProof-Test-ProgEnv-toTrEnv}{test}{inherits}{L1, TrProj}
+\bpsetkind{lem:EraseProof-Test-LBEval-deterministic}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-Atoms-defHead_kept}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-Atoms-levelDependent_kept}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-Oracle-irreducibleAlias}{test}{standard}{}
+\bpsetkind{def:EraseProof-Test-D1-decls}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-Oracle-sound_A}{test}{inherits}{L1, L2, L3, L4, L5}
+\bpsetkind{lem:EraseProof-Test-D1-hinj}{test}{standard}{}
+\bpsetkind{def:EraseProof-Test-NV5-e}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NV5-inst}{test}{inherits}{L1, L2, L3, L4, L5, L6}
+\bpsetkind{def:EraseProof-Test-NV6-e}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NV6-inst}{test}{inherits}{L1, L2, L3, L4, L5, L6}
+\bpsetkind{def:EraseProof-Test-NV7-e}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NV7-henv}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NV7-inst}{test}{inherits}{L1, L2, L3, L4, L5, L6}
+\bpsetkind{def:LBTerm}{shipping}{standard}{}
+\bpsetkind{def:abstract}{shipping}{standard}{}
+\bpsetkind{def:GlobalDecl}{shipping}{standard}{}
+\bpsetkind{def:ASTType}{shipping}{standard}{}
+\bpsetkind{def:Erasure-ErasureConfig}{shipping}{standard}{}
+\bpsetkind{def:Erasure-TravCtx}{shipping}{standard}{}
+\bpsetkind{def:Erasure-EraseT}{shipping}{standard}{}
+\bpsetkind{def:Erasure-isErasable}{shipping}{standard}{}
+\bpsetkind{def:Erasure-prepareErasure}{shipping}{standard}{}
+\bpsetkind{def:Erasure-erase}{shipping}{standard}{}
+\bpsetkind{def:Serialize}{shipping}{standard}{}
+\bpsetkind{def:Erasure-eraseElab}{shipping}{standard}{}
+\bpsetkind{imp:Lean4Lean-Std-Basic}{leanfourlean}{standard}{}
+\bpsetkind{imp:Lean4Lean-Theory-VLevel}{leanfourlean}{standard}{}
+\bpsetkind{imp:Lean4Lean-Theory-VExpr}{leanfourlean}{standard}{}
+\bpsetkind{imp:Lean4Lean-Theory-VEnv}{leanfourlean}{standard}{}
+\bpsetkind{imp:Lean4Lean-Theory-VDecl}{leanfourlean}{standard}{}
+\bpsetkind{imp:Lean4Lean-Theory-Typing-Basic}{leanfourlean}{standard}{}
+\bpsetkind{imp:Lean4Lean-Theory-Typing-Env}{leanfourlean}{inherits}{L1, L2}
+\bpsetkind{imp:Lean4Lean-Theory-Typing-EnvLemmas}{leanfourlean}{inherits}{L1, L2, L3}
+\bpsetkind{imp:Lean4Lean-Theory-Typing-Lemmas}{leanfourlean}{standard}{}
+\bpsetkind{imp:Lean4Lean-Theory-Typing-Strong}{leanfourlean}{standard}{}
+\bpsetkind{imp:Lean4Lean-Theory-Typing-UniqueTyping}{leanfourlean}{inherits}{L1, L2, L3, L4, L5}
+\bpsetkind{imp:Lean4Lean-Theory-Typing-Injectivity}{leanfourlean}{inherits}{L1, L2, L3, L4, L5, L6}
+\bpsetkind{imp:Lean4Lean-Verify-Axioms}{leanfourlean}{standard}{}
+\bpsetkind{imp:Lean4Lean-Verify-Expr}{leanfourlean}{standard}{}
+\bpsetkind{imp:Lean4Lean-Verify-VLCtx}{leanfourlean}{standard}{}
+\bpsetkind{imp:Lean4Lean-Verify-Typing-Expr}{leanfourlean}{standard}{}
+\bpsetkind{imp:Lean4Lean-Verify-Typing-Lemmas}{leanfourlean}{inherits}{L1, L2, L3}
+\bpsetkind{imp:Lean4Lean-Verify-Environment-Lemmas}{leanfourlean}{standard}{}

@@ -12,13 +12,16 @@ Three kinds of graph, all from the parsed chapters (scripts/audit.py parse) and 
             nodes (Graphviz's "nop2" engine), and drawn faint.
   chapter   the nodes of one chapter (framed by section in the tests chapter), left to right
             between the nodes of other chapters that they use and those that use them, which are
-            faded and labelled with their chapter's number.
+            faded and labelled with their chapter's number. The nodes of lean4lean (the imported
+            nodes of the trust chapter and the sorries) have a graph of their own, like a chapter.
   map       one box per chapter with its nodes by kind, and an arrow between two chapters labelled
             with the number of arrows of the full graph between them.
 
 Every graph has the arrows of the \\uses commands (a statement use wins over a proof use of the
-same pair), an arrow from each lean4lean sorry to every node that lists it in \\inherited, and none
-that a path of other arrows implies (transitive reduction).
+same pair), an arrow from each imported lean4lean module to the nodes its \\usedbystatements and
+\\usedbyproofs name, an arrow from each lean4lean sorry to every node that lists it in
+\\inherited, and none that a path of other arrows implies (transitive reduction), except the arrows
+of a \\uses of the final theorem or of a milestone, which are all drawn.
 
     python3 blueprint/scripts/kindgraph.py OUTDIR    # writes the DOT, SVG and PNG of every graph
 """
@@ -38,15 +41,29 @@ BLOCK_SEP = ('0.42', '0.6')
 BLOCK_PAD = 10
 # The opacity of the fill of a node of another chapter in the graph of a chapter.
 CONTEXT_ALPHA = '59'
+# The columns of a frame of imported lean4lean nodes in the graph of all nodes.
+GRID_COLUMNS = 4
+
+
+def frame_name(link, key, i):
+    """The name of the cluster of frame i of a block: it starts with the label of the chapter whose
+    graph page the title of the frame opens (cluster_chap:pure__shipping1,
+    cluster_lean4lean__lean4lean0), if any."""
+    return f'cluster_{link}__{key}{i}' if link else f'cluster_{key}__{i}'
+
+
+LEAN4LEAN = 'lean4lean'
 
 
 def chapter_page(chapter_label):
-    """The page of the graph of a chapter, from the chapter's label (chap:model)."""
+    """The page of the graph of a chapter, from the chapter's label (chap:model), or of the nodes
+    of lean4lean (LEAN4LEAN)."""
     return 'dep_graph_' + chapter_label.replace(':', '-') + '.html'
 
 
-def reduce(edges):
-    """The edges (s, t, ...) that no path of two or more other edges implies, in their order."""
+def reduce(edges, keep=lambda e: False):
+    """The edges (s, t, ...) that no path of two or more other edges implies, and those that keep
+    selects, in their order. Every edge counts for the paths."""
     succ = collections.defaultdict(list)
     for e in edges:
         succ[e[0]].append(e[1])
@@ -60,7 +77,8 @@ def reduce(edges):
                 out |= reach(w)
             memo[v] = out
         return memo[v]
-    return [e for e in edges if not any(e[1] in reach(w) for w in succ[e[0]] if w != e[1])]
+    return [e for e in edges
+            if keep(e) or not any(e[1] in reach(w) for w in succ[e[0]] if w != e[1])]
 
 
 def num(s):
@@ -132,8 +150,8 @@ class Graphs:
         self.sorries = kinds.inherited_sorries(nodes)
         self.sorry = {'lean4lean:' + x['label']: x for x in self.sorries}
         self.blocks = kinds.blocks(nodes)
-        self.block_of = {lab: key for key, b in self.blocks.items() for _, labs in b['frames']
-                         for lab in labs}
+        self.block_of = {lab: key for key, b in self.blocks.items() for fr in b['frames']
+                         for lab in fr['labels']}
         self.chapters = kinds.chapters()
         self.chapter_of = kinds.chapter_of(nodes)
         self.edges = self._edges()
@@ -147,25 +165,52 @@ class Graphs:
                 found[(u, n['label'])] = 'proof'
             for u in n['uses']:
                 found[(u, n['label'])] = 'statement'
+            for u in n['used_by_proof']:
+                found[(n['label'], u)] = 'proof'
+            for u in n['used_by']:
+                found[(n['label'], u)] = 'statement'
         for x in self.sorries:
             for lab in x['nodes']:
                 found[('lean4lean:' + x['label'], lab)] = 'sorry'
-        return reduce([(s, t, how) for (s, t), how in found.items() if s in self.by or s in self.sorry])
+        return reduce([(s, t, how) for (s, t), how in found.items()
+                       if (s in self.by or s in self.sorry) and t in self.by], keep=self.is_main)
+
+    def is_main(self, e):
+        """An arrow of a \\uses of the final theorem or of a milestone."""
+        return (e[2] in ('statement', 'proof') and self.kind(e[1]) in ('final', 'milestone')
+                and self.kind(e[0]) not in ('lean4lean', 'lean4leansorry'))
 
     def kind(self, v):
-        return 'lean4lean' if v in self.sorry else self.table[v][0]
+        return 'lean4leansorry' if v in self.sorry else self.table[v][0]
+
+    def group(self, v):
+        """The graph page a node belongs to: LEAN4LEAN for the nodes of the lean4lean layer, else
+        the label of its chapter (None if it has none)."""
+        if kinds.KINDS[self.kind(v)]['layer'] == 'lean4lean':
+            return LEAN4LEAN
+        c = self.chapter_of.get(v)
+        return c['label'] if c else None
 
     def status(self, v):
         return 'inherits' if v in self.sorry else self.table[v][1]
 
-    def name(self, v):
-        """The Lean name of a node, or of a lean4lean sorry."""
-        return self.sorry[v]['name'] if v in self.sorry else self.by[v]['lean'][0]
+    def names(self, v):
+        """The Lean names of a node, or the label and name of a lean4lean sorry."""
+        if v in self.sorry:
+            return [self.sorry[v]['label'], self.sorry[v]['name']]
+        return list(self.by[v]['lean'])
+
+    def module(self, v):
+        """The lean4lean module of an imported node, from its label."""
+        return v.split(':', 1)[1].replace('-', '.')
 
     def label(self, v):
         if v in self.sorry:
             x = self.sorry[v]
-            return f'{x["label"]}  {kinds.short_name(x["name"])}'
+            short = kinds.short_name(x['name'])
+            return x['label'] if short == x['label'] else f'{x["label"]}  {short}'
+        if self.kind(v) == 'lean4lean':
+            return kinds.short_name(self.module(v))
         return kinds.short_name(self.by[v]['lean'][0])
 
     def tooltip(self, v):
@@ -175,6 +220,8 @@ class Graphs:
             return f'{k["name"]} {x["label"]}: {x["name"]}, {x["what"]}; {len(x["nodes"])} nodes inherit it'
         n = self.by[v]
         extra = f'; inherits {", ".join(n["inherited"])}' if n['inherited'] else ''
+        if self.kind(v) == 'lean4lean':
+            return f'{k["name"]} {self.module(v)}: {len(n["lean"])} declarations used directly' + extra
         title = kinds.tex_to_text(n['title'])
         return f'{k["name"]}: {n["lean"][0]}' + (f' ({title})' if title else '') + extra
 
@@ -191,14 +238,16 @@ class Graphs:
 
     def edge_attrs(self, s, t, how, cross=False):
         tk = self.kind(t)
+        main = self.is_main((s, t, how))
         if how == 'sorry':
             a = dict(style='dotted', color=kinds.EDGE_COLOR['sorry'], penwidth='1.4', arrowhead='empty')
         else:
-            key = 'main' if tk in ('final', 'milestone') else 'test' if tk == 'test' else how
+            key = ('lean4lean' if self.kind(s) == 'lean4lean' else 'main' if main
+                   else 'test' if tk == 'test' else how)
             a = dict(color=kinds.EDGE_COLOR[key], penwidth='1.6' if key == 'main' else '1')
             if how == 'statement':
                 a['style'] = 'dashed'
-        if cross and tk not in ('final', 'milestone'):
+        if cross and not main:
             a['color'] += kinds.CROSS_OPACITY
             a['penwidth'] = '0.8'
         a['class'] = f'bp-e-{how}' + (' bp-cross' if cross else '')
@@ -212,21 +261,35 @@ class Graphs:
 
     # ------------------------------------------------------------ the full graph
 
-    def _block(self, b):
+    def _block(self, key, b):
         """The layout of one block, by dot: an AGraph with positions, whose label is the block's
-        title and whose clusters are its frames."""
+        title and whose clusters are its frames. A frame of imported nodes, which have no arrows
+        between them, is a grid of GRID_COLUMNS columns below the frame of the sorries."""
         L = kinds.LAYERS[b['layer']]
         g = self._graph(rankdir='TB', newrank='true', ranksep=BLOCK_SEP[0], nodesep=BLOCK_SEP[1],
                         label=b['title'], labeljust='l', labelloc='t', fontsize='30',
                         fontcolor=L['line'])
         mine = set()
-        for i, (title, labs) in enumerate(b['frames']):
-            target = g if title is None else g.add_subgraph(
-                name=f'cluster_{i}', label=title, style='rounded', color=L['line'],
-                fontcolor=L['line'], fontsize='18', labeljust='l', margin='10')
-            for v in labs:
+        for i, fr in enumerate(b['frames']):
+            target = g if fr['title'] is None else g.add_subgraph(
+                name=frame_name(fr['link'], key, i), label=fr['title'], style='rounded',
+                color=L['line'], fontcolor=L['line'], fontsize='18', labeljust='l', margin='10')
+            for v in fr['labels']:
                 target.add_node(v, **self.node_attrs(v))
                 mine.add(v)
+            row = [v for v in fr['labels'] if v in self.sorry]
+            if row:
+                target.add_subgraph(row, name=f'rank_{key}{i}', rank='same')
+                for a, c in zip(row, row[1:]):
+                    target.add_edge(a, c, style='invis', weight='2')
+        top = [v for fr in b['frames'] for v in fr['labels'] if v in self.sorry][:1]
+        for fr in b['frames']:
+            labs = [v for v in fr['labels'] if self.kind(v) == 'lean4lean']
+            for i, v in enumerate(labs):
+                if i + GRID_COLUMNS < len(labs):
+                    g.add_edge(v, labs[i + GRID_COLUMNS], style='invis', weight='4')
+                if top and i < GRID_COLUMNS:
+                    g.add_edge(top[0], v, style='invis', weight='0')
         for s, t, how in self.edges:
             if s in mine and t in mine:
                 g.add_edge(s, t, **self.edge_attrs(s, t, how))
@@ -250,7 +313,7 @@ class Graphs:
 
     def full(self):
         """The full graph (an AGraph ready for the nop2 engine) of every node."""
-        laid = {key: self._block(b) for key, b in self.blocks.items()}
+        laid = {key: self._block(key, b) for key, b in self.blocks.items()}
         # Every frame grows by BLOCK_PAD points on each side, and its title moves up by as much:
         # Graphviz draws the outer outline of a double node outside the box that dot gives it.
         bbs, p = {}, BLOCK_PAD
@@ -271,14 +334,15 @@ class Graphs:
             x0, y0 = min(x0, bx0 + dx), min(y0, by0 + dy)
             x1, y1 = max(x1, bx1 + dx), max(y1, by1 + dy)
             L = kinds.LAYERS[b['layer']]
-            cl = f.add_subgraph(name=f'cluster_{key}', label=b['title'],
+            name = f'cluster_{key}' if b['link'] in (None, key) else f'cluster_{b["link"]}__{key}'
+            cl = f.add_subgraph(name=name, label=b['title'],
                                 bb=shift_bb(g.graph_attr['bb'], dx, dy),
                                 lp=shift(g.graph_attr['lp'], dx, dy), style='filled,rounded',
                                 fillcolor=L['tint'], color=L['line'], fontcolor=L['line'],
                                 fontsize='30', penwidth='1.6', labeljust='l',
                                 **{'class': f'bp-block bp-layer-{b["layer"]}'})
             for sub in g.subgraphs():
-                cl.add_subgraph(name=f'cluster_{key}_{sub.name}', label=sub.graph_attr['label'],
+                cl.add_subgraph(name=sub.name, label=sub.graph_attr['label'],
                                 bb=shift_bb(sub.graph_attr['bb'], dx, dy),
                                 lp=shift(sub.graph_attr['lp'], dx, dy), style='rounded',
                                 color=L['line'], fontcolor=L['line'], fontsize='18')
@@ -287,6 +351,8 @@ class Graphs:
                 cl.add_node(v, pos=shift(n.attr['pos'], dx, dy), **self.node_attrs(v))
             for e in g.edges():
                 s, t = str(e[0]), str(e[1])
+                if e.attr.get('style') == 'invis':
+                    continue
                 how = next(h for a, b2, h in self.edges if a == s and b2 == t)
                 f.add_edge(s, t, pos=shift(e.attr['pos'], dx, dy), **self.edge_attrs(s, t, how))
         for s, t, how in self.edges:
@@ -300,25 +366,37 @@ class Graphs:
     def chapter(self, chapter_label):
         """The graph of a chapter (an AGraph for dot), or None if the chapter has no node. Left to
         right: the nodes of other chapters that its nodes use, its nodes (framed by section in the
-        tests chapter), the nodes of other chapters that use them. A node of another chapter is
-        faded and its label starts with the number of its chapter."""
-        chap = next(c for c in self.chapters if c['label'] == chapter_label)
-        mine = [v for v in self.by if (self.chapter_of[v] or {}).get('label') == chapter_label]
+        tests chapter, by layer in a chapter of several layers), the nodes of other chapters that
+        use them. A node of another chapter is faded and its label starts with the number of its
+        chapter."""
+        chap = next((c for c in self.chapters if c['label'] == chapter_label),
+                    dict(label=LEAN4LEAN, sections=[], inputs=[]))
+        mine = [v for v in list(self.by) + list(self.sorry) if self.group(v) == chapter_label]
         if not mine:
             return None
         mine_set = set(mine)
         edges = [e for e in self.edges if e[0] in mine_set or e[1] in mine_set]
         g = self._graph(rankdir='LR', newrank='true', ranksep='0.55', nodesep='0.16',
                         bgcolor='white', pad='0.3')
-        layer = kinds.KINDS[self.kind(mine[0])]['layer']
-        L = kinds.LAYERS[layer]
+        layers = {kinds.KINDS[self.kind(v)]['layer'] for v in mine}
         frames = collections.OrderedDict()
+        frame_of = {lab: (fr['title'], 'lean4lean') for fr in self.blocks.get('lean4lean', {}).get(
+            'frames', []) for lab in fr['labels']}
         for v in mine:
-            key = kinds.section_of(self.by[v], chap) if layer == 'test' and chap['sections'] else None
+            layer = kinds.KINDS[self.kind(v)]['layer']
+            if layer == 'lean4lean':
+                key = frame_of.get(v)
+            elif layer == 'test' and chap['sections']:
+                key = (kinds.section_of(self.by[v], chap)[1], layer)
+            elif len(layers) > 1:
+                key = (kinds.LAYERS[layer]['name'], layer)
+            else:
+                key = None
             frames.setdefault(key, []).append(v)
         for i, (key, vs) in enumerate(frames.items()):
+            L = kinds.LAYERS[key[1]] if key else None
             target = g if key is None else g.add_subgraph(
-                name=f'cluster_section_{i}', label=key[1], style='filled,rounded', fillcolor=L['tint'],
+                name=f'cluster_section_{i}', label=key[0], style='filled,rounded', fillcolor=L['tint'],
                 color=L['line'], fontcolor=L['line'], fontsize='16', labeljust='l')
             for v in vs:
                 target.add_node(v, **self.node_attrs(v))
@@ -328,7 +406,9 @@ class Graphs:
         for v in others:
             a = self.node_attrs(v)
             c = None if v in self.sorry else self.chapter_of[v]
-            if c:
+            if self.group(v) == LEAN4LEAN:
+                a['label'] = f'lean4lean: {a["label"]}'
+            elif c:
                 a['label'] = f'{c["number"]}: {a["label"]}'
             a['fillcolor'] += CONTEXT_ALPHA
             a['fontcolor'] = '#555555'
@@ -355,21 +435,25 @@ class Graphs:
     # ------------------------------------------------------------ the chapter map
 
     def chapter_map(self):
-        """One box per chapter that has nodes, and one for the lean4lean sorries; an arrow from A to
-        B labelled with the number of arrows of the full graph from a node of A to a node of B."""
+        """One box per chapter that has nodes, and one for lean4lean (its imported modules and the
+        sorries the nodes inherit); an arrow from A to B labelled with the number of arrows of the
+        full graph from a node of A to a node of B."""
         g = self._graph(rankdir='TB', newrank='true', ranksep='0.55', nodesep='0.45',
                         bgcolor='white', pad='0.3')
-        key_of = {v: ('lean4lean' if v in self.sorry else self.chapter_of[v]['label'])
+        key_of = {v: ('lean4lean' if kinds.KINDS[self.kind(v)]['layer'] == 'lean4lean'
+                      else self.chapter_of[v]['label'])
                   for v in list(self.by) + list(self.sorry)}
         count = collections.defaultdict(collections.Counter)
         for v, key in key_of.items():
             count[key][self.kind(v)] += 1
-        if self.sorries:
+        if count['lean4lean']:
             L = kinds.LAYERS['lean4lean']
             g.add_node('lean4lean', shape='box', style='filled,rounded', fillcolor=L['tint'],
                        color=L['line'], penwidth='1.6', margin='0.15,0.1',
                        label=self._map_label(L['name'], count['lean4lean'], L['line']),
-                       tooltip='The lean4lean sorries that nodes inherit (chapter Trust boundary)')
+                       tooltip='Graph of lean4lean: the modules the proof and the shipping code use, '
+                               'and the sorries the nodes inherit',
+                       href=chapter_page(LEAN4LEAN))
         for c in self.chapters:
             if not count[c['label']]:
                 continue
@@ -385,12 +469,10 @@ class Graphs:
                                      if key_of[s] != key_of[t])
         top = max(arrows.values()) if arrows else 1
         for (x, y), c in arrows.items():
-            sorry = x == 'lean4lean'
             g.add_edge(x, y, label=f' {c} ', fontsize='13', fontcolor='#444444',
                        penwidth=f'{1 + 3 * c / top:.2f}',
-                       color=kinds.EDGE_COLOR['sorry'] if sorry else '#6B6B6B',
-                       style='dotted' if sorry else 'solid', weight=str(c),
-                       tooltip=f'{c} arrows of the full graph')
+                       color=kinds.EDGE_COLOR['lean4lean'] if x == 'lean4lean' else '#6B6B6B',
+                       weight=str(c), tooltip=f'{c} arrows of the full graph')
         return g
 
     @staticmethod
@@ -417,6 +499,9 @@ class Graphs:
             if g is not None:
                 out[c['label']] = (f'Chapter {c["number"]}: {c["title"]}',
                                    svg_text(draw(g, 'dot')))
+        g = self.chapter(LEAN4LEAN)
+        if g is not None:
+            out[LEAN4LEAN] = (kinds.LAYERS['lean4lean']['name'], svg_text(draw(g, 'dot')))
         return out
 
 
@@ -430,6 +515,7 @@ def main(argv):
     graphs = Graphs(audit.parse(collections.defaultdict(list)))
     items = [('full', graphs.full(), 'nop2'), ('chapters', graphs.chapter_map(), 'dot')]
     items += [(c['label'].replace(':', '-'), graphs.chapter(c['label']), 'dot') for c in graphs.chapters]
+    items.append((LEAN4LEAN, graphs.chapter(LEAN4LEAN), 'dot'))
     for name, g, prog in items:
         if g is None:
             continue

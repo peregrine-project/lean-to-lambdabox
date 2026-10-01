@@ -12,10 +12,11 @@ git. The Lean code it documents is the shipping code (`LeanToLambdaBox/`) and th
 
 ```
 audit.toml              configuration of the audit (builds, imports, allowed axioms, labelled
-                        lean4lean sorries, coverage prefix, roots file)
+                        lean4lean sorries, coverage prefix, roots file, descriptions of the
+                        lean4lean modules the proof uses)
 build.sh                builds the web and pdf versions
 CheckDecls.lean         Lean side of the audit (existence, axioms, sorry sources, censuses,
-                        the declarations of the proof package)
+                        the declarations of the proof package, direct uses)
 requirements.txt        the Python packages of the build (leanblueprint, plasTeX), pinned
 scripts/audit.py        the audit
 scripts/kinds.py        node kinds and their colours, shapes and badges; writes the kinds tables
@@ -27,7 +28,7 @@ STYLE.md                how chapters and nodes are written (binding)
 src/content.tex         chapter order
 src/chapters/*.tex      hand-written chapters: intro, scope, trust, model, pure, source,
                         relation, simulation, oracle, core, final, tests, open
-src/generated/*.tex     generated chapters and tables (never edit them)
+src/generated/*.tex     generated chapters, tables and imported nodes (never edit them)
 src/macros/             common.tex (shared macros), web.tex, print.tex
 src/web.tex, print.tex  drivers of the web and print versions
 templates/dep_graph.html  the template of the dependency-graph pages
@@ -69,50 +70,80 @@ legend, generated.
 ### Kinds
 
 The layer of a Lean name is test for `EraseProof.Test.*`, proof for `EraseProof.*`, lean4lean for
-`Lean4Lean.*` and shipping for any other name. The audit checks that the names of a node share one
-layer and that the module of each declaration has the layer of its name (`EraseProof.Test*`,
-`EraseProof*`, `Lean4Lean*`, `LeanToLambdaBox*`).
+`Lean4Lean.*` and `Lean.*` (lean4lean extends Lean's namespaces, as in `Lean.Expr.instantiate1'`),
+and shipping for any other name. The audit checks that the names of a node share one layer and
+that the module of each declaration has the layer of its name (`EraseProof.Test*`, `EraseProof*`,
+`Lean4Lean*`, `LeanToLambdaBox*`): a node citing a declaration of Lean itself is a defect.
 
 | Kind | Badge | Graph node | Fill, line | Derived from |
 |---|---|---|---|---|
 | final | FINAL THEOREM | double octagon, large | `#F0C24B`, `#7A5A00` | the node of the declaration on the `FINAL` line of `proof/ROOTS.txt`; the audit checks there is exactly one, a `theorem` environment |
 | milestone | MILESTONE | hexagon, large | `#8FBCE6`, `#0B5394` | any other `theorem` environment of the proof layer; the audit checks that the final theorem depends on it (through `\uses`) |
-| step | STEP LEMMA | double ellipse | `#C4DBF2`, `#0B5394` | a result of the proof layer that the proof of the final theorem or of a milestone `\uses` directly |
+| step | STEP LEMMA | double ellipse | `#C4DBF2`, `#0B5394` | a result of the proof layer that the proof of the final theorem or of a milestone `\uses` directly; the audit checks these `\uses` against the Lean proofs (below) |
 | lemma | LEMMA | ellipse | `#E6F0FA`, `#0B5394` | any other result of the proof layer |
 | definition | DEFINITION | box | `#E6F0FA`, `#0B5394` | any other definition of the proof layer |
-| shipping | SHIPPING CODE | box with two tabs | `#F9D3AE`, `#9A4A00` | a node of the shipping layer; the audit checks that such a node, and no other, opens with `\stShipping` |
+| shipping | SHIPPING CODE | box with two tabs | `#F9D3AE`, `#9A4A00` | a node of the shipping layer |
 | test | TEST | note | `#EBDDF0`, `#7B3F8C` | a node of the test layer |
-| lean4lean | LEAN4LEAN SORRY | cylinder | `#CDEBDD`, `#0A6B4B` | in the graphs only: one node per labelled lean4lean sorry of `audit.toml` that some node lists in `\inherited` |
+| lean4lean | LEAN4LEAN MODULE | folder | `#CDEBDD`, `#0A6B4B` | a node of the lean4lean layer: an `imported` node, which the audit writes (below); the audit checks that the `imported` environment holds exactly these nodes |
+| lean4leansorry | LEAN4LEAN SORRY | cylinder | `#E8F5EE`, `#0A6B4B` | in the graphs only: one node per labelled lean4lean sorry of `audit.toml` that some node lists in `\inherited` |
+
+The `\uses` of the final theorem and of the milestones decide which results are step lemmas, so
+the audit measures them: every node they name is one whose declarations the node's declarations
+use directly (a statement `\uses` in their types), and every result whose declarations they use
+directly is named. The measure is `CheckDecls.lean`'s: the constants that a declaration's type
+and value mention, a constructor, recursor, equation lemma or other auxiliary constant counting
+for the declaration it belongs to.
 
 The fills are light tints of hues of the Okabe-Ito palette (yellow, blue, orange, reddish purple,
 bluish green), a palette made for colour-blind readers. Every kind has its own shape (the step
 lemma differs from the lemma by its double outline), so no kind depends on colour alone. Dark text
 on every fill has a contrast of at least 8.7:1, and every line colour at least 5.8:1 on white and
-on the tints of the frames. The plasTeX theme has no dark mode, and every graph draws on its own
-white background.
+on the tints of the frames. The plasTeX theme has no dark mode; every graph draws on its own white
+background, and every legend swatch on a white tile.
+
+### Imported lean4lean nodes
+
+`audit.py --update` writes `src/generated/lean4lean-imports.tex`, which the trust chapter inputs
+(Section "What the proof uses from lean4lean"): one `imported` node per lean4lean module whose
+declarations the proof library (outside its tests) or the shipping code uses directly, with
+
+- `\lean`: those declarations (a constructor or auxiliary constant counts for its declaration);
+- `\leanok`, `\srcloc` and `\inherited`, as the audit measures them;
+- the description of the module from `[lean4lean_modules]` of `audit.toml` (the audit checks that
+  every such module, and no other, has one);
+- `\usedbystatements{...}` and `\usedbyproofs{...}`: the nodes whose declarations use them
+  directly, in their types (or in a definition) and only in their proofs. The graphs draw them as
+  green arrows.
+
+The audit fails when the file is stale. The tests use lean4lean declarations too (the bridge tests
+state `TrExprS`); they are not counted, so no imported node reaches `TrProj`.
 
 ### Statuses
 
 | Status | Graph border | Badge after the heading | Derived from |
 |---|---|---|---|
-| proved | thin, `#333333` | none (the check mark of `\leanok`) | otherwise |
+| standard (Within standard axioms) | thin, `#333333` | none (the check mark of `\leanok`) | otherwise: the declarations exist and depend on `propext`, `Classical.choice` and `Quot.sound` only |
 | inherits | thick, crimson `#B2182B` | INHERITS and the labels | `\inherited{...}` lists lean4lean sorries (the audit measures them) |
 | planned | dashed, white fill | PLANNED | `\planned` |
 
+The legend draws a status as a border sample (the corner of an outline, with no fill), so that no
+status swatch looks like a kind swatch.
+
 ### Where the conventions appear
 
-- **Headings.** After the heading of every node, its kind badge and, for the statuses inherits and
-  planned, a status badge: in the web version from `scripts/bpkinds.py`
-  (`thm_header_extras_tpl`), in the pdf from `generated/kinds.tex` (`\bpsetkind`, read by a hook on
-  `\label` in `macros/print.tex`). In the web version the bar beside a node takes the line colour
-  of its kind.
+- **Headings.** After the heading of every node, its kind badge and, for the statuses inherits
+  (with the labels of the sorries) and planned, a status badge: in the web version from
+  `scripts/bpkinds.py` (`thm_header_extras_tpl`), in the pdf from `generated/kinds.tex`
+  (`\bpsetkind`, read by a hook on `\label` in `macros/print.tex`). In the web version the bar
+  beside a node takes the line colour of its kind. A node body carries no status word: the audit
+  rejects `\stShipping`, `\stProved` and the others there.
 - **Chapter openers.** `\lead{Nodes} \bpnodes{chap:...}` prints the chapter's nodes by kind, and in
-  the web version links to the chapter's graph; the audit checks that every chapter with nodes
-  has this line, with its own label.
+  the web version links to the chapter's graph (and to the graph of lean4lean, in the trust
+  chapter); the audit checks that every chapter with nodes has this line, with its own label.
 - **Text.** `\bpkind{key}` prints a kind badge (`final`, `milestone`, `step`, `lemma`,
-  `definition`, `shipping`, `test`, `leanfourlean`); the status words `\stProved`,
-  `\stInherited`, `\stShipping` take the colours of the lemma line, the inherits border and the
-  shipping line; `\inherited` prints in crimson.
+  `definition`, `shipping`, `test`, `leanfourlean`, `leanfourleansorry`); the status words of the
+  prose `\stProved`, `\stInherited`, `\stShipping` take the colours of the lemma line, the
+  inherits border and the shipping line; `\inherited` prints in crimson.
 - **Introduction.** `generated/kinds-legend.tex` (kinds, statuses, arrows) and
   `generated/kinds-chapters.tex` (nodes per chapter and kind).
 
@@ -120,33 +151,38 @@ white background.
 
 `scripts/kindgraph.py` lays out every graph at build time with the Graphviz library of the pinned
 `pygraphviz` wheel (Graphviz 14.1.5), and the pages show the SVG. Every graph has the `\uses`
-arrows (a statement use wins over a proof use of the same pair: dashed), an arrow from each
-lean4lean sorry to every node that lists it, and none that a path of other arrows implies
-(transitive reduction). An arrow into the final theorem or a milestone is blue, one into a test
-violet, one from a lean4lean sorry dotted crimson.
+arrows (a statement use wins over a proof use of the same pair: dashed), the arrows of the
+imported nodes' `\usedby...` lists (green), an arrow from each lean4lean sorry to every node that
+lists it (dotted crimson), and none that a path of other arrows implies (transitive reduction),
+except the arrows of the `\uses` of the final theorem and of the milestones: these are all drawn,
+in blue, so that the chain final theorem, milestones, step lemmas, definitions shows in full. An
+arrow into a test is violet.
 
 | Page | Content and layout |
 |---|---|
-| `dep_graph_chapters.html` (Chapter map; table of contents: "Dependency graph by chapter") | one box per chapter with its nodes by kind, and one for the lean4lean sorries; an arrow between two boxes carries the number of arrows between their nodes; dot, top to bottom; a box links to the chapter's graph |
-| `dep_graph_document.html` (All nodes; table of contents: "Dependency graph") | every node. Block layout: each block (a chapter of the proof library; the shipping code, framed by chapter; the tests, framed by section; the lean4lean sorries) is laid out by dot on its own, top to bottom; dot then places the blocks, as boxes of their size, along the arrows between them, so a block sits below the blocks it uses; Graphviz's `nop2` engine routes the arrows between blocks around the nodes. Those arrows are faint, except those into the final theorem or a milestone. The title of a chapter's frame links to the chapter's graph |
-| `dep_graph_chap-<name>.html` (one per chapter with nodes) | the chapter's nodes (framed by section in the tests chapter), with the nodes of other chapters that they use on the left and that use them on the right, faded and labelled with their chapter number; dot, left to right, with invisible barriers that keep those columns apart |
+| `dep_graph_chapters.html` (Chapter map; table of contents: "Dependency graph by chapter") | one box per chapter with its nodes by kind, and one for lean4lean (imported modules and sorries); an arrow between two boxes carries the number of arrows between their nodes; dot, top to bottom; a box links to its graph |
+| `dep_graph_document.html` (All nodes; table of contents: "Dependency graph") | every node. Block layout: each block (a chapter of the proof library; lean4lean, framed by library with a frame for the sorries; the shipping code, framed by chapter; the tests, framed by section) is laid out by dot on its own, top to bottom; dot then places the blocks, as boxes of their size, along the arrows between them, so a block sits below the blocks it uses; Graphviz's `nop2` engine routes the arrows between blocks around the nodes. Those arrows are faint, except the blue ones. The title of a frame that holds the nodes of one chapter, or of lean4lean, links to that graph |
+| `dep_graph_chap-<name>.html` (one per chapter with nodes), `dep_graph_lean4lean.html` | the nodes of the chapter (framed by section in the tests chapter), or of lean4lean (framed by library), with the nodes outside it that they use on the left and that use them on the right, faded and labelled with their chapter number (or lean4lean); dot, left to right, with invisible barriers that keep those columns apart |
 
-On every graph page: a bar links the pages; a field finds a node by its Lean name; a click on a
-node shows its statement and draws only its arrows and neighbours; `#<label>` in the address does
-the same, and the link "graph" in the heading of every node opens its chapter's graph there.
+On every graph page: a bar links the pages; a field finds a node by any of its Lean names (on the
+chapter map, a chapter by its title or by a Lean name of its nodes); a click on a node shows its
+statement and draws only its arrows and neighbours, and a halo marks it without hiding its
+outline; `#<label>` in the address does the same, and the link "graph" in the heading of every node
+opens its graph there.
 
 ### How the web version gets them
 
 `src/web.tex` loads the plasTeX package `scripts/bpkinds.py` (found through `packages-dirs` in
-`src/plastex.cfg`), and passes `tpl=../templates/dep_graph.html` to the blueprint package. The
-package uses the extension points of plastexdepgraph 0.0.5 and leanblueprint 0.0.20 only, and
-patches no installed file:
+`src/plastex.cfg`), and passes `tpl=../templates/dep_graph.html` and the node environments
+(`thms`, with `imported`) to the blueprint package. The package uses the extension points of
+plastexdepgraph 0.0.5 and leanblueprint 0.0.20 only, and patches no installed file:
 
 - plastexdepgraph's document graph becomes a `KindGraph`, which hands the SVG to the template;
   a pre-cleanup callback writes the other graph pages with the same template;
 - `document.userdata['thm_header_extras_tpl']` and `['thm_header_hidden_extras_tpl']` carry the
   badges and the "graph" link; `['dep_graph']['legend']` the legend;
-- the commands `\bpkind` and `\bpnodes`, and `styles/bpkinds.css`, written from `kinds.css()`.
+- the commands `\bpkind` and `\bpnodes`, and `styles/bpkinds.css`, written from `kinds.css()` into
+  `blueprint/.build/bpkinds/` (ignored by git), from where plasTeX copies it.
 
 `templates/dep_graph.html` starts from plastexdepgraph 0.0.5's template (its sha256 is in the
 template's header) and keeps its statement modals; update both together. The build stops when the
@@ -177,19 +213,20 @@ change.
 ```
 python3 blueprint/scripts/audit.py              # builds the Lake targets of audit.toml first
 python3 blueprint/scripts/audit.py --no-build   # when they are built
-python3 blueprint/scripts/audit.py --update     # also rewrites the five generated tables
+python3 blueprint/scripts/audit.py --update     # also rewrites the six generated files it owns
 ```
 
 The audit first runs `lake build` of the `[[build]]` entries of `audit.toml`: in the root the
 eraser and the lean4lean libraries `Lean4Lean`, `Lean4Lean.Theory`, `Lean4Lean.Verify` (about two
 minutes the first time), then in `proof/` the library `EraseProof`. It then runs
 `lake env lean --run blueprint/CheckDecls.lean measure ...` in `proof/` (`env_dir`: that package
-resolves the eraser, lean4lean and `EraseProof`) on every cited declaration and checks:
+resolves the eraser, lean4lean and `EraseProof`) on every cited declaration, and on the direct
+uses of every declaration of the proof library and of the shipping code, and checks:
 
 | Check | Rule |
 |---|---|
-| Nodes | every node (`definition`, `lemma`, `proposition`, `theorem`, `corollary`) has a unique `\label` with the prefix of its environment (`def:`, `lem:`, `prop:`, `thm:`, `cor:`) and a non-empty `\lean{...}`; no declaration is cited twice |
-| Graph | every `\uses` resolves to a node; no node uses itself; no cycle; a proof follows its statement, never inside it; a result has a proof, a definition none |
+| Nodes | every node (`definition`, `lemma`, `proposition`, `theorem`, `corollary`, `imported`) has a unique `\label` with the prefix of its environment (`def:`, `lem:`, `prop:`, `thm:`, `cor:`, `imp:`) and a non-empty `\lean{...}`; no declaration is cited twice |
+| Graph | every `\uses`, and every `\ref` of `\usedbystatements` and `\usedbyproofs`, resolves to a node; no node uses itself; no cycle; a proof follows its statement, never inside it; a result has a proof, a definition and an imported node none |
 | Planned nodes | a node marked `\planned` cites only names that do not exist, and carries no `\leanok`, `\srcloc` or `\inherited`; a node that is not planned uses no planned node |
 | Existence | every `\lean` name of a node that is not planned is a declaration of the environment of `audit.toml`'s imports |
 | `\leanok` | in a statement iff the node is not planned, every cited declaration exists and its axioms are allowed; in the proof of a result iff its statement has it |
@@ -201,7 +238,8 @@ resolves the eraser, lean4lean and `EraseProof`) on every cited declaration and 
 | `\srcloc{path}{line}` | is the file and line of the node's first declaration |
 | Hygiene | ASCII only outside `\lean{}`; underscores escaped in `\code`, `\texttt`, `\inherited`, `\srcloc` |
 | Present state | no word that narrates history (`STYLE.md` section 1: previously, since the last version, was fixed, no longer, used to, now, yet), as a whole word outside comments, in the hand-written chapters and the generated tables; the rendered registers record changes and are exempt |
-| Kinds | the rules of section "Node kinds and dependency graphs": the names of a node share one layer; the module of each declaration has the layer of its name; one final node, a `theorem` environment; the final theorem depends on every milestone; `\stShipping` opens exactly the nodes of shipping code; every chapter with nodes cites `\bpnodes` with its own label |
+| Kinds | the rules of section "Node kinds and dependency graphs": the names of a node share one layer; the module of each declaration has the layer of its name; the `imported` environment holds exactly the nodes of the lean4lean layer; one final node, a `theorem` environment; the final theorem depends on every milestone; the `\uses` of the final theorem and of the milestones agree with the declarations they use directly; no node body carries a status word; every chapter with nodes cites `\bpnodes` with its own label |
+| Imported nodes | `generated/lean4lean-imports.tex` equals what `--update` writes from the Lean environment and `[lean4lean_modules]` of `audit.toml`, which has one entry per lean4lean module whose declarations the proof library (outside its tests) or the shipping code uses directly; their declarations are within the allowed axioms |
 | Generated chapters | `render_registers.py --check` passes, the census tables equal what the environment gives, and the tables of `scripts/kinds.py` equal what it writes |
 
 It writes `blueprint/.audit/report.md` (defects, per-node kind, status, axioms and inherited trust,
@@ -229,9 +267,10 @@ checks that the names plasTeX collected exist, except the names of planned nodes
 | `src/generated/kinds.tex` | `scripts/kinds.py` | the chapters, `proof/ROOTS.txt`, `audit.toml` |
 | `src/generated/kinds-legend.tex` | `scripts/kinds.py` | the chapters, `scripts/kinds.py` |
 | `src/generated/kinds-chapters.tex` | `scripts/kinds.py` | the chapters |
+| `src/generated/lean4lean-imports.tex` | `scripts/audit.py --update` | the Lean environment, `audit.toml` |
 
 All are committed. `build.sh` rewrites the first three and the last three; the audit fails when any
-of the eleven is stale. The renderer converts the Markdown of a register block by block and stops with an error on a
+of the twelve is stale. The renderer converts the Markdown of a register block by block and stops with an error on a
 construct it does not handle (a table, a fenced code block, an unknown non-ASCII character), so a
 register is never rendered partially. In `doc/DIVERGENCES.md` the entries are the `###` sections
 under `## Entries`; the chapter renders the whole file, with a table of the entries after the prose
@@ -288,3 +327,8 @@ One-time repository settings, by an administrator:
 - The graph of all nodes has every node of the blueprint; its labels are legible once zoomed in. The
   chapter map and the graphs of the chapters are the readable overviews.
 - The pdf has no dependency graph; the web version has them all.
+- The imported nodes are one per lean4lean module, not one per declaration; their arrows lead from
+  the module to the nodes that use one of its declarations directly. The lean4lean declarations
+  that only the tests use have no node.
+- The audit checks the `\uses` of the final theorem and of the milestones against the Lean proofs;
+  the other `\uses` are written by hand, and only their resolution and acyclicity are checked.

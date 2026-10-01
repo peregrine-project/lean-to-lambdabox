@@ -21,7 +21,7 @@
   \lean{Erasure.EraseError, Erasure.EraseError.describe}
   \leanok
   \srcloc{LeanToLambdaBox/Erasure/Collect.lean}{21}
-  \stShipping{} \lead{In short} \code{outOfFragment} routes \code{\#erase} to the \code{Meta} path;
+  \lead{In short} \code{outOfFragment} routes \code{\#erase} to the \code{Meta} path;
   the others (\code{nameCollision}, \code{fuel}, \code{failed}) are \hl{errors of
   \code{\#erase}}, never answers.
   \begin{itemize}
@@ -34,7 +34,7 @@
   \lean{Erasure.EnvView, Erasure.EnvView.ofEnvironment}
   \leanok
   \srcloc{LeanToLambdaBox/Erasure/Collect.lean}{31}
-  \stShipping{} \lead{In short} What the pure path reads about the Lean environment:
+  \lead{In short} What the pure path reads about the Lean environment:
   \code{find?}, \code{isExtern}, \code{inlineAttr?}; the counterpart of MetaRocq's abstract
   environment.
   \begin{itemize}
@@ -49,7 +49,7 @@
   \lean{Erasure.findConst}
   \leanok
   \srcloc{LeanToLambdaBox/Erasure/Collect.lean}{47}
-  \stShipping{} \lead{In short} \code{findConst decls c}: the first declaration of \code{decls}
+  \lead{In short} \code{findConst decls c}: the first declaration of \code{decls}
   named \code{c}; MetaRocq's \code{lookup\_env}.
 \end{definition}
 
@@ -60,7 +60,7 @@
   \leanok
   \uses{def:Erasure-EraseError, def:Erasure-EnvView}
   \srcloc{LeanToLambdaBox/Erasure/Collect.lean}{109}
-  \stShipping{} \lead{In short} \code{collectDeps view e}: the program's own environment, \hl{the
+  \lead{In short} \code{collectDeps view e}: the program's own environment, \hl{the
   closure of \code{e} through types, values and block members}, or the first out-of-fragment
   construct.
   \begin{itemize}
@@ -85,7 +85,7 @@
   \lean{Erasure.Pure.instLevels, Erasure.Pure.instLevel}
   \leanok
   \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{36}
-  \stShipping{} \lead{In short} Substitutes levels for level parameters in a term, \hl{without
+  \lead{In short} Substitutes levels for level parameters in a term, \hl{without
   normalizing} levels, so that kernel reduction decides it; the oracle and the source
   semantics' $\delta$ rule use it.
   \lead{Reference} PCUIC \code{subst\_instance\_constr}.
@@ -99,7 +99,7 @@
   \uses{def:Erasure-EraseError, def:Erasure-Pure-instLevels, def:Erasure-TravCtx,
     def:Erasure-findConst}
   \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{136}
-  \stShipping{} \lead{In short} \code{Pure.isErasable cx fuel ls e}: \code{e} is erasable if its
+  \lead{In short} \code{Pure.isErasable cx fuel ls e}: \code{e} is erasable if its
   type is an arity or its type's sort is evidently zero; every reduction uses \hl{the kernel's
   $\delta$}.
   \begin{itemize}
@@ -129,7 +129,7 @@
   \uses{def:Erasure-EraseT, def:Erasure-findConst, def:Erasure-Pure-isErasable,
     def:Erasure-EnvView}
   \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{166}
-  \stShipping{} \lead{In short} $\mathrm{PureM} = $ \code{ReaderT PureCtx (StateT PureState
+  \lead{In short} $\mathrm{PureM} = $ \code{ReaderT PureCtx (StateT PureState
   (Except EraseError))}: the traversal's backend \hl{without \code{Meta}}.
   \begin{itemize}
   \item \code{PureCtx}: the closure and the view; \code{PureState}: a counter for fresh
@@ -151,7 +151,7 @@
   \leanok
   \uses{def:Erasure-EnvView, def:Erasure-ErasureConfig}
   \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{262}
-  \stShipping{} \lead{In short} The tests of \code{visitMutual} as the pure backend runs them,
+  \lead{In short} The tests of \code{visitMutual} as the pure backend runs them,
   with exact names; the traversal does not call these functions.
   \begin{itemize}
   \item \code{isRecursiveDecl}: a block member, or a declaration whose value mentions its own name
@@ -167,7 +167,7 @@
   \leanok
   \uses{def:Erasure-erase, def:Erasure-PureM, def:ASTType}
   \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{243}
-  \stShipping{} \lead{In short} \code{erasePure view cfg decls e}: \hl{the shipping traversal
+  \lead{In short} \code{erasePure view cfg decls e}: \hl{the shipping traversal
   \code{visitExpr} run with the pure backend} on the closure \code{decls}, assembling the program
   as \code{erase} does.
   \lead{Reference} MetaRocq \code{erase} and \code{erase\_global\_deps}, the pair of
@@ -180,7 +180,7 @@
   \leanok
   \uses{def:Erasure-collectDeps, def:Erasure-erasePure, def:Erasure-erase}
   \srcloc{LeanToLambdaBox/Erasure/Entry.lean}{39}
-  \stShipping{} \lead{In short} What \code{\#erase} runs: \code{route} calls \code{collectDeps},
+  \lead{In short} What \code{\#erase} runs: \code{route} calls \code{collectDeps},
   then
   \begin{itemize}
   \item \code{ok decls}: \code{erasePure}; its errors are errors of \code{\#erase}, with

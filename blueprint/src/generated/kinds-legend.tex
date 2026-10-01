@@ -5,12 +5,13 @@ Kind (badge) & Graph node & Derived from & Nodes \\
 \midrule
 \bpkind{final} & gold double octagon & cites the declaration on the line \code{FINAL} of \code{proof/ROOTS.txt} & 1 \\
 \bpkind{milestone} & blue hexagon & any other \code{theorem} environment; the audit checks that the final theorem depends on it & 2 \\
-\bpkind{step} & blue double ellipse & a result that the proof of the final theorem or of a milestone uses directly & 14 \\
-\bpkind{lemma} & pale blue ellipse & any other result about declarations of \code{EraseProof} & 90 \\
-\bpkind{definition} & pale blue box & any other definition, of \code{EraseProof} & 40 \\
+\bpkind{step} & blue double ellipse & a result that the proof of the final theorem or of a milestone uses directly: its \code{\textbackslash uses}, which the audit checks against the Lean proof & 14 \\
+\bpkind{lemma} & pale blue ellipse & any other result about declarations of \code{EraseProof} & 91 \\
+\bpkind{definition} & pale blue box & any other definition of \code{EraseProof} & 40 \\
 \bpkind{shipping} & orange tabbed box & declarations outside \code{EraseProof} and lean4lean: the modules \code{LeanToLambdaBox*}, which the final theorem is about & 22 \\
 \bpkind{test} & violet note & declarations of \code{EraseProof.Test}: non-vacuity instances and other tests & 42 \\
-\bpkind{leanfourlean} & green cylinder & a labelled lean4lean sorry that some node inherits (Section~\ref{sec:trust-inherited}); in the graphs only & 7 \\
+\bpkind{leanfourlean} & green folder & an \code{imported} node, written by the audit: the declarations of a lean4lean module that the proof library or the shipping code uses directly (Section~\ref{sec:trust-imported}) & 18 \\
+\bpkind{leanfourleansorry} & pale green cylinder & a labelled lean4lean sorry that some node inherits (Section~\ref{sec:trust-inherited}); in the graphs only & 7 \\
 \bottomrule
 \end{tabular}
 
@@ -18,8 +19,8 @@ Kind (badge) & Graph node & Derived from & Nodes \\
 \toprule
 Status & Graph border & Meaning & Nodes \\
 \midrule
-Formalized & thin, dark & its declarations exist and use the allowed axioms only; the web version marks \code{\textbackslash leanok} with a check mark & 168 \\
-Inherits lean4lean sorries & thick, crimson & it also depends on lean4lean sorries; its heading carries the badge INHERITS with their labels, and its body lists them under \emph{Inherited from lean4lean} & 43 \\
+Within standard axioms & thin, dark & its declarations exist and depend on the standard axioms \code{propext}, \code{Classical.choice} and \code{Quot.sound} only: on no lean4lean sorry & 182 \\
+Inherits lean4lean sorries & thick, crimson & its declarations exist and also depend on lean4lean sorries: the badge INHERITS after its heading names them, and its body lists them under \emph{Inherited from lean4lean} & 48 \\
 Planned & dashed, white fill & not formalized: its declarations do not exist; badge \stPlanned{} & 0 \\
 \bottomrule
 \end{tabular}
@@ -28,12 +29,13 @@ Planned & dashed, white fill & not formalized: its declarations do not exist; ba
 \toprule
 Graph arrow & Meaning \\
 \midrule
-dashed grey arrow & the statement of the target uses the source \\
+dashed grey arrow & the statement (or definition) of the target uses the source \\
 solid grey arrow & the proof of the target uses the source \\
-blue arrow & into the final theorem or a milestone (solid, or dashed for the statement) \\
-violet arrow & into a test (solid, or dashed for the statement) \\
+blue arrow & a use by the final theorem or a milestone (dashed: by the statement); all of them are drawn \\
+violet arrow & into a test (dashed: by the statement) \\
+green arrow & from a lean4lean module: the target uses its declarations directly (dashed: in the statement) \\
 dotted crimson arrow & the target inherits the lean4lean sorry \\
-no arrow & when a path of other arrows implies it (transitive reduction) \\
-faint arrow & in the graph of all nodes, an arrow between two frames, unless it leads into the final theorem or a milestone; a click on a node draws its arrows in full \\
+no arrow & when a path of other arrows implies it (transitive reduction), except a blue arrow \\
+faint arrow & in the graph of all nodes, an arrow between two frames, except a blue arrow; a click on a node draws its arrows in full \\
 \bottomrule
 \end{tabular}

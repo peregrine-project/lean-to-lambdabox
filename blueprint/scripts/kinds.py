@@ -6,7 +6,8 @@ The derivation is mechanical (README, section "Node kinds and dependency graphs"
 scripts/audit.py checks it (check()).
 
   layer   of a declaration, from its name: EraseProof.Test.* test, EraseProof.* proof,
-          Lean4Lean.* lean4lean, any other name shipping. The audit checks that the module of the
+          Lean4Lean.* and Lean.* lean4lean (lean4lean extends Lean's namespaces: Lean.Expr.
+          instantiate1'), any other name shipping. The audit checks that the module of the
           declaration agrees (MODULE_LAYER) and that the names of a node share one layer.
   kind    final: the node of the declaration on the FINAL line of proof/ROOTS.txt;
           milestone: any other `theorem` environment of the proof layer (the audit checks that the
@@ -14,17 +15,22 @@ scripts/audit.py checks it (check()).
           step: a result of the proof layer that the proof of the final theorem or of a milestone
           uses directly (its \\uses);
           definition, lemma: the other nodes of the proof layer, by environment;
-          shipping, test: the nodes of those layers (the audit checks that a node of shipping code
-          opens with \\stShipping, and that no other node does);
-          lean4lean: in the graphs only, one node per labelled lean4lean sorry of audit.toml that
-          some node lists in \\inherited.
+          shipping, test, lean4lean: the nodes of those layers; the nodes of the lean4lean layer
+          are the imported nodes that scripts/audit.py --update writes, one per lean4lean module
+          that the proof library or the shipping code uses directly (the audit checks that the
+          imported environment holds exactly them);
+          lean4leansorry: in the graphs only, one node per labelled lean4lean sorry of audit.toml
+          that some node lists in \\inherited.
+          The audit checks the \\uses of the final theorem and of the milestones against the
+          declarations they use directly, so that the step lemmas are those of the Lean proofs.
           The opener of every chapter with nodes prints them by kind with \\bpnodes{its label}
           (checked).
   status  planned (\\planned); inherits (\\inherited lists lean4lean sorries, which the audit
-          measures); proved otherwise.
+          measures); standard otherwise (within the standard axioms).
   block   the frame of a node in the full dependency graph (blocks()): one per chapter of the proof
           layer; one for the shipping code and one for the tests, framed inside by chapter or
-          section; one for the lean4lean sorries.
+          section; one for lean4lean, framed inside by library, with the sorries the nodes
+          inherit.
 
 Writes, from the chapters, proof/ROOTS.txt and blueprint/audit.toml:
   src/generated/kinds.tex           colours and badges of the kinds and statuses, and the kind of
@@ -49,7 +55,8 @@ ROOTS = os.path.join(REPO, 'proof', 'ROOTS.txt')
 AUDIT_TOML = os.path.join(BP, 'audit.toml')
 
 # Layer of a declaration: from its name (first matching prefix), and from its module.
-NAME_LAYER = [('EraseProof.Test.', 'test'), ('EraseProof.', 'proof'), ('Lean4Lean.', 'lean4lean')]
+NAME_LAYER = [('EraseProof.Test.', 'test'), ('EraseProof.', 'proof'), ('Lean4Lean.', 'lean4lean'),
+              ('Lean.', 'lean4lean')]
 DEFAULT_LAYER = 'shipping'
 MODULE_LAYER = [('EraseProof.Test', 'test'), ('EraseProof', 'proof'), ('Lean4Lean', 'lean4lean'),
                 ('LeanToLambdaBox', 'shipping')]
@@ -75,7 +82,8 @@ KINDS = collections.OrderedDict([
         name='Step lemma', badge='STEP LEMMA', layer='proof', shape='ellipse', peripheries=2,
         fill='#C4DBF2', line='#0B5394', fontsize=13, graph='blue double ellipse',
         short='a step of the proof of the final theorem or of a milestone',
-        rule=r'a result that the proof of the final theorem or of a milestone uses directly')),
+        rule=r'a result that the proof of the final theorem or of a milestone uses directly: its '
+             r'\code{\textbackslash uses}, which the audit checks against the Lean proof')),
     ('lemma', dict(
         name='Lemma', badge='LEMMA', layer='proof', shape='ellipse', peripheries=1,
         fill='#E6F0FA', line='#0B5394', fontsize=12, graph='pale blue ellipse',
@@ -85,7 +93,7 @@ KINDS = collections.OrderedDict([
         name='Definition', badge='DEFINITION', layer='proof', shape='box', peripheries=1,
         fill='#E6F0FA', line='#0B5394', fontsize=12, graph='pale blue box',
         short='a definition of the proof library',
-        rule=r'any other definition, of \code{EraseProof}')),
+        rule=r'any other definition of \code{EraseProof}')),
     ('shipping', dict(
         name='Shipping code', badge='SHIPPING CODE', layer='shipping', shape='component',
         peripheries=1, fill='#F9D3AE', line='#9A4A00', fontsize=12,
@@ -99,16 +107,23 @@ KINDS = collections.OrderedDict([
         short='a non-vacuity instance or another test',
         rule=r'declarations of \code{EraseProof.Test}: non-vacuity instances and other tests')),
     ('lean4lean', dict(
+        name='lean4lean module', badge='LEAN4LEAN MODULE', layer='lean4lean', shape='folder',
+        peripheries=1, fill='#CDEBDD', line='#0A6B4B', fontsize=12, graph='green folder',
+        short='the declarations of a lean4lean module that the proof or the shipping code uses',
+        rule=r'an \code{imported} node, written by the audit: the declarations of a lean4lean '
+             r'module that the proof library or the shipping code uses directly '
+             r'(Section~\ref{sec:trust-imported})')),
+    ('lean4leansorry', dict(
         name='lean4lean sorry', badge='LEAN4LEAN SORRY', layer='lean4lean', shape='cylinder',
-        peripheries=1, fill='#CDEBDD', line='#0A6B4B', fontsize=12, graph='green cylinder',
-        short='a lean4lean sorry that nodes inherit',
+        peripheries=1, fill='#E8F5EE', line='#0A6B4B', fontsize=12, graph='pale green cylinder',
+        short='a lean4lean sorry that nodes inherit (graphs only)',
         rule=r'a labelled lean4lean sorry that some node inherits '
              r'(Section~\ref{sec:trust-inherited}); in the graphs only')),
 ])
 
 # The layers: the tint and line of the graph frames, and the names of the frames.
 LAYERS = collections.OrderedDict([
-    ('lean4lean', dict(name='lean4lean sorries', tint='#EEF8F2', line='#0A6B4B')),
+    ('lean4lean', dict(name='lean4lean (imported)', tint='#EEF8F2', line='#0A6B4B')),
     ('shipping', dict(name='Shipping code (LeanToLambdaBox)', tint='#FFF5EB', line='#9A4A00')),
     ('proof', dict(name='Proof library (EraseProof)', tint='#F3F8FD', line='#0B5394')),
     ('test', dict(name='Tests (EraseProof.Test)', tint='#F8F2FA', line='#7B3F8C')),
@@ -117,17 +132,19 @@ LAYERS = collections.OrderedDict([
 # Status: the border of a node in the graphs. Thickness and dashes carry it, so it does not rely on
 # colour; the headings of the text carry it as a badge.
 STATUS = collections.OrderedDict([
-    ('proved', dict(
-        name='Formalized', line='#333333', penwidth=1.2, style='filled', badge=None,
-        graph='thin, dark', short='its declarations exist and use the allowed axioms only',
-        text=r'its declarations exist and use the allowed axioms only; the web version marks '
-             r'\code{\textbackslash leanok} with a check mark')),
+    ('standard', dict(
+        name='Within standard axioms', line='#333333', penwidth=1.2, style='filled', badge=None,
+        graph='thin, dark',
+        short='its declarations exist and depend on no lean4lean sorry',
+        text=r'its declarations exist and depend on the standard axioms \code{propext}, '
+             r'\code{Classical.choice} and \code{Quot.sound} only: on no lean4lean sorry')),
     ('inherits', dict(
         name='Inherits lean4lean sorries', line='#B2182B', penwidth=3.2, style='filled',
         badge='INHERITS', graph='thick, crimson',
-        short='it also depends on lean4lean sorries (badge INHERITS)',
-        text=r'it also depends on lean4lean sorries; its heading carries the badge INHERITS with '
-             r'their labels, and its body lists them under \emph{Inherited from lean4lean}')),
+        short='its declarations exist and also depend on lean4lean sorries (badge INHERITS)',
+        text=r'its declarations exist and also depend on lean4lean sorries: the badge INHERITS '
+             r'after its heading names them, and its body lists them under \emph{Inherited from '
+             r'lean4lean}')),
     ('planned', dict(
         name='Planned', line='#333333', penwidth=1.4, style='filled,dashed', fill='#FFFFFF',
         badge='PLANNED', graph='dashed, white fill', short='not formalized (badge PLANNED)',
@@ -136,21 +153,24 @@ STATUS = collections.OrderedDict([
 
 # The arrows of the graphs: (key, name, meaning, colour, dash for the legend swatch).
 EDGES = [
-    ('statement', 'dashed grey arrow', r'the statement of the target uses the source', '#8A8A8A',
-     '4 3'),
+    ('statement', 'dashed grey arrow', r'the statement (or definition) of the target uses the '
+                                       r'source', '#8A8A8A', '4 3'),
     ('proof', 'solid grey arrow', r'the proof of the target uses the source', '#5E5E5E', ''),
-    ('main', 'blue arrow', 'into the final theorem or a milestone (solid, or dashed for the '
-                           'statement)', '#0B5394', ''),
-    ('test', 'violet arrow', 'into a test (solid, or dashed for the statement)', '#9E7BB5', ''),
+    ('main', 'blue arrow', 'a use by the final theorem or a milestone (dashed: by the statement); '
+                           'all of them are drawn', '#0B5394', ''),
+    ('test', 'violet arrow', 'into a test (dashed: by the statement)', '#9E7BB5', ''),
+    ('lean4lean', 'green arrow', 'from a lean4lean module: the target uses its declarations '
+                                 'directly (dashed: in the statement)', '#0A6B4B', ''),
     ('sorry', 'dotted crimson arrow', 'the target inherits the lean4lean sorry', '#B2182B',
      '1.5 2.5'),
 ]
 EDGE_COLOR = {k: c for k, _, _, c, _ in EDGES}
 # What every arrow obeys: (name, meaning). The opacity of a faint arrow is CROSS_OPACITY.
 EDGE_NOTES = [
-    ('no arrow', 'when a path of other arrows implies it (transitive reduction)'),
-    ('faint arrow', 'in the graph of all nodes, an arrow between two frames, unless it leads into '
-                    'the final theorem or a milestone; a click on a node draws its arrows in full'),
+    ('no arrow', 'when a path of other arrows implies it (transitive reduction), except a blue '
+                 'arrow'),
+    ('faint arrow', 'in the graph of all nodes, an arrow between two frames, except a blue arrow; a '
+                    'click on a node draws its arrows in full'),
 ]
 CROSS_OPACITY = '55'
 
@@ -213,7 +233,7 @@ def classify(nodes):
         kind = base[n['label']]
         if kind == 'lemma' and n['label'] in steps:
             kind = 'step'
-        status = 'planned' if n['planned'] else 'inherits' if n['inherited'] else 'proved'
+        status = 'planned' if n['planned'] else 'inherits' if n['inherited'] else 'standard'
         out[n['label']] = (kind, status)
     return out
 
@@ -239,9 +259,53 @@ def inherited_sorries(nodes):
     return [dict(x, nodes=users[x['label']]) for x in conf['inherited_sorry'] if users[x['label']]]
 
 
-def check(nodes, names):
+def measured_uses(node, owner, deps):
+    """(statement, all): the labels of the nodes whose declarations the declarations of node use
+    directly (deps: the measure of the audit), in the statement (a definition, or the type of a
+    result's declaration) and anywhere."""
+    stmt, every = set(), set()
+    for d in node['lean']:
+        for t, where in deps.get(d, ()):
+            m = owner.get(t)
+            if m is None or m is node or not m['label']:
+                continue
+            every.add(m['label'])
+            if where == 'type' or node['kind'] == 'definition':
+                stmt.add(m['label'])
+    return stmt, every
+
+
+def check_main_uses(nodes, table, deps):
+    """The \\uses of the final theorem and of every milestone, which make the step lemmas, against
+    the measure: every node they name is used directly (a statement \\uses by the statement), and
+    the results among the nodes used directly are exactly the results they name."""
+    out = []
+    owner = {d: n for n in nodes for d in n['lean']}
+    by_label = {n['label']: n for n in nodes if n['label']}
+    for lab, (k, s) in table.items():
+        if k not in ('final', 'milestone'):
+            continue
+        n = by_label[lab]
+        stmt, every = measured_uses(n, owner, deps)
+        named = set(n['uses']) | set(n['proof_uses'])
+        for u in sorted(set(n['uses']) - stmt):
+            out.append((n['file'], f'{lab}: its statement \\uses {u}, whose declarations its '
+                        'declarations do not use directly in their types'))
+        for u in sorted(named - every - set(n['uses'])):
+            out.append((n['file'], f'{lab}: its proof \\uses {u}, whose declarations its '
+                        'declarations do not use directly'))
+        results = {u for u in every if table.get(u, ('',))[0] not in ('definition', 'shipping',
+                                                                       'lean4lean')}
+        for u in sorted(results - named):
+            out.append((n['file'], f'{lab}: its declarations use {u} directly, but its \\uses do '
+                        'not name it'))
+    return out
+
+
+def check(nodes, names, measured=None):
     """Defects of the kind assignment, as (file, message): names is the measure of the audit
-    (declaration -> dict with exists, module)."""
+    (declaration -> dict with exists, module), measured the direct uses it measured (declaration
+    -> [used declaration, 'type' or 'value']; data['deps'] of scripts/audit.py)."""
     out = []
     table = classify(nodes)
     by_label = {n['label']: n for n in nodes if n['label']}
@@ -259,9 +323,13 @@ def check(nodes, names):
                 out.append((n['file'], f'{tag}: {d} has the layer {layer} by its name, but its module '
                             f'{x["module"]} has the layer {layer_of_module(x["module"])}'))
         kind = table[n['label']][0]
-        if (kind == 'shipping') != n['shipping_badge']:
-            out.append((n['file'], f'{tag}: kind {kind}, but the body '
-                        + ('does not open with' if kind == 'shipping' else 'has') + ' \\stShipping'))
+        if (kind == 'lean4lean') != (n['kind'] == 'imported'):
+            out.append((n['file'], f'{tag}: kind {kind} in a {n["kind"]} environment (the imported '
+                        'environment holds exactly the nodes of the lean4lean layer)'))
+        if n['status_words']:
+            out.append((n['file'], f'{tag}: its body carries the status word '
+                        f'{", ".join(sorted(set(n["status_words"])))}; the badges after the heading '
+                        'give kind and status'))
     finals = [lab for lab, (k, s) in table.items() if k == 'final']
     if len(finals) != 1:
         out.append(('kinds', f'{len(finals)} final nodes (the FINAL line of proof/ROOTS.txt must be '
@@ -285,6 +353,8 @@ def check(nodes, names):
         if k == 'milestone' and lab not in reach:
             out.append((by_label[lab]['file'], f'{lab}: a milestone (a theorem environment) that the '
                         'final theorem does not depend on'))
+    if measured is not None:
+        out += check_main_uses(nodes, table, measured)
     count = chapter_counts(nodes)
     for c in chapters():
         txt = re.sub(r'(?<!\\)%.*', '', open(os.path.join(SRC, c['file']), encoding='utf-8').read())
@@ -309,7 +379,8 @@ def tex_to_text(s):
 
 def chapters():
     """The chapters of src/content.tex, in order: dicts with file (relative to src/), number,
-    title, label, and sections: (line, title, label) of the numbered sections."""
+    title, label, sections: (line, title, label) of the numbered sections, and inputs: (line, file)
+    of the generated files the chapter inputs."""
     out, number = [], 0
     content = open(os.path.join(SRC, 'content.tex'), encoding='utf-8').read()
     for item in re.findall(r'^\\input\{([^}]*)\}', content, re.M):
@@ -322,58 +393,102 @@ def chapters():
         for s in re.finditer(r'^\\section\{((?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*)\}\s*\\label\{([^}]*)\}',
                              txt, re.M):
             sections.append((txt.count('\n', 0, s.start()) + 1, tex_to_text(s.group(1)), s.group(2)))
+        inputs = [(txt.count('\n', 0, i.start()) + 1, i.group(1) + '.tex')
+                  for i in re.finditer(r'^\\input\{(generated/[^}]*)\}', txt, re.M)]
         out.append(dict(file=item + '.tex', number=number, title=tex_to_text(m.group(1)),
-                        label=m.group(2), sections=sections))
+                        label=m.group(2), sections=sections, inputs=inputs))
     return out
 
 
 def chapter_of(nodes):
-    """label -> the chapter (a dict of chapters()) of every labelled node."""
-    chaps = {c['file']: c for c in chapters()}
+    """label -> the chapter (a dict of chapters()) of every labelled node: the chapter of its file,
+    or of the chapter that inputs its generated file."""
+    chaps = {}
+    for c in chapters():
+        chaps[c['file']] = c
+        for _, f in c['inputs']:
+            chaps.setdefault(f, c)
     return {n['label']: chaps.get(n['file']) for n in nodes if n['label']}
 
 
+def document_order(nodes):
+    """The labels of the labelled nodes in the order of the document: by chapter, then by line (a
+    node of a generated file at the line of its \\input)."""
+    where = {}
+    for c in chapters():
+        where[c['file']] = (c['number'], None)
+        for line, f in c['inputs']:
+            where.setdefault(f, (c['number'], line))
+
+    def key(n):
+        number, at = where.get(n['file'], (10 ** 6, None))
+        return (number, at if at is not None else n['line'], n['line'])
+    return [n['label'] for n in sorted((n for n in nodes if n['label']), key=key)]
+
+
 def section_of(node, chapter):
-    """(label, title) of the numbered section of the chapter that holds the node."""
-    before = [s for s in chapter['sections'] if s[0] < node['line']] or chapter['sections'][:1]
+    """(label, title) of the numbered section of the chapter that holds the node (for a node of a
+    generated file, the section of its \\input)."""
+    line = next((at for at, f in chapter['inputs'] if f == node['file']), node['line'])
+    before = [s for s in chapter['sections'] if s[0] < line] or chapter['sections'][:1]
     return (before[-1][2], before[-1][1]) if before else (chapter['label'], chapter['title'])
 
 
+def library(label):
+    """The lean4lean library (Lean4Lean.Theory, ...) of an imported node, from its label
+    (imp:Lean4Lean-Theory-VExpr)."""
+    return '.'.join(label.split(':', 1)[1].split('-')[:2])
+
+
 def blocks(nodes):
-    """The frames of the full graph, in document order: key -> dict(title, layer, frames), where
-    frames is a list of (title or None, labels). One block per chapter of the proof layer; one for
-    the shipping code, framed by chapter; one for the tests, framed by section; one for the lean4lean
-    sorries the nodes inherit (labels 'lean4lean:<label>')."""
+    """The blocks of the full graph, in document order: key -> dict(title, layer, link, frames),
+    where frames is a list of dict(title or None, labels, link). link names the graph page that the
+    title of the frame opens: the label of a chapter, 'lean4lean' (the graph of the lean4lean
+    nodes), or None. One block per chapter of the proof layer;
+    one for lean4lean, with a frame for the sorries the nodes inherit (labels 'lean4lean:<label>')
+    and one per library of the imported nodes; one for the shipping code, framed by chapter; one
+    for the tests, framed by section."""
     table = classify(nodes)
     chap = chapter_of(nodes)
-    order = {c['file']: c['number'] for c in chapters()}
-    ordered = sorted((n for n in nodes if n['label']),
-                     key=lambda n: (order.get(n['file'], 10 ** 6), n['line']))
+    by = {n['label']: n for n in nodes if n['label']}
     out = collections.OrderedDict()
     sorries = inherited_sorries(nodes)
+    out['lean4lean'] = dict(title=LAYERS['lean4lean']['name'], layer='lean4lean', link='lean4lean',
+                            frames=[])
     if sorries:
-        out['lean4lean'] = dict(title=LAYERS['lean4lean']['name'], layer='lean4lean',
-                                frames=[(None, ['lean4lean:' + x['label'] for x in sorries])])
+        out['lean4lean']['frames'].append(dict(
+            title='Sorries the nodes inherit', link='lean4lean',
+            labels=['lean4lean:' + x['label'] for x in sorries]))
     frames = collections.defaultdict(collections.OrderedDict)
-    for n in ordered:
-        layer = KINDS[table[n['label']][0]]['layer']
-        c = chap[n['label']]
+    for lab in document_order(nodes):
+        n = by[lab]
+        layer = KINDS[table[lab][0]]['layer']
+        c = chap[lab]
         if layer == 'proof':
             key = c['label'] if c else n['file']
             if key not in out:
                 out[key] = dict(title=f'{c["number"]}  {c["title"]}' if c else n['file'],
-                                layer='proof', frames=[(None, [])])
-            out[key]['frames'][0][1].append(n['label'])
+                                layer='proof', link=c['label'] if c else None,
+                                frames=[dict(title=None, labels=[], link=None)])
+            out[key]['frames'][0]['labels'].append(lab)
             continue
         if layer not in out:
-            out[layer] = dict(title=LAYERS[layer]['name'], layer=layer, frames=[])
-        if layer == 'test' and c and c['sections']:
-            sub = section_of(n, c)
+            out[layer] = dict(title=LAYERS[layer]['name'], layer=layer, link=None, frames=[])
+        if layer == 'lean4lean':
+            sub = (library(lab), 'lean4lean')
+        elif layer == 'test' and c and c['sections']:
+            sub = (section_of(n, c)[1], c['label'])
         else:
-            sub = (c['label'], f'{c["number"]}  {c["title"]}') if c else (n['file'], n['file'])
-        frames[layer].setdefault(sub, []).append(n['label'])
+            sub = ((f'{c["number"]}  {c["title"]}', c['label']) if c else (n['file'], None))
+        frames[layer].setdefault(sub, []).append(lab)
     for layer, sub in frames.items():
-        out[layer]['frames'] = [(title, labs) for (key, title), labs in sub.items()]
+        out[layer]['frames'] += [dict(title=title, labels=labs, link=link)
+                                 for (title, link), labs in sub.items()]
+        links = {fr['link'] for fr in out[layer]['frames']}
+        if len(links) == 1:
+            out[layer]['link'] = links.pop()
+    if not out['lean4lean']['frames']:
+        del out['lean4lean']
     return out
 
 
@@ -396,19 +511,20 @@ def kinds_tex(nodes):
     for label, cnt in chapter_counts(nodes).items():
         if cnt:
             out.append(f'\\bpdefinenodes{{{label}}}{{{badges(cnt)}}}\n')
-    out.append('% \\bpsetkind{label}{kind}{status}: every node (the print version puts the badges '
-               'after its heading).\n')
+    out.append('% \\bpsetkind{label}{kind}{status}{inherited sorries}: every node (the print version '
+               'puts the badges after its heading).\n')
     for n in nodes:
         if n['label'] in table:
             kind, status = table[n['label']]
-            out.append(f'\\bpsetkind{{{n["label"]}}}{{{tex_key(kind)}}}{{{status}}}\n')
+            out.append(f'\\bpsetkind{{{n["label"]}}}{{{tex_key(kind)}}}{{{status}}}'
+                       f'{{{", ".join(n["inherited"])}}}\n')
     return ''.join(out)
 
 
 def legend_tex(nodes):
     table = classify(nodes)
     count = collections.Counter(k for k, s in table.values())
-    count['lean4lean'] = len(inherited_sorries(nodes))
+    count['lean4leansorry'] = len(inherited_sorries(nodes))
     scount = collections.Counter(s for k, s in table.values())
     rows = [f'\\bpkind{{{tex_key(k)}}} & {d["graph"]} & {d["rule"]} & {count[k]} \\\\\n'
             for k, d in KINDS.items()]

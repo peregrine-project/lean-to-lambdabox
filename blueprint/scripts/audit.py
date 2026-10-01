@@ -10,13 +10,14 @@ Run from anywhere (it uses `lake` from PATH and the configuration blueprint/audi
     python3 blueprint/scripts/audit.py --check-lean-decls blueprint/lean_decls
         # check that the names plasTeX collected exist, except those of planned nodes
 
-Checks, over the nodes (definition, lemma, proposition, theorem, corollary) of
+Checks, over the nodes (definition, lemma, proposition, theorem, corollary, imported) of
 blueprint/src/chapters/*.tex and blueprint/src/generated/*.tex:
 
   * every node has a \\label, defined once, whose prefix matches its environment (def, lem, prop,
-    thm, cor) and which has no dot, prime or space;
+    thm, cor, imp) and which has no dot, prime or space;
   * every node carries a non-empty \\lean{...}, and no declaration is cited by two nodes;
-  * every \\uses resolves to a node, no node uses itself, and the \\uses graph is acyclic;
+  * every \\uses, and every \\ref of \\usedbystatements and \\usedbyproofs, resolves to a node; no
+    node uses itself, and the \\uses graph is acyclic;
   * a proof environment follows its statement (never nested in it); a result node has one, a
     definition has none;
   * planned nodes (marked \\planned): none of their declarations exists (a declaration that exists
@@ -41,9 +42,11 @@ blueprint/src/chapters/*.tex and blueprint/src/generated/*.tex:
   * present state only (STYLE.md section 1): no word of HISTORY_WORDS in the hand-written chapters
     and the generated tables, outside comments (the registers record changes and are exempt);
   * node kinds (scripts/kinds.py check): the names of a node share one layer, the module of every
-    cited declaration has the layer of its name, exactly one node is the final theorem (a theorem
-    environment), the final theorem depends on every milestone, and a node opens with
-    \\stShipping exactly when it is shipping code; the tables kinds.py writes are up to date;
+    cited declaration has the layer of its name, the imported environment holds exactly the nodes
+    of the lean4lean layer, exactly one node is the final theorem (a theorem environment), the
+    final theorem depends on every milestone, the \\uses of the final theorem and of every
+    milestone agree with the declarations they use directly (measured), and no node body carries
+    a status word; the tables kinds.py writes are up to date;
   * the generated chapters are up to date: render_registers.py --check (registers, pins), and the
     tables this script writes with --update:
       generated/inherited-sorries.tex  the labelled lean4lean sorry sources, where they are, and the
@@ -55,7 +58,13 @@ blueprint/src/chapters/*.tex and blueprint/src/generated/*.tex:
                                        not use the root's node, and the table marks the row;
       generated/planned.tex            the planned nodes per chapter;
       generated/census-lean4lean.tex   the sorry sources and axioms of the inherited development;
-      generated/census-shipping.tex    the partial, opaque, unsafe and monadic shipping code.
+      generated/census-shipping.tex    the partial, opaque, unsafe and monadic shipping code;
+      generated/lean4lean-imports.tex  one imported node per lean4lean module that the proof
+                                       library (outside its tests) or the shipping code uses
+                                       directly: those declarations, the description of the
+                                       module in audit.toml (checked: one entry per such module),
+                                       \\leanok and \\inherited as measured, and the nodes whose
+                                       declarations use them directly.
 
 It reports the inherited trust: the census of the inherited development, and for every node the
 inherited sorry sources and axioms it depends on; and the planned nodes, whose declarations are not
@@ -81,8 +90,9 @@ HISTORY_WORDS = ['previously', 'since the last version', 'was fixed', 'no longer
 REGISTERS = {'shipping-changes.tex', 'divergences.tex'}
 ENV_DIR = os.path.join(REPO, CONF['env_dir'])
 LABELS = {x['name']: x for x in CONF['inherited_sorry']}   # sorry source -> its entry
-KINDS = ['definition', 'lemma', 'proposition', 'theorem', 'corollary']
-PREFIX = dict(definition='def', lemma='lem', proposition='prop', theorem='thm', corollary='cor')
+KINDS = ['definition', 'lemma', 'proposition', 'theorem', 'corollary', 'imported']
+PREFIX = dict(definition='def', lemma='lem', proposition='prop', theorem='thm', corollary='cor',
+              imported='imp')
 RESULTS = {'lemma', 'proposition', 'theorem', 'corollary'}
 MONADS = {'Lean.Meta.MetaM', 'Lean.Core.CoreM', 'Lean.Elab.Command.CommandElab',
           'Lean.Elab.Command.CommandElabM', 'Lean.Elab.Term.TermElabM', 'IO', 'EIO', 'BaseIO'}
@@ -99,6 +109,14 @@ def args_of(macro, txt):
     out = []
     for m in re.finditer(r'\\%s\{((?:[^{}]|\{[^{}]*\})*)\}' % macro, txt, re.S):
         out += [x.strip() for x in m.group(1).replace('\n', ' ').split(',') if x.strip()]
+    return out
+
+
+def refs_of(macro, txt):
+    """The labels of the \\ref commands inside every \\macro{...} of txt."""
+    out = []
+    for m in re.finditer(r'\\%s\{((?:[^{}]|\{[^{}]*\})*)\}' % macro, txt, re.S):
+        out += re.findall(r'\\ref\{([^}]*)\}', m.group(1))
     return out
 
 
@@ -142,7 +160,10 @@ def parse(defects):
                 title = re.match(r'\s*\[((?:[^\[\]{}]|\{(?:[^{}]|\{[^{}]*\})*\})*)\]', body)
                 last = dict(file=name, line=line, kind=m.group(1), label=labels[0] if labels else None,
                             title=title.group(1) if title else '',
-                            shipping_badge='\\stShipping' in body,
+                            status_words=re.findall(r'\\st(?:Proved|Inherited|Shipping|Planned|Open)\b',
+                                                    body),
+                            used_by=refs_of('usedbystatements', body),
+                            used_by_proof=refs_of('usedbyproofs', body),
                             lean=args_of('lean', body), leanok=bool(re.search(r'\\leanok\b', body)),
                             uses=args_of('uses', body),
                             inherited=[unescape(x) for x in args_of('inherited', body)],
@@ -424,6 +445,104 @@ def census_shipping(data):
     return ''.join(out)
 
 
+KIND_WORDS = [('def', 'definition'), ('theorem', 'theorem'), ('inductive', 'inductive type'),
+              ('structure', 'structure')]
+
+
+def counted(n, word):
+    return f'{n} {word}' + ('' if n == 1 else 's')
+
+
+def wrapped(items, first, width=99, indent='    ', sep=', '):
+    """items joined by sep, broken into lines of at most width characters; the first line follows
+    a prefix of first characters, the others start with indent."""
+    lines, cur = [], ''
+    for x in items:
+        part = (sep if cur else '') + x
+        if cur and (first if not lines else len(indent)) + len(cur) + len(part) + 1 > width:
+            lines.append(cur + sep.rstrip())
+            cur = x
+        else:
+            cur += part
+    lines.append(cur)
+    return ('\n' + indent).join(lines)
+
+
+def imported_uses(nodes, data):
+    """The declarations of the inherited modules that the declarations of the proof library outside
+    its tests, or of the shipping code, use directly (data['deps']): name -> {label: how} of the
+    nodes whose declarations use it, how = 'statement' when a definition node or the type of a
+    result's declaration uses it, 'proof' otherwise."""
+    decls = data['decls']
+    owner = {d: n for n in nodes for d in n['lean']}
+    out = collections.defaultdict(dict)
+    for user, targets in data['deps'].items():
+        if user.startswith(TEST):
+            continue
+        n = owner.get(user)
+        for t, where in targets:
+            if not decls[t]['module'].startswith(INH):
+                continue
+            used = out[t]
+            if n is None or n['planned'] or not n['label']:
+                continue
+            how = 'statement' if n['kind'] == 'definition' or where == 'type' else 'proof'
+            if used.get(n['label']) != 'statement':
+                used[n['label']] = how
+    return out
+
+
+def lean4lean_imports(nodes, data, defects):
+    """generated/lean4lean-imports.tex: one imported node per lean4lean module whose declarations
+    the proof library (outside its tests) or the shipping code uses directly, in the order of
+    audit.toml's [lean4lean_modules]."""
+    decls, names = data['decls'], data['names']
+    uses = imported_uses(nodes, data)
+    by_module = collections.defaultdict(list)
+    for t in uses:
+        by_module[decls[t]['module']].append(t)
+    described = CONF.get('lean4lean_modules', {})
+    for m in sorted(set(by_module) - set(described)):
+        defects['audit.toml'].append(f'[lean4lean_modules]: no entry for {m}, whose declarations '
+                                     f'{", ".join(sorted(by_module[m])[:3])} are used directly')
+    for m in sorted(set(described) - set(by_module)):
+        defects['audit.toml'].append(f'[lean4lean_modules]: {m} has an entry, but no declaration of '
+                                     'it is used directly')
+    order = {lab: i for i, lab in enumerate(kinds.document_order(nodes))}
+    out = ['% Generated by blueprint/scripts/audit.py --update from blueprint/audit.toml and the Lean '
+           'environment. Do not edit.\n']
+    for m in [m for m in described if m in by_module] + sorted(set(by_module) - set(described)):
+        ds = sorted(by_module[m], key=lambda t: (decls[t]['line'] or 0, t))
+        fp = footprint(dict(lean=ds), names)
+        if not fp['ok']:
+            defects['generated/lean4lean-imports.tex'].append(
+                f'{m}: its declarations used directly are outside the allowed set (missing '
+                f'{fp["missing"]}, axioms {fp["bad_axioms"]}, sorry sources {fp["bad_sorry"]})')
+        kinds_count = collections.Counter(decls[t]['kind'] for t in ds)
+        words = [counted(kinds_count.pop(k), w) for k, w in KIND_WORDS if kinds_count.get(k)]
+        words += [counted(c, k) for k, c in sorted(kinds_count.items())]
+        users = collections.defaultdict(set)
+        for t in ds:
+            for lab, how in uses[t].items():
+                users[lab].add(how)
+        stmt = sorted((lab for lab, hows in users.items() if 'statement' in hows), key=order.get)
+        proof = sorted((lab for lab, hows in users.items() if 'statement' not in hows), key=order.get)
+        out.append(f'\n\\begin{{imported}}[\\code{{{m}}}]\n'
+                   f'  \\label{{imp:{m.replace(".", "-")}}}\n'
+                   f'  \\lean{{{wrapped(ds, 8)}}}\n'
+                   + ('  \\leanok\n' if fp['ok'] else '')
+                   + f'  \\srcloc{{{module_path(m)}}}{{{decls[ds[0]]["line"]}}}\n'
+                   + (f'  \\inherited{{{", ".join(fp["inherited"])}}}\n' if fp['inherited'] else '')
+                   + f'  \\lead{{In short}} {wrapped(described.get(m, "--").split(), 18, indent="  ", sep=" ")}\n'
+                   f'  \\lead{{Used directly}} {counted(len(ds), "declaration")}: {", ".join(words)}.\n'
+                   + (f'  \\usedbystatements{{{wrapped([f"\\ref{{{x}}}" for x in stmt], 20)}}}\n'
+                      if stmt else '')
+                   + (f'  \\usedbyproofs{{{wrapped([f"\\ref{{{x}}}" for x in proof], 16)}}}\n'
+                      if proof else '')
+                   + '\\end{imported}\n')
+    return ''.join(out)
+
+
 # ---------------------------------------------------------------- main
 
 def is_test(node):
@@ -489,6 +608,9 @@ def main(argv):
             defects[f].append(f'{tag}: label contains a dot, prime or space')
         if not n['lean']:
             defects[f].append(f'{tag}: no \\lean{{...}}')
+        for u in n['used_by'] + n['used_by_proof']:
+            if u not in labels:
+                defects[f].append(f'{tag}: \\usedby... \\ref{{{u}}} does not resolve to a node')
         for u in n['uses'] + n['proof_uses']:
             if u not in labels:
                 defects[f].append(f'{tag}: \\uses{{{u}}} does not resolve to a node')
@@ -496,8 +618,8 @@ def main(argv):
                 defects[f].append(f'{tag}: uses itself')
             if not n['planned'] and u in by_label and by_label[u]['planned']:
                 defects[f].append(f'{tag}: a node that is not planned uses the planned node {u}')
-        if n['kind'] == 'definition' and n['proof']:
-            defects[f].append(f'{tag}: a definition carries a proof environment')
+        if n['kind'] in ('definition', 'imported') and n['proof']:
+            defects[f].append(f'{tag}: a {n["kind"]} node carries a proof environment')
         if n['kind'] in RESULTS and not n['proof']:
             defects[f].append(f'{tag}: a result without a proof environment')
         if n['planned']:
@@ -524,6 +646,18 @@ def main(argv):
 
     data = measure(sorted(owners), build)
     names = data['names']
+
+    # the imported nodes: written first, since the other checks read them
+    path = os.path.join(GEN, 'lean4lean-imports.tex')
+    text = lean4lean_imports(nodes, data, defects)
+    if not os.path.exists(path) or open(path, encoding='utf-8').read() != text:
+        if update:
+            with open(path, 'w', encoding='utf-8') as fh:
+                fh.write(text)
+            print('audit: wrote blueprint/src/generated/lean4lean-imports.tex; auditing again')
+            return main([a for a in argv if a != '--no-build'] + ['--no-build'])
+        defects['generated'].append('lean4lean-imports.tex is stale: run blueprint/scripts/audit.py '
+                                    '--update')
     footprints = {}
     for n in nodes:
         f, tag = n['file'], f'L{n["line"]} {n["label"]}'
@@ -563,7 +697,7 @@ def main(argv):
                                   f'but {n["lean"][0]} is at {want[0]}:{want[1]}')
 
     # node kinds
-    for f, msg in kinds.check(nodes, names):
+    for f, msg in kinds.check(nodes, names, data['deps']):
         defects[f].append(msg)
     for fname, text in kinds.generated(nodes):
         path = os.path.join(GEN, fname)
