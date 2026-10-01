@@ -66,6 +66,8 @@ inductive ErasesDeps (venv : VEnv) (σ : EvalEnv) (lenv : GlobalDeclarations) : 
       ErasesDeps venv σ lenv (.const (toKername c))
   /-- `erases_deps_tFix` (`:352`). -/
   | fix : (∀ d ∈ defs, ErasesDeps venv σ lenv d.body) → ErasesDeps venv σ lenv (.fix defs i)
+  /-- `erases_deps_tPrimInt` (`:358`); `LBTerm.prim` holds machine integers only (DV-16). -/
+  | prim : ErasesDeps venv σ lenv (.prim p)
 
 /-- Fixpoints stored for program constants are erased blocks. Reference: the part of
 `MR E/EDeps.v:594 globals_erased_with_deps` that `erases_deps` cannot carry (DV-7). -/
@@ -132,6 +134,7 @@ theorem ErasesDeps.ext (hx : LenvExt lenv lenv') (h : ErasesDeps venv σ lenv t)
   | app _ _ ihf iha => exact .app ihf iha
   | const hc hl hd _ ih => exact .const hc (lookupConst_ext hx hl) (hd.ext hx) ih
   | fix _ ih => exact .fix ih
+  | prim => exact .prim
 
 /-! ## Substitution -/
 
@@ -168,6 +171,7 @@ theorem ErasesDeps.csubst (ha : ErasesDeps venv σ lenv a) (hb : ErasesDeps venv
     obtain ⟨d', hd', he⟩ := mem_csubstD hd
     rw [he]
     exact ih d' hd'
+  | prim => exact .prim
 
 /-- Substituting terms with erased dependencies. Reference: `erases_deps_substl`
 (`MR E/EDeps.v:208`). -/

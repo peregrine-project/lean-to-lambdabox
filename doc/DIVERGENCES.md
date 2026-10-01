@@ -226,14 +226,17 @@ The blueprint renders this register.
 - **Our artifact:** the fragment: the source terms `EraseProof.TrS` translates
   (`proof/EraseProof/Typing/Basic.lean`); the programs `EraseProof.ProgEnv` relates to a model
   (`proof/EraseProof/Env.lean`); the rules of the source evaluation `EraseProof.SrcEval`
-  (`proof/EraseProof/Source/Eval.lean`); and the rules of the erasure relation
-  `EraseProof.Erases` (`proof/EraseProof/Relation/Basic.lean`).
+  (`proof/EraseProof/Source/Eval.lean`); the rules of the erasure relation
+  `EraseProof.Erases` (`proof/EraseProof/Relation/Basic.lean`); and the rules of the dependency
+  relation `EraseProof.ErasesDeps` (`proof/EraseProof/Relation/Deps.lean`).
 - **Reference artifact:** MetaRocq's erasure relation `erases` in full
   (`erasure/theories/Extract.v:88`; MetaCoq paper §7.3, Fig. 18), with its rules
   `erases_tConstruct` (`:106`), `erases_tCase` (`:109`), `erases_tProj` (`:118`), `erases_tFix`
-  (`:122`), `erases_tCoFix` (`:129`), `erases_tPrim` (`:137`), and PCUIC's weak call-by-value
-  evaluation `eval` (`pcuic/theories/PCUICWcbvEval.v:231`) with its ι-rules; Letouzey Def. 3 (all
-  cases of 𝓔, fixpoints) and Def. 8 (ι).
+  (`:122`), `erases_tCoFix` (`:129`), `erases_tPrim` (`:137`); its dependency relation
+  `erases_deps` (`erasure/theories/Extract.v:306`) with the rules `erases_deps_tConstruct`
+  (`:330`), `erases_deps_tCase` (`:336`) and `erases_deps_tProj` (`:345`); and PCUIC's weak
+  call-by-value evaluation `eval` (`pcuic/theories/PCUICWcbvEval.v:231`) with its ι-rules;
+  Letouzey Def. 3 (all cases of 𝓔, fixpoints) and Def. 8 (ι).
 - **What differs:** no constructors, case analysis, projections, source fixpoints, cofixpoints,
   primitive values or evars, and no ι-reduction: `EraseProof.TrS` has no rule for `Expr.proj`,
   `Expr.lit` or `Expr.mvar`, and Lean's `Expr` has no node for constructors, case analysis,
@@ -247,12 +250,18 @@ The blueprint renders this register.
   `EraseProof.Erases` has no counterpart of `erases_tConstruct`, `erases_tCase`, `erases_tProj`,
   `erases_tFix`, `erases_tCoFix` or `erases_tPrim`: its rules are those of variables, λ, `let`,
   application, constants (with DV-7's `EraseProof.Erases.constRec`), metadata and `□`.
+  `EraseProof.ErasesDeps` has no counterpart of `erases_deps_tConstruct`, `erases_deps_tCase` or
+  `erases_deps_tProj`: its rules are those of `□`, variables, λ, `let`, application, constants
+  (DV-14), fixpoints and integer primitives (DV-16).
 - **Why it is forced:** lean4lean `master` has no inductive types: `Lean4Lean.VInductDecl.WF` and
   `Lean4Lean.VEnv.addInduct` are `sorry` definitions (`Lean4Lean/Theory/Inductive.lean:5,7`), so
   the model has no constructors, recursors or ι-reduction; projections are translated through the
   `sorry` definition `Lean4Lean.TrProj` (`Lean4Lean/Verify/Typing/Expr.lean:68`); literals are
   values of the inductive types `Nat` and `String` (DV-2); the kernel's terms have no
-  metavariables.
+  metavariables. The rules `erases_deps_tConstruct`, `erases_deps_tCase` and `erases_deps_tProj`
+  have the premises `declared_constructor`, `declared_inductive` and `declared_projection` of the
+  source environment: a program in scope declares no inductive type, so these premises never hold
+  and the rules cannot apply.
 - **What was considered instead:** axiomatized inductive types (types, constructors and recursors
   as constants, ι as definitional equalities) in an ordered environment: the rule
   `Lean4Lean.VEnv.Ordered.defeq` (`Lean4Lean/Theory/Typing/Lemmas.lean:258`) admits any
@@ -740,17 +749,23 @@ The blueprint renders this register.
 - **Our artifact:** `proof/EraseProof/Target.lean`, `EraseProof.LBEval`, λ□ weak call-by-value
   evaluation, with its atoms `EraseProof.lbAtom`, stated on the shipping AST `LBTerm`
   (`LeanToLambdaBox/Basic.lean`); with it the functions `EraseProof.csubst`, `EraseProof.closedn`,
-  `EraseProof.hasFVar` and the environment condition `EraseProof.LenvClosed`.
+  `EraseProof.hasFVar` and the environment condition `EraseProof.LenvClosed`; and
+  `proof/EraseProof/Relation/Deps.lean`, the dependency relation `EraseProof.ErasesDeps` on the
+  same terms.
 - **Reference artifact:** MetaRocq's λ□ evaluation `eval` (`erasure/theories/EWcbvEval.v:119`) on
   the λ□ terms `term` (`erasure/theories/EAst.v:29`), with `atom`
   (`erasure/theories/EWcbvEval.v:36`), `csubst` (`erasure/theories/ECSubst.v:14`), `closedn`
   (`erasure/theories/ELiftSubst.v:90`) and `closed_env` (`erasure/theories/EGlobalEnv.v:181`);
-  MetaCoq paper §7.1 (Fig. 16 and the amended evaluation rules, p. 8:60).
+  the dependency relation `erases_deps` (`erasure/theories/Extract.v:306`); MetaCoq paper §7.1 (Fig. 16 and the amended evaluation rules, p. 8:60).
 - **What differs:** `LBTerm` has no `tVar`, `tEvar`, `tCoFix`, `tLazy` or `tForce`, and its only
   primitive values are 63-bit integers. So `EraseProof.LBEval` has no rules `eval_cofix_case`
   (`erasure/theories/EWcbvEval.v:198`), `eval_cofix_proj` (`:205`) or `eval_force` (`:279`), its
   rule `prim` (`eval_prim`, `:275`) evaluates an integer to itself, and `EraseProof.lbAtom` has no
-  case for `tCoFix` or `tLazy`. `LBTerm` has a constructor that `term` lacks, `fvar`, a free
+  case for `tCoFix` or `tLazy`. Likewise `EraseProof.ErasesDeps` has no rule
+  `erases_deps_tEvar` (`erasure/theories/Extract.v:310`), `erases_deps_tCoFix` (`:355`),
+  `erases_deps_tPrimFloat` (`:360`), `erases_deps_tPrimString` (`:362`) or
+  `erases_deps_tPrimArray` (`:364`); its rule `prim` is `erases_deps_tPrimInt` (`:358`).
+  `LBTerm` has a constructor that `term` lacks, `fvar`, a free
   variable named by a Lean `FVarId`: `EraseProof.LBEval` has no rule for it, `EraseProof.csubst`
   leaves it unchanged and `EraseProof.closedn` counts it as closed, as MetaRocq's `csubst` and
   `closedn` treat `tVar`; `EraseProof.hasFVar` tests whether it occurs, and has no MetaRocq
