@@ -459,7 +459,7 @@ def render_divergences():
         body.append(tex_blocks(content, src, labels))
     if not entries_seen:
         raise RenderError(f'{src}: no "## Entries" section')
-    n = sum(1 for b in bs if b[0] == 'h' and b[1] == 3 and re.match(r'^D-\d+:', b[2]))
+    n = sum(1 for b in bs if b[0] == 'h' and b[1] == 3 and re.match(r'^DV-\d+\b', b[2]))
     out += ['\\section*{At a glance}\n\\begin{itemize}\n',
             '\\item \\lead{Source} \\code{doc/DIVERGENCES.md}, rendered by '
             '\\code{blueprint/scripts/render\\_registers.py}; the sections below are the register\'s '
