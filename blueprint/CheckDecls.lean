@@ -14,7 +14,7 @@ Run with `lake env` of the package whose environment resolves every import (`env
   `leanblueprint web` writes) that the environment does not contain, and exits with status 1 if
   there is one. It replaces `lake exe checkdecls`, which would need a `checkdecls` dependency in
   the root `lakefile.toml`.
-* `measure` writes a JSON object with three fields:
+* `measure` writes a JSON object with these fields:
   - `names`: for each name of `<names-file>`: whether it exists, its module, line and kind, the axioms
     it depends on (the closure over the constants its type, value and constructors use, as
     `#print axioms` follows them), whether they equal what `Lean.collectAxioms` (`#print axioms`)
@@ -36,7 +36,12 @@ Run with `lake env` of the package whose environment resolves every import (`env
     directly, each with `type` (its own type uses it) or `value` (its value, or a constructor or
     auxiliary declaration that belongs to it, uses it): a constant counts for the citable
     declaration it belongs to (`ownerOf`);
-  - `decls`: module, line and kind of every declaration that `deps` names.
+  - `decls`: module, line and kind of every declaration that `deps` names;
+  - `locations`: module and declaration ranges (`locationJson`) of every existing name of
+    `<names-file>`, of the names file `$BP_LOCATE` (when set: the names the blueprint links to
+    their sources), of `census`, `shipping` (and the head constants of their result types),
+    `covered` and `decls`: the links of the web version to the Lean sources are made of them;
+  - `sysroot`: the toolchain directory, whose `src/lean/` holds the sources of Lean's own modules.
   `names` also has an entry for every declaration of the inherited modules that `deps` names.
 -/
 open Lean
@@ -180,6 +185,33 @@ where
       | some ci => if isCitable env m ci then some m else go m.getPrefix
       | none => go m.getPrefix
 
+/-- The declaration ranges of `n`, or, when Lean recorded none (an auxiliary declaration that an
+elaborator adds, such as `f.unsafe_1`), those of the closest prefix of its name that has some,
+with that prefix. -/
+partial def rangesOf (env : Environment) (n : Name) : Option (DeclarationRanges × Name) :=
+  match declRangeExt.find? env n (level := .server) with
+  | some r => some (r, n)
+  | none => match n with
+    | .str p _ | .num p _ => if p.isAnonymous then none else rangesOf env p
+    | .anonymous => none
+
+/-- The module and declaration ranges of `n` (`rangesOf`), as doc-gen4 reads them for its source
+links: the lines of the whole declaration (doc comment and modifiers included), the position of
+its name (line, and column in codepoints), and `of`, the declaration they belong to when it is a
+prefix of `n`. A declaration that Lean added in another module than the declaration it belongs to
+(`ownerOf`), such as an equation lemma realized where a proof first uses it, is located at that
+declaration. `null` ranges when neither `n` nor a prefix has any. -/
+def locationJson (env : Environment) (n : Name) : Json :=
+  let n := match ownerOf env n with
+    | some o => if o != n && moduleOf env o != moduleOf env n then o else n
+    | none => n
+  Json.mkObj [("module", moduleOf env n), ("ranges", match rangesOf env n with
+    | none => Json.null
+    | some (r, o) => Json.mkObj [("start", r.range.pos.line), ("end", r.range.endPos.line),
+        ("sel_line", r.selectionRange.pos.line), ("sel_col", r.selectionRange.pos.column),
+        ("sel_end_line", r.selectionRange.endPos.line),
+        ("sel_end_col", r.selectionRange.endPos.column), ("of", toString o)])]
+
 unsafe def importEnv (mods : List String) : IO Environment := do
   initSearchPath (← findSysroot)
   enableInitializersExecution
@@ -281,11 +313,31 @@ unsafe def main (args : List String) : IO UInt32 := do
     let decls := Json.mkObj <| named.toList.map fun n => (toString n, Json.mkObj [
       ("module", moduleOf env n), ("kind", kindOf env n),
       ("line", match lineOf env n with | some l => toJson l | none => Json.null)])
+    -- locations: the names measured above, the names of $BP_LOCATE, the census, the shipping
+    -- declarations and the head constants of their result types, the covered declarations and
+    -- every declaration that `deps` names
+    let extra ← match (← IO.getEnv "BP_LOCATE") with
+      | some f => readNames f
+      | none => pure #[]
+    let field (k : String) (x : Json) : Array String :=
+      match x.getObjValAs? String k with
+      | .ok s => if s.isEmpty || s == "Sort" then #[] else #[s]
+      | .error _ => #[]
+    let listed (k : String) (xs : Array Json) : Array String := xs.foldl (· ++ field k ·) #[]
+    let mut located : Std.HashSet Name := {}
+    let mut locs : Array (String × Json) := #[]
+    for s in names ++ extra ++ listed "name" census ++ listed "name" shipping ++
+        listed "result" shipping ++ listed "name" covered ++ named.map toString do
+      let n := s.toName
+      if located.contains n || !env.contains n then continue
+      located := located.insert n
+      locs := locs.push (s, locationJson env n)
     let j := Json.mkObj [("modules", toJson mods), ("names", Json.mkObj (entries.toList)),
       ("census", Json.arr census), ("shipping", Json.arr shipping), ("covered", Json.arr covered),
-      ("deps", deps), ("decls", decls)]
+      ("deps", deps), ("decls", decls), ("locations", Json.mkObj locs.toList),
+      ("sysroot", toString (← findSysroot))]
     IO.FS.writeFile out (j.pretty ++ "\n")
-    IO.println s!"measured {names.size} names; census {census.size}; shipping {shipping.size}; covered {covered.size}; users {users.size}"
+    IO.println s!"measured {names.size} names; census {census.size}; shipping {shipping.size}; covered {covered.size}; users {users.size}; located {locs.size}"
     return 0
   | _ =>
     IO.eprintln "usage: lake env lean --run blueprint/CheckDecls.lean (check <names> | measure <names> <out.json>) <module>..."

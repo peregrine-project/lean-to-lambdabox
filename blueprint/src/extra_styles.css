@@ -98,17 +98,49 @@ div.proof_content li p {
 	margin: 0;
 }
 
-/* \lean names without a documentation link (scripts/unlink_lean_decls.py): the style of the links
- * they replace, without the pointer. */
-span.lean_link {
-	font-weight: normal;
-	font-size: 90%;
-	font-style: italic;
-	padding-left: .5rem;
+/* Links to the Lean sources (scripts/bpkinds.py, scripts/leanlinks.py). The line "Lean: ..." under
+ * a node's heading (as in the print version) and its source location, in the grey of the node
+ * furniture; the names and paths in monospace, links in the theme's link colour. */
+span.bp-lean {
+	display: block;
+	font-size: 85%;
+	color: #6A6A6A;
 }
 
-li > span.lean_decl {
+span.bp-lean a.lean_decl,
+ul.uses a.lean_decl,
+ul.uses span.lean_decl {
 	font-family: monospace;
+	overflow-wrap: anywhere;
+}
+
+ul.uses span.bp-where {
+	font-size: 85%;
+	color: #6A6A6A;
+	font-family: monospace;
+	padding-left: .4rem;
+}
+
+/* One colour for every link to the Lean sources, also in the pop-ups of the graphs, whose other
+ * links take the colour of the text (dep_graph.css). */
+a.bp-src,
+a.lean_decl,
+div.dep-modal-content a.bp-src,
+div.dep-modal-content a.lean_decl {
+	color: #0B5394;
+	text-decoration: none;
+}
+
+a.bp-src:hover,
+a.bp-src:focus,
+a.lean_decl:hover,
+a.lean_decl:focus {
+	text-decoration: underline;
+}
+
+/* A name of a planned node: no declaration, no link. */
+span.bp-planned-decl {
+	font-style: italic;
 }
 
 /* ---------------------------------------------------------------- dependency-graph pages

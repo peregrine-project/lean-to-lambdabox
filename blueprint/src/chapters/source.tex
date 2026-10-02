@@ -10,9 +10,9 @@
 \item \lead{Status} \stProved{} every node; \code{IsErasable.app} and \code{IsErasable.lam\_inv}
   inherit L1--L6, the nodes that rest on subject reduction L1--L5.
 \item \lead{Nodes} \bpnodes{chap:source}
-\item \lead{Lean files} \code{proof/EraseProof/\{Erasability, Atoms\}.lean},
-  \code{proof/EraseProof/Erasability/\{Inv, Eval\}.lean},
-  \code{proof/EraseProof/Source/\{Eval, Steps, Defeq, Restrict\}.lean}.
+\item \lead{Lean files} \leanfiles{proof/EraseProof/}{Erasability, Atoms},
+  \leanfiles{proof/EraseProof/Erasability/}{Inv, Eval},
+  \leanfiles{proof/EraseProof/Source/}{Eval, Steps, Defeq, Restrict}.
 \item \lead{Reference} MetaRocq \code{isErasable} (\code{erasure/theories/Extract.v}), PCUIC
   \code{eval} (\code{pcuic/theories/PCUICWcbvEval.v}); Letouzey Definition 1 and Lemma 2.
 \end{itemize}
@@ -282,7 +282,7 @@
   \uses{def:EraseProof-EvalEnv, def:Erasure-isRecursiveDecl, def:Erasure-EnvView}
   \srcloc{proof/EraseProof/Source/Restrict.lean}{47}
   \lead{In short} \code{evalEnvOf view cfg P}: the declarations \code{P}, with \hl{the constants
-  \code{\#erase} remaps} as stuck: those the shipping test \code{Erasure.axiomatized} marks
+  \code{\#erase} remaps} as stuck: those the shipping test \leandecl{Erasure.axiomatized} marks
   (DV-12).
 \end{definition}
 

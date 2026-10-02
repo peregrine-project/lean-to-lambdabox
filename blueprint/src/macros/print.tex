@@ -6,7 +6,9 @@
 \tl_new:N \l__bp_lean_tl
 \tl_const:Nx \c__bp_sigma_tl { \tl_to_str:n { σ } }
 \tl_const:Nx \c__bp_alpha_tl { \tl_to_str:n { α } }
-\cs_new_protected:Npn \__bp_lean:n #1
+\tl_const:Nx \c__bp_dot_tl { \tl_to_str:n { . } }
+\tl_const:Nx \c__bp_us_tl { \tl_to_str:n { _ } }
+\cs_new_protected:Npn \__bp_lean_set:n #1
  {
   \tl_set:Nx \l__bp_lean_tl { \tl_to_str:n {#1} }
   \tl_replace_all:Nnn \l__bp_lean_tl { ₀ } { \textsubscript{0} }
@@ -15,11 +17,27 @@
   \tl_replace_all:Nnn \l__bp_lean_tl { ₃ } { \textsubscript{3} }
   \tl_replace_all:NVn \l__bp_lean_tl \c__bp_sigma_tl { \ensuremath{\sigma} }
   \tl_replace_all:NVn \l__bp_lean_tl \c__bp_alpha_tl { \ensuremath{\alpha} }
+ }
+\cs_new_protected:Npn \__bp_lean:n #1
+ { \__bp_lean_set:n {#1} \tl_use:N \l__bp_lean_tl }
+% A name that may break after its dots and underscores (in tables and prose).
+\cs_new_protected:Npn \__bp_leanbreak:n #1
+ {
+  \__bp_lean_set:n {#1}
+  \tl_replace_all:NVn \l__bp_lean_tl \c__bp_dot_tl { \c__bp_dot_tl \allowbreak{} }
+  \tl_replace_all:NVn \l__bp_lean_tl \c__bp_us_tl { \c__bp_us_tl \allowbreak{} }
   \tl_use:N \l__bp_lean_tl
  }
 \NewDocumentCommand{\lean}{m}
  {\par\noindent{\footnotesize\textcolor{furniture}{Lean:~\texttt{\__bp_lean:n{#1}}}}\par}
+% Citations of the Lean sources (macros/common.tex), as code; the web version links them.
+\NewDocumentCommand{\leandecl}{m}{\texttt{\__bp_leanbreak:n{#1}}}
 \ExplSyntaxOff
+\newcommand{\srcloc}[2]{\par{\small\textcolor{furniture}{\texttt{#1:#2}}}\par}
+\newcommand{\leanfile}[1]{\texttt{#1}}
+\newcommand{\leanfiles}[2]{\texttt{#1\{#2\}.lean}}
+\newcommand{\leanloc}[2]{\texttt{#1:#2}}
+\newcommand{\leanlinesof}[2]{\texttt{:#2}}
 \newcommand{\discussion}[1]{}
 \newcommand{\leanok}{}
 \newcommand{\mathlibok}{}

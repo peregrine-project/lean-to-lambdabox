@@ -129,3 +129,22 @@ allowed = "module:EraseProof.Test.Bridge"
 "Lean4Lean.Verify.Typing.Expr" = 'Closed Lean expressions and their free variables (\code{Closed}, \code{FVarsIn}); well-formed local declarations and local contexts.'
 "Lean4Lean.Verify.Typing.Lemmas" = 'Lemmas about local contexts: abstraction, lifting and instantiation of a context, lookup, definitional equality of contexts; free variables under instantiation.'
 "Lean4Lean.Verify.Environment.Lemmas" = 'Lemmas about adding a list of equations to an environment.'
+
+# Links of the web version to the Lean sources (scripts/leanlinks.py; README, "Links to the Lean
+# sources"). `repository`: this repository, linked at the commit the site is built from
+# ($BP_REPOSITORY_URL overrides it; CI sets it to the repository the workflow runs in). `lean4`:
+# Lean's repository, linked at the tag of lean-toolchain. The packages of lake-manifest.json are
+# linked at their `url` and `rev`.
+[links]
+repository = "https://github.com/peregrine-project/lean-to-lambdabox"
+lean4 = "https://github.com/leanprover/lean4"
+
+# The repository of a path, by its first component (or its root module file, Lean4Lean.lean): a
+# package of lake-manifest.json, or lean4 for Lean's own modules (under src/ of that repository).
+# Any other path is a path of this repository.
+[links.roots]
+Lean4Lean = "lean4lean"
+Batteries = "batteries"
+Init = "lean4"
+Std = "lean4"
+Lean = "lean4"

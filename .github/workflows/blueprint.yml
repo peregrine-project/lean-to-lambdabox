@@ -19,6 +19,10 @@ jobs:
     concurrency:
       group: "${{ github.workflow }}-build-${{ github.ref }}"
       cancel-in-progress: true
+    # The web version links the Lean sources of this repository at $GITHUB_SHA, the commit it
+    # builds, in the repository the workflow runs in (blueprint/scripts/leanlinks.py).
+    env:
+      BP_REPOSITORY_URL: ${{ github.server_url }}/${{ github.repository }}
     steps:
       - name: Checkout branch ${{ github.ref_name }}
         uses: actions/checkout@v7
@@ -65,6 +69,12 @@ jobs:
       # The names of planned nodes are skipped: their declarations do not exist yet.
       - name: Check the declarations plasTeX collected
         run: python3 blueprint/scripts/audit.py --check-lean-decls blueprint/lean_decls
+
+      # Every Lean name, file and line of the web version links to its source on GitHub, at the
+      # revision of its repository, at lines that hold it (blueprint/README.md, "Links to the Lean
+      # sources").
+      - name: Check the links to the Lean sources
+        run: python3 blueprint/scripts/audit.py --check-links blueprint/web
 
       # build.sh skips the pdf when xelatex is missing; the site must contain it.
       - name: Check that the site contains the pdf

@@ -11,7 +11,7 @@
   the pure oracle, the relation-level simulation \code{erases\_correct}, and the soundness of the
   shipping traversal \code{erasePure\_erases} with the entry-point lemma. \stShipping{} the
   verified path of \code{\#erase}: \code{\#erase} runs it on programs in the fragment.
-\item \lead{Lean files} \code{LeanToLambdaBox/} (the shipping code) and \code{proof/} (the Lake
+\item \lead{Lean files} \leanfile{LeanToLambdaBox/} (the shipping code) and \leanfile{proof/} (the Lake
   package \code{EraseProof}, the verification library).
 \item \lead{Registers} \code{doc/SHIPPING-CHANGES.md} (Chapter~\ref{chap:shipping-changes}) and
   \code{doc/DIVERGENCES.md} (Chapter~\ref{chap:divergences}), rendered by a script.
@@ -111,6 +111,10 @@ Chapter & Content \\
 \item \lead{Nodes} Every definition, result and imported lean4lean module cites its Lean
   declarations (\code{\textbackslash lean}); Section~\ref{sec:intro-kinds} gives its kind and
   status.
+\item \lead{Links to the code} In the web version, every cited Lean name links to the lines of its
+  declaration on GitHub, and every cited Lean file and source location to that file and line: this
+  repository at the documented commit, lean4lean and batteries at their pinned commits, Lean at the
+  tag of \code{lean-toolchain}. The print version has no such links.
 \item \lead{Planned nodes} A node marked \stPlanned{} states a declaration of the approved design
   that does not exist; its \code{\textbackslash lean} names are its planned names. No node is
   planned.

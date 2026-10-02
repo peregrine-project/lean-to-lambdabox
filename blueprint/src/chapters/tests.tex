@@ -16,8 +16,8 @@
   of oracle soundness L1--L5, and the bridge tests \code{TrProj}.
 \item \lead{Nodes} \bpnodes{chap:tests}
 \item \lead{Lean files}
-  \code{proof/EraseProof/Test/\{NV1, NV1Run, NV2, NV3, NV4, NV5, NV6, NV7, Stub, Bridge, LBEval,
-  Atoms, Oracle\}.lean}; namespace \code{EraseProof.Test}.
+  \leanfiles{proof/EraseProof/Test/}{NV1, NV1Run, NV2, NV3, NV4, NV5, NV6, NV7, Stub, Bridge, LBEval,
+  Atoms, Oracle}; namespace \code{EraseProof.Test}.
 \end{itemize}
 
 \section{Non-vacuity instance NV-1}\label{sec:tests-nv1}
@@ -763,7 +763,7 @@ The approved statement of \code{erase\_correct}, written out as a test, pins the
 \section{Register tests}\label{sec:tests-register}
 
 The divergence register cites these tests. Each runs the shipping oracle at
-\code{Erasure.oracleFuel} on a formal environment and is checked by \code{decide}.
+\leandecl{Erasure.oracleFuel} on a formal environment and is checked by \code{decide}.
 
 \begin{lemma}[Register test: definition heads are not atoms]
   \label{lem:EraseProof-Test-Atoms-defHead_kept}

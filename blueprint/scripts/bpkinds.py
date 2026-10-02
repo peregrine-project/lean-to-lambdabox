@@ -17,7 +17,14 @@ leanblueprint 0.0.20 only, and patches no file of theirs:
 * \\bpkind{kind}, the badge of a kind, and \\bpnodes{chapter}, the badges of the nodes of a chapter
   with a link to its graph (the print version defines both in macros/print.tex);
 * the CSS of the kinds, styles/bpkinds.css, written from kinds.css() at build time into
-  blueprint/.build/bpkinds/ (with the template of \\bpkind and \\bpnodes), which plasTeX copies.
+  blueprint/.build/bpkinds/ (with the template of \\bpkind and \\bpnodes), which plasTeX copies;
+* the links to the Lean sources (scripts/leanlinks.py; README, "Links to the Lean sources"): every
+  \\lean name of a node that is not planned links to its declaration, in the node (a line "Lean:
+  ..." under the heading, as in the print version), in the "L∃∀N" list of its heading and in the
+  pop-up of the graphs, in place of leanblueprint's links to a documentation site; the commands
+  \\leandecl, \\leanfile, \\leanfiles, \\leanloc, \\leanlinesof and \\bpsrcloc (for \\srcloc,
+  macros/web.tex) link a name, a file and lines; the lean4lean sorries of the graphs link to their
+  declarations. A name without a row in generated/lean-locations.tsv stops the build.
 
 The graphs read the \\uses arrows from the chapters (scripts/audit.py parse), as the audit does; the
 build stops if they differ from the arrows plasTeX collected.
@@ -36,6 +43,8 @@ sys.path.insert(0, HERE)
 import audit  # noqa: E402  (the parser of the chapters)
 import kindgraph  # noqa: E402
 import kinds  # noqa: E402
+import leanlinks  # noqa: E402
+import leanblueprint.Packages.blueprint as leanblueprint_pkg  # noqa: E402
 
 log = getLogger()
 TEMPLATE = Path(HERE).parent / 'templates' / 'dep_graph.html'
@@ -60,8 +69,138 @@ BPKIND_TEMPLATE = ('name: bpkind\n<span class="bp-kind bp-kind-{{ obj.attributes
                    'name: bpnodes\n{% for k, badge, n in obj.attributes.counts %}'
                    '<span class="bp-kind bp-kind-{{ k }}">{{ badge }}</span>&#160;{{ n }} '
                    '{% endfor %}{% for page, text in obj.attributes.pages %}<a class="bp-chapter-graph" '
-                   'href="{{ page }}">{{ text }}</a> {% endfor %}\n')
-STATE = {}          # set by ProcessOptions: 'counts' (kinds.chapter_counts)
+                   'href="{{ page }}">{{ text }}</a> {% endfor %}\n\n'
+                   # the citations of the Lean sources
+                   'name: leandecl\n<a class="lean_decl bp-src" href="{{ obj.attributes.url|e }}" '
+                   'data-lean="{{ obj.attributes.lname|e }}" title="{{ obj.attributes.where|e }}">'
+                   '<span class="ttfamily">{{ obj.attributes.shown }}</span></a>\n\n'
+                   'name: leanfile\n<a class="bp-src" href="{{ obj.attributes.url|e }}">'
+                   '<span class="ttfamily">{{ obj.attributes.shown }}</span></a>\n\n'
+                   'name: leanfiles\n<span class="ttfamily">{{ obj.attributes.shown }}{</span>'
+                   '{% for text, url in obj.attributes.files %}<a class="bp-src" href="{{ url|e }}">'
+                   '<span class="ttfamily">{{ text|e }}</span></a>{% if not loop.last %}'
+                   '<span class="ttfamily">, </span>{% endif %}{% endfor %}'
+                   '<span class="ttfamily">}.lean</span>\n\n'
+                   'name: leanloc leanlinesof\n<span class="ttfamily">{% if obj.attributes.show_path %}'
+                   '<a class="bp-src" href="{{ obj.attributes.url|e }}">{{ obj.attributes.shown }}</a>'
+                   '{% endif %}:{% for text, url in obj.attributes.parts %}<a class="bp-src" '
+                   'href="{{ url|e }}">{{ text|e }}</a>{% if not loop.last %},{% endif %}{% endfor %}'
+                   '</span>\n\n'
+                   'name: bpsrcloc\n<a class="bp-src bp-srcloc" href="{{ obj.attributes.parts[0][1]|e }}">'
+                   '<span class="ttfamily">{{ obj.attributes.shown }}:{{ obj.attributes.lines|e }}</span>'
+                   '</a>\n\n'
+                   # \lean: the names of a node, linked, under its heading (macros/print.tex prints
+                   # the same line); a name of a planned node is not linked
+                   'name: lean\n<span class="bp-lean">Lean: {% for name in obj.attributes.decls %}'
+                   '{% set d = name.strip() %}{% set l = obj.ownerDocument.userdata.bp_decl_links.get(d) %}'
+                   '{% if l %}<a class="lean_decl bp-src" href="{{ l[0]|e }}" data-lean="{{ d|e }}" '
+                   'title="{{ l[1]|e }}">{{ d|e|replace(".", ".<wbr>") }}</a>{% else %}'
+                   '<span class="lean_decl bp-planned-decl" title="planned: the declaration does not '
+                   'exist">{{ d|e }}</span>{% endif %}'
+                   '{% if not loop.last %}, {% endif %}{% endfor %}</span>\n')
+STATE = {}          # set by ProcessOptions: 'counts' (kinds.chapter_counts), 'links' (leanlinks.Links)
+
+# The list "L∃∀N" of the heading of a node: its Lean names, each linked to its declaration, with
+# the file and line (leanblueprint's LEAN_DECLS_TPL links to a documentation site instead).
+LEAN_DECLS_TPL = Template("""
+    {% if obj.userdata.leandecls %}
+    <button class="modal lean">L∃∀N</button>
+    {% call modal('Lean declarations') %}
+        <ul class="uses">
+          {% for name, url, where in obj.userdata.bp_lean_links %}
+          <li>{% if url %}<a href="{{ url|e }}" class="lean_decl" data-lean="{{ name|e }}">{{ name|e }}</a>
+            <span class="bp-where">{{ where|e }}</span>{% else %}<span class="lean_decl bp-planned-decl"
+            title="planned: the declaration does not exist">{{ name|e }}</span>{% endif %}</li>
+          {% endfor %}
+        </ul>
+    {% endcall %}
+    {% endif %}
+""")
+
+
+def breakable(text):
+    """HTML of a name or path that may break after its dots, slashes and underscores (as the
+    print version breaks it, in tables)."""
+    return html.escape(text).replace('.', '.<wbr>').replace('/', '/<wbr>').replace('_', '_<wbr>')
+
+
+def arg_text(tokens):
+    """The text of a `nox` argument (a list of tokens): escapes and break hints removed."""
+    return leanlinks.tex_arg(''.join(str(getattr(t, 'source', t)) for t in tokens))
+
+
+def decl_link(name):
+    """(URL, path:line) of a Lean name; stops the build when it has no source location."""
+    got = STATE['links'].decl(name)
+    if got is None:
+        log.error(f'bpkinds: the Lean name {name} has no row in generated/lean-locations.tsv: run '
+                  'blueprint/scripts/audit.py --update')
+        raise SystemExit(1)
+    return got
+
+
+class leandecl(Command):
+    r"""\leandecl{name}: a Lean name, linked to its declaration."""
+    args = 'name:nox'
+
+    def invoke(self, tex):
+        result = Command.invoke(self, tex)
+        name = arg_text(self.attributes['name'])
+        self.attributes['lname'], self.attributes['shown'] = name, breakable(name)
+        self.attributes['url'], self.attributes['where'] = decl_link(name)
+        return result
+
+
+class leanfile(Command):
+    r"""\leanfile{path}: a Lean file (or a directory, ending with a slash), linked to it."""
+    args = 'path:nox'
+
+    def invoke(self, tex):
+        result = Command.invoke(self, tex)
+        path = arg_text(self.attributes['path'])
+        self.attributes['lpath'], self.attributes['url'] = path, STATE['links'].file(path)
+        self.attributes['shown'] = breakable(path)
+        return result
+
+
+class leanfiles(Command):
+    r"""\leanfiles{dir/}{A, B}: the files dir/A.lean and dir/B.lean, each linked."""
+    args = 'dir:nox items:nox'
+
+    def invoke(self, tex):
+        result = Command.invoke(self, tex)
+        d = arg_text(self.attributes['dir'])
+        items = [x.strip() for x in arg_text(self.attributes['items']).split(',')]
+        self.attributes['dir'], self.attributes['shown'] = d, breakable(d)
+        self.attributes['files'] = [(x, STATE['links'].file(f'{d}{x}.lean')) for x in items]
+        return result
+
+
+class leanloc(Command):
+    r"""\leanloc{path}{lines}: lines of a file (26, 7-13, 642,723), each number or range linked."""
+    args = 'path:nox lines:nox'
+    show_path = True
+
+    def invoke(self, tex):
+        result = Command.invoke(self, tex)
+        path, lines = arg_text(self.attributes['path']), arg_text(self.attributes['lines'])
+        if not leanlinks.LINES.fullmatch(lines):
+            log.error(f'bpkinds: \\{self.nodeName}{{{path}}}{{{lines}}}: not a list of lines')
+            raise SystemExit(1)
+        self.attributes.update(dict(lpath=path, shown=breakable(path), lines=lines,
+                                    url=STATE['links'].file(path),
+                                    parts=STATE['links'].lines(path, lines), show_path=self.show_path))
+        return result
+
+
+class leanlinesof(leanloc):
+    r"""\leanlinesof{path}{lines}: the same, printed :lines (after a citation of the file)."""
+    show_path = False
+
+
+class bpsrcloc(leanloc):
+    r"""\bpsrcloc{path}{line}: the location of \srcloc (macros/web.tex), one link to the
+    declaration that starts at that line."""
 
 
 class bpkind(Command):
@@ -228,6 +367,20 @@ def ProcessOptions(options, document):
     document.userdata.setdefault('thm_header_extras_tpl', []).append(BADGE_TPL)
     document.userdata.setdefault('thm_header_hidden_extras_tpl', []).append(GRAPH_LINK_TPL)
 
+    # Links to the Lean sources, in place of leanblueprint's links to a documentation site: the
+    # "L∃∀N" list of a heading gets LEAN_DECLS_TPL; the "Lean" link of a graph pop-up goes, since
+    # the pop-up shows the node with its line "Lean: ..." (template `lean` above).
+    STATE['links'] = leanlinks.Links()
+    hidden = document.userdata['thm_header_hidden_extras_tpl']
+    modal_links = document.userdata['dep_graph'].setdefault('extra_modal_links_tpl', [])
+    if (leanblueprint_pkg.LEAN_DECLS_TPL not in hidden
+            or leanblueprint_pkg.LEAN_LINKS_TPL not in modal_links):
+        log.error('bpkinds: leanblueprint\'s templates of the Lean names are not where version '
+                  '0.0.20 puts them')
+        raise SystemExit(1)
+    hidden[hidden.index(leanblueprint_pkg.LEAN_DECLS_TPL)] = LEAN_DECLS_TPL
+    modal_links.remove(leanblueprint_pkg.LEAN_LINKS_TPL)
+
     pages = []      # the graph pages, in the order of the navigation bar
 
     def search_json(ids, kind):
@@ -283,7 +436,7 @@ def ProcessOptions(options, document):
             c['label'] == 'chap:trust' for c in graphs.chapters) else ''
         document.userdata['bp_virtual_nodes'] = [
             dict(id='lean4lean:' + x['label'], label=x['label'], name=x['name'], what=x['what'],
-                 count=len(x['nodes']), url=url) for x in graphs.sorries]
+                 count=len(x['nodes']), url=url, src=decl_link(x['name'])) for x in graphs.sorries]
         for key, (title, svg) in graphs.svgs().items():
             if key == 'document':
                 page, kind, number = kindgraph.FULL_PAGE, 'full', None
@@ -312,6 +465,20 @@ def ProcessOptions(options, document):
     def legend():
         document.userdata['dep_graph']['legend'] = legend_items()
 
+    def lean_links():
+        """After leanblueprint's make_lean_data (order 150): the link of every \\lean name of a
+        node to its declaration (planned nodes: none), for the template `lean` (by name), the list
+        of the heading (bp_lean_links) and leanblueprint's lean_urls."""
+        table = document.userdata['bp_decl_links'] = {}
+        for graph in document.userdata['dep_graph'].get('graphs', {}).values():
+            for node in graph.nodes:
+                planned = node.userdata.get('bp_status') == 'planned'
+                got = [(d, *((None, None) if planned else decl_link(d)))
+                       for d in node.userdata.get('leandecls', [])]
+                node.userdata['bp_lean_links'] = got
+                node.userdata['lean_urls'] = [(d, url) for d, url, _ in got if url]
+                table.update({d: (url, where) for d, url, where in got if url})
+
     def write_pages(document):
         """The chapter map and the chapter pages, with the template of the document graph."""
         tpl = Template(TEMPLATE.read_text(encoding='utf-8'))
@@ -334,5 +501,6 @@ def ProcessOptions(options, document):
         return files
 
     document.addPostParseCallbacks(120, annotate)
+    document.addPostParseCallbacks(155, lean_links)
     document.addPostParseCallbacks(160, legend)
     document.addPackageResource([PackagePreCleanupCB(data=write_pages)])

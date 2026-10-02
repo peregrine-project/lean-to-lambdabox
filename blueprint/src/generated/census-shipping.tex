@@ -9,29 +9,29 @@
 \toprule
 Declaration & Kind & Result & Location \\
 \midrule
-\code{instReprLBTerm.\allowbreak{}repr} & partial def & \code{Std.\allowbreak{}Format} & \code{LeanToLambdaBox/\allowbreak{}Basic.\allowbreak{}lean}:106 \\
-\code{LBTerm.\allowbreak{}inlinedSize} & partial def & \code{Nat} & \code{LeanToLambdaBox/\allowbreak{}Erasure.\allowbreak{}lean}:107 \\
-\code{LBTerm.\allowbreak{}isValue} & partial def & \code{Bool} & \code{LeanToLambdaBox/\allowbreak{}Erasure.\allowbreak{}lean}:123 \\
-\code{LBTerm.\allowbreak{}isValue.\allowbreak{}isConstructorApp} & partial def & \code{Bool} & \code{LeanToLambdaBox/\allowbreak{}Erasure.\allowbreak{}lean}:136 \\
-\code{LBTerm.\allowbreak{}stripLambdas} & partial def & \code{LBTerm} & \code{LeanToLambdaBox/\allowbreak{}Erasure.\allowbreak{}lean}:141 \\
-\code{Erasure.\allowbreak{}runMetaM} & def & \code{Lean.\allowbreak{}Core.\allowbreak{}CoreM} & \code{LeanToLambdaBox/\allowbreak{}Erasure.\allowbreak{}lean}:250 \\
-\code{Erasure.\allowbreak{}isErasable} & def & \code{Lean.\allowbreak{}Meta.\allowbreak{}MetaM} & \code{LeanToLambdaBox/\allowbreak{}Erasure.\allowbreak{}lean}:254 \\
-\code{Erasure.\allowbreak{}replaceUnsafeRecNames} & def & \code{Lean.\allowbreak{}Core.\allowbreak{}CoreM} & \code{LeanToLambdaBox/\allowbreak{}Erasure.\allowbreak{}lean}:270 \\
-\code{Erasure.\allowbreak{}prepareErasure} & def & \code{Lean.\allowbreak{}Core.\allowbreak{}CoreM} & \code{LeanToLambdaBox/\allowbreak{}Erasure.\allowbreak{}lean}:300 \\
-\code{Erasure.\allowbreak{}argMaskCore} & def & \code{Lean.\allowbreak{}Core.\allowbreak{}CoreM} & \code{LeanToLambdaBox/\allowbreak{}Erasure.\allowbreak{}lean}:323 \\
-\code{Erasure.\allowbreak{}erase} & def & \code{Lean.\allowbreak{}Core.\allowbreak{}CoreM} & \code{LeanToLambdaBox/\allowbreak{}Erasure.\allowbreak{}lean}:960 \\
-\code{Erasure.\allowbreak{}MLType.\allowbreak{}toString} & partial def & \code{String} & \code{LeanToLambdaBox/\allowbreak{}Erasure.\allowbreak{}lean}:979 \\
-\code{Erasure.\allowbreak{}MLType.\allowbreak{}toString.\allowbreak{}protArrow} & partial def & \code{String} & \code{LeanToLambdaBox/\allowbreak{}Erasure.\allowbreak{}lean}:989 \\
-\code{Erasure.\allowbreak{}MLType.\allowbreak{}toString.\allowbreak{}protCtor} & partial def & \code{String} & \code{LeanToLambdaBox/\allowbreak{}Erasure.\allowbreak{}lean}:992 \\
-\code{Erasure.\allowbreak{}to\_\allowbreak{}ml\_\allowbreak{}type} & partial def & \code{Lean.\allowbreak{}Meta.\allowbreak{}MetaM} & \code{LeanToLambdaBox/\allowbreak{}Erasure.\allowbreak{}lean}:998 \\
-\code{Erasure.\allowbreak{}gen\_\allowbreak{}mli} & def & \code{Lean.\allowbreak{}Meta.\allowbreak{}MetaM} & \code{LeanToLambdaBox/\allowbreak{}Erasure.\allowbreak{}lean}:1014 \\
-\code{Erasure.\allowbreak{}eraseElab} & def & \code{Lean.\allowbreak{}Elab.\allowbreak{}Command.\allowbreak{}CommandElab} & \code{LeanToLambdaBox/\allowbreak{}Erasure/\allowbreak{}Command.\allowbreak{}lean}:18 \\
-\code{Erasure.\allowbreak{}eraseElab.\allowbreak{}unsafe\_\allowbreak{}1} & unsafe def & \code{Lean.\allowbreak{}Elab.\allowbreak{}Term.\allowbreak{}TermElabM} & \code{LeanToLambdaBox/\allowbreak{}Erasure/\allowbreak{}Command.\allowbreak{}lean} \\
-\code{Erasure.\allowbreak{}eraseElab.\allowbreak{}unsafe\_\allowbreak{}impl\_\allowbreak{}2} & opaque, implemented\_\allowbreak{}by & \code{Lean.\allowbreak{}Elab.\allowbreak{}Term.\allowbreak{}TermElabM} & \code{LeanToLambdaBox/\allowbreak{}Erasure/\allowbreak{}Command.\allowbreak{}lean} \\
-\code{Erasure.\allowbreak{}eraseEntry} & def & \code{Lean.\allowbreak{}Core.\allowbreak{}CoreM} & \code{LeanToLambdaBox/\allowbreak{}Erasure/\allowbreak{}Entry.\allowbreak{}lean}:39 \\
-\code{LBTerm.\allowbreak{}to\_\allowbreak{}sexpr} & partial def & \code{sexpr} & \code{LeanToLambdaBox/\allowbreak{}Printing.\allowbreak{}lean}:68 \\
-\code{edef.\allowbreak{}to\_\allowbreak{}sexpr} & partial def & \code{sexpr} & \code{LeanToLambdaBox/\allowbreak{}Printing.\allowbreak{}lean}:87 \\
-\code{rocq\_\allowbreak{}print} & def & \code{IO} & \code{LeanToLambdaBox/\allowbreak{}Printing.\allowbreak{}lean}:164 \\
+\leandecl{instReprLBTerm.repr} & partial def & \leandecl{Std.Format} & \leanloc{LeanToLambdaBox/\allowbreak{}Basic.\allowbreak{}lean}{106} \\
+\leandecl{LBTerm.inlinedSize} & partial def & \leandecl{Nat} & \leanloc{LeanToLambdaBox/\allowbreak{}Erasure.\allowbreak{}lean}{107} \\
+\leandecl{LBTerm.isValue} & partial def & \leandecl{Bool} & \leanloc{LeanToLambdaBox/\allowbreak{}Erasure.\allowbreak{}lean}{123} \\
+\leandecl{LBTerm.isValue.isConstructorApp} & partial def & \leandecl{Bool} & \leanloc{LeanToLambdaBox/\allowbreak{}Erasure.\allowbreak{}lean}{136} \\
+\leandecl{LBTerm.stripLambdas} & partial def & \leandecl{LBTerm} & \leanloc{LeanToLambdaBox/\allowbreak{}Erasure.\allowbreak{}lean}{141} \\
+\leandecl{Erasure.runMetaM} & def & \leandecl{Lean.Core.CoreM} & \leanloc{LeanToLambdaBox/\allowbreak{}Erasure.\allowbreak{}lean}{250} \\
+\leandecl{Erasure.isErasable} & def & \leandecl{Lean.Meta.MetaM} & \leanloc{LeanToLambdaBox/\allowbreak{}Erasure.\allowbreak{}lean}{254} \\
+\leandecl{Erasure.replaceUnsafeRecNames} & def & \leandecl{Lean.Core.CoreM} & \leanloc{LeanToLambdaBox/\allowbreak{}Erasure.\allowbreak{}lean}{270} \\
+\leandecl{Erasure.prepareErasure} & def & \leandecl{Lean.Core.CoreM} & \leanloc{LeanToLambdaBox/\allowbreak{}Erasure.\allowbreak{}lean}{300} \\
+\leandecl{Erasure.argMaskCore} & def & \leandecl{Lean.Core.CoreM} & \leanloc{LeanToLambdaBox/\allowbreak{}Erasure.\allowbreak{}lean}{323} \\
+\leandecl{Erasure.erase} & def & \leandecl{Lean.Core.CoreM} & \leanloc{LeanToLambdaBox/\allowbreak{}Erasure.\allowbreak{}lean}{960} \\
+\leandecl{Erasure.MLType.toString} & partial def & \leandecl{String} & \leanloc{LeanToLambdaBox/\allowbreak{}Erasure.\allowbreak{}lean}{979} \\
+\leandecl{Erasure.MLType.toString.protArrow} & partial def & \leandecl{String} & \leanloc{LeanToLambdaBox/\allowbreak{}Erasure.\allowbreak{}lean}{989} \\
+\leandecl{Erasure.MLType.toString.protCtor} & partial def & \leandecl{String} & \leanloc{LeanToLambdaBox/\allowbreak{}Erasure.\allowbreak{}lean}{992} \\
+\leandecl{Erasure.to_ml_type} & partial def & \leandecl{Lean.Meta.MetaM} & \leanloc{LeanToLambdaBox/\allowbreak{}Erasure.\allowbreak{}lean}{998} \\
+\leandecl{Erasure.gen_mli} & def & \leandecl{Lean.Meta.MetaM} & \leanloc{LeanToLambdaBox/\allowbreak{}Erasure.\allowbreak{}lean}{1014} \\
+\leandecl{Erasure.eraseElab} & def & \leandecl{Lean.Elab.Command.CommandElab} & \leanloc{LeanToLambdaBox/\allowbreak{}Erasure/\allowbreak{}Command.\allowbreak{}lean}{18} \\
+\leandecl{Erasure.eraseElab.unsafe_1} & unsafe def & \leandecl{Lean.Elab.Term.TermElabM} & \leanfile{LeanToLambdaBox/\allowbreak{}Erasure/\allowbreak{}Command.\allowbreak{}lean} \\
+\leandecl{Erasure.eraseElab.unsafe_impl_2} & opaque, implemented\_\allowbreak{}by & \leandecl{Lean.Elab.Term.TermElabM} & \leanfile{LeanToLambdaBox/\allowbreak{}Erasure/\allowbreak{}Command.\allowbreak{}lean} \\
+\leandecl{Erasure.eraseEntry} & def & \leandecl{Lean.Core.CoreM} & \leanloc{LeanToLambdaBox/\allowbreak{}Erasure/\allowbreak{}Entry.\allowbreak{}lean}{39} \\
+\leandecl{LBTerm.to_sexpr} & partial def & \leandecl{sexpr} & \leanloc{LeanToLambdaBox/\allowbreak{}Printing.\allowbreak{}lean}{68} \\
+\leandecl{edef.to_sexpr} & partial def & \leandecl{sexpr} & \leanloc{LeanToLambdaBox/\allowbreak{}Printing.\allowbreak{}lean}{87} \\
+\leandecl{rocq_print} & def & \leandecl{IO} & \leanloc{LeanToLambdaBox/\allowbreak{}Printing.\allowbreak{}lean}{164} \\
 \bottomrule
 \end{tabular}
 
