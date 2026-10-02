@@ -101,16 +101,18 @@ BPKIND_TEMPLATE = ('name: bpkind\n<span class="bp-kind bp-kind-{{ obj.attributes
 STATE = {}          # set by ProcessOptions: 'counts' (kinds.chapter_counts), 'links' (leanlinks.Links)
 
 # The list "L∃∀N" of the heading of a node: its Lean names, each linked to its declaration, with
-# the file and line (leanblueprint's LEAN_DECLS_TPL links to a documentation site instead).
+# the file and line, linked to the same lines (leanblueprint's LEAN_DECLS_TPL links to a
+# documentation site instead).
 LEAN_DECLS_TPL = Template("""
     {% if obj.userdata.leandecls %}
     <button class="modal lean">L∃∀N</button>
     {% call modal('Lean declarations') %}
         <ul class="uses">
           {% for name, url, where in obj.userdata.bp_lean_links %}
-          <li>{% if url %}<a href="{{ url|e }}" class="lean_decl" data-lean="{{ name|e }}">{{ name|e }}</a>
-            <span class="bp-where">{{ where|e }}</span>{% else %}<span class="lean_decl bp-planned-decl"
-            title="planned: the declaration does not exist">{{ name|e }}</span>{% endif %}</li>
+          <li>{% if url %}<a href="{{ url|e }}" class="lean_decl" data-lean="{{ name|e }}"
+            title="{{ where|e }}">{{ name|e }}</a>
+            <a href="{{ url|e }}" class="bp-src bp-where">{{ where|e }}</a>{% else %}<span
+            class="lean_decl bp-planned-decl" title="planned: the declaration does not exist">{{ name|e }}</span>{% endif %}</li>
           {% endfor %}
         </ul>
     {% endcall %}

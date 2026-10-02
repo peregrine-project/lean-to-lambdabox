@@ -19,8 +19,8 @@ jobs:
     concurrency:
       group: "${{ github.workflow }}-build-${{ github.ref }}"
       cancel-in-progress: true
-    # The web version links the Lean sources of this repository at $GITHUB_SHA, the commit it
-    # builds, in the repository the workflow runs in (blueprint/scripts/leanlinks.py).
+    # The web version and the pdf link the Lean sources of this repository at $GITHUB_SHA, the
+    # commit it builds, in the repository the workflow runs in (blueprint/scripts/leanlinks.py).
     env:
       BP_REPOSITORY_URL: ${{ github.server_url }}/${{ github.repository }}
     steps:
@@ -71,8 +71,8 @@ jobs:
         run: python3 blueprint/scripts/audit.py --check-lean-decls blueprint/lean_decls
 
       # Every Lean name, file and line of the web version links to its source on GitHub, at the
-      # revision of its repository, at lines that hold it (blueprint/README.md, "Links to the Lean
-      # sources").
+      # revision of its repository, at the lines of its declaration, and the pdf links the same
+      # URLs (blueprint/README.md, "Links to the Lean sources").
       - name: Check the links to the Lean sources
         run: python3 blueprint/scripts/audit.py --check-links blueprint/web
 

@@ -23,7 +23,8 @@ scripts/kinds.py        node kinds and their colours, shapes and badges; writes 
 scripts/kindgraph.py    lays out the dependency graphs (Graphviz, through pygraphviz)
 scripts/bpkinds.py      plasTeX package: badges, graph pages and their CSS in the web version
 scripts/render_registers.py   renders the registers and the pins as chapters
-scripts/leanlinks.py    the links of the web version to the Lean sources (URLs, revisions)
+scripts/leanlinks.py    the links to the Lean sources (URLs, revisions), in the web version and
+                        the pdf
 STYLE.md                how chapters and nodes are written (binding)
 src/content.tex         chapter order
 src/chapters/*.tex      hand-written chapters: intro, scope, trust, model, pure, source,
@@ -48,15 +49,16 @@ blueprint/build.sh          # or: blueprint/build.sh web | blueprint/build.sh pd
 
 `build.sh` first runs `scripts/render_registers.py` and `scripts/kinds.py`, then `plastex` (web
 version in `blueprint/web/`, and the list of cited declarations in `blueprint/lean_decls`), then
+`scripts/leanlinks.py print-links` (the URLs of the pdf's links, in `blueprint/.build/`) and
 `latexmk` (`blueprint/print/print.pdf`). With the default target `all`, it then copies the pdf to
-`blueprint/web/blueprint.pdf`, which the title page of the web version links to; `blueprint/web/`
-is then the whole site. The web version links the Lean sources at the commit `HEAD` (section
-"Links to the Lean sources"); `build.sh` warns when the working tree differs from `HEAD` outside
-`blueprint/`. `leanblueprint web` and `leanblueprint pdf` run plasTeX and latexmk only: they do not
-render the registers. The web version needs no server: its graphs are SVG drawn at build time, and
-`index.html` opens from disk. The latexmk configuration runs xelatex with
-`-interaction=nonstopmode -halt-on-error`, so a LaTeX error stops the build instead of waiting on a
-prompt.
+`blueprint/web/blueprint.pdf`, which the title page of the web version links to; `blueprint/web/` is
+then the whole site. Both versions link the Lean sources at the commit `HEAD` (section "Links to the
+Lean sources"); `build.sh` warns when the working tree differs from `HEAD` outside `blueprint/`.
+`leanblueprint web` and `leanblueprint pdf` run plasTeX and latexmk only: they do not render the
+registers, and the pdf of `leanblueprint pdf` has no links to the Lean sources. The web version
+needs no server: its graphs are SVG drawn at build time, and `index.html` opens from disk. The
+latexmk configuration runs xelatex with `-interaction=nonstopmode -halt-on-error`, so a LaTeX error
+stops the build instead of waiting on a prompt.
 
 `<venv>/bin/python blueprint/scripts/kindgraph.py OUTDIR` writes the DOT, SVG and PNG of every
 dependency graph, to look at a layout without building the site.
@@ -193,12 +195,13 @@ build prints a warning and goes on (`BLOCK_SEP` in `kindgraph.py` sets the spaci
 
 ## Links to the Lean sources
 
-In the web version every citation of the Lean sources is a link to GitHub, at the revision the site
-documents; `scripts/leanlinks.py` makes the URLs and `scripts/bpkinds.py` puts them in the pages.
+In the web version and in the pdf every citation of the Lean sources is a link to GitHub, at the
+revision the site documents; `scripts/leanlinks.py` makes the URLs, `scripts/bpkinds.py` puts them
+in the pages and `macros/print.tex` in the pdf.
 
 | Citation | Where | Links to |
 |---|---|---|
-| `\lean{...}` names of a node | the line "Lean: ..." under the heading (the print version prints the same line), the list "L∃∀N" of the heading, the pop-up of the node in every graph | the lines of each declaration |
+| `\lean{...}` names of a node | the line "Lean: ..." under the heading (also in the pdf), the list "L∃∀N" of the heading (each name and its `path:line`), the pop-up of the node in every graph | the lines of each declaration |
 | `\srcloc{path}{line}` | under the heading | the lines of the node's first declaration |
 | `\leandecl{name}` | prose, the generated tables (census, inherited sorries, roots), the registers | the lines of the declaration |
 | `\leanfile{path}`, `\leanfiles{dir/}{A, B}` | "Lean files" of the chapter openers, prose, the tables, the registers | the file (a path ending with `/`: the directory) |
@@ -222,28 +225,45 @@ A pinned commit, unlike a branch, keeps every line number right; a link of a sit
 commit that GitHub does not have resolves once that commit is pushed.
 
 **Lines of a declaration.** A name links to its declaration range, from the first line of its doc
-comment and modifiers to its last line, as the source links of doc-gen4 do (`#L<start>-L<end>`).
+comment and modifiers to its last line, as the source links of doc-gen4 do (`#L<start>-L<end>`, or
+`#L<start>` for a declaration of one line; Lean's range of a `where` definition starts at its name).
 `CheckDecls.lean measure` reads the ranges from the Lean environment (`locations` of
 `measure.json`); a declaration that has none (an auxiliary declaration an elaborator adds, such as
 `f.unsafe_1`), or that Lean added in another module than the declaration it belongs to (an equation
 lemma realized where a proof first uses it), takes the range of that declaration. `audit.py
---update` writes `src/generated/lean-locations.tsv`: the repository, path and range of every name
-of a node that is not planned, of every `\leandecl` and of every labelled lean4lean sorry, and of
-every full name of a declaration in the registers (the inline code `EraseProof.<name>`,
-`Lean4Lean.<name>` and `Erasure.<name>` that is a declaration). The build reads it and needs no Lean.
+--update` writes `src/generated/lean-locations.tsv`: the repository, path and range of every name of
+a node that is not planned, of every `\leandecl` and of every labelled lean4lean sorry, and of every
+full name of a declaration that the inline code of a register is or starts with
+(`EraseProof.<name>`, `Lean4Lean.<name>` and `Erasure.<name>` that is a declaration). The build
+reads it and needs no Lean.
 
 **Registers.** `render_registers.py` turns the inline code of a register that cites the Lean
 sources into these citations, outside headings: a full name with a row in `lean-locations.tsv`
-becomes `\leandecl`; a `.lean` path from the root of a repository (of this repository only where
-the file exists), with lines or not, `\leanfile` or `\leanloc`; `:<lines>` after such a file in the
-same paragraph, `\leanlinesof`. Any other inline code (a name relative to its namespace, a
-MetaRocq citation, a path relative to a directory named nearby) stays plain.
+becomes `\leandecl`, also at the start of the code before a space (`Erasure.route view cfg e`:
+the name links, the rest is plain code); a `.lean` path from the root of a repository (of this
+repository only where the file exists), with lines or not, `\leanfile` or `\leanloc`; `:<lines>`
+after such a file in the same paragraph, `\leanlinesof`. Any other inline code (a name relative to
+its namespace, a MetaRocq citation, a path relative to a directory named nearby, a file named
+without its directory such as `Examples.lean`) stays plain.
+
+**The pdf.** `build.sh pdf` first runs `scripts/leanlinks.py print-links
+blueprint/.build/print-links.tex`, which writes the URL of every `\lean` name with a row in
+`lean-locations.tsv` and of every file and line that the TeX sources cite, as the web version
+links them. `src/print.tex` reads that file when it exists, and the print macros link each citation
+with `\href`; a citation without a URL is then a LaTeX error, except the name of a planned node.
 
 **Checks.** The audit checks, before the build:
 
 - every name of `lean-locations.tsv` is held by its range: the text at the position of its name in
   the local source is its name, or that of the declaration it belongs to (`holds`); a mismatch
   means a stale build;
+- every range is the declaration of its name (`declares`): it starts at the declaration's doc
+  comment, attributes or head, and the line before is not part of it; it ends at the
+  declaration's last line, and the next line does not continue it; the head declares the full
+  name in the namespace of its line, or a name Lean derives from it (equation lemmas, `unsafe_<n>`,
+  recursors, ...), an anonymous instance `inst<Class>...`, a constructor, field or `where`
+  definition of the enclosing declaration, an instance of a deriving clause, or an axiom that
+  `bv_decide` adds (the tactic's line, in the proof of its theorem);
 - every path of a citation is a file (or a directory) of its repository, tracked by git in this
   repository, and every cited line is a line of it;
 - the chapters and the generated tables cite no `.lean` file and no full declaration name with
@@ -255,11 +275,14 @@ every element that carries a Lean name (`data-lean`, class `lean_decl`) is a lin
 a planned node; every GitHub link is at the revision of its repository, to a file (or directory) that
 exists there (in git at that commit for this repository, in the package checkout or the toolchain
 of that revision otherwise), at lines of that file; a name links exactly to its row of
-`lean-locations.tsv`, and those lines mention it; the files of this repository that the site links
-do not differ between the working tree (where the ranges were measured) and the linked commit; no
-page contains the address of a documentation site leanblueprint would use (`/find/#doc/`,
-`mathlib4_docs`); and every name of a node that is not planned is a link on the chapter pages and on
-the graph of all nodes. It prints the links by repository and kind.
+`lean-locations.tsv`, and those lines, at the linked commit, are its declaration (`declares`); the
+text of a link to lines names them (`path:line` of `\srcloc` and of the list "L∃∀N", the line or
+range of `\leanloc`); the files of this repository that the site links do not differ between the
+working tree (where the ranges were measured) and the linked commit; no page contains the address
+of a documentation site leanblueprint would use (`/find/#doc/`, `mathlib4_docs`); every name of a
+node that is not planned is a link on the chapter pages and on the graph of all nodes; and
+`blueprint.pdf`, when the site has it, links exactly the GitHub URLs of the pages. It prints the
+links by repository and kind.
 
 leanblueprint links each `\lean` name to a doc-gen4 site (`\dochome`, by default the Mathlib
 documentation, which does not document this repository). `scripts/bpkinds.py` replaces those
@@ -298,7 +321,7 @@ uses of every declaration of the proof library and of the shipping code, and che
 | Roots | every line of `proof/ROOTS.txt` names a root cited by a formalized node and a consumer cited by a planned node whose statement or proof uses the root's node, or `FINAL` for the final theorem, which has no consumer; a line whose unit is a decision of the plan (`O-<n>`) names a placeholder consumer: no planned statement uses the root, so the consumer's node must not use the root's node, and `roots.tex` marks the row |
 | `\srcloc{path}{line}` | is the file and line of the node's first declaration |
 | Hygiene | ASCII only outside `\lean{}` and `\leandecl{}`; underscores escaped in `\code`, `\texttt`, `\inherited`, `\srcloc`, `\leanfile`, `\leanfiles`, `\leanloc`, `\leanlinesof` |
-| Links | the checks before the build of section "Links to the Lean sources": every linked name is held by its declaration range in the local source, every cited path and line exists, no `\code` cites a `.lean` file or a full declaration name, no `\dochome`, and `generated/lean-locations.tsv` is up to date |
+| Links | the checks before the build of section "Links to the Lean sources": every linked name is held by its declaration range in the local source, and that range is its declaration; every cited path and line exists, no `\code` cites a `.lean` file or a full declaration name, no `\dochome`, and `generated/lean-locations.tsv` is up to date |
 | Present state | no word that narrates history (`STYLE.md` section 1: previously, since the last version, was fixed, no longer, used to, now, yet), as a whole word outside comments, in the hand-written chapters and the generated tables; the rendered registers record changes and are exempt |
 | Kinds | the rules of section "Node kinds and dependency graphs": the names of a node share one layer; the module of each declaration has the layer of its name; the `imported` environment holds exactly the nodes of the lean4lean layer; one final node, a `theorem` environment; the final theorem depends on every milestone; the `\uses` of the final theorem and of the milestones agree with the declarations they use directly; no node body carries a status word; every chapter with nodes cites `\bpnodes` with its own label |
 | Imported nodes | `generated/lean4lean-imports.tex` equals what `--update` writes from the Lean environment and `[lean4lean_modules]` of `audit.toml`, which has one entry per lean4lean module whose declarations the proof library (outside its tests) or the shipping code uses directly; their declarations are within the allowed axioms |
@@ -362,7 +385,8 @@ that opens `## Entries`.
    chapters; it also builds the proof package `proof/`. A defect fails the job. The report (`blueprint/.audit/`) is uploaded as the artifact
    `blueprint-audit`, also when the audit fails.
 4. `blueprint/build.sh all`, then `audit.py --check-lean-decls blueprint/lean_decls`,
-   `audit.py --check-links blueprint/web` (the links to the Lean sources), a check that
+   `audit.py --check-links blueprint/web` (the links to the Lean sources, in the pages and the
+   pdf), a check that
    `blueprint/web/blueprint.pdf` exists (`build.sh` skips the pdf without xelatex), and one that
    the graph pages exist. The job sets `BP_REPOSITORY_URL` to the repository it runs in; the links
    of this repository point at `$GITHUB_SHA`, the commit it builds.
@@ -390,8 +414,6 @@ One-time repository settings, by an administrator:
 
 ## Limitations
 
-- The links to the Lean sources are in the web version only; the pdf prints the same names and
-  paths without links.
 - Only citations link (section "Links to the Lean sources"): a name in prose relative to its
   namespace (`\code{erase\_correct}`), and the MetaRocq citations, stay plain text.
 - A register's citation of a line of Lean's own sources links at the tag of the documented

@@ -22,13 +22,15 @@ register is never rendered partially. Two rules are specific to the registers:
     An `## Entries` section with neither prose nor entries is rendered as "The register has no
     entries."
 
-Inline code that cites the Lean sources becomes a citation that the web version links (README,
+Inline code that cites the Lean sources becomes a citation that the blueprint links (README,
 "Links to the Lean sources"; macros/common.tex), outside headings: a declaration by its full name
 (`EraseProof.<name>`, `Lean4Lean.<name>`, `Erasure.<name>`, the forms the registers use) that has a
 row in generated/lean-locations.tsv (audit.py --update locates every such name of the registers
-that is a declaration: decl_candidates) becomes \\leandecl; a .lean file by its path from the root of a repository (this repository, where the file
-exists; lean4lean, batteries and Lean by the first component of the path, scripts/leanlinks.py),
-with lines or not, \\leanfile or \\leanloc; `:<lines>` after such a file, in the same paragraph,
+that is a declaration: decl_candidates) becomes \\leandecl, also when the code starts with the
+name followed by a space (`Erasure.route view cfg e`: the name is linked, the rest is \\texttt); a
+.lean file by its path from the root of a repository (this repository, where the file exists;
+lean4lean, batteries and Lean by the first component of the path, scripts/leanlinks.py), with lines
+or not, \\leanfile or \\leanloc; `:<lines>` after such a file, in the same paragraph,
 \\leanlinesof. Any other code stays \\texttt. The audit checks every citation.
 
 The blueprint build (blueprint/build.sh) runs this script first; the audit runs it with --check.
@@ -152,13 +154,22 @@ FILE_CITE = re.compile(r'(?P<path>[A-Za-z0-9_./-]+\.[A-Za-z]+)(?::(?P<lines>[0-9
 MORE_LINES = re.compile(r':(?P<lines>' + leanlinks.LINES.pattern + ')')
 
 
+def decl_cite(c):
+    """The full name of a declaration that inline code c may cite: c itself, or the name c starts
+    with, followed by a space (`Erasure.route view cfg e`, `Erasure.oracleFuel := 2 ^ 20`)."""
+    m = DECL_CITE.match(c)
+    if m and not m.group(0).endswith('.lean') and (m.end() == len(c) or c[m.end()] == ' '):
+        return m.group(0)
+    return None
+
+
 def decl_candidates():
-    """The inline code of the registers that may cite a declaration by its full name."""
+    """The full names that the inline code of the registers may cite (decl_cite)."""
     out = set()
     for src in ('doc/SHIPPING-CHANGES.md', 'doc/DIVERGENCES.md'):
         for c in re.findall(r'`([^`]*)`', '\n'.join(read(src))):
-            if DECL_CITE.fullmatch(c) and not c.endswith('.lean'):
-                out.add(c)
+            if decl_cite(c):
+                out.add(decl_cite(c))
     return out
 
 
@@ -173,7 +184,7 @@ def located(name):
 
 
 def lean_file(path):
-    """Whether a path cites a Lean file that the web version links: a .lean file of a package or
+    """Whether a path cites a Lean file that the blueprint links: a .lean file of a package or
     of Lean (by its first component), or of this repository where it exists."""
     return (path.endswith('.lean') and not path.startswith(('/', '.'))
             and (leanlinks.repo_of_path(path) != leanlinks.SELF or os.path.isfile(os.path.join(REPO, path))))
@@ -183,8 +194,10 @@ def code(c, where, state):
     """Inline code c: a citation of the Lean sources (module docstring) when state is a dict
     (it remembers the file cited last in the paragraph), else \\texttt."""
     if state is not None:
-        if DECL_CITE.fullmatch(c) and not c.endswith('.lean') and located(c):
-            return r'\leandecl{' + c + '}'
+        name = decl_cite(c)
+        if name and located(name):
+            rest = c[len(name):]
+            return r'\leandecl{' + name + '}' + (r'\texttt{' + esc(rest, where, code=True) + '}' if rest else '')
         m = FILE_CITE.fullmatch(c)
         if m:
             path, lines = m.group('path'), m.group('lines')
