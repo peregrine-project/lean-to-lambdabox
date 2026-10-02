@@ -28,16 +28,116 @@
   \tl_replace_all:NVn \l__bp_lean_tl \c__bp_us_tl { \c__bp_us_tl \allowbreak{} }
   \tl_use:N \l__bp_lean_tl
  }
+% Links to the Lean sources (README, "Links to the Lean sources"). build.sh writes the URLs of
+% every citation, as the web version links them, to ../.build/print-links.tex (scripts/leanlinks.py
+% print-links), which print.tex reads: \bpdefurl{kind}{key}{URL} for the kinds name (a Lean name),
+% file (a path) and lines (path:lines, one line or range of a citation). A citation then links to
+% its URL, and one without a URL is an error, except a \lean name (of a planned node). Without that
+% file (`leanblueprint pdf`), the citations print without links.
+\bool_new:N \g__bp_links_bool
+\tl_new:N \l__bp_key_tl
+\tl_new:N \l__bp_dir_tl
+\seq_new:N \l__bp_items_seq
+\definecolor{bpsrclink}{HTML}{0B5394}
+\cs_new_protected:Npn \bpdefurl #1#2#3
+ {
+  \bool_gset_true:N \g__bp_links_bool
+  \tl_gset:cx { bp@url@ #1 @ \tl_to_str:n {#2} } { \tl_to_str:n {#3} }
+ }
+\cs_new_protected:Npn \__bp_href:nn #1#2
+ { \group_begin: \hypersetup{urlcolor=bpsrclink} \href{#1}{#2} \group_end: }
+\msg_new:nnn { bp } { nolink }
+ { No~URL~for~the~citation~(#1)~#2~in~../.build/print-links.tex:~run~blueprint/build.sh~pdf. }
+% \__bp_link:nnn{kind}{key}{text}: the text, linked to the URL of the citation; an error when the
+% URLs are loaded and the citation has none. \__bp_maylink:nnn: the same, without the error.
+\cs_new_protected:Npn \__bp_link:nnn #1#2#3
+ {
+  \bool_if:NTF \g__bp_links_bool
+   {
+    \cs_if_exist:cTF { bp@url@ #1 @ #2 }
+     { \exp_args:Nv \__bp_href:nn { bp@url@ #1 @ #2 } {#3} }
+     { \msg_error:nnnn { bp } { nolink } {#1} {#2} #3 }
+   }
+   {#3}
+ }
+\cs_new_protected:Npn \__bp_maylink:nnn #1#2#3
+ {
+  \cs_if_exist:cTF { bp@url@ #1 @ #2 }
+   { \exp_args:Nv \__bp_href:nn { bp@url@ #1 @ #2 } {#3} }
+   {#3}
+ }
+\cs_generate_variant:Nn \__bp_link:nnn { nV , nx }
+\cs_generate_variant:Nn \__bp_maylink:nnn { nx }
+% The key of a path as written in TeX: break hints removed and \_ as _ (leanlinks.tex_arg).
+\tl_const:Nx \c__bp_break_tl { \tl_to_str:n { \allowbreak } }
+\tl_const:Nx \c__bp_breakgroup_tl { \tl_to_str:n { \allowbreak {} } }
+\tl_const:Nx \c__bp_escus_tl { \c_backslash_str \c__bp_us_tl }
+\cs_generate_variant:Nn \tl_replace_all:Nnn { NVV }
+\cs_new_protected:Npn \__bp_path_key:n #1
+ {
+  \tl_set:Nx \l__bp_key_tl { \tl_to_str:n {#1} }
+  \tl_replace_all:NVn \l__bp_key_tl \c__bp_breakgroup_tl { }
+  \tl_replace_all:NVn \l__bp_key_tl \c__bp_break_tl { }
+  \tl_replace_all:NVV \l__bp_key_tl \c__bp_escus_tl \c__bp_us_tl
+  \tl_trim_spaces:N \l__bp_key_tl
+ }
+% The lines of a citation of the file whose key is \l__bp_key_tl, each line or range linked.
+\cs_new_protected:Npn \__bp_lines:n #1
+ {
+  \seq_set_from_clist:Nn \l__bp_items_seq {#1}
+  \seq_map_indexed_inline:Nn \l__bp_items_seq
+   {
+    \int_compare:nNnT {##1} > { 1 } { , }
+    \__bp_link:nxn { lines } { \l__bp_key_tl : \tl_to_str:n {##2} } {##2}
+   }
+ }
 \NewDocumentCommand{\lean}{m}
- {\par\noindent{\footnotesize\textcolor{furniture}{Lean:~\texttt{\__bp_lean:n{#1}}}}\par}
-% Citations of the Lean sources (macros/common.tex), as code; the web version links them.
-\NewDocumentCommand{\leandecl}{m}{\texttt{\__bp_leanbreak:n{#1}}}
+ {
+  \par\noindent{\footnotesize\textcolor{furniture}{Lean:~\texttt
+   {
+    \seq_set_from_clist:Nn \l__bp_items_seq {#1}
+    \seq_map_indexed_inline:Nn \l__bp_items_seq
+     {
+      \int_compare:nNnT {##1} > { 1 } { ,~ }
+      \__bp_maylink:nxn { name } { \tl_to_str:n {##2} } { \__bp_lean:n {##2} }
+     }
+   }}}\par
+ }
+% Citations of the Lean sources (macros/common.tex), as code, linked.
+\NewDocumentCommand{\leandecl}{m}
+ { \__bp_link:nxn { name } { \tl_to_str:n {#1} } { \texttt{\__bp_leanbreak:n{#1}} } }
+\NewDocumentCommand{\srcloc}{mm}
+ {
+  \par{\small\textcolor{furniture}{\__bp_path_key:n {#1}
+   \__bp_link:nxn { lines } { \l__bp_key_tl : \tl_to_str:n {#2} } { \texttt{#1:#2} } }}\par
+ }
+\NewDocumentCommand{\leanfile}{m}
+ { \__bp_path_key:n {#1} \__bp_link:nVn { file } \l__bp_key_tl { \texttt{#1} } }
+\NewDocumentCommand{\leanfiles}{mm}
+ {
+  \__bp_path_key:n {#1}
+  \tl_set_eq:NN \l__bp_dir_tl \l__bp_key_tl
+  \texttt
+   {
+    #1\{
+    \seq_set_from_clist:Nn \l__bp_items_seq {#2}
+    \seq_map_indexed_inline:Nn \l__bp_items_seq
+     {
+      \int_compare:nNnT {##1} > { 1 } { ,~ }
+      \__bp_path_key:n {##2}
+      \__bp_link:nxn { file } { \l__bp_dir_tl \l__bp_key_tl .lean } {##2}
+     }
+    \}.lean
+   }
+ }
+\NewDocumentCommand{\leanloc}{mm}
+ {
+  \__bp_path_key:n {#1}
+  \texttt{ \__bp_link:nVn { file } \l__bp_key_tl {#1} : \__bp_lines:n {#2} }
+ }
+\NewDocumentCommand{\leanlinesof}{mm}
+ { \__bp_path_key:n {#1} \texttt{ : \__bp_lines:n {#2} } }
 \ExplSyntaxOff
-\newcommand{\srcloc}[2]{\par{\small\textcolor{furniture}{\texttt{#1:#2}}}\par}
-\newcommand{\leanfile}[1]{\texttt{#1}}
-\newcommand{\leanfiles}[2]{\texttt{#1\{#2\}.lean}}
-\newcommand{\leanloc}[2]{\texttt{#1:#2}}
-\newcommand{\leanlinesof}[2]{\texttt{:#2}}
 \newcommand{\discussion}[1]{}
 \newcommand{\leanok}{}
 \newcommand{\mathlibok}{}

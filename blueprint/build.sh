@@ -9,7 +9,9 @@
 #    package scripts/bpkinds.py lays out the dependency graphs with scripts/kindgraph.py, and links
 #    every Lean name, file and line to its source on GitHub at the commit HEAD, or $BP_COMMIT, or
 #    $GITHUB_SHA in CI: scripts/leanlinks.py);
-# 3. pdf: `latexmk` on src/print.tex into print/ (what `leanblueprint pdf` runs), if xelatex exists;
+# 3. pdf: `latexmk` on src/print.tex into print/ (what `leanblueprint pdf` runs), if xelatex exists,
+#    with the same links to the Lean sources (scripts/leanlinks.py print-links writes their URLs to
+#    .build/print-links.tex, which src/print.tex reads);
 # 4. all, when both were built: copies print/print.pdf to web/blueprint.pdf, which the web version
 #    links to. web/ is then the whole site that CI publishes (.github/workflows/blueprint.yml).
 #
@@ -25,14 +27,15 @@ case $target in web|pdf|all) ;; *) echo "usage: $0 [web|pdf|all]" >&2; exit 2;; 
 python3 "$here/scripts/render_registers.py"
 python3 "$here/scripts/kinds.py"
 
+# The links point at a commit: the Lean files must not differ from it.
+if ! git -C "$here/.." diff --quiet HEAD -- . ':(exclude)blueprint'; then
+  echo "build.sh: warning: the working tree differs from HEAD outside blueprint/; the links to the Lean sources point at HEAD" >&2
+fi
+
 if [[ $target == web || $target == all ]]; then
   command -v plastex >/dev/null || { echo "build.sh: plastex not on PATH (activate the leanblueprint venv)" >&2; exit 2; }
   mkdir -p "$here/web"
   rm -f "$here/web/blueprint.pdf"
-  # The links point at a commit: the Lean files must not differ from it.
-  if ! git -C "$here/.." diff --quiet HEAD -- . ':(exclude)blueprint'; then
-    echo "build.sh: warning: the working tree differs from HEAD outside blueprint/; the links to the Lean sources point at HEAD" >&2
-  fi
   (cd "$here/src" && plastex -c plastex.cfg web.tex)
   echo "build.sh: web version in blueprint/web/index.html"
 fi
@@ -40,6 +43,7 @@ fi
 if [[ $target == pdf || $target == all ]]; then
   if command -v xelatex >/dev/null && command -v latexmk >/dev/null; then
     mkdir -p "$here/print"
+    python3 "$here/scripts/leanlinks.py" print-links "$here/.build/print-links.tex"
     (cd "$here/src" && latexmk -output-directory=../print)
     pdf_built=1
     echo "build.sh: pdf version in blueprint/print/print.pdf"

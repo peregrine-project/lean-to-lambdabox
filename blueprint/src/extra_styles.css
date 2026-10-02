@@ -114,11 +114,10 @@ ul.uses span.lean_decl {
 	overflow-wrap: anywhere;
 }
 
-ul.uses span.bp-where {
+ul.uses a.bp-where {
 	font-size: 85%;
-	color: #6A6A6A;
 	font-family: monospace;
-	padding-left: .4rem;
+	margin-left: .4rem;
 }
 
 /* One colour for every link to the Lean sources, also in the pop-ups of the graphs, whose other

@@ -43,10 +43,10 @@ blueprint/src/chapters/*.tex and blueprint/src/generated/*.tex:
     \\code{}, \\texttt{}, \\inherited{}, \\srcloc{} or the path of \\leanfile{}, \\leanfiles{},
     \\leanloc{}, \\leanlinesof{};
   * links to the Lean sources (scripts/leanlinks.py; README, "Links to the Lean sources"): every
-    name that the web version links (location_rows) has a declaration range that holds it in the
-    local source; every cited path and line exists (check_citations); no \\code or \\texttt of the
-    chapters and generated tables cites a .lean file or a full declaration name; no \\dochome;
-    generated/lean-locations.tsv is up to date;
+    name that the blueprint links (location_rows) has a declaration range that holds it in the
+    local source and is its declaration (declares); every cited path and line exists
+    (check_citations); no \\code or \\texttt of the chapters and generated tables cites a .lean
+    file or a full declaration name; no \\dochome; generated/lean-locations.tsv is up to date;
   * present state only (STYLE.md section 1): no word of HISTORY_WORDS in the hand-written chapters
     and the generated tables, outside comments (the registers record changes and are exempt);
   * node kinds (scripts/kinds.py check): the names of a node share one layer, the module of every
@@ -82,7 +82,7 @@ inherited sorry sources and axioms it depends on; and the planned nodes, whose d
 yet formalized. Output: blueprint/.audit/ (report.md, measure.json, the lake logs). Exit status 1
 if a defect is found, 2 on a tool failure.
 """
-import collections, glob, json, os, re, subprocess, sys, tomllib
+import collections, glob, json, os, re, subprocess, sys, tomllib, zlib
 from html.parser import HTMLParser
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -606,7 +606,7 @@ def citations(texts):
 
 
 def link_names(nodes, texts):
-    """The Lean names the web version links to their declarations: those of the nodes that are
+    """The Lean names the blueprint links to their declarations: those of the nodes that are
     not planned, of \\leandecl outside the registers, and the labelled lean4lean sorries (the
     graphs draw them). The registers cite the names of render_registers.decl_candidates() that
     are declarations (location_rows)."""
@@ -665,11 +665,272 @@ def holds(name, lines, r):
     return False
 
 
+# A declaration range in the source (declares): the head of a declaration (modifiers and
+# attributes, a keyword, the name), a line that only holds attributes, and the names Lean derives.
+DECL_KEYWORDS = (r'class\s+inductive|class\s+abbrev|theorem|lemma|def|abbrev|instance|structure|'
+                 r'class|inductive|opaque|axiom|syntax|deriving\s+instance')
+DECL_HEAD = re.compile(r'^((?:(?:private|protected|noncomputable|partial|unsafe|nonrec|public|meta)'
+                       r'\s+|@\[[^\]]*\]\s*)*)(' + DECL_KEYWORDS + r')(?![\w.\'!?])\s*(.*)$')
+IDENT = r'(?:«[^»]*»|[^\s:()\[\]{}⦃⦄⟨⟩,@|:=.])(?:«[^»]*»|[^\s:()\[\]{}⦃⦄⟨⟩,@|:=])*'
+ATTRS = re.compile(r'(@\[[^\]]*\]\s*)+')
+TYPE_KEYWORDS = {'inductive', 'structure', 'class', 'class inductive'}
+# The names Lean derives from the name of a declaration: equation and unfolding lemmas, induction
+# principles, the auxiliary definitions of unsafe and partial definitions and of matches and
+# proofs, the recursors and no-confusion declarations of an inductive type.
+DERIVED = re.compile(r'eq_\d+|eq_def|eq_unfold|unsafe_\d+|unsafe_impl_\d+|_unsafe_rec|induct|'
+                     r'mutual_induct|proof_\d+|match_\d+|rec|recOn|casesOn|brecOn|below|'
+                     r'noConfusion|noConfusionType|ctorIdx')
+# The auxiliary definitions of an instance that a deriving clause adds (instReprT.repr).
+DERIVED_AUX = re.compile(r'repr')
+# The axioms that bv_decide adds to the theorem whose proof calls it.
+BV_DECIDE = re.compile(r'(.*)\._native\.bv_decide\.ax_\d+_\d+')
+PRIVATE = re.compile(r'_private\.(.+?)\.0\.(.*)')
+# A line at the indentation of a declaration's head that continues the declaration.
+CONTINUES = re.compile(r'^(?:(?:termination_by|decreasing_by|deriving(?!\s+instance\b)|where|with)\b'
+                       r'|\||:=)')
+_CODE = {}
+
+
+def lean_code(lines):
+    """Per line of a Lean file: (code, inside, doc), the code with comments and string literals
+    blanked out, whether the line starts inside a comment, whether it starts a doc comment; and the
+    namespace at each line (the namespace, section, mutual and end commands at column 0)."""
+    if id(lines) in _CODE:
+        return _CODE[id(lines)][1:]
+    out, depth = [], 0
+    for ln in lines:
+        res, i, n = [], 0, len(ln)
+        inside, doc = depth > 0, depth == 0 and ln.lstrip().startswith('/--')
+        while i < n:
+            if depth > 0 or ln.startswith('/-', i):
+                if ln.startswith('/-', i):
+                    depth, i = depth + 1, i + 2
+                elif ln.startswith('-/', i):
+                    depth, i = depth - 1, i + 2
+                else:
+                    i += 1
+                res.append(' ')
+            elif ln.startswith('--', i):
+                break
+            elif ln[i] == '"':
+                j = i + 1
+                while j < n and ln[j] != '"':
+                    j += 2 if ln[j] == '\\' else 1
+                res.append('"' + ' ' * (min(j, n) - i - 1) + '"')
+                i = j + 1
+            else:
+                res.append(ln[i])
+                i += 1
+        out.append((''.join(res).rstrip(), inside, doc))
+    stack, spaces = [], []
+    for c, inside, _ in out:
+        spaces.append('.'.join(x for x in stack if x))
+        m = None if inside or not c or c[0].isspace() else re.match(
+            r'^(?:(?:noncomputable|public|private)\s+|@\[[^\]]*\]\s*)*(namespace|section|mutual|end)\b'
+            r'\s*(\S*)', c)
+        if m and m.group(1) == 'namespace':
+            stack.append(m.group(2))
+        elif m and m.group(1) in ('section', 'mutual'):
+            stack.append(None)
+        elif m and stack:
+            stack.pop()
+    _CODE[id(lines)] = (lines, out, spaces)
+    return out, spaces
+
+
+def _indent(s):
+    return len(s) - len(s.lstrip())
+
+
+def _qualify(ns, n):
+    return n.removeprefix('_root_.') if n.startswith('_root_.') else f'{ns}.{n}' if ns else n
+
+
+def _head(code, k):
+    """(modifiers, keyword, declared name or '', rest) of the declaration head at line k, or None."""
+    m = DECL_HEAD.match(code[k - 1][0].strip())
+    if not m:
+        return None
+    mods, kw, rest = m.group(1).split(), re.sub(r'\s+', ' ', m.group(2)), m.group(3)
+    if kw == 'syntax':
+        mn = re.match(r'^\(name\s*:=\s*(' + IDENT + r')\)', rest)
+        return mods, kw, mn.group(1) if mn else '', rest
+    if kw == 'deriving instance':
+        return mods, kw, '', rest
+    rest = re.sub(r'^\(priority\s*:=[^)]*\)\s*', '', rest)
+    mn = re.match(IDENT, rest)
+    return mods, kw, mn.group(0) if mn else '', rest[mn.end():] if mn else rest
+
+
+def _enclosing(code, spaces, k, below):
+    """The nearest declaration head before line k indented less than `below`, as (line, head,
+    full name); None when another command at column 0 comes first."""
+    for j in range(k - 1, 0, -1):
+        c, inside, _ = code[j - 1]
+        if inside or not c.strip() or _indent(c) >= below:
+            continue
+        hd = _head(code, j)
+        if hd:
+            return j, hd, _qualify(spaces[j - 1], hd[2])
+        if _indent(c) == 0 and not CONTINUES.match(c.strip()):
+            return None
+    return None
+
+
+def _ends_doc(lines, k):
+    """Whether line k ends a doc comment."""
+    if not lines[k - 1].rstrip().endswith('-/'):
+        return False
+    for j in range(k, 0, -1):
+        if '/--' in lines[j - 1]:
+            return True
+        if '/-' in lines[j - 1] or j < k and '-/' in lines[j - 1]:
+            return False
+    return False
+
+
+def _next_code(code, lines, k):
+    """The first line after line k that holds code, unless a blank line comes first."""
+    for j in range(k + 1, len(lines) + 1):
+        if not lines[j - 1].strip():
+            return None
+        if code[j - 1][0].strip() and not code[j - 1][1]:
+            return j
+    return None
+
+
+def declares(name, lines, start, end, path):
+    """None if the lines start..end (1-based) of the Lean file path, of these lines, are the
+    declaration range of the full name, else the reason they are not. The range is one of:
+
+    * a declaration: it starts at the declaration's doc comment, attributes or head, and the line
+      before is not its doc comment or attributes; the head declares the name in the namespace of
+      that line (`_root_.` and `private`, `_private.<module>.0.`, taken into account), or a name
+      Lean derives from it (DERIVED), or is an anonymous `instance` of class C whose name the
+      name's last component, inst<C>..., is, in that namespace, or `deriving instance C for T`
+      (inst<C><T>);
+    * a constructor, field or `where` definition n (a line `| n`, `n :`, `(n m : ...)`): the
+      enclosing declaration declares the name minus its last component n; the range of a
+      constructor and of a field starts at its doc comment, that of a `where` definition at its
+      name, as Lean records them;
+    * a deriving clause of a type T: the name is inst<C><T> of a class C of the clause, or one of
+      its auxiliary definitions (DERIVED_AUX);
+    * the axiom <theorem>._native.bv_decide.ax_<i>_<j> that bv_decide adds: the lines of the
+      tactic call, in the proof of the theorem.
+
+    It ends at the last line of the declaration: that line holds code, no line after the head
+    starts another command at the head's indentation (the `|`, `where`, `deriving`, ... of a
+    declaration continue it), and the next line, unless a blank line comes first, is no deeper
+    continuation."""
+    if not 1 <= start <= end <= len(lines):
+        return f'lines {start}-{end} are not lines of the file ({len(lines)} lines)'
+    code, spaces = lean_code(lines)
+    m = PRIVATE.fullmatch(name)
+    if m and not ('.' + path.removesuffix('.lean').replace('/', '.')).endswith('.' + m.group(1)):
+        return f'{name} is private to the module {m.group(1)}, not to {path}'
+    plain, private = (m.group(2), True) if m else (name, False)
+    m = BV_DECIDE.fullmatch(plain)
+    if m:
+        ti = _indent(code[start - 1][0])
+        if not re.search(r'(?<![\w.])bv_decide(?![\w.])', code[start - 1][0]):
+            return f'line {start} calls no bv_decide'
+        if any(code[k - 1][0].strip() and _indent(code[k - 1][0]) <= ti for k in range(start + 1, end + 1)):
+            return f'lines {start}-{end} hold more than the tactic call'
+        j = _next_code(code, lines, end)
+        if not code[end - 1][0].strip() or j is not None and _indent(code[j - 1][0]) > ti:
+            return f'lines {start}-{end} are not the lines of the tactic call'
+        enc = _enclosing(code, spaces, start, 1)
+        if enc is None or enc[2] != m.group(1) or ('private' in enc[1][0]) != private:
+            return f'line {start} is not in the proof of {m.group(1)}'
+        return None
+    # The head: the first line of the range outside its doc comment and attributes.
+    h = start
+    while h <= end and (code[h - 1][1] or not code[h - 1][0].strip()
+                        or ATTRS.fullmatch(code[h - 1][0].strip())):
+        h += 1
+    if h > end:
+        return f'lines {start}-{end} hold no declaration'
+    if not (code[start - 1][2] or code[start - 1][0].strip().startswith('@[') or start == h):
+        return f'line {start} starts no doc comment, attribute or declaration'
+    hc, hd = code[h - 1][0], _head(code, h)
+    hi = _indent(hc)
+    member = None
+    if not hd and not re.match(r'deriving\b', hc.strip()):
+        member = _enclosing(code, spaces, h, hi)
+        if member is None:
+            return f'line {h} is no declaration and in none'
+    if member and member[1][1] not in TYPE_KEYWORDS:
+        if start != h:
+            return f'line {start}: the range of a where definition starts at its name'
+    elif start > 1:
+        pc = code[start - 2][0].strip()
+        if pc.startswith('@[') and ATTRS.fullmatch(pc) or _ends_doc(lines, start - 1):
+            return f'line {start - 1} (doc comment or attributes) belongs to the declaration'
+    if code[end - 1][1] or not code[end - 1][0].strip():
+        return f'line {end} holds no code'
+    for k in range(h + 1, end + 1):
+        c, inside, _ = code[k - 1]
+        if not inside and c.strip() and _indent(c) <= hi and (member or not CONTINUES.match(c.strip())):
+            return f'line {k} is another command: {lines[k - 1].strip()[:50]!r}'
+    j = _next_code(code, lines, end)
+    if j is not None:
+        c = code[j - 1][0]
+        sibling = member and _indent(c) == hi and (c.strip().startswith('|') or not hc.strip().startswith('|'))
+        if _indent(c) > hi or not sibling and _indent(c) == hi and CONTINUES.match(c.strip()):
+            return f'line {j} continues the declaration: {lines[j - 1].strip()[:50]!r}'
+    pre, _, last = plain.rpartition('.')
+    if hd:
+        mods, kw, n, rest = hd
+        ns = spaces[h - 1]
+        if private != ('private' in mods):
+            return f'line {h}: the declaration is {"not " if private else ""}private'
+        if n:
+            full = _qualify(ns, n)
+            if plain == full or plain.startswith(full + '.') and DERIVED.fullmatch(plain[len(full) + 1:]):
+                return None
+            return f'line {h} declares {full}'
+        if kw == 'instance':
+            text = rest + ' ' + ' '.join(code[k][0] for k in range(h, min(end, h + 3)))
+            mc = re.search(r':\s*@?(' + IDENT + ')', text)
+            cls = mc.group(1).split('.')[-1] if mc else None
+            if cls and pre == ns and re.fullmatch(r'inst' + re.escape(cls) + r'\w*', last):
+                return None
+            return f'line {h} declares an instance of {cls} in the namespace {ns!r}'
+        if kw == 'deriving instance':
+            md = re.match(r'(.*?)\s+for\s+(.*)$', rest)
+            for cls in (x.strip().split('.')[-1] for x in (md.group(1).split(',') if md else [])):
+                for ty in (x.strip().split('.')[-1] for x in md.group(2).split(',')):
+                    if pre == ns and re.fullmatch(rf'inst{re.escape(cls)}{re.escape(ty)}(_\d+)?', last):
+                        return None
+            return f'line {h} derives no instance {name}'
+        return f'line {h}: a {kw} without a name'
+    md = re.match(r'deriving\s+(.*)$', hc.strip())
+    if md:
+        enc = _enclosing(code, spaces, h, hi + 1)
+        if enc is None or enc[1][1] not in TYPE_KEYWORDS:
+            return f'line {h}: a deriving clause of no type'
+        ns, ty = spaces[enc[0] - 1], enc[2].rpartition('.')[2]
+        for cls in (x.strip().split('.')[-1] for x in md.group(1).split(',')):
+            inst = _qualify(ns, f'inst{cls}{ty}')
+            if plain == inst or plain.startswith(inst + '.') and DERIVED_AUX.fullmatch(plain[len(inst) + 1:]):
+                return None
+        return f'line {h} derives no instance {name}'
+    s = re.sub(r'^\|\s*', '', hc.strip())
+    mb, mn = re.match(r'\(([^:()]*):', s), re.match(IDENT, s)
+    names = mb.group(1).split() if mb else [mn.group(0)] if mn else []
+    if last not in names:
+        return f'line {h} declares none of {", ".join(names) or "no name"} as {last}'
+    if member[2] != pre:
+        return f'line {h} is {last} of {member[2]}, not of {pre}'
+    return None
+
+
 def location_rows(data, wanted, defects, optional=()):
     """The rows of lean-locations.tsv: name -> (repository, path, start, end), for the names
     wanted, and those of the names optional that are declarations with a declaration range, from
     the ranges that CheckDecls.lean measured; each checked against the local source: the file
-    exists and the range holds the declaration (holds)."""
+    exists, the text at the position Lean recorded for the name is the name (holds), and the
+    range is the declaration of the name (declares)."""
     rows, sysroot = {}, data['sysroot']
     for n in sorted(set(wanted) | set(optional)):
         loc = data['locations'].get(n)
@@ -694,6 +955,11 @@ def location_rows(data, wanted, defects, optional=()):
         if not holds(n, lines, r):
             defects['links'].append(f'{n}: {path}:{r["start"]}-{r["end"]} does not hold the '
                                     f'declaration (Lean and the source tree disagree: rebuild)')
+            continue
+        why = declares(n, lines, r['start'], r['end'], path)
+        if why:
+            defects['links'].append(f'{n}: {path}:{r["start"]}-{r["end"]} is not its declaration: '
+                                    f'{why}')
             continue
         rows[n] = (repo, path, r['start'], r['end'])
     return rows
@@ -791,14 +1057,17 @@ class _Anchors(HTMLParser):
 FORBIDDEN = ('no-doc-site.invalid', 'mathlib4_docs', '/find/#doc/')
 
 
-def mentions(name, body):
-    """Whether the text of a declaration range mentions the last component of the name or of a
-    prefix of it (the declaration it belongs to, as for holds), or, for an instance whose name
-    Lean chose, `instance` or `deriving`."""
-    for last in reversed(name.split('.')):
-        if last in body or last.startswith('inst') and ('instance' in body or 'deriving' in body):
-            return True
-    return False
+def pdf_uris(path):
+    """The URIs of the link annotations of a pdf (/URI (...)), also those in compressed object
+    streams; a URI holds no parenthesis or backslash."""
+    data = open(path, 'rb').read()
+    chunks = [data]
+    for m in re.finditer(rb'stream\r?\n', data):
+        try:
+            chunks.append(zlib.decompress(data[m.end():data.find(b'endstream', m.end())]))
+        except zlib.error:
+            pass
+    return {u.decode() for c in chunks for u in re.findall(rb'/URI\s*\(([^()\\]*)\)', c)}
 
 
 def check_links(web):
@@ -808,10 +1077,12 @@ def check_links(web):
     documents, a package at its rev of lake-manifest.json, Lean at the tag of lean-toolchain); the
     file exists at that revision (in git for this repository, in the package checkout or the
     toolchain of the same revision otherwise); its lines are lines of the file; a Lean name links
-    to its row of lean-locations.tsv and the lines hold its name. No page links to the placeholder
-    of a documentation site or to the Mathlib documentation. Every name of a node that is not
-    planned is a link on its chapter page and on the graph of all nodes. Prints the links by
-    repository and kind; exit status 1 on a defect."""
+    to its row of lean-locations.tsv, whose lines are the declaration of the name (declares); the
+    text of a link to lines names them (path:line, or the cited line or range). No page links to
+    the placeholder of a documentation site or to the Mathlib documentation. Every name of a node
+    that is not planned is a link on its chapter page and on the graph of all nodes. The pdf of the
+    site (blueprint.pdf), when present, links exactly the GitHub URLs of the pages. Prints the
+    links by repository and kind; exit status 1 on a defect."""
     links = leanlinks.Links()
     defects, count, names_linked = [], collections.Counter(), collections.defaultdict(set)
     sysroot, version = toolchain_prefix()
@@ -848,7 +1119,7 @@ def check_links(web):
     for n in nodes:
         if n['planned']:
             planned.update(n['lean'])
-    self_paths = set()
+    self_paths, web_urls = set(), set()
     pages = sorted(f for f in os.listdir(web) if f.endswith('.html'))
     for page in pages:
         text = open(os.path.join(web, page), encoding='utf-8').read()
@@ -872,6 +1143,7 @@ def check_links(web):
                 if name or 'lean_decl' in a.get('class', '').split():
                     defects.append(f'{where}: the Lean name {name!r} links to {href}, not to its source')
                 continue
+            web_urls.add(href)
             m = next(((p, repo, how) for p, repo, how in prefixes if href.startswith(p)), None)
             if m is None:
                 defects.append(f'{where}: {href} is not a link to a pinned revision of a repository '
@@ -914,10 +1186,21 @@ def check_links(web):
                     defects.append(f'{where}: {name} links to {href}, but lean-locations.tsv gives '
                                    f'{want[0] if want else "no row"}')
                     continue
-                body = '\n'.join(lines[span[0] - 1:span[1]])
-                if not mentions(name, body):
-                    defects.append(f'{where}: lines {span[0]}-{span[1]} of {path} do not mention '
-                                   f'{name} or a declaration it belongs to')
+                why = declares(name, lines, span[0], span[1], path)
+                if why:
+                    defects.append(f'{where}: lines {span[0]}-{span[1]} of {path} are not the '
+                                   f'declaration of {name}: {why}')
+            elif span:
+                # The text of a link to lines: path:line (\srcloc, the list "L∃∀N"), or the
+                # cited line or range (\leanloc, \leanlinesof).
+                text = re.sub(r'\s+', '', el['text'])
+                at = re.fullmatch(r'(.*):(\d+)', text) if {'bp-srcloc', 'bp-where'} & set(classes) else None
+                cited = re.fullmatch(r'(\d+)(?:-(\d+))?', text)
+                if at and (at.group(1) != path or int(at.group(2)) != span[0]) or not at and (
+                        not cited or int(cited.group(1)) != span[0]
+                        or cited.group(2) and int(cited.group(2)) != span[1]):
+                    defects.append(f'{where}: the link text {text!r} does not name the lines it links, '
+                                   f'{path}#{frag}')
     if self_paths:
         r = subprocess.run(['git', 'diff', '--quiet', rev, '--'] + sorted(self_paths), cwd=REPO)
         if r.returncode != 0:
@@ -932,9 +1215,19 @@ def check_links(web):
         if missing:
             defects.append(f'{page}: {len(missing)} Lean names of nodes are not links, e.g. '
                            + ', '.join(missing[:5]))
+    pdf = os.path.join(web, 'blueprint.pdf')
+    if os.path.exists(pdf):
+        got = {u for u in pdf_uris(pdf) if u.startswith('https://github.com/')}
+        for what, diff in (('the web version links but the pdf does not', web_urls - got),
+                           ('the pdf links but the web version does not', got - web_urls)):
+            if diff:
+                defects.append(f'blueprint.pdf: {len(diff)} URLs {what}, e.g. ' + ', '.join(sorted(diff)[:3]))
+        pdf_note = f'blueprint.pdf links {len(got)} of them, those of the web pages'
+    else:
+        pdf_note = 'no blueprint.pdf (build.sh all copies it): the links of the pdf are not checked'
     total = sum(count.values())
-    print(f'audit: {total} links to Lean sources in {len(pages)} pages, at '
-          + ', '.join(f'{r} {links.bases[r][1][:12]}' for r in links.bases))
+    print(f'audit: {total} links to Lean sources in {len(pages)} pages ({len(web_urls)} URLs; '
+          f'{pdf_note}), at ' + ', '.join(f'{r} {links.bases[r][1][:12]}' for r in links.bases))
     for repo in links.bases:
         row = {k: c for (r, k), c in count.items() if r == repo}
         if row:

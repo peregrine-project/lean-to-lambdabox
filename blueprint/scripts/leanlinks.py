@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Links of the web version to the Lean sources (README, section "Links to the Lean sources").
+"""Links of the blueprint to the Lean sources (README, section "Links to the Lean sources").
 
-Every Lean name of the web version links to the lines of its declaration, and every Lean file and
-source location to its file and line, on GitHub, at the revision the site documents:
+Every Lean name of the web version and of the pdf links to the lines of its declaration, and every
+Lean file and source location to its file and line, on GitHub, at the revision the site documents:
 
   self       this repository (audit.toml [links] repository, or $BP_REPOSITORY_URL), at the commit
              the site is built from: $BP_COMMIT, else $GITHUB_SHA (CI), else `git rev-parse HEAD`;
@@ -13,13 +13,19 @@ source location to its file and line, on GitHub, at the revision the site docume
 A path belongs to the repository that audit.toml [links.roots] gives for its first component (or
 for its root module file, `Lean4Lean.lean`); any other path belongs to this repository. A
 declaration links to its declaration range, doc comment included, as the source links of doc-gen4
-do: <file>#L<start>-L<end>. src/generated/lean-locations.tsv, which `audit.py --update` writes from
-the Lean environment, gives the repository, path and lines of every name the blueprint links; a
-path relative to the repository's root (to src/lean/ of the toolchain for lean4).
+do: <file>#L<start>-L<end>, or <file>#L<start> for a declaration of one line.
+src/generated/lean-locations.tsv, which `audit.py --update` writes from the Lean environment, gives
+the repository, path and lines of every name the blueprint links; a path relative to the
+repository's root (to src/lean/ of the toolchain for lean4).
 
-scripts/bpkinds.py (the web version) and scripts/audit.py (its checks) use this module.
+scripts/bpkinds.py (the web version) and scripts/audit.py (its checks) use this module. For the
+print version, which links the same URLs (macros/print.tex), build.sh runs
+
+    python3 blueprint/scripts/leanlinks.py print-links OUT.tex
+
+which writes the URL of every citation of the TeX sources (print_links).
 """
-import json, os, re, subprocess, tomllib
+import json, os, re, subprocess, sys, tomllib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 BP = os.path.dirname(HERE)
@@ -81,7 +87,7 @@ def repo_of_path(path):
 
 
 class Links:
-    """The URLs of the web version: names (from lean-locations.tsv), files and lines."""
+    """The URLs of the links: names (from lean-locations.tsv), files and lines."""
 
     def __init__(self, locations=LOCATIONS):
         self.bases = bases()
@@ -99,7 +105,7 @@ class Links:
         if row is None:
             return None
         repo, path, start, end = row
-        return f'{self.blob(repo, path)}#L{start}-L{end}', f'{path}:{start}'
+        return f'{self.blob(repo, path)}#{fragment(start, end)}', f'{path}:{start}'
 
     def file(self, path):
         """URL of a file, or of a directory when the path ends with a slash."""
@@ -111,10 +117,14 @@ class Links:
         repo, base, out = repo_of_path(path), self.file(path), []
         for part in spec.split(','):
             a, _, b = part.partition('-')
-            if not b and (repo, path, int(a)) in self.by_start:
-                b = str(self.by_start[(repo, path, int(a))])
-            out.append((part, f'{base}#L{a}' + (f'-L{b}' if b and b != a else '')))
+            end = int(b) if b else self.by_start.get((repo, path, int(a)), int(a))
+            out.append((part, f'{base}#{fragment(int(a), end)}'))
         return out
+
+
+def fragment(start, end):
+    """The fragment of a link to the lines start..end of a file: L7-L13, or L7 for one line."""
+    return f'L{start}' if start == end else f'L{start}-L{end}'
 
 
 def read_locations(path=LOCATIONS):
@@ -144,3 +154,40 @@ def tex_arg(text):
     text = re.sub(r'\\allowbreak\s*(\{\})?', '', text)
     text = re.sub(r'\\([_#&%$])\s?', r'\1', text)
     return re.sub(r'\s+', ' ', text).strip()
+
+
+def print_links(links, cites):
+    """The text of the table of URLs that the print version reads (macros/print.tex): \\bpdefurl
+    {kind}{key}{URL} for every name of lean-locations.tsv (kind name), and for the citations cites,
+    [(kind, value, lines)] as audit.citations gives them: the file of every \\leanfile,
+    \\leanfiles, \\leanloc, \\leanlinesof and \\srcloc (kind file, key its path) and each line
+    or range of the last four (kind lines, key path:lines), with the URLs of the web version."""
+    rows = {('name', n): links.decl(n)[0] for n in links.decls}
+    for kind, value, spec in cites:
+        if kind == 'decl':
+            continue
+        rows[('file', value)] = links.file(value)
+        if spec is not None:
+            rows.update({('lines', f'{value}:{text}'): url for text, url in links.lines(value, spec)})
+    for (kind, key), url in rows.items():
+        if re.search(r'[{}\\\s]', key + url):
+            raise SystemExit(f'leanlinks: the {kind} {key!r} or its URL {url!r} has a brace, a '
+                             'backslash or a space')
+    return ('% Generated by blueprint/scripts/leanlinks.py print-links (blueprint/build.sh pdf): the '
+            'URLs of the citations\n% of the Lean sources, which the print version links '
+            '(macros/print.tex). Do not edit.\n\\begingroup\n'
+            '\\catcode`\\_=12 \\catcode`\\#=12 \\catcode`\\%=12 \\catcode`\\&=12 '
+            '\\catcode`\\~=12 \\catcode`\\^=12 \\catcode`\\$=12\n'
+            + ''.join(f'\\bpdefurl{{{kind}}}{{{key}}}{{{url}}}\n' for (kind, key), url in sorted(rows.items()))
+            + '\\endgroup\n')
+
+
+if __name__ == '__main__':
+    if len(sys.argv) != 3 or sys.argv[1] != 'print-links':
+        raise SystemExit('usage: leanlinks.py print-links OUT.tex')
+    sys.path.insert(0, HERE)
+    import audit  # noqa: E402  (the citations of the TeX sources)
+    cites = [(k, v, spec) for _, _, k, v, spec in audit.citations(audit.tex_texts())]
+    os.makedirs(os.path.dirname(os.path.abspath(sys.argv[2])), exist_ok=True)
+    with open(sys.argv[2], 'w', encoding='utf-8') as f:
+        f.write(print_links(Links(), cites))

@@ -113,6 +113,9 @@ status (checked).
 
 ## 4. Macros (`src/macros/common.tex`)
 
+The web version and the pdf link the `\lean` names and the citations below to their sources on
+GitHub (README, "Links to the Lean sources").
+
 | Macro | Use |
 |---|---|
 | `\lead{Label}` | bold run-in label, a noun phrase of one to three words; in nodes: In short, Given, Then, Where, Lean, Idea, Steps, Caveat, Why, Reference |
@@ -120,8 +123,8 @@ status (checked).
 | `\code{...}` | inline code; escape `_` as `\_` |
 | `\stProved`, `\stInherited`, `\stShipping`, `\stPlanned`, `\stOpen` | status words of the prose (not of node bodies): proved; trust inherited from lean4lean; shipping code, described, not verified; not formalized; not done |
 | `\planned` | marks a planned node and prints its badge (checked: its declarations do not exist) |
-| `\srcloc{path}{line}` | where the node's first declaration is (checked; the web version links it) |
-| `\leandecl{name}` | a declaration by its full name, written as it is (no escapes, like `\lean`); the web version links it to its source (checked) |
+| `\srcloc{path}{line}` | where the node's first declaration is (checked; linked) |
+| `\leandecl{name}` | a declaration by its full name, written as it is (no escapes, like `\lean`); linked to its source (checked) |
 | `\leanfile{path}`, `\leanfiles{dir/}{A, B}` | a `.lean` file (a path ending with `/`: a directory), or several files of one directory, printed `dir/{A, B}.lean`; escape `_`; linked (checked) |
 | `\leanloc{path}{lines}`, `\leanlinesof{path}{lines}` | lines of a file (`26`, `7-13`, `642,723`), printed `path:lines` or `:lines`; linked (checked) |
 | `\inherited{labels}` | the lean4lean sorries the node depends on, by label (checked) |
