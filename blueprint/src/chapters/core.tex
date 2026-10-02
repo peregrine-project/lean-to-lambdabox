@@ -13,9 +13,9 @@
   \code{visitExpr}, which call oracle soundness, and in the fuel induction and
   \code{erasePure\_erases}; every other node is within the standard axioms.
 \item \lead{Nodes} \bpnodes{chap:core}
-\item \lead{Lean files} \code{proof/EraseProof/Core.lean},
-  \code{proof/EraseProof/Core/\{Collect, Scope, Order, Glue, FrameA, Frame, State, Steps, CloseFix,
-  Block\}.lean}.
+\item \lead{Lean files} \leanfile{proof/EraseProof/Core.lean},
+  \leanfiles{proof/EraseProof/Core/}{Collect, Scope, Order, Glue, FrameA, Frame, State, Steps, CloseFix,
+  Block}.
 \item \lead{Reference} MetaRocq \code{erases\_erase}, \code{erase\_constant\_body},
   \code{erase\_global\_deps} (\code{erasure/theories/ErasureFunction.v}),
   \code{erase\_global\_erases\_deps} (\code{ErasureFunctionProperties.v}); MetaCoq paper
@@ -848,7 +848,7 @@ as \code{tFix defs j}.
   \lead{In short} \code{visitMutual} on a recursive, non-remapped definition \hl{erases its whole
   block} and registers member \code{j} as \code{tFix defs j} of the erased block.
   \begin{itemize}
-  \item \code{visitMutual\_test}: \code{visitMutual}'s test is \code{Erasure.isRecursiveDecl};
+  \item \code{visitMutual\_test}: \code{visitMutual}'s test is \leandecl{Erasure.isRecursiveDecl};
   \item \code{visitMutual\_block\_run}: allocation, erasure of every value, \code{mkDef}, and
         registration.
   \end{itemize}

@@ -1,11 +1,10 @@
 % Macros for the web version only. \lean, \leanok, \uses come from the leanblueprint plasTeX
 % package.
 
-% leanblueprint links each \lean name to <dochome>/find/#doc/<name>; the default <dochome> is the
-% Mathlib documentation, which does not document this repository, and the repository has no
-% documentation site (README.md, "Links of Lean names"). The address below is under the reserved
-% top-level domain .invalid; scripts/unlink_lean_decls.py, run by build.sh, removes these links.
-\dochome{https://no-doc-site.invalid}
+% The citations of the Lean sources (macros/common.tex) link to them: \leandecl, \leanfile,
+% \leanfiles, \leanloc, \leanlinesof and \bpsrcloc are commands of the plasTeX package
+% scripts/bpkinds.py, which also links every \lean name (README, "Links to the Lean sources").
+\newcommand{\srcloc}[2]{\par{\small\textcolor{furniture}{\bpsrcloc{#1}{#2}}}\par}
 
 % The plasTeX package scripts/bpkinds.py gives every node its badges, and defines \bpkind and
 % \bpnodes; generated/kinds.tex only defines the colours here.

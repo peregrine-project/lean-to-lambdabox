@@ -120,7 +120,10 @@ status (checked).
 | `\code{...}` | inline code; escape `_` as `\_` |
 | `\stProved`, `\stInherited`, `\stShipping`, `\stPlanned`, `\stOpen` | status words of the prose (not of node bodies): proved; trust inherited from lean4lean; shipping code, described, not verified; not formalized; not done |
 | `\planned` | marks a planned node and prints its badge (checked: its declarations do not exist) |
-| `\srcloc{path}{line}` | where the node's first declaration is (checked) |
+| `\srcloc{path}{line}` | where the node's first declaration is (checked; the web version links it) |
+| `\leandecl{name}` | a declaration by its full name, written as it is (no escapes, like `\lean`); the web version links it to its source (checked) |
+| `\leanfile{path}`, `\leanfiles{dir/}{A, B}` | a `.lean` file (a path ending with `/`: a directory), or several files of one directory, printed `dir/{A, B}.lean`; escape `_`; linked (checked) |
+| `\leanloc{path}{lines}`, `\leanlinesof{path}{lines}` | lines of a file (`26`, `7-13`, `642,723`), printed `path:lines` or `:lines`; linked (checked) |
 | `\inherited{labels}` | the lean4lean sorries the node depends on, by label (checked) |
 | `\bpkind{key}` | the badge of a node kind (`final`, `milestone`, `step`, `lemma`, `definition`, `shipping`, `test`, `leanfourlean`, `leanfourleansorry`; README, "Node kinds and dependency graphs") |
 | `\bpnodes{chap:...}` | the nodes of a chapter by kind, in its opener (generated counts; checked) |
@@ -137,4 +140,9 @@ a title with math needs `\texorpdfstring{math}{text}`.
 - Ban: "it should be noted", "in other words", "simply", "of course", "clearly", evaluative
   adjectives, and rhetorical contrasts ("not X but Y") when "Y" suffices.
 - Line numbers live only in `\srcloc{}` and in generated tables.
+- Cite the Lean sources with the citation macros of section 4, never with `\code`: a declaration
+  named in full with `\leandecl`, a `.lean` file with `\leanfile` or `\leanfiles`, from the root of
+  its repository (`proof/...`, `LeanToLambdaBox/...`, `Lean4Lean/...`). The audit rejects a `\code`
+  that holds a `.lean` path or a full declaration name. A name relative to its namespace stays
+  `\code`.
 - Prefer a table or bullets to a sentence that enumerates three or more things.

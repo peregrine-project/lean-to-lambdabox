@@ -22,9 +22,21 @@ register is never rendered partially. Two rules are specific to the registers:
     An `## Entries` section with neither prose nor entries is rendered as "The register has no
     entries."
 
+Inline code that cites the Lean sources becomes a citation that the web version links (README,
+"Links to the Lean sources"; macros/common.tex), outside headings: a declaration by its full name
+(`EraseProof.<name>`, `Lean4Lean.<name>`, `Erasure.<name>`, the forms the registers use) that has a
+row in generated/lean-locations.tsv (audit.py --update locates every such name of the registers
+that is a declaration: decl_candidates) becomes \\leandecl; a .lean file by its path from the root of a repository (this repository, where the file
+exists; lean4lean, batteries and Lean by the first component of the path, scripts/leanlinks.py),
+with lines or not, \\leanfile or \\leanloc; `:<lines>` after such a file, in the same paragraph,
+\\leanlinesof. Any other code stays \\texttt. The audit checks every citation.
+
 The blueprint build (blueprint/build.sh) runs this script first; the audit runs it with --check.
 """
 import collections, json, os, re, sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import leanlinks  # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OUT = os.path.join(REPO, 'blueprint', 'src', 'generated')
@@ -134,17 +146,72 @@ def plain(text):
     return esc(''.join(ch if ord(ch) < 128 else ' ' for ch in text), 'bookmark')
 
 
-def inline(text, where):
-    """Inline Markdown: `code`, **bold**, [text](url)."""
+# Citations of the Lean sources in inline code (module docstring).
+DECL_CITE = re.compile(r"(?:EraseProof|Lean4Lean|Erasure)(?:\.[A-Za-z0-9_'?!\u2080-\u2083\u03c3\u03b1]+)+")
+FILE_CITE = re.compile(r'(?P<path>[A-Za-z0-9_./-]+\.[A-Za-z]+)(?::(?P<lines>[0-9][0-9,:-]*))?')
+MORE_LINES = re.compile(r':(?P<lines>' + leanlinks.LINES.pattern + ')')
+
+
+def decl_candidates():
+    """The inline code of the registers that may cite a declaration by its full name."""
+    out = set()
+    for src in ('doc/SHIPPING-CHANGES.md', 'doc/DIVERGENCES.md'):
+        for c in re.findall(r'`([^`]*)`', '\n'.join(read(src))):
+            if DECL_CITE.fullmatch(c) and not c.endswith('.lean'):
+                out.add(c)
+    return out
+
+
+LOCATED = {}
+
+
+def located(name):
+    """Whether a name has a row in generated/lean-locations.tsv."""
+    if 'names' not in LOCATED:
+        LOCATED['names'] = set(leanlinks.read_locations())
+    return name in LOCATED['names']
+
+
+def lean_file(path):
+    """Whether a path cites a Lean file that the web version links: a .lean file of a package or
+    of Lean (by its first component), or of this repository where it exists."""
+    return (path.endswith('.lean') and not path.startswith(('/', '.'))
+            and (leanlinks.repo_of_path(path) != leanlinks.SELF or os.path.isfile(os.path.join(REPO, path))))
+
+
+def code(c, where, state):
+    """Inline code c: a citation of the Lean sources (module docstring) when state is a dict
+    (it remembers the file cited last in the paragraph), else \\texttt."""
+    if state is not None:
+        if DECL_CITE.fullmatch(c) and not c.endswith('.lean') and located(c):
+            return r'\leandecl{' + c + '}'
+        m = FILE_CITE.fullmatch(c)
+        if m:
+            path, lines = m.group('path'), m.group('lines')
+            state['file'] = path if lean_file(path) else None
+            if state['file'] and lines is None:
+                return r'\leanfile{' + esc(path, where, code=True) + '}'
+            if state['file'] and leanlinks.LINES.fullmatch(lines):
+                return r'\leanloc{' + esc(path, where, code=True) + '}{' + lines + '}'
+            state['file'] = None
+        m = MORE_LINES.fullmatch(c)
+        if m and state.get('file'):
+            return r'\leanlinesof{' + esc(state['file'], where, code=True) + '}{' + m.group('lines') + '}'
+    return r'\texttt{' + esc(c, where, code=True) + '}'
+
+
+def inline(text, where, cite=True):
+    """Inline Markdown: `code`, **bold**, [text](url); inline code that cites the Lean sources
+    becomes a citation when cite (not in headings and titles, whose links would nest)."""
     if '<' in re.sub(r'`[^`]*`', '', text) and re.search(r'<[A-Za-z/][^>]*>', re.sub(r'`[^`]*`', '', text)):
         raise RenderError(f'{where}: HTML tag in {text[:60]!r}')
     parts = re.split(r'(`[^`]*`)', text)
     if any(p.count('`') % 2 for p in parts if not (p.startswith('`') and p.endswith('`') and len(p) > 1)):
         raise RenderError(f'{where}: unbalanced backtick in {text[:60]!r}')
-    out, bold = [], False
+    out, bold, state = [], False, ({} if cite else None)
     for p in parts:
         if len(p) > 1 and p.startswith('`') and p.endswith('`'):
-            out.append(r'\texttt{' + esc(p[1:-1], where, code=True) + '}')
+            out.append(code(p[1:-1], where, state))
             continue
         pos = 0
         for m in re.finditer(r'\*\*|\[([^\]]*)\]\(([^)\s]*)\)', p):
@@ -271,7 +338,7 @@ def heading(level, title, src, lineno, labels):
     if label in labels:
         raise RenderError(f'{src}:{lineno}: duplicate heading label {label}')
     labels.add(label)
-    tex = inline(title, f'{src}:{lineno}')
+    tex = inline(title, f'{src}:{lineno}', cite=False)
     return (f'\\{cmd}{{\\texorpdfstring{{{tex}}}{{{plain(title)}}}}}\\label{{{label}}}\n\n')
 
 
@@ -320,7 +387,7 @@ def entry_table(entries, src):
         m = re.match(r'^([A-Z]+-\d+): *(.*)$', h[2])
         if not m:
             continue
-        rows.append(f'\\ref{{{entry_label(h[2])}}} & {inline(m.group(2), f"{src}:{h[3]}")} \\\\')
+        rows.append(f'\\ref{{{entry_label(h[2])}}} & {inline(m.group(2), f"{src}:{h[3]}", cite=False)} \\\\')
     return table('lp{0.8\\linewidth}', 'Entry & Title', rows)
 
 

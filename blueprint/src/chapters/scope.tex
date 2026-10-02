@@ -45,9 +45,9 @@
 Feature & In lean4lean \code{master} & Consequence \\
 \midrule
 Terms & \code{VExpr}: \code{bvar}, \code{sort}, \code{const}, \code{app}, \code{lam},
-  \code{forallE} (\code{Theory/VExpr.lean}) & $\lambda$, application, $\Pi$, sorts, constants \\
+  \code{forallE} (\leanfile{Lean4Lean/Theory/VExpr.lean}) & $\lambda$, application, $\Pi$, sorts, constants \\
 Typing & one judgment \code{IsDefEq} with 13 rules, among them \code{beta}, \code{eta},
-  \code{proofIrrel}, \code{extra} (\code{Theory/Typing/Basic.lean}) & $\beta$, $\eta$, proof
+  \code{proofIrrel}, \code{extra} (\leanfile{Lean4Lean/Theory/Typing/Basic.lean}) & $\beta$, $\eta$, proof
   irrelevance, level equivalence \\
 Definitions & a constant and a defining equation (\code{TrEnv'.defn}) & $\delta$ \\
 Mutual and unsafe definitions & \code{TrEnv'.mutualDef} & unsafe recursion \\

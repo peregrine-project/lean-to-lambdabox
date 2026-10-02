@@ -43,8 +43,19 @@
 % lean4lean sorry sources that the node's declarations depend on, exactly (checked by the audit).
 % \planned: the node states a declaration that does not exist yet; its \lean names are the names
 % the declarations will have (checked by the audit: none of them exists).
+%
+% Citations of the Lean sources, which the web version links to them (scripts/leanlinks.py; README,
+% "Links to the Lean sources"); macros/print.tex and the plasTeX package scripts/bpkinds.py define
+% them. A name is written as it is (like \lean); a path escapes its underscores (like \code).
+%   \srcloc{path}{line}        the node furniture above
+%   \leandecl{name}            a declaration, by its full name
+%   \leanfile{path}            a .lean file, or a directory (ending with a slash)
+%   \leanfiles{dir/}{A, B}     the files dir/A.lean and dir/B.lean, printed dir/{A, B}.lean
+%   \leanloc{path}{lines}      lines of a file: 26, 7-13 or 642,723
+%   \leanlinesof{path}{lines}  the same, printed :lines (after a citation of the file)
+% A path starts at the root of this repository, of a package (Lean4Lean/...) or of Lean's sources
+% (Init/...); the audit checks every citation.
 \definecolor{furniture}{HTML}{6A6A6A}
-\newcommand{\srcloc}[2]{\par{\small\textcolor{furniture}{\texttt{#1:#2}}}\par}
 \newcommand{\inherited}[1]{\par{\small\textcolor{bpstatusinherits}{Inherited from lean4lean
   (Section~\ref{sec:trust-inherited}): #1}}\par}
 \newcommand{\planned}{\par{\small\textcolor{furniture}{\stPlanned{} Not formalized: the declaration

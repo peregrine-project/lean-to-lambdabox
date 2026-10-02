@@ -7,8 +7,8 @@
     zooms); a bar links the graph pages; a field finds a node by any of its Lean names (on the
     chapter map, a chapter by its title or by a Lean name of its nodes); a click on a node shows its
     statement and only its arrows and neighbours; the URL fragment (#<label>) does the same; the
-    title of a frame of one chapter's nodes opens the chapter's graph. Update it together with
-    plastexdepgraph. -#}
+    title of a frame of one chapter's nodes opens the chapter's graph; the name of a lean4lean sorry
+    links to its declaration (scripts/leanlinks.py). Update it together with plastexdepgraph. -#}
 {% macro icon(icon, id='', class='') %}
 <svg  {% if id %}id="{{id}}" {% endif %}class="icon icon-{{ icon }} {{ class }}"><use xlink:href="symbol-defs.svg#icon-{{ icon }}"></use></svg>
 {% endmacro %}
@@ -128,7 +128,7 @@
       <span class="definition_thmtitle">{{ x.label }}</span>
       <span class="bp-kind bp-kind-lean4lean">LEAN4LEAN SORRY</span>
     </div>
-    <div class="thm_thmcontent"><p><code>{{ x.name }}</code>: {{ x.what }}. {{ x.count }} nodes inherit it; the dotted crimson arrows lead to those that inherit it first.</p></div>
+    <div class="thm_thmcontent"><p><a class="lean_decl bp-src" href="{{ x.src[0]|e }}" data-lean="{{ x.name|e }}" title="{{ x.src[1]|e }}"><code>{{ x.name }}</code></a>: {{ x.what }}. {{ x.count }} nodes inherit it; the dotted crimson arrows lead to those that inherit it first.</p></div>
     {% if x.url %}<a class="latex_link" href="{{ x.url }}">Inherited trust: lean4lean</a>{% endif %}
   </div>
     {% endcall %}

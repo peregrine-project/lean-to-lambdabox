@@ -23,7 +23,7 @@ scripts/kinds.py        node kinds and their colours, shapes and badges; writes 
 scripts/kindgraph.py    lays out the dependency graphs (Graphviz, through pygraphviz)
 scripts/bpkinds.py      plasTeX package: badges, graph pages and their CSS in the web version
 scripts/render_registers.py   renders the registers and the pins as chapters
-scripts/unlink_lean_decls.py  removes the documentation links of the \lean names (web version)
+scripts/leanlinks.py    the links of the web version to the Lean sources (URLs, revisions)
 STYLE.md                how chapters and nodes are written (binding)
 src/content.tex         chapter order
 src/chapters/*.tex      hand-written chapters: intro, scope, trust, model, pure, source,
@@ -47,12 +47,13 @@ blueprint/build.sh          # or: blueprint/build.sh web | blueprint/build.sh pd
 ```
 
 `build.sh` first runs `scripts/render_registers.py` and `scripts/kinds.py`, then `plastex` (web
-version in `blueprint/web/`, and the list of cited declarations in `blueprint/lean_decls`) followed
-by `scripts/unlink_lean_decls.py`, then `latexmk` (`blueprint/print/print.pdf`). With the default
-target `all`, it then copies the pdf to `blueprint/web/blueprint.pdf`, which the title page of the
-web version links to; `blueprint/web/` is then the whole site. `leanblueprint web` and
-`leanblueprint pdf` run plasTeX and latexmk only: they neither render the registers nor remove the
-documentation links. The web version needs no server: its graphs are SVG drawn at build time, and
+version in `blueprint/web/`, and the list of cited declarations in `blueprint/lean_decls`), then
+`latexmk` (`blueprint/print/print.pdf`). With the default target `all`, it then copies the pdf to
+`blueprint/web/blueprint.pdf`, which the title page of the web version links to; `blueprint/web/`
+is then the whole site. The web version links the Lean sources at the commit `HEAD` (section
+"Links to the Lean sources"); `build.sh` warns when the working tree differs from `HEAD` outside
+`blueprint/`. `leanblueprint web` and `leanblueprint pdf` run plasTeX and latexmk only: they do not
+render the registers. The web version needs no server: its graphs are SVG drawn at build time, and
 `index.html` opens from disk. The latexmk configuration runs xelatex with
 `-interaction=nonstopmode -halt-on-error`, so a LaTeX error stops the build instead of waiting on a
 prompt.
@@ -190,30 +191,90 @@ template's header) and keeps its statement modals; update both together. The bui
 finds touching nodes in the graph of all nodes, it draws the arrows between blocks straight; the
 build prints a warning and goes on (`BLOCK_SEP` in `kindgraph.py` sets the spacing).
 
-## Links of Lean names
+## Links to the Lean sources
 
-leanblueprint links every `\lean` name to `<dochome>/find/#doc/<name>`, and without a `\dochome` the
-target is the Mathlib documentation, which does not document this repository. The web version has
-no such links: `src/macros/web.tex` sets `\dochome` to `https://no-doc-site.invalid` (the top-level
-domain `.invalid` is reserved and never resolves), and `scripts/unlink_lean_decls.py` turns each link
-to it into plain text that carries the name, failing the build if a link to that address or to the
-Mathlib documentation remains. Each node gives the file and line of its first declaration
-(`\srcloc`, checked by the audit).
+In the web version every citation of the Lean sources is a link to GitHub, at the revision the site
+documents; `scripts/leanlinks.py` makes the URLs and `scripts/bpkinds.py` puts them in the pages.
 
-The alternative, a doc-gen4 site built by CI next to the blueprint, is not used because it is not
-cheap here. doc-gen4 documents every module the documented libraries import: Lean core (`Init`,
-`Std`, `Lean`, `Lake`), batteries and lean4lean, besides the eraser: several thousand module pages,
-and a build that typically takes tens of minutes, on every push. It would also need a doc-gen4 revision
-that matches the release-candidate toolchain of `lean-toolchain`, pinned in a separate Lake
-workspace so that the root `lake-manifest.json` stays unchanged, and updated with every toolchain
-change.
+| Citation | Where | Links to |
+|---|---|---|
+| `\lean{...}` names of a node | the line "Lean: ..." under the heading (the print version prints the same line), the list "L∃∀N" of the heading, the pop-up of the node in every graph | the lines of each declaration |
+| `\srcloc{path}{line}` | under the heading | the lines of the node's first declaration |
+| `\leandecl{name}` | prose, the generated tables (census, inherited sorries, roots), the registers | the lines of the declaration |
+| `\leanfile{path}`, `\leanfiles{dir/}{A, B}` | "Lean files" of the chapter openers, prose, the tables, the registers | the file (a path ending with `/`: the directory) |
+| `\leanloc{path}{lines}`, `\leanlinesof{path}{lines}` | the tables, the registers (`path:7-13`, `:68`) | the file, and each line or range of lines |
+| a labelled lean4lean sorry | its node in the graphs | the lines of the declaration |
+
+**Revisions.** A path belongs to the repository that `[links.roots]` of `audit.toml` gives for its
+first component, else to this repository:
+
+| Repository | URL | Revision |
+|---|---|---|
+| this repository (`proof/`, `LeanToLambdaBox/`, ...) | `[links] repository` of `audit.toml` (`$BP_REPOSITORY_URL` overrides it; CI sets it to the repository the workflow runs in) | the commit the site is built from: `$BP_COMMIT`, else `$GITHUB_SHA` (CI), else `git rev-parse HEAD` |
+| lean4lean (`Lean4Lean/`), batteries (`Batteries/`) | `url` of `lake-manifest.json` | `rev` of `lake-manifest.json` (`8223d223...`, `76e1c118...`; the second is the commit of the tag `v4.33.0-rc2` of batteries) |
+| Lean (`Init/`, `Std/`, `Lean/`) | `[links] lean4` of `audit.toml`, under `src/` | the tag of `lean-toolchain` (`v4.33.0-rc2`) |
+
+So a declaration of the proof library links to
+`https://github.com/peregrine-project/lean-to-lambdabox/blob/<commit>/proof/EraseProof/Main.lean#L26-L54`,
+one of lean4lean to `https://github.com/barabbs/lean4lean/blob/8223d223.../Lean4Lean/Theory/VExpr.lean#L7-L13`,
+and one of Lean to `https://github.com/leanprover/lean4/blob/v4.33.0-rc2/src/Init/Prelude.lean#L1231-L1253`.
+A pinned commit, unlike a branch, keeps every line number right; a link of a site built from a
+commit that GitHub does not have resolves once that commit is pushed.
+
+**Lines of a declaration.** A name links to its declaration range, from the first line of its doc
+comment and modifiers to its last line, as the source links of doc-gen4 do (`#L<start>-L<end>`).
+`CheckDecls.lean measure` reads the ranges from the Lean environment (`locations` of
+`measure.json`); a declaration that has none (an auxiliary declaration an elaborator adds, such as
+`f.unsafe_1`), or that Lean added in another module than the declaration it belongs to (an equation
+lemma realized where a proof first uses it), takes the range of that declaration. `audit.py
+--update` writes `src/generated/lean-locations.tsv`: the repository, path and range of every name
+of a node that is not planned, of every `\leandecl` and of every labelled lean4lean sorry, and of
+every full name of a declaration in the registers (the inline code `EraseProof.<name>`,
+`Lean4Lean.<name>` and `Erasure.<name>` that is a declaration). The build reads it and needs no Lean.
+
+**Registers.** `render_registers.py` turns the inline code of a register that cites the Lean
+sources into these citations, outside headings: a full name with a row in `lean-locations.tsv`
+becomes `\leandecl`; a `.lean` path from the root of a repository (of this repository only where
+the file exists), with lines or not, `\leanfile` or `\leanloc`; `:<lines>` after such a file in the
+same paragraph, `\leanlinesof`. Any other inline code (a name relative to its namespace, a
+MetaRocq citation, a path relative to a directory named nearby) stays plain.
+
+**Checks.** The audit checks, before the build:
+
+- every name of `lean-locations.tsv` is held by its range: the text at the position of its name in
+  the local source is its name, or that of the declaration it belongs to (`holds`); a mismatch
+  means a stale build;
+- every path of a citation is a file (or a directory) of its repository, tracked by git in this
+  repository, and every cited line is a line of it;
+- the chapters and the generated tables cite no `.lean` file and no full declaration name with
+  `\code` or `\texttt` (they use the citations above), and no file sets `\dochome`;
+- `lean-locations.tsv` is up to date.
+
+After the build, `python3 blueprint/scripts/audit.py --check-links blueprint/web` checks every page:
+every element that carries a Lean name (`data-lean`, class `lean_decl`) is a link, except a name of
+a planned node; every GitHub link is at the revision of its repository, to a file (or directory) that
+exists there (in git at that commit for this repository, in the package checkout or the toolchain
+of that revision otherwise), at lines of that file; a name links exactly to its row of
+`lean-locations.tsv`, and those lines mention it; the files of this repository that the site links
+do not differ between the working tree (where the ranges were measured) and the linked commit; no
+page contains the address of a documentation site leanblueprint would use (`/find/#doc/`,
+`mathlib4_docs`); and every name of a node that is not planned is a link on the chapter pages and on
+the graph of all nodes. It prints the links by repository and kind.
+
+leanblueprint links each `\lean` name to a doc-gen4 site (`\dochome`, by default the Mathlib
+documentation, which does not document this repository). `scripts/bpkinds.py` replaces those
+templates of leanblueprint 0.0.20, so no such link is written. A doc-gen4 site of its own is not
+built: it would document every module the libraries import (Lean core, batteries, lean4lean), take
+tens of minutes on every push, and need a doc-gen4 pinned to the release-candidate toolchain in a
+separate Lake workspace. The source links point at the code the blueprint describes, at no cost.
 
 ## Audit
 
 ```
 python3 blueprint/scripts/audit.py              # builds the Lake targets of audit.toml first
 python3 blueprint/scripts/audit.py --no-build   # when they are built
-python3 blueprint/scripts/audit.py --update     # also rewrites the six generated files it owns
+python3 blueprint/scripts/audit.py --update     # also rewrites the seven generated files it owns
+python3 blueprint/scripts/audit.py --check-links blueprint/web   # after build.sh web
 ```
 
 The audit first runs `lake build` of the `[[build]]` entries of `audit.toml`: in the root the
@@ -236,7 +297,8 @@ uses of every declaration of the proof library and of the shipping code, and che
 | Coverage | every declaration of the modules `EraseProof*` that has a source position is cited by a node that is not planned |
 | Roots | every line of `proof/ROOTS.txt` names a root cited by a formalized node and a consumer cited by a planned node whose statement or proof uses the root's node, or `FINAL` for the final theorem, which has no consumer; a line whose unit is a decision of the plan (`O-<n>`) names a placeholder consumer: no planned statement uses the root, so the consumer's node must not use the root's node, and `roots.tex` marks the row |
 | `\srcloc{path}{line}` | is the file and line of the node's first declaration |
-| Hygiene | ASCII only outside `\lean{}`; underscores escaped in `\code`, `\texttt`, `\inherited`, `\srcloc` |
+| Hygiene | ASCII only outside `\lean{}` and `\leandecl{}`; underscores escaped in `\code`, `\texttt`, `\inherited`, `\srcloc`, `\leanfile`, `\leanfiles`, `\leanloc`, `\leanlinesof` |
+| Links | the checks before the build of section "Links to the Lean sources": every linked name is held by its declaration range in the local source, every cited path and line exists, no `\code` cites a `.lean` file or a full declaration name, no `\dochome`, and `generated/lean-locations.tsv` is up to date |
 | Present state | no word that narrates history (`STYLE.md` section 1: previously, since the last version, was fixed, no longer, used to, now, yet), as a whole word outside comments, in the hand-written chapters and the generated tables; the rendered registers record changes and are exempt |
 | Kinds | the rules of section "Node kinds and dependency graphs": the names of a node share one layer; the module of each declaration has the layer of its name; the `imported` environment holds exactly the nodes of the lean4lean layer; one final node, a `theorem` environment; the final theorem depends on every milestone; the `\uses` of the final theorem and of the milestones agree with the declarations they use directly; no node body carries a status word; every chapter with nodes cites `\bpnodes` with its own label |
 | Imported nodes | `generated/lean4lean-imports.tex` equals what `--update` writes from the Lean environment and `[lean4lean_modules]` of `audit.toml`, which has one entry per lean4lean module whose declarations the proof library (outside its tests) or the shipping code uses directly; their declarations are within the allowed axioms |
@@ -244,8 +306,14 @@ uses of every declaration of the proof library and of the shipping code, and che
 
 It writes `blueprint/.audit/report.md` (defects, per-node kind, status, axioms and inherited trust,
 the full lean4lean census with the entries the nodes reach), `measure.json` and the Lake logs,
-prints a summary with the number of nodes of each kind and the inherited sorries the nodes reach,
-and exits with status 1 on a defect.
+prints a summary with the number of nodes of each kind, the linked names by repository and the
+inherited sorries the nodes reach, and exits with status 1 on a defect. With `--update`, when
+`lean-locations.tsv` changes, it renders the registers again (they link the names it locates) and
+audits again.
+
+After `build.sh web`, `audit.py --check-links blueprint/web` checks the links of every page (section
+"Links to the Lean sources"); it needs the built proof package (for `lake env lean`), the package
+checkouts under `.lake/packages` and the commit the site links, and exits with status 1 on a defect.
 
 After `build.sh web`, `python3 blueprint/scripts/audit.py --check-lean-decls blueprint/lean_decls`
 checks that the names plasTeX collected exist, except the names of planned nodes (it runs
@@ -268,9 +336,10 @@ checks that the names plasTeX collected exist, except the names of planned nodes
 | `src/generated/kinds-legend.tex` | `scripts/kinds.py` | the chapters, `scripts/kinds.py` |
 | `src/generated/kinds-chapters.tex` | `scripts/kinds.py` | the chapters |
 | `src/generated/lean4lean-imports.tex` | `scripts/audit.py --update` | the Lean environment, `audit.toml` |
+| `src/generated/lean-locations.tsv` | `scripts/audit.py --update` | the Lean environment, the chapters, the generated tables, the registers |
 
-All are committed. `build.sh` rewrites the first three and the last three; the audit fails when any
-of the twelve is stale. The renderer converts the Markdown of a register block by block and stops with an error on a
+All are committed. `build.sh` rewrites those of `render_registers.py` and `kinds.py`; the audit
+fails when any of the thirteen is stale. The renderer converts the Markdown of a register block by block and stops with an error on a
 construct it does not handle (a table, a fenced code block, an unknown non-ASCII character), so a
 register is never rendered partially. In `doc/DIVERGENCES.md` the entries are the `###` sections
 under `## Entries`; the chapter renders the whole file, with a table of the entries after the prose
@@ -292,9 +361,11 @@ that opens `## Entries`.
 3. `python3 blueprint/scripts/audit.py`, before the build, so that it checks the committed generated
    chapters; it also builds the proof package `proof/`. A defect fails the job. The report (`blueprint/.audit/`) is uploaded as the artifact
    `blueprint-audit`, also when the audit fails.
-4. `blueprint/build.sh all`, then `audit.py --check-lean-decls blueprint/lean_decls`, a check
-   that `blueprint/web/blueprint.pdf` exists (`build.sh` skips the pdf without xelatex), and one
-   that the graph pages exist.
+4. `blueprint/build.sh all`, then `audit.py --check-lean-decls blueprint/lean_decls`,
+   `audit.py --check-links blueprint/web` (the links to the Lean sources), a check that
+   `blueprint/web/blueprint.pdf` exists (`build.sh` skips the pdf without xelatex), and one that
+   the graph pages exist. The job sets `BP_REPOSITORY_URL` to the repository it runs in; the links
+   of this repository point at `$GITHUB_SHA`, the commit it builds.
 5. `actions/upload-pages-artifact` with `blueprint/web/`.
 
 Its job `deploy` publishes that artifact with `actions/deploy-pages`, with the permissions
@@ -319,7 +390,14 @@ One-time repository settings, by an administrator:
 
 ## Limitations
 
-- The web version has no documentation links for the `\lean` names (see "Links of Lean names").
+- The links to the Lean sources are in the web version only; the pdf prints the same names and
+  paths without links.
+- Only citations link (section "Links to the Lean sources"): a name in prose relative to its
+  namespace (`\code{erase\_correct}`), and the MetaRocq citations, stay plain text.
+- A register's citation of a line of Lean's own sources links at the tag of the documented
+  commit's `lean-toolchain`; an entry written under another toolchain cites the lines of that one.
+- A site built from a commit that GitHub does not have links to a commit GitHub cannot show until
+  it is pushed.
 - The published site shows the `blueprint` branch; the other branches are not published.
 - The census covers the lean4lean libraries that are built (`Lean4Lean`, `Lean4Lean.Theory`,
   `Lean4Lean.Verify`), not `Lean4Lean.Tests` or `Lean4Lean.Experimental`.

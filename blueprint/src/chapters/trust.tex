@@ -13,9 +13,9 @@
   the imported nodes describe the lean4lean declarations that the proof and the shipping code use,
   with the sorries they inherit.
 \item \lead{Nodes} \bpnodes{chap:trust}
-\item \lead{Lean files} \code{proof/EraseProof/} (the verification library \code{EraseProof});
-  \code{LeanToLambdaBox/\{Basic, Erasure, Printing\}.lean} and
-  \code{LeanToLambdaBox/Erasure/\{Collect, Pure, Entry, Command\}.lean} (the shipping code).
+\item \lead{Lean files} \leanfile{proof/EraseProof/} (the verification library \code{EraseProof});
+  \leanfiles{LeanToLambdaBox/}{Basic, Erasure, Printing} and
+  \leanfiles{LeanToLambdaBox/Erasure/}{Collect, Pure, Entry, Command} (the shipping code).
 \end{itemize}
 
 \section{What is proved}\label{sec:trust-proved}
@@ -326,7 +326,7 @@ shipping node reaches an axiom of that module.
   \begin{itemize}
   \item \code{Serialize}: a class with one method, \code{to\_sexpr}, to the S-expressions
         \code{sexpr};
-  \item \code{LBTerm.to\_sexpr}: a \code{partial def}; it reaches \code{unreachable!} on
+  \item \leandecl{LBTerm.to_sexpr}: a \code{partial def}; it reaches \code{unreachable!} on
         \code{fvar}.
   \end{itemize}
 \end{definition}

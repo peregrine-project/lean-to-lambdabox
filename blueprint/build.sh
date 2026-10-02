@@ -6,8 +6,9 @@
 # 1. renders the registers and the pins into src/generated/ (scripts/render_registers.py), and the
 #    node kinds and their legends (scripts/kinds.py);
 # 2. web: `plastex` on src/web.tex into web/ (what `leanblueprint web` runs; writes lean_decls; the
-#    package scripts/bpkinds.py lays out the dependency graphs with scripts/kindgraph.py), then
-#    scripts/unlink_lean_decls.py, which removes the documentation links of the \lean names;
+#    package scripts/bpkinds.py lays out the dependency graphs with scripts/kindgraph.py, and links
+#    every Lean name, file and line to its source on GitHub at the commit HEAD, or $BP_COMMIT, or
+#    $GITHUB_SHA in CI: scripts/leanlinks.py);
 # 3. pdf: `latexmk` on src/print.tex into print/ (what `leanblueprint pdf` runs), if xelatex exists;
 # 4. all, when both were built: copies print/print.pdf to web/blueprint.pdf, which the web version
 #    links to. web/ is then the whole site that CI publishes (.github/workflows/blueprint.yml).
@@ -28,8 +29,11 @@ if [[ $target == web || $target == all ]]; then
   command -v plastex >/dev/null || { echo "build.sh: plastex not on PATH (activate the leanblueprint venv)" >&2; exit 2; }
   mkdir -p "$here/web"
   rm -f "$here/web/blueprint.pdf"
+  # The links point at a commit: the Lean files must not differ from it.
+  if ! git -C "$here/.." diff --quiet HEAD -- . ':(exclude)blueprint'; then
+    echo "build.sh: warning: the working tree differs from HEAD outside blueprint/; the links to the Lean sources point at HEAD" >&2
+  fi
   (cd "$here/src" && plastex -c plastex.cfg web.tex)
-  python3 "$here/scripts/unlink_lean_decls.py" "$here/web"
   echo "build.sh: web version in blueprint/web/index.html"
 fi
 
