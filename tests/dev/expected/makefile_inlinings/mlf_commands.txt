@@ -1,0 +1,7 @@
+# all outputs present, INLINING=1
+peregrine compile $(build)/rInl.ast unbox.config --attributes=$(build)/rInl.ast.inlinings > /dev/null
+# rInl.ast.inlinings missing, INLINING=1
+lake lean $(build)/rInl.lean
+peregrine compile $(build)/rInl.ast unbox.config --attributes=$(build)/rInl.ast.inlinings > /dev/null
+# rInl.ast.inlinings missing, INLINING=0
+peregrine compile $(build)/rInl.ast unbox.config > /dev/null

@@ -1,0 +1,3 @@
+cp LeanArray.mli $(build)/LeanArray.mli
+ocamlopt -c $(build)/LeanArray.mli
+ocamlopt -I $(build) -c $(build)/rArr.mli

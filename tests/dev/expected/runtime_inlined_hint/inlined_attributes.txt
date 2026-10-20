@@ -1,0 +1,2 @@
+nat-inline.ml: [@inlined hint] 15, [@inlined] 0
+int-inline.ml: [@inlined hint] 9, [@inlined] 0

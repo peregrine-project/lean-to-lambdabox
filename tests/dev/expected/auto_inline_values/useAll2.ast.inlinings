@@ -1,0 +1,1 @@
+(attributes_config (((MPfile ()) "instLam") ((MPdot (MPfile ()) "Tbl") "get") ((MPdot (MPfile ()) "Unit") "unit") ((MPfile ()) "instOfNatNat") ((MPdot (MPfile ()) "OfNat") "ofNat") ((MPdot (MPfile ()) "Inhabited") "default") ((MPfile ()) "instAddNat") ((MPfile ()) "instHAdd") ((MPdot (MPfile ()) "Add") "add") ((MPdot (MPfile ()) "HAdd") "hAdd")) () () () ())
