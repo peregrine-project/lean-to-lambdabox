@@ -23,7 +23,7 @@ Entry & Title \\
 \ref{reg:S-9} & The dead \texttt{containsFix} guard of auto-inlining is removed \\
 \ref{reg:S-10} & Auto-inlining does not mark constants tagged \texttt{@[noinline]} \\
 \ref{reg:S-11} & The documentation of auto-inlining describes the shapes the code accepts \\
-\ref{reg:S-12} & Port to Lean v4.33.0-rc2, with a Lake dependency on \texttt{lean4lean} \\
+\ref{reg:S-12} & Port to Lean v4.33.0-rc2 \\
 \ref{reg:S-13} & Sparse \texttt{casesOn} and per-constructor eliminators are erased by constructor name \\
 \ref{reg:S-14} & A catch-all no longer re-evaluates a discriminant that is not a variable \\
 \ref{reg:S-15} & The corpus gains examples inside and near the verification scope, irreducible-alias programs and unsafe recursion \\
@@ -34,7 +34,7 @@ Entry & Title \\
 \ref{reg:S-20} & The pure backend is complete, and \texttt{erasePure} runs the traversal with it, which \texttt{\#erase} does not call yet \\
 \ref{reg:S-21} & \texttt{\#erase} erases programs in the fragment with the pure path \\
 \ref{reg:S-22} & Comments, docstrings and the register cite only what the repository contains \\
-\ref{reg:S-23} & CI builds and tests the \texttt{shipping} branch when it is pushed \\
+\ref{reg:S-23} & The register says when CI builds and tests \\
 \ref{reg:S-24} & The docstring of \texttt{binderNameOf} gives the reason that holds \\
 \bottomrule
 \end{tabular}
@@ -130,7 +130,7 @@ A regression test is a file \texttt{tests/\allowbreak{}regress/\allowbreak{}\tex
 \texttt{scripts/\allowbreak{}regress.sh~[TEST...]}
 \end{quote}
 
-It builds the package, elaborates each test in a fresh directory, and compares the files written with the expected ones byte for byte. A test fails if Lean reports an error, if a \texttt{PANIC} message appears (unless the test contains the line \texttt{-{}- regress: allow-panic}), or if any file is missing, extra or different. With \texttt{PEREGRINE=\textless{}path to the peregrine binary\textgreater{}}, it also runs the lines \texttt{-{}- peregrine: validate \textless{}file\textgreater{} [\textless{}option\textgreater{}...]} and \texttt{-{}- peregrine: eval \textless{}file\textgreater{} [\textless{}option\textgreater{}...]} of each test; each must succeed and, when \texttt{tests/\allowbreak{}regress/\allowbreak{}expected-peregrine/\allowbreak{}\textless{}name\textgreater{}/\allowbreak{}\textless{}file\textgreater{}.\textless{}verb\textgreater{}} exists, print exactly that. \texttt{scripts/\allowbreak{}regress.sh -{}-update [TEST...]} rewrites the expected files from the current checkout. CI (\texttt{.github/\allowbreak{}workflows/\allowbreak{}build.yml}, on pushes to \texttt{main} and \texttt{shipping} and on pull requests) runs \texttt{scripts/\allowbreak{}regress.sh} after the build, without peregrine.
+It builds the package, elaborates each test in a fresh directory, and compares the files written with the expected ones byte for byte. A test fails if Lean reports an error, if a \texttt{PANIC} message appears (unless the test contains the line \texttt{-{}- regress: allow-panic}), or if any file is missing, extra or different. With \texttt{PEREGRINE=\textless{}path to the peregrine binary\textgreater{}}, it also runs the lines \texttt{-{}- peregrine: validate \textless{}file\textgreater{} [\textless{}option\textgreater{}...]} and \texttt{-{}- peregrine: eval \textless{}file\textgreater{} [\textless{}option\textgreater{}...]} of each test; each must succeed and, when \texttt{tests/\allowbreak{}regress/\allowbreak{}expected-peregrine/\allowbreak{}\textless{}name\textgreater{}/\allowbreak{}\textless{}file\textgreater{}.\textless{}verb\textgreater{}} exists, print exactly that. \texttt{scripts/\allowbreak{}regress.sh -{}-update [TEST...]} rewrites the expected files from the current checkout. CI (\texttt{.github/\allowbreak{}workflows/\allowbreak{}build.yml}, on pushes to \texttt{main} and on pull requests into any branch) runs \texttt{scripts/\allowbreak{}regress.sh} after the build, without peregrine.
 
 The pure path of the eraser (\leandecl{Erasure.erasePure}, S-20), which \texttt{\#erase} takes on the programs in the fragment (S-21), is compared with the \texttt{Meta} path (\leandecl{Erasure.erase}) on the corpus examples by
 
@@ -446,7 +446,7 @@ The commit messages of \texttt{94a429c} and \texttt{8db2dd9}, which D9 also conc
 \item \textbf{Regression test:} the change does not alter behaviour, so no test fails before it. \leanfile{tests/\allowbreak{}regress/\allowbreak{}auto\_\allowbreak{}inline\_\allowbreak{}shapes.lean} guards the documented shapes: it pins the four marked and the three unmarked definitions above. It passes before and after.
 \end{itemize}
 
-\section{\texorpdfstring{S-12: Port to Lean v4.33.0-rc2, with a Lake dependency on \texttt{lean4lean}}{S-12: Port to Lean v4.33.0-rc2, with a Lake dependency on lean4lean}}\label{reg:S-12}
+\section{\texorpdfstring{S-12: Port to Lean v4.33.0-rc2}{S-12: Port to Lean v4.33.0-rc2}}\label{reg:S-12}
 
 \begin{itemize}
 \item \textbf{Commit:} the commit whose subject starts with \texttt{shipping(S-12):} (\texttt{git log -{}-grep='\textasciicircum{}shipping(S-12):'}).
@@ -454,8 +454,6 @@ The commit messages of \texttt{94a429c} and \texttt{8db2dd9}, which D9 also conc
 
 \begin{itemize}
 \item \texttt{lean-toolchain}: \texttt{leanprover/\allowbreak{}lean4:v4.22.0} becomes \texttt{leanprover/\allowbreak{}lean4:v4.33.0-rc2}.
-\item \texttt{lakefile.toml}: new \texttt{[[require]]} of \texttt{lean4lean}, git \texttt{https:/\allowbreak{}/\allowbreak{}github.com/\allowbreak{}barabbs/\allowbreak{}lean4lean}, rev \texttt{8223d223ed98661882e95d9d6a7126df7097cd76} (the fork's \texttt{master}, whose toolchain is \texttt{v4.33.0-rc2}). \texttt{defaultTargets} is unchanged (\texttt{LeanToLambdaBox}).
-\item \texttt{lake-manifest.json}: regenerated by \texttt{lake update}. The format goes from 1.1.0 to 1.2.0 (new key \texttt{fixedToolchain: false}), and it lists \texttt{lean4lean} at \texttt{8223d223\ldots{}} and, inherited from it, \texttt{batteries} at \texttt{76e1c118b0700b4ceafe99532e887d6431625e1a} (input rev \texttt{v4.33.0-rc2}).
 \item \leanfile{LeanToLambdaBox/\allowbreak{}Erasure.lean}:
 
 \begin{itemize}
@@ -464,15 +462,14 @@ The commit messages of \texttt{94a429c} and \texttt{8db2dd9}, which D9 also conc
 \item new \texttt{csimpReplaceConstants}; \texttt{prepare\_\allowbreak{}erasure} calls it in place of \texttt{Compiler.CSimp.replaceConstants} (E3);
 \item \texttt{erase.visitCases}: \texttt{casesInfo.altsRange.start} becomes \texttt{casesInfo.altsRange.lower} (four places, in the machine-\texttt{Nat} and machine-\texttt{Int} paths); in the generic path, the loop reads each entry of \texttt{casesInfo.altNumParams} as \texttt{.ctor \_\allowbreak{} numFields} and throws an error on a \texttt{.default} entry (E4).
 \end{itemize}
-\item \texttt{benchmarks/\allowbreak{}via\_\allowbreak{}malfunction/\allowbreak{}lean-toolchain} (to \texttt{v4.33.0-rc2}) and \texttt{benchmarks/\allowbreak{}via\_\allowbreak{}malfunction/\allowbreak{}lake-manifest.json} (regenerated by \texttt{lake update}: the same format change, and \texttt{lean4lean} and \texttt{batteries} as inherited git packages); \texttt{benchmarks/\allowbreak{}lean-toolchain} and \texttt{benchmarks/\allowbreak{}via\_\allowbreak{}lean/\allowbreak{}lean-toolchain.template} (to \texttt{v4.33.0-rc2}).
-\item \texttt{.github/\allowbreak{}workflows/\allowbreak{}build.yml}: the lean-action step gets \texttt{build-args: \textquotedbl{}LeanToLambdaBox Lean4Lean Lean4Lean.Theory Lean4Lean.Verify\textquotedbl{}} and a comment.
+\item \texttt{benchmarks/\allowbreak{}via\_\allowbreak{}malfunction/\allowbreak{}lean-toolchain}, \texttt{benchmarks/\allowbreak{}lean-toolchain} and \texttt{benchmarks/\allowbreak{}via\_\allowbreak{}lean/\allowbreak{}lean-toolchain.template} (to \texttt{v4.33.0-rc2}).
 \item new \leanfile{tests/\allowbreak{}regress/\allowbreak{}compiler\_\allowbreak{}api.lean}, its expected outputs \texttt{tests/\allowbreak{}regress/\allowbreak{}expected/\allowbreak{}compiler\_\allowbreak{}api/} (19 files) and \texttt{tests/\allowbreak{}regress/\allowbreak{}expected-peregrine/\allowbreak{}compiler\_\allowbreak{}api/} (2 files).
 \item \texttt{tests/\allowbreak{}regress/\allowbreak{}expected/}: 29 \texttt{.ast} files re-baselined: \texttt{auto\_\allowbreak{}inline/\allowbreak{}\{default,default3,off,on, on3\}.ast}, \texttt{auto\_\allowbreak{}inline\_\allowbreak{}noinline/\allowbreak{}useAll2.ast}, \texttt{auto\_\allowbreak{}inline\_\allowbreak{}recursive/\allowbreak{}\{useBoth,useBoth2\}.ast}, \texttt{auto\_\allowbreak{}inline\_\allowbreak{}shapes/\allowbreak{}\{useAll,useAll2\}.ast}, \texttt{auto\_\allowbreak{}inline\_\allowbreak{}size/\allowbreak{}\{chain2,twice,twice3\}.ast}, \texttt{auto\_\allowbreak{}inline\_\allowbreak{}values/\allowbreak{}\{useAll,useAll2\}.ast}, \texttt{mli\_\allowbreak{}types/\allowbreak{}\{rArr,rFunPair,rHof,rInt,rListFun, rListPair,rNestArg,rNestL,rNestR,rOpt,rOptFun,rPair,rStr\}.ast}, \texttt{smoke/\allowbreak{}fact3.ast}.
 \item \texttt{doc/\allowbreak{}SHIPPING-CHANGES.md}: this entry; the reproductions of R-6, R-12 and R-19, which named the behaviour of Lean v4.22, now give that of v4.33.
 \end{itemize}
 
-No file of the shipping code imports \texttt{lean4lean}.
-\item \textbf{Why necessary:} \S{}4 of the specification: the \texttt{shipping} branch is the shipping code ported to the \texttt{lean4lean} base, with a Lake dependency on \texttt{lean4lean} \texttt{master} at \texttt{8223d223} and the toolchain bumped to its \texttt{v4.33.0-rc2}, so that the verification code can build on \texttt{lean4lean} and the eraser in one Lake workspace. With only \texttt{lean-toolchain}, \texttt{lakefile.toml} and \texttt{lake-manifest.json} changed, \texttt{lake build} fails with 11 errors in \texttt{Erasure.lean}; the four code edits are the smallest ones that remove them:
+\texttt{lakefile.toml} and \texttt{lake-manifest.json} are unchanged: the eraser depends on no package.
+\item \textbf{Why necessary:} \texttt{v4.33.0-rc2} is the toolchain of \texttt{lean4lean} at \texttt{8223d223}, on which the verification of the eraser builds; with the eraser on the same toolchain, the verification code and the eraser can share one Lake workspace. With only \texttt{lean-toolchain} changed, \texttt{lake build} fails with 11 errors in \texttt{Erasure.lean}; the four code edits are the smallest ones that remove them:
 
 \begin{itemize}
 \item E1: \texttt{Unknown identifier 'projection\_\allowbreak{}body'}. No such name exists. Lean v4.22 accepted it because its \texttt{do} elaborator did not elaborate the type ascription of \texttt{let x : T \ensuremath{\leftarrow} if \ldots{} then \ldots{} else \ldots{}} (a probe \texttt{let xs : List noSuchType \ensuremath{\leftarrow} if b then pure [1] else pure []} runs on v4.22 and is rejected with \texttt{Unknown identifier} on v4.33). The value already had type \texttt{List ProjectionBody}.
@@ -482,10 +479,8 @@ No file of the shipping code imports \texttt{lean4lean}.
 \end{itemize}
 
 Benchmarks: \texttt{benchmarks/\allowbreak{}via\_\allowbreak{}malfunction} is the Lake workspace in which the benchmark Makefile runs \texttt{lake lean}, and it requires the root package by path; with its toolchain left at v4.22, \texttt{lake build LeanToLambdaBox} there fails with 6 errors (\texttt{Invalid field 'toDeclName'}, \texttt{Invalid field 'lower'} four times, \texttt{Unknown identifier 'Nat.ctor'}). \texttt{from\_\allowbreak{}lean\_\allowbreak{}common} (\texttt{benchmarks/}) is compiled by \texttt{via\_\allowbreak{}malfunction} with v4.33 and by the per-test packages of \texttt{via\_\allowbreak{}lean} with the toolchain of \texttt{lean-toolchain.template}, both into \texttt{benchmarks/\allowbreak{}.lake/\allowbreak{}build}; with two toolchains each build recompiles it for its own (observed: 15 jobs rebuilt at every alternation), and the Lean-native baseline of the benchmarks would be compiled by another Lean than the one whose terms the eraser reads. \texttt{FromLeanCommon} compiles on v4.33 without change, and \texttt{make -C benchmarks/\allowbreak{}via\_\allowbreak{}lean bin/\allowbreak{}even} builds a binary that prints 1, 0 and 1 for 0, 7 and 1000.
-
-CI: lean-action installs the toolchain that \texttt{lean-toolchain} names, and saves \texttt{.lake} to the cache right after its build step, so the \texttt{lean4lean} libraries are built in that step (\texttt{build-args}) to be cached with it. \texttt{Lean4Lean}, \texttt{Lean4Lean.Theory} and \texttt{Lean4Lean.Verify} take 130 jobs (1 min 42 s here) and give 22 \texttt{declaration uses 'sorry'} warnings and no error. The regression step still runs \texttt{lake build} without arguments, which builds \texttt{LeanToLambdaBox} only.
-\item \textbf{Behaviour before:} at the parent commit (Lean v4.22), the eraser as in S-11. With only \texttt{lean-toolchain}, \texttt{lakefile.toml} and \texttt{lake-manifest.json} changed, \texttt{lake build} fails: \texttt{Erasure.lean:242:22} (E1), \texttt{:264:27}, \texttt{:264:38}, \texttt{:260:48} (E2), \texttt{:443:9} (E3), \texttt{:602:47}, \texttt{:604:47}, \texttt{:622:48}, \texttt{:623:50}, \texttt{:641:27} (E4), line numbers of the parent commit.
-\item \textbf{Behaviour after:} \texttt{lake build} succeeds (6 jobs), with one warning that no edit requires: \texttt{Printing.lean:162}: \texttt{List.asString} has been deprecated. \texttt{lake build LeanToLambdaBox Lean4Lean Lean4Lean.Theory Lean4Lean.Verify} succeeds (136 jobs); a plain \texttt{lake build} does not build \texttt{lean4lean}. \texttt{scripts/\allowbreak{}regress.sh} passes its 12 tests, with and without \texttt{PEREGRINE}.
+\item \textbf{Behaviour before:} at the parent commit (Lean v4.22), the eraser as in S-11. With only \texttt{lean-toolchain} changed, \texttt{lake build} fails: \texttt{Erasure.lean:242:22} (E1), \texttt{:264:27}, \texttt{:264:38}, \texttt{:260:48} (E2), \texttt{:443:9} (E3), \texttt{:602:47}, \texttt{:604:47}, \texttt{:622:48}, \texttt{:623:50}, \texttt{:641:27} (E4), line numbers of the parent commit.
+\item \textbf{Behaviour after:} \texttt{lake build} succeeds (6 jobs), with one warning that no edit requires: \texttt{Printing.lean:162}: \texttt{List.asString} has been deprecated. \texttt{scripts/\allowbreak{}regress.sh} passes its 12 tests, with and without \texttt{PEREGRINE}.
 
 \begin{itemize}
 \item On the inputs of \leanfile{tests/\allowbreak{}regress/\allowbreak{}compiler\_\allowbreak{}api.lean}, which exercise E1 to E4, the 19 outputs are those of the parent commit on v4.22 up to hygienic names (8 \texttt{.ast} files differ only there; the \texttt{.ast.inlinings} and \texttt{.mli} files are byte-identical), and peregrine prints the same result (\texttt{all} evaluates to 21 under Peano naturals).
@@ -601,6 +596,30 @@ No file under \texttt{LeanToLambdaBox/}, no package file, no file under \texttt{
 \end{itemize}
 \item \textbf{Effect on emitted .ast (corpus):} the 284 files of S-14 are byte-identical. 420 files are new (210 \texttt{.ast}, 210 \texttt{.ast.inlinings}, no \texttt{.mli}): \texttt{examples/\allowbreak{}Examples/} 340, \texttt{examples/\allowbreak{}Names/} 32, \texttt{examples/\allowbreak{}NearMiss/} 32, \texttt{examples/\allowbreak{}IrrAlias/} 4 (\texttt{pidHR}), \texttt{examples/\allowbreak{}UnsafeRec/} 12.
 \item \textbf{Regression test:} the eraser is unchanged, so no test fails before. The new corpus files guard the fragment's behaviours listed above, byte for byte through the corpus, and the failing \texttt{\#erase}s through \texttt{\#guard\_\allowbreak{}msgs}: \texttt{scripts/\allowbreak{}corpus.sh} stops if a corpus file reports an error, so a change of these errors, or an \texttt{\#erase} that starts to succeed, shows. The regression tests are unchanged and pass.
+\end{itemize}
+
+\section{\texorpdfstring{T-0: Lake dependency on \texttt{lean4lean}}{T-0: Lake dependency on lean4lean}}\label{reg:T-0}
+
+\begin{itemize}
+\item \textbf{Commit:} the commit whose subject is \texttt{Require lean4lean (digama0) for the verified translation} (\texttt{git log -{}-grep='\textasciicircum{}Require lean4lean'}).
+\item \textbf{Files and functions:}
+
+\begin{itemize}
+\item \texttt{lakefile.toml}: new \texttt{[[require]]} of \texttt{lean4lean}, git \texttt{https:/\allowbreak{}/\allowbreak{}github.com/\allowbreak{}digama0/\allowbreak{}lean4lean}, rev \texttt{8223d223ed98661882e95d9d6a7126df7097cd76} (a commit of upstream \texttt{master}, whose toolchain is \texttt{v4.33.0-rc2}, the toolchain of S-12). \texttt{defaultTargets} is unchanged (\texttt{LeanToLambdaBox}).
+\item \texttt{lake-manifest.json}: regenerated by \texttt{lake update}. The format goes from 1.1.0 to 1.2.0 (new key \texttt{fixedToolchain: false}), and it lists \texttt{lean4lean} at \texttt{8223d223\ldots{}} and, inherited from it, \texttt{batteries} at \texttt{76e1c118b0700b4ceafe99532e887d6431625e1a} (input rev \texttt{v4.33.0-rc2}).
+\item \texttt{benchmarks/\allowbreak{}via\_\allowbreak{}malfunction/\allowbreak{}lake-manifest.json}: regenerated by \texttt{lake update}: the same format change, and \texttt{lean4lean} and \texttt{batteries} as inherited git packages.
+\item \texttt{.github/\allowbreak{}workflows/\allowbreak{}build.yml}: the lean-action step gets \texttt{build-args: \textquotedbl{}LeanToLambdaBox Lean4Lean Lean4Lean.Theory Lean4Lean.Verify\textquotedbl{}} and a comment.
+\item \texttt{doc/\allowbreak{}SHIPPING-CHANGES.md}: this entry.
+\end{itemize}
+
+No file of the shipping code imports \texttt{lean4lean}; S-18 is the first.
+\item \textbf{Why necessary:} the verification of the eraser builds on \texttt{lean4lean}, and the changes from S-16 on serve that verification: S-18 imports \texttt{Lean4Lean.Verify.Axioms}, and the verification code builds on \texttt{lean4lean} and the eraser in one Lake workspace.
+
+CI: lean-action installs the toolchain that \texttt{lean-toolchain} names, and saves \texttt{.lake} to the cache right after its build step, so the \texttt{lean4lean} libraries are built in that step (\texttt{build-args}) to be cached with it. \texttt{Lean4Lean}, \texttt{Lean4Lean.Theory} and \texttt{Lean4Lean.Verify} take 130 jobs (1 min 42 s here) and give 22 \texttt{declaration uses 'sorry'} warnings and no error. The regression step still runs \texttt{lake build} without arguments, which builds \texttt{LeanToLambdaBox} only.
+\item \textbf{Behaviour before:} the eraser as in S-15; \texttt{lakefile.toml} requires no package.
+\item \textbf{Behaviour after:} the eraser is unchanged. \texttt{lake build LeanToLambdaBox Lean4Lean Lean4Lean.Theory Lean4Lean.Verify} succeeds (136 jobs); a plain \texttt{lake build} does not build \texttt{lean4lean}.
+\item \textbf{Effect on emitted .ast (corpus):} byte-identical for all 704 files.
+\item \textbf{Regression test:} the change does not alter behaviour, so no test fails before it, and no new test is added. The regression tests pass unchanged.
 \end{itemize}
 
 \section{\texorpdfstring{S-16: The erasure traversal is total and generic over its backend}{S-16: The erasure traversal is total and generic over its backend}}\label{reg:S-16}
@@ -928,21 +947,22 @@ It pins the error of \texttt{\#erase} on the colliding \texttt{both}. It fails b
 \item \textbf{Regression test:} the change does not alter behaviour, so no test fails before it, and no new test is added. The 20 tests of \texttt{tests/\allowbreak{}regress/} and \texttt{scripts/\allowbreak{}pure-harness.sh} pass unchanged.
 \end{itemize}
 
-\section{\texorpdfstring{S-23: CI builds and tests the \texttt{shipping} branch when it is pushed}{S-23: CI builds and tests the shipping branch when it is pushed}}\label{reg:S-23}
+\section{\texorpdfstring{S-23: The register says when CI builds and tests}{S-23: The register says when CI builds and tests}}\label{reg:S-23}
 
 \begin{itemize}
 \item \textbf{Commit:} the commit whose subject starts with \texttt{shipping(S-23):} (\texttt{git log -{}-grep='\textasciicircum{}shipping(S-23):'}).
 \item \textbf{Files and functions:}
 
 \begin{itemize}
-\item \texttt{.github/\allowbreak{}workflows/\allowbreak{}build.yml}: the \texttt{push} trigger lists the branch \texttt{shipping} next to \texttt{main}.
 \item \texttt{doc/\allowbreak{}SHIPPING-CHANGES.md}: this entry; the section "Regression tests" says when CI runs.
 \end{itemize}
-\item \textbf{Why necessary:} the workflow ran on pushes to \texttt{main} and on pull requests only, so a push of \texttt{shipping}, the branch that holds every change of this register, built nothing and ran neither \texttt{scripts/\allowbreak{}regress.sh} nor \texttt{scripts/\allowbreak{}pure-harness.sh}: a change that breaks the build, a regression test or the harness was caught only after \texttt{shipping} was merged elsewhere.
-\item \textbf{Behaviour before:} the \texttt{on.push.branches} list of \texttt{build.yml} is \texttt{['main']}; GitHub starts no run of the workflow for a push of \texttt{shipping}.
-\item \textbf{Behaviour after:} the list is \texttt{['main', 'shipping']}; a push of \texttt{shipping} runs the build, the regression tests and the harness, as a push of \texttt{main} does. The emitted programs do not change.
+
+\texttt{.github/\allowbreak{}workflows/\allowbreak{}build.yml} is unchanged.
+\item \textbf{Why necessary:} the section "Regression tests" said that CI runs \texttt{scripts/\allowbreak{}regress.sh}, but not on which events. The workflow runs on pushes to \texttt{main} and on every pull request: its \texttt{pull\_\allowbreak{}request} trigger has no branch filter. The changes of this register reach \texttt{main} through pull requests, which may be stacked (a pull request whose base is the branch of another), so each of them is built and checked by \texttt{scripts/\allowbreak{}regress.sh} and \texttt{scripts/\allowbreak{}pure-harness.sh} before it is merged, and no trigger on pushes of another branch is needed.
+\item \textbf{Behaviour before:} the eraser and the workflow as in S-22.
+\item \textbf{Behaviour after:} the same; only the register changes. The emitted programs do not change.
 \item \textbf{Effect on emitted .ast (corpus):} byte-identical for all 712 files; \texttt{scripts/\allowbreak{}corpus-diff.sh} against the corpus of S-22 reports 712 identical. The corpus logs are identical except for the addresses in the backtraces of the 4 \texttt{PANIC} messages of \texttt{Defects.lean} and a job count of \texttt{lake} in the log of the pruned benchmarks (\texttt{[18/\allowbreak{}55]} becomes \texttt{[17/\allowbreak{}24]}: the build of S-22's corpus had recompiled the modules that S-22 edits).
-\item \textbf{Regression test:} the change concerns CI only, so no test under \texttt{tests/\allowbreak{}regress/} can fail before it; the workflow's own run on a push of \texttt{shipping} checks it. The 20 regression tests and \texttt{scripts/\allowbreak{}pure-harness.sh} pass unchanged.
+\item \textbf{Regression test:} the change concerns the register only, so no test under \texttt{tests/\allowbreak{}regress/} can fail before it. The 20 regression tests and \texttt{scripts/\allowbreak{}pure-harness.sh} pass unchanged.
 \end{itemize}
 
 \section{\texorpdfstring{S-24: The docstring of \texttt{binderNameOf} gives the reason that holds}{S-24: The docstring of binderNameOf gives the reason that holds}}\label{reg:S-24}

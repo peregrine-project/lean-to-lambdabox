@@ -59,8 +59,8 @@ Dima, \emph{Compiling Lean programs with Rocq's extraction pipeline}, MPRI repor
 \section{Pins}\label{sec:intro-pins}
 
 The table is read from \code{lean-toolchain} and \code{lake-manifest.json} of the documented
-commit. The \code{lean4lean} package is the fork \code{github.com/barabbs/lean4lean}, branch
-\code{master}.
+commit. The \code{lean4lean} package is upstream lean4lean, \code{github.com/digama0/lean4lean}, at
+commit \code{8223d223}.
 
 \input{generated/pins}
 
@@ -70,16 +70,16 @@ commit. The \code{lean4lean} package is the fork \code{github.com/barabbs/lean4l
 \toprule
 Branch & Merges from & Content \\
 \midrule
-\code{shipping} & -- & the shipping code on the lean4lean base, and the strictly necessary fixes;
+\code{translate} & \code{fixes-port} & the shipping code on the lean4lean base, and the strictly necessary fixes;
   the register \code{doc/SHIPPING-CHANGES.md} \\
-\code{verification} & \code{shipping} & the proof package \code{proof/} and the register
+\code{verification} & \code{translate} & the proof package \code{proof/} and the register
   \code{doc/DIVERGENCES.md}; it never edits shipping files \\
 \code{blueprint} & \code{verification} & this blueprint, under \code{blueprint/} \\
 \bottomrule
 \end{tabular}
 
 \begin{itemize}
-\item \lead{Merge flow} \code{shipping} to \code{verification} to \code{blueprint}, never
+\item \lead{Merge flow} \code{translate} to \code{verification} to \code{blueprint}, never
   backwards; every merge is \code{git merge -{}-no-ff}.
 \item \lead{Documented commit} The blueprint describes the commit it is built from.
 \end{itemize}

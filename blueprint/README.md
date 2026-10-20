@@ -219,7 +219,7 @@ first component, else to this repository:
 
 So a declaration of the proof library links to
 `https://github.com/peregrine-project/lean-to-lambdabox/blob/<commit>/proof/EraseProof/Main.lean#L26-L54`,
-one of lean4lean to `https://github.com/barabbs/lean4lean/blob/8223d223.../Lean4Lean/Theory/VExpr.lean#L7-L13`,
+one of lean4lean to `https://github.com/digama0/lean4lean/blob/8223d223.../Lean4Lean/Theory/VExpr.lean#L7-L13`,
 and one of Lean to `https://github.com/leanprover/lean4/blob/v4.33.0-rc2/src/Init/Prelude.lean#L1231-L1253`.
 A pinned commit, unlike a branch, keeps every line number right; a link of a site built from a
 commit that GitHub does not have resolves once that commit is pushed.
