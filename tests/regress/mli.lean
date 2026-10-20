@@ -49,3 +49,16 @@ warning: failed to translate String into ML type, emitting unit instead.
 -/
 #guard_msgs (warning) in
 #erase rStr mli "rStr.mli"
+
+/-! Without `to` and `mli`, the program, its attributes and its signature are logged. -/
+
+def idNat (n : Nat) : Nat := n
+/--
+info: (Untyped ((((MPfile ()) "idNat") (ConstantDecl (constant_body (Some (tLambda (nNamed "n") (tRel 0))))))) (Some (tConst ((MPfile ()) "idNat"))))
+---
+info: (attributes_config () () () () ())
+---
+info: val main: Z.t -> Z.t
+-/
+#guard_msgs in
+#erase idNat

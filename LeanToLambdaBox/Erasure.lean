@@ -216,7 +216,7 @@ def register_inductive (indinfo: InductiveVal): EraseM (InductiveId × Inductive
       -- Iterate through all the constructors
       let (ind_ctors, ind_argmasks) := List.unzip (← inf.ctors.mapM fun ctor_name => do
         if isExtern (← getEnv) ctor_name && (← read).config.extern == .preferAxiom then
-          logInfo "Constructor {ctor_name} of type {ind_name} is marked @[extern], emitting axiom."
+          logInfo s!"Constructor {ctor_name} of type {ind_name} is marked @[extern], emitting axiom."
           addAxiom ctor_name
         let .ctorInfo ci ← getConstInfo ctor_name | unreachable!
         -- Get an argmask to remember which fields are irrelevant.
@@ -260,7 +260,8 @@ def register_inductive (indinfo: InductiveVal): EraseM (InductiveId × Inductive
 def fvar_to_name (x: FVarId): EraseM BinderName := do
   let n := (← read).lctx.fvarIdToDecl |>.find! x |>.userName
   let s: String := n.toString
-  -- check if s is ASCII graphic, otherwise the λbox parser will complain
+  -- keep `s` if it is ASCII graphic, otherwise make the binder anonymous; a name with `"` or `\`
+  -- prints with `«»`, so the printer never meets them unescaped
   if s.all (fun (c : Char) => decide (33 <= c.toNat /\ c.toNat < 127)) then
     return .named n.toString
   else
@@ -890,7 +891,7 @@ def eraseElab: Elab.Command.CommandElab
     match path? with
     | .some path => do
         IO.FS.writeFile (path.getString ++ ".inlinings") c_s
-    | .none => logInfo s
+    | .none => logInfo c_s
 
     let ty: Expr ← Meta.inferType e
     let mlistr ← gen_mli ty
