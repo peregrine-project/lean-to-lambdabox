@@ -1,4 +1,4 @@
-# Audits and builds the blueprint (blueprint/) on every push to the `blueprint` branch, and publishes
+# Audits and builds the blueprint (blueprint/) on every push to the `l4l/blueprint` branch, and publishes
 # the web version and the pdf to GitHub Pages. The steps are the local commands of
 # blueprint/README.md; the section "Continuous integration and the published site" there lists the
 # one-time repository settings the deployment needs.
@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-    - 'blueprint'
+    - 'l4l/blueprint'
 permissions:
   contents: read
 jobs:

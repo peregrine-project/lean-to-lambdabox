@@ -12,7 +12,7 @@ This register lists every place where the verification code, or the statements i
 Each entry has an id \texttt{DV-\textless{}n\textgreater{}} and exactly these fields:
 
 \begin{itemize}
-\item \textbf{Our artifact:} file and declaration on the \texttt{verification} branch that carries the divergence.
+\item \textbf{Our artifact:} file and declaration on the \texttt{l4l/\allowbreak{}verification} branch that carries the divergence.
 \item \textbf{Reference artifact:} the paper section/figure/theorem (\S{}3.1 or \S{}3.2) and the MetaRocq \texttt{file:identifier} it corresponds to.
 \item \textbf{What differs:} the concrete difference between our artifact and the reference artifact.
 \item \textbf{Why it is forced:} the concrete reason the divergence is necessary --- a difference between Lean's kernel and CIC, a gap in what \texttt{lean4lean} \texttt{master} provides, a scope boundary from \S{}2 of the spec, or similar. This field must name a real constraint; "it was simpler" or "we chose to" is not a forcing reason.

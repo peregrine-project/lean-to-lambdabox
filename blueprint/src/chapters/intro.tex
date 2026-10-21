@@ -71,16 +71,16 @@ commit \code{8223d223}.
 Branch & Merges from & Content \\
 \midrule
 \code{fix-scaffolding} & \code{fixes-port} & never merged onward: the development register, the corpus and the extra tests of PR \#7 \\
-\code{translate} & \code{fixes-port} & the shipping code on the lean4lean base, and the strictly necessary fixes;
+\code{l4l/translate} & \code{fixes-port} & the shipping code on the lean4lean base, and the strictly necessary fixes;
   the register \code{doc/SHIPPING-CHANGES.md} \\
-\code{verification} & \code{translate} & the proof package \code{proof/} and the register
+\code{l4l/verification} & \code{l4l/translate} & the proof package \code{proof/} and the register
   \code{doc/DIVERGENCES.md}; it never edits shipping files \\
-\code{blueprint} & \code{verification} & this blueprint, under \code{blueprint/} \\
+\code{l4l/blueprint} & \code{l4l/verification} & this blueprint, under \code{blueprint/} \\
 \bottomrule
 \end{tabular}
 
 \begin{itemize}
-\item \lead{Merge flow} \code{translate} to \code{verification} to \code{blueprint}, never
+\item \lead{Merge flow} \code{fixes-port} to \code{l4l/translate} to \code{l4l/verification} to \code{l4l/blueprint}, never
   backwards; every merge is \code{git merge -{}-no-ff}.
 \item \lead{Documented commit} The blueprint describes the commit it is built from.
 \end{itemize}

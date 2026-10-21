@@ -370,7 +370,7 @@ that opens `## Entries`.
 
 ## Continuous integration and the published site
 
-`.github/workflows/blueprint.yml` runs on every push to the `blueprint` branch, and on demand
+`.github/workflows/blueprint.yml` runs on every push to the `l4l/blueprint` branch, and on demand
 (`workflow_dispatch`). Its job `build` runs, on `ubuntu-latest`:
 
 1. `leanprover/lean-action`: installs the toolchain of `lean-toolchain`, fetches the dependencies
@@ -405,7 +405,7 @@ The site is at the Pages address of the repository,
 One-time repository settings, by an administrator:
 
 - Settings, Pages, Build and deployment: Source "GitHub Actions".
-- Settings, Environments, `github-pages`, Deployment branches and tags: add the branch `blueprint`.
+- Settings, Environments, `github-pages`, Deployment branches and tags: add the branch `l4l/blueprint`.
   GitHub creates this environment with a rule that admits the default branch only, and the
   deployment from `blueprint` fails without it.
 
@@ -420,7 +420,7 @@ One-time repository settings, by an administrator:
   commit's `lean-toolchain`; an entry written under another toolchain cites the lines of that one.
 - A site built from a commit that GitHub does not have links to a commit GitHub cannot show until
   it is pushed.
-- The published site shows the `blueprint` branch; the other branches are not published.
+- The published site shows the `l4l/blueprint` branch; the other branches are not published.
 - The census covers the lean4lean libraries that are built (`Lean4Lean`, `Lean4Lean.Theory`,
   `Lean4Lean.Verify`), not `Lean4Lean.Tests` or `Lean4Lean.Experimental`.
 - The pdf has overfull lines where long code does not break.
