@@ -31,7 +31,6 @@ endif
 # 0 to keep all constructor arguments, 1 to remove irrelevant ones; default is 1.
 PRUNE_CONSTRUCTORS?=1
 ifeq ($(PRUNE_CONSTRUCTORS),1)
-DECIDABLEML=decidable-pruned.ml
 ERASURE_CONFIG+=remove_irrel_constr_args := true,
 else ifeq ($(PRUNE_CONSTRUCTORS),0)
 else
@@ -49,6 +48,15 @@ else ifeq ($(UNBOX),0)
 PEREGRINE_CONFIG=no_unbox.config
 else
 $(error Variable UNBOX must be either 0 or 1, is $(UNBOX))
+endif
+
+# With pruned constructor args, Decidable has a single field, so its runtime representation depends on unboxing.
+ifeq ($(PRUNE_CONSTRUCTORS),1)
+ifeq ($(PEREGRINE_CONFIG),unbox.config)
+DECIDABLEML=decidable-pruned.ml
+else
+DECIDABLEML=decidable-pruned-boxed.ml
+endif
 endif
 
 ARRAYML?=JCFArray.ml

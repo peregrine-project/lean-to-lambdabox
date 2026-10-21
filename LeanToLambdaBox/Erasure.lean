@@ -424,7 +424,7 @@ def replaceUnsafeRecNames (value : Expr) : CoreM Expr :=
 /--
 Replace every constant `f` for which a `@[csimp]` theorem `@f = @g` is registered by `g`, with the same universe
 levels. Same traversal and rule as `Lean.Compiler.CSimp.replaceConstants` of Lean v4.22
-(`Lean/Compiler/CSimpAttr.lean`), which Lean v4.33 does not provide.
+(`Lean/Compiler/CSimpAttr.lean`), which later versions do not provide.
 -/
 def csimpReplaceConstants (env : Environment) (e : Expr) : Expr :=
   let s := Compiler.CSimp.ext.getState env
@@ -437,26 +437,90 @@ def csimpReplaceConstants (env : Environment) (e : Expr) : Expr :=
       none
 
 /--
+Inline constants tagged with the `[macro_inline]` attribute occurring in `e`.
+Adapted from `Lean.Compiler.LCNF.macroInline` of Lean v4.33 (`Lean/Compiler/LCNF/ToDecl.lean`); since v4.35, Lean
+only does this on the fly in `toLCNF`.
+With `csimp`, `@[csimp]` replacements are applied to `e` and to every inlined body before it is visited, so that a
+replacement exposing a `[macro_inline]` constant is inlined too (in v4.35, `Bool.and` is `noncomputable` and only its
+`@[csimp]` replacement `Bool.Internal.and` is `[macro_inline]`). `toLCNF` of v4.35 tries csimp before macro_inline as well.
+-/
+def macroInline (csimp : Bool) (e : Expr) : CoreM Expr := do
+  let env ← getEnv
+  let rw := fun e => if csimp then csimpReplaceConstants env e else e
+  Core.transform (rw e) fun e => do
+    let .const declName us := e.getAppFn | return .continue
+    unless Compiler.hasMacroInlineAttribute env declName do return .continue
+    let val ← Core.instantiateValueLevelParams (← getConstInfo declName) us
+    return .visit <| (rw val).beta e.getAppArgs
+
+private def normalizeAlt (e : Expr) (numParams : Nat) : MetaM Expr :=
+  Meta.lambdaTelescope e fun xs body => do
+    if xs.size == numParams then
+      return e
+    else if xs.size > numParams then
+      let body ← Meta.mkLambdaFVars xs[numParams...*] body
+      let body ← Meta.withLetDecl (← mkFreshUserName `_k) (← Meta.inferType body) body fun x => Meta.mkLetFVars #[x] x
+      Meta.mkLambdaFVars xs[*...numParams] body
+    else
+      Meta.forallBoundedTelescope (← Meta.inferType e) (numParams - xs.size) fun ys _ =>
+        Meta.mkLambdaFVars (xs ++ ys) (mkAppN e ys)
+
+/--
+Inline auxiliary `matcher` applications and matcher-like declarations (e.g. `match_on_same_ctor.het`).
+Copied from `Lean.Compiler.LCNF.inlineMatchers` of Lean v4.33 (`Lean/Compiler/LCNF/ToDecl.lean`), like `macroInline`.
+-/
+partial def inlineMatchers (e : Expr) : CoreM Expr :=
+  Meta.MetaM.run' <| Meta.transform e fun e => do
+    let .const declName us := e.getAppFn | return .continue
+    if let some info ← Meta.getMatcherInfo? declName then
+      let numArgs := e.getAppNumArgs
+      if numArgs > info.arity then
+        return .continue
+      else if numArgs < info.arity then
+        Meta.forallBoundedTelescope (← Meta.inferType e) (info.arity - numArgs) fun xs _ =>
+          return .visit (← Meta.mkLambdaFVars xs (mkAppN e xs))
+      else
+        let mut args := e.getAppArgs
+        let altNumParams := info.altNumParams
+        let rec inlineMatcher (i : Nat) (args : Array Expr) (letFVars : Array Expr) : MetaM Expr := do
+          if h : i < altNumParams.size then
+            let altIdx := i + info.getFirstAltPos
+            let numParams := altNumParams[i]
+            let alt ← normalizeAlt args[altIdx]! numParams
+            Meta.withLetDecl (← mkFreshUserName `_alt) (← Meta.inferType alt) alt fun altFVar =>
+              inlineMatcher (i+1) (args.set! altIdx altFVar) (letFVars.push altFVar)
+          else
+            let info ← getConstInfo declName
+            let value := (← Core.instantiateValueLevelParams info us).beta args
+            Meta.mkLetFVars letFVars value
+        return .visit (← inlineMatcher 0 args #[])
+    else if ← Meta.isMatcherLike declName then
+      let info ← getConstInfo declName
+      let value ← Core.instantiateValueLevelParams info us
+      return .visit (value.beta e.getAppArgs)
+    else
+      return .continue
+
+/--
 Honor @[macro_inline] directives, inline auxiliary matchers, remove _unsafe_rec suffixes and perform csimp replacements.
-This is lifted from LCNF/ToDecl.lean .
+This is lifted from LCNF/ToDecl.lean of Lean v4.33.
 It processes the whole expression tree, so the code here doesn't have to be at the start of visitExpr,
 and it is sufficient to run it before entering the "toplevel" expression and the definition of a dependency in the environment.
 
 This may make the expression ill-typed if some dependent type relies on the implementation of functions affected by csimp.
 -/
 def prepare_erasure (e: Expr): EraseM Expr := do
+  -- csimp replacement (done by `macroInline`) has to be done after _unsafe_rec name replacement.
+  let csimp := (← read).config.csimp
   let mut e := e
   e ← replaceUnsafeRecNames e
-  e ← macroInline e
+  e ← macroInline csimp e
   e ← inlineMatchers e
   -- According to the comment in ToDecl.lean, inlined matchers might contain occurrences of `ite` and `dite`.
   -- I'm sort of assuming that inlining matchers doesn't expose arbitrary macro_inline stuff which might itself contain more matchers etc.
-  -- Just `ite` and `dite` are fine, their bodies are just a Decidable.casesOn.
+  -- Just `ite` and `dite` are fine, their bodies are just a Bool.casesOn on the `decide` field of the Decidable instance.
   -- It's important to inline them because otherwise both arms of the conditional will be strictly evaluated.
-  e ← macroInline e
-  if (← read).config.csimp then
-    -- This has to be done after _unsafe_rec name replacement.
-    e := csimpReplaceConstants (← getEnv) e
+  e ← macroInline csimp e
   pure e
 
 /--
