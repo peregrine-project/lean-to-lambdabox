@@ -1,0 +1,342 @@
+\chapter{Soundness of the pure oracle}\label{chap:oracle}
+
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} The pure oracle's answer "erasable" is true in the model, it boxes every atom,
+  and its answer depends only on the locals the term reaches.
+\item \lead{Main results} \code{Pure.isErasable\_sound}, \code{Pure.isErasable\_atom},
+  \code{Pure.isErasable\_agree}.
+\item \lead{Status} \stProved{} every node; the soundness lemmas that call \code{Pure.whnf}
+  inherit L1--L5, the atom and frame lemmas none.
+\item \lead{Nodes} \bpnodes{chap:oracle}
+\item \lead{Lean files} \leanfile{proof/EraseProof/Oracle.lean},
+  \leanfiles{proof/EraseProof/Oracle/}{Whnf, Infer, Agree, AtomShapes, Atom}.
+\item \lead{Reference} MetaRocq \code{is\_erasableb} and \code{is\_erasableP}
+  (\code{erasure/theories/ErasureFunction.v}), \code{hnf\_sound}, \code{type\_of\_typing}
+  (\code{safechecker/theories/}).
+\end{itemize}
+
+\section{Contexts}\label{sec:oracle-ctx}
+
+\begin{definition}[Contexts of the traversal and the oracle]
+  \label{def:EraseProof-LocalsOK}
+  \lean{EraseProof.LocalsOK, EraseProof.OracleCtx}
+  \leanok
+  \uses{def:EraseProof-TrS, def:Erasure-TravCtx}
+  \srcloc{proof/EraseProof/Oracle/Whnf.lean}{21}
+  \lead{In short} \code{LocalsOK venv Us ls Delta}: the traversal's locals \hl{mirror a lean4lean
+  context} of free-variable entries, each type and \code{let} value translated and typed;
+  \code{OracleCtx}: that context under the de Bruijn binders the oracle entered, whose types the
+  oracle keeps in its list \code{Gamma}.
+  \lead{Reference} \code{wf\_local} for the context of MetaRocq's \code{erase}; DV-13.
+\end{definition}
+
+\begin{lemma}[Oracle contexts]
+  \label{lem:EraseProof-LocalsOK-wf}
+  \lean{EraseProof.LocalsOK.wf, EraseProof.OracleCtx.wf, EraseProof.OracleCtx.weak,
+    EraseProof.TrS.weak_nil, EraseProof.LocalsOK.find_value, EraseProof.LocalsOK.find_type,
+    EraseProof.OracleCtx.find_bvar}
+  \leanok
+  \uses{def:EraseProof-LocalsOK}
+  \srcloc{proof/EraseProof/Oracle/Whnf.lean}{74}
+  \lead{In short} The contexts are \hl{well formed}, and what the oracle reads from them
+  translates.
+  \begin{itemize}
+  \item \code{LocalsOK.wf}, \code{OracleCtx.wf}: well-formed lean4lean contexts;
+  \item \code{OracleCtx.weak}, \code{TrS.weak\_nil}: closed translations lift into the oracle's
+        context;
+  \item \code{LocalsOK.find\_value}, \code{find\_type}, \code{OracleCtx.find\_bvar}: a local's
+        value and type, and a binder's lifted type, translate to the entry's.
+  \end{itemize}
+  \lead{Reference} \code{wf\_local} and \code{weakening}
+  (\code{pcuic/theories/Typing/PCUICWeakeningTyp.v}); \code{type\_Rel}.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-TrS-wf, lem:EraseProof-TrS-weakBV, lem:EraseProof-TrS-closed,
+    lem:EraseProof-TrS-weakFV}
+  \leanok
+  \lead{Idea} Inductions on \code{LocalsOK} and \code{OracleCtx}; weakening by \code{TrS.weakBV}.
+\end{proof}
+
+\begin{definition}[Frame vocabulary]
+  \label{def:EraseProof-LocalsAgree}
+  \lean{EraseProof.LocalsAgree, EraseProof.LocalsSupport, EraseProof.ClosedDecls}
+  \leanok
+  \uses{def:Erasure-Pure-isErasable}
+  \srcloc{proof/EraseProof/Oracle/Agree.lean}{30}
+  \lead{In short} \code{LocalsSupport S ls}: the locals of variables in \code{S} mention only
+  \code{S}; \code{LocalsAgree S ls1 ls2}: \hl{the two lists agree on \code{S}};
+  \code{ClosedDecls}: the declarations have no free variable. None has a MetaRocq counterpart
+  (DV-13).
+\end{definition}
+
+\section{Soundness}\label{sec:oracle-sound}
+
+\begin{lemma}[Binds of the oracle's monad]
+  \label{lem:EraseProof-Except-ok_of_bind}
+  \lean{EraseProof.Except.ok_of_bind, EraseProof.Except.bind_congr_ok}
+  \leanok
+  \srcloc{proof/EraseProof/Oracle/Agree.lean}{46}
+  \lead{In short} A successful bind of \code{Except} has a successful first step; two binds agree
+  when their first steps are equal and their continuations agree on its results.
+  \lead{Reference} none: monad plumbing.
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Case analysis on the first computation.
+\end{proof}
+
+\begin{lemma}[Weak-head normalization]
+  \label{lem:EraseProof-Pure-whnf_sound}
+  \lean{EraseProof.Pure.whnf_sound, EraseProof.Pure.whnf_defeqU}
+  \leanok
+  \uses{def:Erasure-Pure-isErasable, def:EraseProof-LocalsOK, def:EraseProof-ProgEnv,
+    def:EraseProof-SubEnv}
+  \srcloc{proof/EraseProof/Oracle/Whnf.lean}{317}
+  \inherited{L1, L2, L3, L4, L5}
+  \lead{In short} A successful \code{Pure.whnf} on a translated, typed term computes \hl{a typed
+  definitional equality} of the model.
+  \begin{itemize}
+  \item \lead{Given} \code{henv}, \code{hsub}: the oracle's declarations are a sub-environment of
+        \code{P}; \code{hloc}, \code{hGamma}: the contexts translate;
+  \item \code{he}, \code{hT}: \code{e} translates to \code{e'} of type \code{A};
+        \code{h}: \code{whnf} returns \code{w};
+  \item \lead{Then} \code{w} translates to some \code{w'} with \code{e'} $\equiv$ \code{w'} at
+        \code{A};
+  \item \code{whnf\_defeqU}: the untyped form, with no typing hypothesis.
+  \end{itemize}
+  \lead{Reference} \code{hnf\_sound} (\code{safechecker/theories/PCUICSafeReduce.v}).
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-TrS-inst, lem:EraseProof-TrS-inst_let, lem:EraseProof-TrS-instLevels,
+    lem:EraseProof-TrS-wf, lem:EraseProof-ProgEnv-lookupDefn, lem:EraseProof-LocalsOK-wf,
+    lem:EraseProof-ProgEnv-wf, lem:EraseProof-ProgEnv-ordered, lem:EraseProof-Except-ok_of_bind,
+    lem:EraseProof-TrS-closed}
+  \leanok
+  \lead{Idea} Fuel induction for \code{whnf\_defeqU}: $\beta$ by \code{TrS.inst}, $\zeta$ by
+  \code{TrS.inst\_let} and the let-bound locals, $\delta$ by \code{ProgEnv.lookupDefn} and
+  \code{TrS.instLevels}; typing by lean4lean's \code{IsDefEqU.of\_l}.
+\end{proof}
+
+\begin{lemma}[Type inference]
+  \label{lem:EraseProof-Pure-inferType_sound}
+  \lean{EraseProof.Pure.inferType_sound}
+  \leanok
+  \uses{def:Erasure-Pure-isErasable, def:EraseProof-LocalsOK, def:EraseProof-ProgEnv,
+    def:EraseProof-SubEnv}
+  \srcloc{proof/EraseProof/Oracle/Infer.lean}{85}
+  \inherited{L1, L2, L3, L4, L5}
+  \lead{In short} A successful \code{Pure.inferType} on a translated term computes \hl{a
+  translated type of the term's image} in the model; hypotheses as \code{Pure.whnf\_sound}, with
+  no typing hypothesis.
+  \lead{Reference} \code{type\_of\_typing} (\code{safechecker/theories/PCUICSafeRetyping.v}).
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-Pure-whnf_sound, lem:EraseProof-LocalsOK-wf, lem:EraseProof-ProgEnv-lookup,
+    lem:EraseProof-TrS-instLevels, lem:EraseProof-TrS-inst_let, lem:EraseProof-ProgEnv-ordered,
+    lem:EraseProof-ProgEnv-wf, lem:EraseProof-Except-ok_of_bind, lem:EraseProof-TrS-closed,
+    lem:EraseProof-TrS-inst}
+  \leanok
+  \lead{Idea} Fuel induction: variables by the context lemmas, constants by \code{ProgEnv.lookup}
+  and \code{TrS.instLevels}, applications and $\Pi$ by \code{Pure.whnf\_sound} with unique typing
+  and $\Pi$ inversion, \code{let} by \code{TrS.inst\_let}.
+\end{proof}
+
+\begin{lemma}[Arity test]
+  \label{lem:EraseProof-Pure-isArity_sound}
+  \lean{EraseProof.Pure.isArity_sound}
+  \leanok
+  \uses{def:Erasure-Pure-isErasable, def:EraseProof-IsErasable, def:EraseProof-LocalsOK,
+    def:EraseProof-ProgEnv, def:EraseProof-SubEnv}
+  \srcloc{proof/EraseProof/Oracle.lean}{21}
+  \inherited{L1, L2, L3, L4, L5}
+  \lead{In short} \code{Pure.isArity} answers true only on a type \hl{convertible to an arity}, at
+  the type's sort; hypotheses as \code{Pure.whnf\_sound}.
+  \lead{Reference} \code{is\_arityP} (\code{erasure/theories/ErasureFunction.v}), true direction.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-Pure-whnf_sound, lem:EraseProof-Except-ok_of_bind,
+    lem:EraseProof-LocalsOK-wf, lem:EraseProof-ProgEnv-wf}
+  \leanok
+  \lead{Idea} Fuel induction through \code{Pure.whnf}: a sort is an arity; a $\Pi$ continues in
+  its codomain, under the extended oracle context.
+\end{proof}
+
+\begin{lemma}[Level test]
+  \label{lem:EraseProof-Pure-alwaysZero_sound}
+  \lean{EraseProof.Pure.alwaysZero_sound}
+  \leanok
+  \uses{def:Erasure-Pure-isErasable}
+  \srcloc{proof/EraseProof/Oracle.lean}{49}
+  \lead{In short} A level \code{Pure.alwaysZero} accepts translates to a level \hl{equivalent to
+  zero} in the model.
+  \lead{Reference} \code{Sort.is\_propositional} (\code{common/theories/Universes.v}).
+\end{lemma}
+\begin{proof}
+  \uses{def:Erasure-Pure-isErasable}
+  \leanok
+  \lead{Idea} Structural induction on the level.
+\end{proof}
+
+\begin{lemma}[Oracle soundness]
+  \label{lem:EraseProof-Pure-isErasable_sound}
+  \lean{EraseProof.Pure.isErasable_sound}
+  \leanok
+  \uses{def:Erasure-Pure-isErasable, def:EraseProof-IsErasable, def:EraseProof-LocalsOK,
+    def:EraseProof-ProgEnv, def:EraseProof-SubEnv}
+  \srcloc{proof/EraseProof/Oracle.lean}{67}
+  \inherited{L1, L2, L3, L4, L5}
+  \lead{In short} If the oracle answers "erasable" on a translated term, \hl{the term is
+  erasable} (\code{ErasableS}).
+  \begin{itemize}
+  \item \lead{Given} \code{henv}, \code{hsub : SubEnv cx.decls P}: the oracle reads a
+        sub-environment of the program; \code{hloc : LocalsOK venv Us ls Delta}: the locals
+        translate;
+  \item \code{he : TrS venv Us Delta e e'}; \code{h}: the oracle returns \code{true};
+  \item \lead{Then} \code{ErasableS venv Us Delta e}.
+  \end{itemize}
+  \lead{Reference} \code{is\_erasableP}, true direction (\code{erasure/theories/ErasureFunction.v});
+  MetaCoq paper Section 7.2.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-Pure-inferType_sound, lem:EraseProof-Pure-isArity_sound,
+    lem:EraseProof-Pure-alwaysZero_sound, lem:EraseProof-Pure-whnf_sound,
+    lem:EraseProof-Except-ok_of_bind, lem:EraseProof-LocalsOK-wf, lem:EraseProof-ProgEnv-ordered}
+  \leanok
+  \lead{Idea} Follow the oracle: the inferred type is a type (\code{Pure.inferType\_sound}); either
+  it is convertible to an arity (\code{isArity\_sound}), or its sort reduces to a level
+  equivalent to zero (\code{whnf\_sound}, \code{alwaysZero\_sound}).
+\end{proof}
+
+\section{Atoms}\label{sec:oracle-atoms}
+
+\begin{definition}[Shapes of atom spines]
+  \label{def:EraseProof-ArityShape}
+  \lean{EraseProof.ArityShape, EraseProof.ConstSpine, EraseProof.PropShape}
+  \leanok
+  \uses{def:EraseProof-EvalEnv-isAtom}
+  \srcloc{proof/EraseProof/Oracle/AtomShapes.lean}{22}
+  \lead{In short} The syntactic shapes the oracle meets on an atom spine, \hl{as inductive
+  predicates} (\code{mdata} transparent).
+  \begin{itemize}
+  \item \code{ArityShape T n u}: \code{T} is the arity \code{Pi x1 ... xn, Sort u}, the inductive
+        form of \code{arityShape};
+  \item \code{ConstSpine h vs k e}: \code{e} is the spine \code{h.\{vs\} a1 ... ak};
+  \item \code{PropShape D e}: \code{e} is an evident proposition over \code{D}, the inductive form
+        of \code{EvidentProp}.
+  \end{itemize}
+  \lead{Reference} \code{isArity} (\code{pcuic/theories/PCUICTyping.v}), \code{mkApps},
+  \code{isPropositional} (\code{pcuic/theories/PCUICFirstorder.v}).
+\end{definition}
+
+\begin{lemma}[Shapes under substitution and reduction]
+  \label{lem:EraseProof-ArityShape-of_arityShape}
+  \lean{EraseProof.ArityShape.of_arityShape, EraseProof.ConstSpine.of_getAppFn,
+    EraseProof.PropShape.of_evidentProp_tail, EraseProof.PropShape.of_evidentProp,
+    EraseProof.EvidentZero.instLevel, EraseProof.find?_zip_map, EraseProof.EvidentZero.instLevel_map,
+    EraseProof.ArityShape.inst, EraseProof.ConstSpine.inst, EraseProof.PropShape.inst,
+    EraseProof.ArityShape.instLevels, EraseProof.ConstSpine.instLevels,
+    EraseProof.PropShape.instLevels, EraseProof.ConstSpine.ne_mdata, EraseProof.ConstSpine.ne_lam,
+    EraseProof.ConstSpine.ne_forallE, EraseProof.Except.throw_ne_ok, EraseProof.Pure.whnf_sort,
+    EraseProof.Pure.whnf_forallE, EraseProof.Pure.whnf_mdata, EraseProof.Pure.whnf_const_deltaFree,
+    EraseProof.Pure.whnf_arityShape, EraseProof.Pure.whnf_constSpine,
+    EraseProof.Pure.whnf_propShape}
+  \leanok
+  \uses{def:EraseProof-ArityShape, def:Erasure-Pure-isErasable, def:Erasure-Pure-instLevels}
+  \srcloc{proof/EraseProof/Oracle/AtomShapes.lean}{48}
+  \lead{In short} The shapes \hl{survive the oracle's substitutions and its weak-head
+  reduction}, with no typing hypothesis.
+  \begin{itemize}
+  \item \code{*.of\_*}: the Boolean tests \code{arityShape} and \code{EvidentProp} accept only
+        their shapes;
+  \item \code{*.inst}, \code{*.instLevels}, \code{EvidentZero.instLevel\_map}: the shapes, and
+        evident zeroness, survive substitution and universe instantiation;
+  \item \code{Pure.whnf\_*}: \code{whnf} keeps arities and evident propositions, without
+        top-level \code{mdata}, and returns a spine of a $\delta$-less head unchanged.
+  \end{itemize}
+  \lead{Reference} \code{isArity\_subst}, \code{is\_propositional\_subst\_instance},
+  \code{whnf\_sort}, \code{whnf\_prod}, \code{whne\_mkApps} (\code{pcuic/theories/}).
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-ArityShape, lem:EraseProof-Except-ok_of_bind}
+  \leanok
+  \lead{Idea} Inductions on the shapes and on the fuel of \code{whnf}.
+\end{proof}
+
+\begin{lemma}[The level test is the specification's]
+  \label{lem:EraseProof-Pure-alwaysZero_eq}
+  \lean{EraseProof.Pure.alwaysZero_eq}
+  \leanok
+  \uses{def:Erasure-Pure-isErasable, def:EraseProof-EvalEnv-isAtom}
+  \srcloc{proof/EraseProof/Oracle/Atom.lean}{150}
+  \lead{In short} \hl{\code{Pure.alwaysZero} equals \code{EvidentZero}}, the atom class's level
+  test.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-EvalEnv-isAtom}
+  \leanok
+  \lead{Idea} Function extensionality and structural induction.
+\end{proof}
+
+\begin{lemma}[Atoms are boxed]
+  \label{lem:EraseProof-Pure-isErasable_atom}
+  \lean{EraseProof.Pure.isErasable_atom, EraseProof.Pure.inferType_const,
+    EraseProof.Pure.inferType_constSpine_arity, EraseProof.Pure.inferType_constSpine_prop,
+    EraseProof.Pure.inferType_propShape, EraseProof.Pure.isArity_arityShape,
+    EraseProof.AtomSpine.constSpine}
+  \leanok
+  \uses{def:Erasure-Pure-isErasable, def:EraseProof-SrcValue}
+  \srcloc{proof/EraseProof/Oracle/Atom.lean}{162}
+  \lead{In short} On an atom spine the oracle \hl{never answers "keep"} (it may fail), for every
+  list of locals and with no typing hypothesis.
+  \begin{itemize}
+  \item \code{Pure.inferType\_*}: the inferred type of a spine of an atom is an arity, or an
+        evident proposition whose sort is evidently zero;
+  \item \code{Pure.isArity\_arityShape}: \code{isArity} never answers false on an arity;
+  \item \code{AtomSpine.constSpine}: an atom spine is a constant's spine.
+  \end{itemize}
+  \lead{Reference} none directly: it plays the part of \code{isErasable} on \code{tInd} and
+  propositional constructors; DV-11.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-ArityShape-of_arityShape, lem:EraseProof-Pure-alwaysZero_eq,
+    lem:EraseProof-Except-ok_of_bind}
+  \leanok
+  \lead{Idea} Follow the oracle on the spine: an evident arity makes \code{isArity} answer true;
+  an evident proposition's sort passes \code{alwaysZero} by \code{Pure.alwaysZero\_eq}.
+\end{proof}
+
+\section{Frame}\label{sec:oracle-frame}
+
+\begin{lemma}[Oracle frame]
+  \label{lem:EraseProof-Pure-isErasable_agree}
+  \lean{EraseProof.Pure.isErasable_agree, EraseProof.Pure.whnf_agree,
+    EraseProof.Pure.inferType_agree, EraseProof.Pure.isArity_agree,
+    EraseProof.Pure.instLevel_hasMVar', EraseProof.Pure.fvarsIn_instLevels}
+  \leanok
+  \uses{def:Erasure-Pure-isErasable, def:EraseProof-LocalsAgree}
+  \srcloc{proof/EraseProof/Oracle/Agree.lean}{279}
+  \lead{In short} With closed declarations, the oracle answers alike on two lists of locals that
+  agree on a set \code{S} closed under the locals and containing the term's free variables: its
+  answer \hl{depends only on the locals reachable from the term}.
+  \begin{itemize}
+  \item \code{whnf\_agree}, \code{inferType\_agree}, \code{isArity\_agree}: the same for the parts,
+        whose results stay within \code{S};
+  \item \code{instLevel\_hasMVar'}, \code{fvarsIn\_instLevels}: level plumbing.
+  \end{itemize}
+  \lead{Reference} none: MetaRocq erases a constant body in the empty context; DV-13.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-LocalsAgree, lem:EraseProof-Except-ok_of_bind}
+  \leanok
+  \lead{Idea} Fuel inductions through \code{whnf}, \code{inferType} and \code{isArity}.
+\end{proof}
+
+\section*{Caveats}
+\begin{itemize}
+\item \lead{Caveat} The oracle is sound and not complete (DV-18): an answer "keep" needs no proof,
+  since the relation's structural rules also apply to erasable terms; atoms, which have no
+  structural rule, are boxed (\code{Pure.isErasable\_atom}).
+\item \lead{Caveat} Soundness is stated for a successful run; the oracle may fail, for example
+  when its fuel runs out.
+\end{itemize}

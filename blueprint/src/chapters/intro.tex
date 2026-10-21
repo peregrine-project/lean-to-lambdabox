@@ -1,0 +1,167 @@
+\chapter{Introduction}\label{chap:intro}
+
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} A machine-checked theorem about the shipping eraser behind \code{\#erase},
+  stated over lean4lean's formal model of Lean's kernel, for every input in the scope of
+  Chapter~\ref{chap:scope}.
+\item \lead{Status} \stProved{} \hl{the final theorem \code{erase\_correct}}, with the lean4lean
+  sorries L1--L6 inherited, and everything it composes: the model side, the source semantics with
+  subject reduction, erasability, $\lambda_\Box$ evaluation, the erasure relation, soundness of
+  the pure oracle, the relation-level simulation \code{erases\_correct}, and the soundness of the
+  shipping traversal \code{erasePure\_erases} with the entry-point lemma. \stShipping{} the
+  verified path of \code{\#erase}: \code{\#erase} runs it on programs in the fragment.
+\item \lead{Lean files} \leanfile{LeanToLambdaBox/} (the shipping code) and \leanfile{proof/} (the Lake
+  package \code{EraseProof}, the verification library).
+\item \lead{Registers} \code{doc/SHIPPING-CHANGES.md} (Chapter~\ref{chap:shipping-changes}) and
+  \code{doc/DIVERGENCES.md} (Chapter~\ref{chap:divergences}), rendered by a script.
+\end{itemize}
+
+\section{What is verified}\label{sec:intro-what}
+
+\begin{itemize}
+\item \lead{The eraser} \code{lean-to-lambdabox} is the Lean~4 frontend of Peregrine. The command
+  \code{\#erase t config c to "f.ast" mli "f.mli"} elaborates the term \code{t}, erases it and the
+  constants it depends on to a $\lambda_\Box$ program, and writes three files:
+  \begin{itemize}
+  \item \code{f.ast}: the program as an S-expression, which Peregrine (\code{peregrine-tool})
+        reads and compiles;
+  \item \code{f.ast.inlinings}: the constants Peregrine should inline;
+  \item \code{f.mli}: an OCaml signature for the compiled program.
+  \end{itemize}
+  Section~\ref{sec:trust-shipping} describes the code.
+\item \lead{The theorem} \code{erase\_correct} (Chapter~\ref{chap:final}): if \code{\#erase}
+  returns a program for an in-scope term and the term evaluates, the program's main term
+  evaluates in $\lambda_\Box$ to an erasure of the term's value. It mirrors MetaRocq's
+  \code{erase\_correct}.
+\item \lead{The scope} closed terms of the $\lambda\Pi$ fragment with \code{let} whose constants are
+  axioms, definitions, theorems or opaques, well typed in lean4lean's model; no inductive types
+  (Chapter~\ref{chap:scope}).
+\item \lead{The references} the verification follows these as closely as the differences between
+  Lean and Rocq allow; every divergence from the first two is an entry of
+  \code{doc/DIVERGENCES.md}.
+\end{itemize}
+
+\begin{tabular}{p{0.3\linewidth}p{0.62\linewidth}}
+\toprule
+Reference & Relevant part \\
+\midrule
+Letouzey, \emph{A New Extraction for Coq}, TYPES 2002 & Section 3: the extraction function and
+  its correctness (Definitions 3, 9, 10; Lemmas 2, 11; Theorem 13) \\
+Sozeau et al., \emph{Correct and Complete Type Checking and Certified Erasure for Coq, in Coq},
+  J. ACM 72(1), 2025 & Section 7: the target $\lambda_\Box$, the erasure function and relation,
+  \code{erases\_correct}; the MetaRocq sources under \code{erasure/theories/} \\
+Dima, \emph{Compiling Lean programs with Rocq's extraction pipeline}, MPRI report, 2025 & Section
+  4: the design of this eraser \\
+\bottomrule
+\end{tabular}
+
+\section{Pins}\label{sec:intro-pins}
+
+The table is read from \code{lean-toolchain} and \code{lake-manifest.json} of the documented
+commit. The \code{lean4lean} package is upstream lean4lean, \code{github.com/digama0/lean4lean}, at
+commit \code{8223d223}.
+
+\input{generated/pins}
+
+\section{Branches}\label{sec:intro-branches}
+
+\begin{tabular}{llp{0.55\linewidth}}
+\toprule
+Branch & Merges from & Content \\
+\midrule
+\code{fix-scaffolding} & \code{fixes-port} & never merged onward: the development register, the corpus and the extra tests of PR \#7 \\
+\code{l4l/translate} & \code{fixes-port} & the shipping code on the lean4lean base, and the strictly necessary fixes;
+  the register \code{doc/SHIPPING-CHANGES.md} \\
+\code{l4l/verification} & \code{l4l/translate} & the proof package \code{proof/} and the register
+  \code{doc/DIVERGENCES.md}; it never edits shipping files \\
+\code{l4l/blueprint} & \code{l4l/verification} & this blueprint, under \code{blueprint/} \\
+\bottomrule
+\end{tabular}
+
+\begin{itemize}
+\item \lead{Merge flow} \code{fixes-port} to \code{l4l/translate} to \code{l4l/verification} to \code{l4l/blueprint}, never
+  backwards; every merge is \code{git merge -{}-no-ff}.
+\item \lead{Documented commit} The blueprint describes the commit it is built from.
+\end{itemize}
+
+\section{Reading this blueprint}\label{sec:intro-reading}
+
+\begin{tabular}{lp{0.7\linewidth}}
+\toprule
+Chapter & Content \\
+\midrule
+\ref{chap:scope} & The scope: which inputs, and the evidence from lean4lean \\
+\ref{chap:trust} & The trust boundary: what is proved, what is trusted, what is inherited from
+  lean4lean, what the proof uses from lean4lean, the shipping code \\
+\ref{chap:model} & The model side: \code{TrS}, \code{ProgEnv} and their lemmas \\
+\ref{chap:pure} & The pure path: the shipping code the theorem is about \\
+\ref{chap:source} & Erasability and the source semantics \\
+\ref{chap:relation} & $\lambda_\Box$ evaluation and the erasure relation \\
+\ref{chap:simulation} & The relation-level simulation \code{erases\_correct} \\
+\ref{chap:oracle} & Soundness of the pure oracle \\
+\ref{chap:core} & The shipping core: \code{erasePure\_erases} and the entry point \\
+\ref{chap:final} & The final theorem and its hypotheses \\
+\ref{chap:tests} & Tests and non-vacuity instances \\
+\ref{chap:shipping-changes}, \ref{chap:divergences} & The two registers, rendered \\
+\ref{chap:open} & What is open \\
+\bottomrule
+\end{tabular}
+
+\begin{itemize}
+\item \lead{Nodes} Every definition, result and imported lean4lean module cites its Lean
+  declarations (\code{\textbackslash lean}); Section~\ref{sec:intro-kinds} gives its kind and
+  status.
+\item \lead{Links to the code} In the web version, every cited Lean name links to the lines of its
+  declaration on GitHub, and every cited Lean file and source location to that file and line: this
+  repository at the documented commit, lean4lean and batteries at their pinned commits, Lean at the
+  tag of \code{lean-toolchain}. The print version has no such links.
+\item \lead{Planned nodes} A node marked \stPlanned{} states a declaration of the approved design
+  that does not exist; its \code{\textbackslash lean} names are its planned names. No node is
+  planned.
+\item \lead{Allowed axioms} \code{propext}, \code{Classical.choice}, \code{Quot.sound}, and
+  \code{sorryAx} through the lean4lean sorries a node lists (\emph{Inherited from lean4lean},
+  Section~\ref{sec:trust-inherited}).
+\item \lead{Status words} in the prose: \stProved{} proved; \stInherited{} trust inherited from
+  lean4lean; \stShipping{} shipping code, described, not verified; \stPlanned{} not formalized;
+  \stOpen{} not done. They take the colours of the kinds and statuses of
+  Section~\ref{sec:intro-kinds}; a node shows its kind and status by the badges after its heading.
+\item \lead{Checks} \code{blueprint/scripts/audit.py} checks every node against the Lean
+  environment and the generated chapters against their sources (\code{blueprint/README.md}).
+\end{itemize}
+
+\section{Kinds, statuses and dependency graphs}\label{sec:intro-kinds}
+
+\begin{itemize}
+\item \lead{Kind} \code{blueprint/scripts/kinds.py} derives the kind of every node from its Lean
+  declarations, its environment, and the \code{\textbackslash uses} of the final theorem and the
+  milestones; the audit checks the derivation, and those \code{\textbackslash uses} against the
+  Lean proofs. The kind sets the badge after the node's heading, the bar beside the node in the
+  web version, and the node's shape and fill in the dependency graphs.
+\item \lead{Colour families} Blue for the proof library \code{EraseProof}, orange for the shipping
+  code, violet for the tests, green for lean4lean; gold for the final theorem. Within a family the
+  shape tells the kinds apart.
+\item \lead{Status} The border of a graph node gives its status, and so does a second badge after
+  the heading of a node that inherits lean4lean sorries (with their labels) or is planned.
+\end{itemize}
+
+\input{generated/kinds-legend}
+
+\begin{itemize}
+\item \lead{Graphs} The web version lays out three kinds of dependency graph when it is built:
+  \begin{itemize}
+  \item the chapter map: one box per chapter and one for lean4lean, with their nodes by kind; an
+    arrow between two boxes carries the number of arrows between their nodes;
+  \item the graph of a chapter, and that of lean4lean: its nodes, with the nodes outside it that
+    they use (on the left) and that use them (on the right), faded;
+  \item the graph of all nodes: a frame per chapter of the proof library, and one each for
+    lean4lean (its modules and sorries), the shipping code and the tests, arranged top to bottom
+    so that a frame sits below the frames it uses; the final theorem is at the bottom of the proof
+    library, below the two milestones and their step lemmas.
+  \end{itemize}
+\item \lead{Navigation} A click on a node shows its statement, its arrows and its neighbours. The
+  field above the graph finds a node by any of its Lean names. The link \emph{graph} in the
+  heading of a node opens the graph of its chapter (or of lean4lean) at the node.
+\end{itemize}
+
+\input{generated/kinds-chapters}

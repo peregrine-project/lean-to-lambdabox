@@ -1,0 +1,150 @@
+# Configuration of blueprint/scripts/audit.py.
+
+# The directory whose `lake env` resolves every module of `imports` (the proof package sees the
+# root package, lean4lean and itself).
+env_dir = "proof"
+
+# Modules imported to check the blueprint: every \lean{} name of a node that is not planned must
+# be a declaration of this environment. `X.*` stands for the module X and all its submodules (read
+# from the source trees of the root package, of the proof package and of the packages under
+# .lake/packages).
+imports = ["LeanToLambdaBox", "Lean4Lean", "Lean4Lean.Theory.*", "Lean4Lean.Verify.*",
+           "EraseProof.*"]
+
+# Axioms a node may depend on and still carry \leanok. sorryAx is allowed only through the
+# inherited sorry sources listed below.
+standard_axioms = ["propext", "Classical.choice", "Quot.sound"]
+
+# Module prefix of the inherited development (lean4lean). Its sorry sources are the declarations
+# whose own type or value uses sorryAx; a node lists the ones it depends on in \inherited{...} by
+# their labels below.
+inherited_prefix = "Lean4Lean"
+
+# Module prefix of the shipping code, whose partial and monadic declarations the trust chapter
+# tabulates.
+shipping_prefix = "LeanToLambdaBox"
+
+# Module prefix of the verification library: every declaration a user wrote in these modules is
+# cited by a node that is not planned.
+cover_prefix = "EraseProof"
+
+# The no-leaves register of the proof package, rendered as a table (relative to the repository
+# root).
+roots_file = "proof/ROOTS.txt"
+
+# Name prefix of the tests. A node whose declarations all have this prefix is a test node.
+test_prefix = "EraseProof.Test."
+
+# Lake builds run before the audit: `lake build <targets>` in each directory (relative to the
+# repository root). The root package holds the eraser and pins lean4lean; the proof package
+# `proof/` holds the verification library and requires the root package by path.
+[[build]]
+dir = "."
+targets = ["LeanToLambdaBox", "Lean4Lean", "Lean4Lean.Theory", "Lean4Lean.Verify"]
+
+[[build]]
+dir = "proof"
+targets = ["EraseProof"]
+
+# The lean4lean sorry sources the blueprint names, with their labels. `allowed`: "all" = a node
+# may depend on it and keep \leanok; "tests" = only a test node may; "module:M" = only a node whose
+# declarations all belong to the module M may; "none" = no node may. Any sorry source outside this
+# list, and any axiom outside standard_axioms, keeps a node from carrying \leanok. The allowances
+# are those of check C5 of proof/scripts/check.sh.
+[[inherited_sorry]]
+label = "L1"
+name = "Lean4Lean.VInductDecl.WF"
+what = "well-formedness of an inductive declaration (sorry definition)"
+allowed = "all"
+
+[[inherited_sorry]]
+label = "L2"
+name = "Lean4Lean.VEnv.addInduct"
+what = "adding an inductive declaration to an environment (sorry definition)"
+allowed = "all"
+
+[[inherited_sorry]]
+label = "L3"
+name = "Lean4Lean.VEnv.addInduct_WF"
+what = "adding an inductive keeps an environment ordered (sorry proof)"
+allowed = "all"
+
+[[inherited_sorry]]
+label = "L4"
+name = "Lean4Lean.VEnv.IsDefEqU.sort_inv"
+what = "sort injectivity (sorry proof)"
+allowed = "all"
+
+[[inherited_sorry]]
+label = "L5"
+name = "Lean4Lean.VEnv.IsDefEqU.forallE_inv_stratified"
+what = "Pi injectivity (sorry proof)"
+allowed = "all"
+
+[[inherited_sorry]]
+label = "L6"
+name = "Lean4Lean.VEnv.IsDefEqU.sort_forallE_inv"
+what = "a sort is not definitionally equal to a Pi (sorry proof)"
+allowed = "all"
+
+[[inherited_sorry]]
+label = "L7"
+name = "Lean4Lean.VEnv.IsDefEqU.weakN_iff"
+what = "strengthening (sorry in a proof)"
+allowed = "none"
+
+[[inherited_sorry]]
+label = "L8"
+name = "Lean4Lean.VEnv.NormalEq.parRed"
+what = "a confluence step (sorry in a proof)"
+allowed = "none"
+
+[[inherited_sorry]]
+label = "TrProj"
+name = "Lean4Lean.TrProj"
+what = "the translation of projections (sorry definition)"
+allowed = "module:EraseProof.Test.Bridge"
+
+# The lean4lean modules whose declarations the proof library (outside its tests) or the shipping
+# code uses directly, with what each provides (TeX, ASCII). scripts/audit.py --update writes one
+# node per module (generated/lean4lean-imports.tex, in the trust chapter): its declarations used
+# directly, its axioms and inherited sorries as measured, and the nodes that use it. The audit
+# checks that every such module, and no other, has an entry here.
+[lean4lean_modules]
+"Lean4Lean.Std.Basic" = 'Lemmas about lists: \code{List.mapM}, pointwise relations (\code{List.Forall}$_2$) and lists without duplicates.'
+"Lean4Lean.Theory.VLevel" = 'Universe levels of the model (\code{VLevel}): well-formedness, evaluation, instantiation, equivalence, and the translation \code{ofLevel} of Lean levels.'
+"Lean4Lean.Theory.VExpr" = 'Expressions of the model (\code{VExpr}): lifting and instantiation of bound variables, and instantiation of universe levels.'
+"Lean4Lean.Theory.VEnv" = 'Environments of the model (\code{VEnv}): constants, definitional equations, the empty environment, adding a constant or an equation, and the extension order.'
+"Lean4Lean.Theory.VDecl" = 'Declarations of the model: constant values, definition values and the definitional equation of a definition.'
+"Lean4Lean.Theory.Typing.Basic" = 'The typing judgments of the model: definitional equality \code{IsDefEq} (and \code{IsDefEqU}, at some type), typing \code{HasType} and \code{IsType}; well-formed expressions, constants and equations.'
+"Lean4Lean.Theory.Typing.Env" = 'Well-formed declarations and environments (\code{VDecl.WF}, \code{VEnv.WF}); adding a list of constants or of equations to an environment.'
+"Lean4Lean.Theory.Typing.EnvLemmas" = 'Lemmas about adding constants and equations to an environment; a well-formed environment is ordered.'
+"Lean4Lean.Theory.Typing.Lemmas" = 'Structural lemmas of the typing judgments: the typing rules, weakening, instantiation of a variable and of universe levels, monotonicity in the environment, ordered environments.'
+"Lean4Lean.Theory.Typing.Strong" = 'Inversion of typing for $\lambda$ and for application.'
+"Lean4Lean.Theory.Typing.UniqueTyping" = 'Unique typing (\code{IsDefEq.uniq}) and its consequences for definitional equality.'
+"Lean4Lean.Theory.Typing.Injectivity" = 'Injectivity of definitional equality on sorts and on $\Pi$ types, and a sort is not a $\Pi$ type; lean4lean states the sorries L4--L6 here.'
+"Lean4Lean.Verify.Axioms" = '''Structural definitions of Lean functions on expressions and levels; the pure path of the shipping code calls \code{Expr.instantiate1'}, \code{Expr.liftLooseBVars'} and \code{Level.hasMVar'}. No node reaches the axioms of this module, which equate them with Lean's own functions.'''
+"Lean4Lean.Verify.Expr" = 'Lemmas about Lean expressions: application spines (\code{getAppArgs}, \code{mkAppList}, \code{withApp}) and \code{liftLooseBVars}.'
+"Lean4Lean.Verify.VLCtx" = 'Local contexts (\code{VLCtx}) of Lean free and bound variables, their lookup, and their translation \code{toCtx} to contexts of the model.'
+"Lean4Lean.Verify.Typing.Expr" = 'Closed Lean expressions and their free variables (\code{Closed}, \code{FVarsIn}); well-formed local declarations and local contexts.'
+"Lean4Lean.Verify.Typing.Lemmas" = 'Lemmas about local contexts: abstraction, lifting and instantiation of a context, lookup, definitional equality of contexts; free variables under instantiation.'
+"Lean4Lean.Verify.Environment.Lemmas" = 'Lemmas about adding a list of equations to an environment.'
+
+# Links of the web version to the Lean sources (scripts/leanlinks.py; README, "Links to the Lean
+# sources"). `repository`: this repository, linked at the commit the site is built from
+# ($BP_REPOSITORY_URL overrides it; CI sets it to the repository the workflow runs in). `lean4`:
+# Lean's repository, linked at the tag of lean-toolchain. The packages of lake-manifest.json are
+# linked at their `url` and `rev`.
+[links]
+repository = "https://github.com/peregrine-project/lean-to-lambdabox"
+lean4 = "https://github.com/leanprover/lean4"
+
+# The repository of a path, by its first component (or its root module file, Lean4Lean.lean): a
+# package of lake-manifest.json, or lean4 for Lean's own modules (under src/ of that repository).
+# Any other path is a path of this repository.
+[links.roots]
+Lean4Lean = "lean4lean"
+Batteries = "batteries"
+Init = "lean4"
+Std = "lean4"
+Lean = "lean4"
