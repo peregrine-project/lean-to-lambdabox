@@ -1,4 +1,4 @@
-# The checks of proof/scripts/check.sh, on the verification branch. What CI runs, and where:
+# The checks of proof/scripts/check.sh, on the l4l/verification branch. What CI runs, and where:
 #   build                         C1: the two lean-action steps; check.sh replays them.
 #   non-vacuity instances         C8: the tests EraseProof.Test.* (instances NV-1..NV-7, register
 #                                 tests) are modules of the library, so the proof build checks them;
@@ -25,7 +25,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-    - 'verification'
+    - 'l4l/verification'
 concurrency:
   group: "${{ github.workflow }}-${{ github.ref }}"
   cancel-in-progress: true

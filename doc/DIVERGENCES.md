@@ -9,7 +9,7 @@ does not, for any reason, is recorded here.
 
 Each entry has an id `DV-<n>` and exactly these fields:
 
-- **Our artifact:** file and declaration on the `verification` branch that carries the divergence.
+- **Our artifact:** file and declaration on the `l4l/verification` branch that carries the divergence.
 - **Reference artifact:** the paper section/figure/theorem (§3.1 or §3.2) and the MetaRocq
   `file:identifier` it corresponds to.
 - **What differs:** the concrete difference between our artifact and the reference artifact.
