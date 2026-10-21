@@ -1,1 +1,1 @@
-(attributes_config (((MPfile ()) "instDecidableEqNat") ((MPdot (MPfile ()) "Bool") "decEq") ((MPfile ()) "instDecidableEqBool") ((MPdot (MPfile ()) "Unit") "unit")) () () () ())
+(attributes_config (((MPfile ()) "instDecidableEqNat") ((MPdot (MPdot (MPfile ()) "Bool") "Internal") "not") ((MPdot (MPfile ()) "Bool") "beq") ((MPdot (MPfile ()) "Bool") "decEq") ((MPdot (MPfile ()) "Unit") "unit")) () () () ())

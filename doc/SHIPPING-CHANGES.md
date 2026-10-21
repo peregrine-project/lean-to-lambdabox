@@ -7,7 +7,8 @@
 > (`scripts/regress.sh`, `tests/regress/`) is on `fix-v2` and on `main` once #7 is merged.
 
 The entries S-1 to S-15 below were written for the original series of one commit per change. PR #7
-regroups them into six commits. The original commits, whose subjects start with `shipping(S-<n>):`,
+regroups them into six commits, followed by a seventh, the toolchain bump of S-16, which was written
+directly as a commit of #7. The original commits, whose subjects start with `shipping(S-<n>):`,
 are archived under the branch `archive/shipping`, where
 `git log --grep='^shipping(S-<n>):' origin/archive/shipping` still finds them; it finds
 nothing on `fix-v2`. Mapping to the commits of `git log --oneline main..fix-v2`:
@@ -20,6 +21,7 @@ nothing on `fix-v2`. Mapping to the commits of `git log --oneline main..fix-v2`:
 | S-12, S-13, S-14 | Port to Lean v4.33.0-rc2 |
 | none (log-message and comment fixes found in review) | Fix two log messages and the comment of fvar_to_name |
 | none (documentation) | Update the README |
+| S-16 | Bump Lean to v4.35.0 |
 | S-1 (register, corpus, harness), S-15 | scaffolding: this branch (`regress.sh` itself is in the first commit) |
 
 ## Scaffolding
@@ -1255,6 +1257,42 @@ without peregrine.
   `#erase`s through `#guard_msgs`: `scripts/corpus.sh` stops if a corpus file reports an error, so
   a change of these errors, or an `#erase` that starts to succeed, shows. The regression tests are
   unchanged and pass.
+
+## S-16: Bump to Lean v4.35.0
+
+- **Commit:** `Bump Lean to v4.35.0`, the last commit of #7; there is no `shipping(S-16):` commit.
+- **Files and functions:** the four toolchain pins (`lean-toolchain`, `benchmarks/lean-toolchain`,
+  `benchmarks/via_lean/lean-toolchain.template`, `benchmarks/via_malfunction/lean-toolchain`) and
+  `README.md`; `LeanToLambdaBox/Erasure.lean`: new `macroInline`, `normalizeAlt`,
+  `inlineMatchers` (copies of Lean v4.33's), `prepare_erasure`; `LeanToLambdaBox/Printing.lean`:
+  `rocq_escape`; `benchmarks/via_malfunction/`: `decidable.ml`, `decidable-inline.ml`,
+  `decidable-pruned.ml`, new `decidable-pruned-boxed.ml`, `Makefile` (choice of `DECIDABLEML`);
+  `tests/regress/compiler_api.lean` (case `useSlowIf`) and the goldens of `cases`.
+- **Why necessary:** on v4.35, `lake build` fails with `Unknown identifier` on `macroInline` and
+  `inlineMatchers`, which Lean now applies on the fly inside `toLCNF`. v4.35 also makes `Decidable`
+  a structure `Decidable.intro (decide : Bool) (reflects_decide : …)`, with `isTrue`/`isFalse` as
+  abbrevs and `ite`/`dite` a `Bool.casesOn` on `h.decide`, and makes `Bool.and`/`or`/`not`
+  noncomputable, with `@[csimp]` replacements `Bool.Internal.*` (`and`/`or` are `@[macro_inline]`).
+- **Behaviour before:** with only the pins changed, the package does not build.
+- **Behaviour after:** the package builds. `prepare_erasure` applies csimp inside `macroInline`
+  (to the term and to every inlined body), so `b && c` is inlined as a match, as on v4.33; applying
+  csimp last, as before, left `Bool.Internal.and` as a strict call. With `csimp := false`,
+  `Bool.and` erases to the axiom `Bool.rec` (R-9). The benchmark runtime builds the new `Decidable`
+  values (`Intro (b, box)`, or `Intro b`, unboxed with `unbox.config`); with the old runtime,
+  `rbmap_std 1000` printed 1000 instead of 100 under `PRUNE_CONSTRUCTORS=0` and crashed under
+  `UNBOX=0`. 10 benchmarks in 6 Makefile variants print the same 60 values as on v4.33.0-rc2
+  (local peregrine with the R-1 rewrite).
+- **Effect on emitted .ast (corpus):** of 704 files, 595 are byte-identical, 33 differ only in
+  hygienic names and 76 differ (52 `.ast`, 24 `.ast.inlinings`). Every one of the 76 follows from
+  the `Decidable`/`Bool` changes: `Decidable.decide`, `Bool`, `Bool.beq`, `Bool.Internal.not` and
+  `Decidable.isTrue`/`isFalse` appear, `instDecidableEqBool` (now `@[macro_inline]`) and
+  `Bool.decEq` disappear, and `Decidable` is declared with the one constructor `intro`. No new
+  axiom, no match erased to □, `PANIC` counts unchanged. `peregrine eval` prints the same output for
+  all 144 `.peano.ast` files. In `tests/dev`, 49 goldens change: 29 in hygienic names only, 20 by
+  the same `Decidable`/`Bool` changes; the peregrine outputs are unchanged.
+- **Regression test:** `compiler_api` (`useSlowIf.ast` has no constant `fastIf`) fails if csimp is
+  applied after `macroInline`. `scripts/regress.sh` and `scripts/dev-regress.sh` pass, with and
+  without `PEREGRINE`.
 
 ---
 
