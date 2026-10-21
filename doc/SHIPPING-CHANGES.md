@@ -8,8 +8,8 @@
 
 The entries S-1 to S-15 below were written for the original series of one commit per change. PR #7
 regroups them into six commits. The original commits, whose subjects start with `shipping(S-<n>):`,
-are archived under the tag `archive/pre-restack/fixes-port`, where
-`git log --grep='^shipping(S-<n>):' archive/pre-restack/fixes-port` still finds them; it finds
+are archived under the branch `archive/shipping`, where
+`git log --grep='^shipping(S-<n>):' origin/archive/shipping` still finds them; it finds
 nothing on `fix-v2`. Mapping to the commits of `git log --oneline main..fix-v2`:
 
 | Entries | Commit of #7 |
@@ -45,7 +45,7 @@ Each change has an id `S-<n>` and exactly one commit, whose subject is
 `shipping(S-<n>): <what changed and its observable effect>`. Its entry has these fields:
 
 - **Commit:** the commit whose subject starts with `shipping(S-<n>):` (find it with
-  `git log --grep='^shipping(S-<n>):'` under the tag `archive/pre-restack/fixes-port`; see the
+  `git log --grep='^shipping(S-<n>):'` under the branch `archive/shipping`; see the
   preamble); for a merge, say so.
 - **Files and functions:** every file and function/declaration touched.
 - **Why necessary:** the concrete reason (a reproduced defect, a compile error, a requirement of the
