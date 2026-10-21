@@ -8,8 +8,8 @@ and R-16) and `Update the README`. PR #7 also replaced the regression tests of S
 smaller permanent suite (`tests/regress/{mli,auto_inline,cases,compiler_api}.lean`), and did not
 include this register, the corpus or its scripts; the commit `Add the change register and the corpus
 used to check the translation` brings them back. The original commits, one per entry S-1 to S-15,
-are archived under the tag `archive/pre-restack/fixes-port`, where the lookups below still work as
-`git log --grep='^shipping(S-<n>):' archive/pre-restack/fixes-port`, and so are the regression tests
+are archived under the branch `archive/shipping`, where the lookups below still work as
+`git log --grep='^shipping(S-<n>):' origin/archive/shipping`, and so are the regression tests
 that those entries cite. The entries from T-0 on were written before PR #7 and count the tests of that
 time; the edits that S-16 and S-22 made to the docstrings of replaced tests are not part of their
 commits on this branch.
