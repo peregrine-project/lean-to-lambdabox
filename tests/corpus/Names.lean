@@ -1,7 +1,7 @@
 import LeanToLambdaBox
 
 /-!
-Corpus name-mangling examples (checkpoint 1). Every program here is inside the verification scope
+Corpus name-mangling examples. Every program here is inside the verification scope
 (definitions only, Church numerals); what varies is the Lean name of the constants. The eraser maps
 a Lean name to a kername with `toKername`: the last component goes through `cleanIdent` (every
 character other than an ASCII letter, digit or `_` becomes `_u<code>`), the other components are
