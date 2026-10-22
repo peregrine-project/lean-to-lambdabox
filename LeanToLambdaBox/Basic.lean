@@ -144,8 +144,8 @@ deriving Inhabited, Repr
 
 structure OneInductiveBody where
   name : Ident
-  /-- True iff the inductive lives in Prop. -/
-  propositional : Bool := false -- I think, since erasure should remove anything which ends up in Prop
+  /-- True iff the inductive lives in Prop. λ□ reduces a `case` on □ only for such an inductive. -/
+  propositional : Bool
   kelim : AllowedEliminations := .IntoAny
   ctors : List ConstructorBody
   projs : List ProjectionBody -- This is only about giving user-visible names to projections, but `peregrine` complains about wellformedness if it is empty.

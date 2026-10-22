@@ -252,7 +252,8 @@ def register_inductive (indinfo: InductiveVal): EraseM (InductiveId × Inductive
 
       let ind_id: InductiveId := { mutualBlockName, idx }
       modify (fun s => { s with inductives := s.inductives.insert ind_name (ind_id, ind_argmasks)})
-      pure { name := toString ind_name, ctors := ind_ctors, projs }
+      let propositional ← liftMetaM <| Meta.isPropFormerType inf.type
+      pure { name := toString ind_name, propositional, ctors := ind_ctors, projs }
     let mutual_body := { npars := indinfo.numParams, bodies := ind_bodies }
     modify (fun s => { s with gdecls := s.gdecls.cons (mutualBlockName, .inductiveDecl mutual_body) })
     return (← get).inductives[indinfo.name]!
@@ -691,6 +692,27 @@ where
       match altInfo with
       | .ctor ctorName numFields => ctorAlts := ctorAlts.insert ctorName (numFields, args[i]!)
       | .default numHyps => catchAll := some (numHyps, args[i]!)
+    /- A Prop inductive eliminates into data only if each field of its constructor is a proof or an
+    index of the constructor's type. The discriminant is then a proof, erased to □, and the λ□ `case`
+    on □ gives □ to every field. So the alternative gets the `casesOn`'s index argument for each
+    field that is an index, as in Lean's `toLCNF`. -/
+    if indVal.numIndices > 0 && (← liftMetaM <| Meta.isPropFormerType indVal.type) then
+      for ctorName in indVal.ctors do
+        let some (numFields, alt) := ctorAlts[ctorName]? | continue
+        let .ctorInfo ctorVal ← getConstInfo ctorName | unreachable!
+        -- For each field, the position of the index it is, if any.
+        let idxPos ← liftMetaM <| Meta.forallTelescope ctorVal.type fun xs ty =>
+          let idxs := ty.getAppArgs[indVal.numParams:].toArray
+          pure <| xs[indVal.numParams:].toArray.map (idxs.idxOf? ·)
+        if idxPos.all Option.isNone then continue
+        let firstIdx := casesInfo.discrPos - indVal.numIndices
+        let alt ← liftMetaM do
+          Meta.forallBoundedTelescope (← Meta.inferType alt) numFields fun xs _ => do
+            let vals := xs.mapIdx fun i x => match idxPos[i]! with
+              | some j => args[firstIdx + j]!
+              | none => x
+            Meta.mkLambdaFVars xs (mkAppN alt vals).headBeta
+        ctorAlts := ctorAlts.insert ctorName (numFields, alt)
     -- The catch-all is used only if some constructor has no alternative.
     if indVal.ctors.all (ctorAlts.contains ·) then
       catchAll := none
