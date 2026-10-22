@@ -14,18 +14,20 @@ programs in the fragment (S-21). The test checks:
 - `#erase_pure t [config c] to "f"`, defined below, which elaborates `t` and `c` as `#erase` does
   and writes the output of `collectDeps` and `erasePure` in the format of `#erase`, next to
   `#erase` on the same programs, which are in the fragment, so that `#erase` writes the same
-  output: a Church-style application (`nv1`), unsafe recursion (`ufOne`: a fixpoint), a
+  output: a Church-style application (`nv1`), a
   `@[macro_inline]` function, whose call the pure path keeps (`useM`), an `@[extern]` definition
   under both `extern` settings (`useExt`, `useExtL`), a proof whose proposition is one only
   through an `@[irreducible]` alias, which the pure path erases (`pidHR`);
+- unsafe recursion (`ufOne`) is outside the fragment (register entry S-29), so `#erase_pure` reports
+  it and `#erase` erases it on the `Meta` path (a fixpoint);
 - errors: a constant missing from the declarations, an ill-typed application (the oracle's
   `failed`), and too little fuel.
 -/
 
 -- peregrine: validate nv1.pure.ast
 -- peregrine: eval nv1.pure.ast --anf=false
--- peregrine: validate ufOne.pure.ast
--- peregrine: eval ufOne.pure.ast --anf=false
+-- peregrine: validate ufOne.ast
+-- peregrine: eval ufOne.ast --anf=false
 -- peregrine: validate useM.pure.ast
 -- peregrine: validate useExtL.pure.ast
 -- peregrine: validate pidHR.pure.ast
@@ -59,7 +61,7 @@ def erasePureElab : CommandElab
       | none => pure {}
       | some c => unsafe Term.evalTerm ErasureConfig (.const ``ErasureConfig []) c
     let view := EnvView.ofEnvironment (← getEnv)
-    match collectDeps view e >>= fun decls => erasePure view cfg decls e with
+    match collectDeps view cfg e >>= fun decls => erasePure view cfg decls e with
     | .ok (p, inls) =>
       IO.FS.writeFile path.getString (p |> Serialize.to_sexpr |>.toString)
       let c : AttributesConfig :=
@@ -166,6 +168,8 @@ info: val main: unit -> unit
 #guard_msgs in
 #erase PB.one (fun a : PB.A => a) to "nv1.ast"
 
+/-- info: pure path: outOfFragment unsafe or partial PB.uf -/
+#guard_msgs in
 #erase_pure PB.uf PB.oneU.{0} to "ufOne.pure.ast"
 #guard_msgs (drop warning, drop info) in
 #erase PB.uf PB.oneU.{0} to "ufOne.ast"
@@ -194,7 +198,7 @@ def showRel : ConstructorArgRelevance → String
   | .erase => "erase"
 
 /-- A view with nothing in it. -/
-def emptyView : EnvView := ⟨fun _ => none, fun _ => false, fun _ => none⟩
+def emptyView : EnvView := ⟨fun _ => none, fun _ => false, fun _ => none, fun _ => none⟩
 
 def AE : Expr := .const `A []
 def decls : List ConstantInfo :=

@@ -1,0 +1,1 @@
+(Untyped ((((MPfile ()) "ER_u46B") (InductiveDecl (mutual_inductive_body Finite 0 ((one_inductive_body "ER.B" false IntoAny ((constructor_body "ER.B.f" 0) (constructor_body "ER.B.t" 0)) ())))))) (Some (tApp (tLambda (nNamed "y") (tRel 0)) (tConstruct (inductive ((MPfile ()) "ER_u46B") 0) 1 ()))))

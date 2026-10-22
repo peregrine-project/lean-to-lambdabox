@@ -146,7 +146,7 @@ namespace Ops
 /-- Run a `PureM` action over the declarations `decls` from the counter `n`. -/
 def runP {α} (decls : List ConstantInfo) (n : Nat) (x : PureM α) :
     Except EraseError (α × PureState) :=
-  (x.run ⟨decls, ⟨findConst decls, fun _ => false, fun _ => none⟩⟩).run { next := n }
+  (x.run ⟨decls, ⟨findConst decls, fun _ => false, fun _ => none, fun _ => none⟩⟩).run { next := n }
 
 theorem findConst?_hq :
     (runP DefHead.decls 0 (PureM.findConst? `hq)).toOption.map (·.1.map (·.name)) =
@@ -205,7 +205,7 @@ def act : EraseT PureM (Nat × FVarId) := do
 /-- info: "ok (2, _pure.7, 1, 8)" -/
 #guard_msgs in
 #eval match act.runPure {} { locals := locals, «config» := {} } ⟨[], ⟨fun _ => none, fun _ => false,
-    fun _ => none⟩⟩ { next := 7 } with
+    fun _ => none, fun _ => none⟩⟩ { next := 7 } with
   | .ok (((n, x), st), ps) => s!"ok ({n}, {x.name}, {st.inlinings.length}, {ps.next})"
   | .error _ => "error"
 end Ops
@@ -231,7 +231,7 @@ end Irr
 /-- info: ["R: ok true", "hR: ok true", "pidHR: ok true", "pid: ok false"] -/
 #guard_msgs in
 #eval show MetaM (List String) from do
-  let .ok decls := collectDeps (EnvView.ofEnvironment (← getEnv)) (.const ``Irr.pidHR [])
+  let .ok decls := collectDeps (EnvView.ofEnvironment (← getEnv)) {} (.const ``Irr.pidHR [])
     | return ["collectDeps failed"]
   let cx : Pure.Ctx := ⟨decls⟩
   return [s!"R: {show' (Pure.isErasable cx oracleFuel [] (.const ``Irr.R []))}",
