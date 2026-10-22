@@ -41,6 +41,12 @@ def toKername (n: Name): Kername :=
 def rootKername (s: String): Kername :=
   { mp := .MPfile [], id := cleanIdent s }
 
+/-- The kername of the mutual inductive block with members `all`: their names, printed without
+`«»` escapes (`Name.toString (escape := false)`, which reduces in the kernel; the escaping printer
+calls a `partial` function), joined, as a root kername. -/
+def mutualBlockKername (all : List Name) : Kername :=
+  rootKername (String.join (all.map (·.toString (escape := false))))
+
 /-- A name used to pretty-print bound variables. -/
 inductive BinderName: Type where
   | named (s: String)

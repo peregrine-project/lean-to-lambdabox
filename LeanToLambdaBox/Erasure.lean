@@ -444,7 +444,7 @@ def register_inductive (indinfo: InductiveVal): EraseT m (InductiveId × Inducti
     return iid
   else
     let names := indinfo.all
-    let mutualBlockName := indinfo.all |>.map toString |> String.join |> rootKername
+    let mutualBlockName := mutualBlockKername indinfo.all
     -- Iterate through all the inductive types in the mutual definition
     let ind_bodies: List OneInductiveBody ← names.zipIdx.mapM fun (ind_name, idx) => do
       let .inductInfo inf ← getConst ind_name | unreachable!
