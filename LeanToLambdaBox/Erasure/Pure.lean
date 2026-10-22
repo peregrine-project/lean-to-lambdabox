@@ -250,6 +250,7 @@ instance : Backend PureM where
     | .ok t => pure t
     | .error err => throw err
   isPropFormerType := PureM.isPropFormerType
+  typeLevel _ _ _ := throw (.outOfFragment "typeLevel")
   casesInfo? := PureM.casesInfo?
   ctorArity? := PureM.ctorArity?
   argMask _ ci := pure (Array.replicate ci.numFields .keep)

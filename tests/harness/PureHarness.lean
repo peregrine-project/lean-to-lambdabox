@@ -107,6 +107,7 @@ instance : Backend CmpM where
       { calls := s.calls + 1,
         diffs := if p == m then s.diffs else s.diffs.push ⟨s!"isPropFormerType {t}", p, m⟩ }
     liftP (Backend.isPropFormerType (m := PureM) e)
+  typeLevel lctx ls e := liftP (Backend.typeLevel lctx ls e)
   casesInfo? n := liftP (Backend.casesInfo? n)
   ctorArity? n := liftP (Backend.ctorArity? n)
   argMask lctx ci := liftP (Backend.argMask lctx ci)
