@@ -11,8 +11,8 @@ For `#erase t [config c] to "f"` it elaborates `t` and `c` as `#erase` does and 
   outputs, in the format of `#erase`, to `f.pure` and `f.meta`, each with its `.inlinings`;
 - runs the traversal again with the backend `CmpM`, whose operations are those of `PureM` and whose
   oracle also asks `Erasure.isErasable` (the `Meta` oracle) in the traversal's local context, and
-  whose `isPropFormerType` also asks `Meta.isPropFormerType`, and counts the calls of both and the
-  calls where the two answers differ.
+  whose `isPropFormerType` and `typeLevel` also ask `Meta.isPropFormerType` and `Meta.getLevel` of
+  `Meta.inferType`, and counts the calls of both and the calls where the two answers differ.
 
 It writes what it found to `f.harness`. Then it declines the command (`throwUnsupportedSyntax`):
 Lean restores the command state and runs the eraser's own elaborator, so `#erase` writes `f` and
@@ -73,6 +73,18 @@ def metaPropFormer (e : Expr) : CoreM String := do
   catch ex =>
     return s!"error {oneLine (← ex.toMessageData.toString)}"
 
+/-- An answer of the pure `typeLevel` as text. -/
+def showLevel : Except EraseError Level → String
+  | .ok u => s!"ok {u}"
+  | .error e => s!"error {showErr e}"
+
+/-- The answer of `Meta.getLevel` of `Meta.inferType` in a local context, as text. -/
+def metaTypeLevel (lctx : LocalContext) (e : Expr) : CoreM String := do
+  try
+    return s!"ok {← runMetaM lctx do Meta.getLevel (← Meta.inferType e)}"
+  catch ex =>
+    return s!"error {oneLine (← ex.toMessageData.toString)}"
+
 /-- A term, pretty-printed in a local context, on one line. -/
 def ppIn (lctx : LocalContext) (e : Expr) : CoreM String := do
   let f ← runMetaM lctx (Meta.ppExpr e)
@@ -107,6 +119,16 @@ instance : Backend CmpM where
       { calls := s.calls + 1,
         diffs := if p == m then s.diffs else s.diffs.push ⟨s!"isPropFormerType {t}", p, m⟩ }
     liftP (Backend.isPropFormerType (m := PureM) e)
+  typeLevel lctx ls e := do
+    let r := ((Backend.typeLevel (m := PureM) lctx ls e).run (← readThe PureCtx)).run
+      (← getThe PureState)
+    let p := showLevel (r.map (·.1))
+    let m ← (metaTypeLevel lctx e : CoreM String)
+    let t ← (ppIn lctx e : CoreM String)
+    modifyThe CmpState fun s =>
+      { calls := s.calls + 1,
+        diffs := if p == m then s.diffs else s.diffs.push ⟨s!"typeLevel {t}", p, m⟩ }
+    liftP (Backend.typeLevel (m := PureM) lctx ls e)
   casesInfo? n := liftP (Backend.casesInfo? n)
   ctorArity? n := liftP (Backend.ctorArity? n)
   argMask lctx ci := liftP (Backend.argMask lctx ci)

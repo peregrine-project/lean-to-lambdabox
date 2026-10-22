@@ -144,6 +144,14 @@ def isPropFormerType (cx : Ctx) : Nat → List Local → Expr → Except EraseEr
     | .forallE _ _ B _ => isPropFormerType cx f ls B
     | _ => pure false
 
+/-- The level `u` of the sort `Sort u` of the type of a term: the type of its type, after weak-head
+reduction. Reference: `sort_of_type` (`MR S/PCUICSafeReduce.v:1853`) of the term's type, as
+`MR E/ErasureFunction.v:894 is_erasableb` computes it. -/
+def typeLevel (cx : Ctx) (fuel : Nat) (ls : List Local) (e : Expr) : Except EraseError Level := do
+  match ← whnf cx fuel ls (← inferType cx fuel ls [] (← inferType cx fuel ls [] e)) with
+  | .sort u => pure u
+  | _ => throw (.failed "not a type")
+
 /-- The pure erasability oracle: the type is an arity, or the type's sort is always zero. Every
 reduction uses the kernel's δ. Fuel exhaustion is an error, never an answer.
 Reference: `MR E/ErasureFunction.v:894 is_erasableb` (`type_of_typing`, `is_arity`,
@@ -211,6 +219,13 @@ def isPropFormerType (e : Expr) : PureM Bool := do
   | .ok b => pure b
   | .error err => throw err
 
+/-- The oracle's `typeLevel`, on the traversal's locals, with `oracleFuel`. Reference:
+`sort_of_type` (`MR S/PCUICSafeReduce.v:1853`). -/
+def typeLevel (ls : List Local) (e : Expr) : PureM Level := do
+  match Pure.typeLevel ⟨(← read).decls⟩ oracleFuel ls e with
+  | .ok u => pure u
+  | .error err => throw err
+
 /-- No `casesOn` on the pure path (the fragment has no inductives). Reference: none. -/
 def casesInfo? (_ : Name) : PureM (Option Lean.CasesInfo) := pure none
 
@@ -232,7 +247,8 @@ end PureM
 
 /-- The pure backend: the operations of `PureM`, with `unsafeRecBase?` always `none`;
 type inference is the oracle's `Pure.inferType` at `oracleFuel` on the traversal's locals, and
-`isPropFormerType` is the oracle's `Pure.isPropFormerType` at `oracleFuel`; every
+`isPropFormerType` and `typeLevel` are the oracle's `Pure.isPropFormerType` and `Pure.typeLevel` at
+`oracleFuel`; every
 constructor field is kept; `isExtern` and `inlineAttr?` read the view; no constant is an instance;
 `log` does nothing; a constant missing from the declarations is `outOfFragment`, and fuel
 exhaustion is the error `fuel`. Reference: the environment and retyping operations that
@@ -250,6 +266,7 @@ instance : Backend PureM where
     | .ok t => pure t
     | .error err => throw err
   isPropFormerType := PureM.isPropFormerType
+  typeLevel _ ls e := PureM.typeLevel ls e
   casesInfo? := PureM.casesInfo?
   ctorArity? := PureM.ctorArity?
   argMask _ ci := pure (Array.replicate ci.numFields .keep)
