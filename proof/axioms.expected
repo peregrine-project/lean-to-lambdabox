@@ -2,9 +2,40 @@
 # One line per declaration: <declaration> <axioms>
 #   <axioms>: its `#print axioms`, comma-separated in the order propext, Classical.choice,
 #             Quot.sound; `-` for none. sorryAx and Cardinal.exists_inaccessibles never occur.
+# proof/scripts/check.sh compares this file with the computed .check/axioms.actual.
+EraseProof.Test.bind_ok propext,Classical.choice,Quot.sound
+EraseProof.Test.forIn_toSubarray_size propext,Classical.choice,Quot.sound
+EraseProof.Test.runPure_bind propext,Classical.choice,Quot.sound
+EraseProof.Test.runPure_withReader propext,Classical.choice,Quot.sound
+EraseProof.Test.toArray_toSubarray propext,Classical.choice,Quot.sound
+EraseProof.Test.withApp_app1 propext
+EraseProof.Test.withApp_const propext
 EraseProof.TypeEq.forallE_ne_ind propext,Classical.choice,Quot.sound
 EraseProof.TypeEq.forallE_ne_quot propext,Classical.choice,Quot.sound
 EraseProof.TypeEq.ind_ne_quot propext,Classical.choice,Quot.sound
 EraseProof.TypeEq.sort_ne_forallE propext,Classical.choice,Quot.sound
 EraseProof.TypeEq.sort_ne_ind propext,Classical.choice,Quot.sound
 EraseProof.TypeEq.sort_ne_quot propext,Classical.choice,Quot.sound
+EraseProof.Test.NV1.altsNeg_all propext,Classical.choice,Quot.sound
+EraseProof.Test.NV1.altsNeg_f propext,Classical.choice,Quot.sound
+EraseProof.Test.NV1.altsNeg_t propext,Classical.choice,Quot.sound
+EraseProof.Test.NV1.bodyNeg_run propext,Classical.choice,Quot.sound
+EraseProof.Test.NV1.casesInfo_B propext
+EraseProof.Test.NV1.e_run propext,Classical.choice,Quot.sound
+EraseProof.Test.NV1.hcollect propext,Classical.choice,Quot.sound
+EraseProof.Test.NV1.hpure propext,Classical.choice,Quot.sound
+EraseProof.Test.NV1.hrun propext,Classical.choice,Quot.sound
+EraseProof.Test.NV1.kername_neg_run propext,Classical.choice,Quot.sound
+EraseProof.Test.NV1.negVal_run propext,Classical.choice,Quot.sound
+EraseProof.Test.NV1.register_B_found propext,Classical.choice,Quot.sound
+EraseProof.Test.NV1.register_B_new propext,Classical.choice,Quot.sound
+EraseProof.Test.NV1.stB_B propext,Classical.choice,Quot.sound
+EraseProof.Test.NV1.stNeg_B propext,Classical.choice,Quot.sound
+EraseProof.Test.NV1.visitAlt_run propext,Classical.choice,Quot.sound
+EraseProof.Test.NV1.visitCasesOn_run propext,Classical.choice,Quot.sound
+EraseProof.Test.NV1.visitCases_run propext,Classical.choice,Quot.sound
+EraseProof.Test.NV1.visitConst_neg_run propext,Classical.choice,Quot.sound
+EraseProof.Test.NV1.visitConstructor_run propext,Classical.choice,Quot.sound
+EraseProof.Test.NV1.visitExpr_ctor_run propext,Classical.choice,Quot.sound
+EraseProof.Test.NV1.visitMutual_neg_run propext,Classical.choice,Quot.sound
+EraseProof.Test.NV1.withApp_bodyNeg propext
