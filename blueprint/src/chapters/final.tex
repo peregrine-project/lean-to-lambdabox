@@ -2,11 +2,13 @@
 
 \section*{At a glance}
 \begin{itemize}
-\item \lead{Goal} Partial correctness of \code{\#erase} on every in-scope input.
+\item \lead{Goal} Partial correctness of \code{\#erase} on every in-scope input, with subject
+  reduction of the source semantics.
 \item \lead{Main results} \code{erase\_correct}, and its two milestones: the relation-level
   simulation \code{erases\_correct} (M1) and the soundness of the pure traversal
   \code{erasePure\_erases} (M2).
-\item \lead{Status} \stPlanned{} every node. The statement is the same in Phase I and Phase II.
+\item \lead{Status} \stPlanned{} every node; the statements are the approved ones, pinned by
+  \code{proof/spec.pin} (check C12b). The statement is the same in Phase I and Phase II.
 \item \lead{Nodes} \bpnodes{chap:final}
 \item \lead{Reference} MetaRocq \code{erase\_correct}
   (\code{erasure/theories/ErasureFunctionProperties.v}) and \code{erases\_correct}
@@ -19,6 +21,7 @@
   \label{def:EraseProof-ViewAgrees}
   \lean{EraseProof.ViewAgrees}
   \planned
+  \uses{def:Erasure-EnvView}
   \lead{In short} \code{ViewAgrees view P}: \hl{the environment view of \code{\#erase} returns
   each declaration of \code{P} under its name}.
   \lead{Reference} \code{Sigma} $\sim$\code{\_ext X} (\code{abstract\_env\_ext\_rel}), a
@@ -30,31 +33,80 @@
   \lean{EraseProof.erase_correct}
   \planned
   \uses{def:EraseProof-ProgEnv, def:EraseProof-ViewAgrees, def:EraseProof-TrM,
-    def:EraseProof-SrcEval, def:EraseProof-EvalEnv, def:EraseProof-Erases, def:EraseProof-LBEval}
-  \lead{In short} If \code{\#erase} returns a program \code{p} for an in-scope, typed term
-  \code{e} and \code{e} evaluates to \code{v}, then \code{p} is \code{untyped lenv (some tb)} and
-  \hl{\code{tb} evaluates in $\lambda_\Box$ to an erasure of \code{v}}.
+    def:EraseProof-SrcEval, def:EraseProof-EvalEnv, def:EraseProof-Erases, def:EraseProof-LBEval,
+    def:Erasure-Planned-collectDeps, def:Erasure-eraseEntry}
+  \lead{In short} If \code{\#erase} returns \code{p} for an in-fragment, typed \code{e} that
+  evaluates to \code{v}, then \hl{\code{p}'s main term evaluates in $\lambda_\Box$ to an erasure
+  of \code{v}}, and \code{v} means what \code{e} means.
   \begin{itemize}
-  \item \lead{Given} \code{henv : ProgEnv P E B}, \code{hwf : EnvWF E},
-        \code{hview : ViewAgrees view P}: the program and its Metalean environment;
-  \item \code{he : TrM E B lps .nil [] e t}, \code{hty : $\exists$ T, E[.nil] $\vdash$ t : T}: the
-        input is the Lean form of a typed Metalean term;
-  \item \code{hfrag : collectDeps view cfg e = .ok decls}: the input is in the fragment;
-  \item \code{hrun : eraseEntry view cfg e = pure (p, inl)}: the output of \code{\#erase};
-  \item \code{hev : SrcEval (evalEnvOf view cfg P) e v}: the source evaluates;
-  \item \lead{Then} for some \code{lenv}, \code{tb}, \code{vb}: \code{p = .untyped lenv (some tb)},
-        \code{Erases E B lps (evalEnvOf view cfg P) [] v vb} and
-        \code{LBEval defaultFlags lenv tb vb}.
+  \item \lead{Given} \code{henv : ProgEnv P $\zeta$ E B}; \code{hwf : Metalean.EnvWF E};
+        \code{hview : ViewAgrees view P};
+  \item \code{he : TrM E B lps .nil [] e t}; \code{hty : $\exists$ T, E[.nil] $\vdash$ t : T};
+  \item \code{hfrag : Planned.collectDeps view cfg e = .ok decls};
+  \item \code{hrun : eraseEntry view cfg e = pure (p, inl)};
+  \item \code{hev : SrcEval (evalEnvOf view cfg P) e v};
+  \item \lead{Then} $\exists$ \code{lenv tb vb}, \code{p = .untyped lenv (some tb)} $\wedge$
+        \code{Erases E B lps (evalEnvOf view cfg P) .nil [] v vb} $\wedge$
+        \code{LBEval defaultFlags lenv tb vb} $\wedge$ $\forall$ \code{T}, \code{E[.nil] $\vdash$
+        t : T} $\to$ $\exists$ \code{t'}, \code{TrM E B lps .nil [] v t'} $\wedge$
+        \code{E[.nil] $\vdash$ t $\equiv$ t' : T}.
   \end{itemize}
-  \lead{Reference} MetaRocq \code{erase\_correct}, at \code{default\_wcbv\_flags}.
+  \lead{Reference} MetaRocq \code{erase\_correct}, at \code{default\_wcbv\_flags}, with
+  \code{subject\_reduction\_eval}.
 \end{theorem}
 \begin{proof}
-  \uses{thm:EraseProof-erasePure_erases, thm:EraseProof-erases_correct}
+  \uses{thm:EraseProof-erasePure_erases, thm:EraseProof-erases_correct,
+    lem:EraseProof-eraseEntry_pure, lem:EraseProof-collectDeps_spec,
+    lem:EraseProof-SrcEval-restrict, lem:EraseProof-Erases-closed, lem:EraseProof-SrcEval-defeq}
   \lead{Idea} Composition: \code{hfrag} puts the run on the pure path, \code{erasePure\_erases}
-  makes its output an erasure, and \code{erases\_correct} simulates the evaluation.
+  makes its output an erasure, \code{erases\_correct} simulates the evaluation in the closure,
+  and \code{SrcEval.defeq} gives the last conjunct.
 \end{proof}
 
+\section{Reading the statement}\label{sec:final-reading}
+
+\begin{itemize}
+\item \lead{\code{henv}} the Lean declarations \code{P} are the Lean form of the Metalean
+  environment \code{E}; \code{B} maps each Lean name to its Metalean counterpart.
+\item \lead{\code{hwf}} \code{E} is well formed in Metalean's sense (MetaRocq's \code{wf\_ext}).
+\item \lead{\code{hview}} what \code{\#erase} reads from the Lean environment agrees with \code{P}.
+\item \lead{\code{he}, \code{hty}} the input \code{e} is the Lean form of a closed, well-typed
+  Metalean term \code{t}.
+\item \lead{\code{hfrag}} the router's fragment test accepts \code{e} and returns its closure
+  \code{decls}; the only premise without a MetaRocq counterpart, bounded below by
+  \code{collectDeps\_ok\_of}.
+\item \lead{\code{hrun}} the entry point behind \code{\#erase} returns the program \code{p}.
+\item \lead{\code{hev}} \code{e} evaluates to \code{v} under the source semantics.
+\item \lead{Conclusion} \code{p} is an untyped $\lambda_\Box$ program whose main term \code{tb}
+  evaluates (MetaRocq's \code{default\_wcbv\_flags}) to a value \code{vb} that is an erasure of
+  \code{v}. The last conjunct is subject reduction: \hl{the source semantics is Metalean's
+  conversion}, not an arbitrary relation.
+\item \lead{The object} the theorem is about the shipping code itself (\code{eraseEntry}), not a
+  model of it. \code{Planned.collectDeps} is the stub of shipping entry S-29, which renames it
+  \leandecl{Erasure.collectDeps}; the pin is then regenerated.
+\end{itemize}
+
 \section{The milestones}\label{sec:final-milestones}
+
+\begin{lemma}[The proof cases of the simulation]
+  \label{lem:EraseProof-PropInductive-of_propInd}
+  \lean{EraseProof.PropInductive.of_propInd, EraseProof.ErasableS.propProj,
+    EraseProof.CasesReduced.of_evidentZero}
+  \planned
+  \uses{def:EraseProof-Subsingleton, def:EraseProof-SrcEval, def:EraseProof-IsErasable}
+  \lead{In short} The facts M1 needs for \code{projProp} and \code{casesProof}: \hl{the source's
+  proof rules meet the eraser's}.
+  \begin{itemize}
+  \item \code{of\_propInd}: an inductive declared in \code{Prop} is \code{PropInductive};
+  \item \code{propProj}: a neutral proof projection is erasable;
+  \item \code{of\_evidentZero}: an evidently zero sort level with one constructor gives
+        \code{CasesReduced}.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-ProgEnv-lookup}
+  \lead{Idea} Sort injectivity on the translated declared type; proof irrelevance for the projection.
+\end{proof}
 
 \begin{theorem}[M1: simulation]
   \label{thm:EraseProof-erases_correct}
@@ -62,12 +114,22 @@
   \planned
   \uses{def:EraseProof-Erases, def:EraseProof-ErasesDeps, def:EraseProof-SrcEval,
     def:EraseProof-LBEval}
-  \lead{In short} If \code{e} evaluates to \code{v} and \code{t} erases \code{e} in an environment
-  that erases its dependencies, then \hl{\code{t} evaluates to an erasure of \code{v}}.
+  \lead{In short} An erasure with erased dependencies of a typed, evaluating term \hl{evaluates
+  in $\lambda_\Box$ to an erasure of the value}.
+  \begin{itemize}
+  \item \lead{Given} \code{ProgEnv P $\zeta$ E B}, \code{EnvWF E}, \code{SubEnv $\sigma$.decls P},
+        \code{KernameInj $\sigma$.decls}, \code{LenvClosed lenv}, \code{TrM E B lps .nil [] e t},
+        \code{$\exists$ T, E[.nil] $\vdash$ t : T}, \code{Erases E B lps $\sigma$ .nil [] e tb},
+        \code{ErasesDeps E B $\sigma$ lenv tb}, \code{SrcEval $\sigma$ e v};
+  \item \lead{Then} $\exists$ \code{vb}, \code{Erases E B lps $\sigma$ .nil [] v vb} $\wedge$
+        \code{LBEval defaultFlags lenv tb vb}.
+  \end{itemize}
   \lead{Reference} MetaRocq \code{erases\_correct}; Letouzey's Theorem 13.
 \end{theorem}
 \begin{proof}
-  \uses{lem:EraseProof-SrcEval-defeq, lem:EraseProof-IsErasable-ctor_not}
+  \uses{lem:EraseProof-SrcEval-defeq, lem:EraseProof-IsErasable-ctor_not,
+    lem:EraseProof-SrcEval-value, lem:EraseProof-Erases-inst, lem:EraseProof-ErasesDeps-eval,
+    lem:EraseProof-PropInductive-of_propInd, lem:EraseProof-casesOn_whred}
   \lead{Idea} Induction on source evaluation, one case per rule; erasability is stable under
   evaluation by \code{SrcEval.defeq}, and a constructor of data is never erased.
 \end{proof}
@@ -76,12 +138,24 @@
   \label{thm:EraseProof-erasePure_erases}
   \lean{EraseProof.erasePure_erases}
   \planned
-  \uses{def:EraseProof-Erases, def:EraseProof-ErasesDeps, def:EraseProof-ProgEnv}
+  \uses{def:EraseProof-Erases, def:EraseProof-ErasesDeps, def:EraseProof-ProgEnv,
+    def:Erasure-erasePure, def:Erasure-Planned-collectDeps}
   \lead{In short} When the pure traversal returns a program for a closure in the fragment,
   \hl{its main term erases the input} and its declarations erase the input's dependencies.
+  \begin{itemize}
+  \item \lead{Given} \code{henv}, \code{hE}, \code{hview}, \code{he}, \code{hty} as in the final
+        theorem; \code{Planned.collectDeps view cfg e = .ok decls};
+        \code{erasePure view cfg decls e = .ok (p, inl)};
+  \item \lead{Then} $\exists$ \code{lenv tb}, \code{p = .untyped lenv (some tb)} $\wedge$
+        \code{Erases E B lps (evalEnvOf view cfg decls) .nil [] e tb} $\wedge$
+        \code{ErasesDeps \ldots\ lenv tb} $\wedge$ \code{LenvClosed lenv}.
+  \end{itemize}
+  \lead{Reference} the erasure half of MetaRocq's \code{erase\_correct}.
 \end{theorem}
 \begin{proof}
-  \uses{def:EraseProof-ProgEnv}
+  \uses{lem:EraseProof-Pure-isErasable_sound, lem:EraseProof-Pure-isErasable_agree,
+    lem:EraseProof-collectDeps_spec, lem:EraseProof-eraseEntry_pure,
+    lem:EraseProof-Erases-inst}
   \lead{Idea} An invariant of the traversal's state, step by step, with the soundness of the pure
   erasability oracle against \code{TrM} and Metalean's typing.
 \end{proof}
@@ -110,11 +184,19 @@ Hypothesis & MetaRocq & Why it is there \\
 \bottomrule
 \end{tabular}
 
+\begin{itemize}
+\item \lead{Against lean4lean's} the same shape, plus the subject-reduction conjunct and a
+  fragment with inductive types, constructors, \code{casesOn}, projections and literals; the
+  premise \code{hfrag} is explicit where lean4lean's in-scope condition followed from
+  \code{henv}, \code{hview} and \code{he}.
+\end{itemize}
+
 \section*{Caveats}
 \begin{itemize}
 \item \lead{Caveat} Partial correctness: nothing is claimed when \code{\#erase} fails or the source
   does not evaluate.
 \item \lead{Caveat} No first-order corollary and no claim about the constants to inline.
-\item \lead{Caveat} \code{collectDeps} and \code{eraseEntry} are shipping functions of the pure
-  path, which this commit does not contain (Section~\ref{sec:open-shipping}).
+\item \lead{Caveat} \code{hfrag} names the stub \code{Planned.collectDeps}; with the shipping
+  test of the $\lambda\Pi$ fragment (Definition~\ref{def:Erasure-collectDeps}) no program with an
+  inductive type reaches the pure path.
 \end{itemize}

@@ -1,0 +1,164 @@
+\chapter{Soundness of the pure path}\label{chap:core}
+
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} Relate the shipping pure path (Chapter~\ref{chap:pure}) to the definitions of
+  the proof: the oracle's answers to Metalean's typing, the closure to the program, the traversal
+  to \code{Erases}.
+\item \lead{Main results} Soundness of the pure oracle; the closure lemmas and the lower bound
+  \code{collectDeps\_ok\_of} of the fragment test; the frame and recursion lemmas of the
+  traversal. They compose into the milestone \code{erasePure\_erases} (Chapter~\ref{chap:final}).
+\item \lead{Status} \stPlanned{} every node.
+\item \lead{Nodes} \bpnodes{chap:core}
+\item \lead{Reference} MetaRocq \code{hnf\_sound} (\code{PCUICSafeReduce.v}),
+  \code{type\_of\_typing} (\code{PCUICSafeRetyping.v}), \code{is\_erasableb}
+  (\code{ErasureFunction.v}).
+\end{itemize}
+
+\section{The oracle}\label{sec:core-oracle}
+
+\begin{definition}[Traversal locals and the bridge]
+  \label{def:EraseProof-LocalsOK}
+  \lean{EraseProof.LocalsOK, EraseProof.LocalsSupport, EraseProof.LocalsAgree}
+  \planned
+  \uses{def:EraseProof-TrM, def:Erasure-TravCtx}
+  \lead{In short} \code{LocalsOK E B lps $\Gamma$ $\Delta$ ls}: the traversal's locals \code{ls}
+  \hl{are the Lean form of the context $\Gamma$} under $\Delta$.
+  \begin{itemize}
+  \item \code{LocalsSupport S ls}, \code{LocalsAgree S ls$_1$ ls$_2$}: the locals cover the free
+        variables \code{S}, and two lists agree on them.
+  \end{itemize}
+\end{definition}
+
+\begin{lemma}[Soundness of the pure oracle]
+  \label{lem:EraseProof-Pure-isErasable_sound}
+  \lean{EraseProof.Pure.isErasable_sound, EraseProof.Pure.whnf_sound,
+    EraseProof.Pure.inferType_sound, EraseProof.Pure.isArity_sound}
+  \planned
+  \uses{def:EraseProof-LocalsOK, def:EraseProof-IsErasable, def:EraseProof-ProgEnv,
+    def:Erasure-Pure-isErasable}
+  \lead{In short} Under \code{ProgEnv}, \code{EnvWF E}, \code{SubEnv cx.decls P}, \code{E[$\Gamma$]
+  $\vdash$ ok}, \code{LocalsOK} and a typed translation of \code{e}, \hl{each answer of the oracle
+  is true in Metalean}.
+  \begin{itemize}
+  \item \code{whnf\_sound}: the result translates to a term definitionally equal to \code{e}'s;
+  \item \code{inferType\_sound}: the result translates to a type of \code{e}'s translation;
+  \item \code{isArity\_sound}: \code{true} gives \code{IsArity};
+  \item \code{isErasable\_sound}: \code{true} gives \code{ErasableS}.
+  \end{itemize}
+  \lead{Reference} \code{hnf\_sound}, \code{type\_of\_typing}, \code{is\_arity},
+  \code{is\_erasableb}.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-TrM-inst, lem:EraseProof-ProgEnv-unfold}
+  \lead{Idea} Induction on fuel, one case per step of \code{whnf} and \code{inferType}, each a Metalean reduction or typing rule.
+\end{proof}
+
+\begin{lemma}[The oracle's frame and atoms]
+  \label{lem:EraseProof-Pure-isErasable_agree}
+  \lean{EraseProof.Pure.isErasable_agree, EraseProof.Pure.isErasable_atom}
+  \planned
+  \uses{def:EraseProof-LocalsOK, def:EraseProof-EvalEnv-isAtom, def:Erasure-Pure-isErasable}
+  \lead{In short} The oracle \hl{reads the locals only on the term's free variables}, and answers
+  \code{true} on atom spines.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-LocalsOK}
+  \lead{Idea} Induction on fuel; the oracle looks up only the free variables it meets.
+\end{proof}
+
+\section{The closure and the fragment test}\label{sec:core-collect}
+
+\begin{definition}[The Phase I fragment, as a sufficient condition]
+  \label{def:EraseProof-PhaseIDecl}
+  \lean{EraseProof.PhaseIDecl, EraseProof.ReadExpr, EraseProof.ReadClosed, EraseProof.PlainExpr,
+    EraseProof.LevelPlain, EraseProof.HasNatLit, EraseProof.IsRecursorIn, EraseProof.RecFree,
+    EraseProof.MayBeNonZero, EraseProof.Eliminated, EraseProof.EmitsConst,
+    EraseProof.BlockNamesInj}
+  \planned
+  \uses{def:EraseProof-ConstsIn, def:Erasure-Planned-casesInfo}
+  \lead{In short} The hypotheses of \code{collectDeps\_ok\_of}: \hl{what the traversal reads of a
+  closure is inside Phase I}.
+  \begin{itemize}
+  \item \code{ReadExpr}, \code{ReadClosed}: the expressions the traversal reads, and a closure
+        holding their constants;
+  \item \code{PhaseIDecl}: a declaration of Section~\ref{sec:scope-fragment}'s classes; a
+        sort-polymorphic inductive only when not \code{Eliminated};
+  \item \code{PlainExpr}, \code{RecFree}: no free variable, metavariable or string literal (no
+        literal under \code{nat := .machine}); no recursor;
+  \item \code{BlockNamesInj}: block names distinct from each other and from emitted constants.
+  \end{itemize}
+\end{definition}
+
+\begin{lemma}[What the closure satisfies]
+  \label{lem:EraseProof-collectDeps_spec}
+  \lean{EraseProof.collectDeps_spec, EraseProof.collectDeps_sub}
+  \planned
+  \uses{def:Erasure-Planned-collectDeps, def:EraseProof-ConstsIn, def:EraseProof-ProgEnv}
+  \lead{In short} If \code{Planned.collectDeps view cfg e = .ok decls}, then \code{decls} is
+  \hl{kername-injective, from the view, without duplicates, dependency-closed and closed}, and
+  holds the constants of \code{e}.
+  \begin{itemize}
+  \item \code{collectDeps\_sub}: given \code{ProgEnv}, \code{ViewAgrees view P} and \code{TrM} of
+        \code{e}, also \code{SubEnv decls P}.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-ConstsIn}
+  \lead{Idea} Induction on the work list of the closure.
+\end{proof}
+
+\begin{lemma}[A lower bound of the fragment test]
+  \label{lem:EraseProof-collectDeps_ok_of}
+  \lean{EraseProof.collectDeps_ok_of}
+  \planned
+  \uses{def:Erasure-Planned-collectDeps, def:EraseProof-PhaseIDecl, def:EraseProof-ProgEnv,
+    def:EraseProof-ConstsIn, def:EraseProof-ViewAgrees}
+  \lead{In short} A typed program whose read closure is inside Phase I \hl{is accepted}:
+  \code{hfrag} cannot silently empty the final theorem.
+  \begin{itemize}
+  \item \lead{Given} \code{henv}, \code{hview}, \code{he}, \code{hty} as in the final theorem;
+        \code{cfg.remove\_irrel\_constr\_args = false}; \code{SubEnv decls P};
+        \code{ReadClosed decls e}; \code{PhaseIDecl} of each declaration; \code{PlainExpr} and
+        \code{RecFree} of \code{e} and of every read expression; \code{KernameInj decls};
+        \code{BlockNamesInj decls};
+  \item \lead{Then} $\exists$ \code{decls'}, \code{Planned.collectDeps view cfg e = .ok decls'}.
+  \end{itemize}
+  \lead{Lean} its statement is pinned by C12b with the final theorem's.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-PhaseIDecl}
+  \lead{Idea} Every class the test rejects contradicts a hypothesis; the work list terminates within its fuel.
+\end{proof}
+
+\section{The traversal}\label{sec:core-traversal}
+
+\begin{lemma}[Routing, frame and recursion]
+  \label{lem:EraseProof-eraseEntry_pure}
+  \lean{EraseProof.eraseEntry_pure, EraseProof.visit_agree, EraseProof.isRecursiveDecl_false}
+  \planned
+  \uses{def:Erasure-Planned-collectDeps, def:Erasure-eraseEntry, def:Erasure-erasePure,
+    def:Erasure-isRecursiveDecl, def:EraseProof-LocalsOK, def:EraseProof-ProgEnv}
+  \lead{In short} On the fragment, \code{\#erase} \hl{runs the pure path}, whose traversal reads
+  only what it should.
+  \begin{itemize}
+  \item \code{eraseEntry\_pure}: \code{hfrag} and \code{eraseEntry view cfg e = pure r} give
+        \code{erasePure view cfg decls e = .ok r};
+  \item \code{visit\_agree}: \code{visitExpr} at \code{PureM} reads the locals only on the term's
+        free variables;
+  \item \code{isRecursiveDecl\_false}: no declaration of a Metalean program is recursive, so the
+        fixpoint branch of \code{visitMutual} is dead on the pure path.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{def:Erasure-eraseEntry}
+  \lead{Idea} Unfold \code{route}; the frame and recursion facts by induction on fuel and on \code{ProgEnv}.
+\end{proof}
+
+\section*{Caveats}
+\begin{itemize}
+\item \lead{Caveat} The oracle lemmas speak of top-level calls; the induction behind them
+  generalizes the binder list.
+\item \lead{Caveat} \code{Planned.collectDeps} and \code{Planned.casesInfo?} are stubs of shipping
+  entries S-29 and S-28 (Chapter~\ref{chap:pure}); these statements use their stub signatures.
+\end{itemize}

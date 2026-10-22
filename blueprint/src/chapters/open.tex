@@ -4,8 +4,8 @@
 \begin{itemize}
 \item \lead{Goal} List what is not done, and what the final theorem does not cover.
 \item \lead{Status} \stProved{} the no-confusion lemmas. \stOpen{} \hl{every planned node}, the
-  pure path of the shipping code on this commit, the registers, and the checks of the proof
-  package.
+  shipping entries S-28 and S-29, the entries of the divergence register, and the final-form
+  checks.
 \end{itemize}
 
 \section{Planned statements}\label{sec:open-planned}
@@ -23,26 +23,27 @@ generated from \code{proof/ROOTS.txt}.
 
 \input{generated/roots}
 
-\section{The shipping code on this commit}\label{sec:open-shipping}
+\section{Shipping entries}\label{sec:open-shipping}
 
 \begin{itemize}
-\item \lead{Pure path} \stOpen{} the shipping entries S-16 to S-24 (the total traversal, the pure
-  oracle, \code{collectDeps}, \code{erasePure}, \code{eraseEntry} and the router) and S-25 to S-27
-  (inductive types on the pure path, the widened fragment test, the \code{propositional} flag) are
-  not on this commit; the final theorem is about them.
-\item \lead{Phase II} \stOpen{} the shipping entries S-R (recursors, structural recursion behind a
-  configuration flag) and S-Q (quotients).
+\item \lead{Phase I} \stOpen{} S-28, the \code{casesOn} recognizer and the oracle's inductive
+  cases (Definition~\ref{def:Erasure-Planned-casesInfo}), and S-29, the fragment test of Phase I
+  with the \code{implementedBy?} view field and the block-name collision check
+  (Definition~\ref{def:Erasure-Planned-collectDeps}); each regenerates \code{proof/spec.pin}.
+\item \lead{Phase II} \stOpen{} the shipping entries for recursors, structural recursion behind a
+  configuration flag, and quotients.
 \end{itemize}
 
 \section{Registers and checks}\label{sec:open-registers}
 
 \begin{itemize}
-\item \lead{Registers} \stOpen{} this commit contains neither \code{doc/SHIPPING-CHANGES.md} nor
-  \code{doc/DIVERGENCES.md}; \code{blueprint/scripts/render\_registers.py} renders each as a
-  chapter when it exists.
-\item \lead{Checks} \stOpen{} the check script of the proof package (forbidden tokens, axiom
-  footprints, no leaves, hygiene against Metalean's unverified modules); the audit of this
-  blueprint covers existence, axioms, coverage and roots.
+\item \lead{Divergences} \stOpen{} the entries of \code{doc/DIVERGENCES.md}: each lands with its
+  artifact, DV-E and DV-T with \code{SrcEval}, the trust note of decision D1 with \code{TrM}, and
+  the lean4lean ids that shipping comments cite (decision D4).
+\item \lead{Checks} \stOpen{} C11 (\code{proof/scripts/c11.sh}) and C12 with the final form of
+  C12b (Section~\ref{sec:trust-checks}).
+\item \lead{Non-vacuity} \stOpen{} the instances of the final theorem's hypotheses on NV-1 as
+  tests of \code{proof/}; \code{hfrag} and \code{hrun} need S-28 and S-29.
 \end{itemize}
 
 \section{Outside the final theorem}\label{sec:open-outside}

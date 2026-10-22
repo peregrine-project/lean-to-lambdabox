@@ -4,9 +4,9 @@
 \begin{itemize}
 \item \lead{Goal} Define which terms are erased, and how Lean terms evaluate, on the Metalean side
   of the bridge.
-\item \lead{Main results} Erasability on Metalean terms and its inversion for constructors; the
-  big-step call-by-value semantics \code{SrcEval} and its soundness for Metalean's definitional
-  equality, \code{SrcEval.defeq}.
+\item \lead{Main results} Erasability on Metalean terms and its inversions; the big-step
+  call-by-value semantics \code{SrcEval}, with $\eta$-expanded spines and proof atoms, and its
+  soundness for Metalean's definitional equality, \code{SrcEval.defeq}.
 \item \lead{Status} \stPlanned{} every node.
 \item \lead{Nodes} \bpnodes{chap:source}
 \item \lead{Reference} MetaRocq \code{isErasable} (\code{erasure/theories/Extract.v}) and the
@@ -26,23 +26,46 @@
         sort;
   \item \code{IsErasable E $\Gamma$ t}: some \code{T} types \code{t}, and \code{T} is an arity or
         has type \code{Prop};
-  \item \code{ErasableS}: a Lean term whose \code{TrM} translation is erasable.
+  \item \code{ErasableS E B lps $\Gamma$ $\Delta$ e}: some translation of the Lean term \code{e} is
+        erasable.
   \end{itemize}
   \lead{Reference} MetaRocq \code{isErasable}; Letouzey's Definition 3.
 \end{definition}
+
+\begin{lemma}[Erasability under substitution and application]
+  \label{lem:EraseProof-IsErasable-inst}
+  \lean{EraseProof.IsErasable.inst, EraseProof.IsErasable.instL, EraseProof.IsErasable.app,
+    EraseProof.IsErasable.lam_inv}
+  \planned
+  \uses{def:EraseProof-IsErasable}
+  \lead{In short} Erasability is \hl{stable under substitution, level instantiation and
+  application}, and passes under a $\lambda$.
+  \begin{itemize}
+  \item \code{inst}: \code{E[$\Gamma$] $\vdash$ a : A} and \code{IsErasable E ($\Gamma$.snoc A) b}
+        give \code{IsErasable E $\Gamma$ (b.inst a)}; \code{instL}: the same for levels;
+  \item \code{app}: an erasable \code{f} with \code{.app f a} typed gives an erasable
+        application; \code{lam\_inv}: the body of an erasable $\lambda$ is erasable.
+  \end{itemize}
+  \lead{Reference} \code{erasure/theories/ESubstitution.v}, \code{EArities.v}.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-IsErasable}
+  \lead{Idea} Metalean substitution, level instantiation and inversion of typing.
+\end{proof}
 
 \begin{lemma}[A constructor application of data is not erasable]
   \label{lem:EraseProof-IsErasable-ctor_not}
   \lean{EraseProof.IsErasable.ctor_not}
   \planned
   \uses{def:EraseProof-IsErasable}
-  \lead{In short} A constructor application of an inductive type that is not a proposition
-  \hl{is not erasable}.
+  \lead{In short} Given \code{EnvWF E}, \code{E[$\Gamma$] $\vdash$ ok}, a block level
+  \code{(E.get $\eta$).block.level\{ls\} $\neq$ .zero} and a typed \code{.ctor $\eta$ s c ls ps fds
+  recFds}, that constructor node \hl{is not erasable}.
   \lead{Reference} the inversion MetaRocq's \code{erases\_correct} uses in its \code{iota} case.
 \end{lemma}
 \begin{proof}
   \uses{lem:EraseProof-TypeEq-sort_ne_forallE}
-  \lead{Idea} The application's type is an inductive type; by no-confusion it is neither a sort
+  \lead{Idea} The node's type is an inductive type; by no-confusion it is neither a sort
   nor a $\Pi$-type, so not an arity, and its sort is not \code{Prop}.
 \end{proof}
 
@@ -51,8 +74,8 @@
   \lean{EraseProof.IsErasable.quotMk_not}
   \planned
   \uses{def:EraseProof-IsErasable}
-  \lead{In short} \code{Quot.mk r a} at a quotient type that is not a proposition \hl{is not
-  erasable} (Phase II).
+  \lead{In short} A typed \code{.quotMk $\eta$ l $\alpha$ r a} with \code{l $\neq$ .zero}
+  \hl{is not erasable} (Phase II).
 \end{lemma}
 \begin{proof}
   \uses{lem:EraseProof-TypeEq-sort_ne_quot}
@@ -62,65 +85,167 @@
 
 \section{Source semantics}\label{sec:source-eval}
 
-The source semantics is big-step, weak call-by-value on Lean terms, as in the lean4lean
-verification, with rules for inductive types. It is not Metalean's weak-head reduction, which is
-call-by-name; each of its rules is justified by a Metalean definitional equality.
+The source semantics is big-step, weak call-by-value on Lean terms, with rules for inductive
+types. It is not Metalean's weak-head reduction, which is call-by-name; \code{SrcEval.defeq}
+justifies each rule by a Metalean definitional equality.
 
 \begin{definition}[Evaluation environments]
   \label{def:EraseProof-EvalEnv}
-  \lean{EraseProof.EvalEnv, EraseProof.evalEnvOf}
+  \lean{EraseProof.EvalEnv, EraseProof.evalEnvOf, EraseProof.EvalEnv.casesOn?,
+    EraseProof.EvalEnv.unfold?, EraseProof.casesMajor, EraseProof.casesArity,
+    EraseProof.specialArity}
   \planned
-  \lead{In short} What evaluation reads of the program: \hl{the $\delta$-equations of
-  definitions}, the atom test, and the shipping recognizer of canonical \code{casesOn};
-  \code{evalEnvOf view cfg P} builds it from the eraser's view of \code{P}.
+  \lead{In short} What evaluation reads of the program: its declarations, the configuration's
+  \code{@[extern]} remapping, and \hl{the shipping recognizer of canonical \code{casesOn}}.
+  \begin{itemize}
+  \item \code{evalEnvOf view cfg P}: the environment of \code{P} under the eraser's view;
+  \item \code{unfold?}: $\delta$ of definitions only; not theorems, opaques or recognized
+        \code{casesOn} (DV-T);
+  \item \code{casesOn?}: \code{Planned.casesInfo?} on the declarations;
+        \code{casesMajor}, \code{casesArity}: positions in a \code{casesOn} spine.
+  \end{itemize}
+\end{definition}
+
+\begin{definition}[Atoms]
+  \label{def:EraseProof-EvalEnv-isAtom}
+  \lean{EraseProof.EvalEnv.isAtom, EraseProof.arityShape, EraseProof.EvidentZero,
+    EraseProof.DeltaFree, EraseProof.EvidentProp, EraseProof.OwnRules, EraseProof.IsThm,
+    EraseProof.SrcAtom, EraseProof.AtomSpine}
+  \planned
+  \uses{def:EraseProof-EvalEnv}
+  \lead{In short} Constants that evaluate to themselves: \hl{without $\delta$, arity- or
+  proof-typed, or a theorem}.
+  \begin{itemize}
+  \item \code{isAtom c}: no \code{unfold?}, not a recognized \code{casesOn}, no rules of its own
+        (\code{OwnRules}), and its type an arity (\code{arityShape}), evidently a proposition
+        (\code{EvidentProp}, \code{EvidentZero}), or a theorem (\code{IsThm});
+  \item \code{SrcAtom}: $\lambda$, sorts, $\Pi$; \code{AtomSpine}: an atom constant applied.
+  \end{itemize}
+  \lead{Reference} \code{atom} of \code{PCUICWcbvEval.v}; inductive type formers are atoms.
+\end{definition}
+
+\begin{definition}[\texorpdfstring{$\eta$}{Eta}-expansion of spines]
+  \label{def:EraseProof-EvalEnv-etaSpine}
+  \lean{EraseProof.EvalEnv.etaSpine?, EraseProof.piInst, EraseProof.lamsOf,
+    EraseProof.ShortSpine}
+  \planned
+  \uses{def:EraseProof-EvalEnv}
+  \lead{In short} \code{etaSpine? c us as}: a constructor or recognized \code{casesOn} spine with
+  fewer arguments than its arity, \hl{as \code{fun xs => c as xs}} over the remaining
+  $\Pi$-binders of its type, \code{as} unevaluated (DV-E).
+  \begin{itemize}
+  \item \code{piInst}: a type instantiated at arguments; \code{lamsOf}: the $\lambda$s;
+  \item \code{ShortSpine}: such a spine, which \code{beta} and \code{appCong} skip.
+  \end{itemize}
+  \lead{Reference} the eraser's \code{withAppEtaToMinArity}; MetaRocq's \code{EEtaExpanded.v}.
 \end{definition}
 
 \begin{definition}[Source evaluation]
   \label{def:EraseProof-SrcEval}
-  \lean{EraseProof.SrcEval, EraseProof.SrcValue}
+  \lean{EraseProof.SrcEval, EraseProof.SrcValue, EraseProof.CtorValue, EraseProof.BlocksCong,
+    EraseProof.PropProj, EraseProof.EvalEnv.propInd, EraseProof.EvalEnv.spineType?,
+    EraseProof.casesSortLevel}
   \planned
-  \uses{def:EraseProof-EvalEnv}
+  \uses{def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-isAtom, def:EraseProof-EvalEnv-etaSpine}
   \lead{In short} \code{SrcEval $\sigma$ e v}: the closed Lean term \code{e} \hl{evaluates to the
-  value \code{v}}.
+  value \code{v}}; constructor and \code{casesOn} spines evaluate as a whole.
   \begin{tabular}{p{0.2\linewidth}p{0.66\linewidth}}
   \toprule
   Rule & Step \\
   \midrule
-  \code{beta}, \code{zeta}, \code{appCong}, \code{mdata} & as in the lean4lean verification \\
-  \code{delta} & a definition unfolds; theorems, opaques and recognized \code{casesOn} do not \\
-  \code{constAtom}, \code{atom} & arity- or proof-typed constants without $\delta$, inductive type
-    formers, $\lambda$, sorts and $\Pi$ are values \\
-  \code{ctor} & a constructor applied to at most its arity evaluates its arguments \\
-  \code{casesOn} & the major evaluates to the $i$-th constructor; the $i$-th alternative is applied
-    to the fields \\
-  \code{casesOnLit} & the major evaluates to a \code{Nat} literal; zero or successor branch \\
-  \code{proj} & the structure evaluates to a constructor; the field is selected \\
-  \code{lit} & a \code{Nat} literal is a value \\
+  \code{beta}, \code{zeta}, \code{delta} & PCUIC's, on spines that are not short \\
+  \code{constAtom}, \code{atom}, \code{lit} & atoms, $\lambda$, sorts, $\Pi$, \code{Nat} literals
+    are values \\
+  \code{eta} & an under-applied spine evaluates to its $\eta$-expansion (DV-E) \\
+  \code{ctor} & a saturated constructor evaluates its arguments (\code{eval\_construct}) \\
+  \code{casesIota} & the major evaluates to a \code{CtorValue}; the chosen alternative applied to
+    the fields (\code{eval\_iota}) \\
+  \code{casesLitZero}, \code{casesLitSucc} & the same on a \code{Nat} literal major \\
+  \code{casesProof} & sort evidently zero, one field-less constructor, the major an atom whose
+    statement is that constructor's type: the alternative (DV-T) \\
+  \code{proj}, \code{projProp} & a field of a constructor value; a \code{Prop} projection of a
+    neutral proof is neutral (\code{PropProj}, DV-T) \\
+  \code{appCong}, \code{mdata} & a stuck head (not \code{BlocksCong}) applied; metadata dropped \\
   \bottomrule
   \end{tabular}
-  \lead{Reference} MetaRocq \code{eval} of PCUIC: \code{eval\_construct}, \code{eval\_iota},
-  \code{eval\_proj}.
+  \lead{Reference} PCUIC \code{eval}; $\lambda_\Box$'s \code{eval\_iota\_sing} and
+  \code{eval\_proj\_prop} for the proof rules.
 \end{definition}
+
+\begin{lemma}[Values and erasability under evaluation]
+  \label{lem:EraseProof-SrcEval-value}
+  \lean{EraseProof.SrcEval.value, EraseProof.ErasableS.eval, EraseProof.ErasableS.atom}
+  \planned
+  \uses{def:EraseProof-SrcEval, def:EraseProof-IsErasable, def:EraseProof-ProgEnv}
+  \lead{In short} Evaluation ends in a \code{SrcValue}; \hl{erasability is preserved by
+  evaluation}; atom spines are erasable.
+  \begin{itemize}
+  \item \code{value}: \code{SrcEval $\sigma$ e v $\to$ SrcValue $\sigma$ v};
+  \item \code{eval}, \code{atom}: under \code{ProgEnv}, \code{EnvWF E}, \code{SubEnv $\sigma$.decls
+        P} and a typed translation of \code{e}.
+  \end{itemize}
+  \lead{Reference} \code{eval\_to\_value}; \code{Is\_type\_eval}.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-SrcEval-defeq}
+  \lead{Idea} Induction on evaluation; erasability through \code{SrcEval.defeq} and unique typing.
+\end{proof}
 
 \begin{lemma}[Evaluation preserves the Metalean meaning]
   \label{lem:EraseProof-SrcEval-defeq}
   \lean{EraseProof.SrcEval.defeq}
   \planned
-  \uses{def:EraseProof-SrcEval, def:EraseProof-TrM, def:EraseProof-ProgEnv}
+  \uses{def:EraseProof-SrcEval, def:EraseProof-TrM, def:EraseProof-ProgEnv,
+    def:EraseProof-ConstsIn}
   \lead{In short} If \code{e} translates to a typed \code{t} and evaluates to \code{v}, then
   \code{v} translates to some \code{t'} \hl{definitionally equal to \code{t}} at the same type.
   \begin{itemize}
-  \item \lead{Given} \code{ProgEnv P E B}, \code{EnvWF E}, \code{TrM E B lps .nil [] e t},
-        \code{E[.nil] $\vdash$ t : T}, \code{SrcEval $\sigma$ e v};
-  \item \lead{Then} \code{TrM E B lps .nil [] v t'} and \code{E[.nil] $\vdash$ t $\equiv$ t' : T}.
+  \item \lead{Given} \code{ProgEnv P $\zeta$ E B}, \code{EnvWF E}, \code{SubEnv $\sigma$.decls P},
+        \code{TrM E B lps .nil [] e t}, \code{E[.nil] $\vdash$ t : T}, \code{SrcEval $\sigma$ e v};
+  \item \lead{Then} $\exists$ \code{t'}, \code{TrM E B lps .nil [] v t'} and \code{E[.nil]
+        $\vdash$ t $\equiv$ t' : T}.
   \end{itemize}
   \lead{Reference} subject reduction, MetaRocq \code{subject\_reduction\_eval}.
 \end{lemma}
 \begin{proof}
-  \uses{lem:EraseProof-casesOn_whred}
+  \uses{lem:EraseProof-casesOn_whred, lem:EraseProof-proj_defeq, lem:EraseProof-ProgEnv-unfold,
+    lem:EraseProof-TrM-inst}
   \lead{Idea} Induction on evaluation; each rule is a Metalean reduction ($\beta$, $\zeta$,
-  $\delta$, the \code{casesOn} chain, projection of a constructor) or a congruence, and
-  \leandecl{Metalean.WHRed.defeq} turns reductions into definitional equalities.
+  $\delta$, the \code{casesOn} chain, projection of a constructor), proof irrelevance, or a
+  congruence, and \leandecl{Metalean.WHRed.defeq} turns reductions into definitional equalities.
+\end{proof}
+
+\section{Restriction to the closure}\label{sec:source-restrict}
+
+\begin{definition}[Closures and sub-environments]
+  \label{def:EraseProof-ConstsIn}
+  \lean{EraseProof.ConstsIn, EraseProof.DepClosed, EraseProof.KernameInj, EraseProof.SubEnv,
+    EraseProof.FVarsIn, EraseProof.ClosedDecls}
+  \planned
+  \lead{In short} Predicates on declaration lists: \hl{closed under dependencies, a sublist of
+  the program}, injective kernames.
+  \begin{itemize}
+  \item \code{ConstsIn p e}, \code{FVarsIn p e}: every constant, free variable of \code{e}
+        satisfies \code{p};
+  \item \code{DepClosed}, \code{ClosedDecls}: dependencies inside, no free variable;
+  \item \code{SubEnv decls P}: every declaration of \code{decls} is that of \code{P};
+        \code{KernameInj}: \code{toKername} injective on \code{decls}.
+  \end{itemize}
+\end{definition}
+
+\begin{lemma}[Evaluation in the closure]
+  \label{lem:EraseProof-SrcEval-restrict}
+  \lean{EraseProof.SrcEval.restrict}
+  \planned
+  \uses{def:EraseProof-SrcEval, def:EraseProof-ConstsIn}
+  \lead{In short} Given \code{SubEnv decls P}, \code{DepClosed decls} and the constants of
+  \code{e} in \code{decls}, an evaluation under \code{evalEnvOf view cfg P} is \hl{one under
+  \code{evalEnvOf view cfg decls}}, with the value's constants in \code{decls}.
+  \lead{Reference} \code{eval\_weakening}.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-ConstsIn}
+  \lead{Idea} Induction on evaluation; every unfolded constant is in the closure.
 \end{proof}
 
 \section*{Caveats}
@@ -128,4 +253,6 @@ call-by-name; each of its rules is justified by a Metalean definitional equality
 \item \lead{Caveat} Recursors and quotients have no evaluation rule in Phase I: the fragment test
   keeps them off the evaluated path.
 \item \lead{Caveat} A computational axiom or an opaque is stuck: no value, no claim.
+\item \lead{Caveat} A \code{casesOn} on a lemma of an inductive with proof fields has no rule:
+  such programs are vacuous (DV-T).
 \end{itemize}

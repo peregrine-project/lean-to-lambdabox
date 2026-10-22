@@ -7,12 +7,14 @@
   Chapter~\ref{chap:scope}.
 \item \lead{Status} \stProved{} the no-confusion lemmas of Metalean's type formers
   (Section~\ref{sec:model-noconf}). \stPlanned{} \hl{the final theorem \code{erase\_correct}}, its
-  two milestones and the definitions they state. \stShipping{} the eraser on this commit: the
-  \code{Meta} path of \code{\#erase}.
+  two milestones, the lemmas they compose and the definitions they state, each under the name of
+  its approved stub. \stShipping{} the eraser: the pure path on the $\lambda\Pi$ fragment and the
+  \code{Meta} path on the rest.
 \item \lead{Lean files} \leanfile{LeanToLambdaBox/} (the shipping code) and \leanfile{proof/} (the
   Lake package \code{EraseProof}, the verification library).
-\item \lead{Registers} \code{doc/SHIPPING-CHANGES.md} and \code{doc/DIVERGENCES.md}; this commit
-  contains neither (Section~\ref{sec:open-registers}).
+\item \lead{Registers} \code{doc/SHIPPING-CHANGES.md}
+  (Chapter~\ref{chap:shipping-changes}) and \code{doc/DIVERGENCES.md}
+  (Chapter~\ref{chap:divergences}).
 \end{itemize}
 
 \section{What is verified}\label{sec:intro-what}
@@ -105,6 +107,51 @@ Reused & -- & the total, fuelled, backend-generic traversal and its pure path (s
 \bottomrule
 \end{tabular}
 
+\section{Findings}\label{sec:intro-findings}
+
+\subsection{Shipping defects found by the verification}
+
+\begin{tabular}{p{0.3\linewidth}p{0.62\linewidth}}
+\toprule
+Defect & Fix \\
+\midrule
+\code{Prop} inductives declared non-propositional; index fields lost & the defect leaves
+  $\lambda_\Box$ \code{case} on $\Box$ stuck for \code{And} and \code{Eq} eliminations, and an
+  \code{Acc}-like index field out of its alternative. Commit \code{ceec073} of \code{fixes-port} (PR \#7);
+  entry S-25 on the pure path \\
+\code{casesOn} on \code{PUnit.\{0\}} & the defect leaves a stuck \code{case} on a
+  sort-polymorphic inductive used at level 0. Commit \code{9aad6b0} of \code{fixes-port} (PR \#7); entry S-27 on the pure path \\
+Block names & the defect names inductive blocks through Lean's escaping printer, a
+  \code{partial} function the kernel cannot evaluate, which prints two names differing by escapes
+  alike. Entry
+  S-26 (\code{mutualBlockKername}); the residual collisions are R-3 \\
+\bottomrule
+\end{tabular}
+
+\subsection{Review rounds of the statement}
+
+Three adversarial reviews tried to refute the stubbed statements: derive \code{False} from them,
+or find a typed input where one fails. Every counterexample is kept as a probe that must fail to
+build against the approved statements.
+
+\begin{tabular}{p{0.1\linewidth}p{0.82\linewidth}}
+\toprule
+Round & Findings and their consequence in the statement \\
+\midrule
+1 & under-applied constructors made the final theorem false; M1 failed on \code{Prop}
+  constructors and eliminations; lemma arguments made it vacuous. Hence the $\eta$-expansion
+  semantics (DV-E), MetaRocq's side conditions in \code{Erases}, and theorem atoms (DV-T) \\
+2 & a wrong proof-projection translation made the final theorem false; the stuck
+  \code{PUnit.\{0\}} case; an unsatisfiable block-name premise; missing typing premises. Hence
+  \code{projProofTerm}, the reduced-case rule, \code{BlockNamesInj}, the proof-atom rules
+  \code{casesProof} and \code{projProp}, and the dependency pins of C12b \\
+3 & a missing sort guard on \code{Erases.proj} (M1 false on a raw kernel structure
+  \code{W : Sort u}); a reduced-case rule unstable under universe instantiation; a contradiction
+  between the lower bound and direct recursor uses. Hence the guard of \code{proj}, a level-free
+  \code{casesReduced}, and \code{RecFree} \\
+\bottomrule
+\end{tabular}
+
 \section{Pins}\label{sec:intro-pins}
 
 The table is read from \code{lean-toolchain} and \code{lake-manifest.json} of the documented
@@ -144,11 +191,14 @@ Chapter & Content \\
 \midrule
 \ref{chap:scope} & The scope: Phase I, Phase II and what is out, with the evidence \\
 \ref{chap:trust} & The trust boundary: what is proved, what is trusted, Metalean's trust base,
-  what the proof uses from Metalean, the shipping code \\
+  the checks, what the proof uses from Metalean, the shipping code \\
+\ref{chap:pure} & The pure path of the eraser: closure, oracle, backend, entry point \\
 \ref{chap:model} & The bridge between Lean and Metalean, and the no-confusion lemmas \\
 \ref{chap:source} & Erasability and the source semantics \\
 \ref{chap:relation} & $\lambda_\Box$ evaluation and the erasure relation \\
+\ref{chap:core} & Soundness of the pure path: oracle, closure, traversal \\
 \ref{chap:final} & The final theorem and its two milestones \\
+\ref{chap:shipping-changes}, \ref{chap:divergences} & The two registers, rendered \\
 \ref{chap:open} & What is open \\
 \bottomrule
 \end{tabular}

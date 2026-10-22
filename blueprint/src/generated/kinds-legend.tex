@@ -5,10 +5,10 @@ Kind (badge) & Graph node & Derived from & Nodes \\
 \midrule
 \bpkind{final} & gold double octagon & cites the declaration on the line \code{FINAL} of \code{proof/ROOTS.txt} & 1 \\
 \bpkind{milestone} & blue hexagon & any other \code{theorem} environment; the audit checks that the final theorem depends on it & 2 \\
-\bpkind{step} & blue double ellipse & a result that the proof of the final theorem or of a milestone uses directly: its \code{\textbackslash uses}, which the audit checks against the Lean proof & 2 \\
-\bpkind{lemma} & pale blue ellipse & any other result about declarations of \code{EraseProof} & 4 \\
-\bpkind{definition} & pale blue box & any other definition of \code{EraseProof} & 10 \\
-\bpkind{shipping} & orange tabbed box & declarations outside \code{EraseProof} and Metalean: the modules \code{LeanToLambdaBox*}, which the final theorem is about & 7 \\
+\bpkind{step} & blue double ellipse & a result that the proof of the final theorem or of a milestone uses directly: its \code{\textbackslash uses}, which the audit checks against the Lean proof & 13 \\
+\bpkind{lemma} & pale blue ellipse & any other result about declarations of \code{EraseProof} & 12 \\
+\bpkind{definition} & pale blue box & any other definition of \code{EraseProof} & 18 \\
+\bpkind{shipping} & orange tabbed box & declarations outside \code{EraseProof} and Metalean: the modules \code{LeanToLambdaBox*}, which the final theorem is about & 25 \\
 \bpkind{test} & violet note & declarations of \code{EraseProof.Test}: non-vacuity instances and other tests & 0 \\
 \bpkind{metalean} & green folder & an \code{imported} node, written by the audit: the declarations of a Metalean module that the proof library or the shipping code uses directly (Section~\ref{sec:trust-imported}) & 34 \\
 \bottomrule
@@ -18,8 +18,8 @@ Kind (badge) & Graph node & Derived from & Nodes \\
 \toprule
 Status & Graph border & Meaning & Nodes \\
 \midrule
-Within standard axioms & thin, dark & its declarations exist and depend on the standard axioms \code{propext}, \code{Classical.choice} and \code{Quot.sound} only & 43 \\
-Planned & dashed, white fill & not formalized: its declarations do not exist; badge \stPlanned{} & 17 \\
+Within standard axioms & thin, dark & its declarations exist and depend on the standard axioms \code{propext}, \code{Classical.choice} and \code{Quot.sound} only & 59 \\
+Planned & dashed, white fill & not formalized: its declarations do not exist; badge \stPlanned{} & 46 \\
 \bottomrule
 \end{tabular}
 

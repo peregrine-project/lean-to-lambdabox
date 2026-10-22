@@ -1,4 +1,4 @@
-\chapter{Scope}\label{chap:scope}
+\chapter{Scope and the fragment}\label{chap:scope}
 
 \section*{At a glance}
 \begin{itemize}
@@ -6,9 +6,12 @@
   typed program that Metalean can express and that the eraser handles without a known defect.
 \item \lead{Main results} The fragment in two phases: Phase I adds to the $\lambda\Pi$ fragment
   everything about inductive types that the eraser handles; Phase II adds recursors and quotients.
-\item \lead{Status} \stPlanned{} the fragment test that decides the scope and the hypotheses that
-  state it (Chapter~\ref{chap:final}). The measurements below come from a prototype of the
-  fragment test.
+  The decisions D1 to D4, DV-E and DV-T fix its edges (Section~\ref{sec:scope-decisions}).
+\item \lead{Status} \stShipping{} the fragment test of the $\lambda\Pi$ fragment
+  (Definition~\ref{def:Erasure-collectDeps}); \stPlanned{} the fragment test of Phase I
+  (Definition~\ref{def:Erasure-Planned-collectDeps}), the hypothesis \code{hfrag} that states it
+  and its lower bound \code{collectDeps\_ok\_of} (Chapter~\ref{chap:core}). The measurements below
+  come from a prototype of the Phase I test.
 \item \lead{Reference} MetaRocq \code{erase\_correct}'s hypotheses \code{wf\_ext},
   \code{Sigma} $\sim$\code{\_ext X}, \code{welltyped}.
 \end{itemize}
@@ -22,7 +25,8 @@
   theorem state this.
 \item \lead{Handled by the eraser} the dependency closure passes the router's fragment test
   \code{collectDeps view cfg e}, a decidable, syntactic test that the shipping router itself runs.
-  The hypothesis \code{hfrag} of the final theorem states this.
+  The hypothesis \code{hfrag} of the final theorem states this; the lemma
+  \code{collectDeps\_ok\_of} bounds it from below, so that it cannot make the theorem empty.
 \item \lead{Everything else} \hl{\code{\#erase} routes it to the unchanged \code{Meta} path}, which
   the theorem does not cover (Section~\ref{sec:trust-trusted}).
 \item \lead{Phases} the statement of the final theorem is the same in both phases; only the rules
@@ -50,9 +54,11 @@ canonical \code{T.casesOn} & I & a $\lambda_\Box$ \code{case}; the source step i
 matchers with exhaustive constructor patterns & I & ordinary definitions ($\delta$) that call a
   canonical \code{casesOn} \\
 projections of data structures & I & a $\lambda_\Box$ \code{proj}; Metalean's projection term \\
-\code{casesOn} of a large-eliminating \code{Prop} inductive (\code{Eq}, \code{HEq}, \code{Acc}) &
-  I & $\lambda_\Box$ \code{case} on $\Box$, which needs the inductive's \code{propositional} flag
-  (shipping entry S-27) \\
+\code{casesOn} of a large-eliminating \code{Prop} inductive (\code{Eq}, \code{HEq}) & I & the
+  eraser reduces it at erasure time: the alternative applied to one $\Box$ per field (shipping
+  entry S-27) \\
+\code{casesOn} whose constructor has an index field (\code{Acc}, \code{Acc.below}) & -- & the
+  relation does not model the substitution of index fields (decision D2) \\
 \code{Nat} literals under \code{nat := .peano} & I & constructor chains, as Metalean's fast
   checker denotes them \\
 recursors \code{T.rec} & II & erased to a $\lambda_\Box$ fixpoint (shipping entry S-R) \\
@@ -64,10 +70,14 @@ well-founded recursion & II, vacuous & \code{Acc.rec} on theorems, which are opa
   is stuck \\
 sparse \code{casesOn}, \code{T.c.elim}, matchers with literal patterns & II & their values reach
   a recursor (\code{T.rec}, \code{Eq.rec}) \\
-\code{casesOn}, projections on a \code{Sort}-polymorphic inductive whose level may be 0 & -- & one
-  \code{propositional} flag per inductive cannot serve both instances \\
-\code{nat := .machine}, \code{@[extern]} constructors under \code{preferAxiom} & -- & primitive
-  integers and axioms outside Metalean \\
+\code{casesOn}, projections on a \code{Sort}-polymorphic inductive whose level may be 0
+  (\code{PUnit}, \code{PEmpty}) & -- & one \code{propositional} flag per inductive cannot serve
+  both instances; mentioning \code{Unit} without eliminating it stays in \\
+\code{nat := .machine} (the default), \code{@[extern]} constructors under \code{preferAxiom} &
+  -- & primitive integers and axioms outside Metalean; literal programs are in under
+  \code{nat := .peano} \\
+raw kernel inductives the \code{inductive} command rejects (\code{Sort u} with data fields) & --
+  & their sort is zero under every assignment without being written \code{0} \\
 \code{remove\_irrel\_constr\_args} & -- & an optimization with its own correctness argument \\
 string literals, nested inductives, \code{unsafe}, \code{partial}, \code{@[implemented\_by]} & -- &
   Metalean declines them \\
@@ -80,23 +90,62 @@ free variables, metavariables & -- & closed inputs only \\
 
 \section{The fragment test}\label{sec:scope-fragment}
 
-\code{collectDeps view cfg e} rejects a program when its closure, as the pure traversal reads it,
-contains one of the classes below. The closure holds the term, the values of the definitions it
-unfolds, and the types and constructors of the blocks it registers; it skips the values of
-recognized \code{casesOn} constants.
+The planned \code{collectDeps view cfg e} (Definition~\ref{def:Erasure-Planned-collectDeps})
+rejects a program when its closure, as the pure traversal reads it, contains one of the classes
+below. The closure holds the term, the values of the definitions it unfolds, and the types and
+constructors of the blocks it registers; it skips the values of recognized \code{casesOn}
+constants.
 
 \begin{itemize}
-\item \lead{Phase I only} a recursor; a quotient constant; a constant with an \code{\_unsafe\_rec}
-  companion (structural or well-founded recursion).
+\item \lead{Phase I only} a recursor other than the \code{T.rec} of a recognized \code{T.casesOn}
+  (decision D3); a quotient constant; a constant with an \code{\_unsafe\_rec} companion
+  (structural or well-founded recursion).
 \item \lead{Both phases} a string literal; an \code{unsafe}, \code{partial} or
   \code{@[implemented\_by]} constant; a nested or unsafe inductive; an \code{@[extern]}
   constructor under \code{preferAxiom}; under \code{nat := .machine} a \code{Nat} literal,
   \code{Nat.zero}, \code{Nat.succ}, \code{Int.ofNat}, \code{Int.negSucc} or a \code{casesOn} on
   \code{Nat} or \code{Int}; under \code{remove\_irrel\_constr\_args} any constructor,
   \code{casesOn} or projection; a \code{casesOn} or projection on a \code{Sort}-polymorphic
-  inductive whose level may be 0; a free variable, metavariable or level metavariable.
+  inductive whose level may be 0; a recognized \code{casesOn} whose constructor has an index field
+  (decision D2); an inductive whose sort is 0 under every assignment but not written 0; a free
+  variable, metavariable or level metavariable.
 \item \lead{Name collisions} of kernel names and of $\lambda_\Box$ inductive blocks are an error
   of the pure path, not a reason to route.
+\end{itemize}
+
+\section{Decisions}\label{sec:scope-decisions}
+
+The owner approved these decisions with the statement; each fixes an edge of the fragment or of
+the trust base. DV-E and DV-T are entries of \code{doc/DIVERGENCES.md} that land with
+\code{SrcEval} (\stOpen{}).
+
+\begin{tabular}{p{0.08\linewidth}p{0.84\linewidth}}
+\toprule
+Id & Decision \\
+\midrule
+D1 & C6 trusts Metalean's five total $\eta$-term builders and what they reach, instead of copying
+  them (Section~\ref{sec:trust-checks}) \\
+D2 & the fragment excludes a \code{casesOn} whose constructor has an index field (\code{Acc},
+  \code{Acc.below}); \code{Eq}, \code{HEq}, \code{And} and \code{True} stay in \\
+D3 & the closure keeps the declarations \code{T.casesOn} and \code{T.rec}, not their values, so
+  that the recognizer works; a recursor anywhere else is an exclusion \\
+D4 & the divergence register keeps the ids of the lean4lean verification; an id that does not
+  apply has a ``not applicable'' entry, so that no citation dangles \\
+DV-E & under-applied constructor and \code{casesOn} spines evaluate to their
+  \hl{$\eta$-expansion}, arguments unevaluated under the new binders, as the eraser's
+  \code{withAppEtaToMinArity} emits them; PCUIC's \code{eval} evaluates arguments eagerly \\
+DV-T & theorems have no $\delta$, since Metalean loads them as opaque: a proof may evaluate to an
+  atom; \code{casesProof} and \code{projProp} cover \code{match h with | rfl} and \code{h.1}; a
+  \code{casesOn} on a lemma of an inductive with proof fields is vacuous \\
+\bottomrule
+\end{tabular}
+
+\begin{itemize}
+\item \lead{The premise \code{hfrag}} explicit, unlike the lean4lean verification's in-scope
+  condition: out-of-fragment inputs go to the \code{Meta} path, about which nothing is proved.
+\item \lead{Its lower bound} \code{collectDeps\_ok\_of} (Lemma~\ref{lem:EraseProof-collectDeps_ok_of}):
+  every typed program whose read closure is inside Phase I, with no recursor read and no name
+  collision, is accepted.
 \end{itemize}
 
 \section{Evidence}\label{sec:scope-evidence}
