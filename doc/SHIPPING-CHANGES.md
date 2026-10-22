@@ -88,11 +88,8 @@ Regenerate it from the current checkout with
 
     scripts/corpus.sh OUTDIR
 
-On this branch, `benchmarks/via_malfunction` keeps the toolchain `v4.35.0` and a manifest without
-Metalean (T-0), so the benchmark part of `scripts/corpus.sh` needs a copy of the checkout in which
-`benchmarks/lean-toolchain` and `benchmarks/via_malfunction/lean-toolchain` name the root's
-toolchain and `benchmarks/via_malfunction/lake-manifest.json` also lists the root's packages (as
-inherited), with `.lake/packages` shared with the root.
+On this branch the benchmark workspaces use the root's toolchain and the root's packages directory
+(T-1), so `scripts/corpus.sh` runs in the checkout itself once the root is built.
 
 which writes `OUTDIR/benchmarks/{prune,noprune}/` and `OUTDIR/examples/<Stem>/`, plus logs and run
 information under `OUTDIR/_meta/` (not part of the corpus; `_meta/panics` counts `PANIC` messages
@@ -2022,6 +2019,36 @@ the calls at which the two oracles answer differently. It must equal
   test is added. `tests/regress/traversal_locals.lean`, which checks `binderNameOf` on `x`, `α₁`,
   `a.b` and `«a b»`, passes unchanged, as do the other tests and `scripts/pure-harness.sh`. On this
   branch, the 10 regression tests, the harness and the 712 corpus files are unchanged as well.
+
+## T-1: The benchmark workspaces use the root's toolchain and packages
+
+- **Commit:** the commit whose subject starts with `T-1:` (`git log --grep='^T-1:'`).
+- **Files and functions:**
+  - `benchmarks/lean-toolchain`, `benchmarks/via_malfunction/lean-toolchain`:
+    `leanprover/lean4:v4.35.0` becomes `leanprover/lean4:v4.35.0-rc2`, the root's toolchain.
+  - `benchmarks/via_malfunction/lakefile.toml`: `packagesDir = "../../.lake/packages"`, the root's
+    packages directory.
+  - `benchmarks/via_malfunction/lake-manifest.json`: format 1.2.0, that `packagesDir`, and, after its
+    two path dependencies, the root's ten packages (Metalean and, inherited from it, Mathlib and its
+    dependencies) at the revisions of the root's `lake-manifest.json`, each marked inherited. It is
+    written by hand in Lake's format, not by `lake update`, which would re-resolve Metalean.
+  - `doc/SHIPPING-CHANGES.md`: this entry and the corpus section.
+- **Why necessary:** since T-0 the root requires Metalean and uses `v4.35.0-rc2`. The benchmark
+  pipeline (`benchmarks/via_malfunction/Makefile`, `lake lean`) requires the root by path, so Lake
+  ran it with `v4.35.0`, and with a manifest that does not list the root's packages. The benchmark
+  part of `scripts/corpus.sh` then needed a modified copy of the checkout. With the root's toolchain,
+  its packages listed and its packages directory shared, Lake resolves the workspace without
+  cloning anything and reuses the root's build of Mathlib and Metalean (the Mathlib cache is fetched
+  for the root only).
+- **Behaviour before:** in the checkout, `scripts/corpus.sh OUTDIR` fails in the benchmark part.
+- **Behaviour after:** `scripts/corpus.sh OUTDIR` writes the 712 files of the corpus in the
+  checkout, in 1 min 35 s with the root built; `lake env true` in `benchmarks/via_malfunction`
+  succeeds and changes no file. The eraser is unchanged.
+- **Effect on emitted .ast (corpus):** none of its own. The corpus of the checkout at this commit
+  differs from the S-24 corpus (made from the modified copy) only by the merge of `fixes-port` that
+  precedes it (S-25): 710 of 712 files are byte-identical.
+- **Regression test:** none fails before it (the regression tests do not use the benchmark
+  workspaces); `scripts/corpus.sh` itself is the check. The regression tests pass unchanged.
 
 ---
 
