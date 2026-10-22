@@ -4,6 +4,7 @@ on:
   push:
     branches:
     - 'main'
+    - 'ml/translate'
     paths-ignore:
     - '**.md'
     - 'LICENSE'
@@ -26,11 +27,15 @@ jobs:
       - name: Checkout branch ${{ github.ref_name }}
         uses: actions/checkout@v7
 
+      # Fetches the Mathlib cache and builds the eraser and the Metalean modules it imports in the
+      # step whose `.lake` lean-action caches, so later runs replay Metalean instead of rebuilding it.
       - name: Set up Lean and build
         uses: leanprover/lean-action@v1
         with:
           use-github-cache: true
+          use-mathlib-cache: true
           build: true
+          build-args: "LeanToLambdaBox LeanToLambdaBox.Metalean"
           test: false
           lint: false
 
