@@ -7,8 +7,8 @@
 > (`scripts/regress.sh`, `tests/regress/`) is on `fix-v2` and on `main` once #7 is merged.
 
 The entries S-1 to S-15 below were written for the original series of one commit per change. PR #7
-regroups them into six commits, followed by a seventh, the toolchain bump of S-16, and an eighth,
-the fix of S-17, both written directly as commits of #7. The original commits, whose subjects
+regroups them into six commits, followed by a seventh, the toolchain bump of S-16, an eighth, the
+fix of S-17, and a ninth, the fix of S-18, all written directly as commits of #7. The original commits, whose subjects
 start with `shipping(S-<n>):`, are archived under the branch `archive/shipping`, where
 `git log --grep='^shipping(S-<n>):' origin/archive/shipping` still finds them; it finds
 nothing on `fix-v2`. Mapping to the commits of `git log --oneline main..fix-v2`:
@@ -23,6 +23,7 @@ nothing on `fix-v2`. Mapping to the commits of `git log --oneline main..fix-v2`:
 | none (documentation) | Update the README |
 | S-16 | Bump Lean to v4.35.0 |
 | S-17 | Declare Prop inductives propositional |
+| S-18 | Reduce cases on inductives whose sort may be Prop |
 | S-1 (register, corpus, harness), S-15 | scaffolding: this branch (`regress.sh` itself is in the first commit) |
 
 ## Scaffolding
@@ -1298,7 +1299,7 @@ without peregrine.
 
 ## S-17: Prop inductives are declared propositional, and index fields reach their alternative
 
-- **Commit:** `Declare Prop inductives propositional`, the last commit of #7; there is no
+- **Commit:** `Declare Prop inductives propositional`, the eighth commit of #7; there is no
   `shipping(S-17):` commit. It fixes R-7 and R-8.
 - **Files and functions:** `LeanToLambdaBox/Basic.lean`: `OneInductiveBody.propositional` (no
   default any more); `LeanToLambdaBox/Erasure.lean`: `register_inductive`, `erase.visitCases`; new
@@ -1329,6 +1330,47 @@ without peregrine.
   match on `And`, and `Idx.casesOn` with an index field) evaluates to `B.t`; before, `peregrine
   eval` fails with `branch not found`, and with the flag alone `viaIdx` returns □.
   `scripts/regress.sh` and `scripts/dev-regress.sh` pass, with and without `PEREGRINE`.
+
+## S-18: Cases on an inductive whose sort may be Prop are reduced by the eraser
+
+- **Commit:** `Reduce cases on inductives whose sort may be Prop`, the last commit of #7; there is
+  no `shipping(S-18):` commit. It fixes finding 2 of the verification review A-6-r2 (the probe
+  `_state-ml/reviews/r2/SortPoly.lean`).
+- **Files and functions:** `LeanToLambdaBox/Erasure.lean`: `erase.visitCases`;
+  `tests/regress/prop_cases.lean` (new `viaPUnit`, `viaPoly`) and its golden `check.ast`.
+- **Why necessary:** reproduced. `PUnit.{u} : Sort u` is a proof at level 0, so a `PUnit.casesOn`
+  with a data motive at level 0 erases to a λ□ `case` on □. S-17 keeps `PUnit` non-propositional,
+  since one λ□ declaration serves every level, so the case is stuck. The same happens in a
+  universe-polymorphic definition on `PUnit.{u}` called at level 0: inside it the type is not
+  `Prop`, so no test on the instantiated type can see the proof. Core's `PUnit` and `PEmpty` are the
+  only inductives whose sort may be `Prop` without being `Prop` (a scan of the v4.35 environment);
+  the elaborator rejects a user inductive in `Sort u`. No core or Std code uses `PUnit.{0}` outside
+  proofs, so the defect needs a user program that writes the level 0.
+- **Behaviour before:** `@PUnit.casesOn.{1,0} (fun _ => B) PUnit.unit B.t` erases to
+  `tCase (PUnit,0) tBox [B.t]`, and `f.{0} PUnit.unit` with
+  `f.{u} (x : PUnit.{u}) := PUnit.casesOn x B.t` to a `tCase` on `tRel 0` applied to □;
+  `peregrine eval` fails with `Case: <15> branch not found` for both, where Lean gives `B.t`.
+- **Behaviour after:** when the level of the discriminant's type may be 0 (`Level.isNeverZero`
+  fails: `Prop` or a universe parameter) and the inductive has one constructor, `visitCases` emits
+  no `case`: the result is the constructor's alternative, or the catch-all, applied to □ for each
+  field or hypothesis, which is what MetaRocq's `iotaSing` reduces the case on □ to. Lean allows a
+  data motive there only if each field is a proof or an index, and S-17's index substitution now
+  uses the same test. The discriminant is not evaluated; when it is data (`PUnit.{u}`, u ≥ 1) its
+  only value is `PUnit.unit`. `Unit`, `PUnit.{u+1}` and data inductives keep their `case`. Since the
+  rule covers the Prop inductives of S-17, the output has no `case` on `And`, `Eq`, `True`, …, and
+  does not declare them; `register_inductive` still declares a Prop inductive propositional. Inductives
+  without constructors (`False`, `PEmpty`) keep their `case`, which has no branch and is unreachable.
+- **Effect on emitted .ast (corpus):** of 704 files, 702 are byte-identical (corpus of `9aad6b0`
+  against `ceec073`). The 2 others are S-17's: `examples/Defects/and_elim.ast` and
+  `examples/Defects/index_field.ast` lose their `tCase` on `And`/`Defects.Foo` (the alternative is
+  applied to □ instead) and the declaration of that inductive, so no corpus file declares a
+  propositional inductive any more. Both pass `peregrine validate`, and `peregrine eval` prints the
+  same values as before, 7 and 1. `PANIC` counts unchanged. The goldens of `tests/dev` are
+  unchanged.
+- **Regression test:** `prop_cases` gains `viaPUnit` (`PUnit.casesOn` at level 0) and `viaPoly` (a
+  universe-polymorphic `casesOn` called at level 0); `check.ast` evaluates to `B.t`, and fails with
+  `branch not found` on `ceec073`. `scripts/regress.sh` and `scripts/dev-regress.sh` pass, with and
+  without `PEREGRINE`.
 
 ---
 
