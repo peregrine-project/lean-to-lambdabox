@@ -2,3 +2,9 @@
 # One line per declaration: <declaration> <axioms>
 #   <axioms>: its `#print axioms`, comma-separated in the order propext, Classical.choice,
 #             Quot.sound; `-` for none. sorryAx and Cardinal.exists_inaccessibles never occur.
+EraseProof.TypeEq.forallE_ne_ind propext,Classical.choice,Quot.sound
+EraseProof.TypeEq.forallE_ne_quot propext,Classical.choice,Quot.sound
+EraseProof.TypeEq.ind_ne_quot propext,Classical.choice,Quot.sound
+EraseProof.TypeEq.sort_ne_forallE propext,Classical.choice,Quot.sound
+EraseProof.TypeEq.sort_ne_ind propext,Classical.choice,Quot.sound
+EraseProof.TypeEq.sort_ne_quot propext,Classical.choice,Quot.sound

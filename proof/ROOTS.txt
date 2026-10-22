@@ -6,3 +6,9 @@
 #   <task id>: optional, the unit that lands the consumer.
 # Every declaration of EraseProof outside EraseProof.Test must be reachable from a root; no root
 # may be reachable from another root.
+EraseProof.TypeEq.sort_ne_forallE EraseProof.IsErasable.ctor_not v2-erasable-inv
+EraseProof.TypeEq.sort_ne_ind EraseProof.IsErasable.ctor_not v2-erasable-inv
+EraseProof.TypeEq.forallE_ne_ind EraseProof.IsErasable.ctor_not v2-erasable-inv
+EraseProof.TypeEq.sort_ne_quot EraseProof.IsErasable.quotMk_not v9-quot
+EraseProof.TypeEq.forallE_ne_quot EraseProof.IsErasable.quotMk_not v9-quot
+EraseProof.TypeEq.ind_ne_quot EraseProof.IsErasable.quotMk_not v9-quot
