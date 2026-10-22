@@ -1,0 +1,104 @@
+# The checks of proof/scripts/check.sh, on the ml/verification branch. What CI runs, and where:
+#   build                         C1: the two lean-action steps; check.sh replays them.
+#   non-vacuity instances         C8: the tests EraseProof.Test.* are modules of the library, so
+#                                 the proof build checks them; the report pins their footprints
+#                                 (axioms.expected).
+#   axioms and sorry              C3-C5: every footprint lies in propext, Classical.choice,
+#                                 Quot.sound; sorryAx and Metalean's Cardinal.exists_inaccessibles
+#                                 occur nowhere.
+#   hygiene                       C6: no non-test declaration reaches Metalean's Frontend, Checker,
+#                                 Export, SetSemantics or SetTheory modules, or a test.
+#   no-leaves                     C7: every declaration outside EraseProof.Test is reachable from a
+#                                 root of proof/ROOTS.txt, and every test that is not a theorem
+#                                 from a test theorem.
+#   final-theorem footprint       C12 (once the final form is reached): EraseProof.erase_correct and
+#                                 its NV-1 instance reach exactly propext, Classical.choice,
+#                                 Quot.sound; its type is that of the approved statement,
+#                                 EraseProof.Test.Stub.erase_correct. Until then CI passes
+#                                 --no-final.
+#   shipping regression tests     C10: scripts/regress.sh, and scripts/pure-harness.sh, which runs
+#                                 the pure path next to the Meta path on the corpus and checks the
+#                                 committed summary of the programs in the fragment.
+# The proof checks also run C2 (forbidden tokens) and C9 (the divergence register, its MetaRocq
+# citations against a checkout of the cited commit). C11's peregrine runs need a peregrine binary
+# and run locally only.
+name: Verification
+on:
+  workflow_dispatch:
+  push:
+    branches:
+    - 'ml/verification'
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  verification:
+    name: Build and check the proof package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch ${{ github.ref_name }}
+        uses: actions/checkout@v7
+
+      # The MetaRocq sources that doc/DIVERGENCES.md cites, at the commit it cites them at (C9).
+      - name: Check out the cited MetaRocq sources (C9)
+        uses: actions/checkout@v7
+        with:
+          repository: MetaRocq/metarocq
+          ref: 4b201296ff0dce8a8ae2e095eda124d53585966b
+          path: .metarocq
+          sparse-checkout: |
+            common/theories
+            erasure/theories
+            pcuic/theories
+            safechecker/theories
+            template-pcuic/theories
+
+      # Fetches the Mathlib cache and builds the eraser and the Metalean modules it imports;
+      # lean-action caches the root `.lake`, which also holds the dependency checkouts that proof/
+      # shares (proof/lakefile.toml `packagesDir`).
+      - name: Set up Lean and build the root package (C1)
+        uses: leanprover/lean-action@v1
+        with:
+          use-github-cache: true
+          use-mathlib-cache: true
+          build: true
+          build-args: "LeanToLambdaBox LeanToLambdaBox.Metalean"
+          test: false
+          lint: false
+
+      # Builds the library EraseProof, its tests and non-vacuity instances included, and caches
+      # proof/.lake.
+      - name: Build the proof package and its non-vacuity instances (C1, C8)
+        uses: leanprover/lean-action@v1
+        with:
+          lake-package-directory: proof
+          use-github-cache: true
+          build: true
+          test: false
+          lint: false
+
+      - name: Shipping regression tests (C10)
+        run: scripts/regress.sh
+
+      - name: Pure path next to the Meta path on the corpus (C10)
+        run: scripts/pure-harness.sh
+
+      - name: Proof checks (C2-C9, C12 once final)
+        env:
+          METAROCQ: ${{ github.workspace }}/.metarocq
+        run: |
+          if grep -qx 'EraseProof.erase_correct FINAL' proof/ROOTS.txt; then
+            proof/scripts/check.sh --no-regress --no-peregrine
+          else
+            proof/scripts/check.sh --no-regress --no-peregrine --no-final
+          fi
+
+      # The report's per-declaration lines and check results, on the run's summary page.
+      - name: Report summary
+        if: always()
+        run: |
+          if [ -f proof/.check/report.log ]; then
+            { echo '```'; cat proof/.check/report.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          fi
