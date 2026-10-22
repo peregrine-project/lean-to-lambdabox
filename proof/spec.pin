@@ -1,446 +1,775 @@
 # The pin of the approved statements (tools/Report.lean, C12b): `root <theorem> <hash of its type>`,
-# `body <constant> <hash of its definition>`, `name <constant>` (pinned by name). It is written from
-# the approved statements with `tools/Report.lean --write-pin`; proof/scripts/check.sh compares it.
-body ASTType ecf8ca30402e5baa
-body ASTType.untyped 161e69bd
-body AllowedEliminations 317eb669516d1f5e
-body BinderName 12bdc9e2b00307f4
-body BinderName.anon 4b4b2fe0
-body BinderName.named a3217606
-body ConstantBody a608e61f3651c4d7
-body ConstantBody.cst_body f7a81ea94095bc36
-body ConstructorBody 127dd754edfd5646
-body ConstructorBody.nargs ba9b1f01be5c9e6e
-body DirPath d8b75ea8ffa9c1e4
-body EraseProof.Binds b9b2ec334ed2c67
-body EraseProof.Binds.set c2fe367fd46e68ec
-body EraseProof.Binds.wk fe9a3645a7f94ad2
-body EraseProof.BindsExt b3d44dbc5f65bc38
-body EraseProof.BlockNamesInj a1c2f598d97bd667
-body EraseProof.BlocksCong 1c56dfe03c833b3
-body EraseProof.ConstTyped 5ed1998323e664aa
-body EraseProof.ConstsIn 68d4892cf625b56
-body EraseProof.ConstsIn._f b3cb7b17e0f5c57a
-body EraseProof.ConstsIn._sparseCasesOn_1 6a217069aa957766
-body EraseProof.ConstsIn.match_1 eca56d25e066b1c4
-body EraseProof.CtorValue d6c85c02d609ba21
-body EraseProof.DeltaFree 9f5f49d380a2ecae
-body EraseProof.DeltaFree._sparseCasesOn_1 a931c0be748c1c39
-body EraseProof.DeltaFree.match_1 2b01c55267008f7d
-body EraseProof.ErasableS 5c7a548d996d6d41
-body EraseProof.Erases f53cffcd7fae9eb5
-body EraseProof.ErasesAlt 5b5bef868e9d904b
-body EraseProof.EvalEnv bd0a4181241e6116
-body EraseProof.EvalEnv.axiomatized e86fdb14154def8a
-body EraseProof.EvalEnv.casesOn? c82a46663fa97910
-body EraseProof.EvalEnv.casesOn?._sparseCasesOn_1 4ca730945986736c
-body EraseProof.EvalEnv.casesOn?._sparseCasesOn_2 63e7b22bd94099a7
-body EraseProof.EvalEnv.casesOn?.match_1 b89bd906c0b648a6
-body EraseProof.EvalEnv.casesOn?.match_5 80283a853c1f3351
-body EraseProof.EvalEnv.decls 37a6a2f58740f961
-body EraseProof.EvalEnv.etaSpine? e02cb8d531139931
-body EraseProof.EvalEnv.etaSpine?.match_1 7e43d77a42e1321a
-body EraseProof.EvalEnv.isAtom 19cb2cd39d2e3e52
-body EraseProof.EvalEnv.mk b4966cad
-body EraseProof.EvalEnv.unfold? fcd160d4bf57ad14
-body EraseProof.EvalEnv.unfold?._sparseCasesOn_1 56c1e85aa9a7a44
-body EraseProof.EvalEnv.unfold?.match_1 ba55329d32b96d0a
-body EraseProof.EvidentProp bc7fa6dfa9d498fe
-body EraseProof.EvidentProp._f 19ce7ea2884ad9ae
-body EraseProof.EvidentProp._sparseCasesOn_5 25507f25928b670c
-body EraseProof.EvidentProp._sparseCasesOn_8 8e8f499e9daa53a5
-body EraseProof.EvidentProp.match_1 f17274e4cf0de86c
-body EraseProof.EvidentProp.match_3 4346deadd77a4fa9
-body EraseProof.EvidentProp.match_5 ec8b31694866b500
-body EraseProof.EvidentProp.match_8 595c5932e14870ff
-body EraseProof.EvidentZero 9403eaf191263637
-body EraseProof.EvidentZero._f 82da0c4ac4d50006
-body EraseProof.EvidentZero._sparseCasesOn_1 f0daa972d92edf22
-body EraseProof.EvidentZero.match_1 c56e674ab702e4c9
-body EraseProof.HasNatLit dd03aaa9a26ae00b
-body EraseProof.HasNatLit._f ac6addbee4db43a1
-body EraseProof.HasNatLit._sparseCasesOn_1 fda1601dbc262286
-body EraseProof.HasNatLit._sparseCasesOn_2 3221e114e9f5ed45
-body EraseProof.HasNatLit.match_1 4ae8bbc075c605e3
-body EraseProof.IndBlock 8191548240fb4125
-body EraseProof.IndBlock.decls f32534bfb0d85cdd
-body EraseProof.IndIdOf 4255995bcec530ef
-body EraseProof.IsArity c0fffd438ca5fecc
-body EraseProof.IsErasable 1128e27099c81d58
-body EraseProof.IsProof 474a0d20742a9d45
-body EraseProof.IsThm b04e3a78da6e1191
-body EraseProof.IsThm._sparseCasesOn_1 881dcab5ab7c4684
-body EraseProof.IsThm.match_1 ae22fd8780cca287
-body EraseProof.KernameInj 6417ed9a335fe98a
-body EraseProof.LBEval e5bee8b4a456fd2c
-body EraseProof.LevelPlain b6e96eb51801da7e
-body EraseProof.LevelPlain._f e16a4cc515e481ea
-body EraseProof.LevelPlain.match_1 3a89e365e4348f3c
-body EraseProof.MBinding a36bbebeb434a98c
-body EraseProof.MBinding.casesOn ac4e0da5e2879af5
-body EraseProof.MBinding.const b98874f7
-body EraseProof.MBinding.ctor bd40bf71
-body EraseProof.MBinding.ctorIdx 455e43a2efeed25b
-body EraseProof.MBinding.ind 6e13f8c1
-body EraseProof.MBinding.isSpecial 7c80d426fa0e736f
-body EraseProof.MBinding.isSpecial._sparseCasesOn_1 de7a175e1c6bed4a
-body EraseProof.MBinding.isSpecial.match_1 f5cc7ed9a95f20a7
-body EraseProof.MBinding.quot 7de80613
-body EraseProof.MBinding.rec f9bd9cd5
-body EraseProof.MBinding.recr 1fd89375
-body EraseProof.MBinding.wk 6f5ebffe42229d22
-body EraseProof.MBinding.wk.match_1 c652e7a17ec35707
-body EraseProof.MLCtx 9211c4ee26e2cd27
-body EraseProof.MLCtx.findB 77950896c43128a0
-body EraseProof.MLCtx.findB._f 52e92eb3291c3d73
-body EraseProof.MLCtx.findB.match_1 60cf547a907b3055
-body EraseProof.MLCtx.findF 51f3b2cefdc04030
-body EraseProof.MLCtx.findF._f f6511391965c3c2c
-body EraseProof.MLCtx.findF.match_1 e9015d5d2e1e1440
-body EraseProof.MLCtx.pushLam 2c86a37f18e187d8
-body EraseProof.MLCtx.pushLam.match_1 567279195954c440
-body EraseProof.MLDecl 92b2025734de3db3
-body EraseProof.MLDecl.casesOn d739f95249752bfd
-body EraseProof.MLDecl.denote d6f9dc2037420211
-body EraseProof.MLDecl.denote.match_1 9559348d375e385
-body EraseProof.MLDecl.rec 53c40195
-body EraseProof.MLDecl.vlam 2216e81e
-body EraseProof.MLDecl.vlet 1e3f98b8
-body EraseProof.MLDecl.wk 2bd3480dce4dbdf5
-body EraseProof.MetaOrderOK 3b4e0a8c2d0af3cb
-body EraseProof.NeverZero 9a7fc2161095c4b2
-body EraseProof.NeverZero._f a8df02483ebf35e3
-body EraseProof.NeverZero._sparseCasesOn_1 4c30e40e7bac6e3e
-body EraseProof.NeverZero.match_1 60c6f73fa8e0d13f
-body EraseProof.OwnRules 52796e7a7fe3c32d
-body EraseProof.OwnRules._sparseCasesOn_1 7a957084770348cd
-body EraseProof.OwnRules.match_1 de926a5f8d1ef066
-body EraseProof.PhaseIDecl 5566bf579265cc1c
-body EraseProof.PhaseIDecl.match_1 ddcf042cd4722137
-body EraseProof.PlainExpr 35ed41b3543e7555
-body EraseProof.PlainExpr._f b7b7350e9b557051
-body EraseProof.PlainExpr.match_1 861e6e72da3a6b1
-body EraseProof.ProgEnv 3922515f069f190c
-body EraseProof.PropInductive 52fe7cbceca82161
-body EraseProof.ReadClosed 7d1c1098de187630
-body EraseProof.ReadExpr 430a0eae266515f5
-body EraseProof.RecrLevels 901219cc5140c50b
-body EraseProof.SatTr 96755b034a78de34
-body EraseProof.ShortSpine 9204db78ff370218
-body EraseProof.SpecialHead ac00a3814ecf1c0e
-body EraseProof.SpecialSpine 1cf500f5e37698ae
-body EraseProof.SrcAtom f698a0b78b8dbc3f
-body EraseProof.SrcAtom._sparseCasesOn_1 6b74b5d0643aab8a
-body EraseProof.SrcAtom.match_1 5b34a705ca8f6ad2
-body EraseProof.SrcEval 73b599390d37f3cd
-body EraseProof.SubEnv acc6665e887832d0
-body EraseProof.Subsingleton f0414a33be2114da
-body EraseProof.TrLevel 6a31b85653134999
-body EraseProof.TrLevel._f 843ac36e422d9938
-body EraseProof.TrLevel.match_1 62b1c86f8838116f
-body EraseProof.TrLevels f194e6e9b1d4fe96
-body EraseProof.TrLevels._proof_2 5dd9a2ce
-body EraseProof.TrM 54db998791dbae9
-body EraseProof.ViewAgrees 86dbce3fb142a7aa
-body EraseProof.WcbvFlags 89563ebea7bf46d3
-body EraseProof.WcbvFlags.mk 7243341e
-body EraseProof.WcbvFlags.with_constructor_as_block dd60042bcceb6853
-body EraseProof.WcbvFlags.with_guarded_fix e2442ee00ae8feea
-body EraseProof.WcbvFlags.with_prop_case ade28be2109a6ad9
-body EraseProof.arityShape df6f234ca57c8aa5
-body EraseProof.arityShape._f c9051d84e3aa22de
-body EraseProof.arityShape._sparseCasesOn_3 745d3fd0e11d64e0
-body EraseProof.arityShape.match_1 aca87c2083a5d75e
-body EraseProof.arityShape.match_3 609a5b74212f0ba1
-body EraseProof.blockKername 678441eaecaafcbc
-body EraseProof.casesArity a4e36651a5ad383e
-body EraseProof.casesMajor e84a167cdaa57abd
-body EraseProof.csubst 8cdf2886d3a39891
-body EraseProof.csubst._f 9c92f48ec6dee255
-body EraseProof.csubst.match_1 cda1643d08e890d5
-body EraseProof.csubstB._f f8af1f54404cd65
-body EraseProof.csubstB.match_1 d7bb18981a3338c3
-body EraseProof.csubstD._f c28ba1f894e499c6
-body EraseProof.csubstD.match_1 5bffe3b55c32a74c
-body EraseProof.csubstL._f bf0c66fd63e54b7f
-body EraseProof.csubstL.match_1 bb0c5c6aaa933195
-body EraseProof.ctorFields 3678cbb5a6ea2408
-body EraseProof.ctorIsPropParsDecl 593829578cefceb2
-body EraseProof.ctorIsPropParsDecl.match_1 4d8ae1a5f2809359
-body EraseProof.cunfoldFix 59454a2c52d58b80
-body EraseProof.defaultFlags 194eb9280b17088e
-body EraseProof.evalEnvOf e0d7c18de236a484
-body EraseProof.findDecl ca9215c5ae5e5e23
-body EraseProof.fixSubst edabea2a10d4a481
-body EraseProof.headOf f5771c72fc4e6d02
-body EraseProof.headOf._f dee900d3118e0ab6
-body EraseProof.headOf._sparseCasesOn_1 4f2c319776d6008b
-body EraseProof.headOf.match_1 70ffd4f08fb63716
-body EraseProof.indIsPropAndPars d117ff223f6536e5
-body EraseProof.iotaRed 1118f3b4832651be
-body EraseProof.isBoxT 74fc48a5f05ea4cf
-body EraseProof.isBoxT._sparseCasesOn_1 acce398a8ada518
-body EraseProof.isBoxT.match_1 3c22628e51ffc74a
-body EraseProof.isConstructApp 93fab64d65b36c82
-body EraseProof.isConstructApp._sparseCasesOn_1 31472479c431ef7d
-body EraseProof.isConstructApp.match_1 fa7ce2c4c06b3c13
-body EraseProof.isFixApp 3618cba6583571d9
-body EraseProof.isFixT bc7ab3ecb77e60f5
-body EraseProof.isFixT._sparseCasesOn_1 192fac402358baca
-body EraseProof.isFixT.match_1 977293bb7b193411
-body EraseProof.isLambdaT 35ba2e6956dd20c2
-body EraseProof.isLambdaT._sparseCasesOn_1 c0f5b1468d991de5
-body EraseProof.isLambdaT.match_1 6e680ad561cbca9
-body EraseProof.isPrimApp 6c16a97a8ce9b6f4
-body EraseProof.isPrimApp._sparseCasesOn_1 2fe5a48602edc1a4
-body EraseProof.isPrimApp.match_1 2583d4c0311df876
-body EraseProof.lamsOf f130ba6abd969388
-body EraseProof.lamsOf._f 205085f25171e427
-body EraseProof.lamsOf.match_1 d36c7f94fd6b67e6
-body EraseProof.lbAtom 6d658b6735731715
-body EraseProof.lbAtom._sparseCasesOn_1 7de19ebace967685
-body EraseProof.lbAtom._sparseCasesOn_2 6fc2db79a9f80a08
-body EraseProof.lbAtom.match_1 c8597847b7020760
-body EraseProof.lookupConst b9535f2b795bdf2a
-body EraseProof.lookupConst._sparseCasesOn_1 4ca730945986736c
-body EraseProof.lookupConst._sparseCasesOn_2 758ed490d760f9d1
-body EraseProof.lookupConst.match_1 5846b5b3c94c3068
-body EraseProof.lookupCtor d8f2918819bdc5a0
-body EraseProof.lookupCtor.match_1 50b224910b9760e1
-body EraseProof.lookupInd 9a214c509349d10
-body EraseProof.lookupInd._sparseCasesOn_1 48db65134d9fb402
-body EraseProof.lookupInd.match_1 dcaa8ebc71e5c919
-body EraseProof.mkApps 8d6fbe091933e48c
-body EraseProof.mkApps._f 8914e5fe08aeaeaf
-body EraseProof.natLitM 4d1aac655fe574e4
-body EraseProof.natLitM._f 8798724a63db9bde
-body EraseProof.natLitM.match_1 f773a9604eb6eccf
-body EraseProof.natSig fa42415924578125
-body EraseProof.natSig.match_1 99c050b035f002
-body EraseProof.natSuccSig 697ea9b1ea630b2d
-body EraseProof.natSuccSig._proof_1 b4b0e5ca
-body EraseProof.natZeroSig 9991557cc4b3b18c
-body EraseProof.piInst f74d02261df428e9
-body EraseProof.piInst._f 9622af9b141823ff
-body EraseProof.piInst._sparseCasesOn_1 debfc592545e4062
-body EraseProof.piInst.match_1 12bc35cefb01a4f0
-body EraseProof.quotArity e5f03b60b33f7d5c
-body EraseProof.quotArity.match_1 4be1542bb1a68bb4
-body EraseProof.quotKindOf 801c45eb580dea0
-body EraseProof.quotKindOf.match_1 3da86fc5643d1263
-body EraseProof.specialArity bfff261f61ccc9ee
-body EraseProof.specialArity._sparseCasesOn_1 6dff696e65485a1b
-body EraseProof.specialArity.match_1 19e59a605d05234e
-body EraseProof.substl ce7809832998cde7
-body Erasure.Config.Extern 6c2182c45ff6494e
-body Erasure.Config.Extern.casesOn 7c9477de2f75ed2b
-body Erasure.Config.Extern.ctorIdx 4624cc5e32c99ade
-body Erasure.Config.Extern.preferAxiom 232baf5b
-body Erasure.Config.Extern.preferLogical 232baf5b
-body Erasure.Config.Extern.rec d822654a
-body Erasure.Config.Nat 2c8125c6af7d63d6
-body Erasure.Config.Nat.machine 71467160
-body Erasure.Config.Nat.peano 71467160
-body Erasure.Config.instBEqExtern a7f66285c88329da
-body Erasure.Config.instBEqExtern.beq 6bb9ffff8cefb35c
-body Erasure.EnvView 69fad76219c000f
-body Erasure.EnvView.find? 18d88e28607d604d
-body Erasure.EnvView.isExtern ac6040af9134334
-body Erasure.EraseError 92a4ebc42bad0fa7
-body Erasure.ErasureConfig 72df5547f41bf75d
-body Erasure.ErasureConfig.extern a96269f78448e8d8
-body Erasure.ErasureConfig.nat 327d5edea37b2236
-body Erasure.ErasureConfig.remove_irrel_constr_args 24bd0387f4d553c7
-body Erasure.Planned.altFields 8828fac1f40185ae
-body Erasure.Planned.altFields._sparseCasesOn_1 64a65f7d2b143a50
-body Erasure.Planned.altFields.match_1 86ae3914a7bed37d
-body Erasure.Planned.blockCtorCount e9e0656c7f4303d
-body Erasure.Planned.blockCtorCount._f 2e49348e5a75a07a
-body Erasure.Planned.blockCtorCount._sparseCasesOn_1 63e7b22bd94099a7
-body Erasure.Planned.blockCtorCount.match_1 d4509fb17412cd00
-body Erasure.Planned.casesInfo? ad9e56f5a9512f44
-body Erasure.Planned.casesInfo?._sparseCasesOn_5 56c1e85aa9a7a44
-body Erasure.Planned.casesInfo?._sparseCasesOn_6 6f30694261ba9f8e
-body Erasure.Planned.casesInfo?._sparseCasesOn_9 6d2cf129a5cf5219
-body Erasure.Planned.casesInfo?.match_1 24be773d2877a0f1
-body Erasure.Planned.casesInfo?.match_3 bd616720f58888f3
-body Erasure.Planned.casesInfo?.match_5 4288999428f41e48
-body Erasure.Planned.casesInfo?.match_9 28c9d2f5fcad2570
-body Erasure.Planned.ctorAlts 467b4f8b397b363c
-body Erasure.Planned.ctorAlts._f fd656d2369e36160
-body Erasure.Planned.ctorAlts._sparseCasesOn_1 6dff696e65485a1b
-body Erasure.Planned.ctorAlts.match_1 a633fad9757234cd
-body Erasure.Planned.ctorAlts.match_4 1cefe7fe6260b638
-body Erasure.Planned.forallArity 7a225d1e3ba09a1c
-body Erasure.Planned.forallArity._f 54e31dc145d8c9ad
-body Erasure.Planned.forallArity.match_1 36cd84a2dc34257c
-body Erasure.Planned.forallDom? ac50527d8a00d791
-body Erasure.Planned.forallDom?._f 7af49a33d32ab818
-body Erasure.Planned.forallDom?._sparseCasesOn_1 debfc592545e4062
-body Erasure.Planned.forallDom?.match_1 ceb0533d11d0322c
-body Erasure.Planned.implementedBy? f6b9857480719369
-body Erasure.Planned.isBVarAt 970bf8c5c219291a
-body Erasure.Planned.isBVarAt._sparseCasesOn_1 4ca730945986736c
-body Erasure.Planned.isBVarAt._sparseCasesOn_2 bfc0c43881682955
-body Erasure.Planned.isBVarAt.match_1 1421d764dd6d9d8
-body Erasure.Planned.isConstAt c305ce84d75ad54d
-body Erasure.Planned.isConstAt._sparseCasesOn_1 308d41f0d6a6f93a
-body Erasure.Planned.isConstAt._sparseCasesOn_4 25507f25928b670c
-body Erasure.Planned.isConstAt.match_1 5d07434d0e4b75dc
-body Erasure.Planned.isConstAt.match_4 9bcea02f1a9a0ee3
-body Erasure.Planned.isMinorBody 7af932c68395bbde
-body Erasure.Planned.isMinorBody.match_1 634bdbdfb3529913
-body Erasure.Planned.minorArity bea5b25b424b7206
-body Erasure.Planned.peelLams 254996add2121527
-body Erasure.Planned.peelLams._f 7fbf9bd3f1f47d48
-body Erasure.Planned.peelLams._sparseCasesOn_1 cdb056227bc1129
-body Erasure.Planned.peelLams.match_1 ffeddc5d1b7ac80c
-body Erasure.Planned.spine ca9e3f568c4f6c9d
-body Erasure.Planned.spine._f 2a62869e93cd3037
-body Erasure.Planned.spine._sparseCasesOn_3 4f0167698b83d038
-body Erasure.Planned.spine.match_1 31f8ce7227a7ffa8
-body Erasure.Planned.spine.match_3 4c6fe17c993210da
-body Erasure.Pure.instLevel 9963d9c93600ec9d
-body Erasure.Pure.instLevel._f 113bb6db719e1b1d
-body Erasure.Pure.instLevel.match_1 e9b1727f448a6c73
-body Erasure.Pure.instLevel.match_3 62b1c86f8838116f
-body Erasure.Pure.instLevels 9ee3e43ae2fea8ef
-body Erasure.Pure.instLevels._f eb0c79d4f4c3c140
-body Erasure.Pure.instLevels._sparseCasesOn_1 7d4e6aea762d8d8f
-body Erasure.Pure.instLevels.match_1 a9df9f511fae7095
-body Erasure.axiomatized 756f5c66a634dc41
-body Erasure.binderNameOf 8738e0f0b81bf363
-body Erasure.findConst ca9215c5ae5e5e23
-body Erasure.forallMonocular._sparseCasesOn_1 debfc592545e4062
-body Erasure.forallMonocular.match_1 97b5cbc11baba824
-body Erasure.indexFields 73d5041d870adb50
-body Erasure.indexFields.go 37501b38b9a974d4
-body Erasure.indexFields.go._f e315f690a31ce0cd
-body Erasure.indexFields.go._sparseCasesOn_1 bfc0c43881682955
-body Erasure.indexFields.go.match_1 2a394ee8c55f0f6e
-body FixDef 623b60a84a2381cc
-body FixDef.body 24c9530cea787ead
-body FixDef.casesOn ffb7c43c2a1f14c2
-body FixDef.mk 2f6ca8e3
-body FixDef.principalArgIdx 147dea4b7b88d7fe
-body FixDef.rec e00ee6cd
-body GlobalDecl d6279d58768bdcb9
-body GlobalDecl.casesOn d16ed0ead22f09ef
-body GlobalDecl.constantDecl affd7572
-body GlobalDecl.ctorIdx 5277810b3611611e
-body GlobalDecl.inductiveDecl 2fb68708
-body GlobalDecl.rec d24c3249
-body GlobalDeclarations 3d1c5c526ad368ff
-body Ident 1ecc8d25469a412d
-body InductiveId 9a3b1e0efd3e1dc2
-body InductiveId.idx da2f75c8bd478dd0
-body InductiveId.mk 604c0d77
-body InductiveId.mutualBlockName 7c4f4eb2f103f9c9
-body Kername 405d57c9e0d651d1
-body Kername.casesOn e91fdcf52f48e616
-body Kername.mk 2ebe5bee
-body Kername.rec da6fbe22
-body LBTerm 6084d6f58e2f495d
-body LBTerm.app a650e24e
-body LBTerm.below 7c8c1806909d842a
-body LBTerm.below_1 4acf4888e52ed83f
-body LBTerm.below_2 d605b016527adcaf
-body LBTerm.below_3 db89a10fcecbbd95
-body LBTerm.below_4 28888588cb111baa
-body LBTerm.below_5 9058c9bd0bc65fd0
-body LBTerm.box 5f79745a
-body LBTerm.brecOn c468f926fa78b6c5
-body LBTerm.brecOn.go ecae12b6b38801aa
-body LBTerm.brecOn_1 a8359be2fc28d10c
-body LBTerm.brecOn_1.go b34bfd74a2a8b1ec
-body LBTerm.bvar 500fa7a9
-body LBTerm.case ae0bf47d
-body LBTerm.casesOn e30d59296eaf7cda
-body LBTerm.const 4ca25d85
-body LBTerm.construct 8a29fe70
-body LBTerm.ctorIdx a5101b3dec906aa3
-body LBTerm.fix 4bf81664
-body LBTerm.fvar bc4ed8cf
-body LBTerm.lambda 9e71b7d5
-body LBTerm.letIn 5de06363
-body LBTerm.prim 1fd1b758
-body LBTerm.proj ebe17497
-body LBTerm.rec 7ddd4b2c
-body LBTerm.rec_1 310a3625
-body LBTerm.rec_2 d774004e
-body LBTerm.rec_3 4e710686
-body LBTerm.rec_4 4cd511f
-body LBTerm.rec_5 dd72fdea
-body Lean.Expr.instantiate1' 69e43595172c4e13
-body Lean.Expr.instantiate1'._f 324ee7ac319fe4d
-body Lean.Expr.instantiate1'.match_1 7265ef4e34e61f55
-body Lean.Expr.liftLooseBVars' c9c1d5fb0aaeac2d
-body Lean.Expr.liftLooseBVars'._f 640a94f7511ac64e
-body Lean.Expr.liftLooseBVars'.match_1 85cb70309346e438
-body ModPath ea393ebd666c16b3
-body ModPath.MPdot 3c3afa0
-body ModPath.MPfile c673b252
-body ModPath.below d6b9da9f8440cc97
-body ModPath.brecOn 79b131b98056d0d6
-body ModPath.brecOn.go 1435e8f255f1ea3c
-body ModPath.casesOn c9732c74640c3128
-body ModPath.ctorIdx 5ab9dea03daf4a9f
-body ModPath.rec efceefe3
-body MutualInductiveBody 43d86965dc27240c
-body MutualInductiveBody.bodies 300d1d6ce4029c6f
-body MutualInductiveBody.npars 5b6465547f6dafe7
-body OneInductiveBody 5222f9e10de21d54
-body OneInductiveBody.ctors c227ce5597d51080
-body OneInductiveBody.propositional 98a980a0472976ab
-body PrimModel f56bf117d5e2b03b
-body PrimTag 288412f0a21bdb0
-body PrimTag.casesOn 3844901f3a9646b9
-body PrimTag.primInt 4037237
-body PrimTag.rec 60fdc10
-body PrimVal 1e2d11f26912a413
-body Program 8960b0d9fe7c1260
-body ProjectionBody 804fde8bf805d32a
-body ProjectionInfo 94c329c222adbe90
-body ProjectionInfo.fieldIdx c631cdd8179d510c
-body ProjectionInfo.indType ea327aa5adecda7b
-body ProjectionInfo.mk 17459f09
-body ProjectionInfo.paramCount be9058c31d2ddfd7
-body RecursivityKind 7c0d67cc6d5627ab
-body cleanIdent c7d65dee4e1d20dd
-body instBEqKername 15f6f9496d9dff64
-body instBEqKername.beq ce7b742cb298a496
-body instBEqKername.beq.match_1 a9dd36c954c4addf
-body instBEqModPath 5934436741f72f54
-body instBEqModPath.beq 9f89fe8eb66053ac
-body instBEqModPath.beq._f a8210e0758ac4def
-body instBEqModPath.beq._sparseCasesOn_1 5239f31f6756378d
-body instBEqModPath.beq._sparseCasesOn_2 e6266eb610cb3c13
-body instBEqModPath.beq.match_1 59e61b43621a3d9f
-body instInhabitedKername e58f776a1c7f85a7
-body instInhabitedKername.default ce05fcdd7ef5aaef
-body instInhabitedModPath 38fe46c7191057f8
-body instInhabitedModPath.default 4a5608babcdee5d1
-body instReprPrimTag.repr.match_1 b9a732efbe9b984e
-body mutualBlockKername 40346796139bb76c
-body rootKername 5f798a2e835ca408
-body toKername 41381026ef022172
-body toModPath 4c5099bf225d0eee
-body toModPath._f d1667f506101e7de
-body toModPath.match_1 57d25ed7936aa4b7
+# `body <constant> <hash of its definition>`, `name <constant>` (pinned by name), `toolchain <name>`
+# and `dep <package> <rev>` (the root package's lean-toolchain and lake-manifest.json). It is written
+# from the approved statements with `tools/Report.lean --write-pin`; proof/scripts/check.sh compares it.
+body ASTType b2dfdd810b6d1db7
+body ASTType.untyped 36e82dd0341b22ff
+body AllowedEliminations 7f49b210dee14bb8
+body AllowedEliminations.IntoAny 13193332065bcd20
+body BinderName c15a6fd6d74cd374
+body BinderName.anon d962b58a374abf63
+body BinderName.named f839430f4673a8a9
+body ConstantBody aaad02ff77e0021e
+body ConstantBody.cst_body 7fefe59ae4c2fa33
+body ConstantBody.mk 75b39d6f0bc9956e
+body ConstructorBody 70e417e380b4d895
+body ConstructorBody.mk 71e310852bd193f6
+body ConstructorBody.nargs f97b71a3466137aa
+body DirPath ddc27f7aea8fe93
+body EraseProof.AtomSpine 2a9a337558963b1a
+body EraseProof.Binds b7db1d0466fb409c
+body EraseProof.Binds.set 6c599d668736c54
+body EraseProof.Binds.wk a991aa2a81c05a8a
+body EraseProof.BindsExt a39df086e56bc00b
+body EraseProof.BlockNamesInj 1c11bf4d6608f308
+body EraseProof.BlocksCong 23ec3599d11a6d46
+body EraseProof.BlocksCong._sparseCasesOn_1 cb6f4652dae760c8
+body EraseProof.BlocksCong.match_1 111ce1a79ad8769c
+body EraseProof.CasesReduced dde1d124eabfbb32
+body EraseProof.ConstTyped 5e389d7ca26ae724
+body EraseProof.ConstsIn a3214d8b4375c896
+body EraseProof.ConstsIn._f c0f31922a3fea609
+body EraseProof.ConstsIn._sparseCasesOn_1 231b259d3d044c8f
+body EraseProof.ConstsIn.match_1 d6423e39ed65e3ec
+body EraseProof.CtorValue 4f17054363c805d1
+body EraseProof.DeltaFree cbdab789c3fe0a00
+body EraseProof.DeltaFree._sparseCasesOn_1 f145a7d06c3e54d3
+body EraseProof.DeltaFree.match_1 f21b39ec4e19ff56
+body EraseProof.EmitsConst 3508a79c477a56f5
+body EraseProof.EmitsConst._sparseCasesOn_1 b9f4edd722556a6e
+body EraseProof.EmitsConst.match_1 397a77df3b1a7f41
+body EraseProof.ErasableS a95e5838e8b58f84
+body EraseProof.Erases 4a94dcd016216b61
+body EraseProof.ErasesAlt db6e4e0cfc1cf02c
+body EraseProof.ErasesDecl 3a86646040725f41
+body EraseProof.ErasesDecl.match_1 5a59bf3c20c4d174
+body EraseProof.ErasesDeps d4a3d18d4fe299f1
+body EraseProof.ErasesInd 7bd8ff133cf7a462
+body EraseProof.EvalEnv c208cf7d4247a0bb
+body EraseProof.EvalEnv.axiomatized 10680ca2e3213a5f
+body EraseProof.EvalEnv.casesOn? bf0778207a7823d5
+body EraseProof.EvalEnv.casesOn?._sparseCasesOn_1 50def95db0932aa0
+body EraseProof.EvalEnv.casesOn?._sparseCasesOn_2 ffa0084a5062131a
+body EraseProof.EvalEnv.casesOn?.match_1 e473e04c86be2bd8
+body EraseProof.EvalEnv.casesOn?.match_5 e4b5fd311c068a33
+body EraseProof.EvalEnv.decls 9db1b466dc2cab9c
+body EraseProof.EvalEnv.etaSpine? 88927d5d2eb1d237
+body EraseProof.EvalEnv.etaSpine?.match_1 2b380feef0575989
+body EraseProof.EvalEnv.isAtom af08fd693fd5968e
+body EraseProof.EvalEnv.mk 3d2b9110558ad25d
+body EraseProof.EvalEnv.propInd 2506cb61bb33d7b2
+body EraseProof.EvalEnv.spineType? bae098bfad0be4ee
+body EraseProof.EvalEnv.unfold? 597f8ff67113de24
+body EraseProof.EvalEnv.unfold?._sparseCasesOn_1 f860504b6f2d7935
+body EraseProof.EvalEnv.unfold?.match_1 52690f42f7a6aa84
+body EraseProof.EvidentProp 317fe94e51121a0b
+body EraseProof.EvidentProp._f 1c544d39bd95881f
+body EraseProof.EvidentProp._sparseCasesOn_5 e2c4b5b7115d85cf
+body EraseProof.EvidentProp._sparseCasesOn_8 f6b3101c5b1e62ee
+body EraseProof.EvidentProp.match_1 ec4a9780a6e311bf
+body EraseProof.EvidentProp.match_3 2baba9221b9eabc2
+body EraseProof.EvidentProp.match_5 bbe2dd8a43f6577f
+body EraseProof.EvidentProp.match_8 8e89194e79e22546
+body EraseProof.EvidentZero e39b6323df8c1929
+body EraseProof.EvidentZero._f c7f5e970c9075394
+body EraseProof.EvidentZero._sparseCasesOn_1 47afa3fe31e532e5
+body EraseProof.EvidentZero.match_1 ca3116533a81b1c4
+body EraseProof.FieldsErasable 79ca1f82327b6ff9
+body EraseProof.HasNatLit a47055e3810c3ae4
+body EraseProof.HasNatLit._f 8c6670a78dcc793e
+body EraseProof.HasNatLit._sparseCasesOn_1 b6b0e241bee4d1b
+body EraseProof.HasNatLit._sparseCasesOn_2 ea8a2aa3c563c7e3
+body EraseProof.HasNatLit.match_1 423ad6207624bc1a
+body EraseProof.IndBlock c354c38767fe33f8
+body EraseProof.IndBlock.decls 2dcaed7b053c8555
+body EraseProof.IndIdOf bb1c26f2dacd75e3
+body EraseProof.IsArity fee1ad20ecea3983
+body EraseProof.IsErasable f81718cfa7ef6721
+body EraseProof.IsProof 4ac72729c5101ff2
+body EraseProof.IsThm f2df00718f7ba908
+body EraseProof.IsThm._sparseCasesOn_1 ace3fdcc351d9dc5
+body EraseProof.IsThm.match_1 bb47f4e2db50a4f0
+body EraseProof.KernameInj 55d7285f066889ee
+body EraseProof.LBEval 74d5559aff21f392
+body EraseProof.LenvClosed 8f77266c9ba36d8e
+body EraseProof.LevelPlain d9b9186f2f7cf529
+body EraseProof.LevelPlain._f a8e268d076d6860f
+body EraseProof.LevelPlain.match_1 706f2555d6766bc5
+body EraseProof.MBinding b224893991b70fd2
+body EraseProof.MBinding.casesOn f32d60c6748bf629
+body EraseProof.MBinding.const 99a6df4ffaddd5ad
+body EraseProof.MBinding.ctor 50659b978489e527
+body EraseProof.MBinding.ctorIdx eb7a6eafe5ba20bd
+body EraseProof.MBinding.ind 29b1f1acc1483612
+body EraseProof.MBinding.isSpecial a80101e6796a7123
+body EraseProof.MBinding.isSpecial._sparseCasesOn_1 e344164da978fe29
+body EraseProof.MBinding.isSpecial.match_1 e68246e4d3359de5
+body EraseProof.MBinding.quot feeb0cce300ec433
+body EraseProof.MBinding.rec 4c92f25a54ac06bc
+body EraseProof.MBinding.recr 672fdc6a5af70be0
+body EraseProof.MBinding.wk 3e282f6f7d5c88c2
+body EraseProof.MBinding.wk.match_1 1afa460294afa2b2
+body EraseProof.MLCtx 228e043c3a21c3a9
+body EraseProof.MLCtx.findB bd00f6e20692fb1c
+body EraseProof.MLCtx.findB._f 2f9998bc4807ac30
+body EraseProof.MLCtx.findB.match_1 744d9950af4e4f5d
+body EraseProof.MLCtx.findF 29b2d3aa5517b2cf
+body EraseProof.MLCtx.findF._f 70093d700669a240
+body EraseProof.MLCtx.findF.match_1 89bbc125536c4b78
+body EraseProof.MLCtx.pushLam eb988146f3e1e3f
+body EraseProof.MLCtx.pushLam.match_1 e20ca53824287867
+body EraseProof.MLDecl 67be3cfd6647283a
+body EraseProof.MLDecl.casesOn 73c8f8d7b749806f
+body EraseProof.MLDecl.denote b565be1a0715c832
+body EraseProof.MLDecl.denote.match_1 275661755923e953
+body EraseProof.MLDecl.rec aa3164cd7a78cd92
+body EraseProof.MLDecl.vlam 3c727869ad9528e2
+body EraseProof.MLDecl.vlet 6b71ff7a35752095
+body EraseProof.MLDecl.wk 5ea8d4af9b3945d8
+body EraseProof.MetaOrderOK 201ca762f6746835
+body EraseProof.NeverZero 26032d3734c7abc8
+body EraseProof.NeverZero._f 59319a75c3224d18
+body EraseProof.NeverZero._sparseCasesOn_1 2697a1aea9f920e8
+body EraseProof.NeverZero.match_1 46b7190851ceb7e7
+body EraseProof.OwnRules 6bcdb0935dc54e7f
+body EraseProof.OwnRules._sparseCasesOn_1 29b1693e9f2cea6f
+body EraseProof.OwnRules.match_1 7dbe484b71d44f46
+body EraseProof.PhaseIDecl f81248c1bf1ede99
+body EraseProof.PhaseIDecl.match_1 23ce4d1775721654
+body EraseProof.PlainExpr 62fb98d54d1332ac
+body EraseProof.PlainExpr._f 3631d6d80e5447bf
+body EraseProof.PlainExpr.match_1 4c7870b26ebfbe64
+body EraseProof.ProgEnv 4ded23ee3fe836f
+body EraseProof.PropInductive 2977144ef02517af
+body EraseProof.PropProj bcaea9eb800f708e
+body EraseProof.ReadClosed a10c5ee841b5a2dc
+body EraseProof.ReadExpr 26a05957345ffe3
+body EraseProof.RecrLevels b684e0102d9050b3
+body EraseProof.SatTr 1faf8630e22872fc
+body EraseProof.ShortSpine efd7aa38bc68eecc
+body EraseProof.SpecialHead 757ac8d4f37c0eb
+body EraseProof.SpecialSpine de7cc53515e9f311
+body EraseProof.SrcAtom 67ca1ea4a613f21e
+body EraseProof.SrcAtom._sparseCasesOn_1 d65b1b5f913b1c70
+body EraseProof.SrcAtom.match_1 4b9342cde1f9dd75
+body EraseProof.SrcEval be07145f7d3884ed
+body EraseProof.SubEnv 3418092daeeb3d1e
+body EraseProof.Subsingleton b384c0a3a2414a1d
+body EraseProof.TrLevel 1a37dfe897d4600b
+body EraseProof.TrLevel._f fc5efad1b09c5850
+body EraseProof.TrLevel.match_1 76eb7c44ac7a85
+body EraseProof.TrLevels e462511c0fb72ecd
+body EraseProof.TrLevels._proof_2 6ef63ab216212c1a
+body EraseProof.TrM 55b2ab40195b2920
+body EraseProof.ViewAgrees 4ba323a2c4488872
+body EraseProof.WcbvFlags 262aba90ef0be5b9
+body EraseProof.WcbvFlags.mk 171fcef654a8d753
+body EraseProof.WcbvFlags.with_constructor_as_block 90e4b0691f17439e
+body EraseProof.WcbvFlags.with_guarded_fix 16b8e90c7602d42
+body EraseProof.WcbvFlags.with_prop_case 26cbba80c20b9b45
+body EraseProof.arityShape eed214e841583695
+body EraseProof.arityShape._f 9bd1977b1d6bafcd
+body EraseProof.arityShape._sparseCasesOn_3 2bb672b7798c3558
+body EraseProof.arityShape.match_1 cee5af77a8e89309
+body EraseProof.arityShape.match_3 872f72ec71de1ce2
+body EraseProof.blockKername adc9e9731fc02376
+body EraseProof.casesArity 19fa7be032d1c99b
+body EraseProof.casesMajor 8898d0283fb1baf3
+body EraseProof.casesSortLevel b3e789bddbe2c488
+body EraseProof.closedn eb10588adc27187a
+body EraseProof.closedn._f 70969888c711f28a
+body EraseProof.closedn.match_1 d030b1777907d66b
+body EraseProof.closednB._f 185c4f081eba94de
+body EraseProof.closednD._f 3340ee6b65565378
+body EraseProof.closednL._f 86b83126cdbd5d2a
+body EraseProof.csubst c82b03547e778026
+body EraseProof.csubst._f 14c59a0ff1c853f4
+body EraseProof.csubst.match_1 1d82cb0c5f6ba83d
+body EraseProof.csubstB._f 8aed1cbaf89dcf4e
+body EraseProof.csubstB.match_1 c293e4466365c47c
+body EraseProof.csubstD._f d69d8fc12a820d56
+body EraseProof.csubstD.match_1 82644955b656d0e
+body EraseProof.csubstL._f 7b533b7466a3ce47
+body EraseProof.csubstL.match_1 2fbcaf0fe147f396
+body EraseProof.ctorFields f207266de12230a9
+body EraseProof.ctorIsPropParsDecl a768ddf96af9cb3e
+body EraseProof.ctorIsPropParsDecl.match_1 a9e1fe72e10c9951
+body EraseProof.cunfoldFix 6ff5285103911f8
+body EraseProof.defaultFlags 2e70e8226f5206
+body EraseProof.evalEnvOf 286fb1e68d6836e1
+body EraseProof.findDecl fbbc6995a38a95f6
+body EraseProof.fixSubst af05f78a72a87a15
+body EraseProof.hasFVar 6f6da5f547d00316
+body EraseProof.hasFVar._f 73f95360c3fc8fee
+body EraseProof.hasFVar.match_1 aa125f9facfda78e
+body EraseProof.hasFVarB._f 8a76e3654754d57a
+body EraseProof.hasFVarD._f 1132f4a831279d01
+body EraseProof.hasFVarL._f b0d288988c375cf6
+body EraseProof.headOf cac85ee1c2327b04
+body EraseProof.headOf._f f309bf42f851cc97
+body EraseProof.headOf._sparseCasesOn_1 ca46f6bfa706ef29
+body EraseProof.headOf.match_1 899481a5cc6ac92
+body EraseProof.indIsPropAndPars dfed632bed03580a
+body EraseProof.iotaRed 294dcd753c95c2cc
+body EraseProof.isBoxT 931174f27754e09f
+body EraseProof.isBoxT._sparseCasesOn_1 b6234cc664dbb87f
+body EraseProof.isBoxT.match_1 2ab0d49e19c7053d
+body EraseProof.isConstructApp 9d6e0cd5626c348f
+body EraseProof.isConstructApp._sparseCasesOn_1 586c18ad57c77afc
+body EraseProof.isConstructApp.match_1 99c7e1863e5c1420
+body EraseProof.isFixApp 8626ec41621d1a5b
+body EraseProof.isFixT 76498d1d6cb940da
+body EraseProof.isFixT._sparseCasesOn_1 d515873618d33619
+body EraseProof.isFixT.match_1 a3724021cc251114
+body EraseProof.isLambdaT 89332f443f1de4b2
+body EraseProof.isLambdaT._sparseCasesOn_1 b69cf95e948d985b
+body EraseProof.isLambdaT.match_1 4b96128b0287f28f
+body EraseProof.isPrimApp d810b616a448e30e
+body EraseProof.isPrimApp._sparseCasesOn_1 53f73a0db8dd5d40
+body EraseProof.isPrimApp.match_1 e53fb962c8592289
+body EraseProof.lamsOf 25c0bdb761939979
+body EraseProof.lamsOf._f bc0fcbf6443b4fbd
+body EraseProof.lamsOf.match_1 eadce459ed8c0458
+body EraseProof.lbAtom 1af216cf8a8b395f
+body EraseProof.lbAtom._sparseCasesOn_1 ce49ab3ef9fca2fa
+body EraseProof.lbAtom._sparseCasesOn_2 227018f2ebc5f88d
+body EraseProof.lbAtom.match_1 684b344da494d463
+body EraseProof.lookupConst ad7404a887432e51
+body EraseProof.lookupConst._sparseCasesOn_1 50def95db0932aa0
+body EraseProof.lookupConst._sparseCasesOn_2 e5fdfb934eb50499
+body EraseProof.lookupConst.match_1 ed37566386bba661
+body EraseProof.lookupCtor 482246ca71a0602a
+body EraseProof.lookupCtor.match_1 efb373e47b3592a9
+body EraseProof.lookupInd edad3bd02cb18fc5
+body EraseProof.lookupInd._sparseCasesOn_1 3e307876c3e17b19
+body EraseProof.lookupInd.match_1 c97974bb7fcae606
+body EraseProof.mkApps ba4d10ebe4f790b3
+body EraseProof.mkApps._f ee444ee98c9c977f
+body EraseProof.natLitM 382a198ed99a959
+body EraseProof.natLitM._f 797c8e4b8bfe3c43
+body EraseProof.natLitM.match_1 850bd9dfa7f85eb5
+body EraseProof.natSig 6ca8d1434a0e688a
+body EraseProof.natSig.match_1 5eab9294ca268772
+body EraseProof.natSuccSig f14d5363d11b07b0
+body EraseProof.natSuccSig._proof_1 cfe469fccb3abcad
+body EraseProof.natZeroSig 65862c84f5a24f19
+body EraseProof.piInst b4ce6882210f16fb
+body EraseProof.piInst._f e256cd3680c3ec9c
+body EraseProof.piInst._sparseCasesOn_1 1f5fa03f83c34107
+body EraseProof.piInst.match_1 697fd1bceb626f95
+body EraseProof.projProofTerm f3696a07581c458a
+body EraseProof.projProofTerm._unary 79114d41feb87a35
+body EraseProof.projProofTerm._unary._proof_1 e96f63b263c769e3
+body EraseProof.projProofTerm._unary._proof_2 6ad8ccd42f94b00a
+body EraseProof.projProofTerm._unary._proof_3 7c9e285f7186be15
+body EraseProof.quotArity f79c2b3911ed2721
+body EraseProof.quotArity.match_1 76145f01e33548ca
+body EraseProof.quotKindOf eae3dcfb3e33471a
+body EraseProof.quotKindOf.match_1 e901e1eba7dd7d98
+body EraseProof.specialArity c9e3a7e4186dc1b0
+body EraseProof.specialArity._sparseCasesOn_1 c3fdce8126813c01
+body EraseProof.specialArity.match_1 444256db838ceb6d
+body EraseProof.substl d9bd33f2fe4865f4
+body Erasure.Backend 4ac482ef4aeeb7b5
+body Erasure.Backend.argMask 3b243a113a719584
+body Erasure.Backend.casesInfo? cc9a5577b2238a87
+body Erasure.Backend.ctorArity? c9bf5205209e9042
+body Erasure.Backend.declInfo? b99f16c8cae86aee
+body Erasure.Backend.findConst? 30d78da66df23b7f
+body Erasure.Backend.freshFVarId 94d72145afd3e4fe
+body Erasure.Backend.inferType d07008d0452f4f3
+body Erasure.Backend.inlineAttr? 8efb741b45fab76d
+body Erasure.Backend.instantiate1 cbbaa26f9f5911a0
+body Erasure.Backend.isErasable 5518c0d1e291b237
+body Erasure.Backend.isExtern 147238bdba614ab7
+body Erasure.Backend.isInstance f74705b2d7d3d3e0
+body Erasure.Backend.isPropFormerType f1c44b73c40b44a9
+body Erasure.Backend.log b5a3c738b16314b0
+body Erasure.Backend.mk 233963aa3a03e430
+body Erasure.Backend.outOfFuel 30846c14e5ea6fca
+body Erasure.Backend.prepare d022aa2757c554f8
+body Erasure.Backend.typeLevel 909b31c46135c1bf
+body Erasure.Backend.unknownConstant f387ecdd116bcf18
+body Erasure.Backend.unsafeRecBase? 68e97273aa3034e4
+body Erasure.Config.Extern f3c44eff77986ef6
+body Erasure.Config.Extern.casesOn c91f6f4e3fd87a85
+body Erasure.Config.Extern.ctorIdx 39844cc7e1725e8
+body Erasure.Config.Extern.preferAxiom 24d1d12d551e5724
+body Erasure.Config.Extern.preferLogical 24d1d12d551e5724
+body Erasure.Config.Extern.rec 8c2f36fd1b1fdd68
+body Erasure.Config.Nat 3709a5d1ef3df6a3
+body Erasure.Config.Nat.casesOn 98ced26c3b470b17
+body Erasure.Config.Nat.ctorIdx cf7bbc09659a9d4
+body Erasure.Config.Nat.machine 67a64c09bb4df00e
+body Erasure.Config.Nat.peano 67a64c09bb4df00e
+body Erasure.Config.Nat.rec d53bf281993e6593
+body Erasure.Config.instBEqExtern da7960f90255edb4
+body Erasure.Config.instBEqExtern.beq 9e61f8dc7ff109f8
+body Erasure.ConstructorArgMask b4f736c767ce9dc9
+body Erasure.ConstructorArgRelevance 42471dea8eee0413
+body Erasure.ConstructorArgRelevance.casesOn e0f19994c1612a99
+body Erasure.ConstructorArgRelevance.ctorIdx 97af8b0212527ef
+body Erasure.ConstructorArgRelevance.erase ea64ac52903bbde3
+body Erasure.ConstructorArgRelevance.keep ea64ac52903bbde3
+body Erasure.ConstructorArgRelevance.rec dfc9d50520b534ec
+body Erasure.EnvView db070f2d7cf2c9df
+body Erasure.EnvView.find? 7aed6323f86bd9bc
+body Erasure.EnvView.inlineAttr? ffa8ae4fd301d57a
+body Erasure.EnvView.isExtern ff0ab9f1322608d7
+body Erasure.EraseError 7d2c5f11cb63fc06
+body Erasure.EraseError.failed 1f9341f0d54036e7
+body Erasure.EraseError.fuel 1f9341f0d54036e7
+body Erasure.EraseError.outOfFragment 1f9341f0d54036e7
+body Erasure.EraseT 5cba061d04f03deb
+body Erasure.EraseT.runPure 5b4274ae843bd001
+body Erasure.ErasureConfig e2bdbcf93b7f8b1a
+body Erasure.ErasureConfig.auto_inline_typeclass_dispatch b52001191e4aa7c6
+body Erasure.ErasureConfig.extern fed182b921864949
+body Erasure.ErasureConfig.nat cd2f1e4684be4894
+body Erasure.ErasureConfig.remove_irrel_constr_args 2469259afc31c20
+body Erasure.ErasureState 4fe441116892763f
+body Erasure.ErasureState.constants d450b19124b212a9
+body Erasure.ErasureState.gdecls d18739f6324c3052
+body Erasure.ErasureState.inductives 88c83657d5808a7f
+body Erasure.ErasureState.inlinedSizes caa2e31aaca89a52
+body Erasure.ErasureState.inlinings 745e45c1392c58a7
+body Erasure.ErasureState.mk e81965ada460c3a4
+body Erasure.InductiveArgMasks eba1e2e54525c7d0
+body Erasure.Local 1625ba8932332bcc
+body Erasure.Local.casesOn 40443c0716f323cd
+body Erasure.Local.fvarId f457bf405e495cc4
+body Erasure.Local.mk aa505832b36f9794
+body Erasure.Local.rec 530482d78577281a
+body Erasure.Local.type 7f264a89529eee4b
+body Erasure.Local.userName 6ceba122948a7c04
+body Erasure.Planned.altFields 924b85b20895d137
+body Erasure.Planned.altFields._sparseCasesOn_1 bc52413d5a711ab2
+body Erasure.Planned.altFields.match_1 a63f15a2077c5437
+body Erasure.Planned.blockCtorCount 7c8f010d7c52f608
+body Erasure.Planned.blockCtorCount._f 656032e91456023a
+body Erasure.Planned.blockCtorCount._sparseCasesOn_1 ffa0084a5062131a
+body Erasure.Planned.blockCtorCount.match_1 ef3fd35518b250b2
+body Erasure.Planned.casesInfo? 771de95fdfce02a
+body Erasure.Planned.casesInfo?._sparseCasesOn_5 f860504b6f2d7935
+body Erasure.Planned.casesInfo?._sparseCasesOn_6 a7e024f5ab5eb14f
+body Erasure.Planned.casesInfo?._sparseCasesOn_9 4ce812e2175f3da3
+body Erasure.Planned.casesInfo?.match_1 6321e49e46c7cad8
+body Erasure.Planned.casesInfo?.match_3 da9cd0e427e7c64e
+body Erasure.Planned.casesInfo?.match_5 d6ca535d7dd78c08
+body Erasure.Planned.casesInfo?.match_9 6cae707921e8d29d
+body Erasure.Planned.ctorAlts cf782b693ecdd745
+body Erasure.Planned.ctorAlts._f 9fe80770d3add8e4
+body Erasure.Planned.ctorAlts._sparseCasesOn_1 c3fdce8126813c01
+body Erasure.Planned.ctorAlts.match_1 2929fb1381de4380
+body Erasure.Planned.ctorAlts.match_4 27a7465a447895ff
+body Erasure.Planned.forallArity e2f1421cb440ff4b
+body Erasure.Planned.forallArity._f 99e2029e252f353f
+body Erasure.Planned.forallArity.match_1 aa795bcd0951aea7
+body Erasure.Planned.forallDom? 52db1ae078ddf171
+body Erasure.Planned.forallDom?._f 52ba82b3eaa12234
+body Erasure.Planned.forallDom?._sparseCasesOn_1 1f5fa03f83c34107
+body Erasure.Planned.forallDom?.match_1 3e0aa621eddf5281
+body Erasure.Planned.implementedBy? d34cd11cfdd7737a
+body Erasure.Planned.isBVarAt efce9ed630f517a4
+body Erasure.Planned.isBVarAt._sparseCasesOn_1 50def95db0932aa0
+body Erasure.Planned.isBVarAt._sparseCasesOn_2 4897da353a5f3ad4
+body Erasure.Planned.isBVarAt.match_1 dc85ada312d21ec0
+body Erasure.Planned.isConstAt 2b3614fc4bd0948f
+body Erasure.Planned.isConstAt._sparseCasesOn_1 79eea8c1997ff1ed
+body Erasure.Planned.isConstAt._sparseCasesOn_4 e2c4b5b7115d85cf
+body Erasure.Planned.isConstAt.match_1 fa88bc81b3a40fd4
+body Erasure.Planned.isConstAt.match_4 8c7bd3a4181e8a28
+body Erasure.Planned.isMinorBody e11a99afdbfb1a
+body Erasure.Planned.isMinorBody.match_1 f4cfee6d157a7f11
+body Erasure.Planned.minorArity fc1c4623e84e0595
+body Erasure.Planned.peelLams 2aa89e6fd679f984
+body Erasure.Planned.peelLams._f 5b48ff0d7eca4c4c
+body Erasure.Planned.peelLams._sparseCasesOn_1 bbc2b4749f9d5cbe
+body Erasure.Planned.peelLams.match_1 3fc9d8a921b23596
+body Erasure.Planned.spine 63a3a5255db98030
+body Erasure.Planned.spine._f bdbe57ee1836ea43
+body Erasure.Planned.spine._sparseCasesOn_3 bcc1816009c2f20b
+body Erasure.Planned.spine.match_1 af1cbf2c5f944dc0
+body Erasure.Planned.spine.match_3 de073db150d71b11
+body Erasure.Pure.Ctx 4b4b1200c67a0020
+body Erasure.Pure.Ctx.decls 88b94a4a08a68943
+body Erasure.Pure.Ctx.mk 62f8e857b9bec830
+body Erasure.Pure.alwaysZero 141e923196479bc7
+body Erasure.Pure.alwaysZero._f ade6c8de98de7b0d
+body Erasure.Pure.alwaysZero._sparseCasesOn_1 47afa3fe31e532e5
+body Erasure.Pure.alwaysZero.match_1 f3c23a1fed99e21
+body Erasure.Pure.findLocal bbca88dab919825d
+body Erasure.Pure.inferType f187720648d83a75
+body Erasure.Pure.inferType._f 8c8132d7da2de0c
+body Erasure.Pure.inferType._sparseCasesOn_10 9dcc12169e374136
+body Erasure.Pure.inferType._sparseCasesOn_13 52da96a4cd0f8cf5
+body Erasure.Pure.inferType._sparseCasesOn_7 1f5fa03f83c34107
+body Erasure.Pure.inferType.match_1 8e63730422e81b9f
+body Erasure.Pure.inferType.match_10 3cb778a67d4ea901
+body Erasure.Pure.inferType.match_13 78ffb21ea9aa236d
+body Erasure.Pure.inferType.match_3 33f094f3c954e532
+body Erasure.Pure.inferType.match_5 2baba9221b9eabc2
+body Erasure.Pure.inferType.match_7 86a23ba79ba2cf9e
+body Erasure.Pure.instLevel 57ebb32cc06ee725
+body Erasure.Pure.instLevel._f 5a769b0e458bad4d
+body Erasure.Pure.instLevel.match_1 f588a5c78b344b3d
+body Erasure.Pure.instLevel.match_3 76eb7c44ac7a85
+body Erasure.Pure.instLevels 9ddd220a19f18604
+body Erasure.Pure.instLevels._f 10c30a3323f6f100
+body Erasure.Pure.instLevels._sparseCasesOn_1 5a6039d948da4319
+body Erasure.Pure.instLevels.match_1 cbd50b5b3acea20a
+body Erasure.Pure.isArity 4f813d4c324acd7e
+body Erasure.Pure.isArity._f c68798057cb067d9
+body Erasure.Pure.isArity._sparseCasesOn_1 54482b8589b6bad6
+body Erasure.Pure.isArity.match_1 610e0fd698cb044
+body Erasure.Pure.isArity.match_4 876c91d37e552cc
+body Erasure.Pure.isErasable 7ddd7e8a924abb45
+body Erasure.Pure.isPropFormerType f699c9006fb00140
+body Erasure.Pure.isPropFormerType._f cd2511804f591761
+body Erasure.Pure.isPropFormerType._sparseCasesOn_1 bcaccb2616487177
+body Erasure.Pure.isPropFormerType.match_1 dbdfef825154b174
+body Erasure.Pure.typeLevel 21b93d965d760103
+body Erasure.Pure.whnf 8f41d7734a1d0f15
+body Erasure.Pure.whnf._f 33ab44dbabf706f3
+body Erasure.Pure.whnf._sparseCasesOn_1 bbc2b4749f9d5cbe
+body Erasure.Pure.whnf._sparseCasesOn_10 829724ee610e67c
+body Erasure.Pure.whnf._sparseCasesOn_4 50def95db0932aa0
+body Erasure.Pure.whnf._sparseCasesOn_7 f860504b6f2d7935
+body Erasure.Pure.whnf.match_1 8a4a071665929cba
+body Erasure.Pure.whnf.match_10 ea75a573688eedea
+body Erasure.Pure.whnf.match_4 9dc44f11237374c7
+body Erasure.Pure.whnf.match_7 c77aee4be773e7c8
+body Erasure.PureCtx 427fedda8cfd79f8
+body Erasure.PureCtx.decls cb50593af8bef0a7
+body Erasure.PureCtx.mk a8d04af361d8ecd0
+body Erasure.PureCtx.view 1288a72cfca071a0
+body Erasure.PureM 132e13f193fffd7f
+body Erasure.PureM.casesInfo? d9d2a8966aa5807f
+body Erasure.PureM.ctorArity? b0825ae3a8cbaf84
+body Erasure.PureM.declInfo? f0c1d36f1c2d9b4f
+body Erasure.PureM.findConst? 1f9219951e54df12
+body Erasure.PureM.freshFVarId d985d3a181699bb6
+body Erasure.PureM.instantiate1 e0cb5d49cc3e990e
+body Erasure.PureM.isErasable 47aa30b23d95744a
+body Erasure.PureM.isErasable.match_1 a0333b6b7274539
+body Erasure.PureM.isPropFormerType c50581a5b5e80ad3
+body Erasure.PureM.prepare debde0cacff915d3
+body Erasure.PureM.typeLevel d2ed247ef9107855
+body Erasure.PureM.typeLevel.match_1 256ea8cef37f91f7
+body Erasure.PureState f334ebacc6f89f76
+body Erasure.PureState.mk 8f0fed89e6d839e1
+body Erasure.PureState.next afb34fe852687d1a
+body Erasure.TravCtx 42aa78798ca26bb0
+body Erasure.TravCtx.config 6fb542e787a17e9c
+body Erasure.TravCtx.fixvars 5bde871ad157c278
+body Erasure.TravCtx.lctx ccaa70651b0a02e4
+body Erasure.TravCtx.locals a9aa07416a2298d6
+body Erasure.TravCtx.mk 1e5b877167e0e892
+body Erasure.addAxiom c90342fe0b8babe5
+body Erasure.autoInlineMaxSize ff9a63647f56874e
+body Erasure.axiomatized 74b740870cb16a65
+body Erasure.binderNameOf 6fe67446c5886785
+body Erasure.erasePure 11a637393d104185
+body Erasure.erasePure.match_1 3564ad4114eb2d3
+body Erasure.filter d3c96de4c03a363
+body Erasure.filter.match_1 d9f106ef8eda3ddd
+body Erasure.findConst fbbc6995a38a95f6
+body Erasure.fixDefName a8f3b580cffc71a8
+body Erasure.forallMonocular aaa187cf04b324d2
+body Erasure.forallMonocular._sparseCasesOn_1 1f5fa03f83c34107
+body Erasure.forallMonocular.match_1 511c9c8cff7aa40a
+body Erasure.fvar_to_name 899118a51b9a79c9
+body Erasure.getConst 9bdc65ff3816995b
+body Erasure.getConst.match_1 2baba9221b9eabc2
+body Erasure.get_constant_kername._f a947aa81eafc94a3
+body Erasure.get_constant_kername.match_1 5642b8a97046be86
+body Erasure.get_constant_kername.match_3 80f8ee016bbdd267
+body Erasure.indexFields c49ab70c4a755bf5
+body Erasure.indexFields.go 820672cd8254dfc0
+body Erasure.indexFields.go._f 4a2a71ad86fc3f94
+body Erasure.indexFields.go._sparseCasesOn_1 4897da353a5f3ad4
+body Erasure.indexFields.go.match_1 920b11448fe110a7
+body Erasure.instBEqConstructorArgRelevance e82c37bc208e0e3c
+body Erasure.instBEqConstructorArgRelevance.beq 8b3a578c4d22c4ad
+body Erasure.instBackendPureM 8ebdf190e88684f
+body Erasure.instBackendPureM.match_1 c9386aa3c0dc8157
+body Erasure.instInhabitedLocal c9323b847872e517
+body Erasure.instInhabitedLocal.default 8c6c65d5207c2785
+body Erasure.instReprConstructorArgRelevance.repr.match_1 e0583cf50de04ab5
+body Erasure.lambdaMonocular 5a3aae00f5445fe6
+body Erasure.lambdaMonocular._sparseCasesOn_1 bbc2b4749f9d5cbe
+body Erasure.lambdaMonocular.match_1 1dbfbf45d22fbcd7
+body Erasure.lambdaMonocularOrIntro 62e5c83c0156e7d3
+body Erasure.lambdaOrIntroToArity be1f81ed3e924c5a
+body Erasure.lambdaOrIntroToArity._f b47406b63c7f75bc
+body Erasure.lambdaOrIntroToArity.match_1 850bd9dfa7f85eb5
+body Erasure.letMonocular 18296c8ac5fad453
+body Erasure.letMonocular._sparseCasesOn_1 3681339e555dc16a
+body Erasure.letMonocular.match_1 94483a2559fad115
+body Erasure.mkAlt 4bee7550a10cdb05
+body Erasure.mkAlt.match_1 725ac28a4485fb2a
+body Erasure.mkDef a1f4763b92c8a208
+body Erasure.mkLambda 8bac60c75626dd0e
+body Erasure.mkLetIn 93ca8f3edf498106
+body Erasure.name_occurs cabbec52cdfee93d
+body Erasure.name_occurs._f c77d1363e16fa971
+body Erasure.name_occurs.match_1 8dbf5ce2e84f917a
+body Erasure.oracleFuel da5abc80d97f990c
+body Erasure.register_inductive dd905176e633c267
+body Erasure.register_inductive._sparseCasesOn_1 c3fdce8126813c01
+body Erasure.register_inductive._sparseCasesOn_6 ffa0084a5062131a
+body Erasure.register_inductive.match_1 385ae129ae2bce7e
+body Erasure.register_inductive.match_11 1ee4cb95e80f9b1
+body Erasure.register_inductive.match_4 fb9c09c533c2d768
+body Erasure.register_inductive.match_6 9e5ab90e7f700eb1
+body Erasure.register_inductive.match_9 7dabcd66eb88050
+body Erasure.remove_unsafe_rec 3efacde913384a65
+body Erasure.replaceUnsafeRecNames._sparseCasesOn_1 50def95db0932aa0
+body Erasure.replaceUnsafeRecNames._sparseCasesOn_4 e2c4b5b7115d85cf
+body Erasure.replaceUnsafeRecNames.match_4 bde0f715f5282cff
+body Erasure.travFuel bf330e3d2dac5b59
+body Erasure.visitAlt._f 733c1dcec6ca6785
+body Erasure.visitAlt._sparseCasesOn_3 d9387b9494afe008
+body Erasure.visitAlt.match_1 5d850128ac4424e9
+body Erasure.visitAlt.match_3 7c9a1b244823611c
+body Erasure.visitAlt.match_6 c9cbc4680201c11c
+body Erasure.visitApp._f 90647cffbeac9710
+body Erasure.visitAppArgs._f be68a962d90d3139
+body Erasure.visitAppArgs.match_1 f67697542f00fc38
+body Erasure.visitCases._f 7b934d7b323371d8
+body Erasure.visitCases._sparseCasesOn_9 fa7fdd08240231b3
+body Erasure.visitCases.match_1 ef3f211ec458645a
+body Erasure.visitCases.match_12 8b8a5adca9f9edf8
+body Erasure.visitCases.match_14 57c216007439ac41
+body Erasure.visitCases.match_3 e915886f6ed18597
+body Erasure.visitCases.match_5 3ba8573c6ca0476d
+body Erasure.visitCases.match_7 43a6537f3655dea6
+body Erasure.visitCases.match_9 cba176cf02e352a0
+body Erasure.visitCasesOn._f eb1c09e0dcea4110
+body Erasure.visitCasesOn._sparseCasesOn_3 c3711c1eff6fe941
+body Erasure.visitCasesOn.match_1 d78eed56e4c445a
+body Erasure.visitCasesOn.match_3 e460909e8d91f81f
+body Erasure.visitCasesOn.match_6 ed0e9c9b8bb23f55
+body Erasure.visitConst._f d4f6e1ff9362bad0
+body Erasure.visitConst.match_1 fccb7146a5313464
+body Erasure.visitConstApp._f 324498fa6fe90d51
+body Erasure.visitConstApp.match_1 98680562a3b53c95
+body Erasure.visitConstApp.match_3 8429ce3bca94864d
+body Erasure.visitConstructor._f 55284ca050154f63
+body Erasure.visitConstructor._sparseCasesOn_1 4ce812e2175f3da3
+body Erasure.visitConstructor._sparseCasesOn_2 e12812d4f7fc71e9
+body Erasure.visitConstructor.match_1 2a72402baf414c02
+body Erasure.visitConstructor.match_5 a36ec483fa4ee060
+body Erasure.visitExpr a7954193614b3bbe
+body Erasure.visitExpr._f 79419ec67f1e5e5a
+body Erasure.visitExpr.match_1 764359fd17522de8
+body Erasure.visitExpr.match_3 8a6b6313d168f037
+body Erasure.visitLambda._f a509b047e1f0afc0
+body Erasure.visitLet._f 8807b5fd9b056c9c
+body Erasure.visitLiteral._f 847be0995407a80
+body Erasure.visitLiteral.match_1 bb907c3721a72438
+body Erasure.visitLiteral.match_3 4325b9c66ac46e6c
+body Erasure.visitMutual._f 940858e068279455
+body Erasure.visitMutual._sparseCasesOn_1 1957a78bf3bfb5c2
+body Erasure.visitMutual._sparseCasesOn_6 852c20fcbcfcac41
+body Erasure.visitMutual.match_1 d67d03b693458503
+body Erasure.visitMutual.match_4 c46de55d770eab88
+body Erasure.visitMutual.match_6 3d00847e20ee23a7
+body Erasure.visitProj._f 40c84ca908fedba9
+body Erasure.visitProj.match_1 266aafec15f95ad3
+body Erasure.visitProj.match_3 3ac681023ef5c3e0
+body Erasure.withAppEtaToMinArity 9a21a00d385ff089
+body Erasure.withAppEtaToMinArity.go 597587782ade31dc
+body Erasure.withAppEtaToMinArity.go._f 33e54597bf6c060a
+body Erasure.withAppEtaToMinArity.go.match_1 efe8d551e11a9d5
+body Erasure.withLocalDecl 11454ffc1ffd80e2
+body Erasure.withLocalDef bd7bdb16eb4a4090
+body FixDef 7972d560b2d67d1c
+body FixDef.body 9f7b7b621f73060d
+body FixDef.casesOn 75697f367ffb7758
+body FixDef.mk 2c8a1939c3f8c429
+body FixDef.name 781b33152cdce93e
+body FixDef.principalArgIdx 6581e9440b648f9d
+body FixDef.rec da6e9992d5d54b24
+body GlobalDecl cc1fd947ff2e5e86
+body GlobalDecl.casesOn f856480733fae482
+body GlobalDecl.constantDecl 55c47d3b48d90f75
+body GlobalDecl.ctorIdx 26c91f8558f99322
+body GlobalDecl.inductiveDecl 14c07a2e3f28dde8
+body GlobalDecl.rec 70c989bbf37b889e
+body GlobalDeclarations 1ae9dd2ba5bda1fd
+body Ident caab432c06067aae
+body InductiveId 875b3db6e82bf43
+body InductiveId.idx 442b378333a8d43d
+body InductiveId.mk 2017691de04faefa
+body InductiveId.mutualBlockName f0b5bf4bdaaa1b8c
+body Kername acbb327b0ce2a17a
+body Kername.casesOn 7a66a66b0b4f21ca
+body Kername.mk 98b48536534fbb89
+body Kername.rec f63816e5125aaa03
+body LBTerm d871f48125204a36
+body LBTerm.app 7dc490cddf19ea20
+body LBTerm.below 69c3edb9e3534aad
+body LBTerm.below_1 710908abbf9acfef
+body LBTerm.below_2 de0115c6d756a463
+body LBTerm.below_3 552ba79c3e7b3202
+body LBTerm.below_4 f2c96e99f9df2300
+body LBTerm.below_5 6b30b978c693c04f
+body LBTerm.box 826f36f85b59d23a
+body LBTerm.brecOn f53169862f4ad086
+body LBTerm.brecOn.go 1369edbb75da414e
+body LBTerm.brecOn_1 6c06cc87001377be
+body LBTerm.brecOn_1.go b78fc8e47e115fbc
+body LBTerm.bvar 498bc335cd252aa3
+body LBTerm.case dd95c7273b02fecf
+body LBTerm.casesOn f78a5e4a70fec4ad
+body LBTerm.const cb0f1430adf71e50
+body LBTerm.construct bda0b8b7b0db9ccd
+body LBTerm.ctorIdx 6dee76b1640b2f4c
+body LBTerm.fix 902d43413a27c5c6
+body LBTerm.fvar 13ed088d46da171d
+body LBTerm.inlinedSize a3236c378d13b7c1
+body LBTerm.inlinedSize.match_1 8bcd48aea20f32a4
+body LBTerm.isTrivialAlias f03a1e1d21e30d5f
+body LBTerm.isTrivialAlias._sparseCasesOn_1 b873530a57d063b0
+body LBTerm.isTrivialAlias.match_1 f38a5d2419a2f8e
+body LBTerm.isValue 5b1df01e146635f1
+body LBTerm.lambda 4a2cdcc17ce9ae21
+body LBTerm.letIn f692ffc03ac656ee
+body LBTerm.prim dc95c53fc4935e81
+body LBTerm.proj 5f39bcfed6153fb0
+body LBTerm.rec c8782af04c76fc1e
+body LBTerm.rec_1 5f424d699b4adc1e
+body LBTerm.rec_2 21e522f895a59f1e
+body LBTerm.rec_3 4a87571c344c4960
+body LBTerm.rec_4 56e4fe242cafeb37
+body LBTerm.rec_5 4194b34982cded88
+body LBTerm.stripLambdas 61c5a732aaa0160f
+body Lean.Expr.instantiate1' f3c7f78c802f3fe3
+body Lean.Expr.instantiate1'._f 202475c70b477d5c
+body Lean.Expr.instantiate1'.match_1 e06906b569151571
+body Lean.Expr.liftLooseBVars' 591dda413b7423fc
+body Lean.Expr.liftLooseBVars'._f 892f7382bb074e05
+body Lean.Expr.liftLooseBVars'.match_1 ac140ffa0720268e
+body ModPath 1d5c4b6807900e08
+body ModPath.MPdot 5ccd42a73c2a5da4
+body ModPath.MPfile 326560e229d0a686
+body ModPath.below b25479b3eb3211e6
+body ModPath.brecOn bd4f9a8232df6b02
+body ModPath.brecOn.go 737520f45f3cda42
+body ModPath.casesOn 3ba1ff09f08c55ef
+body ModPath.ctorIdx f822c0664450a4ff
+body ModPath.rec ae54e8c8308ab914
+body MutualInductiveBody ed3dfeb2194c1fa1
+body MutualInductiveBody.bodies b20bbcbb9b5f25b3
+body MutualInductiveBody.mk a92de4b49a728f6c
+body MutualInductiveBody.npars 7d0e71f6d3196bb9
+body OneInductiveBody fa1db668eb6ccb7a
+body OneInductiveBody.ctors e63405861103bc86
+body OneInductiveBody.mk 9ab5339a4b402afb
+body OneInductiveBody.propositional eeaa027d9b27bbd8
+body PrimModel 6641ce9c511fafad
+body PrimTag 5eb1eea6fced19d
+body PrimTag.casesOn 4bf04aa4b401df59
+body PrimTag.primInt d30a870693f7ecc3
+body PrimTag.rec 13308fac148e08b3
+body PrimVal 8835e1e3ab0607e6
+body Program d4c4ed7c19493a0d
+body ProjectionBody f54d172fa8b19895
+body ProjectionBody.mk 666bc2244640d0b6
+body ProjectionInfo e4318ad484d6cbc
+body ProjectionInfo.fieldIdx 996a53fc91d35121
+body ProjectionInfo.indType da8b4a7017208b58
+body ProjectionInfo.mk 921f7f8ef453f44
+body ProjectionInfo.paramCount e882c991fcdbd9c4
+body RecursivityKind 43bab1c3be8ee248
+body RecursivityKind.finite 4def7d2c2a58efa7
+body abstract 44bf7eb994a6f949
+body cleanIdent 4c5ff370d47bdd2f
+body instBEqKername e3da5c45a29d0f9f
+body instBEqKername.beq a2ffcb8fa958b4a
+body instBEqKername.beq.match_1 dc88e75b447cb8a5
+body instBEqModPath b819c93d4b5fcfa4
+body instBEqModPath.beq da92e69f4dd98ac5
+body instBEqModPath.beq._f 4158271ba45893d8
+body instBEqModPath.beq._sparseCasesOn_1 95274acbfeb153d5
+body instBEqModPath.beq._sparseCasesOn_2 3068d0dc663d015f
+body instBEqModPath.beq.match_1 2d0dae4cc7893301
+body instHashableKername c10c9edcf4227182
+body instHashableKername.hash 3010c8a5ca0d62e8
+body instHashableKername.hash.match_1 428421fe757e3642
+body instHashableModPath 7560b8a9cb0b4056
+body instHashableModPath.hash 3326176a23aa4574
+body instHashableModPath.hash._f 17d232cc63bea3b7
+body instInhabitedConstructorBody d1346dad95429511
+body instInhabitedConstructorBody.default efa978a1ae0e139f
+body instInhabitedInductiveId 1584ca58947e63b3
+body instInhabitedInductiveId.default 1ae40bb5302e0c29
+body instInhabitedKername 141feecb8ac4aa44
+body instInhabitedKername.default aeda0f0ced286135
+body instInhabitedLBTerm f33a6e771e7b75af
+body instInhabitedLBTerm.default 642310eb0d768f75
+body instInhabitedModPath 18c5227026150408
+body instInhabitedModPath.default 9f09f6a29acf9555
+body instInhabitedOneInductiveBody 527df817704dd3a9
+body instInhabitedOneInductiveBody.default 1ab71f745c50f1f7
+body instReprModPath.repr.match_1 b9b63d05567bc111
+body instReprPrimTag.repr.match_1 69c6a4f4b2ac786d
+body mutualBlockKername 97a2bba986af8997
+body rootKername d45a7c789de69f0b
+body toBvar 39708c8f1c80c38
+body toBvar._f 439417e3e8334a4e
+body toBvar.match_1 fe99ca176db14e88
+body toBvarAlts._f 7bb246d5e7c327b8
+body toBvarAlts.match_1 c293e4466365c47c
+body toBvarDefs._f 6d29f2995afc20a3
+body toBvarDefs.match_1 34b7a3440b941464
+body toBvarList._f dadefe51a96d55d4
+body toBvarList.match_1 2fbcaf0fe147f396
+body toKername abbf64a4205b02b5
+body toModPath dc87550c431668fb
+body toModPath._f 32dce6144a700ec7
+body toModPath.match_1 974ef478d1b9d50b
+dep Cli 2842b9871b04862f944c032e34052cb9448ccb71
+dep LeanSearchClient 95e037bfdc31d3916ac615446847fb01960e2719
+dep Qq 786b7acdca7eb4e9c76c5d1d5bd810e7e5c56334
+dep aesop 75d936c7af167cc93fac0d31237682fc2204591d
+dep batteries ed9b316aabe389fec1ef43c3326ab48c7e59be42
+dep importGraph f8e94c24111148c9ad1b866212a6e1a0fabb5e76
+dep mathlib 6ebcdee77a1b7bf10f211d4c993d85fbb19644bc
+dep metalean 9407ba4407374a05e90777a068c2dc520e4ac0e7
+dep plausible e50948299c4dc4a4c21b1c34b6a6a4fddc19f912
+dep proofwidgets 4c70ac059693669e5756e32a7a94b57ee1e99dc5
 name AddMonoid.toAddZeroClass
 name AddZero.toZero
 name AddZeroClass.toAddZero
 name Alternative.toApplicative
 name And
 name Applicative.toPure
+name Array
+name Array.count
+name Array.filterMap
+name Array.foldlM
+name Array.instAppend
+name Array.instGetElem?NatLtSize
+name Array.instInhabited
+name Array.mkEmpty
+name Array.push
+name Array.replicate
+name Array.size
 name Array.toList
+name Array.toSubarray
+name Array.zip
 name BEq
 name BEq.beq
 name BEq.mk
 name Bind.bind
 name BitVec
+name BitVec.instNatCast
+name BitVec.intMax
 name Bool
 name Bool.and
+name Bool.casesOn
 name Bool.false
 name Bool.not
 name Bool.or
@@ -451,6 +780,7 @@ name Char.ofNat
 name Char.toNat
 name Decidable.decide
 name EIO
+name EmptyCollection.emptyCollection
 name Eq
 name Eq.ndrec
 name Eq.ndrec_symm
@@ -458,6 +788,9 @@ name Eq.refl
 name Erasure.Planned.collectDeps
 name Erasure.eraseEntry
 name Except
+name Except.casesOn
+name Except.error
+name Except.instMonad
 name Except.ok
 name Exists
 name False
@@ -470,32 +803,58 @@ name Fin.instOfNat
 name Fin.last
 name Fin.mk
 name Fin.val
+name ForIn.forIn
+name ForInStep
+name ForInStep.done
+name ForInStep.yield
+name GE.ge
+name GT.gt
 name GetElem.getElem
+name GetElem?.getElem!
 name GetElem?.getElem?
 name HAdd.hAdd
 name HAppend.hAppend
 name HEq
 name HEq.refl
+name HPow.hPow
 name HSub.hSub
+name Hashable
+name Hashable.hash
+name Hashable.mk
 name IO.RealWorld
+name Iff
 name Inhabited
 name Inhabited.default
 name Inhabited.mk
+name InvImage
 name LE.le
 name LT.lt
 name Lean.AxiomVal
 name Lean.AxiomVal.isUnsafe
 name Lean.AxiomVal.toConstantVal
 name Lean.BinderInfo
+name Lean.BinderInfo.default
 name Lean.CasesAltInfo
+name Lean.CasesAltInfo.casesOn
 name Lean.CasesAltInfo.ctor
 name Lean.CasesAltInfo.ctorIdx
 name Lean.CasesAltInfo.default
 name Lean.CasesAltInfo.rec
 name Lean.CasesInfo
+name Lean.CasesInfo.altNumParams
+name Lean.CasesInfo.altsRange
+name Lean.CasesInfo.arity
+name Lean.CasesInfo.discrPos
 name Lean.CasesInfo.indName
 name Lean.CasesInfo.mk
 name Lean.Compiler.InlineAttributeKind
+name Lean.Compiler.InlineAttributeKind.alwaysInline
+name Lean.Compiler.InlineAttributeKind.ctorIdx
+name Lean.Compiler.InlineAttributeKind.inline
+name Lean.Compiler.InlineAttributeKind.inlineIfReduce
+name Lean.Compiler.InlineAttributeKind.macroInline
+name Lean.Compiler.InlineAttributeKind.noinline
+name Lean.Compiler.InlineAttributeKind.rec
 name Lean.Compiler.mkUnsafeRecName
 name Lean.ConstantInfo
 name Lean.ConstantInfo.all
@@ -505,6 +864,7 @@ name Lean.ConstantInfo.ctorIdx
 name Lean.ConstantInfo.ctorInfo
 name Lean.ConstantInfo.defnInfo
 name Lean.ConstantInfo.inductInfo
+name Lean.ConstantInfo.inductiveVal!
 name Lean.ConstantInfo.levelParams
 name Lean.ConstantInfo.name
 name Lean.ConstantInfo.opaqueInfo
@@ -513,6 +873,8 @@ name Lean.ConstantInfo.rec
 name Lean.ConstantInfo.recInfo
 name Lean.ConstantInfo.thmInfo
 name Lean.ConstantInfo.type
+name Lean.ConstantInfo.value!
+name Lean.ConstantInfo.value?
 name Lean.ConstantVal.levelParams
 name Lean.ConstantVal.name
 name Lean.ConstantVal.type
@@ -547,6 +909,7 @@ name Lean.Expr.fvar
 name Lean.Expr.getAppArgs
 name Lean.Expr.getAppFn
 name Lean.Expr.getAppNumArgs
+name Lean.Expr.instBEq
 name Lean.Expr.lam
 name Lean.Expr.letE
 name Lean.Expr.lit
@@ -554,12 +917,18 @@ name Lean.Expr.mdata
 name Lean.Expr.mvar
 name Lean.Expr.proj
 name Lean.Expr.rec
+name Lean.Expr.replace
 name Lean.Expr.sort
+name Lean.Expr.withApp
 name Lean.FVarId
+name Lean.FVarId.mk
+name Lean.FVarIdMap
 name Lean.InductiveVal
 name Lean.InductiveVal.all
 name Lean.InductiveVal.ctors
+name Lean.InductiveVal.isRec
 name Lean.InductiveVal.isUnsafe
+name Lean.InductiveVal.numCtors
 name Lean.InductiveVal.numIndices
 name Lean.InductiveVal.numNested
 name Lean.InductiveVal.numParams
@@ -571,6 +940,7 @@ name Lean.Level.brecOn
 name Lean.Level.casesOn
 name Lean.Level.ctorIdx
 name Lean.Level.imax
+name Lean.Level.isNeverZero
 name Lean.Level.max
 name Lean.Level.mvar
 name Lean.Level.param
@@ -583,6 +953,13 @@ name Lean.Literal.ctorIdx
 name Lean.Literal.natVal
 name Lean.Literal.rec
 name Lean.Literal.strVal
+name Lean.LocalContext
+name Lean.LocalContext.mk
+name Lean.LocalContext.mkLetDecl
+name Lean.LocalContext.mkLocalDecl
+name Lean.LocalDecl
+name Lean.LocalDeclKind
+name Lean.LocalDeclKind.default
 name Lean.MData
 name Lean.MVarId
 name Lean.Name
@@ -593,6 +970,7 @@ name Lean.Name.casesOn
 name Lean.Name.ctorIdx
 name Lean.Name.instBEq
 name Lean.Name.instDecidableEq
+name Lean.Name.instToString
 name Lean.Name.mkStr1
 name Lean.Name.mkStr2
 name Lean.Name.num
@@ -604,6 +982,14 @@ name Lean.OpaqueVal.all
 name Lean.OpaqueVal.isUnsafe
 name Lean.OpaqueVal.toConstantVal
 name Lean.OpaqueVal.value
+name Lean.PersistentArray.branching
+name Lean.PersistentArray.initShift
+name Lean.PersistentArray.mk
+name Lean.PersistentArrayNode
+name Lean.PersistentArrayNode.node
+name Lean.PersistentHashMap.Node.entries
+name Lean.PersistentHashMap.mk
+name Lean.PersistentHashMap.mkEmptyEntriesArray
 name Lean.QuotKind
 name Lean.QuotKind.casesOn
 name Lean.QuotKind.ctor
@@ -625,6 +1011,14 @@ name Lean.TheoremVal
 name Lean.TheoremVal.all
 name Lean.TheoremVal.toConstantVal
 name Lean.instBEqFVarId
+name Lean.instEmptyCollectionFVarIdMap
+name Lean.instHashableFVarId
+name Lean.instHashableName
+name Lean.instInhabitedConstantInfo
+name Lean.instInhabitedExpr
+name Lean.instInhabitedFVarId
+name Lean.instInhabitedLocalDeclKind
+name Lean.instInhabitedName
 name Lean.mkAppN
 name Lean.mkRecName
 name List
@@ -642,15 +1036,19 @@ name List.drop
 name List.finIdxOf?
 name List.find?
 name List.findIdx?
+name List.findSome?
 name List.flatten
 name List.foldl
+name List.foldr
 name List.idxOf
 name List.idxOf?
 name List.instAppend
 name List.instBEq
+name List.instForIn'InferInstanceMembershipOfMonad
 name List.instGetElem?NatLtLength
 name List.instGetElemNatLtLength
 name List.instMembership
+name List.isEmpty
 name List.length
 name List.map
 name List.mapM
@@ -663,19 +1061,25 @@ name List.reverse
 name List.sum
 name List.take
 name List.toArray
+name List.unzip
 name List.zip
+name List.zipIdx
 name Matrix.vecCons
 name Matrix.vecEmpty
+name Membership
 name Membership.mem
 name Metalean.ConstKind
 name Metalean.ConstKind.axiom
 name Metalean.ConstKind.def
 name Metalean.ConstKind.opaque
+name Metalean.Ctor.ordinaryFieldExpr
 name Metalean.CtorSig
+name Metalean.CtorSig.caseOrdinary
 name Metalean.CtorSig.mk
 name Metalean.CtorSig.nfields
 name Metalean.CtorSig.nrecFields
 name Metalean.Ctx
+name Metalean.Ctx.lam
 name Metalean.Ctx.nil
 name Metalean.Ctx.pi
 name Metalean.Ctx.snoc
@@ -719,6 +1123,7 @@ name Metalean.Expr.sort
 name Metalean.Expr.var
 name Metalean.Expr.wk
 name Metalean.Expr.wkClosed
+name Metalean.Expr.wkN
 name Metalean.Frontend.Failure
 name Metalean.Frontend.ctorTerm
 name Metalean.Frontend.indTerm
@@ -747,7 +1152,10 @@ name Metalean.Inductive
 name Metalean.Inductive.IsStructure
 name Metalean.Inductive.IsStructure.projTerm
 name Metalean.Inductive.LargeElim
+name Metalean.Inductive.caseTele
+name Metalean.Inductive.ctors
 name Metalean.Inductive.level
+name Metalean.Inductive.motiveTele
 name Metalean.Level
 name Metalean.Level.imax
 name Metalean.Level.max
@@ -763,13 +1171,21 @@ name Metalean.Sigs
 name Metalean.Sigs.nil
 name Metalean.Sigs.snoc
 name Metalean.TypeEq
+name Monad
+name Monad.toApplicative
 name Monad.toBind
+name MonadExcept.throw
+name MonadReader.read
+name MonadState.get
+name MonadState.modifyGet
+name MonadWithReader.withReader
 name Nat
 name Nat.Internal.elimOffset
 name Nat.add
 name Nat.below
 name Nat.brecOn
 name Nat.casesOn
+name Nat.cast
 name Nat.ctorIdx
 name Nat.decLe
 name Nat.decLt
@@ -794,6 +1210,7 @@ name Option
 name Option.bind
 name Option.casesOn
 name Option.ctorIdx
+name Option.get!
 name Option.getD
 name Option.isNone
 name Option.isSome
@@ -804,6 +1221,9 @@ name Option.some
 name Or
 name PProd
 name PProd.mk
+name PSigma
+name PSigma.casesOn
+name PSigma.mk
 name PUnit
 name PUnit.unit
 name Prod
@@ -812,23 +1232,73 @@ name Prod.fst
 name Prod.mk
 name Prod.snd
 name Pure.pure
+name ReaderT
 name ReaderT.instApplicativeOfMonad
+name ReaderT.instMonad
+name ReaderT.instMonadExceptOf
+name ReaderT.instMonadLift
+name ReaderT.run
 name Sigma
+name Sigma.mk
 name StateRefT'
 name StateRefT'.instMonad
+name StateT
+name StateT.instMonad
+name StateT.instMonadExceptOf
+name StateT.instMonadFunctor
+name StateT.instMonadLift
+name StateT.run
+name Std.HashMap
+name Std.HashMap.contains
+name Std.HashMap.get?
+name Std.HashMap.getD
+name Std.HashMap.insert
+name Std.HashMap.instEmptyCollection
+name Std.HashMap.instGetElem?Mem
+name Std.HashMap.instInhabited
+name Std.HashMap.instMembership
+name Std.HashMap.ofList
+name Std.PRange.instIsAlwaysFiniteNat_1
+name Std.PRange.instLawfulUpwardEnumerableLENat
+name Std.PRange.instLawfulUpwardEnumerableLTNat
+name Std.PRange.instLawfulUpwardEnumerableNat
+name Std.PRange.instUpwardEnumerableNat
+name Std.Rco
+name Std.Rco.instForIn'InferInstanceMembershipOfLawfulUpwardEnumerableOfLawfulUpwardEnumerableLEOfLawfulUpwardEnumerableLTOfMonadOfFiniteIteratorId
+name Std.Rco.instMembershipOfLEOfLT
 name Std.Rco.mk
+name Std.Rxo.Iterator.instFinite
+name Std.Slice.Internal.SubarrayData
+name Std.Slice.toArray
+name Std.Stream.next?
+name Std.ToStream.toStream
+name Std.instStreamList
+name Std.instStreamSubarray
+name Std.instToStreamArraySubarray
+name Std.instToStreamList
 name String
 name String.Slice.Pattern.CharPred.instForwardPatternForallCharBool
 name String.all
 name String.instInhabited
 name String.join
 name String.toList
+name Subarray
+name Subarray.copy
+name Subarray.instToIterator
+name SubarrayIterator
 name ToString.toString
 name True
+name UInt64
+name UInt64.instOfNat
+name USize.toNat
 name Unit
 name Unit.unit
+name WellFounded.Nat.fix
 name Zero.ofOfNat0
+name absurd
+name bne
 name dite
+name inferInstance
 name instAddNat
 name instAlternativeOption
 name instAppendString
@@ -838,23 +1308,60 @@ name instDecidableEqBool
 name instDecidableEqChar
 name instDecidableEqNat
 name instDecidableEqString
+name instDecidableLeBitVec
+name instForInOfForIn'
+name instForInSubarrayOfMonad
 name instHAdd
 name instHAppendOfAppend
+name instHPow
 name instHSub
+name instHashableList
+name instHashableString
+name instInhabitedBool
 name instInhabitedList
+name instInhabitedNat
+name instInhabitedOfMonad
+name instInhabitedOption
+name instInhabitedPUnit
+name instInhabitedProd
+name instIteratorSubarrayIteratorId
+name instLEBitVec
 name instLENat
 name instLTNat
 name instMonadEIO
+name instMonadExceptOfExcept
+name instMonadExceptOfMonadExceptOf
+name instMonadLiftT
+name instMonadLiftTOfMonadLift
 name instMonadOption
+name instMonadReaderOfMonadReaderOf
+name instMonadReaderOfOfMonadLift
+name instMonadReaderOfReaderTOfMonad
+name instMonadStateOfMonadStateOf
+name instMonadStateOfOfMonadLift
+name instMonadStateOfStateTOfMonad
+name instMonadWithReaderOfMonadWithReaderOf
+name instMonadWithReaderOfOfMonadFunctor
+name instMonadWithReaderOfReaderT
+name instNatPowNat
 name instOfNatNat
+name instPowNat
 name instSubNat
 name instToStringChar
 name instToStringNat
+name instToStringString
 name ite
+name liftM
+name mixHash
+name modify
 name namedPattern
 name noConfusion_of_Nat
 name optParam
+name panic
 name panicWithPosWithDecl
 name sorryAx
 root EraseProof.collectDeps_ok_of 11186852
+root EraseProof.erasePure_erases 7f4f2803
 root EraseProof.erase_correct 7b3a81a2
+root EraseProof.erases_correct a5a5dd9c
+toolchain leanprover/lean4:v4.35.0-rc2

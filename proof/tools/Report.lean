@@ -59,9 +59,13 @@ and the shipping code (by default the modules `EraseProof` and `LeanToLambdaBox`
   and its constructors' names and types (inductives), followed further, if it is declared in the
   library or the shipping code; its name only if it is one of the shipping functions under
   verification (`pinFrontier`) or declared in a dependency (`depPrefixes`, pinned by version).
+  The hash covers the constant's kind and flags (`pinHash`). The pin also holds the toolchain and
+  the revision of every git dependency (`depPin`: `lean-toolchain` and `lake-manifest.json`).
   `spec.pin` holds the pin of the approved statements (written by `--write-pin`). Every root and
-  every hashed constant of `spec.pin` that exists must have the pinned hash; with C12 (not
-  `--no-final`), every root must exist and the computed pin must equal `spec.pin`.
+  every hashed constant of `spec.pin` that exists must have the pinned hash; the toolchain and
+  dependency lines must be those of the root package (`--shipping`) and of this package (`--src`),
+  and the running Lean the pinned toolchain, always; with C12 (not `--no-final`), every root must
+  exist and the computed pin must equal `spec.pin`.
 
 Options: `--import M` (repeatable; replaces the default `EraseProof`, `LeanToLambdaBox`), `--roots FILE`
 (`ROOTS.txt`), `--expected FILE` (`axioms.expected`), `--out DIR` (`.check`), `--src DIR` (`.`),
@@ -100,14 +104,18 @@ def isForbidden (n : Name) : Bool := forbiddenModules.any (·.isPrefixOf n)
 
 /-- The total term builders of Metalean's translator (`Metalean/Frontend/Translate.lean`) that the
 bridge relation uses for the η-terms of saturating names, and the quotient kinds of its export
-format; with what they reach, they are exempt from C6 (`allowList`). -/
+format; with what they reach, they are exempt from C6 (`allowList`). The η-terms enter the
+hypotheses (`TrM` in `he`, `henv`) and, through `ErasableS` in the `box` rule of `Erases`, the
+conclusion of the final theorem: a wrong builder could make premises unsatisfiable or change which
+terms count as erasable. They are total, non-`partial` definitions of the pinned Metalean. -/
 def allowRoots : Array Name := #[`Metalean.Frontend.indTerm, `Metalean.Frontend.ctorTerm,
   `Metalean.Frontend.recrTerm, `Metalean.Frontend.wrapCase, `Metalean.Frontend.quotTerm,
   `Metalean.Export.QuotKind]
 
-/-- The theorems whose statements C12b pins: the final theorem and the lower bound of its
-fragment hypothesis. -/
-def pinRoots : Array Name := #[`EraseProof.erase_correct, `EraseProof.collectDeps_ok_of]
+/-- The theorems whose statements C12b pins: the final theorem, the lower bound of its fragment
+hypothesis, and the milestones M1 (`erases_correct`) and M2 (`erasePure_erases`). -/
+def pinRoots : Array Name := #[`EraseProof.erase_correct, `EraseProof.collectDeps_ok_of,
+  `EraseProof.erases_correct, `EraseProof.erasePure_erases]
 
 /-- The shipping functions under verification: the statements mention them, C12b pins their names
 only. -/
@@ -570,20 +578,39 @@ def isDep (env : Environment) (c : Name) : Bool :=
 
 def hex (h : UInt64) : String := String.ofList (Nat.toDigits 16 h.toNat)
 
-/-- The hash C12b pins for a constant whose body it follows, and the constants it follows. -/
+/-- A tag per constant kind and flag, mixed into `pinHash`: a definition turned into an opaque
+(or its safety changed) changes the hash. -/
+def kindHash (tag : String) (flags : List Bool) : UInt64 :=
+  flags.foldl (init := hash tag) fun h b => mixHash h (hash b)
+
+def safetyFlags : DefinitionSafety → List Bool
+  | .safe => [false, false]
+  | .«unsafe» => [true, false]
+  | .partial => [false, true]
+
+/-- The hash C12b pins for a constant whose body it follows, and the constants it follows: its kind
+and flags (safety, `unsafe`; for inductives also `isRec`, `all`, `numNested`), its type, the value of
+definitions and opaques, the constructors' names and types of inductives. -/
 def pinHash (env : Environment) (c : Name) : Option (UInt64 × Array Name) :=
   match env.find? c with
   | some (.defnInfo v) =>
-    some (mixHash (hash v.type) (hash v.value), v.type.getUsedConstants ++ v.value.getUsedConstants)
+    some (mixHash (kindHash "defn" (safetyFlags v.safety)) (mixHash (hash v.type) (hash v.value)),
+      v.type.getUsedConstants ++ v.value.getUsedConstants)
   | some (.opaqueInfo v) =>
-    some (mixHash (hash v.type) (hash v.value), v.type.getUsedConstants ++ v.value.getUsedConstants)
-  | some (.thmInfo v) => some (hash v.type, v.type.getUsedConstants)
-  | some (.axiomInfo v) => some (hash v.type, v.type.getUsedConstants)
-  | some (.recInfo v) => some (hash v.type, v.type.getUsedConstants)
-  | some (.quotInfo v) => some (hash v.type, v.type.getUsedConstants)
-  | some (.ctorInfo v) => some (hash v.type, #[v.induct])
+    some (mixHash (kindHash "opaque" [v.isUnsafe]) (mixHash (hash v.type) (hash v.value)),
+      v.type.getUsedConstants ++ v.value.getUsedConstants)
+  | some (.thmInfo v) => some (mixHash (kindHash "thm" []) (hash v.type), v.type.getUsedConstants)
+  | some (.axiomInfo v) =>
+    some (mixHash (kindHash "axiom" [v.isUnsafe]) (hash v.type), v.type.getUsedConstants)
+  | some (.recInfo v) =>
+    some (mixHash (kindHash "rec" [v.isUnsafe, v.k]) (hash v.type), v.type.getUsedConstants)
+  | some (.quotInfo v) => some (mixHash (kindHash "quot" []) (hash v.type), v.type.getUsedConstants)
+  | some (.ctorInfo v) =>
+    some (mixHash (kindHash "ctor" [v.isUnsafe]) (hash v.type), #[v.induct])
   | some (.inductInfo v) =>
-    let h := v.ctors.foldl (init := mixHash (hash v.type) (hash (v.numParams, v.numIndices)))
+    let h0 := mixHash (kindHash "induct" [v.isUnsafe, v.isRec, v.isReflexive])
+      (mixHash (hash v.type) (hash (v.numParams, v.numIndices, v.numNested, v.all)))
+    let h := v.ctors.foldl (init := h0)
       fun h n => match env.find? n with
         | some ci => mixHash h (mixHash (hash n) (hash ci.type))
         | none => mixHash h (hash n)
@@ -593,6 +620,20 @@ def pinHash (env : Environment) (c : Name) : Option (UInt64 × Array Name) :=
       | none => acc
     some (h, deps)
   | none => none
+
+/-- The toolchain and dependency revisions C12b pins: `toolchain <lean-toolchain>` of the package
+`dir`, and `dep <package> <rev>` for every git package of its `lake-manifest.json`. -/
+def depPin (dir : System.FilePath) : IO (Array String) := do
+  let tc := (← IO.FS.readFile (dir / "lean-toolchain")).trimAscii.toString
+  let json ← IO.ofExcept (Json.parse (← IO.FS.readFile (dir / "lake-manifest.json")))
+  let pkgs ← IO.ofExcept (json.getObjValAs? (Array Json) "packages")
+  let mut out := #[s!"toolchain {tc}"]
+  for p in pkgs do
+    if let .ok "git" := p.getObjValAs? String "type" then
+      let name ← IO.ofExcept (p.getObjValAs? String "name")
+      let rev ← IO.ofExcept (p.getObjValAs? String "rev")
+      out := out.push s!"dep {name} {rev}"
+  return out.qsort (· < ·)
 
 /-- The pin of the theorems `roots`: one line `root <name> <hash of its type>` per root, then, for
 every constant reached from their types, `body <name> <hash>` (`pinHash`, followed) if it is
@@ -623,8 +664,9 @@ def specPin (env : Environment) (roots : Array Name) : Array String := Id.run do
 
 def pinHeader : String :=
 "# The pin of the approved statements (tools/Report.lean, C12b): `root <theorem> <hash of its type>`,
-# `body <constant> <hash of its definition>`, `name <constant>` (pinned by name). It is written from
-# the approved statements with `tools/Report.lean --write-pin`; proof/scripts/check.sh compares it.
+# `body <constant> <hash of its definition>`, `name <constant>` (pinned by name), `toolchain <name>`
+# and `dep <package> <rev>` (the root package's lean-toolchain and lake-manifest.json). It is written
+# from the approved statements with `tools/Report.lean --write-pin`; proof/scripts/check.sh compares it.
 "
 
 /-! ## Main -/
@@ -644,7 +686,7 @@ def main (args : List String) : IO UInt32 := do
   if let some f := cfg.writePin then
     for r in pinRoots do
       if !env.contains r then IO.eprintln s!"error: {r} is not a declaration"; return 1
-    let pin := specPin env pinRoots
+    let pin := (specPin env pinRoots ++ (← depPin cfg.shipping)).qsort (· < ·)
     IO.FS.writeFile f (pinHeader ++ "\n".intercalate pin.toList ++ "\n")
     IO.println s!"pin: {pin.size} lines written to {f}"
     return 0
@@ -977,12 +1019,27 @@ def main (args : List String) : IO UInt32 := do
           if ((pinHash env c.toName).map (hex ·.1)) != some h then
             fail "pin" s!"the definition of {c} differs from {cfg.pin}"
       | ["name", _] => pure ()
+      | ["toolchain", _] | ["dep", _, _] => pure ()
       | _ => fail "pin" s!"{cfg.pin}: malformed line: {l}"
+    -- The toolchain and the dependency revisions, of the root package and of proof/, always.
+    let pinnedDeps := pinned.filter fun l => l.startsWith "toolchain " || l.startsWith "dep "
+    let vers := s!"v{Lean.versionString}"
+    for (what, dir) in [("root package", cfg.shipping), ("proof package", cfg.src)] do
+      let got ← depPin dir
+      if got != pinnedDeps.qsort (· < ·) then
+        let extra := got.filter (!pinnedDeps.contains ·)
+        let missing := pinnedDeps.filter (!got.contains ·)
+        fail "pin" s!"the {what}'s toolchain or dependency revisions differ from {cfg.pin}: actual only {extra.toList}, pinned only {missing.toList}"
+      compared := compared + pinnedDeps.size
+    for l in pinnedDeps do
+      if let ["toolchain", tc] := fields l then
+        if !tc.endsWith vers then
+          fail "pin" s!"the running Lean {Lean.versionString} is not the pinned toolchain {tc}"
     IO.println s!"note: pin: {compared} of {pinned.size} pinned lines compared"
     if cfg.final then
       for r in pinRoots do
         if !env.contains r then fail "pin" s!"{r} is not a declaration"
-      let computed := specPin env pinRoots
+      let computed := (specPin env pinRoots ++ (← depPin cfg.shipping)).qsort (· < ·)
       let sorted := pinned.qsort (· < ·)
       if computed != sorted then
         let extra := computed.filter (!sorted.contains ·)

@@ -32,10 +32,12 @@
 #                  EraseProof.Test.NV1.final, whose hypothesis terms lie within them; the test
 #                  EraseProof.Test.Stub.erase_correct, the approved statement written out, has the
 #                  type of erase_correct exactly (skipped with --no-final); C12b, the definitions
-#                  the statements of erase_correct and collectDeps_ok_of are about (their closure
-#                  through the library and the shipping code) hash as in proof/spec.pin, the pin of
-#                  the approved statements: every pinned constant present, always; the whole pin,
-#                  in the final form. See the header of tools/Report.lean.
+#                  the statements of erase_correct, collectDeps_ok_of, erases_correct and
+#                  erasePure_erases are about (their closure through the library and the shipping
+#                  code; kind and flags included) hash as in proof/spec.pin, the pin of the
+#                  approved statements: every pinned constant present, and the toolchain and git
+#                  dependency revisions of both packages, always; the whole pin, in the final form.
+#                  See the header of tools/Report.lean.
 #   nv1-emit  C11  the part of C11 that needs no peregrine: proof/tools/NVEmit.lean runs #erase's
 #                  entry point on NV-1's program and fails unless it emits exactly the program the
 #                  final instance is about. Runs once tools/NVEmit.lean exists; required by
@@ -68,7 +70,7 @@ for a in "$@"; do
     --no-regress) regress=0 ;;
     --no-peregrine) peregrine=0 ;;
     --no-final) final=(--no-final) ;;
-    -h|--help) sed -n '2,54p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,56p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "error: unknown argument $a" >&2; exit 2 ;;
   esac
 done
