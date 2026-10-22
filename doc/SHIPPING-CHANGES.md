@@ -135,9 +135,9 @@ It elaborates each file `tests/corpus/<Stem>.lean` with the harness `tests/harne
 imported. For each `#erase ... to "<f>"`, the harness computes `collectDeps` over the elaboration
 environment; for a program in the fragment it runs `erasePure` and the `Meta` path
 (`Erasure.erase`), and, at every call of the pure oracle in the pure run, the `Meta` oracle on the
-same term in the same local context, and likewise for `isPropFormerType` (S-25) and `typeLevel`
-(S-27). Then `#erase`
-runs as usual. The summary has one line per
+same term in the same local context, and likewise for `isPropFormerType` (S-25), `typeLevel`
+(S-27), and `casesInfo?` and `ctorArity?` against `getCasesInfo?` and `getCtorArity?` (S-28; a
+call of these two counts only when either answers `some`). Then `#erase` runs as usual. The summary has one line per
 `#erase`: out of the fragment and why; or the results of both paths, whether their outputs are
 byte-identical, which of them the file written by `#erase` equals, the number of oracle calls, and
 the calls at which the two oracles answer differently. It must equal
@@ -2261,6 +2261,94 @@ the calls at which the two oracles answer differently. It must equal
   tests), with and without `PEREGRINE`. `scripts/pure-harness.sh` passes with its expected summary
   unchanged (294 `#erase`; 173 in the fragment; 5751 oracle calls, 10 differ): the pure path erases
   no `casesOn`, so the harness compares no `typeLevel` call yet.
+
+## S-28: The pure backend recognizes canonical `casesOn` and constructors, and its oracle types literals and projections
+
+- **Commit:** the commit whose subject starts with `S-28:` (`git log --grep='^S-28:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure/Pure.lean`:
+    - new `Erasure.casesInfo?`, the canonical-`casesOn` recognizer over a list of declarations:
+      `some` exactly when the name is `T.casesOn`, `T` is a safe, non-nested inductive of the list
+      whose recursor `T.rec` (in the list) has no auxiliary motives, and `T.casesOn` is a
+      definition of the list with the recursor's level parameters whose value is
+      `fun ps motive is t ms => T.rec ps motives' minors' is t` (exactly `numParams + 1 +
+      numIndices + 1 + numCtors` leading `λ`s, own motive the `motive` binder, own minors
+      `fun fs ihs => mᵢ fs`); the answer is the `CasesInfo` that `getCasesInfo?` gives for it.
+      Helpers `peelLams`, `forallDom?`, `forallArity`, `minorArity`, `spine`, `isBVarAt`,
+      `isConstAt`, `isMinorBody`, `ctorAlts`, `altFields`, `blockCtorCount`; all structural.
+    - new `Erasure.ctorArity?` (`numParams + numFields` of a constructor of the list, as
+      `Compiler.LCNF.getCtorArity?`).
+    - `PureM.casesInfo?`, `PureM.ctorArity?`: these functions over the backend's declarations
+      (before: `none`).
+    - `Pure.whnf`: the ι-rule of projections, `proj S i s` with `s` reducing to `C ps fs` reduces
+      to `fs[i]` (the kernel's `reduce_proj`).
+    - `Pure.inferType`: a Nat literal has the type `Nat`; `proj S i s` has the type of the `i`-th
+      field of `S`'s constructor, instantiated with the parameters of `s`'s type and the
+      projections of `s` for the earlier fields, as `Meta`'s `inferProjType` computes it (new
+      helpers `Pure.instForalls`, `Pure.instProjs`). Other terms it does not type (string
+      literals, metavariables) are still `outOfFragment`, with the message `string literal or
+      metavariable`. The types of inductive types, constructors, recursors and `casesOn`
+      constants are their declared types, as for every constant (unchanged).
+    - the module docstring and the docstring of `instance : Backend PureM`.
+  - `tests/harness/PureHarness.lean`: `CmpM.casesInfo?` and `CmpM.ctorArity?` also ask
+    `getCasesInfo?` and `Compiler.LCNF.getCtorArity?` and record a differing answer like the
+    oracle's (`casesInfo? <name>`, `ctorArity? <name>`); a call is counted only when either answer
+    is `some` (new `showCases`, `recordSome`); the module docstring.
+  - new `tests/regress/pure_inductive.lean` with its goldens.
+  - `doc/SHIPPING-CHANGES.md`: this entry and the harness paragraph.
+- **Why necessary:** the correctness proof covers programs with inductive types run through the
+  pure path. Its source semantics treats a `casesOn` constant as a primitive, evaluated by
+  ι-reduction instead of δ, exactly when the recognizer recognizes it, and the traversal erases
+  exactly those constants to a λ□ `case`; so the semantics' recognizer and the traversal's must be
+  one total function over the program's declarations. At `PureM` both operations answered
+  `none`: the traversal δ-unfolded every `casesOn` to its recursor, which becomes a λ□ axiom, and
+  erased constructors as constants without value. `getCasesInfo?`, which the `Meta` path uses,
+  reads environment extensions that a list of declarations does not have, and also answers for
+  `casesOn` constants that are not recursor applications (large-eliminating `Prop` structures,
+  built from projections), sparse `casesOn` and `T.c.elim`; the pure recognizer decides by the
+  shape of the value, so an unexpected shape is unfolded, never trusted. The oracle answered
+  `outOfFragment` on every literal and projection, so `visitLiteral` and `visitProj` were
+  unreachable at `PureM` (`isErasable` runs first). The routing of programs with inductive types to
+  the pure path is not part of this entry: `collectDeps` is unchanged, so `#erase` takes the pure
+  path on the same programs as before.
+- **Behaviour before:** `erasePure`, run directly over the declarations that `PI.B.neg PI.B.f`
+  reads (`B.neg`, `B.casesOn`, `B.rec`, `B`, `B.f`, `B.t` of `pure_inductive`), gives a program in
+  which `B.casesOn` is a definition calling the axiom `B.rec`, and `B.f`, `B.t` are axioms;
+  `peregrine eval` fails with `Axioms found … .PI.B.rec, .PI.B.t, .PI.B.f`. On `(swap ⟨B.f,
+  B.t⟩).a` it fails with `outside the fragment: literal, projection or metavariable`.
+- **Behaviour after:** the same runs give the program of the `Meta` path byte for byte: a λ□
+  `case` on the block `PI_u46B`, and constructors of the declared block; `peregrine eval` prints
+  `PI.B.t` for both. In the environment of the test (`import LeanToLambdaBox` and its own types),
+  the recognizer agrees with `getCasesInfo?` on every canonical `casesOn` (2712 inductive types)
+  and answers `none` on the 244 built from projections, nested or unsafe.
+- **Effect on emitted .ast (corpus):** byte-identical for all 712 files against the corpus of
+  S-27 (`d838861`); `PANIC` counts unchanged. `collectDeps` still puts every program with an
+  inductive type, a literal or a projection outside the fragment, so the programs that take the
+  pure path read no `casesOn`, constructor, literal or projection, and the new answers are never
+  asked on the corpus.
+- **Regression test:** `pure_inductive` checks:
+  - by `decide`, over declarations copied from the elaboration environment as terms, the
+    recognizer's answer on `B.casesOn` (two constructors without fields; arity 4, discriminant 1,
+    motive 0, alternatives 2–4) and on `T.casesOn` (`leaf (x : B)`, recursive `node (l : T) (y : B)`;
+    fields 1 and 2), `none` on `And.casesOn`, `B.neg`, `B.rec`; `ctorArity?` of `T.node`; the
+    oracle's type of a constructor application, of the projection `(P2.mk B.f B.t).2` and of a
+    literal, the normal form `B.t` of that projection, and its erasability answers (kept: the
+    projection, `B.neg B.f`; erased: `(And.intro True.intro True.intro).1`);
+  - the census above, and that `ctorArity?` agrees with `getCtorArity?` on all 4845 constructors;
+  - that the oracle's types (up to `Meta.isDefEq`) and erasability answers agree with `Meta`'s on
+    projections, a literal, constructor and `casesOn` applications (its normal forms differ only
+    where `Meta.whnf` reduces a recursor, which the oracle does not);
+  - that `erasePure` over the declarations each program reads gives the `Meta` path's program on
+    `B.neg B.f`, `T.snd (T.node (T.leaf B.f) B.t)`, `(swap ⟨B.f, B.t⟩).a`, `isZero 2` (a `Nat.casesOn`
+    on a literal, `nat := .peano`) and `Eq.casesOn (motive := fun _ _ => B) (Eq.refl B.t) B.f` (the
+    reduced form of S-27); peregrine validates the pure programs and evaluates them to `PI.B.t`,
+    `PI.B.t`, `PI.B.t`, `PI.B.f`, `PI.B.f`.
+
+  Before this commit the test does not elaborate (`Erasure.casesInfo?` does not exist), and the
+  runs give the outputs of "Behaviour before". `scripts/regress.sh` passes (15 tests), with and
+  without `PEREGRINE`. `scripts/pure-harness.sh` passes with its expected summary unchanged (294
+  `#erase`; 173 in the fragment; 5751 oracle calls, 10 differ): no program in the fragment reaches
+  a `casesOn` or a constructor, so no recognizer call is counted.
 
 ---
 
