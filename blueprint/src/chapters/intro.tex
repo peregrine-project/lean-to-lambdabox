@@ -1,0 +1,210 @@
+\chapter{Introduction}\label{chap:intro}
+
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} A machine-checked theorem about the shipping eraser behind \code{\#erase},
+  stated over Metalean's typing theory of Lean's kernel, for every input in the scope of
+  Chapter~\ref{chap:scope}.
+\item \lead{Status} \stProved{} the no-confusion lemmas of Metalean's type formers
+  (Section~\ref{sec:model-noconf}). \stPlanned{} \hl{the final theorem \code{erase\_correct}}, its
+  two milestones and the definitions they state. \stShipping{} the eraser on this commit: the
+  \code{Meta} path of \code{\#erase}.
+\item \lead{Lean files} \leanfile{LeanToLambdaBox/} (the shipping code) and \leanfile{proof/} (the
+  Lake package \code{EraseProof}, the verification library).
+\item \lead{Registers} \code{doc/SHIPPING-CHANGES.md} and \code{doc/DIVERGENCES.md}; this commit
+  contains neither (Section~\ref{sec:open-registers}).
+\end{itemize}
+
+\section{What is verified}\label{sec:intro-what}
+
+\begin{itemize}
+\item \lead{The eraser} \code{lean-to-lambdabox} is the Lean~4 frontend of Peregrine. The command
+  \code{\#erase t config c to "f.ast" mli "f.mli"} elaborates the term \code{t}, erases it and the
+  constants it depends on to a $\lambda_\Box$ program, and writes three files:
+  \begin{itemize}
+  \item \code{f.ast}: the program as an S-expression, which Peregrine (\code{peregrine-tool})
+        reads and compiles;
+  \item \code{f.ast.inlinings}: the constants Peregrine should inline;
+  \item \code{f.mli}: an OCaml signature for the compiled program.
+  \end{itemize}
+  Section~\ref{sec:trust-shipping} describes the code.
+\item \lead{The object} \hl{the shipping eraser itself}, not an eraser written for the proof: the
+  theorem speaks about the code that \code{\#erase} runs.
+\item \lead{The theorem} \code{erase\_correct} (Chapter~\ref{chap:final}): if \code{\#erase}
+  returns a program for an in-scope term and the term evaluates, the program's main term evaluates
+  in $\lambda_\Box$ to an erasure of the term's value. It mirrors MetaRocq's \code{erase\_correct}.
+\item \lead{The kernel theory} Metalean (Section~\ref{sec:intro-metalean}): typing, definitional
+  equality and well-formed environments of Lean's kernel, with inductive types, recursors and
+  quotients.
+\item \lead{The scope} closed, typed Lean programs that Metalean can express and that the
+  eraser's fragment test admits, inductive types and \code{casesOn} included
+  (Chapter~\ref{chap:scope}).
+\item \lead{The references} the verification follows these as closely as the differences between
+  Lean and Rocq allow; every divergence from the first two is an entry of
+  \code{doc/DIVERGENCES.md}.
+\end{itemize}
+
+\begin{tabular}{p{0.3\linewidth}p{0.62\linewidth}}
+\toprule
+Reference & Relevant part \\
+\midrule
+Letouzey, \emph{A New Extraction for Coq}, TYPES 2002 & Section 3: the extraction function and
+  its correctness (Definitions 3, 9, 10; Lemmas 2, 11; Theorem 13) \\
+Sozeau et al., \emph{Correct and Complete Type Checking and Certified Erasure for Coq, in Coq},
+  J. ACM 72(1), 2025 & Section 7: the target $\lambda_\Box$, the erasure function and relation,
+  \code{erases\_correct}; the MetaRocq sources under \code{erasure/theories/} \\
+Dima, \emph{Compiling Lean programs with Rocq's extraction pipeline}, MPRI report, 2025 & Section
+  4: the design of this eraser \\
+\bottomrule
+\end{tabular}
+
+\section{Metalean}\label{sec:intro-metalean}
+
+\begin{itemize}
+\item \lead{What it is} a formalization of Lean's type theory in Lean
+  (\code{github.com/intgrah/metalean}), pinned at commit \code{9407ba44}
+  (Section~\ref{sec:intro-pins}).
+\item \lead{What the proof uses} its syntax (\leandecl{Metalean.Expr}, \leandecl{Metalean.Env}),
+  its typing judgment \leandecl{Metalean.Defeq} with type equality \leandecl{Metalean.TypeEq}, its
+  well-formed environments \leandecl{Metalean.EnvWF}, its weak-head reduction
+  \leandecl{Metalean.WHRed} with subject reduction \leandecl{Metalean.WHRed.defeq}, unique typing
+  \leandecl{Metalean.Defeq.uniqTy}, and its domain model
+  (\leandecl{Metalean.TypeEq.rawInterpret_eq}).
+\item \lead{What it covers} $\lambda$, $\Pi$, sorts over a quotient of universe levels,
+  \code{let}, constants, mutual and indexed inductive types, recursors with $\iota$- and K-like
+  reduction, primitive quotients, proof irrelevance, $\eta$ and structure $\eta$.
+\item \lead{What it declines} nested inductives, \code{unsafe} and \code{partial} declarations,
+  \code{@[implemented\_by]}, string literals; theorems are opaque.
+\item \lead{Trust} no \code{sorry}; one axiom, \code{Cardinal.exists\_inaccessibles}, which only
+  its set-theoretic model uses and which no module of this repository imports
+  (Section~\ref{sec:trust-metalean}).
+\item \lead{Used as a library} Metalean's sources are never edited; lemmas about its theory that
+  it does not state live in \leanfile{proof/}.
+\end{itemize}
+
+\section{Relation to the lean4lean verification}\label{sec:intro-l4l}
+
+This verification repeats, against Metalean, the verification of the same eraser against
+lean4lean's model of the kernel (branches \code{l4l/translate}, \code{l4l/verification},
+\code{l4l/blueprint}).
+
+\begin{tabular}{p{0.24\linewidth}p{0.34\linewidth}p{0.34\linewidth}}
+\toprule
+Part & Against lean4lean & Against Metalean \\
+\midrule
+Kernel theory & \code{VExpr} and \code{IsDefEq}; the final theorem inherits six lean4lean
+  sorries & \code{Expr} and \code{Defeq}, with no sorry \\
+Scope & the $\lambda\Pi$ fragment with \code{let}; no inductive type & inductive types,
+  \code{casesOn}, projections, \code{Nat} literals (Phase I); recursors and quotients
+  (Phase II) \\
+Bridge & \code{TrS}, after lean4lean's \code{TrExprS} & \code{TrM}, after Metalean's translator
+  \leanfile{Metalean/Frontend/Translate.lean} \\
+Reused & -- & the total, fuelled, backend-generic traversal and its pure path (shipping entries
+  S-16 to S-24), $\lambda_\Box$ evaluation \code{LBEval}, the kernel-agnostic rules of the source
+  semantics, the check scripts, the registers' formats, and the tooling of this blueprint \\
+\bottomrule
+\end{tabular}
+
+\section{Pins}\label{sec:intro-pins}
+
+The table is read from \code{lean-toolchain} and \code{lake-manifest.json} of the documented
+commit. The \code{metalean} package is \code{github.com/intgrah/metalean} at commit
+\code{9407ba44}; it brings Mathlib and its dependencies.
+
+\input{generated/pins}
+
+\section{Branches}\label{sec:intro-branches}
+
+\begin{tabular}{llp{0.55\linewidth}}
+\toprule
+Branch & Merges from & Content \\
+\midrule
+\code{ml/translate} & \code{fixes-port} & the shipping code on the toolchain \code{v4.35.0-rc2}
+  with Metalean required, and the strictly necessary changes; the register
+  \code{doc/SHIPPING-CHANGES.md} \\
+\code{ml/verification} & \code{ml/translate} & the proof package \code{proof/} and the register
+  \code{doc/DIVERGENCES.md}; it never edits shipping files \\
+\code{ml/blueprint} & \code{ml/verification} & this blueprint, under \code{blueprint/} \\
+\bottomrule
+\end{tabular}
+
+\begin{itemize}
+\item \lead{Merge flow} \code{fixes-port} to \code{ml/translate} to \code{ml/verification} to
+  \code{ml/blueprint}, never backwards; every merge is \code{git merge -{}-no-ff}.
+\item \lead{Semantic branches} a change lives on the branch of its kind, whenever it is made: a
+  shipping fix that the verification needs goes to \code{ml/translate} and is merged up.
+\item \lead{Documented commit} The blueprint describes the commit it is built from.
+\end{itemize}
+
+\section{Reading this blueprint}\label{sec:intro-reading}
+
+\begin{tabular}{lp{0.7\linewidth}}
+\toprule
+Chapter & Content \\
+\midrule
+\ref{chap:scope} & The scope: Phase I, Phase II and what is out, with the evidence \\
+\ref{chap:trust} & The trust boundary: what is proved, what is trusted, Metalean's trust base,
+  what the proof uses from Metalean, the shipping code \\
+\ref{chap:model} & The bridge between Lean and Metalean, and the no-confusion lemmas \\
+\ref{chap:source} & Erasability and the source semantics \\
+\ref{chap:relation} & $\lambda_\Box$ evaluation and the erasure relation \\
+\ref{chap:final} & The final theorem and its two milestones \\
+\ref{chap:open} & What is open \\
+\bottomrule
+\end{tabular}
+
+\begin{itemize}
+\item \lead{Nodes} Every definition, result and imported Metalean module cites its Lean
+  declarations (\code{\textbackslash lean}); Section~\ref{sec:intro-kinds} gives its kind and
+  status.
+\item \lead{Links to the code} In the web version and the pdf, every cited Lean name links to the
+  lines of its declaration on GitHub, and every cited Lean file and source location to that file
+  and line: this repository at the documented commit, Metalean and Mathlib at their pinned
+  commits, Lean at the tag of \code{lean-toolchain}.
+\item \lead{Planned nodes} A node marked \stPlanned{} states a declaration of the approved design
+  that does not exist; its \code{\textbackslash lean} names are its planned names, and they link
+  nowhere. Section~\ref{sec:open-planned} lists these nodes.
+\item \lead{Allowed axioms} \code{propext}, \code{Classical.choice} and \code{Quot.sound}; no
+  \code{sorryAx}, and no axiom of Metalean.
+\item \lead{Status words} in the prose: \stProved{} proved; \stShipping{} shipping code,
+  described, not verified; \stPlanned{} not formalized; \stOpen{} not done. A node shows its kind
+  and status by the badges after its heading.
+\item \lead{Checks} \code{blueprint/scripts/audit.py} checks every node against the Lean
+  environment and the generated chapters against their sources (\code{blueprint/README.md}).
+\end{itemize}
+
+\section{Kinds, statuses and dependency graphs}\label{sec:intro-kinds}
+
+\begin{itemize}
+\item \lead{Kind} \code{blueprint/scripts/kinds.py} derives the kind of every node from its Lean
+  declarations, its environment, and the \code{\textbackslash uses} of the final theorem and the
+  milestones. The audit checks the derivation, and checks the \code{\textbackslash uses} of a
+  formalized final theorem or milestone against its Lean proof. The kind sets the badge after the
+  node's heading, the bar beside the node in the web version, and the node's shape and fill in the
+  dependency graphs.
+\item \lead{Colour families} Blue for the proof library \code{EraseProof}, orange for the shipping
+  code, violet for the tests, green for Metalean; gold for the final theorem. Within a family the
+  shape tells the kinds apart.
+\item \lead{Status} The border of a graph node gives its status; a planned node also carries a
+  second badge after its heading.
+\end{itemize}
+
+\input{generated/kinds-legend}
+
+\begin{itemize}
+\item \lead{Graphs} The web version lays out three kinds of dependency graph when it is built:
+  \begin{itemize}
+  \item the chapter map: one box per chapter and one for Metalean, with their nodes by kind; an
+    arrow between two boxes carries the number of arrows between their nodes;
+  \item the graph of a chapter, and that of Metalean: its nodes, with the nodes outside it that
+    they use (on the left) and that use them (on the right), faded;
+  \item the graph of all nodes: a frame per chapter of the proof library, and one each for
+    Metalean, the shipping code and the tests, arranged so that a frame sits below the frames it
+    uses.
+  \end{itemize}
+\item \lead{Navigation} A click on a node shows its statement, its arrows and its neighbours. The
+  field above the graph finds a node by any of its Lean names. The link \emph{graph} in the
+  heading of a node opens the graph of its chapter (or of Metalean) at the node.
+\end{itemize}
+
+\input{generated/kinds-chapters}

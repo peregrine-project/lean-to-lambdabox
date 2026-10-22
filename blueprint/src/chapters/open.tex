@@ -1,0 +1,62 @@
+\chapter{What is open}\label{chap:open}
+
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} List what is not done, and what the final theorem does not cover.
+\item \lead{Status} \stProved{} the no-confusion lemmas. \stOpen{} \hl{every planned node}, the
+  pure path of the shipping code on this commit, the registers, and the checks of the proof
+  package.
+\end{itemize}
+
+\section{Planned statements}\label{sec:open-planned}
+
+The planned nodes, per chapter. The table is generated from the chapters by
+\code{blueprint/scripts/audit.py}.
+
+\input{generated/planned}
+
+\section{Roots of the proof package}\label{sec:open-roots}
+
+Every declaration of \code{EraseProof} outside the tests is reachable from a root of
+\code{proof/ROOTS.txt}. A root names the planned declaration that will use it; the table is
+generated from \code{proof/ROOTS.txt}.
+
+\input{generated/roots}
+
+\section{The shipping code on this commit}\label{sec:open-shipping}
+
+\begin{itemize}
+\item \lead{Pure path} \stOpen{} the shipping entries S-16 to S-24 (the total traversal, the pure
+  oracle, \code{collectDeps}, \code{erasePure}, \code{eraseEntry} and the router) and S-25 to S-27
+  (inductive types on the pure path, the widened fragment test, the \code{propositional} flag) are
+  not on this commit; the final theorem is about them.
+\item \lead{Phase II} \stOpen{} the shipping entries S-R (recursors, structural recursion behind a
+  configuration flag) and S-Q (quotients).
+\end{itemize}
+
+\section{Registers and checks}\label{sec:open-registers}
+
+\begin{itemize}
+\item \lead{Registers} \stOpen{} this commit contains neither \code{doc/SHIPPING-CHANGES.md} nor
+  \code{doc/DIVERGENCES.md}; \code{blueprint/scripts/render\_registers.py} renders each as a
+  chapter when it exists.
+\item \lead{Checks} \stOpen{} the check script of the proof package (forbidden tokens, axiom
+  footprints, no leaves, hygiene against Metalean's unverified modules); the audit of this
+  blueprint covers existence, axioms, coverage and roots.
+\end{itemize}
+
+\section{Outside the final theorem}\label{sec:open-outside}
+
+\begin{tabular}{p{0.3\linewidth}p{0.62\linewidth}}
+\toprule
+Not covered & Where it is stated \\
+\midrule
+Runs that fail, sources that do not evaluate & partial correctness (Chapter~\ref{chap:final}) \\
+Inputs outside the fragment & the \code{Meta} path, trusted (Section~\ref{sec:trust-trusted});
+  the scope (Chapter~\ref{chap:scope}) \\
+\code{remove\_irrel\_constr\_args}, \code{nat := .machine} & out of scope
+  (Section~\ref{sec:scope-features}) \\
+The constants to inline & the caveats of Chapter~\ref{chap:final} \\
+Elaboration, the environment view, printing & trusted (Section~\ref{sec:trust-trusted}) \\
+\bottomrule
+\end{tabular}

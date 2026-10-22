@@ -1,0 +1,131 @@
+\chapter{Erasability and the source semantics}\label{chap:source}
+
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} Define which terms are erased, and how Lean terms evaluate, on the Metalean side
+  of the bridge.
+\item \lead{Main results} Erasability on Metalean terms and its inversion for constructors; the
+  big-step call-by-value semantics \code{SrcEval} and its soundness for Metalean's definitional
+  equality, \code{SrcEval.defeq}.
+\item \lead{Status} \stPlanned{} every node.
+\item \lead{Nodes} \bpnodes{chap:source}
+\item \lead{Reference} MetaRocq \code{isErasable} (\code{erasure/theories/Extract.v}) and the
+  call-by-value evaluation of PCUIC (\code{pcuic/theories/PCUICWcbvEval.v}).
+\end{itemize}
+
+\section{Erasability}\label{sec:source-erasable}
+
+\begin{definition}[Erasable terms]
+  \label{def:EraseProof-IsErasable}
+  \lean{EraseProof.IsErasable, EraseProof.IsArity, EraseProof.ErasableS}
+  \planned
+  \uses{def:EraseProof-TrM}
+  \lead{In short} A Metalean term is erasable when \hl{its type is an arity or a proposition}.
+  \begin{itemize}
+  \item \code{IsArity E $\Gamma$ T}: \code{T} equals, as a type, a $\Pi$-telescope ending in a
+        sort;
+  \item \code{IsErasable E $\Gamma$ t}: some \code{T} types \code{t}, and \code{T} is an arity or
+        has type \code{Prop};
+  \item \code{ErasableS}: a Lean term whose \code{TrM} translation is erasable.
+  \end{itemize}
+  \lead{Reference} MetaRocq \code{isErasable}; Letouzey's Definition 3.
+\end{definition}
+
+\begin{lemma}[A constructor application of data is not erasable]
+  \label{lem:EraseProof-IsErasable-ctor_not}
+  \lean{EraseProof.IsErasable.ctor_not}
+  \planned
+  \uses{def:EraseProof-IsErasable}
+  \lead{In short} A constructor application of an inductive type that is not a proposition
+  \hl{is not erasable}.
+  \lead{Reference} the inversion MetaRocq's \code{erases\_correct} uses in its \code{iota} case.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-TypeEq-sort_ne_forallE}
+  \lead{Idea} The application's type is an inductive type; by no-confusion it is neither a sort
+  nor a $\Pi$-type, so not an arity, and its sort is not \code{Prop}.
+\end{proof}
+
+\begin{lemma}[A quotient introduction is not erasable]
+  \label{lem:EraseProof-IsErasable-quotMk_not}
+  \lean{EraseProof.IsErasable.quotMk_not}
+  \planned
+  \uses{def:EraseProof-IsErasable}
+  \lead{In short} \code{Quot.mk r a} at a quotient type that is not a proposition \hl{is not
+  erasable} (Phase II).
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-TypeEq-sort_ne_quot}
+  \lead{Idea} Its type is a quotient type, which by no-confusion is neither a sort nor a
+  $\Pi$-type.
+\end{proof}
+
+\section{Source semantics}\label{sec:source-eval}
+
+The source semantics is big-step, weak call-by-value on Lean terms, as in the lean4lean
+verification, with rules for inductive types. It is not Metalean's weak-head reduction, which is
+call-by-name; each of its rules is justified by a Metalean definitional equality.
+
+\begin{definition}[Evaluation environments]
+  \label{def:EraseProof-EvalEnv}
+  \lean{EraseProof.EvalEnv, EraseProof.evalEnvOf}
+  \planned
+  \lead{In short} What evaluation reads of the program: \hl{the $\delta$-equations of
+  definitions}, the atom test, and the shipping recognizer of canonical \code{casesOn};
+  \code{evalEnvOf view cfg P} builds it from the eraser's view of \code{P}.
+\end{definition}
+
+\begin{definition}[Source evaluation]
+  \label{def:EraseProof-SrcEval}
+  \lean{EraseProof.SrcEval, EraseProof.SrcValue}
+  \planned
+  \uses{def:EraseProof-EvalEnv}
+  \lead{In short} \code{SrcEval $\sigma$ e v}: the closed Lean term \code{e} \hl{evaluates to the
+  value \code{v}}.
+  \begin{tabular}{p{0.2\linewidth}p{0.66\linewidth}}
+  \toprule
+  Rule & Step \\
+  \midrule
+  \code{beta}, \code{zeta}, \code{appCong}, \code{mdata} & as in the lean4lean verification \\
+  \code{delta} & a definition unfolds; theorems, opaques and recognized \code{casesOn} do not \\
+  \code{constAtom}, \code{atom} & arity- or proof-typed constants without $\delta$, inductive type
+    formers, $\lambda$, sorts and $\Pi$ are values \\
+  \code{ctor} & a constructor applied to at most its arity evaluates its arguments \\
+  \code{casesOn} & the major evaluates to the $i$-th constructor; the $i$-th alternative is applied
+    to the fields \\
+  \code{casesOnLit} & the major evaluates to a \code{Nat} literal; zero or successor branch \\
+  \code{proj} & the structure evaluates to a constructor; the field is selected \\
+  \code{lit} & a \code{Nat} literal is a value \\
+  \bottomrule
+  \end{tabular}
+  \lead{Reference} MetaRocq \code{eval} of PCUIC: \code{eval\_construct}, \code{eval\_iota},
+  \code{eval\_proj}.
+\end{definition}
+
+\begin{lemma}[Evaluation preserves the Metalean meaning]
+  \label{lem:EraseProof-SrcEval-defeq}
+  \lean{EraseProof.SrcEval.defeq}
+  \planned
+  \uses{def:EraseProof-SrcEval, def:EraseProof-TrM, def:EraseProof-ProgEnv}
+  \lead{In short} If \code{e} translates to a typed \code{t} and evaluates to \code{v}, then
+  \code{v} translates to some \code{t'} \hl{definitionally equal to \code{t}} at the same type.
+  \begin{itemize}
+  \item \lead{Given} \code{ProgEnv P E B}, \code{EnvWF E}, \code{TrM E B lps .nil [] e t},
+        \code{E[.nil] $\vdash$ t : T}, \code{SrcEval $\sigma$ e v};
+  \item \lead{Then} \code{TrM E B lps .nil [] v t'} and \code{E[.nil] $\vdash$ t $\equiv$ t' : T}.
+  \end{itemize}
+  \lead{Reference} subject reduction, MetaRocq \code{subject\_reduction\_eval}.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-casesOn_whred}
+  \lead{Idea} Induction on evaluation; each rule is a Metalean reduction ($\beta$, $\zeta$,
+  $\delta$, the \code{casesOn} chain, projection of a constructor) or a congruence, and
+  \leandecl{Metalean.WHRed.defeq} turns reductions into definitional equalities.
+\end{proof}
+
+\section*{Caveats}
+\begin{itemize}
+\item \lead{Caveat} Recursors and quotients have no evaluation rule in Phase I: the fragment test
+  keeps them off the evaluated path.
+\item \lead{Caveat} A computational axiom or an opaque is stuck: no value, no claim.
+\end{itemize}

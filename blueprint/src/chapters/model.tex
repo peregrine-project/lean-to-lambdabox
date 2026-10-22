@@ -1,0 +1,162 @@
+\chapter{The bridge to Metalean}\label{chap:model}
+
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} Relate the Lean terms and declarations that \code{\#erase} reads to Metalean's
+  terms and environments, so that Metalean's typing applies to the eraser's input.
+\item \lead{Main results} The translation \code{TrM}, the program environments \code{ProgEnv},
+  the \code{casesOn} reduction chain; the no-confusion lemmas of Metalean's type formers.
+\item \lead{Status} \stProved{} the no-confusion lemmas; \stPlanned{} the bridge.
+\item \lead{Nodes} \bpnodes{chap:model}
+\item \lead{Lean files} \leanfile{proof/EraseProof/Metatheory/NoConf.lean}.
+\item \lead{Reference} Metalean's translator \leanfile{Metalean/Frontend/Translate.lean} and
+  loader \leanfile{Metalean/Checker/Slow/Loader.lean}, which the bridge models as relations.
+\end{itemize}
+
+\section{Terms}\label{sec:model-terms}
+
+Metalean's translator is \code{partial} and asks an unverified type inference for projections;
+the bridge restates it rule by rule as a relation.
+
+\begin{definition}[What a Lean name denotes]
+  \label{def:EraseProof-MBinding}
+  \lean{EraseProof.MBinding, EraseProof.Binds}
+  \planned
+  \lead{In short} \code{Binds} maps a Lean name to \hl{the Metalean head it denotes}: Metalean's
+  binding table with heads in place of positions.
+  \begin{itemize}
+  \item \code{const}: a constant (axiom, definition, opaque);
+  \item \code{ind}, \code{ctor}, \code{recr}: a sort of an inductive block, one of its
+        constructors (with the order of its fields in Metalean), its recursor;
+  \item \code{quot}: one of the four quotient constants.
+  \end{itemize}
+\end{definition}
+
+\begin{definition}[The translation of terms]
+  \label{def:EraseProof-TrM}
+  \lean{EraseProof.TrM, EraseProof.TrLevel, EraseProof.MLCtx}
+  \planned
+  \uses{def:EraseProof-MBinding}
+  \lead{In short} \code{TrM E B lps $\Gamma$ $\Delta$ e t}: the Lean term \code{e} is \hl{the Lean
+  form of the Metalean term \code{t}} in the context $\Gamma$; $\Delta$ lists the Lean locals.
+  \begin{itemize}
+  \item variables, sorts, constants, application, $\lambda$, $\Pi$: one rule each;
+  \item \code{letE}: the value is substituted, as the translator inlines it; \code{mdata}: dropped;
+  \item saturated or $\eta$-expanded inductive types, constructors (fields permuted to Metalean's
+        order), recursors and quotient constants;
+  \item projections: Metalean's projection term of a structure, or of a proof;
+  \item \code{Nat} literals: the constructor chain of Metalean's fast checker;
+  \item \code{TrLevel}: universe levels, as the translator translates them.
+  \end{itemize}
+  \lead{Reference} lean4lean's \code{TrExprS}, which the lean4lean verification ported as
+  \code{TrS}.
+\end{definition}
+
+\section{Declarations}\label{sec:model-env}
+
+\begin{definition}[Program environments]
+  \label{def:EraseProof-ProgEnv}
+  \lean{EraseProof.ProgEnv}
+  \planned
+  \uses{def:EraseProof-TrM}
+  \lead{In short} \code{ProgEnv P E B}: the Lean declarations \code{P} (newest first) are
+  \hl{those of the Metalean environment \code{E}}, named by \code{B}, as Metalean's loader builds
+  it.
+  \begin{itemize}
+  \item axioms, definitions, opaques: their types (and values) translate;
+  \item theorems: Metalean opaques whose type is a proposition;
+  \item inductive blocks: the type of each type former, constructor and recursor translates to the
+        type of its Metalean term; not nested, not unsafe;
+  \item quotients: the four constants, with \code{Eq} bound as Metalean requires.
+  \end{itemize}
+  \lead{Reference} the program environment of the lean4lean verification, after lean4lean's
+  \code{TrEnv'}.
+\end{definition}
+
+\begin{lemma}[The \texorpdfstring{\code{casesOn}}{casesOn} chain]
+  \label{lem:EraseProof-casesOn_whred}
+  \lean{EraseProof.casesOn_whred}
+  \planned
+  \uses{def:EraseProof-TrM, def:EraseProof-ProgEnv}
+  \lead{In short} For a canonical \code{T.casesOn} applied to a constructor application, the
+  Metalean translation \hl{reduces to the translation of the chosen alternative} applied to the
+  fields.
+  \begin{itemize}
+  \item \lead{Given} \code{ProgEnv P E B}, the shipping recognizer accepts \code{T.casesOn}, and
+        \code{TrM} relates \code{T.casesOn ps m is (C ps' fs) alts} to \code{t};
+  \item \lead{Then} \code{t} reduces in Metalean's weak-head reduction to a translation of the
+        $i$-th alternative applied to \code{fs}.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-TrM}
+  \lead{Idea} $\delta$ on \code{casesOn}, $\beta$ over its telescope, $\iota$ on the recursor,
+  $\beta$ through the minor that permutes the fields back to Lean's order.
+\end{proof}
+
+\section{No-confusion of type formers}\label{sec:model-noconf}
+
+Metalean states the injectivity of each type former but no disequality between two of them. The
+lemmas follow from Metalean's domain model: a type equality equates the interpretations of both
+sides, and each head contributes an atom that no other head's interpretation contains.
+
+\begin{lemma}[Sort, \texorpdfstring{$\Pi$}{Pi} and inductive types differ]
+  \label{lem:EraseProof-TypeEq-sort_ne_forallE}
+  \lean{EraseProof.TypeEq.sort_ne_forallE, EraseProof.TypeEq.sort_ne_ind,
+    EraseProof.TypeEq.forallE_ne_ind}
+  \leanok
+  \srcloc{proof/EraseProof/Metatheory/NoConf.lean}{25}
+  \lead{In short} In a well-formed environment and context, \hl{a sort, a $\Pi$-type and an
+  inductive type are pairwise unequal as types}.
+  \begin{itemize}
+  \item \lead{Given} \code{hE : EnvWF E} and \code{h$\Delta$ : E[$\Delta$] $\vdash$ ok};
+  \item \lead{Then} \code{$\neg$ E[$\Delta$] $\vdash$ .sort l $\equiv$ .forallE t$_1$ t$_1$'},
+        likewise for \code{.sort} against \code{.ind} and \code{.forallE} against \code{.ind}; the
+        other orientations follow by symmetry.
+  \end{itemize}
+  \lead{Reference} MetaRocq \code{ws\_cumul\_pb\_Sort\_Prod\_inv},
+  \code{invert\_cumul\_sort\_ind}, \code{invert\_cumul\_prod\_ind}
+  (\code{pcuic/theories/PCUICConversion.v}).
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} \leandecl{Metalean.TypeEq.rawInterpret_eq} equates the interpretations; one side
+  holds its head's atom, which the other side's ideal does not contain.
+  \lead{Steps}
+  \begin{enumerate}
+  \item invert the typing of each side (\code{Defeq.forallE\_inv}, \code{IndTyping.ofTyping});
+  \item show the atom (\code{sortAtom}, \code{piAtom}) is a member of its own interpretation;
+  \item rewrite with the equality and case on the order of shapes: only the bottom shape is below
+        another head's atom.
+  \end{enumerate}
+\end{proof}
+
+\begin{lemma}[Quotient types differ from the other type formers]
+  \label{lem:EraseProof-TypeEq-sort_ne_quot}
+  \lean{EraseProof.TypeEq.sort_ne_quot, EraseProof.TypeEq.forallE_ne_quot,
+    EraseProof.TypeEq.ind_ne_quot}
+  \leanok
+  \srcloc{proof/EraseProof/Metatheory/NoConf.lean}{80}
+  \lead{In short} In a well-formed environment and context, \hl{a quotient type equals no sort,
+  $\Pi$-type or inductive type} as a type.
+  \begin{itemize}
+  \item \lead{Given} \code{hE : EnvWF E} and \code{h$\Delta$ : E[$\Delta$] $\vdash$ ok};
+  \item \lead{Then} \code{$\neg$ E[$\Delta$] $\vdash$ X $\equiv$ .quot $\theta$ u $\alpha$ r} for
+        \code{X} a sort, a $\Pi$-type or an inductive type.
+  \end{itemize}
+  \lead{Reference} none in MetaRocq: PCUIC has no primitive quotients.
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} As for the other heads, with the atom \code{quotAtom} of the quotient's
+  interpretation (\code{QuotTyping.ofTyping}).
+\end{proof}
+
+\section*{Caveats}
+\begin{itemize}
+\item \lead{Caveat} The bridge relates terms; it does not run Metalean's translator, whose
+  \code{partial} functions and unverified type inference stay outside the proof.
+\item \lead{Caveat} Recursor rules of Lean's declarations are not related: Metalean computes
+  $\iota$ from the inductive block, and no lemma reads them.
+\item \lead{Caveat} The quotient lemmas serve Phase II, where quotients are in scope.
+\end{itemize}

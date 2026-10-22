@@ -1,0 +1,182 @@
+\chapter{Scope}\label{chap:scope}
+
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} State which \code{\#erase} inputs the verification covers, and why: every closed,
+  typed program that Metalean can express and that the eraser handles without a known defect.
+\item \lead{Main results} The fragment in two phases: Phase I adds to the $\lambda\Pi$ fragment
+  everything about inductive types that the eraser handles; Phase II adds recursors and quotients.
+\item \lead{Status} \stPlanned{} the fragment test that decides the scope and the hypotheses that
+  state it (Chapter~\ref{chap:final}). The measurements below come from a prototype of the
+  fragment test.
+\item \lead{Reference} MetaRocq \code{erase\_correct}'s hypotheses \code{wf\_ext},
+  \code{Sigma} $\sim$\code{\_ext X}, \code{welltyped}.
+\end{itemize}
+
+\section{The principle}\label{sec:scope-principle}
+
+\begin{itemize}
+\item \lead{Expressible in Metalean} the program's declarations are those Metalean's loader
+  accepts (\leanfile{Metalean/Checker/Slow/Loader.lean}) and its terms those Metalean's translator
+  translates (\leanfile{Metalean/Frontend/Translate.lean}). The typing hypotheses of the final
+  theorem state this.
+\item \lead{Handled by the eraser} the dependency closure passes the router's fragment test
+  \code{collectDeps view cfg e}, a decidable, syntactic test that the shipping router itself runs.
+  The hypothesis \code{hfrag} of the final theorem states this.
+\item \lead{Everything else} \hl{\code{\#erase} routes it to the unchanged \code{Meta} path}, which
+  the theorem does not cover (Section~\ref{sec:trust-trusted}).
+\item \lead{Phases} the statement of the final theorem is the same in both phases; only the rules
+  of the source semantics and of the erasure relation, and the fragment test, grow.
+\end{itemize}
+
+\section{Features}\label{sec:scope-features}
+
+Column \emph{Phase}: I in Phase I, II in Phase II only, -- out.
+
+\begin{tabular}{p{0.3\linewidth}p{0.08\linewidth}p{0.54\linewidth}}
+\toprule
+Lean feature & Phase & Why, how \\
+\midrule
+$\lambda$, application, $\Pi$, sorts, universe polymorphism & I & levels form a quotient in
+  Metalean, so propositionality is equality of levels \\
+\code{let} & I & the bridge mirrors Metalean's translator, which inlines the value \\
+axioms, definitions & I & $\delta$ for definitions; an axiom is stuck in the source \\
+theorems, \code{opaque} & I & opaque in Metalean: no $\delta$ in the source, always erased \\
+inductive types (mutual, indexed, with parameters) & I & a Metalean inductive entry per block \\
+constructors & I & $\eta$-expanded to their arity; Metalean stores recursive fields last, a
+  permutation confined to the bridge \\
+canonical \code{T.casesOn} & I & a $\lambda_\Box$ \code{case}; the source step is a chain of
+  Metalean reductions ($\delta$, $\beta$, $\iota$) \\
+matchers with exhaustive constructor patterns & I & ordinary definitions ($\delta$) that call a
+  canonical \code{casesOn} \\
+projections of data structures & I & a $\lambda_\Box$ \code{proj}; Metalean's projection term \\
+\code{casesOn} of a large-eliminating \code{Prop} inductive (\code{Eq}, \code{HEq}, \code{Acc}) &
+  I & $\lambda_\Box$ \code{case} on $\Box$, which needs the inductive's \code{propositional} flag
+  (shipping entry S-27) \\
+\code{Nat} literals under \code{nat := .peano} & I & constructor chains, as Metalean's fast
+  checker denotes them \\
+recursors \code{T.rec} & II & erased to a $\lambda_\Box$ fixpoint (shipping entry S-R) \\
+structural recursion (\code{brecOn}) & II & through the kernel value, behind a configuration
+  flag; the default output is unchanged \\
+quotients & II & \code{Quot.mk} and \code{Quot.lift} erased as \code{LCNF} does (shipping entry
+  S-Q) \\
+well-founded recursion & II, vacuous & \code{Acc.rec} on theorems, which are opaque: the source
+  is stuck \\
+sparse \code{casesOn}, \code{T.c.elim}, matchers with literal patterns & II & their values reach
+  a recursor (\code{T.rec}, \code{Eq.rec}) \\
+\code{casesOn}, projections on a \code{Sort}-polymorphic inductive whose level may be 0 & -- & one
+  \code{propositional} flag per inductive cannot serve both instances \\
+\code{nat := .machine}, \code{@[extern]} constructors under \code{preferAxiom} & -- & primitive
+  integers and axioms outside Metalean \\
+\code{remove\_irrel\_constr\_args} & -- & an optimization with its own correctness argument \\
+string literals, nested inductives, \code{unsafe}, \code{partial}, \code{@[implemented\_by]} & -- &
+  Metalean declines them \\
+\code{csimp}, \code{macro\_inline}, matcher inlining & -- & passes of the \code{Meta} path only \\
+proof irrelevance, $\eta$, structure $\eta$, K-like reduction & I (typing) & typing facts of the
+  bridge; no evaluation rule uses them in Phase I \\
+free variables, metavariables & -- & closed inputs only \\
+\bottomrule
+\end{tabular}
+
+\section{The fragment test}\label{sec:scope-fragment}
+
+\code{collectDeps view cfg e} rejects a program when its closure, as the pure traversal reads it,
+contains one of the classes below. The closure holds the term, the values of the definitions it
+unfolds, and the types and constructors of the blocks it registers; it skips the values of
+recognized \code{casesOn} constants.
+
+\begin{itemize}
+\item \lead{Phase I only} a recursor; a quotient constant; a constant with an \code{\_unsafe\_rec}
+  companion (structural or well-founded recursion).
+\item \lead{Both phases} a string literal; an \code{unsafe}, \code{partial} or
+  \code{@[implemented\_by]} constant; a nested or unsafe inductive; an \code{@[extern]}
+  constructor under \code{preferAxiom}; under \code{nat := .machine} a \code{Nat} literal,
+  \code{Nat.zero}, \code{Nat.succ}, \code{Int.ofNat}, \code{Int.negSucc} or a \code{casesOn} on
+  \code{Nat} or \code{Int}; under \code{remove\_irrel\_constr\_args} any constructor,
+  \code{casesOn} or projection; a \code{casesOn} or projection on a \code{Sort}-polymorphic
+  inductive whose level may be 0; a free variable, metavariable or level metavariable.
+\item \lead{Name collisions} of kernel names and of $\lambda_\Box$ inductive blocks are an error
+  of the pure path, not a reason to route.
+\end{itemize}
+
+\section{Evidence}\label{sec:scope-evidence}
+
+\subsection{Generated eliminators}\label{sec:scope-eliminators}
+
+On Lean \code{v4.35.0-rc2}, measured on the 2961 \code{casesOn} definitions of \code{Init},
+\code{Std} and \code{Lean}:
+
+\begin{tabular}{p{0.4\linewidth}rp{0.42\linewidth}}
+\toprule
+Class & Count & Treatment \\
+\midrule
+canonical: a saturated \code{T.rec} & 2715 & recognized; a $\lambda_\Box$ \code{case} \\
+projection-based: one-constructor, large-eliminating \code{Prop} types (\code{And}, \code{Iff},
+  \code{True}, \ldots) & 186 & not recognized; unfolded, and their projections, proofs, erase
+  to $\Box$ \\
+nested & 56 & out \\
+unsafe & 4 & out \\
+\bottomrule
+\end{tabular}
+
+\begin{itemize}
+\item \lead{Recognizer} a syntactic check of the canonical shape; on these 2961 definitions it
+  agrees with Lean's own classification on every one.
+\item \lead{Matchers} 2383 of the 13378 matchers of \code{Init}, \code{Std} and \code{Lean} are
+  in Phase I (\code{nat := .peano}); the others reach a recursor, an \code{@[extern]} constructor
+  or structural recursion.
+\item \lead{Prelude} \code{Bool.and} and \code{Bool.not} are defined by \code{Bool.rec} directly,
+  so a program using them is in Phase II.
+\end{itemize}
+
+\subsection{The corpus}\label{sec:scope-corpus}
+
+The 294 \code{\#erase} commands of the shipping corpus, through a prototype of the fragment test:
+
+\begin{tabular}{lrr}
+\toprule
+& Phase I & Phase II \\
+\midrule
+in / out & 227 / 67 & 245 / 49 \\
+in, through a recognized \code{casesOn} & 4 & 19 \\
+in, with constructors, \code{casesOn}, literals or projections & 60 & 78 \\
+\bottomrule
+\end{tabular}
+
+\begin{tabular}{p{0.6\linewidth}rr}
+\toprule
+Exclusion class (programs; a program may hit several) & Phase I & Phase II \\
+\midrule
+recursor & 34 & -- \\
+\code{\_unsafe\_rec} companion (recursive definition) & 23 & -- \\
+quotient & 2 & -- \\
+\code{nat := .machine}: constructors of \code{Nat}, \code{Int} / literals / \code{casesOn} & 29 /
+  25 / 10 & 29 / 25 / 10 \\
+\code{remove\_irrel\_constr\_args}: constructor / projection / \code{casesOn} & 11 / 11 / 8 & 11 /
+  11 / 8 \\
+level metavariable & 6 & 6 \\
+unsafe constant & 6 & 6 \\
+\code{@[implemented\_by]} & 4 & 4 \\
+\code{partial def} & 2 & 2 \\
+string literal, nested inductive & 1, 1 & 1, 1 \\
+\bottomrule
+\end{tabular}
+
+\begin{itemize}
+\item \lead{Recursors in Phase I} \code{Nat.rec} through structural recursion (20 programs),
+  \code{Bool.rec} through \code{Bool.and} and \code{Bool.not} (13), \code{Eq.rec} through
+  \code{Eq.ndrec} (9), \code{False.rec} through \code{False.elim} (7), \code{T.rec} through sparse
+  matchers.
+\item \lead{Consequence} \hl{Phase I exercises inductive types on few programs}; pattern matching
+  in practice reaches recursors, so Phase II is where the fragment grows.
+\end{itemize}
+
+\section*{Caveats}
+\begin{itemize}
+\item \lead{Caveat} The eraser may still fail on an in-scope input (fuel, oracle failure, name
+  collision): no output, no claim.
+\item \lead{Caveat} The fragment test is syntactic and the typing hypotheses semantic; the final
+  theorem assumes both.
+\item \lead{Caveat} The counts come from a prototype of the fragment test on the corpus, and are
+  not a statement about the shipping code.
+\end{itemize}

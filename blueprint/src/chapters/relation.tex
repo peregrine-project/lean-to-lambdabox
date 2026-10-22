@@ -1,0 +1,86 @@
+\chapter{\texorpdfstring{$\lambda_\Box$}{lambda-box} evaluation and the erasure relation}\label{chap:relation}
+
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} Define how erased programs evaluate, and which $\lambda_\Box$ terms erase which
+  Lean terms.
+\item \lead{Main results} $\lambda_\Box$ evaluation \code{LBEval}; the erasure relation
+  \code{Erases} and its environment form \code{ErasesDeps}.
+\item \lead{Status} \stPlanned{} every node; \code{LBEval} is the lean4lean verification's,
+  unchanged.
+\item \lead{Nodes} \bpnodes{chap:relation}
+\item \lead{Reference} MetaRocq \code{eval} of \code{EWcbvEval.v} and \code{erases} of
+  \code{Extract.v} (\code{erasure/theories/}); MetaCoq paper Section 7.
+\end{itemize}
+
+\section{\texorpdfstring{$\lambda_\Box$}{lambda-box} evaluation}\label{sec:relation-target}
+
+\begin{definition}[Big-step evaluation of \texorpdfstring{$\lambda_\Box$}{lambda-box}]
+  \label{def:EraseProof-LBEval}
+  \lean{EraseProof.LBEval, EraseProof.WcbvFlags, EraseProof.defaultFlags}
+  \planned
+  \uses{def:LBTerm, def:GlobalDecl}
+  \lead{In short} \code{LBEval fl lenv t v}: in the erased environment \code{lenv}, the closed term
+  \code{t} \hl{evaluates call-by-value to \code{v}}, under the flags \code{fl}.
+  \begin{itemize}
+  \item rules for $\beta$, \code{let}, constants, fixpoints, constructors (\code{construct}),
+        \code{case} on a constructor (\code{iota}) and on $\Box$ of a propositional inductive
+        (\code{iotaSing}), projections, and $\Box$ applied to anything;
+  \item \code{defaultFlags}: MetaRocq's \code{default\_wcbv\_flags}.
+  \end{itemize}
+  \lead{Reference} MetaRocq \code{eval} (\code{EWcbvEval.v}), with \code{tCoFix}, \code{tLazy},
+  \code{tForce} absent.
+\end{definition}
+
+\section{The erasure relation}\label{sec:relation-erases}
+
+\begin{definition}[Erasure relation]
+  \label{def:EraseProof-Erases}
+  \lean{EraseProof.Erases}
+  \planned
+  \uses{def:EraseProof-TrM, def:EraseProof-IsErasable, def:LBTerm}
+  \lead{In short} \code{Erases E B lps ac $\Delta$ e t}: the $\lambda_\Box$ term \code{t}
+  \hl{is an erasure of the Lean term \code{e}}.
+  \begin{tabular}{p{0.2\linewidth}p{0.66\linewidth}}
+  \toprule
+  Rule & Erasure \\
+  \midrule
+  \code{box} & an erasable term erases to $\Box$ \\
+  \code{bvar}, \code{fvar}, \code{lam}, \code{letE}, \code{app}, \code{const}, \code{mdata} & as
+    in the lean4lean verification \\
+  \code{ctor} & a constructor with all its arguments erases to \code{construct} applied to the
+    erased parameters and fields \\
+  \code{ctorEta} & with fewer arguments, to $\lambda$s around \code{construct} \\
+  \code{casesOn}, \code{casesOnEta} & a canonical \code{casesOn} erases to \code{case}; each
+    alternative is erased under its field binders \\
+  \code{proj} & a projection of a data structure erases to \code{proj} \\
+  \code{lit} & a \code{Nat} literal erases to its constructor chain \\
+  \bottomrule
+  \end{tabular}
+  \lead{Reference} MetaRocq \code{erases}: \code{erases\_tConstruct}, \code{erases\_tCase},
+  \code{erases\_tProj}.
+\end{definition}
+
+\begin{definition}[Erased dependencies]
+  \label{def:EraseProof-ErasesDeps}
+  \lean{EraseProof.ErasesDeps, EraseProof.ErasesDecl, EraseProof.ErasesInd}
+  \planned
+  \uses{def:EraseProof-Erases, def:GlobalDecl}
+  \lead{In short} The erased environment \code{lenv} \hl{erases the declarations the program
+  uses}: each constant's body erases its value, and each inductive block erases to an
+  \code{inductiveDecl}.
+  \begin{itemize}
+  \item an inductive block: \code{npars} its parameters, one body per type, constructors in order
+        with \code{nargs} their fields, \code{propositional} iff the type's sort is \code{Prop},
+        projections for structures.
+  \end{itemize}
+  \lead{Reference} MetaRocq \code{erases\_deps}, \code{erases\_mutual\_inductive\_body},
+  \code{erases\_one\_inductive\_body}.
+\end{definition}
+
+\section*{Caveats}
+\begin{itemize}
+\item \lead{Caveat} Constructors and \code{casesOn} are $\eta$-expanded inside the relation, as
+  the eraser emits them; MetaRocq $\eta$-expands in a separate pass.
+\item \lead{Caveat} The relation has no rule for recursors or quotients in Phase I.
+\end{itemize}
