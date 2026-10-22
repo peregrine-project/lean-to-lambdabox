@@ -8,6 +8,8 @@ Erasure steps that rely on Lean APIs whose form changes between Lean releases:
   `fast`), and not when it is off (`useSlow.nocsimp.ast` refers to `slow`);
 - a `@[csimp]` replacement that is `@[macro_inline]` is inlined (`useSlowIf.ast` has no constant
   `fastIf`), as `Bool.and` is replaced by `Bool.Internal.and` since Lean v4.35.
+`csimp` and `macro_inline` are steps of the `Meta` path only, so `useSlow` and `useSlowIf` are
+`unsafe`, which puts them outside the fragment of the pure path (register entry S-29).
 -/
 
 -- peregrine: validate ptSum.ast
@@ -33,7 +35,7 @@ def slow (n : N) : N := n
 def fast (n : N) : N := n
 @[csimp] theorem slow_eq_fast : @slow = @fast := rfl
 
-def useSlow (n : N) : N := slow n
+unsafe def useSlow (n : N) : N := slow n
 #erase useSlow to "useSlow.ast"
 #erase useSlow config {csimp := false} to "useSlow.nocsimp.ast"
 
@@ -41,7 +43,7 @@ def slowIf (b : Bool) (x y : N) : N := match b with | true => x | false => y
 @[macro_inline] def fastIf (b : Bool) (x y : N) : N := match b with | true => x | false => y
 @[csimp] theorem slowIf_eq_fastIf : @slowIf = @fastIf := rfl
 
-def useSlowIf (b : Bool) (n : N) : N := slowIf b n .z
+unsafe def useSlowIf (b : Bool) (n : N) : N := slowIf b n .z
 #erase useSlowIf to "useSlowIf.ast"
 
 end Api

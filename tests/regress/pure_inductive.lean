@@ -10,7 +10,8 @@ reduces Nat literals and projections. The test checks:
   projections), on `B.neg` and on `B.rec`; `ctorArity?` on `T.node`; the oracle's type of
   `T.node (T.leaf B.f) B.t`, of the projection `(P2.mk B.f B.t).2` and of the literal `2`, the
   weak-head normal form `B.t` of that projection, and erasability (kept: the projection and
-  `B.neg B.f`; erased: the projection `(And.intro True.intro True.intro).1`);
+  `B.neg B.f`; erased: the projection `(And.intro True.intro True.intro).1`); and the closure that
+  the fragment test `collectDeps` computes for `B.neg B.f` over these declarations;
 - on every inductive type of the environment with a `casesOn`, that the recognizer agrees with
   `getCasesInfo?` (the `Meta` path's) on each canonical one and answers `none` exactly on those
   built from projections (`isCasesOnViaProjs`), nested or unsafe; and on every constructor that
@@ -149,6 +150,14 @@ theorem oracle_erasable :
       | .ok false => true | _ => false) = true ∧
     (match Pure.isErasable ⟨PI.dAnd⟩ 64 [] (.proj ``And 0 andTT) with
       | .ok true => true | _ => false) = true := by
+  decide
+
+/-- The fragment test on `B.neg B.f` over a view of `PI.dB`: the closure keeps `B.casesOn` and
+its recursor `B.rec` without reading the value (register entry S-29). -/
+theorem collectDeps_nv1 :
+    ((collectDeps ⟨findConst PI.dB, fun _ => false, fun _ => none, fun _ => none⟩ {}
+      (.app (.const `PI.B.neg []) cF)).toOption.map (·.map (·.name))) =
+      some [`PI.B.rec, `PI.B.casesOn, `PI.B.t, `PI.B.f, `PI.B, `PI.B.neg] := by
   decide
 
 /-! ## Agreement with the `Meta` path -/

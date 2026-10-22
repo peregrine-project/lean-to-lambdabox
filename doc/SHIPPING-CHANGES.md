@@ -133,7 +133,7 @@ fragment (S-21), is compared with the `Meta` path (`Erasure.erase`) on the corpu
 
 It elaborates each file `tests/corpus/<Stem>.lean` with the harness `tests/harness/PureHarness.lean`
 imported. For each `#erase ... to "<f>"`, the harness computes `collectDeps` over the elaboration
-environment; for a program in the fragment it runs `erasePure` and the `Meta` path
+environment with the configuration of the `#erase` (S-29); for a program in the fragment it runs `erasePure` and the `Meta` path
 (`Erasure.erase`), and, at every call of the pure oracle in the pure run, the `Meta` oracle on the
 same term in the same local context, and likewise for `isPropFormerType` (S-25), `typeLevel`
 (S-27), and `casesInfo?` and `ctorArity?` against `getCasesInfo?` and `getCtorArity?` (S-28; a
@@ -2349,6 +2349,102 @@ the calls at which the two oracles answer differently. It must equal
   without `PEREGRINE`. `scripts/pure-harness.sh` passes with its expected summary unchanged (294
   `#erase`; 173 in the fragment; 5751 oracle calls, 10 differ): no program in the fragment reaches
   a `casesOn` or a constructor, so no recognizer call is counted.
+
+## S-29: The fragment test admits inductive types, constructors, `casesOn`, projections and Peano literals, and excludes what the pure path cannot erase like the `Meta` path
+
+- **Commit:** the commit whose subject starts with `S-29:` (`git log --grep='^S-29:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure/Collect.lean`: `EnvView` gains the field `implementedBy?` (the
+    `@[implemented_by]` target of a constant; `EnvView.ofEnvironment` reads it with
+    `Compiler.getImplementedBy?`); the old `exprConsts`, `declDeps`, `closure` and `collectDeps`
+    are removed (replaced in `Entry.lean`); module docstring; `collectFuel`'s docstring.
+  - `LeanToLambdaBox/Erasure/Entry.lean`: new fragment test `collectDeps view cfg e` (it takes the
+    configuration) and its parts: `exprConsts cfg` (the constants of a read expression, `Nat` for a
+    Nat literal; exclusions: free variables, metavariables, level metavariables, string literals,
+    and under `nat := .machine` Nat literals, `Nat.zero`, `Nat.succ`, `Int.ofNat`, `Int.negSucc`,
+    `Nat.casesOn`, `Int.casesOn`), `arityShape`, `mayBeNonZero`, `sortDecided` (an inductive's
+    sort is written `Prop`, never zero, or may be both; zero under every assignment without being
+    written `Prop` is an exclusion), `declExclusion` (quotients; recursors; `unsafe` and `partial`
+    definitions; definitions and opaques with an `_unsafe_rec` companion; `unsafe` opaques, axioms,
+    inductives and constructors; `implemented_by` targets; nested inductives; `@[extern]`
+    constructors under `extern := .preferAxiom`), `viewFind`, `recognizeCasesOn` (the recognizer
+    `casesInfo?` of S-28 over the declarations it reads, looked up through the view), `dropKnown`
+    (a recursor among the names to read is an exclusion), `closureStep` (what one declaration
+    makes the closure read: its type; the value of a definition that is not a recognized `casesOn`
+    and of an opaque, not of a theorem; its block members; the constructors of an inductive; the
+    inductive of a constructor; for a recognized `T.casesOn`, `T` and the companion `T.rec`, and an
+    exclusion if a constructor field is an index of the constructor's type), `closure` (structural
+    on a fuel that counts added declarations), `eliminatedUndecided` (an inductive whose sort may
+    be both zero and not zero, with a recognized `casesOn` or one constructor with a field), and
+    `findBlockCollision` (two blocks with one block name, or a block name that is the kername of a
+    definition, theorem, opaque or axiom of the closure). Under `remove_irrel_constr_args` any
+    inductive type is an exclusion. `route` calls the new `collectDeps`.
+  - `tests/harness/PureHarness.lean`: `collectDeps` with the configuration; its expected summary.
+  - `tests/corpus/Names.lean`: `#guard_msgs` around `N_R_collision.peano.ast`, which `#erase` now
+    rejects (below).
+  - tests: `collect_deps` (new cases), `entry_route` (new routes and outputs), `pure_inductive`
+    (`collectDeps_nv1`), `pure_backend` (unsafe recursion is out), `compiler_api` (its `csimp`
+    programs made `unsafe`, so they keep taking the `Meta` path), `pure_oracle` (the new view
+    field); their goldens.
+  - `doc/SHIPPING-CHANGES.md`: this entry and the harness paragraph.
+- **Why necessary:** the correctness proof covers the programs with inductive types that the pure
+  path erases (S-28), and `#erase` must send them there: the old `collectDeps` put every inductive
+  type, constructor, literal and projection outside the fragment. The proof's source semantics
+  treats a recognized `casesOn` as a primitive, so the closure keeps `T.casesOn` and `T.rec` for
+  the recognizer and does not read the value, and a recursor anywhere else stays outside (the pure
+  path would emit it as an axiom). The other exclusions are programs on which the pure path would
+  emit another program than the `Meta` path or one outside the proof's model: `unsafe`,
+  `partial` (an opaque with a dummy value whose code is its `_unsafe_rec` companion), recursive
+  and `implemented_by` constants, which the `Meta` path compiles through their implementation; Nat
+  primitives under `nat := .machine`; field masks under `remove_irrel_constr_args`, which the pure
+  backend does not compute; `@[extern]` constructors under `extern := .preferAxiom`;
+  `casesOn` with index fields (`visitAlt`'s substitution); a `casesOn` or projection on `PUnit`/
+  `PEmpty` at a level that may be zero, where one λ□ declaration serves Prop and data instances;
+  inductives that are `Prop` without being written so (the propositional flag reads the written
+  sort). With inductive types in the closure, λ□ inductive blocks are global declarations too, so
+  their names (`mutualBlockKername`) join the collision check.
+- **Behaviour before:** `#erase (Nm.both Nat Nat.succ Nat.zero) config {nat := .peano}` takes the
+  `Meta` path (`inductive type`) and writes a program with two λ□ constants named `two_u39`;
+  `#erase B.neg B.f` and every program with an inductive type take the `Meta` path; `unsafe`
+  constants and `implemented_by` targets are in the fragment.
+- **Behaviour after:** on the corpus (`scripts/pure-harness.sh`), 223 of the 294 `#erase` are in
+  the fragment (173 before), 68 outside (119), 3 are name collisions (2). 58 programs with
+  inductive types move to the pure path: 51 give the `Meta` path's program byte for byte, 7 differ
+  (below); 8 programs leave it (`implEx` ×2: an `implemented_by` target; `ufOne`, `ugOne`,
+  `uaFalseOne` ×2: `unsafe`), all of which had identical outputs on both paths. Exclusions on the
+  corpus: 21 Nat literals and 2 `Nat.succ` under `nat := .machine`, 20 recursive definitions,
+  6 `unsafe`, 2 `partial`, 4 `implemented_by`, 2 recursors, 2 quotients, 1 index field, 1 nested
+  inductive, 1 string literal, 4 level metavariables, 2 metavariables. The pure oracle fails on
+  no program and agrees with the `Meta` oracle except on the 14 calls of the known classes (an
+  `@[irreducible]` alias, which the kernel's δ unfolds, R-14; `And.casesOn`, built from
+  projections, which the pure recognizer does not recognize). `peregrine validate` and
+  `eval --anf=false` succeed on the 223 pure outputs except the known defects `quote_inductive`,
+  `quote_modpath`, `N_quoteNs` ×2 (R-2), `nonsyn_pi` (R-5) and `sixOnAxioms` ×2 (axioms by
+  design); all of them fail alike on the `Meta` path. The output differences on the pure path,
+  which has no `prepare` step (S-20): a matcher stays a constant (with `@[inline]` in the
+  `.inlinings` file) instead of being inlined, `@[macro_inline]` calls stay calls, no `@[csimp]`
+  replacement, and `And.casesOn` is unfolded; an `@[irreducible]` alias is unfolded (R-14). With
+  `auto_inline_typeclass_dispatch`, the pure path marks no instance (`isInstance` is `false` at
+  `PureM`) and logs nothing.
+- **Effect on emitted .ast (corpus):** against the corpus of S-28 (`f9c6e1a`), 699 of 710 files
+  identical (benchmarks all identical), `PANIC` counts unchanged; `N_R_collision.peano.ast` and its
+  `.inlinings` are no longer written (`#erase` reports the collision `Nm.two_u39`/`Nm.two'`, as for
+  `N_collision.*`); 11 files differ, all on the pure path's side of the differences above:
+  `Defects/and_elim` (matcher, `And.casesOn`), `Defects/quote_inductive` (matcher),
+  `NearMiss/NM_matchEx.peano` (matcher) with their `.inlinings` (the matcher), and
+  `Defects/irreducible_alias`, `Examples/R_irrAxiomArg.peano`, `Examples/R_irrThmArg.peano`
+  (`@[irreducible]` alias erased), `Examples/R_attrEx.peano` (`@[macro_inline]` call kept).
+- **Regression test:** `collect_deps` checks, over the elaboration environment, the closures of
+  `B.neg B.f` (with `B.casesOn` and `B.rec`, not `B.casesOn`'s value), of `Eq.casesOn` on
+  `Eq.refl` and on the theorem `hEq` (the theorem's value not read), that a Peano literal, a
+  projection, `Unit`, a mutual block and a root-level inductive are in, and the exclusions and
+  collisions listed in its docstring. `entry_route` routes `B.neg B.f`, these two `Eq.casesOn` and
+  `mfirstN Nat.zero Nat.zero` (`nat := .peano`) to the pure path (the first three with the `Meta`
+  path's output, which peregrine evaluates to `ER.B.t`), and `mfirstN` under `nat := .machine`
+  to the `Meta` path. `pure_inductive` evaluates `collectDeps` on `B.neg B.f` in the kernel
+  (`decide`). Before this commit the tests do not elaborate (`collectDeps` takes no
+  configuration). `scripts/regress.sh` passes (15 tests), with and without `PEREGRINE`;
+  `scripts/pure-harness.sh` passes with the updated summary.
 
 ---
 

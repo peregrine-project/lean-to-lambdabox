@@ -6,7 +6,7 @@ import LeanToLambdaBox
 `scripts/pure-harness.sh` elaborates a copy of each file of `tests/corpus/` that also imports this
 module. The module adds a second elaborator for `#erase`, which Lean tries before the eraser's own.
 For `#erase t [config c] to "f"` it elaborates `t` and `c` as `#erase` does and computes
-`collectDeps (EnvView.ofEnvironment env) t`. If the closure is in the fragment, it also
+`collectDeps (EnvView.ofEnvironment env) c t`. If the closure is in the fragment, it also
 - runs `erasePure` (the pure path) and `Erasure.erase` (the `Meta` path of `#erase`), and writes their
   outputs, in the format of `#erase`, to `f.pure` and `f.meta`, each with its `.inlinings`;
 - runs the traversal again with the backend `CmpM`, whose operations are those of `PureM` and whose
@@ -196,7 +196,7 @@ def harness (t : Term) (cfg? : Option Term) (f : String) : TermElabM String := d
     | none => pure {}
     | some c => unsafe Term.evalTerm ErasureConfig (.const ``ErasureConfig []) c
   let view := EnvView.ofEnvironment (← getEnv)
-  match collectDeps view e with
+  match collectDeps view cfg e with
   | .error (.outOfFragment w) => return s!"collectDeps: outOfFragment {w}\n"
   | .error err => return s!"collectDeps: {showErr err}\n"
   | .ok decls =>
