@@ -35,11 +35,12 @@ body EraseProof.CtorValue 4f17054363c805d1
 body EraseProof.DeltaFree cbdab789c3fe0a00
 body EraseProof.DeltaFree._sparseCasesOn_1 f145a7d06c3e54d3
 body EraseProof.DeltaFree.match_1 f21b39ec4e19ff56
+body EraseProof.Eliminated a1dd86fdb99f2ddc
 body EraseProof.EmitsConst 3508a79c477a56f5
 body EraseProof.EmitsConst._sparseCasesOn_1 b9f4edd722556a6e
 body EraseProof.EmitsConst.match_1 397a77df3b1a7f41
 body EraseProof.ErasableS a95e5838e8b58f84
-body EraseProof.Erases 4a94dcd016216b61
+body EraseProof.Erases 640c3ba31377ae24
 body EraseProof.ErasesAlt db6e4e0cfc1cf02c
 body EraseProof.ErasesDecl 3a86646040725f41
 body EraseProof.ErasesDecl.match_1 5a59bf3c20c4d174
@@ -86,6 +87,9 @@ body EraseProof.IndIdOf bb1c26f2dacd75e3
 body EraseProof.IsArity fee1ad20ecea3983
 body EraseProof.IsErasable f81718cfa7ef6721
 body EraseProof.IsProof 4ac72729c5101ff2
+body EraseProof.IsRecursorIn 124ddc0641b056b8
+body EraseProof.IsRecursorIn._sparseCasesOn_1 a7e024f5ab5eb14f
+body EraseProof.IsRecursorIn.match_1 d8ab9d1f7d313fa1
 body EraseProof.IsThm f2df00718f7ba908
 body EraseProof.IsThm._sparseCasesOn_1 ace3fdcc351d9dc5
 body EraseProof.IsThm.match_1 bb47f4e2db50a4f0
@@ -126,6 +130,7 @@ body EraseProof.MLDecl.rec aa3164cd7a78cd92
 body EraseProof.MLDecl.vlam 3c727869ad9528e2
 body EraseProof.MLDecl.vlet 6b71ff7a35752095
 body EraseProof.MLDecl.wk 5ea8d4af9b3945d8
+body EraseProof.MayBeNonZero 56f792e354625883
 body EraseProof.MetaOrderOK 201ca762f6746835
 body EraseProof.NeverZero 26032d3734c7abc8
 body EraseProof.NeverZero._f 59319a75c3224d18
@@ -134,7 +139,7 @@ body EraseProof.NeverZero.match_1 46b7190851ceb7e7
 body EraseProof.OwnRules 6bcdb0935dc54e7f
 body EraseProof.OwnRules._sparseCasesOn_1 29b1693e9f2cea6f
 body EraseProof.OwnRules.match_1 7dbe484b71d44f46
-body EraseProof.PhaseIDecl f81248c1bf1ede99
+body EraseProof.PhaseIDecl 36a65fb02f495e0f
 body EraseProof.PhaseIDecl.match_1 23ce4d1775721654
 body EraseProof.PlainExpr 62fb98d54d1332ac
 body EraseProof.PlainExpr._f 3631d6d80e5447bf
@@ -144,6 +149,7 @@ body EraseProof.PropInductive 2977144ef02517af
 body EraseProof.PropProj bcaea9eb800f708e
 body EraseProof.ReadClosed a10c5ee841b5a2dc
 body EraseProof.ReadExpr 26a05957345ffe3
+body EraseProof.RecFree 6325814a89d5c0ce
 body EraseProof.RecrLevels b684e0102d9050b3
 body EraseProof.SatTr 1faf8630e22872fc
 body EraseProof.ShortSpine efd7aa38bc68eecc
@@ -1360,7 +1366,7 @@ name optParam
 name panic
 name panicWithPosWithDecl
 name sorryAx
-root EraseProof.collectDeps_ok_of 11186852
+root EraseProof.collectDeps_ok_of d460a1db
 root EraseProof.erasePure_erases 7f4f2803
 root EraseProof.erase_correct 7b3a81a2
 root EraseProof.erases_correct a5a5dd9c
