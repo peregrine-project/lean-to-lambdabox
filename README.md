@@ -2,7 +2,7 @@
 An implementation of type and proof erasure from Lean's term language (represented in Lean by the type `Expr`) into the untyped lambda-calculus $\lambda_\square$ (LambdaBox),
 using the same syntax as the [`peregrine` tool](https://github.com/peregrine-project/peregrine-tool).
 
-The package builds with Lean `v4.35.0-rc2` (see [`lean-toolchain`](lean-toolchain)) and has no dependencies.
+The package builds with Lean `v4.35.0-rc2` (see [`lean-toolchain`](lean-toolchain)) and depends on [Metalean](https://github.com/intgrah/metalean), and through it on Mathlib (run `lake exe cache get` for its build). `import LeanToLambdaBox` does not load either; `LeanToLambdaBox.Metalean` does, and `lake build LeanToLambdaBox.Metalean` checks the dependency.
 
 ## Usage
 ```
