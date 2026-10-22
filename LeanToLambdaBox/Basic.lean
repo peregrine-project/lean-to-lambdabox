@@ -41,6 +41,12 @@ def toKername (n: Name): Kername :=
 def rootKername (s: String): Kername :=
   { mp := .MPfile [], id := cleanIdent s }
 
+/-- The kername of the mutual inductive block with members `all`: their names, printed without
+`«»` escapes (`Name.toString (escape := false)`, which reduces in the kernel; the escaping printer
+calls a `partial` function), joined, as a root kername. -/
+def mutualBlockKername (all : List Name) : Kername :=
+  rootKername (String.join (all.map (·.toString (escape := false))))
+
 /-- A name used to pretty-print bound variables. -/
 inductive BinderName: Type where
   | named (s: String)
@@ -105,8 +111,9 @@ inductive LBTerm where
   | prim: PrimVal -> LBTerm
   deriving Inhabited, Repr
 
-/-- This is actually structurally recursive, I think, Lean just has trouble seeing it because of the inductive nesting. -/
-partial def toBvar (x: FVarId) (lvl: Nat) (e: LBTerm): LBTerm :=
+mutual
+/-- Replace the free variable `x` by the bound variable of index `lvl`, counting the binders crossed. -/
+def toBvar (x: FVarId) (lvl: Nat) (e: LBTerm): LBTerm :=
   match e with
   | .box => .box
   | .bvar i => .bvar i
@@ -115,13 +122,29 @@ partial def toBvar (x: FVarId) (lvl: Nat) (e: LBTerm): LBTerm :=
   | .letIn name val body => .letIn name (toBvar x lvl val) (toBvar x (lvl + 1) body)
   | .app a b => .app (toBvar x lvl a) (toBvar x lvl b)
   | .const kn => .const kn
-  | .construct indid n args => .construct indid n (args.map <| toBvar x lvl)
-  | .case (indid, n) discr alts => .case (indid, n) (toBvar x lvl discr) (alts.map fun (names, alt) => (names, toBvar x (lvl + names.length) alt))
+  | .construct indid n args => .construct indid n (toBvarList x lvl args)
+  | .case (indid, n) discr alts => .case (indid, n) (toBvar x lvl discr) (toBvarAlts x lvl alts)
   | .proj pinfo e => .proj pinfo (toBvar x lvl e)
   | .fix defs i =>
     let def_count := defs.length;
-    .fix (defs.map fun nd => { nd with body := toBvar x (lvl + def_count) nd.body }) i
+    .fix (toBvarDefs x (lvl + def_count) defs) i
   | .prim p => .prim p
+
+/-- `toBvar` on each term of a list. -/
+def toBvarList (x: FVarId) (lvl: Nat): List LBTerm -> List LBTerm
+  | [] => []
+  | a :: as => toBvar x lvl a :: toBvarList x lvl as
+
+/-- `toBvar` on the body of each case alternative, under the alternative's binders. -/
+def toBvarAlts (x: FVarId) (lvl: Nat): List (List BinderName × LBTerm) -> List (List BinderName × LBTerm)
+  | [] => []
+  | (names, alt) :: alts => (names, toBvar x (lvl + names.length) alt) :: toBvarAlts x lvl alts
+
+/-- `toBvar` on the body of each fixpoint definition, at the level `lvl` given. -/
+def toBvarDefs (x: FVarId) (lvl: Nat): List (@FixDef LBTerm) -> List (@FixDef LBTerm)
+  | [] => []
+  | nd :: nds => { nd with body := toBvar x lvl nd.body } :: toBvarDefs x lvl nds
+end
 
 def abstract (x: FVarId) (e: LBTerm): LBTerm := toBvar x 0 e
 
@@ -144,8 +167,8 @@ deriving Inhabited, Repr
 
 structure OneInductiveBody where
   name : Ident
-  /-- True iff the inductive lives in Prop. -/
-  propositional : Bool := false -- I think, since erasure should remove anything which ends up in Prop
+  /-- True iff the inductive lives in Prop. λ□ reduces a `case` on □ only for such an inductive. -/
+  propositional : Bool
   kelim : AllowedEliminations := .IntoAny
   ctors : List ConstructorBody
   projs : List ProjectionBody -- This is only about giving user-visible names to projections, but `peregrine` complains about wellformedness if it is empty.
