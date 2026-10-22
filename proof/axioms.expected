@@ -39,3 +39,17 @@ EraseProof.Test.NV1.visitConstructor_run propext,Classical.choice,Quot.sound
 EraseProof.Test.NV1.visitExpr_ctor_run propext,Classical.choice,Quot.sound
 EraseProof.Test.NV1.visitMutual_neg_run propext,Classical.choice,Quot.sound
 EraseProof.Test.NV1.withApp_bodyNeg propext
+EraseProof.Test.NVPK.altsEq_refl propext,Classical.choice,Quot.sound
+EraseProof.Test.NVPK.casesInfo_Eq propext
+EraseProof.Test.NVPK.e_run propext,Classical.choice,Quot.sound
+EraseProof.Test.NVPK.ee_app -
+EraseProof.Test.NVPK.hcollect propext,Classical.choice,Quot.sound
+EraseProof.Test.NVPK.hcollectK propext,Classical.choice,Quot.sound
+EraseProof.Test.NVPK.hcollectP propext,Classical.choice,Quot.sound
+EraseProof.Test.NVPK.hpure propext,Classical.choice,Quot.sound
+EraseProof.Test.NVPK.hrun propext,Classical.choice,Quot.sound
+EraseProof.Test.NVPK.hrunK propext,Classical.choice,Quot.sound
+EraseProof.Test.NVPK.hrunP propext,Classical.choice,Quot.sound
+EraseProof.Test.NVPK.idB_run propext,Classical.choice,Quot.sound
+EraseProof.Test.NVPK.visitCases_run propext,Classical.choice,Quot.sound
+EraseProof.Test.NVPK.withApp_ee propext
