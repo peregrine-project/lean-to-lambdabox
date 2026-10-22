@@ -132,6 +132,18 @@ def isArity (cx : Ctx) : Nat → List Local → Expr → Except EraseError Bool
     | .forallE _ _ B _ => isArity cx f ls B
     | _ => pure false
 
+/-- Whether a type is `Prop` or a Π-type ending in `Prop`, after weak-head reduction: `isArity`
+with the sort `Sort 0` (the level `zero`, as `Meta.isPropFormerType` compares it with `==`).
+Reference: `Sort.is_propositional` of the inductive's sort in
+`MR E/ErasureFunction.v:1325 erase_one_inductive_body`. -/
+def isPropFormerType (cx : Ctx) : Nat → List Local → Expr → Except EraseError Bool
+  | 0, _, _ => throw (.fuel "isPropFormerType")
+  | f+1, ls, T => do
+    match ← whnf cx f ls T with
+    | .sort .zero => pure true
+    | .forallE _ _ B _ => isPropFormerType cx f ls B
+    | _ => pure false
+
 /-- The pure erasability oracle: the type is an arity, or the type's sort is always zero. Every
 reduction uses the kernel's δ. Fuel exhaustion is an error, never an answer.
 Reference: `MR E/ErasureFunction.v:894 is_erasableb` (`type_of_typing`, `is_arity`,
@@ -192,6 +204,13 @@ def isErasable (ls : List Local) (e : Expr) : PureM Bool := do
   | .ok b => pure b
   | .error err => throw err
 
+/-- The oracle's `isPropFormerType`, with `oracleFuel`. Reference: `Sort.is_propositional`
+(`MR E/ErasureFunction.v:1325 erase_one_inductive_body`). -/
+def isPropFormerType (e : Expr) : PureM Bool := do
+  match Pure.isPropFormerType ⟨(← read).decls⟩ oracleFuel [] e with
+  | .ok b => pure b
+  | .error err => throw err
+
 /-- No `casesOn` on the pure path (the fragment has no inductives). Reference: none. -/
 def casesInfo? (_ : Name) : PureM (Option Lean.CasesInfo) := pure none
 
@@ -212,7 +231,8 @@ def prepare (e : Expr) : PureM Expr := pure e
 end PureM
 
 /-- The pure backend: the operations of `PureM`, with `unsafeRecBase?` always `none`;
-type inference is the oracle's `Pure.inferType` at `oracleFuel` on the traversal's locals; every
+type inference is the oracle's `Pure.inferType` at `oracleFuel` on the traversal's locals, and
+`isPropFormerType` is the oracle's `Pure.isPropFormerType` at `oracleFuel`; every
 constructor field is kept; `isExtern` and `inlineAttr?` read the view; no constant is an instance;
 `log` does nothing; a constant missing from the declarations is `outOfFragment`, and fuel
 exhaustion is the error `fuel`. Reference: the environment and retyping operations that
@@ -229,7 +249,7 @@ instance : Backend PureM where
     match Pure.inferType ⟨(← read).decls⟩ oracleFuel ls [] e with
     | .ok t => pure t
     | .error err => throw err
-  isPropFormerType _ := pure false
+  isPropFormerType := PureM.isPropFormerType
   casesInfo? := PureM.casesInfo?
   ctorArity? := PureM.ctorArity?
   argMask _ ci := pure (Array.replicate ci.numFields .keep)

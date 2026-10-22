@@ -11,7 +11,8 @@ For `#erase t [config c] to "f"` it elaborates `t` and `c` as `#erase` does and 
   outputs, in the format of `#erase`, to `f.pure` and `f.meta`, each with its `.inlinings`;
 - runs the traversal again with the backend `CmpM`, whose operations are those of `PureM` and whose
   oracle also asks `Erasure.isErasable` (the `Meta` oracle) in the traversal's local context, and
-  counts the calls and the calls where the two answers differ.
+  whose `isPropFormerType` also asks `Meta.isPropFormerType`, and counts the calls of both and the
+  calls where the two answers differ.
 
 It writes what it found to `f.harness`. Then it declines the command (`throwUnsupportedSyntax`):
 Lean restores the command state and runs the eraser's own elaborator, so `#erase` writes `f` and
@@ -65,6 +66,13 @@ def metaAnswer (lctx : LocalContext) (e : Expr) : CoreM String := do
   catch ex =>
     return s!"error {oneLine (← ex.toMessageData.toString)}"
 
+/-- The answer of `Meta.isPropFormerType` on a closed type, as text. -/
+def metaPropFormer (e : Expr) : CoreM String := do
+  try
+    return s!"ok {← runMetaM {} (Meta.isPropFormerType e)}"
+  catch ex =>
+    return s!"error {oneLine (← ex.toMessageData.toString)}"
+
 /-- A term, pretty-printed in a local context, on one line. -/
 def ppIn (lctx : LocalContext) (e : Expr) : CoreM String := do
   let f ← runMetaM lctx (Meta.ppExpr e)
@@ -89,7 +97,16 @@ instance : Backend CmpM where
       { calls := s.calls + 1, diffs := if p == m then s.diffs else s.diffs.push ⟨t, p, m⟩ }
     liftP (Backend.isErasable (m := PureM) lctx ls e)
   inferType lctx ls e := liftP (Backend.inferType lctx ls e)
-  isPropFormerType e := liftP (Backend.isPropFormerType e)
+  isPropFormerType e := do
+    let r := ((Backend.isPropFormerType (m := PureM) e).run (← readThe PureCtx)).run
+      (← getThe PureState)
+    let p := showPure (r.map (·.1))
+    let m ← (metaPropFormer e : CoreM String)
+    let t ← (ppIn {} e : CoreM String)
+    modifyThe CmpState fun s =>
+      { calls := s.calls + 1,
+        diffs := if p == m then s.diffs else s.diffs.push ⟨s!"isPropFormerType {t}", p, m⟩ }
+    liftP (Backend.isPropFormerType (m := PureM) e)
   casesInfo? n := liftP (Backend.casesInfo? n)
   ctorArity? n := liftP (Backend.ctorArity? n)
   argMask lctx ci := liftP (Backend.argMask lctx ci)

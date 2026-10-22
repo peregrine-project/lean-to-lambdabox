@@ -19,7 +19,9 @@ On this branch, the commit `Bump Lean to v4.35.0` (`fcdef9f`) follows `Update th
 no entry here, and its message lists its changes and their effect on the corpus. T-0 then switches
 the toolchain to `v4.35.0-rc2` and adds the dependency on Metalean. The S-entries from S-16 on
 were first made on `v4.33.0-rc2`; their counts of tests and corpus files are those of that
-toolchain, and the effect of each port on this branch's corpus is the one its entry states.
+toolchain, and the effect of each port on this branch's corpus is the one its entry states. After
+S-24, this branch merges `fixes-port`, whose commit `Declare Prop inductives propositional`
+(`ceec073`) fixes R-7 and R-8; S-25 records the merge together with the commit that completes it.
 
 This register lists every change to the shipping code: the eraser
 (`LeanToLambdaBox.lean`, `LeanToLambdaBox/`), the package files (`lakefile.toml`, `lean-toolchain`,
@@ -131,7 +133,8 @@ It elaborates each file `tests/corpus/<Stem>.lean` with the harness `tests/harne
 imported. For each `#erase ... to "<f>"`, the harness computes `collectDeps` over the elaboration
 environment; for a program in the fragment it runs `erasePure` and the `Meta` path
 (`Erasure.erase`), and, at every call of the pure oracle in the pure run, the `Meta` oracle on the
-same term in the same local context. Then `#erase` runs as usual. The summary has one line per
+same term in the same local context, and likewise for `isPropFormerType` (S-25). Then `#erase`
+runs as usual. The summary has one line per
 `#erase`: out of the fragment and why; or the results of both paths, whether their outputs are
 byte-identical, which of them the file written by `#erase` equals, the number of oracle calls, and
 the calls at which the two oracles answer differently. It must equal
@@ -2050,6 +2053,90 @@ the calls at which the two oracles answer differently. It must equal
 - **Regression test:** none fails before it (the regression tests do not use the benchmark
   workspaces); `scripts/corpus.sh` itself is the check. The regression tests pass unchanged.
 
+## S-25: Prop inductives are declared propositional, and index fields reach their alternative, on both paths
+
+- **Commit:** two commits. The merge `Merge branch 'fixes-port' into ml/translate` brings the
+  commit `Declare Prop inductives propositional` of `fixes-port` (`ceec073`, the last commit of
+  PR #7, registered on the branch `fix-scaffolding` as S-17, "Prop inductives are declared
+  propositional, and index fields reach their alternative"), ported in the conflict resolution to
+  the generic traversal of S-16 with the pure backend answering `false`. The commit whose subject
+  starts with `S-25:` (`git log --grep='^S-25:'`) gives the pure backend the oracle's answer. It
+  fixes R-7 and R-8.
+- **Files and functions:**
+  - `LeanToLambdaBox/Basic.lean`: `OneInductiveBody.propositional` has no default any more (from
+    `ceec073`, unchanged).
+  - `LeanToLambdaBox/Erasure.lean` (merge): new operation `Backend.isPropFormerType`, whether a
+    closed type is `Prop` or a Π-type ending in `Prop`; at `CoreM` it is `Meta.isPropFormerType`
+    (in the empty local context; `ceec073` ran it in the traversal's, which a closed type does not
+    use). `register_inductive` sets `propositional` with it. New function `indexFields`: for each
+    field of a constructor, the position of the first index of the constructor's result type that
+    is this field, computed on the de Bruijn form of the constructor's type (`ceec073` computes it
+    with `Meta.forallTelescope` and `Array.idxOf?`, which compare the same terms syntactically).
+    `erase.visitCases`: for an inductive with indices for which `isPropFormerType` holds, a map
+    from each constructor with an index field to the `casesOn`'s index argument of each such field.
+    `erase.visitCasesOn` passes the constructor's entry to `erase.visitAlt`, which, after opening
+    the alternative's `numFields` binders, replaces each such field by its value (`Expr.replace`, as
+    `visitCases` does for the catch-all) and keeps the binder; `ceec073` instead rebuilds the
+    alternative as `fun xs => (alt vals).headBeta` with `Meta.mkLambdaFVars`, which needs `MetaM`.
+    Both give the same body under the same binders and binder names: the binders are those of the
+    alternative's inferred Π-type in both. New argument of `visitCasesOn`
+    (`Std.HashMap Name (List (Option Expr))`) and of `visitAlt` (`List (Option Expr)`; with `[]`
+    the alternative is unchanged).
+  - `LeanToLambdaBox/Erasure/Pure.lean`: (merge) the field `isPropFormerType` of
+    `instance : Backend PureM`; (S-25) new `Pure.isPropFormerType` (the oracle's `whnf`, then
+    `Sort 0`, or a Π whose body is one, with fuel; `Meta.isPropFormerType` compares the level with
+    `== .zero`, so does the pattern `.sort .zero`) and `PureM.isPropFormerType` (at `oracleFuel`,
+    an error of the oracle is an error of the pure path), which the instance uses.
+  - `tests/harness/PureHarness.lean`: (merge) the field of `instance : Backend CmpM`; (S-25) it
+    also asks `Meta.isPropFormerType` (`metaPropFormer`) and counts the call and a differing answer
+    as the oracle does (`isPropFormerType <type>` in place of the term).
+  - `tests/regress/prop_cases.lean` with its goldens (from `ceec073`, unchanged); new
+    `tests/regress/prop_inductive_pure.lean` with its goldens.
+  - `doc/SHIPPING-CHANGES.md`: this entry, the preamble, R-7 and R-8.
+- **Why necessary:** R-7 and R-8, reproduced on this branch (`and_elim.ast`, `index_field.ast`);
+  the reasons are those of `fix-scaffolding`'s S-17: a λ□ `case` on □ reduces to its only branch,
+  with □ for the fields, only for an inductive declared propositional (`eval_iota_sing`,
+  `MR erasure/theories/EWcbvEval.v`), which MetaRocq decides from the sort alone
+  (`MR erasure/theories/ErasureFunction.v:1325 erase_one_inductive_body`,
+  `Sort.is_propositional`), and a field that is an index exists in the program only as the
+  `casesOn`'s index argument. `ceec073` reads both from `MetaM` inside the traversal, which on this
+  branch is generic over its backend and has no `MetaM` at `PureM`; so the merge needs a backend
+  operation, and the pure backend must answer it as the `Meta` path does, or the pure path would
+  keep R-7 for every inductive it registers. Today the pure path registers none: `casesInfo?` and
+  `ctorArity?` answer `none` at `PureM`, and the oracle rejects literals and projections before
+  `visitLiteral` or `visitProj` runs. The change that routes programs with inductives to the pure
+  path is later work, and it inherits this entry's flag and index substitution, since both are in
+  the shared traversal.
+- **Behaviour before:** `and_elim.ast` and `index_field.ast` (`examples/Defects/`):
+  `peregrine eval` fails with `Case: <15> branch not found`, as does `check.ast` of `prop_cases`.
+  `register_inductive` at `PureM` declares every inductive non-propositional.
+- **Behaviour after:** `peregrine eval` prints 7 for `and_elim.ast` and 1 for `index_field.ast`
+  (Lean's values) and `B.t` for `prop_cases`' `check.ast`. Both backends declare an inductive
+  propositional iff its type is `Prop` or a Π ending in `Prop` after weak-head reduction; a
+  Sort-polymorphic inductive (`PUnit.{u}`) is declared non-propositional, since one declaration
+  serves every universe instance.
+- **Effect on emitted .ast (corpus):** against the corpus of S-24 (712 files), at the merge (with
+  T-1, which only makes `scripts/corpus.sh` run in the checkout): 710 byte-identical, 2 differ:
+  `examples/Defects/and_elim.ast` (`And` declared `true`) and `examples/Defects/index_field.ast`
+  (`Defects.Foo` declared `true`, and the branch returns the index argument, `tRel 2`, instead of
+  the field, `tRel 0`). These are the two differences of `fix-scaffolding`'s S-17 on `fixes-port`.
+  The `S-25:` commit is byte-identical to the merge for all 712 files: the pure path registers no
+  inductive. `PANIC` counts unchanged.
+- **Regression test:** `prop_cases` (`And.casesOn`, `Eq.casesOn`, `True.casesOn`, a match on
+  `And`, `Idx.casesOn` with an index field; Meta path) passes with `fixes-port`'s goldens
+  byte-for-byte, so the generic port emits what `ceec073` emits; before the merge `peregrine eval`
+  fails with `branch not found`. `prop_inductive_pure` checks that `Pure.isPropFormerType` and
+  `Meta.isPropFormerType` agree on `And`, `Eq`, `True`, `Acc`, a Prop inductive with an index
+  field, one whose sort is `Prop` only after δ (`inductive PP : B → MyProp`, `def MyProp := Prop`),
+  `PUnit`, `Nat` and an indexed `Type` inductive; that `register_inductive` at `PureM` declares
+  exactly the Prop ones propositional (written to `registered.ast`, which `peregrine validate`
+  accepts); and `indexFields` on `Idx.mk`, `Acc.intro`, `And.intro`. Before the `S-25:` commit it
+  does not elaborate (no `Pure.isPropFormerType`), and `register_inductive` at `PureM` declares
+  every inductive non-propositional. `scripts/regress.sh` passes (12 tests), with and
+  without `PEREGRINE`. `scripts/pure-harness.sh` passes with its expected summary unchanged
+  (294 `#erase`; 173 in the fragment; 5751 oracle calls, 10 differ): the pure path reaches no
+  `register_inductive`, so the harness compares no `isPropFormerType` call yet.
+
 ---
 
 ## Reported, not fixed
@@ -2143,7 +2230,7 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
 - **Impact:** Peano mode fails on large literals, and the output grows linearly with the value.
 - **Why not fixed:** not required by the verification goal unless it later becomes required.
 
-### R-7: Inductive types are always declared non-propositional
+### R-7: Inductive types are always declared non-propositional (fixed in S-25)
 
 - **What:** every inductive body is printed with `ind_propositional = false` and `IntoAny`, also for
   inductives in Prop (`And`, `Eq`, `Acc`, …). A match on a proof of a large-eliminating Prop
@@ -2156,9 +2243,9 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
   `peregrine eval` fails with `Case: <15> branch not found`. With the flag of `And` set to `true`
   by hand in a copy, it evaluates to 7.
 - **Impact:** programs that eliminate proofs of `And`, `Eq`, `Acc`, … into data do not evaluate.
-- **Why not fixed:** not required by the verification goal unless it later becomes required.
+- **Fixed:** in S-25, which describes the fix and its corpus effect.
 
-### R-8: Informative index fields of large-eliminating Prop inductives are lost
+### R-8: Informative index fields of large-eliminating Prop inductives are lost (fixed in S-25)
 
 - **What:** Lean lets a Prop inductive with one constructor eliminate into any sort when each
   non-Prop field of the constructor also appears as an index of its result type (for instance
@@ -2172,7 +2259,7 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
   it prints `constr con_15` / `constr con_107` instead of `Nat.succ Nat.zero`.
 - **Impact:** such programs do not evaluate, and would compute wrong values once R-7 is fixed
   alone.
-- **Why not fixed:** not required by the verification goal unless it later becomes required.
+- **Fixed:** in S-25, which describes the fix and its corpus effect.
 
 ### R-9: Recursors and other constants without a value become axioms
 
