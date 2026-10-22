@@ -22,6 +22,8 @@ were first made on `v4.33.0-rc2`; their counts of tests and corpus files are tho
 toolchain, and the effect of each port on this branch's corpus is the one its entry states. After
 S-24, this branch merges `fixes-port`, whose commit `Declare Prop inductives propositional`
 (`ceec073`) fixes R-7 and R-8; S-25 records the merge together with the commit that completes it.
+After S-26, it merges `fixes-port` again, for `Reduce cases on inductives whose sort may be Prop`
+(`9aad6b0`); S-27 records that merge together with the commit that completes it.
 
 This register lists every change to the shipping code: the eraser
 (`LeanToLambdaBox.lean`, `LeanToLambdaBox/`), the package files (`lakefile.toml`, `lean-toolchain`,
@@ -133,7 +135,8 @@ It elaborates each file `tests/corpus/<Stem>.lean` with the harness `tests/harne
 imported. For each `#erase ... to "<f>"`, the harness computes `collectDeps` over the elaboration
 environment; for a program in the fragment it runs `erasePure` and the `Meta` path
 (`Erasure.erase`), and, at every call of the pure oracle in the pure run, the `Meta` oracle on the
-same term in the same local context, and likewise for `isPropFormerType` (S-25). Then `#erase`
+same term in the same local context, and likewise for `isPropFormerType` (S-25) and `typeLevel`
+(S-27). Then `#erase`
 runs as usual. The summary has one line per
 `#erase`: out of the fragment and why; or the results of both paths, whether their outputs are
 byte-identical, which of them the file written by `#erase` equals, the number of oracle calls, and
@@ -2178,6 +2181,86 @@ the calls at which the two oracles answer differently. It must equal
   `BlockNames_u46_u171weird_u32ind_u187`. `scripts/regress.sh` passes (13 tests) with
   `PEREGRINE`. `scripts/pure-harness.sh` passes with its expected summary unchanged (294 `#erase`;
   173 in the fragment; 5751 oracle calls, 10 differ).
+
+## S-27: Cases on an inductive whose sort may be Prop are reduced, on both paths
+
+- **Commit:** two commits. The merge `Merge branch 'fixes-port' into ml/translate` (the second one)
+  brings the commit `Reduce cases on inductives whose sort may be Prop` of `fixes-port` (`9aad6b0`,
+  the last commit of PR #7, registered on the branch `fix-scaffolding` as S-18, "Cases on an
+  inductive whose sort may be Prop are reduced by the eraser"), ported in the conflict resolution to
+  the generic traversal of S-16 with the pure backend answering `outOfFragment`. The commit whose
+  subject starts with `S-27:` (`git log --grep='^S-27:'`) gives the pure backend the oracle's
+  answer.
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure.lean` (merge): new operation `Backend.typeLevel`, the level `u` of the
+    sort `Sort u` of the type of a term in the traversal's local context; at `CoreM` it is
+    `Meta.getLevel` of `Meta.inferType`, as `9aad6b0` computes it. `erase.visitCases`: the
+    discriminant's type may be `Prop` iff `Level.isNeverZero` fails on that level (`9aad6b0` tests
+    `normalize.isNeverZero`; `Level.normalize` is a `partial def`, and both answer as the level at
+    the assignment of 0 to every universe parameter, so the test is the same). With it, the index
+    substitution of S-25 holds for an inductive with indices whose discriminant's type may be
+    `Prop` (`9aad6b0`'s condition, in place of S-25's `isPropFormerType` of the inductive's type),
+    and for an inductive with one constructor `visitCases` returns before erasing the discriminant
+    or registering the inductive: the constructor's alternative, or the catch-all, applied to □ for
+    each field or hypothesis, then to the extra arguments, or □ without either. An alternative with
+    index fields is `visitAlt`'s (every field kept, the index fields substituted) under λ over its
+    fields, with the binders and names of the alternative's inferred Π-type; `9aad6b0` erases
+    `fun xs => (alt vals).headBeta` built with `Meta.mkLambdaFVars` over the binders of
+    `Meta.forallBoundedTelescope` of that type, which gives the same λ□ term. Every other
+    alternative and the catch-all are erased as they are, as in `9aad6b0`.
+  - `LeanToLambdaBox/Erasure/Pure.lean`: (merge) the field `typeLevel` of
+    `instance : Backend PureM`; (S-27) new `Pure.typeLevel` (the oracle's `inferType` twice, then
+    `whnf` to a sort, whose level it returns, as `Meta.getLevel` reduces the type's type with
+    `whnfD`; another result is the error `failed`) and `PureM.typeLevel` (at `oracleFuel`, an error
+    of the oracle is an error of the pure path), which the instance uses.
+  - `tests/harness/PureHarness.lean`: (merge) the field of `instance : Backend CmpM`; (S-27) it
+    also asks `Meta.getLevel` of `Meta.inferType` (`metaTypeLevel`) and counts the call and a
+    differing level as the oracle does (`typeLevel <term>` in place of the term).
+  - `tests/regress/prop_cases.lean` with its golden (from `9aad6b0`, unchanged); new
+    `tests/regress/prop_cases_pure.lean` with its goldens.
+  - `doc/SHIPPING-CHANGES.md`: this entry, the preamble and the harness paragraph.
+- **Why necessary:** reproduced on this branch: `@PUnit.casesOn.{1,0} (fun _ => B) PUnit.unit B.t`
+  and a universe-polymorphic `casesOn` on `PUnit.{u}` called at level 0 erase to a λ□ `case` on □ of
+  `PUnit`, which S-25 declares non-propositional because one λ□ declaration serves every level, so
+  the `case` is stuck (`eval_iota_sing`, `MR erasure/theories/EWcbvEval.v`). The reasons and the
+  scope (core's `PUnit` and `PEmpty`) are those of `fix-scaffolding`'s S-18. `9aad6b0` reads the
+  level from `MetaM` inside the traversal, which on this branch is generic over its backend and has
+  no `MetaM` at `PureM`; so the merge needs a backend operation, and the pure backend must answer it
+  as the `Meta` path does, or the pure path would emit the stuck `case` once it erases `casesOn`.
+  Today the pure path erases none (`casesInfo?` answers `none` at `PureM`); the change that routes
+  programs with inductives to it inherits this entry's rule, which is in the shared traversal.
+- **Behaviour before:** `prop_cases`' `check.ast` with `viaPUnit` and `viaPoly`: `peregrine eval`
+  fails with `Case: <15> branch not found`, where Lean gives `B.t`. `visitCases` at `PureM` has no
+  level for the test.
+- **Behaviour after:** `peregrine eval` prints `B.t` for `prop_cases`' `check.ast`. On both backends
+  `visitCases` emits no `case` on an inductive with one constructor when the level of the
+  discriminant's type is `0` or may be `0` (a universe parameter); `Unit`, `PUnit.{u+1}` and data
+  inductives keep their `case`, and inductives without constructors (`False`, `PEmpty`) keep their
+  `case`, which has no branch. `register_inductive` still declares a Prop inductive propositional
+  when it registers one.
+- **Effect on emitted .ast (corpus):** against the corpus of S-26 (`89c546a`, 712 files), at the
+  merge: 710 byte-identical, 2 differ, the two of `fix-scaffolding`'s S-18:
+  `examples/Defects/and_elim.ast` loses its `tCase` on `And` (the alternative
+  `λ left. λ right. …` is applied to □ □) and the declaration of `And`, and
+  `examples/Defects/index_field.ast` loses its `tCase` on `Defects.Foo` (the alternative `λ n. tRel
+  2`, whose index field is already replaced by S-25, is applied to □) and the declaration of
+  `Defects.Foo`; no corpus file declares a propositional inductive any more. `peregrine eval` prints
+  7 and 1 for them, as before. The `S-27:` commit is byte-identical to the merge for all 712 files:
+  the pure path erases no `casesOn`. `PANIC` counts unchanged.
+- **Regression test:** `prop_cases` (with `viaPUnit` and `viaPoly`; Meta path) passes with
+  `fixes-port`'s golden byte-for-byte, so the generic port emits what `9aad6b0` emits; before the
+  merge `peregrine eval` fails with `branch not found`. `prop_cases_pure` checks that
+  `Pure.typeLevel` and `Meta.getLevel` of `Meta.inferType` give the same level on `PUnit.unit` at
+  `0`, `u`, `1` and `u + 1`, on proofs of `Eq`, `And` and an indexed Prop inductive, on a
+  constructor of a data type, and on a proof whose type's type is `Prop` only after δ
+  (`def MySort : Type := Prop`); and that `visitCases` at `PureM` and at `CoreM` erase
+  `PUnit.casesOn` at levels `0` and `u` and an indexed Prop `casesOn` with an index field to the
+  same λ□ terms, without `case` (the pure ones written to `0.pure.ast`, `1.pure.ast`, `2.pure.ast`,
+  which `peregrine validate` accepts). Before the `S-27:` commit the pure `visitCases` fails with
+  `outOfFragment typeLevel` and `Pure.typeLevel` does not exist. `scripts/regress.sh` passes (14
+  tests), with and without `PEREGRINE`. `scripts/pure-harness.sh` passes with its expected summary
+  unchanged (294 `#erase`; 173 in the fragment; 5751 oracle calls, 10 differ): the pure path erases
+  no `casesOn`, so the harness compares no `typeLevel` call yet.
 
 ---
 
