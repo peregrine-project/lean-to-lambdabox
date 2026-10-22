@@ -680,11 +680,15 @@ where
   The match compiler passes the discriminant to the catch-all. If the catch-all is used and the
   erased discriminant is neither a variable nor □, the discriminant is let-bound and the catch-all
   uses the bound variable in its place, so that the discriminant is evaluated once.
+  If the discriminant's type may be a Prop and the inductive has one constructor, the result is that
+  constructor's branch, without a `case`.
   -/
   visitCases (casesInfo : CasesInfo) (args: Array Expr) : EraseM LBTerm := do
     let discr := args[casesInfo.discrPos]!
-    let discr_nt ← visitExpr discr
     let .inductInfo indVal ← getConstInfo casesInfo.indName | unreachable!
+    -- The discriminant's type may be a Prop: a Prop inductive, or `PUnit.{u}`/`PEmpty.{u}` at a level
+    -- that is 0 or a universe parameter.
+    let mayBeProp := !(← liftMetaM do Meta.getLevel (← Meta.inferType discr)).normalize.isNeverZero
     -- The number of fields and the alternative of each constructor that has one; the catch-all.
     let mut ctorAlts : Std.HashMap Name (Nat × Expr) := {}
     let mut catchAll : Option (Nat × Expr) := none
@@ -692,11 +696,11 @@ where
       match altInfo with
       | .ctor ctorName numFields => ctorAlts := ctorAlts.insert ctorName (numFields, args[i]!)
       | .default numHyps => catchAll := some (numHyps, args[i]!)
-    /- A Prop inductive eliminates into data only if each field of its constructor is a proof or an
-    index of the constructor's type. The discriminant is then a proof, erased to □, and the λ□ `case`
-    on □ gives □ to every field. So the alternative gets the `casesOn`'s index argument for each
-    field that is an index, as in Lean's `toLCNF`. -/
-    if indVal.numIndices > 0 && (← liftMetaM <| Meta.isPropFormerType indVal.type) then
+    /- An inductive whose sort may be Prop eliminates into data only if it has at most one
+    constructor and each field of it is a proof or an index of the constructor's type. The
+    discriminant may then be a proof, erased to □, which gives □ to every field. So the alternative
+    gets the `casesOn`'s index argument for each field that is an index, as in Lean's `toLCNF`. -/
+    if mayBeProp && indVal.numIndices > 0 then
       for ctorName in indVal.ctors do
         let some (numFields, alt) := ctorAlts[ctorName]? | continue
         let .ctorInfo ctorVal ← getConstInfo ctorName | unreachable!
@@ -713,6 +717,17 @@ where
               | none => x
             Meta.mkLambdaFVars xs (mkAppN alt vals).headBeta
         ctorAlts := ctorAlts.insert ctorName (numFields, alt)
+    /- A λ□ `case` on □ reduces only if its inductive is propositional (MetaRocq's `iotaSing`), and
+    one λ□ declaration of `PUnit` serves every level, so it is not. So the `case` on the only
+    constructor is reduced here, as `iotaSing` does: the branch gets □ for each field (or hypothesis
+    of the catch-all). The discriminant is not evaluated; if it is data (`PUnit.{u}` with u ≥ 1),
+    its only value is the constructor without fields. -/
+    if mayBeProp && indVal.numCtors == 1 then
+      let branch ← match ctorAlts[indVal.ctors[0]!]? <|> catchAll with
+        | some (n, alt) => pure <| (List.replicate n LBTerm.box).foldl .app (← visitExpr alt)
+        | none => pure .box
+      return ← visitAppArgs branch args[casesInfo.arity:].toArray
+    let discr_nt ← visitExpr discr
     -- The catch-all is used only if some constructor has no alternative.
     if indVal.ctors.all (ctorAlts.contains ·) then
       catchAll := none
