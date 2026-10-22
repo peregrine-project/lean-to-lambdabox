@@ -2137,6 +2137,48 @@ the calls at which the two oracles answer differently. It must equal
   (294 `#erase`; 173 in the fragment; 5751 oracle calls, 10 differ): the pure path reaches no
   `register_inductive`, so the harness compares no `isPropFormerType` call yet.
 
+
+## S-26: Inductive blocks are named from their members' unescaped names
+
+- **Commit:** the commit whose subject starts with `S-26:` (`git log --grep='^S-26:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Basic.lean`: new `mutualBlockKername`, the kername of a mutual inductive
+    block: its members' names printed by `Name.toString (escape := false)`, joined, as a root
+    kername (`rootKername`).
+  - `LeanToLambdaBox/Erasure.lean`: `register_inductive` names the block with
+    `mutualBlockKername indinfo.all` instead of joining `toString` of the members.
+  - `tests/regress/block_names.lean` with its goldens (new).
+  - `doc/SHIPPING-CHANGES.md`: this entry and R-3.
+- **Why necessary:** the correctness proof states which λ□ declaration an inductive erases to,
+  and must tell the blocks of a program apart, and a block from the program's other constants
+  (all block names lie in the module `MPfile []`). `toString` on a `Name` escapes components that
+  are not identifiers with `«»`, through `Name.escapePart`, which calls the `partial` function
+  `needsNoEscapeAsciiRest`; the kernel does not unfold it, so the name `B` printed by `toString`
+  cannot be shown to be `"B"`, nor different from the name `P2` printed the same way, by `decide`,
+  `rfl` or `simp`. Without escapes the printer is structural, and `decide` evaluates block names.
+- **Behaviour before:** a block's name is `cleanIdent` of the members' `toString`, with `«»` around
+  components that need escaping: `inductive BlockNames.«weird ind»` is declared under
+  `BlockNames_u46_u171weird_u32ind_u187`. Proving by `decide` that the block of
+  `B` has the id `"B"` fails (the kernel does not reduce `toString` on the name `B`).
+- **Behaviour after:** the same without `«»`: `BlockNames_u46weird_u32ind`. For names that need no
+  escaping the name is unchanged. `decide` proves that the block of `B` has the id `"B"`, that
+  the names of the blocks of `B` and `P2` differ, and that the block of `«weird ind»` has the id
+  `"weird_u32ind"`. Two blocks whose member names differ only by `«»` quoting (a component `«a.b»`
+  and the two components `a.b`) now get the same name (R-3).
+- **Effect on emitted .ast (corpus):** against the corpus of S-25 (712 files): 711 byte-identical,
+  1 differs: `examples/Defects/quote_inductive.ast`, whose block `Defects.«Q"T»` is declared and
+  used under `Defects_u46Q_u34T` instead of `Defects_u46_u171Q_u34T_u187` (three occurrences);
+  `peregrine validate` still fails on it with `Invalid character`, from the unescaped `"` of the
+  inductive's and constructor's display names (R-2). `PANIC` counts unchanged.
+- **Regression test:** `block_names` (the four `decide` facts above; `pick.ast`, a `casesOn` on
+  `BlockNames.«weird ind»` through the `Meta` path, declared and used under
+  `BlockNames_u46weird_u32ind`, which `peregrine validate` accepts and `peregrine eval` evaluates
+  to the constructor `b`). Before this commit `mutualBlockKername` does not exist, and with the
+  names of `toString` the `decide` facts fail and `pick.ast` names the block
+  `BlockNames_u46_u171weird_u32ind_u187`. `scripts/regress.sh` passes (13 tests) with
+  `PEREGRINE`. `scripts/pure-harness.sh` passes with its expected summary unchanged (294 `#erase`;
+  173 in the fragment; 5751 oracle calls, 10 differ).
+
 ---
 
 ## Reported, not fixed
@@ -2176,9 +2218,11 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
 
 - **What:** `cleanIdent` replaces every character outside `[A-Za-z0-9_]` by `_u<code>`, so `a b`
   and `a_u32b` get the same identifier; numeric name components and digit strings coincide; a mutual
-  block's kername is the concatenation of its members' names (`[A, B]` and `AB` coincide); and the
-  module (`DirPath`) is always empty.
-- **Where:** `LeanToLambdaBox/Basic.lean`: `cleanIdent`, `toKername`, `toModPath`, `rootKername`;
+  block's kername is the concatenation of its members' names, printed without `«»` escapes (`[A, B]`
+  and `AB` coincide, and so do a component `«a.b»` and the two components `a.b`); and the module
+  (`DirPath`) is always empty.
+- **Where:** `LeanToLambdaBox/Basic.lean`: `cleanIdent`, `toKername`, `toModPath`, `rootKername`,
+  `mutualBlockKername`;
   `LeanToLambdaBox/Erasure.lean`: `register_inductive` (`mutualBlockName`).
 - **Reproduction:** `collide.ast` (`colA.«a b» + colA.a_u32b`): `peregrine validate` fails with
   `Duplicate definition .Defects.colA.a_u32b`. A program in the fragment of the pure path is not
