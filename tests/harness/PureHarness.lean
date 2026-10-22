@@ -89,6 +89,7 @@ instance : Backend CmpM where
       { calls := s.calls + 1, diffs := if p == m then s.diffs else s.diffs.push ⟨t, p, m⟩ }
     liftP (Backend.isErasable (m := PureM) lctx ls e)
   inferType lctx ls e := liftP (Backend.inferType lctx ls e)
+  isPropFormerType e := liftP (Backend.isPropFormerType e)
   casesInfo? n := liftP (Backend.casesInfo? n)
   ctorArity? n := liftP (Backend.ctorArity? n)
   argMask lctx ci := liftP (Backend.argMask lctx ci)

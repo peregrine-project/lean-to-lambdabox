@@ -215,6 +215,9 @@ class Backend (m : Type → Type) where
   /-- The type of a term in the traversal's local context, given as a `LocalContext` and as its list
   of locals (`CoreM`: `Meta.inferType` in the `LocalContext`). -/
   inferType : LocalContext → List Local → Expr → m Expr
+  /-- Whether a closed type is `Prop` or a Π-type ending in `Prop`, the type of an inductive in Prop
+  (`CoreM`: `Meta.isPropFormerType`). -/
+  isPropFormerType : Expr → m Bool
   /-- The `casesOn`-like eliminator information of a constant (`CoreM`: `getCasesInfo?`). -/
   casesInfo? : Name → m (Option CasesInfo)
   /-- The arity of a constructor (`CoreM`: `Compiler.LCNF.getCtorArity?`). -/
@@ -407,6 +410,7 @@ instance : Backend CoreM where
   instantiate1 := Expr.instantiate1
   isErasable lctx _ e := runMetaM lctx (isErasable e)
   inferType lctx _ e := runMetaM lctx (Meta.inferType e)
+  isPropFormerType e := runMetaM {} (Meta.isPropFormerType e)
   casesInfo? := getCasesInfo?
   ctorArity? := getCtorArity?
   argMask := argMaskCore
@@ -474,7 +478,8 @@ def register_inductive (indinfo: InductiveVal): EraseT m (InductiveId × Inducti
 
       let ind_id: InductiveId := { mutualBlockName, idx }
       modify (fun s => { s with inductives := s.inductives.insert ind_name (ind_id, ind_argmasks)})
-      pure { name := toString ind_name, ctors := ind_ctors, projs }
+      let propositional ← Backend.isPropFormerType (m := m) inf.type
+      pure { name := toString ind_name, propositional, ctors := ind_ctors, projs }
     let mutual_body := { npars := indinfo.numParams, bodies := ind_bodies }
     modify (fun s => { s with gdecls := s.gdecls.cons (mutualBlockName, .inductiveDecl mutual_body) })
     return (← get).inductives[indinfo.name]!
@@ -612,6 +617,24 @@ where
       forallMonocular type fun fvarid bodytype => do
         let res ← go fuel bodytype f (args.push (.fvar fvarid))
         mkLambda fvarid res
+
+/--
+For each field of a constructor of type `ctorType` with `numParams` parameters, the position among
+the indices of the constructor's result type of the first index that is this field, if any. The
+binders are those of `Meta.forallTelescope` (no reduction); the indices are compared with the
+field's bound variable syntactically, as `Array.idxOf?` compares them with its free variable.
+-/
+def indexFields (numParams : Nat) (ctorType : Expr) : List (Option Nat) :=
+  go 0 ctorType
+where
+  go (n : Nat) : Expr → List (Option Nat)
+  | .forallE _ _ b _ => go (n + 1) b
+  | ty =>
+    let idxs := ty.getAppArgs.toList.drop numParams
+    (List.range (n - numParams)).map fun k =>
+      idxs.findIdx? fun a => match a with
+        | .bvar i => i == n - 1 - numParams - k
+        | _ => false
 
 /-- Remove the ._unsafe_rec suffix from a Name if it is present. -/
 def remove_unsafe_rec (n: Name): Name := Backend.unsafeRecBase? (m := m) n |>.getD n
@@ -817,19 +840,32 @@ mutual
       match altInfo with
       | .ctor ctorName numFields => ctorAlts := ctorAlts.insert ctorName (numFields, args[i]!)
       | .default numHyps => catchAll := some (numHyps, args[i]!)
+    /- A Prop inductive eliminates into data only if each field of its constructor is a proof or an
+    index of the constructor's type. The discriminant is then a proof, erased to □, and the λ□ `case`
+    on □ gives □ to every field. So the alternative gets the `casesOn`'s index argument for each
+    field that is an index, as in Lean's `toLCNF`: `idxVals` maps a constructor to the value of each
+    of its fields that `visitAlt` substitutes. -/
+    let mut idxVals : Std.HashMap Name (List (Option Expr)) := {}
+    if indVal.numIndices > 0 && (← Backend.isPropFormerType (m := m) indVal.type) then
+      let firstIdx := casesInfo.discrPos - indVal.numIndices
+      for ctorName in indVal.ctors do
+        let .ctorInfo ctorVal ← getConst ctorName | unreachable!
+        let idxPos := indexFields indVal.numParams ctorVal.type
+        if idxPos.all Option.isNone then continue
+        idxVals := idxVals.insert ctorName (idxPos.map (·.map (args[firstIdx + ·]!)))
     -- The catch-all is used only if some constructor has no alternative.
     if indVal.ctors.all (ctorAlts.contains ·) then
       catchAll := none
     let mut ret : LBTerm ← match catchAll with
       | some (numHyps, catchAllFun) =>
         if discr_nt matches .fvar _ | .box then
-          visitCasesOn fuel indVal ctorAlts catchAll discr_nt
+          visitCasesOn fuel indVal ctorAlts idxVals catchAll discr_nt
         else do
           let type ← Backend.inferType (m := m) (← read).lctx (← read).locals discr
           withLocalDef `discr type discr false fun x => do
             let catchAllFun := catchAllFun.replace fun e => if e == discr then some (.fvar x) else none
-            mkLetIn x discr_nt (← visitCasesOn fuel indVal ctorAlts (some (numHyps, catchAllFun)) (.fvar x))
-      | none => visitCasesOn fuel indVal ctorAlts none discr_nt
+            mkLetIn x discr_nt (← visitCasesOn fuel indVal ctorAlts idxVals (some (numHyps, catchAllFun)) (.fvar x))
+      | none => visitCasesOn fuel indVal ctorAlts idxVals none discr_nt
 
     -- The casesOn function may be overapplied, so handle the extra arguments.
     for arg in args[casesInfo.arity:] do
@@ -838,13 +874,13 @@ mutual
 
   /--
   The `case` of `visitCases`, given the alternative and number of fields of each constructor that has
-  an alternative, the catch-all and its number of hypotheses if it is used, and the erased
-  discriminant.
+  an alternative, the values substituted for its fields (`visitAlt`), the catch-all and its number
+  of hypotheses if it is used, and the erased discriminant.
   -/
-  def visitCasesOn : Nat → InductiveVal → Std.HashMap Name (Nat × Expr) → Option (Nat × Expr) → LBTerm →
-      EraseT m LBTerm
-  | 0, _, _, _, _ => Backend.outOfFuel (m := m) "visitCasesOn"
-  | fuel+1, indVal, ctorAlts, catchAll, discr_nt => do
+  def visitCasesOn : Nat → InductiveVal → Std.HashMap Name (Nat × Expr) →
+      Std.HashMap Name (List (Option Expr)) → Option (Nat × Expr) → LBTerm → EraseT m LBTerm
+  | 0, _, _, _, _, _ => Backend.outOfFuel (m := m) "visitCasesOn"
+  | fuel+1, indVal, ctorAlts, idxVals, catchAll, discr_nt => do
     -- The body of the branch of a constructor that has no alternative.
     let missing_nt : LBTerm ←
       match catchAll with
@@ -910,7 +946,7 @@ mutual
       let mut alts := #[]
       for ctorName in indVal.ctors, argmask in argmasks do
         let alt ← match ctorAlts[ctorName]? with
-          | some (numFields, alt) => visitAlt fuel numFields argmask alt
+          | some (numFields, alt) => visitAlt fuel numFields argmask (idxVals.getD ctorName []) alt
           | none => pure (List.replicate (argmask.count .keep) BinderName.anon, missing_nt)
         alts := alts.push alt
       pure <| LBTerm.case (indid, indVal.numParams) discr_nt alts.toList
@@ -919,11 +955,16 @@ mutual
   Visit a `matcher`/`casesOn` alternative.
   On the Lean side, e should be a function taking numFields arguments.
   For λbox, I think we only need the body, as the LBTerm.cases constructor handles the bindings.
+  The `i`-th field is replaced in the body by `vals[i]` if that is `some v`; the binder stays.
   -/
-  def visitAlt : Nat → Nat → ConstructorArgMask → Expr → EraseT m (List BinderName × LBTerm)
-  | 0, _, _, _ => Backend.outOfFuel (m := m) "visitAlt"
-  | fuel+1, numFields, argmask, e => do
+  def visitAlt : Nat → Nat → ConstructorArgMask → List (Option Expr) → Expr →
+      EraseT m (List BinderName × LBTerm)
+  | 0, _, _, _, _ => Backend.outOfFuel (m := m) "visitAlt"
+  | fuel+1, numFields, argmask, vals, e => do
     lambdaOrIntroToArity e (← Backend.inferType (m := m) (← read).lctx (← read).locals e) numFields fun e fvarids => do
+      let e := if vals.isEmpty then e else e.replace fun x => match x with
+        | .fvar y => (fvarids.zip vals).findSome? fun (z, v) => if z == y then v else none
+        | _ => none
       mkAlt (filter argmask fvarids.toArray).toList (← visitExpr fuel e)
 
   def get_constant_kername : Nat → Name → EraseT m Kername

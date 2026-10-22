@@ -229,6 +229,7 @@ instance : Backend PureM where
     match Pure.inferType ⟨(← read).decls⟩ oracleFuel ls [] e with
     | .ok t => pure t
     | .error err => throw err
+  isPropFormerType _ := pure false
   casesInfo? := PureM.casesInfo?
   ctorArity? := PureM.ctorArity?
   argMask _ ci := pure (Array.replicate ci.numFields .keep)
