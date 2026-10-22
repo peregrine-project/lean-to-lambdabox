@@ -122,8 +122,8 @@ appears, or if any file is missing, extra or different. With
 `-- peregrine: validate <file> [<option>...]` and `-- peregrine: eval <file> [<option>...]` of each
 test; each must succeed and, when `tests/regress/expected-peregrine/<name>/<file>.<verb>` exists,
 print exactly that. `scripts/regress.sh --update [TEST...]` rewrites the expected files from the
-current checkout. CI (`.github/workflows/build.yml`) runs `scripts/regress.sh` after the build,
-without peregrine.
+current checkout. CI (`.github/workflows/build.yml`, on pushes to `main` and `ml/translate` and on
+pull requests into any branch) runs `scripts/regress.sh` after the build, without peregrine.
 
 The pure path of the eraser (`Erasure.erasePure`, S-20), which `#erase` takes on the programs in the
 fragment (S-21), is compared with the `Meta` path (`Erasure.erase`) on the corpus examples by
@@ -1967,6 +1967,32 @@ the calls at which the two oracles answer differently. It must equal
   them) and the harness pass unchanged, and the corpus of 712 files is byte-identical to the parent
   commit's. On this branch the docstring of `PureM.instantiate1` cites
   `LeanToLambdaBox/Erasure/ExprOps.lean` (S-19).
+
+## S-23: The register says when CI builds and tests
+
+- **Commit:** the commit whose subject starts with `shipping(S-23):`
+  (`git log --grep='^shipping(S-23):'`).
+- **Files and functions:**
+  - `doc/SHIPPING-CHANGES.md`: this entry; the section "Regression tests" says when CI runs.
+
+  `.github/workflows/build.yml` is unchanged.
+- **Why necessary:** the section "Regression tests" said that CI runs `scripts/regress.sh`, but
+  not on which events. The workflow runs on pushes to `main` and on every pull request: its
+  `pull_request` trigger has no branch filter. The changes of this register reach `main` through
+  pull requests, which may be stacked (a pull request whose base is the branch of another), so
+  each of them is built and checked by `scripts/regress.sh` and `scripts/pure-harness.sh` before
+  it is merged, and no trigger on pushes of another branch is needed. On this branch, whose
+  changes do not go to `main`, T-0 adds pushes to `ml/translate`, which the section says too.
+- **Behaviour before:** the eraser and the workflow as in S-22.
+- **Behaviour after:** the same; only the register changes. The emitted programs do not change.
+- **Effect on emitted .ast (corpus):** byte-identical for all 712 files; `scripts/corpus-diff.sh`
+  against the corpus of S-22 reports 712 identical. The corpus logs are identical except for the
+  addresses in the backtraces of the 4 `PANIC` messages of `Defects.lean` and a job count of `lake`
+  in the log of the pruned benchmarks (`[18/55]` becomes `[17/24]`: the build of S-22's corpus had
+  recompiled the modules that S-22 edits).
+- **Regression test:** the change concerns the register only, so no test under `tests/regress/`
+  can fail before it. The 20 regression tests and `scripts/pure-harness.sh` pass unchanged (on this
+  branch, the 10 regression tests, the harness and the 712 corpus files are unchanged).
 
 ---
 
