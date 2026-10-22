@@ -1,0 +1,192 @@
+\chapter{\texorpdfstring{$\lambda_\Box$}{lambda-box} evaluation and the erasure relation}\label{chap:relation}
+
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} Define how erased programs evaluate, and which $\lambda_\Box$ terms erase which
+  Lean terms.
+\item \lead{Main results} $\lambda_\Box$ evaluation \code{LBEval}; the erasure relation
+  \code{Erases} with MetaRocq's side conditions, the reduced-case rule and its environment form
+  \code{ErasesDeps}; their substitution and inversion lemmas.
+\item \lead{Status} \stPlanned{} every node; \code{LBEval} is the lean4lean verification's,
+  unchanged.
+\item \lead{Nodes} \bpnodes{chap:relation}
+\item \lead{Reference} MetaRocq \code{eval} of \code{EWcbvEval.v} and \code{erases} of
+  \code{Extract.v} (\code{erasure/theories/}); MetaCoq paper Section 7.
+\end{itemize}
+
+\section{\texorpdfstring{$\lambda_\Box$}{lambda-box} evaluation}\label{sec:relation-target}
+
+\begin{definition}[Big-step evaluation of \texorpdfstring{$\lambda_\Box$}{lambda-box}]
+  \label{def:EraseProof-LBEval}
+  \lean{EraseProof.LBEval, EraseProof.WcbvFlags, EraseProof.defaultFlags, EraseProof.csubst,
+    EraseProof.closedn, EraseProof.mkApps, EraseProof.substl, EraseProof.fixSubst,
+    EraseProof.cunfoldFix, EraseProof.lookupConst, EraseProof.lookupInd, EraseProof.lookupCtor,
+    EraseProof.LenvClosed, EraseProof.iotaRed, EraseProof.lbAtom}
+  \planned
+  \uses{def:LBTerm, def:GlobalDecl}
+  \lead{In short} \code{LBEval fl lenv t v}: in the erased environment \code{lenv}, the closed term
+  \code{t} \hl{evaluates call-by-value to \code{v}}, under the flags \code{fl}.
+  \begin{itemize}
+  \item rules for $\beta$, \code{let}, constants, fixpoints, constructors (\code{construct}),
+        \code{case} on a constructor (\code{iota}) and on $\Box$ of a propositional inductive
+        (\code{iotaSing}), projections (\code{proj}, \code{projProp}), and $\Box$ applied to
+        anything;
+  \item \code{csubst}, \code{substl}, \code{closedn}, \code{lookup*}: closed substitution,
+        closedness, lookup in \code{lenv}; \code{LenvClosed}: every body closed;
+  \item \code{defaultFlags}: MetaRocq's \code{default\_wcbv\_flags}.
+  \end{itemize}
+  \lead{Reference} MetaRocq \code{eval} (\code{EWcbvEval.v}), with \code{tCoFix}, \code{tLazy},
+  \code{tForce} absent.
+\end{definition}
+
+\section{The erasure relation}\label{sec:relation-erases}
+
+\begin{definition}[Side conditions on inductive types]
+  \label{def:EraseProof-Subsingleton}
+  \lean{EraseProof.Subsingleton, EraseProof.PropInductive, EraseProof.IsProof,
+    EraseProof.FieldsErasable, EraseProof.CasesReduced, EraseProof.NeverZero}
+  \planned
+  \uses{def:EraseProof-IsErasable, def:EraseProof-SrcEval}
+  \lead{In short} MetaRocq's conditions on eliminations, \hl{stated on Metalean's constructor
+  nodes}.
+  \begin{itemize}
+  \item \code{PropInductive E B T}: \code{T}'s Metalean block has level \code{0};
+  \item \code{Subsingleton E B T}: whenever a constructor node of \code{T} is a proof
+        (\code{IsProof}), \code{T} has at most one constructor and its fields are proofs;
+  \item \code{FieldsErasable E B T}: every field of a typed constructor node is erasable;
+  \item \code{CasesReduced iv us}: one constructor, and the discriminant's sort at \code{us}
+        (\code{casesSortLevel}) is not never-zero; the eraser's reduced-case test;
+  \item \code{NeverZero}: a level that is never \code{0}.
+  \end{itemize}
+  \lead{Reference} \code{isPropositional} (\code{PCUICFirstorder.v}); \code{Is\_proof},
+  \code{Subsingleton} (\code{PCUICElimination.v}).
+\end{definition}
+
+\begin{definition}[Erasure relation]
+  \label{def:EraseProof-Erases}
+  \lean{EraseProof.Erases, EraseProof.ErasesAlt, EraseProof.IndIdOf, EraseProof.SpecialSpine,
+    EraseProof.ctorFields, EraseProof.blockKername}
+  \planned
+  \uses{def:EraseProof-TrM, def:EraseProof-IsErasable, def:EraseProof-Subsingleton,
+    def:EraseProof-EvalEnv-etaSpine, def:LBTerm, def:toKername}
+  \lead{In short} \code{Erases E B lps $\sigma$ $\Gamma$ $\Delta$ e t}: the $\lambda_\Box$ term
+  \code{t} \hl{is an erasure of the Lean term \code{e}}.
+  \begin{tabular}{p{0.2\linewidth}p{0.66\linewidth}}
+  \toprule
+  Rule & Erasure, with its side condition \\
+  \midrule
+  \code{box} & an erasable term (\code{ErasableS}) erases to $\Box$ \\
+  \code{bvar}, \code{fvar}, \code{lam}, \code{letE}, \code{app}, \code{const}, \code{mdata} &
+    one rule each; \code{const} for non-atom, non-special constants \\
+  \code{ctor} & a saturated constructor spine to \code{construct} applied to the erased
+    arguments; \hl{the inductive is not propositional} \\
+  \code{cases} & a \code{casesOn} with at least its arity to \code{case} on the erased major, one
+    \code{ErasesAlt} branch per constructor; \hl{\code{Subsingleton}} and not
+    \code{CasesReduced} \\
+  \code{casesReduced} & one constructor without index field, \code{FieldsErasable}: the erased
+    alternative applied to one $\Box$ per field, the discriminant dropped \\
+  \code{eta} & an under-applied spine erases as its $\eta$-expansion (DV-E) \\
+  \code{proj} & \code{proj} on the erased structure; \code{Subsingleton}, and the block in
+    \code{Prop} or its declared sort \code{NeverZero} \\
+  \code{litZero}, \code{litSucc} & a \code{Nat} literal to its constructor chain
+    (\code{nat := .peano}) \\
+  \bottomrule
+  \end{tabular}
+  \begin{itemize}
+  \item \code{ErasesAlt}: an alternative under its field binders, $\lambda$s peeled or
+        $\eta$-introduced, as \code{lambdaOrIntroToArity}; \code{blockKername}: the shipping
+        \code{mutualBlockKername}.
+  \end{itemize}
+  \lead{Reference} MetaRocq \code{erases} (\code{Extract.v}): \code{erases\_tConstruct},
+  \code{erases\_tCase}, \code{erases\_tProj}, \code{erases\_box}.
+\end{definition}
+
+\begin{definition}[Erased dependencies]
+  \label{def:EraseProof-ErasesDeps}
+  \lean{EraseProof.ErasesDeps, EraseProof.ErasesDecl, EraseProof.ErasesInd}
+  \planned
+  \uses{def:EraseProof-Erases, def:GlobalDecl}
+  \lead{In short} The erased environment \code{lenv} \hl{erases the declarations the program
+  uses}: each constant's body erases its value, and each inductive block erases to an
+  \code{inductiveDecl}.
+  \begin{itemize}
+  \item \code{ErasesDecl}: no body for declarations without value and remapped externs, an
+        erasure of the value otherwise;
+  \item \code{ErasesInd}: the block at \code{blockKername}, \code{npars} its parameters,
+        constructors in order with their field counts, \hl{\code{propositional} iff
+        \code{PropInductive}}.
+  \end{itemize}
+  \lead{Reference} MetaRocq \code{erases\_deps}, \code{erases\_mutual\_inductive\_body},
+  \code{erases\_one\_inductive\_body}, \code{erases\_constant\_body}.
+\end{definition}
+
+\section{Properties of the relation}\label{sec:relation-lemmas}
+
+\begin{lemma}[Inversion and closure]
+  \label{lem:EraseProof-Erases-closed}
+  \lean{EraseProof.Erases.closed, EraseProof.Erases.extend, EraseProof.Erases.app_inv,
+    EraseProof.Erases.ctor_inv, EraseProof.Erases.atomSpine_box}
+  \planned
+  \uses{def:EraseProof-Erases, def:EraseProof-ConstsIn, def:EraseProof-LBEval}
+  \lead{In short} An erasure is \hl{closed under its bound locals}, moves to a larger program,
+  and inverts at applications and constructors.
+  \begin{itemize}
+  \item \code{closed}: \code{closedn} of the number of bound locals;
+  \item \code{extend}: from \code{evalEnvOf view cfg decls} to \code{evalEnvOf view cfg P}, for
+        a dependency-closed \code{SubEnv decls P};
+  \item \code{app\_inv}, \code{ctor\_inv}: $\Box$ of an erasable term, or the rule's shape;
+  \item \code{atomSpine\_box}: an erasure of an atom spine that is a $\lambda_\Box$ value is $\Box$.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-Erases}
+  \lead{Idea} Induction on the derivation.
+\end{proof}
+
+\begin{lemma}[Substitution and levels]
+  \label{lem:EraseProof-Erases-inst}
+  \lean{EraseProof.Erases.inst, EraseProof.Erases.inst_let, EraseProof.Erases.instLevels,
+    EraseProof.Erases.abstract}
+  \planned
+  \uses{def:EraseProof-Erases, def:EraseProof-SrcEval}
+  \lead{In short} Substituting \hl{a typed source value} into a typed term commutes with
+  erasure.
+  \begin{itemize}
+  \item \code{inst}, \code{inst\_let}: given \code{SrcValue $\sigma$ a}, typed translations of
+        \code{a} and \code{b}, erasures \code{a'} (closed) and \code{b'}; then
+        \code{Erases \ldots\ (b.instantiate1' a) (csubst a' 0 b')};
+  \item \code{instLevels}: \code{Pure.instLevels} on closed terms;
+  \item \code{abstract}: closing a binder opened with a fresh free variable.
+  \end{itemize}
+  \lead{Why values} a substituted partial spine would be erased as a whole, while its erasure
+  is the $\eta$-expansion applied (DV-E).
+  \lead{Reference} \code{erases\_subst0} (\code{ESubstitution.v}).
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-TrM-inst, lem:EraseProof-IsErasable-inst}
+  \lead{Idea} Induction on the derivation of \code{b}; erasability under substitution for the \code{box} rule.
+\end{proof}
+
+\begin{lemma}[Dependencies along evaluation]
+  \label{lem:EraseProof-ErasesDeps-eval}
+  \lean{EraseProof.ErasesDeps.ext, EraseProof.ErasesDeps.csubst, EraseProof.ErasesDeps.eval}
+  \planned
+  \uses{def:EraseProof-ErasesDeps, def:EraseProof-LBEval}
+  \lead{In short} \code{ErasesDeps} survives \hl{extension of \code{lenv}, substitution and
+  $\lambda_\Box$ evaluation}.
+  \lead{Reference} \code{erases\_deps\_cons}, \code{erases\_deps\_subst},
+  \code{erases\_deps\_eval} (\code{EDeps.v}).
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-ErasesDeps}
+  \lead{Idea} Induction on $\lambda_\Box$ evaluation, with \code{csubst}.
+\end{proof}
+
+\section*{Caveats}
+\begin{itemize}
+\item \lead{Caveat} Constructors and \code{casesOn} are $\eta$-expanded inside the relation, as
+  the eraser emits them; MetaRocq $\eta$-expands in a separate pass.
+\item \lead{Caveat} The relation has no rule for recursors or quotients in Phase I.
+\item \lead{Caveat} \code{casesReduced} does not model the substitution of index fields; the
+  fragment excludes constructors with index fields (decision D2).
+\end{itemize}

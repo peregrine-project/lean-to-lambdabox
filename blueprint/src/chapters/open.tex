@@ -1,0 +1,63 @@
+\chapter{What is open}\label{chap:open}
+
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} List what is not done, and what the final theorem does not cover.
+\item \lead{Status} \stProved{} the no-confusion lemmas. \stOpen{} \hl{every planned node}, the
+  shipping entries S-28 and S-29, the entries of the divergence register, and the final-form
+  checks.
+\end{itemize}
+
+\section{Planned statements}\label{sec:open-planned}
+
+The planned nodes, per chapter. The table is generated from the chapters by
+\code{blueprint/scripts/audit.py}.
+
+\input{generated/planned}
+
+\section{Roots of the proof package}\label{sec:open-roots}
+
+Every declaration of \code{EraseProof} outside the tests is reachable from a root of
+\code{proof/ROOTS.txt}. A root names the planned declaration that will use it; the table is
+generated from \code{proof/ROOTS.txt}.
+
+\input{generated/roots}
+
+\section{Shipping entries}\label{sec:open-shipping}
+
+\begin{itemize}
+\item \lead{Phase I} \stOpen{} S-28, the \code{casesOn} recognizer and the oracle's inductive
+  cases (Definition~\ref{def:Erasure-Planned-casesInfo}), and S-29, the fragment test of Phase I
+  with the \code{implementedBy?} view field and the block-name collision check
+  (Definition~\ref{def:Erasure-Planned-collectDeps}); each regenerates \code{proof/spec.pin}.
+\item \lead{Phase II} \stOpen{} the shipping entries for recursors, structural recursion behind a
+  configuration flag, and quotients.
+\end{itemize}
+
+\section{Registers and checks}\label{sec:open-registers}
+
+\begin{itemize}
+\item \lead{Divergences} \stOpen{} the entries of \code{doc/DIVERGENCES.md}: each lands with its
+  artifact, DV-E and DV-T with \code{SrcEval}, the trust note of decision D1 with \code{TrM}, and
+  the lean4lean ids that shipping comments cite (decision D4).
+\item \lead{Checks} \stOpen{} C11 (\code{proof/scripts/c11.sh}) and C12 with the final form of
+  C12b (Section~\ref{sec:trust-checks}).
+\item \lead{Non-vacuity} \stOpen{} the instances of the final theorem's hypotheses on NV-1 as
+  tests of \code{proof/}; \code{hfrag} and \code{hrun} need S-28 and S-29.
+\end{itemize}
+
+\section{Outside the final theorem}\label{sec:open-outside}
+
+\begin{tabular}{p{0.3\linewidth}p{0.62\linewidth}}
+\toprule
+Not covered & Where it is stated \\
+\midrule
+Runs that fail, sources that do not evaluate & partial correctness (Chapter~\ref{chap:final}) \\
+Inputs outside the fragment & the \code{Meta} path, trusted (Section~\ref{sec:trust-trusted});
+  the scope (Chapter~\ref{chap:scope}) \\
+\code{remove\_irrel\_constr\_args}, \code{nat := .machine} & out of scope
+  (Section~\ref{sec:scope-features}) \\
+The constants to inline & the caveats of Chapter~\ref{chap:final} \\
+Elaboration, the environment view, printing & trusted (Section~\ref{sec:trust-trusted}) \\
+\bottomrule
+\end{tabular}

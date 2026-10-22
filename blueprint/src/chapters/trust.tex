@@ -1,0 +1,395 @@
+\chapter{Trust boundary}\label{chap:trust}
+
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} State what is proved, what is trusted without proof, what Metalean contributes
+  to the trust base, how the proof package is checked, and what the eraser is made of.
+\item \lead{Main results} The no-confusion lemmas of Metalean's type formers; the final theorem
+  \code{erase\_correct} and everything it composes are planned.
+\item \lead{Status} \stProved{} the lemma nodes of Section~\ref{sec:model-noconf}, within the
+  standard axioms; \stShipping{} the shipping code, described by definition nodes; the imported
+  nodes describe the Metalean declarations the proof uses.
+\item \lead{Nodes} \bpnodes{chap:trust}
+\item \lead{Lean files} \leanfile{proof/EraseProof/} (the verification library \code{EraseProof});
+  \leanfiles{LeanToLambdaBox/}{Basic, Erasure, Printing, Metalean} and
+  \leanfile{LeanToLambdaBox/Erasure/Command.lean} (the shipping code and the check that it imports
+  Metalean).
+\end{itemize}
+
+\section{What is proved}\label{sec:trust-proved}
+
+\begin{itemize}
+\item \lead{Proved} the six no-confusion lemmas of Metalean's type formers
+  (Section~\ref{sec:model-noconf}): no sort, $\Pi$-type, inductive type or quotient type equals,
+  as a type, one with another head.
+\item \lead{Planned} every other node of the proof library (Section~\ref{sec:open-planned}): the
+  bridge, the source semantics, erasability, $\lambda_\Box$ evaluation, the erasure relation, the
+  soundness of the pure path, the two milestones and the final theorem.
+\item \lead{Axioms} a proved node depends on \code{propext}, \code{Classical.choice} and
+  \code{Quot.sound} only; \hl{no \code{sorryAx} and no axiom of Metalean} is allowed.
+\item \lead{Pinned footprints} the test module \leanfile{proof/EraseProof/Test/NoConf.lean} pins
+  the axioms of each lemma with \code{\#guard\_msgs}; \code{proof/axioms.expected} lists them, and
+  \code{proof/ROOTS.txt} names the planned consumer of each (Section~\ref{sec:open-roots}).
+\item \lead{Checks} \code{proof/scripts/check.sh} (Section~\ref{sec:trust-checks}) and
+  \code{blueprint/scripts/audit.py}, which measures every node: existence, axiom closure, coverage
+  of every declaration of \code{EraseProof}, roots, kinds and links.
+\end{itemize}
+
+\section{Trusted, not verified}\label{sec:trust-trusted}
+
+The final theorem (Chapter~\ref{chap:final}) speaks about the pure path of \code{\#erase} on the
+kernel term. The following are outside every statement, as MetaRocq trusts its quoting.
+
+\begin{tabular}{p{0.3\linewidth}p{0.62\linewidth}}
+\toprule
+Trusted part & What it does \\
+\midrule
+Elaboration & produces the kernel term \code{e} of \code{\#erase t} \\
+The environment view & \code{EnvView.ofEnvironment} reads the Lean environment the eraser sees
+  (Definition~\ref{def:Erasure-EnvView}) \\
+The printer and the file writes & the S-expression printer (Definition~\ref{def:Serialize}), and
+  the writes of \code{.ast}, \code{.ast.inlinings} and \code{.mli}
+  (Definition~\ref{def:Erasure-eraseElab}) \\
+The inlining sidecar & the constants \code{.ast.inlinings} asks Peregrine to inline \\
+Peregrine & compiles the emitted program \\
+The \code{Meta} path & out-of-fragment inputs keep the traversal with the elaborator's oracle and
+  Lean's compiler passes (Definition~\ref{def:Erasure-erase}) \\
+Metalean's checkers and translator & \code{Metalean.Checker}, \code{Metalean.Frontend} and
+  \code{Metalean.Export} are unverified; the bridge is modelled on the translator, and no
+  declaration of the proof outside the tests may reach them, except the term builders of
+  decision D1 (Section~\ref{sec:trust-checks}) \\
+\bottomrule
+\end{tabular}
+
+\begin{itemize}
+\item \lead{Partial correctness} Metalean has no normalization theorem: nothing is claimed when
+  the eraser fails or the source does not evaluate.
+\item \lead{Kernel terms} the theorem is about the kernel term, not Lean's compiled code; theorems
+  and opaques do not unfold in the source.
+\item \lead{Stuck evaluations} an evaluation that reaches a computational axiom or an opaque has no
+  source value, and the theorem says nothing about it.
+\end{itemize}
+
+\section{Metalean's trust base}\label{sec:trust-metalean}
+
+\begin{itemize}
+\item \lead{Pin} the \code{metalean} package of Section~\ref{sec:intro-pins}, never edited.
+\item \lead{No sorry} Metalean contains no \code{sorry}; the proof inherits none.
+\item \lead{One axiom} \code{Cardinal.exists\_inaccessibles}
+  (\leanfile{Metalean/SetTheory/Cardinal/Inaccessible.lean}), the existence of inaccessible
+  cardinals for Metalean's set-theoretic model. \hl{No module of this repository imports
+  \code{Metalean.SetSemantics} or \code{Metalean.SetTheory}}, so the axiom is not in the audited
+  environment, and a node that reached it would lose its \code{\textbackslash leanok}.
+\item \lead{Module system} Metalean is built with Lean's module system; every file the proof
+  imports exposes its definitions (\code{@[expose] public section}), so the kernel and the proofs
+  unfold them.
+\item \lead{The import check} \leanfile{LeanToLambdaBox/Metalean.lean} imports Metalean into the
+  root package and pins the axioms of \leandecl{Metalean.WHRed.defeq} and
+  \leandecl{Metalean.Defeq.uniqTy} to the standard three.
+\end{itemize}
+
+\subsection{Census of Metalean}\label{sec:trust-census-metalean}
+
+\input{generated/census-metalean}
+
+\section{The checks of the proof package}\label{sec:trust-checks}
+
+\code{proof/scripts/check.sh} runs these checks; \leanfile{proof/tools/Report.lean} computes C3 to
+C7, C9, C12 and C12b in the Lean environment. CI runs it on every push to \code{ml/verification}.
+
+\begin{tabular}{p{0.08\linewidth}p{0.84\linewidth}}
+\toprule
+Check & What it enforces \\
+\midrule
+C1 & \code{lake build} of the root package and of \code{proof/} \\
+C2 & no forbidden token in \code{proof/}: \code{sorry}, \code{admit}, \code{axiom},
+  \code{opaque}, \code{native\_decide}, \code{bv\_decide}, \code{unsafe},
+  \code{implemented\_by}, \code{extern}, and others \\
+C3, C4 & every axiom footprint within \code{propext}, \code{Classical.choice}, \code{Quot.sound};
+  \code{sorryAx} and \code{Cardinal.exists\_inaccessibles} forbidden everywhere \\
+C5 & no constant reached whose body mentions \code{sorryAx} \\
+C6 & hygiene: no declaration outside the tests reaches Metalean's \code{Frontend},
+  \code{Checker}, \code{Export}, \code{SetSemantics} or \code{SetTheory} modules, or the tests;
+  one exception, decision D1 below \\
+C7 & no leaves: every declaration reachable from a root of \code{proof/ROOTS.txt}; footprints of
+  roots and tests equal \code{proof/axioms.expected}; every source file imported \\
+C8 & the tests build \\
+C9 & \code{doc/DIVERGENCES.md} well formed; its citations of declarations and of MetaRocq, Metalean
+  and repository lines exist; every cited \code{DV-n} has an entry \\
+C10 & the shipping regression tests, \code{scripts/regress.sh} \\
+C11 & \code{peregrine validate} and \code{eval} on the pure-path outputs, under
+  \code{nat := .peano} \\
+C12 & the final form: \code{ROOTS.txt} is \code{erase\_correct} alone, footprint exactly the
+  three axioms, and its type equals the approved statement \\
+C12b & every definition the statements of \code{erase\_correct}, \code{collectDeps\_ok\_of},
+  \code{erases\_correct} and \code{erasePure\_erases} depend on hashes as in
+  \code{proof/spec.pin}; so do the toolchain and every dependency revision, on every run \\
+\bottomrule
+\end{tabular}
+
+\begin{itemize}
+\item \lead{Status} \code{check.sh -{}-no-final} passes; \stOpen{} C12 and the final form of C12b,
+  which need the final theorem, and C11, which needs its script \code{proof/scripts/c11.sh}.
+\item \lead{Decision D1} C6 exempts \hl{Metalean's total $\eta$-term builders}
+  \code{Metalean.Frontend.\{indTerm, ctorTerm, recrTerm, wrapCase, quotTerm\}} and the inductive
+  \code{Metalean.Export.QuotKind}, with what they reach: 156 constants, none \code{partial},
+  \code{opaque}, \code{unsafe} or \code{@[implemented\_by]}.
+\item \lead{Why D1 is trusted} the builders shape \code{TrM} in the hypotheses and, through
+  \code{Erases.box}, the conclusion: a wrong builder could change which terms count as erasable.
+  They are trusted as Metalean's definitions are, and C12b pins their revision.
+\item \lead{Statement pin} \code{proof/spec.pin} is written from the approved statements; a change
+  to a pinned definition fails C12b, and an approved change of statement regenerates the pin.
+\end{itemize}
+
+\section{What the proof uses from Metalean}\label{sec:trust-imported}
+
+\begin{itemize}
+\item \lead{Nodes} one imported node per Metalean module whose declarations the proof library
+  (outside its tests) or the shipping code uses directly, in a type or a proof term; each lists
+  those declarations, and the nodes that use them.
+\item \lead{Source} \code{blueprint/scripts/audit.py -{}-update} writes them from the Lean
+  environment, and the one-line descriptions from \code{blueprint/audit.toml}; the audit fails
+  when they are stale.
+\end{itemize}
+
+\input{generated/metalean-imports}
+
+\section{The shipping code}\label{sec:trust-shipping}
+
+The eraser is Lean meta-code. Its traversal is total, bounded by fuel, and generic over a backend
+monad. \code{\#erase} runs it with the pure backend on programs in the fragment
+(Chapter~\ref{chap:pure}), and with the \code{CoreM} backend, which asks the elaborator for types,
+on the others. The pure path uses structural copies of \code{Expr.instantiate1},
+\code{Expr.liftLooseBVars} and \code{Level.hasMVar}
+(\leanfile{LeanToLambdaBox/Erasure/ExprOps.lean}).
+
+\begin{definition}[Erased terms]
+  \label{def:LBTerm}
+  \lean{LBTerm}
+  \leanok
+  \srcloc{LeanToLambdaBox/Basic.lean}{93}
+  \lead{In short} The $\lambda_\Box$ terms the eraser builds: MetaRocq's
+  \code{EAst.term} (\code{erasure/theories/EAst.v}) with \hl{free variables added}.
+  \begin{itemize}
+  \item \code{box}, \code{bvar}, \code{lambda}, \code{letIn}, \code{app}, \code{const},
+        \code{construct}, \code{case}, \code{proj}, \code{fix}, \code{prim}: the MetaRocq
+        constructors \code{tBox}, \code{tRel}, \code{tLambda}, \code{tLetIn}, \code{tApp},
+        \code{tConst}, \code{tConstruct}, \code{tCase}, \code{tProj}, \code{tFix}, \code{tPrim};
+  \item \code{fvar}: a Lean free variable, used during erasure and abstracted to \code{bvar}
+        before a binder is built;
+  \item absent: \code{tVar}, \code{tEvar}, \code{tCoFix}, \code{tLazy}, \code{tForce}.
+  \end{itemize}
+\end{definition}
+
+\begin{definition}[Abstraction of a free variable]
+  \label{def:abstract}
+  \lean{abstract, toBvar}
+  \leanok
+  \uses{def:LBTerm}
+  \srcloc{LeanToLambdaBox/Basic.lean}{149}
+  \lead{In short} \code{abstract x t} replaces the free variable \code{x} by the
+  bound variable of the binders crossed, \hl{without shifting} other indices; \code{toBvar} is
+  its structural recursion.
+\end{definition}
+
+\begin{definition}[Kernames]
+  \label{def:toKername}
+  \lean{toKername, Kername, mutualBlockKername}
+  \leanok
+  \srcloc{LeanToLambdaBox/Basic.lean}{32}
+  \lead{In short} The $\lambda_\Box$ names of constants and of inductive blocks.
+  \begin{itemize}
+  \item \code{toKername}: a Lean name as a MetaRocq kername; not injective (register entry R-3);
+  \item \code{mutualBlockKername}: the name of a mutual inductive block, its members' names
+        \hl{printed without escapes} and joined, so that the kernel evaluates it (S-26).
+  \end{itemize}
+\end{definition}
+
+\begin{definition}[Global declarations]
+  \label{def:GlobalDecl}
+  \lean{GlobalDecl, ConstantBody, MutualInductiveBody, OneInductiveBody, ConstructorBody,
+    ProjectionBody}
+  \leanok
+  \uses{def:LBTerm}
+  \srcloc{LeanToLambdaBox/Basic.lean}{194}
+  \lead{In short} The declarations of an erased environment.
+  \begin{itemize}
+  \item \code{constantDecl}: a constant with an optional body (none for an axiom);
+  \item \code{inductiveDecl}: a block of mutual inductive types: parameter count, and per type
+        its name, \hl{propositional flag}, allowed eliminations, constructors and projections.
+  \end{itemize}
+\end{definition}
+
+\begin{definition}[Erased programs]
+  \label{def:ASTType}
+  \lean{ASTType, Program}
+  \leanok
+  \uses{def:LBTerm, def:GlobalDecl}
+  \srcloc{LeanToLambdaBox/Basic.lean}{202}
+  \lead{In short} What \code{\#erase} emits: \code{untyped} of a list of named global
+  declarations and an optional main term, the \code{Untyped} program of Peregrine's format.
+\end{definition}
+
+\begin{definition}[Erasure configuration]
+  \label{def:Erasure-ErasureConfig}
+  \lean{Erasure.ErasureConfig, Erasure.Config.Extern, Erasure.Config.Nat}
+  \leanok
+  \srcloc{LeanToLambdaBox/Erasure.lean}{68}
+  \lead{In short} The options of \code{\#erase ... config}.
+  \begin{itemize}
+  \item \code{extern}: an \code{@[extern]} constant becomes an axiom (\code{preferAxiom}, the
+        default) or keeps its Lean definition (\code{preferLogical});
+  \item \code{nat}: \code{Nat} literals become primitive integers (\code{machine}, the default) or
+        constructor terms (\code{peano}); the scope needs \code{peano};
+  \item \code{csimp}, \code{remove\_irrel\_constr\_args},
+        \code{auto\_inline\_typeclass\_dispatch}: Boolean options.
+  \end{itemize}
+\end{definition}
+
+\begin{definition}[Traversal context and names]
+  \label{def:Erasure-TravCtx}
+  \lean{Erasure.TravCtx, Erasure.Local, Erasure.binderNameOf, Erasure.fixDefName}
+  \leanok
+  \uses{def:Erasure-ErasureConfig}
+  \srcloc{LeanToLambdaBox/Erasure.lean}{172}
+  \lead{In short} The traversal's reader context, and the $\lambda_\Box$ names of
+  binders and fixpoint members.
+  \begin{itemize}
+  \item \code{TravCtx}: a Lean local context \code{lctx}, the same binders as a list
+        \code{locals} of \code{Local}s (innermost first), the fixpoint variables in scope, the
+        configuration;
+  \item \code{binderNameOf n}: \code{n} if it is printable ASCII, anonymous otherwise;
+  \item \code{fixDefName n}: the name of the fixpoint member for the constant \code{n}.
+  \end{itemize}
+\end{definition}
+
+\begin{definition}[Backends and the erasure monad]
+  \label{def:Erasure-EraseT}
+  \lean{Erasure.EraseT, Erasure.Backend, Erasure.ErasureState, Erasure.run}
+  \leanok
+  \uses{def:GlobalDecl, def:Erasure-TravCtx}
+  \srcloc{LeanToLambdaBox/Erasure.lean}{244}
+  \lead{In short} $\mathrm{EraseT}\ m = $ \code{StateT ErasureState (ReaderT TravCtx
+  m)} over \hl{a backend monad \code{m}}.
+  \begin{itemize}
+  \item \code{Backend m}: the environment and type operations the traversal uses (constant
+        lookup, fresh variables, instantiation, erasability, type inference, the
+        \code{Prop}-former test, the level of a term's sort, \code{casesOn} and constructor
+        information, \code{@[extern]} and inline attributes, preprocessing, logging, the
+        out-of-fuel error);
+  \item the \code{CoreM} instance calls the Lean functions the traversal uses on the \code{Meta}
+        path: \code{Environment.find?}, \code{Meta.inferType}, \code{Meta.isPropFormerType},
+        \code{Meta.getLevel}, \code{isErasable}, and others;
+  \item \code{ErasureState}: the registered inductives and constants, the emitted declarations,
+        the constants to inline and their inlined sizes.
+  \end{itemize}
+\end{definition}
+
+\begin{definition}[Erasability oracle of the \texorpdfstring{\code{Meta}}{Meta} path]
+  \label{def:Erasure-isErasable}
+  \lean{Erasure.isErasable}
+  \leanok
+  \srcloc{LeanToLambdaBox/Erasure.lean}{260}
+  \lead{In short} A term is erased to $\Box$ iff its type is a proposition or a
+  type former, as \hl{decided by the elaborator}.
+  \begin{itemize}
+  \item \lead{Lean} a \code{MetaM} function calling \code{Meta.inferType}, \code{Meta.isProp} and
+        \code{Meta.isTypeFormerType}; the \code{CoreM} backend's \code{isErasable};
+  \item \lead{Caveat} these belong to Lean's elaborator (\code{Lean.Meta}), a different program
+        from the kernel that Metalean models.
+  \end{itemize}
+\end{definition}
+
+\begin{definition}[Preprocessing]
+  \label{def:Erasure-prepareErasure}
+  \lean{Erasure.prepareErasure}
+  \leanok
+  \uses{def:Erasure-ErasureConfig}
+  \srcloc{LeanToLambdaBox/Erasure.lean}{371}
+  \lead{In short} The \code{CoreM} backend's \code{prepare}: rewrites the input term
+  with passes of Lean's compiler before erasure.
+  \begin{itemize}
+  \item \lead{Steps} unsafe-recursion names replaced, \code{macroInline}, \code{inlineMatchers},
+        \code{macroInline} again, then (option \code{csimp}) the \code{@[csimp]} replacements;
+  \item \lead{Caveat} the result may be ill-typed when a type depends on a function that
+        \code{csimp} replaces (its docstring).
+  \end{itemize}
+\end{definition}
+
+\begin{definition}[The eraser]
+  \label{def:Erasure-erase}
+  \lean{Erasure.erase, Erasure.visitExpr, Erasure.visitCases, Erasure.register_inductive,
+    Erasure.travFuel}
+  \leanok
+  \uses{def:LBTerm, def:abstract, def:toKername, def:ASTType, def:Erasure-EraseT,
+    def:Erasure-isErasable, def:Erasure-prepareErasure}
+  \srcloc{LeanToLambdaBox/Erasure.lean}{1094}
+  \lead{In short} Erases a term and its dependencies to a program by a
+  \hl{fuel-bounded, generic traversal}; \code{erase} runs it with the \code{CoreM} backend.
+  \begin{itemize}
+  \item \code{erase e config}: runs the backend's \code{prepare}, then \code{visitExpr travFuel}
+        in \code{EraseT CoreM}; returns the program (the emitted declarations and the main term)
+        and the constants to inline;
+  \item \code{visitExpr}: an erasable term becomes $\Box$; otherwise one case per \code{Expr}
+        constructor, through the mutually recursive functions of the traversal
+        (\code{visitApp}, \code{visitConst}, \code{visitMutual}, and others);
+  \item \code{register\_inductive}: emits a block named by \code{mutualBlockKername},
+        \code{propositional} iff the backend's \code{isPropFormerType} holds of the type (S-25);
+  \item \code{visitCases}: a $\lambda_\Box$ \code{case}; on a one-constructor inductive whose
+        discriminant's sort may be \code{Prop}, \hl{the alternative applied to one $\Box$ per
+        field}, without \code{case} (S-27);
+  \item \code{travFuel} $= 2^{32}$: every function of the traversal takes fuel and fails with
+        the backend's \code{outOfFuel} at zero.
+  \end{itemize}
+\end{definition}
+
+\begin{definition}[Printing]
+  \label{def:Serialize}
+  \lean{Serialize, sexpr, LBTerm.to_sexpr}
+  \leanok
+  \uses{def:LBTerm, def:ASTType}
+  \srcloc{LeanToLambdaBox/Printing.lean}{15}
+  \lead{In short} The S-expression printer of programs, in Peregrine's \code{.ast}
+  format.
+  \begin{itemize}
+  \item \code{Serialize}: a class with one method, \code{to\_sexpr}, to the S-expressions
+        \code{sexpr};
+  \item \leandecl{LBTerm.to_sexpr}: a \code{partial def}; it reaches \code{unreachable!} on
+        \code{fvar}.
+  \end{itemize}
+\end{definition}
+
+\begin{definition}[The command \texorpdfstring{\code{\#erase}}{\#erase}]
+  \label{def:Erasure-eraseElab}
+  \lean{Erasure.eraseElab, Erasure.erasestx}
+  \leanok
+  \uses{def:Erasure-eraseEntry, def:Erasure-EnvView, def:Serialize, def:Erasure-ErasureConfig}
+  \srcloc{LeanToLambdaBox/Erasure/Command.lean}{18}
+  \lead{In short} Elaborates the term, erases it with \hl{\code{eraseEntry} over
+  \code{EnvView.ofEnvironment}}, and writes the program, the constants to inline and the
+  \code{.mli} signature: to files when \code{to} and \code{mli} are given, to the message log
+  otherwise.
+  \begin{itemize}
+  \item the \code{config} term is evaluated with \code{unsafe Elab.Term.evalTerm};
+  \item the \code{.mli} signature comes from the Lean type of the term (\code{gen\_mli});
+  \item an error of the pure path stops the command with \code{erasure failed: ...}
+        (Definition~\ref{def:Erasure-eraseEntry}).
+  \end{itemize}
+\end{definition}
+
+\subsection{Partial, opaque, unsafe and monadic declarations}\label{sec:trust-census}
+
+The table is generated from the Lean environment by \code{blueprint/scripts/audit.py}.
+
+\input{generated/census-shipping}
+
+\section*{Caveats}
+\begin{itemize}
+\item \lead{Caveat} A shipping node within standard axioms has declarations that exist and use
+  standard axioms only. It says nothing about their behaviour.
+\item \lead{Caveat} The \code{CoreM} backend runs the elaborator's type inference and Lean's
+  compiler passes; they are outside every Lean statement, and only out-of-fragment programs reach
+  them.
+\item \lead{Caveat} A \code{panic!} or \code{unreachable!} of the eraser returns a default value and
+  continues (register entries R-4 and R-5, Chapter~\ref{chap:shipping-changes}).
+\end{itemize}

@@ -1,0 +1,27 @@
+% Web version of the blueprint (plasTeX, through `leanblueprint web`).
+\documentclass{report}
+
+\usepackage{amssymb, amsthm, amsmath}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{booktabs}
+% thms: the node environments, with imported (macros/common.tex).
+\usepackage[showmore, dep_graph, tpl=../templates/dep_graph.html,
+  thms=definition+lemma+proposition+theorem+corollary+imported]{blueprint}
+% Node kinds and dependency graphs (scripts/bpkinds.py, found through plastex.cfg).
+\usepackage{bpkinds}
+
+\input{macros/common}
+\input{macros/web}
+\input{generated/kinds}
+
+\title{Verified Lean to \texorpdfstring{$\lambda_\Box$}{lambda-box} erasure: blueprint}
+\author{lean-to-lambdabox}
+
+\begin{document}
+\maketitle
+\begin{center}
+\href{blueprint.pdf}{PDF version}
+\end{center}
+\input{content}
+\end{document}
