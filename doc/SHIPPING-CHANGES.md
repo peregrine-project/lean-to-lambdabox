@@ -7,9 +7,9 @@
 > (`scripts/regress.sh`, `tests/regress/`) is on `fix-v2` and on `main` once #7 is merged.
 
 The entries S-1 to S-15 below were written for the original series of one commit per change. PR #7
-regroups them into six commits, followed by a seventh, the toolchain bump of S-16, which was written
-directly as a commit of #7. The original commits, whose subjects start with `shipping(S-<n>):`,
-are archived under the branch `archive/shipping`, where
+regroups them into six commits, followed by a seventh, the toolchain bump of S-16, and an eighth,
+the fix of S-17, both written directly as commits of #7. The original commits, whose subjects
+start with `shipping(S-<n>):`, are archived under the branch `archive/shipping`, where
 `git log --grep='^shipping(S-<n>):' origin/archive/shipping` still finds them; it finds
 nothing on `fix-v2`. Mapping to the commits of `git log --oneline main..fix-v2`:
 
@@ -22,6 +22,7 @@ nothing on `fix-v2`. Mapping to the commits of `git log --oneline main..fix-v2`:
 | none (log-message and comment fixes found in review) | Fix two log messages and the comment of fvar_to_name |
 | none (documentation) | Update the README |
 | S-16 | Bump Lean to v4.35.0 |
+| S-17 | Declare Prop inductives propositional |
 | S-1 (register, corpus, harness), S-15 | scaffolding: this branch (`regress.sh` itself is in the first commit) |
 
 ## Scaffolding
@@ -1260,7 +1261,8 @@ without peregrine.
 
 ## S-16: Bump to Lean v4.35.0
 
-- **Commit:** `Bump Lean to v4.35.0`, the last commit of #7; there is no `shipping(S-16):` commit.
+- **Commit:** `Bump Lean to v4.35.0`, the seventh commit of #7; there is no `shipping(S-16):`
+  commit.
 - **Files and functions:** the four toolchain pins (`lean-toolchain`, `benchmarks/lean-toolchain`,
   `benchmarks/via_lean/lean-toolchain.template`, `benchmarks/via_malfunction/lean-toolchain`) and
   `README.md`; `LeanToLambdaBox/Erasure.lean`: new `macroInline`, `normalizeAlt`,
@@ -1293,6 +1295,40 @@ without peregrine.
 - **Regression test:** `compiler_api` (`useSlowIf.ast` has no constant `fastIf`) fails if csimp is
   applied after `macroInline`. `scripts/regress.sh` and `scripts/dev-regress.sh` pass, with and
   without `PEREGRINE`.
+
+## S-17: Prop inductives are declared propositional, and index fields reach their alternative
+
+- **Commit:** `Declare Prop inductives propositional`, the last commit of #7; there is no
+  `shipping(S-17):` commit. It fixes R-7 and R-8.
+- **Files and functions:** `LeanToLambdaBox/Basic.lean`: `OneInductiveBody.propositional` (no
+  default any more); `LeanToLambdaBox/Erasure.lean`: `register_inductive`, `erase.visitCases`; new
+  test `tests/regress/prop_cases.lean` with its goldens.
+- **Why necessary:** R-7 and R-8, reproduced. A `casesOn` with a data motive on a proof of a Prop
+  inductive (subsingleton elimination: `And`, `Eq`, `True`, …) erases to a λ□ `case` on □. MetaRocq
+  reduces such a case to its only branch, with □ for the fields, only if the inductive is
+  propositional (`eval_iota_sing`, `EWcbvEval.v`), and peregrine's `remove_match_on_box` removes
+  only those cases. MetaRocq sets the flag from the sort alone (`erase_one_inductive_body`,
+  `Sort.is_propositional`). Setting the flag alone turns R-8 from a stuck program into a wrong
+  value (`getN 1 (Foo.mk 1)` evaluated to □, printed `constr con_15`).
+- **Behaviour before:** `and_elim.ast` and `index_field.ast` (`examples/Defects/`): `peregrine eval`
+  fails with `Case: <15> branch not found`, as do `And.casesOn`, `Eq.casesOn` and `True.casesOn`
+  with a data motive.
+- **Behaviour after:** `register_inductive` sets `propositional` iff `Meta.isPropFormerType` holds
+  for the inductive's type (its sort is `Prop`); a Sort-polymorphic inductive (`PUnit.{u}`) keeps
+  `false`, since one declaration serves every universe instance. For a Prop inductive with indices,
+  `visitCases` replaces, in the alternative, each field that is an index of the constructor's type
+  by the `casesOn`'s index argument (as Lean's `toLCNF` does for inductive predicates), so the □
+  that the case gives the field is unused. `peregrine eval` prints 7 for `and_elim.ast` and 1 for
+  `index_field.ast`, Lean's values.
+- **Effect on emitted .ast (corpus):** of 704 files, 702 are byte-identical; no other corpus
+  program registers a Prop inductive. The 2 others are `examples/Defects/and_elim.ast` (`And`
+  declared `true`) and `examples/Defects/index_field.ast` (`Defects.Foo` declared `true`, and the
+  branch returns the index argument, `tRel 2`, instead of the field, `tRel 0`). `PANIC` counts
+  unchanged. The goldens of `tests/dev` are unchanged.
+- **Regression test:** `prop_cases` (`check.ast`: `And.casesOn`, `Eq.casesOn`, `True.casesOn`, a
+  match on `And`, and `Idx.casesOn` with an index field) evaluates to `B.t`; before, `peregrine
+  eval` fails with `branch not found`, and with the flag alone `viaIdx` returns □.
+  `scripts/regress.sh` and `scripts/dev-regress.sh` pass, with and without `PEREGRINE`.
 
 ---
 
@@ -1383,7 +1419,7 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
 - **Impact:** Peano mode fails on large literals, and the output grows linearly with the value.
 - **Why not fixed:** not required by the verification goal unless it later becomes required.
 
-### R-7: Inductive types are always declared non-propositional
+### R-7: Inductive types are always declared non-propositional (fixed in S-17)
 
 - **What:** every inductive body is printed with `ind_propositional = false` and `IntoAny`, also for
   inductives in Prop (`And`, `Eq`, `Acc`, …). A match on a proof of a large-eliminating Prop
@@ -1396,9 +1432,9 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
   `peregrine eval` fails with `Case: <15> branch not found`. With the flag of `And` set to `true`
   by hand in a copy, it evaluates to 7.
 - **Impact:** programs that eliminate proofs of `And`, `Eq`, `Acc`, … into data do not evaluate.
-- **Why not fixed:** not required by the verification goal unless it later becomes required.
+- **Fixed:** in S-17, which describes the fix and its corpus effect.
 
-### R-8: Informative index fields of large-eliminating Prop inductives are lost
+### R-8: Informative index fields of large-eliminating Prop inductives are lost (fixed in S-17)
 
 - **What:** Lean lets a Prop inductive with one constructor eliminate into any sort when each
   non-Prop field of the constructor also appears as an index of its result type (for instance
@@ -1412,7 +1448,7 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
   it prints `constr con_15` / `constr con_107` instead of `Nat.succ Nat.zero`.
 - **Impact:** such programs do not evaluate, and would compute wrong values once R-7 is fixed
   alone.
-- **Why not fixed:** not required by the verification goal unless it later becomes required.
+- **Fixed:** in S-17, which describes the fix and its corpus effect.
 
 ### R-9: Recursors and other constants without a value become axioms
 
