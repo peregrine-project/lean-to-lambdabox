@@ -119,8 +119,7 @@ def pinRoots : Array Name := #[`EraseProof.erase_correct, `EraseProof.collectDep
 
 /-- The shipping functions under verification: the statements mention them, C12b pins their names
 only. -/
-def pinFrontier : Array Name := #[`Erasure.eraseEntry, `Erasure.collectDeps,
-  `Erasure.Planned.collectDeps]
+def pinFrontier : Array Name := #[`Erasure.eraseEntry, `Erasure.collectDeps]
 
 /-- Module prefixes of the toolchain and the dependencies, whose constants C12b pins by name. -/
 def depPrefixes : Array Name := #[`Init, `Std, `Lean, `Mathlib, `Batteries, `Metalean, `Aesop,
