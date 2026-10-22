@@ -1,4 +1,5 @@
-(* Implementation of Lean's Decidable to use when erasing irrelevant constructor args. *)
-type decidable = IsFalse | IsTrue
-let dec_of_bool b = if b then IsTrue else IsFalse
+(* Lean's Decidable when irrelevant constructor args are erased: `Decidable.intro (decide : Bool)`, a
+   single-constructor single-field type that peregrine's unboxing represents as the Bool itself. *)
+type decidable = Intro of bool [@@unboxed]
+let dec_of_bool b = Intro b
 [@@inline always]
