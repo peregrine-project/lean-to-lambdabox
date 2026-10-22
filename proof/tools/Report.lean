@@ -4,7 +4,7 @@ import Lean
 # The Lean side of `proof/scripts/check.sh`
 
 Run from `proof/` as `lake env lean --run tools/Report.lean [OPTION...]`. It imports the library
-(by default the module `EraseProof`) and checks, over every declaration of the library's modules
+and the shipping code (by default the modules `EraseProof` and `LeanToLambdaBox`) and checks, over every declaration of the library's modules
 (module `EraseProof` or `EraseProof.*`):
 
 * C3/C4 `axioms`: the footprint of every declaration, computed as `#print axioms` computes it
@@ -19,7 +19,12 @@ Run from `proof/` as `lake env lean --run tools/Report.lean [OPTION...]`. It imp
   named with one of these prefixes, or a declaration of the test namespace `EraseProof.Test`.
   The check is on the constants reached, not on the modules imported (Metalean's own modules
   import `Metalean.Frontend.Lookup`), and on modules as well as names (`Metalean.Expr.natLit` is
-  declared in the module `Metalean.Checker.Acceleration.Literal`).
+  declared in the module `Metalean.Checker.Acceleration.Literal`). Exempt are exactly the
+  constants that the translator's total term builders `allowRoots` (and the declarations of the
+  inductive `Metalean.Export.QuotKind`) reach (`allowList`), which the bridge relation uses for the
+  η-terms of constructors, recursors, inductive types and quotients; each exempt constant is a safe
+  definition or an inductive (with its constructors and recursor), neither `partial`, `opaque`,
+  `unsafe` nor `implemented_by`.
 * C7 `leaves`: every declaration outside `EraseProof.Test` is reachable from a root of `ROOTS.txt`
   (through types and values; a mutual block, an inductive with its constructors, recursors,
   structure projections and the declarations `inductive` generates for it, those of its nested
@@ -47,13 +52,25 @@ Run from `proof/` as `lake env lean --run tools/Report.lean [OPTION...]`. It imp
   axioms. The test `EraseProof.Test.Stub.erase_correct` (`finalStatement`), the approved
   statement written out, is a theorem that mentions `erase_correct` and whose type is that of
   `erase_correct` (`Expr.eqv`, binder order included). Skipped with `--no-final`.
+* C12b `pin`: the definitions the statements are about are those of the approved statements. The
+  pin of the theorems `pinRoots` is computed (`specPin`): the hash of each root's type, and, for
+  every constant reached from those types through types, values and constructors, the hash of its
+  type and value (definitions, opaques), of its type (theorems, axioms, recursors) or of its type
+  and its constructors' names and types (inductives), followed further, if it is declared in the
+  library or the shipping code; its name only if it is one of the shipping functions under
+  verification (`pinFrontier`) or declared in a dependency (`depPrefixes`, pinned by version).
+  `spec.pin` holds the pin of the approved statements (written by `--write-pin`). Every root and
+  every hashed constant of `spec.pin` that exists must have the pinned hash; with C12 (not
+  `--no-final`), every root must exist and the computed pin must equal `spec.pin`.
 
-Options: `--import M` (repeatable; replaces the default `EraseProof`), `--roots FILE`
+Options: `--import M` (repeatable; replaces the default `EraseProof`, `LeanToLambdaBox`), `--roots FILE`
 (`ROOTS.txt`), `--expected FILE` (`axioms.expected`), `--out DIR` (`.check`), `--src DIR` (`.`),
 `--divergences FILE` (`../doc/DIVERGENCES.md`), `--metalean DIR` (`../.lake/packages/metalean`),
 `--shipping DIR` (`..`, the root package, whose `LeanToLambdaBox.lean` and `LeanToLambdaBox/` are
 scanned for `DV-<n>` citations), `--metarocq DIR` (a MetaRocq checkout; without it, MetaRocq
-citations are not checked), `--no-final` (skips C12).
+citations are not checked), `--no-final` (skips C12 and the final form of C12b), `--pin FILE`
+(`spec.pin`), `--write-pin FILE` (computes the pin of the imported modules, writes it to `FILE`
+and runs no check).
 It writes `DIR/footprints.txt` (every declaration) and `DIR/axioms.actual` (the file
 `axioms.expected` should be), prints one line per check, and exits with 1 if a check fails.
 -/
@@ -80,6 +97,26 @@ def forbiddenModules : Array Name := #[`Metalean.Frontend, `Metalean.Checker, `M
 
 /-- A module or a name under one of `forbiddenModules` (C6). -/
 def isForbidden (n : Name) : Bool := forbiddenModules.any (·.isPrefixOf n)
+
+/-- The total term builders of Metalean's translator (`Metalean/Frontend/Translate.lean`) that the
+bridge relation uses for the η-terms of saturating names, and the quotient kinds of its export
+format; with what they reach, they are exempt from C6 (`allowList`). -/
+def allowRoots : Array Name := #[`Metalean.Frontend.indTerm, `Metalean.Frontend.ctorTerm,
+  `Metalean.Frontend.recrTerm, `Metalean.Frontend.wrapCase, `Metalean.Frontend.quotTerm,
+  `Metalean.Export.QuotKind]
+
+/-- The theorems whose statements C12b pins: the final theorem and the lower bound of its
+fragment hypothesis. -/
+def pinRoots : Array Name := #[`EraseProof.erase_correct, `EraseProof.collectDeps_ok_of]
+
+/-- The shipping functions under verification: the statements mention them, C12b pins their names
+only. -/
+def pinFrontier : Array Name := #[`Erasure.eraseEntry, `Erasure.collectDeps,
+  `Erasure.Planned.collectDeps]
+
+/-- Module prefixes of the toolchain and the dependencies, whose constants C12b pins by name. -/
+def depPrefixes : Array Name := #[`Init, `Std, `Lean, `Mathlib, `Batteries, `Metalean, `Aesop,
+  `Qq, `Plausible, `ProofWidgets, `ImportGraph, `LeanSearchClient, `Cli]
 
 /-- Divergence ids that the shipping sources (`LeanToLambdaBox/`) cite from the l4l register they
 were ported with, and that this register does not contain yet. C9 lists them instead of failing;
@@ -113,6 +150,8 @@ structure Config where
   shipping : System.FilePath := ".."
   metarocq : Option System.FilePath := none
   final : Bool := true
+  pin : System.FilePath := "spec.pin"
+  writePin : Option System.FilePath := none
 
 partial def parseArgs (cfg : Config) : List String → Except String Config
   | [] => .ok cfg
@@ -126,6 +165,8 @@ partial def parseArgs (cfg : Config) : List String → Except String Config
   | "--shipping" :: f :: rest => parseArgs { cfg with shipping := f } rest
   | "--metarocq" :: d :: rest => parseArgs { cfg with metarocq := some d } rest
   | "--no-final" :: rest => parseArgs { cfg with final := false } rest
+  | "--pin" :: f :: rest => parseArgs { cfg with pin := f } rest
+  | "--write-pin" :: f :: rest => parseArgs { cfg with writePin := some f } rest
   | a :: _ => .error s!"unknown or incomplete option {a}"
 
 /-! ## Names -/
@@ -481,13 +522,118 @@ def citedParts (s : String) : Option (List (Nat × Option Nat)) :=
     | [a, b] => do pure (← a.toNat?, some (← b.toNat?))
     | _ => none
 
+/-! ## The C6 allow-list -/
+
+/-- The constants of Metalean's modules reachable from `allowRoots` and from the declarations of
+the inductive `Metalean.Export.QuotKind` (its constructors, recursor, `casesOn`, `noConfusion`,
+...), through types, values and constructors. -/
+def allowList (env : Environment) : Std.HashSet Name := Id.run do
+  let quotKind := env.constants.fold (init := #[]) fun acc n _ =>
+    if (`Metalean.Export.QuotKind).isPrefixOf n then acc.push n else acc
+  let mut seen : Std.HashSet Name := {}
+  let mut stack : Array Name := allowRoots ++ quotKind
+  while h : stack.size > 0 do
+    let c := stack[stack.size - 1]
+    stack := stack.pop
+    if seen.contains c then continue
+    let inMetalean := (moduleOf? env c).any (`Metalean).isPrefixOf
+    if !inMetalean then continue
+    seen := seen.insert c
+    let block := match env.find? c with
+      | some (.inductInfo v) => #[c] ++ v.ctors.toArray
+      | _ => #[c]
+    for m in block do
+      for u in uses env m do
+        if !seen.contains u then stack := stack.push u
+  return seen
+
+/-- Why an allow-listed constant may not be exempt: it is `partial`, `opaque`, an axiom, `unsafe`
+or `implemented_by`. -/
+def allowProblem? (env : Environment) (c : Name) : Option String :=
+  match env.find? c with
+  | none => some "not a declaration"
+  | some ci =>
+    if ci.isUnsafe then some "unsafe"
+    else if (Compiler.getImplementedBy? env c).isSome then some "implemented_by"
+    else match ci with
+      | .opaqueInfo _ => some "opaque (or partial)"
+      | .axiomInfo _ => some "an axiom"
+      | .defnInfo v => if v.safety != .safe then some "partial" else none
+      | _ => none
+
+/-! ## The pin of the statements (C12b) -/
+
+def isDep (env : Environment) (c : Name) : Bool :=
+  match moduleOf? env c with
+  | some m => depPrefixes.any (·.isPrefixOf m)
+  | none => true
+
+def hex (h : UInt64) : String := String.ofList (Nat.toDigits 16 h.toNat)
+
+/-- The hash C12b pins for a constant whose body it follows, and the constants it follows. -/
+def pinHash (env : Environment) (c : Name) : Option (UInt64 × Array Name) :=
+  match env.find? c with
+  | some (.defnInfo v) =>
+    some (mixHash (hash v.type) (hash v.value), v.type.getUsedConstants ++ v.value.getUsedConstants)
+  | some (.opaqueInfo v) =>
+    some (mixHash (hash v.type) (hash v.value), v.type.getUsedConstants ++ v.value.getUsedConstants)
+  | some (.thmInfo v) => some (hash v.type, v.type.getUsedConstants)
+  | some (.axiomInfo v) => some (hash v.type, v.type.getUsedConstants)
+  | some (.recInfo v) => some (hash v.type, v.type.getUsedConstants)
+  | some (.quotInfo v) => some (hash v.type, v.type.getUsedConstants)
+  | some (.ctorInfo v) => some (hash v.type, #[v.induct])
+  | some (.inductInfo v) =>
+    let h := v.ctors.foldl (init := mixHash (hash v.type) (hash (v.numParams, v.numIndices)))
+      fun h n => match env.find? n with
+        | some ci => mixHash h (mixHash (hash n) (hash ci.type))
+        | none => mixHash h (hash n)
+    let deps := v.ctors.foldl (init := v.type.getUsedConstants) fun acc n =>
+      match env.find? n with
+      | some ci => acc ++ ci.type.getUsedConstants
+      | none => acc
+    some (h, deps)
+  | none => none
+
+/-- The pin of the theorems `roots`: one line `root <name> <hash of its type>` per root, then, for
+every constant reached from their types, `body <name> <hash>` (`pinHash`, followed) if it is
+declared in the library or the shipping code, `name <name>` if it is one of `pinFrontier` or a
+dependency's; sorted. -/
+def specPin (env : Environment) (roots : Array Name) : Array String := Id.run do
+  let mut out : Array String := #[]
+  let mut seen : Std.HashSet Name := {}
+  let mut stack : Array Name := #[]
+  for r in roots do
+    if let some ci := env.find? r then
+      out := out.push s!"root {r} {hex (hash ci.type)}"
+      stack := stack ++ ci.type.getUsedConstants
+  while h : stack.size > 0 do
+    let c := stack[stack.size - 1]
+    stack := stack.pop
+    if seen.contains c then continue
+    seen := seen.insert c
+    if pinFrontier.contains c || isDep env c then
+      out := out.push s!"name {c}"
+    else match pinHash env c with
+      | some (hc, deps) =>
+        out := out.push s!"body {c} {hex hc}"
+        for d in deps do
+          if !seen.contains d then stack := stack.push d
+      | none => out := out.push s!"name {c}"
+  return out.qsort (· < ·)
+
+def pinHeader : String :=
+"# The pin of the approved statements (tools/Report.lean, C12b): `root <theorem> <hash of its type>`,
+# `body <constant> <hash of its definition>`, `name <constant>` (pinned by name). It is written from
+# the approved statements with `tools/Report.lean --write-pin`; proof/scripts/check.sh compares it.
+"
+
 /-! ## Main -/
 
 def main (args : List String) : IO UInt32 := do
   let cfg ← match parseArgs {} args with
     | .ok c => pure c
     | .error e => IO.eprintln s!"error: {e}"; return 2
-  let imports := if cfg.imports.isEmpty then #[lib] else cfg.imports
+  let imports := if cfg.imports.isEmpty then #[lib, `LeanToLambdaBox] else cfg.imports
   let failures ← IO.mkRef (#[] : Array String)
   let pending ← IO.mkRef (#[] : Array String)
   let fail (check msg : String) : IO Unit := do
@@ -495,6 +641,13 @@ def main (args : List String) : IO UInt32 := do
     failures.modify (·.push check)
   initSearchPath (← findSysroot)
   let env ← importModules (imports.map fun m => { module := m }) {}
+  if let some f := cfg.writePin then
+    for r in pinRoots do
+      if !env.contains r then IO.eprintln s!"error: {r} is not a declaration"; return 1
+    let pin := specPin env pinRoots
+    IO.FS.writeFile f (pinHeader ++ "\n".intercalate pin.toList ++ "\n")
+    IO.println s!"pin: {pin.size} lines written to {f}"
+    return 0
   IO.FS.createDirAll cfg.out
 
   -- The library's modules and declarations.
@@ -703,7 +856,14 @@ def main (args : List String) : IO UInt32 := do
           fail "leaves" s!"root {r} is reachable from root {r'}; remove it from ROOTS.txt"
 
   -- C6 Metalean's frontend, checkers, export and set-theoretic model are unreachable from
-  -- non-test declarations.
+  -- non-test declarations, except the allow-listed term builders.
+  let allowed := allowList env
+  let mut exempt := 0
+  for c in allowed do
+    if isForbidden c || (moduleOf? env c).any isForbidden then
+      exempt := exempt + 1
+      if let some why := allowProblem? env c then
+        fail "hygiene" s!"allow-listed {c} is {why}"
   let mut seen : Std.HashSet Name := {}
   let mut stack : Array (Name × Name) := #[]
   for c in ours do
@@ -714,7 +874,7 @@ def main (args : List String) : IO UInt32 := do
     if seen.contains c then continue
     seen := seen.insert c
     let mod? := moduleOf? env c
-    if isForbidden c || mod?.any isForbidden then
+    if (isForbidden c || mod?.any isForbidden) && !allowed.contains c then
       fail "hygiene" s!"{origin} reaches {c} (module {(mod?.map toString).getD "?"})"
     let walk := match mod? with
       | some m => isWalkedModule m
@@ -797,11 +957,44 @@ def main (args : List String) : IO UInt32 := do
         fail "final" s!"the type of {finalTheorem} is not that of {finalStatement}"
     | _, _ => fail "final" s!"{finalStatement} is not a theorem of {lib}"
 
+  -- C12b the pin of the statements.
+  if !(← cfg.pin.pathExists) then
+    fail "pin" s!"{cfg.pin} does not exist"
+  else
+    let pinned := (lines (← IO.FS.readFile cfg.pin)).filter (!isComment ·) |>.toArray
+    let mut compared := 0
+    for l in pinned do
+      match fields l with
+      | ["root", r, h] =>
+        match env.find? r.toName with
+        | some ci =>
+          compared := compared + 1
+          if hex (hash ci.type) != h then fail "pin" s!"the statement of {r} differs from {cfg.pin}"
+        | none => pure ()
+      | ["body", c, h] =>
+        if env.contains c.toName then
+          compared := compared + 1
+          if ((pinHash env c.toName).map (hex ·.1)) != some h then
+            fail "pin" s!"the definition of {c} differs from {cfg.pin}"
+      | ["name", _] => pure ()
+      | _ => fail "pin" s!"{cfg.pin}: malformed line: {l}"
+    IO.println s!"note: pin: {compared} of {pinned.size} pinned lines compared"
+    if cfg.final then
+      for r in pinRoots do
+        if !env.contains r then fail "pin" s!"{r} is not a declaration"
+      let computed := specPin env pinRoots
+      let sorted := pinned.qsort (· < ·)
+      if computed != sorted then
+        let extra := computed.filter (!sorted.contains ·)
+        let missing := sorted.filter (!computed.contains ·)
+        fail "pin" s!"the pin differs from {cfg.pin}: computed only {(extra.toList.take 5)}, pinned only {(missing.toList.take 5)}"
+  IO.println s!"hygiene: {exempt} constant(s) of Metalean's frontend and export allow-listed"
+
   IO.println s!"report: {ours.size} declarations ({checked.size} checked, {tests.size} tests) in {ourMods.size} module(s); {roots.size} root(s)"
   for l in report do IO.println l
   let fs ← failures.get
   for check in ["axioms", "sorry", "hygiene", "leaves", "expected", "modules", "divergences",
-      "final"] do
+      "pin", "final"] do
     let n := (fs.filter (· == check)).size
     if check == "final" && !cfg.final then IO.println "final: skipped (--no-final)"
     else IO.println s!"{check}: {if n == 0 then "ok" else s!"{n} failure(s)"}"

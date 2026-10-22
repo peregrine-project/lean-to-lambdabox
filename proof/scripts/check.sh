@@ -11,12 +11,14 @@
 #   tokens    C2   no sorry, admit, axiom, opaque, native_decide, native, bv_decide, unsafe,
 #                  implemented_by, extern (and the other tokens of scripts/scan_tokens.py) in
 #                  proof/**/*.lean outside comments and strings.
-#   report    C3-C7, C9, C12, run by `lake env lean --run tools/Report.lean` in proof/: axiom
-#                  footprints within propext, Classical.choice, Quot.sound (no sorryAx, no
+#   report    C3-C7, C9, C12, C12b, run by `lake env lean --run tools/Report.lean` in proof/:
+#                  axiom footprints within propext, Classical.choice, Quot.sound (no sorryAx, no
 #                  Cardinal.exists_inaccessibles, no native axiom); no constant reached whose body
 #                  mentions sorryAx; Metalean's Frontend, Checker, Export, SetSemantics and
 #                  SetTheory modules and the tests unreachable from non-test declarations (by the
-#                  constants reached, by module and by name); no leaves with respect to ROOTS.txt,
+#                  constants reached, by module and by name), except what the translator's total
+#                  term builders reach, none of it partial, opaque, unsafe or implemented_by;
+#                  no leaves with respect to ROOTS.txt,
 #                  and every test that is not a theorem used by a test theorem; footprints of roots
 #                  and test theorems equal axioms.expected; every source file imported; the entries
 #                  of doc/DIVERGENCES.md well-formed, citing existing declarations (EraseProof.*,
@@ -29,8 +31,11 @@
 #                  Classical.choice, Quot.sound, as is that of its instance on NV-1,
 #                  EraseProof.Test.NV1.final, whose hypothesis terms lie within them; the test
 #                  EraseProof.Test.Stub.erase_correct, the approved statement written out, has the
-#                  type of erase_correct exactly (skipped with --no-final).
-#                  See the header of tools/Report.lean.
+#                  type of erase_correct exactly (skipped with --no-final); C12b, the definitions
+#                  the statements of erase_correct and collectDeps_ok_of are about (their closure
+#                  through the library and the shipping code) hash as in proof/spec.pin, the pin of
+#                  the approved statements: every pinned constant present, always; the whole pin,
+#                  in the final form. See the header of tools/Report.lean.
 #   nv1-emit  C11  the part of C11 that needs no peregrine: proof/tools/NVEmit.lean runs #erase's
 #                  entry point on NV-1's program and fails unless it emits exactly the program the
 #                  final instance is about. Runs once tools/NVEmit.lean exists; required by
@@ -63,7 +68,7 @@ for a in "$@"; do
     --no-regress) regress=0 ;;
     --no-peregrine) peregrine=0 ;;
     --no-final) final=(--no-final) ;;
-    -h|--help) sed -n '2,47p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,54p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "error: unknown argument $a" >&2; exit 2 ;;
   esac
 done
