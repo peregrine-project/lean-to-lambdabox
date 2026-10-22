@@ -41,3 +41,6 @@ jobs:
 
       - name: Regression tests
         run: scripts/regress.sh
+
+      - name: Pure path next to the Meta path on the corpus
+        run: scripts/pure-harness.sh
