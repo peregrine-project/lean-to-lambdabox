@@ -13,6 +13,12 @@ def val_at_false (f: Bool -> Nat): Nat := f .false
 #erase val_at_false to "out.ast"
 ```
 
+`#erase_lcnf` has the same options but reads the LCNF the compiler stored for the declaration and its
+dependencies, instead of kernel terms. It reads the base phase, or the mono phase with
+`#erase_lcnf mono f`. Mono has the compiler's specialization but has rewritten matches on `Nat` into
+arithmetic, so it needs `nat := .machine`. This mode trusts Lean's compiler up to that phase, a
+declaration tagged `@[extern]` is always an axiom, and string literals become `□` with a warning.
+
 Elaborating the above Lean code will produce a file `out.ast`
 containing $\lambda_\square$ code for the function `val_at_false`,
 and a file `out.ast.inlinings` listing the constants that `peregrine` should inline
