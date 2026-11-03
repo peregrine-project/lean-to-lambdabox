@@ -300,8 +300,13 @@ def addComponent (g : Std.HashMap Name Node) (comp : List Name) : EraseM Unit :=
     match (g[n]?.bind (·.decl)) with
     | none =>
       -- A constructor marked `@[extern]` is added by `register_inductive`.
-      logInfo s!"No compiled code for {n}, emitting axiom."
-      addAxiom n
+      -- A definition without compiled code, such as `Nat.add`, which the compiler implements
+      -- natively, is erased from its kernel value as `#erase` does, under the same `extern` policy.
+      if ((← getEnv).find? n).any (·.hasValue (allowOpaque := true)) then
+        discard <| Erasure.erase.get_constant_kername n
+      else
+        logInfo s!"No compiled code for {n}, emitting axiom."
+        addAxiom n
     | some d =>
       if !isRec then
         let t ← declBody {} d
