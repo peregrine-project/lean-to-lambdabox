@@ -59,7 +59,7 @@ instance: Serialize PrimTag where
   to_sexpr | .primInt => .atom "primInt"
 
 instance: Serialize (BitVec n) where
-  to_sexpr b := let i := b.toFin.toNat; .atom ("\"" ++ i.repr ++ "\"")
+  to_sexpr b := let i := b.toFin.toNat; .atom i.repr
 
 instance: Serialize PrimVal where
   to_sexpr | ⟨.primInt, i⟩ => to_sexpr (PrimTag.primInt, (i: BitVec 63))
