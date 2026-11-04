@@ -37,8 +37,6 @@ EraseProof.SrcEval.restrict EraseProof.erase_correct
 EraseProof.isRecursiveDecl_false EraseProof.erasePure_erases
 EraseProof.Defeq.inst_tele EraseProof.erases_correct
 EraseProof.IsErasable.inst EraseProof.erases_correct
-EraseProof.Defeq.inst_tele EraseProof.Erases.inst
-EraseProof.IsErasable.inst EraseProof.Erases.inst
 EraseProof.TrM.wf_app EraseProof.SrcEval.defeq
 EraseProof.TrM.uninstantiateN EraseProof.erasePure_erases
 EraseProof.Erases.abstract EraseProof.erasePure_erases
