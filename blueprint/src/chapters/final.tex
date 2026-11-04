@@ -24,7 +24,7 @@
   \lean{EraseProof.ViewAgrees}
   \leanok
   \uses{def:Erasure-EnvView}
-  \srcloc{proof/EraseProof/Spec.lean}{790}
+  \srcloc{proof/EraseProof/Spec.lean}{827}
   \lead{In short} \code{ViewAgrees view P}: \hl{the environment view of \code{\#erase} returns
   each declaration of \code{P} under its name}.
   \lead{Reference} \code{Sigma} $\sim$\code{\_ext X} (\code{abstract\_env\_ext\_rel}), a
@@ -35,9 +35,10 @@
   \label{def:EraseProof-erase_correct_statement}
   \lean{EraseProof.erase_correct_statement}
   \leanok
-  \uses{def:EraseProof-ProgEnv, def:EraseProof-ViewAgrees, def:EraseProof-TrM,
-    def:EraseProof-SrcEval, def:EraseProof-EvalEnv, def:EraseProof-Erases, def:EraseProof-LBEval,
-    def:Erasure-collectDeps, def:Erasure-eraseEntry}
+  \uses{def:EraseProof-ViewAgrees, def:EraseProof-MBinding, def:EraseProof-TrM,
+    def:EraseProof-ProgEnv, def:Erasure-EraseError, def:Erasure-EnvView, def:Erasure-collectDeps,
+    def:Erasure-eraseEntry, def:EraseProof-LBEval, def:EraseProof-Erases, def:EraseProof-EvalEnv,
+    def:EraseProof-SrcEval, def:LBTerm, def:toKername, def:ASTType, def:Erasure-ErasureConfig}
   \srcloc{proof/EraseProof/Statements.lean}{64}
   \lead{In short} The proposition of Theorem~\ref{thm:EraseProof-erase_correct}, \hl{pinned by
   \code{proof/spec.pin}}; its docstring states the scope of Section~\ref{sec:final-reading}.
@@ -72,7 +73,7 @@
 \begin{proof}
   \uses{thm:EraseProof-erasePure_erases, thm:EraseProof-erases_correct,
     lem:EraseProof-eraseEntry_pure, lem:EraseProof-collectDeps_spec,
-    lem:EraseProof-SrcEval-restrict, lem:EraseProof-Erases-closed, lem:EraseProof-SrcEval-defeq}
+    lem:EraseProof-SrcEval-restrict, lem:EraseProof-Erases-extend, lem:EraseProof-SrcEval-defeq}
   \lead{Idea} Composition: \code{hfrag} puts the run on the pure path, \code{erasePure\_erases}
   makes its output an erasure, \code{erases\_correct} simulates the evaluation in the closure,
   and \code{SrcEval.defeq} gives the last conjunct.
@@ -107,6 +108,16 @@
 \item \lead{Well-founded recursion} excluded: the fragment test rejects such definitions (they
   have an \code{\_unsafe\_rec} companion), and their recursion reduces only through an accessibility
   proof, which is opaque (DV-24), so \code{hev} never holds for them.
+\item \lead{Scope note} \hl{\code{erase\_correct} says nothing} about two kinds of realistic
+  programs, since \code{hev} fails on them:
+  \begin{itemize}
+  \item a match on a theorem whose type is an \code{And}-like \code{Prop} with fields
+        (\code{match h with | $\langle$\_, \_$\rangle$ => 5}, \code{h : p $\wedge$ q} a theorem):
+        \code{casesProof} covers only field-less constructors, so the source is stuck, while the
+        eraser emits \code{($\lambda$\_ \_. 5) $\Box$ $\Box$};
+  \item an opaque constant with a value: the source has no $\delta$ for it (DV-24), while
+        $\lambda_\Box$ unfolds its erased value.
+  \end{itemize}
 \item \lead{The object} the theorem is about the shipping code itself (\code{collectDeps},
   \code{eraseEntry}), not a model of it; \code{proof/spec.pin} names the shipping code without
   hashing it, so a fix to it leaves the statement unchanged.
@@ -138,9 +149,9 @@
   \label{def:EraseProof-erases_correct_statement}
   \lean{EraseProof.erases_correct_statement}
   \leanok
-  \uses{def:EraseProof-ProgEnv, def:EraseProof-TrM, def:EraseProof-Erases,
-    def:EraseProof-ErasesDeps, def:EraseProof-SrcEval, def:EraseProof-LBEval,
-    def:EraseProof-ConstsIn}
+  \uses{def:EraseProof-MBinding, def:EraseProof-TrM, def:EraseProof-ProgEnv, def:EraseProof-LBEval,
+    def:EraseProof-Erases, def:EraseProof-ErasesDeps, def:EraseProof-EvalEnv,
+    def:EraseProof-SrcEval, def:EraseProof-ConstsIn, def:LBTerm}
   \srcloc{proof/EraseProof/Statements.lean}{19}
   \lead{In short} The proposition of Theorem~\ref{thm:EraseProof-erases_correct}, \hl{pinned by
   \code{proof/spec.pin}}.
@@ -165,7 +176,9 @@
 \end{theorem}
 \begin{proof}
   \uses{lem:EraseProof-SrcEval-defeq, lem:EraseProof-IsErasable-ctor_not,
-    lem:EraseProof-SrcEval-value, lem:EraseProof-Erases-inst, lem:EraseProof-ErasesDeps-eval,
+    lem:EraseProof-IsErasable-inst, lem:EraseProof-SrcEval-value, lem:EraseProof-ErasableS-eval,
+    lem:EraseProof-Erases-inst, lem:EraseProof-Erases-instLevels, lem:EraseProof-Erases-closed,
+    lem:EraseProof-ErasesDeps-eval, lem:EraseProof-LBEval-idem,
     lem:EraseProof-PropInductive-of_propInd, lem:EraseProof-casesOn_whred}
   \lead{Idea} Induction on source evaluation, one case per rule; erasability is stable under
   evaluation by \code{SrcEval.defeq}, and a constructor of data is never erased.
@@ -175,9 +188,10 @@
   \label{def:EraseProof-erasePure_erases_statement}
   \lean{EraseProof.erasePure_erases_statement}
   \leanok
-  \uses{def:EraseProof-ProgEnv, def:EraseProof-TrM, def:EraseProof-ViewAgrees,
-    def:EraseProof-EvalEnv, def:EraseProof-Erases, def:EraseProof-ErasesDeps,
-    def:EraseProof-LBEval, def:Erasure-erasePure, def:Erasure-collectDeps}
+  \uses{def:EraseProof-ViewAgrees, def:EraseProof-MBinding, def:EraseProof-TrM,
+    def:EraseProof-ProgEnv, def:Erasure-EraseError, def:Erasure-EnvView, def:Erasure-collectDeps,
+    def:Erasure-erasePure, def:EraseProof-LBEval, def:EraseProof-Erases, def:EraseProof-ErasesDeps,
+    def:EraseProof-EvalEnv, def:LBTerm, def:toKername, def:ASTType, def:Erasure-ErasureConfig}
   \srcloc{proof/EraseProof/Statements.lean}{48}
   \lead{In short} The proposition of Theorem~\ref{thm:EraseProof-erasePure_erases}, \hl{pinned by
   \code{proof/spec.pin}}.
@@ -203,7 +217,9 @@
 \begin{proof}
   \uses{lem:EraseProof-Pure-isErasable_sound, lem:EraseProof-Pure-isErasable_agree,
     lem:EraseProof-collectDeps_spec, lem:EraseProof-eraseEntry_pure,
-    lem:EraseProof-Erases-inst}
+    lem:EraseProof-isRecursiveDecl_false, lem:EraseProof-Erases-inst,
+    lem:EraseProof-Erases-abstract, lem:EraseProof-ErasesDeps-eval, lem:EraseProof-ProgEnv-lookup,
+    lem:EraseProof-TrM-weakBV, lem:EraseProof-TrM-uninstantiateN, lem:EraseProof-TrM-det}
   \lead{Idea} An invariant of the traversal's state, step by step, with the soundness of the pure
   erasability oracle against \code{TrM} and Metalean's typing.
 \end{proof}
@@ -246,6 +262,8 @@ Hypothesis & MetaRocq & Why it is there \\
 \item \lead{Caveat} No first-order corollary and no claim about the constants to inline.
 \item \lead{Caveat} Programs defined by well-founded recursion are excluded; the theorem would be
   vacuous on them.
+\item \lead{Caveat} Matches on \code{And}-like theorems with fields, and opaques with values, do
+  not evaluate in the source: the theorem says nothing about them.
 \item \lead{Caveat} \code{P} is a dependency closure: the theorem does not apply with \code{P} the
   whole environment of a Lean file.
 \end{itemize}

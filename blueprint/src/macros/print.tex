@@ -1,11 +1,14 @@
 % Macros for the print version only: the leanblueprint annotations, which the web version gets from
 % the leanblueprint plasTeX package.
 % \lean: the names as typed (\detokenize), with the characters the monospaced font lacks set
-% otherwise: Unicode subscript digits (as in forall₂) as subscripts, sigma and alpha in math.
+% otherwise: Unicode subscript digits (as in forall₂) as subscripts, sigma, alpha, zeta and eta in
+% math.
 \ExplSyntaxOn
 \tl_new:N \l__bp_lean_tl
 \tl_const:Nx \c__bp_sigma_tl { \tl_to_str:n { σ } }
 \tl_const:Nx \c__bp_alpha_tl { \tl_to_str:n { α } }
+\tl_const:Nx \c__bp_zeta_tl { \tl_to_str:n { ζ } }
+\tl_const:Nx \c__bp_eta_tl { \tl_to_str:n { η } }
 \tl_const:Nx \c__bp_dot_tl { \tl_to_str:n { . } }
 \tl_const:Nx \c__bp_us_tl { \tl_to_str:n { _ } }
 \cs_new_protected:Npn \__bp_lean_set:n #1
@@ -17,6 +20,8 @@
   \tl_replace_all:Nnn \l__bp_lean_tl { ₃ } { \textsubscript{3} }
   \tl_replace_all:NVn \l__bp_lean_tl \c__bp_sigma_tl { \ensuremath{\sigma} }
   \tl_replace_all:NVn \l__bp_lean_tl \c__bp_alpha_tl { \ensuremath{\alpha} }
+  \tl_replace_all:NVn \l__bp_lean_tl \c__bp_zeta_tl { \ensuremath{\zeta} }
+  \tl_replace_all:NVn \l__bp_lean_tl \c__bp_eta_tl { \ensuremath{\eta} }
  }
 \cs_new_protected:Npn \__bp_lean:n #1
  { \__bp_lean_set:n {#1} \tl_use:N \l__bp_lean_tl }

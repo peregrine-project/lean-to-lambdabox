@@ -6,7 +6,7 @@
   dependency closure, the \code{casesOn} recognizer, a pure erasability oracle, a pure backend for
   the shipping traversal, and the entry point that routes in-fragment inputs to it.
 \item \lead{Main results} None: this chapter holds shipping definitions.
-\item \lead{Status} \stShipping{} every node (shipping entries S-18 to S-21 and S-25 to S-29,
+\item \lead{Status} \stShipping{} every node (shipping entries S-18 to S-21 and S-25 to S-33,
   Chapter~\ref{chap:shipping-changes}); \code{\#erase} runs \code{eraseEntry}, and the statements
   of the final theorem and its lemmas name these declarations.
 \item \lead{Nodes} \bpnodes{chap:pure}
@@ -61,11 +61,12 @@
     Erasure.sortDecided}
   \leanok
   \uses{def:Erasure-EraseError, def:Erasure-EnvView, def:Erasure-ErasureConfig}
-  \srcloc{LeanToLambdaBox/Erasure/Entry.lean}{76}
+  \srcloc{LeanToLambdaBox/Erasure/Entry.lean}{78}
   \lead{In short} The exclusions that \hl{a term or a single declaration carries by itself}; each
   is \code{outOfFragment}.
   \begin{itemize}
-  \item \code{exprConsts cfg e}: the constants of \code{e} (\code{Nat} for a literal), or a free
+  \item \code{exprConsts cfg e}: the constants of \code{e} (\code{Nat} for a literal), \hl{the
+        structure of each projection} (S-30, as MetaRocq's \code{term\_global\_deps}), or a free
         variable, metavariable, level metavariable, string literal, and under
         \code{nat := .machine} a \code{Nat} literal or \code{Nat}/\code{Int} constructors and
         \code{casesOn};
@@ -87,11 +88,11 @@
   \leanok
   \uses{def:Erasure-declExclusion, def:Erasure-casesInfo, def:Erasure-findConst,
     def:toKername}
-  \srcloc{LeanToLambdaBox/Erasure/Entry.lean}{227}
+  \srcloc{LeanToLambdaBox/Erasure/Entry.lean}{229}
   \lead{In short} \code{collectDeps view cfg e}: \hl{the closure of \code{e} as the pure
   traversal reads it}, or the first exclusion of Section~\ref{sec:scope-fragment}.
   \begin{itemize}
-  \item \lead{Reads} the term; the type of every constant; the values of definitions and opaques,
+  \item \lead{Reads} the term; the type of every constant; the structure of every projection; the values of definitions and opaques,
         not of theorems; block members, the constructors of an inductive, the inductive of a
         constructor; for a recognized \code{T.casesOn} (\code{recognizeCasesOn}), \code{T} and
         \code{T.rec}, not the value;
@@ -183,7 +184,7 @@
   \lean{Erasure.PureM, Erasure.PureCtx, Erasure.PureState, Erasure.EraseT.runPure,
     Erasure.PureM.findConst?, Erasure.PureM.declInfo?, Erasure.PureM.unsafeRecBase?,
     Erasure.PureM.freshFVarId, Erasure.PureM.instantiate1, Erasure.PureM.isErasable,
-    Erasure.PureM.isPropFormerType, Erasure.PureM.typeLevel,
+    Erasure.PureM.isPropFormerType, Erasure.PureM.typeLevel, Erasure.PureM.whnf,
     Erasure.PureM.casesInfo?, Erasure.PureM.ctorArity?, Erasure.PureM.prepare,
     Erasure.instBackendPureM}
   \leanok
@@ -197,13 +198,16 @@
         variables;
   \item \code{findConst?} $=$ \code{declInfo?}: lookup in the closure, no \code{\_unsafe\_rec}
         redirect; \code{instantiate1}: the structural \code{Expr.instantiate1'};
-  \item \code{isErasable}, \code{inferType}, \code{isPropFormerType}, \code{typeLevel}: the pure
-        oracle at \code{oracleFuel}; \code{casesInfo?}, \code{ctorArity?}: the recognizer
+  \item \code{isErasable}, \code{inferType}, \code{isPropFormerType}, \code{typeLevel},
+        \code{whnf}: the pure oracle at \code{oracleFuel}; \code{whnf} reduces an alternative's
+        type to a $\Pi$ (S-31); \code{casesInfo?}, \code{ctorArity?}: the recognizer
         over the closure;
   \item \code{prepare}: the identity (no \code{macro\_inline}, matcher inlining or
         \code{csimp});
   \item the instance: every constructor field kept, no instances, no logging; a constant missing
-        from the closure is \code{outOfFragment}, fuel exhaustion the error \code{fuel}.
+        from the closure is \code{outOfFragment}, fuel exhaustion the error \code{fuel};
+        \code{error} and \code{fail} are the error \code{failed}, so \hl{an unexpected case of
+        the traversal ends the pure path with an error} (S-33).
   \end{itemize}
 \end{definition}
 
@@ -212,7 +216,7 @@
   \lean{Erasure.isRecursiveDecl, Erasure.nameOccurs, Erasure.axiomatized}
   \leanok
   \uses{def:Erasure-EnvView, def:Erasure-ErasureConfig}
-  \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{480}
+  \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{490}
   \lead{In short} The tests of \code{visitMutual} as the pure backend runs them,
   with exact names; the traversal does not call these functions.
   \begin{itemize}
@@ -228,7 +232,7 @@
   \lean{Erasure.erasePure}
   \leanok
   \uses{def:Erasure-erase, def:Erasure-PureM, def:ASTType}
-  \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{461}
+  \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{471}
   \lead{In short} \code{erasePure view cfg decls e}: \hl{the shipping traversal
   \code{visitExpr} run with the pure backend} on the closure \code{decls}, assembling the program
   as \code{erase} does.
@@ -241,7 +245,7 @@
   \lean{Erasure.eraseEntry, Erasure.route, Erasure.Route}
   \leanok
   \uses{def:Erasure-collectDeps, def:Erasure-erasePure, def:Erasure-erase}
-  \srcloc{LeanToLambdaBox/Erasure/Entry.lean}{283}
+  \srcloc{LeanToLambdaBox/Erasure/Entry.lean}{285}
   \lead{In short} What \code{\#erase} runs: \code{route} calls \code{collectDeps},
   then
   \begin{itemize}
@@ -260,4 +264,7 @@
   so which constants the source semantics treats as stuck.
 \item \lead{Caveat} The fragment test is syntactic: it does not check types, which the
   hypotheses of the final theorem state separately.
+\item \lead{Caveat} \code{Pure.whnf} has no recursor $\iota$: an alternative whose type needs
+  $\iota$ to become a $\Pi$ is an error of the pure path (S-31), where the \code{Meta} path
+  reduces it.
 \end{itemize}

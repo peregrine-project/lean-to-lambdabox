@@ -768,9 +768,9 @@ def declares(name, lines, start, end, path):
     * a declaration: it starts at the declaration's doc comment, attributes or head, and the line
       before is not its doc comment or attributes; the head declares the name in the namespace of
       that line (`_root_.` and `private`, `_private.<module>.0.`, taken into account), or a name
-      Lean derives from it (DERIVED), or is an anonymous `instance` of class C whose name the
-      name's last component, inst<C>..., is, in that namespace, or `deriving instance C for T`
-      (inst<C><T>);
+      Lean derives from it (DERIVED), or is an anonymous `instance` of class C (read after its
+      binders) whose name the name's last component, inst<C>..., is, in that namespace (in the
+      namespace of C itself, any inst...), or `deriving instance C for T` (inst<C><T>);
     * a constructor, field or `where` definition n (a line `| n`, `n :`, `(n m : ...)`): the
       enclosing declaration declares the name minus its last component n; the range of a
       constructor and of a field starts at its doc comment, that of a `where` definition at its
@@ -871,9 +871,17 @@ def declares(name, lines, start, end, path):
             return f'line {h} declares {full}'
         if kw == 'instance':
             text = rest + ' ' + ' '.join(code[k][0] for k in range(h, min(end, h + 3)))
+            # the class follows the binders: drop bracketed groups, innermost first
+            while True:
+                t2 = re.sub(r'[{\[(⦃][^{}\[\]()⦃⦄]*[}\])⦄]', ' ', text)
+                if t2 == text:
+                    break
+                text = t2
             mc = re.search(r':\s*@?(' + IDENT + ')', text)
             cls = mc.group(1).split('.')[-1] if mc else None
-            if cls and pre == ns and re.fullmatch(r'inst' + re.escape(cls) + r'\w*', last):
+            # Lean names it inst<C>...; inside the namespace of C it may leave C out (instList)
+            if cls and pre == ns and (re.fullmatch(r'inst' + re.escape(cls) + r'\w*', last) or
+                                      ns.rpartition('.')[2] == cls and last.startswith('inst')):
                 return None
             return f'line {h} declares an instance of {cls} in the namespace {ns!r}'
         if kw == 'deriving instance':

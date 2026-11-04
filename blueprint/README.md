@@ -146,7 +146,8 @@ status swatch looks like a kind swatch.
   `definition`, `shipping`, `test`, `metalean`); the status words of the prose `\stProved` and
   `\stShipping` take the colours of the lemma line and the shipping line.
 - **Introduction.** `generated/kinds-legend.tex` (kinds, statuses, arrows) and
-  `generated/kinds-chapters.tex` (nodes per chapter and kind).
+  `generated/kinds-chapters.tex` (nodes per chapter by kind; the proved results and tests, the
+  formalized definitions and the planned nodes of the proof library).
 
 ### Graphs
 

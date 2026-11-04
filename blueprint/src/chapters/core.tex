@@ -9,8 +9,10 @@
   \code{collectDeps\_ok\_of} of the fragment test; the frame and recursion lemmas of the
   traversal. They compose into the milestone \code{erasePure\_erases} (Chapter~\ref{chap:final}).
 \item \lead{Status} the sufficient condition \code{PhaseIDecl} and the statement of
-  \code{collectDeps\_ok\_of} are formalized; \stPlanned{} the other nodes.
+  \code{collectDeps\_ok\_of} are formalized; \stProved{} \code{isRecursiveDecl\_false};
+  \stPlanned{} the other nodes.
 \item \lead{Nodes} \bpnodes{chap:core}
+\item \lead{Lean files} \leanfile{proof/EraseProof/Core/NonRec.lean}.
 \item \lead{Reference} MetaRocq \code{hnf\_sound} (\code{PCUICSafeReduce.v}),
   \code{type\_of\_typing} (\code{PCUICSafeRetyping.v}), \code{is\_erasableb}
   (\code{ErasureFunction.v}).
@@ -53,7 +55,7 @@
   \code{is\_erasableb}.
 \end{lemma}
 \begin{proof}
-  \uses{lem:EraseProof-TrM-inst, lem:EraseProof-ProgEnv-unfold}
+  \uses{lem:EraseProof-TrM-inst, lem:EraseProof-ProgEnv-unfold, lem:EraseProof-ProgEnv-lookup}
   \lead{Idea} Induction on fuel, one case per step of \code{whnf} and \code{inferType}, each a Metalean reduction or typing rule.
 \end{proof}
 
@@ -61,7 +63,8 @@
   \label{lem:EraseProof-Pure-isErasable_agree}
   \lean{EraseProof.Pure.isErasable_agree, EraseProof.Pure.isErasable_atom}
   \planned
-  \uses{def:EraseProof-LocalsOK, def:EraseProof-EvalEnv-isAtom, def:Erasure-Pure-isErasable}
+  \uses{def:EraseProof-LocalsOK, def:EraseProof-EvalEnv-isAtom, def:Erasure-Pure-isErasable,
+    def:EraseProof-ClosedDecls}
   \lead{In short} The oracle \hl{reads the locals only on the term's free variables}, and answers
   \code{true} on atom spines.
 \end{lemma}
@@ -78,9 +81,9 @@
     EraseProof.LevelPlain, EraseProof.HasNatLit, EraseProof.IsRecursorIn, EraseProof.RecFree,
     EraseProof.Eliminated, EraseProof.EmitsConst, EraseProof.BlockNamesInj}
   \leanok
-  \uses{def:EraseProof-ConstsIn, def:EraseProof-EvalEnv, def:Erasure-casesInfo,
-    def:Erasure-declExclusion}
-  \srcloc{proof/EraseProof/Spec.lean}{859}
+  \uses{def:Erasure-EnvView, def:Erasure-declExclusion, def:EraseProof-EvalEnv,
+    def:EraseProof-ConstsIn, def:toKername, def:Erasure-ErasureConfig}
+  \srcloc{proof/EraseProof/Spec.lean}{896}
   \lead{In short} The hypotheses of \code{collectDeps\_ok\_of}: \hl{what the traversal reads of a
   closure is inside Phase I}.
   \begin{itemize}
@@ -118,8 +121,9 @@
   \label{def:EraseProof-collectDeps_ok_of_statement}
   \lean{EraseProof.collectDeps_ok_of_statement}
   \leanok
-  \uses{def:Erasure-collectDeps, def:EraseProof-PhaseIDecl, def:EraseProof-ProgEnv,
-    def:EraseProof-TrM, def:EraseProof-ConstsIn, def:EraseProof-ViewAgrees}
+  \uses{def:EraseProof-PhaseIDecl, def:EraseProof-ViewAgrees, def:EraseProof-MBinding,
+    def:EraseProof-TrM, def:EraseProof-ProgEnv, def:Erasure-EraseError, def:Erasure-EnvView,
+    def:Erasure-collectDeps, def:EraseProof-ConstsIn, def:Erasure-ErasureConfig}
   \srcloc{proof/EraseProof/Statements.lean}{31}
   \lead{In short} The proposition that Lemma~\ref{lem:EraseProof-collectDeps_ok_of} proves,
   \hl{pinned by \code{proof/spec.pin}}; check C12 compares the lemma's type with it once the lemma
@@ -152,7 +156,7 @@
 
 \begin{lemma}[Routing, frame and recursion]
   \label{lem:EraseProof-eraseEntry_pure}
-  \lean{EraseProof.eraseEntry_pure, EraseProof.visit_agree, EraseProof.isRecursiveDecl_false}
+  \lean{EraseProof.eraseEntry_pure, EraseProof.visit_agree}
   \planned
   \uses{def:Erasure-collectDeps, def:Erasure-eraseEntry, def:Erasure-erasePure,
     def:Erasure-isRecursiveDecl, def:EraseProof-LocalsOK, def:EraseProof-ProgEnv}
@@ -162,14 +166,39 @@
   \item \code{eraseEntry\_pure}: \code{hfrag} and \code{eraseEntry view cfg e = pure r} give
         \code{erasePure view cfg decls e = .ok r};
   \item \code{visit\_agree}: \code{visitExpr} at \code{PureM} reads the locals only on the term's
-        free variables;
-  \item \code{isRecursiveDecl\_false}: no declaration of a Metalean program is recursive, so the
-        fixpoint branch of \code{visitMutual} is dead on the pure path.
+        free variables.
   \end{itemize}
 \end{lemma}
 \begin{proof}
-  \uses{def:Erasure-eraseEntry}
-  \lead{Idea} Unfold \code{route}; the frame and recursion facts by induction on fuel and on \code{ProgEnv}.
+  \uses{def:Erasure-eraseEntry, lem:EraseProof-isRecursiveDecl_false}
+  \lead{Idea} Unfold \code{route}; the frame by induction on fuel.
+\end{proof}
+
+\begin{lemma}[No recursive declaration]
+  \label{lem:EraseProof-isRecursiveDecl_false}
+  \lean{EraseProof.isRecursiveDecl_false, EraseProof.NonRec.ProgEnv.scoped,
+    EraseProof.NonRec.TrM.consts, EraseProof.NonRec.nameOccurs_false,
+    EraseProof.NonRec.ConstsIn_mono, EraseProof.NonRec.forall_mem_of_rel}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-TrM, def:EraseProof-ProgEnv,
+    def:Erasure-isRecursiveDecl, def:EraseProof-ConstsIn}
+  \srcloc{proof/EraseProof/Core/NonRec.lean}{120}
+  \lead{In short} For a declaration of \code{P} with a value, \code{isRecursiveDecl} is
+  \code{false}: \hl{the fixpoint branch of \code{visitMutual} is dead on the pure path}.
+  \begin{itemize}
+  \item \lead{Given} \code{ProgEnv P $\zeta$ E B}, \code{findDecl P c = some ci}, a value of
+        \code{ci};
+  \item \lead{Then} \code{isRecursiveDecl ci = false}.
+  \end{itemize}
+  \lead{Reference} none (DV-7 does not arise).
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-TrLevel, def:EraseProof-SatTr, def:EraseProof-natLitM,
+    def:EraseProof-TypedExt, lem:EraseProof-ProgEnv-lookup, lem:EraseProof-Erases-extend}
+  \leanok
+  \lead{Idea} \code{ProgEnv.scoped}: a valued declaration is alone in its block and its value
+  does not mention it, by \code{TrM} for definitions and by the no-self-reference premise for
+  theorems and opaques.
 \end{proof}
 
 \section*{Caveats}

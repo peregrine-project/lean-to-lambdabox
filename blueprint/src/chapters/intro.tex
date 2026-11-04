@@ -5,13 +5,16 @@
 \item \lead{Goal} A machine-checked theorem about the shipping eraser behind \code{\#erase},
   stated over Metalean's typing theory of Lean's kernel, for every input in the scope of
   Chapter~\ref{chap:scope}.
-\item \lead{Status} \stProved{} the no-confusion lemmas of Metalean's type formers
-  (Section~\ref{sec:model-noconf}) and the tests of Chapter~\ref{chap:tests}. Formalized: the
-  statements of the final theorem, its two milestones and the lower bound of its fragment
-  hypothesis, as definitions pinned by \code{proof/spec.pin}, with every definition they use.
-  \stPlanned{} \hl{the final theorem \code{erase\_correct}}, its two milestones and the lemmas they
-  compose. \stShipping{} the eraser: the pure path on the fragment of Phase I and the \code{Meta}
-  path on the rest.
+\item \lead{Status} \stProved{} the lemmas of the bridge (Chapter~\ref{chap:model}), most lemmas
+  of erasability, the source semantics and the erasure relation, the recursion lemma of the
+  traversal, and the tests of Chapter~\ref{chap:tests}. Formalized: the statements of the final
+  theorem, its two milestones and the lower bound of its fragment hypothesis, as definitions
+  pinned by \code{proof/spec.pin}, with every definition they use. \stPlanned{} \hl{the final
+  theorem \code{erase\_correct}}, its two milestones, the soundness of the pure oracle and of the
+  traversal, \code{SrcEval.defeq} and \code{Erases.inst}. \stShipping{} the eraser: the pure path
+  on the fragment of Phase I and the \code{Meta} path on the rest.
+\item \lead{Progress} the table at the end of Section~\ref{sec:intro-kinds} counts, per chapter,
+  the proved results and tests, the formalized definitions and the planned nodes.
 \item \lead{Lean files} \leanfile{LeanToLambdaBox/} (the shipping code) and \leanfile{proof/} (the
   Lake package \code{EraseProof}, the verification library).
 \item \lead{Registers} \code{doc/SHIPPING-CHANGES.md}
@@ -123,6 +126,16 @@ Defect & Fix \\
   entry S-25 on the pure path \\
 \code{casesOn} on \code{PUnit.\{0\}} & the defect leaves a stuck \code{case} on a
   sort-polymorphic inductive used at level 0. Commit \code{9aad6b0} of \code{fixes-port} (PR \#7); entry S-27 on the pure path \\
+Alternative types that are a $\Pi$ only after unfolding & the defect reaches
+  \code{unreachable!}, whose default gives a branch without binders: a stuck \code{case}. Fix F8
+  of PR \#7 (commit \code{a36d37e} of \code{fixes-port}); entry S-31 on the pure path \\
+\code{casesOn} that eliminates only into \code{Prop} & the pure oracle has no $\iota$ and misses
+  such proofs; the defect emits a two-branch \code{case} on $\Box$ for \code{Or}, an unrelated
+  term for \code{Exists}. Entry S-32 erases them to $\Box$ \\
+Panics of the traversal & on the pure path the defect turns a panic into a successful run with a
+  default term. Entry S-33 makes each one an error there \\
+Projections in the closure & the defect leaves a projection's structure, which the source
+  semantics reads, out of the closure. Entry S-30 \\
 Block names & the defect names inductive blocks through Lean's escaping printer, a
   \code{partial} function the kernel cannot evaluate, which prints two names differing by escapes
   alike. Entry

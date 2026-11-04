@@ -58,6 +58,8 @@ projections of data structures & I & a $\lambda_\Box$ \code{proj}; Metalean's pr
 \code{casesOn} of a large-eliminating \code{Prop} inductive (\code{Eq}, \code{HEq}) & I & the
   eraser reduces it at erasure time: the alternative applied to one $\Box$ per field (shipping
   entry S-27) \\
+\code{casesOn} of a \code{Prop} inductive that eliminates only into \code{Prop} (\code{Or},
+  \code{Exists}) & I & the result is a proof: the eraser emits $\Box$ (shipping entry S-32) \\
 \code{casesOn} whose constructor has an index field (\code{Acc}, \code{Acc.below}) & -- & the
   relation does not model the substitution of index fields \\
 \code{Nat} literals under \code{nat := .peano} & I & constructor chains, as Metalean's fast
@@ -93,9 +95,10 @@ free variables, metavariables & -- & closed inputs only \\
 
 The shipping \code{collectDeps view cfg e} (Definition~\ref{def:Erasure-collectDeps}) rejects a
 program when its closure, as the pure traversal reads it, contains one of the classes below
-(DV-26). The closure holds the term, the types of its constants, the values of the definitions and
-opaques it reads, and the types and constructors of the blocks it registers; it skips the values
-of theorems and of recognized \code{casesOn} constants.
+(DV-26). The closure holds the term, the types of its constants, the structures of its
+projections (S-30), the values of the definitions and opaques it reads, and the types and
+constructors of the blocks it registers; it skips the values of theorems and of recognized
+\code{casesOn} constants.
 
 \begin{itemize}
 \item \lead{Phase I only} a recursor other than the \code{T.rec} of a recognized \code{T.casesOn},
@@ -220,7 +223,8 @@ string literal & 1 \\
 \section*{Caveats}
 \begin{itemize}
 \item \lead{Caveat} The eraser may still fail on an in-scope input (fuel, oracle failure, name
-  collision): no output, no claim.
+  collision, an alternative's type that needs $\iota$, an unexpected traversal case): no output, no
+  claim.
 \item \lead{Caveat} The fragment test is syntactic and the typing hypotheses semantic; the final
   theorem assumes both.
 \item \lead{Caveat} The corpus counts measure the shipping test on the shipping corpus; they are

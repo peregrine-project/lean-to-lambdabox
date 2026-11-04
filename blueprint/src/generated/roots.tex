@@ -3,12 +3,54 @@
 \toprule
 Root theorem & Consumer \\
 \midrule
-\leandecl{EraseProof.TypeEq.sort_ne_forallE} (\ref{lem:EraseProof-TypeEq-sort_ne_forallE}) & \code{EraseProof.\allowbreak{}IsErasable.\allowbreak{}ctor\_\allowbreak{}not} (\ref{lem:EraseProof-IsErasable-ctor_not}) \\
-\leandecl{EraseProof.TypeEq.sort_ne_ind} (\ref{lem:EraseProof-TypeEq-sort_ne_forallE}) & \code{EraseProof.\allowbreak{}IsErasable.\allowbreak{}ctor\_\allowbreak{}not} (\ref{lem:EraseProof-IsErasable-ctor_not}) \\
-\leandecl{EraseProof.TypeEq.forallE_ne_ind} (\ref{lem:EraseProof-TypeEq-sort_ne_forallE}) & \code{EraseProof.\allowbreak{}IsErasable.\allowbreak{}ctor\_\allowbreak{}not} (\ref{lem:EraseProof-IsErasable-ctor_not}) \\
 \leandecl{EraseProof.TypeEq.sort_ne_quot} (\ref{lem:EraseProof-TypeEq-sort_ne_quot}) & \code{EraseProof.\allowbreak{}IsErasable.\allowbreak{}quotMk\_\allowbreak{}not} (\ref{lem:EraseProof-IsErasable-quotMk_not}) \\
 \leandecl{EraseProof.TypeEq.forallE_ne_quot} (\ref{lem:EraseProof-TypeEq-sort_ne_quot}) & \code{EraseProof.\allowbreak{}IsErasable.\allowbreak{}quotMk\_\allowbreak{}not} (\ref{lem:EraseProof-IsErasable-quotMk_not}) \\
 \leandecl{EraseProof.TypeEq.ind_ne_quot} (\ref{lem:EraseProof-TypeEq-sort_ne_quot}) & \code{EraseProof.\allowbreak{}IsErasable.\allowbreak{}quotMk\_\allowbreak{}not} (\ref{lem:EraseProof-IsErasable-quotMk_not}) \\
+\leandecl{EraseProof.ProgEnv.fresh} (\ref{lem:EraseProof-ProgEnv-lookup}) & \code{EraseProof.\allowbreak{}erasePure\_\allowbreak{}erases} (\ref{thm:EraseProof-erasePure_erases}) \\
+\leandecl{EraseProof.proj_defeq} (\ref{lem:EraseProof-proj_defeq}) & \code{EraseProof.\allowbreak{}SrcEval.\allowbreak{}defeq} (\ref{lem:EraseProof-SrcEval-defeq}) \\
+\leandecl{EraseProof.ProgEnv.unfold} (\ref{lem:EraseProof-ProgEnv-unfold}) & \code{EraseProof.\allowbreak{}SrcEval.\allowbreak{}defeq} (\ref{lem:EraseProof-SrcEval-defeq}) \\
+\leandecl{EraseProof.ProgEnv.lookup} (\ref{lem:EraseProof-ProgEnv-lookup}) & \code{EraseProof.\allowbreak{}Pure.\allowbreak{}inferType\_\allowbreak{}sound} (\ref{lem:EraseProof-Pure-isErasable_sound}) \\
+\leandecl{EraseProof.TrM.weakFV_let} (\ref{lem:EraseProof-TrM-weakBV}) & \code{EraseProof.\allowbreak{}erasePure\_\allowbreak{}erases} (\ref{thm:EraseProof-erasePure_erases}) \\
+\leandecl{EraseProof.TrM.inst_fvar} (\ref{lem:EraseProof-TrM-weakBV}) & \code{EraseProof.\allowbreak{}erasePure\_\allowbreak{}erases} (\ref{thm:EraseProof-erasePure_erases}) \\
+\leandecl{EraseProof.TrM.weakBV} (\ref{lem:EraseProof-TrM-weakBV}) & \code{EraseProof.\allowbreak{}Erases.\allowbreak{}inst} (\ref{lem:EraseProof-Erases-inst}) \\
+\leandecl{EraseProof.TrM.weakFV} (\ref{lem:EraseProof-TrM-weakBV}) & \code{EraseProof.\allowbreak{}erasePure\_\allowbreak{}erases} (\ref{thm:EraseProof-erasePure_erases}) \\
+\leandecl{EraseProof.Erases.closed} (\ref{lem:EraseProof-Erases-closed}) & \code{EraseProof.\allowbreak{}erases\_\allowbreak{}correct} (\ref{thm:EraseProof-erases_correct}) \\
+\leandecl{EraseProof.Erases.app_inv} (\ref{lem:EraseProof-Erases-closed}) & \code{EraseProof.\allowbreak{}erases\_\allowbreak{}correct} (\ref{thm:EraseProof-erases_correct}) \\
+\leandecl{EraseProof.Erases.ctor_inv} (\ref{lem:EraseProof-Erases-closed}) & \code{EraseProof.\allowbreak{}erases\_\allowbreak{}correct} (\ref{thm:EraseProof-erases_correct}) \\
+\leandecl{EraseProof.Erases.atomSpine_box} (\ref{lem:EraseProof-Erases-closed}) & \code{EraseProof.\allowbreak{}erases\_\allowbreak{}correct} (\ref{thm:EraseProof-erases_correct}) \\
+\leandecl{EraseProof.ErasesDeps.ext} (\ref{lem:EraseProof-ErasesDeps-eval}) & \code{EraseProof.\allowbreak{}erasePure\_\allowbreak{}erases} (\ref{thm:EraseProof-erasePure_erases}) \\
+\leandecl{EraseProof.ErasesDeps.eval} (\ref{lem:EraseProof-ErasesDeps-eval}) & \code{EraseProof.\allowbreak{}erases\_\allowbreak{}correct} (\ref{thm:EraseProof-erases_correct}) \\
+\leandecl{EraseProof.TrM.det} (\ref{lem:EraseProof-TrM-det}) & \code{EraseProof.\allowbreak{}erasePure\_\allowbreak{}erases} (\ref{thm:EraseProof-erasePure_erases}) \\
+\leandecl{EraseProof.Erases.extend} (\ref{lem:EraseProof-Erases-extend}) & \code{EraseProof.\allowbreak{}erase\_\allowbreak{}correct} (\ref{thm:EraseProof-erase_correct}) \\
+\leandecl{EraseProof.Erases.cases_inv} (\ref{lem:EraseProof-Erases-closed}) & \code{EraseProof.\allowbreak{}erases\_\allowbreak{}correct} (\ref{thm:EraseProof-erases_correct}) \\
+\leandecl{EraseProof.IsErasable.instL} (\ref{lem:EraseProof-IsErasable-inst}) & \code{EraseProof.\allowbreak{}erases\_\allowbreak{}correct} (\ref{thm:EraseProof-erases_correct}) \\
+\leandecl{EraseProof.Erases.instLevels} (\ref{lem:EraseProof-Erases-instLevels}) & \code{EraseProof.\allowbreak{}erases\_\allowbreak{}correct} (\ref{thm:EraseProof-erases_correct}) \\
+\leandecl{EraseProof.casesOn_whred} (\ref{lem:EraseProof-casesOn_whred}) & \code{EraseProof.\allowbreak{}SrcEval.\allowbreak{}defeq} (\ref{lem:EraseProof-SrcEval-defeq}) \\
+\leandecl{EraseProof.casesOnLit_whred} (\ref{lem:EraseProof-casesOn_whred}) & \code{EraseProof.\allowbreak{}SrcEval.\allowbreak{}defeq} (\ref{lem:EraseProof-SrcEval-defeq}) \\
+\leandecl{EraseProof.SrcEval.value} (\ref{lem:EraseProof-SrcEval-value}) & \code{EraseProof.\allowbreak{}erases\_\allowbreak{}correct} (\ref{thm:EraseProof-erases_correct}) \\
+\leandecl{EraseProof.IsErasable.app} (\ref{lem:EraseProof-IsErasable-inst}) & \code{EraseProof.\allowbreak{}erases\_\allowbreak{}correct} (\ref{thm:EraseProof-erases_correct}) \\
+\leandecl{EraseProof.IsErasable.lam_inv} (\ref{lem:EraseProof-IsErasable-inst}) & \code{EraseProof.\allowbreak{}erases\_\allowbreak{}correct} (\ref{thm:EraseProof-erases_correct}) \\
+\leandecl{EraseProof.IsErasable.ctor_not} (\ref{lem:EraseProof-IsErasable-ctor_not}) & \code{EraseProof.\allowbreak{}erases\_\allowbreak{}correct} (\ref{thm:EraseProof-erases_correct}) \\
+\leandecl{EraseProof.SrcEval.restrict} (\ref{lem:EraseProof-SrcEval-restrict}) & \code{EraseProof.\allowbreak{}erase\_\allowbreak{}correct} (\ref{thm:EraseProof-erase_correct}) \\
+\leandecl{EraseProof.isRecursiveDecl_false} (\ref{lem:EraseProof-isRecursiveDecl_false}) & \code{EraseProof.\allowbreak{}erasePure\_\allowbreak{}erases} (\ref{thm:EraseProof-erasePure_erases}) \\
+\bottomrule
+\end{tabular}
+
+\begin{tabular}{p{0.45\linewidth}p{0.45\linewidth}}
+\toprule
+Root theorem & Consumer \\
+\midrule
+\leandecl{EraseProof.Defeq.inst_tele} (\ref{lem:EraseProof-Defeq-inst_tele}) & \code{EraseProof.\allowbreak{}Erases.\allowbreak{}inst} (\ref{lem:EraseProof-Erases-inst}) \\
+\leandecl{EraseProof.TrM.inst} (\ref{lem:EraseProof-TrM-inst}) & \code{EraseProof.\allowbreak{}Erases.\allowbreak{}inst} (\ref{lem:EraseProof-Erases-inst}) \\
+\leandecl{EraseProof.TrM.inst_let} (\ref{lem:EraseProof-TrM-inst}) & \code{EraseProof.\allowbreak{}Erases.\allowbreak{}inst\_\allowbreak{}let} (\ref{lem:EraseProof-Erases-inst}) \\
+\leandecl{EraseProof.ProgEnv.metaOrderOK} (\ref{lem:EraseProof-ProgEnv-lookup}) & \code{EraseProof.\allowbreak{}Erases.\allowbreak{}inst} (\ref{lem:EraseProof-Erases-inst}) \\
+\leandecl{EraseProof.IsErasable.inst} (\ref{lem:EraseProof-IsErasable-inst}) & \code{EraseProof.\allowbreak{}Erases.\allowbreak{}inst} (\ref{lem:EraseProof-Erases-inst}) \\
+\leandecl{EraseProof.TrM.wf_app} (\ref{lem:EraseProof-TrM-det}) & \code{EraseProof.\allowbreak{}SrcEval.\allowbreak{}defeq} (\ref{lem:EraseProof-SrcEval-defeq}) \\
+\leandecl{EraseProof.TrM.uninstantiateN} (\ref{lem:EraseProof-TrM-uninstantiateN}) & \code{EraseProof.\allowbreak{}erasePure\_\allowbreak{}erases} (\ref{thm:EraseProof-erasePure_erases}) \\
+\leandecl{EraseProof.Erases.abstract} (\ref{lem:EraseProof-Erases-abstract}) & \code{EraseProof.\allowbreak{}erasePure\_\allowbreak{}erases} (\ref{thm:EraseProof-erasePure_erases}) \\
+\leandecl{EraseProof.LBEval.idem} (\ref{lem:EraseProof-LBEval-idem}) & \code{EraseProof.\allowbreak{}erases\_\allowbreak{}correct} (\ref{thm:EraseProof-erases_correct}) \\
+\leandecl{EraseProof.Erases.ctorProp_box} (\ref{lem:EraseProof-Erases-closed}) & \code{EraseProof.\allowbreak{}erases\_\allowbreak{}correct} (\ref{thm:EraseProof-erases_correct}) \\
+\leandecl{EraseProof.Erases.propProj_box} (\ref{lem:EraseProof-Erases-closed}) & \code{EraseProof.\allowbreak{}erases\_\allowbreak{}correct} (\ref{thm:EraseProof-erases_correct}) \\
 \bottomrule
 \end{tabular}
 

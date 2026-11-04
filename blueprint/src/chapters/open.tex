@@ -3,9 +3,10 @@
 \section*{At a glance}
 \begin{itemize}
 \item \lead{Goal} List what is not done, and what the final theorem does not cover.
-\item \lead{Status} \stProved{} the no-confusion lemmas and the tests. \stOpen{} \hl{every planned
-  node}, the shipping entries of Phase II, the instances of the remaining hypotheses on the
-  non-vacuity programs, and the final-form checks.
+\item \lead{Status} \stProved{} the formalized lemmas and the tests (counts in
+  Section~\ref{sec:intro-kinds}). \stOpen{} \hl{every planned node}, the shipping entries of
+  Phase II, the instances of the remaining hypotheses on the non-vacuity programs, and the
+  final-form checks.
 \end{itemize}
 
 \section{Planned statements}\label{sec:open-planned}
@@ -37,10 +38,11 @@ it; the table is generated from \code{proof/ROOTS.txt}.
   cites: each gets its entry with the artifact that diverges.
 \item \lead{Checks} \stOpen{} the \code{peregrine} part of C11 (\code{proof/scripts/c11.sh}) and
   the final form of C12 (Section~\ref{sec:trust-checks}).
-\item \lead{Non-vacuity} \stOpen{} the instances of \code{henv}, \code{hwf}, \code{hview},
-  \code{he}, \code{hty} and \code{hev} on NV-1, NV-P and NV-K, and the instance
+\item \lead{Non-vacuity} \stOpen{} the instances of \code{hview} and \code{hev} on NV-1, of
+  every hypothesis but \code{hfrag} and \code{hrun} on NV-P and NV-K, and the instance
   \code{EraseProof.Test.NV1.final} of the final theorem that the final form of C12 requires;
-  \code{hfrag} and \code{hrun} are proved (Chapter~\ref{chap:tests}).
+  \stProved{} \code{hfrag} and \code{hrun} on the three programs, and \code{henv}, \code{hwf},
+  \code{he}, \code{hty} on NV-1 (Chapter~\ref{chap:tests}).
 \end{itemize}
 
 \section{Outside the final theorem}\label{sec:open-outside}
@@ -52,6 +54,8 @@ Not covered & Where it is stated \\
 Runs that fail, sources that do not evaluate & partial correctness (Chapter~\ref{chap:final}) \\
 Inputs outside the fragment & the \code{Meta} path, trusted (Section~\ref{sec:trust-trusted});
   the scope (Chapter~\ref{chap:scope}) \\
+Matches on \code{And}-like theorems with fields; opaques with values & the scope note of
+  Section~\ref{sec:final-reading} \\
 \code{remove\_irrel\_constr\_args}, \code{nat := .machine} & out of scope
   (Section~\ref{sec:scope-features}) \\
 The constants to inline & the caveats of Chapter~\ref{chap:final} \\
