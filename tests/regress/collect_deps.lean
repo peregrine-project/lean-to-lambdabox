@@ -22,7 +22,10 @@ entries S-18, S-29); `#erase` routes on it (S-21):
   `Nat.zero` under `nat := .machine`, a recursor in a definition and alone, a `partial def`, an
   `implemented_by` target, a `casesOn` with an index field, a `casesOn` on `PUnit`, and any
   inductive under `remove_irrel_constr_args`; two blocks with one block name, and a block whose
-  name is the kername of a definition, are `nameCollision`.
+  name is the kername of a definition, are `nameCollision`;
+- the closure of a projection contains its structure, also when nothing else in the program
+  mentions it (S-30): the closure of `.proj PS 0 hq` (`PS : Prop` a structure, `hq : Q` an axiom of
+  another type) has `PS` and its constructor.
 The output of `#erase` on the program `one (fun a : A => a)` is pinned (`nv1.ast`).
 -/
 
@@ -245,6 +248,19 @@ info: ["isZero 2, peano: ok", "isZero 2, machine: outOfFragment Nat literal unde
     s!"F.Q.q', useQs: {← names {} (.app (mkConst ``F.useQs) (mkConst ``F.Q.q'))}",
     s!"useBlk: {← names {} (mkConst ``useBlk)}",
     s!"RB.y: {short (← names {} (mkConst ``RB.y))}"]
+
+/-! ## The structure of a projection -/
+
+namespace G
+structure PS : Prop where
+  a : True
+axiom Q : Prop
+axiom hq : Q
+end G
+
+/-- info: "ok [G.Q, G.hq, True.intro, True, G.PS.mk, G.PS]" -/
+#guard_msgs in
+#eval show MetaM String from names {} (.proj ``G.PS 0 (mkConst ``G.hq))
 
 /-! ## The program `one (fun a : A => a)`, erased -/
 

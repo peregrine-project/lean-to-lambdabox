@@ -128,6 +128,7 @@ instance : Backend CmpM where
       { calls := s.calls + 1, diffs := if p == m then s.diffs else s.diffs.push ⟨t, p, m⟩ }
     liftP (Backend.isErasable (m := PureM) lctx ls e)
   inferType lctx ls e := liftP (Backend.inferType lctx ls e)
+  whnf lctx ls e := liftP (Backend.whnf lctx ls e)
   isPropFormerType e := do
     let r := ((Backend.isPropFormerType (m := PureM) e).run (← readThe PureCtx)).run
       (← getThe PureState)
@@ -165,6 +166,8 @@ instance : Backend CmpM where
   prepare cfg e := liftP (Backend.prepare cfg e)
   log s := liftP (Backend.log (m := PureM) s)
   outOfFuel site := liftP (Backend.outOfFuel site)
+  error msg := liftP (Backend.error msg)
+  fail msg := liftP (Backend.fail msg)
 
 /-- The run of `erasePure`, with the backend `CmpM` in place of `PureM`. -/
 def erasePureCmp (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo) (e : Expr) :

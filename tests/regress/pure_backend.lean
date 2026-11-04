@@ -7,7 +7,9 @@ programs in the fragment (S-21). The test checks:
 - the operations of the instance `Backend PureM`: `declInfo?` is `findConst?`, `unsafeRecBase?` is
   always `none`, `prepare` returns its term, no constant is an instance, `log` does nothing,
   `instantiate1` is `Expr.instantiate1'` (by `rfl`); every constructor field is kept,
-  and a missing constant and fuel exhaustion are errors of the pure path;
+  and a missing constant, fuel exhaustion, `error` and `fail` are errors of the pure path, also
+  where the traversal meets a case it does not expect (`lambdaMonocular` on a term that is not a
+  λ: register entry S-33);
 - at this backend the traversal's recursion test `name_occurs` is `nameOccurs` (by `rfl`), and the
   test of `visitMutual` is `isRecursiveDecl`;
 - `isRecursiveDecl` and `axiomatized` on declarations of the elaboration environment;
@@ -220,10 +222,17 @@ def ctor2 : ConstructorVal :=
   { name := `c, levelParams := [], type := AE, induct := `I, cidx := 0, numParams := 0,
     numFields := 2, isUnsafe := false }
 
-/-- info: ["outOfFragment unknown constant x", "fuel site", "ok [keep, keep]"] -/
+/--
+info: ["outOfFragment unknown constant x", "fuel site", "failed e", "failed f", "failed lambdaMonocular: not a λ",
+  "ok [keep, keep]"]
+-/
 #guard_msgs in
 #eval [showRes (runP (Backend.unknownConstant (m := PureM) (α := Unit) `x)),
   showRes (runP (Backend.outOfFuel (m := PureM) (α := Unit) "site")),
+  showRes (runP (Backend.error (m := PureM) (α := Unit) "e")),
+  showRes (runP (Backend.fail (m := PureM) (α := Unit) "f")),
+  showRes ((lambdaMonocular (m := PureM) (α := LBTerm) (.const `x []) fun _ _ => pure .box).runPure
+    {} { «config» := {} } ⟨decls, emptyView⟩ {}),
   match runP (Backend.argMask (m := PureM) {} ctor2) with
   | .ok (mask, _) => s!"ok {mask.toList.map showRel}"
   | .error e => showErr e]

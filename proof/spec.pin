@@ -15,7 +15,7 @@ body EraseProof.BlocksCong.match_1 cfa2ba11a4c4b029dd557d5202c81da09bd979370ef50
 body EraseProof.CasesReduced 9e86f75f2f50c238135cf7049f11bcf5c94be9e4aa3053344c3178e907aebae9
 body EraseProof.ConstTyped 18f00089807f19594bddc5a4f595cd18d4171073fe864ac38d910fd7b7f4d9fc
 body EraseProof.ConstsIn bc38d3fb221c3a49805761db34f07c4a9f7690e4c5a8eb28a03372bfc9923c12
-body EraseProof.ConstsIn._f badf57e41316074dc8a40038b29a521ab047d8f4a690acb52be266219f88e192
+body EraseProof.ConstsIn._f 28abaa3e9d15bab04efb1c1c77ad397594819b0c69a9c9abd5fc84b2255ef7fc
 body EraseProof.ConstsIn._sparseCasesOn_1 7d15335bc9cb860496c3864afb3b03cea0c85589967187246cd5f30f5c9dfdc9
 body EraseProof.ConstsIn.match_1 0b1ad4f86386f77086852cdc43c81caf1b004c4ae813c3182f5712c017500351
 body EraseProof.CtorValue 65fc954f0e2d3788fcf8e6552da0c8b21c93b1b44f68189756ad7460b30d37ce
@@ -27,8 +27,8 @@ body EraseProof.EmitsConst 6bff6f8e2276c66af42e7116c4a19e2290868d0bde74acd96227f
 body EraseProof.EmitsConst._sparseCasesOn_1 9a12a3607e0cb7b686d3eac177ff2fa1273c4d27f82cc31183a9922e375d0f06
 body EraseProof.EmitsConst.match_1 6cf5a15bd3bbc1955fb0acb1c27a6b38689ae6797d54b3905061bceb5731b086
 body EraseProof.ErasableS 7f0343f2b0927295a26875d99cb3caa89ba46ed173b66dacb1c79c719f92236c
-body EraseProof.Erases ad7844311b240faaecee054dd5438e0be7b0f6ee2eecb328e23a394b15a5c325
-body EraseProof.ErasesAlt 16ada5fc152bc26f6a65e4904492b364d7c1ce3cf44d8c1f500fc2e9bee7602d
+body EraseProof.Erases b5cab70d07af8a363b4647d4f5a3189fa9b9b4ffdaa999e9bccb94f7ce884e02
+body EraseProof.ErasesAlt d8ce4d8233d3002626a5d7b5138bac8776d06c5a358134803d89d12d4d0bbca8
 body EraseProof.ErasesDecl e212870c5423c11e79fc542d66541d40a1065a6e1348da067249b819a1d3293d
 body EraseProof.ErasesDecl.match_1 b05ec0ef0e9012c82adf205e423a65e5f4814e245764aa12922433738c85fb65
 body EraseProof.ErasesDeps d7a1acce06c48d48c6607b72dd109315c2ec56a5e1cd364d5527fbbd13da120a
@@ -68,7 +68,7 @@ body EraseProof.HasNatLit._f 328221469c80876200f55ef73bc2caa03c855795da8b15ac221
 body EraseProof.HasNatLit._sparseCasesOn_1 c1908fcce9b91aea7a8b6b322a94af525f9f9d1e9736fd7abb6e7127bf35d085
 body EraseProof.HasNatLit._sparseCasesOn_2 e689bdfb4c366f7aac9a346f1862cb65935fff0902822e0a5f9754635d7da85d
 body EraseProof.HasNatLit.match_1 2c240727d508f8a63cf9a5ef80601c264b96e14cc5b4a5fe4f54785bacaa699b
-body EraseProof.IndBlock 122bc7a48edafa9cf6e46d43e27eb8cd8ef7ec55f57df227fca98d3590d9db76
+body EraseProof.IndBlock 9f14ac1bc6c9abfa1c3c5aaf7f2cac11bc215d802e983d9ca0223fae48aadd29
 body EraseProof.IndBlock.decls 042c1644a027265f48e2651cf35324ba28cfc314ec99ffe1a560de3eb0baa07d
 body EraseProof.IndIdOf c9a44675ded72773d05d81d67aa1a5ff10d9b8d5f18815dced44eb45c8922257
 body EraseProof.IsArity 891d554675da5b6777c59a3bf6e67d7ab9facd495741b63cc3cc8b3f98d38dc3
@@ -126,7 +126,7 @@ body EraseProof.PhaseIDecl.match_1 24d75a2367aa309633d3d0679588c96c83106f2b49bfa
 body EraseProof.PlainExpr 2bd6f652f6cb8ae7300e68dea38805e2e5a9a206a26ad8c7f4306a6acc5eabc8
 body EraseProof.PlainExpr._f f30a62902e82f5361687c2cbdb88a8ee2cb329bc374ef5b13702d41cbc2854f1
 body EraseProof.PlainExpr.match_1 59ba7db01d940767d97971c2b4f7174a76589d342961f6f6b6bf67b0d8eff239
-body EraseProof.ProgEnv 6858927bab5bfaa1b19266feb60b380a7231008984389ae36f925a7c994a5e75
+body EraseProof.ProgEnv 9643a67acdf9b638127a009211e3953bdc1576430fa03e333645530ceb4cc83f
 body EraseProof.PropInductive 858aadbee8f5f32581dbc82c814a998f46a104b9feffa87cd5cf5bd42ac17517
 body EraseProof.PropProj 670328ff997185b9b2890b04bbe82b1c2436a37f5fb77adfc74f664a3ff29870
 body EraseProof.ReadClosed 3f2e4c2c90e602743cd62a1b3a1f666fd8f7a640cc67e73e09a65ca8f53aba91
@@ -148,7 +148,8 @@ body EraseProof.TrLevel._f d48cf63ebc7ae535b390af76c1641f91fbe1a680d0782d1204af4
 body EraseProof.TrLevel.match_1 6812aaa5ad5bde6a553ad766b25d63fa4400a774ca6f52b2b07e9a6c4c2c138d
 body EraseProof.TrLevels aa886ff6854c2b4562b6256b237cb8b99679370df0262d784959e9d782673dd1
 body EraseProof.TrLevels._proof_2 c60b5283073bba0a263ff36a43c6a02347a469a3268191e5b372a122880b4e2d
-body EraseProof.TrM e0f6d3d061a869885c2bf0facf0b416a2786e64eb03b69068c0527e33c4079c2
+body EraseProof.TrM 06d5f2096a4b700c92dee028e76e3abb168b019e4a7d24eb8bcba61dfa901125
+body EraseProof.TypedExt 2c86fb7548f641b58c5262edb1dc0726f444c33bb8ef166aced8c3da2ea08bd2
 body EraseProof.ViewAgrees 9355d70ae7d3c51c1c04c447ac292888ca5d45c95829eace0e5b06bcbb555071
 body EraseProof.WcbvFlags f223d7014b401235e77e65cb59fc3a57be6005bfa2205aea0bc5c24df5d21d9d
 body EraseProof.WcbvFlags.mk 94c609bb82ce75b15e024245aa41e9389849e953db32728d2c76027a7dbcd1ae
@@ -316,6 +317,7 @@ name Erasure.eraseEntry
 name Erasure.erasePure
 name Erasure.indexFields
 name Erasure.mayBeNonZero
+name Erasure.minorArity
 name Except
 name Except.ok
 name Exists
@@ -334,6 +336,7 @@ name FixDef.body
 name FixDef.casesOn
 name FixDef.mk
 name FixDef.principalArgIdx
+name Function.Injective
 name GetElem.getElem
 name GetElem?.getElem?
 name GlobalDecl
@@ -346,6 +349,7 @@ name HAdd.hAdd
 name HAppend.hAppend
 name HEq
 name HEq.refl
+name HMul.hMul
 name HSub.hSub
 name IO.RealWorld
 name Iff
@@ -511,6 +515,7 @@ name Lean.RecursorVal.toConstantVal
 name Lean.TheoremVal
 name Lean.TheoremVal.all
 name Lean.TheoremVal.toConstantVal
+name Lean.TheoremVal.value
 name Lean.instBEqFVarId
 name Lean.mkAppN
 name Lean.mkRecName
@@ -545,6 +550,7 @@ name List.rec
 name List.replicate
 name List.reverse
 name List.sum
+name List.take
 name List.toArray
 name Matrix.vecCons
 name Matrix.vecEmpty
@@ -560,6 +566,7 @@ name Metalean.CtorSig.mk
 name Metalean.CtorSig.nfields
 name Metalean.CtorSig.nrecFields
 name Metalean.Ctx
+name Metalean.Ctx.get
 name Metalean.Ctx.lam
 name Metalean.Ctx.nil
 name Metalean.Ctx.pi
@@ -600,6 +607,7 @@ name Metalean.Expr.quotInd
 name Metalean.Expr.quotLift
 name Metalean.Expr.quotMk
 name Metalean.Expr.recr
+name Metalean.Expr.rename
 name Metalean.Expr.sort
 name Metalean.Expr.var
 name Metalean.Expr.wk
@@ -637,6 +645,7 @@ name Metalean.Inductive.caseTele
 name Metalean.Inductive.ctors
 name Metalean.Inductive.level
 name Metalean.Inductive.motiveTele
+name Metalean.IsType
 name Metalean.Level
 name Metalean.Level.imax
 name Metalean.Level.max
@@ -644,6 +653,7 @@ name Metalean.Level.param
 name Metalean.Level.succ
 name Metalean.Level.zero
 name Metalean.Param
+name Metalean.Ren
 name Metalean.Sig
 name Metalean.Sig.const
 name Metalean.Sig.inductive
@@ -652,6 +662,7 @@ name Metalean.Sigs
 name Metalean.Sigs.nil
 name Metalean.Sigs.snoc
 name Metalean.TypeEq
+name Metalean.Var
 name Monad.toBind
 name MutualInductiveBody
 name MutualInductiveBody.bodies
@@ -732,11 +743,13 @@ name instDecidableEqBool
 name instDecidableEqNat
 name instHAdd
 name instHAppendOfAppend
+name instHMul
 name instHSub
 name instLENat
 name instLTNat
 name instMonadEIO
 name instMonadOption
+name instMulNat
 name instOfNatNat
 name instSubNat
 name ite
