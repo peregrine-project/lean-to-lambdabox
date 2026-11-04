@@ -7,6 +7,7 @@ EraseProof.proj_defeq propext,Classical.choice,Quot.sound
 EraseProof.ProgEnv.fresh propext,Classical.choice,Quot.sound
 EraseProof.ProgEnv.lookup_ind propext,Classical.choice,Quot.sound
 EraseProof.ProgEnv.unfold_delta propext,Classical.choice,Quot.sound
+EraseProof.ctorSat_iota propext,Classical.choice,Quot.sound
 EraseProof.Test.bind_ok propext,Classical.choice,Quot.sound
 EraseProof.Test.forIn_toSubarray_size propext,Classical.choice,Quot.sound
 EraseProof.Test.runPure_bind propext,Classical.choice,Quot.sound
@@ -14,6 +15,12 @@ EraseProof.Test.runPure_withReader propext,Classical.choice,Quot.sound
 EraseProof.Test.toArray_toSubarray propext,Classical.choice,Quot.sound
 EraseProof.Test.withApp_app1 propext
 EraseProof.Test.withApp_const propext
+EraseProof.TrM.fvarsIn propext,Classical.choice,Quot.sound
+EraseProof.TrM.instLevels propext,Classical.choice,Quot.sound
+EraseProof.TrM.inst_fvar propext,Classical.choice,Quot.sound
+EraseProof.TrM.weakBV propext,Classical.choice,Quot.sound
+EraseProof.TrM.weakFV propext,Classical.choice,Quot.sound
+EraseProof.TrM.weakFV_let propext,Classical.choice,Quot.sound
 EraseProof.TypeEq.forallE_ne_ind propext,Classical.choice,Quot.sound
 EraseProof.TypeEq.forallE_ne_quot propext,Classical.choice,Quot.sound
 EraseProof.TypeEq.ind_ne_quot propext,Classical.choice,Quot.sound

@@ -16,3 +16,10 @@ EraseProof.ProgEnv.fresh EraseProof.erasePure_erases
 EraseProof.ProgEnv.lookup_ind EraseProof.casesOn_whred
 EraseProof.proj_defeq EraseProof.SrcEval.defeq
 EraseProof.ProgEnv.unfold_delta EraseProof.ProgEnv.unfold
+EraseProof.TrM.fvarsIn EraseProof.erasePure_erases
+EraseProof.TrM.weakFV_let EraseProof.erasePure_erases
+EraseProof.TrM.inst_fvar EraseProof.erasePure_erases
+EraseProof.ctorSat_iota EraseProof.casesOn_whred
+EraseProof.TrM.weakBV EraseProof.TrM.inst
+EraseProof.TrM.weakFV EraseProof.erasePure_erases
+EraseProof.TrM.instLevels EraseProof.ProgEnv.unfold

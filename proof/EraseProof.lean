@@ -1,6 +1,12 @@
 import EraseProof.Bridge.ProgEnv
 import EraseProof.Bridge.Proj
 import EraseProof.Bridge.WkEnv
+import EraseProof.Bridge.Basic
+import EraseProof.Bridge.Perm
+import EraseProof.Bridge.Subst
+import EraseProof.Bridge.Weak
+import EraseProof.Bridge.InstL
+import EraseProof.Bridge.Levels
 import EraseProof.Metatheory.NoConf
 import EraseProof.Statements
 import EraseProof.Test.NoConf
