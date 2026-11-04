@@ -86,8 +86,9 @@ def altsEq : Std.HashMap Name (Nat × Expr) := (∅ : Std.HashMap Name (Nat × E
 theorem altsEq_refl : altsEq[`Eq.refl]? = some (0, idB) := by
   simp only [altsEq, Std.HashMap.getElem?_insert_self]
 
-/-- `visitCases` on the `Eq.casesOn`: the major's sort is `Prop` and `Eq` has one constructor,
-so the result is the erased alternative. Reference: `iotaSing` of λ□ (`MR E/EWcbvEval.v`), applied
+/-- `visitCases` on the `Eq.casesOn`: `Eq.casesOn` has one universe parameter more than `Eq`,
+so it eliminates into data; the major's sort is `Prop` and `Eq` has one constructor, so the
+result is the erased alternative. Reference: `iotaSing` of λ□ (`MR E/EWcbvEval.v`), applied
 at erasure time (the `tCase` case of `erase`, `MR E/ErasureFunction.v:1016`). -/
 theorem visitCases_run {k : Bool} {n : Nat} {L : LocalContext} :
     (visitCases (m := PureM) (n + 6) ciEq (args k)).runPure st ⟨L, [], none, {}⟩ (pcK k) ⟨0⟩ =
@@ -98,15 +99,19 @@ theorem visitCases_run {k : Bool} {n : Nat} {L : LocalContext} :
     apply bind_ok rfl
     apply bind_ok rfl
     apply bind_ok rfl
-    refine bind_ok (a := .zero) (st' := st) (ps' := ⟨0⟩) (by krfl) ?_
+    apply bind_ok rfl
+    apply bind_ok rfl
+    refine bind_ok (a := Level.zero) (st' := st) (ps' := ⟨0⟩) (by krfl) ?_
     simp only [← forIn'_eq_forIn, Std.Rco.forIn'_eq_forIn'_toList, hr, List.forIn'_cons,
       List.forIn'_nil]
     refine bind_ok (a := (altsEq, none, ?sEnd)) (st' := st) (ps' := ⟨0⟩) ?_ ?_
     case sEnd => exact (ciEq.altNumParams.toSubarray 1 1)
     · rfl
     refine bind_ok (a := ∅) (st' := st) (ps' := ⟨0⟩) rfl ?_
-    simp only [show Eq_ind.ctors[0]! = `Eq.refl from rfl, altsEq_refl, Std.HashMap.getElem?_empty,
+    simp only [Std.HashMap.getElem?_empty,
       show (!Level.zero.isNeverZero && Eq_ind.numCtors == 1) = true from rfl, ite_true]
+    refine bind_ok (a := `Eq.refl) (st' := st) (ps' := ⟨0⟩) rfl ?_
+    simp only [altsEq_refl]
     apply bind_ok idB_run
     simp only [toArray_toSubarray]
     krfl

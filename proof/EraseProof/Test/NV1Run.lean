@@ -66,7 +66,7 @@ theorem register_B_new {L : LocalContext} {ls : List Local} {F : Option (Std.Has
     (ps' := ps) rfl
   apply bind_ok rfl
   apply bind_ok rfl
-  simp only [Std.HashMap.getElem!_insert_self]
+  simp only [Std.HashMap.getElem?_insert_self]
   rfl
 
 /-- `register_inductive` on `B` when it is registered. Reference: none. -/
@@ -202,8 +202,9 @@ theorem casesInfo_B : casesInfo? D `B.casesOn = some ciB := by krfl
 /-- The motive `fun x => B` of `B.neg`'s `casesOn`. -/
 def motNeg : Expr := .lam `x tB tB .default
 
-/-- `visitCases` on `B.neg`'s `casesOn` under `b`: the discriminant's sort is never `Prop`, so
-the result is the λ□ `case`. Reference: the `tCase` case of `erase`
+/-- `visitCases` on `B.neg`'s `casesOn` under `b`: `B.casesOn` has one universe parameter more
+than `B`, so it eliminates into data, and the discriminant's sort is never `Prop`, so the result
+is the λ□ `case`. Reference: the `tCase` case of `erase`
 (`MR E/ErasureFunction.v:1016`). -/
 theorem visitCases_run {n : Nat} {L : LocalContext} {F : Option (Std.HashMap Name FVarId)}
     (h : st.inductives[`B]? = none) :
@@ -213,7 +214,9 @@ theorem visitCases_run {n : Nat} {L : LocalContext} {F : Option (Std.HashMap Nam
   apply bind_ok rfl
   apply bind_ok rfl
   apply bind_ok rfl
-  refine bind_ok (a := .succ .zero) (st' := st) (ps' := ps) (by krfl) ?_
+  apply bind_ok rfl
+  apply bind_ok rfl
+  refine bind_ok (a := Level.succ .zero) (st' := st) (ps' := ps) (by krfl) ?_
   have hr : (ciB.altsRange.toList) = [2, 3] := by simp [ciB, Nat.toList_rco_eq_ite]
   simp only [← forIn'_eq_forIn, Std.Rco.forIn'_eq_forIn'_toList, hr, List.forIn'_cons,
     List.forIn'_nil]
@@ -297,6 +300,8 @@ theorem visitMutual_neg_run {n : Nat} {L : LocalContext} {F : Option (Std.HashMa
   apply bind_ok rfl
   apply bind_ok rfl
   apply bind_ok rfl
+  apply bind_ok rfl
+  apply bind_ok rfl
   refine bind_ok (a := negL) (st' := stB st) (ps' := ⟨1⟩) ?_ ?_
   · rw [runPure_withReader]
     apply bind_ok rfl
@@ -315,7 +320,7 @@ theorem kername_neg_run {n : Nat} {L : LocalContext} {F : Option (Std.HashMap Na
   simp only [Std.HashMap.get?_eq_getElem?, hc]
   apply bind_ok (visitMutual_neg_run h)
   apply bind_ok rfl
-  simp only [stNeg, Std.HashMap.getElem!_insert_self]
+  simp only [stNeg, Std.HashMap.getElem?_insert_self]
   rfl
 
 /-- `visitConst` on `B.neg` outside a recursive block. Reference: the `tConst` case of `erase`
