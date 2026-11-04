@@ -360,10 +360,6 @@ theorem instLevels_mkAppN (f : Expr) (as : List Expr) :
       mkAppN (Pure.instLevels ps us f) (as.map (Pure.instLevels ps us)).toArray := by
   rw [mkAppN_toArray, instLevels_foldl, ← mkAppN_toArray]
 
-theorem instLevels_eq_lam {e : Expr} {x : Name} {A b : Expr} {bi : BinderInfo}
-    (h : Pure.instLevels ps us e = .lam x A b bi) : ∃ A' b', e = .lam x A' b' bi := by
-  cases e <;> simp only [Pure.instLevels] at h <;> first | (cases h; exact ⟨_, _, rfl⟩) | cases h
-
 end
 
 /-! ## Level arguments of special spines -/
@@ -630,15 +626,13 @@ theorem Erases.instL_gen (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P)
     rw [MLCtx.instL_pushLam] at this
     exact .lam (hA.instL hus) (let ⟨_, h⟩ := hAt; ⟨_, by simpa using h.instLevel ls⟩) this
   case intro =>
-    intro e _ _ _ _ _ _ _ _ _ _ hne he hty' _ ih hok
+    intro _ _ _ e _ _ _ _ _ _ _ he hty' _ ih hok
     have := ih ⟨LvlOK_lift hok, trivial⟩
     rw [MLCtx.instL_pushLam,
       show Pure.instLevels lps' us (.app (e.liftLooseBVars' 0 1) (.bvar 0)) =
         .app ((Pure.instLevels lps' us e).liftLooseBVars' 0 1) (.bvar 0) by
           rw [← instLevels_lift]; rfl] at this
-    refine .intro (fun x A b bi h => ?_) (he.instL hus) (by simpa using hty'.instLevel ls) this
-    obtain ⟨A', b', rfl⟩ := instLevels_eq_lam _ _ h
-    exact hne x A' b' bi rfl
+    exact .intro (he.instL hus) (by simpa using hty'.instLevel ls) this
 
 end
 

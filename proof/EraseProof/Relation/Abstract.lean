@@ -320,13 +320,6 @@ theorem FVarsIn.mono {p q : FVarId → Prop} (hpq : ∀ y, p y → q y) :
   | .mdata _ e, h | .proj _ _ e, h => FVarsIn.mono hpq (e := e) h
   | .bvar _, _ | .sort _, _ | .const .., _ | .lit _, _ | .mvar _, _ => trivial
 
-theorem absFV_eq_lam {x : FVarId} {d : Nat} {e : Expr} {nm : Name} {A b : Expr} {bi : BinderInfo}
-    (h : absFV x d e = .lam nm A b bi) : ∃ A' b', e = .lam nm A' b' bi := by
-  cases e with
-  | lam => simp only [absFV, Expr.lam.injEq] at h; obtain ⟨rfl, -, -, rfl⟩ := h; exact ⟨_, _, rfl⟩
-  | fvar y => simp only [absFV] at h; split at h <;> cases h
-  | _ => simp only [absFV] at h; cases h
-
 /-! ## The program's types are closed -/
 
 /-- Every declaration's type translates, in the empty context, in some environment. -/
@@ -511,7 +504,7 @@ theorem Erases.absN {σ : EvalEnv} (x : FVarId)
     simp only [absFV]
     exact .lam (TrM.absN hA W) hAt this
   case intro =>
-    intro e _ _ _ _ _ _ _ _ _ _ hne he hty' _ ih d Δ₁ W hcl
+    intro _ _ _ e _ _ _ _ _ _ _ he hty' _ ih d Δ₁ W hcl
     have e1 : ∀ l : Nat, d + 1 + l = d + (l + 1) := fun l => by omega
     dsimp only at hcl ih ⊢
     simp only [List.length_cons] at hcl ⊢
@@ -520,9 +513,7 @@ theorem Erases.absN {σ : EvalEnv} (x : FVarId)
     simp only [absFV, show (0 : Nat) < d + 1 by omega, ↓reduceIte] at this
     rw [show absFV x (d + 1) (e.liftLooseBVars' 0 1) = (absFV x d e).liftLooseBVars' 0 1 from
       absFV_lift x 1 e (Nat.zero_le d)] at this
-    refine .intro (fun nm A b bi h => ?_) (TrM.absN he W) hty' this
-    obtain ⟨A', b', rfl⟩ := absFV_eq_lam h
-    exact hne nm A' b' bi rfl
+    exact .intro (TrM.absN he W) hty' this
 
 end
 

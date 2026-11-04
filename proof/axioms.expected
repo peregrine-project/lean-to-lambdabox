@@ -156,7 +156,6 @@ EraseProof.SrcEval.restrict propext,Classical.choice,Quot.sound
 EraseProof.isRecursiveDecl_false propext,Classical.choice,Quot.sound
 EraseProof.TrM.inst propext,Classical.choice,Quot.sound
 EraseProof.TrM.inst_let propext,Classical.choice,Quot.sound
-EraseProof.ProgEnv.metaOrderOK propext,Classical.choice,Quot.sound
 EraseProof.IsErasable.inst propext,Classical.choice,Quot.sound
 EraseProof.TrM.wf_app propext,Classical.choice,Quot.sound
 EraseProof.TrM.uninstantiateN propext,Classical.choice,Quot.sound
@@ -164,3 +163,6 @@ EraseProof.Erases.abstract propext,Classical.choice,Quot.sound
 EraseProof.LBEval.idem propext
 EraseProof.Erases.ctorProp_box propext,Classical.choice,Quot.sound
 EraseProof.Erases.propProj_box propext,Classical.choice,Quot.sound
+EraseProof.Erases.inst propext,Classical.choice,Quot.sound
+EraseProof.Erases.inst_let propext,Classical.choice,Quot.sound
+EraseProof.ErasesAlt.inst propext,Classical.choice,Quot.sound
