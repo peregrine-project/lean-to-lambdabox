@@ -31,14 +31,14 @@ theorem natLitM_subst (ηNat : Metalean.Head ζ (.inductive natSig)) (k : Nat)
     all_goals first | exact i.elim0 | (refine Fin.cases ?_ (fun j => j.elim0) i; simpa using ih)
 
 /-- A successful `Fin.mapM` in `Option` from its components. -/
-theorem mapM_option_of_eq_some {α : Type} : ∀ {k : Nat} {f : Fin k → Option α} {g : Fin k → α},
-    (∀ i, f i = some (g i)) → Fin.mapM (m := Option) (α := fun _ => α) f = some g
-  | 0, _, g, _ => by
+theorem mapM_option_of_eq_some : ∀ {k : Nat} {α : Fin k → Type} {f : ∀ i, Option (α i)}
+    {g : ∀ i, α i}, (∀ i, f i = some (g i)) → Fin.mapM (m := Option) (α := α) f = some g
+  | 0, _, _, g, _ => by
     simp only [Fin.mapM]
     congr; funext i; exact i.elim0
-  | k + 1, f, g, h => by
-    simp only [Fin.mapM, h 0, mapM_option_of_eq_some (f := fun i : Fin k => f i.succ)
-      (g := fun i => g i.succ) (fun i => h i.succ)]
+  | k + 1, α, f, g, h => by
+    simp only [Fin.mapM, h 0, mapM_option_of_eq_some (α := fun i => α i.succ)
+      (f := fun i : Fin k => f i.succ) (g := fun i => g i.succ) (fun i => h i.succ)]
     exact congrArg some (funext fun i => by obtain ⟨_ | j, hj⟩ := i <;> rfl)
 
 /-- A lifted substitution on a variable of the new block. -/

@@ -63,15 +63,15 @@ section
 variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {n : Nat}
 
 /-- A successful `Fin.mapM` in `Option` (`ML Control.lean:46`) has every component. -/
-theorem mapM_option_eq_some {α : Type} : ∀ {k : Nat} {f : Fin k → Option α} {g : Fin k → α},
-    Fin.mapM (m := Option) (α := fun _ => α) f = some g → ∀ i, f i = some (g i)
-  | 0, _, _, _, i => i.elim0
-  | k + 1, f, g, h, i => by
+theorem mapM_option_eq_some : ∀ {k : Nat} {α : Fin k → Type} {f : ∀ i, Option (α i)}
+    {g : ∀ i, α i}, Fin.mapM (m := Option) (α := α) f = some g → ∀ i, f i = some (g i)
+  | 0, _, _, _, _, i => i.elim0
+  | k + 1, α, f, g, h, i => by
     simp only [Fin.mapM] at h
     cases h0 : f 0 with
     | none => simp [h0, Seq.seq] at h
     | some a =>
-      cases ht : Fin.mapM (m := Option) (α := fun _ => α) (fun i : Fin k => f i.succ) with
+      cases ht : Fin.mapM (m := Option) (α := fun i => α i.succ) (fun i : Fin k => f i.succ) with
       | none => simp [h0, ht, Seq.seq] at h
       | some r =>
         simp [h0, ht] at h
@@ -79,7 +79,6 @@ theorem mapM_option_eq_some {α : Type} : ∀ {k : Nat} {f : Fin k → Option α
         obtain ⟨_ | j, hj⟩ := i
         · exact h0
         · exact mapM_option_eq_some ht ⟨j, by omega⟩
-
 
 /-- Applying to a list of arguments built by `List.ofFn` is applying to the tuple. -/
 theorem appList_ofFn {ℓ k : Nat} (e : Metalean.Expr ζ ℓ n) (g : Fin k → Metalean.Expr ζ ℓ n) :
