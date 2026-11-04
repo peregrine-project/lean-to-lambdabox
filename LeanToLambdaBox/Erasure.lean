@@ -841,13 +841,18 @@ mutual
   erased discriminant is neither a variable nor □, the discriminant is let-bound and the catch-all
   uses the bound variable in its place, so that the discriminant is evaluated once.
   If the discriminant's type may be a Prop and the inductive has one constructor, the result is that
-  constructor's branch, without a `case`.
+  constructor's branch, without a `case`. If the inductive eliminates only into `Prop`, the result
+  is a proof and the application is erased to □.
   -/
   def visitCases : Nat → CasesInfo → Array Expr → EraseT m LBTerm
   | 0, _, _ => Backend.outOfFuel (m := m) "visitCases"
   | fuel+1, casesInfo, args => do
     let discr := args[casesInfo.discrPos]!
     let .inductInfo indVal ← getConst casesInfo.indName | unreachable!
+    -- A `casesOn` whose motive lands in `Prop` (it has no universe parameter besides the
+    -- inductive's, as the inductive's recursor) gives a proof, which is erased.
+    let .defnInfo cd ← getConst casesInfo.declName | unreachable!
+    if cd.levelParams.length == indVal.levelParams.length then return .box
     -- The discriminant's type may be a Prop: a Prop inductive, or `PUnit.{u}`/`PEmpty.{u}` at a level
     -- that is 0 or a universe parameter.
     let mayBeProp := !(← Backend.typeLevel (m := m) (← read).lctx (← read).locals discr).isNeverZero

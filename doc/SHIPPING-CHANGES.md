@@ -2556,6 +2556,48 @@ the calls at which the two oracles answer differently. It must equal
   from 35 to 39 oracle calls (the alternative's body is now erased); 294 `#erase`, 223 in the
   fragment, 68 outside, 3 name collisions; 8298 oracle calls, 14 differ, none fails.
 
+## S-32: A `casesOn` on an inductive that eliminates only into Prop is erased to □
+
+- **Commit:** the commit whose subject starts with `S-32:` (`git log --grep='^S-32:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure.lean`: `visitCases` returns □ when the `casesOn`'s declaration has as
+    many universe parameters as its inductive, before it reads the discriminant's level; its
+    docstring.
+  - new `tests/regress/prop_elim_pure.lean` with its goldens.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** found by the verification review on the pure path. The pure oracle has no
+  recursor ι (`Pure.whnf`), so it does not see that an application is a proof when the sort of its
+  type is `Prop` only through ι: `def Sel (b : Bool) : Type := Bool.casesOn (motive := fun _ =>
+  Type) b Prop Prop`, `def Y : Sel true := True`, and a `casesOn` with motive `fun _ => Y`. The
+  traversal then reaches `visitCases` on a `casesOn` of an inductive that eliminates only into
+  `Prop` and erases its discriminant, a proof, to □. For `Or` (two constructors) it emits a λ□
+  `case` on □ with two branches, which λ□ does not evaluate (`iota` needs a constructor and
+  `iotaSing` one branch), while Lean evaluates the program; for `Exists` (one constructor, whose
+  sort may be `Prop`) it emits `□ □ □`, which no rule of the proof's erasure relation produces.
+  Such a `casesOn` always gives a proof, whose erasure is □. Lean gives an inductive's recursor,
+  and so its `casesOn`, a universe parameter for the motive besides the inductive's exactly when
+  the inductive eliminates into every sort; otherwise the motive lands in `Prop`. Checked on
+  `Or`, `Exists`, `Nonempty` and a universe-polymorphic `Prop` inductive with a data field (as
+  many parameters: only `Prop`), and on `Eq`, `HEq`, `And`, `True`, `False`, `Iff`, `PUnit`,
+  `PEmpty`, `Acc`, `Subsingleton`, a universe-polymorphic `Prop` inductive with only index
+  fields, `Nat`, `List`, `Prod` and `Decidable` (one more). On the pure path `casesInfo?` admits a
+  `casesOn` only with the recursor's universe parameters. On the `Meta` path, the sparse
+  `casesOn` and the `T.c.elim` that Lean generates for data types (checked on an enumeration,
+  `Option` and a universe-polymorphic type) have the extra parameter too.
+- **Behaviour before:** on the test's programs, under `nat := .peano`, both in the fragment: `test2
+  := tCase (Or, 2) □ [([x], □), ([x], □)]`, on which `peregrine eval --anf=false` fails with
+  `wcbvEval:Case,discriminee`; `test := □ □ □`.
+- **Behaviour after:** `test2 := □` and `test := □`, which peregrine evaluates to □. The `Meta`
+  path is unchanged: its oracle boxes such an application before `visitCases` (on these programs
+  it boxes the constants themselves).
+- **Effect on emitted .ast (corpus):** byte-identical for all 710 files against the corpus of S-31;
+  `PANIC` counts unchanged. No corpus program reaches `visitCases` on such a `casesOn`.
+- **Regression test:** `prop_elim_pure` checks that `test2` and `test` take the pure path and pins
+  their `#erase` outputs, which peregrine validates and evaluates. Before this commit the goldens
+  differ and `peregrine eval` of `or.ast` fails. `scripts/regress.sh` passes (18 tests), with and
+  without `PEREGRINE`. `scripts/pure-harness.sh` passes with its expected summary unchanged (294
+  `#erase`, 223 in the fragment; 8298 oracle calls, 14 differ, none fails).
+
 ---
 
 ## Reported, not fixed
