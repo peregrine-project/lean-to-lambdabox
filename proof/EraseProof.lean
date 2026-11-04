@@ -27,3 +27,4 @@ import EraseProof.Test.LBEval
 import EraseProof.Relation.Extend
 import EraseProof.Erasable.Levels
 import EraseProof.Relation.Levels
+import EraseProof.Source.Value
