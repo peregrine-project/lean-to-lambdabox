@@ -5,8 +5,9 @@ Usage: scan_tokens.py DIR
 
 Scans every `.lean` file under DIR (skipping `.lake` and `.check`) for the identifiers of
 FORBIDDEN, outside comments, string literals and character literals. An identifier matches when
-one of its dot-separated components equals a forbidden token. Prints one line per occurrence,
-`file:line:col: token: source line`, and exits with 1 if there is any, else 0.
+one of its dot-separated components equals a forbidden token, a component quoted with guillemets
+(`«sorry»`) included, except the quoted forms of QUOTED_CONSTRUCTORS. Prints one line per
+occurrence, `file:line:col: token: source line`, and exits with 1 if there is any, else 0.
 """
 
 import os
@@ -26,7 +27,13 @@ FORBIDDEN = [
     "skipKernelTC", "addDeclWithoutChecking",
 ]
 
-IDENT = re.compile(r"[^\W\d][\w'!?]*(?:\.[^\W\d][\w'!?]*)*|«[^»]*»")
+# Tokens that, quoted with guillemets, name constructors of existing types and declare nothing:
+# Metalean's `Entry.«axiom»`, `Entry.«opaque»`, `ConstKind.«axiom»`, `ConstKind.«opaque»`, Lean's
+# `DefinitionSafety.«unsafe»`, `ReducibilityHints.«opaque»`. Unquoted they are keywords.
+QUOTED_CONSTRUCTORS = ["axiom", "opaque", "unsafe"]
+
+COMPONENT = r"(?:[^\W\d][\w'!?]*|«[^»]*»)"
+IDENT = re.compile(COMPONENT + r"(?:\." + COMPONENT + r")*")
 
 
 def strip(text):
@@ -118,7 +125,13 @@ def scan(path):
     lines = text.split("\n")
     hits = []
     for m in IDENT.finditer(code):
-        parts = m.group(0).split(".")
+        parts = []
+        for part in re.findall(COMPONENT, m.group(0)):
+            if part.startswith("«"):
+                if part[1:-1] not in QUOTED_CONSTRUCTORS:
+                    parts.append(part[1:-1])
+            else:
+                parts.append(part)
         for tok in FORBIDDEN:
             if tok in parts:
                 line = code.count("\n", 0, m.start()) + 1

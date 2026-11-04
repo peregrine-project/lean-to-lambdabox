@@ -26,11 +26,12 @@ and the shipping code (by default the modules `EraseProof` and `LeanToLambdaBox`
   definition or an inductive (with its constructors and recursor), neither `partial`, `opaque`,
   `unsafe` nor `implemented_by`.
 * C7 `leaves`: every declaration outside `EraseProof.Test` is reachable from a root of `ROOTS.txt`
-  (through types and values; a mutual block, an inductive with its constructors, recursors,
-  structure projections and the declarations `inductive` generates for it, those of its nested
-  occurrences included, is one node; generated auxiliaries, `isAux`, are not checked); every root
-  is a theorem of the library whose planned consumer has not landed; no root is reachable from
-  another root; every test that is not a theorem is reachable from a test theorem.
+  or from a statement definition (`statements`) (through types and values; a mutual block, an
+  inductive with its constructors, recursors, structure projections and the declarations
+  `inductive` generates for it, those of its nested occurrences included, is one node; generated
+  auxiliaries, `isAux`, are not checked); every root of `ROOTS.txt` is a theorem of the library
+  whose consumer does not exist yet; no root is reachable from another root; every test that is
+  not a theorem is reachable from a test theorem.
 * `expected`: the footprints of the roots and of the test theorems equal `axioms.expected`.
 * `modules`: every `.lean` file of the library's source tree is imported.
 * C9 `divergences`: every entry `### DV-<n>` of the divergence register has exactly the fields
@@ -44,28 +45,30 @@ and the shipping code (by default the modules `EraseProof` and `LeanToLambdaBox`
   spans separated by nothing, `(` or `,`) is one of the four lines from it that mention the
   identifier; every id `DV-<n>` that the register, the library's source files or the shipping
   sources (`LeanToLambdaBox/`) cite is an entry of the register.
+* C12 `statements`, always: every statement definition of `statements` is a definition of the
+  library of type `Prop`; each theorem of `statements` that exists is a theorem of the library
+  whose type is definitionally equal (kernel `isDefEq`) to its statement definition; a theorem
+  that does not exist must be listed in `unproved`, which is reported as not yet proved, and a
+  theorem listed there must not exist.
 * C12 `final`: the final form. `ROOTS.txt` is the single line `EraseProof.erase_correct FINAL`, so
-  C7 checks reachability from the final theorem `erase_correct` (tests are roots by themselves).
-  `erase_correct` is a theorem whose footprint is exactly `propext`, `Classical.choice`,
-  `Quot.sound`, as is that of its instance on NV-1, `EraseProof.Test.NV1.final`, which applies
-  `erase_correct` to NV-1's hypothesis terms (`finalHypotheses`), theorems within the same three
-  axioms. The test `EraseProof.Test.Stub.erase_correct` (`finalStatement`), the approved
-  statement written out, is a theorem that mentions `erase_correct` and whose type is that of
-  `erase_correct` (`Expr.eqv`, binder order included). Skipped with `--no-final`.
-* C12b `pin`: the definitions the statements are about are those of the approved statements. The
-  pin of the theorems `pinRoots` is computed (`specPin`): the hash of each root's type, and, for
-  every constant reached from those types through types, values and constructors, the hash of its
-  type and value (definitions, opaques), of its type (theorems, axioms, recursors) or of its type
-  and its constructors' names and types (inductives), followed further, if it is declared in the
-  library or the shipping code; its name only if it is one of the shipping functions under
-  verification (`pinFrontier`) or declared in a dependency (`depPrefixes`, pinned by version).
-  The hash covers the constant's kind and flags (`pinHash`). The pin also holds the toolchain and
-  the revision of every git dependency (`depPin`: `lean-toolchain` and `lake-manifest.json`).
-  `spec.pin` holds the pin of the approved statements (written by `--write-pin`). Every root and
-  every hashed constant of `spec.pin` that exists must have the pinned hash; the toolchain and
-  dependency lines must be those of the root package (`--shipping`) and of this package (`--src`),
-  and the running Lean the pinned toolchain, always; with C12 (not `--no-final`), every root must
-  exist and the computed pin must equal `spec.pin`.
+  C7 checks reachability from the final theorem `erase_correct` and the statement definitions
+  (tests are roots by themselves); `unproved` is empty. `erase_correct` is a theorem whose
+  footprint is exactly `propext`, `Classical.choice`, `Quot.sound`, as is that of its instance on
+  NV-1, `EraseProof.Test.NV1.final`, which applies `erase_correct` to NV-1's hypothesis terms
+  (`finalHypotheses`), theorems within the same three axioms. Skipped with `--no-final`.
+* C12b `pin`, always: the statement definitions and the definitions they are about are those of
+  `spec.pin`. The pin of the statement definitions `pinRoots` is computed (`specPin`): for each
+  root and every constant reached from it through types, values and constructors, a SHA-256 digest
+  of a serialization (`pinText`) of its kind and flags and of its type and value (definitions,
+  opaques), its type (theorems, axioms, recursors) or its type and its constructors' names and
+  types (inductives), followed further, if it is declared in the library; its name only if it is
+  declared in the shipping code (`isShipping`: the code under verification, whose changes the pin
+  does not follow) or in a dependency (`depPrefixes`, pinned by version). The pin also holds the
+  toolchain and the revision of every git dependency (`depPin`: `lean-toolchain` and
+  `lake-manifest.json`). `spec.pin` (written by `--write-pin`) must equal the computed pin; every
+  constant it names must exist; the toolchain and dependency lines must be those of the root
+  package (`--shipping`) and of this package (`--src`), and the running Lean the pinned
+  toolchain.
 
 Options: `--import M` (repeatable; replaces the default `EraseProof`, `LeanToLambdaBox`), `--roots FILE`
 (`ROOTS.txt`), `--expected FILE` (`axioms.expected`), `--out DIR` (`.check`), `--src DIR` (`.`),
@@ -74,7 +77,7 @@ Options: `--import M` (repeatable; replaces the default `EraseProof`, `LeanToLam
 scanned for `DV-<n>` citations), `--metarocq DIR` (a MetaRocq checkout; without it, MetaRocq
 citations are not checked), `--no-final` (skips C12 and the final form of C12b), `--pin FILE`
 (`spec.pin`), `--write-pin FILE` (computes the pin of the imported modules, writes it to `FILE`
-and runs no check).
+and runs no check), `--pin-root NAME` (repeatable; replaces `pinRoots` for `--write-pin`).
 It writes `DIR/footprints.txt` (every declaration) and `DIR/axioms.actual` (the file
 `axioms.expected` should be), prints one line per check, and exits with 1 if a check fails.
 -/
@@ -112,29 +115,29 @@ def allowRoots : Array Name := #[`Metalean.Frontend.indTerm, `Metalean.Frontend.
   `Metalean.Frontend.recrTerm, `Metalean.Frontend.wrapCase, `Metalean.Frontend.quotTerm,
   `Metalean.Export.QuotKind]
 
-/-- The theorems whose statements C12b pins: the final theorem, the lower bound of its fragment
-hypothesis, and the milestones M1 (`erases_correct`) and M2 (`erasePure_erases`). -/
-def pinRoots : Array Name := #[`EraseProof.erase_correct, `EraseProof.collectDeps_ok_of,
+/-- The theorems with a statement definition (`EraseProof/Statements.lean`), each with that
+definition: the final theorem, the lower bound of its fragment hypothesis, and the theorems
+`erases_correct` (relation-level simulation) and `erasePure_erases` (the pure traversal) (C12). -/
+def statements : Array (Name × Name) := #[
+  (`EraseProof.erase_correct, `EraseProof.erase_correct_statement),
+  (`EraseProof.collectDeps_ok_of, `EraseProof.collectDeps_ok_of_statement),
+  (`EraseProof.erases_correct, `EraseProof.erases_correct_statement),
+  (`EraseProof.erasePure_erases, `EraseProof.erasePure_erases_statement)]
+
+/-- The theorems of `statements` that are not proved yet; C12 reports them and compares the others
+with their statements. -/
+def unproved : Array Name := #[`EraseProof.erase_correct, `EraseProof.collectDeps_ok_of,
   `EraseProof.erases_correct, `EraseProof.erasePure_erases]
 
-/-- The shipping functions under verification: the statements mention them, C12b pins their names
-only. -/
-def pinFrontier : Array Name := #[`Erasure.eraseEntry, `Erasure.collectDeps]
+/-- The statement definitions, whose definitions C12b pins. -/
+def pinRoots : Array Name := statements.map (·.2)
 
 /-- Module prefixes of the toolchain and the dependencies, whose constants C12b pins by name. -/
 def depPrefixes : Array Name := #[`Init, `Std, `Lean, `Mathlib, `Batteries, `Metalean, `Aesop,
   `Qq, `Plausible, `ProofWidgets, `ImportGraph, `LeanSearchClient, `Cli]
 
-/-- Divergence ids that the shipping sources (`LeanToLambdaBox/`) cite from the l4l register they
-were ported with, and that this register does not contain yet. C9 lists them instead of failing;
-C12 fails while any is cited and missing. -/
-def pendingShippingDv : Array String := #["DV-3", "DV-4", "DV-7", "DV-12", "DV-13", "DV-14", "DV-17"]
-
 /-- The final theorem, the only root of `ROOTS.txt` in the final form (C12). -/
 def finalTheorem : Name := `EraseProof.erase_correct
-
-/-- The approved statement of the final theorem, written out as a test proved by it (C12). -/
-def finalStatement : Name := `EraseProof.Test.Stub.erase_correct
 
 /-- The instance of the final theorem on NV-1 (C12). -/
 def finalInstance : Name := `EraseProof.Test.NV1.final
@@ -159,6 +162,7 @@ structure Config where
   final : Bool := true
   pin : System.FilePath := "spec.pin"
   writePin : Option System.FilePath := none
+  pinRoots : Array Name := #[]
 
 partial def parseArgs (cfg : Config) : List String → Except String Config
   | [] => .ok cfg
@@ -174,6 +178,7 @@ partial def parseArgs (cfg : Config) : List String → Except String Config
   | "--no-final" :: rest => parseArgs { cfg with final := false } rest
   | "--pin" :: f :: rest => parseArgs { cfg with pin := f } rest
   | "--write-pin" :: f :: rest => parseArgs { cfg with writePin := some f } rest
+  | "--pin-root" :: n :: rest => parseArgs { cfg with pinRoots := cfg.pinRoots.push n.toName } rest
   | a :: _ => .error s!"unknown or incomplete option {a}"
 
 /-! ## Names -/
@@ -428,7 +433,7 @@ def expectedHeader : String :=
 
 /-! ## The divergence register (C9) -/
 
-/-- The fields of a register entry, in order (`doc/DIVERGENCES.md`, spec §3.5). -/
+/-- The fields of a register entry, in order (the preamble of `doc/DIVERGENCES.md`). -/
 def dvFields : List String :=
   ["Our artifact", "Reference artifact", "What differs", "Why it is forced",
    "What was considered instead"]
@@ -575,50 +580,94 @@ def isDep (env : Environment) (c : Name) : Bool :=
   | some m => depPrefixes.any (·.isPrefixOf m)
   | none => true
 
-def hex (h : UInt64) : String := String.ofList (Nat.toDigits 16 h.toNat)
+/-- A constant of the shipping code (`LeanToLambdaBox*` modules), the code under verification: C12b
+pins its name, not its definition, so a change to the shipping code leaves the pin unchanged. -/
+def isShipping (env : Environment) (c : Name) : Bool :=
+  (moduleOf? env c).any (`LeanToLambdaBox).isPrefixOf
 
-/-- A tag per constant kind and flag, mixed into `pinHash`: a definition turned into an opaque
-(or its safety changed) changes the hash. -/
-def kindHash (tag : String) (flags : List Bool) : UInt64 :=
-  flags.foldl (init := hash tag) fun h b => mixHash h (hash b)
+/-- A serialization of a level: full parameter names, no sharing. -/
+def levelText : Level → String
+  | .zero => "0"
+  | .succ l => s!"(s {levelText l})"
+  | .max a b => s!"(max {levelText a} {levelText b})"
+  | .imax a b => s!"(imax {levelText a} {levelText b})"
+  | .param n => s!"(p {n})"
+  | .mvar m => s!"(?u {m.name})"
 
-def safetyFlags : DefinitionSafety → List Bool
-  | .safe => [false, false]
-  | .«unsafe» => [true, false]
-  | .partial => [false, true]
+def binderText : BinderInfo → String
+  | .default => "d"
+  | .implicit => "i"
+  | .strictImplicit => "s"
+  | .instImplicit => "c"
 
-/-- The hash C12b pins for a constant whose body it follows, and the constants it follows: its kind
-and flags (safety, `unsafe`; for inductives also `isRec`, `all`, `numNested`), its type, the value of
-definitions and opaques, the constructors' names and types of inductives. -/
-def pinHash (env : Environment) (c : Name) : Option (UInt64 × Array Name) :=
+/-- A serialization of an expression, appended to `acc`: full constant names and universe levels,
+binder infos, literals; binder names and metadata are left out (alpha-equivalent expressions have
+the same serialization). -/
+partial def exprText (e : Expr) (acc : String) : String :=
+  match e with
+  | .bvar i => acc ++ s!" #{i}"
+  | .fvar x => acc ++ s!" (fvar {x.name})"
+  | .mvar m => acc ++ s!" (?m {m.name})"
+  | .sort l => acc ++ s!" (sort {levelText l})"
+  | .const c us => (us.foldl (fun a u => a ++ " " ++ levelText u) (acc ++ s!" (c {c}")) ++ ")"
+  | .app f a => exprText a (exprText f (acc ++ " (a")) ++ ")"
+  | .lam _ t b bi => exprText b (exprText t (acc ++ s!" (l {binderText bi}")) ++ ")"
+  | .forallE _ t b bi => exprText b (exprText t (acc ++ s!" (f {binderText bi}")) ++ ")"
+  | .letE _ t v b nd => exprText b (exprText v (exprText t (acc ++ s!" (let {nd}"))) ++ ")"
+  | .lit (.natVal n) => acc ++ s!" (n {n})"
+  | .lit (.strVal s) => acc ++ s!" (str {s.quote})"
+  | .mdata _ b => exprText b acc
+  | .proj S i b => exprText b (acc ++ s!" (proj {S} {i}") ++ ")"
+
+def safetyText : DefinitionSafety → String
+  | .safe => "safe"
+  | .partial => "partial"
+  | _ => "unsafe"
+
+/-- What C12b hashes for a constant whose definition it follows, and the constants it follows: its
+kind and flags (safety, `unsafe`; for inductives also `isRec`, `isReflexive`, the counts and `all`),
+level parameters, type, the value of definitions and opaques, the constructors' names and types of
+inductives. -/
+def pinText (env : Environment) (c : Name) : Option (String × Array Name) :=
   match env.find? c with
-  | some (.defnInfo v) =>
-    some (mixHash (kindHash "defn" (safetyFlags v.safety)) (mixHash (hash v.type) (hash v.value)),
-      v.type.getUsedConstants ++ v.value.getUsedConstants)
-  | some (.opaqueInfo v) =>
-    some (mixHash (kindHash "opaque" [v.isUnsafe]) (mixHash (hash v.type) (hash v.value)),
-      v.type.getUsedConstants ++ v.value.getUsedConstants)
-  | some (.thmInfo v) => some (mixHash (kindHash "thm" []) (hash v.type), v.type.getUsedConstants)
-  | some (.axiomInfo v) =>
-    some (mixHash (kindHash "axiom" [v.isUnsafe]) (hash v.type), v.type.getUsedConstants)
-  | some (.recInfo v) =>
-    some (mixHash (kindHash "rec" [v.isUnsafe, v.k]) (hash v.type), v.type.getUsedConstants)
-  | some (.quotInfo v) => some (mixHash (kindHash "quot" []) (hash v.type), v.type.getUsedConstants)
-  | some (.ctorInfo v) =>
-    some (mixHash (kindHash "ctor" [v.isUnsafe]) (hash v.type), #[v.induct])
-  | some (.inductInfo v) =>
-    let h0 := mixHash (kindHash "induct" [v.isUnsafe, v.isRec, v.isReflexive])
-      (mixHash (hash v.type) (hash (v.numParams, v.numIndices, v.numNested, v.all)))
-    let h := v.ctors.foldl (init := h0)
-      fun h n => match env.find? n with
-        | some ci => mixHash h (mixHash (hash n) (hash ci.type))
-        | none => mixHash h (hash n)
-    let deps := v.ctors.foldl (init := v.type.getUsedConstants) fun acc n =>
-      match env.find? n with
-      | some ci => acc ++ ci.type.getUsedConstants
-      | none => acc
-    some (h, deps)
   | none => none
+  | some ci =>
+    let head := s!"{c} {ci.levelParams}"
+    let ty := exprText ci.type ""
+    match ci with
+    | .defnInfo v =>
+      some (s!"defn {safetyText v.safety} {head} :{ty} :={exprText v.value ""}",
+        v.type.getUsedConstants ++ v.value.getUsedConstants)
+    | .opaqueInfo v =>
+      some (s!"opaque {v.isUnsafe} {head} :{ty} :={exprText v.value ""}",
+        v.type.getUsedConstants ++ v.value.getUsedConstants)
+    | .thmInfo v => some (s!"thm {head} :{ty}", v.type.getUsedConstants)
+    | .axiomInfo v => some (s!"axiom {v.isUnsafe} {head} :{ty}", v.type.getUsedConstants)
+    | .recInfo v => some (s!"rec {v.isUnsafe} {v.k} {head} :{ty}", v.type.getUsedConstants)
+    | .quotInfo _ => some (s!"quot {head} :{ty}", ci.type.getUsedConstants)
+    | .ctorInfo v => some (s!"ctor {v.isUnsafe} {head} :{ty}", #[v.induct])
+    | .inductInfo v =>
+      let ctors := v.ctors.map fun n => match env.find? n with
+        | some cc => s!" | {n} :{exprText cc.type ""}"
+        | none => s!" | {n}"
+      let deps := v.ctors.foldl (init := v.type.getUsedConstants) fun acc n =>
+        match env.find? n with
+        | some cc => acc ++ cc.type.getUsedConstants
+        | none => acc
+      some (s!"induct {v.isUnsafe} {v.isRec} {v.isReflexive} {v.numParams} {v.numIndices} " ++
+        s!"{v.numNested} {v.all} {head} :{ty}" ++ String.join ctors, deps)
+
+/-- The SHA-256 digests of `texts`, in order, computed by `python3`'s `hashlib` over the UTF-8 bytes
+of each text; `tmp` is a scratch file. -/
+def sha256s (tmp : System.FilePath) (texts : Array String) : IO (Array String) := do
+  IO.FS.writeFile tmp ("\n".intercalate texts.toList ++ "\n")
+  let out ← IO.Process.output { cmd := "python3", args := #["-c",
+    "import hashlib, sys\nfor l in open(sys.argv[1], 'rb'):\n  print(hashlib.sha256(l.rstrip(b'\\n')).hexdigest())",
+    tmp.toString] }
+  if out.exitCode != 0 then throw <| .userError s!"python3 failed: {out.stderr}"
+  let ds := ((out.stdout.splitOn "\n").filter (· ≠ "")).toArray
+  if ds.size != texts.size then throw <| .userError "python3 returned the wrong number of digests"
+  return ds
 
 /-- The toolchain and dependency revisions C12b pins: `toolchain <lean-toolchain>` of the package
 `dir`, and `dep <package> <rev>` for every git package of its `lake-manifest.json`. -/
@@ -634,38 +683,40 @@ def depPin (dir : System.FilePath) : IO (Array String) := do
       out := out.push s!"dep {name} {rev}"
   return out.qsort (· < ·)
 
-/-- The pin of the theorems `roots`: one line `root <name> <hash of its type>` per root, then, for
-every constant reached from their types, `body <name> <hash>` (`pinHash`, followed) if it is
-declared in the library or the shipping code, `name <name>` if it is one of `pinFrontier` or a
-dependency's; sorted. -/
-def specPin (env : Environment) (roots : Array Name) : Array String := Id.run do
-  let mut out : Array String := #[]
+/-- The pin of the statement definitions `roots`: `root <name> <digest>` for each root, then, for
+every other constant reached from them, `body <name> <digest>` (`pinText`, followed) if it is
+declared in the library, `name <name>` if it is a constant of the shipping code or of a
+dependency; sorted. -/
+def specPin (env : Environment) (roots : Array Name) (tmp : System.FilePath) :
+    IO (Array String) := do
+  let mut names : Array String := #[]
+  let mut hashed : Array (String × String) := #[]
   let mut seen : Std.HashSet Name := {}
-  let mut stack : Array Name := #[]
-  for r in roots do
-    if let some ci := env.find? r then
-      out := out.push s!"root {r} {hex (hash ci.type)}"
-      stack := stack ++ ci.type.getUsedConstants
+  let mut stack : Array Name := roots.reverse
   while h : stack.size > 0 do
     let c := stack[stack.size - 1]
     stack := stack.pop
     if seen.contains c then continue
     seen := seen.insert c
-    if pinFrontier.contains c || isDep env c then
-      out := out.push s!"name {c}"
-    else match pinHash env c with
-      | some (hc, deps) =>
-        out := out.push s!"body {c} {hex hc}"
+    let isRoot := roots.contains c
+    if !isRoot && (isShipping env c || isDep env c) then
+      names := names.push s!"name {c}"
+    else match pinText env c with
+      | some (t, deps) =>
+        hashed := hashed.push (s!"{if isRoot then "root" else "body"} {c}", t)
         for d in deps do
           if !seen.contains d then stack := stack.push d
-      | none => out := out.push s!"name {c}"
+      | none => names := names.push s!"name {c}"
+  let ds ← sha256s tmp (hashed.map (·.2))
+  let out := names ++ (hashed.zip ds).map fun ((k, _), d) => s!"{k} {d}"
   return out.qsort (· < ·)
 
 def pinHeader : String :=
-"# The pin of the approved statements (tools/Report.lean, C12b): `root <theorem> <hash of its type>`,
-# `body <constant> <hash of its definition>`, `name <constant>` (pinned by name), `toolchain <name>`
-# and `dep <package> <rev>` (the root package's lean-toolchain and lake-manifest.json). It is written
-# from the approved statements with `tools/Report.lean --write-pin`; proof/scripts/check.sh compares it.
+"# The pin of the statements (tools/Report.lean, C12b): `root <statement definition> <digest>`,
+# `body <constant> <digest>` (SHA-256 of the serialized declaration), `name <constant>` (a constant
+# of the shipping code or of a dependency, pinned by name), `toolchain <name>` and
+# `dep <package> <rev>` (the root package's lean-toolchain and lake-manifest.json). Written by
+# `tools/Report.lean --write-pin`; proof/scripts/check.sh compares it.
 "
 
 /-! ## Main -/
@@ -676,20 +727,21 @@ def main (args : List String) : IO UInt32 := do
     | .error e => IO.eprintln s!"error: {e}"; return 2
   let imports := if cfg.imports.isEmpty then #[lib, `LeanToLambdaBox] else cfg.imports
   let failures ← IO.mkRef (#[] : Array String)
-  let pending ← IO.mkRef (#[] : Array String)
   let fail (check msg : String) : IO Unit := do
     IO.println s!"FAIL {check}: {msg}"
     failures.modify (·.push check)
   initSearchPath (← findSysroot)
   let env ← importModules (imports.map fun m => { module := m }) {}
+  IO.FS.createDirAll cfg.out
+  let pinTmp := cfg.out / "pin-texts.txt"
   if let some f := cfg.writePin then
-    for r in pinRoots do
+    let roots := if cfg.pinRoots.isEmpty then pinRoots else cfg.pinRoots
+    for r in roots do
       if !env.contains r then IO.eprintln s!"error: {r} is not a declaration"; return 1
-    let pin := (specPin env pinRoots ++ (← depPin cfg.shipping)).qsort (· < ·)
+    let pin := ((← specPin env roots pinTmp) ++ (← depPin cfg.shipping)).qsort (· < ·)
     IO.FS.writeFile f (pinHeader ++ "\n".intercalate pin.toList ++ "\n")
     IO.println s!"pin: {pin.size} lines written to {f}"
     return 0
-  IO.FS.createDirAll cfg.out
 
   -- The library's modules and declarations.
   let ourMods := env.header.moduleNames.filter isOurModule
@@ -797,10 +849,7 @@ def main (args : List String) : IO UInt32 := do
       let cited := (dvCitations (← IO.FS.readFile f)).eraseDups
       for d in cited do
         if !ids.contains d then
-          if shippingFiles.contains f && pendingShippingDv.contains d then
-            pending.modify (·.push s!"{f}: {d}")
-          else
-            fail "divergences" s!"{f} cites {d}, which is not an entry of {cfg.divergences}"
+          fail "divergences" s!"{f} cites {d}, which is not an entry of {cfg.divergences}"
 
   -- Footprints of every declaration of the library.
   -- Compiler implementations of recursive definitions (`f._unsafe_rec`) are partial or unsafe
@@ -851,7 +900,7 @@ def main (args : List String) : IO UInt32 := do
     if isComment l then continue
     match fields l with
     | r :: consumer :: rest =>
-      if rest.length > 1 then fail "leaves" s!"ROOTS.txt: too many fields: {l}"
+      if !rest.isEmpty then fail "leaves" s!"ROOTS.txt: too many fields: {l}"
       let r := r.toName
       let c := consumer.toName
       if roots.contains r then fail "leaves" s!"ROOTS.txt: {r} is listed twice"
@@ -864,14 +913,14 @@ def main (args : List String) : IO UInt32 := do
         else if !info.isTheorem then fail "leaves" s!"ROOTS.txt: {r} is not a theorem"
       if consumer != "FINAL" && env.contains c then
         fail "leaves" s!"ROOTS.txt: the consumer {c} of {r} has landed; remove the line"
-    | _ => fail "leaves" s!"ROOTS.txt: expected `<declaration> <consumer or FINAL> [<task>]`: {l}"
+    | _ => fail "leaves" s!"ROOTS.txt: expected `<declaration> <consumer or FINAL>`: {l}"
 
   -- C7 no leaves, C6 tests, from the roots.
   let mut members : Std.HashMap Name (Array Name) := {}
   for c in ours do
     let k := leafKey env c
     members := members.insert k ((members.getD k #[]).push c)
-  let (reached, via) := reach env members roots
+  let (reached, via) := reach env members (roots ++ pinRoots.filter env.contains)
   let mut leafKeys : Array Name := #[]
   for c in checked do
     if isTest c then
@@ -883,7 +932,7 @@ def main (args : List String) : IO UInt32 := do
         leafKeys := leafKeys.push k
         let n := (members.getD k #[]).size
         let block := if n > 1 then s!" (a node of {n} declarations)" else ""
-        fail "leaves" s!"{k}{block} is not reachable from a root of ROOTS.txt"
+        fail "leaves" s!"{k}{block} is not reachable from a root of ROOTS.txt or a statement"
   -- Test definitions are used by test theorems.
   let (testReached, _) := reach env members testThms
   for c in tests do
@@ -960,14 +1009,29 @@ def main (args : List String) : IO UInt32 := do
     if !want.contains d then
       fail "expected" s!"{cfg.expected} lists {d}, which is neither a root nor a test theorem"
 
-  let pendingDv ← pending.get
-  if !pendingDv.isEmpty then
-    IO.println s!"note: divergences: {pendingDv.size} shipping citation(s) of l4l ids without an entry yet (pendingShippingDv): {", ".intercalate pendingDv.toList}"
+  -- C12 the statements: each proved theorem against its statement definition.
+  for (thm, stmt) in statements do
+    match env.find? stmt with
+    | some (.defnInfo v) =>
+      if !isOurs env stmt then fail "statements" s!"{stmt} is not a declaration of {lib}"
+      else if v.type != .sort .zero then fail "statements" s!"{stmt} is not of type Prop"
+    | _ => fail "statements" s!"{stmt} is not a definition"
+    match env.find? thm with
+    | none =>
+      if unproved.contains thm then IO.println s!"statements: {thm}: not yet proved"
+      else fail "statements" s!"{thm} does not exist and is not listed in `unproved`"
+    | some ci =>
+      if unproved.contains thm then
+        fail "statements" s!"{thm} exists; remove it from `unproved`"
+      if !ci.isTheorem || !isOurs env thm then
+        fail "statements" s!"{thm} is not a theorem of {lib}"
+      else if !Kernel.isDefEqGuarded env {} ci.type (mkConst stmt) then
+        fail "statements" s!"the type of {thm} is not its statement {stmt}"
 
   -- C12 the final form.
   if cfg.final then
-    for p in pendingDv do
-      fail "final" s!"the shipping source cites a divergence id without an entry: {p}"
+    if !unproved.isEmpty then
+      fail "final" s!"theorems not yet proved: {unproved.toList}"
     let rootLines := ((lines rootsText).filter (!isComment ·)).map fields
     if rootLines != [[finalTheorem.toString, "FINAL"]] then
       fail "final" s!"{cfg.roots} is not the single line `{finalTheorem} FINAL`"
@@ -988,39 +1052,24 @@ def main (args : List String) : IO UInt32 := do
       let used := uses env finalInstance
       for h in #[finalTheorem] ++ finalHypotheses do
         if !used.contains h then fail "final" s!"{finalInstance} does not mention {h}"
-    match env.find? finalTheorem, env.find? finalStatement with
-    | some ci, some (.thmInfo st) =>
-      if !isOurs env finalStatement then
-        fail "final" s!"{finalStatement} is not a declaration of {lib}"
-      if !(uses env finalStatement).contains finalTheorem then
-        fail "final" s!"{finalStatement} does not mention {finalTheorem}"
-      if !ci.type.eqv st.type then
-        fail "final" s!"the type of {finalTheorem} is not that of {finalStatement}"
-    | _, _ => fail "final" s!"{finalStatement} is not a theorem of {lib}"
 
   -- C12b the pin of the statements.
   if !(← cfg.pin.pathExists) then
     fail "pin" s!"{cfg.pin} does not exist"
   else
     let pinned := (lines (← IO.FS.readFile cfg.pin)).filter (!isComment ·) |>.toArray
-    let mut compared := 0
+    -- Every pinned constant exists.
     for l in pinned do
       match fields l with
-      | ["root", r, h] =>
-        match env.find? r.toName with
-        | some ci =>
-          compared := compared + 1
-          if hex (hash ci.type) != h then fail "pin" s!"the statement of {r} differs from {cfg.pin}"
-        | none => pure ()
-      | ["body", c, h] =>
-        if env.contains c.toName then
-          compared := compared + 1
-          if ((pinHash env c.toName).map (hex ·.1)) != some h then
-            fail "pin" s!"the definition of {c} differs from {cfg.pin}"
-      | ["name", _] => pure ()
+      | ["root", c, _] | ["body", c, _] | ["name", c] =>
+        if !env.contains c.toName then
+          fail "pin" s!"{cfg.pin} pins {c}, which is not a declaration"
       | ["toolchain", _] | ["dep", _, _] => pure ()
       | _ => fail "pin" s!"{cfg.pin}: malformed line: {l}"
-    -- The toolchain and the dependency revisions, of the root package and of proof/, always.
+    for r in pinRoots do
+      if !pinned.any (·.startsWith s!"root {r} ") then
+        fail "pin" s!"{cfg.pin} has no line `root {r} ...`"
+    -- The toolchain and the dependency revisions, of the root package and of proof/.
     let pinnedDeps := pinned.filter fun l => l.startsWith "toolchain " || l.startsWith "dep "
     let vers := s!"v{Lean.versionString}"
     for (what, dir) in [("root package", cfg.shipping), ("proof package", cfg.src)] do
@@ -1029,28 +1078,26 @@ def main (args : List String) : IO UInt32 := do
         let extra := got.filter (!pinnedDeps.contains ·)
         let missing := pinnedDeps.filter (!got.contains ·)
         fail "pin" s!"the {what}'s toolchain or dependency revisions differ from {cfg.pin}: actual only {extra.toList}, pinned only {missing.toList}"
-      compared := compared + pinnedDeps.size
     for l in pinnedDeps do
       if let ["toolchain", tc] := fields l then
         if !tc.endsWith vers then
           fail "pin" s!"the running Lean {Lean.versionString} is not the pinned toolchain {tc}"
-    IO.println s!"note: pin: {compared} of {pinned.size} pinned lines compared"
-    if cfg.final then
-      for r in pinRoots do
-        if !env.contains r then fail "pin" s!"{r} is not a declaration"
-      let computed := (specPin env pinRoots ++ (← depPin cfg.shipping)).qsort (· < ·)
+    -- The pin computed from the statement definitions is the pinned one.
+    if pinRoots.all env.contains then
+      let computed := ((← specPin env pinRoots pinTmp) ++ (← depPin cfg.shipping)).qsort (· < ·)
       let sorted := pinned.qsort (· < ·)
       if computed != sorted then
         let extra := computed.filter (!sorted.contains ·)
         let missing := sorted.filter (!computed.contains ·)
         fail "pin" s!"the pin differs from {cfg.pin}: computed only {(extra.toList.take 5)}, pinned only {(missing.toList.take 5)}"
+      IO.println s!"note: pin: {pinned.size} pinned lines compared"
   IO.println s!"hygiene: {exempt} constant(s) of Metalean's frontend and export allow-listed"
 
   IO.println s!"report: {ours.size} declarations ({checked.size} checked, {tests.size} tests) in {ourMods.size} module(s); {roots.size} root(s)"
   for l in report do IO.println l
   let fs ← failures.get
   for check in ["axioms", "sorry", "hygiene", "leaves", "expected", "modules", "divergences",
-      "pin", "final"] do
+      "statements", "pin", "final"] do
     let n := (fs.filter (· == check)).size
     if check == "final" && !cfg.final then IO.println "final: skipped (--no-final)"
     else IO.println s!"{check}: {if n == 0 then "ok" else s!"{n} failure(s)"}"
