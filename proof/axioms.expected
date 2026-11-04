@@ -18,7 +18,6 @@ EraseProof.Test.withApp_app1 propext
 EraseProof.Test.withApp_const propext
 EraseProof.TrM.det propext,Classical.choice,Quot.sound
 EraseProof.TrM.inst_fvar propext,Classical.choice,Quot.sound
-EraseProof.TrM.weakBV propext,Classical.choice,Quot.sound
 EraseProof.TrM.weakFV propext,Classical.choice,Quot.sound
 EraseProof.TrM.weakFV_let propext,Classical.choice,Quot.sound
 EraseProof.TypeEq.forallE_ne_quot propext,Classical.choice,Quot.sound
@@ -154,8 +153,6 @@ EraseProof.IsErasable.lam_inv propext,Classical.choice,Quot.sound
 EraseProof.IsErasable.ctor_not propext,Classical.choice,Quot.sound
 EraseProof.SrcEval.restrict propext,Classical.choice,Quot.sound
 EraseProof.isRecursiveDecl_false propext,Classical.choice,Quot.sound
-EraseProof.TrM.inst propext,Classical.choice,Quot.sound
-EraseProof.TrM.inst_let propext,Classical.choice,Quot.sound
 EraseProof.IsErasable.inst propext,Classical.choice,Quot.sound
 EraseProof.TrM.wf_app propext,Classical.choice,Quot.sound
 EraseProof.TrM.uninstantiateN propext,Classical.choice,Quot.sound
@@ -166,3 +163,4 @@ EraseProof.Erases.propProj_box propext,Classical.choice,Quot.sound
 EraseProof.Erases.inst propext,Classical.choice,Quot.sound
 EraseProof.Erases.inst_let propext,Classical.choice,Quot.sound
 EraseProof.ErasesAlt.inst propext,Classical.choice,Quot.sound
+EraseProof.Pure.isArity_sound propext,Classical.choice,Quot.sound

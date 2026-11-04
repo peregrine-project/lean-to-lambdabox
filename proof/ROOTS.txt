@@ -15,7 +15,6 @@ EraseProof.ProgEnv.unfold EraseProof.SrcEval.defeq
 EraseProof.ProgEnv.lookup EraseProof.Pure.inferType_sound
 EraseProof.TrM.weakFV_let EraseProof.erasePure_erases
 EraseProof.TrM.inst_fvar EraseProof.erasePure_erases
-EraseProof.TrM.weakBV EraseProof.erases_correct
 EraseProof.TrM.weakFV EraseProof.erasePure_erases
 EraseProof.Erases.closed EraseProof.erases_correct
 EraseProof.Erases.app_inv EraseProof.erases_correct
@@ -37,9 +36,9 @@ EraseProof.IsErasable.ctor_not EraseProof.erases_correct
 EraseProof.SrcEval.restrict EraseProof.erase_correct
 EraseProof.isRecursiveDecl_false EraseProof.erasePure_erases
 EraseProof.Defeq.inst_tele EraseProof.erases_correct
-EraseProof.TrM.inst EraseProof.erases_correct
-EraseProof.TrM.inst_let EraseProof.erases_correct
 EraseProof.IsErasable.inst EraseProof.erases_correct
+EraseProof.Defeq.inst_tele EraseProof.Erases.inst
+EraseProof.IsErasable.inst EraseProof.Erases.inst
 EraseProof.TrM.wf_app EraseProof.SrcEval.defeq
 EraseProof.TrM.uninstantiateN EraseProof.erasePure_erases
 EraseProof.Erases.abstract EraseProof.erasePure_erases
@@ -49,3 +48,4 @@ EraseProof.Erases.propProj_box EraseProof.erases_correct
 EraseProof.Erases.inst EraseProof.erases_correct
 EraseProof.Erases.inst_let EraseProof.erases_correct
 EraseProof.ErasesAlt.inst EraseProof.erases_correct
+EraseProof.Pure.isArity_sound EraseProof.Pure.isErasable_sound
