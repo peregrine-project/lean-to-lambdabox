@@ -394,11 +394,17 @@ def BindsExt {ζ : Metalean.Sigs} {sig : Metalean.Sig} (B : Binds ζ) (B' : Bind
     (names : List Name) : Prop :=
   ∀ n, n ∉ names → B' n = B.wk n
 
+/-- The body of a type under exactly its first `k` `Π`-binders (the `Π` analogue of
+`Erasure.peelLams`, `LeanToLambdaBox/Erasure/Pure.lean:26`). -/
+def peelForalls (k : Nat) (e : Expr) : Option Expr :=
+  (fun o : Option Expr => o.bind fun e => if e.isForall then some e.bindingBody! else none)^[k]
+    (some e)
+
 /-- An inductive block of Lean declarations is the Lean form of the Metalean block at the head `η`
 of `E'` (the environment after the block): the block's types (`Is`), constructors (`Cs`) and
 recursors (`Rs`), their counts and positions (the recursor's parameter, motive, minor and index
-counts are those of the block), the arity of every minor premise of the recursors' Lean types,
-Metalean's field orders, the table entries, and the type of every constant (`ConstTyped`). Model:
+counts are those of the block), the shape of every constructor's Lean type, the arity of every
+minor premise of the recursors' Lean types, Metalean's field orders, the table entries, and the type of every constant (`ConstTyped`). Model:
 `analyzeBlock` (`ML Frontend/Inductive.lean:227`) without reproducing it; recursor rules are not
 related (Metalean has none). -/
 structure IndBlock {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) {ι : Metalean.IndSig}
@@ -416,6 +422,15 @@ structure IndBlock {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) {ι
     (Cs s c).numFields = (ι.ctors s c).nfields + (ι.ctors s c).nrecFields ∧
     (Cs s c).isUnsafe = false ∧
     MetaOrderOK (orders s c) (ι.ctors s c).nfields (ι.ctors s c).nrecFields
+  /-- The Lean type of a constructor is `Π (params) (fields), I.{lps} params indices`: under its
+  `nparams + numFields` leading `Π`s it is the inductive at the block's level parameters applied
+  to the parameters, as the bound variables of the leading binders, and to the indices, as Lean's
+  kernel checks (`is_valid_ind_app`). `ConstTyped` relates the type to Metalean's only up to
+  definitional equality. -/
+  ctorType : ∀ s c, ∃ body idx, peelForalls (ι.nparams + (Cs s c).numFields) (Cs s c).type =
+      some body ∧ idx.length = ι.nindices s ∧
+    body = mkAppN (.const (Is s).name (lps.map .param))
+      ((List.range ι.nparams).reverse.map (fun i => .bvar (i + (Cs s c).numFields)) ++ idx).toArray
   recr : ∀ s, (Rs s).name = mkRecName (Is s).name ∧
     B (Rs s).name = some (.recr η s (List.ofFn fun t => List.ofFn fun c => orders t c)) ∧
     ((E.get η).block.LargeElim → ∃ u, (Rs s).levelParams = u :: lps) ∧
