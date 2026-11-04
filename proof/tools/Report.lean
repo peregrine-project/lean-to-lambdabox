@@ -24,7 +24,9 @@ and the shipping code (by default the modules `EraseProof` and `LeanToLambdaBox`
   inductive `Metalean.Export.QuotKind`) reach (`allowList`), which the bridge relation uses for the
   η-terms of constructors, recursors, inductive types and quotients; each exempt constant is a safe
   definition or an inductive (with its constructors and recursor), neither `partial`, `opaque`,
-  `unsafe` nor `implemented_by`.
+  `unsafe` nor `implemented_by`. Also exempt are the declarations Lean generates for an exempt
+  constant when a proof unfolds or rewrites it (`isGeneratedComponent`: `eq_<n>`, `eq_def`,
+  `else_eq`, `congr_simp`, `match_<n>`, and so on recursively); their bodies are walked like any other.
 * C7 `leaves`: every declaration outside `EraseProof.Test` is reachable from a root of `ROOTS.txt`
   or from a statement definition (`statements`) (through types and values; a mutual block, an
   inductive with its constructors, recursors, structure projections and the declarations
@@ -190,11 +192,26 @@ def isNumbered (pre s : String) : Bool :=
 def isAuxComponent (s : String) : Bool :=
   s.startsWith "_" || isNumbered "match_" s || isNumbered "proof_" s || isNumbered "eq_" s
 
+/-- The last component of a declaration Lean generates on demand for the declaration it is named
+under: an equation lemma (`eq_<n>`, `eq_def`, and `else_eq` of a `_sparseCasesOn_<n>` matcher
+auxiliary), a `simp` congruence lemma (`congr_simp`) or a matcher (`match_<n>`). -/
+def isGeneratedComponent (s : String) : Bool :=
+  isNumbered "eq_" s || s == "eq_def" || s == "else_eq" || s == "congr_simp" ||
+    isNumbered "match_" s
+
+/-- Exempt from C6: an allow-listed constant, or a declaration generated for an exempt one
+(`isGeneratedComponent`; e.g. `Metalean.Frontend.wrapCase.eq_1`,
+`Metalean.Frontend.quotTerm._sparseCasesOn_1.else_eq`). What
+a generated declaration mentions is checked like any other reach. -/
+def isExempt (allowed : Std.HashSet Name) : Name → Bool
+  | c@(.str p s) => allowed.contains c || (isGeneratedComponent s && isExempt allowed p)
+  | c => allowed.contains c
+
 /-- Last components of generated declarations: auxiliary recursors, `noConfusion`, equation and
 induction principles, injectivity lemmas, `sizeOf` lemmas. -/
 def auxLast : List String :=
   ["rec", "below", "ibelow", "brecOn", "binductionOn", "casesOn", "recOn", "noConfusion",
-   "noConfusionType", "eq_def", "induct", "mutual_induct", "inj", "injEq", "ctorIdx",
+   "noConfusionType", "eq_def", "congr_simp", "induct", "mutual_induct", "inj", "injEq", "ctorIdx",
    "sizeOf_spec"]
 
 /-- The name a user wrote: private names without their `_private` prefix. -/
@@ -964,7 +981,7 @@ def main (args : List String) : IO UInt32 := do
     if seen.contains c then continue
     seen := seen.insert c
     let mod? := moduleOf? env c
-    if (isForbidden c || mod?.any isForbidden) && !allowed.contains c then
+    if (isForbidden c || mod?.any isForbidden) && !isExempt allowed c then
       fail "hygiene" s!"{origin} reaches {c} (module {(mod?.map toString).getD "?"})"
     let walk := match mod? with
       | some m => isWalkedModule m
