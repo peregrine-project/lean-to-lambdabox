@@ -44,3 +44,6 @@ EraseProof.IsErasable.inst EraseProof.Erases.inst
 EraseProof.TrM.wf_app EraseProof.SrcEval.defeq
 EraseProof.TrM.uninstantiateN EraseProof.erasePure_erases
 EraseProof.Erases.abstract EraseProof.erasePure_erases
+EraseProof.LBEval.idem EraseProof.erases_correct
+EraseProof.Erases.ctorProp_box EraseProof.erases_correct
+EraseProof.Erases.propProj_box EraseProof.erases_correct

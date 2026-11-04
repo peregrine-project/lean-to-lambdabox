@@ -564,13 +564,13 @@ theorem Erases.instL_gen (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P)
   case bvar => intros; exact .bvar
   case fvar => intros; exact .fvar
   case lam =>
-    intro _ _ _ _ _ _ _ _ _ hA _ ih hok
+    intro _ _ _ _ _ _ _ _ _ hA hAt _ ih hok
     have := ih hok
     rw [MLCtx.instL_pushLam] at this
-    exact .lam (hA.instL hus) this
+    exact .lam (hA.instL hus) (let ⟨_, h⟩ := hAt; ⟨_, by simpa using h.instLevel ls⟩) this
   case letE =>
-    intro _ _ _ _ _ _ _ _ _ _ _ hv _ _ ihv ihb hok
-    exact .letE (hv.instL hus) (ihv hok.1) (ihb hok.2)
+    intro _ _ _ _ _ _ _ _ _ _ _ hv ⟨_, hvt⟩ _ _ ihv ihb hok
+    exact .letE (hv.instL hus) ⟨_, by simpa using hvt.instLevel ls⟩ (ihv hok.1) (ihb hok.2)
   case app =>
     intro f _ _ _ _ _ _ hns _ _ ihf iha hok
     refine .app (fun ⟨c, vs, hc, hs⟩ => hns ?_) (ihf hok.1) (iha hok.2)
@@ -625,10 +625,10 @@ theorem Erases.instL_gen (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P)
     exact .box ⟨_, ht.instL hus, IsErasable.instL_ctx ls hie⟩
   case done => intro _ _ _ _ _ _ ih hok; exact .done (ih hok)
   case alam =>
-    intro _ _ _ _ _ _ _ _ _ _ _ hA _ ih hok
+    intro _ _ _ _ _ _ _ _ _ _ _ hA hAt _ ih hok
     have := ih hok
     rw [MLCtx.instL_pushLam] at this
-    exact .lam (hA.instL hus) this
+    exact .lam (hA.instL hus) (let ⟨_, h⟩ := hAt; ⟨_, by simpa using h.instLevel ls⟩) this
   case intro =>
     intro e _ _ _ _ _ _ _ _ _ _ hne he hty' _ ih hok
     have := ih ⟨LvlOK_lift hok, trivial⟩

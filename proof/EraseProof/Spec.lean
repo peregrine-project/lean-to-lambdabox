@@ -1020,11 +1020,13 @@ inductive Erases {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (lps 
   | bvar : Erases E B lps σ Γ Δ (.bvar i) (.bvar i)
   /-- `erases_tVar` (`:90`), the traversal's free variables (DV-13). -/
   | fvar : Erases E B lps σ Γ Δ (.fvar x) (.fvar x)
-  /-- `erases_tLambda` (`:93`). -/
-  | lam : TrM E B lps Γ Δ A A' → Erases E B lps σ (Γ.snoc A') (Δ.pushLam none) b b' →
+  /-- `erases_tLambda` (`:93`); the binder's translation is a type (lean4lean's `TrExprS.lam`
+  requires `IsType` likewise). -/
+  | lam : TrM E B lps Γ Δ A A' → E[Γ] ⊢ A' typ → Erases E B lps σ (Γ.snoc A') (Δ.pushLam none) b b' →
       Erases E B lps σ Γ Δ (.lam x A b bi) (.lambda (binderNameOf x) b')
-  /-- `erases_tLetIn` (`:96`). -/
-  | letE : TrM E B lps Γ Δ v v₀ → Erases E B lps σ Γ Δ v v' →
+  /-- `erases_tLetIn` (`:96`); the value's translation is typed (lean4lean's `TrExprS.letE`
+  requires `HasType` likewise). -/
+  | letE : TrM E B lps Γ Δ v v₀ → (∃ T, E[Γ] ⊢ v₀ : T) → Erases E B lps σ Γ Δ v v' →
       Erases E B lps σ Γ ((none, .vlet v₀) :: Δ) b b' →
       Erases E B lps σ Γ Δ (.letE x T v b nd) (.letIn (binderNameOf x) v' b')
   /-- `erases_tApp` (`:101`), heads other than constructors and `casesOn`. -/
@@ -1100,7 +1102,8 @@ inductive ErasesAlt {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (l
     (σ : EvalEnv) : {n : Nat} → Metalean.Ctx ζ lps.length 0 n → MLCtx ζ lps.length n → Nat →
     Expr → List BinderName × LBTerm → Prop
   | done : Erases E B lps σ Γ Δ e t → ErasesAlt E B lps σ Γ Δ 0 e ([], t)
-  | lam : TrM E B lps Γ Δ A A' → ErasesAlt E B lps σ (Γ.snoc A') (Δ.pushLam none) k b (ns, t) →
+  | lam : TrM E B lps Γ Δ A A' → E[Γ] ⊢ A' typ →
+      ErasesAlt E B lps σ (Γ.snoc A') (Δ.pushLam none) k b (ns, t) →
       ErasesAlt E B lps σ Γ Δ (k + 1) (.lam x A b bi) (binderNameOf x :: ns, t)
   | intro : (∀ x A b bi, e ≠ .lam x A b bi) → TrM E B lps Γ Δ e e' →
       E[Γ] ⊢ e' : .forallE A' B'' →

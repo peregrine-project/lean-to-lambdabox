@@ -9,7 +9,8 @@ The erasure of a translated term has no loose index beyond the context's bound l
 (`Erases.closed`); an erasure of an application whose head is neither a constructor nor a
 recognized `casesOn` is `□` or an application of erasures (`Erases.app_inv`); an erasure of a
 saturated constructor spine is `□` or a λ□ constructor applied to erasures of the arguments
-(`Erases.ctor_inv`).
+(`Erases.ctor_inv`), and `□` for an inductive in `Prop` (`Erases.ctorProp_box`); an erasure of a
+`PropProj` spine that is a λ□ evaluation result is `□` (`Erases.propProj_box`).
 -/
 
 open Lean Erasure
@@ -277,9 +278,9 @@ private theorem Erases.closedn_of_bbound {e : Expr} {tb : LBTerm}
     ?mdata ?box ?done ?alam ?intro h
   case bvar => intro _ _ _ _ k hk; simpa [closedn, BBound] using hk
   case fvar | const | box | litZero => intros; rfl
-  case lam => intro _ _ _ _ _ _ _ _ _ _ _ ih k hk; exact ih (k + 1) hk
+  case lam => intro _ _ _ _ _ _ _ _ _ _ _ _ ih k hk; exact ih (k + 1) hk
   case letE =>
-    intro _ _ _ _ _ _ _ _ _ _ _ _ _ _ ihv ihb k hk
+    intro _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ ihv ihb k hk
     simp only [closedn, Bool.and_eq_true]
     exact ⟨ihv k hk.1, ihb (k + 1) hk.2⟩
   case app =>
@@ -536,6 +537,110 @@ theorem Erases.atomSpine_box {e : Expr} {tb s : LBTerm} {lenv : GlobalDeclaratio
     (hsp : AtomSpine σ e) (h : Erases E B lps σ .nil [] e tb)
     (hv : LBEval defaultFlags lenv s tb) : tb = .box :=
   LBEval.eq_box_of_headOf hv (Erases.headOf_atomSpine hsp h)
+
+/-- An erasure of a constructor spine with at least the constructor's arity, of an inductive in
+`Prop`, is `□`: `Erases.ctor` needs `¬ PropInductive`. Reference: `erases_tConstruct`
+(`MR E/Extract.v:106`, `~~ isPropositional`), whose only alternative is `erases_box`
+(`MR E/Extract.v:140`). -/
+theorem Erases.ctorProp_box {c : Name} {cv : ConstructorVal} {us : List Level} {as : List Expr}
+    {tb : LBTerm} (hc : findDecl σ.decls c = some (.ctorInfo cv))
+    (hP : PropInductive E B cv.induct) (hle : cv.numParams + cv.numFields ≤ as.length)
+    (h : Erases E B lps σ Γ Δ (mkAppN (.const c us) as.toArray) tb) : tb = .box := by
+  generalize hx : mkAppN (.const c us) as.toArray = x at h
+  have hfn : x.getAppFn = .const c us := hx ▸ getAppFn_mkAppN_const c us as
+  have hsp : (∃ cv', findDecl σ.decls c = some (.ctorInfo cv')) ∨ ∃ iv, σ.casesOn? c = some iv :=
+    .inl ⟨cv, hc⟩
+  cases h with
+  | box => rfl
+  | ctor hc' hnp =>
+    obtain ⟨rfl, -, -⟩ := mkAppN_const_inj hx
+    rw [hc] at hc'
+    cases hc'
+    exact absurd hP hnp
+  | app hns => exact absurd (specialSpine_of hfn hsp) hns
+  | const _ hsa =>
+    cases hfn
+    rw [specialArity_ctor hc] at hsa
+    cases hsa
+  | cases hco | casesReduced hco =>
+    obtain ⟨rfl, -, -⟩ := mkAppN_const_inj hx
+    obtain ⟨d, hd⟩ := casesOn?_defn hco
+    rw [hc] at hd
+    cases hd
+  | eta heta =>
+    obtain ⟨rfl, -, rfl⟩ := mkAppN_const_inj hx
+    obtain ⟨ar, har, hlt⟩ := etaSpine?_some heta
+    rw [specialArity_ctor hc] at har
+    cases har
+    omega
+  | bvar | fvar | lam | letE | proj | litZero | litSucc | mdata =>
+    exact absurd hfn (getAppFn_ne_const (fun _ _ h => by cases h) (fun _ _ h => by cases h))
+
+/-- The head of a `PropProj` spine is a projection. -/
+private theorem PropProj.head {e : Expr} (h : PropProj σ e) : ∃ S i e₀, e.getAppFn = .proj S i e₀ := by
+  induction h with
+  | proj => exact ⟨_, _, _, rfl⟩
+  | projProj => exact ⟨_, _, _, rfl⟩
+  | app _ ih => exact ih
+
+/-- An erasure of a `PropProj` spine is headed by `□` or by a λ□ projection: the head is a
+projection, which erases by `Erases.proj` or `Erases.box`. -/
+private theorem Erases.headOf_propProj {e : Expr} {tb : LBTerm} (hp : PropProj σ e)
+    (h : Erases E B lps σ Γ Δ e tb) : headOf tb = .box ∨ ∃ p x, headOf tb = .proj p x := by
+  obtain ⟨S₀, i₀, e₀, he₀⟩ := hp.head
+  have spine : ∀ {x : Expr} {c : Name} {us : List Level} {as : List Expr},
+      x.getAppFn = .proj S₀ i₀ e₀ → x ≠ mkAppN (.const c us) as.toArray := by
+    intro x c us as hx h'
+    rw [h', getAppFn_mkAppN_const] at hx
+    cases hx
+  induction hp generalizing tb with
+  | proj | projProj =>
+    generalize hx : Expr.proj _ _ _ = x at h he₀
+    cases h with
+    | box => exact .inl rfl
+    | proj => exact .inr ⟨_, _, rfl⟩
+    | ctor | cases | casesReduced | eta => exact (spine he₀ rfl).elim
+    | bvar | fvar | lam | letE | app | const | litZero | litSucc | mdata => cases hx
+  | @app f a _ ih =>
+    generalize hx : Expr.app f a = x at h he₀
+    cases h with
+    | box => exact .inl rfl
+    | app _ hf =>
+      cases hx
+      have := @ih _ hf he₀
+      exact this
+    | ctor | cases | casesReduced | eta => exact (spine he₀ rfl).elim
+    | bvar | fvar | lam | letE | const | proj | litZero | litSucc | mdata => cases hx
+
+/-- A λ□ evaluation result is not headed by a projection. Reference: `eval_to_value`
+(`MR E/EWcbvEval.v:771`): values are not stuck projections. -/
+private theorem LBEval.headOf_ne_proj {fl : WcbvFlags} {lenv : GlobalDeclarations} {s t : LBTerm}
+    (hev : LBEval fl lenv s t) : ∀ p x, headOf t ≠ .proj p x := by
+  induction hev using LBEval.ind with
+  | box | projProp | constructBlock | prim => intro _ _ h; cases h
+  | beta _ _ _ _ _ ih | zeta _ _ _ ih | iota _ _ _ _ _ _ _ _ ih | iotaBlock _ _ _ _ _ _ _ _ ih
+  | iotaSing _ _ _ _ _ _ ih | fix _ _ _ _ _ _ _ ih | fix' _ _ _ _ _ _ _ ih | delta _ _ _ ih
+  | proj _ _ _ _ _ _ _ ih | projBlock _ _ _ _ _ _ _ ih => exact ih
+  | fixValue | construct => intro _ _ h; simp only [headOf, headOf_mkApps] at h; cases h
+  | appCong _ _ _ ihf => exact ihf
+  | atom ha =>
+    rename_i t
+    intro _ _ h
+    cases t with
+    | proj => simp [lbAtom] at ha
+    | app => simp [lbAtom] at ha
+    | _ => cases h
+
+/-- An erasure of a `PropProj` spine that is a λ□ evaluation result is `□`: its head is `□` or a
+projection, and no result is headed by a projection or is an application of `□`. Reference: none
+(PCUIC evaluates proofs to constructors; theorems have no δ here, DV-24); the λ□ side is
+`eval_proj_prop` (`MR E/EWcbvEval.v:238`). -/
+theorem Erases.propProj_box {e : Expr} {tb s : LBTerm} {lenv : GlobalDeclarations}
+    (hp : PropProj σ e) (h : Erases E B lps σ Γ Δ e tb) (hv : LBEval defaultFlags lenv s tb) :
+    tb = .box := by
+  rcases Erases.headOf_propProj hp h with hb | ⟨p, x, hpx⟩
+  · exact LBEval.eq_box_of_headOf hv hb
+  · exact absurd hpx (LBEval.headOf_ne_proj hv p x)
 
 end
 
