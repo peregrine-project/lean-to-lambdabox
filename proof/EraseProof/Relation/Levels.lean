@@ -206,8 +206,8 @@ theorem ProgEnv.levelsInfo {P : List ConstantInfo} (h : ProgEnv P ζ E B) {c : N
       ∃ η : Metalean.Head ζ (.const .def d.levelParams.length), B c = some (.const η)) := by
   induction h with
   | nil => simp [findDecl] at hc
-  | @«axiom» _ _ _ _ v _ _ _ _ htr ih | @thm _ _ _ _ v _ _ _ _ _ htr _ ih
-  | @«opaque» _ _ _ _ v _ _ _ _ _ _ htr ih =>
+  | @«axiom» _ _ _ _ v _ _ _ _ _ htr ih | @thm _ _ _ _ v _ _ _ _ _ _ htr _ ih
+  | @«opaque» _ _ _ _ v _ _ _ _ _ _ _ htr ih =>
     rw [findDecl_cons] at hc
     split at hc
     · cases hc
@@ -218,7 +218,7 @@ theorem ProgEnv.levelsInfo {P : List ConstantInfo} (h : ProgEnv P ζ E B) {c : N
         exact ⟨ι, η.there, s, k, o, by rw [set_wk_ne (Ne.symm ‹_›), hB]; rfl, hl⟩
       · obtain ⟨η, hB⟩ := h3 d hd
         exact ⟨η.there, by rw [set_wk_ne (Ne.symm ‹_›), hB]; rfl⟩
-  | @defn _ _ _ _ v _ _ _ _ _ _ htr _ ih =>
+  | @defn _ _ _ _ v _ _ _ _ _ _ _ htr _ ih =>
     rw [findDecl_cons] at hc
     split at hc
     · rename_i hn
@@ -233,7 +233,7 @@ theorem ProgEnv.levelsInfo {P : List ConstantInfo} (h : ProgEnv P ζ E B) {c : N
         exact ⟨ι, η.there, s, k, o, by rw [set_wk_ne (Ne.symm ‹_›), hB]; rfl, hl⟩
       · obtain ⟨η, hB⟩ := h3 d hd
         exact ⟨η.there, by rw [set_wk_ne (Ne.symm ‹_›), hB]; rfl⟩
-  | @induct _ _ _ _ ι _ _ _ Is Cs Rs _ _ _ _ hext hblk hct ih =>
+  | @induct _ _ _ _ ι _ _ _ Is Cs Rs _ _ _ _ _ hext hblk hct ih =>
     rw [findDecl_append] at hc
     cases hd : findDecl (IndBlock.decls Is Cs Rs) c with
     | some ci' =>
@@ -259,7 +259,7 @@ theorem ProgEnv.levelsInfo {P : List ConstantInfo} (h : ProgEnv P ζ E B) {c : N
         exact ⟨ι', η.there, s, k, o, by rw [hext c hnot, Binds.wk, hB]; rfl, hl⟩
       · obtain ⟨η, hB⟩ := h3 d hdf
         exact ⟨η.there, by rw [hext c hnot, Binds.wk, hB]; rfl⟩
-  | @quot _ _ _ _ _ qs _ _ _ _ _ hext hq ih =>
+  | @quot _ _ _ _ _ qs _ _ _ _ _ _ hext hq ih =>
     rw [findDecl_append] at hc
     cases hd : findDecl (qs.reverse.map ConstantInfo.quotInfo) c with
     | some ci' =>

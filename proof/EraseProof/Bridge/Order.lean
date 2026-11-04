@@ -32,15 +32,15 @@ theorem ProgEnv.metaOrderOK {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Bind
       MetaOrderOK o (ι.ctors s k).nfields (ι.ctors s k).nrecFields := by
   induction h with
   | nil => intro c _ _ _ _ _ hc; cases hc
-  | @«axiom» _ _ _ _ v _ _ _ _ _ ih | @defn _ _ _ _ v _ _ _ _ _ _ _ _ ih
-  | @thm _ _ _ _ v _ _ _ _ _ _ _ ih | @«opaque» _ _ _ _ v _ _ _ _ _ _ _ ih =>
+  | @«axiom» _ _ _ _ v _ _ _ _ _ _ ih | @defn _ _ _ _ v _ _ _ _ _ _ _ _ _ ih
+  | @thm _ _ _ _ v _ _ _ _ _ _ _ _ ih | @«opaque» _ _ _ _ v _ _ _ _ _ _ _ _ ih =>
     intro c ι η s k o hc
     by_cases hn : c = v.name
     · simp [Binds.set, hn] at hc
     · rw [set_wk_ne hn] at hc
       obtain ⟨η', hB⟩ := wk_ctor hc
       exact ih c η' s k o hB
-  | @induct _ _ _ _ ι₀ _ _ _ Is Cs Rs _ _ _ _ hext hblk _ ih =>
+  | @induct _ _ _ _ ι₀ _ _ _ Is Cs Rs _ _ _ _ _ hext hblk _ ih =>
     intro c ι η s k o hc
     by_cases hn : c ∈ (IndBlock.decls Is Cs Rs).map (·.name)
     · obtain ⟨ci, hci, rfl⟩ := List.mem_map.mp hn
@@ -58,7 +58,7 @@ theorem ProgEnv.metaOrderOK {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Bind
     · rw [hext c hn] at hc
       obtain ⟨η', hB⟩ := wk_ctor hc
       exact ih c η' s k o hB
-  | @quot _ _ _ _ _ qs _ _ _ _ _ hext hq ih =>
+  | @quot _ _ _ _ _ qs _ _ _ _ _ _ hext hq ih =>
     intro c ι η s k o hc
     by_cases hn : c ∈ qs.map (·.name)
     · obtain ⟨q, hq', rfl⟩ := List.mem_map.mp hn

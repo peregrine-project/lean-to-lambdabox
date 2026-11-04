@@ -625,8 +625,8 @@ theorem ProgEnv.lookup_def {c : Name} {v : DefinitionVal} (h : ProgEnv P ζ E B)
       TrM E B v.levelParams .nil [] v.value (E.get η).defValue := by
   induction h with
   | nil => simp [findDecl] at hc
-  | @«axiom» _ _ _ _ v' _ hP hfr _ _ ih | @thm _ _ _ _ v' _ hP hfr _ _ _ _ ih
-  | @«opaque» _ _ _ _ v' _ hP hfr _ _ _ _ ih =>
+  | @«axiom» _ _ _ _ v' _ hP hfr _ _ _ ih | @thm _ _ _ _ v' _ hP hfr _ _ _ _ _ ih
+  | @«opaque» _ _ _ _ v' _ hP hfr _ _ _ _ _ ih =>
     rw [findDecl_cons] at hc
     split at hc
     · cases hc
@@ -634,7 +634,7 @@ theorem ProgEnv.lookup_def {c : Name} {v : DefinitionVal} (h : ProgEnv P ζ E B)
       refine ⟨η.map wkS, by rw [set_wk_ne (Ne.symm ‹_›), hB]; rfl, ?_⟩
       rw [get_there_defValue]
       exact TrM.wkEnv (hP.set_ext hfr _) htr
-  | @defn _ _ _ _ v' _ e hP hfr _ _ _ hv ih =>
+  | @defn _ _ _ _ v' _ e hP hfr _ _ _ _ hv ih =>
     rw [findDecl_cons] at hc
     split at hc
     · rename_i hn
@@ -646,7 +646,7 @@ theorem ProgEnv.lookup_def {c : Name} {v : DefinitionVal} (h : ProgEnv P ζ E B)
       refine ⟨η.map wkS, by rw [set_wk_ne (Ne.symm ‹_›), hB]; rfl, ?_⟩
       rw [get_there_defValue]
       exact TrM.wkEnv (hP.set_ext hfr _) htr
-  | @induct _ _ _ _ ι _ _ _ Is Cs Rs _ hP _ hfr hext _ _ ih =>
+  | @induct _ _ _ _ ι _ _ _ Is Cs Rs _ hP _ hfr _ hext _ _ ih =>
     rw [findDecl_append] at hc
     cases hd : findDecl (IndBlock.decls Is Cs Rs) c with
     | some ci =>
@@ -662,7 +662,7 @@ theorem ProgEnv.lookup_def {c : Name} {v : DefinitionVal} (h : ProgEnv P ζ E B)
       refine ⟨η.map wkS, by rw [hext c hnot, Binds.wk, hB]; rfl, ?_⟩
       rw [get_there_defValue]
       exact TrM.wkEnv (hP.ext_ext hfr hext) htr
-  | @quot _ _ _ _ _ qs _ hP _ _ hfr hext _ ih =>
+  | @quot _ _ _ _ _ qs _ hP _ _ hfr _ hext _ ih =>
     rw [findDecl_append] at hc
     cases hd : findDecl (qs.reverse.map ConstantInfo.quotInfo) c with
     | some ci =>

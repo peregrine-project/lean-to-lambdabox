@@ -53,19 +53,19 @@ theorem ProgEnv.bound (h : ProgEnv P ζ E B) {c : Name} (hc : B c ≠ none) :
     c ∈ P.map (·.name) := by
   induction h with
   | nil => simp at hc
-  | @«axiom» _ _ _ _ v _ _ _ _ _ ih | @defn _ _ _ _ v _ _ _ _ _ _ _ _ ih
-  | @thm _ _ _ _ v _ _ _ _ _ _ _ ih | @«opaque» _ _ _ _ v _ _ _ _ _ _ _ ih =>
+  | @«axiom» _ _ _ _ v _ _ _ _ _ _ ih | @defn _ _ _ _ v _ _ _ _ _ _ _ _ _ ih
+  | @thm _ _ _ _ v _ _ _ _ _ _ _ _ ih | @«opaque» _ _ _ _ v _ _ _ _ _ _ _ _ ih =>
     by_cases hn : c = v.name
     · exact hn ▸ List.mem_cons_self
     · rw [set_wk_ne hn] at hc
       exact List.mem_cons_of_mem _ (ih (by simpa using hc))
-  | @induct _ _ _ _ _ _ _ _ Is Cs Rs _ _ _ _ hext _ _ ih =>
+  | @induct _ _ _ _ _ _ _ _ Is Cs Rs _ _ _ _ _ hext _ _ ih =>
     rw [List.map_append]
     by_cases hn : c ∈ (IndBlock.decls Is Cs Rs).map (·.name)
     · exact List.mem_append_left _ hn
     · rw [hext c hn] at hc
       exact List.mem_append_right _ (ih (by simpa [Binds.wk] using hc))
-  | @quot _ _ _ _ _ qs _ _ _ _ _ hext _ ih =>
+  | @quot _ _ _ _ _ qs _ _ _ _ _ _ hext _ ih =>
     rw [List.map_append]
     by_cases hn : c ∈ qs.map (·.name)
     · exact List.mem_append_left _ (by rw [quot_names_reverse]; exact List.mem_reverse.mpr hn)
@@ -77,15 +77,16 @@ theorem ProgEnv.bound (h : ProgEnv P ζ E B) {c : Name} (hc : B c ≠ none) :
 theorem ProgEnv.fresh (h : ProgEnv P ζ E B) : (P.map (·.name)).Nodup := by
   induction h with
   | nil => exact List.nodup_nil
-  | «axiom» _ hfr _ _ ih | defn _ hfr _ _ _ _ ih | thm _ hfr _ _ _ _ ih | «opaque» _ hfr _ _ _ _ ih =>
+  | «axiom» _ hfr _ _ _ ih | defn _ hfr _ _ _ _ _ ih | thm _ hfr _ _ _ _ _ ih
+  | «opaque» _ hfr _ _ _ _ _ ih =>
     exact List.nodup_cons.mpr ⟨not_mem_of_findDecl_none hfr, ih⟩
-  | induct _ hnd hfr _ _ _ ih =>
+  | induct _ hnd hfr _ _ _ _ ih =>
     rw [List.map_append]
     refine List.nodup_append.mpr ⟨hnd, ih, ?_⟩
     intro a ha b hb hab
     obtain ⟨ci, hci, rfl⟩ := List.mem_map.mp ha
     exact not_mem_of_findDecl_none (hfr ci hci) (hab ▸ hb)
-  | quot _ _ hq hfr _ _ ih =>
+  | quot _ _ hq hfr _ _ _ ih =>
     rw [List.map_append, quot_names_reverse, hq]
     refine List.nodup_append.mpr ⟨by decide, ih, ?_⟩
     intro a ha b hb hab
@@ -114,14 +115,14 @@ theorem ProgEnv.lookup_ind {c : Name} {iv : InductiveVal} (h : ProgEnv P ζ E B)
       iv.ctors.length = ι.nctors s := by
   induction h with
   | nil => simp [findDecl] at hc
-  | @«axiom» _ _ _ _ v _ _ _ _ _ ih | @defn _ _ _ _ v _ _ _ _ _ _ _ _ ih
-  | @thm _ _ _ _ v _ _ _ _ _ _ _ ih | @«opaque» _ _ _ _ v _ _ _ _ _ _ _ ih =>
+  | @«axiom» _ _ _ _ v _ _ _ _ _ _ ih | @defn _ _ _ _ v _ _ _ _ _ _ _ _ _ ih
+  | @thm _ _ _ _ v _ _ _ _ _ _ _ _ ih | @«opaque» _ _ _ _ v _ _ _ _ _ _ _ _ ih =>
     rw [findDecl_cons] at hc
     split at hc
     · cases hc
     · obtain ⟨ι, η, s, hB, h1⟩ := ih hc
       exact ⟨ι, η.there, s, by rw [set_wk_ne (Ne.symm ‹_›), hB]; rfl, h1⟩
-  | @induct _ _ _ _ ι _ _ _ Is Cs Rs _ hP _ hfr hext hblk _ ih =>
+  | @induct _ _ _ _ ι _ _ _ Is Cs Rs _ hP _ hfr _ hext hblk _ ih =>
     rw [findDecl_append] at hc
     cases hd : findDecl (IndBlock.decls Is Cs Rs) c with
     | some ci =>
@@ -137,7 +138,7 @@ theorem ProgEnv.lookup_ind {c : Name} {iv : InductiveVal} (h : ProgEnv P ζ E B)
       obtain ⟨ι', η, s, hB, h1⟩ := ih hc
       have hnot : c ∉ (IndBlock.decls Is Cs Rs).map (·.name) := not_mem_of_findDecl_none hd
       exact ⟨ι', η.there, s, by rw [hext c hnot, Binds.wk, hB]; rfl, h1⟩
-  | @quot _ _ _ _ _ qs _ hP _ _ hfr hext _ ih =>
+  | @quot _ _ _ _ _ qs _ hP _ _ hfr _ hext _ ih =>
     rw [findDecl_append] at hc
     cases hd : findDecl (qs.reverse.map ConstantInfo.quotInfo) c with
     | some ci =>
@@ -165,8 +166,8 @@ theorem ProgEnv.lookup_ctor {c : Name} {cv : ConstructorVal} (h : ProgEnv P ζ E
       B cv.induct = some (.ind η s) := by
   induction h with
   | nil => simp [findDecl] at hc
-  | @«axiom» _ _ _ _ v _ hP hfr _ _ ih | @defn _ _ _ _ v _ _ hP hfr _ _ _ _ ih
-  | @thm _ _ _ _ v _ hP hfr _ _ _ _ ih | @«opaque» _ _ _ _ v _ hP hfr _ _ _ _ ih =>
+  | @«axiom» _ _ _ _ v _ hP hfr _ _ _ ih | @defn _ _ _ _ v _ _ hP hfr _ _ _ _ _ ih
+  | @thm _ _ _ _ v _ hP hfr _ _ _ _ _ ih | @«opaque» _ _ _ _ v _ hP hfr _ _ _ _ _ ih =>
     rw [findDecl_cons] at hc
     split at hc
     · cases hc
@@ -175,7 +176,7 @@ theorem ProgEnv.lookup_ctor {c : Name} {cv : ConstructorVal} (h : ProgEnv P ζ E
         not_mem_of_findDecl_none hfr (he ▸ hP.bound (by simp [hI]))
       exact ⟨ι, η.there, s, k, o, by rw [set_wk_ne (Ne.symm ‹_›), hB]; rfl, h1, h2, h3, h4,
         by rw [set_wk_ne hne, hI]; rfl⟩
-  | @induct _ _ _ _ ι _ _ _ Is Cs Rs _ hP _ hfr hext hblk _ ih =>
+  | @induct _ _ _ _ ι _ _ _ Is Cs Rs _ hP _ hfr _ hext hblk _ ih =>
     rw [findDecl_append] at hc
     cases hd : findDecl (IndBlock.decls Is Cs Rs) c with
     | some ci =>
@@ -195,7 +196,7 @@ theorem ProgEnv.lookup_ctor {c : Name} {cv : ConstructorVal} (h : ProgEnv P ζ E
         exact not_mem_of_findDecl_none (hfr ci hci) (hn ▸ hP.bound (by simp [hI]))
       exact ⟨ι', η.there, s, k, o, by rw [hext c hnot, Binds.wk, hB]; rfl, h1, h2, h3, h4,
         by rw [hext _ hnotI, Binds.wk, hI]; rfl⟩
-  | @quot _ _ _ _ _ qs _ hP _ _ hfr hext _ ih =>
+  | @quot _ _ _ _ _ qs _ hP _ _ hfr _ hext _ ih =>
     rw [findDecl_append] at hc
     cases hd : findDecl (qs.reverse.map ConstantInfo.quotInfo) c with
     | some ci =>

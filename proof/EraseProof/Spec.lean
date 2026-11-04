@@ -462,30 +462,33 @@ def ConstsIn (p : Name → Prop) : Expr → Prop
 Metalean environment `E` with name table `B`, one entry per declaration (block), after Metalean's
 loader (`ML Checker/Slow/Loader.lean:55-139`): safe axioms, definitions (`all = [name]`: no
 recursion), theorems as `opaque` (`:122-127`), opaques, inductive blocks, quotients (with `Eq`).
-Names are fresh. The value of a theorem or an opaque, which Metalean does not load, does not
-mention the declaration itself, as the kernel checks it before adding the declaration. Reference:
+Names are fresh, and the universe parameters of each declaration are distinct, as Lean's kernel
+checks (`check_duplicated_univ_params`). The value of a theorem or an opaque, which Metalean does
+not load, does not mention the declaration itself, as the kernel checks it before adding the
+declaration. Reference:
 `wf_ext Σ` (`MR P/PCUICTyping.v:507`), lean4lean `TrEnv'` (`L4 Env.lean:39`); DV-3. -/
 inductive ProgEnv : List ConstantInfo → (ζ : Metalean.Sigs) → Metalean.Env ζ → Binds ζ → Prop
   | nil : ProgEnv [] .nil .nil fun _ => none
   | «axiom» {v : AxiomVal} {t : Metalean.Expr ζ v.levelParams.length 0} :
-      ProgEnv P ζ E B → findDecl P v.name = none → v.isUnsafe = false →
+      ProgEnv P ζ E B → findDecl P v.name = none → v.levelParams.Nodup → v.isUnsafe = false →
       TrM E B v.levelParams .nil [] v.type t →
       ProgEnv (.axiomInfo v :: P) (ζ.snoc (.const .«axiom» v.levelParams.length))
         (E.snoc (.«axiom» t)) (B.wk.set v.name (.const .here))
   | defn {v : DefinitionVal} {t e : Metalean.Expr ζ v.levelParams.length 0} :
-      ProgEnv P ζ E B → findDecl P v.name = none → v.safety = .safe → v.all = [v.name] →
+      ProgEnv P ζ E B → findDecl P v.name = none → v.levelParams.Nodup → v.safety = .safe →
+      v.all = [v.name] →
       TrM E B v.levelParams .nil [] v.type t → TrM E B v.levelParams .nil [] v.value e →
       ProgEnv (.defnInfo v :: P) (ζ.snoc (.const .def v.levelParams.length))
         (E.snoc (.def t e)) (B.wk.set v.name (.const .here))
   | thm {v : TheoremVal} {t : Metalean.Expr ζ v.levelParams.length 0} :
-      ProgEnv P ζ E B → findDecl P v.name = none → v.all = [v.name] →
+      ProgEnv P ζ E B → findDecl P v.name = none → v.levelParams.Nodup → v.all = [v.name] →
       ConstsIn (· ≠ v.name) v.value →
       TrM E B v.levelParams .nil [] v.type t → E[.nil] ⊢ t : .prop →
       ProgEnv (.thmInfo v :: P) (ζ.snoc (.const .«opaque» v.levelParams.length))
         (E.snoc (.«opaque» t)) (B.wk.set v.name (.const .here))
   | «opaque» {v : OpaqueVal} {t : Metalean.Expr ζ v.levelParams.length 0} :
-      ProgEnv P ζ E B → findDecl P v.name = none → v.isUnsafe = false → v.all = [v.name] →
-      ConstsIn (· ≠ v.name) v.value → TrM E B v.levelParams .nil [] v.type t →
+      ProgEnv P ζ E B → findDecl P v.name = none → v.levelParams.Nodup → v.isUnsafe = false →
+      v.all = [v.name] → ConstsIn (· ≠ v.name) v.value → TrM E B v.levelParams .nil [] v.type t →
       ProgEnv (.opaqueInfo v :: P) (ζ.snoc (.const .«opaque» v.levelParams.length))
         (E.snoc (.«opaque» t)) (B.wk.set v.name (.const .here))
   | induct {ι : Metalean.IndSig} {I : Metalean.Inductive ζ ι} {B' : Binds (ζ.snoc (.inductive ι))}
@@ -495,6 +498,7 @@ inductive ProgEnv : List ConstantInfo → (ζ : Metalean.Sigs) → Metalean.Env 
       ProgEnv P ζ E B →
       ((IndBlock.decls Is Cs Rs).map (·.name)).Nodup →
       (∀ ci ∈ IndBlock.decls Is Cs Rs, findDecl P ci.name = none) →
+      (∀ ci ∈ IndBlock.decls Is Cs Rs, ci.levelParams.Nodup) →
       BindsExt B B' ((IndBlock.decls Is Cs Rs).map (·.name)) →
       IndBlock (E.snoc (.inductive I)) B' .here lps Is Cs Rs orders →
       (∀ ci ∈ IndBlock.decls Is Cs Rs, ConstTyped (E.snoc (.inductive I)) B' ci) →
@@ -503,7 +507,8 @@ inductive ProgEnv : List ConstantInfo → (ζ : Metalean.Sigs) → Metalean.Env 
       {B' : Binds (ζ.snoc .quot)} :
       ProgEnv P ζ E B → B ``Eq = some (.ind ηEq 0) →
       qs.map (·.name) = [``Quot, ``Quot.mk, ``Quot.lift, ``Quot.ind] →
-      (∀ q ∈ qs, findDecl P q.name = none) → BindsExt B B' (qs.map (·.name)) →
+      (∀ q ∈ qs, findDecl P q.name = none) → (∀ q ∈ qs, q.levelParams.Nodup) →
+      BindsExt B B' (qs.map (·.name)) →
       (∀ q ∈ qs, B' q.name = some (.quot .here (quotKindOf q.kind)) ∧
         ConstTyped (E.snoc (.quot ηEq)) B' (.quotInfo q)) →
       ProgEnv (qs.reverse.map .quotInfo ++ P) (ζ.snoc .quot) (E.snoc (.quot ηEq)) B'

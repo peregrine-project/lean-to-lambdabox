@@ -569,7 +569,7 @@ theorem constTyped1 : ∀ ci ∈ P1, ConstTyped E1 B1 ci := by
 
 theorem henv1 : ProgEnv P1 ζ1 E1 B1 := by
   have h := ProgEnv.induct (P := []) (I := bBlock) (B' := B1) (lps := []) (Is := IsB) (Cs := CsB)
-    (Rs := RsB) (orders := ordersB) .nil (by decide) (by simp [findDecl])
+    (Rs := RsB) (orders := ordersB) .nil (by decide) (by simp [findDecl]) (by decide)
     (fun n hn => by
       have hl : (IndBlock.decls IsB CsB RsB).map (·.name) = [`B.rec, `B.f, `B.t, `B] := rfl
       rw [hl] at hn
@@ -581,10 +581,10 @@ theorem henv1 : ProgEnv P1 ζ1 E1 B1 := by
   exact h
 
 theorem henv2 : ProgEnv (.defnInfo B_casesOn :: P1) ζ2 E2 B2 :=
-  ProgEnv.defn henv1 (by decide) rfl rfl tr_casesOnTy tr_casesOnVal
+  ProgEnv.defn henv1 (by decide) (by decide) rfl rfl tr_casesOnTy tr_casesOnVal
 
 theorem henv3 : ProgEnv P ζ3 E3 B3 :=
-  ProgEnv.defn henv2 (by decide) rfl rfl tr_negTy tr_negVal
+  ProgEnv.defn henv2 (by decide) (by decide) rfl rfl tr_negTy tr_negVal
 
 
 /-! ## The premises -/
