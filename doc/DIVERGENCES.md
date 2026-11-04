@@ -126,16 +126,21 @@ What the statements and the checks rely on without proof:
   of the dependency closure `erase_global_deps` (`erasure/theories/ErasureFunction.v:1602`).
 - **What differs:** the environment is a list of Lean declarations related, entry by entry, to a
   Metalean environment as Metalean's loader builds it (`Metalean/Checker/Slow/Loader.lean:55-139`):
-  axioms, non-recursive definitions, theorems as opaque constants (DV-24), opaques, inductive
-  blocks with their constructors and recursors, quotients; names are fresh, and a table maps each
-  Lean name to its Metalean head. The relation-level theorem types in the environment of the whole
-  program `P` and evaluates over a sub-environment of it.
+  axioms, non-recursive definitions, theorems as opaque constants (DV-24), opaques, inductive blocks
+  with their constructors and recursors, quotients; names are fresh, and a table maps each Lean name
+  to its Metalean head. Each recursor's Lean type is related to Metalean's by translation and,
+  besides, syntactically in one point: the minor premise of a constructor has
+  `nfields + 2 * nrecFields` leading Π's, one per field and per induction hypothesis
+  (`EraseProof.IndBlock`, field `minors`). The relation-level theorem types in the environment of the whole program `P` and
+  evaluates over a sub-environment of it.
 - **Why it is forced:** the eraser reads Lean declarations (`Erasure.EnvView`), while a Metalean
   environment `Metalean.Env` is a list of entries typed by their signatures and addressed by
-  position, not by name. Evaluation and the λ□ dependencies range over the closure because a λ□
-  constant is found by its kername (DV-14), and kernames are injective only where
-  `Erasure.collectDeps` checks it, on the closure; the λ□ environment the eraser emits holds the
-  closure only.
+  position, not by name. The minor arities are the count the shipping `casesOn` recognizer reads
+  from the recursor's Lean type (`Erasure.minorArity`), and the translation fixes a type only up to
+  metadata and definitional equality, so it does not fix that count. Evaluation and the λ□
+  dependencies range over the closure because a λ□ constant is found by its kername (DV-14), and
+  kernames are injective only where `Erasure.collectDeps` checks it, on the closure; the λ□
+  environment the eraser emits holds the closure only.
 - **What was considered instead:** Metalean's loader itself, which is `partial` code outside the
   verified part of Metalean (check C6); one environment for typing and evaluation, which fails
   for programs whose names collide outside the closure.

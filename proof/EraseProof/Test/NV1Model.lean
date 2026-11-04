@@ -555,6 +555,7 @@ theorem indBlock1 : IndBlock E1 B1 ηB1 [] IsB CsB RsB ordersB where
     fin_cases s
     exact ⟨rfl, rfl, fun _ => ⟨`u, rfl⟩, fun h => absurd (by rw [hb1]; exact largeElimB) h, rfl, rfl,
       rfl, rfl, rfl, rfl⟩
+  minors s t c := by fin_cases s; fin_cases t; fin_cases c <;> rfl
 
 theorem constTyped1 : ∀ ci ∈ P1, ConstTyped E1 B1 ci := by
   rw [P1_eq]
