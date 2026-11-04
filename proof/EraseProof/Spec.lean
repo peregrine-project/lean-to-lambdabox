@@ -783,6 +783,19 @@ def KernameInj (decls : List ConstantInfo) : Prop :=
 def SubEnv (decls P : List ConstantInfo) : Prop :=
   ∀ ci ∈ decls, findDecl P ci.name = some ci
 
+/-- `decls` is closed under what the pure traversal and the recognizer read: the constants of the
+expressions the traversal reads (`ReadExpr`: types; values of definitions other than recognized
+`casesOn` constants, and of opaques; not theorem values), the block members (`ConstantInfo.all`),
+the constructors of an inductive, the inductive of a constructor, and the block of a recursor
+(`RecursorVal.all`, which `Erasure.casesInfo?` reads). Reference: the closure property of
+`MR E/ErasureFunction.v:1602 erase_global_deps`. -/
+def DepClosed (decls : List ConstantInfo) : Prop :=
+  ∀ ci ∈ decls, (∀ x, ReadExpr decls ci x → ConstsIn (fun c => (findDecl decls c).isSome) x) ∧
+    (∀ n ∈ ci.all, (findDecl decls n).isSome) ∧
+    (∀ iv, ci = .inductInfo iv → ∀ n ∈ iv.ctors, (findDecl decls n).isSome) ∧
+    (∀ cv, ci = .ctorInfo cv → (findDecl decls cv.induct).isSome) ∧
+    (∀ r, ci = .recInfo r → ∀ n ∈ r.all, (findDecl decls n).isSome)
+
 /-- The evaluation environment of `P` under the configuration's remapping (DV-12). -/
 def evalEnvOf (view : EnvView) (cfg : ErasureConfig) (P : List ConstantInfo) : EvalEnv :=
   ⟨P, axiomatized view cfg⟩

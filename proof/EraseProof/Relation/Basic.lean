@@ -411,6 +411,76 @@ theorem Erases.ctor_inv {c : Name} {cv : ConstructorVal} {us : List Level} {as :
   | bvar | fvar | lam | letE | proj | litZero | litSucc | mdata =>
     exact absurd hfn (getAppFn_ne_const (fun _ _ h => by cases h) (fun _ _ h => by cases h))
 
+/-- A recognized `casesOn` has its arity as a special constant. -/
+private theorem specialArity_casesOn {σ : EvalEnv} {c : Name} {iv : InductiveVal}
+    (hc : σ.casesOn? c = some iv) : specialArity σ c = some (casesArity iv) := by
+  obtain ⟨d, hd⟩ := casesOn?_defn hc
+  unfold specialArity
+  rw [hd, hc]
+  rfl
+
+/-- An erasure of a recognized `casesOn` spine with at least its arity is `□`, a λ□ `case` on an
+erasure of the major premise with one erased alternative per constructor, applied to erasures of
+the extra arguments (`Erases.cases`), or the erased alternative applied to `□` for each field and
+to the extra arguments (`Erases.casesReduced`); the arguments split at the major premise and after
+the alternatives. Reference: the `tCase` inversion of `erases` (`MR E/Extract.v:111`),
+`erases_mkApps_inv` (`MR E/ErasureProperties.v:105`). -/
+theorem Erases.cases_inv {c : Name} {iv : InductiveVal} {us : List Level} {as : List Expr}
+    {tb : LBTerm} (hc : σ.casesOn? c = some iv) (hle : casesArity iv ≤ as.length)
+    (h : Erases E B lps σ Γ Δ (mkAppN (.const c us) as.toArray) tb) :
+    (tb = .box ∧ ErasableS E B lps Γ Δ (mkAppN (.const c us) as.toArray)) ∨
+    (∃ pre maj alts extra iid maj' brs extra', as = pre ++ [maj] ++ alts ++ extra ∧
+      ¬ CasesReduced iv us ∧ Subsingleton E B iv.name ∧ IndIdOf σ iv.name = some iid ∧
+      pre.length = casesMajor iv ∧ alts.length = iv.ctors.length ∧
+      Erases E B lps σ Γ Δ maj maj' ∧ brs.length = alts.length ∧
+      (∀ (i : Nat) cn, iv.ctors[i]? = some cn → (ctorFields σ cn).isSome) ∧
+      (∀ (i : Nat) cn alt br k, iv.ctors[i]? = some cn → alts[i]? = some alt → brs[i]? = some br →
+        ctorFields σ cn = some k → ErasesAlt E B lps σ Γ Δ k alt br) ∧
+      extra.length = extra'.length ∧
+      (∀ (i : Nat) a a', extra[i]? = some a → extra'[i]? = some a' → Erases E B lps σ Γ Δ a a') ∧
+      tb = mkApps (.case (iid, iv.numParams) maj' brs) extra') ∨
+    (∃ pre maj alt extra cn cv alt' extra', as = pre ++ [maj] ++ [alt] ++ extra ∧
+      FieldsErasable E B iv.name ∧ iv.ctors = [cn] ∧ findDecl σ.decls cn = some (.ctorInfo cv) ∧
+      (indexFields cv.numParams cv.type).all (·.isNone) = true ∧ pre.length = casesMajor iv ∧
+      Erases E B lps σ Γ Δ alt alt' ∧ extra.length = extra'.length ∧
+      (∀ (i : Nat) a a', extra[i]? = some a → extra'[i]? = some a' → Erases E B lps σ Γ Δ a a') ∧
+      tb = mkApps alt' (List.replicate cv.numFields .box ++ extra')) := by
+  generalize hx : mkAppN (.const c us) as.toArray = x at h
+  have hfn : x.getAppFn = .const c us := hx ▸ getAppFn_mkAppN_const c us as
+  have hsp : (∃ cv, findDecl σ.decls c = some (.ctorInfo cv)) ∨ ∃ iv, σ.casesOn? c = some iv :=
+    .inr ⟨iv, hc⟩
+  cases h with
+  | box hb => subst hx; exact .inl ⟨rfl, hb⟩
+  | cases hco hnr hss hid hpre halts hm hbrs hcf halt hlex hext =>
+    obtain ⟨rfl, rfl, rfl⟩ := mkAppN_const_inj hx
+    rw [hc] at hco
+    cases hco
+    exact .inr (.inl ⟨_, _, _, _, _, _, _, _, rfl, hnr, hss, hid, hpre, halts, hm, hbrs, hcf, halt,
+      hlex, hext, rfl⟩)
+  | casesReduced hco hfe hcs hcv hidx hpre ha hlex hext =>
+    obtain ⟨rfl, rfl, rfl⟩ := mkAppN_const_inj hx
+    rw [hc] at hco
+    cases hco
+    exact .inr (.inr ⟨_, _, _, _, _, _, _, _, rfl, hfe, hcs, hcv, hidx, hpre, ha, hlex, hext, rfl⟩)
+  | ctor hc' =>
+    obtain ⟨rfl, -, -⟩ := mkAppN_const_inj hx
+    obtain ⟨d, hd⟩ := casesOn?_defn hc
+    rw [hc'] at hd
+    cases hd
+  | app hns => exact absurd (specialSpine_of hfn hsp) hns
+  | const _ hsa =>
+    cases hfn
+    rw [specialArity_casesOn hc] at hsa
+    cases hsa
+  | eta heta =>
+    obtain ⟨rfl, -, rfl⟩ := mkAppN_const_inj hx
+    obtain ⟨ar, har, hlt⟩ := etaSpine?_some heta
+    rw [specialArity_casesOn hc] at har
+    cases har
+    omega
+  | bvar | fvar | lam | letE | proj | litZero | litSucc | mdata =>
+    exact absurd hfn (getAppFn_ne_const (fun _ _ h => by cases h) (fun _ _ h => by cases h))
+
 /-- An erasure of an atom spine is headed by `□`: an atom constant is neither a constructor nor a
 recognized `casesOn`, and `Erases.const` needs a non-atom, so `Erases.box` is its only rule.
 Reference: `erases_mkApps_inv` (`MR E/ErasureProperties.v:105`) for `tInd`-headed terms, which
