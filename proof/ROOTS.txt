@@ -31,4 +31,5 @@ EraseProof.ErasesDeps.ext EraseProof.erasePure_erases
 EraseProof.ErasesDeps.eval EraseProof.erases_correct
 EraseProof.Erases.extend EraseProof.erase_correct
 EraseProof.Erases.cases_inv EraseProof.erases_correct
-EraseProof.IsErasable.instL EraseProof.Erases.instLevels
+EraseProof.IsErasable.instL EraseProof.erases_correct
+EraseProof.Erases.instLevels EraseProof.erases_correct
