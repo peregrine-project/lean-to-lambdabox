@@ -28,10 +28,9 @@ EraseProof.Erases.atomSpine_box EraseProof.erases_correct
 EraseProof.ErasesDeps.ext EraseProof.erasePure_erases
 EraseProof.ErasesDeps.eval EraseProof.erases_correct
 EraseProof.TrM.det EraseProof.erasePure_erases
-EraseProof.TrM.apps EraseProof.casesOn_whred
 EraseProof.Erases.extend EraseProof.erase_correct
 EraseProof.Erases.cases_inv EraseProof.erases_correct
 EraseProof.IsErasable.instL EraseProof.erases_correct
 EraseProof.Erases.instLevels EraseProof.erases_correct
-EraseProof.CasesWhred.casesOn_whred_spine EraseProof.casesOn_whred
-EraseProof.CasesWhred.casesOnLit_whred_spine EraseProof.casesOnLit_whred
+EraseProof.casesOn_whred EraseProof.SrcEval.defeq
+EraseProof.casesOnLit_whred EraseProof.SrcEval.defeq

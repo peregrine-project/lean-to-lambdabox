@@ -1,3 +1,4 @@
+import EraseProof.Bridge.Apps
 import EraseProof.Bridge.Basic
 import EraseProof.Bridge.Cases
 import EraseProof.Bridge.InstL
@@ -12,7 +13,8 @@ constructor) and β (through `wrapCase` and the canonical minor) to the alternat
 translations of the fields (`CasesWhred.casesOn_whred_core`). The minor's β-step uses the arity
 `nfields + 2 * nrecFields` that `IndBlock` fixes for the recursor's minor premises. Instances:
 constructor spines (`CasesWhred.casesOn_whred_spine`) and Nat literals
-(`CasesWhred.casesOnLit_whred_spine`). `CasesWhred.ProgEnv.block` recovers the inductive block of
+(`CasesWhred.casesOnLit_whred_spine`); with the saturation of the alternative's spine
+(`TrM.apps`), `casesOn_whred` and `casesOnLit_whred`. `CasesWhred.ProgEnv.block` recovers the inductive block of
 a Metalean head from the program. Reference: `eval_iota` (`MR P/PCUICWcbvEval.v:253`);
 `WHRed.delta`, `WHRed.iota` (`ML Syntax/Reduction.lean`); DV-25.
 -/
@@ -955,5 +957,50 @@ theorem casesOnLit_whred_spine {σ : EvalEnv} {c : Name} {iv : InductiveVal} {ar
 end
 
 end CasesWhred
+
+
+section
+variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {P : List ConstantInfo}
+  {σ : EvalEnv} {lps : List Name} {n : Nat}
+  {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n}
+
+/-- A saturated recognized `casesOn` on a constructor value reduces (δ, β, ι, β through `wrapCase`
+and the canonical minors) to the translation of the alternative applied to the fields.
+Reference: `eval_iota` (`MR P/PCUICWcbvEval.v:253`); `WHRed.delta`, `WHRed.iota`
+(`ML Syntax/Reduction.lean`); DV-25. -/
+theorem casesOn_whred {c : Name} {iv : InductiveVal} {m a alt : Expr} {i : Nat}
+    {fs : List Expr} {us : List Level} {t : Metalean.Expr ζ lps.length n} {args : List Expr}
+    (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P)
+    (hcs : σ.casesOn? c = some iv) (hlen : args.length + 1 = casesArity iv)
+    (hm : args[casesMajor iv]? = some m) (hcv : CtorValue σ iv.name m i fs)
+    (halt : (args ++ [a])[casesMajor iv + 1 + i]? = some alt)
+    (he : TrM E B lps Γ Δ (mkAppN (.const c us) (args ++ [a]).toArray) t) :
+    ∃ t', TrM E B lps Γ Δ (mkAppN alt fs.toArray) t' ∧ E ⊢ t ⤳* t' := by
+  obtain ⟨alt', fs', ha, hfs, hred⟩ :=
+    CasesWhred.casesOn_whred_spine henv hsub hcs hlen hm hcv halt he
+  obtain ⟨t', ht', hr⟩ := TrM.apps ha hfs
+  exact ⟨t', ht', hred.trans hr⟩
+
+/-- The same chain on a Nat literal major (`natLit`): the alternative of `Nat.zero`, or that of
+`Nat.succ` applied to the predecessor. Reference: as `casesOn_whred`. -/
+theorem casesOnLit_whred {c : Name} {iv : InductiveVal} {a : Expr} {k : Nat} {us : List Level}
+    {t : Metalean.Expr ζ lps.length n} {args : List Expr}
+    (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P)
+    (hcs : σ.casesOn? c = some iv) (hnat : iv.name = ``Nat) (hlen : args.length + 1 = casesArity iv)
+    (hm : args[casesMajor iv]? = some (.lit (.natVal k)))
+    (he : TrM E B lps Γ Δ (mkAppN (.const c us) (args ++ [a]).toArray) t) :
+    ∃ alt t', (args ++ [a])[casesMajor iv + 1 + min k 1]? = some alt ∧
+      TrM E B lps Γ Δ (if k = 0 then alt else .app alt (.lit (.natVal (k - 1)))) t' ∧
+      E ⊢ t ⤳* t' := by
+  obtain ⟨alt, alt', fs', halt, ha, hfs, hred⟩ :=
+    CasesWhred.casesOnLit_whred_spine henv hsub hcs hnat hlen hm he
+  obtain ⟨t', ht', hr⟩ := TrM.apps ha hfs
+  refine ⟨alt, t', halt, ?_, hred.trans hr⟩
+  cases k <;>
+    (simp only [Nat.add_one_ne_zero, ↓reduceIte, Nat.add_sub_cancel] at ht' ⊢
+     rw [mkAppN_eq_foldl] at ht'
+     exact ht')
+
+end
 
 end EraseProof
