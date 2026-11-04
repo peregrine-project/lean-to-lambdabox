@@ -1,3 +1,4 @@
+import EraseProof.Bridge.Basic
 import EraseProof.Metatheory.NoConf
 import EraseProof.Statements
 import EraseProof.Test.NoConf

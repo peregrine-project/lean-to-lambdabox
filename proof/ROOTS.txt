@@ -12,3 +12,6 @@ EraseProof.TypeEq.forallE_ne_ind EraseProof.IsErasable.ctor_not
 EraseProof.TypeEq.sort_ne_quot EraseProof.IsErasable.quotMk_not
 EraseProof.TypeEq.forallE_ne_quot EraseProof.IsErasable.quotMk_not
 EraseProof.TypeEq.ind_ne_quot EraseProof.IsErasable.quotMk_not
+EraseProof.TrM.fvarsIn EraseProof.erasePure_erases
+EraseProof.TrM.weakFV_let EraseProof.erasePure_erases
+EraseProof.TrM.inst_fvar EraseProof.erasePure_erases
