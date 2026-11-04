@@ -155,3 +155,5 @@ EraseProof.IsErasable.lam_inv propext,Classical.choice,Quot.sound
 EraseProof.IsErasable.ctor_not propext,Classical.choice,Quot.sound
 EraseProof.SrcEval.restrict propext,Classical.choice,Quot.sound
 EraseProof.isRecursiveDecl_false propext,Classical.choice,Quot.sound
+EraseProof.TrM.inst propext,Classical.choice,Quot.sound
+EraseProof.TrM.inst_let propext,Classical.choice,Quot.sound

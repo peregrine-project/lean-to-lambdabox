@@ -87,10 +87,18 @@ What the statements and the checks rely on without proof:
   base) applied to its arguments. `EraseProof.SrcEval` evaluates a `let` as `eval_zeta`
   (`pcuic/theories/PCUICWcbvEval.v:241`) does, and `EraseProof.Erases` relates a `let` to a λ□
   `tLetIn` as `erases_tLetIn` does, with the binder rules taking the translation of the binder's
-  type as a premise.
+  type as a premise. A projection's levels and parameters are those of its major's type in a
+  context that extends the context of the translation (`EraseProof.TypedExt`), the context in
+  which the Metalean term places the major: inside a minor premise that `wrapCase`
+  (`Metalean/Frontend/Translate.lean:84`) wraps, it contains the case telescope; the translator
+  reads them from the type it infers in the context of the translation.
 - **Why it is forced:** the eraser consumes `Expr`, and Metalean's typing is stated on its own
   syntax. Metalean's translator is a `partial` function that decides projections with an
   unverified type inference, so it cannot be used in a statement; a relation modelled on it can.
+  Typing the major in the context of the translation would need, after a substitution inside a
+  wrapped minor premise, to move a typing out of the case telescope (strengthening), which
+  Metalean does not prove; in the context where the major lives, the typing follows from the
+  typing of the whole term by inversion.
   The λ□ image of a `let` evaluates the value first (`eval_zeta`,
   `erasure/theories/EWcbvEval.v:134`), which no semantics on `Metalean.Expr`, where the value is
   substituted, can follow.

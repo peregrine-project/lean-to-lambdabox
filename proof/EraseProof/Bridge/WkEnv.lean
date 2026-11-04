@@ -524,6 +524,18 @@ theorem TrM.head_bound {B : Binds ζ} {lps : List Name} {n : Nat}
   | app _ _ _ ih _ => exact ih hc
   | _ => cases hc
 
+/-- `TypedExt` is stable under one new entry (the extension mapped too). -/
+theorem WkEnvExt.TypedExt.wkEnv {lps : List Name} {n : Nat}
+    {Γ : Metalean.Ctx ζ lps.length 0 n} {e T : Metalean.Expr ζ lps.length n}
+    (h : TypedExt E Γ e T) :
+    TypedExt (E.snoc ent) (Γ.map wkS) (e.map wkS) (T.map wkS) := by
+  obtain ⟨m, Γ', ρ, hρ, hget, hty⟩ := h
+  refine ⟨m, Γ'.map wkS, ρ, hρ, fun v => ?_, ?_⟩
+  · rw [Metalean.Ctx.get_map, Metalean.Ctx.get_map, hget, Metalean.Expr.map_rename]
+  · have h' := Metalean.Defeq.map (envS E ent) hty
+    rw [Metalean.Expr.map_rename, Metalean.Expr.map_rename] at h'
+    exact h'
+
 /-- A translation stays a translation after one new entry whose table agrees with the old one,
 weakened, on the old bindings. Reference: `weakening_env` (`MR P/PCUICWeakeningEnv.v`);
 `Defeq.map` (`ML Typing/Map.lean:22`). -/
@@ -562,12 +574,13 @@ theorem TrM.wkEnv {B : Binds ζ} {B' : Binds (ζ.snoc sig)}
     rw [natLitM_map]
     exact .lit (hB _ _ hb)
   | @projStruct n i S Γ Δ e e' ι η s c ls ps is hst hi hb _ hty ih =>
-    have hty' := Metalean.Defeq.map (envS E ent) hty
+    have hty' := WkEnvExt.TypedExt.wkEnv (ent := ent) hty
     rw [show (wkS : ζ ⟶ ζ.snoc sig) = (envS E ent).sigs from rfl,
       Metalean.Env.IsStructure.projTerm_map]
-    exact .projStruct _ hi (hB _ _ hb) ih (by simpa using hty')
+    exact .projStruct _ hi (hB _ _ hb) ih
+      (by simpa [show (wkS : ζ ⟶ ζ.snoc sig) = (envS E ent).sigs from rfl] using hty')
   | @projProof n S i Γ Δ e e' ι η s c ls ps is hi hb hs hc hnr hf hnst _ hty ih =>
-    have hty' := Metalean.Defeq.map (envS E ent) hty
+    have hty' := WkEnvExt.TypedExt.wkEnv (ent := ent) hty
     rw [projProofTerm_map wkS η (get_there_block (ent := ent) η)]
     refine .projProof hi (hB _ _ hb) hs hc hnr hf (fun h' => hnst ?_) ih (by simp at hty'; exact hty')
     rw [get_there_block] at h'

@@ -123,6 +123,118 @@ theorem MLCtx.Lift.fv {Δ : MLCtx ζ ℓ n} {x : FVarId} (hx : Δ.findF x = none
 
 end
 
+namespace WeakExt
+open Metalean
+
+variable {ζ : Sigs} {E : Env ζ} {ℓ : Nat}
+
+/-- The renaming of `Γ₀.insert A Γ₁` into `Γ'.snoc _` that follows `ρ` off the inserted variable
+`cut` and sends `cut` to the new last variable. -/
+def insRen {cut n m : Nat} (hcut : cut ≤ n) (ρ : Ren n m) : Ren (n + 1) (m + 1) := fun v =>
+  if h : v.val < cut then (ρ ⟨v.val, Nat.lt_of_lt_of_le h hcut⟩).castSucc
+  else if h' : v.val = cut then Fin.last m
+  else (ρ ⟨v.val - 1, by have := v.isLt; omega⟩).castSucc
+
+theorem insRen_wkFrom {cut n m : Nat} (hcut : cut ≤ n) (ρ : Ren n m) (w : Var n) :
+    insRen hcut ρ (Ren.wkFrom cut w) = (ρ w).castSucc := by
+  by_cases hw : w.val < cut
+  · rw [Ren.wkFrom_of_lt w hw]
+    simp [insRen, hw]
+  · rw [Ren.wkFrom_of_ge w (by omega)]
+    have h₁ : ¬ (w.succ.val < cut) := by simp; omega
+    have h₂ : w.succ.val ≠ cut := by simp; omega
+    simp only [insRen, h₁, h₂, dite_false]
+    simp
+
+theorem insRen_cut {cut n m : Nat} (hcut : cut ≤ n) (ρ : Ren n m) :
+    insRen hcut ρ ⟨cut, Nat.lt_succ_of_le hcut⟩ = Fin.last m := by
+  simp [insRen]
+
+theorem insRen_inj {cut n m : Nat} (hcut : cut ≤ n) {ρ : Ren n m} (hρ : Function.Injective ρ) :
+    Function.Injective (insRen hcut ρ) := by
+  intro v w h
+  have key : ∀ x y : Var n, (ρ x).val = (ρ y).val → x.val = y.val :=
+    fun x y hxy => by rw [hρ (Fin.ext hxy)]
+  have ne₁ : ∀ x : Var n, (ρ x).val ≠ m := fun x => (ρ x).isLt.ne
+  have ne₂ : ∀ x : Var n, m ≠ (ρ x).val := fun x => (ρ x).isLt.ne'
+  have hv := congrArg Fin.val h
+  have := v.isLt
+  have := w.isLt
+  unfold insRen at hv
+  ext
+  split_ifs at hv <;> simp only [Fin.val_castSucc, Fin.val_last] at hv <;>
+    first
+    | omega
+    | exact absurd hv (ne₁ _)
+    | exact absurd hv (ne₂ _)
+    | (have := key _ _ hv; simp only at this; omega)
+
+/-- Every variable of `Γ₀.insert A Γ₁` is the inserted one or a weakened old one. -/
+theorem var_cases {cut n : Nat} (hcut : cut ≤ n) (v : Var (n + 1)) :
+    v.val = cut ∨ ∃ w : Var n, v = Ren.wkFrom cut w := by
+  by_cases h : v.val = cut
+  · exact .inl h
+  · refine .inr ?_
+    by_cases hv : v.val < cut
+    · exact ⟨⟨v.val, by omega⟩, by rw [Ren.wkFrom_of_lt (⟨v.val, by omega⟩ : Var n) hv]; rfl⟩
+    · have := v.isLt
+      refine ⟨⟨v.val - 1, by omega⟩, ?_⟩
+      rw [Ren.wkFrom_of_ge (⟨v.val - 1, by omega⟩ : Var n) (by simp; omega)]
+      ext; simp; omega
+
+/-- The type of the inserted variable. -/
+theorem get_insert_cut {cut : Nat} (Γ₀ : Ctx ζ ℓ 0 cut) (A : Expr ζ ℓ cut) {n : Nat}
+    (Γ₁ : Ctx ζ ℓ cut n) (h : cut < n + 1) :
+    Ctx.get ⟨cut, h⟩ (Γ₀.insert A Γ₁) = A.rename (fun v => ⟨v.val, by omega⟩) := by
+  induction Γ₁ with
+  | nil =>
+    rw [Ctx.insert_nil]
+    change (Γ₀.snoc A).get (Fin.last cut) = _
+    rw [Ctx.get_last, Expr.wk, Expr.wkFrom]
+    congr 1
+    funext v
+    rw [Ren.wkFrom_of_lt v v.isLt]
+    rfl
+  | @snoc m Δ t₁ ih =>
+    have hcm : cut ≤ m := Tele.le Δ
+    rw [Ctx.insert_snoc, Ctx.get_snoc _ _ _ (by simp; omega)]
+    change (Ctx.get ⟨cut, by omega⟩ (Γ₀.insert A Δ)).wk = _
+    rw [ih (by omega), Expr.wk, Expr.wkFrom, Expr.rename_rename]
+    congr 1
+    funext v
+    simp only [Ren.comp]
+    rw [Ren.wkFrom_of_lt _ (by simp; omega)]
+    rfl
+
+/-- `TypedExt` is stable under weakening at level `cut`. -/
+theorem TypedExt.wkFrom {cut : Nat} {Γ₀ : Ctx ζ ℓ 0 cut} (A : Expr ζ ℓ cut) {n : Nat}
+    {Γ₁ : Ctx ζ ℓ cut n} {e T : Expr ζ ℓ n} (h : TypedExt E (Γ₀ ++ Γ₁) e T) :
+    TypedExt E (Γ₀.insert A Γ₁) (e.wkFrom cut) (T.wkFrom cut) := by
+  obtain ⟨m, Γ', ρ, hρ, hget, hty⟩ := h
+  have hcut : cut ≤ n := Tele.le Γ₁
+  let ρ₀ : Ren cut m := fun v => ρ ⟨v.val, by omega⟩
+  have key (x : Expr ζ ℓ n) : (x.wkFrom cut).rename (insRen hcut ρ) = (x.rename ρ).wk := by
+    rw [Expr.wkFrom, Expr.rename_rename, Expr.wk, Expr.wkFrom, Expr.rename_rename]
+    congr 1
+    funext w
+    simp only [Ren.comp, insRen_wkFrom]
+    rw [Ren.wkFrom_of_lt _ (ρ w).isLt]
+  refine ⟨m + 1, Γ'.snoc (A.rename ρ₀), insRen hcut ρ, insRen_inj hcut hρ, fun v => ?_, ?_⟩
+  · rcases var_cases hcut v with hv | ⟨w, rfl⟩
+    · obtain rfl : v = ⟨cut, Nat.lt_succ_of_le hcut⟩ := Fin.ext hv
+      rw [insRen_cut, Ctx.get_last, get_insert_cut, Expr.rename_rename, Expr.wk, Expr.wkFrom,
+        Expr.rename_rename]
+      congr 1
+      funext w
+      simp only [Ren.comp]
+      rw [Ren.wkFrom_of_lt _ (ρ₀ w).isLt]
+      simp [insRen, ρ₀]
+    · rw [insRen_wkFrom, Ctx.get_castSucc, Ctx.get_insert, key, hget]
+  · rw [key, key]
+    exact hty.wk _
+
+end WeakExt
+
 section
 variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {lps : List Name}
 
@@ -174,13 +286,13 @@ theorem TrM.wkFrom {cut : Nat} {Γ₀ : Metalean.Ctx ζ lps.length 0 cut}
   | projStruct hst hi hS _ hty ih =>
     subst hΓ
     rw [Metalean.Inductive.IsStructure.projTerm_wkFrom]
-    exact .projStruct hst hi hS (ih W rfl) (by simpa using Metalean.Defeq.wkFrom Γ₀ Γ₁ A hty)
+    exact .projStruct hst hi hS (ih W rfl) (by simpa using WeakExt.TypedExt.wkFrom A hty)
   | projProof hi hS hs hc hr hf hns _ hty ih =>
     subst hΓ
     rw [Metalean.Expr.wkFrom_eq_subst, projProofTerm_subst]
     simp only [← Metalean.Expr.wkFrom_eq_subst]
     exact .projProof hi hS hs hc hr hf hns (ih W rfl)
-      (by simpa using Metalean.Defeq.wkFrom Γ₀ Γ₁ A hty)
+      (by simpa using WeakExt.TypedExt.wkFrom A hty)
 
 /-- Weakening by a new bound variable, innermost. Reference: `TrS.weakBV`
 (`L4 Typing/Weak.lean:56`); `Defeq.wk` (`ML Typing/Substitution.lean:131`). -/

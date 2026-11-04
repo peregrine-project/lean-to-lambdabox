@@ -251,6 +251,14 @@ theorem MLCtx.instL_pushLam (ls : Fin ℓ → Metalean.Level ℓ') {n : Nat} (Δ
 
 end
 
+/-- `TypedExt` is stable under universe instantiation (the extension instantiated too). -/
+theorem LevelsExt.TypedExt.instL {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {ℓ ℓ' n : Nat}
+    (ls : Fin ℓ → Metalean.Level ℓ') {Γ : Metalean.Ctx ζ ℓ 0 n} {e T : Metalean.Expr ζ ℓ n}
+    (h : TypedExt E Γ e T) : TypedExt E (Γ{ls}) (e{ls}) (T{ls}) := by
+  obtain ⟨m, Γ', ρ, hρ, hget, hty⟩ := h
+  refine ⟨m, Γ'{ls}, ρ, hρ, fun v => ?_, by simpa using Metalean.Defeq.instLevel ls hty⟩
+  rw [← Metalean.Ctx.get_instL, ← Metalean.Ctx.get_instL, hget, Metalean.Expr.instL_rename]
+
 section
 variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {lps lps' : List Name}
   {us : List Level} {ls : Fin lps'.length → Metalean.Level lps.length}
@@ -294,10 +302,10 @@ theorem TrM.instL (hus : TrLevels lps us lps'.length = some ls) {n : Nat}
     exact .lit hB
   | projStruct hst hi hS _ hty ih =>
     rw [Metalean.Inductive.IsStructure.projTerm_instL]
-    exact .projStruct hst hi hS ih (by simpa using Metalean.Defeq.instLevel ls hty)
+    exact .projStruct hst hi hS ih (by simpa using LevelsExt.TypedExt.instL ls hty)
   | projProof hi hS hs hc hr hf hns _ hty ih =>
     rw [projProofTerm_instL]
-    exact .projProof hi hS hs hc hr hf hns ih (by simpa using Metalean.Defeq.instLevel ls hty)
+    exact .projProof hi hS hs hc hr hf hns ih (by simpa using LevelsExt.TypedExt.instL ls hty)
 
 /-- Universe instantiation of closed terms: `Pure.instLevels lps' us e` is the Lean form of the
 translation of `e` with its universe parameters instantiated by the translation `ls` of `us`.
