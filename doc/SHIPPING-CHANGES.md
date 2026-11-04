@@ -2446,6 +2446,37 @@ the calls at which the two oracles answer differently. It must equal
   configuration). `scripts/regress.sh` passes (15 tests), with and without `PEREGRINE`;
   `scripts/pure-harness.sh` passes with the updated summary.
 
+## S-30: The closure of a program contains the structure of each projection it reads
+
+- **Commit:** the commit whose subject starts with `S-30:` (`git log --grep='^S-30:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure/Entry.lean`: `exprConsts` gives the structure name `S` of a
+    projection `proj S i e` before the constants of `e` (before: only those of `e`); its docstring
+    and that of `collectDeps`.
+  - `tests/regress/collect_deps.lean`: a new case and its docstring.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** the proof's source semantics evaluates a projection on a proof by reading
+  whether its structure is a `Prop` inductive of the program's declarations, and the pure
+  traversal reads the structure to erase a projection. The proof's restriction lemma, which moves
+  an evaluation from the whole environment to the closure, needs every declaration that the
+  semantics reads to be in the closure; without the structure name it is false: in the closure of
+  `.proj S 0 h` with `h : Q`, `S` is missing, so the projection evaluates in the environment and
+  not in the closure. MetaRocq's `term_global_deps` counts the inductive of a `tProj` among a
+  term's global dependencies in the same way (`MR E/EAstUtils.v:422`).
+- **Behaviour before:** `collectDeps` on `.proj G.PS 0 G.hq` (`G.PS : Prop` a structure,
+  `axiom G.hq : G.Q`) gives `ok [G.Q, G.hq]`.
+- **Behaviour after:** it gives `ok [G.Q, G.hq, True.intro, True, G.PS.mk, G.PS]`. On a well-typed
+  program the structure already enters the closure through the type of the projection's argument
+  (a binder type, a declaration's type or a value the closure reads), so the closure gains no
+  declaration on the corpus.
+- **Effect on emitted .ast (corpus):** byte-identical for all 710 files against the corpus of
+  S-29 (`e484b06`); `PANIC` counts unchanged. `scripts/pure-harness.sh` passes with its expected
+  summary unchanged: 294 `#erase`, 223 in the fragment, 68 outside, 3 name collisions; 8294 oracle
+  calls, 14 differ, none fails.
+- **Regression test:** `collect_deps` pins the closure of `.proj G.PS 0 G.hq` above. Before this
+  commit it gives `ok [G.Q, G.hq]` and the test fails. `scripts/regress.sh` passes (15 tests),
+  with and without `PEREGRINE`.
+
 ---
 
 ## Reported, not fixed
