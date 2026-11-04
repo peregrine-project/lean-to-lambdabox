@@ -10,6 +10,9 @@ import EraseProof.Bridge.Levels
 import EraseProof.Bridge.Unfold
 import EraseProof.Bridge.Lookup
 import EraseProof.Bridge.Cases
+import EraseProof.Bridge.Cong
+import EraseProof.Bridge.Det
+import EraseProof.Bridge.Apps
 import EraseProof.Metatheory.NoConf
 import EraseProof.Statements
 import EraseProof.Test.NoConf
