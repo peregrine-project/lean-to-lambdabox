@@ -4,8 +4,8 @@
 #             Quot.sound; `-` for none. sorryAx and Cardinal.exists_inaccessibles never occur.
 # proof/scripts/check.sh compares this file with the computed .check/axioms.actual.
 EraseProof.proj_defeq propext,Classical.choice,Quot.sound
-EraseProof.CasesWhred.casesOn_whred_spine propext,Classical.choice,Quot.sound
-EraseProof.CasesWhred.casesOnLit_whred_spine propext,Classical.choice,Quot.sound
+EraseProof.casesOn_whred propext,Classical.choice,Quot.sound
+EraseProof.casesOnLit_whred propext,Classical.choice,Quot.sound
 EraseProof.ProgEnv.fresh propext,Classical.choice,Quot.sound
 EraseProof.ProgEnv.unfold propext,Classical.choice,Quot.sound
 EraseProof.ProgEnv.lookup propext,Classical.choice,Quot.sound
@@ -16,7 +16,6 @@ EraseProof.Test.runPure_withReader propext,Classical.choice,Quot.sound
 EraseProof.Test.toArray_toSubarray propext,Classical.choice,Quot.sound
 EraseProof.Test.withApp_app1 propext
 EraseProof.Test.withApp_const propext
-EraseProof.TrM.apps propext,Classical.choice,Quot.sound
 EraseProof.TrM.det propext,Classical.choice,Quot.sound
 EraseProof.TrM.fvarsIn propext,Classical.choice,Quot.sound
 EraseProof.TrM.inst_fvar propext,Classical.choice,Quot.sound
