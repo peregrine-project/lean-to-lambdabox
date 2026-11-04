@@ -22,8 +22,9 @@ namespace Erasure
 variable, a metavariable, a level metavariable, a string literal, and under `nat := .machine` a Nat
 literal or one of `Nat.zero`, `Nat.succ`, `Int.ofNat`, `Int.negSucc`, `Nat.casesOn`,
 `Int.casesOn` (which the traversal turns into primitive integers). The structure name of a
-projection is not a constant of the expression. Reference: `term_global_deps`
-(`MR E/EAstUtils.v:406`), on the source side. -/
+projection is a constant of the expression, as the inductive of `tProj` is a global dependency in
+`term_global_deps`. Reference: `term_global_deps` (`MR E/EAstUtils.v:406`, `tProj` at `:422`), on
+the source side. -/
 def exprConsts (cfg : ErasureConfig) : Expr → Except EraseError (List Name)
   | .bvar _ => pure []
   | .fvar _ => throw (.outOfFragment "free variable")
@@ -44,7 +45,8 @@ def exprConsts (cfg : ErasureConfig) : Expr → Except EraseError (List Name)
     | .machine => throw (.outOfFragment "Nat literal under nat := .machine")
     | .peano => pure [``Nat]
   | .lit (.strVal _) => throw (.outOfFragment "string literal")
-  | .mdata _ e | .proj _ _ e => exprConsts cfg e
+  | .mdata _ e => exprConsts cfg e
+  | .proj S _ e => return S :: (← exprConsts cfg e)
 
 /-- The syntactic arity `Π x₁…xₙ, Sort u` of a type: `n` and `u`. Reference: `isArity`
 (`MR P/PCUICTyping.v:29`). -/
@@ -228,7 +230,7 @@ def findBlockCollision (decls : List ConstantInfo) : Option (Name × Name) :=
 exclusion. The closure holds the constants of the term and, for each of its declarations, those
 of its type; of its value if it is a definition that is not a recognized `casesOn` (`casesInfo?`),
 or an opaque (not of theorems); its block members; the constructors of an inductive; the inductive
-of a constructor; `Nat` for a Nat literal; for a recognized `T.casesOn`, `T` and `T.rec` (the
+of a constructor; the structure of a projection; `Nat` for a Nat literal; for a recognized `T.casesOn`, `T` and `T.rec` (the
 recognizer reads them; the value is not read, the recursor is not an exclusion).
 `outOfFragment` exactly when the closure contains (`exprConsts`, `declExclusion`, `dropKnown`,
 `closureStep`, `eliminatedUndecided`): a recursor other than the `T.rec` of a recognized

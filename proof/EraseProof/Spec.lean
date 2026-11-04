@@ -436,12 +436,25 @@ def quotKindOf : Lean.QuotKind → Metalean.Export.QuotKind
   | .lift => .lift
   | .ind => .ind
 
+/-- Every constant of `e`, and the structure of every projection of `e`, satisfies `p`, as
+`Erasure.exprConsts` collects them. Reference: `term_global_deps` (`MR E/EAstUtils.v:406`; the
+inductive of `tProj` at `:422`). -/
+def ConstsIn (p : Name → Prop) : Expr → Prop
+  | .const c _ => p c
+  | .app f a => ConstsIn p f ∧ ConstsIn p a
+  | .lam _ t b _ | .forallE _ t b _ => ConstsIn p t ∧ ConstsIn p b
+  | .letE _ t v b _ => ConstsIn p t ∧ ConstsIn p v ∧ ConstsIn p b
+  | .mdata _ e => ConstsIn p e
+  | .proj S _ e => p S ∧ ConstsIn p e
+  | _ => True
+
 /-- `ProgEnv P ζ E B`: the newest-first list of Lean declarations `P` is the Lean form of the
 Metalean environment `E` with name table `B`, one entry per declaration (block), after Metalean's
 loader (`ML Checker/Slow/Loader.lean:55-139`): safe axioms, definitions (`all = [name]`: no
 recursion), theorems as `opaque` (`:122-127`), opaques, inductive blocks, quotients (with `Eq`).
-Names are fresh. Reference: `wf_ext Σ` (`MR P/PCUICTyping.v:507`), lean4lean `TrEnv'`
-(`L4 Env.lean:39`); DV-3. -/
+Names are fresh. The value of a theorem or an opaque, which Metalean does not load, does not
+mention the declaration itself, as the kernel checks it before adding the declaration. Reference:
+`wf_ext Σ` (`MR P/PCUICTyping.v:507`), lean4lean `TrEnv'` (`L4 Env.lean:39`); DV-3. -/
 inductive ProgEnv : List ConstantInfo → (ζ : Metalean.Sigs) → Metalean.Env ζ → Binds ζ → Prop
   | nil : ProgEnv [] .nil .nil fun _ => none
   | «axiom» {v : AxiomVal} {t : Metalean.Expr ζ v.levelParams.length 0} :
@@ -456,12 +469,13 @@ inductive ProgEnv : List ConstantInfo → (ζ : Metalean.Sigs) → Metalean.Env 
         (E.snoc (.def t e)) (B.wk.set v.name (.const .here))
   | thm {v : TheoremVal} {t : Metalean.Expr ζ v.levelParams.length 0} :
       ProgEnv P ζ E B → findDecl P v.name = none → v.all = [v.name] →
+      ConstsIn (· ≠ v.name) v.value →
       TrM E B v.levelParams .nil [] v.type t → E[.nil] ⊢ t : .prop →
       ProgEnv (.thmInfo v :: P) (ζ.snoc (.const .«opaque» v.levelParams.length))
         (E.snoc (.«opaque» t)) (B.wk.set v.name (.const .here))
   | «opaque» {v : OpaqueVal} {t : Metalean.Expr ζ v.levelParams.length 0} :
       ProgEnv P ζ E B → findDecl P v.name = none → v.isUnsafe = false → v.all = [v.name] →
-      TrM E B v.levelParams .nil [] v.type t →
+      ConstsIn (· ≠ v.name) v.value → TrM E B v.levelParams .nil [] v.type t →
       ProgEnv (.opaqueInfo v :: P) (ζ.snoc (.const .«opaque» v.levelParams.length))
         (E.snoc (.«opaque» t)) (B.wk.set v.name (.const .here))
   | induct {ι : Metalean.IndSig} {I : Metalean.Inductive ζ ι} {B' : Binds (ζ.snoc (.inductive ι))}
@@ -764,15 +778,6 @@ def ErasableS {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (lps : L
   ∃ t, TrM E B lps Γ Δ e t ∧ IsErasable E Γ t
 
 /-! ## 9. Closures, views (ports of `L4 Source/Restrict.lean`, `L4 Core/Scope.lean`) -/
-
-/-- Every constant of `e` satisfies `p`. Reference: `term_global_deps` (`MR E/EAstUtils.v:406`). -/
-def ConstsIn (p : Name → Prop) : Expr → Prop
-  | .const c _ => p c
-  | .app f a => ConstsIn p f ∧ ConstsIn p a
-  | .lam _ t b _ | .forallE _ t b _ => ConstsIn p t ∧ ConstsIn p b
-  | .letE _ t v b _ => ConstsIn p t ∧ ConstsIn p v ∧ ConstsIn p b
-  | .mdata _ e | .proj _ _ e => ConstsIn p e
-  | _ => True
 
 /-- The expressions the pure traversal reads from a closure `decls`: every type, and the values of
 the definitions that are not recognized `casesOn` constants and of the opaques (not of theorems,

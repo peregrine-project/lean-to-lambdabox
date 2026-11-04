@@ -54,7 +54,7 @@ theorem ProgEnv.bound (h : ProgEnv P ζ E B) {c : Name} (hc : B c ≠ none) :
   induction h with
   | nil => simp at hc
   | @«axiom» _ _ _ _ v _ _ _ _ _ ih | @defn _ _ _ _ v _ _ _ _ _ _ _ _ ih
-  | @thm _ _ _ _ v _ _ _ _ _ _ ih | @«opaque» _ _ _ _ v _ _ _ _ _ _ ih =>
+  | @thm _ _ _ _ v _ _ _ _ _ _ _ ih | @«opaque» _ _ _ _ v _ _ _ _ _ _ _ ih =>
     by_cases hn : c = v.name
     · exact hn ▸ List.mem_cons_self
     · rw [set_wk_ne hn] at hc
@@ -77,7 +77,7 @@ theorem ProgEnv.bound (h : ProgEnv P ζ E B) {c : Name} (hc : B c ≠ none) :
 theorem ProgEnv.fresh (h : ProgEnv P ζ E B) : (P.map (·.name)).Nodup := by
   induction h with
   | nil => exact List.nodup_nil
-  | «axiom» _ hfr _ _ ih | defn _ hfr _ _ _ _ ih | thm _ hfr _ _ _ ih | «opaque» _ hfr _ _ _ ih =>
+  | «axiom» _ hfr _ _ ih | defn _ hfr _ _ _ _ ih | thm _ hfr _ _ _ _ ih | «opaque» _ hfr _ _ _ _ ih =>
     exact List.nodup_cons.mpr ⟨not_mem_of_findDecl_none hfr, ih⟩
   | induct _ hnd hfr _ _ _ ih =>
     rw [List.map_append]
@@ -115,7 +115,7 @@ theorem ProgEnv.lookup_ind {c : Name} {iv : InductiveVal} (h : ProgEnv P ζ E B)
   induction h with
   | nil => simp [findDecl] at hc
   | @«axiom» _ _ _ _ v _ _ _ _ _ ih | @defn _ _ _ _ v _ _ _ _ _ _ _ _ ih
-  | @thm _ _ _ _ v _ _ _ _ _ _ ih | @«opaque» _ _ _ _ v _ _ _ _ _ _ ih =>
+  | @thm _ _ _ _ v _ _ _ _ _ _ _ ih | @«opaque» _ _ _ _ v _ _ _ _ _ _ _ ih =>
     rw [findDecl_cons] at hc
     split at hc
     · cases hc
@@ -166,7 +166,7 @@ theorem ProgEnv.lookup_ctor {c : Name} {cv : ConstructorVal} (h : ProgEnv P ζ E
   induction h with
   | nil => simp [findDecl] at hc
   | @«axiom» _ _ _ _ v _ hP hfr _ _ ih | @defn _ _ _ _ v _ _ hP hfr _ _ _ _ ih
-  | @thm _ _ _ _ v _ hP hfr _ _ _ ih | @«opaque» _ _ _ _ v _ hP hfr _ _ _ ih =>
+  | @thm _ _ _ _ v _ hP hfr _ _ _ _ ih | @«opaque» _ _ _ _ v _ hP hfr _ _ _ _ ih =>
     rw [findDecl_cons] at hc
     split at hc
     · cases hc

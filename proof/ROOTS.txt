@@ -36,3 +36,5 @@ EraseProof.SrcEval.value EraseProof.erases_correct
 EraseProof.IsErasable.app EraseProof.erases_correct
 EraseProof.IsErasable.lam_inv EraseProof.erases_correct
 EraseProof.IsErasable.ctor_not EraseProof.erases_correct
+EraseProof.SrcEval.restrict EraseProof.erase_correct
+EraseProof.isRecursiveDecl_false EraseProof.erasePure_erases

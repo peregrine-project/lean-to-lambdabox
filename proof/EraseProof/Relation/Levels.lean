@@ -206,8 +206,8 @@ theorem ProgEnv.levelsInfo {P : List ConstantInfo} (h : ProgEnv P ζ E B) {c : N
       ∃ η : Metalean.Head ζ (.const .def d.levelParams.length), B c = some (.const η)) := by
   induction h with
   | nil => simp [findDecl] at hc
-  | @«axiom» _ _ _ _ v _ _ _ _ htr ih | @thm _ _ _ _ v _ _ _ _ htr _ ih
-  | @«opaque» _ _ _ _ v _ _ _ _ _ htr ih =>
+  | @«axiom» _ _ _ _ v _ _ _ _ htr ih | @thm _ _ _ _ v _ _ _ _ _ htr _ ih
+  | @«opaque» _ _ _ _ v _ _ _ _ _ _ htr ih =>
     rw [findDecl_cons] at hc
     split at hc
     · cases hc
