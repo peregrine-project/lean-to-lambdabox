@@ -40,3 +40,6 @@ EraseProof.isRecursiveDecl_false EraseProof.erasePure_erases
 EraseProof.Defeq.inst_tele EraseProof.Erases.inst
 EraseProof.TrM.inst EraseProof.Erases.inst
 EraseProof.TrM.inst_let EraseProof.Erases.inst_let
+EraseProof.ProgEnv.metaOrderOK EraseProof.Erases.inst
+EraseProof.IsErasable.inst EraseProof.Erases.inst
+EraseProof.TrM.wf_app EraseProof.SrcEval.defeq

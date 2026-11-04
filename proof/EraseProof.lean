@@ -33,3 +33,6 @@ import EraseProof.Source.Value
 import EraseProof.Erasable.Inv
 import EraseProof.Source.Restrict
 import EraseProof.Core.NonRec
+import EraseProof.Bridge.Order
+import EraseProof.Erasable.Subst
+import EraseProof.Bridge.Wf
