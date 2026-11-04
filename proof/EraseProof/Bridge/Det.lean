@@ -19,15 +19,15 @@ namespace EraseProof
 
 
 section
-variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {ℓ : Nat}
+variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {ℓ : Nat} {P : Prop}
 
 namespace TrDet
 
 /-- Application spines of congruent heads to pointwise congruent arguments. -/
 theorem appList {n : Nat} {Γ₁ Γ₂ : Metalean.Ctx ζ ℓ 0 n} {f₁ f₂ : Metalean.Expr ζ ℓ n} :
-    ∀ {as₁ as₂ : List (Metalean.Expr ζ ℓ n)}, DCong E Γ₁ Γ₂ f₁ f₂ → as₁.length = as₂.length →
-      (∀ (i : Nat) a b, as₁[i]? = some a → as₂[i]? = some b → DCong E Γ₁ Γ₂ a b) →
-      DCong E Γ₁ Γ₂ (f₁.appList as₁) (f₂.appList as₂)
+    ∀ {as₁ as₂ : List (Metalean.Expr ζ ℓ n)}, DCong E P Γ₁ Γ₂ f₁ f₂ → as₁.length = as₂.length →
+      (∀ (i : Nat) a b, as₁[i]? = some a → as₂[i]? = some b → DCong E P Γ₁ Γ₂ a b) →
+      DCong E P Γ₁ Γ₂ (f₁.appList as₁) (f₂.appList as₂)
   | [], [], hf, _, _ => hf
   | a :: as₁, b :: as₂, hf, hlen, h =>
     appList (f₁ := .app f₁ a) (f₂ := .app f₂ b) (.app hf (h 0 a b rfl rfl))
@@ -82,8 +82,8 @@ theorem wrapCase_dcong {ι : Metalean.IndSig} (I : Metalean.Inductive ζ ι)
     {mo : List Nat} {minor₁ minor₂ w₁ w₂ : Metalean.Expr ζ ℓ n}
     (hw₁ : Metalean.Frontend.wrapCase I η ls ps₁ ms₁ t c mo minor₁ = .ok w₁)
     (hw₂ : Metalean.Frontend.wrapCase I η ls ps₂ ms₂ t c mo minor₂ = .ok w₂)
-    (hps : ∀ p, DCong E Γ₁ Γ₂ (ps₁ p) (ps₂ p)) (hms : ∀ t, DCong E Γ₁ Γ₂ (ms₁ t) (ms₂ t))
-    (hmin : DCong E Γ₁ Γ₂ minor₁ minor₂) : DCong E Γ₁ Γ₂ w₁ w₂ := by
+    (hps : ∀ p, DCong E P Γ₁ Γ₂ (ps₁ p) (ps₂ p)) (hms : ∀ t, DCong E P Γ₁ Γ₂ (ms₁ t) (ms₂ t))
+    (hmin : DCong E P Γ₁ Γ₂ minor₁ minor₂) : DCong E P Γ₁ Γ₂ w₁ w₂ := by
   let psG : Fin ι.nparams → Metalean.Expr ζ ℓ (n + ι.nparams + ι.nsorts + 1) :=
     fun p => .var (Fin.castAdd 1 (Fin.castAdd ι.nsorts (Fin.natAdd n p)))
   let msG : Fin ι.nsorts → Metalean.Expr ζ ℓ (n + ι.nparams + ι.nsorts + 1) :=
@@ -116,8 +116,8 @@ theorem projProofTerm_dcong {ι : Metalean.IndSig} (η : Metalean.Head ζ (.indu
     (s : Fin ι.nsorts) (c : Fin (ι.nctors s)) (ls : Fin ι.nlevels → Metalean.Level ℓ)
     (hi : ι.nindices s = 0) (f : Nat) {n : Nat} {Γ₁ Γ₂ : Metalean.Ctx ζ ℓ 0 n}
     {ps₁ ps₂ : Fin ι.nparams → Metalean.Expr ζ ℓ n} {maj₁ maj₂ : Metalean.Expr ζ ℓ n}
-    (hps : ∀ p, DCong E Γ₁ Γ₂ (ps₁ p) (ps₂ p)) (hmaj : DCong E Γ₁ Γ₂ maj₁ maj₂) :
-    DCong E Γ₁ Γ₂ (projProofTerm E η s c ls hi ps₁ f maj₁) (projProofTerm E η s c ls hi ps₂ f maj₂) := by
+    (hps : ∀ p, DCong E P Γ₁ Γ₂ (ps₁ p) (ps₂ p)) (hmaj : DCong E P Γ₁ Γ₂ maj₁ maj₂) :
+    DCong E P Γ₁ Γ₂ (projProofTerm E η s c ls hi ps₁ f maj₁) (projProofTerm E η s c ls hi ps₂ f maj₂) := by
   let psG : Fin ι.nparams → Metalean.Expr ζ ℓ (n + ι.nparams + 1) :=
     fun p => .var (Fin.castAdd 1 (Fin.natAdd n p))
   let majG : Metalean.Expr ζ ℓ (n + ι.nparams + 1) := .var (Fin.natAdd (n + ι.nparams) (0 : Fin 1))
@@ -182,8 +182,8 @@ theorem SatTr.dcong {n : Nat} {Γ₁ Γ₂ : Metalean.Ctx ζ lps.length 0 n} {b 
     {us : List Level} {as₁ as₂ : List (Metalean.Expr ζ lps.length n)}
     {t₁ t₂ : Metalean.Expr ζ lps.length n} (h₁ : SatTr E lps b us as₁ t₁)
     (h₂ : SatTr E lps b us as₂ t₂) (hlen : as₁.length = as₂.length)
-    (h : ∀ (i : Nat) a b, as₁[i]? = some a → as₂[i]? = some b → DCong E Γ₁ Γ₂ a b) :
-    DCong E Γ₁ Γ₂ t₁ t₂ := by
+    (h : ∀ (i : Nat) a b, as₁[i]? = some a → as₂[i]? = some b → DCong E P Γ₁ Γ₂ a b) :
+    DCong E P Γ₁ Γ₂ t₁ t₂ := by
   cases h₁ with
   | indSat ps₁ is₁ rest₁ hl₁ =>
     cases h₂ with
@@ -205,7 +205,7 @@ theorem SatTr.dcong {n : Nat} {Γ₁ Γ₂ : Metalean.Ctx ζ lps.length 0 n} {b 
       obtain rfl := TrLevels.det hl₁ hl₂
       obtain ⟨h₁, hr⟩ := rel_append (by simp [hfs₁, hfs₂]) h
       obtain ⟨hp, hf⟩ := rel_append (by simp) h₁
-      have hA (o) : DCong E Γ₁ Γ₂ (Fin.append fds₁ rf₁ o) (Fin.append fds₂ rf₂ o) := by
+      have hA (o) : DCong E P Γ₁ Γ₂ (Fin.append fds₁ rf₁ o) (Fin.append fds₂ rf₂ o) := by
         obtain ⟨j, a, hj, ha, h1⟩ := hperm₁ o
         obtain ⟨j', a', hj', ha', h2⟩ := hperm₂ o
         rw [hj] at hj'; cases hj'
@@ -278,8 +278,8 @@ variable {E : Metalean.Env ζ} {B : Binds ζ} {lps : List Name}
 /-- Two locals lists whose bound and free variables denote congruent terms. -/
 def LocCong (E : Metalean.Env ζ) {n : Nat} (Γ₁ Γ₂ : Metalean.Ctx ζ ℓ 0 n) (Δ₁ Δ₂ : MLCtx ζ ℓ n) :
     Prop :=
-  (∀ i a b, Δ₁.findB i = some a → Δ₂.findB i = some b → DCong E Γ₁ Γ₂ a b) ∧
-  ∀ x a b, Δ₁.findF x = some a → Δ₂.findF x = some b → DCong E Γ₁ Γ₂ a b
+  (∀ i a b, Δ₁.findB i = some a → Δ₂.findB i = some b → DCong E True Γ₁ Γ₂ a b) ∧
+  ∀ x a b, Δ₁.findF x = some a → Δ₂.findF x = some b → DCong E True Γ₁ Γ₂ a b
 
 /-- Every locals list is congruent to itself. -/
 theorem LocCong.refl {n : Nat} {Γ : Metalean.Ctx ζ ℓ 0 n} (Δ : MLCtx ζ ℓ n) : LocCong E Γ Γ Δ Δ :=
@@ -309,7 +309,7 @@ theorem LocCong.pushLam {n : Nat} {Γ₁ Γ₂ : Metalean.Ctx ζ ℓ 0 n} {Δ₁
 
 /-- Pushing congruent `let` values. -/
 theorem LocCong.cons {n : Nat} {Γ₁ Γ₂ : Metalean.Ctx ζ ℓ 0 n} {Δ₁ Δ₂ : MLCtx ζ ℓ n}
-    {v₁ v₂ : Metalean.Expr ζ ℓ n} (h : LocCong E Γ₁ Γ₂ Δ₁ Δ₂) (hv : DCong E Γ₁ Γ₂ v₁ v₂) :
+    {v₁ v₂ : Metalean.Expr ζ ℓ n} (h : LocCong E Γ₁ Γ₂ Δ₁ Δ₂) (hv : DCong E True Γ₁ Γ₂ v₁ v₂) :
     LocCong E Γ₁ Γ₂ ((none, .vlet v₁) :: Δ₁) ((none, .vlet v₂) :: Δ₂) := by
   constructor
   · intro i a b ha hb
@@ -335,27 +335,13 @@ theorem specialHead_of_app {f a : Expr} {c : Name} {us : List Level} {as : List 
   rw [mkAppN_eq_foldl, foldl_app_getAppFn] at this
   exact this
 
-/-- Proof projections of congruent majors whose types fix their levels and parameters. -/
-theorem projProof_dcong {ι : Metalean.IndSig} {η : Metalean.Head ζ (.inductive ι)}
-    {s : Fin ι.nsorts} {c₁ c₂ : Fin (ι.nctors s)} (hc : ∀ d, d = c₂) {n : Nat}
-    {Γ₁ Γ₂ : Metalean.Ctx ζ ℓ 0 n} {ls₁ ls₂ : Fin ι.nlevels → Metalean.Level ℓ}
-    {hi₁ hi₂ : ι.nindices s = 0} {ps₁ ps₂ : Fin ι.nparams → Metalean.Expr ζ ℓ n}
-    {is₁ is₂ : Fin (ι.nindices s) → Metalean.Expr ζ ℓ n} {f : Nat} {e₁ e₂ : Metalean.Expr ζ ℓ n}
-    (hm : DCong E Γ₁ Γ₂ e₁ e₂) (hty₁ : E[Γ₁] ⊢ e₁ : .ind η s ls₁ ps₁ is₁)
-    (hty₂ : E[Γ₂] ⊢ e₂ : .ind η s ls₂ ps₂ is₂) :
-    DCong E Γ₁ Γ₂ (projProofTerm E η s c₁ ls₁ hi₁ ps₁ f e₁) (projProofTerm E η s c₂ ls₂ hi₂ ps₂ f e₂) := by
-  obtain rfl := hc c₁
-  exact .byLevels hm hty₁ hty₂ fun hls => by
-    subst hls
-    exact TrDet.projProofTerm_dcong _ _ _ _ _ _ (fun p => .param p hm hty₁ hty₂) hm
-
 /-- Two translations of one term, in contexts and locals that denote congruent terms, are
 congruent. -/
 theorem TrM.dcong {n : Nat} {Γ₁ : Metalean.Ctx ζ lps.length 0 n} {Δ₁ : MLCtx ζ lps.length n}
     {e : Expr} {t₁ : Metalean.Expr ζ lps.length n} (h₁ : TrM E B lps Γ₁ Δ₁ e t₁) :
     ∀ {Γ₂ : Metalean.Ctx ζ lps.length 0 n} {Δ₂ : MLCtx ζ lps.length n}
       {t₂ : Metalean.Expr ζ lps.length n},
-      TrM E B lps Γ₂ Δ₂ e t₂ → LocCong E Γ₁ Γ₂ Δ₁ Δ₂ → DCong E Γ₁ Γ₂ t₁ t₂ := by
+      TrM E B lps Γ₂ Δ₂ e t₂ → LocCong E Γ₁ Γ₂ Δ₁ Δ₂ → DCong E True Γ₁ Γ₂ t₁ t₂ := by
   induction h₁ with
   | bvar hb =>
     intro Γ₂ Δ₂ t₂ h₂ hL
@@ -455,31 +441,175 @@ theorem TrM.dcong {n : Nat} {Γ₁ : Metalean.Ctx ζ lps.length 0 n} {Δ₁ : ML
     | lit hB₂ => cases hx; rw [hB] at hB₂; cases hB₂; exact .refl
     | special => exact absurd hx (ne_mkAppN_const fun _ _ h => by cases h)
     | _ => cases hx
-  | projStruct hst hi hS _ hty ih =>
+  | projStruct hst hi hS _ _ ih =>
     intro Γ₂ Δ₂ t₂ h₂ hL
     generalize hx : Expr.proj _ _ _ = x at h₂
     cases h₂ with
-    | projStruct hst₂ hi₂ hS₂ he₂ hty₂ =>
+    | projStruct hst₂ hi₂ hS₂ he₂ _ =>
       cases hx; rw [hS] at hS₂; cases hS₂
-      exact .projStruct hst hst₂ _ _ rfl (ih he₂ hL) hty hty₂
+      exact .projStruct trivial hst hst₂ _ _ rfl (ih he₂ hL)
     | projProof _ hS₂ _ hc₂ _ _ hns₂ =>
       cases hx; rw [hS] at hS₂; cases hS₂
       exact absurd (hc₂ _ ▸ hst) hns₂
     | special => exact absurd hx (ne_mkAppN_const fun _ _ h => by cases h)
     | _ => cases hx
-  | projProof hi hS _ hc _ _ hns _ hty ih =>
+  | @projProof _ _ _ _ _ _ _ _ _ _ c _ _ _ hi hS _ hc _ _ hns _ _ ih =>
     intro Γ₂ Δ₂ t₂ h₂ hL
     generalize hx : Expr.proj _ _ _ = x at h₂
     cases h₂ with
     | projStruct hst₂ _ hS₂ =>
       cases hx; rw [hS] at hS₂; cases hS₂
       exact absurd (hc _ ▸ hst₂) hns
-    | projProof _ hS₂ _ hc₂ _ _ _ he₂ hty₂ =>
+    | projProof _ hS₂ _ hc₂ _ _ _ he₂ _ =>
       cases hx; rw [hS] at hS₂; cases hS₂
-      exact projProof_dcong hc₂ (ih he₂ hL) hty hty₂
+      obtain rfl := hc₂ c
+      exact .projProof trivial (ih he₂ hL)
     | special => exact absurd hx (ne_mkAppN_const fun _ _ h => by cases h)
     | _ => cases hx
 
+
+open Metalean in
+/-- Congruent terms, each typed in its own well-formed context, are definitionally equal at every
+type of the first, when the entries of `Γ₁` are equal types to those of `Γ₂`. At a projection node
+the majors' types (by inversion of the two recursors) fix the levels and parameters. -/
+theorem DCong.defeq₂ (hE : EnvWF E) {n : Nat} {Γ₁ Γ₂ : Metalean.Ctx ζ ℓ 0 n}
+    {t₁ t₂ : Metalean.Expr ζ ℓ n} (h : DCong E P Γ₁ Γ₂ t₁ t₂) :
+    E[Γ₁] ⊢ ok → E[Γ₂] ⊢ ok → CtxConv E Γ₁ Γ₂ → (∃ T₂, E[Γ₂] ⊢ t₂ : T₂) →
+      ∀ {T}, E[Γ₁] ⊢ t₁ : T → E[Γ₁] ⊢ t₁ ≡ t₂ : T := by
+  induction h with
+  | refl => intro _ _ _ _ _ ht; exact ht
+  | leaf h => intro hΓ _ _ _ _ ht; exact Defeq.retype hE hΓ h ht
+  | app _ _ ihf iha =>
+    intro hΓ hΓ₂ hc ⟨T₂, ht₂⟩ T ht
+    obtain ⟨A, B, hf, ha, hT⟩ := ht.app_inv
+    obtain ⟨_, _, hf₂, ha₂, -⟩ := ht₂.app_inv
+    have hf' := ihf hΓ hΓ₂ hc ⟨_, hf₂⟩ hf
+    have ha' := iha hΓ hΓ₂ hc ⟨_, ha₂⟩ ha
+    obtain ⟨_, hfa⟩ := hf.regular
+    obtain ⟨l₁, l₂, hA, hB, -⟩ := hfa.forallE_ty_inv
+    exact hT.symm.conv (Defeq.appDF hA hB hf' ha' (hB.inst_congr ha'))
+  | lam _ _ ihA ihb =>
+    intro hΓ hΓ₂ hc ⟨T₂, ht₂⟩ T ht
+    obtain ⟨B, hb, hT⟩ := ht.lam_inv hΓ
+    obtain ⟨u, hfa⟩ := hT.right
+    obtain ⟨l₁, l₂, hA, hB, -⟩ := hfa.forallE_ty_inv
+    obtain ⟨B₂, hb₂, hT₂⟩ := ht₂.lam_inv hΓ₂
+    obtain ⟨_, hfa₂⟩ := hT₂.right
+    obtain ⟨_, _, hA₂, -, -⟩ := hfa₂.forallE_ty_inv
+    have hA' := ihA hΓ hΓ₂ hc ⟨_, hA₂⟩ hA
+    have hb' := ihb (.snoc hΓ ⟨_, hA⟩) (.snoc hΓ₂ ⟨_, hA₂⟩)
+      (DCong.CtxConv.snoc hc (.ofDefEq hA')) ⟨_, hb₂⟩ hb
+    exact hT.symm.conv (.lamDF hA' hB (hA'.snocConv hB) hb' (hA'.snocConv hb'))
+  | forallE _ _ ihA ihB =>
+    intro hΓ hΓ₂ hc ⟨T₂, ht₂⟩ T ht
+    obtain ⟨l₁, l₂, hA, hB, hT⟩ := ht.forallE_ty_inv
+    obtain ⟨_, _, hA₂, hB₂, -⟩ := ht₂.forallE_ty_inv
+    have hA' := ihA hΓ hΓ₂ hc ⟨_, hA₂⟩ hA
+    have hB' := ihB (.snoc hΓ ⟨_, hA⟩) (.snoc hΓ₂ ⟨_, hA₂⟩)
+      (DCong.CtxConv.snoc hc (.ofDefEq hA')) ⟨_, hB₂⟩ hB
+    exact hT.symm.conv (.forallEDF hA' hB' (hA'.snocConv hB'))
+  | letE _ _ _ ihA ihv ihb =>
+    intro hΓ hΓ₂ hc ⟨T₂, ht₂⟩ T ht
+    obtain ⟨r, ⟨u, hA⟩, hv, hb, hT⟩ := ht.letE_inv hΓ
+    obtain ⟨_, ⟨_, hA₂⟩, hv₂, hb₂, -⟩ := ht₂.letE_inv hΓ₂
+    have hA' := ihA hΓ hΓ₂ hc ⟨_, hA₂⟩ hA
+    have hv' := ihv hΓ hΓ₂ hc ⟨_, hv₂⟩ hv
+    have hb' := ihb hΓ hΓ₂ hc ⟨_, hb₂⟩ hb
+    obtain ⟨l, hr⟩ := hb.regular
+    have z₁ := Defeq.zeta hA hv hr hb
+    have z₂ := Defeq.zeta hA'.right ((TypeEq.ofDefEq hA').conv hv'.right) hr hb'.right
+    exact hT.symm.conv (z₁.trans (hb'.trans z₂.symm))
+  | ind _ _ ihps ihis =>
+    intro hΓ hΓ₂ hc ⟨T₂, ht₂⟩ T ht
+    obtain ⟨ps₀, is₀, hps, his, hT⟩ := ht.ind_inv
+    obtain ⟨_, _, hps₂, his₂, -⟩ := ht₂.ind_inv
+    have h₂p p := (hps p).trans (ihps p hΓ hΓ₂ hc ⟨_, (hps₂ p).right⟩ (hps p).right)
+    have h₂i i := (his i).trans (ihis i hΓ hΓ₂ hc ⟨_, (his₂ i).right⟩ (his i).right)
+    exact hT.symm.conv ((Defeq.indDF hps his).symm.trans (.indDF h₂p h₂i))
+  | ctor _ _ _ ihps ihfds ihrf =>
+    intro hΓ hΓ₂ hc ⟨T₂, ht₂⟩ T ht
+    obtain ⟨ps₀, fds₀, rf₀, hps, hfds, hrf, -, hT⟩ := ht.ctor_inv
+    obtain ⟨_, _, _, hps₂, hfds₂, hrf₂, -, -⟩ := ht₂.ctor_inv
+    have h₂p p := (hps p).trans (ihps p hΓ hΓ₂ hc ⟨_, (hps₂ p).right⟩ (hps p).right)
+    have h₂f f := (hfds f).trans (ihfds f hΓ hΓ₂ hc ⟨_, (hfds₂ f).right⟩ (hfds f).right)
+    have h₂r f := (hrf f).trans (ihrf f hΓ hΓ₂ hc ⟨_, (hrf₂ f).right⟩ (hrf f).right)
+    exact hT.symm.conv ((DCong.ctor_defeq hE hps hfds hrf).symm.trans
+      (DCong.ctor_defeq hE h₂p h₂f h₂r))
+  | recr _ _ _ _ _ ihps ihms ihmins ihis ihmaj =>
+    intro hΓ hΓ₂ hc ⟨T₂, ht₂⟩ T ht
+    obtain ⟨ps₀, ms₀, mins₀, is₀, maj₀, hallow, hps, hms, hmins, his, hmaj, hres, hT⟩ :=
+      ht.recr_inv
+    obtain ⟨_, _, _, _, _, -, hps₂, hms₂, hmins₂, his₂, hmaj₂, -, -⟩ := ht₂.recr_inv
+    have h₂p p := (hps p).trans (ihps p hΓ hΓ₂ hc ⟨_, (hps₂ p).right⟩ (hps p).right)
+    have h₂m t := (hms t).trans (ihms t hΓ hΓ₂ hc ⟨_, (hms₂ t).right⟩ (hms t).right)
+    have h₂n t c := (hmins t c).trans
+      (ihmins t c hΓ hΓ₂ hc ⟨_, (hmins₂ t c).right⟩ (hmins t c).right)
+    have h₂i i := (his i).trans (ihis i hΓ hΓ₂ hc ⟨_, (his₂ i).right⟩ (his i).right)
+    have h₂j := hmaj.trans (ihmaj hΓ hΓ₂ hc ⟨_, hmaj₂.right⟩ hmaj.right)
+    exact hT.symm.conv ((Defeq.recrDF hallow hps hms hmins his hmaj hres).symm.trans
+      (.recrDF hallow h₂p h₂m h₂n h₂i h₂j
+        ((hE.entryWF _).block.motiveResult_congr hΓ h₂p h₂m h₂i h₂j)))
+  | quot _ _ ihα ihr =>
+    intro hΓ hΓ₂ hc ⟨T₂, ht₂⟩ T ht
+    obtain ⟨hα, hr⟩ := ht.quot_formation_inv
+    obtain ⟨hα₂, hr₂⟩ := ht₂.quot_formation_inv
+    exact ht.quot_inv.symm.conv
+      (.quotDF (ihα hΓ hΓ₂ hc ⟨_, hα₂⟩ hα) (ihr hΓ hΓ₂ hc ⟨_, hr₂⟩ hr))
+  | quotMk _ _ _ ihα ihr iha =>
+    intro hΓ hΓ₂ hc ⟨T₂, ht₂⟩ T ht
+    obtain ⟨α₀, r₀, a₀, hα, hr, ha, hT⟩ := ht.quotMk_prem
+    obtain ⟨_, _, _, hα₂, hr₂, ha₂, -⟩ := ht₂.quotMk_prem
+    have h₂α := hα.trans (ihα hΓ hΓ₂ hc ⟨_, hα₂.right⟩ hα.right)
+    have h₂r := hr.trans (ihr hΓ hΓ₂ hc ⟨_, hr₂.right⟩ hr.right)
+    have h₂a := ha.trans (iha hΓ hΓ₂ hc ⟨_, ha₂.right⟩ ha.right)
+    exact hT.symm.conv ((Defeq.quotMkDF hα hr ha).symm.trans (.quotMkDF h₂α h₂r h₂a))
+  | quotLift _ _ _ _ _ _ ihα ihr ihβ ihf ihh iha =>
+    intro hΓ hΓ₂ hc ⟨T₂, ht₂⟩ T ht
+    obtain ⟨α₀, r₀, β₀, f₀, h₀, a₀, hα, hr, hβ, hf, hh, ha, hT⟩ := ht.quotLift_prem
+    obtain ⟨_, _, _, _, _, _, hα₂, hr₂, hβ₂, hf₂, hh₂, ha₂, -⟩ := ht₂.quotLift_prem
+    have h₂α := hα.trans (ihα hΓ hΓ₂ hc ⟨_, hα₂.right⟩ hα.right)
+    have h₂r := hr.trans (ihr hΓ hΓ₂ hc ⟨_, hr₂.right⟩ hr.right)
+    have h₂β := hβ.trans (ihβ hΓ hΓ₂ hc ⟨_, hβ₂.right⟩ hβ.right)
+    have h₂f := hf.trans (ihf hΓ hΓ₂ hc ⟨_, hf₂.right⟩ hf.right)
+    have h₂h := hh.trans (ihh hΓ hΓ₂ hc ⟨_, hh₂.right⟩ hh.right)
+    have h₂a := ha.trans (iha hΓ hΓ₂ hc ⟨_, ha₂.right⟩ ha.right)
+    exact hT.symm.conv ((Defeq.quotLiftDF hα hr hβ hf hh ha).symm.trans
+      (.quotLiftDF h₂α h₂r h₂β h₂f h₂h h₂a))
+  | quotInd _ _ _ _ _ ihα ihr ihβ ihf iha =>
+    intro hΓ hΓ₂ hc ⟨T₂, ht₂⟩ T ht
+    obtain ⟨α₀, r₀, β₀, f₀, a₀, hα, hr, hβ, hf, ha, hres, hT⟩ := ht.quotInd_prem
+    obtain ⟨_, _, _, _, _, hα₂, hr₂, hβ₂, hf₂, ha₂, -, -⟩ := ht₂.quotInd_prem
+    have h₁β := ihβ hΓ hΓ₂ hc ⟨_, hβ₂.right⟩ hβ.right
+    have h₁a := iha hΓ hΓ₂ hc ⟨_, ha₂.right⟩ ha.right
+    have h₂α := hα.trans (ihα hΓ hΓ₂ hc ⟨_, hα₂.right⟩ hα.right)
+    have h₂r := hr.trans (ihr hΓ hΓ₂ hc ⟨_, hr₂.right⟩ hr.right)
+    have h₂f := hf.trans (ihf hΓ hΓ₂ hc ⟨_, hf₂.right⟩ hf.right)
+    have happ : E[_] ⊢ .app _ _ ≡ .app _ _ : .prop :=
+      Defeq.appDF (Defeq.quotDF hα.left hr.left) .sortDF h₁β h₁a (by simpa using .sortDF)
+    exact hT.symm.conv ((Defeq.quotIndDF hα hr hβ hf ha hres).symm.trans
+      (.quotIndDF h₂α h₂r (hβ.trans h₁β) h₂f (ha.trans h₁a) (hres.trans happ)))
+  | @projStruct _ _ _ _ η _ c₁ c₂ _ h₁ h₂ _ _ _ _ _ _ f₁ f₂ hf _ ihe =>
+    intro hΓ hΓ₂ hc ⟨T₂, ht₂⟩ T ht
+    have he₁ := recr_major (by rw [← h₁.projTerm_eq_recr]; exact ht)
+    have he₂ := recr_major (by rw [← h₂.projTerm_eq_recr]; exact ht₂)
+    have hm := ihe hΓ hΓ₂ hc ⟨_, he₂⟩ he₁
+    obtain ⟨rfl, hps⟩ := DCong.ind_type_inj hE hΓ hm.right (DCong.CtxConv.transport hΓ hc he₂)
+    obtain rfl := h₁.ctor_unique c₂
+    obtain rfl := Fin.ext hf
+    have hB := (hE.entryWF η).block
+    obtain ⟨_, hind⟩ := he₁.regular
+    obtain ⟨_, _, hps₀, -, -⟩ := hind.ind_inv
+    have hps' p := Defeq.retype hE hΓ (hps p).choose_spec (Inductive.paramType_conv hB p hps₀)
+    exact Defeq.retype hE hΓ (h₁.projTerm_congr hB f₁ hps' hm) ht
+  | @projProof _ _ _ _ η s c _ ls₁ ls₂ hi₁ hi₂ ps₁ ps₂ f e₁ e₂ _ ihe =>
+    intro hΓ hΓ₂ hc ⟨T₂, ht₂⟩ T ht
+    have he₁ := recr_major (by rw [projProofTerm] at ht; exact ht)
+    have he₂ := recr_major (by rw [projProofTerm] at ht₂; exact ht₂)
+    have hm := ihe hΓ hΓ₂ hc ⟨_, he₂⟩ he₁
+    obtain ⟨rfl, hps⟩ := DCong.ind_type_inj hE hΓ hm.right (DCong.CtxConv.transport hΓ hc he₂)
+    exact DCong.defeq hE not_false (P := False)
+      (TrDet.projProofTerm_dcong η s c ls₁ hi₁ f (fun p => .leaf (hps p).choose_spec) (.leaf hm))
+      hΓ hc ht
 
 /-- Two translations typed at `T` are definitionally equal at `T` (projections choose their levels
 and parameters by typing). Reference: lean4lean `TrExprS.uniq`; `Defeq.uniqTy`
@@ -487,8 +617,8 @@ and parameters by typing). Reference: lean4lean `TrExprS.uniq`; `Defeq.uniqTy`
 theorem TrM.det {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n}
     {e : Expr} {t₁ t₂ T : Metalean.Expr ζ lps.length n} (hE : EnvWF E) (hΓ : E[Γ] ⊢ ok)
     (h₁ : TrM E B lps Γ Δ e t₁) (h₂ : TrM E B lps Γ Δ e t₂) (ht₁ : E[Γ] ⊢ t₁ : T)
-    (_ht₂ : E[Γ] ⊢ t₂ : T) : E[Γ] ⊢ t₁ ≡ t₂ : T :=
-  DCong.defeq hE (h₁.dcong h₂ (LocCong.refl Δ)) hΓ (DCong.CtxConv.refl hΓ) ht₁
+    (ht₂ : E[Γ] ⊢ t₂ : T) : E[Γ] ⊢ t₁ ≡ t₂ : T :=
+  DCong.defeq₂ hE (h₁.dcong h₂ (LocCong.refl Δ)) hΓ hΓ (DCong.CtxConv.refl hΓ) ⟨T, ht₂⟩ ht₁
 
 end
 

@@ -300,6 +300,16 @@ inductive SatTr {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (lps : List Name) {n 
       Metalean.Frontend.quotTerm η (E.get η).eqHead kind ls' = .ok t₀ →
       SatTr E lps (.quot η kind) us args (t₀.wkClosed.appList args)
 
+/-- `e` has type `T` in a context that extends `Γ`: `Γ` embeds in `Γ'` by an injective renaming
+`ρ` that preserves the types of the variables. A projection's major is typed in the context where
+the Metalean term places it, which extends the context of its translation: a minor premise that
+`wrapCase` (`ML Frontend/Translate.lean:84`) wraps lies under the case telescope, between the
+minor's context and the minor's own binders. -/
+def TypedExt {ζ : Metalean.Sigs} (E : Metalean.Env ζ) {ℓ n : Nat} (Γ : Metalean.Ctx ζ ℓ 0 n)
+    (e T : Metalean.Expr ζ ℓ n) : Prop :=
+  ∃ (m : Nat) (Γ' : Metalean.Ctx ζ ℓ 0 m) (ρ : Metalean.Ren n m), Function.Injective ρ ∧
+    (∀ v, Γ'.get (ρ v) = (Γ.get v).rename ρ) ∧ E[Γ'] ⊢ e.rename ρ : T.rename ρ
+
 /-- `TrM E B lps Γ Δ e t`: the Lean term `e` (locally nameless; loose bound variables and the
 traversal's free variables denote the locals `Δ`) is the Lean form of the Metalean term `t` in
 the context `Γ`. Rule by rule after `translateWith` (`ML Frontend/Translate.lean:316-345`), as a
@@ -350,7 +360,7 @@ inductive TrM {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (lps : L
       {ps : Fin ι.nparams → Metalean.Expr ζ lps.length n}
       {is : Fin (ι.nindices s) → Metalean.Expr ζ lps.length n}
       (hst : (E.get η).block.IsStructure s c) (hi : i < (ι.ctors s c).nfields) :
-      B S = some (.ind η s) → TrM E B lps Γ Δ e e' → E[Γ] ⊢ e' : .ind η s ls ps is →
+      B S = some (.ind η s) → TrM E B lps Γ Δ e e' → TypedExt E Γ e' (.ind η s ls ps is) →
       TrM E B lps Γ Δ (.proj S i e) (hst.projTerm η ls ps ⟨i, hi⟩ e')
   /-- Projections of a proof of a one-constructor, index-free, non-recursive inductive that is not
   a structure (`project`, `ML Checker/Slow/Projection.lean:96-113`): the translator's proof
@@ -362,7 +372,7 @@ inductive TrM {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (lps : L
       B S = some (.ind η s) → (∀ t : Fin ι.nsorts, t = s) → (∀ d : Fin (ι.nctors s), d = c) →
       (ι.ctors s c).nrecFields = 0 → i < (ι.ctors s c).nfields →
       ¬ (E.get η).block.IsStructure s c →
-      TrM E B lps Γ Δ e e' → E[Γ] ⊢ e' : .ind η s ls ps is →
+      TrM E B lps Γ Δ e e' → TypedExt E Γ e' (.ind η s ls ps is) →
       TrM E B lps Γ Δ (.proj S i e) (projProofTerm E η s c ls hi ps i e')
 
 /-! ## 6. Declarations: `ProgEnv` -/
