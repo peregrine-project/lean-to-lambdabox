@@ -83,32 +83,32 @@ theorem ProgEnv.scoped {P : List ConstantInfo} (h : ProgEnv P ζ E B) {ci : Cons
     ci.all = [ci.name] ∧ ConstsIn (· ≠ ci.name) v := by
   induction h with
   | nil => cases hm
-  | «axiom» _ _ _ _ ih =>
+  | «axiom» _ _ _ _ _ ih =>
     rcases List.mem_cons.1 hm with rfl | hm
     · cases hv
     · exact ih hm
-  | defn hP hfr _ hall _ hval ih =>
+  | defn hP hfr _ _ hall _ hval ih =>
     rcases List.mem_cons.1 hm with rfl | hm
     · cases hv
       refine ⟨hall, ConstsIn_mono (fun c hc hce => ?_) (TrM.consts hval)⟩
       subst hce
       exact not_mem_of_findDecl_none hfr (hP.bound hc)
     · exact ih hm
-  | thm _ _ hall hsc _ _ ih =>
+  | thm _ _ _ hall hsc _ _ ih =>
     rcases List.mem_cons.1 hm with rfl | hm
     · cases hv
       exact ⟨hall, hsc⟩
     · exact ih hm
-  | «opaque» _ _ _ hall hsc _ ih =>
+  | «opaque» _ _ _ _ hall hsc _ ih =>
     rcases List.mem_cons.1 hm with rfl | hm
     · cases hv
       exact ⟨hall, hsc⟩
     · exact ih hm
-  | induct _ _ _ _ _ _ ih =>
+  | induct _ _ _ _ _ _ _ ih =>
     rcases List.mem_append.1 hm with hm | hm
     · rcases IndBlock.mem_decls hm with ⟨s, rfl⟩ | ⟨s, c, rfl⟩ | ⟨s, rfl⟩ <;> cases hv
     · exact ih hm
-  | quot _ _ _ _ _ _ ih =>
+  | quot _ _ _ _ _ _ _ ih =>
     rcases List.mem_append.1 hm with hm | hm
     · obtain ⟨q, -, rfl⟩ := List.mem_map.1 hm
       cases hv

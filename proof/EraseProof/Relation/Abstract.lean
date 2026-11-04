@@ -329,19 +329,19 @@ theorem ProgEnv.typeTr {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ}
       (T : Metalean.Expr ζ' ci.levelParams.length 0), TrM E' B' ci.levelParams .nil [] ci.type T := by
   induction h with
   | nil => intro ci hci; cases hci
-  | «axiom» _ _ _ htr ih | defn _ _ _ _ htr _ ih | thm _ _ _ _ htr _ ih
-  | «opaque» _ _ _ _ _ htr ih =>
+  | «axiom» _ _ _ _ htr ih | defn _ _ _ _ _ htr _ ih | thm _ _ _ _ _ htr _ ih
+  | «opaque» _ _ _ _ _ _ htr ih =>
     intro ci hci
     rcases List.mem_cons.mp hci with rfl | hci
     · exact ⟨_, _, _, _, htr⟩
     · exact ih ci hci
-  | induct _ _ _ _ _ hct ih =>
+  | induct _ _ _ _ _ _ hct ih =>
     intro ci hci
     rcases List.mem_append.mp hci with hci | hci
     · obtain ⟨T, -, hT, -⟩ := hct ci hci
       exact ⟨_, _, _, _, hT⟩
     · exact ih ci hci
-  | quot _ _ _ _ _ hq ih =>
+  | quot _ _ _ _ _ _ hq ih =>
     intro ci hci
     rcases List.mem_append.mp hci with hci | hci
     · simp only [List.mem_map, List.mem_reverse] at hci

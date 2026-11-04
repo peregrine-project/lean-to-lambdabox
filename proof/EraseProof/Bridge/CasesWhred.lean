@@ -131,8 +131,8 @@ theorem ProgEnv.block (h : ProgEnv P ζ E B) :
       BlockAt P B η lps Is Cs Rs orders := by
   induction h with
   | nil => intro ι η; cases η
-  | @«axiom» _ _ _ _ v _ hP hfr _ _ ih | @defn _ _ _ _ v _ _ hP hfr _ _ _ _ ih
-  | @thm _ _ _ _ v _ hP hfr _ _ _ _ ih | @«opaque» _ _ _ _ v _ hP hfr _ _ _ _ ih =>
+  | @«axiom» _ _ _ _ v _ hP hfr _ _ _ ih | @defn _ _ _ _ v _ _ hP hfr _ _ _ _ _ ih
+  | @thm _ _ _ _ v _ hP hfr _ _ _ _ _ ih | @«opaque» _ _ _ _ v _ hP hfr _ _ _ _ _ ih =>
     intro ι η
     cases η with
     | there η =>
@@ -147,7 +147,7 @@ theorem ProgEnv.block (h : ProgEnv P ζ E B) :
         simp only [List.mem_singleton] at hx; subst hx
         simp only [Binds.set, ite_true, Option.some.injEq] at hb; subst hb
         exact ⟨fun _ _ _ h => (nomatch h), fun _ _ _ _ _ h => (nomatch h)⟩
-  | @induct _ _ _ _ ι' I B' lps' Is' Cs' Rs' orders' hP hnd hfr hext hblk _ ih =>
+  | @induct _ _ _ _ ι' I B' lps' Is' Cs' Rs' orders' hP hnd hfr _ hext hblk _ ih =>
     intro ι η
     have hbnd : ∀ ci ∈ IndBlock.decls Is' Cs' Rs', ∀ b, B' ci.name = some b →
         (∃ s, b = .ind .here s) ∨ (∃ s c, b = .ctor .here s c (orders' s c)) ∨
@@ -200,7 +200,7 @@ theorem ProgEnv.block (h : ProgEnv P ζ E B) :
       · obtain ⟨ci, hci, rfl⟩ := List.mem_map.mp hx
         rcases hbnd ci hci b hbx with ⟨s, rfl⟩ | ⟨s, c, rfl⟩ | ⟨s, os, rfl⟩ <;>
           exact ⟨fun _ _ _ h => (nomatch h), fun _ _ _ _ _ h => (nomatch h)⟩
-  | @quot _ _ _ _ _ qs B' hP _ _ hfr hext hq ih =>
+  | @quot _ _ _ _ _ qs B' hP _ _ hfr _ hext hq ih =>
     intro ι η
     cases η with
     | there η =>
