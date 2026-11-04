@@ -47,3 +47,4 @@ EraseProof.Erases.inst EraseProof.erases_correct
 EraseProof.Erases.inst_let EraseProof.erases_correct
 EraseProof.ErasesAlt.inst EraseProof.erases_correct
 EraseProof.Pure.isArity_sound EraseProof.Pure.isErasable_sound
+EraseProof.Pure.isErasable_atom EraseProof.erasePure_erases
