@@ -413,14 +413,14 @@ theorem Erases.absN {σ : EvalEnv} (x : FVarId)
     · exact .bvar
     · exact .fvar
   case lam =>
-    intro _ _ _ _ _ _ _ _ _ hA _ ih d Δ₁ W hcl
+    intro _ _ _ _ _ _ _ _ _ hA hAt _ ih d Δ₁ W hcl
     simp only [absFV, _root_.toBvar]
-    exact .lam (TrM.absN hA W) (ih (d + 1) _ W.pushLam hcl)
+    exact .lam (TrM.absN hA W) hAt (ih (d + 1) _ W.pushLam hcl)
   case letE =>
-    intro _ _ _ _ _ _ _ _ _ _ _ hv _ _ ihv ihb d Δ₁ W hcl
+    intro _ _ _ _ _ _ _ _ _ _ _ hv hvt _ _ ihv ihb d Δ₁ W hcl
     simp only [closedn, Bool.and_eq_true] at hcl
     simp only [absFV, _root_.toBvar]
-    exact .letE (TrM.absN hv W) (ihv d _ W hcl.1) (ihb (d + 1) _ (W.cons _) hcl.2)
+    exact .letE (TrM.absN hv W) hvt (ihv d _ W hcl.1) (ihb (d + 1) _ (W.cons _) hcl.2)
   case app =>
     intro f _ _ _ _ _ _ hns _ _ ihf iha d Δ₁ W hcl
     simp only [closedn, Bool.and_eq_true] at hcl
@@ -502,14 +502,14 @@ theorem Erases.absN {σ : EvalEnv} (x : FVarId)
     simp only [List.length_nil, Nat.add_zero] at hcl ⊢
     exact .done (ih d _ W hcl)
   case alam =>
-    intro _ _ _ _ _ _ _ _ _ _ _ hA _ ih d Δ₁ W hcl
+    intro _ _ _ _ _ _ _ _ _ _ _ hA hAt _ ih d Δ₁ W hcl
     have e1 : ∀ l : Nat, d + 1 + l = d + (l + 1) := fun l => by omega
     dsimp only at hcl ih ⊢
     simp only [List.length_cons] at hcl ⊢
     have := ih (d + 1) _ W.pushLam (by rw [e1]; exact hcl)
     rw [e1] at this
     simp only [absFV]
-    exact .lam (TrM.absN hA W) this
+    exact .lam (TrM.absN hA W) hAt this
   case intro =>
     intro e _ _ _ _ _ _ _ _ _ _ hne he hty' _ ih d Δ₁ W hcl
     have e1 : ∀ l : Nat, d + 1 + l = d + (l + 1) := fun l => by omega

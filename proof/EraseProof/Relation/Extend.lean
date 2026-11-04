@@ -402,8 +402,10 @@ theorem Erases.extend {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} 
     ?mdata ?box ?done ?alam ?intro h hc
   case bvar => intros; exact .bvar
   case fvar => intros; exact .fvar
-  case lam => intro _ _ _ _ _ _ _ _ _ hA _ ih hC; exact .lam hA (ih hC.2)
-  case letE => intro _ _ _ _ _ _ _ _ _ _ _ hv _ _ ihv ihb hC; exact .letE hv (ihv hC.2.1) (ihb hC.2.2)
+  case lam => intro _ _ _ _ _ _ _ _ _ hA hAt _ ih hC; exact .lam hA hAt (ih hC.2)
+  case letE =>
+    intro _ _ _ _ _ _ _ _ _ _ _ hv hvt _ _ ihv ihb hC
+    exact .letE hv hvt (ihv hC.2.1) (ihb hC.2.2)
   case app =>
     intro _ _ _ _ _ _ _ hns _ _ ihf iha hC
     exact .app (fun hs => hns (specialSpine_of_agree hsub hcl hC.1 hs)) (ihf hC.1) (iha hC.2)
@@ -451,7 +453,7 @@ theorem Erases.extend {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} 
   case mdata => intro _ _ _ _ _ _ _ ih hC; exact .mdata (ih hC)
   case box => intro _ _ _ _ hb _; exact .box hb
   case done => intro _ _ _ _ _ _ ih hC; exact .done (ih hC)
-  case alam => intro _ _ _ _ _ _ _ _ _ _ _ hA _ ih hC; exact .lam hA (ih hC.2)
+  case alam => intro _ _ _ _ _ _ _ _ _ _ _ hA hAt _ ih hC; exact .lam hA hAt (ih hC.2)
   case intro =>
     intro _ _ _ _ _ _ _ _ _ _ _ hne he hty _ ih hC
     exact .intro hne he hty (ih ⟨ConstsIn_lift hC, trivial⟩)

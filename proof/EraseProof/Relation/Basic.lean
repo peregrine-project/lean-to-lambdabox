@@ -277,9 +277,9 @@ private theorem Erases.closedn_of_bbound {e : Expr} {tb : LBTerm}
     ?mdata ?box ?done ?alam ?intro h
   case bvar => intro _ _ _ _ k hk; simpa [closedn, BBound] using hk
   case fvar | const | box | litZero => intros; rfl
-  case lam => intro _ _ _ _ _ _ _ _ _ _ _ ih k hk; exact ih (k + 1) hk
+  case lam => intro _ _ _ _ _ _ _ _ _ _ _ _ ih k hk; exact ih (k + 1) hk
   case letE =>
-    intro _ _ _ _ _ _ _ _ _ _ _ _ _ _ ihv ihb k hk
+    intro _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ ihv ihb k hk
     simp only [closedn, Bool.and_eq_true]
     exact ⟨ihv k hk.1, ihb (k + 1) hk.2⟩
   case app =>
