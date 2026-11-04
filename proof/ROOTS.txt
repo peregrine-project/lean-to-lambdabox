@@ -37,9 +37,6 @@ EraseProof.IsErasable.ctor_not EraseProof.erases_correct
 EraseProof.SrcEval.restrict EraseProof.erase_correct
 EraseProof.isRecursiveDecl_false EraseProof.erasePure_erases
 EraseProof.Defeq.inst_tele EraseProof.Erases.inst
-EraseProof.TrM.inst EraseProof.Erases.inst
-EraseProof.TrM.inst_let EraseProof.Erases.inst_let
-EraseProof.ProgEnv.metaOrderOK EraseProof.Erases.inst
 EraseProof.IsErasable.inst EraseProof.Erases.inst
 EraseProof.TrM.wf_app EraseProof.SrcEval.defeq
 EraseProof.TrM.uninstantiateN EraseProof.erasePure_erases
@@ -47,3 +44,4 @@ EraseProof.Erases.abstract EraseProof.erasePure_erases
 EraseProof.LBEval.idem EraseProof.erases_correct
 EraseProof.Erases.ctorProp_box EraseProof.erases_correct
 EraseProof.Erases.propProj_box EraseProof.erases_correct
+EraseProof.Pure.whnf_sound EraseProof.Pure.inferType_sound
