@@ -133,3 +133,16 @@ EraseProof.Test.NVPK.hrunP propext,Classical.choice,Quot.sound
 EraseProof.Test.NVPK.idB_run propext,Classical.choice,Quot.sound
 EraseProof.Test.NVPK.visitCases_run propext,Classical.choice,Quot.sound
 EraseProof.Test.NVPK.withApp_ee propext
+EraseProof.Erases.app_inv propext,Classical.choice,Quot.sound
+EraseProof.Erases.atomSpine_box propext,Classical.choice,Quot.sound
+EraseProof.Erases.closed propext,Classical.choice,Quot.sound
+EraseProof.Erases.ctor_inv propext,Classical.choice,Quot.sound
+EraseProof.ErasesDeps.eval propext,Classical.choice,Quot.sound
+EraseProof.ErasesDeps.ext propext,Classical.choice,Quot.sound
+EraseProof.Test.LBEval.deterministic propext
+EraseProof.Test.LBEval.forall₂_det -
+EraseProof.Test.LBEval.lbAtom_construct propext
+EraseProof.Test.LBEval.mkApps_construct_inj propext
+EraseProof.Test.LBEval.mkApps_fix_inj propext
+EraseProof.Test.LBEval.mkApps_inj propext
+EraseProof.Test.LBEval.spineArgs_mkApps propext

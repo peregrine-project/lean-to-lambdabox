@@ -13,3 +13,7 @@ import EraseProof.Test.NoConf
 import EraseProof.Test.NV1Model
 import EraseProof.Test.NV1Run
 import EraseProof.Test.NVPRun
+import EraseProof.TargetFacts
+import EraseProof.Relation.Basic
+import EraseProof.Relation.Deps
+import EraseProof.Test.LBEval

@@ -23,3 +23,9 @@ EraseProof.ctorSat_iota EraseProof.casesOn_whred
 EraseProof.TrM.weakBV EraseProof.TrM.inst
 EraseProof.TrM.weakFV EraseProof.erasePure_erases
 EraseProof.TrM.instLevels EraseProof.ProgEnv.unfold
+EraseProof.Erases.closed EraseProof.erases_correct
+EraseProof.Erases.app_inv EraseProof.erases_correct
+EraseProof.Erases.ctor_inv EraseProof.erases_correct
+EraseProof.Erases.atomSpine_box EraseProof.erases_correct
+EraseProof.ErasesDeps.ext EraseProof.erasePure_erases
+EraseProof.ErasesDeps.eval EraseProof.erases_correct
