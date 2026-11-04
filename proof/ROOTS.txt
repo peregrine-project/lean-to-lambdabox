@@ -48,3 +48,4 @@ EraseProof.Erases.ctorProp_box EraseProof.erases_correct
 EraseProof.Erases.propProj_box EraseProof.erases_correct
 EraseProof.Erases.inst EraseProof.erases_correct
 EraseProof.Erases.inst_let EraseProof.erases_correct
+EraseProof.ErasesAlt.inst EraseProof.erases_correct

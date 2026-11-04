@@ -960,14 +960,22 @@ theorem Erases.instG (hE : EnvWF E)
       (k : Fin (ι.nctors s)) (o : List Nat), B c = some (.ctor η s k o) →
       MetaOrderOK o (ι.ctors s k).nfields (ι.ctors s k).nrecFields)
     {σ : EvalEnv} (hty : ∀ c ci, findDecl σ.decls c = some ci → AbsFV.LBV 0 ci.type)
-    {a : Lean.Expr} {a' : LBTerm} (hcl : closedn 0 a' = true)
-    {n₁ : Nat} {Γ₁ : Ctx ζ lps.length 0 n₁} {Δ₁ : MLCtx ζ lps.length n₁} {b : Lean.Expr}
-    {tb : LBTerm} (h : Erases E B lps σ Γ₁ Δ₁ b tb) :
-    ∀ (n₂ : Nat) (Γ₂ : Ctx ζ lps.length 0 n₂) (Δ₂ : MLCtx ζ lps.length n₂) (d : Nat)
-      (ς : Subst ζ lps.length n₁ n₂), E[Γ₂] ⊢ ok → E[Γ₂] ⊢ ς ⊣ Γ₁ →
-      MLCtx.InstA E B lps a d ς Δ₁ Δ₂ →
-      Erases E B lps σ Γ₂ Δ₂ (a.liftLooseBVars' 0 d) a' → HeadInv σ E a Γ₁ Δ₁ d b →
-      Erases E B lps σ Γ₂ Δ₂ (b.instantiate1' a d) (csubst a' d tb) := by
+    {a : Lean.Expr} {a' : LBTerm} (hcl : closedn 0 a' = true) :
+    (∀ (n₁ : Nat) (Γ₁ : Ctx ζ lps.length 0 n₁) (Δ₁ : MLCtx ζ lps.length n₁) (b : Lean.Expr)
+      (tb : LBTerm), Erases E B lps σ Γ₁ Δ₁ b tb →
+      ∀ (n₂ : Nat) (Γ₂ : Ctx ζ lps.length 0 n₂) (Δ₂ : MLCtx ζ lps.length n₂) (d : Nat)
+        (ς : Subst ζ lps.length n₁ n₂), E[Γ₂] ⊢ ok → E[Γ₂] ⊢ ς ⊣ Γ₁ →
+        MLCtx.InstA E B lps a d ς Δ₁ Δ₂ →
+        Erases E B lps σ Γ₂ Δ₂ (a.liftLooseBVars' 0 d) a' → HeadInv σ E a Γ₁ Δ₁ d b →
+        Erases E B lps σ Γ₂ Δ₂ (b.instantiate1' a d) (csubst a' d tb)) ∧
+    (∀ (n₁ : Nat) (Γ₁ : Ctx ζ lps.length 0 n₁) (Δ₁ : MLCtx ζ lps.length n₁) (k : Nat)
+      (b : Lean.Expr) (br : List BinderName × LBTerm), ErasesAlt E B lps σ Γ₁ Δ₁ k b br →
+      ∀ (n₂ : Nat) (Γ₂ : Ctx ζ lps.length 0 n₂) (Δ₂ : MLCtx ζ lps.length n₂) (d : Nat)
+        (ς : Subst ζ lps.length n₁ n₂), E[Γ₂] ⊢ ok → E[Γ₂] ⊢ ς ⊣ Γ₁ →
+        MLCtx.InstA E B lps a d ς Δ₁ Δ₂ →
+        Erases E B lps σ Γ₂ Δ₂ (a.liftLooseBVars' 0 d) a' → HeadInv σ E a Γ₁ Δ₁ d b →
+        ErasesAlt E B lps σ Γ₂ Δ₂ k (b.instantiate1' a d)
+          (br.1, csubst a' (d + br.1.length) br.2)) := by
   have gmap : ∀ {d : Nat} {l : List Lean.Expr} {i : Nat} {y : Lean.Expr},
       (l.map (·.instantiate1' a d))[i]? = some y →
         ∃ y₀, l[i]? = some y₀ ∧ y₀.instantiate1' a d = y := fun h => by
@@ -979,19 +987,30 @@ theorem Erases.instG (hE : EnvWF E)
       {d : Nat} {c : Name} {us : List Level} {as : List Lean.Expr},
       HeadInv σ E a Γ₁ Δ₁ d (mkAppN (.const c us) as.toArray) → ∀ x ∈ as, HeadInv σ E a Γ₁ Δ₁ d x :=
     fun hi x hx hs => let ⟨h1, h2, h3⟩ := hi hs; ⟨h1, NoHead.spine.mp h2 x hx, h3⟩
-  refine Erases.rec
-    (motive_1 := fun {n₁} Γ₁ Δ₁ b tb _ => ∀ (n₂ : Nat) (Γ₂ : Ctx ζ lps.length 0 n₂)
+  refine ⟨@Erases.rec ζ E B lps σ (fun {n₁} Γ₁ Δ₁ b tb _ => ∀ (n₂ : Nat) (Γ₂ : Ctx ζ lps.length 0 n₂)
       (Δ₂ : MLCtx ζ lps.length n₂) (d : Nat) (ς : Subst ζ lps.length n₁ n₂),
       E[Γ₂] ⊢ ok → E[Γ₂] ⊢ ς ⊣ Γ₁ → MLCtx.InstA E B lps a d ς Δ₁ Δ₂ →
       Erases E B lps σ Γ₂ Δ₂ (a.liftLooseBVars' 0 d) a' → HeadInv σ E a Γ₁ Δ₁ d b →
       Erases E B lps σ Γ₂ Δ₂ (b.instantiate1' a d) (csubst a' d tb))
-    (motive_2 := fun {n₁} Γ₁ Δ₁ k b br _ => ∀ (n₂ : Nat) (Γ₂ : Ctx ζ lps.length 0 n₂)
+    (fun {n₁} Γ₁ Δ₁ k b br _ => ∀ (n₂ : Nat) (Γ₂ : Ctx ζ lps.length 0 n₂)
       (Δ₂ : MLCtx ζ lps.length n₂) (d : Nat) (ς : Subst ζ lps.length n₁ n₂),
       E[Γ₂] ⊢ ok → E[Γ₂] ⊢ ς ⊣ Γ₁ → MLCtx.InstA E B lps a d ς Δ₁ Δ₂ →
       Erases E B lps σ Γ₂ Δ₂ (a.liftLooseBVars' 0 d) a' → HeadInv σ E a Γ₁ Δ₁ d b →
       ErasesAlt E B lps σ Γ₂ Δ₂ k (b.instantiate1' a d) (br.1, csubst a' (d + br.1.length) br.2))
     ?bvar ?fvar ?lam ?letE ?app ?const ?ctor ?cases ?casesReduced ?eta ?proj ?litZero ?litSucc
-    ?mdata ?box ?done ?alam ?intro h
+    ?mdata ?box ?done ?alam ?intro,
+    @ErasesAlt.rec ζ E B lps σ (fun {n₁} Γ₁ Δ₁ b tb _ => ∀ (n₂ : Nat) (Γ₂ : Ctx ζ lps.length 0 n₂)
+      (Δ₂ : MLCtx ζ lps.length n₂) (d : Nat) (ς : Subst ζ lps.length n₁ n₂),
+      E[Γ₂] ⊢ ok → E[Γ₂] ⊢ ς ⊣ Γ₁ → MLCtx.InstA E B lps a d ς Δ₁ Δ₂ →
+      Erases E B lps σ Γ₂ Δ₂ (a.liftLooseBVars' 0 d) a' → HeadInv σ E a Γ₁ Δ₁ d b →
+      Erases E B lps σ Γ₂ Δ₂ (b.instantiate1' a d) (csubst a' d tb))
+    (fun {n₁} Γ₁ Δ₁ k b br _ => ∀ (n₂ : Nat) (Γ₂ : Ctx ζ lps.length 0 n₂)
+      (Δ₂ : MLCtx ζ lps.length n₂) (d : Nat) (ς : Subst ζ lps.length n₁ n₂),
+      E[Γ₂] ⊢ ok → E[Γ₂] ⊢ ς ⊣ Γ₁ → MLCtx.InstA E B lps a d ς Δ₁ Δ₂ →
+      Erases E B lps σ Γ₂ Δ₂ (a.liftLooseBVars' 0 d) a' → HeadInv σ E a Γ₁ Δ₁ d b →
+      ErasesAlt E B lps σ Γ₂ Δ₂ k (b.instantiate1' a d) (br.1, csubst a' (d + br.1.length) br.2))
+    ?bvar ?fvar ?lam ?letE ?app ?const ?ctor ?cases ?casesReduced ?eta ?proj ?litZero ?litSucc
+    ?mdata ?box ?done ?alam ?intro⟩
   case bvar =>
     intro _ _ _ i n₂ Γ₂ Δ₂ d ς _ _ _ Ea _
     simp only [Lean.Expr.instantiate1', csubst]
@@ -1254,24 +1273,19 @@ section
 open Metalean InstPre RelInst
 variable {ζ : Sigs} {E : Env ζ} {B : Binds ζ} {lps : List Name}
 
-/-- Substitution of a typed source value for the innermost bound variable of a typed body: the
-erasure of the instantiated body is the closed substitution of the value's erasure into the
-body's erasure. Reference: `erases_subst0` (`MR E/ESubstitution.v:612`), with `wf_ext`,
-`wf_local` and the typings of the body and the value as `henv`, `hsub`, `hE`, `hΓ` and the
-typed translations. -/
-theorem Erases.inst {P : List ConstantInfo} {σ : EvalEnv} {n : Nat}
-    {Γ : Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n} {a b : Lean.Expr} {b' a' : LBTerm}
+/-- The premises of the generalised substitution at depth `0`, for a λ-bound variable. -/
+theorem RelInst.inst_setup {P : List ConstantInfo} {σ : EvalEnv} {n : Nat}
+    {Γ : Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n} {a b : Lean.Expr} {a' : LBTerm}
     {b₀ : Expr ζ lps.length (n + 1)} {a₀ : Expr ζ lps.length n}
     (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hΓ : E[Γ] ⊢ ok) (hsub : SubEnv σ.decls P)
     {A : Expr ζ lps.length n} {T : Expr ζ lps.length (n + 1)} (hval : SrcValue σ a)
-    (hb : Erases E B lps σ (Γ.snoc A) (Δ.pushLam none) b b')
     (htb : TrM E B lps (Γ.snoc A) (Δ.pushLam none) b b₀) (hbT : E[Γ.snoc A] ⊢ b₀ : T)
-    (ha : Erases E B lps σ Γ Δ a a')
-    (hta : TrM E B lps Γ Δ a a₀) (hA : E[Γ] ⊢ a₀ : A) (hcl : closedn 0 a' = true) :
-    Erases E B lps σ Γ Δ (b.instantiate1' a) (csubst a' 0 b') := by
+    (ha : Erases E B lps σ Γ Δ a a') (hta : TrM E B lps Γ Δ a a₀) (hA : E[Γ] ⊢ a₀ : A) :
+    E[Γ] ⊢ Subst.id.extend a₀ ⊣ Γ.snoc A ∧
+      MLCtx.InstA E B lps a 0 (Subst.id.extend a₀) (Δ.pushLam none) Δ ∧
+      Erases E B lps σ Γ Δ (a.liftLooseBVars' 0 0) a' ∧
+      HeadInv σ E a (Γ.snoc A) (Δ.pushLam none) 0 b := by
   have hord := henv.metaOrderOK
-  have hty : ∀ c ci, findDecl σ.decls c = some ci → AbsFV.LBV 0 ci.type :=
-    fun c ci h => (AbsFV.closed_types henv hsub c ci h).1
   obtain ⟨u, hAu⟩ := hA.regular
   have hΓA : E[Γ.snoc A] ⊢ ok := .snoc hΓ ⟨u, hAu⟩
   have W : MLCtx.InstA E B lps a 0 (Subst.id.extend a₀) (Δ.pushLam none) Δ := by
@@ -1302,13 +1316,53 @@ theorem Erases.inst {P : List ConstantInfo} {σ : EvalEnv} {n : Nat}
     rw [liftLooseBVars'_zero]; exact ha
   have hfd : (Δ.pushLam none).findB 0 = some (.var (Fin.last n)) := by
     simp [MLCtx.pushLam, MLCtx.findB, MLDecl.denote]
-  refine Erases.instG hE hord hty hcl hb _ _ _ 0 _ hΓ hς W Ea fun hs => ?_
+  refine ⟨hς, W, Ea, fun hs => ?_⟩
   obtain ⟨C, us, args, cv, rfl, hC, hlen⟩ := srcValue_special hval hs
   obtain ⟨ι, η, s, c, ls, ps, fds, recFds, rfl⟩ := ctorNode_of_TrM henv hsub hC hlen hta
   have hhb := HB.var_of_ctor hΓ hΓA hA
   refine ⟨hΓA, ?_, _, hfd, hhb⟩
   exact PreTr.noHead hE hord (PreTr.ofTrM htb) (ρ := Ren.id) hfd hΓA
     (by rw [Expr.rename_id]; exact hhb) ⟨_, by rw [Expr.rename_id]; exact hbT⟩
+
+/-- Substitution of a typed source value for the innermost bound variable of a typed body: the
+erasure of the instantiated body is the closed substitution of the value's erasure into the
+body's erasure. Reference: `erases_subst0` (`MR E/ESubstitution.v:612`), with `wf_ext`,
+`wf_local` and the typings of the body and the value as `henv`, `hsub`, `hE`, `hΓ` and the
+typed translations. -/
+theorem Erases.inst {P : List ConstantInfo} {σ : EvalEnv} {n : Nat}
+    {Γ : Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n} {a b : Lean.Expr} {b' a' : LBTerm}
+    {b₀ : Expr ζ lps.length (n + 1)} {a₀ : Expr ζ lps.length n}
+    (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hΓ : E[Γ] ⊢ ok) (hsub : SubEnv σ.decls P)
+    {A : Expr ζ lps.length n} {T : Expr ζ lps.length (n + 1)} (hval : SrcValue σ a)
+    (hb : Erases E B lps σ (Γ.snoc A) (Δ.pushLam none) b b')
+    (htb : TrM E B lps (Γ.snoc A) (Δ.pushLam none) b b₀) (hbT : E[Γ.snoc A] ⊢ b₀ : T)
+    (ha : Erases E B lps σ Γ Δ a a')
+    (hta : TrM E B lps Γ Δ a a₀) (hA : E[Γ] ⊢ a₀ : A) (hcl : closedn 0 a' = true) :
+    Erases E B lps σ Γ Δ (b.instantiate1' a) (csubst a' 0 b') := by
+  have hty : ∀ c ci, findDecl σ.decls c = some ci → AbsFV.LBV 0 ci.type :=
+    fun c ci h => (AbsFV.closed_types henv hsub c ci h).1
+  obtain ⟨hς, W, Ea, hi⟩ := RelInst.inst_setup henv hE hΓ hsub hval htb hbT ha hta hA
+  exact (Erases.instG hE henv.metaOrderOK hty hcl).1 _ _ _ _ _ hb _ _ _ 0 _ hΓ hς W Ea hi
+
+/-- Substitution of a typed source value into a `casesOn` alternative erased under its field
+binders: the branch's body is substituted below the field binders (the step of `iotaRed`,
+`MR E/EGlobalEnv.v:281 iota_red`, `substl`). Reference: `erases_subst0` (`MR E/ESubstitution.v:612`)
+on the branches of `MR E/Extract.v:111 erases_tCase`. -/
+theorem ErasesAlt.inst {P : List ConstantInfo} {σ : EvalEnv} {n k : Nat}
+    {Γ : Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n} {a b : Lean.Expr} {a' t : LBTerm}
+    {ns : List BinderName} {b₀ : Expr ζ lps.length (n + 1)} {a₀ : Expr ζ lps.length n}
+    (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hΓ : E[Γ] ⊢ ok) (hsub : SubEnv σ.decls P)
+    {A : Expr ζ lps.length n} {T : Expr ζ lps.length (n + 1)} (hval : SrcValue σ a)
+    (hb : ErasesAlt E B lps σ (Γ.snoc A) (Δ.pushLam none) k b (ns, t))
+    (htb : TrM E B lps (Γ.snoc A) (Δ.pushLam none) b b₀) (hbT : E[Γ.snoc A] ⊢ b₀ : T)
+    (ha : Erases E B lps σ Γ Δ a a')
+    (hta : TrM E B lps Γ Δ a a₀) (hA : E[Γ] ⊢ a₀ : A) (hcl : closedn 0 a' = true) :
+    ErasesAlt E B lps σ Γ Δ k (b.instantiate1' a) (ns, csubst a' ns.length t) := by
+  have hty : ∀ c ci, findDecl σ.decls c = some ci → AbsFV.LBV 0 ci.type :=
+    fun c ci h => (AbsFV.closed_types henv hsub c ci h).1
+  obtain ⟨hς, W, Ea, hi⟩ := RelInst.inst_setup henv hE hΓ hsub hval htb hbT ha hta hA
+  have := (Erases.instG hE henv.metaOrderOK hty hcl).2 _ _ _ _ _ _ hb _ _ _ 0 _ hΓ hς W Ea hi
+  simpa using this
 
 /-- The `let` case: a typed body whose `let`-bound local denotes the translation of a source
 value. Reference: `erases_subst0` (`MR E/ESubstitution.v:612`), on `tLetIn`'s ζ-reduct. -/
@@ -1346,7 +1400,7 @@ theorem Erases.inst_let {P : List ConstantInfo} {σ : EvalEnv} {n : Nat}
   have Ea : Erases E B lps σ Γ Δ (v.liftLooseBVars' 0 0) v' := by
     rw [liftLooseBVars'_zero]; exact hv
   have hfd : MLCtx.findB ((none, .vlet v₀) :: Δ) 0 = some v₀ := by simp [MLCtx.findB, MLDecl.denote]
-  refine Erases.instG hE hord hty hcl hb _ _ _ 0 _ hΓ (SubstWF.id hΓ) W Ea fun hs => ?_
+  refine (Erases.instG hE hord hty hcl).1 _ _ _ _ _ hb _ _ _ 0 _ hΓ (SubstWF.id hΓ) W Ea fun hs => ?_
   obtain ⟨C, us, args, cv, rfl, hC, hlen⟩ := srcValue_special hval hs
   obtain ⟨ι, η, s, c, ls, ps, fds, recFds, rfl⟩ := ctorNode_of_TrM henv hsub hC hlen hv₀
   have hhb : HB E Γ (.ctor η s c ls ps fds recFds) := .inr ⟨_, _, _, _, _, _, _, _, rfl⟩

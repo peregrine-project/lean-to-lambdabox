@@ -165,3 +165,4 @@ EraseProof.Erases.ctorProp_box propext,Classical.choice,Quot.sound
 EraseProof.Erases.propProj_box propext,Classical.choice,Quot.sound
 EraseProof.Erases.inst propext,Classical.choice,Quot.sound
 EraseProof.Erases.inst_let propext,Classical.choice,Quot.sound
+EraseProof.ErasesAlt.inst propext,Classical.choice,Quot.sound
