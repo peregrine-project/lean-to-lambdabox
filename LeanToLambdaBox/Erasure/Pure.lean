@@ -446,6 +446,7 @@ instance : Backend PureM where
     match Pure.inferType ⟨(← read).decls⟩ oracleFuel ls [] e with
     | .ok t => pure t
     | .error err => throw err
+  whnf _ _ _ := throw (.outOfFragment "whnf")
   isPropFormerType := PureM.isPropFormerType
   typeLevel _ ls e := PureM.typeLevel ls e
   casesInfo? := PureM.casesInfo?
@@ -457,6 +458,7 @@ instance : Backend PureM where
   prepare _ e := PureM.prepare e
   log _ := pure ()
   outOfFuel site := throw (.fuel site)
+  error msg := throw (.failed msg)
 
 /-- The traversal of `#erase` (`visitExpr`) run with the pure backend, assembling its result as
 `erase` does. Reference: `MR E/ErasureFunction.v:989 erase` and

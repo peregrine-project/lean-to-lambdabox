@@ -215,6 +215,9 @@ class Backend (m : Type → Type) where
   /-- The type of a term in the traversal's local context, given as a `LocalContext` and as its list
   of locals (`CoreM`: `Meta.inferType` in the `LocalContext`). -/
   inferType : LocalContext → List Local → Expr → m Expr
+  /-- The weak head normal form of a term in the traversal's local context, given as a
+  `LocalContext` and as its list of locals (`CoreM`: `Meta.whnf` in the `LocalContext`). -/
+  whnf : LocalContext → List Local → Expr → m Expr
   /-- Whether a closed type is `Prop` or a Π-type ending in `Prop`, the type of an inductive in Prop
   (`CoreM`: `Meta.isPropFormerType`). -/
   isPropFormerType : Expr → m Bool
@@ -240,6 +243,8 @@ class Backend (m : Type → Type) where
   log : String → m Unit
   /-- The error when the traversal's recursion bound is reached; the argument names the function. -/
   outOfFuel {α : Type} : String → m α
+  /-- An error that ends the erasure (`CoreM`: `throwError`). -/
+  error {α : Type} : String → m α
 
 /--
 The erasure traversal's monad over a backend `m`.
@@ -413,6 +418,7 @@ instance : Backend CoreM where
   instantiate1 := Expr.instantiate1
   isErasable lctx _ e := runMetaM lctx (isErasable e)
   inferType lctx _ e := runMetaM lctx (Meta.inferType e)
+  whnf lctx _ e := runMetaM lctx (Meta.whnf e)
   isPropFormerType e := runMetaM {} (Meta.isPropFormerType e)
   typeLevel lctx _ e := runMetaM lctx do Meta.getLevel (← Meta.inferType e)
   casesInfo? := getCasesInfo?
@@ -424,6 +430,7 @@ instance : Backend CoreM where
   prepare := prepareErasure
   log s := logInfo s
   outOfFuel site := throwError s!"erasure: recursion bound reached in {site}"
+  error msg := throwError msg
 
 section Traversal
 
@@ -554,10 +561,13 @@ def letMonocular {α} [Inhabited α] (e: Expr) (k: FVarId -> Expr -> Expr -> Era
 Destructures a type expression of the form `∀ a: A, B`,
 running the continuation on the body B (with DB variable 0 suitably instantiated with some fvar `a`) and the bound fvar,
 in a context with `a: A`.
-Panics if applied to an expression which is not of the form .forallE ..
+A type that is not of the form .forallE .. is first put in weak head normal form, so that aliases
+of function types and type families that compute to one are accepted.
+Throws an error if the type is still not of the form .forallE ..
 -/
-def forallMonocular {α} [Inhabited α] (t: Expr) (k: FVarId -> Expr -> EraseT m α) : EraseT m α := do
-  let Expr.forallE binderName type body bi := t | unreachable!
+def forallMonocular {α} (t: Expr) (k: FVarId -> Expr -> EraseT m α) : EraseT m α := do
+  let t ← if t.isForall then pure t else Backend.whnf (m := m) (← read).lctx (← read).locals t
+  let .forallE binderName type body bi := t | Backend.error (m := m) s!"expected a function type, got {t}"
   withLocalDecl binderName type bi (fun fvarid => k fvarid <| Backend.instantiate1 (m := m) body <| .fvar fvarid)
 
 /--
@@ -567,7 +577,7 @@ run a continuation `k` in a context where a fvar `a` has type `A`.
 - if `e` is not of this form, `k` will be run on the expression `.app e (.fvar a)`, behaving as if `e` had been eta-expanded to `fun a => e a`.
 In both cases the second argument to `k` is `B`, the type of the first argument in the new context.
 Assumes that `type` is the type of `e` in the context where it is called.
-Panics if `type` is not a function type.
+Throws an error if `type` does not reduce to a function type.
 -/
 def lambdaMonocularOrIntro {α} [Inhabited α] (e type: Expr) (k: Expr -> Expr -> FVarId -> EraseT m α): EraseT m α :=
   forallMonocular type fun fvarid bodytype => do
@@ -604,7 +614,7 @@ Given an expression, deconstruct it into an application to at least arity argume
 then build a LBTerm from it given the continuation.
 This will eta-expand if necessary, and close the lambdas after running `k`.
 For example: withAppEtaToMinArity "Nat.add 42" 2 k = mkLambda "y" (k "Nat.add" ["42", "y"])
-Panics if the type of e does not start with at least arity .forallE constructors.
+Throws an error if the type of e does not reduce to at least arity .forallE constructors.
 `fuel` bounds the number of arguments added.
 -/
 def withAppEtaToMinArity (fuel : Nat) (e: Expr) (arity: Nat) (k: Expr -> Array Expr -> EraseT m LBTerm): EraseT m LBTerm := do
