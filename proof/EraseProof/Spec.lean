@@ -1096,7 +1096,9 @@ inductive Erases {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (lps 
   | box : ErasableS E B lps Γ Δ e → Erases E B lps σ Γ Δ e .box
 
 /-- A `casesOn` alternative erased under its `k` field binders: leading λs are peeled, missing
-ones η-introduced (`lambdaOrIntroToArity`, `LeanToLambdaBox/Erasure.lean:592`). Reference: the
+ones η-introduced (`lambdaOrIntroToArity`, `LeanToLambdaBox/Erasure.lean:592`). A λ may also be
+η-introduced (`intro` has no shape premise): its branch is then a λ□ β-redex of the peeled one, and
+the relation is closed under substituting a λ for an alternative that is a variable. Reference: the
 branches of `MR E/Extract.v:111 erases_tCase`. -/
 inductive ErasesAlt {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (lps : List Name)
     (σ : EvalEnv) : {n : Nat} → Metalean.Ctx ζ lps.length 0 n → MLCtx ζ lps.length n → Nat →
@@ -1105,7 +1107,7 @@ inductive ErasesAlt {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (l
   | lam : TrM E B lps Γ Δ A A' → E[Γ] ⊢ A' typ →
       ErasesAlt E B lps σ (Γ.snoc A') (Δ.pushLam none) k b (ns, t) →
       ErasesAlt E B lps σ Γ Δ (k + 1) (.lam x A b bi) (binderNameOf x :: ns, t)
-  | intro : (∀ x A b bi, e ≠ .lam x A b bi) → TrM E B lps Γ Δ e e' →
+  | intro : TrM E B lps Γ Δ e e' →
       E[Γ] ⊢ e' : .forallE A' B'' →
       ErasesAlt E B lps σ (Γ.snoc A') (Δ.pushLam none) k (.app (e.liftLooseBVars' 0 1) (.bvar 0))
         (ns, t) →
