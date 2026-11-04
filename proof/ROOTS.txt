@@ -30,6 +30,5 @@ EraseProof.Erases.ctor_inv EraseProof.erases_correct
 EraseProof.Erases.atomSpine_box EraseProof.erases_correct
 EraseProof.ErasesDeps.ext EraseProof.erasePure_erases
 EraseProof.ErasesDeps.eval EraseProof.erases_correct
-EraseProof.TrM.instLevels EraseProof.ProgEnv.unfold
 EraseProof.TrM.det EraseProof.erasePure_erases
 EraseProof.TrM.apps EraseProof.casesOn_whred
