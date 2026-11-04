@@ -329,12 +329,16 @@ def typeLevel (cx : Ctx) (fuel : Nat) (ls : List Local) (e : Expr) : Except Eras
   | .sort u => pure u
   | _ => throw (.failed "not a type")
 
-/-- The pure erasability oracle: the type is an arity, or the type's sort is always zero. Every
-reduction uses the kernel's δ. Fuel exhaustion is an error, never an answer.
+/-- The pure erasability oracle: an application spine headed by a theorem is erasable (a proof:
+Lean's kernel requires a theorem's statement to be a proposition); otherwise the type is an arity,
+or the type's sort is always zero. Every reduction uses the kernel's δ. Fuel exhaustion is an
+error, never an answer.
 Reference: `MR E/ErasureFunction.v:894 is_erasableb` (`type_of_typing`, `is_arity`,
 `sort_of_type`, `Sort.is_propositional`); MC §7.2, Fig. 17. -/
 def isErasable (cx : Ctx) (fuel : Nat) (ls : List Local) (e : Expr) :
     Except EraseError Bool := do
+  if let (.const c _, _) := spine e then
+    if let some (.thmInfo _) := findConst cx.decls c then return true
   let T ← inferType cx fuel ls [] e
   if ← isArity cx fuel ls T then return true
   match ← whnf cx fuel ls (← inferType cx fuel ls [] T) with

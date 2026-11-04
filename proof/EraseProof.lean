@@ -42,3 +42,5 @@ import EraseProof.Relation.Inst
 import EraseProof.Oracle.Whnf
 import EraseProof.Oracle.Arity
 import EraseProof.Source.Defeq
+import EraseProof.Oracle.Atom
+import EraseProof.Oracle.Agree
