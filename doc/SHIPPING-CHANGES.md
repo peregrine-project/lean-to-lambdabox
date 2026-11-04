@@ -2598,6 +2598,47 @@ the calls at which the two oracles answer differently. It must equal
   without `PEREGRINE`. `scripts/pure-harness.sh` passes with its expected summary unchanged (294
   `#erase`, 223 in the fragment; 8298 oracle calls, 14 differ, none fails).
 
+## S-33: Unexpected cases of the traversal are errors on the pure path
+
+- **Commit:** the commit whose subject starts with `S-33:` (`git log --grep='^S-33:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure.lean`: new operation `Backend.fail`, a case that the traversal does
+    not expect (at `CoreM`: `panic!` with the result `default`, as the panics it replaces); new
+    `getOrFail` (an option's value, or `Backend.fail`). They replace the panics, `unreachable!`,
+    `[i]!`, `get!` and `value!` of `addAxiom`, `register_inductive`, `fvar_to_name`,
+    `lambdaMonocular`, `letMonocular`, `visitExpr`, `visitProj`, `visitConstructor` (its constructor,
+    inductive and argument mask), `visitCases`, `get_constant_kername` and `visitMutual` (its
+    declaration, and the value of a non-recursive declaration; the recursion test reads
+    `value?` with the default value, which it only reads for a declaration with a value). Left
+    as they are: the panics of `visitLiteral` and of `visitConstructor` on `Nat.zero`/`Nat.succ`
+    under `nat := .machine` and on string literals, which the fragment test keeps from the pure
+    path, and those of `visitConst`, `visitConstApp`, `mkDef` and the fixpoint branch of
+    `visitMutual`, which the pure path does not reach (the first two are guarded by their caller,
+    the last two need a recursive declaration).
+  - `LeanToLambdaBox/Erasure/Pure.lean`: the field `fail` of `instance : Backend PureM` (the error
+    `failed`) and the instance's docstring.
+  - `tests/harness/PureHarness.lean`: the field of `instance : Backend CmpM`.
+  - `tests/regress/pure_backend.lean`: three new checks and its docstring.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** in the generic traversal a panic's result is `pure default` (the instance
+  `instInhabitedOfMonad`), so on the pure path a panic is a successful run with a default term,
+  which the correctness proof would have to rule out site by site; S-31 is one such site that was
+  reachable. With `Backend.fail` the pure path ends with an error there, about which the proof
+  says nothing.
+- **Behaviour before:** `lambdaMonocular` at `PureM` on a term that is not a λ returns its
+  continuation's default result; `Backend.fail` does not exist.
+- **Behaviour after:** at `PureM` it is the error `failed lambdaMonocular: not a λ`, and likewise
+  at the other sites. At `CoreM` every site still panics and goes on with `default`, so the `Meta`
+  path's output is unchanged; the messages name the site instead of the source position.
+- **Effect on emitted .ast (corpus):** byte-identical for all 710 files against the corpus of S-32;
+  `PANIC` counts unchanged (the three left are those of `visitLiteral`, R-4).
+- **Regression test:** `pure_backend` checks that `Backend.error` and `Backend.fail` are the error
+  `failed` at `PureM`, and that `lambdaMonocular` on a constant is the error
+  `failed lambdaMonocular: not a λ` there. Before this commit the test does not elaborate
+  (`Backend.fail` is unknown). `scripts/regress.sh` passes (18 tests), with and without
+  `PEREGRINE`. `scripts/pure-harness.sh` passes with its expected summary unchanged (294 `#erase`,
+  223 in the fragment; 8298 oracle calls, 14 differ, none fails).
+
 ---
 
 ## Reported, not fixed

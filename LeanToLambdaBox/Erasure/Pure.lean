@@ -439,7 +439,7 @@ type inference and weak head normalization are the oracle's `Pure.inferType` and
 `Pure.isPropFormerType` and `Pure.typeLevel` at `oracleFuel`; `casesInfo?` and `ctorArity?` are `Erasure.casesInfo?` and `Erasure.ctorArity?` over
 the declarations; every constructor field is kept; `isExtern` and `inlineAttr?` read the view; no constant is an instance;
 `log` does nothing; a constant missing from the declarations is `outOfFragment`, and fuel
-exhaustion is the error `fuel`, and `error` is the error `failed`. Reference: the environment and retyping operations that
+exhaustion is the error `fuel`, and `error` and `fail` are the error `failed`. Reference: the environment and retyping operations that
 `MR E/ErasureFunction.v:989 erase` uses. -/
 instance : Backend PureM where
   findConst? := PureM.findConst?
@@ -466,6 +466,7 @@ instance : Backend PureM where
   log _ := pure ()
   outOfFuel site := throw (.fuel site)
   error msg := throw (.failed msg)
+  fail msg := throw (.failed msg)
 
 /-- The traversal of `#erase` (`visitExpr`) run with the pure backend, assembling its result as
 `erase` does. Reference: `MR E/ErasureFunction.v:989 erase` and

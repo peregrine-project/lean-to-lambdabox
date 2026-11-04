@@ -167,6 +167,7 @@ instance : Backend CmpM where
   log s := liftP (Backend.log (m := PureM) s)
   outOfFuel site := liftP (Backend.outOfFuel site)
   error msg := liftP (Backend.error msg)
+  fail msg := liftP (Backend.fail msg)
 
 /-- The run of `erasePure`, with the backend `CmpM` in place of `PureM`. -/
 def erasePureCmp (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo) (e : Expr) :

@@ -245,6 +245,9 @@ class Backend (m : Type → Type) where
   outOfFuel {α : Type} : String → m α
   /-- An error that ends the erasure (`CoreM`: `throwError`). -/
   error {α : Type} : String → m α
+  /-- A case that the traversal does not expect; the argument names it (`CoreM`: `panic!`, whose
+  result is `default`, so that the erasure goes on). -/
+  fail {α : Type} [Inhabited α] : String → m α
 
 /--
 The erasure traversal's monad over a backend `m`.
@@ -431,6 +434,7 @@ instance : Backend CoreM where
   log s := logInfo s
   outOfFuel site := throwError s!"erasure: recursion bound reached in {site}"
   error msg := throwError msg
+  fail {α} _ msg := have : Inhabited (CoreM α) := ⟨pure default⟩; panic! msg
 
 section Traversal
 
@@ -442,8 +446,14 @@ def getConst (n : Name) : EraseT m ConstantInfo := do
   | some ci => pure ci
   | none => Backend.unknownConstant (m := m) n
 
+/-- The value of an option, or `Backend.fail` with the message if there is none (as `Option.get!`). -/
+def getOrFail {α} [Inhabited α] (o : Option α) (msg : String) : EraseT m α :=
+  match o with
+  | some a => pure a
+  | none => Backend.fail (m := m) msg
+
 def addAxiom (name: Name): EraseT m Unit := do
-  if (← get).constants.contains name then panic! s!"Constant {name} is already defined, cannot add axiom."
+  if (← get).constants.contains name then Backend.fail (m := m) s!"Constant {name} is already defined, cannot add axiom."
   let kn := toKername name
   modify (fun s => { s with constants := s.constants.insert name kn, gdecls := s.gdecls.cons (kn, .constantDecl ⟨.none⟩) })
 
@@ -458,13 +468,13 @@ def register_inductive (indinfo: InductiveVal): EraseT m (InductiveId × Inducti
     let mutualBlockName := mutualBlockKername indinfo.all
     -- Iterate through all the inductive types in the mutual definition
     let ind_bodies: List OneInductiveBody ← names.zipIdx.mapM fun (ind_name, idx) => do
-      let .inductInfo inf ← getConst ind_name | unreachable!
+      let .inductInfo inf ← getConst ind_name | Backend.fail (m := m) s!"register_inductive: {ind_name} is not an inductive type"
       -- Iterate through all the constructors
       let (ind_ctors, ind_argmasks) := List.unzip (← inf.ctors.mapM fun ctor_name => do
         if (← Backend.isExtern (m := m) ctor_name) && (← read).config.extern == .preferAxiom then
           Backend.log (m := m) s!"Constructor {ctor_name} of type {ind_name} is marked @[extern], emitting axiom."
           addAxiom ctor_name
-        let .ctorInfo ci ← getConst ctor_name | unreachable!
+        let .ctorInfo ci ← getConst ctor_name | Backend.fail (m := m) s!"register_inductive: {ctor_name} is not a constructor"
         -- Get an argmask to remember which fields are irrelevant.
         let argmask: ConstructorArgMask ← if (← read).config.remove_irrel_constr_args
         then
@@ -480,7 +490,7 @@ def register_inductive (indinfo: InductiveVal): EraseT m (InductiveId × Inducti
         if is_struct then
           -- only generate projections for relevant fields
           let _ := Expr
-          let num_fields := ind_argmasks[0]!.count .keep
+          let num_fields := (← getOrFail ind_argmasks[0]? "register_inductive: no constructor").count .keep
           -- These dummy names aren't semantically important, so it doesn't actually matter whether the index refers to
           -- the field's position before or after removing irrelevant fields. Here, I chose the latter, because it was easier.
           pure (List.range num_fields |>.map toString |>.map ProjectionBody.mk)
@@ -493,11 +503,11 @@ def register_inductive (indinfo: InductiveVal): EraseT m (InductiveId × Inducti
       pure { name := toString ind_name, propositional, ctors := ind_ctors, projs }
     let mutual_body := { npars := indinfo.numParams, bodies := ind_bodies }
     modify (fun s => { s with gdecls := s.gdecls.cons (mutualBlockName, .inductiveDecl mutual_body) })
-    return (← get).inductives[indinfo.name]!
+    getOrFail (← get).inductives[indinfo.name]? s!"register_inductive: {indinfo.name} not registered"
 
 /-- The λ□ name of the local `x`: `binderNameOf` of its user name. -/
 def fvar_to_name (x: FVarId): EraseT m BinderName := do
-  return binderNameOf ((← read).locals.find? (·.fvarId == x)).get!.userName
+  return binderNameOf (← getOrFail ((← read).locals.find? (·.fvarId == x)) "fvar_to_name: unknown local").userName
 
 def mkLambda (x: FVarId) (body: LBTerm): EraseT m LBTerm := do return .lambda (← fvar_to_name x) (abstract x body)
 
@@ -545,7 +555,7 @@ A version of Meta.lambdaTelescope that
 Panics if applied to something which is not of the form .lambda ..
 -/
 def lambdaMonocular {α} [Inhabited α] (e: Expr) (k: FVarId -> Expr -> EraseT m α): EraseT m α := do
-  let .lam binderName type body bi := e | unreachable!
+  let .lam binderName type body bi := e | Backend.fail (m := m) "lambdaMonocular: not a λ"
   withLocalDecl binderName type bi (fun fvarid => k fvarid <| Backend.instantiate1 (m := m) body (.fvar fvarid))
 
 /--
@@ -554,7 +564,7 @@ The continuation gets an FVarId for the bound variable and bound value and body 
 Panics if applied to an expression which is not of the form .letE ..
 -/
 def letMonocular {α} [Inhabited α] (e: Expr) (k: FVarId -> Expr -> Expr -> EraseT m α): EraseT m α := do
-  let .letE binderName type val body nd := e | unreachable!
+  let .letE binderName type val body nd := e | Backend.fail (m := m) "letMonocular: not a let"
   withLocalDef binderName type val nd (fun fvarid => k fvarid val (Backend.instantiate1 (m := m) body (.fvar fvarid)))
 
 /--
@@ -689,7 +699,7 @@ mutual
     | .letE ..     => visitLet fuel e
     | .lit l     => visitLiteral fuel l
     | .fvar fvarId => pure (.fvar fvarId)
-    | .forallE .. | .mvar .. | .bvar .. | .sort ..  => unreachable!
+    | .forallE .. | .mvar .. | .bvar .. | .sort ..  => Backend.fail (m := m) "visitExpr: a type, a metavariable or a loose bound variable"
 
   def visitLiteral : Nat → Literal → EraseT m LBTerm
   | 0, _ => Backend.outOfFuel (m := m) "visitLiteral"
@@ -726,10 +736,10 @@ mutual
   def visitProj : Nat → Name → Nat → Expr → EraseT m LBTerm
   | 0, _, _, _ => Backend.outOfFuel (m := m) "visitProj"
   | fuel+1, s, i, e => do
-    let .inductInfo indinfo ← getConst s | unreachable!
+    let .inductInfo indinfo ← getConst s | Backend.fail (m := m) s!"visitProj: {s} is not an inductive type"
     let (indid, argmasks) ← register_inductive indinfo
     -- i is the index among all fields, but some are erased
-    let fieldIdx := argmasks[0]![:i].toArray.count .keep
+    let fieldIdx := (← getOrFail argmasks[0]? "visitProj: no constructor")[:i].toArray.count .keep
     let projinfo: ProjectionInfo := { indType := indid, paramCount := indinfo.numParams, fieldIdx }
     return .proj projinfo (← visitExpr fuel e)
 
@@ -790,11 +800,11 @@ mutual
   def visitConstructor : Nat → Name → Array Expr → EraseT m LBTerm
   | 0, _, _ => Backend.outOfFuel (m := m) "visitConstructor"
   | fuel+1, ctorname, args => do
-    let .ctorInfo info ← getConst ctorname | unreachable!
+    let .ctorInfo info ← getConst ctorname | Backend.fail (m := m) s!"visitConstructor: {ctorname} is not a constructor"
     let cidx := info.cidx
-    let .inductInfo indinfo ← getConst info.induct | unreachable!
+    let .inductInfo indinfo ← getConst info.induct | Backend.fail (m := m) s!"visitConstructor: {info.induct} is not an inductive type"
     let (indid, argmasks) ← register_inductive indinfo
-    let argmask := argmasks[cidx]!
+    let argmask ← getOrFail argmasks[cidx]? "visitConstructor: no argument mask"
 
     if (← Backend.isExtern (m := m) ctorname) && (← read).config.extern == .preferAxiom then
       -- Axiom has been added by register_inductive.
@@ -847,11 +857,11 @@ mutual
   def visitCases : Nat → CasesInfo → Array Expr → EraseT m LBTerm
   | 0, _, _ => Backend.outOfFuel (m := m) "visitCases"
   | fuel+1, casesInfo, args => do
-    let discr := args[casesInfo.discrPos]!
-    let .inductInfo indVal ← getConst casesInfo.indName | unreachable!
+    let discr ← getOrFail args[casesInfo.discrPos]? "visitCases: no discriminant"
+    let .inductInfo indVal ← getConst casesInfo.indName | Backend.fail (m := m) s!"visitCases: {casesInfo.indName} is not an inductive type"
     -- A `casesOn` whose motive lands in `Prop` (it has no universe parameter besides the
     -- inductive's, as the inductive's recursor) gives a proof, which is erased.
-    let .defnInfo cd ← getConst casesInfo.declName | unreachable!
+    let .defnInfo cd ← getConst casesInfo.declName | Backend.fail (m := m) s!"visitCases: {casesInfo.declName} is not a definition"
     if cd.levelParams.length == indVal.levelParams.length then return .box
     -- The discriminant's type may be a Prop: a Prop inductive, or `PUnit.{u}`/`PEmpty.{u}` at a level
     -- that is 0 or a universe parameter.
@@ -861,8 +871,8 @@ mutual
     let mut catchAll : Option (Nat × Expr) := none
     for i in casesInfo.altsRange, altInfo in casesInfo.altNumParams do
       match altInfo with
-      | .ctor ctorName numFields => ctorAlts := ctorAlts.insert ctorName (numFields, args[i]!)
-      | .default numHyps => catchAll := some (numHyps, args[i]!)
+      | .ctor ctorName numFields => ctorAlts := ctorAlts.insert ctorName (numFields, ← getOrFail args[i]? "visitCases: no alternative")
+      | .default numHyps => catchAll := some (numHyps, ← getOrFail args[i]? "visitCases: no catch-all")
     /- An inductive whose sort may be Prop eliminates into data only if it has at most one
     constructor and each field of it is a proof or an index of the constructor's type. The
     discriminant may then be a proof, erased to □, which gives □ to every field. So the alternative
@@ -872,10 +882,10 @@ mutual
     if mayBeProp && indVal.numIndices > 0 then
       let firstIdx := casesInfo.discrPos - indVal.numIndices
       for ctorName in indVal.ctors do
-        let .ctorInfo ctorVal ← getConst ctorName | unreachable!
+        let .ctorInfo ctorVal ← getConst ctorName | Backend.fail (m := m) s!"visitCases: {ctorName} is not a constructor"
         let idxPos := indexFields indVal.numParams ctorVal.type
         if idxPos.all Option.isNone then continue
-        idxVals := idxVals.insert ctorName (idxPos.map (·.map (args[firstIdx + ·]!)))
+        idxVals := idxVals.insert ctorName (← idxPos.mapM (·.mapM fun j => getOrFail args[firstIdx + j]? "visitCases: no index"))
     /- A λ□ `case` on □ reduces only if its inductive is propositional (MetaRocq's `iotaSing`), and
     one λ□ declaration of `PUnit` serves every level, so it is not. So the `case` on the only
     constructor is reduced here, as `iotaSing` does: the branch gets □ for each field (or hypothesis
@@ -883,7 +893,7 @@ mutual
     its only value is the constructor without fields. An alternative with index fields is erased
     as the λ-abstraction over its fields of its body with the index fields substituted. -/
     if mayBeProp && indVal.numCtors == 1 then
-      let ctorName := indVal.ctors[0]!
+      let ctorName ← getOrFail indVal.ctors[0]? "visitCases: no constructor"
       let branch ← match ctorAlts[ctorName]?, catchAll with
         | some (n, alt), _ => do
           let alt_nt ← match idxVals[ctorName]? with
@@ -1018,7 +1028,7 @@ mutual
       return kn
     else
      visitMutual fuel n
-     return (← get).constants[n]!
+     getOrFail (← get).constants[n]? s!"get_constant_kername: {n} not registered"
 
   /--
   Add all the declarations in the Lean-side mutual block of `name` to the global_declarations,
@@ -1028,7 +1038,7 @@ mutual
   | 0, _ => Backend.outOfFuel (m := m) "visitMutual"
   | fuel+1, name => do
     -- Use original recursive definition, not the elaborated one with recursors, if available.
-    let ci := (← Backend.declInfo? (m := m) name).get!
+    let ci ← getOrFail (← Backend.declInfo? (m := m) name) s!"visitMutual: unknown constant {name}"
     let names := ci.all -- possibly these are ._unsafe_rec
     let single_decl := names.length == 1
     -- Lean's @[inline] attribute is name-based, so we can decide pre-erasure.
@@ -1055,10 +1065,10 @@ mutual
         Backend.log (m := m) s!"Name {name} is tagged @[extern] but has a value, using value."
         pure ()
 
-    let nonrecursive: Bool := single_decl && !(name_occurs (m := m) name (ci.value! (allowOpaque := true)))
+    let nonrecursive: Bool := single_decl && !(name_occurs (m := m) name ((ci.value? (allowOpaque := true)).getD default))
     if nonrecursive
     then -- translate into a single nonrecursive constant declaration
-      let e: Expr := ci.value! (allowOpaque := true)
+      let e: Expr ← getOrFail (ci.value? (allowOpaque := true)) s!"visitMutual: {name} has no value"
       let t ← withReader (fun env => { env with fixvars := .none }) do
         pure (← visitExpr fuel (← Backend.prepare (m := m) (← read).config e))
       let kn := toKername name
