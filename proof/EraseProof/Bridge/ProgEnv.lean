@@ -94,6 +94,27 @@ theorem ProgEnv.fresh (h : ProgEnv P ζ E B) : (P.map (·.name)).Nodup := by
     obtain ⟨q, hq', rfl⟩ := List.mem_map.mp ha
     exact not_mem_of_findDecl_none (hfr q hq') (hab ▸ hb)
 
+/-- The universe parameters of every declaration of the program are distinct. Reference: Lean's
+kernel, `environment::check_duplicated_univ_params`. -/
+theorem ProgEnv.levelParams_nodup (h : ProgEnv P ζ E B) {ci : ConstantInfo} (hci : ci ∈ P) :
+    ci.levelParams.Nodup := by
+  induction h with
+  | nil => cases hci
+  | «axiom» _ _ hnd _ _ ih | defn _ _ hnd _ _ _ _ ih | thm _ _ hnd _ _ _ _ ih
+  | «opaque» _ _ hnd _ _ _ _ ih =>
+    rcases List.mem_cons.mp hci with rfl | h
+    · exact hnd
+    · exact ih h
+  | induct _ _ _ hnd _ _ _ ih =>
+    rcases List.mem_append.mp hci with h | h
+    · exact hnd _ h
+    · exact ih h
+  | quot _ _ _ _ hnd _ _ ih =>
+    rcases List.mem_append.mp hci with h | h
+    · obtain ⟨q, hq, rfl⟩ := List.mem_map.mp h
+      exact hnd q (List.mem_reverse.mp hq)
+    · exact ih h
+
 /-- A declaration of an inductive block is one of its types, constructors or recursors. -/
 theorem IndBlock.mem_decls {ι : Metalean.IndSig} {Is : Fin ι.nsorts → InductiveVal}
     {Cs : (s : Fin ι.nsorts) → Fin (ι.nctors s) → ConstructorVal} {Rs : Fin ι.nsorts → RecursorVal}

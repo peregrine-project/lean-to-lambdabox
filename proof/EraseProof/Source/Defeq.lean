@@ -19,8 +19,9 @@ a Metalean typed definitional equality: β (`WHRed.beta_defeq`, `TrM.inst`), ζ
 (`proj_defeq`) and congruence (`DCong.defeq`, `TrM.apps`). A spine of a saturating head (an
 inductive type or a saturated constructor) evaluates argument by argument; the induction carries
 this (`SrcDefeq.SpineOK`) with the conclusion. η on a constructor spine (`SrcDefeq.eta_ctor`)
-needs the constructor's universe parameters to be distinct; the proof-irrelevant ι is taken as a
-hypothesis (`SrcDefeq.ProofSound`). Reference:
+needs the constructor's universe parameters to be distinct, which `ProgEnv` gives
+(`ProgEnv.levelParams_nodup`); the proof-irrelevant ι is taken as a hypothesis
+(`SrcDefeq.ProofSound`). Reference:
 `subject_reduction_eval` (`MR P/PCUICWcbvEval.v`); `ML Metatheory/SubjectReduction.lean`.
 -/
 
@@ -1200,10 +1201,8 @@ def ProofSound (σ : EvalEnv) (E : Metalean.Env ζ) (B : Binds ζ) (lps : List N
     Sound E B lps (mkAppN (.const c us) as.toArray) v
 
 /-- Subject reduction with the argument-wise evaluation of saturating spines, by induction on
-`SrcEval`, given distinct universe parameters of the constructors (for η on constructor spines,
-`SrcDefeq.eta_ctor`) and the proof-irrelevant ι (`SrcDefeq.ProofSound`). -/
+`SrcEval`, given the proof-irrelevant ι (`SrcDefeq.ProofSound`). -/
 theorem sound_of (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
-    (hnd : ∀ c cv, findDecl σ.decls c = some (.ctorInfo cv) → cv.levelParams.Nodup)
     (hproof : ProofSound σ E B lps)
     {e v : Expr} (hev : SrcEval σ e v) : Sound E B lps e v ∧ SpineOK σ E B lps e v := by
   induction hev with
@@ -1215,7 +1214,8 @@ theorem sound_of (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decl
     refine ⟨?_, spineOK_eta henv hsub he⟩
     obtain ⟨ar, har⟩ := etaSpine?_special he
     rcases specialArity_some har with ⟨cv, hcv, -⟩ | ⟨iv, hiv⟩
-    · exact eta_ctor henv hE hsub hcv (hnd _ _ hcv) he
+    · exact eta_ctor henv hE hsub hcv
+        (henv.levelParams_nodup (findDecl_eq_some (findDecl_sub hsub hcv)).1) he
     · exact eta_casesOn henv hE hsub hiv he
   | ctor hc _ hlen' _ ih =>
     exact case_ctor henv hE hsub hc hlen' fun i a v h₁ h₂ => (ih i a v h₁ h₂).1
