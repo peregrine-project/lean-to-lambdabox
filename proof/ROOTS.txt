@@ -15,3 +15,4 @@ EraseProof.TypeEq.ind_ne_quot EraseProof.IsErasable.quotMk_not
 EraseProof.ProgEnv.fresh EraseProof.erasePure_erases
 EraseProof.ProgEnv.lookup_ind EraseProof.casesOn_whred
 EraseProof.proj_defeq EraseProof.SrcEval.defeq
+EraseProof.ProgEnv.unfold_delta EraseProof.ProgEnv.unfold
