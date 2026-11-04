@@ -64,6 +64,7 @@ UNICODE = {
     '\u03b4': r'\ensuremath{\delta}',
     '\u03b6': r'\ensuremath{\zeta}',
     '\u03c1': r'\ensuremath{\rho}',
+    '\u03c3': r'\ensuremath{\sigma}',
     '\u03a0': r'\ensuremath{\Pi}',
     '\u0393': r'\ensuremath{\Gamma}',
     '\u03a3': r'\ensuremath{\Sigma}',
@@ -94,6 +95,7 @@ UNICODE = {
     '\u2081': r'\ensuremath{_1}',
     '\u2082': r'\ensuremath{_2}',
     '\u2099': r'\ensuremath{_n}',
+    '\u1d62': r'\ensuremath{_i}',
     '\u207b': r'\ensuremath{^{-}}',          # CIC with superscript minus
     '\u00a7': r'\S{}',
     '\u00ab': r'\ensuremath{\langle\!\langle}',   # Lean name quotes

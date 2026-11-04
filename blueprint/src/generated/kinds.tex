@@ -12,34 +12,39 @@
 \bpdefinestatus{standard}{333333}
 \bpdefinestatus{planned}{333333}
 % \bpdefinenodes{chapter}{badges}: the nodes of a chapter by kind, which \bpnodes{chapter} prints.
-\bpdefinenodes{chap:trust}{\bpkind{shipping}~13 \bpkind{metalean}~34}
+\bpdefinenodes{chap:trust}{\bpkind{shipping}~13 \bpkind{metalean}~42}
 \bpdefinenodes{chap:pure}{\bpkind{shipping}~12}
 \bpdefinenodes{chap:model}{\bpkind{step}~1 \bpkind{lemma}~9 \bpkind{definition}~5}
-\bpdefinenodes{chap:source}{\bpkind{step}~4 \bpkind{lemma}~2 \bpkind{definition}~6}
+\bpdefinenodes{chap:source}{\bpkind{step}~4 \bpkind{lemma}~2 \bpkind{definition}~8}
 \bpdefinenodes{chap:relation}{\bpkind{step}~3 \bpkind{definition}~4}
-\bpdefinenodes{chap:core}{\bpkind{step}~4 \bpkind{lemma}~1 \bpkind{definition}~2}
-\bpdefinenodes{chap:final}{\bpkind{final}~1 \bpkind{milestone}~2 \bpkind{step}~1 \bpkind{definition}~1}
+\bpdefinenodes{chap:core}{\bpkind{step}~4 \bpkind{lemma}~1 \bpkind{definition}~3}
+\bpdefinenodes{chap:final}{\bpkind{final}~1 \bpkind{milestone}~2 \bpkind{step}~1 \bpkind{definition}~4}
+\bpdefinenodes{chap:tests}{\bpkind{test}~5}
 % \bpsetkind{label}{kind}{status}{inherited sorries}: every node (the print version puts the badges after its heading).
 \bpsetkind{def:EraseProof-LocalsOK}{definition}{planned}{}
 \bpsetkind{lem:EraseProof-Pure-isErasable_sound}{step}{planned}{}
 \bpsetkind{lem:EraseProof-Pure-isErasable_agree}{step}{planned}{}
-\bpsetkind{def:EraseProof-PhaseIDecl}{definition}{planned}{}
+\bpsetkind{def:EraseProof-PhaseIDecl}{definition}{standard}{}
 \bpsetkind{lem:EraseProof-collectDeps_spec}{step}{planned}{}
+\bpsetkind{def:EraseProof-collectDeps_ok_of_statement}{definition}{standard}{}
 \bpsetkind{lem:EraseProof-collectDeps_ok_of}{lemma}{planned}{}
 \bpsetkind{lem:EraseProof-eraseEntry_pure}{step}{planned}{}
-\bpsetkind{def:EraseProof-ViewAgrees}{definition}{planned}{}
+\bpsetkind{def:EraseProof-ViewAgrees}{definition}{standard}{}
+\bpsetkind{def:EraseProof-erase_correct_statement}{definition}{standard}{}
 \bpsetkind{thm:EraseProof-erase_correct}{final}{planned}{}
 \bpsetkind{lem:EraseProof-PropInductive-of_propInd}{step}{planned}{}
+\bpsetkind{def:EraseProof-erases_correct_statement}{definition}{standard}{}
 \bpsetkind{thm:EraseProof-erases_correct}{milestone}{planned}{}
+\bpsetkind{def:EraseProof-erasePure_erases_statement}{definition}{standard}{}
 \bpsetkind{thm:EraseProof-erasePure_erases}{milestone}{planned}{}
-\bpsetkind{def:EraseProof-MBinding}{definition}{planned}{}
-\bpsetkind{def:EraseProof-SatTr}{definition}{planned}{}
-\bpsetkind{def:EraseProof-natLitM}{definition}{planned}{}
-\bpsetkind{def:EraseProof-TrM}{definition}{planned}{}
+\bpsetkind{def:EraseProof-MBinding}{definition}{standard}{}
+\bpsetkind{def:EraseProof-SatTr}{definition}{standard}{}
+\bpsetkind{def:EraseProof-natLitM}{definition}{standard}{}
+\bpsetkind{def:EraseProof-TrM}{definition}{standard}{}
 \bpsetkind{lem:EraseProof-TrM-det}{lemma}{planned}{}
 \bpsetkind{lem:EraseProof-TrM-weakBV}{lemma}{planned}{}
 \bpsetkind{lem:EraseProof-TrM-inst}{lemma}{planned}{}
-\bpsetkind{def:EraseProof-ProgEnv}{definition}{planned}{}
+\bpsetkind{def:EraseProof-ProgEnv}{definition}{standard}{}
 \bpsetkind{lem:EraseProof-ProgEnv-lookup}{lemma}{planned}{}
 \bpsetkind{lem:EraseProof-ProgEnv-unfold}{lemma}{planned}{}
 \bpsetkind{lem:EraseProof-ctorSat_iota}{lemma}{planned}{}
@@ -50,34 +55,41 @@
 \bpsetkind{def:Erasure-EraseError}{shipping}{standard}{}
 \bpsetkind{def:Erasure-EnvView}{shipping}{standard}{}
 \bpsetkind{def:Erasure-findConst}{shipping}{standard}{}
+\bpsetkind{def:Erasure-declExclusion}{shipping}{standard}{}
 \bpsetkind{def:Erasure-collectDeps}{shipping}{standard}{}
-\bpsetkind{def:Erasure-Planned-collectDeps}{shipping}{planned}{}
+\bpsetkind{def:Erasure-casesInfo}{shipping}{standard}{}
 \bpsetkind{def:Erasure-Pure-instLevels}{shipping}{standard}{}
 \bpsetkind{def:Erasure-Pure-isErasable}{shipping}{standard}{}
 \bpsetkind{def:Erasure-PureM}{shipping}{standard}{}
-\bpsetkind{def:Erasure-Planned-casesInfo}{shipping}{planned}{}
 \bpsetkind{def:Erasure-isRecursiveDecl}{shipping}{standard}{}
 \bpsetkind{def:Erasure-erasePure}{shipping}{standard}{}
 \bpsetkind{def:Erasure-eraseEntry}{shipping}{standard}{}
-\bpsetkind{def:EraseProof-LBEval}{definition}{planned}{}
-\bpsetkind{def:EraseProof-Subsingleton}{definition}{planned}{}
-\bpsetkind{def:EraseProof-Erases}{definition}{planned}{}
-\bpsetkind{def:EraseProof-ErasesDeps}{definition}{planned}{}
+\bpsetkind{def:EraseProof-LBEval}{definition}{standard}{}
+\bpsetkind{def:EraseProof-Subsingleton}{definition}{standard}{}
+\bpsetkind{def:EraseProof-Erases}{definition}{standard}{}
+\bpsetkind{def:EraseProof-ErasesDeps}{definition}{standard}{}
 \bpsetkind{lem:EraseProof-Erases-closed}{step}{planned}{}
 \bpsetkind{lem:EraseProof-Erases-inst}{step}{planned}{}
 \bpsetkind{lem:EraseProof-ErasesDeps-eval}{step}{planned}{}
-\bpsetkind{def:EraseProof-IsErasable}{definition}{planned}{}
+\bpsetkind{def:EraseProof-IsErasable}{definition}{standard}{}
 \bpsetkind{lem:EraseProof-IsErasable-inst}{lemma}{planned}{}
 \bpsetkind{lem:EraseProof-IsErasable-ctor_not}{step}{planned}{}
 \bpsetkind{lem:EraseProof-IsErasable-quotMk_not}{lemma}{planned}{}
-\bpsetkind{def:EraseProof-EvalEnv}{definition}{planned}{}
-\bpsetkind{def:EraseProof-EvalEnv-isAtom}{definition}{planned}{}
-\bpsetkind{def:EraseProof-EvalEnv-etaSpine}{definition}{planned}{}
-\bpsetkind{def:EraseProof-SrcEval}{definition}{planned}{}
+\bpsetkind{def:EraseProof-EvalEnv}{definition}{standard}{}
+\bpsetkind{def:EraseProof-EvalEnv-isAtom}{definition}{standard}{}
+\bpsetkind{def:EraseProof-EvalEnv-etaSpine}{definition}{standard}{}
+\bpsetkind{def:EraseProof-SrcEval}{definition}{standard}{}
+\bpsetkind{def:EraseProof-SrcValue}{definition}{planned}{}
 \bpsetkind{lem:EraseProof-SrcEval-value}{step}{planned}{}
 \bpsetkind{lem:EraseProof-SrcEval-defeq}{step}{planned}{}
-\bpsetkind{def:EraseProof-ConstsIn}{definition}{planned}{}
+\bpsetkind{def:EraseProof-ConstsIn}{definition}{standard}{}
+\bpsetkind{def:EraseProof-DepClosed}{definition}{planned}{}
 \bpsetkind{lem:EraseProof-SrcEval-restrict}{step}{planned}{}
+\bpsetkind{lem:EraseProof-Test-bind_ok}{test}{standard}{}
+\bpsetkind{def:EraseProof-Test-NV1-P}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NV1-hrun}{test}{standard}{}
+\bpsetkind{def:EraseProof-Test-NVP-P}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NVPK-hrun}{test}{standard}{}
 \bpsetkind{def:LBTerm}{shipping}{standard}{}
 \bpsetkind{def:abstract}{shipping}{standard}{}
 \bpsetkind{def:toKername}{shipping}{standard}{}
@@ -125,3 +137,11 @@
 \bpsetkind{imp:Metalean-Order-Presheaf-Ideal}{metalean}{standard}{}
 \bpsetkind{imp:Metalean-Order-CondLattice}{metalean}{standard}{}
 \bpsetkind{imp:Metalean-Order-Category-CondSemilatSup-Basic}{metalean}{standard}{}
+\bpsetkind{imp:Metalean-Level-Raw-Basic}{metalean}{standard}{}
+\bpsetkind{imp:Metalean-Syntax-Inductive-Ctor}{metalean}{standard}{}
+\bpsetkind{imp:Metalean-Syntax-Inductive-Recursor}{metalean}{standard}{}
+\bpsetkind{imp:Metalean-Syntax-Inductive-LargeElimination}{metalean}{standard}{}
+\bpsetkind{imp:Metalean-Syntax-Structure}{metalean}{standard}{}
+\bpsetkind{imp:Metalean-Export-Basic}{metalean}{standard}{}
+\bpsetkind{imp:Metalean-Frontend-Failure}{metalean}{standard}{}
+\bpsetkind{imp:Metalean-Frontend-Translate}{metalean}{standard}{}

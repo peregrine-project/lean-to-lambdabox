@@ -6,10 +6,12 @@
   stated over Metalean's typing theory of Lean's kernel, for every input in the scope of
   Chapter~\ref{chap:scope}.
 \item \lead{Status} \stProved{} the no-confusion lemmas of Metalean's type formers
-  (Section~\ref{sec:model-noconf}). \stPlanned{} \hl{the final theorem \code{erase\_correct}}, its
-  two milestones, the lemmas they compose and the definitions they state, each under the name of
-  its approved stub. \stShipping{} the eraser: the pure path on the $\lambda\Pi$ fragment and the
-  \code{Meta} path on the rest.
+  (Section~\ref{sec:model-noconf}) and the tests of Chapter~\ref{chap:tests}. Formalized: the
+  statements of the final theorem, its two milestones and the lower bound of its fragment
+  hypothesis, as definitions pinned by \code{proof/spec.pin}, with every definition they use.
+  \stPlanned{} \hl{the final theorem \code{erase\_correct}}, its two milestones and the lemmas they
+  compose. \stShipping{} the eraser: the pure path on the fragment of Phase I and the \code{Meta}
+  path on the rest.
 \item \lead{Lean files} \leanfile{LeanToLambdaBox/} (the shipping code) and \leanfile{proof/} (the
   Lake package \code{EraseProof}, the verification library).
 \item \lead{Registers} \code{doc/SHIPPING-CHANGES.md}
@@ -84,11 +86,11 @@ Dima, \emph{Compiling Lean programs with Rocq's extraction pipeline}, MPRI repor
   it does not state live in \leanfile{proof/}.
 \end{itemize}
 
-\section{Relation to the lean4lean verification}\label{sec:intro-l4l}
+\section{Relation to the lean4lean verification}\label{sec:intro-lean4lean}
 
 This verification repeats, against Metalean, the verification of the same eraser against
-lean4lean's model of the kernel (branches \code{l4l/translate}, \code{l4l/verification},
-\code{l4l/blueprint}).
+lean4lean's model of the kernel (the lean4lean experiment of this repository, commit
+\code{ca56b85}).
 
 \begin{tabular}{p{0.24\linewidth}p{0.34\linewidth}p{0.34\linewidth}}
 \toprule
@@ -130,9 +132,8 @@ Block names & the defect names inductive blocks through Lean's escaping printer,
 
 \subsection{Review rounds of the statement}
 
-Three adversarial reviews tried to refute the stubbed statements: derive \code{False} from them,
-or find a typed input where one fails. Every counterexample is kept as a probe that must fail to
-build against the approved statements.
+Three adversarial reviews tried to refute the statements: derive \code{False} from them, or find a
+typed input where one fails. The pinned statements exclude every counterexample found.
 
 \begin{tabular}{p{0.1\linewidth}p{0.82\linewidth}}
 \toprule
@@ -140,7 +141,7 @@ Round & Findings and their consequence in the statement \\
 \midrule
 1 & under-applied constructors made the final theorem false; M1 failed on \code{Prop}
   constructors and eliminations; lemma arguments made it vacuous. Hence the $\eta$-expansion
-  semantics (DV-E), MetaRocq's side conditions in \code{Erases}, and theorem atoms (DV-T) \\
+  semantics (DV-23), MetaRocq's side conditions in \code{Erases}, and theorem atoms (DV-24) \\
 2 & a wrong proof-projection translation made the final theorem false; the stuck
   \code{PUnit.\{0\}} case; an unsatisfiable block-name premise; missing typing premises. Hence
   \code{projProofTerm}, the reduced-case rule, \code{BlockNamesInj}, the proof-atom rules
@@ -198,6 +199,7 @@ Chapter & Content \\
 \ref{chap:relation} & $\lambda_\Box$ evaluation and the erasure relation \\
 \ref{chap:core} & Soundness of the pure path: oracle, closure, traversal \\
 \ref{chap:final} & The final theorem and its two milestones \\
+\ref{chap:tests} & The tests: the hypotheses \code{hfrag} and \code{hrun} on three programs \\
 \ref{chap:shipping-changes}, \ref{chap:divergences} & The two registers, rendered \\
 \ref{chap:open} & What is open \\
 \bottomrule
@@ -211,8 +213,8 @@ Chapter & Content \\
   lines of its declaration on GitHub, and every cited Lean file and source location to that file
   and line: this repository at the documented commit, Metalean and Mathlib at their pinned
   commits, Lean at the tag of \code{lean-toolchain}.
-\item \lead{Planned nodes} A node marked \stPlanned{} states a declaration of the approved design
-  that does not exist; its \code{\textbackslash lean} names are its planned names, and they link
+\item \lead{Planned nodes} A node marked \stPlanned{} states a declaration of the design that does
+  not exist; its \code{\textbackslash lean} names are its planned names, and they link
   nowhere. Section~\ref{sec:open-planned} lists these nodes.
 \item \lead{Allowed axioms} \code{propext}, \code{Classical.choice} and \code{Quot.sound}; no
   \code{sorryAx}, and no axiom of Metalean.

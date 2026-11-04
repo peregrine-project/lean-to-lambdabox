@@ -1,0 +1,177 @@
+\chapter{The tests}\label{chap:tests}
+
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} Show on concrete programs that the hypotheses \code{hfrag} and \code{hrun} of the
+  final theorem hold: the shipping fragment test accepts the program, and the entry point of
+  \code{\#erase} returns the expected $\lambda_\Box$ program.
+\item \lead{Main results} \code{hcollect} and \code{hrun} on NV-1 (a \code{casesOn} on
+  \code{inductive B | f | t}), NV-P and NV-K (an \code{Eq.casesOn} on a constructor and on a
+  lemma).
+\item \lead{Status} \stProved{} every node, by kernel evaluation of the shipping code; the
+  instances of the other hypotheses are open (Section~\ref{sec:open-registers}).
+\item \lead{Nodes} \bpnodes{chap:tests}
+\item \lead{Lean files} \leanfiles{proof/EraseProof/Test/}{NV1Data, NV1Run, NVPData, NVPRun, Run}.
+\item \lead{Reference} the hypotheses of MetaRocq's \code{erase\_correct}
+  (\code{erasure/theories/ErasureFunctionProperties.v}).
+\end{itemize}
+
+\section{Running the pure path in the kernel}\label{sec:tests-run}
+
+The traversal state holds \code{Std.HashMap}s keyed by \code{Name}, whose hashing the kernel does
+not evaluate; a run is evaluated one traversal call at a time, with the map accesses rewritten.
+
+\begin{lemma}[Steps of a run]
+  \label{lem:EraseProof-Test-bind_ok}
+  \lean{EraseProof.Test.bind_ok, EraseProof.Test.runPure_bind, EraseProof.Test.runPure_withReader,
+    EraseProof.Test.withApp_const, EraseProof.Test.withApp_app1,
+    EraseProof.Test.toArray_toSubarray, EraseProof.Test.forIn_toSubarray_size}
+  \leanok
+  \uses{def:Erasure-PureM}
+  \srcloc{proof/EraseProof/Test/Run.lean}{47}
+  \lead{In short} The rewriting steps that \hl{cut a run of \code{EraseT PureM} at its first
+  action}, and turn the \code{Subarray} loops, which the kernel does not reduce, into lists.
+  \begin{itemize}
+  \item \code{bind\_ok}: a bind whose first action returns \code{a} runs its continuation on
+        \code{a};
+  \item \code{runPure\_bind}, \code{runPure\_withReader}: \code{runPure} through a bind and a
+        change of context;
+  \item \code{withApp\_const}, \code{withApp\_app1}: \code{Expr.withApp} on a constant and on a
+        single application.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Unfolding of the monad and of the iterators.
+\end{proof}
+
+\section{NV-1}\label{sec:tests-nv1}
+
+\begin{definition}[NV-1: the program]
+  \label{def:EraseProof-Test-NV1-P}
+  \lean{EraseProof.Test.NV1.P, EraseProof.Test.NV1.e, EraseProof.Test.NV1.view,
+    EraseProof.Test.NV1.cfg, EraseProof.Test.NV1.tB, EraseProof.Test.NV1.cF,
+    EraseProof.Test.NV1.cT, EraseProof.Test.NV1.motTy, EraseProof.Test.NV1.B_ind,
+    EraseProof.Test.NV1.Bf_ctor, EraseProof.Test.NV1.Bt_ctor, EraseProof.Test.NV1.recTy,
+    EraseProof.Test.NV1.recRhs, EraseProof.Test.NV1.B_rec, EraseProof.Test.NV1.casesOnTy,
+    EraseProof.Test.NV1.casesOnVal, EraseProof.Test.NV1.B_casesOn, EraseProof.Test.NV1.negTy,
+    EraseProof.Test.NV1.negVal, EraseProof.Test.NV1.neg_def}
+  \leanok
+  \uses{def:Erasure-EnvView, def:Erasure-ErasureConfig}
+  \srcloc{proof/EraseProof/Test/NV1Data.lean}{91}
+  \lead{In short} \code{inductive B | f | t}, \code{def B.neg (b : B) : B := B.casesOn b B.t B.f},
+  and the term \code{B.neg B.f}, which \hl{evaluates to \code{B.t}}.
+  \begin{itemize}
+  \item \code{P}: the six declarations as Lean generates them, newest first
+        (\code{B.neg}, \code{B.casesOn}, \code{B.rec}, \code{B.f}, \code{B.t}, \code{B});
+        \leanfile{proof/tools/NVEmit.lean} checks them against the elaborator's;
+  \item \code{view}: \code{P} as a list, without attributes; \code{cfg}: the default
+        configuration.
+  \end{itemize}
+\end{definition}
+
+\begin{lemma}[NV-1: the fragment test and the run]
+  \label{lem:EraseProof-Test-NV1-hrun}
+  \lean{EraseProof.Test.NV1.hrun, EraseProof.Test.NV1.hcollect, EraseProof.Test.NV1.hpure,
+    EraseProof.Test.NV1.D, EraseProof.Test.NV1.pc, EraseProof.Test.NV1.p0, EraseProof.Test.NV1.t0,
+    EraseProof.Test.NV1.iidB, EraseProof.Test.NV1.masksB, EraseProof.Test.NV1.bodyB,
+    EraseProof.Test.NV1.stB, EraseProof.Test.NV1.stB_B, EraseProof.Test.NV1.register_B_new,
+    EraseProof.Test.NV1.register_B_found, EraseProof.Test.NV1.visitConstructor_run,
+    EraseProof.Test.NV1.xb, EraseProof.Test.NV1.lb, EraseProof.Test.NV1.visitExpr_ctor_run,
+    EraseProof.Test.NV1.visitAlt_run, EraseProof.Test.NV1.altsNeg, EraseProof.Test.NV1.altsNeg_f,
+    EraseProof.Test.NV1.altsNeg_t, EraseProof.Test.NV1.altsNeg_all, EraseProof.Test.NV1.caseNeg,
+    EraseProof.Test.NV1.visitCasesOn_run, EraseProof.Test.NV1.ciB,
+    EraseProof.Test.NV1.casesInfo_B, EraseProof.Test.NV1.motNeg,
+    EraseProof.Test.NV1.visitCases_run, EraseProof.Test.NV1.bodyNeg,
+    EraseProof.Test.NV1.withApp_bodyNeg, EraseProof.Test.NV1.bodyNeg_run,
+    EraseProof.Test.NV1.negL, EraseProof.Test.NV1.negVal_run, EraseProof.Test.NV1.stNeg,
+    EraseProof.Test.NV1.stNeg_B, EraseProof.Test.NV1.visitMutual_neg_run,
+    EraseProof.Test.NV1.kername_neg_run, EraseProof.Test.NV1.visitConst_neg_run,
+    EraseProof.Test.NV1.e_run}
+  \leanok
+  \uses{def:EraseProof-Test-NV1-P, def:Erasure-collectDeps, def:Erasure-eraseEntry,
+    def:Erasure-erasePure, def:Erasure-casesInfo}
+  \srcloc{proof/EraseProof/Test/NV1Run.lean}{376}
+  \lead{In short} \code{\#erase} takes the pure path on NV-1 and \hl{returns the program
+  \code{p0}}: a block for \code{B}, \code{B.neg} as a $\lambda_\Box$ \code{case}, and the main term
+  \code{B.neg B.f}.
+  \begin{itemize}
+  \item \code{hcollect}: \code{collectDeps view cfg e = .ok D}, by kernel evaluation;
+  \item \code{hpure}: \code{erasePure view cfg D e = .ok (p0, [])};
+  \item \code{hrun}: \code{eraseEntry view cfg e = pure (p0, [])}, the hypothesis \code{hrun};
+  \item \code{casesInfo\_B}: the recognizer accepts \code{B.casesOn}; the other lemmas are the
+        traversal calls of the run.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-Test-bind_ok}
+  \leanok
+  \lead{Idea} One traversal call at a time, from the constructors up to the term, each evaluated
+  by the kernel between the map accesses.
+\end{proof}
+
+\section{NV-P and NV-K}\label{sec:tests-nvp}
+
+\begin{definition}[NV-P and NV-K: the programs]
+  \label{def:EraseProof-Test-NVP-P}
+  \lean{EraseProof.Test.NVP.P, EraseProof.Test.NVP.e, EraseProof.Test.NVP.view,
+    EraseProof.Test.NVP.cfg, EraseProof.Test.NVP.an, EraseProof.Test.NVP.u1,
+    EraseProof.Test.NVP.lu, EraseProof.Test.NVP.eqC, EraseProof.Test.NVP.reflC,
+    EraseProof.Test.NVP.Eq_ind, EraseProof.Test.NVP.Eq_refl, EraseProof.Test.NVP.eqMotTy,
+    EraseProof.Test.NVP.eqRecTy, EraseProof.Test.NVP.eqRecRhs, EraseProof.Test.NVP.Eq_rec,
+    EraseProof.Test.NVP.eqCasesOnTy, EraseProof.Test.NVP.eqCasesOnVal,
+    EraseProof.Test.NVP.Eq_casesOn, EraseProof.Test.NVP.l1, EraseProof.Test.NVP.tBB,
+    EraseProof.Test.NVP.motE, EraseProof.Test.NVP.idB, EraseProof.Test.NVK.P,
+    EraseProof.Test.NVK.e, EraseProof.Test.NVK.view, EraseProof.Test.NVK.hEqTy,
+    EraseProof.Test.NVK.hEq_thm}
+  \leanok
+  \uses{def:EraseProof-Test-NV1-P}
+  \srcloc{proof/EraseProof/Test/NVPData.lean}{84}
+  \lead{In short} \code{Eq.casesOn} on \code{B.t = B.t}, \hl{on the constructor \code{Eq.refl}
+  (NV-P) and on a lemma \code{hEq} (NV-K)}; both evaluate to \code{fun y => y}.
+  \begin{itemize}
+  \item \code{NVP.P}: \code{Eq.casesOn}, \code{Eq.rec}, \code{Eq.refl}, \code{Eq} and NV-1's
+        \code{B}; \code{NVK.P}: the theorem \code{hEq} added;
+  \item the views read the declarations as lists, with no attributes; the default configuration.
+  \end{itemize}
+\end{definition}
+
+\begin{lemma}[NV-P and NV-K: the fragment test and the run]
+  \label{lem:EraseProof-Test-NVPK-hrun}
+  \lean{EraseProof.Test.NVPK.hrun, EraseProof.Test.NVPK.hrunP, EraseProof.Test.NVPK.hrunK,
+    EraseProof.Test.NVPK.hcollect, EraseProof.Test.NVPK.hcollectP,
+    EraseProof.Test.NVPK.hcollectK, EraseProof.Test.NVPK.hpure, EraseProof.Test.NVPK.mj,
+    EraseProof.Test.NVPK.args, EraseProof.Test.NVPK.ee, EraseProof.Test.NVPK.DD,
+    EraseProof.Test.NVPK.vw, EraseProof.Test.NVPK.pcK, EraseProof.Test.NVPK.xy,
+    EraseProof.Test.NVPK.idL, EraseProof.Test.NVPK.idB_run, EraseProof.Test.NVPK.ciEq,
+    EraseProof.Test.NVPK.casesInfo_Eq, EraseProof.Test.NVPK.altsEq,
+    EraseProof.Test.NVPK.altsEq_refl, EraseProof.Test.NVPK.visitCases_run,
+    EraseProof.Test.NVPK.withApp_ee, EraseProof.Test.NVPK.ee_app, EraseProof.Test.NVPK.e_run,
+    EraseProof.Test.NVPK.pP}
+  \leanok
+  \uses{def:EraseProof-Test-NVP-P, def:Erasure-collectDeps, def:Erasure-eraseEntry,
+    def:Erasure-erasePure, def:Erasure-casesInfo}
+  \srcloc{proof/EraseProof/Test/NVPRun.lean}{155}
+  \lead{In short} \code{\#erase} takes the pure path on NV-P and NV-K and \hl{returns
+  \code{fun y => y}} with no declaration: the \code{casesOn} on a proof of a one-constructor
+  inductive is reduced to its alternative, without a $\lambda_\Box$ \code{case}.
+  \begin{itemize}
+  \item \code{hcollectP}, \code{hcollectK}: the hypothesis \code{hfrag}; the closure of NV-K
+        holds \code{hEq} but not its value;
+  \item \code{hrunP}, \code{hrunK}: the hypothesis \code{hrun}, instances of \code{hrun} at the
+        two majors (\code{mj}).
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-Test-bind_ok}
+  \leanok
+  \lead{Idea} As for NV-1; the run never registers an inductive.
+\end{proof}
+
+\section*{Caveats}
+\begin{itemize}
+\item \lead{Caveat} The tests discharge \code{hfrag} and \code{hrun} only; the instances of the
+  typing and evaluation hypotheses are open.
+\item \lead{Caveat} The views of the tests are the closures as lists; \code{\#erase} reads the
+  whole environment, which agrees with them on their names.
+\end{itemize}

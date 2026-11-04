@@ -6,12 +6,12 @@
   typed program that Metalean can express and that the eraser handles without a known defect.
 \item \lead{Main results} The fragment in two phases: Phase I adds to the $\lambda\Pi$ fragment
   everything about inductive types that the eraser handles; Phase II adds recursors and quotients.
-  The decisions D1 to D4, DV-E and DV-T fix its edges (Section~\ref{sec:scope-decisions}).
-\item \lead{Status} \stShipping{} the fragment test of the $\lambda\Pi$ fragment
-  (Definition~\ref{def:Erasure-collectDeps}); \stPlanned{} the fragment test of Phase I
-  (Definition~\ref{def:Erasure-Planned-collectDeps}), the hypothesis \code{hfrag} that states it
-  and its lower bound \code{collectDeps\_ok\_of} (Chapter~\ref{chap:core}). The measurements below
-  come from a prototype of the Phase I test.
+  The divergence entries DV-23 to DV-26 and the choices of Section~\ref{sec:scope-decisions} fix
+  its edges.
+\item \lead{Status} \stShipping{} the fragment test of Phase I
+  (Definition~\ref{def:Erasure-collectDeps}), which the hypothesis \code{hfrag} of the final
+  theorem names; \stPlanned{} its lower bound \code{collectDeps\_ok\_of}
+  (Chapter~\ref{chap:core}). The corpus counts below are those of the shipping test.
 \item \lead{Reference} MetaRocq \code{erase\_correct}'s hypotheses \code{wf\_ext},
   \code{Sigma} $\sim$\code{\_ext X}, \code{welltyped}.
 \end{itemize}
@@ -22,7 +22,8 @@
 \item \lead{Expressible in Metalean} the program's declarations are those Metalean's loader
   accepts (\leanfile{Metalean/Checker/Slow/Loader.lean}) and its terms those Metalean's translator
   translates (\leanfile{Metalean/Frontend/Translate.lean}). The typing hypotheses of the final
-  theorem state this.
+  theorem state this for \hl{the program's dependency closure}: a whole Lean environment is not
+  expressible, since \code{Init} holds \code{unsafe} definitions and nested inductives.
 \item \lead{Handled by the eraser} the dependency closure passes the router's fragment test
   \code{collectDeps view cfg e}, a decidable, syntactic test that the shipping router itself runs.
   The hypothesis \code{hfrag} of the final theorem states this; the lemma
@@ -58,16 +59,16 @@ projections of data structures & I & a $\lambda_\Box$ \code{proj}; Metalean's pr
   eraser reduces it at erasure time: the alternative applied to one $\Box$ per field (shipping
   entry S-27) \\
 \code{casesOn} whose constructor has an index field (\code{Acc}, \code{Acc.below}) & -- & the
-  relation does not model the substitution of index fields (decision D2) \\
+  relation does not model the substitution of index fields \\
 \code{Nat} literals under \code{nat := .peano} & I & constructor chains, as Metalean's fast
   checker denotes them \\
-recursors \code{T.rec} & II & erased to a $\lambda_\Box$ fixpoint (shipping entry S-R) \\
+recursors \code{T.rec} & II & erased to a $\lambda_\Box$ fixpoint \\
 structural recursion (\code{brecOn}) & II & through the kernel value, behind a configuration
   flag; the default output is unchanged \\
-quotients & II & \code{Quot.mk} and \code{Quot.lift} erased as \code{LCNF} does (shipping entry
-  S-Q) \\
-well-founded recursion & II, vacuous & \code{Acc.rec} on theorems, which are opaque: the source
-  is stuck \\
+quotients & II & \code{Quot.mk} and \code{Quot.lift} erased as \code{LCNF} does \\
+well-founded recursion & -- & the fragment test rejects it (an \code{\_unsafe\_rec} companion);
+  its recursion reduces only through an opaque accessibility proof, so the source never evaluates
+  it (DV-24) \\
 sparse \code{casesOn}, \code{T.c.elim}, matchers with literal patterns & II & their values reach
   a recursor (\code{T.rec}, \code{Eq.rec}) \\
 \code{casesOn}, projections on a \code{Sort}-polymorphic inductive whose level may be 0
@@ -90,53 +91,56 @@ free variables, metavariables & -- & closed inputs only \\
 
 \section{The fragment test}\label{sec:scope-fragment}
 
-The planned \code{collectDeps view cfg e} (Definition~\ref{def:Erasure-Planned-collectDeps})
-rejects a program when its closure, as the pure traversal reads it, contains one of the classes
-below. The closure holds the term, the values of the definitions it unfolds, and the types and
-constructors of the blocks it registers; it skips the values of recognized \code{casesOn}
-constants.
+The shipping \code{collectDeps view cfg e} (Definition~\ref{def:Erasure-collectDeps}) rejects a
+program when its closure, as the pure traversal reads it, contains one of the classes below
+(DV-26). The closure holds the term, the types of its constants, the values of the definitions and
+opaques it reads, and the types and constructors of the blocks it registers; it skips the values
+of theorems and of recognized \code{casesOn} constants.
 
 \begin{itemize}
-\item \lead{Phase I only} a recursor other than the \code{T.rec} of a recognized \code{T.casesOn}
-  (decision D3); a quotient constant; a constant with an \code{\_unsafe\_rec} companion
-  (structural or well-founded recursion).
+\item \lead{Phase I only} a recursor other than the \code{T.rec} of a recognized \code{T.casesOn},
+  and any recursor in a read expression; a quotient constant; a constant with an
+  \code{\_unsafe\_rec} companion (structural or well-founded recursion).
 \item \lead{Both phases} a string literal; an \code{unsafe}, \code{partial} or
   \code{@[implemented\_by]} constant; a nested or unsafe inductive; an \code{@[extern]}
   constructor under \code{preferAxiom}; under \code{nat := .machine} a \code{Nat} literal,
-  \code{Nat.zero}, \code{Nat.succ}, \code{Int.ofNat}, \code{Int.negSucc} or a \code{casesOn} on
-  \code{Nat} or \code{Int}; under \code{remove\_irrel\_constr\_args} any constructor,
-  \code{casesOn} or projection; a \code{casesOn} or projection on a \code{Sort}-polymorphic
-  inductive whose level may be 0; a recognized \code{casesOn} whose constructor has an index field
-  (decision D2); an inductive whose sort is 0 under every assignment but not written 0; a free
-  variable, metavariable or level metavariable.
+  \code{Nat.zero}, \code{Nat.succ}, \code{Int.ofNat}, \code{Int.negSucc}, \code{Nat.casesOn} or
+  \code{Int.casesOn}; under \code{remove\_irrel\_constr\_args} any inductive type; a
+  \code{casesOn} or projection on an inductive whose sort may be both \code{Prop} and not
+  (\code{PUnit}); a recognized \code{casesOn} whose constructor has an index field
+  (\code{Acc}); an inductive whose sort is \code{Prop} under every assignment but not written
+  \code{Prop}; a free variable, metavariable or level metavariable; a constant the view does not
+  have.
 \item \lead{Name collisions} of kernel names and of $\lambda_\Box$ inductive blocks are an error
   of the pure path, not a reason to route.
 \end{itemize}
 
-\section{Decisions}\label{sec:scope-decisions}
+\section{Edges of the fragment}\label{sec:scope-decisions}
 
-The owner approved these decisions with the statement; each fixes an edge of the fragment or of
-the trust base. DV-E and DV-T are entries of \code{doc/DIVERGENCES.md} that land with
-\code{SrcEval} (\stOpen{}).
+Each row fixes an edge of the fragment or of the trust base; a \code{DV-n} is an entry of
+\code{doc/DIVERGENCES.md} (Chapter~\ref{chap:divergences}).
 
-\begin{tabular}{p{0.08\linewidth}p{0.84\linewidth}}
+\begin{tabular}{p{0.16\linewidth}p{0.76\linewidth}}
 \toprule
-Id & Decision \\
+Edge & Choice \\
 \midrule
-D1 & C6 trusts Metalean's five total $\eta$-term builders and what they reach, instead of copying
-  them (Section~\ref{sec:trust-checks}) \\
-D2 & the fragment excludes a \code{casesOn} whose constructor has an index field (\code{Acc},
-  \code{Acc.below}); \code{Eq}, \code{HEq}, \code{And} and \code{True} stay in \\
-D3 & the closure keeps the declarations \code{T.casesOn} and \code{T.rec}, not their values, so
-  that the recognizer works; a recursor anywhere else is an exclusion \\
-D4 & the divergence register keeps the ids of the lean4lean verification; an id that does not
-  apply has a ``not applicable'' entry, so that no citation dangles \\
-DV-E & under-applied constructor and \code{casesOn} spines evaluate to their
+Term builders & the bridge uses Metalean's five total $\eta$-term builders, which are trusted;
+  check C6 exempts them and what they reach (Section~\ref{sec:trust-trusted}) \\
+Index fields & the fragment excludes a \code{casesOn} whose constructor has an index field
+  (\code{Acc}, \code{Acc.below}); \code{Eq}, \code{HEq}, \code{And} and \code{True} stay in \\
+Recursors & the closure keeps the declarations \code{T.casesOn} and \code{T.rec}, not their
+  values, so that the recognizer works; a recursor anywhere else is an exclusion \\
+Inherited ids & the divergence register keeps the ids 1 to 22 of the lean4lean verification; an
+  id that does not apply has a ``not applicable'' entry, so that no citation dangles \\
+DV-23 & under-applied constructor and \code{casesOn} spines evaluate to their
   \hl{$\eta$-expansion}, arguments unevaluated under the new binders, as the eraser's
   \code{withAppEtaToMinArity} emits them; PCUIC's \code{eval} evaluates arguments eagerly \\
-DV-T & theorems have no $\delta$, since Metalean loads them as opaque: a proof may evaluate to an
+DV-24 & theorems have no $\delta$, since Metalean loads them as opaque: a proof may evaluate to an
   atom; \code{casesProof} and \code{projProp} cover \code{match h with | rfl} and \code{h.1}; a
-  \code{casesOn} on a lemma of an inductive with proof fields is vacuous \\
+  \code{casesOn} on a lemma of an inductive with proof fields does not evaluate \\
+DV-25 & a recognized \code{casesOn} is primitive in the source, without $\delta$; recursors have
+  no rule \\
+DV-26 & the fragment is an explicit hypothesis, \code{hfrag}, with the exclusion classes above \\
 \bottomrule
 \end{tabular}
 
@@ -180,42 +184,35 @@ unsafe & 4 & out \\
 
 \subsection{The corpus}\label{sec:scope-corpus}
 
-The 294 \code{\#erase} commands of the shipping corpus, through a prototype of the fragment test:
+The 294 \code{\#erase} commands of the shipping corpus, through the shipping fragment test
+(\code{tests/harness/expected/pure-harness.txt}): \hl{223 in the fragment, 68 out}, and 3 rejected
+for a name collision. Of the 223 pure-path outputs, 58 hold an inductive block, 3 a $\lambda_\Box$
+\code{case} and 9 a projection.
 
-\begin{tabular}{lrr}
+\begin{tabular}{p{0.7\linewidth}r}
 \toprule
-& Phase I & Phase II \\
+Exclusion class (the first one met) & Programs \\
 \midrule
-in / out & 227 / 67 & 245 / 49 \\
-in, through a recognized \code{casesOn} & 4 & 19 \\
-in, with constructors, \code{casesOn}, literals or projections & 60 & 78 \\
-\bottomrule
-\end{tabular}
-
-\begin{tabular}{p{0.6\linewidth}rr}
-\toprule
-Exclusion class (programs; a program may hit several) & Phase I & Phase II \\
-\midrule
-recursor & 34 & -- \\
-\code{\_unsafe\_rec} companion (recursive definition) & 23 & -- \\
-quotient & 2 & -- \\
-\code{nat := .machine}: constructors of \code{Nat}, \code{Int} / literals / \code{casesOn} & 29 /
-  25 / 10 & 29 / 25 / 10 \\
-\code{remove\_irrel\_constr\_args}: constructor / projection / \code{casesOn} & 11 / 11 / 8 & 11 /
-  11 / 8 \\
-level metavariable & 6 & 6 \\
-unsafe constant & 6 & 6 \\
-\code{@[implemented\_by]} & 4 & 4 \\
-\code{partial def} & 2 & 2 \\
-string literal, nested inductive & 1, 1 & 1, 1 \\
+\code{nat := .machine}: \code{Nat} literal / \code{Nat.succ} & 21 / 2 \\
+\code{\_unsafe\_rec} companion (recursive definition; one, \code{Defects.log2}, by well-founded
+  recursion) & 20 \\
+unsafe constant & 6 \\
+level metavariable / metavariable & 4 / 2 \\
+\code{@[implemented\_by]} & 4 \\
+\code{partial def} & 2 \\
+recursor & 2 \\
+quotient & 2 \\
+\code{casesOn} on a constructor with an index field & 1 \\
+nested inductive & 1 \\
+string literal & 1 \\
 \bottomrule
 \end{tabular}
 
 \begin{itemize}
-\item \lead{Recursors in Phase I} \code{Nat.rec} through structural recursion (20 programs),
-  \code{Bool.rec} through \code{Bool.and} and \code{Bool.not} (13), \code{Eq.rec} through
-  \code{Eq.ndrec} (9), \code{False.rec} through \code{False.elim} (7), \code{T.rec} through sparse
-  matchers.
+\item \lead{Recursors in Phase I} \code{Nat.rec} through structural recursion, \code{Bool.rec}
+  through \code{Bool.and} and \code{Bool.not}, \code{Eq.rec} through \code{Eq.ndrec},
+  \code{False.rec} through \code{False.elim}, \code{T.rec} through sparse matchers: the test meets
+  the recursive definition or the recursor first.
 \item \lead{Consequence} \hl{Phase I exercises inductive types on few programs}; pattern matching
   in practice reaches recursors, so Phase II is where the fragment grows.
 \end{itemize}
@@ -226,6 +223,6 @@ string literal, nested inductive & 1, 1 & 1, 1 \\
   collision): no output, no claim.
 \item \lead{Caveat} The fragment test is syntactic and the typing hypotheses semantic; the final
   theorem assumes both.
-\item \lead{Caveat} The counts come from a prototype of the fragment test on the corpus, and are
-  not a statement about the shipping code.
+\item \lead{Caveat} The corpus counts measure the shipping test on the shipping corpus; they are
+  not a statement of the proof.
 \end{itemize}

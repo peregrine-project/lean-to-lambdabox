@@ -89,6 +89,14 @@ targets = ["EraseProof"]
 "Metalean.Order.Presheaf.Ideal" = 'Ideals over presheaves and their membership.'
 "Metalean.Order.CondLattice" = 'Conditionally complete join-semilattices (\code{CondSemilatticeSup}).'
 "Metalean.Order.Category.CondSemilatSup.Basic" = 'The category of conditionally complete join-semilattices (\code{CondSemilatSup}).'
+"Metalean.Level.Raw.Basic" = 'Raw universe levels and their parameters (\code{Param}).'
+"Metalean.Syntax.Inductive.Ctor" = 'Constructor signatures: the type of an ordinary field (\code{Ctor.ordinaryFieldExpr}).'
+"Metalean.Syntax.Inductive.Recursor" = 'Recursor telescopes: motives (\code{Inductive.motiveTele}), minor premises (\code{Inductive.caseTele}, \code{CtorSig.caseOrdinary}).'
+"Metalean.Syntax.Inductive.LargeElimination" = 'Which inductive blocks eliminate into every sort (\code{Inductive.LargeElim}).'
+"Metalean.Syntax.Structure" = 'Structures (\code{Inductive.IsStructure}) and their projection terms (\code{IsStructure.projTerm}).'
+"Metalean.Export.Basic" = 'The four quotient constants (\code{QuotKind}), as the export format names them.'
+"Metalean.Frontend.Failure" = 'The error type of the translator (\code{Failure}), the result type of the term builders.'
+"Metalean.Frontend.Translate" = 'The total term builders of the translator (\code{indTerm}, \code{ctorTerm}, \code{recrTerm}, \code{wrapCase}, \code{quotTerm}), which the bridge uses for $\eta$-terms; its \code{partial} translator is not used.'
 
 # Links of the web version to the Lean sources (scripts/leanlinks.py; README, "Links to the Lean
 # sources"). `repository`: this repository, linked at the commit the site is built from

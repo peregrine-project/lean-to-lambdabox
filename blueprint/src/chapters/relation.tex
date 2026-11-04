@@ -7,9 +7,11 @@
 \item \lead{Main results} $\lambda_\Box$ evaluation \code{LBEval}; the erasure relation
   \code{Erases} with MetaRocq's side conditions, the reduced-case rule and its environment form
   \code{ErasesDeps}; their substitution and inversion lemmas.
-\item \lead{Status} \stPlanned{} every node; \code{LBEval} is the lean4lean verification's,
-  unchanged.
+\item \lead{Status} the definitions are formalized, \code{LBEval} ported from the lean4lean
+  verification; \stPlanned{} the lemmas.
 \item \lead{Nodes} \bpnodes{chap:relation}
+\item \lead{Lean files} \leanfile{proof/EraseProof/Target.lean},
+  \leanfile{proof/EraseProof/Spec.lean} (Section 10).
 \item \lead{Reference} MetaRocq \code{eval} of \code{EWcbvEval.v} and \code{erases} of
   \code{Extract.v} (\code{erasure/theories/}); MetaCoq paper Section 7.
 \end{itemize}
@@ -19,11 +21,17 @@
 \begin{definition}[Big-step evaluation of \texorpdfstring{$\lambda_\Box$}{lambda-box}]
   \label{def:EraseProof-LBEval}
   \lean{EraseProof.LBEval, EraseProof.WcbvFlags, EraseProof.defaultFlags, EraseProof.csubst,
-    EraseProof.closedn, EraseProof.mkApps, EraseProof.substl, EraseProof.fixSubst,
-    EraseProof.cunfoldFix, EraseProof.lookupConst, EraseProof.lookupInd, EraseProof.lookupCtor,
-    EraseProof.LenvClosed, EraseProof.iotaRed, EraseProof.lbAtom}
-  \planned
+    EraseProof.csubstL, EraseProof.csubstB, EraseProof.csubstD, EraseProof.closedn,
+    EraseProof.closednL, EraseProof.closednB, EraseProof.closednD, EraseProof.hasFVar,
+    EraseProof.hasFVarL, EraseProof.hasFVarB, EraseProof.hasFVarD, EraseProof.mkApps,
+    EraseProof.substl, EraseProof.fixSubst, EraseProof.cunfoldFix, EraseProof.lookupConst,
+    EraseProof.lookupInd, EraseProof.lookupCtor, EraseProof.ctorIsPropParsDecl,
+    EraseProof.indIsPropAndPars, EraseProof.LenvClosed, EraseProof.iotaRed, EraseProof.headOf,
+    EraseProof.isLambdaT, EraseProof.isBoxT, EraseProof.isFixT, EraseProof.isFixApp,
+    EraseProof.isConstructApp, EraseProof.isPrimApp, EraseProof.lbAtom}
+  \leanok
   \uses{def:LBTerm, def:GlobalDecl}
+  \srcloc{proof/EraseProof/Target.lean}{183}
   \lead{In short} \code{LBEval fl lenv t v}: in the erased environment \code{lenv}, the closed term
   \code{t} \hl{evaluates call-by-value to \code{v}}, under the flags \code{fl}.
   \begin{itemize}
@@ -31,8 +39,10 @@
         \code{case} on a constructor (\code{iota}) and on $\Box$ of a propositional inductive
         (\code{iotaSing}), projections (\code{proj}, \code{projProp}), and $\Box$ applied to
         anything;
-  \item \code{csubst}, \code{substl}, \code{closedn}, \code{lookup*}: closed substitution,
-        closedness, lookup in \code{lenv}; \code{LenvClosed}: every body closed;
+  \item \code{csubst}, \code{substl}, \code{closedn}, \code{hasFVar}, \code{lookup*}: closed
+        substitution, closedness, free variables, lookup in \code{lenv}; \code{LenvClosed}: every
+        body closed and free of free variables;
+  \item \code{headOf}, \code{is*}: the head tests of MetaRocq's \code{eval\_app\_cong};
   \item \code{defaultFlags}: MetaRocq's \code{default\_wcbv\_flags}.
   \end{itemize}
   \lead{Reference} MetaRocq \code{eval} (\code{EWcbvEval.v}), with \code{tCoFix}, \code{tLazy},
@@ -44,9 +54,10 @@
 \begin{definition}[Side conditions on inductive types]
   \label{def:EraseProof-Subsingleton}
   \lean{EraseProof.Subsingleton, EraseProof.PropInductive, EraseProof.IsProof,
-    EraseProof.FieldsErasable, EraseProof.CasesReduced, EraseProof.NeverZero}
-  \planned
+    EraseProof.FieldsErasable, EraseProof.CasesReduced}
+  \leanok
   \uses{def:EraseProof-IsErasable, def:EraseProof-SrcEval}
+  \srcloc{proof/EraseProof/Spec.lean}{939}
   \lead{In short} MetaRocq's conditions on eliminations, \hl{stated on Metalean's constructor
   nodes}.
   \begin{itemize}
@@ -55,8 +66,8 @@
         (\code{IsProof}), \code{T} has at most one constructor and its fields are proofs;
   \item \code{FieldsErasable E B T}: every field of a typed constructor node is erasable;
   \item \code{CasesReduced iv us}: one constructor, and the discriminant's sort at \code{us}
-        (\code{casesSortLevel}) is not never-zero; the eraser's reduced-case test;
-  \item \code{NeverZero}: a level that is never \code{0}.
+        (\code{casesSortLevel}) is not never zero (\code{Level.isNeverZero}); the eraser's
+        reduced-case test.
   \end{itemize}
   \lead{Reference} \code{isPropositional} (\code{PCUICFirstorder.v}); \code{Is\_proof},
   \code{Subsingleton} (\code{PCUICElimination.v}).
@@ -66,9 +77,10 @@
   \label{def:EraseProof-Erases}
   \lean{EraseProof.Erases, EraseProof.ErasesAlt, EraseProof.IndIdOf, EraseProof.SpecialSpine,
     EraseProof.ctorFields, EraseProof.blockKername}
-  \planned
+  \leanok
   \uses{def:EraseProof-TrM, def:EraseProof-IsErasable, def:EraseProof-Subsingleton,
     def:EraseProof-EvalEnv-etaSpine, def:LBTerm, def:toKername}
+  \srcloc{proof/EraseProof/Spec.lean}{970}
   \lead{In short} \code{Erases E B lps $\sigma$ $\Gamma$ $\Delta$ e t}: the $\lambda_\Box$ term
   \code{t} \hl{is an erasure of the Lean term \code{e}}.
   \begin{tabular}{p{0.2\linewidth}p{0.66\linewidth}}
@@ -84,10 +96,10 @@
     \code{ErasesAlt} branch per constructor; \hl{\code{Subsingleton}} and not
     \code{CasesReduced} \\
   \code{casesReduced} & one constructor without index field, \code{FieldsErasable}: the erased
-    alternative applied to one $\Box$ per field, the discriminant dropped \\
-  \code{eta} & an under-applied spine erases as its $\eta$-expansion (DV-E) \\
+    alternative applied to one $\Box$ per field, the discriminant dropped (DV-25) \\
+  \code{eta} & an under-applied spine erases as its $\eta$-expansion (DV-23) \\
   \code{proj} & \code{proj} on the erased structure; \code{Subsingleton}, and the block in
-    \code{Prop} or its declared sort \code{NeverZero} \\
+    \code{Prop} or its declared sort never zero \\
   \code{litZero}, \code{litSucc} & a \code{Nat} literal to its constructor chain
     (\code{nat := .peano}) \\
   \bottomrule
@@ -104,8 +116,9 @@
 \begin{definition}[Erased dependencies]
   \label{def:EraseProof-ErasesDeps}
   \lean{EraseProof.ErasesDeps, EraseProof.ErasesDecl, EraseProof.ErasesInd}
-  \planned
+  \leanok
   \uses{def:EraseProof-Erases, def:GlobalDecl}
+  \srcloc{proof/EraseProof/Spec.lean}{1099}
   \lead{In short} The erased environment \code{lenv} \hl{erases the declarations the program
   uses}: each constant's body erases its value, and each inductive block erases to an
   \code{inductiveDecl}.
@@ -127,7 +140,8 @@
   \lean{EraseProof.Erases.closed, EraseProof.Erases.extend, EraseProof.Erases.app_inv,
     EraseProof.Erases.ctor_inv, EraseProof.Erases.atomSpine_box}
   \planned
-  \uses{def:EraseProof-Erases, def:EraseProof-ConstsIn, def:EraseProof-LBEval}
+  \uses{def:EraseProof-Erases, def:EraseProof-ConstsIn, def:EraseProof-DepClosed,
+    def:EraseProof-LBEval}
   \lead{In short} An erasure is \hl{closed under its bound locals}, moves to a larger program,
   and inverts at applications and constructors.
   \begin{itemize}
@@ -159,7 +173,7 @@
   \item \code{abstract}: closing a binder opened with a fresh free variable.
   \end{itemize}
   \lead{Why values} a substituted partial spine would be erased as a whole, while its erasure
-  is the $\eta$-expansion applied (DV-E).
+  is the $\eta$-expansion applied (DV-23).
   \lead{Reference} \code{erases\_subst0} (\code{ESubstitution.v}).
 \end{lemma}
 \begin{proof}
@@ -188,5 +202,5 @@
   the eraser emits them; MetaRocq $\eta$-expands in a separate pass.
 \item \lead{Caveat} The relation has no rule for recursors or quotients in Phase I.
 \item \lead{Caveat} \code{casesReduced} does not model the substitution of index fields; the
-  fragment excludes constructors with index fields (decision D2).
+  fragment test excludes constructors with index fields (Section~\ref{sec:scope-fragment}).
 \end{itemize}

@@ -3,9 +3,9 @@
 \section*{At a glance}
 \begin{itemize}
 \item \lead{Goal} List what is not done, and what the final theorem does not cover.
-\item \lead{Status} \stProved{} the no-confusion lemmas. \stOpen{} \hl{every planned node}, the
-  shipping entries S-28 and S-29, the entries of the divergence register, and the final-form
-  checks.
+\item \lead{Status} \stProved{} the no-confusion lemmas and the tests. \stOpen{} \hl{every planned
+  node}, the shipping entries of Phase II, the instances of the remaining hypotheses on the
+  non-vacuity programs, and the final-form checks.
 \end{itemize}
 
 \section{Planned statements}\label{sec:open-planned}
@@ -18,18 +18,14 @@ The planned nodes, per chapter. The table is generated from the chapters by
 \section{Roots of the proof package}\label{sec:open-roots}
 
 Every declaration of \code{EraseProof} outside the tests is reachable from a root of
-\code{proof/ROOTS.txt}. A root names the planned declaration that will use it; the table is
-generated from \code{proof/ROOTS.txt}.
+\code{proof/ROOTS.txt} or from a statement definition. A root names the declaration that will use
+it; the table is generated from \code{proof/ROOTS.txt}.
 
 \input{generated/roots}
 
 \section{Shipping entries}\label{sec:open-shipping}
 
 \begin{itemize}
-\item \lead{Phase I} \stOpen{} S-28, the \code{casesOn} recognizer and the oracle's inductive
-  cases (Definition~\ref{def:Erasure-Planned-casesInfo}), and S-29, the fragment test of Phase I
-  with the \code{implementedBy?} view field and the block-name collision check
-  (Definition~\ref{def:Erasure-Planned-collectDeps}); each regenerates \code{proof/spec.pin}.
 \item \lead{Phase II} \stOpen{} the shipping entries for recursors, structural recursion behind a
   configuration flag, and quotients.
 \end{itemize}
@@ -37,13 +33,14 @@ generated from \code{proof/ROOTS.txt}.
 \section{Registers and checks}\label{sec:open-registers}
 
 \begin{itemize}
-\item \lead{Divergences} \stOpen{} the entries of \code{doc/DIVERGENCES.md}: each lands with its
-  artifact, DV-E and DV-T with \code{SrcEval}, the trust note of decision D1 with \code{TrM}, and
-  the lean4lean ids that shipping comments cite (decision D4).
-\item \lead{Checks} \stOpen{} C11 (\code{proof/scripts/c11.sh}) and C12 with the final form of
-  C12b (Section~\ref{sec:trust-checks}).
-\item \lead{Non-vacuity} \stOpen{} the instances of the final theorem's hypotheses on NV-1 as
-  tests of \code{proof/}; \code{hfrag} and \code{hrun} need S-28 and S-29.
+\item \lead{Divergences} \stOpen{} the inherited ids 5, 6, 8, 9, 15 and 18 to 22, which nothing
+  cites: each gets its entry with the artifact that diverges.
+\item \lead{Checks} \stOpen{} the \code{peregrine} part of C11 (\code{proof/scripts/c11.sh}) and
+  the final form of C12 (Section~\ref{sec:trust-checks}).
+\item \lead{Non-vacuity} \stOpen{} the instances of \code{henv}, \code{hwf}, \code{hview},
+  \code{he}, \code{hty} and \code{hev} on NV-1, NV-P and NV-K, and the instance
+  \code{EraseProof.Test.NV1.final} of the final theorem that the final form of C12 requires;
+  \code{hfrag} and \code{hrun} are proved (Chapter~\ref{chap:tests}).
 \end{itemize}
 
 \section{Outside the final theorem}\label{sec:open-outside}

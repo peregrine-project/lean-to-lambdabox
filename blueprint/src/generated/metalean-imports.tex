@@ -2,73 +2,102 @@
 
 \begin{imported}[\code{Metalean.Syntax.Sig}]
   \label{imp:Metalean-Syntax-Sig}
-  \lean{Metalean.IndSig, Metalean.Sig, Metalean.Sigs, Metalean.Head}
+  \lean{Metalean.ConstKind, Metalean.CtorSig, Metalean.IndSig, Metalean.IndSig.recrEnd,
+    Metalean.IndSig.RecrBinder, Metalean.IndSig.RecrBinder.resolve, Metalean.Eq.sig, Metalean.Sig,
+    Metalean.Sigs, Metalean.Head}
   \leanok
-  \srcloc{Metalean/Syntax/Sig.lean}{39}
+  \srcloc{Metalean/Syntax/Sig.lean}{22}
   \lead{In short} Signatures: the shape of an environment (\code{Sigs}, \code{Sig}, \code{IndSig})
   and the heads that index its entries (\code{Head}).
-  \lead{Used directly} 4 declarations: 3 inductive types, 1 structure.
-  \usedbystatements{\ref{lem:EraseProof-TypeEq-sort_ne_forallE},
-    \ref{lem:EraseProof-TypeEq-sort_ne_quot}}
+  \lead{Used directly} 10 declarations: 3 definitions, 5 inductive types, 2 structures.
+  \usedbystatements{\ref{def:EraseProof-MBinding}, \ref{def:EraseProof-SatTr},
+    \ref{def:EraseProof-natLitM}, \ref{def:EraseProof-TrM}, \ref{def:EraseProof-ProgEnv},
+    \ref{lem:EraseProof-TypeEq-sort_ne_forallE}, \ref{lem:EraseProof-TypeEq-sort_ne_quot},
+    \ref{def:EraseProof-IsErasable}, \ref{def:EraseProof-Subsingleton},
+    \ref{def:EraseProof-Erases}, \ref{def:EraseProof-ErasesDeps},
+    \ref{def:EraseProof-collectDeps_ok_of_statement}, \ref{def:EraseProof-erase_correct_statement},
+    \ref{def:EraseProof-erases_correct_statement}, \ref{def:EraseProof-erasePure_erases_statement}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Expr}]
   \label{imp:Metalean-Syntax-Expr}
-  \lean{Metalean.Expr, Metalean.Expr.instInstLevelForallParamLevel}
+  \lean{Metalean.Expr, Metalean.Expr.appList, Metalean.Expr.prop, Metalean.Expr.wk,
+    Metalean.Expr.wkN, Metalean.Expr.wkClosed, Metalean.Expr.instInstLevelForallParamLevel}
   \leanok
   \srcloc{Metalean/Syntax/Expr.lean}{24}
   \lead{In short} Expressions (\code{Expr}): intrinsically scoped terms with sorts, $\Pi$,
   $\lambda$, \code{let}, constants, saturated inductive types, constructors, recursors and
   quotient constants.
-  \lead{Used directly} 2 declarations: 1 definition, 1 inductive type.
-  \usedbystatements{\ref{lem:EraseProof-TypeEq-sort_ne_forallE},
-    \ref{lem:EraseProof-TypeEq-sort_ne_quot}}
+  \lead{Used directly} 7 declarations: 6 definitions, 1 inductive type.
+  \usedbystatements{\ref{def:EraseProof-SatTr}, \ref{def:EraseProof-natLitM},
+    \ref{def:EraseProof-TrM}, \ref{def:EraseProof-ProgEnv},
+    \ref{lem:EraseProof-TypeEq-sort_ne_forallE}, \ref{lem:EraseProof-TypeEq-sort_ne_quot},
+    \ref{def:EraseProof-IsErasable}, \ref{def:EraseProof-Subsingleton},
+    \ref{def:EraseProof-Erases}, \ref{def:EraseProof-collectDeps_ok_of_statement},
+    \ref{def:EraseProof-erase_correct_statement}, \ref{def:EraseProof-erases_correct_statement},
+    \ref{def:EraseProof-erasePure_erases_statement}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Ctx}]
   \label{imp:Metalean-Syntax-Ctx}
-  \lean{Metalean.Ctx, Metalean.Ctx.snoc}
+  \lean{Metalean.Ctx, Metalean.Ctx.nil, Metalean.Ctx.snoc, Metalean.Ctx.pi, Metalean.Ctx.lam}
   \leanok
   \srcloc{Metalean/Syntax/Ctx.lean}{20}
   \lead{In short} Typing contexts (\code{Ctx}) and their extension (\code{Ctx.snoc}).
-  \lead{Used directly} 2 declarations: 2 definitions.
-  \usedbystatements{\ref{lem:EraseProof-TypeEq-sort_ne_forallE},
-    \ref{lem:EraseProof-TypeEq-sort_ne_quot}}
+  \lead{Used directly} 5 declarations: 5 definitions.
+  \usedbystatements{\ref{def:EraseProof-natLitM}, \ref{def:EraseProof-TrM},
+    \ref{def:EraseProof-ProgEnv}, \ref{lem:EraseProof-TypeEq-sort_ne_forallE},
+    \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{def:EraseProof-IsErasable},
+    \ref{def:EraseProof-Subsingleton}, \ref{def:EraseProof-Erases},
+    \ref{def:EraseProof-ErasesDeps}, \ref{def:EraseProof-collectDeps_ok_of_statement},
+    \ref{def:EraseProof-erase_correct_statement}, \ref{def:EraseProof-erases_correct_statement},
+    \ref{def:EraseProof-erasePure_erases_statement}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Env}]
   \label{imp:Metalean-Syntax-Env}
-  \lean{Metalean.Entry.block, Metalean.Env, Metalean.Env.get}
+  \lean{Metalean.Entry, Metalean.Entry.block, Metalean.Entry.eqHead, Metalean.Env,
+    Metalean.Env.get}
   \leanok
-  \srcloc{Metalean/Syntax/Env.lean}{37}
+  \srcloc{Metalean/Syntax/Env.lean}{18}
   \lead{In short} Environments (\code{Env}) and their entries (\code{Entry}): axioms, definitions,
   opaques, inductive blocks, quotients; lookup \code{Env.get}.
-  \lead{Used directly} 3 declarations: 2 definitions, 1 inductive type.
-  \usedbystatements{\ref{lem:EraseProof-TypeEq-sort_ne_forallE},
-    \ref{lem:EraseProof-TypeEq-sort_ne_quot}}
+  \lead{Used directly} 5 declarations: 3 definitions, 2 inductive types.
+  \usedbystatements{\ref{def:EraseProof-SatTr}, \ref{def:EraseProof-natLitM},
+    \ref{def:EraseProof-TrM}, \ref{def:EraseProof-ProgEnv},
+    \ref{lem:EraseProof-TypeEq-sort_ne_forallE}, \ref{lem:EraseProof-TypeEq-sort_ne_quot},
+    \ref{def:EraseProof-IsErasable}, \ref{def:EraseProof-Subsingleton},
+    \ref{def:EraseProof-Erases}, \ref{def:EraseProof-ErasesDeps},
+    \ref{def:EraseProof-collectDeps_ok_of_statement}, \ref{def:EraseProof-erase_correct_statement},
+    \ref{def:EraseProof-erases_correct_statement}, \ref{def:EraseProof-erasePure_erases_statement}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Inductive.Basic}]
   \label{imp:Metalean-Syntax-Inductive-Basic}
-  \lean{Metalean.Inductive.paramType}
+  \lean{Metalean.Ctor, Metalean.Inductive, Metalean.Inductive.paramType}
   \leanok
-  \srcloc{Metalean/Syntax/Inductive/Basic.lean}{121}
+  \srcloc{Metalean/Syntax/Inductive/Basic.lean}{41}
   \lead{In short} Inductive blocks: parameters, indices, constructors and their types
   (\code{Inductive.paramType}).
-  \lead{Used directly} 1 declaration: 1 definition.
+  \lead{Used directly} 3 declarations: 1 definition, 2 structures.
+  \usedbystatements{\ref{def:EraseProof-SatTr}, \ref{def:EraseProof-natLitM},
+    \ref{def:EraseProof-ProgEnv}, \ref{def:EraseProof-Subsingleton}}
   \usedbyproofs{\ref{lem:EraseProof-TypeEq-sort_ne_forallE},
     \ref{lem:EraseProof-TypeEq-sort_ne_quot}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Level.Quot.Basic}]
   \label{imp:Metalean-Level-Quot-Basic}
-  \lean{Metalean.Level}
+  \lean{Metalean.Level, Metalean.Level.zero, Metalean.Level.param, Metalean.Level.succ,
+    Metalean.Level.max, Metalean.Level.imax}
   \leanok
   \srcloc{Metalean/Level/Quot/Basic.lean}{16}
   \lead{In short} Universe levels as a quotient of raw levels (\code{Level}).
-  \lead{Used directly} 1 declaration: 1 definition.
-  \usedbystatements{\ref{lem:EraseProof-TypeEq-sort_ne_forallE},
-    \ref{lem:EraseProof-TypeEq-sort_ne_quot}}
+  \lead{Used directly} 6 declarations: 6 definitions.
+  \usedbystatements{\ref{def:EraseProof-SatTr}, \ref{def:EraseProof-natLitM},
+    \ref{def:EraseProof-TrM}, \ref{lem:EraseProof-TypeEq-sort_ne_forallE},
+    \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{def:EraseProof-IsErasable},
+    \ref{def:EraseProof-Subsingleton}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Level.Inst}]
@@ -90,8 +119,12 @@
   \lead{In short} The typing judgment: definitional equality with regularity (\code{Defeq}),
   well-formed contexts (\code{CtxWF}) and inductive blocks (\code{InductiveWF}).
   \lead{Used directly} 4 declarations: 2 definitions, 1 inductive type, 1 structure.
-  \usedbystatements{\ref{lem:EraseProof-TypeEq-sort_ne_forallE},
-    \ref{lem:EraseProof-TypeEq-sort_ne_quot}}
+  \usedbystatements{\ref{def:EraseProof-TrM}, \ref{def:EraseProof-ProgEnv},
+    \ref{lem:EraseProof-TypeEq-sort_ne_forallE}, \ref{lem:EraseProof-TypeEq-sort_ne_quot},
+    \ref{def:EraseProof-IsErasable}, \ref{def:EraseProof-Subsingleton},
+    \ref{def:EraseProof-Erases}, \ref{def:EraseProof-collectDeps_ok_of_statement},
+    \ref{def:EraseProof-erase_correct_statement}, \ref{def:EraseProof-erases_correct_statement},
+    \ref{def:EraseProof-erasePure_erases_statement}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Typing.TypeEq}]
@@ -103,7 +136,7 @@
   (\code{TypeEq.left}, \code{TypeEq.right}).
   \lead{Used directly} 3 declarations: 1 definition, 2 theorems.
   \usedbystatements{\ref{lem:EraseProof-TypeEq-sort_ne_forallE},
-    \ref{lem:EraseProof-TypeEq-sort_ne_quot}}
+    \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{def:EraseProof-IsErasable}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Typing.Env.Defs}]
@@ -114,7 +147,9 @@
   \lead{In short} Well-formed environments (\code{EnvWF}).
   \lead{Used directly} 1 declaration: 1 inductive type.
   \usedbystatements{\ref{lem:EraseProof-TypeEq-sort_ne_forallE},
-    \ref{lem:EraseProof-TypeEq-sort_ne_quot}}
+    \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{def:EraseProof-Subsingleton},
+    \ref{def:EraseProof-erase_correct_statement}, \ref{def:EraseProof-erases_correct_statement},
+    \ref{def:EraseProof-erasePure_erases_statement}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Typing.Env}]
@@ -405,4 +440,92 @@
   \lead{Used directly} 2 declarations: 1 definition, 1 structure.
   \usedbyproofs{\ref{lem:EraseProof-TypeEq-sort_ne_forallE},
     \ref{lem:EraseProof-TypeEq-sort_ne_quot}}
+\end{imported}
+
+\begin{imported}[\code{Metalean.Level.Raw.Basic}]
+  \label{imp:Metalean-Level-Raw-Basic}
+  \lean{Metalean.Param}
+  \leanok
+  \srcloc{Metalean/Level/Raw/Basic.lean}{15}
+  \lead{In short} Raw universe levels and their parameters (\code{Param}).
+  \lead{Used directly} 1 declaration: 1 definition.
+  \usedbystatements{\ref{def:EraseProof-TrM}}
+\end{imported}
+
+\begin{imported}[\code{Metalean.Syntax.Inductive.Ctor}]
+  \label{imp:Metalean-Syntax-Inductive-Ctor}
+  \lean{Metalean.Ctor.ordinaryFieldExpr}
+  \leanok
+  \srcloc{Metalean/Syntax/Inductive/Ctor.lean}{116}
+  \lead{In short} Constructor signatures: the type of an ordinary field
+  (\code{Ctor.ordinaryFieldExpr}).
+  \lead{Used directly} 1 declaration: 1 definition.
+  \usedbystatements{\ref{def:EraseProof-natLitM}}
+\end{imported}
+
+\begin{imported}[\code{Metalean.Syntax.Inductive.Recursor}]
+  \label{imp:Metalean-Syntax-Inductive-Recursor}
+  \lean{Metalean.Inductive.motiveTele, Metalean.Inductive.caseTele, Metalean.CtorSig.caseOrdinary}
+  \leanok
+  \srcloc{Metalean/Syntax/Inductive/Recursor.lean}{135}
+  \lead{In short} Recursor telescopes: motives (\code{Inductive.motiveTele}), minor premises
+  (\code{Inductive.caseTele}, \code{CtorSig.caseOrdinary}).
+  \lead{Used directly} 3 declarations: 3 definitions.
+  \usedbystatements{\ref{def:EraseProof-natLitM}}
+\end{imported}
+
+\begin{imported}[\code{Metalean.Syntax.Inductive.LargeElimination}]
+  \label{imp:Metalean-Syntax-Inductive-LargeElimination}
+  \lean{Metalean.Inductive.LargeElim}
+  \leanok
+  \srcloc{Metalean/Syntax/Inductive/LargeElimination.lean}{64}
+  \lead{In short} Which inductive blocks eliminate into every sort (\code{Inductive.LargeElim}).
+  \lead{Used directly} 1 declaration: 1 definition.
+  \usedbystatements{\ref{def:EraseProof-SatTr}, \ref{def:EraseProof-ProgEnv}}
+\end{imported}
+
+\begin{imported}[\code{Metalean.Syntax.Structure}]
+  \label{imp:Metalean-Syntax-Structure}
+  \lean{Metalean.Inductive.IsStructure, Metalean.Inductive.IsStructure.projTerm}
+  \leanok
+  \srcloc{Metalean/Syntax/Structure.lean}{25}
+  \lead{In short} Structures (\code{Inductive.IsStructure}) and their projection terms
+  (\code{IsStructure.projTerm}).
+  \lead{Used directly} 2 declarations: 1 definition, 1 structure.
+  \usedbystatements{\ref{def:EraseProof-TrM}}
+\end{imported}
+
+\begin{imported}[\code{Metalean.Export.Basic}]
+  \label{imp:Metalean-Export-Basic}
+  \lean{Metalean.Export.QuotKind}
+  \leanok
+  \srcloc{Metalean/Export/Basic.lean}{60}
+  \lead{In short} The four quotient constants (\code{QuotKind}), as the export format names them.
+  \lead{Used directly} 1 declaration: 1 inductive type.
+  \usedbystatements{\ref{def:EraseProof-MBinding}, \ref{def:EraseProof-SatTr},
+    \ref{def:EraseProof-ProgEnv}}
+\end{imported}
+
+\begin{imported}[\code{Metalean.Frontend.Failure}]
+  \label{imp:Metalean-Frontend-Failure}
+  \lean{Metalean.Frontend.Failure}
+  \leanok
+  \srcloc{Metalean/Frontend/Failure.lean}{43}
+  \lead{In short} The error type of the translator (\code{Failure}), the result type of the term
+  builders.
+  \lead{Used directly} 1 declaration: 1 inductive type.
+  \usedbystatements{\ref{def:EraseProof-SatTr}}
+\end{imported}
+
+\begin{imported}[\code{Metalean.Frontend.Translate}]
+  \label{imp:Metalean-Frontend-Translate}
+  \lean{Metalean.Frontend.wrapCase, Metalean.Frontend.indTerm, Metalean.Frontend.ctorTerm,
+    Metalean.Frontend.recrTerm, Metalean.Frontend.quotTerm}
+  \leanok
+  \srcloc{Metalean/Frontend/Translate.lean}{84}
+  \lead{In short} The total term builders of the translator (\code{indTerm}, \code{ctorTerm},
+  \code{recrTerm}, \code{wrapCase}, \code{quotTerm}), which the bridge uses for $\eta$-terms; its
+  \code{partial} translator is not used.
+  \lead{Used directly} 5 declarations: 5 definitions.
+  \usedbystatements{\ref{def:EraseProof-SatTr}}
 \end{imported}

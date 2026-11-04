@@ -13,8 +13,8 @@ The blueprint describes the commit it is built from. It is not a changelog.
   "used to", "now", "yet", or describe a state and then its changes. Git holds the history.
 - What is not done is an open item in the present tense (`\stOpen{}`, or a row of the chapter
   "What is open"), never a plan with dates.
-- A planned node (marked `\planned`) states a declaration of the owner-approved design (the
-  planned statements and definitions) under the name the declaration will have; it is written in
+- A planned node (marked `\planned`) states a declaration of the design (the planned
+  statements and definitions) under the name the declaration will have; it is written in
   the present tense as a statement ("`X` is ..."), and the badge says that it is not formalized.
   Every other node documents a declaration that exists. When the declaration lands, the node drops
   `\planned` and gains `\leanok` (as the audit computes it) and `\srcloc`.
@@ -38,7 +38,7 @@ The blueprint describes the commit it is built from. It is not a changelog.
   an imported node, with its module), the name with `.` replaced by `-` (`def:Erasure-erase`).
   Unique; never renamed.
 - `\lean{...}`: names of the compiled environment only, or, on a planned node, the names of the
-  approved design; never invent one. Each name belongs to one node. Every declaration of the
+  design; never invent one. Each name belongs to one node. Every declaration of the
   verification library (`proof/EraseProof`) is cited by a node that is not planned: a helper goes
   into the `\lean` list of the node it serves.
 - `\planned`: the node's declarations do not exist (the audit checks it); a node that is not

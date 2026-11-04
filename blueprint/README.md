@@ -29,7 +29,7 @@ scripts/leanlinks.py    the links to the Lean sources (URLs, revisions), in the 
 STYLE.md                how chapters and nodes are written (binding)
 src/content.tex         chapter order
 src/chapters/*.tex      hand-written chapters: intro, scope, trust, pure, model, source,
-                        relation, core, final, open
+                        relation, core, final, tests, open
 src/generated/*.tex     generated chapters, tables and imported nodes (never edit them)
 src/macros/             common.tex (shared macros), web.tex, print.tex
 src/web.tex, print.tex  drivers of the web and print versions
@@ -316,7 +316,7 @@ uses of every declaration of the proof library and of the shipping code, and che
 | Axiom closure | the measured axioms of every cited declaration equal `Lean.collectAxioms` (`#print axioms`), for an inductive together with its constructors (the axioms Lean stores for an imported inductive can miss those only its constructors reach); the closure follows types, values and constructors |
 | `\inherited{...}` | absent: with no labelled sorry in `audit.toml`, a node carrying it is a defect |
 | Coverage | every declaration of the modules `EraseProof*` that has a source position is cited by a node that is not planned |
-| Roots | every line of `proof/ROOTS.txt` names a root cited by a formalized node and a consumer cited by a planned node whose statement or proof uses the root's node, or `FINAL` for the final theorem, which has no consumer; a line whose unit is a decision of the plan (`O-<n>`) names a placeholder consumer: no planned statement uses the root, so the consumer's node must not use the root's node, and `roots.tex` marks the row |
+| Roots | every line of `proof/ROOTS.txt` names a root cited by a formalized node and a consumer cited by a planned node whose statement or proof uses the root's node, or `FINAL` for the final theorem, which has no consumer |
 | `\srcloc{path}{line}` | is the file and line of the node's first declaration |
 | Hygiene | ASCII only outside `\lean{}` and `\leandecl{}`; underscores escaped in `\code`, `\texttt`, `\inherited`, `\srcloc`, `\leanfile`, `\leanfiles`, `\leanloc`, `\leanlinesof` |
 | Links | the checks before the build of section "Links to the Lean sources": every linked name is held by its declaration range in the local source, and that range is its declaration; every cited path and line exists, no `\code` cites a `.lean` file or a full declaration name, no `\dochome`, and `generated/lean-locations.tsv` is up to date |

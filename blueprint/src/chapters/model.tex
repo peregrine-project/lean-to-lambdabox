@@ -7,9 +7,11 @@
 \item \lead{Main results} The translation \code{TrM}, the program environments \code{ProgEnv},
   their substitution and lookup lemmas, the \code{casesOn} reduction chain; the no-confusion lemmas
   of Metalean's type formers.
-\item \lead{Status} \stProved{} the no-confusion lemmas; \stPlanned{} the bridge.
+\item \lead{Status} \stProved{} the no-confusion lemmas; the definitions of the bridge are
+  formalized; \stPlanned{} the lemmas about them.
 \item \lead{Nodes} \bpnodes{chap:model}
-\item \lead{Lean files} \leanfile{proof/EraseProof/Metatheory/NoConf.lean}.
+\item \lead{Lean files} \leanfile{proof/EraseProof/Spec.lean} (Sections 1 to 6),
+  \leanfile{proof/EraseProof/Metatheory/NoConf.lean}.
 \item \lead{Reference} Metalean's translator \leanfile{Metalean/Frontend/Translate.lean} and
   loader \leanfile{Metalean/Checker/Slow/Loader.lean}, which the bridge models as relations.
 \end{itemize}
@@ -23,7 +25,8 @@ the bridge restates it rule by rule as a relation.
   \label{def:EraseProof-MBinding}
   \lean{EraseProof.MBinding, EraseProof.Binds, EraseProof.MBinding.isSpecial,
     EraseProof.MBinding.wk, EraseProof.Binds.wk, EraseProof.Binds.set}
-  \planned
+  \leanok
+  \srcloc{proof/EraseProof/Spec.lean}{38}
   \lead{In short} \code{Binds $\zeta$ = Name $\to$ Option (MBinding $\zeta$)} maps a Lean name to
   \hl{the Metalean head it denotes}: Metalean's binding table with heads in place of positions.
   \begin{itemize}
@@ -40,8 +43,9 @@ the bridge restates it rule by rule as a relation.
   \label{def:EraseProof-SatTr}
   \lean{EraseProof.SatTr, EraseProof.SpecialHead, EraseProof.MetaOrderOK,
     EraseProof.RecrLevels, EraseProof.quotArity}
-  \planned
+  \leanok
   \uses{def:EraseProof-MBinding}
+  \srcloc{proof/EraseProof/Spec.lean}{219}
   \lead{In short} \code{SatTr E lps b us args t}: the head \code{b} at levels \code{us}, applied to
   the translated arguments \code{args}, is \hl{the saturated Metalean node or the $\eta$-term}
   \code{t}.
@@ -50,7 +54,8 @@ the bridge restates it rule by rule as a relation.
         \code{MetaOrderOK}: ordinary fields, then recursive ones), \code{recr}
         (\code{RecrLevels}: the motive's level split off), quotient constants (\code{quotArity});
   \item under-applied: the term of Metalean's builders \code{indTerm}, \code{ctorTerm},
-        \code{recrTerm}, \code{quotTerm}, applied (decision D1);
+        \code{recrTerm}, \code{quotTerm}, applied (DV-1; trusted,
+        Section~\ref{sec:trust-trusted});
   \item \code{SpecialHead B f}: \code{f}'s head is a saturating name.
   \end{itemize}
   \lead{Reference} \code{saturate} and \code{translateSpecial} of
@@ -61,7 +66,8 @@ the bridge restates it rule by rule as a relation.
   \label{def:EraseProof-natLitM}
   \lean{EraseProof.natLitM, EraseProof.natSig, EraseProof.natZeroSig, EraseProof.natSuccSig,
     EraseProof.projProofTerm}
-  \planned
+  \leanok
+  \srcloc{proof/EraseProof/Spec.lean}{155}
   \lead{In short} Two terms of Metalean's checker, copied as total definitions.
   \begin{itemize}
   \item \code{natLitM}: a \code{Nat} literal as \hl{its unary constructor chain}, as Metalean's
@@ -77,9 +83,10 @@ the bridge restates it rule by rule as a relation.
   \label{def:EraseProof-TrM}
   \lean{EraseProof.TrM, EraseProof.TrLevel, EraseProof.TrLevels, EraseProof.MLDecl,
     EraseProof.MLDecl.denote, EraseProof.MLDecl.wk, EraseProof.MLCtx, EraseProof.MLCtx.pushLam,
-    EraseProof.MLCtx.pushLamN, EraseProof.MLCtx.findB, EraseProof.MLCtx.findF}
-  \planned
+    EraseProof.MLCtx.findB, EraseProof.MLCtx.findF}
+  \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-SatTr, def:EraseProof-natLitM}
+  \srcloc{proof/EraseProof/Spec.lean}{303}
   \lead{In short} \code{TrM E B lps $\Gamma$ $\Delta$ e t}: the Lean term \code{e} is \hl{the Lean
   form of the Metalean term \code{t}} in the context $\Gamma$; $\Delta$ (\code{MLCtx}) maps the
   Lean locals to Metalean variables or let values.
@@ -174,8 +181,9 @@ the bridge restates it rule by rule as a relation.
   \label{def:EraseProof-ProgEnv}
   \lean{EraseProof.ProgEnv, EraseProof.findDecl, EraseProof.ConstTyped, EraseProof.BindsExt,
     EraseProof.IndBlock, EraseProof.IndBlock.decls, EraseProof.quotKindOf}
-  \planned
+  \leanok
   \uses{def:EraseProof-TrM}
+  \srcloc{proof/EraseProof/Spec.lean}{430}
   \lead{In short} \code{ProgEnv P $\zeta$ E B}: the Lean declarations \code{P} (newest first) are
   \hl{those of the Metalean environment \code{E}}, named by \code{B}, as Metalean's loader builds
   it.

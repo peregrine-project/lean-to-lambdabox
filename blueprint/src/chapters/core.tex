@@ -8,7 +8,8 @@
 \item \lead{Main results} Soundness of the pure oracle; the closure lemmas and the lower bound
   \code{collectDeps\_ok\_of} of the fragment test; the frame and recursion lemmas of the
   traversal. They compose into the milestone \code{erasePure\_erases} (Chapter~\ref{chap:final}).
-\item \lead{Status} \stPlanned{} every node.
+\item \lead{Status} the sufficient condition \code{PhaseIDecl} and the statement of
+  \code{collectDeps\_ok\_of} are formalized; \stPlanned{} the other nodes.
 \item \lead{Nodes} \bpnodes{chap:core}
 \item \lead{Reference} MetaRocq \code{hnf\_sound} (\code{PCUICSafeReduce.v}),
   \code{type\_of\_typing} (\code{PCUICSafeRetyping.v}), \code{is\_erasableb}
@@ -19,14 +20,16 @@
 
 \begin{definition}[Traversal locals and the bridge]
   \label{def:EraseProof-LocalsOK}
-  \lean{EraseProof.LocalsOK, EraseProof.LocalsSupport, EraseProof.LocalsAgree}
+  \lean{EraseProof.LocalsOK, EraseProof.LocalsSupport, EraseProof.LocalsAgree,
+    EraseProof.MLCtx.pushLamN}
   \planned
   \uses{def:EraseProof-TrM, def:Erasure-TravCtx}
   \lead{In short} \code{LocalsOK E B lps $\Gamma$ $\Delta$ ls}: the traversal's locals \code{ls}
   \hl{are the Lean form of the context $\Gamma$} under $\Delta$.
   \begin{itemize}
   \item \code{LocalsSupport S ls}, \code{LocalsAgree S ls$_1$ ls$_2$}: the locals cover the free
-        variables \code{S}, and two lists agree on them.
+        variables \code{S}, and two lists agree on them;
+  \item \code{MLCtx.pushLamN $\Delta$ k}: $\Delta$ under \code{k} more binders.
   \end{itemize}
 \end{definition}
 
@@ -73,17 +76,19 @@
   \label{def:EraseProof-PhaseIDecl}
   \lean{EraseProof.PhaseIDecl, EraseProof.ReadExpr, EraseProof.ReadClosed, EraseProof.PlainExpr,
     EraseProof.LevelPlain, EraseProof.HasNatLit, EraseProof.IsRecursorIn, EraseProof.RecFree,
-    EraseProof.MayBeNonZero, EraseProof.Eliminated, EraseProof.EmitsConst,
-    EraseProof.BlockNamesInj}
-  \planned
-  \uses{def:EraseProof-ConstsIn, def:Erasure-Planned-casesInfo}
+    EraseProof.Eliminated, EraseProof.EmitsConst, EraseProof.BlockNamesInj}
+  \leanok
+  \uses{def:EraseProof-ConstsIn, def:EraseProof-EvalEnv, def:Erasure-casesInfo,
+    def:Erasure-declExclusion}
+  \srcloc{proof/EraseProof/Spec.lean}{859}
   \lead{In short} The hypotheses of \code{collectDeps\_ok\_of}: \hl{what the traversal reads of a
   closure is inside Phase I}.
   \begin{itemize}
   \item \code{ReadExpr}, \code{ReadClosed}: the expressions the traversal reads, and a closure
         holding their constants;
-  \item \code{PhaseIDecl}: a declaration of Section~\ref{sec:scope-fragment}'s classes; a
-        sort-polymorphic inductive only when not \code{Eliminated};
+  \item \code{PhaseIDecl}: a declaration outside the exclusion classes of
+        Section~\ref{sec:scope-fragment}; an inductive whose sort may be both zero and not
+        (the shipping \code{mayBeNonZero}) only when not \code{Eliminated};
   \item \code{PlainExpr}, \code{RecFree}: no free variable, metavariable or string literal (no
         literal under \code{nat := .machine}); no recursor;
   \item \code{BlockNamesInj}: block names distinct from each other and from emitted constants.
@@ -94,8 +99,9 @@
   \label{lem:EraseProof-collectDeps_spec}
   \lean{EraseProof.collectDeps_spec, EraseProof.collectDeps_sub}
   \planned
-  \uses{def:Erasure-Planned-collectDeps, def:EraseProof-ConstsIn, def:EraseProof-ProgEnv}
-  \lead{In short} If \code{Planned.collectDeps view cfg e = .ok decls}, then \code{decls} is
+  \uses{def:Erasure-collectDeps, def:EraseProof-ConstsIn, def:EraseProof-DepClosed,
+    def:EraseProof-ProgEnv}
+  \lead{In short} If \code{collectDeps view cfg e = .ok decls}, then \code{decls} is
   \hl{kername-injective, from the view, without duplicates, dependency-closed and closed}, and
   holds the constants of \code{e}.
   \begin{itemize}
@@ -108,12 +114,23 @@
   \lead{Idea} Induction on the work list of the closure.
 \end{proof}
 
+\begin{definition}[The statement of the lower bound]
+  \label{def:EraseProof-collectDeps_ok_of_statement}
+  \lean{EraseProof.collectDeps_ok_of_statement}
+  \leanok
+  \uses{def:Erasure-collectDeps, def:EraseProof-PhaseIDecl, def:EraseProof-ProgEnv,
+    def:EraseProof-TrM, def:EraseProof-ConstsIn, def:EraseProof-ViewAgrees}
+  \srcloc{proof/EraseProof/Statements.lean}{31}
+  \lead{In short} The proposition that Lemma~\ref{lem:EraseProof-collectDeps_ok_of} proves,
+  \hl{pinned by \code{proof/spec.pin}}; check C12 compares the lemma's type with it once the lemma
+  is proved.
+\end{definition}
+
 \begin{lemma}[A lower bound of the fragment test]
   \label{lem:EraseProof-collectDeps_ok_of}
   \lean{EraseProof.collectDeps_ok_of}
   \planned
-  \uses{def:Erasure-Planned-collectDeps, def:EraseProof-PhaseIDecl, def:EraseProof-ProgEnv,
-    def:EraseProof-ConstsIn, def:EraseProof-ViewAgrees}
+  \uses{def:EraseProof-collectDeps_ok_of_statement}
   \lead{In short} A typed program whose read closure is inside Phase I \hl{is accepted}:
   \code{hfrag} cannot silently empty the final theorem.
   \begin{itemize}
@@ -121,10 +138,10 @@
         \code{cfg.remove\_irrel\_constr\_args = false}; \code{SubEnv decls P};
         \code{ReadClosed decls e}; \code{PhaseIDecl} of each declaration; \code{PlainExpr} and
         \code{RecFree} of \code{e} and of every read expression; \code{KernameInj decls};
-        \code{BlockNamesInj decls};
-  \item \lead{Then} $\exists$ \code{decls'}, \code{Planned.collectDeps view cfg e = .ok decls'}.
+        \code{BlockNamesInj decls}; \code{decls.length $\le$ collectFuel};
+  \item \lead{Then} $\exists$ \code{decls'}, \code{collectDeps view cfg e = .ok decls'}.
   \end{itemize}
-  \lead{Lean} its statement is pinned by C12b with the final theorem's.
+  \lead{Reference} none (DV-26).
 \end{lemma}
 \begin{proof}
   \uses{def:EraseProof-PhaseIDecl}
@@ -137,7 +154,7 @@
   \label{lem:EraseProof-eraseEntry_pure}
   \lean{EraseProof.eraseEntry_pure, EraseProof.visit_agree, EraseProof.isRecursiveDecl_false}
   \planned
-  \uses{def:Erasure-Planned-collectDeps, def:Erasure-eraseEntry, def:Erasure-erasePure,
+  \uses{def:Erasure-collectDeps, def:Erasure-eraseEntry, def:Erasure-erasePure,
     def:Erasure-isRecursiveDecl, def:EraseProof-LocalsOK, def:EraseProof-ProgEnv}
   \lead{In short} On the fragment, \code{\#erase} \hl{runs the pure path}, whose traversal reads
   only what it should.
@@ -159,6 +176,6 @@
 \begin{itemize}
 \item \lead{Caveat} The oracle lemmas speak of top-level calls; the induction behind them
   generalizes the binder list.
-\item \lead{Caveat} \code{Planned.collectDeps} and \code{Planned.casesInfo?} are stubs of shipping
-  entries S-29 and S-28 (Chapter~\ref{chap:pure}); these statements use their stub signatures.
+\item \lead{Caveat} \code{collectDeps\_ok\_of} is a sufficient condition: the fragment test also
+  accepts programs outside its hypotheses.
 \end{itemize}
