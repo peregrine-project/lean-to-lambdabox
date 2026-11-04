@@ -94,6 +94,9 @@ inductive DCong (E : Env ζ) (P : Prop) :
       {e₁ e₂ : Expr ζ ℓ n} :
       DCong E P Γ₁ Γ₂ e₁ e₂ →
       DCong E P Γ₁ Γ₂ (projProofTerm E η s c ls₁ hi₁ ps₁ f e₁) (projProofTerm E η s c ls₂ hi₂ ps₂ f e₂)
+  /-- A term congruent to one that weak-head reduces to the second, without projection nodes. -/
+  | red {n} {Γ₁ Γ₂ : Ctx ζ ℓ 0 n} {e₁ e₂ e₃ : Expr ζ ℓ n} (hnP : ¬ P) :
+      DCong E P Γ₁ Γ₂ e₁ e₂ → WHRedS E e₂ e₃ → DCong E P Γ₁ Γ₂ e₁ e₃
 
 /-- The entries of `Γ₁` are equal types to those of `Γ₂`, in `Γ₁`. -/
 def CtxConv (E : Env ζ) {n : Nat} (Γ₁ Γ₂ : Ctx ζ ℓ 0 n) : Prop :=
@@ -109,6 +112,50 @@ theorem recr_major {n : Nat} {Γ : Ctx ζ ℓ 0 n} {ι : IndSig} {η : Head ζ (
     (h : E[Γ] ⊢ .recr η s ls l ps ms mins is maj : T) : E[Γ] ⊢ maj : .ind η s ls ps is := by
   obtain ⟨_, _, _, _, _, -, hps, -, -, his, hmaj, -, -⟩ := h.recr_inv
   exact (TypeEq.ofDefEq (Defeq.indDF hps his)).conv hmaj.right
+
+namespace CongRed
+
+/-- A frame under a substitution. -/
+def frameSubst {n m : Nat} (σ : Subst ζ ℓ n m) : Frame ζ ℓ n → Frame ζ ℓ m
+  | .app a => .app (a.subst σ)
+  | .recr η s ls l ps ms mins is =>
+    .recr η s ls l (fun p => (ps p).subst σ) (fun t => (ms t).subst σ)
+      (fun t c => (mins t c).subst σ) (fun i => (is i).subst σ)
+  | .quotLift η l₁ l₂ α r β f h =>
+    .quotLift η l₁ l₂ (α.subst σ) (r.subst σ) (β.subst σ) (f.subst σ) (h.subst σ)
+  | .quotInd η l α r β f => .quotInd η l (α.subst σ) (r.subst σ) (β.subst σ) (f.subst σ)
+
+theorem plug_subst {n m : Nat} (σ : Subst ζ ℓ n m) (K : Frame ζ ℓ n) (e : Expr ζ ℓ n) :
+    (K.plug e).subst σ = (frameSubst σ K).plug (e.subst σ) := by
+  cases K <;> rfl
+
+/-- Weak-head reduction is stable under substitution. -/
+theorem WHRed.subst {n m : Nat} {e₁ e₂ : Expr ζ ℓ n} (h : WHRed E e₁ e₂) (σ : Subst ζ ℓ n m) :
+    WHRed E (e₁.subst σ) (e₂.subst σ) := by
+  induction h generalizing m with
+  | frame _ ih => rw [plug_subst, plug_subst]; exact .frame (ih σ)
+  | beta =>
+    simp only [Expr.subst]
+    rw [Expr.inst_subst]
+    exact .beta
+  | zeta =>
+    simp only [Expr.subst]
+    rw [Expr.inst_subst]
+    exact .zeta
+  | delta => simp only [Expr.subst, Expr.wkClosed_subst]; exact .delta
+  | recrMajor _ ih => exact .recrMajor (ih σ)
+  | iota => simp only [Expr.subst, Inductive.iotaRhs_subst]; exact .iota
+  | quotIota => exact .quotIota
+  | quotIndIota => exact .quotIndIota
+
+/-- Weak-head reduction sequences are stable under substitution. -/
+theorem WHRedS.subst {n m : Nat} {e₁ e₂ : Expr ζ ℓ n} (h : WHRedS E e₁ e₂) (σ : Subst ζ ℓ n m) :
+    WHRedS E (e₁.subst σ) (e₂.subst σ) := by
+  induction h with
+  | refl => exact .refl
+  | tail _ h ih => exact ih.tail (WHRed.subst h σ)
+
+end CongRed
 
 namespace DCong
 
@@ -273,6 +320,10 @@ theorem defeq (hE : EnvWF E) (hnP : ¬ P) {n : Nat} {Γ₁ Γ₂ : Ctx ζ ℓ 0 
     exact hT.symm.conv ((Defeq.quotIndDF hα hr hβ hf ha hres).symm.trans
       (.quotIndDF h₂α h₂r (hβ.trans h₁β) h₂f (ha.trans h₁a) (hres.trans happ)))
   | projStruct hP | projProof hP => exact absurd hP hnP
+  | red _ _ hr ih =>
+    intro hΓ hc T ht
+    have h₁ := ih hΓ hc ht
+    exact h₁.trans (WHRedS.defeq hE hΓ hr h₁.right)
 
 /-- Weakening of both contexts at level `cut`. Reference: `Defeq.wkFrom`
 (`ML Typing/Substitution.lean:122`). -/
@@ -318,6 +369,10 @@ theorem wkFrom {cut : Nat} {Γ₀₁ Γ₀₂ : Ctx ζ ℓ 0 cut} (A₁ A₂ : E
     rw [Expr.wkFrom_eq_subst, projProofTerm_subst, Expr.wkFrom_eq_subst, projProofTerm_subst]
     simp only [← Expr.wkFrom_eq_subst]
     exact .projProof hP (ih rfl rfl)
+  | red hnP _ hr ih =>
+    subst hΓ₁ hΓ₂
+    refine .red hnP (ih rfl rfl) ?_
+    simpa only [Expr.wkFrom_eq_subst] using CongRed.WHRedS.subst hr (Subst.wkFrom cut)
 
 /-- Weakening by one variable. -/
 theorem wk {n : Nat} {Γ₁ Γ₂ : Ctx ζ ℓ 0 n} (A₁ A₂ : Expr ζ ℓ n) {t₁ t₂ : Expr ζ ℓ n}

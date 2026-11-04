@@ -152,3 +152,5 @@ EraseProof.Erases.cases_inv propext,Classical.choice,Quot.sound
 EraseProof.IsErasable.instL propext,Classical.choice,Quot.sound
 EraseProof.Erases.instLevels propext,Classical.choice,Quot.sound
 EraseProof.Defeq.inst_tele propext,Classical.choice,Quot.sound
+EraseProof.TrM.inst propext,Classical.choice,Quot.sound
+EraseProof.TrM.inst_let propext,Classical.choice,Quot.sound

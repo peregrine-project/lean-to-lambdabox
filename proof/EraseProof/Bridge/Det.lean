@@ -588,6 +588,9 @@ theorem DCong.defeq₂ (hE : EnvWF E) {n : Nat} {Γ₁ Γ₂ : Metalean.Ctx ζ �
       Defeq.appDF (Defeq.quotDF hα.left hr.left) .sortDF h₁β h₁a (by simpa using .sortDF)
     exact hT.symm.conv ((Defeq.quotIndDF hα hr hβ hf ha hres).symm.trans
       (.quotIndDF h₂α h₂r (hβ.trans h₁β) h₂f (ha.trans h₁a) (hres.trans happ)))
+  | red hnP h hr _ =>
+    intro hΓ _ hc _ T ht
+    exact (DCong.red hnP h hr).defeq hE hnP hΓ hc ht
   | @projStruct _ _ _ _ η _ c₁ c₂ _ h₁ h₂ _ _ _ _ _ _ f₁ f₂ hf _ ihe =>
     intro hΓ hΓ₂ hc ⟨T₂, ht₂⟩ T ht
     have he₁ := recr_major (by rw [← h₁.projTerm_eq_recr]; exact ht)
