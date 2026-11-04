@@ -328,10 +328,13 @@ def letMonocular {α} [Inhabited α] (e: Expr) (k: FVarId -> Expr -> Expr -> Era
 Destructures a type expression of the form `∀ a: A, B`,
 running the continuation on the body B (with DB variable 0 suitably instantiated with some fvar `a`) and the bound fvar,
 in a context with `a: A`.
-Panics if applied to an expression which is not of the form .forallE ..
+A type that is not of the form .forallE .. is first put in weak head normal form, so that aliases
+of function types and type families that compute to one are accepted.
+Throws an error if the type is still not of the form .forallE ..
 -/
-def forallMonocular {α} [Inhabited α] (t: Expr) (k: FVarId -> Expr -> EraseM α) := do
-  let Expr.forallE binderName type body bi := t | unreachable!
+def forallMonocular {α} (t: Expr) (k: FVarId -> Expr -> EraseM α): EraseM α := do
+  let t ← if t.isForall then pure t else liftMetaM <| Meta.whnf t
+  let .forallE binderName type body bi := t | throwError "expected a function type, got{indentExpr t}"
   withLocalDecl binderName type bi (fun fvarid => k fvarid <| body.instantiate1 <| .fvar fvarid)
 
 /--
@@ -341,7 +344,7 @@ run a continuation `k` in a context where a fvar `a` has type `A`.
 - if `e` is not of this form, `k` will be run on the expression `.app e (.fvar a)`, behaving as if `e` had been eta-expanded to `fun a => e a`.
 In both cases the second argument to `k` is `B`, the type of the first argument in the new context.
 Assumes that `type` is the type of `e` in the context where it is called.
-Panics if `type` is not a function type.
+Throws an error if `type` does not reduce to a function type.
 -/
 def lambdaMonocularOrIntro {α} [Inhabited α] (e type: Expr) (k: Expr -> Expr -> FVarId -> EraseM α): EraseM α :=
   forallMonocular type fun fvarid bodytype => do
@@ -378,7 +381,7 @@ Given an expression, deconstruct it into an application to at least arity argume
 then build a LBTerm from it given the continuation.
 This will eta-expand if necessary, and close the lambdas after running `k`.
 For example: withAppEtaToMinArity "Nat.add 42" 2 k = mkLambda "y" (k "Nat.add" ["42", "y"])
-Panics if the type of e does not start with at least arity .forallE constructors.
+Throws an error if the type of e does not reduce to at least arity .forallE constructors.
 -/
 partial def withAppEtaToMinArity (e: Expr) (arity: Nat) (k: Expr -> Array Expr -> EraseM LBTerm): EraseM LBTerm := do
   let type ← liftMetaM do Meta.inferType e
