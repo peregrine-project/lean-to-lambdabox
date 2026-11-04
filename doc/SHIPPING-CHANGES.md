@@ -23,7 +23,9 @@ toolchain, and the effect of each port on this branch's corpus is the one its en
 S-24, this branch merges `fixes-port`, whose commit `Declare Prop inductives propositional`
 (`ceec073`) fixes R-7 and R-8; S-25 records the merge together with the commit that completes it.
 After S-26, it merges `fixes-port` again, for `Reduce cases on inductives whose sort may be Prop`
-(`9aad6b0`); S-27 records that merge together with the commit that completes it.
+(`9aad6b0`); S-27 records that merge together with the commit that completes it. After S-30, it
+merges `fixes-port` a third time, for `Reduce a function type to whnf before reading its binder`
+(`a36d37e`), which fixes R-5; S-31 records that merge together with the commit that completes it.
 
 This register lists every change to the shipping code: the eraser
 (`LeanToLambdaBox.lean`, `LeanToLambdaBox/`), the package files (`lakefile.toml`, `lean-toolchain`,
@@ -2477,6 +2479,166 @@ the calls at which the two oracles answer differently. It must equal
   commit it gives `ok [G.Q, G.hq]` and the test fails. `scripts/regress.sh` passes (15 tests),
   with and without `PEREGRINE`.
 
+## S-31: An alternative whose type is a Π only after unfolding keeps its binders, on both paths
+
+- **Commit:** two commits. The merge `Merge branch 'fixes-port' into ml/translate` (the third one)
+  brings the commit `Reduce a function type to whnf before reading its binder` of `fixes-port`
+  (`a36d37e`), ported in the conflict resolution to the generic traversal of S-16 with the pure
+  backend answering `outOfFragment`. The commit whose subject starts with `S-31:`
+  (`git log --grep='^S-31:'`) gives the pure backend the oracle's weak head normal form.
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure.lean` (merge): new operations `Backend.whnf`, the weak head normal
+    form of a term in the traversal's local context (at `CoreM`: `Meta.whnf`, which `a36d37e` calls
+    through `liftMetaM`), and `Backend.error`, an error that ends the erasure (at `CoreM`:
+    `throwError`, as `a36d37e` throws). `forallMonocular` reduces a type that is not a `∀` with
+    `Backend.whnf` before matching it, and ends with `Backend.error` ("expected a function type,
+    got …") if it is still not a `∀`; it loses its `Inhabited` argument. The docstrings of
+    `forallMonocular`, `lambdaMonocularOrIntro` and `withAppEtaToMinArity` say so. The change covers
+    both callers, `lambdaMonocularOrIntro` (`visitAlt`) and `withAppEtaToMinArity`.
+  - `LeanToLambdaBox/Erasure/Pure.lean`: (merge) the fields `whnf` and `error` of
+    `instance : Backend PureM` (`error` is the error `failed`); (S-31) new `PureM.whnf`
+    (`Pure.whnf` at `oracleFuel`; an error of the oracle is an error of the pure path), which the
+    instance uses, and the instance's docstring.
+  - `tests/harness/PureHarness.lean` (merge): the two fields of `instance : Backend CmpM`, which
+    forward to `PureM`.
+  - `tests/regress/alt_type.lean` with its goldens (from `a36d37e`, unchanged); new
+    `tests/regress/alt_type_pure.lean` with its goldens; `tests/harness/expected/pure-harness.txt`
+    (S-31).
+  - `doc/SHIPPING-CHANGES.md`: this entry, the preamble and R-5.
+- **Why necessary:** R-5, reproduced on this branch and found again by the verification review: a
+  `casesOn` alternative that is not a λ is η-expanded through its inferred type, and when that type
+  is a Π only after δ or β (an alias such as `abbrev Fn2 := Nat → Nat → Nat`, or a type family that
+  computes to a function type), `forallMonocular` reached `unreachable!`. The panic's default is a
+  successful run, so the alternative became `([], □)` and the λ□ `case` is stuck. On this branch
+  the pure path takes such programs too: `Prod.casesOn (motive := fun _ => Nat)
+  (Nat.succ Nat.zero, Nat.zero) first` with `first : Fn2` and `nat := .peano` is in the fragment,
+  and `erasePure` returns that branch, a term that no rule of the proof's erasure relation produces
+  and on which λ□ evaluation is stuck. `a36d37e` reduces the type with `Meta.whnf` inside the
+  traversal, which on this branch is generic over its backend and has no `MetaM` at `PureM`; so the
+  merge needs a backend operation, and the pure backend must reduce as the `Meta` path does, or
+  the pure path would stop on these programs.
+- **Behaviour before:** `nonsyn_pi.ast` (`viaCases 3`, an alternative `g : MyFun` with
+  `def MyFun := Nat → Nat`, Lean value 2) takes the pure path; the log contains
+  `PANIC at Erasure.forallMonocular`, the branch of `Nat.succ` is `(() tBox)`, `peregrine eval`
+  prints `constr con_15` / `constr con_106` and `eval --anf=false` fails with
+  `wcbvEval:Case,whCaseStep`; the `Meta` path emits the same program.
+- **Behaviour after:** at the merge, the `Meta` path emits what `a36d37e` emits (`alt_type` passes
+  with its golden byte for byte), and the pure path stops `#erase` with
+  `erasure failed: outside the fragment: whnf` on such an alternative. After the `S-31:` commit,
+  the pure path reduces the type with the oracle's `Pure.whnf` (head β, ζ, δ of every definition
+  and projections of constructors, no recursor ι), and the two paths emit the same program on
+  `nonsyn_pi.ast`, whose branch of `Nat.succ` binds the field and applies `g` to it; `peregrine
+  eval` prints `Nat.succ (Nat.succ Nat.zero)`. When only a recursor's ι reaches the function type
+  (a type family defined by `Bool.casesOn`), `Pure.whnf` stops at `Bool.rec …` and the pure path
+  stops with the error `expected a function type, got Bool.rec …`, where the `Meta` path reduces
+  the type; no corpus program has such an alternative. Conversely an `@[irreducible]` alias of a
+  function type, which `Meta.whnf` does not unfold at default transparency, stops the `Meta` path
+  with that error and not the pure path (R-14's class); no corpus program has one either.
+- **Effect on emitted .ast (corpus):** against the corpus of S-30 (`1cd90d1`, 710 files), after
+  the `S-31:` commit: 709 byte-identical (benchmarks all identical), 1 differs:
+  `examples/Defects/nonsyn_pi.ast`, whose branch of `Nat.succ` gains its binder and the call
+  `g x`, and which gains the declaration of `Defects.g` (`λ x. x`); it is byte-identical to the
+  file that `fixes-port` (`a36d37e`) writes. `PANIC` counts drop by one (`example-Defects.log`:
+  4 to 3, the panic of R-5). At the merge alone, `#erase` of `nonsyn_pi.ast` fails on the pure
+  path, so no corpus was written there.
+- **Regression test:** `alt_type` (from `a36d37e`; it takes the `Meta` path, because its matcher
+  uses Nat literals): a `Prod.casesOn` whose alternative has an alias type and an
+  `Option.casesOn` whose alternative's type is a type family applied to a constructor; before the
+  merge the test panics and `peregrine eval` fails with `branch not found`, after it peregrine
+  evaluates `check.ast` to `AltType.B.t`. `alt_type_pure` checks, under `nat := .peano`, that
+  `aliasT` (an alias type) and `famT` (a type family that β-reduces to a function type) take the
+  pure path with the `Meta` path's output, which `#erase` writes to `alias.ast` and `fam.ast` and
+  peregrine evaluates to `ATP.B.t`, and that `selT` (a type that needs `Bool.rec`'s ι) stops the
+  pure path with `expected a function type`. Before the `S-31:` commit its three checks give
+  `outside the fragment: whnf` and its `#erase` fail; before the merge the pure path returns the
+  branch `([], □)`. `scripts/regress.sh` passes (17 tests), with and without `PEREGRINE`.
+  `scripts/pure-harness.sh` passes with the updated summary: only `Defects/nonsyn_pi.ast` changes,
+  from 35 to 39 oracle calls (the alternative's body is now erased); 294 `#erase`, 223 in the
+  fragment, 68 outside, 3 name collisions; 8298 oracle calls, 14 differ, none fails.
+
+## S-32: A `casesOn` on an inductive that eliminates only into Prop is erased to □
+
+- **Commit:** the commit whose subject starts with `S-32:` (`git log --grep='^S-32:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure.lean`: `visitCases` returns □ when the `casesOn`'s declaration has as
+    many universe parameters as its inductive, before it reads the discriminant's level; its
+    docstring.
+  - new `tests/regress/prop_elim_pure.lean` with its goldens.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** found by the verification review on the pure path. The pure oracle has no
+  recursor ι (`Pure.whnf`), so it does not see that an application is a proof when the sort of its
+  type is `Prop` only through ι: `def Sel (b : Bool) : Type := Bool.casesOn (motive := fun _ =>
+  Type) b Prop Prop`, `def Y : Sel true := True`, and a `casesOn` with motive `fun _ => Y`. The
+  traversal then reaches `visitCases` on a `casesOn` of an inductive that eliminates only into
+  `Prop` and erases its discriminant, a proof, to □. For `Or` (two constructors) it emits a λ□
+  `case` on □ with two branches, which λ□ does not evaluate (`iota` needs a constructor and
+  `iotaSing` one branch), while Lean evaluates the program; for `Exists` (one constructor, whose
+  sort may be `Prop`) it emits `□ □ □`, which no rule of the proof's erasure relation produces.
+  Such a `casesOn` always gives a proof, whose erasure is □. Lean gives an inductive's recursor,
+  and so its `casesOn`, a universe parameter for the motive besides the inductive's exactly when
+  the inductive eliminates into every sort; otherwise the motive lands in `Prop`. Checked on
+  `Or`, `Exists`, `Nonempty` and a universe-polymorphic `Prop` inductive with a data field (as
+  many parameters: only `Prop`), and on `Eq`, `HEq`, `And`, `True`, `False`, `Iff`, `PUnit`,
+  `PEmpty`, `Acc`, `Subsingleton`, a universe-polymorphic `Prop` inductive with only index
+  fields, `Nat`, `List`, `Prod` and `Decidable` (one more). On the pure path `casesInfo?` admits a
+  `casesOn` only with the recursor's universe parameters. On the `Meta` path, the sparse
+  `casesOn` and the `T.c.elim` that Lean generates for data types (checked on an enumeration,
+  `Option` and a universe-polymorphic type) have the extra parameter too.
+- **Behaviour before:** on the test's programs, under `nat := .peano`, both in the fragment: `test2
+  := tCase (Or, 2) □ [([x], □), ([x], □)]`, on which `peregrine eval --anf=false` fails with
+  `wcbvEval:Case,discriminee`; `test := □ □ □`.
+- **Behaviour after:** `test2 := □` and `test := □`, which peregrine evaluates to □. The `Meta`
+  path is unchanged: its oracle boxes such an application before `visitCases` (on these programs
+  it boxes the constants themselves).
+- **Effect on emitted .ast (corpus):** byte-identical for all 710 files against the corpus of S-31;
+  `PANIC` counts unchanged. No corpus program reaches `visitCases` on such a `casesOn`.
+- **Regression test:** `prop_elim_pure` checks that `test2` and `test` take the pure path and pins
+  their `#erase` outputs, which peregrine validates and evaluates. Before this commit the goldens
+  differ and `peregrine eval` of `or.ast` fails. `scripts/regress.sh` passes (18 tests), with and
+  without `PEREGRINE`. `scripts/pure-harness.sh` passes with its expected summary unchanged (294
+  `#erase`, 223 in the fragment; 8298 oracle calls, 14 differ, none fails).
+
+## S-33: Unexpected cases of the traversal are errors on the pure path
+
+- **Commit:** the commit whose subject starts with `S-33:` (`git log --grep='^S-33:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure.lean`: new operation `Backend.fail`, a case that the traversal does
+    not expect (at `CoreM`: `panic!` with the result `default`, as the panics it replaces); new
+    `getOrFail` (an option's value, or `Backend.fail`). They replace the panics, `unreachable!`,
+    `[i]!`, `get!` and `value!` of `addAxiom`, `register_inductive`, `fvar_to_name`,
+    `lambdaMonocular`, `letMonocular`, `visitExpr`, `visitProj`, `visitConstructor` (its constructor,
+    inductive and argument mask), `visitCases`, `get_constant_kername` and `visitMutual` (its
+    declaration, and the value of a non-recursive declaration; the recursion test reads
+    `value?` with the default value, which it only reads for a declaration with a value). Left
+    as they are: the panics of `visitLiteral` and of `visitConstructor` on `Nat.zero`/`Nat.succ`
+    under `nat := .machine` and on string literals, which the fragment test keeps from the pure
+    path, and those of `visitConst`, `visitConstApp`, `mkDef` and the fixpoint branch of
+    `visitMutual`, which the pure path does not reach (the first two are guarded by their caller,
+    the last two need a recursive declaration).
+  - `LeanToLambdaBox/Erasure/Pure.lean`: the field `fail` of `instance : Backend PureM` (the error
+    `failed`) and the instance's docstring.
+  - `tests/harness/PureHarness.lean`: the field of `instance : Backend CmpM`.
+  - `tests/regress/pure_backend.lean`: three new checks and its docstring.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** in the generic traversal a panic's result is `pure default` (the instance
+  `instInhabitedOfMonad`), so on the pure path a panic is a successful run with a default term,
+  which the correctness proof would have to rule out site by site; S-31 is one such site that was
+  reachable. With `Backend.fail` the pure path ends with an error there, about which the proof
+  says nothing.
+- **Behaviour before:** `lambdaMonocular` at `PureM` on a term that is not a λ returns its
+  continuation's default result; `Backend.fail` does not exist.
+- **Behaviour after:** at `PureM` it is the error `failed lambdaMonocular: not a λ`, and likewise
+  at the other sites. At `CoreM` every site still panics and goes on with `default`, so the `Meta`
+  path's output is unchanged; the messages name the site instead of the source position.
+- **Effect on emitted .ast (corpus):** byte-identical for all 710 files against the corpus of S-32;
+  `PANIC` counts unchanged (the three left are those of `visitLiteral`, R-4).
+- **Regression test:** `pure_backend` checks that `Backend.error` and `Backend.fail` are the error
+  `failed` at `PureM`, and that `lambdaMonocular` on a constant is the error
+  `failed lambdaMonocular: not a λ` there. Before this commit the test does not elaborate
+  (`Backend.fail` is unknown). `scripts/regress.sh` passes (18 tests), with and without
+  `PEREGRINE`. `scripts/pure-harness.sh` passes with its expected summary unchanged (294 `#erase`,
+  223 in the fragment; 8298 oracle calls, 14 differ, none fails).
+
 ---
 
 ## Reported, not fixed
@@ -2543,7 +2705,7 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
 - **Impact:** silent miscompilation.
 - **Why not fixed:** not required by the verification goal unless it later becomes required.
 
-### R-5: An alternative whose Π-type is not syntactic gets a branch without binders
+### R-5: An alternative whose Π-type is not syntactic gets a branch without binders (fixed in S-31)
 
 - **What:** a `casesOn` alternative that is not a λ is η-expanded through its inferred type with
   `forallMonocular`, which expects a syntactic `∀`. If the type is a Π only after unfolding, it hits
@@ -2557,7 +2719,7 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
   `PANIC at Erasure.forallMonocular`; `peregrine validate` accepts the file; `peregrine eval`
   prints `constr con_15` / `constr con_106` instead of `Nat.succ (Nat.succ Nat.zero)`.
 - **Impact:** silent miscompilation that `peregrine validate` does not detect.
-- **Why not fixed:** not required by the verification goal unless it later becomes required.
+- **Fixed:** in S-31, which describes the fix and its corpus effect.
 
 ### R-6: Peano literals exhaust the stack
 
