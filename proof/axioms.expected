@@ -8,7 +8,6 @@ EraseProof.ProgEnv.fresh propext,Classical.choice,Quot.sound
 EraseProof.ProgEnv.lookup_ind propext,Classical.choice,Quot.sound
 EraseProof.ProgEnv.unfold propext,Classical.choice,Quot.sound
 EraseProof.ProgEnv.lookup propext,Classical.choice,Quot.sound
-EraseProof.casesOn_shape propext,Classical.choice,Quot.sound
 EraseProof.ctorSat_iota propext,Classical.choice,Quot.sound
 EraseProof.Test.bind_ok propext,Classical.choice,Quot.sound
 EraseProof.Test.forIn_toSubarray_size propext,Classical.choice,Quot.sound
@@ -147,3 +146,4 @@ EraseProof.Test.LBEval.mkApps_construct_inj propext
 EraseProof.Test.LBEval.mkApps_fix_inj propext
 EraseProof.Test.LBEval.mkApps_inj propext
 EraseProof.Test.LBEval.spineArgs_mkApps propext
+EraseProof.Erases.extend propext,Classical.choice,Quot.sound

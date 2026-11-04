@@ -20,3 +20,4 @@ import EraseProof.TargetFacts
 import EraseProof.Relation.Basic
 import EraseProof.Relation.Deps
 import EraseProof.Test.LBEval
+import EraseProof.Relation.Extend
