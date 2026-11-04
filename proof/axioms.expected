@@ -161,3 +161,6 @@ EraseProof.IsErasable.inst propext,Classical.choice,Quot.sound
 EraseProof.TrM.wf_app propext,Classical.choice,Quot.sound
 EraseProof.TrM.uninstantiateN propext,Classical.choice,Quot.sound
 EraseProof.Erases.abstract propext,Classical.choice,Quot.sound
+EraseProof.LBEval.idem propext
+EraseProof.Erases.ctorProp_box propext,Classical.choice,Quot.sound
+EraseProof.Erases.propProj_box propext,Classical.choice,Quot.sound

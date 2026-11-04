@@ -4,8 +4,8 @@ import EraseProof.Target
 # Facts about λ□ evaluation
 
 The induction principle of `LBEval` with a usable hypothesis for the nested premise of
-`constructBlock` (`LBEval.ind`), and the inversion of evaluation results headed by `□`
-(`LBEval.eq_box_of_headOf`).
+`constructBlock` (`LBEval.ind`), the inversion of evaluation results headed by `□`
+(`LBEval.eq_box_of_headOf`), and the evaluation of a result to itself (`LBEval.idem`).
 -/
 
 open Lean
@@ -161,5 +161,39 @@ theorem LBEval.eq_box_of_headOf {fl : WcbvFlags} {lenv : GlobalDeclarations} {s 
     | box => rfl
     | app => simp [lbAtom] at ha
     | _ => cases hh
+
+/-- An evaluation result evaluates to itself. Reference: `eval_to_value` (`MR E/EWcbvEval.v:771`)
+and `value_final` (`MR E/EWcbvEval.v:1129`). -/
+theorem LBEval.idem {fl : WcbvFlags} {lenv : GlobalDeclarations} {s t : LBTerm}
+    (hev : LBEval fl lenv s t) : LBEval fl lenv t t := by
+  induction hev using LBEval.ind with
+  | box => exact .atom rfl
+  | beta _ _ _ _ _ ih => exact ih
+  | zeta _ _ _ ih => exact ih
+  | iota _ _ _ _ _ _ _ _ ih => exact ih
+  | iotaBlock _ _ _ _ _ _ _ _ ih => exact ih
+  | iotaSing _ _ _ _ _ _ ih => exact ih
+  | fix _ _ _ _ _ _ _ ih => exact ih
+  | fixValue h₁ _ _ h₄ h₅ ihf iha => exact .fixValue h₁ ihf iha h₄ h₅
+  | fix' _ _ _ _ _ _ _ ih => exact ih
+  | delta _ _ _ ih => exact ih
+  | proj _ _ _ _ _ _ _ ih => exact ih
+  | projBlock _ _ _ _ _ _ _ ih => exact ih
+  | projProp => exact .atom rfl
+  | construct h₁ h₂ _ h₄ _ ihf iha => exact .construct h₁ h₂ ihf h₄ iha
+  | constructBlock h₁ h₂ h₃ h₄ ih =>
+    have hl : ∀ {xs ys : List LBTerm}, List.Forall₂ (LBEval fl lenv) xs ys → xs.length = ys.length := by
+      intro xs ys h
+      induction h with
+      | nil => rfl
+      | cons _ _ ih' => simp [ih']
+    refine .constructBlock h₁ h₂ (hl h₄ ▸ h₃) ?_
+    clear h₃ h₄ hl
+    induction ih with
+    | nil => exact .nil
+    | cons h _ ih' => exact .cons h.2 ih'
+  | appCong _ h₂ _ ihf iha => exact .appCong ihf h₂ iha
+  | prim => exact .prim
+  | atom ha => exact .atom ha
 
 end EraseProof
