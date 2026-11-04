@@ -396,6 +396,13 @@ def isPropFormerType (e : Expr) : PureM Bool := do
   | .ok b => pure b
   | .error err => throw err
 
+/-- The oracle's `whnf`, on the traversal's locals, with `oracleFuel`. Reference: `hnf`
+(`MR S/PCUICSafeReduce.v:1839`). -/
+def whnf (ls : List Local) (e : Expr) : PureM Expr := do
+  match Pure.whnf ⟨(← read).decls⟩ oracleFuel ls e with
+  | .ok t => pure t
+  | .error err => throw err
+
 /-- The oracle's `typeLevel`, on the traversal's locals, with `oracleFuel`. Reference:
 `sort_of_type` (`MR S/PCUICSafeReduce.v:1853`). -/
 def typeLevel (ls : List Local) (e : Expr) : PureM Level := do
@@ -427,12 +434,12 @@ def prepare (e : Expr) : PureM Expr := pure e
 end PureM
 
 /-- The pure backend: the operations of `PureM`, with `unsafeRecBase?` always `none`;
-type inference is the oracle's `Pure.inferType` at `oracleFuel` on the traversal's locals, and
-`isPropFormerType` and `typeLevel` are the oracle's `Pure.isPropFormerType` and `Pure.typeLevel` at
-`oracleFuel`; `casesInfo?` and `ctorArity?` are `Erasure.casesInfo?` and `Erasure.ctorArity?` over
+type inference and weak head normalization are the oracle's `Pure.inferType` and `Pure.whnf` at
+`oracleFuel` on the traversal's locals, and `isPropFormerType` and `typeLevel` are the oracle's
+`Pure.isPropFormerType` and `Pure.typeLevel` at `oracleFuel`; `casesInfo?` and `ctorArity?` are `Erasure.casesInfo?` and `Erasure.ctorArity?` over
 the declarations; every constructor field is kept; `isExtern` and `inlineAttr?` read the view; no constant is an instance;
 `log` does nothing; a constant missing from the declarations is `outOfFragment`, and fuel
-exhaustion is the error `fuel`. Reference: the environment and retyping operations that
+exhaustion is the error `fuel`, and `error` is the error `failed`. Reference: the environment and retyping operations that
 `MR E/ErasureFunction.v:989 erase` uses. -/
 instance : Backend PureM where
   findConst? := PureM.findConst?
@@ -446,7 +453,7 @@ instance : Backend PureM where
     match Pure.inferType ⟨(← read).decls⟩ oracleFuel ls [] e with
     | .ok t => pure t
     | .error err => throw err
-  whnf _ _ _ := throw (.outOfFragment "whnf")
+  whnf _ ls e := PureM.whnf ls e
   isPropFormerType := PureM.isPropFormerType
   typeLevel _ ls e := PureM.typeLevel ls e
   casesInfo? := PureM.casesInfo?
