@@ -10,7 +10,13 @@
 #                  footprints.
 #   tokens    C2   no sorry, admit, axiom, opaque, native_decide, native, bv_decide, unsafe,
 #                  implemented_by, extern (and the other tokens of scripts/scan_tokens.py) in
-#                  proof/**/*.lean outside comments and strings.
+#                  proof/**/*.lean outside comments and strings, also quoted as «sorry».
+#   replay         the kernel replay of the library: `leanchecker EraseProof` (the toolchain's
+#                  lean4checker) adds every declaration of every module EraseProof.* again
+#                  through the kernel, over the environment of the module's imports, and compares
+#                  constructors and recursors with those the kernel generates; it skips partial
+#                  and unsafe declarations, which the report rejects in the library. It covers the
+#                  library's own modules, not their imports (the shipping code, Metalean, Mathlib).
 #   report    C3-C7, C9, C12, C12b, run by `lake env lean --run tools/Report.lean` in proof/:
 #                  axiom footprints within propext, Classical.choice, Quot.sound (no sorryAx, no
 #                  Cardinal.exists_inaccessibles, no native axiom); no constant reached whose body
@@ -70,7 +76,7 @@ for a in "$@"; do
     --no-regress) regress=0 ;;
     --no-peregrine) peregrine=0 ;;
     --no-final) final=(--no-final) ;;
-    -h|--help) sed -n '2,56p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,62p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "error: unknown argument $a" >&2; exit 2 ;;
   esac
 done
@@ -95,6 +101,7 @@ run() {
 
 build_root() ( cd "$ROOT" && lake build LeanToLambdaBox LeanToLambdaBox.Metalean )
 build_proof() ( cd "$PROOF" && lake build )
+replay() ( cd "$PROOF" && lake env leanchecker EraseProof )
 report() (
   cd "$PROOF" &&
     lake env lean --run tools/Report.lean ${final[@]+"${final[@]}"} ${metarocq[@]+"${metarocq[@]}"}
@@ -108,6 +115,7 @@ c11() { rm -rf "$LOG/c11" && "$PROOF/scripts/c11.sh" --out "$LOG/c11"; }
 run build-root build_root || exit 1
 run build-proof build_proof || exit 1
 run tokens python3 "$PROOF/scripts/scan_tokens.py" "$PROOF" || true
+run replay replay || true
 if run report report; then cat "$LOG/report.log"; fi
 if [ -f "$PROOF/tools/NVEmit.lean" ]; then
   if run nv1-emit nv1_emit; then cat "$LOG/nv1-emit.log"; fi
