@@ -15,3 +15,4 @@ EraseProof.TypeEq.ind_ne_quot EraseProof.IsErasable.quotMk_not
 EraseProof.TrM.fvarsIn EraseProof.erasePure_erases
 EraseProof.TrM.weakFV_let EraseProof.erasePure_erases
 EraseProof.TrM.inst_fvar EraseProof.erasePure_erases
+EraseProof.ctorSat_iota EraseProof.casesOn_whred
