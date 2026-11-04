@@ -44,6 +44,9 @@ What the statements and the checks rely on without proof:
   its typing (`Metalean.Typing`), conversion and well-formedness `Metalean.EnvWF`, which the
   statements use as their notion of typing, the way MetaRocq's statements use PCUIC's. Metalean's
   axiom `Cardinal.exists_inaccessibles` (its set-theoretic model) is never reached (C3).
+  Metalean's private substitution lemma `Defeq.substRen` (`Metalean/Typing/Substitution.lean`) is
+  copied with its proof into `proof/EraseProof/Metatheory/SubstRen.lean` (Apache-2.0), so it is
+  checked like the rest of the library and adds nothing to the trust base.
 - Five total term builders of Metalean's translator, `Metalean.Frontend.indTerm`,
   `Metalean.Frontend.ctorTerm`, `Metalean.Frontend.recrTerm`, `Metalean.Frontend.wrapCase` and
   `Metalean.Frontend.quotTerm` (`Metalean/Frontend/Translate.lean`), with the constants they reach

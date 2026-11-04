@@ -34,3 +34,4 @@ EraseProof.IsErasable.instL EraseProof.erases_correct
 EraseProof.Erases.instLevels EraseProof.erases_correct
 EraseProof.casesOn_whred EraseProof.SrcEval.defeq
 EraseProof.casesOnLit_whred EraseProof.SrcEval.defeq
+EraseProof.Defeq.inst_tele EraseProof.TrM.inst
