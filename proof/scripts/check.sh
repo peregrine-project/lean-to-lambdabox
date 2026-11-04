@@ -24,7 +24,7 @@
 #                  SetTheory modules and the tests unreachable from non-test declarations (by the
 #                  constants reached, by module and by name), except what the translator's total
 #                  term builders reach, none of it partial, opaque, unsafe or implemented_by;
-#                  no leaves with respect to ROOTS.txt,
+#                  no leaves with respect to ROOTS.txt and the statement definitions,
 #                  and every test that is not a theorem used by a test theorem; footprints of roots
 #                  and test theorems equal axioms.expected; every source file imported; the entries
 #                  of doc/DIVERGENCES.md well-formed, citing existing declarations (EraseProof.*,
@@ -32,18 +32,19 @@
 #                  checkout, LeanToLambdaBox/, and, with METAROCQ=<MetaRocq checkout> in the
 #                  environment, MetaRocq's <dir>/theories/*.v, where a line cited right after an
 #                  identifier shows it), and every DV-<n> that the register, proof/ or
-#                  LeanToLambdaBox/ cites an entry; C12, the final form: ROOTS.txt is the single
-#                  root EraseProof.erase_correct, whose footprint is exactly propext,
+#                  LeanToLambdaBox/ cites an entry; C12, always: the statement definitions of
+#                  EraseProof/Statements.lean exist, and each of erase_correct, collectDeps_ok_of,
+#                  erases_correct and erasePure_erases that is proved has a type definitionally
+#                  equal to its statement definition, the others being listed as not yet proved;
+#                  C12, the final form: ROOTS.txt is the single root EraseProof.erase_correct,
+#                  every statement is proved, and erase_correct's footprint is exactly propext,
 #                  Classical.choice, Quot.sound, as is that of its instance on NV-1,
-#                  EraseProof.Test.NV1.final, whose hypothesis terms lie within them; the test
-#                  EraseProof.Test.Stub.erase_correct, the approved statement written out, has the
-#                  type of erase_correct exactly (skipped with --no-final); C12b, the definitions
-#                  the statements of erase_correct, collectDeps_ok_of, erases_correct and
-#                  erasePure_erases are about (their closure through the library and the shipping
-#                  code; kind and flags included) hash as in proof/spec.pin, the pin of the
-#                  approved statements: every pinned constant present, and the toolchain and git
-#                  dependency revisions of both packages, always; the whole pin, in the final form.
-#                  See the header of tools/Report.lean.
+#                  EraseProof.Test.NV1.final, whose hypothesis terms lie within them (skipped
+#                  with --no-final); C12b, always: the statement definitions and the library
+#                  definitions they reach (kind and flags included; the shipping code and the
+#                  dependencies by name only) have the SHA-256 digests of proof/spec.pin, every
+#                  pinned constant exists, and the toolchain and git dependency revisions of both
+#                  packages are the pinned ones. See the header of tools/Report.lean.
 #   nv1-emit  C11  the part of C11 that needs no peregrine: proof/tools/NVEmit.lean runs #erase's
 #                  entry point on NV-1's program and fails unless it emits exactly the program the
 #                  final instance is about. Runs once tools/NVEmit.lean exists; required by
@@ -76,7 +77,7 @@ for a in "$@"; do
     --no-regress) regress=0 ;;
     --no-peregrine) peregrine=0 ;;
     --no-final) final=(--no-final) ;;
-    -h|--help) sed -n '2,62p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,63p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "error: unknown argument $a" >&2; exit 2 ;;
   esac
 done

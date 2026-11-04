@@ -11,11 +11,14 @@
 #   no-leaves                     C7: every declaration outside EraseProof.Test is reachable from a
 #                                 root of proof/ROOTS.txt, and every test that is not a theorem
 #                                 from a test theorem.
+#   statements and pin            C12, C12b: each proved theorem of EraseProof/Statements.lean has
+#                                 the type of its statement definition; the statement definitions
+#                                 and the definitions they reach have the SHA-256 digests of
+#                                 proof/spec.pin.
+#   kernel replay                 leanchecker replays every module EraseProof.* through the kernel.
 #   final-theorem footprint       C12 (once the final form is reached): EraseProof.erase_correct and
 #                                 its NV-1 instance reach exactly propext, Classical.choice,
-#                                 Quot.sound; its type is that of the approved statement,
-#                                 EraseProof.Test.Stub.erase_correct. Until then CI passes
-#                                 --no-final.
+#                                 Quot.sound. Until then CI passes --no-final.
 #   shipping regression tests     C10: scripts/regress.sh, and scripts/pure-harness.sh, which runs
 #                                 the pure path next to the Meta path on the corpus and checks the
 #                                 committed summary of the programs in the fragment.
