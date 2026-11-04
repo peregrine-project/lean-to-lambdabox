@@ -16,3 +16,5 @@ EraseProof.TrM.fvarsIn EraseProof.erasePure_erases
 EraseProof.TrM.weakFV_let EraseProof.erasePure_erases
 EraseProof.TrM.inst_fvar EraseProof.erasePure_erases
 EraseProof.ctorSat_iota EraseProof.casesOn_whred
+EraseProof.TrM.weakBV EraseProof.TrM.inst
+EraseProof.TrM.weakFV EraseProof.erasePure_erases
