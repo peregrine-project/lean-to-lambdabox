@@ -9,6 +9,7 @@ import EraseProof.Bridge.InstL
 import EraseProof.Bridge.Levels
 import EraseProof.Bridge.Cong
 import EraseProof.Bridge.Det
+import EraseProof.Bridge.Apps
 import EraseProof.Metatheory.NoConf
 import EraseProof.Statements
 import EraseProof.Test.NoConf

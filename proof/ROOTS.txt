@@ -24,3 +24,4 @@ EraseProof.TrM.weakBV EraseProof.TrM.inst
 EraseProof.TrM.weakFV EraseProof.erasePure_erases
 EraseProof.TrM.instLevels EraseProof.ProgEnv.unfold
 EraseProof.TrM.det EraseProof.erasePure_erases
+EraseProof.TrM.apps EraseProof.casesOn_whred
