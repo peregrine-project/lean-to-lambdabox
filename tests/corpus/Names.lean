@@ -50,6 +50,9 @@ private def privTwo : Nm.CNat := Nm.two'
 /-- error: erasure failed: the constants Nm.two_u39 and Nm.two' have the same kername -/
 #guard_msgs (error) in
 #erase Nm.both to "N_collision.default.ast"
+-- With an inductive type in the closure the program is in the fragment too, and fails alike.
+/-- error: erasure failed: the constants Nm.two_u39 and Nm.two' have the same kername -/
+#guard_msgs (error) in
 #erase (Nm.both Nat Nat.succ Nat.zero) config {nat := .peano} to "N_R_collision.peano.ast"
 #erase Nm.dbl₂ config {nat := .peano} to "N_subscript.peano.ast"
 #erase Nm.dbl₂ to "N_subscript.default.ast"

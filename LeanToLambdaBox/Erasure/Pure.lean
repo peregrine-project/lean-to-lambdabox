@@ -4,6 +4,9 @@ import LeanToLambdaBox.Erasure.Collect
 /-!
 # The pure erasability oracle and the pure backend
 
+`Erasure.casesInfo?` recognizes the canonical `casesOn` definitions of a list of declarations, and
+`Erasure.ctorArity?` gives the arity of their constructors, as the `Meta` path's `getCasesInfo?`
+and `getCtorArity?` read them from the environment.
 `Erasure.Pure.isErasable` decides whether a term is erasable (a proof or a type former) over a list
 of declarations, by infer-only retyping and weak-head reduction with the kernel's δ, with fuel.
 `Erasure.PureM` is the monad of the backend without `Meta`, whose environment is the program's
@@ -16,6 +19,128 @@ traversal's recursion and `@[extern]` tests as this backend runs them.
 open Lean
 
 namespace Erasure
+
+/-! ## The canonical `casesOn` recognizer -/
+
+/-- Peel exactly `k` leading `λ`s. Reference: none. -/
+def peelLams : Nat → Expr → Option Expr
+  | 0, e => some e
+  | k + 1, .lam _ _ b _ => peelLams k b
+  | _ + 1, _ => none
+
+/-- The domain of the `i`-th leading `Π` of a type. Reference: none. -/
+def forallDom? : Nat → Expr → Option Expr
+  | 0, .forallE _ t _ _ => some t
+  | i + 1, .forallE _ _ b _ => forallDom? i b
+  | _, _ => none
+
+/-- Number of leading `Π`s. Reference: none. -/
+def forallArity : Expr → Nat
+  | .forallE _ _ b _ => forallArity b + 1
+  | _ => 0
+
+/-- Arity of the `i`-th premise of a recursor type. Reference: none. -/
+def minorArity (ty : Expr) (i : Nat) : Nat := ((forallDom? i ty).map forallArity).getD 0
+
+/-- Head and arguments of an application spine (a structural `Expr.withApp`). Reference: none. -/
+def spine : Expr → Expr × List Expr
+  | .app f a => match spine f with
+    | (h, as) => (h, as ++ [a])
+  | e => (e, [])
+
+/-- `args[i]? = some (.bvar m)`. Reference: none. -/
+def isBVarAt (args : List Expr) (i m : Nat) : Bool :=
+  match args[i]? with
+  | some (.bvar j) => j == m
+  | _ => false
+
+/-- `e = .const c (lps.map .param)`. Reference: none. -/
+def isConstAt (e : Expr) (c : Name) (lps : List Name) : Bool :=
+  match e with
+  | .const c' us => c' == c && us.length == lps.length &&
+      (us.zip lps).all fun | (.param a, b) => a == b | _ => false
+  | _ => false
+
+/-- `e = .bvar m` applied to `.bvar (L-1), …, .bvar (L-nf)`. Reference: none. -/
+def isMinorBody (e : Expr) (m L nf : Nat) : Bool :=
+  match spine e with
+  | (.bvar h, as) => h == m && as.length == nf &&
+      (List.range nf).all fun f => isBVarAt as f (L - 1 - f)
+  | _ => false
+
+/-- One `.ctor` alternative per constructor, with its number of fields. Reference: none. -/
+def ctorAlts (decls : List ConstantInfo) : List Name → Option (List Lean.CasesAltInfo)
+  | [] => some []
+  | c :: cs => match findConst decls c, ctorAlts decls cs with
+    | some (.ctorInfo cv), some as => some (.ctor c cv.numFields :: as)
+    | _, _ => none
+
+/-- Number of fields of the `i`-th alternative. Reference: none. -/
+def altFields (alts : List Lean.CasesAltInfo) (i : Nat) : Nat :=
+  match alts[i]? with
+  | some (.ctor _ k) => k
+  | _ => 0
+
+/-- Total number of constructors of the given inductives. Reference: none. -/
+def blockCtorCount (decls : List ConstantInfo) : List Name → Option Nat
+  | [] => some 0
+  | t :: ts => match findConst decls t, blockCtorCount decls ts with
+    | some (.inductInfo it), some m => some (it.ctors.length + m)
+    | _, _ => none
+
+/-- The canonical-`casesOn` recognizer over the program's declarations: `some` exactly when
+`n = T.casesOn`, `T` a safe, non-nested inductive of `decls` whose recursor `T.rec` (in `decls`)
+has no auxiliary motives, and `n` is a definition of `decls` with the recursor's level parameters
+whose value is the canonical `fun ps motive is t ms => T.rec ps motives' minors' is t` (exactly
+`numParams + 1 + numIndices + 1 + numCtors` leading `λ`s; own motive the `motive` binder; own
+minors `fun fs ihs => mᵢ fs` over all the binders of the recursor's minor premise; the other
+sorts' motives and minors unconstrained); then the `CasesInfo` of `T` (`numParams`, `numIndices`,
+one `.ctor` alternative per constructor with its `numFields`), as `getCasesInfo?` gives it. `none`
+on any mismatch, so a `casesOn` built otherwise (by projections, for a large-eliminating `Prop`
+structure), a sparse `casesOn` and `T.c.elim` are not recognized. Reference: `Lean.getCasesInfo?`
+(`Lean/Meta/CasesInfo.lean`) on the `Meta` path, which reads the declaration's type and the
+environment extensions instead; the value's shape is that of `Lean.mkCasesOn`. -/
+def casesInfo? (decls : List ConstantInfo) (n : Name) : Option Lean.CasesInfo :=
+  match n with
+  | .str T "casesOn" =>
+    match findConst decls n, findConst decls T, findConst decls (mkRecName T) with
+    | some (.defnInfo d), some (.inductInfo I), some (.recInfo R) =>
+      let p := I.numParams
+      let k := I.numIndices
+      let D := p + 1 + k + 1 + I.ctors.length
+      let bv (i : Nat) : Nat := D - 1 - i
+      match R.all.idxOf? T, peelLams D d.value, ctorAlts decls I.ctors,
+        blockCtorCount decls (R.all.take (R.all.idxOf T)) with
+      | some j, some body, some alts, some before =>
+        let (hd, args) := spine body
+        let off := p + R.numMotives + before
+        let idx := p + R.numMotives + R.numMinors
+        let ok := !I.isUnsafe && I.numNested == 0 && d.levelParams == R.levelParams &&
+          R.numMotives == I.all.length && isConstAt hd R.name R.levelParams &&
+          args.length == R.numParams + R.numMotives + R.numMinors + R.numIndices + 1 &&
+          (List.range p).all (fun i => isBVarAt args (i) (bv i)) &&
+          isBVarAt args (p + j) (bv p) &&
+          (List.range alts.length).all (fun i =>
+            let L := minorArity R.type (off + i)
+            match args[off + i]?, peelLams L ((args[off + i]?).getD (.bvar 0)) with
+            | some _, some m => isMinorBody m (L + bv (p + 1 + k + 1 + i)) L (altFields alts i)
+            | _, _ => false) &&
+          (List.range k).all (fun i => isBVarAt args (idx + i) (bv (p + 1 + i))) &&
+          isBVarAt args (idx + k) (bv (p + 1 + k))
+        if ok then
+          some { declName := n, indName := T, arity := D, discrPos := p + 1 + k, motivePos := p,
+                 altsRange := { lower := p + 1 + k + 1, upper := D }, altNumParams := alts.toArray }
+        else none
+      | _, _, _, _ => none
+    | _, _, _ => none
+  | _ => none
+
+/-- The arity (`numParams + numFields`) of a constructor of `decls`. Reference:
+`Compiler.LCNF.getCtorArity?` on the `Meta` path. -/
+def ctorArity? (decls : List ConstantInfo) (n : Name) : Option Nat :=
+  match findConst decls n with
+  | some (.ctorInfo cv) => some (cv.numParams + cv.numFields)
+  | _ => none
 
 /-! ## The pure oracle -/
 
@@ -68,9 +193,11 @@ def alwaysZero : Level → Bool
 def findLocal (ls : List Local) (x : FVarId) : Option Local := ls.find? (·.fvarId == x)
 
 /-- Weak-head normal form: head β (`instantiate1'`), ζ (`letE` and let-bound locals), δ of every
-definition (the kernel's δ), `mdata`. Terms may have loose bound variables. Reference: `hnf`
-(`MR S/PCUICSafeReduce.v:1839`, `RedFlags.default`), as `sort_of_type` uses `reduce_to_sort`
-(`:1853`). -/
+definition (the kernel's δ), `mdata`, and the ι-rule of projections: `proj S i s` whose `s` reduces
+to a constructor application `C ps fs` reduces to `fs[i]` (the kernel's `reduce_proj`). Terms may
+have loose bound variables. Reference: `hnf` (`MR S/PCUICSafeReduce.v:1839`, `RedFlags.default`),
+as `sort_of_type` uses `reduce_to_sort` (`:1853`); projections: `red_proj`
+(`MR P/PCUICReduction.v:82`). -/
 def whnf (cx : Ctx) : Nat → List Local → Expr → Except EraseError Expr
   | 0, _, _ => throw (.fuel "whnf")
   | f+1, ls, .app g a => do
@@ -87,13 +214,44 @@ def whnf (cx : Ctx) : Nat → List Local → Expr → Except EraseError Expr
       if us.length != v.levelParams.length then pure e
       else whnf cx f ls (instLevels v.levelParams us v.value)
     | _ => pure e
+  | f+1, ls, e@(.proj _ i s) => do
+    match spine (← whnf cx f ls s) with
+    | (.const c _, args) => match findConst cx.decls c with
+      | some (.ctorInfo cv) => match args[cv.numParams + i]? with
+        | some a => whnf cx f ls a
+        | none => pure e
+      | _ => pure e
+    | _ => pure e
   | _+1, _, e => pure e
+
+/-- Instantiate the leading `Π`s of a type with the given terms, reducing it with `whnf` before
+each. Reference: the loop over the parameters in `inferProjType` (`Lean/Meta/InferType.lean`). -/
+def instForalls (cx : Ctx) (f : Nat) (ls : List Local) : Expr → List Expr → Except EraseError Expr
+  | r, [] => pure r
+  | r, a :: as => do
+    let .forallE _ _ b _ ← whnf cx f ls r | throw (.failed "not a function")
+    instForalls cx f ls (b.instantiate1' a) as
+
+/-- The `Π`-type of the fields of a structure `S`'s constructor, instantiated with the projections
+`proj S j s` for the fields `j < i`: the type whose leading `Π`'s domain is the type of field `i`.
+Reference: the loop over the fields in `inferProjType` (`Lean/Meta/InferType.lean`). -/
+def instProjs (cx : Ctx) (f : Nat) (ls : List Local) (S : Name) (s : Expr) :
+    Nat → Nat → Expr → Except EraseError Expr
+  | 0, _, r => pure r
+  | n+1, j, r => do
+    let .forallE _ _ b _ ← whnf cx f ls r | throw (.failed "not a function")
+    instProjs cx f ls S s n (j + 1) (b.instantiate1' (.proj S j s))
 
 /-- Infer-only retyping. Binders are opened de Bruijn style: `Γ` holds the types of the binders
 the oracle entered, the traversal's free variables are looked up in `ls`; no names are generated.
-Where it needs a Π or a sort it reduces with `whnf`, as type inference in Lean's kernel does. Reference:
-`type_of_typing` (`MR S/PCUICSafeRetyping.v:806`), as called by
-`MR E/ErasureFunction.v:894 is_erasableb`. -/
+Where it needs a Π or a sort it reduces with `whnf`, as type inference in Lean's kernel does. A
+constant's type is its declared type at the constant's levels, for inductive types, constructors,
+recursors and `casesOn` as for every other constant. A Nat literal has the type `Nat`. A projection
+`proj S i s` has the type of the `i`-th field of `S`'s constructor, instantiated with the
+parameters of `s`'s type and with the projections of `s` for the earlier fields (Lean's
+`inferProjType`). Reference: `type_of_typing` (`MR S/PCUICSafeRetyping.v:806`), as called by
+`MR E/ErasureFunction.v:894 is_erasableb`; projections: `infer` on `tProj`
+(`MR S/PCUICSafeRetyping.v:350`). -/
 def inferType (cx : Ctx) : Nat → List Local → List Expr → Expr → Except EraseError Expr
   | 0, _, _, _ => throw (.fuel "inferType")
   | _+1, _, Γ, .bvar i => match Γ[i]? with
@@ -121,7 +279,26 @@ def inferType (cx : Ctx) : Nat → List Local → List Expr → Expr → Except 
     pure (.sort (.imax u v))
   | f+1, ls, Γ, .letE _ _ v b _ => inferType cx f ls Γ (b.instantiate1' v)
   | f+1, ls, Γ, .mdata _ e => inferType cx f ls Γ e
-  | _+1, _, _, _ => throw (.outOfFragment "literal, projection or metavariable")
+  | _+1, _, _, .lit (.natVal _) => pure (.const ``Nat [])
+  | f+1, ls, Γ, .proj S i s => do
+    match spine (← whnf cx f ls (← inferType cx f ls Γ s)) with
+    | (.const S' us, args) =>
+      match S' == S, findConst cx.decls S with
+      | true, some (.inductInfo I) =>
+        match I.ctors, args.length == I.numParams + I.numIndices with
+        | [c], true => match findConst cx.decls c with
+          | some ci@(.ctorInfo _) =>
+            unless us.length == ci.levelParams.length do throw (.failed "universe arity")
+            let r ← instForalls cx f ls (instLevels ci.levelParams us ci.type)
+              (args.take I.numParams)
+            let .forallE _ d _ _ ← whnf cx f ls (← instProjs cx f ls S s i 0 r)
+              | throw (.failed "invalid projection")
+            pure d
+          | _ => throw (.failed "invalid projection")
+        | _, _ => throw (.failed "invalid projection")
+      | _, _ => throw (.failed "invalid projection")
+    | _ => throw (.failed "invalid projection")
+  | _+1, _, _, _ => throw (.outOfFragment "string literal or metavariable")
 
 /-- Arity test after weak-head reduction. Reference: `is_arity` (`MR E/ErasureFunction.v:784`), PCUIC `isArity` (`MR P/PCUICTyping.v:29`). -/
 def isArity (cx : Ctx) : Nat → List Local → Expr → Except EraseError Bool
@@ -226,11 +403,15 @@ def typeLevel (ls : List Local) (e : Expr) : PureM Level := do
   | .ok u => pure u
   | .error err => throw err
 
-/-- No `casesOn` on the pure path (the fragment has no inductives). Reference: none. -/
-def casesInfo? (_ : Name) : PureM (Option Lean.CasesInfo) := pure none
+/-- `casesInfo? := Erasure.casesInfo? decls`, the canonical-`casesOn` recognizer over the
+program's declarations. Reference: `Lean.getCasesInfo?` on the `Meta` path. -/
+def casesInfo? (n : Name) : PureM (Option Lean.CasesInfo) :=
+  return _root_.Erasure.casesInfo? (← read).decls n
 
-/-- No constructors on the pure path. Reference: none. -/
-def ctorArity? (_ : Name) : PureM (Option Nat) := pure none
+/-- `ctorArity? := Erasure.ctorArity? decls`. Reference: `Compiler.LCNF.getCtorArity?` on the
+`Meta` path. -/
+def ctorArity? (n : Name) : PureM (Option Nat) :=
+  return _root_.Erasure.ctorArity? (← read).decls n
 
 /-- `declInfo? := findConst?` (no `LCNF.getDeclInfo?` redirect to `_unsafe_rec`). Reference:
 the kernel term, as `MR E/ErasureFunction.v:1309 erase_constant_body` erases `cst_body`. -/
@@ -248,8 +429,8 @@ end PureM
 /-- The pure backend: the operations of `PureM`, with `unsafeRecBase?` always `none`;
 type inference is the oracle's `Pure.inferType` at `oracleFuel` on the traversal's locals, and
 `isPropFormerType` and `typeLevel` are the oracle's `Pure.isPropFormerType` and `Pure.typeLevel` at
-`oracleFuel`; every
-constructor field is kept; `isExtern` and `inlineAttr?` read the view; no constant is an instance;
+`oracleFuel`; `casesInfo?` and `ctorArity?` are `Erasure.casesInfo?` and `Erasure.ctorArity?` over
+the declarations; every constructor field is kept; `isExtern` and `inlineAttr?` read the view; no constant is an instance;
 `log` does nothing; a constant missing from the declarations is `outOfFragment`, and fuel
 exhaustion is the error `fuel`. Reference: the environment and retyping operations that
 `MR E/ErasureFunction.v:989 erase` uses. -/

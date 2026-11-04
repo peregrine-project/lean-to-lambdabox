@@ -12,8 +12,14 @@ output of `#erase` on:
   `pidHR := pid hR`, a proof whose type is a proposition only through an `@[irreducible]` alias,
   which the pure path erases to `□` and the `Meta` path keeps, and for which `#erase` logs no
   message about the axioms `R` and `hR`; `@pid.{1}`, with its universe given;
-- programs outside the fragment, which take the `Meta` path: `useMN := mfirstN Nat.zero Nat.zero`
-  (an inductive type; `#erase` inlines `mfirstN`), and `@pid` (a universe metavariable);
+- programs with inductive types in the fragment (register entry S-29), which take the pure path:
+  `useMN := mfirstN Nat.zero Nat.zero` under `nat := .peano` (the pure path keeps the call of the
+  `@[macro_inline]` `mfirstN`); `B.neg B.f`, a canonical `casesOn`; `Eq.casesOn` on
+  `Eq.refl` and on the theorem `hEq`, which the eraser reduces to the alternative;
+  for the last three the pure and the `Meta` paths give the same program; `#erase` writes
+  `B.neg B.f` and the last two applied to `B.t`, which peregrine evaluates to `B.t`;
+- programs outside the fragment, which take the `Meta` path: `useMN` under `nat := .machine`
+  (`Nat.zero`), and `@pid` (a universe metavariable);
 - the error of a program in the fragment whose closure has two constants with the same kername.
 -/
 
@@ -24,6 +30,12 @@ output of `#erase` on:
 -- peregrine: validate pid1.ast
 -- peregrine: eval pid1.ast --anf=false
 -- peregrine: validate useMN.ast
+-- peregrine: validate nv1.ast
+-- peregrine: eval nv1.ast
+-- peregrine: validate nvp.ast
+-- peregrine: eval nvp.ast
+-- peregrine: validate nvk.ast
+-- peregrine: eval nvk.ast
 
 open Lean Elab Command Erasure
 
@@ -53,12 +65,12 @@ def routeElab : CommandElab
     let r := match route view cfg e with
       | .viaPure (.ok _) => "viaPure ok"
       | .viaPure (.error err) => s!"viaPure error ({err.describe})"
-      | .viaMeta => match collectDeps view e with
+      | .viaMeta => match collectDeps view cfg e with
         | .error (.outOfFragment w) => s!"viaMeta ({w})"
         | _ => "viaMeta"
     let saved ← Core.getMessageLog
     let entry ← try pure (some (render (← (eraseEntry view cfg e : CoreM _)))) catch _ => pure none
-    let pure? := match collectDeps view e >>= fun decls => erasePure view cfg decls e with
+    let pure? := match collectDeps view cfg e >>= fun decls => erasePure view cfg decls e with
       | .ok p => some (render p)
       | .error _ => none
     let meta? ← try pure (some (render (← (erase e cfg : CoreM _)))) catch _ => pure none
@@ -95,6 +107,10 @@ attribute [irreducible] IProp
 def two' : CN := fun s z => s (s z)
 def «two_u39» : CN := fun s z => s z
 def both : CN := fun s z => two' s («two_u39» s z)
+
+inductive B | f | t
+def B.neg (b : B) : B := B.casesOn (motive := fun _ => B) b B.t B.f
+theorem hEq : B.t = B.t := rfl
 end ER
 
 /-- info: viaPure ok; eraseEntry = pure: true; eraseEntry = Meta: false -/
@@ -106,9 +122,21 @@ end ER
 /-- info: viaPure ok; eraseEntry = pure: true; eraseEntry = Meta: true -/
 #guard_msgs in
 #route @ER.pid.{1}
-/-- info: viaMeta (inductive type); eraseEntry = pure: false; eraseEntry = Meta: true -/
+/-- info: viaPure ok; eraseEntry = pure: true; eraseEntry = Meta: false -/
 #guard_msgs in
 #route ER.useMN config {nat := .peano}
+/-- info: viaMeta (Nat.zero under nat := .machine); eraseEntry = pure: false; eraseEntry = Meta: true -/
+#guard_msgs in
+#route ER.useMN
+/-- info: viaPure ok; eraseEntry = pure: true; eraseEntry = Meta: true -/
+#guard_msgs in
+#route ER.B.neg ER.B.f
+/-- info: viaPure ok; eraseEntry = pure: true; eraseEntry = Meta: true -/
+#guard_msgs in
+#route @Eq.casesOn ER.B ER.B.t (fun _ _ => ER.B → ER.B) ER.B.t (Eq.refl ER.B.t) (fun y => y)
+/-- info: viaPure ok; eraseEntry = pure: true; eraseEntry = Meta: true -/
+#guard_msgs in
+#route @Eq.casesOn ER.B ER.B.t (fun _ _ => ER.B → ER.B) ER.B.t ER.hEq (fun y => y)
 /-- info: viaMeta (level metavariable); eraseEntry = pure: false; eraseEntry = Meta: true -/
 #guard_msgs in
 #route @ER.pid
@@ -133,6 +161,12 @@ info: val main: unit
 #erase ER.useMN config {nat := .peano} to "useMN.ast"
 #guard_msgs (drop warning, drop info) in
 #erase @ER.pid to "pid.ast"
+#guard_msgs (drop warning, drop info) in
+#erase ER.B.neg ER.B.f to "nv1.ast"
+#guard_msgs (drop warning, drop info) in
+#erase @Eq.casesOn ER.B ER.B.t (fun _ _ => ER.B → ER.B) ER.B.t (Eq.refl ER.B.t) (fun y => y) ER.B.t to "nvp.ast"
+#guard_msgs (drop warning, drop info) in
+#erase @Eq.casesOn ER.B ER.B.t (fun _ _ => ER.B → ER.B) ER.B.t ER.hEq (fun y => y) ER.B.t to "nvk.ast"
 /-- error: erasure failed: the constants ER.two_u39 and ER.two' have the same kername -/
 #guard_msgs (error) in
 #erase ER.both to "both.ast"

@@ -6,13 +6,15 @@ import LeanToLambdaBox
 `scripts/pure-harness.sh` elaborates a copy of each file of `tests/corpus/` that also imports this
 module. The module adds a second elaborator for `#erase`, which Lean tries before the eraser's own.
 For `#erase t [config c] to "f"` it elaborates `t` and `c` as `#erase` does and computes
-`collectDeps (EnvView.ofEnvironment env) t`. If the closure is in the fragment, it also
+`collectDeps (EnvView.ofEnvironment env) c t`. If the closure is in the fragment, it also
 - runs `erasePure` (the pure path) and `Erasure.erase` (the `Meta` path of `#erase`), and writes their
   outputs, in the format of `#erase`, to `f.pure` and `f.meta`, each with its `.inlinings`;
 - runs the traversal again with the backend `CmpM`, whose operations are those of `PureM` and whose
   oracle also asks `Erasure.isErasable` (the `Meta` oracle) in the traversal's local context, and
   whose `isPropFormerType` and `typeLevel` also ask `Meta.isPropFormerType` and `Meta.getLevel` of
-  `Meta.inferType`, and counts the calls of both and the calls where the two answers differ.
+  `Meta.inferType`, and whose `casesInfo?` and `ctorArity?` also ask `getCasesInfo?` and
+  `Compiler.LCNF.getCtorArity?`, and counts the calls of both (of the last two, those at which
+  either answers `some`) and the calls where the two answers differ.
 
 It writes what it found to `f.harness`. Then it declines the command (`throwUnsupportedSyntax`):
 Lean restores the command state and runs the eraser's own elaborator, so `#erase` writes `f` and
@@ -85,6 +87,23 @@ def metaTypeLevel (lctx : LocalContext) (e : Expr) : CoreM String := do
   catch ex =>
     return s!"error {oneLine (← ex.toMessageData.toString)}"
 
+/-- A `casesOn` recognition as text. -/
+def showCases : Option CasesInfo → String
+  | none => "none"
+  | some ci =>
+    let alts := ci.altNumParams.toList.map fun
+      | .ctor c k => s!"{c}/{k}"
+      | .default k => s!"default/{k}"
+    s!"some {ci.indName} arity {ci.arity} discr {ci.discrPos} motive {ci.motivePos} \
+      alts [{ci.altsRange.lower}, {ci.altsRange.upper}) {alts}"
+
+/-- Record a comparison of a recognizer of the pure backend with the `Meta` path's: a call when
+either answers `some`, a difference when the answers differ. -/
+def recordSome (what : String) (p m : String) (isSome : Bool) : CmpM Unit :=
+  modifyThe CmpState fun s =>
+    { calls := if isSome then s.calls + 1 else s.calls,
+      diffs := if p == m then s.diffs else s.diffs.push ⟨what, p, m⟩ }
+
 /-- A term, pretty-printed in a local context, on one line. -/
 def ppIn (lctx : LocalContext) (e : Expr) : CoreM String := do
   let f ← runMetaM lctx (Meta.ppExpr e)
@@ -129,8 +148,16 @@ instance : Backend CmpM where
       { calls := s.calls + 1,
         diffs := if p == m then s.diffs else s.diffs.push ⟨s!"typeLevel {t}", p, m⟩ }
     liftP (Backend.typeLevel (m := PureM) lctx ls e)
-  casesInfo? n := liftP (Backend.casesInfo? n)
-  ctorArity? n := liftP (Backend.ctorArity? n)
+  casesInfo? n := do
+    let r ← liftP (Backend.casesInfo? n)
+    let m ← (getCasesInfo? n : CoreM _)
+    recordSome s!"casesInfo? {n}" (showCases r) (showCases m) (r.isSome || m.isSome)
+    pure r
+  ctorArity? n := do
+    let r ← liftP (Backend.ctorArity? n)
+    let m ← (Compiler.LCNF.getCtorArity? n : CoreM _)
+    recordSome s!"ctorArity? {n}" s!"{r}" s!"{m}" (r.isSome || m.isSome)
+    pure r
   argMask lctx ci := liftP (Backend.argMask lctx ci)
   isExtern n := liftP (Backend.isExtern n)
   inlineAttr? n := liftP (Backend.inlineAttr? n)
@@ -169,7 +196,7 @@ def harness (t : Term) (cfg? : Option Term) (f : String) : TermElabM String := d
     | none => pure {}
     | some c => unsafe Term.evalTerm ErasureConfig (.const ``ErasureConfig []) c
   let view := EnvView.ofEnvironment (← getEnv)
-  match collectDeps view e with
+  match collectDeps view cfg e with
   | .error (.outOfFragment w) => return s!"collectDeps: outOfFragment {w}\n"
   | .error err => return s!"collectDeps: {showErr err}\n"
   | .ok decls =>
