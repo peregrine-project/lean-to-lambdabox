@@ -45,7 +45,7 @@ theorem rename?_map (pre : ζ₁ ⟶ ζ₂) {ℓ m n : Nat} (e : Metalean.Expr �
       Function.comp_def, *]
 
 /-- One step of `Ctx.permuteAux?` (definitional). -/
-theorem permuteAux?_succ {ζ : Metalean.Sigs} {ℓ a b k : Nat} (hb : b = a + k)
+theorem permuteAux?_succ_wk {ζ : Metalean.Sigs} {ℓ a b k : Nat} (hb : b = a + k)
     (π πinv : Fin k → Option (Fin k)) (Δ : Metalean.Ctx ζ ℓ a b) (j : Nat) (hj : j + 1 ≤ k) :
     Metalean.Ctx.permuteAux? hb π πinv Δ (j + 1) hj =
       (do
@@ -64,7 +64,7 @@ theorem permuteAux?_map (pre : ζ₁ ⟶ ζ₂) {ℓ a b k : Nat} (hb : b = a + 
   induction j with
   | zero => rfl
   | succ j ih =>
-    rw [permuteAux?_succ, permuteAux?_succ, ih (by omega)]
+    rw [permuteAux?_succ_wk, permuteAux?_succ_wk, ih (by omega)]
     rcases Metalean.Ctx.permuteAux? hb π πinv Δ j (by omega) with _ | Γ
     · rfl
     · simp [Option.bind_map, Option.map_bind, Function.comp_def, ← Metalean.Ctx.entry_map,
@@ -211,7 +211,7 @@ theorem leanCaseType_map (pre : ζ₁ ⟶ ζ₂) {ι : IndSig} {ℓ n : Nat} (I 
 
 open Metalean in
 /-- One step of `leanCaseBinders` (definitional). -/
-theorem leanCaseBinders_succ {ζ : Sigs} {ι : IndSig} {ℓ : Nat} (I : Inductive ζ ι)
+theorem leanCaseBinders_succ_wk {ζ : Sigs} {ι : IndSig} {ℓ : Nat} (I : Inductive ζ ι)
     (η : Head ζ (.inductive ι)) (ls : Fin ι.nlevels → Level ℓ)
     (mos : (t : Fin ι.nsorts) → Fin (ι.nctors t) → List Nat) (k : Nat)
     (h : k + 1 ≤ Fin.sum ι.nctors) :
@@ -237,7 +237,7 @@ theorem leanCaseBinders_map (pre : ζ₁ ⟶ ζ₂) {ι : IndSig} {ℓ : Nat} (I
   induction k with
   | zero => rfl
   | succ k ih =>
-    rw [leanCaseBinders_succ, leanCaseBinders_succ, ih (by omega)]
+    rw [leanCaseBinders_succ_wk, leanCaseBinders_succ_wk, ih (by omega)]
     rcases Frontend.leanCaseBinders I η ls mos k (by omega) with e | Γ
     · rfl
     · show (Frontend.leanCaseType _ _ _ _ _ _ _ _ >>= _) =
