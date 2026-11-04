@@ -21,3 +21,4 @@ import EraseProof.Relation.Basic
 import EraseProof.Relation.Deps
 import EraseProof.Test.LBEval
 import EraseProof.Relation.Extend
+import EraseProof.Erasable.Levels
