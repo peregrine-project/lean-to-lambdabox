@@ -22,11 +22,8 @@ EraseProof.TrM.inst_fvar propext,Classical.choice,Quot.sound
 EraseProof.TrM.weakBV propext,Classical.choice,Quot.sound
 EraseProof.TrM.weakFV propext,Classical.choice,Quot.sound
 EraseProof.TrM.weakFV_let propext,Classical.choice,Quot.sound
-EraseProof.TypeEq.forallE_ne_ind propext,Classical.choice,Quot.sound
 EraseProof.TypeEq.forallE_ne_quot propext,Classical.choice,Quot.sound
 EraseProof.TypeEq.ind_ne_quot propext,Classical.choice,Quot.sound
-EraseProof.TypeEq.sort_ne_forallE propext,Classical.choice,Quot.sound
-EraseProof.TypeEq.sort_ne_ind propext,Classical.choice,Quot.sound
 EraseProof.TypeEq.sort_ne_quot propext,Classical.choice,Quot.sound
 EraseProof.Test.NV1.B1_B propext,Quot.sound
 EraseProof.Test.NV1.B1_f propext,Quot.sound
@@ -152,3 +149,6 @@ EraseProof.Erases.cases_inv propext,Classical.choice,Quot.sound
 EraseProof.IsErasable.instL propext,Classical.choice,Quot.sound
 EraseProof.Erases.instLevels propext,Classical.choice,Quot.sound
 EraseProof.SrcEval.value propext,Quot.sound
+EraseProof.IsErasable.app propext,Classical.choice,Quot.sound
+EraseProof.IsErasable.lam_inv propext,Classical.choice,Quot.sound
+EraseProof.IsErasable.ctor_not propext,Classical.choice,Quot.sound
