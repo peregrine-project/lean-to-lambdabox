@@ -36,3 +36,5 @@ import EraseProof.Core.NonRec
 import EraseProof.Bridge.Order
 import EraseProof.Erasable.Subst
 import EraseProof.Bridge.Wf
+import EraseProof.Bridge.Abstract
+import EraseProof.Relation.Abstract

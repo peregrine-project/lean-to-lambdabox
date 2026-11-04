@@ -17,7 +17,6 @@ EraseProof.Test.toArray_toSubarray propext,Classical.choice,Quot.sound
 EraseProof.Test.withApp_app1 propext
 EraseProof.Test.withApp_const propext
 EraseProof.TrM.det propext,Classical.choice,Quot.sound
-EraseProof.TrM.fvarsIn propext,Classical.choice,Quot.sound
 EraseProof.TrM.inst_fvar propext,Classical.choice,Quot.sound
 EraseProof.TrM.weakBV propext,Classical.choice,Quot.sound
 EraseProof.TrM.weakFV propext,Classical.choice,Quot.sound
@@ -160,3 +159,5 @@ EraseProof.TrM.inst_let propext,Classical.choice,Quot.sound
 EraseProof.ProgEnv.metaOrderOK propext,Classical.choice,Quot.sound
 EraseProof.IsErasable.inst propext,Classical.choice,Quot.sound
 EraseProof.TrM.wf_app propext,Classical.choice,Quot.sound
+EraseProof.TrM.uninstantiateN propext,Classical.choice,Quot.sound
+EraseProof.Erases.abstract propext,Classical.choice,Quot.sound
