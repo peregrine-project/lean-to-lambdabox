@@ -131,7 +131,8 @@ theorem ConstsIn_lift : ∀ {e : Expr} {s d : Nat}, ConstsIn p e →
     ⟨ConstsIn_lift (e := t) h.1, ConstsIn_lift (e := b) h.2⟩
   | .letE _ t v b _, _, _, h =>
     ⟨ConstsIn_lift (e := t) h.1, ConstsIn_lift (e := v) h.2.1, ConstsIn_lift (e := b) h.2.2⟩
-  | .mdata _ e, _, _, h | .proj _ _ e, _, _, h => ConstsIn_lift (e := e) h
+  | .mdata _ e, _, _, h => ConstsIn_lift (e := e) h
+  | .proj _ _ e, _, _, h => ⟨h.1, ConstsIn_lift (e := e) h.2⟩
   | .fvar _, _, _, h | .mvar _, _, _, h | .sort _, _, _, h | .const .., _, _, h
   | .lit _, _, _, h => h
 
@@ -150,7 +151,8 @@ theorem ConstsIn_instantiate1' {a : Expr} (ha : ConstsIn p a) : ∀ {e : Expr} {
   | .letE _ t v b _, _, h =>
     ⟨ConstsIn_instantiate1' ha (e := t) h.1, ConstsIn_instantiate1' ha (e := v) h.2.1,
       ConstsIn_instantiate1' ha (e := b) h.2.2⟩
-  | .mdata _ e, _, h | .proj _ _ e, _, h => ConstsIn_instantiate1' ha (e := e) h
+  | .mdata _ e, _, h => ConstsIn_instantiate1' ha (e := e) h
+  | .proj _ _ e, _, h => ⟨h.1, ConstsIn_instantiate1' ha (e := e) h.2⟩
   | .fvar _, _, h | .mvar _, _, h | .sort _, _, h | .const .., _, h | .lit _, _, h => h
 
 theorem ConstsIn_instLevels {ps : List Name} {us : List Level} : ∀ {e : Expr}, ConstsIn p e →
@@ -161,7 +163,8 @@ theorem ConstsIn_instLevels {ps : List Name} {us : List Level} : ∀ {e : Expr},
   | .letE _ t v b _, h =>
     ⟨ConstsIn_instLevels (e := t) h.1, ConstsIn_instLevels (e := v) h.2.1,
       ConstsIn_instLevels (e := b) h.2.2⟩
-  | .mdata _ e, h | .proj _ _ e, h => ConstsIn_instLevels (e := e) h
+  | .mdata _ e, h => ConstsIn_instLevels (e := e) h
+  | .proj _ _ e, h => ⟨h.1, ConstsIn_instLevels (e := e) h.2⟩
   | .const .., h => h
   | .bvar _, h | .fvar _, h | .mvar _, h | .sort _, h | .lit _, h => h
 
@@ -442,7 +445,7 @@ theorem Erases.extend {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} 
     exact .eta heta' (ih hC')
   case proj =>
     intro _ _ _ _ _ _ _ _ _ hss hid hS hsort _ ih hC
-    exact .proj hss (IndIdOf_sub hsub hid) (findDecl_sub hsub hS) hsort (ih hC)
+    exact .proj hss (IndIdOf_sub hsub hid) (findDecl_sub hsub hS) hsort (ih hC.2)
   case litZero => intro _ _ _ _ hid _; exact .litZero (IndIdOf_sub hsub hid)
   case litSucc => intro _ _ _ _ _ _ hid _ ih hC; exact .litSucc (IndIdOf_sub hsub hid) (ih hC)
   case mdata => intro _ _ _ _ _ _ _ ih hC; exact .mdata (ih hC)
