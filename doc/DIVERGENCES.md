@@ -33,6 +33,35 @@ repository (commit `ca56b85`), which the shipping sources and the ported definit
 whose divergence does not arise against Metalean keeps an entry that says so ("Not applicable
 here"), so that no citation is left without an entry; ids from 23 on are new.
 
+## Trust base
+
+What the statements and the checks rely on without proof:
+
+- Lean's kernel at the pinned toolchain (`lean-toolchain`), and the axioms `propext`,
+  `Classical.choice` and `Quot.sound`: every declaration of the library stays within them (checks
+  C3 to C5), and its modules are replayed through the kernel (check `replay`, `leanchecker`).
+- Metalean at the pinned revision (`9407ba4`, `lake-manifest.json`, pinned in `proof/spec.pin`):
+  its typing (`Metalean.Typing`), conversion and well-formedness `Metalean.EnvWF`, which the
+  statements use as their notion of typing, the way MetaRocq's statements use PCUIC's. Metalean's
+  axiom `Cardinal.exists_inaccessibles` (its set-theoretic model) is never reached (C3).
+- Five total term builders of Metalean's translator, `Metalean.Frontend.indTerm`,
+  `Metalean.Frontend.ctorTerm`, `Metalean.Frontend.recrTerm`, `Metalean.Frontend.wrapCase` and
+  `Metalean.Frontend.quotTerm` (`Metalean/Frontend/Translate.lean`), with the constants they reach
+  (156, none `partial`, `opaque`, `unsafe` or `implemented_by`; check C6 exempts exactly these).
+  The bridge `EraseProof.TrM` (rules of `EraseProof.SatTr`) uses them for the η-terms of
+  constructors, recursors, inductive types and quotients with fewer arguments than their arity
+  (DV-1). They shape the hypotheses `henv` and `he` of the final theorem, and, through
+  `EraseProof.ErasableS` in the rule `EraseProof.Erases.box`, its conclusion: a wrong builder could
+  make the premises unsatisfiable, which the non-vacuity instances would show, or change which
+  terms count as erasable. They are not proved correct; the rest of Metalean's frontend (its
+  `partial` translator and loader) is not used.
+- The statement definitions themselves (`proof/EraseProof/Statements.lean`, with
+  `proof/EraseProof/Spec.lean` and `proof/EraseProof/Target.lean`), which a reader checks against
+  the references with the entries below; `proof/spec.pin` holds a SHA-256 digest of each of them
+  and of every definition of the library they reach (check C12b).
+- The shipping view `Erasure.EnvView.ofEnvironment` (`LeanToLambdaBox/Erasure/Collect.lean`), the
+  environment `#erase` reads: the final theorem assumes it agrees with the program (`hview`).
+
 ## Entries
 
 ### DV-1
