@@ -532,7 +532,7 @@ section
 variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {lps : List Name}
 
 /-- Closing a binder that the traversal opened with a fresh free variable (`mkLambda`,
-`LeanToLambdaBox/Erasure.lean:491`): if the opened body erases to a closed `tb`, the body erases to
+`LeanToLambdaBox/Erasure.lean:508`): if the opened body erases to a closed `tb`, the body erases to
 `abstract x tb` (`LeanToLambdaBox/Basic.lean:149`) under the locals where the binder is a bound
 variable. Reference: `Erases.uninstantiateN` (`L4 Relation/Abstract.lean:170`); none in MetaRocq
 (DV-13). -/

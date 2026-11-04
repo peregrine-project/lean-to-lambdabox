@@ -189,7 +189,7 @@ section
 variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {lps : List Name}
 
 /-- Closing a binder that was opened with a fresh free variable (`mkLambda`,
-`LeanToLambdaBox/Erasure.lean:491`): a body that does not mention `x`, opened with `x`, translates
+`LeanToLambdaBox/Erasure.lean:508`): a body that does not mention `x`, opened with `x`, translates
 under the locals where `x` denotes the binder's variable to the term the body translates to under
 the locals where the binder is a bound variable. The converse of `TrM.inst_fvar`. Reference:
 `TrS.uninstantiateN` (`L4 Typing/Abstract.lean:55`), lean4lean `TrExprS.uninstantiateN`, DV-13. -/

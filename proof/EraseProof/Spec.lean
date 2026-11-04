@@ -532,7 +532,7 @@ def casesMajor (iv : InductiveVal) : Nat := iv.numParams + 1 + iv.numIndices
 def casesArity (iv : InductiveVal) : Nat := casesMajor iv + 1 + iv.ctors.length
 
 /-- The arity of a constructor or recognized `casesOn` head, if it is one (the `arity` that
-`visitConstApp` η-expands to, `LeanToLambdaBox/Erasure.lean:753`). -/
+`visitConstApp` η-expands to, `LeanToLambdaBox/Erasure.lean:773`). -/
 def specialArity (σ : EvalEnv) (c : Name) : Option Nat :=
   match findDecl σ.decls c with
   | some (.ctorInfo cv) => some (cv.numParams + cv.numFields)
@@ -555,7 +555,7 @@ def lamsOf : Nat → Expr → Expr → Option Expr
 /-- The η-expansion of a constructor or recognized `casesOn` spine `c.{us} as` with fewer arguments
 than its arity `ar`: `fun xs => c.{us} as xs` over the remaining `ar - |as|` binders of its type, the
 arguments `as` unevaluated under the new binders. This is the term `withAppEtaToMinArity`
-(`LeanToLambdaBox/Erasure.lean:606`) erases: binders from the Π-binders of the spine's type,
+(`LeanToLambdaBox/Erasure.lean:626`) erases: binders from the Π-binders of the spine's type,
 `visitConstructor`/`visitCases` on the saturated spine. Reference: none (MetaRocq η-expands in λ□,
 `MR E/EEtaExpanded.v`; DV-23). -/
 def EvalEnv.etaSpine? (σ : EvalEnv) (c : Name) (us : List Level) (as : List Expr) : Option Expr :=
@@ -674,14 +674,14 @@ def EvalEnv.spineType? (σ : EvalEnv) (e : Expr) : Option Expr :=
 
 /-- The sort level of the discriminant's type of `T.casesOn.{us}`: `T`'s declared sort at the last
 levels of `us` (a large-eliminating `casesOn` has the motive's level first), what `visitCases` reads
-with `Backend.typeLevel` (`LeanToLambdaBox/Erasure.lean:843`) on a typed discriminant. -/
+with `Backend.typeLevel` (`LeanToLambdaBox/Erasure.lean:868`) on a typed discriminant. -/
 def casesSortLevel (iv : InductiveVal) (us : List Level) : Option Level :=
   (arityShape iv.type).map fun (_, u) =>
     Pure.instLevel iv.levelParams (us.drop (us.length - iv.levelParams.length)) u
 
 /-- `visitCases` reduces `T.casesOn.{us}` at erasure time, without a λ□ `case`: `T` has one
 constructor and the discriminant's sort may be zero (`Level.isNeverZero` fails,
-`LeanToLambdaBox/Erasure.lean:843,870`). -/
+`LeanToLambdaBox/Erasure.lean:868,895`). -/
 def CasesReduced (iv : InductiveVal) (us : List Level) : Prop :=
   iv.ctors.length = 1 ∧ ∃ l, casesSortLevel iv us = some l ∧ l.isNeverZero = false
 
@@ -940,7 +940,7 @@ def BlockNamesInj (decls : List ConstantInfo) : Prop :=
 
 /-! ## 10. The erasure relation -/
 
-/-- The λ□ block name of an inductive (`register_inductive`, `LeanToLambdaBox/Erasure.lean:447`,
+/-- The λ□ block name of an inductive (`register_inductive`, `LeanToLambdaBox/Erasure.lean:464`,
 `mutualBlockKername`, `LeanToLambdaBox/Basic.lean:47`). -/
 def blockKername (iv : InductiveVal) : Kername :=
   mutualBlockKername iv.all
