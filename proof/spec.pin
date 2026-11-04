@@ -68,7 +68,7 @@ body EraseProof.HasNatLit._f 328221469c80876200f55ef73bc2caa03c855795da8b15ac221
 body EraseProof.HasNatLit._sparseCasesOn_1 c1908fcce9b91aea7a8b6b322a94af525f9f9d1e9736fd7abb6e7127bf35d085
 body EraseProof.HasNatLit._sparseCasesOn_2 e689bdfb4c366f7aac9a346f1862cb65935fff0902822e0a5f9754635d7da85d
 body EraseProof.HasNatLit.match_1 2c240727d508f8a63cf9a5ef80601c264b96e14cc5b4a5fe4f54785bacaa699b
-body EraseProof.IndBlock 122bc7a48edafa9cf6e46d43e27eb8cd8ef7ec55f57df227fca98d3590d9db76
+body EraseProof.IndBlock 9f14ac1bc6c9abfa1c3c5aaf7f2cac11bc215d802e983d9ca0223fae48aadd29
 body EraseProof.IndBlock.decls 042c1644a027265f48e2651cf35324ba28cfc314ec99ffe1a560de3eb0baa07d
 body EraseProof.IndIdOf c9a44675ded72773d05d81d67aa1a5ff10d9b8d5f18815dced44eb45c8922257
 body EraseProof.IsArity 891d554675da5b6777c59a3bf6e67d7ab9facd495741b63cc3cc8b3f98d38dc3
@@ -316,6 +316,7 @@ name Erasure.eraseEntry
 name Erasure.erasePure
 name Erasure.indexFields
 name Erasure.mayBeNonZero
+name Erasure.minorArity
 name Except
 name Except.ok
 name Exists
@@ -346,6 +347,7 @@ name HAdd.hAdd
 name HAppend.hAppend
 name HEq
 name HEq.refl
+name HMul.hMul
 name HSub.hSub
 name IO.RealWorld
 name Iff
@@ -545,6 +547,7 @@ name List.rec
 name List.replicate
 name List.reverse
 name List.sum
+name List.take
 name List.toArray
 name Matrix.vecCons
 name Matrix.vecEmpty
@@ -732,11 +735,13 @@ name instDecidableEqBool
 name instDecidableEqNat
 name instHAdd
 name instHAppendOfAppend
+name instHMul
 name instHSub
 name instLENat
 name instLTNat
 name instMonadEIO
 name instMonadOption
+name instMulNat
 name instOfNatNat
 name instSubNat
 name ite

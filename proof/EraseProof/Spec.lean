@@ -387,9 +387,10 @@ def BindsExt {ζ : Metalean.Sigs} {sig : Metalean.Sig} (B : Binds ζ) (B' : Bind
 /-- An inductive block of Lean declarations is the Lean form of the Metalean block at the head `η`
 of `E'` (the environment after the block): the block's types (`Is`), constructors (`Cs`) and
 recursors (`Rs`), their counts and positions (the recursor's parameter, motive, minor and index
-counts are those of the block), Metalean's field orders, the table entries, and the type of every
-constant (`ConstTyped`). Model: `analyzeBlock` (`ML Frontend/Inductive.lean:227`)
-without reproducing it; recursor rules are not related (Metalean has none). -/
+counts are those of the block), the arity of every minor premise of the recursors' Lean types,
+Metalean's field orders, the table entries, and the type of every constant (`ConstTyped`). Model:
+`analyzeBlock` (`ML Frontend/Inductive.lean:227`) without reproducing it; recursor rules are not
+related (Metalean has none). -/
 structure IndBlock {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) {ι : Metalean.IndSig}
     (η : Metalean.Head ζ (.inductive ι)) (lps : List Name) (Is : Fin ι.nsorts → InductiveVal)
     (Cs : (s : Fin ι.nsorts) → Fin (ι.nctors s) → ConstructorVal) (Rs : Fin ι.nsorts → RecursorVal)
@@ -411,6 +412,14 @@ structure IndBlock {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) {ι
     (¬ (E.get η).block.LargeElim → (Rs s).levelParams = lps) ∧ (Rs s).isUnsafe = false ∧
     (Rs s).all = (Is s).all ∧ (Rs s).numParams = ι.nparams ∧ (Rs s).numMotives = ι.nsorts ∧
     (Rs s).numMinors = (List.ofFn fun t => ι.nctors t).sum ∧ (Rs s).numIndices = ι.nindices s
+  /-- The minor premise of constructor `c` of sort `t` in a recursor's Lean type has
+  `nfields + 2 * nrecFields` leading `Π`s, one per field and one per induction hypothesis, as
+  Metalean's ι-rule applies the minor (`iotaRhs`, `ML Syntax/Inductive/Iota.lean:161`). It is the
+  arity the `casesOn` recognizer reads (`Erasure.minorArity`), which `ConstTyped` does not fix:
+  it relates the Lean type to Metalean's up to metadata and definitional equality. -/
+  minors : ∀ s t c, minorArity (Rs s).type
+      (ι.nparams + ι.nsorts + ((List.ofFn fun t => ι.nctors t).take t.val).sum + c.val) =
+    (ι.ctors t c).nfields + 2 * (ι.ctors t c).nrecFields
 
 /-- The Lean declarations of a block, in the order `ProgEnv` adds them. -/
 def IndBlock.decls {ι : Metalean.IndSig} (Is : Fin ι.nsorts → InductiveVal)

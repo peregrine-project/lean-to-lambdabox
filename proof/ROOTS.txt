@@ -13,14 +13,12 @@ EraseProof.TypeEq.sort_ne_quot EraseProof.IsErasable.quotMk_not
 EraseProof.TypeEq.forallE_ne_quot EraseProof.IsErasable.quotMk_not
 EraseProof.TypeEq.ind_ne_quot EraseProof.IsErasable.quotMk_not
 EraseProof.ProgEnv.fresh EraseProof.erasePure_erases
-EraseProof.ProgEnv.lookup_ind EraseProof.casesOn_whred
 EraseProof.proj_defeq EraseProof.SrcEval.defeq
 EraseProof.ProgEnv.unfold EraseProof.SrcEval.defeq
 EraseProof.ProgEnv.lookup EraseProof.Pure.inferType_sound
 EraseProof.TrM.fvarsIn EraseProof.erasePure_erases
 EraseProof.TrM.weakFV_let EraseProof.erasePure_erases
 EraseProof.TrM.inst_fvar EraseProof.erasePure_erases
-EraseProof.ctorSat_iota EraseProof.casesOn_whred
 EraseProof.TrM.weakBV EraseProof.TrM.inst
 EraseProof.TrM.weakFV EraseProof.erasePure_erases
 EraseProof.Erases.closed EraseProof.erases_correct
@@ -35,3 +33,5 @@ EraseProof.Erases.extend EraseProof.erase_correct
 EraseProof.Erases.cases_inv EraseProof.erases_correct
 EraseProof.IsErasable.instL EraseProof.erases_correct
 EraseProof.Erases.instLevels EraseProof.erases_correct
+EraseProof.CasesWhred.casesOn_whred_spine EraseProof.casesOn_whred
+EraseProof.CasesWhred.casesOnLit_whred_spine EraseProof.casesOnLit_whred

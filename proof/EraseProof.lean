@@ -13,6 +13,7 @@ import EraseProof.Bridge.Cases
 import EraseProof.Bridge.Cong
 import EraseProof.Bridge.Det
 import EraseProof.Bridge.Apps
+import EraseProof.Bridge.CasesWhred
 import EraseProof.Metatheory.NoConf
 import EraseProof.Statements
 import EraseProof.Test.NoConf
