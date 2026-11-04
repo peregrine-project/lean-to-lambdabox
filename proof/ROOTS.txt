@@ -49,3 +49,4 @@ EraseProof.ErasesAlt.inst EraseProof.erases_correct
 EraseProof.Pure.isArity_sound EraseProof.Pure.isErasable_sound
 EraseProof.Pure.isErasable_atom EraseProof.erasePure_erases
 EraseProof.Pure.isErasable_ctorProp EraseProof.erasePure_erases
+EraseProof.Pure.isErasable_agree EraseProof.visit_agree
