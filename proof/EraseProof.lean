@@ -39,3 +39,4 @@ import EraseProof.Bridge.Wf
 import EraseProof.Bridge.Abstract
 import EraseProof.Relation.Abstract
 import EraseProof.Relation.Inst
+import EraseProof.Source.Defeq

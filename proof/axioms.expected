@@ -3,12 +3,7 @@
 #   <axioms>: its `#print axioms`, comma-separated in the order propext, Classical.choice,
 #             Quot.sound; `-` for none. sorryAx and Cardinal.exists_inaccessibles never occur.
 # proof/scripts/check.sh compares this file with the computed .check/axioms.actual.
-EraseProof.proj_defeq propext,Classical.choice,Quot.sound
-EraseProof.casesOn_whred propext,Classical.choice,Quot.sound
-EraseProof.casesOnLit_whred propext,Classical.choice,Quot.sound
 EraseProof.ProgEnv.fresh propext,Classical.choice,Quot.sound
-EraseProof.ProgEnv.unfold propext,Classical.choice,Quot.sound
-EraseProof.ProgEnv.lookup propext,Classical.choice,Quot.sound
 EraseProof.Test.bind_ok propext,Classical.choice,Quot.sound
 EraseProof.Test.forIn_toSubarray_size propext,Classical.choice,Quot.sound
 EraseProof.Test.runPure_bind propext,Classical.choice,Quot.sound
@@ -18,7 +13,6 @@ EraseProof.Test.withApp_app1 propext
 EraseProof.Test.withApp_const propext
 EraseProof.TrM.det propext,Classical.choice,Quot.sound
 EraseProof.TrM.inst_fvar propext,Classical.choice,Quot.sound
-EraseProof.TrM.weakBV propext,Classical.choice,Quot.sound
 EraseProof.TrM.weakFV propext,Classical.choice,Quot.sound
 EraseProof.TrM.weakFV_let propext,Classical.choice,Quot.sound
 EraseProof.TypeEq.forallE_ne_quot propext,Classical.choice,Quot.sound
@@ -154,10 +148,7 @@ EraseProof.IsErasable.lam_inv propext,Classical.choice,Quot.sound
 EraseProof.IsErasable.ctor_not propext,Classical.choice,Quot.sound
 EraseProof.SrcEval.restrict propext,Classical.choice,Quot.sound
 EraseProof.isRecursiveDecl_false propext,Classical.choice,Quot.sound
-EraseProof.TrM.inst propext,Classical.choice,Quot.sound
-EraseProof.TrM.inst_let propext,Classical.choice,Quot.sound
 EraseProof.IsErasable.inst propext,Classical.choice,Quot.sound
-EraseProof.TrM.wf_app propext,Classical.choice,Quot.sound
 EraseProof.TrM.uninstantiateN propext,Classical.choice,Quot.sound
 EraseProof.Erases.abstract propext,Classical.choice,Quot.sound
 EraseProof.LBEval.idem propext
@@ -166,3 +157,4 @@ EraseProof.Erases.propProj_box propext,Classical.choice,Quot.sound
 EraseProof.Erases.inst propext,Classical.choice,Quot.sound
 EraseProof.Erases.inst_let propext,Classical.choice,Quot.sound
 EraseProof.ErasesAlt.inst propext,Classical.choice,Quot.sound
+EraseProof.SrcDefeq.sound_of propext,Classical.choice,Quot.sound
