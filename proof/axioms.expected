@@ -153,3 +153,5 @@ EraseProof.SrcEval.value propext,Quot.sound
 EraseProof.IsErasable.app propext,Classical.choice,Quot.sound
 EraseProof.IsErasable.lam_inv propext,Classical.choice,Quot.sound
 EraseProof.IsErasable.ctor_not propext,Classical.choice,Quot.sound
+EraseProof.SrcEval.restrict propext,Classical.choice,Quot.sound
+EraseProof.isRecursiveDecl_false propext,Classical.choice,Quot.sound

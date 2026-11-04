@@ -30,3 +30,5 @@ import EraseProof.Relation.Levels
 import EraseProof.Metatheory.SubstRen
 import EraseProof.Source.Value
 import EraseProof.Erasable.Inv
+import EraseProof.Source.Restrict
+import EraseProof.Core.NonRec
