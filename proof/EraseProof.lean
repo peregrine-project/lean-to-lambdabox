@@ -7,6 +7,8 @@ import EraseProof.Bridge.Subst
 import EraseProof.Bridge.Weak
 import EraseProof.Bridge.InstL
 import EraseProof.Bridge.Levels
+import EraseProof.Bridge.Unfold
+import EraseProof.Bridge.Lookup
 import EraseProof.Metatheory.NoConf
 import EraseProof.Statements
 import EraseProof.Test.NoConf
