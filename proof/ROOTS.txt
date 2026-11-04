@@ -15,7 +15,6 @@ EraseProof.ProgEnv.unfold EraseProof.SrcEval.defeq
 EraseProof.ProgEnv.lookup EraseProof.Pure.inferType_sound
 EraseProof.TrM.weakFV_let EraseProof.erasePure_erases
 EraseProof.TrM.inst_fvar EraseProof.erasePure_erases
-EraseProof.TrM.weakBV EraseProof.Erases.inst
 EraseProof.TrM.weakFV EraseProof.erasePure_erases
 EraseProof.Erases.closed EraseProof.erases_correct
 EraseProof.Erases.app_inv EraseProof.erases_correct
@@ -44,4 +43,4 @@ EraseProof.Erases.abstract EraseProof.erasePure_erases
 EraseProof.LBEval.idem EraseProof.erases_correct
 EraseProof.Erases.ctorProp_box EraseProof.erases_correct
 EraseProof.Erases.propProj_box EraseProof.erases_correct
-EraseProof.Pure.whnf_sound EraseProof.Pure.inferType_sound
+EraseProof.Pure.isArity_sound EraseProof.Pure.isErasable_sound
