@@ -420,6 +420,41 @@ theorem isErasable_of_not_thm {fuel : Nat} {e : Expr} {c : Name} {us : List Leve
       · rename_i hns
         exact .inr ⟨fun u hu => hns u hu, by simpa [pure, Except.pure] using h.symm⟩
 
+/-- On a spine whose head is not a theorem and has an evident proposition as its declared type,
+the oracle answers `true` or fails: the inferred type is an evident proposition, whose sort is
+evidently zero. -/
+theorem isErasable_propShape {fuel : Nat} {e : Expr} {c : Name} {us : List Level} {k : Nat}
+    {ci : ConstantInfo} {b : Bool} (hs : ConstSpine c us k e)
+    (hf : findConst cx.decls c = some ci) (hnt : IsThm ci = false)
+    (hp : PropShape cx.decls ci.type) (h : Pure.isErasable cx fuel ls e = .ok b) : b = true := by
+  obtain ⟨T, ba, h1, h2, hyes, hno⟩ := isErasable_of_not_thm hs hf hnt h
+  have hT := inferType_constSpine_prop hf hp hs h1
+  cases ba
+  · obtain ⟨S, w, h3, h4, hw⟩ := hno rfl
+    obtain ⟨lvl, has, hz⟩ := inferType_propShape hT h3
+    obtain ⟨has', hnm⟩ := whnf_arityShape has h4
+    rcases hw with ⟨u, rfl, rfl⟩ | ⟨hns, -⟩
+    · cases has' with
+      | sort => rw [alwaysZero_eq]; exact hz
+    · cases has' with
+      | sort => exact absurd rfl (hns _)
+      | mdata => exact absurd rfl (hnm _ _)
+  · exact hyes rfl
+
+/-- A constant applied to a list of arguments is its spine. -/
+theorem ConstSpine.mkAppN (c : Name) (us : List Level) (as : List Expr) :
+    ConstSpine c us as.length (Lean.mkAppN (.const c us) as.toArray) := by
+  rw [mkAppN_toArray]
+  suffices ∀ (f : Expr) (k : Nat), ConstSpine c us k f → ∀ as : List Expr,
+      ConstSpine c us (k + as.length) (as.foldl .app f) by
+    simpa using this _ 0 .const as
+  intro f k hf as
+  induction as generalizing f k with
+  | nil => simpa using hf
+  | cons a as ih =>
+    have := ih _ _ (ConstSpine.app (a := a) hf)
+    simpa [Nat.add_assoc, Nat.add_comm 1] using this
+
 end OracleAtom
 
 open OracleAtom in
@@ -441,24 +476,12 @@ theorem Pure.isErasable_atom {cx : Pure.Ctx} {σ : EvalEnv} {e : Expr} {fuel : N
     simp only [Bool.and_eq_true, Bool.or_eq_true] at ha
     obtain ⟨-, hty⟩ := ha
     cases hthm : IsThm ci
-    · obtain ⟨T, ba, h1, h2, hyes, hno⟩ := isErasable_of_not_thm hs hf hthm h
-      rcases hty with (hA | hB) | hT
-      · obtain ⟨⟨n, u⟩, hn⟩ := Option.isSome_iff_exists.1 hA
+    · rcases hty with (hA | hB) | hT
+      · obtain ⟨T, ba, h1, h2, hyes, -⟩ := isErasable_of_not_thm hs hf hthm h
+        obtain ⟨⟨n, u⟩, hn⟩ := Option.isSome_iff_exists.1 hA
         obtain ⟨m, has, -⟩ := inferType_constSpine_arity hf hn hs h1
         exact hyes (isArity_arityShape has h2)
-      · have hp : PropShape cx.decls ci.type := hcx ▸ PropShape.of_evidentProp _ hB
-        have hT := inferType_constSpine_prop hf hp hs h1
-        cases ba
-        · obtain ⟨S, w, h3, h4, hw⟩ := hno rfl
-          obtain ⟨lvl, has, hz⟩ := inferType_propShape hT h3
-          obtain ⟨has', hnm⟩ := whnf_arityShape has h4
-          rcases hw with ⟨u, rfl, rfl⟩ | ⟨hns, -⟩
-          · cases has' with
-            | sort => rw [alwaysZero_eq]; exact hz
-          · cases has' with
-            | sort => exact absurd rfl (hns _)
-            | mdata => exact absurd rfl (hnm _ _)
-        · exact hyes rfl
+      · exact isErasable_propShape hs hf hthm (hcx ▸ PropShape.of_evidentProp _ hB) h
       · rw [hthm] at hT; cases hT
     · obtain ⟨args, hspn⟩ := hs.spine_eq
       unfold Pure.isErasable at h
@@ -467,5 +490,20 @@ theorem Pure.isErasable_atom {cx : Pure.Ctx} {σ : EvalEnv} {e : Expr} {fuel : N
       simp only [hf] at h
       simpa [pure, Except.pure] using h.symm
   · cases ha
+
+open OracleAtom in
+/-- On a spine of a constructor whose declared type is an evident proposition (the constructor of
+an inductive declared in `Prop`, with the type Lean's kernel gives constructors: `Π` binders around
+the inductive applied to its parameters and indices), the oracle answers `true` or fails, never
+`false`, for every list of locals and without a typing hypothesis: the spine's inferred type is an
+evident proposition, whose sort is evidently zero. Reference: `isErasable` on propositional
+constructors (`MR E/Extract.v:106 erases_tConstruct`, `~~ isPropositional`); DV-11. -/
+theorem Pure.isErasable_ctorProp {cx : Pure.Ctx} {σ : EvalEnv} {c : Name} {cv : ConstructorVal}
+    {us : List Level} {as : List Expr} {fuel : Nat} {ls : List Local} {b : Bool}
+    (hcx : cx.decls = σ.decls) (hc : findDecl σ.decls c = some (.ctorInfo cv))
+    (hp : EvidentProp σ.decls cv.type = true)
+    (h : Pure.isErasable cx fuel ls (mkAppN (.const c us) as.toArray) = .ok b) : b = true :=
+  isErasable_propShape (ci := .ctorInfo cv) (ConstSpine.mkAppN c us as) (by rw [hcx]; exact hc) rfl
+    (hcx ▸ PropShape.of_evidentProp _ hp) h
 
 end EraseProof

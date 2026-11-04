@@ -165,3 +165,4 @@ EraseProof.Erases.inst_let propext,Classical.choice,Quot.sound
 EraseProof.ErasesAlt.inst propext,Classical.choice,Quot.sound
 EraseProof.Pure.isArity_sound propext,Classical.choice,Quot.sound
 EraseProof.Pure.isErasable_atom propext,Quot.sound
+EraseProof.Pure.isErasable_ctorProp propext,Quot.sound
