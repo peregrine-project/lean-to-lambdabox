@@ -6,9 +6,6 @@
 # Every declaration of EraseProof outside EraseProof.Test must be reachable from a root or from a
 # statement definition (tools/Report.lean, `statements`); no root may be reachable from another
 # root.
-EraseProof.TypeEq.sort_ne_forallE EraseProof.IsErasable.ctor_not
-EraseProof.TypeEq.sort_ne_ind EraseProof.IsErasable.ctor_not
-EraseProof.TypeEq.forallE_ne_ind EraseProof.IsErasable.ctor_not
 EraseProof.TypeEq.sort_ne_quot EraseProof.IsErasable.quotMk_not
 EraseProof.TypeEq.forallE_ne_quot EraseProof.IsErasable.quotMk_not
 EraseProof.TypeEq.ind_ne_quot EraseProof.IsErasable.quotMk_not
@@ -35,3 +32,7 @@ EraseProof.Erases.instLevels EraseProof.erases_correct
 EraseProof.casesOn_whred EraseProof.SrcEval.defeq
 EraseProof.casesOnLit_whred EraseProof.SrcEval.defeq
 EraseProof.Defeq.inst_tele EraseProof.TrM.inst
+EraseProof.SrcEval.value EraseProof.erases_correct
+EraseProof.IsErasable.app EraseProof.erases_correct
+EraseProof.IsErasable.lam_inv EraseProof.erases_correct
+EraseProof.IsErasable.ctor_not EraseProof.erases_correct
