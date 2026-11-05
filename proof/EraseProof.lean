@@ -49,3 +49,4 @@ import EraseProof.Source.ProofSound
 import EraseProof.Bridge.SatTyped
 import EraseProof.Erasable.Atom
 import EraseProof.Simulation.Cases
+import EraseProof.Simulation.Ind
