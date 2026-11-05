@@ -162,3 +162,4 @@ EraseProof.Pure.isErasable_ctorProp propext,Quot.sound
 EraseProof.Pure.isErasable_agree propext,Classical.choice,Quot.sound
 EraseProof.SrcProof.ctor_evidentProp propext,Classical.choice,Quot.sound
 EraseProof.ErasableS.eval propext,Classical.choice,Quot.sound
+EraseProof.SatTr.typed propext,Classical.choice,Quot.sound
