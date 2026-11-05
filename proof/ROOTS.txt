@@ -45,3 +45,4 @@ EraseProof.erases_correct_proj EraseProof.erases_correct
 EraseProof.erases_correct_projProp EraseProof.erases_correct
 EraseProof.erases_correct_casesProof EraseProof.erases_correct
 EraseProof.erases_correct_casesLitZero EraseProof.erases_correct
+EraseProof.OracleInfer.infer_projStruct EraseProof.Pure.inferType_sound

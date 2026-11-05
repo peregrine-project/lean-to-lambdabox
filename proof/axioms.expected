@@ -162,3 +162,4 @@ EraseProof.Test.NVPK.withApp_ee propext
 EraseProof.ErasesAlt.succ_inv propext,Classical.choice,Quot.sound
 EraseProof.substl_cons_closed propext,Quot.sound
 EraseProof.OracleInfer.inferOK propext,Classical.choice,Quot.sound
+EraseProof.OracleInfer.infer_projStruct propext,Classical.choice,Quot.sound
