@@ -33,7 +33,6 @@ EraseProof.Pure.isErasable_atom EraseProof.erasePure_erases
 EraseProof.Pure.isErasable_ctorProp EraseProof.erasePure_erases
 EraseProof.Pure.isErasable_agree EraseProof.visit_agree
 EraseProof.SrcProof.ctor_evidentProp EraseProof.erasePure_erases
-EraseProof.ErasableS.eval EraseProof.erases_correct
 EraseProof.SatTr.typed EraseProof.Pure.inferType_sound
 EraseProof.Pure.inferType_recr EraseProof.Pure.inferType_sound
 EraseProof.erases_correct_beta EraseProof.erases_correct
