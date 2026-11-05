@@ -2639,6 +2639,39 @@ the calls at which the two oracles answer differently. It must equal
   `PEREGRINE`. `scripts/pure-harness.sh` passes with its expected summary unchanged (294 `#erase`,
   223 in the fragment; 8298 oracle calls, 14 differ, none fails).
 
+## S-34: The pure oracle erases an application spine headed by a theorem
+
+- **Commit:** the commit whose subject starts with `S-34:` (`git log --grep='^S-34:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure/Pure.lean`: `Pure.isErasable` answers `true` when its term's head
+    (`spine`) is a constant declared as a theorem in the closure, before it infers the type; its
+    docstring.
+  - new `tests/regress/thm_atom_pure.lean` with its goldens.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** found by the verification work on the oracle. The pure oracle has no
+  recursor ι (`Pure.whnf`), so it does not see that a theorem is a proof when the sort of its
+  statement is `Prop` only through ι: with `def Sel (b : Bool) : Type := Bool.casesOn
+  (motive := fun _ => Type) b Prop Prop`, `def Y : Sel true := True` and `theorem thm : Y`, it
+  answers `false` on `thm`. The traversal then visits `thm` as a constant to translate, which the
+  pure path cannot (a theorem has no translated body). Lean's kernel requires a theorem's
+  statement to be a proposition, and an application of a proof of a proposition is again a proof,
+  so every application spine headed by a theorem is erasable; this needs no reduction.
+- **Behaviour before:** under `nat := .peano`, the oracle answers `false` on `thm` and on
+  `thmF Nat.zero` (`theorem thmF (_ : Nat) : Y`), and `#erase` of `use := thm` and of
+  `useF := thmF Nat.zero`, both in the fragment, fails with
+  `erasure failed: outside the fragment: unknown constant`.
+- **Behaviour after:** the oracle answers `true` on both spines; `use := □` and `useF := □`, which
+  peregrine evaluates to □. The `Meta` path is unchanged (its oracle reduces `Sel true` to `Prop`
+  and boxes the constants themselves).
+- **Effect on emitted .ast (corpus):** byte-identical for all 710 files against the corpus of S-33;
+  `PANIC` counts unchanged.
+- **Regression test:** `thm_atom_pure` checks the oracle's answers on `thm`, `thmF Nat.zero` and
+  `use`, that `use` and `useF` take the pure path, and pins their `#erase` outputs, which
+  peregrine validates and evaluates. Before this commit the oracle answers `false` on both
+  theorem spines and both `#erase` fail. `scripts/regress.sh` passes (19 tests), with and without
+  `PEREGRINE`. `scripts/pure-harness.sh` passes with its expected summary unchanged (294 `#erase`,
+  223 in the fragment; 8298 oracle calls, 14 differ, none fails).
+
 ---
 
 ## Reported, not fixed

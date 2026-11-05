@@ -455,8 +455,8 @@ theorem Erases.extend {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} 
   case done => intro _ _ _ _ _ _ ih hC; exact .done (ih hC)
   case alam => intro _ _ _ _ _ _ _ _ _ _ _ hA hAt _ ih hC; exact .lam hA hAt (ih hC.2)
   case intro =>
-    intro _ _ _ _ _ _ _ _ _ _ _ hne he hty _ ih hC
-    exact .intro hne he hty (ih ⟨ConstsIn_lift hC, trivial⟩)
+    intro _ _ _ _ _ _ _ _ _ _ _ he hty _ ih hC
+    exact .intro he hty (ih ⟨ConstsIn_lift hC, trivial⟩)
 
 
 end EraseProof

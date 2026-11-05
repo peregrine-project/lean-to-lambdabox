@@ -129,7 +129,7 @@ def statements : Array (Name × Name) := #[
 /-- The theorems of `statements` that are not proved yet; C12 reports them and compares the others
 with their statements. -/
 def unproved : Array Name := #[`EraseProof.erase_correct, `EraseProof.collectDeps_ok_of,
-  `EraseProof.erases_correct, `EraseProof.erasePure_erases]
+  `EraseProof.erasePure_erases]
 
 /-- The statement definitions, whose definitions C12b pins. -/
 def pinRoots : Array Name := statements.map (·.2)

@@ -206,8 +206,8 @@ theorem ProgEnv.levelsInfo {P : List ConstantInfo} (h : ProgEnv P ζ E B) {c : N
       ∃ η : Metalean.Head ζ (.const .def d.levelParams.length), B c = some (.const η)) := by
   induction h with
   | nil => simp [findDecl] at hc
-  | @«axiom» _ _ _ _ v _ _ _ _ htr ih | @thm _ _ _ _ v _ _ _ _ _ htr _ ih
-  | @«opaque» _ _ _ _ v _ _ _ _ _ _ htr ih =>
+  | @«axiom» _ _ _ _ v _ _ _ _ _ htr ih | @thm _ _ _ _ v _ _ _ _ _ _ htr _ ih
+  | @«opaque» _ _ _ _ v _ _ _ _ _ _ _ htr ih =>
     rw [findDecl_cons] at hc
     split at hc
     · cases hc
@@ -218,7 +218,7 @@ theorem ProgEnv.levelsInfo {P : List ConstantInfo} (h : ProgEnv P ζ E B) {c : N
         exact ⟨ι, η.there, s, k, o, by rw [set_wk_ne (Ne.symm ‹_›), hB]; rfl, hl⟩
       · obtain ⟨η, hB⟩ := h3 d hd
         exact ⟨η.there, by rw [set_wk_ne (Ne.symm ‹_›), hB]; rfl⟩
-  | @defn _ _ _ _ v _ _ _ _ _ _ htr _ ih =>
+  | @defn _ _ _ _ v _ _ _ _ _ _ _ htr _ ih =>
     rw [findDecl_cons] at hc
     split at hc
     · rename_i hn
@@ -233,7 +233,7 @@ theorem ProgEnv.levelsInfo {P : List ConstantInfo} (h : ProgEnv P ζ E B) {c : N
         exact ⟨ι, η.there, s, k, o, by rw [set_wk_ne (Ne.symm ‹_›), hB]; rfl, hl⟩
       · obtain ⟨η, hB⟩ := h3 d hd
         exact ⟨η.there, by rw [set_wk_ne (Ne.symm ‹_›), hB]; rfl⟩
-  | @induct _ _ _ _ ι _ _ _ Is Cs Rs _ _ _ _ hext hblk hct ih =>
+  | @induct _ _ _ _ ι _ _ _ Is Cs Rs _ _ _ _ _ hext hblk hct ih =>
     rw [findDecl_append] at hc
     cases hd : findDecl (IndBlock.decls Is Cs Rs) c with
     | some ci' =>
@@ -259,7 +259,7 @@ theorem ProgEnv.levelsInfo {P : List ConstantInfo} (h : ProgEnv P ζ E B) {c : N
         exact ⟨ι', η.there, s, k, o, by rw [hext c hnot, Binds.wk, hB]; rfl, hl⟩
       · obtain ⟨η, hB⟩ := h3 d hdf
         exact ⟨η.there, by rw [hext c hnot, Binds.wk, hB]; rfl⟩
-  | @quot _ _ _ _ _ qs _ _ _ _ _ hext hq ih =>
+  | @quot _ _ _ _ _ qs _ _ _ _ _ _ hext hq ih =>
     rw [findDecl_append] at hc
     cases hd : findDecl (qs.reverse.map ConstantInfo.quotInfo) c with
     | some ci' =>
@@ -359,10 +359,6 @@ theorem instLevels_mkAppN (f : Expr) (as : List Expr) :
     Pure.instLevels ps us (mkAppN f as.toArray) =
       mkAppN (Pure.instLevels ps us f) (as.map (Pure.instLevels ps us)).toArray := by
   rw [mkAppN_toArray, instLevels_foldl, ← mkAppN_toArray]
-
-theorem instLevels_eq_lam {e : Expr} {x : Name} {A b : Expr} {bi : BinderInfo}
-    (h : Pure.instLevels ps us e = .lam x A b bi) : ∃ A' b', e = .lam x A' b' bi := by
-  cases e <;> simp only [Pure.instLevels] at h <;> first | (cases h; exact ⟨_, _, rfl⟩) | cases h
 
 end
 
@@ -630,15 +626,13 @@ theorem Erases.instL_gen (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P)
     rw [MLCtx.instL_pushLam] at this
     exact .lam (hA.instL hus) (let ⟨_, h⟩ := hAt; ⟨_, by simpa using h.instLevel ls⟩) this
   case intro =>
-    intro e _ _ _ _ _ _ _ _ _ _ hne he hty' _ ih hok
+    intro _ _ _ e _ _ _ _ _ _ _ he hty' _ ih hok
     have := ih ⟨LvlOK_lift hok, trivial⟩
     rw [MLCtx.instL_pushLam,
       show Pure.instLevels lps' us (.app (e.liftLooseBVars' 0 1) (.bvar 0)) =
         .app ((Pure.instLevels lps' us e).liftLooseBVars' 0 1) (.bvar 0) by
           rw [← instLevels_lift]; rfl] at this
-    refine .intro (fun x A b bi h => ?_) (he.instL hus) (by simpa using hty'.instLevel ls) this
-    obtain ⟨A', b', rfl⟩ := instLevels_eq_lam _ _ h
-    exact hne x A' b' bi rfl
+    exact .intro (he.instL hus) (by simpa using hty'.instLevel ls) this
 
 end
 

@@ -3,6 +3,7 @@
 # of the shipping code or of a dependency, pinned by name), `toolchain <name>` and
 # `dep <package> <rev>` (the root package's lean-toolchain and lake-manifest.json). Written by
 # `tools/Report.lean --write-pin`; proof/scripts/check.sh compares it.
+body EraseProof.ArityTypes 31f83019c923006be2a6de45e5294e1031e48c6a350f99800e5c4ce2e525b68c
 body EraseProof.AtomSpine cd7afc66010a6a73f8d3cae6968cd3e2ff51935941d10ca8d26f7fdf94d713a9
 body EraseProof.Binds 246e3ff32dc3420c02e8cbde2b0fa841a8a0114b4126ac697159c9fff1f4b706
 body EraseProof.Binds.set c083b196c1cecf393dcb445d815f465bd47e24744b1849ecf6e280cb6123c125
@@ -28,7 +29,7 @@ body EraseProof.EmitsConst._sparseCasesOn_1 9a12a3607e0cb7b686d3eac177ff2fa1273c
 body EraseProof.EmitsConst.match_1 6cf5a15bd3bbc1955fb0acb1c27a6b38689ae6797d54b3905061bceb5731b086
 body EraseProof.ErasableS 7f0343f2b0927295a26875d99cb3caa89ba46ed173b66dacb1c79c719f92236c
 body EraseProof.Erases b5cab70d07af8a363b4647d4f5a3189fa9b9b4ffdaa999e9bccb94f7ce884e02
-body EraseProof.ErasesAlt d8ce4d8233d3002626a5d7b5138bac8776d06c5a358134803d89d12d4d0bbca8
+body EraseProof.ErasesAlt 67fa8b302f955714fac7b8a39f76c0efd78061f0db655acc94a43b1e01971a4e
 body EraseProof.ErasesDecl e212870c5423c11e79fc542d66541d40a1065a6e1348da067249b819a1d3293d
 body EraseProof.ErasesDecl.match_1 b05ec0ef0e9012c82adf205e423a65e5f4814e245764aa12922433738c85fb65
 body EraseProof.ErasesDeps d7a1acce06c48d48c6607b72dd109315c2ec56a5e1cd364d5527fbbd13da120a
@@ -68,7 +69,7 @@ body EraseProof.HasNatLit._f 328221469c80876200f55ef73bc2caa03c855795da8b15ac221
 body EraseProof.HasNatLit._sparseCasesOn_1 c1908fcce9b91aea7a8b6b322a94af525f9f9d1e9736fd7abb6e7127bf35d085
 body EraseProof.HasNatLit._sparseCasesOn_2 e689bdfb4c366f7aac9a346f1862cb65935fff0902822e0a5f9754635d7da85d
 body EraseProof.HasNatLit.match_1 2c240727d508f8a63cf9a5ef80601c264b96e14cc5b4a5fe4f54785bacaa699b
-body EraseProof.IndBlock 9f14ac1bc6c9abfa1c3c5aaf7f2cac11bc215d802e983d9ca0223fae48aadd29
+body EraseProof.IndBlock 80f04422d57c5668281e3b0b52f2ebfd6f7c9cf4efe9a0a528ccb9a1f6aa88a3
 body EraseProof.IndBlock.decls 042c1644a027265f48e2651cf35324ba28cfc314ec99ffe1a560de3eb0baa07d
 body EraseProof.IndIdOf c9a44675ded72773d05d81d67aa1a5ff10d9b8d5f18815dced44eb45c8922257
 body EraseProof.IsArity 891d554675da5b6777c59a3bf6e67d7ab9facd495741b63cc3cc8b3f98d38dc3
@@ -126,7 +127,7 @@ body EraseProof.PhaseIDecl.match_1 24d75a2367aa309633d3d0679588c96c83106f2b49bfa
 body EraseProof.PlainExpr 2bd6f652f6cb8ae7300e68dea38805e2e5a9a206a26ad8c7f4306a6acc5eabc8
 body EraseProof.PlainExpr._f f30a62902e82f5361687c2cbdb88a8ee2cb329bc374ef5b13702d41cbc2854f1
 body EraseProof.PlainExpr.match_1 59ba7db01d940767d97971c2b4f7174a76589d342961f6f6b6bf67b0d8eff239
-body EraseProof.ProgEnv 9643a67acdf9b638127a009211e3953bdc1576430fa03e333645530ceb4cc83f
+body EraseProof.ProgEnv 87c9f29dfbbfc6c7359e7e70a65cd52ca4f961eab0be19ac2524acdafa3ba7fd
 body EraseProof.PropInductive 858aadbee8f5f32581dbc82c814a998f46a104b9feffa87cd5cf5bd42ac17517
 body EraseProof.PropProj 670328ff997185b9b2890b04bbe82b1c2436a37f5fb77adfc74f664a3ff29870
 body EraseProof.ReadClosed 3f2e4c2c90e602743cd62a1b3a1f666fd8f7a640cc67e73e09a65ca8f53aba91
@@ -238,6 +239,7 @@ body EraseProof.natSig.match_1 d9db9ef4ae560c97b75130a0a177bb18c9332deb8c01ea540
 body EraseProof.natSuccSig 549d77127656d2c001e0a8b3ad1575fd4a9e5ac9ad36242a0c78c7788f317fed
 body EraseProof.natSuccSig._proof_1 0d41e502a0773a25aa89d7d6fcb1e937a70ff75a4ad6db7b2b1ac3e1fa92f543
 body EraseProof.natZeroSig f33610c57dbccd820dc47dbc52c2d606596286d7bded3bb182d5e60ea989bb5b
+body EraseProof.peelForalls e645e539e3aed8d88e29ddd2c1b4ee914108e35742509aab614a0f5abc92445e
 body EraseProof.piInst 55c2be5dff0ea14b22d2445e67f8d78730612ccfdae6be8ec7bbe792feaffda2
 body EraseProof.piInst._f 56ecbe83f38c991caafe09572355cb70ba985431798746ac34b8c92e0d3eb0fe
 body EraseProof.piInst._sparseCasesOn_1 7ba485e7bd7b019fb1ed2aed92e88729d73b0654814944955b2fc94c028c40b8
@@ -433,6 +435,7 @@ name Lean.Exception
 name Lean.Expr
 name Lean.Expr.app
 name Lean.Expr.below
+name Lean.Expr.bindingBody!
 name Lean.Expr.brecOn
 name Lean.Expr.bvar
 name Lean.Expr.casesOn
@@ -444,6 +447,7 @@ name Lean.Expr.getAppArgs
 name Lean.Expr.getAppFn
 name Lean.Expr.getAppNumArgs
 name Lean.Expr.instantiate1'
+name Lean.Expr.isForall
 name Lean.Expr.lam
 name Lean.Expr.letE
 name Lean.Expr.liftLooseBVars'
@@ -678,6 +682,7 @@ name Nat.decLt
 name Nat.hasNotBit
 name Nat.instAddMonoid
 name Nat.instNeZeroSucc
+name Nat.iterate
 name Nat.land
 name Nat.le
 name Nat.le.casesOn
@@ -760,5 +765,5 @@ name toKername
 root EraseProof.collectDeps_ok_of_statement d50fcf92b842e8d85c5dc3d07ad2fc57bdf5c56b18213066e1e4822843fbff3d
 root EraseProof.erasePure_erases_statement b66a7ea0724e83bb466b06d7daa784275118b54bf1c11393a0b905a32299d527
 root EraseProof.erase_correct_statement 881a50df2e710f7c2b57987fecc10d9c770d8a230be23dfff963e28c2eb0ae83
-root EraseProof.erases_correct_statement b5840f862aa974ba53cbf4de6a33003a987f518f2006dea7bd2d8081556f4abf
+root EraseProof.erases_correct_statement b2dd8a491b5f03281497ebed457bad900d74a91f3b0e582e04d6d0d54b8704d9
 toolchain leanprover/lean4:v4.35.0-rc2

@@ -131,8 +131,8 @@ theorem ProgEnv.block (h : ProgEnv P ζ E B) :
       BlockAt P B η lps Is Cs Rs orders := by
   induction h with
   | nil => intro ι η; cases η
-  | @«axiom» _ _ _ _ v _ hP hfr _ _ ih | @defn _ _ _ _ v _ _ hP hfr _ _ _ _ ih
-  | @thm _ _ _ _ v _ hP hfr _ _ _ _ ih | @«opaque» _ _ _ _ v _ hP hfr _ _ _ _ ih =>
+  | @«axiom» _ _ _ _ v _ hP hfr _ _ _ ih | @defn _ _ _ _ v _ _ hP hfr _ _ _ _ _ ih
+  | @thm _ _ _ _ v _ hP hfr _ _ _ _ _ ih | @«opaque» _ _ _ _ v _ hP hfr _ _ _ _ _ ih =>
     intro ι η
     cases η with
     | there η =>
@@ -147,7 +147,7 @@ theorem ProgEnv.block (h : ProgEnv P ζ E B) :
         simp only [List.mem_singleton] at hx; subst hx
         simp only [Binds.set, ite_true, Option.some.injEq] at hb; subst hb
         exact ⟨fun _ _ _ h => (nomatch h), fun _ _ _ _ _ h => (nomatch h)⟩
-  | @induct _ _ _ _ ι' I B' lps' Is' Cs' Rs' orders' hP hnd hfr hext hblk _ ih =>
+  | @induct _ _ _ _ ι' I B' lps' Is' Cs' Rs' orders' hP hnd hfr _ hext hblk _ ih =>
     intro ι η
     have hbnd : ∀ ci ∈ IndBlock.decls Is' Cs' Rs', ∀ b, B' ci.name = some b →
         (∃ s, b = .ind .here s) ∨ (∃ s c, b = .ctor .here s c (orders' s c)) ∨
@@ -200,7 +200,7 @@ theorem ProgEnv.block (h : ProgEnv P ζ E B) :
       · obtain ⟨ci, hci, rfl⟩ := List.mem_map.mp hx
         rcases hbnd ci hci b hbx with ⟨s, rfl⟩ | ⟨s, c, rfl⟩ | ⟨s, os, rfl⟩ <;>
           exact ⟨fun _ _ _ h => (nomatch h), fun _ _ _ _ _ h => (nomatch h)⟩
-  | @quot _ _ _ _ _ qs B' hP _ _ hfr hext hq ih =>
+  | @quot _ _ _ _ _ qs B' hP _ _ hfr _ hext hq ih =>
     intro ι η
     cases η with
     | there η =>
@@ -339,7 +339,7 @@ theorem trM_spine_inv {h : Expr} (hns : ¬ SpecialHead B h) :
     | _ => cases hx
 
 /-- A saturated spine of a recursor translates to the Metalean recursor node, the arguments
-translated one by one, the minors wrapped by `wrapCase`. -/
+translated one by one, the minors wrapped by `wrapCase`, at the translated levels. -/
 theorem trM_recr_inv {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n}
     {R : Name} {us : List Level} {args : List Expr} {t : Metalean.Expr ζ lps.length n}
     {ι : Metalean.IndSig} {η : Head ζ (.inductive ι)} {s : Fin ι.nsorts}
@@ -360,7 +360,8 @@ theorem trM_recr_inv {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx
           (fun p => A (Metalean.IndSig.RecrBinder.param (s := s) p).resolve)
           (fun t => A (Metalean.IndSig.RecrBinder.motive (s := s) t).resolve) mins
           (fun i => A (Metalean.IndSig.RecrBinder.index i).resolve)
-          (A (Metalean.IndSig.RecrBinder.major (ι := ι) (s := s)).resolve) := by
+          (A (Metalean.IndSig.RecrBinder.major (ι := ι) (s := s)).resolve) ∧
+      ∃ us', RecrLevels (E.get η).block lps us l us' ∧ TrLevels lps us' ι.nlevels = some ls := by
   obtain ⟨init, last, rfl⟩ : ∃ init last, args = init ++ [last] := by
     rcases List.eq_nil_or_concat args with h0 | ⟨L, b, h1⟩
     · subst h0; simp at hlen
@@ -381,13 +382,13 @@ theorem trM_recr_inv {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx
     cases hb
     cases hsat with
     | recrEta _ _ _ hlt => omega
-    | recrSat mo A rest mins _ _ hmo hw =>
+    | recrSat mo A rest mins hrl htl hmo hw =>
       have hrest : rest = [] := by
         apply List.eq_nil_of_length_eq_zero
         simp only [List.length_append, List.length_ofFn] at hl hlen
         omega
       subst hrest
-      refine ⟨_, _, mo, A, mins, fun i => ?_, hmo, hw, rfl⟩
+      refine ⟨_, _, mo, A, mins, fun i => ?_, hmo, hw, rfl, _, hrl, htl⟩
       have hi : i.val < (init ++ [last]).length := by rw [hlen]; exact i.isLt
       refine ⟨_, List.getElem?_eq_getElem hi,
         hargs i.val _ (A i) (List.getElem?_eq_getElem hi) ?_⟩
@@ -718,7 +719,7 @@ theorem casesOn_whred_core {σ : EvalEnv} {c : Name} {iv : InductiveVal} {args :
     rw [← hxs.length_eq]; simp; omega
   obtain ⟨Θ, b, Γ', hdef, hb⟩ := trM_peel _ hbody htrv
   rw [hbdy] at hb
-  obtain ⟨lsR, lR, mo, A, mins, hA, hmo', hw, hbeq⟩ := trM_recr_inv (hrec s) hrecrEnd hb
+  obtain ⟨lsR, lR, mo, A, mins, hA, hmo', hw, hbeq, -⟩ := trM_recr_inv (hrec s) hrecrEnd hb
   let g : Fin (casesArity (Is s)) → Metalean.Expr ζ lps.length n := fun j => xs[j.val]'(by omega)
   let σ₀ : Metalean.Subst ζ lps.length 0 n := Fin.elim0
   have hδβ : E ⊢ (Metalean.Expr.const ηc lsc).appList xs ⤳* b{lsc}.subst (Fin.append σ₀ g) := by

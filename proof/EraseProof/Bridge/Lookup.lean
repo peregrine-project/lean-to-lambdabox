@@ -16,7 +16,7 @@ open Metalean (Sigs Sig Env Entry Head EnvWF)
 namespace EraseProof
 
 /-- Instantiating the universe parameters by themselves is the identity on a level. -/
-private theorem instLevel_self (ps : List Name) : ∀ u : Level,
+theorem instLevel_self (ps : List Name) : ∀ u : Level,
     Pure.instLevel ps (ps.map .param) u = u
   | .zero => rfl
   | .succ u => by simp [Pure.instLevel, instLevel_self ps u]
@@ -133,7 +133,7 @@ theorem ProgEnv.lookup {c : Name} {ci : ConstantInfo} (h : ProgEnv P ζ E B) (hE
     (hc : findDecl P c = some ci) : ∃ b, B c = some b ∧ ConstTyped E B ci := by
   induction h with
   | nil => simp [findDecl] at hc
-  | @«axiom» _ _ _ _ v t hP hfr _ ht ih =>
+  | @«axiom» _ _ _ _ v t hP hfr _ _ ht ih =>
     have hE' := envWF_prev hE
     rw [findDecl_cons] at hc
     split at hc
@@ -143,7 +143,7 @@ theorem ProgEnv.lookup {c : Name} {ci : ConstantInfo} (h : ProgEnv P ζ E B) (hE
         (hP.set_ext hfr _) ht⟩
     · obtain ⟨b, hb, hct⟩ := ih hE' hc
       exact ⟨_, hP.set_ext hfr _ _ _ hb, hct.wkEnv (hP.set_ext hfr _)⟩
-  | @defn _ _ _ _ v t e hP hfr _ _ ht _ ih =>
+  | @defn _ _ _ _ v t e hP hfr _ _ _ ht _ ih =>
     have hE' := envWF_prev hE
     rw [findDecl_cons] at hc
     split at hc
@@ -153,7 +153,7 @@ theorem ProgEnv.lookup {c : Name} {ci : ConstantInfo} (h : ProgEnv P ζ E B) (hE
         (hP.set_ext hfr _) ht⟩
     · obtain ⟨b, hb, hct⟩ := ih hE' hc
       exact ⟨_, hP.set_ext hfr _ _ _ hb, hct.wkEnv (hP.set_ext hfr _)⟩
-  | @thm _ _ _ _ v t hP hfr _ _ ht _ ih =>
+  | @thm _ _ _ _ v t hP hfr _ _ _ ht _ ih =>
     have hE' := envWF_prev hE
     rw [findDecl_cons] at hc
     split at hc
@@ -163,7 +163,7 @@ theorem ProgEnv.lookup {c : Name} {ci : ConstantInfo} (h : ProgEnv P ζ E B) (hE
         (hP.set_ext hfr _) ht⟩
     · obtain ⟨b, hb, hct⟩ := ih hE' hc
       exact ⟨_, hP.set_ext hfr _ _ _ hb, hct.wkEnv (hP.set_ext hfr _)⟩
-  | @«opaque» _ _ _ _ v t hP hfr _ _ _ ht ih =>
+  | @«opaque» _ _ _ _ v t hP hfr _ _ _ _ ht ih =>
     have hE' := envWF_prev hE
     rw [findDecl_cons] at hc
     split at hc
@@ -173,7 +173,7 @@ theorem ProgEnv.lookup {c : Name} {ci : ConstantInfo} (h : ProgEnv P ζ E B) (hE
         (hP.set_ext hfr _) ht⟩
     · obtain ⟨b, hb, hct⟩ := ih hE' hc
       exact ⟨_, hP.set_ext hfr _ _ _ hb, hct.wkEnv (hP.set_ext hfr _)⟩
-  | @induct _ _ _ _ ι _ _ _ Is Cs Rs _ hP _ hfr hext hblk hct ih =>
+  | @induct _ _ _ _ ι _ _ _ Is Cs Rs _ hP _ hfr _ hext hblk hct ih =>
     have hE' := envWF_prev hE
     rw [findDecl_append] at hc
     cases hd : findDecl (IndBlock.decls Is Cs Rs) c with
@@ -191,7 +191,7 @@ theorem ProgEnv.lookup {c : Name} {ci : ConstantInfo} (h : ProgEnv P ζ E B) (hE
       simp only [Option.none_or] at hc
       obtain ⟨b, hb, hct'⟩ := ih hE' hc
       exact ⟨_, hP.ext_ext hfr hext _ _ hb, hct'.wkEnv (hP.ext_ext hfr hext)⟩
-  | @quot _ _ _ _ _ qs _ hP _ _ hfr hext hq ih =>
+  | @quot _ _ _ _ _ qs _ hP _ _ hfr _ hext hq ih =>
     have hE' := envWF_prev hE
     rw [findDecl_append] at hc
     have hfr' : ∀ ci ∈ qs.map ConstantInfo.quotInfo, findDecl _ ci.name = none :=

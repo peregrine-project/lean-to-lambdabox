@@ -13,7 +13,7 @@ terms and declarations and Metalean terms and environments (`MBinding`, `Binds`,
 `MLCtx`, `SatTr`, `TrM`, `ProgEnv`), the source semantics (`EvalEnv`, atoms, `SrcEval`),
 erasability (`IsArity`, `IsErasable`, `ErasableS`), the closure predicates (`ConstsIn`,
 `KernameInj`, `SubEnv`, `evalEnvOf`, `ViewAgrees`), the sufficient condition for the fragment
-(`ReadClosed`, `PhaseIDecl`, `PlainExpr`, `RecFree`, `BlockNamesInj`), and the erasure relation
+(`ReadClosed`, `PhaseIDecl`, `PlainExpr`, `RecFree`, `BlockNamesInj`, `ArityTypes`), and the erasure relation
 (`Erases`, `ErasesAlt`, `ErasesInd`, `ErasesDecl`, `ErasesDeps`). λ□ evaluation is
 `EraseProof/Target.lean`.
 
@@ -394,11 +394,17 @@ def BindsExt {ζ : Metalean.Sigs} {sig : Metalean.Sig} (B : Binds ζ) (B' : Bind
     (names : List Name) : Prop :=
   ∀ n, n ∉ names → B' n = B.wk n
 
+/-- The body of a type under exactly its first `k` `Π`-binders (the `Π` analogue of
+`Erasure.peelLams`, `LeanToLambdaBox/Erasure/Pure.lean:26`). -/
+def peelForalls (k : Nat) (e : Expr) : Option Expr :=
+  (fun o : Option Expr => o.bind fun e => if e.isForall then some e.bindingBody! else none)^[k]
+    (some e)
+
 /-- An inductive block of Lean declarations is the Lean form of the Metalean block at the head `η`
 of `E'` (the environment after the block): the block's types (`Is`), constructors (`Cs`) and
 recursors (`Rs`), their counts and positions (the recursor's parameter, motive, minor and index
-counts are those of the block), the arity of every minor premise of the recursors' Lean types,
-Metalean's field orders, the table entries, and the type of every constant (`ConstTyped`). Model:
+counts are those of the block), the shape of every constructor's and every recursor's Lean type, the arity of every
+minor premise of the recursors' Lean types, Metalean's field orders, the table entries, and the type of every constant (`ConstTyped`). Model:
 `analyzeBlock` (`ML Frontend/Inductive.lean:227`) without reproducing it; recursor rules are not
 related (Metalean has none). -/
 structure IndBlock {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) {ι : Metalean.IndSig}
@@ -416,12 +422,30 @@ structure IndBlock {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) {ι
     (Cs s c).numFields = (ι.ctors s c).nfields + (ι.ctors s c).nrecFields ∧
     (Cs s c).isUnsafe = false ∧
     MetaOrderOK (orders s c) (ι.ctors s c).nfields (ι.ctors s c).nrecFields
+  /-- The Lean type of a constructor is `Π (params) (fields), I.{lps} params indices`: under its
+  `nparams + numFields` leading `Π`s it is the inductive at the block's level parameters applied
+  to the parameters, as the bound variables of the leading binders, and to the indices, as Lean's
+  kernel checks (`is_valid_ind_app`). `ConstTyped` relates the type to Metalean's only up to
+  definitional equality. -/
+  ctorType : ∀ s c, ∃ body idx, peelForalls (ι.nparams + (Cs s c).numFields) (Cs s c).type =
+      some body ∧ idx.length = ι.nindices s ∧
+    body = mkAppN (.const (Is s).name (lps.map .param))
+      ((List.range ι.nparams).reverse.map (fun i => .bvar (i + (Cs s c).numFields)) ++ idx).toArray
   recr : ∀ s, (Rs s).name = mkRecName (Is s).name ∧
     B (Rs s).name = some (.recr η s (List.ofFn fun t => List.ofFn fun c => orders t c)) ∧
     ((E.get η).block.LargeElim → ∃ u, (Rs s).levelParams = u :: lps) ∧
     (¬ (E.get η).block.LargeElim → (Rs s).levelParams = lps) ∧ (Rs s).isUnsafe = false ∧
     (Rs s).all = (Is s).all ∧ (Rs s).numParams = ι.nparams ∧ (Rs s).numMotives = ι.nsorts ∧
     (Rs s).numMinors = (List.ofFn fun t => ι.nctors t).sum ∧ (Rs s).numIndices = ι.nindices s
+  /-- The Lean type of a recursor is `Π (params) (motives) (minors) (indices) (major),
+  motive_s indices major`: under its `recrEnd s` leading `Π`s it is the variable of the motive of
+  sort `s` (the binder at position `nparams + s`) applied to the variables of the indices and of the
+  major, as Lean's kernel generates it (`mk_rec_infos`, `declare_recursors`,
+  `src/kernel/inductive.cpp`). `ConstTyped` relates the type to Metalean's only up to definitional
+  equality. -/
+  recrType : ∀ s, peelForalls (ι.recrEnd s) (Rs s).type = some (mkAppN
+    (.bvar (ι.recrEnd s - 1 - (ι.nparams + s.val)))
+    ((List.range (ι.nindices s + 1)).reverse.map .bvar).toArray)
   /-- The minor premise of constructor `c` of sort `t` in a recursor's Lean type has
   `nfields + 2 * nrecFields` leading `Π`s, one per field and one per induction hypothesis, as
   Metalean's ι-rule applies the minor (`iotaRhs`, `ML Syntax/Inductive/Iota.lean:161`). It is the
@@ -462,30 +486,33 @@ def ConstsIn (p : Name → Prop) : Expr → Prop
 Metalean environment `E` with name table `B`, one entry per declaration (block), after Metalean's
 loader (`ML Checker/Slow/Loader.lean:55-139`): safe axioms, definitions (`all = [name]`: no
 recursion), theorems as `opaque` (`:122-127`), opaques, inductive blocks, quotients (with `Eq`).
-Names are fresh. The value of a theorem or an opaque, which Metalean does not load, does not
-mention the declaration itself, as the kernel checks it before adding the declaration. Reference:
+Names are fresh, and the universe parameters of each declaration are distinct, as Lean's kernel
+checks (`check_duplicated_univ_params`). The value of a theorem or an opaque, which Metalean does
+not load, does not mention the declaration itself, as the kernel checks it before adding the
+declaration. Reference:
 `wf_ext Σ` (`MR P/PCUICTyping.v:507`), lean4lean `TrEnv'` (`L4 Env.lean:39`); DV-3. -/
 inductive ProgEnv : List ConstantInfo → (ζ : Metalean.Sigs) → Metalean.Env ζ → Binds ζ → Prop
   | nil : ProgEnv [] .nil .nil fun _ => none
   | «axiom» {v : AxiomVal} {t : Metalean.Expr ζ v.levelParams.length 0} :
-      ProgEnv P ζ E B → findDecl P v.name = none → v.isUnsafe = false →
+      ProgEnv P ζ E B → findDecl P v.name = none → v.levelParams.Nodup → v.isUnsafe = false →
       TrM E B v.levelParams .nil [] v.type t →
       ProgEnv (.axiomInfo v :: P) (ζ.snoc (.const .«axiom» v.levelParams.length))
         (E.snoc (.«axiom» t)) (B.wk.set v.name (.const .here))
   | defn {v : DefinitionVal} {t e : Metalean.Expr ζ v.levelParams.length 0} :
-      ProgEnv P ζ E B → findDecl P v.name = none → v.safety = .safe → v.all = [v.name] →
+      ProgEnv P ζ E B → findDecl P v.name = none → v.levelParams.Nodup → v.safety = .safe →
+      v.all = [v.name] →
       TrM E B v.levelParams .nil [] v.type t → TrM E B v.levelParams .nil [] v.value e →
       ProgEnv (.defnInfo v :: P) (ζ.snoc (.const .def v.levelParams.length))
         (E.snoc (.def t e)) (B.wk.set v.name (.const .here))
   | thm {v : TheoremVal} {t : Metalean.Expr ζ v.levelParams.length 0} :
-      ProgEnv P ζ E B → findDecl P v.name = none → v.all = [v.name] →
+      ProgEnv P ζ E B → findDecl P v.name = none → v.levelParams.Nodup → v.all = [v.name] →
       ConstsIn (· ≠ v.name) v.value →
       TrM E B v.levelParams .nil [] v.type t → E[.nil] ⊢ t : .prop →
       ProgEnv (.thmInfo v :: P) (ζ.snoc (.const .«opaque» v.levelParams.length))
         (E.snoc (.«opaque» t)) (B.wk.set v.name (.const .here))
   | «opaque» {v : OpaqueVal} {t : Metalean.Expr ζ v.levelParams.length 0} :
-      ProgEnv P ζ E B → findDecl P v.name = none → v.isUnsafe = false → v.all = [v.name] →
-      ConstsIn (· ≠ v.name) v.value → TrM E B v.levelParams .nil [] v.type t →
+      ProgEnv P ζ E B → findDecl P v.name = none → v.levelParams.Nodup → v.isUnsafe = false →
+      v.all = [v.name] → ConstsIn (· ≠ v.name) v.value → TrM E B v.levelParams .nil [] v.type t →
       ProgEnv (.opaqueInfo v :: P) (ζ.snoc (.const .«opaque» v.levelParams.length))
         (E.snoc (.«opaque» t)) (B.wk.set v.name (.const .here))
   | induct {ι : Metalean.IndSig} {I : Metalean.Inductive ζ ι} {B' : Binds (ζ.snoc (.inductive ι))}
@@ -495,6 +522,7 @@ inductive ProgEnv : List ConstantInfo → (ζ : Metalean.Sigs) → Metalean.Env 
       ProgEnv P ζ E B →
       ((IndBlock.decls Is Cs Rs).map (·.name)).Nodup →
       (∀ ci ∈ IndBlock.decls Is Cs Rs, findDecl P ci.name = none) →
+      (∀ ci ∈ IndBlock.decls Is Cs Rs, ci.levelParams.Nodup) →
       BindsExt B B' ((IndBlock.decls Is Cs Rs).map (·.name)) →
       IndBlock (E.snoc (.inductive I)) B' .here lps Is Cs Rs orders →
       (∀ ci ∈ IndBlock.decls Is Cs Rs, ConstTyped (E.snoc (.inductive I)) B' ci) →
@@ -503,7 +531,8 @@ inductive ProgEnv : List ConstantInfo → (ζ : Metalean.Sigs) → Metalean.Env 
       {B' : Binds (ζ.snoc .quot)} :
       ProgEnv P ζ E B → B ``Eq = some (.ind ηEq 0) →
       qs.map (·.name) = [``Quot, ``Quot.mk, ``Quot.lift, ``Quot.ind] →
-      (∀ q ∈ qs, findDecl P q.name = none) → BindsExt B B' (qs.map (·.name)) →
+      (∀ q ∈ qs, findDecl P q.name = none) → (∀ q ∈ qs, q.levelParams.Nodup) →
+      BindsExt B B' (qs.map (·.name)) →
       (∀ q ∈ qs, B' q.name = some (.quot .here (quotKindOf q.kind)) ∧
         ConstTyped (E.snoc (.quot ηEq)) B' (.quotInfo q)) →
       ProgEnv (qs.reverse.map .quotInfo ++ P) (ζ.snoc .quot) (E.snoc (.quot ηEq)) B'
@@ -938,6 +967,15 @@ def BlockNamesInj (decls : List ConstantInfo) : Prop :=
     (mutualBlockKername iv₁.all = mutualBlockKername iv₂.all → iv₁.all = iv₂.all) ∧
     ∀ ci ∈ decls, EmitsConst ci = true → toKername ci.name ≠ mutualBlockKername iv₁.all
 
+/-- The declared type of every inductive of `decls` is syntactically an arity `Π x̄, Sort u`
+(`arityShape`), which the fragment test checks on every inductive of the closure
+(`Erasure.sortDecided`, run by `Erasure.collectDeps`): Lean's kernel also accepts an inductive
+whose type reaches its sort only through δ, whose sort `casesSortLevel` cannot read. Reference:
+`ind_arity_eq` (`MR common/theories/EnvironmentTyping.v:1651`), which requires the syntactic
+arity. -/
+def ArityTypes (decls : List ConstantInfo) : Prop :=
+  ∀ iv, (∃ ci ∈ decls, ci = .inductInfo iv) → (arityShape iv.type).isSome
+
 /-! ## 10. The erasure relation -/
 
 /-- The λ□ block name of an inductive (`register_inductive`, `LeanToLambdaBox/Erasure.lean:464`,
@@ -1096,7 +1134,9 @@ inductive Erases {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (lps 
   | box : ErasableS E B lps Γ Δ e → Erases E B lps σ Γ Δ e .box
 
 /-- A `casesOn` alternative erased under its `k` field binders: leading λs are peeled, missing
-ones η-introduced (`lambdaOrIntroToArity`, `LeanToLambdaBox/Erasure.lean:592`). Reference: the
+ones η-introduced (`lambdaOrIntroToArity`, `LeanToLambdaBox/Erasure.lean:592`). A λ may also be
+η-introduced (`intro` has no shape premise): its branch is then a λ□ β-redex of the peeled one, and
+the relation is closed under substituting a λ for an alternative that is a variable. Reference: the
 branches of `MR E/Extract.v:111 erases_tCase`. -/
 inductive ErasesAlt {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (lps : List Name)
     (σ : EvalEnv) : {n : Nat} → Metalean.Ctx ζ lps.length 0 n → MLCtx ζ lps.length n → Nat →
@@ -1105,7 +1145,7 @@ inductive ErasesAlt {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (l
   | lam : TrM E B lps Γ Δ A A' → E[Γ] ⊢ A' typ →
       ErasesAlt E B lps σ (Γ.snoc A') (Δ.pushLam none) k b (ns, t) →
       ErasesAlt E B lps σ Γ Δ (k + 1) (.lam x A b bi) (binderNameOf x :: ns, t)
-  | intro : (∀ x A b bi, e ≠ .lam x A b bi) → TrM E B lps Γ Δ e e' →
+  | intro : TrM E B lps Γ Δ e e' →
       E[Γ] ⊢ e' : .forallE A' B'' →
       ErasesAlt E B lps σ (Γ.snoc A') (Δ.pushLam none) k (.app (e.liftLooseBVars' 0 1) (.bvar 0))
         (ns, t) →
