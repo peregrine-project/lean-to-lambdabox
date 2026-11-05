@@ -44,3 +44,4 @@ EraseProof.ErasesAlt.zero_inv EraseProof.erases_correct
 EraseProof.ErasesAlt.succ_inv EraseProof.erases_correct
 EraseProof.substl_cons_closed EraseProof.erases_correct
 EraseProof.OracleInfer.inferOK EraseProof.Pure.inferType_sound
+EraseProof.OracleInfer.infer_projStruct EraseProof.Pure.inferType_sound
