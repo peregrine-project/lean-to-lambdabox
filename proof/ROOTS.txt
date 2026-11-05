@@ -35,3 +35,4 @@ EraseProof.StateOK.empty EraseProof.erasePure_erases
 EraseProof.StateOK.kername EraseProof.erasePure_erases
 EraseProof.addAxiom_ok EraseProof.erasePure_erases
 EraseProof.get_constant_kername_ok EraseProof.erasePure_erases
+EraseProof.collectDeps_machineFree EraseProof.erasePure_erases

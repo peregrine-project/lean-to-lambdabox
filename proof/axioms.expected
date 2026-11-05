@@ -152,3 +152,4 @@ EraseProof.StateOK.empty propext,Classical.choice,Quot.sound
 EraseProof.StateOK.kername propext,Classical.choice,Quot.sound
 EraseProof.addAxiom_ok propext,Classical.choice,Quot.sound
 EraseProof.get_constant_kername_ok propext,Classical.choice,Quot.sound
+EraseProof.collectDeps_machineFree propext,Classical.choice,Quot.sound

@@ -1,5 +1,6 @@
 import EraseProof.Core.Collect
 import EraseProof.Oracle.Agree
+import EraseProof.Core.Frame
 
 /-!
 # What the fragment test guarantees
@@ -152,6 +153,47 @@ theorem exprConsts_ok {cfg : ErasureConfig} : ∀ {e : Expr} {cs : List Name},
     obtain ⟨c1, n1, f1⟩ := exprConsts_ok he
     exact ⟨⟨List.mem_cons_self, ConstsIn_mono (fun _ h => List.mem_cons_of_mem _ h) c1⟩,
       fun hn => List.mem_cons_of_mem _ (n1 hn), f1⟩
+
+/-- A successful `exprConsts` under `nat := .machine` leaves neither `Nat.succ` nor `Int.casesOn`
+in the term. -/
+theorem exprConsts_machineFree {cfg : ErasureConfig} : ∀ {e : Expr} {cs : List Name},
+    exprConsts cfg e = .ok cs → MachineFree cfg e
+  | .bvar _, _, _ | .sort _, _, _ | .lit _, _, _ => trivial
+  | .fvar _, _, h | .mvar _, _, h => by rw [exprConsts] at h; cases h
+  | .const c _, cs, h => by
+    rw [exprConsts] at h
+    intro hm
+    split at h
+    · cases h
+    · rw [hm] at h
+      dsimp only at h
+      split at h
+      · cases h
+      · rename_i hnc
+        refine ⟨fun h' => hnc ?_, fun h' => hnc ?_⟩ <;> simp [h']
+  | .app f a, cs, h => by
+    rw [exprConsts] at h
+    obtain ⟨xs, hf, h⟩ := OracleWhnf.ok_of_bind h
+    obtain ⟨ys, ha, -⟩ := OracleWhnf.ok_of_bind h
+    exact ⟨exprConsts_machineFree hf, exprConsts_machineFree ha⟩
+  | .lam _ t b _, cs, h | .forallE _ t b _, cs, h => by
+    rw [exprConsts] at h
+    obtain ⟨xs, ht, h⟩ := OracleWhnf.ok_of_bind h
+    obtain ⟨ys, hb, -⟩ := OracleWhnf.ok_of_bind h
+    exact ⟨exprConsts_machineFree ht, exprConsts_machineFree hb⟩
+  | .letE _ t v b _, cs, h => by
+    rw [exprConsts] at h
+    obtain ⟨xs, ht, h⟩ := OracleWhnf.ok_of_bind h
+    obtain ⟨ys, hv, h⟩ := OracleWhnf.ok_of_bind h
+    obtain ⟨zs, hb, -⟩ := OracleWhnf.ok_of_bind h
+    exact ⟨exprConsts_machineFree ht, exprConsts_machineFree hv, exprConsts_machineFree hb⟩
+  | .mdata _ e, cs, h => by
+    rw [exprConsts] at h
+    exact exprConsts_machineFree (e := e) h
+  | .proj _ _ e, cs, h => by
+    rw [exprConsts] at h
+    obtain ⟨xs, he, -⟩ := OracleWhnf.ok_of_bind h
+    exact exprConsts_machineFree (e := e) he
 
 /-! ## One step of the closure -/
 
@@ -1246,5 +1288,23 @@ theorem collectDeps_spec {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds �
     obtain ⟨-, -, b, hb⟩ := (declExclusion_ok (closureStep_spec hcs').1).2.2.2.2.2.1 iv rfl
     obtain ⟨n, u, hsh, -⟩ := sortDecided_ok hb
     rw [hsh]; rfl
+
+open CollectSub CollectSpec in
+/-- The term and every expression the traversal reads from the fragment test's closure mention
+neither `Nat.succ` nor `Int.casesOn` under `nat := .machine` (`MachineFree`, the premise of
+`visit_agree`): `Erasure.exprConsts` excludes both and scans each of them. Reference: none. -/
+theorem collectDeps_machineFree {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ}
+    {P decls : List ConstantInfo} {lps : List Name} {e : Expr} {t : Metalean.Expr ζ lps.length 0}
+    {view : EnvView} {cfg : ErasureConfig} (henv : ProgEnv P ζ E B)
+    (hview : ViewAgrees view P) (he : TrM E B lps .nil [] e t)
+    (h : collectDeps view cfg e = .ok decls) :
+    MachineFree cfg e ∧ ∀ ci ∈ decls, ∀ x, ReadExpr decls ci x → MachineFree cfg x := by
+  obtain ⟨cs, cases, hcs, hcl, -, -, -⟩ := CollectSpec.collectDeps_ok h
+  obtain ⟨hsub, -, -, -, -, hscan⟩ := closure_ok henv hview hcl nofun
+    ((TrM.namesIn henv he).exprConsts hcs) List.nodup_nil nofun
+  have hr : Run P view cfg decls cases := ⟨ProgEnv.names_closed henv, hview, hsub, hscan⟩
+  refine ⟨exprConsts_machineFree hcs, fun ci hci x hx => ?_⟩
+  obtain ⟨xs, hxs, -⟩ := hr.read hci hx
+  exact exprConsts_machineFree hxs
 
 end EraseProof
