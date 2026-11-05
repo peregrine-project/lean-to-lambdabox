@@ -153,17 +153,21 @@ structure NamesClosed (P : List ConstantInfo) (ci : ConstantInfo) : Prop where
   induct : ∀ iv, ci = .inductInfo iv → (∀ n ∈ iv.ctors, n ∈ P.map (·.name)) ∧
     ∃ R, .recInfo R ∈ P ∧ R.name = mkRecName iv.name
   ctor : ∀ cv, ci = .ctorInfo cv → cv.induct ∈ P.map (·.name)
-  recr : ∀ R, ci = .recInfo R → ∃ iv, .inductInfo iv ∈ P ∧ R.name = mkRecName iv.name
+  recr : ∀ R, ci = .recInfo R → ∃ iv, .inductInfo iv ∈ P ∧ R.name = mkRecName iv.name ∧
+    R.all = iv.all
 
+/-- Names of a sub-list are names of the list. -/
 theorem names_mono {P P' : List ConstantInfo} (hs : ∀ x ∈ P, x ∈ P') {c : Name}
     (h : c ∈ P.map (·.name)) : c ∈ P'.map (·.name) := by
   obtain ⟨x, hx, rfl⟩ := List.mem_map.1 h
   exact List.mem_map_of_mem (hs x hx)
 
+/-- `NamesIn` is monotone in the program. -/
 theorem NamesIn.mono {P P' : List ConstantInfo} (hs : ∀ x ∈ P, x ∈ P') {x : Expr}
     (h : NamesIn P x) : NamesIn P' x :=
   ⟨ConstsIn_mono (fun _ hc => names_mono hs hc) h.1, fun hn => names_mono hs (h.2 hn)⟩
 
+/-- `NamesClosed` is monotone in the program. -/
 theorem NamesClosed.mono {P P' : List ConstantInfo} (hs : ∀ x ∈ P, x ∈ P') {ci : ConstantInfo}
     (h : NamesClosed P ci) : NamesClosed P' ci := by
   obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ := h
@@ -172,8 +176,8 @@ theorem NamesClosed.mono {P P' : List ConstantInfo} (hs : ∀ x ∈ P, x ∈ P')
     fun R hR => ?_⟩
   · obtain ⟨hc, R, hR, hn⟩ := h5 iv hiv
     exact ⟨fun n hn => names_mono hs (hc n hn), R, hs _ hR, hn⟩
-  · obtain ⟨iv, hiv, hn⟩ := h7 R hR
-    exact ⟨iv, hs _ hiv, hn⟩
+  · obtain ⟨iv, hiv, hn, ha⟩ := h7 R hR
+    exact ⟨iv, hs _ hiv, hn, ha⟩
 
 /-- The names of a translated term are names of the program. -/
 theorem TrM.namesIn (hP : ProgEnv P ζ E B) {lps : List Name} {n : Nat}
@@ -181,12 +185,15 @@ theorem TrM.namesIn (hP : ProgEnv P ζ E B) {lps : List Name} {n : Nat}
     {t : Metalean.Expr ζ lps.length n} (h : TrM E B lps Γ Δ e t) : NamesIn P e :=
   ⟨ConstsIn_mono (fun _ hc => hP.bound hc) (TrM.consts h), fun hn => hP.bound (TrM.natLit h hn)⟩
 
+/-- A list is a sub-list of its extension by one declaration. -/
 theorem sub_cons {x : ConstantInfo} {P : List ConstantInfo} : ∀ y ∈ P, y ∈ x :: P :=
   fun _ h => List.mem_cons_of_mem _ h
 
+/-- A list is a sub-list of its extension by a prefix. -/
 theorem sub_append {l P : List ConstantInfo} : ∀ y ∈ P, y ∈ l ++ P :=
   fun _ h => List.mem_append_right _ h
 
+/-- The recursors, constructors and types of a block are declarations of the block. -/
 theorem block_mem {ι : Metalean.IndSig} {Is : Fin ι.nsorts → InductiveVal}
     {Cs : (s : Fin ι.nsorts) → Fin (ι.nctors s) → ConstructorVal} {Rs : Fin ι.nsorts → RecursorVal} :
     (∀ s, ConstantInfo.recInfo (Rs s) ∈ IndBlock.decls Is Cs Rs) ∧
@@ -247,7 +254,8 @@ theorem ProgEnv.names_closed (h : ProgEnv P ζ E B) : ∀ ci ∈ P, NamesClosed 
         · simp only [ConstantInfo.all, List.mem_singleton] at hn
           subst hn; exact nm _ hm
         · cases hR
-          exact ⟨_, List.mem_append_left _ (block_mem.2.2 s), (hblk.recr s).1⟩
+          exact ⟨_, List.mem_append_left _ (block_mem.2.2 s), (hblk.recr s).1,
+            (hblk.recr s).2.2.2.2.2.1⟩
       · refine ⟨TrM.namesIn hfull hT, nofun, nofun, fun n hn => ?_, nofun,
           fun cv hcv => ?_, nofun⟩
         · simp only [ConstantInfo.all, List.mem_singleton] at hn
@@ -314,6 +322,7 @@ theorem viewFind_eq {view : EnvView} {n : Name} {ci : ConstantInfo}
       exact ⟨rfl, hx⟩
     · simp [Option.filter, hx] at h
 
+/-- `mkRecName` is injective. -/
 theorem mkRecName_inj {a b : Name} (h : mkRecName a = mkRecName b) : a = b := by
   unfold mkRecName at h
   injection h
@@ -368,7 +377,7 @@ theorem recognize_mem (hP : ProgEnv P ζ E B) {view : EnvView} (hview : ViewAgre
           next => cases hc
         next => cases hc
       have hRP : .recInfo R ∈ P := view_mem hview hrec hRf
-      obtain ⟨iv, hiv, hivn⟩ := (ProgEnv.names_closed hP _ hRP).recr R rfl
+      obtain ⟨iv, hiv, hivn, -⟩ := (ProgEnv.names_closed hP _ hRP).recr R rfl
       have hT' : iv.name = T := mkRecName_inj (hivn.symm.trans hRn)
       exact ⟨hRP, view_mem hview (hT' ▸ List.mem_map_of_mem hiv) hIf⟩
     next => cases h

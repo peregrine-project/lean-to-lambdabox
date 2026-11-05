@@ -31,3 +31,4 @@ EraseProof.Pure.isErasable_agree EraseProof.visit_agree
 EraseProof.SrcProof.ctor_evidentProp EraseProof.erasePure_erases
 EraseProof.erases_correct EraseProof.erase_correct
 EraseProof.collectDeps_sub EraseProof.erasePure_erases
+EraseProof.collectDeps_spec EraseProof.erasePure_erases
