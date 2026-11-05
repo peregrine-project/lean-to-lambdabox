@@ -7,8 +7,10 @@ import EraseProof.Bridge.Inst
 the spine. A prefix that reaches the arity is a prefix of the node's application; a shorter one is
 the translator's η-term (`indTerm`, `ctorTerm`, `quotTerm`, `ML Frontend/Translate.lean:103-224`)
 applied to the prefix's arguments, which the inversion of the node types at the η-term's binder
-types (subject expansion of β). Recursor spines are not covered: a minor premise that `wrapCase`
-wraps is typed only under the case telescope.
+types (subject expansion of β). For a recursor the expansion from a partial prefix to a saturated
+spine is not covered: a minor premise that `wrapCase` wraps is typed only under the case telescope.
+The oracle's type of an exactly saturated recursor spine is obtained without typing the prefix
+(`Pure.inferType_recr`).
 -/
 
 open Lean Erasure
@@ -509,9 +511,9 @@ private theorem ofFn_split {α : Type} {K : Nat} {xs ys : Fin K → α} {r r' : 
   exact ⟨List.ofFn_injective this.1, this.2⟩
 
 /-- Typed prefixes of saturating spines (subject expansion of the translator's η-terms): when the
-image of a spine of an inductive type or a quotient constant is typed, the image of every prefix
-of the spine is typed. A prefix that reaches the arity is a prefix of the node's application; a
-shorter one is the η-term applied to the prefix, whose application to the node's arguments is
+image of a spine of an inductive type, a quotient constant or a recursor is typed, the image of every
+prefix of the spine is typed, except a partial prefix of a saturated recursor spine (`hr`). A
+prefix that reaches the arity is a prefix of the node's application; a shorter one is the η-term applied to the prefix, whose application to the node's arguments is
 definitionally equal to the node (`indEta_defeq`, `quotTypeEta_defeq`, `quotMkEta_defeq`,
 `quotLiftEta_defeq`, `quotIndEta_defeq`). Reference: `type_of_typing`'s use of the typing of
 applications (`MR S/PCUICSafeRetyping.v:806`); the inversion of β (`MR P/PCUICConversion.v`). -/
@@ -519,9 +521,11 @@ theorem SatTr.typed (hE : EnvWF E) {n : Nat} {R : Ctx ζ lps.length 0 n} (hR : E
     {b : MBinding ζ} {us : List Level}
     (hc : ∀ {ι : IndSig} (η : Head ζ (.inductive ι)) (s : Fin ι.nsorts) (k : Fin (ι.nctors s))
       (o : List Nat), b ≠ .ctor η s k o)
+    {as₁ as₂ : List (Expr ζ lps.length n)}
     (hr : ∀ {ι : IndSig} (η : Head ζ (.inductive ι)) (s : Fin ι.nsorts)
-      (os : List (List (List Nat))), b ≠ .recr η s os)
-    {as₁ as₂ : List (Expr ζ lps.length n)} {t₁ t T : Expr ζ lps.length n}
+      (os : List (List (List Nat))), b = .recr η s os → as₁.length < ι.recrEnd s →
+        (as₁ ++ as₂).length < ι.recrEnd s)
+    {t₁ t T : Expr ζ lps.length n}
     (h₁ : SatTr E lps b us as₁ t₁) (h : SatTr E lps b us (as₁ ++ as₂) t) (ht : E[R] ⊢ t : T) :
     ∃ T₁, E[R] ⊢ t₁ : T₁ := by
   generalize hA : as₁ ++ as₂ = A at h
@@ -556,7 +560,38 @@ theorem SatTr.typed (hE : EnvWF E) {n : Nat} {R : Ctx ζ lps.length 0 n} (hR : E
       · exact (Fin.append_left ps is i).symm
       · exact (Fin.append_right ps is i).symm
   | ctorSat | ctorEta => exact absurd rfl (hc _ _ _ _)
-  | recrSat | recrEta => exact absurd rfl (hr _ _ _)
+  | recrSat mo Af rest mins hRL hls hmo hw =>
+    cases h with
+    | recrSat mo' Af' rest' mins' hRL' hls' hmo' hw' =>
+      obtain ⟨rfl, rfl⟩ := TrDet.RecrLevels.det hRL hRL'
+      obtain rfl := TrDet.TrLevels.det hls hls'
+      obtain rfl : mo = mo' := funext fun t => funext fun c =>
+        Option.some.inj ((hmo t c).symm.trans (hmo' t c))
+      simp only [List.append_assoc] at hA
+      obtain ⟨rfl, rfl⟩ := ofFn_split hA
+      obtain rfl : mins = mins' := funext fun t => funext fun c =>
+        Except.ok.inj ((hw t c).symm.trans (hw' t c))
+      rw [TrApps.appList_append] at ht
+      exact (InstPre.appList_inv ht).1
+    | recrEta _ _ _ _ hlt =>
+      have := congrArg List.length hA
+      simp only [List.length_append, List.length_ofFn] at this
+      omega
+  | recrEta mo hRL hls hmo hlt h₀ =>
+    cases h with
+    | recrEta mo' hRL' hls' hmo' _ h₀' =>
+      obtain ⟨rfl, rfl⟩ := TrDet.RecrLevels.det hRL hRL'
+      obtain rfl := TrDet.TrLevels.det hls hls'
+      obtain rfl : mo = mo' := funext fun t => funext fun c =>
+        Option.some.inj ((hmo t c).symm.trans (hmo' t c))
+      rw [h₀] at h₀'; cases h₀'
+      rw [← hA] at ht
+      exact prefix_typed ht
+    | recrSat _ Af rest _ =>
+      have h2 := hr _ _ _ rfl hlt
+      have := congrArg List.length hA
+      simp only [List.length_append, List.length_ofFn] at this h2
+      omega
   | quotType hu =>
     cases h with
     | quotType hu' =>
