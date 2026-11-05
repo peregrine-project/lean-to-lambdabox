@@ -50,3 +50,4 @@ import EraseProof.Bridge.SatTyped
 import EraseProof.Erasable.Atom
 import EraseProof.Simulation.Cases
 import EraseProof.Oracle.Infer
+import EraseProof.Simulation.Ind
