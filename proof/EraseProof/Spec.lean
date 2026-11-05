@@ -13,7 +13,7 @@ terms and declarations and Metalean terms and environments (`MBinding`, `Binds`,
 `MLCtx`, `SatTr`, `TrM`, `ProgEnv`), the source semantics (`EvalEnv`, atoms, `SrcEval`),
 erasability (`IsArity`, `IsErasable`, `ErasableS`), the closure predicates (`ConstsIn`,
 `KernameInj`, `SubEnv`, `evalEnvOf`, `ViewAgrees`), the sufficient condition for the fragment
-(`ReadClosed`, `PhaseIDecl`, `PlainExpr`, `RecFree`, `BlockNamesInj`), and the erasure relation
+(`ReadClosed`, `PhaseIDecl`, `PlainExpr`, `RecFree`, `BlockNamesInj`, `ArityTypes`), and the erasure relation
 (`Erases`, `ErasesAlt`, `ErasesInd`, `ErasesDecl`, `ErasesDeps`). λ□ evaluation is
 `EraseProof/Target.lean`.
 
@@ -966,6 +966,15 @@ def BlockNamesInj (decls : List ConstantInfo) : Prop :=
   ∀ iv₁ iv₂, (∃ ci ∈ decls, ci = .inductInfo iv₁) → (∃ ci ∈ decls, ci = .inductInfo iv₂) →
     (mutualBlockKername iv₁.all = mutualBlockKername iv₂.all → iv₁.all = iv₂.all) ∧
     ∀ ci ∈ decls, EmitsConst ci = true → toKername ci.name ≠ mutualBlockKername iv₁.all
+
+/-- The declared type of every inductive of `decls` is syntactically an arity `Π x̄, Sort u`
+(`arityShape`), which the fragment test checks on every inductive of the closure
+(`Erasure.sortDecided`, run by `Erasure.collectDeps`): Lean's kernel also accepts an inductive
+whose type reaches its sort only through δ, whose sort `casesSortLevel` cannot read. Reference:
+`ind_arity_eq` (`MR common/theories/EnvironmentTyping.v:1651`), which requires the syntactic
+arity. -/
+def ArityTypes (decls : List ConstantInfo) : Prop :=
+  ∀ iv, (∃ ci ∈ decls, ci = .inductInfo iv) → (arityShape iv.type).isSome
 
 /-! ## 10. The erasure relation -/
 

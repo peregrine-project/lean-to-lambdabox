@@ -3,27 +3,12 @@
 #   <axioms>: its `#print axioms`, comma-separated in the order propext, Classical.choice,
 #             Quot.sound; `-` for none. sorryAx and Cardinal.exists_inaccessibles never occur.
 # proof/scripts/check.sh compares this file with the computed .check/axioms.actual.
-EraseProof.erases_correct_appCong propext,Classical.choice,Quot.sound
-EraseProof.erases_correct_atom propext,Classical.choice,Quot.sound
-EraseProof.erases_correct_beta propext,Classical.choice,Quot.sound
-EraseProof.erases_correct_constAtom propext,Classical.choice,Quot.sound
-EraseProof.erases_correct_delta propext,Classical.choice,Quot.sound
-EraseProof.erases_correct_mdata propext,Classical.choice,Quot.sound
-EraseProof.erases_correct_zeta propext,Classical.choice,Quot.sound
-EraseProof.erases_correct_ctor propext,Classical.choice,Quot.sound
-EraseProof.erases_correct_eta propext,Classical.choice,Quot.sound
-EraseProof.erases_correct_lit propext,Classical.choice,Quot.sound
-EraseProof.erases_correct_proj propext,Classical.choice,Quot.sound
-EraseProof.erases_correct_projProp propext,Classical.choice,Quot.sound
-EraseProof.erases_correct_casesProof propext,Classical.choice,Quot.sound
-EraseProof.erases_correct_casesLitZero propext,Classical.choice,Quot.sound
 EraseProof.isRecursiveDecl_false propext,Classical.choice,Quot.sound
 EraseProof.Defeq.inst_tele propext,Classical.choice,Quot.sound
 EraseProof.Erases.abstract propext,Classical.choice,Quot.sound
 EraseProof.Erases.app_inv propext,Classical.choice,Quot.sound
 EraseProof.Erases.extend propext,Classical.choice,Quot.sound
 EraseProof.Erases.inst_let propext,Classical.choice,Quot.sound
-EraseProof.ErasesAlt.inst propext,Classical.choice,Quot.sound
 EraseProof.ErasesDeps.ext propext,Classical.choice,Quot.sound
 EraseProof.Pure.isArity_sound propext,Classical.choice,Quot.sound
 EraseProof.Pure.isErasable_agree propext,Classical.choice,Quot.sound
@@ -159,7 +144,6 @@ EraseProof.Test.NVPK.hrunP propext,Classical.choice,Quot.sound
 EraseProof.Test.NVPK.idB_run propext,Classical.choice,Quot.sound
 EraseProof.Test.NVPK.visitCases_run propext,Classical.choice,Quot.sound
 EraseProof.Test.NVPK.withApp_ee propext
-EraseProof.ErasesAlt.succ_inv propext,Classical.choice,Quot.sound
-EraseProof.substl_cons_closed propext,Quot.sound
 EraseProof.OracleInfer.inferOK propext,Classical.choice,Quot.sound
 EraseProof.OracleInfer.infer_projStruct propext,Classical.choice,Quot.sound
+EraseProof.erases_correct propext,Classical.choice,Quot.sound
