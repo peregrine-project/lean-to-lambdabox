@@ -249,7 +249,13 @@ constant's type is its declared type at the constant's levels, for inductive typ
 recursors and `casesOn` as for every other constant. A Nat literal has the type `Nat`. A projection
 `proj S i s` has the type of the `i`-th field of `S`'s constructor, instantiated with the
 parameters of `s`'s type and with the projections of `s` for the earlier fields (Lean's
-`inferProjType`). Reference: `type_of_typing` (`MR S/PCUICSafeRetyping.v:806`), as called by
+`inferProjType`), if `S` is large-eliminating: its recursor `S.rec` is in the declarations and has
+a universe parameter more than `S` (Lean gives the recursor one for the motive exactly when the
+inductive eliminates into every sort); otherwise an error. Lean generates projections only for
+structures, which are large-eliminating (a `Prop` structure whose fields are not all proofs has no
+projections), and its kernel accepts a projection of an inductive that is not large-eliminating
+only on a proof field that does not depend on the fields that are not proofs. Reference:
+`type_of_typing` (`MR S/PCUICSafeRetyping.v:806`), as called by
 `MR E/ErasureFunction.v:894 is_erasableb`; projections: `infer` on `tProj`
 (`MR S/PCUICSafeRetyping.v:350`). -/
 def inferType (cx : Ctx) : Nat → List Local → List Expr → Expr → Except EraseError Expr
@@ -283,8 +289,10 @@ def inferType (cx : Ctx) : Nat → List Local → List Expr → Expr → Except 
   | f+1, ls, Γ, .proj S i s => do
     match spine (← whnf cx f ls (← inferType cx f ls Γ s)) with
     | (.const S' us, args) =>
-      match S' == S, findConst cx.decls S with
-      | true, some (.inductInfo I) =>
+      match S' == S, findConst cx.decls S, findConst cx.decls (mkRecName S) with
+      | true, some (.inductInfo I), some (.recInfo R) =>
+        if R.levelParams.length == I.levelParams.length then
+          throw (.failed "projection of an inductive that is not large-eliminating")
         match I.ctors, args.length == I.numParams + I.numIndices with
         | [c], true => match findConst cx.decls c with
           | some ci@(.ctorInfo _) =>
@@ -296,7 +304,7 @@ def inferType (cx : Ctx) : Nat → List Local → List Expr → Expr → Except 
             pure d
           | _ => throw (.failed "invalid projection")
         | _, _ => throw (.failed "invalid projection")
-      | _, _ => throw (.failed "invalid projection")
+      | _, _, _ => throw (.failed "invalid projection")
     | _ => throw (.failed "invalid projection")
   | _+1, _, _, _ => throw (.outOfFragment "string literal or metavariable")
 

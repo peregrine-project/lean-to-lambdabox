@@ -2706,6 +2706,62 @@ the calls at which the two oracles answer differently. It must equal
   commit too (the exclusion exists since S-29); it guards the exclusion. `scripts/regress.sh`
   passes (20 tests), with and without `PEREGRINE`.
 
+## S-36: The pure oracle types projections only of large-eliminating inductives
+
+- **Commit:** the commit whose subject starts with `S-36:` (`git log --grep='^S-36:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure/Pure.lean`: `Pure.inferType` on `proj S i s` looks up `S.rec` in the
+    declarations and is the error `failed projection of an inductive that is not
+    large-eliminating` when the recursor has as many universe parameters as `S`, and `failed
+    invalid projection` when the declarations have no recursor `S.rec`; its docstring.
+  - `LeanToLambdaBox/Erasure/Entry.lean`: `closureStep` gives an inductive with one constructor
+    its recursor `T.rec` (from the view) as companion, as it does for a recognized `T.casesOn`;
+    `closure` lists only definitions with a companion as recognized `casesOn`; the docstrings of
+    `declExclusion`, `dropKnown`, `closureStep`, `closure` and `collectDeps`.
+  - new `tests/regress/proj_large_elim.lean` with its goldens.
+  - `tests/regress/collect_deps.lean`: the closure of `.proj G.PS 0 G.hq` gains `True.rec` and
+    `G.PS.rec`; its docstring.
+  - `tests/regress/pure_inductive.lean`: the declarations `PI.dT` and those of `nv2.ast`, copied by
+    hand from the environment as the closure, gain `PI.P2.rec`; its docstring.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** found by the verification work on the oracle. `Pure.inferType` typed a
+  projection of any inductive with one constructor. On one that is not large-eliminating it can
+  answer a type that is not a type of the projection: with `Ex3 : Prop`, constructor `intro
+  (w : Prop) (h : (fun _ : Prop => True) w)` (added to the kernel directly) and `axiom a : Ex3`, it
+  answers `(fun x => True) a.1` on `proj Ex3 1 a`, and `a.1`, a projection of a proof onto a
+  field that is not a proof, has no type in the proof's model of Lean, where such a projection
+  is a recursor that eliminates only into `Prop`. Lean's kernel rejects `proj Ex3 1 a`, but the
+  oracle must be sound on every term the proof's typing admits. Lean gives an inductive's recursor
+  a universe parameter for the motive besides the inductive's exactly when the inductive
+  eliminates into every sort (as S-32 uses for `casesOn`), so the oracle reads the recursor. The
+  closure contained the recursor only of inductives with a recognized `casesOn`, so without the
+  second change the oracle could not type the projections of programs on the pure path (such as
+  the projection in the value of a structure's projection function); the closure now contains the
+  recursor of every inductive that can be projected, those with one constructor.
+- **Behaviour before:** over the closure of the projection, under `nat := .peano`, the oracle
+  answers `ok (fun x => True) PLE.a.1` on `proj Ex3 1 a` and `ok True` on `proj E4 1 a4`
+  (`E4 : Prop` an `inductive` with the constructor `intro (w : Nat) (h : True)`, `axiom a4 : E4`),
+  and the closures of these projections and of projections of a structure `P` and of `And` do not
+  contain `Ex3.rec`, `E4.rec`, `P.rec`, `And.rec`.
+- **Behaviour after:** the oracle answers the error `projection of an inductive that is not
+  large-eliminating` on both projections, and the closures contain the recursors; the oracle's
+  types of the projections of `P` and `And` are unchanged. Lean's kernel accepts `proj E4 1 a4` (a
+  proof field that does not depend on `w`), so the pure path now fails on a kernel-valid term, but
+  Lean's elaborator does not produce it: it declares no projections for an `inductive`, and the
+  `structure` command rejects a `Prop` structure with a field that is not a proof, so every
+  projection it produces is of a large-eliminating structure. The `Meta` path is unchanged.
+- **Effect on emitted .ast (corpus):** byte-identical for all 710 files against the corpus of S-35;
+  `PANIC` counts unchanged. `scripts/pure-harness.sh` passes with its expected summary unchanged
+  (294 `#erase`, 223 in the fragment, 68 outside, 3 `collectDeps` errors; 8298 oracle calls, 14
+  differ, none fails).
+- **Regression test:** `proj_large_elim` checks the kernel's verdicts and the oracle's answers on
+  `proj Ex3 1 a` and `proj E4 1 a4`, the oracle's types of projections of `P` and `And` and that
+  their closures contain the recursors, that `useSnd := P.b (P.mk B.t B.f)` takes the pure path,
+  and pins its `#erase` output (`useSnd.ast`), which peregrine validates and evaluates to `B.f`.
+  Before this commit the oracle answers `ok` on both projections and the closures lack the
+  recursors, so four checks fail. `scripts/regress.sh` passes (21 tests), with and without
+  `PEREGRINE`.
+
 ---
 
 ## Reported, not fixed
