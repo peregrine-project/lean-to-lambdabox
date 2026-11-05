@@ -45,3 +45,5 @@ import EraseProof.Source.Defeq
 import EraseProof.Oracle.Atom
 import EraseProof.Oracle.Agree
 import EraseProof.Source.ProofSound
+import EraseProof.Erasable.Atom
+import EraseProof.Simulation.Cases
