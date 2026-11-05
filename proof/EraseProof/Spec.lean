@@ -894,8 +894,9 @@ def HasNatLit : Expr → Bool
 
 /-- `decls` contains what the pure traversal reads from `e`: the constants of `e` and of every read
 expression, the members and constructors of every inductive block, the inductive of every
-constructor, `T` and `T.rec` for every recognized `T.casesOn` (whose value is not read), and `Nat`
-if a Nat literal is read. -/
+constructor, `T` and `T.rec` for every recognized `T.casesOn` (whose value is not read), `T.rec`
+for every inductive `T` with one constructor (the oracle reads its universe parameters to type a
+projection of `T`), and `Nat` if a Nat literal is read. -/
 def ReadClosed (decls : List ConstantInfo) (e : Expr) : Prop :=
   let inD := fun c => (findDecl decls c).isSome = true
   ConstsIn inD e ∧ (HasNatLit e → inD ``Nat) ∧
@@ -903,7 +904,8 @@ def ReadClosed (decls : List ConstantInfo) (e : Expr) : Prop :=
     (∀ n ∈ ci.all, inD n) ∧ (∀ iv, ci = .inductInfo iv → ∀ n ∈ iv.ctors, inD n) ∧
     (∀ cv, ci = .ctorInfo cv → inD cv.induct) ∧
     (∀ iv, EvalEnv.casesOn? ⟨decls, fun _ => false⟩ ci.name = some iv →
-      inD iv.name ∧ inD (mkRecName iv.name))
+      inD iv.name ∧ inD (mkRecName iv.name)) ∧
+    (∀ iv, ci = .inductInfo iv → iv.ctors.length = 1 → inD (mkRecName iv.name))
 
 /-- A recursor of `decls`. -/
 def IsRecursorIn (decls : List ConstantInfo) (c : Name) : Bool :=
@@ -912,7 +914,8 @@ def IsRecursorIn (decls : List ConstantInfo) (c : Name) : Bool :=
   | _ => false
 
 /-- `x` mentions no recursor of `decls`: the pure traversal reaches a recursor only as the `T.rec`
-of a recognized `T.casesOn`, whose value it does not read. -/
+of a recognized `T.casesOn` or of an inductive `T` with one constructor, whose value it does not
+read. -/
 def RecFree (decls : List ConstantInfo) (x : Expr) : Prop :=
   ConstsIn (fun c => IsRecursorIn decls c = false) x
 
@@ -923,8 +926,8 @@ def Eliminated (decls : List ConstantInfo) (iv : InductiveVal) : Prop :=
     ∃ cn cv, iv.ctors = [cn] ∧ findDecl decls cn = some (.ctorInfo cv) ∧ 0 < cv.numFields
 
 /-- A declaration of the closure is inside the first-phase fragment (Phase I): no quotient; a
-recursor only as `T.rec` of a recognized `T.casesOn` of the closure (and never in a read
-expression, `RecFree`); safe, with no `_unsafe_rec` companion (definitions and opaques: a `partial def` is an opaque with
+recursor only as `T.rec` of a recognized `T.casesOn` of the closure or of an inductive `T` of the
+closure with one constructor (and never in a read expression, `RecFree`); safe, with no `_unsafe_rec` companion (definitions and opaques: a `partial def` is an opaque with
 one) and no `implemented_by` target;
 inductives not nested, of a sort that is syntactically `Prop`, never zero, or, when the traversal
 cannot eliminate them (`Eliminated`), not zero under every assignment (`PUnit`); when their
@@ -933,9 +936,10 @@ cannot eliminate them (`Eliminated`), not zero under every assignment (`PUnit`);
 def PhaseIDecl (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo) :
     ConstantInfo → Prop
   | .quotInfo _ => False
-  | .recInfo r => ∃ T iv, r.name = mkRecName T ∧
+  | .recInfo r => (∃ T iv, r.name = mkRecName T ∧
       EvalEnv.casesOn? ⟨decls, fun _ => false⟩ (.str T "casesOn") = some iv ∧
-      (findDecl decls (.str T "casesOn")).isSome
+      (findDecl decls (.str T "casesOn")).isSome) ∨
+    ∃ T iv, r.name = mkRecName T ∧ findDecl decls T = some (.inductInfo iv) ∧ iv.ctors.length = 1
   | .defnInfo d => d.safety = .safe ∧ view.find? (Compiler.mkUnsafeRecName d.name) = none ∧
       view.implementedBy? d.name = none
   | .opaqueInfo o => o.isUnsafe = false ∧ view.find? (Compiler.mkUnsafeRecName o.name) = none ∧
