@@ -487,9 +487,11 @@ Metalean environment `E` with name table `B`, one entry per declaration (block),
 loader (`ML Checker/Slow/Loader.lean:55-139`): safe axioms, definitions (`all = [name]`: no
 recursion), theorems as `opaque` (`:122-127`), opaques, inductive blocks, quotients (with `Eq`).
 Names are fresh, and the universe parameters of each declaration are distinct, as Lean's kernel
-checks (`check_duplicated_univ_params`). The value of a theorem or an opaque, which Metalean does
-not load, does not mention the declaration itself, as the kernel checks it before adding the
-declaration. Reference:
+checks (`check_duplicated_univ_params`). The value of a theorem, which Metalean does not load, does
+not mention the declaration itself, as the kernel checks it before adding the declaration. The
+value of an opaque, which Metalean does not load either (its entry asks only for some inhabitant
+of the type), is translated and typed at the opaque's type, as the kernel checks it
+(`add_opaque`): the eraser emits it. Reference:
 `wf_ext Σ` (`MR P/PCUICTyping.v:507`), lean4lean `TrEnv'` (`L4 Env.lean:39`); DV-3. -/
 inductive ProgEnv : List ConstantInfo → (ζ : Metalean.Sigs) → Metalean.Env ζ → Binds ζ → Prop
   | nil : ProgEnv [] .nil .nil fun _ => none
@@ -510,9 +512,10 @@ inductive ProgEnv : List ConstantInfo → (ζ : Metalean.Sigs) → Metalean.Env 
       TrM E B v.levelParams .nil [] v.type t → E[.nil] ⊢ t : .prop →
       ProgEnv (.thmInfo v :: P) (ζ.snoc (.const .«opaque» v.levelParams.length))
         (E.snoc (.«opaque» t)) (B.wk.set v.name (.const .here))
-  | «opaque» {v : OpaqueVal} {t : Metalean.Expr ζ v.levelParams.length 0} :
+  | «opaque» {v : OpaqueVal} {t e : Metalean.Expr ζ v.levelParams.length 0} :
       ProgEnv P ζ E B → findDecl P v.name = none → v.levelParams.Nodup → v.isUnsafe = false →
-      v.all = [v.name] → ConstsIn (· ≠ v.name) v.value → TrM E B v.levelParams .nil [] v.type t →
+      v.all = [v.name] → TrM E B v.levelParams .nil [] v.type t →
+      TrM E B v.levelParams .nil [] v.value e → E[.nil] ⊢ e : t →
       ProgEnv (.opaqueInfo v :: P) (ζ.snoc (.const .«opaque» v.levelParams.length))
         (E.snoc (.«opaque» t)) (B.wk.set v.name (.const .here))
   | induct {ι : Metalean.IndSig} {I : Metalean.Inductive ζ ι} {B' : Binds (ζ.snoc (.inductive ι))}

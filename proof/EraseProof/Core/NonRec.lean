@@ -7,8 +7,8 @@ import EraseProof.Relation.Extend
 `visitMutual` takes its fix branch on a declaration whose block has more than one member or whose
 value mentions its own name (`Erasure.isRecursiveDecl`). In a program related to a Metalean
 environment (`ProgEnv`), every declaration with a value is alone in its block, and its value does
-not mention it: a definition's value is translated in the table of the earlier declarations, whose
-names are fresh, and a theorem's or an opaque's value does not mention the declaration by
+not mention it: a definition's or an opaque's value is translated in the table of the earlier
+declarations, whose names are fresh, and a theorem's value does not mention the declaration by
 `ProgEnv`'s premise (`isRecursiveDecl_false`).
 -/
 
@@ -99,10 +99,12 @@ theorem ProgEnv.scoped {P : List ConstantInfo} (h : ProgEnv P ζ E B) {ci : Cons
     · cases hv
       exact ⟨hall, hsc⟩
     · exact ih hm
-  | «opaque» _ _ _ _ hall hsc _ ih =>
+  | «opaque» hP hfr _ _ hall _ hval _ ih =>
     rcases List.mem_cons.1 hm with rfl | hm
     · cases hv
-      exact ⟨hall, hsc⟩
+      refine ⟨hall, ConstsIn_mono (fun c hc hce => ?_) (TrM.consts hval)⟩
+      subst hce
+      exact not_mem_of_findDecl_none hfr (hP.bound hc)
     · exact ih hm
   | induct _ _ _ _ _ _ _ ih =>
     rcases List.mem_append.1 hm with hm | hm
