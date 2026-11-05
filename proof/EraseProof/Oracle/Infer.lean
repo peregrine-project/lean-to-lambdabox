@@ -414,7 +414,7 @@ private theorem trM_sort_inv {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n}
 
 /-- The oracle's sort of a type: when its inferred type reduces to `Sort u`, the image is typed at
 the translated sort. -/
-private theorem sort_step {P : List ConstantInfo} {cx : Pure.Ctx} (henv : ProgEnv P ζ E B)
+theorem sort_step {P : List ConstantInfo} {cx : Pure.Ctx} (henv : ProgEnv P ζ E B)
     (hE : EnvWF E) (hsub : SubEnv cx.decls P) {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n}
     {Δ : MLCtx ζ lps.length n} {ls : List Local} (hΓ : E[Γ] ⊢ ok)
     (hloc : LocalsOK E B lps Γ Δ ls) {f : Nat} {S : Expr} {u : Level}
