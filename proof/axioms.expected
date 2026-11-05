@@ -11,7 +11,6 @@ EraseProof.Erases.extend propext,Classical.choice,Quot.sound
 EraseProof.Erases.inst_let propext,Classical.choice,Quot.sound
 EraseProof.Pure.isErasable_sound propext,Classical.choice,Quot.sound
 EraseProof.Pure.typeLevel_sound propext,Classical.choice,Quot.sound
-EraseProof.TrLevel.isNeverZero_iff propext,Quot.sound
 EraseProof.visit_agree propext,Classical.choice,Quot.sound
 EraseProof.Pure.isErasable_atom propext,Quot.sound
 EraseProof.Pure.isErasable_ctorProp propext,Quot.sound
@@ -153,3 +152,4 @@ EraseProof.StateOK.kername propext,Classical.choice,Quot.sound
 EraseProof.addAxiom_ok propext,Classical.choice,Quot.sound
 EraseProof.get_constant_kername_ok propext,Classical.choice,Quot.sound
 EraseProof.collectDeps_machineFree propext,Classical.choice,Quot.sound
+EraseProof.register_inductive_ok propext,Classical.choice,Quot.sound
