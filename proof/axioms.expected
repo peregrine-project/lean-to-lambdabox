@@ -159,9 +159,6 @@ EraseProof.Test.NVPK.hrunP propext,Classical.choice,Quot.sound
 EraseProof.Test.NVPK.idB_run propext,Classical.choice,Quot.sound
 EraseProof.Test.NVPK.visitCases_run propext,Classical.choice,Quot.sound
 EraseProof.Test.NVPK.withApp_ee propext
-EraseProof.ErasesAlt.zero_inv propext,Classical.choice,Quot.sound
-EraseProof.SatTr.typed propext,Classical.choice,Quot.sound
-EraseProof.Pure.inferType_recr propext,Classical.choice,Quot.sound
 EraseProof.ErasesAlt.succ_inv propext,Classical.choice,Quot.sound
 EraseProof.substl_cons_closed propext,Quot.sound
 EraseProof.OracleInfer.inferOK propext,Classical.choice,Quot.sound
