@@ -55,3 +55,4 @@ import EraseProof.Oracle.InferProj
 import EraseProof.Simulation.Iota
 import EraseProof.Simulation.Main
 import EraseProof.Oracle.Sound
+import EraseProof.Core.Collect

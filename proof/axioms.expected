@@ -147,3 +147,4 @@ EraseProof.Test.NVPK.idB_run propext,Classical.choice,Quot.sound
 EraseProof.Test.NVPK.visitCases_run propext,Classical.choice,Quot.sound
 EraseProof.Test.NVPK.withApp_ee propext
 EraseProof.erases_correct propext,Classical.choice,Quot.sound
+EraseProof.collectDeps_sub propext,Classical.choice,Quot.sound
