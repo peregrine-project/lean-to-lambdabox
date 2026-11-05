@@ -56,3 +56,4 @@ import EraseProof.Simulation.Iota
 import EraseProof.Simulation.Main
 import EraseProof.Oracle.Sound
 import EraseProof.Core.Frame
+import EraseProof.Core.State

@@ -13,7 +13,6 @@ EraseProof.TrM.weakFV_let EraseProof.erasePure_erases
 EraseProof.TrM.inst_fvar EraseProof.erasePure_erases
 EraseProof.TrM.weakFV EraseProof.erasePure_erases
 EraseProof.Erases.app_inv EraseProof.erase_correct
-EraseProof.ErasesDeps.ext EraseProof.erasePure_erases
 EraseProof.TrM.det EraseProof.erasePure_erases
 EraseProof.Erases.extend EraseProof.erase_correct
 EraseProof.SrcEval.restrict EraseProof.erase_correct
@@ -30,3 +29,7 @@ EraseProof.Pure.isErasable_ctorProp EraseProof.erasePure_erases
 EraseProof.visit_agree EraseProof.erasePure_erases
 EraseProof.SrcProof.ctor_evidentProp EraseProof.erasePure_erases
 EraseProof.erases_correct EraseProof.erase_correct
+EraseProof.StateOK.empty EraseProof.erasePure_erases
+EraseProof.StateOK.kername EraseProof.erasePure_erases
+EraseProof.addAxiom_ok EraseProof.erasePure_erases
+EraseProof.get_constant_kername_ok EraseProof.erasePure_erases
