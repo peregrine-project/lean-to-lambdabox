@@ -26,6 +26,8 @@ EraseProof.Erases.inst_let propext,Classical.choice,Quot.sound
 EraseProof.ErasesAlt.inst propext,Classical.choice,Quot.sound
 EraseProof.ErasesDeps.ext propext,Classical.choice,Quot.sound
 EraseProof.Pure.isErasable_sound propext,Classical.choice,Quot.sound
+EraseProof.Pure.typeLevel_sound propext,Classical.choice,Quot.sound
+EraseProof.TrLevel.isNeverZero_iff propext,Quot.sound
 EraseProof.Pure.isErasable_agree propext,Classical.choice,Quot.sound
 EraseProof.Pure.isErasable_atom propext,Quot.sound
 EraseProof.Pure.isErasable_ctorProp propext,Quot.sound

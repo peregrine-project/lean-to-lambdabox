@@ -15,6 +15,10 @@ large-eliminating inductive with the premises of `TrM.projProof` is a structure.
 `Pure.isErasable_sound`: the oracle's `true` is sound, on a spine headed by a theorem (a proof),
 when the inferred type is an arity (`Pure.isArity_sound`), and when the sort of the inferred type
 is always zero (`Pure.alwaysZero`, a proposition).
+
+`Pure.typeLevel_sound`: the oracle's level of a term's type is a level of that type.
+`TrLevel.isNeverZero_iff`: `Level.isNeverZero` decides, on translated levels, whether the level is
+non-zero under every assignment.
 -/
 
 open Lean Erasure
@@ -266,7 +270,6 @@ theorem Pure.inferType_sound {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Bin
   exact OracleInfer.inferOK henv hE hsub hcl (fun f ih => infer_proj henv hE hsub f ih) fuel
     hΓ hloc (fun _ _ h => by simp at h) he hU h
 
-
 open OracleSound in
 /-- The oracle's `true` is sound: the term's image is a type former or a proof. A spine headed by a
 theorem is a proof; an inferred type that is an arity makes the term a type former
@@ -299,5 +302,102 @@ theorem Pure.isErasable_sound {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Bi
       exact .inr hA'l
     · cases hz
   · exact .inl (Pure.isArity_sound henv hE hsub hΓ hloc hnb hA' htA'.regular h2)
+
+/-- The oracle's level of a typed term's type is a level of that type: the image of the term is
+typed at a type of the translated sort. Reference: `sort_of_type` (`MR S/PCUICSafeReduce.v:1853`)
+of the term's type, as `MR E/ErasureFunction.v:894 is_erasableb` computes it. -/
+theorem Pure.typeLevel_sound {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ}
+    {P : List ConstantInfo} {lps : List Name} {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n}
+    {Δ : MLCtx ζ lps.length n} {cx : Pure.Ctx} {fuel : Nat} {ls : List Local} {e : Expr}
+    {u : Level} {t : Metalean.Expr ζ lps.length n}
+    (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv cx.decls P)
+    (hΓ : E[Γ] ⊢ ok) (hloc : LocalsOK E B lps Γ Δ ls) (hnb : ∀ i, Δ.findB i = none)
+    (he : TrM E B lps Γ Δ e t) (ht : ∃ T, E[Γ] ⊢ t : T)
+    (h : Pure.typeLevel cx fuel ls e = .ok u) :
+    ∃ l T, TrLevel lps u = some l ∧ E[Γ] ⊢ t : T ∧ E[Γ] ⊢ T : .sort l := by
+  simp only [Pure.typeLevel] at h
+  obtain ⟨A, h1, h⟩ := OracleWhnf.ok_of_bind h
+  obtain ⟨S, h2, h⟩ := OracleWhnf.ok_of_bind h
+  obtain ⟨w, h3, h⟩ := OracleWhnf.ok_of_bind h
+  cases w with
+  | sort v =>
+    simp only [pure, Except.pure, Except.ok.injEq] at h
+    subst h
+    obtain ⟨A', hA', htA'⟩ := Pure.inferType_sound henv hE hsub hΓ hloc hnb he ht h1
+    obtain ⟨_, hA's⟩ := htA'.regular
+    obtain ⟨S', hS', hA'S'⟩ :=
+      Pure.inferType_sound henv hE hsub hΓ hloc hnb hA' ⟨_, hA's⟩ h2
+    obtain ⟨l, hl, hA'l⟩ := OracleInfer.sort_step henv hE hsub hΓ hloc hA'S' hS' h3
+    exact ⟨l, A', hl, htA', hA'l⟩
+  | _ => simp [throw, throwThe, MonadExceptOf.throw] at h
+
+namespace OracleSound
+
+/-- A never-zero level translates to a level that is non-zero under every assignment. -/
+private theorem eval_ne_zero {lps : List Name} :
+    ∀ {u : Level} {l : Metalean.Level lps.length}, TrLevel lps u = some l →
+      u.isNeverZero = true → ∀ ν, l.eval ν ≠ 0
+  | .zero, _, _, hz => by simp [Level.isNeverZero] at hz
+  | .succ a, l, h, _ => by
+    simp only [TrLevel, Option.map_eq_some_iff] at h
+    obtain ⟨a', -, rfl⟩ := h
+    intro ν; simp
+  | .max a b, l, h, hz => by
+    simp only [TrLevel, bind, Option.bind_eq_some_iff, pure, Option.some.injEq] at h
+    obtain ⟨a', ha, b', hb, rfl⟩ := h
+    simp only [Level.isNeverZero, Bool.or_eq_true] at hz
+    intro ν
+    simp only [Metalean.Level.eval_max]
+    unfold Nat.max
+    rcases hz with hz | hz
+    · have := eval_ne_zero ha hz ν; omega
+    · have := eval_ne_zero hb hz ν; omega
+  | .imax a b, l, h, hz => by
+    simp only [TrLevel, bind, Option.bind_eq_some_iff, pure, Option.some.injEq] at h
+    obtain ⟨a', ha, b', hb, rfl⟩ := h
+    simp only [Level.isNeverZero] at hz
+    intro ν
+    have := eval_ne_zero hb hz ν
+    simp only [Metalean.Level.eval_imax, Nat.imax_eq_max this]
+    unfold Nat.max
+    omega
+  | .param _, _, _, hz => by simp [Level.isNeverZero] at hz
+  | .mvar _, _, h, _ => by cases h
+
+/-- A level that is not never-zero translates to a level that is zero when every parameter is. -/
+private theorem eval_zero_of_not {lps : List Name} :
+    ∀ {u : Level} {l : Metalean.Level lps.length}, TrLevel lps u = some l →
+      u.isNeverZero = false → l.eval (fun _ => 0) = 0
+  | .zero, l, h, _ => by cases h; rfl
+  | .succ _, _, _, hz => by simp [Level.isNeverZero] at hz
+  | .max a b, l, h, hz => by
+    simp only [TrLevel, bind, Option.bind_eq_some_iff, pure, Option.some.injEq] at h
+    obtain ⟨a', ha, b', hb, rfl⟩ := h
+    simp only [Level.isNeverZero, Bool.or_eq_false_iff] at hz
+    simp [eval_zero_of_not ha hz.1, eval_zero_of_not hb hz.2]
+  | .imax a b, l, h, hz => by
+    simp only [TrLevel, bind, Option.bind_eq_some_iff, pure, Option.some.injEq] at h
+    obtain ⟨a', ha, b', hb, rfl⟩ := h
+    simp only [Level.isNeverZero] at hz
+    simp [eval_zero_of_not hb hz]
+  | .param _, l, h, _ => by
+    simp only [TrLevel, Option.map_eq_some_iff] at h
+    obtain ⟨p, -, rfl⟩ := h
+    rfl
+  | .mvar _, _, h, _ => by cases h
+
+end OracleSound
+
+open OracleSound in
+/-- `Level.isNeverZero` is complete for translated levels: a level is never zero exactly when its
+translation is non-zero under every assignment of the universe parameters (a level that is not
+syntactically never zero is zero when every parameter is). Reference: none (`Level.isNeverZero`,
+Lean's kernel; `Metalean.Level.eval`, `ML Level/Quot/Basic.lean:48`). -/
+theorem TrLevel.isNeverZero_iff {lps : List Name} {u : Level} {l : Metalean.Level lps.length}
+    (h : TrLevel lps u = some l) : u.isNeverZero = true ↔ ∀ ν, l.eval ν ≠ 0 := by
+  refine ⟨eval_ne_zero h, fun hne => ?_⟩
+  cases hz : u.isNeverZero
+  · exact absurd (eval_zero_of_not h hz) (hne _)
+  · rfl
 
 end EraseProof

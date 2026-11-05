@@ -24,6 +24,8 @@ EraseProof.Erases.abstract EraseProof.erasePure_erases
 EraseProof.Erases.inst_let EraseProof.erases_correct
 EraseProof.ErasesAlt.inst EraseProof.erases_correct
 EraseProof.Pure.isErasable_sound EraseProof.erasePure_erases
+EraseProof.Pure.typeLevel_sound EraseProof.erasePure_erases
+EraseProof.TrLevel.isNeverZero_iff EraseProof.erasePure_erases
 EraseProof.Pure.isErasable_atom EraseProof.erasePure_erases
 EraseProof.Pure.isErasable_ctorProp EraseProof.erasePure_erases
 EraseProof.Pure.isErasable_agree EraseProof.visit_agree
