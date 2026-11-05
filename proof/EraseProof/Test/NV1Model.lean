@@ -551,6 +551,7 @@ theorem indBlock1 : IndBlock E1 B1 ηB1 [] IsB CsB RsB ordersB where
     fin_cases s; fin_cases c
     · exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, [], [], rfl, rfl, rfl, .nil, .nil, .nil⟩
     · exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, [], [], rfl, rfl, rfl, .nil, .nil, .nil⟩
+  ctorType s c := by fin_cases s; fin_cases c <;> exact ⟨_, [], rfl, rfl, rfl⟩
   recr s := by
     fin_cases s
     exact ⟨rfl, rfl, fun _ => ⟨`u, rfl⟩, fun h => absurd (by rw [hb1]; exact largeElimB) h, rfl, rfl,

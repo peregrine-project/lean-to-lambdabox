@@ -3,7 +3,6 @@
 #   <axioms>: its `#print axioms`, comma-separated in the order propext, Classical.choice,
 #             Quot.sound; `-` for none. sorryAx and Cardinal.exists_inaccessibles never occur.
 # proof/scripts/check.sh compares this file with the computed .check/axioms.actual.
-EraseProof.ProgEnv.fresh propext,Classical.choice,Quot.sound
 EraseProof.Test.bind_ok propext,Classical.choice,Quot.sound
 EraseProof.Test.forIn_toSubarray_size propext,Classical.choice,Quot.sound
 EraseProof.Test.runPure_bind propext,Classical.choice,Quot.sound
@@ -158,7 +157,8 @@ EraseProof.Erases.inst propext,Classical.choice,Quot.sound
 EraseProof.Erases.inst_let propext,Classical.choice,Quot.sound
 EraseProof.ErasesAlt.inst propext,Classical.choice,Quot.sound
 EraseProof.Pure.isArity_sound propext,Classical.choice,Quot.sound
-EraseProof.SrcDefeq.sound_of propext,Classical.choice,Quot.sound
 EraseProof.Pure.isErasable_atom propext,Quot.sound
 EraseProof.Pure.isErasable_ctorProp propext,Quot.sound
 EraseProof.Pure.isErasable_agree propext,Classical.choice,Quot.sound
+EraseProof.SrcProof.ctor_evidentProp propext,Classical.choice,Quot.sound
+EraseProof.ErasableS.eval propext,Classical.choice,Quot.sound
