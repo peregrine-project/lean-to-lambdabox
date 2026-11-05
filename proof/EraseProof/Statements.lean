@@ -18,11 +18,14 @@ namespace EraseProof
 
 /-- The statement of `erases_correct`, the relation-level simulation: an erasure, with erased
 dependencies, of a typed source term that evaluates, evaluates in λ□ to an erasure of the source
-value. Reference: `erases_correct` (`MR E/ErasureCorrectness.v:51`); MC §7.3, Thm 7.3. -/
+value. The inductive blocks of the evaluation environment have distinct λ□ names
+(`BlockNamesInj`) and syntactic arities as types (`ArityTypes`), as the fragment test checks on the
+closure. Reference: `erases_correct` (`MR E/ErasureCorrectness.v:51`); MC §7.3, Thm 7.3. -/
 def erases_correct_statement : Prop :=
   ∀ {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {P : List ConstantInfo}
     {σ : EvalEnv} {lps : List Name} {lenv : GlobalDeclarations} {e : Expr} {tb : LBTerm} {v : Expr},
-    ProgEnv P ζ E B → Metalean.EnvWF E → SubEnv σ.decls P → KernameInj σ.decls → LenvClosed lenv →
+    ProgEnv P ζ E B → Metalean.EnvWF E → SubEnv σ.decls P → KernameInj σ.decls →
+    BlockNamesInj σ.decls → ArityTypes σ.decls → LenvClosed lenv →
     ∀ {t : Metalean.Expr ζ lps.length 0},
       TrM E B lps .nil [] e t → (∃ T, E[.nil] ⊢ t : T) →
       Erases E B lps σ .nil [] e tb → ErasesDeps E B σ lenv tb → SrcEval σ e v →

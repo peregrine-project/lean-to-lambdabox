@@ -3,6 +3,7 @@
 # of the shipping code or of a dependency, pinned by name), `toolchain <name>` and
 # `dep <package> <rev>` (the root package's lean-toolchain and lake-manifest.json). Written by
 # `tools/Report.lean --write-pin`; proof/scripts/check.sh compares it.
+body EraseProof.ArityTypes 31f83019c923006be2a6de45e5294e1031e48c6a350f99800e5c4ce2e525b68c
 body EraseProof.AtomSpine cd7afc66010a6a73f8d3cae6968cd3e2ff51935941d10ca8d26f7fdf94d713a9
 body EraseProof.Binds 246e3ff32dc3420c02e8cbde2b0fa841a8a0114b4126ac697159c9fff1f4b706
 body EraseProof.Binds.set c083b196c1cecf393dcb445d815f465bd47e24744b1849ecf6e280cb6123c125
@@ -764,5 +765,5 @@ name toKername
 root EraseProof.collectDeps_ok_of_statement d50fcf92b842e8d85c5dc3d07ad2fc57bdf5c56b18213066e1e4822843fbff3d
 root EraseProof.erasePure_erases_statement b66a7ea0724e83bb466b06d7daa784275118b54bf1c11393a0b905a32299d527
 root EraseProof.erase_correct_statement 881a50df2e710f7c2b57987fecc10d9c770d8a230be23dfff963e28c2eb0ae83
-root EraseProof.erases_correct_statement b5840f862aa974ba53cbf4de6a33003a987f518f2006dea7bd2d8081556f4abf
+root EraseProof.erases_correct_statement b2dd8a491b5f03281497ebed457bad900d74a91f3b0e582e04d6d0d54b8704d9
 toolchain leanprover/lean4:v4.35.0-rc2
