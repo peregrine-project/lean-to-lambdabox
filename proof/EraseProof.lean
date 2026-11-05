@@ -57,3 +57,5 @@ import EraseProof.Simulation.Main
 import EraseProof.Oracle.Sound
 import EraseProof.Core.Collect
 import EraseProof.Core.CollectSpec
+import EraseProof.Core.Frame
+import EraseProof.Core.State
