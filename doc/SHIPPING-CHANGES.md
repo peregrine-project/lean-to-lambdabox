@@ -2762,6 +2762,46 @@ the calls at which the two oracles answer differently. It must equal
   recursors, so four checks fail. `scripts/regress.sh` passes (21 tests), with and without
   `PEREGRINE`.
 
+## S-37: The pure path recognizes a `casesOn` only if its declared type is a syntactic telescope
+
+- **Commit:** the commit whose subject starts with `S-37:` (`git log --grep='^S-37:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure/Pure.lean`: `casesInfo?` also requires that the declared type of
+    the `casesOn` definition has at least `D` leading syntactic `Π`s (`D ≤ forallArity d.type`),
+    `D` the recognized arity; its docstring. `recognizeCasesOn` (the closure of `collectDeps`)
+    and `PureM.casesInfo?` (the pure backend) both call it.
+  - new `tests/regress/cases_type.lean` with its goldens.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** found by the verification work on the pure path. `casesInfo?` checked the
+  value of a `T.casesOn` and the recursor, never the definition's declared type. When the type is
+  wrapped in `mdata`, or is a definition that unfolds to the `casesOn` type (which Lean's kernel
+  accepts, since it checks the value against the type up to δ), the traversal's η-expansion of a
+  partially applied `casesOn` (`withAppEtaToMinArity`) puts the type in weak head normal form and
+  emits a `λ`, while the proof's erasure relation reads the `Π`s of the type syntactically and
+  relates such a `casesOn` only to □. So the emitted term had no relation to its source. With
+  this check the syntactic and the reduced telescope agree on the first `D` binders (whnf is the
+  identity on a `Π`), names included.
+- **Behaviour before:** on `T.casesOn` definitions with the canonical value and the type wrapped
+  in `mdata` or replaced by such an alias, added to the kernel directly, the pure recognizer
+  answers `some`, the `Meta` path's `getCasesInfo?` answers `none` (Lean did not mark them as
+  `casesOn`), and `#erase` of `T.casesOn.{1}` takes the pure path, which emits four `λ`s around a
+  `case` (with the alias, the binder names of the alias's body).
+- **Behaviour after:** the pure recognizer answers `none` on both, as `getCasesInfo?` does; the
+  closure then reads the value, which reads `T.rec`, so `collectDeps` excludes the program and
+  `#erase` takes the `Meta` path. A `casesOn` that Lean generates has a syntactic telescope of
+  exactly `D` binders (`mkCasesOn`), so elaborated programs are unaffected.
+- **Effect on emitted .ast (corpus):** byte-identical for all 710 files against the corpus of S-36;
+  `PANIC` counts unchanged. `scripts/pure-harness.sh` passes with its expected summary unchanged
+  (294 `#erase`, 223 in the fragment, 68 outside, 3 `collectDeps` errors; 8298 oracle calls, 14
+  differ, none fails), so no program enters or leaves the fragment.
+- **Regression test:** `cases_type` checks the pure recognizer and `getCasesInfo?` on the two
+  `casesOn` above, on one with the plain type (pure `some`) and on the `casesOn` of an elaborated
+  inductive (both `some`); that `#erase` routes the two to the `Meta` path; and that `useD`, whose
+  closure applies an elaborated `casesOn` to its motive only, takes the pure path, and pins its
+  `#erase` output (`useD.ast`), which peregrine validates and evaluates to `CT.D.f`. Before this
+  commit the pure recognizer answers `some` on the two and routes them to the pure path, so four
+  checks fail. `scripts/regress.sh` passes (22 tests), with and without `PEREGRINE`.
+
 ---
 
 ## Reported, not fixed

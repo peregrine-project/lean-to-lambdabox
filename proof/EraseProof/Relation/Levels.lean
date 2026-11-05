@@ -207,7 +207,7 @@ theorem ProgEnv.levelsInfo {P : List ConstantInfo} (h : ProgEnv P ζ E B) {c : N
   induction h with
   | nil => simp [findDecl] at hc
   | @«axiom» _ _ _ _ v _ _ _ _ _ htr ih | @thm _ _ _ _ v _ _ _ _ _ _ htr _ ih
-  | @«opaque» _ _ _ _ v _ _ _ _ _ _ _ htr ih =>
+  | @«opaque» _ _ _ _ v _ _ _ _ _ _ _ htr _ _ ih =>
     rw [findDecl_cons] at hc
     split at hc
     · cases hc

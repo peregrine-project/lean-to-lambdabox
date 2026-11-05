@@ -103,7 +103,7 @@ theorem lookup_thm {c : Name} {v : TheoremVal} (h : ProgEnv P ζ E B)
   induction h with
   | nil => simp [findDecl] at hc
   | @«axiom» _ _ E₀ _ v' _ hP hfr _ _ _ ih | @defn _ _ E₀ _ v' _ _ hP hfr _ _ _ _ _ ih
-  | @«opaque» _ _ E₀ _ v' _ hP hfr _ _ _ _ _ ih =>
+  | @«opaque» _ _ E₀ _ v' _ _ hP hfr _ _ _ _ _ _ ih =>
     rw [findDecl_cons] at hc
     split at hc
     · cases hc

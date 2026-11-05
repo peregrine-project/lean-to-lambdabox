@@ -110,7 +110,7 @@ theorem casesOn_shape {σ : EvalEnv} {c : Name} {iv : InductiveVal}
               cases hci
               simp only [Bool.and_eq_true, Bool.not_eq_true', beq_iff_eq, List.all_eq_true,
                 List.mem_range] at hok
-              obtain ⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨hu, hn⟩, hlp⟩, hmot⟩, hhd⟩, hlen⟩, hps⟩, hm⟩, hmin⟩, his⟩, hmaj⟩ := hok
+              obtain ⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨hu, hn⟩, hlp⟩, -⟩, hmot⟩, hhd⟩, hlen⟩, hps⟩, hm⟩, hmin⟩, his⟩, hmaj⟩ := hok
               change findDecl σ.decls T = _ at hiv
               change findDecl σ.decls T = _ at hI
               rw [hiv] at hI

@@ -32,7 +32,7 @@ theorem ProgEnv.lookup_ind_ctor {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : 
   induction h with
   | nil => simp [findDecl] at hS
   | @«axiom» _ _ _ _ v _ hP hfr _ _ _ ih | @defn _ _ _ _ v _ _ hP hfr _ _ _ _ _ ih
-  | @thm _ _ _ _ v _ hP hfr _ _ _ _ _ ih | @«opaque» _ _ _ _ v _ hP hfr _ _ _ _ _ ih =>
+  | @thm _ _ _ _ v _ hP hfr _ _ _ _ _ ih | @«opaque» _ _ _ _ v _ _ hP hfr _ _ _ _ _ _ ih =>
     rw [findDecl_cons] at hS
     split at hS
     · cases hS

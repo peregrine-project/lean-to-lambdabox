@@ -90,11 +90,12 @@ def blockCtorCount (decls : List ConstantInfo) : List Name → Option Nat
 
 /-- The canonical-`casesOn` recognizer over the program's declarations: `some` exactly when
 `n = T.casesOn`, `T` a safe, non-nested inductive of `decls` whose recursor `T.rec` (in `decls`)
-has no auxiliary motives, and `n` is a definition of `decls` with the recursor's level parameters
-whose value is the canonical `fun ps motive is t ms => T.rec ps motives' minors' is t` (exactly
-`numParams + 1 + numIndices + 1 + numCtors` leading `λ`s; own motive the `motive` binder; own
-minors `fun fs ihs => mᵢ fs` over all the binders of the recursor's minor premise; the other
-sorts' motives and minors unconstrained); then the `CasesInfo` of `T` (`numParams`, `numIndices`,
+has no auxiliary motives, and `n` is a definition of `decls` with the recursor's level parameters,
+whose declared type has at least `D = numParams + 1 + numIndices + 1 + numCtors` leading syntactic
+`Π`s (`forallArity`; not behind `mdata` or a definition), and whose value is the canonical
+`fun ps motive is t ms => T.rec ps motives' minors' is t` (exactly `D` leading `λ`s; own motive
+the `motive` binder; own minors `fun fs ihs => mᵢ fs` over all the binders of the recursor's minor
+premise; the other sorts' motives and minors unconstrained); then the `CasesInfo` of `T` (`numParams`, `numIndices`,
 one `.ctor` alternative per constructor with its `numFields`), as `getCasesInfo?` gives it. `none`
 on any mismatch, so a `casesOn` built otherwise (by projections, for a large-eliminating `Prop`
 structure), a sparse `casesOn` and `T.c.elim` are not recognized. Reference: `Lean.getCasesInfo?`
@@ -116,6 +117,7 @@ def casesInfo? (decls : List ConstantInfo) (n : Name) : Option Lean.CasesInfo :=
         let off := p + R.numMotives + before
         let idx := p + R.numMotives + R.numMinors
         let ok := !I.isUnsafe && I.numNested == 0 && d.levelParams == R.levelParams &&
+          D ≤ forallArity d.type &&
           R.numMotives == I.all.length && isConstAt hd R.name R.levelParams &&
           args.length == R.numParams + R.numMotives + R.numMinors + R.numIndices + 1 &&
           (List.range p).all (fun i => isBVarAt args (i) (bv i)) &&

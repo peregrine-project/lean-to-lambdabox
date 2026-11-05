@@ -234,7 +234,7 @@ theorem ProgEnv.recrType {c : Name} {ci : ConstantInfo} (h : ProgEnv P ζ E B)
   induction h with
   | nil => simp [findDecl] at hc
   | @«axiom» _ _ _ _ v _ _ _ _ _ _ ih | @defn _ _ _ _ v _ _ _ _ _ _ _ _ _ ih
-  | @thm _ _ _ _ v _ _ _ _ _ _ _ _ ih | @«opaque» _ _ _ _ v _ _ _ _ _ _ _ _ ih =>
+  | @thm _ _ _ _ v _ _ _ _ _ _ _ _ ih | @«opaque» _ _ _ _ v _ _ _ _ _ _ _ _ _ _ ih =>
     intro ι η s os hB
     rw [findDecl_cons] at hc
     split at hc

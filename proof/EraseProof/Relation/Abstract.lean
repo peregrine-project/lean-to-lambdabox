@@ -330,7 +330,7 @@ theorem ProgEnv.typeTr {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ}
   induction h with
   | nil => intro ci hci; cases hci
   | «axiom» _ _ _ _ htr ih | defn _ _ _ _ _ htr _ ih | thm _ _ _ _ _ htr _ ih
-  | «opaque» _ _ _ _ _ _ htr ih =>
+  | «opaque» _ _ _ _ _ htr _ _ ih =>
     intro ci hci
     rcases List.mem_cons.mp hci with rfl | hci
     · exact ⟨_, _, _, _, htr⟩

@@ -413,7 +413,7 @@ theorem ctor_mem_block (henv : ProgEnv P ζ E B) {cv : ConstructorVal}
   induction henv with
   | nil => cases hm
   | «axiom» _ _ _ _ _ ih | defn _ _ _ _ _ _ _ ih | thm _ _ _ _ _ _ _ ih
-  | «opaque» _ _ _ _ _ _ _ ih =>
+  | «opaque» _ _ _ _ _ _ _ _ ih =>
     rcases List.mem_cons.mp hm with h | h
     · cases h
     · obtain ⟨ι, ζ₀, E₀, B₀, η₀, lps₀, Is, Cs, Rs, orders, s, k, hb, rfl, hI⟩ := ih h

@@ -626,7 +626,7 @@ theorem ProgEnv.lookup_def {c : Name} {v : DefinitionVal} (h : ProgEnv P ζ E B)
   induction h with
   | nil => simp [findDecl] at hc
   | @«axiom» _ _ _ _ v' _ hP hfr _ _ _ ih | @thm _ _ _ _ v' _ hP hfr _ _ _ _ _ ih
-  | @«opaque» _ _ _ _ v' _ hP hfr _ _ _ _ _ ih =>
+  | @«opaque» _ _ _ _ v' _ _ hP hfr _ _ _ _ _ _ ih =>
     rw [findDecl_cons] at hc
     split at hc
     · cases hc

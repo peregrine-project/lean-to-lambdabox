@@ -33,7 +33,7 @@ theorem ProgEnv.metaOrderOK {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Bind
   induction h with
   | nil => intro c _ _ _ _ _ hc; cases hc
   | @«axiom» _ _ _ _ v _ _ _ _ _ _ ih | @defn _ _ _ _ v _ _ _ _ _ _ _ _ _ ih
-  | @thm _ _ _ _ v _ _ _ _ _ _ _ _ ih | @«opaque» _ _ _ _ v _ _ _ _ _ _ _ _ ih =>
+  | @thm _ _ _ _ v _ _ _ _ _ _ _ _ ih | @«opaque» _ _ _ _ v _ _ _ _ _ _ _ _ _ _ ih =>
     intro c ι η s k o hc
     by_cases hn : c = v.name
     · simp [Binds.set, hn] at hc
