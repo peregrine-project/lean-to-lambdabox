@@ -28,12 +28,5 @@ EraseProof.Pure.isErasable_ctorProp EraseProof.erasePure_erases
 EraseProof.Pure.isErasable_agree EraseProof.visit_agree
 EraseProof.SrcProof.ctor_evidentProp EraseProof.erasePure_erases
 EraseProof.OracleInfer.inferOK EraseProof.Pure.inferType_sound
-EraseProof.erases_correct_ctor EraseProof.erases_correct
-EraseProof.erases_correct_eta EraseProof.erases_correct
-EraseProof.erases_correct_lit EraseProof.erases_correct
-EraseProof.erases_correct_proj EraseProof.erases_correct
-EraseProof.erases_correct_projProp EraseProof.erases_correct
-EraseProof.erases_correct_casesProof EraseProof.erases_correct
-EraseProof.erases_correct_casesLitZero EraseProof.erases_correct
 EraseProof.OracleInfer.infer_projStruct EraseProof.Pure.inferType_sound
 EraseProof.erases_correct EraseProof.erase_correct
