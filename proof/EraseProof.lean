@@ -62,3 +62,5 @@ import EraseProof.Core.Frame
 import EraseProof.Core.State
 import EraseProof.Core.RegisterInd
 import EraseProof.Core.Glue
+import EraseProof.Core.LocalsOK
+import EraseProof.Core.Steps
