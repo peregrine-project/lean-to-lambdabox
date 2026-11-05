@@ -2672,6 +2672,136 @@ the calls at which the two oracles answer differently. It must equal
   `PEREGRINE`. `scripts/pure-harness.sh` passes with its expected summary unchanged (294 `#erase`,
   223 in the fragment; 8298 oracle calls, 14 differ, none fails).
 
+## S-35: The fragment test is documented and tested to exclude inductives whose type is not an arity
+
+- **Commit:** the commit whose subject starts with `S-35:` (`git log --grep='^S-35:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure/Entry.lean`: the docstring of `collectDeps` lists the exclusion of an
+    inductive whose type is not syntactically an arity (`arityShape`, `sortDecided`). No code
+    changes.
+  - new `tests/regress/arity_type.lean` with its goldens.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** found by the verification work on the simulation. Lean's kernel accepts an
+  inductive whose declared type reaches its sort only by unfolding a definition:
+  `def S.{u} := Sort u` and `inductive PU.{u} : S.{u} | mk` (with
+  `bootstrap.inductiveCheckResultingUniverse` off), and the default elaborator keeps an alias as the
+  declared type (`def T1 := Type`, `inductive Foo : T1` has the type `T1`). The pure path reads an
+  inductive's sort from the syntactic arity of its type (`arityShape`); on `PU` it has none, so it
+  cannot tell that `PU.{0}` is a proposition, and the proof's erasure relation would allow a `case`
+  on □ for `PU.casesOn.{1, 0} (motive := fun _ => Nat) PU.mk 5`, which λ□ does not evaluate. The
+  proof therefore needs every inductive of the closure to have a syntactic arity, and the fragment
+  test to guarantee it. `sortDecided`, which `declExclusion` runs on every inductive of the closure,
+  already excludes such an inductive (since S-29), but the docstring of `collectDeps`, which lists
+  the exclusions, omits it, and no test pins it.
+- **Behaviour before:** `collectDeps` gives `outside the fragment: inductive AT.PU whose type is
+  not an arity` on `t := PU.casesOn.{1, 0} (motive := fun _ => Nat) PU.mk 5`, and likewise on
+  programs using `Foo : T1`, `PT : PAlias` (`def PAlias := Prop`) and `G : F` (`def F := Nat →
+  Type`); `#erase` takes the `Meta` path.
+- **Behaviour after:** the same; the docstring of `collectDeps` states it.
+- **Effect on emitted .ast (corpus):** byte-identical for all 710 files against the corpus of S-34;
+  `PANIC` counts unchanged.
+- **Regression test:** `arity_type` checks, under `nat := .peano`, the exclusion reason and the
+  `Meta` route of the four programs above, and pins the `Meta` path's `#erase` output of `t`
+  (`t.ast`, the alternative `5`), which peregrine validates and evaluates. It passes before this
+  commit too (the exclusion exists since S-29); it guards the exclusion. `scripts/regress.sh`
+  passes (20 tests), with and without `PEREGRINE`.
+
+## S-36: The pure oracle types projections only of large-eliminating inductives
+
+- **Commit:** the commit whose subject starts with `S-36:` (`git log --grep='^S-36:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure/Pure.lean`: `Pure.inferType` on `proj S i s` looks up `S.rec` in the
+    declarations and is the error `failed projection of an inductive that is not
+    large-eliminating` when the recursor has as many universe parameters as `S`, and `failed
+    invalid projection` when the declarations have no recursor `S.rec`; its docstring.
+  - `LeanToLambdaBox/Erasure/Entry.lean`: `closureStep` gives an inductive with one constructor
+    its recursor `T.rec` (from the view) as companion, as it does for a recognized `T.casesOn`;
+    `closure` lists only definitions with a companion as recognized `casesOn`; the docstrings of
+    `declExclusion`, `dropKnown`, `closureStep`, `closure` and `collectDeps`.
+  - new `tests/regress/proj_large_elim.lean` with its goldens.
+  - `tests/regress/collect_deps.lean`: the closure of `.proj G.PS 0 G.hq` gains `True.rec` and
+    `G.PS.rec`; its docstring.
+  - `tests/regress/pure_inductive.lean`: the declarations `PI.dT` and those of `nv2.ast`, copied by
+    hand from the environment as the closure, gain `PI.P2.rec`; its docstring.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** found by the verification work on the oracle. `Pure.inferType` typed a
+  projection of any inductive with one constructor. On one that is not large-eliminating it can
+  answer a type that is not a type of the projection: with `Ex3 : Prop`, constructor `intro
+  (w : Prop) (h : (fun _ : Prop => True) w)` (added to the kernel directly) and `axiom a : Ex3`, it
+  answers `(fun x => True) a.1` on `proj Ex3 1 a`, and `a.1`, a projection of a proof onto a
+  field that is not a proof, has no type in the proof's model of Lean, where such a projection
+  is a recursor that eliminates only into `Prop`. Lean's kernel rejects `proj Ex3 1 a`, but the
+  oracle must be sound on every term the proof's typing admits. Lean gives an inductive's recursor
+  a universe parameter for the motive besides the inductive's exactly when the inductive
+  eliminates into every sort (as S-32 uses for `casesOn`), so the oracle reads the recursor. The
+  closure contained the recursor only of inductives with a recognized `casesOn`, so without the
+  second change the oracle could not type the projections of programs on the pure path (such as
+  the projection in the value of a structure's projection function); the closure now contains the
+  recursor of every inductive that can be projected, those with one constructor.
+- **Behaviour before:** over the closure of the projection, under `nat := .peano`, the oracle
+  answers `ok (fun x => True) PLE.a.1` on `proj Ex3 1 a` and `ok True` on `proj E4 1 a4`
+  (`E4 : Prop` an `inductive` with the constructor `intro (w : Nat) (h : True)`, `axiom a4 : E4`),
+  and the closures of these projections and of projections of a structure `P` and of `And` do not
+  contain `Ex3.rec`, `E4.rec`, `P.rec`, `And.rec`.
+- **Behaviour after:** the oracle answers the error `projection of an inductive that is not
+  large-eliminating` on both projections, and the closures contain the recursors; the oracle's
+  types of the projections of `P` and `And` are unchanged. Lean's kernel accepts `proj E4 1 a4` (a
+  proof field that does not depend on `w`), so the pure path now fails on a kernel-valid term, but
+  Lean's elaborator does not produce it: it declares no projections for an `inductive`, and the
+  `structure` command rejects a `Prop` structure with a field that is not a proof, so every
+  projection it produces is of a large-eliminating structure. The `Meta` path is unchanged.
+- **Effect on emitted .ast (corpus):** byte-identical for all 710 files against the corpus of S-35;
+  `PANIC` counts unchanged. `scripts/pure-harness.sh` passes with its expected summary unchanged
+  (294 `#erase`, 223 in the fragment, 68 outside, 3 `collectDeps` errors; 8298 oracle calls, 14
+  differ, none fails).
+- **Regression test:** `proj_large_elim` checks the kernel's verdicts and the oracle's answers on
+  `proj Ex3 1 a` and `proj E4 1 a4`, the oracle's types of projections of `P` and `And` and that
+  their closures contain the recursors, that `useSnd := P.b (P.mk B.t B.f)` takes the pure path,
+  and pins its `#erase` output (`useSnd.ast`), which peregrine validates and evaluates to `B.f`.
+  Before this commit the oracle answers `ok` on both projections and the closures lack the
+  recursors, so four checks fail. `scripts/regress.sh` passes (21 tests), with and without
+  `PEREGRINE`.
+
+## S-37: The pure path recognizes a `casesOn` only if its declared type is a syntactic telescope
+
+- **Commit:** the commit whose subject starts with `S-37:` (`git log --grep='^S-37:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure/Pure.lean`: `casesInfo?` also requires that the declared type of
+    the `casesOn` definition has at least `D` leading syntactic `Π`s (`D ≤ forallArity d.type`),
+    `D` the recognized arity; its docstring. `recognizeCasesOn` (the closure of `collectDeps`)
+    and `PureM.casesInfo?` (the pure backend) both call it.
+  - new `tests/regress/cases_type.lean` with its goldens.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** found by the verification work on the pure path. `casesInfo?` checked the
+  value of a `T.casesOn` and the recursor, never the definition's declared type. When the type is
+  wrapped in `mdata`, or is a definition that unfolds to the `casesOn` type (which Lean's kernel
+  accepts, since it checks the value against the type up to δ), the traversal's η-expansion of a
+  partially applied `casesOn` (`withAppEtaToMinArity`) puts the type in weak head normal form and
+  emits a `λ`, while the proof's erasure relation reads the `Π`s of the type syntactically and
+  relates such a `casesOn` only to □. So the emitted term had no relation to its source. With
+  this check the syntactic and the reduced telescope agree on the first `D` binders (whnf is the
+  identity on a `Π`), names included.
+- **Behaviour before:** on `T.casesOn` definitions with the canonical value and the type wrapped
+  in `mdata` or replaced by such an alias, added to the kernel directly, the pure recognizer
+  answers `some`, the `Meta` path's `getCasesInfo?` answers `none` (Lean did not mark them as
+  `casesOn`), and `#erase` of `T.casesOn.{1}` takes the pure path, which emits four `λ`s around a
+  `case` (with the alias, the binder names of the alias's body).
+- **Behaviour after:** the pure recognizer answers `none` on both, as `getCasesInfo?` does; the
+  closure then reads the value, which reads `T.rec`, so `collectDeps` excludes the program and
+  `#erase` takes the `Meta` path. A `casesOn` that Lean generates has a syntactic telescope of
+  exactly `D` binders (`mkCasesOn`), so elaborated programs are unaffected.
+- **Effect on emitted .ast (corpus):** byte-identical for all 710 files against the corpus of S-36;
+  `PANIC` counts unchanged. `scripts/pure-harness.sh` passes with its expected summary unchanged
+  (294 `#erase`, 223 in the fragment, 68 outside, 3 `collectDeps` errors; 8298 oracle calls, 14
+  differ, none fails), so no program enters or leaves the fragment.
+- **Regression test:** `cases_type` checks the pure recognizer and `getCasesInfo?` on the two
+  `casesOn` above, on one with the plain type (pure `some`) and on the `casesOn` of an elaborated
+  inductive (both `some`); that `#erase` routes the two to the `Meta` path; and that `useD`, whose
+  closure applies an elaborated `casesOn` to its motive only, takes the pure path, and pins its
+  `#erase` output (`useD.ast`), which peregrine validates and evaluates to `CT.D.f`. Before this
+  commit the pure recognizer answers `some` on the two and routes them to the pure path, so four
+  checks fail. `scripts/regress.sh` passes (22 tests), with and without `PEREGRINE`.
+
 ---
 
 ## Reported, not fixed

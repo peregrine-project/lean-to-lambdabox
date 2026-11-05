@@ -90,11 +90,12 @@ def blockCtorCount (decls : List ConstantInfo) : List Name → Option Nat
 
 /-- The canonical-`casesOn` recognizer over the program's declarations: `some` exactly when
 `n = T.casesOn`, `T` a safe, non-nested inductive of `decls` whose recursor `T.rec` (in `decls`)
-has no auxiliary motives, and `n` is a definition of `decls` with the recursor's level parameters
-whose value is the canonical `fun ps motive is t ms => T.rec ps motives' minors' is t` (exactly
-`numParams + 1 + numIndices + 1 + numCtors` leading `λ`s; own motive the `motive` binder; own
-minors `fun fs ihs => mᵢ fs` over all the binders of the recursor's minor premise; the other
-sorts' motives and minors unconstrained); then the `CasesInfo` of `T` (`numParams`, `numIndices`,
+has no auxiliary motives, and `n` is a definition of `decls` with the recursor's level parameters,
+whose declared type has at least `D = numParams + 1 + numIndices + 1 + numCtors` leading syntactic
+`Π`s (`forallArity`; not behind `mdata` or a definition), and whose value is the canonical
+`fun ps motive is t ms => T.rec ps motives' minors' is t` (exactly `D` leading `λ`s; own motive
+the `motive` binder; own minors `fun fs ihs => mᵢ fs` over all the binders of the recursor's minor
+premise; the other sorts' motives and minors unconstrained); then the `CasesInfo` of `T` (`numParams`, `numIndices`,
 one `.ctor` alternative per constructor with its `numFields`), as `getCasesInfo?` gives it. `none`
 on any mismatch, so a `casesOn` built otherwise (by projections, for a large-eliminating `Prop`
 structure), a sparse `casesOn` and `T.c.elim` are not recognized. Reference: `Lean.getCasesInfo?`
@@ -116,6 +117,7 @@ def casesInfo? (decls : List ConstantInfo) (n : Name) : Option Lean.CasesInfo :=
         let off := p + R.numMotives + before
         let idx := p + R.numMotives + R.numMinors
         let ok := !I.isUnsafe && I.numNested == 0 && d.levelParams == R.levelParams &&
+          D ≤ forallArity d.type &&
           R.numMotives == I.all.length && isConstAt hd R.name R.levelParams &&
           args.length == R.numParams + R.numMotives + R.numMinors + R.numIndices + 1 &&
           (List.range p).all (fun i => isBVarAt args (i) (bv i)) &&
@@ -249,7 +251,13 @@ constant's type is its declared type at the constant's levels, for inductive typ
 recursors and `casesOn` as for every other constant. A Nat literal has the type `Nat`. A projection
 `proj S i s` has the type of the `i`-th field of `S`'s constructor, instantiated with the
 parameters of `s`'s type and with the projections of `s` for the earlier fields (Lean's
-`inferProjType`). Reference: `type_of_typing` (`MR S/PCUICSafeRetyping.v:806`), as called by
+`inferProjType`), if `S` is large-eliminating: its recursor `S.rec` is in the declarations and has
+a universe parameter more than `S` (Lean gives the recursor one for the motive exactly when the
+inductive eliminates into every sort); otherwise an error. Lean generates projections only for
+structures, which are large-eliminating (a `Prop` structure whose fields are not all proofs has no
+projections), and its kernel accepts a projection of an inductive that is not large-eliminating
+only on a proof field that does not depend on the fields that are not proofs. Reference:
+`type_of_typing` (`MR S/PCUICSafeRetyping.v:806`), as called by
 `MR E/ErasureFunction.v:894 is_erasableb`; projections: `infer` on `tProj`
 (`MR S/PCUICSafeRetyping.v:350`). -/
 def inferType (cx : Ctx) : Nat → List Local → List Expr → Expr → Except EraseError Expr
@@ -283,8 +291,10 @@ def inferType (cx : Ctx) : Nat → List Local → List Expr → Expr → Except 
   | f+1, ls, Γ, .proj S i s => do
     match spine (← whnf cx f ls (← inferType cx f ls Γ s)) with
     | (.const S' us, args) =>
-      match S' == S, findConst cx.decls S with
-      | true, some (.inductInfo I) =>
+      match S' == S, findConst cx.decls S, findConst cx.decls (mkRecName S) with
+      | true, some (.inductInfo I), some (.recInfo R) =>
+        if R.levelParams.length == I.levelParams.length then
+          throw (.failed "projection of an inductive that is not large-eliminating")
         match I.ctors, args.length == I.numParams + I.numIndices with
         | [c], true => match findConst cx.decls c with
           | some ci@(.ctorInfo _) =>
@@ -296,7 +306,7 @@ def inferType (cx : Ctx) : Nat → List Local → List Expr → Expr → Except 
             pure d
           | _ => throw (.failed "invalid projection")
         | _, _ => throw (.failed "invalid projection")
-      | _, _ => throw (.failed "invalid projection")
+      | _, _, _ => throw (.failed "invalid projection")
     | _ => throw (.failed "invalid projection")
   | _+1, _, _, _ => throw (.outOfFragment "string literal or metavariable")
 

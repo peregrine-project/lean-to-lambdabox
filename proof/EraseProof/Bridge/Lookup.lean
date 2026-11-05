@@ -163,7 +163,7 @@ theorem ProgEnv.lookup {c : Name} {ci : ConstantInfo} (h : ProgEnv P ζ E B) (hE
         (hP.set_ext hfr _) ht⟩
     · obtain ⟨b, hb, hct⟩ := ih hE' hc
       exact ⟨_, hP.set_ext hfr _ _ _ hb, hct.wkEnv (hP.set_ext hfr _)⟩
-  | @«opaque» _ _ _ _ v t hP hfr _ _ _ _ ht ih =>
+  | @«opaque» _ _ _ _ v t _ hP hfr _ _ _ ht _ _ ih =>
     have hE' := envWF_prev hE
     rw [findDecl_cons] at hc
     split at hc

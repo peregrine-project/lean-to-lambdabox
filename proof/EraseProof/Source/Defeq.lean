@@ -87,7 +87,7 @@ theorem special_kind (h : ProgEnv P ζ E B) {c : Name} {b : MBinding ζ} {ci : C
   induction h with
   | nil => simp [findDecl] at hc
   | @«axiom» _ _ _ _ v _ hP hfr _ _ _ ih | @defn _ _ _ _ v _ _ hP hfr _ _ _ _ _ ih
-  | @thm _ _ _ _ v _ hP hfr _ _ _ _ _ ih | @«opaque» _ _ _ _ v _ hP hfr _ _ _ _ _ ih =>
+  | @thm _ _ _ _ v _ hP hfr _ _ _ _ _ ih | @«opaque» _ _ _ _ v _ _ hP hfr _ _ _ _ _ _ ih =>
     rw [findDecl_cons] at hc
     split at hc
     · rename_i hn
@@ -982,7 +982,7 @@ theorem lookup_def_type (h : ProgEnv P ζ E B) {c : Name} {v : DefinitionVal}
   induction h with
   | nil => simp [findDecl] at hc
   | @«axiom» _ _ _ _ v' _ hP hfr _ _ _ ih | @thm _ _ _ _ v' _ hP hfr _ _ _ _ _ ih
-  | @«opaque» _ _ _ _ v' _ hP hfr _ _ _ _ _ ih =>
+  | @«opaque» _ _ _ _ v' _ _ hP hfr _ _ _ _ _ _ ih =>
     rw [findDecl_cons] at hc
     split at hc
     · cases hc
