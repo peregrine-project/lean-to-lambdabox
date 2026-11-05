@@ -27,7 +27,7 @@
   \lean{EraseProof.ViewAgrees}
   \leanok
   \uses{def:Erasure-EnvView}
-  \srcloc{proof/EraseProof/Spec.lean}{856}
+  \srcloc{proof/EraseProof/Spec.lean}{859}
   \lead{In short} \code{ViewAgrees view P}: \hl{the environment view of \code{\#erase} returns
   each declaration of \code{P} under its name}.
   \lead{Reference} \code{Sigma} $\sim$\code{\_ext X} (\code{abstract\_env\_ext\_rel}), a
@@ -450,14 +450,18 @@
   \lead{Reference} the erasure half of MetaRocq's \code{erase\_correct}.
 \end{theorem}
 \begin{proof}
-  \uses{lem:EraseProof-Pure-isErasable_sound, lem:EraseProof-Pure-isErasable_agree,
+  \uses{lem:EraseProof-Pure-isErasable_sound, lem:EraseProof-Pure-typeLevel_sound,
     lem:EraseProof-Pure-isErasable_atom, lem:EraseProof-SrcEval-defeq,
-    lem:EraseProof-collectDeps_spec, lem:EraseProof-eraseEntry_pure,
-    lem:EraseProof-isRecursiveDecl_false, lem:EraseProof-Erases-inst,
+    lem:EraseProof-collectDeps_sub, lem:EraseProof-collectDeps_spec,
+    lem:EraseProof-collectDeps_machineFree, lem:EraseProof-StateOK-register,
+    lem:EraseProof-register_inductive_ok, lem:EraseProof-visit_agree,
+    lem:EraseProof-visitMutual_nonrecursive, lem:EraseProof-Erases-inst,
     lem:EraseProof-Erases-abstract, lem:EraseProof-ErasesDeps-eval, lem:EraseProof-ProgEnv-lookup,
     lem:EraseProof-TrM-weakBV, lem:EraseProof-TrM-uninstantiateN, lem:EraseProof-TrM-det}
-  \lead{Idea} An invariant of the traversal's state, step by step, with the soundness of the pure
-  erasability oracle against \code{TrM} and Metalean's typing.
+  \lead{Idea} Induction on fuel over the traversal with the invariant \code{StateOK}.
+  \lead{Steps} the closure lemmas give the fragment facts; the registration lemmas keep
+  \code{StateOK}; \code{visit\_agree} moves a constant's value to the empty context; the oracle's
+  soundness justifies each $\Box$.
 \end{proof}
 
 \section{Hypotheses}\label{sec:final-hypotheses}

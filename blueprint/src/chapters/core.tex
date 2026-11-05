@@ -6,16 +6,14 @@
   the proof: the oracle's answers to Metalean's typing, the closure to the program, the traversal
   to \code{Erases}.
 \item \lead{Main results} Soundness of the pure oracle; the closure lemmas and the lower bound
-  \code{collectDeps\_ok\_of} of the fragment test; the frame and recursion lemmas of the
-  traversal. They compose into the milestone \code{erasePure\_erases} (Chapter~\ref{chap:final}).
-\item \lead{Status} \stProved{} the oracle's weak head normal forms, arities, types (but for
-  proof projections), frame and atoms, and \code{isRecursiveDecl\_false}; the sufficient condition
-  \code{PhaseIDecl} and the statement of \code{collectDeps\_ok\_of} are formalized;
-  \stPlanned{} \code{inferType\_sound}, \code{isErasable\_sound}, the closure lemmas and the
-  traversal.
+  \code{collectDeps\_ok\_of} of the fragment test; the state invariant \code{StateOK} and its
+  registration lemmas; the routing, frame and recursion lemmas of the traversal. They compose
+  into the milestone \code{erasePure\_erases} (Chapter~\ref{chap:final}).
+\item \lead{Status} \stProved{} \hl{every node of the chapter}, among them the third pinned
+  statement \code{collectDeps\_ok\_of}. \stOpen{} the step lemmas that compose these nodes along
+  the traversal, inside the proof of \code{erasePure\_erases}.
 \item \lead{Nodes} \bpnodes{chap:core}
-\item \lead{Lean files} \leanfile{proof/EraseProof/Oracle/},
-  \leanfile{proof/EraseProof/Core/NonRec.lean}.
+\item \lead{Lean files} \leanfile{proof/EraseProof/Oracle/}, \leanfile{proof/EraseProof/Core/}.
 \item \lead{Reference} MetaRocq \code{hnf\_sound} (\code{PCUICSafeReduce.v}),
   \code{type\_of\_typing} (\code{PCUICSafeRetyping.v}), \code{is\_erasableb}
   (\code{ErasureFunction.v}).
@@ -116,7 +114,8 @@
     EraseProof.OracleInfer.infer_head, EraseProof.OracleInfer.eta_typed,
     EraseProof.OracleInfer.app_step, EraseProof.OracleInfer.InferOK,
     EraseProof.OracleInfer.infer_const, EraseProof.OracleInfer.infer_special,
-    EraseProof.OracleInfer.natLitM_typed, EraseProof.OracleInfer.lit_type}
+    EraseProof.OracleInfer.natLitM_typed, EraseProof.OracleInfer.lit_type,
+    EraseProof.OracleInfer.sort_step}
   \leanok
   \uses{def:EraseProof-LocalsOK, def:EraseProof-MBinding, def:EraseProof-TrLevel,
     def:EraseProof-SatTr, def:EraseProof-natLitM, def:EraseProof-TrM, def:EraseProof-ProgEnv,
@@ -130,6 +129,8 @@
   \item \code{OracleCtx}: the oracle's de Bruijn binder types translate to the types of the
         bound entries;
   \item \code{InferOK}: the conclusion at one fuel, the induction's motive;
+  \item \code{sort\_step}: an inferred type that reduces to \code{Sort u} types the image at the
+        translation of \code{u};
   \item \code{hcl}: the locals' types and values have no loose bound variable.
   \end{itemize}
   \lead{Reference} \code{type\_of\_typing} (\code{PCUICSafeRetyping.v}).
@@ -207,9 +208,11 @@
 \begin{lemma}[Soundness of the pure oracle]
   \label{lem:EraseProof-Pure-isErasable_sound}
   \lean{EraseProof.Pure.isErasable_sound, EraseProof.Pure.inferType_sound}
-  \planned
-  \uses{def:EraseProof-LocalsOK, def:EraseProof-IsErasable, def:EraseProof-ProgEnv,
-    def:Erasure-Pure-isErasable}
+  \leanok
+  \uses{def:EraseProof-LocalsOK, def:EraseProof-MBinding, def:EraseProof-TrM,
+    def:EraseProof-ProgEnv, def:Erasure-EraseError, def:Erasure-Pure-isErasable,
+    def:EraseProof-IsErasable, def:EraseProof-ConstsIn, def:Erasure-TravCtx}
+  \srcloc{proof/EraseProof/Oracle/Sound.lean}{274}
   \lead{In short} Under the premises of Lemma~\ref{lem:EraseProof-Pure-isArity_sound} and a typed
   translation of \code{e}, \hl{each answer of the oracle is true in Metalean}.
   \begin{itemize}
@@ -220,10 +223,40 @@
 \end{lemma}
 \begin{proof}
   \uses{lem:EraseProof-Pure-isArity_sound, lem:EraseProof-OracleInfer-inferOK,
-    lem:EraseProof-OracleInfer-infer_projStruct}
-  \lead{Idea} \code{inferType\_sound} is \code{inferOK} in the empty oracle context, once the
-  proof-projection case of \code{hproj} holds; \code{isErasable\_sound} composes it with
-  \code{isArity\_sound}.
+    lem:EraseProof-Pure-isErasable_atom, def:EraseProof-TrLevel, def:Erasure-findConst,
+    def:Erasure-casesInfo, def:EraseProof-EvalEnv-isAtom, lem:EraseProof-SrcEval-defeq}
+  \leanok
+  \lead{Idea} \code{inferType\_sound} is \code{inferOK} in the empty oracle context; the
+  proof-projection case is vacuous, since the oracle fails on a block that is not
+  large-eliminating (S-36).
+  \lead{Steps} \code{isErasable\_sound} has three cases: a theorem head, typed in \code{Prop};
+  an arity, by \code{isArity\_sound}; an always-zero sort, by \code{OracleInfer.sort\_step}.
+\end{proof}
+
+\begin{lemma}[Levels of the oracle]
+  \label{lem:EraseProof-Pure-typeLevel_sound}
+  \lean{EraseProof.Pure.typeLevel_sound, EraseProof.TrLevel.isNeverZero_iff}
+  \leanok
+  \uses{def:EraseProof-LocalsOK, def:EraseProof-MBinding, def:EraseProof-TrLevel,
+    def:EraseProof-TrM, def:EraseProof-ProgEnv, def:Erasure-EraseError,
+    def:Erasure-Pure-isErasable, def:EraseProof-ConstsIn, def:Erasure-TravCtx}
+  \srcloc{proof/EraseProof/Oracle/Sound.lean}{306}
+  \lead{In short} The oracle's level of a typed term's type \hl{is a level of that type}, and
+  \code{isNeverZero} is exact on translated levels.
+  \begin{itemize}
+  \item \code{typeLevel\_sound}: \code{typeLevel} answers \code{u} $\Rightarrow$ the image
+        \code{t} has a type \code{T : Sort l} with \code{TrLevel lps u = some l};
+  \item \code{isNeverZero\_iff}: \code{u.isNeverZero} iff the translated level is non-zero under
+        every assignment.
+  \end{itemize}
+  \lead{Reference} \code{sort\_of\_type} (\code{PCUICSafeRetyping.v}).
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-Pure-whnf_sound, lem:EraseProof-OracleInfer-inferOK,
+    lem:EraseProof-Pure-isErasable_sound}
+  \leanok
+  \lead{Idea} Two calls of \code{inferType\_sound} and \code{sort\_step}; a level that is not
+  syntactically never zero evaluates to zero at the all-zero assignment.
 \end{proof}
 
 \begin{lemma}[The oracle's frame]
@@ -246,7 +279,7 @@
     def:Erasure-casesInfo, def:Erasure-Pure-instLevels, def:Erasure-Pure-isErasable,
     def:EraseProof-EvalEnv, def:EraseProof-DepClosed, def:EraseProof-ClosedDecls,
     def:Erasure-TravCtx}
-  \srcloc{proof/EraseProof/Oracle/Agree.lean}{556}
+  \srcloc{proof/EraseProof/Oracle/Agree.lean}{558}
   \lead{In short} Over declarations whose read expressions are closed (\code{ClosedDecls}), the
   oracle \hl{reads the locals only on the term's free variables}.
   \begin{itemize}
@@ -325,38 +358,142 @@
   \leanok
   \uses{def:Erasure-EnvView, def:Erasure-declExclusion, def:EraseProof-EvalEnv,
     def:EraseProof-ConstsIn, def:toKername, def:Erasure-ErasureConfig}
-  \srcloc{proof/EraseProof/Spec.lean}{925}
+  \srcloc{proof/EraseProof/Spec.lean}{931}
   \lead{In short} The hypotheses of \code{collectDeps\_ok\_of}: \hl{what the traversal reads of a
   closure is inside Phase I}.
   \begin{itemize}
   \item \code{ReadExpr}, \code{ReadClosed}: the expressions the traversal reads, and a closure
-        holding their constants;
+        holding their constants and the \code{T.rec} of every recognized \code{T.casesOn} and of
+        every inductive \code{T} with one constructor;
   \item \code{PhaseIDecl}: a declaration outside the exclusion classes of
-        Section~\ref{sec:scope-fragment}; an inductive whose sort may be both zero and not
-        (the shipping \code{mayBeNonZero}) only when not \code{Eliminated};
+        Section~\ref{sec:scope-fragment}; a recursor only as such a \code{T.rec}; an inductive
+        whose sort may be both zero and not (the shipping \code{mayBeNonZero}) only when not
+        \code{Eliminated};
   \item \code{PlainExpr}, \code{RecFree}: no free variable, metavariable or string literal (no
         literal under \code{nat := .machine}); no recursor;
   \item \code{BlockNamesInj}: block names distinct from each other and from emitted constants.
   \end{itemize}
+  \lead{Why the one-constructor recursors} the oracle reads \code{T.rec} to type a projection of
+  \code{T} (S-36), so the closure holds it; outside \code{decls}, \code{KernameInj} misses a
+  collision the closure meets.
 \end{definition}
+
+\begin{lemma}[The closure lies in the program]
+  \label{lem:EraseProof-collectDeps_sub}
+  \lean{EraseProof.collectDeps_sub, EraseProof.CollectSub.HasNatLit_foldl,
+    EraseProof.CollectSub.TrM.natLit, EraseProof.CollectSub.exprConsts_mem,
+    EraseProof.CollectSub.NamesIn, EraseProof.CollectSub.NamesClosed,
+    EraseProof.CollectSub.names_mono, EraseProof.CollectSub.NamesIn.mono,
+    EraseProof.CollectSub.NamesClosed.mono, EraseProof.CollectSub.TrM.namesIn,
+    EraseProof.CollectSub.sub_cons, EraseProof.CollectSub.sub_append,
+    EraseProof.CollectSub.block_mem, EraseProof.CollectSub.ProgEnv.names_closed,
+    EraseProof.CollectSub.view_mem, EraseProof.CollectSub.findDecl_of_view,
+    EraseProof.CollectSub.viewFind_eq, EraseProof.CollectSub.mkRecName_inj,
+    EraseProof.CollectSub.recognize_mem, EraseProof.CollectSub.NamesIn.exprConsts,
+    EraseProof.CollectSub.closureStep_sub, EraseProof.CollectSub.dropKnown_sub,
+    EraseProof.CollectSub.closure_sub}
+  \leanok
+  \uses{def:EraseProof-PhaseIDecl, def:EraseProof-ViewAgrees, def:EraseProof-MBinding,
+    def:EraseProof-TrM, def:EraseProof-ProgEnv, def:Erasure-EraseError, def:Erasure-EnvView,
+    def:Erasure-declExclusion, def:Erasure-collectDeps, def:EraseProof-ConstsIn,
+    def:Erasure-ErasureConfig}
+  \srcloc{proof/EraseProof/Core/Collect.lean}{550}
+  \lead{In short} The closure of a translated term \hl{is a sub-environment of the program}.
+  \begin{itemize}
+  \item \lead{Given} \code{ProgEnv P $\zeta$ E B}, \code{ViewAgrees view P}, \code{TrM} of
+        \code{e}, \code{collectDeps view cfg e = .ok decls};
+  \item \lead{Then} \code{SubEnv decls P}.
+  \end{itemize}
+  \lead{Why the opaque's value is translated} the closure reads an opaque's value; through its
+  translation, its constants are names of \code{P} (\code{ProgEnv.names\_closed}).
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-Pure-whnf_sound, lem:EraseProof-isRecursiveDecl_false,
+    def:EraseProof-TrLevel, def:EraseProof-SatTr, def:EraseProof-natLitM, def:EraseProof-TypedExt,
+    lem:EraseProof-TrM-weakBV, lem:EraseProof-ProgEnv-lookup, lem:EraseProof-casesOn_shape,
+    def:Erasure-findConst, def:Erasure-casesInfo, lem:EraseProof-Erases-extend}
+  \leanok
+  \lead{Idea} One induction on \code{ProgEnv}: every declaration reads only names of \code{P};
+  then induction on the work list of the closure (\code{closure\_sub}).
+\end{proof}
 
 \begin{lemma}[What the closure satisfies]
   \label{lem:EraseProof-collectDeps_spec}
-  \lean{EraseProof.collectDeps_spec, EraseProof.collectDeps_sub}
-  \planned
-  \uses{def:Erasure-collectDeps, def:EraseProof-ConstsIn, def:EraseProof-DepClosed,
-    def:EraseProof-ProgEnv}
-  \lead{In short} If \code{collectDeps view cfg e = .ok decls}, then \code{decls} is
-  \hl{kername-injective, from the view, without duplicates, dependency-closed and closed}, and
-  holds the constants of \code{e}.
+  \lean{EraseProof.collectDeps_spec, EraseProof.CollectSpec.modPath_beq_self,
+    EraseProof.CollectSpec.kername_beq_self, EraseProof.CollectSpec.findCollision_eq_none,
+    EraseProof.CollectSpec.findDecl_isSome_iff, EraseProof.CollectSpec.KernameInj.of_findCollision,
+    EraseProof.CollectSpec.exprConsts_ok, EraseProof.CollectSpec.ite_ok_then,
+    EraseProof.CollectSpec.ite_ok_else, EraseProof.CollectSpec.not_isSome,
+    EraseProof.CollectSpec.declExclusion_ok, EraseProof.CollectSpec.forIn_ok,
+    EraseProof.CollectSpec.closureStep_spec, EraseProof.CollectSpec.Covered,
+    EraseProof.CollectSpec.Covered.mono, EraseProof.CollectSpec.Scanned,
+    EraseProof.CollectSpec.Scanned.mono, EraseProof.CollectSpec.dropKnown_ok,
+    EraseProof.CollectSpec.eq_of_name, EraseProof.CollectSpec.closure_ok,
+    EraseProof.CollectSpec.ctorAlts_congr, EraseProof.CollectSpec.blockCtorCount_congr,
+    EraseProof.CollectSpec.CasesReads, EraseProof.CollectSpec.casesInfo?_congr,
+    EraseProof.CollectSpec.casesInfo?_name, EraseProof.CollectSpec.findConst_agree,
+    EraseProof.CollectSpec.recogList, EraseProof.CollectSpec.recognize_iff,
+    EraseProof.CollectSpec.collectDeps_ok,
+    EraseProof.CollectSpec.BlockNamesInj.of_findBlockCollision,
+    EraseProof.CollectSpec.sortDecided_ok, EraseProof.CollectSpec.viewFind_of,
+    EraseProof.CollectSpec.Covered.mem, EraseProof.CollectSpec.viewFind_mem,
+    EraseProof.CollectSpec.recog_view, EraseProof.CollectSpec.eliminatedUndecided_none,
+    EraseProof.CollectSpec.reads_agree_of, EraseProof.CollectSpec.recog_of_ds_of,
+    EraseProof.CollectSpec.Run, EraseProof.CollectSpec.Run.fd, EraseProof.CollectSpec.Run.cov,
+    EraseProof.CollectSpec.Run.vw, EraseProof.CollectSpec.Run.scanned,
+    EraseProof.CollectSpec.Run.ind_reads, EraseProof.CollectSpec.Run.inds,
+    EraseProof.CollectSpec.Run.ind_of_view, EraseProof.CollectSpec.Run.reads_agree,
+    EraseProof.CollectSpec.Run.recog_ds, EraseProof.CollectSpec.Run.recog_of_ds,
+    EraseProof.CollectSpec.Run.read, EraseProof.CollectSpec.Run.recr_all,
+    EraseProof.CollectSpec.Run.defn_of_casesOn, EraseProof.CollectSpec.Run.phase}
+  \leanok
+  \uses{def:EraseProof-PhaseIDecl, lem:EraseProof-collectDeps_sub, def:EraseProof-ViewAgrees,
+    def:EraseProof-erases_correct_statement, def:EraseProof-MBinding, def:EraseProof-TrM,
+    def:EraseProof-ProgEnv, def:Erasure-EraseError, def:Erasure-EnvView, def:Erasure-findConst,
+    def:Erasure-declExclusion, def:Erasure-collectDeps, def:Erasure-casesInfo,
+    def:EraseProof-EvalEnv, def:EraseProof-ConstsIn, def:EraseProof-DepClosed,
+    def:EraseProof-ClosedDecls, def:toKername, def:Erasure-ErasureConfig}
+  \srcloc{proof/EraseProof/Core/CollectSpec.lean}{1257}
+  \lead{In short} The closure \code{decls} of an accepted program \hl{satisfies what the fragment
+  test checks}.
   \begin{itemize}
-  \item \code{collectDeps\_sub}: given \code{ProgEnv}, \code{ViewAgrees view P} and \code{TrM} of
-        \code{e}, also \code{SubEnv decls P}.
+  \item \lead{Given} the premises of Lemma~\ref{lem:EraseProof-collectDeps_sub};
+  \item \lead{Then} \code{KernameInj}, the view's declarations, distinct names,
+        \code{DepClosed}, \code{ClosedDecls}, the constants of \code{e};
+  \item \code{PhaseIDecl} of every declaration; \code{RecFree} of \code{e} and of every read
+        expression; \code{BlockNamesInj} and \code{ArityTypes}.
   \end{itemize}
+  \lead{Why the program premises} the facts about recursors fail on a view no environment
+  produces (\code{B.rec.all = [B, X]}).
+  \lead{Reference} the invariants of \code{erase\_global\_deps} (\code{ErasureFunction.v}).
 \end{lemma}
 \begin{proof}
-  \uses{def:EraseProof-ConstsIn}
-  \lead{Idea} Induction on the work list of the closure.
+  \uses{lem:EraseProof-Pure-whnf_sound, lem:EraseProof-isRecursiveDecl_false,
+    lem:EraseProof-ProgEnv-lookup}
+  \leanok
+  \lead{Idea} The closure invariant (\code{closure\_ok}): distinct names, every work-list name
+  covered, every declaration scanned; a \code{casesOn} the view recognizes is recognized on the
+  closure (\code{Run.recog\_ds}); then the checks after the scan.
+\end{proof}
+
+\begin{lemma}[No machine arithmetic in the closure]
+  \label{lem:EraseProof-collectDeps_machineFree}
+  \lean{EraseProof.collectDeps_machineFree, EraseProof.CollectSpec.exprConsts_machineFree}
+  \leanok
+  \uses{def:EraseProof-PhaseIDecl, def:EraseProof-MachineFree, def:EraseProof-ViewAgrees,
+    def:EraseProof-MBinding, def:EraseProof-TrM, def:EraseProof-ProgEnv, def:Erasure-EraseError,
+    def:Erasure-EnvView, def:Erasure-declExclusion, def:Erasure-collectDeps,
+    def:Erasure-ErasureConfig}
+  \srcloc{proof/EraseProof/Core/CollectSpec.lean}{1321}
+  \lead{In short} With the premises of Lemma~\ref{lem:EraseProof-collectDeps_sub}, \code{e} and
+  every read expression of the closure \hl{are \code{MachineFree}}: \code{exprConsts} excludes
+  \code{Nat.succ} and \code{Int.casesOn} under \code{nat := .machine} and scans each of them.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-Pure-whnf_sound, lem:EraseProof-collectDeps_sub,
+    lem:EraseProof-collectDeps_spec}
+  \leanok
+  \lead{Idea} Every read expression was scanned (\code{Run.read}).
 \end{proof}
 
 \begin{definition}[The statement of the lower bound]
@@ -368,15 +505,35 @@
     def:Erasure-collectDeps, def:EraseProof-ConstsIn, def:Erasure-ErasureConfig}
   \srcloc{proof/EraseProof/Statements.lean}{34}
   \lead{In short} The proposition that Lemma~\ref{lem:EraseProof-collectDeps_ok_of} proves,
-  \hl{pinned by \code{proof/spec.pin}}; check C12 compares the lemma's type with it once the lemma
-  is proved.
+  \hl{pinned by \code{proof/spec.pin}}; check C12 compares the lemma's type with it (kernel
+  definitional equality).
 \end{definition}
 
 \begin{lemma}[A lower bound of the fragment test]
   \label{lem:EraseProof-collectDeps_ok_of}
-  \lean{EraseProof.collectDeps_ok_of}
-  \planned
-  \uses{def:EraseProof-collectDeps_ok_of_statement}
+  \lean{EraseProof.collectDeps_ok_of, EraseProof.CollectOk.KindsClosed,
+    EraseProof.CollectOk.KindsClosed.mono, EraseProof.CollectOk.ProgEnv.kinds_closed,
+    EraseProof.CollectOk.ConstsIn_and, EraseProof.CollectOk.hasMVar'_of_plain,
+    EraseProof.CollectOk.exprConsts_of_plain, EraseProof.CollectOk.bind_ok_eq,
+    EraseProof.CollectOk.casesInfo?_recConst, EraseProof.CollectOk.sortDecided_false,
+    EraseProof.CollectOk.sortDecided_ok_of, EraseProof.CollectOk.forIn_ok_of,
+    EraseProof.CollectOk.Frag, EraseProof.CollectOk.Frag.fd, EraseProof.CollectOk.Frag.vw,
+    EraseProof.CollectOk.Frag.rcd, EraseProof.CollectOk.Frag.covered,
+    EraseProof.CollectOk.Frag.covered_of_P, EraseProof.CollectOk.Frag.nat_covered,
+    EraseProof.CollectOk.Frag.names_of, EraseProof.CollectOk.Frag.read_names,
+    EraseProof.CollectOk.Frag.term_names, EraseProof.CollectOk.Frag.inds,
+    EraseProof.CollectOk.Frag.recog_dec, EraseProof.CollectOk.Frag.recog_of_dec,
+    EraseProof.CollectOk.Frag.dex, EraseProof.CollectOk.Frag.step,
+    EraseProof.CollectOk.Frag.dropKnown_ok_of, EraseProof.CollectOk.Frag.full,
+    EraseProof.CollectOk.Frag.closure_ok_of, EraseProof.CollectOk.findCollision_none,
+    EraseProof.CollectOk.findBlockCollision_none, EraseProof.CollectOk.eliminatedUndecided_none_of}
+  \leanok
+  \uses{def:EraseProof-PhaseIDecl, lem:EraseProof-collectDeps_spec,
+    def:EraseProof-collectDeps_ok_of_statement, def:EraseProof-MBinding, def:EraseProof-ProgEnv,
+    def:Erasure-EraseError, def:Erasure-EnvView, def:Erasure-findConst, def:Erasure-declExclusion,
+    def:Erasure-collectDeps, def:Erasure-casesInfo, def:EraseProof-EvalEnv,
+    def:EraseProof-ConstsIn, def:toKername, def:Erasure-ErasureConfig}
+  \srcloc{proof/EraseProof/Core/CollectOk.lean}{834}
   \lead{In short} A typed program whose read closure is inside Phase I \hl{is accepted}:
   \code{hfrag} cannot silently empty the final theorem.
   \begin{itemize}
@@ -387,34 +544,325 @@
         \code{BlockNamesInj decls}; \code{decls.length $\le$ collectFuel};
   \item \lead{Then} $\exists$ \code{decls'}, \code{collectDeps view cfg e = .ok decls'}.
   \end{itemize}
+  \lead{Why it bounds \code{hfrag}} the conclusion of Lemma~\ref{lem:EraseProof-collectDeps_spec}
+  holds these premises but \code{PlainExpr} and the fuel bound: the two lemmas bracket the test.
   \lead{Reference} none (DV-26).
 \end{lemma}
 \begin{proof}
-  \uses{def:EraseProof-PhaseIDecl}
-  \lead{Idea} Every class the test rejects contradicts a hypothesis; the work list terminates within its fuel.
+  \uses{lem:EraseProof-collectDeps_sub, lem:EraseProof-StateOK-register,
+    lem:EraseProof-isRecursiveDecl_false, def:EraseProof-ViewAgrees, def:EraseProof-SatTr,
+    def:EraseProof-TrM, lem:EraseProof-ProgEnv-lookup, lem:EraseProof-casesOn_shape,
+    lem:EraseProof-Erases-extend}
+  \leanok
+  \lead{Idea} Induction on the closure's fuel; each class the test rejects contradicts a premise.
+  \lead{Steps} invariant: accumulator inside \code{decls}, distinct names, work list covered,
+  \code{decls.length $\le$ fuel + acc.length}; a \code{casesOn} the view recognizes is recognized
+  on \code{decls} (\code{recog\_dec}); \code{KernameInj} and \code{BlockNamesInj} exclude
+  collisions.
+\end{proof}
+
+\section{The state of the traversal}\label{sec:core-state}
+
+The traversal registers constants and inductive blocks in its state. \code{StateOK} relates that
+state to the Metalean environment.
+
+\begin{definition}[The state invariant]
+  \label{def:EraseProof-StateOK}
+  \lean{EraseProof.StateOK, EraseProof.LenvExt, EraseProof.KeepMasks}
+  \leanok
+  \uses{def:EraseProof-PhaseIDecl, def:EraseProof-MBinding, def:EraseProof-LBEval,
+    def:EraseProof-Erases, def:EraseProof-ErasesDeps, def:EraseProof-EvalEnv,
+    def:EraseProof-ConstsIn, def:LBTerm, def:toKername, def:GlobalDecl, def:Erasure-EraseT}
+  \srcloc{proof/EraseProof/Core/State.lean}{43}
+  \lead{In short} \code{StateOK E B $\sigma$ st}: \hl{every entry of the traversal's
+  $\lambda_\Box$ environment erases a declaration of the closure}.
+  \begin{itemize}
+  \item \code{registered}: a registered constant has the kername \code{toKername c}, a
+        declaration of $\sigma$ that the environment holds as a constant (\code{EmitsConst}), and an
+        entry that erases it (\code{ErasesDecl}) with erased dependencies;
+  \item \code{inductives}: a registered type has its \code{IndIdOf}, its block erased
+        (\code{ErasesInd}) and masks that keep every field (\code{KeepMasks});
+  \item \code{entries}: every entry belongs to a registered constant or block;
+  \item \code{whole}: with a type, every type of its block is registered;
+  \item \code{closed}: every body is closed;
+  \item \code{LenvExt lenv lenv'}: \code{lenv'} extends \code{lenv} by fresh kernames.
+  \end{itemize}
+  \lead{Why \code{EmitsConst} and \code{whole}} a new block's kername must be fresh: an entry with
+  it is a constant, excluded by \code{BlockNamesInj} only if it is emitted, or a block of a type
+  of the same block, excluded only if blocks are registered whole.
+  \lead{Reference} \code{includes\_deps}, \code{global\_erased\_with\_deps}
+  (\code{ErasureFunctionProperties.v}), the invariant of \code{erase\_global\_deps}.
+\end{definition}
+
+\begin{lemma}[Registering constants]
+  \label{lem:EraseProof-StateOK-register}
+  \lean{EraseProof.StateOK.register, EraseProof.StateOK.empty, EraseProof.StateOK.kername,
+    EraseProof.StateOK.fresh, EraseProof.addAxiom_ok, EraseProof.get_constant_kername_ok,
+    EraseProof.StateLemmas.modPath_eq_of_beq, EraseProof.StateLemmas.kername_eq_of_beq,
+    EraseProof.StateLemmas.modPath_beq_self, EraseProof.StateLemmas.kername_beq_self,
+    EraseProof.StateLemmas.find?_ext, EraseProof.StateLemmas.lookupConst_ext,
+    EraseProof.StateLemmas.lookupInd_ext, EraseProof.StateLemmas.ErasesInd.ext,
+    EraseProof.StateLemmas.lookupConst_cons_self, EraseProof.StateLemmas.lookupConst_cons}
+  \leanok
+  \uses{def:EraseProof-PhaseIDecl, def:EraseProof-StateOK, def:EraseProof-MBinding,
+    def:Erasure-EraseError, def:Erasure-PureM, def:EraseProof-LBEval, def:EraseProof-ErasesDeps,
+    def:EraseProof-EvalEnv, def:EraseProof-ConstsIn, def:LBTerm, def:toKername, def:GlobalDecl,
+    def:Erasure-TravCtx, def:Erasure-EraseT}
+  \srcloc{proof/EraseProof/Core/State.lean}{220}
+  \lead{In short} The traversal's constant registrations \hl{keep \code{StateOK}}.
+  \begin{itemize}
+  \item \code{empty}: the initial state satisfies it;
+  \item \code{kername}: a registered constant's \code{tConst} has erased dependencies;
+  \item \code{fresh}: with \code{KernameInj} and \code{BlockNamesInj}, an unregistered emitted
+        constant has a fresh kername;
+  \item \code{register}: adding an entry that erases the declaration (the update of
+        \code{visitMutual} and \code{addAxiom});
+  \item \code{addAxiom\_ok}, \code{get\_constant\_kername\_ok}: the two functions at the pure
+        backend.
+  \end{itemize}
+  \lead{Reference} the \code{ConstantDecl} step of \code{erase\_global\_deps}
+  (\code{ErasureFunction.v}).
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-TrM, lem:EraseProof-ProgEnv-lookup, def:EraseProof-Subsingleton,
+    def:EraseProof-Erases, lem:EraseProof-ErasesDeps-eval, def:Erasure-erase}
+  \leanok
+  \lead{Idea} Clause by clause; a lookup in the grown environment finds the old entry or the new
+  one (\code{lookupConst\_cons}).
+\end{proof}
+
+\begin{lemma}[The propositional flag]
+  \label{lem:EraseProof-Pure-isPropFormerType_iff}
+  \lean{EraseProof.Pure.isPropFormerType_iff, EraseProof.RegisterInd.LShape,
+    EraseProof.RegisterInd.LShape.level_eq, EraseProof.RegisterInd.LShape.pi,
+    EraseProof.RegisterInd.lam_typed, EraseProof.RegisterInd.trM_arity,
+    EraseProof.RegisterInd.satTr_ind_shape, EraseProof.RegisterInd.satTr_of_const_ind,
+    EraseProof.RegisterInd.ProgEnv.ind_level, EraseProof.RegisterInd.inst_params_zero,
+    EraseProof.RegisterInd.trLevels_ones, EraseProof.RegisterInd.propInductive_iff,
+    EraseProof.RegisterInd.whnf_arity, EraseProof.RegisterInd.isPropFormerType_arity}
+  \leanok
+  \uses{def:EraseProof-PhaseIDecl, def:EraseProof-MBinding, def:EraseProof-TrLevel,
+    def:EraseProof-SatTr, def:EraseProof-TrM, def:EraseProof-ProgEnv, def:Erasure-EraseError,
+    def:Erasure-EnvView, def:Erasure-declExclusion, def:Erasure-Pure-isErasable,
+    def:EraseProof-Subsingleton, def:EraseProof-ConstsIn, def:Erasure-ErasureConfig,
+    def:Erasure-TravCtx}
+  \srcloc{proof/EraseProof/Core/RegisterInd.lean}{318}
+  \lead{In short} On an inductive of the closure, the flag \code{register\_inductive} computes
+  \hl{is \code{PropInductive}}.
+  \begin{itemize}
+  \item \lead{Given} \code{ProgEnv}, \code{EnvWF E}, \code{findDecl P c = some (.inductInfo iv)},
+        \code{PhaseIDecl} of it, \code{Pure.isPropFormerType cx fuel ls iv.type = .ok b};
+  \item \lead{Then} \code{b = true $\leftrightarrow$ PropInductive E B c}.
+  \end{itemize}
+  \lead{Why all of \code{PhaseIDecl}} the kernel accepts \code{inductive I : Sort (max 0 0)}, a
+  syntactic arity; its sort translates to Metalean's zero, so \code{PropInductive} holds while the
+  test answers \code{false}. \code{sortDecided} excludes it.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-Pure-whnf_sound, lem:EraseProof-Pure-typeLevel_sound,
+    def:EraseProof-natLitM, def:EraseProof-TypedExt, lem:EraseProof-TrM-instLevels,
+    lem:EraseProof-TrM-det, lem:EraseProof-SatTr-typed, lem:EraseProof-ProgEnv-lookup,
+    lem:EraseProof-TypeEq-sort_ne_forallE, def:Erasure-Pure-instLevels, def:EraseProof-EvalEnv,
+    lem:EraseProof-SrcDefeq-sound_of}
+  \leanok
+  \lead{Idea} The test reads the arity's sort \code{u} as written (\code{whnf\_arity});
+  \code{ConstTyped} and $\Pi$/sort injectivity give \code{TrLevel u} $=$ the block level
+  (\code{ProgEnv.ind\_level}); then \code{inst\_params\_zero} and \code{isNeverZero\_iff}.
+\end{proof}
+
+\begin{lemma}[Registering an inductive]
+  \label{lem:EraseProof-register_inductive_ok}
+  \lean{EraseProof.register_inductive_ok, EraseProof.RegisterInd.register_inductive_run,
+    EraseProof.RegisterInd.HT, EraseProof.RegisterInd.HT.pure, EraseProof.RegisterInd.HT.bind,
+    EraseProof.RegisterInd.HT.mono, EraseProof.RegisterInd.HT.get,
+    EraseProof.RegisterInd.HT.modify, EraseProof.RegisterInd.HT.read_bind,
+    EraseProof.RegisterInd.HT.liftM, EraseProof.RegisterInd.HT.throwM,
+    EraseProof.RegisterInd.HT.getConst, EraseProof.RegisterInd.HT.getOrFail,
+    EraseProof.RegisterInd.HT.mapM, EraseProof.RegisterInd.HT.of_fact,
+    EraseProof.RegisterInd.HT.any, EraseProof.RegisterInd.HT.pure_eq,
+    EraseProof.RegisterInd.isExtern_run, EraseProof.RegisterInd.pureM_isPropFormerType_run,
+    EraseProof.RegisterInd.isPropFormerType_run, EraseProof.RegisterInd.BodyOK,
+    EraseProof.RegisterInd.CtorOK, EraseProof.RegisterInd.Registered,
+    EraseProof.RegisterInd.forall₂_get, EraseProof.RegisterInd.zipIdx_prefix_ne,
+    EraseProof.RegisterInd.ProgEnv.ind_all, EraseProof.RegisterInd.indIdOf_member,
+    EraseProof.RegisterInd.lookupInd_cons_self}
+  \leanok
+  \uses{def:EraseProof-PhaseIDecl, def:EraseProof-StateOK, def:EraseProof-MBinding,
+    def:EraseProof-ProgEnv, def:Erasure-EraseError, def:Erasure-EnvView, def:Erasure-findConst,
+    def:Erasure-Pure-isErasable, def:Erasure-PureM, def:EraseProof-LBEval, def:EraseProof-Erases,
+    def:EraseProof-EvalEnv, def:EraseProof-ConstsIn, def:toKername, def:GlobalDecl,
+    def:Erasure-ErasureConfig, def:Erasure-TravCtx, def:Erasure-EraseT, def:Erasure-erase}
+  \srcloc{proof/EraseProof/Core/RegisterInd.lean}{745}
+  \lead{In short} A run of \code{register\_inductive} at the pure backend \hl{keeps
+  \code{StateOK}} and returns the type's $\lambda_\Box$ inductive with masks that keep every field.
+  \begin{itemize}
+  \item \lead{Given} \code{ProgEnv}, \code{EnvWF E}, \code{SubEnv $\sigma$.decls P},
+        \code{StateOK}, \code{pc.decls = $\sigma$.decls}, no \code{remove\_irrel\_constr\_args},
+        \code{PhaseIDecl} of every declaration, \code{BlockNamesInj}, \code{iv} in the closure;
+  \item \lead{Then} \code{StateOK} after the run, \code{LenvExt}, the constants unchanged,
+        \code{IndIdOf $\sigma$ iv.name = some r.1}, \code{KeepMasks}.
+  \end{itemize}
+  \lead{Reference} the \code{InductiveDecl} step of \code{erase\_global\_deps}
+  (\code{ErasureFunction.v}).
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-StateOK-register, lem:EraseProof-Pure-isPropFormerType_iff,
+    lem:EraseProof-visit_agree, lem:EraseProof-ProgEnv-lookup, lem:EraseProof-casesOn_whred,
+    def:EraseProof-Subsingleton, def:EraseProof-ErasesDeps, lem:EraseProof-ErasesDeps-eval,
+    lem:EraseProof-SrcDefeq-sound_of, def:LBTerm}
+  \leanok
+  \lead{Idea} A Hoare layer over \code{runPure} (\code{HT}) characterizes the whole run.
+  \lead{Steps} the bodies of the block in order (\code{Registered}, \code{BodyOK}), each
+  constructor by \code{CtorOK}; block coherence from \code{ProgEnv.ind\_all}; the
+  \code{@[extern]} branch contradicts \code{PhaseIDecl}.
 \end{proof}
 
 \section{The traversal}\label{sec:core-traversal}
 
-\begin{lemma}[Routing, frame and recursion]
-  \label{lem:EraseProof-eraseEntry_pure}
-  \lean{EraseProof.eraseEntry_pure, EraseProof.visit_agree}
-  \planned
-  \uses{def:Erasure-collectDeps, def:Erasure-eraseEntry, def:Erasure-erasePure,
-    def:Erasure-isRecursiveDecl, def:EraseProof-LocalsOK, def:EraseProof-ProgEnv}
-  \lead{In short} On the fragment, \code{\#erase} \hl{runs the pure path}, whose traversal reads
-  only what it should.
+\begin{definition}[The frame's premises]
+  \label{def:EraseProof-MachineFree}
+  \lean{EraseProof.MachineFree, EraseProof.OwnBlockValues, EraseProof.NoIndexFields}
+  \leanok
+  \uses{def:Erasure-findConst, def:Erasure-casesInfo, def:Erasure-ErasureConfig}
+  \srcloc{proof/EraseProof/Core/Frame.lean}{39}
+  \lead{In short} Three facts of the fragment that \hl{keep the traversal from reading
+  unconstrained terms}.
   \begin{itemize}
-  \item \code{eraseEntry\_pure}: \code{hfrag} and \code{eraseEntry view cfg e = pure r} give
-        \code{erasePure view cfg decls e = .ok r};
-  \item \code{visit\_agree}: \code{visitExpr} at \code{PureM} reads the locals only on the term's
-        free variables.
+  \item \code{MachineFree cfg e}: under \code{nat := .machine}, no \code{Nat.succ} and no
+        \code{Int.casesOn} constant;
+  \item \code{OwnBlockValues decls}: the only member of a declaration's block with a value is the
+        declaration itself;
+  \item \code{NoIndexFields decls}: no constructor of a recognized \code{casesOn}'s inductive has
+        an index field.
+  \end{itemize}
+\end{definition}
+
+\begin{lemma}[The traversal's frame]
+  \label{lem:EraseProof-visit_agree}
+  \lean{EraseProof.visit_agree, EraseProof.TravFrame.RA, EraseProof.TravFrame.Blind,
+    EraseProof.TravFrame.runPure_bind, EraseProof.TravFrame.runPure_read_bind,
+    EraseProof.TravFrame.runPure_liftM, EraseProof.TravFrame.RA.mono,
+    EraseProof.TravFrame.RA.of_blind, EraseProof.TravFrame.RA.pure, EraseProof.TravFrame.RA.bind,
+    EraseProof.TravFrame.RA.bind', EraseProof.TravFrame.RA.read_bind, EraseProof.TravFrame.RA.ite,
+    EraseProof.TravFrame.Blind.get, EraseProof.TravFrame.Blind.modify,
+    EraseProof.TravFrame.Blind.liftM, EraseProof.TravFrame.RA.forIn, EraseProof.TravFrame.RA.mapM,
+    EraseProof.TravFrame.fvarsIn_mono, EraseProof.TravFrame.findLocal_cons_self,
+    EraseProof.TravFrame.findLocal_cons_ne, EraseProof.TravFrame.LocalsSupport.push,
+    EraseProof.TravFrame.LocalsAgree.push, EraseProof.TravFrame.RA.push,
+    EraseProof.TravFrame.RA.withLocalDecl, EraseProof.TravFrame.RA.withLocalDef,
+    EraseProof.TravFrame.RA.fvar_to_name, EraseProof.TravFrame.RA.throwM,
+    EraseProof.TravFrame.RA.getOrFail, EraseProof.TravFrame.RA.getConst,
+    EraseProof.TravFrame.Blind.bind, EraseProof.TravFrame.Blind.addAxiom,
+    EraseProof.TravFrame.RA.call, EraseProof.TravFrame.inferType_run,
+    EraseProof.TravFrame.whnf_run, EraseProof.TravFrame.typeLevel_run,
+    EraseProof.TravFrame.isErasable_run, EraseProof.TravFrame.RA.inferType,
+    EraseProof.TravFrame.RA.whnf, EraseProof.TravFrame.typeLevel_agree,
+    EraseProof.TravFrame.RA.typeLevel, EraseProof.TravFrame.mf_lift, EraseProof.TravFrame.mf_inst,
+    EraseProof.TravFrame.SpineArgs, EraseProof.TravFrame.spineArgs_of,
+    EraseProof.TravFrame.getAppFn_of, EraseProof.TravFrame.withAppAux_eq,
+    EraseProof.TravFrame.withAppAux_args, EraseProof.TravFrame.withApp_eq,
+    EraseProof.TravFrame.withApp_args, EraseProof.TravFrame.Good, EraseProof.TravFrame.Good.app,
+    EraseProof.TravFrame.Good.mono, EraseProof.TravFrame.Good.sort, EraseProof.TravFrame.Good.inst,
+    EraseProof.TravFrame.isErasable_thm, EraseProof.TravFrame.NoThmHead,
+    EraseProof.TravFrame.isErasable_run', EraseProof.TravFrame.RA.oracle,
+    EraseProof.TravFrame.RA.mkLambda, EraseProof.TravFrame.RA.mkLetIn,
+    EraseProof.TravFrame.RA.mkAlt, EraseProof.TravFrame.RA.forallMonocular,
+    EraseProof.TravFrame.RA.withAppEtaToMinArity_go, EraseProof.TravFrame.RA.withAppEtaToMinArity,
+    EraseProof.TravFrame.RA.lambdaOrIntroToArity, EraseProof.TravFrame.RA.register_inductive,
+    EraseProof.TravFrame.ctorAlts_ctor, EraseProof.TravFrame.casesInfo?_spec,
+    EraseProof.TravFrame.DeclsOK, EraseProof.TravFrame.GoodConst, EraseProof.TravFrame.CasesOK,
+    EraseProof.TravFrame.RA.casesInfo, EraseProof.TravFrame.RA.ctorArity,
+    EraseProof.TravFrame.RA.declInfo, EraseProof.TravFrame.RA.withReaderFix,
+    EraseProof.TravFrame.Blind.panic, EraseProof.TravFrame.value!_eq,
+    EraseProof.TravFrame.mem_filter, EraseProof.TravFrame.mem_slice,
+    EraseProof.TravFrame.Good.dummy, EraseProof.TravFrame.value_good,
+    EraseProof.TravFrame.member_good, EraseProof.TravFrame.RA.prepare,
+    EraseProof.TravFrame.RA.mkDef, EraseProof.TravFrame.Good.app',
+    EraseProof.TravFrame.Good.mkAppN2, EraseProof.TravFrame.rco_forIn,
+    EraseProof.TravFrame.subarray_forIn, EraseProof.TravFrame.mem_subarray_toList,
+    EraseProof.TravFrame.next?_subarray, EraseProof.TravFrame.slice_good,
+    EraseProof.TravFrame.Trav, EraseProof.TravFrame.Trav.zero, EraseProof.TravFrame.step_expr,
+    EraseProof.TravFrame.step_lit, EraseProof.TravFrame.step_lam, EraseProof.TravFrame.step_letE,
+    EraseProof.TravFrame.step_proj, EraseProof.TravFrame.step_app, EraseProof.TravFrame.step_const,
+    EraseProof.TravFrame.step_appArgs, EraseProof.TravFrame.step_kername,
+    EraseProof.TravFrame.step_constApp, EraseProof.TravFrame.step_ctor,
+    EraseProof.TravFrame.step_alt, EraseProof.TravFrame.step_mutual,
+    EraseProof.TravFrame.step_casesOn, EraseProof.TravFrame.step_cases,
+    EraseProof.TravFrame.Trav.succ, EraseProof.TravFrame.trav}
+  \leanok
+  \uses{def:EraseProof-LocalsOK, lem:EraseProof-Pure-isErasable_agree, def:EraseProof-PhaseIDecl,
+    def:EraseProof-MachineFree, def:Erasure-EraseError, def:Erasure-findConst,
+    def:Erasure-casesInfo, def:Erasure-Pure-isErasable, def:Erasure-PureM,
+    def:EraseProof-DepClosed, def:EraseProof-ClosedDecls, def:LBTerm, def:toKername,
+    def:Erasure-ErasureConfig, def:Erasure-TravCtx, def:Erasure-EraseT, def:Erasure-erase}
+  \srcloc{proof/EraseProof/Core/Frame.lean}{1325}
+  \lead{In short} At the pure backend, \code{visitExpr} \hl{reads the locals only on the term's
+  free variables}, from any state and counter.
+  \begin{itemize}
+  \item \lead{Given} \code{ClosedDecls}; \code{MachineFree} of \code{e} and of every read
+        expression; \code{OwnBlockValues}; \code{NoIndexFields}; two local lists that agree on
+        \code{S}, which holds \code{e}'s free variables;
+  \item \lead{Then} the two runs are equal.
+  \end{itemize}
+  \lead{Why \code{MachineFree}} under \code{.machine}, \code{visitConstructor} on \code{Nat.succ}
+  erases \code{Nat.add} unguarded; a theorem \code{Nat.add} with an open value makes the runs
+  differ.
+  \lead{Why \code{OwnBlockValues}} the fixpoint branch erases the other members' values, which
+  \code{ClosedDecls} does not cover.
+  \lead{Why \code{NoIndexFields}} the index substitution uses \code{Expr.replace}, an
+  \code{@[extern]} function; without index fields it does not run.
+  \lead{Reference} none (DV-13).
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-TrM-weakBV, lem:EraseProof-ProgEnv-lookup, def:EraseProof-EvalEnv,
+    def:EraseProof-ConstsIn, def:abstract, def:GlobalDecl}
+  \leanok
+  \lead{Idea} \code{RA}: runs under agreeing locals are equal; combinators for binds, loops and
+  binders; one step lemma per traversal function; induction on fuel (\code{trav}). The catch-all
+  of \code{visitCases} is dead on a recognized \code{casesOn} (\code{casesInfo?\_spec}).
+\end{proof}
+
+\begin{lemma}[Routing]
+  \label{lem:EraseProof-eraseEntry_pure}
+  \lean{EraseProof.eraseEntry_pure, EraseProof.someCtx, EraseProof.someRef, EraseProof.someW,
+    EraseProof.CoreM.pure_inj, EraseProof.EIO.bind_err, EraseProof.CoreM.throwError_ne_pure}
+  \leanok
+  \uses{def:Erasure-EraseError, def:Erasure-EnvView, def:Erasure-collectDeps,
+    def:Erasure-erasePure, def:Erasure-eraseEntry, def:toKername, def:ASTType,
+    def:Erasure-ErasureConfig}
+  \srcloc{proof/EraseProof/Core/Glue.lean}{61}
+  \lead{In short} On the fragment, a returning run of \code{\#erase} \hl{is a run of the pure
+  path}.
+  \begin{itemize}
+  \item \lead{Given} \code{collectDeps view cfg e = .ok decls},
+        \code{eraseEntry view cfg e = pure r};
+  \item \lead{Then} \code{erasePure view cfg decls e = .ok r}.
   \end{itemize}
 \end{lemma}
 \begin{proof}
-  \uses{def:Erasure-eraseEntry, lem:EraseProof-isRecursiveDecl_false,
-    lem:EraseProof-Pure-isErasable_agree}
-  \lead{Idea} Unfold \code{route}; the frame by induction on fuel.
+  \uses{def:Erasure-erase}
+  \leanok
+  \lead{Idea} \code{route} takes the pure path; \code{pure} is injective in \code{CoreM}, and an
+  error is no result.
+\end{proof}
+
+\begin{lemma}[The non-recursive branch of \texorpdfstring{\code{visitMutual}}{visitMutual}]
+  \label{lem:EraseProof-visitMutual_nonrecursive}
+  \lean{EraseProof.visitMutual_nonrecursive, EraseProof.name_occurs_pure}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-ProgEnv, def:Erasure-PureM,
+    def:Erasure-isRecursiveDecl, def:EraseProof-ConstsIn}
+  \srcloc{proof/EraseProof/Core/Glue.lean}{82}
+  \lead{In short} On a declaration of \code{P} with a value \code{v}, \code{visitMutual}'s test
+  \hl{takes the non-recursive branch}: \code{ci.all.length = 1} and
+  \code{name\_occurs (m := PureM) c v = false}.
+  \lead{Reference} none (DV-7 does not arise).
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-isRecursiveDecl_false, lem:EraseProof-ProgEnv-lookup}
+  \leanok
+  \lead{Idea} \code{isRecursiveDecl\_false}; at \code{PureM}, \code{name\_occurs} is
+  \code{nameOccurs} (\code{name\_occurs\_pure}).
 \end{proof}
 
 \begin{lemma}[No recursive declaration]
@@ -425,7 +873,7 @@
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-TrM, def:EraseProof-ProgEnv,
     def:Erasure-isRecursiveDecl, def:EraseProof-ConstsIn}
-  \srcloc{proof/EraseProof/Core/NonRec.lean}{120}
+  \srcloc{proof/EraseProof/Core/NonRec.lean}{122}
   \lead{In short} For a declaration of \code{P} with a value, \code{isRecursiveDecl} is
   \code{false}: \hl{the fixpoint branch of \code{visitMutual} is dead on the pure path}.
   \begin{itemize}
@@ -448,6 +896,8 @@
 \begin{itemize}
 \item \lead{Caveat} The oracle lemmas speak of top-level calls; the induction behind them
   generalizes the binder list.
+\item \lead{Caveat} The registration and frame lemmas speak of single calls; the step lemmas that
+  chain them along \code{visitExpr} are open.
 \item \lead{Caveat} \code{collectDeps\_ok\_of} is a sufficient condition: the fragment test also
   accepts programs outside its hypotheses.
 \end{itemize}

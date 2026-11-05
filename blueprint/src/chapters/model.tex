@@ -478,11 +478,12 @@ universe instantiation in place of lean4lean's.
   \begin{itemize}
   \item every rule: the declaration's name is fresh and its universe parameters are
         distinct;
-  \item \code{axiom}, \code{defn}, \code{opaque}: safe, their types (and values) translate;
-        a definition is not recursive (\code{all = [name]});
-  \item \code{thm}: a Metalean opaque whose type is a proposition;
-  \item \code{thm}, \code{opaque}: \hl{the value does not mention the declaration's own name}
-        (\code{ConstsIn});
+  \item \code{axiom}, \code{defn}: safe, their types (and values) translate; a definition is not
+        recursive (\code{all = [name]});
+  \item \code{opaque}: safe, its type and \hl{its value translate, the value typed at the
+        type};
+  \item \code{thm}: a Metalean opaque whose type is a proposition; \hl{its value does not mention
+        the theorem's own name} (\code{ConstsIn});
   \item \code{induct}: a block (\code{IndBlock}): types, constructors with their field orders,
         recursors with the block's counts, \hl{each own minor premise with
         \code{nfields + 2 * nrecFields} binders} (\code{minors}); the type of every constant
@@ -496,9 +497,12 @@ universe instantiation in place of lean4lean's.
   \lead{Why \code{minors}} the recognizer reads a minor's arity from the syntax of the recursor's
   type, which \code{TrM} ties to Metalean only up to \code{mdata}: without the clause, a domain
   wrapped in \code{mdata} gets a bogus \code{casesOn} recognized.
-  \lead{Why no self-reference} Metalean keeps no value for theorems and opaques: without the
-  premise, \code{o := o} is loadable and takes the traversal's fixpoint branch; Lean's kernel never
+  \lead{Why no self-reference} Metalean keeps no value for theorems: without the premise, a
+  theorem \code{o := o} is loadable and takes the traversal's fixpoint branch; Lean's kernel never
   admits it.
+  \lead{Why the opaque's value} Metalean keeps none, but the eraser emits it, and \code{ErasesDecl}
+  relates it; a value mentioning a constant outside \code{P} is loadable otherwise. The kernel
+  checks the value (\code{add\_opaque}), and the translation implies \code{ConstsIn}.
   \lead{Why distinct universe parameters} \code{TrLevel} maps a repeated name to its first
   position, so with \code{lps = [u, u]} the $\eta$-rule of a constructor would equate
   \code{Sort 1} and \code{Sort 0}; Lean's kernel rejects repeated universe parameters.

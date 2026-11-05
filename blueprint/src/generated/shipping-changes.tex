@@ -4,7 +4,7 @@
 \section*{At a glance}
 \begin{itemize}
 \item \lead{Source} \code{doc/SHIPPING-CHANGES.md}, rendered by \code{blueprint/scripts/render\_registers.py}; every section below is the register's own text.
-\item \lead{Changes} 34 entries, one commit each, subject \code{shipping(S-<n>): ...}.
+\item \lead{Changes} 37 entries, one commit each, subject \code{shipping(S-<n>): ...}.
 \item \lead{Reported, not fixed} 28 entries.
 \end{itemize}
 
@@ -53,6 +53,9 @@ Entry & Title \\
 \ref{reg:S-32} & A \texttt{casesOn} on an inductive that eliminates only into Prop is erased to \ensuremath{\Box} \\
 \ref{reg:S-33} & Unexpected cases of the traversal are errors on the pure path \\
 \ref{reg:S-34} & The pure oracle erases an application spine headed by a theorem \\
+\ref{reg:S-35} & The fragment test is documented and tested to exclude inductives whose type is not an arity \\
+\ref{reg:S-36} & The pure oracle types projections only of large-eliminating inductives \\
+\ref{reg:S-37} & The pure path recognizes a \texttt{casesOn} only if its declared type is a syntactic telescope \\
 \bottomrule
 \end{tabular}
 
@@ -1239,6 +1242,63 @@ Before this commit the test does not elaborate (\leandecl{Erasure.casesInfo?} do
 \item \textbf{Behaviour after:} the oracle answers \texttt{true} on both spines; \texttt{use := \ensuremath{\Box}} and \texttt{useF := \ensuremath{\Box}}, which peregrine evaluates to \ensuremath{\Box}. The \texttt{Meta} path is unchanged (its oracle reduces \texttt{Sel true} to \texttt{Prop} and boxes the constants themselves).
 \item \textbf{Effect on emitted .ast (corpus):} byte-identical for all 710 files against the corpus of S-33; \texttt{PANIC} counts unchanged.
 \item \textbf{Regression test:} \texttt{thm\_\allowbreak{}atom\_\allowbreak{}pure} checks the oracle's answers on \texttt{thm}, \texttt{thmF Nat.zero} and \texttt{use}, that \texttt{use} and \texttt{useF} take the pure path, and pins their \texttt{\#erase} outputs, which peregrine validates and evaluates. Before this commit the oracle answers \texttt{false} on both theorem spines and both \texttt{\#erase} fail. \texttt{scripts/\allowbreak{}regress.sh} passes (19 tests), with and without \texttt{PEREGRINE}. \texttt{scripts/\allowbreak{}pure-harness.sh} passes with its expected summary unchanged (294 \texttt{\#erase}, 223 in the fragment; 8298 oracle calls, 14 differ, none fails).
+\end{itemize}
+
+\section{\texorpdfstring{S-35: The fragment test is documented and tested to exclude inductives whose type is not an arity}{S-35: The fragment test is documented and tested to exclude inductives whose type is not an arity}}\label{reg:S-35}
+
+\begin{itemize}
+\item \textbf{Commit:} the commit whose subject starts with \texttt{S-35:} (\texttt{git log -{}-grep='\textasciicircum{}S-35:'}).
+\item \textbf{Files and functions:}
+
+\begin{itemize}
+\item \leanfile{LeanToLambdaBox/\allowbreak{}Erasure/\allowbreak{}Entry.lean}: the docstring of \texttt{collectDeps} lists the exclusion of an inductive whose type is not syntactically an arity (\texttt{arityShape}, \texttt{sortDecided}). No code changes.
+\item new \leanfile{tests/\allowbreak{}regress/\allowbreak{}arity\_\allowbreak{}type.lean} with its goldens.
+\item \texttt{doc/\allowbreak{}SHIPPING-CHANGES.md}: this entry.
+\end{itemize}
+\item \textbf{Why necessary:} found by the verification work on the simulation. Lean's kernel accepts an inductive whose declared type reaches its sort only by unfolding a definition: \texttt{def S.\{u\} := Sort u} and \texttt{inductive PU.\{u\} : S.\{u\} \textbar{} mk} (with \texttt{bootstrap.inductiveCheckResultingUniverse} off), and the default elaborator keeps an alias as the declared type (\texttt{def T1 := Type}, \texttt{inductive Foo : T1} has the type \texttt{T1}). The pure path reads an inductive's sort from the syntactic arity of its type (\texttt{arityShape}); on \texttt{PU} it has none, so it cannot tell that \texttt{PU.\{0\}} is a proposition, and the proof's erasure relation would allow a \texttt{case} on \ensuremath{\Box} for \texttt{PU.casesOn.\{1, 0\} (motive := fun \_\allowbreak{} =\textgreater{} Nat) PU.mk 5}, which \ensuremath{\lambda}\ensuremath{\Box} does not evaluate. The proof therefore needs every inductive of the closure to have a syntactic arity, and the fragment test to guarantee it. \texttt{sortDecided}, which \texttt{declExclusion} runs on every inductive of the closure, already excludes such an inductive (since S-29), but the docstring of \texttt{collectDeps}, which lists the exclusions, omits it, and no test pins it.
+\item \textbf{Behaviour before:} \texttt{collectDeps} gives \texttt{outside the fragment: inductive AT.PU whose type is not an arity} on \texttt{t := PU.casesOn.\{1, 0\} (motive := fun \_\allowbreak{} =\textgreater{} Nat) PU.mk 5}, and likewise on programs using \texttt{Foo : T1}, \texttt{PT : PAlias} (\texttt{def PAlias := Prop}) and \texttt{G : F} (\texttt{def F := Nat \ensuremath{\to} Type}); \texttt{\#erase} takes the \texttt{Meta} path.
+\item \textbf{Behaviour after:} the same; the docstring of \texttt{collectDeps} states it.
+\item \textbf{Effect on emitted .ast (corpus):} byte-identical for all 710 files against the corpus of S-34; \texttt{PANIC} counts unchanged.
+\item \textbf{Regression test:} \texttt{arity\_\allowbreak{}type} checks, under \texttt{nat := .peano}, the exclusion reason and the \texttt{Meta} route of the four programs above, and pins the \texttt{Meta} path's \texttt{\#erase} output of \texttt{t} (\texttt{t.ast}, the alternative \texttt{5}), which peregrine validates and evaluates. It passes before this commit too (the exclusion exists since S-29); it guards the exclusion. \texttt{scripts/\allowbreak{}regress.sh} passes (20 tests), with and without \texttt{PEREGRINE}.
+\end{itemize}
+
+\section{\texorpdfstring{S-36: The pure oracle types projections only of large-eliminating inductives}{S-36: The pure oracle types projections only of large-eliminating inductives}}\label{reg:S-36}
+
+\begin{itemize}
+\item \textbf{Commit:} the commit whose subject starts with \texttt{S-36:} (\texttt{git log -{}-grep='\textasciicircum{}S-36:'}).
+\item \textbf{Files and functions:}
+
+\begin{itemize}
+\item \leanfile{LeanToLambdaBox/\allowbreak{}Erasure/\allowbreak{}Pure.lean}: \texttt{Pure.inferType} on \texttt{proj S i s} looks up \texttt{S.rec} in the declarations and is the error \texttt{failed projection of an inductive that is not large-eliminating} when the recursor has as many universe parameters as \texttt{S}, and \texttt{failed invalid projection} when the declarations have no recursor \texttt{S.rec}; its docstring.
+\item \leanfile{LeanToLambdaBox/\allowbreak{}Erasure/\allowbreak{}Entry.lean}: \texttt{closureStep} gives an inductive with one constructor its recursor \texttt{T.rec} (from the view) as companion, as it does for a recognized \texttt{T.casesOn}; \texttt{closure} lists only definitions with a companion as recognized \texttt{casesOn}; the docstrings of \texttt{declExclusion}, \texttt{dropKnown}, \texttt{closureStep}, \texttt{closure} and \texttt{collectDeps}.
+\item new \leanfile{tests/\allowbreak{}regress/\allowbreak{}proj\_\allowbreak{}large\_\allowbreak{}elim.lean} with its goldens.
+\item \leanfile{tests/\allowbreak{}regress/\allowbreak{}collect\_\allowbreak{}deps.lean}: the closure of \texttt{.proj G.PS 0 G.hq} gains \texttt{True.rec} and \texttt{G.PS.rec}; its docstring.
+\item \leanfile{tests/\allowbreak{}regress/\allowbreak{}pure\_\allowbreak{}inductive.lean}: the declarations \texttt{PI.dT} and those of \texttt{nv2.ast}, copied by hand from the environment as the closure, gain \texttt{PI.P2.rec}; its docstring.
+\item \texttt{doc/\allowbreak{}SHIPPING-CHANGES.md}: this entry.
+\end{itemize}
+\item \textbf{Why necessary:} found by the verification work on the oracle. \texttt{Pure.inferType} typed a projection of any inductive with one constructor. On one that is not large-eliminating it can answer a type that is not a type of the projection: with \texttt{Ex3 : Prop}, constructor \texttt{intro (w : Prop) (h : (fun \_\allowbreak{} : Prop =\textgreater{} True) w)} (added to the kernel directly) and \texttt{axiom a : Ex3}, it answers \texttt{(fun x =\textgreater{} True) a.1} on \texttt{proj Ex3 1 a}, and \texttt{a.1}, a projection of a proof onto a field that is not a proof, has no type in the proof's model of Lean, where such a projection is a recursor that eliminates only into \texttt{Prop}. Lean's kernel rejects \texttt{proj Ex3 1 a}, but the oracle must be sound on every term the proof's typing admits. Lean gives an inductive's recursor a universe parameter for the motive besides the inductive's exactly when the inductive eliminates into every sort (as S-32 uses for \texttt{casesOn}), so the oracle reads the recursor. The closure contained the recursor only of inductives with a recognized \texttt{casesOn}, so without the second change the oracle could not type the projections of programs on the pure path (such as the projection in the value of a structure's projection function); the closure now contains the recursor of every inductive that can be projected, those with one constructor.
+\item \textbf{Behaviour before:} over the closure of the projection, under \texttt{nat := .peano}, the oracle answers \texttt{ok (fun x =\textgreater{} True) PLE.a.1} on \texttt{proj Ex3 1 a} and \texttt{ok True} on \texttt{proj E4 1 a4} (\texttt{E4 : Prop} an \texttt{inductive} with the constructor \texttt{intro (w : Nat) (h : True)}, \texttt{axiom a4 : E4}), and the closures of these projections and of projections of a structure \texttt{P} and of \texttt{And} do not contain \texttt{Ex3.rec}, \texttt{E4.rec}, \texttt{P.rec}, \texttt{And.rec}.
+\item \textbf{Behaviour after:} the oracle answers the error \texttt{projection of an inductive that is not large-eliminating} on both projections, and the closures contain the recursors; the oracle's types of the projections of \texttt{P} and \texttt{And} are unchanged. Lean's kernel accepts \texttt{proj E4 1 a4} (a proof field that does not depend on \texttt{w}), so the pure path now fails on a kernel-valid term, but Lean's elaborator does not produce it: it declares no projections for an \texttt{inductive}, and the \texttt{structure} command rejects a \texttt{Prop} structure with a field that is not a proof, so every projection it produces is of a large-eliminating structure. The \texttt{Meta} path is unchanged.
+\item \textbf{Effect on emitted .ast (corpus):} byte-identical for all 710 files against the corpus of S-35; \texttt{PANIC} counts unchanged. \texttt{scripts/\allowbreak{}pure-harness.sh} passes with its expected summary unchanged (294 \texttt{\#erase}, 223 in the fragment, 68 outside, 3 \texttt{collectDeps} errors; 8298 oracle calls, 14 differ, none fails).
+\item \textbf{Regression test:} \texttt{proj\_\allowbreak{}large\_\allowbreak{}elim} checks the kernel's verdicts and the oracle's answers on \texttt{proj Ex3 1 a} and \texttt{proj E4 1 a4}, the oracle's types of projections of \texttt{P} and \texttt{And} and that their closures contain the recursors, that \texttt{useSnd := P.b (P.mk B.t B.f)} takes the pure path, and pins its \texttt{\#erase} output (\texttt{useSnd.ast}), which peregrine validates and evaluates to \texttt{B.f}. Before this commit the oracle answers \texttt{ok} on both projections and the closures lack the recursors, so four checks fail. \texttt{scripts/\allowbreak{}regress.sh} passes (21 tests), with and without \texttt{PEREGRINE}.
+\end{itemize}
+
+\section{\texorpdfstring{S-37: The pure path recognizes a \texttt{casesOn} only if its declared type is a syntactic telescope}{S-37: The pure path recognizes a casesOn only if its declared type is a syntactic telescope}}\label{reg:S-37}
+
+\begin{itemize}
+\item \textbf{Commit:} the commit whose subject starts with \texttt{S-37:} (\texttt{git log -{}-grep='\textasciicircum{}S-37:'}).
+\item \textbf{Files and functions:}
+
+\begin{itemize}
+\item \leanfile{LeanToLambdaBox/\allowbreak{}Erasure/\allowbreak{}Pure.lean}: \texttt{casesInfo?} also requires that the declared type of the \texttt{casesOn} definition has at least \texttt{D} leading syntactic \texttt{\ensuremath{\Pi}}s (\texttt{D \ensuremath{\le} forallArity d.type}), \texttt{D} the recognized arity; its docstring. \texttt{recognizeCasesOn} (the closure of \texttt{collectDeps}) and \texttt{PureM.casesInfo?} (the pure backend) both call it.
+\item new \leanfile{tests/\allowbreak{}regress/\allowbreak{}cases\_\allowbreak{}type.lean} with its goldens.
+\item \texttt{doc/\allowbreak{}SHIPPING-CHANGES.md}: this entry.
+\end{itemize}
+\item \textbf{Why necessary:} found by the verification work on the pure path. \texttt{casesInfo?} checked the value of a \texttt{T.casesOn} and the recursor, never the definition's declared type. When the type is wrapped in \texttt{mdata}, or is a definition that unfolds to the \texttt{casesOn} type (which Lean's kernel accepts, since it checks the value against the type up to \ensuremath{\delta}), the traversal's \ensuremath{\eta}-expansion of a partially applied \texttt{casesOn} (\texttt{withAppEtaToMinArity}) puts the type in weak head normal form and emits a \texttt{\ensuremath{\lambda}}, while the proof's erasure relation reads the \texttt{\ensuremath{\Pi}}s of the type syntactically and relates such a \texttt{casesOn} only to \ensuremath{\Box}. So the emitted term had no relation to its source. With this check the syntactic and the reduced telescope agree on the first \texttt{D} binders (whnf is the identity on a \texttt{\ensuremath{\Pi}}), names included.
+\item \textbf{Behaviour before:} on \texttt{T.casesOn} definitions with the canonical value and the type wrapped in \texttt{mdata} or replaced by such an alias, added to the kernel directly, the pure recognizer answers \texttt{some}, the \texttt{Meta} path's \texttt{getCasesInfo?} answers \texttt{none} (Lean did not mark them as \texttt{casesOn}), and \texttt{\#erase} of \texttt{T.casesOn.\{1\}} takes the pure path, which emits four \texttt{\ensuremath{\lambda}}s around a \texttt{case} (with the alias, the binder names of the alias's body).
+\item \textbf{Behaviour after:} the pure recognizer answers \texttt{none} on both, as \texttt{getCasesInfo?} does; the closure then reads the value, which reads \texttt{T.rec}, so \texttt{collectDeps} excludes the program and \texttt{\#erase} takes the \texttt{Meta} path. A \texttt{casesOn} that Lean generates has a syntactic telescope of exactly \texttt{D} binders (\texttt{mkCasesOn}), so elaborated programs are unaffected.
+\item \textbf{Effect on emitted .ast (corpus):} byte-identical for all 710 files against the corpus of S-36; \texttt{PANIC} counts unchanged. \texttt{scripts/\allowbreak{}pure-harness.sh} passes with its expected summary unchanged (294 \texttt{\#erase}, 223 in the fragment, 68 outside, 3 \texttt{collectDeps} errors; 8298 oracle calls, 14 differ, none fails), so no program enters or leaves the fragment.
+\item \textbf{Regression test:} \texttt{cases\_\allowbreak{}type} checks the pure recognizer and \texttt{getCasesInfo?} on the two \texttt{casesOn} above, on one with the plain type (pure \texttt{some}) and on the \texttt{casesOn} of an elaborated inductive (both \texttt{some}); that \texttt{\#erase} routes the two to the \texttt{Meta} path; and that \texttt{useD}, whose closure applies an elaborated \texttt{casesOn} to its motive only, takes the pure path, and pins its \texttt{\#erase} output (\texttt{useD.ast}), which peregrine validates and evaluates to \texttt{CT.D.f}. Before this commit the pure recognizer answers \texttt{some} on the two and routes them to the pure path, so four checks fail. \texttt{scripts/\allowbreak{}regress.sh} passes (22 tests), with and without \texttt{PEREGRINE}.
 \end{itemize}
 
 \section{\texorpdfstring{Reported, not fixed}{Reported, not fixed}}\label{reg:reported-not-fixed}

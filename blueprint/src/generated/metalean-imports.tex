@@ -33,8 +33,13 @@
     \ref{lem:EraseProof-ErasesDeps-eval}, \ref{def:EraseProof-LocalsOK},
     \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-Pure-isArity_sound},
     \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-Pure-inferType_recr},
-    \ref{lem:EraseProof-OracleInfer-infer_projStruct},
-    \ref{def:EraseProof-collectDeps_ok_of_statement}, \ref{lem:EraseProof-isRecursiveDecl_false},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct}, \ref{lem:EraseProof-Pure-isErasable_sound},
+    \ref{lem:EraseProof-Pure-typeLevel_sound}, \ref{lem:EraseProof-collectDeps_sub},
+    \ref{lem:EraseProof-collectDeps_spec}, \ref{lem:EraseProof-collectDeps_machineFree},
+    \ref{def:EraseProof-collectDeps_ok_of_statement}, \ref{lem:EraseProof-collectDeps_ok_of},
+    \ref{def:EraseProof-StateOK}, \ref{lem:EraseProof-StateOK-register},
+    \ref{lem:EraseProof-Pure-isPropFormerType_iff}, \ref{lem:EraseProof-register_inductive_ok},
+    \ref{lem:EraseProof-visitMutual_nonrecursive}, \ref{lem:EraseProof-isRecursiveDecl_false},
     \ref{def:EraseProof-erase_correct_statement}, \ref{def:EraseProof-erases_correct_statement},
     \ref{def:EraseProof-ErasesSim}, \ref{lem:EraseProof-erases_correct_beta},
     \ref{lem:EraseProof-PropInductive-of_propInd}, \ref{lem:EraseProof-erases_correct_ctor},
@@ -85,14 +90,17 @@
     \ref{lem:EraseProof-Erases-inst}, \ref{def:EraseProof-LocalsOK},
     \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-Pure-isArity_sound},
     \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-Pure-inferType_recr},
-    \ref{lem:EraseProof-OracleInfer-infer_projStruct},
-    \ref{def:EraseProof-collectDeps_ok_of_statement}, \ref{lem:EraseProof-isRecursiveDecl_false},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct}, \ref{lem:EraseProof-Pure-isErasable_sound},
+    \ref{lem:EraseProof-Pure-typeLevel_sound}, \ref{lem:EraseProof-collectDeps_sub},
+    \ref{lem:EraseProof-collectDeps_spec}, \ref{lem:EraseProof-collectDeps_machineFree},
+    \ref{def:EraseProof-collectDeps_ok_of_statement},
+    \ref{lem:EraseProof-Pure-isPropFormerType_iff}, \ref{lem:EraseProof-isRecursiveDecl_false},
     \ref{def:EraseProof-erase_correct_statement}, \ref{def:EraseProof-erases_correct_statement},
     \ref{def:EraseProof-ErasesSim}, \ref{lem:EraseProof-erases_correct_beta},
     \ref{lem:EraseProof-PropInductive-of_propInd}, \ref{lem:EraseProof-erases_correct_ctor},
     \ref{lem:EraseProof-erases_correct_casesIota}, \ref{def:EraseProof-erasePure_erases_statement}}
   \usedbyproofs{\ref{lem:EraseProof-ProgEnv-lookup}, \ref{lem:EraseProof-Erases-extend},
-    \ref{thm:EraseProof-erases_correct}}
+    \ref{lem:EraseProof-collectDeps_ok_of}, \ref{thm:EraseProof-erases_correct}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Ctx}]
@@ -131,13 +139,17 @@
     \ref{def:EraseProof-LocalsOK}, \ref{lem:EraseProof-Pure-whnf_sound},
     \ref{lem:EraseProof-Pure-isArity_sound}, \ref{lem:EraseProof-OracleInfer-inferOK},
     \ref{lem:EraseProof-Pure-inferType_recr}, \ref{lem:EraseProof-OracleInfer-infer_projStruct},
-    \ref{def:EraseProof-collectDeps_ok_of_statement}, \ref{lem:EraseProof-isRecursiveDecl_false},
+    \ref{lem:EraseProof-Pure-isErasable_sound}, \ref{lem:EraseProof-Pure-typeLevel_sound},
+    \ref{lem:EraseProof-collectDeps_sub}, \ref{lem:EraseProof-collectDeps_spec},
+    \ref{lem:EraseProof-collectDeps_machineFree}, \ref{def:EraseProof-collectDeps_ok_of_statement},
+    \ref{lem:EraseProof-Pure-isPropFormerType_iff}, \ref{lem:EraseProof-isRecursiveDecl_false},
     \ref{def:EraseProof-erase_correct_statement}, \ref{def:EraseProof-erases_correct_statement},
     \ref{def:EraseProof-ErasesSim}, \ref{lem:EraseProof-erases_correct_beta},
     \ref{lem:EraseProof-PropInductive-of_propInd}, \ref{lem:EraseProof-erases_correct_ctor},
     \ref{def:EraseProof-SimIota-HeadBeta}, \ref{lem:EraseProof-erases_correct_casesIota},
     \ref{def:EraseProof-erasePure_erases_statement}}
-  \usedbyproofs{\ref{lem:EraseProof-SatTr-subst}, \ref{thm:EraseProof-erases_correct}}
+  \usedbyproofs{\ref{lem:EraseProof-SatTr-subst}, \ref{lem:EraseProof-collectDeps_ok_of},
+    \ref{lem:EraseProof-StateOK-register}, \ref{thm:EraseProof-erases_correct}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Env}]
@@ -172,8 +184,13 @@
     \ref{lem:EraseProof-ErasesDeps-eval}, \ref{def:EraseProof-LocalsOK},
     \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-Pure-isArity_sound},
     \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-Pure-inferType_recr},
-    \ref{lem:EraseProof-OracleInfer-infer_projStruct},
-    \ref{def:EraseProof-collectDeps_ok_of_statement}, \ref{lem:EraseProof-isRecursiveDecl_false},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct}, \ref{lem:EraseProof-Pure-isErasable_sound},
+    \ref{lem:EraseProof-Pure-typeLevel_sound}, \ref{lem:EraseProof-collectDeps_sub},
+    \ref{lem:EraseProof-collectDeps_spec}, \ref{lem:EraseProof-collectDeps_machineFree},
+    \ref{def:EraseProof-collectDeps_ok_of_statement}, \ref{lem:EraseProof-collectDeps_ok_of},
+    \ref{def:EraseProof-StateOK}, \ref{lem:EraseProof-StateOK-register},
+    \ref{lem:EraseProof-Pure-isPropFormerType_iff}, \ref{lem:EraseProof-register_inductive_ok},
+    \ref{lem:EraseProof-visitMutual_nonrecursive}, \ref{lem:EraseProof-isRecursiveDecl_false},
     \ref{def:EraseProof-erase_correct_statement}, \ref{def:EraseProof-erases_correct_statement},
     \ref{def:EraseProof-ErasesSim}, \ref{lem:EraseProof-erases_correct_beta},
     \ref{lem:EraseProof-PropInductive-of_propInd}, \ref{lem:EraseProof-erases_correct_ctor},
@@ -198,8 +215,8 @@
     \ref{lem:EraseProof-SatTr-typed}, \ref{def:EraseProof-ProgEnv}, \ref{lem:EraseProof-TrM-wkEnv},
     \ref{lem:EraseProof-ctorSat_iota}, \ref{lem:EraseProof-IsErasable-ctor_not},
     \ref{lem:EraseProof-SrcEval-defeq}, \ref{def:EraseProof-Subsingleton},
-    \ref{lem:EraseProof-PropInductive-of_propInd}, \ref{lem:EraseProof-erases_correct_ctor},
-    \ref{lem:EraseProof-erases_correct_casesIota}}
+    \ref{lem:EraseProof-Pure-isPropFormerType_iff}, \ref{lem:EraseProof-PropInductive-of_propInd},
+    \ref{lem:EraseProof-erases_correct_ctor}, \ref{lem:EraseProof-erases_correct_casesIota}}
   \usedbyproofs{\ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-ProgEnv-lookup},
     \ref{lem:EraseProof-casesOn_whred}, \ref{lem:EraseProof-proj_defeq},
     \ref{lem:EraseProof-TypeEq-sort_ne_forallE}, \ref{lem:EraseProof-TypeEq-sort_ne_quot},
@@ -207,7 +224,8 @@
     \ref{lem:EraseProof-Erases-instLevels}, \ref{lem:EraseProof-Erases-abstract},
     \ref{lem:EraseProof-Erases-inst}, \ref{lem:EraseProof-Pure-whnf_sound},
     \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-Pure-inferType_recr},
-    \ref{lem:EraseProof-OracleInfer-infer_projStruct}, \ref{lem:EraseProof-isRecursiveDecl_false},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct}, \ref{lem:EraseProof-collectDeps_sub},
+    \ref{lem:EraseProof-collectDeps_ok_of}, \ref{lem:EraseProof-isRecursiveDecl_false},
     \ref{lem:EraseProof-erases_correct_beta}}
 \end{imported}
 
@@ -239,11 +257,12 @@
     \ref{def:EraseProof-Subsingleton}, \ref{lem:EraseProof-Erases-instLevels},
     \ref{lem:EraseProof-Erases-inst}, \ref{lem:EraseProof-Pure-whnf_sound},
     \ref{lem:EraseProof-Pure-isArity_sound}, \ref{lem:EraseProof-OracleInfer-inferOK},
-    \ref{lem:EraseProof-OracleInfer-infer_projStruct},
-    \ref{lem:EraseProof-PropInductive-of_propInd}, \ref{lem:EraseProof-erases_correct_ctor},
-    \ref{lem:EraseProof-erases_correct_casesIota}}
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct}, \ref{lem:EraseProof-Pure-typeLevel_sound},
+    \ref{lem:EraseProof-Pure-isPropFormerType_iff}, \ref{lem:EraseProof-PropInductive-of_propInd},
+    \ref{lem:EraseProof-erases_correct_ctor}, \ref{lem:EraseProof-erases_correct_casesIota}}
   \usedbyproofs{\ref{lem:EraseProof-TrM-weakBV}, \ref{lem:EraseProof-TrM-uninstantiateN},
     \ref{lem:EraseProof-Erases-abstract}, \ref{lem:EraseProof-Pure-inferType_recr},
+    \ref{lem:EraseProof-Pure-isErasable_sound}, \ref{lem:EraseProof-collectDeps_sub},
     \ref{lem:EraseProof-isRecursiveDecl_false}, \ref{lem:EraseProof-erases_correct_beta}}
 \end{imported}
 
@@ -260,7 +279,8 @@
     \ref{lem:EraseProof-casesOn_whred}, \ref{lem:EraseProof-IsErasable-inst},
     \ref{lem:EraseProof-IsErasable-ctor_not}, \ref{lem:EraseProof-ErasableS-atom},
     \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-Erases-instLevels},
-    \ref{lem:EraseProof-erases_correct_ctor}, \ref{lem:EraseProof-erases_correct_casesIota}}
+    \ref{lem:EraseProof-Pure-isPropFormerType_iff}, \ref{lem:EraseProof-erases_correct_ctor},
+    \ref{lem:EraseProof-erases_correct_casesIota}}
   \usedbyproofs{\ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-apps},
     \ref{lem:EraseProof-TrM-inst}, \ref{lem:EraseProof-TrM-wkEnv},
     \ref{lem:EraseProof-TypeEq-sort_ne_forallE}, \ref{lem:EraseProof-TypeEq-sort_ne_quot},
@@ -292,8 +312,9 @@
     \ref{lem:EraseProof-Erases-inst}, \ref{def:EraseProof-LocalsOK},
     \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-Pure-isArity_sound},
     \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-Pure-inferType_recr},
-    \ref{lem:EraseProof-OracleInfer-infer_projStruct},
-    \ref{def:EraseProof-collectDeps_ok_of_statement}, \ref{def:EraseProof-erase_correct_statement},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct}, \ref{lem:EraseProof-Pure-isErasable_sound},
+    \ref{lem:EraseProof-Pure-typeLevel_sound}, \ref{def:EraseProof-collectDeps_ok_of_statement},
+    \ref{lem:EraseProof-Pure-isPropFormerType_iff}, \ref{def:EraseProof-erase_correct_statement},
     \ref{def:EraseProof-erases_correct_statement}, \ref{def:EraseProof-ErasesSim},
     \ref{lem:EraseProof-erases_correct_beta}, \ref{lem:EraseProof-PropInductive-of_propInd},
     \ref{lem:EraseProof-erases_correct_ctor}, \ref{lem:EraseProof-erases_correct_casesIota},
@@ -302,7 +323,8 @@
     \ref{lem:EraseProof-TrM-wkEnv}, \ref{lem:EraseProof-ProgEnv-lookup},
     \ref{lem:EraseProof-casesOn_whred}, \ref{lem:EraseProof-Erases-closed},
     \ref{lem:EraseProof-Erases-extend}, \ref{lem:EraseProof-Erases-instLevels},
-    \ref{lem:EraseProof-Erases-abstract}, \ref{lem:EraseProof-isRecursiveDecl_false},
+    \ref{lem:EraseProof-Erases-abstract}, \ref{lem:EraseProof-collectDeps_sub},
+    \ref{lem:EraseProof-collectDeps_ok_of}, \ref{lem:EraseProof-isRecursiveDecl_false},
     \ref{thm:EraseProof-erases_correct}}
 \end{imported}
 
@@ -320,7 +342,7 @@
     \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{def:EraseProof-IsErasable},
     \ref{lem:EraseProof-ErasableS-atom}, \ref{lem:EraseProof-SrcDefeq-sound_of},
     \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-Pure-whnf_sound},
-    \ref{lem:EraseProof-Pure-isArity_sound}}
+    \ref{lem:EraseProof-Pure-isArity_sound}, \ref{lem:EraseProof-Pure-isPropFormerType_iff}}
   \usedbyproofs{\ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-inst},
     \ref{lem:EraseProof-SatTr-typed}, \ref{lem:EraseProof-IsErasable-inst},
     \ref{lem:EraseProof-IsErasable-ctor_not}, \ref{lem:EraseProof-Erases-inst},
@@ -347,11 +369,13 @@
     \ref{def:EraseProof-Subsingleton}, \ref{lem:EraseProof-Erases-inst},
     \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-Pure-isArity_sound},
     \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-Pure-inferType_recr},
-    \ref{lem:EraseProof-OracleInfer-infer_projStruct},
-    \ref{def:EraseProof-erase_correct_statement}, \ref{def:EraseProof-erases_correct_statement},
-    \ref{lem:EraseProof-erases_correct_beta}, \ref{lem:EraseProof-PropInductive-of_propInd},
-    \ref{lem:EraseProof-erases_correct_ctor}, \ref{lem:EraseProof-erases_correct_casesIota},
-    \ref{thm:EraseProof-erases_correct}, \ref{def:EraseProof-erasePure_erases_statement}}
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct}, \ref{lem:EraseProof-Pure-isErasable_sound},
+    \ref{lem:EraseProof-Pure-typeLevel_sound}, \ref{lem:EraseProof-Pure-isPropFormerType_iff},
+    \ref{lem:EraseProof-register_inductive_ok}, \ref{def:EraseProof-erase_correct_statement},
+    \ref{def:EraseProof-erases_correct_statement}, \ref{lem:EraseProof-erases_correct_beta},
+    \ref{lem:EraseProof-PropInductive-of_propInd}, \ref{lem:EraseProof-erases_correct_ctor},
+    \ref{lem:EraseProof-erases_correct_casesIota}, \ref{thm:EraseProof-erases_correct},
+    \ref{def:EraseProof-erasePure_erases_statement}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Typing.Env}]
@@ -367,7 +391,7 @@
     \ref{lem:EraseProof-SatTr-typed}, \ref{lem:EraseProof-TypeEq-sort_ne_forallE},
     \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{lem:EraseProof-SrcEval-defeq},
     \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-OracleInfer-infer_projStruct},
-    \ref{lem:EraseProof-erases_correct_casesIota}}
+    \ref{lem:EraseProof-Pure-isPropFormerType_iff}, \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Typing.Inductive}]
@@ -384,7 +408,8 @@
   \lead{Used directly} 9 declarations: 1 definition, 8 theorems.
   \usedbyproofs{\ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-det},
     \ref{lem:EraseProof-SatTr-typed}, \ref{lem:EraseProof-TypeEq-sort_ne_forallE},
-    \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{lem:EraseProof-Pure-whnf_sound}}
+    \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{lem:EraseProof-Pure-whnf_sound},
+    \ref{lem:EraseProof-Pure-isPropFormerType_iff}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Typing.Inversion}]
@@ -407,7 +432,8 @@
     \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-Erases-inst},
     \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-Pure-isArity_sound},
     \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-Pure-inferType_recr},
-    \ref{lem:EraseProof-OracleInfer-infer_projStruct}, \ref{lem:EraseProof-erases_correct_beta},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct},
+    \ref{lem:EraseProof-Pure-isPropFormerType_iff}, \ref{lem:EraseProof-erases_correct_beta},
     \ref{lem:EraseProof-PropInductive-of_propInd}, \ref{lem:EraseProof-erases_correct_ctor},
     \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
@@ -675,12 +701,13 @@
   \lead{In short} Raw universe levels and their parameters (\code{Param}).
   \lead{Used directly} 1 declaration: 1 definition.
   \usedbystatements{\ref{def:EraseProof-TrLevel}, \ref{lem:EraseProof-casesOn_whred},
-    \ref{lem:EraseProof-erases_correct_ctor}}
+    \ref{lem:EraseProof-Pure-typeLevel_sound}, \ref{lem:EraseProof-erases_correct_ctor}}
   \usedbyproofs{\ref{lem:EraseProof-TrM-instLevels}, \ref{lem:EraseProof-SatTr-typed},
     \ref{lem:EraseProof-TrM-wkEnv}, \ref{lem:EraseProof-IsErasable-inst},
     \ref{lem:EraseProof-SrcDefeq-sound_of}, \ref{lem:EraseProof-SrcEval-defeq},
     \ref{lem:EraseProof-Erases-instLevels}, \ref{lem:EraseProof-OracleInfer-inferOK},
-    \ref{lem:EraseProof-PropInductive-of_propInd}, \ref{lem:EraseProof-erases_correct_casesIota}}
+    \ref{lem:EraseProof-Pure-isPropFormerType_iff}, \ref{lem:EraseProof-PropInductive-of_propInd},
+    \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Inductive.Ctor}]
@@ -733,8 +760,8 @@
     \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-Erases-inst},
     \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-Pure-inferType_recr},
     \ref{lem:EraseProof-OracleInfer-infer_projStruct},
-    \ref{lem:EraseProof-PropInductive-of_propInd}, \ref{lem:EraseProof-erases_correct_ctor},
-    \ref{lem:EraseProof-erases_correct_casesIota}}
+    \ref{lem:EraseProof-Pure-isPropFormerType_iff}, \ref{lem:EraseProof-PropInductive-of_propInd},
+    \ref{lem:EraseProof-erases_correct_ctor}, \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Inductive.LargeElimination}]
@@ -752,7 +779,7 @@
     \ref{lem:EraseProof-ProgEnv-lookup}, \ref{lem:EraseProof-casesOn_whred},
     \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-Erases-instLevels},
     \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-Pure-inferType_recr},
-    \ref{lem:EraseProof-OracleInfer-infer_projStruct},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct}, \ref{lem:EraseProof-collectDeps_sub},
     \ref{lem:EraseProof-PropInductive-of_propInd}, \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
@@ -782,6 +809,7 @@
     \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-Erases-instLevels},
     \ref{lem:EraseProof-Erases-abstract}, \ref{lem:EraseProof-Erases-inst},
     \ref{lem:EraseProof-Pure-isArity_sound}, \ref{lem:EraseProof-OracleInfer-inferOK},
+    \ref{lem:EraseProof-collectDeps_sub}, \ref{lem:EraseProof-Pure-isPropFormerType_iff},
     \ref{lem:EraseProof-isRecursiveDecl_false}, \ref{lem:EraseProof-erases_correct_beta},
     \ref{lem:EraseProof-erases_correct_ctor}}
 \end{imported}
@@ -802,7 +830,8 @@
     \ref{lem:EraseProof-SrcDefeq-sound_of}, \ref{lem:EraseProof-SrcEval-defeq},
     \ref{lem:EraseProof-Erases-instLevels}, \ref{lem:EraseProof-Erases-inst},
     \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-OracleInfer-inferOK},
-    \ref{lem:EraseProof-OracleInfer-infer_projStruct}, \ref{lem:EraseProof-erases_correct_beta},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct},
+    \ref{lem:EraseProof-Pure-isPropFormerType_iff}, \ref{lem:EraseProof-erases_correct_beta},
     \ref{lem:EraseProof-erases_correct_ctor}, \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
@@ -823,7 +852,8 @@
   \usedbyproofs{\ref{lem:EraseProof-proj_defeq}, \ref{lem:EraseProof-ErasableS-atom},
     \ref{lem:EraseProof-Erases-instLevels}, \ref{lem:EraseProof-Erases-inst},
     \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-Pure-inferType_recr},
-    \ref{lem:EraseProof-OracleInfer-infer_projStruct}, \ref{lem:EraseProof-erases_correct_beta},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct},
+    \ref{lem:EraseProof-Pure-isPropFormerType_iff}, \ref{lem:EraseProof-erases_correct_beta},
     \ref{lem:EraseProof-erases_correct_ctor}, \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
@@ -848,7 +878,8 @@
   \usedbyproofs{\ref{lem:EraseProof-proj_defeq}, \ref{lem:EraseProof-ErasableS-atom},
     \ref{lem:EraseProof-Erases-instLevels}, \ref{lem:EraseProof-Erases-inst},
     \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-Pure-inferType_recr},
-    \ref{lem:EraseProof-OracleInfer-infer_projStruct}, \ref{lem:EraseProof-erases_correct_beta},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct},
+    \ref{lem:EraseProof-Pure-isPropFormerType_iff}, \ref{lem:EraseProof-erases_correct_beta},
     \ref{lem:EraseProof-erases_correct_ctor}, \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
@@ -895,7 +926,8 @@
     \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-Erases-instLevels},
     \ref{lem:EraseProof-Erases-inst}, \ref{lem:EraseProof-Pure-whnf_sound},
     \ref{lem:EraseProof-Pure-isArity_sound}, \ref{lem:EraseProof-OracleInfer-inferOK},
-    \ref{lem:EraseProof-erases_correct_beta}, \ref{lem:EraseProof-erases_correct_casesIota}}
+    \ref{lem:EraseProof-Pure-isPropFormerType_iff}, \ref{lem:EraseProof-erases_correct_beta},
+    \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Frontend.Rename}]
@@ -926,7 +958,8 @@
     \ref{lem:EraseProof-IsErasable-ctor_not}, \ref{lem:EraseProof-ErasableS-atom},
     \ref{lem:EraseProof-SrcDefeq-sound_of}, \ref{lem:EraseProof-SrcEval-defeq},
     \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-OracleInfer-inferOK},
-    \ref{lem:EraseProof-OracleInfer-infer_projStruct}, \ref{lem:EraseProof-erases_correct_beta},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct},
+    \ref{lem:EraseProof-Pure-isPropFormerType_iff}, \ref{lem:EraseProof-erases_correct_beta},
     \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
@@ -960,7 +993,7 @@
     \ref{lem:EraseProof-SrcDefeq-sound_of}, \ref{lem:EraseProof-SrcEval-defeq},
     \ref{lem:EraseProof-Erases-inst}, \ref{lem:EraseProof-OracleInfer-inferOK},
     \ref{lem:EraseProof-OracleInfer-infer_projStruct},
-    \ref{lem:EraseProof-erases_correct_casesIota}}
+    \ref{lem:EraseProof-Pure-isPropFormerType_iff}, \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Expr.Application}]
@@ -1056,8 +1089,8 @@
     \ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-SatTr-typed},
     \ref{lem:EraseProof-TrM-wkEnv}, \ref{lem:EraseProof-casesOn_whred},
     \ref{lem:EraseProof-ErasableS-atom}, \ref{lem:EraseProof-SrcDefeq-sound_of},
-    \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-erases_correct_beta},
-    \ref{lem:EraseProof-erases_correct_casesIota}}
+    \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-Pure-isPropFormerType_iff},
+    \ref{lem:EraseProof-erases_correct_beta}, \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Structure.Projection}]
@@ -1098,8 +1131,8 @@
     \ref{lem:EraseProof-proj_defeq}, \ref{lem:EraseProof-IsErasable-inst},
     \ref{lem:EraseProof-SrcDefeq-sound_of}, \ref{lem:EraseProof-SrcEval-defeq},
     \ref{lem:EraseProof-Erases-inst}, \ref{lem:EraseProof-Pure-whnf_sound},
-    \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-erases_correct_beta},
-    \ref{lem:EraseProof-erases_correct_casesIota}}
+    \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-Pure-isPropFormerType_iff},
+    \ref{lem:EraseProof-erases_correct_beta}, \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Var}]
@@ -1117,7 +1150,7 @@
     \ref{lem:EraseProof-ctorSat_iota}, \ref{lem:EraseProof-casesOn_whred},
     \ref{lem:EraseProof-proj_defeq}, \ref{lem:EraseProof-ErasableS-atom},
     \ref{lem:EraseProof-SrcDefeq-sound_of}, \ref{lem:EraseProof-Pure-whnf_sound},
-    \ref{lem:EraseProof-erases_correct_casesIota}}
+    \ref{lem:EraseProof-Pure-isPropFormerType_iff}, \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Weakening}]
@@ -1151,7 +1184,8 @@
   \usedbyproofs{\ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-SatTr-typed},
     \ref{lem:EraseProof-IsErasable-inst}, \ref{lem:EraseProof-ErasableS-atom},
     \ref{lem:EraseProof-Erases-inst}, \ref{lem:EraseProof-OracleInfer-inferOK},
-    \ref{lem:EraseProof-erases_correct_beta}, \ref{lem:EraseProof-erases_correct_casesIota}}
+    \ref{lem:EraseProof-Pure-isPropFormerType_iff}, \ref{lem:EraseProof-erases_correct_beta},
+    \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Typing.InstLevel}]
@@ -1268,5 +1302,5 @@
   \srcloc{Metalean/Typing/Telescope.lean}{18}
   \lead{In short} Well-formed telescopes (\code{TeleWF}) and their appending to a context.
   \lead{Used directly} 1 declaration: 1 theorem.
-  \usedbyproofs{\ref{lem:EraseProof-SatTr-typed}}
+  \usedbyproofs{\ref{lem:EraseProof-SatTr-typed}, \ref{lem:EraseProof-Pure-isPropFormerType_iff}}
 \end{imported}

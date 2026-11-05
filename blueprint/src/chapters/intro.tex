@@ -7,13 +7,13 @@
   Chapter~\ref{chap:scope}.
 \item \lead{Status} \stProved{} the lemmas of the bridge (Chapter~\ref{chap:model}), the
   erasability lemmas but one, the soundness of the source semantics \code{SrcEval.defeq}, the
-  erasure relation's lemmas, \hl{the first milestone \code{erases\_correct}}, the oracle's
-  reduction, arity, typing (but for proof projections), frame and atom lemmas, the recursion lemma
-  of the traversal, and the tests of Chapter~\ref{chap:tests}. Formalized: the statements of the
-  final theorem, its two milestones and the lower bound of its fragment hypothesis, as definitions
-  pinned by \code{proof/spec.pin}, with every definition they use. \stPlanned{} \hl{the final
-  theorem \code{erase\_correct}}, the second milestone \code{erasePure\_erases}, the soundness of
-  the oracle's \code{inferType} and \code{isErasable}, and the closure and traversal lemmas.
+  erasure relation's lemmas, \hl{the first milestone \code{erases\_correct}}, the lower bound
+  \code{collectDeps\_ok\_of} of the fragment hypothesis, the soundness of the pure oracle, the
+  closure, state and registration lemmas, the routing, frame and recursion lemmas of the
+  traversal, and the tests of Chapter~\ref{chap:tests}. Formalized: the statements of the final
+  theorem, its two milestones and the lower bound, as definitions pinned by
+  \code{proof/spec.pin}, with every definition they use. \stPlanned{} \hl{the final theorem
+  \code{erase\_correct}} and the second milestone \code{erasePure\_erases}.
   \stShipping{} the eraser: the pure path on the fragment of Phase I and the \code{Meta} path on
   the rest.
 \item \lead{Progress} the table at the end of Section~\ref{sec:intro-kinds} counts, per chapter,
@@ -142,6 +142,12 @@ Projections in the closure & the defect leaves a projection's structure, which t
 Theorems whose statement is a proposition only through $\iota$ & the pure oracle, which has no
   recursor $\iota$, answers \code{false} on a theorem's spine, and the pure path fails on an
   in-fragment program. Entry S-34 answers \code{true} on every spine headed by a theorem \\
+Projections of inductives that are not large-eliminating & the pure oracle typed a projection
+  of a proof onto a field that is not a proof, which has no type in Metalean. Entry S-36 makes it
+  an error and puts the recursor of every one-constructor inductive in the closure \\
+\code{casesOn} whose type is not a syntactic telescope & the pure recognizer accepted a type
+  behind \code{mdata} or an alias, whose $\eta$-expansion has no erasure. Entry S-37 requires the
+  recognized arity of syntactic $\Pi$s \\
 Block names & the defect names inductive blocks through Lean's escaping printer, a
   \code{partial} function the kernel cannot evaluate, which prints two names differing by escapes
   alike. Entry
@@ -151,7 +157,7 @@ Block names & the defect names inductive blocks through Lean's escaping printer,
 
 \subsection{Review rounds of the statement}
 
-Three adversarial reviews tried to refute the statements: derive \code{False} from them, or find a
+Four adversarial reviews tried to refute the statements: derive \code{False} from them, or find a
 typed input where one fails. The pinned statements exclude every counterexample found.
 
 \begin{tabular}{p{0.1\linewidth}p{0.82\linewidth}}
@@ -169,6 +175,10 @@ Round & Findings and their consequence in the statement \\
   \code{W : Sort u}); a reduced-case rule unstable under universe instantiation; a contradiction
   between the lower bound and direct recursor uses. Hence the guard of \code{proj}, a level-free
   \code{casesReduced}, and \code{RecFree} \\
+4 & untranslated opaque values made M2 false; so did a \code{casesOn} whose type is not a
+  syntactic telescope; the closure's lemma exported too little. Hence the opaque clause of
+  \code{ProgEnv} (value translated and typed), entry S-37, and the fragment facts of
+  \code{collectDeps\_spec} \\
 \bottomrule
 \end{tabular}
 

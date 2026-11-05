@@ -17,7 +17,7 @@
 \bpdefinenodes{chap:model}{\bpkind{step}~7 \bpkind{lemma}~12 \bpkind{definition}~7}
 \bpdefinenodes{chap:source}{\bpkind{step}~3 \bpkind{lemma}~6 \bpkind{definition}~9}
 \bpdefinenodes{chap:relation}{\bpkind{step}~5 \bpkind{lemma}~3 \bpkind{definition}~4}
-\bpdefinenodes{chap:core}{\bpkind{step}~6 \bpkind{lemma}~6 \bpkind{definition}~3}
+\bpdefinenodes{chap:core}{\bpkind{step}~11 \bpkind{lemma}~9 \bpkind{definition}~5}
 \bpdefinenodes{chap:final}{\bpkind{final}~1 \bpkind{milestone}~2 \bpkind{step}~3 \bpkind{lemma}~1 \bpkind{definition}~6}
 \bpdefinenodes{chap:tests}{\bpkind{test}~8}
 % \bpsetkind{label}{kind}{status}{inherited sorries}: every node (the print version puts the badges after its heading).
@@ -27,15 +27,25 @@
 \bpsetkind{lem:EraseProof-OracleInfer-inferOK}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-Pure-inferType_recr}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-OracleInfer-infer_projStruct}{lemma}{standard}{}
-\bpsetkind{lem:EraseProof-Pure-isErasable_sound}{step}{planned}{}
-\bpsetkind{lem:EraseProof-Pure-isErasable_agree}{step}{standard}{}
+\bpsetkind{lem:EraseProof-Pure-isErasable_sound}{step}{standard}{}
+\bpsetkind{lem:EraseProof-Pure-typeLevel_sound}{step}{standard}{}
+\bpsetkind{lem:EraseProof-Pure-isErasable_agree}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-Pure-isErasable_atom}{step}{standard}{}
 \bpsetkind{def:EraseProof-PhaseIDecl}{definition}{standard}{}
-\bpsetkind{lem:EraseProof-collectDeps_spec}{step}{planned}{}
+\bpsetkind{lem:EraseProof-collectDeps_sub}{step}{standard}{}
+\bpsetkind{lem:EraseProof-collectDeps_spec}{step}{standard}{}
+\bpsetkind{lem:EraseProof-collectDeps_machineFree}{step}{standard}{}
 \bpsetkind{def:EraseProof-collectDeps_ok_of_statement}{definition}{standard}{}
-\bpsetkind{lem:EraseProof-collectDeps_ok_of}{lemma}{planned}{}
-\bpsetkind{lem:EraseProof-eraseEntry_pure}{step}{planned}{}
-\bpsetkind{lem:EraseProof-isRecursiveDecl_false}{step}{standard}{}
+\bpsetkind{lem:EraseProof-collectDeps_ok_of}{lemma}{standard}{}
+\bpsetkind{def:EraseProof-StateOK}{definition}{standard}{}
+\bpsetkind{lem:EraseProof-StateOK-register}{step}{standard}{}
+\bpsetkind{lem:EraseProof-Pure-isPropFormerType_iff}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-register_inductive_ok}{step}{standard}{}
+\bpsetkind{def:EraseProof-MachineFree}{definition}{standard}{}
+\bpsetkind{lem:EraseProof-visit_agree}{step}{standard}{}
+\bpsetkind{lem:EraseProof-eraseEntry_pure}{step}{standard}{}
+\bpsetkind{lem:EraseProof-visitMutual_nonrecursive}{step}{standard}{}
+\bpsetkind{lem:EraseProof-isRecursiveDecl_false}{lemma}{standard}{}
 \bpsetkind{def:EraseProof-ViewAgrees}{definition}{standard}{}
 \bpsetkind{def:EraseProof-erase_correct_statement}{definition}{standard}{}
 \bpsetkind{thm:EraseProof-erase_correct}{final}{planned}{}

@@ -8,7 +8,7 @@ scripts/audit.py checks it (check()).
   layer   of a declaration, from its name: EraseProof.Test.* test, EraseProof.* proof,
           Metalean.* metalean, any other name shipping. The audit checks that the module of the
           declaration agrees (MODULE_LAYER) and that the names of a node share one layer.
-  kind    final: the node of the declaration on the FINAL line of proof/ROOTS.txt;
+  kind    final: the node of final_theorem of audit.toml;
           milestone: any other `theorem` environment of the proof layer (the audit checks that the
           final theorem depends on it);
           step: a result of the proof layer that the proof of the final theorem or of a milestone
@@ -66,7 +66,7 @@ KINDS = collections.OrderedDict([
         name='Final theorem', badge='FINAL THEOREM', layer='proof', shape='octagon', peripheries=2,
         fill='#F0C24B', line='#7A5A00', fontsize=24, graph='gold double octagon',
         short='the theorem about #erase',
-        rule=r'cites the declaration on the line \code{FINAL} of \code{proof/ROOTS.txt}')),
+        rule=r'cites \code{final\_theorem} of \code{blueprint/audit.toml}')),
     ('milestone', dict(
         name='Milestone theorem', badge='MILESTONE', layer='proof', shape='hexagon', peripheries=1,
         fill='#8FBCE6', line='#0B5394', fontsize=18, graph='blue hexagon',
@@ -177,14 +177,9 @@ def layer_of_module(module):
 
 
 def final_decls():
-    """The declarations on the FINAL lines of proof/ROOTS.txt; while it has none (the final theorem
-    has not landed), final_theorem of audit.toml, which a planned node cites."""
-    out = []
-    for line in open(ROOTS, encoding='utf-8'):
-        parts = line.split('#', 1)[0].split()
-        if len(parts) >= 2 and parts[1] == 'FINAL':
-            out.append(parts[0])
-    return out or [tomllib.load(open(AUDIT_TOML, 'rb'))['final_theorem']]
+    """The final theorem: final_theorem of audit.toml. proof/ROOTS.txt gives it the consumer FINAL
+    once it lands, and gives the same mark to a stand-alone result that no theorem uses."""
+    return [tomllib.load(open(AUDIT_TOML, 'rb'))['final_theorem']]
 
 
 def node_layer(node):
@@ -318,12 +313,8 @@ def check(nodes, names, measured=None):
                         f'{", ".join(sorted(set(n["status_words"])))}; the badges after the heading '
                         'give kind and status'))
     finals = [lab for lab, (k, s) in table.items() if k == 'final']
-    want = tomllib.load(open(AUDIT_TOML, 'rb'))['final_theorem']
-    if final_decls() != [want]:
-        out.append(('kinds', f'the FINAL line of proof/ROOTS.txt names {", ".join(final_decls())}, '
-                    f'not final_theorem = {want} of audit.toml'))
     if len(finals) != 1:
-        out.append(('kinds', f'{len(finals)} final nodes (the FINAL line of proof/ROOTS.txt must be '
+        out.append(('kinds', f'{len(finals)} final nodes (final_theorem of audit.toml must be '
                     'cited by exactly one node): ' + ', '.join(finals)))
     for lab in finals:
         if by_label[lab]['kind'] != 'theorem':

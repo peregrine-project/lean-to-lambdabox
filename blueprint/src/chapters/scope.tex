@@ -10,7 +10,7 @@
   its edges.
 \item \lead{Status} \stShipping{} the fragment test of Phase I
   (Definition~\ref{def:Erasure-collectDeps}), which the hypothesis \code{hfrag} of the final
-  theorem names; \stPlanned{} its lower bound \code{collectDeps\_ok\_of}
+  theorem names; \stProved{} its lower bound \code{collectDeps\_ok\_of}
   (Chapter~\ref{chap:core}). The corpus counts below are those of the shipping test.
 \item \lead{Reference} MetaRocq \code{erase\_correct}'s hypotheses \code{wf\_ext},
   \code{Sigma} $\sim$\code{\_ext X}, \code{welltyped}.
@@ -96,13 +96,13 @@ free variables, metavariables & -- & closed inputs only \\
 The shipping \code{collectDeps view cfg e} (Definition~\ref{def:Erasure-collectDeps}) rejects a
 program when its closure, as the pure traversal reads it, contains one of the classes below
 (DV-26). The closure holds the term, the types of its constants, the structures of its
-projections (S-30), the values of the definitions and opaques it reads, and the types and
-constructors of the blocks it registers; it skips the values of theorems and of recognized
-\code{casesOn} constants.
+projections (S-30), the values of the definitions and opaques it reads, the types and
+constructors of the blocks it registers, and the recursors of one-constructor inductives (S-36);
+it skips the values of theorems and of recognized \code{casesOn} constants.
 
 \begin{itemize}
-\item \lead{Phase I only} a recursor other than the \code{T.rec} of a recognized \code{T.casesOn},
-  and any recursor in a read expression; a quotient constant; a constant with an
+\item \lead{Phase I only} a recursor other than the \code{T.rec} of a recognized \code{T.casesOn}
+  or of an inductive \code{T} with one constructor, and any recursor in a read expression; a quotient constant; a constant with an
   \code{\_unsafe\_rec} companion (structural or well-founded recursion).
 \item \lead{Both phases} a string literal; an \code{unsafe}, \code{partial} or
   \code{@[implemented\_by]} constant; a nested or unsafe inductive; an \code{@[extern]}
@@ -132,7 +132,8 @@ Term builders & the bridge uses Metalean's five total $\eta$-term builders, whic
 Index fields & the fragment excludes a \code{casesOn} whose constructor has an index field
   (\code{Acc}, \code{Acc.below}); \code{Eq}, \code{HEq}, \code{And} and \code{True} stay in \\
 Recursors & the closure keeps the declarations \code{T.casesOn} and \code{T.rec}, not their
-  values, so that the recognizer works; a recursor anywhere else is an exclusion \\
+  values, so that the recognizer works, and \code{T.rec} of a one-constructor \code{T}, whose
+  universe parameters the oracle reads; a recursor anywhere else is an exclusion \\
 Inherited ids & the divergence register keeps the ids 1 to 22 of the lean4lean verification; an
   id that does not apply has a ``not applicable'' entry, so that no citation dangles \\
 DV-23 & under-applied constructor and \code{casesOn} spines evaluate to their

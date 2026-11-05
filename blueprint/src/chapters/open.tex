@@ -20,7 +20,7 @@ The planned nodes, per chapter. The table is generated from the chapters by
 
 Every declaration of \code{EraseProof} outside the tests is reachable from a root of
 \code{proof/ROOTS.txt} or from a statement definition. A root names the declaration that will use
-it; the table is generated from \code{proof/ROOTS.txt}.
+it, or \code{FINAL} when no theorem uses it; the table is generated from \code{proof/ROOTS.txt}.
 
 \input{generated/roots}
 
@@ -37,7 +37,8 @@ it; the table is generated from \code{proof/ROOTS.txt}.
 \item \lead{Divergences} \stOpen{} the inherited ids 5, 6, 8, 9, 15 and 18 to 22, which nothing
   cites: each gets its entry with the artifact that diverges.
 \item \lead{Checks} \stOpen{} the \code{peregrine} part of C11 (\code{proof/scripts/c11.sh}) and
-  the final form of C12 (Section~\ref{sec:trust-checks}).
+  the final form of C12 (Section~\ref{sec:trust-checks}). Its single root \code{erase\_correct}
+  leaves \code{collectDeps\_ok\_of}, which no theorem uses, unreachable.
 \item \lead{Non-vacuity} \stOpen{} the instances of \code{hview} and \code{hev} on NV-1, of
   every hypothesis but \code{hfrag} and \code{hrun} on NV-P and NV-K, and the instance
   \code{EraseProof.Test.NV1.final} of the final theorem that the final form of C12 requires;

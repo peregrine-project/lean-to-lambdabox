@@ -19,8 +19,8 @@ standard_axioms = ["propext", "Classical.choice", "Quot.sound"]
 # sorry sources (declarations whose own type or value uses sorryAx) and axioms in the environment.
 inherited_prefix = "Metalean"
 
-# The final theorem. It is the FINAL line of proof/ROOTS.txt once it lands; until then a planned
-# node cites it, and scripts/kinds.py gives that node the kind final.
+# The final theorem. scripts/kinds.py gives the node that cites it the kind final, planned until
+# it lands. proof/ROOTS.txt marks it FINAL then; a stand-alone result has the same mark.
 final_theorem = "EraseProof.erase_correct"
 
 # Module prefix of the shipping code, whose partial and monadic declarations the trust chapter

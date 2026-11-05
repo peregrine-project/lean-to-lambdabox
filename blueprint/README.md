@@ -81,7 +81,7 @@ that the module of each declaration has the layer of its name (`EraseProof.Test*
 
 | Kind | Badge | Graph node | Fill, line | Derived from |
 |---|---|---|---|---|
-| final | FINAL THEOREM | double octagon, large | `#F0C24B`, `#7A5A00` | the node of the declaration on the `FINAL` line of `proof/ROOTS.txt`, or of `final_theorem` of `audit.toml` while `ROOTS.txt` has no `FINAL` line (the final theorem is planned); the audit checks there is exactly one, a `theorem` environment, and that a `FINAL` line names `final_theorem` |
+| final | FINAL THEOREM | double octagon, large | `#F0C24B`, `#7A5A00` | the node of `final_theorem` of `audit.toml` (planned until it lands); the audit checks there is exactly one, a `theorem` environment |
 | milestone | MILESTONE | hexagon, large | `#8FBCE6`, `#0B5394` | any other `theorem` environment of the proof layer; the audit checks that the final theorem depends on it (through `\uses`) |
 | step | STEP LEMMA | double ellipse | `#C4DBF2`, `#0B5394` | a result of the proof layer that the proof of the final theorem or of a milestone `\uses` directly; the audit checks these `\uses` against the Lean proofs (below) |
 | lemma | LEMMA | ellipse | `#E6F0FA`, `#0B5394` | any other result of the proof layer |
@@ -317,7 +317,7 @@ uses of every declaration of the proof library and of the shipping code, and che
 | Axiom closure | the measured axioms of every cited declaration equal `Lean.collectAxioms` (`#print axioms`), for an inductive together with its constructors (the axioms Lean stores for an imported inductive can miss those only its constructors reach); the closure follows types, values and constructors |
 | `\inherited{...}` | absent: with no labelled sorry in `audit.toml`, a node carrying it is a defect |
 | Coverage | every declaration of the modules `EraseProof*` that has a source position is cited by a node that is not planned |
-| Roots | every line of `proof/ROOTS.txt` names a root cited by a formalized node and a consumer cited by a planned node whose statement or proof uses the root's node, or `FINAL` for the final theorem, which has no consumer |
+| Roots | every line of `proof/ROOTS.txt` names a root cited by a formalized node and a consumer cited by a planned node whose statement or proof uses the root's node, or `FINAL` for a theorem without consumer: the final theorem, or a result of its own such as `collectDeps_ok_of` |
 | `\srcloc{path}{line}` | is the file and line of the node's first declaration |
 | Hygiene | ASCII only outside `\lean{}` and `\leandecl{}`; underscores escaped in `\code`, `\texttt`, `\inherited`, `\srcloc`, `\leanfile`, `\leanfiles`, `\leanloc`, `\leanlinesof` |
 | Links | the checks before the build of section "Links to the Lean sources": every linked name is held by its declaration range in the local source, and that range is its declaration; every cited path and line exists, no `\code` cites a `.lean` file or a full declaration name, no `\dochome`, and `generated/lean-locations.tsv` is up to date |
