@@ -16,7 +16,7 @@ open Metalean (Sigs Sig Env Entry Head EnvWF)
 namespace EraseProof
 
 /-- Instantiating the universe parameters by themselves is the identity on a level. -/
-private theorem instLevel_self (ps : List Name) : ∀ u : Level,
+theorem instLevel_self (ps : List Name) : ∀ u : Level,
     Pure.instLevel ps (ps.map .param) u = u
   | .zero => rfl
   | .succ u => by simp [Pure.instLevel, instLevel_self ps u]

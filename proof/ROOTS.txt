@@ -9,7 +9,6 @@
 EraseProof.TypeEq.sort_ne_quot EraseProof.IsErasable.quotMk_not
 EraseProof.TypeEq.forallE_ne_quot EraseProof.IsErasable.quotMk_not
 EraseProof.TypeEq.ind_ne_quot EraseProof.IsErasable.quotMk_not
-EraseProof.ProgEnv.fresh EraseProof.erasePure_erases
 EraseProof.TrM.weakFV_let EraseProof.erasePure_erases
 EraseProof.TrM.inst_fvar EraseProof.erasePure_erases
 EraseProof.TrM.weakFV EraseProof.erasePure_erases
@@ -41,4 +40,5 @@ EraseProof.Erases.inst EraseProof.erases_correct
 EraseProof.Erases.inst_let EraseProof.erases_correct
 EraseProof.ErasesAlt.inst EraseProof.erases_correct
 EraseProof.Pure.isArity_sound EraseProof.Pure.isErasable_sound
-EraseProof.SrcDefeq.sound_of EraseProof.SrcEval.defeq
+EraseProof.SrcProof.ctor_evidentProp EraseProof.erasePure_erases
+EraseProof.ErasableS.eval EraseProof.erases_correct
