@@ -407,16 +407,16 @@ What the statements and the checks rely on without proof:
 - **Reference artifact:** MetaRocq's `erase_correct`
   (`erasure/theories/ErasureFunctionProperties.v:657`), which holds for every well-typed term.
 - **What differs:** the final theorem covers the inputs the fragment test accepts. Its exclusion
-  classes: recursors other than the `T.rec` of a recognized `T.casesOn`, quotients, recursive
-  definitions (structural or well-founded: every definition with a compiled `_unsafe_rec`
-  companion), `partial`, `unsafe` and `implemented_by` constants, nested inductives, string
+  classes: recursors other than the `T.rec` of a recognized `T.casesOn` or of an inductive `T` with
+  one constructor, quotients, recursive definitions (structural or well-founded: every definition
+  with a compiled `_unsafe_rec` companion), `partial`, `unsafe` and `implemented_by` constants, nested inductives, string
   literals, Nat literals and Nat or Int constructors under `nat := .machine`, `casesOn` on a
   constructor with an index field, eliminations of an inductive whose sort may be both `Prop` and
   not `Prop`, `remove_irrel_constr_args`, metavariables. On the corpus (294 `#erase` calls), 223
   are in the fragment, 68 out (20 of them recursive definitions, one of which, `Defects.log2`, is
   defined by well-founded recursion) and 3 are rejected for a name collision.
 - **Why it is forced:** `#erase` sends an input outside the fragment to the `Meta` path
-  (`Erasure.route`, `LeanToLambdaBox/Erasure/Entry.lean:270-274`), `CoreM` code about which
+  (`Erasure.route`, `LeanToLambdaBox/Erasure/Entry.lean:278-282`), `CoreM` code about which
   nothing is proved, and some of the excluded constructs have no Metalean counterpart (nested
   inductives, `unsafe` constants); recursors and quotients are outside the eraser's pure path.
   Typed inputs outside the fragment exist, so the hypothesis cannot be derived from typing as in

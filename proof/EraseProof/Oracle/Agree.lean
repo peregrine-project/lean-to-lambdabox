@@ -503,9 +503,11 @@ theorem inferType_agree : ∀ (f : Nat) (Γ : List Expr) (e : Expr), FVarsIn S e
     | const S'' us =>
       simp only
       split
-      · next I hSS hfS =>
+      · next I R hSS hfS hfR =>
         rcases hgood with hw | hw
         · split
+          · exact ⟨rfl, fun _ h => nomatch h⟩
+          split
           · next c hct hlen =>
             split
             · next ci cv hci =>

@@ -226,7 +226,9 @@ theorem infer_projStruct (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv
   | const S' us =>
     simp only at h hsp
     split at h
-    · rename_i I hSS hfS
+    · rename_i I R hSS hfS hfR
+      split at h
+      · simp [throw, throwThe, MonadExceptOf.throw, bind, Except.bind] at h
       split at h
       · rename_i c' hct hlen
         split at h

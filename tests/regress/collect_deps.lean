@@ -25,7 +25,8 @@ entries S-18, S-29); `#erase` routes on it (S-21):
   name is the kername of a definition, are `nameCollision`;
 - the closure of a projection contains its structure, also when nothing else in the program
   mentions it (S-30): the closure of `.proj PS 0 hq` (`PS : Prop` a structure, `hq : Q` an axiom of
-  another type) has `PS` and its constructor.
+  another type) has `PS` and its constructor; an inductive with one constructor brings its
+  recursor (S-36), here `PS.rec` and `True.rec`.
 The output of `#erase` on the program `one (fun a : A => a)` is pinned (`nv1.ast`).
 -/
 
@@ -258,7 +259,7 @@ axiom Q : Prop
 axiom hq : Q
 end G
 
-/-- info: "ok [G.Q, G.hq, True.intro, True, G.PS.mk, G.PS]" -/
+/-- info: "ok [G.Q, G.hq, True.intro, True.rec, True, G.PS.mk, G.PS.rec, G.PS]" -/
 #guard_msgs in
 #eval show MetaM String from names {} (.proj ``G.PS 0 (mkConst ``G.hq))
 

@@ -10,7 +10,9 @@ EraseProof.Erases.app_inv propext,Classical.choice,Quot.sound
 EraseProof.Erases.extend propext,Classical.choice,Quot.sound
 EraseProof.Erases.inst_let propext,Classical.choice,Quot.sound
 EraseProof.ErasesDeps.ext propext,Classical.choice,Quot.sound
-EraseProof.Pure.isArity_sound propext,Classical.choice,Quot.sound
+EraseProof.Pure.isErasable_sound propext,Classical.choice,Quot.sound
+EraseProof.Pure.typeLevel_sound propext,Classical.choice,Quot.sound
+EraseProof.TrLevel.isNeverZero_iff propext,Quot.sound
 EraseProof.Pure.isErasable_agree propext,Classical.choice,Quot.sound
 EraseProof.Pure.isErasable_atom propext,Quot.sound
 EraseProof.Pure.isErasable_ctorProp propext,Quot.sound
@@ -147,3 +149,5 @@ EraseProof.Test.NVPK.withApp_ee propext
 EraseProof.OracleInfer.inferOK propext,Classical.choice,Quot.sound
 EraseProof.OracleInfer.infer_projStruct propext,Classical.choice,Quot.sound
 EraseProof.erases_correct propext,Classical.choice,Quot.sound
+EraseProof.ErasesAlt.succ_inv propext,Classical.choice,Quot.sound
+EraseProof.substl_cons_closed propext,Quot.sound
