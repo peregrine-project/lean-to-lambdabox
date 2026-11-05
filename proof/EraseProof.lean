@@ -61,3 +61,4 @@ import EraseProof.Core.CollectOk
 import EraseProof.Core.Frame
 import EraseProof.Core.State
 import EraseProof.Core.RegisterInd
+import EraseProof.Core.Glue
