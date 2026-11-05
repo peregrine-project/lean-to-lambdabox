@@ -18,19 +18,28 @@
     \ref{lem:EraseProof-SatTr-subst}, \ref{lem:EraseProof-TrM-instLevels},
     \ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-apps},
     \ref{lem:EraseProof-Defeq-inst_tele}, \ref{lem:EraseProof-TrM-inst},
-    \ref{def:EraseProof-ProgEnv}, \ref{lem:EraseProof-TrM-wkEnv},
+    \ref{lem:EraseProof-SatTr-typed}, \ref{def:EraseProof-ProgEnv}, \ref{lem:EraseProof-TrM-wkEnv},
     \ref{lem:EraseProof-ProgEnv-lookup}, \ref{lem:EraseProof-ProgEnv-unfold},
     \ref{lem:EraseProof-ctorSat_iota}, \ref{lem:EraseProof-casesOn_whred},
     \ref{lem:EraseProof-proj_defeq}, \ref{lem:EraseProof-TypeEq-sort_ne_forallE},
     \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{def:EraseProof-IsErasable},
     \ref{lem:EraseProof-IsErasable-inst}, \ref{lem:EraseProof-IsErasable-ctor_not},
+    \ref{lem:EraseProof-ErasableS-atom}, \ref{lem:EraseProof-SrcDefeq-sound_of},
+    \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-ErasableS-eval},
     \ref{def:EraseProof-Subsingleton}, \ref{def:EraseProof-Erases},
     \ref{def:EraseProof-ErasesDeps}, \ref{lem:EraseProof-Erases-closed},
     \ref{lem:EraseProof-Erases-extend}, \ref{lem:EraseProof-Erases-instLevels},
-    \ref{lem:EraseProof-Erases-abstract}, \ref{lem:EraseProof-ErasesDeps-eval},
+    \ref{lem:EraseProof-Erases-abstract}, \ref{lem:EraseProof-Erases-inst},
+    \ref{lem:EraseProof-ErasesDeps-eval}, \ref{def:EraseProof-LocalsOK},
+    \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-Pure-isArity_sound},
+    \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-Pure-inferType_recr},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct},
     \ref{def:EraseProof-collectDeps_ok_of_statement}, \ref{lem:EraseProof-isRecursiveDecl_false},
     \ref{def:EraseProof-erase_correct_statement}, \ref{def:EraseProof-erases_correct_statement},
-    \ref{def:EraseProof-erasePure_erases_statement}}
+    \ref{def:EraseProof-ErasesSim}, \ref{lem:EraseProof-erases_correct_beta},
+    \ref{lem:EraseProof-PropInductive-of_propInd}, \ref{lem:EraseProof-erases_correct_ctor},
+    \ref{def:EraseProof-SimIota-HeadBeta}, \ref{lem:EraseProof-erases_correct_casesIota},
+    \ref{thm:EraseProof-erases_correct}, \ref{def:EraseProof-erasePure_erases_statement}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Expr}]
@@ -39,40 +48,51 @@
     Metalean.Expr.appList_cons, Metalean.Expr.prop, Metalean.Expr.rename_id,
     Metalean.Expr.rename_rename, Metalean.Expr.wkFrom, Metalean.Expr.wk, Metalean.Expr.wkN,
     Metalean.Expr.wkN_eq_rename, Metalean.Expr.var_wkN, Metalean.Expr.wkClosed,
-    Metalean.Expr.map_rename, Metalean.Expr.map_wk, Metalean.Expr.map_wkN,
-    Metalean.Expr.map_wkClosed, Metalean.Expr.instInstLevelForallParamLevel, Metalean.Subst,
-    Metalean.Subst.id, Metalean.Subst.lift, Metalean.Subst.lift_castSucc, Metalean.Subst.lift_last,
-    Metalean.Subst.extend, Metalean.Subst.extend_castSucc, Metalean.Subst.extend_last,
-    Metalean.Subst.liftN, Metalean.Subst.liftN_last, Metalean.Subst.precomp,
-    Metalean.CtorSig.liftCaseSubst, Metalean.CtorSig.caseSubst, Metalean.Expr.subst,
-    Metalean.Expr.subst_id, Metalean.Expr.subst_vars, Metalean.Expr.rename_subst,
-    Metalean.Expr.inst, Metalean.Expr.instL_rename, Metalean.Expr.instL_wk,
-    Metalean.Expr.instL_wkClosed, Metalean.Expr.wkN_instL, Metalean.Subst.comp,
-    Metalean.Subst.comp_id, Metalean.Expr.wk_subst_lift, Metalean.Expr.subst_subst}
+    Metalean.Expr.wkClosed_const, Metalean.Expr.map_rename, Metalean.Expr.map_wk,
+    Metalean.Expr.map_wkN, Metalean.Expr.map_wkClosed, Metalean.Expr.instInstLevelForallParamLevel,
+    Metalean.Subst, Metalean.Subst.id, Metalean.Subst.lift, Metalean.Subst.lift_castSucc,
+    Metalean.Subst.lift_last, Metalean.Subst.extend, Metalean.Subst.extend_castSucc,
+    Metalean.Subst.extend_last, Metalean.Subst.liftN, Metalean.Subst.liftN_last,
+    Metalean.Subst.precomp, Metalean.Subst.liftN_id, Metalean.CtorSig.liftCaseSubst,
+    Metalean.CtorSig.caseSubst, Metalean.Expr.subst, Metalean.Expr.subst_id,
+    Metalean.Expr.subst_vars, Metalean.Expr.rename_subst, Metalean.Expr.inst,
+    Metalean.Expr.boundVars, Metalean.Expr.isVar, Metalean.Expr.instL_rename,
+    Metalean.Expr.instL_wk, Metalean.Expr.instL_wkClosed, Metalean.Expr.wkN_instL,
+    Metalean.Subst.comp, Metalean.Subst.comp_id, Metalean.Expr.wk_subst_lift,
+    Metalean.Expr.subst_subst}
   \leanok
   \srcloc{Metalean/Syntax/Expr.lean}{24}
   \lead{In short} Expressions (\code{Expr}): intrinsically scoped terms with sorts, $\Pi$,
   $\lambda$, \code{let}, constants, saturated inductive types, constructors, recursors and
   quotient constants.
-  \lead{Used directly} 44 declarations: 18 definitions, 25 theorems, 1 inductive type.
+  \lead{Used directly} 48 declarations: 20 definitions, 27 theorems, 1 inductive type.
   \usedbystatements{\ref{def:EraseProof-SatTr}, \ref{def:EraseProof-natLitM},
     \ref{def:EraseProof-TypedExt}, \ref{def:EraseProof-TrM}, \ref{lem:EraseProof-TrM-weakBV},
     \ref{lem:EraseProof-TrM-uninstantiateN}, \ref{lem:EraseProof-SatTr-subst},
     \ref{lem:EraseProof-TrM-instLevels}, \ref{lem:EraseProof-DCong-defeq},
     \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-apps},
     \ref{lem:EraseProof-Defeq-inst_tele}, \ref{lem:EraseProof-TrM-inst},
-    \ref{def:EraseProof-ProgEnv}, \ref{lem:EraseProof-TrM-wkEnv},
+    \ref{lem:EraseProof-SatTr-typed}, \ref{def:EraseProof-ProgEnv}, \ref{lem:EraseProof-TrM-wkEnv},
     \ref{lem:EraseProof-ProgEnv-unfold}, \ref{lem:EraseProof-ctorSat_iota},
     \ref{lem:EraseProof-casesOn_whred}, \ref{lem:EraseProof-proj_defeq},
     \ref{lem:EraseProof-TypeEq-sort_ne_forallE}, \ref{lem:EraseProof-TypeEq-sort_ne_quot},
     \ref{def:EraseProof-IsErasable}, \ref{lem:EraseProof-IsErasable-inst},
-    \ref{lem:EraseProof-IsErasable-ctor_not}, \ref{def:EraseProof-Subsingleton},
+    \ref{lem:EraseProof-IsErasable-ctor_not}, \ref{lem:EraseProof-ErasableS-atom},
+    \ref{lem:EraseProof-SrcDefeq-sound_of}, \ref{lem:EraseProof-SrcEval-defeq},
+    \ref{lem:EraseProof-ErasableS-eval}, \ref{def:EraseProof-Subsingleton},
     \ref{def:EraseProof-Erases}, \ref{lem:EraseProof-Erases-closed},
     \ref{lem:EraseProof-Erases-instLevels}, \ref{lem:EraseProof-Erases-abstract},
+    \ref{lem:EraseProof-Erases-inst}, \ref{def:EraseProof-LocalsOK},
+    \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-Pure-isArity_sound},
+    \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-Pure-inferType_recr},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct},
     \ref{def:EraseProof-collectDeps_ok_of_statement}, \ref{lem:EraseProof-isRecursiveDecl_false},
     \ref{def:EraseProof-erase_correct_statement}, \ref{def:EraseProof-erases_correct_statement},
-    \ref{def:EraseProof-erasePure_erases_statement}}
-  \usedbyproofs{\ref{lem:EraseProof-ProgEnv-lookup}, \ref{lem:EraseProof-Erases-extend}}
+    \ref{def:EraseProof-ErasesSim}, \ref{lem:EraseProof-erases_correct_beta},
+    \ref{lem:EraseProof-PropInductive-of_propInd}, \ref{lem:EraseProof-erases_correct_ctor},
+    \ref{lem:EraseProof-erases_correct_casesIota}, \ref{def:EraseProof-erasePure_erases_statement}}
+  \usedbyproofs{\ref{lem:EraseProof-ProgEnv-lookup}, \ref{lem:EraseProof-Erases-extend},
+    \ref{thm:EraseProof-erases_correct}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Ctx}]
@@ -81,31 +101,43 @@
     Metalean.Ctx.substN₃, Metalean.Ctx.nil, Metalean.Ctx.snoc, Metalean.Ctx.map,
     Metalean.Ctx.map_append, Metalean.Ctx.get_map, Metalean.Ctx.instInstLevelForallParamLevel,
     Metalean.Ctx.map_instL, Metalean.Ctx.pi, Metalean.Ctx.lam, Metalean.Ctx.map_pi,
-    Metalean.Ctx.map_lam, Metalean.Ctx.entry, Metalean.Ctx.get_last, Metalean.Ctx.entry_map,
-    Metalean.Ctx.entry_instL, Metalean.Ctx.get_instL, Metalean.Ctx.instL_instL,
-    Metalean.Ctx.pi_instL, Metalean.Ctx.lam_instL, Metalean.Ctx.instL_append}
+    Metalean.Ctx.map_lam, Metalean.Ctx.entry, Metalean.Ctx.entry_snoc_self,
+    Metalean.Ctx.entry_snoc_of_lt, Metalean.Ctx.get_last, Metalean.Ctx.entry_map,
+    Metalean.Ctx.entry_instL, Metalean.Ctx.entry_append_left, Metalean.Ctx.entry_append_right,
+    Metalean.Ctx.get_instL, Metalean.Ctx.instL_instL, Metalean.Ctx.pi_instL,
+    Metalean.Ctx.lam_instL, Metalean.Ctx.instL_append, Metalean.Ctx.ofTypes,
+    Metalean.Ctx.get_append_ofTypes}
   \leanok
   \srcloc{Metalean/Syntax/Ctx.lean}{20}
   \lead{In short} Typing contexts (\code{Ctx}) and their extension (\code{Ctx.snoc}).
-  \lead{Used directly} 25 declarations: 12 definitions, 13 theorems.
+  \lead{Used directly} 31 declarations: 13 definitions, 18 theorems.
   \usedbystatements{\ref{def:EraseProof-natLitM}, \ref{def:EraseProof-TypedExt},
     \ref{def:EraseProof-TrM}, \ref{lem:EraseProof-TrM-weakBV},
     \ref{lem:EraseProof-TrM-uninstantiateN}, \ref{lem:EraseProof-TrM-instLevels},
     \ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-apps},
     \ref{lem:EraseProof-Defeq-inst_tele}, \ref{lem:EraseProof-TrM-inst},
-    \ref{def:EraseProof-ProgEnv}, \ref{lem:EraseProof-TrM-wkEnv},
+    \ref{lem:EraseProof-SatTr-typed}, \ref{def:EraseProof-ProgEnv}, \ref{lem:EraseProof-TrM-wkEnv},
     \ref{lem:EraseProof-ProgEnv-lookup}, \ref{lem:EraseProof-ProgEnv-unfold},
     \ref{lem:EraseProof-ctorSat_iota}, \ref{lem:EraseProof-casesOn_whred},
     \ref{lem:EraseProof-proj_defeq}, \ref{lem:EraseProof-TypeEq-sort_ne_forallE},
     \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{def:EraseProof-IsErasable},
     \ref{lem:EraseProof-IsErasable-inst}, \ref{lem:EraseProof-IsErasable-ctor_not},
+    \ref{lem:EraseProof-ErasableS-atom}, \ref{lem:EraseProof-SrcDefeq-sound_of},
+    \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-ErasableS-eval},
     \ref{def:EraseProof-Subsingleton}, \ref{def:EraseProof-Erases},
     \ref{def:EraseProof-ErasesDeps}, \ref{lem:EraseProof-Erases-closed},
     \ref{lem:EraseProof-Erases-extend}, \ref{lem:EraseProof-Erases-instLevels},
-    \ref{lem:EraseProof-Erases-abstract}, \ref{def:EraseProof-collectDeps_ok_of_statement},
-    \ref{lem:EraseProof-isRecursiveDecl_false}, \ref{def:EraseProof-erase_correct_statement},
-    \ref{def:EraseProof-erases_correct_statement}, \ref{def:EraseProof-erasePure_erases_statement}}
-  \usedbyproofs{\ref{lem:EraseProof-SatTr-subst}}
+    \ref{lem:EraseProof-Erases-abstract}, \ref{lem:EraseProof-Erases-inst},
+    \ref{def:EraseProof-LocalsOK}, \ref{lem:EraseProof-Pure-whnf_sound},
+    \ref{lem:EraseProof-Pure-isArity_sound}, \ref{lem:EraseProof-OracleInfer-inferOK},
+    \ref{lem:EraseProof-Pure-inferType_recr}, \ref{lem:EraseProof-OracleInfer-infer_projStruct},
+    \ref{def:EraseProof-collectDeps_ok_of_statement}, \ref{lem:EraseProof-isRecursiveDecl_false},
+    \ref{def:EraseProof-erase_correct_statement}, \ref{def:EraseProof-erases_correct_statement},
+    \ref{def:EraseProof-ErasesSim}, \ref{lem:EraseProof-erases_correct_beta},
+    \ref{lem:EraseProof-PropInductive-of_propInd}, \ref{lem:EraseProof-erases_correct_ctor},
+    \ref{def:EraseProof-SimIota-HeadBeta}, \ref{lem:EraseProof-erases_correct_casesIota},
+    \ref{def:EraseProof-erasePure_erases_statement}}
+  \usedbyproofs{\ref{lem:EraseProof-SatTr-subst}, \ref{thm:EraseProof-erases_correct}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Env}]
@@ -125,66 +157,94 @@
     \ref{lem:EraseProof-TrM-instLevels}, \ref{lem:EraseProof-DCong-defeq},
     \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-apps},
     \ref{lem:EraseProof-Defeq-inst_tele}, \ref{lem:EraseProof-TrM-inst},
-    \ref{def:EraseProof-ProgEnv}, \ref{lem:EraseProof-TrM-wkEnv},
+    \ref{lem:EraseProof-SatTr-typed}, \ref{def:EraseProof-ProgEnv}, \ref{lem:EraseProof-TrM-wkEnv},
     \ref{lem:EraseProof-ProgEnv-lookup}, \ref{lem:EraseProof-ProgEnv-unfold},
     \ref{lem:EraseProof-ctorSat_iota}, \ref{lem:EraseProof-casesOn_whred},
     \ref{lem:EraseProof-proj_defeq}, \ref{lem:EraseProof-TypeEq-sort_ne_forallE},
     \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{def:EraseProof-IsErasable},
     \ref{lem:EraseProof-IsErasable-inst}, \ref{lem:EraseProof-IsErasable-ctor_not},
+    \ref{lem:EraseProof-ErasableS-atom}, \ref{lem:EraseProof-SrcDefeq-sound_of},
+    \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-ErasableS-eval},
     \ref{def:EraseProof-Subsingleton}, \ref{def:EraseProof-Erases},
     \ref{def:EraseProof-ErasesDeps}, \ref{lem:EraseProof-Erases-closed},
     \ref{lem:EraseProof-Erases-extend}, \ref{lem:EraseProof-Erases-instLevels},
-    \ref{lem:EraseProof-Erases-abstract}, \ref{lem:EraseProof-ErasesDeps-eval},
+    \ref{lem:EraseProof-Erases-abstract}, \ref{lem:EraseProof-Erases-inst},
+    \ref{lem:EraseProof-ErasesDeps-eval}, \ref{def:EraseProof-LocalsOK},
+    \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-Pure-isArity_sound},
+    \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-Pure-inferType_recr},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct},
     \ref{def:EraseProof-collectDeps_ok_of_statement}, \ref{lem:EraseProof-isRecursiveDecl_false},
     \ref{def:EraseProof-erase_correct_statement}, \ref{def:EraseProof-erases_correct_statement},
-    \ref{def:EraseProof-erasePure_erases_statement}}
+    \ref{def:EraseProof-ErasesSim}, \ref{lem:EraseProof-erases_correct_beta},
+    \ref{lem:EraseProof-PropInductive-of_propInd}, \ref{lem:EraseProof-erases_correct_ctor},
+    \ref{def:EraseProof-SimIota-HeadBeta}, \ref{lem:EraseProof-erases_correct_casesIota},
+    \ref{thm:EraseProof-erases_correct}, \ref{def:EraseProof-erasePure_erases_statement}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Inductive.Basic}]
   \label{imp:Metalean-Syntax-Inductive-Basic}
-  \lean{Metalean.Field, Metalean.Ctor, Metalean.Inductive, Metalean.Inductive.argTele,
+  \lean{Metalean.Field, Metalean.RecField, Metalean.Ctor, Metalean.Inductive,
+    Metalean.Ctor.ordinaryTeleAux, Metalean.Ctor.ordinaryTele, Metalean.Inductive.argTele,
     Metalean.Inductive.paramType, Metalean.Inductive.indexType, Metalean.Inductive.indexTele,
     Metalean.Inductive.indexTele_map, Metalean.Inductive.indexTele_instL}
   \leanok
   \srcloc{Metalean/Syntax/Inductive/Basic.lean}{22}
   \lead{In short} Inductive blocks: parameters, indices, constructors and their types
   (\code{Inductive.paramType}).
-  \lead{Used directly} 9 declarations: 4 definitions, 2 theorems, 3 structures.
+  \lead{Used directly} 12 declarations: 6 definitions, 2 theorems, 4 structures.
   \usedbystatements{\ref{def:EraseProof-SatTr}, \ref{def:EraseProof-natLitM},
     \ref{lem:EraseProof-SatTr-subst}, \ref{lem:EraseProof-TrM-instLevels},
     \ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-inst},
-    \ref{def:EraseProof-ProgEnv}, \ref{lem:EraseProof-TrM-wkEnv},
+    \ref{lem:EraseProof-SatTr-typed}, \ref{def:EraseProof-ProgEnv}, \ref{lem:EraseProof-TrM-wkEnv},
     \ref{lem:EraseProof-ctorSat_iota}, \ref{lem:EraseProof-IsErasable-ctor_not},
-    \ref{def:EraseProof-Subsingleton}}
+    \ref{lem:EraseProof-SrcEval-defeq}, \ref{def:EraseProof-Subsingleton},
+    \ref{lem:EraseProof-PropInductive-of_propInd}, \ref{lem:EraseProof-erases_correct_ctor},
+    \ref{lem:EraseProof-erases_correct_casesIota}}
   \usedbyproofs{\ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-ProgEnv-lookup},
     \ref{lem:EraseProof-casesOn_whred}, \ref{lem:EraseProof-proj_defeq},
     \ref{lem:EraseProof-TypeEq-sort_ne_forallE}, \ref{lem:EraseProof-TypeEq-sort_ne_quot},
+    \ref{lem:EraseProof-ErasableS-atom}, \ref{lem:EraseProof-SrcDefeq-sound_of},
     \ref{lem:EraseProof-Erases-instLevels}, \ref{lem:EraseProof-Erases-abstract},
-    \ref{lem:EraseProof-isRecursiveDecl_false}}
+    \ref{lem:EraseProof-Erases-inst}, \ref{lem:EraseProof-Pure-whnf_sound},
+    \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-Pure-inferType_recr},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct}, \ref{lem:EraseProof-isRecursiveDecl_false},
+    \ref{lem:EraseProof-erases_correct_beta}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Level.Quot.Basic}]
   \label{imp:Metalean-Level-Quot-Basic}
-  \lean{Metalean.Level, Metalean.Level.zero, Metalean.Level.param, Metalean.Level.succ,
-    Metalean.Level.max, Metalean.Level.imax, Metalean.Level.inst,
-    Metalean.Level.instInstLevelForallParam, Metalean.Level.inst_succ, Metalean.Level.inst_max,
-    Metalean.Level.inst_imax}
+  \lean{Metalean.Level, Metalean.Level.instDecidableEq, Metalean.Level.zero, Metalean.Level.param,
+    Metalean.Level.succ, Metalean.Level.max, Metalean.Level.imax, Metalean.Level.one,
+    Metalean.Level.eval, Metalean.Level.ext, Metalean.Level.eval_zero, Metalean.Level.eval_succ,
+    Metalean.Level.eval_max, Metalean.Level.eval_imax, Metalean.Level.imax_zero,
+    Metalean.Level.inst, Metalean.Level.instInstLevelForallParam, Metalean.Level.inst_zero,
+    Metalean.Level.inst_param, Metalean.Level.inst_succ, Metalean.Level.inst_max,
+    Metalean.Level.inst_imax, Metalean.Level.eval_inst, Metalean.Level.inst_id,
+    Metalean.Level.inst_inst}
   \leanok
   \srcloc{Metalean/Level/Quot/Basic.lean}{16}
   \lead{In short} Universe levels as a quotient of raw levels (\code{Level}).
-  \lead{Used directly} 11 declarations: 8 definitions, 3 theorems.
+  \lead{Used directly} 25 declarations: 11 definitions, 14 theorems.
   \usedbystatements{\ref{def:EraseProof-TrLevel}, \ref{def:EraseProof-SatTr},
     \ref{def:EraseProof-natLitM}, \ref{def:EraseProof-TrM}, \ref{lem:EraseProof-SatTr-subst},
     \ref{lem:EraseProof-TrM-instLevels}, \ref{lem:EraseProof-DCong-defeq},
     \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-TrM-inst},
-    \ref{lem:EraseProof-TrM-wkEnv}, \ref{lem:EraseProof-ProgEnv-unfold},
-    \ref{lem:EraseProof-ctorSat_iota}, \ref{lem:EraseProof-casesOn_whred},
-    \ref{lem:EraseProof-proj_defeq}, \ref{lem:EraseProof-TypeEq-sort_ne_forallE},
-    \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{def:EraseProof-IsErasable},
-    \ref{lem:EraseProof-IsErasable-inst}, \ref{lem:EraseProof-IsErasable-ctor_not},
-    \ref{def:EraseProof-Subsingleton}, \ref{lem:EraseProof-Erases-instLevels}}
+    \ref{lem:EraseProof-SatTr-typed}, \ref{lem:EraseProof-TrM-wkEnv},
+    \ref{lem:EraseProof-ProgEnv-unfold}, \ref{lem:EraseProof-ctorSat_iota},
+    \ref{lem:EraseProof-casesOn_whred}, \ref{lem:EraseProof-proj_defeq},
+    \ref{lem:EraseProof-TypeEq-sort_ne_forallE}, \ref{lem:EraseProof-TypeEq-sort_ne_quot},
+    \ref{def:EraseProof-IsErasable}, \ref{lem:EraseProof-IsErasable-inst},
+    \ref{lem:EraseProof-IsErasable-ctor_not}, \ref{lem:EraseProof-ErasableS-atom},
+    \ref{lem:EraseProof-SrcDefeq-sound_of}, \ref{lem:EraseProof-SrcEval-defeq},
+    \ref{def:EraseProof-Subsingleton}, \ref{lem:EraseProof-Erases-instLevels},
+    \ref{lem:EraseProof-Erases-inst}, \ref{lem:EraseProof-Pure-whnf_sound},
+    \ref{lem:EraseProof-Pure-isArity_sound}, \ref{lem:EraseProof-OracleInfer-inferOK},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct},
+    \ref{lem:EraseProof-PropInductive-of_propInd}, \ref{lem:EraseProof-erases_correct_ctor},
+    \ref{lem:EraseProof-erases_correct_casesIota}}
   \usedbyproofs{\ref{lem:EraseProof-TrM-weakBV}, \ref{lem:EraseProof-TrM-uninstantiateN},
-    \ref{lem:EraseProof-Erases-abstract}, \ref{lem:EraseProof-isRecursiveDecl_false}}
+    \ref{lem:EraseProof-Erases-abstract}, \ref{lem:EraseProof-Pure-inferType_recr},
+    \ref{lem:EraseProof-isRecursiveDecl_false}, \ref{lem:EraseProof-erases_correct_beta}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Level.Inst}]
@@ -196,53 +256,78 @@
   \lead{In short} Instantiation of universe levels (\code{InstLevel}).
   \lead{Used directly} 5 declarations: 2 definitions, 2 theorems, 1 structure.
   \usedbystatements{\ref{lem:EraseProof-TrM-instLevels}, \ref{lem:EraseProof-DCong-defeq},
-    \ref{lem:EraseProof-ProgEnv-unfold}, \ref{lem:EraseProof-casesOn_whred},
-    \ref{lem:EraseProof-IsErasable-inst}, \ref{lem:EraseProof-IsErasable-ctor_not},
-    \ref{lem:EraseProof-Erases-instLevels}}
+    \ref{lem:EraseProof-SatTr-typed}, \ref{lem:EraseProof-ProgEnv-unfold},
+    \ref{lem:EraseProof-casesOn_whred}, \ref{lem:EraseProof-IsErasable-inst},
+    \ref{lem:EraseProof-IsErasable-ctor_not}, \ref{lem:EraseProof-ErasableS-atom},
+    \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-Erases-instLevels},
+    \ref{lem:EraseProof-erases_correct_ctor}, \ref{lem:EraseProof-erases_correct_casesIota}}
   \usedbyproofs{\ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-apps},
     \ref{lem:EraseProof-TrM-inst}, \ref{lem:EraseProof-TrM-wkEnv},
-    \ref{lem:EraseProof-TypeEq-sort_ne_forallE}, \ref{lem:EraseProof-TypeEq-sort_ne_quot}}
+    \ref{lem:EraseProof-TypeEq-sort_ne_forallE}, \ref{lem:EraseProof-TypeEq-sort_ne_quot},
+    \ref{lem:EraseProof-SrcDefeq-sound_of}, \ref{lem:EraseProof-Erases-inst},
+    \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-OracleInfer-inferOK},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct}, \ref{lem:EraseProof-erases_correct_beta},
+    \ref{lem:EraseProof-PropInductive-of_propInd}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Typing.Defs}]
   \label{imp:Metalean-Typing-Defs}
   \lean{Metalean.Defeq, Metalean.Defeq.left, Metalean.Defeq.right, Metalean.Defeq.regular,
-    Metalean.SubstWF, Metalean.IsType, Metalean.CtxWF, Metalean.CtorWF, Metalean.InductiveWF}
+    Metalean.SubstWF, Metalean.SubstEq, Metalean.SubstEq.left, Metalean.IsType, Metalean.CtxWF,
+    Metalean.TeleWF, Metalean.CtorWF, Metalean.InductiveWF}
   \leanok
   \srcloc{Metalean/Typing/Defs.lean}{25}
   \lead{In short} The typing judgment: definitional equality with regularity (\code{Defeq}),
   well-formed contexts (\code{CtxWF}) and inductive blocks (\code{InductiveWF}).
-  \lead{Used directly} 9 declarations: 3 definitions, 3 theorems, 1 inductive type, 2 structures.
+  \lead{Used directly} 12 declarations: 5 definitions, 4 theorems, 1 inductive type, 2 structures.
   \usedbystatements{\ref{def:EraseProof-TypedExt}, \ref{lem:EraseProof-DCong-defeq},
     \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-Defeq-inst_tele},
-    \ref{lem:EraseProof-TrM-inst}, \ref{def:EraseProof-ProgEnv}, \ref{lem:EraseProof-proj_defeq},
-    \ref{lem:EraseProof-TypeEq-sort_ne_forallE}, \ref{lem:EraseProof-TypeEq-sort_ne_quot},
-    \ref{def:EraseProof-IsErasable}, \ref{lem:EraseProof-IsErasable-inst},
-    \ref{lem:EraseProof-IsErasable-ctor_not}, \ref{def:EraseProof-Subsingleton},
-    \ref{def:EraseProof-Erases}, \ref{def:EraseProof-collectDeps_ok_of_statement},
-    \ref{def:EraseProof-erase_correct_statement}, \ref{def:EraseProof-erases_correct_statement},
+    \ref{lem:EraseProof-TrM-inst}, \ref{lem:EraseProof-SatTr-typed}, \ref{def:EraseProof-ProgEnv},
+    \ref{lem:EraseProof-proj_defeq}, \ref{lem:EraseProof-TypeEq-sort_ne_forallE},
+    \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{def:EraseProof-IsErasable},
+    \ref{lem:EraseProof-IsErasable-inst}, \ref{lem:EraseProof-IsErasable-ctor_not},
+    \ref{lem:EraseProof-ErasableS-atom}, \ref{lem:EraseProof-SrcDefeq-sound_of},
+    \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-ErasableS-eval},
+    \ref{def:EraseProof-Subsingleton}, \ref{def:EraseProof-Erases},
+    \ref{lem:EraseProof-Erases-inst}, \ref{def:EraseProof-LocalsOK},
+    \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-Pure-isArity_sound},
+    \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-Pure-inferType_recr},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct},
+    \ref{def:EraseProof-collectDeps_ok_of_statement}, \ref{def:EraseProof-erase_correct_statement},
+    \ref{def:EraseProof-erases_correct_statement}, \ref{def:EraseProof-ErasesSim},
+    \ref{lem:EraseProof-erases_correct_beta}, \ref{lem:EraseProof-PropInductive-of_propInd},
+    \ref{lem:EraseProof-erases_correct_ctor}, \ref{lem:EraseProof-erases_correct_casesIota},
     \ref{def:EraseProof-erasePure_erases_statement}}
   \usedbyproofs{\ref{lem:EraseProof-TrM-weakBV}, \ref{lem:EraseProof-TrM-instLevels},
     \ref{lem:EraseProof-TrM-wkEnv}, \ref{lem:EraseProof-ProgEnv-lookup},
     \ref{lem:EraseProof-casesOn_whred}, \ref{lem:EraseProof-Erases-closed},
     \ref{lem:EraseProof-Erases-extend}, \ref{lem:EraseProof-Erases-instLevels},
-    \ref{lem:EraseProof-Erases-abstract}, \ref{lem:EraseProof-isRecursiveDecl_false}}
+    \ref{lem:EraseProof-Erases-abstract}, \ref{lem:EraseProof-isRecursiveDecl_false},
+    \ref{thm:EraseProof-erases_correct}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Typing.TypeEq}]
   \label{imp:Metalean-Typing-TypeEq}
   \lean{Metalean.TypeEq, Metalean.TypeEq.ofDefEq, Metalean.TypeEq.symm, Metalean.TypeEq.trans,
     Metalean.TypeEq.conv, Metalean.TypeEq.left, Metalean.TypeEq.right, Metalean.IsType.typeEq,
-    Metalean.TypeEq.inst_congr₂}
+    Metalean.TypeEq.inst_congr₂, Metalean.TypeEq.substitution, Metalean.SubstWF.snocConv}
   \leanok
   \srcloc{Metalean/Typing/TypeEq.lean}{16}
   \lead{In short} Equality of types (\code{TypeEq}), with its two sides as types
   (\code{TypeEq.left}, \code{TypeEq.right}).
-  \lead{Used directly} 9 declarations: 1 definition, 8 theorems.
+  \lead{Used directly} 11 declarations: 1 definition, 10 theorems.
   \usedbystatements{\ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TypeEq-sort_ne_forallE},
-    \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{def:EraseProof-IsErasable}}
+    \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{def:EraseProof-IsErasable},
+    \ref{lem:EraseProof-ErasableS-atom}, \ref{lem:EraseProof-SrcDefeq-sound_of},
+    \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-Pure-whnf_sound},
+    \ref{lem:EraseProof-Pure-isArity_sound}}
   \usedbyproofs{\ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-inst},
-    \ref{lem:EraseProof-IsErasable-inst}, \ref{lem:EraseProof-IsErasable-ctor_not}}
+    \ref{lem:EraseProof-SatTr-typed}, \ref{lem:EraseProof-IsErasable-inst},
+    \ref{lem:EraseProof-IsErasable-ctor_not}, \ref{lem:EraseProof-Erases-inst},
+    \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-Pure-inferType_recr},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct}, \ref{lem:EraseProof-erases_correct_beta},
+    \ref{lem:EraseProof-PropInductive-of_propInd}, \ref{lem:EraseProof-erases_correct_ctor},
+    \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Typing.Env.Defs}]
@@ -253,56 +338,78 @@
   \lead{In short} Well-formed environments (\code{EnvWF}).
   \lead{Used directly} 1 declaration: 1 inductive type.
   \usedbystatements{\ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-det},
-    \ref{lem:EraseProof-TrM-inst}, \ref{lem:EraseProof-ProgEnv-lookup},
-    \ref{lem:EraseProof-proj_defeq}, \ref{lem:EraseProof-TypeEq-sort_ne_forallE},
-    \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{lem:EraseProof-IsErasable-inst},
-    \ref{lem:EraseProof-IsErasable-ctor_not}, \ref{def:EraseProof-Subsingleton},
+    \ref{lem:EraseProof-TrM-inst}, \ref{lem:EraseProof-SatTr-typed},
+    \ref{lem:EraseProof-ProgEnv-lookup}, \ref{lem:EraseProof-proj_defeq},
+    \ref{lem:EraseProof-TypeEq-sort_ne_forallE}, \ref{lem:EraseProof-TypeEq-sort_ne_quot},
+    \ref{lem:EraseProof-IsErasable-inst}, \ref{lem:EraseProof-IsErasable-ctor_not},
+    \ref{lem:EraseProof-ErasableS-atom}, \ref{lem:EraseProof-SrcDefeq-sound_of},
+    \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-ErasableS-eval},
+    \ref{def:EraseProof-Subsingleton}, \ref{lem:EraseProof-Erases-inst},
+    \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-Pure-isArity_sound},
+    \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-Pure-inferType_recr},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct},
     \ref{def:EraseProof-erase_correct_statement}, \ref{def:EraseProof-erases_correct_statement},
-    \ref{def:EraseProof-erasePure_erases_statement}}
+    \ref{lem:EraseProof-erases_correct_beta}, \ref{lem:EraseProof-PropInductive-of_propInd},
+    \ref{lem:EraseProof-erases_correct_ctor}, \ref{lem:EraseProof-erases_correct_casesIota},
+    \ref{thm:EraseProof-erases_correct}, \ref{def:EraseProof-erasePure_erases_statement}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Typing.Env}]
   \label{imp:Metalean-Typing-Env}
-  \lean{Metalean.EntryWF.block, Metalean.EnvWF.entryWF}
+  \lean{Metalean.EntryWF.block, Metalean.EnvWF.entryWF, Metalean.EnvWF.eqBlock,
+    Metalean.Defeq.ind_typed, Metalean.Defeq.ctor_typed, Metalean.Defeq.recr_typed}
   \leanok
   \srcloc{Metalean/Typing/Env.lean}{50}
   \lead{In short} Lemmas about well-formed environments: each entry is well formed
   (\code{EnvWF.entryWF}), and the block of an inductive entry (\code{EntryWF.block}).
-  \lead{Used directly} 2 declarations: 2 theorems.
+  \lead{Used directly} 6 declarations: 6 theorems.
   \usedbyproofs{\ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-det},
-    \ref{lem:EraseProof-TypeEq-sort_ne_forallE}, \ref{lem:EraseProof-TypeEq-sort_ne_quot}}
+    \ref{lem:EraseProof-SatTr-typed}, \ref{lem:EraseProof-TypeEq-sort_ne_forallE},
+    \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{lem:EraseProof-SrcEval-defeq},
+    \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-OracleInfer-infer_projStruct},
+    \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Typing.Inductive}]
   \label{imp:Metalean-Typing-Inductive}
   \lean{Metalean.CtorWF.targetIndex_congr, Metalean.CtorWF.ordinaryFieldExpr_congr,
-    Metalean.CtorWF.recursiveFieldExpr_congr, Metalean.Inductive.paramType_conv,
-    Metalean.InductiveWF.motiveResult_congr, Metalean.Inductive.ctorTypeFn}
+    Metalean.CtorWF.recursiveFieldExpr_congr, Metalean.InductiveWF.paramClosedWF,
+    Metalean.Inductive.indexSubstEq, Metalean.Inductive.paramType_conv,
+    Metalean.InductiveWF.motiveTele, Metalean.InductiveWF.motiveResult_congr,
+    Metalean.Inductive.ctorTypeFn}
   \leanok
   \srcloc{Metalean/Typing/Inductive.lean}{379}
   \lead{In short} Typing of inductive blocks: the types of constructors
   (\code{Inductive.ctorTypeFn}).
-  \lead{Used directly} 6 declarations: 1 definition, 5 theorems.
+  \lead{Used directly} 9 declarations: 1 definition, 8 theorems.
   \usedbyproofs{\ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-det},
-    \ref{lem:EraseProof-TypeEq-sort_ne_forallE}, \ref{lem:EraseProof-TypeEq-sort_ne_quot}}
+    \ref{lem:EraseProof-SatTr-typed}, \ref{lem:EraseProof-TypeEq-sort_ne_forallE},
+    \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{lem:EraseProof-Pure-whnf_sound}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Typing.Inversion}]
   \label{imp:Metalean-Typing-Inversion}
-  \lean{Metalean.Defeq.forallE_ty_inv, Metalean.Defeq.ctor_inv, Metalean.Defeq.recr_inv,
-    Metalean.Defeq.ind_inv, Metalean.Defeq.quot_inv, Metalean.Defeq.quotInd_prem,
-    Metalean.Defeq.quotMk_prem, Metalean.Defeq.quotLift_prem, Metalean.Defeq.forallE_inv,
-    Metalean.Defeq.quot_formation_inv, Metalean.Defeq.app_inv, Metalean.Defeq.letE_inv,
-    Metalean.Defeq.lam_inv}
+  \lean{Metalean.Defeq.forallE_ty_inv, Metalean.Defeq.const_inv, Metalean.Defeq.ctor_inv,
+    Metalean.Defeq.recr_inv, Metalean.Defeq.ind_inv, Metalean.Defeq.quot_inv,
+    Metalean.Defeq.quotInd_prem, Metalean.Defeq.quotMk_prem, Metalean.Defeq.quotLift_prem,
+    Metalean.Defeq.forallE_inv, Metalean.Defeq.quot_formation_inv, Metalean.Defeq.app_inv,
+    Metalean.Defeq.letE_inv, Metalean.Defeq.lam_inv}
   \leanok
   \srcloc{Metalean/Typing/Inversion.lean}{56}
   \lead{In short} Inversion of the typing judgment, such as for $\Pi$-types
   (\code{Defeq.forallE\_inv}).
-  \lead{Used directly} 13 declarations: 13 theorems.
+  \lead{Used directly} 14 declarations: 14 theorems.
   \usedbyproofs{\ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-det},
-    \ref{lem:EraseProof-TrM-inst}, \ref{lem:EraseProof-TypeEq-sort_ne_forallE},
-    \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{lem:EraseProof-IsErasable-inst},
-    \ref{lem:EraseProof-IsErasable-ctor_not}}
+    \ref{lem:EraseProof-TrM-inst}, \ref{lem:EraseProof-SatTr-typed},
+    \ref{lem:EraseProof-TypeEq-sort_ne_forallE}, \ref{lem:EraseProof-TypeEq-sort_ne_quot},
+    \ref{lem:EraseProof-IsErasable-inst}, \ref{lem:EraseProof-IsErasable-ctor_not},
+    \ref{lem:EraseProof-ErasableS-atom}, \ref{lem:EraseProof-SrcDefeq-sound_of},
+    \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-Erases-inst},
+    \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-Pure-isArity_sound},
+    \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-Pure-inferType_recr},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct}, \ref{lem:EraseProof-erases_correct_beta},
+    \ref{lem:EraseProof-PropInductive-of_propInd}, \ref{lem:EraseProof-erases_correct_ctor},
+    \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Semantics.Inversion}]
@@ -314,7 +421,7 @@
   the interpretations of both sides (\code{TypeEq.rawInterpret\_eq}).
   \lead{Used directly} 1 declaration: 1 theorem.
   \usedbyproofs{\ref{lem:EraseProof-TypeEq-sort_ne_forallE},
-    \ref{lem:EraseProof-TypeEq-sort_ne_quot}}
+    \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{lem:EraseProof-Pure-whnf_sound}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Semantics.Interpretation}]
@@ -328,7 +435,7 @@
   its equations for $\Pi$-types and inductive types.
   \lead{Used directly} 5 declarations: 1 definition, 4 theorems.
   \usedbyproofs{\ref{lem:EraseProof-TypeEq-sort_ne_forallE},
-    \ref{lem:EraseProof-TypeEq-sort_ne_quot}}
+    \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{lem:EraseProof-Pure-whnf_sound}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Semantics.Interpretation.Binder.Pi}]
@@ -353,7 +460,7 @@
   sort.
   \lead{Used directly} 4 declarations: 3 definitions, 1 theorem.
   \usedbyproofs{\ref{lem:EraseProof-TypeEq-sort_ne_forallE},
-    \ref{lem:EraseProof-TypeEq-sort_ne_quot}}
+    \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{lem:EraseProof-Pure-whnf_sound}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Semantics.Interpretation.Inductive}]
@@ -367,7 +474,7 @@
   derivation.
   \lead{Used directly} 6 declarations: 3 definitions, 2 theorems, 1 structure.
   \usedbyproofs{\ref{lem:EraseProof-TypeEq-sort_ne_forallE},
-    \ref{lem:EraseProof-TypeEq-sort_ne_quot}}
+    \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{lem:EraseProof-Pure-whnf_sound}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Semantics.Interpretation.Quotient.Basic}]
@@ -385,14 +492,15 @@
 
 \begin{imported}[\code{Metalean.Semantics.Basis.Shape}]
   \label{imp:Metalean-Semantics-Basis-Shape}
-  \lean{Metalean.IndCode, Metalean.QuotCode, Metalean.CtorHead, Metalean.IndHead.nctors,
-    Metalean.IndCode.toIndHead, Metalean.CtorHead.arity, Metalean.CtorHead.IsStructural,
-    Metalean.Shape, Metalean.IndCode.map, Metalean.QuotCode.map, Metalean.QuotCode.map_hom_id,
-    Metalean.Graph, Metalean.Graph.nil, Metalean.Shape.presheaf}
+  \lean{Metalean.IndCode, Metalean.QuotCode, Metalean.IndHead, Metalean.CtorHead,
+    Metalean.IndHead.nctors, Metalean.IndCode.toIndHead, Metalean.CtorHead.arity,
+    Metalean.CtorHead.IsStructural, Metalean.Shape, Metalean.IndCode.map, Metalean.QuotCode.map,
+    Metalean.QuotCode.map_hom_id, Metalean.Graph, Metalean.Graph.nil, Metalean.Shape.presheaf}
   \leanok
   \srcloc{Metalean/Semantics/Basis/Shape.lean}{19}
   \lead{In short} Shapes of the domain model and constructor heads (\code{CtorHead}).
-  \lead{Used directly} 14 declarations: 8 definitions, 1 theorem, 1 inductive type, 4 structures.
+  \lead{Used directly} 15 declarations: 8 definitions, 1 theorem, 1 inductive type, 5 structures.
+  \usedbystatements{\ref{lem:EraseProof-Pure-whnf_sound}}
   \usedbyproofs{\ref{lem:EraseProof-TypeEq-sort_ne_forallE},
     \ref{lem:EraseProof-TypeEq-sort_ne_quot}}
 \end{imported}
@@ -430,20 +538,20 @@
   ideals.
   \lead{Used directly} 3 declarations: 3 definitions.
   \usedbyproofs{\ref{lem:EraseProof-TypeEq-sort_ne_forallE},
-    \ref{lem:EraseProof-TypeEq-sort_ne_quot}}
+    \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{lem:EraseProof-Pure-whnf_sound}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Semantics.Domain.Constructors}]
   \label{imp:Metalean-Semantics-Domain-Constructors}
   \lean{Metalean.CoherentShape.sortAtom, Metalean.CoherentShape.indAtom,
-    Metalean.CoherentShape.RawValue.ind}
+    Metalean.CoherentShape.RawValue.ind, Metalean.CoherentShape.RawValue.code_eq_of_ind_eq}
   \leanok
   \srcloc{Metalean/Semantics/Domain/Constructors.lean}{22}
   \lead{In short} The atoms of sorts and inductive types (\code{sortAtom}, \code{indAtom}) and
   inductive values.
-  \lead{Used directly} 3 declarations: 3 definitions.
+  \lead{Used directly} 4 declarations: 3 definitions, 1 theorem.
   \usedbyproofs{\ref{lem:EraseProof-TypeEq-sort_ne_forallE},
-    \ref{lem:EraseProof-TypeEq-sort_ne_quot}}
+    \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{lem:EraseProof-Pure-whnf_sound}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Semantics.Domain.Decoder.Stages}]
@@ -454,7 +562,7 @@
   \lead{In short} The stages of the decoder of the domain model (\code{CodeAssignment.piLimit}).
   \lead{Used directly} 1 declaration: 1 definition.
   \usedbyproofs{\ref{lem:EraseProof-TypeEq-sort_ne_forallE},
-    \ref{lem:EraseProof-TypeEq-sort_ne_quot}}
+    \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{lem:EraseProof-Pure-whnf_sound}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Semantics.Domain.Quotient.Basic}]
@@ -476,7 +584,7 @@
   \lead{In short} The category of well-formed contexts (\code{CtxCat}).
   \lead{Used directly} 6 declarations: 5 definitions, 1 structure.
   \usedbyproofs{\ref{lem:EraseProof-TypeEq-sort_ne_forallE},
-    \ref{lem:EraseProof-TypeEq-sort_ne_quot}}
+    \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{lem:EraseProof-Pure-whnf_sound}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.TypeTheory.Syntactic.Comprehension}]
@@ -509,7 +617,7 @@
   \lead{In short} Terms of the syntactic model (\code{Tm}) and their labels.
   \lead{Used directly} 2 declarations: 2 definitions.
   \usedbyproofs{\ref{lem:EraseProof-TypeEq-sort_ne_forallE},
-    \ref{lem:EraseProof-TypeEq-sort_ne_quot}}
+    \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{lem:EraseProof-Pure-whnf_sound}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Order.Presheaf.Lower}]
@@ -522,7 +630,7 @@
   \lead{In short} Lower sets over presheaves, directed and with a bottom.
   \lead{Used directly} 6 declarations: 4 definitions, 1 theorem, 1 structure.
   \usedbyproofs{\ref{lem:EraseProof-TypeEq-sort_ne_forallE},
-    \ref{lem:EraseProof-TypeEq-sort_ne_quot}}
+    \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{lem:EraseProof-Pure-whnf_sound}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Order.Presheaf.Ideal}]
@@ -566,27 +674,38 @@
   \srcloc{Metalean/Level/Raw/Basic.lean}{15}
   \lead{In short} Raw universe levels and their parameters (\code{Param}).
   \lead{Used directly} 1 declaration: 1 definition.
-  \usedbystatements{\ref{def:EraseProof-TrLevel}, \ref{lem:EraseProof-casesOn_whred}}
-  \usedbyproofs{\ref{lem:EraseProof-TrM-instLevels}, \ref{lem:EraseProof-TrM-wkEnv},
-    \ref{lem:EraseProof-IsErasable-inst}, \ref{lem:EraseProof-Erases-instLevels}}
+  \usedbystatements{\ref{def:EraseProof-TrLevel}, \ref{lem:EraseProof-casesOn_whred},
+    \ref{lem:EraseProof-erases_correct_ctor}}
+  \usedbyproofs{\ref{lem:EraseProof-TrM-instLevels}, \ref{lem:EraseProof-SatTr-typed},
+    \ref{lem:EraseProof-TrM-wkEnv}, \ref{lem:EraseProof-IsErasable-inst},
+    \ref{lem:EraseProof-SrcDefeq-sound_of}, \ref{lem:EraseProof-SrcEval-defeq},
+    \ref{lem:EraseProof-Erases-instLevels}, \ref{lem:EraseProof-OracleInfer-inferOK},
+    \ref{lem:EraseProof-PropInductive-of_propInd}, \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Inductive.Ctor}]
   \label{imp:Metalean-Syntax-Inductive-Ctor}
   \lean{Metalean.CtorSig.fieldOrdinary, Metalean.Ctor.ordinaryFieldExpr,
     Metalean.Ctor.recursiveFieldExpr, Metalean.Ctor.ordinaryFieldExpr_map,
-    Metalean.Ctor.ordinaryFieldExpr_instL, Metalean.Ctor.targetIndex, Metalean.Ctor.fieldTele,
+    Metalean.Ctor.ordinaryFieldExpr_instL, Metalean.Ctor.targetIndex,
+    Metalean.Ctor.ordinaryFieldTele, Metalean.Ctor.recursiveFieldTeleAux, Metalean.Ctor.fieldTele,
     Metalean.Ctor.fieldTele_map, Metalean.Ctor.fieldTele_instL}
   \leanok
   \srcloc{Metalean/Syntax/Inductive/Ctor.lean}{32}
   \lead{In short} Constructor signatures: the type of an ordinary field
   (\code{Ctor.ordinaryFieldExpr}).
-  \lead{Used directly} 9 declarations: 5 definitions, 4 theorems.
-  \usedbystatements{\ref{def:EraseProof-natLitM}, \ref{lem:EraseProof-DCong-defeq}}
+  \lead{Used directly} 11 declarations: 7 definitions, 4 theorems.
+  \usedbystatements{\ref{def:EraseProof-natLitM}, \ref{lem:EraseProof-DCong-defeq},
+    \ref{lem:EraseProof-SatTr-typed}}
   \usedbyproofs{\ref{lem:EraseProof-SatTr-subst}, \ref{lem:EraseProof-TrM-instLevels},
     \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-TrM-inst},
     \ref{lem:EraseProof-TrM-wkEnv}, \ref{lem:EraseProof-proj_defeq},
-    \ref{lem:EraseProof-IsErasable-ctor_not}}
+    \ref{lem:EraseProof-IsErasable-ctor_not}, \ref{lem:EraseProof-SrcDefeq-sound_of},
+    \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-Erases-inst},
+    \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-OracleInfer-inferOK},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct}, \ref{lem:EraseProof-erases_correct_beta},
+    \ref{lem:EraseProof-PropInductive-of_propInd}, \ref{lem:EraseProof-erases_correct_ctor},
+    \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Inductive.Recursor}]
@@ -609,28 +728,38 @@
     \ref{lem:EraseProof-proj_defeq}}
   \usedbyproofs{\ref{lem:EraseProof-SatTr-subst}, \ref{lem:EraseProof-TrM-instLevels},
     \ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-apps},
-    \ref{lem:EraseProof-TrM-wkEnv}, \ref{lem:EraseProof-ctorSat_iota}}
+    \ref{lem:EraseProof-SatTr-typed}, \ref{lem:EraseProof-TrM-wkEnv},
+    \ref{lem:EraseProof-ctorSat_iota}, \ref{lem:EraseProof-SrcDefeq-sound_of},
+    \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-Erases-inst},
+    \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-Pure-inferType_recr},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct},
+    \ref{lem:EraseProof-PropInductive-of_propInd}, \ref{lem:EraseProof-erases_correct_ctor},
+    \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Inductive.LargeElimination}]
   \label{imp:Metalean-Syntax-Inductive-LargeElimination}
-  \lean{Metalean.Inductive.SortLargeElim, Metalean.Inductive.LargeElim,
+  \lean{Metalean.Ctor.Eligible, Metalean.Inductive.SortLargeElim, Metalean.Inductive.LargeElim,
     Metalean.Inductive.RecAllowed, Metalean.Inductive.sortLargeElim_map,
     Metalean.Inductive.largeElim_map}
   \leanok
-  \srcloc{Metalean/Syntax/Inductive/LargeElimination.lean}{46}
+  \srcloc{Metalean/Syntax/Inductive/LargeElimination.lean}{25}
   \lead{In short} Which inductive blocks eliminate into every sort (\code{Inductive.LargeElim}).
-  \lead{Used directly} 5 declarations: 2 definitions, 2 theorems, 1 inductive type.
+  \lead{Used directly} 6 declarations: 2 definitions, 2 theorems, 1 inductive type, 1 structure.
   \usedbystatements{\ref{def:EraseProof-SatTr}, \ref{def:EraseProof-ProgEnv}}
   \usedbyproofs{\ref{lem:EraseProof-TrM-instLevels}, \ref{lem:EraseProof-DCong-defeq},
     \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-inst}, \ref{lem:EraseProof-TrM-wkEnv},
     \ref{lem:EraseProof-ProgEnv-lookup}, \ref{lem:EraseProof-casesOn_whred},
-    \ref{lem:EraseProof-Erases-instLevels}}
+    \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-Erases-instLevels},
+    \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-Pure-inferType_recr},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct},
+    \ref{lem:EraseProof-PropInductive-of_propInd}, \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Structure}]
   \label{imp:Metalean-Syntax-Structure}
   \lean{Metalean.Inductive.IsStructure, Metalean.Inductive.IsStructure.indices,
+    Metalean.Inductive.IsStructure.recursive, Metalean.Inductive.IsStructure.projTypeWith,
     Metalean.Inductive.IsStructure.projType, Metalean.Inductive.IsStructure.projTerm,
     Metalean.Inductive.IsStructure.projectionMotives,
     Metalean.Inductive.IsStructure.projectionCases,
@@ -640,14 +769,21 @@
   \srcloc{Metalean/Syntax/Structure.lean}{25}
   \lead{In short} Structures (\code{Inductive.IsStructure}) and their projection terms
   (\code{IsStructure.projTerm}).
-  \lead{Used directly} 10 declarations: 5 definitions, 4 theorems, 1 structure.
-  \usedbystatements{\ref{def:EraseProof-TrM}, \ref{lem:EraseProof-TrM-inst}}
+  \lead{Used directly} 12 declarations: 7 definitions, 4 theorems, 1 structure.
+  \usedbystatements{\ref{def:EraseProof-TrM}, \ref{lem:EraseProof-TrM-inst},
+    \ref{lem:EraseProof-SrcDefeq-sound_of}, \ref{lem:EraseProof-Pure-whnf_sound},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct},
+    \ref{lem:EraseProof-PropInductive-of_propInd}}
   \usedbyproofs{\ref{lem:EraseProof-TrM-weakBV}, \ref{lem:EraseProof-TrM-uninstantiateN},
     \ref{lem:EraseProof-TrM-instLevels}, \ref{lem:EraseProof-DCong-defeq},
     \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-TrM-wkEnv},
     \ref{lem:EraseProof-ProgEnv-unfold}, \ref{lem:EraseProof-casesOn_whred},
-    \ref{lem:EraseProof-proj_defeq}, \ref{lem:EraseProof-Erases-instLevels},
-    \ref{lem:EraseProof-Erases-abstract}, \ref{lem:EraseProof-isRecursiveDecl_false}}
+    \ref{lem:EraseProof-proj_defeq}, \ref{lem:EraseProof-ErasableS-atom},
+    \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-Erases-instLevels},
+    \ref{lem:EraseProof-Erases-abstract}, \ref{lem:EraseProof-Erases-inst},
+    \ref{lem:EraseProof-Pure-isArity_sound}, \ref{lem:EraseProof-OracleInfer-inferOK},
+    \ref{lem:EraseProof-isRecursiveDecl_false}, \ref{lem:EraseProof-erases_correct_beta},
+    \ref{lem:EraseProof-erases_correct_ctor}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Export.Basic}]
@@ -659,10 +795,15 @@
   \lead{Used directly} 1 declaration: 1 inductive type.
   \usedbystatements{\ref{def:EraseProof-MBinding}, \ref{def:EraseProof-SatTr},
     \ref{lem:EraseProof-TrM-instLevels}, \ref{lem:EraseProof-TrM-apps},
-    \ref{def:EraseProof-ProgEnv}, \ref{lem:EraseProof-TrM-wkEnv}}
+    \ref{lem:EraseProof-SatTr-typed}, \ref{def:EraseProof-ProgEnv}, \ref{lem:EraseProof-TrM-wkEnv}}
   \usedbyproofs{\ref{lem:EraseProof-SatTr-subst}, \ref{lem:EraseProof-TrM-det},
     \ref{lem:EraseProof-TrM-inst}, \ref{lem:EraseProof-casesOn_whred},
-    \ref{lem:EraseProof-proj_defeq}, \ref{lem:EraseProof-Erases-instLevels}}
+    \ref{lem:EraseProof-proj_defeq}, \ref{lem:EraseProof-ErasableS-atom},
+    \ref{lem:EraseProof-SrcDefeq-sound_of}, \ref{lem:EraseProof-SrcEval-defeq},
+    \ref{lem:EraseProof-Erases-instLevels}, \ref{lem:EraseProof-Erases-inst},
+    \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-OracleInfer-inferOK},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct}, \ref{lem:EraseProof-erases_correct_beta},
+    \ref{lem:EraseProof-erases_correct_ctor}, \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Frontend.Failure}]
@@ -675,9 +816,15 @@
   \lead{Used directly} 2 declarations: 2 inductive types.
   \usedbystatements{\ref{def:EraseProof-SatTr}, \ref{lem:EraseProof-SatTr-subst},
     \ref{lem:EraseProof-TrM-instLevels}, \ref{lem:EraseProof-TrM-det},
-    \ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-TrM-inst}, \ref{lem:EraseProof-TrM-wkEnv},
-    \ref{lem:EraseProof-ctorSat_iota}, \ref{lem:EraseProof-casesOn_whred}}
-  \usedbyproofs{\ref{lem:EraseProof-proj_defeq}, \ref{lem:EraseProof-Erases-instLevels}}
+    \ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-TrM-inst}, \ref{lem:EraseProof-SatTr-typed},
+    \ref{lem:EraseProof-TrM-wkEnv}, \ref{lem:EraseProof-ctorSat_iota},
+    \ref{lem:EraseProof-casesOn_whred}, \ref{lem:EraseProof-SrcDefeq-sound_of},
+    \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-Pure-whnf_sound}}
+  \usedbyproofs{\ref{lem:EraseProof-proj_defeq}, \ref{lem:EraseProof-ErasableS-atom},
+    \ref{lem:EraseProof-Erases-instLevels}, \ref{lem:EraseProof-Erases-inst},
+    \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-Pure-inferType_recr},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct}, \ref{lem:EraseProof-erases_correct_beta},
+    \ref{lem:EraseProof-erases_correct_ctor}, \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Frontend.Translate}]
@@ -694,9 +841,15 @@
   \lead{Used directly} 9 declarations: 9 definitions.
   \usedbystatements{\ref{def:EraseProof-SatTr}, \ref{lem:EraseProof-SatTr-subst},
     \ref{lem:EraseProof-TrM-instLevels}, \ref{lem:EraseProof-TrM-det},
-    \ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-TrM-inst}, \ref{lem:EraseProof-TrM-wkEnv},
-    \ref{lem:EraseProof-ctorSat_iota}, \ref{lem:EraseProof-casesOn_whred}}
-  \usedbyproofs{\ref{lem:EraseProof-proj_defeq}, \ref{lem:EraseProof-Erases-instLevels}}
+    \ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-TrM-inst}, \ref{lem:EraseProof-SatTr-typed},
+    \ref{lem:EraseProof-TrM-wkEnv}, \ref{lem:EraseProof-ctorSat_iota},
+    \ref{lem:EraseProof-casesOn_whred}, \ref{lem:EraseProof-SrcDefeq-sound_of},
+    \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-Pure-whnf_sound}}
+  \usedbyproofs{\ref{lem:EraseProof-proj_defeq}, \ref{lem:EraseProof-ErasableS-atom},
+    \ref{lem:EraseProof-Erases-instLevels}, \ref{lem:EraseProof-Erases-inst},
+    \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-Pure-inferType_recr},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct}, \ref{lem:EraseProof-erases_correct_beta},
+    \ref{lem:EraseProof-erases_correct_ctor}, \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Control}]
@@ -709,7 +862,8 @@
   \usedbystatements{\ref{lem:EraseProof-SatTr-subst}, \ref{lem:EraseProof-TrM-instLevels},
     \ref{lem:EraseProof-TrM-wkEnv}, \ref{lem:EraseProof-ctorSat_iota}}
   \usedbyproofs{\ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-apps},
-    \ref{lem:EraseProof-TrM-inst}}
+    \ref{lem:EraseProof-TrM-inst}, \ref{lem:EraseProof-SatTr-typed},
+    \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-Pure-whnf_sound}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Data.Fin}]
@@ -725,17 +879,23 @@
 \begin{imported}[\code{Metalean.Data.Tele}]
   \label{imp:Metalean-Data-Tele}
   \lean{Tele, Tele.map, Tele.foldr, Tele.append, Tele.instHAppend, Tele.append_nil,
-    Tele.append_snoc, Tele.le, Tele.addInduction, Tele.Forall}
+    Tele.append_snoc, Tele.foldr_append, Tele.append_assoc, Tele.nil_append, Tele.le,
+    Tele.addInduction, Tele.Forall, Tele.Forall.init, Tele.Forall.last}
   \leanok
   \srcloc{Metalean/Data/Tele.lean}{17}
   \lead{In short} Telescopes (\code{Tele}) and predicates on all their entries
   (\leandecl{Tele.Forall}).
-  \lead{Used directly} 10 declarations: 5 definitions, 3 theorems, 2 inductive types.
+  \lead{Used directly} 15 declarations: 5 definitions, 8 theorems, 2 inductive types.
   \usedbystatements{\ref{lem:EraseProof-TrM-inst}}
   \usedbyproofs{\ref{lem:EraseProof-TrM-weakBV}, \ref{lem:EraseProof-TrM-instLevels},
     \ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-apps},
-    \ref{lem:EraseProof-TrM-wkEnv}, \ref{lem:EraseProof-ctorSat_iota},
-    \ref{lem:EraseProof-proj_defeq}, \ref{lem:EraseProof-Erases-instLevels}}
+    \ref{lem:EraseProof-SatTr-typed}, \ref{lem:EraseProof-TrM-wkEnv},
+    \ref{lem:EraseProof-ctorSat_iota}, \ref{lem:EraseProof-proj_defeq},
+    \ref{lem:EraseProof-ErasableS-atom}, \ref{lem:EraseProof-SrcDefeq-sound_of},
+    \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-Erases-instLevels},
+    \ref{lem:EraseProof-Erases-inst}, \ref{lem:EraseProof-Pure-whnf_sound},
+    \ref{lem:EraseProof-Pure-isArity_sound}, \ref{lem:EraseProof-OracleInfer-inferOK},
+    \ref{lem:EraseProof-erases_correct_beta}, \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Frontend.Rename}]
@@ -747,33 +907,45 @@
   \lead{In short} The partial renaming and permutation of telescopes (\code{Ctx.permute?}) that
   the term builders of the translator call.
   \lead{Used directly} 5 declarations: 5 definitions.
-  \usedbystatements{\ref{lem:EraseProof-TrM-instLevels}, \ref{lem:EraseProof-TrM-wkEnv}}
-  \usedbyproofs{\ref{lem:EraseProof-TrM-apps}}
+  \usedbystatements{\ref{lem:EraseProof-TrM-instLevels}, \ref{lem:EraseProof-SatTr-typed},
+    \ref{lem:EraseProof-TrM-wkEnv}}
+  \usedbyproofs{\ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-SrcEval-defeq},
+    \ref{lem:EraseProof-Pure-whnf_sound}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Metatheory.Injectivity}]
   \label{imp:Metalean-Metatheory-Injectivity}
-  \lean{Metalean.TypeEq.sort_inj, Metalean.Defeq.ind_inj, Metalean.TypeEq.instCongr}
+  \lean{Metalean.TypeEq.sort_inj, Metalean.TypeEq.forallE_inj, Metalean.Defeq.ind_inj,
+    Metalean.TypeEq.forallE_congr, Metalean.TypeEq.instCongr}
   \leanok
   \srcloc{Metalean/Metatheory/Injectivity.lean}{20}
   \lead{In short} Injectivity of type formers under type equality (\code{Defeq.ind\_inj},
   \code{TypeEq.sort\_inj}).
-  \lead{Used directly} 3 declarations: 3 theorems.
+  \lead{Used directly} 5 declarations: 5 theorems.
   \usedbyproofs{\ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-IsErasable-inst},
-    \ref{lem:EraseProof-IsErasable-ctor_not}}
+    \ref{lem:EraseProof-IsErasable-ctor_not}, \ref{lem:EraseProof-ErasableS-atom},
+    \ref{lem:EraseProof-SrcDefeq-sound_of}, \ref{lem:EraseProof-SrcEval-defeq},
+    \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-OracleInfer-inferOK},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct}, \ref{lem:EraseProof-erases_correct_beta},
+    \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Metatheory.SubjectReduction}]
   \label{imp:Metalean-Metatheory-SubjectReduction}
-  \lean{Metalean.Defeq.retype, Metalean.Inductive.IsStructure.projTerm_ctor_defeq,
-    Metalean.WHRedS.defeq}
+  \lean{Metalean.Defeq.retype, Metalean.WHRed.beta_defeq, Metalean.WHRed.zeta_defeq,
+    Metalean.Inductive.IsStructure.projTerm_ctor_defeq, Metalean.Frame.plug_defeq,
+    Metalean.WHRed.defeq, Metalean.WHRedS.defeq}
   \leanok
   \srcloc{Metalean/Metatheory/SubjectReduction.lean}{29}
   \lead{In short} Subject reduction: weak-head reduction is a definitional equality
   (\code{WHRedS.defeq}), retyping (\code{Defeq.retype}), projections of constructors.
-  \lead{Used directly} 3 declarations: 3 theorems.
+  \lead{Used directly} 7 declarations: 7 theorems.
   \usedbyproofs{\ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-det},
-    \ref{lem:EraseProof-proj_defeq}}
+    \ref{lem:EraseProof-proj_defeq}, \ref{lem:EraseProof-SrcDefeq-sound_of},
+    \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-Pure-whnf_sound},
+    \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-Pure-inferType_recr},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct}, \ref{lem:EraseProof-erases_correct_beta},
+    \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Metatheory.Unique}]
@@ -783,7 +955,12 @@
   \srcloc{Metalean/Metatheory/Unique.lean}{149}
   \lead{In short} Uniqueness of types up to type equality (\code{Defeq.uniqTy}).
   \lead{Used directly} 2 declarations: 2 theorems.
-  \usedbyproofs{\ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-IsErasable-inst}}
+  \usedbyproofs{\ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-SatTr-typed},
+    \ref{lem:EraseProof-IsErasable-inst}, \ref{lem:EraseProof-ErasableS-atom},
+    \ref{lem:EraseProof-SrcDefeq-sound_of}, \ref{lem:EraseProof-SrcEval-defeq},
+    \ref{lem:EraseProof-Erases-inst}, \ref{lem:EraseProof-OracleInfer-inferOK},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct},
+    \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Expr.Application}]
@@ -796,10 +973,12 @@
   \lead{In short} Application spines (\code{Expr.apps}).
   \lead{Used directly} 9 declarations: 1 definition, 8 theorems.
   \usedbystatements{\ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-TrM-inst},
-    \ref{lem:EraseProof-ctorSat_iota}, \ref{lem:EraseProof-casesOn_whred},
-    \ref{lem:EraseProof-proj_defeq}}
+    \ref{lem:EraseProof-SatTr-typed}, \ref{lem:EraseProof-ctorSat_iota},
+    \ref{lem:EraseProof-casesOn_whred}, \ref{lem:EraseProof-proj_defeq},
+    \ref{lem:EraseProof-SrcEval-defeq}}
   \usedbyproofs{\ref{lem:EraseProof-SatTr-subst}, \ref{lem:EraseProof-TrM-instLevels},
-    \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-wkEnv}}
+    \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-wkEnv},
+    \ref{lem:EraseProof-Pure-inferType_recr}, \ref{lem:EraseProof-OracleInfer-infer_projStruct}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Inductive.Iota}]
@@ -816,14 +995,18 @@
 
 \begin{imported}[\code{Metalean.Syntax.Inductive.RecField}]
   \label{imp:Metalean-Syntax-Inductive-RecField}
-  \lean{Metalean.RecField.instantiatedType}
+  \lean{Metalean.RecField.instantiatedIndices, Metalean.RecField.instantiatedType}
   \leanok
-  \srcloc{Metalean/Syntax/Inductive/RecField.lean}{48}
+  \srcloc{Metalean/Syntax/Inductive/RecField.lean}{34}
   \lead{In short} Recursive fields of constructors and their instantiated types.
-  \lead{Used directly} 1 declaration: 1 definition.
+  \lead{Used directly} 2 declarations: 2 definitions.
   \usedbystatements{\ref{lem:EraseProof-DCong-defeq}}
   \usedbyproofs{\ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-inst},
-    \ref{lem:EraseProof-IsErasable-ctor_not}}
+    \ref{lem:EraseProof-SatTr-typed}, \ref{lem:EraseProof-IsErasable-ctor_not},
+    \ref{lem:EraseProof-SrcDefeq-sound_of}, \ref{lem:EraseProof-Erases-inst},
+    \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-OracleInfer-inferOK},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct}, \ref{lem:EraseProof-erases_correct_beta},
+    \ref{lem:EraseProof-erases_correct_ctor}, \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Quot}]
@@ -834,9 +1017,10 @@
   \srcloc{Metalean/Syntax/Quot.lean}{19}
   \lead{In short} The types of the quotient constants (\code{Quot.eqApp}, \code{Quot.compatType}).
   \lead{Used directly} 6 declarations: 6 definitions.
+  \usedbystatements{\ref{lem:EraseProof-SatTr-typed}}
   \usedbyproofs{\ref{lem:EraseProof-TrM-instLevels}, \ref{lem:EraseProof-DCong-defeq},
     \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-TrM-inst},
-    \ref{lem:EraseProof-TrM-wkEnv}}
+    \ref{lem:EraseProof-TrM-wkEnv}, \ref{lem:EraseProof-OracleInfer-inferOK}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Reduction}]
@@ -850,8 +1034,11 @@
   \usedbystatements{\ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-apps},
     \ref{lem:EraseProof-TrM-inst}, \ref{lem:EraseProof-ProgEnv-unfold},
     \ref{lem:EraseProof-ctorSat_iota}, \ref{lem:EraseProof-casesOn_whred},
-    \ref{lem:EraseProof-proj_defeq}}
-  \usedbyproofs{\ref{lem:EraseProof-TrM-det}}
+    \ref{lem:EraseProof-proj_defeq}, \ref{lem:EraseProof-SrcEval-defeq},
+    \ref{lem:EraseProof-Pure-whnf_sound}}
+  \usedbyproofs{\ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-SrcDefeq-sound_of},
+    \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-Pure-inferType_recr},
+    \ref{lem:EraseProof-erases_correct_beta}, \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Ren}]
@@ -864,22 +1051,26 @@
   \lead{In short} Renamings (\code{Ren}) and their composition.
   \lead{Used directly} 11 declarations: 7 definitions, 4 theorems.
   \usedbystatements{\ref{def:EraseProof-TypedExt}, \ref{lem:EraseProof-TrM-weakBV},
-    \ref{lem:EraseProof-TrM-inst}}
+    \ref{lem:EraseProof-TrM-inst}, \ref{lem:EraseProof-Erases-inst}}
   \usedbyproofs{\ref{lem:EraseProof-SatTr-subst}, \ref{lem:EraseProof-TrM-instLevels},
-    \ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-wkEnv},
-    \ref{lem:EraseProof-casesOn_whred}}
+    \ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-SatTr-typed},
+    \ref{lem:EraseProof-TrM-wkEnv}, \ref{lem:EraseProof-casesOn_whred},
+    \ref{lem:EraseProof-ErasableS-atom}, \ref{lem:EraseProof-SrcDefeq-sound_of},
+    \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-erases_correct_beta},
+    \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Structure.Projection}]
   \label{imp:Metalean-Syntax-Structure-Projection}
-  \lean{Metalean.Inductive.IsStructure.projTerm_subst,
-    Metalean.Inductive.IsStructure.projTerm_wkFrom}
+  \lean{Metalean.Inductive.IsStructure.projType_eq_projTypeWith,
+    Metalean.Inductive.IsStructure.projTerm_subst, Metalean.Inductive.IsStructure.projTerm_wkFrom}
   \leanok
-  \srcloc{Metalean/Syntax/Structure/Projection.lean}{236}
+  \srcloc{Metalean/Syntax/Structure/Projection.lean}{216}
   \lead{In short} Structure projection terms under substitution and weakening.
-  \lead{Used directly} 2 declarations: 2 theorems.
+  \lead{Used directly} 3 declarations: 3 theorems.
   \usedbyproofs{\ref{lem:EraseProof-TrM-weakBV}, \ref{lem:EraseProof-DCong-defeq},
-    \ref{lem:EraseProof-TrM-inst}}
+    \ref{lem:EraseProof-TrM-inst}, \ref{lem:EraseProof-SrcDefeq-sound_of},
+    \ref{lem:EraseProof-Erases-inst}, \ref{lem:EraseProof-OracleInfer-infer_projStruct}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Substitution}]
@@ -888,21 +1079,27 @@
     Metalean.Expr.inst_subst, Metalean.Expr.wkN_subst, Metalean.Expr.wkN_subst_append,
     Metalean.Expr.subst_closed, Metalean.Expr.wkClosed_subst, Metalean.Subst.liftN_castAdd,
     Metalean.Subst.append_comp, Metalean.Expr.wkN_subst_case, Metalean.Expr.wk_subst_extend,
-    Metalean.Subst.wk, Metalean.Expr.subst_wk, Metalean.Expr.inst_subst_lift,
-    Metalean.Subst.liftN_comp_append, Metalean.Ctx.pi_subst, Metalean.Ctx.lam_subst,
-    Metalean.Ctx.lam_subst₃, Metalean.Ctor.ordinaryFieldExpr_subst,
-    Metalean.CtorSig.caseOrdinary_subst, Metalean.Inductive.iotaRhs_subst,
-    Metalean.Inductive.caseTele_subst, Metalean.Inductive.motiveTele_subst}
+    Metalean.Subst.wk, Metalean.Expr.subst_wk, Metalean.Expr.wk_subst, Metalean.Ctx.get_subst,
+    Metalean.Expr.inst_subst_lift, Metalean.Subst.liftN_comp_append, Metalean.Ctx.pi_subst,
+    Metalean.Ctx.lam_subst, Metalean.Ctx.lam_subst₃, Metalean.RecField.instantiatedType_subst,
+    Metalean.Ctor.ordinaryFieldExpr_subst, Metalean.CtorSig.caseOrdinary_subst,
+    Metalean.Inductive.iotaRhs_subst, Metalean.Inductive.caseTele_subst,
+    Metalean.Inductive.params_get, Metalean.Inductive.motiveTele_subst,
+    Metalean.Inductive.paramType_eq_get_subst, Metalean.Ctor.forall_ordinarySubst}
   \leanok
   \srcloc{Metalean/Syntax/Substitution.lean}{28}
   \lead{In short} Substitution lemmas of the syntax: constructor fields, case telescopes,
   $\lambda$-telescopes.
-  \lead{Used directly} 24 declarations: 1 definition, 23 theorems.
+  \lead{Used directly} 30 declarations: 1 definition, 29 theorems.
   \usedbystatements{\ref{lem:EraseProof-TrM-inst}}
   \usedbyproofs{\ref{lem:EraseProof-SatTr-subst}, \ref{lem:EraseProof-DCong-defeq},
-    \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-ctorSat_iota},
-    \ref{lem:EraseProof-casesOn_whred}, \ref{lem:EraseProof-proj_defeq},
-    \ref{lem:EraseProof-IsErasable-inst}}
+    \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-SatTr-typed},
+    \ref{lem:EraseProof-ctorSat_iota}, \ref{lem:EraseProof-casesOn_whred},
+    \ref{lem:EraseProof-proj_defeq}, \ref{lem:EraseProof-IsErasable-inst},
+    \ref{lem:EraseProof-SrcDefeq-sound_of}, \ref{lem:EraseProof-SrcEval-defeq},
+    \ref{lem:EraseProof-Erases-inst}, \ref{lem:EraseProof-Pure-whnf_sound},
+    \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-erases_correct_beta},
+    \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Var}]
@@ -913,39 +1110,48 @@
   \lead{In short} Variables of an intrinsically scoped context (\code{Var}).
   \lead{Used directly} 1 declaration: 1 definition.
   \usedbystatements{\ref{def:EraseProof-TypedExt}, \ref{lem:EraseProof-TrM-weakBV},
-    \ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-inst}}
+    \ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-inst},
+    \ref{lem:EraseProof-SatTr-typed}, \ref{lem:EraseProof-Erases-inst}}
   \usedbyproofs{\ref{lem:EraseProof-SatTr-subst}, \ref{lem:EraseProof-TrM-instLevels},
     \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-TrM-wkEnv},
     \ref{lem:EraseProof-ctorSat_iota}, \ref{lem:EraseProof-casesOn_whred},
-    \ref{lem:EraseProof-proj_defeq}}
+    \ref{lem:EraseProof-proj_defeq}, \ref{lem:EraseProof-ErasableS-atom},
+    \ref{lem:EraseProof-SrcDefeq-sound_of}, \ref{lem:EraseProof-Pure-whnf_sound},
+    \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Weakening}]
   \label{imp:Metalean-Syntax-Weakening}
   \lean{Metalean.Subst.wkFrom, Metalean.Ctx.insert, Metalean.Expr.wkFrom_eq_subst,
-    Metalean.Expr.last_wkFrom, Metalean.Expr.wkFrom_lam, Metalean.Expr.wkFrom_forallE,
-    Metalean.Expr.wkFrom_letE, Metalean.Expr.wk_wkFrom, Metalean.Expr.inst_wkFrom,
-    Metalean.Ctx.get_snoc, Metalean.Ctx.get_castSucc, Metalean.Ctx.get_insert,
-    Metalean.Ctx.insert_snoc, Metalean.Ctx.insert_nil, Metalean.Expr.var_wk}
+    Metalean.Expr.wkFrom_var, Metalean.Expr.last_wkFrom, Metalean.Expr.wkFrom_lam,
+    Metalean.Expr.wkFrom_forallE, Metalean.Expr.wkFrom_letE, Metalean.Expr.wk_wkFrom,
+    Metalean.Expr.inst_wkFrom, Metalean.Ctx.get_snoc, Metalean.Ctx.get_castSucc,
+    Metalean.Ctx.get_append, Metalean.Ctx.get_insert, Metalean.Ctx.insert_snoc,
+    Metalean.Ctx.insert_nil, Metalean.Expr.var_wk}
   \leanok
   \srcloc{Metalean/Syntax/Weakening.lean}{20}
   \lead{In short} Lookups in contexts after insertion and extension (\code{Ctx.get\_insert},
   \code{Ctx.get\_snoc}).
-  \lead{Used directly} 15 declarations: 2 definitions, 13 theorems.
+  \lead{Used directly} 17 declarations: 2 definitions, 15 theorems.
   \usedbystatements{\ref{lem:EraseProof-TrM-weakBV}, \ref{lem:EraseProof-DCong-defeq}}
   \usedbyproofs{\ref{lem:EraseProof-TrM-instLevels}, \ref{lem:EraseProof-TrM-inst},
-    \ref{lem:EraseProof-TrM-wkEnv}}
+    \ref{lem:EraseProof-SatTr-typed}, \ref{lem:EraseProof-TrM-wkEnv},
+    \ref{lem:EraseProof-SrcDefeq-sound_of}, \ref{lem:EraseProof-Erases-inst}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Typing.Context}]
   \label{imp:Metalean-Typing-Context}
-  \lean{Metalean.CtxWF.get, Metalean.CtxWF.var, Metalean.SubstWF.inst}
+  \lean{Metalean.Defeq.wkClosed, Metalean.CtxWF.get, Metalean.CtxWF.var, Metalean.SubstWF.inst,
+    Metalean.CtxWF.varLast, Metalean.SubstWF.id, Metalean.SubstWF.wk}
   \leanok
-  \srcloc{Metalean/Typing/Context.lean}{31}
+  \srcloc{Metalean/Typing/Context.lean}{23}
   \lead{In short} Well-formed contexts (\code{CtxWF}) and well-typed substitutions
   (\code{SubstWF}).
-  \lead{Used directly} 3 declarations: 3 theorems.
-  \usedbyproofs{\ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-IsErasable-inst}}
+  \lead{Used directly} 7 declarations: 7 theorems.
+  \usedbyproofs{\ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-SatTr-typed},
+    \ref{lem:EraseProof-IsErasable-inst}, \ref{lem:EraseProof-ErasableS-atom},
+    \ref{lem:EraseProof-Erases-inst}, \ref{lem:EraseProof-OracleInfer-inferOK},
+    \ref{lem:EraseProof-erases_correct_beta}, \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Typing.InstLevel}]
@@ -956,7 +1162,9 @@
   \lead{In short} Universe instantiation of judgements (\code{Defeq.instLevel}).
   \lead{Used directly} 1 declaration: 1 theorem.
   \usedbyproofs{\ref{lem:EraseProof-TrM-instLevels}, \ref{lem:EraseProof-IsErasable-inst},
-    \ref{lem:EraseProof-Erases-instLevels}}
+    \ref{lem:EraseProof-ErasableS-atom}, \ref{lem:EraseProof-SrcDefeq-sound_of},
+    \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-Erases-instLevels},
+    \ref{lem:EraseProof-OracleInfer-inferOK}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Typing.Map}]
@@ -966,7 +1174,7 @@
   \srcloc{Metalean/Typing/Map.lean}{22}
   \lead{In short} Judgements along maps of environments (\code{Defeq.map}): environment weakening.
   \lead{Used directly} 1 declaration: 1 theorem.
-  \usedbyproofs{\ref{lem:EraseProof-TrM-wkEnv}}
+  \usedbyproofs{\ref{lem:EraseProof-TrM-wkEnv}, \ref{lem:EraseProof-ErasableS-atom}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Typing.Structure}]
@@ -977,19 +1185,88 @@
   \lead{In short} Typing of structures and of their projection terms
   (\code{IsStructure.projTerm\_congr}).
   \lead{Used directly} 2 declarations: 2 theorems.
-  \usedbyproofs{\ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-inst}}
+  \usedbyproofs{\ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-inst},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Typing.Substitution}]
   \label{imp:Metalean-Typing-Substitution}
   \lean{Metalean.Defeq.wkFrom, Metalean.Defeq.wk, Metalean.Defeq.substitution,
-    Metalean.Defeq.inst_congr, Metalean.Defeq.snocConv}
+    Metalean.Defeq.inst_congr, Metalean.Defeq.snocConv, Metalean.IsType.substitution,
+    Metalean.SubstWF.extend, Metalean.SubstWF.lift}
   \leanok
   \srcloc{Metalean/Typing/Substitution.lean}{122}
   \lead{In short} The substitution lemma of judgements (\code{Defeq.substitution}) and context
   conversion (\code{Defeq.snocConv}).
-  \lead{Used directly} 5 declarations: 5 theorems.
+  \lead{Used directly} 8 declarations: 8 theorems.
   \usedbyproofs{\ref{lem:EraseProof-TrM-weakBV}, \ref{lem:EraseProof-DCong-defeq},
-    \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-inst},
-    \ref{lem:EraseProof-IsErasable-inst}}
+    \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-inst}, \ref{lem:EraseProof-SatTr-typed},
+    \ref{lem:EraseProof-IsErasable-inst}, \ref{lem:EraseProof-SrcDefeq-sound_of},
+    \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-Erases-inst},
+    \ref{lem:EraseProof-Pure-isArity_sound}, \ref{lem:EraseProof-OracleInfer-inferOK},
+    \ref{lem:EraseProof-erases_correct_beta}, \ref{lem:EraseProof-erases_correct_casesIota}}
+\end{imported}
+
+\begin{imported}[\code{Metalean.Decide}]
+  \label{imp:Metalean-Decide}
+  \lean{Metalean.Inductive.LargeElim.instDecidable}
+  \leanok
+  \srcloc{Metalean/Decide.lean}{50}
+  \lead{In short} Decidability instances for the side conditions of entries, among them large
+  elimination (\code{Inductive.LargeElim}).
+  \lead{Used directly} 1 declaration: 1 definition.
+  \usedbyproofs{\ref{lem:EraseProof-SrcEval-defeq}}
+\end{imported}
+
+\begin{imported}[\code{Metalean.Level.Quot.Nat}]
+  \label{imp:Metalean-Level-Quot-Nat}
+  \lean{Nat.imax, Nat.le_imax_right}
+  \leanok
+  \srcloc{Metalean/Level/Quot/Nat.lean}{14}
+  \lead{In short} The arithmetic of level evaluation on \code{Nat} (\leandecl{Nat.imax}).
+  \lead{Used directly} 2 declarations: 1 definition, 1 theorem.
+  \usedbyproofs{\ref{lem:EraseProof-erases_correct_ctor}}
+\end{imported}
+
+\begin{imported}[\code{Metalean.Level.Quot.Order}]
+  \label{imp:Metalean-Level-Quot-Order}
+  \lean{Metalean.Level.instSemilatticeSup}
+  \leanok
+  \srcloc{Metalean/Level/Quot/Order.lean}{16}
+  \lead{In short} The order of levels: a join semilattice under \code{max}.
+  \lead{Used directly} 1 declaration: 1 definition.
+  \usedbyproofs{\ref{lem:EraseProof-PropInductive-of_propInd}}
+\end{imported}
+
+\begin{imported}[\code{Metalean.Syntax.Eq}]
+  \label{imp:Metalean-Syntax-Eq}
+  \lean{Metalean.Eq.block}
+  \leanok
+  \srcloc{Metalean/Syntax/Eq.lean}{22}
+  \lead{In short} The inductive block of \code{Eq} that the quotient constants require
+  (\code{Eq.block}).
+  \lead{Used directly} 1 declaration: 1 definition.
+  \usedbyproofs{\ref{lem:EraseProof-SatTr-typed}}
+\end{imported}
+
+\begin{imported}[\code{Metalean.Typing.Quot}]
+  \label{imp:Metalean-Typing-Quot}
+  \lean{Metalean.Quot.relType_congr, Metalean.Quot.motiveType_isType,
+    Metalean.Quot.minorType_isType, Metalean.Quot.compatType_isType}
+  \leanok
+  \srcloc{Metalean/Typing/Quot.lean}{23}
+  \lead{In short} The types of the quotient constants are types (\code{Quot.motiveType\_isType},
+  \code{Quot.compatType\_isType}).
+  \lead{Used directly} 4 declarations: 4 theorems.
+  \usedbyproofs{\ref{lem:EraseProof-SatTr-typed}}
+\end{imported}
+
+\begin{imported}[\code{Metalean.Typing.Telescope}]
+  \label{imp:Metalean-Typing-Telescope}
+  \lean{Metalean.TeleWF.appendCtxWF}
+  \leanok
+  \srcloc{Metalean/Typing/Telescope.lean}{18}
+  \lead{In short} Well-formed telescopes (\code{TeleWF}) and their appending to a context.
+  \lead{Used directly} 1 declaration: 1 theorem.
+  \usedbyproofs{\ref{lem:EraseProof-SatTr-typed}}
 \end{imported}

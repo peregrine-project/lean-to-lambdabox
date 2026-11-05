@@ -4,7 +4,7 @@
 \section*{At a glance}
 \begin{itemize}
 \item \lead{Source} \code{doc/SHIPPING-CHANGES.md}, rendered by \code{blueprint/scripts/render\_registers.py}; every section below is the register's own text.
-\item \lead{Changes} 33 entries, one commit each, subject \code{shipping(S-<n>): ...}.
+\item \lead{Changes} 34 entries, one commit each, subject \code{shipping(S-<n>): ...}.
 \item \lead{Reported, not fixed} 28 entries.
 \end{itemize}
 
@@ -52,6 +52,7 @@ Entry & Title \\
 \ref{reg:S-31} & An alternative whose type is a \ensuremath{\Pi} only after unfolding keeps its binders, on both paths \\
 \ref{reg:S-32} & A \texttt{casesOn} on an inductive that eliminates only into Prop is erased to \ensuremath{\Box} \\
 \ref{reg:S-33} & Unexpected cases of the traversal are errors on the pure path \\
+\ref{reg:S-34} & The pure oracle erases an application spine headed by a theorem \\
 \bottomrule
 \end{tabular}
 
@@ -1220,6 +1221,24 @@ Before this commit the test does not elaborate (\leandecl{Erasure.casesInfo?} do
 \item \textbf{Behaviour after:} at \texttt{PureM} it is the error \texttt{failed lambdaMonocular: not a \ensuremath{\lambda}}, and likewise at the other sites. At \texttt{CoreM} every site still panics and goes on with \texttt{default}, so the \texttt{Meta} path's output is unchanged; the messages name the site instead of the source position.
 \item \textbf{Effect on emitted .ast (corpus):} byte-identical for all 710 files against the corpus of S-32; \texttt{PANIC} counts unchanged (the three left are those of \texttt{visitLiteral}, R-4).
 \item \textbf{Regression test:} \texttt{pure\_\allowbreak{}backend} checks that \texttt{Backend.error} and \texttt{Backend.fail} are the error \texttt{failed} at \texttt{PureM}, and that \texttt{lambdaMonocular} on a constant is the error \texttt{failed lambdaMonocular: not a \ensuremath{\lambda}} there. Before this commit the test does not elaborate (\texttt{Backend.fail} is unknown). \texttt{scripts/\allowbreak{}regress.sh} passes (18 tests), with and without \texttt{PEREGRINE}. \texttt{scripts/\allowbreak{}pure-harness.sh} passes with its expected summary unchanged (294 \texttt{\#erase}, 223 in the fragment; 8298 oracle calls, 14 differ, none fails).
+\end{itemize}
+
+\section{\texorpdfstring{S-34: The pure oracle erases an application spine headed by a theorem}{S-34: The pure oracle erases an application spine headed by a theorem}}\label{reg:S-34}
+
+\begin{itemize}
+\item \textbf{Commit:} the commit whose subject starts with \texttt{S-34:} (\texttt{git log -{}-grep='\textasciicircum{}S-34:'}).
+\item \textbf{Files and functions:}
+
+\begin{itemize}
+\item \leanfile{LeanToLambdaBox/\allowbreak{}Erasure/\allowbreak{}Pure.lean}: \texttt{Pure.isErasable} answers \texttt{true} when its term's head (\texttt{spine}) is a constant declared as a theorem in the closure, before it infers the type; its docstring.
+\item new \leanfile{tests/\allowbreak{}regress/\allowbreak{}thm\_\allowbreak{}atom\_\allowbreak{}pure.lean} with its goldens.
+\item \texttt{doc/\allowbreak{}SHIPPING-CHANGES.md}: this entry.
+\end{itemize}
+\item \textbf{Why necessary:} found by the verification work on the oracle. The pure oracle has no recursor \ensuremath{\iota} (\texttt{Pure.whnf}), so it does not see that a theorem is a proof when the sort of its statement is \texttt{Prop} only through \ensuremath{\iota}: with \texttt{def Sel (b : Bool) : Type := Bool.casesOn (motive := fun \_\allowbreak{} =\textgreater{} Type) b Prop Prop}, \texttt{def Y : Sel true := True} and \texttt{theorem thm : Y}, it answers \texttt{false} on \texttt{thm}. The traversal then visits \texttt{thm} as a constant to translate, which the pure path cannot (a theorem has no translated body). Lean's kernel requires a theorem's statement to be a proposition, and an application of a proof of a proposition is again a proof, so every application spine headed by a theorem is erasable; this needs no reduction.
+\item \textbf{Behaviour before:} under \texttt{nat := .peano}, the oracle answers \texttt{false} on \texttt{thm} and on \texttt{thmF Nat.zero} (\texttt{theorem thmF (\_\allowbreak{} : Nat) : Y}), and \texttt{\#erase} of \texttt{use := thm} and of \texttt{useF := thmF Nat.zero}, both in the fragment, fails with \texttt{erasure failed: outside the fragment: unknown constant}.
+\item \textbf{Behaviour after:} the oracle answers \texttt{true} on both spines; \texttt{use := \ensuremath{\Box}} and \texttt{useF := \ensuremath{\Box}}, which peregrine evaluates to \ensuremath{\Box}. The \texttt{Meta} path is unchanged (its oracle reduces \texttt{Sel true} to \texttt{Prop} and boxes the constants themselves).
+\item \textbf{Effect on emitted .ast (corpus):} byte-identical for all 710 files against the corpus of S-33; \texttt{PANIC} counts unchanged.
+\item \textbf{Regression test:} \texttt{thm\_\allowbreak{}atom\_\allowbreak{}pure} checks the oracle's answers on \texttt{thm}, \texttt{thmF Nat.zero} and \texttt{use}, that \texttt{use} and \texttt{useF} take the pure path, and pins their \texttt{\#erase} outputs, which peregrine validates and evaluates. Before this commit the oracle answers \texttt{false} on both theorem spines and both \texttt{\#erase} fail. \texttt{scripts/\allowbreak{}regress.sh} passes (19 tests), with and without \texttt{PEREGRINE}. \texttt{scripts/\allowbreak{}pure-harness.sh} passes with its expected summary unchanged (294 \texttt{\#erase}, 223 in the fragment; 8298 oracle calls, 14 differ, none fails).
 \end{itemize}
 
 \section{\texorpdfstring{Reported, not fixed}{Reported, not fixed}}\label{reg:reported-not-fixed}

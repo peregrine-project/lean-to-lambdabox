@@ -8,10 +8,13 @@
   simulation \code{erases\_correct} (M1) and the soundness of the pure traversal
   \code{erasePure\_erases} (M2).
 \item \lead{Status} the statements are formalized as definitions of type \code{Prop}, pinned by
-  \code{proof/spec.pin} (check C12b); \stPlanned{} the theorems, which check C12 lists as unproved.
-  The statement is the same in Phase I and Phase II.
+  \code{proof/spec.pin} (check C12b); \stProved{} the simulation \code{erases\_correct} (M1) with
+  one case lemma per rule of \code{SrcEval}; \stPlanned{} \code{erasePure\_erases} (M2) and the
+  final theorem, which check C12 lists as unproved. The statement is the same in Phase I and
+  Phase II.
 \item \lead{Nodes} \bpnodes{chap:final}
-\item \lead{Lean files} \leanfile{proof/EraseProof/Statements.lean}.
+\item \lead{Lean files} \leanfile{proof/EraseProof/Statements.lean},
+  \leanfile{proof/EraseProof/Simulation/}.
 \item \lead{Reference} MetaRocq \code{erase\_correct}
   (\code{erasure/theories/ErasureFunctionProperties.v}) and \code{erases\_correct}
   (\code{erasure/theories/ErasureCorrectness.v}); MetaCoq paper Sections 7.3--7.4.
@@ -24,7 +27,7 @@
   \lean{EraseProof.ViewAgrees}
   \leanok
   \uses{def:Erasure-EnvView}
-  \srcloc{proof/EraseProof/Spec.lean}{827}
+  \srcloc{proof/EraseProof/Spec.lean}{856}
   \lead{In short} \code{ViewAgrees view P}: \hl{the environment view of \code{\#erase} returns
   each declaration of \code{P} under its name}.
   \lead{Reference} \code{Sigma} $\sim$\code{\_ext X} (\code{abstract\_env\_ext\_rel}), a
@@ -39,7 +42,7 @@
     def:EraseProof-ProgEnv, def:Erasure-EraseError, def:Erasure-EnvView, def:Erasure-collectDeps,
     def:Erasure-eraseEntry, def:EraseProof-LBEval, def:EraseProof-Erases, def:EraseProof-EvalEnv,
     def:EraseProof-SrcEval, def:LBTerm, def:toKername, def:ASTType, def:Erasure-ErasureConfig}
-  \srcloc{proof/EraseProof/Statements.lean}{64}
+  \srcloc{proof/EraseProof/Statements.lean}{67}
   \lead{In short} The proposition of Theorem~\ref{thm:EraseProof-erase_correct}, \hl{pinned by
   \code{proof/spec.pin}}; its docstring states the scope of Section~\ref{sec:final-reading}.
   Check C12 compares the theorem's type with it (kernel definitional equality) once the theorem
@@ -73,10 +76,12 @@
 \begin{proof}
   \uses{thm:EraseProof-erasePure_erases, thm:EraseProof-erases_correct,
     lem:EraseProof-eraseEntry_pure, lem:EraseProof-collectDeps_spec,
-    lem:EraseProof-SrcEval-restrict, lem:EraseProof-Erases-extend, lem:EraseProof-SrcEval-defeq}
+    lem:EraseProof-SrcEval-restrict, lem:EraseProof-Erases-extend, lem:EraseProof-SrcEval-defeq,
+    lem:EraseProof-Erases-closed, lem:EraseProof-Defeq-inst_tele, lem:EraseProof-Erases-inst}
   \lead{Idea} Composition: \code{hfrag} puts the run on the pure path, \code{erasePure\_erases}
-  makes its output an erasure, \code{erases\_correct} simulates the evaluation in the closure,
-  and \code{SrcEval.defeq} gives the last conjunct.
+  makes its output an erasure, \code{erases\_correct} simulates the evaluation in the closure
+  (whose fragment test gives \code{BlockNamesInj} and \code{ArityTypes}), and
+  \code{SrcEval.defeq} gives the last conjunct.
 \end{proof}
 
 \section{Reading the statement}\label{sec:final-reading}
@@ -125,14 +130,110 @@
 
 \section{The milestones}\label{sec:final-milestones}
 
+\begin{definition}[The statement of M1]
+  \label{def:EraseProof-erases_correct_statement}
+  \lean{EraseProof.erases_correct_statement, EraseProof.ArityTypes}
+  \leanok
+  \uses{def:EraseProof-PhaseIDecl, def:EraseProof-MBinding, def:EraseProof-TrM,
+    def:EraseProof-ProgEnv, def:Erasure-declExclusion, def:EraseProof-LBEval,
+    def:EraseProof-Erases, def:EraseProof-ErasesDeps, def:EraseProof-EvalEnv,
+    def:EraseProof-SrcEval, def:EraseProof-ConstsIn, def:LBTerm}
+  \srcloc{proof/EraseProof/Statements.lean}{19}
+  \lead{In short} The proposition of Theorem~\ref{thm:EraseProof-erases_correct}, \hl{pinned by
+  \code{proof/spec.pin}}.
+  \begin{itemize}
+  \item \code{ArityTypes decls}: the declared type of every inductive of \code{decls} is
+        syntactically an arity \code{$\Pi$ xs, Sort u}
+        (\code{arityShape}).
+  \end{itemize}
+  \lead{Why \code{BlockNamesInj}} \code{mutualBlockKername} gives the inductive \code{ab} and the
+  mutual block \code{[a, b]} one $\lambda_\Box$ name, and the erasure of \code{a}'s third
+  constructor then has dependencies justified through \code{ab}, with no $\lambda_\Box$
+  evaluation.
+  \lead{Why \code{ArityTypes}} Lean's kernel accepts \code{inductive PU.\{u\} : S.\{u\}} for an
+  alias \code{S} of a sort, whose sort \code{casesSortLevel} cannot read; \code{Erases.cases} then
+  applies to a $\Box$ major of a block outside \code{Prop}. The fragment test checks both
+  (\code{findBlockCollision}, \code{sortDecided}).
+  \lead{Reference} MetaRocq \code{ind\_arity\_eq} requires the syntactic arity.
+\end{definition}
+
+\begin{definition}[The simulation of one evaluation]
+  \label{def:EraseProof-ErasesSim}
+  \lean{EraseProof.ErasesSim}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-TrM, def:EraseProof-LBEval, def:EraseProof-Erases,
+    def:EraseProof-ErasesDeps, def:EraseProof-EvalEnv, def:LBTerm}
+  \srcloc{proof/EraseProof/Simulation/Cases.lean}{27}
+  \lead{In short} \code{ErasesSim E B lps $\sigma$ lenv e v}: \hl{every erasure, with erased
+  dependencies, of a typed translation of \code{e} evaluates in $\lambda_\Box$ to an erasure of
+  \code{v}}; the induction hypothesis of each case of the simulation.
+  \lead{Reference} the induction hypotheses of MetaRocq's \code{erases\_correct}.
+\end{definition}
+
+\begin{lemma}[The non-inductive cases of the simulation]
+  \label{lem:EraseProof-erases_correct_beta}
+  \lean{EraseProof.erases_correct_beta, EraseProof.erases_correct_box,
+    EraseProof.erases_correct_zeta, EraseProof.erases_correct_delta,
+    EraseProof.erases_correct_constAtom, EraseProof.erases_correct_appCong,
+    EraseProof.erases_correct_mdata, EraseProof.erases_correct_atom, EraseProof.ErasesAlt.zero_inv,
+    EraseProof.ErasesAlt.succ_inv, EraseProof.SimCases.mkApps_snoc,
+    EraseProof.SimCases.forall_snoc, EraseProof.SimCases.eq_nil_or_snoc,
+    EraseProof.SimCases.specialArity_casesOn, EraseProof.SimCases.shortSpine_of,
+    EraseProof.SimCases.etaSpine?_lt, EraseProof.SimCases.app_inv,
+    EraseProof.SimCases.unfold?_spec, EraseProof.SimCases.const_inv,
+    EraseProof.SimCases.trM_lam_inv, EraseProof.SimCases.trM_defeq, EraseProof.SimCases.closed0,
+    EraseProof.SimCases.box_of_projHead, EraseProof.SimCases.satTr_ind_init,
+    EraseProof.SimCases.inst_let}
+  \leanok
+  \uses{def:EraseProof-ErasesSim, def:EraseProof-MBinding, def:EraseProof-SatTr,
+    def:EraseProof-TrM, def:EraseProof-ProgEnv, def:Erasure-Pure-instLevels, def:EraseProof-LBEval,
+    def:EraseProof-Erases, def:EraseProof-IsErasable, def:EraseProof-EvalEnv,
+    def:EraseProof-EvalEnv-isAtom, def:EraseProof-EvalEnv-etaSpine, def:EraseProof-SrcEval,
+    def:EraseProof-SrcValue, def:EraseProof-ConstsIn, def:LBTerm, def:toKername,
+    def:Erasure-TravCtx}
+  \srcloc{proof/EraseProof/Simulation/Cases.lean}{379}
+  \lead{In short} One lemma per rule (\code{beta}, \code{zeta}, \code{delta}, \code{constAtom},
+  \code{appCong}, \code{mdata}, \code{atom}): from the rule's premises and an \code{ErasesSim} per
+  evaluation premise, \hl{\code{ErasesSim} of the rule's conclusion}.
+  \begin{itemize}
+  \item \code{box}: an erasure to $\Box$, uniform in every case, by \code{ErasableS.eval};
+  \item \code{delta} also takes \code{KernameInj $\sigma$.decls}: the $\lambda_\Box$ declaration
+        at the kername is the constant's own;
+  \item \code{zero\_inv}, \code{succ\_inv}: inversion of \code{ErasesAlt} under 0 and $k+1$
+        field binders.
+  \end{itemize}
+  \lead{Reference} the \code{eval\_beta}, \code{eval\_zeta}, \code{eval\_delta},
+  \code{eval\_app\_cong} cases of \code{erases\_correct}; Letouzey's Theorem 13.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-TrLevel, def:EraseProof-natLitM, def:EraseProof-TypedExt,
+    lem:EraseProof-TrM-weakBV, lem:EraseProof-DCong-defeq, lem:EraseProof-TrM-det,
+    lem:EraseProof-TrM-apps, lem:EraseProof-TrM-inst, lem:EraseProof-ProgEnv-lookup,
+    lem:EraseProof-ProgEnv-unfold, lem:EraseProof-casesOn_whred, def:Erasure-declExclusion,
+    def:EraseProof-Subsingleton, def:EraseProof-ErasesDeps, lem:EraseProof-Erases-closed,
+    lem:EraseProof-Erases-instLevels, lem:EraseProof-Erases-abstract, lem:EraseProof-Erases-inst,
+    lem:EraseProof-ErasesDeps-eval, lem:EraseProof-IsErasable-inst, lem:EraseProof-SrcEval-value,
+    lem:EraseProof-ErasableS-atom, lem:EraseProof-SrcDefeq-sound_of, lem:EraseProof-SrcEval-defeq,
+    lem:EraseProof-ErasableS-eval, def:EraseProof-DepClosed, def:GlobalDecl}
+  \leanok
+  \lead{Idea} Invert the erasure of the conclusion (\code{SimCases.app\_inv}); $\beta$ by
+  \code{Erases.inst}, $\zeta$ by \code{Erases.inst\_let}, $\delta$ by \code{Erases.instLevels};
+  \code{appCong} needs the head's image typed (\code{SatTr.typed}).
+\end{proof}
+
 \begin{lemma}[The proof cases of the simulation]
   \label{lem:EraseProof-PropInductive-of_propInd}
   \lean{EraseProof.PropInductive.of_propInd, EraseProof.ErasableS.propProj,
-    EraseProof.CasesReduced.of_evidentZero}
-  \planned
-  \uses{def:EraseProof-Subsingleton, def:EraseProof-SrcEval, def:EraseProof-IsErasable}
-  \lead{In short} The facts M1 needs for \code{projProp} and \code{casesProof}: \hl{the source's
-  proof rules meet the eraser's}.
+    EraseProof.CasesReduced.of_evidentZero, EraseProof.SimInd.isNeverZero_of_evidentZero,
+    EraseProof.SimInd.isErasable_recr_zero, EraseProof.SimInd.field_level_zero,
+    EraseProof.SimInd.projOfProp_isErasable, EraseProof.SimInd.propProj_isErasable}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-TrM, def:EraseProof-ProgEnv,
+    def:EraseProof-Subsingleton, def:EraseProof-IsErasable, def:EraseProof-EvalEnv,
+    def:EraseProof-EvalEnv-isAtom, def:EraseProof-SrcEval, def:EraseProof-ConstsIn}
+  \srcloc{proof/EraseProof/Simulation/Ind.lean}{46}
+  \lead{In short} The facts the proof rules need: \hl{the source's proof rules meet the
+  eraser's}.
   \begin{itemize}
   \item \code{of\_propInd}: an inductive declared in \code{Prop} is \code{PropInductive};
   \item \code{propProj}: a neutral proof projection is erasable;
@@ -141,32 +242,161 @@
   \end{itemize}
 \end{lemma}
 \begin{proof}
-  \uses{lem:EraseProof-ProgEnv-lookup}
+  \uses{def:EraseProof-TrLevel, def:EraseProof-SatTr, def:EraseProof-natLitM,
+    def:EraseProof-TypedExt, lem:EraseProof-TrM-det, lem:EraseProof-ProgEnv-lookup,
+    lem:EraseProof-casesOn_whred, def:Erasure-declExclusion, lem:EraseProof-Erases-inst,
+    lem:EraseProof-IsErasable-inst, lem:EraseProof-SrcDefeq-sound_of, lem:EraseProof-SrcEval-defeq}
+  \leanok
   \lead{Idea} Sort injectivity on the translated declared type; proof irrelevance for the projection.
 \end{proof}
 
-\begin{definition}[The statement of M1]
-  \label{def:EraseProof-erases_correct_statement}
-  \lean{EraseProof.erases_correct_statement}
+\begin{lemma}[The inductive cases of the simulation]
+  \label{lem:EraseProof-erases_correct_ctor}
+  \lean{EraseProof.erases_correct_ctor, EraseProof.erases_correct_lit,
+    EraseProof.erases_correct_eta, EraseProof.erases_correct_proj,
+    EraseProof.erases_correct_projProp, EraseProof.erases_correct_casesProof,
+    EraseProof.erases_correct_casesLitZero, EraseProof.SimInd.getElem?_of_idxOf?,
+    EraseProof.SimInd.indIdOf_inj, EraseProof.SimInd.ctor_block, EraseProof.SimInd.lookupCtor_of,
+    EraseProof.SimInd.deps_mkApps, EraseProof.SimInd.deps_construct,
+    EraseProof.SimInd.lbeval_construct, EraseProof.SimInd.choose_list,
+    EraseProof.SimInd.mkApps_construct_ne_box, EraseProof.SimInd.eta_inv,
+    EraseProof.SimInd.lamsOf_succ_lam, EraseProof.SimInd.etaSpine?_lam,
+    EraseProof.SimInd.lam_erases_atom, EraseProof.SimInd.ind_ctor,
+    EraseProof.SimInd.lookupCtor_ind, EraseProof.SimInd.indIsPropAndPars_of,
+    EraseProof.SimInd.proj_inv, EraseProof.SimInd.trM_proj_major,
+    EraseProof.SimInd.mkApps_construct_app, EraseProof.SimInd.mkApps_construct_inj,
+    EraseProof.SimInd.construct_args, EraseProof.SimInd.isNeverZero_tr,
+    EraseProof.SimInd.ctorNode_tr, EraseProof.SimInd.ctor_not_erasable,
+    EraseProof.SimInd.casesOn?_ind, EraseProof.SimInd.casesOn_arg, EraseProof.SimInd.get_major,
+    EraseProof.SimInd.get_alt, EraseProof.SimInd.ctor_isProof}
   \leanok
-  \uses{def:EraseProof-MBinding, def:EraseProof-TrM, def:EraseProof-ProgEnv, def:EraseProof-LBEval,
-    def:EraseProof-Erases, def:EraseProof-ErasesDeps, def:EraseProof-EvalEnv,
-    def:EraseProof-SrcEval, def:EraseProof-ConstsIn, def:LBTerm}
-  \srcloc{proof/EraseProof/Statements.lean}{19}
-  \lead{In short} The proposition of Theorem~\ref{thm:EraseProof-erases_correct}, \hl{pinned by
-  \code{proof/spec.pin}}.
+  \uses{def:EraseProof-PhaseIDecl, def:EraseProof-ErasesSim, def:EraseProof-MBinding,
+    def:EraseProof-TrLevel, def:EraseProof-TrM, def:EraseProof-ProgEnv, def:Erasure-declExclusion,
+    def:Erasure-Pure-instLevels, def:EraseProof-LBEval, def:EraseProof-Subsingleton,
+    def:EraseProof-Erases, def:EraseProof-ErasesDeps, def:EraseProof-IsErasable,
+    def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-isAtom, def:EraseProof-EvalEnv-etaSpine,
+    def:EraseProof-SrcEval, def:EraseProof-ConstsIn, def:LBTerm, def:GlobalDecl}
+  \srcloc{proof/EraseProof/Simulation/Ind.lean}{755}
+  \lead{In short} The case lemmas of \code{eta}, \code{lit}, \code{ctor}, \code{proj},
+  \code{projProp}, \code{casesProof} and \code{casesLitZero}, \hl{in the pattern of
+  Lemma~\ref{lem:EraseProof-erases_correct_beta}}.
+  \begin{itemize}
+  \item \lead{Given} also \code{BlockNamesInj $\sigma$.decls} (but for \code{eta},
+        \code{casesProof}): \code{IndIdOf $\sigma$} is injective on the inductives of $\sigma$;
+  \item a constructor of data is never erased; a proof is erased to $\Box$ on both sides.
+  \end{itemize}
+  \lead{Reference} the \code{eval\_construct}, \code{eval\_proj}, \code{eval\_iota\_sing},
+  \code{eval\_proj\_prop} cases of \code{erases\_correct}.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-erases_correct_beta, lem:EraseProof-PropInductive-of_propInd,
+    def:EraseProof-SatTr, def:EraseProof-natLitM, def:EraseProof-TypedExt,
+    lem:EraseProof-TrM-weakBV, lem:EraseProof-DCong-defeq, lem:EraseProof-TrM-apps,
+    lem:EraseProof-TrM-inst, lem:EraseProof-ProgEnv-lookup, lem:EraseProof-casesOn_whred,
+    def:Erasure-casesInfo, lem:EraseProof-LBEval-idem, lem:EraseProof-Erases-closed,
+    lem:EraseProof-IsErasable-ctor_not, lem:EraseProof-SrcDefeq-sound_of,
+    lem:EraseProof-SrcEval-defeq, lem:EraseProof-ErasableS-eval, def:toKername,
+    def:Erasure-TravCtx}
+  \leanok
+  \lead{Idea} Invert the erasure of the spine (\code{eta\_inv}, \code{proj\_inv}); the
+  $\lambda_\Box$ constructor or projection evaluates its erased arguments by the induction
+  hypotheses.
+\end{proof}
+
+\begin{definition}[Head \texorpdfstring{$\beta$}{beta}-reduction]
+  \label{def:EraseProof-SimIota-HeadBeta}
+  \lean{EraseProof.SimIota.HeadBeta, EraseProof.SimIota.HStep, EraseProof.SimIota.Fixed,
+    EraseProof.SimIota.Res, EraseProof.SimIota.FieldOK}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-TrM, def:EraseProof-LBEval, def:EraseProof-Erases,
+    def:EraseProof-EvalEnv, def:EraseProof-SrcEval, def:EraseProof-SrcValue,
+    def:EraseProof-ConstsIn, def:LBTerm}
+  \srcloc{proof/EraseProof/Simulation/Iota.lean}{414}
+  \lead{In short} \code{HeadBeta $\sigma$ e X}: \hl{\code{X} arises from \code{e} by head
+  $\beta$-steps} of a $\lambda$-headed spine whose arguments evaluate to themselves only.
+  \begin{itemize}
+  \item \code{HStep}: \code{beta} at the head, or \code{app} under one more fixed argument;
+  \item \code{Fixed $\sigma$ a}: \code{a} evaluates to itself only; \code{Res}: a fixed value whose
+        constructor arguments are \code{Res};
+  \item \code{FieldOK}: a field for $\iota$, fixed, with a closed erasure.
+  \end{itemize}
 \end{definition}
+
+\begin{lemma}[The \texorpdfstring{$\iota$}{iota} cases of the simulation]
+  \label{lem:EraseProof-erases_correct_casesIota}
+  \lean{EraseProof.erases_correct_casesIota, EraseProof.erases_correct_casesLitSucc,
+    EraseProof.SimIota.mkAppN_inj, EraseProof.SimIota.isAtom_spec,
+    EraseProof.SimIota.special_not_atom, EraseProof.SimIota.unfold_not_special,
+    EraseProof.SimIota.blocksCong_special, EraseProof.SimIota.eval_spine_inv,
+    EraseProof.SimIota.eval_short, EraseProof.SimIota.fixed_atom, EraseProof.SimIota.fixed_lit,
+    EraseProof.SimIota.fixed_const, EraseProof.SimIota.fixed_ctor, EraseProof.SimIota.fixed_app,
+    EraseProof.SimIota.fixed_projProp, EraseProof.SimIota.res_of_eval,
+    EraseProof.SimIota.fields_of_eval, EraseProof.SimIota.piInst_append,
+    EraseProof.SimIota.body_snoc, EraseProof.SimIota.etaSpine?_snoc, EraseProof.SimIota.HStep.head,
+    EraseProof.SimIota.HeadBeta.eq_of_head, EraseProof.SimIota.HeadBeta.app_inv',
+    EraseProof.SimIota.HeadBeta.app_inv, EraseProof.SimIota.HStep.spine,
+    EraseProof.SimIota.erasesAlt_length, EraseProof.SimIota.forall₂_left,
+    EraseProof.SimIota.forall₂_right, EraseProof.SimIota.mkAppN_single,
+    EraseProof.SimIota.mkAppN_cons, EraseProof.SimIota.drive, EraseProof.SimIota.pi_shape,
+    EraseProof.SimIota.ind_not_erasable, EraseProof.SimIota.deps_substl,
+    EraseProof.SimIota.lbeval_app_congr, EraseProof.SimIota.lbeval_mkApps_congr,
+    EraseProof.SimIota.lbeval_box, EraseProof.SimIota.erasable_app,
+    EraseProof.SimIota.short_erases_inv, EraseProof.SimIota.lam_erases_inv,
+    EraseProof.SimIota.forall_snoc_intro, EraseProof.SimIota.appBox_step,
+    EraseProof.SimIota.appBox, EraseProof.SimIota.fields_erasable}
+  \leanok
+  \uses{def:EraseProof-PhaseIDecl, def:EraseProof-erases_correct_statement,
+    def:EraseProof-ErasesSim, def:EraseProof-SimIota-HeadBeta, def:EraseProof-MBinding,
+    def:EraseProof-TrM, def:EraseProof-ProgEnv, def:EraseProof-LBEval, def:EraseProof-Subsingleton,
+    def:EraseProof-Erases, def:EraseProof-ErasesDeps, def:EraseProof-IsErasable,
+    def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-isAtom, def:EraseProof-EvalEnv-etaSpine,
+    def:EraseProof-SrcEval, def:EraseProof-SrcValue, def:EraseProof-ConstsIn, def:LBTerm,
+    def:Erasure-TravCtx}
+  \srcloc{proof/EraseProof/Simulation/Iota.lean}{987}
+  \lead{In short} The \code{casesIota} and \code{casesLitSucc} case lemmas, with \hl{the
+  induction hypothesis on every head-$\beta$-reduct} of the alternative applied to the fields.
+  \begin{itemize}
+  \item \lead{Given} the rule's premises, \code{ErasesSim} of the major,
+        \code{ihb : $\forall$ X, HeadBeta $\sigma$ (alt fs) X $\to$ ErasesSim \ldots\ X v};
+        \code{BlockNamesInj}, and \code{ArityTypes} to read the discriminant's sort;
+  \item \lead{Then} \code{ErasesSim} of the \code{casesOn} spine.
+  \end{itemize}
+  \lead{Why \code{ihb}} $\lambda_\Box$'s $\iota$ substitutes the fields' erasures into the
+  erased branch, which peels the alternative's $\lambda$s: the result erases a head-$\beta$-reduct
+  of \code{alt fs}, not \code{alt fs} itself (\code{SimIota.drive}).
+  \lead{Reference} the \code{eval\_iota} case of \code{erases\_correct}.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-erases_correct_beta, lem:EraseProof-erases_correct_ctor,
+    def:EraseProof-TrLevel, def:EraseProof-SatTr, def:EraseProof-natLitM,
+    lem:EraseProof-TrM-weakBV, lem:EraseProof-TrM-apps, lem:EraseProof-TrM-inst,
+    lem:EraseProof-SatTr-typed, lem:EraseProof-ProgEnv-lookup, lem:EraseProof-casesOn_whred,
+    lem:EraseProof-TypeEq-sort_ne_forallE, def:Erasure-declExclusion, def:Erasure-Pure-instLevels,
+    lem:EraseProof-Erases-closed, lem:EraseProof-Erases-inst, lem:EraseProof-substl_cons_closed,
+    lem:EraseProof-ErasesDeps-eval, lem:EraseProof-IsErasable-inst, lem:EraseProof-SrcEval-value,
+    lem:EraseProof-SrcDefeq-sound_of, lem:EraseProof-SrcEval-defeq, def:toKername, def:GlobalDecl}
+  \leanok
+  \lead{Idea} The major's erasure is a $\lambda_\Box$ constructor (not $\Box$: the block is not
+  in \code{Prop}); \code{drive} substitutes field by field (\code{ErasesAlt.inst},
+  \code{substl\_cons\_closed}); \code{res\_of\_eval} makes the fields fixed.
+\end{proof}
 
 \begin{theorem}[M1: simulation]
   \label{thm:EraseProof-erases_correct}
-  \lean{EraseProof.erases_correct}
-  \planned
-  \uses{def:EraseProof-erases_correct_statement}
+  \lean{EraseProof.erases_correct, EraseProof.SimMain.app_mkAppN, EraseProof.SimMain.short_head,
+    EraseProof.SimMain.sim}
+  \leanok
+  \uses{def:EraseProof-PhaseIDecl, def:EraseProof-erases_correct_statement,
+    def:EraseProof-ErasesSim, def:EraseProof-SimIota-HeadBeta, def:EraseProof-MBinding,
+    def:EraseProof-ProgEnv, def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-etaSpine,
+    def:EraseProof-SrcEval, def:EraseProof-ConstsIn}
+  \srcloc{proof/EraseProof/Simulation/Main.lean}{179}
   \lead{In short} An erasure with erased dependencies of a typed, evaluating term \hl{evaluates
   in $\lambda_\Box$ to an erasure of the value}.
   \begin{itemize}
   \item \lead{Given} \code{ProgEnv P $\zeta$ E B}, \code{EnvWF E}, \code{SubEnv $\sigma$.decls P},
-        \code{KernameInj $\sigma$.decls}, \code{LenvClosed lenv}, \code{TrM E B lps .nil [] e t},
+        \code{KernameInj $\sigma$.decls}, \code{BlockNamesInj $\sigma$.decls},
+        \code{ArityTypes $\sigma$.decls}, \code{LenvClosed lenv}, \code{TrM E B lps .nil [] e t},
         \code{$\exists$ T, E[.nil] $\vdash$ t : T}, \code{Erases E B lps $\sigma$ .nil [] e tb},
         \code{ErasesDeps E B $\sigma$ lenv tb}, \code{SrcEval $\sigma$ e v};
   \item \lead{Then} $\exists$ \code{vb}, \code{Erases E B lps $\sigma$ .nil [] v vb} $\wedge$
@@ -175,13 +405,18 @@
   \lead{Reference} MetaRocq \code{erases\_correct}; Letouzey's Theorem 13.
 \end{theorem}
 \begin{proof}
-  \uses{lem:EraseProof-SrcEval-defeq, lem:EraseProof-IsErasable-ctor_not,
-    lem:EraseProof-IsErasable-inst, lem:EraseProof-SrcEval-value, lem:EraseProof-ErasableS-eval,
-    lem:EraseProof-Erases-inst, lem:EraseProof-Erases-instLevels, lem:EraseProof-Erases-closed,
-    lem:EraseProof-ErasesDeps-eval, lem:EraseProof-LBEval-idem,
-    lem:EraseProof-PropInductive-of_propInd, lem:EraseProof-casesOn_whred}
-  \lead{Idea} Induction on source evaluation, one case per rule; erasability is stable under
-  evaluation by \code{SrcEval.defeq}, and a constructor of data is never erased.
+  \uses{lem:EraseProof-erases_correct_beta, lem:EraseProof-erases_correct_ctor,
+    lem:EraseProof-erases_correct_casesIota, def:EraseProof-SatTr, def:EraseProof-TrM,
+    lem:EraseProof-TrM-weakBV, lem:EraseProof-TrM-apps, lem:EraseProof-SatTr-typed,
+    def:Erasure-Pure-instLevels, def:EraseProof-LBEval, def:EraseProof-Erases,
+    def:EraseProof-ErasesDeps, def:EraseProof-EvalEnv-isAtom, lem:EraseProof-SrcDefeq-sound_of,
+    def:LBTerm}
+  \leanok
+  \lead{Idea} \code{SimMain.sim}: induction on \code{SrcEval} with the motive ``for every
+  head-$\beta$-reduct \code{X} of \code{e}, \code{SrcEval $\sigma$ X v} and \code{ErasesSim} of
+  \code{X}\,'' ; each rule dispatches to its case lemma, and only \code{beta} and \code{appCong}
+  have proper reducts (\code{HeadBeta.app\_inv}). \code{erases\_correct} is \code{sim} at
+  \code{X = e}.
 \end{proof}
 
 \begin{definition}[The statement of M2]
@@ -192,7 +427,7 @@
     def:EraseProof-ProgEnv, def:Erasure-EraseError, def:Erasure-EnvView, def:Erasure-collectDeps,
     def:Erasure-erasePure, def:EraseProof-LBEval, def:EraseProof-Erases, def:EraseProof-ErasesDeps,
     def:EraseProof-EvalEnv, def:LBTerm, def:toKername, def:ASTType, def:Erasure-ErasureConfig}
-  \srcloc{proof/EraseProof/Statements.lean}{48}
+  \srcloc{proof/EraseProof/Statements.lean}{51}
   \lead{In short} The proposition of Theorem~\ref{thm:EraseProof-erasePure_erases}, \hl{pinned by
   \code{proof/spec.pin}}.
 \end{definition}
@@ -216,6 +451,7 @@
 \end{theorem}
 \begin{proof}
   \uses{lem:EraseProof-Pure-isErasable_sound, lem:EraseProof-Pure-isErasable_agree,
+    lem:EraseProof-Pure-isErasable_atom, lem:EraseProof-SrcEval-defeq,
     lem:EraseProof-collectDeps_spec, lem:EraseProof-eraseEntry_pure,
     lem:EraseProof-isRecursiveDecl_false, lem:EraseProof-Erases-inst,
     lem:EraseProof-Erases-abstract, lem:EraseProof-ErasesDeps-eval, lem:EraseProof-ProgEnv-lookup,

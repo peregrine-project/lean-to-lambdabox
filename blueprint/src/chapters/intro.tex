@@ -5,14 +5,17 @@
 \item \lead{Goal} A machine-checked theorem about the shipping eraser behind \code{\#erase},
   stated over Metalean's typing theory of Lean's kernel, for every input in the scope of
   Chapter~\ref{chap:scope}.
-\item \lead{Status} \stProved{} the lemmas of the bridge (Chapter~\ref{chap:model}), most lemmas
-  of erasability, the source semantics and the erasure relation, the recursion lemma of the
-  traversal, and the tests of Chapter~\ref{chap:tests}. Formalized: the statements of the final
-  theorem, its two milestones and the lower bound of its fragment hypothesis, as definitions
+\item \lead{Status} \stProved{} the lemmas of the bridge (Chapter~\ref{chap:model}), the
+  erasability lemmas but one, the soundness of the source semantics \code{SrcEval.defeq}, the
+  erasure relation's lemmas, \hl{the first milestone \code{erases\_correct}}, the oracle's
+  reduction, arity, typing (but for proof projections), frame and atom lemmas, the recursion lemma
+  of the traversal, and the tests of Chapter~\ref{chap:tests}. Formalized: the statements of the
+  final theorem, its two milestones and the lower bound of its fragment hypothesis, as definitions
   pinned by \code{proof/spec.pin}, with every definition they use. \stPlanned{} \hl{the final
-  theorem \code{erase\_correct}}, its two milestones, the soundness of the pure oracle and of the
-  traversal, \code{SrcEval.defeq} and \code{Erases.inst}. \stShipping{} the eraser: the pure path
-  on the fragment of Phase I and the \code{Meta} path on the rest.
+  theorem \code{erase\_correct}}, the second milestone \code{erasePure\_erases}, the soundness of
+  the oracle's \code{inferType} and \code{isErasable}, and the closure and traversal lemmas.
+  \stShipping{} the eraser: the pure path on the fragment of Phase I and the \code{Meta} path on
+  the rest.
 \item \lead{Progress} the table at the end of Section~\ref{sec:intro-kinds} counts, per chapter,
   the proved results and tests, the formalized definitions and the planned nodes.
 \item \lead{Lean files} \leanfile{LeanToLambdaBox/} (the shipping code) and \leanfile{proof/} (the
@@ -136,6 +139,9 @@ Panics of the traversal & on the pure path the defect turns a panic into a succe
   default term. Entry S-33 makes each one an error there \\
 Projections in the closure & the defect leaves a projection's structure, which the source
   semantics reads, out of the closure. Entry S-30 \\
+Theorems whose statement is a proposition only through $\iota$ & the pure oracle, which has no
+  recursor $\iota$, answers \code{false} on a theorem's spine, and the pure path fails on an
+  in-fragment program. Entry S-34 answers \code{true} on every spine headed by a theorem \\
 Block names & the defect names inductive blocks through Lean's escaping printer, a
   \code{partial} function the kernel cannot evaluate, which prints two names differing by escapes
   alike. Entry

@@ -7,9 +7,9 @@
 \item \lead{Main results} Erasability on Metalean terms and its inversions; the big-step
   call-by-value semantics \code{SrcEval}, with $\eta$-expanded spines and proof atoms, and its
   soundness for Metalean's definitional equality, \code{SrcEval.defeq}.
-\item \lead{Status} the definitions are formalized; \stProved{} the erasability lemmas but
-  \code{quotMk\_not}, \code{SrcEval.value} and \code{SrcEval.restrict}; \stPlanned{}
-  \code{SrcEval.defeq}, erasability under evaluation and \code{ClosedDecls}.
+\item \lead{Status} the definitions are formalized; \stProved{} \code{SrcEval.value},
+  \code{SrcEval.restrict}, \code{SrcEval.defeq}, erasability under evaluation and every
+  erasability lemma except \code{quotMk\_not}, which is \stPlanned{}.
 \item \lead{Nodes} \bpnodes{chap:source}
 \item \lead{Lean files} \leanfile{proof/EraseProof/Spec.lean} (Sections 7 to 9),
   \leanfile{proof/EraseProof/Erasable/}, \leanfile{proof/EraseProof/Source/}.
@@ -24,7 +24,7 @@
   \lean{EraseProof.IsErasable, EraseProof.IsArity, EraseProof.ErasableS}
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-TrM}
-  \srcloc{proof/EraseProof/Spec.lean}{779}
+  \srcloc{proof/EraseProof/Spec.lean}{808}
   \lead{In short} A Metalean term is erasable when \hl{its type is an arity or a proposition}.
   \begin{itemize}
   \item \code{IsArity E $\Gamma$ T}: \code{T} equals, as a type, a $\Pi$-telescope ending in a
@@ -104,7 +104,7 @@ justifies each rule by a Metalean definitional equality.
     EraseProof.EvalEnv.unfold?, EraseProof.casesMajor, EraseProof.casesArity,
     EraseProof.specialArity}
   \leanok
-  \srcloc{proof/EraseProof/Spec.lean}{513}
+  \srcloc{proof/EraseProof/Spec.lean}{542}
   \uses{def:Erasure-EnvView, def:Erasure-casesInfo, def:Erasure-isRecursiveDecl,
     def:EraseProof-ConstsIn, def:Erasure-ErasureConfig}
   \lead{In short} What evaluation reads of the program: its declarations, the configuration's
@@ -126,7 +126,7 @@ justifies each rule by a Metalean definitional equality.
   \leanok
   \uses{def:Erasure-declExclusion, def:Erasure-Pure-instLevels, def:EraseProof-EvalEnv,
     def:EraseProof-ConstsIn}
-  \srcloc{proof/EraseProof/Spec.lean}{624}
+  \srcloc{proof/EraseProof/Spec.lean}{653}
   \lead{In short} Constants that evaluate to themselves: \hl{without $\delta$, arity- or
   proof-typed, or a theorem}.
   \begin{itemize}
@@ -144,7 +144,7 @@ justifies each rule by a Metalean definitional equality.
     EraseProof.ShortSpine}
   \leanok
   \uses{def:Erasure-Pure-instLevels, def:EraseProof-EvalEnv, def:EraseProof-ConstsIn}
-  \srcloc{proof/EraseProof/Spec.lean}{555}
+  \srcloc{proof/EraseProof/Spec.lean}{584}
   \lead{In short} \code{etaSpine? c us as}: a constructor or recognized \code{casesOn} spine with
   fewer arguments than its arity, \hl{as \code{fun xs => c as xs}} over the remaining
   $\Pi$-binders of its type, \code{as} unevaluated (DV-23).
@@ -163,7 +163,7 @@ justifies each rule by a Metalean definitional equality.
   \leanok
   \uses{def:Erasure-declExclusion, def:Erasure-Pure-instLevels, def:EraseProof-EvalEnv,
     def:EraseProof-EvalEnv-isAtom, def:EraseProof-EvalEnv-etaSpine, def:EraseProof-ConstsIn}
-  \srcloc{proof/EraseProof/Spec.lean}{696}
+  \srcloc{proof/EraseProof/Spec.lean}{725}
   \lead{In short} \code{SrcEval $\sigma$ e v}: the closed Lean term \code{e} \hl{evaluates to the
   value \code{v}}; constructor and \code{casesOn} spines evaluate as a whole.
   \begin{tabular}{p{0.2\linewidth}p{0.66\linewidth}}
@@ -217,43 +217,161 @@ justifies each rule by a Metalean definitional equality.
   \lead{Idea} Induction on evaluation.
 \end{proof}
 
-\begin{lemma}[Erasability under evaluation]
-  \label{lem:EraseProof-ErasableS-eval}
-  \lean{EraseProof.ErasableS.eval, EraseProof.ErasableS.atom}
-  \planned
-  \uses{def:EraseProof-IsErasable, def:EraseProof-SrcEval, def:EraseProof-ProgEnv}
-  \lead{In short} \hl{Erasability is preserved by evaluation}, and atom spines are erasable,
-  under \code{ProgEnv}, \code{EnvWF E}, \code{SubEnv $\sigma$.decls P} and a typed translation of
-  \code{e}.
-  \lead{Reference} MetaRocq \code{Is\_type\_eval}.
+\begin{lemma}[Atom spines are erasable]
+  \label{lem:EraseProof-ErasableS-atom}
+  \lean{EraseProof.ErasableS.atom, EraseProof.ErasableAtom.PiSort.subst,
+    EraseProof.ErasableAtom.PiSort.instL, EraseProof.ErasableAtom.PiSort.wkClosed,
+    EraseProof.ErasableAtom.PiSort.shape, EraseProof.ErasableAtom.piSort_appList,
+    EraseProof.ErasableAtom.IsErasable.appList, EraseProof.ErasableAtom.lookup_thm,
+    EraseProof.ErasableAtom.evidentProp_prop}
+  \leanok
+  \uses{lem:EraseProof-Pure-isArity_sound, def:EraseProof-MBinding, def:EraseProof-TrM,
+    def:EraseProof-ProgEnv, def:EraseProof-IsErasable, def:EraseProof-EvalEnv,
+    def:EraseProof-EvalEnv-isAtom, lem:EraseProof-SrcEval-defeq, def:EraseProof-ConstsIn}
+  \srcloc{proof/EraseProof/Erasable/Atom.lean}{267}
+  \lead{In short} The typed translation of a spine headed by an atom (an inductive type former,
+  an arity-typed constant, a proof of an evident proposition, a theorem) \hl{is a type former or
+  a proof}.
+  \lead{Reference} MetaRocq \code{Is\_type\_app}; DV-11, DV-24.
 \end{lemma}
 \begin{proof}
-  \uses{lem:EraseProof-SrcEval-defeq}
-  \lead{Idea} Erasability through \code{SrcEval.defeq} and unique typing.
+  \uses{def:EraseProof-TrLevel, def:EraseProof-SatTr, def:EraseProof-natLitM,
+    def:EraseProof-TypedExt, lem:EraseProof-TrM-instLevels, lem:EraseProof-DCong-defeq,
+    lem:EraseProof-TrM-det, lem:EraseProof-TrM-apps, lem:EraseProof-TrM-inst,
+    lem:EraseProof-TrM-wkEnv, lem:EraseProof-ProgEnv-lookup, lem:EraseProof-casesOn_whred,
+    def:Erasure-declExclusion, def:Erasure-Pure-instLevels, lem:EraseProof-IsErasable-inst,
+    lem:EraseProof-SrcDefeq-sound_of}
+  \leanok
+  \lead{Idea} A $\Pi$-telescope over a sort applied to its arguments is a sort; a theorem's
+  statement and an evident proposition translate to propositions.
+\end{proof}
+
+\begin{lemma}[Subject reduction up to proof-irrelevant \texorpdfstring{$\iota$}{iota}]
+  \label{lem:EraseProof-SrcDefeq-sound_of}
+  \lean{EraseProof.SrcDefeq.sound_of, EraseProof.SrcDefeq.Sound, EraseProof.SrcDefeq.SpineOK,
+    EraseProof.SrcDefeq.nil_ok, EraseProof.SrcDefeq.dtrans,
+    EraseProof.SrcDefeq.getAppFn_mkAppN_const, EraseProof.SrcDefeq.spineOK_of_head,
+    EraseProof.SrcDefeq.findDecl_sub, EraseProof.SrcDefeq.special_kind,
+    EraseProof.SrcDefeq.defn_not_special, EraseProof.SrcDefeq.casesOn?_defn,
+    EraseProof.SrcDefeq.unfold?_defn, EraseProof.SrcDefeq.spine_app,
+    EraseProof.SrcDefeq.spine_const, EraseProof.SrcDefeq.spineOK_defn,
+    EraseProof.SrcDefeq.isAtom_ind, EraseProof.SrcDefeq.case_constAtom,
+    EraseProof.SrcDefeq.case_delta, EraseProof.SrcDefeq.case_mdata, EraseProof.SrcDefeq.case_refl,
+    EraseProof.SrcDefeq.getAppNumArgs_shift, EraseProof.SrcDefeq.getAppNumArgs_app,
+    EraseProof.SrcDefeq.getAppNumArgs_mkAppN_const, EraseProof.SrcDefeq.spine_cond,
+    EraseProof.SrcDefeq.blocksCong_ctor, EraseProof.SrcDefeq.case_beta,
+    EraseProof.SrcDefeq.args_congr, EraseProof.SrcDefeq.special_congr,
+    EraseProof.SrcDefeq.satTr_ind_typed, EraseProof.SrcDefeq.satTr_ctor_typed,
+    EraseProof.SrcDefeq.mkAppN_snoc, EraseProof.SrcDefeq.case_appCong,
+    EraseProof.SrcDefeq.case_ctor, EraseProof.SrcDefeq.projTerm_dcong,
+    EraseProof.SrcDefeq.proj_congr, EraseProof.SrcDefeq.case_proj,
+    EraseProof.SrcDefeq.case_projProp, EraseProof.SrcDefeq.forall₂_set,
+    EraseProof.SrcDefeq.major_congr, EraseProof.SrcDefeq.split_set,
+    EraseProof.SrcDefeq.case_casesIota, EraseProof.SrcDefeq.case_casesLit,
+    EraseProof.SrcDefeq.LocRel, EraseProof.SrcDefeq.LocRel.pushLam, EraseProof.SrcDefeq.LocRel.nil,
+    EraseProof.SrcDefeq.LocRel.cons, EraseProof.SrcDefeq.replace_args,
+    EraseProof.SrcDefeq.PreTr.replace, EraseProof.SrcDefeq.case_zeta,
+    EraseProof.SrcDefeq.specialArity_some, EraseProof.SrcDefeq.spineOK_eta,
+    EraseProof.SrcDefeq.lift_add, EraseProof.SrcDefeq.eta_args,
+    EraseProof.SrcDefeq.trM_forallE_inv, EraseProof.SrcDefeq.eta_lams,
+    EraseProof.SrcDefeq.piInst_tr, EraseProof.SrcDefeq.get_there_constType,
+    EraseProof.SrcDefeq.lookup_def_type, EraseProof.SrcDefeq.trM_const_inv',
+    EraseProof.SrcDefeq.eta_casesOn, EraseProof.SrcDefeq.trLevels_params_nodup,
+    EraseProof.SrcDefeq.trLevels_cast, EraseProof.SrcDefeq.satTr_ctorEta_inv,
+    EraseProof.SrcDefeq.eta_ctor, EraseProof.SrcDefeq.etaSpine?_special,
+    EraseProof.SrcDefeq.ProofSound}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-TrLevel, def:EraseProof-SatTr, def:EraseProof-TrM,
+    lem:EraseProof-DCong-defeq, lem:EraseProof-TrM-inst, def:EraseProof-ProgEnv,
+    lem:EraseProof-TrM-wkEnv, def:Erasure-Pure-instLevels, def:EraseProof-EvalEnv,
+    def:EraseProof-EvalEnv-isAtom, def:EraseProof-EvalEnv-etaSpine, def:EraseProof-SrcEval,
+    def:EraseProof-ConstsIn}
+  \srcloc{proof/EraseProof/Source/Defeq.lean}{1203}
+  \lead{In short} Given \code{ProofSound}, the obligation of \code{casesProof}, \hl{every
+  evaluation preserves typed translations up to $\equiv$}, and saturating spines evaluate
+  argument by argument (\code{SpineOK}).
+  \lead{Reference} subject reduction, MetaRocq \code{subject\_reduction\_eval}.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-natLitM, def:EraseProof-TypedExt, lem:EraseProof-TrM-weakBV,
+    lem:EraseProof-TrM-instLevels, lem:EraseProof-TrM-det, lem:EraseProof-TrM-apps,
+    lem:EraseProof-ProgEnv-lookup, lem:EraseProof-ProgEnv-unfold, lem:EraseProof-casesOn_whred,
+    lem:EraseProof-proj_defeq, def:Erasure-findConst, def:Erasure-declExclusion,
+    def:Erasure-casesInfo}
+  \leanok
+  \lead{Idea} Induction on evaluation, one lemma per rule (\code{case\_beta}, \code{case\_delta},
+  \code{case\_casesIota}, \ldots): a Metalean reduction, the $\eta$-term of a spine, or a
+  congruence; \leandecl{Metalean.WHRed.defeq} turns reductions into definitional equalities.
 \end{proof}
 
 \begin{lemma}[Evaluation preserves the Metalean meaning]
   \label{lem:EraseProof-SrcEval-defeq}
-  \lean{EraseProof.SrcEval.defeq}
-  \planned
-  \uses{def:EraseProof-SrcEval, def:EraseProof-TrM, def:EraseProof-ProgEnv,
-    def:EraseProof-ConstsIn}
+  \lean{EraseProof.SrcEval.defeq, EraseProof.SrcProof.proofSound, EraseProof.SrcProof.pi_congr,
+    EraseProof.SrcProof.lam_tele_inv, EraseProof.SrcProof.PiSort, EraseProof.SrcProof.PiSort.pi,
+    EraseProof.SrcProof.trM_arity, EraseProof.SrcProof.indConst_piSort,
+    EraseProof.SrcProof.ind_level, EraseProof.SrcProof.trLevels_of_get,
+    EraseProof.SrcProof.recr_levels, EraseProof.SrcProof.casesOn_recr,
+    EraseProof.SrcProof.ctor_mem_block, EraseProof.SrcProof.evidentProp_peel,
+    EraseProof.SrcProof.evidentProp_spine, EraseProof.SrcProof.ctor_evidentProp,
+    EraseProof.SrcProof.evidentZero_tr, EraseProof.SrcProof.peelForalls_succ_forallE,
+    EraseProof.SrcProof.peelForalls_succ_none, EraseProof.SrcProof.peelForalls_instLevels,
+    EraseProof.SrcProof.peelForalls_inst, EraseProof.SrcProof.instSeq,
+    EraseProof.SrcProof.piInst_peel, EraseProof.SrcProof.inst_lift,
+    EraseProof.SrcProof.instSeq_lift, EraseProof.SrcProof.instSeq_bvar,
+    EraseProof.SrcProof.instSeq_spine, EraseProof.SrcProof.ctor_statement,
+    EraseProof.SrcProof.argsAux_spine, EraseProof.SrcProof.getAppArgs_mkAppN_const,
+    EraseProof.SrcProof.atomSpine_spine, EraseProof.SrcProof.spine_type_tr,
+    EraseProof.SrcProof.apps_pi, EraseProof.SrcProof.ctorTerm_apps_typed,
+    EraseProof.SrcProof.params_instLevel, EraseProof.SrcProof.instLevel_params_comp,
+    EraseProof.SrcProof.instLevels_params_comp, EraseProof.SrcProof.trM_typeEq}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-TrLevel, def:EraseProof-TrM,
+    def:EraseProof-ProgEnv, def:Erasure-declExclusion, def:Erasure-Pure-instLevels,
+    def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-isAtom, def:EraseProof-EvalEnv-etaSpine,
+    def:EraseProof-SrcEval, lem:EraseProof-SrcDefeq-sound_of, def:EraseProof-ConstsIn}
+  \srcloc{proof/EraseProof/Source/ProofSound.lean}{1188}
   \lead{In short} If \code{e} translates to a typed \code{t} and evaluates to \code{v}, then
   \code{v} translates to some \code{t'} \hl{definitionally equal to \code{t}} at the same type.
   \begin{itemize}
   \item \lead{Given} \code{ProgEnv P $\zeta$ E B}, \code{EnvWF E}, \code{SubEnv $\sigma$.decls P},
         \code{TrM E B lps .nil [] e t}, \code{E[.nil] $\vdash$ t : T}, \code{SrcEval $\sigma$ e v};
   \item \lead{Then} $\exists$ \code{t'}, \code{TrM E B lps .nil [] v t'} and \code{E[.nil]
-        $\vdash$ t $\equiv$ t' : T}.
+        $\vdash$ t $\equiv$ t' : T};
+  \item \code{proofSound}: \code{ProofSound} holds under \code{ProgEnv};
+        \code{ctor\_evidentProp}: a constructor of an evidently propositional inductive has an
+        evident proposition as its Lean type.
   \end{itemize}
   \lead{Reference} subject reduction, MetaRocq \code{subject\_reduction\_eval}.
 \end{lemma}
 \begin{proof}
-  \uses{lem:EraseProof-casesOn_whred, lem:EraseProof-proj_defeq, lem:EraseProof-ProgEnv-unfold,
-    lem:EraseProof-TrM-inst, lem:EraseProof-TrM-det}
-  \lead{Idea} Induction on evaluation; each rule is a Metalean reduction ($\beta$, $\zeta$,
-  $\delta$, the \code{casesOn} chain, projection of a constructor), proof irrelevance, or a
-  congruence, and \leandecl{Metalean.WHRed.defeq} turns reductions into definitional equalities.
+  \uses{def:EraseProof-SatTr, def:EraseProof-natLitM, def:EraseProof-TypedExt,
+    lem:EraseProof-TrM-weakBV, lem:EraseProof-TrM-instLevels, lem:EraseProof-DCong-defeq,
+    lem:EraseProof-TrM-det, lem:EraseProof-TrM-apps, lem:EraseProof-TrM-inst,
+    lem:EraseProof-ProgEnv-lookup, lem:EraseProof-ctorSat_iota, lem:EraseProof-casesOn_shape,
+    lem:EraseProof-casesOn_whred, lem:EraseProof-TypeEq-sort_ne_forallE, def:Erasure-casesInfo}
+  \leanok
+  \lead{Idea} \code{sound\_of} with \code{proofSound}: the major of \code{casesProof} has a
+  proposition as type; the field-less constructor at the parameters of its statement
+  (\code{IndBlock.ctorType}) proves it; proof irrelevance identifies them, and $\iota$ continues.
+\end{proof}
+
+\begin{lemma}[Erasability under evaluation]
+  \label{lem:EraseProof-ErasableS-eval}
+  \lean{EraseProof.ErasableS.eval}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-TrM, def:EraseProof-ProgEnv,
+    def:EraseProof-IsErasable, def:EraseProof-EvalEnv, def:EraseProof-SrcEval,
+    def:EraseProof-ConstsIn}
+  \srcloc{proof/EraseProof/Source/ProofSound.lean}{1197}
+  \lead{In short} \hl{Erasability is preserved by evaluation}, under \code{ProgEnv},
+  \code{EnvWF E}, \code{SubEnv $\sigma$.decls P} and a typed translation of \code{e}.
+  \lead{Reference} MetaRocq \code{Is\_type\_eval}.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-SrcEval-defeq}
+  \leanok
+  \lead{Idea} The value's translation is $\equiv$ the term's at its type
+  (\code{SrcEval.defeq}), so it has the same type.
 \end{proof}
 
 \section{Restriction to the closure}\label{sec:source-restrict}
@@ -263,7 +381,7 @@ justifies each rule by a Metalean definitional equality.
   \lean{EraseProof.ConstsIn, EraseProof.KernameInj, EraseProof.SubEnv, EraseProof.findDecl}
   \leanok
   \uses{def:toKername}
-  \srcloc{proof/EraseProof/Spec.lean}{449}
+  \srcloc{proof/EraseProof/Spec.lean}{473}
   \lead{In short} Predicates on declaration lists: \hl{a sublist of the program}, injective
   kernames.
   \begin{itemize}
@@ -285,7 +403,7 @@ justifies each rule by a Metalean definitional equality.
   \lean{EraseProof.DepClosed, EraseProof.FVarsIn}
   \leanok
   \uses{def:EraseProof-PhaseIDecl, def:EraseProof-ConstsIn}
-  \srcloc{proof/EraseProof/Spec.lean}{810}
+  \srcloc{proof/EraseProof/Spec.lean}{839}
   \lead{In short} \code{DepClosed decls}: \hl{the closure holds what the traversal and the
   recognizer read} of it.
   \begin{itemize}
@@ -299,8 +417,9 @@ justifies each rule by a Metalean definitional equality.
 \begin{definition}[Closed declarations]
   \label{def:EraseProof-ClosedDecls}
   \lean{EraseProof.ClosedDecls}
-  \planned
-  \uses{def:EraseProof-DepClosed, def:EraseProof-PhaseIDecl}
+  \leanok
+  \uses{def:EraseProof-PhaseIDecl, def:EraseProof-DepClosed}
+  \srcloc{proof/EraseProof/Oracle/Agree.lean}{23}
   \lead{In short} \code{ClosedDecls decls}: \hl{the read expressions have no free variable}.
 \end{definition}
 

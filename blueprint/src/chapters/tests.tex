@@ -132,7 +132,7 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
     EraseProof.Test.NV1.ordersB, EraseProof.Test.NV1.P1}
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-ProgEnv, def:EraseProof-Test-NV1-P}
-  \srcloc{proof/EraseProof/Test/NV1Model.lean}{592}
+  \srcloc{proof/EraseProof/Test/NV1Model.lean}{594}
   \lead{In short} The Metalean environment \code{E} of NV-1, built entry by entry
   (\code{E1}, \code{E2}, \code{E3}), and \hl{the name table \code{B}} that maps each Lean name of
   \code{P} to its Metalean head.
@@ -175,12 +175,13 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-TrLevel, def:EraseProof-SatTr, def:EraseProof-TrM,
     def:EraseProof-ProgEnv, def:EraseProof-Test-NV1-P, def:EraseProof-Test-NV1-E}
-  \srcloc{proof/EraseProof/Test/NV1Model.lean}{597}
+  \srcloc{proof/EraseProof/Test/NV1Model.lean}{599}
   \lead{In short} The hypotheses \hl{\code{henv}, \code{hwf}, \code{he} and \code{hty} of the
   final theorem hold on NV-1}.
   \begin{itemize}
   \item \code{henv}: \code{ProgEnv P \_ E B}, with the block's \code{IndBlock} clauses, among them
-        \code{minors}, discharged by \code{rfl};
+        \code{minors}, \code{ctorType} and \code{recrType}, discharged by \code{rfl}, and distinct
+        universe parameters by \code{decide};
   \item \code{hwf}: \code{EnvWF E}; \code{he}: \code{TrM E B [] .nil [] e tE}; \code{hty}:
         \code{tE} is typed.
   \end{itemize}

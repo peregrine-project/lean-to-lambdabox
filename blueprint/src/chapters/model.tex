@@ -420,21 +420,65 @@ universe instantiation in place of lean4lean's.
   image.
 \end{proof}
 
+\begin{lemma}[Subject expansion of the \texorpdfstring{$\eta$}{eta}-terms]
+  \label{lem:EraseProof-SatTr-typed}
+  \lean{EraseProof.SatTr.typed, EraseProof.SatTr.app_defeq, EraseProof.SatTyped.closed_lam_apps,
+    EraseProof.SatTyped.appList_defeq, EraseProof.SatTyped.substN_id,
+    EraseProof.SatTyped.argTele_eq, EraseProof.SatTyped.indEta_defeq,
+    EraseProof.SatTyped.quotTypeEta_defeq, EraseProof.SatTyped.wk_subst_lift,
+    EraseProof.SatTyped.var_wk, EraseProof.SatTyped.compatType_subst,
+    EraseProof.SatTyped.compatType_wk, EraseProof.SatTyped.minorType_subst,
+    EraseProof.SatTyped.minorType_wk, EraseProof.SatTyped.trans_at,
+    EraseProof.SatTyped.quotMkEta_defeq, EraseProof.SatTyped.quotLiftEta_defeq,
+    EraseProof.SatTyped.quotIndEta_defeq, EraseProof.SatTyped.prefix_typed,
+    EraseProof.SatTyped.eta_prefix, EraseProof.SatTyped.liftMap?_ok,
+    EraseProof.SatTyped.rename?_subst, EraseProof.SatTyped.permuteAux?_entry,
+    EraseProof.SatTyped.orderMaps?_inv, EraseProof.SatTyped.ctor_fieldSubst,
+    EraseProof.SatTyped.append_append_natAdd, EraseProof.SatTyped.append_append_lt,
+    EraseProof.SatTyped.ctorEta_defeq}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-SatTr}
+  \srcloc{proof/EraseProof/Bridge/SatTyped.lean}{845}
+  \lead{In short} If the image of a saturating spine is typed, \hl{the image of every prefix is
+  typed}, and one more argument applied to a prefix's image is $\equiv$ the spine's image.
+  \begin{itemize}
+  \item \lead{Given} \code{EnvWF E}, \code{E[R] $\vdash$ ok}; for a constructor, its
+        $\eta$-term typed in the empty context (\code{h$\eta$}); for a recursor, no partial
+        prefix of a saturated spine (\code{hr});
+  \item \lead{Then} \code{SatTr.typed}: the prefix's image is typed; \code{SatTr.app\_defeq}:
+        the prefix's image applied to the argument is $\equiv$ the spine's image.
+  \end{itemize}
+  \lead{Why \code{hr}} such a prefix's image types the minors outside \code{wrapCase}, which
+  needs strengthening; Lemma~\ref{lem:EraseProof-Pure-inferType_recr} covers saturated recursor
+  spines instead.
+  \lead{Reference} \code{type\_of\_typing} (\code{PCUICSafeRetyping.v}); inversion of $\beta$.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-TrLevel, lem:EraseProof-TrM-instLevels, lem:EraseProof-TrM-det,
+    lem:EraseProof-TrM-apps, lem:EraseProof-TrM-inst, lem:EraseProof-ctorSat_iota}
+  \leanok
+  \lead{Idea} A saturated prefix is a prefix of the node's application; a shorter one is the
+  $\eta$-term applied, whose application to the node's arguments is $\equiv$ the node (one lemma
+  per builder; for constructors the permuted field telescope, \code{ctorEta\_defeq}).
+\end{proof}
+
 \section{Declarations}\label{sec:model-env}
 
 \begin{definition}[Program environments]
   \label{def:EraseProof-ProgEnv}
   \lean{EraseProof.ProgEnv, EraseProof.ConstTyped, EraseProof.BindsExt,
-    EraseProof.IndBlock, EraseProof.IndBlock.decls, EraseProof.quotKindOf}
+    EraseProof.IndBlock, EraseProof.IndBlock.decls, EraseProof.quotKindOf, EraseProof.peelForalls}
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-SatTr, def:EraseProof-TrM, def:Erasure-casesInfo,
     def:EraseProof-ConstsIn}
-  \srcloc{proof/EraseProof/Spec.lean}{461}
+  \srcloc{proof/EraseProof/Spec.lean}{485}
   \lead{In short} \code{ProgEnv P $\zeta$ E B}: the Lean declarations \code{P} (newest first) are
   \hl{those of the Metalean environment \code{E}}, named by \code{B}, as Metalean's loader builds
   it.
   \begin{itemize}
-  \item \code{axiom}, \code{defn}, \code{opaque}: safe, fresh, their types (and values) translate;
+  \item every rule: the declaration's name is fresh and its universe parameters are
+        distinct;
+  \item \code{axiom}, \code{defn}, \code{opaque}: safe, their types (and values) translate;
         a definition is not recursive (\code{all = [name]});
   \item \code{thm}: a Metalean opaque whose type is a proposition;
   \item \code{thm}, \code{opaque}: \hl{the value does not mention the declaration's own name}
@@ -443,6 +487,10 @@ universe instantiation in place of lean4lean's.
         recursors with the block's counts, \hl{each own minor premise with
         \code{nfields + 2 * nrecFields} binders} (\code{minors}); the type of every constant
         translates (\code{ConstTyped}); not nested, not unsafe;
+  \item \code{IndBlock.ctorType}: under its \code{nparams + numFields} leading $\Pi$s
+        (\code{peelForalls}) a constructor's Lean type is \code{I.\{lps\} params indices};
+  \item \code{IndBlock.recrType}: under its \code{recrEnd s} leading $\Pi$s a recursor's Lean type
+        is \code{motive\_s indices major};
   \item \code{quot}: the four constants, with \code{Eq} bound as Metalean requires.
   \end{itemize}
   \lead{Why \code{minors}} the recognizer reads a minor's arity from the syntax of the recursor's
@@ -451,6 +499,16 @@ universe instantiation in place of lean4lean's.
   \lead{Why no self-reference} Metalean keeps no value for theorems and opaques: without the
   premise, \code{o := o} is loadable and takes the traversal's fixpoint branch; Lean's kernel never
   admits it.
+  \lead{Why distinct universe parameters} \code{TrLevel} maps a repeated name to its first
+  position, so with \code{lps = [u, u]} the $\eta$-rule of a constructor would equate
+  \code{Sort 1} and \code{Sort 0}; Lean's kernel rejects repeated universe parameters.
+  \lead{Why the constructor type shape} \code{ConstTyped} ties a type to Metalean's only up to
+  $\equiv$, which admits \code{I.mk : $\Pi$ (h : True), I True.intro} by proof irrelevance; the
+  proof-irrelevant $\iota$ needs the parameters syntactically, as the kernel checks them
+  (\code{is\_valid\_ind\_app}).
+  \lead{Why the recursor type shape} the oracle's type of a saturated recursor spine is then
+  syntactically the motive's application, so its minors need no typing; the kernel generates
+  exactly this type (\code{declare\_recursors}).
   \lead{Reference} \leanfile{Metalean/Checker/Slow/Loader.lean}; lean4lean's \code{TrEnv'}.
 \end{definition}
 
@@ -494,10 +552,10 @@ universe instantiation in place of lean4lean's.
     EraseProof.ProgEnv.bound, EraseProof.IndBlock.mem_decls, EraseProof.findDecl_cons,
     EraseProof.findDecl_append, EraseProof.findDecl_eq_some, EraseProof.not_mem_of_findDecl_none,
     EraseProof.set_wk_ne, EraseProof.quot_names_reverse, EraseProof.ProgEnv.set_ext,
-    EraseProof.ProgEnv.ext_ext}
+    EraseProof.ProgEnv.ext_ext, EraseProof.ProgEnv.levelParams_nodup, EraseProof.instLevel_self}
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-SatTr, def:EraseProof-TrM, def:EraseProof-ProgEnv,
-    def:EraseProof-ConstsIn}
+    def:Erasure-Pure-instLevels, def:EraseProof-ConstsIn}
   \srcloc{proof/EraseProof/Bridge/ProgEnv.lean}{75}
   \lead{In short} Given \code{ProgEnv P $\zeta$ E B}, every declaration of \code{P} is
   \hl{bound in \code{B} with its translation}.
@@ -508,6 +566,7 @@ universe instantiation in place of lean4lean's.
   \item \code{lookup\_ctor}, \code{lookup\_ind}: constructors and inductives with their counts
         and field orders;
   \item \code{metaOrderOK}: every constructor binding has Metalean's field order;
+  \item \code{levelParams\_nodup}: the universe parameters of every declaration are distinct;
   \item \code{set\_ext}, \code{ext\_ext}: each step of \code{ProgEnv} keeps the old bindings,
         weakened.
   \end{itemize}
@@ -609,10 +668,10 @@ universe instantiation in place of lean4lean's.
     EraseProof.CasesWhred.order_fields, EraseProof.CasesWhred.appList_whredS,
     EraseProof.CasesWhred.lams_beta}
   \leanok
-  \uses{def:EraseProof-MBinding, def:EraseProof-SatTr, def:EraseProof-natLitM, def:EraseProof-TrM,
-    def:EraseProof-ProgEnv, def:Erasure-casesInfo, def:EraseProof-EvalEnv, def:EraseProof-SrcEval,
-    def:EraseProof-ConstsIn}
-  \srcloc{proof/EraseProof/Bridge/CasesWhred.lean}{967}
+  \uses{def:EraseProof-MBinding, def:EraseProof-TrLevel, def:EraseProof-SatTr,
+    def:EraseProof-natLitM, def:EraseProof-TrM, def:EraseProof-ProgEnv, def:Erasure-casesInfo,
+    def:EraseProof-EvalEnv, def:EraseProof-SrcEval, def:EraseProof-ConstsIn}
+  \srcloc{proof/EraseProof/Bridge/CasesWhred.lean}{968}
   \lead{In short} For a saturated recognized \code{T.casesOn} whose major is a constructor value,
   the translation \hl{reduces to a translation of the chosen alternative} applied to the fields.
   \begin{itemize}
@@ -627,10 +686,10 @@ universe instantiation in place of lean4lean's.
   \lead{Reference} MetaRocq \code{eval\_iota}.
 \end{lemma}
 \begin{proof}
-  \uses{def:EraseProof-TrLevel, def:EraseProof-TypedExt, lem:EraseProof-TrM-weakBV,
-    lem:EraseProof-SatTr-subst, lem:EraseProof-TrM-instLevels, lem:EraseProof-TrM-apps,
-    lem:EraseProof-ProgEnv-lookup, lem:EraseProof-ctorSat_iota, lem:EraseProof-casesOn_shape,
-    lem:EraseProof-proj_defeq, def:Erasure-findConst}
+  \uses{def:EraseProof-TypedExt, lem:EraseProof-TrM-weakBV, lem:EraseProof-SatTr-subst,
+    lem:EraseProof-TrM-instLevels, lem:EraseProof-TrM-apps, lem:EraseProof-ProgEnv-lookup,
+    lem:EraseProof-ctorSat_iota, lem:EraseProof-casesOn_shape, lem:EraseProof-proj_defeq,
+    def:Erasure-findConst}
   \leanok
   \lead{Idea} $\delta$ on \code{casesOn}, $\beta$ over its telescope, $\iota$ on the recursor,
   $\beta$ through the minor that permutes the fields back; \code{IndBlock.minors} matches the

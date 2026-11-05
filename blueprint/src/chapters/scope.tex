@@ -112,7 +112,7 @@ constructors of the blocks it registers; it skips the values of theorems and of 
   \code{casesOn} or projection on an inductive whose sort may be both \code{Prop} and not
   (\code{PUnit}); a recognized \code{casesOn} whose constructor has an index field
   (\code{Acc}); an inductive whose sort is \code{Prop} under every assignment but not written
-  \code{Prop}; a free variable, metavariable or level metavariable; a constant the view does not
+  \code{Prop}; an inductive whose type is not syntactically an arity (an alias of a sort); a free variable, metavariable or level metavariable; a constant the view does not
   have.
 \item \lead{Name collisions} of kernel names and of $\lambda_\Box$ inductive blocks are an error
   of the pure path, not a reason to route.

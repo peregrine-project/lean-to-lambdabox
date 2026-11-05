@@ -119,6 +119,12 @@ targets = ["EraseProof"]
 "Metalean.Typing.Map" = 'Judgements along maps of environments (\code{Defeq.map}): environment weakening.'
 "Metalean.Typing.Structure" = 'Typing of structures and of their projection terms (\code{IsStructure.projTerm\_congr}).'
 "Metalean.Typing.Substitution" = 'The substitution lemma of judgements (\code{Defeq.substitution}) and context conversion (\code{Defeq.snocConv}).'
+"Metalean.Decide" = 'Decidability instances for the side conditions of entries, among them large elimination (\code{Inductive.LargeElim}).'
+"Metalean.Level.Quot.Nat" = 'The arithmetic of level evaluation on \code{Nat} (\leandecl{Nat.imax}).'
+"Metalean.Level.Quot.Order" = 'The order of levels: a join semilattice under \code{max}.'
+"Metalean.Syntax.Eq" = 'The inductive block of \code{Eq} that the quotient constants require (\code{Eq.block}).'
+"Metalean.Typing.Quot" = 'The types of the quotient constants are types (\code{Quot.motiveType\_isType}, \code{Quot.compatType\_isType}).'
+"Metalean.Typing.Telescope" = 'Well-formed telescopes (\code{TeleWF}) and their appending to a context.'
 
 # Links of the web version to the Lean sources (scripts/leanlinks.py; README, "Links to the Lean
 # sources"). `repository`: this repository, linked at the commit the site is built from

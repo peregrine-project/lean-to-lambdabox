@@ -8,11 +8,14 @@
 \item \lead{Main results} Soundness of the pure oracle; the closure lemmas and the lower bound
   \code{collectDeps\_ok\_of} of the fragment test; the frame and recursion lemmas of the
   traversal. They compose into the milestone \code{erasePure\_erases} (Chapter~\ref{chap:final}).
-\item \lead{Status} the sufficient condition \code{PhaseIDecl} and the statement of
-  \code{collectDeps\_ok\_of} are formalized; \stProved{} \code{isRecursiveDecl\_false};
-  \stPlanned{} the other nodes.
+\item \lead{Status} \stProved{} the oracle's weak head normal forms, arities, types (but for
+  proof projections), frame and atoms, and \code{isRecursiveDecl\_false}; the sufficient condition
+  \code{PhaseIDecl} and the statement of \code{collectDeps\_ok\_of} are formalized;
+  \stPlanned{} \code{inferType\_sound}, \code{isErasable\_sound}, the closure lemmas and the
+  traversal.
 \item \lead{Nodes} \bpnodes{chap:core}
-\item \lead{Lean files} \leanfile{proof/EraseProof/Core/NonRec.lean}.
+\item \lead{Lean files} \leanfile{proof/EraseProof/Oracle/},
+  \leanfile{proof/EraseProof/Core/NonRec.lean}.
 \item \lead{Reference} MetaRocq \code{hnf\_sound} (\code{PCUICSafeReduce.v}),
   \code{type\_of\_typing} (\code{PCUICSafeRetyping.v}), \code{is\_erasableb}
   (\code{ErasureFunction.v}).
@@ -22,55 +25,294 @@
 
 \begin{definition}[Traversal locals and the bridge]
   \label{def:EraseProof-LocalsOK}
-  \lean{EraseProof.LocalsOK, EraseProof.LocalsSupport, EraseProof.LocalsAgree,
-    EraseProof.MLCtx.pushLamN}
-  \planned
-  \uses{def:EraseProof-TrM, def:Erasure-TravCtx}
+  \lean{EraseProof.LocalsOK, EraseProof.LocalsSupport, EraseProof.LocalsAgree}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-TrM, def:Erasure-Pure-isErasable,
+    def:EraseProof-DepClosed, def:Erasure-TravCtx}
+  \srcloc{proof/EraseProof/Oracle/Whnf.lean}{27}
   \lead{In short} \code{LocalsOK E B lps $\Gamma$ $\Delta$ ls}: the traversal's locals \code{ls}
   \hl{are the Lean form of the context $\Gamma$} under $\Delta$.
   \begin{itemize}
-  \item \code{LocalsSupport S ls}, \code{LocalsAgree S ls$_1$ ls$_2$}: the locals cover the free
-        variables \code{S}, and two lists agree on them;
-  \item \code{MLCtx.pushLamN $\Delta$ k}: $\Delta$ under \code{k} more binders.
+  \item each local's free variable denotes a term of the local's translated type; a \code{let}
+        local's value translates to it;
+  \item \code{LocalsSupport S ls}, \code{LocalsAgree S ls$_1$ ls$_2$}: \code{S} is closed under
+        the locals, and two lists agree on \code{S}.
   \end{itemize}
+  \lead{Reference} none (DV-13).
 \end{definition}
+
+\begin{lemma}[Weak head normal forms of the oracle]
+  \label{lem:EraseProof-Pure-whnf_sound}
+  \lean{EraseProof.Pure.whnf_sound, EraseProof.OracleWhnf.ind_head,
+    EraseProof.OracleWhnf.ok_of_bind, EraseProof.OracleWhnf.findConst_sub,
+    EraseProof.OracleWhnf.special_not_defn, EraseProof.OracleWhnf.whnf_spine,
+    EraseProof.OracleWhnf.trM_closed, EraseProof.OracleWhnf.app_congr,
+    EraseProof.OracleWhnf.recr_congr, EraseProof.OracleWhnf.appList_fn_pi,
+    EraseProof.OracleWhnf.lam_partial, EraseProof.OracleWhnf.ctorTerm_shape,
+    EraseProof.OracleWhnf.ctor_major, EraseProof.OracleWhnf.whnf_fvar,
+    EraseProof.OracleWhnf.whnf_const, EraseProof.OracleWhnf.whnf_special,
+    EraseProof.OracleWhnf.whnf_app, EraseProof.OracleWhnf.whnf_letE,
+    EraseProof.OracleWhnf.whnf_proj_inv, EraseProof.OracleWhnf.whnf_projStruct,
+    EraseProof.OracleWhnf.whnf_projProof}
+  \leanok
+  \uses{def:EraseProof-LocalsOK, def:EraseProof-MBinding, def:EraseProof-TrLevel,
+    def:EraseProof-SatTr, def:EraseProof-natLitM, def:EraseProof-TypedExt, def:EraseProof-TrM,
+    def:EraseProof-ProgEnv, def:Erasure-EraseError, def:Erasure-findConst,
+    def:Erasure-Pure-isErasable, def:EraseProof-ConstsIn, def:Erasure-TravCtx}
+  \srcloc{proof/EraseProof/Oracle/Whnf.lean}{487}
+  \lead{In short} Under \code{ProgEnv}, \code{EnvWF E}, \code{SubEnv cx.decls P}, \code{E[$\Gamma$]
+  $\vdash$ ok}, \code{LocalsOK} and a typed translation \code{t} of \code{e}, a result \code{w}
+  of \code{Pure.whnf} \hl{translates to a term $\equiv$ \code{t}} at its type.
+  \lead{Reference} \code{hnf\_sound} (\code{PCUICSafeReduce.v}).
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-TrM-weakBV, lem:EraseProof-TrM-instLevels, lem:EraseProof-DCong-defeq,
+    lem:EraseProof-TrM-det, lem:EraseProof-TrM-apps, lem:EraseProof-TrM-inst,
+    lem:EraseProof-ProgEnv-lookup, lem:EraseProof-casesOn_shape, lem:EraseProof-proj_defeq,
+    lem:EraseProof-TypeEq-sort_ne_forallE, def:Erasure-casesInfo, def:Erasure-Pure-instLevels}
+  \leanok
+  \lead{Idea} Induction on fuel, one lemma per \code{TrM} rule: $\beta$, $\zeta$ (also of
+  let-bound locals), $\delta$ of every definition of the closure, \code{mdata}, $\iota$ of a
+  projection of a constructor; spines of saturating constants stay unchanged.
+\end{proof}
+
+\begin{lemma}[Arities of the oracle]
+  \label{lem:EraseProof-Pure-isArity_sound}
+  \lean{EraseProof.Pure.isArity_sound, EraseProof.OracleArity.Shape,
+    EraseProof.OracleArity.Shape.exists_pi, EraseProof.OracleArity.Shape.isArity,
+    EraseProof.OracleArity.forallE_cod, EraseProof.OracleArity.TrM.lift_eq,
+    EraseProof.OracleArity.LocalsOK.weakBV, EraseProof.OracleArity.isArity_shape}
+  \leanok
+  \uses{def:EraseProof-LocalsOK, def:EraseProof-MBinding, def:EraseProof-TrM,
+    def:EraseProof-ProgEnv, def:Erasure-EraseError, def:Erasure-Pure-isErasable,
+    def:EraseProof-IsErasable, def:EraseProof-ConstsIn, def:Erasure-TravCtx}
+  \srcloc{proof/EraseProof/Oracle/Arity.lean}{167}
+  \lead{In short} With the premises of Lemma~\ref{lem:EraseProof-Pure-whnf_sound}, \code{isArity}
+  answers \code{true} \hl{only on types convertible to an arity} (\code{IsArity}).
+  \begin{itemize}
+  \item \lead{Given} also \code{hnb}: $\Delta$ has no bound entry.
+  \end{itemize}
+  \lead{Why \code{hnb}} the test enters $\Pi$-binders de Bruijn style and keeps the locals'
+  types; a type that mentions a bound entry changes meaning there. The traversal opens every
+  binder with a fresh free variable, so its $\Delta$ has only free entries.
+  \lead{Reference} \code{is\_arityP} (\code{ErasureFunction.v}).
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-Pure-whnf_sound, def:EraseProof-TrLevel, def:EraseProof-SatTr,
+    def:EraseProof-natLitM, def:EraseProof-TypedExt, lem:EraseProof-TrM-weakBV,
+    lem:EraseProof-TrM-det}
+  \leanok
+  \lead{Idea} Induction on fuel through \code{whnf\_sound}; the locals move under new binders
+  by \code{LocalsOK.weakBV}.
+\end{proof}
+
+\begin{lemma}[Types of the oracle]
+  \label{lem:EraseProof-OracleInfer-inferOK}
+  \lean{EraseProof.OracleInfer.inferOK, EraseProof.OracleInfer.OracleCtx,
+    EraseProof.OracleInfer.OracleCtx.cons, EraseProof.OracleInfer.trM_retype,
+    EraseProof.OracleInfer.mapM_length, EraseProof.OracleInfer.mapM_of_trLevels,
+    EraseProof.OracleInfer.mapM_of_satTr, EraseProof.OracleInfer.levels_of_const,
+    EraseProof.OracleInfer.const_type, EraseProof.OracleInfer.satTr_prefix,
+    EraseProof.OracleInfer.infer_head, EraseProof.OracleInfer.eta_typed,
+    EraseProof.OracleInfer.app_step, EraseProof.OracleInfer.InferOK,
+    EraseProof.OracleInfer.infer_const, EraseProof.OracleInfer.infer_special,
+    EraseProof.OracleInfer.natLitM_typed, EraseProof.OracleInfer.lit_type}
+  \leanok
+  \uses{def:EraseProof-LocalsOK, def:EraseProof-MBinding, def:EraseProof-TrLevel,
+    def:EraseProof-SatTr, def:EraseProof-natLitM, def:EraseProof-TrM, def:EraseProof-ProgEnv,
+    def:Erasure-EraseError, def:Erasure-findConst, def:Erasure-Pure-instLevels,
+    def:Erasure-Pure-isErasable, def:EraseProof-ConstsIn, def:Erasure-TravCtx}
+  \srcloc{proof/EraseProof/Oracle/Infer.lean}{482}
+  \lead{In short} \code{inferType}'s result \hl{translates to a type of the term's image}, in
+  every oracle context, for every \code{TrM} rule but the two projection rules, which are the
+  premise \code{hproj}.
+  \begin{itemize}
+  \item \code{OracleCtx}: the oracle's de Bruijn binder types translate to the types of the
+        bound entries;
+  \item \code{InferOK}: the conclusion at one fuel, the induction's motive;
+  \item \code{hcl}: the locals' types and values have no loose bound variable.
+  \end{itemize}
+  \lead{Reference} \code{type\_of\_typing} (\code{PCUICSafeRetyping.v}).
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-Pure-whnf_sound, lem:EraseProof-Pure-isArity_sound,
+    lem:EraseProof-Pure-inferType_recr, def:EraseProof-TypedExt, lem:EraseProof-TrM-weakBV,
+    lem:EraseProof-TrM-instLevels, lem:EraseProof-DCong-defeq, lem:EraseProof-TrM-det,
+    lem:EraseProof-TrM-apps, lem:EraseProof-TrM-inst, lem:EraseProof-SatTr-typed,
+    lem:EraseProof-ProgEnv-lookup, def:Erasure-casesInfo, lem:EraseProof-SrcDefeq-sound_of,
+    lem:EraseProof-SrcEval-defeq}
+  \leanok
+  \lead{Idea} Fuel induction on the translation; on a saturating spine the prefix's image is
+  typed by \code{SatTr.typed}, and one more argument is a step of \code{SatTr.app\_defeq}.
+\end{proof}
+
+\begin{lemma}[Types of saturated recursor spines]
+  \label{lem:EraseProof-Pure-inferType_recr}
+  \lean{EraseProof.Pure.inferType_recr, EraseProof.OracleInfer.inst_lift,
+    EraseProof.OracleInfer.instSeq, EraseProof.OracleInfer.instSeq_append,
+    EraseProof.OracleInfer.instSeq_lift, EraseProof.OracleInfer.instSeq_bvar,
+    EraseProof.OracleInfer.instSeq_app, EraseProof.OracleInfer.instSeq_mkAppN,
+    EraseProof.OracleInfer.peelForalls_zero, EraseProof.OracleInfer.peelForalls_forallE,
+    EraseProof.OracleInfer.peelForalls_succ, EraseProof.OracleInfer.peelForalls_inst,
+    EraseProof.OracleInfer.peelForalls_instLevels, EraseProof.OracleInfer.whnf_forallE,
+    EraseProof.OracleInfer.spine_type, EraseProof.OracleInfer.ProgEnv.recrType,
+    EraseProof.OracleInfer.recrEnd_eq, EraseProof.OracleInfer.instSeq_recr}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-TrM, def:EraseProof-ProgEnv,
+    def:Erasure-EraseError, def:Erasure-findConst, def:Erasure-Pure-instLevels,
+    def:Erasure-Pure-isErasable, def:EraseProof-ConstsIn, def:Erasure-TravCtx}
+  \srcloc{proof/EraseProof/Oracle/InferRecr.lean}{330}
+  \lead{In short} On a recursor spine with exactly \code{recrEnd} arguments, the oracle's type
+  \hl{is the motive applied to the indices and the major}, a type of the spine's image.
+  \lead{Why the recursor's type shape} by \code{IndBlock.recrType} the result is syntactic; the
+  minors need no typing, which outside \code{wrapCase} would need strengthening.
+  \lead{Reference} \code{type\_of\_typing}; the kernel's \code{declare\_recursors}.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-Pure-whnf_sound, def:EraseProof-TrLevel, def:EraseProof-SatTr,
+    lem:EraseProof-TrM-weakBV, lem:EraseProof-TrM-instLevels, lem:EraseProof-TrM-apps,
+    lem:EraseProof-ProgEnv-lookup, lem:EraseProof-ctorSat_iota, lem:EraseProof-casesOn_whred,
+    def:Erasure-casesInfo}
+  \leanok
+  \lead{Idea} \code{peelForalls} and \code{instSeq} along the spine; \code{recr} inversion types
+  the node at \code{motiveResult}.
+\end{proof}
+
+\begin{lemma}[Types of structure projections]
+  \label{lem:EraseProof-OracleInfer-infer_projStruct}
+  \lean{EraseProof.OracleInfer.infer_projStruct, EraseProof.ProgEnv.lookup_ind_ctor,
+    EraseProof.OracleInfer.instProjs_eq, EraseProof.OracleInfer.arg_step,
+    EraseProof.OracleInfer.instForalls_sound}
+  \leanok
+  \uses{def:EraseProof-LocalsOK, lem:EraseProof-OracleInfer-inferOK, def:EraseProof-MBinding,
+    def:EraseProof-TypedExt, def:EraseProof-TrM, def:EraseProof-ProgEnv, def:Erasure-EraseError,
+    def:Erasure-Pure-isErasable, def:EraseProof-ConstsIn, def:Erasure-TravCtx}
+  \srcloc{proof/EraseProof/Oracle/InferProj.lean}{191}
+  \lead{In short} The oracle's type of a structure projection \hl{translates to a type of the
+  projection's image}: the \code{TrM.projStruct} case of \code{hproj}.
+  \lead{Reference} \code{infer} on \code{tProj} (\code{PCUICSafeRetyping.v}); Metalean's
+  \leandecl{Metalean.Inductive.IsStructure.projTerm_hasType}.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-Pure-whnf_sound, def:EraseProof-TrLevel, def:EraseProof-SatTr,
+    def:EraseProof-natLitM, lem:EraseProof-DCong-defeq, lem:EraseProof-TrM-det,
+    lem:EraseProof-TrM-apps, lem:EraseProof-SatTr-typed, lem:EraseProof-ProgEnv-lookup,
+    lem:EraseProof-casesOn_shape, def:Erasure-findConst, def:Erasure-casesInfo,
+    def:Erasure-Pure-instLevels}
+  \leanok
+  \lead{Idea} \code{instProjs} is \code{instForalls} on the projections of the earlier fields;
+  \code{instForalls\_sound} instantiates the constructor's $\Pi$s along the typed spine.
+\end{proof}
 
 \begin{lemma}[Soundness of the pure oracle]
   \label{lem:EraseProof-Pure-isErasable_sound}
-  \lean{EraseProof.Pure.isErasable_sound, EraseProof.Pure.whnf_sound,
-    EraseProof.Pure.inferType_sound, EraseProof.Pure.isArity_sound}
+  \lean{EraseProof.Pure.isErasable_sound, EraseProof.Pure.inferType_sound}
   \planned
   \uses{def:EraseProof-LocalsOK, def:EraseProof-IsErasable, def:EraseProof-ProgEnv,
     def:Erasure-Pure-isErasable}
-  \lead{In short} Under \code{ProgEnv}, \code{EnvWF E}, \code{SubEnv cx.decls P}, \code{E[$\Gamma$]
-  $\vdash$ ok}, \code{LocalsOK} and a typed translation of \code{e}, \hl{each answer of the oracle
-  is true in Metalean}.
+  \lead{In short} Under the premises of Lemma~\ref{lem:EraseProof-Pure-isArity_sound} and a typed
+  translation of \code{e}, \hl{each answer of the oracle is true in Metalean}.
   \begin{itemize}
-  \item \code{whnf\_sound}: the result translates to a term definitionally equal to \code{e}'s;
   \item \code{inferType\_sound}: the result translates to a type of \code{e}'s translation;
-  \item \code{isArity\_sound}: \code{true} gives \code{IsArity};
   \item \code{isErasable\_sound}: \code{true} gives \code{ErasableS}.
   \end{itemize}
-  \lead{Reference} \code{hnf\_sound}, \code{type\_of\_typing}, \code{is\_arity},
-  \code{is\_erasableb}.
+  \lead{Reference} \code{type\_of\_typing}, \code{is\_erasableb}.
 \end{lemma}
 \begin{proof}
-  \uses{lem:EraseProof-TrM-inst, lem:EraseProof-ProgEnv-unfold, lem:EraseProof-ProgEnv-lookup}
-  \lead{Idea} Induction on fuel, one case per step of \code{whnf} and \code{inferType}, each a Metalean reduction or typing rule.
+  \uses{lem:EraseProof-Pure-isArity_sound, lem:EraseProof-OracleInfer-inferOK,
+    lem:EraseProof-OracleInfer-infer_projStruct}
+  \lead{Idea} \code{inferType\_sound} is \code{inferOK} in the empty oracle context, once the
+  proof-projection case of \code{hproj} holds; \code{isErasable\_sound} composes it with
+  \code{isArity\_sound}.
 \end{proof}
 
-\begin{lemma}[The oracle's frame and atoms]
+\begin{lemma}[The oracle's frame]
   \label{lem:EraseProof-Pure-isErasable_agree}
-  \lean{EraseProof.Pure.isErasable_agree, EraseProof.Pure.isErasable_atom}
-  \planned
-  \uses{def:EraseProof-LocalsOK, def:EraseProof-EvalEnv-isAtom, def:Erasure-Pure-isErasable,
-    def:EraseProof-ClosedDecls}
-  \lead{In short} The oracle \hl{reads the locals only on the term's free variables}, and answers
-  \code{true} on atom spines.
+  \lean{EraseProof.Pure.isErasable_agree, EraseProof.OracleAgree.fvarsIn_false,
+    EraseProof.OracleAgree.fvarsIn_instLevels, EraseProof.OracleAgree.fvarsIn_lift,
+    EraseProof.OracleAgree.fvarsIn_inst, EraseProof.OracleAgree.spine_fst,
+    EraseProof.OracleAgree.spine_snd, EraseProof.OracleAgree.RecTele,
+    EraseProof.OracleAgree.getAppFn_inst, EraseProof.OracleAgree.RecTele.inst,
+    EraseProof.OracleAgree.RecTele.instLevels, EraseProof.OracleAgree.RecTele.of_peelLams,
+    EraseProof.OracleAgree.RecTele.ne_forallE, EraseProof.OracleAgree.RecTele.of_casesOn,
+    EraseProof.OracleAgree.bind_congr_ok, EraseProof.OracleAgree.throw_ne_ok,
+    EraseProof.OracleAgree.whnf_recSpine, EraseProof.OracleAgree.whnf_recTele,
+    EraseProof.OracleAgree.good_forallE, EraseProof.OracleAgree.bind_agree,
+    EraseProof.OracleAgree.whnf_agree, EraseProof.OracleAgree.instForalls_agree,
+    EraseProof.OracleAgree.instProjs_agree, EraseProof.OracleAgree.inferType_agree,
+    EraseProof.OracleAgree.isArity_agree}
+  \leanok
+  \uses{def:EraseProof-LocalsOK, def:Erasure-EraseError, def:Erasure-findConst,
+    def:Erasure-casesInfo, def:Erasure-Pure-instLevels, def:Erasure-Pure-isErasable,
+    def:EraseProof-EvalEnv, def:EraseProof-DepClosed, def:EraseProof-ClosedDecls,
+    def:Erasure-TravCtx}
+  \srcloc{proof/EraseProof/Oracle/Agree.lean}{556}
+  \lead{In short} Over declarations whose read expressions are closed (\code{ClosedDecls}), the
+  oracle \hl{reads the locals only on the term's free variables}.
+  \begin{itemize}
+  \item \lead{Given} two local lists that agree on \code{S}, \code{S} holding the term's free
+        variables and closed under the first list;
+  \item \lead{Then} \code{Pure.isErasable} gives the same result on both.
+  \end{itemize}
+  \lead{Reference} none (DV-13); MetaRocq erases a constant body in the empty context.
 \end{lemma}
 \begin{proof}
-  \uses{def:EraseProof-LocalsOK}
-  \lead{Idea} Induction on fuel; the oracle looks up only the free variables it meets.
+  \uses{lem:EraseProof-Pure-whnf_sound, lem:EraseProof-TrM-weakBV, lem:EraseProof-TrM-instLevels,
+    lem:EraseProof-ProgEnv-lookup, lem:EraseProof-casesOn_shape, def:EraseProof-ConstsIn}
+  \leanok
+  \lead{Idea} One frame lemma per oracle function, by induction on fuel; a recognized
+  \code{casesOn} unfolds to a recursor telescope (\code{RecTele}), which the oracle reads only at
+  the head.
+\end{proof}
+
+\begin{lemma}[The oracle on atoms]
+  \label{lem:EraseProof-Pure-isErasable_atom}
+  \lean{EraseProof.Pure.isErasable_atom, EraseProof.Pure.isErasable_ctorProp,
+    EraseProof.OracleAtom.ArityShape, EraseProof.OracleAtom.ConstSpine,
+    EraseProof.OracleAtom.PropShape, EraseProof.OracleAtom.ArityShape.of_arityShape,
+    EraseProof.OracleAtom.getAppNumArgs_app, EraseProof.OracleAtom.ConstSpine.of_getAppFn,
+    EraseProof.OracleAtom.PropShape.of_evidentProp_tail,
+    EraseProof.OracleAtom.PropShape.of_evidentProp, EraseProof.OracleAtom.EvidentZero.instLevel,
+    EraseProof.OracleAtom.find?_zip_map, EraseProof.OracleAtom.EvidentZero.instLevel_map,
+    EraseProof.OracleAtom.ArityShape.inst, EraseProof.OracleAtom.ConstSpine.inst,
+    EraseProof.OracleAtom.PropShape.inst, EraseProof.OracleAtom.ArityShape.instLevels,
+    EraseProof.OracleAtom.ConstSpine.instLevels, EraseProof.OracleAtom.PropShape.instLevels,
+    EraseProof.OracleAtom.ConstSpine.ne_mdata, EraseProof.OracleAtom.ConstSpine.ne_lam,
+    EraseProof.OracleAtom.ConstSpine.ne_forallE, EraseProof.OracleAtom.ConstSpine.spine_eq,
+    EraseProof.OracleAtom.throw_ne_ok, EraseProof.OracleAtom.whnf_sort,
+    EraseProof.OracleAtom.whnf_forallE, EraseProof.OracleAtom.whnf_mdata,
+    EraseProof.OracleAtom.whnf_const_deltaFree, EraseProof.OracleAtom.whnf_arityShape,
+    EraseProof.OracleAtom.whnf_constSpine, EraseProof.OracleAtom.whnf_propShape,
+    EraseProof.OracleAtom.inferType_const, EraseProof.OracleAtom.inferType_constSpine_arity,
+    EraseProof.OracleAtom.inferType_constSpine_prop, EraseProof.OracleAtom.inferType_propShape,
+    EraseProof.OracleAtom.isArity_arityShape, EraseProof.OracleAtom.alwaysZero_eq,
+    EraseProof.OracleAtom.AtomSpine.constSpine, EraseProof.OracleAtom.isErasable_of_not_thm,
+    EraseProof.OracleAtom.isErasable_propShape, EraseProof.OracleAtom.ConstSpine.mkAppN}
+  \leanok
+  \uses{def:Erasure-EraseError, def:Erasure-findConst, def:Erasure-declExclusion,
+    def:Erasure-casesInfo, def:Erasure-Pure-instLevels, def:Erasure-Pure-isErasable,
+    def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-isAtom, def:EraseProof-ConstsIn,
+    def:Erasure-TravCtx}
+  \srcloc{proof/EraseProof/Oracle/Atom.lean}{461}
+  \lead{In short} On an atom spine, and on a spine of a constructor whose declared type is an
+  evident proposition, the oracle \hl{answers \code{true} or fails, never \code{false}}, for
+  every list of locals.
+  \begin{itemize}
+  \item a spine headed by a theorem: the oracle's theorem test;
+  \item an evident type former: its inferred type is an arity;
+  \item a proof of an evident proposition (\code{EvidentProp}): its type's sort is evidently zero.
+  \end{itemize}
+  \lead{Why \code{EvidentProp}} the oracle computes the sort without $\iota$; it is evident
+  exactly on the type the kernel gives constructors, which \code{SrcProof.ctor\_evidentProp}
+  derives from \code{ProgEnv}.
+  \lead{Reference} \code{isErasable} on \code{tInd} and propositional constructors
+  (\code{Extract.v}); DV-11, DV-24.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-Pure-whnf_sound, lem:EraseProof-TrM-weakBV}
+  \leanok
+  \lead{Idea} Inductive shapes of \code{arityShape} and \code{EvidentProp}; the oracle's steps on
+  them, by computation.
 \end{proof}
 
 \section{The closure and the fragment test}\label{sec:core-collect}
@@ -83,7 +325,7 @@
   \leanok
   \uses{def:Erasure-EnvView, def:Erasure-declExclusion, def:EraseProof-EvalEnv,
     def:EraseProof-ConstsIn, def:toKername, def:Erasure-ErasureConfig}
-  \srcloc{proof/EraseProof/Spec.lean}{896}
+  \srcloc{proof/EraseProof/Spec.lean}{925}
   \lead{In short} The hypotheses of \code{collectDeps\_ok\_of}: \hl{what the traversal reads of a
   closure is inside Phase I}.
   \begin{itemize}
@@ -124,7 +366,7 @@
   \uses{def:EraseProof-PhaseIDecl, def:EraseProof-ViewAgrees, def:EraseProof-MBinding,
     def:EraseProof-TrM, def:EraseProof-ProgEnv, def:Erasure-EraseError, def:Erasure-EnvView,
     def:Erasure-collectDeps, def:EraseProof-ConstsIn, def:Erasure-ErasureConfig}
-  \srcloc{proof/EraseProof/Statements.lean}{31}
+  \srcloc{proof/EraseProof/Statements.lean}{34}
   \lead{In short} The proposition that Lemma~\ref{lem:EraseProof-collectDeps_ok_of} proves,
   \hl{pinned by \code{proof/spec.pin}}; check C12 compares the lemma's type with it once the lemma
   is proved.
@@ -170,7 +412,8 @@
   \end{itemize}
 \end{lemma}
 \begin{proof}
-  \uses{def:Erasure-eraseEntry, lem:EraseProof-isRecursiveDecl_false}
+  \uses{def:Erasure-eraseEntry, lem:EraseProof-isRecursiveDecl_false,
+    lem:EraseProof-Pure-isErasable_agree}
   \lead{Idea} Unfold \code{route}; the frame by induction on fuel.
 \end{proof}
 
