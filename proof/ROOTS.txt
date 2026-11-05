@@ -45,3 +45,5 @@ EraseProof.erases_correct_appCong EraseProof.erases_correct
 EraseProof.ErasesAlt.zero_inv EraseProof.erases_correct
 EraseProof.ErasesAlt.succ_inv EraseProof.erases_correct
 EraseProof.substl_cons_closed EraseProof.erases_correct
+EraseProof.ErasableS.eval EraseProof.erases_correct
+EraseProof.OracleInfer.inferOK EraseProof.Pure.inferType_sound
