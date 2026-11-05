@@ -36,3 +36,4 @@ EraseProof.addAxiom_ok EraseProof.erasePure_erases
 EraseProof.get_constant_kername_ok EraseProof.erasePure_erases
 EraseProof.collectDeps_machineFree EraseProof.erasePure_erases
 EraseProof.register_inductive_ok EraseProof.erasePure_erases
+EraseProof.collectDeps_ok_of FINAL

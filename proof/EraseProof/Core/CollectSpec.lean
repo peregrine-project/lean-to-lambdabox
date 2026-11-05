@@ -877,6 +877,109 @@ theorem eliminatedUndecided_none {decls : List ConstantInfo} {cases : List Name}
     have hf' : findConst decls cn = some (.ctorInfo cv) := hf
     simp [hf', hpos] at h0
 
+/-- On a list of declarations of the program that holds the constructors and the block members of
+its inductives, the recognizer's reads on the view's list and on the list are names of both, when
+the inductive and the recursor are the list's. -/
+theorem reads_agree_of {view : EnvView} {decls : List ConstantInfo}
+    (hcl : ∀ ci ∈ P, NamesClosed P ci) (hview : ViewAgrees view P) (hsub : ∀ ci ∈ decls, ci ∈ P)
+    (hblk : ∀ iv, .inductInfo iv ∈ decls →
+      (∀ n ∈ iv.ctors, n ∈ decls.map (·.name)) ∧ ∀ n ∈ iv.all, n ∈ decls.map (·.name))
+    {d : DefinitionVal} {iv : InductiveVal} {R : RecursorVal} {T : Name}
+    (hd : .defnInfo d ∈ decls) (hT : d.name = .str T "casesOn")
+    (hI : viewFind view T = [.inductInfo iv]) (hR : viewFind view (mkRecName T) = [.recInfo R])
+    (hIdecl : .inductInfo iv ∈ decls) (hRdecl : .recInfo R ∈ decls) :
+    ∀ x, (CasesReads (recogList view (.defnInfo d) iv R) T x ∨ CasesReads decls T x) →
+      x ∈ (recogList view (.defnInfo d) iv R).map (·.name) ∧ x ∈ decls.map (·.name) := by
+  have vw : ∀ y ∈ decls, view.find? y.name = some y := fun y hy => hview y (hsub y hy)
+  have recog_flat : ∀ {l : List Name} {x : Name}, x ∈ l → x ∈ P.map (·.name) →
+      ∃ y ∈ l.flatMap (viewFind view), y.name = x := by
+    intro l x hx hxP
+    obtain ⟨y, hy, rfl⟩ := List.mem_map.1 hxP
+    exact ⟨y, List.mem_flatMap.2 ⟨_, hx, by
+      rw [viewFind_of (hview y hy) rfl]; exact List.mem_singleton_self _⟩, rfl⟩
+  obtain ⟨hIf, hIn⟩ := viewFind_eq hI
+  obtain ⟨hRf, hRn⟩ := viewFind_eq hR
+  have hl₁ := recog_view (vw _ hd) hI hR
+  obtain ⟨iv', hiv'P, hiv'n, hiv'all⟩ := (hcl _ (hsub _ hRdecl)).recr R rfl
+  have hiv'T : iv'.name = T := mkRecName_inj (hiv'n.symm.trans hRn)
+  have hiv' : iv' = iv := by
+    have := eq_of_name hview hiv'P (hsub _ hIdecl) (hiv'T.trans hIn.symm)
+    cases this; rfl
+  subst hiv'
+  obtain ⟨hctc, hallc⟩ := hblk _ hIdecl
+  have hIP := hcl _ (hsub _ hIdecl)
+  have hrl : ∀ x, x ∈ iv'.ctors ∨ x ∈ iv'.all →
+      x ∈ (recogList view (.defnInfo d) iv' R).map (·.name) ∧ x ∈ decls.map (·.name) := by
+    intro x hx
+    rcases hx with hx | hx
+    · refine ⟨?_, hctc x hx⟩
+      obtain ⟨y, hy, hyn⟩ := recog_flat hx ((hIP.induct iv' rfl).1 x hx)
+      exact List.mem_map.2 ⟨y, List.mem_append_left _ (List.mem_cons_of_mem _
+        (List.mem_cons_of_mem _ (List.mem_cons_of_mem _ hy))), hyn⟩
+    · refine ⟨?_, hallc x hx⟩
+      obtain ⟨y, hy, hyn⟩ := recog_flat (l := R.all) (hiv'all ▸ hx) (hIP.all x hx)
+      exact List.mem_map.2 ⟨y, List.mem_append_right _ hy, hyn⟩
+  have hview_eq : ∀ (l : List ConstantInfo), (∀ y ∈ l, view.find? y.name = some y) →
+      ∀ n z, findConst l n = some z → view.find? n = some z := by
+    intro l hl n z hz
+    obtain ⟨hz1, hz2⟩ := findDecl_eq_some (l := l) hz
+    exact hz2 ▸ hl z hz1
+  intro x hx
+  have base : ∀ l, (∀ y ∈ l, view.find? y.name = some y) → CasesReads l T x →
+      x ∈ (recogList view (.defnInfo d) iv' R).map (·.name) ∧ x ∈ decls.map (·.name) := by
+    intro l hl hx
+    rcases hx with rfl | rfl | rfl | ⟨I', hI', hx⟩ | ⟨R', hR', hx⟩
+    · exact ⟨List.mem_map.2 ⟨_, List.mem_append_left _ List.mem_cons_self, hT⟩,
+        hT ▸ List.mem_map_of_mem hd⟩
+    · exact ⟨List.mem_map.2 ⟨_, List.mem_append_left _ (List.mem_cons_of_mem _ List.mem_cons_self),
+        hIn⟩, hIn ▸ List.mem_map_of_mem hIdecl⟩
+    · exact ⟨List.mem_map.2 ⟨_, List.mem_append_left _ (List.mem_cons_of_mem _
+        (List.mem_cons_of_mem _ List.mem_cons_self)), hRn⟩, hRn ▸ List.mem_map_of_mem hRdecl⟩
+    · have := hview_eq l hl _ _ hI'
+      rw [hIf] at this; cases this
+      exact hrl x (.inl hx)
+    · have := hview_eq l hl _ _ hR'
+      rw [hRf] at this; cases this
+      exact hrl x (.inr (hiv'all ▸ hx))
+  rcases hx with hx | hx
+  · exact base _ hl₁ hx
+  · exact base _ vw hx
+
+/-- On a list of declarations of the program that holds the constructors and the block members of
+its inductives, a `casesOn` recognized on the list is recognized by the view. -/
+theorem recog_of_ds_of {view : EnvView} {decls : List ConstantInfo}
+    (hcl : ∀ ci ∈ P, NamesClosed P ci) (hview : ViewAgrees view P) (hsub : ∀ ci ∈ decls, ci ∈ P)
+    (hblk : ∀ iv, .inductInfo iv ∈ decls →
+      (∀ n ∈ iv.ctors, n ∈ decls.map (·.name)) ∧ ∀ n ∈ iv.all, n ∈ decls.map (·.name))
+    {d : DefinitionVal} {iv : InductiveVal} (hd : .defnInfo d ∈ decls)
+    {ax : ConstantInfo → Bool} (hcs : EvalEnv.casesOn? ⟨decls, ax⟩ d.name = some iv) :
+    .inductInfo iv ∈ decls ∧ ∃ R ctors, recognizeCasesOn view (.defnInfo d) = some (iv, R, ctors) := by
+  have vw : ∀ y ∈ decls, view.find? y.name = some y := fun y hy => hview y (hsub y hy)
+  unfold EvalEnv.casesOn? at hcs
+  split at hcs
+  next c hc =>
+    split at hcs
+    next iv' hiv =>
+      cases hcs
+      obtain ⟨T, I, hn, hind, hI, -, R, hR⟩ := casesInfo?_name hc
+      rw [hind] at hiv
+      obtain ⟨hIdecl, hIn⟩ := findDecl_eq_some hiv
+      obtain ⟨hRdecl, hRn⟩ := findDecl_eq_some (l := decls) hR
+      have hIv : viewFind view T = [.inductInfo iv] := viewFind_of (hIn ▸ vw _ hIdecl) hIn
+      have hRv : viewFind view (mkRecName T) = [.recInfo R] := viewFind_of (hRn ▸ vw _ hRdecl) hRn
+      refine ⟨hIdecl, R, _, recognize_iff.2 ⟨T, hn, hIv, hRv, rfl, ?_⟩⟩
+      have : casesInfo? (recogList view (.defnInfo d) iv R) d.name = some c := by
+        refine casesInfo?_congr hc fun T' hT' x hx => ?_
+        have hTT : T' = T := by
+          have h2 : Name.str T "casesOn" = Name.str T' "casesOn" := hn.symm.trans hT'
+          injection h2 with h; exact h.symm
+        subst hTT
+        obtain ⟨h1, h2⟩ := reads_agree_of hcl hview hsub hblk hd hn hIv hRv hIdecl hRdecl x (.inr hx)
+        exact findConst_agree vw (recog_view (vw _ hd) hIv hRv) h2 h1
+      exact Option.isSome_iff_exists.2 ⟨c, this⟩
+    next => cases hcs
+  next => cases hcs
+
 /-- A successful run of the closure on a program read through an agreeing view. -/
 structure Run (P : List ConstantInfo) (view : EnvView) (cfg : ErasureConfig)
     (decls : List ConstantInfo) (cases : List Name) : Prop where
@@ -915,12 +1018,6 @@ theorem scanned {ci : ConstantInfo} (hci : ci ∈ decls) (hnr : ∀ R, ci ≠ .r
   · exact h
   · exact absurd rfl (hnr R)
 
-/-- A name of the program is found through the view. -/
-theorem in_view {n : Name} (hn : n ∈ P.map (·.name)) :
-    ∃ y ∈ P, y.name = n ∧ viewFind view n = [y] := by
-  obtain ⟨y, hy, rfl⟩ := List.mem_map.1 hn
-  exact ⟨y, hy, rfl, viewFind_of (hr.hview y hy) rfl⟩
-
 /-- The constructors and block members of an inductive of the closure are covered. -/
 theorem ind_reads {iv : InductiveVal} (hiv : .inductInfo iv ∈ decls) :
     (∀ n ∈ iv.ctors, Covered decls n) ∧ ∀ n ∈ iv.all, Covered decls n := by
@@ -931,6 +1028,12 @@ theorem ind_reads {iv : InductiveVal} (hiv : .inductInfo iv ∈ decls) :
   · exact hns n h
   · exact ⟨_, hiv, h.symm, nofun⟩
 
+/-- The constructors and block members of an inductive of the closure are names of the closure. -/
+theorem inds : ∀ iv, .inductInfo iv ∈ decls →
+    (∀ n ∈ iv.ctors, n ∈ decls.map (·.name)) ∧ ∀ n ∈ iv.all, n ∈ decls.map (·.name) :=
+  fun _ hiv => ⟨fun n hn => ((hr.ind_reads hiv).1 n hn).mem,
+    fun n hn => ((hr.ind_reads hiv).2 n hn).mem⟩
+
 /-- An inductive of the program named like a covered name is the closure's. -/
 theorem ind_of_view {T : Name} {I : InductiveVal} (hI : view.find? T = some (.inductInfo I))
     (hT : Covered decls T) : .inductInfo I ∈ decls := by
@@ -940,12 +1043,6 @@ theorem ind_of_view {T : Name} {I : InductiveVal} (hI : view.find? T = some (.in
   cases h
   exact hy
 
-/-- A name of the program in `l` is the name of a declaration of `l.flatMap (viewFind view)`. -/
-theorem recog_flat {l : List Name} {x : Name} (hx : x ∈ l) (hxP : x ∈ P.map (·.name)) :
-    ∃ y ∈ l.flatMap (viewFind view), y.name = x := by
-  obtain ⟨y, -, hyn, hvf⟩ := hr.in_view hxP
-  exact ⟨y, List.mem_flatMap.2 ⟨x, hx, by rw [hvf]; exact List.mem_singleton_self _⟩, hyn⟩
-
 /-- On the two lists, the recognizer's reads agree when the inductive and the recursor are the
 closure's. -/
 theorem reads_agree {d : DefinitionVal} {iv : InductiveVal} {R : RecursorVal} {T : Name}
@@ -953,54 +1050,8 @@ theorem reads_agree {d : DefinitionVal} {iv : InductiveVal} {R : RecursorVal} {T
     (hI : viewFind view T = [.inductInfo iv]) (hR : viewFind view (mkRecName T) = [.recInfo R])
     (hIdecl : .inductInfo iv ∈ decls) (hRdecl : .recInfo R ∈ decls) :
     ∀ x, (CasesReads (recogList view (.defnInfo d) iv R) T x ∨ CasesReads decls T x) →
-      x ∈ (recogList view (.defnInfo d) iv R).map (·.name) ∧ x ∈ decls.map (·.name) := by
-  obtain ⟨hIf, hIn⟩ := viewFind_eq hI
-  obtain ⟨hRf, hRn⟩ := viewFind_eq hR
-  have hl₁ := recog_view (hr.vw hd) hI hR
-  obtain ⟨iv', hiv'P, hiv'n, hiv'all⟩ := (hr.closed _ (hr.sub _ hRdecl)).recr R rfl
-  have hiv'T : iv'.name = T := mkRecName_inj (hiv'n.symm.trans hRn)
-  have hiv' : iv' = iv := by
-    have := eq_of_name hr.hview hiv'P (hr.sub _ hIdecl) (hiv'T.trans hIn.symm)
-    cases this; rfl
-  subst hiv'
-  obtain ⟨hctc, hallc⟩ := hr.ind_reads hIdecl
-  have hIP := hr.closed _ (hr.sub _ hIdecl)
-  have hrl : ∀ x, x ∈ iv'.ctors ∨ x ∈ iv'.all →
-      x ∈ (recogList view (.defnInfo d) iv' R).map (·.name) ∧ x ∈ decls.map (·.name) := by
-    intro x hx
-    rcases hx with hx | hx
-    · refine ⟨?_, (hctc x hx).mem⟩
-      obtain ⟨y, hy, hyn⟩ := hr.recog_flat hx ((hIP.induct iv' rfl).1 x hx)
-      exact List.mem_map.2 ⟨y, List.mem_append_left _ (List.mem_cons_of_mem _
-        (List.mem_cons_of_mem _ (List.mem_cons_of_mem _ hy))), hyn⟩
-    · refine ⟨?_, (hallc x hx).mem⟩
-      obtain ⟨y, hy, hyn⟩ := hr.recog_flat (l := R.all) (hiv'all ▸ hx) (hIP.all x hx)
-      exact List.mem_map.2 ⟨y, List.mem_append_right _ hy, hyn⟩
-  have hview_eq : ∀ (l : List ConstantInfo), (∀ y ∈ l, view.find? y.name = some y) →
-      ∀ n z, findConst l n = some z → view.find? n = some z := by
-    intro l hl n z hz
-    obtain ⟨hz1, hz2⟩ := findDecl_eq_some (l := l) hz
-    exact hz2 ▸ hl z hz1
-  intro x hx
-  have base : ∀ l, (∀ y ∈ l, view.find? y.name = some y) → CasesReads l T x →
-      x ∈ (recogList view (.defnInfo d) iv' R).map (·.name) ∧ x ∈ decls.map (·.name) := by
-    intro l hl hx
-    rcases hx with rfl | rfl | rfl | ⟨I', hI', hx⟩ | ⟨R', hR', hx⟩
-    · exact ⟨List.mem_map.2 ⟨_, List.mem_append_left _ List.mem_cons_self, hT⟩,
-        hT ▸ List.mem_map_of_mem hd⟩
-    · exact ⟨List.mem_map.2 ⟨_, List.mem_append_left _ (List.mem_cons_of_mem _ List.mem_cons_self),
-        hIn⟩, hIn ▸ List.mem_map_of_mem hIdecl⟩
-    · exact ⟨List.mem_map.2 ⟨_, List.mem_append_left _ (List.mem_cons_of_mem _
-        (List.mem_cons_of_mem _ List.mem_cons_self)), hRn⟩, hRn ▸ List.mem_map_of_mem hRdecl⟩
-    · have := hview_eq l hl _ _ hI'
-      rw [hIf] at this; cases this
-      exact hrl x (.inl hx)
-    · have := hview_eq l hl _ _ hR'
-      rw [hRf] at this; cases this
-      exact hrl x (.inr (hiv'all ▸ hx))
-  rcases hx with hx | hx
-  · exact base _ hl₁ hx
-  · exact base _ (fun y hy => hr.vw hy) hx
+      x ∈ (recogList view (.defnInfo d) iv R).map (·.name) ∧ x ∈ decls.map (·.name) :=
+  reads_agree_of hr.closed hr.hview hr.sub hr.inds hd hT hI hR hIdecl hRdecl
 
 /-- A `casesOn` that the view recognizes is recognized on the closure. -/
 theorem recog_ds {d : DefinitionVal} {I : InductiveVal} {R : RecursorVal}
@@ -1043,31 +1094,8 @@ theorem recog_ds {d : DefinitionVal} {I : InductiveVal} {R : RecursorVal}
 /-- A `casesOn` recognized on the closure is recognized by the view. -/
 theorem recog_of_ds {d : DefinitionVal} {iv : InductiveVal} (hd : .defnInfo d ∈ decls)
     {ax : ConstantInfo → Bool} (hcs : EvalEnv.casesOn? ⟨decls, ax⟩ d.name = some iv) :
-    .inductInfo iv ∈ decls ∧ ∃ R ctors, recognizeCasesOn view (.defnInfo d) = some (iv, R, ctors) := by
-  unfold EvalEnv.casesOn? at hcs
-  split at hcs
-  next c hc =>
-    split at hcs
-    next iv' hiv =>
-      cases hcs
-      obtain ⟨T, I, hn, hind, hI, -, R, hR⟩ := casesInfo?_name hc
-      rw [hind] at hiv
-      obtain ⟨hIdecl, hIn⟩ := findDecl_eq_some hiv
-      obtain ⟨hRdecl, hRn⟩ := findDecl_eq_some (l := decls) hR
-      have hIv : viewFind view T = [.inductInfo iv] := viewFind_of (hIn ▸ hr.vw hIdecl) hIn
-      have hRv : viewFind view (mkRecName T) = [.recInfo R] := viewFind_of (hRn ▸ hr.vw hRdecl) hRn
-      refine ⟨hIdecl, R, _, recognize_iff.2 ⟨T, hn, hIv, hRv, rfl, ?_⟩⟩
-      have : casesInfo? (recogList view (.defnInfo d) iv R) d.name = some c := by
-        refine casesInfo?_congr hc fun T' hT' x hx => ?_
-        have hTT : T' = T := by
-          have h2 : Name.str T "casesOn" = Name.str T' "casesOn" := hn.symm.trans hT'
-          injection h2 with h; exact h.symm
-        subst hTT
-        obtain ⟨h1, h2⟩ := hr.reads_agree hd hn hIv hRv hIdecl hRdecl x (.inr hx)
-        exact findConst_agree (fun y hy => hr.vw hy) (recog_view (hr.vw hd) hIv hRv) h2 h1
-      exact Option.isSome_iff_exists.2 ⟨c, this⟩
-    next => cases hcs
-  next => cases hcs
+    .inductInfo iv ∈ decls ∧ ∃ R ctors, recognizeCasesOn view (.defnInfo d) = some (iv, R, ctors) :=
+  recog_of_ds_of hr.closed hr.hview hr.sub hr.inds hd hcs
 
 /-- Every expression the traversal reads from the closure was scanned, with its names covered. -/
 theorem read {ci : ConstantInfo} (hci : ci ∈ decls) {x : Expr} (hx : ReadExpr decls ci x) :
