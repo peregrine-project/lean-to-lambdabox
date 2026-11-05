@@ -75,7 +75,7 @@ def sortDecided (iv : InductiveVal) : Except EraseError Bool :=
     else throw (.outOfFragment s!"inductive {iv.name} whose sort is Prop but not written Prop")
   | none => throw (.outOfFragment s!"inductive {iv.name} whose type is not an arity")
 
-/-- The exclusions a declaration of the closure carries by itself: a quotient; a recursor (the
+/-- The exclusions a declaration of the closure carries by itself: a recursor (the
 closure adds a recursor only as the companion of a recognized `casesOn` or of an inductive with one
 constructor, never through `closureStep`'s read names); an `unsafe` or `partial` definition, or a definition or an opaque with an
 `_unsafe_rec` companion (a `partial def` is an opaque whose value is a dummy, compiled through its
@@ -85,7 +85,6 @@ opaque or an axiom; a nested inductive, or one whose sort is excluded by `sortDe
 loader declines (`Metalean/Checker/Slow/Loader.lean:129-139`), and the eraser's remapping of
 `@[extern]` constructors. -/
 def declExclusion (view : EnvView) (cfg : ErasureConfig) : ConstantInfo → Except EraseError Unit
-  | .quotInfo q => throw (.outOfFragment s!"quotient {q.name}")
   | .recInfo r => throw (.outOfFragment s!"recursor {r.name}")
   | .defnInfo d => do
     unless d.safety matches .safe do throw (.outOfFragment s!"unsafe or partial {d.name}")
@@ -103,7 +102,7 @@ def declExclusion (view : EnvView) (cfg : ErasureConfig) : ConstantInfo → Exce
     if a.isUnsafe then throw (.outOfFragment s!"unsafe {a.name}")
     if (view.implementedBy? a.name).isSome then
       throw (.outOfFragment s!"{a.name} has an implemented_by target")
-  | .thmInfo _ => pure ()
+  | .thmInfo _ | .quotInfo _ => pure ()
   | .inductInfo iv => do
     if iv.isUnsafe then throw (.outOfFragment s!"unsafe {iv.name}")
     if iv.numNested != 0 then throw (.outOfFragment s!"nested inductive {iv.name}")
@@ -239,7 +238,7 @@ recognizer reads them; the value is not read, the recursor is not an exclusion);
 `T` with one constructor, `T.rec` (the oracle reads it to type a projection; not an exclusion).
 `outOfFragment` exactly when the closure contains (`exprConsts`, `declExclusion`, `dropKnown`,
 `closureStep`, `eliminatedUndecided`): a recursor other than the `T.rec` of a recognized
-`T.casesOn` or of an inductive `T` with one constructor, or any recursor in a read expression; a quotient; a string literal; an
+`T.casesOn` or of an inductive `T` with one constructor, or any recursor in a read expression; a string literal; an
 `unsafe`/`partial` constant, or one with an `_unsafe_rec` companion or an `implemented_by` target; a
 nested or unsafe inductive; an `@[extern]` constructor under `extern := .preferAxiom`; under
 `nat := .machine` a Nat literal, `Nat.zero`, `Nat.succ`, `Int.ofNat`, `Int.negSucc`, `Nat.casesOn`
