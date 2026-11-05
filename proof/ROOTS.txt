@@ -45,3 +45,4 @@ EraseProof.SrcDefeq.sound_of EraseProof.SrcEval.defeq
 EraseProof.Pure.isErasable_atom EraseProof.erasePure_erases
 EraseProof.Pure.isErasable_ctorProp EraseProof.erasePure_erases
 EraseProof.Pure.isErasable_agree EraseProof.visit_agree
+EraseProof.SatTr.typed EraseProof.Pure.inferType_sound

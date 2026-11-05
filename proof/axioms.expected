@@ -162,3 +162,4 @@ EraseProof.SrcDefeq.sound_of propext,Classical.choice,Quot.sound
 EraseProof.Pure.isErasable_atom propext,Quot.sound
 EraseProof.Pure.isErasable_ctorProp propext,Quot.sound
 EraseProof.Pure.isErasable_agree propext,Classical.choice,Quot.sound
+EraseProof.SatTr.typed propext,Classical.choice,Quot.sound

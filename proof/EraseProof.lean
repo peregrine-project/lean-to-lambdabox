@@ -44,3 +44,4 @@ import EraseProof.Oracle.Arity
 import EraseProof.Source.Defeq
 import EraseProof.Oracle.Atom
 import EraseProof.Oracle.Agree
+import EraseProof.Bridge.SatTyped
