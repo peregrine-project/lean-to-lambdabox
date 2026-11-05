@@ -403,7 +403,7 @@ def peelForalls (k : Nat) (e : Expr) : Option Expr :=
 /-- An inductive block of Lean declarations is the Lean form of the Metalean block at the head `η`
 of `E'` (the environment after the block): the block's types (`Is`), constructors (`Cs`) and
 recursors (`Rs`), their counts and positions (the recursor's parameter, motive, minor and index
-counts are those of the block), the shape of every constructor's Lean type, the arity of every
+counts are those of the block), the shape of every constructor's and every recursor's Lean type, the arity of every
 minor premise of the recursors' Lean types, Metalean's field orders, the table entries, and the type of every constant (`ConstTyped`). Model:
 `analyzeBlock` (`ML Frontend/Inductive.lean:227`) without reproducing it; recursor rules are not
 related (Metalean has none). -/
@@ -437,6 +437,15 @@ structure IndBlock {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) {ι
     (¬ (E.get η).block.LargeElim → (Rs s).levelParams = lps) ∧ (Rs s).isUnsafe = false ∧
     (Rs s).all = (Is s).all ∧ (Rs s).numParams = ι.nparams ∧ (Rs s).numMotives = ι.nsorts ∧
     (Rs s).numMinors = (List.ofFn fun t => ι.nctors t).sum ∧ (Rs s).numIndices = ι.nindices s
+  /-- The Lean type of a recursor is `Π (params) (motives) (minors) (indices) (major),
+  motive_s indices major`: under its `recrEnd s` leading `Π`s it is the variable of the motive of
+  sort `s` (the binder at position `nparams + s`) applied to the variables of the indices and of the
+  major, as Lean's kernel generates it (`mk_rec_infos`, `declare_recursors`,
+  `src/kernel/inductive.cpp`). `ConstTyped` relates the type to Metalean's only up to definitional
+  equality. -/
+  recrType : ∀ s, peelForalls (ι.recrEnd s) (Rs s).type = some (mkAppN
+    (.bvar (ι.recrEnd s - 1 - (ι.nparams + s.val)))
+    ((List.range (ι.nindices s + 1)).reverse.map .bvar).toArray)
   /-- The minor premise of constructor `c` of sort `t` in a recursor's Lean type has
   `nfields + 2 * nrecFields` leading `Π`s, one per field and one per induction hypothesis, as
   Metalean's ι-rule applies the minor (`iotaRhs`, `ML Syntax/Inductive/Iota.lean:161`). It is the
