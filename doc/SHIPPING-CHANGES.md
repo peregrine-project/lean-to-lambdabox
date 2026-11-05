@@ -2672,6 +2672,40 @@ the calls at which the two oracles answer differently. It must equal
   `PEREGRINE`. `scripts/pure-harness.sh` passes with its expected summary unchanged (294 `#erase`,
   223 in the fragment; 8298 oracle calls, 14 differ, none fails).
 
+## S-35: The fragment test is documented and tested to exclude inductives whose type is not an arity
+
+- **Commit:** the commit whose subject starts with `S-35:` (`git log --grep='^S-35:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure/Entry.lean`: the docstring of `collectDeps` lists the exclusion of an
+    inductive whose type is not syntactically an arity (`arityShape`, `sortDecided`). No code
+    changes.
+  - new `tests/regress/arity_type.lean` with its goldens.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** found by the verification work on the simulation. Lean's kernel accepts an
+  inductive whose declared type reaches its sort only by unfolding a definition:
+  `def S.{u} := Sort u` and `inductive PU.{u} : S.{u} | mk` (with
+  `bootstrap.inductiveCheckResultingUniverse` off), and the default elaborator keeps an alias as the
+  declared type (`def T1 := Type`, `inductive Foo : T1` has the type `T1`). The pure path reads an
+  inductive's sort from the syntactic arity of its type (`arityShape`); on `PU` it has none, so it
+  cannot tell that `PU.{0}` is a proposition, and the proof's erasure relation would allow a `case`
+  on □ for `PU.casesOn.{1, 0} (motive := fun _ => Nat) PU.mk 5`, which λ□ does not evaluate. The
+  proof therefore needs every inductive of the closure to have a syntactic arity, and the fragment
+  test to guarantee it. `sortDecided`, which `declExclusion` runs on every inductive of the closure,
+  already excludes such an inductive (since S-29), but the docstring of `collectDeps`, which lists
+  the exclusions, omits it, and no test pins it.
+- **Behaviour before:** `collectDeps` gives `outside the fragment: inductive AT.PU whose type is
+  not an arity` on `t := PU.casesOn.{1, 0} (motive := fun _ => Nat) PU.mk 5`, and likewise on
+  programs using `Foo : T1`, `PT : PAlias` (`def PAlias := Prop`) and `G : F` (`def F := Nat →
+  Type`); `#erase` takes the `Meta` path.
+- **Behaviour after:** the same; the docstring of `collectDeps` states it.
+- **Effect on emitted .ast (corpus):** byte-identical for all 710 files against the corpus of S-34;
+  `PANIC` counts unchanged.
+- **Regression test:** `arity_type` checks, under `nat := .peano`, the exclusion reason and the
+  `Meta` route of the four programs above, and pins the `Meta` path's `#erase` output of `t`
+  (`t.ast`, the alternative `5`), which peregrine validates and evaluates. It passes before this
+  commit too (the exclusion exists since S-29); it guards the exclusion. `scripts/regress.sh`
+  passes (20 tests), with and without `PEREGRINE`.
+
 ---
 
 ## Reported, not fixed

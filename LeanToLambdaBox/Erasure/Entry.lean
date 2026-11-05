@@ -239,7 +239,8 @@ recognizer reads them; the value is not read, the recursor is not an exclusion).
 nested or unsafe inductive; an `@[extern]` constructor under `extern := .preferAxiom`; under
 `nat := .machine` a Nat literal, `Nat.zero`, `Nat.succ`, `Int.ofNat`, `Int.negSucc`, `Nat.casesOn`
 or `Int.casesOn`; a recognized `casesOn` on an inductive with a constructor field that is an index
-of the constructor's type (`indexFields`: `Acc`); an inductive whose sort may be both zero and not
+of the constructor's type (`indexFields`: `Acc`); an inductive whose type is not syntactically an
+arity `Π x₁…xₙ, Sort u` (`arityShape`, `sortDecided`); an inductive whose sort may be both zero and not
 zero that is cased on or has one constructor with a field; an inductive whose sort is zero under
 every assignment but not written `Prop`; under `remove_irrel_constr_args`, any inductive type; a
 free variable, a metavariable or a level metavariable; or a constant the view does not have.
