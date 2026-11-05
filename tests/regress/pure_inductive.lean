@@ -4,7 +4,8 @@ import LeanToLambdaBox
 The pure backend recognizes canonical `casesOn` definitions (`Erasure.casesInfo?`) and
 constructors (`Erasure.ctorArity?`) over the program's declarations, and its oracle types and
 reduces Nat literals and projections. The test checks:
-- by kernel evaluation (`decide`), over declarations copied from the elaboration environment:
+- by kernel evaluation (`decide`), over declarations copied from the elaboration environment
+  (with the recursor of each structure, which the oracle reads to type a projection, S-36):
   the recognizer's answer on `B.casesOn` (two constructors without fields) and `T.casesOn`
   (`leaf (x : B)`, recursive `node (l : T) (y : B)`), and `none` on `And.casesOn` (built from
   projections), on `B.neg` and on `B.rec`; `ctorArity?` on `T.node`; the oracle's type of
@@ -102,6 +103,7 @@ elab "#decls " id:ident " := " ns:ident* : command => do
 
 #decls PI.dB := PI.B.neg PI.B.casesOn PI.B.rec PI.B PI.B.f PI.B.t
 #decls PI.dT := PI.T.casesOn PI.T.rec PI.T PI.T.leaf PI.T.node PI.B PI.B.f PI.B.t PI.P2 PI.P2.mk
+  PI.P2.rec
 #decls PI.dAnd := And.casesOn And.rec And And.intro True True.intro
 
 /-- The recognizer's answer as data with a decidable equality: inductive, arity, positions of the
@@ -259,7 +261,7 @@ def programs : List (String × Name × ErasureConfig × List Name) :=
   [("nv1.ast", `PI.ex1, {}, [`PI.B.neg, `PI.B.casesOn, `PI.B.rec] ++ blkB),
    ("nv4.ast", `PI.ex4, {},
      [`PI.T.snd, `PI.T.casesOn, `PI.T.rec, `PI.T, `PI.T.leaf, `PI.T.node] ++ blkB),
-   ("nv2.ast", `PI.ex2, {}, [`PI.swap, `PI.P2.a, `PI.P2.b, `PI.P2, `PI.P2.mk] ++ blkB),
+   ("nv2.ast", `PI.ex2, {}, [`PI.swap, `PI.P2.a, `PI.P2.b, `PI.P2, `PI.P2.mk, `PI.P2.rec] ++ blkB),
    ("nv3.ast", `PI.ex3, { nat := .peano },
      [`PI.isZero, ``Nat.casesOn, ``Nat.rec, ``Nat, ``Nat.zero, ``Nat.succ] ++ blkB),
    ("eq.ast", `PI.exEq, {}, [``Eq.casesOn, ``Eq.rec, ``Eq, ``Eq.refl] ++ blkB)]

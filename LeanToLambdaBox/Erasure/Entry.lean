@@ -76,8 +76,8 @@ def sortDecided (iv : InductiveVal) : Except EraseError Bool :=
   | none => throw (.outOfFragment s!"inductive {iv.name} whose type is not an arity")
 
 /-- The exclusions a declaration of the closure carries by itself: a quotient; a recursor (the
-closure adds a recursor only as the companion of a recognized `casesOn`, never through
-`closureStep`); an `unsafe` or `partial` definition, or a definition or an opaque with an
+closure adds a recursor only as the companion of a recognized `casesOn` or of an inductive with one
+constructor, never through `closureStep`'s read names); an `unsafe` or `partial` definition, or a definition or an opaque with an
 `_unsafe_rec` companion (a `partial def` is an opaque whose value is a dummy, compiled through its
 companion); an `unsafe` opaque, axiom, inductive or constructor; an `implemented_by` target of a definition, an
 opaque or an axiom; a nested inductive, or one whose sort is excluded by `sortDecided`; an
@@ -135,8 +135,8 @@ def recognizeCasesOn (view : EnvView) (ci : ConstantInfo) :
 /-- Drop the names of the work list that the closure has, and stop with an exclusion at one that
 is a recursor of the closure: the work list holds the constants of the read expressions and the
 block members, constructors and inductives of the closure's declarations, so a recursor there is
-read (the only recursors the closure keeps are the `T.rec` of recognized `T.casesOn`, whose value
-the traversal does not read). Reference: none. -/
+read (the only recursors the closure keeps are the `T.rec` of recognized `T.casesOn` and of
+inductives `T` with one constructor, whose value the traversal does not read). Reference: none. -/
 def dropKnown (acc : List ConstantInfo) : List Name → Except EraseError (List Name)
   | [] => pure []
   | n :: todo => match findConst acc n with
@@ -144,8 +144,9 @@ def dropKnown (acc : List ConstantInfo) : List Name → Except EraseError (List 
     | some _ => dropKnown acc todo
     | none => pure (n :: todo)
 
-/-- One declaration added to the closure: the names it makes the closure read, the companion
-recursor if it is a recognized `T.casesOn`, and whether it is one. The read names: the constants
+/-- One declaration added to the closure: the names it makes the closure read, and the companion
+recursor `T.rec` if it is a recognized `T.casesOn` or an inductive `T` with one constructor (the
+oracle reads its universe parameters to type a projection of `T`). The read names: the constants
 of its type; of its value if it is a definition that is not a recognized `casesOn`, or an opaque
 (not of a theorem's value, which the traversal erases as a proof); its block members
 (`ConstantInfo.all`); the constructors of an inductive; the inductive of a constructor; for a
@@ -167,14 +168,17 @@ def closureStep (view : EnvView) (cfg : ErasureConfig) (ci : ConstantInfo) :
     | none => return (ty ++ (← exprConsts cfg d.value) ++ d.all, none)
   | .thmInfo t => pure (ty ++ t.all, none)
   | .opaqueInfo o => return (ty ++ (← exprConsts cfg o.value) ++ o.all, none)
-  | .inductInfo iv => pure (ty ++ iv.all ++ iv.ctors, none)
+  | .inductInfo iv => pure (ty ++ iv.all ++ iv.ctors, match iv.ctors, viewFind view (mkRecName iv.name) with
+    | [_], [r@(.recInfo _)] => some r
+    | _, _ => none)
   | .ctorInfo cv => pure (ty ++ [cv.induct], none)
   | _ => pure (ty, none)
 
 /-- Depth-first closure. `fuel` bounds the number of declarations added; names already in the
 closure are dropped without fuel (`dropKnown`). The first exclusion stops the scan. A view that
 answers `find? n` with a declaration of another name is rejected (a real `Environment` never does).
-The second component lists the recognized `casesOn` of the closure. Reference:
+The second component lists the recognized `casesOn` of the closure (the definitions with a
+companion). Reference:
 `MR E/ErasureFunction.v:1602 erase_global_deps` (keeps what the term uses). -/
 def closure (view : EnvView) (cfg : ErasureConfig) : Nat → List Name → List ConstantInfo →
     List Name → Except EraseError (List ConstantInfo × List Name)
@@ -192,11 +196,11 @@ def closure (view : EnvView) (cfg : ErasureConfig) : Nat → List Name → List 
         match ← closureStep view cfg ci with
         | (ns, none) => closure view cfg f (ns ++ todo) (ci :: acc) cases
         | (ns, some r) =>
+          let cases := if ci matches .defnInfo _ then n :: cases else cases
           if (findConst acc r.name).isSome then
-            closure view cfg f (ns ++ todo) (ci :: acc) (n :: cases)
+            closure view cfg f (ns ++ todo) (ci :: acc) cases
           else
-            closure view cfg f (ns ++ (← exprConsts cfg r.type) ++ todo) (r :: ci :: acc)
-              (n :: cases)
+            closure view cfg f (ns ++ (← exprConsts cfg r.type) ++ todo) (r :: ci :: acc) cases
 
 /-- An inductive of the closure whose sort may be both zero and not zero, and that the traversal
 may eliminate: its `casesOn` is recognized, or it has one constructor with a field (so it may be
@@ -231,15 +235,17 @@ exclusion. The closure holds the constants of the term and, for each of its decl
 of its type; of its value if it is a definition that is not a recognized `casesOn` (`casesInfo?`),
 or an opaque (not of theorems); its block members; the constructors of an inductive; the inductive
 of a constructor; the structure of a projection; `Nat` for a Nat literal; for a recognized `T.casesOn`, `T` and `T.rec` (the
-recognizer reads them; the value is not read, the recursor is not an exclusion).
+recognizer reads them; the value is not read, the recursor is not an exclusion); for an inductive
+`T` with one constructor, `T.rec` (the oracle reads it to type a projection; not an exclusion).
 `outOfFragment` exactly when the closure contains (`exprConsts`, `declExclusion`, `dropKnown`,
 `closureStep`, `eliminatedUndecided`): a recursor other than the `T.rec` of a recognized
-`T.casesOn`, or any recursor in a read expression; a quotient; a string literal; an
+`T.casesOn` or of an inductive `T` with one constructor, or any recursor in a read expression; a quotient; a string literal; an
 `unsafe`/`partial` constant, or one with an `_unsafe_rec` companion or an `implemented_by` target; a
 nested or unsafe inductive; an `@[extern]` constructor under `extern := .preferAxiom`; under
 `nat := .machine` a Nat literal, `Nat.zero`, `Nat.succ`, `Int.ofNat`, `Int.negSucc`, `Nat.casesOn`
 or `Int.casesOn`; a recognized `casesOn` on an inductive with a constructor field that is an index
-of the constructor's type (`indexFields`: `Acc`); an inductive whose sort may be both zero and not
+of the constructor's type (`indexFields`: `Acc`); an inductive whose type is not syntactically an
+arity `Π x₁…xₙ, Sort u` (`arityShape`, `sortDecided`); an inductive whose sort may be both zero and not
 zero that is cased on or has one constructor with a field; an inductive whose sort is zero under
 every assignment but not written `Prop`; under `remove_irrel_constr_args`, any inductive type; a
 free variable, a metavariable or a level metavariable; or a constant the view does not have.
