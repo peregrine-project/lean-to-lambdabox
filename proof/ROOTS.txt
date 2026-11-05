@@ -23,7 +23,6 @@ EraseProof.Erases.abstract EraseProof.erasePure_erases
 EraseProof.Erases.inst_let EraseProof.erase_correct
 EraseProof.Pure.isErasable_sound EraseProof.erasePure_erases
 EraseProof.Pure.typeLevel_sound EraseProof.erasePure_erases
-EraseProof.TrLevel.isNeverZero_iff EraseProof.erasePure_erases
 EraseProof.Pure.isErasable_atom EraseProof.erasePure_erases
 EraseProof.Pure.isErasable_ctorProp EraseProof.erasePure_erases
 EraseProof.visit_agree EraseProof.erasePure_erases
@@ -33,3 +32,4 @@ EraseProof.StateOK.empty EraseProof.erasePure_erases
 EraseProof.StateOK.kername EraseProof.erasePure_erases
 EraseProof.addAxiom_ok EraseProof.erasePure_erases
 EraseProof.get_constant_kername_ok EraseProof.erasePure_erases
+EraseProof.register_inductive_ok EraseProof.erasePure_erases

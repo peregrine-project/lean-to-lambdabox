@@ -51,9 +51,11 @@ Reference: `includes_deps` with `global_erased_with_deps`
 (`MR E/ErasureFunction.v:1602`); `closed_env` (`MR E/EGlobalEnv.v:181`). -/
 structure StateOK {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (σ : EvalEnv)
     (st : ErasureState) : Prop where
-  /-- A registered constant: its kername, its declaration, its erased entry and dependencies. -/
+  /-- A registered constant: its kername, its declaration (held by the λ□ environment as a
+  constant), its erased entry and dependencies. -/
   registered : ∀ c kn, st.constants[c]? = some kn → kn = toKername c ∧
-    ∃ ci cb, findDecl σ.decls c = some ci ∧ lookupConst st.gdecls kn = some cb ∧
+    ∃ ci cb, findDecl σ.decls c = some ci ∧ EmitsConst ci = true ∧
+      lookupConst st.gdecls kn = some cb ∧
       ErasesDecl E B σ ci cb ∧ ∀ b, cb.cst_body = some b → ErasesDeps E B σ st.gdecls b
   /-- A registered inductive type: its λ□ inductive, its erased block, its masks. -/
   inductives : ∀ (T : Name) (r : InductiveId × InductiveArgMasks), st.inductives[T]? = some r → IndIdOf σ T = some r.1 ∧
@@ -62,6 +64,9 @@ structure StateOK {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (σ 
   entries : ∀ d ∈ st.gdecls, (∃ c : Name, st.constants[c]? = some d.1) ∨
     ∃ (T : Name) (r : InductiveId × InductiveArgMasks), st.inductives[T]? = some r ∧
       r.1.mutualBlockName = d.1
+  /-- Blocks are registered whole: with an inductive type, every type of its block. -/
+  whole : ∀ (T : Name) (r : InductiveId × InductiveArgMasks), st.inductives[T]? = some r →
+    ∀ iv, findDecl σ.decls T = some (.inductInfo iv) → ∀ n ∈ iv.all, ∃ r', st.inductives[n]? = some r'
   /-- Every stored body is closed. -/
   closed : LenvClosed st.gdecls
 
@@ -152,6 +157,7 @@ theorem StateOK.empty : StateOK E B σ {} where
   registered c kn h := by simp at h
   inductives T r h := by simp at h
   entries _ h := nomatch h
+  whole T r h := by simp at h
   closed _ _ _ h := nomatch h
 
 /-- A registered constant's kername is its own, and its `tConst` has erased dependencies.
@@ -160,7 +166,7 @@ case. -/
 theorem StateOK.kername {st : ErasureState} {c : Name} {kn : Kername} (hok : StateOK E B σ st)
     (h : st.constants[c]? = some kn) :
     kn = toKername c ∧ ErasesDeps E B σ st.gdecls (.const kn) := by
-  obtain ⟨rfl, _, _, hf, hl, hd, hb⟩ := hok.registered c kn h
+  obtain ⟨rfl, _, _, hf, -, hl, hd, hb⟩ := hok.registered c kn h
   exact ⟨rfl, .const hf hl hd hb⟩
 
 /-- An unregistered constant of the closure that the λ□ environment holds as a constant
@@ -242,12 +248,13 @@ theorem StateOK.register {st : ErasureState} {c : Name} {ci : ConstantInfo} {cb 
       cases h
       exact .inl ⟨beq_iff_eq.1 hcc, rfl⟩
     · exact .inr h
-  refine ⟨⟨fun c' kn h => ?_, fun T r h => ?_, fun d hd => ?_, fun kn cb' b hl hb' => ?_⟩, hx⟩
+  refine ⟨⟨fun c' kn h => ?_, fun T r h => ?_, fun d hd => ?_, hok.whole,
+    fun kn cb' b hl hb' => ?_⟩, hx⟩
   · rcases hins c' kn h with ⟨rfl, rfl⟩ | h
-    · exact ⟨rfl, ci, cb, hc, lookupConst_cons_self, hd,
+    · exact ⟨rfl, ci, cb, hc, hem, lookupConst_cons_self, hd,
         fun b h => (hb b h).1.ext hx⟩
-    · obtain ⟨hk, ci', cb', hf, hl, hd', hb''⟩ := hok.registered c' kn h
-      exact ⟨hk, ci', cb', hf, lookupConst_ext hx hl, hd', fun b h => (hb'' b h).ext hx⟩
+    · obtain ⟨hk, ci', cb', hf, hem', hl, hd', hb''⟩ := hok.registered c' kn h
+      exact ⟨hk, ci', cb', hf, hem', lookupConst_ext hx hl, hd', fun b h => (hb'' b h).ext hx⟩
   · obtain ⟨h1, h2, h3⟩ := hok.inductives T r h
     exact ⟨h1, StateLemmas.ErasesInd.ext hx h2, h3⟩
   · rcases List.mem_cons.1 hd with rfl | hd
