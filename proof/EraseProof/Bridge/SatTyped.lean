@@ -1042,6 +1042,212 @@ theorem SatTr.typed (hE : EnvWF E) {n : Nat} {R : Ctx ζ lps.length 0 n} (hR : E
       exact eta_prefix (as₂ := as₂) hE hR (quotIndEta_defeq hE hR h₀ hN) ht (by rw [hA]; rfl)
 
 
+/-- Applying to a list with one more argument. -/
+private theorem appList_snoc {n : Nat} (X a : Expr ζ lps.length n) (l : List (Expr ζ lps.length n)) :
+    X.appList (l ++ [a]) = (X.appList l).app a := by
+  rw [TrApps.appList_append]; rfl
+
+/-- The η-term applied to a prefix and one more argument, when that saturates it, is definitionally
+equal to the node. -/
+private theorem eta_step {n K : Nat} {R : Ctx ζ lps.length 0 n} {X N : Expr ζ lps.length n}
+    {xs : Fin K → Expr ζ lps.length n} {as₁ : List (Expr ζ lps.length n)}
+    {a : Expr ζ lps.length n} {rest : List (Expr ζ lps.length n)}
+    (hd : ∃ U, E[R] ⊢ X.apps xs ≡ N : U) (hs : as₁ ++ [a] = List.ofFn xs ++ rest)
+    (hlt : as₁.length < K) : ∃ U, E[R] ⊢ (X.appList as₁).app a ≡ N.appList rest : U := by
+  have hl := congrArg List.length hs
+  simp only [List.length_append, List.length_singleton, List.length_ofFn] at hl
+  obtain rfl : rest = [] := List.eq_nil_of_length_eq_zero (by omega)
+  rw [List.append_nil] at hs
+  rw [← appList_snoc, hs, appList_ofFn]; exact hd
+
+/-- One more argument on a saturating spine (the step of `Pure.inferType_sound` on `TrM.special`):
+the image of the prefix applied to the argument is definitionally equal to the image of the spine,
+except when the prefix is a partial recursor spine that the argument saturates (`hr`). The
+η-term cases are those of `SatTr.typed`. Reference: the inversion of β
+(`MR P/PCUICConversion.v`). -/
+theorem SatTr.app_defeq (hE : EnvWF E) {n : Nat} {R : Ctx ζ lps.length 0 n} (hR : E[R] ⊢ ok)
+    {b : MBinding ζ} {us : List Level}
+    (hη : ∀ {ι : IndSig} (η : Head ζ (.inductive ι)) (s : Fin ι.nsorts) (k : Fin (ι.nctors s))
+      (o : List Nat), b = .ctor η s k o →
+        ∃ t₀ T₀ : Expr ζ lps.length 0, SatTr E lps b us [] t₀ ∧ E[.nil] ⊢ t₀ : T₀)
+    {as₁ : List (Expr ζ lps.length n)} {a : Expr ζ lps.length n}
+    (hr : ∀ {ι : IndSig} (η : Head ζ (.inductive ι)) (s : Fin ι.nsorts)
+      (os : List (List (List Nat))), b = .recr η s os → as₁.length < ι.recrEnd s →
+        as₁.length + 1 < ι.recrEnd s)
+    {t₁ t T : Expr ζ lps.length n}
+    (h₁ : SatTr E lps b us as₁ t₁) (h : SatTr E lps b us (as₁ ++ [a]) t) (ht : E[R] ⊢ t : T) :
+    ∃ U, E[R] ⊢ t₁.app a ≡ t : U := by
+  generalize hA : as₁ ++ [a] = A at h
+  have hlenA := congrArg List.length hA
+  simp only [List.length_append, List.length_singleton] at hlenA
+  cases h₁ with
+  | indSat ps is rest hls =>
+    cases h with
+    | indSat ps' is' rest' hls' =>
+      rw [hls] at hls'; cases hls'
+      simp only [List.append_assoc] at hA
+      obtain ⟨h1, h2⟩ := ofFn_split hA
+      subst h1
+      obtain ⟨h3, h4⟩ := ofFn_split h2
+      subst h3 h4
+      rw [appList_snoc] at ht ⊢
+      exact ⟨T, ht⟩
+    | indEta _ hlt =>
+      simp only [List.length_append, List.length_ofFn] at hlenA
+      omega
+  | indEta hls hlt =>
+    cases h with
+    | indEta hls' _ =>
+      rw [hls] at hls'; cases hls'
+      rw [← hA, appList_snoc] at ht ⊢
+      exact ⟨T, ht⟩
+    | indSat ps is rest hls' =>
+      rw [hls] at hls'; cases hls'
+      obtain ⟨⟨_, hN⟩, -⟩ := InstPre.appList_inv ht
+      refine eta_step (indEta_defeq hE hN) ?_ hlt
+      rw [hA, List.ofFn_add]
+      congr 2 <;> congr 1 <;> funext i
+      · exact (Fin.append_left ps is i).symm
+      · exact (Fin.append_right ps is i).symm
+  | ctorSat ps fs rest fds recFds hls hfs _ hrel =>
+    cases h with
+    | ctorSat ps' fs' rest' fds' recFds' hls' hfs' _ hrel' =>
+      rw [hls] at hls'; cases hls'
+      simp only [List.append_assoc] at hA
+      obtain ⟨rfl, h2⟩ := ofFn_split hA
+      obtain ⟨rfl, rfl⟩ := List.append_inj h2 (by rw [hfs, hfs'])
+      have hfr : Fin.append fds recFds = Fin.append fds' recFds' := funext fun o => by
+        obtain ⟨j, a, hj, ha, he⟩ := hrel o
+        obtain ⟨j', a', hj', ha', he'⟩ := hrel' o
+        rw [hj] at hj'; cases hj'
+        rw [ha] at ha'; cases ha'
+        rw [he, he']
+      obtain rfl : fds = fds' := funext fun f => by
+        simpa using congrFun hfr (Fin.castAdd _ f)
+      obtain rfl : recFds = recFds' := funext fun r => by
+        simpa using congrFun hfr (Fin.natAdd _ r)
+      rw [appList_snoc] at ht ⊢
+      exact ⟨T, ht⟩
+    | ctorEta _ hlt _ =>
+      simp only [List.length_append, List.length_ofFn] at hlenA
+      omega
+  | ctorEta hls hlt h₀ =>
+    cases h with
+    | ctorEta hls' _ h₀' =>
+      rw [hls] at hls'; cases hls'
+      rw [h₀] at h₀'; cases h₀'
+      rw [← hA, appList_snoc] at ht ⊢
+      exact ⟨T, ht⟩
+    | ctorSat ps fs rest fds recFds hls' hfs _ hrel =>
+      rw [hls] at hls'; cases hls'
+      obtain ⟨t₀', T₀, hS, ht₀⟩ := hη _ _ _ _ rfl
+      obtain rfl := ctorEta_nil hls h₀ (by omega) hS
+      obtain ⟨⟨_, hN⟩, -⟩ := InstPre.appList_inv ht
+      refine eta_step (ctorEta_defeq hE h₀ ht₀ hN (fun j => fs[j.val]'(by omega)) ?_) ?_ hlt
+      · intro o j hj
+        obtain ⟨j', a, hj', ha, he⟩ := hrel o
+        rw [hj] at hj'; cases hj'
+        rw [he]
+        exact Option.some.inj ((List.getElem?_eq_getElem (by omega)).symm.trans ha)
+      · rw [hA, List.ofFn_add]
+        congr 2
+        · congr 1; funext i; exact (Fin.append_left _ _ i).symm
+        · refine List.ext_getElem (by simp [hfs]) fun i _ _ => ?_
+          simp only [List.getElem_ofFn, Fin.append_right]
+  | recrSat mo Af rest mins hRL hls hmo hw =>
+    cases h with
+    | recrSat mo' Af' rest' mins' hRL' hls' hmo' hw' =>
+      obtain ⟨rfl, rfl⟩ := TrDet.RecrLevels.det hRL hRL'
+      obtain rfl := TrDet.TrLevels.det hls hls'
+      obtain rfl : mo = mo' := funext fun t => funext fun c =>
+        Option.some.inj ((hmo t c).symm.trans (hmo' t c))
+      simp only [List.append_assoc] at hA
+      obtain ⟨rfl, rfl⟩ := ofFn_split hA
+      obtain rfl : mins = mins' := funext fun t => funext fun c =>
+        Except.ok.inj ((hw t c).symm.trans (hw' t c))
+      rw [appList_snoc] at ht ⊢
+      exact ⟨T, ht⟩
+    | recrEta _ _ _ _ hlt =>
+      simp only [List.length_append, List.length_ofFn] at hlenA
+      omega
+  | recrEta mo hRL hls hmo hlt h₀ =>
+    cases h with
+    | recrEta mo' hRL' hls' hmo' _ h₀' =>
+      obtain ⟨rfl, rfl⟩ := TrDet.RecrLevels.det hRL hRL'
+      obtain rfl := TrDet.TrLevels.det hls hls'
+      obtain rfl : mo = mo' := funext fun t => funext fun c =>
+        Option.some.inj ((hmo t c).symm.trans (hmo' t c))
+      rw [h₀] at h₀'; cases h₀'
+      rw [← hA, appList_snoc] at ht ⊢
+      exact ⟨T, ht⟩
+    | recrSat _ Af rest _ =>
+      have h2 := hr _ _ _ rfl hlt
+      simp only [List.length_append, List.length_ofFn] at hlenA
+      omega
+  | quotType hu =>
+    cases h with
+    | quotType hu' =>
+      rw [hu] at hu'; cases hu'
+      simp only [List.cons_append, List.nil_append, List.cons.injEq] at hA
+      obtain ⟨rfl, rfl, rfl⟩ := hA
+      rw [appList_snoc] at ht ⊢
+      exact ⟨T, ht⟩
+    | quotEta _ hlt =>
+      simp [quotArity] at hlenA hlt; omega
+  | quotMk hu =>
+    cases h with
+    | quotMk hu' =>
+      rw [hu] at hu'; cases hu'
+      simp only [List.cons_append, List.nil_append, List.cons.injEq] at hA
+      obtain ⟨rfl, rfl, rfl, rfl⟩ := hA
+      rw [appList_snoc] at ht ⊢
+      exact ⟨T, ht⟩
+    | quotEta _ hlt =>
+      simp [quotArity] at hlenA hlt; omega
+  | quotLift hu =>
+    cases h with
+    | quotLift hu' =>
+      rw [hu] at hu'; cases hu'
+      simp only [List.cons_append, List.nil_append, List.cons.injEq] at hA
+      obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ := hA
+      rw [appList_snoc] at ht ⊢
+      exact ⟨T, ht⟩
+    | quotEta _ hlt =>
+      simp [quotArity] at hlenA hlt; omega
+  | quotInd hu =>
+    cases h with
+    | quotInd hu' =>
+      rw [hu] at hu'; cases hu'
+      simp only [List.cons_append, List.nil_append, List.cons.injEq] at hA
+      obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩ := hA
+      rw [appList_snoc] at ht ⊢
+      exact ⟨T, ht⟩
+    | quotEta _ hlt =>
+      simp [quotArity] at hlenA hlt; omega
+  | quotEta hu hlt h₀ =>
+    cases h with
+    | quotEta hu' _ h₀' =>
+      rw [hu] at hu'; cases hu'
+      rw [h₀] at h₀'; cases h₀'
+      rw [← hA, appList_snoc] at ht ⊢
+      exact ⟨T, ht⟩
+    | quotType hu' =>
+      rw [hu] at hu'; cases hu'
+      obtain ⟨⟨_, hN⟩, -⟩ := InstPre.appList_inv ht
+      exact eta_step (quotTypeEta_defeq h₀ hN) (by rw [hA]; rfl) (by simpa [quotArity] using hlt)
+    | quotMk hu' =>
+      rw [hu] at hu'; cases hu'
+      obtain ⟨⟨_, hN⟩, -⟩ := InstPre.appList_inv ht
+      exact eta_step (quotMkEta_defeq hE hR h₀ hN) (by rw [hA]; rfl) (by simpa [quotArity] using hlt)
+    | quotLift hu' =>
+      rw [hu] at hu'; cases hu'
+      obtain ⟨⟨_, hN⟩, -⟩ := InstPre.appList_inv ht
+      exact eta_step (quotLiftEta_defeq hE hR h₀ hN) (by rw [hA]; rfl) (by simpa [quotArity] using hlt)
+    | quotInd hu' =>
+      rw [hu] at hu'; cases hu'
+      obtain ⟨⟨_, hN⟩, -⟩ := InstPre.appList_inv ht
+      exact eta_step (quotIndEta_defeq hE hR h₀ hN) (by rw [hA]; rfl) (by simpa [quotArity] using hlt)
+
 end
 
 end EraseProof

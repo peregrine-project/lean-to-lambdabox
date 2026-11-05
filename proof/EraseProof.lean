@@ -47,3 +47,4 @@ import EraseProof.Oracle.Agree
 import EraseProof.Oracle.InferRecr
 import EraseProof.Source.ProofSound
 import EraseProof.Bridge.SatTyped
+import EraseProof.Oracle.Infer
