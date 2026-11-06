@@ -27,13 +27,16 @@ and the shipping code (by default the modules `EraseProof` and `LeanToLambdaBox`
   `unsafe` nor `implemented_by`. Also exempt are the declarations Lean generates for an exempt
   constant when a proof unfolds or rewrites it (`isGeneratedComponent`: `eq_<n>`, `eq_def`,
   `else_eq`, `congr_simp`, `match_<n>`, and so on recursively); their bodies are walked like any other.
-* C7 `leaves`: every declaration outside `EraseProof.Test` is reachable from a root of `ROOTS.txt`
-  or from a statement definition (`statements`) (through types and values; a mutual block, an
-  inductive with its constructors, recursors, structure projections and the declarations
-  `inductive` generates for it, those of its nested occurrences included, is one node; generated
-  auxiliaries, `isAux`, are not checked); every root of `ROOTS.txt` is a theorem of the library
-  whose consumer does not exist yet; no root is reachable from another root; every test that is
-  not a theorem is reachable from a test theorem.
+* C7 `leaves`: every declaration outside `EraseProof.Test` is reachable from a root of `ROOTS.txt`,
+  from a statement definition or from a proved theorem of `statements` (through types and values;
+  a mutual block, an inductive with its constructors, recursors, structure projections and the
+  declarations `inductive` generates for it, those of its nested occurrences included, is one
+  node; generated auxiliaries, `isAux`, are not checked); every root of `ROOTS.txt` is a theorem
+  of the library whose consumer does not exist yet; no root is reachable from another root; every
+  test that is not a theorem is reachable from a test theorem. The proved theorems of `statements`
+  are results of their own, not lemmas of the final theorem: `collectDeps_ok_of` characterizes the
+  programs that pass the fragment test, which `erase_correct` takes as its hypothesis `hfrag` and
+  so does not use; reachability starts from each of them.
 * `expected`: the footprints of the roots and of the test theorems equal `axioms.expected`.
 * `modules`: every `.lean` file of the library's source tree is imported.
 * C9 `divergences`: every entry `### DV-<n>` of the divergence register has exactly the fields
@@ -52,9 +55,10 @@ and the shipping code (by default the modules `EraseProof` and `LeanToLambdaBox`
   whose type is definitionally equal (kernel `isDefEq`) to its statement definition; a theorem
   that does not exist must be listed in `unproved`, which is reported as not yet proved, and a
   theorem listed there must not exist.
-* C12 `final`: the final form. `ROOTS.txt` is the single line `EraseProof.erase_correct FINAL`, so
-  C7 checks reachability from the final theorem `erase_correct` and the statement definitions
-  (tests are roots by themselves); `unproved` is empty. `erase_correct` is a theorem whose
+* C12 `final`: the final form. The only line of `ROOTS.txt` with consumer `FINAL` is
+  `EraseProof.erase_correct FINAL`; every other line names a root whose consumer has not landed
+  (C7), so C7 checks reachability from the final theorem `erase_correct`, the statements and those
+  roots (tests are roots by themselves); `unproved` is empty. `erase_correct` is a theorem whose
   footprint is exactly `propext`, `Classical.choice`, `Quot.sound`, as is that of its instance on
   NV-1, `EraseProof.Test.NV1.final`, which applies `erase_correct` to NV-1's hypothesis terms
   (`finalHypotheses`), theorems within the same three axioms. Skipped with `--no-final`.
@@ -137,7 +141,8 @@ def pinRoots : Array Name := statements.map (·.2)
 def depPrefixes : Array Name := #[`Init, `Std, `Lean, `Mathlib, `Batteries, `Metalean, `Aesop,
   `Qq, `Plausible, `ProofWidgets, `ImportGraph, `LeanSearchClient, `Cli]
 
-/-- The final theorem, the only root of `ROOTS.txt` in the final form (C12). -/
+/-- The final theorem, the only root of `ROOTS.txt` with consumer `FINAL` in the final form
+(C12). -/
 def finalTheorem : Name := `EraseProof.erase_correct
 
 /-- The instance of the final theorem on NV-1 (C12). -/
@@ -936,7 +941,8 @@ def main (args : List String) : IO UInt32 := do
   for c in ours do
     let k := leafKey env c
     members := members.insert k ((members.getD k #[]).push c)
-  let (reached, via) := reach env members (roots ++ pinRoots.filter env.contains)
+  let (reached, via) := reach env members
+    (roots ++ pinRoots.filter env.contains ++ (statements.map (·.1)).filter env.contains)
   let mut leafKeys : Array Name := #[]
   for c in checked do
     if isTest c then
@@ -1049,8 +1055,8 @@ def main (args : List String) : IO UInt32 := do
     if !unproved.isEmpty then
       fail "final" s!"theorems not yet proved: {unproved.toList}"
     let rootLines := ((lines rootsText).filter (!isComment ·)).map fields
-    if rootLines != [[finalTheorem.toString, "FINAL"]] then
-      fail "final" s!"{cfg.roots} is not the single line `{finalTheorem} FINAL`"
+    if rootLines.filter (·.getLast? == some "FINAL") != [[finalTheorem.toString, "FINAL"]] then
+      fail "final" s!"{cfg.roots}: `{finalTheorem} FINAL` is not the only line with consumer FINAL"
     let theoremFp? (d : Name) : Option Footprint :=
       match env.find? d with
       | some (.thmInfo _) => if isOurs env d then some (fpOf d) else none

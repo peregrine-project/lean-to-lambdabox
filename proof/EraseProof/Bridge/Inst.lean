@@ -1,6 +1,5 @@
 import EraseProof.Bridge.Apps
 import EraseProof.Bridge.Weak
-import EraseProof.Metatheory.SubstRen
 
 /-!
 # Substitution into the translation

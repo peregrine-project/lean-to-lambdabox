@@ -134,10 +134,3 @@ EraseProof.Test.NV1.hfrag propext,Classical.choice,Quot.sound
 EraseProof.Test.NV1.hview propext
 EraseProof.Test.NV1.mem_P propext
 EraseProof.erase_correct propext,Classical.choice,Quot.sound
-EraseProof.collectDeps_ok_of propext,Classical.choice,Quot.sound
-EraseProof.visitMutual_nonrecursive propext,Classical.choice,Quot.sound
-EraseProof.Defeq.inst_tele propext,Classical.choice,Quot.sound
-EraseProof.Erases.app_inv propext,Classical.choice,Quot.sound
-EraseProof.Erases.inst_let propext,Classical.choice,Quot.sound
-EraseProof.TrM.det propext,Classical.choice,Quot.sound
-EraseProof.TrM.uninstantiateN propext,Classical.choice,Quot.sound

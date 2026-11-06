@@ -8,8 +8,8 @@ import EraseProof.Bridge.Basic
 
 Two translations of one Lean term are congruent (`TrM.dcong`): they differ only where the
 translation chooses by typing (the levels and parameters of a projection's major), and in their
-locals. With `DCong.defeq`, two translations typed at one type are definitionally equal at it
-(`TrM.det`). Reference: lean4lean `TrExprS.uniq`; `Defeq.uniqTy` (`ML Metatheory/Unique.lean:149`).
+locals. With `DCong.defeq`, two translations typed at one type are definitionally equal at it.
+Reference: lean4lean `TrExprS.uniq`; `Defeq.uniqTy` (`ML Metatheory/Unique.lean:149`).
 -/
 
 open Lean Erasure
@@ -613,15 +613,6 @@ theorem DCong.defeq₂ (hE : EnvWF E) {n : Nat} {Γ₁ Γ₂ : Metalean.Ctx ζ �
     exact DCong.defeq hE not_false (P := False)
       (TrDet.projProofTerm_dcong η s c ls₁ hi₁ f (fun p => .leaf (hps p).choose_spec) (.leaf hm))
       hΓ hc ht
-
-/-- Two translations typed at `T` are definitionally equal at `T` (projections choose their levels
-and parameters by typing). Reference: lean4lean `TrExprS.uniq`; `Defeq.uniqTy`
-(`ML Metatheory/Unique.lean:149`). -/
-theorem TrM.det {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n}
-    {e : Expr} {t₁ t₂ T : Metalean.Expr ζ lps.length n} (hE : EnvWF E) (hΓ : E[Γ] ⊢ ok)
-    (h₁ : TrM E B lps Γ Δ e t₁) (h₂ : TrM E B lps Γ Δ e t₂) (ht₁ : E[Γ] ⊢ t₁ : T)
-    (ht₂ : E[Γ] ⊢ t₂ : T) : E[Γ] ⊢ t₁ ≡ t₂ : T :=
-  DCong.defeq₂ hE (h₁.dcong h₂ (LocCong.refl Δ)) hΓ hΓ (DCong.CtxConv.refl hΓ) ⟨T, ht₂⟩ ht₁
 
 end
 
