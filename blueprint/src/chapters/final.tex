@@ -6,17 +6,19 @@
   reduction of the source semantics.
 \item \lead{Main results} \code{erase\_correct}, and its two milestones: the relation-level
   simulation \code{erases\_correct} (M1) and the soundness of the pure traversal
-  \code{erasePure\_erases} (M2).
+  \code{erasePure\_erases} (M2); the first-order corollary \code{erase\_correct\_firstorder}.
 \item \lead{Status} \stProved{} \hl{the final theorem \code{erase\_correct}}, by composition of
   its milestones (\leanfile{proof/EraseProof/Final.lean}); the simulation \code{erases\_correct}
   (M1), with one case lemma per rule of \code{SrcEval}; the soundness of the pure traversal
   \code{erasePure\_erases} (M2), by induction on fuel over the step lemmas of
   Section~\ref{sec:core-steps}. The statements are definitions of type \code{Prop}, pinned by
   \code{proof/spec.pin} (C12b); C12 checks each theorem's type against its statement. Four test
-  programs discharge every hypothesis (Chapter~\ref{chap:tests}).
+  programs discharge every hypothesis (Chapter~\ref{chap:tests}). \stProved{} the first-order
+  corollary, with instances on NV-1 and NV-2.
 \item \lead{Nodes} \bpnodes{chap:final}
 \item \lead{Lean files} \leanfile{proof/EraseProof/Statements.lean},
-  \leanfile{proof/EraseProof/Final.lean}, \leanfile{proof/EraseProof/Simulation/}.
+  \leanfile{proof/EraseProof/Final.lean}, \leanfile{proof/EraseProof/FirstOrder.lean},
+  \leanfile{proof/EraseProof/Simulation/}.
 \item \lead{Reference} MetaRocq \code{erase\_correct}
   (\code{erasure/theories/ErasureFunctionProperties.v}) and \code{erases\_correct}
   (\code{erasure/theories/ErasureCorrectness.v}); MetaCoq paper Sections 7.3--7.4.
@@ -29,7 +31,7 @@
   \lean{EraseProof.ViewAgrees}
   \leanok
   \uses{def:Erasure-EnvView}
-  \srcloc{proof/EraseProof/Spec.lean}{871}
+  \srcloc{proof/EraseProof/Spec.lean}{897}
   \lead{In short} \code{ViewAgrees view P}: \hl{the environment view of \code{\#erase} returns
   each declaration of \code{P} under its name}.
   \lead{Reference} \code{Sigma} $\sim$\code{\_ext X} (\code{abstract\_env\_ext\_rel}), a
@@ -135,6 +137,9 @@
   too (an \code{\_unsafe\_rec} companion, \code{Nat.add} and \code{Nat.beq} included) and
   recursors other than the companions of \code{casesOn}, so \hl{no \code{Nat} arithmetic}. Nat
   literals are in only under \code{nat := .peano}.
+\item \lead{Quotients} \code{SrcEval}, \code{Erases} and M1 cover \code{Quot.mk} and
+  \code{Quot.lift} (DV-29); the fragment test rejects quotient constants, so \hl{\code{hfrag}
+  excludes quotients from the final theorem}.
 \item \lead{Scope note} \hl{\code{erase\_correct} says nothing} about programs that evaluate
   through a constant without $\delta$ in the source, although the fragment admits them and the
   emitted program may compute:
@@ -154,6 +159,83 @@
   \code{erasePure} and \code{eraseEntry}, which it names: a fix to them leaves the statement
   unchanged.
 \end{itemize}
+
+\section{The first-order corollary}\label{sec:final-firstorder}
+
+On a first-order value the final theorem determines the $\lambda_\Box$ value: it is the value's
+structural erasure.
+
+\begin{definition}[First-order values]
+  \label{def:EraseProof-FirstOrderValue}
+  \lean{EraseProof.FirstOrderValue, EraseProof.foErase}
+  \leanok
+  \uses{def:Erasure-declExclusion, def:EraseProof-LBEval, def:EraseProof-Erases,
+    def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-isAtom, def:EraseProof-SrcEval,
+    def:EraseProof-ConstsIn, def:LBTerm}
+  \srcloc{proof/EraseProof/FirstOrder.lean}{21}
+  \lead{In short} \code{FirstOrderValue $\sigma$ v}: \hl{a tree of saturated constructor
+  applications} of inductives whose declared sort is never zero, with leaves erased to $\Box$.
+  \begin{itemize}
+  \item \code{ctor}: the declared type an arity whose sort \code{isNeverZero}; all parameters and
+        fields first-order;
+  \item \code{proof}: a saturated constructor of an inductive declared in \code{Prop}, arbitrary
+        arguments;
+  \item \code{atom}: an atom spine, such as \code{List Nat} or a theorem applied;
+  \item \code{foErase $\sigma$ v []}: the structural erasure, a constructor to its $\lambda_\Box$
+        \code{construct} applied to the erased arguments, everything else to $\Box$.
+  \end{itemize}
+  \lead{Reference} \code{firstorder\_value} (\code{PCUICFirstorder.v}); \code{compile\_value\_erase}
+  for \code{foErase}; DV-27.
+\end{definition}
+
+\begin{lemma}[An erased first-order value is its structural erasure]
+  \label{lem:EraseProof-Erases-firstOrder}
+  \lean{EraseProof.Erases.firstOrder, EraseProof.foErase_foldl, EraseProof.foErase_atomSpine}
+  \leanok
+  \uses{def:EraseProof-FirstOrderValue, def:EraseProof-MBinding, def:EraseProof-TrM,
+    def:EraseProof-ProgEnv, def:EraseProof-LBEval, def:EraseProof-Erases, def:EraseProof-EvalEnv,
+    def:EraseProof-EvalEnv-isAtom, def:EraseProof-ConstsIn, def:LBTerm}
+  \srcloc{proof/EraseProof/FirstOrder.lean}{90}
+  \lead{In short} An erasure \code{vb} of a first-order value \code{v} that is a $\lambda_\Box$
+  evaluation result \hl{is \code{foErase $\sigma$ v []}}.
+  \begin{itemize}
+  \item \lead{Given} \code{ProgEnv P $\zeta$ E B}, \code{EnvWF E}, \code{SubEnv $\sigma$.decls P},
+        \code{FirstOrderValue $\sigma$ v}, \code{Erases \ldots\ v vb}, \code{LBEval \ldots\ s vb};
+  \item \lead{Why the evaluation} an atom spine erases in many ways ($\Box$, $\Box\ \Box$); only a
+        $\lambda_\Box$ result is $\Box$.
+  \end{itemize}
+  \lead{Reference} MetaRocq \code{firstorder\_erases\_deterministic}.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-PropInductive-of_propInd, lem:EraseProof-erases_correct_ctor,
+    lem:EraseProof-TrM-weakBV, def:Erasure-declExclusion, lem:EraseProof-Erases-closed,
+    def:EraseProof-IsErasable, def:EraseProof-SrcEval}
+  \leanok
+  \lead{Idea} Induction on \code{FirstOrderValue}: \code{ctor\_not\_erasable} excludes $\Box$ at
+  a constructor node, \code{ctor\_inv} fixes its shape and \code{construct\_args} the arguments'
+  evaluation; the leaves are $\Box$ (\code{ctorProp\_box}, \code{atomSpine\_box}).
+\end{proof}
+
+\begin{corollary}[The final theorem on first-order values]
+  \label{cor:EraseProof-erase_correct_firstorder}
+  \lean{EraseProof.erase_correct_firstorder}
+  \leanok
+  \srcloc{proof/EraseProof/FirstOrder.lean}{128}
+  \lead{In short} Under the eight hypotheses of \code{erase\_correct}, if \code{v} is first-order,
+  \hl{\code{p}'s main term evaluates to \code{foErase $\sigma$ v []}}.
+  \begin{itemize}
+  \item \lead{Given} the hypotheses of Theorem~\ref{thm:EraseProof-erase_correct}, and
+        \code{hfo : FirstOrderValue (evalEnvOf view cfg P) v};
+  \item \lead{Then} $\exists$ \code{lenv tb}, \code{p = .untyped lenv (some tb)} $\wedge$
+        \code{LBEval defaultFlags lenv tb (foErase (evalEnvOf view cfg P) v [])}.
+  \end{itemize}
+  \lead{Reference} MetaRocq \code{erase\_correct\_strong}.
+\end{corollary}
+\begin{proof}
+  \leanok
+  \lead{Idea} \code{erase\_correct}, then \code{Erases.firstOrder} at \code{SubEnv P P}
+  (\code{CollectSub.findDecl\_of\_view}).
+\end{proof}
 
 \section{The milestones}\label{sec:final-milestones}
 
@@ -218,7 +300,7 @@
     def:EraseProof-EvalEnv-isAtom, def:EraseProof-EvalEnv-etaSpine, def:EraseProof-SrcEval,
     def:EraseProof-SrcValue, def:EraseProof-ConstsIn, def:LBTerm, def:toKername,
     def:Erasure-TravCtx}
-  \srcloc{proof/EraseProof/Simulation/Cases.lean}{379}
+  \srcloc{proof/EraseProof/Simulation/Cases.lean}{420}
   \lead{In short} One lemma per rule (\code{beta}, \code{zeta}, \code{delta}, \code{constAtom},
   \code{appCong}, \code{mdata}, \code{atom}): from the rule's premises and an \code{ErasesSim} per
   evaluation premise, \hl{\code{ErasesSim} of the rule's conclusion}.
@@ -303,7 +385,7 @@
     def:EraseProof-Erases, def:EraseProof-ErasesDeps, def:EraseProof-IsErasable,
     def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-isAtom, def:EraseProof-EvalEnv-etaSpine,
     def:EraseProof-SrcEval, def:EraseProof-ConstsIn, def:LBTerm, def:GlobalDecl}
-  \srcloc{proof/EraseProof/Simulation/Ind.lean}{755}
+  \srcloc{proof/EraseProof/Simulation/Ind.lean}{762}
   \lead{In short} The case lemmas of \code{eta}, \code{lit}, \code{ctor}, \code{proj},
   \code{projProp}, \code{casesProof} and \code{casesLitZero}, \hl{in the pattern of
   Lemma~\ref{lem:EraseProof-erases_correct_beta}}.
@@ -338,7 +420,7 @@
   \uses{def:EraseProof-MBinding, def:EraseProof-TrM, def:EraseProof-LBEval, def:EraseProof-Erases,
     def:EraseProof-EvalEnv, def:EraseProof-SrcEval, def:EraseProof-SrcValue,
     def:EraseProof-ConstsIn, def:LBTerm}
-  \srcloc{proof/EraseProof/Simulation/Iota.lean}{414}
+  \srcloc{proof/EraseProof/Simulation/Iota.lean}{472}
   \lead{In short} \code{HeadBeta $\sigma$ e X}: \hl{\code{X} arises from \code{e} by head
   $\beta$-steps} of a $\lambda$-headed spine whose arguments evaluate to themselves only.
   \begin{itemize}
@@ -370,7 +452,8 @@
     EraseProof.SimIota.lbeval_box, EraseProof.SimIota.erasable_app,
     EraseProof.SimIota.short_erases_inv, EraseProof.SimIota.lam_erases_inv,
     EraseProof.SimIota.forall_snoc_intro, EraseProof.SimIota.appBox_step,
-    EraseProof.SimIota.appBox, EraseProof.SimIota.fields_erasable}
+    EraseProof.SimIota.appBox, EraseProof.SimIota.fields_erasable,
+    EraseProof.SimIota.fixed_quotMk}
   \leanok
   \uses{def:EraseProof-PhaseIDecl, def:EraseProof-erases_correct_statement,
     def:EraseProof-ErasesSim, def:EraseProof-SimIota-HeadBeta, def:EraseProof-MBinding,
@@ -379,7 +462,7 @@
     def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-isAtom, def:EraseProof-EvalEnv-etaSpine,
     def:EraseProof-SrcEval, def:EraseProof-SrcValue, def:EraseProof-ConstsIn, def:LBTerm,
     def:Erasure-TravCtx}
-  \srcloc{proof/EraseProof/Simulation/Iota.lean}{987}
+  \srcloc{proof/EraseProof/Simulation/Iota.lean}{1069}
   \lead{In short} The \code{casesIota} and \code{casesLitSucc} case lemmas, with \hl{the
   induction hypothesis on every head-$\beta$-reduct} of the alternative applied to the fields.
   \begin{itemize}
@@ -408,6 +491,44 @@
   \code{substl\_cons\_closed}); \code{res\_of\_eval} makes the fields fixed.
 \end{proof}
 
+\begin{lemma}[The quotient cases of the simulation]
+  \label{lem:EraseProof-erases_correct_quotMk}
+  \lean{EraseProof.erases_correct_quotMk, EraseProof.erases_correct_quotLift,
+    EraseProof.srcValue_quotMk_arg}
+  \leanok
+  \uses{def:EraseProof-ErasesSim, def:EraseProof-MBinding, def:EraseProof-ProgEnv,
+    def:EraseProof-EvalEnv, def:EraseProof-SrcEval, def:EraseProof-SrcValue,
+    def:EraseProof-ConstsIn}
+  \srcloc{proof/EraseProof/Simulation/Quot.lean}{50}
+  \lead{In short} The case lemmas of \code{quotMk} and \code{quotLift}, \hl{the quotient
+  $\iota$ simulated by $\lambda_\Box$'s $\beta$}.
+  \begin{itemize}
+  \item \code{quotMk}: an erasure of \code{Quot.mk $\alpha$ r a} is $\Box$ or one of \code{a};
+  \item \code{quotLift}: the erasure \code{f' q'} evaluates \code{f'} to an erased $\lambda$ and
+        \code{q'} to an erasure of the element, $\Box$ when the quotient is a proposition
+        (\code{IsErasable.quotMk\_inv}); $\beta$ substitutes it (\code{Erases.inst});
+  \item \code{srcValue\_quotMk\_arg}: the element of a \code{Quot.mk} value is a value.
+  \end{itemize}
+  \lead{Reference} the \code{eval\_construct} and \code{eval\_beta} cases of
+  \code{erases\_correct}; DV-29.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-erases_correct_beta, lem:EraseProof-erases_correct_casesIota,
+    def:EraseProof-TrLevel, def:EraseProof-SatTr, def:EraseProof-TrM, lem:EraseProof-DCong-defeq,
+    lem:EraseProof-TrM-apps, lem:EraseProof-TrM-inst, lem:EraseProof-ProgEnv-lookup,
+    lem:EraseProof-ProgEnv-lookup_quot, lem:EraseProof-casesOn_whred, def:Erasure-declExclusion,
+    def:EraseProof-LBEval, def:EraseProof-Subsingleton, def:EraseProof-Erases,
+    def:EraseProof-ErasesDeps, lem:EraseProof-Erases-closed, lem:EraseProof-Erases-inst,
+    lem:EraseProof-ErasesDeps-eval, def:EraseProof-IsErasable, lem:EraseProof-IsErasable-inst,
+    lem:EraseProof-IsErasable-quotMk_inv, def:EraseProof-EvalEnv-isAtom,
+    def:EraseProof-EvalEnv-etaSpine, lem:EraseProof-SrcEval-value,
+    lem:EraseProof-SrcDefeq-sound_of, lem:EraseProof-SrcEval-defeq, lem:EraseProof-ErasableS-eval,
+    def:LBTerm, def:toKername, def:GlobalDecl, def:Erasure-TravCtx}
+  \leanok
+  \lead{Idea} Invert the erasure (\code{Erases.quot\_inv}); the typed translation of the body at
+  \code{a} comes from \leandecl{Metalean.WHRed.quotIota_defeq} and $\beta$.
+\end{proof}
+
 \begin{theorem}[M1: simulation]
   \label{thm:EraseProof-erases_correct}
   \lean{EraseProof.erases_correct, EraseProof.SimMain.app_mkAppN, EraseProof.SimMain.short_head,
@@ -417,7 +538,7 @@
     def:EraseProof-ErasesSim, def:EraseProof-SimIota-HeadBeta, def:EraseProof-MBinding,
     def:EraseProof-ProgEnv, def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-etaSpine,
     def:EraseProof-SrcEval, def:EraseProof-ConstsIn}
-  \srcloc{proof/EraseProof/Simulation/Main.lean}{179}
+  \srcloc{proof/EraseProof/Simulation/Main.lean}{189}
   \lead{In short} An erasure with erased dependencies of a typed, evaluating term \hl{evaluates
   in $\lambda_\Box$ to an erasure of the value}.
   \begin{itemize}
@@ -433,11 +554,11 @@
 \end{theorem}
 \begin{proof}
   \uses{lem:EraseProof-erases_correct_beta, lem:EraseProof-erases_correct_ctor,
-    lem:EraseProof-erases_correct_casesIota, def:EraseProof-SatTr, def:EraseProof-TrM,
-    lem:EraseProof-TrM-weakBV, lem:EraseProof-TrM-apps, lem:EraseProof-SatTr-typed,
-    def:Erasure-Pure-instLevels, def:EraseProof-LBEval, def:EraseProof-Erases,
-    def:EraseProof-ErasesDeps, def:EraseProof-EvalEnv-isAtom, lem:EraseProof-SrcDefeq-sound_of,
-    def:LBTerm}
+    lem:EraseProof-erases_correct_casesIota, lem:EraseProof-erases_correct_quotMk,
+    def:EraseProof-SatTr, def:EraseProof-TrM, lem:EraseProof-TrM-weakBV, lem:EraseProof-TrM-apps,
+    lem:EraseProof-SatTr-typed, def:Erasure-Pure-instLevels, def:EraseProof-LBEval,
+    def:EraseProof-Erases, def:EraseProof-ErasesDeps, def:EraseProof-EvalEnv-isAtom,
+    lem:EraseProof-SrcDefeq-sound_of, def:LBTerm}
   \leanok
   \lead{Idea} \code{SimMain.sim}: induction on \code{SrcEval} with the motive ``for every
   head-$\beta$-reduct \code{X} of \code{e}, \code{SrcEval $\sigma$ X v} and \code{ErasesSim} of
@@ -541,8 +662,9 @@ Hypothesis & MetaRocq & Why it is there \\
 \begin{itemize}
 \item \lead{Caveat} Partial correctness: nothing is claimed when \code{\#erase} fails or the source
   does not evaluate.
-\item \lead{Caveat} No first-order corollary: \code{vb} is an erasure of \code{v}, not pinned to
-  its structural erasure; no claim about the constants to inline.
+\item \lead{Caveat} The first-order corollary pins \code{vb} only on first-order values: no
+  $\lambda$, no Peano literal, no sort or $\Pi$ as a parameter; no claim about the constants to
+  inline.
 \item \lead{Caveat} No well-formedness of the emitted program beyond closedness; only
   \code{peregrine validate} checks it (C11).
 \item \lead{Caveat} Programs defined by well-founded recursion are excluded; the theorem would be

@@ -14,12 +14,12 @@
 % \bpdefinenodes{chapter}{badges}: the nodes of a chapter by kind, which \bpnodes{chapter} prints.
 \bpdefinenodes{chap:trust}{\bpkind{shipping}~13 \bpkind{metalean}~71}
 \bpdefinenodes{chap:pure}{\bpkind{shipping}~12}
-\bpdefinenodes{chap:model}{\bpkind{step}~3 \bpkind{lemma}~15 \bpkind{definition}~7}
-\bpdefinenodes{chap:source}{\bpkind{step}~3 \bpkind{lemma}~6 \bpkind{definition}~9}
+\bpdefinenodes{chap:model}{\bpkind{step}~3 \bpkind{lemma}~16 \bpkind{definition}~7}
+\bpdefinenodes{chap:source}{\bpkind{step}~3 \bpkind{lemma}~7 \bpkind{definition}~9}
 \bpdefinenodes{chap:relation}{\bpkind{step}~1 \bpkind{lemma}~7 \bpkind{definition}~4}
 \bpdefinenodes{chap:core}{\bpkind{step}~14 \bpkind{lemma}~20 \bpkind{definition}~9}
-\bpdefinenodes{chap:final}{\bpkind{final}~1 \bpkind{milestone}~2 \bpkind{step}~3 \bpkind{lemma}~1 \bpkind{definition}~6}
-\bpdefinenodes{chap:tests}{\bpkind{test}~18}
+\bpdefinenodes{chap:final}{\bpkind{final}~1 \bpkind{milestone}~2 \bpkind{step}~4 \bpkind{lemma}~3 \bpkind{definition}~7}
+\bpdefinenodes{chap:tests}{\bpkind{test}~20}
 % \bpsetkind{label}{kind}{status}{inherited sorries}: every node (the print version puts the badges after its heading).
 \bpsetkind{def:EraseProof-LocalsOK}{definition}{standard}{}
 \bpsetkind{lem:EraseProof-Pure-whnf_sound}{step}{standard}{}
@@ -67,6 +67,9 @@
 \bpsetkind{def:EraseProof-ViewAgrees}{definition}{standard}{}
 \bpsetkind{def:EraseProof-erase_correct_statement}{definition}{standard}{}
 \bpsetkind{thm:EraseProof-erase_correct}{final}{standard}{}
+\bpsetkind{def:EraseProof-FirstOrderValue}{definition}{standard}{}
+\bpsetkind{lem:EraseProof-Erases-firstOrder}{lemma}{standard}{}
+\bpsetkind{cor:EraseProof-erase_correct_firstorder}{lemma}{standard}{}
 \bpsetkind{def:EraseProof-erases_correct_statement}{definition}{standard}{}
 \bpsetkind{def:EraseProof-ErasesSim}{definition}{standard}{}
 \bpsetkind{lem:EraseProof-erases_correct_beta}{step}{standard}{}
@@ -74,6 +77,7 @@
 \bpsetkind{lem:EraseProof-erases_correct_ctor}{step}{standard}{}
 \bpsetkind{def:EraseProof-SimIota-HeadBeta}{definition}{standard}{}
 \bpsetkind{lem:EraseProof-erases_correct_casesIota}{step}{standard}{}
+\bpsetkind{lem:EraseProof-erases_correct_quotMk}{step}{standard}{}
 \bpsetkind{thm:EraseProof-erases_correct}{milestone}{standard}{}
 \bpsetkind{def:EraseProof-erasePure_erases_statement}{definition}{standard}{}
 \bpsetkind{thm:EraseProof-erasePure_erases}{milestone}{standard}{}
@@ -95,6 +99,7 @@
 \bpsetkind{def:EraseProof-ProgEnv}{definition}{standard}{}
 \bpsetkind{lem:EraseProof-TrM-wkEnv}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-ProgEnv-lookup}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-ProgEnv-lookup_quot}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-ProgEnv-unfold}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-ctorSat_iota}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-casesOn_shape}{lemma}{standard}{}
@@ -129,6 +134,7 @@
 \bpsetkind{def:EraseProof-IsErasable}{definition}{standard}{}
 \bpsetkind{lem:EraseProof-IsErasable-inst}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-IsErasable-ctor_not}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-IsErasable-quotMk_inv}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-IsErasable-quotMk_not}{lemma}{planned}{}
 \bpsetkind{def:EraseProof-EvalEnv}{definition}{standard}{}
 \bpsetkind{def:EraseProof-EvalEnv-isAtom}{definition}{standard}{}
@@ -150,6 +156,7 @@
 \bpsetkind{def:EraseProof-Test-NV1-E}{test}{standard}{}
 \bpsetkind{lem:EraseProof-Test-NV1-henv}{test}{standard}{}
 \bpsetkind{lem:EraseProof-Test-NV1-final}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NV1-firstorder}{test}{standard}{}
 \bpsetkind{lem:EraseProof-Test-NV1-ok_of}{test}{standard}{}
 \bpsetkind{def:EraseProof-Test-NVP-P}{test}{standard}{}
 \bpsetkind{lem:EraseProof-Test-NVPK-hrun}{test}{standard}{}
@@ -161,6 +168,7 @@
 \bpsetkind{def:EraseProof-Test-NV2-E}{test}{standard}{}
 \bpsetkind{lem:EraseProof-Test-NV2-henv}{test}{standard}{}
 \bpsetkind{lem:EraseProof-Test-NV2-final}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NV2-firstorder}{test}{standard}{}
 \bpsetkind{lem:EraseProof-Test-LBEval-deterministic}{test}{standard}{}
 \bpsetkind{def:LBTerm}{shipping}{standard}{}
 \bpsetkind{def:abstract}{shipping}{standard}{}

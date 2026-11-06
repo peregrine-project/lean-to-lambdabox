@@ -7,10 +7,10 @@
 \item \lead{Main results} \code{erase\_correct} applied with all eight hypotheses to four
   programs: NV-1 (a \code{casesOn} on \code{inductive B | f | t}), NV-P and NV-K (an
   \code{Eq.casesOn} on a constructor and on a lemma), NV-2 (a \code{casesOn} that binds a data
-  field and a proof field); the lower bound \code{collectDeps\_ok\_of} on NV-1; determinism of
-  $\lambda_\Box$ evaluation.
+  field and a proof field); the first-order corollary on NV-1 and NV-2; the lower bound
+  \code{collectDeps\_ok\_of} on NV-1; determinism of $\lambda_\Box$ evaluation.
 \item \lead{Status} \stProved{} every node; the runs by kernel evaluation of the shipping code.
-  C12 checks the footprint of each \code{final} instance.
+  C12 checks the footprint of each \code{final} and \code{firstorder} instance.
 \item \lead{Nodes} \bpnodes{chap:tests}
 \item \lead{Lean files} \leanfiles{proof/EraseProof/Test/}{NV1Data, NV1Model, NV1Run, NV1Final,
   NV1Collect, NVPData, NVPModel, NVKModel, NVPRun, NVPFinal, NV2Data, NV2Model, NV2Run, NV2Final,
@@ -206,7 +206,7 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
     def:Erasure-collectDeps, def:EraseProof-LBEval, def:EraseProof-Erases, def:EraseProof-EvalEnv,
     def:EraseProof-SrcEval, def:EraseProof-ConstsIn, def:EraseProof-Test-NV1-P,
     lem:EraseProof-Test-NV1-hrun, def:EraseProof-Test-NV1-E, def:LBTerm, def:ASTType}
-  \srcloc{proof/EraseProof/Test/NV1Final.lean}{54}
+  \srcloc{proof/EraseProof/Test/NV1Final.lean}{56}
   \lead{In short} \code{erase\_correct} applied to NV-1 with \hl{all eight hypotheses}: the
   program \code{p0} is untyped, and its main term evaluates to an erasure of \code{B.t}.
   \begin{itemize}
@@ -221,6 +221,28 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
     def:EraseProof-EvalEnv-etaSpine, lem:EraseProof-Test-NV1-henv, def:toKername}
   \leanok
   \lead{Idea} The rules of \code{SrcEval}; the other hypotheses from the nodes above.
+\end{proof}
+
+\begin{lemma}[NV-1: the first-order corollary]
+  \label{lem:EraseProof-Test-NV1-firstorder}
+  \lean{EraseProof.Test.NV1.firstorder, EraseProof.Test.NV1.fo_cT}
+  \leanok
+  \uses{def:EraseProof-FirstOrderValue, def:EraseProof-LBEval, def:EraseProof-EvalEnv,
+    def:EraseProof-Test-NV1-P, lem:EraseProof-Test-NV1-hrun, def:LBTerm, def:ASTType}
+  \srcloc{proof/EraseProof/Test/NV1Final.lean}{70}
+  \lead{In short} \code{erase\_correct\_firstorder} applied to NV-1: the main term of \code{p0}
+  \hl{evaluates to \code{.construct iidB 1 []}}, which is \code{B.t}.
+  \begin{itemize}
+  \item \code{fo\_cT}: \code{B.t} is a first-order value; its \code{foErase} is the
+        \code{construct} by \code{rfl}.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{cor:EraseProof-erase_correct_firstorder, def:Erasure-declExclusion,
+    def:EraseProof-ConstsIn, def:EraseProof-Test-NV1-E, lem:EraseProof-Test-NV1-henv,
+    lem:EraseProof-Test-NV1-final, def:toKername}
+  \leanok
+  \lead{Idea} The hypotheses of \code{final}, and \code{FirstOrderValue.ctor}.
 \end{proof}
 
 \begin{lemma}[NV-1: the lower bound of the fragment test]
@@ -278,7 +300,8 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
   (NV-P) and on a lemma \code{hEq} (NV-K)}; both evaluate to \code{fun y => y}.
   \begin{itemize}
   \item \code{NVP.P}: \code{Eq.casesOn}, \code{Eq.rec}, \code{Eq.refl}, \code{Eq} and NV-1's
-        \code{B}; \code{NVK.P}: the theorem \code{hEq} added;
+        \code{B}, which \leanfile{proof/tools/NVEmit.lean} checks against the kernel's;
+        \code{NVK.P}: the theorem \code{hEq} added;
   \item the views read the declarations as lists, with no attributes; the default configuration.
   \end{itemize}
 \end{definition}
@@ -600,7 +623,7 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
     def:EraseProof-SrcEval, def:EraseProof-ConstsIn, def:EraseProof-Test-NV1-P,
     def:EraseProof-Test-NV2-P, lem:EraseProof-Test-NV2-hrun, def:EraseProof-Test-NV2-E, def:LBTerm,
     def:ASTType}
-  \srcloc{proof/EraseProof/Test/NV2Final.lean}{68}
+  \srcloc{proof/EraseProof/Test/NV2Final.lean}{69}
   \lead{In short} \code{erase\_correct} applied to NV-2 with \hl{all eight hypotheses}: the
   emitted program evaluates to an erasure of \code{B.t}.
   \begin{itemize}
@@ -613,6 +636,25 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
     lem:EraseProof-Test-NV2-henv, def:toKername}
   \leanok
   \lead{Idea} The rules of \code{SrcEval}; the other hypotheses from the nodes above.
+\end{proof}
+
+\begin{lemma}[NV-2: the first-order corollary]
+  \label{lem:EraseProof-Test-NV2-firstorder}
+  \lean{EraseProof.Test.NV2.firstorder, EraseProof.Test.NV2.fo_cT}
+  \leanok
+  \uses{def:EraseProof-FirstOrderValue, def:EraseProof-LBEval, def:EraseProof-EvalEnv,
+    def:EraseProof-Test-NV1-P, lem:EraseProof-Test-NV1-hrun, def:EraseProof-Test-NV2-P,
+    lem:EraseProof-Test-NV2-hrun, def:LBTerm, def:ASTType}
+  \srcloc{proof/EraseProof/Test/NV2Final.lean}{84}
+  \lead{In short} \code{erase\_correct\_firstorder} applied to NV-2: the emitted program
+  \hl{evaluates to \code{B.t}}, as on NV-1.
+\end{lemma}
+\begin{proof}
+  \uses{cor:EraseProof-erase_correct_firstorder, def:Erasure-declExclusion,
+    def:EraseProof-ConstsIn, def:EraseProof-Test-NV2-E, lem:EraseProof-Test-NV2-henv,
+    lem:EraseProof-Test-NV2-final, def:toKername}
+  \leanok
+  \lead{Idea} As for NV-1.
 \end{proof}
 
 \section{\texorpdfstring{$\lambda_\Box$}{lambda-box} evaluation}\label{sec:tests-lbeval}
@@ -638,10 +680,10 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
 
 \section*{Caveats}
 \begin{itemize}
-\item \lead{Caveat} No instance has a projection, a Peano literal, a recursive type or an opaque;
-  that their premises are satisfiable is argued, not shown.
-\item \lead{Caveat} \leanfile{proof/tools/NVEmit.lean} checks the declarations of NV-1 and NV-2
-  against the kernel's; those of NV-P and NV-K are written by hand.
+\item \lead{Caveat} No instance has a projection, a Peano literal, a quotient, a recursive type
+  or an opaque; that their premises are satisfiable is argued, not shown.
+\item \lead{Caveat} \leanfile{proof/tools/NVEmit.lean} checks the declarations of NV-1, NV-2 and
+  NV-P against the kernel's; NV-K's lemma \code{hEq} is written by hand.
 \item \lead{Caveat} The views of the tests are the closures as lists; \code{\#erase} reads the
   whole environment, which agrees with them on their names. The kernel checks the instances on
   the logical definitions; NVEmit runs the compiled code.

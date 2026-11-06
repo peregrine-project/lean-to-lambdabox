@@ -70,15 +70,15 @@ projections of data structures & I & a $\lambda_\Box$ \code{proj}; Metalean's pr
 \code{casesOn} whose constructor has an index field (\code{Acc}, \code{Acc.below}) & -- & the
   relation does not model the substitution of index fields \\
 \code{Nat} literals under \code{nat := .peano} & I & constructor chains, as Metalean's fast
-  checker denotes them \\
+  checker denotes them; a literal above 65536 is an error of \code{\#erase} (S-45) \\
 recursors \code{T.rec} & II & erased to a $\lambda_\Box$ fixpoint over a \code{case} on both
   paths (S-40); the fragment test excludes them, and no rule of the relation covers them \\
 structural recursion (\code{brecOn}) & II & through the kernel definitions under
   \code{structural := .kernel} (S-42), on the \code{Meta} path; the default \code{.unsafeRec} is
   unchanged; the fragment test excludes it \\
-quotients & II & \code{Quot.mk} and \code{Quot.lift} erased as \code{LCNF} does; the shipping
-  traversal does so (S-38), the fragment test excludes them, and no rule of the relation covers
-  them \\
+quotients & II & \code{Quot.mk} and \code{Quot.lift} erased as \code{LCNF} does (S-38); the
+  source semantics, the relation and the simulation have their rules (DV-29); the fragment test
+  excludes them, so the final theorem does not cover them \\
 well-founded recursion & -- & the fragment test rejects it (an \code{\_unsafe\_rec} companion);
   its recursion reduces only through an opaque accessibility proof, so the source never evaluates
   it (DV-24) \\

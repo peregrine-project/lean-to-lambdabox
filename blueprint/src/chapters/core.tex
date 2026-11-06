@@ -363,7 +363,7 @@
   \leanok
   \uses{def:Erasure-EnvView, def:Erasure-declExclusion, def:EraseProof-EvalEnv,
     def:EraseProof-ConstsIn, def:toKername, def:Erasure-ErasureConfig}
-  \srcloc{proof/EraseProof/Spec.lean}{943}
+  \srcloc{proof/EraseProof/Spec.lean}{969}
   \lead{In short} The hypotheses of \code{collectDeps\_ok\_of}: \hl{what the traversal reads of a
   closure is inside Phase I}.
   \begin{itemize}
@@ -801,7 +801,7 @@ state to the Metalean environment.
     def:Erasure-casesInfo, def:Erasure-Pure-isErasable, def:Erasure-PureM,
     def:EraseProof-DepClosed, def:EraseProof-ClosedDecls, def:LBTerm, def:toKername,
     def:Erasure-ErasureConfig, def:Erasure-TravCtx, def:Erasure-EraseT, def:Erasure-erase}
-  \srcloc{proof/EraseProof/Core/Frame.lean}{1386}
+  \srcloc{proof/EraseProof/Core/Frame.lean}{1389}
   \lead{In short} At the pure backend, \code{visitExpr} \hl{reads the locals only on the term's
   free variables}, from any state and counter.
   \begin{itemize}
@@ -899,7 +899,7 @@ into \code{erasePure\_erases}.
     def:EraseProof-ErasesDeps, def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-isAtom,
     def:EraseProof-ConstsIn, def:LBTerm, def:toKername, def:Erasure-ErasureConfig,
     def:Erasure-TravCtx, def:Erasure-EraseT, def:Erasure-erase}
-  \srcloc{proof/EraseProof/Core/Steps.lean}{556}
+  \srcloc{proof/EraseProof/Core/Steps.lean}{572}
   \lead{In short} \code{ExprSpec \ldots\ fuel e}: a successful run of \code{visitExpr fuel e} at
   the pure backend \hl{returns an erasure of \code{e}} and keeps the state invariant.
   \begin{itemize}
@@ -932,7 +932,7 @@ into \code{erasePure\_erases}.
     def:EraseProof-erases_correct_statement, def:EraseProof-MBinding, def:EraseProof-ProgEnv,
     def:Erasure-EnvView, def:EraseProof-ConstsIn, def:EraseProof-DepClosed,
     def:EraseProof-ClosedDecls, def:Erasure-ErasureConfig}
-  \srcloc{proof/EraseProof/Core/Steps.lean}{491}
+  \srcloc{proof/EraseProof/Core/Steps.lean}{507}
   \lead{In short} \code{CoreEnv E B P decls view cfg}: \hl{the facts about the program and its
   closure} that every step uses.
   \begin{itemize}
@@ -956,7 +956,7 @@ into \code{erasePure\_erases}.
   \lean{EraseProof.Steps.NatPlain}
   \leanok
   \uses{def:Erasure-ErasureConfig}
-  \srcloc{proof/EraseProof/Core/Steps.lean}{458}
+  \srcloc{proof/EraseProof/Core/Steps.lean}{474}
   \lead{In short} \code{NatPlain cfg e}: under \code{nat := .machine}, \code{e} \hl{has no
   \code{Nat} literal and mentions neither \code{Nat.zero} nor \code{Nat.casesOn}}.
   \lead{Why} under \code{.machine}, \code{visitLiteral} erases the literal \code{0} to a primitive
@@ -1076,7 +1076,7 @@ into \code{erasePure\_erases}.
     def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-isAtom, def:EraseProof-EvalEnv-etaSpine,
     def:EraseProof-ConstsIn, def:EraseProof-DepClosed, def:LBTerm, def:abstract, def:toKername,
     def:Erasure-ErasureConfig, def:Erasure-TravCtx, def:Erasure-EraseT}
-  \srcloc{proof/EraseProof/Core/Steps.lean}{865}
+  \srcloc{proof/EraseProof/Core/Steps.lean}{881}
   \lead{In short} Given \code{CoreEnv} and \code{StepIH} at \code{fuel}, \hl{\code{ExprSpec} at
   \code{fuel + 1}} for every term that \code{visitExpr} erases without special code.
   \begin{itemize}
@@ -1126,7 +1126,7 @@ into \code{erasePure\_erases}.
     def:Erasure-PureM, def:Erasure-isRecursiveDecl, def:EraseProof-EvalEnv,
     def:EraseProof-EvalEnv-isAtom, def:EraseProof-ConstsIn, def:toKername,
     def:Erasure-ErasureConfig, def:Erasure-TravCtx, def:Erasure-EraseT}
-  \srcloc{proof/EraseProof/Core/Steps.lean}{1621}
+  \srcloc{proof/EraseProof/Core/Steps.lean}{1643}
   \lead{In short} Given \code{CoreEnv} and \code{StepIH} at \code{fuel}, \hl{\code{MutualSpec} at
   \code{fuel + 1}}: \code{visitMutual} registers an axiom, a remapped declaration, or a
   definition or opaque with its value erased.

@@ -583,6 +583,37 @@ universe instantiation in place of lean4lean's.
   typed by \code{EntryWF} of its entry.
 \end{proof}
 
+\begin{lemma}[Quotient constants in a program]
+  \label{lem:EraseProof-ProgEnv-lookup_quot}
+  \lean{EraseProof.ProgEnv.lookup_quot, EraseProof.ProgEnv.quot_bound,
+    EraseProof.ProgEnv.quot_head_unique, EraseProof.ProgEnv.quot_levels, EraseProof.quotLevels,
+    EraseProof.quotTerm_levels, EraseProof.SatTr.quot_levels, EraseProof.TrM.wf_app_quot,
+    EraseProof.split_last, EraseProof.MBinding.wk_quot_inv, EraseProof.Binds.wk_quot_inv}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-SatTr, def:EraseProof-TrM, def:EraseProof-ProgEnv,
+    def:EraseProof-ConstsIn}
+  \srcloc{proof/EraseProof/Bridge/Quot.lean}{40}
+  \lead{In short} Given \code{ProgEnv P $\zeta$ E B}, the quotient constants of \code{P} are
+  \hl{bound to one Metalean quotient entry}, each at its kind.
+  \begin{itemize}
+  \item \code{lookup\_quot}, \code{quot\_bound}: a quotient constant and its binding, at the same
+        kind, one of the four quotient names;
+  \item \code{quot\_head\_unique}: all quotient names share one entry, so the quotient $\iota$
+        applies to \code{Quot.lift \ldots\ (Quot.mk \ldots)};
+  \item \code{quot\_levels}, \code{quotLevels}: the kind's number of universe parameters;
+  \item \code{TrM.wf\_app\_quot}: an over-applied saturated quotient spine translates as an
+        application.
+  \end{itemize}
+  \lead{Reference} \code{quotTerm} of \leanfile{Metalean/Frontend/Translate.lean}.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-TrLevel, lem:EraseProof-TrM-weakBV, lem:EraseProof-TrM-instLevels,
+    lem:EraseProof-TrM-apps, lem:EraseProof-ProgEnv-lookup}
+  \leanok
+  \lead{Idea} Induction on \code{ProgEnv}; its quotient step binds the fixed list of four names to
+  one entry.
+\end{proof}
+
 \begin{lemma}[The \texorpdfstring{$\delta$}{delta} equation]
   \label{lem:EraseProof-ProgEnv-unfold}
   \lean{EraseProof.ProgEnv.unfold, EraseProof.ProgEnv.unfold_delta}
@@ -787,5 +818,6 @@ sides, and each head contributes an atom that no other head's interpretation con
   \code{partial} functions and unverified type inference stay outside the proof.
 \item \lead{Caveat} Recursor rules of Lean's declarations are not related: Metalean computes
   $\iota$ from the inductive block, and no lemma reads them.
-\item \lead{Caveat} The quotient lemmas serve Phase II, where quotients are in scope.
+\item \lead{Caveat} The quotient lemmas serve the quotient rules of the source semantics and the
+  simulation; the fragment test rejects quotients.
 \end{itemize}

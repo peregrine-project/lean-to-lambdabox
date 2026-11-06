@@ -67,8 +67,10 @@ UNICODE = {
     '\u03c3': r'\ensuremath{\sigma}',
     '\u03a0': r'\ensuremath{\Pi}',
     '\u0393': r'\ensuremath{\Gamma}',
+    '\u0394': r'\ensuremath{\Delta}',
     '\u03a3': r'\ensuremath{\Sigma}',
     '\u2192': r'\ensuremath{\to}',
+    '\u2933': r'\ensuremath{\leadsto}',
     '\U0001d4d4': r'\ensuremath{\mathcal{E}}',   # Letouzey's extraction function
     '\u2190': r'\ensuremath{\leftarrow}',
     '\u21a6': r'\ensuremath{\mapsto}',

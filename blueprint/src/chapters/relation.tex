@@ -79,7 +79,7 @@
     EraseProof.FieldsErasable, EraseProof.CasesReduced}
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-IsErasable, def:EraseProof-SrcEval}
-  \srcloc{proof/EraseProof/Spec.lean}{1033}
+  \srcloc{proof/EraseProof/Spec.lean}{1061}
   \lead{In short} MetaRocq's conditions on eliminations, \hl{stated on Metalean's constructor
   nodes}.
   \begin{itemize}
@@ -104,7 +104,7 @@
     def:EraseProof-LBEval, def:EraseProof-Subsingleton, def:EraseProof-IsErasable,
     def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-isAtom, def:EraseProof-EvalEnv-etaSpine,
     def:EraseProof-ConstsIn, def:LBTerm, def:toKername, def:Erasure-TravCtx}
-  \srcloc{proof/EraseProof/Spec.lean}{1064}
+  \srcloc{proof/EraseProof/Spec.lean}{1092}
   \lead{In short} \code{Erases E B lps $\sigma$ $\Gamma$ $\Delta$ e t}: the $\lambda_\Box$ term
   \code{t} \hl{is an erasure of the Lean term \code{e}}.
   \begin{tabular}{p{0.2\linewidth}p{0.66\linewidth}}
@@ -128,6 +128,8 @@
     \code{Prop} or its declared sort never zero \\
   \code{litZero}, \code{litSucc} & a \code{Nat} literal to its constructor chain
     (\code{nat := .peano}) \\
+  \code{quotMk}, \code{quotLift} & \hl{\code{Quot.mk $\alpha$ r a} to the erased element},
+    \code{Quot.lift $\alpha$ r $\beta$ f h q} to \code{f' q'}, extra arguments applied (DV-29) \\
   \bottomrule
   \end{tabular}
   \begin{itemize}
@@ -153,7 +155,7 @@
   \uses{def:EraseProof-MBinding, def:EraseProof-TrM, def:EraseProof-LBEval,
     def:EraseProof-Subsingleton, def:EraseProof-Erases, def:EraseProof-EvalEnv,
     def:EraseProof-ConstsIn, def:LBTerm, def:toKername, def:GlobalDecl}
-  \srcloc{proof/EraseProof/Spec.lean}{1198}
+  \srcloc{proof/EraseProof/Spec.lean}{1243}
   \lead{In short} The erased environment \code{lenv} \hl{erases the declarations the program
   uses}: each constant's body erases its value, and each inductive block erases to an
   \code{inductiveDecl}.
@@ -172,19 +174,20 @@
 
 \begin{lemma}[Inversion and closedness]
   \label{lem:EraseProof-Erases-closed}
-  \lean{EraseProof.Erases.closed, EraseProof.Erases.ctor_inv, EraseProof.Erases.cases_inv, EraseProof.Erases.atomSpine_box, EraseProof.Erases.ctorProp_box,
-    EraseProof.Erases.propProj_box}
+  \lean{EraseProof.Erases.closed, EraseProof.Erases.ctor_inv, EraseProof.Erases.cases_inv,
+    EraseProof.Erases.atomSpine_box, EraseProof.Erases.ctorProp_box,
+    EraseProof.Erases.propProj_box, EraseProof.Erases.quot_inv}
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-TrM, def:EraseProof-LBEval,
     def:EraseProof-Subsingleton, def:EraseProof-Erases, def:EraseProof-IsErasable,
     def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-isAtom, def:EraseProof-SrcEval,
     def:EraseProof-ConstsIn, def:LBTerm}
-  \srcloc{proof/EraseProof/Relation/Basic.lean}{343}
-  \lead{In short} An erasure is \hl{closed under its bound locals}, inverts at constructors and
-  \code{casesOn}, and is $\Box$ on proof values.
+  \srcloc{proof/EraseProof/Relation/Basic.lean}{368}
+  \lead{In short} An erasure is \hl{closed under its bound locals}, inverts at constructors,
+  \code{casesOn} and quotient spines, and is $\Box$ on proof values.
   \begin{itemize}
   \item \code{closed}: \code{closedn} of the number of bound locals;
-  \item \code{ctor\_inv}, \code{cases\_inv}: $\Box$ of an erasable term, or the
+  \item \code{ctor\_inv}, \code{cases\_inv}, \code{quot\_inv}: $\Box$ of an erasable term, or the
         rule's shape, extra arguments applied;
   \item \code{atomSpine\_box}, \code{propProj\_box}: an erasure of an atom spine or a neutral proof
         projection that is a $\lambda_\Box$ result is $\Box$;
@@ -256,7 +259,7 @@
     lem:EraseProof-TrM-instLevels, def:EraseProof-ProgEnv, def:Erasure-Pure-instLevels,
     def:EraseProof-Subsingleton, def:EraseProof-Erases, def:EraseProof-EvalEnv,
     def:EraseProof-EvalEnv-etaSpine, def:EraseProof-ConstsIn, def:LBTerm}
-  \srcloc{proof/EraseProof/Relation/Levels.lean}{641}
+  \srcloc{proof/EraseProof/Relation/Levels.lean}{667}
   \lead{In short} An erasure of a closed term that translates \hl{is an erasure of its universe
   instantiation}.
   \begin{itemize}
@@ -271,10 +274,11 @@
 \end{lemma}
 \begin{proof}
   \uses{def:EraseProof-natLitM, def:EraseProof-TypedExt, lem:EraseProof-TrM-weakBV,
-    lem:EraseProof-ProgEnv-lookup, lem:EraseProof-casesOn_shape, def:Erasure-declExclusion,
-    def:Erasure-casesInfo, def:EraseProof-LBEval, lem:EraseProof-Erases-extend,
-    def:EraseProof-IsErasable, lem:EraseProof-IsErasable-inst, def:EraseProof-EvalEnv-isAtom,
-    def:EraseProof-SrcEval, def:Erasure-TravCtx}
+    lem:EraseProof-ProgEnv-lookup, lem:EraseProof-ProgEnv-lookup_quot,
+    lem:EraseProof-casesOn_shape, def:Erasure-declExclusion, def:Erasure-casesInfo,
+    def:EraseProof-LBEval, lem:EraseProof-Erases-extend, def:EraseProof-IsErasable,
+    lem:EraseProof-IsErasable-inst, def:EraseProof-EvalEnv-isAtom, def:EraseProof-SrcEval,
+    def:Erasure-TravCtx}
   \leanok
   \lead{Idea} \code{instL\_gen}: induction on the derivation under binders, for \code{LvlOK} terms.
 \end{proof}
@@ -295,7 +299,7 @@
     def:EraseProof-ProgEnv, def:Erasure-Pure-instLevels, def:EraseProof-LBEval,
     def:EraseProof-Erases, def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-etaSpine,
     def:EraseProof-ConstsIn, def:EraseProof-DepClosed, def:LBTerm, def:abstract}
-  \srcloc{proof/EraseProof/Relation/Abstract.lean}{525}
+  \srcloc{proof/EraseProof/Relation/Abstract.lean}{546}
   \lead{In short} If the body opened with a fresh \code{x} erases to a closed \code{tb}, the body
   erases \hl{to \code{abstract x tb}} under the binder.
   \begin{itemize}
@@ -343,14 +347,16 @@
     EraseProof.RelInst.HeadInv, EraseProof.RelInst.Erases.instG, EraseProof.RelInst.atomSpine_head,
     EraseProof.RelInst.propProj_head, EraseProof.RelInst.srcValue_special,
     EraseProof.RelInst.ctorNode_of_TrM, EraseProof.RelInst.HB.var_of_ctor,
-    EraseProof.RelInst.inst_setup}
+    EraseProof.RelInst.inst_setup, EraseProof.RelInst.Node, EraseProof.RelInst.node_of_value,
+    EraseProof.RelInst.HB.of_node, EraseProof.RelInst.HB.of_defeq_node,
+    EraseProof.RelInst.HB.var_of_node}
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-SatTr, def:EraseProof-TrM, lem:EraseProof-TrM-inst,
     def:EraseProof-ProgEnv, def:EraseProof-LBEval, def:EraseProof-Erases,
     lem:EraseProof-Erases-abstract, def:EraseProof-IsErasable, def:EraseProof-EvalEnv,
     def:EraseProof-EvalEnv-isAtom, def:EraseProof-EvalEnv-etaSpine, def:EraseProof-SrcEval,
     def:EraseProof-SrcValue, def:EraseProof-ConstsIn, def:LBTerm}
-  \srcloc{proof/EraseProof/Relation/Inst.lean}{1327}
+  \srcloc{proof/EraseProof/Relation/Inst.lean}{1440}
   \lead{In short} Substituting \hl{a typed source value} into a typed term commutes with
   erasure.
   \begin{itemize}
@@ -372,7 +378,8 @@
 \begin{proof}
   \uses{def:EraseProof-TrLevel, def:EraseProof-natLitM, lem:EraseProof-TrM-weakBV,
     lem:EraseProof-SatTr-subst, lem:EraseProof-DCong-defeq, lem:EraseProof-ProgEnv-lookup,
-    lem:EraseProof-TypeEq-sort_ne_forallE, def:Erasure-declExclusion, def:Erasure-Pure-instLevels,
+    lem:EraseProof-ProgEnv-lookup_quot, lem:EraseProof-TypeEq-sort_ne_forallE,
+    lem:EraseProof-TypeEq-sort_ne_quot, def:Erasure-declExclusion, def:Erasure-Pure-instLevels,
     def:EraseProof-Subsingleton, lem:EraseProof-Erases-extend, def:EraseProof-DepClosed,
     def:toKername, def:Erasure-TravCtx}
   \leanok
@@ -425,7 +432,8 @@
 \begin{itemize}
 \item \lead{Caveat} Constructors and \code{casesOn} are $\eta$-expanded inside the relation, as
   the eraser emits them; MetaRocq $\eta$-expands in a separate pass.
-\item \lead{Caveat} The relation has no rule for recursors or quotients in Phase I.
+\item \lead{Caveat} The relation has no rule for recursors; its quotient rules are the
+  eraser's (S-38).
 \item \lead{Caveat} \code{casesReduced} does not model the substitution of index fields; the
   fragment test excludes constructors with index fields (Section~\ref{sec:scope-fragment}).
 \end{itemize}

@@ -4,7 +4,7 @@
 \section*{At a glance}
 \begin{itemize}
 \item \lead{Source} \code{doc/SHIPPING-CHANGES.md}, rendered by \code{blueprint/scripts/render\_registers.py}; every section below is the register's own text.
-\item \lead{Changes} 40 entries, one commit each, subject \code{shipping(S-<n>): ...}.
+\item \lead{Changes} 42 entries, one commit each, subject \code{shipping(S-<n>): ...}.
 \item \lead{Reported, not fixed} 28 entries.
 \end{itemize}
 
@@ -59,6 +59,8 @@ Entry & Title \\
 \ref{reg:S-38} & \texttt{Quot.mk} and \texttt{Quot.lift} are erased as the code generator erases them, on both paths \\
 \ref{reg:S-40} & Recursor applications are erased to fixpoints over a \texttt{case}, on both paths \\
 \ref{reg:S-42} & Under \texttt{structural := .kernel}, structural recursion is erased through the kernel's definitions \\
+\ref{reg:S-45} & A Peano literal above 65536 is an error of \texttt{\#erase}, on both paths \\
+\ref{reg:S-46} & Primitive integers are printed as numbers, and \texttt{\#erase\_\allowbreak{}lcnf} erases from the compiler's LCNF \\
 \bottomrule
 \end{tabular}
 
@@ -66,12 +68,12 @@ Entry & Title \\
 \toprule
 Entry & Title \\
 \midrule
-\ref{reg:R-1} & Primitive integers are printed as quoted strings \\
+\ref{reg:R-1} & Primitive integers are printed as quoted strings (fixed in S-46) \\
 \ref{reg:R-2} & String atoms are not escaped \\
 \ref{reg:R-3} & Kernames are not injective \\
 \ref{reg:R-4} & Unsupported literals are erased to \ensuremath{\Box} after a panic \\
 \ref{reg:R-5} & An alternative whose \ensuremath{\Pi}-type is not syntactic gets a branch without binders (fixed in S-31) \\
-\ref{reg:R-6} & Peano literals exhaust the stack \\
+\ref{reg:R-6} & Peano literals exhaust the stack (fixed in S-45) \\
 \ref{reg:R-7} & Inductive types are always declared non-propositional (fixed in S-25) \\
 \ref{reg:R-8} & Informative index fields of large-eliminating Prop inductives are lost (fixed in S-25) \\
 \ref{reg:R-9} & Recursors and other constants without a value become axioms \\
@@ -99,7 +101,7 @@ Entry & Title \\
 
 \textbf{Note.} The fixes of S-2 to S-14 were merged into \texttt{main} in PR \#7 as six regrouped commits: \texttt{Translate Int, Option, Array and products in .mli signatures}, \texttt{Fix generated-interface and inlinings rules of the benchmark Makefile}, \texttt{Add opt-in auto-inlining of typeclass dispatch}, \texttt{Port to Lean v4.33.0-rc2}, \texttt{Fix two log messages and the comment of fvar\_\allowbreak{}to\_\allowbreak{}name} (which also fixes R-15 and R-16) and \texttt{Update the README}. PR \#7 also replaced the regression tests of S-1 to S-15 by a smaller permanent suite (\texttt{tests/\allowbreak{}regress/\allowbreak{}\{mli,auto\_\allowbreak{}inline,cases,compiler\_\allowbreak{}api\}.lean}), and did not include this register, the corpus or its scripts; the commit \texttt{Add the change register and the corpus used to check the translation} brings them back. The original commits, one per entry S-1 to S-24, are archived under the branch \texttt{archive/\allowbreak{}shipping}, where the lookups below still work as \texttt{git log -{}-grep='\textasciicircum{}shipping(S-\textless{}n\textgreater{}):' origin/\allowbreak{}archive/\allowbreak{}shipping}, and so are the regression tests that those entries cite. The entries from S-16 on are ported to this branch, one commit each, with the subject \texttt{S-\textless{}n\textgreater{}: \ldots{}} (\texttt{git log -{}-grep='\textasciicircum{}S-\textless{}n\textgreater{}:'}). The entries from T-0 on were written before PR \#7 and count the tests of that time; the edits that S-16 and S-22 made to the docstrings of replaced tests are not part of their commits on this branch.
 
-On this branch, the commit \texttt{Bump Lean to v4.35.0} (\texttt{fcdef9f}) follows \texttt{Update the README}; it has no entry here, and its message lists its changes and their effect on the corpus. T-0 then switches the toolchain to \texttt{v4.35.0-rc2} and adds the dependency on Metalean. The S-entries from S-16 on were first made on \texttt{v4.33.0-rc2}; their counts of tests and corpus files are those of that toolchain, and the effect of each port on this branch's corpus is the one its entry states. After S-24, this branch merges \texttt{fixes-port}, whose commit \texttt{Declare Prop inductives propositional} (\texttt{ceec073}) fixes R-7 and R-8; S-25 records the merge together with the commit that completes it. After S-26, it merges \texttt{fixes-port} again, for \texttt{Reduce cases on inductives whose sort may be Prop} (\texttt{9aad6b0}); S-27 records that merge together with the commit that completes it. After S-30, it merges \texttt{fixes-port} a third time, for \texttt{Reduce a function type to whnf before reading its binder} (\texttt{a36d37e}), which fixes R-5; S-31 records that merge together with the commit that completes it.
+On this branch, the commit \texttt{Bump Lean to v4.35.0} (\texttt{fcdef9f}) follows \texttt{Update the README}; it has no entry here, and its message lists its changes and their effect on the corpus. T-0 then switches the toolchain to \texttt{v4.35.0-rc2} and adds the dependency on Metalean. The S-entries from S-16 on were first made on \texttt{v4.33.0-rc2}; their counts of tests and corpus files are those of that toolchain, and the effect of each port on this branch's corpus is the one its entry states. After S-24, this branch merges \texttt{fixes-port}, whose commit \texttt{Declare Prop inductives propositional} (\texttt{ceec073}) fixes R-7 and R-8; S-25 records the merge together with the commit that completes it. After S-26, it merges \texttt{fixes-port} again, for \texttt{Reduce cases on inductives whose sort may be Prop} (\texttt{9aad6b0}); S-27 records that merge together with the commit that completes it. After S-30, it merges \texttt{fixes-port} a third time, for \texttt{Reduce a function type to whnf before reading its binder} (\texttt{a36d37e}), which fixes R-5; S-31 records that merge together with the commit that completes it. After S-42, it merges \texttt{fixes-port} a fourth time, for \texttt{Reject Peano Nat literals above 65536 instead of crashing} (\texttt{cfc6fea}), which fixes R-6; S-45 records that merge. After S-45, it merges \texttt{fixes-port} a fifth time, for \texttt{Print primInt literals as bare integers} (\texttt{6680337}), which fixes R-1, and the eraser \texttt{\#erase\_\allowbreak{}lcnf} (\texttt{bcff7ff}, \texttt{53bc471}, \texttt{5f5b950}); S-46 records that merge.
 
 This register lists every change to the shipping code: the eraser (\leanfile{LeanToLambdaBox.lean}, \texttt{LeanToLambdaBox/}), the package files (\texttt{lakefile.toml}, \texttt{lean-toolchain}, \texttt{lake-manifest.json}), the benchmarks (\texttt{benchmarks/}) and the tooling that checks them (\texttt{scripts/}, \texttt{tests/}, \texttt{.github/\allowbreak{}workflows/}). The changes start from \texttt{main} at \texttt{58701f8}.
 
@@ -1361,18 +1363,60 @@ Before this commit the test does not elaborate (\leandecl{Erasure.casesInfo?} do
 \item \textbf{Regression test:} \texttt{structural} checks which declaration \texttt{declInfoCore} takes: the kernel definition for \texttt{ST.add} and the mutual \texttt{ST.isOd} under \texttt{.kernel} and \texttt{nat := .peano}, the \texttt{\_\allowbreak{}unsafe\_\allowbreak{}rec} definition for \texttt{ST.add} by default and under \texttt{nat := .machine}, for \texttt{ST.wfHalf} (well-founded recursion), \texttt{ST.loop} (\texttt{partial}), \texttt{ST.Tree.size} (a nested inductive) and \texttt{Nat.recCompiled} (a csimp replacement; its kernel definition with \texttt{csimp := false}); that the fragment test still excludes \texttt{ST.useAdd}; and pins, under \texttt{nat := .peano}, the \texttt{\#erase} outputs (the \texttt{Meta} path) of \texttt{add 2 3} (with \texttt{.kernel}, by default, and with \texttt{.kernel} without \texttt{csimp}), \texttt{List.length}, the second element of a \texttt{List.map}, the mutual \texttt{isEv 3}, a recursion two constructors deep and a recursion with a \texttt{Prop} argument, which peregrine validates and evaluates to 5, 5, 5, 3, \texttt{ST.B.t}, \texttt{false}, 2 and \texttt{ST.B.t}. Before this commit the option does not exist and the test does not elaborate. \texttt{scripts/\allowbreak{}regress.sh} passes (25 tests), with and without \texttt{PEREGRINE}.
 \end{itemize}
 
+\section{\texorpdfstring{S-45: A Peano literal above 65536 is an error of \texttt{\#erase}, on both paths}{S-45: A Peano literal above 65536 is an error of \#erase, on both paths}}\label{reg:S-45}
+
+\begin{itemize}
+\item \textbf{Commit:} the merge \texttt{Merge branch 'fixes-port' into ml/\allowbreak{}translate} (the fourth one), which brings the commit \texttt{Reject Peano Nat literals above 65536 instead of crashing} of \texttt{fixes-port} (\texttt{cfc6fea}), ported in the conflict resolution to the generic traversal of S-16. No other commit is needed: the check runs in the traversal that both paths share.
+\item \textbf{Files and functions:}
+
+\begin{itemize}
+\item \leanfile{LeanToLambdaBox/\allowbreak{}Erasure.lean}: new \texttt{peanoMaxLiteral} (65536) and the docstring of \texttt{Config.Nat.peano} (from \texttt{cfc6fea}); new field \texttt{TravCtx.decl}, the declaration being erased (anonymous for the term given to \texttt{\#erase}), which \texttt{cfc6fea} adds to \texttt{ErasureContext}, the reader context that \texttt{TravCtx} replaces on this branch; \texttt{visitLiteral}, under \texttt{nat := .peano}, ends with \texttt{Backend.error} (at \texttt{CoreM}: \texttt{throwError}, as \texttt{cfc6fea} throws) for a literal above \texttt{peanoMaxLiteral}, naming the literal and \texttt{TravCtx.decl}, and otherwise builds the same \texttt{Nat.zero}/\texttt{Nat.succ} terms as before; \texttt{visitMutual} sets \texttt{decl} for the value of a single declaration and for each member of a fixpoint block. \texttt{visitRec} erases only arguments of the recursor's application, which belong to the declaration being erased, so it does not set it.
+\item \texttt{README.md}: the \texttt{nat} option states the bound (from \texttt{cfc6fea}).
+\item \leanfile{tests/\allowbreak{}regress/\allowbreak{}peano\_\allowbreak{}literal.lean} with its goldens (from \texttt{cfc6fea}); the merge adds the check of the pure path (\texttt{PeanoLiteral.huge}) and the sentence of the header about the two paths.
+\item \texttt{doc/\allowbreak{}SHIPPING-CHANGES.md}: this entry, the preamble and R-6.
+\end{itemize}
+\item \textbf{Why necessary:} R-6, reproduced on this branch on both paths: \texttt{\#erase PeanoLiteral.huge config \{nat := .peano\}} with \texttt{def huge : Nat := 18446744073709551616} (in the fragment, pure path) and \texttt{\#erase PeanoLiteral.hugeIfZero 1 config \{nat := .peano\}} with \texttt{hugeIfZero n := if n = 0 then huge else n} (outside the fragment, because of the recursive \texttt{Nat.beq}; \texttt{Meta} path) both make Lean abort (exit status 134, \texttt{deep recursion was detected at 'interpreter'}), without a message or a file. \texttt{cfc6fea} reports that \texttt{List.getD} reaches this through the literal 1114112 of \texttt{Char.ofNat}. On this branch the traversal is generic over its backend, so the check is written with the backend's \texttt{error}, and the declaration is kept in the traversal's context, \texttt{TravCtx}.
+\item \textbf{Behaviour before:} both \texttt{\#erase} above abort Lean as described; a literal up to about 200000 erases to that many \texttt{Nat.succ} applications.
+\item \textbf{Behaviour after:} the \texttt{Meta} path stops \texttt{\#erase} with \texttt{\#erase: the Nat literal 18446744073709551616 in PeanoLiteral.huge exceeds 65536, the largest literal that }nat := .peano\texttt{ erases to }Nat.succ\texttt{ applications}, the message of \texttt{cfc6fea}; the pure path stops it with the same message after \texttt{erasure failed: }, as every error of the pure path (S-21). A literal in the term given to \texttt{\#erase} is reported \texttt{in the erased term}. Literals up to 65536 erase as before.
+\item \textbf{Effect on emitted .ast (corpus):} byte-identical for all 710 files against the corpus of S-42; \texttt{PANIC} counts unchanged. \texttt{scripts/\allowbreak{}pure-harness.sh} passes with its expected summary unchanged (294 \texttt{\#erase}, 223 in the fragment, 68 outside, 3 \texttt{collectDeps} errors; 204 identical, 15 differ; 8298 oracle calls, 14 differ, none fails): no corpus program has a Peano literal above the bound.
+\item \textbf{Regression test:} \texttt{peano\_\allowbreak{}literal} (from \texttt{cfc6fea}): \texttt{def small : Nat := 3} erases under \texttt{nat := .peano} to \texttt{small.ast}, which peregrine validates and evaluates to \texttt{Nat.succ (Nat.succ (Nat.succ Nat.zero))}; \texttt{\#guard\_\allowbreak{}msgs} checks the error of the \texttt{Meta} path on \texttt{hugeIfZero 1}, which names the dependency \texttt{PeanoLiteral.huge}, and the error of the pure path on \texttt{huge}. Before the merge the test aborts Lean. \texttt{scripts/\allowbreak{}regress.sh} passes (26 tests), with and without \texttt{PEREGRINE}.
+\end{itemize}
+
+\section{\texorpdfstring{S-46: Primitive integers are printed as numbers, and \texttt{\#erase\_\allowbreak{}lcnf} erases from the compiler's LCNF}{S-46: Primitive integers are printed as numbers, and \#erase\_lcnf erases from the compiler's LCNF}}\label{reg:S-46}
+
+\begin{itemize}
+\item \textbf{Commit:} the merge \texttt{Merge branch 'fixes-port' into ml/\allowbreak{}translate} (the fifth one), which brings the commits \texttt{Print primInt literals as bare integers} (\texttt{6680337}), \texttt{Add \#erase\_\allowbreak{}lcnf, an eraser that reads the compiler's LCNF} (\texttt{bcff7ff}), \texttt{FromLCNF: erase definitions without compiled code from their kernel value} (\texttt{53bc471}), \texttt{Check a machine-mode Nat literal with peregrine validate} (\texttt{32b66dc}) and \texttt{\#erase\_\allowbreak{}lcnf: erase definitions without compiled code from their kernel value only at the base phase} (\texttt{5f5b950}) of \texttt{fixes-port}. The conflict resolution adapts \leanfile{LeanToLambdaBox/\allowbreak{}FromLCNF.lean} to the generic traversal of S-16; no other commit is needed.
+\item \textbf{Files and functions:}
+
+\begin{itemize}
+\item \leanfile{LeanToLambdaBox/\allowbreak{}Printing.lean}: instance \texttt{Serialize (BitVec n)} prints the integer as a numeric atom (from \texttt{6680337}).
+\item new \leanfile{LeanToLambdaBox/\allowbreak{}FromLCNF.lean}, the command \texttt{\#erase\_\allowbreak{}lcnf} (from \texttt{bcff7ff}, \texttt{53bc471}, \texttt{5f5b950}). The merge adds \leandecl{Erasure.FromLCNF.EraseM}, the abbreviation \texttt{EraseT CoreM}: on \texttt{fixes-port} the module uses the monad \texttt{Erasure.EraseM} of the \texttt{Meta} traversal, which this branch replaces by \texttt{EraseT m} over a backend \texttt{m}, and \texttt{CoreM} is the backend of \texttt{\#erase}'s \texttt{Meta} path. So \texttt{register\_\allowbreak{}inductive}, \texttt{addAxiom}, \leandecl{Erasure.run} and the other functions of the traversal that the module calls are their \texttt{CoreM} instances. In \texttt{addComponent}, the call \texttt{Erasure.erase.get\_\allowbreak{}constant\_\allowbreak{}kername n} becomes \texttt{get\_\allowbreak{}constant\_\allowbreak{}kername (m := CoreM) travFuel n}: on this branch the function is a member of the traversal's mutual block, not a local function of \texttt{erase}, and takes the traversal's recursion bound. The traversal is unchanged.
+\item \leanfile{LeanToLambdaBox.lean}: imports \texttt{LeanToLambdaBox.FromLCNF} after the modules of this branch.
+\item \texttt{README.md}: the command \texttt{\#erase\_\allowbreak{}lcnf} (from \texttt{bcff7ff}, \texttt{5f5b950}).
+\item \leanfile{tests/\allowbreak{}regress/\allowbreak{}lcnf.lean} with its goldens (from \texttt{bcff7ff}, \texttt{5f5b950}); \leanfile{tests/\allowbreak{}regress/\allowbreak{}cases.lean} validates \texttt{natCase.ast} with peregrine (from \texttt{32b66dc}), and the goldens of \texttt{cases} print \texttt{(primInt \textless{}n\textgreater{})} (from \texttt{6680337}).
+\item The goldens of \texttt{recursor} (\texttt{useNatMachine.ast}), \texttt{traversal\_\allowbreak{}locals} (\texttt{names.ast}, \texttt{step.ast}) and \texttt{traversal\_\allowbreak{}total} (\texttt{go.ast}), tests of this branch, print \texttt{(primInt \textless{}n\textgreater{})}.
+\item \leanfile{tests/\allowbreak{}regress/\allowbreak{}pure\_\allowbreak{}inductive.lean}: the census of the environment counts the two structures of \texttt{FromLCNF.lean}, \texttt{Node} and \texttt{TarjanState} (2718 \texttt{casesOn}, 4852 constructors).
+\item \texttt{doc/\allowbreak{}SHIPPING-CHANGES.md}: this entry, the preamble and R-1.
+\end{itemize}
+\item \textbf{Why necessary:} R-1: peregrine rejects every program with a primitive integer, that is every output of \texttt{nat := .machine} with a Nat literal. \texttt{\#erase\_\allowbreak{}lcnf}, a second eraser on \texttt{fixes-port}, does not compile on this branch without the adaptation above (\texttt{EraseM} is unknown).
+\item \textbf{Behaviour before:} \texttt{primint.ast} of \leanfile{tests/\allowbreak{}corpus/\allowbreak{}Defects.lean} (\texttt{def seven : Nat := 7}, default configuration) contains \texttt{(primInt \textquotedbl{}7\textquotedbl{})}, and \texttt{peregrine validate primint.ast} fails with \texttt{could not read integral type, got a non-Num atom \textquotedbl{}7\textquotedbl{}}. \texttt{\#erase\_\allowbreak{}lcnf} does not exist.
+\item \textbf{Behaviour after:} \texttt{primint.ast} contains \texttt{(primInt 7)}; \texttt{peregrine validate} accepts it and \texttt{peregrine eval} prints \texttt{Primitive (int: 7)}. \texttt{\#erase\_\allowbreak{}lcnf} erases as on \texttt{fixes-port}: the goldens of \texttt{lcnf} are byte-identical to those of \texttt{fixes-port}.
+\item \textbf{Effect on emitted .ast (corpus):} against the corpus of S-45, 66 of the 710 files differ (20 under \texttt{benchmarks/\allowbreak{}prune/}, 20 under \texttt{benchmarks/\allowbreak{}noprune/}, 26 under \texttt{examples/}), and in each the only difference is that every \texttt{(primInt \textquotedbl{}\textless{}n\textgreater{}\textquotedbl{})} becomes \texttt{(primInt \textless{}n\textgreater{})} (1692 atoms in all; no quoted \texttt{primInt} remains); the other 644 files are byte-identical. \texttt{PANIC} counts unchanged. No corpus file uses \texttt{\#erase\_\allowbreak{}lcnf}. \texttt{scripts/\allowbreak{}pure-harness.sh} passes with its expected summary unchanged (294 \texttt{\#erase}, 223 in the fragment, 68 outside, 3 \texttt{collectDeps} errors; 204 identical, 15 differ; 8298 oracle calls, 14 differ, none fails).
+\item \textbf{Regression test:} \texttt{cases} validates \texttt{natCase.ast}, which contains \texttt{(primInt 3)}, with peregrine; this fails before \texttt{6680337}. \texttt{lcnf} (from \texttt{fixes-port}) erases with \texttt{\#erase\_\allowbreak{}lcnf}, at the base and the mono phase, and checks the outputs with peregrine. \texttt{scripts/\allowbreak{}regress.sh} passes (27 tests), with and without \texttt{PEREGRINE}.
+\end{itemize}
+
 \section{\texorpdfstring{Reported, not fixed}{Reported, not fixed}}\label{reg:reported-not-fixed}
 
 Each entry below was reproduced on this branch. Unless stated otherwise, the reproduction is an example in \leanfile{tests/\allowbreak{}corpus/\allowbreak{}Defects.lean} whose output lies in \texttt{examples/\allowbreak{}Defects/} of a corpus, and \texttt{peregrine} is \texttt{../\allowbreak{}peregrine-tool/\allowbreak{}\_\allowbreak{}build/\allowbreak{}default/\allowbreak{}bin/\allowbreak{}main.exe}.
 
-\subsection{\texorpdfstring{R-1: Primitive integers are printed as quoted strings}{R-1: Primitive integers are printed as quoted strings}}\label{reg:R-1}
+\subsection{\texorpdfstring{R-1: Primitive integers are printed as quoted strings (fixed in S-46)}{R-1: Primitive integers are printed as quoted strings (fixed in S-46)}}\label{reg:R-1}
 
 \begin{itemize}
 \item \textbf{What:} a machine-mode Nat literal is printed as \texttt{(tPrim (primInt \textquotedbl{}7\textquotedbl{}))}, a string atom. \texttt{peregrine-tool/\allowbreak{}doc/\allowbreak{}format.md} specifies a numeric atom, \texttt{(primInt 7)}, and peregrine's parser accepts only that (since peregrine commit \texttt{556fe09}).
 \item \textbf{Where:} \leanfile{LeanToLambdaBox/\allowbreak{}Printing.lean}: instance \texttt{Serialize (BitVec n)}.
 \item \textbf{Reproduction:} \texttt{primint.ast} (\texttt{def seven : Nat := 7}, default configuration): \texttt{peregrine validate primint.ast} fails with \texttt{could not read integral type, got a non-Num atom \textquotedbl{}7\textquotedbl{}}. All 40 benchmark \texttt{.ast} files contain such atoms.
 \item \textbf{Impact:} no output of the default configuration (\texttt{nat := .machine}) that contains a Nat literal can be read by the current peregrine. Outputs with \texttt{nat := .peano} contain no primitive integer.
-\item \textbf{Why not fixed:} not required by the verification goal unless it later becomes required.
+\item \textbf{Fixed:} in S-46, which describes the fix and its corpus effect: the integer is printed as a numeric atom, \texttt{(primInt 7)}.
 \end{itemize}
 
 \subsection{\texorpdfstring{R-2: String atoms are not escaped}{R-2: String atoms are not escaped}}\label{reg:R-2}
@@ -1415,14 +1459,14 @@ Each entry below was reproduced on this branch. Unless stated otherwise, the rep
 \item \textbf{Fixed:} in S-31, which describes the fix and its corpus effect.
 \end{itemize}
 
-\subsection{\texorpdfstring{R-6: Peano literals exhaust the stack}{R-6: Peano literals exhaust the stack}}\label{reg:R-6}
+\subsection{\texorpdfstring{R-6: Peano literals exhaust the stack (fixed in S-45)}{R-6: Peano literals exhaust the stack (fixed in S-45)}}\label{reg:R-6}
 
 \begin{itemize}
 \item \textbf{What:} with \texttt{nat := .peano}, a literal \texttt{n} is translated by \texttt{n} nested calls (\texttt{visitLiteral} \ensuremath{\to} \texttt{visitConstructor} \ensuremath{\to} \texttt{visitAppArgs} \ensuremath{\to} \texttt{visitExpr}).
 \item \textbf{Where:} \leanfile{LeanToLambdaBox/\allowbreak{}Erasure.lean}: \texttt{visitLiteral} (Peano branch).
 \item \textbf{Reproduction:} a file containing \texttt{import LeanToLambdaBox} and \texttt{\#erase (1000000 : Nat) config \{nat := .peano, extern := .preferLogical\} to \textquotedbl{}p.ast\textquotedbl{}} makes Lean abort (exit status 134) with \texttt{deep recursion was detected at 'interpreter'}; \texttt{200000} succeeds and writes 23 601 044 bytes (\texttt{5000}: 591 044 bytes). It is not in the corpus because it aborts the elaboration.
 \item \textbf{Impact:} Peano mode fails on large literals, and the output grows linearly with the value.
-\item \textbf{Why not fixed:} not required by the verification goal unless it later becomes required.
+\item \textbf{Fixed:} in S-45, which describes the fix and its corpus effect: a literal above 65536 is an error of \texttt{\#erase}; the output of smaller literals still grows linearly with the value.
 \end{itemize}
 
 \subsection{\texorpdfstring{R-7: Inductive types are always declared non-propositional (fixed in S-25)}{R-7: Inductive types are always declared non-propositional (fixed in S-25)}}\label{reg:R-7}
