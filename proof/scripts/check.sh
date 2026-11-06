@@ -11,12 +11,13 @@
 #   tokens    C2   no sorry, admit, axiom, opaque, native_decide, native, bv_decide, unsafe,
 #                  implemented_by, extern (and the other tokens of scripts/scan_tokens.py) in
 #                  proof/**/*.lean outside comments and strings, also quoted as «sorry».
-#   replay         the kernel replay of the library: `leanchecker EraseProof` (the toolchain's
-#                  lean4checker) adds every declaration of every module EraseProof.* again
+#   replay         the kernel replay of the library: `leanchecker LeanToLambdaBox EraseProof` (the toolchain's
+#                  lean4checker) adds every declaration of every module LeanToLambdaBox.* and EraseProof.* again
 #                  through the kernel, over the environment of the module's imports, and compares
 #                  constructors and recursors with those the kernel generates; it skips partial
 #                  and unsafe declarations, which the report rejects in the library. It covers the
-#                  library's own modules, not their imports (the shipping code, Metalean, Mathlib).
+#                  modules of the library and of the shipping code, not their other imports
+#                  (Metalean, Mathlib).
 #   report    C3-C7, C9, C12, C12b, run by `lake env lean --run tools/Report.lean` in proof/:
 #                  axiom footprints within propext, Classical.choice, Quot.sound (no sorryAx, no
 #                  Cardinal.exists_inaccessibles, no native axiom); no constant reached whose body
@@ -109,7 +110,7 @@ run() {
 
 build_root() ( cd "$ROOT" && lake build LeanToLambdaBox LeanToLambdaBox.Metalean )
 build_proof() ( cd "$PROOF" && lake build )
-replay() ( cd "$PROOF" && lake env leanchecker EraseProof )
+replay() ( cd "$PROOF" && lake env leanchecker LeanToLambdaBox EraseProof )
 report() (
   cd "$PROOF" &&
     lake env lean --run tools/Report.lean ${final[@]+"${final[@]}"} ${metarocq[@]+"${metarocq[@]}"}
