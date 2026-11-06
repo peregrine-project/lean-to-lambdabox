@@ -26,6 +26,7 @@ function that computes it: without the `let`, every branch of the catch-all woul
 -- peregrine: validate check.ast
 -- peregrine: eval check.ast
 -- peregrine: validate optVal.prune.ast
+-- peregrine: validate natCase.ast
 
 namespace Cases
 
