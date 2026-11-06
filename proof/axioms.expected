@@ -9,8 +9,6 @@ EraseProof.Defeq.inst_tele propext,Classical.choice,Quot.sound
 EraseProof.Erases.app_inv propext,Classical.choice,Quot.sound
 EraseProof.Erases.extend propext,Classical.choice,Quot.sound
 EraseProof.Erases.inst_let propext,Classical.choice,Quot.sound
-EraseProof.Pure.typeLevel_sound propext,Classical.choice,Quot.sound
-EraseProof.Pure.isErasable_ctorProp propext,Quot.sound
 EraseProof.SrcEval.restrict propext,Classical.choice,Quot.sound
 EraseProof.Test.bind_ok propext,Classical.choice,Quot.sound
 EraseProof.Test.forIn_toSubarray_size propext,Classical.choice,Quot.sound
