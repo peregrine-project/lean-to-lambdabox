@@ -7,16 +7,16 @@
 \item \lead{Main results} \code{erase\_correct}, and its two milestones: the relation-level
   simulation \code{erases\_correct} (M1) and the soundness of the pure traversal
   \code{erasePure\_erases} (M2).
-\item \lead{Status} the statements are formalized as definitions of type \code{Prop}, pinned by
-  \code{proof/spec.pin} (check C12b); \stProved{} the simulation \code{erases\_correct} (M1) with
-  one case lemma per rule of \code{SrcEval}, and the soundness of the pure traversal
-  \code{erasePure\_erases} (M2) by induction on fuel over the step lemmas of
-  Section~\ref{sec:core-steps}; \stPlanned{} the final theorem, which check C12 lists as
-  unproved. The statement is the same in Phase I and
-  Phase II.
+\item \lead{Status} \stProved{} \hl{the final theorem \code{erase\_correct}}, by composition of
+  its milestones (\leanfile{proof/EraseProof/Final.lean}); the simulation \code{erases\_correct}
+  (M1), with one case lemma per rule of \code{SrcEval}; the soundness of the pure traversal
+  \code{erasePure\_erases} (M2), by induction on fuel over the step lemmas of
+  Section~\ref{sec:core-steps}. The statements are definitions of type \code{Prop}, pinned by
+  \code{proof/spec.pin} (C12b); C12 checks each theorem's type against its statement. Four test
+  programs discharge every hypothesis (Chapter~\ref{chap:tests}).
 \item \lead{Nodes} \bpnodes{chap:final}
 \item \lead{Lean files} \leanfile{proof/EraseProof/Statements.lean},
-  \leanfile{proof/EraseProof/Simulation/}.
+  \leanfile{proof/EraseProof/Final.lean}, \leanfile{proof/EraseProof/Simulation/}.
 \item \lead{Reference} MetaRocq \code{erase\_correct}
   (\code{erasure/theories/ErasureFunctionProperties.v}) and \code{erases\_correct}
   (\code{erasure/theories/ErasureCorrectness.v}); MetaCoq paper Sections 7.3--7.4.
@@ -44,18 +44,18 @@
     def:EraseProof-ProgEnv, def:Erasure-EraseError, def:Erasure-EnvView, def:Erasure-collectDeps,
     def:Erasure-eraseEntry, def:EraseProof-LBEval, def:EraseProof-Erases, def:EraseProof-EvalEnv,
     def:EraseProof-SrcEval, def:LBTerm, def:toKername, def:ASTType, def:Erasure-ErasureConfig}
-  \srcloc{proof/EraseProof/Statements.lean}{67}
+  \srcloc{proof/EraseProof/Statements.lean}{72}
   \lead{In short} The proposition of Theorem~\ref{thm:EraseProof-erase_correct}, \hl{pinned by
   \code{proof/spec.pin}}; its docstring states the scope of Section~\ref{sec:final-reading}.
-  Check C12 compares the theorem's type with it (kernel definitional equality) once the theorem
-  is proved.
+  Check C12 compares the theorem's type with it (kernel definitional equality).
 \end{definition}
 
 \begin{theorem}[Correctness of \texorpdfstring{\code{\#erase}}{\#erase}]
   \label{thm:EraseProof-erase_correct}
-  \lean{EraseProof.erase_correct}
-  \planned
-  \uses{def:EraseProof-erase_correct_statement}
+  \lean{EraseProof.erase_correct, EraseProof.erase_correct_of_pure}
+  \leanok
+  \uses{def:EraseProof-erase_correct_statement, def:EraseProof-erasePure_erases_statement}
+  \srcloc{proof/EraseProof/Final.lean}{46}
   \lead{In short} If \code{\#erase} returns \code{p} for an in-fragment, typed \code{e} that
   evaluates to \code{v}, then \hl{\code{p}'s main term evaluates in $\lambda_\Box$ to an erasure
   of \code{v}}, and \code{v} means what \code{e} means.
@@ -70,22 +70,36 @@
         \code{Erases E B lps (evalEnvOf view cfg P) .nil [] v vb} $\wedge$
         \code{LBEval defaultFlags lenv tb vb} $\wedge$ $\forall$ \code{T}, \code{E[.nil] $\vdash$
         t : T} $\to$ $\exists$ \code{t'}, \code{TrM E B lps .nil [] v t'} $\wedge$
-        \code{E[.nil] $\vdash$ t $\equiv$ t' : T}.
+        \code{E[.nil] $\vdash$ t $\equiv$ t' : T};
+  \item \code{erase\_correct\_of\_pure}: the statement follows from M2's statement;
+        \code{erase\_correct} applies it to \code{erasePure\_erases}.
   \end{itemize}
   \lead{Reference} MetaRocq \code{erase\_correct}, at \code{default\_wcbv\_flags}, with
   \code{subject\_reduction\_eval}.
 \end{theorem}
 \begin{proof}
-  \uses{thm:EraseProof-erasePure_erases, thm:EraseProof-erases_correct,
-    lem:EraseProof-eraseEntry_pure, lem:EraseProof-collectDeps_spec,
-    lem:EraseProof-SrcEval-restrict, lem:EraseProof-Erases-extend, lem:EraseProof-SrcEval-defeq,
-    lem:EraseProof-Erases-closed, lem:EraseProof-Defeq-inst_tele, lem:EraseProof-Erases-inst,
-    lem:EraseProof-TrM-det, lem:EraseProof-TrM-uninstantiateN,
-    lem:EraseProof-visitMutual_nonrecursive}
-  \lead{Idea} Composition: \code{hfrag} puts the run on the pure path, \code{erasePure\_erases}
-  makes its output an erasure, \code{erases\_correct} simulates the evaluation in the closure
-  (whose fragment test gives \code{BlockNamesInj} and \code{ArityTypes}), and
-  \code{SrcEval.defeq} gives the last conjunct.
+  \uses{def:EraseProof-PhaseIDecl, lem:EraseProof-collectDeps_sub, lem:EraseProof-collectDeps_spec,
+    lem:EraseProof-eraseEntry_pure, def:EraseProof-ViewAgrees,
+    def:EraseProof-erases_correct_statement, thm:EraseProof-erases_correct,
+    thm:EraseProof-erasePure_erases, def:EraseProof-MBinding, def:EraseProof-TrM,
+    def:EraseProof-ProgEnv, def:Erasure-EraseError, def:Erasure-EnvView, def:Erasure-collectDeps,
+    def:Erasure-eraseEntry, def:EraseProof-LBEval, def:EraseProof-Erases,
+    def:EraseProof-ErasesDeps, lem:EraseProof-Erases-extend, def:EraseProof-EvalEnv,
+    def:EraseProof-SrcEval, lem:EraseProof-SrcEval-defeq, def:EraseProof-ConstsIn,
+    def:EraseProof-DepClosed, def:EraseProof-ClosedDecls, lem:EraseProof-SrcEval-restrict,
+    def:LBTerm, def:toKername, def:ASTType, def:Erasure-ErasureConfig}
+  \leanok
+  \lead{Idea} Composition, with no further bridge lemma.
+  \lead{Steps}
+  \begin{enumerate}
+  \item \code{hfrag} puts the run on the pure path (\code{eraseEntry\_pure}); M2 makes its output
+        an erasure at the closure \code{decls}, in a closed $\lambda_\Box$ environment;
+  \item \code{decls} is a dependency-closed sub-environment of \code{P}, with injective names and
+        arities (\code{collectDeps\_sub}, \code{collectDeps\_spec}); \code{hev} restricts to it;
+  \item M1 simulates the evaluation at \code{decls}; \code{Erases.extend} moves the value's
+        erasure to \code{P};
+  \item \code{SrcEval.defeq} gives the last conjunct.
+  \end{enumerate}
 \end{proof}
 
 \section{Reading the statement}\label{sec:final-reading}
@@ -117,19 +131,28 @@
 \item \lead{Well-founded recursion} excluded: the fragment test rejects such definitions (they
   have an \code{\_unsafe\_rec} companion), and their recursion reduces only through an accessibility
   proof, which is opaque (DV-24), so \code{hev} never holds for them.
-\item \lead{Scope note} \hl{\code{erase\_correct} says nothing} about two kinds of realistic
-  programs, since \code{hev} fails on them:
+\item \lead{No recursion} the fragment is non-recursive: the test rejects structural recursion
+  too (an \code{\_unsafe\_rec} companion, \code{Nat.add} and \code{Nat.beq} included) and
+  recursors other than the companions of \code{casesOn}, so \hl{no \code{Nat} arithmetic}. Nat
+  literals are in only under \code{nat := .peano}.
+\item \lead{Scope note} \hl{\code{erase\_correct} says nothing} about programs that evaluate
+  through a constant without $\delta$ in the source, although the fragment admits them and the
+  emitted program may compute:
   \begin{itemize}
-  \item a match on a theorem whose type is an \code{And}-like \code{Prop} with fields
-        (\code{match h with | $\langle$\_, \_$\rangle$ => 5}, \code{h : p $\wedge$ q} a theorem):
-        \code{casesProof} covers only field-less constructors, so the source is stuck, while the
-        eraser emits \code{($\lambda$\_ \_. 5) $\Box$ $\Box$};
-  \item an opaque constant with a value: the source has no $\delta$ for it (DV-24), while
-        $\lambda_\Box$ unfolds its erased value.
+  \item opaques with a value: the eraser emits the value, the source does not unfold it (DV-10);
+  \item axioms of data type, and \code{@[extern]} definitions under the default
+        \code{extern := .preferAxiom}, which the source treats as axioms (DV-12);
+  \item a \code{casesOn} on a lemma of an inductive with proof fields: \code{casesProof} covers
+        only field-less constructors (DV-24).
   \end{itemize}
+  Example: \code{Ex.opaqueEx} of \leanfile{tests/corpus/Examples.lean}, the successor of
+  \code{opaque opaqueTwo : CNat := two}, is in the fragment; the source is stuck at
+  \code{opaqueTwo}.
 \item \lead{The object} the theorem is about the shipping code itself (\code{collectDeps},
-  \code{eraseEntry}), not a model of it; \code{proof/spec.pin} names the shipping code without
-  hashing it, so a fix to it leaves the statement unchanged.
+  \code{eraseEntry}), not a model of it. \code{proof/spec.pin} hashes every shipping definition
+  the statements reach, \hl{except the three functions under verification}, \code{collectDeps},
+  \code{erasePure} and \code{eraseEntry}, which it names: a fix to them leaves the statement
+  unchanged.
 \end{itemize}
 
 \section{The milestones}\label{sec:final-milestones}
@@ -142,7 +165,7 @@
     def:EraseProof-ProgEnv, def:Erasure-declExclusion, def:EraseProof-LBEval,
     def:EraseProof-Erases, def:EraseProof-ErasesDeps, def:EraseProof-EvalEnv,
     def:EraseProof-SrcEval, def:EraseProof-ConstsIn, def:LBTerm}
-  \srcloc{proof/EraseProof/Statements.lean}{19}
+  \srcloc{proof/EraseProof/Statements.lean}{24}
   \lead{In short} The proposition of Theorem~\ref{thm:EraseProof-erases_correct}, \hl{pinned by
   \code{proof/spec.pin}}.
   \begin{itemize}
@@ -211,7 +234,7 @@
 \end{lemma}
 \begin{proof}
   \uses{def:EraseProof-TrLevel, def:EraseProof-natLitM, def:EraseProof-TypedExt,
-    lem:EraseProof-TrM-weakBV, lem:EraseProof-DCong-defeq, lem:EraseProof-TrM-det,
+    lem:EraseProof-TrM-weakBV, lem:EraseProof-DCong-defeq, lem:EraseProof-TrM-dcong,
     lem:EraseProof-TrM-apps, lem:EraseProof-TrM-inst, lem:EraseProof-ProgEnv-lookup,
     lem:EraseProof-ProgEnv-unfold, lem:EraseProof-casesOn_whred, def:Erasure-declExclusion,
     def:EraseProof-Subsingleton, def:EraseProof-ErasesDeps, lem:EraseProof-Erases-closed,
@@ -247,7 +270,7 @@
 \end{lemma}
 \begin{proof}
   \uses{def:EraseProof-TrLevel, def:EraseProof-SatTr, def:EraseProof-natLitM,
-    def:EraseProof-TypedExt, lem:EraseProof-TrM-det, lem:EraseProof-ProgEnv-lookup,
+    def:EraseProof-TypedExt, lem:EraseProof-TrM-dcong, lem:EraseProof-ProgEnv-lookup,
     lem:EraseProof-casesOn_whred, def:Erasure-declExclusion, lem:EraseProof-Erases-inst,
     lem:EraseProof-IsErasable-inst, lem:EraseProof-SrcDefeq-sound_of, lem:EraseProof-SrcEval-defeq}
   \leanok
@@ -431,7 +454,7 @@
     def:EraseProof-ProgEnv, def:Erasure-EraseError, def:Erasure-EnvView, def:Erasure-collectDeps,
     def:Erasure-erasePure, def:EraseProof-LBEval, def:EraseProof-Erases, def:EraseProof-ErasesDeps,
     def:EraseProof-EvalEnv, def:LBTerm, def:toKername, def:ASTType, def:Erasure-ErasureConfig}
-  \srcloc{proof/EraseProof/Statements.lean}{51}
+  \srcloc{proof/EraseProof/Statements.lean}{56}
   \lead{In short} The proposition of Theorem~\ref{thm:EraseProof-erasePure_erases}, \hl{pinned by
   \code{proof/spec.pin}}.
 \end{definition}
@@ -518,11 +541,14 @@ Hypothesis & MetaRocq & Why it is there \\
 \begin{itemize}
 \item \lead{Caveat} Partial correctness: nothing is claimed when \code{\#erase} fails or the source
   does not evaluate.
-\item \lead{Caveat} No first-order corollary and no claim about the constants to inline.
+\item \lead{Caveat} No first-order corollary: \code{vb} is an erasure of \code{v}, not pinned to
+  its structural erasure; no claim about the constants to inline.
+\item \lead{Caveat} No well-formedness of the emitted program beyond closedness; only
+  \code{peregrine validate} checks it (C11).
 \item \lead{Caveat} Programs defined by well-founded recursion are excluded; the theorem would be
   vacuous on them.
-\item \lead{Caveat} Matches on \code{And}-like theorems with fields, and opaques with values, do
-  not evaluate in the source: the theorem says nothing about them.
+\item \lead{Caveat} Opaques with values, data axioms, \code{@[extern]} definitions and matches on
+  lemmas with proof fields do not evaluate in the source: the theorem says nothing about them.
 \item \lead{Caveat} \code{P} is a dependency closure: the theorem does not apply with \code{P} the
   whole environment of a Lean file.
 \end{itemize}

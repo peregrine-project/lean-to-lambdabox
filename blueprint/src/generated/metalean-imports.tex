@@ -14,11 +14,11 @@
   \lead{Used directly} 16 declarations: 7 definitions, 1 theorem, 6 inductive types, 2 structures.
   \usedbystatements{\ref{def:EraseProof-MBinding}, \ref{def:EraseProof-SatTr},
     \ref{def:EraseProof-natLitM}, \ref{def:EraseProof-TypedExt}, \ref{def:EraseProof-TrM},
-    \ref{lem:EraseProof-TrM-weakBV}, \ref{lem:EraseProof-TrM-uninstantiateN},
+    \ref{lem:EraseProof-TrM-weakBV}, \ref{lem:EraseProof-AbsFV-TrM-absN},
     \ref{lem:EraseProof-SatTr-subst}, \ref{lem:EraseProof-TrM-instLevels},
-    \ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-apps},
-    \ref{lem:EraseProof-Defeq-inst_tele}, \ref{lem:EraseProof-TrM-inst},
-    \ref{lem:EraseProof-SatTr-typed}, \ref{def:EraseProof-ProgEnv}, \ref{lem:EraseProof-TrM-wkEnv},
+    \ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-dcong},
+    \ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-TrM-inst}, \ref{lem:EraseProof-SatTr-typed},
+    \ref{def:EraseProof-ProgEnv}, \ref{lem:EraseProof-TrM-wkEnv},
     \ref{lem:EraseProof-ProgEnv-lookup}, \ref{lem:EraseProof-ProgEnv-unfold},
     \ref{lem:EraseProof-ctorSat_iota}, \ref{lem:EraseProof-casesOn_whred},
     \ref{lem:EraseProof-proj_defeq}, \ref{lem:EraseProof-TypeEq-sort_ne_forallE},
@@ -39,13 +39,12 @@
     \ref{def:EraseProof-collectDeps_ok_of_statement}, \ref{lem:EraseProof-collectDeps_ok_of},
     \ref{def:EraseProof-StateOK}, \ref{lem:EraseProof-StateOK-register},
     \ref{lem:EraseProof-Pure-isPropFormerType_iff}, \ref{lem:EraseProof-register_inductive_ok},
-    \ref{lem:EraseProof-visitMutual_nonrecursive}, \ref{lem:EraseProof-isRecursiveDecl_false},
-    \ref{def:EraseProof-Steps-ExprSpec}, \ref{def:EraseProof-Steps-CoreEnv},
-    \ref{def:EraseProof-Steps-StepsB}, \ref{lem:EraseProof-LocalsOK-pushFVar},
-    \ref{lem:EraseProof-Pure-whnf_forallE}, \ref{lem:EraseProof-Steps-visitExpr_lam_step},
-    \ref{lem:EraseProof-Steps-visitMutual_step}, \ref{lem:EraseProof-Steps-stepsB_ctor},
-    \ref{lem:EraseProof-Steps-stepsB_proj}, \ref{lem:EraseProof-Steps-stepsB_lit},
-    \ref{lem:EraseProof-Steps-stepsB_cases_of_sat},
+    \ref{lem:EraseProof-isRecursiveDecl_false}, \ref{def:EraseProof-Steps-ExprSpec},
+    \ref{def:EraseProof-Steps-CoreEnv}, \ref{def:EraseProof-Steps-StepsB},
+    \ref{lem:EraseProof-LocalsOK-pushFVar}, \ref{lem:EraseProof-Pure-whnf_forallE},
+    \ref{lem:EraseProof-Steps-visitExpr_lam_step}, \ref{lem:EraseProof-Steps-visitMutual_step},
+    \ref{lem:EraseProof-Steps-stepsB_ctor}, \ref{lem:EraseProof-Steps-stepsB_proj},
+    \ref{lem:EraseProof-Steps-stepsB_lit}, \ref{lem:EraseProof-Steps-stepsB_cases_of_sat},
     \ref{lem:EraseProof-StepsCases-casesSatSpec_of_case},
     \ref{lem:EraseProof-StepsCases-casesSat_box}, \ref{lem:EraseProof-StepsCases-casesSat_reduced},
     \ref{lem:EraseProof-StepsCasesCase-visitAlt_spec},
@@ -56,7 +55,7 @@
     \ref{lem:EraseProof-PropInductive-of_propInd}, \ref{lem:EraseProof-erases_correct_ctor},
     \ref{def:EraseProof-SimIota-HeadBeta}, \ref{lem:EraseProof-erases_correct_casesIota},
     \ref{thm:EraseProof-erases_correct}, \ref{def:EraseProof-erasePure_erases_statement}}
-  \usedbyproofs{\ref{thm:EraseProof-erasePure_erases}}
+  \usedbyproofs{\ref{thm:EraseProof-erase_correct}, \ref{thm:EraseProof-erasePure_erases}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Expr}]
@@ -85,10 +84,9 @@
   \lead{Used directly} 49 declarations: 20 definitions, 28 theorems, 1 inductive type.
   \usedbystatements{\ref{def:EraseProof-SatTr}, \ref{def:EraseProof-natLitM},
     \ref{def:EraseProof-TypedExt}, \ref{def:EraseProof-TrM}, \ref{lem:EraseProof-TrM-weakBV},
-    \ref{lem:EraseProof-TrM-uninstantiateN}, \ref{lem:EraseProof-SatTr-subst},
+    \ref{lem:EraseProof-AbsFV-TrM-absN}, \ref{lem:EraseProof-SatTr-subst},
     \ref{lem:EraseProof-TrM-instLevels}, \ref{lem:EraseProof-DCong-defeq},
-    \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-apps},
-    \ref{lem:EraseProof-Defeq-inst_tele}, \ref{lem:EraseProof-TrM-inst},
+    \ref{lem:EraseProof-TrM-dcong}, \ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-TrM-inst},
     \ref{lem:EraseProof-SatTr-typed}, \ref{def:EraseProof-ProgEnv}, \ref{lem:EraseProof-TrM-wkEnv},
     \ref{lem:EraseProof-ProgEnv-unfold}, \ref{lem:EraseProof-ctorSat_iota},
     \ref{lem:EraseProof-casesOn_whred}, \ref{lem:EraseProof-proj_defeq},
@@ -122,8 +120,8 @@
   \usedbyproofs{\ref{lem:EraseProof-ProgEnv-lookup}, \ref{lem:EraseProof-Erases-extend},
     \ref{lem:EraseProof-collectDeps_ok_of}, \ref{lem:EraseProof-Steps-stepsB_proj},
     \ref{lem:EraseProof-Steps-stepsB_lit}, \ref{lem:EraseProof-StepsCases-casesSatSpec_of_case},
-    \ref{lem:EraseProof-Steps-stepIH_of_stepsB}, \ref{thm:EraseProof-erases_correct},
-    \ref{thm:EraseProof-erasePure_erases}}
+    \ref{lem:EraseProof-Steps-stepIH_of_stepsB}, \ref{thm:EraseProof-erase_correct},
+    \ref{thm:EraseProof-erases_correct}, \ref{thm:EraseProof-erasePure_erases}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Ctx}]
@@ -143,10 +141,9 @@
   \lead{In short} Typing contexts (\code{Ctx}) and their extension (\code{Ctx.snoc}).
   \lead{Used directly} 31 declarations: 13 definitions, 18 theorems.
   \usedbystatements{\ref{def:EraseProof-natLitM}, \ref{def:EraseProof-TypedExt},
-    \ref{def:EraseProof-TrM}, \ref{lem:EraseProof-TrM-weakBV},
-    \ref{lem:EraseProof-TrM-uninstantiateN}, \ref{lem:EraseProof-TrM-instLevels},
-    \ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-apps},
-    \ref{lem:EraseProof-Defeq-inst_tele}, \ref{lem:EraseProof-TrM-inst},
+    \ref{def:EraseProof-TrM}, \ref{lem:EraseProof-TrM-weakBV}, \ref{lem:EraseProof-AbsFV-TrM-absN},
+    \ref{lem:EraseProof-TrM-instLevels}, \ref{lem:EraseProof-DCong-defeq},
+    \ref{lem:EraseProof-TrM-dcong}, \ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-TrM-inst},
     \ref{lem:EraseProof-SatTr-typed}, \ref{def:EraseProof-ProgEnv}, \ref{lem:EraseProof-TrM-wkEnv},
     \ref{lem:EraseProof-ProgEnv-lookup}, \ref{lem:EraseProof-ProgEnv-unfold},
     \ref{lem:EraseProof-ctorSat_iota}, \ref{lem:EraseProof-casesOn_whred},
@@ -182,8 +179,8 @@
   \usedbyproofs{\ref{lem:EraseProof-SatTr-subst}, \ref{lem:EraseProof-collectDeps_ok_of},
     \ref{lem:EraseProof-StateOK-register}, \ref{lem:EraseProof-Steps-stepsB_proj},
     \ref{lem:EraseProof-Steps-stepsB_lit}, \ref{lem:EraseProof-StepsCases-casesSatSpec_of_case},
-    \ref{lem:EraseProof-Steps-stepIH_of_stepsB}, \ref{thm:EraseProof-erases_correct},
-    \ref{thm:EraseProof-erasePure_erases}}
+    \ref{lem:EraseProof-Steps-stepIH_of_stepsB}, \ref{thm:EraseProof-erase_correct},
+    \ref{thm:EraseProof-erases_correct}, \ref{thm:EraseProof-erasePure_erases}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Env}]
@@ -199,10 +196,9 @@
   \lead{Used directly} 12 declarations: 8 definitions, 1 theorem, 3 inductive types.
   \usedbystatements{\ref{def:EraseProof-SatTr}, \ref{def:EraseProof-natLitM},
     \ref{def:EraseProof-TypedExt}, \ref{def:EraseProof-TrM}, \ref{lem:EraseProof-TrM-weakBV},
-    \ref{lem:EraseProof-TrM-uninstantiateN}, \ref{lem:EraseProof-SatTr-subst},
+    \ref{lem:EraseProof-AbsFV-TrM-absN}, \ref{lem:EraseProof-SatTr-subst},
     \ref{lem:EraseProof-TrM-instLevels}, \ref{lem:EraseProof-DCong-defeq},
-    \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-apps},
-    \ref{lem:EraseProof-Defeq-inst_tele}, \ref{lem:EraseProof-TrM-inst},
+    \ref{lem:EraseProof-TrM-dcong}, \ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-TrM-inst},
     \ref{lem:EraseProof-SatTr-typed}, \ref{def:EraseProof-ProgEnv}, \ref{lem:EraseProof-TrM-wkEnv},
     \ref{lem:EraseProof-ProgEnv-lookup}, \ref{lem:EraseProof-ProgEnv-unfold},
     \ref{lem:EraseProof-ctorSat_iota}, \ref{lem:EraseProof-casesOn_whred},
@@ -224,13 +220,12 @@
     \ref{def:EraseProof-collectDeps_ok_of_statement}, \ref{lem:EraseProof-collectDeps_ok_of},
     \ref{def:EraseProof-StateOK}, \ref{lem:EraseProof-StateOK-register},
     \ref{lem:EraseProof-Pure-isPropFormerType_iff}, \ref{lem:EraseProof-register_inductive_ok},
-    \ref{lem:EraseProof-visitMutual_nonrecursive}, \ref{lem:EraseProof-isRecursiveDecl_false},
-    \ref{def:EraseProof-Steps-ExprSpec}, \ref{def:EraseProof-Steps-CoreEnv},
-    \ref{def:EraseProof-Steps-StepsB}, \ref{lem:EraseProof-LocalsOK-pushFVar},
-    \ref{lem:EraseProof-Pure-whnf_forallE}, \ref{lem:EraseProof-Steps-visitExpr_lam_step},
-    \ref{lem:EraseProof-Steps-visitMutual_step}, \ref{lem:EraseProof-Steps-stepsB_ctor},
-    \ref{lem:EraseProof-Steps-stepsB_proj}, \ref{lem:EraseProof-Steps-stepsB_lit},
-    \ref{lem:EraseProof-Steps-stepsB_cases_of_sat},
+    \ref{lem:EraseProof-isRecursiveDecl_false}, \ref{def:EraseProof-Steps-ExprSpec},
+    \ref{def:EraseProof-Steps-CoreEnv}, \ref{def:EraseProof-Steps-StepsB},
+    \ref{lem:EraseProof-LocalsOK-pushFVar}, \ref{lem:EraseProof-Pure-whnf_forallE},
+    \ref{lem:EraseProof-Steps-visitExpr_lam_step}, \ref{lem:EraseProof-Steps-visitMutual_step},
+    \ref{lem:EraseProof-Steps-stepsB_ctor}, \ref{lem:EraseProof-Steps-stepsB_proj},
+    \ref{lem:EraseProof-Steps-stepsB_lit}, \ref{lem:EraseProof-Steps-stepsB_cases_of_sat},
     \ref{lem:EraseProof-StepsCases-casesSatSpec_of_case},
     \ref{lem:EraseProof-StepsCases-casesSat_box}, \ref{lem:EraseProof-StepsCases-casesSat_reduced},
     \ref{lem:EraseProof-StepsCasesCase-visitAlt_spec},
@@ -241,7 +236,7 @@
     \ref{lem:EraseProof-PropInductive-of_propInd}, \ref{lem:EraseProof-erases_correct_ctor},
     \ref{def:EraseProof-SimIota-HeadBeta}, \ref{lem:EraseProof-erases_correct_casesIota},
     \ref{thm:EraseProof-erases_correct}, \ref{def:EraseProof-erasePure_erases_statement}}
-  \usedbyproofs{\ref{thm:EraseProof-erasePure_erases}}
+  \usedbyproofs{\ref{thm:EraseProof-erase_correct}, \ref{thm:EraseProof-erasePure_erases}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Inductive.Basic}]
@@ -257,13 +252,13 @@
   \lead{Used directly} 12 declarations: 6 definitions, 2 theorems, 4 structures.
   \usedbystatements{\ref{def:EraseProof-SatTr}, \ref{def:EraseProof-natLitM},
     \ref{lem:EraseProof-SatTr-subst}, \ref{lem:EraseProof-TrM-instLevels},
-    \ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-inst},
-    \ref{lem:EraseProof-SatTr-typed}, \ref{def:EraseProof-ProgEnv}, \ref{lem:EraseProof-TrM-wkEnv},
-    \ref{lem:EraseProof-ctorSat_iota}, \ref{lem:EraseProof-IsErasable-ctor_not},
-    \ref{lem:EraseProof-SrcEval-defeq}, \ref{def:EraseProof-Subsingleton},
-    \ref{lem:EraseProof-Pure-isPropFormerType_iff}, \ref{lem:EraseProof-StepsCases-casesSat_box},
-    \ref{lem:EraseProof-PropInductive-of_propInd}, \ref{lem:EraseProof-erases_correct_ctor},
-    \ref{lem:EraseProof-erases_correct_casesIota}}
+    \ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-dcong},
+    \ref{lem:EraseProof-TrM-inst}, \ref{lem:EraseProof-SatTr-typed}, \ref{def:EraseProof-ProgEnv},
+    \ref{lem:EraseProof-TrM-wkEnv}, \ref{lem:EraseProof-ctorSat_iota},
+    \ref{lem:EraseProof-IsErasable-ctor_not}, \ref{lem:EraseProof-SrcEval-defeq},
+    \ref{def:EraseProof-Subsingleton}, \ref{lem:EraseProof-Pure-isPropFormerType_iff},
+    \ref{lem:EraseProof-StepsCases-casesSat_box}, \ref{lem:EraseProof-PropInductive-of_propInd},
+    \ref{lem:EraseProof-erases_correct_ctor}, \ref{lem:EraseProof-erases_correct_casesIota}}
   \usedbyproofs{\ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-ProgEnv-lookup},
     \ref{lem:EraseProof-casesOn_whred}, \ref{lem:EraseProof-proj_defeq},
     \ref{lem:EraseProof-TypeEq-sort_ne_forallE}, \ref{lem:EraseProof-TypeEq-sort_ne_quot},
@@ -296,7 +291,7 @@
   \usedbystatements{\ref{def:EraseProof-TrLevel}, \ref{def:EraseProof-SatTr},
     \ref{def:EraseProof-natLitM}, \ref{def:EraseProof-TrM}, \ref{lem:EraseProof-SatTr-subst},
     \ref{lem:EraseProof-TrM-instLevels}, \ref{lem:EraseProof-DCong-defeq},
-    \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-TrM-inst},
+    \ref{lem:EraseProof-TrM-dcong}, \ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-TrM-inst},
     \ref{lem:EraseProof-SatTr-typed}, \ref{lem:EraseProof-TrM-wkEnv},
     \ref{lem:EraseProof-ProgEnv-unfold}, \ref{lem:EraseProof-ctorSat_iota},
     \ref{lem:EraseProof-casesOn_whred}, \ref{lem:EraseProof-proj_defeq},
@@ -313,7 +308,7 @@
     \ref{lem:EraseProof-StepsCasesCase-casesSat_case},
     \ref{lem:EraseProof-PropInductive-of_propInd}, \ref{lem:EraseProof-erases_correct_ctor},
     \ref{lem:EraseProof-erases_correct_casesIota}}
-  \usedbyproofs{\ref{lem:EraseProof-TrM-weakBV}, \ref{lem:EraseProof-TrM-uninstantiateN},
+  \usedbyproofs{\ref{lem:EraseProof-TrM-weakBV}, \ref{lem:EraseProof-AbsFV-TrM-absN},
     \ref{lem:EraseProof-Erases-abstract}, \ref{lem:EraseProof-Pure-inferType_recr},
     \ref{lem:EraseProof-Pure-isErasable_sound}, \ref{lem:EraseProof-collectDeps_sub},
     \ref{lem:EraseProof-isRecursiveDecl_false}, \ref{lem:EraseProof-Pure-whnf_forallE},
@@ -338,7 +333,7 @@
     \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-Erases-instLevels},
     \ref{lem:EraseProof-Pure-isPropFormerType_iff}, \ref{lem:EraseProof-StepsCases-casesSat_box},
     \ref{lem:EraseProof-erases_correct_ctor}, \ref{lem:EraseProof-erases_correct_casesIota}}
-  \usedbyproofs{\ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-apps},
+  \usedbyproofs{\ref{lem:EraseProof-TrM-dcong}, \ref{lem:EraseProof-TrM-apps},
     \ref{lem:EraseProof-TrM-inst}, \ref{lem:EraseProof-TrM-wkEnv},
     \ref{lem:EraseProof-TypeEq-sort_ne_forallE}, \ref{lem:EraseProof-TypeEq-sort_ne_quot},
     \ref{lem:EraseProof-SrcDefeq-sound_of}, \ref{lem:EraseProof-Erases-inst},
@@ -360,8 +355,8 @@
   well-formed contexts (\code{CtxWF}) and inductive blocks (\code{InductiveWF}).
   \lead{Used directly} 12 declarations: 5 definitions, 4 theorems, 1 inductive type, 2 structures.
   \usedbystatements{\ref{def:EraseProof-TypedExt}, \ref{lem:EraseProof-DCong-defeq},
-    \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-Defeq-inst_tele},
-    \ref{lem:EraseProof-TrM-inst}, \ref{lem:EraseProof-SatTr-typed}, \ref{def:EraseProof-ProgEnv},
+    \ref{lem:EraseProof-TrM-dcong}, \ref{lem:EraseProof-TrM-inst},
+    \ref{lem:EraseProof-SatTr-typed}, \ref{def:EraseProof-ProgEnv},
     \ref{lem:EraseProof-proj_defeq}, \ref{lem:EraseProof-TypeEq-sort_ne_forallE},
     \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{def:EraseProof-IsErasable},
     \ref{lem:EraseProof-IsErasable-inst}, \ref{lem:EraseProof-IsErasable-ctor_not},
@@ -393,7 +388,8 @@
     \ref{lem:EraseProof-Steps-stepsB_proj}, \ref{lem:EraseProof-Steps-stepsB_lit},
     \ref{lem:EraseProof-StepsCases-casesSatSpec_of_case},
     \ref{lem:EraseProof-Steps-stepIH_of_stepsB}, \ref{lem:EraseProof-Steps-coreEnv_of_collectDeps},
-    \ref{thm:EraseProof-erases_correct}, \ref{thm:EraseProof-erasePure_erases}}
+    \ref{thm:EraseProof-erase_correct}, \ref{thm:EraseProof-erases_correct},
+    \ref{thm:EraseProof-erasePure_erases}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Typing.TypeEq}]
@@ -412,7 +408,7 @@
     \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-Pure-whnf_sound},
     \ref{lem:EraseProof-Pure-isArity_sound}, \ref{lem:EraseProof-Pure-isPropFormerType_iff},
     \ref{lem:EraseProof-Pure-whnf_forallE}, \ref{lem:EraseProof-StepsCasesCase-visitAlt_spec}}
-  \usedbyproofs{\ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-inst},
+  \usedbyproofs{\ref{lem:EraseProof-TrM-dcong}, \ref{lem:EraseProof-TrM-inst},
     \ref{lem:EraseProof-SatTr-typed}, \ref{lem:EraseProof-IsErasable-inst},
     \ref{lem:EraseProof-IsErasable-ctor_not}, \ref{lem:EraseProof-Erases-inst},
     \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-Pure-inferType_recr},
@@ -432,7 +428,7 @@
   \srcloc{Metalean/Typing/Env/Defs.lean}{18}
   \lead{In short} Well-formed environments (\code{EnvWF}).
   \lead{Used directly} 2 declarations: 2 inductive types.
-  \usedbystatements{\ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-det},
+  \usedbystatements{\ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-dcong},
     \ref{lem:EraseProof-TrM-inst}, \ref{lem:EraseProof-SatTr-typed},
     \ref{lem:EraseProof-ProgEnv-lookup}, \ref{lem:EraseProof-proj_defeq},
     \ref{lem:EraseProof-TypeEq-sort_ne_forallE}, \ref{lem:EraseProof-TypeEq-sort_ne_quot},
@@ -455,7 +451,7 @@
     \ref{lem:EraseProof-erases_correct_beta}, \ref{lem:EraseProof-PropInductive-of_propInd},
     \ref{lem:EraseProof-erases_correct_ctor}, \ref{lem:EraseProof-erases_correct_casesIota},
     \ref{thm:EraseProof-erases_correct}, \ref{def:EraseProof-erasePure_erases_statement}}
-  \usedbyproofs{\ref{thm:EraseProof-erasePure_erases}}
+  \usedbyproofs{\ref{thm:EraseProof-erase_correct}, \ref{thm:EraseProof-erasePure_erases}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Typing.Env}]
@@ -467,7 +463,7 @@
   \lead{In short} Lemmas about well-formed environments: each entry is well formed
   (\code{EnvWF.entryWF}), and the block of an inductive entry (\code{EntryWF.block}).
   \lead{Used directly} 6 declarations: 6 theorems.
-  \usedbyproofs{\ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-det},
+  \usedbyproofs{\ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-dcong},
     \ref{lem:EraseProof-SatTr-typed}, \ref{lem:EraseProof-TypeEq-sort_ne_forallE},
     \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{lem:EraseProof-SrcEval-defeq},
     \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-OracleInfer-infer_projStruct},
@@ -490,7 +486,7 @@
   \lead{In short} Typing of inductive blocks: the types of constructors
   (\code{Inductive.ctorTypeFn}).
   \lead{Used directly} 11 declarations: 1 definition, 10 theorems.
-  \usedbyproofs{\ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-det},
+  \usedbyproofs{\ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-dcong},
     \ref{lem:EraseProof-SatTr-typed}, \ref{lem:EraseProof-TypeEq-sort_ne_forallE},
     \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{lem:EraseProof-Pure-whnf_sound},
     \ref{lem:EraseProof-Pure-isPropFormerType_iff}, \ref{lem:EraseProof-Steps-stepsB_proj},
@@ -510,7 +506,7 @@
   \lead{In short} Inversion of the typing judgment, such as for $\Pi$-types
   (\code{Defeq.forallE\_inv}).
   \lead{Used directly} 14 declarations: 14 theorems.
-  \usedbyproofs{\ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-det},
+  \usedbyproofs{\ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-dcong},
     \ref{lem:EraseProof-TrM-inst}, \ref{lem:EraseProof-SatTr-typed},
     \ref{lem:EraseProof-TypeEq-sort_ne_forallE}, \ref{lem:EraseProof-TypeEq-sort_ne_quot},
     \ref{lem:EraseProof-IsErasable-inst}, \ref{lem:EraseProof-IsErasable-ctor_not},
@@ -819,7 +815,7 @@
   \usedbystatements{\ref{def:EraseProof-natLitM}, \ref{lem:EraseProof-DCong-defeq},
     \ref{lem:EraseProof-SatTr-typed}}
   \usedbyproofs{\ref{lem:EraseProof-SatTr-subst}, \ref{lem:EraseProof-TrM-instLevels},
-    \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-TrM-inst},
+    \ref{lem:EraseProof-TrM-dcong}, \ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-TrM-inst},
     \ref{lem:EraseProof-TrM-wkEnv}, \ref{lem:EraseProof-proj_defeq},
     \ref{lem:EraseProof-IsErasable-ctor_not}, \ref{lem:EraseProof-SrcDefeq-sound_of},
     \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-Erases-inst},
@@ -850,12 +846,12 @@
   \usedbystatements{\ref{def:EraseProof-natLitM}, \ref{lem:EraseProof-TrM-inst},
     \ref{lem:EraseProof-proj_defeq}}
   \usedbyproofs{\ref{lem:EraseProof-SatTr-subst}, \ref{lem:EraseProof-TrM-instLevels},
-    \ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-apps},
-    \ref{lem:EraseProof-SatTr-typed}, \ref{lem:EraseProof-TrM-wkEnv},
-    \ref{lem:EraseProof-ctorSat_iota}, \ref{lem:EraseProof-SrcDefeq-sound_of},
-    \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-Erases-inst},
-    \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-Pure-inferType_recr},
-    \ref{lem:EraseProof-OracleInfer-infer_projStruct},
+    \ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-dcong},
+    \ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-SatTr-typed},
+    \ref{lem:EraseProof-TrM-wkEnv}, \ref{lem:EraseProof-ctorSat_iota},
+    \ref{lem:EraseProof-SrcDefeq-sound_of}, \ref{lem:EraseProof-SrcEval-defeq},
+    \ref{lem:EraseProof-Erases-inst}, \ref{lem:EraseProof-Pure-whnf_sound},
+    \ref{lem:EraseProof-Pure-inferType_recr}, \ref{lem:EraseProof-OracleInfer-infer_projStruct},
     \ref{lem:EraseProof-Pure-isPropFormerType_iff},
     \ref{lem:EraseProof-StepsCases-casesSat_reduced},
     \ref{lem:EraseProof-StepsCasesCase-casesSat_case},
@@ -875,7 +871,7 @@
   \usedbystatements{\ref{def:EraseProof-SatTr}, \ref{def:EraseProof-ProgEnv},
     \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-StepsCases-casesSat_box}}
   \usedbyproofs{\ref{lem:EraseProof-TrM-instLevels}, \ref{lem:EraseProof-DCong-defeq},
-    \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-inst}, \ref{lem:EraseProof-TrM-wkEnv},
+    \ref{lem:EraseProof-TrM-dcong}, \ref{lem:EraseProof-TrM-inst}, \ref{lem:EraseProof-TrM-wkEnv},
     \ref{lem:EraseProof-ProgEnv-lookup}, \ref{lem:EraseProof-casesOn_whred},
     \ref{lem:EraseProof-Erases-instLevels}, \ref{lem:EraseProof-OracleInfer-inferOK},
     \ref{lem:EraseProof-Pure-inferType_recr}, \ref{lem:EraseProof-OracleInfer-infer_projStruct},
@@ -904,9 +900,9 @@
     \ref{lem:EraseProof-SrcDefeq-sound_of}, \ref{lem:EraseProof-Pure-whnf_sound},
     \ref{lem:EraseProof-OracleInfer-infer_projStruct}, \ref{lem:EraseProof-Pure-isErasable_sound},
     \ref{lem:EraseProof-Steps-stepsB_proj}, \ref{lem:EraseProof-PropInductive-of_propInd}}
-  \usedbyproofs{\ref{lem:EraseProof-TrM-weakBV}, \ref{lem:EraseProof-TrM-uninstantiateN},
+  \usedbyproofs{\ref{lem:EraseProof-TrM-weakBV}, \ref{lem:EraseProof-AbsFV-TrM-absN},
     \ref{lem:EraseProof-TrM-instLevels}, \ref{lem:EraseProof-DCong-defeq},
-    \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-TrM-wkEnv},
+    \ref{lem:EraseProof-TrM-dcong}, \ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-TrM-wkEnv},
     \ref{lem:EraseProof-ProgEnv-unfold}, \ref{lem:EraseProof-casesOn_whred},
     \ref{lem:EraseProof-proj_defeq}, \ref{lem:EraseProof-ErasableS-atom},
     \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-Erases-instLevels},
@@ -928,7 +924,7 @@
   \usedbystatements{\ref{def:EraseProof-MBinding}, \ref{def:EraseProof-SatTr},
     \ref{lem:EraseProof-TrM-instLevels}, \ref{lem:EraseProof-TrM-apps},
     \ref{lem:EraseProof-SatTr-typed}, \ref{def:EraseProof-ProgEnv}, \ref{lem:EraseProof-TrM-wkEnv}}
-  \usedbyproofs{\ref{lem:EraseProof-SatTr-subst}, \ref{lem:EraseProof-TrM-det},
+  \usedbyproofs{\ref{lem:EraseProof-SatTr-subst}, \ref{lem:EraseProof-TrM-dcong},
     \ref{lem:EraseProof-TrM-inst}, \ref{lem:EraseProof-casesOn_whred},
     \ref{lem:EraseProof-proj_defeq}, \ref{lem:EraseProof-ErasableS-atom},
     \ref{lem:EraseProof-SrcDefeq-sound_of}, \ref{lem:EraseProof-SrcEval-defeq},
@@ -949,7 +945,7 @@
   builders.
   \lead{Used directly} 2 declarations: 2 inductive types.
   \usedbystatements{\ref{def:EraseProof-SatTr}, \ref{lem:EraseProof-SatTr-subst},
-    \ref{lem:EraseProof-TrM-instLevels}, \ref{lem:EraseProof-TrM-det},
+    \ref{lem:EraseProof-TrM-instLevels}, \ref{lem:EraseProof-TrM-dcong},
     \ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-TrM-inst}, \ref{lem:EraseProof-SatTr-typed},
     \ref{lem:EraseProof-TrM-wkEnv}, \ref{lem:EraseProof-ctorSat_iota},
     \ref{lem:EraseProof-casesOn_whred}, \ref{lem:EraseProof-SrcDefeq-sound_of},
@@ -976,7 +972,7 @@
   \code{partial} translator is not used.
   \lead{Used directly} 9 declarations: 9 definitions.
   \usedbystatements{\ref{def:EraseProof-SatTr}, \ref{lem:EraseProof-SatTr-subst},
-    \ref{lem:EraseProof-TrM-instLevels}, \ref{lem:EraseProof-TrM-det},
+    \ref{lem:EraseProof-TrM-instLevels}, \ref{lem:EraseProof-TrM-dcong},
     \ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-TrM-inst}, \ref{lem:EraseProof-SatTr-typed},
     \ref{lem:EraseProof-TrM-wkEnv}, \ref{lem:EraseProof-ctorSat_iota},
     \ref{lem:EraseProof-casesOn_whred}, \ref{lem:EraseProof-SrcDefeq-sound_of},
@@ -999,7 +995,7 @@
   \lead{Used directly} 1 declaration: 1 definition.
   \usedbystatements{\ref{lem:EraseProof-SatTr-subst}, \ref{lem:EraseProof-TrM-instLevels},
     \ref{lem:EraseProof-TrM-wkEnv}, \ref{lem:EraseProof-ctorSat_iota}}
-  \usedbyproofs{\ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-apps},
+  \usedbyproofs{\ref{lem:EraseProof-TrM-dcong}, \ref{lem:EraseProof-TrM-apps},
     \ref{lem:EraseProof-TrM-inst}, \ref{lem:EraseProof-SatTr-typed},
     \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-Pure-whnf_sound}}
 \end{imported}
@@ -1026,17 +1022,18 @@
   \lead{Used directly} 15 declarations: 5 definitions, 8 theorems, 2 inductive types.
   \usedbystatements{\ref{lem:EraseProof-TrM-inst}}
   \usedbyproofs{\ref{lem:EraseProof-TrM-weakBV}, \ref{lem:EraseProof-TrM-instLevels},
-    \ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-apps},
-    \ref{lem:EraseProof-SatTr-typed}, \ref{lem:EraseProof-TrM-wkEnv},
-    \ref{lem:EraseProof-ctorSat_iota}, \ref{lem:EraseProof-proj_defeq},
-    \ref{lem:EraseProof-ErasableS-atom}, \ref{lem:EraseProof-SrcDefeq-sound_of},
-    \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-Erases-instLevels},
-    \ref{lem:EraseProof-Erases-inst}, \ref{lem:EraseProof-Pure-whnf_sound},
-    \ref{lem:EraseProof-Pure-isArity_sound}, \ref{lem:EraseProof-OracleInfer-inferOK},
-    \ref{lem:EraseProof-Pure-isPropFormerType_iff}, \ref{lem:EraseProof-LocalsOK-pushFVar},
-    \ref{lem:EraseProof-Steps-visitExpr_lam_step}, \ref{lem:EraseProof-Steps-visitMutual_step},
-    \ref{lem:EraseProof-StepsCasesCase-visitAlt_spec}, \ref{lem:EraseProof-erases_correct_beta},
-    \ref{lem:EraseProof-erases_correct_casesIota}, \ref{thm:EraseProof-erasePure_erases}}
+    \ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-dcong},
+    \ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-SatTr-typed},
+    \ref{lem:EraseProof-TrM-wkEnv}, \ref{lem:EraseProof-ctorSat_iota},
+    \ref{lem:EraseProof-proj_defeq}, \ref{lem:EraseProof-ErasableS-atom},
+    \ref{lem:EraseProof-SrcDefeq-sound_of}, \ref{lem:EraseProof-SrcEval-defeq},
+    \ref{lem:EraseProof-Erases-instLevels}, \ref{lem:EraseProof-Erases-inst},
+    \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-Pure-isArity_sound},
+    \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-Pure-isPropFormerType_iff},
+    \ref{lem:EraseProof-LocalsOK-pushFVar}, \ref{lem:EraseProof-Steps-visitExpr_lam_step},
+    \ref{lem:EraseProof-Steps-visitMutual_step}, \ref{lem:EraseProof-StepsCasesCase-visitAlt_spec},
+    \ref{lem:EraseProof-erases_correct_beta}, \ref{lem:EraseProof-erases_correct_casesIota},
+    \ref{thm:EraseProof-erasePure_erases}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Frontend.Rename}]
@@ -1085,7 +1082,7 @@
   \lead{In short} Subject reduction: weak-head reduction is a definitional equality
   (\code{WHRedS.defeq}), retyping (\code{Defeq.retype}), projections of constructors.
   \lead{Used directly} 7 declarations: 7 theorems.
-  \usedbyproofs{\ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-det},
+  \usedbyproofs{\ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-dcong},
     \ref{lem:EraseProof-proj_defeq}, \ref{lem:EraseProof-SrcDefeq-sound_of},
     \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-Pure-whnf_sound},
     \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-Pure-inferType_recr},
@@ -1127,7 +1124,7 @@
     \ref{lem:EraseProof-casesOn_whred}, \ref{lem:EraseProof-proj_defeq},
     \ref{lem:EraseProof-SrcEval-defeq}}
   \usedbyproofs{\ref{lem:EraseProof-SatTr-subst}, \ref{lem:EraseProof-TrM-instLevels},
-    \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-wkEnv},
+    \ref{lem:EraseProof-TrM-dcong}, \ref{lem:EraseProof-TrM-wkEnv},
     \ref{lem:EraseProof-Pure-inferType_recr}, \ref{lem:EraseProof-OracleInfer-infer_projStruct}}
 \end{imported}
 
@@ -1152,7 +1149,7 @@
   \lead{In short} Recursive fields of constructors and their instantiated types.
   \lead{Used directly} 3 declarations: 3 definitions.
   \usedbystatements{\ref{lem:EraseProof-DCong-defeq}}
-  \usedbyproofs{\ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-inst},
+  \usedbyproofs{\ref{lem:EraseProof-TrM-dcong}, \ref{lem:EraseProof-TrM-inst},
     \ref{lem:EraseProof-SatTr-typed}, \ref{lem:EraseProof-IsErasable-ctor_not},
     \ref{lem:EraseProof-SrcDefeq-sound_of}, \ref{lem:EraseProof-Erases-inst},
     \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-OracleInfer-inferOK},
@@ -1172,7 +1169,7 @@
   \lead{Used directly} 6 declarations: 6 definitions.
   \usedbystatements{\ref{lem:EraseProof-SatTr-typed}}
   \usedbyproofs{\ref{lem:EraseProof-TrM-instLevels}, \ref{lem:EraseProof-DCong-defeq},
-    \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-TrM-inst},
+    \ref{lem:EraseProof-TrM-dcong}, \ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-TrM-inst},
     \ref{lem:EraseProof-TrM-wkEnv}, \ref{lem:EraseProof-OracleInfer-inferOK}}
 \end{imported}
 
@@ -1189,7 +1186,7 @@
     \ref{lem:EraseProof-ctorSat_iota}, \ref{lem:EraseProof-casesOn_whred},
     \ref{lem:EraseProof-proj_defeq}, \ref{lem:EraseProof-SrcEval-defeq},
     \ref{lem:EraseProof-Pure-whnf_sound}}
-  \usedbyproofs{\ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-SrcDefeq-sound_of},
+  \usedbyproofs{\ref{lem:EraseProof-TrM-dcong}, \ref{lem:EraseProof-SrcDefeq-sound_of},
     \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-Pure-inferType_recr},
     \ref{lem:EraseProof-StepsCases-casesSat_box},
     \ref{lem:EraseProof-StepsCasesCase-visitAlt_spec}, \ref{lem:EraseProof-erases_correct_beta},
@@ -1249,14 +1246,15 @@
   \lead{Used directly} 31 declarations: 1 definition, 30 theorems.
   \usedbystatements{\ref{lem:EraseProof-TrM-inst}}
   \usedbyproofs{\ref{lem:EraseProof-SatTr-subst}, \ref{lem:EraseProof-DCong-defeq},
-    \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-SatTr-typed},
-    \ref{lem:EraseProof-ctorSat_iota}, \ref{lem:EraseProof-casesOn_whred},
-    \ref{lem:EraseProof-proj_defeq}, \ref{lem:EraseProof-IsErasable-inst},
-    \ref{lem:EraseProof-SrcDefeq-sound_of}, \ref{lem:EraseProof-SrcEval-defeq},
-    \ref{lem:EraseProof-Erases-inst}, \ref{lem:EraseProof-Pure-whnf_sound},
-    \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-Pure-isPropFormerType_iff},
-    \ref{lem:EraseProof-Steps-visitExpr_lam_step}, \ref{lem:EraseProof-Steps-stepsB_cases_of_sat},
-    \ref{lem:EraseProof-erases_correct_beta}, \ref{lem:EraseProof-erases_correct_casesIota}}
+    \ref{lem:EraseProof-TrM-dcong}, \ref{lem:EraseProof-TrM-apps},
+    \ref{lem:EraseProof-SatTr-typed}, \ref{lem:EraseProof-ctorSat_iota},
+    \ref{lem:EraseProof-casesOn_whred}, \ref{lem:EraseProof-proj_defeq},
+    \ref{lem:EraseProof-IsErasable-inst}, \ref{lem:EraseProof-SrcDefeq-sound_of},
+    \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-Erases-inst},
+    \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-OracleInfer-inferOK},
+    \ref{lem:EraseProof-Pure-isPropFormerType_iff}, \ref{lem:EraseProof-Steps-visitExpr_lam_step},
+    \ref{lem:EraseProof-Steps-stepsB_cases_of_sat}, \ref{lem:EraseProof-erases_correct_beta},
+    \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Var}]
@@ -1270,7 +1268,7 @@
     \ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-inst},
     \ref{lem:EraseProof-SatTr-typed}, \ref{lem:EraseProof-Erases-inst}}
   \usedbyproofs{\ref{lem:EraseProof-SatTr-subst}, \ref{lem:EraseProof-TrM-instLevels},
-    \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-TrM-wkEnv},
+    \ref{lem:EraseProof-TrM-dcong}, \ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-TrM-wkEnv},
     \ref{lem:EraseProof-ctorSat_iota}, \ref{lem:EraseProof-casesOn_whred},
     \ref{lem:EraseProof-proj_defeq}, \ref{lem:EraseProof-ErasableS-atom},
     \ref{lem:EraseProof-SrcDefeq-sound_of}, \ref{lem:EraseProof-Pure-whnf_sound},
@@ -1347,7 +1345,7 @@
   \lead{In short} Typing of structures and of their projection terms
   (\code{IsStructure.projTerm\_congr}).
   \lead{Used directly} 2 declarations: 2 theorems.
-  \usedbyproofs{\ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-inst},
+  \usedbyproofs{\ref{lem:EraseProof-TrM-dcong}, \ref{lem:EraseProof-TrM-inst},
     \ref{lem:EraseProof-OracleInfer-infer_projStruct}}
 \end{imported}
 
@@ -1362,13 +1360,13 @@
   conversion (\code{Defeq.snocConv}).
   \lead{Used directly} 8 declarations: 8 theorems.
   \usedbyproofs{\ref{lem:EraseProof-TrM-weakBV}, \ref{lem:EraseProof-DCong-defeq},
-    \ref{lem:EraseProof-TrM-det}, \ref{lem:EraseProof-TrM-inst}, \ref{lem:EraseProof-SatTr-typed},
-    \ref{lem:EraseProof-IsErasable-inst}, \ref{lem:EraseProof-SrcDefeq-sound_of},
-    \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-Erases-inst},
-    \ref{lem:EraseProof-Pure-isArity_sound}, \ref{lem:EraseProof-OracleInfer-inferOK},
-    \ref{lem:EraseProof-LocalsOK-pushFVar}, \ref{lem:EraseProof-Steps-stepsB_ctor},
-    \ref{lem:EraseProof-Steps-stepsB_cases_of_sat}, \ref{lem:EraseProof-erases_correct_beta},
-    \ref{lem:EraseProof-erases_correct_casesIota}}
+    \ref{lem:EraseProof-TrM-dcong}, \ref{lem:EraseProof-TrM-inst},
+    \ref{lem:EraseProof-SatTr-typed}, \ref{lem:EraseProof-IsErasable-inst},
+    \ref{lem:EraseProof-SrcDefeq-sound_of}, \ref{lem:EraseProof-SrcEval-defeq},
+    \ref{lem:EraseProof-Erases-inst}, \ref{lem:EraseProof-Pure-isArity_sound},
+    \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-LocalsOK-pushFVar},
+    \ref{lem:EraseProof-Steps-stepsB_ctor}, \ref{lem:EraseProof-Steps-stepsB_cases_of_sat},
+    \ref{lem:EraseProof-erases_correct_beta}, \ref{lem:EraseProof-erases_correct_casesIota}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Decide}]

@@ -65,7 +65,7 @@
 \end{lemma}
 \begin{proof}
   \uses{lem:EraseProof-TrM-weakBV, lem:EraseProof-TrM-instLevels, lem:EraseProof-DCong-defeq,
-    lem:EraseProof-TrM-det, lem:EraseProof-TrM-apps, lem:EraseProof-TrM-inst,
+    lem:EraseProof-TrM-dcong, lem:EraseProof-TrM-apps, lem:EraseProof-TrM-inst,
     lem:EraseProof-ProgEnv-lookup, lem:EraseProof-casesOn_shape, lem:EraseProof-proj_defeq,
     lem:EraseProof-TypeEq-sort_ne_forallE, def:Erasure-casesInfo, def:Erasure-Pure-instLevels}
   \leanok
@@ -98,7 +98,7 @@
 \begin{proof}
   \uses{lem:EraseProof-Pure-whnf_sound, def:EraseProof-TrLevel, def:EraseProof-SatTr,
     def:EraseProof-natLitM, def:EraseProof-TypedExt, lem:EraseProof-TrM-weakBV,
-    lem:EraseProof-TrM-det}
+    lem:EraseProof-TrM-dcong}
   \leanok
   \lead{Idea} Induction on fuel through \code{whnf\_sound}; the locals move under new binders
   by \code{LocalsOK.weakBV}.
@@ -138,7 +138,7 @@
 \begin{proof}
   \uses{lem:EraseProof-Pure-whnf_sound, lem:EraseProof-Pure-isArity_sound,
     lem:EraseProof-Pure-inferType_recr, def:EraseProof-TypedExt, lem:EraseProof-TrM-weakBV,
-    lem:EraseProof-TrM-instLevels, lem:EraseProof-DCong-defeq, lem:EraseProof-TrM-det,
+    lem:EraseProof-TrM-instLevels, lem:EraseProof-DCong-defeq, lem:EraseProof-TrM-dcong,
     lem:EraseProof-TrM-apps, lem:EraseProof-TrM-inst, lem:EraseProof-SatTr-typed,
     lem:EraseProof-ProgEnv-lookup, def:Erasure-casesInfo, lem:EraseProof-SrcDefeq-sound_of,
     lem:EraseProof-SrcEval-defeq}
@@ -196,7 +196,7 @@
 \end{lemma}
 \begin{proof}
   \uses{lem:EraseProof-Pure-whnf_sound, def:EraseProof-TrLevel, def:EraseProof-SatTr,
-    def:EraseProof-natLitM, lem:EraseProof-DCong-defeq, lem:EraseProof-TrM-det,
+    def:EraseProof-natLitM, lem:EraseProof-DCong-defeq, lem:EraseProof-TrM-dcong,
     lem:EraseProof-TrM-apps, lem:EraseProof-SatTr-typed, lem:EraseProof-ProgEnv-lookup,
     lem:EraseProof-casesOn_shape, def:Erasure-findConst, def:Erasure-casesInfo,
     def:Erasure-Pure-instLevels}
@@ -508,7 +508,7 @@
   \uses{def:EraseProof-PhaseIDecl, def:EraseProof-ViewAgrees, def:EraseProof-MBinding,
     def:EraseProof-TrM, def:EraseProof-ProgEnv, def:Erasure-EraseError, def:Erasure-EnvView,
     def:Erasure-collectDeps, def:EraseProof-ConstsIn, def:Erasure-ErasureConfig}
-  \srcloc{proof/EraseProof/Statements.lean}{34}
+  \srcloc{proof/EraseProof/Statements.lean}{39}
   \lead{In short} The proposition that Lemma~\ref{lem:EraseProof-collectDeps_ok_of} proves,
   \hl{pinned by \code{proof/spec.pin}}; check C12 compares the lemma's type with it (kernel
   definitional equality).
@@ -666,7 +666,7 @@ state to the Metalean environment.
 \begin{proof}
   \uses{lem:EraseProof-Pure-whnf_sound, lem:EraseProof-Pure-typeLevel_sound,
     def:EraseProof-natLitM, def:EraseProof-TypedExt, lem:EraseProof-TrM-instLevels,
-    lem:EraseProof-TrM-det, lem:EraseProof-SatTr-typed, lem:EraseProof-ProgEnv-lookup,
+    lem:EraseProof-TrM-dcong, lem:EraseProof-SatTr-typed, lem:EraseProof-ProgEnv-lookup,
     lem:EraseProof-TypeEq-sort_ne_forallE, def:Erasure-Pure-instLevels, def:EraseProof-EvalEnv,
     lem:EraseProof-SrcDefeq-sound_of}
   \leanok
@@ -792,6 +792,7 @@ state to the Metalean environment.
     EraseProof.TravFrame.step_appArgs, EraseProof.TravFrame.step_kername,
     EraseProof.TravFrame.step_constApp, EraseProof.TravFrame.step_ctor,
     EraseProof.TravFrame.step_alt, EraseProof.TravFrame.step_mutual,
+    EraseProof.TravFrame.step_rec,
     EraseProof.TravFrame.step_casesOn, EraseProof.TravFrame.step_cases,
     EraseProof.TravFrame.Trav.succ, EraseProof.TravFrame.trav}
   \leanok
@@ -800,7 +801,7 @@ state to the Metalean environment.
     def:Erasure-casesInfo, def:Erasure-Pure-isErasable, def:Erasure-PureM,
     def:EraseProof-DepClosed, def:EraseProof-ClosedDecls, def:LBTerm, def:toKername,
     def:Erasure-ErasureConfig, def:Erasure-TravCtx, def:Erasure-EraseT, def:Erasure-erase}
-  \srcloc{proof/EraseProof/Core/Frame.lean}{1340}
+  \srcloc{proof/EraseProof/Core/Frame.lean}{1386}
   \lead{In short} At the pure backend, \code{visitExpr} \hl{reads the locals only on the term's
   free variables}, from any state and counter.
   \begin{itemize}
@@ -823,7 +824,8 @@ state to the Metalean environment.
     def:EraseProof-ConstsIn, def:abstract, def:GlobalDecl}
   \leanok
   \lead{Idea} \code{RA}: runs under agreeing locals are equal; combinators for binds, loops and
-  binders; one step lemma per traversal function; induction on fuel (\code{trav}). The catch-all
+  binders; one step lemma per traversal function, \code{step\_rec} for the recursor branch of
+  \code{visitConstApp}; induction on fuel (\code{trav}). The catch-all
   of \code{visitCases} is dead on a recognized \code{casesOn} (\code{casesInfo?\_spec}).
 \end{proof}
 
@@ -835,7 +837,7 @@ state to the Metalean environment.
   \uses{def:Erasure-EraseError, def:Erasure-EnvView, def:Erasure-collectDeps,
     def:Erasure-erasePure, def:Erasure-eraseEntry, def:toKername, def:ASTType,
     def:Erasure-ErasureConfig}
-  \srcloc{proof/EraseProof/Core/Glue.lean}{61}
+  \srcloc{proof/EraseProof/Core/Glue.lean}{58}
   \lead{In short} On the fragment, a returning run of \code{\#erase} \hl{is a run of the pure
   path}.
   \begin{itemize}
@@ -849,25 +851,6 @@ state to the Metalean environment.
   \leanok
   \lead{Idea} \code{route} takes the pure path; \code{pure} is injective in \code{CoreM}, and an
   error is no result.
-\end{proof}
-
-\begin{lemma}[The non-recursive branch of \texorpdfstring{\code{visitMutual}}{visitMutual}]
-  \label{lem:EraseProof-visitMutual_nonrecursive}
-  \lean{EraseProof.visitMutual_nonrecursive, EraseProof.name_occurs_pure}
-  \leanok
-  \uses{def:EraseProof-MBinding, def:EraseProof-ProgEnv, def:Erasure-PureM,
-    def:Erasure-isRecursiveDecl, def:EraseProof-ConstsIn}
-  \srcloc{proof/EraseProof/Core/Glue.lean}{82}
-  \lead{In short} On a declaration of \code{P} with a value \code{v}, \code{visitMutual}'s test
-  \hl{takes the non-recursive branch}: \code{ci.all.length = 1} and
-  \code{name\_occurs (m := PureM) c v = false}.
-  \lead{Reference} none (DV-7 does not arise).
-\end{lemma}
-\begin{proof}
-  \uses{lem:EraseProof-isRecursiveDecl_false, lem:EraseProof-ProgEnv-lookup}
-  \leanok
-  \lead{Idea} \code{isRecursiveDecl\_false}; at \code{PureM}, \code{name\_occurs} is
-  \code{nameOccurs} (\code{name\_occurs\_pure}).
 \end{proof}
 
 \begin{lemma}[No recursive declaration]
@@ -935,8 +918,8 @@ into \code{erasePure\_erases}.
   \item \code{ScopeOK decls S}: \code{S} lies in \code{decls} and holds the constants of the
         values \code{visitMutual} erases.
   \end{itemize}
-  \lead{Why \code{RecFree}} a recursor head would translate through \code{TrM.special}, which the
-  plain application step does not cover.
+  \lead{Why \code{RecFree}} a recursor head would translate through \code{TrM.special}, and
+  \code{visitConstApp} would erase it by \code{visitRec}; no step covers either.
   \lead{Reference} \code{erases\_erase} (\code{ErasureFunction.v}) with
   \code{erase\_global\_erases\_deps} (\code{ErasureFunctionProperties.v}).
 \end{definition}
@@ -1114,7 +1097,7 @@ into \code{erasePure\_erases}.
   \uses{lem:EraseProof-Pure-whnf_sound, lem:EraseProof-Pure-isErasable_sound,
     lem:EraseProof-Pure-isErasable_atom, lem:EraseProof-StateOK-register,
     lem:EraseProof-visit_agree, lem:EraseProof-LocalsOK-pushFVar, def:EraseProof-TrLevel,
-    def:EraseProof-natLitM, def:EraseProof-TypedExt, lem:EraseProof-TrM-uninstantiateN,
+    def:EraseProof-natLitM, def:EraseProof-TypedExt, lem:EraseProof-AbsFV-TrM-absN,
     lem:EraseProof-TrM-inst, lem:EraseProof-ProgEnv-lookup, lem:EraseProof-casesOn_whred,
     def:Erasure-findConst, def:Erasure-declExclusion, def:Erasure-Pure-instLevels,
     def:EraseProof-Subsingleton, lem:EraseProof-Erases-closed, lem:EraseProof-Erases-abstract,
@@ -1143,7 +1126,7 @@ into \code{erasePure\_erases}.
     def:Erasure-PureM, def:Erasure-isRecursiveDecl, def:EraseProof-EvalEnv,
     def:EraseProof-EvalEnv-isAtom, def:EraseProof-ConstsIn, def:toKername,
     def:Erasure-ErasureConfig, def:Erasure-TravCtx, def:Erasure-EraseT}
-  \srcloc{proof/EraseProof/Core/Steps.lean}{1617}
+  \srcloc{proof/EraseProof/Core/Steps.lean}{1621}
   \lead{In short} Given \code{CoreEnv} and \code{StepIH} at \code{fuel}, \hl{\code{MutualSpec} at
   \code{fuel + 1}}: \code{visitMutual} registers an axiom, a remapped declaration, or a
   definition or opaque with its value erased.
@@ -1463,7 +1446,7 @@ into \code{erasePure\_erases}.
   \uses{def:EraseProof-LocalsOK, def:EraseProof-PhaseIDecl, def:EraseProof-StateOK,
     def:EraseProof-MachineFree, def:EraseProof-Steps-ExprSpec, def:EraseProof-Steps-CoreEnv,
     def:EraseProof-Steps-NatPlain, def:EraseProof-MBinding, def:EraseProof-SatTr,
-    def:EraseProof-TrM, lem:EraseProof-TrM-uninstantiateN, def:EraseProof-ProgEnv,
+    def:EraseProof-TrM, lem:EraseProof-AbsFV-TrM-absN, def:EraseProof-ProgEnv,
     def:Erasure-EraseError, def:Erasure-EnvView, def:Erasure-Pure-isErasable, def:Erasure-PureM,
     def:Erasure-isRecursiveDecl, def:EraseProof-LBEval, def:EraseProof-Erases,
     def:EraseProof-ErasesDeps, lem:EraseProof-Erases-abstract, def:EraseProof-EvalEnv,

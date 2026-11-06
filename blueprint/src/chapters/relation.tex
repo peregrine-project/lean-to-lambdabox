@@ -172,20 +172,19 @@
 
 \begin{lemma}[Inversion and closedness]
   \label{lem:EraseProof-Erases-closed}
-  \lean{EraseProof.Erases.closed, EraseProof.Erases.app_inv, EraseProof.Erases.ctor_inv,
-    EraseProof.Erases.cases_inv, EraseProof.Erases.atomSpine_box, EraseProof.Erases.ctorProp_box,
+  \lean{EraseProof.Erases.closed, EraseProof.Erases.ctor_inv, EraseProof.Erases.cases_inv, EraseProof.Erases.atomSpine_box, EraseProof.Erases.ctorProp_box,
     EraseProof.Erases.propProj_box}
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-TrM, def:EraseProof-LBEval,
     def:EraseProof-Subsingleton, def:EraseProof-Erases, def:EraseProof-IsErasable,
     def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-isAtom, def:EraseProof-SrcEval,
     def:EraseProof-ConstsIn, def:LBTerm}
-  \srcloc{proof/EraseProof/Relation/Basic.lean}{344}
-  \lead{In short} An erasure is \hl{closed under its bound locals}, inverts at applications,
-  constructors and \code{casesOn}, and is $\Box$ on proof values.
+  \srcloc{proof/EraseProof/Relation/Basic.lean}{343}
+  \lead{In short} An erasure is \hl{closed under its bound locals}, inverts at constructors and
+  \code{casesOn}, and is $\Box$ on proof values.
   \begin{itemize}
   \item \code{closed}: \code{closedn} of the number of bound locals;
-  \item \code{app\_inv}, \code{ctor\_inv}, \code{cases\_inv}: $\Box$ of an erasable term, or the
+  \item \code{ctor\_inv}, \code{cases\_inv}: $\Box$ of an erasable term, or the
         rule's shape, extra arguments applied;
   \item \code{atomSpine\_box}, \code{propProj\_box}: an erasure of an atom spine or a neutral proof
         projection that is a $\lambda_\Box$ result is $\Box$;
@@ -292,7 +291,7 @@
     EraseProof.AbsFV.closedn_mkApps, EraseProof.AbsFV.closednB_get, EraseProof.AbsFV.FVarsIn.mono,
     EraseProof.AbsFV.ProgEnv.typeTr, EraseProof.AbsFV.closed_types}
   \leanok
-  \uses{def:EraseProof-MBinding, def:EraseProof-TrM, lem:EraseProof-TrM-uninstantiateN,
+  \uses{def:EraseProof-MBinding, def:EraseProof-TrM, lem:EraseProof-AbsFV-TrM-absN,
     def:EraseProof-ProgEnv, def:Erasure-Pure-instLevels, def:EraseProof-LBEval,
     def:EraseProof-Erases, def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-etaSpine,
     def:EraseProof-ConstsIn, def:EraseProof-DepClosed, def:LBTerm, def:abstract}
@@ -320,7 +319,7 @@
 
 \begin{lemma}[Substitution]
   \label{lem:EraseProof-Erases-inst}
-  \lean{EraseProof.Erases.inst, EraseProof.Erases.inst_let, EraseProof.ErasesAlt.inst,
+  \lean{EraseProof.Erases.inst, EraseProof.ErasesAlt.inst,
     EraseProof.RelInst.lift_lift, EraseProof.RelInst.lift_comm, EraseProof.RelInst.inst_lift_above,
     EraseProof.RelInst.lift_inst_below, EraseProof.RelInst.inst_lift_cancel,
     EraseProof.RelInst.inst_inst, EraseProof.RelInst.inst_closed, EraseProof.RelInst.lift_closed,
@@ -359,7 +358,7 @@
         \code{SubEnv $\sigma$.decls P}; \code{SrcValue $\sigma$ a}; typed translations of
         \code{a} and \code{b}; erasures \code{a'} (closed) and \code{b'};
   \item \lead{Then} \code{Erases \ldots\ (b.instantiate1' a) (csubst a' 0 b')}
-        (\code{inst}, and \code{inst\_let} under a \code{let});
+        (\code{inst});
   \item \code{ErasesAlt.inst}: the same for an alternative under its field binders, at the
         index of the last binder, the field step of $\lambda_\Box$'s \code{iotaRed}.
   \end{itemize}

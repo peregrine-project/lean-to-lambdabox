@@ -207,7 +207,8 @@
   \item \code{PureCtx}: the closure and the view; \code{PureState}: a counter for fresh
         variables;
   \item \code{findConst?} $=$ \code{declInfo?}: lookup in the closure, no \code{\_unsafe\_rec}
-        redirect; \code{instantiate1}: the structural \code{Expr.instantiate1'};
+        redirect; \code{declInfo?} ignores the configuration, so \code{structural} has no effect
+        on the pure path; \code{instantiate1}: the structural \code{Expr.instantiate1'};
   \item \code{isErasable}, \code{inferType}, \code{isPropFormerType}, \code{typeLevel},
         \code{whnf}: the pure oracle at \code{oracleFuel}; \code{whnf} reduces an alternative's
         type to a $\Pi$ (S-31); \code{casesInfo?}, \code{ctorArity?}: the recognizer

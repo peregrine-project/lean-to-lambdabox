@@ -3,10 +3,9 @@
 \section*{At a glance}
 \begin{itemize}
 \item \lead{Goal} List what is not done, and what the final theorem does not cover.
-\item \lead{Status} \stProved{} the formalized lemmas and the tests (counts in
-  Section~\ref{sec:intro-kinds}). \stOpen{} \hl{every planned node}, the shipping entries of
-  Phase II, the instances of the remaining hypotheses on the non-vacuity programs, and the
-  final-form checks.
+\item \lead{Status} \stProved{} the final theorem, its milestones, the formalized lemmas and the
+  tests (counts in Section~\ref{sec:intro-kinds}). \stOpen{} \hl{the first-order corollary, the
+  well-formedness of the emitted program, the proofs of Phase II} and the planned nodes.
 \end{itemize}
 
 \section{Planned statements}\label{sec:open-planned}
@@ -19,17 +18,48 @@ The planned nodes, per chapter. The table is generated from the chapters by
 \section{Roots of the proof package}\label{sec:open-roots}
 
 Every declaration of \code{EraseProof} outside the tests is reachable from a root of
-\code{proof/ROOTS.txt} or from a statement definition. A root names the declaration that will use
-it, or \code{FINAL} when no theorem uses it; the table is generated from \code{proof/ROOTS.txt}.
+\code{proof/ROOTS.txt}, from a statement definition or from a proved theorem with a statement. A
+root names the declaration that will use it, or \code{FINAL} for the final theorem; the three
+no-confusion lemmas of quotient types wait for \code{IsErasable.quotMk\_not}. The table is
+generated from \code{proof/ROOTS.txt}.
 
 \input{generated/roots}
 
-\section{Shipping entries}\label{sec:open-shipping}
+\section{Results}\label{sec:open-results}
 
 \begin{itemize}
-\item \lead{Phase II} \stOpen{} the shipping entries for recursors and for structural recursion
-  behind a configuration flag; for quotients, which the traversal erases (S-38), their admission
-  by the fragment test, together with their verification.
+\item \lead{First-order corollary} \stOpen{} for a value of a non-\code{Prop} inductive with
+  first-order arguments, \code{vb} is its structural erasure, with an instance on NV-1, as
+  MetaRocq's \code{erase\_correct\_strong}. The final theorem gives only an erasure of \code{v};
+  \code{IsErasable.ctor\_not} excludes $\Box$ for data constructors.
+\item \lead{Well-formed output} \stOpen{} fresh kernames, declaration order and well-formed terms
+  of the emitted program, which composing with Peregrine's verified pipeline needs, as a conjunct
+  or a separate theorem; \code{peregrine validate} checks them at run time (C11).
+\item \lead{Non-vacuity} \stOpen{} an instance with a projection and a Peano literal; a check of
+  NV-P's declarations against the kernel's.
+\end{itemize}
+
+\section{Phase II}\label{sec:open-phase2}
+
+\begin{tabular}{p{0.22\linewidth}p{0.34\linewidth}p{0.34\linewidth}}
+\toprule
+Feature & Shipping & Fragment test and proof \\
+\midrule
+Quotients & \stShipping{} \code{Quot.mk}, \code{Quot.lift} erased (S-38) & admission held; the
+  quotient case of the proofs \stOpen{} \\
+Recursors & \stShipping{} \code{T.rec} erased to a $\lambda_\Box$ fixpoint over a \code{case}
+  (S-40) & admission held; the recursor case of the proofs \stOpen{} \\
+Structural recursion & \stShipping{} through the kernel's \code{brecOn} under
+  \code{structural := .kernel} (S-42); the default is unchanged & the oracle's recursor $\iota$
+  and the admission under the option held; their proofs \stOpen{} \\
+\bottomrule
+\end{tabular}
+
+\begin{itemize}
+\item \lead{Shipped, not verified} the entries change the traversal that both paths share; the
+  fragment test keeps their branches off the pure path, and the proofs close them there
+  (\code{TravFrame.step\_rec}, the \code{RecFree} exclusion). The proofs hold for both values of
+  \code{structural}.
 \end{itemize}
 
 \section{Registers and checks}\label{sec:open-registers}
@@ -37,14 +67,12 @@ it, or \code{FINAL} when no theorem uses it; the table is generated from \code{p
 \begin{itemize}
 \item \lead{Divergences} \stOpen{} the inherited ids 5, 6, 8, 9, 15 and 18 to 22, which nothing
   cites: each gets its entry with the artifact that diverges.
-\item \lead{Checks} \stOpen{} the \code{peregrine} part of C11 (\code{proof/scripts/c11.sh}) and
-  the final form of C12 (Section~\ref{sec:trust-checks}). Its single root \code{erase\_correct}
-  leaves \code{collectDeps\_ok\_of}, which no theorem uses, unreachable.
-\item \lead{Non-vacuity} \stOpen{} the instances of \code{hview} and \code{hev} on NV-1, of
-  every hypothesis but \code{hfrag} and \code{hrun} on NV-P and NV-K, and the instance
-  \code{EraseProof.Test.NV1.final} of the final theorem that the final form of C12 requires;
-  \stProved{} \code{hfrag} and \code{hrun} on the three programs, and \code{henv}, \code{hwf},
-  \code{he}, \code{hty} on NV-1 (Chapter~\ref{chap:tests}).
+\item \lead{The $\eta$-rule of alternatives} \stOpen{} an entry of \code{doc/DIVERGENCES.md} for
+  \code{ErasesAlt.intro}, which may also $\eta$-introduce an alternative that is a $\lambda$: it
+  enlarges \code{Erases} and so weakens the conclusion of the final theorem.
+\item \lead{Checks} \stOpen{} the kernel replay of the shipping code \code{LeanToLambdaBox} (the
+  step \code{replay} covers \code{EraseProof} only); the final form in CI, which runs when
+  \code{proof/ROOTS.txt} has the line \code{EraseProof.erase\_correct FINAL}.
 \end{itemize}
 
 \section{Outside the final theorem}\label{sec:open-outside}
@@ -56,11 +84,14 @@ Not covered & Where it is stated \\
 Runs that fail, sources that do not evaluate & partial correctness (Chapter~\ref{chap:final}) \\
 Inputs outside the fragment & the \code{Meta} path, trusted (Section~\ref{sec:trust-trusted});
   the scope (Chapter~\ref{chap:scope}) \\
-Matches on \code{And}-like theorems with fields; opaques with values & the scope note of
-  Section~\ref{sec:final-reading} \\
+Opaques with values, data axioms, \code{@[extern]} definitions, matches on lemmas with proof
+  fields & the scope note of Section~\ref{sec:final-reading} \\
+Recursion of any kind, \code{Nat} arithmetic & Phase II (Section~\ref{sec:open-phase2}); the
+  scope (Chapter~\ref{chap:scope}) \\
 \code{remove\_irrel\_constr\_args}, \code{nat := .machine} & out of scope
   (Section~\ref{sec:scope-features}) \\
 The constants to inline & the caveats of Chapter~\ref{chap:final} \\
-Elaboration, the environment view, printing & trusted (Section~\ref{sec:trust-trusted}) \\
+Elaboration, the environment view, printing, compiled code & trusted
+  (Section~\ref{sec:trust-trusted}) \\
 \bottomrule
 \end{tabular}

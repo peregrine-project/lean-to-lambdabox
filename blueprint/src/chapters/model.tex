@@ -12,7 +12,7 @@
   formalized.
 \item \lead{Nodes} \bpnodes{chap:model}
 \item \lead{Lean files} \leanfile{proof/EraseProof/Spec.lean} (Sections 1 to 6),
-  \leanfile{proof/EraseProof/Bridge/}, \leanfiles{proof/EraseProof/Metatheory/}{NoConf, SubstRen}.
+  \leanfile{proof/EraseProof/Bridge/}, \leanfile{proof/EraseProof/Metatheory/NoConf.lean}.
 \item \lead{Reference} Metalean's translator \leanfile{Metalean/Frontend/Translate.lean} and
   loader \leanfile{Metalean/Checker/Slow/Loader.lean}, which the bridge models as relations.
 \end{itemize}
@@ -199,29 +199,29 @@ universe instantiation in place of lean4lean's.
 \end{proof}
 
 \begin{lemma}[Closing a binder]
-  \label{lem:EraseProof-TrM-uninstantiateN}
-  \lean{EraseProof.TrM.uninstantiateN, EraseProof.AbsFV.absFV, EraseProof.AbsFV.absFV_inst,
+  \label{lem:EraseProof-AbsFV-TrM-absN}
+  \lean{EraseProof.AbsFV.TrM.absN, EraseProof.AbsFV.absFV, EraseProof.AbsFV.absFV_inst,
     EraseProof.AbsFV.absFV_foldl, EraseProof.AbsFV.absFV_getAppFn,
     EraseProof.AbsFV.absFV_eq_const, EraseProof.AbsFV.Rel, EraseProof.AbsFV.Rel.zero,
-    EraseProof.AbsFV.Rel.pushLam, EraseProof.AbsFV.Rel.cons, EraseProof.AbsFV.TrM.absN}
+    EraseProof.AbsFV.Rel.pushLam, EraseProof.AbsFV.Rel.cons}
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-TrM, def:EraseProof-DepClosed}
-  \srcloc{proof/EraseProof/Bridge/Abstract.lean}{191}
-  \lead{In short} The converse of \code{TrM.inst\_fvar}: a body that does not mention \code{x},
-  opened with \code{x}, translates \hl{as the body under the binder}.
+  \srcloc{proof/EraseProof/Bridge/Abstract.lean}{152}
+  \lead{In short} Abstracting a free variable \code{x} into a bound variable \hl{keeps the
+  translation}, when the two lists of locals are related by \code{AbsFV.Rel}.
   \begin{itemize}
-  \item \lead{Given} \code{FVarsIn ($\cdot$ $\neq$ x) b} and \code{TrM ($\Gamma$.snoc A) ($\Delta$.pushLam
-        (some x)) (b.instantiate1' (.fvar x)) b'};
-  \item \lead{Then} \code{TrM ($\Gamma$.snoc A) ($\Delta$.pushLam none) b b'}.
+  \item \code{absFV x d}: \code{x} becomes the bound variable \code{d}; it inverts the opening
+        with \code{x} on a term that does not mention \code{x} (\code{absFV\_inst});
+  \item \code{TrM.absN}: given \code{TrM E B lps $\Gamma$ $\Delta_2$ e t} and \code{Rel x d
+        $\Delta_2$ $\Delta_1$}, then \code{TrM E B lps $\Gamma$ $\Delta_1$ (absFV x d e) t}.
   \end{itemize}
-  \lead{Reference} lean4lean \code{TrS.uninstantiateN}.
+  \lead{Reference} lean4lean \code{TrExprS.uninstantiateN}.
 \end{lemma}
 \begin{proof}
   \uses{def:EraseProof-TrLevel, def:EraseProof-SatTr, def:EraseProof-natLitM,
     def:EraseProof-TypedExt, lem:EraseProof-TrM-weakBV}
   \leanok
-  \lead{Idea} Abstraction \code{absFV} inverts the opening; induction on the derivation, with
-  the locals related by \code{AbsFV.Rel}.
+  \lead{Idea} Induction on the derivation, with the locals related by \code{AbsFV.Rel}.
 \end{proof}
 
 \begin{lemma}[The builders under substitution]
@@ -307,9 +307,9 @@ universe instantiation in place of lean4lean's.
 \end{proof}
 
 \begin{lemma}[Translations agree]
-  \label{lem:EraseProof-TrM-det}
-  \lean{EraseProof.TrM.det, EraseProof.TrM.wf_app, EraseProof.TrM.dcong,
-    EraseProof.DCong.defeq₂, EraseProof.SatTr.dcong, EraseProof.LocCong, EraseProof.LocCong.refl,
+  \label{lem:EraseProof-TrM-dcong}
+  \lean{EraseProof.TrM.dcong, EraseProof.TrM.wf_app, EraseProof.DCong.defeq₂,
+    EraseProof.SatTr.dcong, EraseProof.LocCong, EraseProof.LocCong.refl,
     EraseProof.LocCong.pushLam, EraseProof.LocCong.cons, EraseProof.TrDet.appList,
     EraseProof.TrDet.wrapCase_ok, EraseProof.TrDet.wrapCase_dcong,
     EraseProof.TrDet.projProofTerm_dcong, EraseProof.TrDet.rel_append, EraseProof.TrDet.rel_ofFn,
@@ -318,12 +318,15 @@ universe instantiation in place of lean4lean's.
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-TrLevel, def:EraseProof-SatTr,
     def:EraseProof-natLitM, def:EraseProof-TrM, lem:EraseProof-DCong-defeq}
-  \srcloc{proof/EraseProof/Bridge/Det.lean}{617}
-  \lead{In short} Two translations of one term \hl{typed at one type are definitionally equal}.
+  \srcloc{proof/EraseProof/Bridge/Det.lean}{338}
+  \lead{In short} Two translations of one term \hl{are congruent}, and congruent typed terms are
+  definitionally equal.
   \begin{itemize}
-  \item \code{det}: given \code{EnvWF E}, \code{E[$\Gamma$] $\vdash$ ok}, \code{TrM \ldots\ e
-        t$_1$}, \code{TrM \ldots\ e t$_2$}, \code{E[$\Gamma$] $\vdash$ t$_i$ : T}; then
-        \code{E[$\Gamma$] $\vdash$ t$_1$ $\equiv$ t$_2$ : T};
+  \item \code{dcong}: given \code{TrM \ldots\ $\Gamma_1$ $\Delta_1$ e t$_1$}, \code{TrM \ldots\
+        $\Gamma_2$ $\Delta_2$ e t$_2$} and \code{LocCong E $\Gamma_1$ $\Gamma_2$ $\Delta_1$
+        $\Delta_2$}; then \code{DCong E True $\Gamma_1$ $\Gamma_2$ t$_1$ t$_2$};
+  \item \code{DCong.defeq$_2$}: congruent terms, each typed in its own well-formed context, are
+        definitionally equal at every type of the first;
   \item \code{wf\_app}: a typed translation of \code{.app f a} (\code{f} not special) is
         \code{.app f' a'} with \code{f'}, \code{a'} typed translations.
   \end{itemize}
@@ -333,8 +336,9 @@ universe instantiation in place of lean4lean's.
   \uses{def:EraseProof-TypedExt, lem:EraseProof-TrM-weakBV, lem:EraseProof-SatTr-subst,
     lem:EraseProof-ctorSat_iota}
   \leanok
-  \lead{Idea} Two translations are \code{DCong} (\code{TrM.dcong}); \code{DCong.defeq$_2$} with both
-  typings, since projections are typed only in extensions (\code{TypedExt}).
+  \lead{Idea} Induction on the first translation; the two differ only where the translation
+  chooses by typing, a projection's levels and parameters, which \code{DCong.defeq$_2$} fixes from
+  the majors' types.
 \end{proof}
 
 \begin{lemma}[Saturation of translated spines]
@@ -359,28 +363,11 @@ universe instantiation in place of lean4lean's.
 \end{lemma}
 \begin{proof}
   \uses{def:EraseProof-natLitM, def:EraseProof-TypedExt, lem:EraseProof-TrM-weakBV,
-    lem:EraseProof-SatTr-subst, lem:EraseProof-TrM-instLevels, lem:EraseProof-TrM-det,
+    lem:EraseProof-SatTr-subst, lem:EraseProof-TrM-instLevels, lem:EraseProof-TrM-dcong,
     lem:EraseProof-ctorSat_iota}
   \leanok
   \lead{Idea} One lemma per builder (\code{indEta\_sat}, \code{ctorEta\_sat}, \code{recrEta\_sat},
   \code{quotEta\_sat}), then \code{SatTr.append}.
-\end{proof}
-
-\begin{lemma}[Substitution under a telescope]
-  \label{lem:EraseProof-Defeq-inst_tele}
-  \lean{EraseProof.Defeq.inst_tele}
-  \leanok
-  \srcloc{proof/EraseProof/Metatheory/SubstRen.lean}{162}
-  \lead{In short} Given \code{E[$\Gamma$] $\vdash$ a : A}, a judgement in \code{$\Gamma$.snoc A ++
-  $\Theta$} holds in \code{$\Gamma$ ++ $\Theta$[a]}, \hl{the binder types of $\Theta$ untyped}.
-  \lead{Why} Metalean's public \code{Defeq.substitution} asks every variable to go to a typed
-  term; its private \code{Defeq.substRen}, copied with attribution (Apache-2.0), also renames.
-  \lead{Reference} \code{Defeq.substRen} (\leanfile{Metalean/Typing/Substitution.lean}); MetaRocq
-  \code{substitution} (\code{PCUICSubstitution.v}).
-\end{lemma}
-\begin{proof}
-  \leanok
-  \lead{Idea} \code{Defeq.substRen} with \code{SubstRen.inst} lifted over $\Theta$.
 \end{proof}
 
 \begin{lemma}[Substitution]
@@ -402,7 +389,7 @@ universe instantiation in place of lean4lean's.
     EraseProof.InstPre.wrapCase_shape, EraseProof.InstPre.vars_lift}
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-SatTr, def:EraseProof-TrM}
-  \srcloc{proof/EraseProof/Bridge/Inst.lean}{930}
+  \srcloc{proof/EraseProof/Bridge/Inst.lean}{929}
   \lead{In short} Instantiating a translated binder translates \hl{up to definitional equality}.
   \begin{itemize}
   \item \code{inst}: given \code{EnvWF E}, \code{E[$\Gamma$] $\vdash$ ok}, constructor field
@@ -418,7 +405,7 @@ universe instantiation in place of lean4lean's.
 \begin{proof}
   \uses{def:EraseProof-TrLevel, def:EraseProof-natLitM, def:EraseProof-TypedExt,
     lem:EraseProof-TrM-weakBV, lem:EraseProof-SatTr-subst, lem:EraseProof-DCong-defeq,
-    lem:EraseProof-TrM-det, lem:EraseProof-TrM-apps}
+    lem:EraseProof-TrM-dcong, lem:EraseProof-TrM-apps}
   \leanok
   \lead{Idea} A pre-translation \code{PreTr} without typing premises survives the substitution
   (\code{instA}); \code{recover} re-derives each projection's \code{TypedExt} from the typed
@@ -459,7 +446,7 @@ universe instantiation in place of lean4lean's.
   \lead{Reference} \code{type\_of\_typing} (\code{PCUICSafeRetyping.v}); inversion of $\beta$.
 \end{lemma}
 \begin{proof}
-  \uses{def:EraseProof-TrLevel, lem:EraseProof-TrM-instLevels, lem:EraseProof-TrM-det,
+  \uses{def:EraseProof-TrLevel, lem:EraseProof-TrM-instLevels, lem:EraseProof-TrM-dcong,
     lem:EraseProof-TrM-apps, lem:EraseProof-TrM-inst, lem:EraseProof-ctorSat_iota}
   \leanok
   \lead{Idea} A saturated prefix is a prefix of the node's application; a shorter one is the

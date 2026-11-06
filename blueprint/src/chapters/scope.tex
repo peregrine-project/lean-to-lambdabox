@@ -5,13 +5,16 @@
 \item \lead{Goal} State which \code{\#erase} inputs the verification covers, and why: every closed,
   typed program that Metalean can express and that the eraser handles without a known defect.
 \item \lead{Main results} The fragment in two phases: Phase I adds to the $\lambda\Pi$ fragment
-  everything about inductive types that the eraser handles; Phase II adds recursors and quotients.
+  everything about inductive types that the eraser handles, \hl{with no recursion of any kind},
+  so no \code{Nat} arithmetic, and \code{Nat} literals only under \code{nat := .peano}; Phase II
+  adds recursors, structural recursion and quotients.
   The divergence entries DV-23 to DV-26 and the choices of Section~\ref{sec:scope-decisions} fix
   its edges.
 \item \lead{Status} \stShipping{} the fragment test of Phase I
   (Definition~\ref{def:Erasure-collectDeps}), which the hypothesis \code{hfrag} of the final
   theorem names; \stProved{} its lower bound \code{collectDeps\_ok\_of}
-  (Chapter~\ref{chap:core}). The corpus counts below are those of the shipping test.
+  (Chapter~\ref{chap:core}). \stShipping{} the erasure of Phase II, not admitted by the test and
+  not verified. The corpus counts below are those of the shipping test.
 \item \lead{Reference} MetaRocq \code{erase\_correct}'s hypotheses \code{wf\_ext},
   \code{Sigma} $\sim$\code{\_ext X}, \code{welltyped}.
 \end{itemize}
@@ -45,8 +48,12 @@ Lean feature & Phase & Why, how \\
 $\lambda$, application, $\Pi$, sorts, universe polymorphism & I & levels form a quotient in
   Metalean, so propositionality is equality of levels \\
 \code{let} & I & the bridge mirrors Metalean's translator, which inlines the value \\
-axioms, definitions & I & $\delta$ for definitions; an axiom is stuck in the source \\
-theorems, \code{opaque} & I & opaque in Metalean: no $\delta$ in the source, always erased \\
+definitions & I & $\delta$ in the source \\
+theorems & I & opaque in Metalean, no $\delta$ in the source; a proof erases to $\Box$ \\
+axioms, \code{opaque} with a value, \code{@[extern]} definitions under \code{preferAxiom} & I &
+  admitted, but \hl{the source has no $\delta$ for them}: the eraser emits an opaque's value, the
+  others as $\lambda_\Box$ axioms; the theorem is silent on programs that evaluate through them
+  (DV-10, DV-12) \\
 inductive types (mutual, indexed, with parameters) & I & a Metalean inductive entry per block \\
 constructors & I & $\eta$-expanded to their arity; Metalean stores recursive fields last, a
   permutation confined to the bridge \\
@@ -64,9 +71,11 @@ projections of data structures & I & a $\lambda_\Box$ \code{proj}; Metalean's pr
   relation does not model the substitution of index fields \\
 \code{Nat} literals under \code{nat := .peano} & I & constructor chains, as Metalean's fast
   checker denotes them \\
-recursors \code{T.rec} & II & erased to a $\lambda_\Box$ fixpoint \\
-structural recursion (\code{brecOn}) & II & through the kernel value, behind a configuration
-  flag; the default output is unchanged \\
+recursors \code{T.rec} & II & erased to a $\lambda_\Box$ fixpoint over a \code{case} on both
+  paths (S-40); the fragment test excludes them, and no rule of the relation covers them \\
+structural recursion (\code{brecOn}) & II & through the kernel definitions under
+  \code{structural := .kernel} (S-42), on the \code{Meta} path; the default \code{.unsafeRec} is
+  unchanged; the fragment test excludes it \\
 quotients & II & \code{Quot.mk} and \code{Quot.lift} erased as \code{LCNF} does; the shipping
   traversal does so (S-38), the fragment test excludes them, and no rule of the relation covers
   them \\
@@ -144,6 +153,8 @@ DV-23 & under-applied constructor and \code{casesOn} spines evaluate to their
 DV-24 & theorems have no $\delta$, since Metalean loads them as opaque: a proof may evaluate to an
   atom; \code{casesProof} and \code{projProp} cover \code{match h with | rfl} and \code{h.1}; a
   \code{casesOn} on a lemma of an inductive with proof fields does not evaluate \\
+DV-10, DV-12 & opaques and \code{@[extern]} definitions under \code{preferAxiom} have no
+  $\delta$ in the source; the fragment admits them \\
 DV-25 & a recognized \code{casesOn} is primitive in the source, without $\delta$; recursors have
   no rule \\
 DV-26 & the fragment is an explicit hypothesis, \code{hfrag}, with the exclusion classes above \\

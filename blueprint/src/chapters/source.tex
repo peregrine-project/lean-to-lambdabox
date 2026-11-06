@@ -237,7 +237,7 @@ justifies each rule by a Metalean definitional equality.
 \begin{proof}
   \uses{def:EraseProof-TrLevel, def:EraseProof-SatTr, def:EraseProof-natLitM,
     def:EraseProof-TypedExt, lem:EraseProof-TrM-instLevels, lem:EraseProof-DCong-defeq,
-    lem:EraseProof-TrM-det, lem:EraseProof-TrM-apps, lem:EraseProof-TrM-inst,
+    lem:EraseProof-TrM-dcong, lem:EraseProof-TrM-apps, lem:EraseProof-TrM-inst,
     lem:EraseProof-TrM-wkEnv, lem:EraseProof-ProgEnv-lookup, lem:EraseProof-casesOn_whred,
     def:Erasure-declExclusion, def:Erasure-Pure-instLevels, lem:EraseProof-IsErasable-inst,
     lem:EraseProof-SrcDefeq-sound_of}
@@ -294,7 +294,7 @@ justifies each rule by a Metalean definitional equality.
 \end{lemma}
 \begin{proof}
   \uses{def:EraseProof-natLitM, def:EraseProof-TypedExt, lem:EraseProof-TrM-weakBV,
-    lem:EraseProof-TrM-instLevels, lem:EraseProof-TrM-det, lem:EraseProof-TrM-apps,
+    lem:EraseProof-TrM-instLevels, lem:EraseProof-TrM-dcong, lem:EraseProof-TrM-apps,
     lem:EraseProof-ProgEnv-lookup, lem:EraseProof-ProgEnv-unfold, lem:EraseProof-casesOn_whred,
     lem:EraseProof-proj_defeq, def:Erasure-findConst, def:Erasure-declExclusion,
     def:Erasure-casesInfo}
@@ -346,7 +346,7 @@ justifies each rule by a Metalean definitional equality.
 \begin{proof}
   \uses{def:EraseProof-SatTr, def:EraseProof-natLitM, def:EraseProof-TypedExt,
     lem:EraseProof-TrM-weakBV, lem:EraseProof-TrM-instLevels, lem:EraseProof-DCong-defeq,
-    lem:EraseProof-TrM-det, lem:EraseProof-TrM-apps, lem:EraseProof-TrM-inst,
+    lem:EraseProof-TrM-dcong, lem:EraseProof-TrM-apps, lem:EraseProof-TrM-inst,
     lem:EraseProof-ProgEnv-lookup, lem:EraseProof-ctorSat_iota, lem:EraseProof-casesOn_shape,
     lem:EraseProof-casesOn_whred, lem:EraseProof-TypeEq-sort_ne_forallE, def:Erasure-casesInfo}
   \leanok

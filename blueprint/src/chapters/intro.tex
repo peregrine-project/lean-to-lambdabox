@@ -5,17 +5,13 @@
 \item \lead{Goal} A machine-checked theorem about the shipping eraser behind \code{\#erase},
   stated over Metalean's typing theory of Lean's kernel, for every input in the scope of
   Chapter~\ref{chap:scope}.
-\item \lead{Status} \stProved{} the lemmas of the bridge (Chapter~\ref{chap:model}), the
-  erasability lemmas but one, the soundness of the source semantics \code{SrcEval.defeq}, the
-  erasure relation's lemmas, \hl{both milestones \code{erases\_correct} and
-  \code{erasePure\_erases}}, the lower bound \code{collectDeps\_ok\_of} of the fragment
-  hypothesis, the soundness of the pure oracle, the closure, state and registration lemmas, the
-  routing, frame, recursion and step lemmas of the traversal, and the tests of
-  Chapter~\ref{chap:tests}. Formalized: the statements of the final theorem, its two milestones
-  and the lower bound, as definitions pinned by \code{proof/spec.pin}, with every definition they
-  use. \stPlanned{} \hl{the final theorem \code{erase\_correct}}.
-  \stShipping{} the eraser: the pure path on the fragment of Phase I and the \code{Meta} path on
-  the rest.
+\item \lead{Status} \stProved{} \hl{the final theorem \code{erase\_correct}}, its milestones
+  \code{erases\_correct} and \code{erasePure\_erases}, the lower bound \code{collectDeps\_ok\_of}
+  of the fragment hypothesis, and every lemma they use; four test programs discharge all eight
+  hypotheses of the final theorem (Chapter~\ref{chap:tests}). Formalized: the four statements,
+  as definitions pinned by \code{proof/spec.pin}, with every definition they use. \stPlanned{}
+  one erasability lemma of Phase II. \stShipping{} the eraser: the pure path on the fragment of
+  Phase I and the \code{Meta} path on the rest.
 \item \lead{Progress} the table at the end of Section~\ref{sec:intro-kinds} counts, per chapter,
   the proved results and tests, the formalized definitions and the planned nodes.
 \item \lead{Lean files} \leanfile{LeanToLambdaBox/} (the shipping code) and \leanfile{proof/} (the
@@ -47,8 +43,9 @@
   equality and well-formed environments of Lean's kernel, with inductive types, recursors and
   quotients.
 \item \lead{The scope} closed, typed Lean programs that Metalean can express and that the
-  eraser's fragment test admits, inductive types and \code{casesOn} included
-  (Chapter~\ref{chap:scope}).
+  eraser's fragment test admits, inductive types and \code{casesOn} included; \hl{no recursion
+  of any kind}, so no \code{Nat} arithmetic, and \code{Nat} literals only under
+  \code{nat := .peano} (Chapter~\ref{chap:scope}).
 \item \lead{The references} the verification follows these as closely as the differences between
   Lean and Rocq allow; every divergence from the first two is an entry of
   \code{doc/DIVERGENCES.md}.
@@ -232,7 +229,7 @@ Chapter & Content \\
 \ref{chap:relation} & $\lambda_\Box$ evaluation and the erasure relation \\
 \ref{chap:core} & Soundness of the pure path: oracle, closure, traversal \\
 \ref{chap:final} & The final theorem and its two milestones \\
-\ref{chap:tests} & The tests: the hypotheses \code{hfrag} and \code{hrun} on three programs \\
+\ref{chap:tests} & The tests: the final theorem applied to four programs \\
 \ref{chap:shipping-changes}, \ref{chap:divergences} & The two registers, rendered \\
 \ref{chap:open} & What is open \\
 \bottomrule
