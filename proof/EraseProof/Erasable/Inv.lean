@@ -152,7 +152,7 @@ theorem IsErasable.ctor_not {ι : Metalean.IndSig} {η : Metalean.Head ζ (.indu
 /-- The element of an erasable `Quot.mk` is erasable: the type of a `Quot.mk` is a quotient type,
 which is no arity (`TypeEq.sort_ne_quot`, `TypeEq.forallE_ne_quot`), so the `Quot.mk` is a proof,
 the quotient a proposition, and the element a proof. Reference: none (PCUIC has no quotients;
-DV-27). -/
+DV-29). -/
 theorem IsErasable.quotMk_inv {η : Metalean.Head ζ .quot} {l : Metalean.Level ℓ}
     {α r a : Metalean.Expr ζ ℓ n} (hE : EnvWF E) (hΓ : E[Γ] ⊢ ok)
     (h : IsErasable E Γ (.quotMk η l α r a)) : IsErasable E Γ a := by

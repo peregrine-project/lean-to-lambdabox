@@ -11,7 +11,7 @@ import EraseProof.Simulation.Iota
 `IsErasable.quotMk_inv`), and λ□'s β substitutes it into the erased body (`Erases.inst`). The
 typed translation of the body at `a` comes from Metalean's quotient ι (`WHRed.quotIota_defeq`).
 Reference: the `eval_beta` case of `erases_correct` (`MR E/ErasureCorrectness.v:62`); PCUIC has
-no quotients (DV-27).
+no quotients (DV-29).
 -/
 
 open Lean Erasure
@@ -49,7 +49,7 @@ theorem srcValue_quotMk_arg {c : Name} {us : List Level} {qv : QuotVal} {α r a 
 
 /-- The `quotMk` case of `erases_correct`: the erasure of `Quot.mk α r a` is `□` or an erasure of
 `a`, which evaluates to an erasure of the element's value. Reference: the `eval_construct` case
-of `erases_correct` (`MR E/ErasureCorrectness.v:1148`); DV-27. -/
+of `erases_correct` (`MR E/ErasureCorrectness.v:1148`); DV-29. -/
 theorem erases_correct_quotMk (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
     {c : Name} {us : List Level} {qv : QuotVal} {α r a a' : Expr}
     (hc : findDecl σ.decls c = some (.quotInfo qv)) (hk : qv.kind = .ctor) (ha : SrcEval σ a a')
@@ -88,7 +88,7 @@ element `a` of `q`'s value (`□` when the quotient is a proposition, `IsErasabl
 λ□'s β substitutes it into the erased body (`Erases.inst`), an erasure of the body at `a`, whose
 typed translation is reached by the quotient ι (`WHRed.quotIota_defeq`) and β. If the λ erases to
 `□`, the body at `a` is erasable, and so is the value. Reference: the `eval_beta` case of
-`erases_correct` (`MR E/ErasureCorrectness.v:62`); DV-27. -/
+`erases_correct` (`MR E/ErasureCorrectness.v:62`); DV-29. -/
 theorem erases_correct_quotLift (henv : ProgEnv P ζ E B) (hE : EnvWF E)
     (hsub : SubEnv σ.decls P) {c c' : Name} {us us' : List Level} {qv qv' : QuotVal}
     {α r β f h q α' r' a b v A : Expr} {x : Name} {bi : BinderInfo}

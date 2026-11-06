@@ -1434,7 +1434,7 @@ theorem quotTerm_length {ℓ ℓ' : Nat} {η : Metalean.Head ζ .quot}
     first | rfl | (cases h; done) | (cases h'; done)
 
 /-- The η-rule on a `Quot.mk` or `Quot.lift` spine with missing arguments, as `eta_ctor`: the
-translation is the quotient's η-term applied to the arguments. Reference: DV-23, DV-27. -/
+translation is the quotient's η-term applied to the arguments. Reference: DV-23, DV-29. -/
 theorem eta_quot (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
     {c : Name} {us : List Level} {as : List Expr} {e' : Expr} {qv : QuotVal}
     (hc : findDecl σ.decls c = some (.quotInfo qv)) (he : σ.etaSpine? c us as = some e') :
