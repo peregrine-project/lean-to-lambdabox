@@ -963,6 +963,8 @@ structure Trav (pc : PureCtx) (cfg : ErasureConfig) (fuel : Nat) : Prop where
     RA pc cfg S (fun _ => True) (visitConst (m := PureM) fuel (.const c us))
   constApp : ∀ {S e}, Good S cfg e → NoThmHead pc.decls e →
     RA pc cfg S (fun _ => True) (visitConstApp (m := PureM) fuel e)
+  recF : ∀ {S r e c us}, Good S cfg e → e.getAppFn = .const c us → GoodConst pc.decls c →
+    RA pc cfg S (fun _ => True) (visitRec (m := PureM) fuel r e)
   ctor : ∀ {S c args}, (∀ a ∈ args, Good S cfg a) → (cfg.nat = .machine → c ≠ ``Nat.succ) →
     RA pc cfg S (fun _ => True) (visitConstructor (m := PureM) fuel c args)
   appArgs : ∀ {S f args}, (∀ a ∈ args, Good S cfg a) →
@@ -989,6 +991,7 @@ theorem Trav.zero : Trav pc cfg 0 where
   app _ _ := by rw [visitApp]; exact RA.throwM _
   const _ := by rw [visitConst]; exact RA.throwM _
   constApp _ _ := by rw [visitConstApp]; exact RA.throwM _
+  recF _ _ _ := by rw [visitRec]; exact RA.throwM _
   ctor _ _ := by rw [visitConstructor]; exact RA.throwM _
   appArgs _ := by rw [visitAppArgs]; exact RA.throwM _
   casesF _ _ := by rw [visitCases]; exact RA.throwM _
@@ -1101,6 +1104,43 @@ theorem step_kername {n : Name} (hn : GoodConst pc.decls n) :
   · exact RA.bind (T.mutualF hn) fun _ _ => RA.bind' Blind.get fun _ =>
       RA.mono (RA.getOrFail _ _) fun _ _ => trivial
 
+theorem step_rec {r : RecursorVal} {e : Expr} {c : Name} {us : List Level} (he : Good S cfg e)
+    (h : e.getAppFn = .const c us) (hc : GoodConst pc.decls c) :
+    RA pc cfg S (fun _ => True) (visitRec (m := PureM) (fuel + 1) r e) := by
+  have hargs := withApp_args Good.sort (spineArgs_of Good.app he)
+  rw [visitRec]
+  refine RA.bind (RA.mapM (P := fun _ => True) fun t _ => ?_) fun ivs _ => ?_
+  · refine RA.bind (RA.getConst _) fun ci _ => ?_
+    split
+    · exact RA.pure trivial
+    · exact RA.throwM _
+  refine RA.bind (RA.mapM (P := fun _ => True) fun t _ => ?_) fun cvs _ => ?_
+  · refine RA.bind (RA.getConst _) fun ci _ => ?_
+    split
+    · exact RA.pure trivial
+    · exact RA.throwM _
+  refine RA.read_bind (fun _ _ => ?_) (fun _ _ _ => rfl)
+  refine RA.ite (fun _ => ?_) (fun _ => ?_)
+  · rw [withApp_eq, h]
+    exact RA.bind (T.const hc) fun _ _ => T.appArgs hargs
+  split
+  · refine RA.bind (RA.forIn (I := fun _ => True) trivial fun _ _ _ _ => ?_) fun _ _ => ?_
+    · dsimp only
+      split
+      · exact RA.pure trivial
+      · exact RA.bind (RA.register_inductive _) fun _ _ => RA.pure trivial
+    refine RA.bind (RA.getOrFail _ _) fun _ _ => ?_
+    refine RA.withAppEtaToMinArity hD.closed he fun S' args hargs' => ?_
+    have hext : ∀ i j, ∀ b ∈ args.extract i j, Good S' cfg b := fun i j b hb => by
+      obtain ⟨k, hk, rfl⟩ := Array.mem_extract_iff_getElem.1 hb
+      exact hargs' _ (Array.getElem_mem _)
+    refine RA.bind (RA.getOrFail _ _) fun maj hmaj => ?_
+    refine RA.typeLevel hD.closed (hargs' maj (Array.mem_of_getElem? hmaj)).1 fun _ => ?_
+    refine RA.bind (RA.mapM (P := fun _ => True) fun a ha =>
+      T.expr (hext _ _ a (Array.mem_toList_iff.mp ha))) fun _ _ => ?_
+    exact RA.bind (T.appArgs (hext _ _)) fun _ _ => T.appArgs (hext _ _)
+  · exact RA.throwM _
+
 theorem step_constApp {e : Expr} (he : Good S cfg e) (hn : NoThmHead pc.decls e) :
     RA pc cfg S (fun _ => True) (visitConstApp (m := PureM) (fuel + 1) e) := by
   rw [visitConstApp, withApp_eq]
@@ -1136,6 +1176,10 @@ theorem step_constApp {e : Expr} (he : Good S cfg e) (hn : NoThmHead pc.decls e)
                 T.appArgs fun b hb => by
                   obtain ⟨k, hk, rfl⟩ := Array.mem_extract_iff_getElem.1 hb
                   exact hargs _ (Array.getElem_mem _)
+        · refine T.recF he h ⟨fun v => hn declName us v h, ?_⟩
+          cases hc : casesInfo? pc.decls declName
+          · rfl
+          · exact absurd hc (hci _)
         · rw [h]
           refine RA.bind (T.const ⟨fun v => hn declName us v h, ?_⟩) fun _ _ => T.appArgs hargs
           cases hc : casesInfo? pc.decls declName
@@ -1323,6 +1367,7 @@ theorem Trav.succ (hD : DeclsOK pc cfg) {fuel : Nat} (T : Trav pc cfg fuel) :
   app he hn := step_app T he hn
   const hc := step_const T hc
   constApp he hn := step_constApp hD T he hn
+  recF he h hc := step_rec hD T he h hc
   ctor hargs hns := step_ctor T hargs hns
   appArgs hargs := step_appArgs T hargs
   casesF hci hargs := step_cases hD T hci hargs

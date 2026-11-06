@@ -1250,6 +1250,10 @@ theorem visitApp_spec (hG : CoreEnv E B P decls view cfg) {k : Nat}
         exact absurd (Option.some.inj heq) (hnq _)
       · rename_i q _ _ _ heq
         exact absurd (Option.some.inj heq) (hnq _)
+      · rename_i rv heq
+        cases Option.some.inj heq
+        rw [hc] at hrfF
+        simp [RecFree, ConstsIn, IsRecursorIn, hci] at hrfF
       rw [runPure_bind] at hrun
       obtain ⟨⟨⟨tf, st₁⟩, ps₁⟩, hf, hrun⟩ := OracleWhnf.ok_of_bind hrun
       rw [hc] at hf

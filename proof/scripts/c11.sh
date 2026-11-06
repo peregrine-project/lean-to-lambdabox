@@ -53,6 +53,14 @@ tests/regress/expected/quotient/usePart.ast           peano   -           constr
 tests/regress/expected/quotient/useOver.ast           peano   -           constr QT.B.t
 tests/regress/expected/quotient/useQuotient.ast       peano   -           constr QT.B.f
 tests/regress/expected/quotient/indPf.ast             peano   --anf=false (FIX 0)
+tests/regress/expected/recursor/useNat.ast            peano   -           constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.zero
+tests/regress/expected/recursor/useList.ast           peano   -           constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.zero
+tests/regress/expected/recursor/useVec.ast            peano   -           constr RT.B.t
+tests/regress/expected/recursor/useMutual.ast         peano   -           constr RT.B.t
+tests/regress/expected/recursor/useCast.ast           peano   -           constr RT.B.t
+tests/regress/expected/recursor/useAnd.ast            peano   -           constr RT.B.t
+tests/regress/expected/recursor/useOver.ast           peano   -           constr RT.B.f
+tests/regress/expected/recursor/propRec.ast           peano   --anf=false (FIX 0)
 EOF
 )
 
