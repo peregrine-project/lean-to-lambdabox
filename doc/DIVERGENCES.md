@@ -40,8 +40,8 @@ What the statements and the checks rely on without proof:
 - Lean's kernel at the pinned toolchain (`lean-toolchain`), and the axioms `propext`,
   `Classical.choice` and `Quot.sound`: every declaration of the library stays within them (checks
   C3 to C5), and its modules are replayed through the kernel (check `replay`, `leanchecker`).
-  The replay covers the library's modules `EraseProof.*` only; the compiled `.olean` files of the
-  shipping code and of Metalean that they import are trusted as built.
+  The replay covers the library's modules `EraseProof.*` and the shipping code's `LeanToLambdaBox.*`;
+  the compiled `.olean` files of Metalean and Mathlib that they import are trusted as built.
 - Metalean at the pinned revision (`9407ba4`, `lake-manifest.json`, pinned in `proof/spec.pin`):
   its typing (`Metalean.Typing`), conversion and well-formedness `Metalean.EnvWF`, which the
   statements use as their notion of typing, the way MetaRocq's statements use PCUIC's. Metalean's
@@ -486,3 +486,34 @@ What the statements and the checks rely on without proof:
   inductive not propositional), which is false for universe-polymorphic inductives at `Prop` and
   excludes every value with a type parameter; comparing with `Erasure.erasePure`'s output, which
   reads the configuration and the view instead of the value alone.
+
+### DV-28
+
+- **Our artifact:** `proof/EraseProof/Spec.lean`: the rule `EraseProof.ErasesAlt.intro`
+  (`proof/EraseProof/Spec.lean:1167`), which η-introduces a `casesOn` alternative.
+- **Reference artifact:** the alternatives of `erases_tCase`
+  (`erasure/theories/Extract.v:109`), related to the erased branches by the erasure relation under
+  the case's branch contexts; the relation has no η-introduction rule.
+- **What differs:** the rule η-introduces an alternative to the arity of its constructor, and has
+  no premise on the alternative's shape. Before, it carried `∀ x A b bi, e ≠ .lam x A b bi`, so
+  that a λ alternative was related only by `ErasesAlt.lam` (peeling):
+
+      | intro : (∀ x A b bi, e ≠ .lam x A b bi) → TrM E B lps Γ Δ e e' →
+          E[Γ] ⊢ e' : .forallE A' B'' → … → ErasesAlt E B lps σ Γ Δ (k + 1) e (nm :: ns, t)
+
+  After:
+
+      | intro : TrM E B lps Γ Δ e e' →
+          E[Γ] ⊢ e' : .forallE A' B'' → … → ErasesAlt E B lps σ Γ Δ (k + 1) e (nm :: ns, t)
+
+  The relation is more permissive: a λ alternative is also related to the λ□ β-redex
+  `.app a' (.bvar 0)` of its peeled branch, which evaluates to the same value.
+- **Why it is forced:** the substitution lemma `EraseProof.Erases.inst` is false with the premise.
+  An alternative that is a variable erases by `intro` to the branch `([x], .app (.bvar (k + 1))
+  (.bvar 0))`; substituting a λ `a` for the variable gives the source alternative `a`, which only
+  `ErasesAlt.lam` can relate, and to the erasure of its body, never to the β-redex
+  `.app a' (.bvar 0)`. The substitution lemma is needed for the β and ζ steps of the simulation.
+- **What was considered instead:** keeping the premise and restricting substitution to non-λ
+  values, which excludes the β-redexes the simulation has to step; adding a rule that relates a
+  λ alternative to the β-redex only under the substitution lemma's hypotheses, which is the same
+  relation with a more complicated shape.
