@@ -11,14 +11,11 @@ EraseProof.TypeEq.forallE_ne_quot EraseProof.IsErasable.quotMk_not
 EraseProof.TypeEq.ind_ne_quot EraseProof.IsErasable.quotMk_not
 EraseProof.Erases.app_inv EraseProof.erase_correct
 EraseProof.TrM.det EraseProof.erasePure_erases
-EraseProof.Erases.extend EraseProof.erase_correct
-EraseProof.SrcEval.restrict EraseProof.erase_correct
 EraseProof.visitMutual_nonrecursive EraseProof.erasePure_erases
 EraseProof.Defeq.inst_tele EraseProof.erase_correct
 EraseProof.TrM.uninstantiateN EraseProof.erasePure_erases
 EraseProof.Erases.inst_let EraseProof.erase_correct
-EraseProof.erases_correct EraseProof.erase_correct
 EraseProof.collectDeps_ok_of FINAL
-EraseProof.eraseEntry_pure EraseProof.erase_correct
 EraseProof.Pure.whnf_forallE EraseProof.erasePure_erases
 EraseProof.erasePure_erases_of_case EraseProof.erasePure_erases
+EraseProof.erase_correct_of_pure EraseProof.erase_correct
