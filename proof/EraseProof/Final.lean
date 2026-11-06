@@ -3,11 +3,13 @@ import EraseProof.Core.CollectSpec
 import EraseProof.Source.Restrict
 import EraseProof.Source.ProofSound
 import EraseProof.Simulation.Main
+import EraseProof.Core.StepsCasesCase
 
 /-!
-# The final theorem from the correctness of the pure traversal
+# The final theorem
 
-`erase_correct_of_pure` derives the final theorem's statement from `erasePure_erases_statement`:
+`erase_correct` is `erase_correct_of_pure` applied to `erasePure_erases`. `erase_correct_of_pure`
+derives the final theorem's statement from `erasePure_erases_statement`:
 
 1. `eraseEntry_pure`: the entry point's result is the pure path's result on the closure `decls`
    that the fragment test returns;
@@ -40,5 +42,9 @@ theorem erase_correct_of_pure (h : erasePure_erases_statement) : erase_correct_s
   obtain ⟨vb, hv, hlb⟩ := erases_correct henv hwf hsub hinj hblk harity hlc he hty her hdeps hev'
   exact ⟨lenv, tb, vb, rfl, Erases.extend hsub hcl hcv hv, hlb,
     fun _ hT => SrcEval.defeq henv hwf (fun _ => CollectSub.findDecl_of_view hview) he hT hev⟩
+
+/-- The final theorem: partial correctness of `#erase` on the fragment (statement and scope:
+`erase_correct_statement`). Reference: `erase_correct` (`MR E/ErasureFunctionProperties.v:657`). -/
+theorem erase_correct : erase_correct_statement := erase_correct_of_pure erasePure_erases
 
 end EraseProof

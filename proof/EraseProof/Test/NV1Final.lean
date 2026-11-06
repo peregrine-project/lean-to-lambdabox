@@ -8,10 +8,9 @@ import EraseProof.Test.NV1Run
 The remaining hypotheses of the final theorem on NV-1 (`Test/NV1Data.lean`): the view agrees with
 the program (`hview`), the fragment test accepts `e` (`hfrag`, the closure `D` of `hcollect`), and
 `e = B.neg B.f` evaluates to `B.t` (`hev`: δ on `B.neg`, β, then ι on the saturated `B.casesOn`).
-`final` applies `erase_correct_of_pure` to all eight hypotheses (`henv`, `hwf`, `he`, `hty` from
-`Test/NV1Model.lean`, `hrun` from `Test/NV1Run.lean`): the program `p0` that `#erase` emits is an
-untyped λ□ program whose main term evaluates to an erasure of `B.t`, given the correctness of the
-pure traversal.
+`final` applies the final theorem `erase_correct` to all eight hypotheses (`henv`, `hwf`, `he`,
+`hty` from `Test/NV1Model.lean`, `hrun` from `Test/NV1Run.lean`): the program `p0` that `#erase`
+emits is an untyped λ□ program whose main term evaluates to an erasure of `B.t`.
 -/
 
 open Lean Erasure Metalean
@@ -55,10 +54,10 @@ theorem hev : SrcEval (evalEnvOf view cfg P) e cT := by
 /-- The final theorem on NV-1: the program `#erase` emits for `B.neg B.f` is an untyped λ□ program
 whose main term evaluates to an erasure of `B.t`, and `B.t` translates to a term definitionally
 equal to `B.neg B.f`'s at each of its types. -/
-theorem final (h : erasePure_erases_statement) :
+theorem final :
     ∃ lenv tb vb, p0 = .untyped lenv (some tb) ∧
       Erases E B [] (evalEnvOf view cfg P) .nil [] cT vb ∧ LBEval defaultFlags lenv tb vb ∧
       ∀ T, E[.nil] ⊢ tE : T → ∃ t', TrM E B [] .nil [] cT t' ∧ E[.nil] ⊢ tE ≡ t' : T :=
-  erase_correct_of_pure h henv hwf hview he hty hfrag hrun hev
+  erase_correct henv hwf hview he hty hfrag hrun hev
 
 end EraseProof.Test.NV1
