@@ -6,18 +6,14 @@
 # Every declaration of EraseProof outside EraseProof.Test must be reachable from a root or from a
 # statement definition (tools/Report.lean, `statements`); no root may be reachable from another
 # root.
+EraseProof.erase_correct FINAL
+EraseProof.collectDeps_ok_of FINAL
 EraseProof.TypeEq.sort_ne_quot EraseProof.IsErasable.quotMk_not
 EraseProof.TypeEq.forallE_ne_quot EraseProof.IsErasable.quotMk_not
 EraseProof.TypeEq.ind_ne_quot EraseProof.IsErasable.quotMk_not
-EraseProof.Erases.app_inv EraseProof.erase_correct
-EraseProof.TrM.det EraseProof.erase_correct
-EraseProof.Erases.extend EraseProof.erase_correct
-EraseProof.SrcEval.restrict EraseProof.erase_correct
-EraseProof.visitMutual_nonrecursive EraseProof.erase_correct
-EraseProof.Defeq.inst_tele EraseProof.erase_correct
-EraseProof.TrM.uninstantiateN EraseProof.erase_correct
-EraseProof.Erases.inst_let EraseProof.erase_correct
-EraseProof.erases_correct EraseProof.erase_correct
-EraseProof.collectDeps_ok_of FINAL
-EraseProof.eraseEntry_pure EraseProof.erase_correct
-EraseProof.erasePure_erases EraseProof.erase_correct
+EraseProof.Erases.app_inv FINAL
+EraseProof.Defeq.inst_tele FINAL
+EraseProof.Erases.inst_let FINAL
+EraseProof.TrM.det FINAL
+EraseProof.TrM.uninstantiateN FINAL
+EraseProof.visitMutual_nonrecursive FINAL
