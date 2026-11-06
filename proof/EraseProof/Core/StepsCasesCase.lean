@@ -1,6 +1,6 @@
 import EraseProof.Core.StepsCases
 import EraseProof.Core.StepsCtor
-import EraseProof.Core.StepsCasesBox
+import EraseProof.Core.StepsAssemble
 
 /-!
 # The `case` branch of `visitCases`
@@ -935,7 +935,7 @@ theorem casesSat_case (hG : CoreEnv E B P decls view cfg) {j : Nat}
     {tc : TravCtx} {ps : PureState} {r : LBTerm} {st' : ErasureState} {ps' : PureState}
     {u : Level} (hu : ∀ m, as[casesMajor iv]? = some m →
       Pure.typeLevel ⟨decls⟩ oracleFuel tc.locals m = .ok u)
-    (hC2 : ¬ (u.isNeverZero = false ∧ iv.ctors.length = 1))
+    (hC3 : u.isNeverZero = true ∨ iv.ctors.length ≠ 1)
     (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK decls S)
     (hocc : ∀ d, nameOccurs d (mkAppN (.const c us) as.toArray) = true → S d)
     (hmf : MachineFree cfg (mkAppN (.const c us) as.toArray))
@@ -1074,7 +1074,7 @@ theorem casesSat_case (hG : CoreEnv E B P decls view cfg) {j : Nat}
   dsimp only at hrun
   have hc2 : (!u.isNeverZero && iv.numCtors == 1) = false := by
     rw [InductiveVal.numCtors]
-    cases hz : u.isNeverZero <;> simp_all
+    rcases hC3 with h | h <;> simp [h]
   rw [if_neg (by rw [hc2]; decide), TravFrame.runPure_bind] at hrun
   obtain ⟨⟨⟨dnt, st₂⟩, ps₂⟩, hdrun, hrun⟩ := OracleWhnf.ok_of_bind hrun
   have hall : (iv.ctors.all fun x => mp.contains x) = true := by
@@ -1168,10 +1168,6 @@ theorem casesSat_case (hG : CoreEnv E B P decls view cfg) {j : Nat}
   refine ⟨?_, StepsCases.deps_mkApps_of (ErasesDeps.ext hgrE.ext hdepsC) hDe,
     hgrd.trans (hgrC.trans hgrE)⟩
   have hsat' : casesArity iv ≤ as.length := by rw [← har]; exact hsat
-  have hC3 : u.isNeverZero = true ∨ iv.ctors.length ≠ 1 := by
-    rcases Bool.eq_false_or_eq_true u.isNeverZero with h | h
-    · exact .inl h
-    · exact .inr fun h1 => hC2 ⟨h, h1⟩
   have hlev : ∀ m m'', as[casesMajor iv]? = some m → TrM E B lps Γ Δ m m'' →
       (∃ M, E[Γ] ⊢ m'' : M) →
       ∃ l M, TrLevel lps u = some l ∧ E[Γ] ⊢ m'' : M ∧ E[Γ] ⊢ M : .sort l :=
@@ -1208,5 +1204,19 @@ theorem casesSat_case (hG : CoreEnv E B P decls view cfg) {j : Nat}
 end
 
 end StepsCasesCase
+
+/-- The `case` branch of `visitCases` (`StepsCases.CasesCaseSpec`), by `casesSat_case`. Reference:
+the `tCase` case of `erases_erase` (`MR E/ErasureFunction.v:1228`). -/
+theorem StepsCases.casesCaseSpec : StepsCases.CasesCaseSpec :=
+  fun hG ih hci hd hiv hlp _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hu hC3 hctx hsc hocc hmf hnp hrf hok he ht
+    hsat hrun =>
+  StepsCasesCase.casesSat_case hG ih hci hd hiv hlp hu hC3 hctx hsc hocc hmf hnp hrf hok he ht hsat
+    hrun
+
+/-- The pure traversal is correct (`erasePure_erases_statement`): `erasePure_erases_of_case` with
+the `case` branch of `visitCases` (`StepsCases.casesCaseSpec`). Reference: `erases_erase`
+(`MR E/ErasureFunction.v:1228`). -/
+theorem erasePure_erases : erasePure_erases_statement :=
+  erasePure_erases_of_case StepsCases.casesCaseSpec
 
 end EraseProof
