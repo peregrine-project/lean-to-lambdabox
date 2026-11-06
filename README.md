@@ -28,7 +28,7 @@ The full syntax is `#erase <term> [config <ErasureConfig>] [to "<file>.ast"] [ml
 Without `to` or `mli`, the corresponding output is logged instead.
 The fields of `Erasure.ErasureConfig` (in [`Erasure.lean`](LeanToLambdaBox/Erasure.lean)) are
 - `extern` (default `.preferAxiom`): whether a constant tagged `@[extern]` becomes an axiom, or keeps its Lean definition (`.preferLogical`);
-- `nat` (default `.machine`): whether `Nat` is erased to primitive integers, or kept as an inductive type (`.peano`);
+- `nat` (default `.machine`): whether `Nat` is erased to primitive integers, or kept as an inductive type (`.peano`, where a literal above 65536 is an error);
 - `csimp` (default `true`): whether to apply `@[csimp]` replacements;
 - `remove_irrel_constr_args` (default `false`): whether to remove irrelevant constructor arguments;
 - `auto_inline_typeclass_dispatch` (default `false`): whether to also list in `.ast.inlinings` the instances and trivial aliases (projections, `def f := g`) that typeclass dispatch goes through, so that `peregrine` collapses chains such as `HAdd.hAdd → instHAdd → instAddNat → Nat.add`.

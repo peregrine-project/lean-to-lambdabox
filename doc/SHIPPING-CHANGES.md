@@ -26,6 +26,8 @@ After S-26, it merges `fixes-port` again, for `Reduce cases on inductives whose 
 (`9aad6b0`); S-27 records that merge together with the commit that completes it. After S-30, it
 merges `fixes-port` a third time, for `Reduce a function type to whnf before reading its binder`
 (`a36d37e`), which fixes R-5; S-31 records that merge together with the commit that completes it.
+After S-42, it merges `fixes-port` a fourth time, for `Reject Peano Nat literals above 65536
+instead of crashing` (`cfc6fea`), which fixes R-6; S-45 records that merge.
 
 This register lists every change to the shipping code: the eraser
 (`LeanToLambdaBox.lean`, `LeanToLambdaBox/`), the package files (`lakefile.toml`, `lean-toolchain`,
@@ -3010,6 +3012,54 @@ the calls at which the two oracles answer differently. It must equal
 
 ---
 
+## S-45: A Peano literal above 65536 is an error of `#erase`, on both paths
+
+- **Commit:** the merge `Merge branch 'fixes-port' into ml/translate` (the fourth one), which
+  brings the commit `Reject Peano Nat literals above 65536 instead of crashing` of `fixes-port`
+  (`cfc6fea`), ported in the conflict resolution to the generic traversal of S-16. No other commit
+  is needed: the check runs in the traversal that both paths share.
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure.lean`: new `peanoMaxLiteral` (65536) and the docstring of
+    `Config.Nat.peano` (from `cfc6fea`); new field `TravCtx.decl`, the declaration being erased
+    (anonymous for the term given to `#erase`), which `cfc6fea` adds to `ErasureContext`, the
+    reader context that `TravCtx` replaces on this branch; `visitLiteral`, under `nat := .peano`,
+    ends with `Backend.error` (at `CoreM`: `throwError`, as `cfc6fea` throws) for a literal above
+    `peanoMaxLiteral`, naming the literal and `TravCtx.decl`, and otherwise builds the same
+    `Nat.zero`/`Nat.succ` terms as before; `visitMutual` sets `decl` for the value of a single
+    declaration and for each member of a fixpoint block. `visitRec` erases only arguments of the
+    recursor's application, which belong to the declaration being erased, so it does not set it.
+  - `README.md`: the `nat` option states the bound (from `cfc6fea`).
+  - `tests/regress/peano_literal.lean` with its goldens (from `cfc6fea`); the merge adds the check
+    of the pure path (`PeanoLiteral.huge`) and the sentence of the header about the two paths.
+  - `doc/SHIPPING-CHANGES.md`: this entry, the preamble and R-6.
+- **Why necessary:** R-6, reproduced on this branch on both paths: `#erase PeanoLiteral.huge
+  config {nat := .peano}` with `def huge : Nat := 18446744073709551616` (in the fragment, pure
+  path) and `#erase PeanoLiteral.hugeIfZero 1 config {nat := .peano}` with `hugeIfZero n := if n =
+  0 then huge else n` (outside the fragment, because of the recursive `Nat.beq`; `Meta` path) both
+  make Lean abort (exit status 134, `deep recursion was detected at 'interpreter'`), without a
+  message or a file. `cfc6fea` reports that `List.getD` reaches this through the literal 1114112 of
+  `Char.ofNat`. On this branch the traversal is generic over its backend, so the check is written
+  with the backend's `error`, and the declaration is kept in the traversal's context, `TravCtx`.
+- **Behaviour before:** both `#erase` above abort Lean as described; a literal up to about 200000
+  erases to that many `Nat.succ` applications.
+- **Behaviour after:** the `Meta` path stops `#erase` with `#erase: the Nat literal
+  18446744073709551616 in PeanoLiteral.huge exceeds 65536, the largest literal that `nat :=
+  .peano` erases to `Nat.succ` applications`, the message of `cfc6fea`; the pure path stops it with
+  the same message after `erasure failed: `, as every error of the pure path (S-21). A literal in
+  the term given to `#erase` is reported `in the erased term`. Literals up to 65536 erase as
+  before.
+- **Effect on emitted .ast (corpus):** byte-identical for all 710 files against the corpus of
+  S-42; `PANIC` counts unchanged. `scripts/pure-harness.sh` passes with its expected summary
+  unchanged (294 `#erase`, 223 in the fragment, 68 outside, 3 `collectDeps` errors; 204 identical,
+  15 differ; 8298 oracle calls, 14 differ, none fails): no corpus program has a Peano literal above
+  the bound.
+- **Regression test:** `peano_literal` (from `cfc6fea`): `def small : Nat := 3` erases under
+  `nat := .peano` to `small.ast`, which peregrine validates and evaluates to
+  `Nat.succ (Nat.succ (Nat.succ Nat.zero))`; `#guard_msgs` checks the error of the `Meta` path on
+  `hugeIfZero 1`, which names the dependency `PeanoLiteral.huge`, and the error of the pure path
+  on `huge`. Before the merge the test aborts Lean. `scripts/regress.sh` passes (26 tests), with
+  and without `PEREGRINE`.
+
 ## Reported, not fixed
 
 Each entry below was reproduced on this branch. Unless stated otherwise, the reproduction is an
@@ -3090,7 +3140,7 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
 - **Impact:** silent miscompilation that `peregrine validate` does not detect.
 - **Fixed:** in S-31, which describes the fix and its corpus effect.
 
-### R-6: Peano literals exhaust the stack
+### R-6: Peano literals exhaust the stack (fixed in S-45)
 
 - **What:** with `nat := .peano`, a literal `n` is translated by `n` nested calls
   (`visitLiteral` → `visitConstructor` → `visitAppArgs` → `visitExpr`).
@@ -3101,7 +3151,8 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
   writes 23 601 044 bytes (`5000`: 591 044 bytes). It is not in the corpus because it aborts the
   elaboration.
 - **Impact:** Peano mode fails on large literals, and the output grows linearly with the value.
-- **Why not fixed:** not required by the verification goal unless it later becomes required.
+- **Fixed:** in S-45, which describes the fix and its corpus effect: a literal above 65536 is an
+  error of `#erase`; the output of smaller literals still grows linearly with the value.
 
 ### R-7: Inductive types are always declared non-propositional (fixed in S-25)
 
