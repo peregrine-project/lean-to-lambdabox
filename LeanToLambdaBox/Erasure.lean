@@ -63,6 +63,17 @@ inductive Nat
   -/
   | machine
 
+/-- Which declaration erases a definition by structural recursion (`isStructuralRecursive`). -/
+inductive Structural where
+  /-- The `_unsafe_rec` definition that the code generator compiles (`Compiler.LCNF.getDeclInfo?`):
+  a fixpoint that calls the function itself. -/
+  | unsafeRec
+  /-- The kernel's definition, through `T.brecOn` and the recursor `T.rec`: a fixpoint over the
+  recursor, which computes the `T.below` table of all recursive calls before the function's body
+  runs. Well-founded recursion and `partial` definitions keep their `_unsafe_rec` definition. -/
+  | kernel
+deriving BEq
+
 end Config
 
 structure ErasureConfig: Type where
@@ -99,6 +110,9 @@ structure ErasureConfig: Type where
   (everything marked will be inlined), so enable only after profiling shows it pays off.
   -/
   auto_inline_typeclass_dispatch: Bool := false
+  /-- Erase a definition by structural recursion through its `_unsafe_rec` definition (the
+  default) or through its kernel definition (`.kernel`), see `Config.Structural`. -/
+  structural: Config.Structural := .unsafeRec
 
 /-- Largest `LBTerm.inlinedSize` of a body that `ErasureConfig.auto_inline_typeclass_dispatch`
 marks for inlining. -/
@@ -198,9 +212,10 @@ class Backend (m : Type → Type) where
   findConst? : Name → m (Option ConstantInfo)
   /-- The error for a constant that `findConst?` does not find (`CoreM`: `throwUnknownConstant`). -/
   unknownConstant {α : Type} : Name → m α
-  /-- The declaration that the code generator uses for a constant (`CoreM`:
-  `Compiler.LCNF.getDeclInfo?`, which prefers the `_unsafe_rec` version). -/
-  declInfo? : Name → m (Option ConstantInfo)
+  /-- The declaration that erases a constant under a configuration (`CoreM`: `declInfoCore`, the
+  one the code generator uses, `Compiler.LCNF.getDeclInfo?`, which prefers the `_unsafe_rec`
+  version, except under `structural := .kernel`). -/
+  declInfo? : ErasureConfig → Name → m (Option ConstantInfo)
   /-- The name of which the argument is the `_unsafe_rec` version, if it is one (`CoreM`:
   `Compiler.isUnsafeRecName?`). -/
   unsafeRecBase? : Name → Option Name
@@ -411,30 +426,20 @@ def argMaskCore (lctx : LocalContext) (ci : ConstructorVal) : CoreM ConstructorA
     if (mask.any (· == .erase)) then logInfo s!"Argmask for constructor {ci.name}: {repr mask}"
     pure mask
 
-/-- The backend of `#erase`: the Lean environment and `Meta`. -/
-instance : Backend CoreM where
-  findConst? n := return (← getEnv).find? n
-  unknownConstant n := throwUnknownConstant n
-  declInfo? := Compiler.LCNF.getDeclInfo?
-  unsafeRecBase? := Compiler.isUnsafeRecName?
-  freshFVarId := mkFreshFVarId
-  instantiate1 := Expr.instantiate1
-  isErasable lctx _ e := runMetaM lctx (isErasable e)
-  inferType lctx _ e := runMetaM lctx (Meta.inferType e)
-  whnf lctx _ e := runMetaM lctx (Meta.whnf e)
-  isPropFormerType e := runMetaM {} (Meta.isPropFormerType e)
-  typeLevel lctx _ e := runMetaM lctx do Meta.getLevel (← Meta.inferType e)
-  casesInfo? := getCasesInfo?
-  ctorArity? := getCtorArity?
-  argMask := argMaskCore
-  isExtern n := return isExtern (← getEnv) n
-  inlineAttr? n := return Compiler.getInlineAttribute? (← getEnv) n
-  isInstance := Meta.isInstance
-  prepare := prepareErasure
-  log s := logInfo s
-  outOfFuel site := throwError s!"erasure: recursion bound reached in {site}"
-  error msg := throwError msg
-  fail {α} _ msg := have : Inhabited (CoreM α) := ⟨pure default⟩; panic! msg
+/-- The inductive `T` of `T.brecOn`, or of `T.brecOn_<i>` (an auxiliary member of a nested block). -/
+def brecOnInduct? : Name → Option Name
+  | .str T s => if s == "brecOn" || s.startsWith "brecOn_" then some T else none
+  | _ => none
+
+/--
+Whether a declaration is a definition by structural recursion: a definition whose value refers to
+a `brecOn` (`brecOnInduct?`), which is how Lean's structural recursion (`Lean.Elab.Structural`)
+writes it. A definition by well-founded recursion refers to `WellFounded.fix` instead, and a
+`partial` definition is an opaque.
+-/
+def isStructuralRecursive : ConstantInfo → Bool
+  | .defnInfo d => d.value.getUsedConstants.any (brecOnInduct? · |>.isSome)
+  | _ => false
 
 section Traversal
 
@@ -1220,7 +1225,7 @@ mutual
   | 0, _ => Backend.outOfFuel (m := m) "visitMutual"
   | fuel+1, name => do
     -- Use original recursive definition, not the elaborated one with recursors, if available.
-    let ci ← getOrFail (← Backend.declInfo? (m := m) name) s!"visitMutual: unknown constant {name}"
+    let ci ← getOrFail (← Backend.declInfo? (m := m) (← read).config name) s!"visitMutual: unknown constant {name}"
     let names := ci.all -- possibly these are ._unsafe_rec
     let single_decl := names.length == 1
     -- Lean's @[inline] attribute is name-based, so we can decide pre-erasure.
@@ -1294,6 +1299,62 @@ mutual
 end
 
 end Traversal
+
+/--
+The declaration that erases a constant on the `Meta` path: the one the code generator uses
+(`Compiler.LCNF.getDeclInfo?`, which prefers the `_unsafe_rec` version), except that under
+`structural := .kernel` a definition by structural recursion (`isStructuralRecursive`) is erased
+through its kernel definition when `visitRec` erases the recursor `T.rec` of each `T.brecOn` it
+refers to (not `recStaysConstant`: a nested inductive, `Nat` under `nat := .machine`). A
+definition that replaces another by a `@[csimp]` theorem keeps the code generator's declaration
+under `csimp`: it is the compiled implementation of a kernel definition, and its kernel definition
+may lead back to the constant it replaces (`Nat.recCompiled` goes through `Nat.brecOn`, whose value
+applies `Nat.rec`, which csimp replaces by `Nat.recCompiled`).
+-/
+def declInfoCore (cfg : ErasureConfig) (n : Name) : CoreM (Option ConstantInfo) := do
+  let env ← getEnv
+  if cfg.structural == .kernel then
+    if let some ci := env.find? n then
+      let csimpTarget := (Compiler.CSimp.ext.getState env).map.toList.any (·.2.toDeclName == n)
+      let recErased (T : Name) := match env.find? (mkRecName T) with
+        | some (.recInfo r) =>
+          let ivs := r.all.filterMap fun t => match env.find? t with
+            | some (.inductInfo iv) => some iv
+            | _ => none
+          let cvs := (ivs.flatMap (·.ctors)).filterMap fun c => match env.find? c with
+            | some (.ctorInfo cv) => some cv
+            | _ => none
+          !recStaysConstant cfg.nat r ivs cvs
+        | _ => false
+      if isStructuralRecursive ci && !(cfg.csimp && csimpTarget) &&
+          ci.value!.getUsedConstants.all (fun c => (brecOnInduct? c).all recErased) then
+        return some ci
+  Compiler.LCNF.getDeclInfo? n
+
+/-- The backend of `#erase`: the Lean environment and `Meta`. -/
+instance : Backend CoreM where
+  findConst? n := return (← getEnv).find? n
+  unknownConstant n := throwUnknownConstant n
+  declInfo? := declInfoCore
+  unsafeRecBase? := Compiler.isUnsafeRecName?
+  freshFVarId := mkFreshFVarId
+  instantiate1 := Expr.instantiate1
+  isErasable lctx _ e := runMetaM lctx (isErasable e)
+  inferType lctx _ e := runMetaM lctx (Meta.inferType e)
+  whnf lctx _ e := runMetaM lctx (Meta.whnf e)
+  isPropFormerType e := runMetaM {} (Meta.isPropFormerType e)
+  typeLevel lctx _ e := runMetaM lctx do Meta.getLevel (← Meta.inferType e)
+  casesInfo? := getCasesInfo?
+  ctorArity? := getCtorArity?
+  argMask := argMaskCore
+  isExtern n := return isExtern (← getEnv) n
+  inlineAttr? n := return Compiler.getInlineAttribute? (← getEnv) n
+  isInstance := Meta.isInstance
+  prepare := prepareErasure
+  log s := logInfo s
+  outOfFuel site := throwError s!"erasure: recursion bound reached in {site}"
+  error msg := throwError msg
+  fail {α} _ msg := have : Inhabited (CoreM α) := ⟨pure default⟩; panic! msg
 
 /-- The recursion bound of the traversal: no program erases with a deeper recursion. -/
 def travFuel : Nat := 2 ^ 32
