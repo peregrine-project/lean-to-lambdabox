@@ -458,7 +458,7 @@ exhaustion is the error `fuel`, and `error` and `fail` are the error `failed`. R
 instance : Backend PureM where
   findConst? := PureM.findConst?
   unknownConstant n := throw (.outOfFragment s!"unknown constant {n}")
-  declInfo? := PureM.declInfo?
+  declInfo? _ := PureM.declInfo?
   unsafeRecBase? _ := none
   freshFVarId := PureM.freshFVarId
   instantiate1 := PureM.instantiate1

@@ -114,7 +114,7 @@ answer. -/
 instance : Backend CmpM where
   findConst? n := liftP (Backend.findConst? n)
   unknownConstant n := liftP (Backend.unknownConstant n)
-  declInfo? n := liftP (Backend.declInfo? n)
+  declInfo? cfg n := liftP (Backend.declInfo? cfg n)
   unsafeRecBase? := Backend.unsafeRecBase? (m := PureM)
   freshFVarId := liftP (Backend.freshFVarId (m := PureM))
   instantiate1 := Backend.instantiate1 (m := PureM)
