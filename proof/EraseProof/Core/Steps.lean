@@ -1198,6 +1198,20 @@ theorem visitApp_spec (hG : CoreEnv E B P decls view cfg) {k : Nat}
           EraseT PureM (Option Nat)).runPure st tc ⟨decls, view⟩ ps = .ok ((none, st), ps) by
         show Except.ok ((ctorArity? decls c, st), ps) = _; rw [hca], ok_bind'] at hrun
       dsimp only at hrun
+      rw [runPure_bind, show (liftM (Backend.findConst? (m := PureM) c) :
+          EraseT PureM (Option ConstantInfo)).runPure st tc ⟨decls, view⟩ ps = .ok ((some ci, st), ps) by
+        show Except.ok ((findConst decls c, st), ps) = _
+        rw [show findConst decls c = findDecl decls c from rfl, hci], ok_bind'] at hrun
+      dsimp only at hrun
+      have hnq : ∀ q, ci ≠ .quotInfo q := fun q h => by
+        subst h
+        have := hG.phase _ (findDecl_eq_some hci).1
+        simp [PhaseIDecl] at this
+      split at hrun
+      · rename_i q _ _ _ heq
+        exact absurd (Option.some.inj heq) (hnq _)
+      · rename_i q _ _ _ heq
+        exact absurd (Option.some.inj heq) (hnq _)
       rw [runPure_bind] at hrun
       obtain ⟨⟨⟨tf, st₁⟩, ps₁⟩, hf, hrun⟩ := OracleWhnf.ok_of_bind hrun
       rw [hc] at hf
