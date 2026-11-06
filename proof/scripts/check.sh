@@ -27,7 +27,7 @@
 #                  no leaves with respect to ROOTS.txt, the statement definitions and the proved
 #                  theorems with a statement (collectDeps_ok_of, which characterizes the programs
 #                  that pass the fragment test, is a result of its own: erase_correct takes that
-#                  test as its hypothesis hfrag and does not use it), and every test that is not a theorem used by a test theorem; footprints of roots
+#                  test as its hypothesis hfrag and does not use it) and the corollary erase_correct_firstorder, and every test that is not a theorem used by a test theorem; footprints of roots
 #                  and test theorems equal axioms.expected; every source file imported; the entries
 #                  of doc/DIVERGENCES.md well-formed, citing existing declarations (EraseProof.*,
 #                  Metalean.*, Erasure.*), files and lines (proof/, Metalean/ in the Metalean
@@ -43,7 +43,9 @@
 #                  every statement is proved, and erase_correct's footprint is exactly propext,
 #                  Classical.choice, Quot.sound, as is that of its instances on NV-1, NV-P, NV-K
 #                  and NV-2, EraseProof.Test.{NV1,NVP,NVK,NV2}.final, whose hypothesis terms lie
-#                  within them (skipped with --no-final); C12b, always: the statement definitions
+#                  within them, and so is that of the corollary erase_correct_firstorder, whose
+#                  instances EraseProof.Test.{NV1,NV2}.firstorder lie within them and mention it
+#                  (skipped with --no-final); C12b, always: the statement definitions
 #                  and the library and shipping definitions they reach (kind and flags included;
 #                  the shipping functions under verification, collectDeps, erasePure and eraseEntry, and the
 #                  dependencies by name only) have the SHA-256 digests of proof/spec.pin, every

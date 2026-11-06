@@ -59,6 +59,8 @@ EraseProof.Test.NV1.ev_ctor0 propext
 EraseProof.Test.NV1.fin0_eq propext,Quot.sound
 EraseProof.Test.NV1.final propext,Classical.choice,Quot.sound
 EraseProof.Test.NV1.findDecl_isSome propext,Quot.sound
+EraseProof.Test.NV1.firstorder propext,Classical.choice,Quot.sound
+EraseProof.Test.NV1.fo_cT propext
 EraseProof.Test.NV1.hb1 propext,Quot.sound
 EraseProof.Test.NV1.hb2 propext,Quot.sound
 EraseProof.Test.NV1.hb3 propext,Quot.sound
@@ -176,6 +178,8 @@ EraseProof.Test.NV2.ev_alt propext
 EraseProof.Test.NV2.ev_ctor0 propext
 EraseProof.Test.NV2.ev_mj propext,Classical.choice,Quot.sound
 EraseProof.Test.NV2.final propext,Classical.choice,Quot.sound
+EraseProof.Test.NV2.firstorder propext,Classical.choice,Quot.sound
+EraseProof.Test.NV2.fo_cT propext
 EraseProof.Test.NV2.hbC propext,Quot.sound
 EraseProof.Test.NV2.hbT propext,Quot.sound
 EraseProof.Test.NV2.hbW propext,Quot.sound

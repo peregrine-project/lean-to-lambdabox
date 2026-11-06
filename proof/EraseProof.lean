@@ -70,6 +70,7 @@ import EraseProof.Core.StepsCasesCase
 import EraseProof.Core.StepsCasesBox
 import EraseProof.Core.StepsAssemble
 import EraseProof.Final
+import EraseProof.FirstOrder
 import EraseProof.Test.NV1Final
 import EraseProof.Test.NVPModel
 import EraseProof.Test.NVKModel

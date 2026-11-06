@@ -454,3 +454,35 @@ What the statements and the checks rely on without proof:
 - **What was considered instead:** deriving the hypothesis from `henv`, `hview` and `he`, which is
   false on typed programs that use a recursor; leaving the fragment unstated, which makes it
   impossible to tell how much the hypothesis excludes, which `collectDeps_ok_of` states.
+
+### DV-27
+
+- **Our artifact:** `proof/EraseProof/FirstOrder.lean`: `EraseProof.FirstOrderValue`, the values
+  on which `EraseProof.erase_correct_firstorder` determines the λ□ value, and their structural
+  erasure `EraseProof.foErase`.
+- **Reference artifact:** `firstorder_value` (`pcuic/theories/PCUICFirstorder.v:115`), with the
+  first-order inductives of `firstorder_con` (`pcuic/theories/PCUICFirstorder.v:52`), and
+  `erase_correct_strong` (`erasure/theories/ErasureFunctionProperties.v:2269`).
+- **What differs:** MetaRocq's first-order value is a typed constructor application of an inductive
+  that is not propositional, every argument (parameters included) a first-order value, and its
+  first-order inductives have neither type parameters nor proof fields. Ours is syntactic: a
+  constructor node needs its inductive's declared sort to be never zero (`Level.isNeverZero`), and
+  two kinds of leaves erased to `□` are admitted as arguments: constructor applications of an
+  inductive declared in `Prop`, and atom spines (type formers such as `Nat` or `List Nat` as type
+  parameters, theorems or axioms applied to arguments as proof fields). The conclusion compares
+  with the structural erasure, which keeps parameters (DV-23), instead of the erasure function's
+  output.
+- **Why it is forced:** a Lean inductive in `Sort u` is universe-polymorphic over `Prop`: at
+  `u := 0` its constructor applications are proofs and erase to `□` or to a λ□ constructor, so
+  `¬ PropInductive` (Metalean's block level) does not determine the value; the declared sort being
+  never zero does (`EraseProof.SimInd.ctor_not_erasable`). λ□ keeps parameters in constructor
+  applications (DV-23), and Lean's data inductives take type parameters (`Prod`, `Option`, `List`)
+  and its structures proof fields (`Subtype`, `Fin`), so MetaRocq's notion would leave only
+  monomorphic inductives without proofs; the relation erases an atom spine in many ways (an
+  application of an atom may erase to `□` applied to `□`), and only the λ□ value restricts it to
+  `□` (`EraseProof.Erases.atomSpine_box`). There is no erasure function on the relation's side to
+  compare with.
+- **What was considered instead:** MetaRocq's notion exactly (all arguments first-order, the
+  inductive not propositional), which is false for universe-polymorphic inductives at `Prop` and
+  excludes every value with a type parameter; comparing with `Erasure.erasePure`'s output, which
+  reads the configuration and the view instead of the value alone.
