@@ -455,11 +455,45 @@ theorem runPure_withReader {α : Type} {pc : PureCtx} {tc : TravCtx} {st : Erasu
     {ps : PureState} (f : TravCtx → TravCtx) (x : EraseT PureM α) :
     (withReader f x).runPure st tc pc ps = x.runPure st (f tc) pc ps := rfl
 
+/-- Under `nat := .machine`, `e` has no Nat literal and mentions neither `Nat.zero` nor
+`Nat.casesOn`, which `Erasure.exprConsts` excludes under that configuration: the traversal erases
+them to primitive integers (`visitLiteral`, `visitConstructor`, `visitCasesOn`), which the erasure
+relation does not model. -/
+def NatPlain (cfg : ErasureConfig) : Expr → Prop
+  | .lit (.natVal _) => cfg.nat = .peano
+  | .const c _ => cfg.nat = .machine → c ≠ ``Nat.zero ∧ c ≠ ``Nat.casesOn
+  | .app f a => NatPlain cfg f ∧ NatPlain cfg a
+  | .lam _ t b _ | .forallE _ t b _ => NatPlain cfg t ∧ NatPlain cfg b
+  | .letE _ t v b _ => NatPlain cfg t ∧ NatPlain cfg v ∧ NatPlain cfg b
+  | .mdata _ e | .proj _ _ e => NatPlain cfg e
+  | _ => True
+
+/-- `NatPlain` survives lifting loose bound variables. -/
+theorem np_lift {cfg : ErasureConfig} : ∀ {e : Expr} {s d : Nat}, NatPlain cfg e →
+    NatPlain cfg (e.liftLooseBVars' s d) := by
+  intro e
+  induction e <;> intro s d h <;> simp_all [Expr.liftLooseBVars', NatPlain]
+
+/-- `NatPlain` survives instantiating a bound variable with a `NatPlain` term. -/
+theorem np_inst {cfg : ErasureConfig} {a : Expr} (ha : NatPlain cfg a) :
+    ∀ {b : Expr} {d : Nat}, NatPlain cfg b → NatPlain cfg (b.instantiate1' a d) := by
+  intro b
+  induction b with
+  | bvar i =>
+    intro d _
+    simp only [Expr.instantiate1']
+    split_ifs
+    · trivial
+    · exact np_lift ha
+    · trivial
+  | _ => intro d h; simp_all [Expr.instantiate1', NatPlain]
+
 /-- The facts about the program and its closure `decls` that the steps use: the program is the
 Lean form of a well-formed Metalean environment, `decls` is a sub-environment closed under what
 the traversal reads, with distinct kernames and block names, closed read expressions, in the
-fragment (`PhaseIDecl`, `MachineFree`, no recursor read, syntactic arities) and with the shapes
-that the frame lemma needs (`OwnBlockValues`, `NoIndexFields`); constructor fields are kept.
+fragment (`PhaseIDecl`, `MachineFree`, `NatPlain`, no recursor read, syntactic arities) and with
+the shapes that the frame lemma needs (`OwnBlockValues`, `NoIndexFields`); constructor fields are
+kept whenever the closure has an inductive type.
 Reference: the hypotheses of `erases_erase` (`MR E/ErasureFunction.v:1228`): `wf_ext Σ` and the
 abstract environment's relation to `Σ`. -/
 structure CoreEnv {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (P decls : List ConstantInfo)
@@ -472,12 +506,13 @@ structure CoreEnv {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (P d
   closed : ClosedDecls decls
   deps : DepClosed decls
   mfd : ∀ ci ∈ decls, ∀ x, ReadExpr decls ci x → MachineFree cfg x
+  npd : ∀ ci ∈ decls, ∀ x, ReadExpr decls ci x → NatPlain cfg x
   blk : OwnBlockValues decls
   idx : NoIndexFields decls
   phase : ∀ ci ∈ decls, PhaseIDecl view cfg decls ci
   recFree : ∀ ci ∈ decls, ∀ x, ReadExpr decls ci x → RecFree decls x
   arity : ArityTypes decls
-  irr : cfg.remove_irrel_constr_args = false
+  irr : ∀ iv, (∃ ci ∈ decls, ci = .inductInfo iv) → cfg.remove_irrel_constr_args = false
 
 /-- The traversal's context invariant at the pure backend, over the Metalean context `Γ` and the
 locals `Δ`: `Γ` is well formed, the traversal's locals are the Lean form of `Γ` through `Δ`
@@ -521,8 +556,8 @@ def ScopeOK (decls : List ConstantInfo) (S : Name → Prop) : Prop :=
 /-- The correctness of `visitExpr fuel e` at the pure backend over the closure `decls`: from a
 state with `StateOK`, under locals that are the Lean form of the context (`CtxOK`), on a term
 translated and typed in that context whose constants occur in a scope `S` and which is
-`MachineFree` and reads no recursor (`RecFree`), a successful run returns an erasure of `e` (`Erases`) whose λ□ dependencies are
-erased in the final environment, and it `Grows` within `S`. Reference: `erases_erase`
+`MachineFree` and `NatPlain` and reads no recursor (`RecFree`), a successful run returns an
+erasure of `e` (`Erases`) whose λ□ dependencies are erased in the final environment, and it `Grows` within `S`. Reference: `erases_erase`
 (`MR E/ErasureFunction.v:1228`) with `erase_global_erases_deps`
 (`MR E/ErasureFunctionProperties.v:172`). -/
 def ExprSpec {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (view : EnvView)
@@ -531,8 +566,8 @@ def ExprSpec {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (view : E
     ⦃S : Name → Prop⦄ ⦃t : Metalean.Expr ζ lps.length n⦄ ⦃st : ErasureState⦄ ⦃tc : TravCtx⦄
     ⦃ps : PureState⦄ ⦃r : LBTerm⦄ ⦃st' : ErasureState⦄ ⦃ps' : PureState⦄,
     CtxOK E B lps Γ Δ cfg tc ps → ScopeOK decls S → (∀ d, nameOccurs d e = true → S d) →
-    MachineFree cfg e → RecFree decls e → StateOK E B (evalEnvOf view cfg decls) st →
-    TrM E B lps Γ Δ e t → (∃ T, E[Γ] ⊢ t : T) →
+    MachineFree cfg e → NatPlain cfg e → RecFree decls e →
+    StateOK E B (evalEnvOf view cfg decls) st → TrM E B lps Γ Δ e t → (∃ T, E[Γ] ⊢ t : T) →
     (visitExpr (m := PureM) fuel e).runPure st tc ⟨decls, view⟩ ps = .ok ((r, st'), ps') →
     Erases E B lps (evalEnvOf view cfg decls) Γ Δ e r ∧
       ErasesDeps E B (evalEnvOf view cfg decls) st'.gdecls r ∧
@@ -793,7 +828,7 @@ case of `erases_erase` (`MR E/ErasureFunction.v:1228`), rule `erases_tVar` (`MR 
 DV-13. -/
 theorem visitExpr_fvar_step (hG : CoreEnv E B P decls view cfg) {fuel : Nat} {x : FVarId} :
     ExprSpec E B view cfg decls (fuel + 1) (.fvar x) := by
-  intro lps n Γ Δ S t st tc ps r st' ps' hctx _ _ _ _ hok he ht hrun
+  intro lps n Γ Δ S t st tc ps r st' ps' hctx _ _ _ _ _ hok he ht hrun
   rw [visitExpr] at hrun
   rcases oracle_run hrun with ⟨hor, rfl, rfl, rfl⟩ | ⟨-, hrun⟩
   · exact visitExpr_box hG hctx hok he ht hor
@@ -807,7 +842,7 @@ cases of `erase` (`MR E/ErasureFunction.v:998`, `:1002`), unreachable after `is_
 theorem visitExpr_fail_step (hG : CoreEnv E B P decls view cfg) {fuel : Nat} {e : Expr}
     (hk : (e.isBVar || e.isSort || e.isForall || e.isMVar) = true) :
     ExprSpec E B view cfg decls (fuel + 1) e := by
-  intro lps n Γ Δ S t st tc ps r st' ps' hctx _ _ _ _ hok he ht hrun
+  intro lps n Γ Δ S t st tc ps r st' ps' hctx _ _ _ _ _ hok he ht hrun
   cases e <;> simp [Expr.isBVar, Expr.isSort, Expr.isForall, Expr.isMVar] at hk <;>
   · rw [visitExpr] at hrun
     rcases oracle_run hrun with ⟨hor, rfl, rfl, rfl⟩ | ⟨-, hrun⟩
@@ -819,12 +854,12 @@ has no metadata). -/
 theorem visitExpr_mdata_step (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
     (ih : StepIH E B view cfg decls fuel) {d : MData} {e : Expr} :
     ExprSpec E B view cfg decls (fuel + 1) (.mdata d e) := by
-  intro lps n Γ Δ S t st tc ps r st' ps' hctx hsc hocc hmf hrf hok he ht hrun
+  intro lps n Γ Δ S t st tc ps r st' ps' hctx hsc hocc hmf hnp hrf hok he ht hrun
   rw [visitExpr] at hrun
   rcases oracle_run hrun with ⟨hor, rfl, rfl, rfl⟩ | ⟨-, hrun⟩
   · exact visitExpr_box hG hctx hok he ht hor
   have ⟨her, hdeps, hgr⟩ := ih.expr fuel (Nat.le_refl _) e hctx hsc
-    (fun c hc => hocc c (by simpa [nameOccurs] using hc)) hmf hrf hok (trM_mdata_inv he) ht hrun
+    (fun c hc => hocc c (by simpa [nameOccurs] using hc)) hmf hnp hrf hok (trM_mdata_inv he) ht hrun
   exact ⟨.mdata her, hdeps, hgr⟩
 
 /-- The `lam` step, from `visitExpr` at the fuels up to `fuel`: the body is opened with a fresh
@@ -834,7 +869,7 @@ variable (`CtxOK.pushFVar`), erased, and closed again by the traversal's `abstra
 theorem visitExpr_lam_step (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
     (ih : StepIH E B view cfg decls fuel) {x : Name} {A b : Expr} {bi : BinderInfo} :
     ExprSpec E B view cfg decls (fuel + 1) (.lam x A b bi) := by
-  intro lps n Γ Δ S t st tc ps r st' ps' hctx hsc hocc hmf hrf hok he ht hrun
+  intro lps n Γ Δ S t st tc ps r st' ps' hctx hsc hocc hmf hnp hrf hok he ht hrun
   rw [visitExpr] at hrun
   rcases oracle_run hrun with ⟨hor, rfl, rfl, rfl⟩ | ⟨-, hrun⟩
   · exact visitExpr_box hG hctx hok he ht hor
@@ -861,7 +896,8 @@ theorem visitExpr_lam_step (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
   have hbody' := TrM.inst_fvar hxΔ hb
   have ⟨her, hdeps, hgr⟩ := ih.expr k (Nat.le_succ _) _ hctx' hsc
     (fun d hd => hocc d (by rw [nameOccurs_inst_fvar] at hd; simpa [nameOccurs] using hd))
-    (mf_inst (a := .fvar (pureFVar ps.next)) trivial hmf.2) (ConstsIn_inst_fvar hrf.2) hok hbody'
+    (mf_inst (a := .fvar (pureFVar ps.next)) trivial hmf.2)
+    (np_inst (a := .fvar (pureFVar ps.next)) trivial hnp.2) (ConstsIn_inst_fvar hrf.2) hok hbody'
     ⟨_, hb'⟩ hbody
   have hfv : FVarsIn (· ≠ pureFVar ps.next) b := by
     have h := (TrM.fvarsIn (TrM.lam (x := x) (bi := bi) hA hb)).2
@@ -883,7 +919,7 @@ Reference: the `tLetIn` case of `erases_erase` (`MR E/ErasureFunction.v:1228`), 
 theorem visitExpr_letE_step (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
     (ih : StepIH E B view cfg decls fuel) {x : Name} {T v b : Expr} {nd : Bool} :
     ExprSpec E B view cfg decls (fuel + 1) (.letE x T v b nd) := by
-  intro lps n Γ Δ S t st tc ps r st' ps' hctx hsc hocc hmf hrf hok he ht hrun
+  intro lps n Γ Δ S t st tc ps r st' ps' hctx hsc hocc hmf hnp hrf hok he ht hrun
   rw [visitExpr] at hrun
   rcases oracle_run hrun with ⟨hor, rfl, rfl, rfl⟩ | ⟨-, hrun⟩
   · exact visitExpr_box hG hctx hok he ht hor
@@ -933,7 +969,7 @@ theorem visitExpr_letE_step (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
     · intro y hy
       simp [Pure.findLocal, hne y hy]
   have ⟨herv, hdepsv, hgrv⟩ := ih.expr k (Nat.le_succ _) v ((hctx.setLctx _).mono (Nat.le_succ _))
-    hsc (fun d hd => hocc d (by simp [nameOccurs, hd])) hmf.2.1 hrf.2.1 hok hv ⟨_, hvT⟩ hval'
+    hsc (fun d hd => hocc d (by simp [nameOccurs, hd])) hmf.2.1 hnp.2.1 hrf.2.1 hok hv ⟨_, hvT⟩ hval'
   have hctx' := (hctx.pushLet (nm := x) hT hv hvT
     (tc.lctx.mkLetDecl (pureFVar ps.next) x T v nd)).mono hgrv.next
   have hbody' : TrM E B lps Γ ((some (pureFVar ps.next), .vlet v') :: Δ)
@@ -941,7 +977,8 @@ theorem visitExpr_letE_step (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
     TrM.instN_fvar hb (InstFV.zeroLet hxΔ _)
   have ⟨herb, hdepsb, hgrb⟩ := ih.expr k (Nat.le_succ _) _ hctx' hsc
     (fun d hd => hocc d (by rw [nameOccurs_inst_fvar] at hd; simp [nameOccurs, hd]))
-    (mf_inst (a := .fvar (pureFVar ps.next)) trivial hmf.2.2) (ConstsIn_inst_fvar hrf.2.2)
+    (mf_inst (a := .fvar (pureFVar ps.next)) trivial hmf.2.2)
+    (np_inst (a := .fvar (pureFVar ps.next)) trivial hnp.2.2) (ConstsIn_inst_fvar hrf.2.2)
     hgrv.inv hbody' ⟨_, hbR⟩ hbody
   have hcl : closedn 0 tb = true := by
     have := Erases.closed hbody' herb
@@ -1021,7 +1058,7 @@ theorem visitAppArgs_spec {j : Nat} (ih : ∀ e, ExprSpec E B view cfg decls j e
     {r tf : LBTerm} {f₀ : Expr} {args : List Expr}
     (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK decls S)
     (hargs : ∀ a ∈ args, (∀ d, nameOccurs d a = true → S d) ∧ MachineFree cfg a ∧
-      RecFree decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A)
+      NatPlain cfg a ∧ RecFree decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A)
     (hns : ∀ c us, f₀.getAppFn = .const c us → (∀ cv, findDecl decls c ≠ some (.ctorInfo cv)) ∧
       (evalEnvOf view cfg decls).casesOn? c = none)
     (hok : StateOK E B (evalEnvOf view cfg decls) st)
@@ -1043,8 +1080,8 @@ theorem visitAppArgs_spec {j : Nat} (ih : ∀ e, ExprSpec E B view cfg decls j e
     rw [runPure_bind] at hx
     obtain ⟨⟨⟨ta, st₂⟩, ps₂⟩, ha, hx⟩ := OracleWhnf.ok_of_bind hx
     cases hx
-    obtain ⟨hoa, hma, hra, a', hta, A, hA⟩ := hargs a (.head _)
-    have ⟨hera, hdepsa, hgra⟩ := ih a hctx hsc hoa hma hra hok hta ⟨A, hA⟩ ha
+    obtain ⟨hoa, hma, hna, hra, a', hta, A, hA⟩ := hargs a (.head _)
+    have ⟨hera, hdepsa, hgra⟩ := ih a hctx hsc hoa hma hna hra hok hta ⟨A, hA⟩ ha
     have hnsp : ¬ SpecialSpine (evalEnvOf view cfg decls) f₀ := by
       rintro ⟨c, us, hc, hsp⟩
       obtain ⟨hct, hcs⟩ := hns c us hc
@@ -1110,9 +1147,9 @@ theorem visitApp_spec (hG : CoreEnv E B P decls view cfg) {k : Nat}
     {S : Name → Prop} {t : Metalean.Expr ζ lps.length n} {st st' : ErasureState} {tc : TravCtx}
     {ps ps' : PureState} {r : LBTerm} {e : Expr}
     (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK decls S)
-    (hocc : ∀ d, nameOccurs d e = true → S d) (hmf : MachineFree cfg e) (hrf : RecFree decls e)
-    (hok : StateOK E B (evalEnvOf view cfg decls) st) (he : TrM E B lps Γ Δ e t)
-    (ht : ∃ T, E[Γ] ⊢ t : T)
+    (hocc : ∀ d, nameOccurs d e = true → S d) (hmf : MachineFree cfg e) (hnp : NatPlain cfg e)
+    (hrf : RecFree decls e) (hok : StateOK E B (evalEnvOf view cfg decls) st)
+    (he : TrM E B lps Γ Δ e t) (ht : ∃ T, E[Γ] ⊢ t : T)
     (hor : Pure.isErasable ⟨decls⟩ oracleFuel tc.locals e = .ok false)
     (hplain : ∀ c us, e.getAppFn = .const c us →
       casesInfo? decls c = none ∧ ctorArity? decls c = none)
@@ -1131,6 +1168,7 @@ theorem visitApp_spec (hG : CoreEnv E B P decls view cfg) {k : Nat}
     (fun f a h => ⟨fun d hd => h d (by simp [nameOccurs, hd]),
       fun d hd => h d (by simp [nameOccurs, hd])⟩) hocc
   obtain ⟨hmfF, hmfA⟩ := hQ (Q := MachineFree cfg) (fun _ _ h => h) hmf
+  obtain ⟨hnpF, hnpA⟩ := hQ (Q := NatPlain cfg) (fun _ _ h => h) hnp
   obtain ⟨hrfF, hrfA⟩ := hQ (Q := RecFree decls) (fun _ _ h => h) hrf
   rw [visitApp] at hrun
   split at hrun
@@ -1208,7 +1246,7 @@ theorem visitApp_spec (hG : CoreEnv E B P decls view cfg) {k : Nat}
       | succ i =>
       rw [hA] at hrun
       have ⟨her, hdeps, hgr⟩ := visitAppArgs_spec (fun e => ih.expr i (by omega) e)
-        (hctx.mono hgf.next) hsc (fun a ha => ⟨hoccA a ha, hmfA a ha, hrfA a ha, htrA a ha⟩)
+        (hctx.mono hgf.next) hsc (fun a ha => ⟨hoccA a ha, hmfA a ha, hnpA a ha, hrfA a ha, htrA a ha⟩)
         (fun c'' us'' h => by cases h; exact ⟨hnctor, hncs⟩) hgf.inv
         (.const (us := us) hat hspec) hdf hrun
       rw [hc] at hsp
@@ -1222,13 +1260,13 @@ theorem visitApp_spec (hG : CoreEnv E B P decls view cfg) {k : Nat}
     have hnsh : ¬ SpecialHead B e.getAppFn := fun ⟨c, us, b, hc, _, _⟩ =>
       hnc c us (by rwa [getAppFn_getAppFn] at hc)
     obtain ⟨⟨f', htf, F, hF⟩, htrA⟩ := spine_typed hnsh (by rw [hsp]; exact he) ht
-    have ⟨herf, hdf, hgf⟩ := ih.expr k (Nat.le_refl _) _ hctx hsc hoccF hmfF hrfF hok htf ⟨F, hF⟩ hf
+    have ⟨herf, hdf, hgf⟩ := ih.expr k (Nat.le_refl _) _ hctx hsc hoccF hmfF hnpF hrfF hok htf ⟨F, hF⟩ hf
     cases k with
     | zero => rw [visitAppArgs] at hrun; cases hrun
     | succ i =>
     rw [hA] at hrun
     have ⟨her, hdeps, hgr⟩ := visitAppArgs_spec (fun e => ih.expr i (by omega) e)
-      (hctx.mono hgf.next) hsc (fun a ha => ⟨hoccA a ha, hmfA a ha, hrfA a ha, htrA a ha⟩)
+      (hctx.mono hgf.next) hsc (fun a ha => ⟨hoccA a ha, hmfA a ha, hnpA a ha, hrfA a ha, htrA a ha⟩)
       (fun c us h => absurd (by rwa [getAppFn_getAppFn] at h) (hnc c us)) hgf.inv herf hdf hrun
     rw [hsp] at her
     exact ⟨her, hdeps, hgf.trans hgr⟩
@@ -1241,7 +1279,7 @@ theorem visitExpr_app_step (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
     (hplain : ∀ c us, (Expr.app f a).getAppFn = .const c us →
       casesInfo? decls c = none ∧ ctorArity? decls c = none) :
     ExprSpec E B view cfg decls (fuel + 1) (.app f a) := by
-  intro lps n Γ Δ S t st tc ps r st' ps' hctx hsc hocc hmf hrf hok he ht hrun
+  intro lps n Γ Δ S t st tc ps r st' ps' hctx hsc hocc hmf hnp hrf hok he ht hrun
   rw [visitExpr] at hrun
   rcases oracle_run hrun with ⟨hor, rfl, rfl, rfl⟩ | ⟨hor, hrun⟩
   · exact visitExpr_box hG hctx hok he ht hor
@@ -1249,7 +1287,7 @@ theorem visitExpr_app_step (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
   | zero => rw [visitApp] at hrun; cases hrun
   | succ k =>
   exact visitApp_spec hG ⟨fun m hm => ih.expr m (by omega), fun m hm => ih.mutDecl m (by omega)⟩
-    hctx hsc hocc hmf hrf hok he ht hor hplain hrun
+    hctx hsc hocc hmf hnp hrf hok he ht hor hplain hrun
 
 /-- The `const` step: a constant that is neither a constructor nor a recognized `casesOn` constant
 is erased as an application to no argument (`visitApp_spec`). Reference: the `tConst` case of
@@ -1258,7 +1296,7 @@ theorem visitExpr_const_step (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
     (ih : StepIH E B view cfg decls fuel) {c : Name} {us : List Level}
     (hplain : casesInfo? decls c = none ∧ ctorArity? decls c = none) :
     ExprSpec E B view cfg decls (fuel + 1) (.const c us) := by
-  intro lps n Γ Δ S t st tc ps r st' ps' hctx hsc hocc hmf hrf hok he ht hrun
+  intro lps n Γ Δ S t st tc ps r st' ps' hctx hsc hocc hmf hnp hrf hok he ht hrun
   rw [visitExpr] at hrun
   rcases oracle_run hrun with ⟨hor, rfl, rfl, rfl⟩ | ⟨hor, hrun⟩
   · exact visitExpr_box hG hctx hok he ht hor
@@ -1266,7 +1304,7 @@ theorem visitExpr_const_step (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
   | zero => rw [visitApp] at hrun; cases hrun
   | succ k =>
   exact visitApp_spec hG ⟨fun m hm => ih.expr m (by omega), fun m hm => ih.mutDecl m (by omega)⟩
-    hctx hsc hocc hmf hrf hok he ht hor (fun c' us' h => by cases h; exact hplain) hrun
+    hctx hsc hocc hmf hnp hrf hok he ht hor (fun c' us' h => by cases h; exact hplain) hrun
 
 end
 
@@ -1719,6 +1757,7 @@ theorem visitMutual_step (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
     have hread := (hG.value_consts hci hv hthm hcs).2
     have hvcl : FVarsIn (fun _ => False) v := hG.closed ci hci' v hread
     have hmfv : MachineFree cfg v := hG.mfd ci hci' v hread
+    have hnpv : NatPlain cfg v := hG.npd ci hci' v hread
     have hW' : (visitExpr (m := PureM) fuel v).runPure sb
         { lctx := tc.lctx, locals := [], config := tc.config } ⟨decls, view⟩ ps =
           .ok ((t, st₂), ps₂) := by
@@ -1740,10 +1779,10 @@ theorem visitMutual_step (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
       cases hci₀
       exact hval₀ v hv hthm hcs
     have hokb := StateOK.congr hok hcb hib hgb
-    have ⟨her, hdeps, hgr⟩ := ih.expr fuel (Nat.le_refl _) v hctx0 hsc hoccS hmfv
+    have ⟨her, hdeps, hgr⟩ := ih.expr fuel (Nat.le_refl _) v hctx0 hsc hoccS hmfv hnpv
       (hG.recFree ci hci' v hread) hokb htr ⟨T₀, hty⟩ hW'
     obtain ⟨S', hsc', hvS', hcS'⟩ := hG.valueScope hci hv hthm hcs
-    obtain ⟨-, -, hgr'⟩ := ih.expr fuel (Nat.le_refl _) v hctx0 hsc' hvS' hmfv
+    obtain ⟨-, -, hgr'⟩ := ih.expr fuel (Nat.le_refl _) v hctx0 hsc' hvS' hmfv hnpv
       (hG.recFree ci hci' v hread) hokb htr ⟨T₀, hty⟩ hW'
     have hnew₂ : st₂.constants[c]? = none := by
       cases h : st₂.constants[c]? with

@@ -64,3 +64,4 @@ import EraseProof.Core.RegisterInd
 import EraseProof.Core.Glue
 import EraseProof.Core.LocalsOK
 import EraseProof.Core.Steps
+import EraseProof.Core.StepsB
