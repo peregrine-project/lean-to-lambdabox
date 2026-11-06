@@ -8,9 +8,6 @@ import LeanToLambdaBox.Erasure.Entry
   point `Erasure.eraseEntry` is a result of the pure path `Erasure.erasePure`. The `CoreM` lemmas
   it needs (`CoreM.pure_inj`, `CoreM.throwError_ne_pure`, `EIO.bind_err`) run a `CoreM` action at
   an arbitrary context, state reference and world token (`someCtx`, `someRef`, `someW`).
-- `visitMutual_nonrecursive`: at the pure backend, `visitMutual`'s recursion test (`name_occurs`,
-  which strips no `_unsafe_rec` suffix there) sends every declaration of a program with a value to
-  the non-recursive branch, so the fix branch is dead on the pure path.
 -/
 
 open Lean Erasure
@@ -70,28 +67,5 @@ theorem eraseEntry_pure {view : EnvView} {cfg : ErasureConfig} {r : Program × L
   | .error _ =>
     simp only [eraseEntry, route, hfrag, hp] at hrun
     exact absurd hrun CoreM.throwError_ne_pure
-
-/-! ## The recursion test of `visitMutual` -/
-
-/-- At the pure backend, `name_occurs` is `Erasure.nameOccurs`: `unsafeRecBase?` is always `none`.
-Reference: none (DV-7). -/
-theorem name_occurs_pure (n : Name) : ∀ e, name_occurs (m := PureM) n e = nameOccurs n e := by
-  intro e
-  induction e <;> simp_all [name_occurs, nameOccurs, remove_unsafe_rec, Backend.unsafeRecBase?]
-
-/-- On a declaration of a program with a value, `visitMutual` at the pure backend takes the
-non-recursive branch: the declaration is alone in its block and its value does not mention it.
-Reference: none (DV-7 does not arise). -/
-theorem visitMutual_nonrecursive {P : List ConstantInfo} {ζ : Metalean.Sigs}
-    {E : Metalean.Env ζ} {B : Binds ζ} {c : Name} {ci : ConstantInfo} {v : Expr}
-    (henv : ProgEnv P ζ E B) (hc : findDecl P c = some ci)
-    (hv : ci.value? (allowOpaque := true) = some v) :
-    ci.all.length = 1 ∧ name_occurs (m := PureM) c v = false := by
-  have h := isRecursiveDecl_false henv hc hv
-  have hval : ci.value! (allowOpaque := true) = v := by
-    cases ci <;> cases hv <;> rfl
-  obtain ⟨-, rfl⟩ := findDecl_eq_some hc
-  simp only [isRecursiveDecl, hval, Bool.or_eq_false_iff] at h
-  exact ⟨by simpa using h.1, (name_occurs_pure _ _).trans h.2⟩
 
 end EraseProof

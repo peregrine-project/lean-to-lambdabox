@@ -24,8 +24,10 @@
 #                  SetTheory modules and the tests unreachable from non-test declarations (by the
 #                  constants reached, by module and by name), except what the translator's total
 #                  term builders reach, none of it partial, opaque, unsafe or implemented_by;
-#                  no leaves with respect to ROOTS.txt and the statement definitions,
-#                  and every test that is not a theorem used by a test theorem; footprints of roots
+#                  no leaves with respect to ROOTS.txt, the statement definitions and the proved
+#                  theorems with a statement (collectDeps_ok_of, which characterizes the programs
+#                  that pass the fragment test, is a result of its own: erase_correct takes that
+#                  test as its hypothesis hfrag and does not use it), and every test that is not a theorem used by a test theorem; footprints of roots
 #                  and test theorems equal axioms.expected; every source file imported; the entries
 #                  of doc/DIVERGENCES.md well-formed, citing existing declarations (EraseProof.*,
 #                  Metalean.*, Erasure.*), files and lines (proof/, Metalean/ in the Metalean
@@ -36,7 +38,8 @@
 #                  EraseProof/Statements.lean exist, and each of erase_correct, collectDeps_ok_of,
 #                  erases_correct and erasePure_erases that is proved has a type definitionally
 #                  equal to its statement definition, the others being listed as not yet proved;
-#                  C12, the final form: ROOTS.txt is the single root EraseProof.erase_correct,
+#                  C12, the final form: EraseProof.erase_correct is the only root of ROOTS.txt
+#                  with consumer FINAL (any other root waits for a consumer that has not landed),
 #                  every statement is proved, and erase_correct's footprint is exactly propext,
 #                  Classical.choice, Quot.sound, as is that of its instance on NV-1,
 #                  EraseProof.Test.NV1.final, whose hypothesis terms lie within them (skipped
@@ -51,9 +54,10 @@
 #                  the final form.
 #   regress   C10  the shipping regression tests, scripts/regress.sh (skipped with --no-regress);
 #                  with PEREGRINE set, also their `-- peregrine:` lines.
-#   peregrine C11  proof/scripts/c11.sh: `peregrine validate` and `peregrine eval --anf=false` on
-#                  the pure-path outputs of the in-fragment corpus and on NV-1's program. Runs once
-#                  scripts/c11.sh exists, only with PEREGRINE=<peregrine binary> in the
+#   peregrine C11  proof/scripts/c11.sh: `peregrine validate` and `peregrine eval` on NV-1's
+#                  program (from nv1-emit), on every output the regression tests write under
+#                  `nat := .peano`, and on their outputs for NV-1, NV-P and NV-K; each value must
+#                  be the Lean program's. Runs only with PEREGRINE=<peregrine binary> in the
 #                  environment, so GitHub CI skips it; skipped with --no-peregrine.
 #
 # Logs go to proof/.check/<step>.log; the report also writes proof/.check/footprints.txt and
@@ -77,7 +81,7 @@ for a in "$@"; do
     --no-regress) regress=0 ;;
     --no-peregrine) peregrine=0 ;;
     --no-final) final=(--no-final) ;;
-    -h|--help) sed -n '2,63p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,67p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "error: unknown argument $a" >&2; exit 2 ;;
   esac
 done
@@ -133,8 +137,6 @@ if [ $peregrine = 0 ]; then
   echo "== peregrine: skipped (--no-peregrine)"
 elif [ -z "${PEREGRINE:-}" ]; then
   echo "== peregrine: skipped (PEREGRINE is not set)"
-elif [ ! -x "$PROOF/scripts/c11.sh" ]; then
-  echo "== peregrine: skipped (scripts/c11.sh has not landed)"
 elif run peregrine c11; then
   tail -n 1 "$LOG/peregrine.log"
 fi
