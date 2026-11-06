@@ -1,6 +1,7 @@
 import LeanToLambdaBox
 import EraseProof.Test.NV1Run
 import EraseProof.Test.NV2Run
+import EraseProof.Test.NVPData
 
 /-!
 # NV-1's and NV-2's emitted programs, for check C11
@@ -16,7 +17,9 @@ attributes to `FILE1.inlinings`, printed as `#erase` prints them
 (`LeanToLambdaBox/Erasure/Command.lean`). It fails unless the printed program is byte-identical to
 the printing of the instance's `p0`, the program that its `hrun` computes, and the list of
 constants to inline is empty, as `hrun` states. `proof/scripts/c11.sh` then runs
-`peregrine validate` and `peregrine eval` on both files.
+`peregrine validate` and `peregrine eval` on both files. It also checks NV-P's declarations
+(`EraseProof.Test.NVP.P`, shared by NV-K up to its lemma `hEq`) against the kernel's: `Eq` and its
+`Eq.rec`, `Eq.casesOn` from `Init`, and `B` as declared above.
 -/
 
 open Lean Elab Erasure EraseProof.Test
@@ -106,6 +109,20 @@ def declB : CoreM Unit := do
   addDecl (.inductDecl [] 0 [⟨`B, NV1.B_ind.type, [⟨`B.f, NV1.tB⟩, ⟨`B.t, NV1.tB⟩]⟩] false)
   Meta.MetaM.run' (mkCasesOn `B)
 
+/-- NV-P's declarations are the kernel's (`Init`'s `Eq` family, and `B` declared by `declB`). -/
+def checkNVP : IO UInt32 := do
+  let env ← importModules #[{ module := `Init }] {}
+  let run : CoreM Unit := do
+    declB
+    for ci in NVP.P do
+      match (← getEnv).find? ci.name with
+      | some ci' =>
+        unless sameDecl ci ci' do throwError "the declaration {ci.name} differs from the kernel's"
+      | none => throwError "{ci.name} is not declared"
+  match ← (run.run' { fileName := "<NV-P>", fileMap := default } { env }).toBaseIO with
+  | .ok () => IO.println "NV-P: its declarations are the kernel's"; return 0
+  | .error err => IO.eprintln s!"NV-P: {← err.toMessageData.toString}"; return 1
+
 def main (args : List String) : IO UInt32 := do
   let [file1, file2] := args
     | IO.eprintln "usage: lake env lean --run tools/NVEmit.lean FILE1 FILE2"; return 2
@@ -122,7 +139,8 @@ def main (args : List String) : IO UInt32 := do
         [⟨`W, NV2.W_ind.type, [⟨`W.n, NV2.tW⟩, ⟨`W.s, NV2.sTy⟩]⟩] false)
       Meta.MetaM.run' (mkCasesOn `W))
     NV2.P NV2.e NV2.p0
-  return max r1 r2
+  let r3 ← checkNVP
+  return max r1 (max r2 r3)
 
 end EraseProofNVEmit
 
