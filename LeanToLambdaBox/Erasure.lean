@@ -63,6 +63,17 @@ inductive Nat
   -/
   | machine
 
+/-- Which declaration erases a definition by structural recursion (`isStructuralRecursive`). -/
+inductive Structural where
+  /-- The `_unsafe_rec` definition that the code generator compiles (`Compiler.LCNF.getDeclInfo?`):
+  a fixpoint that calls the function itself. -/
+  | unsafeRec
+  /-- The kernel's definition, through `T.brecOn` and the recursor `T.rec`: a fixpoint over the
+  recursor, which computes the `T.below` table of all recursive calls before the function's body
+  runs. Well-founded recursion and `partial` definitions keep their `_unsafe_rec` definition. -/
+  | kernel
+deriving BEq
+
 end Config
 
 structure ErasureConfig: Type where
@@ -99,6 +110,9 @@ structure ErasureConfig: Type where
   (everything marked will be inlined), so enable only after profiling shows it pays off.
   -/
   auto_inline_typeclass_dispatch: Bool := false
+  /-- Erase a definition by structural recursion through its `_unsafe_rec` definition (the
+  default) or through its kernel definition (`.kernel`), see `Config.Structural`. -/
+  structural: Config.Structural := .unsafeRec
 
 /-- Largest `LBTerm.inlinedSize` of a body that `ErasureConfig.auto_inline_typeclass_dispatch`
 marks for inlining. -/
@@ -198,9 +212,10 @@ class Backend (m : Type → Type) where
   findConst? : Name → m (Option ConstantInfo)
   /-- The error for a constant that `findConst?` does not find (`CoreM`: `throwUnknownConstant`). -/
   unknownConstant {α : Type} : Name → m α
-  /-- The declaration that the code generator uses for a constant (`CoreM`:
-  `Compiler.LCNF.getDeclInfo?`, which prefers the `_unsafe_rec` version). -/
-  declInfo? : Name → m (Option ConstantInfo)
+  /-- The declaration that erases a constant under a configuration (`CoreM`: `declInfoCore`, the
+  one the code generator uses, `Compiler.LCNF.getDeclInfo?`, which prefers the `_unsafe_rec`
+  version, except under `structural := .kernel`). -/
+  declInfo? : ErasureConfig → Name → m (Option ConstantInfo)
   /-- The name of which the argument is the `_unsafe_rec` version, if it is one (`CoreM`:
   `Compiler.isUnsafeRecName?`). -/
   unsafeRecBase? : Name → Option Name
@@ -411,30 +426,20 @@ def argMaskCore (lctx : LocalContext) (ci : ConstructorVal) : CoreM ConstructorA
     if (mask.any (· == .erase)) then logInfo s!"Argmask for constructor {ci.name}: {repr mask}"
     pure mask
 
-/-- The backend of `#erase`: the Lean environment and `Meta`. -/
-instance : Backend CoreM where
-  findConst? n := return (← getEnv).find? n
-  unknownConstant n := throwUnknownConstant n
-  declInfo? := Compiler.LCNF.getDeclInfo?
-  unsafeRecBase? := Compiler.isUnsafeRecName?
-  freshFVarId := mkFreshFVarId
-  instantiate1 := Expr.instantiate1
-  isErasable lctx _ e := runMetaM lctx (isErasable e)
-  inferType lctx _ e := runMetaM lctx (Meta.inferType e)
-  whnf lctx _ e := runMetaM lctx (Meta.whnf e)
-  isPropFormerType e := runMetaM {} (Meta.isPropFormerType e)
-  typeLevel lctx _ e := runMetaM lctx do Meta.getLevel (← Meta.inferType e)
-  casesInfo? := getCasesInfo?
-  ctorArity? := getCtorArity?
-  argMask := argMaskCore
-  isExtern n := return isExtern (← getEnv) n
-  inlineAttr? n := return Compiler.getInlineAttribute? (← getEnv) n
-  isInstance := Meta.isInstance
-  prepare := prepareErasure
-  log s := logInfo s
-  outOfFuel site := throwError s!"erasure: recursion bound reached in {site}"
-  error msg := throwError msg
-  fail {α} _ msg := have : Inhabited (CoreM α) := ⟨pure default⟩; panic! msg
+/-- The inductive `T` of `T.brecOn`, or of `T.brecOn_<i>` (an auxiliary member of a nested block). -/
+def brecOnInduct? : Name → Option Name
+  | .str T s => if s == "brecOn" || s.startsWith "brecOn_" then some T else none
+  | _ => none
+
+/--
+Whether a declaration is a definition by structural recursion: a definition whose value refers to
+a `brecOn` (`brecOnInduct?`), which is how Lean's structural recursion (`Lean.Elab.Structural`)
+writes it. A definition by well-founded recursion refers to `WellFounded.fix` instead, and a
+`partial` definition is an opaque.
+-/
+def isStructuralRecursive : ConstantInfo → Bool
+  | .defnInfo d => d.value.getUsedConstants.any (brecOnInduct? · |>.isSome)
+  | _ => false
 
 section Traversal
 
@@ -674,6 +679,128 @@ def name_occurs (name: Name) (e: Expr): Bool :=
   | .lam _ _ e _ | .mdata _ e | .proj _ _ e => name_occurs name e
   | .app a b | .letE _ _ a b _ => name_occurs name a || name_occurs name b
 
+/-- The names and domains of the leading `Π`s of a type, syntactically, and its body. -/
+def piBinders : Expr → List (Name × Expr) × Expr
+  | .forallE x d b _ => let (bs, r) := piBinders b; ((x, d) :: bs, r)
+  | e => ([], e)
+
+/-- An induction hypothesis of a recursor's minor premise: the block member of its recursive
+call, the field it recurses on, and the names of the binders `ys` of that field's type
+`Π ys, T …`. -/
+structure RecIH where
+  member : Nat
+  field : Nat
+  binders : List Name
+
+/-- A minor premise of a recursor: its binder name, the names of its constructor's fields, and
+its induction hypotheses, in order. -/
+structure RecMinor where
+  name : Name
+  fields : List Name
+  ihs : List RecIH
+deriving Inhabited
+
+/--
+The shape of a recursor's type `Π ps motives minors is t, motive is t` with `P` parameters and
+`M` motives, given the number of fields of the constructor of each minor premise: for each motive,
+the names of the binders of its type `Π is t, Sort u` (the indices of its block member and the
+major premise); for each minor, its `RecMinor`. Each binder of the minor's type after the fields is
+an induction hypothesis of type `Π ys, motive_j is' (f ys)` (`motive_j` and the field `f` bound
+variables), which gives its member `j`, field `f` and binders `ys`. `none` if the type has another
+shape. Reference: the minor premises as Lean's kernel builds them (`add_inductive_fn` in
+`src/kernel/inductive.cpp`: `mk_rec_infos`, `declare_recursors`).
+-/
+def recShape (P M : Nat) (type : Expr) (numFields : List Nat) :
+    Option (List (List Name) × List RecMinor) := do
+  let bs := (piBinders type).1
+  let motives := ((bs.drop P).take M).map fun (_, d) => (piBinders d).1.map (·.1)
+  let minors := (bs.drop (P + M)).take numFields.length
+  guard (motives.length == M && minors.length == numFields.length)
+  let minors ← (minors.zip numFields).zipIdx.mapM fun (((x, D), nf), i) => do
+    let mbs := (piBinders D).1
+    guard (nf ≤ mbs.length)
+    let ihs ← (mbs.drop nf).zipIdx.mapM fun ((_, d), k) => do
+      let (ys, body) := piBinders d
+      let L := ys.length
+      let .bvar hm := body.getAppFn | none
+      let last ← body.getAppArgs.back?
+      let .bvar hf := last.getAppFn | none
+      let base := L + k + nf + i
+      guard (base ≤ hm && hm < base + M && L + k ≤ hf && hf < L + k + nf && last.getAppNumArgs == L)
+      pure { member := M - 1 - (hm - base), field := nf - 1 - (hf - L - k), binders := ys.map (·.1) : RecIH }
+    pure { name := x, fields := (mbs.take nf).map (·.1), ihs : RecMinor }
+  pure (motives, minors)
+
+/--
+Whether `visitRec` leaves an application of the recursor `r` as an application of a constant (a
+λ□ axiom), given the inductive types of its block and their constructors: if the block has
+auxiliary motives (a nested inductive); if its inductive is `Nat` or `Int` under `nat := .machine`
+(whose values are primitive integers); or if its inductive's sort may be `Prop` (it is not
+syntactically a sort that is never zero) and a field of a constructor of the block is an index of
+the constructor's type (`indexFields`, as `Acc`): the alternative would receive □ for that field,
+and a recursive call □ for its indices. Reference: none.
+-/
+def recStaysConstant (nat : Config.Nat) (r : RecursorVal) (ivs : List InductiveVal)
+    (cvs : List ConstructorVal) : Bool :=
+  let T := r.getMajorInduct
+  let machine := match nat with
+    | .machine => true
+    | .peano => false
+  let sortMayBeProp := match (ivs.find? (·.name == T)).map (piBinders ·.type |>.2) with
+    | some (.sort u) => !u.isNeverZero
+    | _ => true
+  let indexField := cvs.any fun cv => (indexFields cv.numParams cv.type).any Option.isSome
+  r.numMotives != r.all.length || (machine && (T == ``Nat || T == ``Int)) ||
+    (sortMayBeProp && indexField)
+
+/-- A member of a recursor's block, as `recFix` erases it: its name, the binder names of its motive's
+type (its indices and the major premise), its λ□ inductive, and for each of its constructors the
+position of its minor premise among all minors, the minor, and the constructor's argument mask. -/
+structure RecMember where
+  name : Name
+  binders : List Name
+  indid : InductiveId
+  minors : List (Nat × RecMinor × ConstructorArgMask)
+
+/--
+The λ□ fixpoint `fix [rec_t := λ is t. case (T_t, npars) t [alt_c]]_t j` of the block `members`
+of a recursor, under `N` let-bound minor premises (the innermost is bound variable 0 outside the
+fixpoint). The alternative of constructor `c` binds its kept fields and applies its minor premise
+to the fields (□ for a field that is not kept) and then to an induction hypothesis
+`λ ys. rec_t' □… (f ys)` for each recursive field `f` (the indices of the recursive call are □).
+If `direct`, the block has one member with one constructor and the major premise may be a proof:
+the `case` is replaced by its alternative applied to □ for each field (as MetaRocq's `iotaSing`
+reduces a `case` on □), so that it reduces whether the inductive is propositional or not. The
+recursive argument of `rec_t` is its major premise. Reference: none.
+-/
+def recFix (N npars : Nat) (direct : Bool) (members : List RecMember) (j : Nat) : LBTerm :=
+  let n := members.length
+  let body (mem : RecMember) : @FixDef LBTerm :=
+    let k := mem.binders.length - 1
+    let alt : Nat × RecMinor × ConstructorArgMask → List BinderName × LBTerm
+      | (gi, mi, mask) =>
+        let kept := (List.range mi.fields.length).filter (mask[·]? == some .keep)
+        let B := kept.length
+        -- the field `f` under `d` binders of the alternative's body
+        let field (d f : Nat) : LBTerm := match kept.idxOf? f with
+          | some p => .bvar (d + B - 1 - p)
+          | none => .box
+        let ih (h : RecIH) : LBTerm :=
+          let L := h.binders.length
+          let k' := ((members[h.member]?).map (·.binders.length - 1)).getD 0
+          let call := (List.replicate k' LBTerm.box).foldl .app (.bvar (L + B + 1 + k + (n - 1 - h.member)))
+          let arg := (List.range L).foldl (fun a y => .app a (.bvar (L - 1 - y))) (field L h.field)
+          h.binders.foldr (fun y b => .lambda (binderNameOf y) b) (.app call arg)
+        let args := (List.range mi.fields.length).map (field 0) ++ mi.ihs.map ih
+        (kept.map fun f => binderNameOf (mi.fields.getD f .anonymous),
+          args.foldl .app (.bvar (B + 1 + k + n + (N - 1 - gi))))
+    let inner := match direct, mem.minors with
+      | true, [c] => let (xs, b) := alt c; (List.replicate xs.length LBTerm.box).foldl .app (xs.foldr .lambda b)
+      | _, _ => .case (mem.indid, npars) (.bvar 0) (mem.minors.map alt)
+    { name := fixDefName (mkRecName mem.name), principalArgIdx := k,
+      body := mem.binders.foldr (fun x b => .lambda (binderNameOf x) b) inner }
+  .fix (members.map body) j
+
 /-!
 The erasure traversal, copied over from toLCNF, then quite heavily pruned and modified.
 
@@ -773,6 +900,7 @@ mutual
   Special handling of
   - casesOn (will be eta-expanded)
   - constructors (will be eta-expanded)
+  - recursors (`visitRec`)
   - `Quot.mk α r a`, erased to `a`, and `Quot.lift α r β f h q`, erased to `f q` (both
     η-expanded); a quotient is represented by its elements, as in the code generator
     (`visitQuotLift` in `Lean/Compiler/LCNF/ToLCNF.lean` applies `f` to `Quot.lcInv q`, and
@@ -808,7 +936,53 @@ mutual
           withAppEtaToMinArity fuel e 6 fun _ args => do
             let f ← getOrFail args[3]? "visitConstApp: Quot.lift without its function"
             visitAppArgs fuel (← visitExpr fuel f) (args.extract 5)
+        | some (.recInfo r) => visitRec fuel r e
         | _ => visitAppArgs fuel (← visitConst fuel f) args
+
+  /--
+  Erase an application of a recursor `T.rec`, η-expanded to its arity `numParams + numMotives +
+  numMinors + numIndices + 1`, as `let ms := minors' in recFix … is' t'` applied to the erasure of
+  the arguments beyond the arity: the parameters and motives are dropped, the minor premises are
+  let-bound in order, so that each is evaluated once, and the fixpoint of the recursor's block
+  (`recFix`, one function per member, from the shapes of the minor premises, `recShape`) is applied
+  to the indices `is` and the major premise `t`. If the major premise's sort may be `Prop`, its
+  value may be □, so the fixpoint reduces the `case` itself (`recFix`, `direct`), as `visitCases`
+  does. A recursor whose application is a proof or a type is erased to □ by `visitExpr` before.
+  The recursor stays a constant, a λ□ axiom (`visitMutual`), in the cases of `recStaysConstant`.
+  -/
+  def visitRec : Nat → RecursorVal → Expr → EraseT m LBTerm
+  | 0, _, _ => Backend.outOfFuel (m := m) "visitRec"
+  | fuel+1, r, e => do
+    let ivs ← r.all.mapM fun t => do
+      let .inductInfo iv ← getConst t | Backend.fail (m := m) s!"visitRec: {t} is not an inductive type"
+      pure iv
+    let cvs ← (ivs.flatMap (·.ctors)).mapM fun c => do
+      let .ctorInfo cv ← getConst c | Backend.fail (m := m) s!"visitRec: {c} is not a constructor"
+      pure cv
+    let T := r.getMajorInduct
+    if recStaysConstant (← read).config.nat r ivs cvs then
+      return ← e.withApp fun f args => do visitAppArgs fuel (← visitConst fuel f) args
+    let some (motives, minors) := recShape r.numParams r.numMotives r.type (cvs.map (·.numFields))
+      | Backend.fail (m := m) s!"visitRec: unexpected type of {r.name}"
+    let mut members := #[]
+    let mut gi := 0
+    for iv in ivs, xs in motives do
+      let (indid, masks) ← register_inductive iv
+      let ms := (minors.drop gi).take iv.ctors.length
+      let cs := (List.range ms.length).map fun c => (gi + c, ms.getD c default, masks.getD c #[])
+      members := members.push (⟨iv.name, xs, indid, cs⟩ : RecMember)
+      gi := gi + iv.ctors.length
+    let j ← getOrFail (r.all.idxOf? T) s!"visitRec: {T} is not in its block"
+    let first := r.numParams + r.numMotives
+    let arity := first + r.numMinors + r.numIndices + 1
+    withAppEtaToMinArity fuel e arity fun _ args => do
+      let maj ← getOrFail args[arity - 1]? "visitRec: no major premise"
+      let direct := !(← Backend.typeLevel (m := m) (← read).lctx (← read).locals maj).isNeverZero
+      let ms ← (args.extract first (first + r.numMinors)).toList.mapM (visitExpr fuel)
+      let fix := recFix r.numMinors r.numParams direct members.toList j
+      let applied ← visitAppArgs fuel fix (args.extract (first + r.numMinors) arity)
+      let t := (ms.zip minors).foldr (fun (m, mi) b => .letIn (binderNameOf mi.name) m b) applied
+      visitAppArgs fuel t (args.extract arity)
 
   def visitConstructor : Nat → Name → Array Expr → EraseT m LBTerm
   | 0, _, _ => Backend.outOfFuel (m := m) "visitConstructor"
@@ -1051,7 +1225,7 @@ mutual
   | 0, _ => Backend.outOfFuel (m := m) "visitMutual"
   | fuel+1, name => do
     -- Use original recursive definition, not the elaborated one with recursors, if available.
-    let ci ← getOrFail (← Backend.declInfo? (m := m) name) s!"visitMutual: unknown constant {name}"
+    let ci ← getOrFail (← Backend.declInfo? (m := m) (← read).config name) s!"visitMutual: unknown constant {name}"
     let names := ci.all -- possibly these are ._unsafe_rec
     let single_decl := names.length == 1
     -- Lean's @[inline] attribute is name-based, so we can decide pre-erasure.
@@ -1125,6 +1299,62 @@ mutual
 end
 
 end Traversal
+
+/--
+The declaration that erases a constant on the `Meta` path: the one the code generator uses
+(`Compiler.LCNF.getDeclInfo?`, which prefers the `_unsafe_rec` version), except that under
+`structural := .kernel` a definition by structural recursion (`isStructuralRecursive`) is erased
+through its kernel definition when `visitRec` erases the recursor `T.rec` of each `T.brecOn` it
+refers to (not `recStaysConstant`: a nested inductive, `Nat` under `nat := .machine`). A
+definition that replaces another by a `@[csimp]` theorem keeps the code generator's declaration
+under `csimp`: it is the compiled implementation of a kernel definition, and its kernel definition
+may lead back to the constant it replaces (`Nat.recCompiled` goes through `Nat.brecOn`, whose value
+applies `Nat.rec`, which csimp replaces by `Nat.recCompiled`).
+-/
+def declInfoCore (cfg : ErasureConfig) (n : Name) : CoreM (Option ConstantInfo) := do
+  let env ← getEnv
+  if cfg.structural == .kernel then
+    if let some ci := env.find? n then
+      let csimpTarget := (Compiler.CSimp.ext.getState env).map.toList.any (·.2.toDeclName == n)
+      let recErased (T : Name) := match env.find? (mkRecName T) with
+        | some (.recInfo r) =>
+          let ivs := r.all.filterMap fun t => match env.find? t with
+            | some (.inductInfo iv) => some iv
+            | _ => none
+          let cvs := (ivs.flatMap (·.ctors)).filterMap fun c => match env.find? c with
+            | some (.ctorInfo cv) => some cv
+            | _ => none
+          !recStaysConstant cfg.nat r ivs cvs
+        | _ => false
+      if isStructuralRecursive ci && !(cfg.csimp && csimpTarget) &&
+          ci.value!.getUsedConstants.all (fun c => (brecOnInduct? c).all recErased) then
+        return some ci
+  Compiler.LCNF.getDeclInfo? n
+
+/-- The backend of `#erase`: the Lean environment and `Meta`. -/
+instance : Backend CoreM where
+  findConst? n := return (← getEnv).find? n
+  unknownConstant n := throwUnknownConstant n
+  declInfo? := declInfoCore
+  unsafeRecBase? := Compiler.isUnsafeRecName?
+  freshFVarId := mkFreshFVarId
+  instantiate1 := Expr.instantiate1
+  isErasable lctx _ e := runMetaM lctx (isErasable e)
+  inferType lctx _ e := runMetaM lctx (Meta.inferType e)
+  whnf lctx _ e := runMetaM lctx (Meta.whnf e)
+  isPropFormerType e := runMetaM {} (Meta.isPropFormerType e)
+  typeLevel lctx _ e := runMetaM lctx do Meta.getLevel (← Meta.inferType e)
+  casesInfo? := getCasesInfo?
+  ctorArity? := getCtorArity?
+  argMask := argMaskCore
+  isExtern n := return isExtern (← getEnv) n
+  inlineAttr? n := return Compiler.getInlineAttribute? (← getEnv) n
+  isInstance := Meta.isInstance
+  prepare := prepareErasure
+  log s := logInfo s
+  outOfFuel site := throwError s!"erasure: recursion bound reached in {site}"
+  error msg := throwError msg
+  fail {α} _ msg := have : Inhabited (CoreM α) := ⟨pure default⟩; panic! msg
 
 /-- The recursion bound of the traversal: no program erases with a deeper recursion. -/
 def travFuel : Nat := 2 ^ 32

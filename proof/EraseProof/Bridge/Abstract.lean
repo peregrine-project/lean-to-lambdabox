@@ -3,12 +3,12 @@ import EraseProof.Bridge.Basic
 /-!
 # Closing a binder in the translation
 
-`TrM.uninstantiateN`: the converse of `TrM.inst_fvar`. A body opened with a fresh free variable `x`
-translates under the locals where `x` denotes the binder's variable; the body itself translates
-to the same Metalean term under the locals where the binder is a bound variable. The proof goes
-through the abstraction `AbsFV.absFV x d` (`x` becomes the bound variable `d`), which inverts the
-instantiation by `x` on terms that do not mention `x`, and through the relation `AbsFV.Rel` of
-the two lists of locals. Reference: lean4lean `TrExprS.uninstantiateN`
+The abstraction `AbsFV.absFV x d` (`x` becomes the bound variable `d`), which inverts the
+instantiation by `x` on terms that do not mention `x` (`AbsFV.absFV_inst`), keeps the translation
+(`AbsFV.TrM.absN`) when the two lists of locals are related by `AbsFV.Rel`: a body opened with a
+fresh free variable `x` translates under the locals where `x` denotes the binder's variable, and
+the body itself to the same Metalean term under the locals where the binder is a bound variable.
+Reference: lean4lean `TrExprS.uninstantiateN`
 (`L4 Typing/Abstract.lean:55`), DV-13.
 -/
 
@@ -184,23 +184,5 @@ theorem TrM.absN {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ₂ Δ₁ : 
 end
 
 end AbsFV
-
-section
-variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {lps : List Name}
-
-/-- Closing a binder that was opened with a fresh free variable (`mkLambda`,
-`LeanToLambdaBox/Erasure.lean:508`): a body that does not mention `x`, opened with `x`, translates
-under the locals where `x` denotes the binder's variable to the term the body translates to under
-the locals where the binder is a bound variable. The converse of `TrM.inst_fvar`. Reference:
-`TrS.uninstantiateN` (`L4 Typing/Abstract.lean:55`), lean4lean `TrExprS.uninstantiateN`, DV-13. -/
-theorem TrM.uninstantiateN {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n}
-    {Δ : MLCtx ζ lps.length n} {A : Metalean.Expr ζ lps.length n} {x : FVarId} {b : Expr}
-    {b' : Metalean.Expr ζ lps.length (n + 1)} (hfv : FVarsIn (· ≠ x) b)
-    (h : TrM E B lps (Γ.snoc A) (Δ.pushLam (some x)) (b.instantiate1' (.fvar x)) b') :
-    TrM E B lps (Γ.snoc A) (Δ.pushLam none) b b' := by
-  have := AbsFV.TrM.absN h (AbsFV.Rel.zero x Δ)
-  rwa [AbsFV.absFV_inst hfv] at this
-
-end
 
 end EraseProof

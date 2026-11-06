@@ -6,11 +6,10 @@ import EraseProof.TargetFacts
 # Basic properties of the erasure relation
 
 The erasure of a translated term has no loose index beyond the context's bound locals
-(`Erases.closed`); an erasure of an application whose head is neither a constructor nor a
-recognized `casesOn` is `□` or an application of erasures (`Erases.app_inv`); an erasure of a
-saturated constructor spine is `□` or a λ□ constructor applied to erasures of the arguments
-(`Erases.ctor_inv`), and `□` for an inductive in `Prop` (`Erases.ctorProp_box`); an erasure of a
-`PropProj` spine that is a λ□ evaluation result is `□` (`Erases.propProj_box`).
+(`Erases.closed`); an erasure of a saturated constructor spine is `□` or a λ□ constructor applied
+to erasures of the arguments (`Erases.ctor_inv`), and `□` for an inductive in `Prop`
+(`Erases.ctorProp_box`); an erasure of a `PropProj` spine that is a λ□ evaluation result is `□`
+(`Erases.propProj_box`).
 -/
 
 open Lean Erasure
@@ -347,29 +346,6 @@ theorem Erases.closed {e : Expr} {t : Metalean.Expr ζ lps.length n} {tb : LBTer
     (he : TrM E B lps Γ Δ e t) (h : Erases E B lps σ Γ Δ e tb) :
     closedn (Δ.countP (·.1.isNone)) tb = true :=
   Erases.closedn_of_bbound h _ (TrM.bbound he)
-
-
-/-- An erasure of an application whose head is neither a constructor nor a recognized `casesOn` is
-`□` or an application of erasures. Reference: the `tApp` inversion of `erases`
-(`MR E/Extract.v:101`), `erases_mkApps_inv` (`MR E/ErasureProperties.v:105`). -/
-theorem Erases.app_inv {f a : Expr} {tb : LBTerm} (hns : ¬ SpecialSpine σ (.app f a))
-    (h : Erases E B lps σ Γ Δ (.app f a) tb) :
-    (tb = .box ∧ ErasableS E B lps Γ Δ (.app f a)) ∨
-      ∃ f' a', tb = .app f' a' ∧ Erases E B lps σ Γ Δ f f' ∧ Erases E B lps σ Γ Δ a a' := by
-  generalize hx : Expr.app f a = x at h
-  have hfn : ∀ {c : Name} {us : List Level} {as : List Expr}, x = mkAppN (.const c us) as.toArray →
-      (Expr.app f a).getAppFn = .const c us := fun h' => by
-    rw [hx, h', getAppFn_mkAppN_const]
-  cases h with
-  | app _ hf ha => cases hx; exact .inr ⟨_, _, rfl, hf, ha⟩
-  | box hb => subst hx; exact .inl ⟨rfl, hb⟩
-  | ctor hc => exact absurd (specialSpine_of (hfn rfl) (.inl ⟨_, hc⟩)) hns
-  | cases hc => exact absurd (specialSpine_of (hfn rfl) (.inr ⟨_, hc⟩)) hns
-  | casesReduced hc => exact absurd (specialSpine_of (hfn rfl) (.inr ⟨_, hc⟩)) hns
-  | eta heta =>
-    obtain ⟨_, har, _⟩ := etaSpine?_some heta
-    exact absurd (specialSpine_of (hfn rfl) (specialArity_some har)) hns
-  | bvar | fvar | lam | letE | const | proj | litZero | litSucc | mdata => cases hx
 
 /-- An erasure of a constructor spine with at least the constructor's arity is `□` or the λ□
 constructor applied to erasures of the arguments. Reference: the `tConstruct` inversion of

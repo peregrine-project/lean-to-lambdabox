@@ -1698,7 +1698,8 @@ the calls at which the two oracles answer differently. It must equal
     (its expected summary) and `scripts/pure-harness.sh`.
   - `.github/workflows/build.yml`: new step "Pure path next to the Meta path on the corpus".
   - `tests/regress/pure_backend.lean` says that `instantiate1` is `Expr.instantiate1'` of
-    `LeanToLambdaBox/Erasure/ExprOps.lean` (on `l4l/translate`, lean4lean's).
+    `LeanToLambdaBox/Erasure/ExprOps.lean` (lean4lean's in the earlier translation against
+    lean4lean).
   - `doc/SHIPPING-CHANGES.md`: this entry, and the section "Regression tests".
 - **Why necessary:** the verification proves its
   theorem about `erasePure`: the traversal of `#erase` run with a backend whose every operation is a
@@ -1880,8 +1881,8 @@ the calls at which the two oracles answer differently. It must equal
   - Axioms: `Route` depends on none. `route`, `eraseEntry` and `EraseError.describe` depend on
     `propext`, `Classical.choice` and `Quot.sound`.
 - **Effect on emitted .ast (corpus):** the corpus has 712 files. `scripts/corpus-diff.sh` against
-  the corpus of S-20 reports the following, on this branch as on `l4l/translate` (the same counts
-  and the same files):
+  the corpus of S-20 reports the following, on this branch as in the earlier translation against
+  lean4lean (the same counts and the same files):
   - 692 files identical. These include every benchmark file and every output of a program outside
     the fragment.
   - 8 files differing. Each is now the output of the pure path, and each equals the `erasePure`
@@ -2848,6 +2849,167 @@ the calls at which the two oracles answer differently. It must equal
 
 ---
 
+## S-40: Recursor applications are erased to fixpoints over a `case`, on both paths
+
+- **Commit:** the commit whose subject starts with `S-40:` (`git log --grep='^S-40:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure.lean`: new `visitRec` in the traversal, called by `visitConstApp`
+    for a constant that `findConst?` gives as a recursor (`recInfo`); new `piBinders`,
+    `RecIH`, `RecMinor`, `recShape` (the minor premises' fields and induction hypotheses, read
+    from the recursor's type), `recStaysConstant` (the recursors left as constants), `RecMember`
+    and `recFix` (the λ□ fixpoint); the docstring of `visitConstApp`.
+  - new `tests/regress/recursor.lean` with its goldens; `tests/regress/pure_inductive.lean`: the
+    census of the environment counts the three new structures (2715 `casesOn`, 4848
+    constructors).
+  - `doc/SHIPPING-CHANGES.md`: this entry; R-9 and R-21 no longer cite recursors as axioms,
+    except those that stay axioms; S-20 and S-21 refer to the earlier translation against
+    lean4lean without naming its branch.
+- **Why necessary:** the verification covers recursors, which Metalean supports (`recr` with the
+  reduction `iota`), but the eraser emitted every recursor as a λ□ axiom (`visitMutual`: no
+  value), so a program that computes through one (a cast `h ▸ x` through `Eq.rec`,
+  `False.elim`, a noncomputable definition by `T.rec`) had no evaluable erasure (R-9). Lean's code
+  generator does not compile recursors, so the erasure follows the planned verified one: an
+  application `T.rec ps motives minors is t`, η-expanded to its arity, becomes
+  `let ms := minors' in (fix [rec_s := λ is_s t. case (T_s, npars) t [alt_c]]_s T) is' t'`,
+  one function per member `T_s` of the recursor's block, where the alternative of a constructor
+  `c` applies its minor premise to the fields and to the induction hypothesis
+  `λ ys. rec_s' □… (f ys)` of each recursive field `f : Π ys, T_s' …` (the recursive call's
+  indices are □; the functions do not read their indices). The parameters and motives are
+  dropped, the minor premises are let-bound so that each is evaluated once, and arguments beyond
+  the arity are applied to the result. The fields of each minor premise and its induction
+  hypotheses (member, field, binders) are read from the recursor's type, as Lean's kernel builds
+  it, not from the constructors' types, whose recursive fields may be hidden behind definitions.
+  If the major premise's sort may be `Prop` (its value may be □, as for `Eq`, `And`, `PUnit.{u}`),
+  the function of the only member reduces its `case` on the only constructor itself, giving □ to
+  the fields, as `visitCases` does since S-27 and as λ□'s `iotaSing` does; Lean's kernel allows
+  such a recursor to eliminate into data only for a single inductive with at most one
+  constructor. This also covers the recursors of K-like inductives (`Eq.rec`), whose major
+  premise is a proof. A recursor whose application is a proof or a type (a `Prop` motive) is
+  erased to □ by the erasability test, as before. The recursor stays a λ□ axiom (`visitRec`
+  erases the application as before, `recStaysConstant`) if its block has auxiliary motives (nested inductives, which
+  Metalean declines), if its inductive is `Nat` or `Int` under `nat := .machine` (whose values are
+  primitive integers, not constructors), or if its inductive's sort may be `Prop` and a field of a
+  constructor of the block is an index of the constructor's type (`Acc`): the alternative would
+  receive □ for that field, and a recursive call □ for its indices. The change is in the
+  traversal that both paths share; the fragment test still excludes recursors, so in practice it
+  affects the `Meta` path only. It does not change how structural recursion is erased: the
+  `Meta` path compiles a structurally recursive definition through its `_unsafe_rec` version,
+  which applies no recursor.
+- **Behaviour before:** `#erase RT.useList config {nat := .peano}` (`len [B.t, B.f, B.t]`,
+  `len l := List.rec 0 (fun _ _ ih => ih.succ) l`, outside the fragment) writes `len` as
+  `λ α l. List.rec □ □ 0 (λ _ _ ih. S ih) l` with the axiom `List.rec` (`ConstantDecl None`),
+  which peregrine validates but does not evaluate (`Axioms found ... .List.rec`).
+- **Behaviour after:** it writes `len` as
+  `λ α l. let nil := 0 in let cons := (λ _ _ ih. S ih) in
+  (fix [List.rec := λ t. case t [nil; (head tail) ⇒ cons head tail (List.rec tail)]] 0) l`,
+  without axioms, which peregrine evaluates to 3. Under-applied recursors are η-expanded and
+  over-applied ones apply the result to the extra arguments.
+- **Effect on emitted .ast (corpus):** against the corpus of S-38, 696 of 710 files are
+  byte-identical; the 14 files that contained a recursor axiom differ, each by losing it:
+  `Eq.rec` becomes a fixpoint in `benchmarks/{prune,noprune}/deriv.ast`,
+  `examples/Defects/eq_cast.ast` and `examples/PortProbe/{bigEq,colorCode,shapeEq}.{default,prune}.ast`;
+  `False.rec` in `examples/Defects/wf_rec.ast` and `examples/PortProbe/useHalf.peano.ast`; both in
+  `examples/PortProbe/{bigEq,colorCode,shapeEq}.peano.ast`. No recursor axiom is left in the
+  corpus. peregrine validates the six `nat := .peano` files among them and, where it failed with
+  `Axioms found`, now evaluates them to the values Lean computes: `eq_cast` 3, `wf_rec` 3,
+  `useHalf` 3, `colorCode` 1, `shapeEq` 111, `bigEq` 111. The benchmark runtime's implementation
+  of `Eq.rec` (`benchmarks/via_malfunction/eq.ml`) is no longer referenced by `deriv`. `PANIC`
+  counts unchanged. `scripts/pure-harness.sh` passes with its expected summary unchanged (294
+  `#erase`, 223 in the fragment, 68 outside, 3 `collectDeps` errors; 204 identical, 15 differ;
+  8298 oracle calls, 14 differ, none fails).
+- **Regression test:** `recursor` checks, under `nat := .peano`, that the fragment test excludes
+  `useNat` (`Nat.rec` without its major premise, with `csimp := false`, since with `csimp` the
+  code generator's `Nat.rec = Nat.recCompiled` replaces it), `useList` (`List.rec`, whose
+  induction hypothesis is used), `useVec` (`Vec.rec` on an indexed family), `useMutual`
+  (`Od.rec` on a mutual block of two inductives), `useCast` (`h ▸ b`, `Eq.rec`), `useAnd`
+  (`And.rec` into data), `useOver` (`Bool.rec` into `B → B`, applied to an argument beyond its
+  major premise) and `propRec` (a proof by `Nat.rec`), and pins their `#erase` outputs (the
+  `Meta` path), which peregrine validates and evaluates to 6, 3, `RT.B.t`, `RT.B.t`, `RT.B.t`,
+  `RT.B.t`, `RT.B.f` and □; it also pins `useNat` under `nat := .machine`, where `Nat.rec` stays
+  an axiom. Before this commit the seven data programs keep their recursor as an axiom, so their
+  outputs differ and their evaluations fail; `propRec` and the `nat := .machine` output are
+  unchanged. `scripts/regress.sh` passes (24 tests), with and without `PEREGRINE`.
+
+## S-42: Under `structural := .kernel`, structural recursion is erased through the kernel's definitions
+
+- **Commit:** the commit whose subject starts with `S-42:` (`git log --grep='^S-42:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure.lean`: new `Config.Structural` (`unsafeRec`, `kernel`) and
+    `ErasureConfig.structural` (default `.unsafeRec`); the field `Backend.declInfo?` takes the
+    configuration, and `visitMutual` passes it; new `brecOnInduct?` and `isStructuralRecursive`;
+    new `declInfoCore`, the `CoreM` backend's `declInfo?`; the instance `Backend CoreM` moves after
+    the traversal, since `declInfoCore` uses `recStaysConstant`.
+  - `LeanToLambdaBox/Erasure/Pure.lean`: the instance `Backend PureM` ignores the configuration in
+    `declInfo?`.
+  - `tests/harness/PureHarness.lean`: the harness backend passes the configuration on.
+  - new `tests/regress/structural.lean` with its goldens; `tests/regress/pure_backend.lean`:
+    `declInfo?_eq` takes the configuration; `tests/regress/pure_inductive.lean`: the census of the
+    environment counts `Config.Structural` (2716 `casesOn`, 4850 constructors).
+  - `README.md`: the option `structural`.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** the verification covers recursive programs through the definitions that
+  Lean's kernel checks: a definition by structural recursion `f` is, in the kernel, a non-recursive
+  definition that applies `T.brecOn` (and so the recursor `T.rec`, erased since S-40) to a function
+  of the table `T.below` of the recursive calls. The eraser instead erased `f` through
+  `f._unsafe_rec`, the recursive definition that Lean's code generator compiles
+  (`Compiler.LCNF.getDeclInfo?`), which the kernel never checks. The kernel's definitions give
+  other programs (the table is built before the function's body runs), so the choice is an option
+  and the default output does not change. Under `structural := .kernel`, the `Meta` path's
+  `declInfoCore` erases a definition through its kernel definition when its value refers to a
+  `T.brecOn` (or `T.brecOn_<i>`; `isStructuralRecursive`), which is how Lean's structural
+  recursion writes it, and the traversal erases each `T.rec` of these (not `recStaysConstant`).
+  Otherwise it keeps the code generator's declaration: well-founded recursion (the value applies
+  `WellFounded.fix`, through `Acc.rec`, which stays a constant), `partial` definitions (opaques
+  whose value is a dummy), recursion on a nested inductive or on `Nat` under `nat := .machine`
+  (whose recursors stay constants), and, under `csimp`, a definition that replaces another by a
+  `@[csimp]` theorem, which is the compiled implementation of a kernel definition: the kernel
+  definition of `Nat.recCompiled` applies `Nat.brecOn`, whose value applies `Nat.rec`, which csimp
+  replaces by `Nat.recCompiled`, so the traversal would not terminate. The pure path already
+  erases every definition through its kernel definition (`declInfo? := findConst?`); the fragment
+  test still excludes every definition with an `_unsafe_rec` companion, so in practice this
+  affects the `Meta` path only. The traversal's recursion test is unchanged: a kernel definition
+  is not recursive, except that the members of a mutual structural recursion share a block
+  (`ConstantInfo.all`), so they are erased as one λ□ fixpoint whose functions do not call each
+  other.
+- **Behaviour before:** `#erase ST.useAdd config {nat := .peano}` (`add 2 3`, with
+  `add n (m+1) := (add n m).succ`) writes `ST.add` as the fixpoint of `add._unsafe_rec`; there is
+  no `structural` option.
+- **Behaviour after:** with `config {nat := .peano, structural := .kernel}` it writes `ST.add` as
+  `λ x x₁. Nat.brecOn □ x₁ ST.add._f x` with `Nat.brecOn`, `ST.add._f` and the matcher inlined
+  by the `Meta` path; `Nat.brecOn` applies `Nat.recCompiled` (the csimp replacement of
+  `Nat.rec`, erased as before), or, with `csimp := false`, `Nat.rec`, erased by `visitRec`.
+  peregrine evaluates both to 5. Without the option, the output is the one before.
+- **Effect on emitted .ast (corpus):** byte-identical for all 710 files against the corpus of
+  S-40; `PANIC` counts unchanged. `scripts/pure-harness.sh` passes with its expected summary
+  unchanged (294 `#erase`, 223 in the fragment, 68 outside, 3 `collectDeps` errors; 204
+  identical, 15 differ; 8298 oracle calls, 14 differ, none fails). With `.kernel` as the default
+  (not committed), 45 of the 710 files differ: 24 benchmark `.ast` (the programs that use
+  structural recursion on lists or trees: `binarytrees`, `const_fold`, `deriv`,
+  `list_sum_foldl`, `list_sum_rev`, `qsort`, `qsort_fin`, the four `rbmap_*`, `triangle_foldl`,
+  with and without pruning), 15 example `.ast` and 6 of their `.inlinings` (which gain
+  `Unit.unit`, an `@[inline]` constant that the inlined matchers of the kernel definitions apply,
+  or list it in another order).
+  The changed benchmark files keep the same λ□ axioms and peregrine validates them (after writing
+  their primitive integers as numbers, R-1); they grow by 9% (`deriv`) to 71% (`list_sum_foldl`). Of the 15 example files,
+  `Defects/collide.ast` fails to validate before and after (R-3), and the 14 others validate and
+  evaluate to the same values before and after, except `NearMiss/NM_church3.peano.ast`, whose
+  value is a function: peregrine prints different closures, and its application
+  (`NM_R_church3.peano.ast`) evaluates to 3 both times.
+- **Regression test:** `structural` checks which declaration `declInfoCore` takes: the kernel
+  definition for `ST.add` and the mutual `ST.isOd` under `.kernel` and `nat := .peano`, the
+  `_unsafe_rec` definition for `ST.add` by default and under `nat := .machine`, for `ST.wfHalf`
+  (well-founded recursion), `ST.loop` (`partial`), `ST.Tree.size` (a nested inductive) and
+  `Nat.recCompiled` (a csimp replacement; its kernel definition with `csimp := false`); that the
+  fragment test still excludes `ST.useAdd`; and pins, under `nat := .peano`, the `#erase` outputs
+  (the `Meta` path) of `add 2 3` (with `.kernel`, by default, and with `.kernel` without
+  `csimp`), `List.length`, the second element of a `List.map`, the mutual `isEv 3`, a recursion two
+  constructors deep and a recursion with a `Prop` argument, which peregrine validates and
+  evaluates to 5, 5, 5, 3, `ST.B.t`, `false`, 2 and `ST.B.t`. Before this commit the option does
+  not exist and the test does not elaborate. `scripts/regress.sh` passes (25 tests), with and
+  without `PEREGRINE`.
+
+---
+
 ## Reported, not fixed
 
 Each entry below was reproduced on this branch. Unless stated otherwise, the reproduction is an
@@ -2974,10 +3136,11 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
 
 ### R-9: Recursors and other constants without a value become axioms
 
-- **What:** a constant without a value (every recursor `T.rec`, Lean axioms) is emitted as
-  `ConstantDecl None` (the `Quot` primitives are erased by S-38). Casts along equalities (`h ▸ x`,
-  matches on `rfl`) go through `Eq.rec`, well-founded recursion reaches `False.rec`, and
-  noncomputable recursion reaches `T.rec`; none of them gets a λ□ definition.
+- **What:** a constant without a value (Lean axioms, and the recursors that S-40 leaves as
+  constants) is emitted as `ConstantDecl None` (the `Quot` primitives are erased by S-38). Casts
+  along equalities (`h ▸ x`, matches on `rfl`) go through `Eq.rec`, well-founded recursion
+  reaches `False.rec`, and noncomputable recursion reaches `T.rec`; none of them got a λ□
+  definition.
 - **Where:** `LeanToLambdaBox/Erasure.lean`: `visitMutual` (the branch where `ci.value?` is
   `none`), `addAxiom`.
 - **Reproduction:** `eq_cast.ast` (`castTo Nat rfl 3`): `peregrine eval` fails with
@@ -2985,7 +3148,9 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
   `Axioms found ... .False.rec`.
 - **Impact:** such programs run only where the axioms are implemented outside λ□; the benchmark
   runtime implements `Eq.rec` only.
-- **Why not fixed:** not required by the verification goal unless it later becomes required.
+- **Fixed:** in S-40 for recursors, which describes the fix and its corpus effect; the recursors
+  of nested inductives, of `Nat` and `Int` under `nat := .machine`, and of inductives whose sort
+  may be `Prop` with a constructor field that is an index (`Acc`) stay axioms, as do Lean axioms.
 
 ### R-10: Recursive structures get no projection declarations
 
@@ -3145,12 +3310,12 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
 - **What:** the eraser emits an axiom for every constant without a value and, under
   `extern := .preferAxiom`, for every `@[extern]` constant; the benchmark runtime implements a fixed
   set (`Nat`, `Int`, `Eq.rec`, `Decidable`, eight `Array` operations). Any other axiom (for instance
-  `False.rec`, `Array.pop`, `UInt32` operations) erases without error and fails when the OCaml
-  program is linked.
+  `Array.pop`, `UInt32` operations, or `Nat.rec`, which stays an axiom under `nat := .machine`)
+  erases without error and fails when the OCaml program is linked.
 - **Where:** `LeanToLambdaBox/Erasure.lean`: `visitMutual`, `addAxiom`;
   `benchmarks/via_malfunction/axioms.ml`.
-- **Reproduction:** `wf_rec.ast` references the axiom `False.rec`; no file in
-  `benchmarks/via_malfunction/` defines `def__False_rec`.
+- **Reproduction:** `useNatMachine.ast` of `tests/regress/recursor.lean` references the axiom
+  `Nat.rec`; no file in `benchmarks/via_malfunction/` defines `def__Nat_rec`.
 - **Impact:** missing implementations are reported by the OCaml linker, not by the eraser.
 - **Why not fixed:** not required by the verification goal unless it later becomes required.
 

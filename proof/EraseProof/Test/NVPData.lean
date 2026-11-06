@@ -11,8 +11,10 @@ import EraseProof.Test.NV1Data
 constructor (NV-P) and on a lemma (NV-K); both evaluate to `fun y => y`. The declarations as Lean
 v4.35.0-rc2 generates them, newest first: `NVP.P = [Eq.casesOn, Eq.rec, Eq.refl, Eq, B.rec, B.f,
 B.t, B]`, `NVK.P = [hEq] ++ NVP.P`; the views read them as lists, with no attributes; the default
-configuration. Non-vacuity instances of the final theorem, whose hypotheses `hfrag` and `hrun`
-(`MR E/ErasureFunctionProperties.v:657 erase_correct`) `Test/NVPRun.lean` discharges.
+configuration. Non-vacuity instances of the final theorem (`MR E/ErasureFunctionProperties.v:657
+erase_correct`): `Test/NVPRun.lean` discharges the hypotheses `hfrag` and `hrun`,
+`Test/NVPModel.lean` and `Test/NVKModel.lean` `henv`, `hwf`, `he` and `hty`, and
+`Test/NVPFinal.lean` the others and applies the final theorem.
 -/
 
 open Lean Erasure

@@ -28,7 +28,6 @@ import EraseProof.Test.LBEval
 import EraseProof.Relation.Extend
 import EraseProof.Erasable.Levels
 import EraseProof.Relation.Levels
-import EraseProof.Metatheory.SubstRen
 import EraseProof.Source.Value
 import EraseProof.Erasable.Inv
 import EraseProof.Source.Restrict
@@ -70,3 +69,12 @@ import EraseProof.Core.StepsCtor
 import EraseProof.Core.StepsCasesCase
 import EraseProof.Core.StepsCasesBox
 import EraseProof.Core.StepsAssemble
+import EraseProof.Final
+import EraseProof.Test.NV1Final
+import EraseProof.Test.NVPModel
+import EraseProof.Test.NVKModel
+import EraseProof.Test.NVPFinal
+import EraseProof.Test.NV2Model
+import EraseProof.Test.NV2Run
+import EraseProof.Test.NV2Final
+import EraseProof.Test.NV1Collect

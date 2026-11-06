@@ -9,6 +9,11 @@ definition of type `Prop`: the final theorem `erase_correct`, the relation-level
 `collectDeps_ok_of` of the final theorem's fragment hypothesis. Check C12 (`proof/tools/Report.lean`)
 compares the type of each theorem, once it is proved, with its statement here (kernel
 definitional equality).
+
+The theorems are about the logical definitions of the shipping functions `Erasure.collectDeps`,
+`Erasure.erasePure` and `Erasure.eraseEntry`. What `#erase` runs is their compiled code, and it
+then prints the program and writes the `.inlinings` file; Lean's compiler and runtime, the printer
+and the command's elaboration code are trusted, as `doc/DIVERGENCES.md` ("Trust base") lists.
 -/
 
 open Lean Erasure
@@ -93,7 +98,21 @@ Scope.
   definitions have a compiled `_unsafe_rec` companion), and the theorem could say nothing about
   them anyway: their recursion reduces only through the accessibility proof, and proofs are opaque
   in Metalean (theorems have no δ, DV-24), so the source does not evaluate them and `hev` never
-  holds. -/
+  holds.
+* The fragment is non-recursive. The fragment test rejects structural recursion as well (every
+  recursive definition has a compiled `_unsafe_rec` companion, `Nat.add` and `Nat.beq` included),
+  and recursors other than the companions of `casesOn`; so `Nat` arithmetic of `Init` is outside
+  it. Nat literals are in the fragment only under `nat := .peano`; under the default
+  `nat := .machine` the test rejects them, with `Nat.zero`, `Nat.succ` and `Nat.casesOn`.
+* The fragment admits programs on which the source evaluation is stuck where λ□ evaluation is not
+  necessarily: they use opaques with a value (no δ, DV-10; the eraser emits the value), axioms of
+  data type, `@[extern]` definitions under the default `extern := .preferAxiom` (no δ, DV-12), or
+  `casesOn` on a lemma of an inductive with proof fields (DV-24). A source evaluation that needs
+  to unfold such a constant or to match on such a lemma is stuck, so `hev` does not
+  hold and the theorem says nothing about the program, although the emitted λ□ program may
+  compute a value: `Ex.opaqueEx` of `tests/corpus/Examples.lean`, the successor of
+  `opaque opaqueTwo : CNat := two`, is in the fragment, and its source evaluation is stuck at
+  `opaqueTwo` while λ□ unfolds the emitted value. -/
 def erase_correct_statement : Prop :=
   ∀ {P decls : List ConstantInfo} {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ}
     {view : EnvView} {cfg : ErasureConfig} {lps : List Name}

@@ -8,7 +8,7 @@ import EraseProof.Source.Value
 /-!
 # Substitution into the erasure relation
 
-`Erases.inst` and `Erases.inst_let`: instantiating the innermost bound variable of an erased body
+`Erases.inst` and `ErasesAlt.inst`: instantiating the innermost bound variable of an erased body
 by a typed source value, on the Lean side, and substituting the value's erasure, on the λ□ side,
 keeps the erasure (`MR E/ESubstitution.v:612 erases_subst0`). The proof is an induction over the
 erasure at a depth `d`, with the locals related by `InstPre.MLCtx.InstA` and the Metalean contexts
@@ -1363,50 +1363,6 @@ theorem ErasesAlt.inst {P : List ConstantInfo} {σ : EvalEnv} {n k : Nat}
   obtain ⟨hς, W, Ea, hi⟩ := RelInst.inst_setup henv hE hΓ hsub hval htb hbT ha hta hA
   have := (Erases.instG hE henv.metaOrderOK hty hcl).2 _ _ _ _ _ _ hb _ _ _ 0 _ hΓ hς W Ea hi
   simpa using this
-
-/-- The `let` case: a typed body whose `let`-bound local denotes the translation of a source
-value. Reference: `erases_subst0` (`MR E/ESubstitution.v:612`), on `tLetIn`'s ζ-reduct. -/
-theorem Erases.inst_let {P : List ConstantInfo} {σ : EvalEnv} {n : Nat}
-    {Γ : Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n} {v b : Lean.Expr} {b' v' : LBTerm}
-    {v₀ b₀ T : Expr ζ lps.length n}
-    (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hΓ : E[Γ] ⊢ ok) (hsub : SubEnv σ.decls P)
-    (hval : SrcValue σ v)
-    (hb : Erases E B lps σ Γ ((none, .vlet v₀) :: Δ) b b')
-    (htb : TrM E B lps Γ ((none, .vlet v₀) :: Δ) b b₀) (hbT : E[Γ] ⊢ b₀ : T)
-    (hv₀ : TrM E B lps Γ Δ v v₀) (hv : Erases E B lps σ Γ Δ v v') (hcl : closedn 0 v' = true) :
-    Erases E B lps σ Γ Δ (b.instantiate1' v) (csubst v' 0 b') := by
-  have hord := henv.metaOrderOK
-  have hty : ∀ c ci, findDecl σ.decls c = some ci → AbsFV.LBV 0 ci.type :=
-    fun c ci h => (AbsFV.closed_types henv hsub c ci h).1
-  have W : MLCtx.InstA E B lps v 0 Subst.id ((none, .vlet v₀) :: Δ) Δ := by
-    constructor
-    · intro i t ht
-      cases i with
-      | zero =>
-        simp only [MLCtx.findB, MLDecl.denote, Option.some.injEq] at ht
-        subst ht
-        refine ⟨by omega, fun _ => ⟨v₀, ?_, ?_⟩, by omega⟩
-        · rw [liftLooseBVars'_zero]; exact PreTr.ofTrM hv₀
-        · rw [Expr.subst_id]; exact fun {_ _} => .refl
-      | succ i =>
-        simp only [MLCtx.findB] at ht
-        refine ⟨by omega, by omega, fun _ => ⟨t, by simpa using ht, ?_⟩⟩
-        rw [Expr.subst_id]
-        exact fun {_ _} => .refl
-    · intro x t ht
-      refine ⟨t, by simpa [MLCtx.findF] using ht, ?_⟩
-      rw [Expr.subst_id]
-      exact fun {_ _} => .refl
-  have Ea : Erases E B lps σ Γ Δ (v.liftLooseBVars' 0 0) v' := by
-    rw [liftLooseBVars'_zero]; exact hv
-  have hfd : MLCtx.findB ((none, .vlet v₀) :: Δ) 0 = some v₀ := by simp [MLCtx.findB, MLDecl.denote]
-  refine (Erases.instG hE hord hty hcl).1 _ _ _ _ _ hb _ _ _ 0 _ hΓ (SubstWF.id hΓ) W Ea fun hs => ?_
-  obtain ⟨C, us, args, cv, rfl, hC, hlen⟩ := srcValue_special hval hs
-  obtain ⟨ι, η, s, c, ls, ps, fds, recFds, rfl⟩ := ctorNode_of_TrM henv hsub hC hlen hv₀
-  have hhb : HB E Γ (.ctor η s c ls ps fds recFds) := .inr ⟨_, _, _, _, _, _, _, _, rfl⟩
-  refine ⟨hΓ, ?_, _, hfd, hhb⟩
-  exact PreTr.noHead hE hord (PreTr.ofTrM htb) (ρ := Ren.id) hfd hΓ
-    (by rw [Expr.rename_id]; exact hhb) ⟨_, by rw [Expr.rename_id]; exact hbT⟩
 
 end
 

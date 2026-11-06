@@ -27,13 +27,16 @@ and the shipping code (by default the modules `EraseProof` and `LeanToLambdaBox`
   `unsafe` nor `implemented_by`. Also exempt are the declarations Lean generates for an exempt
   constant when a proof unfolds or rewrites it (`isGeneratedComponent`: `eq_<n>`, `eq_def`,
   `else_eq`, `congr_simp`, `match_<n>`, and so on recursively); their bodies are walked like any other.
-* C7 `leaves`: every declaration outside `EraseProof.Test` is reachable from a root of `ROOTS.txt`
-  or from a statement definition (`statements`) (through types and values; a mutual block, an
-  inductive with its constructors, recursors, structure projections and the declarations
-  `inductive` generates for it, those of its nested occurrences included, is one node; generated
-  auxiliaries, `isAux`, are not checked); every root of `ROOTS.txt` is a theorem of the library
-  whose consumer does not exist yet; no root is reachable from another root; every test that is
-  not a theorem is reachable from a test theorem.
+* C7 `leaves`: every declaration outside `EraseProof.Test` is reachable from a root of `ROOTS.txt`,
+  from a statement definition or from a proved theorem of `statements` (through types and values;
+  a mutual block, an inductive with its constructors, recursors, structure projections and the
+  declarations `inductive` generates for it, those of its nested occurrences included, is one
+  node; generated auxiliaries, `isAux`, are not checked); every root of `ROOTS.txt` is a theorem
+  of the library whose consumer does not exist yet; no root is reachable from another root; every
+  test that is not a theorem is reachable from a test theorem. The proved theorems of `statements`
+  are results of their own, not lemmas of the final theorem: `collectDeps_ok_of` characterizes the
+  programs that pass the fragment test, which `erase_correct` takes as its hypothesis `hfrag` and
+  so does not use; reachability starts from each of them.
 * `expected`: the footprints of the roots and of the test theorems equal `axioms.expected`.
 * `modules`: every `.lean` file of the library's source tree is imported.
 * C9 `divergences`: every entry `### DV-<n>` of the divergence register has exactly the fields
@@ -52,20 +55,24 @@ and the shipping code (by default the modules `EraseProof` and `LeanToLambdaBox`
   whose type is definitionally equal (kernel `isDefEq`) to its statement definition; a theorem
   that does not exist must be listed in `unproved`, which is reported as not yet proved, and a
   theorem listed there must not exist.
-* C12 `final`: the final form. `ROOTS.txt` is the single line `EraseProof.erase_correct FINAL`, so
-  C7 checks reachability from the final theorem `erase_correct` and the statement definitions
-  (tests are roots by themselves); `unproved` is empty. `erase_correct` is a theorem whose
-  footprint is exactly `propext`, `Classical.choice`, `Quot.sound`, as is that of its instance on
-  NV-1, `EraseProof.Test.NV1.final`, which applies `erase_correct` to NV-1's hypothesis terms
-  (`finalHypotheses`), theorems within the same three axioms. Skipped with `--no-final`.
+* C12 `final`: the final form. The only line of `ROOTS.txt` with consumer `FINAL` is
+  `EraseProof.erase_correct FINAL`; every other line names a root whose consumer has not landed
+  (C7), so C7 checks reachability from the final theorem `erase_correct`, the statements and those
+  roots (tests are roots by themselves); `unproved` is empty. `erase_correct` is a theorem whose
+  footprint is exactly `propext`, `Classical.choice`, `Quot.sound`, as is that of each of its
+  instances on the non-vacuity programs NV-1, NV-P, NV-K and NV-2 (`finalInstances`:
+  `EraseProof.Test.NV1.final`, `NVP.final`, `NVK.final`, `NV2.final`), each of which applies `erase_correct` to
+  its program's eight hypothesis terms, theorems within the same three axioms. Skipped with `--no-final`.
 * C12b `pin`, always: the statement definitions and the definitions they are about are those of
   `spec.pin`. The pin of the statement definitions `pinRoots` is computed (`specPin`): for each
   root and every constant reached from it through types, values and constructors, a SHA-256 digest
   of a serialization (`pinText`) of its kind and flags and of its type and value (definitions,
   opaques), its type (theorems, axioms, recursors) or its type and its constructors' names and
-  types (inductives), followed further, if it is declared in the library; its name only if it is
-  declared in the shipping code (`isShipping`: the code under verification, whose changes the pin
-  does not follow) or in a dependency (`depPrefixes`, pinned by version). The pin also holds the
+  types (inductives), followed further, if it is declared in the library or in the shipping code;
+  its name only if it is one of the three shipping functions under verification
+  (`underVerification`: `Erasure.collectDeps`, `Erasure.erasePure`, `Erasure.eraseEntry`, whose
+  changes the pin does not follow, so the constants reached only through them are not pinned) or
+  if it is declared in a dependency (`depPrefixes`, pinned by version). The pin also holds the
   toolchain and the revision of every git dependency (`depPin`: `lean-toolchain` and
   `lake-manifest.json`). `spec.pin` (written by `--write-pin`) must equal the computed pin; every
   constant it names must exist; the toolchain and dependency lines must be those of the root
@@ -128,7 +135,7 @@ def statements : Array (Name × Name) := #[
 
 /-- The theorems of `statements` that are not proved yet; C12 reports them and compares the others
 with their statements. -/
-def unproved : Array Name := #[`EraseProof.erase_correct]
+def unproved : Array Name := #[]
 
 /-- The statement definitions, whose definitions C12b pins. -/
 def pinRoots : Array Name := statements.map (·.2)
@@ -137,18 +144,15 @@ def pinRoots : Array Name := statements.map (·.2)
 def depPrefixes : Array Name := #[`Init, `Std, `Lean, `Mathlib, `Batteries, `Metalean, `Aesop,
   `Qq, `Plausible, `ProofWidgets, `ImportGraph, `LeanSearchClient, `Cli]
 
-/-- The final theorem, the only root of `ROOTS.txt` in the final form (C12). -/
+/-- The final theorem, the only root of `ROOTS.txt` with consumer `FINAL` in the final form
+(C12). -/
 def finalTheorem : Name := `EraseProof.erase_correct
 
-/-- The instance of the final theorem on NV-1 (C12). -/
-def finalInstance : Name := `EraseProof.Test.NV1.final
-
-/-- NV-1's terms for the hypotheses of the final theorem, which `finalInstance` passes to it
-(C12). -/
-def finalHypotheses : Array Name := #[
-  `EraseProof.Test.NV1.henv, `EraseProof.Test.NV1.hwf, `EraseProof.Test.NV1.hview,
-  `EraseProof.Test.NV1.he, `EraseProof.Test.NV1.hty, `EraseProof.Test.NV1.hfrag,
-  `EraseProof.Test.NV1.hrun, `EraseProof.Test.NV1.hev]
+/-- The instances of the final theorem on the non-vacuity programs, each with the terms of the
+hypotheses that it passes to the final theorem (C12). -/
+def finalInstances : Array (Name × Array Name) :=
+  #[`EraseProof.Test.NV1, `EraseProof.Test.NVP, `EraseProof.Test.NVK, `EraseProof.Test.NV2].map fun ns =>
+    (ns ++ `final, #[`henv, `hwf, `hview, `he, `hty, `hfrag, `hrun, `hev].map (ns ++ ·))
 
 structure Config where
   imports : Array Name := #[]
@@ -596,10 +600,14 @@ def isDep (env : Environment) (c : Name) : Bool :=
   | some m => depPrefixes.any (·.isPrefixOf m)
   | none => true
 
-/-- A constant of the shipping code (`LeanToLambdaBox*` modules), the code under verification: C12b
-pins its name, not its definition, so a change to the shipping code leaves the pin unchanged. -/
-def isShipping (env : Environment) (c : Name) : Bool :=
-  (moduleOf? env c).any (`LeanToLambdaBox).isPrefixOf
+/-- The shipping functions under verification: the fragment test, the pure traversal and the entry
+point behind `#erase`, which the statements are about. C12b pins their names, not their definitions,
+and does not follow them, so a change to the code they run leaves the pin unchanged. Every other
+shipping constant the statements reach (the λ□ syntax, the configuration, the view, the `casesOn`
+recognizer and the other helpers through which the source semantics, the relation and the bridge
+are defined) is hashed and followed like a constant of the library. -/
+def underVerification : Array Name := #[`Erasure.collectDeps, `Erasure.erasePure,
+  `Erasure.eraseEntry]
 
 /-- A serialization of a level: full parameter names, no sharing. -/
 def levelText : Level → String
@@ -701,8 +709,8 @@ def depPin (dir : System.FilePath) : IO (Array String) := do
 
 /-- The pin of the statement definitions `roots`: `root <name> <digest>` for each root, then, for
 every other constant reached from them, `body <name> <digest>` (`pinText`, followed) if it is
-declared in the library, `name <name>` if it is a constant of the shipping code or of a
-dependency; sorted. -/
+declared in the library or in the shipping code, `name <name>` if it is one of
+`underVerification` or a constant of a dependency; sorted. -/
 def specPin (env : Environment) (roots : Array Name) (tmp : System.FilePath) :
     IO (Array String) := do
   let mut names : Array String := #[]
@@ -715,7 +723,7 @@ def specPin (env : Environment) (roots : Array Name) (tmp : System.FilePath) :
     if seen.contains c then continue
     seen := seen.insert c
     let isRoot := roots.contains c
-    if !isRoot && (isShipping env c || isDep env c) then
+    if !isRoot && (underVerification.contains c || isDep env c) then
       names := names.push s!"name {c}"
     else match pinText env c with
       | some (t, deps) =>
@@ -729,8 +737,8 @@ def specPin (env : Environment) (roots : Array Name) (tmp : System.FilePath) :
 
 def pinHeader : String :=
 "# The pin of the statements (tools/Report.lean, C12b): `root <statement definition> <digest>`,
-# `body <constant> <digest>` (SHA-256 of the serialized declaration), `name <constant>` (a constant
-# of the shipping code or of a dependency, pinned by name), `toolchain <name>` and
+# `body <constant> <digest>` (SHA-256 of the serialized declaration), `name <constant>` (a shipping
+# function under verification or a constant of a dependency, pinned by name), `toolchain <name>` and
 # `dep <package> <rev>` (the root package's lean-toolchain and lake-manifest.json). Written by
 # `tools/Report.lean --write-pin`; proof/scripts/check.sh compares it.
 "
@@ -936,7 +944,8 @@ def main (args : List String) : IO UInt32 := do
   for c in ours do
     let k := leafKey env c
     members := members.insert k ((members.getD k #[]).push c)
-  let (reached, via) := reach env members (roots ++ pinRoots.filter env.contains)
+  let (reached, via) := reach env members
+    (roots ++ pinRoots.filter env.contains ++ (statements.map (·.1)).filter env.contains)
   let mut leafKeys : Array Name := #[]
   for c in checked do
     if isTest c then
@@ -1049,25 +1058,26 @@ def main (args : List String) : IO UInt32 := do
     if !unproved.isEmpty then
       fail "final" s!"theorems not yet proved: {unproved.toList}"
     let rootLines := ((lines rootsText).filter (!isComment ·)).map fields
-    if rootLines != [[finalTheorem.toString, "FINAL"]] then
-      fail "final" s!"{cfg.roots} is not the single line `{finalTheorem} FINAL`"
+    if rootLines.filter (·.getLast? == some "FINAL") != [[finalTheorem.toString, "FINAL"]] then
+      fail "final" s!"{cfg.roots}: `{finalTheorem} FINAL` is not the only line with consumer FINAL"
     let theoremFp? (d : Name) : Option Footprint :=
       match env.find? d with
       | some (.thmInfo _) => if isOurs env d then some (fpOf d) else none
       | _ => none
     let std3 := showList (allowedAxioms.map toString)
-    for d in #[finalTheorem, finalInstance] ++ finalHypotheses do
-      match theoremFp? d with
-      | none => fail "final" s!"{d} is not a theorem of {lib}"
-      | some fp =>
-        let exact := d == finalTheorem || d == finalInstance
-        if (exact && axiomsField fp != std3) || !fp.sorries.isEmpty ||
-            fp.axioms.toArray.any (!allowedAxioms.contains ·) then
-          fail "final" s!"{d}: footprint {axiomsField fp}, expected {if exact then "exactly" else "within"} {std3}"
-    if env.contains finalInstance then
-      let used := uses env finalInstance
-      for h in #[finalTheorem] ++ finalHypotheses do
-        if !used.contains h then fail "final" s!"{finalInstance} does not mention {h}"
+    for (inst, hyps) in finalInstances do
+      for d in #[finalTheorem, inst] ++ hyps do
+        match theoremFp? d with
+        | none => fail "final" s!"{d} is not a theorem of {lib}"
+        | some fp =>
+          let exact := d == finalTheorem || d == inst
+          if (exact && axiomsField fp != std3) || !fp.sorries.isEmpty ||
+              fp.axioms.toArray.any (!allowedAxioms.contains ·) then
+            fail "final" s!"{d}: footprint {axiomsField fp}, expected {if exact then "exactly" else "within"} {std3}"
+      if env.contains inst then
+        let used := uses env inst
+        for h in #[finalTheorem] ++ hyps do
+          if !used.contains h then fail "final" s!"{inst} does not mention {h}"
 
   -- C12b the pin of the statements.
   if !(← cfg.pin.pathExists) then

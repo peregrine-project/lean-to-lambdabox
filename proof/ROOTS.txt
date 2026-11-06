@@ -3,21 +3,10 @@
 #   <declaration>: full name of a theorem of EraseProof outside EraseProof.Test.
 #   <consumer>: full name of the theorem that will use it, which does not exist yet; or FINAL for
 #     the final theorem, which has no consumer.
-# Every declaration of EraseProof outside EraseProof.Test must be reachable from a root or from a
-# statement definition (tools/Report.lean, `statements`); no root may be reachable from another
-# root.
+# Every declaration of EraseProof outside EraseProof.Test must be reachable from a root, from a
+# statement definition or from a proved theorem of `statements` (tools/Report.lean); no root may
+# be reachable from another root.
+EraseProof.erase_correct FINAL
 EraseProof.TypeEq.sort_ne_quot EraseProof.IsErasable.quotMk_not
 EraseProof.TypeEq.forallE_ne_quot EraseProof.IsErasable.quotMk_not
 EraseProof.TypeEq.ind_ne_quot EraseProof.IsErasable.quotMk_not
-EraseProof.Erases.app_inv EraseProof.erase_correct
-EraseProof.TrM.det EraseProof.erase_correct
-EraseProof.Erases.extend EraseProof.erase_correct
-EraseProof.SrcEval.restrict EraseProof.erase_correct
-EraseProof.visitMutual_nonrecursive EraseProof.erase_correct
-EraseProof.Defeq.inst_tele EraseProof.erase_correct
-EraseProof.TrM.uninstantiateN EraseProof.erase_correct
-EraseProof.Erases.inst_let EraseProof.erase_correct
-EraseProof.erases_correct EraseProof.erase_correct
-EraseProof.collectDeps_ok_of FINAL
-EraseProof.eraseEntry_pure EraseProof.erase_correct
-EraseProof.erasePure_erases EraseProof.erase_correct
