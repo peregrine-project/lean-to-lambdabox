@@ -33,6 +33,8 @@ The fields of `Erasure.ErasureConfig` (in [`Erasure.lean`](LeanToLambdaBox/Erasu
 - `remove_irrel_constr_args` (default `false`): whether to remove irrelevant constructor arguments;
 - `auto_inline_typeclass_dispatch` (default `false`): whether to also list in `.ast.inlinings` the instances and trivial aliases (projections, `def f := g`) that typeclass dispatch goes through, so that `peregrine` collapses chains such as `HAdd.hAdd → instHAdd → instAddNat → Nat.add`.
   A constant is listed only if it is not recursive, not tagged `@[noinline]`, its erased body is a value, and its body is small (at most 40 nodes once the listed constants are inlined into it). Each decision is logged.
+- `structural` (default `.unsafeRec`): whether a definition by structural recursion is erased through the `_unsafe_rec` definition that Lean's code generator compiles, a fixpoint that calls the function itself, or through its kernel definition (`.kernel`), which goes through `T.brecOn` and the recursor `T.rec`, and computes the function on every structural subterm of its argument (the table `T.below`) before its body runs.
+  Under `.kernel`, a definition keeps its `_unsafe_rec` definition if it uses well-founded recursion, is `partial`, recurses on a nested inductive or on `Nat` under `nat := .machine` (whose recursors stay axioms), or replaces another by a `@[csimp]` theorem while `csimp` is on.
 
 For example, `#erase f config {nat := .peano, extern := .preferLogical} to "f.ast"` gives a program that `peregrine eval f.ast` can run.
 

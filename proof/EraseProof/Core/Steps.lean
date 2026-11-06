@@ -1664,7 +1664,7 @@ theorem visitMutual_step (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
       exact hS
     · rw [hcd, h0] at h1
       cases h1
-  rw [visitMutual, runPure_bind, show (liftM (Backend.declInfo? (m := PureM) c) :
+  rw [visitMutual, runPure_read_bind, runPure_bind, show (liftM (Backend.declInfo? (m := PureM) tc.config c) :
       EraseT PureM _).runPure st tc ⟨decls, view⟩ ps = .ok ((some ci, st), ps) by
     show Except.ok ((findConst decls c, st), ps) = _
     rw [show findConst decls c = findDecl decls c from rfl, hci], ok_bind'] at hrun

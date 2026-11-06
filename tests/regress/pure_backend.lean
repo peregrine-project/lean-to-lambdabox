@@ -75,7 +75,8 @@ def erasePureElab : CommandElab
 
 /-! ## The operations of the pure backend -/
 
-theorem declInfo?_eq (n : Name) : Backend.declInfo? (m := PureM) n = PureM.findConst? n := rfl
+theorem declInfo?_eq (cfg : ErasureConfig) (n : Name) :
+    Backend.declInfo? (m := PureM) cfg n = PureM.findConst? n := rfl
 theorem findConst?_eq (n : Name) : Backend.findConst? (m := PureM) n = PureM.findConst? n := rfl
 theorem unsafeRecBase?_eq (n : Name) : Backend.unsafeRecBase? (m := PureM) n = none := rfl
 theorem remove_unsafe_rec_eq (n : Name) : remove_unsafe_rec (m := PureM) n = n := rfl
