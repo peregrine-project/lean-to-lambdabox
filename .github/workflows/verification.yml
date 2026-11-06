@@ -9,7 +9,8 @@
 #   hygiene                       C6: no non-test declaration reaches Metalean's Frontend, Checker,
 #                                 Export, SetSemantics or SetTheory modules, or a test.
 #   no-leaves                     C7: every declaration outside EraseProof.Test is reachable from a
-#                                 root of proof/ROOTS.txt, and every test that is not a theorem
+#                                 root of proof/ROOTS.txt, a statement definition or a proved
+#                                 theorem with a statement, and every test that is not a theorem
 #                                 from a test theorem.
 #   statements and pin            C12, C12b: each proved theorem of EraseProof/Statements.lean has
 #                                 the type of its statement definition; the statement definitions
