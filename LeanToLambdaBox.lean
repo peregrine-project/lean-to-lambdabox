@@ -7,3 +7,4 @@ import LeanToLambdaBox.Erasure.Collect
 import LeanToLambdaBox.Erasure.Pure
 import LeanToLambdaBox.Erasure.Entry
 import LeanToLambdaBox.Erasure.Command
+import LeanToLambdaBox.FromLCNF

@@ -28,6 +28,9 @@ merges `fixes-port` a third time, for `Reduce a function type to whnf before rea
 (`a36d37e`), which fixes R-5; S-31 records that merge together with the commit that completes it.
 After S-42, it merges `fixes-port` a fourth time, for `Reject Peano Nat literals above 65536
 instead of crashing` (`cfc6fea`), which fixes R-6; S-45 records that merge.
+After S-45, it merges `fixes-port` a fifth time, for `Print primInt literals as bare integers`
+(`6680337`), which fixes R-1, and the eraser `#erase_lcnf` (`bcff7ff`, `53bc471`, `5f5b950`);
+S-46 records that merge.
 
 This register lists every change to the shipping code: the eraser
 (`LeanToLambdaBox.lean`, `LeanToLambdaBox/`), the package files (`lakefile.toml`, `lean-toolchain`,
@@ -3060,13 +3063,65 @@ the calls at which the two oracles answer differently. It must equal
   on `huge`. Before the merge the test aborts Lean. `scripts/regress.sh` passes (26 tests), with
   and without `PEREGRINE`.
 
+## S-46: Primitive integers are printed as numbers, and `#erase_lcnf` erases from the compiler's LCNF
+
+- **Commit:** the merge `Merge branch 'fixes-port' into ml/translate` (the fifth one), which brings
+  the commits `Print primInt literals as bare integers` (`6680337`), `Add #erase_lcnf, an eraser
+  that reads the compiler's LCNF` (`bcff7ff`), `FromLCNF: erase definitions without compiled code
+  from their kernel value` (`53bc471`), `Check a machine-mode Nat literal with peregrine validate`
+  (`32b66dc`) and `#erase_lcnf: erase definitions without compiled code from their kernel value
+  only at the base phase` (`5f5b950`) of `fixes-port`. The conflict resolution adapts
+  `LeanToLambdaBox/FromLCNF.lean` to the generic traversal of S-16; no other commit is needed.
+- **Files and functions:**
+  - `LeanToLambdaBox/Printing.lean`: instance `Serialize (BitVec n)` prints the integer as a
+    numeric atom (from `6680337`).
+  - new `LeanToLambdaBox/FromLCNF.lean`, the command `#erase_lcnf` (from `bcff7ff`, `53bc471`,
+    `5f5b950`). The merge adds `Erasure.FromLCNF.EraseM`, the abbreviation `EraseT CoreM`: on
+    `fixes-port` the module uses the monad `Erasure.EraseM` of the `Meta` traversal, which this
+    branch replaces by `EraseT m` over a backend `m`, and `CoreM` is the backend of `#erase`'s
+    `Meta` path. So `register_inductive`, `addAxiom`, `Erasure.run` and the other functions of the
+    traversal that the module calls are their `CoreM` instances. In `addComponent`, the call
+    `Erasure.erase.get_constant_kername n` becomes `get_constant_kername (m := CoreM) travFuel n`:
+    on this branch the function is a member of the traversal's mutual block, not a local function
+    of `erase`, and takes the traversal's recursion bound. The traversal is unchanged.
+  - `LeanToLambdaBox.lean`: imports `LeanToLambdaBox.FromLCNF` after the modules of this branch.
+  - `README.md`: the command `#erase_lcnf` (from `bcff7ff`, `5f5b950`).
+  - `tests/regress/lcnf.lean` with its goldens (from `bcff7ff`, `5f5b950`);
+    `tests/regress/cases.lean` validates `natCase.ast` with peregrine (from `32b66dc`), and the
+    goldens of `cases` print `(primInt <n>)` (from `6680337`).
+  - The goldens of `recursor` (`useNatMachine.ast`), `traversal_locals` (`names.ast`,
+    `step.ast`) and `traversal_total` (`go.ast`), tests of this branch, print `(primInt <n>)`.
+  - `tests/regress/pure_inductive.lean`: the census of the environment counts the two structures
+    of `FromLCNF.lean`, `Node` and `TarjanState` (2718 `casesOn`, 4852 constructors).
+  - `doc/SHIPPING-CHANGES.md`: this entry, the preamble and R-1.
+- **Why necessary:** R-1: peregrine rejects every program with a primitive integer, that is every
+  output of `nat := .machine` with a Nat literal. `#erase_lcnf`, a second eraser on `fixes-port`,
+  does not compile on this branch without the adaptation above (`EraseM` is unknown).
+- **Behaviour before:** `primint.ast` of `tests/corpus/Defects.lean` (`def seven : Nat := 7`,
+  default configuration) contains `(primInt "7")`, and `peregrine validate primint.ast` fails with
+  `could not read integral type, got a non-Num atom "7"`. `#erase_lcnf` does not exist.
+- **Behaviour after:** `primint.ast` contains `(primInt 7)`; `peregrine validate` accepts it and
+  `peregrine eval` prints `Primitive (int: 7)`. `#erase_lcnf` erases as on `fixes-port`: the goldens
+  of `lcnf` are byte-identical to those of `fixes-port`.
+- **Effect on emitted .ast (corpus):** against the corpus of S-45, 66 of the 710 files differ (20
+  under `benchmarks/prune/`, 20 under `benchmarks/noprune/`, 26 under `examples/`), and in each the
+  only difference is that every `(primInt "<n>")` becomes `(primInt <n>)` (1692 atoms in all; no
+  quoted `primInt` remains); the other 644 files are byte-identical. `PANIC` counts unchanged. No
+  corpus file uses `#erase_lcnf`. `scripts/pure-harness.sh` passes with its expected summary
+  unchanged (294 `#erase`, 223 in the fragment, 68 outside, 3 `collectDeps` errors; 204 identical,
+  15 differ; 8298 oracle calls, 14 differ, none fails).
+- **Regression test:** `cases` validates `natCase.ast`, which contains `(primInt 3)`, with
+  peregrine; this fails before `6680337`. `lcnf` (from `fixes-port`) erases with `#erase_lcnf`,
+  at the base and the mono phase, and checks the outputs with peregrine. `scripts/regress.sh`
+  passes (27 tests), with and without `PEREGRINE`.
+
 ## Reported, not fixed
 
 Each entry below was reproduced on this branch. Unless stated otherwise, the reproduction is an
 example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` of a corpus, and
 `peregrine` is `../peregrine-tool/_build/default/bin/main.exe`.
 
-### R-1: Primitive integers are printed as quoted strings
+### R-1: Primitive integers are printed as quoted strings (fixed in S-46)
 
 - **What:** a machine-mode Nat literal is printed as `(tPrim (primInt "7"))`, a string atom.
   `peregrine-tool/doc/format.md` specifies a numeric atom, `(primInt 7)`, and peregrine's parser
@@ -3077,7 +3132,8 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
   All 40 benchmark `.ast` files contain such atoms.
 - **Impact:** no output of the default configuration (`nat := .machine`) that contains a Nat literal
   can be read by the current peregrine. Outputs with `nat := .peano` contain no primitive integer.
-- **Why not fixed:** not required by the verification goal unless it later becomes required.
+- **Fixed:** in S-46, which describes the fix and its corpus effect: the integer is printed as a
+  numeric atom, `(primInt 7)`.
 
 ### R-2: String atoms are not escaped
 
