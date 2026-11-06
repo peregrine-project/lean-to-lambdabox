@@ -32,7 +32,7 @@ theorem hcollect : collectDeps view cfg e = .ok D := rfl
 /-- The pure backend's context over the closure. -/
 def pc : PureCtx := ⟨D, view⟩
 
-variable {st : ErasureState} {ps : PureState}
+variable {st : ErasureState} {ps : PureState} {dc : Name}
 
 /-! ## The inductives `W` and `B` -/
 
@@ -57,7 +57,7 @@ def stW (st : ErasureState) : ErasureState :=
 `erase_global_deps` (`MR E/ErasureFunction.v:1602`). -/
 theorem register_W_new {L : LocalContext} {ls : List Local} {F : Option (Std.HashMap Name FVarId)}
     (h : st.inductives[`W]? = none) :
-    (register_inductive (m := PureM) W_ind).runPure st ⟨L, ls, F, {}⟩ pc ps =
+    (register_inductive (m := PureM) W_ind).runPure st ⟨L, ls, F, {}, dc⟩ pc ps =
       .ok (((iidW, masksW), stW st), ps) := by
   rw [register_inductive]
   apply bind_ok rfl
@@ -80,7 +80,7 @@ theorem register_W_found {tc : TravCtx} (h : st.inductives[`W]? = some (iidW, ma
 /-- `register_inductive` on `B` when it is not registered. Reference: as `register_W_new`. -/
 theorem register_B_new {L : LocalContext} {ls : List Local} {F : Option (Std.HashMap Name FVarId)}
     (h : st.inductives[`B]? = none) :
-    (register_inductive (m := PureM) B_ind).runPure st ⟨L, ls, F, {}⟩ pc ps =
+    (register_inductive (m := PureM) B_ind).runPure st ⟨L, ls, F, {}, dc⟩ pc ps =
       .ok (((iidB, masksB), stB st), ps) := by
   rw [register_inductive]
   apply bind_ok rfl
@@ -110,9 +110,9 @@ binder, given the registration of `B`. Reference: the `tConstruct` case of `eras
 (`MR E/ErasureFunction.v:1014`). -/
 theorem visitConstructorB_run {n k : Nat} {L : LocalContext} {F : Option (Std.HashMap Name FVarId)}
     {c : Name} {st' : ErasureState} (hc : c = `B.f ∧ k = 0 ∨ c = `B.t ∧ k = 1)
-    (hreg : (register_inductive (m := PureM) B_ind).runPure st ⟨L, [], F, {}⟩ pc ps =
+    (hreg : (register_inductive (m := PureM) B_ind).runPure st ⟨L, [], F, {}, dc⟩ pc ps =
       .ok (((iidB, masksB), st'), ps)) :
-    (visitConstructor (m := PureM) (n + 2) c #[]).runPure st ⟨L, [], F, {}⟩ pc ps =
+    (visitConstructor (m := PureM) (n + 2) c #[]).runPure st ⟨L, [], F, {}, dc⟩ pc ps =
       .ok ((.construct iidB k [], st'), ps) := by
   rcases hc with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;>
   · rw [visitConstructor]
@@ -126,9 +126,9 @@ theorem visitConstructorB_run {n k : Nat} {L : LocalContext} {F : Option (Std.Ha
 the `tConstruct` case of `erase` (`MR E/ErasureFunction.v:1014`). -/
 theorem visitExpr_ctorB_run {n k : Nat} {L : LocalContext} {F : Option (Std.HashMap Name FVarId)}
     {c : Name} {st' : ErasureState} (hc : c = `B.f ∧ k = 0 ∨ c = `B.t ∧ k = 1)
-    (hreg : (register_inductive (m := PureM) B_ind).runPure st ⟨L, [], F, {}⟩ pc ps =
+    (hreg : (register_inductive (m := PureM) B_ind).runPure st ⟨L, [], F, {}, dc⟩ pc ps =
       .ok (((iidB, masksB), st'), ps)) :
-    (visitExpr (m := PureM) (n + 6) (.const c [])).runPure st ⟨L, [], F, {}⟩ pc ps =
+    (visitExpr (m := PureM) (n + 6) (.const c [])).runPure st ⟨L, [], F, {}, dc⟩ pc ps =
       .ok ((.construct iidB k [], st'), ps) := by
   rcases hc with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;>
   · rw [visitExpr]
@@ -173,7 +173,7 @@ def mjL : LBTerm := .app (.app (.construct iidW 1 []) (.construct iidB 1 [])) .b
 (`MR E/ErasureFunction.v:1014`). -/
 theorem visitConstructor_s_run {n : Nat} {L : LocalContext} {F : Option (Std.HashMap Name FVarId)}
     (hW : st.inductives[`W]? = none) (hB : st.inductives[`B]? = none) :
-    (visitConstructor (m := PureM) (n + 9) `W.s #[cT, cI]).runPure st ⟨L, [], F, {}⟩ pc ps =
+    (visitConstructor (m := PureM) (n + 9) `W.s #[cT, cI]).runPure st ⟨L, [], F, {}, dc⟩ pc ps =
       .ok ((mjL, stB (stW st)), ps) := by
   rw [visitConstructor]
   apply bind_ok rfl
@@ -188,7 +188,7 @@ theorem visitConstructor_s_run {n : Nat} {L : LocalContext} {F : Option (Std.Has
   simp only [toArray_toSubarray, show Ws_ctor.numParams = 0 from rfl,
     show Ws_ctor.numFields = 2 from rfl, show Ws_ctor.cidx = 1 from rfl]
   rw [args_s]
-  refine (congrArg (fun x : EraseT PureM LBTerm => x.runPure (stW st) ⟨L, [], F, {}⟩ pc ps)
+  refine (congrArg (fun x : EraseT PureM LBTerm => x.runPure (stW st) ⟨L, [], F, {}, dc⟩ pc ps)
     (?_ : _ = visitAppArgs (m := PureM) (n + 8) (.construct iidW 1 []) #[cT, cI])).trans ?_
   · krfl
   rw [visitAppArgs, ← Array.foldlM_toList]
@@ -210,7 +210,7 @@ theorem withApp_mj {γ : Sort _} (k : Expr → Array Expr → γ) : mj.withApp k
 `tConstruct` case of `erase` (`MR E/ErasureFunction.v:1014`). -/
 theorem mj_run {n : Nat} {L : LocalContext} {F : Option (Std.HashMap Name FVarId)}
     (hW : st.inductives[`W]? = none) (hB : st.inductives[`B]? = none) :
-    (visitExpr (m := PureM) (n + 12) mj).runPure st ⟨L, [], F, {}⟩ pc ps =
+    (visitExpr (m := PureM) (n + 12) mj).runPure st ⟨L, [], F, {}, dc⟩ pc ps =
       .ok ((mjL, stB (stW st)), ps) := by
   rw [mj, visitExpr, ← mj]
   apply bind_ok rfl
@@ -235,7 +235,7 @@ theorem mj_run {n : Nat} {L : LocalContext} {F : Option (Std.HashMap Name FVarId
 `tCase` case of `erase` (`MR E/ErasureFunction.v:1016`). -/
 theorem visitAlt_n_run {n : Nat} {L : LocalContext} {F : Option (Std.HashMap Name FVarId)}
     (h : st.inductives[`B]? = some (iidB, masksB)) :
-    (visitAlt (m := PureM) (n + 7) 0 #[] [] cF).runPure st ⟨L, [], F, {}⟩ pc ps =
+    (visitAlt (m := PureM) (n + 7) 0 #[] [] cF).runPure st ⟨L, [], F, {}, dc⟩ pc ps =
       .ok ((([], .construct iidB 0 []), st), ps) := by
   rw [visitAlt]
   apply bind_ok rfl
@@ -249,7 +249,7 @@ theorem visitAlt_n_run {n : Nat} {L : LocalContext} {F : Option (Std.HashMap Nam
 fields are bound, and the body is the variable `b`, not erasable. Reference: the branches of the
 `tCase` case of `erase` (`MR E/ErasureFunction.v:1016`). -/
 theorem visitAlt_s_run {n : Nat} {L : LocalContext} {F : Option (Std.HashMap Name FVarId)} :
-    (visitAlt (m := PureM) (n + 7) 2 #[.keep, .keep] [] altS).runPure st ⟨L, [], F, {}⟩ pc ⟨0⟩ =
+    (visitAlt (m := PureM) (n + 7) 2 #[.keep, .keep] [] altS).runPure st ⟨L, [], F, {}, dc⟩ pc ⟨0⟩ =
       .ok (((([binderNameOf `b, binderNameOf `h], .bvar 1)), st), ⟨2⟩) := by
   krfl
 
@@ -286,7 +286,7 @@ def caseL : LBTerm :=
 the `tCase` case of `erase` (`MR E/ErasureFunction.v:1016`). -/
 theorem visitCasesOn_run {n : Nat} {L : LocalContext} {F : Option (Std.HashMap Name FVarId)} :
     (visitCasesOn (m := PureM) (n + 9) W_ind altsW ∅ none mjL).runPure (stM st)
-      ⟨L, [], F, {}⟩ pc ⟨0⟩ = .ok ((caseL, stM st), ⟨2⟩) := by
+      ⟨L, [], F, {}, dc⟩ pc ⟨0⟩ = .ok ((caseL, stM st), ⟨2⟩) := by
   rw [visitCasesOn]
   apply bind_ok rfl
   apply bind_ok rfl
@@ -321,7 +321,7 @@ Reference: the `tCase` case of `erase` (`MR E/ErasureFunction.v:1016`). -/
 theorem visitCases_run {n : Nat} {L : LocalContext} {F : Option (Std.HashMap Name FVarId)}
     (hW : st.inductives[`W]? = none) (hB : st.inductives[`B]? = none) :
     (visitCases (m := PureM) (n + 13) ciW #[motB, mj, cF, altS]).runPure st
-      ⟨L, [], F, {}⟩ pc ⟨0⟩ = .ok ((caseL, stM st), ⟨2⟩) := by
+      ⟨L, [], F, {}, dc⟩ pc ⟨0⟩ = .ok ((caseL, stM st), ⟨2⟩) := by
   rw [visitCases]
   apply bind_ok rfl
   apply bind_ok rfl
@@ -351,7 +351,7 @@ theorem withApp_e {γ : Sort _} (k : Expr → Array Expr → γ) :
 (`MR E/ErasureFunction.v:1016`). -/
 theorem e_run {n : Nat} {L : LocalContext}
     (hW : st.inductives[`W]? = none) (hB : st.inductives[`B]? = none) :
-    (visitExpr (m := PureM) (n + 16) e).runPure st ⟨L, [], none, {}⟩ pc ⟨0⟩ =
+    (visitExpr (m := PureM) (n + 16) e).runPure st ⟨L, [], none, {}, dc⟩ pc ⟨0⟩ =
       .ok ((caseL, stM st), ⟨2⟩) := by
   rw [e, visitExpr, ← e]
   apply bind_ok rfl

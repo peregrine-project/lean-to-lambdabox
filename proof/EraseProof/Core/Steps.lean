@@ -1777,18 +1777,19 @@ theorem visitMutual_step (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
     have hmfv : MachineFree cfg v := hG.mfd ci hci' v hread
     have hnpv : NatPlain cfg v := hG.npd ci hci' v hread
     have hW' : (visitExpr (m := PureM) fuel v).runPure sb
-        { lctx := tc.lctx, locals := [], config := tc.config } ⟨decls, view⟩ ps =
+        { lctx := tc.lctx, locals := [], config := tc.config, decl := c } ⟨decls, view⟩ ps =
           .ok ((t, st₂), ps₂) := by
       rw [← hW]
       exact (visit_agree (S := fun _ => False) (pc := ⟨decls, view⟩)
-        (tc := { lctx := tc.lctx, locals := [], config := tc.config }) (ls₁ := tc.locals)
-        (ls₂ := []) hG.closed (by rw [show ({ lctx := tc.lctx, locals := [], config := tc.config } :
+        (tc := { lctx := tc.lctx, locals := [], config := tc.config, decl := c })
+        (ls₁ := tc.locals) (ls₂ := []) hG.closed
+        (by rw [show ({ lctx := tc.lctx, locals := [], config := tc.config, decl := c } :
           TravCtx).config = cfg from hcfg]; exact hmfv)
-        (by rw [show ({ lctx := tc.lctx, locals := [], config := tc.config } :
+        (by rw [show ({ lctx := tc.lctx, locals := [], config := tc.config, decl := c } :
           TravCtx).config = cfg from hcfg]; exact hG.mfd)
         hG.blk hG.idx (fun _ h => h.elim) (fun _ h => h.elim) hvcl).symm
     have hctx0 : CtxOK E B ci.levelParams (.nil : Metalean.Ctx ζ ci.levelParams.length 0 0) []
-        cfg { lctx := tc.lctx, locals := [], config := tc.config } ps :=
+        cfg { lctx := tc.lctx, locals := [], config := tc.config, decl := c } ps :=
       ⟨.nil, fun _ h => (nomatch h), fun _ => rfl, fun _ _ => rfl, rfl, hcfg⟩
     obtain ⟨e₀, T₀, htr, hty⟩ := ProgEnv.value_typed hG.prog hG.wf hmP hv hthm
     have hoccS : ∀ d, nameOccurs d v = true → S d := by

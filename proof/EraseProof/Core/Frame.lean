@@ -858,10 +858,12 @@ macro (name := _raJp) "ra_jp" T:term "," hD:term "," hci:term "," hn:term : tact
     · refine RA.withReaderFix (P := fun _ => True) _ (fun _ _ => rfl) (fun _ => rfl) ?_
       refine RA.bind (RA.mapM (P := fun _ => True) fun _ hmem => ?_) fun _ _ => ?_
       · refine RA.bind (RA.getConst _) fun _ hc' => ?_
+        refine RA.bind (RA.withReaderFix (P := fun _ => True) _ (fun _ _ => rfl) (fun _ => rfl) ?_)
+          fun _ _ => RA.mkDef _ _ _
         refine RA.read_bind (fun _ _ => ?_) (fun _ _ _ => rfl)
         refine RA.bind (RA.prepare _ _) fun _ h => ?_
         subst h
-        exact RA.bind (($T).expr (member_good $hD $hci $hn hmem hc')) fun _ _ => RA.mkDef _ _ _
+        exact ($T).expr (member_good $hD $hci $hn hmem hc')
       · refine RA.bind (RA.forIn (I := fun _ => True) trivial fun _ _ _ _ => ?_) fun _ _ =>
           RA.pure trivial
         ra_mut $T))
@@ -1023,8 +1025,9 @@ theorem step_lit (l : Literal) :
   rw [visitLiteral]
   refine RA.read_bind (fun c hc => ?_) (fun _ _ _ => rfl)
   split
-  · exact T.ctor (fun _ h => by simp at h) fun h => by simp
-  · exact T.ctor (fun a h => by simp at h; subst h; exact ⟨trivial, trivial⟩)
+  · refine RA.ite (fun _ => RA.read_bind (fun _ _ => RA.throwM _) (fun _ _ _ => rfl)) fun _ => ?_
+    refine RA.ite (fun _ => T.ctor (fun _ h => by simp at h) fun h => by simp) fun _ => ?_
+    exact T.ctor (fun a h => by simp at h; subst h; exact ⟨trivial, trivial⟩)
       fun h => by subst hc; simp_all
   · exact RA.ite (fun _ => RA.pure trivial) fun _ => RA.of_blind (Blind.panic _)
   · exact RA.of_blind (Blind.panic _)
