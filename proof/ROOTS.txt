@@ -25,6 +25,6 @@ EraseProof.Steps.stepsB_cases_of_sat EraseProof.erasePure_erases
 EraseProof.Steps.stepsB_ctor EraseProof.erasePure_erases
 EraseProof.Steps.stepsB_proj EraseProof.erasePure_erases
 EraseProof.Steps.stepsB_lit_of EraseProof.erasePure_erases
-EraseProof.StepsCasesCase.visitAlt_spec EraseProof.erasePure_erases
+EraseProof.StepsCasesCase.casesSat_case EraseProof.erasePure_erases
 EraseProof.StepsCases.casesSat_box EraseProof.erasePure_erases
 EraseProof.StepsCases.casesSat_reduced EraseProof.erasePure_erases

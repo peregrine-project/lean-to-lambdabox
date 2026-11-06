@@ -1,5 +1,6 @@
 import EraseProof.Core.StepsCases
 import EraseProof.Core.StepsCtor
+import EraseProof.Core.StepsCasesBox
 
 /-!
 # The `case` branch of `visitCases`
@@ -581,6 +582,628 @@ theorem visitAlt_spec (hG : CoreEnv E B P decls view cfg) {j : Nat}
     rwa [countP_none hctx'.nobv] at this
   exact ⟨hE' r hcl her ns hns, ErasesDeps.altBody hdeps xs,
     ⟨hgr.inv, hgr.ext, Nat.le_trans hps hgr.next, hgr.scope⟩⟩
+
+end
+
+/-! ## Loops of the pure traversal -/
+
+
+/-- A `for` loop over the list `L` at the pure backend whose body always continues: an invariant
+`I` indexed by the processed prefix holds after every successful run. -/
+theorem forIn_inv {α β : Type} {tc : TravCtx} {pc : PureCtx} {L : List α}
+    (I : List α → β → ErasureState → PureState → Prop) (f : α → β → EraseT PureM (ForInStep β))
+    (hf : ∀ pre a rest b st ps r st' ps', pre ++ a :: rest = L → I pre b st ps →
+      (f a b).runPure st tc pc ps = .ok ((r, st'), ps') →
+      ∃ b', r = .yield b' ∧ I (pre ++ [a]) b' st' ps') :
+    ∀ (l pre : List α) (b : β) (st : ErasureState) (ps : PureState) (r : β) (st' : ErasureState)
+      (ps' : PureState), pre ++ l = L → I pre b st ps →
+      (forIn l b f).runPure st tc pc ps = .ok ((r, st'), ps') → I L r st' ps'
+  | [], pre, b, st, ps, r, st', ps', hL, hI, h => by
+    rw [List.forIn_nil] at h
+    cases h
+    simpa [← hL] using hI
+  | a :: l, pre, b, st, ps, r, st', ps', hL, hI, h => by
+    rw [List.forIn_cons, runPure_bind] at h
+    obtain ⟨⟨⟨x, st₁⟩, ps₁⟩, hx, h⟩ := OracleWhnf.ok_of_bind h
+    obtain ⟨b', rfl, hI'⟩ := hf pre a l b st ps x st₁ ps₁ hL hI hx
+    exact forIn_inv I f hf l (pre ++ [a]) b' st₁ ps₁ r st' ps' (by simpa using hL) hI' h
+
+/-- The alternatives `ctorAlts` gives: one `.ctor` per constructor, with its number of fields. -/
+theorem ctorAlts_get {decls : List ConstantInfo} : ∀ {l : List Name} {alts : List CasesAltInfo},
+    ctorAlts decls l = some alts → alts.length = l.length ∧ ∀ (i : Nat) (cn : Name), l[i]? = some cn →
+      ∃ cv, findConst decls cn = some (.ctorInfo cv) ∧ alts[i]? = some (CasesAltInfo.ctor cn cv.numFields)
+  | [], alts, h => by simp [ctorAlts] at h; subst h; simp
+  | x :: l, alts, h => by
+    unfold ctorAlts at h
+    split at h
+    · rename_i cv as hx hl
+      cases h
+      obtain ⟨h1, h2⟩ := ctorAlts_get hl
+      refine ⟨by simp [h1], fun i cn hi => ?_⟩
+      cases i with
+      | zero =>
+        simp only [List.getElem?_cons_zero, Option.some.injEq] at hi
+        subst hi
+        exact ⟨cv, hx, rfl⟩
+      | succ i => exact h2 i cn (by simpa using hi)
+    · cases h
+
+section
+variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {P : List ConstantInfo}
+
+/-- The constructors of an inductive of the program are distinct. -/
+theorem ctors_inj (henv : ProgEnv P ζ E B) {T : Name} {iv : InductiveVal}
+    (hiv : findDecl P T = some (.inductInfo iv)) {i j : Nat} {cn : Name}
+    (hi : iv.ctors[i]? = some cn) (hj : iv.ctors[j]? = some cn) : i = j := by
+  obtain ⟨ι, η, s, hB, -, -, hlen⟩ := henv.lookup_ind hiv
+  have hil : i < ι.nctors s := by rw [← hlen]; exact (List.getElem?_eq_some_iff.1 hi).1
+  have hjl : j < ι.nctors s := by rw [← hlen]; exact (List.getElem?_eq_some_iff.1 hj).1
+  obtain ⟨cv, hcv, hfd, -, -, -, hci⟩ := SimInd.ind_ctor henv hB hiv ⟨i, hil⟩
+  obtain ⟨cv', hcv', hfd', -, -, -, hcj⟩ := SimInd.ind_ctor henv hB hiv ⟨j, hjl⟩
+  have e1 : cn = cv.name := Option.some.inj (hi.symm.trans hcv)
+  have e2 : cn = cv'.name := Option.some.inj (hj.symm.trans hcv')
+  rw [← e1] at hfd
+  rw [← e2, hfd] at hfd'
+  cases hfd'
+  simp only at hci hcj
+  omega
+
+end
+
+section
+variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {P decls : List ConstantInfo}
+  {view : EnvView} {cfg : ErasureConfig}
+
+/-- `visitCasesOn (f + 1) iv m ∅ none d` at the pure backend, from `visitExpr` below `f` (`ih`), when
+the map `m` gives each constructor of `iv` its number of fields and its alternative, and the
+machine branches are not taken: a successful run registers `iv` and returns the λ□ `case` of its
+λ□ inductive on `d`, whose branches erase the alternatives under their fields' binders.
+Reference: the `tCase` case of `erases_erase` (`MR E/ErasureFunction.v:1228`). -/
+theorem visitCasesOn_spec (hG : CoreEnv E B P decls view cfg) {f : Nat}
+    (ih : ∀ j < f, ∀ e, ExprSpec E B view cfg decls j e) {iv : InductiveVal}
+    (hiv : findDecl decls iv.name = some (.inductInfo iv))
+    (hnm : cfg.nat = .machine → iv.name ≠ ``Nat ∧ iv.name ≠ ``Int)
+    {m : Std.HashMap Name (Nat × Expr)} {alts : List Expr}
+    {lps : List Name} {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n}
+    {S : Name → Prop} {st st' : ErasureState} {tc : TravCtx} {ps ps' : PureState} {d r : LBTerm}
+    (hm : ∀ (i : Nat) cn, iv.ctors[i]? = some cn → ∃ cv alt,
+      findDecl decls cn = some (.ctorInfo cv) ∧ alts[i]? = some alt ∧
+      m[cn]? = some (cv.numFields, alt))
+    (halts : ∀ alt ∈ alts, (∀ d, nameOccurs d alt = true → S d) ∧ MachineFree cfg alt ∧
+      NatPlain cfg alt ∧ RecFree decls alt ∧ ∃ a', TrM E B lps Γ Δ alt a' ∧ ∃ A, E[Γ] ⊢ a' : A)
+    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK decls S)
+    (hok : StateOK E B (evalEnvOf view cfg decls) st)
+    (hdd : ErasesDeps E B (evalEnvOf view cfg decls) st.gdecls d)
+    (hrun : (visitCasesOn (m := PureM) (f + 1) iv m ∅ none d).runPure st tc ⟨decls, view⟩ ps =
+      .ok ((r, st'), ps')) :
+    ∃ iid brs, IndIdOf (evalEnvOf view cfg decls) iv.name = some iid ∧
+      r = .case (iid, iv.numParams) d brs ∧ brs.length = iv.ctors.length ∧
+      (∀ (i : Nat) cn alt br k, iv.ctors[i]? = some cn → alts[i]? = some alt → brs[i]? = some br →
+        ctorFields (evalEnvOf view cfg decls) cn = some k →
+        ErasesAlt E B lps (evalEnvOf view cfg decls) Γ Δ k alt br) ∧
+      ErasesDeps E B (evalEnvOf view cfg decls) st'.gdecls r ∧
+      Grows E B (evalEnvOf view cfg decls) S st st' ps ps' := by
+  rw [visitCasesOn, runPure_bind, StepsCases.runPure_pure, ok_bind'] at hrun
+  dsimp only at hrun
+  rw [runPure_read_bind] at hrun
+  split at hrun
+  · rename_i h1 h2
+    exact ((hnm (by rw [← hctx.config]; exact h2)).1 h1).elim
+  · rename_i h1 h2
+    exact ((hnm (by rw [← hctx.config]; exact h2)).2 h1).elim
+  rw [runPure_bind] at hrun
+  obtain ⟨⟨⟨⟨indid, argmasks⟩, st₂⟩, ps₂⟩, hreg, hrun₂⟩ := OracleWhnf.ok_of_bind hrun
+  clear hrun
+  have hirr : tc.config.remove_irrel_constr_args = false := by
+    rw [hctx.config]; exact hG.irr iv ⟨_, (findDecl_eq_some hiv).1, rfl⟩
+  have hph : ∀ ci ∈ (evalEnvOf view cfg decls).decls,
+      PhaseIDecl view tc.config (evalEnvOf view cfg decls).decls ci := by
+    rw [hctx.config]; exact hG.phase
+  obtain ⟨hok₂, hext₂, hcst₂, hid, hkm⟩ := register_inductive_ok (σ := evalEnvOf view cfg decls)
+    hG.prog hG.wf hG.sub hok rfl hirr hph hG.bn hiv hreg
+  have hmem₂ := register_inductive_mem (σ := evalEnvOf view cfg decls) hG.prog hG.sub rfl hirr hph
+    hiv hreg
+  have hps₂ : ps₂ = ps := KeepsPS.register_inductive iv _ _ _ _ _ _ hreg
+  subst hps₂
+  have hgr₂ : Grows E B (evalEnvOf view cfg decls) S st st₂ ps₂ ps₂ :=
+    ⟨hok₂, hext₂, Nat.le_refl _, fun c kn h h' => by rw [hcst₂, h] at h'; cases h'⟩
+  dsimp only at hrun₂
+  rw [runPure_bind] at hrun₂
+  obtain ⟨⟨⟨⟨brs, s'⟩, st₃⟩, ps₃⟩, hloop, hrun₃⟩ := OracleWhnf.ok_of_bind hrun₂
+  cases hrun₃
+  have hlenm := hkm.1
+  have hI := forIn_inv (tc := tc) (pc := ⟨decls, view⟩) (L := iv.ctors)
+    (fun pre (b : Array (List BinderName × LBTerm) × List ConstructorArgMask) st₁ ps₁ =>
+      b.2 = argmasks.drop pre.length ∧ b.1.toList.length = pre.length ∧
+      (∀ (i : Nat) cn alt br k, iv.ctors[i]? = some cn → alts[i]? = some alt →
+        b.1.toList[i]? = some br → ctorFields (evalEnvOf view cfg decls) cn = some k →
+        ErasesAlt E B lps (evalEnvOf view cfg decls) Γ Δ k alt br) ∧
+      (∀ br ∈ b.1.toList, ErasesDeps E B (evalEnvOf view cfg decls) st₁.gdecls br.2) ∧
+      Grows E B (evalEnvOf view cfg decls) S st₂ st₁ ps₂ ps₁) _ ?_ iv.ctors [] (#[], argmasks)
+    st₂ ps₂ _ _ _ rfl ⟨rfl, rfl, fun i _ _ br _ _ _ h => by simp at h, fun _ h => by simp at h,
+      .refl hok₂⟩ hloop
+  · obtain ⟨-, hlen, hE, hD, hgr⟩ := hI
+    refine ⟨indid, brs.toList, hid, rfl, hlen, hE, ?_, hgr₂.trans hgr⟩
+    exact .case (T := iv.name) hid (StateLemmas.ErasesInd.ext hgr.ext (hok₂.inductives iv.name _ hmem₂).2.1)
+      (ErasesDeps.ext (LenvExt.trans hext₂ hgr.ext) hdd) hD
+  · intro pre cn rest ⟨as₁, s₁⟩ st₁ ps₁ res st₁' ps₁' hL ⟨hs, hlen, hE, hD, hgr⟩ hb
+    dsimp only at hs hlen hE hD hb
+    have hk : pre.length < iv.ctors.length := by rw [← hL]; simp
+    have hcn : iv.ctors[pre.length]? = some cn := by rw [← hL]; simp
+    obtain ⟨cv, alt, hcv, halt, hmc⟩ := hm _ _ hcn
+    have hmask := hkm.2 pre.length cn cv hcn hcv
+    rw [hs, List.drop_eq_getElem_cons (by rw [hlenm]; exact hk), (List.getElem?_eq_some_iff.1 hmask).2] at hb
+    simp only [show ∀ (a : ConstructorArgMask) (l : List ConstructorArgMask),
+      Std.Stream.next? (a :: l) = some (a, l) from fun _ _ => rfl, hmc,
+      Std.HashMap.getD_empty] at hb
+    rw [runPure_bind] at hb
+    obtain ⟨⟨⟨br, st₄⟩, ps₄⟩, hvis, hb⟩ := OracleWhnf.ok_of_bind hb
+    cases hb
+    cases f with
+    | zero => rw [visitAlt] at hvis; cases hvis
+    | succ f =>
+    obtain ⟨hoa, hma, hna, hra, a', hta, A, hA⟩ := halts alt (List.mem_of_getElem? halt)
+    have ⟨hEa, hDa, hga⟩ := visitAlt_spec hG (ih f (by omega)) (hctx.mono hgr.next) hsc hoa hma hna hra hgr.inv
+      hta ⟨A, hA⟩ hvis
+    refine ⟨_, rfl, by simp, by simp [hlen], ?_, ?_,
+      hgr.trans hga⟩
+    · intro i cn' alt' br' k hi hai hbi hk'
+      rw [Array.toList_push] at hbi
+      rcases Nat.lt_or_ge i pre.length with hlt | hge
+      · rw [List.getElem?_append_left (by omega)] at hbi
+        exact hE i cn' alt' br' k hi hai hbi hk'
+      · rw [List.getElem?_append_right (by omega)] at hbi
+        obtain ⟨hi0, rfl⟩ := List.getElem?_eq_some_iff.1 hbi
+        simp only [List.length_singleton] at hi0
+        have hip : i = pre.length := by omega
+        subst hip
+        rw [hcn] at hi; cases hi
+        rw [halt] at hai; cases hai
+        have : k = cv.numFields := by
+          simp only [ctorFields, evalEnvOf] at hk'
+          rw [show findDecl decls cn = _ from hcv] at hk'
+          cases hk'; rfl
+        subst this
+        simpa using hEa
+    · intro br' hbr
+      rw [Array.toList_push] at hbr
+      rcases List.mem_append.1 hbr with hbr | hbr
+      · exact ErasesDeps.ext hga.ext (hD br' hbr)
+      · simp only [List.mem_singleton] at hbr
+        subst hbr
+        exact hDa
+
+end
+
+/-! ## The semantic side conditions of `Erases.cases` -/
+
+section
+variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {P : List ConstantInfo}
+  {lps : List Name}
+open Metalean (TypeEq)
+
+/-- A `casesOn` that the eraser does not reduce (the oracle's level `u` of the discriminant's type
+is never zero, or the inductive does not have exactly one constructor) is not `CasesReduced`: the
+discriminant's type is the inductive at the spine's levels (`cases_sat_split`), whose sort is
+`casesSortLevel`, so the two levels are never zero together. -/
+theorem not_casesReduced {σ : EvalEnv} (henv : ProgEnv P ζ E B) (hE : EnvWF E)
+    (hsub : SubEnv σ.decls P) {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n}
+    {Δ : MLCtx ζ lps.length n} (hΓ : E[Γ] ⊢ ok) {c : Name} {iv : InductiveVal}
+    {d : DefinitionVal} {us : List Level} {as : List Expr} {t T : Metalean.Expr ζ lps.length n}
+    {u : Level} (hcs : σ.casesOn? c = some iv) (hd : findDecl σ.decls c = some (.defnInfo d))
+    (hsat : casesArity iv ≤ as.length)
+    (he : TrM E B lps Γ Δ (mkAppN (.const c us) as.toArray) t) (ht : E[Γ] ⊢ t : T)
+    (hlev : ∀ m m'', as[casesMajor iv]? = some m → TrM E B lps Γ Δ m m'' →
+      (∃ M, E[Γ] ⊢ m'' : M) →
+      ∃ l M, TrLevel lps u = some l ∧ E[Γ] ⊢ m'' : M ∧ E[Γ] ⊢ M : .sort l)
+    (hC3 : u.isNeverZero = true ∨ iv.ctors.length ≠ 1) : ¬ CasesReduced iv us := by
+  rintro ⟨h1, l₀, hl₀, hz⟩
+  rcases hC3 with hu | h1'
+  swap
+  · exact h1' h1
+  obtain ⟨t₁, F, xs, -, -, ι, η, s, L, l, ps, ms, mins, is, m, m'', hm, -, hm'', hR, hlv, -,
+    -⟩ := StepsCases.cases_sat_split henv hE hsub hΓ hcs hd hsat he ht
+  obtain ⟨-, hps, -, -, his, hmaj⟩ := Metalean.Defeq.recr_typed hE hΓ hR
+  obtain ⟨l₁, M, hTr, hmM, hMl⟩ := hlev m m'' hm hm'' ⟨_, hmaj⟩
+  have hl₁ : l₁ = (E.get η).block.level{L} := by
+    obtain ⟨l₂, hMI⟩ := TypeEq.sort_uniq hE hΓ (Metalean.Defeq.uniqTy hE hΓ hmM hmaj)
+    have h1 := TypeEq.sort_inj hE hΓ (Metalean.Defeq.uniqTy hE hΓ hMI.left hMl)
+    have h2 := TypeEq.sort_inj hE hΓ
+      (Metalean.Defeq.uniqTy hE hΓ hMI.right (Metalean.Defeq.indDF hps his).left)
+    rw [← h1, h2]
+  have hnz := (TrLevel.isNeverZero_iff hTr).1 hu
+  rw [hl₁] at hnz
+  have := (TrLevel.isNeverZero_iff (hlv l₀ hl₀)).2 hnz
+  rw [hz] at this
+  cases this
+
+/-- The inductive of a large-eliminating recognized `casesOn` (more universe parameters than its
+inductive) is a subsingleton: a constructor node whose type is a proposition has the block's level
+zero at its levels, so the block eliminates into every sort as a subsingleton
+(`SortLargeElim.singleton_of_eval_zero`: one constructor, `Ctor.Eligible` fields); index variables
+are Lean index fields (`IndBlock.indexVars`), of which the constructors of a recognized `casesOn`
+have none (`NoIndexFields`); so ordinary fields are typed at level `0`, and recursive fields are
+`Π`s into the block's sort, a proposition. Reference: `Subsingleton`
+(`MR P/PCUICElimination.v:45`); `elim_only_at_universe_zero` (Lean's kernel,
+`src/kernel/inductive.cpp`). -/
+theorem subsingleton_large {σ : EvalEnv} (henv : ProgEnv P ζ E B) (hE : EnvWF E)
+    (hsub : SubEnv σ.decls P) (hdc : DepClosed σ.decls) (hidx : NoIndexFields σ.decls)
+    {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n} (hΓ : E[Γ] ⊢ ok)
+    {c : Name} {ci : CasesInfo} {iv : InductiveVal} {d : DefinitionVal} {us : List Level}
+    {as : List Expr} {t T : Metalean.Expr ζ lps.length n}
+    (hci : casesInfo? σ.decls c = some ci) (hcs : σ.casesOn? c = some iv)
+    (hd : findDecl σ.decls c = some (.defnInfo d))
+    (hlp : d.levelParams.length ≠ iv.levelParams.length) (hsat : casesArity iv ≤ as.length)
+    (he : TrM E B lps Γ Δ (mkAppN (.const c us) as.toArray) t) (ht : E[Γ] ⊢ t : T) :
+    Subsingleton E B iv.name := by
+  obtain ⟨t₁, F, xs, -, -, ι, η, s, L, l, ps, ms, mins, is, m, m'', hm, hBT, hm'', hR, -, hlv,
+    -⟩ := StepsCases.cases_sat_split henv hE hsub hΓ hcs hd hsat he ht
+  have hLE : (E.get η).block.LargeElim := Classical.byContradiction fun h => hlp (hlv.2 h)
+  -- the block's ctors have no index variable among their fields
+  obtain ⟨lps₀, Is, Cs, Rs, orders, ⟨⟨_, _, _, _, hblk⟩, -, hfd, -, hind, -⟩, hix⟩ :=
+    CasesWhred.ProgEnv.blockIdx henv η
+  have hT := hind _ s hBT
+  have hivd := SimInd.casesOn?_ind hcs
+  have hI := hfd (.inductInfo (Is s)) (by simp [IndBlock.decls, List.mem_ofFn])
+  rw [CasesWhred.name_inductInfo, ← hT, SrcDefeq.findDecl_sub hsub hivd] at hI
+  cases hI
+  obtain ⟨-, -, -, hpI, -, hcsI, -⟩ := hblk.ind s
+  have hindI : findConst σ.decls ci.indName = some (.inductInfo (Is s)) := by
+    have hcs' := hcs
+    simp only [EvalEnv.casesOn?, hci] at hcs'
+    split at hcs'
+    · cases hcs'
+      assumption
+    · cases hcs'
+  have hnoidx : ∀ (c' : Fin (ι.nctors s)) (i : Fin (ι.nindices s))
+      (f : Fin (ι.ctors s c').nfields),
+      (((E.get η).block.ctors s c').targetIndices i).isVar ≠ some (ι.nparams + f.val) := by
+    intro c' i f hx
+    have hany := hix s c' ⟨i, f, hx⟩
+    have hmem : (Cs s c').name ∈ (Is s).ctors := by
+      rw [hcsI]; exact List.mem_ofFn.mpr ⟨c', rfl⟩
+    obtain ⟨ci₀, hci₀⟩ := Option.isSome_iff_exists.1
+      ((hdc _ (findDecl_eq_some hivd).1).2.2.1 _ rfl _ hmem)
+    have hC := hfd (.ctorInfo (Cs s c')) (by
+      simp only [IndBlock.decls, List.mem_append, List.mem_flatten, List.mem_ofFn]
+      exact .inl (.inr ⟨_, ⟨s, rfl⟩, List.mem_ofFn.mpr ⟨c', rfl⟩⟩))
+    rw [CasesWhred.name_ctorInfo, SrcDefeq.findDecl_sub hsub hci₀] at hC
+    cases hC
+    have hall := hidx c ci (Is s) hci hindI _ hmem _ hci₀
+    rw [hpI, List.all_eq_true] at hall
+    obtain ⟨x, hx, hxs⟩ := List.any_eq_true.1 hany
+    have := hall x hx
+    cases x <;> simp_all
+  -- a constructor node that is a proof
+  intro ι' η' s' hB' ℓ' n' Γ' c' ls ps' fds recFds _ hΓ' ⟨U, hU, hUp⟩
+  rw [hBT] at hB'
+  cases hB'
+  obtain ⟨ps₁, fds₁, recFds₁, -, -, -, hind, hUI⟩ := hU.ctor_inv
+  have hzero : (E.get η).block.level{ls} = .zero := by
+    obtain ⟨l₂, hMI⟩ := TypeEq.sort_uniq hE hΓ' hUI
+    have h1 := TypeEq.sort_inj hE hΓ' (Metalean.Defeq.uniqTy hE hΓ' hMI.left hUp)
+    have h2 := TypeEq.sort_inj hE hΓ' (Metalean.Defeq.uniqTy hE hΓ' hMI.right hind.left)
+    rw [← h2, h1]
+  obtain ⟨h1, helig⟩ := (hLE s).singleton_of_eval_zero ls (ν := fun _ => 0)
+    (by rw [hzero]; rfl) c'
+  have hct := Metalean.Defeq.ctor_typed hE hU
+  have hctor := (hE.entryWF η).block.ctors s c'
+  refine ⟨by omega, fun f => ?_, fun f => ?_⟩
+  · rcases helig.ordinary f with hz | ⟨i, hi⟩
+    · have hs := hctor.ordinaryFieldExpr f hct.1 hct.2.1
+      rw [hz, Metalean.Level.inst_zero] at hs
+      exact ⟨_, hct.2.1 f, hs⟩
+    · exact absurd hi (hnoidx c' i f)
+  · have hz := helig.recursive f
+    obtain ⟨v, hv⟩ := hctor.recursiveFieldExpr rfl f hΓ' hct.1 hct.2.1
+    rw [Metalean.Ctor.recursiveFieldExpr_eq] at hv
+    obtain ⟨hΓt, w, hindw⟩ := Metalean.Ctx.pi_isType_inv _ hΓ' hv
+    obtain ⟨-, -, -, -, hsort⟩ := Metalean.Defeq.ind_inv hindw
+    have hindp := hsort.conv hindw
+    rw [hz, Metalean.Level.inst_zero] at hindp
+    have hpi := Metalean.Ctx.pi_prop _ hΓt hindp
+    rw [← Metalean.Ctor.recursiveFieldExpr_eq] at hpi
+    exact ⟨_, hct.2.2 f, hpi⟩
+
+end
+
+/-! ## The `case` branch of `visitCases` -/
+
+section
+variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {P decls : List ConstantInfo}
+  {view : EnvView} {cfg : ErasureConfig} {lps : List Name}
+
+/-- The `case` branch of `visitCases` (`LeanToLambdaBox/Erasure.lean:870`): on a saturated spine of
+a recognized `casesOn` with more universe parameters than its inductive (not the `□` branch), when
+the oracle's level `u` of the discriminant's type is never zero or the inductive does not have
+exactly one constructor (not the reduced branch), a successful run erases the spine to the λ□
+`case` of the inductive on the erased major, with one branch per constructor (`visitCasesOn`,
+`visitAlt`), applied to the erasures of the extra arguments: `Erases.cases`, whose side conditions
+are `not_casesReduced` and `subsingleton_large`. The recognizer gives one alternative per
+constructor and no catch-all, the constructors have no index field (`NoIndexFields`), and the
+machine branches of `visitCasesOn` are not taken (`NatPlain`, `MachineFree`). Reference: the
+`tCase` case of `erases_erase` (`MR E/ErasureFunction.v:1228`), rule `erases_tCase`
+(`MR E/Extract.v:111`). -/
+theorem casesSat_case (hG : CoreEnv E B P decls view cfg) {j : Nat}
+    (ih : StepIH E B view cfg decls j) {c : Name} {ci : CasesInfo}
+    (hci : casesInfo? decls c = some ci) {cd : DefinitionVal} {iv : InductiveVal}
+    (hd : findDecl decls c = some (.defnInfo cd))
+    (hiv : findDecl decls ci.indName = some (.inductInfo iv))
+    (hlp : cd.levelParams.length ≠ iv.levelParams.length) {n : Nat}
+    {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n} {S : Name → Prop}
+    {us : List Level} {as : List Expr} {t : Metalean.Expr ζ lps.length n} {st : ErasureState}
+    {tc : TravCtx} {ps : PureState} {r : LBTerm} {st' : ErasureState} {ps' : PureState}
+    {u : Level} (hu : ∀ m, as[casesMajor iv]? = some m →
+      Pure.typeLevel ⟨decls⟩ oracleFuel tc.locals m = .ok u)
+    (hC2 : ¬ (u.isNeverZero = false ∧ iv.ctors.length = 1))
+    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK decls S)
+    (hocc : ∀ d, nameOccurs d (mkAppN (.const c us) as.toArray) = true → S d)
+    (hmf : MachineFree cfg (mkAppN (.const c us) as.toArray))
+    (hnp : NatPlain cfg (mkAppN (.const c us) as.toArray))
+    (hrf : RecFree decls (mkAppN (.const c us) as.toArray))
+    (hok : StateOK E B (evalEnvOf view cfg decls) st)
+    (he : TrM E B lps Γ Δ (mkAppN (.const c us) as.toArray) t) (ht : ∃ T, E[Γ] ⊢ t : T)
+    (hsat : ci.arity ≤ as.length)
+    (hrun : (visitCases (m := PureM) j ci as.toArray).runPure st tc ⟨decls, view⟩ ps =
+      .ok ((r, st'), ps')) :
+    Erases E B lps (evalEnvOf view cfg decls) Γ Δ (mkAppN (.const c us) as.toArray) r ∧
+      ErasesDeps E B (evalEnvOf view cfg decls) st'.gdecls r ∧
+      Grows E B (evalEnvOf view cfg decls) S st st' ps ps' := by
+  obtain ⟨iv', cd', hiv', hd', hdn, hcs, har, hdp⟩ :=
+    StepsCases.casesInfo?_eval (view := view) (cfg := cfg) hci
+  rw [hiv] at hiv'; cases hiv'
+  rw [hd] at hd'; cases hd'
+  obtain ⟨alts, halts, hanp, hrange⟩ := StepsCases.casesInfo?_alts hci hiv
+  obtain ⟨hlena, haltsg⟩ := ctorAlts_get halts
+  have hmlt : casesMajor iv < as.length := by
+    rw [har] at hsat; simp only [casesArity] at hsat; omega
+  have hdisc : as.toArray[ci.discrPos]? = some (as[casesMajor iv]'hmlt) := by
+    rw [hdp]; simp
+  cases j with
+  | zero => rw [visitCases] at hrun; cases hrun
+  | succ j =>
+  rw [visitCases, TravFrame.runPure_bind, StepsCases.getOrFail_run hdisc, Steps.ok_bind'] at hrun
+  dsimp only at hrun
+  rw [TravFrame.runPure_bind,
+    StepsCases.getConst_run (pc := ⟨decls, view⟩) (show findConst decls _ = _ from hiv),
+    Steps.ok_bind'] at hrun
+  dsimp only at hrun
+  rw [TravFrame.runPure_bind, hdn,
+    StepsCases.getConst_run (pc := ⟨decls, view⟩) (show findConst decls _ = _ from hd),
+    Steps.ok_bind'] at hrun
+  dsimp only at hrun
+  simp only [show (cd.levelParams.length == iv.levelParams.length) = false by simpa using hlp,
+    Bool.false_eq_true, ↓reduceIte] at hrun
+  rw [TravFrame.runPure_read_bind, TravFrame.runPure_read_bind, TravFrame.runPure_bind,
+    TravFrame.runPure_liftM, TravFrame.typeLevel_run, hu _ (List.getElem?_eq_getElem _)] at hrun
+  dsimp only [Except.map] at hrun
+  rw [Steps.ok_bind', Steps.ok_bind'] at hrun
+  dsimp only at hrun
+  rw [hanp, hrange, TravFrame.runPure_bind, TravFrame.rco_forIn] at hrun
+  obtain ⟨⟨⟨⟨mp, ca, s₀⟩, st₁⟩, ps₁⟩, hloop, hrun⟩ := OracleWhnf.ok_of_bind hrun
+  have hLlen : (casesMajor iv + 1...casesArity iv).toList.length = alts.length := by
+    rw [Nat.length_toList_rco, hlena]; simp [casesArity]
+  have hI := forIn_inv (tc := tc) (pc := ⟨decls, view⟩) (L := (casesMajor iv + 1...casesArity iv).toList)
+    (fun pre (b : Std.HashMap Name (Nat × Expr) × Option (Nat × Expr) × Subarray CasesAltInfo)
+        st₂ ps₂ => st₂ = st ∧ ps₂ = ps ∧ b.2.1 = none ∧ b.2.2.array = alts.toArray ∧
+      b.2.2.start = pre.length ∧ b.2.2.stop = alts.length ∧
+      ∀ i < pre.length, ∀ cn, iv.ctors[i]? = some cn → ∃ cv a,
+        findConst decls cn = some (.ctorInfo cv) ∧ as[casesMajor iv + 1 + i]? = some a ∧
+        b.1[cn]? = some (cv.numFields, a)) _ ?_ _ [] _ st ps _ _ _ rfl
+    ⟨rfl, rfl, rfl, by simp [Std.toStream], by simp [Std.toStream], by simp [Std.toStream],
+      fun i hi => by simp at hi⟩ hloop
+  swap
+  · intro pre i rest ⟨mp, ca, s⟩ st₂ ps₂ res st₃ ps₃ hL ⟨rfl, rfl, hca, harr, hstart, hstop, hmap⟩ hb
+    dsimp only at hca harr hstart hstop hmap hb
+    have hk : pre.length < alts.length := by
+      rw [← hLlen, ← hL]; simp
+    have hi : i = casesMajor iv + 1 + pre.length := by
+      have h1 : (casesMajor iv + 1...casesArity iv).toList[pre.length]? = some i := by
+        rw [← hL]; simp
+      rw [Nat.getElem?_toList_rco] at h1
+      split at h1
+      · cases h1; rfl
+      · cases h1
+    subst hi
+    obtain ⟨cn, hcn⟩ : ∃ cn, iv.ctors[pre.length]? = some cn :=
+      ⟨_, List.getElem?_eq_getElem (by rw [← hlena]; exact hk)⟩
+    obtain ⟨cv, hcv, hacn⟩ := haltsg _ _ hcn
+    have hlt : s.start < s.stop := by rw [hstart, hstop]; exact hk
+    unfold Std.Stream.next? Std.instStreamSubarray at hb
+    dsimp only at hb
+    rw [dite_eq_left_of_eq_true (eq_true hlt)] at hb
+    have hsa : s.array[s.start]'(Nat.lt_of_lt_of_le hlt s.stop_le_array_size) =
+        CasesAltInfo.ctor cn cv.numFields := by
+      have := List.getElem?_eq_some_iff.1 hacn
+      simp only [harr, hstart, List.getElem_toArray]
+      exact this.2
+    simp only [hsa] at hb
+    have hbd : casesMajor iv + 1 + pre.length < as.length := by
+      rw [har] at hsat; simp only [casesArity] at hsat; rw [hlena] at hk; omega
+    have has : as.toArray[casesMajor iv + 1 + pre.length]? =
+        some (as[casesMajor iv + 1 + pre.length]'hbd) := by
+      simp
+    rw [TravFrame.runPure_bind, StepsCases.getOrFail_run has, Steps.ok_bind'] at hb
+    cases hb
+    refine ⟨_, rfl, rfl, rfl, hca, harr, by simp only [List.length_append, List.length_singleton, ← hstart]; rfl, hstop,
+      fun i' hi' cn' hcn' => ?_⟩
+    simp only [List.length_append, List.length_singleton] at hi'
+    rw [Std.HashMap.getElem?_insert]
+    rcases Nat.lt_or_ge i' pre.length with hlt' | hge
+    · have hne : (cn == cn') = false := by
+        rcases Bool.eq_false_or_eq_true (cn == cn') with h' | h'
+        · have e := beq_iff_eq.mp h'
+          subst e
+          have := ctors_inj hG.prog (SrcDefeq.findDecl_sub (σ := evalEnvOf view cfg decls) hG.sub hiv) hcn hcn'
+          omega
+        · exact h'
+      simp only [hne, Bool.false_eq_true, ↓reduceIte]
+      exact hmap i' hlt' cn' hcn'
+    · have : i' = pre.length := by omega
+      subst this
+      rw [hcn] at hcn'; cases hcn'
+      exact ⟨cv, _, hcv, List.getElem?_eq_getElem hbd, by simp⟩
+  obtain ⟨hst₁, hps₁, hca, -, -, -, hmap⟩ := hI
+  dsimp only at hst₁ hps₁ hca hmap hrun
+  rw [hst₁, hps₁, hca] at hrun
+  -- no index is substituted
+  have hctorc : ∀ cn ∈ iv.ctors, ∃ cv, findConst decls cn = some (.ctorInfo cv) := by
+    intro cn hcn
+    obtain ⟨i, hi⟩ := List.mem_iff_getElem?.1 hcn
+    obtain ⟨cv, hcv, -⟩ := haltsg _ _ hi
+    exact ⟨cv, hcv⟩
+  by_cases hni : (!u.isNeverZero && decide (iv.numIndices > 0)) = true
+  all_goals first
+    | (rw [if_pos hni, TravFrame.runPure_bind] at hrun
+       obtain ⟨⟨⟨idx, st₂⟩, ps₂⟩, hloop₂, hrun⟩ := OracleWhnf.ok_of_bind hrun
+       obtain ⟨rfl, hs₂, hp₂⟩ := forIn_inv (tc := tc) (pc := ⟨decls, view⟩) (L := iv.ctors)
+         (fun _ (b : Std.HashMap Name (List (Option Expr))) st₂ ps₂ => b = ∅ ∧ st₂ = st ∧ ps₂ = ps)
+         _ (fun pre cn rest b st₂ ps₂ res st₃ ps₃ hL ⟨hb, hs, hp⟩ hrb => by
+           subst hb hs hp
+           have hcn : cn ∈ iv.ctors := by rw [← hL]; simp
+           obtain ⟨cv, hcv⟩ := hctorc cn hcn
+           rw [TravFrame.runPure_bind, StepsCases.getConst_run (pc := ⟨decls, view⟩) hcv,
+             Steps.ok_bind'] at hrb
+           dsimp only at hrb
+           rw [if_pos (hG.idx c ci iv hci hiv cn hcn cv hcv)] at hrb
+           cases hrb
+           exact ⟨_, rfl, rfl, rfl, rfl⟩) _ [] ∅ st ps _ _ _ rfl ⟨rfl, rfl, rfl⟩ hloop₂
+       rw [hs₂, hp₂] at hrun)
+    | rw [if_neg hni] at hrun
+  all_goals
+  dsimp only at hrun
+  have hc2 : (!u.isNeverZero && iv.numCtors == 1) = false := by
+    rw [InductiveVal.numCtors]
+    cases hz : u.isNeverZero <;> simp_all
+  rw [if_neg (by rw [hc2]; decide), TravFrame.runPure_bind] at hrun
+  obtain ⟨⟨⟨dnt, st₂⟩, ps₂⟩, hdrun, hrun⟩ := OracleWhnf.ok_of_bind hrun
+  have hall : (iv.ctors.all fun x => mp.contains x) = true := by
+    rw [List.all_eq_true]
+    intro cn hcn
+    obtain ⟨i, hi⟩ := List.mem_iff_getElem?.1 hcn
+    obtain ⟨cv, a, -, -, hma⟩ := hmap i (by rw [hLlen, hlena]; exact (List.getElem?_eq_some_iff.1 hi).1) cn hi
+    simp [Std.HashMap.contains_iff_mem, Std.HashMap.mem_iff_isSome_getElem?, hma]
+  rw [if_pos hall, TravFrame.runPure_bind] at hrun
+  obtain ⟨⟨⟨ret, st₃⟩, ps₃⟩, hcrun, hrun⟩ := OracleWhnf.ok_of_bind hrun
+  dsimp only at hcrun hrun
+  cases j with
+  | zero => rw [visitExpr] at hdrun; cases hdrun
+  | succ f =>
+  obtain ⟨T, hT⟩ := ht
+  -- the arguments
+  have hsp := mkAppN_toArray (.const c us) as
+  have hQ : ∀ {Q : Expr → Prop}, (∀ f a, Q (.app f a) → Q f ∧ Q a) →
+      Q (mkAppN (.const c us) as.toArray) → Q (.const c us) ∧ ∀ a ∈ as, Q a := fun hQ' h =>
+    foldl_pred hQ' (by rw [← hsp]; exact h)
+  have hoccA := (hQ (Q := fun x => ∀ d, nameOccurs d x = true → S d)
+    (fun f a h => ⟨fun d hd => h d (by simp [nameOccurs, hd]),
+      fun d hd => h d (by simp [nameOccurs, hd])⟩) hocc).2
+  have hmfA := hQ (Q := MachineFree cfg) (fun _ _ h => h) hmf
+  have hnpA := hQ (Q := NatPlain cfg) (fun _ _ h => h) hnp
+  have hrfA := (hQ (Q := RecFree decls) (fun _ _ h => h) hrf).2
+  have htyA := (spine_typed (StepsCases.casesOn_notSpecial (σ := evalEnvOf view cfg decls)
+    hG.prog hG.sub hd) he ⟨T, hT⟩).2
+  have hargs : ∀ a ∈ as, (∀ d, nameOccurs d a = true → S d) ∧ MachineFree cfg a ∧
+      NatPlain cfg a ∧ RecFree decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A :=
+    fun a ha => ⟨hoccA a ha, hmfA.2 a ha, hnpA.2 a ha, hrfA a ha, htyA a ha⟩
+  -- the discriminant
+  obtain ⟨hoa, hma, hna, hra, a', hta, A, hA⟩ := hargs _ (List.getElem_mem hmlt)
+  have ⟨herd, hdepd, hgrd⟩ := ih.expr (f + 1) (by omega) _ hctx hsc hoa hma hna hra hok hta
+    ⟨A, hA⟩ hdrun
+  -- the alternatives and the `case`
+  have hname : iv.name = ci.indName := (findDecl_eq_some hiv).2
+  obtain ⟨⟨T₀, hc₀, hT₀⟩, -⟩ := casesInfo?_spec hci
+  have hnm : cfg.nat = .machine → iv.name ≠ ``Nat ∧ iv.name ≠ ``Int := by
+    intro hm'
+    refine ⟨fun h => (hnpA.1 hm').2 ?_, fun h => (hmfA.1 hm').2 ?_⟩
+    · rw [hc₀, ← hT₀, ← hname, h]
+    · rw [hc₀, ← hT₀, ← hname, h]
+  have hk : casesMajor iv + 1 + iv.ctors.length ≤ as.length := by
+    rw [har] at hsat; exact hsat
+  generalize halts' : (as.drop (casesMajor iv + 1)).take iv.ctors.length = altsL
+  have haltsL : ∀ (i : Nat), i < iv.ctors.length → altsL[i]? = as[casesMajor iv + 1 + i]? := by
+    intro i hi
+    rw [← halts', List.getElem?_take_of_lt hi, List.getElem?_drop]
+  obtain ⟨iid, brs, hid, rfl, hlenb, hEb, hdepsC, hgrC⟩ := visitCasesOn_spec (alts := altsL) hG
+    (fun j' hj' => ih.expr j' (by omega)) (by rw [hname]; exact hiv) hnm
+    (fun i cn hcn => by
+      have hil : i < iv.ctors.length := (List.getElem?_eq_some_iff.1 hcn).1
+      obtain ⟨cv, a, hcv, ha, hma⟩ := hmap i (by rw [hLlen, hlena]; exact hil) cn hcn
+      exact ⟨cv, a, hcv, by rw [haltsL i hil, ha], hma⟩)
+    (fun alt halt => hargs alt (by
+      rw [← halts'] at halt; exact List.mem_of_mem_drop (List.mem_of_mem_take halt)))
+    (hctx.mono hgrd.next) hsc hgrd.inv hdepd hcrun
+  -- the extra arguments
+  have hsl : (as.toArray.toSubarray ci.arity).toList = as.drop ci.arity := by
+    rw [Subarray.toList_eq]
+    simp only [Array.array_toSubarray, Array.toList_extract, List.extract_eq_drop_take]
+    simp [Nat.min_eq_left hsat]
+  rw [TravFrame.subarray_forIn, hsl, TravFrame.runPure_bind] at hrun
+  obtain ⟨⟨⟨ret', st₄⟩, ps₄⟩, hext, hrun⟩ := OracleWhnf.ok_of_bind hrun
+  cases hrun
+  obtain ⟨es, hF, rfl, hDe, hgrE⟩ := forIn_inv (tc := tc) (pc := ⟨decls, view⟩)
+    (L := as.drop ci.arity)
+    (fun pre (b : LBTerm) st₅ ps₅ => ∃ es, List.Forall₂
+        (Erases E B lps (evalEnvOf view cfg decls) Γ Δ) pre es ∧
+      b = mkApps (.case (iid, iv.numParams) dnt brs) es ∧
+      (∀ e ∈ es, ErasesDeps E B (evalEnvOf view cfg decls) st₅.gdecls e) ∧
+      Grows E B (evalEnvOf view cfg decls) S st₃ st₅ ps₃ ps₅) _
+    (fun pre a rest b st₅ ps₅ res st₆ ps₆ hL ⟨es, hF, hb, hD, hg⟩ hrb => by
+      have ha : a ∈ as := List.mem_of_mem_drop (by rw [← hL]; simp)
+      rw [TravFrame.runPure_bind] at hrb
+      obtain ⟨⟨⟨x, st₇⟩, ps₇⟩, hx, hrb⟩ := OracleWhnf.ok_of_bind hrb
+      cases hrb
+      obtain ⟨hoa, hma, hna, hra, a', hta, A, hA⟩ := hargs a ha
+      have ⟨hex, hdx, hgx⟩ := ih.expr (f + 1) (by omega) _
+        (hctx.mono (Nat.le_trans (Nat.le_trans hgrd.next hgrC.next) hg.next)) hsc hoa hma hna hra
+        hg.inv hta ⟨A, hA⟩ hx
+      refine ⟨_, rfl, es ++ [x], CasesWhred.forall₂_snoc hF hex, ?_, ?_, hg.trans hgx⟩
+      · rw [hb, ← StepsCases.mkApps_append]; rfl
+      · intro e he'
+        rcases List.mem_append.1 he' with he' | he'
+        · exact ErasesDeps.ext hgx.ext (hD e he')
+        · simp only [List.mem_singleton] at he'; subst he'; exact hdx)
+    _ [] _ st₃ ps₃ _ _ _ (by simp) ⟨[], .nil, rfl, ⟨fun _ h => by simp at h, Grows.refl hgrC.inv⟩⟩ hext
+  dsimp only
+  refine ⟨?_, StepsCases.deps_mkApps_of (ErasesDeps.ext hgrE.ext hdepsC) hDe,
+    hgrd.trans (hgrC.trans hgrE)⟩
+  have hsat' : casesArity iv ≤ as.length := by rw [← har]; exact hsat
+  have hC3 : u.isNeverZero = true ∨ iv.ctors.length ≠ 1 := by
+    rcases Bool.eq_false_or_eq_true u.isNeverZero with h | h
+    · exact .inl h
+    · exact .inr fun h1 => hC2 ⟨h, h1⟩
+  have hlev : ∀ m m'', as[casesMajor iv]? = some m → TrM E B lps Γ Δ m m'' →
+      (∃ M, E[Γ] ⊢ m'' : M) →
+      ∃ l M, TrLevel lps u = some l ∧ E[Γ] ⊢ m'' : M ∧ E[Γ] ⊢ M : .sort l :=
+    fun m m'' hm hmt hmty => Pure.typeLevel_sound hG.prog hG.wf hG.sub hctx.wf hctx.locals
+      hctx.nobv hmt hmty (hu m hm)
+  have hnr := not_casesReduced (σ := evalEnvOf view cfg decls) (us := us) hG.prog hG.wf hG.sub
+    hctx.wf hcs hd hsat' he hT hlev hC3
+  have hss := subsingleton_large (σ := evalEnvOf view cfg decls) hG.prog hG.wf hG.sub hG.deps
+    hG.idx hctx.wf hci hcs hd hlp hsat' he hT
+  have has : as = as.take (casesMajor iv) ++ [as[casesMajor iv]'hmlt] ++ altsL ++
+      as.drop ci.arity := by
+    rw [← halts', har, casesArity]
+    calc as = as.take (casesMajor iv) ++ as.drop (casesMajor iv) := (List.take_append_drop _ _).symm
+      _ = as.take (casesMajor iv) ++ (as[casesMajor iv]'hmlt :: as.drop (casesMajor iv + 1)) := by
+        rw [← List.drop_eq_getElem_cons hmlt]
+      _ = _ := by
+        rw [← List.take_append_drop iv.ctors.length (as.drop (casesMajor iv + 1)), List.drop_drop]
+        simp
+  have hlenA : altsL.length = iv.ctors.length := by
+    rw [← halts']; simp; omega
+  have key := Erases.cases (σ := evalEnvOf view cfg decls) (us := us) (lps := lps) (Γ := Γ)
+    (Δ := Δ) (pre := as.take (casesMajor iv)) (maj := as[casesMajor iv]'hmlt) (alts := altsL)
+    (extra := as.drop ci.arity) (brs := brs) (extra' := es) hcs hnr hss hid
+    (by simp only [List.length_take]; omega) hlenA herd (by rw [hlenb, hlenA])
+    (fun i cn hcn => by
+      obtain ⟨cv, hcv, -⟩ := haltsg i cn hcn
+      simp [ctorFields, evalEnvOf, show findDecl decls cn = _ from hcv])
+    hEb hF.length_eq (fun i a a' ha ha' => by
+      obtain ⟨b, hb, hab⟩ := CasesWhred.forall₂_getElem? hF ha
+      rw [ha'] at hb; cases hb; exact hab)
+  rw [← has] at key
+  exact key
 
 end
 
