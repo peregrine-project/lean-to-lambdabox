@@ -3069,6 +3069,51 @@ the calls at which the two oracles answer differently. It must equal
 
 ---
 
+## S-43: The pure oracle reduces recursor applications
+
+- **Commit:** the commit whose subject starts with `S-43:` (`git log --grep='^S-43:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure/Pure.lean`: `Pure.whnf` reduces an application of a recursor to its
+    major premise when the major premise reduces to a constructor application (ι); its docstring.
+  - `tests/regress/alt_type_pure.lean`: `selT` takes the pure path, and `#erase` writes it to
+    `sel.ast`, with goldens; `tests/regress/prop_elim_pure.lean`,
+    `tests/regress/thm_atom_pure.lean`: the oracle boxes the programs, and their goldens are □;
+    `tests/regress/pure_inductive.lean`: the oracle's normal forms of `B.neg B.f` and of a
+    `B.casesOn` application agree with `Meta.whnf`.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** under `structural := .kernel` the pure path erases a definition by
+  structural recursion through its kernel definition (S-44), whose body projects the table
+  `T.below` of recursive calls: `x.1` with `x : Nat.below motive (Nat.succ n)`. The type of such a
+  projection is a structure (`PProd`) only after `Nat.below`, a definition by `Nat.rec`, reduces,
+  so the oracle's projection rule failed (`invalid projection`). Lean's kernel and Metalean
+  (`WHRed.iota`) reduce `T.rec ps ms mins is t`, when `t` reduces to a constructor application
+  `C ps' fs`, to the right-hand side of `C`'s rule of the recursor applied to `ps ms mins fs`;
+  `Pure.whnf` now does the same, with the right-hand sides that the recursor's declaration stores
+  (`RecursorVal.rules`), and with a Nat literal as `Nat.zero` or `Nat.succ` of a literal, as the
+  kernel does. Arguments beyond the major premise are applied by the enclosing applications.
+  Without a recursor on the path (`casesOn` unfolds to `T.rec`), the oracle's answers are those
+  of before, except where it reduced too little: a type that is a `Π` or a sort only after a
+  recursor reduces.
+- **Behaviour before:** `selT` of `alt_type_pure` (an alternative of type `Sel true`, which is
+  `B → B` only after `Bool.rec` reduces) stops on the pure path with `expected a function type`;
+  `use` of `thm_atom_pure` (a definition of type `Y : Sel true`, a proposition only after
+  `Bool.rec` reduces) is not erasable for the oracle, so the pure path writes a constant whose
+  body is □.
+- **Behaviour after:** `selT` takes the pure path and gives the `Meta` path's program, which
+  peregrine evaluates to `B.t`; the oracle erases `use`, and the pure path writes □.
+- **Effect on emitted .ast (corpus):** byte-identical for all 710 files against the corpus of
+  S-41; `PANIC` counts unchanged. `scripts/pure-harness.sh` passes with its expected summary
+  unchanged (294 `#erase`, 224 in the fragment, 67 outside, 3 `collectDeps` errors; 205
+  identical, 15 differ; 8334 oracle calls, 14 differ, none fails).
+- **Regression test:** `alt_type_pure` checks that `selT` takes the pure path with the `Meta`
+  path's program, and pins `sel.ast`, which peregrine evaluates to `B.t`; before this commit the
+  pure path fails. `prop_elim_pure` and `thm_atom_pure` pin □ for `test`, `test2`, `use` and
+  `useF` (before: a constant whose body is □), and `thm_atom_pure` checks that the oracle erases
+  `use`; `pure_inductive` checks that the oracle's normal forms of `B.neg B.f` and of a
+  `B.casesOn` application are `Meta.whnf`'s (before: they differ). `structural` (S-44) checks the
+  projections of the `below` tables. `scripts/regress.sh` passes (25 tests), with and without
+  `PEREGRINE`.
+
 ---
 
 ## Reported, not fixed

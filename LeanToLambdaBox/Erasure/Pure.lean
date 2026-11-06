@@ -195,17 +195,40 @@ def alwaysZero : Level → Bool
 def findLocal (ls : List Local) (x : FVarId) : Option Local := ls.find? (·.fvarId == x)
 
 /-- Weak-head normal form: head β (`instantiate1'`), ζ (`letE` and let-bound locals), δ of every
-definition (the kernel's δ), `mdata`, and the ι-rule of projections: `proj S i s` whose `s` reduces
-to a constructor application `C ps fs` reduces to `fs[i]` (the kernel's `reduce_proj`). Terms may
-have loose bound variables. Reference: `hnf` (`MR S/PCUICSafeReduce.v:1839`, `RedFlags.default`),
-as `sort_of_type` uses `reduce_to_sort` (`:1853`); projections: `red_proj`
-(`MR P/PCUICReduction.v:82`). -/
+definition (the kernel's δ), `mdata`, the ι-rule of projections: `proj S i s` whose `s` reduces
+to a constructor application `C ps fs` reduces to `fs[i]` (the kernel's `reduce_proj`), and the
+ι-rule of recursors: `T.rec ps ms mins is t` whose major premise `t` reduces to a constructor
+application `C ps' fs` (a Nat literal to `Nat.zero` or `Nat.succ` of a literal) reduces to the
+right-hand side of `C`'s rule of the recursor applied to `ps ms mins fs` (the kernel's
+`inductive_reduce_rec`). Terms may have loose bound variables. Reference: `hnf`
+(`MR S/PCUICSafeReduce.v:1839`, `RedFlags.default`), as `sort_of_type` uses `reduce_to_sort`
+(`:1853`); projections: `red_proj` (`MR P/PCUICReduction.v:82`); recursors: `WHRed.iota`
+(`ML Syntax/Reduction.lean:60`). -/
 def whnf (cx : Ctx) : Nat → List Local → Expr → Except EraseError Expr
   | 0, _, _ => throw (.fuel "whnf")
   | f+1, ls, .app g a => do
     match ← whnf cx f ls g with
     | .lam _ _ b _ => whnf cx f ls (b.instantiate1' a)
-    | g' => pure (.app g' a)
+    | g' => match spine (.app g' a) with
+      | (.const r us, args) => match findConst cx.decls r with
+        | some (.recInfo rv) =>
+          let k := rv.numParams + rv.numMotives + rv.numMinors
+          if args.length != k + rv.numIndices + 1 then return .app g' a
+          let t := match ← whnf cx f ls a with
+            | .lit (.natVal 0) => .const ``Nat.zero []
+            | .lit (.natVal (n + 1)) => .app (.const ``Nat.succ []) (.lit (.natVal n))
+            | t => t
+          match spine t with
+          | (.const c _, cargs) => match rv.rules.find? (·.ctor == c) with
+            | some rule =>
+              if us.length != rv.levelParams.length || cargs.length < rule.nfields then
+                return .app g' a
+              let fs := cargs.drop (cargs.length - rule.nfields)
+              whnf cx f ls ((args.take k ++ fs).foldl .app (instLevels rv.levelParams us rule.rhs))
+            | none => pure (.app g' a)
+          | _ => pure (.app g' a)
+        | _ => pure (.app g' a)
+      | _ => pure (.app g' a)
   | f+1, ls, .letE _ _ v b _ => whnf cx f ls (b.instantiate1' v)
   | f+1, ls, .mdata _ e => whnf cx f ls e
   | f+1, ls, .fvar x => match findLocal ls x with

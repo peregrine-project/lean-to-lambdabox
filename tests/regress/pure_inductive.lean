@@ -228,8 +228,8 @@ def terms : List (String × Expr) :=
       cT cF cT)]
 
 /-- `(term, types agree, normal forms agree, pure and Meta erasability)` for each of `terms`. The
-normal forms of `B.neg B.f` and of the `B.casesOn` application differ: `Meta.whnf` reduces the
-recursor `B.rec` to which they unfold, the oracle has no ι-rule for recursors. -/
+normal forms of `B.neg B.f` and of the `B.casesOn` application agree because the oracle reduces the
+recursor `B.rec` to which they unfold, as `Meta.whnf` does (register entry S-43). -/
 def oracle : MetaM (List (String × Bool × Bool × String × Bool)) := do
   let cx : Pure.Ctx := ⟨← allDecls⟩
   terms.mapM fun (n, e) => do
@@ -246,8 +246,8 @@ def oracle : MetaM (List (String × Bool × Bool × String × Bool)) := do
 
 /--
 info: [("tree", true, true, "false", false), ("pair.2", true, true, "false", false), ("pair.1", true, true, "false", false),
-  ("and.1", true, true, "true", true), ("2", true, true, "false", false), ("B.neg B.f", true, false, "false", false),
-  ("B.casesOn", true, false, "false", false)]
+  ("and.1", true, true, "true", true), ("2", true, true, "false", false), ("B.neg B.f", true, true, "false", false),
+  ("B.casesOn", true, true, "false", false)]
 -/
 #guard_msgs in
 #eval oracle
