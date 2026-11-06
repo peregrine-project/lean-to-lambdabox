@@ -2930,6 +2930,84 @@ the calls at which the two oracles answer differently. It must equal
   outputs differ and their evaluations fail; `propRec` and the `nat := .machine` output are
   unchanged. `scripts/regress.sh` passes (24 tests), with and without `PEREGRINE`.
 
+## S-42: Under `structural := .kernel`, structural recursion is erased through the kernel's definitions
+
+- **Commit:** the commit whose subject starts with `S-42:` (`git log --grep='^S-42:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure.lean`: new `Config.Structural` (`unsafeRec`, `kernel`) and
+    `ErasureConfig.structural` (default `.unsafeRec`); the field `Backend.declInfo?` takes the
+    configuration, and `visitMutual` passes it; new `brecOnInduct?` and `isStructuralRecursive`;
+    new `declInfoCore`, the `CoreM` backend's `declInfo?`; the instance `Backend CoreM` moves after
+    the traversal, since `declInfoCore` uses `recStaysConstant`.
+  - `LeanToLambdaBox/Erasure/Pure.lean`: the instance `Backend PureM` ignores the configuration in
+    `declInfo?`.
+  - `tests/harness/PureHarness.lean`: the harness backend passes the configuration on.
+  - new `tests/regress/structural.lean` with its goldens; `tests/regress/pure_backend.lean`:
+    `declInfo?_eq` takes the configuration; `tests/regress/pure_inductive.lean`: the census of the
+    environment counts `Config.Structural` (2716 `casesOn`, 4850 constructors).
+  - `README.md`: the option `structural`.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** the verification covers recursive programs through the definitions that
+  Lean's kernel checks: a definition by structural recursion `f` is, in the kernel, a non-recursive
+  definition that applies `T.brecOn` (and so the recursor `T.rec`, erased since S-40) to a function
+  of the table `T.below` of the recursive calls. The eraser instead erased `f` through
+  `f._unsafe_rec`, the recursive definition that Lean's code generator compiles
+  (`Compiler.LCNF.getDeclInfo?`), which the kernel never checks. The kernel's definitions give
+  other programs (the table is built before the function's body runs), so the choice is an option
+  and the default output does not change. Under `structural := .kernel`, the `Meta` path's
+  `declInfoCore` erases a definition through its kernel definition when its value refers to a
+  `T.brecOn` (or `T.brecOn_<i>`; `isStructuralRecursive`), which is how Lean's structural
+  recursion writes it, and the traversal erases each `T.rec` of these (not `recStaysConstant`).
+  Otherwise it keeps the code generator's declaration: well-founded recursion (the value applies
+  `WellFounded.fix`, through `Acc.rec`, which stays a constant), `partial` definitions (opaques
+  whose value is a dummy), recursion on a nested inductive or on `Nat` under `nat := .machine`
+  (whose recursors stay constants), and, under `csimp`, a definition that replaces another by a
+  `@[csimp]` theorem, which is the compiled implementation of a kernel definition: the kernel
+  definition of `Nat.recCompiled` applies `Nat.brecOn`, whose value applies `Nat.rec`, which csimp
+  replaces by `Nat.recCompiled`, so the traversal would not terminate. The pure path already
+  erases every definition through its kernel definition (`declInfo? := findConst?`); the fragment
+  test still excludes every definition with an `_unsafe_rec` companion, so in practice this
+  affects the `Meta` path only. The traversal's recursion test is unchanged: a kernel definition
+  is not recursive, except that the members of a mutual structural recursion share a block
+  (`ConstantInfo.all`), so they are erased as one λ□ fixpoint whose functions do not call each
+  other.
+- **Behaviour before:** `#erase ST.useAdd config {nat := .peano}` (`add 2 3`, with
+  `add n (m+1) := (add n m).succ`) writes `ST.add` as the fixpoint of `add._unsafe_rec`; there is
+  no `structural` option.
+- **Behaviour after:** with `config {nat := .peano, structural := .kernel}` it writes `ST.add` as
+  `λ x x₁. Nat.brecOn □ x₁ ST.add._f x` with `Nat.brecOn`, `ST.add._f` and the matcher inlined
+  by the `Meta` path; `Nat.brecOn` applies `Nat.recCompiled` (the csimp replacement of
+  `Nat.rec`, erased as before), or, with `csimp := false`, `Nat.rec`, erased by `visitRec`.
+  peregrine evaluates both to 5. Without the option, the output is the one before.
+- **Effect on emitted .ast (corpus):** byte-identical for all 710 files against the corpus of
+  S-40; `PANIC` counts unchanged. `scripts/pure-harness.sh` passes with its expected summary
+  unchanged (294 `#erase`, 223 in the fragment, 68 outside, 3 `collectDeps` errors; 204
+  identical, 15 differ; 8298 oracle calls, 14 differ, none fails). With `.kernel` as the default
+  (not committed), 45 of the 710 files differ: 24 benchmark `.ast` (the programs that use
+  structural recursion on lists or trees: `binarytrees`, `const_fold`, `deriv`,
+  `list_sum_foldl`, `list_sum_rev`, `qsort`, `qsort_fin`, the four `rbmap_*`, `triangle_foldl`,
+  with and without pruning), 15 example `.ast` and 6 of their `.inlinings` (which gain
+  `Unit.unit`, an `@[inline]` constant that the inlined matchers of the kernel definitions apply,
+  or list it in another order).
+  The changed benchmark files keep the same λ□ axioms and peregrine validates them (after writing
+  their primitive integers as numbers, R-1); they grow by 9% (`deriv`) to 71% (`list_sum_foldl`). Of the 15 example files,
+  `Defects/collide.ast` fails to validate before and after (R-3), and the 14 others validate and
+  evaluate to the same values before and after, except `NearMiss/NM_church3.peano.ast`, whose
+  value is a function: peregrine prints different closures, and its application
+  (`NM_R_church3.peano.ast`) evaluates to 3 both times.
+- **Regression test:** `structural` checks which declaration `declInfoCore` takes: the kernel
+  definition for `ST.add` and the mutual `ST.isOd` under `.kernel` and `nat := .peano`, the
+  `_unsafe_rec` definition for `ST.add` by default and under `nat := .machine`, for `ST.wfHalf`
+  (well-founded recursion), `ST.loop` (`partial`), `ST.Tree.size` (a nested inductive) and
+  `Nat.recCompiled` (a csimp replacement; its kernel definition with `csimp := false`); that the
+  fragment test still excludes `ST.useAdd`; and pins, under `nat := .peano`, the `#erase` outputs
+  (the `Meta` path) of `add 2 3` (with `.kernel`, by default, and with `.kernel` without
+  `csimp`), `List.length`, the second element of a `List.map`, the mutual `isEv 3`, a recursion two
+  constructors deep and a recursion with a `Prop` argument, which peregrine validates and
+  evaluates to 5, 5, 5, 3, `ST.B.t`, `false`, 2 and `ST.B.t`. Before this commit the option does
+  not exist and the test does not elaborate. `scripts/regress.sh` passes (25 tests), with and
+  without `PEREGRINE`.
+
 ---
 
 ## Reported, not fixed
