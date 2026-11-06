@@ -2,7 +2,7 @@ Defects/and_elim.ast: pure ok; Meta ok; outputs differ; #erase = pure; oracle 72
   oracle: casesInfo? And.casesOn | pure none | Meta some And arity 5 discr 3 motive 2 alts [4, 5) [And.intro/2]
 Defects/biglit.ast: out of the fragment: Nat literal under nat := .machine
 Defects/collide.ast: out of the fragment: recursive definition Nat.add
-Defects/eq_cast.ast: out of the fragment: recursor Eq.rec
+Defects/eq_cast.ast: pure ok; Meta ok; outputs identical; #erase = pure and Meta; oracle 36 calls, 0 differ
 Defects/implemented_by.ast: out of the fragment: Defects.fastId has an implemented_by target
 Defects/index_field.ast: out of the fragment: Defects.Foo.casesOn on a constructor with an index field
 Defects/irreducible_alias.ast: pure ok; Meta ok; outputs differ; #erase = pure; oracle 27 calls, 1 differ
@@ -254,7 +254,7 @@ PortProbe/predOr0.default.ast: out of the fragment: Nat literal under nat := .ma
 PortProbe/predOr0.peano.ast: out of the fragment: recursive definition Nat.bitwise
 PortProbe/predOr0.prune.ast: out of the fragment: Nat literal under nat := .machine
 PortProbe/ptEqN.default.ast: out of the fragment: Nat literal under nat := .machine
-PortProbe/ptEqN.peano.ast: out of the fragment: recursor Bool.rec
+PortProbe/ptEqN.peano.ast: out of the fragment: recursive definition Nat.beq
 PortProbe/ptEqN.prune.ast: out of the fragment: Nat literal under nat := .machine
 PortProbe/secondN.default.ast: out of the fragment: Nat literal under nat := .machine
 PortProbe/secondN.peano.ast: out of the fragment: recursive definition Nat.bitwise
@@ -306,6 +306,6 @@ UnsafeRec/ufOne.default.ast: out of the fragment: unsafe or partial URec.uf
 UnsafeRec/ufOne.peano.ast: out of the fragment: unsafe or partial URec.uf
 UnsafeRec/ugOne.default.ast: out of the fragment: unsafe or partial URec.ug
 UnsafeRec/ugOne.peano.ast: out of the fragment: unsafe or partial URec.ug
-totals: 294 #erase, 223 in the fragment, 68 out of the fragment, 3 collectDeps errors
-in the fragment: 204 identical, 15 differ, 4 without Meta output, 0 without pure output
-oracle: 8298 calls, 14 differ from Meta, 0 failures of the pure oracle
+totals: 294 #erase, 224 in the fragment, 67 out of the fragment, 3 collectDeps errors
+in the fragment: 205 identical, 15 differ, 4 without Meta output, 0 without pure output
+oracle: 8334 calls, 14 differ from Meta, 0 failures of the pure oracle
