@@ -125,6 +125,7 @@ targets = ["EraseProof"]
 "Metalean.Syntax.Eq" = 'The inductive block of \code{Eq} that the quotient constants require (\code{Eq.block}).'
 "Metalean.Typing.Quot" = 'The types of the quotient constants are types (\code{Quot.motiveType\_isType}, \code{Quot.compatType\_isType}).'
 "Metalean.Typing.Telescope" = 'Well-formed telescopes (\code{TeleWF}) and their appending to a context.'
+"Metalean.Typing.ProofFields" = 'Proofs under telescopes: a $\Pi$ over a telescope into a proposition is a proposition (\code{Ctx.pi\_prop}).'
 
 # Links of the web version to the Lean sources (scripts/leanlinks.py; README, "Links to the Lean
 # sources"). `repository`: this repository, linked at the commit the site is built from

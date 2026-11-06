@@ -4,7 +4,7 @@
 \section*{At a glance}
 \begin{itemize}
 \item \lead{Source} \code{doc/SHIPPING-CHANGES.md}, rendered by \code{blueprint/scripts/render\_registers.py}; every section below is the register's own text.
-\item \lead{Changes} 37 entries, one commit each, subject \code{shipping(S-<n>): ...}.
+\item \lead{Changes} 38 entries, one commit each, subject \code{shipping(S-<n>): ...}.
 \item \lead{Reported, not fixed} 28 entries.
 \end{itemize}
 
@@ -56,6 +56,7 @@ Entry & Title \\
 \ref{reg:S-35} & The fragment test is documented and tested to exclude inductives whose type is not an arity \\
 \ref{reg:S-36} & The pure oracle types projections only of large-eliminating inductives \\
 \ref{reg:S-37} & The pure path recognizes a \texttt{casesOn} only if its declared type is a syntactic telescope \\
+\ref{reg:S-38} & \texttt{Quot.mk} and \texttt{Quot.lift} are erased as the code generator erases them, on both paths \\
 \bottomrule
 \end{tabular}
 
@@ -1301,6 +1302,24 @@ Before this commit the test does not elaborate (\leandecl{Erasure.casesInfo?} do
 \item \textbf{Regression test:} \texttt{cases\_\allowbreak{}type} checks the pure recognizer and \texttt{getCasesInfo?} on the two \texttt{casesOn} above, on one with the plain type (pure \texttt{some}) and on the \texttt{casesOn} of an elaborated inductive (both \texttt{some}); that \texttt{\#erase} routes the two to the \texttt{Meta} path; and that \texttt{useD}, whose closure applies an elaborated \texttt{casesOn} to its motive only, takes the pure path, and pins its \texttt{\#erase} output (\texttt{useD.ast}), which peregrine validates and evaluates to \texttt{CT.D.f}. Before this commit the pure recognizer answers \texttt{some} on the two and routes them to the pure path, so four checks fail. \texttt{scripts/\allowbreak{}regress.sh} passes (22 tests), with and without \texttt{PEREGRINE}.
 \end{itemize}
 
+\section{\texorpdfstring{S-38: \texttt{Quot.mk} and \texttt{Quot.lift} are erased as the code generator erases them, on both paths}{S-38: Quot.mk and Quot.lift are erased as the code generator erases them, on both paths}}\label{reg:S-38}
+
+\begin{itemize}
+\item \textbf{Commit:} the commit whose subject starts with \texttt{S-38:} (\texttt{git log -{}-grep='\textasciicircum{}S-38:'}).
+\item \textbf{Files and functions:}
+
+\begin{itemize}
+\item \leanfile{LeanToLambdaBox/\allowbreak{}Erasure.lean}: \texttt{visitConstApp} erases an application of \texttt{Quot.mk} (a \texttt{quotInfo} of kind \texttt{ctor}) to its third argument and one of \texttt{Quot.lift} (kind \texttt{lift}) to its fourth argument applied to its sixth, each \ensuremath{\eta}-expanded to its arity (3, 6) with \texttt{withAppEtaToMinArity} and applied to the arguments beyond it; its docstring.
+\item new \leanfile{tests/\allowbreak{}regress/\allowbreak{}quotient.lean} with its goldens.
+\item \texttt{doc/\allowbreak{}SHIPPING-CHANGES.md}: this entry; R-9 and R-21 no longer cite the \texttt{Quot} primitives.
+\end{itemize}
+\item \textbf{Why necessary:} the verification covers quotients, which Metalean supports (\texttt{quot*} constants with the reduction \texttt{quotIota}), but the eraser emitted \texttt{Quot.mk} and \texttt{Quot.lift} as \ensuremath{\lambda}\ensuremath{\Box} axioms (\texttt{visitMutual}: no value), so a program that computes through a quotient had no evaluable erasure. Lean's code generator represents a quotient by its elements: \texttt{Quot.mk \_\allowbreak{} \_\allowbreak{} a} is \texttt{a} and \texttt{Quot.lift \_\allowbreak{} \_\allowbreak{} \_\allowbreak{} f \_\allowbreak{} q} is \texttt{f q} (\texttt{visitQuotLift} in \leanfile{Lean/\allowbreak{}Compiler/\allowbreak{}LCNF/\allowbreak{}ToLCNF.lean} applies \texttt{f} to \texttt{Quot.lcInv q}, and \texttt{ToMono.lean} erases \texttt{Quot.mk} and \texttt{Quot.lcInv} to their argument); this is sound for \ensuremath{\lambda}\ensuremath{\Box}, since \texttt{Quot.lift f h (Quot.mk r a)} reduces to \texttt{f a} (Lean's quotient \ensuremath{\iota}-rule) and \ensuremath{\lambda}\ensuremath{\Box} has no types. \texttt{Quot} is a type former and \texttt{Quot.ind} gives a proof, so the erasability test already erases both to \ensuremath{\Box} on both paths. The change is in the traversal that both paths share; the fragment test still excludes quotients, so in practice it affects the \texttt{Meta} path only.
+\item \textbf{Behaviour before:} \texttt{\#erase QT.useLift config \{nat := .peano\}} (\texttt{Quot.lift (fun b : B =\textgreater{} b) (fun \_\allowbreak{} \_\allowbreak{} e =\textgreater{} e) (Quot.mk r B.t)}, outside the fragment) writes \texttt{Quot.lift \ensuremath{\Box} \ensuremath{\Box} \ensuremath{\Box} (\ensuremath{\lambda} b. b) \ensuremath{\Box} (Quot.mk \ensuremath{\Box} \ensuremath{\Box} B.t)} with two \texttt{ConstantDecl None}, which peregrine validates but does not evaluate (\texttt{Axioms found ... .Quot.lift, .Quot.mk}).
+\item \textbf{Behaviour after:} it writes \texttt{(\ensuremath{\lambda} b. b) B.t}, which peregrine evaluates to \texttt{QT.B.t}. An under-applied \texttt{Quot.lift} (as in the value of \texttt{Quotient.lift}) is \ensuremath{\eta}-expanded; an over-applied one (into a function type) applies the result to the extra arguments.
+\item \textbf{Effect on emitted .ast (corpus):} against the corpus of S-37, 708 of 710 files are byte-identical; \texttt{examples/\allowbreak{}NearMiss/\allowbreak{}NM\_\allowbreak{}quotEx.\{peano,default\}.ast} differ: the program \texttt{Quot.lift \ensuremath{\Box} \ensuremath{\Box} \ensuremath{\Box} (\ensuremath{\lambda} n. n) \ensuremath{\Box} (Quot.mk \ensuremath{\Box} \ensuremath{\Box} NM.two)} with the axioms \texttt{Quot.lift} and \texttt{Quot.mk} becomes \texttt{(\ensuremath{\lambda} n. n) NM.two} without them; peregrine validates it and evaluates it to the Church numeral \texttt{two}. \texttt{PANIC} counts unchanged. \texttt{scripts/\allowbreak{}pure-harness.sh} passes with its expected summary unchanged (294 \texttt{\#erase}, 223 in the fragment, 68 outside, 3 \texttt{collectDeps} errors; 8298 oracle calls, 14 differ, none fails).
+\item \textbf{Regression test:} \texttt{quotient} checks, under \texttt{nat := .peano}, that the fragment test excludes \texttt{useLift}, \texttt{usePart} (\texttt{Quot.lift} applied to four arguments), \texttt{useOver} (\texttt{Quot.lift} into \texttt{B \ensuremath{\to} B}, applied to a seventh argument), \texttt{useQuotient} (\texttt{Quotient.lift} and \texttt{Quotient.mk}) and \texttt{indPf} (a proof by \texttt{Quot.ind}), and pins their \texttt{\#erase} outputs (the \texttt{Meta} path), which peregrine validates and evaluates to \texttt{QT.B.t}, \texttt{QT.B.f}, \texttt{QT.B.t}, \texttt{QT.B.f} and \ensuremath{\Box}. Before this commit the four data programs keep the axioms \texttt{Quot.lift} and \texttt{Quot.mk}, so their outputs differ and their evaluations fail. \texttt{scripts/\allowbreak{}regress.sh} passes (23 tests), with and without \texttt{PEREGRINE}.
+\end{itemize}
+
 \section{\texorpdfstring{Reported, not fixed}{Reported, not fixed}}\label{reg:reported-not-fixed}
 
 Each entry below was reproduced on this branch. Unless stated otherwise, the reproduction is an example in \leanfile{tests/\allowbreak{}corpus/\allowbreak{}Defects.lean} whose output lies in \texttt{examples/\allowbreak{}Defects/} of a corpus, and \texttt{peregrine} is \texttt{../\allowbreak{}peregrine-tool/\allowbreak{}\_\allowbreak{}build/\allowbreak{}default/\allowbreak{}bin/\allowbreak{}main.exe}.
@@ -1388,7 +1407,7 @@ Each entry below was reproduced on this branch. Unless stated otherwise, the rep
 \subsection{\texorpdfstring{R-9: Recursors and other constants without a value become axioms}{R-9: Recursors and other constants without a value become axioms}}\label{reg:R-9}
 
 \begin{itemize}
-\item \textbf{What:} a constant without a value (every recursor \texttt{T.rec}, the \texttt{Quot} primitives, Lean axioms) is emitted as \texttt{ConstantDecl None}. Casts along equalities (\texttt{h \ensuremath{\blacktriangleright} x}, matches on \texttt{rfl}) go through \texttt{Eq.rec}, well-founded recursion reaches \texttt{False.rec}, and noncomputable recursion reaches \texttt{T.rec}; none of them gets a \ensuremath{\lambda}\ensuremath{\Box} definition.
+\item \textbf{What:} a constant without a value (every recursor \texttt{T.rec}, Lean axioms) is emitted as \texttt{ConstantDecl None} (the \texttt{Quot} primitives are erased by S-38). Casts along equalities (\texttt{h \ensuremath{\blacktriangleright} x}, matches on \texttt{rfl}) go through \texttt{Eq.rec}, well-founded recursion reaches \texttt{False.rec}, and noncomputable recursion reaches \texttt{T.rec}; none of them gets a \ensuremath{\lambda}\ensuremath{\Box} definition.
 \item \textbf{Where:} \leanfile{LeanToLambdaBox/\allowbreak{}Erasure.lean}: \texttt{visitMutual} (the branch where \texttt{ci.value?} is \texttt{none}), \texttt{addAxiom}.
 \item \textbf{Reproduction:} \texttt{eq\_\allowbreak{}cast.ast} (\texttt{castTo Nat rfl 3}): \texttt{peregrine eval} fails with \texttt{Axioms found ... .Eq.rec}; \texttt{wf\_\allowbreak{}rec.ast} (\texttt{log2 8}, well-founded recursion): \texttt{Axioms found ... .False.rec}.
 \item \textbf{Impact:} such programs run only where the axioms are implemented outside \ensuremath{\lambda}\ensuremath{\Box}; the benchmark runtime implements \texttt{Eq.rec} only.
@@ -1515,7 +1534,7 @@ Each entry below was reproduced on this branch. Unless stated otherwise, the rep
 \subsection{\texorpdfstring{R-21: Axioms without an OCaml implementation fail only at link time}{R-21: Axioms without an OCaml implementation fail only at link time}}\label{reg:R-21}
 
 \begin{itemize}
-\item \textbf{What:} the eraser emits an axiom for every constant without a value and, under \texttt{extern := .preferAxiom}, for every \texttt{@[extern]} constant; the benchmark runtime implements a fixed set (\texttt{Nat}, \texttt{Int}, \texttt{Eq.rec}, \texttt{Decidable}, eight \texttt{Array} operations). Any other axiom (for instance \texttt{False.rec}, \texttt{Quot.lift}, \texttt{Array.pop}, \texttt{UInt32} operations) erases without error and fails when the OCaml program is linked.
+\item \textbf{What:} the eraser emits an axiom for every constant without a value and, under \texttt{extern := .preferAxiom}, for every \texttt{@[extern]} constant; the benchmark runtime implements a fixed set (\texttt{Nat}, \texttt{Int}, \texttt{Eq.rec}, \texttt{Decidable}, eight \texttt{Array} operations). Any other axiom (for instance \texttt{False.rec}, \texttt{Array.pop}, \texttt{UInt32} operations) erases without error and fails when the OCaml program is linked.
 \item \textbf{Where:} \leanfile{LeanToLambdaBox/\allowbreak{}Erasure.lean}: \texttt{visitMutual}, \texttt{addAxiom}; \texttt{benchmarks/\allowbreak{}via\_\allowbreak{}malfunction/\allowbreak{}axioms.ml}.
 \item \textbf{Reproduction:} \texttt{wf\_\allowbreak{}rec.ast} references the axiom \texttt{False.rec}; no file in \texttt{benchmarks/\allowbreak{}via\_\allowbreak{}malfunction/} defines \texttt{def\_\allowbreak{}\_\allowbreak{}False\_\allowbreak{}rec}.
 \item \textbf{Impact:} missing implementations are reported by the OCaml linker, not by the eraser.

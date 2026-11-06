@@ -7,13 +7,13 @@
   Chapter~\ref{chap:scope}.
 \item \lead{Status} \stProved{} the lemmas of the bridge (Chapter~\ref{chap:model}), the
   erasability lemmas but one, the soundness of the source semantics \code{SrcEval.defeq}, the
-  erasure relation's lemmas, \hl{the first milestone \code{erases\_correct}}, the lower bound
-  \code{collectDeps\_ok\_of} of the fragment hypothesis, the soundness of the pure oracle, the
-  closure, state and registration lemmas, the routing, frame and recursion lemmas of the
-  traversal, and the tests of Chapter~\ref{chap:tests}. Formalized: the statements of the final
-  theorem, its two milestones and the lower bound, as definitions pinned by
-  \code{proof/spec.pin}, with every definition they use. \stPlanned{} \hl{the final theorem
-  \code{erase\_correct}} and the second milestone \code{erasePure\_erases}.
+  erasure relation's lemmas, \hl{both milestones \code{erases\_correct} and
+  \code{erasePure\_erases}}, the lower bound \code{collectDeps\_ok\_of} of the fragment
+  hypothesis, the soundness of the pure oracle, the closure, state and registration lemmas, the
+  routing, frame, recursion and step lemmas of the traversal, and the tests of
+  Chapter~\ref{chap:tests}. Formalized: the statements of the final theorem, its two milestones
+  and the lower bound, as definitions pinned by \code{proof/spec.pin}, with every definition they
+  use. \stPlanned{} \hl{the final theorem \code{erase\_correct}}.
   \stShipping{} the eraser: the pure path on the fragment of Phase I and the \code{Meta} path on
   the rest.
 \item \lead{Progress} the table at the end of Section~\ref{sec:intro-kinds} counts, per chapter,
@@ -158,7 +158,8 @@ Block names & the defect names inductive blocks through Lean's escaping printer,
 \subsection{Review rounds of the statement}
 
 Four adversarial reviews tried to refute the statements: derive \code{False} from them, or find a
-typed input where one fails. The pinned statements exclude every counterexample found.
+typed input where one fails; the proof of M2 found two more counterexamples. The pinned statements
+exclude every counterexample found.
 
 \begin{tabular}{p{0.1\linewidth}p{0.82\linewidth}}
 \toprule
@@ -179,6 +180,9 @@ Round & Findings and their consequence in the statement \\
   syntactic telescope; the closure's lemma exported too little. Hence the opaque clause of
   \code{ProgEnv} (value translated and typed), entry S-37, and the fragment facts of
   \code{collectDeps\_spec} \\
+M2 & a literal read through another inductive's constructor named \code{Nat.zero}, and a
+  \code{Prop} block that eliminates into every sort through a field that is no Lean index field,
+  made M2 false. Hence the constructor bindings of \code{TrM.lit} and \code{IndBlock.indexVars} \\
 \bottomrule
 \end{tabular}
 

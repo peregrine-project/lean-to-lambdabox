@@ -24,7 +24,7 @@
   \lean{EraseProof.IsErasable, EraseProof.IsArity, EraseProof.ErasableS}
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-TrM}
-  \srcloc{proof/EraseProof/Spec.lean}{811}
+  \srcloc{proof/EraseProof/Spec.lean}{823}
   \lead{In short} A Metalean term is erasable when \hl{its type is an arity or a proposition}.
   \begin{itemize}
   \item \code{IsArity E $\Gamma$ T}: \code{T} equals, as a type, a $\Pi$-telescope ending in a
@@ -104,7 +104,7 @@ justifies each rule by a Metalean definitional equality.
     EraseProof.EvalEnv.unfold?, EraseProof.casesMajor, EraseProof.casesArity,
     EraseProof.specialArity}
   \leanok
-  \srcloc{proof/EraseProof/Spec.lean}{545}
+  \srcloc{proof/EraseProof/Spec.lean}{557}
   \uses{def:Erasure-EnvView, def:Erasure-casesInfo, def:Erasure-isRecursiveDecl,
     def:EraseProof-ConstsIn, def:Erasure-ErasureConfig}
   \lead{In short} What evaluation reads of the program: its declarations, the configuration's
@@ -126,7 +126,7 @@ justifies each rule by a Metalean definitional equality.
   \leanok
   \uses{def:Erasure-declExclusion, def:Erasure-Pure-instLevels, def:EraseProof-EvalEnv,
     def:EraseProof-ConstsIn}
-  \srcloc{proof/EraseProof/Spec.lean}{656}
+  \srcloc{proof/EraseProof/Spec.lean}{668}
   \lead{In short} Constants that evaluate to themselves: \hl{without $\delta$, arity- or
   proof-typed, or a theorem}.
   \begin{itemize}
@@ -144,7 +144,7 @@ justifies each rule by a Metalean definitional equality.
     EraseProof.ShortSpine}
   \leanok
   \uses{def:Erasure-Pure-instLevels, def:EraseProof-EvalEnv, def:EraseProof-ConstsIn}
-  \srcloc{proof/EraseProof/Spec.lean}{587}
+  \srcloc{proof/EraseProof/Spec.lean}{599}
   \lead{In short} \code{etaSpine? c us as}: a constructor or recognized \code{casesOn} spine with
   fewer arguments than its arity, \hl{as \code{fun xs => c as xs}} over the remaining
   $\Pi$-binders of its type, \code{as} unevaluated (DV-23).
@@ -163,7 +163,7 @@ justifies each rule by a Metalean definitional equality.
   \leanok
   \uses{def:Erasure-declExclusion, def:Erasure-Pure-instLevels, def:EraseProof-EvalEnv,
     def:EraseProof-EvalEnv-isAtom, def:EraseProof-EvalEnv-etaSpine, def:EraseProof-ConstsIn}
-  \srcloc{proof/EraseProof/Spec.lean}{728}
+  \srcloc{proof/EraseProof/Spec.lean}{740}
   \lead{In short} \code{SrcEval $\sigma$ e v}: the closed Lean term \code{e} \hl{evaluates to the
   value \code{v}}; constructor and \code{casesOn} spines evaluate as a whole.
   \begin{tabular}{p{0.2\linewidth}p{0.66\linewidth}}
@@ -329,7 +329,7 @@ justifies each rule by a Metalean definitional equality.
     def:EraseProof-ProgEnv, def:Erasure-declExclusion, def:Erasure-Pure-instLevels,
     def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-isAtom, def:EraseProof-EvalEnv-etaSpine,
     def:EraseProof-SrcEval, lem:EraseProof-SrcDefeq-sound_of, def:EraseProof-ConstsIn}
-  \srcloc{proof/EraseProof/Source/ProofSound.lean}{1188}
+  \srcloc{proof/EraseProof/Source/ProofSound.lean}{1208}
   \lead{In short} If \code{e} translates to a typed \code{t} and evaluates to \code{v}, then
   \code{v} translates to some \code{t'} \hl{definitionally equal to \code{t}} at the same type.
   \begin{itemize}
@@ -362,7 +362,7 @@ justifies each rule by a Metalean definitional equality.
   \uses{def:EraseProof-MBinding, def:EraseProof-TrM, def:EraseProof-ProgEnv,
     def:EraseProof-IsErasable, def:EraseProof-EvalEnv, def:EraseProof-SrcEval,
     def:EraseProof-ConstsIn}
-  \srcloc{proof/EraseProof/Source/ProofSound.lean}{1197}
+  \srcloc{proof/EraseProof/Source/ProofSound.lean}{1217}
   \lead{In short} \hl{Erasability is preserved by evaluation}, under \code{ProgEnv},
   \code{EnvWF E}, \code{SubEnv $\sigma$.decls P} and a typed translation of \code{e}.
   \lead{Reference} MetaRocq \code{Is\_type\_eval}.
@@ -381,7 +381,7 @@ justifies each rule by a Metalean definitional equality.
   \lean{EraseProof.ConstsIn, EraseProof.KernameInj, EraseProof.SubEnv, EraseProof.findDecl}
   \leanok
   \uses{def:toKername}
-  \srcloc{proof/EraseProof/Spec.lean}{473}
+  \srcloc{proof/EraseProof/Spec.lean}{485}
   \lead{In short} Predicates on declaration lists: \hl{a sublist of the program}, injective
   kernames.
   \begin{itemize}
@@ -403,7 +403,7 @@ justifies each rule by a Metalean definitional equality.
   \lean{EraseProof.DepClosed, EraseProof.FVarsIn}
   \leanok
   \uses{def:EraseProof-PhaseIDecl, def:EraseProof-ConstsIn}
-  \srcloc{proof/EraseProof/Spec.lean}{842}
+  \srcloc{proof/EraseProof/Spec.lean}{854}
   \lead{In short} \code{DepClosed decls}: \hl{the closure holds what the traversal and the
   recognizer read} of it.
   \begin{itemize}

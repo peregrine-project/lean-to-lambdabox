@@ -94,7 +94,7 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
     def:Erasure-erasePure, def:Erasure-eraseEntry, def:EraseProof-Test-NV1-P, def:LBTerm,
     def:toKername, def:GlobalDecl, def:ASTType, def:Erasure-ErasureConfig, def:Erasure-TravCtx,
     def:Erasure-EraseT, def:Erasure-erase}
-  \srcloc{proof/EraseProof/Test/NV1Run.lean}{381}
+  \srcloc{proof/EraseProof/Test/NV1Run.lean}{382}
   \lead{In short} \code{\#erase} takes the pure path on NV-1 and \hl{returns the program
   \code{p0}}: a block for \code{B}, \code{B.neg} as a $\lambda_\Box$ \code{case}, and the main term
   \code{B.neg B.f}.
@@ -132,7 +132,7 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
     EraseProof.Test.NV1.ordersB, EraseProof.Test.NV1.P1}
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-ProgEnv, def:EraseProof-Test-NV1-P}
-  \srcloc{proof/EraseProof/Test/NV1Model.lean}{594}
+  \srcloc{proof/EraseProof/Test/NV1Model.lean}{595}
   \lead{In short} The Metalean environment \code{E} of NV-1, built entry by entry
   (\code{E1}, \code{E2}, \code{E3}), and \hl{the name table \code{B}} that maps each Lean name of
   \code{P} to its Metalean head.
@@ -175,13 +175,14 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-TrLevel, def:EraseProof-SatTr, def:EraseProof-TrM,
     def:EraseProof-ProgEnv, def:EraseProof-Test-NV1-P, def:EraseProof-Test-NV1-E}
-  \srcloc{proof/EraseProof/Test/NV1Model.lean}{599}
+  \srcloc{proof/EraseProof/Test/NV1Model.lean}{600}
   \lead{In short} The hypotheses \hl{\code{henv}, \code{hwf}, \code{he} and \code{hty} of the
   final theorem hold on NV-1}.
   \begin{itemize}
   \item \code{henv}: \code{ProgEnv P \_ E B}, with the block's \code{IndBlock} clauses, among them
-        \code{minors}, \code{ctorType} and \code{recrType}, discharged by \code{rfl}, and distinct
-        universe parameters by \code{decide};
+        \code{minors}, \code{ctorType} and \code{recrType}, discharged by \code{rfl},
+        \code{indexVars} vacuous without indices, and distinct universe parameters by
+        \code{decide};
   \item \code{hwf}: \code{EnvWF E}; \code{he}: \code{TrM E B [] .nil [] e tE}; \code{hty}:
         \code{tE} is typed.
   \end{itemize}

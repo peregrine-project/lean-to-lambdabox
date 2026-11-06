@@ -67,7 +67,9 @@ projections of data structures & I & a $\lambda_\Box$ \code{proj}; Metalean's pr
 recursors \code{T.rec} & II & erased to a $\lambda_\Box$ fixpoint \\
 structural recursion (\code{brecOn}) & II & through the kernel value, behind a configuration
   flag; the default output is unchanged \\
-quotients & II & \code{Quot.mk} and \code{Quot.lift} erased as \code{LCNF} does \\
+quotients & II & \code{Quot.mk} and \code{Quot.lift} erased as \code{LCNF} does; the shipping
+  traversal does so (S-38), the fragment test excludes them, and no rule of the relation covers
+  them \\
 well-founded recursion & -- & the fragment test rejects it (an \code{\_unsafe\_rec} companion);
   its recursion reduces only through an opaque accessibility proof, so the source never evaluates
   it (DV-24) \\

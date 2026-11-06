@@ -9,8 +9,10 @@
   \code{erasePure\_erases} (M2).
 \item \lead{Status} the statements are formalized as definitions of type \code{Prop}, pinned by
   \code{proof/spec.pin} (check C12b); \stProved{} the simulation \code{erases\_correct} (M1) with
-  one case lemma per rule of \code{SrcEval}; \stPlanned{} \code{erasePure\_erases} (M2) and the
-  final theorem, which check C12 lists as unproved. The statement is the same in Phase I and
+  one case lemma per rule of \code{SrcEval}, and the soundness of the pure traversal
+  \code{erasePure\_erases} (M2) by induction on fuel over the step lemmas of
+  Section~\ref{sec:core-steps}; \stPlanned{} the final theorem, which check C12 lists as
+  unproved. The statement is the same in Phase I and
   Phase II.
 \item \lead{Nodes} \bpnodes{chap:final}
 \item \lead{Lean files} \leanfile{proof/EraseProof/Statements.lean},
@@ -27,7 +29,7 @@
   \lean{EraseProof.ViewAgrees}
   \leanok
   \uses{def:Erasure-EnvView}
-  \srcloc{proof/EraseProof/Spec.lean}{859}
+  \srcloc{proof/EraseProof/Spec.lean}{871}
   \lead{In short} \code{ViewAgrees view P}: \hl{the environment view of \code{\#erase} returns
   each declaration of \code{P} under its name}.
   \lead{Reference} \code{Sigma} $\sim$\code{\_ext X} (\code{abstract\_env\_ext\_rel}), a
@@ -77,7 +79,9 @@
   \uses{thm:EraseProof-erasePure_erases, thm:EraseProof-erases_correct,
     lem:EraseProof-eraseEntry_pure, lem:EraseProof-collectDeps_spec,
     lem:EraseProof-SrcEval-restrict, lem:EraseProof-Erases-extend, lem:EraseProof-SrcEval-defeq,
-    lem:EraseProof-Erases-closed, lem:EraseProof-Defeq-inst_tele, lem:EraseProof-Erases-inst}
+    lem:EraseProof-Erases-closed, lem:EraseProof-Defeq-inst_tele, lem:EraseProof-Erases-inst,
+    lem:EraseProof-TrM-det, lem:EraseProof-TrM-uninstantiateN,
+    lem:EraseProof-visitMutual_nonrecursive}
   \lead{Idea} Composition: \code{hfrag} puts the run on the pure path, \code{erasePure\_erases}
   makes its output an erasure, \code{erases\_correct} simulates the evaluation in the closure
   (whose fragment test gives \code{BlockNamesInj} and \code{ArityTypes}), and
@@ -434,9 +438,12 @@
 
 \begin{theorem}[M2: the pure traversal erases]
   \label{thm:EraseProof-erasePure_erases}
-  \lean{EraseProof.erasePure_erases}
-  \planned
-  \uses{def:EraseProof-erasePure_erases_statement}
+  \lean{EraseProof.erasePure_erases, EraseProof.erasePure_erases_of_case,
+    EraseProof.erasePure_erases_of_stepsB}
+  \leanok
+  \uses{def:EraseProof-Steps-StepsB, lem:EraseProof-StepsCasesCase-casesSat_case,
+    def:EraseProof-erasePure_erases_statement}
+  \srcloc{proof/EraseProof/Core/StepsCasesCase.lean}{1216}
   \lead{In short} When the pure traversal returns a program for a closure in the fragment,
   \hl{its main term erases the input} and its declarations erase the input's dependencies.
   \begin{itemize}
@@ -445,23 +452,35 @@
         \code{erasePure view cfg decls e = .ok (p, inl)};
   \item \lead{Then} $\exists$ \code{lenv tb}, \code{p = .untyped lenv (some tb)} $\wedge$
         \code{Erases E B lps (evalEnvOf view cfg decls) .nil [] e tb} $\wedge$
-        \code{ErasesDeps \ldots\ lenv tb} $\wedge$ \code{LenvClosed lenv}.
+        \code{ErasesDeps \ldots\ lenv tb} $\wedge$ \code{LenvClosed lenv};
+  \item \code{erasePure\_erases\_of\_stepsB}, \code{erasePure\_erases\_of\_case}: the theorem
+        from \code{StepsB}, and from the \code{case} branch of \code{visitCases}.
   \end{itemize}
-  \lead{Reference} the erasure half of MetaRocq's \code{erase\_correct}.
+  \lead{Reference} the erasure half of MetaRocq's \code{erase\_correct}; \code{erases\_erase}.
 \end{theorem}
 \begin{proof}
-  \uses{lem:EraseProof-Pure-isErasable_sound, lem:EraseProof-Pure-typeLevel_sound,
-    lem:EraseProof-Pure-isErasable_atom, lem:EraseProof-SrcEval-defeq,
-    lem:EraseProof-collectDeps_sub, lem:EraseProof-collectDeps_spec,
-    lem:EraseProof-collectDeps_machineFree, lem:EraseProof-StateOK-register,
-    lem:EraseProof-register_inductive_ok, lem:EraseProof-visit_agree,
-    lem:EraseProof-visitMutual_nonrecursive, lem:EraseProof-Erases-inst,
-    lem:EraseProof-Erases-abstract, lem:EraseProof-ErasesDeps-eval, lem:EraseProof-ProgEnv-lookup,
-    lem:EraseProof-TrM-weakBV, lem:EraseProof-TrM-uninstantiateN, lem:EraseProof-TrM-det}
-  \lead{Idea} Induction on fuel over the traversal with the invariant \code{StateOK}.
-  \lead{Steps} the closure lemmas give the fragment facts; the registration lemmas keep
-  \code{StateOK}; \code{visit\_agree} moves a constant's value to the empty context; the oracle's
-  soundness justifies each $\Box$.
+  \uses{lem:EraseProof-Pure-whnf_sound, def:EraseProof-PhaseIDecl, lem:EraseProof-collectDeps_spec,
+    lem:EraseProof-collectDeps_machineFree, def:EraseProof-StateOK,
+    lem:EraseProof-StateOK-register, def:EraseProof-MachineFree, def:EraseProof-Steps-ExprSpec,
+    def:EraseProof-Steps-CoreEnv, def:EraseProof-Steps-NatPlain,
+    lem:EraseProof-Steps-visitMutual_step, lem:EraseProof-Steps-stepsB_ctor,
+    lem:EraseProof-Steps-stepsB_proj, lem:EraseProof-Steps-stepsB_lit,
+    lem:EraseProof-Steps-stepsB_cases_of_sat, lem:EraseProof-StepsCases-casesSatSpec_of_case,
+    lem:EraseProof-Steps-stepIH_of_stepsB, lem:EraseProof-Steps-coreEnv_of_collectDeps,
+    def:EraseProof-ViewAgrees, def:EraseProof-erases_correct_statement, def:EraseProof-MBinding,
+    def:EraseProof-TrM, def:EraseProof-ProgEnv, def:Erasure-EraseError, def:Erasure-EnvView,
+    def:Erasure-collectDeps, def:Erasure-casesInfo, def:Erasure-PureM, def:Erasure-isRecursiveDecl,
+    def:Erasure-erasePure, def:EraseProof-LBEval, def:EraseProof-Erases, def:EraseProof-ErasesDeps,
+    def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-isAtom, def:EraseProof-ConstsIn,
+    def:EraseProof-DepClosed, def:EraseProof-ClosedDecls, def:LBTerm, def:toKername,
+    def:GlobalDecl, def:ASTType, def:Erasure-ErasureConfig, def:Erasure-TravCtx,
+    def:Erasure-EraseT, def:Erasure-erase}
+  \leanok
+  \lead{Idea} Induction on fuel (\code{stepIH\_of\_stepsB}) over the closure facts
+  (\code{coreEnv\_of\_collectDeps}), applied in the empty context, from the empty state, with the
+  closure's names as the scope.
+  \lead{Steps} \code{StepsB} from the constructor, \code{casesOn}, projection and literal steps;
+  the \code{casesOn} step from its three branches.
 \end{proof}
 
 \section{Hypotheses}\label{sec:final-hypotheses}

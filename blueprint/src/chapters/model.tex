@@ -131,13 +131,18 @@ the bridge restates it rule by rule as a relation.
   \code{app}, \code{lam}, \code{forallE} & one rule each; \code{app} only for other heads \\
   \code{letE} & the body with the local denoting the value, as the translator inlines it \\
   \code{mdata} & dropped \\
-  \code{lit} & \code{natLitM} \\
+  \code{lit} & \code{natLitM}, when \code{B} binds \code{Nat.zero} and \code{Nat.succ} to the
+    constructors \code{0} and \code{1} of \code{Nat} \\
   \code{projStruct} & Metalean's \code{IsStructure.projTerm}, parameters chosen by typing the
     major (\code{TypedExt}) \\
   \code{projProof} & \code{projProofTerm}, for a proof of a one-constructor, index-free,
     non-recursive inductive that is not a structure; the major typed by \code{TypedExt} \\
   \bottomrule
   \end{tabular}
+  \lead{Why the literal's constructor bindings} Lean's kernel reads a literal through the names
+  \code{Nat.zero} and \code{Nat.succ}, and so does \code{visitLiteral}. Without them, a \code{Nat}
+  with constructors \code{Nat.z}, \code{Nat.s} beside another inductive's constructor named
+  \code{Nat.zero} erases \code{0} to that other constructor.
   \lead{Reference} \code{translateWith} of \leanfile{Metalean/Frontend/Translate.lean};
   lean4lean's \code{TrExprS}.
 \end{definition}
@@ -397,7 +402,7 @@ universe instantiation in place of lean4lean's.
     EraseProof.InstPre.wrapCase_shape, EraseProof.InstPre.vars_lift}
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-SatTr, def:EraseProof-TrM}
-  \srcloc{proof/EraseProof/Bridge/Inst.lean}{929}
+  \srcloc{proof/EraseProof/Bridge/Inst.lean}{930}
   \lead{In short} Instantiating a translated binder translates \hl{up to definitional equality}.
   \begin{itemize}
   \item \code{inst}: given \code{EnvWF E}, \code{E[$\Gamma$] $\vdash$ ok}, constructor field
@@ -471,7 +476,7 @@ universe instantiation in place of lean4lean's.
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-SatTr, def:EraseProof-TrM, def:Erasure-casesInfo,
     def:EraseProof-ConstsIn}
-  \srcloc{proof/EraseProof/Spec.lean}{485}
+  \srcloc{proof/EraseProof/Spec.lean}{497}
   \lead{In short} \code{ProgEnv P $\zeta$ E B}: the Lean declarations \code{P} (newest first) are
   \hl{those of the Metalean environment \code{E}}, named by \code{B}, as Metalean's loader builds
   it.
@@ -492,6 +497,8 @@ universe instantiation in place of lean4lean's.
         (\code{peelForalls}) a constructor's Lean type is \code{I.\{lps\} params indices};
   \item \code{IndBlock.recrType}: under its \code{recrEnd s} leading $\Pi$s a recursor's Lean type
         is \code{motive\_s indices major};
+  \item \code{IndBlock.indexVars}: \hl{a field that Metalean's block uses as an index variable is
+        a Lean index field} (\code{indexFields});
   \item \code{quot}: the four constants, with \code{Eq} bound as Metalean requires.
   \end{itemize}
   \lead{Why \code{minors}} the recognizer reads a minor's arity from the syntax of the recursor's
@@ -510,6 +517,10 @@ universe instantiation in place of lean4lean's.
   $\equiv$, which admits \code{I.mk : $\Pi$ (h : True), I True.intro} by proof irrelevance; the
   proof-irrelevant $\iota$ needs the parameters syntactically, as the kernel checks them
   (\code{is\_valid\_ind\_app}).
+  \lead{Why \code{indexVars}} Lean's kernel decides large elimination by the field's syntactic
+  occurrence among the result's arguments (\code{elim\_only\_at\_universe\_zero}), Metalean by
+  \code{targetIndices}. Without it, \code{I : Nat $\to$ Prop} with \code{mk (n : Nat) : I (id n)}
+  eliminates into every sort, and \code{visitCases} erases a match returning \code{n} to $\Box$.
   \lead{Why the recursor type shape} the oracle's type of a saturated recursor spine is then
   syntactically the motive's application, so its minors need no typing; the kernel generates
   exactly this type (\code{declare\_recursors}).
@@ -653,6 +664,8 @@ universe instantiation in place of lean4lean's.
     EraseProof.CasesWhred.casesOn_whred_core, EraseProof.CasesWhred.casesOn_whred_spine,
     EraseProof.CasesWhred.casesOnLit_whred_spine, EraseProof.CasesWhred.BlockAt,
     EraseProof.CasesWhred.BlockAt.there, EraseProof.CasesWhred.ProgEnv.block,
+    EraseProof.CasesWhred.ProgEnv.blockIdx, EraseProof.CasesWhred.IndexVarsAt,
+    EraseProof.CasesWhred.IndexVarsAt.there, EraseProof.CasesWhred.trM_lit_ctors,
     EraseProof.CasesWhred.FieldsPerm, EraseProof.CasesWhred.NotThere,
     EraseProof.CasesWhred.wk_eq_ind, EraseProof.CasesWhred.wk_eq_ctor,
     EraseProof.CasesWhred.name_recInfo, EraseProof.CasesWhred.name_ctorInfo,
@@ -675,7 +688,7 @@ universe instantiation in place of lean4lean's.
   \uses{def:EraseProof-MBinding, def:EraseProof-TrLevel, def:EraseProof-SatTr,
     def:EraseProof-natLitM, def:EraseProof-TrM, def:EraseProof-ProgEnv, def:Erasure-casesInfo,
     def:EraseProof-EvalEnv, def:EraseProof-SrcEval, def:EraseProof-ConstsIn}
-  \srcloc{proof/EraseProof/Bridge/CasesWhred.lean}{968}
+  \srcloc{proof/EraseProof/Bridge/CasesWhred.lean}{1011}
   \lead{In short} For a saturated recognized \code{T.casesOn} whose major is a constructor value,
   the translation \hl{reduces to a translation of the chosen alternative} applied to the fields.
   \begin{itemize}

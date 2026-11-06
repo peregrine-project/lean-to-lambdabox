@@ -367,7 +367,7 @@ on the others. The pure path uses structural copies of \code{Expr.instantiate1},
   \leanok
   \uses{def:LBTerm, def:abstract, def:toKername, def:ASTType, def:Erasure-EraseT,
     def:Erasure-isErasable, def:Erasure-prepareErasure}
-  \srcloc{LeanToLambdaBox/Erasure.lean}{1119}
+  \srcloc{LeanToLambdaBox/Erasure.lean}{1132}
   \lead{In short} Erases a term and its dependencies to a program by a
   \hl{fuel-bounded, generic traversal}; \code{erase} runs it with the \code{CoreM} backend.
   \begin{itemize}
@@ -377,6 +377,10 @@ on the others. The pure path uses structural copies of \code{Expr.instantiate1},
   \item \code{visitExpr}: an erasable term becomes $\Box$; otherwise one case per \code{Expr}
         constructor, through the mutually recursive functions of the traversal
         (\code{visitApp}, \code{visitConst}, \code{visitMutual}, and others);
+  \item \code{visitConstApp}: after the \code{casesOn} and constructor tests, \code{Quot.mk \_ \_ a}
+        erases to \code{a} and \code{Quot.lift \_ \_ \_ f \_ q} to \code{f q}, $\eta$-expanded to
+        arity 3 and 6, as Lean's code generator does (S-38); the fragment test excludes
+        quotients, so only the \code{Meta} path reaches these branches;
   \item \code{register\_inductive}: emits a block named by \code{mutualBlockKername},
         \code{propositional} iff the backend's \code{isPropFormerType} holds of the type (S-25);
   \item \code{visitCases}: a $\lambda_\Box$ \code{case}; on a one-constructor inductive whose
