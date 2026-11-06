@@ -51,6 +51,7 @@ tests/regress/expected/pure_inductive/nv3.ast         peano   -           constr
 tests/regress/expected/traversal_total/all.ast        peano   -           constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.zero
 tests/regress/expected/traversal_locals/all.ast       peano   -           constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.zero
 tests/regress/expected/quotient/useLift.ast           peano   -           constr QT.B.t
+tests/regress/expected/quotient/useLift.meta.ast      peano   -           constr QT.B.t
 tests/regress/expected/quotient/usePart.ast           peano   -           constr QT.B.f
 tests/regress/expected/quotient/useOver.ast           peano   -           constr QT.B.t
 tests/regress/expected/quotient/useQuotient.ast       peano   -           constr QT.B.f

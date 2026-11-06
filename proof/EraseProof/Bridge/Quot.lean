@@ -259,7 +259,7 @@ theorem ProgEnv.quot_levels (h : ProgEnv P ζ E B) {c : Name} {q : QuotVal}
       simp only [List.map_reverse, List.mem_reverse, List.mem_map] at hm
       obtain ⟨q', hq', heq⟩ := hm
       cases heq
-      obtain ⟨hB, -, t₀, -, ht₀, -⟩ := hq q hq'
+      obtain ⟨hB, ⟨-, t₀, -, ht₀, -⟩, -⟩ := hq q hq'
       have ht₀' : TrM _ _ q.levelParams .nil []
           (mkAppN (.const q.name (q.levelParams.map .param)) ([] : List Lean.Expr).toArray) t₀ :=
         ht₀
@@ -269,6 +269,117 @@ theorem ProgEnv.quot_levels (h : ProgEnv P ζ E B) {c : Name} {q : QuotVal}
       rw [hd] at hc
       simp only [Option.none_or] at hc
       exact ih hc
+
+/-- A quotient constant of the program is declared as Lean declares it (`QuotShape`). -/
+theorem ProgEnv.quot_shape (h : ProgEnv P ζ E B) {c : Name} {q : QuotVal}
+    (hc : findDecl P c = some (.quotInfo q)) : QuotShape q := by
+  induction h with
+  | nil => simp [findDecl] at hc
+  | @«axiom» _ _ _ _ v _ _ _ _ _ _ ih | @defn _ _ _ _ v _ _ _ _ _ _ _ _ _ ih
+  | @thm _ _ _ _ v _ _ _ _ _ _ _ _ ih | @«opaque» _ _ _ _ v _ _ _ _ _ _ _ _ _ _ ih =>
+    rw [findDecl_cons] at hc
+    split at hc
+    · cases hc
+    · exact ih hc
+  | @induct _ _ _ _ ι _ _ _ Is Cs Rs _ hP _ hfr _ hext hblk _ ih =>
+    rw [findDecl_append] at hc
+    cases hd : findDecl (IndBlock.decls Is Cs Rs) c with
+    | some ci =>
+      rw [hd] at hc
+      cases hc
+      obtain ⟨hm, -⟩ := findDecl_eq_some hd
+      rcases IndBlock.mem_decls hm with ⟨s, hs⟩ | ⟨s, k, hs⟩ | ⟨s, hs⟩ <;> cases hs
+    | none =>
+      rw [hd] at hc
+      simp only [Option.none_or] at hc
+      exact ih hc
+  | @quot _ _ _ _ _ qs _ hP _ _ hfr _ hext hq ih =>
+    rw [findDecl_append] at hc
+    cases hd : findDecl (qs.reverse.map ConstantInfo.quotInfo) c with
+    | some ci =>
+      obtain ⟨hm, -⟩ := findDecl_eq_some hd
+      rw [hd] at hc
+      cases hc
+      simp only [List.map_reverse, List.mem_reverse, List.mem_map] at hm
+      obtain ⟨q', hq', heq⟩ := hm
+      cases heq
+      exact (hq q hq').2.2
+    | none =>
+      rw [hd] at hc
+      simp only [Option.none_or] at hc
+      exact ih hc
+
+/-- The arguments of a typed image of a quotient spine are typed. Reference:
+`quot_formation_inv`, `quotMk_typed`, `quotLift_typed`, `quotInd_typed`
+(`ML Typing/Inversion.lean:477,624,634,650`). -/
+theorem satTr_quot_typed {lps : List Name} {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n}
+    {η : Metalean.Head ζ .quot} {k : Metalean.Export.QuotKind} {us : List Level}
+    {bs' : List (Metalean.Expr ζ lps.length n)} {t T : Metalean.Expr ζ lps.length n}
+    (hsat : SatTr E lps (.quot η k) us bs' t) (ht : E[Γ] ⊢ t : T) :
+    ∀ a ∈ bs', ∃ A, E[Γ] ⊢ a : A := by
+  cases hsat with
+  | quotEta => exact (InstPre.appList_inv ht).2
+  | quotType =>
+    obtain ⟨⟨F, hF⟩, hrest⟩ := InstPre.appList_inv ht
+    obtain ⟨hα, hr⟩ := hF.quot_formation_inv
+    intro x hx
+    simp only [List.cons_append, List.nil_append, List.mem_cons] at hx
+    rcases hx with rfl | rfl | hx
+    · exact ⟨_, hα⟩
+    · exact ⟨_, hr⟩
+    · exact hrest x hx
+  | quotMk =>
+    obtain ⟨⟨F, hF⟩, hrest⟩ := InstPre.appList_inv ht
+    obtain ⟨hα, hr, ha⟩ := hF.quotMk_typed
+    intro x hx
+    simp only [List.cons_append, List.nil_append, List.mem_cons] at hx
+    rcases hx with rfl | rfl | rfl | hx
+    · exact ⟨_, hα⟩
+    · exact ⟨_, hr⟩
+    · exact ⟨_, ha⟩
+    · exact hrest x hx
+  | quotLift =>
+    obtain ⟨⟨F, hF⟩, hrest⟩ := InstPre.appList_inv ht
+    obtain ⟨hα, hr, hβ, hf, ⟨_, hh⟩, ha⟩ := hF.quotLift_typed
+    intro x hx
+    simp only [List.cons_append, List.nil_append, List.mem_cons] at hx
+    rcases hx with rfl | rfl | rfl | rfl | rfl | rfl | hx
+    · exact ⟨_, hα⟩
+    · exact ⟨_, hr⟩
+    · exact ⟨_, hβ⟩
+    · exact ⟨_, hf⟩
+    · exact ⟨_, hh⟩
+    · exact ⟨_, ha⟩
+    · exact hrest x hx
+  | quotInd =>
+    obtain ⟨⟨F, hF⟩, hrest⟩ := InstPre.appList_inv ht
+    obtain ⟨hα, hr, hβ, ⟨_, hf⟩, ha⟩ := hF.quotInd_typed
+    intro x hx
+    simp only [List.cons_append, List.nil_append, List.mem_cons] at hx
+    rcases hx with rfl | rfl | rfl | rfl | rfl | hx
+    · exact ⟨_, hα⟩
+    · exact ⟨_, hr⟩
+    · exact ⟨_, hβ⟩
+    · exact ⟨_, hf⟩
+    · exact ⟨_, ha⟩
+    · exact hrest x hx
+
+/-- The arguments of a translated, typed spine headed by a quotient constant are translated and
+typed. -/
+theorem TrM.quot_args_typed {lps : List Name} {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n}
+    {Δ : MLCtx ζ lps.length n} {c : Name} {us : List Level} {as : List Lean.Expr}
+    {η : Metalean.Head ζ .quot} {k : Metalean.Export.QuotKind} {t : Metalean.Expr ζ lps.length n}
+    (hb : B c = some (.quot η k)) (he : TrM E B lps Γ Δ (mkAppN (.const c us) as.toArray) t)
+    (ht : ∃ T, E[Γ] ⊢ t : T) :
+    ∀ a ∈ as, ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A := by
+  obtain ⟨bs', hlen, htr, hsat⟩ := TrM.special_inv hb rfl he
+  obtain ⟨T, hT⟩ := ht
+  have hty := satTr_quot_typed hsat hT
+  intro a ha
+  obtain ⟨i, hai⟩ := List.mem_iff_getElem?.1 ha
+  have hi : i < bs'.length := by rw [← hlen]; exact (List.getElem?_eq_some_iff.1 hai).1
+  have hbi : bs'[i]? = some bs'[i] := List.getElem?_eq_getElem hi
+  exact ⟨_, htr i a _ hai hbi, hty _ (List.mem_of_getElem? hbi)⟩
 
 /-- Splitting the last element off a list that extends a shorter prefix. -/
 theorem split_last {α : Type} {bs pre rest : List α} {a : α} (h : bs ++ [a] = pre ++ rest)

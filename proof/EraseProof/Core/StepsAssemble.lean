@@ -1,5 +1,6 @@
 import EraseProof.Core.StepsB
 import EraseProof.Core.StepsCtor
+import EraseProof.Core.StepsQuot
 import EraseProof.Core.StepsCasesBox
 
 /-!
@@ -175,13 +176,13 @@ end
 end StepsCases
 
 /-- The pure traversal's correctness (`erasePure_erases_statement`), given the `case` branch of
-`visitCases` (`StepsCases.CasesCaseSpec`): the constructor, projection and literal steps, and the
+`visitCases` (`StepsCases.CasesCaseSpec`): the constructor, quotient, projection and literal steps, and the
 `casesOn` step from `visitCases`'s dispatch (`StepsCases.casesSatSpec_of_case`). Reference:
 `erases_erase` (`MR E/ErasureFunction.v:1228`). -/
 theorem erasePure_erases_of_case (h : StepsCases.CasesCaseSpec) : erasePure_erases_statement :=
   erasePure_erases_of_stepsB
     ⟨Steps.stepsB_ctor,
       Steps.stepsB_cases_of_sat fun hG ih hci => StepsCases.casesSatSpec_of_case h hG ih hci,
-      Steps.stepsB_proj, Steps.stepsB_lit⟩
+      Steps.stepsB_quot, Steps.stepsB_proj, Steps.stepsB_lit⟩
 
 end EraseProof

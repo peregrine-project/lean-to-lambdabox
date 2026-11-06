@@ -14,7 +14,6 @@ EraseProof.Test.runPure_withReader propext,Classical.choice,Quot.sound
 EraseProof.Test.toArray_toSubarray propext,Classical.choice,Quot.sound
 EraseProof.Test.withApp_app1 propext
 EraseProof.Test.withApp_const propext
-EraseProof.TypeEq.ind_ne_quot propext,Classical.choice,Quot.sound
 EraseProof.Test.LBEval.deterministic propext
 EraseProof.Test.LBEval.forall₂_det -
 EraseProof.Test.LBEval.lbAtom_construct propext

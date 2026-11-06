@@ -757,14 +757,32 @@ theorem visitConstructor_spec (hG : CoreEnv E B P decls view cfg) {j : Nat}
     visitConstructor_core hG ih hctx hsc hargs hc hlen hnat hok hrun
   exact ⟨.ctor hc hnprop hiid hlen hlen' hers, hdeps, hgr, hcl⟩
 
-/-- The η-expansion loop of `withAppEtaToMinArity` on a constructor spine `c.{us} as` whose type
-`T` has `m` leading `Π`s left before the constructor's arity: the result erases the η-expansion
-`lamsOf m T (etaBody c us as m)`, under binders named as `T`'s (`EvalEnv.etaSpine?`), and is
-closed. Reference: none (MetaRocq η-expands in λ□, `MR E/EEtaExpanded.v`; DV-23). -/
-theorem etaGo_spec (hG : CoreEnv E B P decls view cfg) {g : Nat}
-    (ih : StepIH E B view cfg decls g) {c : Name} {us : List Level} {cv : ConstructorVal}
-    (hc : findDecl decls c = some (.ctorInfo cv)) (hnprop : ¬ PropInductive E B cv.induct)
-    (hnat : cfg.nat = .machine → c ≠ ``Nat.zero ∧ c ≠ ``Nat.succ) :
+/-- What the continuation `kont` of `withAppEtaToMinArity` at the arity `ar` does on the head
+`c.{us}` and at least `ar` translated, typed arguments: a successful run erases the spine, with
+erased dependencies, `Grows` within the scope, and returns a closed term. -/
+def SatSpec (E : Metalean.Env ζ) (B : Binds ζ) (view : EnvView) (cfg : ErasureConfig)
+    (decls : List ConstantInfo) (ar : Nat) (c : Name) (us : List Level)
+    (kont : Expr → Array Expr → EraseT PureM LBTerm) : Prop :=
+  ∀ ⦃lps : List Name⦄ ⦃n : Nat⦄ ⦃Γ : Metalean.Ctx ζ lps.length 0 n⦄ ⦃Δ : MLCtx ζ lps.length n⦄
+    ⦃S : Name → Prop⦄ ⦃st st' : ErasureState⦄ ⦃tc : TravCtx⦄ ⦃ps ps' : PureState⦄ ⦃r : LBTerm⦄
+    ⦃as : List Expr⦄,
+    CtxOK E B lps Γ Δ cfg tc ps → ScopeOK decls S →
+    (∀ a ∈ as, (∀ d, nameOccurs d a = true → S d) ∧ MachineFree cfg a ∧
+      NatPlain cfg a ∧ RecFree decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A) →
+    ar ≤ as.length → StateOK E B (evalEnvOf view cfg decls) st →
+    (kont (.const c us) as.toArray).runPure st tc ⟨decls, view⟩ ps = .ok ((r, st'), ps') →
+    Erases E B lps (evalEnvOf view cfg decls) Γ Δ (mkAppN (.const c us) as.toArray) r ∧
+      ErasesDeps E B (evalEnvOf view cfg decls) st'.gdecls r ∧
+      Grows E B (evalEnvOf view cfg decls) S st st' ps ps' ∧ closedn 0 r = true
+
+/-- The η-expansion loop of `withAppEtaToMinArity` at the arity `ar` on a spine `c.{us} as` whose
+type `T` has `m` leading `Π`s left before the arity, given what the continuation does on a
+saturated spine (`SatSpec`): the result erases the η-expansion `lamsOf m T (etaBody c us as m)`,
+under binders named as `T`'s (`EvalEnv.etaSpine?`), and is closed. Reference: none (MetaRocq
+η-expands in λ□, `MR E/EEtaExpanded.v`; DV-23). -/
+theorem etaGo_spec (hG : CoreEnv E B P decls view cfg) {ar : Nat} {c : Name} {us : List Level}
+    {kont : Expr → Array Expr → EraseT PureM LBTerm}
+    (hk : SatSpec E B view cfg decls ar c us kont) :
     ∀ (m fuel : Nat) {lps : List Name} {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n}
       {Δ : MLCtx ζ lps.length n} {S : Name → Prop} {st st' : ErasureState} {tc : TravCtx}
       {ps ps' : PureState} {r : LBTerm} {T : Expr} {T' : Metalean.Expr ζ lps.length n}
@@ -772,12 +790,10 @@ theorem etaGo_spec (hG : CoreEnv E B P decls view cfg) {g : Nat}
       CtxOK E B lps Γ Δ cfg tc ps → ScopeOK decls S →
       (∀ a ∈ as, (∀ d, nameOccurs d a = true → S d) ∧ MachineFree cfg a ∧
         NatPlain cfg a ∧ RecFree decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A) →
-      (cv.numParams + cv.numFields = as.length + m ∨
-        (m = 0 ∧ cv.numParams + cv.numFields ≤ as.length)) →
+      (ar = as.length + m ∨ (m = 0 ∧ ar ≤ as.length)) →
       (∃ body, peelForalls m T = some body) → TrM E B lps Γ Δ T T' → E[Γ] ⊢ T' typ →
       StateOK E B (evalEnvOf view cfg decls) st →
-      (withAppEtaToMinArity.go (m := PureM) (cv.numParams + cv.numFields)
-        (fun _ args => visitConstructor (g + 1) c args) fuel T (.const c us) as.toArray).runPure
+      (withAppEtaToMinArity.go (m := PureM) ar kont fuel T (.const c us) as.toArray).runPure
         st tc ⟨decls, view⟩ ps = .ok ((r, st'), ps') →
       ∀ w, lamsOf m T (etaBody c us as m) = some w →
         Erases E B lps (evalEnvOf view cfg decls) Γ Δ w r ∧
@@ -790,12 +806,12 @@ theorem etaGo_spec (hG : CoreEnv E B P decls view cfg) {g : Nat}
     cases fuel with
     | zero => rw [withAppEtaToMinArity.go] at hrun; cases hrun
     | succ fuel =>
-    rw [withAppEtaToMinArity.go, if_pos (show as.toArray.size ≥ cv.numParams + cv.numFields by simp; omega)] at hrun
+    rw [withAppEtaToMinArity.go, if_pos (show as.toArray.size ≥ ar by simp; omega)] at hrun
     cases hw
     have hw : etaBody c us as 0 = mkAppN (.const c us) as.toArray := by
       simp [etaBody, liftLooseBVars'_zero]
     rw [hw]
-    exact visitConstructor_spec hG ih hctx hsc hargs hc (by omega) hnprop hnat hok hrun
+    exact hk hctx hsc hargs (by omega) hok hrun
   | succ m ihm =>
     intro fuel lps n Γ Δ S st st' tc ps ps' r T T' as hctx hsc hargs hlen hpk hT hT' hok hrun w hw
     cases fuel with
@@ -856,6 +872,79 @@ theorem etaGo_spec (hG : CoreEnv E B P decls view cfg) {g : Nat}
       .lambda (ErasesDeps.toBvar hdeps 0),
       ⟨hgr.inv, hgr.ext, Nat.le_trans (Nat.le_succ _) hgr.next, hgr.scope⟩,
       closedn_toBvar _ r₀ 0 hcl⟩
+
+/-- `withAppEtaToMinArity f e ar kont` at the pure backend, on a translated, typed spine `e` of
+`c.{us}` whose arity (`specialArity`) is `ar` and whose declared type is a `Π`-telescope of `ar`
+binders, given what `kont` does on a saturated spine (`SatSpec`): with fewer than `ar` arguments
+the result erases the η-expansion (`Erases.eta`, `EvalEnv.etaSpine?`), otherwise `kont`'s result
+erases `e`. Reference: none (MetaRocq η-expands in λ□, `MR E/EEtaExpanded.v`; DV-23). -/
+theorem withAppEta_spec (hG : CoreEnv E B P decls view cfg) {ar f : Nat} {c : Name}
+    {us : List Level} {ci : ConstantInfo} {body : Expr}
+    {kont : Expr → Array Expr → EraseT PureM LBTerm}
+    (hci : findDecl decls c = some ci) (hsa : specialArity (evalEnvOf view cfg decls) c = some ar)
+    (hpk : peelForalls ar ci.type = some body) (hk : SatSpec E B view cfg decls ar c us kont)
+    {lps : List Name} {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n}
+    {S : Name → Prop} {t : Metalean.Expr ζ lps.length n} {st st' : ErasureState} {tc : TravCtx}
+    {ps ps' : PureState} {r : LBTerm} {e : Expr} (hfn : e.getAppFn = .const c us)
+    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK decls S)
+    (hargs : ∀ a ∈ spineArgs e, (∀ d, nameOccurs d a = true → S d) ∧ MachineFree cfg a ∧
+      NatPlain cfg a ∧ RecFree decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A)
+    (hok : StateOK E B (evalEnvOf view cfg decls) st)
+    (he : TrM E B lps Γ Δ e t) (ht : ∃ T, E[Γ] ⊢ t : T)
+    (hrun : (withAppEtaToMinArity (m := PureM) f e ar kont).runPure st tc ⟨decls, view⟩ ps =
+      .ok ((r, st'), ps')) :
+    Erases E B lps (evalEnvOf view cfg decls) Γ Δ e r ∧
+      ErasesDeps E B (evalEnvOf view cfg decls) st'.gdecls r ∧
+      Grows E B (evalEnvOf view cfg decls) S st st' ps ps' := by
+  have hA : (e.withApp fun _ as => as) = (spineArgs e).toArray := by
+    rw [← withApp_toList e, Array.toArray_toList]
+  have hsp : mkAppN (.const c us) (spineArgs e).toArray = e := by rw [← hfn]; exact mkAppN_spine e
+  rw [withAppEtaToMinArity, runPure_read_bind, runPure_read_bind, runPure_bind,
+    inferType_runPure] at hrun
+  rcases hinf : Pure.inferType ⟨decls⟩ oracleFuel tc.locals [] e with err | T
+  · rw [hinf] at hrun; cases hrun
+  rw [hinf, show Except.map (fun T => ((T, st), ps)) (Except.ok T : Except EraseError Expr) =
+    Except.ok ((T, st), ps) from rfl, ok_bind'] at hrun
+  dsimp only at hrun
+  rw [withApp_eq, hfn, hA] at hrun
+  obtain ⟨T', hTT', htT'⟩ :=
+    Pure.inferType_sound hG.prog hG.wf hG.sub hctx.wf hctx.locals hctx.nobv he ht hinf
+  have hT'typ : E[Γ] ⊢ T' typ := htT'.regular
+  have hpkI := OracleInfer.peelForalls_instLevels ci.levelParams us _ _ _ hpk
+  have hfc : findConst decls c = some ci := hci
+  have hinf' := hinf
+  rw [← hsp] at hinf'
+  by_cases hlt : (spineArgs e).length < ar
+  · have hc'' : ∀ ci', findConst decls c = some ci' → us.length = ci'.levelParams.length →
+        peelForalls ar (Pure.instLevels ci'.levelParams us ci'.type) =
+          some (Pure.instLevels ci.levelParams us body) := by
+      intro ci' hci' _
+      rw [hfc] at hci'
+      cases hci'
+      exact hpkI
+    have hpT := OracleInfer.spine_type hc'' (spineArgs e) (by omega) hinf'
+    have hpiT := spine_piInst hfc hpkI (spineArgs e) (by omega) hinf'
+    obtain ⟨w, hw⟩ := lamsOf_some _ T (etaBody c us (spineArgs e) (ar - (spineArgs e).length)) hpT
+    obtain ⟨her, hdeps, hgr, -⟩ := etaGo_spec hG hk _ f hctx hsc hargs
+      (.inl (by omega)) ⟨_, hpT⟩ hTT' hT'typ hok hrun w hw
+    refine ⟨?_, hdeps, hgr⟩
+    have hη : (evalEnvOf view cfg decls).etaSpine? c us (spineArgs e) = some w := by
+      unfold EvalEnv.etaSpine?
+      rw [show findDecl (evalEnvOf view cfg decls).decls c = some ci from hci, hsa]
+      simp only [if_pos hlt]
+      rw [hpiT]
+      exact hw
+    rw [← hsp]
+    exact .eta hη her
+  · obtain ⟨her, hdeps, hgr, -⟩ := etaGo_spec hG hk 0 f hctx hsc hargs
+      (.inr ⟨rfl, by omega⟩) ⟨T, rfl⟩ hTT' hT'typ hok hrun _ rfl
+    refine ⟨?_, hdeps, hgr⟩
+    have hw : etaBody c us (spineArgs e) 0 = e := by
+      simp only [etaBody, liftLooseBVars'_zero, List.map_id', List.range_zero, List.reverse_nil,
+        List.map_nil, List.append_nil]
+      exact hsp
+    rw [hw] at her
+    exact her
 
 /-- The `proj` step (`StepsB.proj`): a projection the oracle keeps is a projection of a structure
 (the oracle types it only for a large-eliminating inductive, `OracleSound.infer_projProof_ne`),
@@ -1105,22 +1194,6 @@ theorem visitApp_ctor (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
         .ok ((some (cv.numParams + cv.numFields), st), ps) by
     show Except.ok ((ctorArity? decls c, st), ps) = _; rw [hca'], ok_bind'] at hrun
   dsimp only at hrun
-  rw [withAppEtaToMinArity, runPure_read_bind, runPure_read_bind, runPure_bind,
-    inferType_runPure] at hrun
-  rcases hinf : Pure.inferType ⟨decls⟩ oracleFuel tc.locals [] e with err | T
-  · rw [hinf] at hrun; cases hrun
-  rw [hinf, show Except.map (fun T => ((T, st), ps)) (Except.ok T : Except EraseError Expr) =
-    Except.ok ((T, st), ps) from rfl, ok_bind'] at hrun
-  dsimp only at hrun
-  rw [withApp_eq, hfn, hA] at hrun
-  cases f2 with
-  | zero => rw [withAppEtaToMinArity.go] at hrun; cases hrun
-  | succ g =>
-  have ihg : StepIH E B view cfg decls g :=
-    ⟨fun m hm => ih.expr m (by omega), fun m hm => ih.mutDecl m (by omega)⟩
-  obtain ⟨T', hTT', htT'⟩ :=
-    Pure.inferType_sound hG.prog hG.wf hG.sub hctx.wf hctx.locals hctx.nobv he ht hinf
-  have hT'typ : E[Γ] ⊢ T' typ := htT'.regular
   -- the declared type of the constructor has its arity of leading `Π`s
   obtain ⟨ι₀, ζ₀, E₀, B₀, η₀, lps₀, Is, Cs, Rs, orders, s₀, k₀, hblk, hcv, -⟩ :=
     SrcProof.ctor_mem_block hG.prog (findDecl_eq_some hcP).1
@@ -1128,42 +1201,15 @@ theorem visitApp_ctor (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
   obtain ⟨body, -, hpk, -⟩ := hblk.ctorType s₀ k₀
   obtain ⟨-, -, -, -, hnpar, -⟩ := hblk.ctor s₀ k₀
   rw [← hnpar] at hpk
-  have hpkI := OracleInfer.peelForalls_instLevels (Cs s₀ k₀).levelParams us _ _ _ hpk
-  have hfc : findConst decls c = some (.ctorInfo (Cs s₀ k₀)) := hc
-  have hinf' := hinf
-  rw [← hsp] at hinf'
-  by_cases hlt : (spineArgs e).length < (Cs s₀ k₀).numParams + (Cs s₀ k₀).numFields
-  · have hc'' : ∀ ci, findConst decls c = some ci → us.length = ci.levelParams.length →
-        peelForalls ((Cs s₀ k₀).numParams + (Cs s₀ k₀).numFields)
-          (Pure.instLevels ci.levelParams us ci.type) =
-            some (Pure.instLevels (Cs s₀ k₀).levelParams us body) := by
-      intro ci hci _
-      rw [hfc] at hci
-      cases hci
-      exact hpkI
-    have hpT := OracleInfer.spine_type hc'' (spineArgs e) (by omega) hinf'
-    have hpiT := spine_piInst hfc hpkI (spineArgs e) (by omega) hinf'
-    obtain ⟨w, hw⟩ := lamsOf_some _ T (etaBody c us (spineArgs e)
-      ((Cs s₀ k₀).numParams + (Cs s₀ k₀).numFields - (spineArgs e).length)) hpT
-    obtain ⟨her, hdeps, hgr, -⟩ := etaGo_spec hG ihg hc hnprop hnat _ (g + 1) hctx hsc hargs
-      (.inl (by omega)) ⟨_, hpT⟩ hTT' hT'typ hok hrun w hw
-    refine ⟨?_, hdeps, hgr⟩
-    have hη : (evalEnvOf view cfg decls).etaSpine? c us (spineArgs e) = some w := by
-      unfold EvalEnv.etaSpine?
-      simp only [evalEnvOf, hc, specialArity, if_pos hlt]
-      rw [hpiT]
-      exact hw
-    rw [← hsp]
-    exact .eta hη her
-  · obtain ⟨her, hdeps, hgr, -⟩ := etaGo_spec hG ihg hc hnprop hnat 0 (g + 1) hctx hsc hargs
-      (.inr ⟨rfl, by omega⟩) ⟨T, rfl⟩ hTT' hT'typ hok hrun _ rfl
-    refine ⟨?_, hdeps, hgr⟩
-    have hw : etaBody c us (spineArgs e) 0 = e := by
-      simp only [etaBody, liftLooseBVars'_zero, List.map_id', List.range_zero, List.reverse_nil,
-        List.map_nil, List.append_nil]
-      exact hsp
-    rw [hw] at her
-    exact her
+  refine withAppEta_spec hG hc (by simp [specialArity, evalEnvOf, hc]) hpk ?_ hfn hctx hsc hargs
+    hok he ht hrun
+  intro lps' n' Γ' Δ' S' st₁ st₁' tc' ps₁ ps₁' r' as' hctx' hsc' hargs' hlen' hok' hrun'
+  beta_reduce at hrun'
+  cases f2 with
+  | zero => rw [visitConstructor] at hrun'; cases hrun'
+  | succ g =>
+  exact visitConstructor_spec hG ⟨fun m hm => ih.expr m (by omega), fun m hm => ih.mutDecl m (by omega)⟩
+    hctx' hsc' hargs' hc hlen' hnprop hnat hok' hrun'
 
 /-- The `ctor` step (`StepsB.ctor`): an application or a constant whose head is a constructor and not
 a recognized `casesOn` constant, through `visitApp_ctor`. Reference: the `tConstruct` case of

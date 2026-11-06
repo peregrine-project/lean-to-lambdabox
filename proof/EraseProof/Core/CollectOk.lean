@@ -441,9 +441,8 @@ theorem dex {ci : ConstantInfo} (hci : ci ∈ decls) (hnr : ∀ R, ci ≠ .recIn
     declExclusion view cfg ci = .ok () := by
   have hph := hf.phase ci hci
   cases ci with
-  | quotInfo q => exact hph.elim
   | recInfo r => exact absurd rfl (hnr r)
-  | thmInfo t => rfl
+  | thmInfo _ | quotInfo _ => rfl
   | defnInfo d =>
     obtain ⟨h1, h2, h3⟩ := hph
     simp [declExclusion, h1, h2, h3]; rfl
@@ -593,7 +592,7 @@ theorem step {ci : ConstantInfo} (hci : ci ∈ decls) (hnr : ∀ R, ci ≠ .recI
       exact hf.covered_of_P ((hf.rcd hci).2.2.2.1 cv rfl)
         ((hf.kinds _ (hf.sub _ hci)).induct cv rfl)
   | axiomInfo a => exact ⟨ty, none, rfl, htyc, nofun, nofun⟩
-  | quotInfo q => exact (hf.phase _ hci).elim
+  | quotInfo q => exact ⟨ty, none, rfl, htyc, nofun, nofun⟩
 
 /-- `dropKnown` succeeds on covered names: it drops the names the accumulator has (none of them a
 recursor) and stops at one it does not have. -/
