@@ -60,8 +60,8 @@ and the shipping code (by default the modules `EraseProof` and `LeanToLambdaBox`
   (C7), so C7 checks reachability from the final theorem `erase_correct`, the statements and those
   roots (tests are roots by themselves); `unproved` is empty. `erase_correct` is a theorem whose
   footprint is exactly `propext`, `Classical.choice`, `Quot.sound`, as is that of each of its
-  instances on the non-vacuity programs NV-1, NV-P and NV-K (`finalInstances`:
-  `EraseProof.Test.NV1.final`, `NVP.final`, `NVK.final`), each of which applies `erase_correct` to
+  instances on the non-vacuity programs NV-1, NV-P, NV-K and NV-2 (`finalInstances`:
+  `EraseProof.Test.NV1.final`, `NVP.final`, `NVK.final`, `NV2.final`), each of which applies `erase_correct` to
   its program's eight hypothesis terms, theorems within the same three axioms. Skipped with `--no-final`.
 * C12b `pin`, always: the statement definitions and the definitions they are about are those of
   `spec.pin`. The pin of the statement definitions `pinRoots` is computed (`specPin`): for each
@@ -149,7 +149,7 @@ def finalTheorem : Name := `EraseProof.erase_correct
 /-- The instances of the final theorem on the non-vacuity programs, each with the terms of the
 hypotheses that it passes to the final theorem (C12). -/
 def finalInstances : Array (Name × Array Name) :=
-  #[`EraseProof.Test.NV1, `EraseProof.Test.NVP, `EraseProof.Test.NVK].map fun ns =>
+  #[`EraseProof.Test.NV1, `EraseProof.Test.NVP, `EraseProof.Test.NVK, `EraseProof.Test.NV2].map fun ns =>
     (ns ++ `final, #[`henv, `hwf, `hview, `he, `hty, `hfrag, `hrun, `hev].map (ns ++ ·))
 
 structure Config where

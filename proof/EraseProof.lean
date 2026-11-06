@@ -74,3 +74,6 @@ import EraseProof.Test.NV1Final
 import EraseProof.Test.NVPModel
 import EraseProof.Test.NVKModel
 import EraseProof.Test.NVPFinal
+import EraseProof.Test.NV2Model
+import EraseProof.Test.NV2Run
+import EraseProof.Test.NV2Final

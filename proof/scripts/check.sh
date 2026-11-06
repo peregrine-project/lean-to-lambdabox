@@ -41,21 +41,21 @@
 #                  C12, the final form: EraseProof.erase_correct is the only root of ROOTS.txt
 #                  with consumer FINAL (any other root waits for a consumer that has not landed),
 #                  every statement is proved, and erase_correct's footprint is exactly propext,
-#                  Classical.choice, Quot.sound, as is that of its instances on NV-1, NV-P and
-#                  NV-K, EraseProof.Test.{NV1,NVP,NVK}.final, whose hypothesis terms lie within
-#                  them (skipped with --no-final); C12b, always: the statement definitions and the library
+#                  Classical.choice, Quot.sound, as is that of its instances on NV-1, NV-P, NV-K
+#                  and NV-2, EraseProof.Test.{NV1,NVP,NVK,NV2}.final, whose hypothesis terms lie
+#                  within them (skipped with --no-final); C12b, always: the statement definitions and the library
 #                  definitions they reach (kind and flags included; the shipping code and the
 #                  dependencies by name only) have the SHA-256 digests of proof/spec.pin, every
 #                  pinned constant exists, and the toolchain and git dependency revisions of both
 #                  packages are the pinned ones. See the header of tools/Report.lean.
 #   nv1-emit  C11  the part of C11 that needs no peregrine: proof/tools/NVEmit.lean runs #erase's
-#                  entry point on NV-1's program and fails unless it emits exactly the program the
-#                  final instance is about. Runs once tools/NVEmit.lean exists; required by
+#                  entry point on NV-1's and NV-2's programs and fails unless it emits exactly the
+#                  programs the final instances are about. Runs once tools/NVEmit.lean exists; required by
 #                  the final form.
 #   regress   C10  the shipping regression tests, scripts/regress.sh (skipped with --no-regress);
 #                  with PEREGRINE set, also their `-- peregrine:` lines.
 #   peregrine C11  proof/scripts/c11.sh: `peregrine validate` and `peregrine eval` on NV-1's
-#                  program (from nv1-emit), on every output the regression tests write under
+#                  and NV-2's programs (from nv1-emit), on every output the regression tests write under
 #                  `nat := .peano`, and on their outputs for NV-1, NV-P and NV-K; each value must
 #                  be the Lean program's. Runs only with PEREGRINE=<peregrine binary> in the
 #                  environment, so GitHub CI skips it; skipped with --no-peregrine.
@@ -113,7 +113,7 @@ report() (
 )
 nv1_emit() {
   rm -rf "$LOG/nv1" && mkdir -p "$LOG/nv1" &&
-    ( cd "$PROOF" && lake env lean --run tools/NVEmit.lean "$LOG/nv1/NV1.ast" )
+    ( cd "$PROOF" && lake env lean --run tools/NVEmit.lean "$LOG/nv1/NV1.ast" "$LOG/nv1/NV2.ast" )
 }
 c11() { rm -rf "$LOG/c11" && "$PROOF/scripts/c11.sh" --out "$LOG/c11"; }
 
