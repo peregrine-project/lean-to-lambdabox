@@ -351,9 +351,13 @@ inductive TrM {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (lps : L
       TrM E B lps Γ Δ (.letE x T v b nd) (.letE T' v' b'.wk)
   /-- Metadata is dropped by the export. -/
   | mdata : TrM E B lps Γ Δ e t → TrM E B lps Γ Δ (.mdata d e) t
-  /-- Nat literals as unary constructor chains (`ML Checker/Fast/FExpr.lean:984`). -/
-  | lit {ηNat : Metalean.Head ζ (.inductive natSig)} :
-      B ``Nat = some (.ind ηNat 0) → TrM E B lps Γ Δ (.lit (.natVal k)) (natLitM ηNat k)
+  /-- Nat literals as unary constructor chains (`ML Checker/Fast/FExpr.lean:984`), of the
+  constructors that Lean's kernel names ``Nat.zero`` and ``Nat.succ`` when it reads a literal (the
+  `Nat` literal extension of the kernel). -/
+  | lit {ηNat : Metalean.Head ζ (.inductive natSig)} {o₀ o₁ : List Nat} :
+      B ``Nat = some (.ind ηNat 0) → B ``Nat.zero = some (.ctor ηNat 0 0 o₀) →
+      B ``Nat.succ = some (.ctor ηNat 0 1 o₁) →
+      TrM E B lps Γ Δ (.lit (.natVal k)) (natLitM ηNat k)
   /-- Projections of a structure (`project`, `ML Checker/Slow/Projection.lean:96-106`). -/
   | projStruct {ι : Metalean.IndSig} {η : Metalean.Head ζ (.inductive ι)} {s : Fin ι.nsorts}
       {c : Fin (ι.nctors s)} {ls : Fin ι.nlevels → Metalean.Level lps.length}
@@ -454,6 +458,14 @@ structure IndBlock {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) {ι
   minors : ∀ s t c, minorArity (Rs s).type
       (ι.nparams + ι.nsorts + ((List.ofFn fun t => ι.nctors t).take t.val).sum + c.val) =
     (ι.ctors t c).nfields + 2 * (ι.ctors t c).nrecFields
+  /-- A constructor field that Metalean's block uses as an index variable of the constructor's
+  result is, in the Lean constructor type, an index field (`indexFields`): Lean's kernel decides
+  large elimination by the syntactic occurrence of the field among the result's arguments
+  (`elim_only_at_universe_zero`, `src/kernel/inductive.cpp`), and Metalean's `SortLargeElim` by
+  `targetIndices` (`Ctor.Eligible`, `ML Syntax/Inductive/LargeElimination.lean:27`). -/
+  indexVars : ∀ s c, (∃ (i : Fin (ι.nindices s)) (f : Fin (ι.ctors s c).nfields),
+      (((E.get η).block.ctors s c).targetIndices i).isVar = some (ι.nparams + f.val)) →
+    (indexFields ι.nparams (Cs s c).type).any Option.isSome = true
 
 /-- The Lean declarations of a block, in the order `ProgEnv` adds them. -/
 def IndBlock.decls {ι : Metalean.IndSig} (Is : Fin ι.nsorts → InductiveVal)

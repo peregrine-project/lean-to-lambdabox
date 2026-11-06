@@ -280,9 +280,9 @@ theorem TrM.wkFrom {cut : Nat} {Γ₀ : Metalean.Ctx ζ lps.length 0 cut}
     rw [Metalean.Expr.wkFrom_letE Γ₁.le, Metalean.Expr.wk_wkFrom Γ₁.le]
     exact .letE (ih₁ W hΓ) (ih₂ W hΓ) (ih₃ (W.cons _) hΓ)
   | mdata _ ih => exact .mdata (ih W hΓ)
-  | lit hB =>
+  | lit hB h₀ h₁ =>
     rw [Metalean.Expr.wkFrom_eq_subst, natLitM_subst]
-    exact .lit hB
+    exact .lit hB h₀ h₁
   | projStruct hst hi hS _ hty ih =>
     subst hΓ
     rw [Metalean.Inductive.IsStructure.projTerm_wkFrom]

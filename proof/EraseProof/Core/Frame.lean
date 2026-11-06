@@ -1121,11 +1121,26 @@ theorem step_constApp {e : Expr} (he : Good S cfg e) (hn : NoThmHead pc.decls e)
       split
       · exact RA.withAppEtaToMinArity hD.closed he fun S' args hargs =>
           T.ctor hargs fun hm => (hhead.2 hm).1
-      · rw [h]
-        refine RA.bind (T.const ⟨fun v => hn declName us v h, ?_⟩) fun _ _ => T.appArgs hargs
-        cases hc : casesInfo? pc.decls declName
-        · rfl
-        · exact absurd hc (hci _)
+      · refine RA.bind (P := fun _ => True)
+          (fun _ _ _ _ _ _ _ _ => ⟨rfl, fun _ _ _ _ => trivial⟩) fun _ _ => ?_
+        split
+        · exact RA.withAppEtaToMinArity hD.closed he fun S' args hargs =>
+            RA.bind (RA.getOrFail _ _) fun a ha =>
+              RA.bind (T.expr (hargs a (Array.mem_of_getElem? ha))) fun _ _ =>
+                T.appArgs fun b hb => by
+                  obtain ⟨k, hk, rfl⟩ := Array.mem_extract_iff_getElem.1 hb
+                  exact hargs _ (Array.getElem_mem _)
+        · exact RA.withAppEtaToMinArity hD.closed he fun S' args hargs =>
+            RA.bind (RA.getOrFail _ _) fun a ha =>
+              RA.bind (T.expr (hargs a (Array.mem_of_getElem? ha))) fun _ _ =>
+                T.appArgs fun b hb => by
+                  obtain ⟨k, hk, rfl⟩ := Array.mem_extract_iff_getElem.1 hb
+                  exact hargs _ (Array.getElem_mem _)
+        · rw [h]
+          refine RA.bind (T.const ⟨fun v => hn declName us v h, ?_⟩) fun _ _ => T.appArgs hargs
+          cases hc : casesInfo? pc.decls declName
+          · rfl
+          · exact absurd hc (hci _)
   · exact RA.of_blind fun _ _ _ _ _ => rfl
 
 

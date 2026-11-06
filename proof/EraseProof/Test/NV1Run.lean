@@ -356,6 +356,7 @@ theorem e_run {n : Nat} {L : LocalContext}
   rw [visitConstApp, e, withApp_app1 _ _ _ rfl]
   refine bind_ok (a := none) (st' := st) (ps' := ⟨0⟩) (by krfl) ?_
   refine bind_ok (a := none) (st' := st) (ps' := ⟨0⟩) (by krfl) ?_
+  refine bind_ok (a := some (.defnInfo neg_def)) (st' := st) (ps' := ⟨0⟩) (by krfl) ?_
   apply bind_ok (visitConst_neg_run hc h)
   rw [visitAppArgs, ← Array.foldlM_toList]
   simp only [List.foldlM_cons, List.foldlM_nil]

@@ -69,7 +69,7 @@ body EraseProof.HasNatLit._f 328221469c80876200f55ef73bc2caa03c855795da8b15ac221
 body EraseProof.HasNatLit._sparseCasesOn_1 c1908fcce9b91aea7a8b6b322a94af525f9f9d1e9736fd7abb6e7127bf35d085
 body EraseProof.HasNatLit._sparseCasesOn_2 e689bdfb4c366f7aac9a346f1862cb65935fff0902822e0a5f9754635d7da85d
 body EraseProof.HasNatLit.match_1 2c240727d508f8a63cf9a5ef80601c264b96e14cc5b4a5fe4f54785bacaa699b
-body EraseProof.IndBlock 80f04422d57c5668281e3b0b52f2ebfd6f7c9cf4efe9a0a528ccb9a1f6aa88a3
+body EraseProof.IndBlock b2d0de72172b7c340dd627f5a5c0fbaf20dbae9b03fbf582036e93d8004b6bee
 body EraseProof.IndBlock.decls 042c1644a027265f48e2651cf35324ba28cfc314ec99ffe1a560de3eb0baa07d
 body EraseProof.IndIdOf c9a44675ded72773d05d81d67aa1a5ff10d9b8d5f18815dced44eb45c8922257
 body EraseProof.IsArity 891d554675da5b6777c59a3bf6e67d7ab9facd495741b63cc3cc8b3f98d38dc3
@@ -149,7 +149,7 @@ body EraseProof.TrLevel._f d48cf63ebc7ae535b390af76c1641f91fbe1a680d0782d1204af4
 body EraseProof.TrLevel.match_1 6812aaa5ad5bde6a553ad766b25d63fa4400a774ca6f52b2b07e9a6c4c2c138d
 body EraseProof.TrLevels aa886ff6854c2b4562b6256b237cb8b99679370df0262d784959e9d782673dd1
 body EraseProof.TrLevels._proof_2 c60b5283073bba0a263ff36a43c6a02347a469a3268191e5b372a122880b4e2d
-body EraseProof.TrM 06d5f2096a4b700c92dee028e76e3abb168b019e4a7d24eb8bcba61dfa901125
+body EraseProof.TrM d74e2b8d230ca0a832344a03bba322b53b193b6099909af929c6cb30c8d37c44
 body EraseProof.TypedExt 2c86fb7548f641b58c5262edb1dc0726f444c33bb8ef166aced8c3da2ea08bd2
 body EraseProof.ViewAgrees 9355d70ae7d3c51c1c04c447ac292888ca5d45c95829eace0e5b06bcbb555071
 body EraseProof.WcbvFlags f223d7014b401235e77e65cb59fc3a57be6005bfa2205aea0bc5c24df5d21d9d
@@ -529,6 +529,7 @@ name List.Nodup
 name List.Pairwise
 name List.Perm
 name List.all
+name List.any
 name List.below
 name List.brecOn
 name List.casesOn
@@ -564,6 +565,7 @@ name Metalean.ConstKind.axiom
 name Metalean.ConstKind.def
 name Metalean.ConstKind.opaque
 name Metalean.Ctor.ordinaryFieldExpr
+name Metalean.Ctor.targetIndices
 name Metalean.CtorSig
 name Metalean.CtorSig.caseOrdinary
 name Metalean.CtorSig.mk
@@ -603,6 +605,7 @@ name Metalean.Expr.const
 name Metalean.Expr.ctor
 name Metalean.Expr.forallE
 name Metalean.Expr.ind
+name Metalean.Expr.isVar
 name Metalean.Expr.lam
 name Metalean.Expr.letE
 name Metalean.Expr.prop

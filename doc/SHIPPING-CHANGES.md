@@ -2802,6 +2802,50 @@ the calls at which the two oracles answer differently. It must equal
   commit the pure recognizer answers `some` on the two and routes them to the pure path, so four
   checks fail. `scripts/regress.sh` passes (22 tests), with and without `PEREGRINE`.
 
+## S-38: `Quot.mk` and `Quot.lift` are erased as the code generator erases them, on both paths
+
+- **Commit:** the commit whose subject starts with `S-38:` (`git log --grep='^S-38:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure.lean`: `visitConstApp` erases an application of `Quot.mk` (a
+    `quotInfo` of kind `ctor`) to its third argument and one of `Quot.lift` (kind `lift`) to its
+    fourth argument applied to its sixth, each η-expanded to its arity (3, 6) with
+    `withAppEtaToMinArity` and applied to the arguments beyond it; its docstring.
+  - new `tests/regress/quotient.lean` with its goldens.
+  - `doc/SHIPPING-CHANGES.md`: this entry; R-9 and R-21 no longer cite the `Quot` primitives.
+- **Why necessary:** the verification covers quotients, which Metalean supports (`quot*`
+  constants with the reduction `quotIota`), but the eraser emitted `Quot.mk` and `Quot.lift` as
+  λ□ axioms (`visitMutual`: no value), so a program that computes through a quotient had no
+  evaluable erasure. Lean's code generator represents a quotient by its elements:
+  `Quot.mk _ _ a` is `a` and `Quot.lift _ _ _ f _ q` is `f q` (`visitQuotLift` in
+  `Lean/Compiler/LCNF/ToLCNF.lean` applies `f` to `Quot.lcInv q`, and `ToMono.lean` erases
+  `Quot.mk` and `Quot.lcInv` to their argument); this is sound for λ□, since
+  `Quot.lift f h (Quot.mk r a)` reduces to `f a` (Lean's quotient ι-rule) and λ□ has no types.
+  `Quot` is a type former and `Quot.ind` gives a proof, so the erasability test already erases
+  both to □ on both paths. The change is in the traversal that both paths share; the fragment
+  test still excludes quotients, so in practice it affects the `Meta` path only.
+- **Behaviour before:** `#erase QT.useLift config {nat := .peano}`
+  (`Quot.lift (fun b : B => b) (fun _ _ e => e) (Quot.mk r B.t)`, outside the fragment) writes
+  `Quot.lift □ □ □ (λ b. b) □ (Quot.mk □ □ B.t)` with two `ConstantDecl None`, which peregrine
+  validates but does not evaluate (`Axioms found ... .Quot.lift, .Quot.mk`).
+- **Behaviour after:** it writes `(λ b. b) B.t`, which peregrine evaluates to `QT.B.t`. An
+  under-applied `Quot.lift` (as in the value of `Quotient.lift`) is η-expanded; an over-applied
+  one (into a function type) applies the result to the extra arguments.
+- **Effect on emitted .ast (corpus):** against the corpus of S-37, 708 of 710 files are
+  byte-identical; `examples/NearMiss/NM_quotEx.{peano,default}.ast` differ: the program
+  `Quot.lift □ □ □ (λ n. n) □ (Quot.mk □ □ NM.two)` with the axioms `Quot.lift` and `Quot.mk`
+  becomes `(λ n. n) NM.two` without them; peregrine validates it and evaluates it to the Church
+  numeral `two`. `PANIC` counts unchanged. `scripts/pure-harness.sh` passes with its expected
+  summary unchanged (294 `#erase`, 223 in the fragment, 68 outside, 3 `collectDeps` errors; 8298
+  oracle calls, 14 differ, none fails).
+- **Regression test:** `quotient` checks, under `nat := .peano`, that the fragment test excludes
+  `useLift`, `usePart` (`Quot.lift` applied to four arguments), `useOver` (`Quot.lift` into
+  `B → B`, applied to a seventh argument), `useQuotient` (`Quotient.lift` and `Quotient.mk`) and
+  `indPf` (a proof by `Quot.ind`), and pins their `#erase` outputs (the `Meta` path), which
+  peregrine validates and evaluates to `QT.B.t`, `QT.B.f`, `QT.B.t`, `QT.B.f` and □. Before this
+  commit the four data programs keep the axioms `Quot.lift` and `Quot.mk`, so their outputs differ
+  and their evaluations fail. `scripts/regress.sh` passes (23 tests), with and without
+  `PEREGRINE`.
+
 ---
 
 ## Reported, not fixed
@@ -2930,10 +2974,10 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
 
 ### R-9: Recursors and other constants without a value become axioms
 
-- **What:** a constant without a value (every recursor `T.rec`, the `Quot` primitives, Lean
-  axioms) is emitted as `ConstantDecl None`. Casts along equalities (`h ▸ x`, matches on `rfl`) go
-  through `Eq.rec`, well-founded recursion reaches `False.rec`, and noncomputable recursion reaches
-  `T.rec`; none of them gets a λ□ definition.
+- **What:** a constant without a value (every recursor `T.rec`, Lean axioms) is emitted as
+  `ConstantDecl None` (the `Quot` primitives are erased by S-38). Casts along equalities (`h ▸ x`,
+  matches on `rfl`) go through `Eq.rec`, well-founded recursion reaches `False.rec`, and
+  noncomputable recursion reaches `T.rec`; none of them gets a λ□ definition.
 - **Where:** `LeanToLambdaBox/Erasure.lean`: `visitMutual` (the branch where `ci.value?` is
   `none`), `addAxiom`.
 - **Reproduction:** `eq_cast.ast` (`castTo Nat rfl 3`): `peregrine eval` fails with
@@ -3101,8 +3145,8 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
 - **What:** the eraser emits an axiom for every constant without a value and, under
   `extern := .preferAxiom`, for every `@[extern]` constant; the benchmark runtime implements a fixed
   set (`Nat`, `Int`, `Eq.rec`, `Decidable`, eight `Array` operations). Any other axiom (for instance
-  `False.rec`, `Quot.lift`, `Array.pop`, `UInt32` operations) erases without error and fails when
-  the OCaml program is linked.
+  `False.rec`, `Array.pop`, `UInt32` operations) erases without error and fails when the OCaml
+  program is linked.
 - **Where:** `LeanToLambdaBox/Erasure.lean`: `visitMutual`, `addAxiom`;
   `benchmarks/via_malfunction/axioms.ml`.
 - **Reproduction:** `wf_rec.ast` references the axiom `False.rec`; no file in

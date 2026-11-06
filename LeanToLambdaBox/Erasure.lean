@@ -773,6 +773,11 @@ mutual
   Special handling of
   - casesOn (will be eta-expanded)
   - constructors (will be eta-expanded)
+  - `Quot.mk α r a`, erased to `a`, and `Quot.lift α r β f h q`, erased to `f q` (both
+    η-expanded); a quotient is represented by its elements, as in the code generator
+    (`visitQuotLift` in `Lean/Compiler/LCNF/ToLCNF.lean` applies `f` to `Quot.lcInv q`, and
+    `ToMono.lean` erases `Quot.mk` and `Quot.lcInv` to their argument). `Quot` and `Quot.ind` are
+    erased as a type and a proof.
   -/
   def visitConstApp : Nat → Expr → EraseT m LBTerm
   | 0, _ => Backend.outOfFuel (m := m) "visitConstApp"
@@ -794,8 +799,16 @@ mutual
       so after β-reduction this becomes a primitive projection.
       Left these to be inlined by Malfunction.
       -/
-      else
-        visitAppArgs fuel (← visitConst fuel f) args
+      else match ← Backend.findConst? (m := m) declName with
+        | some (.quotInfo { kind := .ctor, .. }) =>
+          withAppEtaToMinArity fuel e 3 fun _ args => do
+            let a ← getOrFail args[2]? "visitConstApp: Quot.mk without its argument"
+            visitAppArgs fuel (← visitExpr fuel a) (args.extract 3)
+        | some (.quotInfo { kind := .lift, .. }) =>
+          withAppEtaToMinArity fuel e 6 fun _ args => do
+            let f ← getOrFail args[3]? "visitConstApp: Quot.lift without its function"
+            visitAppArgs fuel (← visitExpr fuel f) (args.extract 5)
+        | _ => visitAppArgs fuel (← visitConst fuel f) args
 
   def visitConstructor : Nat → Name → Array Expr → EraseT m LBTerm
   | 0, _, _ => Backend.outOfFuel (m := m) "visitConstructor"
