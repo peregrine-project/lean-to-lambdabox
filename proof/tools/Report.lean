@@ -59,9 +59,10 @@ and the shipping code (by default the modules `EraseProof` and `LeanToLambdaBox`
   `EraseProof.erase_correct FINAL`; every other line names a root whose consumer has not landed
   (C7), so C7 checks reachability from the final theorem `erase_correct`, the statements and those
   roots (tests are roots by themselves); `unproved` is empty. `erase_correct` is a theorem whose
-  footprint is exactly `propext`, `Classical.choice`, `Quot.sound`, as is that of its instance on
-  NV-1, `EraseProof.Test.NV1.final`, which applies `erase_correct` to NV-1's hypothesis terms
-  (`finalHypotheses`), theorems within the same three axioms. Skipped with `--no-final`.
+  footprint is exactly `propext`, `Classical.choice`, `Quot.sound`, as is that of each of its
+  instances on the non-vacuity programs NV-1, NV-P, NV-K and NV-2 (`finalInstances`:
+  `EraseProof.Test.NV1.final`, `NVP.final`, `NVK.final`, `NV2.final`), each of which applies `erase_correct` to
+  its program's eight hypothesis terms, theorems within the same three axioms. Skipped with `--no-final`.
 * C12b `pin`, always: the statement definitions and the definitions they are about are those of
   `spec.pin`. The pin of the statement definitions `pinRoots` is computed (`specPin`): for each
   root and every constant reached from it through types, values and constructors, a SHA-256 digest
@@ -147,15 +148,11 @@ def depPrefixes : Array Name := #[`Init, `Std, `Lean, `Mathlib, `Batteries, `Met
 (C12). -/
 def finalTheorem : Name := `EraseProof.erase_correct
 
-/-- The instance of the final theorem on NV-1 (C12). -/
-def finalInstance : Name := `EraseProof.Test.NV1.final
-
-/-- NV-1's terms for the hypotheses of the final theorem, which `finalInstance` passes to it
-(C12). -/
-def finalHypotheses : Array Name := #[
-  `EraseProof.Test.NV1.henv, `EraseProof.Test.NV1.hwf, `EraseProof.Test.NV1.hview,
-  `EraseProof.Test.NV1.he, `EraseProof.Test.NV1.hty, `EraseProof.Test.NV1.hfrag,
-  `EraseProof.Test.NV1.hrun, `EraseProof.Test.NV1.hev]
+/-- The instances of the final theorem on the non-vacuity programs, each with the terms of the
+hypotheses that it passes to the final theorem (C12). -/
+def finalInstances : Array (Name × Array Name) :=
+  #[`EraseProof.Test.NV1, `EraseProof.Test.NVP, `EraseProof.Test.NVK, `EraseProof.Test.NV2].map fun ns =>
+    (ns ++ `final, #[`henv, `hwf, `hview, `he, `hty, `hfrag, `hrun, `hev].map (ns ++ ·))
 
 structure Config where
   imports : Array Name := #[]
@@ -1068,18 +1065,19 @@ def main (args : List String) : IO UInt32 := do
       | some (.thmInfo _) => if isOurs env d then some (fpOf d) else none
       | _ => none
     let std3 := showList (allowedAxioms.map toString)
-    for d in #[finalTheorem, finalInstance] ++ finalHypotheses do
-      match theoremFp? d with
-      | none => fail "final" s!"{d} is not a theorem of {lib}"
-      | some fp =>
-        let exact := d == finalTheorem || d == finalInstance
-        if (exact && axiomsField fp != std3) || !fp.sorries.isEmpty ||
-            fp.axioms.toArray.any (!allowedAxioms.contains ·) then
-          fail "final" s!"{d}: footprint {axiomsField fp}, expected {if exact then "exactly" else "within"} {std3}"
-    if env.contains finalInstance then
-      let used := uses env finalInstance
-      for h in #[finalTheorem] ++ finalHypotheses do
-        if !used.contains h then fail "final" s!"{finalInstance} does not mention {h}"
+    for (inst, hyps) in finalInstances do
+      for d in #[finalTheorem, inst] ++ hyps do
+        match theoremFp? d with
+        | none => fail "final" s!"{d} is not a theorem of {lib}"
+        | some fp =>
+          let exact := d == finalTheorem || d == inst
+          if (exact && axiomsField fp != std3) || !fp.sorries.isEmpty ||
+              fp.axioms.toArray.any (!allowedAxioms.contains ·) then
+            fail "final" s!"{d}: footprint {axiomsField fp}, expected {if exact then "exactly" else "within"} {std3}"
+      if env.contains inst then
+        let used := uses env inst
+        for h in #[finalTheorem] ++ hyps do
+          if !used.contains h then fail "final" s!"{inst} does not mention {h}"
 
   -- C12b the pin of the statements.
   if !(← cfg.pin.pathExists) then

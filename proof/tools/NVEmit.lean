@@ -1,22 +1,25 @@
 import LeanToLambdaBox
 import EraseProof.Test.NV1Run
+import EraseProof.Test.NV2Run
 
 /-!
-# NV-1's emitted program, for check C11
+# NV-1's and NV-2's emitted programs, for check C11
 
-Run from `proof/` as `lake env lean --run tools/NVEmit.lean FILE`. It declares the non-vacuity
-instance NV-1 (`inductive B | f | t` and `B.neg`, `EraseProof.Test.NV1`) as the `inductive` command
-does (the kernel's inductive declaration, then `mkCasesOn`), checks that the environment's
-declarations are the written-out `EraseProof.Test.NV1.P` (every field; `B.neg`'s value up to
-binder names), runs `#erase`'s entry point `Erasure.eraseEntry` on `EraseProof.Test.NV1.e`
-(`B.neg B.f`) over that environment, and writes the program to `FILE` and its attributes to `FILE.inlinings`,
-printed as `#erase` prints them (`LeanToLambdaBox/Erasure/Command.lean`). It fails unless the
-printed program is byte-identical to the printing of `EraseProof.Test.NV1.p0`, the program that
-`EraseProof.Test.NV1.hrun` computes, and the list of constants to inline is empty, as `hrun`
-states. `proof/scripts/c11.sh` then runs `peregrine validate` and `peregrine eval` on `FILE`.
+Run from `proof/` as `lake env lean --run tools/NVEmit.lean FILE1 FILE2`. For each of the
+non-vacuity instances NV-1 (`inductive B | f | t` and `B.neg`, `EraseProof.Test.NV1`) and NV-2
+(`B`, `inductive T : Prop | i`, `inductive W | n | s (b : B) (h : T)`, `EraseProof.Test.NV2`), it
+declares the program as the `inductive` command does (the kernel's inductive declaration, then
+`mkCasesOn`), checks that the environment's declarations are the written-out `P` (every field; a
+definition's value up to binder names), runs `#erase`'s entry point `Erasure.eraseEntry` on the
+term `e` over that environment, and writes the program to `FILE1` (resp. `FILE2`) and its
+attributes to `FILE1.inlinings`, printed as `#erase` prints them
+(`LeanToLambdaBox/Erasure/Command.lean`). It fails unless the printed program is byte-identical to
+the printing of the instance's `p0`, the program that its `hrun` computes, and the list of
+constants to inline is empty, as `hrun` states. `proof/scripts/c11.sh` then runs
+`peregrine validate` and `peregrine eval` on both files.
 -/
 
-open Lean Elab Erasure EraseProof.Test.NV1
+open Lean Elab Erasure EraseProof.Test
 
 namespace EraseProofNVEmit
 
@@ -66,41 +69,60 @@ def sameDecl (ci ci' : ConstantInfo) : Bool :=
         r.ctor == s.ctor && r.nfields == s.nfields && r.rhs == s.rhs
   | _, _ => false
 
-def main (args : List String) : IO UInt32 := do
-  let [file] := args
-    | IO.eprintln "usage: lake env lean --run tools/NVEmit.lean FILE"; return 2
-  initSearchPath (← findSysroot)
+/-- Declare a program with `decl`, check its declarations against `P`, run `#erase`'s entry point
+on `e` and compare the printed program with `p0`; write it to `file`. -/
+def emit (name file : String) (decl : CoreM Unit) (P : List ConstantInfo) (e : Expr)
+    (p0 : Program) : IO UInt32 := do
   let env ← importModules #[{ module := `Init }] {}
   let run : CoreM (Program × List Kername) := do
-    -- `inductive B | f | t`: the kernel adds `B`, `B.f`, `B.t`, `B.rec`; `B.casesOn` as the
-    -- `inductive` command builds it; then `B.neg`.
-    addDecl (.inductDecl [] 0 [⟨`B, B_ind.type, [⟨`B.f, tB⟩, ⟨`B.t, tB⟩]⟩] false)
-    Meta.MetaM.run' (mkCasesOn `B)
-    addDecl (.defnDecl neg_def)
+    decl
     for ci in P do
       match (← getEnv).find? ci.name with
       | some ci' =>
         unless sameDecl ci ci' do throwError "the declaration {ci.name} differs from the kernel's"
       | none => throwError "{ci.name} is not declared"
     eraseEntry (EnvView.ofEnvironment (← getEnv)) {} e
-  let r ← (run.run' { fileName := "<NV-1>", fileMap := default } { env }).toBaseIO
+  let r ← (run.run' { fileName := s!"<{name}>", fileMap := default } { env }).toBaseIO
   let (p, inls) ← match r with
     | .ok r => pure r
     | .error err =>
-      IO.eprintln s!"NV-1: {← err.toMessageData.toString}"
+      IO.eprintln s!"{name}: {← err.toMessageData.toString}"
       return 1
   let s := printProgram p
   IO.FS.writeFile file s
   IO.FS.writeFile (file ++ ".inlinings") (printAttributes inls)
   let expected := printProgram p0
   if s != expected then
-    IO.eprintln s!"NV-1: #erase emits\n  {s}\nbut Test.NV1.p0 prints as\n  {expected}"
+    IO.eprintln s!"{name}: #erase emits\n  {s}\nbut its p0 prints as\n  {expected}"
     return 1
   if !inls.isEmpty then
-    IO.eprintln s!"NV-1: #erase asks to inline {inls.length} constant(s); Test.NV1.hrun says none"
+    IO.eprintln s!"{name}: #erase asks to inline {inls.length} constant(s); its hrun says none"
     return 1
-  IO.println s!"NV-1: #erase emits Test.NV1.p0: {s}"
+  IO.println s!"{name}: #erase emits its p0: {s}"
   return 0
+
+/-- `inductive B | f | t`. -/
+def declB : CoreM Unit := do
+  addDecl (.inductDecl [] 0 [⟨`B, NV1.B_ind.type, [⟨`B.f, NV1.tB⟩, ⟨`B.t, NV1.tB⟩]⟩] false)
+  Meta.MetaM.run' (mkCasesOn `B)
+
+def main (args : List String) : IO UInt32 := do
+  let [file1, file2] := args
+    | IO.eprintln "usage: lake env lean --run tools/NVEmit.lean FILE1 FILE2"; return 2
+  initSearchPath (← findSysroot)
+  -- NV-1: `B` (the kernel adds `B`, `B.f`, `B.t`, `B.rec`; `B.casesOn` as the `inductive`
+  -- command builds it), then `B.neg`.
+  let r1 ← emit "NV-1" file1 (do declB; addDecl (.defnDecl NV1.neg_def)) NV1.P NV1.e NV1.p0
+  -- NV-2: `B`, `T`, `W` and `W.casesOn`.
+  let r2 ← emit "NV-2" file2 (do
+      declB
+      addDecl (.inductDecl [] 0 [⟨`T, NV2.T_ind.type, [⟨`T.i, NV2.tT⟩]⟩] false)
+      Meta.MetaM.run' (mkCasesOn `T)
+      addDecl (.inductDecl [] 0
+        [⟨`W, NV2.W_ind.type, [⟨`W.n, NV2.tW⟩, ⟨`W.s, NV2.sTy⟩]⟩] false)
+      Meta.MetaM.run' (mkCasesOn `W))
+    NV2.P NV2.e NV2.p0
+  return max r1 r2
 
 end EraseProofNVEmit
 
