@@ -41,18 +41,11 @@
 #                  C12, the final form: EraseProof.erase_correct is the only root of ROOTS.txt
 #                  with consumer FINAL (any other root waits for a consumer that has not landed),
 #                  every statement is proved, and erase_correct's footprint is exactly propext,
-<<<<<<< HEAD
-#                  Classical.choice, Quot.sound, as is that of its instance on NV-1,
-#                  EraseProof.Test.NV1.final, whose hypothesis terms lie within them (skipped
-#                  with --no-final); C12b, always: the statement definitions and the library
-#                  and shipping definitions they reach (kind and flags included; the shipping
-#                  functions under verification, collectDeps, erasePure and eraseEntry, and the
-=======
 #                  Classical.choice, Quot.sound, as is that of its instances on NV-1, NV-P, NV-K
 #                  and NV-2, EraseProof.Test.{NV1,NVP,NVK,NV2}.final, whose hypothesis terms lie
-#                  within them (skipped with --no-final); C12b, always: the statement definitions and the library
-#                  definitions they reach (kind and flags included; the shipping code and the
->>>>>>> ml/wip/v8e
+#                  within them (skipped with --no-final); C12b, always: the statement definitions
+#                  and the library and shipping definitions they reach (kind and flags included;
+#                  the shipping functions under verification, collectDeps, erasePure and eraseEntry, and the
 #                  dependencies by name only) have the SHA-256 digests of proof/spec.pin, every
 #                  pinned constant exists, and the toolchain and git dependency revisions of both
 #                  packages are the pinned ones. See the header of tools/Report.lean.
