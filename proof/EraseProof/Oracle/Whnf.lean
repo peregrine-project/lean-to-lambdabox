@@ -525,9 +525,9 @@ theorem Pure.whnf_sound {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ
     | mdata he' =>
       simp only [Pure.whnf] at h
       exact ih he' ht h
-    | lit hB =>
+    | lit hB h₀ h₁ =>
       simp only [Pure.whnf, pure, Except.pure, Except.ok.injEq] at h; subst h
-      exact ⟨_, .lit hB, ht⟩
+      exact ⟨_, .lit hB h₀ h₁, ht⟩
     | projStruct hst hi hBS hs hty => exact whnf_projStruct henv hE hsub hΓ ih' hst hi hBS hs hty ht h
     | projProof hi0 hBS hss hcc hnr hi hns hs hty =>
       exact whnf_projProof henv hE hsub hΓ ih' hi0 hcc hnr hi hs ht

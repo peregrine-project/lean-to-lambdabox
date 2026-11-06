@@ -10,6 +10,7 @@ EraseProof.Erases.app_inv propext,Classical.choice,Quot.sound
 EraseProof.Erases.extend propext,Classical.choice,Quot.sound
 EraseProof.Erases.inst_let propext,Classical.choice,Quot.sound
 EraseProof.Pure.typeLevel_sound propext,Classical.choice,Quot.sound
+EraseProof.Pure.isErasable_ctorProp propext,Quot.sound
 EraseProof.SrcEval.restrict propext,Classical.choice,Quot.sound
 EraseProof.Test.bind_ok propext,Classical.choice,Quot.sound
 EraseProof.Test.forIn_toSubarray_size propext,Classical.choice,Quot.sound
@@ -144,3 +145,5 @@ EraseProof.Steps.stepsB_ctor propext,Classical.choice,Quot.sound
 EraseProof.Steps.stepsB_proj propext,Classical.choice,Quot.sound
 EraseProof.Steps.stepsB_lit_of propext,Classical.choice,Quot.sound
 EraseProof.StepsCasesCase.visitAlt_spec propext,Classical.choice,Quot.sound
+EraseProof.StepsCases.casesSat_box propext,Classical.choice,Quot.sound
+EraseProof.StepsCases.casesSat_reduced propext,Classical.choice,Quot.sound

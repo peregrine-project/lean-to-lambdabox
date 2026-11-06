@@ -570,9 +570,9 @@ theorem TrM.wkEnv {B : Binds ζ} {B' : Binds (ζ.snoc sig)}
   | letE _ _ _ ihT ihv ihb =>
     simpa using TrM.letE ihT ihv ihb
   | mdata _ ih => exact .mdata ih
-  | lit hb =>
+  | lit hb h₀ h₁ =>
     rw [natLitM_map]
-    exact .lit (hB _ _ hb)
+    exact .lit (hB _ _ hb) (hB _ _ h₀) (hB _ _ h₁)
   | @projStruct n i S Γ Δ e e' ι η s c ls ps is hst hi hb _ hty ih =>
     have hty' := WkEnvExt.TypedExt.wkEnv (ent := ent) hty
     rw [show (wkS : ζ ⟶ ζ.snoc sig) = (envS E ent).sigs from rfl,
