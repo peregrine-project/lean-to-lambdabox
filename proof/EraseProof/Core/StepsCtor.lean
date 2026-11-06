@@ -1233,6 +1233,8 @@ theorem stepsB_lit_of (hnn : NatCtorNames decls) {fuel : Nat} {l : Literal}
       | _ => cases hx
   have hpeano : cfg.nat = .peano := hnp
   obtain ⟨ηNat, hB, rfl⟩ := CasesWhred.trM_lit_inv he
+  obtain ⟨η', o₀, o₁, hB', h₀, h₁⟩ := CasesWhred.trM_lit_ctors he
+  obtain rfl : η' = ηNat := by rw [hB] at hB'; cases hB'; rfl
   have hnat : cfg.nat = .machine → ∀ c : Name, c ≠ ``Nat.zero ∧ c ≠ ``Nat.succ := fun h => by
     rw [hpeano] at h; cases h
   cases fuel with
@@ -1269,7 +1271,7 @@ theorem stepsB_lit_of (hnn : NatCtorNames decls) {fuel : Nat} {l : Literal}
       intro a ha
       rw [List.mem_singleton] at ha
       subst ha
-      exact ⟨fun _ h => by simp [nameOccurs] at h, trivial, hpeano, trivial, _, .lit hB, _, hA'⟩
+      exact ⟨fun _ h => by simp [nameOccurs] at h, trivial, hpeano, trivial, _, .lit hB h₀ h₁, _, hA'⟩
     obtain ⟨iid, as', rfl, hiid, hlen', hers, hdeps, hgr, -⟩ :=
       visitConstructor_core (args := [.lit (.natVal k)]) hG ihg hctx hsc hargs hcv
         (by simp; omega) (hnat · _) hok hrun
