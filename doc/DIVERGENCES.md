@@ -40,6 +40,8 @@ What the statements and the checks rely on without proof:
 - Lean's kernel at the pinned toolchain (`lean-toolchain`), and the axioms `propext`,
   `Classical.choice` and `Quot.sound`: every declaration of the library stays within them (checks
   C3 to C5), and its modules are replayed through the kernel (check `replay`, `leanchecker`).
+  The replay covers the library's modules `EraseProof.*` only; the compiled `.olean` files of the
+  shipping code and of Metalean that they import are trusted as built.
 - Metalean at the pinned revision (`9407ba4`, `lake-manifest.json`, pinned in `proof/spec.pin`):
   its typing (`Metalean.Typing`), conversion and well-formedness `Metalean.EnvWF`, which the
   statements use as their notion of typing, the way MetaRocq's statements use PCUIC's. Metalean's
@@ -58,9 +60,40 @@ What the statements and the checks rely on without proof:
 - The statement definitions themselves (`proof/EraseProof/Statements.lean`, with
   `proof/EraseProof/Spec.lean` and `proof/EraseProof/Target.lean`), which a reader checks against
   the references with the entries below; `proof/spec.pin` holds a SHA-256 digest of each of them
-  and of every definition of the library they reach (check C12b).
+  and of every definition of the library or of the shipping code they reach (check C12b). The
+  shipping definitions among them are part of what the statements say: the λ□ syntax (`LBTerm`,
+  `Program`), the configuration `Erasure.ErasureConfig`, the view `Erasure.EnvView`, the fuel
+  bound `Erasure.collectFuel`, and the helpers through which the source semantics, the relation
+  and the bridge are defined, among them the `casesOn` recognizer `Erasure.casesInfo?`,
+  `Erasure.Pure.instLevels`, `Erasure.axiomatized`, `Erasure.indexFields`, `Erasure.minorArity`,
+  `Lean.Expr.instantiate1'`, `toKername` and `mutualBlockKername`. The three functions under
+  verification, `Erasure.collectDeps`, `Erasure.erasePure` and `Erasure.eraseEntry`, are pinned by
+  name only, and the definitions reached only through them are not pinned, so that a change to
+  the code under verification leaves the pin unchanged while the proofs decide whether the
+  theorems still hold.
 - The shipping view `Erasure.EnvView.ofEnvironment` (`LeanToLambdaBox/Erasure/Collect.lean`), the
   environment `#erase` reads: the final theorem assumes it agrees with the program (`hview`).
+- Lean's compiler and runtime for the shipping code. The theorems are about the logical
+  definitions of `Erasure.collectDeps`, `Erasure.erasePure` and `Erasure.eraseEntry`; `#erase` runs
+  their compiled code. The constants reached from `Erasure.eraseEntry` without its `CoreM` path
+  (`Erasure.erase`) include 186 whose compiled code is not their logical definition (counted at
+  this revision): 133 `@[extern]` constants (operations on `Nat`, `Int`, `Array`, `String` and
+  `ByteArray`, `Lean.Name.beq`, `mixHash`, `panicCore`, `Lean.Expr.eqv`, `Lean.Expr.replaceImpl`),
+  34 with an `@[implemented_by]` target (among them the constructors and `casesOn` of `Lean.Expr`,
+  `Lean.Level` and `Lean.Name`, through their `_override` implementations, and the monadic array
+  loops), and 19 `opaque` constants, among them the `partial` shipping functions `LBTerm.isValue`,
+  `LBTerm.inlinedSize` and `LBTerm.stripLambdas`, which compute only the inlining hints, not the
+  program. `Lean.Expr.eqv` and `Lean.Expr.replaceImpl` are reached only in the index-field branches
+  of `Erasure.visitCases`, which no input that the fragment test accepts reaches (DV-26). The non-vacuity instance
+  NV-1 is kernel-checked on the logical definitions; the compiled code is exercised on it by
+  `proof/tools/NVEmit.lean` and on the regression corpus.
+- What `#erase` does around `Erasure.eraseEntry`, which the theorems do not cover: the
+  elaboration of the input and of the `config` term (`Erasure.eraseElab`,
+  `LeanToLambdaBox/Erasure/Command.lean`, which evaluates the configuration with `unsafe`
+  `Lean.Elab.Term.evalTerm`), the printer `Serialize.to_sexpr` that writes the program as an
+  S-expression (`LeanToLambdaBox/Printing.lean`, whose term printer `LBTerm.to_sexpr` is
+  `partial`), the `.inlinings` file built from the second component of the result (the
+  statements ignore it), and the `.mli` signature.
 
 ## Entries
 
