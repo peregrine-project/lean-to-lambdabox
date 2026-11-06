@@ -16,18 +16,27 @@ show it on:
 - `ST.Tree.size` (a nested inductive, whose recursor stays a constant): the `_unsafe_rec`
   definition.
 
-The fragment test excludes definitions with an `_unsafe_rec` companion, so the programs below take
-the `Meta` path, and `#erase` writes them under `nat := .peano`:
-- `useAdd`: `add 2 3`; `useAddDefault` is the same without the flag, and `useAddNoCsimp` without
-  `csimp` (`Nat.brecOn` then applies `Nat.rec` itself, which `visitRec` erases, instead of
-  `Nat.recCompiled`);
-- `useLength`, `useMap`: `List.length`, and the second element of a `List.map` (through their
-  `@[csimp]` replacements `List.lengthTR` and `List.mapTR`, whose auxiliary functions are
-  structural; peregrine prints a list without its elements);
+Under `structural := .kernel` the fragment test admits a definition by structural recursion
+(register entry S-44), and the pure oracle reduces recursor applications (S-43), which the types
+of the `below` tables need. The programs below are in the fragment and take the pure path, unless
+stated otherwise, and `#erase` writes them under `nat := .peano`:
+- `useAdd`: `add 2 3`; `useAddDefault` is the same without the flag (outside the fragment, the
+  `Meta` path, through `add._unsafe_rec`), and `useAddNoCsimp` without `csimp` (which the pure
+  path does not apply);
+- `useLength`: `List.length` (with `extern := .preferLogical`, since `List.length` adds with
+  `Nat.add`, which is `@[extern]`);
+- `useMap`: the second element of a `List.map`, and `usePairs`: a recursion two constructors deep
+  (`_ :: _ :: t`); their `match` has a wildcard pattern, which Lean compiles with a sparse
+  `casesOn` that tests constructor indices with `Nat.land`, defined by well-founded recursion
+  (`Nat.bitwise`), so they stay outside the fragment and take the `Meta` path, which erases
+  `List.mapTR` and `pairs` through their kernel definitions;
+- `usePairs2`: the recursion of `usePairs` with exhaustive patterns, read from the `below` table;
 - `useEv`: `isEv 3`, for the mutual structural recursion `isEv`/`isOd` on `Nat`;
-- `usePairs`: a recursion two constructors deep (`_ :: _ :: t`), read from the `below` table;
 - `useGet`: a recursion with a `Prop` argument `i < l.length`, erased to □.
-peregrine evaluates them to 5, 5, 5, 3, `t`, `false`, 2 and `t`.
+peregrine evaluates them to 5, 5, 5, 3, `t`, 2, 2, `false` and `t` (peregrine prints a list without
+its elements, so `useMap` takes one). The fragment test excludes `ST.wfHalf` (well-founded
+recursion), `ST.loop` (`partial`) and `ST.Tree.size` (a nested inductive), and, without the flag,
+`ST.add`.
 -/
 
 -- peregrine: validate useAdd.ast
@@ -44,6 +53,8 @@ peregrine evaluates them to 5, 5, 5, 3, `t`, `false`, 2 and `t`.
 -- peregrine: eval useEv.ast
 -- peregrine: validate usePairs.ast
 -- peregrine: eval usePairs.ast
+-- peregrine: validate usePairs2.ast
+-- peregrine: eval usePairs2.ast
 -- peregrine: validate useGet.ast
 -- peregrine: eval useGet.ast
 
@@ -80,6 +91,12 @@ def pairs : List B → Nat
   | _ :: _ :: t => (pairs t).succ
   | _ => 0
 def usePairs : Nat := pairs [B.t, B.f, B.t, B.f, B.t]
+
+def pairs2 : List B → Nat
+  | [] => 0
+  | [_] => 0
+  | _ :: _ :: t => (pairs2 t).succ
+def usePairs2 : Nat := pairs2 [B.t, B.f, B.t, B.f, B.t]
 
 def get : (l : List B) → (i : Nat) → i < l.length → B
   | a :: _, 0, _ => a
@@ -131,9 +148,46 @@ def check (n : Name) : CoreM Unit := do
   | .ok _ => logInfo "in the fragment"
   | .error err => logInfo err.describe
 
-/-- info: outside the fragment: recursive definition ST.add -/
+def ST.useWf : Nat := ST.wfHalf 6
+def ST.useLoop : Nat := ST.loop 0
+def ST.useTree : Nat := ST.Tree.size (.node [])
+
+/-- info: in the fragment -/
 #guard_msgs in
 #eval check ``ST.useAdd
+/-- info: in the fragment -/
+#guard_msgs in
+#eval check ``ST.useLength
+/-- info: outside the fragment: recursive definition Nat.bitwise -/
+#guard_msgs in
+#eval check ``ST.useMap
+/-- info: in the fragment -/
+#guard_msgs in
+#eval check ``ST.useEv
+/-- info: outside the fragment: recursive definition Nat.bitwise -/
+#guard_msgs in
+#eval check ``ST.usePairs
+/-- info: in the fragment -/
+#guard_msgs in
+#eval check ``ST.usePairs2
+/-- info: in the fragment -/
+#guard_msgs in
+#eval check ``ST.useGet
+/-- info: outside the fragment: recursive definition ST.wfHalf -/
+#guard_msgs in
+#eval check ``ST.useWf
+/-- info: outside the fragment: partial definition ST.loop -/
+#guard_msgs in
+#eval check ``ST.useLoop
+/-- info: outside the fragment: nested inductive ST.Tree -/
+#guard_msgs in
+#eval check ``ST.useTree
+/-- info: outside the fragment: recursive definition ST.add -/
+#guard_msgs in
+#eval show CoreM Unit from do
+  match collectDeps (EnvView.ofEnvironment (← getEnv)) { nat := .peano } (.const ``ST.useAdd []) with
+  | .ok _ => logInfo "in the fragment"
+  | .error err => logInfo err.describe
 
 #guard_msgs (drop warning, drop info) in
 #erase ST.useAdd config {nat := .peano, structural := .kernel} to "useAdd.ast"
@@ -142,12 +196,14 @@ def check (n : Name) : CoreM Unit := do
 #guard_msgs (drop warning, drop info) in
 #erase ST.useAdd config {nat := .peano, structural := .kernel, csimp := false} to "useAddNoCsimp.ast"
 #guard_msgs (drop warning, drop info) in
-#erase ST.useLength config {nat := .peano, structural := .kernel} to "useLength.ast"
+#erase ST.useLength config {nat := .peano, extern := .preferLogical, structural := .kernel} to "useLength.ast"
 #guard_msgs (drop warning, drop info) in
 #erase ST.useMap config {nat := .peano, structural := .kernel} to "useMap.ast"
 #guard_msgs (drop warning, drop info) in
 #erase ST.useEv config {nat := .peano, structural := .kernel} to "useEv.ast"
 #guard_msgs (drop warning, drop info) in
 #erase ST.usePairs config {nat := .peano, structural := .kernel} to "usePairs.ast"
+#guard_msgs (drop warning, drop info) in
+#erase ST.usePairs2 config {nat := .peano, structural := .kernel} to "usePairs2.ast"
 #guard_msgs (drop warning, drop info) in
 #erase ST.useGet config {nat := .peano, structural := .kernel} to "useGet.ast"

@@ -3114,6 +3114,60 @@ the calls at which the two oracles answer differently. It must equal
   projections of the `below` tables. `scripts/regress.sh` passes (25 tests), with and without
   `PEREGRINE`.
 
+## S-44: Under `structural := .kernel`, the fragment test admits structural recursion
+
+- **Commit:** the commit whose subject starts with `S-44:` (`git log --grep='^S-44:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure/Entry.lean`: `declExclusion` admits a definition with an
+    `_unsafe_rec` companion under `structural := .kernel` if it is a definition by structural
+    recursion (`isStructuralRecursive`); the docstrings of `declExclusion` and `collectDeps`.
+  - `tests/regress/structural.lean`: the fragment test's verdicts, a recursion with exhaustive
+    patterns (`usePairs2`), `useLength` under `extern := .preferLogical`; its goldens.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** the pure path erases every definition through its kernel definition, and
+  with S-40, S-41 and S-43 it erases the kernel definitions of structural recursion (`T.brecOn`,
+  `T.rec`, the `T.below` tables). The fragment test still sent every definition with an
+  `_unsafe_rec` companion to the `Meta` path, so recursive programs never reached the verified
+  path. Under `structural := .kernel`, where the `Meta` path erases these definitions through
+  their kernel definitions as well (S-42), the fragment test admits them. It keeps excluding a
+  definition by well-founded recursion (its value does not refer to a `brecOn`) and a `partial`
+  definition (an opaque); a structural recursion whose recursor the eraser keeps as a constant (a
+  nested inductive, `Nat` under `nat := .machine`) is excluded by S-41's rule when the closure
+  reads `T.rec` from `T.brecOn`'s value. Without the option the fragment test is unchanged.
+- **Behaviour before:** with `config {nat := .peano, structural := .kernel}`,
+  `collectDeps` excludes `ST.useAdd` (`outside the fragment: recursive definition ST.add`), and
+  `#erase` takes the `Meta` path.
+- **Behaviour after:** `ST.useAdd` is in the fragment and takes the pure path, whose program
+  peregrine evaluates to 5; `ST.useWf` (well-founded recursion) and `ST.useLoop` (`partial`) stay
+  outside.
+- **Effect on emitted .ast (corpus):** byte-identical for all 710 files against the corpus of
+  S-43; `PANIC` counts unchanged. `scripts/pure-harness.sh` passes with its expected summary
+  unchanged. With `.kernel` as the default (not committed), against the default corpus: 662
+  files identical, 46 differ, and `examples/Defects/collide.ast` (with its `.inlinings`) is not
+  written: its program is in the fragment, and `#erase` stops with the error that two of its
+  constants have the same kername (R-3), where the `Meta` path wrote a program that peregrine does
+  not validate (`Duplicate definition`). The 24 benchmark files differ as with S-42 (`nat :=
+  .machine`, so the `Meta` path). The 14 example `.ast` that differ validate and evaluate to the
+  values of the default corpus (except `NM_church3`, a function, whose printed closure differs;
+  its application evaluates to 3), 9 of them on the pure path. The harness summary with
+  `.kernel` as the default: 233 in the fragment (224), 57 outside (67), 4 `collectDeps` errors
+  (3, the new one is `collide`); the 9 new programs of the fragment (`NM_church3`,
+  `NM_R_church3`, `bigEq`, `double`, `fact`, `ptEqN`, `useHalf`, `usePred` and `width`, all under
+  `nat := .peano`) have pure and `Meta` outputs that differ (matchers kept as definitions, csimp,
+  `T.c.elim`, as for the other programs of the fragment); 15635 oracle calls (8334), 34 differ
+  from `Meta` (14; the 20 new are `casesInfo?` on `T.c.elim` in `bigEq`), none fails.
+  `colorCode` and `shapeEq` stay outside (`recursive definition Nat.bitwise`, through a sparse
+  `casesOn`), and the `nat := .machine` variants of `double` and `fact` stay outside
+  (`recursor Nat.rec, which the eraser keeps as a constant`).
+- **Regression test:** `structural` checks, under `nat := .peano, structural := .kernel`, that
+  `useAdd`, `useLength`, `useEv`, `usePairs2` and `useGet` are in the fragment, that `useMap` and
+  `usePairs` are not (their wildcard patterns compile to a sparse `casesOn` that applies
+  `Nat.land`, defined by well-founded recursion), nor `useWf`, `useLoop` and `useTree`, and that
+  without the option `useAdd` is not; it pins the `#erase` outputs, which peregrine validates and
+  evaluates to 5, 5, 5, 3, `ST.B.t`, 2, 2, `false` and `ST.B.t`. Before this commit the five
+  verdicts differ and the five programs take the `Meta` path. `scripts/regress.sh` passes (25
+  tests), with and without `PEREGRINE`.
+
 ---
 
 ## Reported, not fixed
