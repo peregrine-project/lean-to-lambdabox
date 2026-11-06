@@ -17,7 +17,6 @@ EraseProof.visitMutual_nonrecursive EraseProof.erasePure_erases
 EraseProof.Defeq.inst_tele EraseProof.erase_correct
 EraseProof.TrM.uninstantiateN EraseProof.erasePure_erases
 EraseProof.Erases.inst_let EraseProof.erase_correct
-EraseProof.Pure.typeLevel_sound EraseProof.erasePure_erases
 EraseProof.Pure.isErasable_ctorProp EraseProof.erasePure_erases
 EraseProof.SrcProof.ctor_evidentProp EraseProof.erasePure_erases
 EraseProof.erases_correct EraseProof.erase_correct
@@ -27,3 +26,5 @@ EraseProof.eraseEntry_pure EraseProof.erase_correct
 EraseProof.Pure.whnf_forallE EraseProof.erasePure_erases
 EraseProof.erasePure_erases_of_stepsB EraseProof.erasePure_erases
 EraseProof.Steps.stepsB_cases_of_sat EraseProof.erasePure_erases
+EraseProof.StepsCases.casesSat_box EraseProof.erasePure_erases
+EraseProof.StepsCases.casesSat_reduced EraseProof.erasePure_erases

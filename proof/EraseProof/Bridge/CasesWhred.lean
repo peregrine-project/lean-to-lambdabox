@@ -124,11 +124,31 @@ theorem BlockAt.there {sig : Metalean.Sig} {P P' : List ConstantInfo} {B : Binds
 
 variable {E : Metalean.Env ζ} {B : Binds ζ} {P : List ConstantInfo}
 
-/-- Every inductive head of the environment is the head of an inductive block of the program.
-Reference: `declared_inductive` (MC §3.6). -/
-theorem ProgEnv.block (h : ProgEnv P ζ E B) :
+/-- The constructor fields that the block at `η` uses as index variables of a constructor's result
+are index fields of the Lean constructor types `Cs` (`IndBlock.indexVars`, at the environment's own
+entry of the block). -/
+def IndexVarsAt (E : Metalean.Env ζ) {ι : Metalean.IndSig} (η : Head ζ (.inductive ι))
+    (Cs : (s : Fin ι.nsorts) → Fin (ι.nctors s) → ConstructorVal) : Prop :=
+  ∀ s c, (∃ (i : Fin (ι.nindices s)) (f : Fin (ι.ctors s c).nfields),
+      (((E.get η).block.ctors s c).targetIndices i).isVar = some (ι.nparams + f.val)) →
+    (indexFields ι.nparams (Cs s c).type).any Option.isSome = true
+
+/-- `IndexVarsAt` survives an extension of the environment. -/
+theorem IndexVarsAt.there {sig : Metalean.Sig} {ent : Metalean.Entry ζ sig} {ι : Metalean.IndSig}
+    {η : Head ζ (.inductive ι)} {Cs : (s : Fin ι.nsorts) → Fin (ι.nctors s) → ConstructorVal}
+    (h : IndexVarsAt E η Cs) : IndexVarsAt (E.snoc ent) (Head.there η) Cs := by
+  intro s c ⟨i, f, hx⟩
+  refine h s c ⟨i, f, ?_⟩
+  have e : (E.snoc ent).get (Head.there η) = (E.get η).map (.step .refl) := rfl
+  rw [e, Metalean.Entry.block_map] at hx
+  simpa [Metalean.Inductive.map, Metalean.Ctor.map] using hx
+
+/-- Every inductive head of the environment is the head of an inductive block of the program,
+whose index-variable fields are Lean index fields (`IndexVarsAt`). Reference: `declared_inductive`
+(MC §3.6). -/
+theorem ProgEnv.blockIdx (h : ProgEnv P ζ E B) :
     ∀ {ι : Metalean.IndSig} (η : Head ζ (.inductive ι)), ∃ lps Is Cs Rs orders,
-      BlockAt P B η lps Is Cs Rs orders := by
+      BlockAt P B η lps Is Cs Rs orders ∧ IndexVarsAt E η Cs := by
   induction h with
   | nil => intro ι η; cases η
   | @«axiom» _ _ _ _ v _ hP hfr _ _ _ ih | @defn _ _ _ _ v _ _ hP hfr _ _ _ _ _ ih
@@ -136,8 +156,9 @@ theorem ProgEnv.block (h : ProgEnv P ζ E B) :
     intro ι η
     cases η with
     | there η =>
-      obtain ⟨lps, Is, Cs, Rs, orders, hb⟩ := ih η
-      refine ⟨lps, Is, Cs, Rs, orders, hb.there (new := [v.name]) (fun x hx => ?_) ?_ ?_ ?_⟩
+      obtain ⟨lps, Is, Cs, Rs, orders, hb, hix⟩ := ih η
+      refine ⟨lps, Is, Cs, Rs, orders, hb.there (new := [v.name]) (fun x hx => ?_) ?_ ?_ ?_,
+        hix.there⟩
       · have hne : v.name ≠ x := by rintro rfl; exact not_mem_of_findDecl_none hfr hx
         rw [findDecl_cons]; exact ite_eq_right_iff.mpr (fun h => absurd h hne)
       · intro x hx; simp only [List.mem_singleton] at hx; subst hx
@@ -162,7 +183,7 @@ theorem ProgEnv.block (h : ProgEnv P ζ E B) :
     cases η with
     | here =>
       refine ⟨lps', Is', Cs', Rs', orders', ⟨⟨_, _, _, _, hblk⟩, hnd, fun ci hci => ?_,
-        fun t => (hblk.recr t).2.1, fun x t hx => ?_, fun x t c o hx => ?_⟩⟩
+        fun t => (hblk.recr t).2.1, fun x t hx => ?_, fun x t c o hx => ?_⟩, hblk.indexVars⟩
       · rw [findDecl_append, findDecl_of_nodup hnd hci]; rfl
       · by_cases hn : x ∈ (IndBlock.decls Is' Cs' Rs').map (·.name)
         · obtain ⟨ci, hci, rfl⟩ := List.mem_map.mp hn
@@ -185,9 +206,9 @@ theorem ProgEnv.block (h : ProgEnv P ζ E B) :
           obtain ⟨b, -, hbw⟩ := Option.map_eq_some_iff.mp hx
           cases b <;> simp only [MBinding.wk] at hbw <;> cases hbw
     | there η =>
-      obtain ⟨lps, Is, Cs, Rs, orders, hb⟩ := ih η
+      obtain ⟨lps, Is, Cs, Rs, orders, hb, hix⟩ := ih η
       refine ⟨lps, Is, Cs, Rs, orders, hb.there (new := (IndBlock.decls Is' Cs' Rs').map (·.name))
-        (fun x hx => ?_) (fun x hx hxP => ?_) hold (fun x hx b hbx => ?_)⟩
+        (fun x hx => ?_) (fun x hx hxP => ?_) hold (fun x hx b hbx => ?_), hix.there⟩
       · have hd : findDecl (IndBlock.decls Is' Cs' Rs') x = none := by
           cases hd : findDecl (IndBlock.decls Is' Cs' Rs') x with
           | none => rfl
@@ -204,9 +225,9 @@ theorem ProgEnv.block (h : ProgEnv P ζ E B) :
     intro ι η
     cases η with
     | there η =>
-      obtain ⟨lps, Is, Cs, Rs, orders, hb⟩ := ih η
+      obtain ⟨lps, Is, Cs, Rs, orders, hb, hix⟩ := ih η
       refine ⟨lps, Is, Cs, Rs, orders, hb.there (new := qs.map (·.name)) (fun x hx => ?_)
-        (fun x hx hxP => ?_) (fun x hx => by rw [hext x hx]; rfl) (fun x hx b hbx => ?_)⟩
+        (fun x hx hxP => ?_) (fun x hx => by rw [hext x hx]; rfl) (fun x hx b hbx => ?_), hix.there⟩
       · have hd : findDecl (qs.reverse.map ConstantInfo.quotInfo) x = none := by
           cases hd : findDecl (qs.reverse.map ConstantInfo.quotInfo) x with
           | none => rfl
@@ -221,6 +242,13 @@ theorem ProgEnv.block (h : ProgEnv P ζ E B) :
       · obtain ⟨q, hq', rfl⟩ := List.mem_map.mp hx
         rw [(hq q hq').1] at hbx; cases hbx
         exact ⟨fun _ _ _ h => (nomatch h), fun _ _ _ _ _ h => (nomatch h)⟩
+
+/-- Every inductive head of the environment is the head of an inductive block of the program.
+Reference: `declared_inductive` (MC §3.6). -/
+theorem ProgEnv.block (h : ProgEnv P ζ E B) {ι : Metalean.IndSig} (η : Head ζ (.inductive ι)) :
+    ∃ lps Is Cs Rs orders, BlockAt P B η lps Is Cs Rs orders := by
+  obtain ⟨lps, Is, Cs, Rs, orders, hb, -⟩ := ProgEnv.blockIdx h η
+  exact ⟨lps, Is, Cs, Rs, orders, hb⟩
 
 /-! ## Inversions of the translation -/
 
