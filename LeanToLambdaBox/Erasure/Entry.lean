@@ -75,10 +75,16 @@ def sortDecided (iv : InductiveVal) : Except EraseError Bool :=
     else throw (.outOfFragment s!"inductive {iv.name} whose sort is Prop but not written Prop")
   | none => throw (.outOfFragment s!"inductive {iv.name} whose type is not an arity")
 
-/-- The exclusions a declaration of the closure carries by itself: a quotient; a recursor (the
-closure adds a recursor only as the companion of a recognized `casesOn` or of an inductive with one
-constructor, never through `closureStep`'s read names); an `unsafe` or `partial` definition, or a definition or an opaque with an
-`_unsafe_rec` companion (a `partial def` is an opaque whose value is a dummy, compiled through its
+/-- Lookup through the view, only of a declaration of that name. -/
+def viewFind (view : EnvView) (n : Name) : List ConstantInfo :=
+  ((view.find? n).filter (·.name == n)).toList
+
+/-- The exclusions a declaration of the closure carries by itself: a quotient; a recursor that the
+traversal keeps as a constant (`recStaysConstant`, over the inductive types of its block and their
+constructors, looked up through the view: a nested block, `Nat` or `Int` under `nat := .machine`,
+an inductive whose sort may be `Prop` with a constructor field that is an index; this is checked
+only for a recursor the closure reads, not for one it adds as a companion); an `unsafe` or
+`partial` definition, or a definition or an opaque with an `_unsafe_rec` companion (a `partial def` is an opaque whose value is a dummy, compiled through its
 companion); an `unsafe` opaque, axiom, inductive or constructor; an `implemented_by` target of a definition, an
 opaque or an axiom; a nested inductive, or one whose sort is excluded by `sortDecided`; an
 `@[extern]` constructor under `extern := .preferAxiom`. Reference: the declarations Metalean's
@@ -86,7 +92,13 @@ loader declines (`Metalean/Checker/Slow/Loader.lean:129-139`), and the eraser's 
 `@[extern]` constructors. -/
 def declExclusion (view : EnvView) (cfg : ErasureConfig) : ConstantInfo → Except EraseError Unit
   | .quotInfo q => throw (.outOfFragment s!"quotient {q.name}")
-  | .recInfo r => throw (.outOfFragment s!"recursor {r.name}")
+  | .recInfo r => do
+    let ivs := (r.all.flatMap (viewFind view)).filterMap fun | .inductInfo iv => some iv | _ => none
+    let cvs := ((ivs.flatMap (·.ctors)).flatMap (viewFind view)).filterMap fun
+      | .ctorInfo cv => some cv
+      | _ => none
+    if recStaysConstant cfg.nat r ivs cvs then
+      throw (.outOfFragment s!"recursor {r.name}, which the eraser keeps as a constant")
   | .defnInfo d => do
     unless d.safety matches .safe do throw (.outOfFragment s!"unsafe or partial {d.name}")
     if (view.find? (Compiler.mkUnsafeRecName d.name)).isSome then
@@ -113,10 +125,6 @@ def declExclusion (view : EnvView) (cfg : ErasureConfig) : ConstantInfo → Exce
     if cfg.extern == .preferAxiom && view.isExtern cv.name then
       throw (.outOfFragment s!"@[extern] constructor {cv.name}")
 
-/-- Lookup through the view, only of a declaration of that name. -/
-def viewFind (view : EnvView) (n : Name) : List ConstantInfo :=
-  ((view.find? n).filter (·.name == n)).toList
-
 /-- Whether the definition `ci` is a canonical `casesOn` (`casesInfo?`), over the declarations the
 recognizer reads, looked up through the view: `ci`, `T`, `T.rec`, the constructors of `T` and the
 members of `T.rec`'s block; then `T`, `T.rec` and `T`'s constructors. Reference: none. -/
@@ -132,16 +140,18 @@ def recognizeCasesOn (view : EnvView) (ci : ConstantInfo) :
     | _, _ => none
   | _ => none
 
-/-- Drop the names of the work list that the closure has, and stop with an exclusion at one that
-is a recursor of the closure: the work list holds the constants of the read expressions and the
-block members, constructors and inductives of the closure's declarations, so a recursor there is
-read (the only recursors the closure keeps are the `T.rec` of recognized `T.casesOn` and of
-inductives `T` with one constructor, whose value the traversal does not read). Reference: none. -/
-def dropKnown (acc : List ConstantInfo) : List Name → Except EraseError (List Name)
+/-- Drop the names of the work list that the closure has, and stop at one that is a recursor of
+the closure that `declExclusion` excludes: the work list holds the constants of the read
+expressions and the block members, constructors and inductives of the closure's declarations, so a
+recursor there is read, and it may be in the closure as a companion (the `T.rec` of a recognized
+`T.casesOn` or of an inductive `T` with one constructor), which `declExclusion` did not check.
+Reference: none. -/
+def dropKnown (view : EnvView) (cfg : ErasureConfig) (acc : List ConstantInfo) :
+    List Name → Except EraseError (List Name)
   | [] => pure []
   | n :: todo => match findConst acc n with
-    | some (.recInfo _) => throw (.outOfFragment s!"recursor {n}")
-    | some _ => dropKnown acc todo
+    | some ci@(.recInfo _) => do declExclusion view cfg ci; dropKnown view cfg acc todo
+    | some _ => dropKnown view cfg acc todo
     | none => pure (n :: todo)
 
 /-- One declaration added to the closure: the names it makes the closure read, and the companion
@@ -183,11 +193,11 @@ companion). Reference:
 def closure (view : EnvView) (cfg : ErasureConfig) : Nat → List Name → List ConstantInfo →
     List Name → Except EraseError (List ConstantInfo × List Name)
   | 0, todo, acc, cases => do
-    match ← dropKnown acc todo with
+    match ← dropKnown view cfg acc todo with
     | [] => pure (acc, cases)
     | _ => throw (.fuel "collectDeps")
   | f+1, todo, acc, cases => do
-    match ← dropKnown acc todo with
+    match ← dropKnown view cfg acc todo with
     | [] => pure (acc, cases)
     | n :: todo => match view.find? n with
       | none => throw (.outOfFragment s!"unknown constant {n}")
@@ -238,8 +248,10 @@ of a constructor; the structure of a projection; `Nat` for a Nat literal; for a 
 recognizer reads them; the value is not read, the recursor is not an exclusion); for an inductive
 `T` with one constructor, `T.rec` (the oracle reads it to type a projection; not an exclusion).
 `outOfFragment` exactly when the closure contains (`exprConsts`, `declExclusion`, `dropKnown`,
-`closureStep`, `eliminatedUndecided`): a recursor other than the `T.rec` of a recognized
-`T.casesOn` or of an inductive `T` with one constructor, or any recursor in a read expression; a quotient; a string literal; an
+`closureStep`, `eliminatedUndecided`): a recursor that a read expression or block names and that
+the traversal keeps as a constant (`recStaysConstant`: a nested block, `Nat` or `Int` under
+`nat := .machine`, an inductive whose sort may be `Prop` with a constructor field that is an index
+of the constructor's type); a quotient; a string literal; an
 `unsafe`/`partial` constant, or one with an `_unsafe_rec` companion or an `implemented_by` target; a
 nested or unsafe inductive; an `@[extern]` constructor under `extern := .preferAxiom`; under
 `nat := .machine` a Nat literal, `Nat.zero`, `Nat.succ`, `Int.ofNat`, `Int.negSucc`, `Nat.casesOn`
