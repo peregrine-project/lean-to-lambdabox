@@ -517,3 +517,33 @@ What the statements and the checks rely on without proof:
   values, which excludes the β-redexes the simulation has to step; adding a rule that relates a
   λ alternative to the β-redex only under the substitution lemma's hypotheses, which is the same
   relation with a more complicated shape.
+
+### DV-29
+
+- **Our artifact:** `proof/EraseProof/Spec.lean`: the rules `EraseProof.SrcEval.quotMk` and
+  `EraseProof.SrcEval.quotLift`; `EraseProof.quotEvalArity` in `EraseProof.specialArity`, so that
+  `EraseProof.SrcEval.eta` and `EraseProof.Erases.eta` η-expand `Quot.mk` and `Quot.lift` spines
+  with missing arguments; the quotient clauses of `EraseProof.BlocksCong` and
+  `EraseProof.SpecialSpine`; the rules `EraseProof.Erases.quotMk` and `EraseProof.Erases.quotLift`.
+- **Reference artifact:** none: PCUIC has no primitive quotients. The closest rules are `eval_beta`
+  (`pcuic/theories/PCUICWcbvEval.v:234`) and `eval_construct`
+  (`pcuic/theories/PCUICWcbvEval.v:303`) of `eval`, and `erases_tApp`
+  (`erasure/theories/Extract.v:101`) and `erases_tConstruct` (`erasure/theories/Extract.v:106`) of
+  `erases`.
+- **What differs:** Lean's quotients are primitive constants with their own reduction, the quotient
+  ι `Quot.lift f h (Quot.mk r a) ⤳ f a` (`quotIota`, `Metalean/Syntax/Reduction.lean:74`). The
+  source evaluates `Quot.mk α r a` by evaluating the element `a`, the type and the relation
+  unevaluated, and `Quot.lift α r β f h q` by evaluating `f` to a λ and `q` to `Quot.mk α' r' a`
+  and continuing with the λ's body at `a`; spines with fewer arguments are η-expanded as
+  constructor spines are (DV-23), and a `Quot.mk` value blocks application congruence as a
+  constructor value does. The erasure represents a quotient by its elements: `Quot.mk α r a`
+  erases as `a` and `Quot.lift α r β f h q` as `f q`, applied to the erasures of the arguments
+  beyond the arity.
+- **Why it is forced:** the reference has no rule for quotients, and the eraser erases the quotient
+  constants in this way, as Lean's code generator does (`visitConstApp`,
+  `LeanToLambdaBox/Erasure.lean:949`). The source rule is Metalean's quotient ι, which the
+  subject-reduction theorem `EraseProof.SrcEval.defeq` justifies through
+  `Metalean.WHRed.quotIota_defeq`.
+- **What was considered instead:** erasing `Quot.mk` and `Quot.lift` to λ□ axioms, under which
+  every program that computes through a quotient is stuck in λ□; no source rule for quotients,
+  under which such programs do not evaluate and the final theorem says nothing about them.

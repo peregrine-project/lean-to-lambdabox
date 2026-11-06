@@ -575,11 +575,21 @@ def casesMajor (iv : InductiveVal) : Nat := iv.numParams + 1 + iv.numIndices
 /-- Arity of `T.casesOn`. -/
 def casesArity (iv : InductiveVal) : Nat := casesMajor iv + 1 + iv.ctors.length
 
-/-- The arity of a constructor or recognized `casesOn` head, if it is one (the `arity` that
-`visitConstApp` η-expands to, `LeanToLambdaBox/Erasure.lean:773`). -/
+/-- The arity of the quotient constants that are erased by their own rules: `Quot.mk α r a` (3)
+and `Quot.lift α r β f h q` (6), the arities `visitConstApp` η-expands them to
+(`LeanToLambdaBox/Erasure.lean:949`). `Quot` and `Quot.ind` have none: a type former and a
+proof. -/
+def quotEvalArity : Lean.QuotKind → Option Nat
+  | .ctor => some 3
+  | .lift => some 6
+  | _ => none
+
+/-- The arity of a constructor, recognized `casesOn` or erased quotient head (`quotEvalArity`), if
+it is one (the `arity` that `visitConstApp` η-expands to, `LeanToLambdaBox/Erasure.lean:773`). -/
 def specialArity (σ : EvalEnv) (c : Name) : Option Nat :=
   match findDecl σ.decls c with
   | some (.ctorInfo cv) => some (cv.numParams + cv.numFields)
+  | some (.quotInfo qv) => quotEvalArity qv.kind
   | _ => (σ.casesOn? c).map casesArity
 
 /-- Instantiate the leading Π-binders of a type with the arguments, in order (the type of the
@@ -655,7 +665,7 @@ def EvidentProp (decls : List ConstantInfo) : Expr → Bool
     | _ => false
 
 /-- Declarations that are evaluated by their own rules: constructors, recursors (outside Phase I),
-quotient constants (outside Phase I). -/
+quotient constants. -/
 def OwnRules : ConstantInfo → Bool
   | .ctorInfo _ | .recInfo _ | .quotInfo _ => true
   | _ => false
@@ -686,13 +696,15 @@ def CtorValue (σ : EvalEnv) (T : Name) (m : Expr) (i : Nat) (fs : List Expr) : 
     ps.length = cv.numParams ∧ fs.length = cv.numFields ∧
     m = mkAppN (.const C us) (ps ++ fs).toArray
 
-/-- Heads excluded by `appCong`: λ, sort, Π, literals, constructor and `casesOn` spines. Reference:
-the side condition of `eval_app_cong` (`MR P/PCUICWcbvEval.v:311`: `~~ (isLambda f' || isFixApp f' ||
-isArityHead f' || isConstructApp f' || isPrimApp f')`; literals are values, `isPrimApp`). -/
+/-- Heads excluded by `appCong`: λ, sort, Π, literals, constructor, `casesOn` and quotient spines.
+Reference: the side condition of `eval_app_cong` (`MR P/PCUICWcbvEval.v:311`: `~~ (isLambda f' ||
+isFixApp f' || isArityHead f' || isConstructApp f' || isPrimApp f')`; literals are values,
+`isPrimApp`; a `Quot.mk` value is a constructor value of the quotient, DV-27). -/
 def BlocksCong (σ : EvalEnv) : Expr → Prop
   | .lam .. | .sort _ | .forallE .. | .lit _ => True
   | e => (∃ c us cv, e.getAppFn = .const c us ∧ findDecl σ.decls c = some (.ctorInfo cv)) ∨
-    (∃ c us iv, e.getAppFn = .const c us ∧ σ.casesOn? c = some iv)
+    (∃ c us iv, e.getAppFn = .const c us ∧ σ.casesOn? c = some iv) ∨
+    (∃ c us qv, e.getAppFn = .const c us ∧ findDecl σ.decls c = some (.quotInfo qv))
 
 /-- Spines headed by an atom constant (port of `L4 Source/Eval.lean`). -/
 inductive AtomSpine (σ : EvalEnv) : Expr → Prop
@@ -745,7 +757,8 @@ arguments (`eval_construct`); a saturated `casesOn` evaluates only its major pre
 with the alternative of the major's constructor (`eval_iota`; DV-25). Theorems have no δ, so a proof
 may evaluate to an atom spine instead of a constructor: a `casesOn` of a field-less `Prop`
 constructor and a `Prop` projection then proceed as λ□'s `eval_iota_sing` and `eval_proj_prop` do
-(`casesProof`, `projProp`; DV-24). Reference: `MR P/PCUICWcbvEval.v:231 eval`; MC §5.6. -/
+(`casesProof`, `projProp`; DV-24). `Quot.mk` and `Quot.lift` spines are evaluated as a whole too
+(`quotMk`, `quotLift`, the quotient ι; DV-27). Reference: `MR P/PCUICWcbvEval.v:231 eval`; MC §5.6. -/
 inductive SrcEval (σ : EvalEnv) : Expr → Expr → Prop
   /-- `eval_beta` (`MR P/PCUICWcbvEval.v:234`). -/
   | beta : ¬ ShortSpine σ (.app f a) → SrcEval σ f (.lam n A b bi) → SrcEval σ a a' →
@@ -796,6 +809,19 @@ inductive SrcEval (σ : EvalEnv) : Expr → Expr → Prop
       piInst ps (Pure.instLevels cv.levelParams vs cv.type) = some st →
       as[casesMajor iv + 1]? = some alt → SrcEval σ alt v →
       SrcEval σ (mkAppN (.const c us) as.toArray) v
+  /-- `Quot.mk α r a` evaluates its element, the type and the relation unevaluated (as
+  `eval_construct` on the quotient's constructor; DV-27). -/
+  | quotMk : findDecl σ.decls c = some (.quotInfo qv) → qv.kind = .ctor → SrcEval σ a a' →
+      SrcEval σ (mkAppN (.const c us) [α, r, a].toArray) (mkAppN (.const c us) [α, r, a'].toArray)
+  /-- The quotient ι (`quotIota`, `ML Syntax/Reduction.lean:74`: `Quot.lift f h (Quot.mk r a) ⤳ f
+  a`) as `eval_beta`: `f` evaluates to a λ and `q` to `Quot.mk α' r' a`; the λ's body continues at
+  the element `a`. The type, the relation, the result type and the compatibility proof are not
+  evaluated (DV-27). -/
+  | quotLift : findDecl σ.decls c = some (.quotInfo qv) → qv.kind = .lift →
+      SrcEval σ f (.lam x A b bi) → SrcEval σ q (mkAppN (.const c' us') [α', r', a].toArray) →
+      findDecl σ.decls c' = some (.quotInfo qv') → qv'.kind = .ctor →
+      SrcEval σ (b.instantiate1' a) v →
+      SrcEval σ (mkAppN (.const c us) [α, r, β, f, h, q].toArray) v
   /-- `eval_proj` (`:264`). -/
   | proj : SrcEval σ e m → CtorValue σ S m 0 fs → fs[i]? = some a → SrcEval σ (.proj S i e) a
   /-- `eval_proj` on a proof that is not a constructor (λ□ `eval_proj_prop`, `MR E/EWcbvEval.v:238`):
@@ -1008,10 +1034,12 @@ def IndIdOf (σ : EvalEnv) (T : Name) : Option InductiveId :=
   | some (.inductInfo iv) => (iv.all.idxOf? T).map fun j => ⟨blockKername iv, j⟩
   | _ => none
 
-/-- A spine whose head is a constructor or a recognized `casesOn` constant. -/
+/-- A spine whose head is a constructor, a recognized `casesOn` constant or an erased quotient
+constant (`quotEvalArity`). -/
 def SpecialSpine (σ : EvalEnv) (e : Expr) : Prop :=
   ∃ c us, e.getAppFn = .const c us ∧
-    ((∃ cv, findDecl σ.decls c = some (.ctorInfo cv)) ∨ (σ.casesOn? c).isSome)
+    ((∃ cv, findDecl σ.decls c = some (.ctorInfo cv)) ∨ (σ.casesOn? c).isSome ∨
+      ∃ qv, findDecl σ.decls c = some (.quotInfo qv) ∧ (quotEvalArity qv.kind).isSome)
 
 /-- The number of fields of a constructor of `σ`. -/
 def ctorFields (σ : EvalEnv) (c : Name) : Option Nat :=
@@ -1067,7 +1095,8 @@ recognized `casesOn` constants. Constructor and `casesOn` spines are erased as a
 alternative per constructor, applied to the extra arguments); spines with fewer arguments than
 the arity erase as their η-expansion (DV-23); a `casesOn` on a one-constructor inductive with
 erasable fields may erase as its reduced form (`casesReduced`, as the eraser emits it when the
-discriminant's sort may be zero).
+discriminant's sort may be zero). `Quot.mk α r a` erases as its element and `Quot.lift α r β f h q`
+as `f` applied to `q` (DV-27).
 Constructors of `Prop` inductives and eliminations of
 inductives that are not subsingletons have no rule but `box`, as in MetaRocq. Reference: `MR E/Extract.v:88 erases`; MC §7.3, Fig. 18. -/
 inductive Erases {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (lps : List Name)
@@ -1147,6 +1176,22 @@ inductive Erases {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (lps 
   | litZero : IndIdOf σ ``Nat = some iid → Erases E B lps σ Γ Δ (.lit (.natVal 0)) (.construct iid 0 [])
   | litSucc : IndIdOf σ ``Nat = some iid → Erases E B lps σ Γ Δ (.lit (.natVal k)) t →
       Erases E B lps σ Γ Δ (.lit (.natVal (k + 1))) (.app (.construct iid 1 []) t)
+  /-- `Quot.mk α r a` with at least its three arguments: the erasure of the element applied to the
+  extra arguments; a quotient is represented by its elements, as in Lean's code generator
+  (`visitConstApp`, `LeanToLambdaBox/Erasure.lean:949`; DV-27). -/
+  | quotMk {extra : List Expr} {extra' : List LBTerm} :
+      findDecl σ.decls c = some (.quotInfo qv) → qv.kind = .ctor → Erases E B lps σ Γ Δ a a' →
+      extra.length = extra'.length →
+      (∀ (i : Nat) x x', extra[i]? = some x → extra'[i]? = some x' → Erases E B lps σ Γ Δ x x') →
+      Erases E B lps σ Γ Δ (mkAppN (.const c us) ([α, r, a] ++ extra).toArray) (mkApps a' extra')
+  /-- `Quot.lift α r β f h q` with at least its six arguments: the erasure of `f` applied to that of
+  `q` and to the extra arguments (`visitConstApp`, `LeanToLambdaBox/Erasure.lean:953`; DV-27). -/
+  | quotLift {extra : List Expr} {extra' : List LBTerm} :
+      findDecl σ.decls c = some (.quotInfo qv) → qv.kind = .lift → Erases E B lps σ Γ Δ f f' →
+      Erases E B lps σ Γ Δ q q' → extra.length = extra'.length →
+      (∀ (i : Nat) x x', extra[i]? = some x → extra'[i]? = some x' → Erases E B lps σ Γ Δ x x') →
+      Erases E B lps σ Γ Δ (mkAppN (.const c us) ([α, r, β, f, h, q] ++ extra).toArray)
+        (mkApps f' (q' :: extra'))
   /-- Metadata is transparent. -/
   | mdata : Erases E B lps σ Γ Δ e e' → Erases E B lps σ Γ Δ (.mdata d e) e'
   /-- `erases_box` (`:140`). -/

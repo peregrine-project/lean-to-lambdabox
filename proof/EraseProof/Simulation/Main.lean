@@ -1,4 +1,4 @@
-import EraseProof.Simulation.Iota
+import EraseProof.Simulation.Quot
 import EraseProof.Statements
 
 /-!
@@ -7,7 +7,8 @@ import EraseProof.Statements
 `erases_correct` (`MR E/ErasureCorrectness.v:51`), by induction on the source evaluation `e ⇓ v`,
 with the motive strengthened to every head-β-reduct `X` of `e` (`SimIota.HeadBeta`): `X ⇓ v`, and
 every erasure of a typed translation of `X` evaluates in λ□ to an erasure of `v`. For `X = e` each
-rule is its case lemma (`Simulation/Cases.lean`, `Simulation/Ind.lean`, `Simulation/Iota.lean`);
+rule is its case lemma (`Simulation/Cases.lean`, `Simulation/Ind.lean`, `Simulation/Iota.lean`,
+`Simulation/Quot.lean`);
 the ι cases use the motive at the head-β-reducts of the alternative applied to the fields. A
 proper head-β-reduct exists only for an application whose head reduces to a λ: then `e` evaluates
 by `beta` or `appCong`, and the reduct evaluates by the same rule from the reduct of the head, or
@@ -133,6 +134,15 @@ theorem sim (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
     exact ⟨.casesProof hcs hlen hm hmv hat hl hz hcn hcv hnf hst hps hpi halt hv,
       erases_correct_casesProof henv hE hsub hcs hlen hm hmv hat hl hz hcn hcv hnf hst hps hpi
         halt hv (ihb _ .refl).2⟩
+  | quotMk hc hk ha iha =>
+    intro X hX
+    obtain rfl := spine hX
+    exact ⟨.quotMk hc hk ha, erases_correct_quotMk henv hE hsub hc hk ha (iha _ .refl).2⟩
+  | quotLift hc hk hf hq hc' hk' hb ihf ihq ihb =>
+    intro X hX
+    obtain rfl := spine hX
+    exact ⟨.quotLift hc hk hf hq hc' hk' hb, erases_correct_quotLift henv hE hsub hc hk hf hq hc'
+      hk' hb (ihf _ .refl).2 (ihq _ .refl).2 (ihb _ .refl).2⟩
   | proj hm hcv ha ih =>
     intro X hX
     obtain rfl := hX.eq_of_head fun _ _ h => by cases h

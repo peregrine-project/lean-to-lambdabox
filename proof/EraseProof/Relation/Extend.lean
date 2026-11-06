@@ -399,7 +399,7 @@ theorem Erases.extend {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} 
     (motive_2 := fun Γ Δ k e br _ => ConstsIn (fun c => (findDecl decls c).isSome) e →
       ErasesAlt E B lps (evalEnvOf view cfg P) Γ Δ k e br)
     ?bvar ?fvar ?lam ?letE ?app ?const ?ctor ?cases ?casesReduced ?eta ?proj ?litZero ?litSucc
-    ?mdata ?box ?done ?alam ?intro h hc
+    ?quotMk ?quotLift ?mdata ?box ?done ?alam ?intro h hc
   case bvar => intros; exact .bvar
   case fvar => intros; exact .fvar
   case lam => intro _ _ _ _ _ _ _ _ _ hA hAt _ ih hC; exact .lam hA hAt (ih hC.2)
@@ -450,6 +450,16 @@ theorem Erases.extend {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} 
     exact .proj hss (IndIdOf_sub hsub hid) (findDecl_sub hsub hS) hsort (ih hC.2)
   case litZero => intro _ _ _ _ hid _; exact .litZero (IndIdOf_sub hsub hid)
   case litSucc => intro _ _ _ _ _ _ hid _ ih hC; exact .litSucc (IndIdOf_sub hsub hid) (ih hC)
+  case quotMk =>
+    intros; rename_i hcq hk _ hlex _ iha ihe hC
+    obtain ⟨-, has⟩ := ConstsIn_mkAppN.1 hC
+    exact .quotMk (findDecl_sub hsub hcq) hk (iha (has _ (by simp))) hlex
+      fun i a a' ha ha' => ihe i a a' ha ha' (has a (by simp [mem ha]))
+  case quotLift =>
+    intros; rename_i hcq hk _ _ hlex _ ihf ihq ihe hC
+    obtain ⟨-, has⟩ := ConstsIn_mkAppN.1 hC
+    exact .quotLift (findDecl_sub hsub hcq) hk (ihf (has _ (by simp))) (ihq (has _ (by simp)))
+      hlex fun i a a' ha ha' => ihe i a a' ha ha' (has a (by simp [mem ha]))
   case mdata => intro _ _ _ _ _ _ _ ih hC; exact .mdata (ih hC)
   case box => intro _ _ _ _ hb _; exact .box hb
   case done => intro _ _ _ _ _ _ ih hC; exact .done (ih hC)

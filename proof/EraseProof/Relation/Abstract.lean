@@ -393,7 +393,7 @@ theorem Erases.absN {σ : EvalEnv} (x : FVarId)
       closedn (d + br.1.length) br.2 = true →
       ErasesAlt E B lps σ Γ Δ₁ k (absFV x d e) (br.1, _root_.toBvar x (d + br.1.length) br.2))
     ?bvar ?fvar ?lam ?letE ?app ?const ?ctor ?cases ?casesReduced ?eta ?proj ?litZero ?litSucc
-    ?mdata ?box ?done ?alam ?intro h
+    ?quotMk ?quotLift ?mdata ?box ?done ?alam ?intro h
   case bvar =>
     intro _ _ _ i d Δ₁ _ hcl
     simp only [closedn, decide_eq_true_eq] at hcl
@@ -483,6 +483,27 @@ theorem Erases.absN {σ : EvalEnv} (x : FVarId)
     intro _ _ _ _ _ _ hid _ ih d Δ₁ W hcl
     simp only [closedn, Bool.and_eq_true] at hcl
     exact .litSucc hid (ih d _ W hcl.2)
+  case quotMk =>
+    intros; rename_i hcq hk _ hlex _ iha ihe d Δ₁ W hcl
+    rw [closedn_mkApps] at hcl
+    obtain ⟨ha, hext⟩ := hcl
+    rw [spine, toBvar_mkApps]
+    simp only [List.map_append, List.map_cons, List.map_nil]
+    refine .quotMk hcq hk (iha d _ W ha) (by simpa using hlex) fun i a a' ha ha' => ?_
+    obtain ⟨a₀, ha₀, rfl⟩ := gmap ha
+    obtain ⟨a₀', ha₀', rfl⟩ := gmapB ha'
+    exact ihe i a₀ a₀' ha₀ ha₀' d _ W (hext _ (List.mem_of_getElem? ha₀'))
+  case quotLift =>
+    intros; rename_i hcq hk _ _ hlex _ ihf ihq ihe d Δ₁ W hcl
+    rw [closedn_mkApps] at hcl
+    obtain ⟨hf, hext⟩ := hcl
+    rw [spine, toBvar_mkApps]
+    simp only [List.map_append, List.map_cons, List.map_nil]
+    refine .quotLift hcq hk (ihf d _ W hf) (ihq d _ W (hext _ List.mem_cons_self))
+      (by simpa using hlex) fun i a a' ha ha' => ?_
+    obtain ⟨a₀, ha₀, rfl⟩ := gmap ha
+    obtain ⟨a₀', ha₀', rfl⟩ := gmapB ha'
+    exact ihe i a₀ a₀' ha₀ ha₀' d _ W (hext _ (List.mem_cons_of_mem _ (List.mem_of_getElem? ha₀')))
   case mdata =>
     intro _ _ _ _ _ _ _ ih d Δ₁ W hcl
     exact .mdata (ih d _ W hcl)
