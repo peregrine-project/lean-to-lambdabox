@@ -2,22 +2,24 @@ import LeanToLambdaBox
 import EraseProof.Test.NV1Run
 import EraseProof.Test.NV2Run
 import EraseProof.Test.NVPData
+import EraseProof.Test.NVQRun
 
 /-!
-# NV-1's and NV-2's emitted programs, for check C11
+# NV-1's, NV-2's and NV-Q's emitted programs, for check C11
 
-Run from `proof/` as `lake env lean --run tools/NVEmit.lean FILE1 FILE2`. For each of the
-non-vacuity instances NV-1 (`inductive B | f | t` and `B.neg`, `EraseProof.Test.NV1`) and NV-2
-(`B`, `inductive T : Prop | i`, `inductive W | n | s (b : B) (h : T)`, `EraseProof.Test.NV2`), it
+Run from `proof/` as `lake env lean --run tools/NVEmit.lean FILE1 FILE2 FILE3`. For each of the
+non-vacuity instances NV-1 (`inductive B | f | t` and `B.neg`, `EraseProof.Test.NV1`), NV-2
+(`B`, `inductive T : Prop | i`, `inductive W | n | s (b : B) (h : T)`, `EraseProof.Test.NV2`) and
+NV-Q (`B`, the axioms `R` and `hR`, and `Init`'s quotients, `EraseProof.Test.NVQ`), it
 declares the program as the `inductive` command does (the kernel's inductive declaration, then
 `mkCasesOn`), checks that the environment's declarations are the written-out `P` (every field; a
 definition's value up to binder names), runs `#erase`'s entry point `Erasure.eraseEntry` on the
-term `e` over that environment, and writes the program to `FILE1` (resp. `FILE2`) and its
+term `e` over that environment, and writes the program to `FILE1` (resp. `FILE2`, `FILE3`) and its
 attributes to `FILE1.inlinings`, printed as `#erase` prints them
 (`LeanToLambdaBox/Erasure/Command.lean`). It fails unless the printed program is byte-identical to
 the printing of the instance's `p0`, the program that its `hrun` computes, and the list of
 constants to inline is empty, as `hrun` states. `proof/scripts/c11.sh` then runs
-`peregrine validate` and `peregrine eval` on both files. It also checks NV-P's declarations
+`peregrine validate` and `peregrine eval` on the three files. It also checks NV-P's declarations
 (`EraseProof.Test.NVP.P`, shared by NV-K up to its lemma `hEq`) against the kernel's: `Eq` and its
 `Eq.rec`, `Eq.casesOn` from `Init`, and `B` as declared above.
 -/
@@ -63,6 +65,12 @@ def sameDecl (ci ci' : ConstantInfo) : Bool :=
     a.name == b.name && a.levelParams == b.levelParams && a.type == b.type &&
       a.induct == b.induct && a.cidx == b.cidx && a.numParams == b.numParams &&
       a.numFields == b.numFields && a.isUnsafe == b.isUnsafe
+  | .quotInfo a, .quotInfo b =>
+    a.name == b.name && a.levelParams == b.levelParams && a.type == b.type &&
+      a.kind.ctorIdx == b.kind.ctorIdx
+  | .axiomInfo a, .axiomInfo b =>
+    a.name == b.name && a.levelParams == b.levelParams && a.type == b.type &&
+      a.isUnsafe == b.isUnsafe
   | .recInfo a, .recInfo b =>
     a.name == b.name && a.levelParams == b.levelParams && a.type == b.type && a.all == b.all &&
       a.numParams == b.numParams && a.numIndices == b.numIndices &&
@@ -124,8 +132,8 @@ def checkNVP : IO UInt32 := do
   | .error err => IO.eprintln s!"NV-P: {← err.toMessageData.toString}"; return 1
 
 def main (args : List String) : IO UInt32 := do
-  let [file1, file2] := args
-    | IO.eprintln "usage: lake env lean --run tools/NVEmit.lean FILE1 FILE2"; return 2
+  let [file1, file2, file3] := args
+    | IO.eprintln "usage: lake env lean --run tools/NVEmit.lean FILE1 FILE2 FILE3"; return 2
   initSearchPath (← findSysroot)
   -- NV-1: `B` (the kernel adds `B`, `B.f`, `B.t`, `B.rec`; `B.casesOn` as the `inductive`
   -- command builds it), then `B.neg`.
@@ -140,7 +148,13 @@ def main (args : List String) : IO UInt32 := do
       Meta.MetaM.run' (mkCasesOn `W))
     NV2.P NV2.e NV2.p0
   let r3 ← checkNVP
-  return max r1 (max r2 r3)
+  -- NV-Q: `B`, then the axioms `R` and `hR`; the quotients are `Init`'s.
+  let r4 ← emit "NV-Q" file3 (do
+      declB
+      addDecl (.axiomDecl NVQ.R_ax)
+      addDecl (.axiomDecl NVQ.hR_ax))
+    NVQ.P NVQ.e NVQ.p0
+  return max (max r1 r2) (max r3 r4)
 
 end EraseProofNVEmit
 

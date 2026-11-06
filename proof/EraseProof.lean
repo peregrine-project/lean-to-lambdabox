@@ -81,4 +81,8 @@ import EraseProof.Test.NVPFinal
 import EraseProof.Test.NV2Model
 import EraseProof.Test.NV2Run
 import EraseProof.Test.NV2Final
+import EraseProof.Test.NVQData
+import EraseProof.Test.NVQRun
+import EraseProof.Test.NVQModel
+import EraseProof.Test.NVQFinal
 import EraseProof.Test.NV1Collect
