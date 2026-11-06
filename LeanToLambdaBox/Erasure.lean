@@ -51,7 +51,10 @@ deriving BEq
 
 /-- How to handle literals and constructors of `Nat`. -/
 inductive Nat
-  /-- Keep Nat as an inductive type and represent literals by using constructors. -/
+  /--
+  Keep Nat as an inductive type and represent literals by using constructors.
+  A literal above `peanoMaxLiteral` is an error.
+  -/
   | peano
   /--
   Turn Nat literals into lambdabox primitive i63 (panic on overflow),
@@ -103,6 +106,12 @@ structure ErasureConfig: Type where
 /-- Largest `LBTerm.inlinedSize` of a body that `ErasureConfig.auto_inline_typeclass_dispatch`
 marks for inlining. -/
 def autoInlineMaxSize : Nat := 40
+
+/-- Largest `Nat` literal that `nat := .peano` erases, to that many `Nat.succ` applications.
+The eraser recurses once per `Nat.succ` and the output takes about 120 bytes per unit, so a larger
+literal, such as the bound 1114112 in `Char.ofNat`, would exhaust Lean's stack or give an unusable
+file (200000 still works, 400000 crashes Lean). -/
+def peanoMaxLiteral : Nat := 65536
 
 /--
 Number of nodes of the term after Peregrine's inlining pass, which replaces every constant listed
@@ -164,6 +173,8 @@ structure ErasureContext: Type where
   lctx: LocalContext := {}
   fixvars: Option (Std.HashMap Name FVarId) := .none
   config: ErasureConfig
+  /-- The declaration being erased, for error messages; anonymous for the term given to `#erase`. -/
+  decl: Name := .anonymous
 
 /-- The monad in ToLCNF has caches, a local context and toAny as a set of fvars, all as mutable state for some reason.
     Here I just have a read-only local context, in order to be able to use MetaM's type inference, and keep the code complexity low.
@@ -554,8 +565,15 @@ where
 
   visitLiteral (l: Literal): EraseM LBTerm := do
     match (← read).config.nat, l with
-    | .peano, .natVal 0 => visitConstructor ``Nat.zero #[]
-    | .peano, .natVal (n+1) => visitConstructor ``Nat.succ #[.lit (.natVal n)]
+    | .peano, .natVal n =>
+      if n > peanoMaxLiteral then
+        let decl := (← read).decl
+        let site := if decl.isAnonymous then m!"the erased term" else m!"{.ofConstName decl}"
+        throwError "#erase: the Nat literal {n} in {site} exceeds {peanoMaxLiteral}, the largest literal that `nat := .peano` erases to `Nat.succ` applications"
+      else if n = 0 then
+        visitConstructor ``Nat.zero #[]
+      else
+        visitConstructor ``Nat.succ #[.lit (.natVal (n - 1))]
     | .machine, .natVal n =>
       if n <= BitVec.intMax 63 then
         pure <| .prim ⟨.primInt, n⟩
@@ -880,7 +898,7 @@ where
     if nonrecursive
     then -- translate into a single nonrecursive constant declaration
       let e: Expr := ci.value! (allowOpaque := true)
-      let t ← withReader (fun env => { env with fixvars := .none }) do
+      let t ← withReader (fun env => { env with fixvars := .none, decl := name }) do
         pure (← visitExpr (← prepare_erasure e))
       let kn := toKername name
       modify (fun s => { s with constants := s.constants.insert name kn, gdecls := s.gdecls.cons (kn, .constantDecl <| ⟨.some t⟩) })
@@ -911,7 +929,8 @@ where
           let ci ← getConstInfo n -- here n is directly from the above ci.all, possibly _unsafe_rec
           let e: Expr := ci.value! (allowOpaque := true)
           -- TODO: eta-expand fixpoints? (I think this must be done, unsure how far)
-          let t: LBTerm ← visitExpr (← prepare_erasure e)
+          let t: LBTerm ← withReader (fun env => { env with decl := remove_unsafe_rec n }) do
+            visitExpr (← prepare_erasure e)
           mkDef (remove_unsafe_rec n) fixvarnames t
         )
         for (n, i) in fixvarnames.zipIdx do
