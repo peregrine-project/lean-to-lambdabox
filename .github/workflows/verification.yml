@@ -16,10 +16,11 @@
 #                                 the type of its statement definition; the statement definitions
 #                                 and the definitions they reach have the SHA-256 digests of
 #                                 proof/spec.pin.
-#   kernel replay                 leanchecker replays every module EraseProof.* through the kernel.
-#   final-theorem footprint       C12 (once the final form is reached): EraseProof.erase_correct and
+#   kernel replay                 leanchecker replays every module LeanToLambdaBox.* and EraseProof.*
+#                                 through the kernel.
+#   final-theorem footprint       C12: EraseProof.erase_correct and
 #                                 its NV-1 instance reach exactly propext, Classical.choice,
-#                                 Quot.sound. Until then CI passes --no-final.
+#                                 Quot.sound. CI always runs the final form.
 #   shipping regression tests     C10: scripts/regress.sh, and scripts/pure-harness.sh, which runs
 #                                 the pure path next to the Meta path on the corpus and checks the
 #                                 committed summary of the programs in the fragment.
@@ -32,6 +33,13 @@ on:
   push:
     branches:
     - 'ml/verification'
+  pull_request:
+    paths:
+    - 'proof/**'
+    - 'LeanToLambdaBox/**'
+    - 'doc/DIVERGENCES.md'
+    - 'tests/**'
+    - '.github/workflows/verification.yml'
 concurrency:
   group: "${{ github.workflow }}-${{ github.ref }}"
   cancel-in-progress: true
@@ -89,15 +97,10 @@ jobs:
       - name: Pure path next to the Meta path on the corpus (C10)
         run: scripts/pure-harness.sh
 
-      - name: Proof checks (C2-C9, C12 once final)
+      - name: Proof checks (C2-C9, C12)
         env:
           METAROCQ: ${{ github.workspace }}/.metarocq
-        run: |
-          if grep -qx 'EraseProof.erase_correct FINAL' proof/ROOTS.txt; then
-            proof/scripts/check.sh --no-regress --no-peregrine
-          else
-            proof/scripts/check.sh --no-regress --no-peregrine --no-final
-          fi
+        run: proof/scripts/check.sh --no-regress --no-peregrine
 
       # The report's per-declaration lines and check results, on the run's summary page.
       - name: Report summary
