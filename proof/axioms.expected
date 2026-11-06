@@ -133,8 +133,7 @@ EraseProof.Test.NVPK.hrunP propext,Classical.choice,Quot.sound
 EraseProof.Test.NVPK.idB_run propext,Classical.choice,Quot.sound
 EraseProof.Test.NVPK.visitCases_run propext,Classical.choice,Quot.sound
 EraseProof.Test.NVPK.withApp_ee propext
-EraseProof.Pure.whnf_forallE propext,Classical.choice,Quot.sound
-EraseProof.erasePure_erases_of_case propext,Classical.choice,Quot.sound
+EraseProof.erasePure_erases propext,Classical.choice,Quot.sound
 EraseProof.erase_correct_of_pure propext,Classical.choice,Quot.sound
 EraseProof.Test.NV1.casesOn_B propext
 EraseProof.Test.NV1.ev_ctor0 propext
