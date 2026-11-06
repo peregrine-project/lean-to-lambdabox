@@ -1,6 +1,7 @@
 import EraseProof.Bridge.Levels
 import EraseProof.Erasable.Levels
 import EraseProof.Relation.Extend
+import EraseProof.Bridge.Quot
 
 /-!
 # Universe instantiation of the erasure relation
@@ -368,7 +369,8 @@ end
 as many level arguments as level parameters. -/
 def LvlOK (σ : EvalEnv) : Expr → Prop
   | .const c us => ∀ ci, findDecl σ.decls c = some ci →
-      ((∃ cv, ci = .ctorInfo cv) ∨ ∃ d, ci = .defnInfo d) → us.length = ci.levelParams.length
+      ((∃ cv, ci = .ctorInfo cv) ∨ (∃ d, ci = .defnInfo d) ∨ ∃ q, ci = .quotInfo q) →
+      us.length = ci.levelParams.length
   | .app f a => LvlOK σ f ∧ LvlOK σ a
   | .lam _ _ b _ => LvlOK σ b
   | .letE _ _ v b _ => LvlOK σ v ∧ LvlOK σ b
@@ -476,20 +478,22 @@ theorem not_casesReduced_map {iv : InductiveVal} {us : List Level} {lps' : List 
     · rw [← hl, isNeverZero_instLevel_map (fun _ => isNeverZero_instLevel) h'] at hz
       cases hz
 
-/-- Constructor and recognized `casesOn` heads are constructors or definitions. -/
+/-- Constructor, recognized `casesOn` and quotient heads are constructors, definitions or quotient
+constants. -/
 theorem etaSpine?_kind {σ : EvalEnv} {c : Name} {us : List Level} {as : List Expr} {e' : Expr}
     (h : σ.etaSpine? c us as = some e') {ci : ConstantInfo} (hci : findDecl σ.decls c = some ci) :
-    (∃ cv, ci = .ctorInfo cv) ∨ ∃ d, ci = .defnInfo d := by
+    (∃ cv, ci = .ctorInfo cv) ∨ (∃ d, ci = .defnInfo d) ∨ ∃ q, ci = .quotInfo q := by
   unfold EvalEnv.etaSpine? at h
   split at h
   next ci' ar hci' har =>
     unfold specialArity at har
     split at har
     next cv hcv => rw [hci] at hcv; cases hcv; exact .inl ⟨_, rfl⟩
+    next qv hqv => rw [hci] at hqv; cases hqv; exact .inr (.inr ⟨_, rfl⟩)
     next =>
       obtain ⟨iv, hiv, -⟩ := Option.map_eq_some_iff.1 har
       obtain ⟨d, -, -, -, -, -, -, -, hd, -⟩ := casesOn_shape hiv
-      rw [hci] at hd; cases hd; exact .inr ⟨_, rfl⟩
+      rw [hci] at hd; cases hd; exact .inr (.inl ⟨_, rfl⟩)
   next => cases h
 
 section
@@ -506,18 +510,20 @@ theorem TrM.lvlOK (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P) {lps : Li
   | const hB hls =>
     intro ci hci hk
     obtain ⟨-, hctor, hdefn⟩ := ProgEnv.levelsInfo henv (Extend.findDecl_sub hsub hci)
-    rcases hk with ⟨cv, rfl⟩ | ⟨d, rfl⟩
+    rcases hk with ⟨cv, rfl⟩ | ⟨d, rfl⟩ | ⟨q, rfl⟩
     · obtain ⟨ι, η, s, k, o, hB', -⟩ := hctor cv rfl
       rw [hB] at hB'; cases hB'
     · obtain ⟨η', hB'⟩ := hdefn d rfl
       rw [hB] at hB'; cases hB'
       exact (TrLevels_get hls).1
+    · obtain ⟨η', hB'⟩ := henv.lookup_quot (Extend.findDecl_sub hsub hci)
+      rw [hB] at hB'; cases hB'
   | special hB hs hlen _ hsat ih =>
     rw [mkAppN_toArray]
     refine LvlOK_foldl.2 ⟨?_, fun a ha => ?_⟩
     · intro ci hci hk
       obtain ⟨-, hctor, hdefn⟩ := ProgEnv.levelsInfo henv (Extend.findDecl_sub hsub hci)
-      rcases hk with ⟨cv, rfl⟩ | ⟨d, rfl⟩
+      rcases hk with ⟨cv, rfl⟩ | ⟨d, rfl⟩ | ⟨q, rfl⟩
       · obtain ⟨ι, η, s, k, o, hB', hl⟩ := hctor cv rfl
         rw [hB] at hB'; cases hB'
         cases hsat with
@@ -525,6 +531,9 @@ theorem TrM.lvlOK (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P) {lps : Li
         | ctorEta hls => exact (TrLevels_get hls).1.trans hl
       · obtain ⟨η', hB'⟩ := hdefn d rfl
         rw [hB] at hB'; cases hB'; cases hs
+      · obtain ⟨η', hB'⟩ := henv.lookup_quot (Extend.findDecl_sub hsub hci)
+        rw [hB] at hB'; cases hB'
+        exact hsat.quot_levels.trans (henv.quot_levels (Extend.findDecl_sub hsub hci)).symm
     · obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem ha
       exact ih i _ _ (List.getElem?_eq_getElem hi) (List.getElem?_eq_getElem (hlen ▸ hi))
   | app _ _ _ ihf iha => exact ⟨ihf, iha⟩
@@ -556,7 +565,7 @@ theorem Erases.instL_gen (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P)
     (motive_2 := fun Γ Δ k e br _ => LvlOK σ e →
       ErasesAlt E B lps σ (Γ{ls}) (Δ.instL ls) k (Pure.instLevels lps' us e) br)
     ?bvar ?fvar ?lam ?letE ?app ?const ?ctor ?cases ?casesReduced ?eta ?proj ?litZero ?litSucc
-    ?mdata ?box ?done ?alam ?intro h hok
+    ?quotMk ?quotLift ?mdata ?box ?done ?alam ?intro h hok
   case bvar => intros; exact .bvar
   case fvar => intros; exact .fvar
   case lam =>
@@ -614,6 +623,23 @@ theorem Erases.instL_gen (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P)
     exact .proj hss hid hS hsort (ih hok)
   case litZero => intro _ _ _ _ hid _; exact .litZero hid
   case litSucc => intro _ _ _ _ _ _ hid _ ih _; exact .litSucc hid (ih trivial)
+  case quotMk =>
+    intros; rename_i hcq hk _ hlex _ iha ihe hok
+    have has := (LvlOK_mkAppN.1 hok).2
+    rw [instLevels_mkAppN]
+    simp only [List.map_append, List.map_cons, List.map_nil]
+    refine .quotMk hcq hk (iha (has _ (by simp))) (by simpa using hlex) fun i a a' ha ha' => ?_
+    obtain ⟨a₀, ha₀, rfl⟩ := gmap ha
+    exact ihe i a₀ a' ha₀ ha' (has a₀ (by simp [mem ha₀]))
+  case quotLift =>
+    intros; rename_i hcq hk _ _ hlex _ ihf ihq ihe hok
+    have has := (LvlOK_mkAppN.1 hok).2
+    rw [instLevels_mkAppN]
+    simp only [List.map_append, List.map_cons, List.map_nil]
+    refine .quotLift hcq hk (ihf (has _ (by simp))) (ihq (has _ (by simp))) (by simpa using hlex)
+      fun i a a' ha ha' => ?_
+    obtain ⟨a₀, ha₀, rfl⟩ := gmap ha
+    exact ihe i a₀ a' ha₀ ha' (has a₀ (by simp [mem ha₀]))
   case mdata => intro _ _ _ _ _ _ _ ih hok; exact .mdata (ih hok)
   case box =>
     intro _ _ _ _ hb _

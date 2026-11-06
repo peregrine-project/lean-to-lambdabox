@@ -24,6 +24,8 @@ inductive SrcValue (σ : EvalEnv) : Expr → Prop
   | ctor {args : List Expr} : findDecl σ.decls c = some (.ctorInfo cv) →
       args.length = cv.numParams + cv.numFields → SrcValue σ (mkAppN (.const c us) args.toArray)
   | lit : SrcValue σ (.lit (.natVal k))
+  | quotMk : findDecl σ.decls c = some (.quotInfo qv) → qv.kind = .ctor → SrcValue σ a →
+      SrcValue σ (mkAppN (.const c us) [α, r, a].toArray)
 
 namespace Value
 
@@ -38,9 +40,11 @@ private inductive Deep (σ : EvalEnv) : Expr → Prop
       args.length = cv.numParams + cv.numFields → (∀ a ∈ args, Deep σ a) →
       Deep σ (mkAppN (.const c us) args.toArray)
   | lit : Deep σ (.lit (.natVal k))
+  | quotMk : findDecl σ.decls c = some (.quotInfo qv) → qv.kind = .ctor → Deep σ a →
+      Deep σ (mkAppN (.const c us) [α, r, a].toArray)
 
 private theorem Deep.srcValue {σ : EvalEnv} {e : Expr} (h : Deep σ e) : SrcValue σ e := by
-  cases h with
+  induction h with
   | lam => exact .lam
   | sort => exact .sort
   | forallE => exact .forallE
@@ -48,6 +52,7 @@ private theorem Deep.srcValue {σ : EvalEnv} {e : Expr} (h : Deep σ e) : SrcVal
   | propProj h => exact .propProj h
   | ctor hc hl _ => exact .ctor hc hl
   | lit => exact .lit
+  | quotMk hc hk _ ih => exact .quotMk hc hk ih
 
 private theorem getAppFn_mkAppN_const (c : Name) (us : List Level) (as : List Expr) :
     (mkAppN (.const c us) as.toArray).getAppFn = .const c us := by
@@ -89,6 +94,10 @@ private theorem Deep.ctor_args {σ : EvalEnv} {c : Name} {us : List Level} {cv :
     rw [mkAppN_eq_foldl, mkAppN_eq_foldl] at hx
     obtain ⟨-, -, rfl⟩ := foldl_app_const_inj hx
     exact hargs
+  | quotMk hq =>
+    rw [mkAppN_eq_foldl, mkAppN_eq_foldl] at hx
+    obtain ⟨rfl, -, -⟩ := foldl_app_const_inj hx
+    rw [hc] at hq; cases hq
 
 /-- The η-expansion of a short spine is a λ. -/
 private theorem etaSpine?_lam {σ : EvalEnv} {c : Name} {us : List Level} {as : List Expr}
@@ -116,6 +125,14 @@ private theorem BlocksCong_ctor {σ : EvalEnv} {e : Expr} {c : Name} {us : List 
   | const => exact .inl ⟨c, us, cv, he, hc⟩
   | _ => cases he
 
+private theorem BlocksCong_quot {σ : EvalEnv} {e : Expr} {c : Name} {us : List Level}
+    {qv : QuotVal} (he : e.getAppFn = .const c us)
+    (hc : findDecl σ.decls c = some (.quotInfo qv)) : BlocksCong σ e := by
+  cases e with
+  | app f a => exact .inr (.inr ⟨c, us, qv, he, hc⟩)
+  | const => exact .inr (.inr ⟨c, us, qv, he, hc⟩)
+  | _ => cases he
+
 /-- Every evaluation result is a value whose constructor arguments are values. -/
 private theorem deep {σ : EvalEnv} {e v : Expr} (hev : SrcEval σ e v) : Deep σ v := by
   induction hev with
@@ -135,6 +152,8 @@ private theorem deep {σ : EvalEnv} {e v : Expr} (hev : SrcEval σ e v) : Deep �
   | casesLitZero _ _ _ _ _ _ _ _ ih => exact ih
   | casesLitSucc _ _ _ _ _ _ _ _ ih => exact ih
   | casesProof _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ ih => exact ih
+  | quotMk hc hk _ ih => exact .quotMk hc hk ih
+  | quotLift _ _ _ _ _ _ _ _ _ ih => exact ih
   | proj _ hcv hfs ihm =>
     obtain ⟨C, us, cv, ps, hC, -, -, -, -, rfl⟩ := hcv
     exact Deep.ctor_args hC ihm _ (List.mem_append_right _ (List.mem_of_getElem? hfs))
@@ -149,6 +168,7 @@ private theorem deep {σ : EvalEnv} {e v : Expr} (hev : SrcEval σ e v) : Deep �
     | spine hs => exact .spine (.app hs)
     | propProj hp => exact .propProj (.app hp)
     | ctor hc _ _ => exact absurd (BlocksCong_ctor (getAppFn_mkAppN_const _ _ _) hc) hb
+    | quotMk hc _ _ => exact absurd (BlocksCong_quot (getAppFn_mkAppN_const _ _ _) hc) hb
   | mdata _ ih => exact ih
   | atom h =>
     rename_i e

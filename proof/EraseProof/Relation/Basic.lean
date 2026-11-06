@@ -66,14 +66,22 @@ private theorem casesOn?_defn {σ : EvalEnv} {c : Name} {iv : InductiveVal}
     · cases hci
   · cases h
 
-/-- A constant with an arity of a constructor or recognized `casesOn` is one. -/
+/-- The heads of special spines: constructors, recognized `casesOn` constants and erased quotient
+constants. -/
+private def SpecialC (σ : EvalEnv) (c : Name) : Prop :=
+  (∃ cv, findDecl σ.decls c = some (.ctorInfo cv)) ∨ (∃ iv, σ.casesOn? c = some iv) ∨
+    ∃ qv, findDecl σ.decls c = some (.quotInfo qv) ∧ (quotEvalArity qv.kind).isSome
+
+/-- A constant with an arity of a constructor, recognized `casesOn` or erased quotient constant is
+one. -/
 private theorem specialArity_some {σ : EvalEnv} {c : Name} {ar : Nat} (h : specialArity σ c = some ar) :
-    (∃ cv, findDecl σ.decls c = some (.ctorInfo cv)) ∨ ∃ iv, σ.casesOn? c = some iv := by
+    SpecialC σ c := by
   unfold specialArity at h
   split at h
   · exact .inl ⟨_, by assumption⟩
+  · exact .inr (.inr ⟨_, by assumption, by rw [h]; rfl⟩)
   · obtain ⟨iv, hiv, -⟩ := Option.map_eq_some_iff.1 h
-    exact .inr ⟨iv, hiv⟩
+    exact .inr (.inl ⟨iv, hiv⟩)
 
 /-- Only constructor and recognized `casesOn` spines are η-expanded. -/
 private theorem etaSpine?_some {σ : EvalEnv} {c : Name} {us : List Level} {as : List Expr} {e' : Expr}
@@ -87,15 +95,15 @@ private theorem etaSpine?_some {σ : EvalEnv} {c : Name} {us : List Level} {as :
     · cases h
   · cases h
 
-/-- A constant spine of a constructor or recognized `casesOn` is special. -/
+/-- A constant spine of a constructor, recognized `casesOn` or erased quotient constant is
+special. -/
 private theorem specialSpine_of {σ : EvalEnv} {c : Name} {us : List Level} {e : Expr}
-    (he : e.getAppFn = .const c us)
-    (h : (∃ cv, findDecl σ.decls c = some (.ctorInfo cv)) ∨ ∃ iv, σ.casesOn? c = some iv) :
-    SpecialSpine σ e := by
+    (he : e.getAppFn = .const c us) (h : SpecialC σ c) : SpecialSpine σ e := by
   refine ⟨c, us, he, ?_⟩
-  rcases h with h | ⟨iv, hiv⟩
+  rcases h with h | ⟨iv, hiv⟩ | h
   · exact .inl h
-  · exact .inr (by rw [hiv]; rfl)
+  · exact .inr (.inl (by rw [hiv]; rfl))
+  · exact .inr (.inr h)
 
 /-- A constructor's arity is its number of parameters and fields. -/
 private theorem specialArity_ctor {σ : EvalEnv} {c : Name} {cv : ConstructorVal}
@@ -103,17 +111,19 @@ private theorem specialArity_ctor {σ : EvalEnv} {c : Name} {cv : ConstructorVal
     specialArity σ c = some (cv.numParams + cv.numFields) := by
   unfold specialArity; rw [hc]
 
-/-- An atom constant is neither a constructor nor a recognized `casesOn`. -/
+/-- An atom constant is neither a constructor nor a recognized `casesOn` nor a quotient constant. -/
 private theorem isAtom_not_special {σ : EvalEnv} {c : Name} (h : σ.isAtom c = true) :
-    ¬ ((∃ cv, findDecl σ.decls c = some (.ctorInfo cv)) ∨ ∃ iv, σ.casesOn? c = some iv) := by
+    ¬ SpecialC σ c := by
   unfold EvalEnv.isAtom at h
-  rintro (⟨cv, hc⟩ | ⟨iv, hiv⟩)
+  rintro (⟨cv, hc⟩ | ⟨iv, hiv⟩ | ⟨qv, hc, -⟩)
   · rw [hc] at h
     simp [OwnRules] at h
   · split at h
     · rw [hiv] at h
       simp at h
     · cases h
+  · rw [hc] at h
+    simp [OwnRules] at h
 
 /-- The head of an atom spine is an atom constant. -/
 private theorem AtomSpine.head {σ : EvalEnv} {e : Expr} (h : AtomSpine σ e) :
@@ -274,7 +284,7 @@ private theorem Erases.closedn_of_bbound {e : Expr} {tb : LBTerm}
   refine Erases.rec (motive_1 := fun _ _ e tb _ => ∀ k, BBound k e → closedn k tb = true)
     (motive_2 := fun _ _ _ e br _ => ∀ k, BBound k e → closedn (k + br.1.length) br.2 = true)
     ?bvar ?fvar ?lam ?letE ?app ?const ?ctor ?cases ?casesReduced ?eta ?proj ?litZero ?litSucc
-    ?mdata ?box ?done ?alam ?intro h
+    ?quotMk ?quotLift ?mdata ?box ?done ?alam ?intro h
   case bvar => intro _ _ _ _ k hk; simpa [closedn, BBound] using hk
   case fvar | const | box | litZero => intros; rfl
   case lam => intro _ _ _ _ _ _ _ _ _ _ _ _ ih k hk; exact ih (k + 1) hk
@@ -325,6 +335,21 @@ private theorem Erases.closedn_of_bbound {e : Expr} {tb : LBTerm}
     · exact forall_mem_of_getElem hlex (R := fun a a' => ∀ k, BBound k a → closedn k a' = true)
         ihe (fun a a' ha h => h k (hb a (by simp [ha]))) a ha
   case eta => intro _ _ _ _ _ _ _ _ heta _ ih k hk; exact ih k (BBound_etaSpine heta hk)
+  case quotMk =>
+    intros; rename_i hlex _ iha ihe k hk
+    have hb := (BBound_mkAppN.1 hk).2
+    exact closedn_mkApps.2 ⟨iha k (hb _ (by simp)), forall_mem_of_getElem hlex
+      (R := fun a a' => ∀ k, BBound k a → closedn k a' = true) ihe
+      fun a a' ha h => h k (hb a (by simp [ha]))⟩
+  case quotLift =>
+    intros; rename_i hlex _ ihf ihq ihe k hk
+    have hb := (BBound_mkAppN.1 hk).2
+    refine closedn_mkApps.2 ⟨ihf k (hb _ (by simp)), fun x hx => ?_⟩
+    rcases List.mem_cons.1 hx with rfl | hx
+    · exact ihq k (hb _ (by simp))
+    · exact forall_mem_of_getElem hlex
+        (R := fun a a' => ∀ k, BBound k a → closedn k a' = true) ihe
+        (fun a a' ha h => h k (hb a (by simp [ha]))) x hx
   case proj => intro _ _ _ _ _ _ _ _ _ _ _ _ _ _ ih k hk; exact ih k hk
   case litSucc => intro _ _ _ _ _ _ _ _ ih k _; simp only [closedn, Bool.and_eq_true]; exact ⟨rfl, ih k trivial⟩
   case mdata => intros; rename_i ih k hk; exact ih k hk
@@ -360,10 +385,12 @@ theorem Erases.ctor_inv {c : Name} {cv : ConstructorVal} {us : List Level} {as :
         ∀ (i : Nat) a a', as[i]? = some a → as'[i]? = some a' → Erases E B lps σ Γ Δ a a' := by
   generalize hx : mkAppN (.const c us) as.toArray = x at h
   have hfn : x.getAppFn = .const c us := hx ▸ getAppFn_mkAppN_const c us as
-  have hsp : (∃ cv', findDecl σ.decls c = some (.ctorInfo cv')) ∨ ∃ iv, σ.casesOn? c = some iv :=
-    .inl ⟨cv, hc⟩
+  have hsp : SpecialC σ c := .inl ⟨cv, hc⟩
   cases h with
   | box hb => subst hx; exact .inl ⟨rfl, hb⟩
+  | quotMk hq | quotLift hq =>
+    obtain ⟨rfl, -, -⟩ := mkAppN_const_inj hx
+    rw [hc] at hq; cases hq
   | ctor hc' _ hid _ hlen hall =>
     obtain ⟨rfl, rfl, rfl⟩ := mkAppN_const_inj hx
     rw [hc] at hc'
@@ -424,10 +451,13 @@ theorem Erases.cases_inv {c : Name} {iv : InductiveVal} {us : List Level} {as : 
       tb = mkApps alt' (List.replicate cv.numFields .box ++ extra')) := by
   generalize hx : mkAppN (.const c us) as.toArray = x at h
   have hfn : x.getAppFn = .const c us := hx ▸ getAppFn_mkAppN_const c us as
-  have hsp : (∃ cv, findDecl σ.decls c = some (.ctorInfo cv)) ∨ ∃ iv, σ.casesOn? c = some iv :=
-    .inr ⟨iv, hc⟩
+  have hsp : SpecialC σ c := .inr (.inl ⟨iv, hc⟩)
   cases h with
   | box hb => subst hx; exact .inl ⟨rfl, hb⟩
+  | quotMk hq | quotLift hq =>
+    obtain ⟨rfl, -, -⟩ := mkAppN_const_inj hx
+    obtain ⟨d, hd⟩ := casesOn?_defn hc
+    rw [hq] at hd; cases hd
   | cases hco hnr hss hid hpre halts hm hbrs hcf halt hlex hext =>
     obtain ⟨rfl, rfl, rfl⟩ := mkAppN_const_inj hx
     rw [hc] at hco
@@ -458,6 +488,58 @@ theorem Erases.cases_inv {c : Name} {iv : InductiveVal} {us : List Level} {as : 
   | bvar | fvar | lam | letE | proj | litZero | litSucc | mdata =>
     exact absurd hfn (getAppFn_ne_const (fun _ _ h => by cases h) (fun _ _ h => by cases h))
 
+/-- An erasure of a `Quot.mk` or `Quot.lift` spine with at least its arity is `□`, the erasure of
+the element applied to erasures of the extra arguments (`Erases.quotMk`), or the erasure of the
+function applied to that of the quotient argument and of the extra arguments (`Erases.quotLift`). -/
+theorem Erases.quot_inv {c : Name} {qv : QuotVal} {us : List Level} {as : List Expr} {ar : Nat}
+    {tb : LBTerm} (hc : findDecl σ.decls c = some (.quotInfo qv))
+    (har : quotEvalArity qv.kind = some ar) (hle : ar ≤ as.length)
+    (h : Erases E B lps σ Γ Δ (mkAppN (.const c us) as.toArray) tb) :
+    (tb = .box ∧ ErasableS E B lps Γ Δ (mkAppN (.const c us) as.toArray)) ∨
+    (∃ α r a extra a' extra', qv.kind = .ctor ∧ as = [α, r, a] ++ extra ∧
+      Erases E B lps σ Γ Δ a a' ∧ extra.length = extra'.length ∧
+      (∀ (i : Nat) x x', extra[i]? = some x → extra'[i]? = some x' → Erases E B lps σ Γ Δ x x') ∧
+      tb = mkApps a' extra') ∨
+    (∃ α r β f h q extra f' q' extra', qv.kind = .lift ∧ as = [α, r, β, f, h, q] ++ extra ∧
+      Erases E B lps σ Γ Δ f f' ∧ Erases E B lps σ Γ Δ q q' ∧ extra.length = extra'.length ∧
+      (∀ (i : Nat) x x', extra[i]? = some x → extra'[i]? = some x' → Erases E B lps σ Γ Δ x x') ∧
+      tb = mkApps f' (q' :: extra')) := by
+  generalize hx : mkAppN (.const c us) as.toArray = x at h
+  have hfn : x.getAppFn = .const c us := hx ▸ getAppFn_mkAppN_const c us as
+  have hsp : SpecialC σ c := .inr (.inr ⟨qv, hc, by rw [har]; rfl⟩)
+  have hsa : specialArity σ c = some ar := by
+    unfold specialArity; rw [hc]; exact har
+  cases h with
+  | box hb => subst hx; exact .inl ⟨rfl, hb⟩
+  | quotMk hc' hk ha hlex hext =>
+    obtain ⟨rfl, rfl, rfl⟩ := mkAppN_const_inj hx
+    rw [hc] at hc'; cases hc'
+    exact .inr (.inl ⟨_, _, _, _, _, _, hk, rfl, ha, hlex, hext, rfl⟩)
+  | quotLift hc' hk hf hq hlex hext =>
+    obtain ⟨rfl, rfl, rfl⟩ := mkAppN_const_inj hx
+    rw [hc] at hc'; cases hc'
+    exact .inr (.inr ⟨_, _, _, _, _, _, _, _, _, _, hk, rfl, hf, hq, hlex, hext, rfl⟩)
+  | ctor hc' =>
+    obtain ⟨rfl, -, -⟩ := mkAppN_const_inj hx
+    rw [hc] at hc'; cases hc'
+  | cases hco | casesReduced hco =>
+    obtain ⟨rfl, -, -⟩ := mkAppN_const_inj hx
+    obtain ⟨d, hd⟩ := casesOn?_defn hco
+    rw [hc] at hd; cases hd
+  | app hns => exact absurd (specialSpine_of hfn hsp) hns
+  | const _ hsa' =>
+    cases hfn
+    rw [hsa] at hsa'
+    cases hsa'
+  | eta heta =>
+    obtain ⟨rfl, -, rfl⟩ := mkAppN_const_inj hx
+    obtain ⟨ar', har', hlt⟩ := etaSpine?_some heta
+    rw [hsa] at har'
+    cases har'
+    omega
+  | bvar | fvar | lam | letE | proj | litZero | litSucc | mdata =>
+    exact absurd hfn (getAppFn_ne_const (fun _ _ h => by cases h) (fun _ _ h => by cases h))
+
 /-- An erasure of an atom spine is headed by `□`: an atom constant is neither a constructor nor a
 recognized `casesOn`, and `Erases.const` needs a non-atom, so `Erases.box` is its only rule.
 Reference: `erases_mkApps_inv` (`MR E/ErasureProperties.v:105`) for `tInd`-headed terms, which
@@ -481,7 +563,12 @@ private theorem Erases.headOf_atomSpine {e : Expr} {tb : LBTerm} (hsp : AtomSpin
       have := congrArg Expr.getAppFn hx
       rw [getAppFn_mkAppN_const] at this
       cases this
-      exact absurd (.inr ⟨_, hc⟩) hns
+      exact absurd (.inr (.inl ⟨_, hc⟩)) hns
+    | quotMk hc hk | quotLift hc hk =>
+      have := congrArg Expr.getAppFn hx
+      rw [getAppFn_mkAppN_const] at this
+      cases this
+      exact absurd (.inr (.inr ⟨_, hc, by rw [hk]; rfl⟩)) hns
     | eta heta =>
       have := congrArg Expr.getAppFn hx
       rw [getAppFn_mkAppN_const] at this
@@ -500,7 +587,9 @@ private theorem Erases.headOf_atomSpine {e : Expr} {tb : LBTerm} (hsp : AtomSpin
     | box => rfl
     | app _ hf' => cases hx; have := ih hf' he₀; exact this
     | ctor hc => cases hfn rfl; exact absurd (.inl ⟨_, hc⟩) hns
-    | cases hc | casesReduced hc => cases hfn rfl; exact absurd (.inr ⟨_, hc⟩) hns
+    | cases hc | casesReduced hc => cases hfn rfl; exact absurd (.inr (.inl ⟨_, hc⟩)) hns
+    | quotMk hc hk | quotLift hc hk =>
+      cases hfn rfl; exact absurd (.inr (.inr ⟨_, hc, by rw [hk]; rfl⟩)) hns
     | eta heta =>
       cases hfn rfl
       obtain ⟨_, har, _⟩ := etaSpine?_some heta
@@ -524,10 +613,12 @@ theorem Erases.ctorProp_box {c : Name} {cv : ConstructorVal} {us : List Level} {
     (h : Erases E B lps σ Γ Δ (mkAppN (.const c us) as.toArray) tb) : tb = .box := by
   generalize hx : mkAppN (.const c us) as.toArray = x at h
   have hfn : x.getAppFn = .const c us := hx ▸ getAppFn_mkAppN_const c us as
-  have hsp : (∃ cv', findDecl σ.decls c = some (.ctorInfo cv')) ∨ ∃ iv, σ.casesOn? c = some iv :=
-    .inl ⟨cv, hc⟩
+  have hsp : SpecialC σ c := .inl ⟨cv, hc⟩
   cases h with
   | box => rfl
+  | quotMk hq | quotLift hq =>
+    obtain ⟨rfl, -, -⟩ := mkAppN_const_inj hx
+    rw [hc] at hq; cases hq
   | ctor hc' hnp =>
     obtain ⟨rfl, -, -⟩ := mkAppN_const_inj hx
     rw [hc] at hc'
@@ -575,7 +666,7 @@ private theorem Erases.headOf_propProj {e : Expr} {tb : LBTerm} (hp : PropProj �
     cases h with
     | box => exact .inl rfl
     | proj => exact .inr ⟨_, _, rfl⟩
-    | ctor | cases | casesReduced | eta => exact (spine he₀ rfl).elim
+    | ctor | cases | casesReduced | eta | quotMk | quotLift => exact (spine he₀ rfl).elim
     | bvar | fvar | lam | letE | app | const | litZero | litSucc | mdata => cases hx
   | @app f a _ ih =>
     generalize hx : Expr.app f a = x at h he₀
@@ -585,7 +676,7 @@ private theorem Erases.headOf_propProj {e : Expr} {tb : LBTerm} (hp : PropProj �
       cases hx
       have := @ih _ hf he₀
       exact this
-    | ctor | cases | casesReduced | eta => exact (spine he₀ rfl).elim
+    | ctor | cases | casesReduced | eta | quotMk | quotLift => exact (spine he₀ rfl).elim
     | bvar | fvar | lam | letE | const | proj | litZero | litSucc | mdata => cases hx
 
 /-- A λ□ evaluation result is not headed by a projection. Reference: `eval_to_value`

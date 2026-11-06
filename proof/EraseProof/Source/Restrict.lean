@@ -87,12 +87,16 @@ theorem BlocksCong_sub (hsub : SubEnv D P) (hcl : DepClosed D) {x : Expr}
     (hx : ConstsIn (fun c => (findDecl D c).isSome) x) (h : BlocksCong ⟨D, a⟩ x) :
     BlocksCong ⟨P, a⟩ x := by
   have key : ((∃ c us cv, x.getAppFn = .const c us ∧ findDecl D c = some (.ctorInfo cv)) ∨
-      (∃ c us iv, x.getAppFn = .const c us ∧ EvalEnv.casesOn? ⟨D, a⟩ c = some iv)) →
+      (∃ c us iv, x.getAppFn = .const c us ∧ EvalEnv.casesOn? ⟨D, a⟩ c = some iv) ∨
+      (∃ c us qv, x.getAppFn = .const c us ∧ findDecl D c = some (.quotInfo qv))) →
       (∃ c us cv, x.getAppFn = .const c us ∧ findDecl P c = some (.ctorInfo cv)) ∨
-      (∃ c us iv, x.getAppFn = .const c us ∧ EvalEnv.casesOn? ⟨P, a⟩ c = some iv) := by
-    rintro (⟨c, us, cv, hfn, hcv⟩ | ⟨c, us, iv, hfn, hco⟩)
+      (∃ c us iv, x.getAppFn = .const c us ∧ EvalEnv.casesOn? ⟨P, a⟩ c = some iv) ∨
+      (∃ c us qv, x.getAppFn = .const c us ∧ findDecl P c = some (.quotInfo qv)) := by
+    rintro (⟨c, us, cv, hfn, hcv⟩ | ⟨c, us, iv, hfn, hco⟩ | ⟨c, us, qv, hfn, hqv⟩)
     · exact .inl ⟨c, us, cv, hfn, findDecl_sub hsub hcv⟩
-    · exact .inr ⟨c, us, iv, hfn, (casesOn?_agree hsub hcl (head_mem hx hfn) a a).symm.trans hco⟩
+    · exact .inr (.inl ⟨c, us, iv, hfn,
+        (casesOn?_agree hsub hcl (head_mem hx hfn) a a).symm.trans hco⟩)
+    · exact .inr (.inr ⟨c, us, qv, hfn, findDecl_sub hsub hqv⟩)
   cases x with
   | lam | sort | forallE | lit => trivial
   | bvar | fvar | mvar | const | app | letE | mdata | proj => exact key h
@@ -219,6 +223,26 @@ theorem SrcEval.restrict {decls P : List ConstantInfo} {e v : Expr} {view : EnvV
     exact ⟨.casesProof hco' hlen hm em (AtomSpine.restrict hsub hcl hat hmv) hsl hez hct
       ((findDecl_agree hsub hcnD).trans hcn) hnf ((spineType?_agree hsub hmv).trans hst) hps hpi
       halt ea, hv⟩
+  | quotMk hcq hk _ ih =>
+    intro hc
+    have ⟨hcD, has⟩ := ConstsIn_mkAppN.1 hc
+    obtain ⟨ea, ha'⟩ := ih (has _ (by simp))
+    refine ⟨.quotMk ((findDecl_agree hsub hcD).trans hcq) hk ea, ConstsIn_mkAppN.2 ⟨hcD, ?_⟩⟩
+    intro x hx
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
+    rcases hx with rfl | rfl | rfl
+    · exact has _ (by simp)
+    · exact has _ (by simp)
+    · exact ha'
+  | quotLift hcq hk _ _ hcq' hk' _ ihf ihq ihb =>
+    intro hc
+    have ⟨hcD, has⟩ := ConstsIn_mkAppN.1 hc
+    obtain ⟨ef, hfC⟩ := ihf (has _ (by simp))
+    obtain ⟨eq, hqC⟩ := ihq (has _ (by simp))
+    have ⟨hcD', has'⟩ := ConstsIn_mkAppN.1 hqC
+    obtain ⟨eb, hv⟩ := ihb (ConstsIn_instantiate1' (has' _ (by simp)) hfC.2)
+    exact ⟨.quotLift ((findDecl_agree hsub hcD).trans hcq) hk ef eq
+      ((findDecl_agree hsub hcD').trans hcq') hk' eb, hv⟩
   | proj _ hcv hfs ihm =>
     intro hc
     obtain ⟨em, hmv⟩ := ihm hc.2

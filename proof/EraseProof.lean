@@ -15,6 +15,7 @@ import EraseProof.Bridge.Det
 import EraseProof.Bridge.Inst
 import EraseProof.Bridge.Apps
 import EraseProof.Bridge.CasesWhred
+import EraseProof.Bridge.Quot
 import EraseProof.Metatheory.NoConf
 import EraseProof.Statements
 import EraseProof.Test.NoConf
@@ -52,6 +53,7 @@ import EraseProof.Oracle.Infer
 import EraseProof.Simulation.Ind
 import EraseProof.Oracle.InferProj
 import EraseProof.Simulation.Iota
+import EraseProof.Simulation.Quot
 import EraseProof.Simulation.Main
 import EraseProof.Oracle.Sound
 import EraseProof.Core.Collect

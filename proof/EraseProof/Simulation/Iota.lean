@@ -59,6 +59,9 @@ theorem isAtom_spec {c : Name} (h : σ.isAtom c = true) :
     · rename_i cv hcv
       cases hcv
       cases hown
+    · rename_i qv hqv
+      cases hqv
+      cases hown
     · rw [hc]; rfl
   · cases h
 
@@ -81,12 +84,13 @@ theorem unfold_not_special {c : Name} {ci : ConstantInfo} {b : Expr}
 /-- A spine headed by a constructor or a recognized `casesOn` blocks application congruence. -/
 theorem blocksCong_special {e : Expr} {c : Name} {us : List Level} {ar : Nat}
     (he : e.getAppFn = .const c us) (har : specialArity σ c = some ar) : BlocksCong σ e := by
-  rcases SrcDefeq.specialArity_some har with ⟨cv, hcv, -⟩ | ⟨iv, hiv⟩
+  rcases SrcDefeq.specialArity_some har with ⟨cv, hcv, -⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, -⟩
   · exact SrcDefeq.blocksCong_ctor he hcv
   · cases e with
-    | app f a => exact .inr ⟨c, us, iv, he, hiv⟩
-    | const => exact .inr ⟨c, us, iv, he, hiv⟩
+    | app f a => exact .inr (.inl ⟨c, us, iv, he, hiv⟩)
+    | const => exact .inr (.inl ⟨c, us, iv, he, hiv⟩)
     | _ => cases he
+  · exact SrcDefeq.blocksCong_quot he hqv
 
 /-- The evaluations of a spine headed by a constructor or a recognized `casesOn`, with at most its
 arity of arguments: the η-expansion, a saturated constructor, or a saturated `casesOn`. -/
@@ -98,7 +102,8 @@ theorem eval_spine_inv {c : Name} {us : List Level} {as : List Expr} {w : Expr} 
       as.length = cv.numParams + cv.numFields ∧ as.length = vs.length ∧
       (∀ (i : Nat) a v, as[i]? = some a → vs[i]? = some v → SrcEval σ a v) ∧
       w = mkAppN (.const c us) vs.toArray) ∨
-    (∃ iv, σ.casesOn? c = some iv ∧ as.length = casesArity iv) := by
+    (∃ iv, σ.casesOn? c = some iv ∧ as.length = casesArity iv) ∨
+    (∃ qv, findDecl σ.decls c = some (.quotInfo qv) ∧ quotEvalArity qv.kind = some as.length) := by
   have hfn := SrcDefeq.getAppFn_mkAppN_const c us as
   generalize hx : mkAppN (.const c us) as.toArray = x at h hfn
   cases h with
@@ -119,7 +124,10 @@ theorem eval_spine_inv {c : Name} {us : List Level} {as : List Expr} {w : Expr} 
   | casesIota hcs hlen | casesLitZero hcs _ hlen | casesLitSucc hcs _ hlen
   | casesProof hcs hlen =>
     obtain ⟨rfl, rfl, rfl⟩ := mkAppN_inj hx
-    exact .inr (.inr ⟨_, hcs, hlen⟩)
+    exact .inr (.inr (.inl ⟨_, hcs, hlen⟩))
+  | quotMk hc hk | quotLift hc hk =>
+    obtain ⟨rfl, rfl, rfl⟩ := mkAppN_inj hx
+    exact .inr (.inr (.inr ⟨_, hc, by rw [hk]; rfl⟩))
   | zeta | proj | projProp | lit | mdata => cases hfn
   | atom ha =>
     cases w <;> simp [SrcAtom, Expr.getAppFn] at ha hfn
@@ -128,13 +136,17 @@ theorem eval_spine_inv {c : Name} {us : List Level} {as : List Expr} {w : Expr} 
 theorem eval_short {c : Name} {us : List Level} {as : List Expr} {w : Expr} {ar : Nat}
     (h : SrcEval σ (mkAppN (.const c us) as.toArray) w) (har : specialArity σ c = some ar)
     (hlt : as.length < ar) : σ.etaSpine? c us as = some w := by
-  rcases eval_spine_inv h har hlt.le with h | ⟨cv, vs, hc, hlen, -⟩ | ⟨iv, hiv, hl⟩
+  rcases eval_spine_inv h har hlt.le with h | ⟨cv, vs, hc, hlen, -⟩ | ⟨iv, hiv, hl⟩ |
+    ⟨qv, hqv, hq⟩
   · exact h
   · rw [show specialArity σ c = some (cv.numParams + cv.numFields) by
       unfold specialArity; rw [hc]] at har
     cases har
     omega
   · rw [SimCases.specialArity_casesOn hiv] at har
+    cases har
+    omega
+  · rw [show specialArity σ c = quotEvalArity qv.kind by unfold specialArity; rw [hqv], hq] at har
     cases har
     omega
 
@@ -146,7 +158,7 @@ theorem fixed_atom {e : Expr} (ha : SrcAtom e) : Fixed σ e := by
   generalize hx : e = x at h
   cases h with
   | atom => rfl
-  | eta | ctor | casesIota | casesLitZero | casesLitSucc | casesProof =>
+  | eta | ctor | casesIota | casesLitZero | casesLitSucc | casesProof | quotMk | quotLift =>
     exact absurd hx (CasesWhred.ne_mkAppN_const hfn)
   | beta | zeta | delta | constAtom | proj | projProp | lit | appCong | mdata =>
     subst hx; simp [SrcAtom] at ha
@@ -157,7 +169,7 @@ theorem fixed_lit {k : Nat} : Fixed σ (.lit (.natVal k)) := by
   generalize hx : Expr.lit (.natVal k) = x at h
   cases h with
   | lit => cases hx; rfl
-  | eta | ctor | casesIota | casesLitZero | casesLitSucc | casesProof =>
+  | eta | ctor | casesIota | casesLitZero | casesLitSucc | casesProof | quotMk | quotLift =>
     exact absurd hx (CasesWhred.ne_mkAppN_const fun _ _ h => by cases h)
   | atom ha => subst hx; simp [SrcAtom] at ha
   | beta | zeta | delta | constAtom | proj | projProp | appCong | mdata => cases hx
@@ -181,6 +193,7 @@ theorem fixed_const {c : Name} {us : List Level} (ha : σ.isAtom c = true) :
   | casesIota hcs | casesLitZero hcs | casesLitSucc hcs | casesProof hcs =>
     obtain ⟨-, rfl, -⟩ := SrcDefeq.spine_const hx.symm
     rw [SimCases.specialArity_casesOn hcs] at hsa; cases hsa
+  | quotMk | quotLift => exact absurd (SrcDefeq.spine_const hx.symm).1 (by simp)
   | atom ha' => subst hx; simp [SrcAtom] at ha'
   | beta | zeta | proj | projProp | lit | appCong | mdata => cases hx
 
@@ -191,7 +204,8 @@ theorem fixed_ctor {c : Name} {us : List Level} {cv : ConstructorVal} {vs : List
   intro w h
   have har : specialArity σ c = some (cv.numParams + cv.numFields) := by
     unfold specialArity; rw [hc]
-  rcases eval_spine_inv h har hlen.le with he | ⟨cv', ws, hc', -, hl, hev, rfl⟩ | ⟨iv, hiv, -⟩
+  rcases eval_spine_inv h har hlen.le with he | ⟨cv', ws, hc', -, hl, hev, rfl⟩ | ⟨iv, hiv, -⟩ |
+    ⟨qv, hqv, -⟩
   · obtain ⟨ar, har', hlt⟩ := SimCases.etaSpine?_lt he
     rw [har] at har'; cases har'; omega
   · congr 2
@@ -205,6 +219,7 @@ theorem fixed_ctor {c : Name} {us : List Level} {cv : ConstructorVal} {vs : List
       rw [hb, hfix a (List.mem_of_getElem? hv) b (hev i a b hv hb)]
   · obtain ⟨d, hd⟩ := SrcDefeq.casesOn?_defn hiv
     rw [hc] at hd; cases hd
+  · rw [hc] at hqv; cases hqv
 
 /-- An application whose head is fixed and blocks no congruence, of a fixed argument, evaluates to
 itself only. -/
@@ -232,6 +247,8 @@ theorem fixed_app {f a : Expr} (hf : Fixed σ f) (ha : Fixed σ a) (hnb : ¬ Blo
   | ctor hc => exact (hsp hx (by unfold specialArity; rw [hc])).elim
   | casesIota hcs | casesLitZero hcs | casesLitSucc hcs | casesProof hcs =>
     exact (hsp hx (SimCases.specialArity_casesOn hcs)).elim
+  | quotMk hc hk => exact (hsp (ar := 3) hx (by simp [specialArity, hc, hk, quotEvalArity])).elim
+  | quotLift hc hk => exact (hsp (ar := 6) hx (by simp [specialArity, hc, hk, quotEvalArity])).elim
   | atom ha' => subst hx; simp [SrcAtom] at ha'
   | zeta | delta | constAtom | proj | projProp | lit | mdata => cases hx
 
@@ -259,10 +276,44 @@ theorem fixed_projProp {S : Name} {i : Nat} {m : Expr} (hm : Fixed σ m)
   | projProp _ hm' =>
     cases hx
     rw [hm _ hm']
-  | eta | ctor | casesIota | casesLitZero | casesLitSucc | casesProof =>
+  | eta | ctor | casesIota | casesLitZero | casesLitSucc | casesProof | quotMk | quotLift =>
     exact absurd hx (CasesWhred.ne_mkAppN_const fun _ _ h => by cases h)
   | atom ha' => subst hx; simp [SrcAtom] at ha'
   | beta | zeta | delta | constAtom | lit | appCong | mdata => cases hx
+
+/-- A `Quot.mk` spine of a fixed element evaluates to itself only. -/
+theorem fixed_quotMk {c : Name} {us : List Level} {qv : QuotVal} {α r a : Expr}
+    (hc : findDecl σ.decls c = some (.quotInfo qv)) (hk : qv.kind = .ctor) (ha : Fixed σ a) :
+    Fixed σ (mkAppN (.const c us) [α, r, a].toArray) := by
+  intro w h
+  have har : specialArity σ c = some 3 := by simp [specialArity, hc, hk, quotEvalArity]
+  generalize hx : mkAppN (.const c us) [α, r, a].toArray = x at h
+  cases h with
+  | beta hns => exact absurd (SimCases.shortSpine_of hx.symm har (by simp)) hns
+  | appCong hns => exact absurd (SimCases.shortSpine_of hx.symm har (by simp)) hns
+  | delta | constAtom => exact absurd (SrcDefeq.spine_const hx).1 (by simp)
+  | eta he =>
+    obtain ⟨rfl, rfl, rfl⟩ := mkAppN_inj hx
+    obtain ⟨ar, har', hlt⟩ := SimCases.etaSpine?_lt he
+    rw [har] at har'; cases har'; simp at hlt
+  | ctor hc' =>
+    obtain ⟨rfl, -, -⟩ := mkAppN_inj hx
+    rw [hc] at hc'; cases hc'
+  | casesIota hcs | casesLitZero hcs | casesLitSucc hcs | casesProof hcs =>
+    obtain ⟨rfl, -, -⟩ := mkAppN_inj hx
+    obtain ⟨d, hd⟩ := SrcDefeq.casesOn?_defn hcs
+    rw [hc] at hd; cases hd
+  | quotMk _ _ ha' =>
+    obtain ⟨rfl, rfl, h3⟩ := mkAppN_inj hx
+    simp only [List.cons.injEq, and_true] at h3
+    obtain ⟨rfl, rfl, rfl⟩ := h3
+    rw [ha _ ha']
+  | quotLift =>
+    obtain ⟨-, -, h3⟩ := mkAppN_inj hx
+    simp at h3
+  | atom ha' => subst hx; cases ha'
+  | zeta | proj | projProp | lit | mdata =>
+    exact absurd hx.symm (CasesWhred.ne_mkAppN_const fun _ _ h => by cases h)
 
 /-- Every evaluation result is a `Res`: in particular it evaluates to itself only, and so do the
 arguments of a constructor value that is a result. Reference: `eval_to_value`
@@ -298,6 +349,13 @@ theorem res_of_eval {e v : Expr} (hev : SrcEval σ e v) : Res σ v := by
   | casesLitZero _ _ _ _ _ _ _ _ ih => exact ih
   | casesLitSucc _ _ _ _ _ _ _ _ ih => exact ih
   | casesProof _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ ih => exact ih
+  | quotMk hc hk _ ih =>
+    obtain ⟨hv, hf, -⟩ := ih
+    refine .mk (.quotMk hc hk hv) (fixed_quotMk hc hk hf) ?_
+    intro c' us' cv as hc' hx
+    obtain ⟨rfl, -, -⟩ := mkAppN_inj hx
+    rw [hc] at hc'; cases hc'
+  | quotLift _ _ _ _ _ _ _ _ _ ih => exact ih
   | proj _ hcv hfs ihm =>
     obtain ⟨C, us, cv, ps, hC, -, -, -, -, rfl⟩ := hcv
     obtain ⟨-, -, hargs⟩ := ihm
@@ -752,10 +810,17 @@ theorem short_erases_inv {c : Name} {us : List Level} {as : List Lean.Expr} {ar 
     rw [SimCases.specialArity_casesOn hco] at har; cases har
     simp only [List.length_append, hpre, hcs, casesArity, List.length_cons, List.length_nil] at hlt
     omega
+  | quotMk hcq hk _ _ | quotLift hcq hk _ _ _ =>
+    obtain ⟨rfl, -, rfl⟩ := mkAppN_inj hx
+    simp [specialArity, hcq, hk, quotEvalArity] at har
+    subst har
+    simp at hlt
+    omega
   | app hns =>
-    rcases SrcDefeq.specialArity_some har with ⟨cv, hcv, -⟩ | ⟨iv, hiv⟩
+    rcases SrcDefeq.specialArity_some har with ⟨cv, hcv, -⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, hq⟩
     · exact absurd ⟨c, us, hfn, .inl ⟨cv, hcv⟩⟩ hns
-    · exact absurd ⟨c, us, hfn, .inr (by rw [hiv]; rfl)⟩ hns
+    · exact absurd ⟨c, us, hfn, .inr (.inl (by rw [hiv]; rfl))⟩ hns
+    · exact absurd ⟨c, us, hfn, .inr (.inr ⟨qv, hqv, by rw [hq]; rfl⟩)⟩ hns
   | const _ hsa =>
     obtain ⟨-, rfl, -⟩ := SrcDefeq.spine_const hx
     rw [hsa] at har; cases har
@@ -771,7 +836,7 @@ theorem lam_erases_inv {x : Name} {A b : Lean.Expr} {bi : BinderInfo} {F' : LBTe
   cases h with
   | box hb => subst hx; exact .inl ⟨rfl, hb⟩
   | lam hA hAt hb => cases hx; exact .inr ⟨_, _, rfl, hA, hAt, hb⟩
-  | ctor | cases | casesReduced | eta =>
+  | ctor | cases | casesReduced | eta | quotMk | quotLift =>
     exact absurd hx (CasesWhred.ne_mkAppN_const fun _ _ h => by cases h)
   | bvar | fvar | letE | app | const | proj | litZero | litSucc | mdata => cases hx
 
@@ -822,10 +887,12 @@ theorem appBox_step (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.d
       mkAppN (.const c us) (as ++ [f]).toArray := by
     rw [mkAppN_eq_foldl, mkAppN_eq_foldl, List.foldl_append]; rfl
   obtain ⟨ar, har⟩ : ∃ ar, specialArity σ c = some ar := by
-    rcases hspc with ⟨cv, hcv⟩ | hco
+    rcases hspc with ⟨cv, hcv⟩ | hco | ⟨qv, hqv, hq⟩
     · exact ⟨_, by unfold specialArity; rw [hcv]⟩
     · obtain ⟨iv, hiv⟩ := Option.isSome_iff_exists.mp hco
       exact ⟨_, SimCases.specialArity_casesOn hiv⟩
+    · obtain ⟨ar, har⟩ := Option.isSome_iff_exists.mp hq
+      exact ⟨ar, by unfold specialArity; rw [hqv]; exact har⟩
   by_cases hlt : as.length < ar
   · rcases short_erases_inv har hlt hF with ⟨hF', hb⟩ | ⟨e', heta, he'⟩
     · exact hbox hF' hb
@@ -863,7 +930,22 @@ theorem appBox_step (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.d
     rcases Nat.lt_or_eq_of_le (show as.length + 1 ≤ ar by omega) with h1 | h1
     · exact .eta (hs1 h1) hinst
     · rw [← hs2 h1]; exact hinst
-  · rcases SrcDefeq.specialArity_some har with ⟨cv, hcv, rfl⟩ | ⟨iv, hiv⟩
+  · rcases SrcDefeq.specialArity_some har with ⟨cv, hcv, rfl⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, hq⟩
+    rotate_left 2
+    · rcases Erases.quot_inv hqv hq (by omega) hF with ⟨hF', hb⟩ |
+        ⟨α, r, a, extra, a', extra', hk, rfl, ha, hlex, hext, rfl⟩ |
+        ⟨α, r, β, f₁, h₁, q, extra, f', q', extra', hk, rfl, hf₁, hq₁, hlex, hext, rfl⟩
+      · exact hbox hF' hb
+      · refine ⟨mkApps a' (extra' ++ [.box]), ?_, ?_, ?_⟩
+        · rw [hjoin, List.append_assoc]
+          exact .quotMk hqv hk ha (by simp [hlex]) (forall_snoc_intro hlex hext (.box herf))
+        · rw [SimCases.mkApps_snoc]; exact .app hdF .box
+        · intro r h; rwa [SimCases.mkApps_snoc] at h
+      · refine ⟨mkApps f' (q' :: (extra' ++ [.box])), ?_, ?_, ?_⟩
+        · rw [hjoin, List.append_assoc]
+          exact .quotLift hqv hk hf₁ hq₁ (by simp [hlex]) (forall_snoc_intro hlex hext (.box herf))
+        · rw [← List.cons_append, SimCases.mkApps_snoc]; exact .app hdF .box
+        · intro r h; rwa [← List.cons_append, SimCases.mkApps_snoc] at h
     · rcases Erases.ctor_inv hcv (by omega) hF with ⟨hF', hb⟩ | ⟨iid, as', hid, rfl, hlen, hall⟩
       · exact hbox hF' hb
       have hnp : ¬ PropInductive E B cv.induct := fun hp =>
@@ -1265,7 +1347,7 @@ theorem erases_correct_casesLitSucc (henv : ProgEnv P ζ E B) (hE : EnvWF E)
       cases hBN
       exact (hnotProof hss (SimInd.ctor_isProof hE hok hwE).1).elim
     | litZero => cases hx
-    | ctor | cases | casesReduced | eta =>
+    | ctor | cases | casesReduced | eta | quotMk | quotLift =>
       exact absurd hx (CasesWhred.ne_mkAppN_const fun _ _ h => by cases h)
     | bvar | fvar | lam | letE | app | const | proj | mdata => cases hx
   -- the second alternative, under one field binder
