@@ -302,6 +302,7 @@ theorem visitMutual_neg_run {n : Nat} {L : LocalContext} {F : Option (Std.HashMa
   apply bind_ok rfl
   apply bind_ok rfl
   apply bind_ok rfl
+  apply bind_ok rfl
   refine bind_ok (a := negL) (st' := stB st) (ps' := ⟨1⟩) ?_ ?_
   · rw [runPure_withReader]
     apply bind_ok rfl

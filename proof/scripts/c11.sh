@@ -61,6 +61,14 @@ tests/regress/expected/recursor/useCast.ast           peano   -           constr
 tests/regress/expected/recursor/useAnd.ast            peano   -           constr RT.B.t
 tests/regress/expected/recursor/useOver.ast           peano   -           constr RT.B.f
 tests/regress/expected/recursor/propRec.ast           peano   --anf=false (FIX 0)
+tests/regress/expected/structural/useAdd.ast          peano   -           constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.zero
+tests/regress/expected/structural/useAddDefault.ast   peano   -           constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.zero
+tests/regress/expected/structural/useAddNoCsimp.ast   peano   -           constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.zero
+tests/regress/expected/structural/useLength.ast       peano   -           constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.zero
+tests/regress/expected/structural/useMap.ast          peano   -           constr ST.B.t
+tests/regress/expected/structural/useEv.ast           peano   -           constr Bool.false
+tests/regress/expected/structural/usePairs.ast        peano   -           constr Nat.succ constr Nat.succ constr Nat.zero
+tests/regress/expected/structural/useGet.ast          peano   -           constr ST.B.t
 EOF
 )
 

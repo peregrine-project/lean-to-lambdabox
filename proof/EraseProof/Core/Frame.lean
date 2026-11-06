@@ -728,9 +728,9 @@ theorem RA.ctorArity (n : Name) :
       (_root_.liftM (Backend.ctorArity? (m := PureM) n) : EraseT PureM _) :=
   fun _ _ _ _ _ _ _ _ => ⟨rfl, fun _ _ _ h => by cases h; rfl⟩
 
-theorem RA.declInfo (n : Name) :
+theorem RA.declInfo (c : ErasureConfig) (n : Name) :
     RA pc cfg S (fun r => r = findConst pc.decls n)
-      (_root_.liftM (Backend.declInfo? (m := PureM) n) : EraseT PureM _) :=
+      (_root_.liftM (Backend.declInfo? (m := PureM) c n) : EraseT PureM _) :=
   fun _ _ _ _ _ _ _ _ => ⟨rfl, fun _ _ _ h => by cases h; rfl⟩
 
 theorem RA.withReaderFix {P : α → Prop} {x : EraseT PureM α} (f : TravCtx → TravCtx)
@@ -1239,7 +1239,8 @@ theorem step_alt {k : Nat} {mask : ConstructorArgMask} {e : Expr} (he : Good S c
 theorem step_mutual {n : Name} (hn : GoodConst pc.decls n) :
     RA pc cfg S (fun _ => True) (visitMutual (m := PureM) (fuel + 1) n) := by
   rw [visitMutual]
-  refine RA.bind (RA.declInfo n) fun r hr => ?_
+  refine RA.read_bind (fun c _ => ?_) (fun _ _ _ => rfl)
+  refine RA.bind (RA.declInfo c.config n) fun r hr => ?_
   subst hr
   refine RA.bind (RA.getOrFail _ _) fun ci hci => ?_
   refine RA.bind' (Blind.liftM _) fun _ => RA.bind' (Blind.liftM _) fun _ => ?_
