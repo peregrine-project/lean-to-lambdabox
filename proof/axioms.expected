@@ -145,3 +145,5 @@ EraseProof.Steps.stepsB_lit_of propext,Classical.choice,Quot.sound
 EraseProof.StepsCasesCase.casesSat_case propext,Classical.choice,Quot.sound
 EraseProof.StepsCases.casesSat_box propext,Classical.choice,Quot.sound
 EraseProof.StepsCases.casesSat_reduced propext,Classical.choice,Quot.sound
+EraseProof.Pure.whnf_forallE propext,Classical.choice,Quot.sound
+EraseProof.erasePure_erases_of_case propext,Classical.choice,Quot.sound

@@ -69,3 +69,4 @@ import EraseProof.Core.StepsCases
 import EraseProof.Core.StepsCtor
 import EraseProof.Core.StepsCasesCase
 import EraseProof.Core.StepsCasesBox
+import EraseProof.Core.StepsAssemble

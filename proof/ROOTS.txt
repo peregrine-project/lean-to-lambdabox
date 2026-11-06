@@ -28,3 +28,5 @@ EraseProof.Steps.stepsB_lit_of EraseProof.erasePure_erases
 EraseProof.StepsCasesCase.casesSat_case EraseProof.erasePure_erases
 EraseProof.StepsCases.casesSat_box EraseProof.erasePure_erases
 EraseProof.StepsCases.casesSat_reduced EraseProof.erasePure_erases
+EraseProof.Pure.whnf_forallE EraseProof.erasePure_erases
+EraseProof.erasePure_erases_of_case EraseProof.erasePure_erases
