@@ -66,3 +66,4 @@ import EraseProof.Core.LocalsOK
 import EraseProof.Core.Steps
 import EraseProof.Core.StepsB
 import EraseProof.Core.StepsCases
+import EraseProof.Core.StepsCtor
