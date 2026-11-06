@@ -454,6 +454,14 @@ structure IndBlock {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) {ι
   minors : ∀ s t c, minorArity (Rs s).type
       (ι.nparams + ι.nsorts + ((List.ofFn fun t => ι.nctors t).take t.val).sum + c.val) =
     (ι.ctors t c).nfields + 2 * (ι.ctors t c).nrecFields
+  /-- A constructor field that Metalean's block uses as an index variable of the constructor's
+  result is, in the Lean constructor type, an index field (`indexFields`): Lean's kernel decides
+  large elimination by the syntactic occurrence of the field among the result's arguments
+  (`elim_only_at_universe_zero`, `src/kernel/inductive.cpp`), and Metalean's `SortLargeElim` by
+  `targetIndices` (`Ctor.Eligible`, `ML Syntax/Inductive/LargeElimination.lean:27`). -/
+  indexVars : ∀ s c, (∃ (i : Fin (ι.nindices s)) (f : Fin (ι.ctors s c).nfields),
+      (((E.get η).block.ctors s c).targetIndices i).isVar = some (ι.nparams + f.val)) →
+    (indexFields ι.nparams (Cs s c).type).any Option.isSome = true
 
 /-- The Lean declarations of a block, in the order `ProgEnv` adds them. -/
 def IndBlock.decls {ι : Metalean.IndSig} (Is : Fin ι.nsorts → InductiveVal)
