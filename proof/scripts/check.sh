@@ -44,7 +44,8 @@
 #                  Classical.choice, Quot.sound, as is that of its instance on NV-1,
 #                  EraseProof.Test.NV1.final, whose hypothesis terms lie within them (skipped
 #                  with --no-final); C12b, always: the statement definitions and the library
-#                  definitions they reach (kind and flags included; the shipping code and the
+#                  and shipping definitions they reach (kind and flags included; the shipping
+#                  functions under verification, collectDeps, erasePure and eraseEntry, and the
 #                  dependencies by name only) have the SHA-256 digests of proof/spec.pin, every
 #                  pinned constant exists, and the toolchain and git dependency revisions of both
 #                  packages are the pinned ones. See the header of tools/Report.lean.

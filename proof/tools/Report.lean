@@ -67,9 +67,11 @@ and the shipping code (by default the modules `EraseProof` and `LeanToLambdaBox`
   root and every constant reached from it through types, values and constructors, a SHA-256 digest
   of a serialization (`pinText`) of its kind and flags and of its type and value (definitions,
   opaques), its type (theorems, axioms, recursors) or its type and its constructors' names and
-  types (inductives), followed further, if it is declared in the library; its name only if it is
-  declared in the shipping code (`isShipping`: the code under verification, whose changes the pin
-  does not follow) or in a dependency (`depPrefixes`, pinned by version). The pin also holds the
+  types (inductives), followed further, if it is declared in the library or in the shipping code;
+  its name only if it is one of the three shipping functions under verification
+  (`underVerification`: `Erasure.collectDeps`, `Erasure.erasePure`, `Erasure.eraseEntry`, whose
+  changes the pin does not follow, so the constants reached only through them are not pinned) or
+  if it is declared in a dependency (`depPrefixes`, pinned by version). The pin also holds the
   toolchain and the revision of every git dependency (`depPin`: `lean-toolchain` and
   `lake-manifest.json`). `spec.pin` (written by `--write-pin`) must equal the computed pin; every
   constant it names must exist; the toolchain and dependency lines must be those of the root
@@ -601,10 +603,14 @@ def isDep (env : Environment) (c : Name) : Bool :=
   | some m => depPrefixes.any (·.isPrefixOf m)
   | none => true
 
-/-- A constant of the shipping code (`LeanToLambdaBox*` modules), the code under verification: C12b
-pins its name, not its definition, so a change to the shipping code leaves the pin unchanged. -/
-def isShipping (env : Environment) (c : Name) : Bool :=
-  (moduleOf? env c).any (`LeanToLambdaBox).isPrefixOf
+/-- The shipping functions under verification: the fragment test, the pure traversal and the entry
+point behind `#erase`, which the statements are about. C12b pins their names, not their definitions,
+and does not follow them, so a change to the code they run leaves the pin unchanged. Every other
+shipping constant the statements reach (the λ□ syntax, the configuration, the view, the `casesOn`
+recognizer and the other helpers through which the source semantics, the relation and the bridge
+are defined) is hashed and followed like a constant of the library. -/
+def underVerification : Array Name := #[`Erasure.collectDeps, `Erasure.erasePure,
+  `Erasure.eraseEntry]
 
 /-- A serialization of a level: full parameter names, no sharing. -/
 def levelText : Level → String
@@ -706,8 +712,8 @@ def depPin (dir : System.FilePath) : IO (Array String) := do
 
 /-- The pin of the statement definitions `roots`: `root <name> <digest>` for each root, then, for
 every other constant reached from them, `body <name> <digest>` (`pinText`, followed) if it is
-declared in the library, `name <name>` if it is a constant of the shipping code or of a
-dependency; sorted. -/
+declared in the library or in the shipping code, `name <name>` if it is one of
+`underVerification` or a constant of a dependency; sorted. -/
 def specPin (env : Environment) (roots : Array Name) (tmp : System.FilePath) :
     IO (Array String) := do
   let mut names : Array String := #[]
@@ -720,7 +726,7 @@ def specPin (env : Environment) (roots : Array Name) (tmp : System.FilePath) :
     if seen.contains c then continue
     seen := seen.insert c
     let isRoot := roots.contains c
-    if !isRoot && (isShipping env c || isDep env c) then
+    if !isRoot && (underVerification.contains c || isDep env c) then
       names := names.push s!"name {c}"
     else match pinText env c with
       | some (t, deps) =>
@@ -734,8 +740,8 @@ def specPin (env : Environment) (roots : Array Name) (tmp : System.FilePath) :
 
 def pinHeader : String :=
 "# The pin of the statements (tools/Report.lean, C12b): `root <statement definition> <digest>`,
-# `body <constant> <digest>` (SHA-256 of the serialized declaration), `name <constant>` (a constant
-# of the shipping code or of a dependency, pinned by name), `toolchain <name>` and
+# `body <constant> <digest>` (SHA-256 of the serialized declaration), `name <constant>` (a shipping
+# function under verification or a constant of a dependency, pinned by name), `toolchain <name>` and
 # `dep <package> <rev>` (the root package's lean-toolchain and lake-manifest.json). Written by
 # `tools/Report.lean --write-pin`; proof/scripts/check.sh compares it.
 "
