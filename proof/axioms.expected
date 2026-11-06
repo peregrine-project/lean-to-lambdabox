@@ -143,3 +143,4 @@ EraseProof.register_inductive_ok propext,Classical.choice,Quot.sound
 EraseProof.eraseEntry_pure propext,Classical.choice,Quot.sound
 EraseProof.Pure.whnf_forallE propext,Classical.choice,Quot.sound
 EraseProof.erasePure_erases_of_stepsB propext,Classical.choice,Quot.sound
+EraseProof.Steps.stepsB_cases_of_sat propext,Classical.choice,Quot.sound
