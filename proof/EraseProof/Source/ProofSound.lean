@@ -271,22 +271,28 @@ variable {B : Binds ζ} {P : List ConstantInfo} {lps : List Name}
 open CasesWhred in
 /-- A saturated recognized `casesOn` spine reduces (δ, β) to the Metalean recursor node of the
 inductive on a translation of its major, at the levels of the recursor in the `casesOn`'s value
-instantiated by the spine's. Reference: `WHRed.delta` (`ML Syntax/Reduction.lean`). -/
+instantiated by the spine's, in any context. The `casesOn` has as many universe parameters as its
+inductive exactly when the block does not eliminate into every sort, and the motive's level is
+then `0`. Reference: `WHRed.delta` (`ML Syntax/Reduction.lean`). -/
 theorem casesOn_recr {σ : EvalEnv} (henv : ProgEnv P ζ E B) (hE : EnvWF E)
-    (hsub : SubEnv σ.decls P)
+    (hsub : SubEnv σ.decls P) {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n}
+    {Δ : MLCtx ζ lps.length n}
     {c : Name} {iv : InductiveVal} {as : List Expr} {m : Expr} {us : List Level}
-    {t : Metalean.Expr ζ lps.length 0} (hcs : σ.casesOn? c = some iv)
+    {t : Metalean.Expr ζ lps.length n} (hcs : σ.casesOn? c = some iv)
     (hlen : as.length = casesArity iv) (hm : as[casesMajor iv]? = some m)
-    (he : TrM E B lps .nil [] (mkAppN (.const c us) as.toArray) t) :
+    (he : TrM E B lps Γ Δ (mkAppN (.const c us) as.toArray) t) :
     ∃ (ι : Metalean.IndSig) (η : Metalean.Head ζ (.inductive ι)) (s : Fin ι.nsorts)
       (L : Fin ι.nlevels → Metalean.Level lps.length) (l : Metalean.Level lps.length)
-      (ps : Fin ι.nparams → Metalean.Expr ζ lps.length 0)
-      (ms : Fin ι.nsorts → Metalean.Expr ζ lps.length 0)
-      (mins : (t : Fin ι.nsorts) → Fin (ι.nctors t) → Metalean.Expr ζ lps.length 0)
-      (is : Fin (ι.nindices s) → Metalean.Expr ζ lps.length 0) (m' : Metalean.Expr ζ lps.length 0),
-      B iv.name = some (.ind η s) ∧ TrM E B lps .nil [] m m' ∧
+      (ps : Fin ι.nparams → Metalean.Expr ζ lps.length n)
+      (ms : Fin ι.nsorts → Metalean.Expr ζ lps.length n)
+      (mins : (t : Fin ι.nsorts) → Fin (ι.nctors t) → Metalean.Expr ζ lps.length n)
+      (is : Fin (ι.nindices s) → Metalean.Expr ζ lps.length n) (m' : Metalean.Expr ζ lps.length n),
+      B iv.name = some (.ind η s) ∧ TrM E B lps Γ Δ m m' ∧
       E ⊢ t ⤳* .recr η s L l ps ms mins is m' ∧
-      ∀ l₀, casesSortLevel iv us = some l₀ → TrLevel lps l₀ = some ((E.get η).block.level{L}) := by
+      (∀ l₀, casesSortLevel iv us = some l₀ → TrLevel lps l₀ = some ((E.get η).block.level{L})) ∧
+      (∀ d, findDecl σ.decls c = some (.defnInfo d) →
+        (d.levelParams.length = iv.levelParams.length ↔ ¬ (E.get η).block.LargeElim)) ∧
+      (¬ (E.get η).block.LargeElim → l = .zero) := by
   have hP : ∀ {x ci}, findDecl σ.decls x = some ci → findDecl P x = some ci := fun h => by
     obtain ⟨hm, rfl⟩ := findDecl_eq_some h; exact hsub _ hm
   obtain ⟨d, R, j, before, alts, body, rargs, -, hd, hiv, hR, -, -, hlp, -, -, hbe, -, hbody,
@@ -328,8 +334,8 @@ theorem casesOn_recr {σ : EvalEnv} (henv : ProgEnv P ζ E B) (hE : EnvWF E)
   obtain ⟨Θ, b, Γ', hdef, hb⟩ := trM_peel _ hbody htrv
   rw [hbdy] at hb
   obtain ⟨lsR, lR, mo, A, mins, hA, -, -, hbeq, us', hRL, hlsR⟩ := trM_recr_inv (hrec s) hrecrEnd hb
-  let g : Fin (casesArity (Is s)) → Metalean.Expr ζ lps.length 0 := fun j => xs[j.val]'(by omega)
-  let σ₀ : Metalean.Subst ζ lps.length 0 0 := Fin.elim0
+  let g : Fin (casesArity (Is s)) → Metalean.Expr ζ lps.length n := fun j => xs[j.val]'(by omega)
+  let σ₀ : Metalean.Subst ζ lps.length 0 n := Fin.elim0
   have hδβ : E ⊢ (Metalean.Expr.const ηc lsc).appList xs ⤳* b{lsc}.subst (Fin.append σ₀ g) := by
     refine (appList_whredS (E := E) (Relation.ReflTransGen.single
       (WHRed.delta (η := ηc) (ls := lsc))) xs).trans ?_
@@ -388,10 +394,24 @@ theorem casesOn_recr {σ : EvalEnv} (henv : ProgEnv P ζ E B) (hE : EnvWF E)
     obtain ⟨⟨k₀, u⟩, har, rfl⟩ := hl₀
     obtain ⟨a, hk, ha, -, hlv⟩ := ind_level henv hE (hfdI s) hBT har
     rw [hlv, TrLevel_instLevel hdrop ha]
+  have hLE : (d.levelParams.length = (Is s).levelParams.length ↔ ¬ (E.get η).block.LargeElim) ∧
+      (¬ (E.get η).block.LargeElim → lR = .zero) := by
+    rcases hRL with ⟨hL, u', hcons, -⟩ | ⟨hL, hus', hl0⟩
+    · have := congrArg List.length hcons
+      simp only [List.length_map, List.length_cons] at this
+      exact ⟨⟨fun h => by rw [hlp] at h; omega, fun h => absurd hL h⟩, fun h => absurd hL h⟩
+    · have := congrArg List.length hus'
+      simp only [List.length_map] at this
+      exact ⟨⟨fun _ => hL, fun _ => by rw [hlp]; exact this.symm⟩, fun _ => hl0⟩
   rw [hbeq] at hδβ
-  refine ⟨ι, η, s, _, _, _, _, _, _, _, hBT, ?_, hδβ, hlevel⟩
-  erw [hAmaj]
-  exact hm'
+  refine ⟨ι, η, s, _, _, _, _, _, _, _, hBT, ?_, hδβ, hlevel, fun d' hd' => ?_, fun h => ?_⟩
+  · erw [hAmaj]
+    exact hm'
+  · rw [hd] at hd'
+    cases hd'
+    exact hLE.1
+  · rw [hLE.2 h]
+    rfl
 
 end
 
@@ -1074,7 +1094,7 @@ theorem proofSound {σ : EvalEnv} (henv : ProgEnv P ζ E B) (hE : EnvWF E)
   -- the major's value is a proof of the recursor's major type, a proposition
   have hjlt : casesMajor (Is s) < as.length := (List.getElem?_eq_some_iff.mp hm).1
   obtain ⟨t₂, ht₂, hd2⟩ := SrcDefeq.major_congr henv hE hsub hcs hm ihm he ht
-  obtain ⟨ι₂, η₂, s₂, L, l', ps₀, ms, mins, is₀, mv'', hBT₂, hmv, hred, hlev⟩ :=
+  obtain ⟨ι₂, η₂, s₂, L, l', ps₀, ms, mins, is₀, mv'', hBT₂, hmv, hred, hlev, -, -⟩ :=
     casesOn_recr henv hE hsub hcs (by simp [hlen]) (List.getElem?_set_self hjlt) ht₂
   rw [hBT] at hBT₂
   cases hBT₂

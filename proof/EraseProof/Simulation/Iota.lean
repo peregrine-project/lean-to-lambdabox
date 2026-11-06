@@ -1011,7 +1011,7 @@ theorem erases_correct_casesIota (henv : ProgEnv P ζ E B) (hE : EnvWF E)
   have hsnd : SrcDefeq.Sound E B lps m mv := fun he ht => SrcEval.defeq henv hE hsub he ht hmv
   obtain ⟨t₂, ht₂, hd2⟩ := SrcDefeq.major_congr henv hE hsub hcs hm hsnd he ht
   have hjlt : casesMajor iv < as.length := (List.getElem?_eq_some_iff.mp hm).1
-  obtain ⟨ι, η, s, L, l', ps₀, ms, mins, is₀, m', hBT, hm', hredR, hlev⟩ :=
+  obtain ⟨ι, η, s, L, l', ps₀, ms, mins, is₀, m', hBT, hm', hredR, hlev, -, -⟩ :=
     SrcProof.casesOn_recr henv hE hsub hcs (by simp [hlen]) (List.getElem?_set_self hjlt) ht₂
   have hR := (WHRedS.defeq hE hok hredR hd2.right).right
   obtain ⟨-, hps₀, -, -, his₀, hmaj⟩ := Defeq.recr_typed hE hok hR

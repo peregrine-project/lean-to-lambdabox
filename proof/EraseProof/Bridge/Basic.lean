@@ -225,7 +225,7 @@ theorem TrM.mono {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ Δ' : MLCtx
   | forallE _ _ ih₁ ih₂ => exact .forallE (ih₁ hΔ) (ih₂ hΔ.pushLam)
   | letE _ _ _ ih₁ ih₂ ih₃ => exact .letE (ih₁ hΔ) (ih₂ hΔ) (ih₃ (hΔ.cons _))
   | mdata _ ih => exact .mdata (ih hΔ)
-  | lit h => exact .lit h
+  | lit h h₀ h₁ => exact .lit h h₀ h₁
   | projStruct hst hi hS _ hty ih => exact .projStruct hst hi hS (ih hΔ) hty
   | projProof hi hS hs hc hr hf hns _ hty ih => exact .projProof hi hS hs hc hr hf hns (ih hΔ) hty
 
@@ -293,7 +293,7 @@ theorem TrM.instN_fvar {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n}
   | forallE _ _ ih₁ ih₂ => exact .forallE (ih₁ W) (ih₂ W.pushLam)
   | letE _ _ _ ih₁ ih₂ ih₃ => exact .letE (ih₁ W) (ih₂ W) (ih₃ (W.cons _))
   | mdata _ ih => exact .mdata (ih W)
-  | lit h => exact .lit h
+  | lit h h₀ h₁ => exact .lit h h₀ h₁
   | projStruct hst hi hS _ hty ih => exact .projStruct hst hi hS (ih W) hty
   | projProof hi hS hs hc hr hf hns _ hty ih => exact .projProof hi hS hs hc hr hf hns (ih W) hty
 

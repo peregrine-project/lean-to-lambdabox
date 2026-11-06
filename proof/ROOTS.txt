@@ -18,6 +18,8 @@ EraseProof.Defeq.inst_tele EraseProof.erase_correct
 EraseProof.TrM.uninstantiateN EraseProof.erasePure_erases
 EraseProof.Erases.inst_let EraseProof.erase_correct
 EraseProof.Pure.typeLevel_sound EraseProof.erasePure_erases
+EraseProof.Pure.isErasable_ctorProp EraseProof.erasePure_erases
+EraseProof.SrcProof.ctor_evidentProp EraseProof.erasePure_erases
 EraseProof.erases_correct EraseProof.erase_correct
 EraseProof.collectDeps_ok_of FINAL
 EraseProof.eraseEntry_pure EraseProof.erase_correct
@@ -27,3 +29,5 @@ EraseProof.Steps.stepsB_cases_of_sat EraseProof.erasePure_erases
 EraseProof.Steps.stepsB_ctor EraseProof.erasePure_erases
 EraseProof.Steps.stepsB_proj EraseProof.erasePure_erases
 EraseProof.Steps.stepsB_lit_of EraseProof.erasePure_erases
+EraseProof.StepsCases.casesSat_box EraseProof.erasePure_erases
+EraseProof.StepsCases.casesSat_reduced EraseProof.erasePure_erases

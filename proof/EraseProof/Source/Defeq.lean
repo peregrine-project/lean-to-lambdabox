@@ -732,7 +732,7 @@ theorem PreTr.replace {n : Nat} {Δ₁ : MLCtx ζ lps.length n} {e : Expr}
     exact ⟨b, .fvar hb, hc⟩
   | sort h => intros; exact ⟨_, .sort h, .refl⟩
   | const h₁ h₂ => intros; exact ⟨_, .const h₁ h₂, .refl⟩
-  | lit h => intros; exact ⟨_, .lit h, .refl⟩
+  | lit h h₀ h₁ => intros; exact ⟨_, .lit h h₀ h₁, .refl⟩
   | special hb hs hlen _ hsat ih =>
     intro Γ₁ Γ₂ Δ₂ hL
     obtain ⟨as₂, h₁, h₂⟩ := replace_args (CasesWhred.forall₂_of_getElem? hlen
