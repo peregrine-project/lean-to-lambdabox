@@ -297,9 +297,9 @@ theorem TrM.instL (hus : TrLevels lps us lps'.length = some ls) {n : Nat}
     simp only [Metalean.Expr.inst_letE, Metalean.Expr.instL_wk]
     exact .letE ih₁ ih₂ ih₃
   | mdata _ ih => exact .mdata ih
-  | lit hB =>
+  | lit hB h₀ h₁ =>
     rw [natLitM_instL]
-    exact .lit hB
+    exact .lit hB h₀ h₁
   | projStruct hst hi hS _ hty ih =>
     rw [Metalean.Inductive.IsStructure.projTerm_instL]
     exact .projStruct hst hi hS ih (by simpa using LevelsExt.TypedExt.instL ls hty)

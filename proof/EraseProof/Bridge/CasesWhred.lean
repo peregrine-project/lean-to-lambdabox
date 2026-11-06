@@ -444,6 +444,18 @@ theorem trM_lit_inv {v : Nat} {t : Metalean.Expr ζ lps.length n}
   | special => exact absurd hx (ne_mkAppN_const fun _ _ h => by cases h)
   | _ => cases hx
 
+/-- A translated Nat literal: ``Nat.zero`` and ``Nat.succ`` are the constructors `0` and `1` of
+the inductive bound to ``Nat``. -/
+theorem trM_lit_ctors {v : Nat} {t : Metalean.Expr ζ lps.length n}
+    (h : TrM E B lps Γ Δ (.lit (.natVal v)) t) :
+    ∃ (ηNat : Head ζ (.inductive natSig)) (o₀ o₁ : List Nat), B ``Nat = some (.ind ηNat 0) ∧
+      B ``Nat.zero = some (.ctor ηNat 0 0 o₀) ∧ B ``Nat.succ = some (.ctor ηNat 0 1 o₁) := by
+  generalize hx : Expr.lit (.natVal v) = e at h
+  cases h with
+  | lit hB h₀ h₁ => exact ⟨_, _, _, hB, h₀, h₁⟩
+  | special => exact absurd hx (ne_mkAppN_const fun _ _ h => by cases h)
+  | _ => cases hx
+
 end
 
 /-- `Forall₂` at a position. -/
@@ -914,6 +926,9 @@ theorem casesOnLit_whred_spine {σ : EvalEnv} {c : Name} {iv : InductiveVal} {ar
   obtain ⟨m', -, hm'⟩ := forall₂_getElem? hxs
     (by rw [List.getElem?_append_left hcMlt]; exact hm)
   obtain ⟨ηNat, hBNat, -⟩ := trM_lit_inv hm'
+  obtain ⟨ηN₂, o₀, o₁, hBN₂, hz₀, hs₁⟩ := trM_lit_ctors hm'
+  rw [hBNat] at hBN₂
+  cases hBN₂
   obtain ⟨ι', η', s', hB', -, -, hctl⟩ := ProgEnv.lookup_ind henv (hP hiv)
   rw [hnat, hBNat] at hB'
   cases hB'
@@ -951,7 +966,7 @@ theorem casesOnLit_whred_spine {σ : EvalEnv} {c : Name} {iv : InductiveVal} {ar
     subst hrecs
     refine ⟨_, _, _, _, [natLitM ηNat v], rfl, rfl, ?_, fun o => ⟨0, natLitM ηNat v, ?_, rfl, ?_⟩⟩
     · simp only [Nat.add_one_ne_zero, ↓reduceIte, Nat.add_sub_cancel]
-      exact .cons (TrM.lit hBNat) .nil
+      exact .cons (TrM.lit hBNat hz₀ hs₁) .nil
     · match o with | ⟨0, _⟩ => rfl
     · match o with | ⟨0, _⟩ => rfl
 

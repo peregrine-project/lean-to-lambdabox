@@ -351,9 +351,13 @@ inductive TrM {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (lps : L
       TrM E B lps Γ Δ (.letE x T v b nd) (.letE T' v' b'.wk)
   /-- Metadata is dropped by the export. -/
   | mdata : TrM E B lps Γ Δ e t → TrM E B lps Γ Δ (.mdata d e) t
-  /-- Nat literals as unary constructor chains (`ML Checker/Fast/FExpr.lean:984`). -/
-  | lit {ηNat : Metalean.Head ζ (.inductive natSig)} :
-      B ``Nat = some (.ind ηNat 0) → TrM E B lps Γ Δ (.lit (.natVal k)) (natLitM ηNat k)
+  /-- Nat literals as unary constructor chains (`ML Checker/Fast/FExpr.lean:984`), of the
+  constructors that Lean's kernel names ``Nat.zero`` and ``Nat.succ`` when it reads a literal (the
+  `Nat` literal extension of the kernel). -/
+  | lit {ηNat : Metalean.Head ζ (.inductive natSig)} {o₀ o₁ : List Nat} :
+      B ``Nat = some (.ind ηNat 0) → B ``Nat.zero = some (.ctor ηNat 0 0 o₀) →
+      B ``Nat.succ = some (.ctor ηNat 0 1 o₁) →
+      TrM E B lps Γ Δ (.lit (.natVal k)) (natLitM ηNat k)
   /-- Projections of a structure (`project`, `ML Checker/Slow/Projection.lean:96-106`). -/
   | projStruct {ι : Metalean.IndSig} {η : Metalean.Head ζ (.inductive ι)} {s : Fin ι.nsorts}
       {c : Fin (ι.nctors s)} {ls : Fin ι.nlevels → Metalean.Level lps.length}

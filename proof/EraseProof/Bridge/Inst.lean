@@ -51,8 +51,9 @@ inductive PreTr (E : Metalean.Env ζ) (B : Binds ζ) (lps : List Name) :
       PreTr E B lps ((none, .vlet v') :: Δ) b b' →
       PreTr E B lps Δ (.letE x T v b nd) (.letE T' v' b'.wk)
   | mdata : PreTr E B lps Δ e t → PreTr E B lps Δ (.mdata d e) t
-  | lit {ηNat : Metalean.Head ζ (.inductive natSig)} :
-      B ``Nat = some (.ind ηNat 0) → PreTr E B lps Δ (.lit (.natVal k)) (natLitM ηNat k)
+  | lit {ηNat : Metalean.Head ζ (.inductive natSig)} {o₀ o₁ : List Nat} :
+      B ``Nat = some (.ind ηNat 0) → B ``Nat.zero = some (.ctor ηNat 0 0 o₀) →
+      B ``Nat.succ = some (.ctor ηNat 0 1 o₁) → PreTr E B lps Δ (.lit (.natVal k)) (natLitM ηNat k)
   | projStruct {ι : Metalean.IndSig} {η : Metalean.Head ζ (.inductive ι)} {s : Fin ι.nsorts}
       {c : Fin (ι.nctors s)} {ls : Fin ι.nlevels → Metalean.Level lps.length}
       {ps : Fin ι.nparams → Metalean.Expr ζ lps.length n}
@@ -81,7 +82,7 @@ theorem PreTr.ofTrM {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx 
   | forallE _ _ ih₁ ih₂ => exact .forallE ih₁ ih₂
   | letE _ _ _ ih₁ ih₂ ih₃ => exact .letE ih₁ ih₂ ih₃
   | mdata _ ih => exact .mdata ih
-  | lit h => exact .lit h
+  | lit h h₀ h₁ => exact .lit h h₀ h₁
   | projStruct hst hi hS _ _ ih => exact .projStruct hst hi hS ih
   | projProof hi hS hs hc hr hf hns _ _ ih => exact .projProof hi hS hs hc hr hf hns ih
 
@@ -173,10 +174,10 @@ theorem PreTr.subst {n : Nat} {Δ : MLCtx ζ lps.length n} {e : Expr}
     simp only [Metalean.Expr.subst, Metalean.Expr.wk_subst_lift]
     exact .letE (ih₁ W) (ih₂ W) (ih₃ (W.cons _))
   | mdata _ ih => intro _ _ _ _ _ W; exact .mdata (ih W)
-  | lit hB =>
+  | lit hB h₀ h₁ =>
     intro _ _ _ _ _ _
     rw [natLitM_subst]
-    exact .lit hB
+    exact .lit hB h₀ h₁
   | projStruct hst hi hS _ ih =>
     intro _ _ _ _ _ W
     rw [Metalean.Inductive.IsStructure.projTerm_subst]
@@ -550,9 +551,9 @@ theorem PreTr.instA {n₁ : Nat} {Δ₁ : MLCtx ζ lps.length n₁} {b : Expr}
     intro _ a d σ Δ₂ W
     obtain ⟨te, he, ce⟩ := ih W
     exact ⟨te, .mdata he, ce⟩
-  | lit hB =>
+  | lit hB h₀ h₁ =>
     intro _ _ _ _ _ _
-    refine ⟨_, .lit hB, fun {_ _} => ?_⟩
+    refine ⟨_, .lit hB h₀ h₁, fun {_ _} => ?_⟩
     rw [natLitM_subst]
     exact .refl
   | projStruct hst hi hS _ ih =>
@@ -854,7 +855,7 @@ theorem PreTr.recover
   | fvar h => intros; exact .fvar h
   | sort h => intros; exact .sort h
   | const h₁ h₂ => intros; exact .const h₁ h₂
-  | lit h => intros; exact .lit h
+  | lit h h₀ h₁ => intros; exact .lit h h₀ h₁
   | @special c us _ _ as as' b _ hb hs hlen _ hsat ih =>
     intro Γ m R ρ hth hR ht
     refine .special hb hs hlen (fun i a a' ha ha' => ?_) hsat
