@@ -441,6 +441,17 @@ theorem isErasable_propShape {fuel : Nat} {e : Expr} {c : Name} {us : List Level
       | mdata => exact absurd rfl (hnm _ _)
   · exact hyes rfl
 
+/-- On a spine whose head is not a theorem and has an arity as its declared type, the oracle
+answers `true` or fails: the inferred type is an arity. -/
+theorem isErasable_arity {fuel : Nat} {e : Expr} {c : Name} {us : List Level} {k n : Nat}
+    {u : Level} {ci : ConstantInfo} {b : Bool} (hs : ConstSpine c us k e)
+    (hf : findConst cx.decls c = some ci) (hnt : IsThm ci = false)
+    (hn : arityShape ci.type = some (n, u)) (h : Pure.isErasable cx fuel ls e = .ok b) :
+    b = true := by
+  obtain ⟨T, ba, h1, h2, hyes, -⟩ := isErasable_of_not_thm hs hf hnt h
+  obtain ⟨m, has, -⟩ := inferType_constSpine_arity hf hn hs h1
+  exact hyes (isArity_arityShape has h2)
+
 /-- A constant applied to a list of arguments is its spine. -/
 theorem ConstSpine.mkAppN (c : Name) (us : List Level) (as : List Expr) :
     ConstSpine c us as.length (Lean.mkAppN (.const c us) as.toArray) := by
@@ -477,10 +488,8 @@ theorem Pure.isErasable_atom {cx : Pure.Ctx} {σ : EvalEnv} {e : Expr} {fuel : N
     obtain ⟨-, hty⟩ := ha
     cases hthm : IsThm ci
     · rcases hty with (hA | hB) | hT
-      · obtain ⟨T, ba, h1, h2, hyes, -⟩ := isErasable_of_not_thm hs hf hthm h
-        obtain ⟨⟨n, u⟩, hn⟩ := Option.isSome_iff_exists.1 hA
-        obtain ⟨m, has, -⟩ := inferType_constSpine_arity hf hn hs h1
-        exact hyes (isArity_arityShape has h2)
+      · obtain ⟨⟨n, u⟩, hn⟩ := Option.isSome_iff_exists.1 hA
+        exact isErasable_arity hs hf hthm hn h
       · exact isErasable_propShape hs hf hthm (hcx ▸ PropShape.of_evidentProp _ hB) h
       · rw [hthm] at hT; cases hT
     · obtain ⟨args, hspn⟩ := hs.spine_eq

@@ -112,25 +112,4 @@ theorem TypeEq.forallE_ne_quot (hE : EnvWF E) (hΔ : E[Δ] ⊢ ok) :
   cases (ΩLower.mem_principal_id (R := pointedOrder E ℓ) _ _).mp hp with
   | collapse h => nomatch h
 
-/-- An inductive type is not equal, as a type, to a quotient type.
-PCUIC has no primitive quotients; analogue of `forallE_ne_ind`. -/
-theorem TypeEq.ind_ne_quot (hE : EnvWF E) (hΔ : E[Δ] ⊢ ok) :
-    ¬ E[Δ] ⊢ .ind η s ls ps is ≡ .quot θ u α r typ := by
-  intro h
-  have ⟨_, hl⟩ := h.left
-  have ⟨_, hr⟩ := h.right
-  have hB := (hE.entryWF η).block
-  have hq := QuotTyping.ofTyping ⟨Δ, hΔ⟩ hr
-  have heq := h.rawInterpret_eq hΔ hE
-  rw [rawInterpret_ind_typed _ (IndTyping.ofTyping (Γ₁ := ⟨Δ, hΔ⟩) hB hl) hB,
-    RawFamily.ind_value, rawInterpret_quot _ hq, RawFamily.quot_value,
-    QuotCode.map_hom_id] at heq
-  have hmem : (principalIdeal (quotAtom (hq.code θ))).mem (𝟙 _) (quotAtom (hq.code θ)) := by
-    rw [← ΩIdeal.val_mem]
-    exact (ΩLower.mem_principal_id _ _).mpr le_rfl
-  rw [← ΩIdeal.val_mem, ← heq] at hmem
-  obtain ⟨_, _, hle⟩ := hmem
-  cases hle with
-  | collapse h => nomatch h
-
 end EraseProof

@@ -279,7 +279,7 @@ theorem ProgEnv.names_closed (h : ProgEnv P ζ E B) : ∀ ci ∈ P, NamesClosed 
     intro ci hci
     rcases List.mem_append.1 hci with hm | hci
     · obtain ⟨q, hq', rfl⟩ := List.mem_map.1 hm
-      obtain ⟨T, t₀, hT, -, -⟩ := (hq q (List.mem_reverse.1 hq')).2
+      obtain ⟨T, t₀, hT, -, -⟩ := (hq q (List.mem_reverse.1 hq')).2.1
       refine ⟨TrM.namesIn hfull hT, nofun, nofun, fun n hn => ?_,
         nofun, nofun, nofun⟩
       simp only [ConstantInfo.all, List.mem_singleton] at hn

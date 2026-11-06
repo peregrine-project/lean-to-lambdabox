@@ -346,7 +346,7 @@ theorem ProgEnv.typeTr {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ}
     rcases List.mem_append.mp hci with hci | hci
     · simp only [List.mem_map, List.mem_reverse] at hci
       obtain ⟨q, hq', rfl⟩ := hci
-      obtain ⟨T, -, hT, -⟩ := (hq q hq').2
+      obtain ⟨T, -, hT, -⟩ := (hq q hq').2.1
       exact ⟨_, _, _, _, hT⟩
     · exact ih ci hci
 

@@ -40,6 +40,12 @@ def KeepMasks (σ : EvalEnv) (iv : InductiveVal) (masks : InductiveArgMasks) : P
   masks.length = iv.ctors.length ∧ ∀ (k : Nat) cn cv, iv.ctors[k]? = some cn →
     findDecl σ.decls cn = some (.ctorInfo cv) → masks[k]? = some (Array.replicate cv.numFields .keep)
 
+/-- The kername of `c` is the λ□ block name of no inductive of `σ`. A constant held as a λ□
+constant (`EmitsConst`) has this from `BlockNamesInj`; a quotient constant other than `Quot` has
+it because its kername is not a root kername, which block names are (`mutualBlockKername`). -/
+def KnNotBlock (σ : EvalEnv) (c : Name) : Prop :=
+  ∀ iv, (∃ ci ∈ σ.decls, ci = .inductInfo iv) → toKername c ≠ blockKername iv
+
 /-- The traversal's state invariant over the Metalean environment `E` (table `B`) and the
 evaluation environment `σ`: every registered constant `c` has the kername `toKername c`, is a
 declaration of `σ`, and its entry erases its declaration (`ErasesDecl`) with erased dependencies;
@@ -54,7 +60,7 @@ structure StateOK {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (σ 
   /-- A registered constant: its kername, its declaration (held by the λ□ environment as a
   constant), its erased entry and dependencies. -/
   registered : ∀ c kn, st.constants[c]? = some kn → kn = toKername c ∧
-    ∃ ci cb, findDecl σ.decls c = some ci ∧ EmitsConst ci = true ∧
+    ∃ ci cb, findDecl σ.decls c = some ci ∧ KnNotBlock σ c ∧
       lookupConst st.gdecls kn = some cb ∧
       ErasesDecl E B σ ci cb ∧ ∀ b, cb.cst_body = some b → ErasesDeps E B σ st.gdecls b
   /-- A registered inductive type: its λ□ inductive, its erased block, its masks. -/
@@ -170,11 +176,11 @@ theorem StateOK.kername {st : ErasureState} {c : Name} {kn : Kername} (hok : Sta
   exact ⟨rfl, .const hf hl hd hb⟩
 
 /-- An unregistered constant of the closure that the λ□ environment holds as a constant
-(`EmitsConst`) has a fresh kername, from `KernameInj` and `BlockNamesInj`. Reference:
+whose kername is no block name (`KnNotBlock`) has a fresh kername, from `KernameInj`. Reference:
 `fresh_global` (`MR E/EGlobalEnv.v:191`). -/
 theorem StateOK.fresh {st : ErasureState} {c : Name} {ci : ConstantInfo} (hok : StateOK E B σ st)
-    (hinj : KernameInj σ.decls) (hbn : BlockNamesInj σ.decls) (hc : findDecl σ.decls c = some ci)
-    (hem : EmitsConst ci = true) (hnew : st.constants[c]? = none) :
+    (hinj : KernameInj σ.decls) (hc : findDecl σ.decls c = some ci)
+    (hnb : KnNotBlock σ c) (hnew : st.constants[c]? = none) :
     st.gdecls.find? (·.1 == toKername c) = none := by
   rw [List.find?_eq_none]
   intro d hd hdk
@@ -190,11 +196,15 @@ theorem StateOK.fresh {st : ErasureState} {c : Name} {ci : ConstantInfo} (hok : 
     rw [hiv] at hid
     obtain ⟨j, -, hj⟩ := Option.map_eq_some_iff.1 hid
     have hb : r.1.mutualBlockName = blockKername iv := by rw [← hj]
-    have hmem : ci ∈ σ.decls ∧ ci.name = c := findDecl_eq_some hc
-    refine (hbn iv iv ⟨_, (findDecl_eq_some hiv).1, rfl⟩ ⟨_, (findDecl_eq_some hiv).1, rfl⟩).2 ci
-      hmem.1 hem ?_
-    rw [hmem.2, ← hdk', ← hname, hb]
-    rfl
+    exact hnb iv ⟨_, (findDecl_eq_some hiv).1, rfl⟩ (by rw [← hdk', ← hname, hb])
+
+/-- A constant of the closure held as a λ□ constant (`EmitsConst`) has a kername that is no
+block name, by `BlockNamesInj`. -/
+theorem knNotBlock_of_emits {c : Name} {ci : ConstantInfo} (hbn : BlockNamesInj σ.decls)
+    (hc : findDecl σ.decls c = some ci) (hem : EmitsConst ci = true) : KnNotBlock σ c := by
+  intro iv hiv h
+  obtain ⟨hm, hn⟩ := findDecl_eq_some hc
+  exact (hbn iv iv hiv hiv).2 ci hm hem (by rw [hn]; exact h)
 
 end
 
@@ -224,8 +234,8 @@ is the state update of `visitMutual` and `addAxiom`. Reference: the `ConstantDec
 `erase_global_deps` (`MR E/ErasureFunction.v:1602`), with `erases_deps_cons`
 (`MR E/EDeps.v:492`). -/
 theorem StateOK.register {st : ErasureState} {c : Name} {ci : ConstantInfo} {cb : ConstantBody}
-    (hok : StateOK E B σ st) (hinj : KernameInj σ.decls) (hbn : BlockNamesInj σ.decls)
-    (hc : findDecl σ.decls c = some ci) (hem : EmitsConst ci = true)
+    (hok : StateOK E B σ st) (hinj : KernameInj σ.decls)
+    (hc : findDecl σ.decls c = some ci) (hnb : KnNotBlock σ c)
     (hnew : st.constants[c]? = none) (hd : ErasesDecl E B σ ci cb)
     (hb : ∀ b, cb.cst_body = some b →
       ErasesDeps E B σ st.gdecls b ∧ closedn 0 b = true ∧ ∀ x, hasFVar x b = false) :
@@ -238,7 +248,7 @@ theorem StateOK.register {st : ErasureState} {c : Name} {ci : ConstantInfo} {cb 
     refine ⟨[(toKername c, .constantDecl cb)], rfl, fun kn hkn => ?_⟩
     rw [List.map_cons, List.map_nil, List.mem_singleton] at hkn
     rw [hkn]
-    exact hok.fresh hinj hbn hc hem hnew
+    exact hok.fresh hinj hc hnb hnew
   have hins : ∀ c' kn, (st.constants.insert c (toKername c))[c']? = some kn →
       (c = c' ∧ kn = toKername c) ∨ st.constants[c']? = some kn := by
     intro c' kn h
@@ -251,7 +261,7 @@ theorem StateOK.register {st : ErasureState} {c : Name} {ci : ConstantInfo} {cb 
   refine ⟨⟨fun c' kn h => ?_, fun T r h => ?_, fun d hd => ?_, hok.whole,
     fun kn cb' b hl hb' => ?_⟩, hx⟩
   · rcases hins c' kn h with ⟨rfl, rfl⟩ | h
-    · exact ⟨rfl, ci, cb, hc, hem, lookupConst_cons_self, hd,
+    · exact ⟨rfl, ci, cb, hc, hnb, lookupConst_cons_self, hd,
         fun b h => (hb b h).1.ext hx⟩
     · obtain ⟨hk, ci', cb', hf, hem', hl, hd', hb''⟩ := hok.registered c' kn h
       exact ⟨hk, ci', cb', hf, hem', lookupConst_ext hx hl, hd', fun b h => (hb'' b h).ext hx⟩
@@ -281,7 +291,7 @@ Reference: the `None` case of `erase_constant_body` (`MR E/ErasureFunction.v:130
 case of `erases_constant_body` (DV-12). -/
 theorem addAxiom_ok {st : ErasureState} {tc : TravCtx} {pc : PureCtx} {ps : PureState} {c : Name}
     {ci : ConstantInfo} (hok : StateOK E B σ st) (hinj : KernameInj σ.decls)
-    (hbn : BlockNamesInj σ.decls) (hc : findDecl σ.decls c = some ci) (hem : EmitsConst ci = true)
+    (hc : findDecl σ.decls c = some ci) (hnb : KnNotBlock σ c)
     (hnew : st.constants[c]? = none)
     (hax : ci.value? (allowOpaque := true) = none ∨ σ.axiomatized ci = true) :
     ∃ st', (addAxiom (m := PureM) c).runPure st tc pc ps = .ok (((), st'), ps) ∧
@@ -299,7 +309,7 @@ theorem addAxiom_ok {st : ErasureState} {tc : TravCtx} {pc : PureCtx} {ps : Pure
   have hmem : ¬ c ∈ st.constants := by
     rw [Std.HashMap.mem_iff_isSome_getElem?, hnew]
     exact Bool.false_ne_true
-  refine ⟨_, ?_, rfl, hok.register hinj hbn hc hem hnew hd fun b hb => nomatch hb⟩
+  refine ⟨_, ?_, rfl, hok.register hinj hc hnb hnew hd fun b hb => nomatch hb⟩
   simp only [EraseT.runPure, addAxiom, Std.HashMap.contains_iff_mem, StateT.run_bind,
     StateT.run_get, pure_bind, hmem, ↓reduceIte, StateT.run_modify, ReaderT.run_pure,
     StateT.run_pure]

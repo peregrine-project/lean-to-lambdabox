@@ -269,7 +269,7 @@ theorem ProgEnv.levelsInfo {P : List ConstantInfo} (h : ProgEnv P ζ E B) {c : N
       cases hc
       simp only [List.mem_map, List.mem_reverse] at hm
       obtain ⟨q, hq', rfl⟩ := hm
-      obtain ⟨T, t₀, hT, -, -⟩ := (hq q hq').2
+      obtain ⟨T, t₀, hT, -, -⟩ := (hq q hq').2.1
       exact ⟨TrM.levelsTr hT, fun _ h => (by cases h), fun _ h => (by cases h)⟩
     | none =>
       rw [hd] at hc
