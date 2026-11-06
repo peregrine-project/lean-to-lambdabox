@@ -101,7 +101,7 @@ private theorem recr_levels_of_not_structure (henv : ProgEnv P ζ E B) (hE : Env
 
 /-- In the `TrM.projProof` case the oracle fails: the projected inductive is not a structure, so
 its recursor has no universe parameter for the motive, and the oracle throws. -/
-private theorem infer_projProof_ne (henv : ProgEnv P ζ E B) (hE : EnvWF E)
+theorem infer_projProof_ne (henv : ProgEnv P ζ E B) (hE : EnvWF E)
     (hsub : SubEnv cx.decls P) {S : Name} {ι : Metalean.IndSig}
     {η : Metalean.Head ζ (.inductive ι)} {s : Fin ι.nsorts} {c : Fin (ι.nctors s)}
     (hBS : B S = some (.ind η s)) (hs : ∀ t : Fin ι.nsorts, t = s)
@@ -153,7 +153,7 @@ private theorem infer_proj (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubE
 
 /-- The oracle's answer: a spine headed by a theorem, or the steps after the theorem test (the
 inferred type, the arity test, and otherwise the sort test). -/
-private theorem isErasable_cases {fuel : Nat} {ls : List Local} {e : Expr} {b : Bool}
+theorem isErasable_cases {fuel : Nat} {ls : List Local} {e : Expr} {b : Bool}
     (h : Pure.isErasable cx fuel ls e = .ok b) :
     (∃ c us v, (spine e).1 = .const c us ∧ findConst cx.decls c = some (.thmInfo v)) ∨
     ∃ T ba, Pure.inferType cx fuel ls [] e = .ok T ∧ Pure.isArity cx fuel ls T = .ok ba ∧
