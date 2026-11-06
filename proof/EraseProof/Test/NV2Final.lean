@@ -1,4 +1,4 @@
-import EraseProof.Final
+import EraseProof.FirstOrder
 import EraseProof.Test.NV2Model
 import EraseProof.Test.NV2Run
 
@@ -12,14 +12,15 @@ proof `T.i` being constructors, then ι on the saturated `W.casesOn` applies the
 `fun b h => b` to the fields, and two β-steps give `B.t`). `final` applies the final theorem
 `erase_correct` to all eight hypotheses (`henv`, `hwf`, `he`, `hty` from `Test/NV2Model.lean`,
 `hrun` from `Test/NV2Run.lean`): the program `p0` that `#erase` emits is an untyped λ□ program
-whose main term evaluates to an erasure of `B.t`.
+whose main term evaluates to an erasure of `B.t`. `firstorder` applies `erase_correct_firstorder` to the
+same hypotheses: that erasure is `B.t`'s structural erasure, the λ□ constructor `1` of `B`'s block.
 -/
 
 open Lean Erasure Metalean
 
 namespace EraseProof.Test.NV2
 
-open EraseProof.Test.NV1 (tB cF cT B_ind Bf_ctor Bt_ctor B_rec)
+open EraseProof.Test.NV1 (tB cF cT B_ind Bf_ctor Bt_ctor B_rec iidB)
 
 theorem mem_P {ci : ConstantInfo} (h : ci ∈ P) :
     ci = .defnInfo W_casesOn ∨ ci = .recInfo W_rec ∨ ci = .ctorInfo Wn_ctor ∨
@@ -74,5 +75,16 @@ theorem final :
       Erases E B [] (evalEnvOf view cfg P) .nil [] cT vb ∧ LBEval defaultFlags lenv tb vb ∧
       ∀ T, E[.nil] ⊢ tE : T → ∃ t', TrM E B [] .nil [] cT t' ∧ E[.nil] ⊢ tE ≡ t' : T :=
   erase_correct henv hwf hview he hty hfrag hrun hev
+
+/-- `B.t` is a first-order value: a constructor of `B : Type` with no parameter and no field. -/
+theorem fo_cT : FirstOrderValue (evalEnvOf view cfg P) cT :=
+  FirstOrderValue.ctor (c := `B.t) (us := []) (as := []) (n := 0) (u := .succ .zero) rfl rfl rfl
+    rfl rfl (fun _ h => nomatch h)
+
+/-- The final theorem on first-order values on NV-2: the main term of the program `#erase` emits
+evaluates in λ□ to `B.t`'s structural erasure, the constructor `1` of `B`'s block. -/
+theorem firstorder :
+    ∃ lenv tb, p0 = .untyped lenv (some tb) ∧ LBEval defaultFlags lenv tb (.construct iidB 1 []) :=
+  erase_correct_firstorder henv hwf hview he hty hfrag hrun hev fo_cT
 
 end EraseProof.Test.NV2
