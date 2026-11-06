@@ -26,7 +26,11 @@ component is one `tFix`, because the compiler's auxiliary declarations can be mu
 without being in one Lean `mutual` block.
 
 This mode trusts Lean's compiler up to the phase it reads, including its `csimp` replacements.
-A declaration tagged `@[extern]` is an axiom, whatever `extern` says, as it has no compiled code.
+
+A definition without compiled code, such as one tagged `@[extern]` or one the compiler implements
+natively, is erased from its kernel value as `#erase` does, under the same `extern` policy, at the
+base phase only. The mono phase represents some types differently from kernel terms (`Decidable` as
+`Bool`, a structure with one relevant field as that field), so there such a definition is an axiom.
 -/
 
 open Lean
@@ -290,7 +294,7 @@ def declBody (fix : Std.HashMap Name FVarId) (d : Decl .pure) : EraseM LBTerm :=
   | .code c => return lambdas d.params (← codeTerm fix c)
   | .extern _ => throwError "#erase_lcnf: {d.name} has no code"
 
-def addComponent (g : Std.HashMap Name Node) (comp : List Name) : EraseM Unit := do
+def addComponent (phase : Phase) (g : Std.HashMap Name Node) (comp : List Name) : EraseM Unit := do
   let isRec := match comp with
     | [n] => (g[n]?.map (·.deps.contains n)).getD false
     | _ => true
@@ -302,7 +306,9 @@ def addComponent (g : Std.HashMap Name Node) (comp : List Name) : EraseM Unit :=
       -- A constructor marked `@[extern]` is added by `register_inductive`.
       -- A definition without compiled code, such as `Nat.add`, which the compiler implements
       -- natively, is erased from its kernel value as `#erase` does, under the same `extern` policy.
-      if ((← getEnv).find? n).any (·.hasValue (allowOpaque := true)) then
+      -- Not at the mono phase: there the callers expect mono's types, e.g. a `Bool` where the
+      -- kernel value of `Nat.decEq` builds a `Decidable`.
+      if phase matches .base && ((← getEnv).find? n).any (·.hasValue (allowOpaque := true)) then
         discard <| Erasure.erase.get_constant_kername n
       else
         logInfo s!"No compiled code for {n}, emitting axiom."
@@ -341,7 +347,7 @@ def eraseDecl (name : Name) (phase : Phase) (cfg : ErasureConfig) : CoreM Progra
   let g ← gatherGraph phase machine name
   let (t, s) ← Erasure.run (do
       for comp in components g name do
-        addComponent g comp
+        addComponent phase g comp
       knOf {} name) cfg
   return .untyped s.gdecls (some t)
 

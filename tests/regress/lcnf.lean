@@ -15,6 +15,7 @@ value. The `Nat` and `Int` files check the machine paths with `validate`, as the
 -- peregrine: validate intCase.ast
 -- peregrine: validate more.mono.ast
 -- peregrine: eval more.mono.ast
+-- peregrine: validate isZero.mono.ast
 
 namespace Cases
 
@@ -259,3 +260,7 @@ open Cases in
 #erase_lcnf Cases.natCase to "natCase.ast"
 #erase_lcnf Cases.intCase to "intCase.ast"
 #erase_lcnf mono More.more to "more.mono.ast"
+/- At the mono phase a definition without compiled code is an axiom: the kernel value of
+`Nat.decEq` builds a `Decidable`, while mono code matches on the `Bool` that mono represents
+`Decidable` by. -/
+#erase_lcnf mono Cases.isZero config {nat := .peano, extern := .preferLogical} to "isZero.mono.ast"
