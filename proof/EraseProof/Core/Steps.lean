@@ -216,7 +216,7 @@ theorem Erases.hasFVar_of {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n}
     (motive_2 := fun _ _ _ e br _ => ∀ (p : FVarId → Prop), KFV p e → ∀ x,
       hasFVar x br.2 = true → p x)
     ?bvar ?fvar ?lam ?letE ?app ?const ?ctor ?cases ?casesReduced ?eta ?proj ?litZero ?litSucc
-    ?mdata ?box ?done ?alam ?intro h
+    ?quotMk ?quotLift ?mdata ?box ?done ?alam ?intro h
   case bvar | const | box | litZero => intros; simp_all [hasFVar, hasFVarL]
   case fvar =>
     intro _ _ _ y p hk x hx
@@ -277,6 +277,22 @@ theorem Erases.hasFVar_of {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n}
       · obtain ⟨a, ha, hr⟩ := mem_rel hlex ihe a' ha'
         exact hr p (hk.2 a (by simp [ha])) x h
   case eta => intro _ _ _ _ _ _ _ _ heta _ ih p hk x hx; exact ih p (KFV_etaSpine heta hk) x hx
+  case quotMk =>
+    intros; rename_i hlex _ iha ihe p hk x hx
+    rw [mkAppN_toArray, KFV_foldl] at hk
+    rcases hasFVar_mkApps hx with h | ⟨a', ha', h⟩
+    · exact iha p (hk.2 _ (by simp)) x h
+    · obtain ⟨a, ha, hr⟩ := mem_rel hlex ihe a' ha'
+      exact hr p (hk.2 a (by simp [ha])) x h
+  case quotLift =>
+    intros; rename_i hlex _ ihf ihq ihe p hk x hx
+    rw [mkAppN_toArray, KFV_foldl] at hk
+    rcases hasFVar_mkApps hx with h | ⟨a', ha', h⟩
+    · exact ihf p (hk.2 _ (by simp)) x h
+    · rcases List.mem_cons.1 ha' with rfl | ha'
+      · exact ihq p (hk.2 _ (by simp)) x h
+      · obtain ⟨a, ha, hr⟩ := mem_rel hlex ihe a' ha'
+        exact hr p (hk.2 a (by simp [ha])) x h
   case proj => intro _ _ _ _ _ _ _ _ _ _ _ _ _ _ ih p hk x hx; exact ih p hk x hx
   case litSucc =>
     intro _ _ _ _ _ _ _ _ ih p _ x hx
@@ -1060,7 +1076,7 @@ theorem visitAppArgs_spec {j : Nat} (ih : ∀ e, ExprSpec E B view cfg decls j e
     (hargs : ∀ a ∈ args, (∀ d, nameOccurs d a = true → S d) ∧ MachineFree cfg a ∧
       NatPlain cfg a ∧ RecFree decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A)
     (hns : ∀ c us, f₀.getAppFn = .const c us → (∀ cv, findDecl decls c ≠ some (.ctorInfo cv)) ∧
-      (evalEnvOf view cfg decls).casesOn? c = none)
+      (evalEnvOf view cfg decls).casesOn? c = none ∧ ∀ qv, findDecl decls c ≠ some (.quotInfo qv))
     (hok : StateOK E B (evalEnvOf view cfg decls) st)
     (hf : Erases E B lps (evalEnvOf view cfg decls) Γ Δ f₀ tf)
     (hdf : ErasesDeps E B (evalEnvOf view cfg decls) st.gdecls tf)
@@ -1084,10 +1100,11 @@ theorem visitAppArgs_spec {j : Nat} (ih : ∀ e, ExprSpec E B view cfg decls j e
     have ⟨hera, hdepsa, hgra⟩ := ih a hctx hsc hoa hma hna hra hok hta ⟨A, hA⟩ ha
     have hnsp : ¬ SpecialSpine (evalEnvOf view cfg decls) f₀ := by
       rintro ⟨c, us, hc, hsp⟩
-      obtain ⟨hct, hcs⟩ := hns c us hc
-      rcases hsp with ⟨cv, hcv⟩ | hcs'
+      obtain ⟨hct, hcs, hq⟩ := hns c us hc
+      rcases hsp with ⟨cv, hcv⟩ | hcs' | ⟨qv, hqv, -⟩
       · exact hct cv hcv
       · rw [hcs] at hcs'; cases hcs'
+      · exact hq qv hqv
     have ⟨her, hdeps, hgr⟩ := ihl (f₀ := .app f₀ a) (tf := .app tf ta) (hctx.mono hgra.next)
       (fun b hb => hargs b (.tail _ hb)) (fun c us h => hns c us h) hgra.inv
       (.app hnsp hf hera) (.app (ErasesDeps.ext hgra.ext hdf) hdepsa) hrun
@@ -1194,6 +1211,9 @@ theorem visitApp_spec (hG : CoreEnv E B P decls view cfg) {k : Nat}
     have hspec : specialArity (evalEnvOf view cfg decls) c = none := by
       cases ci with
       | ctorInfo cv => exact absurd hci (hnctor cv)
+      | quotInfo qv =>
+        have := hG.phase _ (findDecl_eq_some hci).1
+        simp [PhaseIDecl] at this
       | _ => simp [specialArity, evalEnvOf, hci, EvalEnv.casesOn?, hcs]
     have hem : EmitsConst ci = true := by
       cases ci with
@@ -1265,7 +1285,9 @@ theorem visitApp_spec (hG : CoreEnv E B P decls view cfg) {k : Nat}
       rw [hA] at hrun
       have ⟨her, hdeps, hgr⟩ := visitAppArgs_spec (fun e => ih.expr i (by omega) e)
         (hctx.mono hgf.next) hsc (fun a ha => ⟨hoccA a ha, hmfA a ha, hnpA a ha, hrfA a ha, htrA a ha⟩)
-        (fun c'' us'' h => by cases h; exact ⟨hnctor, hncs⟩) hgf.inv
+        (fun c'' us'' h => by
+          cases h
+          exact ⟨hnctor, hncs, fun qv h' => hnq qv (Option.some.inj (hci.symm.trans h'))⟩) hgf.inv
         (.const (us := us) hat hspec) hdf hrun
       rw [hc] at hsp
       rw [hsp] at her
@@ -1777,18 +1799,19 @@ theorem visitMutual_step (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
     have hmfv : MachineFree cfg v := hG.mfd ci hci' v hread
     have hnpv : NatPlain cfg v := hG.npd ci hci' v hread
     have hW' : (visitExpr (m := PureM) fuel v).runPure sb
-        { lctx := tc.lctx, locals := [], config := tc.config } ⟨decls, view⟩ ps =
+        { lctx := tc.lctx, locals := [], config := tc.config, decl := c } ⟨decls, view⟩ ps =
           .ok ((t, st₂), ps₂) := by
       rw [← hW]
       exact (visit_agree (S := fun _ => False) (pc := ⟨decls, view⟩)
-        (tc := { lctx := tc.lctx, locals := [], config := tc.config }) (ls₁ := tc.locals)
-        (ls₂ := []) hG.closed (by rw [show ({ lctx := tc.lctx, locals := [], config := tc.config } :
+        (tc := { lctx := tc.lctx, locals := [], config := tc.config, decl := c })
+        (ls₁ := tc.locals) (ls₂ := []) hG.closed
+        (by rw [show ({ lctx := tc.lctx, locals := [], config := tc.config, decl := c } :
           TravCtx).config = cfg from hcfg]; exact hmfv)
-        (by rw [show ({ lctx := tc.lctx, locals := [], config := tc.config } :
+        (by rw [show ({ lctx := tc.lctx, locals := [], config := tc.config, decl := c } :
           TravCtx).config = cfg from hcfg]; exact hG.mfd)
         hG.blk hG.idx (fun _ h => h.elim) (fun _ h => h.elim) hvcl).symm
     have hctx0 : CtxOK E B ci.levelParams (.nil : Metalean.Ctx ζ ci.levelParams.length 0 0) []
-        cfg { lctx := tc.lctx, locals := [], config := tc.config } ps :=
+        cfg { lctx := tc.lctx, locals := [], config := tc.config, decl := c } ps :=
       ⟨.nil, fun _ h => (nomatch h), fun _ => rfl, fun _ _ => rfl, rfl, hcfg⟩
     obtain ⟨e₀, T₀, htr, hty⟩ := ProgEnv.value_typed hG.prog hG.wf hmP hv hthm
     have hoccS : ∀ d, nameOccurs d v = true → S d := by

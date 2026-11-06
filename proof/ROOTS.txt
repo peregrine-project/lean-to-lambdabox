@@ -7,6 +7,4 @@
 # statement definition or from a proved theorem of `statements` (tools/Report.lean); no root may
 # be reachable from another root.
 EraseProof.erase_correct FINAL
-EraseProof.TypeEq.sort_ne_quot EraseProof.IsErasable.quotMk_not
-EraseProof.TypeEq.forallE_ne_quot EraseProof.IsErasable.quotMk_not
 EraseProof.TypeEq.ind_ne_quot EraseProof.IsErasable.quotMk_not

@@ -1213,8 +1213,9 @@ theorem visitConstructor_ctor {j : Nat} {c : Name} {args : Array Expr} {tc : Tra
 /-- The `lit` step (`StepsB.lit`), when the closure's ``Nat.zero`` and ``Nat.succ`` are `Nat`'s
 constructors (`NatCtorNames`): under `nat := .peano` (`NatPlain`) a literal `k + 1` is erased as
 ``Nat.succ`` applied to the erasure of `k`, and `0` as ``Nat.zero`` (`Erases.litSucc`,
-`Erases.litZero`); a string literal has no translation. Reference: none (PCUIC has no literals;
-`visitLiteral`, `LeanToLambdaBox/Erasure.lean:704`). -/
+`Erases.litZero`); a literal above `peanoMaxLiteral` has no successful run, and a string literal
+has no translation. Reference: none (PCUIC has no literals; `visitLiteral`,
+`LeanToLambdaBox/Erasure.lean:704`). -/
 theorem stepsB_lit_of (hnn : NatCtorNames decls) {fuel : Nat} {l : Literal}
     (hG : CoreEnv E B P decls view cfg) (ih : StepIH E B view cfg decls fuel) :
     ExprSpec E B view cfg decls (fuel + 1) (.lit l) := by
@@ -1243,14 +1244,24 @@ theorem stepsB_lit_of (hnn : NatCtorNames decls) {fuel : Nat} {l : Literal}
   cases f with
   | zero =>
     rw [visitLiteral, runPure_read_bind, hctx.config, hpeano] at hrun
-    cases k <;> (dsimp only at hrun; rw [visitConstructor] at hrun; cases hrun)
+    dsimp only at hrun
+    by_cases hb : k > peanoMaxLiteral
+    · rw [if_pos hb, runPure_read_bind] at hrun; cases hrun
+    rw [if_neg hb] at hrun
+    cases k with
+    | zero => rw [if_pos rfl, visitConstructor] at hrun; cases hrun
+    | succ k => rw [if_neg (Nat.succ_ne_zero k), visitConstructor] at hrun; cases hrun
   | succ g =>
   have ihg : StepIH E B view cfg decls g :=
     ⟨fun m hm => ih.expr m (by omega), fun m hm => ih.mutDecl m (by omega)⟩
   rw [visitLiteral, runPure_read_bind, hctx.config, hpeano] at hrun
+  dsimp only at hrun
+  by_cases hb : k > peanoMaxLiteral
+  · rw [if_pos hb, runPure_read_bind] at hrun; cases hrun
+  rw [if_neg hb] at hrun
   cases k with
   | zero =>
-    dsimp only at hrun
+    rw [if_pos rfl] at hrun
     obtain ⟨cv, hcv⟩ := visitConstructor_ctor hrun
     obtain ⟨hind, hcidx, hnp0, hnf0⟩ := hnn.1 cv hcv
     obtain ⟨iid, as', rfl, hiid, hlen', -, hdeps, hgr, -⟩ :=
@@ -1261,7 +1272,7 @@ theorem stepsB_lit_of (hnn : NatCtorNames decls) {fuel : Nat} {l : Literal}
     rw [hcidx] at hdeps ⊢
     exact ⟨.litZero hiid, hdeps, hgr⟩
   | succ k =>
-    dsimp only at hrun
+    rw [if_neg (Nat.succ_ne_zero k), Nat.add_sub_cancel] at hrun
     obtain ⟨cv, hcv⟩ := visitConstructor_ctor hrun
     obtain ⟨hind, hcidx, hnp0, hnf0⟩ := hnn.2 cv hcv
     obtain ⟨A', -, hA'⟩ := OracleInfer.lit_type (Γ := Γ) (Δ := Δ) (lps := lps) hB k

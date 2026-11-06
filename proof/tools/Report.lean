@@ -28,7 +28,8 @@ and the shipping code (by default the modules `EraseProof` and `LeanToLambdaBox`
   constant when a proof unfolds or rewrites it (`isGeneratedComponent`: `eq_<n>`, `eq_def`,
   `else_eq`, `congr_simp`, `match_<n>`, and so on recursively); their bodies are walked like any other.
 * C7 `leaves`: every declaration outside `EraseProof.Test` is reachable from a root of `ROOTS.txt`,
-  from a statement definition or from a proved theorem of `statements` (through types and values;
+  from a statement definition, from a proved theorem of `statements` or from a corollary of
+  `corollaries` (through types and values;
   a mutual block, an inductive with its constructors, recursors, structure projections and the
   declarations `inductive` generates for it, those of its nested occurrences included, is one
   node; generated auxiliaries, `isAux`, are not checked); every root of `ROOTS.txt` is a theorem
@@ -62,7 +63,10 @@ and the shipping code (by default the modules `EraseProof` and `LeanToLambdaBox`
   footprint is exactly `propext`, `Classical.choice`, `Quot.sound`, as is that of each of its
   instances on the non-vacuity programs NV-1, NV-P, NV-K and NV-2 (`finalInstances`:
   `EraseProof.Test.NV1.final`, `NVP.final`, `NVK.final`, `NV2.final`), each of which applies `erase_correct` to
-  its program's eight hypothesis terms, theorems within the same three axioms. Skipped with `--no-final`.
+  its program's eight hypothesis terms, theorems within the same three axioms; each corollary of
+  `corollaries` (`erase_correct_firstorder`) has the same footprint, and its instances
+  (`NV1.firstorder`, `NV2.firstorder`) are theorems within those axioms that mention it. Skipped
+  with `--no-final`.
 * C12b `pin`, always: the statement definitions and the definitions they are about are those of
   `spec.pin`. The pin of the statement definitions `pinRoots` is computed (`specPin`): for each
   root and every constant reached from it through types, values and constructors, a SHA-256 digest
@@ -153,6 +157,15 @@ hypotheses that it passes to the final theorem (C12). -/
 def finalInstances : Array (Name × Array Name) :=
   #[`EraseProof.Test.NV1, `EraseProof.Test.NVP, `EraseProof.Test.NVK, `EraseProof.Test.NV2].map fun ns =>
     (ns ++ `final, #[`henv, `hwf, `hview, `he, `hty, `hfrag, `hrun, `hev].map (ns ++ ·))
+
+/-- The corollaries of the final theorem, each with its instances on the non-vacuity programs:
+proved theorems that derive a more specific conclusion from `erase_correct`. Like the theorems of
+`statements`, they are roots of C7; their statements are not pinned (C12b). The final form checks
+that each is a theorem whose footprint is exactly `propext`, `Classical.choice`, `Quot.sound`, and
+that each instance is a theorem within them that mentions its corollary (C12). -/
+def corollaries : Array (Name × Array Name) := #[
+  (`EraseProof.erase_correct_firstorder,
+    #[`EraseProof.Test.NV1.firstorder, `EraseProof.Test.NV2.firstorder])]
 
 structure Config where
   imports : Array Name := #[]
@@ -945,7 +958,8 @@ def main (args : List String) : IO UInt32 := do
     let k := leafKey env c
     members := members.insert k ((members.getD k #[]).push c)
   let (reached, via) := reach env members
-    (roots ++ pinRoots.filter env.contains ++ (statements.map (·.1)).filter env.contains)
+    (roots ++ pinRoots.filter env.contains ++ (statements.map (·.1)).filter env.contains ++
+      (corollaries.map (·.1)).filter env.contains)
   let mut leafKeys : Array Name := #[]
   for c in checked do
     if isTest c then
@@ -1078,6 +1092,17 @@ def main (args : List String) : IO UInt32 := do
         let used := uses env inst
         for h in #[finalTheorem] ++ hyps do
           if !used.contains h then fail "final" s!"{inst} does not mention {h}"
+    for (cor, insts) in corollaries do
+      for d in #[cor] ++ insts do
+        match theoremFp? d with
+        | none => fail "final" s!"{d} is not a theorem of {lib}"
+        | some fp =>
+          if (d == cor && axiomsField fp != std3) || !fp.sorries.isEmpty ||
+              fp.axioms.toArray.any (!allowedAxioms.contains ·) then
+            fail "final" s!"{d}: footprint {axiomsField fp}, expected {if d == cor then "exactly" else "within"} {std3}"
+      for inst in insts do
+        if env.contains inst && !(uses env inst).contains cor then
+          fail "final" s!"{inst} does not mention {cor}"
 
   -- C12b the pin of the statements.
   if !(← cfg.pin.pathExists) then

@@ -54,12 +54,12 @@ def xy : FVarId := ⟨.num `_pure 0⟩
 /-- The erasure of `fun y => y`. -/
 def idL : LBTerm := .lambda (binderNameOf `y) (_root_.abstract xy (.fvar xy))
 
-variable {st : ErasureState}
+variable {st : ErasureState} {dc : Name}
 
 /-- `visitExpr` on the alternative `fun y => y`. Reference: the `tLambda` case of `erase`
 (`MR E/ErasureFunction.v:1003`). -/
 theorem idB_run {k : Bool} {n : Nat} {L : LocalContext} :
-    (visitExpr (m := PureM) (n + 4) idB).runPure st ⟨L, [], none, {}⟩ (pcK k) ⟨0⟩ =
+    (visitExpr (m := PureM) (n + 4) idB).runPure st ⟨L, [], none, {}, dc⟩ (pcK k) ⟨0⟩ =
       .ok ((idL, st), ⟨1⟩) := by
   rw [idB, visitExpr, ← idB]
   apply bind_ok rfl
@@ -91,7 +91,7 @@ so it eliminates into data; the major's sort is `Prop` and `Eq` has one construc
 result is the erased alternative. Reference: `iotaSing` of λ□ (`MR E/EWcbvEval.v`), applied
 at erasure time (the `tCase` case of `erase`, `MR E/ErasureFunction.v:1016`). -/
 theorem visitCases_run {k : Bool} {n : Nat} {L : LocalContext} :
-    (visitCases (m := PureM) (n + 6) ciEq (args k)).runPure st ⟨L, [], none, {}⟩ (pcK k) ⟨0⟩ =
+    (visitCases (m := PureM) (n + 6) ciEq (args k)).runPure st ⟨L, [], none, {}, dc⟩ (pcK k) ⟨0⟩ =
       .ok ((idL, st), ⟨1⟩) := by
   have hr : (ciEq.altsRange.toList) = [5] := by simp [ciEq]
   cases k <;>
@@ -128,7 +128,7 @@ theorem ee_app {k : Bool} :
 /-- `visitExpr` on the term. Reference: the `tApp` and `tCase` cases of `erase`
 (`MR E/ErasureFunction.v:1009`, `:1016`). -/
 theorem e_run {k : Bool} {n : Nat} {L : LocalContext} :
-    (visitExpr (m := PureM) (n + 9) (ee k)).runPure st ⟨L, [], none, {}⟩ (pcK k) ⟨0⟩ =
+    (visitExpr (m := PureM) (n + 9) (ee k)).runPure st ⟨L, [], none, {}, dc⟩ (pcK k) ⟨0⟩ =
       .ok ((idL, st), ⟨1⟩) := by
   rw [ee_app, visitExpr, ← ee_app]
   apply bind_ok rfl

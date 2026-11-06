@@ -15,7 +15,8 @@
 #   entry_route.lean), written under the default configuration (`nat := .machine`).
 # A program of the table marked `default` must name no `Nat` declaration, so that its output is
 # the same under `nat := .peano`. The script also fails if a regression test writes an output with
-# `#erase … nat := .peano … to "<file>"` that the table does not list.
+# `#erase … nat := .peano … to "<file>"` that the table does not list (an `#erase` that fails, under
+# `#guard_msgs`, writes no output and has no file in tests/regress/expected/).
 #
 # Logs go to DIR (default proof/.check/c11). Exit status 0 if every program passes, 1 otherwise.
 set -euo pipefail
@@ -70,6 +71,7 @@ tests/regress/expected/structural/useMap.ast          peano   -           constr
 tests/regress/expected/structural/useEv.ast           peano   -           constr Bool.false
 tests/regress/expected/structural/usePairs.ast        peano   -           constr Nat.succ constr Nat.succ constr Nat.zero
 tests/regress/expected/structural/useGet.ast          peano   -           constr ST.B.t
+tests/regress/expected/peano_literal/small.ast        peano   -           constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.zero
 EOF
 )
 
@@ -80,6 +82,7 @@ fail() { echo "FAIL $1: $2"; failed=1; }
 while IFS=: read -r src line; do
   f=$(sed -E 's/.* to "([^"]+)".*/\1/' <<<"$line")
   p=tests/regress/expected/$(basename "$src" .lean)/$f
+  [ -f "$ROOT/$p" ] || continue
   grep -q "^$p " <<<"$table" || fail "$p" "written under nat := .peano by $src but not in the table"
 done < <(grep -H -E '^#erase .*nat := \.peano.* to "' "$ROOT"/tests/regress/*.lean || true)
 

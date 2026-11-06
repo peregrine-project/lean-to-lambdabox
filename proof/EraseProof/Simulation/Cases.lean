@@ -143,6 +143,37 @@ theorem app_inv {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ l
     obtain ⟨hext', hy⟩ := forall_snoc hlex hext
     refine .inr ⟨_, _, ?_, .casesReduced hco hfe hcs hcv hidx hpre ha hlex hext', hy⟩
     rw [← List.append_assoc, mkApps_snoc]
+  | quotMk hcq hk ha hlex hext =>
+    rename_i extra extra'
+    rcases eq_nil_or_snoc extra with rfl | ⟨ex, y, rfl⟩
+    · exact absurd (shortSpine_of (ar := 3) hx (by simp [specialArity, hcq, hk, quotEvalArity]) (by simp)) hns
+    obtain ⟨ex', y', rfl⟩ : ∃ ex' y', extra' = ex' ++ [y'] := by
+      rcases eq_nil_or_snoc extra' with rfl | h
+      · simp at hlex
+      · exact h
+    simp only [List.length_append, List.length_singleton, Nat.add_right_cancel_iff] at hlex
+    rw [← List.append_assoc] at hx
+    obtain ⟨bs, hbs, rfl⟩ := SrcDefeq.spine_app hx.symm
+    obtain ⟨rfl, h2⟩ := List.append_inj' hbs.symm rfl
+    obtain rfl : y = a := by simpa using h2.symm
+    obtain ⟨hext', hy⟩ := forall_snoc hlex hext
+    exact .inr ⟨_, _, mkApps_snoc _ _ _, .quotMk hcq hk ha hlex hext', hy⟩
+  | quotLift hcq hk hf hq hlex hext =>
+    rename_i extra extra'
+    rcases eq_nil_or_snoc extra with rfl | ⟨ex, y, rfl⟩
+    · exact absurd (shortSpine_of (ar := 6) hx (by simp [specialArity, hcq, hk, quotEvalArity]) (by simp)) hns
+    obtain ⟨ex', y', rfl⟩ : ∃ ex' y', extra' = ex' ++ [y'] := by
+      rcases eq_nil_or_snoc extra' with rfl | h
+      · simp at hlex
+      · exact h
+    simp only [List.length_append, List.length_singleton, Nat.add_right_cancel_iff] at hlex
+    rw [← List.append_assoc] at hx
+    obtain ⟨bs, hbs, rfl⟩ := SrcDefeq.spine_app hx.symm
+    obtain ⟨rfl, h2⟩ := List.append_inj' hbs.symm rfl
+    obtain rfl : y = a := by simpa using h2.symm
+    obtain ⟨hext', hy⟩ := forall_snoc hlex hext
+    refine .inr ⟨_, _, ?_, .quotLift hcq hk hf hq hlex hext', hy⟩
+    rw [← List.cons_append, mkApps_snoc]
   | eta heta =>
     obtain ⟨ar, har, hlt⟩ := etaSpine?_lt heta
     exact absurd (shortSpine_of hx har hlt.le) hns
@@ -180,12 +211,16 @@ theorem const_inv {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ
   | cases hc | casesReduced hc =>
     obtain ⟨-, rfl, -⟩ := SrcDefeq.spine_const hx.symm
     rw [hco] at hc; cases hc
+  | quotMk hc | quotLift hc =>
+    obtain ⟨-, rfl, -⟩ := SrcDefeq.spine_const hx.symm
+    rw [hd] at hc; cases hc
   | eta heta =>
     obtain ⟨-, rfl, -⟩ := SrcDefeq.spine_const hx.symm
     obtain ⟨ar, har, -⟩ := etaSpine?_lt heta
-    rcases SrcDefeq.specialArity_some har with ⟨cv, hcv, -⟩ | ⟨iv, hiv⟩
+    rcases SrcDefeq.specialArity_some har with ⟨cv, hcv, -⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, -⟩
     · rw [hd] at hcv; cases hcv
     · rw [hco] at hiv; cases hiv
+    · rw [hd] at hqv; cases hqv
   | bvar | fvar | lam | letE | app | proj | litZero | litSucc | mdata => cases hx
 
 /-- The translation of a λ: its binder's and body's translations. -/
@@ -219,7 +254,7 @@ theorem box_of_projHead {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : ML
   generalize hx : LBTerm.box = x at h
   cases h with
   | box hb => exact hb
-  | ctor | cases | casesReduced | eta =>
+  | ctor | cases | casesReduced | eta | quotMk | quotLift =>
     rw [SrcDefeq.getAppFn_mkAppN_const] at hfn; cases hfn
   | bvar | fvar | lam | letE | app | const | proj | litZero | litSucc => cases hx
   | mdata => simp [Expr.getAppFn] at hfn
@@ -316,7 +351,7 @@ theorem erases_correct_mdata (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : Su
   cases her with
   | mdata h => cases hx; exact ih he' ⟨T, ht⟩ h hdeps
   | box hb => subst hx; exact erases_correct_box henv hE hsub he ht hb (.mdata hev)
-  | ctor | cases | casesReduced | eta =>
+  | ctor | cases | casesReduced | eta | quotMk | quotLift =>
     exact absurd hx (CasesWhred.ne_mkAppN_const fun _ _ h => by cases h)
   | bvar | fvar | lam | letE | app | const | proj | litZero | litSucc => cases hx
 
@@ -335,7 +370,7 @@ theorem erases_correct_atom {e : Expr} (ha : SrcAtom e) : ErasesSim E B lps σ l
   generalize hx : e = x at her
   cases her with
   | lam | box => rfl
-  | ctor | cases | casesReduced | eta => exact absurd hx hns
+  | ctor | cases | casesReduced | eta | quotMk | quotLift => exact absurd hx hns
   | bvar | fvar | letE | app | const | proj | litZero | litSucc | mdata =>
     subst hx; simp [SrcAtom] at ha
 
@@ -349,15 +384,17 @@ theorem erases_correct_constAtom {c : Name} {us : List Level} (ha : σ.isAtom c 
   refine ⟨tb, her, ?_⟩
   obtain ⟨c', us', hfn, hat⟩ := RelInst.atomSpine_head (AtomSpine.const (us := us) ha)
   have hns : ¬ ((∃ cv, findDecl σ.decls c = some (.ctorInfo cv)) ∨
-      ∃ iv, σ.casesOn? c = some iv) := by
+      (∃ iv, σ.casesOn? c = some iv) ∨ ∃ qv, findDecl σ.decls c = some (.quotInfo qv)) := by
     unfold EvalEnv.isAtom at ha
-    rintro (⟨cv, hc⟩ | ⟨iv, hiv⟩)
+    rintro (⟨cv, hc⟩ | ⟨iv, hiv⟩ | ⟨qv, hc⟩)
     · rw [hc] at ha
       simp [OwnRules] at ha
     · split at ha
       · rw [hiv] at ha
         simp at ha
       · cases ha
+    · rw [hc] at ha
+      simp [OwnRules] at ha
   generalize hx : Expr.const c us = x at her
   cases her with
   | box => exact .atom rfl
@@ -367,13 +404,17 @@ theorem erases_correct_constAtom {c : Name} {us : List Level} (ha : σ.isAtom c 
     exact absurd (.inl ⟨_, hc⟩) hns
   | cases hc | casesReduced hc =>
     obtain ⟨-, rfl, -⟩ := SrcDefeq.spine_const hx.symm
-    exact absurd (.inr ⟨_, hc⟩) hns
+    exact absurd (.inr (.inl ⟨_, hc⟩)) hns
+  | quotMk hc | quotLift hc =>
+    obtain ⟨-, rfl, -⟩ := SrcDefeq.spine_const hx.symm
+    exact absurd (.inr (.inr ⟨_, hc⟩)) hns
   | eta heta =>
     obtain ⟨-, rfl, -⟩ := SrcDefeq.spine_const hx.symm
     obtain ⟨ar, har, -⟩ := etaSpine?_lt heta
-    rcases SrcDefeq.specialArity_some har with ⟨cv, hcv, -⟩ | ⟨iv, hiv⟩
+    rcases SrcDefeq.specialArity_some har with ⟨cv, hcv, -⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, -⟩
     · exact absurd (.inl ⟨_, hcv⟩) hns
-    · exact absurd (.inr ⟨_, hiv⟩) hns
+    · exact absurd (.inr (.inl ⟨_, hiv⟩)) hns
+    · exact absurd (.inr (.inr ⟨_, hqv⟩)) hns
   | bvar | fvar | lam | letE | app | proj | litZero | litSucc | mdata => cases hx
 
 /-- The `beta` case of `erases_correct`. The head is no saturating spine (its value would be a
@@ -396,20 +437,32 @@ theorem erases_correct_beta (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : Sub
   have hev : SrcEval σ (.app f a) v := .beta hns hf ha hb
   have hspine := (SrcDefeq.sound_of (lps := lps) henv hE hsub
     (SrcProof.proofSound henv hE hsub) hf).2
-  have hnsp : ¬ SpecialHead B f := by
-    rintro ⟨c, us, bb, hfn, hbb, hs⟩
-    obtain ⟨bs, rfl⟩ := eq_mkAppN_of_getAppFn hfn
-    obtain ⟨-, vs, hv, -⟩ := hspine c us bs bb rfl hbb hs (SrcDefeq.spine_cond hns)
+  have hnq : ∀ c us (bs : List Expr) (bb : MBinding ζ), f = mkAppN (.const c us) bs.toArray →
+      B c = some bb → bb.isSpecial = true → (∀ η k, bb ≠ .quot η k) → False := by
+    intro c us bs bb hfe hbb hs hq
+    subst hfe
+    obtain ⟨-, vs, hv, -⟩ := hspine c us bs bb rfl hbb hs hq (SrcDefeq.spine_cond hns)
     have := congrArg Expr.getAppFn hv
     rw [SrcDefeq.getAppFn_mkAppN_const] at this
     cases this
   have hnc : ∀ c us cv, f.getAppFn = .const c us → findDecl σ.decls c ≠ some (.ctorInfo cv) := by
     intro c us cv hfn hc
     obtain ⟨ι, η, s, k, o, hB, -⟩ := henv.lookup_ctor (SrcDefeq.findDecl_sub hsub hc)
-    exact hnsp ⟨c, us, _, hfn, hB, rfl⟩
+    obtain ⟨bs, rfl⟩ := eq_mkAppN_of_getAppFn hfn
+    exact hnq c us bs _ rfl hB rfl fun _ _ h => by cases h
   rcases app_inv hns hnc her with ⟨rfl, hbx⟩ | ⟨tf, ta, rfl, herf, hera⟩
   · exact erases_correct_box henv hE hsub he ht hbx hev
-  obtain ⟨f₀, a₀, hf₀, ha₀, rfl, ⟨F, hF⟩, ⟨A₁, hA₁⟩⟩ := TrM.wf_app hE hok hnsp he ht
+  obtain ⟨f₀, a₀, hf₀, ha₀, rfl, ⟨F, hF⟩, ⟨A₁, hA₁⟩⟩ : ∃ f₀ a₀, TrM E B lps .nil [] f f₀ ∧
+      TrM E B lps .nil [] a a₀ ∧ t = .app f₀ a₀ ∧ (∃ F, E[.nil] ⊢ f₀ : F) ∧
+      ∃ A, E[.nil] ⊢ a₀ : A := by
+    by_cases hsp : SpecialHead B f
+    · obtain ⟨c, us, bb, hfn, hb, hs⟩ := hsp
+      obtain ⟨bs, rfl⟩ := eq_mkAppN_of_getAppFn hfn
+      by_cases hq : ∃ η k, bb = .quot η k
+      · obtain ⟨η, k, rfl⟩ := hq
+        exact SrcDefeq.quot_app_tr henv hsub hb hf hns he ht
+      · exact (hnq c us bs bb rfl hb hs fun η k h => hq ⟨η, k, h⟩).elim
+    · exact TrM.wf_app hE hok hsp he ht
   cases hdeps with
   | app hdf hda =>
   obtain ⟨vf, hvf, hevf⟩ := ihf hf₀ ⟨F, hF⟩ herf hdf
@@ -454,7 +507,7 @@ theorem erases_correct_beta (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : Sub
       RelInst.IsErasable.of_defeq (Defeq.retype hE hok hdb'.symm hW) hWe
     exact ⟨.box, .box (ErasableS.eval henv hE hsub htb' hdb'.left hb ⟨tb', htb', hEb⟩),
       .box hevf heva⟩
-  | ctor | cases | casesReduced | eta =>
+  | ctor | cases | casesReduced | eta | quotMk | quotLift =>
     exact absurd hlv (CasesWhred.ne_mkAppN_const fun _ _ h => by cases h)
   | bvar | fvar | letE | app | const | proj | litZero | litSucc | mdata => cases hlv
 
@@ -494,11 +547,9 @@ theorem SimCases.inst_let (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEn
     rw [liftLooseBVars'_zero]; exact hv
   refine (RelInst.Erases.instG hE hord hty (closed0 htv hv)).1 _ _ _ _ _ hb _ _ _ 0 _ hok
     (Metalean.SubstWF.id hok) W Ea fun hs => ?_
-  obtain ⟨C, us, args, cv, rfl, hC, hlen⟩ := RelInst.srcValue_special hval hs
-  obtain ⟨ι, η, s, c, ls, ps, fds, recFds, rfl⟩ := RelInst.ctorNode_of_TrM henv hsub hC hlen htv
-  obtain ⟨_, _, _, _, _, _, hT⟩ := hv₀.right.ctor_inv
-  have hhb : RelInst.HB E .nil v₀ := .inl ⟨_, _, _, _, _, _, _, hv₀.left, hT.2⟩
-  have hhb' : RelInst.HB E .nil (.ctor η s c ls ps fds recFds) := .inr ⟨_, _, _, _, _, _, _, _, rfl⟩
+  have hn := RelInst.node_of_value henv hsub hval hs htv
+  have hhb : RelInst.HB E .nil v₀ := RelInst.HB.of_defeq_node hv₀ hn
+  have hhb' : RelInst.HB E .nil tv := RelInst.HB.of_node hn
   refine ⟨hok, ?_, _, by simp [MLCtx.findB, MLDecl.denote], hhb⟩
   exact RelInst.PreTr.noHead hE hord (InstPre.PreTr.ofTrM htb) (ρ := Metalean.Ren.id)
     rfl hok (by rw [Metalean.Expr.rename_id]; exact hhb')
@@ -555,7 +606,7 @@ theorem erases_correct_zeta (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : Sub
     obtain ⟨res, hres, hevres⟩ := ihb htb₁ hTb₁ hsubst
       (ErasesDeps.csubst (ErasesDeps.eval hdv hevv) hdb)
     exact ⟨res, hres, .zeta hevv hevres⟩
-  | ctor | cases | casesReduced | eta =>
+  | ctor | cases | casesReduced | eta | quotMk | quotLift =>
     exact absurd hx (CasesWhred.ne_mkAppN_const fun _ _ h => by cases h)
   | bvar | fvar | lam | app | const | proj | litZero | litSucc | mdata => cases hx
 
@@ -622,19 +673,27 @@ theorem erases_correct_appCong (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : 
     | propProj h => exact .inr h
     | ctor hc _ =>
       exact absurd (SrcDefeq.blocksCong_ctor (SrcDefeq.getAppFn_mkAppN_const _ _ _) hc) hnb
+    | quotMk hc _ _ =>
+      exact absurd (SrcDefeq.blocksCong_quot (SrcDefeq.getAppFn_mkAppN_const _ _ _) hc) hnb
     | lam | sort | forallE | lit => exact absurd trivial hnb
   have hnc : ∀ c us cv, f.getAppFn = .const c us → findDecl σ.decls c ≠ some (.ctorInfo cv) := by
     intro c us cv hfn hc
     obtain ⟨bs, rfl⟩ := eq_mkAppN_of_getAppFn hfn
     obtain ⟨ι, η, s, k, o, hB, -⟩ := henv.lookup_ctor (SrcDefeq.findDecl_sub hsub hc)
-    obtain ⟨-, vs, rfl, -⟩ := hspine c us bs _ rfl hB rfl (SrcDefeq.spine_cond hns)
+    obtain ⟨-, vs, rfl, -⟩ := hspine c us bs _ rfl hB rfl (fun _ _ h => by cases h)
+      (SrcDefeq.spine_cond hns)
     exact hnb (SrcDefeq.blocksCong_ctor (SrcDefeq.getAppFn_mkAppN_const _ _ _) hc)
   obtain ⟨f₀, a₀, hf₀, ha₀, ⟨F, hF⟩, ⟨A₁, hA₁⟩⟩ : ∃ f₀ a₀, TrM E B lps .nil [] f f₀ ∧
       TrM E B lps .nil [] a a₀ ∧ (∃ F, E[.nil] ⊢ f₀ : F) ∧ ∃ A, E[.nil] ⊢ a₀ : A := by
     by_cases hsp : SpecialHead B f
     · obtain ⟨c, us, bb, hfn, hbb, hs⟩ := hsp
       obtain ⟨bs, rfl⟩ := eq_mkAppN_of_getAppFn hfn
-      obtain ⟨hk, vs, rfl, -⟩ := hspine c us bs bb rfl hbb hs (SrcDefeq.spine_cond hns)
+      by_cases hq : ∃ η k, bb = .quot η k
+      · obtain ⟨η, k, rfl⟩ := hq
+        obtain ⟨f₀, a₀, hf₀, ha₀, -, hF, hA⟩ := SrcDefeq.quot_app_tr henv hsub hbb hf hns he ht
+        exact ⟨f₀, a₀, hf₀, ha₀, hF, hA⟩
+      obtain ⟨hk, vs, rfl, -⟩ := hspine c us bs bb rfl hbb hs (fun η k h => hq ⟨η, k, h⟩)
+        (SrcDefeq.spine_cond hns)
       rcases hk with ⟨iv, hiv⟩ | ⟨cv, hcv⟩
       · obtain ⟨ι, η, s, hB, -⟩ := henv.lookup_ind (SrcDefeq.findDecl_sub hsub hiv)
         rw [← SrcDefeq.mkAppN_snoc] at he

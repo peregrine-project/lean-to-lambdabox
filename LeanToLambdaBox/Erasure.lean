@@ -51,7 +51,10 @@ deriving BEq
 
 /-- How to handle literals and constructors of `Nat`. -/
 inductive Nat
-  /-- Keep Nat as an inductive type and represent literals by using constructors. -/
+  /--
+  Keep Nat as an inductive type and represent literals by using constructors.
+  A literal above `peanoMaxLiteral` is an error.
+  -/
   | peano
   /--
   Turn Nat literals into lambdabox primitive i63 (panic on overflow),
@@ -117,6 +120,12 @@ structure ErasureConfig: Type where
 /-- Largest `LBTerm.inlinedSize` of a body that `ErasureConfig.auto_inline_typeclass_dispatch`
 marks for inlining. -/
 def autoInlineMaxSize : Nat := 40
+
+/-- Largest `Nat` literal that `nat := .peano` erases, to that many `Nat.succ` applications.
+The eraser recurses once per `Nat.succ` and the output takes about 120 bytes per unit, so a larger
+literal, such as the bound 1114112 in `Char.ofNat`, would exhaust Lean's stack or give an unusable
+file (200000 still works, 400000 crashes Lean). -/
+def peanoMaxLiteral : Nat := 65536
 
 /--
 Number of nodes of the term after Peregrine's inlining pass, which replaces every constant listed
@@ -192,6 +201,8 @@ structure TravCtx where
   locals : List Local := []
   fixvars : Option (Std.HashMap Name FVarId) := none
   «config» : ErasureConfig
+  /-- The declaration being erased, for error messages; anonymous for the term given to `#erase`. -/
+  decl : Name := .anonymous
 
 /-- The λ□ name of a binder with user name `n`: `n.toString` if ASCII graphic, anonymous otherwise;
 a name with `"` or `\` prints with `«»`, so the printer never meets them unescaped (R-2). -/
@@ -832,8 +843,15 @@ mutual
   | 0, _ => Backend.outOfFuel (m := m) "visitLiteral"
   | fuel+1, l => do
     match (← read).config.nat, l with
-    | .peano, .natVal 0 => visitConstructor fuel ``Nat.zero #[]
-    | .peano, .natVal (n+1) => visitConstructor fuel ``Nat.succ #[.lit (.natVal n)]
+    | .peano, .natVal n =>
+      if n > peanoMaxLiteral then
+        let decl := (← read).decl
+        let site := if decl.isAnonymous then "the erased term" else toString decl
+        Backend.error (m := m) s!"#erase: the Nat literal {n} in {site} exceeds {peanoMaxLiteral}, the largest literal that `nat := .peano` erases to `Nat.succ` applications"
+      else if n = 0 then
+        visitConstructor fuel ``Nat.zero #[]
+      else
+        visitConstructor fuel ``Nat.succ #[.lit (.natVal (n - 1))]
     | .machine, .natVal n =>
       if n <= BitVec.intMax 63 then
         pure <| .prim ⟨.primInt, n⟩
@@ -1256,7 +1274,7 @@ mutual
     if nonrecursive
     then -- translate into a single nonrecursive constant declaration
       let e: Expr ← getOrFail (ci.value? (allowOpaque := true)) s!"visitMutual: {name} has no value"
-      let t ← withReader (fun env => { env with fixvars := .none }) do
+      let t ← withReader (fun env => { env with fixvars := .none, decl := name }) do
         pure (← visitExpr fuel (← Backend.prepare (m := m) (← read).config e))
       let kn := toKername name
       modify (fun s => { s with constants := s.constants.insert name kn, gdecls := s.gdecls.cons (kn, .constantDecl <| ⟨.some t⟩) })
@@ -1287,7 +1305,8 @@ mutual
           let ci ← getConst n -- here n is directly from the above ci.all, possibly _unsafe_rec
           let e: Expr := ci.value! (allowOpaque := true)
           -- TODO: eta-expand fixpoints? (I think this must be done, unsure how far)
-          let t: LBTerm ← visitExpr fuel (← Backend.prepare (m := m) (← read).config e)
+          let t: LBTerm ← withReader (fun env => { env with decl := remove_unsafe_rec (m := m) n }) do
+            visitExpr fuel (← Backend.prepare (m := m) (← read).config e)
           mkDef (remove_unsafe_rec (m := m) n) fixvarnames t
         )
         for (n, i) in fixvarnames.zipIdx do

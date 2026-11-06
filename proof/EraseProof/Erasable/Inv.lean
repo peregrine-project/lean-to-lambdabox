@@ -149,4 +149,24 @@ theorem IsErasable.ctor_not {ι : Metalean.IndSig} {η : Metalean.Head ζ (.indu
     obtain ⟨_, _, -, -, hs⟩ := Defeq.ind_inv hI
     exact hl (TypeEq.sort_inj hE hΓ hs).symm
 
+/-- The element of an erasable `Quot.mk` is erasable: the type of a `Quot.mk` is a quotient type,
+which is no arity (`TypeEq.sort_ne_quot`, `TypeEq.forallE_ne_quot`), so the `Quot.mk` is a proof,
+the quotient a proposition, and the element a proof. Reference: none (PCUIC has no quotients;
+DV-29). -/
+theorem IsErasable.quotMk_inv {η : Metalean.Head ζ .quot} {l : Metalean.Level ℓ}
+    {α r a : Metalean.Expr ζ ℓ n} (hE : EnvWF E) (hΓ : E[Γ] ⊢ ok)
+    (h : IsErasable E Γ (.quotMk η l α r a)) : IsErasable E Γ a := by
+  obtain ⟨T', ht', hT'⟩ := h
+  have hq := Defeq.quotMk_inv ht'
+  obtain ⟨α₁, r₁, a₁, hα, -, ha, -⟩ := Defeq.quotMk_prem ht'
+  rcases hT' with hT' | hT'
+  · obtain ⟨X, hX, hTX⟩ := isArity_iff.1 hT'
+    have h := hq.symm.trans hTX
+    cases hX with
+    | sort => exact (TypeEq.sort_ne_quot hE hΓ h.symm).elim
+    | forallE => exact (TypeEq.forallE_ne_quot hE hΓ h.symm).elim
+  · have hQ := prop_of_typeEq hE hΓ hT' hq
+    obtain rfl := TypeEq.sort_inj hE hΓ (Defeq.quot_inv hQ).symm
+    exact ⟨_, ha.right, .inr hα.left⟩
+
 end EraseProof

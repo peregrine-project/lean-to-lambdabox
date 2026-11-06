@@ -40,8 +40,8 @@ What the statements and the checks rely on without proof:
 - Lean's kernel at the pinned toolchain (`lean-toolchain`), and the axioms `propext`,
   `Classical.choice` and `Quot.sound`: every declaration of the library stays within them (checks
   C3 to C5), and its modules are replayed through the kernel (check `replay`, `leanchecker`).
-  The replay covers the library's modules `EraseProof.*` only; the compiled `.olean` files of the
-  shipping code and of Metalean that they import are trusted as built.
+  The replay covers the library's modules `EraseProof.*` and the shipping code's `LeanToLambdaBox.*`;
+  the compiled `.olean` files of Metalean and Mathlib that they import are trusted as built.
 - Metalean at the pinned revision (`9407ba4`, `lake-manifest.json`, pinned in `proof/spec.pin`):
   its typing (`Metalean.Typing`), conversion and well-formedness `Metalean.EnvWF`, which the
   statements use as their notion of typing, the way MetaRocq's statements use PCUIC's. Metalean's
@@ -454,3 +454,96 @@ What the statements and the checks rely on without proof:
 - **What was considered instead:** deriving the hypothesis from `henv`, `hview` and `he`, which is
   false on typed programs that use a recursor; leaving the fragment unstated, which makes it
   impossible to tell how much the hypothesis excludes, which `collectDeps_ok_of` states.
+
+### DV-27
+
+- **Our artifact:** `proof/EraseProof/FirstOrder.lean`: `EraseProof.FirstOrderValue`, the values
+  on which `EraseProof.erase_correct_firstorder` determines the λ□ value, and their structural
+  erasure `EraseProof.foErase`.
+- **Reference artifact:** `firstorder_value` (`pcuic/theories/PCUICFirstorder.v:115`), with the
+  first-order inductives of `firstorder_con` (`pcuic/theories/PCUICFirstorder.v:52`), and
+  `erase_correct_strong` (`erasure/theories/ErasureFunctionProperties.v:2269`).
+- **What differs:** MetaRocq's first-order value is a typed constructor application of an inductive
+  that is not propositional, every argument (parameters included) a first-order value, and its
+  first-order inductives have neither type parameters nor proof fields. Ours is syntactic: a
+  constructor node needs its inductive's declared sort to be never zero (`Level.isNeverZero`), and
+  two kinds of leaves erased to `□` are admitted as arguments: constructor applications of an
+  inductive declared in `Prop`, and atom spines (type formers such as `Nat` or `List Nat` as type
+  parameters, theorems or axioms applied to arguments as proof fields). The conclusion compares
+  with the structural erasure, which keeps parameters (DV-23), instead of the erasure function's
+  output.
+- **Why it is forced:** a Lean inductive in `Sort u` is universe-polymorphic over `Prop`: at
+  `u := 0` its constructor applications are proofs and erase to `□` or to a λ□ constructor, so
+  `¬ PropInductive` (Metalean's block level) does not determine the value; the declared sort being
+  never zero does (`EraseProof.SimInd.ctor_not_erasable`). λ□ keeps parameters in constructor
+  applications (DV-23), and Lean's data inductives take type parameters (`Prod`, `Option`, `List`)
+  and its structures proof fields (`Subtype`, `Fin`), so MetaRocq's notion would leave only
+  monomorphic inductives without proofs; the relation erases an atom spine in many ways (an
+  application of an atom may erase to `□` applied to `□`), and only the λ□ value restricts it to
+  `□` (`EraseProof.Erases.atomSpine_box`). There is no erasure function on the relation's side to
+  compare with.
+- **What was considered instead:** MetaRocq's notion exactly (all arguments first-order, the
+  inductive not propositional), which is false for universe-polymorphic inductives at `Prop` and
+  excludes every value with a type parameter; comparing with `Erasure.erasePure`'s output, which
+  reads the configuration and the view instead of the value alone.
+
+### DV-28
+
+- **Our artifact:** `proof/EraseProof/Spec.lean`: the rule `EraseProof.ErasesAlt.intro`
+  (`proof/EraseProof/Spec.lean:1167`), which η-introduces a `casesOn` alternative.
+- **Reference artifact:** the alternatives of `erases_tCase`
+  (`erasure/theories/Extract.v:109`), related to the erased branches by the erasure relation under
+  the case's branch contexts; the relation has no η-introduction rule.
+- **What differs:** the rule η-introduces an alternative to the arity of its constructor, and has
+  no premise on the alternative's shape. Before, it carried `∀ x A b bi, e ≠ .lam x A b bi`, so
+  that a λ alternative was related only by `ErasesAlt.lam` (peeling):
+
+      | intro : (∀ x A b bi, e ≠ .lam x A b bi) → TrM E B lps Γ Δ e e' →
+          E[Γ] ⊢ e' : .forallE A' B'' → … → ErasesAlt E B lps σ Γ Δ (k + 1) e (nm :: ns, t)
+
+  After:
+
+      | intro : TrM E B lps Γ Δ e e' →
+          E[Γ] ⊢ e' : .forallE A' B'' → … → ErasesAlt E B lps σ Γ Δ (k + 1) e (nm :: ns, t)
+
+  The relation is more permissive: a λ alternative is also related to the λ□ β-redex
+  `.app a' (.bvar 0)` of its peeled branch, which evaluates to the same value.
+- **Why it is forced:** the substitution lemma `EraseProof.Erases.inst` is false with the premise.
+  An alternative that is a variable erases by `intro` to the branch `([x], .app (.bvar (k + 1))
+  (.bvar 0))`; substituting a λ `a` for the variable gives the source alternative `a`, which only
+  `ErasesAlt.lam` can relate, and to the erasure of its body, never to the β-redex
+  `.app a' (.bvar 0)`. The substitution lemma is needed for the β and ζ steps of the simulation.
+- **What was considered instead:** keeping the premise and restricting substitution to non-λ
+  values, which excludes the β-redexes the simulation has to step; adding a rule that relates a
+  λ alternative to the β-redex only under the substitution lemma's hypotheses, which is the same
+  relation with a more complicated shape.
+
+### DV-29
+
+- **Our artifact:** `proof/EraseProof/Spec.lean`: the rules `EraseProof.SrcEval.quotMk` and
+  `EraseProof.SrcEval.quotLift`; `EraseProof.quotEvalArity` in `EraseProof.specialArity`, so that
+  `EraseProof.SrcEval.eta` and `EraseProof.Erases.eta` η-expand `Quot.mk` and `Quot.lift` spines
+  with missing arguments; the quotient clauses of `EraseProof.BlocksCong` and
+  `EraseProof.SpecialSpine`; the rules `EraseProof.Erases.quotMk` and `EraseProof.Erases.quotLift`.
+- **Reference artifact:** none: PCUIC has no primitive quotients. The closest rules are `eval_beta`
+  (`pcuic/theories/PCUICWcbvEval.v:234`) and `eval_construct`
+  (`pcuic/theories/PCUICWcbvEval.v:303`) of `eval`, and `erases_tApp`
+  (`erasure/theories/Extract.v:101`) and `erases_tConstruct` (`erasure/theories/Extract.v:106`) of
+  `erases`.
+- **What differs:** Lean's quotients are primitive constants with their own reduction, the quotient
+  ι `Quot.lift f h (Quot.mk r a) ⤳ f a` (`quotIota`, `Metalean/Syntax/Reduction.lean:74`). The
+  source evaluates `Quot.mk α r a` by evaluating the element `a`, the type and the relation
+  unevaluated, and `Quot.lift α r β f h q` by evaluating `f` to a λ and `q` to `Quot.mk α' r' a`
+  and continuing with the λ's body at `a`; spines with fewer arguments are η-expanded as
+  constructor spines are (DV-23), and a `Quot.mk` value blocks application congruence as a
+  constructor value does. The erasure represents a quotient by its elements: `Quot.mk α r a`
+  erases as `a` and `Quot.lift α r β f h q` as `f q`, applied to the erasures of the arguments
+  beyond the arity.
+- **Why it is forced:** the reference has no rule for quotients, and the eraser erases the quotient
+  constants in this way, as Lean's code generator does (`visitConstApp`,
+  `LeanToLambdaBox/Erasure.lean:949`). The source rule is Metalean's quotient ι, which the
+  subject-reduction theorem `EraseProof.SrcEval.defeq` justifies through
+  `Metalean.WHRed.quotIota_defeq`.
+- **What was considered instead:** erasing `Quot.mk` and `Quot.lift` to λ□ axioms, under which
+  every program that computes through a quotient is stuck in λ□; no source rule for quotients,
+  under which such programs do not evaluate and the final theorem says nothing about them.

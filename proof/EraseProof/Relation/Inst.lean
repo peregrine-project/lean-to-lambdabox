@@ -4,6 +4,7 @@ import EraseProof.Relation.Abstract
 import EraseProof.Erasable.Subst
 import EraseProof.Metatheory.NoConf
 import EraseProof.Source.Value
+import EraseProof.Bridge.Quot
 
 /-!
 # Substitution into the erasure relation
@@ -449,25 +450,34 @@ theorem IsErasable.of_defeq {n : Nat} {Γ : Ctx ζ ℓ 0 n} {t t' T : Expr ζ �
     (hT : E[Γ] ⊢ t ≡ t' : T) (hA : IsArity E Γ T ∨ E[Γ] ⊢ T : .prop) : IsErasable E Γ t' :=
   ⟨T, hT.right, hA⟩
 
-/-- A term whose type is an inductive type, or a constructor node: never a function. -/
+/-- A term whose type is an inductive or a quotient type, or a constructor or `Quot.mk` node: never
+a function. -/
 def HB {n : Nat} (E : Env ζ) (R : Ctx ζ ℓ 0 n) (x : Expr ζ ℓ n) : Prop :=
   (∃ (I : Expr ζ ℓ n) (ι : IndSig) (η : Head ζ (.inductive ι)) (s : Fin ι.nsorts)
       (ls : Fin ι.nlevels → Level ℓ) (ps : Fin ι.nparams → Expr ζ ℓ n)
       (is : Fin (ι.nindices s) → Expr ζ ℓ n),
       E[R] ⊢ x : I ∧ E[R] ⊢ I ≡ .ind η s ls ps is typ) ∨
-  ∃ (ι : IndSig) (η : Head ζ (.inductive ι)) (s : Fin ι.nsorts) (c : Fin (ι.nctors s))
+  (∃ (ι : IndSig) (η : Head ζ (.inductive ι)) (s : Fin ι.nsorts) (c : Fin (ι.nctors s))
     (ls : Fin ι.nlevels → Level ℓ) (ps : Fin ι.nparams → Expr ζ ℓ n)
     (fds : Fin (ι.ctors s c).nfields → Expr ζ ℓ n)
-    (recFds : Fin (ι.ctors s c).nrecFields → Expr ζ ℓ n), x = .ctor η s c ls ps fds recFds
+    (recFds : Fin (ι.ctors s c).nrecFields → Expr ζ ℓ n), x = .ctor η s c ls ps fds recFds) ∨
+  (∃ (I : Expr ζ ℓ n) (θ : Head ζ .quot) (l : Level ℓ) (α r : Expr ζ ℓ n),
+      E[R] ⊢ x : I ∧ E[R] ⊢ I ≡ .quot θ l α r typ) ∨
+  ∃ (θ : Head ζ .quot) (l : Level ℓ) (α r a : Expr ζ ℓ n), x = .quotMk θ l α r a
 
 theorem HB.subst {n m : Nat} {R : Ctx ζ ℓ 0 n} {R' : Ctx ζ ℓ 0 m} {ς : Subst ζ ℓ n m}
     {x : Expr ζ ℓ n} (hς : E[R'] ⊢ ς ⊣ R) : HB E R x → HB E R' (x.subst ς)
   | .inl ⟨I, ι, η, s, ls, ps, is, hx, hI⟩ =>
     .inl ⟨I.subst ς, ι, η, s, ls, _, _, hx.substitution hς, by
       simpa [Expr.subst] using hI.substitution hς⟩
-  | .inr ⟨ι, η, s, c, ls, ps, fds, recFds, hx⟩ =>
-    .inr ⟨ι, η, s, c, ls, fun i => (ps i).subst ς, fun i => (fds i).subst ς,
-      fun i => (recFds i).subst ς, by subst hx; simp [Expr.subst]⟩
+  | .inr (.inl ⟨ι, η, s, c, ls, ps, fds, recFds, hx⟩) =>
+    .inr (.inl ⟨ι, η, s, c, ls, fun i => (ps i).subst ς, fun i => (fds i).subst ς,
+      fun i => (recFds i).subst ς, by subst hx; simp [Expr.subst]⟩)
+  | .inr (.inr (.inl ⟨I, θ, l, α, r, hx, hI⟩)) =>
+    .inr (.inr (.inl ⟨I.subst ς, θ, l, α.subst ς, r.subst ς, hx.substitution hς, by
+      simpa [Expr.subst] using hI.substitution hς⟩))
+  | .inr (.inr (.inr ⟨θ, l, α, r, a, hx⟩)) =>
+    .inr (.inr (.inr ⟨θ, l, α.subst ς, r.subst ς, a.subst ς, by subst hx; rfl⟩))
 
 theorem HB.wk {n : Nat} {R : Ctx ζ ℓ 0 n} {A x : Expr ζ ℓ n} (hR : E[R] ⊢ ok) (h : HB E R x) :
     HB E (R.snoc A) x.wk := by
@@ -476,10 +486,13 @@ theorem HB.wk {n : Nat} {R : Ctx ζ ℓ 0 n} {A x : Expr ζ ℓ n} (hR : E[R] �
 
 theorem HB.false {n : Nat} {R : Ctx ζ ℓ 0 n} {x X : Expr ζ ℓ n} {Y : Expr ζ ℓ (n + 1)}
     (hE : EnvWF E) (hR : E[R] ⊢ ok) (h : HB E R x) (hx : E[R] ⊢ x : .forallE X Y) : False := by
-  rcases h with ⟨I, ι, η, s, ls, ps, is, hxI, hI⟩ | ⟨ι, η, s, c, ls, ps, fds, recFds, rfl⟩
+  rcases h with ⟨I, ι, η, s, ls, ps, is, hxI, hI⟩ | ⟨ι, η, s, c, ls, ps, fds, recFds, rfl⟩ |
+    ⟨I, θ, l, α, r, hxI, hI⟩ | ⟨θ, l, α, r, a, rfl⟩
   · exact TypeEq.forallE_ne_ind hE hR ((Defeq.uniqTy hE hR hx hxI).trans hI)
   · obtain ⟨_, _, _, _, _, _, hT⟩ := hx.ctor_inv
     exact TypeEq.forallE_ne_ind hE hR hT.2
+  · exact TypeEq.forallE_ne_quot hE hR ((Defeq.uniqTy hE hR hx hxI).trans hI)
+  · exact TypeEq.forallE_ne_quot hE hR hx.quotMk_inv
 
 end
 
@@ -750,7 +763,7 @@ theorem Erases.rename
       closedn (c + br.1.length) br.2 = true →
       ErasesAlt E B lps σ Γ₂ Δ₂ k (e.liftLooseBVars' c j) br)
     ?bvar ?fvar ?lam ?letE ?app ?const ?ctor ?cases ?casesReduced ?eta ?proj ?litZero ?litSucc
-    ?mdata ?box ?done ?alam ?intro h
+    ?quotMk ?quotLift ?mdata ?box ?done ?alam ?intro h
   case bvar =>
     intro _ _ _ i m Γ₂ Δ₂ c j ρ _ _ _ hcl
     simp only [closedn, decide_eq_true_eq] at hcl
@@ -832,6 +845,28 @@ theorem Erases.rename
     intro _ _ _ _ _ _ hid _ ih m Γ₂ Δ₂ c j ρ hΓ₂ hth W hcl
     simp only [closedn, Bool.and_eq_true] at hcl
     exact .litSucc hid (ih _ _ _ c j ρ hΓ₂ hth W hcl.2)
+  case quotMk =>
+    intros; rename_i hcq hk _ hlex _ iha ihe m Γ₂ Δ₂ c j ρ hΓ₂ hth W hcl
+    rw [AbsFV.closedn_mkApps] at hcl
+    obtain ⟨ha, hext⟩ := hcl
+    rw [lift_spine]
+    simp only [List.map_append, List.map_cons, List.map_nil]
+    refine .quotMk hcq hk (iha _ _ _ c j ρ hΓ₂ hth W ha) (by simpa using hlex)
+      fun i a a' ha ha' => ?_
+    obtain ⟨a₀, ha₀, rfl⟩ := gmap ha
+    exact ihe i a₀ a' ha₀ ha' _ _ _ c j ρ hΓ₂ hth W (hext _ (List.mem_of_getElem? ha'))
+  case quotLift =>
+    intros; rename_i hcq hk _ _ hlex _ ihf ihq ihe m Γ₂ Δ₂ c j ρ hΓ₂ hth W hcl
+    rw [AbsFV.closedn_mkApps] at hcl
+    obtain ⟨hf, hext⟩ := hcl
+    rw [lift_spine]
+    simp only [List.map_append, List.map_cons, List.map_nil]
+    refine .quotLift hcq hk (ihf _ _ _ c j ρ hΓ₂ hth W hf)
+      (ihq _ _ _ c j ρ hΓ₂ hth W (hext _ List.mem_cons_self)) (by simpa using hlex)
+      fun i a a' ha ha' => ?_
+    obtain ⟨a₀, ha₀, rfl⟩ := gmap ha
+    exact ihe i a₀ a' ha₀ ha' _ _ _ c j ρ hΓ₂ hth W
+      (hext _ (List.mem_cons_of_mem _ (List.mem_of_getElem? ha')))
   case mdata =>
     intro _ _ _ _ _ _ _ ih m Γ₂ Δ₂ c j ρ hΓ₂ hth W hcl
     exact .mdata (ih _ _ _ c j ρ hΓ₂ hth W hcl)
@@ -998,7 +1033,7 @@ theorem Erases.instG (hE : EnvWF E)
       Erases E B lps σ Γ₂ Δ₂ (a.liftLooseBVars' 0 d) a' → HeadInv σ E a Γ₁ Δ₁ d b →
       ErasesAlt E B lps σ Γ₂ Δ₂ k (b.instantiate1' a d) (br.1, csubst a' (d + br.1.length) br.2))
     ?bvar ?fvar ?lam ?letE ?app ?const ?ctor ?cases ?casesReduced ?eta ?proj ?litZero ?litSucc
-    ?mdata ?box ?done ?alam ?intro,
+    ?quotMk ?quotLift ?mdata ?box ?done ?alam ?intro,
     @ErasesAlt.rec ζ E B lps σ (fun {n₁} Γ₁ Δ₁ b tb _ => ∀ (n₂ : Nat) (Γ₂ : Ctx ζ lps.length 0 n₂)
       (Δ₂ : MLCtx ζ lps.length n₂) (d : Nat) (ς : Subst ζ lps.length n₁ n₂),
       E[Γ₂] ⊢ ok → E[Γ₂] ⊢ ς ⊣ Γ₁ → MLCtx.InstA E B lps a d ς Δ₁ Δ₂ →
@@ -1010,7 +1045,7 @@ theorem Erases.instG (hE : EnvWF E)
       Erases E B lps σ Γ₂ Δ₂ (a.liftLooseBVars' 0 d) a' → HeadInv σ E a Γ₁ Δ₁ d b →
       ErasesAlt E B lps σ Γ₂ Δ₂ k (b.instantiate1' a d) (br.1, csubst a' (d + br.1.length) br.2))
     ?bvar ?fvar ?lam ?letE ?app ?const ?ctor ?cases ?casesReduced ?eta ?proj ?litZero ?litSucc
-    ?mdata ?box ?done ?alam ?intro⟩
+    ?quotMk ?quotLift ?mdata ?box ?done ?alam ?intro⟩
   case bvar =>
     intro _ _ _ i n₂ Γ₂ Δ₂ d ς _ _ _ Ea _
     simp only [Lean.Expr.instantiate1', csubst]
@@ -1116,6 +1151,28 @@ theorem Erases.instG (hE : EnvWF E)
     intro _ _ _ _ _ _ hid _ ih n₂ Γ₂ Δ₂ d ς hΓ₂ hς W Ea hi
     simp only [csubst]
     exact .litSucc hid (ih _ _ _ d ς hΓ₂ hς W Ea hi)
+  case quotMk =>
+    intros; rename_i hcq hk _ hlex _ iha ihe n₂ Γ₂ Δ₂ d ς hΓ₂ hς W Ea hi
+    have hi' := spineHI hi
+    rw [inst_spine, csubst_mkApps]
+    simp only [List.map_append, List.map_cons, List.map_nil]
+    refine .quotMk hcq hk (iha _ _ _ d ς hΓ₂ hς W Ea (hi' _ (by simp))) (by simpa using hlex)
+      fun i x x' hx hx' => ?_
+    obtain ⟨x₀, hx₀, rfl⟩ := gmap hx
+    obtain ⟨x₀', hx₀', rfl⟩ := gmapB hx'
+    exact ihe i x₀ x₀' hx₀ hx₀' _ _ _ d ς hΓ₂ hς W Ea
+      (hi' x₀ (by simp [List.mem_of_getElem? hx₀]))
+  case quotLift =>
+    intros; rename_i hcq hk _ _ hlex _ ihf ihq ihe n₂ Γ₂ Δ₂ d ς hΓ₂ hς W Ea hi
+    have hi' := spineHI hi
+    rw [inst_spine, csubst_mkApps]
+    simp only [List.map_append, List.map_cons, List.map_nil]
+    refine .quotLift hcq hk (ihf _ _ _ d ς hΓ₂ hς W Ea (hi' _ (by simp)))
+      (ihq _ _ _ d ς hΓ₂ hς W Ea (hi' _ (by simp))) (by simpa using hlex) fun i x x' hx hx' => ?_
+    obtain ⟨x₀, hx₀, rfl⟩ := gmap hx
+    obtain ⟨x₀', hx₀', rfl⟩ := gmapB hx'
+    exact ihe i x₀ x₀' hx₀ hx₀' _ _ _ d ς hΓ₂ hς W Ea
+      (hi' x₀ (by simp [List.mem_of_getElem? hx₀]))
   case mdata =>
     intro _ _ _ _ _ _ _ ih n₂ Γ₂ Δ₂ d ς hΓ₂ hς W Ea hi
     exact .mdata (ih _ _ _ d ς hΓ₂ hς W Ea hi)
@@ -1199,28 +1256,32 @@ theorem propProj_head {σ : EvalEnv} {e : Lean.Expr} (h : PropProj σ e) :
   | projProj => exact ⟨_, _, _, rfl⟩
   | app _ ih => simpa [Lean.Expr.getAppFn] using ih
 
-/-- A source value whose head is a constructor or a recognized `casesOn` is a saturated
-constructor spine. -/
+/-- A source value whose head is a constructor, a recognized `casesOn` or an erased quotient
+constant is a saturated constructor spine or a `Quot.mk` spine. -/
 theorem srcValue_special {σ : EvalEnv} {a : Lean.Expr} (hval : SrcValue σ a)
     (hs : SpecialSpine σ a) :
-    ∃ C us args cv, a = mkAppN (.const C us) (args : List Lean.Expr).toArray ∧
-      findDecl σ.decls C = some (.ctorInfo cv) ∧ args.length = cv.numParams + cv.numFields := by
+    (∃ C us args cv, a = mkAppN (.const C us) (args : List Lean.Expr).toArray ∧
+      findDecl σ.decls C = some (.ctorInfo cv) ∧ args.length = cv.numParams + cv.numFields) ∨
+    ∃ C us α r x qv, a = mkAppN (.const C us) [α, r, x].toArray ∧
+      findDecl σ.decls C = some (.quotInfo qv) ∧ qv.kind = .ctor := by
   obtain ⟨c, us, hc, hsp⟩ := hs
   cases hval with
-  | ctor hC hlen => exact ⟨_, _, _, _, rfl, hC, hlen⟩
+  | ctor hC hlen => exact .inl ⟨_, _, _, _, rfl, hC, hlen⟩
+  | quotMk hC hk _ => exact .inr ⟨_, _, _, _, _, _, rfl, hC, hk⟩
   | spine hsp' =>
     obtain ⟨c', us', hc', hat⟩ := atomSpine_head hsp'
     rw [hc] at hc'
     cases hc'
     exfalso
     unfold EvalEnv.isAtom at hat
-    rcases hsp with ⟨cv, hcv⟩ | hco
+    rcases hsp with ⟨cv, hcv⟩ | hco | ⟨qv, hqv, -⟩
     · simp [hcv, OwnRules] at hat
     · split at hat
       · simp only [Bool.and_eq_true, Option.isNone_iff_eq_none] at hat
         rw [hat.1.1.2] at hco
         cases hco
       · cases hat
+    · simp [hqv, OwnRules] at hat
   | propProj hp =>
     obtain ⟨S, i, e₀, he⟩ := propProj_head hp
     rw [he] at hc
@@ -1250,6 +1311,49 @@ theorem ctorNode_of_TrM {P : List ConstantInfo} {σ : EvalEnv} (henv : ProgEnv P
     exact ⟨_, _, _, _, _, _, _, _, rfl⟩
   | ctorEta _ hlt _ => omega
 
+/-- A constructor or `Quot.mk` node. -/
+def Node {n : Nat} (x : Expr ζ lps.length n) : Prop :=
+  (∃ (ι : IndSig) (η : Head ζ (.inductive ι)) (s : Fin ι.nsorts) (c : Fin (ι.nctors s))
+    (ls : Fin ι.nlevels → Level lps.length) (ps : Fin ι.nparams → Expr ζ lps.length n)
+    (fds : Fin (ι.ctors s c).nfields → Expr ζ lps.length n)
+    (recFds : Fin (ι.ctors s c).nrecFields → Expr ζ lps.length n),
+    x = .ctor η s c ls ps fds recFds) ∨
+  ∃ (θ : Head ζ .quot) (l : Level lps.length) (α r a : Expr ζ lps.length n), x = .quotMk θ l α r a
+
+/-- The translation of a source value with a special head is a constructor or `Quot.mk` node. -/
+theorem node_of_value {P : List ConstantInfo} {σ : EvalEnv} (henv : ProgEnv P ζ E B)
+    (hsub : SubEnv σ.decls P) {n : Nat} {Γ : Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n}
+    {a : Lean.Expr} {a₀ : Expr ζ lps.length n} (hval : SrcValue σ a) (hs : SpecialSpine σ a)
+    (h : TrM E B lps Γ Δ a a₀) : Node a₀ := by
+  rcases srcValue_special hval hs with ⟨C, us, args, cv, rfl, hC, hlen⟩ |
+    ⟨C, us, α, r, x, qv, rfl, hC, hk⟩
+  · obtain ⟨ι, η, s, c, ls, ps, fds, recFds, rfl⟩ := ctorNode_of_TrM henv hsub hC hlen h
+    exact .inl ⟨_, _, _, _, _, _, _, _, rfl⟩
+  · obtain ⟨η, hB⟩ := henv.lookup_quot (Extend.findDecl_sub hsub hC)
+    rw [hk] at hB
+    simp only [quotKindOf] at hB
+    obtain ⟨bs', hlen', -, hsat⟩ := PreTr.special_inv hB rfl (PreTr.ofTrM h)
+    cases hsat with
+    | quotEta _ hlt => simp [quotArity] at hlen' hlt; omega
+    | @quotMk _ α₀ r₀ x₀ rest _ u hu =>
+      obtain rfl : rest = [] := by simpa using hlen'
+      exact .inr ⟨_, _, _, _, _, rfl⟩
+
+/-- A node is not a function. -/
+theorem HB.of_node {n : Nat} {R : Ctx ζ lps.length 0 n} {x : Expr ζ lps.length n}
+    (h : Node x) : HB E R x := by
+  rcases h with ⟨ι, η, s, c, ls, ps, fds, recFds, rfl⟩ | ⟨θ, l, α, r, a, rfl⟩
+  · exact .inr (.inl ⟨_, _, _, _, _, _, _, _, rfl⟩)
+  · exact .inr (.inr (.inr ⟨_, _, _, _, _, rfl⟩))
+
+/-- A term definitionally equal to a node, at the type of the node, is not a function. -/
+theorem HB.of_defeq_node {n : Nat} {R : Ctx ζ lps.length 0 n} {x y T : Expr ζ lps.length n}
+    (hd : E[R] ⊢ y ≡ x : T) (h : Node x) : HB E R y := by
+  rcases h with ⟨ι, η, s, c, ls, ps, fds, recFds, rfl⟩ | ⟨θ, l, α, r, a, rfl⟩
+  · obtain ⟨_, _, _, _, _, _, hT⟩ := hd.right.ctor_inv
+    exact .inl ⟨_, _, _, _, _, _, _, hd.left, hT.2⟩
+  · exact .inr (.inr (.inl ⟨_, _, _, _, _, hd.left, hd.right.quotMk_inv⟩))
+
 /-- The bound variable of a binder whose type is the type of a constructor node is not a
 function. -/
 theorem HB.var_of_ctor {n : Nat} {Γ : Ctx ζ lps.length 0 n} {A : Expr ζ lps.length n}
@@ -1264,6 +1368,17 @@ theorem HB.var_of_ctor {n : Nat} {Γ : Ctx ζ lps.length 0 n} {A : Expr ζ lps.l
   rw [Expr.subst_wk] at h2
   simp only [Expr.subst] at h2
   exact .inl ⟨_, _, _, _, _, _, _, hΓA.varLast, h2⟩
+
+/-- The bound variable of a binder whose type is the type of a node is not a function. -/
+theorem HB.var_of_node {n : Nat} {Γ : Ctx ζ lps.length 0 n} {A x : Expr ζ lps.length n}
+    (hΓ : E[Γ] ⊢ ok) (hΓA : E[Γ.snoc A] ⊢ ok) (hA : E[Γ] ⊢ x : A) (h : Node x) :
+    HB E (Γ.snoc A) (.var (Fin.last n)) := by
+  rcases h with ⟨ι, η, s, c, ls, ps, fds, recFds, rfl⟩ | ⟨θ, l, α, r, a, rfl⟩
+  · exact HB.var_of_ctor hΓ hΓA hA
+  · have h2 := hA.quotMk_inv.substitution (SubstWF.wk A hΓ)
+    rw [Expr.subst_wk] at h2
+    simp only [Expr.subst] at h2
+    exact .inr (.inr (.inl ⟨_, _, _, _, _, hΓA.varLast, h2⟩))
 
 end
 
@@ -1317,9 +1432,7 @@ theorem RelInst.inst_setup {P : List ConstantInfo} {σ : EvalEnv} {n : Nat}
   have hfd : (Δ.pushLam none).findB 0 = some (.var (Fin.last n)) := by
     simp [MLCtx.pushLam, MLCtx.findB, MLDecl.denote]
   refine ⟨hς, W, Ea, fun hs => ?_⟩
-  obtain ⟨C, us, args, cv, rfl, hC, hlen⟩ := srcValue_special hval hs
-  obtain ⟨ι, η, s, c, ls, ps, fds, recFds, rfl⟩ := ctorNode_of_TrM henv hsub hC hlen hta
-  have hhb := HB.var_of_ctor hΓ hΓA hA
+  have hhb := HB.var_of_node hΓ hΓA hA (node_of_value henv hsub hval hs hta)
   refine ⟨hΓA, ?_, _, hfd, hhb⟩
   exact PreTr.noHead hE hord (PreTr.ofTrM htb) (ρ := Ren.id) hfd hΓA
     (by rw [Expr.rename_id]; exact hhb) ⟨_, by rw [Expr.rename_id]; exact hbT⟩

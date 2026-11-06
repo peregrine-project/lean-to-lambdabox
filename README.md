@@ -13,6 +13,14 @@ def val_at_false (f: Bool -> Nat): Nat := f .false
 #erase val_at_false to "out.ast"
 ```
 
+`#erase_lcnf` has the same options but reads the LCNF the compiler stored for the declaration and its
+dependencies, instead of kernel terms. It reads the base phase, or the mono phase with
+`#erase_lcnf mono f`. Mono has the compiler's specialization but has rewritten matches on `Nat` into
+arithmetic, so it needs `nat := .machine`. This mode trusts Lean's compiler up to that phase. A
+definition without compiled code, such as one tagged `@[extern]`, is erased from its kernel value as
+`#erase` does at the base phase, and is an axiom at the mono phase. String literals become `□` with a
+warning.
+
 Elaborating the above Lean code will produce a file `out.ast`
 containing $\lambda_\square$ code for the function `val_at_false`,
 and a file `out.ast.inlinings` listing the constants that `peregrine` should inline
@@ -28,7 +36,7 @@ The full syntax is `#erase <term> [config <ErasureConfig>] [to "<file>.ast"] [ml
 Without `to` or `mli`, the corresponding output is logged instead.
 The fields of `Erasure.ErasureConfig` (in [`Erasure.lean`](LeanToLambdaBox/Erasure.lean)) are
 - `extern` (default `.preferAxiom`): whether a constant tagged `@[extern]` becomes an axiom, or keeps its Lean definition (`.preferLogical`);
-- `nat` (default `.machine`): whether `Nat` is erased to primitive integers, or kept as an inductive type (`.peano`);
+- `nat` (default `.machine`): whether `Nat` is erased to primitive integers, or kept as an inductive type (`.peano`, where a literal above 65536 is an error);
 - `csimp` (default `true`): whether to apply `@[csimp]` replacements;
 - `remove_irrel_constr_args` (default `false`): whether to remove irrelevant constructor arguments;
 - `auto_inline_typeclass_dispatch` (default `false`): whether to also list in `.ast.inlinings` the instances and trivial aliases (projections, `def f := g`) that typeclass dispatch goes through, so that `peregrine` collapses chains such as `HAdd.hAdd → instHAdd → instAddNat → Nat.add`.
