@@ -194,18 +194,77 @@ def alwaysZero : Level → Bool
 /-- Lookup of a traversal local. Reference: `nth_error Γ` on the PCUIC context (DV-13). -/
 def findLocal (ls : List Local) (x : FVarId) : Option Local := ls.find? (·.fvarId == x)
 
+/-- The minor premises of a recursor whose ι-rule `whnf` applies: `T.rec` of a single inductive
+type `T` without indices (`rv.all = [T]`), whose minor premises (`recShape`, over the constructors
+of `T` in `decls`) take their induction hypotheses without arguments and about the last fields of
+the constructor, in order. `none` for every other recursor. Reference: the recursors of
+`Erasure.recShapeInFragment`, without its universe condition. -/
+def iotaMinors? (decls : List ConstantInfo) (rv : RecursorVal) : Option (List RecMinor) := do
+  let [T] := rv.all | none
+  let some (.inductInfo iv) := findConst decls T | none
+  let cvs ← iv.ctors.mapM fun c => match findConst decls c with
+    | some (.ctorInfo cv) => some cv
+    | _ => none
+  guard (rv.name == mkRecName T && rv.numIndices == 0)
+  let (_, minors) ← recShape rv.numParams rv.numMotives rv.type (cvs.map (·.numFields))
+  guard (minors.all fun mi => mi.ihs.map (fun h => (h.field, h.binders)) ==
+    (List.range' (mi.fields.length - mi.ihs.length) mi.ihs.length).map fun f => (f, []))
+  pure minors
+
+/-- The ι-rule of a recursor `r` of `iotaMinors?`'s shape with minor premises `minors`, applied
+to the arguments `args` (parameters, motives, minors, major) at the levels `us`, whose major
+premise has the weak-head normal form `t`: if `t` is an application of a constructor `C` of the
+recursor's inductive type to the parameters and the fields `fs`, the minor premise of `C` applied
+to `fs` and to the induction hypotheses `r ps ms mins f` of the recursive fields `f`. This is the
+right-hand side of `C`'s rule of the recursor (`RecursorVal.rules`) applied to `ps ms mins fs`,
+β-reduced. Reference: the kernel's `inductive_reduce_rec`, `WHRed.iota`
+(`ML Syntax/Reduction.lean:60`). -/
+def iotaRhs? (decls : List ConstantInfo) (r : Name) (us : List Level) (rv : RecursorVal)
+    (minors : List RecMinor) (args : List Expr) (t : Expr) : Option Expr := do
+  let (.const c _, cargs) := spine t | none
+  let some (.ctorInfo cv) := findConst decls c | none
+  guard (rv.all == [cv.induct] && cargs.length == cv.numParams + cv.numFields)
+  let mi ← minors[cv.cidx]?
+  let pre := args.take (rv.numParams + rv.numMotives + rv.numMinors)
+  let mk ← (pre.drop (rv.numParams + rv.numMotives))[cv.cidx]?
+  let fs := cargs.drop cv.numParams
+  let ihs ← mi.ihs.mapM fun h => fs[h.field]?.map fun f => mkAppN (.const r us) (pre ++ [f]).toArray
+  pure (mkAppN mk (fs ++ ihs).toArray)
+
+/-- An application `e` of a recursor `r` of `iotaMinors?`'s shape to its arity of arguments `args`
+(parameters, motives, minors, major) at the levels `us`, with the recursor's declaration and minor
+premises: the applications whose ι-rule `whnf` applies. Reference: none. -/
+def iotaApp? (decls : List ConstantInfo) (e : Expr) :
+    Option (Name × List Level × RecursorVal × List RecMinor × List Expr) :=
+  match spine e with
+  | (.const r us, args) => match findConst decls r with
+    | some (.recInfo rv) => do
+      let minors ← iotaMinors? decls rv
+      guard (args.length == rv.numParams + rv.numMotives + rv.numMinors + 1)
+      pure (r, us, rv, minors, args)
+    | _ => none
+  | _ => none
+
 /-- Weak-head normal form: head β (`instantiate1'`), ζ (`letE` and let-bound locals), δ of every
-definition (the kernel's δ), `mdata`, and the ι-rule of projections: `proj S i s` whose `s` reduces
-to a constructor application `C ps fs` reduces to `fs[i]` (the kernel's `reduce_proj`). Terms may
-have loose bound variables. Reference: `hnf` (`MR S/PCUICSafeReduce.v:1839`, `RedFlags.default`),
-as `sort_of_type` uses `reduce_to_sort` (`:1853`); projections: `red_proj`
-(`MR P/PCUICReduction.v:82`). -/
+definition (the kernel's δ), `mdata`, the ι-rule of projections: `proj S i s` whose `s` reduces
+to a constructor application `C ps fs` reduces to `fs[i]` (the kernel's `reduce_proj`), and the
+ι-rule of the recursors of `iotaMinors?`: a saturated `T.rec ps ms mins t` (`iotaApp?`) whose
+major premise `t` reduces to a constructor application `C ps' fs` reduces to `iotaRhs?`, the minor
+of `C` applied to `fs` and to the induction hypotheses (the kernel's `inductive_reduce_rec`). Terms
+may have loose bound variables. Reference: `hnf` (`MR S/PCUICSafeReduce.v:1839`,
+`RedFlags.default`), as `sort_of_type` uses `reduce_to_sort` (`:1853`); projections: `red_proj`
+(`MR P/PCUICReduction.v:82`); recursors: `WHRed.iota` (`ML Syntax/Reduction.lean:60`). -/
 def whnf (cx : Ctx) : Nat → List Local → Expr → Except EraseError Expr
   | 0, _, _ => throw (.fuel "whnf")
   | f+1, ls, .app g a => do
     match ← whnf cx f ls g with
     | .lam _ _ b _ => whnf cx f ls (b.instantiate1' a)
-    | g' => pure (.app g' a)
+    | g' => match iotaApp? cx.decls (.app g' a) with
+      | some (r, us, rv, minors, args) =>
+        match iotaRhs? cx.decls r us rv minors args (← whnf cx f ls a) with
+        | some e => whnf cx f ls e
+        | none => pure (.app g' a)
+      | none => pure (.app g' a)
   | f+1, ls, .letE _ _ v b _ => whnf cx f ls (b.instantiate1' v)
   | f+1, ls, .mdata _ e => whnf cx f ls e
   | f+1, ls, .fvar x => match findLocal ls x with

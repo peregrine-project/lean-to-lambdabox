@@ -7,9 +7,9 @@
 # that `peregrine eval` (with the table's options) prints must be the table's value, the value of
 # the Lean program (eval's output without its "Compiling:" and "Compiled successfully:" lines,
 # whitespace collapsed; `--anf=false` prints □ as `(FIX 0)`). The programs:
-# - NV-1's, NV-2's, NV-Q's and NV-R's programs as the entry point of #erase emits them
+# - NV-1's, NV-2's, NV-Q's, NV-R's and NV-S's programs as the entry point of #erase emits them
 #   (proof/tools/NVEmit.lean; check.sh's step nv1-emit writes them to proof/.check/nv1/NV1.ast,
-#   NV2.ast, NVQ.ast and NVR.ast, which must exist);
+#   NV2.ast, NVQ.ast, NVR.ast and NVS.ast, which must exist);
 # - every output of the regression tests (tests/regress) written under `nat := .peano`, read from
 #   tests/regress/expected/, which scripts/regress.sh requires to equal what the tests write;
 # - the regression tests' outputs for the programs of NV-1, NV-P and NV-K (tests/regress/
@@ -39,12 +39,14 @@ proof/.check/nv1/NV1.ast                              default -           constr
 proof/.check/nv1/NV2.ast                              default -           constr B.t
 proof/.check/nv1/NVQ.ast                              default -           constr B.t
 proof/.check/nv1/NVR.ast                              default -           constr B.t
+proof/.check/nv1/NVS.ast                              default -           constr N.s constr N.s constr N.z
 tests/regress/expected/entry_route/nv1.ast            default -           constr ER.B.t
 tests/regress/expected/entry_route/nvp.ast            default -           constr ER.B.t
 tests/regress/expected/entry_route/nvk.ast            default -           constr ER.B.t
 tests/regress/expected/entry_route/useMN.ast          peano   -           constr Nat.zero
 tests/regress/expected/alt_type_pure/alias.ast        peano   -           constr ATP.B.t
 tests/regress/expected/alt_type_pure/fam.ast          peano   -           constr ATP.B.t
+tests/regress/expected/alt_type_pure/sel.ast          peano   -           constr ATP.B.t
 tests/regress/expected/arity_type/t.ast               peano   -           constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.zero
 tests/regress/expected/prop_elim_pure/or.ast          peano   --anf=false (FIX 0)
 tests/regress/expected/prop_elim_pure/ex.ast          peano   --anf=false (FIX 0)
@@ -77,6 +79,7 @@ tests/regress/expected/structural/useLength.ast       peano   -           constr
 tests/regress/expected/structural/useMap.ast          peano   -           constr ST.B.t
 tests/regress/expected/structural/useEv.ast           peano   -           constr Bool.false
 tests/regress/expected/structural/usePairs.ast        peano   -           constr Nat.succ constr Nat.succ constr Nat.zero
+tests/regress/expected/structural/usePairs2.ast       peano   -           constr Nat.succ constr Nat.succ constr Nat.zero
 tests/regress/expected/structural/useGet.ast          peano   -           constr ST.B.t
 tests/regress/expected/peano_literal/small.ast        peano   -           constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.zero
 EOF

@@ -273,21 +273,22 @@ theorem ofFn_single {α : Type} {k : Nat} (hk : k = 1) (s : Fin k) (f : Fin k �
 constructor node of that sort whose fields translate the Lean fields, related by the constructor's
 Metalean field order. -/
 theorem major_ctor {σ : EvalEnv} (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P)
-    {lps : List Name} {T : Name} {mj : Expr} {k : Nat} {fs : List Expr} {ι : Metalean.IndSig}
-    {η : Head ζ (.inductive ι)} {s : Fin ι.nsorts} {a₀ : Metalean.Expr ζ lps.length 0}
+    {lps : List Name} {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n}
+    {T : Name} {mj : Expr} {k : Nat} {fs : List Expr} {ι : Metalean.IndSig}
+    {η : Head ζ (.inductive ι)} {s : Fin ι.nsorts} {a₀ : Metalean.Expr ζ lps.length n}
     (hBT : B T = some (.ind η s)) (hcv : CtorValue σ T mj k fs)
-    (ha : TrM E B lps .nil [] mj a₀) :
+    (ha : TrM E B lps Γ Δ mj a₀) :
     ∃ (k' : Fin (ι.nctors s)) (order : List Nat) (ls₂ : Fin ι.nlevels → Metalean.Level lps.length)
-      (ps₂ : Fin ι.nparams → Metalean.Expr ζ lps.length 0)
-      (fds : Fin (ι.ctors s k').nfields → Metalean.Expr ζ lps.length 0)
-      (recFds : Fin (ι.ctors s k').nrecFields → Metalean.Expr ζ lps.length 0)
-      (fsT : List (Metalean.Expr ζ lps.length 0)) (C : Name),
+      (ps₂ : Fin ι.nparams → Metalean.Expr ζ lps.length n)
+      (fds : Fin (ι.ctors s k').nfields → Metalean.Expr ζ lps.length n)
+      (recFds : Fin (ι.ctors s k').nrecFields → Metalean.Expr ζ lps.length n)
+      (fsT : List (Metalean.Expr ζ lps.length n)) (C : Name),
       k'.val = k ∧ (∃ cv, findDecl σ.decls C = some (.ctorInfo cv) ∧ cv.cidx = k) ∧
       B C = some (.ctor η s k' order) ∧
       MetaOrderOK order (ι.ctors s k').nfields (ι.ctors s k').nrecFields ∧
       a₀ = .ctor η s k' ls₂ ps₂ fds recFds ∧
       fsT.length = (ι.ctors s k').nfields + (ι.ctors s k').nrecFields ∧
-      List.Forall₂ (TrM E B lps .nil []) fs fsT ∧ CasesWhred.FieldsPerm order fsT fds recFds := by
+      List.Forall₂ (TrM E B lps Γ Δ) fs fsT ∧ CasesWhred.FieldsPerm order fsT fds recFds := by
   have hP : ∀ {x ci}, findDecl σ.decls x = some ci → findDecl P x = some ci := fun h => by
     obtain ⟨hm, rfl⟩ := findDecl_eq_some h; exact hsub _ hm
   obtain ⟨C, us', cv, ps, hC, hind, hcidx, hps, hfs, rfl⟩ := hcv
@@ -338,6 +339,80 @@ theorem mapM_get {α β : Type} {f : α → Option β} :
     | zero => simp at hz; subst hz; exact ⟨y, rfl, hy⟩
     | succ i => obtain ⟨w, hw, hf⟩ := hall i z (by simpa using hz); exact ⟨w, by simpa using hw, hf⟩
 
+/-- A saturated recursor spine translated to the recursor node at the images `A` of its arguments
+(`CasesWhred.trM_recr_inv`) translates, with its major premise replaced by a term translated to `x`,
+to the same node at the major `x`. -/
+theorem trM_recr_major {lps : List Name} {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n}
+    {Δ : MLCtx ζ lps.length n} {c : Name} {us : List Level} {pre : List Expr} {mj : Expr}
+    {ι : Metalean.IndSig} {η : Head ζ (.inductive ι)} {s : Fin ι.nsorts}
+    {orders : List (List (List Nat))} (hBc : B c = some (.recr η s orders))
+    (hlen : (pre ++ [mj]).length = ι.recrEnd s)
+    {ls : Fin ι.nlevels → Metalean.Level lps.length} {l : Metalean.Level lps.length}
+    {mo : (t : Fin ι.nsorts) → Fin (ι.nctors t) → List Nat}
+    {A : Fin (ι.recrEnd s) → Metalean.Expr ζ lps.length n}
+    {mins : (t : Fin ι.nsorts) → Fin (ι.nctors t) → Metalean.Expr ζ lps.length n}
+    (hA : ∀ i : Fin (ι.recrEnd s), ∃ a, (pre ++ [mj])[i.val]? = some a ∧ TrM E B lps Γ Δ a (A i))
+    (hmo : ∀ t c, (orders[t.val]?.bind (·[c.val]?)) = some (mo t c))
+    (hw : ∀ t c, Metalean.Frontend.wrapCase (E.get η).block η ls
+      (fun p => A (Metalean.IndSig.RecrBinder.param (s := s) p).resolve)
+      (fun t => A (Metalean.IndSig.RecrBinder.motive (s := s) t).resolve) t c (mo t c)
+      (A (Metalean.IndSig.RecrBinder.case (s := s) t c).resolve) = .ok (mins t c))
+    {us' : List Level} (hRL : RecrLevels (E.get η).block lps us l us')
+    (hTL : TrLevels lps us' ι.nlevels = some ls)
+    {rf : Expr} {x : Metalean.Expr ζ lps.length n} (hx : TrM E B lps Γ Δ rf x) :
+    TrM E B lps Γ Δ (mkAppN (.const c us) (pre ++ [rf]).toArray)
+      (.recr η s ls l (fun p => A (Metalean.IndSig.RecrBinder.param (s := s) p).resolve)
+        (fun t => A (Metalean.IndSig.RecrBinder.motive (s := s) t).resolve) mins
+        (fun i => A (Metalean.IndSig.RecrBinder.index i).resolve) x) := by
+  have hpre : pre.length = ι.recrEnd s - 1 := by
+    simp only [List.length_append, List.length_singleton] at hlen ⊢; omega
+  let A' : Fin (ι.recrEnd s) → Metalean.Expr ζ lps.length n := fun i =>
+    if i.val = ι.recrEnd s - 1 then x else A i
+  have hcs : ∀ i : Fin (ι.casesEnd + ι.nindices s), A' i.castSucc = A i.castSucc := fun i =>
+    if_neg (by simp only [Fin.val_castSucc]; show ¬ i.val = ι.casesEnd + ι.nindices s + 1 - 1; omega)
+  have hl' : A' (Metalean.IndSig.RecrBinder.major (ι := ι) (s := s)).resolve = x :=
+    if_pos rfl
+  have hsat := SatTr.recrSat (E := E) (lps := lps) (us := us) mo A' [] mins hRL hTL hmo
+    (fun t c => by
+      show Metalean.Frontend.wrapCase _ _ _ (fun p => A' (((p.castAdd _).castAdd _).castAdd _).castSucc)
+        (fun t => A' (((t.natAdd _).castAdd _).castAdd _).castSucc) t c (mo t c)
+        (A' (((Fin.encodeSigma _ ⟨t, c⟩).natAdd _).castAdd _).castSucc) = _
+      simp only [hcs]
+      exact hw t c)
+  have hnode : Metalean.Expr.appList (Metalean.Expr.recr η s ls l
+      (fun p => A' (Metalean.IndSig.RecrBinder.param (s := s) p).resolve)
+      (fun t => A' (Metalean.IndSig.RecrBinder.motive (s := s) t).resolve) mins
+      (fun i => A' (Metalean.IndSig.RecrBinder.index i).resolve)
+      (A' (Metalean.IndSig.RecrBinder.major (ι := ι) (s := s)).resolve)) [] =
+    .recr η s ls l (fun p => A (Metalean.IndSig.RecrBinder.param (s := s) p).resolve)
+        (fun t => A (Metalean.IndSig.RecrBinder.motive (s := s) t).resolve) mins
+        (fun i => A (Metalean.IndSig.RecrBinder.index i).resolve) x := by
+    rw [hl']
+    simp only [Metalean.IndSig.RecrBinder.resolve, hcs]
+    rfl
+  rw [hnode] at hsat
+  refine TrM.special hBc rfl (by simp only [List.length_append, List.length_ofFn,
+    List.length_singleton, List.length_nil, Nat.add_zero] at hlen ⊢; omega) ?_ hsat
+  intro i a a' ha ha'
+  rw [List.append_nil, List.getElem?_ofFn] at ha'
+  split at ha'
+  · rename_i hi
+    cases ha'
+    by_cases hil : i = ι.recrEnd s - 1
+    · subst hil
+      rw [← hpre, List.getElem?_append_right (Nat.le_refl _), Nat.sub_self] at ha
+      cases ha
+      simp only [A', ↓reduceIte]
+      exact hx
+    · have hi' : i < pre.length := by rw [hpre]; omega
+      rw [List.getElem?_append_left hi'] at ha
+      obtain ⟨a₂, ha₂, htr⟩ := hA ⟨i, hi⟩
+      rw [List.getElem?_append_left hi', ha] at ha₂
+      cases ha₂
+      simp only [A', hil, ↓reduceIte]
+      exact htr
+  · cases ha'
+
 /-- A saturated recursor of a single inductive without indices whose recursive fields take no
 arguments, applied to parameters, motives, minors `mvs` and a constructor value of its inductive,
 reduces to the translation of the constructor's minor applied to the fields and to the induction
@@ -345,10 +420,11 @@ hypotheses `T.rec ps ms mvs f` of the recursive fields (`rfs`, as `recShape` lis
 (`WHRed.iota`) and β through `wrapCase` (`ctorSat_iota`); Metalean's induction hypotheses
 (`iotaIHs`) are the translations of the Lean ones. -/
 theorem recIota_whred {σ : EvalEnv} (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P)
-    {lps : List Name} {c : Name} {rv : RecursorVal} {T : Name} {iv : InductiveVal}
+    {lps : List Name} {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n}
+    {c : Name} {rv : RecursorVal} {T : Name} {iv : InductiveVal}
     {cvs : List ConstructorVal} {motives : List (List Name)} {minors : List RecMinor}
     {mj : Expr} {k : Nat} {mi : RecMinor} {mk : Expr} {us : List Level}
-    {ps ms mvs fs rfs : List Expr} {t : Metalean.Expr ζ lps.length 0}
+    {ps ms mvs fs rfs : List Expr} {t : Metalean.Expr ζ lps.length n}
     (hcr : findDecl σ.decls c = some (.recInfo rv)) (hall : rv.all = [T]) (hcT : c = mkRecName T)
     (hblk : σ.recBlock? rv = some ([iv], cvs)) (hni : rv.numIndices = 0)
     (hshape : recShape rv.numParams rv.numMotives rv.type (cvs.map (·.numFields)) =
@@ -359,10 +435,10 @@ theorem recIota_whred {σ : EvalEnv} (henv : ProgEnv P ζ E B) (hsub : SubEnv σ
     (hmvs : mvs.length = rv.numMinors)
     (hcv : CtorValue σ T mj k fs) (hmi : minors[k]? = some mi) (hmk : mvs[k]? = some mk)
     (hrfs : (mi.ihs.mapM fun h => fs[h.field]?) = some rfs)
-    (he : TrM E B lps .nil [] (mkAppN (.const c us) (ps ++ ms ++ mvs ++ [mj]).toArray) t) :
-    ∃ (a₁ : Metalean.Expr ζ lps.length 0) (fs₀ ihs₀ : List (Metalean.Expr ζ lps.length 0)),
-      TrM E B lps .nil [] mk a₁ ∧ List.Forall₂ (TrM E B lps .nil []) fs fs₀ ∧
-      List.Forall₂ (TrM E B lps .nil [])
+    (he : TrM E B lps Γ Δ (mkAppN (.const c us) (ps ++ ms ++ mvs ++ [mj]).toArray) t) :
+    ∃ (a₁ : Metalean.Expr ζ lps.length n) (fs₀ ihs₀ : List (Metalean.Expr ζ lps.length n)),
+      TrM E B lps Γ Δ mk a₁ ∧ List.Forall₂ (TrM E B lps Γ Δ) fs fs₀ ∧
+      List.Forall₂ (TrM E B lps Γ Δ)
         (rfs.map fun f => mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray) ihs₀ ∧
       E ⊢ t ⤳* a₁.appList (fs₀ ++ ihs₀) := by
   obtain ⟨ι, η, s, lps₀, Is, Cs, Rs, orders, hb, rfl, rfl, hTs, hBT, hBc, hns, rfl⟩ :=
@@ -444,7 +520,7 @@ theorem recIota_whred {σ : EvalEnv} (henv : ProgEnv P ζ E B) (hsub : SubEnv σ
   -- each recursive field: no binders, into `s`, translated as Metalean's recursive field
   have hfield : ∀ j : Fin (ι.ctors s k').nrecFields,
       (ι.ctors s k').recursiveArity j = 0 ∧ (ι.ctors s k').recursiveTarget j = s ∧
-      ∃ rf, rfs[j.val]? = some rf ∧ TrM E B lps .nil [] rf (recFds j) := by
+      ∃ rf, rfs[j.val]? = some rf ∧ TrM E B lps Γ Δ rf (recFds j) := by
     intro j
     obtain ⟨h, hh⟩ : ∃ h, mi.ihs[j.val]? = some h :=
       ⟨_, List.getElem?_eq_getElem (by rw [hnr]; exact j.isLt)⟩
@@ -474,59 +550,13 @@ theorem recIota_whred {σ : EvalEnv} (henv : ProgEnv P ζ E B) (hsub : SubEnv σ
     cases hy
     exact hty
   -- the Lean induction hypotheses translate to the recursor node on the recursive field
-  have hIH : ∀ rf x, TrM E B lps .nil [] rf x →
-      TrM E B lps .nil [] (mkAppN (.const c us) (ps ++ ms ++ mvs ++ [rf]).toArray)
+  have hIH : ∀ rf x, TrM E B lps Γ Δ rf x →
+      TrM E B lps Γ Δ (mkAppN (.const c us) (ps ++ ms ++ mvs ++ [rf]).toArray)
         (.recr η s ls l (fun p => A (Metalean.IndSig.RecrBinder.param (s := s) p).resolve)
           (fun t => A (Metalean.IndSig.RecrBinder.motive (s := s) t).resolve) mins
-          (fun i => A (Metalean.IndSig.RecrBinder.index i).resolve) x) := by
-    intro rf x hx
-    let A' : Fin (ι.recrEnd s) → Metalean.Expr ζ lps.length 0 := fun i =>
-      if i.val = ι.recrEnd s - 1 then x else A i
-    have hcs : ∀ i : Fin (ι.casesEnd + ι.nindices s), A' i.castSucc = A i.castSucc := fun i =>
-      if_neg (by simp only [Fin.val_castSucc]; show ¬ i.val = ι.casesEnd + ι.nindices s + 1 - 1; omega)
-    have hl' : A' (Metalean.IndSig.RecrBinder.major (ι := ι) (s := s)).resolve = x :=
-      if_pos rfl
-    have hsat := SatTr.recrSat (E := E) (lps := lps) (us := us) mo A' [] mins hRL hTL hmo
-      (fun t c => by
-        show Metalean.Frontend.wrapCase _ _ _ (fun p => A' (((p.castAdd _).castAdd _).castAdd _).castSucc)
-          (fun t => A' (((t.natAdd _).castAdd _).castAdd _).castSucc) t c (mo t c)
-          (A' (((Fin.encodeSigma _ ⟨t, c⟩).natAdd _).castAdd _).castSucc) = _
-        simp only [hcs]
-        exact hw t c)
-    have hnode : Metalean.Expr.appList (Metalean.Expr.recr η s ls l
-        (fun p => A' (Metalean.IndSig.RecrBinder.param (s := s) p).resolve)
-        (fun t => A' (Metalean.IndSig.RecrBinder.motive (s := s) t).resolve) mins
-        (fun i => A' (Metalean.IndSig.RecrBinder.index i).resolve)
-        (A' (Metalean.IndSig.RecrBinder.major (ι := ι) (s := s)).resolve)) [] =
-      .recr η s ls l (fun p => A (Metalean.IndSig.RecrBinder.param (s := s) p).resolve)
-          (fun t => A (Metalean.IndSig.RecrBinder.motive (s := s) t).resolve) mins
-          (fun i => A (Metalean.IndSig.RecrBinder.index i).resolve) x := by
-      rw [hl']
-      simp only [Metalean.IndSig.RecrBinder.resolve, hcs]
-      rfl
-    rw [hnode] at hsat
-    refine TrM.special hBc rfl (by simp only [List.length_append, List.length_ofFn,
-      List.length_singleton, List.length_nil, Nat.add_zero] at hlen ⊢; omega) ?_ hsat
-    intro i a a' ha ha'
-    rw [List.append_nil, List.getElem?_ofFn] at ha'
-    split at ha'
-    · rename_i hi
-      cases ha'
-      by_cases hil : i = ι.recrEnd s - 1
-      · subst hil
-        rw [← hpre, List.getElem?_append_right (Nat.le_refl _), Nat.sub_self] at ha
-        cases ha
-        simp only [A', ↓reduceIte]
-        exact hx
-      · have hi' : i < (ps ++ ms ++ mvs).length := by rw [hpre]; omega
-        rw [List.getElem?_append_left hi'] at ha
-        obtain ⟨a₂, ha₂, htr⟩ := hA ⟨i, hi⟩
-        rw [List.getElem?_append_left hi', ha] at ha₂
-        cases ha₂
-        simp only [A', hil, ↓reduceIte]
-        exact htr
-    · cases ha'
-  let N : Fin (ι.ctors s k').nrecFields → Metalean.Expr ζ lps.length 0 := fun j =>
+          (fun i => A (Metalean.IndSig.RecrBinder.index i).resolve) x) :=
+    fun _ _ hx => trM_recr_major hBc hlen hA hmo hw hRL hTL hx
+  let N : Fin (ι.ctors s k').nrecFields → Metalean.Expr ζ lps.length n := fun j =>
     .recr η s ls l (fun p => A (Metalean.IndSig.RecrBinder.param (s := s) p).resolve)
       (fun t => A (Metalean.IndSig.RecrBinder.motive (s := s) t).resolve) mins
       (fun i => A (Metalean.IndSig.RecrBinder.index i).resolve) (recFds j)
@@ -537,7 +567,7 @@ theorem recIota_whred {σ : EvalEnv} (henv : ProgEnv P ζ E B) (hsub : SubEnv σ
     funext j
     obtain ⟨har, htg, -⟩ := hfield j
     exact iotaIH_eq _ har htg hnis _ _ _ _ _ _ _ _ _
-  have hIHs : List.Forall₂ (TrM E B lps .nil [])
+  have hIHs : List.Forall₂ (TrM E B lps Γ Δ)
       (rfs.map fun f => mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray) (List.ofFn N) := by
     refine CasesWhred.forall₂_of_getElem? (by simp [hrl, hnr]) fun j x y h1 h2 => ?_
     rw [List.getElem?_ofFn] at h2

@@ -1879,7 +1879,7 @@ theorem visitMutual_step (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
           | refine KeepsCG.ite (fun _ => ?_) (fun _ => ?_) : KeepsCG ⟨decls, view⟩ _) _ _ _ _ _ _ hrun
     dsimp only at hW
     have hread := (hG.value_consts hci hv hthm hcs).2
-    have hvcl : FVarsIn (fun _ => False) v := hG.closed ci hci' v hread
+    have hvcl : FVarsIn (fun _ => False) v := hG.closed ci hci' v (.inl hread)
     have hmfv : MachineFree cfg v := hG.mfd ci hci' v hread
     have hnpv : NatPlain cfg v := hG.npd ci hci' v hread
     have hW' : (visitExpr (m := PureM) fuel v).runPure sb

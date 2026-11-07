@@ -459,8 +459,10 @@ theorem dex {ci : ConstantInfo} (hci : ci ∈ decls) (hnr : ∀ R, ci ≠ .recIn
   | recInfo r => exact absurd rfl (hnr r)
   | thmInfo _ | quotInfo _ => rfl
   | defnInfo d =>
-    obtain ⟨h1, h2, h3⟩ := hph
-    simp [declExclusion, h1, h2, h3]; rfl
+    obtain ⟨h1, h2 | h2, h3⟩ := hph
+    · simp [declExclusion, h1, h2, h3]; rfl
+    · simp only [Bool.and_eq_true] at h2
+      simp [declExclusion, h1, h2.1, h2.2, h3]; rfl
   | opaqueInfo o =>
     obtain ⟨h1, h2, h3⟩ := hph
     simp [declExclusion, h1, h2, h3]; rfl

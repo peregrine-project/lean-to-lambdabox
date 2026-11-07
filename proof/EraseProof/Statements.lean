@@ -99,9 +99,17 @@ Scope.
   them anyway: their recursion reduces only through the accessibility proof, and proofs are opaque
   in Metalean (theorems have no δ, DV-24), so the source does not evaluate them and `hev` never
   holds.
-* The fragment has no recursive definitions. The fragment test rejects structural recursion as
-  well (every recursive definition has a compiled `_unsafe_rec` companion, `Nat.add` and `Nat.beq`
-  included), so `Nat` arithmetic of `Init` is outside it. Programs recurse through recursors: the
+* The fragment has no recursive definitions. By default the fragment test rejects structural
+  recursion as well (every recursive definition has a compiled `_unsafe_rec` companion, `Nat.add`
+  and `Nat.beq` included), so `Nat` arithmetic of `Init` is outside it. Under
+  `structural := .kernel` it admits a definition by structural recursion
+  (`Erasure.isStructuralRecursive`): its kernel definition is not recursive, it recurses through
+  `T.brecOn`, whose value is the first projection of a `T.rec` into the pairs of a value and its
+  table of recursive calls `T.below`, and the eraser erases it as any definition. A mutual
+  structural block (definitions that share `all`) is not the Lean form of Metalean definitions
+  (`ProgEnv.defn`), and the source semantics has no recursor ι on a Nat literal, so the theorem
+  says nothing about either.
+  Programs recurse through recursors: the
   test admits `T.rec` of a single inductive without indices that eliminates into every sort, whose
   induction hypotheses take no arguments and are about the last fields of their constructor
   (`RecInFragment`), and other recursors only as the companions of `casesOn` that the traversal does

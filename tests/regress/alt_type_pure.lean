@@ -3,21 +3,24 @@ import LeanToLambdaBox
 /-!
 An alternative whose type is a function type only after unfolding (register entry S-31): the
 traversal reduces the type with the backend's `whnf`, which the pure backend computes with the
-oracle (`Pure.whnf`: head β, ζ and the kernel's δ, no recursor ι). The test checks, for programs in
-the fragment:
+oracle (`Pure.whnf`: head β, ζ, the kernel's δ and ι). The test checks, for programs in the
+fragment:
 - `aliasT`, whose alternative `first` has the type `Fn2`, an alias of `B → B → B`, and `famT`,
   whose alternative `idB` has the type `Fam B`, which β-reduces to `B → B`: both take the pure path,
   and the pure and the `Meta` paths give the same program; `#erase` writes them to `alias.ast` and
   `fam.ast`, which peregrine evaluates to `B.t`;
-- `selT`, whose alternative's type `Sel true` reaches `B → B` only through `Bool.rec` (ι): the pure
-  path stops with the error "expected a function type, got `Bool.rec …`", where the `Meta` path
-  reduces it.
+- `selT`, whose alternative's type `Sel true` reaches `B → B` only through `Bool.rec` (ι, register
+  entry S-43): it takes the pure path as well, with the program of the `Meta` path; `#erase` writes
+  it to `sel.ast`, which peregrine evaluates to `B.t`. Without the recursor ι-rule, the pure path
+  stops with the error "expected a function type, got `Bool.rec …`".
 -/
 
 -- peregrine: validate alias.ast
 -- peregrine: eval alias.ast
 -- peregrine: validate fam.ast
 -- peregrine: eval fam.ast
+-- peregrine: validate sel.ast
+-- peregrine: eval sel.ast
 
 open Lean Erasure
 
@@ -54,7 +57,7 @@ def check (n : Name) : CoreM Unit := do
 /-- info: viaPure ok; pure = Meta: true -/
 #guard_msgs in
 #eval check ``ATP.famT
-/-- info: viaPure error (expected a function type) -/
+/-- info: viaPure ok; pure = Meta: true -/
 #guard_msgs in
 #eval check ``ATP.selT
 
@@ -62,3 +65,5 @@ def check (n : Name) : CoreM Unit := do
 #erase ATP.aliasT config {nat := .peano} to "alias.ast"
 #guard_msgs (drop warning, drop info) in
 #erase ATP.famT config {nat := .peano} to "fam.ast"
+#guard_msgs (drop warning, drop info) in
+#erase ATP.selT config {nat := .peano} to "sel.ast"
