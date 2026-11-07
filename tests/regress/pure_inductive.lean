@@ -19,7 +19,8 @@ reduces Nat literals and projections. The test checks:
   `ctorArity?` agrees with `getCtorArity?`;
 - the oracle's types (up to `Meta.isDefEq`) and erasability answers agree with `Meta`'s on
   projections, literals, constructor and `casesOn` applications, and so do its weak-head normal
-  forms except where `Meta.whnf` reduces a recursor;
+  forms except where `Meta.whnf` reduces a recursor that the oracle does not (`Eq.rec`, whose
+  inductive has an index, and `Nat.rec` on a literal);
 - `erasePure`, run over the declarations each program reads, erases `B.neg B.f`,
   `T.snd (T.node (T.leaf B.f) B.t)`, `(swap ⟨B.f, B.t⟩).a`, `isZero 2` (`nat := .peano`) and
   `Eq.casesOn (motive := fun _ _ => B) (Eq.refl B.t) B.f` to the same program as the `Meta` path
@@ -50,6 +51,7 @@ structure P2 where
   b : B
 def swap (p : P2) : P2 := ⟨p.b, p.a⟩
 def isZero (n : Nat) : B := Nat.casesOn (motive := fun _ => B) n B.t (fun _ => B.f)
+def eqT : B := Eq.casesOn (motive := fun _ _ => B) (Eq.refl B.t) B.f
 end PI
 
 /-! ## Declarations as terms, for kernel evaluation -/
@@ -225,11 +227,14 @@ def terms : List (String × Expr) :=
    ("and.1", .proj ``And 0 andTT), ("2", .lit (.natVal 2)),
    ("B.neg B.f", .app (.const `PI.B.neg []) cF),
    ("B.casesOn", mkApp4 (.const `PI.B.casesOn [1]) (.lam `x (.const `PI.B []) (.const `PI.B []) .default)
-      cT cF cT)]
+      cT cF cT),
+   ("isZero 2", .app (.const `PI.isZero []) (.lit (.natVal 2))), ("eqT", .const `PI.eqT [])]
 
 /-- `(term, types agree, normal forms agree, pure and Meta erasability)` for each of `terms`. The
 normal forms of `B.neg B.f` and of the `B.casesOn` application agree because the oracle reduces the
-recursor `B.rec` to which they unfold, as `Meta.whnf` does (register entry S-43). -/
+recursor `B.rec` to which they unfold, as `Meta.whnf` does (register entries S-43, S-48). Those of
+`isZero 2` and `eqT` differ: the oracle reduces neither `Nat.rec` on a literal nor `Eq.rec`, whose
+inductive has an index (S-48), and `Meta.whnf` reduces both to `B.f`. -/
 def oracle : MetaM (List (String × Bool × Bool × String × Bool)) := do
   let cx : Pure.Ctx := ⟨← allDecls⟩
   terms.mapM fun (n, e) => do
@@ -247,7 +252,8 @@ def oracle : MetaM (List (String × Bool × Bool × String × Bool)) := do
 /--
 info: [("tree", true, true, "false", false), ("pair.2", true, true, "false", false), ("pair.1", true, true, "false", false),
   ("and.1", true, true, "true", true), ("2", true, true, "false", false), ("B.neg B.f", true, true, "false", false),
-  ("B.casesOn", true, true, "false", false)]
+  ("B.casesOn", true, true, "false", false), ("isZero 2", true, false, "false", false),
+  ("eqT", true, false, "false", false)]
 -/
 #guard_msgs in
 #eval oracle

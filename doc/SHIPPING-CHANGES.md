@@ -3376,6 +3376,55 @@ the calls at which the two oracles answer differently. It must equal
   exclusions and the three routes differ. `scripts/regress.sh` passes (27 tests), with and without
   `PEREGRINE`.
 
+---
+
+## S-48: The pure oracle's recursor ι applies the minor premise, for recursors of one inductive without indices
+
+- **Commit:** the commit whose subject starts with `S-48:` (`git log --grep='^S-48:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure/Pure.lean`: new `iotaMinors?`, `iotaApp?` and `iotaRhs?`;
+    `Pure.whnf` reduces a saturated application of a recursor of `iotaMinors?` (`iotaApp?`) to
+    `iotaRhs?`, and no longer reads `RecursorVal.rules` or turns a Nat literal major premise into a
+    constructor application; its docstring.
+  - `tests/regress/pure_inductive.lean`: a definition `PI.eqT` by `Eq.casesOn`, and the oracle's
+    normal forms of `isZero 2` and `eqT` against `Meta.whnf`.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** S-43's ι rewrote a recursor application to the right-hand side of the
+  constructor's rule that the recursor's declaration stores (`RecursorVal.rules`). The
+  correctness proof relates the oracle's answers to Metalean, which has no recursor rules: it
+  computes the ι-reduct from the inductive block (`iotaRhs`, `ML Syntax/Inductive/Iota.lean:161`),
+  and nothing in the program's relation to Metalean fixes what a stored right-hand side is. For a
+  recursor of one inductive type without indices whose induction hypotheses take no arguments and
+  are about the last fields of the constructor, in order (the recursors of the fragment,
+  `recShapeInFragment`, without its universe condition), the β-reduced right-hand side is the
+  constructor's minor premise applied to the fields and to `T.rec ps ms mins f` for each recursive
+  field `f`, which `recShape` reads from the recursor's type: `whnf` now builds this term itself.
+  These are the recursors of the kernel definitions of structural recursion that S-44 admits
+  (`T.below` and `T.brecOn` of a single inductive without indices). A Nat literal major premise is
+  no longer reduced: the literal is not a constructor application of the fragment's semantics,
+  and no program of the fragment needs it.
+- **Behaviour before:** `Pure.whnf` reduces every saturated recursor application whose major
+  premise reduces to a constructor application or a Nat literal, through the stored rule (S-43).
+- **Behaviour after:** it reduces only applications of the recursors of `iotaMinors?` whose major
+  premise reduces to a constructor application of the recursor's inductive type with all its
+  parameters and fields; `Eq.rec`, the recursors of mutual and indexed blocks, induction
+  hypotheses on function fields and Nat literal majors are left unreduced, as before S-43.
+- **Effect on emitted .ast (corpus):** byte-identical for all 710 files against the corpus of
+  S-47 (the head of the base branch) and of the merge of S-43 and S-44 into this branch; `PANIC`
+  counts unchanged. `scripts/pure-harness.sh` passes with its expected summary unchanged (294
+  `#erase`, 225 in the fragment, 66 outside, 3 `collectDeps` errors; 206 identical, 15 differ;
+  8326 oracle calls, 14 differ, none fails). With `.kernel` as the default (not committed), the
+  corpus (708 files: `examples/Defects/collide.ast` and its `.inlinings` are not written, as with
+  S-44) and the harness outputs are identical before and after this commit; the harness summary
+  is 294 `#erase`, 233 in the fragment, 57 outside, 4 `collectDeps` errors; 206 identical, 23
+  differ, 4 without `Meta` output; 10462 oracle calls, 14 differ from `Meta`, none fails.
+- **Regression test:** `pure_inductive` checks that the oracle's normal forms of `isZero 2`
+  (`Nat.casesOn` on a literal) and of `eqT` (`Eq.casesOn` on `Eq.refl`) differ from
+  `Meta.whnf`'s, which are `B.f`; before this commit they agree. Its checks of `B.neg B.f` and of
+  the `B.casesOn` application (`B.rec` reduced as `Meta.whnf` does), `alt_type_pure`,
+  `prop_elim_pure`, `thm_atom_pure` and `structural` (the `below` tables of S-44) pass unchanged.
+  `scripts/regress.sh` passes (27 tests), with and without `PEREGRINE`.
+
 ## Reported, not fixed
 
 Each entry below was reproduced on this branch. Unless stated otherwise, the reproduction is an
