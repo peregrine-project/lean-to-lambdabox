@@ -100,6 +100,10 @@ def belowM {ζ : Sigs} (ηBl : Head ζ (.const .def 1)) {ℓ n : Nat} (l : Level
     (mo a : Expr ζ ℓ n) : Expr ζ ℓ n :=
   .app (.app (.const ηBl ![l]) mo) a
 
+theorem inst_elim0 {σ α β : Type} [InstLevel σ α β] (ls : σ) :
+    InstLevel.inst ls (Fin.elim0 : Fin 0 → α) = (Fin.elim0 : Fin 0 → β) :=
+  funext fun i => i.elim0
+
 /-- Compute substitutions, renamings, weakenings and the recursor's ι on the terms of `N`, `PUnit`
 and `PProd`. -/
 syntax (name := _rsx) "rsx" ("[" ident,* "]")? (Lean.Parser.Tactic.location)? : tactic
@@ -113,7 +117,7 @@ macro_rules
       RecField.instantiatedTelescope, RecField.instantiatedIndices, Expr.applyBound,
       Expr.wkClosed, Expr.wk, Expr.wkFrom, Expr.wkN, Expr.instL, rinst_zero, rinst_param,
       rinst_succ, rinst_max, rinst_imax, m1, funext_iff, Fin.forall_fin_one, Fin.forall_fin_two,
-      Subst.rename, Subst.id, motNL, Subst.comp, belowM, Ctx.get] $[$loc]?)
+      Subst.rename, Subst.id, motNL, Subst.comp, belowM, Ctx.get, inst_elim0] $[$loc]?)
 
 /-- Close an equation of Metalean terms that differ in small `Fin` functions. -/
 macro "rfin" : tactic => `(tactic| repeat' (first
