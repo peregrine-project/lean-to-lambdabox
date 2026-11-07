@@ -18,8 +18,6 @@ namespace RecLam
 
 open TargetLift TargetSubst
 
-theorem recLets_nil (d : Nat) (b : LBTerm) : recLets d [] b = b := rfl
-
 theorem recLets_cons (d : Nat) (m : LBTerm) (mi : RecMinor) (ms : List (LBTerm × RecMinor))
     (b : LBTerm) :
     recLets d ((m, mi) :: ms) b = .letIn (binderNameOf mi.name) (lbLift d 0 m) (recLets (d + 1) ms b) :=

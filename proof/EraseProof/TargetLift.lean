@@ -585,12 +585,6 @@ theorem csubstD_lbLift {u : LBTerm} (hu : closedn 0 u = true) (n : Nat) :
     simp only [lbLiftD, csubstD, csubst_lbLift hu n b d j hj, csubstD_lbLift hu n ds d j hj]
 end
 
-/-- Lifting an application spine lifts its parts. -/
-theorem lbLift_mkApps (n k : Nat) : ∀ (f : LBTerm) (as : List LBTerm),
-    lbLift n k (mkApps f as) = mkApps (lbLift n k f) (as.map (lbLift n k))
-  | _, [] => rfl
-  | f, a :: as => by simp only [mkApps, List.map_cons, lbLift_mkApps n k (.app f a) as, lbLift]
-
 end TargetLift
 
 end EraseProof
