@@ -4,7 +4,7 @@
 \section*{At a glance}
 \begin{itemize}
 \item \lead{Source} \code{doc/SHIPPING-CHANGES.md}, rendered by \code{blueprint/scripts/render\_registers.py}; every section below is the register's own text.
-\item \lead{Changes} 42 entries, one commit each, subject \code{shipping(S-<n>): ...}.
+\item \lead{Changes} 43 entries, one commit each, subject \code{shipping(S-<n>): ...}.
 \item \lead{Reported, not fixed} 28 entries.
 \end{itemize}
 
@@ -57,6 +57,7 @@ Entry & Title \\
 \ref{reg:S-36} & The pure oracle types projections only of large-eliminating inductives \\
 \ref{reg:S-37} & The pure path recognizes a \texttt{casesOn} only if its declared type is a syntactic telescope \\
 \ref{reg:S-38} & \texttt{Quot.mk} and \texttt{Quot.lift} are erased as the code generator erases them, on both paths \\
+\ref{reg:S-39} & The fragment test admits quotients, so programs using them take the pure path \\
 \ref{reg:S-40} & Recursor applications are erased to fixpoints over a \texttt{case}, on both paths \\
 \ref{reg:S-42} & Under \texttt{structural := .kernel}, structural recursion is erased through the kernel's definitions \\
 \ref{reg:S-45} & A Peano literal above 65536 is an error of \texttt{\#erase}, on both paths \\
@@ -1322,6 +1323,25 @@ Before this commit the test does not elaborate (\leandecl{Erasure.casesInfo?} do
 \item \textbf{Behaviour after:} it writes \texttt{(\ensuremath{\lambda} b. b) B.t}, which peregrine evaluates to \texttt{QT.B.t}. An under-applied \texttt{Quot.lift} (as in the value of \texttt{Quotient.lift}) is \ensuremath{\eta}-expanded; an over-applied one (into a function type) applies the result to the extra arguments.
 \item \textbf{Effect on emitted .ast (corpus):} against the corpus of S-37, 708 of 710 files are byte-identical; \texttt{examples/\allowbreak{}NearMiss/\allowbreak{}NM\_\allowbreak{}quotEx.\{peano,default\}.ast} differ: the program \texttt{Quot.lift \ensuremath{\Box} \ensuremath{\Box} \ensuremath{\Box} (\ensuremath{\lambda} n. n) \ensuremath{\Box} (Quot.mk \ensuremath{\Box} \ensuremath{\Box} NM.two)} with the axioms \texttt{Quot.lift} and \texttt{Quot.mk} becomes \texttt{(\ensuremath{\lambda} n. n) NM.two} without them; peregrine validates it and evaluates it to the Church numeral \texttt{two}. \texttt{PANIC} counts unchanged. \texttt{scripts/\allowbreak{}pure-harness.sh} passes with its expected summary unchanged (294 \texttt{\#erase}, 223 in the fragment, 68 outside, 3 \texttt{collectDeps} errors; 8298 oracle calls, 14 differ, none fails).
 \item \textbf{Regression test:} \texttt{quotient} checks, under \texttt{nat := .peano}, that the fragment test excludes \texttt{useLift}, \texttt{usePart} (\texttt{Quot.lift} applied to four arguments), \texttt{useOver} (\texttt{Quot.lift} into \texttt{B \ensuremath{\to} B}, applied to a seventh argument), \texttt{useQuotient} (\texttt{Quotient.lift} and \texttt{Quotient.mk}) and \texttt{indPf} (a proof by \texttt{Quot.ind}), and pins their \texttt{\#erase} outputs (the \texttt{Meta} path), which peregrine validates and evaluates to \texttt{QT.B.t}, \texttt{QT.B.f}, \texttt{QT.B.t}, \texttt{QT.B.f} and \ensuremath{\Box}. Before this commit the four data programs keep the axioms \texttt{Quot.lift} and \texttt{Quot.mk}, so their outputs differ and their evaluations fail. \texttt{scripts/\allowbreak{}regress.sh} passes (23 tests), with and without \texttt{PEREGRINE}.
+\end{itemize}
+
+\section{\texorpdfstring{S-39: The fragment test admits quotients, so programs using them take the pure path}{S-39: The fragment test admits quotients, so programs using them take the pure path}}\label{reg:S-39}
+
+\begin{itemize}
+\item \textbf{Commit:} the commit whose subject starts with \texttt{S-39:} (\texttt{git log -{}-grep='\textasciicircum{}S-39:'}).
+\item \textbf{Files and functions:}
+
+\begin{itemize}
+\item \leanfile{LeanToLambdaBox/\allowbreak{}Erasure/\allowbreak{}Entry.lean}: \texttt{declExclusion} admits quotient declarations; the docstrings of \texttt{declExclusion} and \texttt{collectDeps} no longer list them.
+\item \leanfile{tests/\allowbreak{}regress/\allowbreak{}quotient.lean}: the oracle's answers on the quotient constants, the pure route of the five programs, and the \texttt{Meta} path's output of \texttt{useLift}; its goldens.
+\item \texttt{tests/\allowbreak{}harness/\allowbreak{}expected/\allowbreak{}pure-harness.txt}: \texttt{NM\_\allowbreak{}quotEx} \ensuremath{\times}2 enter the fragment.
+\item \texttt{doc/\allowbreak{}SHIPPING-CHANGES.md}: this entry.
+\end{itemize}
+\item \textbf{Why necessary:} with S-38 both paths erase quotients alike, so the exclusion of quotients only keeps such programs off the verified path. The closure keeps a quotient constant as a declaration without a value and reads the constants of its type, which the pure oracle needs (\texttt{Quot.lift} brings \texttt{Quot} and \texttt{Eq}, and \texttt{Eq.rec} as the companion of a one-constructor inductive). The pure oracle has no quotient \ensuremath{\iota}-rule (as it has no recursor \ensuremath{\iota}-rule): sorts and erasability do not need it, since \texttt{Quot.lift}'s result type is read off its declared type, but a term whose type is a \texttt{\ensuremath{\Pi}} only after a \texttt{Quot.lift} reduces would fail on the pure path; no program of the corpus or the tests has one.
+\item \textbf{Behaviour before:} \texttt{collectDeps} excludes every program whose closure contains a quotient constant (\texttt{outside the fragment: quotient Quot} or \texttt{quotient Quot.lift}, the first one the closure meets), so \texttt{\#erase} takes the \texttt{Meta} path.
+\item \textbf{Behaviour after:} these programs are in the fragment and take the pure path. On \texttt{useLift} it writes \texttt{(\ensuremath{\lambda} b. b) B.t}, as the \texttt{Meta} path does.
+\item \textbf{Effect on emitted .ast (corpus):} byte-identical for all 710 files against the corpus of S-38; \texttt{PANIC} counts unchanged. \texttt{scripts/\allowbreak{}pure-harness.sh} passes with its expected summary updated: the two \texttt{NM\_\allowbreak{}quotEx} lines change from \texttt{out of the fragment: quotient Quot.lift} to \texttt{pure ok; Meta ok; outputs identical; \#erase = pure and Meta; oracle 14 calls, 0 differ} (the respect proof, which uses \texttt{False.elim}, is abstracted by the elaborator into a theorem, so the closure has no recursor), and the totals become 294 \texttt{\#erase}, 225 in the fragment (223), 66 outside (68), 3 \texttt{collectDeps} errors; 206 identical (204), 15 differ, 4 without \texttt{Meta} output; 8326 oracle calls (8298), 14 differ, none fails.
+\item \textbf{Regression test:} \texttt{quotient} checks, under \texttt{nat := .peano}, the oracle's answers on \texttt{Quot}, \texttt{Quot.ind} (erasable), \texttt{Quot.mk r B.t} and a \texttt{Quot.lift} under-application (not erasable); that the five programs of S-38 take the pure path; and pins their \texttt{\#erase} outputs and the \texttt{Meta} path's output of \texttt{useLift} (\texttt{useLift.meta.ast}, under \texttt{remove\_\allowbreak{}irrel\_\allowbreak{}constr\_\allowbreak{}args}), which peregrine validates and evaluates to \texttt{QT.B.t}, \texttt{QT.B.f}, \texttt{QT.B.t}, \texttt{QT.B.f}, \ensuremath{\Box} and \texttt{QT.B.t}. The outputs of \texttt{usePart} and \texttt{useQuotient} change from S-38's: the pure path keeps the matcher \texttt{QT.neg.match\_\allowbreak{}1} as a definition where the \texttt{Meta} path inlines it (as for the other programs of the fragment, S-29). Before this commit the four oracle checks give \texttt{collectDeps error (outside the fragment: quotient Quot)} and the five programs route to the \texttt{Meta} path, so nine checks fail. \texttt{scripts/\allowbreak{}regress.sh} passes (23 tests), with and without \texttt{PEREGRINE}.
 \end{itemize}
 
 \section{\texorpdfstring{S-40: Recursor applications are erased to fixpoints over a \texttt{case}, on both paths}{S-40: Recursor applications are erased to fixpoints over a case, on both paths}}\label{reg:S-40}

@@ -6,8 +6,8 @@
   typed program that Metalean can express and that the eraser handles without a known defect.
 \item \lead{Main results} The fragment in two phases: Phase I adds to the $\lambda\Pi$ fragment
   everything about inductive types that the eraser handles, \hl{with no recursion of any kind},
-  so no \code{Nat} arithmetic, and \code{Nat} literals only under \code{nat := .peano}; Phase II
-  adds recursors, structural recursion and quotients.
+  so no \code{Nat} arithmetic, and \code{Nat} literals only under \code{nat := .peano}; quotients are in Phase I, and Phase II
+  adds recursors and structural recursion.
   The divergence entries DV-23 to DV-26 and the choices of Section~\ref{sec:scope-decisions} fix
   its edges.
 \item \lead{Status} \stShipping{} the fragment test of Phase I
@@ -76,9 +76,9 @@ recursors \code{T.rec} & II & erased to a $\lambda_\Box$ fixpoint over a \code{c
 structural recursion (\code{brecOn}) & II & through the kernel definitions under
   \code{structural := .kernel} (S-42), on the \code{Meta} path; the default \code{.unsafeRec} is
   unchanged; the fragment test excludes it \\
-quotients & II & \code{Quot.mk} and \code{Quot.lift} erased as \code{LCNF} does (S-38); the
-  source semantics, the relation and the simulation have their rules (DV-29); the fragment test
-  excludes them, so the final theorem does not cover them \\
+quotients & I & \code{Quot.mk} and \code{Quot.lift} erased as \code{LCNF} does (S-38), a
+  \code{Quot} spine as a type and a \code{Quot.ind} spine as a proof; the source semantics, the
+  relation and the simulation have their rules (DV-29); the fragment test admits them (S-39) \\
 well-founded recursion & -- & the fragment test rejects it (an \code{\_unsafe\_rec} companion);
   its recursion reduces only through an opaque accessibility proof, so the source never evaluates
   it (DV-24) \\
@@ -113,7 +113,7 @@ it skips the values of theorems and of recognized \code{casesOn} constants.
 
 \begin{itemize}
 \item \lead{Phase I only} a recursor other than the \code{T.rec} of a recognized \code{T.casesOn}
-  or of an inductive \code{T} with one constructor, and any recursor in a read expression; a quotient constant; a constant with an
+  or of an inductive \code{T} with one constructor, and any recursor in a read expression; a constant with an
   \code{\_unsafe\_rec} companion (structural or well-founded recursion).
 \item \lead{Both phases} a string literal; an \code{unsafe}, \code{partial} or
   \code{@[implemented\_by]} constant; a nested or unsafe inductive; an \code{@[extern]}
@@ -202,8 +202,8 @@ unsafe & 4 & out \\
 \subsection{The corpus}\label{sec:scope-corpus}
 
 The 294 \code{\#erase} commands of the shipping corpus, through the shipping fragment test
-(\code{tests/harness/expected/pure-harness.txt}): \hl{223 in the fragment, 68 out}, and 3 rejected
-for a name collision. Of the 223 pure-path outputs, 58 hold an inductive block, 3 a $\lambda_\Box$
+(\code{tests/harness/expected/pure-harness.txt}): \hl{225 in the fragment, 66 out}, and 3 rejected
+for a name collision. Of the 225 pure-path outputs, 58 hold an inductive block, 3 a $\lambda_\Box$
 \code{case} and 9 a projection.
 
 \begin{tabular}{p{0.7\linewidth}r}
@@ -218,7 +218,6 @@ level metavariable / metavariable & 4 / 2 \\
 \code{@[implemented\_by]} & 4 \\
 \code{partial def} & 2 \\
 recursor & 2 \\
-quotient & 2 \\
 \code{casesOn} on a constructor with an index field & 1 \\
 nested inductive & 1 \\
 string literal & 1 \\

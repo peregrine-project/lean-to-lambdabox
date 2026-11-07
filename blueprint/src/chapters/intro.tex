@@ -8,10 +8,9 @@
 \item \lead{Status} \stProved{} \hl{the final theorem \code{erase\_correct}}, its milestones
   \code{erases\_correct} and \code{erasePure\_erases}, the lower bound \code{collectDeps\_ok\_of}
   of the fragment hypothesis, the first-order corollary \code{erase\_correct\_firstorder}, and
-  every lemma they use; four test programs discharge all eight hypotheses of the final theorem
+  every lemma they use; five test programs discharge all eight hypotheses of the final theorem
   (Chapter~\ref{chap:tests}). Formalized: the four statements,
-  as definitions pinned by \code{proof/spec.pin}, with every definition they use. \stPlanned{}
-  one erasability lemma of Phase II. \stShipping{} the eraser: the pure path on the fragment of
+  as definitions pinned by \code{proof/spec.pin}, with every definition they use. \stShipping{} the eraser: the pure path on the fragment of
   Phase I and the \code{Meta} path on the rest.
 \item \lead{Progress} the table at the end of Section~\ref{sec:intro-kinds} counts, per chapter,
   the proved results and tests, the formalized definitions and the planned nodes.
@@ -103,7 +102,7 @@ Part & Against lean4lean & Against Metalean \\
 Kernel theory & \code{VExpr} and \code{IsDefEq}; the final theorem inherits six lean4lean
   sorries & \code{Expr} and \code{Defeq}, with no sorry \\
 Scope & the $\lambda\Pi$ fragment with \code{let}; no inductive type & inductive types,
-  \code{casesOn}, projections, \code{Nat} literals (Phase I); recursors and quotients
+  \code{casesOn}, projections, \code{Nat} literals (Phase I); quotients (Phase I); recursors
   (Phase II) \\
 Bridge & \code{TrS}, after lean4lean's \code{TrExprS} & \code{TrM}, after Metalean's translator
   \leanfile{Metalean/Frontend/Translate.lean} \\
@@ -230,7 +229,7 @@ Chapter & Content \\
 \ref{chap:relation} & $\lambda_\Box$ evaluation and the erasure relation \\
 \ref{chap:core} & Soundness of the pure path: oracle, closure, traversal \\
 \ref{chap:final} & The final theorem and its two milestones \\
-\ref{chap:tests} & The tests: the final theorem applied to four programs \\
+\ref{chap:tests} & The tests: the final theorem applied to five programs \\
 \ref{chap:shipping-changes}, \ref{chap:divergences} & The two registers, rendered \\
 \ref{chap:open} & What is open \\
 \bottomrule

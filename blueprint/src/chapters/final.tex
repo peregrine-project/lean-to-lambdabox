@@ -31,7 +31,7 @@
   \lean{EraseProof.ViewAgrees}
   \leanok
   \uses{def:Erasure-EnvView}
-  \srcloc{proof/EraseProof/Spec.lean}{897}
+  \srcloc{proof/EraseProof/Spec.lean}{912}
   \lead{In short} \code{ViewAgrees view P}: \hl{the environment view of \code{\#erase} returns
   each declaration of \code{P} under its name}.
   \lead{Reference} \code{Sigma} $\sim$\code{\_ext X} (\code{abstract\_env\_ext\_rel}), a
@@ -138,8 +138,8 @@
   recursors other than the companions of \code{casesOn}, so \hl{no \code{Nat} arithmetic}. Nat
   literals are in only under \code{nat := .peano}.
 \item \lead{Quotients} \code{SrcEval}, \code{Erases} and M1 cover \code{Quot.mk} and
-  \code{Quot.lift} (DV-29); the fragment test rejects quotient constants, so \hl{\code{hfrag}
-  excludes quotients from the final theorem}.
+  \code{Quot.lift} (DV-29), and the fragment test admits quotient constants, so \hl{the final theorem covers
+  programs with quotients}; NV-Q is an instance.
 \item \lead{Scope note} \hl{\code{erase\_correct} says nothing} about programs that evaluate
   through a constant without $\delta$ in the source, although the fragment admits them and the
   emitted program may compute:
@@ -603,7 +603,7 @@ structural erasure.
   \lead{Reference} the erasure half of MetaRocq's \code{erase\_correct}; \code{erases\_erase}.
 \end{theorem}
 \begin{proof}
-  \uses{lem:EraseProof-Pure-whnf_sound, def:EraseProof-PhaseIDecl, lem:EraseProof-collectDeps_spec,
+  \uses{lem:EraseProof-Steps-stepsB_quot, lem:EraseProof-Pure-whnf_sound, def:EraseProof-PhaseIDecl, lem:EraseProof-collectDeps_spec,
     lem:EraseProof-collectDeps_machineFree, def:EraseProof-StateOK,
     lem:EraseProof-StateOK-register, def:EraseProof-MachineFree, def:EraseProof-Steps-ExprSpec,
     def:EraseProof-Steps-CoreEnv, def:EraseProof-Steps-NatPlain,

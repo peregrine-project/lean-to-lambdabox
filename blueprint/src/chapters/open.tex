@@ -20,8 +20,7 @@ The planned nodes, per chapter. The table is generated from the chapters by
 
 Every declaration of \code{EraseProof} outside the tests is reachable from a root of
 \code{proof/ROOTS.txt}, from a statement definition or from a proved theorem with a statement. A
-root names the declaration that will use it, or \code{FINAL} for the final theorem;
-\code{TypeEq.ind\_ne\_quot} waits for \code{IsErasable.quotMk\_not}. The table is generated from
+root names the declaration that will use it, or \code{FINAL} for the final theorem. The table is generated from
 \code{proof/ROOTS.txt}.
 
 \input{generated/roots}
@@ -32,8 +31,7 @@ root names the declaration that will use it, or \code{FINAL} for the final theor
 \item \lead{Well-formed output} \stOpen{} fresh kernames, declaration order and well-formed terms
   of the emitted program, which composing with Peregrine's verified pipeline needs, as a conjunct
   or a separate theorem; \code{peregrine validate} checks them at run time (C11).
-\item \lead{Non-vacuity} \stOpen{} an instance with a projection, a Peano literal and a
-  quotient; a check of NV-K's lemma against the kernel's.
+\item \lead{Non-vacuity} \stOpen{} an instance with a projection and a Peano literal; a check of NV-K's lemma against the kernel's.
 \end{itemize}
 
 \section{Phase II}\label{sec:open-phase2}
@@ -42,9 +40,6 @@ root names the declaration that will use it, or \code{FINAL} for the final theor
 \toprule
 Feature & Shipping & Fragment test and proof \\
 \midrule
-Quotients & \stShipping{} \code{Quot.mk}, \code{Quot.lift} erased (S-38) & \stProved{} the
-  source rules, the relation's rules and their simulation cases (DV-29); admission held; the
-  traversal's quotient branches \stOpen{} \\
 Recursors & \stShipping{} \code{T.rec} erased to a $\lambda_\Box$ fixpoint over a \code{case}
   (S-40) & admission held; the recursor case of the proofs \stOpen{} \\
 Structural recursion & \stShipping{} through the kernel's \code{brecOn} under
@@ -78,7 +73,7 @@ Inputs outside the fragment & the \code{Meta} path, trusted (Section~\ref{sec:tr
   the scope (Chapter~\ref{chap:scope}) \\
 Opaques with values, data axioms, \code{@[extern]} definitions, matches on lemmas with proof
   fields & the scope note of Section~\ref{sec:final-reading} \\
-Recursion of any kind, \code{Nat} arithmetic, quotients & Phase II
+Recursion of any kind, \code{Nat} arithmetic & Phase II
   (Section~\ref{sec:open-phase2}); the scope (Chapter~\ref{chap:scope}) \\
 \code{remove\_irrel\_constr\_args}, \code{nat := .machine} & out of scope
   (Section~\ref{sec:scope-features}) \\

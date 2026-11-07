@@ -44,8 +44,9 @@
     \ref{def:EraseProof-Steps-CoreEnv}, \ref{def:EraseProof-Steps-StepsB},
     \ref{lem:EraseProof-LocalsOK-pushFVar}, \ref{lem:EraseProof-Pure-whnf_forallE},
     \ref{lem:EraseProof-Steps-visitExpr_lam_step}, \ref{lem:EraseProof-Steps-visitMutual_step},
-    \ref{lem:EraseProof-Steps-stepsB_ctor}, \ref{lem:EraseProof-Steps-stepsB_proj},
-    \ref{lem:EraseProof-Steps-stepsB_lit}, \ref{lem:EraseProof-Steps-stepsB_cases_of_sat},
+    \ref{lem:EraseProof-Steps-stepsB_ctor}, \ref{lem:EraseProof-Steps-stepsB_quot},
+    \ref{lem:EraseProof-Steps-stepsB_proj}, \ref{lem:EraseProof-Steps-stepsB_lit},
+    \ref{lem:EraseProof-Steps-stepsB_cases_of_sat},
     \ref{lem:EraseProof-StepsCases-casesSatSpec_of_case},
     \ref{lem:EraseProof-StepsCases-casesSat_box}, \ref{lem:EraseProof-StepsCases-casesSat_reduced},
     \ref{lem:EraseProof-StepsCasesCase-visitAlt_spec},
@@ -112,8 +113,8 @@
     \ref{def:EraseProof-Steps-ExprSpec}, \ref{lem:EraseProof-LocalsOK-pushFVar},
     \ref{lem:EraseProof-Pure-whnf_forallE}, \ref{lem:EraseProof-Steps-visitExpr_lam_step},
     \ref{lem:EraseProof-Steps-visitMutual_step}, \ref{lem:EraseProof-Steps-stepsB_ctor},
-    \ref{lem:EraseProof-Steps-stepsB_cases_of_sat}, \ref{lem:EraseProof-StepsCases-casesSat_box},
-    \ref{lem:EraseProof-StepsCases-casesSat_reduced},
+    \ref{lem:EraseProof-Steps-stepsB_quot}, \ref{lem:EraseProof-Steps-stepsB_cases_of_sat},
+    \ref{lem:EraseProof-StepsCases-casesSat_box}, \ref{lem:EraseProof-StepsCases-casesSat_reduced},
     \ref{lem:EraseProof-StepsCasesCase-visitAlt_spec},
     \ref{lem:EraseProof-StepsCasesCase-casesSat_case},
     \ref{lem:EraseProof-Steps-coreEnv_of_collectDeps},
@@ -173,8 +174,8 @@
     \ref{def:EraseProof-Steps-ExprSpec}, \ref{lem:EraseProof-LocalsOK-pushFVar},
     \ref{lem:EraseProof-Pure-whnf_forallE}, \ref{lem:EraseProof-Steps-visitExpr_lam_step},
     \ref{lem:EraseProof-Steps-visitMutual_step}, \ref{lem:EraseProof-Steps-stepsB_ctor},
-    \ref{lem:EraseProof-Steps-stepsB_cases_of_sat}, \ref{lem:EraseProof-StepsCases-casesSat_box},
-    \ref{lem:EraseProof-StepsCases-casesSat_reduced},
+    \ref{lem:EraseProof-Steps-stepsB_quot}, \ref{lem:EraseProof-Steps-stepsB_cases_of_sat},
+    \ref{lem:EraseProof-StepsCases-casesSat_box}, \ref{lem:EraseProof-StepsCases-casesSat_reduced},
     \ref{lem:EraseProof-StepsCasesCase-visitAlt_spec},
     \ref{lem:EraseProof-StepsCasesCase-casesSat_case},
     \ref{lem:EraseProof-Steps-coreEnv_of_collectDeps},
@@ -234,8 +235,9 @@
     \ref{def:EraseProof-Steps-CoreEnv}, \ref{def:EraseProof-Steps-StepsB},
     \ref{lem:EraseProof-LocalsOK-pushFVar}, \ref{lem:EraseProof-Pure-whnf_forallE},
     \ref{lem:EraseProof-Steps-visitExpr_lam_step}, \ref{lem:EraseProof-Steps-visitMutual_step},
-    \ref{lem:EraseProof-Steps-stepsB_ctor}, \ref{lem:EraseProof-Steps-stepsB_proj},
-    \ref{lem:EraseProof-Steps-stepsB_lit}, \ref{lem:EraseProof-Steps-stepsB_cases_of_sat},
+    \ref{lem:EraseProof-Steps-stepsB_ctor}, \ref{lem:EraseProof-Steps-stepsB_quot},
+    \ref{lem:EraseProof-Steps-stepsB_proj}, \ref{lem:EraseProof-Steps-stepsB_lit},
+    \ref{lem:EraseProof-Steps-stepsB_cases_of_sat},
     \ref{lem:EraseProof-StepsCases-casesSatSpec_of_case},
     \ref{lem:EraseProof-StepsCases-casesSat_box}, \ref{lem:EraseProof-StepsCases-casesSat_reduced},
     \ref{lem:EraseProof-StepsCasesCase-visitAlt_spec},
@@ -274,15 +276,14 @@
   \usedbyproofs{\ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-ProgEnv-lookup},
     \ref{lem:EraseProof-ProgEnv-lookup_quot}, \ref{lem:EraseProof-casesOn_whred},
     \ref{lem:EraseProof-proj_defeq}, \ref{lem:EraseProof-TypeEq-sort_ne_forallE},
-    \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{lem:EraseProof-ErasableS-atom},
-    \ref{lem:EraseProof-SrcDefeq-sound_of}, \ref{lem:EraseProof-Erases-instLevels},
-    \ref{lem:EraseProof-Erases-abstract}, \ref{lem:EraseProof-Erases-inst},
-    \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-OracleInfer-inferOK},
-    \ref{lem:EraseProof-Pure-inferType_recr}, \ref{lem:EraseProof-OracleInfer-infer_projStruct},
-    \ref{lem:EraseProof-collectDeps_sub}, \ref{lem:EraseProof-collectDeps_ok_of},
-    \ref{lem:EraseProof-isRecursiveDecl_false}, \ref{lem:EraseProof-Steps-visitMutual_step},
-    \ref{lem:EraseProof-Steps-stepsB_ctor}, \ref{lem:EraseProof-Steps-stepsB_proj},
-    \ref{lem:EraseProof-StepsCases-casesSat_reduced},
+    \ref{lem:EraseProof-ErasableS-atom}, \ref{lem:EraseProof-SrcDefeq-sound_of},
+    \ref{lem:EraseProof-Erases-instLevels}, \ref{lem:EraseProof-Erases-abstract},
+    \ref{lem:EraseProof-Erases-inst}, \ref{lem:EraseProof-Pure-whnf_sound},
+    \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-Pure-inferType_recr},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct}, \ref{lem:EraseProof-collectDeps_sub},
+    \ref{lem:EraseProof-collectDeps_ok_of}, \ref{lem:EraseProof-isRecursiveDecl_false},
+    \ref{lem:EraseProof-Steps-visitMutual_step}, \ref{lem:EraseProof-Steps-stepsB_ctor},
+    \ref{lem:EraseProof-Steps-stepsB_proj}, \ref{lem:EraseProof-StepsCases-casesSat_reduced},
     \ref{lem:EraseProof-StepsCasesCase-casesSat_case},
     \ref{lem:EraseProof-Steps-coreEnv_of_collectDeps}}
 \end{imported}
@@ -350,11 +351,11 @@
     \ref{lem:EraseProof-erases_correct_ctor}, \ref{lem:EraseProof-erases_correct_casesIota}}
   \usedbyproofs{\ref{lem:EraseProof-TrM-dcong}, \ref{lem:EraseProof-TrM-apps},
     \ref{lem:EraseProof-TrM-inst}, \ref{lem:EraseProof-TrM-wkEnv},
-    \ref{lem:EraseProof-TypeEq-sort_ne_forallE}, \ref{lem:EraseProof-TypeEq-sort_ne_quot},
-    \ref{lem:EraseProof-SrcDefeq-sound_of}, \ref{lem:EraseProof-Erases-inst},
-    \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-OracleInfer-inferOK},
-    \ref{lem:EraseProof-OracleInfer-infer_projStruct}, \ref{lem:EraseProof-Steps-stepsB_ctor},
-    \ref{lem:EraseProof-Steps-stepsB_proj}, \ref{lem:EraseProof-StepsCases-casesSat_reduced},
+    \ref{lem:EraseProof-TypeEq-sort_ne_forallE}, \ref{lem:EraseProof-SrcDefeq-sound_of},
+    \ref{lem:EraseProof-Erases-inst}, \ref{lem:EraseProof-Pure-whnf_sound},
+    \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-OracleInfer-infer_projStruct},
+    \ref{lem:EraseProof-Steps-stepsB_ctor}, \ref{lem:EraseProof-Steps-stepsB_proj},
+    \ref{lem:EraseProof-StepsCases-casesSat_reduced},
     \ref{lem:EraseProof-StepsCasesCase-casesSat_case}, \ref{lem:EraseProof-erases_correct_beta},
     \ref{lem:EraseProof-PropInductive-of_propInd}}
 \end{imported}
@@ -387,8 +388,9 @@
     \ref{lem:EraseProof-Pure-isPropFormerType_iff}, \ref{def:EraseProof-Steps-ExprSpec},
     \ref{lem:EraseProof-LocalsOK-pushFVar}, \ref{lem:EraseProof-Pure-whnf_forallE},
     \ref{lem:EraseProof-Steps-visitExpr_lam_step}, \ref{lem:EraseProof-Steps-visitMutual_step},
-    \ref{lem:EraseProof-Steps-stepsB_ctor}, \ref{lem:EraseProof-Steps-stepsB_cases_of_sat},
-    \ref{lem:EraseProof-StepsCases-casesSat_box}, \ref{lem:EraseProof-StepsCases-casesSat_reduced},
+    \ref{lem:EraseProof-Steps-stepsB_ctor}, \ref{lem:EraseProof-Steps-stepsB_quot},
+    \ref{lem:EraseProof-Steps-stepsB_cases_of_sat}, \ref{lem:EraseProof-StepsCases-casesSat_box},
+    \ref{lem:EraseProof-StepsCases-casesSat_reduced},
     \ref{lem:EraseProof-StepsCasesCase-visitAlt_spec},
     \ref{lem:EraseProof-StepsCasesCase-casesSat_case},
     \ref{def:EraseProof-erase_correct_statement}, \ref{cor:EraseProof-erase_correct_firstorder},
@@ -485,8 +487,8 @@
   \lead{Used directly} 6 declarations: 6 theorems.
   \usedbyproofs{\ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-dcong},
     \ref{lem:EraseProof-SatTr-typed}, \ref{lem:EraseProof-TypeEq-sort_ne_forallE},
-    \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{lem:EraseProof-SrcEval-defeq},
-    \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-OracleInfer-infer_projStruct},
+    \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-Pure-whnf_sound},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct},
     \ref{lem:EraseProof-Pure-isPropFormerType_iff}, \ref{lem:EraseProof-Steps-stepsB_proj},
     \ref{lem:EraseProof-StepsCases-casesSat_reduced},
     \ref{lem:EraseProof-StepsCasesCase-casesSat_case},
@@ -508,9 +510,8 @@
   \lead{Used directly} 11 declarations: 1 definition, 10 theorems.
   \usedbyproofs{\ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-dcong},
     \ref{lem:EraseProof-SatTr-typed}, \ref{lem:EraseProof-TypeEq-sort_ne_forallE},
-    \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{lem:EraseProof-Pure-whnf_sound},
-    \ref{lem:EraseProof-Pure-isPropFormerType_iff}, \ref{lem:EraseProof-Steps-stepsB_proj},
-    \ref{lem:EraseProof-StepsCases-casesSat_reduced},
+    \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-Pure-isPropFormerType_iff},
+    \ref{lem:EraseProof-Steps-stepsB_proj}, \ref{lem:EraseProof-StepsCases-casesSat_reduced},
     \ref{lem:EraseProof-StepsCasesCase-casesSat_case}}
 \end{imported}
 
@@ -520,12 +521,13 @@
     Metalean.Defeq.recr_inv, Metalean.Defeq.ind_inv, Metalean.Defeq.quot_inv,
     Metalean.Defeq.quotInd_prem, Metalean.Defeq.quotMk_prem, Metalean.Defeq.quotLift_prem,
     Metalean.Defeq.quotMk_inv, Metalean.Defeq.forallE_inv, Metalean.Defeq.quot_formation_inv,
-    Metalean.Defeq.app_inv, Metalean.Defeq.letE_inv, Metalean.Defeq.lam_inv}
+    Metalean.Defeq.app_inv, Metalean.Defeq.letE_inv, Metalean.Defeq.lam_inv,
+    Metalean.Defeq.quotMk_typed, Metalean.Defeq.quotLift_typed, Metalean.Defeq.quotInd_typed}
   \leanok
   \srcloc{Metalean/Typing/Inversion.lean}{56}
   \lead{In short} Inversion of the typing judgment, such as for $\Pi$-types
   (\code{Defeq.forallE\_inv}).
-  \lead{Used directly} 15 declarations: 15 theorems.
+  \lead{Used directly} 18 declarations: 18 theorems.
   \usedbyproofs{\ref{lem:EraseProof-DCong-defeq}, \ref{lem:EraseProof-TrM-dcong},
     \ref{lem:EraseProof-TrM-inst}, \ref{lem:EraseProof-SatTr-typed},
     \ref{lem:EraseProof-ProgEnv-lookup_quot}, \ref{lem:EraseProof-TypeEq-sort_ne_forallE},
@@ -607,20 +609,18 @@
   \lead{In short} The interpretation of inductive types (\code{IndTyping}), obtained from a typing
   derivation.
   \lead{Used directly} 6 declarations: 3 definitions, 2 theorems, 1 structure.
-  \usedbyproofs{\ref{lem:EraseProof-TypeEq-sort_ne_forallE},
-    \ref{lem:EraseProof-TypeEq-sort_ne_quot}, \ref{lem:EraseProof-Pure-whnf_sound}}
+  \usedbyproofs{\ref{lem:EraseProof-TypeEq-sort_ne_forallE}, \ref{lem:EraseProof-Pure-whnf_sound}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Semantics.Interpretation.Quotient.Basic}]
   \label{imp:Metalean-Semantics-Interpretation-Quotient-Basic}
-  \lean{Metalean.CoherentShape.QuotTyping, Metalean.CoherentShape.QuotTyping.ofTyping,
-    Metalean.CoherentShape.QuotTyping.code, Metalean.CoherentShape.RawFamily.quot,
-    Metalean.CoherentShape.RawFamily.quot_value}
+  \lean{Metalean.CoherentShape.QuotTyping.ofTyping, Metalean.CoherentShape.QuotTyping.code,
+    Metalean.CoherentShape.RawFamily.quot, Metalean.CoherentShape.RawFamily.quot_value}
   \leanok
-  \srcloc{Metalean/Semantics/Interpretation/Quotient/Basic.lean}{200}
+  \srcloc{Metalean/Semantics/Interpretation/Quotient/Basic.lean}{207}
   \lead{In short} The interpretation of quotient types (\code{QuotTyping}), obtained from a typing
   derivation.
-  \lead{Used directly} 5 declarations: 2 definitions, 2 theorems, 1 structure.
+  \lead{Used directly} 4 declarations: 2 definitions, 2 theorems.
   \usedbyproofs{\ref{lem:EraseProof-TypeEq-sort_ne_quot}}
 \end{imported}
 
@@ -1193,9 +1193,9 @@
   \usedbystatements{\ref{lem:EraseProof-SatTr-typed}}
   \usedbyproofs{\ref{lem:EraseProof-TrM-instLevels}, \ref{lem:EraseProof-DCong-defeq},
     \ref{lem:EraseProof-TrM-dcong}, \ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-TrM-inst},
-    \ref{lem:EraseProof-TrM-wkEnv}, \ref{lem:EraseProof-IsErasable-quotMk_inv},
-    \ref{lem:EraseProof-SrcDefeq-sound_of}, \ref{lem:EraseProof-OracleInfer-inferOK},
-    \ref{lem:EraseProof-erases_correct_quotMk}}
+    \ref{lem:EraseProof-TrM-wkEnv}, \ref{lem:EraseProof-ProgEnv-lookup_quot},
+    \ref{lem:EraseProof-IsErasable-quotMk_inv}, \ref{lem:EraseProof-SrcDefeq-sound_of},
+    \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-erases_correct_quotMk}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Reduction}]

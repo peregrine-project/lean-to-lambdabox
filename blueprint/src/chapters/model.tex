@@ -459,11 +459,12 @@ universe instantiation in place of lean4lean's.
 \begin{definition}[Program environments]
   \label{def:EraseProof-ProgEnv}
   \lean{EraseProof.ProgEnv, EraseProof.ConstTyped, EraseProof.BindsExt,
-    EraseProof.IndBlock, EraseProof.IndBlock.decls, EraseProof.quotKindOf, EraseProof.peelForalls}
+    EraseProof.IndBlock, EraseProof.IndBlock.decls, EraseProof.quotKindOf, EraseProof.peelForalls,
+    EraseProof.QuotShape}
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-SatTr, def:EraseProof-TrM, def:Erasure-casesInfo,
     def:EraseProof-ConstsIn}
-  \srcloc{proof/EraseProof/Spec.lean}{497}
+  \srcloc{proof/EraseProof/Spec.lean}{511}
   \lead{In short} \code{ProgEnv P $\zeta$ E B}: the Lean declarations \code{P} (newest first) are
   \hl{those of the Metalean environment \code{E}}, named by \code{B}, as Metalean's loader builds
   it.
@@ -486,7 +487,9 @@ universe instantiation in place of lean4lean's.
         is \code{motive\_s indices major};
   \item \code{IndBlock.indexVars}: \hl{a field that Metalean's block uses as an index variable is
         a Lean index field} (\code{indexFields});
-  \item \code{quot}: the four constants, with \code{Eq} bound as Metalean requires.
+  \item \code{quot}: the four constants, with \code{Eq} bound as Metalean requires, each with its
+        Lean kind and, for \code{Quot}, \code{Quot.mk} and \code{Quot.lift}, the type shape of
+        Lean's kernel (\code{QuotShape}).
   \end{itemize}
   \lead{Why \code{minors}} the recognizer reads a minor's arity from the syntax of the recursor's
   type, which \code{TrM} ties to Metalean only up to \code{mdata}: without the clause, a domain
@@ -588,7 +591,8 @@ universe instantiation in place of lean4lean's.
   \lean{EraseProof.ProgEnv.lookup_quot, EraseProof.ProgEnv.quot_bound,
     EraseProof.ProgEnv.quot_head_unique, EraseProof.ProgEnv.quot_levels, EraseProof.quotLevels,
     EraseProof.quotTerm_levels, EraseProof.SatTr.quot_levels, EraseProof.TrM.wf_app_quot,
-    EraseProof.split_last, EraseProof.MBinding.wk_quot_inv, EraseProof.Binds.wk_quot_inv}
+    EraseProof.split_last, EraseProof.MBinding.wk_quot_inv, EraseProof.Binds.wk_quot_inv,
+    EraseProof.ProgEnv.quot_shape, EraseProof.satTr_quot_typed, EraseProof.TrM.quot_args_typed}
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-SatTr, def:EraseProof-TrM, def:EraseProof-ProgEnv,
     def:EraseProof-ConstsIn}
@@ -602,7 +606,10 @@ universe instantiation in place of lean4lean's.
         applies to \code{Quot.lift \ldots\ (Quot.mk \ldots)};
   \item \code{quot\_levels}, \code{quotLevels}: the kind's number of universe parameters;
   \item \code{TrM.wf\_app\_quot}: an over-applied saturated quotient spine translates as an
-        application.
+        application;
+  \item \code{quot\_shape}: the kinds and type shapes of \code{QuotShape};
+  \item \code{satTr\_quot\_typed}, \code{TrM.quot\_args\_typed}: the arguments of a quotient
+        spine are typed.
   \end{itemize}
   \lead{Reference} \code{quotTerm} of \leanfile{Metalean/Frontend/Translate.lean}.
 \end{lemma}
@@ -791,18 +798,17 @@ sides, and each head contributes an atom that no other head's interpretation con
   \end{enumerate}
 \end{proof}
 
-\begin{lemma}[Quotient types differ from the other type formers]
+\begin{lemma}[Quotient types are no sort and no $\Pi$-type]
   \label{lem:EraseProof-TypeEq-sort_ne_quot}
-  \lean{EraseProof.TypeEq.sort_ne_quot, EraseProof.TypeEq.forallE_ne_quot,
-    EraseProof.TypeEq.ind_ne_quot}
+  \lean{EraseProof.TypeEq.sort_ne_quot, EraseProof.TypeEq.forallE_ne_quot}
   \leanok
   \srcloc{proof/EraseProof/Metatheory/NoConf.lean}{80}
-  \lead{In short} In a well-formed environment and context, \hl{a quotient type equals no sort,
-  $\Pi$-type or inductive type} as a type.
+  \lead{In short} In a well-formed environment and context, \hl{a quotient type equals no sort
+  or $\Pi$-type} as a type.
   \begin{itemize}
   \item \lead{Given} \code{hE : EnvWF E} and \code{h$\Delta$ : E[$\Delta$] $\vdash$ ok};
   \item \lead{Then} \code{$\neg$ E[$\Delta$] $\vdash$ X $\equiv$ .quot $\theta$ u $\alpha$ r} for
-        \code{X} a sort, a $\Pi$-type or an inductive type.
+        \code{X} a sort or a $\Pi$-type.
   \end{itemize}
   \lead{Reference} none in MetaRocq: PCUIC has no primitive quotients.
 \end{lemma}
@@ -819,5 +825,5 @@ sides, and each head contributes an atom that no other head's interpretation con
 \item \lead{Caveat} Recursor rules of Lean's declarations are not related: Metalean computes
   $\iota$ from the inductive block, and no lemma reads them.
 \item \lead{Caveat} The quotient lemmas serve the quotient rules of the source semantics and the
-  simulation; the fragment test rejects quotients.
+  simulation, which the final theorem covers.
 \end{itemize}

@@ -15,11 +15,11 @@
 \bpdefinenodes{chap:trust}{\bpkind{shipping}~13 \bpkind{metalean}~71}
 \bpdefinenodes{chap:pure}{\bpkind{shipping}~12}
 \bpdefinenodes{chap:model}{\bpkind{step}~3 \bpkind{lemma}~16 \bpkind{definition}~7}
-\bpdefinenodes{chap:source}{\bpkind{step}~3 \bpkind{lemma}~7 \bpkind{definition}~9}
+\bpdefinenodes{chap:source}{\bpkind{step}~3 \bpkind{lemma}~6 \bpkind{definition}~9}
 \bpdefinenodes{chap:relation}{\bpkind{step}~1 \bpkind{lemma}~7 \bpkind{definition}~4}
-\bpdefinenodes{chap:core}{\bpkind{step}~14 \bpkind{lemma}~20 \bpkind{definition}~9}
+\bpdefinenodes{chap:core}{\bpkind{step}~15 \bpkind{lemma}~20 \bpkind{definition}~9}
 \bpdefinenodes{chap:final}{\bpkind{final}~1 \bpkind{milestone}~2 \bpkind{step}~4 \bpkind{lemma}~3 \bpkind{definition}~7}
-\bpdefinenodes{chap:tests}{\bpkind{test}~20}
+\bpdefinenodes{chap:tests}{\bpkind{test}~25}
 % \bpsetkind{label}{kind}{status}{inherited sorries}: every node (the print version puts the badges after its heading).
 \bpsetkind{def:EraseProof-LocalsOK}{definition}{standard}{}
 \bpsetkind{lem:EraseProof-Pure-whnf_sound}{step}{standard}{}
@@ -54,6 +54,7 @@
 \bpsetkind{lem:EraseProof-Steps-visitExpr_lam_step}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-Steps-visitMutual_step}{step}{standard}{}
 \bpsetkind{lem:EraseProof-Steps-stepsB_ctor}{step}{standard}{}
+\bpsetkind{lem:EraseProof-Steps-stepsB_quot}{step}{standard}{}
 \bpsetkind{lem:EraseProof-Steps-stepsB_proj}{step}{standard}{}
 \bpsetkind{lem:EraseProof-Steps-stepsB_lit}{step}{standard}{}
 \bpsetkind{lem:EraseProof-Steps-stepsB_cases_of_sat}{step}{standard}{}
@@ -135,7 +136,6 @@
 \bpsetkind{lem:EraseProof-IsErasable-inst}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-IsErasable-ctor_not}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-IsErasable-quotMk_inv}{lemma}{standard}{}
-\bpsetkind{lem:EraseProof-IsErasable-quotMk_not}{lemma}{planned}{}
 \bpsetkind{def:EraseProof-EvalEnv}{definition}{standard}{}
 \bpsetkind{def:EraseProof-EvalEnv-isAtom}{definition}{standard}{}
 \bpsetkind{def:EraseProof-EvalEnv-etaSpine}{definition}{standard}{}
@@ -169,6 +169,11 @@
 \bpsetkind{lem:EraseProof-Test-NV2-henv}{test}{standard}{}
 \bpsetkind{lem:EraseProof-Test-NV2-final}{test}{standard}{}
 \bpsetkind{lem:EraseProof-Test-NV2-firstorder}{test}{standard}{}
+\bpsetkind{def:EraseProof-Test-NVQ-P}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NVQ-hrun}{test}{standard}{}
+\bpsetkind{def:EraseProof-Test-NVQ-E}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NVQ-henv}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NVQ-final}{test}{standard}{}
 \bpsetkind{lem:EraseProof-Test-LBEval-deterministic}{test}{standard}{}
 \bpsetkind{def:LBTerm}{shipping}{standard}{}
 \bpsetkind{def:abstract}{shipping}{standard}{}
