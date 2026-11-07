@@ -1,0 +1,439 @@
+\chapter{\texorpdfstring{$\lambda_\Box$}{lambda-box} evaluation and the erasure relation}\label{chap:relation}
+
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} Define how erased programs evaluate, and which $\lambda_\Box$ terms erase which
+  Lean terms.
+\item \lead{Main results} $\lambda_\Box$ evaluation \code{LBEval}; the erasure relation
+  \code{Erases} with MetaRocq's side conditions, the reduced-case rule and its environment form
+  \code{ErasesDeps}; their substitution and inversion lemmas.
+\item \lead{Status} the definitions are formalized, \code{LBEval} ported from the lean4lean
+  verification; \stProved{} every lemma.
+\item \lead{Nodes} \bpnodes{chap:relation}
+\item \lead{Lean files} \leanfiles{proof/EraseProof/}{Target, TargetFacts},
+  \leanfile{proof/EraseProof/Spec.lean} (Section 10), \leanfile{proof/EraseProof/Relation/}.
+\item \lead{Reference} MetaRocq \code{eval} of \code{EWcbvEval.v} and \code{erases} of
+  \code{Extract.v} (\code{erasure/theories/}); MetaCoq paper Section 7.
+\end{itemize}
+
+\section{\texorpdfstring{$\lambda_\Box$}{lambda-box} evaluation}\label{sec:relation-target}
+
+\begin{definition}[Big-step evaluation of \texorpdfstring{$\lambda_\Box$}{lambda-box}]
+  \label{def:EraseProof-LBEval}
+  \lean{EraseProof.LBEval, EraseProof.WcbvFlags, EraseProof.defaultFlags, EraseProof.csubst,
+    EraseProof.csubstL, EraseProof.csubstB, EraseProof.csubstD, EraseProof.closedn,
+    EraseProof.closednL, EraseProof.closednB, EraseProof.closednD, EraseProof.hasFVar,
+    EraseProof.hasFVarL, EraseProof.hasFVarB, EraseProof.hasFVarD, EraseProof.mkApps,
+    EraseProof.substl, EraseProof.fixSubst, EraseProof.cunfoldFix, EraseProof.lookupConst,
+    EraseProof.lookupInd, EraseProof.lookupCtor, EraseProof.ctorIsPropParsDecl,
+    EraseProof.indIsPropAndPars, EraseProof.LenvClosed, EraseProof.iotaRed, EraseProof.headOf,
+    EraseProof.isLambdaT, EraseProof.isBoxT, EraseProof.isFixT, EraseProof.isFixApp,
+    EraseProof.isConstructApp, EraseProof.isPrimApp, EraseProof.lbAtom}
+  \leanok
+  \uses{def:LBTerm, def:toKername, def:GlobalDecl}
+  \srcloc{proof/EraseProof/Target.lean}{183}
+  \lead{In short} \code{LBEval fl lenv t v}: in the erased environment \code{lenv}, the closed term
+  \code{t} \hl{evaluates call-by-value to \code{v}}, under the flags \code{fl}.
+  \begin{itemize}
+  \item rules for $\beta$, \code{let}, constants, fixpoints, constructors (\code{construct}),
+        \code{case} on a constructor (\code{iota}) and on $\Box$ of a propositional inductive
+        (\code{iotaSing}), projections (\code{proj}, \code{projProp}), and $\Box$ applied to
+        anything;
+  \item \code{csubst}, \code{substl}, \code{closedn}, \code{hasFVar}, \code{lookup*}: closed
+        substitution, closedness, free variables, lookup in \code{lenv}; \code{LenvClosed}: every
+        body closed and free of free variables;
+  \item \code{headOf}, \code{is*}: the head tests of MetaRocq's \code{eval\_app\_cong};
+  \item \code{defaultFlags}: MetaRocq's \code{default\_wcbv\_flags}.
+  \end{itemize}
+  \lead{Reference} MetaRocq \code{eval} (\code{EWcbvEval.v}), with \code{tCoFix}, \code{tLazy},
+  \code{tForce} absent.
+\end{definition}
+
+\begin{lemma}[Facts of \texorpdfstring{$\lambda_\Box$}{lambda-box} evaluation]
+  \label{lem:EraseProof-LBEval-idem}
+  \lean{EraseProof.LBEval.idem, EraseProof.LBEval.ind, EraseProof.LBEval.eq_box_of_headOf,
+    EraseProof.headOf_mkApps}
+  \leanok
+  \uses{def:EraseProof-LBEval, def:LBTerm, def:toKername, def:GlobalDecl}
+  \srcloc{proof/EraseProof/TargetFacts.lean}{166}
+  \lead{In short} \hl{An evaluation result evaluates to itself}; a result headed by $\Box$ is
+  $\Box$.
+  \begin{itemize}
+  \item \code{LBEval.ind}: induction with a \code{List.Forall$_2$} hypothesis for the nested premise
+        of constructor blocks;
+  \item \code{headOf\_mkApps}: the head of a spine is the head of its function.
+  \end{itemize}
+  \lead{Reference} MetaRocq \code{eval\_to\_value}, \code{value\_final},
+  \code{eval\_to\_mkApps\_tBox\_inv}, \code{eval\_rect} (\code{EWcbvEval.v}).
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Induction on evaluation (\code{LBEval.ind}).
+\end{proof}
+
+\section{The erasure relation}\label{sec:relation-erases}
+
+\begin{definition}[Side conditions on inductive types]
+  \label{def:EraseProof-Subsingleton}
+  \lean{EraseProof.Subsingleton, EraseProof.PropInductive, EraseProof.IsProof,
+    EraseProof.FieldsErasable, EraseProof.CasesReduced}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-IsErasable, def:EraseProof-SrcEval}
+  \srcloc{proof/EraseProof/Spec.lean}{1078}
+  \lead{In short} MetaRocq's conditions on eliminations, \hl{stated on Metalean's constructor
+  nodes}.
+  \begin{itemize}
+  \item \code{PropInductive E B T}: \code{T}'s Metalean block has level \code{0};
+  \item \code{Subsingleton E B T}: whenever a constructor node of \code{T} is a proof
+        (\code{IsProof}), \code{T} has at most one constructor and its fields are proofs;
+  \item \code{FieldsErasable E B T}: every field of a typed constructor node is erasable;
+  \item \code{CasesReduced iv us}: one constructor, and the discriminant's sort at \code{us}
+        (\code{casesSortLevel}) is not never zero (\code{Level.isNeverZero}); the eraser's
+        reduced-case test.
+  \end{itemize}
+  \lead{Reference} \code{isPropositional} (\code{PCUICFirstorder.v}); \code{Is\_proof},
+  \code{Subsingleton} (\code{PCUICElimination.v}).
+\end{definition}
+
+\begin{definition}[Erasure relation]
+  \label{def:EraseProof-Erases}
+  \lean{EraseProof.Erases, EraseProof.ErasesAlt, EraseProof.IndIdOf, EraseProof.SpecialSpine,
+    EraseProof.ctorFields, EraseProof.blockKername}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-TrM, def:Erasure-declExclusion,
+    def:EraseProof-LBEval, def:EraseProof-Subsingleton, def:EraseProof-IsErasable,
+    def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-isAtom, def:EraseProof-EvalEnv-etaSpine,
+    def:EraseProof-ConstsIn, def:LBTerm, def:toKername, def:Erasure-TravCtx}
+  \srcloc{proof/EraseProof/Spec.lean}{1109}
+  \lead{In short} \code{Erases E B lps $\sigma$ $\Gamma$ $\Delta$ e t}: the $\lambda_\Box$ term
+  \code{t} \hl{is an erasure of the Lean term \code{e}}.
+  \begin{tabular}{p{0.2\linewidth}p{0.66\linewidth}}
+  \toprule
+  Rule & Erasure, with its side condition \\
+  \midrule
+  \code{box} & an erasable term (\code{ErasableS}) erases to $\Box$ \\
+  \code{bvar}, \code{fvar}, \code{app}, \code{const}, \code{mdata} & one rule each;
+    \code{const} for non-atom, non-special constants \\
+  \code{lam}, \code{letE} & under the binder; \hl{the binder's translation is a type}
+    (\code{lam}), the value's translation is typed (\code{letE}) \\
+  \code{ctor} & a saturated constructor spine to \code{construct} applied to the erased
+    arguments; \hl{the inductive is not propositional} \\
+  \code{cases} & a \code{casesOn} with at least its arity to \code{case} on the erased major, one
+    \code{ErasesAlt} branch per constructor; \hl{\code{Subsingleton}} and not
+    \code{CasesReduced} \\
+  \code{casesReduced} & one constructor without index field, \code{FieldsErasable}: the erased
+    alternative applied to one $\Box$ per field, the discriminant dropped (DV-25) \\
+  \code{eta} & an under-applied spine erases as its $\eta$-expansion (DV-23) \\
+  \code{proj} & \code{proj} on the erased structure; \code{Subsingleton}, and the block in
+    \code{Prop} or its declared sort never zero \\
+  \code{litZero}, \code{litSucc} & a \code{Nat} literal to its constructor chain
+    (\code{nat := .peano}) \\
+  \code{quotMk}, \code{quotLift} & \hl{\code{Quot.mk $\alpha$ r a} to the erased element},
+    \code{Quot.lift $\alpha$ r $\beta$ f h q} to \code{f' q'}, extra arguments applied (DV-29) \\
+  \bottomrule
+  \end{tabular}
+  \begin{itemize}
+  \item \code{ErasesAlt}: an alternative under its field binders, $\lambda$s peeled (each binder's
+        translation a type) or $\eta$-introduced (\code{intro}, on any alternative, $\lambda$s
+        included), as \code{lambdaOrIntroToArity};
+        \code{blockKername}: the shipping \code{mutualBlockKername}.
+  \end{itemize}
+  \lead{Why typed binders} substitution moves the body's typings into the context of the
+  substituted binder, only $\equiv$ to the original one; that conversion needs the binder typed,
+  which an untyped translation does not give (lean4lean's \code{TrExprS.lam} carries it too).
+  \lead{Why \code{intro} on $\lambda$s} substituting a $\lambda$ for an alternative that is a
+  variable yields a $\lambda$ alternative related to the $\beta$-redex of its erased branch, which
+  only $\eta$-introduction derives (\code{ErasesAlt.inst}).
+  \lead{Reference} MetaRocq \code{erases} (\code{Extract.v}): \code{erases\_tConstruct},
+  \code{erases\_tCase}, \code{erases\_tProj}, \code{erases\_box}.
+\end{definition}
+
+\begin{definition}[Erased dependencies]
+  \label{def:EraseProof-ErasesDeps}
+  \lean{EraseProof.ErasesDeps, EraseProof.ErasesDecl, EraseProof.ErasesInd}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-TrM, def:EraseProof-LBEval,
+    def:EraseProof-Subsingleton, def:EraseProof-Erases, def:EraseProof-EvalEnv,
+    def:EraseProof-ConstsIn, def:LBTerm, def:toKername, def:GlobalDecl}
+  \srcloc{proof/EraseProof/Spec.lean}{1260}
+  \lead{In short} The erased environment \code{lenv} \hl{erases the declarations the program
+  uses}: each constant's body erases its value, and each inductive block erases to an
+  \code{inductiveDecl}.
+  \begin{itemize}
+  \item \code{ErasesDecl}: no body for declarations without value and remapped externs, an
+        erasure of the value otherwise;
+  \item \code{ErasesInd}: the block at \code{blockKername}, \code{npars} its parameters,
+        constructors in order with their field counts, \hl{\code{propositional} iff
+        \code{PropInductive}}.
+  \end{itemize}
+  \lead{Reference} MetaRocq \code{erases\_deps}, \code{erases\_mutual\_inductive\_body},
+  \code{erases\_one\_inductive\_body}, \code{erases\_constant\_body}.
+\end{definition}
+
+\section{Properties of the relation}\label{sec:relation-lemmas}
+
+\begin{lemma}[Inversion and closedness]
+  \label{lem:EraseProof-Erases-closed}
+  \lean{EraseProof.Erases.closed, EraseProof.Erases.ctor_inv, EraseProof.Erases.cases_inv,
+    EraseProof.Erases.atomSpine_box, EraseProof.Erases.ctorProp_box,
+    EraseProof.Erases.propProj_box, EraseProof.Erases.quot_inv}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-TrM, def:EraseProof-LBEval,
+    def:EraseProof-Subsingleton, def:EraseProof-Erases, def:EraseProof-IsErasable,
+    def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-isAtom, def:EraseProof-SrcEval,
+    def:EraseProof-ConstsIn, def:LBTerm}
+  \srcloc{proof/EraseProof/Relation/Basic.lean}{368}
+  \lead{In short} An erasure is \hl{closed under its bound locals}, inverts at constructors,
+  \code{casesOn} and quotient spines, and is $\Box$ on proof values.
+  \begin{itemize}
+  \item \code{closed}: \code{closedn} of the number of bound locals;
+  \item \code{ctor\_inv}, \code{cases\_inv}, \code{quot\_inv}: $\Box$ of an erasable term, or the
+        rule's shape, extra arguments applied;
+  \item \code{atomSpine\_box}, \code{propProj\_box}: an erasure of an atom spine or a neutral proof
+        projection that is a $\lambda_\Box$ result is $\Box$;
+  \item \code{ctorProp\_box}: a constructor spine of a \code{Prop} inductive erases to $\Box$.
+  \end{itemize}
+  \lead{Reference} MetaRocq \code{erases\_closed}; the inversions of \code{erases}.
+\end{lemma}
+\begin{proof}
+  \uses{def:Erasure-declExclusion, lem:EraseProof-LBEval-idem, def:EraseProof-EvalEnv-etaSpine,
+    def:toKername, def:Erasure-TravCtx}
+  \leanok
+  \lead{Idea} Induction on the derivation; \code{LBEval} never yields \code{.app $\Box$ \_} or a
+  projection.
+\end{proof}
+
+\begin{lemma}[Extension to the program]
+  \label{lem:EraseProof-Erases-extend}
+  \lean{EraseProof.Erases.extend, EraseProof.Extend.findDecl_sub, EraseProof.Extend.findDecl_agree,
+    EraseProof.Extend.ctorAlts_congr, EraseProof.Extend.blockCtorCount_congr,
+    EraseProof.Extend.casesInfo?_congr, EraseProof.Extend.casesInfo?_reads,
+    EraseProof.Extend.ConstsIn_foldl, EraseProof.Extend.ConstsIn_mkAppN,
+    EraseProof.Extend.ConstsIn_peelLams, EraseProof.Extend.ConstsIn_getAppFn,
+    EraseProof.Extend.ConstsIn_lift, EraseProof.Extend.ConstsIn_instantiate1',
+    EraseProof.Extend.ConstsIn_instLevels, EraseProof.Extend.ConstsIn_piInst,
+    EraseProof.Extend.ConstsIn_lamsOf, EraseProof.Extend.casesOn?_agree,
+    EraseProof.Extend.specialArity_agree, EraseProof.Extend.unfold?_agree,
+    EraseProof.Extend.EvidentProp_agree, EraseProof.Extend.isAtom_agree,
+    EraseProof.Extend.specialSpine_of_agree, EraseProof.Extend.IndIdOf_sub,
+    EraseProof.Extend.ctorFields_sub, EraseProof.Extend.etaSpine?_sub}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-TrM, def:Erasure-EnvView, def:Erasure-casesInfo,
+    def:Erasure-Pure-instLevels, def:EraseProof-Erases, def:EraseProof-EvalEnv,
+    def:EraseProof-EvalEnv-isAtom, def:EraseProof-EvalEnv-etaSpine, def:EraseProof-ConstsIn,
+    def:EraseProof-DepClosed, def:LBTerm, def:Erasure-ErasureConfig}
+  \srcloc{proof/EraseProof/Relation/Extend.lean}{383}
+  \lead{In short} An erasure in the closure \code{decls} is \hl{an erasure in the program
+  \code{P}}, given \code{SubEnv decls P}, \code{DepClosed decls} and the constants of the term in
+  \code{decls}.
+  \lead{Reference} MetaRocq \code{erases\_extends} (\code{ESubstitution.v}).
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-PhaseIDecl, lem:EraseProof-TrM-weakBV, lem:EraseProof-ProgEnv-lookup,
+    lem:EraseProof-casesOn_shape, def:Erasure-findConst, def:Erasure-declExclusion,
+    def:Erasure-isRecursiveDecl, def:EraseProof-LBEval, def:EraseProof-Subsingleton,
+    def:EraseProof-IsErasable}
+  \leanok
+  \lead{Idea} Induction on the derivation; the recognizer, $\delta$, atoms and $\eta$-expansions
+  read only what \code{decls} and \code{P} agree on.
+\end{proof}
+
+\begin{lemma}[Universe instantiation of erasures]
+  \label{lem:EraseProof-Erases-instLevels}
+  \lean{EraseProof.Erases.instLevels, EraseProof.RelLevels.Erases.instL_gen,
+    EraseProof.RelLevels.LevelsTr, EraseProof.RelLevels.LvlOK, EraseProof.RelLevels.TrM.lvlOK,
+    EraseProof.RelLevels.TrM.levelsTr, EraseProof.RelLevels.SatTr.levelsTr,
+    EraseProof.RelLevels.ProgEnv.levelsInfo, EraseProof.RelLevels.zip_map_find?,
+    EraseProof.RelLevels.instLevel_param_map, EraseProof.RelLevels.isNeverZero_instLevel,
+    EraseProof.RelLevels.isNeverZero_instLevel_map, EraseProof.RelLevels.instLevel_comp,
+    EraseProof.RelLevels.instLevels_comp, EraseProof.RelLevels.LevelsTr_foldl,
+    EraseProof.RelLevels.TrLevels_mem, EraseProof.RelLevels.mapM_mem,
+    EraseProof.RelLevels.instLevels_lift, EraseProof.RelLevels.instLevels_instantiate1',
+    EraseProof.RelLevels.piInst_instLevels, EraseProof.RelLevels.lamsOf_instLevels,
+    EraseProof.RelLevels.instLevels_mkAppN, EraseProof.RelLevels.LvlOK_foldl, EraseProof.RelLevels.LvlOK_mkAppN,
+    EraseProof.RelLevels.LvlOK_lift, EraseProof.RelLevels.LvlOK_lamsOf,
+    EraseProof.RelLevels.LvlOK_etaSpine, EraseProof.RelLevels.etaSpine?_instLevels,
+    EraseProof.RelLevels.not_casesReduced_map, EraseProof.RelLevels.etaSpine?_kind}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-TrLevel, def:EraseProof-SatTr, def:EraseProof-TrM,
+    lem:EraseProof-TrM-instLevels, def:EraseProof-ProgEnv, def:Erasure-Pure-instLevels,
+    def:EraseProof-Subsingleton, def:EraseProof-Erases, def:EraseProof-EvalEnv,
+    def:EraseProof-EvalEnv-etaSpine, def:EraseProof-ConstsIn, def:LBTerm}
+  \srcloc{proof/EraseProof/Relation/Levels.lean}{667}
+  \lead{In short} An erasure of a closed term that translates \hl{is an erasure of its universe
+  instantiation}.
+  \begin{itemize}
+  \item \lead{Given} \code{ProgEnv P $\zeta$ E B}, \code{SubEnv $\sigma$.decls P},
+        \code{TrLevels lps us = some ls}, \code{TrM E B lps' .nil [] e t},
+        \code{Erases \ldots\ lps' \ldots\ e tb};
+  \item \lead{Then} \code{Erases \ldots\ lps \ldots\ (Pure.instLevels lps' us e) tb}.
+  \end{itemize}
+  \lead{Why \code{TrM}} \code{eta} reads the head's type at the spine's levels; instantiation
+  commutes with it only when the spine has a level per parameter (\code{LvlOK}).
+  \lead{Reference} MetaRocq \code{erases\_subst\_instance}.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-natLitM, def:EraseProof-TypedExt, lem:EraseProof-TrM-weakBV,
+    lem:EraseProof-ProgEnv-lookup, lem:EraseProof-ProgEnv-lookup_quot,
+    lem:EraseProof-casesOn_shape, def:Erasure-declExclusion, def:Erasure-casesInfo,
+    def:EraseProof-LBEval, lem:EraseProof-Erases-extend, def:EraseProof-IsErasable,
+    lem:EraseProof-IsErasable-inst, def:EraseProof-EvalEnv-isAtom, def:EraseProof-SrcEval,
+    def:Erasure-TravCtx}
+  \leanok
+  \lead{Idea} \code{instL\_gen}: induction on the derivation under binders, for \code{LvlOK} terms.
+\end{proof}
+
+\begin{lemma}[Closing a binder of an erasure]
+  \label{lem:EraseProof-Erases-abstract}
+  \lean{EraseProof.Erases.abstract, EraseProof.AbsFV.Erases.absN, EraseProof.AbsFV.LBV,
+    EraseProof.AbsFV.LBV.mono, EraseProof.AbsFV.LBV_foldl, EraseProof.AbsFV.TrM.lbv,
+    EraseProof.AbsFV.LBV_instLevels, EraseProof.AbsFV.FVarsIn_instLevels,
+    EraseProof.AbsFV.absFV_self, EraseProof.AbsFV.absFV_lift,
+    EraseProof.AbsFV.absFV_instantiate1', EraseProof.AbsFV.absFV_piInst,
+    EraseProof.AbsFV.absFV_lamsOf, EraseProof.AbsFV.absFV_body, EraseProof.AbsFV.etaSpine?_absFV,
+    EraseProof.AbsFV.toBvar_mkApps, EraseProof.AbsFV.toBvarAlts_eq,
+    EraseProof.AbsFV.closedn_mkApps, EraseProof.AbsFV.closednB_get, EraseProof.AbsFV.FVarsIn.mono,
+    EraseProof.AbsFV.ProgEnv.typeTr, EraseProof.AbsFV.closed_types}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-TrM, lem:EraseProof-AbsFV-TrM-absN,
+    def:EraseProof-ProgEnv, def:Erasure-Pure-instLevels, def:EraseProof-LBEval,
+    def:EraseProof-Erases, def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-etaSpine,
+    def:EraseProof-ConstsIn, def:EraseProof-DepClosed, def:LBTerm, def:abstract}
+  \srcloc{proof/EraseProof/Relation/Abstract.lean}{546}
+  \lead{In short} If the body opened with a fresh \code{x} erases to a closed \code{tb}, the body
+  erases \hl{to \code{abstract x tb}} under the binder.
+  \begin{itemize}
+  \item \lead{Given} \code{ProgEnv}, \code{SubEnv $\sigma$.decls P}, \code{$\Delta$.findF x =
+        none}, \code{FVarsIn ($\cdot$ $\neq$ x) b}, \code{closedn 0 tb};
+  \item \lead{Then} \code{Erases \ldots\ ($\Gamma$.snoc A) ($\Delta$.pushLam none) b (abstract x
+        tb)}.
+  \end{itemize}
+  \lead{Why \code{closedn}} the shipping \code{abstract} does not shift loose indices, so a
+  dangling index of \code{tb} would land one off.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-TrLevel, def:EraseProof-SatTr, def:EraseProof-natLitM,
+    def:EraseProof-TypedExt, lem:EraseProof-TrM-weakBV, lem:EraseProof-ProgEnv-lookup,
+    def:Erasure-declExclusion, def:EraseProof-Subsingleton, lem:EraseProof-Erases-extend,
+    def:EraseProof-IsErasable, def:EraseProof-EvalEnv-isAtom, def:toKername, def:Erasure-TravCtx}
+  \leanok
+  \lead{Idea} \code{absN}: induction on the derivation, abstracting \code{x} into any bound index
+  on both sides; declared types are closed (\code{closed\_types}).
+\end{proof}
+
+\begin{lemma}[Substitution]
+  \label{lem:EraseProof-Erases-inst}
+  \lean{EraseProof.Erases.inst, EraseProof.ErasesAlt.inst,
+    EraseProof.RelInst.lift_lift, EraseProof.RelInst.lift_comm, EraseProof.RelInst.inst_lift_above,
+    EraseProof.RelInst.lift_inst_below, EraseProof.RelInst.inst_lift_cancel,
+    EraseProof.RelInst.inst_inst, EraseProof.RelInst.inst_closed, EraseProof.RelInst.lift_closed,
+    EraseProof.RelInst.inst_foldl, EraseProof.RelInst.inst_spine, EraseProof.RelInst.lift_spine,
+    EraseProof.RelInst.inst_getAppFn_const, EraseProof.RelInst.piInst_inst,
+    EraseProof.RelInst.piInst_lift, EraseProof.RelInst.lamsOf_inst, EraseProof.RelInst.lamsOf_lift,
+    EraseProof.RelInst.body_inst, EraseProof.RelInst.body_lift, EraseProof.RelInst.etaSpine?_inst,
+    EraseProof.RelInst.etaSpine?_lift, EraseProof.RelInst.csubst_mkApps,
+    EraseProof.RelInst.csubstB_eq, EraseProof.RelInst.substWF_ofThin,
+    EraseProof.RelInst.erasableTy_subst, EraseProof.RelInst.IsErasable.subst,
+    EraseProof.RelInst.IsErasable.of_defeq, EraseProof.RelInst.HB, EraseProof.RelInst.HB.subst,
+    EraseProof.RelInst.HB.wk, EraseProof.RelInst.HB.false, EraseProof.RelInst.NoHead,
+    EraseProof.RelInst.NoHead.foldl, EraseProof.RelInst.NoHead.of_foldl,
+    EraseProof.RelInst.NoHead.spine, EraseProof.RelInst.NoHead.lift,
+    EraseProof.RelInst.NoHead.of_lamsOf, EraseProof.RelInst.NoHead.etaSpine,
+    EraseProof.RelInst.PreTr.app_bvar_inv, EraseProof.RelInst.PreTr.bvar_inv,
+    EraseProof.RelInst.PreTr.head_forall, EraseProof.RelInst.PreTr.noHead,
+    EraseProof.RelInst.TrM.rename, EraseProof.RelInst.Erases.rename,
+    EraseProof.RelInst.inst_getAppFn_bvar, EraseProof.RelInst.thin_snoc,
+    EraseProof.RelInst.TrM.instA, EraseProof.RelInst.Erases.wkLam, EraseProof.RelInst.Erases.wkLet,
+    EraseProof.RelInst.HeadInv, EraseProof.RelInst.Erases.instG, EraseProof.RelInst.atomSpine_head,
+    EraseProof.RelInst.propProj_head, EraseProof.RelInst.srcValue_special,
+    EraseProof.RelInst.ctorNode_of_TrM, EraseProof.RelInst.HB.var_of_ctor,
+    EraseProof.RelInst.inst_setup, EraseProof.RelInst.Node, EraseProof.RelInst.node_of_value,
+    EraseProof.RelInst.HB.of_node, EraseProof.RelInst.HB.of_defeq_node,
+    EraseProof.RelInst.HB.var_of_node}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-SatTr, def:EraseProof-TrM, lem:EraseProof-TrM-inst,
+    def:EraseProof-ProgEnv, def:EraseProof-LBEval, def:EraseProof-Erases,
+    lem:EraseProof-Erases-abstract, def:EraseProof-IsErasable, def:EraseProof-EvalEnv,
+    def:EraseProof-EvalEnv-isAtom, def:EraseProof-EvalEnv-etaSpine, def:EraseProof-SrcEval,
+    def:EraseProof-SrcValue, def:EraseProof-ConstsIn, def:LBTerm}
+  \srcloc{proof/EraseProof/Relation/Inst.lean}{1440}
+  \lead{In short} Substituting \hl{a typed source value} into a typed term commutes with
+  erasure.
+  \begin{itemize}
+  \item \lead{Given} \code{ProgEnv}, \code{EnvWF E}, \code{E[$\Gamma$] $\vdash$ ok},
+        \code{SubEnv $\sigma$.decls P}; \code{SrcValue $\sigma$ a}; typed translations of
+        \code{a} and \code{b}; erasures \code{a'} (closed) and \code{b'};
+  \item \lead{Then} \code{Erases \ldots\ (b.instantiate1' a) (csubst a' 0 b')}
+        (\code{inst});
+  \item \code{ErasesAlt.inst}: the same for an alternative under its field binders, at the
+        index of the last binder, the field step of $\lambda_\Box$'s \code{iotaRed}.
+  \end{itemize}
+  \lead{Why the premises} \code{E[$\Gamma$] $\vdash$ ok} rebuilds the binders' translations after
+  substitution; \code{SubEnv} with \code{ProgEnv} makes declared types closed, so the
+  $\eta$-rule commutes with substitution.
+  \lead{Why values} a substituted partial spine would be erased as a whole, while its erasure
+  is the $\eta$-expansion applied (DV-23).
+  \lead{Reference} \code{erases\_subst0} (\code{ESubstitution.v}).
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-TrLevel, def:EraseProof-natLitM, lem:EraseProof-TrM-weakBV,
+    lem:EraseProof-SatTr-subst, lem:EraseProof-DCong-defeq, lem:EraseProof-ProgEnv-lookup,
+    lem:EraseProof-ProgEnv-lookup_quot, lem:EraseProof-TypeEq-sort_ne_forallE,
+    lem:EraseProof-TypeEq-sort_ne_quot, def:Erasure-declExclusion, def:Erasure-Pure-instLevels,
+    def:EraseProof-Subsingleton, lem:EraseProof-Erases-extend, def:EraseProof-DepClosed,
+    def:toKername, def:Erasure-TravCtx}
+  \leanok
+  \lead{Idea} \code{instG}: induction on both derivations, generalized over a substitution at any
+  depth, with a head invariant (\code{HeadInv}) for spines; erasability under substitution for the
+  \code{box} rule.
+\end{proof}
+
+\begin{lemma}[Field-by-field \texorpdfstring{\code{iotaRed}}{iotaRed}]
+  \label{lem:EraseProof-substl_cons_closed}
+  \lean{EraseProof.substl_cons_closed, EraseProof.TargetSubst.csubst_closedn,
+    EraseProof.TargetSubst.csubstL_closedn, EraseProof.TargetSubst.csubstB_closedn,
+    EraseProof.TargetSubst.csubstD_closedn, EraseProof.TargetSubst.length_csubstD,
+    EraseProof.TargetSubst.csubst_comm, EraseProof.TargetSubst.csubstL_comm,
+    EraseProof.TargetSubst.csubstB_comm, EraseProof.TargetSubst.csubstD_comm,
+    EraseProof.TargetSubst.csubst_substl}
+  \leanok
+  \uses{def:EraseProof-LBEval, def:LBTerm}
+  \srcloc{proof/EraseProof/TargetFacts.lean}{345}
+  \lead{In short} For closed \code{f} and \code{fs}, \code{substl (f :: fs).reverse t} is
+  \code{substl fs.reverse (csubst f fs.length t)}: \hl{$\iota$ substitutes the first field
+  first}, at the index of the last binder.
+  \lead{Reference} \code{substl} and \code{iota\_red} (\code{EWcbvEval.v}).
+\end{lemma}
+\begin{proof}
+  \uses{def:toKername}
+  \leanok
+  \lead{Idea} Closed substitutions commute (\code{csubst\_comm}).
+\end{proof}
+
+\begin{lemma}[Dependencies along evaluation]
+  \label{lem:EraseProof-ErasesDeps-eval}
+  \lean{EraseProof.ErasesDeps.ext, EraseProof.ErasesDeps.csubst, EraseProof.ErasesDeps.eval}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-LBEval, def:EraseProof-ErasesDeps,
+    def:EraseProof-EvalEnv, def:LBTerm, def:toKername, def:GlobalDecl}
+  \srcloc{proof/EraseProof/Relation/Deps.lean}{70}
+  \lead{In short} \code{ErasesDeps} survives \hl{extension of \code{lenv}, substitution and
+  $\lambda_\Box$ evaluation}.
+  \lead{Reference} \code{erases\_deps\_cons}, \code{erases\_deps\_subst},
+  \code{erases\_deps\_eval} (\code{EDeps.v}).
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-LBEval-idem, def:EraseProof-Erases, def:EraseProof-ConstsIn}
+  \leanok
+  \lead{Idea} Induction on $\lambda_\Box$ evaluation, with \code{csubst}.
+\end{proof}
+
+\section*{Caveats}
+\begin{itemize}
+\item \lead{Caveat} Constructors and \code{casesOn} are $\eta$-expanded inside the relation, as
+  the eraser emits them; MetaRocq $\eta$-expands in a separate pass.
+\item \lead{Caveat} The relation has no rule for recursors; its quotient rules are the
+  eraser's (S-38), and the final theorem covers them.
+\item \lead{Caveat} \code{casesReduced} does not model the substitution of index fields; the
+  fragment test excludes constructors with index fields (Section~\ref{sec:scope-fragment}).
+\end{itemize}

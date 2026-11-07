@@ -1,0 +1,12 @@
+% Macros for the web version only. \lean, \leanok, \uses come from the leanblueprint plasTeX
+% package.
+
+% The citations of the Lean sources (macros/common.tex) link to them: \leandecl, \leanfile,
+% \leanfiles, \leanloc, \leanlinesof and \bpsrcloc are commands of the plasTeX package
+% scripts/bpkinds.py, which also links every \lean name (README, "Links to the Lean sources").
+\newcommand{\srcloc}[2]{\par{\small\textcolor{furniture}{\bpsrcloc{#1}{#2}}}\par}
+
+% The plasTeX package scripts/bpkinds.py gives every node its badges, and defines \bpkind and
+% \bpnodes; generated/kinds.tex only defines the colours here.
+\newcommand{\bpsetkind}[4]{}
+\newcommand{\bpdefinenodes}[2]{}

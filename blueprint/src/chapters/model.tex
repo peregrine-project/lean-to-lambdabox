@@ -1,0 +1,829 @@
+\chapter{The bridge to Metalean}\label{chap:model}
+
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} Relate the Lean terms and declarations that \code{\#erase} reads to Metalean's
+  terms and environments, so that Metalean's typing applies to the eraser's input.
+\item \lead{Main results} The translation \code{TrM}, the program environments \code{ProgEnv},
+  their weakening, substitution, universe instantiation and lookup lemmas, the uniqueness of
+  translations up to $\equiv$, the \code{casesOn} reduction chain; the no-confusion lemmas of
+  Metalean's type formers.
+\item \lead{Status} \stProved{} every lemma of the chapter; the definitions of the bridge are
+  formalized.
+\item \lead{Nodes} \bpnodes{chap:model}
+\item \lead{Lean files} \leanfile{proof/EraseProof/Spec.lean} (Sections 1 to 6),
+  \leanfile{proof/EraseProof/Bridge/}, \leanfile{proof/EraseProof/Metatheory/NoConf.lean}.
+\item \lead{Reference} Metalean's translator \leanfile{Metalean/Frontend/Translate.lean} and
+  loader \leanfile{Metalean/Checker/Slow/Loader.lean}, which the bridge models as relations.
+\end{itemize}
+
+\section{Terms}\label{sec:model-terms}
+
+Metalean's translator is \code{partial} and asks an unverified type inference for projections;
+the bridge restates it rule by rule as a relation.
+
+\begin{definition}[What a Lean name denotes]
+  \label{def:EraseProof-MBinding}
+  \lean{EraseProof.MBinding, EraseProof.Binds, EraseProof.MBinding.isSpecial,
+    EraseProof.MBinding.wk, EraseProof.Binds.wk, EraseProof.Binds.set}
+  \leanok
+  \srcloc{proof/EraseProof/Spec.lean}{38}
+  \lead{In short} \code{Binds $\zeta$ = Name $\to$ Option (MBinding $\zeta$)} maps a Lean name to
+  \hl{the Metalean head it denotes}: Metalean's binding table with heads in place of positions.
+  \begin{itemize}
+  \item \code{const}: a constant (axiom, definition, opaque);
+  \item \code{ind}, \code{ctor}, \code{recr}: a sort of an inductive block, one of its
+        constructors (with the order of its fields in Metalean), its recursor;
+  \item \code{quot}: one of the four quotient constants;
+  \item \code{isSpecial}: the heads the translator saturates (all but \code{const}).
+  \end{itemize}
+  \lead{Reference} \leanfile{Metalean/Frontend/Table.lean}.
+\end{definition}
+
+\begin{definition}[Universe levels]
+  \label{def:EraseProof-TrLevel}
+  \lean{EraseProof.TrLevel, EraseProof.TrLevels}
+  \leanok
+  \srcloc{proof/EraseProof/Spec.lean}{77}
+  \lead{In short} \code{TrLevel lps u}: the Lean level \code{u} over the parameters \code{lps}
+  as \hl{a Metalean level}; level metavariables do not translate.
+  \lead{Reference} \code{translateLevel}, \code{translateLevels}
+  (\leanfile{Metalean/Frontend/Translate.lean}).
+\end{definition}
+
+\begin{definition}[Saturated heads]
+  \label{def:EraseProof-SatTr}
+  \lean{EraseProof.SatTr, EraseProof.SpecialHead, EraseProof.MetaOrderOK,
+    EraseProof.RecrLevels, EraseProof.quotArity}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-TrLevel}
+  \srcloc{proof/EraseProof/Spec.lean}{219}
+  \lead{In short} \code{SatTr E lps b us args t}: the head \code{b} at levels \code{us}, applied to
+  the translated arguments \code{args}, is \hl{the saturated Metalean node or the $\eta$-term}
+  \code{t}.
+  \begin{itemize}
+  \item saturated: \code{ind}, \code{ctor} (fields permuted to Metalean's order,
+        \code{MetaOrderOK}: ordinary fields, then recursive ones), \code{recr}
+        (\code{RecrLevels}: the motive's level split off), quotient constants (\code{quotArity});
+  \item under-applied: the term of Metalean's builders \code{indTerm}, \code{ctorTerm},
+        \code{recrTerm}, \code{quotTerm}, applied (DV-1; trusted,
+        Section~\ref{sec:trust-trusted});
+  \item \code{SpecialHead B f}: \code{f}'s head is a saturating name.
+  \end{itemize}
+  \lead{Reference} \code{saturate} and \code{translateSpecial} of
+  \leanfile{Metalean/Frontend/Translate.lean}.
+\end{definition}
+
+\begin{definition}[Literals and proof projections]
+  \label{def:EraseProof-natLitM}
+  \lean{EraseProof.natLitM, EraseProof.natSig, EraseProof.natZeroSig, EraseProof.natSuccSig,
+    EraseProof.projProofTerm}
+  \leanok
+  \srcloc{proof/EraseProof/Spec.lean}{155}
+  \lead{In short} Two terms of Metalean's checker, copied as total definitions.
+  \begin{itemize}
+  \item \code{natLitM}: a \code{Nat} literal as \hl{its unary constructor chain}, as Metalean's
+        fast checker denotes it;
+  \item \code{projProofTerm}: Metalean's \code{proofProjection} written totally; the minor
+        returns the field, the motive is the field's type with the earlier fields projected.
+  \end{itemize}
+  \lead{Reference} \leanfile{Metalean/Checker/Acceleration/Literal.lean},
+  \leanfile{Metalean/Checker/Slow/Projection.lean}.
+\end{definition}
+
+\begin{definition}[Typing in an extension of the context]
+  \label{def:EraseProof-TypedExt}
+  \lean{EraseProof.TypedExt}
+  \leanok
+  \srcloc{proof/EraseProof/Spec.lean}{303}
+  \lead{In short} \code{TypedExt E $\Gamma$ e T}: \code{e} has type \code{T} in \hl{a context
+  \code{$\Gamma$'} into which $\Gamma$ embeds} by an injective renaming that preserves the types
+  of the variables.
+  \begin{itemize}
+  \item \lead{Use} the typing premise of the projection rules of \code{TrM}: the major is typed
+        where the Metalean term places it, possibly under the case telescope of a minor;
+  \item \lead{Why} with the major typed in $\Gamma$ itself, re-typing it after a substitution
+        inside a minor with permuted fields needs strengthening, which Metalean lacks;
+  \item \lead{Weaker than typing in $\Gamma$} \code{$\Gamma$' = $\Gamma$} with the identity
+        renaming gives it (DV-1).
+  \end{itemize}
+\end{definition}
+
+\begin{definition}[The translation of terms]
+  \label{def:EraseProof-TrM}
+  \lean{EraseProof.TrM, EraseProof.MLDecl,
+    EraseProof.MLDecl.denote, EraseProof.MLDecl.wk, EraseProof.MLCtx, EraseProof.MLCtx.pushLam,
+    EraseProof.MLCtx.findB, EraseProof.MLCtx.findF}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-TrLevel, def:EraseProof-SatTr,
+    def:EraseProof-natLitM, def:EraseProof-TypedExt}
+  \srcloc{proof/EraseProof/Spec.lean}{313}
+  \lead{In short} \code{TrM E B lps $\Gamma$ $\Delta$ e t}: the Lean term \code{e} is \hl{the Lean
+  form of the Metalean term \code{t}} in the context $\Gamma$; $\Delta$ (\code{MLCtx}) maps the
+  Lean locals to Metalean variables or let values.
+  \begin{tabular}{p{0.2\linewidth}p{0.66\linewidth}}
+  \toprule
+  Rule & Translation \\
+  \midrule
+  \code{bvar}, \code{fvar} & the local's entry in $\Delta$ \\
+  \code{sort}, \code{const} & levels by \code{TrLevel}, \code{TrLevels} \\
+  \code{special} & a spine headed by a saturating name: arguments one by one, then \code{SatTr} \\
+  \code{app}, \code{lam}, \code{forallE} & one rule each; \code{app} only for other heads \\
+  \code{letE} & the body with the local denoting the value, as the translator inlines it \\
+  \code{mdata} & dropped \\
+  \code{lit} & \code{natLitM}, when \code{B} binds \code{Nat.zero} and \code{Nat.succ} to the
+    constructors \code{0} and \code{1} of \code{Nat} \\
+  \code{projStruct} & Metalean's \code{IsStructure.projTerm}, parameters chosen by typing the
+    major (\code{TypedExt}) \\
+  \code{projProof} & \code{projProofTerm}, for a proof of a one-constructor, index-free,
+    non-recursive inductive that is not a structure; the major typed by \code{TypedExt} \\
+  \bottomrule
+  \end{tabular}
+  \lead{Why the literal's constructor bindings} Lean's kernel reads a literal through the names
+  \code{Nat.zero} and \code{Nat.succ}, and so does \code{visitLiteral}. Without them, a \code{Nat}
+  with constructors \code{Nat.z}, \code{Nat.s} beside another inductive's constructor named
+  \code{Nat.zero} erases \code{0} to that other constructor.
+  \lead{Reference} \code{translateWith} of \leanfile{Metalean/Frontend/Translate.lean};
+  lean4lean's \code{TrExprS}.
+\end{definition}
+
+\section{Lemmas on terms}\label{sec:model-trm}
+
+The lemmas follow lean4lean's \code{TrExprS} lemmas, with Metalean's renaming, substitution and
+universe instantiation in place of lean4lean's.
+
+\begin{lemma}[Free variables, weakening and opening]
+  \label{lem:EraseProof-TrM-weakBV}
+  \lean{EraseProof.TrM.weakBV, EraseProof.TrM.weakFV, EraseProof.TrM.weakFV_let,
+    EraseProof.TrM.inst_fvar, EraseProof.TrM.fvarsIn, EraseProof.TrM.wkFrom, EraseProof.TrM.mono,
+    EraseProof.TrM.instN_fvar, EraseProof.MLCtx.Lift, EraseProof.MLCtx.Lift.pushLam,
+    EraseProof.MLCtx.Lift.cons, EraseProof.MLCtx.Lift.bv, EraseProof.MLCtx.Lift.fv,
+    EraseProof.MLCtx.Sub, EraseProof.MLCtx.Sub.pushLam, EraseProof.MLCtx.Sub.cons,
+    EraseProof.MLCtx.InstFV, EraseProof.MLCtx.InstFV.pushLam, EraseProof.MLCtx.InstFV.cons,
+    EraseProof.MLCtx.InstFV.zero, EraseProof.WeakExt.insRen, EraseProof.WeakExt.insRen_wkFrom,
+    EraseProof.WeakExt.insRen_cut, EraseProof.WeakExt.insRen_inj, EraseProof.WeakExt.var_cases,
+    EraseProof.WeakExt.get_insert_cut, EraseProof.WeakExt.TypedExt.wkFrom,
+    EraseProof.liftLooseBVars'_zero, EraseProof.liftLooseBVars'_foldl,
+    EraseProof.liftLooseBVars'_getAppFn, EraseProof.liftLooseBVars'_eq_const,
+    EraseProof.mkAppN_toArray, EraseProof.fvarId_beq_iff, EraseProof.FVarsIn_foldl,
+    EraseProof.instantiate1'_fvar_getAppFn, EraseProof.instantiate1'_fvar_eq_const,
+    EraseProof.instantiate1'_foldl, EraseProof.MLDecl.denote_wk, EraseProof.MLCtx.findB_map_wk,
+    EraseProof.MLCtx.findF_map_wk, EraseProof.mkAppN_eq_foldl, EraseProof.foldl_app_getAppFn,
+    EraseProof.foldl_app_const_inj}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-TypedExt, def:EraseProof-TrM,
+    def:EraseProof-DepClosed}
+  \srcloc{proof/EraseProof/Bridge/Weak.lean}{297}
+  \lead{In short} \code{TrM} is stable under \hl{a new bound or free variable}, and mentions
+  only the locals' free variables.
+  \begin{itemize}
+  \item \code{weakBV}: \code{TrM ($\Gamma$.snoc A) ($\Delta$.pushLam none) (e.liftLooseBVars' 0 1)
+        t.wk};
+  \item \code{weakFV}, \code{weakFV\_let}: a fresh \code{x} pushed as a $\lambda$- or let-bound
+        local;
+  \item \code{inst\_fvar}: opening a binder with a fresh \code{x}, as \code{lambdaMonocular}
+        does;
+  \item \code{fvarsIn}: the free variables of \code{e} are locals of $\Delta$;
+  \item \code{wkFrom}: the general form, a variable inserted at any level (\code{MLCtx.Lift}),
+        \code{TypedExt} carried along.
+  \end{itemize}
+  \lead{Reference} lean4lean \code{TrS.weakBV}, \code{TrS.weakFV}, \code{TrS.fvarsIn};
+  \leandecl{Metalean.Defeq.wk}.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-TrLevel, def:EraseProof-SatTr, def:EraseProof-natLitM,
+    lem:EraseProof-SatTr-subst}
+  \leanok
+  \lead{Idea} Induction on the derivation, with Metalean's renaming lemmas and the injective
+  renaming \code{insRen} for the extension of \code{TypedExt}.
+\end{proof}
+
+\begin{lemma}[Closing a binder]
+  \label{lem:EraseProof-AbsFV-TrM-absN}
+  \lean{EraseProof.AbsFV.TrM.absN, EraseProof.AbsFV.absFV, EraseProof.AbsFV.absFV_inst,
+    EraseProof.AbsFV.absFV_foldl, EraseProof.AbsFV.absFV_getAppFn,
+    EraseProof.AbsFV.absFV_eq_const, EraseProof.AbsFV.Rel, EraseProof.AbsFV.Rel.zero,
+    EraseProof.AbsFV.Rel.pushLam, EraseProof.AbsFV.Rel.cons}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-TrM, def:EraseProof-DepClosed}
+  \srcloc{proof/EraseProof/Bridge/Abstract.lean}{152}
+  \lead{In short} Abstracting a free variable \code{x} into a bound variable \hl{keeps the
+  translation}, when the two lists of locals are related by \code{AbsFV.Rel}.
+  \begin{itemize}
+  \item \code{absFV x d}: \code{x} becomes the bound variable \code{d}; it inverts the opening
+        with \code{x} on a term that does not mention \code{x} (\code{absFV\_inst});
+  \item \code{TrM.absN}: given \code{TrM E B lps $\Gamma$ $\Delta_2$ e t} and \code{Rel x d
+        $\Delta_2$ $\Delta_1$}, then \code{TrM E B lps $\Gamma$ $\Delta_1$ (absFV x d e) t}.
+  \end{itemize}
+  \lead{Reference} lean4lean \code{TrExprS.uninstantiateN}.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-TrLevel, def:EraseProof-SatTr, def:EraseProof-natLitM,
+    def:EraseProof-TypedExt, lem:EraseProof-TrM-weakBV}
+  \leanok
+  \lead{Idea} Induction on the derivation, with the locals related by \code{AbsFV.Rel}.
+\end{proof}
+
+\begin{lemma}[The builders under substitution]
+  \label{lem:EraseProof-SatTr-subst}
+  \lean{EraseProof.SatTr.subst, EraseProof.wrapCase_subst, EraseProof.projProofTerm_subst,
+    EraseProof.natLitM_subst, EraseProof.mapM_option_of_eq_some, EraseProof.Subst.liftN_ge,
+    EraseProof.Subst.liftN₃_ge}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-SatTr, def:EraseProof-natLitM}
+  \srcloc{proof/EraseProof/Bridge/Subst.lean}{191}
+  \lead{In short} Every rule of \code{SatTr}, Metalean's \code{wrapCase}, \code{projProofTerm} and
+  \code{natLitM} \hl{commute with substitution}.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-TrLevel, lem:EraseProof-ctorSat_iota}
+  \leanok
+  \lead{Idea} Unfolding of the builders, with Metalean's lifting lemmas for case telescopes.
+\end{proof}
+
+\begin{lemma}[Universe instantiation]
+  \label{lem:EraseProof-TrM-instLevels}
+  \lean{EraseProof.TrM.instLevels, EraseProof.TrM.instL, EraseProof.SatTr.instL,
+    EraseProof.RecrLevels.instL, EraseProof.LevelsExt.TypedExt.instL, EraseProof.MLDecl.instL,
+    EraseProof.MLCtx.instL, EraseProof.MLCtx.findB_instL, EraseProof.MLCtx.findF_instL,
+    EraseProof.MLCtx.instL_pushLam, EraseProof.TrLevel_instLevel, EraseProof.TrLevels_instLevel,
+    EraseProof.mapM_TrLevel_instLevel, EraseProof.TrLevels_get, EraseProof.find_zip_of_finIdxOf,
+    EraseProof.mapM_option_get, EraseProof.instLevels_foldl, EraseProof.instLevels_getAppFn,
+    EraseProof.instLevels_eq_const, EraseProof.mapM_option_map, EraseProof.rename?_instL,
+    EraseProof.permuteAux?_succ, EraseProof.permuteAux?_instL, EraseProof.permute?_instL,
+    EraseProof.natLitM_instL, EraseProof.wrapCase_instL, EraseProof.indTerm_instL,
+    EraseProof.quotTerm_instL, EraseProof.ctorTerm_instL, EraseProof.leanCaseType_instL,
+    EraseProof.toOption_eq_some, EraseProof.except_bind_eq_ok, EraseProof.leanCaseBinders_succ,
+    EraseProof.leanCaseBinders_instL, EraseProof.recrTerm_instL, EraseProof.projProofTerm_instL}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-TrLevel, def:EraseProof-SatTr,
+    def:EraseProof-natLitM, def:EraseProof-TypedExt, def:EraseProof-TrM,
+    def:Erasure-Pure-instLevels}
+  \srcloc{proof/EraseProof/Bridge/Levels.lean}{310}
+  \lead{In short} \code{Pure.instLevels lps' us e} translates to \hl{the translation of \code{e}
+  with its universe parameters instantiated}, when \code{TrLevels lps us = some ls}.
+  \begin{itemize}
+  \item \code{instLevels}: closed terms, \code{t\{ls\}};
+  \item \code{instL}: under binders and locals, the context and the locals instantiated too;
+  \item the five term builders of Metalean's translator commute with instantiation.
+  \end{itemize}
+  \lead{Reference} \leandecl{Metalean.Defeq.instLevel}; the shipping \code{Pure.instLevels}.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-TrM-weakBV, lem:EraseProof-SatTr-subst, lem:EraseProof-ctorSat_iota}
+  \leanok
+  \lead{Idea} Induction on the derivation; each builder by unfolding, each level by
+  \code{TrLevel\_instLevel}.
+\end{proof}
+
+\begin{lemma}[Congruence in two contexts]
+  \label{lem:EraseProof-DCong-defeq}
+  \lean{EraseProof.DCong.defeq, EraseProof.DCong, EraseProof.CtxConv, EraseProof.DCong.wkFrom,
+    EraseProof.DCong.wk, EraseProof.DCong.subst, EraseProof.DCong.typeEq_wk,
+    EraseProof.DCong.CtxConv.refl, EraseProof.DCong.CtxConv.snoc,
+    EraseProof.DCong.CtxConv.transport, EraseProof.DCong.ind_type_inj,
+    EraseProof.DCong.ctor_defeq, EraseProof.recr_major, EraseProof.CongRed.frameSubst,
+    EraseProof.CongRed.plug_subst, EraseProof.CongRed.WHRed.subst,
+    EraseProof.CongRed.WHRedS.subst}
+  \leanok
+  \srcloc{proof/EraseProof/Bridge/Cong.lean}{223}
+  \lead{In short} \code{DCong E $\Gamma_1$ $\Gamma_2$ t$_1$ t$_2$}: the same shape in two contexts,
+  definitional equality at the leaves; congruent terms are \hl{definitionally equal at every type
+  of the first}.
+  \begin{itemize}
+  \item \lead{Given} \code{EnvWF E}, \code{E[$\Gamma_1$] $\vdash$ ok}, \code{CtxConv E $\Gamma_1$
+        $\Gamma_2$} (entries equal as types), \code{E[$\Gamma_1$] $\vdash$ t$_1$ : T};
+  \item \lead{Then} \code{E[$\Gamma_1$] $\vdash$ t$_1$ $\equiv$ t$_2$ : T};
+  \item projections of congruent majors are leaves decided by typing.
+  \end{itemize}
+  \lead{Reference} \leandecl{Metalean.Defeq.uniqTy}; Metalean's congruence rules of
+  \code{Defeq}.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-natLitM, lem:EraseProof-SatTr-subst}
+  \leanok
+  \lead{Idea} Induction on \code{DCong}, inverting the typing at each former and anchoring the
+  congruence rule at the inversion's components.
+\end{proof}
+
+\begin{lemma}[Translations agree]
+  \label{lem:EraseProof-TrM-dcong}
+  \lean{EraseProof.TrM.dcong, EraseProof.TrM.wf_app, EraseProof.DCong.defeq₂,
+    EraseProof.SatTr.dcong, EraseProof.LocCong, EraseProof.LocCong.refl,
+    EraseProof.LocCong.pushLam, EraseProof.LocCong.cons, EraseProof.TrDet.appList,
+    EraseProof.TrDet.wrapCase_ok, EraseProof.TrDet.wrapCase_dcong,
+    EraseProof.TrDet.projProofTerm_dcong, EraseProof.TrDet.rel_append, EraseProof.TrDet.rel_ofFn,
+    EraseProof.TrDet.RecrLevels.det, EraseProof.TrDet.TrLevels.det, EraseProof.ne_mkAppN_const,
+    EraseProof.specialHead_of_app}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-TrLevel, def:EraseProof-SatTr,
+    def:EraseProof-natLitM, def:EraseProof-TrM, lem:EraseProof-DCong-defeq}
+  \srcloc{proof/EraseProof/Bridge/Det.lean}{338}
+  \lead{In short} Two translations of one term \hl{are congruent}, and congruent typed terms are
+  definitionally equal.
+  \begin{itemize}
+  \item \code{dcong}: given \code{TrM \ldots\ $\Gamma_1$ $\Delta_1$ e t$_1$}, \code{TrM \ldots\
+        $\Gamma_2$ $\Delta_2$ e t$_2$} and \code{LocCong E $\Gamma_1$ $\Gamma_2$ $\Delta_1$
+        $\Delta_2$}; then \code{DCong E True $\Gamma_1$ $\Gamma_2$ t$_1$ t$_2$};
+  \item \code{DCong.defeq$_2$}: congruent terms, each typed in its own well-formed context, are
+        definitionally equal at every type of the first;
+  \item \code{wf\_app}: a typed translation of \code{.app f a} (\code{f} not special) is
+        \code{.app f' a'} with \code{f'}, \code{a'} typed translations.
+  \end{itemize}
+  \lead{Reference} lean4lean \code{TrExprS.uniq}, \code{TrExprS.wf}.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-TypedExt, lem:EraseProof-TrM-weakBV, lem:EraseProof-SatTr-subst,
+    lem:EraseProof-ctorSat_iota}
+  \leanok
+  \lead{Idea} Induction on the first translation; the two differ only where the translation
+  chooses by typing, a projection's levels and parameters, which \code{DCong.defeq$_2$} fixes from
+  the majors' types.
+\end{proof}
+
+\begin{lemma}[Saturation of translated spines]
+  \label{lem:EraseProof-TrM-apps}
+  \lean{EraseProof.TrM.apps, EraseProof.TrM.special_inv, EraseProof.SatTr.append,
+    EraseProof.indEta_sat, EraseProof.quotEta_sat, EraseProof.ctorEta_sat, EraseProof.recrEta_sat,
+    EraseProof.orderMaps_inv, EraseProof.TrApps.whredS_appList, EraseProof.TrApps.closed_lam_apps,
+    EraseProof.TrApps.appList_append, EraseProof.TrApps.ofFn_take, EraseProof.TrApps.eta_appList,
+    EraseProof.TrApps.split_at, EraseProof.forall₂_getElem?, EraseProof.eq_mkAppN_of_getAppFn}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-TrLevel, def:EraseProof-SatTr, def:EraseProof-TrM}
+  \srcloc{proof/EraseProof/Bridge/Apps.lean}{346}
+  \lead{In short} A translation applied to translated arguments \hl{weak-head reduces to the
+  translation of the Lean application}.
+  \begin{itemize}
+  \item \lead{Given} \code{TrM \ldots\ f f'} and \code{TrM \ldots} of each argument;
+  \item \lead{Then} some \code{t} translates \code{mkAppN f as} and \code{E $\vdash$ f'.appList as'
+        $\leadsto^*$ t}.
+  \end{itemize}
+  \lead{Why} an $\eta$-term applied past its arity $\beta$-reduces to the saturated node the
+  translator builds.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-natLitM, def:EraseProof-TypedExt, lem:EraseProof-TrM-weakBV,
+    lem:EraseProof-SatTr-subst, lem:EraseProof-TrM-instLevels, lem:EraseProof-TrM-dcong,
+    lem:EraseProof-ctorSat_iota}
+  \leanok
+  \lead{Idea} One lemma per builder (\code{indEta\_sat}, \code{ctorEta\_sat}, \code{recrEta\_sat},
+  \code{quotEta\_sat}), then \code{SatTr.append}.
+\end{proof}
+
+\begin{lemma}[Substitution]
+  \label{lem:EraseProof-TrM-inst}
+  \lean{EraseProof.TrM.inst, EraseProof.TrM.inst_let, EraseProof.InstPre.PreTr,
+    EraseProof.InstPre.PreTr.ofTrM, EraseProof.InstPre.PreTr.subst,
+    EraseProof.InstPre.PreTr.special_inv, EraseProof.InstPre.PreTr.app_special,
+    EraseProof.InstPre.PreTr.instA, EraseProof.InstPre.PreTr.recover, EraseProof.InstPre.MLCtx.Subs,
+    EraseProof.InstPre.MLCtx.Subs.pushLam, EraseProof.InstPre.MLCtx.Subs.cons,
+    EraseProof.InstPre.MLCtx.Subs.bv, EraseProof.InstPre.MLCtx.Subs.lt,
+    EraseProof.InstPre.MLCtx.InstA, EraseProof.InstPre.MLCtx.InstA.pushLam,
+    EraseProof.InstPre.MLCtx.InstA.cons, EraseProof.InstPre.split_ofFn,
+    EraseProof.InstPre.SatTr.replace, EraseProof.InstPre.SatTr.args_typed,
+    EraseProof.InstPre.liftLooseBVars'_succ, EraseProof.InstPre.Cg, EraseProof.InstPre.Cg.wk,
+    EraseProof.InstPre.projTerm_cg, EraseProof.InstPre.Thin, EraseProof.InstPre.Thin.id,
+    EraseProof.InstPre.Thin.comp, EraseProof.InstPre.Thin.lift, EraseProof.InstPre.Thin.append,
+    EraseProof.InstPre.wk_rename_lift, EraseProof.InstPre.get_append_castLE,
+    EraseProof.InstPre.appList_inv, EraseProof.InstPre.apps_inv, EraseProof.InstPre.ctxLam_inv,
+    EraseProof.InstPre.wrapCase_shape, EraseProof.InstPre.vars_lift}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-SatTr, def:EraseProof-TrM}
+  \srcloc{proof/EraseProof/Bridge/Inst.lean}{929}
+  \lead{In short} Instantiating a translated binder translates \hl{up to definitional equality}.
+  \begin{itemize}
+  \item \code{inst}: given \code{EnvWF E}, \code{E[$\Gamma$] $\vdash$ ok}, constructor field
+        orders of Metalean's form (\code{hord}), \code{TrM ($\Gamma$.snoc A) \ldots\ b b'},
+        \code{TrM $\Gamma$ $\Delta$ a a'}, \code{E[$\Gamma$] $\vdash$ a' : A}, \code{E[$\Gamma$.snoc A]
+        $\vdash$ b' : T}; then some \code{t} translates \code{b.instantiate1' a} and
+        \code{E[$\Gamma$] $\vdash$ t $\equiv$ b'.inst a' : T.inst a'};
+  \item \code{inst\_let}: the same for a \code{let} body.
+  \end{itemize}
+  \lead{Why up to $\equiv$} a substituted partial spine lets the translator saturate it, where the
+  substituted translation is its $\eta$-term applied.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-TrLevel, def:EraseProof-natLitM, def:EraseProof-TypedExt,
+    lem:EraseProof-TrM-weakBV, lem:EraseProof-SatTr-subst, lem:EraseProof-DCong-defeq,
+    lem:EraseProof-TrM-dcong, lem:EraseProof-TrM-apps}
+  \leanok
+  \lead{Idea} A pre-translation \code{PreTr} without typing premises survives the substitution
+  (\code{instA}); \code{recover} re-derives each projection's \code{TypedExt} from the typed
+  image.
+\end{proof}
+
+\begin{lemma}[Subject expansion of the \texorpdfstring{$\eta$}{eta}-terms]
+  \label{lem:EraseProof-SatTr-typed}
+  \lean{EraseProof.SatTr.typed, EraseProof.SatTr.app_defeq, EraseProof.SatTyped.closed_lam_apps,
+    EraseProof.SatTyped.appList_defeq, EraseProof.SatTyped.substN_id,
+    EraseProof.SatTyped.argTele_eq, EraseProof.SatTyped.indEta_defeq,
+    EraseProof.SatTyped.quotTypeEta_defeq, EraseProof.SatTyped.wk_subst_lift,
+    EraseProof.SatTyped.var_wk, EraseProof.SatTyped.compatType_subst,
+    EraseProof.SatTyped.compatType_wk, EraseProof.SatTyped.minorType_subst,
+    EraseProof.SatTyped.minorType_wk, EraseProof.SatTyped.trans_at,
+    EraseProof.SatTyped.quotMkEta_defeq, EraseProof.SatTyped.quotLiftEta_defeq,
+    EraseProof.SatTyped.quotIndEta_defeq, EraseProof.SatTyped.prefix_typed,
+    EraseProof.SatTyped.eta_prefix, EraseProof.SatTyped.liftMap?_ok,
+    EraseProof.SatTyped.rename?_subst, EraseProof.SatTyped.permuteAux?_entry,
+    EraseProof.SatTyped.orderMaps?_inv, EraseProof.SatTyped.ctor_fieldSubst,
+    EraseProof.SatTyped.append_append_natAdd, EraseProof.SatTyped.append_append_lt,
+    EraseProof.SatTyped.ctorEta_defeq}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-SatTr}
+  \srcloc{proof/EraseProof/Bridge/SatTyped.lean}{845}
+  \lead{In short} If the image of a saturating spine is typed, \hl{the image of every prefix is
+  typed}, and one more argument applied to a prefix's image is $\equiv$ the spine's image.
+  \begin{itemize}
+  \item \lead{Given} \code{EnvWF E}, \code{E[R] $\vdash$ ok}; for a constructor, its
+        $\eta$-term typed in the empty context (\code{h$\eta$}); for a recursor, no partial
+        prefix of a saturated spine (\code{hr});
+  \item \lead{Then} \code{SatTr.typed}: the prefix's image is typed; \code{SatTr.app\_defeq}:
+        the prefix's image applied to the argument is $\equiv$ the spine's image.
+  \end{itemize}
+  \lead{Why \code{hr}} such a prefix's image types the minors outside \code{wrapCase}, which
+  needs strengthening; Lemma~\ref{lem:EraseProof-Pure-inferType_recr} covers saturated recursor
+  spines instead.
+  \lead{Reference} \code{type\_of\_typing} (\code{PCUICSafeRetyping.v}); inversion of $\beta$.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-TrLevel, lem:EraseProof-TrM-instLevels, lem:EraseProof-TrM-dcong,
+    lem:EraseProof-TrM-apps, lem:EraseProof-TrM-inst, lem:EraseProof-ctorSat_iota}
+  \leanok
+  \lead{Idea} A saturated prefix is a prefix of the node's application; a shorter one is the
+  $\eta$-term applied, whose application to the node's arguments is $\equiv$ the node (one lemma
+  per builder; for constructors the permuted field telescope, \code{ctorEta\_defeq}).
+\end{proof}
+
+\section{Declarations}\label{sec:model-env}
+
+\begin{definition}[Program environments]
+  \label{def:EraseProof-ProgEnv}
+  \lean{EraseProof.ProgEnv, EraseProof.ConstTyped, EraseProof.BindsExt,
+    EraseProof.IndBlock, EraseProof.IndBlock.decls, EraseProof.quotKindOf, EraseProof.peelForalls,
+    EraseProof.QuotShape}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-SatTr, def:EraseProof-TrM, def:Erasure-casesInfo,
+    def:EraseProof-ConstsIn}
+  \srcloc{proof/EraseProof/Spec.lean}{511}
+  \lead{In short} \code{ProgEnv P $\zeta$ E B}: the Lean declarations \code{P} (newest first) are
+  \hl{those of the Metalean environment \code{E}}, named by \code{B}, as Metalean's loader builds
+  it.
+  \begin{itemize}
+  \item every rule: the declaration's name is fresh and its universe parameters are
+        distinct;
+  \item \code{axiom}, \code{defn}: safe, their types (and values) translate; a definition is not
+        recursive (\code{all = [name]});
+  \item \code{opaque}: safe, its type and \hl{its value translate, the value typed at the
+        type};
+  \item \code{thm}: a Metalean opaque whose type is a proposition; \hl{its value does not mention
+        the theorem's own name} (\code{ConstsIn});
+  \item \code{induct}: a block (\code{IndBlock}): types, constructors with their field orders,
+        recursors with the block's counts, \hl{each own minor premise with
+        \code{nfields + 2 * nrecFields} binders} (\code{minors}); the type of every constant
+        translates (\code{ConstTyped}); not nested, not unsafe;
+  \item \code{IndBlock.ctorType}: under its \code{nparams + numFields} leading $\Pi$s
+        (\code{peelForalls}) a constructor's Lean type is \code{I.\{lps\} params indices};
+  \item \code{IndBlock.recrType}: under its \code{recrEnd s} leading $\Pi$s a recursor's Lean type
+        is \code{motive\_s indices major};
+  \item \code{IndBlock.indexVars}: \hl{a field that Metalean's block uses as an index variable is
+        a Lean index field} (\code{indexFields});
+  \item \code{quot}: the four constants, with \code{Eq} bound as Metalean requires, each with its
+        Lean kind and, for \code{Quot}, \code{Quot.mk} and \code{Quot.lift}, the type shape of
+        Lean's kernel (\code{QuotShape}).
+  \end{itemize}
+  \lead{Why \code{minors}} the recognizer reads a minor's arity from the syntax of the recursor's
+  type, which \code{TrM} ties to Metalean only up to \code{mdata}: without the clause, a domain
+  wrapped in \code{mdata} gets a bogus \code{casesOn} recognized.
+  \lead{Why no self-reference} Metalean keeps no value for theorems: without the premise, a
+  theorem \code{o := o} is loadable and takes the traversal's fixpoint branch; Lean's kernel never
+  admits it.
+  \lead{Why the opaque's value} Metalean keeps none, but the eraser emits it, and \code{ErasesDecl}
+  relates it; a value mentioning a constant outside \code{P} is loadable otherwise. The kernel
+  checks the value (\code{add\_opaque}), and the translation implies \code{ConstsIn}.
+  \lead{Why distinct universe parameters} \code{TrLevel} maps a repeated name to its first
+  position, so with \code{lps = [u, u]} the $\eta$-rule of a constructor would equate
+  \code{Sort 1} and \code{Sort 0}; Lean's kernel rejects repeated universe parameters.
+  \lead{Why the constructor type shape} \code{ConstTyped} ties a type to Metalean's only up to
+  $\equiv$, which admits \code{I.mk : $\Pi$ (h : True), I True.intro} by proof irrelevance; the
+  proof-irrelevant $\iota$ needs the parameters syntactically, as the kernel checks them
+  (\code{is\_valid\_ind\_app}).
+  \lead{Why \code{indexVars}} Lean's kernel decides large elimination by the field's syntactic
+  occurrence among the result's arguments (\code{elim\_only\_at\_universe\_zero}), Metalean by
+  \code{targetIndices}. Without it, \code{I : Nat $\to$ Prop} with \code{mk (n : Nat) : I (id n)}
+  eliminates into every sort, and \code{visitCases} erases a match returning \code{n} to $\Box$.
+  \lead{Why the recursor type shape} the oracle's type of a saturated recursor spine is then
+  syntactically the motive's application, so its minors need no typing; the kernel generates
+  exactly this type (\code{declare\_recursors}).
+  \lead{Reference} \leanfile{Metalean/Checker/Slow/Loader.lean}; lean4lean's \code{TrEnv'}.
+\end{definition}
+
+\begin{lemma}[Environment weakening]
+  \label{lem:EraseProof-TrM-wkEnv}
+  \lean{EraseProof.TrM.wkEnv, EraseProof.TrM.head_bound, EraseProof.SatTr.wkEnv,
+    EraseProof.WkEnvExt.TypedExt.wkEnv, EraseProof.SatTr.cast, EraseProof.recrLevels_wk,
+    EraseProof.MBinding.wk_isSpecial, EraseProof.Fin.append_map, EraseProof.get_there_block,
+    EraseProof.get_there_eqHead, EraseProof.get_there_defValue, EraseProof.wkS, EraseProof.envS,
+    EraseProof.MLDecl.map, EraseProof.MLCtx.envMap, EraseProof.MLDecl.denote_map,
+    EraseProof.MLCtx.findB_envMap, EraseProof.MLCtx.findF_envMap, EraseProof.MLCtx.pushLam_envMap,
+    EraseProof.Fin.mapM_option_map, EraseProof.rename?_map, EraseProof.permuteAux?_succ_wk,
+    EraseProof.permuteAux?_map, EraseProof.permute?_map, EraseProof.wrapCase_map,
+    EraseProof.indTerm_map, EraseProof.quotTerm_map, EraseProof.option_bind_some,
+    EraseProof.fieldVars_eq, EraseProof.ctorTerm_map, EraseProof.leanCaseType_map,
+    EraseProof.leanCaseBinders_succ_wk, EraseProof.leanCaseBinders_map,
+    EraseProof.except_toOption_map, EraseProof.recrTerm_map, EraseProof.natLitM_map,
+    EraseProof.projProofTerm_map}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-SatTr, def:EraseProof-natLitM,
+    def:EraseProof-TypedExt, def:EraseProof-TrM}
+  \srcloc{proof/EraseProof/Bridge/WkEnv.lean}{539}
+  \lead{In short} A translation in \code{E} and \code{B} stays one \hl{after a new environment
+  entry}, of the weakened term, when the new table agrees with the old one, weakened, on the old
+  names.
+  \begin{itemize}
+  \item the builders of Metalean's translator commute with weakening along the environment.
+  \end{itemize}
+  \lead{Reference} MetaRocq \code{weakening\_env}; \leandecl{Metalean.Defeq.map}.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-TrLevel, lem:EraseProof-TrM-weakBV}
+  \leanok
+  \lead{Idea} Induction on the derivation; each builder by naturality along the environment map.
+\end{proof}
+
+\begin{lemma}[Lookup in a program]
+  \label{lem:EraseProof-ProgEnv-lookup}
+  \lean{EraseProof.ProgEnv.fresh, EraseProof.ProgEnv.lookup, EraseProof.ProgEnv.lookup_def,
+    EraseProof.ProgEnv.lookup_ctor, EraseProof.ProgEnv.lookup_ind, EraseProof.ProgEnv.metaOrderOK,
+    EraseProof.ProgEnv.bound, EraseProof.IndBlock.mem_decls, EraseProof.findDecl_cons,
+    EraseProof.findDecl_append, EraseProof.findDecl_eq_some, EraseProof.not_mem_of_findDecl_none,
+    EraseProof.set_wk_ne, EraseProof.quot_names_reverse, EraseProof.ProgEnv.set_ext,
+    EraseProof.ProgEnv.ext_ext, EraseProof.ProgEnv.levelParams_nodup, EraseProof.instLevel_self}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-SatTr, def:EraseProof-TrM, def:EraseProof-ProgEnv,
+    def:Erasure-Pure-instLevels, def:EraseProof-ConstsIn}
+  \srcloc{proof/EraseProof/Bridge/ProgEnv.lean}{75}
+  \lead{In short} Given \code{ProgEnv P $\zeta$ E B}, every declaration of \code{P} is
+  \hl{bound in \code{B} with its translation}.
+  \begin{itemize}
+  \item \code{fresh}: the names of \code{P} are distinct;
+  \item \code{lookup}: given also \code{EnvWF E}, some binding, and \code{ConstTyped E B ci};
+  \item \code{lookup\_def}: a definition is a Metalean \code{def} whose value translates its value;
+  \item \code{lookup\_ctor}, \code{lookup\_ind}: constructors and inductives with their counts
+        and field orders;
+  \item \code{metaOrderOK}: every constructor binding has Metalean's field order;
+  \item \code{levelParams\_nodup}: the universe parameters of every declaration are distinct;
+  \item \code{set\_ext}, \code{ext\_ext}: each step of \code{ProgEnv} keeps the old bindings,
+        weakened.
+  \end{itemize}
+  \lead{Why \code{EnvWF E}} \code{ProgEnv} translates types without typing them: the axiom
+  \code{a : (Sort 0) (Sort 0)} satisfies it.
+  \lead{Reference} MetaRocq \code{declared\_constant}, \code{on\_global\_env}.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-TrM-wkEnv}
+  \leanok
+  \lead{Idea} Induction on \code{ProgEnv}, weakening the binding table at each entry; the type is
+  typed by \code{EntryWF} of its entry.
+\end{proof}
+
+\begin{lemma}[Quotient constants in a program]
+  \label{lem:EraseProof-ProgEnv-lookup_quot}
+  \lean{EraseProof.ProgEnv.lookup_quot, EraseProof.ProgEnv.quot_bound,
+    EraseProof.ProgEnv.quot_head_unique, EraseProof.ProgEnv.quot_levels, EraseProof.quotLevels,
+    EraseProof.quotTerm_levels, EraseProof.SatTr.quot_levels, EraseProof.TrM.wf_app_quot,
+    EraseProof.split_last, EraseProof.MBinding.wk_quot_inv, EraseProof.Binds.wk_quot_inv,
+    EraseProof.ProgEnv.quot_shape, EraseProof.satTr_quot_typed, EraseProof.TrM.quot_args_typed}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-SatTr, def:EraseProof-TrM, def:EraseProof-ProgEnv,
+    def:EraseProof-ConstsIn}
+  \srcloc{proof/EraseProof/Bridge/Quot.lean}{40}
+  \lead{In short} Given \code{ProgEnv P $\zeta$ E B}, the quotient constants of \code{P} are
+  \hl{bound to one Metalean quotient entry}, each at its kind.
+  \begin{itemize}
+  \item \code{lookup\_quot}, \code{quot\_bound}: a quotient constant and its binding, at the same
+        kind, one of the four quotient names;
+  \item \code{quot\_head\_unique}: all quotient names share one entry, so the quotient $\iota$
+        applies to \code{Quot.lift \ldots\ (Quot.mk \ldots)};
+  \item \code{quot\_levels}, \code{quotLevels}: the kind's number of universe parameters;
+  \item \code{TrM.wf\_app\_quot}: an over-applied saturated quotient spine translates as an
+        application;
+  \item \code{quot\_shape}: the kinds and type shapes of \code{QuotShape};
+  \item \code{satTr\_quot\_typed}, \code{TrM.quot\_args\_typed}: the arguments of a quotient
+        spine are typed.
+  \end{itemize}
+  \lead{Reference} \code{quotTerm} of \leanfile{Metalean/Frontend/Translate.lean}.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-TrLevel, lem:EraseProof-TrM-weakBV, lem:EraseProof-TrM-instLevels,
+    lem:EraseProof-TrM-apps, lem:EraseProof-ProgEnv-lookup}
+  \leanok
+  \lead{Idea} Induction on \code{ProgEnv}; its quotient step binds the fixed list of four names to
+  one entry.
+\end{proof}
+
+\begin{lemma}[The \texorpdfstring{$\delta$}{delta} equation]
+  \label{lem:EraseProof-ProgEnv-unfold}
+  \lean{EraseProof.ProgEnv.unfold, EraseProof.ProgEnv.unfold_delta}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-TrLevel, def:EraseProof-TrM,
+    def:EraseProof-ProgEnv, def:Erasure-Pure-instLevels, def:EraseProof-EvalEnv,
+    def:EraseProof-ConstsIn}
+  \srcloc{proof/EraseProof/Bridge/Unfold.lean}{20}
+  \lead{In short} If \code{$\sigma$.unfold? c = some (ci, b)} and \code{TrM \ldots\ (.const c us)
+  t}, then \code{t} \hl{reduces in one weak-head step} to a translation of
+  \code{Pure.instLevels ci.levelParams us b}.
+  \lead{Reference} \code{WHRed.delta} (\leanfile{Metalean/Syntax/Reduction.lean}); MetaRocq
+  \code{eval\_delta}.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-SatTr, def:EraseProof-natLitM, def:EraseProof-TypedExt,
+    lem:EraseProof-TrM-weakBV, lem:EraseProof-TrM-instLevels, lem:EraseProof-ProgEnv-lookup}
+  \leanok
+  \lead{Idea} \code{lookup\_def}, then \code{TrM.instLevels} and \code{WHRed.delta}.
+\end{proof}
+
+\begin{lemma}[The permutation of fields]
+  \label{lem:EraseProof-ctorSat_iota}
+  \lean{EraseProof.ctorSat_iota, EraseProof.Ctx.lam_apps_whred, EraseProof.mapM_option_eq_some,
+    EraseProof.appList_ofFn, EraseProof.appList_eq_apps, EraseProof.caseSubst_eq}
+  \leanok
+  \uses{def:EraseProof-SatTr}
+  \srcloc{proof/EraseProof/Bridge/Perm.lean}{141}
+  \lead{In short} A minor wrapped by \code{wrapCase}, applied to the Metalean fields and the
+  induction hypotheses, \hl{reduces to the minor applied to the fields in Lean order}.
+  \lead{Why} Metalean stores recursive fields last; the permutation is confined to the bridge.
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} $\beta$-steps through the $\lambda$-telescope \code{wrapCase} builds
+  (\code{Ctx.lam\_apps\_whred}); the case substitution reads the fields back.
+\end{proof}
+
+\begin{lemma}[The shape of a recognized \texorpdfstring{\code{casesOn}}{casesOn}]
+  \label{lem:EraseProof-casesOn_shape}
+  \lean{EraseProof.casesOn_shape, EraseProof.CasesShape.isBVarAt_iff,
+    EraseProof.CasesShape.isConstAt_iff, EraseProof.CasesShape.spine_mkAppN}
+  \leanok
+  \uses{def:Erasure-casesInfo, def:EraseProof-EvalEnv, def:EraseProof-ConstsIn}
+  \srcloc{proof/EraseProof/Bridge/Cases.lean}{61}
+  \lead{In short} The checks of the recognizer \code{casesInfo?}, \hl{as statements}: what
+  \code{$\sigma$.casesOn? c = some iv} says of \code{c}'s value.
+  \begin{itemize}
+  \item \code{c = T.casesOn}, a definition; \code{T} the inductive \code{iv}, its recursor in
+        the declarations;
+  \item the value is $\lambda$s over the recursor saturated at its level parameters, with the
+        parameter, motive, index and major binders in place;
+  \item each own minor, peeled to its arity read from the recursor's type, is the canonical
+        body.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-TrM-weakBV, lem:EraseProof-ProgEnv-lookup, def:Erasure-findConst}
+  \leanok
+  \lead{Idea} Unfolding of the recognizer; \code{isBVarAt} and \code{isConstAt} as equations.
+\end{proof}
+
+\begin{lemma}[The \texorpdfstring{\code{casesOn}}{casesOn} chain]
+  \label{lem:EraseProof-casesOn_whred}
+  \lean{EraseProof.casesOn_whred, EraseProof.casesOnLit_whred,
+    EraseProof.CasesWhred.casesOn_whred_core, EraseProof.CasesWhred.casesOn_whred_spine,
+    EraseProof.CasesWhred.casesOnLit_whred_spine, EraseProof.CasesWhred.BlockAt,
+    EraseProof.CasesWhred.BlockAt.there, EraseProof.CasesWhred.ProgEnv.block,
+    EraseProof.CasesWhred.ProgEnv.blockIdx, EraseProof.CasesWhred.IndexVarsAt,
+    EraseProof.CasesWhred.IndexVarsAt.there, EraseProof.CasesWhred.trM_lit_ctors,
+    EraseProof.CasesWhred.FieldsPerm, EraseProof.CasesWhred.NotThere,
+    EraseProof.CasesWhred.wk_eq_ind, EraseProof.CasesWhred.wk_eq_ctor,
+    EraseProof.CasesWhred.name_recInfo, EraseProof.CasesWhred.name_ctorInfo,
+    EraseProof.CasesWhred.name_inductInfo, EraseProof.CasesWhred.findDecl_of_nodup,
+    EraseProof.CasesWhred.peelLams_succ, EraseProof.CasesWhred.pushLams,
+    EraseProof.CasesWhred.findB_pushLams_lt, EraseProof.CasesWhred.findB_pushLams_ge,
+    EraseProof.CasesWhred.forall₂_snoc, EraseProof.CasesWhred.ne_mkAppN_const,
+    EraseProof.CasesWhred.trM_lam_inv, EraseProof.CasesWhred.trM_peel,
+    EraseProof.CasesWhred.trM_spine_inv, EraseProof.CasesWhred.trM_recr_inv,
+    EraseProof.CasesWhred.trM_bvar_inv, EraseProof.CasesWhred.trM_const_inv,
+    EraseProof.CasesWhred.trM_lit_inv, EraseProof.CasesWhred.forall₂_getElem?,
+    EraseProof.CasesWhred.subst_appList, EraseProof.CasesWhred.append_elim0,
+    EraseProof.CasesWhred.append_val_left, EraseProof.CasesWhred.append_val_right,
+    EraseProof.CasesWhred.isMinorBody_spec, EraseProof.CasesWhred.fin_sum_eq,
+    EraseProof.CasesWhred.encodeSigma_val, EraseProof.CasesWhred.blockCtorCount_sum,
+    EraseProof.CasesWhred.ctorAlts_spec, EraseProof.CasesWhred.forall₂_of_getElem?,
+    EraseProof.CasesWhred.order_fields, EraseProof.CasesWhred.appList_whredS,
+    EraseProof.CasesWhred.lams_beta}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-TrLevel, def:EraseProof-SatTr,
+    def:EraseProof-natLitM, def:EraseProof-TrM, def:EraseProof-ProgEnv, def:Erasure-casesInfo,
+    def:EraseProof-EvalEnv, def:EraseProof-SrcEval, def:EraseProof-ConstsIn}
+  \srcloc{proof/EraseProof/Bridge/CasesWhred.lean}{1011}
+  \lead{In short} For a saturated recognized \code{T.casesOn} whose major is a constructor value,
+  the translation \hl{reduces to a translation of the chosen alternative} applied to the fields.
+  \begin{itemize}
+  \item \lead{Given} \code{ProgEnv P $\zeta$ E B}, \code{SubEnv $\sigma$.decls P},
+        \code{$\sigma$.casesOn? c = some iv}, the major a \code{CtorValue} of constructor $i$, and
+        \code{TrM} of the spine to \code{t};
+  \item \lead{Then} \code{E $\vdash$ t $\leadsto^*$ t'} with \code{t'} a translation of
+        \code{alt$_i$ fs};
+  \item \code{casesOnLit\_whred}: the same on a \code{Nat} literal major, zero or successor
+        branch.
+  \end{itemize}
+  \lead{Reference} MetaRocq \code{eval\_iota}.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-TypedExt, lem:EraseProof-TrM-weakBV, lem:EraseProof-SatTr-subst,
+    lem:EraseProof-TrM-instLevels, lem:EraseProof-TrM-apps, lem:EraseProof-ProgEnv-lookup,
+    lem:EraseProof-ctorSat_iota, lem:EraseProof-casesOn_shape, lem:EraseProof-proj_defeq,
+    def:Erasure-findConst}
+  \leanok
+  \lead{Idea} $\delta$ on \code{casesOn}, $\beta$ over its telescope, $\iota$ on the recursor,
+  $\beta$ through the minor that permutes the fields back; \code{IndBlock.minors} matches the
+  recognizer's arities to $\iota$'s.
+\end{proof}
+
+\begin{lemma}[Projection of a constructor]
+  \label{lem:EraseProof-proj_defeq}
+  \lean{EraseProof.proj_defeq, EraseProof.TrM.ctor_inv, EraseProof.projProofTerm_ctor_whredS,
+    EraseProof.caseOrdinary_apps_whredS, EraseProof.Ctx.lam_apps_whredS,
+    EraseProof.field_of_order}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-SatTr, def:EraseProof-natLitM, def:EraseProof-TrM,
+    def:EraseProof-ProgEnv, def:EraseProof-EvalEnv, def:EraseProof-SrcEval,
+    def:EraseProof-ConstsIn}
+  \srcloc{proof/EraseProof/Bridge/Proj.lean}{170}
+  \lead{In short} A typed translation of \code{.proj S i m}, with \code{m} a constructor value,
+  is \hl{definitionally equal to a translation of the field} \code{fs[i]}.
+  \lead{Reference} \code{IsStructure.projTerm\_ctor\_defeq}
+  (\leanfile{Metalean/Metatheory/SubjectReduction.lean}); MetaRocq \code{eval\_proj}.
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-TrLevel, def:EraseProof-TypedExt, lem:EraseProof-TrM-weakBV,
+    lem:EraseProof-ProgEnv-lookup}
+  \leanok
+  \lead{Idea} \code{IsStructure.projTerm\_ctor\_defeq} for structures; for proof projections,
+  $\iota$ then $\beta$ (\code{projProofTerm\_ctor\_whredS}).
+\end{proof}
+
+\section{No-confusion of type formers}\label{sec:model-noconf}
+
+Metalean states the injectivity of each type former but no disequality between two of them. The
+lemmas follow from Metalean's domain model: a type equality equates the interpretations of both
+sides, and each head contributes an atom that no other head's interpretation contains.
+
+\begin{lemma}[Sort, \texorpdfstring{$\Pi$}{Pi} and inductive types differ]
+  \label{lem:EraseProof-TypeEq-sort_ne_forallE}
+  \lean{EraseProof.TypeEq.sort_ne_forallE, EraseProof.TypeEq.sort_ne_ind,
+    EraseProof.TypeEq.forallE_ne_ind}
+  \leanok
+  \srcloc{proof/EraseProof/Metatheory/NoConf.lean}{25}
+  \lead{In short} In a well-formed environment and context, \hl{a sort, a $\Pi$-type and an
+  inductive type are pairwise unequal as types}.
+  \begin{itemize}
+  \item \lead{Given} \code{hE : EnvWF E} and \code{h$\Delta$ : E[$\Delta$] $\vdash$ ok};
+  \item \lead{Then} \code{$\neg$ E[$\Delta$] $\vdash$ .sort l $\equiv$ .forallE t$_1$ t$_1$'},
+        likewise for \code{.sort} against \code{.ind} and \code{.forallE} against \code{.ind}; the
+        other orientations follow by symmetry.
+  \end{itemize}
+  \lead{Reference} MetaRocq \code{ws\_cumul\_pb\_Sort\_Prod\_inv},
+  \code{invert\_cumul\_sort\_ind}, \code{invert\_cumul\_prod\_ind}
+  (\code{pcuic/theories/PCUICConversion.v}).
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} \leandecl{Metalean.TypeEq.rawInterpret_eq} equates the interpretations; one side
+  holds its head's atom, which the other side's ideal does not contain.
+  \lead{Steps}
+  \begin{enumerate}
+  \item invert the typing of each side (\code{Defeq.forallE\_inv}, \code{IndTyping.ofTyping});
+  \item show the atom (\code{sortAtom}, \code{piAtom}) is a member of its own interpretation;
+  \item rewrite with the equality and case on the order of shapes: only the bottom shape is below
+        another head's atom.
+  \end{enumerate}
+\end{proof}
+
+\begin{lemma}[Quotient types are no sort and no $\Pi$-type]
+  \label{lem:EraseProof-TypeEq-sort_ne_quot}
+  \lean{EraseProof.TypeEq.sort_ne_quot, EraseProof.TypeEq.forallE_ne_quot}
+  \leanok
+  \srcloc{proof/EraseProof/Metatheory/NoConf.lean}{80}
+  \lead{In short} In a well-formed environment and context, \hl{a quotient type equals no sort
+  or $\Pi$-type} as a type.
+  \begin{itemize}
+  \item \lead{Given} \code{hE : EnvWF E} and \code{h$\Delta$ : E[$\Delta$] $\vdash$ ok};
+  \item \lead{Then} \code{$\neg$ E[$\Delta$] $\vdash$ X $\equiv$ .quot $\theta$ u $\alpha$ r} for
+        \code{X} a sort or a $\Pi$-type.
+  \end{itemize}
+  \lead{Reference} none in MetaRocq: PCUIC has no primitive quotients.
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} As for the other heads, with the atom \code{quotAtom} of the quotient's
+  interpretation (\code{QuotTyping.ofTyping}).
+\end{proof}
+
+\section*{Caveats}
+\begin{itemize}
+\item \lead{Caveat} The bridge relates terms; it does not run Metalean's translator, whose
+  \code{partial} functions and unverified type inference stay outside the proof.
+\item \lead{Caveat} Recursor rules of Lean's declarations are not related: Metalean computes
+  $\iota$ from the inductive block, and no lemma reads them.
+\item \lead{Caveat} The quotient lemmas serve the quotient rules of the source semantics and the
+  simulation, which the final theorem covers.
+\end{itemize}
