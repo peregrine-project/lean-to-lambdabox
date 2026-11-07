@@ -143,6 +143,60 @@ theorem ctor_mem_of_casesOn? (hcl : DepClosed D) {c n : Name} {iv : InductiveVal
     (h : EvalEnv.casesOn? ⟨D, a⟩ c = some iv) (hn : n ∈ iv.ctors) : (findDecl D n).isSome :=
   (hcl _ (casesOn?_mem h)).2.2.1 iv rfl n hn
 
+/-- A `mapM` into `Option` that succeeds with `f` succeeds with the same results with any `g`
+that agrees with `f` on the list where `f` succeeds. -/
+theorem mapM_restrict {α β : Type} {f g : α → Option β} :
+    ∀ {l : List α} {r : List β}, (∀ x ∈ l, ∀ y, f x = some y → g x = some y) →
+      l.mapM f = some r → l.mapM g = some r
+  | [], _, _, h => h
+  | x :: l, r, hfg, h => by
+    simp only [List.mapM_cons, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
+      Option.some.injEq] at h ⊢
+    obtain ⟨y, hy, ys, hys, rfl⟩ := h
+    exact ⟨y, hfg x (.head _) y hy, ys, mapM_restrict (fun z hz => hfg z (.tail _ hz)) hys, rfl⟩
+
+/-- A result of a successful `mapM` is the image of an element. -/
+theorem mem_mapM {α β : Type} {f : α → Option β} :
+    ∀ {l : List α} {r : List β}, l.mapM f = some r → ∀ y ∈ r, ∃ x ∈ l, f x = some y
+  | [], r, h, y, hy => by simp at h; subst h; cases hy
+  | x :: l, r, h, y, hy => by
+    simp only [List.mapM_cons, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
+      Option.some.injEq] at h
+    obtain ⟨z, hz, zs, hzs, rfl⟩ := h
+    rcases List.mem_cons.1 hy with rfl | hy
+    · exact ⟨x, .head _, hz⟩
+    · obtain ⟨x', hx', h'⟩ := mem_mapM hzs y hy
+      exact ⟨x', .tail _ hx', h'⟩
+
+/-- The block of a recursor of the sub-environment, read in the program, is read the same in the
+sub-environment: its inductives and their constructors lie in it (`DepClosed`). -/
+theorem recBlock?_restrict (hsub : SubEnv D P) (hcl : DepClosed D) {c : Name} {rv : RecursorVal}
+    (hr : findDecl D c = some (.recInfo rv)) {r}
+    (h : EvalEnv.recBlock? ⟨P, a⟩ rv = some r) : EvalEnv.recBlock? ⟨D, a⟩ rv = some r := by
+  obtain ⟨-, -, -, -, hrall⟩ := hcl _ (findDecl_eq_some hr).1
+  have hall := hrall rv rfl
+  unfold EvalEnv.recBlock? at h ⊢
+  simp only [Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
+    Option.some.injEq] at h ⊢
+  obtain ⟨ivs, hivs, cvs, hcvs, rfl⟩ := h
+  refine ⟨ivs, mapM_restrict (fun t ht y hy => ?_) hivs, cvs,
+    mapM_restrict (fun x hx y hy => ?_) hcvs, rfl⟩
+  · unfold EvalEnv.indOf? at hy ⊢
+    rw [findDecl_agree hsub (hall t ht)]; exact hy
+  · obtain ⟨iv, hiv, hx'⟩ := List.mem_flatMap.1 hx
+    obtain ⟨t, ht, hti⟩ := mem_mapM hivs iv hiv
+    have hiv' : findDecl P t = some (.inductInfo iv) := by
+      revert hti
+      unfold EvalEnv.indOf?
+      cases findDecl P t with
+      | none => intro h; cases h
+      | some ci => cases ci <;> intro h <;> simp at h; subst h; rfl
+    rw [← findDecl_agree hsub (hall t ht)] at hiv'
+    obtain ⟨-, -, hctors, -, -⟩ := hcl _ (findDecl_eq_some hiv').1
+    unfold EvalEnv.ctorOf? at hy ⊢
+    rw [findDecl_agree hsub (hctors iv rfl x hx')]
+    exact hy
+
 end Restrict
 
 open Restrict Extend in
@@ -243,6 +297,37 @@ theorem SrcEval.restrict {decls P : List ConstantInfo} {e v : Expr} {view : EnvV
     obtain ⟨eb, hv⟩ := ihb (ConstsIn_instantiate1' (has' _ (by simp)) hfC.2)
     exact ⟨.quotLift ((findDecl_agree hsub hcD).trans hcq) hk ef eq
       ((findDecl_agree hsub hcD').trans hcq') hk' eb, hv⟩
+  | @recIota c rv T iv cvs motives minors maj mj k mi mk us v ps ms mins mvs fs rfs hcr hall hcT
+      hblk hni hshape hihs hps hms hmins hlm _ _ hcv hmi hmk hrfs _ ihmin ihmaj ihb =>
+    intro hc
+    have ⟨hcD, has⟩ := ConstsIn_mkAppN.1 hc
+    have hcr' := (findDecl_agree hsub hcD).trans hcr
+    have hmv : ∀ i m mv, mins[i]? = some m → mvs[i]? = some mv →
+        SrcEval (evalEnvOf view cfg decls) m mv ∧ ConstsIn (fun c => (findDecl decls c).isSome) mv :=
+      fun i m mv h1 h2 => ihmin i m mv h1 h2 (has m (by simp [mem h1]))
+    obtain ⟨em, hmjC⟩ := ihmaj (has _ (by simp))
+    obtain ⟨hcv', hfs⟩ := CtorValue.restrict hsub hcv hmjC
+    have hmvC : ∀ x ∈ mvs, ConstsIn (fun c => (findDecl decls c).isSome) x := fun x hx => by
+      obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hx
+      obtain ⟨m, hm⟩ : ∃ m, mins[i]? = some m := ⟨_, List.getElem?_eq_getElem (by omega)⟩
+      exact (hmv i m _ hm (List.getElem?_eq_getElem hi)).2
+    have hK : ConstsIn (fun c => (findDecl decls c).isSome) (mkAppN mk (fs ++ rfs.map fun f =>
+        mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray).toArray) := by
+      refine ConstsIn_mkAppN.2 ⟨hmvC _ (List.mem_of_getElem? hmk), fun x hx => ?_⟩
+      rcases List.mem_append.1 hx with hx | hx
+      · exact hfs x hx
+      · obtain ⟨f, hf, rfl⟩ := List.mem_map.1 hx
+        refine ConstsIn_mkAppN.2 ⟨hcD, fun y hy => ?_⟩
+        rcases List.mem_append.1 hy with hy | hy
+        · rcases List.mem_append.1 hy with hy | hy
+          · exact has y (List.mem_append_left _ (List.mem_append_left _ hy))
+          · exact hmvC y hy
+        · rw [List.mem_singleton.1 hy]
+          obtain ⟨h, -, hh⟩ := mem_mapM hrfs f hf
+          exact hfs f (List.mem_of_getElem? hh)
+    obtain ⟨eb, hv⟩ := ihb hK
+    exact ⟨.recIota hcr' hall hcT (recBlock?_restrict hsub hcl hcr' hblk) hni hshape hihs hps
+      hms hmins hlm (fun i m mv h1 h2 => (hmv i m mv h1 h2).1) em hcv' hmi hmk hrfs eb, hv⟩
   | proj _ hcv hfs ihm =>
     intro hc
     obtain ⟨em, hmv⟩ := ihm hc.2

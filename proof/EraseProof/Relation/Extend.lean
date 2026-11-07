@@ -267,7 +267,7 @@ theorem casesOn?_agree (hsub : SubEnv D P) (hcl : DepClosed D) {c : Name}
   next ci h => rw [findDecl_agree hsub (hci.2 ci h)]
   next => rfl
 
-variable {a : ConstantInfo → Bool}
+variable {a a' : ConstantInfo → Bool}
 
 /-- Constructor and `casesOn` arities agree on the sub-environment's names. -/
 theorem specialArity_agree (hsub : SubEnv D P) (hcl : DepClosed D) {c : Name}
@@ -346,6 +346,69 @@ theorem ctorFields_sub (hsub : SubEnv D P) {c : Name} {k : Nat}
   next cv hc => rw [findDecl_sub hsub hc]; exact h
   next => cases h
 
+/-- A `mapM` into `Option` that succeeds with `f` succeeds with the same results with any `g`
+that agrees with `f` where `f` succeeds. -/
+theorem mapM_sub {α β : Type} {f g : α → Option β} (hfg : ∀ x y, f x = some y → g x = some y) :
+    ∀ {l : List α} {r : List β}, l.mapM f = some r → l.mapM g = some r
+  | [], _, h => h
+  | x :: l, r, h => by
+    simp only [List.mapM_cons, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
+      Option.some.injEq] at h ⊢
+    obtain ⟨y, hy, ys, hys, rfl⟩ := h
+    exact ⟨y, hfg x y hy, ys, mapM_sub hfg hys, rfl⟩
+
+/-- The block of a recursor read in the sub-environment is the program's. -/
+theorem recBlock?_sub (hsub : SubEnv D P) {rv : RecursorVal} {r}
+    (h : EvalEnv.recBlock? ⟨D, a⟩ rv = some r) : EvalEnv.recBlock? ⟨P, a'⟩ rv = some r := by
+  unfold EvalEnv.recBlock? at h ⊢
+  simp only [Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def, Option.some.injEq] at h ⊢
+  obtain ⟨ivs, hivs, cvs, hcvs, rfl⟩ := h
+  refine ⟨ivs, mapM_sub (fun x y hx => ?_) hivs, cvs, mapM_sub (fun x y hx => ?_) hcvs, rfl⟩
+  · unfold EvalEnv.indOf? at hx ⊢
+    split at hx
+    next iv hiv => rw [findDecl_sub hsub hiv]; exact hx
+    next => cases hx
+  · unfold EvalEnv.ctorOf? at hx ⊢
+    split at hx
+    next cv hcv => rw [findDecl_sub hsub hcv]; exact hx
+    next => cases hx
+
+/-- The members of a recursor's block built in the sub-environment are the program's. -/
+theorem recMembers_sub (hsub : SubEnv D P) {minors : List RecMinor} :
+    ∀ {gi : Nat} {ivs : List InductiveVal} {xss : List (List Name)} {ms : List RecMember},
+      recMembers ⟨D, a⟩ minors gi ivs xss = some ms → recMembers ⟨P, a'⟩ minors gi ivs xss = some ms
+  | _, [], _, _, h => by simpa [recMembers] using h
+  | _, _ :: _, [], _, h => by simpa [recMembers] using h
+  | gi, iv :: ivs, xs :: xss, ms, h => by
+    simp only [recMembers, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
+      Option.some.injEq] at h ⊢
+    obtain ⟨indid, hid, masks, hmasks, rest, hrest, rfl⟩ := h
+    have hid' : IndIdOf ⟨P, a'⟩ iv.name = some indid := by
+      unfold IndIdOf at hid ⊢
+      dsimp only at hid ⊢
+      split at hid
+      next iv' hT => rw [findDecl_sub hsub hT]; exact hid
+      next => cases hid
+    refine ⟨indid, hid', masks, mapM_sub (fun x y hx => ?_) hmasks, rest, recMembers_sub hsub hrest,
+      rfl⟩
+    obtain ⟨k, hk, rfl⟩ := Option.map_eq_some_iff.1 hx
+    have hk' : ctorFields ⟨P, a'⟩ x = some k := by
+      unfold ctorFields at hk ⊢
+      dsimp only at hk ⊢
+      split at hk
+      next cv hc => rw [findDecl_sub hsub hc]; exact hk
+      next => cases hk
+    rw [hk']; rfl
+
+/-- A recursor's fixpoint read in the sub-environment is the program's. -/
+theorem RecFixOf.sub {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} (hsub : SubEnv D P)
+    {rv : RecursorVal} {us : List Level} {minors : List RecMinor} {F : LBTerm}
+    (h : RecFixOf E B ⟨D, a⟩ rv us minors F) : RecFixOf E B ⟨P, a'⟩ rv us minors F := by
+  obtain ⟨ivs, cvs, motives, members, T, ivT, j, direct, hb, hs, hl, hm, hT, hiv, hj, h1, h2, h3,
+    hF, hc, hx⟩ := h
+  exact ⟨ivs, cvs, motives, members, T, ivT, j, direct, recBlock?_sub hsub hb, hs, hl,
+    recMembers_sub hsub hm, hT, findDecl_sub hsub hiv, hj, h1, h2, h3, hF, hc, hx⟩
+
 /-- The η-expansion of a spine of the sub-environment is the program's, and its constants are in
 the sub-environment. -/
 theorem etaSpine?_sub (hsub : SubEnv D P) (hcl : DepClosed D) {c : Name} {us : List Level}
@@ -399,7 +462,7 @@ theorem Erases.extend {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} 
     (motive_2 := fun Γ Δ k e br _ => ConstsIn (fun c => (findDecl decls c).isSome) e →
       ErasesAlt E B lps (evalEnvOf view cfg P) Γ Δ k e br)
     ?bvar ?fvar ?lam ?letE ?app ?const ?ctor ?cases ?casesReduced ?eta ?proj ?litZero ?litSucc
-    ?quotMk ?quotLift ?mdata ?box ?done ?alam ?intro h hc
+    ?quotMk ?quotLift ?recLet ?recFix ?mdata ?box ?done ?alam ?intro h hc
   case bvar => intros; exact .bvar
   case fvar => intros; exact .fvar
   case lam => intro _ _ _ _ _ _ _ _ _ hA hAt _ ih hC; exact .lam hA hAt (ih hC.2)
@@ -460,6 +523,22 @@ theorem Erases.extend {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} 
     obtain ⟨-, has⟩ := ConstsIn_mkAppN.1 hC
     exact .quotLift (findDecl_sub hsub hcq) hk (ihf (has _ (by simp))) (ihq (has _ (by simp)))
       hlex fun i a a' ha ha' => ihe i a a' ha ha' (has a (by simp [mem ha]))
+  case recLet =>
+    intros; rename_i hcr hF hps hms hmins his hlm _ hli _ _ hle _ ihmin ihis ihmaj ihext hC
+    obtain ⟨-, has⟩ := ConstsIn_mkAppN.1 hC
+    exact .recLet (findDecl_sub hsub hcr) (RecFixOf.sub hsub hF) hps hms hmins his hlm
+      (fun i x x' h1 h2 => ihmin i x x' h1 h2 (has x (by simp [mem h1]))) hli
+      (fun i x x' h1 h2 => ihis i x x' h1 h2 (has x (by simp [mem h1])))
+      (ihmaj (has _ (by simp))) hle
+      (fun i x x' h1 h2 => ihext i x x' h1 h2 (has x (by simp [mem h1])))
+  case recFix =>
+    intros; rename_i hcr hF hps hms hmins his hlw _ hws hli _ _ hle _ ihmin ihis ihmaj ihext hC
+    obtain ⟨-, has⟩ := ConstsIn_mkAppN.1 hC
+    exact .recFix (findDecl_sub hsub hcr) (RecFixOf.sub hsub hF) hps hms hmins his hlw
+      (fun i x x' h1 h2 => ihmin i x x' h1 h2 (has x (by simp [mem h1]))) hws hli
+      (fun i x x' h1 h2 => ihis i x x' h1 h2 (has x (by simp [mem h1])))
+      (ihmaj (has _ (by simp))) hle
+      (fun i x x' h1 h2 => ihext i x x' h1 h2 (has x (by simp [mem h1])))
   case mdata => intro _ _ _ _ _ _ _ ih hC; exact .mdata (ih hC)
   case box => intro _ _ _ _ hb _; exact .box hb
   case done => intro _ _ _ _ _ _ ih hC; exact .done (ih hC)

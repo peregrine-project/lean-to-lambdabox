@@ -478,6 +478,28 @@ theorem not_casesReduced_map {iv : InductiveVal} {us : List Level} {lps' : List 
     · rw [← hl, isNeverZero_instLevel_map (fun _ => isNeverZero_instLevel) h'] at hz
       cases hz
 
+/-- A recursor's fixpoint survives instantiating the levels of the recursor: the case-free form is
+used when the major's sort may be zero, which instantiation does not change into never zero. -/
+theorem RecFixOf.instL {σ : EvalEnv} {rv : RecursorVal} {us : List Level} {minors : List RecMinor}
+    {F : LBTerm} {lps' : List Name} {us0 : List Level} (h : RecFixOf E B σ rv us minors F) :
+    RecFixOf E B σ rv (us.map (Pure.instLevel lps' us0)) minors F := by
+  obtain ⟨ivs, cvs, motives, members, T, ivT, j, direct, hb, hs, hl, hm, hT, hiv, hj, h1, h2, h3,
+    hF, hc, hx⟩ := h
+  refine ⟨ivs, cvs, motives, members, T, ivT, j, direct, hb, hs, hl, hm, hT, hiv, hj,
+    fun hd => ?_, h2, h3, hF, hc, hx⟩
+  obtain ⟨l, hl', hnz⟩ := h1 hd
+  unfold casesSortLevel at hl' ⊢
+  revert hl'
+  cases arityShape ivT.type with
+  | none => intro hl'; cases hl'
+  | some p =>
+    intro hl'
+    obtain ⟨_, u⟩ := p
+    simp only [Option.map_some, Option.some.injEq, List.length_map, ← List.map_drop] at hl' ⊢
+    refine ⟨_, rfl, ?_⟩
+    rw [← hl'] at hnz
+    exact isNeverZero_instLevel_map (fun _ => isNeverZero_instLevel) hnz
+
 /-- Constructor, recognized `casesOn` and quotient heads are constructors, definitions or quotient
 constants. -/
 theorem etaSpine?_kind {σ : EvalEnv} {c : Name} {us : List Level} {as : List Expr} {e' : Expr}
@@ -565,7 +587,7 @@ theorem Erases.instL_gen (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P)
     (motive_2 := fun Γ Δ k e br _ => LvlOK σ e →
       ErasesAlt E B lps σ (Γ{ls}) (Δ.instL ls) k (Pure.instLevels lps' us e) br)
     ?bvar ?fvar ?lam ?letE ?app ?const ?ctor ?cases ?casesReduced ?eta ?proj ?litZero ?litSucc
-    ?quotMk ?quotLift ?mdata ?box ?done ?alam ?intro h hok
+    ?quotMk ?quotLift ?recLet ?recFix ?mdata ?box ?done ?alam ?intro h hok
   case bvar => intros; exact .bvar
   case fvar => intros; exact .fvar
   case lam =>
@@ -640,6 +662,42 @@ theorem Erases.instL_gen (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P)
       fun i a a' ha ha' => ?_
     obtain ⟨a₀, ha₀, rfl⟩ := gmap ha
     exact ihe i a₀ a' ha₀ ha' (has a₀ (by simp [mem ha₀]))
+  case recLet =>
+    intro c rv uc minors F _ _ _ maj maj' ps ms mins is extra mins' is' extra' hcr hF hps hms hmins
+      his hlm _ hli _ _ hle _ ihmin ihis ihmaj ihext hok
+    have has := (LvlOK_mkAppN.1 hok).2
+    rw [instLevels_mkAppN, show (ps ++ ms ++ mins ++ is ++ [maj] ++ extra).map (Pure.instLevels lps' us) =
+      ps.map (Pure.instLevels lps' us) ++ ms.map (Pure.instLevels lps' us) ++
+        mins.map (Pure.instLevels lps' us) ++ is.map (Pure.instLevels lps' us) ++
+          [Pure.instLevels lps' us maj] ++ extra.map (Pure.instLevels lps' us) by simp]
+    refine .recLet hcr (RecFixOf.instL hF) (by simpa using hps) (by simpa using hms) (by simpa using hmins)
+      (by simpa using his) (by simpa using hlm) (fun i a a' ha ha' => ?_) (by simpa using hli)
+      (fun i a a' ha ha' => ?_) (ihmaj (has maj (by simp))) (by simpa using hle)
+      (fun i a a' ha ha' => ?_)
+    · obtain ⟨a₀, ha₀, rfl⟩ := gmap ha
+      exact ihmin i a₀ a' ha₀ ha' (has a₀ (by simp [mem ha₀]))
+    · obtain ⟨a₀, ha₀, rfl⟩ := gmap ha
+      exact ihis i a₀ a' ha₀ ha' (has a₀ (by simp [mem ha₀]))
+    · obtain ⟨a₀, ha₀, rfl⟩ := gmap ha
+      exact ihext i a₀ a' ha₀ ha' (has a₀ (by simp [mem ha₀]))
+  case recFix =>
+    intro c rv uc minors F _ _ _ maj maj' ps ms mins is extra ws is' extra' hcr hF hps hms hmins
+      his hlw _ hws hli _ _ hle _ ihmin ihis ihmaj ihext hok
+    have has := (LvlOK_mkAppN.1 hok).2
+    rw [instLevels_mkAppN, show (ps ++ ms ++ mins ++ is ++ [maj] ++ extra).map (Pure.instLevels lps' us) =
+      ps.map (Pure.instLevels lps' us) ++ ms.map (Pure.instLevels lps' us) ++
+        mins.map (Pure.instLevels lps' us) ++ is.map (Pure.instLevels lps' us) ++
+          [Pure.instLevels lps' us maj] ++ extra.map (Pure.instLevels lps' us) by simp]
+    refine .recFix hcr (RecFixOf.instL hF) (by simpa using hps) (by simpa using hms) (by simpa using hmins)
+      (by simpa using his) (by simpa using hlw) (fun i a a' ha ha' => ?_) hws (by simpa using hli)
+      (fun i a a' ha ha' => ?_) (ihmaj (has maj (by simp))) (by simpa using hle)
+      (fun i a a' ha ha' => ?_)
+    · obtain ⟨a₀, ha₀, rfl⟩ := gmap ha
+      exact ihmin i a₀ a' ha₀ ha' (has a₀ (by simp [mem ha₀]))
+    · obtain ⟨a₀, ha₀, rfl⟩ := gmap ha
+      exact ihis i a₀ a' ha₀ ha' (has a₀ (by simp [mem ha₀]))
+    · obtain ⟨a₀, ha₀, rfl⟩ := gmap ha
+      exact ihext i a₀ a' ha₀ ha' (has a₀ (by simp [mem ha₀]))
   case mdata => intro _ _ _ _ _ _ _ ih hok; exact .mdata (ih hok)
   case box =>
     intro _ _ _ _ hb _
