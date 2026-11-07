@@ -1,4 +1,5 @@
 import EraseProof.Bridge.CasesWhred
+import EraseProof.Bridge.Inst
 
 /-!
 # Reduction of a recursor on a constructor value
@@ -14,7 +15,7 @@ recursor's Lean type, which `IndBlock.recIHs` relates to Metalean's block. Refer
 -/
 
 open Lean Erasure
-open Metalean (WHRed WHRedS Head)
+open Metalean (WHRed WHRedS Head Defeq)
 
 namespace EraseProof
 
@@ -417,6 +418,166 @@ theorem recIota_whred {σ : EvalEnv} (henv : ProgEnv P ζ E B) (hsub : SubEnv σ
   refine ⟨t₃, ht₃, hiota.trans ?_⟩
   rw [hN, ← appList_ofFn, ← TrApps.appList_append]
   exact hred₃
+
+/-- `wrapCase` with the identity field order is the identity. -/
+theorem wrapCase_id {ι : Metalean.IndSig} (I : Metalean.Inductive ζ ι) (η : Head ζ (.inductive ι))
+    {ℓ n : Nat} (ls : Fin ι.nlevels → Metalean.Level ℓ) (ps : Fin ι.nparams → Metalean.Expr ζ ℓ n)
+    (ms : Fin ι.nsorts → Metalean.Expr ζ ℓ n) (t : Fin ι.nsorts) (c : Fin (ι.nctors t))
+    {minor w : Metalean.Expr ζ ℓ n}
+    (hw : Metalean.Frontend.wrapCase I η ls ps ms t c
+      (List.range ((ι.ctors t c).nfields + (ι.ctors t c).nrecFields)) minor = .ok w) :
+    w = minor := by
+  unfold Metalean.Frontend.wrapCase at hw
+  dsimp only at hw
+  rw [ite_eq_left (by simp [Metalean.Frontend.isIdentityOrder])] at hw
+  cases hw
+  rfl
+
+/-- When the recursive fields of a single inductive come last in each constructor (the shape of
+the source ι, `SrcEval.recIota`), Metalean's field orders are the identity: by `IndBlock.recIHs` the
+`k`-th recursive field is at the order's position `nfields + k`, and the order lists the ordinary
+fields first, in increasing Lean order (`MetaOrderOK`). -/
+theorem orders_identity {ζ₀ : Metalean.Sigs} {E₀ : Metalean.Env ζ₀} {B₀ : Binds ζ₀}
+    {ι : Metalean.IndSig} {η₀ : Head ζ₀ (.inductive ι)} {lps : List Name}
+    {Is : Fin ι.nsorts → InductiveVal} {Cs : (s : Fin ι.nsorts) → Fin (ι.nctors s) → ConstructorVal}
+    {Rs : Fin ι.nsorts → RecursorVal} {orders : (s : Fin ι.nsorts) → Fin (ι.nctors s) → List Nat}
+    (hIB : IndBlock E₀ B₀ η₀ lps Is Cs Rs orders) (s : Fin ι.nsorts) (hns : ι.nsorts = 1)
+    {motives : List (List Name)} {minors : List RecMinor}
+    (hshape : recShape (Rs s).numParams (Rs s).numMotives (Rs s).type
+      ((List.ofFn (Cs s)).map (·.numFields)) = some (motives, minors))
+    (hihs : ∀ mi ∈ minors, mi.ihs.map (fun h => (h.field, h.binders)) =
+      (List.range' (mi.fields.length - mi.ihs.length) mi.ihs.length).map fun f => (f, []))
+    (c : Fin (ι.nctors s)) :
+    orders s c = List.range ((ι.ctors s c).nfields + (ι.ctors s c).nrecFields) := by
+  obtain ⟨-, -, -, -, -, -, hRnp, hRnm, -, -⟩ := hIB.recr s
+  obtain ⟨motives', mins', hsh', -, hcl⟩ := hIB.recIHs s
+  have hinput : (List.ofFn (Cs s)).map (·.numFields) = (List.ofFn fun t => List.ofFn fun c =>
+      (ι.ctors t c).nfields + (ι.ctors t c).nrecFields).flatten := by
+    rw [ofFn_single hns s, List.flatten_singleton, List.map_ofFn]
+    congr 1
+    funext c
+    exact (hIB.ctor s c).2.2.2.2.2.1
+  rw [hinput, hRnp, hRnm, hsh'] at hshape
+  obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj hshape)
+  have hs0 : s.val = 0 := by have := s.isLt; omega
+  have hcl' := hcl s c
+  simp only [hs0, List.take_zero, List.sum_nil, Nat.zero_add] at hcl'
+  obtain ⟨mi, hmi, hmap⟩ := Option.map_eq_some_iff.1 hcl'
+  simp only [Prod.mk.injEq] at hmap
+  obtain ⟨hfl, hihl⟩ := hmap
+  have hih := hihs mi (List.mem_of_getElem? hmi)
+  have hnr : mi.ihs.length = (ι.ctors s c).nrecFields := by
+    simpa using congrArg List.length hihl
+  have hfj : ∀ j : Fin (ι.ctors s c).nrecFields,
+      (orders s c).getD ((ι.ctors s c).nfields + j.val) 0 = (ι.ctors s c).nfields + j.val := by
+    intro j
+    obtain ⟨h, hh⟩ : ∃ h, mi.ihs[j.val]? = some h :=
+      ⟨_, List.getElem?_eq_getElem (by rw [hnr]; exact j.isLt)⟩
+    have e1 := congrArg (·[j.val]?) hihl
+    simp only [List.getElem?_map, hh, Option.map_some, List.getElem?_ofFn, j.isLt,
+      ↓reduceDIte, Option.some.injEq, Prod.mk.injEq] at e1
+    have e2 := congrArg (·[j.val]?) hih
+    have hjr : j.val < (List.range' (mi.fields.length - mi.ihs.length) mi.ihs.length).length := by
+      simp [hnr]
+    simp only [List.getElem?_map, hh, Option.map_some] at e2
+    rw [List.getElem?_eq_getElem hjr, Option.map_some, Option.some.injEq, Prod.mk.injEq] at e2
+    rw [← e1.2.1, e2.1, List.getElem_range', hfl, hnr]
+    omega
+  obtain ⟨ords, recs, hord, hol, hrl, hop, -, hperm⟩ := (hIB.ctor s c).2.2.2.2.2.2.2
+  have hrecs : recs = List.range' (ι.ctors s c).nfields (ι.ctors s c).nrecFields := by
+    refine List.ext_getElem (by simp [hrl]) fun j h1 h2 => ?_
+    have := hfj ⟨j, by omega⟩
+    rw [hord, List.getD_eq_getElem?_getD, List.getElem?_append_right (by omega), hol,
+      Nat.add_sub_cancel_left, List.getElem?_eq_getElem h1] at this
+    simpa using this
+  have hrange : List.range ((ι.ctors s c).nfields + (ι.ctors s c).nrecFields) =
+      List.range (ι.ctors s c).nfields ++
+        List.range' (ι.ctors s c).nfields (ι.ctors s c).nrecFields := by
+    rw [List.range'_eq_map_range, List.range_add]
+  have hords : ords = List.range (ι.ctors s c).nfields := by
+    have hp := hperm
+    rw [hord, hrecs, hrange] at hp
+    exact List.Perm.eq_of_pairwise (fun _ _ _ _ h1 h2 => absurd (h1.trans h2) (Nat.lt_irrefl _))
+      hop List.pairwise_lt_range ((List.perm_append_right_iff _).1 hp)
+  rw [hord, hords, hrecs, ← hrange]
+
+/-- The arguments of a typed image of a recursor whose field orders are the identity are typed:
+the minors are then not wrapped. -/
+theorem satTr_recr_typed {lps : List Name} {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n}
+    {ι : Metalean.IndSig} {η : Head ζ (.inductive ι)} {s : Fin ι.nsorts}
+    {os : List (List (List Nat))} {us : List Level} {bs' : List (Metalean.Expr ζ lps.length n)}
+    {t T : Metalean.Expr ζ lps.length n} (hE : Metalean.EnvWF E) (hΓ : E[Γ] ⊢ ok)
+    (hsat : SatTr E lps (.recr η s os) us bs' t) (ht : E[Γ] ⊢ t : T)
+    (hid : ∀ (t : Fin ι.nsorts) (c : Fin (ι.nctors t)) mo, (os[t.val]?.bind (·[c.val]?)) = some mo →
+      mo = List.range ((ι.ctors t c).nfields + (ι.ctors t c).nrecFields)) :
+    ∀ a ∈ bs', ∃ A, E[Γ] ⊢ a : A := by
+  cases hsat with
+  | recrEta => exact (InstPre.appList_inv ht).2
+  | recrSat mo A rest mins hRL hls hmo hw =>
+    obtain ⟨⟨F, hF⟩, hrest⟩ := InstPre.appList_inv ht
+    obtain ⟨-, hps, hms, hmins, his, hmaj⟩ := Metalean.Defeq.recr_typed hE hΓ hF
+    intro a ha
+    rcases List.mem_append.1 ha with ha | ha
+    · obtain ⟨i, rfl⟩ := List.mem_ofFn.1 ha
+      obtain ⟨b, rfl⟩ := Metalean.IndSig.RecrBinder.resolve_surjective i
+      cases b with
+      | param p => exact ⟨_, hps p⟩
+      | motive t => exact ⟨_, hms t⟩
+      | case t c =>
+        have hw' := hw t c
+        rw [hid t c _ (hmo t c)] at hw'
+        rw [← wrapCase_id _ _ _ _ _ _ _ hw']
+        exact ⟨_, hmins t c⟩
+      | index i => exact ⟨_, his i⟩
+      | major => exact ⟨_, hmaj⟩
+    · exact hrest a ha
+
+/-- An application whose head is a recursor spine with at least its arity of arguments translates
+to the application of the translations (`saturate`, `ML Frontend/Translate.lean:226`, applies the
+node to the arguments beyond the arity). -/
+theorem TrM.wf_app_recr {lps : List Name} {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n}
+    {Δ : MLCtx ζ lps.length n} {c : Name} {us : List Level} {bs : List Lean.Expr} {a : Lean.Expr}
+    {ι : Metalean.IndSig} {η : Head ζ (.inductive ι)} {s : Fin ι.nsorts}
+    {os : List (List (List Nat))} {t T : Metalean.Expr ζ lps.length n}
+    (hb : B c = some (.recr η s os)) (hk : ι.recrEnd s ≤ bs.length)
+    (he : TrM E B lps Γ Δ (.app (mkAppN (.const c us) bs.toArray) a) t) (ht : E[Γ] ⊢ t : T) :
+    ∃ f' a', TrM E B lps Γ Δ (mkAppN (.const c us) bs.toArray) f' ∧ TrM E B lps Γ Δ a a' ∧
+      t = .app f' a' ∧ (∃ F, E[Γ] ⊢ f' : F) ∧ ∃ A, E[Γ] ⊢ a' : A := by
+  have hsnoc : Expr.app (mkAppN (.const c us) bs.toArray) a =
+      mkAppN (.const c us) (bs ++ [a]).toArray := by
+    rw [mkAppN_eq_foldl, mkAppN_eq_foldl, List.foldl_append]; rfl
+  rw [hsnoc] at he
+  obtain ⟨as', hlen, hargs, hsat⟩ := TrM.special_inv hb rfl he
+  obtain ⟨bs', a', rfl⟩ : ∃ bs' a', as' = bs' ++ [a'] := by
+    rcases as'.eq_nil_or_concat with h | ⟨L, x, h⟩
+    · subst h; simp at hlen
+    · exact ⟨L, x, by simp [h]⟩
+  simp only [List.length_append, List.length_singleton, Nat.add_right_cancel_iff] at hlen
+  have hargs' : ∀ (i : Nat) x x', bs[i]? = some x → bs'[i]? = some x' → TrM E B lps Γ Δ x x' :=
+    fun i x x' hx hx' => hargs i x x'
+      (by rw [List.getElem?_append_left (List.getElem?_eq_some_iff.mp hx).1]; exact hx)
+      (by rw [List.getElem?_append_left (List.getElem?_eq_some_iff.mp hx').1]; exact hx')
+  have ha : TrM E B lps Γ Δ a a' := hargs bs.length a a' (by simp) (by simp [hlen])
+  obtain ⟨f', hsat', rfl⟩ : ∃ f', SatTr E lps (.recr η s os) us bs' f' ∧ t = .app f' a' := by
+    have hk' : ι.recrEnd s ≤ bs'.length := hlen ▸ hk
+    generalize hl : bs' ++ [a'] = l at hsat
+    cases hsat with
+    | recrEta _ _ _ _ hlt _ => subst hl; rw [List.length_append, List.length_singleton] at hlt; omega
+    | recrSat mo A rest mins hRL hls hmo hw =>
+      have hle : (List.ofFn A).length ≤ bs'.length := by simpa using hk'
+      obtain ⟨r, hbs, hrest⟩ : ∃ r, bs' = List.ofFn A ++ r ∧ rest = r ++ [a'] := by
+        obtain ⟨r, hr⟩ : ∃ r, bs' = List.ofFn A ++ r :=
+          ⟨bs'.drop (List.ofFn A).length, by
+            have := congrArg (List.take (List.ofFn A).length) hl
+            rw [List.take_append_of_le_length hle, List.take_left' rfl] at this
+            conv_lhs => rw [← List.take_append_drop (List.ofFn A).length bs', this]⟩
+        subst hr
+        rw [List.append_assoc] at hl
+        exact ⟨r, rfl, (List.append_cancel_left hl).symm⟩
+      subst hbs hrest
+      exact ⟨_, .recrSat mo A r mins hRL hls hmo hw, by rw [TrApps.appList_append]; rfl⟩
+  obtain ⟨_, _, hf', ha', -⟩ := ht.app_inv
+  exact ⟨f', a', .special hb rfl hlen hargs' hsat', ha, rfl, ⟨_, hf'⟩, _, ha'⟩
 
 end RecWhred
 
