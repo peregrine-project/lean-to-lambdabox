@@ -1070,7 +1070,8 @@ def RecInFragment (cfg : ErasureConfig) (decls : List ConstantInfo) (r : Recurso
 /-- A declaration of the closure is inside the first-phase fragment (Phase I): every quotient
 constant; a recursor as `T.rec` of a recognized `T.casesOn` of the closure or of an inductive `T` of
 the closure with one constructor, or in the shape that `RecInFragment` admits; safe, with no `_unsafe_rec` companion (definitions and opaques: a `partial def` is an opaque with
-one) and no `implemented_by` target;
+one), except, under `structural := .kernel`, a definition by structural recursion
+(`Erasure.isStructuralRecursive`), and no `implemented_by` target;
 inductives not nested, of a sort that is syntactically `Prop`, never zero, or, when the traversal
 cannot eliminate them (`Eliminated`), not zero under every assignment (`PUnit`); when their
 `casesOn` is recognized, without a constructor field that is an index of the constructor's type
@@ -1084,7 +1085,8 @@ def PhaseIDecl (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo
     (∃ T iv, r.name = mkRecName T ∧ findDecl decls T = some (.inductInfo iv) ∧
       iv.ctors.length = 1) ∨
     RecInFragment cfg decls r
-  | .defnInfo d => d.safety = .safe ∧ view.find? (Compiler.mkUnsafeRecName d.name) = none ∧
+  | .defnInfo d => d.safety = .safe ∧ (view.find? (Compiler.mkUnsafeRecName d.name) = none ∨
+      (cfg.structural == .kernel && isStructuralRecursive (.defnInfo d)) = true) ∧
       view.implementedBy? d.name = none
   | .opaqueInfo o => o.isUnsafe = false ∧ view.find? (Compiler.mkUnsafeRecName o.name) = none ∧
       view.implementedBy? o.name = none

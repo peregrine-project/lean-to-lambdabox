@@ -367,7 +367,7 @@ theorem RA.inferType {P : α → Prop} {e : Expr} {k : Expr → EraseT PureM α}
     (fun _ _ hS hag => OracleAgree.inferType_agree (cx := ⟨pc.decls⟩) hcl hS hag oracleFuel [] e he (by simp)) hk
 
 theorem RA.whnf {P : α → Prop} {e : Expr} {k : Expr → EraseT PureM α} (he : FVarsIn S e)
-    (hk : ∀ w, (FVarsIn S w ∨ OracleAgree.RecTele pc.decls w) → RA pc cfg S P (k w)) :
+    (hk : ∀ w, FVarsIn S w → RA pc cfg S P (k w)) :
     RA pc cfg S P (read >>= fun c₁ => read >>= fun c₂ =>
       (_root_.liftM (Backend.whnf (m := PureM) c₁.lctx c₂.locals e) : EraseT PureM Expr) >>= k) :=
   RA.call (g := fun lctx ls => Backend.whnf (m := PureM) lctx ls e)
@@ -569,7 +569,7 @@ theorem RA.forallMonocular (hcl : ClosedDecls pc.decls) {P : α → Prop} {t : E
   · refine RA.whnf hcl ht fun w hw => ?_
     dsimp only
     split
-    · have hw' := OracleAgree.good_forallE (cx := ⟨pc.decls⟩) hw rfl
+    · have hw' : FVarsIn S (.forallE _ _ _ _) := hw
       exact RA.withLocalDecl hw'.1 fun x => hk x _ (OracleAgree.fvarsIn_inst
         (show FVarsIn (fun z => S z ∨ z = x) (.fvar x) from .inr rfl)
         (fvarsIn_mono (fun _ h => .inl h) hw'.2))
@@ -785,7 +785,7 @@ theorem value_good (hD : DeclsOK pc cfg) {n : Name} {ci : ConstantInfo}
     | opaqueInfo o => cases hv; exact .inr (.inr ⟨o, rfl, rfl⟩)
     | thmInfo t => exact absurd hc (hn.1 t)
     | axiomInfo | quotInfo | inductInfo | ctorInfo | recInfo => cases hv
-  exact ⟨OracleAgree.fvarsIn_false (hD.closed ci hmem v hread), hD.mf ci hmem v hread⟩
+  exact ⟨OracleAgree.fvarsIn_false (hD.closed ci hmem v (.inl hread)), hD.mf ci hmem v hread⟩
 
 /-- The value that `visitMutual`'s fix branch erases for a member of the block. -/
 theorem member_good (hD : DeclsOK pc cfg) {n : Name} {ci : ConstantInfo}

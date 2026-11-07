@@ -262,12 +262,17 @@ theorem whnf_constSpine {h : Name} {ci : ConstantInfo}
   | f + 1, _, w, _, _, .const, H => by
     rw [whnf_const_deltaFree hf hd] at H; cases H; rfl
   | f + 1, _, w, _, _, .app (f := g) (a := a) hg, H => by
-    rw [Pure.whnf] at H
-    obtain ⟨g', h1, h2⟩ := OracleWhnf.ok_of_bind H
+    obtain ⟨g', h1, h2⟩ := OracleWhnf.whnf_app_cases H
     have := whnf_constSpine hf hd hg h1; subst this
-    split at h2
-    · exact absurd rfl (hg.ne_lam _ _ _ _)
-    · cases h2; rfl
+    rcases h2 with ⟨_, _, _, _, hl, -⟩ | ⟨-, rfl | ⟨r, us, args, rv, minors, wa, e, hsp, hr, -⟩⟩
+    · exact absurd hl (hg.ne_lam _ _ _ _)
+    · rfl
+    · obtain ⟨args', hsp'⟩ := (ConstSpine.app (a := a) hg).spine_eq
+      rw [hsp'] at hsp
+      cases hsp
+      rw [hf] at hr
+      cases hr
+      simp [DeltaFree] at hd
 
 theorem whnf_propShape :
     ∀ {f : Nat} {T w : Expr}, PropShape cx.decls T → Pure.whnf cx f ls T = .ok w →
