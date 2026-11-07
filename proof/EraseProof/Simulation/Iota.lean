@@ -44,7 +44,7 @@ theorem mkAppN_inj {c c' : Name} {us us' : List Level} {as as' : List Expr}
   rw [mkAppN_eq_foldl, mkAppN_eq_foldl] at h
   exact foldl_app_const_inj h
 
-/-- An atom constant has no δ and is neither a constructor nor a recognized `casesOn`. -/
+/-- An atom constant has no δ and no arity. -/
 theorem isAtom_spec {c : Name} (h : σ.isAtom c = true) :
     σ.unfold? c = none ∧ specialArity σ c = none := by
   unfold EvalEnv.isAtom at h
@@ -62,10 +62,13 @@ theorem isAtom_spec {c : Name} (h : σ.isAtom c = true) :
     · rename_i qv hqv
       cases hqv
       cases hown
+    · rename_i rv hrv
+      cases hrv
+      cases hown
     · rw [hc]; rfl
   · cases h
 
-/-- A constructor or a recognized `casesOn` is no atom. -/
+/-- A constant with an arity is no atom. -/
 theorem special_not_atom {c : Name} {ar : Nat} (h : specialArity σ c = some ar) :
     σ.isAtom c = false := by
   cases ha : σ.isAtom c
@@ -81,19 +84,24 @@ theorem unfold_not_special {c : Name} {ci : ConstantInfo} {b : Expr}
   rw [hd, hco]
   rfl
 
-/-- A spine headed by a constructor or a recognized `casesOn` blocks application congruence. -/
+/-- A spine headed by a constant with an arity blocks application congruence, unless the constant
+is a recursor. -/
 theorem blocksCong_special {e : Expr} {c : Name} {us : List Level} {ar : Nat}
-    (he : e.getAppFn = .const c us) (har : specialArity σ c = some ar) : BlocksCong σ e := by
-  rcases SrcDefeq.specialArity_some har with ⟨cv, hcv, -⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, -⟩
-  · exact SrcDefeq.blocksCong_ctor he hcv
+    (he : e.getAppFn = .const c us) (har : specialArity σ c = some ar) :
+    BlocksCong σ e ∨ ∃ rv, findDecl σ.decls c = some (.recInfo rv) := by
+  rcases SrcDefeq.specialArity_some har with ⟨cv, hcv, -⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, -⟩ |
+    ⟨rv, hrv, -⟩
+  · exact .inl (SrcDefeq.blocksCong_ctor he hcv)
   · cases e with
-    | app f a => exact .inr (.inl ⟨c, us, iv, he, hiv⟩)
-    | const => exact .inr (.inl ⟨c, us, iv, he, hiv⟩)
+    | app f a => exact .inl (.inr (.inl ⟨c, us, iv, he, hiv⟩))
+    | const => exact .inl (.inr (.inl ⟨c, us, iv, he, hiv⟩))
     | _ => cases he
-  · exact SrcDefeq.blocksCong_quot he hqv
+  · exact .inl (SrcDefeq.blocksCong_quot he hqv)
+  · exact .inr ⟨rv, hrv⟩
 
-/-- The evaluations of a spine headed by a constructor or a recognized `casesOn`, with at most its
-arity of arguments: the η-expansion, a saturated constructor, or a saturated `casesOn`. -/
+/-- The evaluations of a spine headed by a constant with an arity, with at most its arity of
+arguments: the η-expansion, a saturated constructor, a saturated `casesOn`, a saturated quotient
+constant or a saturated recursor. -/
 theorem eval_spine_inv {c : Name} {us : List Level} {as : List Expr} {w : Expr} {ar : Nat}
     (h : SrcEval σ (mkAppN (.const c us) as.toArray) w) (har : specialArity σ c = some ar)
     (hle : as.length ≤ ar) :
@@ -103,7 +111,9 @@ theorem eval_spine_inv {c : Name} {us : List Level} {as : List Expr} {w : Expr} 
       (∀ (i : Nat) a v, as[i]? = some a → vs[i]? = some v → SrcEval σ a v) ∧
       w = mkAppN (.const c us) vs.toArray) ∨
     (∃ iv, σ.casesOn? c = some iv ∧ as.length = casesArity iv) ∨
-    (∃ qv, findDecl σ.decls c = some (.quotInfo qv) ∧ quotEvalArity qv.kind = some as.length) := by
+    (∃ qv, findDecl σ.decls c = some (.quotInfo qv) ∧ quotEvalArity qv.kind = some as.length) ∨
+    (∃ rv, findDecl σ.decls c = some (.recInfo rv) ∧
+      as.length = rv.numParams + rv.numMotives + rv.numMinors + rv.numIndices + 1) := by
   have hfn := SrcDefeq.getAppFn_mkAppN_const c us as
   generalize hx : mkAppN (.const c us) as.toArray = x at h hfn
   cases h with
@@ -127,14 +137,11 @@ theorem eval_spine_inv {c : Name} {us : List Level} {as : List Expr} {w : Expr} 
     exact .inr (.inr (.inl ⟨_, hcs, hlen⟩))
   | quotMk hc hk | quotLift hc hk =>
     obtain ⟨rfl, rfl, rfl⟩ := mkAppN_inj hx
-    exact .inr (.inr (.inr ⟨_, hc, by rw [hk]; rfl⟩))
-  | recIota hcr =>
-    obtain ⟨rfl, -, -⟩ := mkAppN_inj hx
-    rcases SrcDefeq.specialArity_some har with ⟨cv, hcv, -⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, -⟩
-    · rw [hcr] at hcv; cases hcv
-    · obtain ⟨d, hd⟩ := SrcDefeq.casesOn?_defn hiv
-      rw [hcr] at hd; cases hd
-    · rw [hcr] at hqv; cases hqv
+    exact .inr (.inr (.inr (.inl ⟨_, hc, by rw [hk]; rfl⟩)))
+  | recIota hcr _ _ _ hni _ _ hps hms hmins =>
+    obtain ⟨rfl, rfl, rfl⟩ := mkAppN_inj hx
+    refine .inr (.inr (.inr (.inr ⟨_, hcr, ?_⟩)))
+    simp only [List.length_append, List.length_singleton, hps, hms, hmins, hni]
   | zeta | proj | projProp | lit | mdata => cases hfn
   | atom ha =>
     cases w <;> simp [SrcAtom, Expr.getAppFn] at ha hfn
@@ -144,7 +151,7 @@ theorem eval_short {c : Name} {us : List Level} {as : List Expr} {w : Expr} {ar 
     (h : SrcEval σ (mkAppN (.const c us) as.toArray) w) (har : specialArity σ c = some ar)
     (hlt : as.length < ar) : σ.etaSpine? c us as = some w := by
   rcases eval_spine_inv h har hlt.le with h | ⟨cv, vs, hc, hlen, -⟩ | ⟨iv, hiv, hl⟩ |
-    ⟨qv, hqv, hq⟩
+    ⟨qv, hqv, hq⟩ | ⟨rv, hrv, hl⟩
   · exact h
   · rw [show specialArity σ c = some (cv.numParams + cv.numFields) by
       unfold specialArity; rw [hc]] at har
@@ -155,6 +162,8 @@ theorem eval_short {c : Name} {us : List Level} {as : List Expr} {w : Expr} {ar 
     omega
   · rw [show specialArity σ c = quotEvalArity qv.kind by unfold specialArity; rw [hqv], hq] at har
     cases har
+    omega
+  · simp only [specialArity, hrv, Option.some.injEq] at har
     omega
 
 /-- λ, sort and Π evaluate to themselves only. -/
@@ -212,7 +221,7 @@ theorem fixed_ctor {c : Name} {us : List Level} {cv : ConstructorVal} {vs : List
   have har : specialArity σ c = some (cv.numParams + cv.numFields) := by
     unfold specialArity; rw [hc]
   rcases eval_spine_inv h har hlen.le with he | ⟨cv', ws, hc', -, hl, hev, rfl⟩ | ⟨iv, hiv, -⟩ |
-    ⟨qv, hqv, -⟩
+    ⟨qv, hqv, -⟩ | ⟨rv, hrv, -⟩
   · obtain ⟨ar, har', hlt⟩ := SimCases.etaSpine?_lt he
     rw [har] at har'; cases har'; omega
   · congr 2
@@ -227,6 +236,7 @@ theorem fixed_ctor {c : Name} {us : List Level} {cv : ConstructorVal} {vs : List
   · obtain ⟨d, hd⟩ := SrcDefeq.casesOn?_defn hiv
     rw [hc] at hd; cases hd
   · rw [hc] at hqv; cases hqv
+  · rw [hc] at hrv; cases hrv
 
 /-- A source value is not headed by a recursor. -/
 theorem srcValue_not_rec {e : Expr} (hv : SrcValue σ e) {c : Name} {us : List Level}
@@ -261,7 +271,9 @@ theorem fixed_app {f a : Expr} (hf : Fixed σ f) (ha : Fixed σ a) (hnb : ¬ Blo
       specialArity σ c = some ar → False := by
     intro c us as ar hx har
     obtain ⟨bs, -, rfl⟩ := SrcDefeq.spine_app hx.symm
-    exact hnb (blocksCong_special (SrcDefeq.getAppFn_mkAppN_const c us bs) har)
+    rcases blocksCong_special (SrcDefeq.getAppFn_mkAppN_const c us bs) har with hb | ⟨rv, hrv⟩
+    · exact hnb hb
+    · exact hnr _ _ _ (SrcDefeq.getAppFn_mkAppN_const c us bs) hrv
   generalize hx : Expr.app f a = x at h
   cases h with
   | beta _ hf' =>
@@ -855,18 +867,19 @@ theorem short_erases_inv {c : Name} {us : List Level} {as : List Lean.Expr} {ar 
     subst har
     simp at hlt
     omega
-  | recLet hcr | recFix hcr =>
-    obtain ⟨rfl, -, -⟩ := mkAppN_inj hx
-    rcases SrcDefeq.specialArity_some har with ⟨cv, hcv, -⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, -⟩
-    · rw [hcr] at hcv; cases hcv
-    · obtain ⟨d, hd⟩ := SrcDefeq.casesOn?_defn hiv
-      rw [hcr] at hd; cases hd
-    · rw [hcr] at hqv; cases hqv
+  | recLet hcr _ hps hms hmins his | recFix hcr _ hps hms hmins his =>
+    obtain ⟨rfl, -, rfl⟩ := mkAppN_inj hx
+    simp only [specialArity, hcr, Option.some.injEq] at har
+    subst har
+    simp only [List.length_append, List.length_singleton, hps, hms, hmins, his] at hlt
+    omega
   | app hns =>
-    rcases SrcDefeq.specialArity_some har with ⟨cv, hcv, -⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, hq⟩
+    rcases SrcDefeq.specialArity_some har with ⟨cv, hcv, -⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, hq⟩ |
+      ⟨rv, hrv, -⟩
     · exact absurd ⟨c, us, hfn, .inl ⟨cv, hcv⟩⟩ hns
     · exact absurd ⟨c, us, hfn, .inr (.inl (by rw [hiv]; rfl))⟩ hns
     · exact absurd ⟨c, us, hfn, .inr (.inr (.inl ⟨qv, hqv, by rw [hq]; rfl⟩))⟩ hns
+    · exact absurd ⟨c, us, hfn, .inr (.inr (.inr ⟨rv, hrv⟩))⟩ hns
   | const _ hsa =>
     obtain ⟨-, rfl, -⟩ := SrcDefeq.spine_const hx
     rw [hsa] at har; cases har
@@ -933,9 +946,10 @@ theorem appArg_step (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.d
   have hjoin : Expr.app (mkAppN (.const c us) as.toArray) f =
       mkAppN (.const c us) (as ++ [f]).toArray := by
     rw [mkAppN_eq_foldl, mkAppN_eq_foldl, List.foldl_append]; rfl
-  by_cases hrc : ∃ rv, findDecl σ.decls c = some (.recInfo rv)
-  · obtain ⟨rv, hrv⟩ := hrc
-    rcases Erases.rec_inv hrv hF with ⟨hF', hb⟩ |
+  by_cases hrc : ∃ rv, findDecl σ.decls c = some (.recInfo rv) ∧
+      rv.numParams + rv.numMotives + rv.numMinors + rv.numIndices + 1 ≤ as.length
+  · obtain ⟨rv, hrv, hge⟩ := hrc
+    rcases Erases.rec_inv hrv hge hF with ⟨hF', hb⟩ |
       ⟨minors, Fx, ps, ms, mins, is, maj, extra, mins', is', maj', extra', hRF, rfl, hps, hms,
         hmins, his, hlm, hmin, hli, his', hmaj, hle, hext, rfl⟩ |
       ⟨minors, Fx, ps, ms, mins, is, maj, extra, ws, is', maj', extra', hRF, rfl, hps, hms, hmins,
@@ -963,7 +977,7 @@ theorem appArg_step (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.d
       exact ⟨_, SimCases.specialArity_casesOn hiv⟩
     · obtain ⟨ar, har⟩ := Option.isSome_iff_exists.mp hq
       exact ⟨ar, by unfold specialArity; rw [hqv]; exact har⟩
-    · exact absurd ⟨rv, hrv⟩ hrc
+    · exact ⟨_, by unfold specialArity; rw [hrv]⟩
   by_cases hlt : as.length < ar
   · rcases short_erases_inv har hlt hF with ⟨hF', hb⟩ | ⟨e', heta, he'⟩
     · exact hbox hF' hb
@@ -1001,7 +1015,10 @@ theorem appArg_step (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.d
     rcases Nat.lt_or_eq_of_le (show as.length + 1 ≤ ar by omega) with h1 | h1
     · exact .eta (hs1 h1) hinst
     · rw [← hs2 h1]; exact hinst
-  · rcases SrcDefeq.specialArity_some har with ⟨cv, hcv, rfl⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, hq⟩
+  · rcases SrcDefeq.specialArity_some har with ⟨cv, hcv, rfl⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, hq⟩ |
+      ⟨rv, hrv, rfl⟩
+    pick_goal 4
+    · exact absurd ⟨rv, hrv, by omega⟩ hrc
     rotate_left 2
     · rcases Erases.quot_inv hqv hq (by omega) hF with ⟨hF', hb⟩ |
         ⟨α, r, a, extra, a', extra', hk, rfl, ha, hlex, hext, rfl⟩ |

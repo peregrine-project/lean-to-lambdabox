@@ -86,68 +86,6 @@ theorem etaSpine?_lt {c : Name} {us : List Level} {as : List Expr} {e' : Expr}
     · cases h
   · cases h
 
-/-- A spine headed by a recursor evaluates only with at least the recursor's arity of arguments:
-by `SrcEval.recIota`, at the arity, or as the head of an application. -/
-theorem rec_spine_len {e w : Expr} (hev : SrcEval σ e w) :
-    ∀ {c : Name} {us : List Level} {bs : List Expr} {rv : RecursorVal},
-      e = mkAppN (.const c us) bs.toArray → findDecl σ.decls c = some (.recInfo rv) →
-      rv.numParams + rv.numMotives + rv.numMinors + rv.numIndices + 1 ≤ bs.length := by
-  have head : ∀ {c c' : Name} {us us' : List Level} {as bs : List Expr},
-      mkAppN (.const c' us') as.toArray = mkAppN (.const c us) bs.toArray → c' = c := by
-    intro c c' us us' as bs hx
-    rw [mkAppN_eq_foldl, mkAppN_eq_foldl] at hx
-    exact (foldl_app_const_inj hx).1
-  induction hev with
-  | beta _ _ _ _ ihf | appCong _ _ _ _ ihf =>
-    intro c us bs rv hx hr
-    obtain ⟨bs', rfl, rfl⟩ := SrcDefeq.spine_app hx.symm
-    have := ihf rfl hr
-    simp only [List.length_append, List.length_singleton]; omega
-  | delta hu =>
-    intro c us bs rv hx hr
-    obtain ⟨-, rfl, -⟩ := SrcDefeq.spine_const hx.symm
-    obtain ⟨d, hd⟩ := SrcDefeq.unfold?_defn hu
-    rw [hd] at hr; cases hr
-  | constAtom ha =>
-    intro c us bs rv hx hr
-    obtain ⟨-, rfl, -⟩ := SrcDefeq.spine_const hx.symm
-    unfold EvalEnv.isAtom at ha
-    rw [hr] at ha
-    simp [OwnRules] at ha
-  | eta he =>
-    intro c us bs rv hx hr
-    cases head hx
-    obtain ⟨ar, har, -⟩ := etaSpine?_lt he
-    rcases SrcDefeq.specialArity_some har with ⟨cv, hcv, -⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, -⟩
-    · rw [hr] at hcv; cases hcv
-    · obtain ⟨d, hd⟩ := SrcDefeq.casesOn?_defn hiv
-      rw [hr] at hd; cases hd
-    · rw [hr] at hqv; cases hqv
-  | ctor hc | quotMk hc | quotLift hc =>
-    intro c us bs rv hx hr
-    cases head hx
-    rw [hr] at hc; cases hc
-  | casesIota hcs | casesLitZero hcs | casesLitSucc hcs | casesProof hcs =>
-    intro c us bs rv hx hr
-    cases head hx
-    obtain ⟨d, hd⟩ := SrcDefeq.casesOn?_defn hcs
-    rw [hr] at hd; cases hd
-  | recIota hcr _ _ _ hni _ _ hps hms hmins =>
-    intro c us bs rv hx hr
-    rw [mkAppN_eq_foldl, mkAppN_eq_foldl] at hx
-    obtain ⟨rfl, -, rfl⟩ := foldl_app_const_inj hx
-    rw [hr] at hcr; cases hcr
-    simp only [List.length_append, List.length_singleton, hps, hms, hmins, hni]
-    omega
-  | zeta | proj | projProp | lit | mdata =>
-    intro c us bs rv hx
-    exact absurd hx (CasesWhred.ne_mkAppN_const fun _ _ h => by cases h)
-  | atom ha =>
-    rename_i e
-    intro c us bs rv hx
-    refine absurd hx (CasesWhred.ne_mkAppN_const fun _ _ h => ?_)
-    cases e <;> simp [SrcAtom, Expr.getAppFn] at ha h
-
 /-- An erasure of an application with more arguments than the arity of its head (no short
 spine), whose head is no constructor, is `□` or an application of erasures: a `casesOn` spine
 erased by `Erases.cases` or `Erases.casesReduced` has an extra argument, which is the last one.
@@ -155,9 +93,6 @@ Reference: `erases_mkApps_inv` (`MR E/ErasureProperties.v:105`). -/
 theorem app_inv {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n}
     {f a : Expr} {tb : LBTerm} (hns : ¬ ShortSpine σ (.app f a))
     (hnc : ∀ c us cv, f.getAppFn = .const c us → findDecl σ.decls c ≠ some (.ctorInfo cv))
-    (hrl : ∀ c us (bs : List Expr) rv, f = mkAppN (.const c us) bs.toArray →
-      findDecl σ.decls c = some (.recInfo rv) →
-      rv.numParams + rv.numMotives + rv.numMinors + rv.numIndices + 1 ≤ bs.length)
     (h : Erases E B lps σ Γ Δ (.app f a) tb) :
     (tb = .box ∧ ErasableS E B lps Γ Δ (.app f a)) ∨
       ∃ tf ta, tb = .app tf ta ∧ Erases E B lps σ Γ Δ f tf ∧ Erases E B lps σ Γ Δ a ta := by
@@ -243,10 +178,10 @@ theorem app_inv {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ l
       hmins his hlm hmin hli his' hmaj hlex hext =>
     rcases eq_nil_or_snoc extra with rfl | ⟨ex, y, rfl⟩
     · rw [List.append_nil] at hx
-      obtain ⟨bs, hbs, rfl⟩ := SrcDefeq.spine_app hx.symm
-      have := hrl c us bs rv rfl hcr
-      have := congrArg List.length hbs
-      simp only [List.length_append, List.length_singleton] at this
+      refine absurd (shortSpine_of
+        (ar := rv.numParams + rv.numMotives + rv.numMinors + rv.numIndices + 1) hx
+        (by simp [specialArity, hcr]) ?_) hns
+      simp only [List.length_append, List.length_singleton, hps, hms, hmins, his]
       omega
     obtain ⟨ex', y', rfl⟩ : ∃ ex' y', extra' = ex' ++ [y'] := by
       rcases eq_nil_or_snoc extra' with rfl | h
@@ -264,10 +199,10 @@ theorem app_inv {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ l
       hmins his hlw hmin hws hli his' hmaj hlex hext =>
     rcases eq_nil_or_snoc extra with rfl | ⟨ex, y, rfl⟩
     · rw [List.append_nil] at hx
-      obtain ⟨bs, hbs, rfl⟩ := SrcDefeq.spine_app hx.symm
-      have := hrl c us bs rv rfl hcr
-      have := congrArg List.length hbs
-      simp only [List.length_append, List.length_singleton] at this
+      refine absurd (shortSpine_of
+        (ar := rv.numParams + rv.numMotives + rv.numMinors + rv.numIndices + 1) hx
+        (by simp [specialArity, hcr]) ?_) hns
+      simp only [List.length_append, List.length_singleton, hps, hms, hmins, his]
       omega
     obtain ⟨ex', y', rfl⟩ : ∃ ex' y', extra' = ex' ++ [y'] := by
       rcases eq_nil_or_snoc extra' with rfl | h
@@ -325,10 +260,12 @@ theorem const_inv {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ
   | eta heta =>
     obtain ⟨-, rfl, -⟩ := SrcDefeq.spine_const hx.symm
     obtain ⟨ar, har, -⟩ := etaSpine?_lt heta
-    rcases SrcDefeq.specialArity_some har with ⟨cv, hcv, -⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, -⟩
+    rcases SrcDefeq.specialArity_some har with ⟨cv, hcv, -⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, -⟩ |
+      ⟨rv, hrv, -⟩
     · rw [hd] at hcv; cases hcv
     · rw [hco] at hiv; cases hiv
     · rw [hd] at hqv; cases hqv
+    · rw [hd] at hrv; cases hrv
   | bvar | fvar | lam | letE | app | proj | litZero | litSucc | mdata => cases hx
 
 /-- The translation of a λ: its binder's and body's translations. -/
@@ -524,10 +461,14 @@ theorem erases_correct_constAtom {c : Name} {us : List Level} (ha : σ.isAtom c 
   | eta heta =>
     obtain ⟨-, rfl, -⟩ := SrcDefeq.spine_const hx.symm
     obtain ⟨ar, har, -⟩ := etaSpine?_lt heta
-    rcases SrcDefeq.specialArity_some har with ⟨cv, hcv, -⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, -⟩
+    rcases SrcDefeq.specialArity_some har with ⟨cv, hcv, -⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, -⟩ |
+      ⟨rv, hrv, -⟩
     · exact absurd (.inl ⟨_, hcv⟩) hns
     · exact absurd (.inr (.inl ⟨_, hiv⟩)) hns
     · exact absurd (.inr (.inr ⟨_, hqv⟩)) hns
+    · unfold EvalEnv.isAtom at ha
+      rw [hrv] at ha
+      simp [OwnRules] at ha
   | bvar | fvar | lam | letE | app | proj | litZero | litSucc | mdata => cases hx
 
 /-- The `beta` case of `erases_correct`. The head is no saturating spine (its value would be a
@@ -565,7 +506,7 @@ theorem erases_correct_beta (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : Sub
     obtain ⟨ι, η, s, k, o, hB, -⟩ := henv.lookup_ctor (SrcDefeq.findDecl_sub hsub hc)
     obtain ⟨bs, rfl⟩ := eq_mkAppN_of_getAppFn hfn
     exact hnq c us bs _ rfl hB rfl (fun _ _ h => by cases h) fun _ _ _ _ h => by cases h
-  rcases app_inv hns hnc (fun _ _ _ _ hfe hrv => rec_spine_len hf hfe hrv) her with
+  rcases app_inv hns hnc her with
     ⟨rfl, hbx⟩ | ⟨tf, ta, rfl, herf, hera⟩
   · exact erases_correct_box henv hE hsub he ht hbx hev
   obtain ⟨f₀, a₀, hf₀, ha₀, rfl, ⟨F, hF⟩, ⟨A₁, hA₁⟩⟩ : ∃ f₀ a₀, TrM E B lps .nil [] f f₀ ∧
@@ -580,7 +521,7 @@ theorem erases_correct_beta (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : Sub
       · by_cases hr : ∃ (ι : Metalean.IndSig) (η : Metalean.Head ζ (.inductive ι))
             (s : Fin ι.nsorts) (os : List (List (List Nat))), bb = .recr η s os
         · obtain ⟨ι, η, s, os, rfl⟩ := hr
-          exact SrcDefeq.rec_app_tr henv hsub hb hf he ht
+          exact SrcDefeq.rec_app_tr henv hsub hb hf hns he ht
         · exact (hnq c us bs bb rfl hb hs (fun η k h => hq ⟨η, k, h⟩)
             fun ι η s os h => hr ⟨ι, η, s, os, h⟩).elim
     · exact TrM.wf_app hE hok hsp he ht
@@ -760,7 +701,7 @@ theorem erases_correct_delta (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : Su
       rcases hdecl with ⟨hax', -⟩ | ⟨-, b'', hcb, herb⟩
       · rw [hax] at hax'; cases hax'
       · obtain ⟨res, hres, hevres⟩ := ih hb' ⟨_, hd.right⟩
-          (Erases.instLevels henv hsub hls hval herb) (hbody b'' hcb)
+          (Erases.instLevels henv hE hsub hls hval herb) (hbody b'' hcb)
         exact ⟨res, hres, .delta hl hcb hevres⟩
   · exact erases_correct_box henv hE hsub he ht hbx hev
 
@@ -816,7 +757,7 @@ theorem erases_correct_appCong (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : 
       by_cases hr : ∃ (ι : Metalean.IndSig) (η : Metalean.Head ζ (.inductive ι))
           (s : Fin ι.nsorts) (os : List (List (List Nat))), bb = .recr η s os
       · obtain ⟨ι, η, s, os, rfl⟩ := hr
-        obtain ⟨f₀, a₀, hf₀, ha₀, -, hF, hA⟩ := SrcDefeq.rec_app_tr henv hsub hbb hf he ht
+        obtain ⟨f₀, a₀, hf₀, ha₀, -, hF, hA⟩ := SrcDefeq.rec_app_tr henv hsub hbb hf hns he ht
         exact ⟨f₀, a₀, hf₀, ha₀, hF, hA⟩
       obtain ⟨hk, vs, rfl, -⟩ := hspine c us bs bb rfl hbb hs (fun η k h => hq ⟨η, k, h⟩)
         (fun ι η s os h => hr ⟨ι, η, s, os, h⟩) (SrcDefeq.spine_cond hns)
@@ -837,7 +778,7 @@ theorem erases_correct_appCong (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : 
       · exact absurd (SrcDefeq.blocksCong_ctor (SrcDefeq.getAppFn_mkAppN_const c us vs) hcv) hnb
     · obtain ⟨f₀, a₀, hf₀, ha₀, -, hF, hA⟩ := TrM.wf_app hE hok hsp he ht
       exact ⟨f₀, a₀, hf₀, ha₀, hF, hA⟩
-  rcases app_inv hns hnc (fun _ _ _ _ hfe hrv => rec_spine_len hf hfe hrv) her with
+  rcases app_inv hns hnc her with
     ⟨rfl, hbx⟩ | ⟨tf, ta, rfl, herf, hera⟩
   · exact erases_correct_box henv hE hsub he ht hbx hev
   cases hdeps with

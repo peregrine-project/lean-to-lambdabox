@@ -2,6 +2,8 @@ import EraseProof.Bridge.Levels
 import EraseProof.Erasable.Levels
 import EraseProof.Relation.Extend
 import EraseProof.Bridge.Quot
+import EraseProof.Bridge.RecWhred
+import EraseProof.Bridge.Lookup
 
 /-!
 # Universe instantiation of the erasure relation
@@ -369,7 +371,8 @@ end
 as many level arguments as level parameters. -/
 def LvlOK (σ : EvalEnv) : Expr → Prop
   | .const c us => ∀ ci, findDecl σ.decls c = some ci →
-      ((∃ cv, ci = .ctorInfo cv) ∨ (∃ d, ci = .defnInfo d) ∨ ∃ q, ci = .quotInfo q) →
+      ((∃ cv, ci = .ctorInfo cv) ∨ (∃ d, ci = .defnInfo d) ∨ (∃ q, ci = .quotInfo q) ∨
+        ∃ r, ci = .recInfo r) →
       us.length = ci.levelParams.length
   | .app f a => LvlOK σ f ∧ LvlOK σ a
   | .lam _ _ b _ => LvlOK σ b
@@ -500,18 +503,20 @@ theorem RecFixOf.instL {σ : EvalEnv} {rv : RecursorVal} {us : List Level} {mino
     rw [← hl'] at hnz
     exact isNeverZero_instLevel_map (fun _ => isNeverZero_instLevel) hnz
 
-/-- Constructor, recognized `casesOn` and quotient heads are constructors, definitions or quotient
-constants. -/
+/-- Constructor, recognized `casesOn`, quotient and recursor heads are constructors, definitions,
+quotient constants or recursors. -/
 theorem etaSpine?_kind {σ : EvalEnv} {c : Name} {us : List Level} {as : List Expr} {e' : Expr}
     (h : σ.etaSpine? c us as = some e') {ci : ConstantInfo} (hci : findDecl σ.decls c = some ci) :
-    (∃ cv, ci = .ctorInfo cv) ∨ (∃ d, ci = .defnInfo d) ∨ ∃ q, ci = .quotInfo q := by
+    (∃ cv, ci = .ctorInfo cv) ∨ (∃ d, ci = .defnInfo d) ∨ (∃ q, ci = .quotInfo q) ∨
+      ∃ r, ci = .recInfo r := by
   unfold EvalEnv.etaSpine? at h
   split at h
   next ci' ar hci' har =>
     unfold specialArity at har
     split at har
     next cv hcv => rw [hci] at hcv; cases hcv; exact .inl ⟨_, rfl⟩
-    next qv hqv => rw [hci] at hqv; cases hqv; exact .inr (.inr ⟨_, rfl⟩)
+    next qv hqv => rw [hci] at hqv; cases hqv; exact .inr (.inr (.inl ⟨_, rfl⟩))
+    next rv hrv => rw [hci] at hrv; cases hrv; exact .inr (.inr (.inr ⟨_, rfl⟩))
     next =>
       obtain ⟨iv, hiv, -⟩ := Option.map_eq_some_iff.1 har
       obtain ⟨d, -, -, -, -, -, -, -, hd, -⟩ := casesOn_shape hiv
@@ -522,17 +527,44 @@ section
 variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {σ : EvalEnv}
   {P : List ConstantInfo}
 
+/-- A recursor spine's image reads as many levels as the recursor has universe parameters: the
+image of the recursor at its own parameters (`ConstTyped`) reads its levels by the same
+`RecrLevels`. -/
+theorem SatTr.recr_levels_length (henv : ProgEnv P ζ E B) (hE : Metalean.EnvWF E) {c : Name}
+    {rv : RecursorVal} (hc : findDecl P c = some (.recInfo rv)) {ι : Metalean.IndSig}
+    {η : Metalean.Head ζ (.inductive ι)} {s : Fin ι.nsorts} {os : List (List (List Nat))}
+    (hB : B c = some (.recr η s os)) {lps : List Name} {n : Nat} {us : List Level}
+    {args : List (Metalean.Expr ζ lps.length n)} {t : Metalean.Expr ζ lps.length n}
+    (hsat : SatTr E lps (.recr η s os) us args t) : us.length = rv.levelParams.length := by
+  obtain ⟨l, us', ls, hRL, hls⟩ : ∃ l us' ls, RecrLevels (E.get η).block lps us l us' ∧
+      TrLevels lps us' ι.nlevels = some ls := by
+    cases hsat with
+    | recrSat _ _ _ _ hRL hls => exact ⟨_, _, _, hRL, hls⟩
+    | recrEta _ hRL hls => exact ⟨_, _, _, hRL, hls⟩
+  have hname : rv.name = c := (findDecl_eq_some hc).2
+  obtain ⟨-, -, Tc, tc, -, htc, -⟩ := henv.lookup hE hc
+  have htc' : TrM E B rv.levelParams .nil [] (mkAppN (.const c (rv.levelParams.map .param))
+      ([] : List Expr).toArray) tc := by rw [← hname]; exact htc
+  obtain ⟨as₁, hlen₁, -, hsat₁⟩ := TrM.special_inv hB rfl htc'
+  obtain rfl : as₁ = [] := List.eq_nil_of_length_eq_zero (by simpa using hlen₁.symm)
+  obtain ⟨l₁, us₁, ls₁, -, -, hRL₁, hls₁, -, -, -⟩ :=
+    satTr_recrEta_inv hsat₁ (by simp [Metalean.IndSig.recrEnd])
+  obtain ⟨ls', hus⟩ := recr_spine_levels hRL hls hRL₁ hls₁
+  exact (TrLevels_get hus).1
+
 /-- A translated term is `LvlOK`: `TrM` translates a constructor's or a definition's level list
 at the Metalean declaration's number of levels, which `ProgEnv` makes the number of the Lean
-declaration's level parameters. -/
-theorem TrM.lvlOK (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P) {lps : List Name} {n : Nat}
+declaration's level parameters, and a recursor's as the recursor's own image
+(`SatTr.recr_levels_length`). -/
+theorem TrM.lvlOK (henv : ProgEnv P ζ E B) (hE : Metalean.EnvWF E) (hsub : SubEnv σ.decls P)
+    {lps : List Name} {n : Nat}
     {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n} {e : Expr}
     {t : Metalean.Expr ζ lps.length n} (h : TrM E B lps Γ Δ e t) : LvlOK σ e := by
   induction h with
   | const hB hls =>
     intro ci hci hk
     obtain ⟨-, hctor, hdefn⟩ := ProgEnv.levelsInfo henv (Extend.findDecl_sub hsub hci)
-    rcases hk with ⟨cv, rfl⟩ | ⟨d, rfl⟩ | ⟨q, rfl⟩
+    rcases hk with ⟨cv, rfl⟩ | ⟨d, rfl⟩ | ⟨q, rfl⟩ | ⟨r, rfl⟩
     · obtain ⟨ι, η, s, k, o, hB', -⟩ := hctor cv rfl
       rw [hB] at hB'; cases hB'
     · obtain ⟨η', hB'⟩ := hdefn d rfl
@@ -540,12 +572,14 @@ theorem TrM.lvlOK (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P) {lps : Li
       exact (TrLevels_get hls).1
     · obtain ⟨η', hB'⟩ := henv.lookup_quot (Extend.findDecl_sub hsub hci)
       rw [hB] at hB'; cases hB'
+    · obtain ⟨ι, η', s, os, hB', -⟩ := henv.lookup_recr (Extend.findDecl_sub hsub hci)
+      rw [hB] at hB'; cases hB'
   | special hB hs hlen _ hsat ih =>
     rw [mkAppN_toArray]
     refine LvlOK_foldl.2 ⟨?_, fun a ha => ?_⟩
     · intro ci hci hk
       obtain ⟨-, hctor, hdefn⟩ := ProgEnv.levelsInfo henv (Extend.findDecl_sub hsub hci)
-      rcases hk with ⟨cv, rfl⟩ | ⟨d, rfl⟩ | ⟨q, rfl⟩
+      rcases hk with ⟨cv, rfl⟩ | ⟨d, rfl⟩ | ⟨q, rfl⟩ | ⟨r, rfl⟩
       · obtain ⟨ι, η, s, k, o, hB', hl⟩ := hctor cv rfl
         rw [hB] at hB'; cases hB'
         cases hsat with
@@ -556,6 +590,9 @@ theorem TrM.lvlOK (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P) {lps : Li
       · obtain ⟨η', hB'⟩ := henv.lookup_quot (Extend.findDecl_sub hsub hci)
         rw [hB] at hB'; cases hB'
         exact hsat.quot_levels.trans (henv.quot_levels (Extend.findDecl_sub hsub hci)).symm
+      · obtain ⟨ι, η', s, os, hB', -⟩ := henv.lookup_recr (Extend.findDecl_sub hsub hci)
+        rw [hB] at hB'; cases hB'
+        exact SatTr.recr_levels_length henv hE (Extend.findDecl_sub hsub hci) hB hsat
     · obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem ha
       exact ih i _ _ (List.getElem?_eq_getElem hi) (List.getElem?_eq_getElem (hlen ▸ hi))
   | app _ _ _ ihf iha => exact ⟨ihf, iha⟩
@@ -730,10 +767,10 @@ theorem Erases.instLevels {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds 
     {P : List ConstantInfo} {lps lps' : List Name} {us : List Level}
     {ls : Fin lps'.length → Metalean.Level lps.length} {e : Expr}
     {t : Metalean.Expr ζ lps'.length 0} {tb : LBTerm} (henv : ProgEnv P ζ E B)
-    (hsub : SubEnv σ.decls P) (hus : TrLevels lps us lps'.length = some ls)
+    (hE : Metalean.EnvWF E) (hsub : SubEnv σ.decls P) (hus : TrLevels lps us lps'.length = some ls)
     (he : TrM E B lps' .nil [] e t) (h : Erases E B lps' σ .nil [] e tb) :
     Erases E B lps σ .nil [] (Pure.instLevels lps' us e) tb := by
   simpa [MLCtx.instL] using
-    RelLevels.Erases.instL_gen henv hsub hus h (RelLevels.TrM.lvlOK henv hsub he)
+    RelLevels.Erases.instL_gen henv hsub hus h (RelLevels.TrM.lvlOK henv hE hsub he)
 
 end EraseProof

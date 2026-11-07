@@ -38,6 +38,19 @@ theorem find_zip_of_finIdxOf : ∀ {ps : List Name} {us : List Level} {n : Name}
       simp [List.zip_cons_cons, ha, ih]
   | _ :: _, [], _, _, hl, _ => by simp at hl
 
+/-- A declaration's own universe parameters, instantiated, are the instantiating levels. -/
+theorem params_instLevel {ps : List Name} (hnd : ps.Nodup) {us : List Level}
+    (hl : us.length = ps.length) : (ps.map .param).map (Pure.instLevel ps us) = us := by
+  apply List.ext_getElem (by simp [hl])
+  intro i h₁ h₂
+  simp only [List.map_map, List.getElem_map, Function.comp_apply, Pure.instLevel]
+  have hi : i < ps.length := by simpa using h₁
+  have hfi : ps.finIdxOf? ps[i] = some ⟨i, hi⟩ :=
+    List.finIdxOf?_eq_some_iff.mpr ⟨rfl, fun j hj heq => by
+      have := (List.Nodup.getElem_inj hnd).mp heq
+      rw [Fin.lt_def] at hj; simp at hj this; omega⟩
+  rw [find_zip_of_finIdxOf hl hfi]
+
 /-- A successful `mapM` in `Option` relates the lists componentwise. -/
 theorem mapM_option_get {α β : Type} {f : α → Option β} : ∀ {xs : List α} {ys : List β},
     xs.mapM f = some ys → ∃ h : ys.length = xs.length, ∀ i (hi : i < xs.length),
@@ -316,6 +329,53 @@ theorem TrM.instLevels {lps' : List Name} {us : List Level}
     (hus : TrLevels lps us lps'.length = some ls) (h : TrM E B lps' .nil [] e t) :
     TrM E B lps .nil [] (Pure.instLevels lps' us e) t{ls} :=
   h.instL hus
+
+end
+
+section
+variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {lps : List Name}
+
+/-- A recursor image with fewer arguments than the arity is the recursor's η-term. -/
+theorem satTr_recrEta_inv {ι : Metalean.IndSig} {η : Metalean.Head ζ (.inductive ι)}
+    {s : Fin ι.nsorts} {os : List (List (List Nat))} {lps' : List Name} {n : Nat}
+    {us : List Level} {args : List (Metalean.Expr ζ lps'.length n)}
+    {t : Metalean.Expr ζ lps'.length n} (h : SatTr E lps' (.recr η s os) us args t)
+    (hlt : args.length < ι.recrEnd s) :
+    ∃ l us' ls mo t₀, RecrLevels (E.get η).block lps' us l us' ∧
+      TrLevels lps' us' ι.nlevels = some ls ∧
+      (∀ t c, (os[t.val]?.bind (·[c.val]?)) = some (mo t c)) ∧
+      Metalean.Frontend.recrTerm (E.get η).block η s ls l mo = .ok t₀ ∧
+      t = t₀.wkClosed.appList args := by
+  cases h with
+  | recrSat _ _ _ _ =>
+    simp only [List.length_append, List.length_ofFn] at hlt; omega
+  | recrEta mo hRL hls hmo _ hrt => exact ⟨_, _, _, mo, _, hRL, hls, hmo, hrt, rfl⟩
+
+/-- The levels of a recursor spine translate, as many as the recursor's universe parameters `ps`:
+the spine's image and the image of the recursor at its own parameters read their levels by one
+`RecrLevels` of the same block. -/
+theorem recr_spine_levels {ι : Metalean.IndSig} {I : Metalean.Inductive ζ ι} {ps : List Name}
+    {us us' us₁ : List Level} {l : Metalean.Level lps.length} {l₁ : Metalean.Level ps.length}
+    {k : Nat} {ls : Fin k → Metalean.Level lps.length} {ls₁ : Fin k → Metalean.Level ps.length}
+    (hRL : RecrLevels I lps us l us') (hls : TrLevels lps us' k = some ls)
+    (hRL₁ : RecrLevels I ps (ps.map .param) l₁ us₁) (hls₁ : TrLevels ps us₁ k = some ls₁) :
+    ∃ ls', TrLevels lps us ps.length = some ls' := by
+  obtain ⟨hk₁, -⟩ := TrLevels_get hls₁
+  simp only [TrLevels, bind, Option.bind_eq_some_iff] at hls ⊢
+  obtain ⟨L, hL, hls⟩ := hls
+  have hLk : L.length = k := by
+    by_contra hne; rw [dif_neg hne] at hls; cases hls
+  rcases hRL with ⟨hI, u, rfl, hu⟩ | ⟨hI, rfl, -⟩ <;>
+    rcases hRL₁ with ⟨hI₁, u₁, hps, -⟩ | ⟨hI₁, hps, -⟩
+  · have hlen := congrArg List.length hps
+    simp only [List.length_map, List.length_cons] at hlen
+    have hl' : (l :: L).length = ps.length := by simp; omega
+    exact ⟨_, ⟨l :: L, by simp [List.mapM_cons, hu, hL], by rw [dif_pos hl']⟩⟩
+  · exact absurd hI hI₁
+  · exact absurd hI₁ hI
+  · have hlen := congrArg List.length hps
+    simp only [List.length_map] at hlen
+    exact ⟨_, ⟨L, hL, by rw [dif_pos (by omega)]⟩⟩
 
 end
 

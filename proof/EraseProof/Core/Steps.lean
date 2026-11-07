@@ -1265,6 +1265,9 @@ theorem visitApp_spec (hG : CoreEnv E B P decls view cfg) {k : Nat}
       cases ci with
       | ctorInfo cv => exact absurd hci (hnctor cv)
       | quotInfo qv => simp [specialArity, evalEnvOf, hci, hcq qv hci]
+      | recInfo rv =>
+        rw [hc] at hrfF
+        simp [RecFree, ConstsIn, IsRecursorIn, hci] at hrfF
       | _ => simp [specialArity, evalEnvOf, hci, EvalEnv.casesOn?, hcs]
     have hciP := SrcDefeq.findDecl_sub (σ := evalEnvOf view cfg decls) hG.sub hci
     have hem : EmitsConst ci = true ∨ ∃ q, ci = .quotInfo q ∧ q.kind = .ind := by

@@ -74,18 +74,19 @@ private def SpecialC (σ : EvalEnv) (c : Name) : Prop :=
     (∃ qv, findDecl σ.decls c = some (.quotInfo qv) ∧ (quotEvalArity qv.kind).isSome) ∨
     ∃ rv, findDecl σ.decls c = some (.recInfo rv)
 
-/-- A constant with an arity of a constructor, recognized `casesOn` or erased quotient constant is
-one. -/
+/-- A constant with an arity is a constructor, a recognized `casesOn`, an erased quotient constant
+or a recursor. -/
 private theorem specialArity_some {σ : EvalEnv} {c : Name} {ar : Nat} (h : specialArity σ c = some ar) :
     SpecialC σ c := by
   unfold specialArity at h
   split at h
   · exact .inl ⟨_, by assumption⟩
   · exact .inr (.inr (.inl ⟨_, by assumption, by rw [h]; rfl⟩))
+  · exact .inr (.inr (.inr ⟨_, by assumption⟩))
   · obtain ⟨iv, hiv, -⟩ := Option.map_eq_some_iff.1 h
     exact .inr (.inl ⟨iv, hiv⟩)
 
-/-- Only constructor and recognized `casesOn` spines are η-expanded. -/
+/-- Only spines with an arity are η-expanded, with fewer arguments than the arity. -/
 private theorem etaSpine?_some {σ : EvalEnv} {c : Name} {us : List Level} {as : List Expr} {e' : Expr}
     (h : σ.etaSpine? c us as = some e') :
     ∃ ar, specialArity σ c = some ar ∧ as.length < ar := by
@@ -583,11 +584,12 @@ theorem Erases.quot_inv {c : Name} {qv : QuotVal} {us : List Level} {as : List E
   | bvar | fvar | lam | letE | proj | litZero | litSucc | mdata =>
     exact absurd hfn (getAppFn_ne_const (fun _ _ h => by cases h) (fun _ _ h => by cases h))
 
-/-- An erasure of a recursor spine is `□`, the let-bound form of `Erases.recLet` or the closed form
-of `Erases.recFix`: a recursor is no atom, has no η-expansion and no constant erasure, and its
-spines are special. -/
+/-- An erasure of a recursor spine with at least its arity is `□`, the let-bound form of
+`Erases.recLet` or the closed form of `Erases.recFix`: a recursor is no atom, has no constant
+erasure, is η-expanded only below its arity, and its spines are special. -/
 theorem Erases.rec_inv {c : Name} {rv : RecursorVal} {us : List Level} {as : List Expr}
     {tb : LBTerm} (hc : findDecl σ.decls c = some (.recInfo rv))
+    (hge : rv.numParams + rv.numMotives + rv.numMinors + rv.numIndices + 1 ≤ as.length)
     (h : Erases E B lps σ Γ Δ (mkAppN (.const c us) as.toArray) tb) :
     (tb = .box ∧ ErasableS E B lps Γ Δ (mkAppN (.const c us) as.toArray)) ∨
     (∃ (minors : List RecMinor) (F : LBTerm) (ps ms mins is : List Expr) (maj : Expr)
@@ -644,18 +646,11 @@ theorem Erases.rec_inv {c : Name} {rv : RecursorVal} {us : List Level} {as : Lis
     exact absurd hc (hnr rv)
   | eta heta =>
     obtain ⟨rfl, -, rfl⟩ := mkAppN_const_inj hx
-    obtain ⟨ar, har, -⟩ := etaSpine?_some heta
-    rcases specialArity_some har with ⟨cv, hcv⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, -⟩ | ⟨rv', hrv⟩
-    · rw [hc] at hcv; cases hcv
-    · obtain ⟨d, hd⟩ := casesOn?_defn hiv
-      rw [hc] at hd; cases hd
-    · rw [hc] at hqv; cases hqv
-    · unfold specialArity at har
-      rw [hc] at har
-      simp only at har
-      obtain ⟨iv, hiv, -⟩ := Option.map_eq_some_iff.1 har
-      obtain ⟨d, hd⟩ := casesOn?_defn hiv
-      rw [hc] at hd; cases hd
+    obtain ⟨ar, har, hlt⟩ := etaSpine?_some heta
+    unfold specialArity at har
+    rw [hc] at har
+    cases har
+    omega
   | bvar | fvar | lam | letE | proj | litZero | litSucc | mdata =>
     exact absurd hfn (getAppFn_ne_const (fun _ _ h => by cases h) (fun _ _ h => by cases h))
 

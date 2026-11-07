@@ -893,7 +893,9 @@ theorem erases_correct_recIota (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : 
     obtain ⟨a₀, A, hTr, hA⟩ := hminT i m h1
     obtain ⟨mv₀, hmv₀, -⟩ := SrcEval.defeq henv hE hsub hTr hA (hmv i m mv h1 h2)
     exact ⟨SimCases.closed0 hmv₀ hw, noFVar_of_tr hmv₀ hw⟩
-  rcases Erases.rec_inv hcr her with ⟨rfl, hbx⟩ |
+  rcases Erases.rec_inv hcr
+      (by simp only [List.length_append, List.length_singleton, hps, hms, hmins, hni]; omega) her
+    with ⟨rfl, hbx⟩ |
     ⟨minors', F, ps', ms', mins', is, maj', extra, minsE, is', majE, extra', hRF, has, hps', hms',
       hmins', his, hlmE, hminE, hli, -, hmajE, hle, -, rfl⟩ |
     ⟨minors', F, ps', ms', mins', is, maj', extra, ws, is', majE, extra', hRF, has, hps', hms',

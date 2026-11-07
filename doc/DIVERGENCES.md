@@ -365,15 +365,16 @@ What the statements and the checks rely on without proof:
 
 - **Our artifact:** `proof/EraseProof/Spec.lean`: `EraseProof.EvalEnv.etaSpine?` (with
   `EraseProof.piInst`, `EraseProof.lamsOf`, `EraseProof.specialArity`), the rule
-  `EraseProof.SrcEval.eta` and `EraseProof.ShortSpine`: a constructor or recognized `casesOn` spine
-  with fewer arguments than its arity evaluates to its η-expansion, the arguments unevaluated under
-  the new binders; and the rule `EraseProof.Erases.eta`: such a spine erases as its η-expansion.
+  `EraseProof.SrcEval.eta` and `EraseProof.ShortSpine`: a constructor, recognized `casesOn`,
+  `Quot.mk`, `Quot.lift` or recursor spine with fewer arguments than its arity evaluates to its
+  η-expansion, the arguments unevaluated under the new binders; and the rule
+  `EraseProof.Erases.eta`: such a spine erases as its η-expansion.
 - **Reference artifact:** PCUIC's `eval` evaluates the arguments of an application eagerly
   (`eval_app_cong`, `pcuic/theories/PCUICWcbvEval.v:311`; `eval_construct`,
   `pcuic/theories/PCUICWcbvEval.v:303`); MetaRocq η-expands constructors in λ□ by a separate pass
   (`isEtaExp`, `erasure/theories/EEtaExpanded.v:61`).
-- **What differs:** an under-applied constructor or `casesOn` spine is not a value whose arguments
-  are values: it steps to a λ that keeps its arguments as they are.
+- **What differs:** an under-applied constructor, `casesOn`, quotient or recursor spine is not a
+  value whose arguments are values: it steps to a λ that keeps its arguments as they are.
 - **Why it is forced:** the eraser η-expands such spines (`withAppEtaToMinArity`,
   `LeanToLambdaBox/Erasure.lean`), and the λ□ value of the expansion is a closure whose arguments
   are not evaluated; with eager evaluation the source value has an evaluated argument where the λ□

@@ -965,19 +965,6 @@ theorem ctorTerm_apps_typed {ℓ : Nat} {ι : Metalean.IndSig}
 
 /-! ## The proof-irrelevant ι -/
 
-/-- A declaration's own universe parameters, instantiated, are the instantiating levels. -/
-theorem params_instLevel {ps : List Name} (hnd : ps.Nodup) {us : List Level}
-    (hl : us.length = ps.length) : (ps.map .param).map (Pure.instLevel ps us) = us := by
-  apply List.ext_getElem (by simp [hl])
-  intro i h₁ h₂
-  simp only [List.map_map, List.getElem_map, Function.comp_apply, Pure.instLevel]
-  have hi : i < ps.length := by simpa using h₁
-  have hfi : ps.finIdxOf? ps[i] = some ⟨i, hi⟩ :=
-    List.finIdxOf?_eq_some_iff.mpr ⟨rfl, fun j hj heq => by
-      have := (List.Nodup.getElem_inj hnd).mp heq
-      rw [Fin.lt_def] at hj; simp at hj this; omega⟩
-  rw [find_zip_of_finIdxOf hl hfi]
-
 /-- Instantiating at the instances of the parameters is instantiating directly. -/
 theorem instLevel_params_comp (ps : List Name) (vs : List Level) : ∀ u : Level,
     Pure.instLevel ps ((ps.map .param).map (Pure.instLevel ps vs)) u = Pure.instLevel ps vs u

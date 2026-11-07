@@ -335,20 +335,21 @@ theorem eta_inv {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ l
     subst har
     simp at hlt
     omega
-  | recLet hcr | recFix hcr =>
-    obtain ⟨rfl, -, -⟩ := inj hx
-    rcases SrcDefeq.specialArity_some har with ⟨cv, hcv, -⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, -⟩
-    · rw [hcr] at hcv; cases hcv
-    · obtain ⟨d, hd⟩ := SrcDefeq.casesOn?_defn hiv
-      rw [hcr] at hd; cases hd
-    · rw [hcr] at hqv; cases hqv
+  | recLet hcr _ hps hms hmins his | recFix hcr _ hps hms hmins his =>
+    obtain ⟨rfl, rfl, rfl⟩ := inj hx
+    simp only [specialArity, hcr, Option.some.injEq] at har
+    subst har
+    simp only [List.length_append, List.length_singleton, hps, hms, hmins, his] at hlt
+    omega
   | app hns =>
     obtain ⟨bs, -, rfl⟩ := SrcDefeq.spine_app hx
     refine absurd ⟨c, us, SrcDefeq.getAppFn_mkAppN_const _ _ _, ?_⟩ hns
-    rcases SrcDefeq.specialArity_some har with ⟨cv, hcv, -⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, hq⟩
+    rcases SrcDefeq.specialArity_some har with ⟨cv, hcv, -⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, hq⟩ |
+      ⟨rv, hrv, -⟩
     · exact .inl ⟨cv, hcv⟩
     · exact .inr (.inl (by rw [hiv]; rfl))
     · exact .inr (.inr (.inl ⟨qv, hqv, by rw [hq]; rfl⟩))
+    · exact .inr (.inr (.inr ⟨rv, hrv⟩))
   | const _ hsa =>
     obtain ⟨-, rfl, -⟩ := SrcDefeq.spine_const hx
     rw [har] at hsa
