@@ -3425,6 +3425,30 @@ the calls at which the two oracles answer differently. It must equal
   `prop_elim_pure`, `thm_atom_pure` and `structural` (the `below` tables of S-44) pass unchanged.
   `scripts/regress.sh` passes (27 tests), with and without `PEREGRINE`.
 
+## S-49: The fragment test's structural-recursion check walks the expression itself
+
+- **Commit:** the commit whose subject starts with `S-49:` (`git log --grep='^S-49:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure.lean`: new `usesConst`, a structural recursion over `Expr`;
+    `isStructuralRecursive` and the structural-recursion test in `declInfoCore` use it instead of
+    `Expr.getUsedConstants`.
+  - `tests/regress/structural.lean`: two `example`s evaluating `usesConst` by `decide`.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** `Expr.getUsedConstants` goes through `Expr.foldConsts`, an `opaque` constant
+  with an `implemented_by`, so the kernel cannot evaluate it. The correctness proof must evaluate
+  `isStructuralRecursive` on the declarations of a program, including an `_unsafe_rec` companion,
+  and could not. `usesConst` reduces by `decide` and `rfl`. The compiler path (`declInfoCore`) uses
+  the same function so that both tests stay equal.
+- **Behaviour before:** the test collects the constants of the value with `getUsedConstants` and
+  asks whether some, respectively all, satisfy the predicate.
+- **Behaviour after:** the same answers: `usesConst p e` is true exactly when a constant `c`
+  occurs in `e` (under binders, types, `let` values, `mdata` and projections) with `p c`; the
+  second test is `!usesConst (fun c => !…)`.
+- **Effect on emitted .ast (corpus):** none: all 710 corpus files are byte-identical to those at the previous commit, and the PANIC counts are equal. With `structural := .kernel` as the default (not committed), the pure-harness outputs and summary are identical to those before the change: 294 `#erase`; 233 in the fragment, 57 out, 4 `collectDeps` errors; 10462 oracle calls, 14 differ, 0 failures.
+- **Regression test:** `structural` has `example`s showing that `usesConst (· == `B.t)` is true and
+  `usesConst (· == `B.f)` is false on `f B.t`, both by `decide`; the tests of `structural` pass
+  unchanged. `scripts/regress.sh` passes (27 tests) with `PEREGRINE`.
+
 ## Reported, not fixed
 
 Each entry below was reproduced on this branch. Unless stated otherwise, the reproduction is an
