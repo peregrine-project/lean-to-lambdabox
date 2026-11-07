@@ -822,9 +822,8 @@ theorem register_inductive_ok {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Bi
       have hdk' := kername_eq_of_beq hdk
       have hivm : ∃ ci ∈ σ.decls, ci = .inductInfo iv := ⟨_, (findDecl_eq_some hiv).1, rfl⟩
       rcases hok.entries d hd with ⟨c, hc⟩ | ⟨T, r', hT, hname⟩
-      · obtain ⟨hk, ci, -, hf, hem, -⟩ := hok.registered c d.1 hc
-        obtain ⟨hm, hn⟩ := findDecl_eq_some hf
-        exact (hbn iv iv hivm hivm).2 ci hm hem (by rw [hn, ← hk, hdk', ← hbk]; rfl)
+      · obtain ⟨hk, -, -, -, hnb, -⟩ := hok.registered c d.1 hc
+        exact hnb iv hivm (by rw [← hk, hdk', ← hbk])
       · obtain ⟨hid, -, ivT, hT', -⟩ := hok.inductives T r' hT
         unfold IndIdOf at hid
         rw [hT'] at hid

@@ -482,6 +482,20 @@ def quotKindOf : Lean.QuotKind → Metalean.Export.QuotKind
   | .lift => .lift
   | .ind => .ind
 
+/-- A quotient constant as Lean's kernel declares it (`Declaration.quotDecl`; Metalean's loader
+binds the names without reading the types, `ML Checker/Slow/Loader.lean:81`): each of the
+four names has its kind, the declared type of `Quot` is the arity
+`{α : Sort u} → (α → α → Prop) → Sort u`, and those of `Quot.mk` and `Quot.lift` are `Π`-telescopes
+of their arities (`quotArity`), `{α : Sort u} → (r : α → α → Prop) → α → Quot r` and
+`{α : Sort u} → {r : α → α → Prop} → {β : Sort v} → (f : α → β) → (∀ a b, r a b → f a = f b) →
+Quot r → β`. `ConstTyped` relates the types to Metalean's only up to definitional equality, as for
+constructors (`IndBlock.ctorType`). -/
+def QuotShape (q : QuotVal) : Prop :=
+  (q.name = ``Quot ∧ q.kind = .type ∧ ∃ u, arityShape q.type = some (2, u)) ∨
+    (q.name = ``Quot.mk ∧ q.kind = .ctor ∧ (peelForalls 3 q.type).isSome) ∨
+    (q.name = ``Quot.lift ∧ q.kind = .lift ∧ (peelForalls 6 q.type).isSome) ∨
+    (q.name = ``Quot.ind ∧ q.kind = .ind)
+
 /-- Every constant of `e`, and the structure of every projection of `e`, satisfies `p`, as
 `Erasure.exprConsts` collects them. Reference: `term_global_deps` (`MR E/EAstUtils.v:406`; the
 inductive of `tProj` at `:422`). -/
@@ -497,7 +511,8 @@ def ConstsIn (p : Name → Prop) : Expr → Prop
 /-- `ProgEnv P ζ E B`: the newest-first list of Lean declarations `P` is the Lean form of the
 Metalean environment `E` with name table `B`, one entry per declaration (block), after Metalean's
 loader (`ML Checker/Slow/Loader.lean:55-139`): safe axioms, definitions (`all = [name]`: no
-recursion), theorems as `opaque` (`:122-127`), opaques, inductive blocks, quotients (with `Eq`).
+recursion), theorems as `opaque` (`:122-127`), opaques, inductive blocks, quotients (with `Eq`,
+as Lean declares them, `QuotShape`).
 Names are fresh, and the universe parameters of each declaration are distinct, as Lean's kernel
 checks (`check_duplicated_univ_params`). The value of a theorem, which Metalean does not load, does
 not mention the declaration itself, as the kernel checks it before adding the declaration. The
@@ -549,7 +564,7 @@ inductive ProgEnv : List ConstantInfo → (ζ : Metalean.Sigs) → Metalean.Env 
       (∀ q ∈ qs, findDecl P q.name = none) → (∀ q ∈ qs, q.levelParams.Nodup) →
       BindsExt B B' (qs.map (·.name)) →
       (∀ q ∈ qs, B' q.name = some (.quot .here (quotKindOf q.kind)) ∧
-        ConstTyped (E.snoc (.quot ηEq)) B' (.quotInfo q)) →
+        ConstTyped (E.snoc (.quot ηEq)) B' (.quotInfo q) ∧ QuotShape q) →
       ProgEnv (qs.reverse.map .quotInfo ++ P) (ζ.snoc .quot) (E.snoc (.quot ηEq)) B'
 
 /-! ## 7. Source semantics -/
@@ -966,8 +981,8 @@ def Eliminated (decls : List ConstantInfo) (iv : InductiveVal) : Prop :=
   (EvalEnv.casesOn? ⟨decls, fun _ => false⟩ (.str iv.name "casesOn")).isSome ∨
     ∃ cn cv, iv.ctors = [cn] ∧ findDecl decls cn = some (.ctorInfo cv) ∧ 0 < cv.numFields
 
-/-- A declaration of the closure is inside the first-phase fragment (Phase I): no quotient; a
-recursor only as `T.rec` of a recognized `T.casesOn` of the closure or of an inductive `T` of the
+/-- A declaration of the closure is inside the first-phase fragment (Phase I): every quotient
+constant; a recursor only as `T.rec` of a recognized `T.casesOn` of the closure or of an inductive `T` of the
 closure with one constructor (and never in a read expression, `RecFree`); safe, with no `_unsafe_rec` companion (definitions and opaques: a `partial def` is an opaque with
 one) and no `implemented_by` target;
 inductives not nested, of a sort that is syntactically `Prop`, never zero, or, when the traversal
@@ -976,7 +991,7 @@ cannot eliminate them (`Eliminated`), not zero under every assignment (`PUnit`);
 (`indexFields`); no `@[extern]` constructor under `preferAxiom`. -/
 def PhaseIDecl (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo) :
     ConstantInfo → Prop
-  | .quotInfo _ => False
+  | .quotInfo _ => True
   | .recInfo r => (∃ T iv, r.name = mkRecName T ∧
       EvalEnv.casesOn? ⟨decls, fun _ => false⟩ (.str T "casesOn") = some iv ∧
       (findDecl decls (.str T "casesOn")).isSome) ∨
@@ -997,7 +1012,9 @@ def PhaseIDecl (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo
 
 /-- Declarations that the λ□ environment holds as constants under their kername: definitions,
 theorems, opaques and axioms (inductive types, constructors and recursors are inductive blocks or
-are not emitted; quotients are outside Phase I). -/
+are not emitted; `Quot.mk` and `Quot.lift` are erased by their own rules, `Quot` spines are types,
+and the traversal holds `Quot.ind` as a λ□ axiom only when the oracle keeps a proof headed by
+it). -/
 def EmitsConst : ConstantInfo → Bool
   | .defnInfo _ | .thmInfo _ | .opaqueInfo _ | .axiomInfo _ => true
   | _ => false

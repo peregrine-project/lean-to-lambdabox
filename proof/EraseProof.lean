@@ -68,6 +68,7 @@ import EraseProof.Core.Steps
 import EraseProof.Core.StepsB
 import EraseProof.Core.StepsCases
 import EraseProof.Core.StepsCtor
+import EraseProof.Core.StepsQuot
 import EraseProof.Core.StepsCasesCase
 import EraseProof.Core.StepsCasesBox
 import EraseProof.Core.StepsAssemble
@@ -80,4 +81,8 @@ import EraseProof.Test.NVPFinal
 import EraseProof.Test.NV2Model
 import EraseProof.Test.NV2Run
 import EraseProof.Test.NV2Final
+import EraseProof.Test.NVQData
+import EraseProof.Test.NVQRun
+import EraseProof.Test.NVQModel
+import EraseProof.Test.NVQFinal
 import EraseProof.Test.NV1Collect

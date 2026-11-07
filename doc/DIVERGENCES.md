@@ -172,7 +172,9 @@ What the statements and the checks rely on without proof:
   to its Metalean head. Each recursor's Lean type is related to Metalean's by translation and,
   besides, syntactically in one point: the minor premise of a constructor has
   `nfields + 2 * nrecFields` leading Π's, one per field and per induction hypothesis
-  (`EraseProof.IndBlock`, field `minors`). The relation-level theorem types in the environment of the whole program `P` and
+  (`EraseProof.IndBlock`, field `minors`); each quotient constant has the kind of its name, and the
+  Lean types of `Quot`, `Quot.mk` and `Quot.lift` are an arity and Π-telescopes of their arities, as
+  Lean's kernel declares them (`EraseProof.QuotShape`). The relation-level theorem types in the environment of the whole program `P` and
   evaluates over a sub-environment of it.
 - **Why it is forced:** the eraser reads Lean declarations (`Erasure.EnvView`), while a Metalean
   environment `Metalean.Env` is a list of entries typed by their signatures and addressed by
@@ -438,17 +440,17 @@ What the statements and the checks rely on without proof:
   (`erasure/theories/ErasureFunctionProperties.v:657`), which holds for every well-typed term.
 - **What differs:** the final theorem covers the inputs the fragment test accepts. Its exclusion
   classes: recursors other than the `T.rec` of a recognized `T.casesOn` or of an inductive `T` with
-  one constructor, quotients, recursive definitions (structural or well-founded: every definition
+  one constructor, recursive definitions (structural or well-founded: every definition
   with a compiled `_unsafe_rec` companion), `partial`, `unsafe` and `implemented_by` constants, nested inductives, string
   literals, Nat literals and Nat or Int constructors under `nat := .machine`, `casesOn` on a
   constructor with an index field, eliminations of an inductive whose sort may be both `Prop` and
-  not `Prop`, `remove_irrel_constr_args`, metavariables. On the corpus (294 `#erase` calls), 223
-  are in the fragment, 68 out (20 of them recursive definitions, one of which, `Defects.log2`, is
+  not `Prop`, `remove_irrel_constr_args`, metavariables. On the corpus (294 `#erase` calls), 225
+  are in the fragment, 66 out (20 of them recursive definitions, one of which, `Defects.log2`, is
   defined by well-founded recursion) and 3 are rejected for a name collision.
 - **Why it is forced:** `#erase` sends an input outside the fragment to the `Meta` path
   (`Erasure.route`, `LeanToLambdaBox/Erasure/Entry.lean:278-282`), `CoreM` code about which
   nothing is proved, and some of the excluded constructs have no Metalean counterpart (nested
-  inductives, `unsafe` constants); recursors and quotients are outside the eraser's pure path.
+  inductives, `unsafe` constants).
   Typed inputs outside the fragment exist, so the hypothesis cannot be derived from typing as in
   the lean4lean experiment.
 - **What was considered instead:** deriving the hypothesis from `henv`, `hview` and `he`, which is

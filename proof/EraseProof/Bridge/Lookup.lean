@@ -206,7 +206,7 @@ theorem ProgEnv.lookup {c : Name} {ci : ConstantInfo} (h : ProgEnv P ζ E B) (hE
       simp only [List.map_reverse, List.mem_reverse, List.mem_map] at hm
       obtain ⟨q, hq', rfl⟩ := hm
       subst hn
-      exact ⟨_, (hq q hq').1, (hq q hq').2⟩
+      exact ⟨_, (hq q hq').1, (hq q hq').2.1⟩
     | none =>
       rw [hd] at hc
       simp only [Option.none_or] at hc

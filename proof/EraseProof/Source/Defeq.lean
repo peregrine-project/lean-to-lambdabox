@@ -1317,24 +1317,6 @@ theorem eta_ctor (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decl
 
 /-! ## Quotients -/
 
-/-- The arguments of a typed image of `Quot.mk` are typed. -/
-theorem satTr_quotMk_typed {η : Metalean.Head ζ .quot} {us : List Level}
-    {bs' : List (Metalean.Expr ζ lps.length 0)} {t T : Metalean.Expr ζ lps.length 0}
-    (hsat : SatTr E lps (.quot η .ctor) us bs' t) (ht : E[.nil] ⊢ t : T) :
-    ∀ a ∈ bs', ∃ A, E[.nil] ⊢ a : A := by
-  cases hsat with
-  | quotMk hu =>
-    obtain ⟨⟨F, hF⟩, hrest⟩ := InstPre.appList_inv ht
-    obtain ⟨α₁, r₁, a₁, hα, hr, ha, -⟩ := hF.quotMk_prem
-    intro x hx
-    simp only [List.cons_append, List.nil_append, List.mem_cons] at hx
-    rcases hx with rfl | rfl | rfl | hx
-    · exact ⟨_, hα.right⟩
-    · exact ⟨_, hr.right⟩
-    · exact ⟨_, ha.right⟩
-    · exact hrest x hx
-  | quotEta => exact (InstPre.appList_inv ht).2
-
 /-- The case of `SrcEval.quotMk`: the element's translation is replaced by its value's. -/
 theorem case_quotMk (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P) {c : Name}
     {us : List Level} {qv : QuotVal} {α r a a' : Expr}
@@ -1347,7 +1329,7 @@ theorem case_quotMk (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.d
   obtain ⟨η, hB⟩ := henv.lookup_quot (findDecl_sub hsub hc)
   rw [hk] at hB
   have srefl : ∀ x, Sound E B lps x x := fun _ _ _ he ht => ⟨_, he, ht⟩
-  refine ⟨fun he ht => special_congr hE hB rfl he ht (fun hsat => satTr_quotMk_typed hsat ht)
+  refine ⟨fun he ht => special_congr hE hB rfl he ht (fun hsat => satTr_quot_typed hsat ht)
     (.cons (srefl α) (.cons (srefl r) (.cons iha .nil))), ?_⟩
   intro c₁ us₁ bs b' hx hb _ hq _
   rw [mkAppN_eq_foldl, mkAppN_eq_foldl] at hx

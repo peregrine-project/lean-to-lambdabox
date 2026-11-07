@@ -2852,6 +2852,48 @@ the calls at which the two oracles answer differently. It must equal
   and their evaluations fail. `scripts/regress.sh` passes (23 tests), with and without
   `PEREGRINE`.
 
+## S-39: The fragment test admits quotients, so programs using them take the pure path
+
+- **Commit:** the commit whose subject starts with `S-39:` (`git log --grep='^S-39:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure/Entry.lean`: `declExclusion` admits quotient declarations; the
+    docstrings of `declExclusion` and `collectDeps` no longer list them.
+  - `tests/regress/quotient.lean`: the oracle's answers on the quotient constants, the pure route
+    of the five programs, and the `Meta` path's output of `useLift`; its goldens.
+  - `tests/harness/expected/pure-harness.txt`: `NM_quotEx` ×2 enter the fragment.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** with S-38 both paths erase quotients alike, so the exclusion of quotients
+  only keeps such programs off the verified path. The closure keeps a quotient constant as a
+  declaration without a value and reads the constants of its type, which the pure oracle needs
+  (`Quot.lift` brings `Quot` and `Eq`, and `Eq.rec` as the companion of a one-constructor
+  inductive). The pure oracle has no quotient ι-rule (as it has no recursor ι-rule): sorts and
+  erasability do not need it, since `Quot.lift`'s result type is read off its declared type, but a
+  term whose type is a `Π` only after a `Quot.lift` reduces would fail on the pure path; no
+  program of the corpus or the tests has one.
+- **Behaviour before:** `collectDeps` excludes every program whose closure contains a quotient
+  constant (`outside the fragment: quotient Quot` or `quotient Quot.lift`, the first one the
+  closure meets), so `#erase` takes the `Meta` path.
+- **Behaviour after:** these programs are in the fragment and take the pure path. On
+  `useLift` it writes `(λ b. b) B.t`, as the `Meta` path does.
+- **Effect on emitted .ast (corpus):** byte-identical for all 710 files against the corpus of
+  S-38; `PANIC` counts unchanged. `scripts/pure-harness.sh` passes with its expected summary
+  updated: the two `NM_quotEx` lines change from `out of the fragment: quotient Quot.lift` to
+  `pure ok; Meta ok; outputs identical; #erase = pure and Meta; oracle 14 calls, 0 differ` (the
+  respect proof, which uses `False.elim`, is abstracted by the elaborator into a theorem, so the
+  closure has no recursor), and the totals become 294 `#erase`, 225 in the fragment (223), 66
+  outside (68), 3 `collectDeps` errors; 206 identical (204), 15 differ, 4 without `Meta` output;
+  8326 oracle calls (8298), 14 differ, none fails.
+- **Regression test:** `quotient` checks, under `nat := .peano`, the oracle's answers on `Quot`,
+  `Quot.ind` (erasable), `Quot.mk r B.t` and a `Quot.lift` under-application (not erasable); that
+  the five programs of S-38 take the pure path; and pins their `#erase` outputs and the `Meta`
+  path's output of `useLift` (`useLift.meta.ast`, under `remove_irrel_constr_args`), which
+  peregrine validates and evaluates to `QT.B.t`, `QT.B.f`, `QT.B.t`, `QT.B.f`, □ and `QT.B.t`.
+  The outputs of `usePart` and `useQuotient` change from S-38's: the pure path keeps the matcher
+  `QT.neg.match_1` as a definition where the `Meta` path inlines it (as for the other programs of
+  the fragment, S-29). Before this commit the four oracle checks give `collectDeps error (outside
+  the fragment: quotient Quot)` and the five programs route to the `Meta` path, so nine checks
+  fail. `scripts/regress.sh` passes (23 tests), with and without `PEREGRINE`.
+
 ---
 
 ## S-40: Recursor applications are erased to fixpoints over a `case`, on both paths

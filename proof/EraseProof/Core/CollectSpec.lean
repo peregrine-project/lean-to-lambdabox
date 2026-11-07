@@ -217,7 +217,7 @@ theorem not_isSome {α : Type} {o : Option α} (h : ¬ o.isSome = true) : o = no
 /-- The checks `declExclusion` makes, on a declaration it accepts. -/
 theorem declExclusion_ok {view : EnvView} {cfg : ErasureConfig} {ci : ConstantInfo} {u : Unit}
     (h : declExclusion view cfg ci = .ok u) :
-    (∀ R, ci ≠ .recInfo R) ∧ (∀ q, ci ≠ .quotInfo q) ∧
+    (∀ R, ci ≠ .recInfo R) ∧
     (∀ d, ci = .defnInfo d → d.safety = .safe ∧
       view.find? (Compiler.mkUnsafeRecName d.name) = none ∧ view.implementedBy? d.name = none) ∧
     (∀ o, ci = .opaqueInfo o → o.isUnsafe = false ∧
@@ -232,12 +232,11 @@ theorem declExclusion_ok {view : EnvView} {cfg : ErasureConfig} {ci : ConstantIn
   have thr' : ∀ {α : Type} {e : EraseError} (y : α), (throw e : Except EraseError α) ≠ .ok y :=
     fun _ h => nomatch h
   cases ci with
-  | quotInfo q => rw [declExclusion] at h; cases h
   | recInfo r => rw [declExclusion] at h; cases h
-  | thmInfo t => exact ⟨nofun, nofun, nofun, nofun, nofun, nofun, nofun⟩
+  | thmInfo _ | quotInfo _ => exact ⟨nofun, nofun, nofun, nofun, nofun, nofun⟩
   | defnInfo d =>
     rw [declExclusion] at h
-    refine ⟨nofun, nofun, fun d' hd => ?_, nofun, nofun, nofun, nofun⟩
+    refine ⟨nofun, fun d' hd => ?_, nofun, nofun, nofun, nofun⟩
     cases hd
     obtain ⟨h1, h⟩ := ite_ok_then h thr
     dsimp only at h
@@ -247,7 +246,7 @@ theorem declExclusion_ok {view : EnvView} {cfg : ErasureConfig} {ci : ConstantIn
     revert h1; cases d.safety <;> simp
   | opaqueInfo o =>
     rw [declExclusion] at h
-    refine ⟨nofun, nofun, nofun, fun o' ho => ?_, nofun, nofun, nofun⟩
+    refine ⟨nofun, nofun, fun o' ho => ?_, nofun, nofun, nofun⟩
     cases ho
     obtain ⟨h1, h⟩ := ite_ok_else h thr
     dsimp only at h
@@ -256,7 +255,7 @@ theorem declExclusion_ok {view : EnvView} {cfg : ErasureConfig} {ci : ConstantIn
     exact ⟨by simpa using h1, not_isSome h2, not_isSome h3⟩
   | axiomInfo a =>
     rw [declExclusion] at h
-    refine ⟨nofun, nofun, nofun, nofun, fun a' ha => ?_, nofun, nofun⟩
+    refine ⟨nofun, nofun, nofun, fun a' ha => ?_, nofun, nofun⟩
     cases ha
     obtain ⟨h1, h⟩ := ite_ok_else h thr
     dsimp only at h
@@ -264,7 +263,7 @@ theorem declExclusion_ok {view : EnvView} {cfg : ErasureConfig} {ci : ConstantIn
     exact ⟨by simpa using h1, not_isSome h3⟩
   | inductInfo iv =>
     rw [declExclusion] at h
-    refine ⟨nofun, nofun, nofun, nofun, nofun, fun iv' hiv => ?_, nofun⟩
+    refine ⟨nofun, nofun, nofun, nofun, fun iv' hiv => ?_, nofun⟩
     cases hiv
     obtain ⟨h1, h⟩ := ite_ok_else h thr
     dsimp only at h
@@ -273,7 +272,7 @@ theorem declExclusion_ok {view : EnvView} {cfg : ErasureConfig} {ci : ConstantIn
     exact ⟨by simpa using h1, by simpa using h2, b, hb⟩
   | ctorInfo cv =>
     rw [declExclusion] at h
-    refine ⟨nofun, nofun, nofun, nofun, nofun, nofun, fun cv' hcv => ?_⟩
+    refine ⟨nofun, nofun, nofun, nofun, nofun, fun cv' hcv => ?_⟩
     cases hcv
     obtain ⟨h1, h⟩ := ite_ok_else h thr
     dsimp only at h
@@ -1174,15 +1173,14 @@ theorem phase (hel : eliminatedUndecided decls cases = none) {ci : ConstantInfo}
   · have spec := closureStep_spec hcs
     have dex := declExclusion_ok spec.1
     cases ci with
-    | quotInfo q => exact absurd rfl (dex.2.1 q)
     | recInfo r => exact absurd rfl (dex.1 r)
-    | defnInfo d => exact dex.2.2.1 d rfl
-    | opaqueInfo o => exact dex.2.2.2.1 o rfl
-    | axiomInfo a => exact dex.2.2.2.2.1 a rfl
-    | thmInfo _ => trivial
-    | ctorInfo cv => exact dex.2.2.2.2.2.2 cv rfl
+    | defnInfo d => exact dex.2.1 d rfl
+    | opaqueInfo o => exact dex.2.2.1 o rfl
+    | axiomInfo a => exact dex.2.2.2.1 a rfl
+    | thmInfo _ | quotInfo _ => trivial
+    | ctorInfo cv => exact dex.2.2.2.2.2 cv rfl
     | inductInfo iv =>
-      obtain ⟨hu, hnn, b, hb⟩ := dex.2.2.2.2.2.1 iv rfl
+      obtain ⟨hu, hnn, b, hb⟩ := dex.2.2.2.2.1 iv rfl
       obtain ⟨n, u, hsh, hu'⟩ := sortDecided_ok hb
       -- the `casesOn` of `iv`, when recognized on the closure, was recognized by the view
       have hrecog : ∀ iv', EvalEnv.casesOn? ⟨decls, fun _ => false⟩ (.str iv.name "casesOn") =
@@ -1313,7 +1311,7 @@ theorem collectDeps_spec {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds �
     exact ConstsIn_mono (fun c hc => covRec c (hxc c hc)) (exprConsts_ok hxs).1
   · rintro iv ⟨ci, hci, rfl⟩
     obtain ⟨ns, ro, hcs', -⟩ := hr.scanned hci nofun
-    obtain ⟨-, -, b, hb⟩ := (declExclusion_ok (closureStep_spec hcs').1).2.2.2.2.2.1 iv rfl
+    obtain ⟨-, -, b, hb⟩ := (declExclusion_ok (closureStep_spec hcs').1).2.2.2.2.1 iv rfl
     obtain ⟨n, u, hsh, -⟩ := sortDecided_ok hb
     rw [hsh]; rfl
 

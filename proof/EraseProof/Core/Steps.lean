@@ -590,8 +590,8 @@ def ExprSpec {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (view : E
       Grows E B (evalEnvOf view cfg decls) S st st' ps ps'
 
 /-- The correctness of `visitMutual fuel c` at the pure backend: on an unregistered constant of a
-scope `S` that is a definition, an opaque or an axiom (`EmitsConst`, not a theorem) and not a
-recognized `casesOn` constant, from a state with
+scope `S` that is a definition, an opaque or an axiom (`EmitsConst`, not a theorem), or `Quot.ind`,
+and not a recognized `casesOn` constant, from a state with
 `StateOK`, a successful run registers `c` and `Grows` within `S`. Reference: the `ConstantDecl`
 step of `erase_global_deps` (`MR E/ErasureFunction.v:1602`), which erases a declaration with
 `erase_constant_body` (`MR E/ErasureFunction.v:1309`). -/
@@ -601,7 +601,8 @@ def MutualSpec {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (view :
     ⦃st' : ErasureState⦄ ⦃ps' : PureState⦄,
     ScopeOK decls S → S c → tc.config = cfg → tc.fixvars = none →
     (∀ v, findDecl decls c ≠ some (.thmInfo v)) → casesInfo? decls c = none →
-    (∃ ci, findDecl decls c = some ci ∧ EmitsConst ci = true) →
+    (∃ ci, findDecl decls c = some ci ∧
+      (EmitsConst ci = true ∨ ∃ q, ci = .quotInfo q ∧ q.kind = .ind)) →
     StateOK E B (evalEnvOf view cfg decls) st → st.constants[c]? = none →
     (visitMutual (m := PureM) fuel c).runPure st tc ⟨decls, view⟩ ps = .ok (((), st'), ps') →
     Grows E B (evalEnvOf view cfg decls) S st st' ps ps' ∧ ∃ kn, st'.constants[c]? = some kn
@@ -1076,7 +1077,8 @@ theorem visitAppArgs_spec {j : Nat} (ih : ∀ e, ExprSpec E B view cfg decls j e
     (hargs : ∀ a ∈ args, (∀ d, nameOccurs d a = true → S d) ∧ MachineFree cfg a ∧
       NatPlain cfg a ∧ RecFree decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A)
     (hns : ∀ c us, f₀.getAppFn = .const c us → (∀ cv, findDecl decls c ≠ some (.ctorInfo cv)) ∧
-      (evalEnvOf view cfg decls).casesOn? c = none ∧ ∀ qv, findDecl decls c ≠ some (.quotInfo qv))
+      (evalEnvOf view cfg decls).casesOn? c = none ∧
+      ∀ qv, findDecl decls c = some (.quotInfo qv) → quotEvalArity qv.kind = none)
     (hok : StateOK E B (evalEnvOf view cfg decls) st)
     (hf : Erases E B lps (evalEnvOf view cfg decls) Γ Δ f₀ tf)
     (hdf : ErasesDeps E B (evalEnvOf view cfg decls) st.gdecls tf)
@@ -1101,10 +1103,10 @@ theorem visitAppArgs_spec {j : Nat} (ih : ∀ e, ExprSpec E B view cfg decls j e
     have hnsp : ¬ SpecialSpine (evalEnvOf view cfg decls) f₀ := by
       rintro ⟨c, us, hc, hsp⟩
       obtain ⟨hct, hcs, hq⟩ := hns c us hc
-      rcases hsp with ⟨cv, hcv⟩ | hcs' | ⟨qv, hqv, -⟩
+      rcases hsp with ⟨cv, hcv⟩ | hcs' | ⟨qv, hqv, hsq⟩
       · exact hct cv hcv
       · rw [hcs] at hcs'; cases hcs'
-      · exact hq qv hqv
+      · rw [hq qv hqv] at hsq; cases hsq
     have ⟨her, hdeps, hgr⟩ := ihl (f₀ := .app f₀ a) (tf := .app tf ta) (hctx.mono hgra.next)
       (fun b hb => hargs b (.tail _ hb)) (fun c us h => hns c us h) hgra.inv
       (.app hnsp hf hera) (.app (ErasesDeps.ext hgra.ext hdf) hdepsa) hrun
@@ -1123,7 +1125,8 @@ theorem visitConst_spec {j : Nat} (ihM : ∀ m ≤ j, ∀ c, MutualSpec E B view
     {c : Name} {us : List Level}
     (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK decls S) (hS : S c)
     (hnt : ∀ v, findDecl decls c ≠ some (.thmInfo v)) (hcs : casesInfo? decls c = none)
-    (hem : ∃ ci, findDecl decls c = some ci ∧ EmitsConst ci = true)
+    (hem : ∃ ci, findDecl decls c = some ci ∧
+      (EmitsConst ci = true ∨ ∃ q, ci = .quotInfo q ∧ q.kind = .ind))
     (hok : StateOK E B (evalEnvOf view cfg decls) st)
     (hrun : (visitConst (m := PureM) j (.const c us)).runPure st tc ⟨decls, view⟩ ps =
       .ok ((r, st'), ps')) :
@@ -1169,7 +1172,8 @@ theorem visitApp_spec (hG : CoreEnv E B P decls view cfg) {k : Nat}
     (he : TrM E B lps Γ Δ e t) (ht : ∃ T, E[Γ] ⊢ t : T)
     (hor : Pure.isErasable ⟨decls⟩ oracleFuel tc.locals e = .ok false)
     (hplain : ∀ c us, e.getAppFn = .const c us →
-      casesInfo? decls c = none ∧ ctorArity? decls c = none)
+      casesInfo? decls c = none ∧ ctorArity? decls c = none ∧
+        ∀ qv, findDecl decls c = some (.quotInfo qv) → quotEvalArity qv.kind = none)
     (hrun : (visitApp (m := PureM) (k + 1) e).runPure st tc ⟨decls, view⟩ ps =
       .ok ((r, st'), ps')) :
     Erases E B lps (evalEnvOf view cfg decls) Γ Δ e r ∧
@@ -1190,7 +1194,7 @@ theorem visitApp_spec (hG : CoreEnv E B P decls view cfg) {k : Nat}
   rw [visitApp] at hrun
   split at hrun
   · rename_i c us hc
-    obtain ⟨hcs, hca⟩ := hplain c us hc
+    obtain ⟨hcs, hca, hcq⟩ := hplain c us hc
     have hS : S c := hoccF c (by rw [hc]; simp [nameOccurs])
     obtain ⟨ci, hci, -⟩ := hsc c hS
     have hnt : ∀ v, findDecl decls c ≠ some (.thmInfo v) := fun v hv => by
@@ -1211,11 +1215,10 @@ theorem visitApp_spec (hG : CoreEnv E B P decls view cfg) {k : Nat}
     have hspec : specialArity (evalEnvOf view cfg decls) c = none := by
       cases ci with
       | ctorInfo cv => exact absurd hci (hnctor cv)
-      | quotInfo qv =>
-        have := hG.phase _ (findDecl_eq_some hci).1
-        simp [PhaseIDecl] at this
+      | quotInfo qv => simp [specialArity, evalEnvOf, hci, hcq qv hci]
       | _ => simp [specialArity, evalEnvOf, hci, EvalEnv.casesOn?, hcs]
-    have hem : EmitsConst ci = true := by
+    have hciP := SrcDefeq.findDecl_sub (σ := evalEnvOf view cfg decls) hG.sub hci
+    have hem : EmitsConst ci = true ∨ ∃ q, ci = .quotInfo q ∧ q.kind = .ind := by
       cases ci with
       | inductInfo iv =>
         have har := hG.arity iv ⟨_, (findDecl_eq_some hci).1, rfl⟩
@@ -1229,17 +1232,28 @@ theorem visitApp_spec (hG : CoreEnv E B P decls view cfg) {k : Nat}
         rw [hc] at hrfF
         simp [RecFree, ConstsIn, IsRecursorIn, hci] at hrfF
       | quotInfo qv =>
-        have := hG.phase _ (findDecl_eq_some hci).1
-        simp [PhaseIDecl] at this
-      | _ => rfl
-    have hnsh : ¬ SpecialHead B e.getAppFn := by
-      rintro ⟨c', us', b, hc', hb, hs⟩
-      rw [hc] at hc'
-      cases hc'
-      rcases SrcDefeq.special_kind hG.prog hb hs
-        (SrcDefeq.findDecl_sub (σ := evalEnvOf view cfg decls) hG.sub hci) with
-        ⟨iv, rfl⟩ | ⟨cv, rfl⟩ | ⟨rv, rfl⟩ | ⟨qv, rfl⟩ <;> cases hem
-    obtain ⟨-, htrA⟩ := spine_typed hnsh (by rw [hsp]; exact he) ht
+        -- `Quot` spines are types, which the oracle erases; `Quot.mk` and `Quot.lift` are special
+        refine .inr ⟨qv, rfl, ?_⟩
+        rcases ProgEnv.quot_shape hG.prog hciP with
+          ⟨-, hk, u, hu⟩ | ⟨-, hk, -⟩ | ⟨-, hk, -⟩ | ⟨-, hk⟩
+        · cases OracleAtom.isErasable_arity (ci := .quotInfo qv) (OracleAtom.ConstSpine.of_getAppFn hc)
+            (show findConst decls c = _ from hci) rfl hu hor
+        · have := hcq qv hci; rw [hk] at this; cases this
+        · have := hcq qv hci; rw [hk] at this; cases this
+        · exact hk
+      | _ => exact .inl rfl
+    have htrA : ∀ a ∈ spineArgs e, ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A := by
+      rcases hem with hem | ⟨qv, rfl, -⟩
+      · have hnsh : ¬ SpecialHead B e.getAppFn := by
+          rintro ⟨c', us', b, hc', hb, hs⟩
+          rw [hc] at hc'
+          cases hc'
+          rcases SrcDefeq.special_kind hG.prog hb hs hciP with
+            ⟨iv, rfl⟩ | ⟨cv, rfl⟩ | ⟨rv, rfl⟩ | ⟨qv, rfl⟩ <;> cases hem
+        exact (spine_typed hnsh (by rw [hsp]; exact he) ht).2
+      · obtain ⟨η, hB⟩ := hG.prog.lookup_quot hciP
+        rw [hc] at hsp
+        exact TrM.quot_args_typed hB (by rw [hsp]; exact he) ht
     cases k with
     | zero => rw [visitConstApp] at hrun; cases hrun
     | succ j =>
@@ -1261,15 +1275,13 @@ theorem visitApp_spec (hG : CoreEnv E B P decls view cfg) {k : Nat}
         show Except.ok ((findConst decls c, st), ps) = _
         rw [show findConst decls c = findDecl decls c from rfl, hci], ok_bind'] at hrun
       dsimp only at hrun
-      have hnq : ∀ q, ci ≠ .quotInfo q := fun q h => by
-        subst h
-        have := hG.phase _ (findDecl_eq_some hci).1
-        simp [PhaseIDecl] at this
       split at hrun
       · rename_i q _ _ _ heq
-        exact absurd (Option.some.inj heq) (hnq _)
+        cases Option.some.inj heq
+        cases hcq _ hci
       · rename_i q _ _ _ heq
-        exact absurd (Option.some.inj heq) (hnq _)
+        cases Option.some.inj heq
+        cases hcq _ hci
       · rename_i rv heq
         cases Option.some.inj heq
         rw [hc] at hrfF
@@ -1287,7 +1299,7 @@ theorem visitApp_spec (hG : CoreEnv E B P decls view cfg) {k : Nat}
         (hctx.mono hgf.next) hsc (fun a ha => ⟨hoccA a ha, hmfA a ha, hnpA a ha, hrfA a ha, htrA a ha⟩)
         (fun c'' us'' h => by
           cases h
-          exact ⟨hnctor, hncs, fun qv h' => hnq qv (Option.some.inj (hci.symm.trans h'))⟩) hgf.inv
+          exact ⟨hnctor, hncs, hcq⟩) hgf.inv
         (.const (us := us) hat hspec) hdf hrun
       rw [hc] at hsp
       rw [hsp] at her
@@ -1317,7 +1329,8 @@ recognized `casesOn` constant. Reference: the `tApp` case of `erases_erase`
 theorem visitExpr_app_step (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
     (ih : StepIH E B view cfg decls fuel) {f a : Expr}
     (hplain : ∀ c us, (Expr.app f a).getAppFn = .const c us →
-      casesInfo? decls c = none ∧ ctorArity? decls c = none) :
+      casesInfo? decls c = none ∧ ctorArity? decls c = none ∧
+        ∀ qv, findDecl decls c = some (.quotInfo qv) → quotEvalArity qv.kind = none) :
     ExprSpec E B view cfg decls (fuel + 1) (.app f a) := by
   intro lps n Γ Δ S t st tc ps r st' ps' hctx hsc hocc hmf hnp hrf hok he ht hrun
   rw [visitExpr] at hrun
@@ -1334,7 +1347,8 @@ is erased as an application to no argument (`visitApp_spec`). Reference: the `tC
 `erases_erase` (`MR E/ErasureFunction.v:1228`), rule `erases_tConst` (`MR E/Extract.v:104`). -/
 theorem visitExpr_const_step (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
     (ih : StepIH E B view cfg decls fuel) {c : Name} {us : List Level}
-    (hplain : casesInfo? decls c = none ∧ ctorArity? decls c = none) :
+    (hplain : casesInfo? decls c = none ∧ ctorArity? decls c = none ∧
+      ∀ qv, findDecl decls c = some (.quotInfo qv) → quotEvalArity qv.kind = none) :
     ExprSpec E B view cfg decls (fuel + 1) (.const c us) := by
   intro lps n Γ Δ S t st tc ps r st' ps' hctx hsc hocc hmf hnp hrf hok he ht hrun
   rw [visitExpr] at hrun
@@ -1640,6 +1654,18 @@ open TravFrame
 variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {P decls : List ConstantInfo}
   {view : EnvView} {cfg : ErasureConfig}
 
+/-- `Quot.ind`'s kername is no λ□ block name: it is not a root kername. -/
+theorem quot_knNotBlock {σ : EvalEnv} {c : Name} {q : QuotVal}
+    (henv : ProgEnv P ζ E B) (hc : findDecl P c = some (.quotInfo q)) (hk : q.kind = .ind) :
+    KnNotBlock σ c := by
+  have hn : q.name = c := (findDecl_eq_some hc).2
+  intro iv _ h
+  rcases ProgEnv.quot_shape henv hc with ⟨-, hk', -⟩ | ⟨-, hk', -⟩ | ⟨-, hk', -⟩ | ⟨hq, -⟩
+  all_goals try (rw [hk] at hk'; cases hk')
+  rw [← hn, hq] at h
+  have := congrArg Kername.mp h
+  simp [toKername, toModPath, blockKername, mutualBlockKername, rootKername] at this
+
 /-- The `visitMutual` step, from `visitExpr` at `fuel`: an axiom, or a remapped declaration, is
 registered by `addAxiom` (`addAxiom_ok`); a definition's or an opaque's value, which is not
 recursive (`isRecursiveDecl_false`), is erased in the empty context (it is closed, so as under the
@@ -1656,6 +1682,10 @@ theorem visitMutual_step (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
   obtain ⟨ci, hci, hem⟩ := hemc
   have hciP := SrcDefeq.findDecl_sub (σ := evalEnvOf view cfg decls) hG.sub hci
   obtain ⟨hmP, hname⟩ := findDecl_eq_some hciP
+  have hnb : KnNotBlock (evalEnvOf view cfg decls) c := by
+    rcases hem with hem | ⟨q, rfl, hk⟩
+    · exact knNotBlock_of_emits hG.bn hci hem
+    · exact quot_knNotBlock hG.prog hciP hk
   have hci' : ci ∈ decls := (findDecl_eq_some hci).1
   have hthm : IsThm ci = false := by
     cases ci with
@@ -1664,7 +1694,10 @@ theorem visitMutual_step (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
   have hall : ci.all.length = 1 := by
     cases hv : ci.value? (allowOpaque := true) with
     | some v => rw [(NonRec.ProgEnv.scoped hG.prog hmP hv).1]; rfl
-    | none => cases ci <;> simp_all [ConstantInfo.value?, EmitsConst, ConstantInfo.all]
+    | none =>
+      rcases hem with hem | ⟨q, rfl, -⟩
+      · cases ci <;> simp_all [ConstantInfo.value?, EmitsConst, ConstantInfo.all]
+      · rfl
   -- an axiom: `addAxiom` registers it
   have haxiom : ∀ {sd : ErasureState}, sd.constants = st.constants →
       sd.inductives = st.inductives → sd.gdecls = st.gdecls →
@@ -1674,7 +1707,7 @@ theorem visitMutual_step (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
         ∃ kn, st'.constants[c]? = some kn := by
     intro sd hcd hid hgd hax hrun
     obtain ⟨st'', hrun'', hc'', hok'', hext''⟩ :=
-      addAxiom_ok (StateOK.congr hok hcd hid hgd) hG.inj hG.bn hci hem (by rw [hcd]; exact hnew) hax
+      addAxiom_ok (StateOK.congr hok hcd hid hgd) hG.inj hci hnb (by rw [hcd]; exact hnew) hax
     rw [hrun''] at hrun
     cases hrun
     refine ⟨⟨hok'', by rw [← hgd]; exact hext'', Nat.le_refl _, fun c' kn h0 h1 => ?_⟩,
@@ -1833,7 +1866,7 @@ theorem visitMutual_step (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
       unfold ErasesDecl
       rw [hv]
       exact .inr ⟨hax, t, rfl, her⟩
-    obtain ⟨hok₃, hext₃⟩ := hgr.inv.register hG.inj hG.bn hci hem hnew₂ hd fun b hb => by
+    obtain ⟨hok₃, hext₃⟩ := hgr.inv.register hG.inj hci hnb hnew₂ hd fun b hb => by
       cases hb
       refine ⟨hdeps, by simpa using Erases.closed htr her, fun x => ?_⟩
       cases hx : hasFVar x t
