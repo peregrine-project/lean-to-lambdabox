@@ -207,3 +207,7 @@ def ST.useTree : Nat := ST.Tree.size (.node [])
 #erase ST.usePairs2 config {nat := .peano, structural := .kernel} to "usePairs2.ast"
 #guard_msgs (drop warning, drop info) in
 #erase ST.useGet config {nat := .peano, structural := .kernel} to "useGet.ast"
+
+/-! `Erasure.usesConst` is evaluated by the kernel (S-49). -/
+example : usesConst (· == `B.t) (.app (.const `f []) (.const `B.t [])) = true := by decide
+example : usesConst (· == `B.f) (.app (.const `f []) (.const `B.t [])) = false := by decide
