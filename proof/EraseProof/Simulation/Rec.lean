@@ -1,5 +1,6 @@
 import EraseProof.Simulation.Iota
 import EraseProof.Simulation.RecFix
+import EraseProof.Core.Steps
 
 /-!
 # The recursor ι case of the simulation
@@ -744,6 +745,282 @@ theorem rec_core (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decl
         exact ((hsimple _ hkc).2 h hh).2.2)
       rw [← hfs'.trans hmif.symm, this]
       exact hev
+
+/-! ## The `recIota` case -/
+
+theorem kfv_of_fvarsIn {p : FVarId → Prop} : ∀ {e : Lean.Expr}, FVarsIn p e → Steps.KFV p e
+  | .fvar _, h => h
+  | .app f a, h => ⟨kfv_of_fvarsIn (e := f) h.1, kfv_of_fvarsIn (e := a) h.2⟩
+  | .lam _ _ b _, h => kfv_of_fvarsIn (e := b) h.2
+  | .letE _ _ v b _, h => ⟨kfv_of_fvarsIn (e := v) h.2.1, kfv_of_fvarsIn (e := b) h.2.2⟩
+  | .mdata _ e, h => kfv_of_fvarsIn (e := e) h
+  | .proj _ _ e, h => kfv_of_fvarsIn (e := e) h
+  | .bvar _, _ | .sort _, _ | .const _ _, _ | .forallE _ _ _ _, _ | .lit _, _ | .mvar _, _ => trivial
+
+/-- An erasure of a term with a translation in the empty context has no free variable. -/
+theorem noFVar_of_tr {e : Lean.Expr} {t : Metalean.Expr ζ lps.length 0} {tb : LBTerm}
+    (he : TrM E B lps .nil [] e t) (h : Erases E B lps σ .nil [] e tb) :
+    ∀ x, hasFVar x tb = false := by
+  intro x
+  cases hx : hasFVar x tb
+  · rfl
+  · have := Steps.Erases.hasFVar_of h _ (kfv_of_fvarsIn he.fvarsIn) x hx
+    simp [MLCtx.findF] at this
+
+/-- A recursor spine split as `Erases.recLet` and `Erases.recFix` read it, without indices. -/
+theorem spine_split {ps ms mins ps' ms' mins' is extra : List Lean.Expr} {maj maj' : Lean.Expr}
+    (h : ps ++ ms ++ mins ++ [maj] = ps' ++ ms' ++ mins' ++ is ++ [maj'] ++ extra)
+    (h1 : ps.length = ps'.length) (h2 : ms.length = ms'.length) (h3 : mins.length = mins'.length)
+    (h4 : is.length = 0) :
+    ps = ps' ∧ ms = ms' ∧ mins = mins' ∧ is = [] ∧ maj = maj' ∧ extra = [] := by
+  obtain rfl := List.eq_nil_of_length_eq_zero h4
+  have hl := congrArg List.length h
+  simp only [List.length_append, List.length_singleton, List.length_nil] at hl
+  obtain rfl : extra = [] := List.eq_nil_of_length_eq_zero (by omega)
+  simp only [List.append_nil] at h
+  obtain ⟨h5, h6⟩ := List.append_inj h (by simp; omega)
+  obtain ⟨h7, h8⟩ := List.append_inj h5 (by simp; omega)
+  obtain ⟨h9, h10⟩ := List.append_inj h7 h1
+  simp only [List.cons.injEq, and_true] at h6
+  exact ⟨h9, h10, h8, rfl, h6, rfl⟩
+
+/-- Typed translations of the arguments of a typed recursor spine. -/
+theorem rec_args (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
+    {c : Name} {rv : RecursorVal} {T : Name} {iv : InductiveVal} {cvs : List ConstructorVal}
+    {motives : List (List Name)} {minors : List RecMinor} {us : List Level} {as : List Lean.Expr}
+    (hcr : findDecl σ.decls c = some (.recInfo rv)) (hall : rv.all = [T]) (hcT : c = mkRecName T)
+    (hblk : σ.recBlock? rv = some ([iv], cvs))
+    (hshape : recShape rv.numParams rv.numMotives rv.type (cvs.map (·.numFields)) =
+      some (motives, minors))
+    (hihs : ∀ mi ∈ minors, mi.ihs.map (fun h => (h.field, h.binders)) =
+      (List.range' (mi.fields.length - mi.ihs.length) mi.ihs.length).map fun f => (f, []))
+    {t T₀ : Metalean.Expr ζ lps.length 0}
+    (he : TrM E B lps .nil [] (mkAppN (.const c us) as.toArray) t) (ht : E[.nil] ⊢ t : T₀) :
+    ∀ (i : Nat) a, as[i]? = some a → ∃ (a₀ A : Metalean.Expr ζ lps.length 0),
+      TrM E B lps .nil [] a a₀ ∧ E[.nil] ⊢ a₀ : A := by
+  have hok := SrcDefeq.nil_ok (E := E) (lps := lps)
+  obtain ⟨ι, η, s, lps₀, Is, Cs, Rs, orders, hb, rfl, rfl, rfl, -, hBc, hns, rfl⟩ :=
+    RecWhred.rec_block henv hsub hcr hall hcT hblk
+  obtain ⟨⟨_, _, _, _, hIB⟩, -⟩ := hb
+  have hidO : ∀ (t : Fin ι.nsorts) (c : Fin (ι.nctors t)) mo,
+      ((List.ofFn fun t => List.ofFn fun c => orders t c)[t.val]?.bind (·[c.val]?)) = some mo →
+      mo = List.range ((ι.ctors t c).nfields + (ι.ctors t c).nrecFields) := by
+    intro t c mo h
+    simp only [List.getElem?_ofFn, t.isLt, c.isLt, ↓reduceDIte, Option.bind_some,
+      Option.some.injEq] at h
+    subst h
+    obtain rfl : s = t := Fin.ext (by have := t.isLt; have := s.isLt; omega)
+    exact RecWhred.orders_identity hIB s hns hshape hihs c
+  obtain ⟨bs', hlenb, hargs, hsat⟩ := TrM.special_inv hBc rfl he
+  have htyb := RecWhred.satTr_recr_typed hE hok hsat ht hidO
+  intro i a ha
+  obtain ⟨a₀, ha₀⟩ : ∃ a₀, bs'[i]? = some a₀ :=
+    ⟨_, List.getElem?_eq_getElem (by rw [← hlenb]; exact (List.getElem?_eq_some_iff.mp ha).1)⟩
+  obtain ⟨A, hA⟩ := htyb a₀ (List.mem_of_getElem? ha₀)
+  exact ⟨a₀, A, hargs i a a₀ ha ha₀, hA⟩
+
+/-- The dependencies of a chain of `let`s. -/
+theorem deps_letChain : ∀ {ms : List (LBTerm × RecMinor)} {b : LBTerm},
+    ErasesDeps E B σ lenv (letChain ms b) →
+      (∀ p ∈ ms, ErasesDeps E B σ lenv p.1) ∧ ErasesDeps E B σ lenv b
+  | [], _, h => ⟨by simp, h⟩
+  | (m, mi) :: ms, b, h => by
+    cases h with
+    | letIn hv hb =>
+      obtain ⟨h1, h2⟩ := deps_letChain hb
+      refine ⟨fun p hp => ?_, h2⟩
+      rcases List.mem_cons.1 hp with rfl | hp
+      · exact hv
+      · exact h1 p hp
+
+/-- A closed argument is left by closed substitutions. -/
+theorem substl_app_closed {a : LBTerm} (ha : closedn 0 a = true) :
+    ∀ (us : List LBTerm) (f : LBTerm), substl us (.app f a) = .app (substl us f) a
+  | [], _ => rfl
+  | u :: us, f => by
+    show substl us (.app (csubst u 0 f) (csubst u 0 a)) = _
+    rw [csubst_closedn u a 0 0 ha (Nat.le_refl _), substl_app_closed ha us]
+    rfl
+
+/-- The `recIota` case of `erases_correct`. The erasure is `□`, or the fixpoint under `let`s of
+the erased minors, which λ□ evaluates to the minors' values, or the fixpoint with erasures of the
+minors substituted, which are λ□ values, hence erasures of the minors' values; then
+`SimRec.rec_core`. Reference: none (MetaRocq has no recursors; DV-30). -/
+theorem erases_correct_recIota (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
+    (hbinj : BlockNamesInj σ.decls)
+    {c : Name} {rv : RecursorVal} {T : Name} {iv : InductiveVal} {cvs : List ConstructorVal}
+    {motives : List (List Name)} {minors : List RecMinor} {maj mj : Expr} {k : Nat}
+    {mi : RecMinor} {mk : Expr} {us : List Level} {v : Expr}
+    {ps ms mins mvs fs rfs ihvs : List Expr}
+    (hcr : findDecl σ.decls c = some (.recInfo rv)) (hall : rv.all = [T]) (hcT : c = mkRecName T)
+    (hblk : σ.recBlock? rv = some ([iv], cvs)) (hni : rv.numIndices = 0)
+    (hshape : recShape rv.numParams rv.numMotives rv.type (cvs.map (·.numFields)) =
+      some (motives, minors))
+    (hihs : ∀ mi ∈ minors, mi.ihs.map (fun h => (h.field, h.binders)) =
+      (List.range' (mi.fields.length - mi.ihs.length) mi.ihs.length).map fun f => (f, []))
+    (hps : ps.length = rv.numParams) (hms : ms.length = rv.numMotives)
+    (hmins : mins.length = rv.numMinors) (hlm : mins.length = mvs.length)
+    (hmv : ∀ (i : Nat) m mv, mins[i]? = some m → mvs[i]? = some mv → SrcEval σ m mv)
+    (hmaj : SrcEval σ maj mj) (hcv : CtorValue σ T mj k fs) (hmi : minors[k]? = some mi)
+    (hmk : mvs[k]? = some mk) (hrfs : (mi.ihs.mapM fun h => fs[h.field]?) = some rfs)
+    (hrl : rfs.length = ihvs.length)
+    (hih : ∀ (i : Nat) f w, rfs[i]? = some f → ihvs[i]? = some w →
+      SrcEval σ (mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray) w)
+    (hv : SrcEval σ (mkAppN mk (fs ++ ihvs).toArray) v)
+    (ihm : ∀ (i : Nat) m mv, mins[i]? = some m → mvs[i]? = some mv → ErasesSim E B lps σ lenv m mv)
+    (ihmaj : ErasesSim E B lps σ lenv maj mj)
+    (ihih : ∀ (i : Nat) f w, rfs[i]? = some f → ihvs[i]? = some w →
+      ErasesSim E B lps σ lenv (mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray) w)
+    (ihv : ErasesSim E B lps σ lenv (mkAppN mk (fs ++ ihvs).toArray) v) :
+    ErasesSim E B lps σ lenv (mkAppN (.const c us) (ps ++ ms ++ mins ++ [maj]).toArray) v := by
+  intro t tb he ⟨T₀, ht⟩ her hdeps
+  have hsrc : SrcEval σ (mkAppN (.const c us) (ps ++ ms ++ mins ++ [maj]).toArray) v :=
+    .recIota hcr hall hcT hblk hni hshape hihs hps hms hmins hlm hmv hmaj hcv hmi hmk hrfs hrl hih hv
+  have hargs := rec_args henv hE hsub hcr hall hcT hblk hshape hihs he ht
+  have hminT : ∀ (i : Nat) m, mins[i]? = some m → ∃ (a₀ A : Metalean.Expr ζ lps.length 0),
+      TrM E B lps .nil [] m a₀ ∧ E[.nil] ⊢ a₀ : A := fun i m h =>
+    hargs ((ps ++ ms).length + i) m (by
+      have hi := (List.getElem?_eq_some_iff.mp h).1
+      rw [List.getElem?_append_left (by simp; omega), List.getElem?_append_right (by simp),
+        Nat.add_sub_cancel_left]
+      exact h)
+  have hmajT : ∃ (a₀ A : Metalean.Expr ζ lps.length 0), TrM E B lps .nil [] maj a₀ ∧
+      E[.nil] ⊢ a₀ : A := hargs (ps ++ ms ++ mins).length maj (by simp)
+  -- the minors' values with closed erasures that are λ□ values
+  have hvalue : ∀ (i : Nat) m mv w, mins[i]? = some m → mvs[i]? = some mv →
+      Erases E B lps σ .nil [] mv w → closedn 0 w = true ∧ (∀ x, hasFVar x w = false) := by
+    intro i m mv w h1 h2 hw
+    obtain ⟨a₀, A, hTr, hA⟩ := hminT i m h1
+    obtain ⟨mv₀, hmv₀, -⟩ := SrcEval.defeq henv hE hsub hTr hA (hmv i m mv h1 h2)
+    exact ⟨SimCases.closed0 hmv₀ hw, noFVar_of_tr hmv₀ hw⟩
+  rcases Erases.rec_inv hcr her with ⟨rfl, hbx⟩ |
+    ⟨minors', F, ps', ms', mins', is, maj', extra, minsE, is', majE, extra', hRF, has, hps', hms',
+      hmins', his, hlmE, hminE, hli, -, hmajE, hle, -, rfl⟩ |
+    ⟨minors', F, ps', ms', mins', is, maj', extra, ws, is', majE, extra', hRF, has, hps', hms',
+      hmins', his, hlw, hwE, hws, hli, -, hmajE, hle, -, rfl⟩
+  · exact erases_correct_box henv hE hsub he ht hbx hsrc
+  · -- the fixpoint under `let`s of the erased minors
+    obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩ :=
+      spine_split has (by omega) (by omega) (by omega) (by omega)
+    obtain rfl : is' = [] := List.eq_nil_of_length_eq_zero (by simpa using hli.symm)
+    obtain rfl : extra' = [] := List.eq_nil_of_length_eq_zero (by simpa using hle.symm)
+    have hclE : ∀ (i : Nat) m m', mins[i]? = some m → minsE[i]? = some m' → closedn 0 m' = true :=
+      fun i m m' h1 h2 => by
+        obtain ⟨a₀, A, hTr, -⟩ := hminT i m h1
+        exact SimCases.closed0 hTr (hminE i m m' h1 h2)
+    have hclZ : ∀ p ∈ minsE.zip minors', closedn 0 p.1 = true := by
+      intro p hp
+      obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hp
+      simp only [List.getElem_zip]
+      obtain ⟨m, hm⟩ : ∃ m, mins[i]? = some m :=
+        ⟨_, List.getElem?_eq_getElem (by simp at hi; omega)⟩
+      exact hclE i m _ hm (List.getElem?_eq_getElem _)
+    obtain ⟨a₀, A, hTm, hAm⟩ := hmajT
+    have hclmaj : closedn 0 majE = true := SimCases.closed0 hTm hmajE
+    simp only [List.nil_append, List.map_cons, List.map_nil, mkApps] at hdeps ⊢
+    rw [RecLam.recLets_closed _ 0 _ hclZ, TargetLift.lbLift_closedn _ _ 0 hclmaj] at hdeps ⊢
+    obtain ⟨hdZ, hdb⟩ := deps_letChain (ms := minsE.zip minors') hdeps
+    cases hdb with
+    | app hdF hdmaj =>
+    have hdE : ∀ (i : Nat) m', minsE[i]? = some m' → ErasesDeps E B σ lenv m' := by
+      intro i m' h
+      have hi := (List.getElem?_eq_some_iff.mp h).1
+      have hmem : (m', minors'[i]'(by
+          have := (RecLam.RecFixOf.closed hRF).1; omega)) ∈ minsE.zip minors' := by
+        rw [List.mem_iff_getElem?]
+        exact ⟨i, by rw [List.getElem?_zip_eq_some]; exact ⟨h, List.getElem?_eq_getElem _⟩⟩
+      exact hdZ _ hmem
+    -- the minors' erasures evaluate to erasures of their values
+    have hW : ∀ i < mins.length, ∃ w, ∃ m mv m', mins[i]? = some m ∧ mvs[i]? = some mv ∧
+        minsE[i]? = some m' ∧ Erases E B lps σ .nil [] mv w ∧ LBEval defaultFlags lenv m' w := by
+      intro i hi
+      obtain ⟨m, hm⟩ : ∃ m, mins[i]? = some m := ⟨_, List.getElem?_eq_getElem hi⟩
+      obtain ⟨mv, hmv'⟩ : ∃ mv, mvs[i]? = some mv := ⟨_, List.getElem?_eq_getElem (by omega)⟩
+      obtain ⟨m', hm'⟩ : ∃ m', minsE[i]? = some m' := ⟨_, List.getElem?_eq_getElem (by omega)⟩
+      obtain ⟨a₀, A, hTr, hA⟩ := hminT i m hm
+      obtain ⟨w, hw, hev⟩ := ihm i m mv hm hmv' hTr ⟨A, hA⟩ (hminE i m m' hm hm') (hdE i m' hm')
+      exact ⟨w, m, mv, m', hm, hmv', hm', hw, hev⟩
+    obtain ⟨ws, hwl, hwsP⟩ := choose_list _ hW
+    have hwget : ∀ (i : Nat) w, ws[i]? = some w → ∃ m mv m', mins[i]? = some m ∧
+        mvs[i]? = some mv ∧ minsE[i]? = some m' ∧ Erases E B lps σ .nil [] mv w ∧
+        LBEval defaultFlags lenv m' w := hwsP
+    have hwe : ∀ (i : Nat) x x', mvs[i]? = some x → ws[i]? = some x' →
+        Erases E B lps σ .nil [] x x' := fun i x x' h1 h2 => by
+      obtain ⟨m, mv, m', -, hmv', -, hw, -⟩ := hwget i x' h2
+      rw [h1] at hmv'; cases hmv'; exact hw
+    have hwc : ∀ w ∈ ws, closedn 0 w = true ∧ (∀ x, hasFVar x w = false) ∧ LBFixed w := by
+      intro w hw
+      obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hw
+      obtain ⟨m, mv, m', hm, hmv', -, hwE', hev⟩ := hwget i _ (List.getElem?_eq_getElem hi)
+      obtain ⟨h1, h2⟩ := hvalue i m mv _ hm hmv' hwE'
+      exact ⟨h1, h2, LBEval.fixed hev⟩
+    have hdws : ∀ w ∈ ws, ErasesDeps E B σ lenv w := by
+      intro w hw
+      obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hw
+      obtain ⟨m, mv, m', -, -, hm', -, hev⟩ := hwget i _ (List.getElem?_eq_getElem hi)
+      exact ErasesDeps.eval (hdE i m' hm') hev
+    have hdFs : ErasesDeps E B σ lenv (substl ws.reverse F) :=
+      ErasesDeps.substl (fun w hw => hdws w (List.mem_reverse.1 hw)) hdF
+    obtain ⟨vb, hvb, hevb⟩ := rec_core henv hE hsub hbinj hcr hall hcT hblk hni hshape hihs hps hms
+      hmins hlm hmv hmaj hcv hmi hmk hrfs hrl hih ihmaj ihih ihv he ht hRF (by omega) hwe hwc hdFs
+      hmajE hdmaj
+    have hmn := (RecLam.RecFixOf.closed hRF).1
+    refine ⟨vb, hvb, eval_letChain _ ws _ vb (by simp; omega) ?_ hclZ (fun w hw => (hwc w hw).1) ?_⟩
+    · intro i p w hp hw
+      obtain ⟨m, mv, m', -, -, hm', -, hev⟩ := hwget i w hw
+      rw [List.getElem?_zip_eq_some] at hp
+      obtain ⟨hp1, -⟩ := hp
+      rw [hm'] at hp1
+      cases hp1
+      exact hev
+    · have happ : substl ws.reverse (LBTerm.app F majE) = .app (substl ws.reverse F) majE :=
+        substl_app_closed hclmaj _ _
+      rw [happ]
+      exact hevb
+  · -- the fixpoint with erasures of the minors substituted
+    obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩ :=
+      spine_split has (by omega) (by omega) (by omega) (by omega)
+    obtain rfl : is' = [] := List.eq_nil_of_length_eq_zero (by simpa using hli.symm)
+    obtain rfl : extra' = [] := List.eq_nil_of_length_eq_zero (by simpa using hle.symm)
+    simp only [List.nil_append] at hdeps ⊢
+    cases hdeps with
+    | app hdF hdmaj =>
+    -- the dependencies of the minors' erasures
+    have hdws : ∀ (i : Nat) w, ws[i]? = some w → ErasesDeps E B σ lenv w := by
+      obtain ⟨hmm, hmlN, -, -, hsimple, indid, direct, nm, x, -, rfl, -⟩ :=
+        recFix_shape henv hsub hcr hall hcT hblk hni hshape hihs hRF
+      subst minors'
+      have hwscl : ∀ w ∈ ws, closedn 0 w = true := fun w hw => (hws w hw).1
+      have hFIX := substl_recFix (N := rv.numMinors) (nm := nm) (x := x) (direct := direct)
+        (indid := indid) (npars := rv.numParams) hsimple hmlN (by omega) hwscl
+      rw [hFIX] at hdF
+      have hdbody : ErasesDeps E B σ lenv (recBody direct indid rv.numParams minors ws
+          fun B => .bvar (B + 1)) := by
+        cases hdF with
+        | fix hd =>
+          have := hd _ (.head _)
+          cases this with
+          | lambda hb => exact hb
+      have h1 := deps_recBody hdbody
+      intro i w hw
+      have hi := (List.getElem?_eq_some_iff.mp hw).1
+      have hmem : (i, minors.getD i default,
+          Array.replicate (minors.getD i default).fields.length ConstructorArgRelevance.keep) ∈
+          recCs minors := List.mem_map.2 ⟨i, List.mem_range.2 (by omega), rfl⟩
+      have := h1 _ hmem
+      rwa [List.getD_eq_getElem?_getD, hw, Option.getD_some] at this
+    -- the erasures of the minors are erasures of their values
+    have hwe : ∀ (i : Nat) x x', mvs[i]? = some x → ws[i]? = some x' →
+        Erases E B lps σ .nil [] x x' := by
+      intro i mv w h1 h2
+      obtain ⟨m, hm⟩ : ∃ m, mins[i]? = some m :=
+        ⟨_, List.getElem?_eq_getElem (by have := (List.getElem?_eq_some_iff.mp h1).1; omega)⟩
+      obtain ⟨a₀, A, hTr, hA⟩ := hminT i m hm
+      obtain ⟨w', hw', hev⟩ := ihm i m mv hm h1 hTr ⟨A, hA⟩ (hwE i m w hm h2) (hdws i w h2)
+      obtain rfl := (hws w (List.mem_of_getElem? h2)).2.2 _ _ hev
+      exact hw'
+    exact rec_core henv hE hsub hbinj hcr hall hcT hblk hni hshape hihs hps hms hmins hlm hmv hmaj
+      hcv hmi hmk hrfs hrl hih ihmaj ihih ihv he ht hRF (by omega) hwe hws hdF hmajE hdmaj
 
 end SimRec
 

@@ -26,6 +26,9 @@ import EraseProof.Test.NVPRun
 import EraseProof.TargetFacts
 import EraseProof.TargetLift
 import EraseProof.Relation.Rec
+import EraseProof.Simulation.RecEval
+import EraseProof.Simulation.RecFix
+import EraseProof.Simulation.Rec
 import EraseProof.Relation.Basic
 import EraseProof.Relation.Deps
 import EraseProof.Test.LBEval

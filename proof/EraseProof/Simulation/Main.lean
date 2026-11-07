@@ -1,4 +1,5 @@
 import EraseProof.Simulation.Quot
+import EraseProof.Simulation.Rec
 import EraseProof.Statements
 
 /-!
@@ -138,6 +139,15 @@ theorem sim (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
     intro X hX
     obtain rfl := spine hX
     exact ⟨.quotMk hc hk ha, erases_correct_quotMk henv hE hsub hc hk ha (iha _ .refl).2⟩
+  | recIota hcr hall hcT hblk hni hshape hihs hps hms hmins hlm hmv hmaj hcv hmi hmk hrfs hrl hih hv
+      ihm ihmaj ihih ihv =>
+    intro X hX
+    obtain rfl := spine hX
+    exact ⟨.recIota hcr hall hcT hblk hni hshape hihs hps hms hmins hlm hmv hmaj hcv hmi hmk hrfs hrl
+      hih hv, SimRec.erases_correct_recIota henv hE hsub hbinj hcr hall hcT hblk hni hshape hihs hps
+      hms hmins hlm hmv hmaj hcv hmi hmk hrfs hrl hih hv
+      (fun i m mv h1 h2 => (ihm i m mv h1 h2 _ .refl).2) (ihmaj _ .refl).2
+      (fun i f w h1 h2 => (ihih i f w h1 h2 _ .refl).2) (ihv _ .refl).2⟩
   | quotLift hc hk hf hq hc' hk' hb ihf ihq ihb =>
     intro X hX
     obtain rfl := spine hX
