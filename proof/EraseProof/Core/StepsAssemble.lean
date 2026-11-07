@@ -2,6 +2,7 @@ import EraseProof.Core.StepsB
 import EraseProof.Core.StepsCtor
 import EraseProof.Core.StepsQuot
 import EraseProof.Core.StepsCasesBox
+import EraseProof.Core.StepsRec
 
 /-!
 # The literal step, the dispatch of `visitCases`, and the pure traversal's correctness
@@ -106,7 +107,7 @@ def CasesCaseSpec : Prop :=
       (∀ d, nameOccurs d (mkAppN (.const c us) as.toArray) = true → S d) →
       MachineFree cfg (mkAppN (.const c us) as.toArray) →
       NatPlain cfg (mkAppN (.const c us) as.toArray) →
-      RecFree decls (mkAppN (.const c us) as.toArray) →
+      RecShaped cfg decls (mkAppN (.const c us) as.toArray) →
       StateOK E B (evalEnvOf view cfg decls) st →
       TrM E B lps Γ Δ (mkAppN (.const c us) as.toArray) t → (∃ T, E[Γ] ⊢ t : T) →
       ci.arity ≤ as.length →
@@ -176,13 +177,13 @@ end
 end StepsCases
 
 /-- The pure traversal's correctness (`erasePure_erases_statement`), given the `case` branch of
-`visitCases` (`StepsCases.CasesCaseSpec`): the constructor, quotient, projection and literal steps, and the
-`casesOn` step from `visitCases`'s dispatch (`StepsCases.casesSatSpec_of_case`). Reference:
-`erases_erase` (`MR E/ErasureFunction.v:1228`). -/
+`visitCases` (`StepsCases.CasesCaseSpec`): the constructor, quotient, recursor, projection and literal
+steps, and the `casesOn` step from `visitCases`'s dispatch (`StepsCases.casesSatSpec_of_case`).
+Reference: `erases_erase` (`MR E/ErasureFunction.v:1228`). -/
 theorem erasePure_erases_of_case (h : StepsCases.CasesCaseSpec) : erasePure_erases_statement :=
   erasePure_erases_of_stepsB
     ⟨Steps.stepsB_ctor,
       Steps.stepsB_cases_of_sat fun hG ih hci => StepsCases.casesSatSpec_of_case h hG ih hci,
-      Steps.stepsB_quot, Steps.stepsB_proj, Steps.stepsB_lit⟩
+      Steps.stepsB_quot, Steps.stepsB_rec, Steps.stepsB_proj, Steps.stepsB_lit⟩
 
 end EraseProof

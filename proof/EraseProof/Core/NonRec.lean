@@ -132,4 +132,10 @@ theorem isRecursiveDecl_false {P : List ConstantInfo} {ζ : Metalean.Sigs} {E : 
   rw [hall, hval, nameOccurs_false hsc]
   rfl
 
+/-- `x` mentions recursors of `decls` only in the shape that the fragment admits
+(`RecInFragment`): what the fragment test checks of every recursor a read expression names
+(`Erasure.declExclusion`). -/
+def RecShaped (cfg : ErasureConfig) (decls : List ConstantInfo) (x : Expr) : Prop :=
+  ConstsIn (fun c => ∀ rv, findDecl decls c = some (.recInfo rv) → RecInFragment cfg decls rv) x
+
 end EraseProof

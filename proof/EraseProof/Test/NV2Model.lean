@@ -696,6 +696,7 @@ theorem indBlockT : IndBlock ET BT ηTT [] IsT CsT RsT ordersT where
     exact ⟨rfl, rfl, fun _ => ⟨`u, rfl⟩, fun h => absurd (by rw [htT]; exact largeElimT) h, rfl, rfl,
       rfl, rfl, rfl, rfl⟩
   recrType s := by fin_cases s; rfl
+  recMajor s := by fin_cases s; exact ⟨_, _, _, _, _, rfl, rfl⟩
   minors s t c := by fin_cases s; fin_cases t; fin_cases c; rfl
   recIHs s := by
     fin_cases s
@@ -775,6 +776,7 @@ theorem indBlockW : IndBlock EW BW ηWW [] IsW CsW RsW ordersW where
     exact ⟨rfl, rfl, fun _ => ⟨`u, rfl⟩, fun h => absurd (by rw [hwW]; exact largeElimW) h, rfl, rfl,
       rfl, rfl, rfl, rfl⟩
   recrType s := by fin_cases s; rfl
+  recMajor s := by fin_cases s; exact ⟨_, _, _, _, _, rfl, rfl⟩
   minors s t c := by fin_cases s; fin_cases t; fin_cases c <;> rfl
   recIHs s := by
     fin_cases s

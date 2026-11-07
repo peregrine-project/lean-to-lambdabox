@@ -99,10 +99,14 @@ Scope.
   them anyway: their recursion reduces only through the accessibility proof, and proofs are opaque
   in Metalean (theorems have no δ, DV-24), so the source does not evaluate them and `hev` never
   holds.
-* The fragment is non-recursive. The fragment test rejects structural recursion as well (every
-  recursive definition has a compiled `_unsafe_rec` companion, `Nat.add` and `Nat.beq` included),
-  and recursors other than the companions of `casesOn`; so `Nat` arithmetic of `Init` is outside
-  it. Nat literals are in the fragment only under `nat := .peano`; under the default
+* The fragment has no recursive definitions. The fragment test rejects structural recursion as
+  well (every recursive definition has a compiled `_unsafe_rec` companion, `Nat.add` and `Nat.beq`
+  included), so `Nat` arithmetic of `Init` is outside it. Programs recurse through recursors: the
+  test admits `T.rec` of a single inductive without indices that eliminates into every sort, whose
+  induction hypotheses take no arguments and are about the last fields of their constructor
+  (`RecInFragment`), and other recursors only as the companions of `casesOn` that the traversal does
+  not read. Nat literals are in the fragment only under `nat := .peano`; under the default
+
   `nat := .machine` the test rejects them, with `Nat.zero`, `Nat.succ` and `Nat.casesOn`.
 * The fragment admits programs on which the source evaluation is stuck where λ□ evaluation is not
   necessarily: they use opaques with a value (no δ, DV-10; the eraser emits the value), axioms of

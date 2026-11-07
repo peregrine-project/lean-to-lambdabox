@@ -450,6 +450,13 @@ structure IndBlock {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) {ι
   recrType : ∀ s, peelForalls (ι.recrEnd s) (Rs s).type = some (mkAppN
     (.bvar (ι.recrEnd s - 1 - (ι.nparams + s.val)))
     ((List.range (ι.nindices s + 1)).reverse.map .bvar).toArray)
+  /-- The major premise of a recursor's Lean type is of the recursor's inductive: the binder after
+  the parameters, motives, minor premises and indices has a type headed by the inductive of the
+  recursor's sort (`I.{lps} params indices`), as Lean's kernel generates it (`mk_rec_infos`,
+  `src/kernel/inductive.cpp`). `ConstTyped` relates the type to Metalean's only up to definitional
+  equality. -/
+  recMajor : ∀ s, ∃ x dom body bi us, peelForalls (ι.recrEnd s - 1) (Rs s).type =
+      some (.forallE x dom body bi) ∧ dom.getAppFn = .const (Is s).name us
   /-- The minor premise of constructor `c` of sort `t` in a recursor's Lean type has
   `nfields + 2 * nrecFields` leading `Π`s, one per field and one per induction hypothesis, as
   Metalean's ι-rule applies the minor (`iotaRhs`, `ML Syntax/Inductive/Iota.lean:161`). It is the
@@ -1039,9 +1046,8 @@ def IsRecursorIn (decls : List ConstantInfo) (c : Name) : Bool :=
   | some (.recInfo _) => true
   | _ => false
 
-/-- `x` mentions no recursor of `decls`: the pure traversal reaches a recursor only as the `T.rec`
-of a recognized `T.casesOn` or of an inductive `T` with one constructor, whose value it does not
-read. -/
+/-- `x` mentions no recursor of `decls`: then the fragment test checks no recursor that `x` reads
+(`collectDeps_ok_of`). -/
 def RecFree (decls : List ConstantInfo) (x : Expr) : Prop :=
   ConstsIn (fun c => IsRecursorIn decls c = false) x
 
@@ -1051,9 +1057,19 @@ def Eliminated (decls : List ConstantInfo) (iv : InductiveVal) : Prop :=
   (EvalEnv.casesOn? ⟨decls, fun _ => false⟩ (.str iv.name "casesOn")).isSome ∨
     ∃ cn cv, iv.ctors = [cn] ∧ findDecl decls cn = some (.ctorInfo cv) ∧ 0 < cv.numFields
 
+/-- A recursor in the shape of the recursors the source semantics evaluates (`SrcEval.recIota`),
+which the eraser does not keep as a constant: `T.rec` of a single inductive `T` of `decls` without
+indices, which eliminates into every sort, whose induction hypotheses take no arguments and are
+about the last fields of their constructor (`Erasure.recShapeInFragment`), and outside the cases of
+`Erasure.recStaysConstant`, over the block that `visitRec` reads from `decls`. -/
+def RecInFragment (cfg : ErasureConfig) (decls : List ConstantInfo) (r : RecursorVal) : Prop :=
+  ∃ T iv cvs, r.name = mkRecName T ∧ r.all = [T] ∧
+    EvalEnv.recBlock? ⟨decls, fun _ => false⟩ r = some ([iv], cvs) ∧
+    recShapeInFragment r [iv] cvs = true ∧ recStaysConstant cfg.nat r [iv] cvs = false
+
 /-- A declaration of the closure is inside the first-phase fragment (Phase I): every quotient
-constant; a recursor only as `T.rec` of a recognized `T.casesOn` of the closure or of an inductive `T` of the
-closure with one constructor (and never in a read expression, `RecFree`); safe, with no `_unsafe_rec` companion (definitions and opaques: a `partial def` is an opaque with
+constant; a recursor as `T.rec` of a recognized `T.casesOn` of the closure or of an inductive `T` of
+the closure with one constructor, or in the shape that `RecInFragment` admits; safe, with no `_unsafe_rec` companion (definitions and opaques: a `partial def` is an opaque with
 one) and no `implemented_by` target;
 inductives not nested, of a sort that is syntactically `Prop`, never zero, or, when the traversal
 cannot eliminate them (`Eliminated`), not zero under every assignment (`PUnit`); when their
@@ -1065,7 +1081,9 @@ def PhaseIDecl (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo
   | .recInfo r => (∃ T iv, r.name = mkRecName T ∧
       EvalEnv.casesOn? ⟨decls, fun _ => false⟩ (.str T "casesOn") = some iv ∧
       (findDecl decls (.str T "casesOn")).isSome) ∨
-    ∃ T iv, r.name = mkRecName T ∧ findDecl decls T = some (.inductInfo iv) ∧ iv.ctors.length = 1
+    (∃ T iv, r.name = mkRecName T ∧ findDecl decls T = some (.inductInfo iv) ∧
+      iv.ctors.length = 1) ∨
+    RecInFragment cfg decls r
   | .defnInfo d => d.safety = .safe ∧ view.find? (Compiler.mkUnsafeRecName d.name) = none ∧
       view.implementedBy? d.name = none
   | .opaqueInfo o => o.isUnsafe = false ∧ view.find? (Compiler.mkUnsafeRecName o.name) = none ∧

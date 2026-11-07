@@ -540,7 +540,7 @@ theorem visitAlt_spec (hG : CoreEnv E B P decls view cfg) {j : Nat}
     {alt : Expr} {t : Metalean.Expr ζ lps.length n} {br : List BinderName × LBTerm}
     (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK decls S)
     (hocc : ∀ d, nameOccurs d alt = true → S d) (hmf : MachineFree cfg alt)
-    (hnp : NatPlain cfg alt) (hrf : RecFree decls alt)
+    (hnp : NatPlain cfg alt) (hrf : RecShaped cfg decls alt)
     (hok : StateOK E B (evalEnvOf view cfg decls) st) (he : TrM E B lps Γ Δ alt t)
     (ht : ∃ T, E[Γ] ⊢ t : T)
     (hrun : (visitAlt (m := PureM) (j + 1) k (Array.replicate k .keep) [] alt).runPure st tc
@@ -562,7 +562,7 @@ theorem visitAlt_spec (hG : CoreEnv E B P decls view cfg) {j : Nat}
       k alt br ∧ ErasesDeps E B (evalEnvOf view cfg decls) st'.gdecls br.2 ∧
       Grows E B (evalEnvOf view cfg decls) S st st' ps ps')
     (fun e => (∀ d, nameOccurs d e = true → S d) ∧ MachineFree cfg e ∧ NatPlain cfg e ∧
-      RecFree decls e)
+      RecShaped cfg decls e)
     (fun z A b bi y h => ⟨fun d hd => h.1 d
         (by rw [nameOccurs_inst_fvar] at hd; simpa [nameOccurs] using hd), mf_inst (a := .fvar y) trivial h.2.1.2,
       np_inst (a := .fvar y) trivial h.2.2.1.2, ConstsIn_inst_fvar h.2.2.2.2⟩)
@@ -670,7 +670,7 @@ theorem visitCasesOn_spec (hG : CoreEnv E B P decls view cfg) {f : Nat}
       findDecl decls cn = some (.ctorInfo cv) ∧ alts[i]? = some alt ∧
       m[cn]? = some (cv.numFields, alt))
     (halts : ∀ alt ∈ alts, (∀ d, nameOccurs d alt = true → S d) ∧ MachineFree cfg alt ∧
-      NatPlain cfg alt ∧ RecFree decls alt ∧ ∃ a', TrM E B lps Γ Δ alt a' ∧ ∃ A, E[Γ] ⊢ a' : A)
+      NatPlain cfg alt ∧ RecShaped cfg decls alt ∧ ∃ a', TrM E B lps Γ Δ alt a' ∧ ∃ A, E[Γ] ⊢ a' : A)
     (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK decls S)
     (hok : StateOK E B (evalEnvOf view cfg decls) st)
     (hdd : ErasesDeps E B (evalEnvOf view cfg decls) st.gdecls d)
@@ -940,7 +940,7 @@ theorem casesSat_case (hG : CoreEnv E B P decls view cfg) {j : Nat}
     (hocc : ∀ d, nameOccurs d (mkAppN (.const c us) as.toArray) = true → S d)
     (hmf : MachineFree cfg (mkAppN (.const c us) as.toArray))
     (hnp : NatPlain cfg (mkAppN (.const c us) as.toArray))
-    (hrf : RecFree decls (mkAppN (.const c us) as.toArray))
+    (hrf : RecShaped cfg decls (mkAppN (.const c us) as.toArray))
     (hok : StateOK E B (evalEnvOf view cfg decls) st)
     (he : TrM E B lps Γ Δ (mkAppN (.const c us) as.toArray) t) (ht : ∃ T, E[Γ] ⊢ t : T)
     (hsat : ci.arity ≤ as.length)
@@ -1100,11 +1100,11 @@ theorem casesSat_case (hG : CoreEnv E B P decls view cfg) {j : Nat}
       fun d hd => h d (by simp [nameOccurs, hd])⟩) hocc).2
   have hmfA := hQ (Q := MachineFree cfg) (fun _ _ h => h) hmf
   have hnpA := hQ (Q := NatPlain cfg) (fun _ _ h => h) hnp
-  have hrfA := (hQ (Q := RecFree decls) (fun _ _ h => h) hrf).2
+  have hrfA := (hQ (Q := RecShaped cfg decls) (fun _ _ h => h) hrf).2
   have htyA := (spine_typed (StepsCases.casesOn_notSpecial (σ := evalEnvOf view cfg decls)
     hG.prog hG.sub hd) he ⟨T, hT⟩).2
   have hargs : ∀ a ∈ as, (∀ d, nameOccurs d a = true → S d) ∧ MachineFree cfg a ∧
-      NatPlain cfg a ∧ RecFree decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A :=
+      NatPlain cfg a ∧ RecShaped cfg decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A :=
     fun a ha => ⟨hoccA a ha, hmfA.2 a ha, hnpA.2 a ha, hrfA a ha, htyA a ha⟩
   -- the discriminant
   obtain ⟨hoa, hma, hna, hra, a', hta, A, hA⟩ := hargs _ (List.getElem_mem hmlt)

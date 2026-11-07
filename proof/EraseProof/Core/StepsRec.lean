@@ -2,19 +2,21 @@ import EraseProof.Core.StepsQuot
 import EraseProof.Simulation.Rec
 
 /-!
-# The recursor step on saturated spines
+# The recursor step
 
-`Steps.visitRec_sat`: `visitRec` (`LeanToLambdaBox/Erasure.lean:971`) on a spine of the recursor
-`T.rec` of a single inductive `T` without indices whose induction hypotheses take no arguments and
-are about the last fields (the recursors of `SrcEval.recIota`), applied to at least its arity of
-arguments, erases the spine by `Erases.recLet`: the minor premises erased and let-bound around the
-fixpoint of the block (`RecFixOf`), applied to the erased major premise and to the erased arguments
-beyond the arity. The fixpoint's members are those `recMembers` computes, its alternatives those of
-`SimRec.recCs`, it is closed under the minors and has no free variable (`recFix_closed`), and its
-only `case` reads the registered block of `T` (`deps_recFix`). The recursor eliminates into every
-sort (it has a universe parameter more than its inductive); then `T` is a subsingleton when its
-values are proofs, and the oracle's level of the major premise's type decides whether the fixpoint
-reduces its `case` (`rec_side`).
+`StepsB.recr` (`Steps.stepsB_rec`): an application or a constant whose head is a recursor, which
+the closure reads only in the fragment's shape (`RecShaped`): the recursor `T.rec` of a single
+inductive `T` without indices whose induction hypotheses take no arguments and are about the last
+fields (the recursors of `SrcEval.recIota`). `visitRec` (`LeanToLambdaBox/Erasure.lean:971`,
+`Steps.visitRec_spec`) registers the block of `T`, η-expands the spine to the recursor's arity
+(`withAppEta_spec`), and erases the saturated spine by `Erases.recLet`: the minor premises erased
+and let-bound around the fixpoint of the block (`RecFixOf`), applied to the erased major premise and
+to the erased arguments beyond the arity. The fixpoint's members are those `recMembers` computes,
+its alternatives those of `SimRec.recCs`, it is closed under the minors and has no free variable
+(`recFix_closed`), and its only `case` reads the registered block of `T` (`deps_recFix`). The
+recursor eliminates into every sort (it has a universe parameter more than its inductive); then `T`
+is a subsingleton when its values are proofs, and the oracle's level of the major premise's type
+decides whether the fixpoint reduces its `case` (`rec_side`).
 
 Reference: none in MetaRocq (PCUIC has no recursors); DV-30.
 -/
@@ -89,7 +91,7 @@ theorem visitExpr_mapM {j : Nat} (ih : ∀ e, ExprSpec E B view cfg decls j e)
     ∀ {args : List Expr} {st st' : ErasureState} {ps ps' : PureState} {ms : List LBTerm},
     CtxOK E B lps Γ Δ cfg tc ps → ScopeOK decls S →
     (∀ a ∈ args, (∀ d, nameOccurs d a = true → S d) ∧ MachineFree cfg a ∧
-      NatPlain cfg a ∧ RecFree decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A) →
+      NatPlain cfg a ∧ RecShaped cfg decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A) →
     StateOK E B (evalEnvOf view cfg decls) st →
     (args.mapM (visitExpr (m := PureM) j)).runPure st tc ⟨decls, view⟩ ps = .ok ((ms, st'), ps') →
     args.length = ms.length ∧
@@ -253,33 +255,7 @@ theorem deps_recFix {σ : EvalEnv} {lenv : GlobalDeclarations} {N npars : Nat} {
       obtain ⟨c, -, rfl⟩ := List.mem_map.1 hbr
       exact halt c
 
-/-- `withAppEtaToMinArity` on a spine with at least the arity of arguments runs the continuation
-on the head and the arguments (`LeanToLambdaBox/Erasure.lean:646`), once the spine's type is
-inferred. -/
-theorem withAppEta_sat {pc : PureCtx} {ar f : Nat} {c : Name} {us : List Level} {e : Expr}
-    {kont : Expr → Array Expr → EraseT PureM LBTerm} (hfn : e.getAppFn = .const c us)
-    (hsat : ar ≤ (spineArgs e).length) {st : ErasureState} {tc : TravCtx} {ps : PureState}
-    {res : (LBTerm × ErasureState) × PureState}
-    (h : (withAppEtaToMinArity (m := PureM) f e ar kont).runPure st tc pc ps = .ok res) :
-    (kont (.const c us) (spineArgs e).toArray).runPure st tc pc ps = .ok res := by
-  have hA : (e.withApp fun _ as => as) = (spineArgs e).toArray := by
-    rw [← withApp_toList e, Array.toArray_toList]
-  rw [withAppEtaToMinArity, runPure_read_bind, runPure_read_bind, runPure_bind,
-    inferType_runPure] at h
-  rcases hinf : Pure.inferType ⟨pc.decls⟩ oracleFuel tc.locals [] e with err | T
-  · rw [hinf] at h; cases h
-  rw [hinf, show Except.map (fun T => ((T, st), ps)) (Except.ok T : Except EraseError Expr) =
-    Except.ok ((T, st), ps) from rfl, ok_bind'] at h
-  dsimp only at h
-  rw [withApp_eq, hfn, hA] at h
-  cases f with
-  | zero => rw [withAppEtaToMinArity.go] at h; cases h
-  | succ f =>
-  rw [withAppEtaToMinArity.go] at h
-  simp only [show (spineArgs e).toArray.size ≥ ar by simp; omega, ↓reduceIte] at h
-  exact h
-
-/-- The side conditions of `visitRec_sat` from the typing of the spine, for a recursor with a
+/-- The side conditions of `visitRec_spec` from the typing of the spine, for a recursor with a
 universe parameter more than its inductive (`hlp`), whose block eliminates into every sort: the
 inductive is a subsingleton when its constructor nodes are proofs (`SortLargeElim.singleton_of_eval_zero`,
 `Ctor.Eligible`; without indices, no field is an index variable); the oracle's level `u` of the
@@ -445,13 +421,13 @@ theorem rec_side {lps : List Name} (henv : ProgEnv P ζ E B) (hE : EnvWF E)
 
 /-- `visitRec` at the pure backend on a spine `c.{us} as` of the recursor `rv = T.rec` of a single
 inductive `iv` without indices whose induction hypotheses take no arguments and are about the last
-fields (`hihs`), which the traversal does not keep as a constant (`hnsc`), with at least its arity
-of arguments, from `visitExpr` at the fuels up to `fuel` (`ih`): a successful run erases the spine
-by `Erases.recLet`, with erased dependencies, grows, and returns a closed term, when the recursor
-has a universe parameter more than its inductive (`hlp`, elimination into every sort): its side
-conditions are `rec_side`. Reference: `visitRec`
-(`LeanToLambdaBox/Erasure.lean:971`); DV-30. -/
-theorem visitRec_sat (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
+fields (`hihs`), which the traversal does not keep as a constant (`hnsc`), from `visitExpr` at the
+fuels up to `fuel` (`ih`): a successful run erases the spine, with erased dependencies, and grows,
+when the recursor has a universe parameter more than its inductive (`hlp`, elimination into every
+sort). After the block's registration, the spine is η-expanded to the arity (`withAppEta_spec`),
+and the saturated spine is erased by `Erases.recLet`, whose side conditions are `rec_side`.
+Reference: `visitRec` (`LeanToLambdaBox/Erasure.lean:971`); DV-30. -/
+theorem visitRec_spec (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
     (ih : StepIH E B view cfg decls fuel) {c : Name} {us : List Level} {rv : RecursorVal}
     {T : Name} {iv : InductiveVal} {cvs : List ConstructorVal}
     (hcr : findDecl decls c = some (.recInfo rv)) (hall : rv.all = [T]) (hcT : c = mkRecName T)
@@ -467,21 +443,16 @@ theorem visitRec_sat (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
     (he : TrM E B lps Γ Δ e t) (ht : ∃ U, E[Γ] ⊢ t : U)
     (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK decls S)
     (hargs : ∀ a ∈ spineArgs e, (∀ d, nameOccurs d a = true → S d) ∧ MachineFree cfg a ∧
-      NatPlain cfg a ∧ RecFree decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A)
-    (hsat : rv.numParams + rv.numMotives + rv.numMinors + rv.numIndices + 1 ≤ (spineArgs e).length)
+      NatPlain cfg a ∧ RecShaped cfg decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A)
     (hok : StateOK E B (evalEnvOf view cfg decls) st)
     (hrun : (visitRec (m := PureM) fuel rv e).runPure st tc ⟨decls, view⟩ ps =
       .ok ((r, st'), ps')) :
     Erases E B lps (evalEnvOf view cfg decls) Γ Δ e r ∧
       ErasesDeps E B (evalEnvOf view cfg decls) st'.gdecls r ∧
-      Grows E B (evalEnvOf view cfg decls) S st st' ps ps' ∧ closedn 0 r = true := by
-  have hsp₀ : mkAppN (.const c us) (spineArgs e).toArray = e := by
-    rw [← hfn]; exact mkAppN_spine e
+      Grows E B (evalEnvOf view cfg decls) S st st' ps ps' := by
   have har : (arityShape iv.type).isSome :=
     hG.arity iv ⟨_, (findDecl_eq_some (RecWhred.recBlock?_single hall hblk).1).1, rfl⟩
   obtain ⟨U, hU⟩ := ht
-  obtain ⟨hss, hdir⟩ := rec_side (view := view) (cfg := cfg) hG.prog hG.wf hG.sub hcr hall hcT hblk
-    hni hlp har hctx.wf hctx.locals hctx.nobv hsat (by rw [hsp₀]; exact he) hU
   cases fuel with
   | zero => rw [visitRec] at hrun; cases hrun
   | succ fuel =>
@@ -556,69 +527,90 @@ theorem visitRec_sat (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
   subst hj1
   have hmaj : rv.getMajorInduct = T := hj2.symm
   dsimp only at hr4
-  have hr5 := withAppEta_sat hfn hsat hr4
-  beta_reduce at hr5
   have hps₆ : ps₆ = ps₂ := KeepsPS.register_inductive iv _ _ _ _ _ _ hreg
   subst hps₆
   have hgr₅ : Grows E B (evalEnvOf view cfg decls) S st₂ st₆ ps₆ ps₆ :=
     ⟨hok₅, hext₅, Nat.le_refl _, fun c kn h h' => by rw [hcon₅, h] at h'; cases h'⟩
+  have hirr : tc.config.remove_irrel_constr_args = false := by
+    rw [hctx.config]; exact hG.irr iv ⟨_, (findDecl_eq_some hivT).1, rfl⟩
+  have hph : ∀ ci ∈ (evalEnvOf view cfg decls).decls,
+      PhaseIDecl view tc.config (evalEnvOf view cfg decls).decls ci := by
+    rw [hctx.config]; exact hG.phase
+  have hmem₅ := register_inductive_mem (σ := evalEnvOf view cfg decls) hG.prog hG.sub rfl hirr
+    hph hivT hreg
+  -- the recursor's declared type is a `Π`-telescope of its arity
+  have hcP := SrcDefeq.findDecl_sub (σ := evalEnvOf view cfg decls) hG.sub hcr
+  obtain ⟨ι, η, s, os, hB, harity⟩ := hG.prog.lookup_recr hcP
+  obtain ⟨rv', hrv', hpk⟩ := OracleInfer.ProgEnv.recrType hG.prog hcP hB
+  cases hrv'
+  refine (fun h => ⟨h.1, h.2.1, hgr₅.trans h.2.2⟩) (withAppEta_spec (ci := .recInfo rv)
+    (I := fun st => ∃ q, st.inductives[iv.name]? = some q) hG hcr
+    (by simp [specialArity, evalEnvOf, hcr]) (harity ▸ hpk) ?_ hfn hctx hsc hargs hok₅
+    ⟨_, hmem₅⟩ he ⟨U, hU⟩ hr4)
+  -- the saturated spine
+  intro lps' n' Γ' Δ' S' st₁ st₁' tc' ps₁ ps₁' r' as hctx' hsc' hargs' hlen' hok' hI' hsp' hrun'
+  beta_reduce at hrun'
+  obtain ⟨t', U', he', hU'⟩ := hsp'
+  obtain ⟨q, hq⟩ := hI'
+  obtain ⟨hss, hdir⟩ := rec_side (view := view) (cfg := cfg) hG.prog hG.wf hG.sub hcr hall hcT hblk
+    hni hlp har hctx'.wf hctx'.locals hctx'.nobv hlen' he' hU'
   -- the major premise
-  rw [runPure_bind] at hr5
-  obtain ⟨⟨⟨mj, st₇⟩, ps₇⟩, hm0, hr6⟩ := OracleWhnf.ok_of_bind hr5
+  rw [runPure_bind] at hrun'
+  obtain ⟨⟨⟨mj, st₇⟩, ps₇⟩, hm0, hr6⟩ := OracleWhnf.ok_of_bind hrun'
   obtain ⟨hmj, rfl, rfl⟩ := getOrFail_run hm0
   dsimp only at hr6
   rw [runPure_read_bind, runPure_read_bind, runPure_bind, runPure_liftM, typeLevel_run] at hr6
-  rcases hTL : Pure.typeLevel ⟨decls⟩ oracleFuel tc.locals mj with err | u
+  rcases hTL : Pure.typeLevel ⟨decls⟩ oracleFuel tc'.locals mj with err | u
   · rw [hTL] at hr6; cases hr6
   rw [hTL] at hr6
   dsimp only [Except.map] at hr6
   rw [ok_bind', ok_bind'] at hr6
   dsimp only at hr6
   -- the arguments
-  have hsub : ∀ l : List Expr, (∀ a ∈ l, a ∈ spineArgs e) → ∀ a ∈ l,
-      (∀ d, nameOccurs d a = true → S d) ∧ MachineFree cfg a ∧ NatPlain cfg a ∧ RecFree decls a ∧
-        ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A := fun l hl a ha => hargs a (hl a ha)
+  have hsub : ∀ l : List Expr, (∀ a ∈ l, a ∈ as) → ∀ a ∈ l,
+      (∀ d, nameOccurs d a = true → S' d) ∧ MachineFree cfg a ∧ NatPlain cfg a ∧ RecShaped cfg decls a ∧
+        ∃ a', TrM E B lps' Γ' Δ' a a' ∧ ∃ A, E[Γ'] ⊢ a' : A := fun l hl a ha => hargs' a (hl a ha)
   -- the minor premises
   rw [runPure_bind] at hr6
   obtain ⟨⟨⟨ms, st₈⟩, ps₈⟩, hms, hr7⟩ := OracleWhnf.ok_of_bind hr6
-  rw [show ((spineArgs e).toArray.extract (rv.numParams + rv.numMotives)
+  rw [show ((as).toArray.extract (rv.numParams + rv.numMotives)
       (rv.numParams + rv.numMotives + rv.numMinors)).toList =
-      ((spineArgs e).drop (rv.numParams + rv.numMotives)).take rv.numMinors by simp] at hms
-  have hmsub : ∀ a ∈ ((spineArgs e).drop (rv.numParams + rv.numMotives)).take rv.numMinors,
-      a ∈ spineArgs e := fun a ha => List.mem_of_mem_drop (List.mem_of_mem_take ha)
+      ((as).drop (rv.numParams + rv.numMotives)).take rv.numMinors by simp] at hms
+  have hmsub : ∀ a ∈ ((as).drop (rv.numParams + rv.numMotives)).take rv.numMinors,
+      a ∈ as := fun a ha => List.mem_of_mem_drop (List.mem_of_mem_take ha)
   obtain ⟨hlenm, hersm, hdepsm, hgrm⟩ := visitExpr_mapM (fun e => ih.expr fuel (by omega) e)
-    hctx hsc (hsub _ hmsub) hok₅ hms
+    hctx' hsc' (hsub _ hmsub) hok' hms
   dsimp only at hr7
   rw [runPure_bind] at hr7
   obtain ⟨⟨⟨app, st₉⟩, ps₉⟩, happ, hr8⟩ := OracleWhnf.ok_of_bind hr7
   cases fuel with
   | zero => rw [visitAppArgs] at happ; cases happ
   | succ j =>
-  rw [show (spineArgs e).toArray.extract (rv.numParams + rv.numMotives + rv.numMinors)
+  rw [show (as).toArray.extract (rv.numParams + rv.numMotives + rv.numMinors)
       (rv.numParams + rv.numMotives + rv.numMinors + rv.numIndices + 1) =
-      (((spineArgs e).drop (rv.numParams + rv.numMotives + rv.numMinors)).take
+      (((as).drop (rv.numParams + rv.numMotives + rv.numMinors)).take
         (rv.numIndices + 1)).toArray by simp; congr 1; omega] at happ
-  have hisub : ∀ a ∈ ((spineArgs e).drop (rv.numParams + rv.numMotives + rv.numMinors)).take
-      (rv.numIndices + 1), a ∈ spineArgs e := fun a ha => List.mem_of_mem_drop (List.mem_of_mem_take ha)
+  have hisub : ∀ a ∈ ((as).drop (rv.numParams + rv.numMotives + rv.numMinors)).take
+      (rv.numIndices + 1), a ∈ as := fun a ha => List.mem_of_mem_drop (List.mem_of_mem_take ha)
   obtain ⟨as', rfl, hlena, hersa, hdepsa, hgra⟩ := visitAppArgs_list
-    (fun e => ih.expr j (by omega) e) (hctx.mono (hgr₅.trans hgrm).next) hsc (hsub _ hisub)
+    (fun e => ih.expr j (by omega) e) (hctx'.mono hgrm.next) hsc' (hsub _ hisub)
     hgrm.inv happ
   dsimp only at hr8
-  rw [show (spineArgs e).toArray.extract
+  rw [show (as).toArray.extract
       (rv.numParams + rv.numMotives + rv.numMinors + rv.numIndices + 1) =
-      ((spineArgs e).drop (rv.numParams + rv.numMotives + rv.numMinors + rv.numIndices + 1)).toArray
+      ((as).drop (rv.numParams + rv.numMotives + rv.numMinors + rv.numIndices + 1)).toArray
       by simp] at hr8
-  have hxsub : ∀ a ∈ (spineArgs e).drop (rv.numParams + rv.numMotives + rv.numMinors +
-      rv.numIndices + 1), a ∈ spineArgs e := fun a ha => List.mem_of_mem_drop ha
+  have hxsub : ∀ a ∈ (as).drop (rv.numParams + rv.numMotives + rv.numMinors +
+      rv.numIndices + 1), a ∈ as := fun a ha => List.mem_of_mem_drop ha
   obtain ⟨ex', rfl, hlenx, hersx, hdepsx, hgrx⟩ := visitAppArgs_list
-    (fun e => ih.expr j (by omega) e) (hctx.mono ((hgr₅.trans hgrm).trans hgra).next) hsc
+    (fun e => ih.expr j (by omega) e) (hctx'.mono (hgrm.trans hgra).next) hsc'
     (hsub _ hxsub) hgra.inv hr8
   -- the shapes
   have hlenmin : minors.length = rv.numMinors := by
     rw [recShape_length hsh, List.length_map, hmc]
   have hlenmi : minors.length = iv.ctors.length := by omega
-  have hA := hsat
-  have hmj' : (spineArgs e)[rv.numParams + rv.numMotives + rv.numMinors]? = some mj := by
+  have hA := hlen'
+  have hmj' : (as)[rv.numParams + rv.numMotives + rv.numMinors]? = some mj := by
     simpa [hni] using hmj
   obtain ⟨hd1, hd2⟩ := hdir mj u (by simpa [hni] using hmj') hTL
   -- the alternatives of the fixpoint are those of `SimRec.recCs`
@@ -706,8 +698,8 @@ theorem visitRec_sat (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
       fun t ht => by rw [hall] at ht; obtain rfl := List.mem_singleton.1 ht; exact hss,
       rfl, hcF.1, hcF.2⟩
   -- the major premise and the arguments
-  have hdrop : (spineArgs e).drop (rv.numParams + rv.numMotives + rv.numMinors) =
-      mj :: (spineArgs e).drop (rv.numParams + rv.numMotives + rv.numMinors + 1) := by
+  have hdrop : (as).drop (rv.numParams + rv.numMotives + rv.numMinors) =
+      mj :: (as).drop (rv.numParams + rv.numMotives + rv.numMinors + 1) := by
     rw [List.drop_eq_getElem_cons (by omega)]
     rw [List.getElem?_eq_getElem (by omega)] at hmj'
     cases hmj'
@@ -717,31 +709,29 @@ theorem visitRec_sat (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
     simp only [List.take_succ_cons, List.take_zero, List.length_singleton] at hlena
     match as', hlena with
     | [a'], _ => exact ⟨a', rfl⟩
-  have hera : Erases E B lps (evalEnvOf view cfg decls) Γ Δ mj a' :=
+  have hera : Erases E B lps' (evalEnvOf view cfg decls) Γ' Δ' mj a' :=
     hersa 0 mj a' (by rw [hni, hdrop]; rfl) rfl
-  have hsp : mkAppN (.const c us) (spineArgs e).toArray = e := by
-    rw [← hfn]; exact mkAppN_spine e
-  have hdec : spineArgs e = (spineArgs e).take rv.numParams ++
-      ((spineArgs e).drop rv.numParams).take rv.numMotives ++
-      ((spineArgs e).drop (rv.numParams + rv.numMotives)).take rv.numMinors ++ [] ++ [mj] ++
-      (spineArgs e).drop (rv.numParams + rv.numMotives + rv.numMinors + rv.numIndices + 1) := by
+  have hdec : as = (as).take rv.numParams ++
+      ((as).drop rv.numParams).take rv.numMotives ++
+      ((as).drop (rv.numParams + rv.numMotives)).take rv.numMinors ++ [] ++ [mj] ++
+      (as).drop (rv.numParams + rv.numMotives + rv.numMinors + rv.numIndices + 1) := by
     rw [hni, Nat.add_zero]
-    conv_lhs => rw [← List.take_append_drop rv.numParams (spineArgs e),
-      ← List.take_append_drop rv.numMotives ((spineArgs e).drop rv.numParams), List.drop_drop,
-      ← List.take_append_drop rv.numMinors ((spineArgs e).drop (rv.numParams + rv.numMotives)),
+    conv_lhs => rw [← List.take_append_drop rv.numParams (as),
+      ← List.take_append_drop rv.numMotives ((as).drop rv.numParams), List.drop_drop,
+      ← List.take_append_drop rv.numMinors ((as).drop (rv.numParams + rv.numMotives)),
       List.drop_drop, hdrop]
     simp [List.append_assoc]
   -- the closedness of the erasures
   have hclm : ∀ m ∈ ms, closedn 0 m = true := by
     intro m hm
     obtain ⟨i, hi⟩ := List.mem_iff_getElem?.1 hm
-    have hi' : i < (((spineArgs e).drop (rv.numParams + rv.numMotives)).take rv.numMinors).length := by
+    have hi' : i < (((as).drop (rv.numParams + rv.numMotives)).take rv.numMinors).length := by
       rw [hlenm]; exact (List.getElem?_eq_some_iff.1 hi).1
-    exact closed_of_arg hctx hargs (hmsub _ (List.getElem_mem hi'))
+    exact closed_of_arg hctx' hargs' (hmsub _ (List.getElem_mem hi'))
       (hersm i _ _ (List.getElem?_eq_getElem hi') hi)
   have hcla : closedn 0 a' = true :=
-    closed_of_arg hctx hargs (List.mem_of_getElem? hmj') hera
-  have hclx := closed_of_args (hctx.mono (((hgr₅.trans hgrm).trans hgra)).next) hargs hxsub hlenx hersx
+    closed_of_arg hctx' hargs' (List.mem_of_getElem? hmj') hera
+  have hclx := closed_of_args (hctx'.mono ((hgrm.trans hgra)).next) hargs' hxsub hlenx hersx
   have hform : List.foldr (fun x b => LBTerm.letIn (binderNameOf x.2.name) x.1 b)
       (mkApps (recFix rv.numMinors rv.numParams (!u.isNeverZero)
         [⟨iv.name, [x], indid, SimRec.recCs minors⟩] 0) [a']) (ms.zip minors) =
@@ -750,27 +740,20 @@ theorem visitRec_sat (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
     rw [RecLam.recLets_closed _ 0 _ fun p hp => hclm p.1 (List.of_mem_zip hp).1]
     simp [TargetLift.lbLift_closedn _ _ 0 hcla]
   refine ⟨?_, ?_, ?_, ?_⟩
-  · rw [hform, ← hsp]
+  · rw [hform]
     conv_lhs => rw [hdec]
     refine Erases.recLet hcr hRF ?_ ?_ ?_ (by rw [hni]; rfl) hlenm hersm rfl
       (fun _ _ _ h => nomatch h) hera hlenx hersx
     · simp; omega
     · simp; omega
     · simp; omega
-  · have hirr : tc.config.remove_irrel_constr_args = false := by
-      rw [hctx.config]; exact hG.irr iv ⟨_, (findDecl_eq_some hivT).1, rfl⟩
-    have hph : ∀ ci ∈ (evalEnvOf view cfg decls).decls,
-        PhaseIDecl view tc.config (evalEnvOf view cfg decls).decls ci := by
-      rw [hctx.config]; exact hG.phase
-    have hmem₅ := register_inductive_mem (σ := evalEnvOf view cfg decls) hG.prog hG.sub rfl hirr
-      hph hivT hreg
-    have hind : ErasesInd E B (evalEnvOf view cfg decls) st'.gdecls iv.name :=
+  · have hind : ErasesInd E B (evalEnvOf view cfg decls) st₁'.gdecls iv.name :=
       StateLemmas.ErasesInd.ext ((hgrm.trans hgra).trans hgrx).ext
-        (hok₅.inductives iv.name _ hmem₅).2.1
+        (hok'.inductives iv.name _ hq).2.1
     have hlets : ∀ (zs : List (LBTerm × RecMinor)) (b : LBTerm),
-        (∀ p ∈ zs, ErasesDeps E B (evalEnvOf view cfg decls) st'.gdecls p.1) →
-        ErasesDeps E B (evalEnvOf view cfg decls) st'.gdecls b →
-        ErasesDeps E B (evalEnvOf view cfg decls) st'.gdecls
+        (∀ p ∈ zs, ErasesDeps E B (evalEnvOf view cfg decls) st₁'.gdecls p.1) →
+        ErasesDeps E B (evalEnvOf view cfg decls) st₁'.gdecls b →
+        ErasesDeps E B (evalEnvOf view cfg decls) st₁'.gdecls
           (zs.foldr (fun x b => LBTerm.letIn (binderNameOf x.2.name) x.1 b) b) := by
       intro zs b hz hb
       induction zs with
@@ -781,7 +764,7 @@ theorem visitRec_sat (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
     · exact deps_mkApps_intro (deps_recFix hsimple hid hind) fun b hb => by
         obtain rfl := List.mem_singleton.1 hb
         exact ErasesDeps.ext hgrx.ext (hdepsa _ (.head _))
-  · exact ((hgr₅.trans hgrm).trans hgra).trans hgrx
+  · exact (hgrm.trans hgra).trans hgrx
   · rw [hform]
     refine RecLam.closedn_mkApps.2 ⟨?_, hclx⟩
     have := RecLam.closedn_recLets (ms.zip minors) 0 0
@@ -796,6 +779,166 @@ theorem visitRec_sat (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
     simp only [List.nil_append, List.map_cons, List.map_nil, List.mem_singleton] at hb
     subst hb
     simpa using TargetLift.closedn_lbLift rv.numMinors a' 0 0 hcla (Nat.le_refl _)
+
+/-- The premises of `visitRec_spec` from `RecInFragment`: the block `[iv]` of the recursor `T.rec`,
+read from `decls`, without indices, with the fragment's induction hypotheses, a universe parameter
+more than the inductive, not kept as a constant (`Erasure.recShapeInFragment`). -/
+theorem recInFragment_facts {rv : RecursorVal} (h : RecInFragment cfg decls rv) :
+    ∃ T iv cvs, rv.name = mkRecName T ∧ rv.all = [T] ∧
+      (evalEnvOf view cfg decls).recBlock? rv = some ([iv], cvs) ∧ rv.numIndices = 0 ∧
+      (∃ mm, recShape rv.numParams rv.numMotives rv.type (cvs.map (·.numFields)) = some mm) ∧
+      (∀ motives minors, recShape rv.numParams rv.numMotives rv.type (cvs.map (·.numFields)) =
+        some (motives, minors) → ∀ mi ∈ minors, mi.ihs.map (fun h => (h.field, h.binders)) =
+          (List.range' (mi.fields.length - mi.ihs.length) mi.ihs.length).map fun f => (f, [])) ∧
+      recStaysConstant cfg.nat rv [iv] cvs = false ∧
+      rv.levelParams.length ≠ iv.levelParams.length := by
+  obtain ⟨T, iv, cvs, hn, hall, hblk, hsh, hsc⟩ := h
+  refine ⟨T, iv, cvs, hn, hall, hblk, ?_⟩
+  unfold recShapeInFragment at hsh
+  rw [hall] at hsh
+  simp only [Bool.and_eq_true, beq_iff_eq, bne_iff_ne, ne_eq] at hsh
+  obtain ⟨⟨hni, hlp⟩, hm⟩ := hsh
+  cases hrs : recShape rv.numParams rv.numMotives rv.type (cvs.map (·.numFields)) with
+  | none => rw [hrs] at hm; cases hm
+  | some mm =>
+  rw [hrs] at hm
+  obtain ⟨motives₀, minors₀⟩ := mm
+  refine ⟨hni, ⟨_, rfl⟩, fun motives minors hrs' mi hmi => ?_, hsc, hlp⟩
+  cases hrs'
+  have := List.all_eq_true.1 hm mi hmi
+  simpa using this
+
+/-- The arguments of a typed recursor spine in the fragment's shape are translated and typed: the
+minor premises of its Metalean node are not wrapped (`RecWhred.orders_identity`,
+`RecWhred.satTr_recr_typed`). -/
+theorem rec_args_typed (hG : CoreEnv E B P decls view cfg) {c : Name} {us : List Level}
+    {rv : RecursorVal} {T : Name} {iv : InductiveVal} {cvs : List ConstructorVal}
+    {motives : List (List Name)} {minors : List RecMinor}
+    (hcr : findDecl decls c = some (.recInfo rv)) (hall : rv.all = [T]) (hcT : c = mkRecName T)
+    (hblk : (evalEnvOf view cfg decls).recBlock? rv = some ([iv], cvs))
+    (hshape : recShape rv.numParams rv.numMotives rv.type (cvs.map (·.numFields)) =
+      some (motives, minors))
+    (hihs : ∀ mi ∈ minors, mi.ihs.map (fun h => (h.field, h.binders)) =
+      (List.range' (mi.fields.length - mi.ihs.length) mi.ihs.length).map fun f => (f, []))
+    {lps : List Name} {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n}
+    {e : Expr} {t U : Metalean.Expr ζ lps.length n} (hΓ : E[Γ] ⊢ ok)
+    (hfn : e.getAppFn = .const c us) (he : TrM E B lps Γ Δ e t) (ht : E[Γ] ⊢ t : U) :
+    ∀ a ∈ spineArgs e, ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A := by
+  obtain ⟨ι, η, s, lps₀, Is, Cs, Rs, orders, hb, rfl, rfl, -, -, hBc, hns, rfl⟩ :=
+    RecWhred.rec_block (σ := evalEnvOf view cfg decls) hG.prog hG.sub hcr hall hcT hblk
+  obtain ⟨⟨_, _, _, _, hIB⟩, -⟩ := hb
+  have hsp : mkAppN (.const c us) (spineArgs e).toArray = e := by
+    rw [← hfn]; exact mkAppN_spine e
+  rw [← hsp] at he
+  obtain ⟨as', hlen, hargs, hsat⟩ := TrM.special_inv hBc rfl he
+  have hid : ∀ (t : Fin ι.nsorts) (c : Fin (ι.nctors t)) mo,
+      ((List.ofFn fun t => List.ofFn fun c => orders t c)[t.val]?.bind (·[c.val]?)) = some mo →
+      mo = List.range ((ι.ctors t c).nfields + (ι.ctors t c).nrecFields) := by
+    intro t c mo h
+    simp only [List.getElem?_ofFn, t.isLt, c.isLt, ↓reduceDIte, Option.bind_some,
+      Option.some.injEq] at h
+    subst h
+    obtain rfl : s = t := Fin.ext (by have := t.isLt; have := s.isLt; omega)
+    exact RecWhred.orders_identity hIB s hns hshape hihs c
+  have htyped := RecWhred.satTr_recr_typed hG.wf hΓ hsat ht hid
+  intro a ha
+  obtain ⟨i, hi⟩ := List.mem_iff_getElem?.1 ha
+  obtain ⟨a', ha'⟩ : ∃ a', as'[i]? = some a' :=
+    ⟨_, List.getElem?_eq_getElem (by rw [← hlen]; exact (List.getElem?_eq_some_iff.1 hi).1)⟩
+  exact ⟨a', hargs i a a' hi ha', htyped a' (List.mem_of_getElem? ha')⟩
+
+/-- `visitApp fuel e` at the pure backend on a spine whose head is a recursor of the fragment's
+shape (`RecShaped` of the spine, at its head), through `visitConstApp` to `visitRec_spec`.
+Reference: `visitConstApp` (`LeanToLambdaBox/Erasure.lean:957`); DV-30. -/
+theorem visitApp_rec (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
+    (ih : StepIH E B view cfg decls fuel) {e : Expr} {c : Name} {us : List Level}
+    {rv : RecursorVal} (hfn : e.getAppFn = .const c us) (hci : casesInfo? decls c = none)
+    (hca : ctorArity? decls c = none) (hrv : findDecl decls c = some (.recInfo rv))
+    {lps : List Name} {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n}
+    {S : Name → Prop} {t : Metalean.Expr ζ lps.length n} {st st' : ErasureState} {tc : TravCtx}
+    {ps ps' : PureState} {r : LBTerm}
+    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK decls S)
+    (hocc : ∀ d, nameOccurs d e = true → S d) (hmf : MachineFree cfg e) (hnp : NatPlain cfg e)
+    (hrf : RecShaped cfg decls e) (hok : StateOK E B (evalEnvOf view cfg decls) st)
+    (he : TrM E B lps Γ Δ e t) (ht : ∃ T, E[Γ] ⊢ t : T)
+    (hrun : (visitApp (m := PureM) fuel e).runPure st tc ⟨decls, view⟩ ps =
+      .ok ((r, st'), ps')) :
+    Erases E B lps (evalEnvOf view cfg decls) Γ Δ e r ∧
+      ErasesDeps E B (evalEnvOf view cfg decls) st'.gdecls r ∧
+      Grows E B (evalEnvOf view cfg decls) S st st' ps ps' := by
+  have hQ : ∀ {Q : Expr → Prop}, (∀ f a, Q (.app f a) → Q f ∧ Q a) → Q e →
+      Q e.getAppFn ∧ ∀ a ∈ spineArgs e, Q a := fun hQ' h =>
+    foldl_pred hQ' (by rw [← mkAppN_toArray, mkAppN_spine]; exact h)
+  obtain ⟨-, hoccA⟩ := hQ (Q := fun x => ∀ d, nameOccurs d x = true → S d)
+    (fun f a h => ⟨fun d hd => h d (by simp [nameOccurs, hd]),
+      fun d hd => h d (by simp [nameOccurs, hd])⟩) hocc
+  obtain ⟨-, hmfA⟩ := hQ (Q := MachineFree cfg) (fun _ _ h => h) hmf
+  obtain ⟨-, hnpA⟩ := hQ (Q := NatPlain cfg) (fun _ _ h => h) hnp
+  obtain ⟨hrfF, hrfA⟩ := hQ (Q := RecShaped cfg decls) (fun _ _ h => h) hrf
+  rw [hfn] at hrfF
+  obtain ⟨T, iv, cvs, hRn, hall, hblk, hni, ⟨⟨motives, minors⟩, hsh⟩, hihs, hnsc, hlp⟩ :=
+    recInFragment_facts (view := view) (hrfF rv hrv)
+  have hcT : c = mkRecName T := (findDecl_eq_some hrv).2.symm.trans hRn
+  obtain ⟨U, hU⟩ := ht
+  have htyped := rec_args_typed hG hrv hall hcT hblk hsh (hihs _ _ hsh) hctx.wf hfn he hU
+  have hargs : ∀ a ∈ spineArgs e, (∀ d, nameOccurs d a = true → S d) ∧ MachineFree cfg a ∧
+      NatPlain cfg a ∧ RecShaped cfg decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A :=
+    fun a ha => ⟨hoccA a ha, hmfA a ha, hnpA a ha, hrfA a ha, htyped a ha⟩
+  cases fuel with
+  | zero => rw [visitApp] at hrun; cases hrun
+  | succ f1 =>
+  rw [visitApp] at hrun
+  split at hrun
+  swap
+  · rename_i hne; exact absurd hfn (hne c us)
+  cases f1 with
+  | zero => rw [visitConstApp] at hrun; cases hrun
+  | succ f2 =>
+  rw [visitConstApp, withApp_eq] at hrun
+  split at hrun
+  swap
+  · rename_i hne; exact absurd hfn (hne c us)
+  rename_i c' us' hc'
+  rw [hfn] at hc'
+  cases hc'
+  rw [runPure_bind, show (liftM (Backend.casesInfo? (m := PureM) c) :
+      EraseT PureM (Option CasesInfo)).runPure st tc ⟨decls, view⟩ ps = .ok ((none, st), ps) by
+    show Except.ok ((casesInfo? decls c, st), ps) = _; rw [hci], ok_bind'] at hrun
+  dsimp only at hrun
+  rw [runPure_bind, show (liftM (Backend.ctorArity? (m := PureM) c) :
+      EraseT PureM (Option Nat)).runPure st tc ⟨decls, view⟩ ps = .ok ((none, st), ps) by
+    show Except.ok ((ctorArity? decls c, st), ps) = _; rw [hca], ok_bind'] at hrun
+  dsimp only at hrun
+  rw [runPure_bind, show (liftM (Backend.findConst? (m := PureM) c) :
+      EraseT PureM (Option ConstantInfo)).runPure st tc ⟨decls, view⟩ ps =
+        .ok ((some (.recInfo rv), st), ps) by
+    show Except.ok ((findConst decls c, st), ps) = _
+    rw [show findConst decls c = findDecl decls c from rfl, hrv], ok_bind'] at hrun
+  dsimp only at hrun
+  exact visitRec_spec hG ⟨fun m hm => ih.expr m (by omega), fun m hm => ih.mutDecl m (by omega)⟩
+    hrv hall hcT hblk hni hihs hnsc hlp hfn he ⟨U, hU⟩ hctx hsc hargs hok hrun
+
+/-- The `recr` step (`StepsB.recr`): an application or a constant whose head is a recursor, which
+the closure reads only in the fragment's shape (`RecShaped`), through `visitApp_rec`; when the
+oracle erases the spine, `Erases.box`. Reference: DV-30. -/
+theorem stepsB_rec {fuel : Nat} {e : Expr} {c : Name} {us : List Level} {rv : RecursorVal}
+    (hG : CoreEnv E B P decls view cfg) (ih : StepIH E B view cfg decls fuel)
+    (hfn : e.getAppFn = .const c us) (hci : casesInfo? decls c = none)
+    (hca : ctorArity? decls c = none) (hrv : findDecl decls c = some (.recInfo rv)) :
+    ExprSpec E B view cfg decls (fuel + 1) e := by
+  intro lps n Γ Δ S t st tc ps r st' ps' hctx hsc hocc hmf hnp hrf hok he ht hrun
+  cases e with
+  | app f a =>
+    rw [visitExpr] at hrun
+    rcases oracle_run hrun with ⟨hor, rfl, rfl, rfl⟩ | ⟨-, hrun⟩
+    · exact visitExpr_box hG hctx hok he ht hor
+    exact visitApp_rec hG ih hfn hci hca hrv hctx hsc hocc hmf hnp hrf hok he ht hrun
+  | const c' us' =>
+    rw [visitExpr] at hrun
+    rcases oracle_run hrun with ⟨hor, rfl, rfl, rfl⟩ | ⟨-, hrun⟩
+    · exact visitExpr_box hG hctx hok he ht hor
+    exact visitApp_rec hG ih hfn hci hca hrv hctx hsc hocc hmf hnp hrf hok he ht hrun
+  | _ => simp [Expr.getAppFn] at hfn
 
 end
 end Steps

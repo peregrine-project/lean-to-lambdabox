@@ -142,9 +142,37 @@ theorem exprConsts_mem {cfg : ErasureConfig} {p : Name → Prop} :
 def NamesIn (P : List ConstantInfo) (x : Expr) : Prop :=
   ConstsIn (· ∈ P.map (·.name)) x ∧ (HasNatLit x = true → ``Nat ∈ P.map (·.name))
 
+/-- `ConstsIn` holds of the body under leading `Π`s. -/
+theorem ConstsIn_peelForalls {p : Name → Prop} : ∀ {k : Nat} {e b : Expr}, ConstsIn p e →
+    peelForalls k e = some b → ConstsIn p b
+  | 0, _, _, h, hp => by cases hp; exact h
+  | k + 1, e, b, h, hp => by
+    cases e with
+    | forallE x A b' bi =>
+      have hs : peelForalls (k + 1) (.forallE x A b' bi) = peelForalls k b' := by
+        simp only [peelForalls, Function.iterate_succ_apply]
+        rfl
+      rw [hs] at hp
+      exact ConstsIn_peelForalls h.2 hp
+    | _ =>
+      simp only [peelForalls, Function.iterate_succ_apply] at hp
+      simp only [Option.bind_some, Expr.isForall, Bool.false_eq_true, ite_false] at hp
+      rw [Function.iterate_fixed rfl] at hp
+      cases hp
+
+/-- The head constant of an expression satisfies `p` if all its constants do. -/
+theorem ConstsIn_getAppFn {p : Name → Prop} : ∀ {e : Expr} {c : Name} {us : List Level},
+    ConstsIn p e → e.getAppFn = .const c us → p c
+  | .const _ _, _, _, h, he => by cases he; exact h
+  | .app f _, _, _, h, he => ConstsIn_getAppFn h.1 (by simpa [Expr.getAppFn] using he)
+  | .bvar _, _, _, _, he | .fvar _, _, _, _, he | .mvar _, _, _, _, he | .sort _, _, _, _, he
+  | .lam .., _, _, _, he | .forallE .., _, _, _, he | .letE .., _, _, _, he | .lit _, _, _, _, he
+  | .mdata .., _, _, _, he | .proj .., _, _, _, he => by simp [Expr.getAppFn] at he
+
 /-- What the closure reads from a declaration of the program is a name of the program: the names of
 its type, of a definition's or an opaque's value, its block members, the constructors and the
-recursor of an inductive, the inductive of a constructor, and the inductive of a recursor. -/
+recursor of an inductive, the inductive of a constructor, and the inductive of a recursor, which
+its type mentions (`IndBlock.recMajor`). -/
 structure NamesClosed (P : List ConstantInfo) (ci : ConstantInfo) : Prop where
   type : NamesIn P ci.type
   defn : ∀ d, ci = .defnInfo d → NamesIn P d.value
@@ -154,7 +182,8 @@ structure NamesClosed (P : List ConstantInfo) (ci : ConstantInfo) : Prop where
     ∃ R, .recInfo R ∈ P ∧ R.name = mkRecName iv.name
   ctor : ∀ cv, ci = .ctorInfo cv → cv.induct ∈ P.map (·.name)
   recr : ∀ R, ci = .recInfo R → ∃ iv, .inductInfo iv ∈ P ∧ R.name = mkRecName iv.name ∧
-    R.all = iv.all
+    R.all = iv.all ∧ iv.name ∈ R.all ∧ ∀ p : Name → Prop, ConstsIn p R.type → p iv.name
+  ctorKinds : ∀ iv, ci = .inductInfo iv → ∀ n ∈ iv.ctors, ∃ cv, .ctorInfo cv ∈ P ∧ cv.name = n
 
 /-- Names of a sub-list are names of the list. -/
 theorem names_mono {P P' : List ConstantInfo} (hs : ∀ x ∈ P, x ∈ P') {c : Name}
@@ -170,14 +199,16 @@ theorem NamesIn.mono {P P' : List ConstantInfo} (hs : ∀ x ∈ P, x ∈ P') {x 
 /-- `NamesClosed` is monotone in the program. -/
 theorem NamesClosed.mono {P P' : List ConstantInfo} (hs : ∀ x ∈ P, x ∈ P') {ci : ConstantInfo}
     (h : NamesClosed P ci) : NamesClosed P' ci := by
-  obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ := h
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8⟩ := h
   refine ⟨h1.mono hs, fun d hd => (h2 d hd).mono hs, fun o ho => (h3 o ho).mono hs,
     fun n hn => names_mono hs (h4 n hn), fun iv hiv => ?_, fun cv hcv => names_mono hs (h6 cv hcv),
-    fun R hR => ?_⟩
+    fun R hR => ?_, fun iv hiv n hn => ?_⟩
   · obtain ⟨hc, R, hR, hn⟩ := h5 iv hiv
     exact ⟨fun n hn => names_mono hs (hc n hn), R, hs _ hR, hn⟩
   · obtain ⟨iv, hiv, hn, ha⟩ := h7 R hR
     exact ⟨iv, hs _ hiv, hn, ha⟩
+  · obtain ⟨cv, hcv, hcn⟩ := h8 iv hiv n hn
+    exact ⟨cv, hs _ hcv, hcn⟩
 
 /-- The names of a translated term are names of the program. -/
 theorem TrM.namesIn (hP : ProgEnv P ζ E B) {lps : List Name} {n : Nat}
@@ -211,7 +242,7 @@ theorem ProgEnv.names_closed (h : ProgEnv P ζ E B) : ∀ ci ∈ P, NamesClosed 
     intro ci hci
     rcases List.mem_cons.1 hci with rfl | hci
     · refine ⟨(TrM.namesIn hP ht).mono sub_cons, nofun, nofun,
-        fun n hn => ?_, nofun, nofun, nofun⟩
+        fun n hn => ?_, nofun, nofun, nofun, nofun⟩
       simp only [ConstantInfo.all, List.mem_singleton] at hn
       subst hn; exact List.mem_map_of_mem List.mem_cons_self
     · exact (ih ci hci).mono sub_cons
@@ -219,7 +250,7 @@ theorem ProgEnv.names_closed (h : ProgEnv P ζ E B) : ∀ ci ∈ P, NamesClosed 
     intro ci hci
     rcases List.mem_cons.1 hci with rfl | hci
     · refine ⟨(TrM.namesIn hP ht).mono sub_cons, fun d hd => ?_, nofun,
-        fun n hn => ?_, nofun, nofun, nofun⟩
+        fun n hn => ?_, nofun, nofun, nofun, nofun⟩
       · cases hd; exact (TrM.namesIn hP hv).mono sub_cons
       · simp only [ConstantInfo.all, hall, List.mem_singleton] at hn
         subst hn; exact List.mem_map_of_mem List.mem_cons_self
@@ -228,7 +259,7 @@ theorem ProgEnv.names_closed (h : ProgEnv P ζ E B) : ∀ ci ∈ P, NamesClosed 
     intro ci hci
     rcases List.mem_cons.1 hci with rfl | hci
     · refine ⟨(TrM.namesIn hP ht).mono sub_cons, nofun, nofun,
-        fun n hn => ?_, nofun, nofun, nofun⟩
+        fun n hn => ?_, nofun, nofun, nofun, nofun⟩
       simp only [ConstantInfo.all, hall, List.mem_singleton] at hn
       subst hn; exact List.mem_map_of_mem List.mem_cons_self
     · exact (ih ci hci).mono sub_cons
@@ -236,7 +267,7 @@ theorem ProgEnv.names_closed (h : ProgEnv P ζ E B) : ∀ ci ∈ P, NamesClosed 
     intro ci hci
     rcases List.mem_cons.1 hci with rfl | hci
     · refine ⟨(TrM.namesIn hP ht).mono sub_cons, nofun, fun o ho => ?_,
-        fun n hn => ?_, nofun, nofun, nofun⟩
+        fun n hn => ?_, nofun, nofun, nofun, nofun⟩
       · cases ho; exact (TrM.namesIn hP hv).mono sub_cons
       · simp only [ConstantInfo.all, hall, List.mem_singleton] at hn
         subst hn; exact List.mem_map_of_mem List.mem_cons_self
@@ -250,21 +281,25 @@ theorem ProgEnv.names_closed (h : ProgEnv P ζ E B) : ∀ ci ∈ P, NamesClosed 
     · obtain ⟨T, t₀, hT, -, -⟩ := hct ci hm
       rcases IndBlock.mem_decls hm with ⟨s, rfl⟩ | ⟨s, k, rfl⟩ | ⟨s, rfl⟩
       · refine ⟨TrM.namesIn hfull hT, nofun, nofun, fun n hn => ?_, nofun,
-          nofun, fun R hR => ?_⟩
+          nofun, fun R hR => ?_, nofun⟩
         · simp only [ConstantInfo.all, List.mem_singleton] at hn
           subst hn; exact nm _ hm
         · cases hR
-          exact ⟨_, List.mem_append_left _ (block_mem.2.2 s), (hblk.recr s).1,
-            (hblk.recr s).2.2.2.2.2.1⟩
+          refine ⟨_, List.mem_append_left _ (block_mem.2.2 s), (hblk.recr s).1,
+            (hblk.recr s).2.2.2.2.2.1, ?_, fun p hp => ?_⟩
+          · rw [(hblk.recr s).2.2.2.2.2.1, (hblk.ind s).2.2.1, List.mem_ofFn]
+            exact ⟨s, rfl⟩
+          · obtain ⟨x, dom, body, bi, us, hpk, hdom⟩ := hblk.recMajor s
+            exact ConstsIn_getAppFn (ConstsIn_peelForalls hp hpk).1 hdom
       · refine ⟨TrM.namesIn hfull hT, nofun, nofun, fun n hn => ?_, nofun,
-          fun cv hcv => ?_, nofun⟩
+          fun cv hcv => ?_, nofun, nofun⟩
         · simp only [ConstantInfo.all, List.mem_singleton] at hn
           subst hn; exact nm _ hm
         · cases hcv
           rw [(hblk.ctor s k).2.2.1]
           exact nm _ (block_mem.2.2 s)
       · refine ⟨TrM.namesIn hfull hT, nofun, nofun, fun n hn => ?_, fun iv hiv => ?_,
-          nofun, nofun⟩
+          nofun, nofun, fun iv hiv n hn => ?_⟩
         · simp only [ConstantInfo.all, (hblk.ind s).2.2.1, List.mem_ofFn] at hn
           obtain ⟨t, rfl⟩ := hn
           exact nm _ (block_mem.2.2 t)
@@ -273,6 +308,10 @@ theorem ProgEnv.names_closed (h : ProgEnv P ζ E B) : ∀ ci ∈ P, NamesClosed 
           rw [(hblk.ind s).2.2.2.2.2.1, List.mem_ofFn] at hn
           obtain ⟨c, rfl⟩ := hn
           exact nm _ (block_mem.2.1 s c)
+        · cases hiv
+          rw [(hblk.ind s).2.2.2.2.2.1, List.mem_ofFn] at hn
+          obtain ⟨c, rfl⟩ := hn
+          exact ⟨_, List.mem_append_left _ (block_mem.2.1 s c), rfl⟩
     · exact (ih ci hci).mono sub_append
   | quot hP hEq hqn hfr hlp hext hq ih =>
     have hfull := ProgEnv.quot hP hEq hqn hfr hlp hext hq
@@ -281,7 +320,7 @@ theorem ProgEnv.names_closed (h : ProgEnv P ζ E B) : ∀ ci ∈ P, NamesClosed 
     · obtain ⟨q, hq', rfl⟩ := List.mem_map.1 hm
       obtain ⟨T, t₀, hT, -, -⟩ := (hq q (List.mem_reverse.1 hq')).2.1
       refine ⟨TrM.namesIn hfull hT, nofun, nofun, fun n hn => ?_,
-        nofun, nofun, nofun⟩
+        nofun, nofun, nofun, nofun⟩
       simp only [ConstantInfo.all, List.mem_singleton] at hn
       subst hn; exact List.mem_map_of_mem hci
     · exact (ih ci hci).mono sub_append
@@ -467,13 +506,14 @@ theorem closureStep_sub (hP : ProgEnv P ζ E B) {view : EnvView} (hview : ViewAg
     exact ⟨hty', fun r hr => nomatch hr⟩
 
 /-- `dropKnown` returns a suffix of its work list. -/
-theorem dropKnown_sub {acc : List ConstantInfo} :
-    ∀ {todo todo' : List Name}, dropKnown acc todo = .ok todo' → ∀ n ∈ todo', n ∈ todo
+theorem dropKnown_sub {view : EnvView} {cfg : ErasureConfig} {acc : List ConstantInfo} :
+    ∀ {todo todo' : List Name}, dropKnown view cfg acc todo = .ok todo' → ∀ n ∈ todo', n ∈ todo
   | [], _, h => by rw [dropKnown] at h; cases h; exact fun _ h => h
   | n :: todo, todo', h => by
     rw [dropKnown] at h
     split at h
-    · cases h
+    · obtain ⟨_, -, h⟩ := OracleWhnf.ok_of_bind h
+      exact fun m hm => List.mem_cons_of_mem _ (dropKnown_sub h m hm)
     · exact fun m hm => List.mem_cons_of_mem _ (dropKnown_sub h m hm)
     · cases h; exact fun _ h => h
 
