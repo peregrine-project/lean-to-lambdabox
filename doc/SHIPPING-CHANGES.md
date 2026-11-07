@@ -2977,6 +2977,67 @@ the calls at which the two oracles answer differently. It must equal
   outputs differ and their evaluations fail; `propRec` and the `nat := .machine` output are
   unchanged. `scripts/regress.sh` passes (24 tests), with and without `PEREGRINE`.
 
+## S-41: The fragment test admits recursors, so programs using them take the pure path
+
+- **Commit:** the commit whose subject starts with `S-41:` (`git log --grep='^S-41:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure/Entry.lean`: `declExclusion` admits a recursor unless the traversal
+    keeps it as a constant (`recStaysConstant` over the inductive types of its block and their
+    constructors, looked up through the view); `dropKnown` takes the view and the configuration
+    and applies `declExclusion` to a recursor that the closure reads and already has as a
+    companion, instead of excluding it; `viewFind` moves before `declExclusion`; the docstrings of
+    `declExclusion`, `dropKnown` and `collectDeps`.
+  - `tests/regress/recursor.lean`: the fragment test's verdicts, the routes, the outputs of the
+    pure path, the `Meta` path's output of `useList` and the exclusion of `Acc.rec`; its goldens.
+  - `tests/regress/collect_deps.lean`: a recursor in a definition and alone are in the fragment.
+  - `tests/regress/cases_type.lean`: the hand-built `casesOn` that the pure recognizer rejects take
+    the pure path.
+  - `tests/harness/expected/pure-harness.txt`: `eq_cast` enters the fragment.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** with S-40 both paths erase recursors alike, so the exclusion of recursors
+  only keeps such programs off the verified path. The fragment test now excludes exactly the
+  recursors that the traversal leaves as λ□ axioms (`recStaysConstant`: nested blocks, `Nat` and
+  `Int` under `nat := .machine`, an inductive whose sort may be `Prop` with a constructor field
+  that is an index, such as `Acc`), and only when the closure reads them: the closure still adds
+  the `T.rec` of a recognized `T.casesOn` or of an inductive with one constructor as a companion
+  without checking it, so that a type mentioning `Acc` does not exclude a program. What the
+  traversal reads of a recursor (its type, the inductive types of its block and their
+  constructors) is in the closure: the closure reads the recursor's type, which names every member
+  of the block, and with each inductive its constructors. The pure oracle has no recursor
+  ι-rule: sorts and erasability do not need it, but a term whose type is a `Π` only after a
+  recursor reduces makes the pure path fail with an error; no program of the corpus or the tests
+  has one.
+- **Behaviour before:** `collectDeps` excludes every program whose closure reads a recursor
+  (`outside the fragment: recursor …`), so `#erase` takes the `Meta` path.
+- **Behaviour after:** these programs are in the fragment and take the pure path, except those
+  whose recursor the eraser keeps as a constant (`outside the fragment: recursor Acc.rec, which
+  the eraser keeps as a constant`). On `RT.useList` the pure path writes the program that the
+  `Meta` path writes.
+- **Effect on emitted .ast (corpus):** byte-identical for all 710 files against the corpus of
+  S-40; `PANIC` counts unchanged. `scripts/pure-harness.sh` passes with its expected summary
+  updated: `Defects/eq_cast.ast` changes from `out of the fragment: recursor Eq.rec` to
+  `pure ok; Meta ok; outputs identical; #erase = pure and Meta; oracle 36 calls, 0 differ`;
+  `PortProbe/ptEqN.peano.ast` stays outside, with the first exclusion `recursive definition
+  Nat.beq` instead of `recursor Bool.rec`; the totals become 294 `#erase`, 224 in the fragment
+  (223), 67 outside (68), 3 `collectDeps` errors; 205 identical (204), 15 differ, 4 without
+  `Meta` output; 8334 oracle calls (8298), 14 differ, none fails.
+- **Regression test:** `recursor` checks, under `nat := .peano`, that the eight programs of S-40
+  are in the fragment and take the pure path, pins their `#erase` outputs, which peregrine
+  validates and evaluates to the values of S-40, and pins `useList` on the `Meta` path
+  (`useList.meta.ast`, under `remove_irrel_constr_args`), which equals the pure path's output; it
+  checks that the fragment test excludes `useAcc` (`Acc.rec` into data, `outside the fragment:
+  recursor Acc.rec, which the eraser keeps as a constant`), which takes the `Meta` path and keeps
+  the axiom `Acc.rec` (`useAcc.ast`, which peregrine validates). The outputs of `useVec`,
+  `useMutual` and `useOver` change from S-40's: the pure path keeps the matcher `RT.neg.match_1`
+  as a definition where the `Meta` path inlines it (as for the other programs of the fragment,
+  S-29); the recursor parts are identical. Before this commit the eight verdicts and the eight
+  routes differ. `collect_deps` now has `recNeg` (`B.rec` in a definition) and `B.rec` alone in
+  the fragment, and `cases_type` routes `CT.A.casesOn` and `CT.B.casesOn`, whose values apply
+  `T.rec`, to the pure path; before this commit these four checks fail.
+  `scripts/regress.sh` passes (24 tests), with and without `PEREGRINE`.
+
+---
+
 ## S-42: Under `structural := .kernel`, structural recursion is erased through the kernel's definitions
 
 - **Commit:** the commit whose subject starts with `S-42:` (`git log --grep='^S-42:'`).
