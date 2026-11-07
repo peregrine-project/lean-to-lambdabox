@@ -1,1 +1,1 @@
-(Untyped ((((MPdot (MPfile ()) "TAP") "useF") (ConstantDecl (constant_body (Some tBox))))) (Some (tConst ((MPdot (MPfile ()) "TAP") "useF"))))
+(Untyped () (Some tBox))

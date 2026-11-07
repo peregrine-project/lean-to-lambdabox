@@ -3118,6 +3118,109 @@ the calls at which the two oracles answer differently. It must equal
 
 ---
 
+## S-43: The pure oracle reduces recursor applications
+
+- **Commit:** the commit whose subject starts with `S-43:` (`git log --grep='^S-43:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure/Pure.lean`: `Pure.whnf` reduces an application of a recursor to its
+    major premise when the major premise reduces to a constructor application (ι); its docstring.
+  - `tests/regress/alt_type_pure.lean`: `selT` takes the pure path, and `#erase` writes it to
+    `sel.ast`, with goldens; `tests/regress/prop_elim_pure.lean`,
+    `tests/regress/thm_atom_pure.lean`: the oracle boxes the programs, and their goldens are □;
+    `tests/regress/pure_inductive.lean`: the oracle's normal forms of `B.neg B.f` and of a
+    `B.casesOn` application agree with `Meta.whnf`.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** under `structural := .kernel` the pure path erases a definition by
+  structural recursion through its kernel definition (S-44), whose body projects the table
+  `T.below` of recursive calls: `x.1` with `x : Nat.below motive (Nat.succ n)`. The type of such a
+  projection is a structure (`PProd`) only after `Nat.below`, a definition by `Nat.rec`, reduces,
+  so the oracle's projection rule failed (`invalid projection`). Lean's kernel and Metalean
+  (`WHRed.iota`) reduce `T.rec ps ms mins is t`, when `t` reduces to a constructor application
+  `C ps' fs`, to the right-hand side of `C`'s rule of the recursor applied to `ps ms mins fs`;
+  `Pure.whnf` now does the same, with the right-hand sides that the recursor's declaration stores
+  (`RecursorVal.rules`), and with a Nat literal as `Nat.zero` or `Nat.succ` of a literal, as the
+  kernel does. Arguments beyond the major premise are applied by the enclosing applications.
+  Without a recursor on the path (`casesOn` unfolds to `T.rec`), the oracle's answers are those
+  of before, except where it reduced too little: a type that is a `Π` or a sort only after a
+  recursor reduces.
+- **Behaviour before:** `selT` of `alt_type_pure` (an alternative of type `Sel true`, which is
+  `B → B` only after `Bool.rec` reduces) stops on the pure path with `expected a function type`;
+  `use` of `thm_atom_pure` (a definition of type `Y : Sel true`, a proposition only after
+  `Bool.rec` reduces) is not erasable for the oracle, so the pure path writes a constant whose
+  body is □.
+- **Behaviour after:** `selT` takes the pure path and gives the `Meta` path's program, which
+  peregrine evaluates to `B.t`; the oracle erases `use`, and the pure path writes □.
+- **Effect on emitted .ast (corpus):** byte-identical for all 710 files against the corpus of
+  S-41; `PANIC` counts unchanged. `scripts/pure-harness.sh` passes with its expected summary
+  unchanged (294 `#erase`, 224 in the fragment, 67 outside, 3 `collectDeps` errors; 205
+  identical, 15 differ; 8334 oracle calls, 14 differ, none fails).
+- **Regression test:** `alt_type_pure` checks that `selT` takes the pure path with the `Meta`
+  path's program, and pins `sel.ast`, which peregrine evaluates to `B.t`; before this commit the
+  pure path fails. `prop_elim_pure` and `thm_atom_pure` pin □ for `test`, `test2`, `use` and
+  `useF` (before: a constant whose body is □), and `thm_atom_pure` checks that the oracle erases
+  `use`; `pure_inductive` checks that the oracle's normal forms of `B.neg B.f` and of a
+  `B.casesOn` application are `Meta.whnf`'s (before: they differ). `structural` (S-44) checks the
+  projections of the `below` tables. `scripts/regress.sh` passes (25 tests), with and without
+  `PEREGRINE`.
+
+---
+
+## S-44: Under `structural := .kernel`, the fragment test admits structural recursion
+
+- **Commit:** the commit whose subject starts with `S-44:` (`git log --grep='^S-44:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure/Entry.lean`: `declExclusion` admits a definition with an
+    `_unsafe_rec` companion under `structural := .kernel` if it is a definition by structural
+    recursion (`isStructuralRecursive`); the docstrings of `declExclusion` and `collectDeps`.
+  - `tests/regress/structural.lean`: the fragment test's verdicts, a recursion with exhaustive
+    patterns (`usePairs2`), `useLength` under `extern := .preferLogical`; its goldens.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** the pure path erases every definition through its kernel definition, and
+  with S-40, S-41 and S-43 it erases the kernel definitions of structural recursion (`T.brecOn`,
+  `T.rec`, the `T.below` tables). The fragment test still sent every definition with an
+  `_unsafe_rec` companion to the `Meta` path, so recursive programs never reached the verified
+  path. Under `structural := .kernel`, where the `Meta` path erases these definitions through
+  their kernel definitions as well (S-42), the fragment test admits them. It keeps excluding a
+  definition by well-founded recursion (its value does not refer to a `brecOn`) and a `partial`
+  definition (an opaque); a structural recursion whose recursor the eraser keeps as a constant (a
+  nested inductive, `Nat` under `nat := .machine`) is excluded by S-41's rule when the closure
+  reads `T.rec` from `T.brecOn`'s value. Without the option the fragment test is unchanged.
+- **Behaviour before:** with `config {nat := .peano, structural := .kernel}`,
+  `collectDeps` excludes `ST.useAdd` (`outside the fragment: recursive definition ST.add`), and
+  `#erase` takes the `Meta` path.
+- **Behaviour after:** `ST.useAdd` is in the fragment and takes the pure path, whose program
+  peregrine evaluates to 5; `ST.useWf` (well-founded recursion) and `ST.useLoop` (`partial`) stay
+  outside.
+- **Effect on emitted .ast (corpus):** byte-identical for all 710 files against the corpus of
+  S-43; `PANIC` counts unchanged. `scripts/pure-harness.sh` passes with its expected summary
+  unchanged. With `.kernel` as the default (not committed), against the default corpus: 662
+  files identical, 46 differ, and `examples/Defects/collide.ast` (with its `.inlinings`) is not
+  written: its program is in the fragment, and `#erase` stops with the error that two of its
+  constants have the same kername (R-3), where the `Meta` path wrote a program that peregrine does
+  not validate (`Duplicate definition`). The 24 benchmark files differ as with S-42 (`nat :=
+  .machine`, so the `Meta` path). The 14 example `.ast` that differ validate and evaluate to the
+  values of the default corpus (except `NM_church3`, a function, whose printed closure differs;
+  its application evaluates to 3), 9 of them on the pure path. The harness summary with
+  `.kernel` as the default: 233 in the fragment (224), 57 outside (67), 4 `collectDeps` errors
+  (3, the new one is `collide`); the 9 new programs of the fragment (`NM_church3`,
+  `NM_R_church3`, `bigEq`, `double`, `fact`, `ptEqN`, `useHalf`, `usePred` and `width`, all under
+  `nat := .peano`) have pure and `Meta` outputs that differ (matchers kept as definitions, csimp,
+  `T.c.elim`, as for the other programs of the fragment); 15635 oracle calls (8334), 34 differ
+  from `Meta` (14; the 20 new are `casesInfo?` on `T.c.elim` in `bigEq`), none fails.
+  `colorCode` and `shapeEq` stay outside (`recursive definition Nat.bitwise`, through a sparse
+  `casesOn`), and the `nat := .machine` variants of `double` and `fact` stay outside
+  (`recursor Nat.rec, which the eraser keeps as a constant`).
+- **Regression test:** `structural` checks, under `nat := .peano, structural := .kernel`, that
+  `useAdd`, `useLength`, `useEv`, `usePairs2` and `useGet` are in the fragment, that `useMap` and
+  `usePairs` are not (their wildcard patterns compile to a sparse `casesOn` that applies
+  `Nat.land`, defined by well-founded recursion), nor `useWf`, `useLoop` and `useTree`, and that
+  without the option `useAdd` is not; it pins the `#erase` outputs, which peregrine validates and
+  evaluates to 5, 5, 5, 3, `ST.B.t`, 2, 2, `false` and `ST.B.t`. Before this commit the five
+  verdicts differ and the five programs take the `Meta` path. `scripts/regress.sh` passes (25
+  tests), with and without `PEREGRINE`.
+
+---
+
 ## S-45: A Peano literal above 65536 is an error of `#erase`, on both paths
 
 - **Commit:** the merge `Merge branch 'fixes-port' into ml/translate` (the fourth one), which

@@ -3,15 +3,15 @@ import LeanToLambdaBox
 /-!
 A `casesOn` on an inductive that eliminates only into `Prop` (`Or`, `Exists`: its `casesOn` has no
 universe parameter besides the inductive's) gives a proof, and `visitCases` erases it to □ (register
-entry S-32). The traversal normally boxes such an application before it reaches `visitCases`; the
-pure oracle does not when the proposition is a proof only through a recursor's ι, which `Pure.whnf`
-lacks: here the type `Y` has the sort `Sel true`, which is `Prop` only after `Bool.rec` reduces. The
-test checks, under `nat := .peano`, that `test2` (an `Or.casesOn` with two alternatives) and `test`
-(an `Exists.casesOn`) take the pure path, and `#erase` writes them to `or.ast` and `ex.ast`: a
-constant whose body is □, which peregrine evaluates to □ (printed `(FIX 0)`). The `Meta` path's
-oracle boxes the constant itself, so its program is □. Without the rule the pure path emits a λ□
-`case` on □ with two branches for `test2`, on which peregrine's evaluation is stuck, and `□ □ □`
-for `test`.
+entry S-32). The traversal normally boxes such an application before it reaches `visitCases`. Here
+the type `Y` has the sort `Sel true`, which is `Prop` only after `Bool.rec` reduces: the test
+checks, under `nat := .peano`, that `test2` (an `Or.casesOn` with two alternatives) and `test` (an
+`Exists.casesOn`) take the pure path, and `#erase` writes them to `or.ast` and `ex.ast`. The pure
+oracle reduces the recursor (ι, register entry S-43) and boxes each constant itself, as the `Meta`
+path's oracle does, so the program is □, which peregrine evaluates to □. Without the recursor
+ι-rule, the oracle does not box the constants, `visitCases` erases their bodies to □, and the
+program is a constant whose body is □; without that rule either, the pure path emits a λ□ `case` on
+□ with two branches for `test2`, on which peregrine's evaluation is stuck, and `□ □ □` for `test`.
 -/
 
 -- peregrine: validate or.ast

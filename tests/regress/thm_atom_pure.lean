@@ -2,14 +2,15 @@ import LeanToLambdaBox
 
 /-!
 The pure oracle `Erasure.Pure.isErasable` answers "erasable" on an application spine headed by a
-theorem, whose statement Lean's kernel requires to be a proposition (register entry S-34). Without
-that rule the oracle misses such a proof when the sort of its statement is `Prop` only through a
-recursor's ι, which `Pure.whnf` lacks: here the statement `Y` has the type `Sel true`, which is
-`Prop` only after `Bool.rec` reduces. The test checks, under `nat := .peano`, over the declarations
-that `collectDeps` collects, that the oracle erases `thm` and `thmF Nat.zero` and keeps `use`, that
-`use` and `useF` take the pure path, and `#erase` writes them to `use.ast` and `useF.ast`: a
-constant whose body is □, which peregrine evaluates to □ (printed `(FIX 0)`). Without the rule the
-oracle answers `false` on both theorem spines, and the pure path stops with
+theorem, whose statement Lean's kernel requires to be a proposition (register entry S-34). Here the
+statement `Y` has the type `Sel true`, which is `Prop` only after `Bool.rec` reduces. The test
+checks, under `nat := .peano`, over the declarations that `collectDeps` collects, that the oracle
+erases `thm`, `thmF Nat.zero` and `use` (a definition whose type is `Y`: the oracle reduces
+`Bool.rec`, ι, register entry S-43), that `use` and `useF` take the pure path, and `#erase` writes
+them to `use.ast` and `useF.ast`: the program □ (the oracle boxes `use` and `useF`, as the `Meta`
+path's oracle does), which peregrine evaluates to □ (printed `(FIX 0)`). Without the recursor
+ι-rule the oracle keeps `use`, and the program is a constant whose body is □; without both rules
+it answers `false` on both theorem spines, and the pure path stops with
 `outside the fragment: unknown constant`.
 -/
 
@@ -52,7 +53,7 @@ def check (n : Name) : CoreM Unit := do
 /-- info: ok true -/
 #guard_msgs in
 #eval oracle ``TAP.useF (.app (.const ``TAP.thmF []) (.const ``Nat.zero []))
-/-- info: ok false -/
+/-- info: ok true -/
 #guard_msgs in
 #eval oracle ``TAP.use (.const ``TAP.use [])
 /-- info: viaPure ok -/
