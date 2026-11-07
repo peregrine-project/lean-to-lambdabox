@@ -23,9 +23,9 @@ PProd.rec, PProd.mk, PProd, Unit.unit, Unit, PUnit.rec, PUnit.unit, PUnit]` (the
 of the term, `Init`'s `PUnit`, `Unit` and `PProd` included); the term `e`; the view `#erase` reads
 (`P` as a list; `@[inline]` on `add.match_1`, as on every matcher, and on the abbreviations
 `Unit` and `Unit.unit`; the compiled companion `add._unsafe_rec` is not in it); the configuration
-`structural := .kernel`. A non-vacuity instance of the final theorem
+`structural := .kernel`. Toward a non-vacuity instance of the final theorem
 (`MR E/ErasureFunctionProperties.v:657 erase_correct`) through the kernel definitions of
-structural recursion.
+structural recursion: `Test/NVSRun.lean` discharges its hypotheses `hfrag` and `hrun`.
 -/
 
 open Lean Erasure
