@@ -234,8 +234,8 @@ NearMiss/NM_natLit.default.ast: out of the fragment: Nat literal under nat := .m
 NearMiss/NM_natLit.peano.ast: pure ok; Meta ok; outputs identical; #erase = pure and Meta; oracle 25 calls, 0 differ
 NearMiss/NM_pairFst.default.ast: pure ok; Meta ok; outputs identical; #erase = pure and Meta; oracle 34 calls, 0 differ
 NearMiss/NM_pairFst.peano.ast: pure ok; Meta ok; outputs identical; #erase = pure and Meta; oracle 34 calls, 0 differ
-NearMiss/NM_quotEx.default.ast: out of the fragment: quotient Quot.lift
-NearMiss/NM_quotEx.peano.ast: out of the fragment: quotient Quot.lift
+NearMiss/NM_quotEx.default.ast: pure ok; Meta ok; outputs identical; #erase = pure and Meta; oracle 14 calls, 0 differ
+NearMiss/NM_quotEx.peano.ast: pure ok; Meta ok; outputs identical; #erase = pure and Meta; oracle 14 calls, 0 differ
 NearMiss/NM_spinEx.default.ast: out of the fragment: partial definition NM.spin
 NearMiss/NM_spinEx.peano.ast: out of the fragment: partial definition NM.spin
 PortProbe/bigEq.default.ast: out of the fragment: Nat literal under nat := .machine
@@ -306,6 +306,6 @@ UnsafeRec/ufOne.default.ast: out of the fragment: unsafe or partial URec.uf
 UnsafeRec/ufOne.peano.ast: out of the fragment: unsafe or partial URec.uf
 UnsafeRec/ugOne.default.ast: out of the fragment: unsafe or partial URec.ug
 UnsafeRec/ugOne.peano.ast: out of the fragment: unsafe or partial URec.ug
-totals: 294 #erase, 223 in the fragment, 68 out of the fragment, 3 collectDeps errors
-in the fragment: 204 identical, 15 differ, 4 without Meta output, 0 without pure output
-oracle: 8298 calls, 14 differ from Meta, 0 failures of the pure oracle
+totals: 294 #erase, 225 in the fragment, 66 out of the fragment, 3 collectDeps errors
+in the fragment: 206 identical, 15 differ, 4 without Meta output, 0 without pure output
+oracle: 8326 calls, 14 differ from Meta, 0 failures of the pure oracle
