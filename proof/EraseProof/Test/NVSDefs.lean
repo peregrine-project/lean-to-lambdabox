@@ -119,15 +119,6 @@ macro_rules
       rinst_succ, rinst_max, rinst_imax, m1, funext_iff, Fin.forall_fin_one, Fin.forall_fin_two,
       Subst.rename, Subst.id, motNL, Subst.comp, belowM, Ctx.get, inst_elim0] $[$loc]?)
 
-/-- Close an equation of Metalean terms that differ in small `Fin` functions. -/
-macro "rfin" : tactic => `(tactic| repeat' (first
-    | (rsx; done)
-    | with_reducible rfl
-    | (funext t c; fin_cases t; fin_cases c <;> rsx)
-    | (funext t; fin_cases t <;> rsx)
-    | (funext i; exact i.elim0)
-    | congr 1))
-
 section Below
 variable {ζ : Sigs} {E : Env ζ} {ηPU : Head ζ (.inductive puSig)} {ηPP : Head ζ (.inductive ppSig)}
   {ηN : Head ζ (.inductive nSig)} {ηBl : Head ζ (.const .def 1)} {ℓ : Nat}
@@ -635,7 +626,7 @@ def brecOnTyM : Expr ζ 1 0 :=
   .forallE (motNM ηN lu) (.forallE (mN ηN) (.forallE (F1TyM ηN ηBl) (.app #0 #1)))
 
 /-- `N.brecOn.go motive t F_1`. -/
-def goApp : Expr ζ 1 3 := .app (.app (.app (.const ηGo ![lu]) #0) #1) #2
+def goAppM : Expr ζ 1 3 := .app (.app (.app (.const ηGo ![lu]) #0) #1) #2
 
 /-- The first projection `maj.1` of `maj : PProd (motive t) (N.below motive t)`, as Metalean's
 structure projection (`Inductive.IsStructure.projTerm`) computes it: the recursor of `PProd` into
@@ -647,7 +638,7 @@ def projFstM (maj : Expr ζ 1 3) : Expr ζ 1 3 :=
 
 /-- `fun {motive} t F_1 => (N.brecOn.go motive t F_1).1` -/
 def brecOnValM : Expr ζ 1 0 :=
-  .lam (motNM ηN lu) (.lam (mN ηN) (.lam (F1TyM ηN ηBl) (projFstM ηPP ηBl (goApp ηGo))))
+  .lam (motNM ηN lu) (.lam (mN ηN) (.lam (F1TyM ηN ηBl) (projFstM ηPP ηBl (goAppM ηGo))))
 
 end BrecOn
 
@@ -688,7 +679,7 @@ variable {ζ : Sigs} {E : Env ζ} {ηPU : Head ζ (.inductive puSig)} {ηPP : He
 include hE hn hpp ht hgt
 
 /-- `N.brecOn.go motive t F_1 : PProd (motive t) (N.below motive t)`. -/
-theorem goApp_typed : E[ΓG ηN ηBl] ⊢ goApp ηGo : pairM ηPP ηBl #0 #1 := by
+theorem goAppM_typed : E[ΓG ηN ηBl] ⊢ goAppM ηGo : pairM ηPP ηBl #0 #1 := by
   have hΓ := ΓG_wf hE hn ht (ηBl := ηBl)
   have hm : E[ΓG ηN ηBl] ⊢ #0 : motNM ηN lu := var_of_get hΓ ⟨0, by decide⟩ (by rsx [ΓG])
   have ht1 : E[ΓG ηN ηBl] ⊢ #1 : mN ηN := var_of_get hΓ ⟨1, by decide⟩ (by rsx [ΓG])
@@ -713,9 +704,9 @@ theorem brecOnValM_typed : E[.nil] ⊢ brecOnValM ηPP ηN ηBl ηGo : brecOnTyM
   have hst : (E.get ηPP).block.IsStructure 0 0 := hpp ▸ ppStruct
   have hB : InductiveWF E (E.get ηPP).block := (hE.entryWF ηPP).block
   have hps := ppParams hpp (appMotN_typed hn hm ht1) (belowM_typed hE ht hm ht1)
-  have hmaj : E[ΓG ηN ηBl] ⊢ goApp ηGo : .ind ηPP 0 ![lu, m1M]
+  have hmaj : E[ΓG ηN ηBl] ⊢ goAppM ηGo : .ind ηPP 0 ![lu, m1M]
       ![.app #0 #1, belowM ηBl lu #0 #1] hst.indices := by
-    have h := goApp_typed hE hn hpp ht hgt (ηGo := ηGo)
+    have h := goAppM_typed hE hn hpp ht hgt (ηGo := ηGo)
     rw [← hst.indices_eq Fin.elim0]
     exact h
   have h := hst.projTerm_hasType hB ⟨0, by decide⟩ hΓ hps hmaj

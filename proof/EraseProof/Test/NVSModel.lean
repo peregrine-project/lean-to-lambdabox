@@ -44,89 +44,43 @@ abbrev pu1 : Head ζ1 (.inductive puSig) := .here
 abbrev pu2 : Head ζ2 (.inductive puSig) := .there .here
 abbrev u2 : Head ζ2 (.const .def 0) := .here
 
-abbrev pu3 : Head ζ3 (.inductive puSig) := .there (.there .here)
-abbrev u3 : Head ζ3 (.const .def 0) := .there .here
-abbrev uu3 : Head ζ3 (.const .def 0) := .here
 
-abbrev pu4 : Head ζ4 (.inductive puSig) := .there (.there (.there .here))
-abbrev u4 : Head ζ4 (.const .def 0) := .there (.there .here)
-abbrev uu4 : Head ζ4 (.const .def 0) := .there .here
 abbrev pp4 : Head ζ4 (.inductive ppSig) := .here
 
-abbrev pu5 : Head ζ5 (.inductive puSig) := .there (.there (.there (.there .here)))
-abbrev u5 : Head ζ5 (.const .def 0) := .there (.there (.there .here))
-abbrev uu5 : Head ζ5 (.const .def 0) := .there (.there .here)
-abbrev pp5 : Head ζ5 (.inductive ppSig) := .there .here
 abbrev n5 : Head ζ5 (.inductive nSig) := .here
 
 abbrev pu6 : Head ζ6 (.inductive puSig) := .there (.there (.there (.there (.there .here))))
-abbrev u6 : Head ζ6 (.const .def 0) := .there (.there (.there (.there .here)))
-abbrev uu6 : Head ζ6 (.const .def 0) := .there (.there (.there .here))
 abbrev pp6 : Head ζ6 (.inductive ppSig) := .there (.there .here)
 abbrev n6 : Head ζ6 (.inductive nSig) := .there .here
-abbrev c6 : Head ζ6 (.const .def 1) := .here
 
 abbrev pu7 : Head ζ7 (.inductive puSig) := .there (.there (.there (.there (.there (.there .here)))))
-abbrev u7 : Head ζ7 (.const .def 0) := .there (.there (.there (.there (.there .here))))
-abbrev uu7 : Head ζ7 (.const .def 0) := .there (.there (.there (.there .here)))
 abbrev pp7 : Head ζ7 (.inductive ppSig) := .there (.there (.there .here))
 abbrev n7 : Head ζ7 (.inductive nSig) := .there (.there .here)
-abbrev c7 : Head ζ7 (.const .def 1) := .there .here
 abbrev bl7 : Head ζ7 (.const .def 1) := .here
 
-abbrev pu8 : Head ζ8 (.inductive puSig) := .there (.there (.there (.there (.there (.there (.there .here))))))
-abbrev u8 : Head ζ8 (.const .def 0) := .there (.there (.there (.there (.there (.there .here)))))
-abbrev uu8 : Head ζ8 (.const .def 0) := .there (.there (.there (.there (.there .here))))
 abbrev pp8 : Head ζ8 (.inductive ppSig) := .there (.there (.there (.there .here)))
 abbrev n8 : Head ζ8 (.inductive nSig) := .there (.there (.there .here))
-abbrev c8 : Head ζ8 (.const .def 1) := .there (.there .here)
 abbrev bl8 : Head ζ8 (.const .def 1) := .there .here
 abbrev go8 : Head ζ8 (.const .def 1) := .here
 
-abbrev pu9 : Head ζ9 (.inductive puSig) := .there (.there (.there (.there (.there (.there (.there (.there .here)))))))
 abbrev u9 : Head ζ9 (.const .def 0) := .there (.there (.there (.there (.there (.there (.there .here))))))
 abbrev uu9 : Head ζ9 (.const .def 0) := .there (.there (.there (.there (.there (.there .here)))))
-abbrev pp9 : Head ζ9 (.inductive ppSig) := .there (.there (.there (.there (.there .here))))
 abbrev n9 : Head ζ9 (.inductive nSig) := .there (.there (.there (.there .here)))
 abbrev c9 : Head ζ9 (.const .def 1) := .there (.there (.there .here))
-abbrev bl9 : Head ζ9 (.const .def 1) := .there (.there .here)
-abbrev go9 : Head ζ9 (.const .def 1) := .there .here
-abbrev br9 : Head ζ9 (.const .def 1) := .here
 
 abbrev pu10 : Head ζ10 (.inductive puSig) := .there (.there (.there (.there (.there (.there (.there (.there (.there .here))))))))
 abbrev u10 : Head ζ10 (.const .def 0) := .there (.there (.there (.there (.there (.there (.there (.there .here)))))))
-abbrev uu10 : Head ζ10 (.const .def 0) := .there (.there (.there (.there (.there (.there (.there .here))))))
 abbrev pp10 : Head ζ10 (.inductive ppSig) := .there (.there (.there (.there (.there (.there .here)))))
 abbrev n10 : Head ζ10 (.inductive nSig) := .there (.there (.there (.there (.there .here))))
-abbrev c10 : Head ζ10 (.const .def 1) := .there (.there (.there (.there .here)))
 abbrev bl10 : Head ζ10 (.const .def 1) := .there (.there (.there .here))
-abbrev go10 : Head ζ10 (.const .def 1) := .there (.there .here)
-abbrev br10 : Head ζ10 (.const .def 1) := .there .here
 abbrev m10 : Head ζ10 (.const .def 1) := .here
 
-abbrev pu11 : Head ζ11 (.inductive puSig) := .there (.there (.there (.there (.there (.there (.there (.there (.there (.there .here)))))))))
-abbrev u11 : Head ζ11 (.const .def 0) := .there (.there (.there (.there (.there (.there (.there (.there (.there .here))))))))
-abbrev uu11 : Head ζ11 (.const .def 0) := .there (.there (.there (.there (.there (.there (.there (.there .here)))))))
-abbrev pp11 : Head ζ11 (.inductive ppSig) := .there (.there (.there (.there (.there (.there (.there .here))))))
 abbrev n11 : Head ζ11 (.inductive nSig) := .there (.there (.there (.there (.there (.there .here)))))
-abbrev c11 : Head ζ11 (.const .def 1) := .there (.there (.there (.there (.there .here))))
 abbrev bl11 : Head ζ11 (.const .def 1) := .there (.there (.there (.there .here)))
-abbrev go11 : Head ζ11 (.const .def 1) := .there (.there (.there .here))
 abbrev br11 : Head ζ11 (.const .def 1) := .there (.there .here)
-abbrev m11 : Head ζ11 (.const .def 1) := .there .here
 abbrev f11 : Head ζ11 (.const .def 0) := .here
 
-abbrev pu12 : Head ζ12 (.inductive puSig) := .there (.there (.there (.there (.there (.there (.there (.there (.there (.there (.there .here))))))))))
-abbrev u12 : Head ζ12 (.const .def 0) := .there (.there (.there (.there (.there (.there (.there (.there (.there (.there .here)))))))))
-abbrev uu12 : Head ζ12 (.const .def 0) := .there (.there (.there (.there (.there (.there (.there (.there (.there .here))))))))
-abbrev pp12 : Head ζ12 (.inductive ppSig) := .there (.there (.there (.there (.there (.there (.there (.there .here)))))))
 abbrev n12 : Head ζ12 (.inductive nSig) := .there (.there (.there (.there (.there (.there (.there .here))))))
-abbrev c12 : Head ζ12 (.const .def 1) := .there (.there (.there (.there (.there (.there .here)))))
-abbrev bl12 : Head ζ12 (.const .def 1) := .there (.there (.there (.there (.there .here))))
-abbrev go12 : Head ζ12 (.const .def 1) := .there (.there (.there (.there .here)))
-abbrev br12 : Head ζ12 (.const .def 1) := .there (.there (.there .here))
-abbrev m12 : Head ζ12 (.const .def 1) := .there (.there .here)
-abbrev f12 : Head ζ12 (.const .def 0) := .there .here
 abbrev a12 : Head ζ12 (.const .def 0) := .here
 def E1 : Env ζ1 := Env.nil.snoc (.inductive puBlock)
 def E2 : Env ζ2 := E1.snoc (.def (.sort one) (mPU pu1 one))
@@ -142,7 +96,9 @@ def E11 : Env ζ11 := E10.snoc (.def (fTyM n10 bl10) (fValM pp10 n10 u10 bl10 m1
 def E12 : Env ζ12 := E11.snoc (.def (addTyM n11) (addValM n11 br11 f11))
 
 /-- Read a head's entry of the environments. -/
-macro "envs" : tactic => `(tactic| simp! [E1, E2, E3, E4, E5, E6, E7, E8, E9, E10, E11, E12,
+syntax (name := _envs) "envs" : tactic
+macro_rules
+  | `(tactic| envs) => `(tactic| simp! [E1, E2, E3, E4, E5, E6, E7, E8, E9, E10, E11, E12,
   Env.get, Entry.block, Entry.constType, Entry.defValue, belowTyM, belowValM, minsBl, casesOnTyM,
   goTyM, F1TyM, pairM, belowM, brecOnTyM, matchTyM, unitM, fTyM, addTyM, motNM,
   EraseProof.Test.NVR.motN, mN, mZ, mS, mPU, mPP, motNL, funext_iff, Fin.forall_fin_one,
@@ -783,13 +739,13 @@ theorem tr_brecOnVal : TrM E8 B8 [`u] .nil [] brecOnVal (brecOnValM pp8 n8 bl8 g
   have hst : (E8.get pp8).block.IsStructure 0 0 := t_pp8 ▸ ppStruct
   have hgo : TrM E8 B8 [`u] (ΓG n8 bl8)
       (((MLCtx.pushLam [] none).pushLam none).pushLam none)
-      (.app (.app (.app (.const `N.brecOn.go [uu]) (.bvar 2)) (.bvar 1)) (.bvar 0)) (goApp go8) :=
+      (.app (.app (.app (.const `N.brecOn.go [uu]) (.bvar 2)) (.bvar 1)) (.bvar 0)) (goAppM go8) :=
     TrM.app (notSpecial_const B8_go ⟨_, rfl⟩) (TrM.app (notSpecial_const B8_go ⟨_, rfl⟩)
       (TrM.app (notSpecial_const B8_go ⟨_, rfl⟩) (tr_const1 B8_go rfl) (TrM.bvar rfl))
       (TrM.bvar rfl)) (TrM.bvar rfl)
-  have hty : E8[ΓG n8 bl8] ⊢ goApp go8 : .ind pp8 0 ![lu, m1M]
+  have hty : E8[ΓG n8 bl8] ⊢ goAppM go8 : .ind pp8 0 ![lu, m1M]
       ![.app #0 #1, belowM bl8 lu #0 #1] Fin.elim0 :=
-    goApp_typed wf8 t_n8 t_pp8 t_bt8 t_gt8
+    goAppM_typed wf8 t_n8 t_pp8 t_bt8 t_gt8
   have hp := TrM.projStruct (S := `PProd) (i := 0) hst (by decide) B8_PP hgo (typedExt_self hty)
   rw [projTerm_eqFst hst t_pp8] at hp
   exact TrM.lam (TrM.forallE (tr_N B8_N) (TrM.sort rfl)) (TrM.lam (tr_N B8_N) (TrM.lam tr_F1Ty8 hp))
