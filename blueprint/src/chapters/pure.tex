@@ -73,8 +73,9 @@
   \item \code{declExclusion}: a recursor unless \code{recShapeInFragment} holds of it (a single
         inductive without indices, a universe parameter more than the inductive's, induction
         hypotheses without arguments and about the last fields; S-47), an \code{unsafe} or
-        \code{partial} constant, one with an \code{\_unsafe\_rec} companion or an \code{implemented\_by}
-        target, a nested inductive, an \code{@[extern]} constructor under \code{preferAxiom};
+        \code{partial} constant, one with an \code{\_unsafe\_rec} companion (except, under
+        \code{structural := .kernel}, a definition for which \code{isStructuralRecursive} holds;
+        S-44) or an \code{implemented\_by} target, a nested inductive, an \code{@[extern]} constructor under \code{preferAxiom};
   \item \code{sortDecided}: an inductive's sort is written \code{Prop} or never zero
         (\code{true}), may be both (\code{false}, by \code{mayBeNonZero}), or is zero without
         being written \code{Prop} (excluded); an inductive whose type is not syntactically
@@ -91,7 +92,7 @@
   \leanok
   \uses{def:Erasure-declExclusion, def:Erasure-casesInfo, def:Erasure-findConst,
     def:toKername}
-  \srcloc{LeanToLambdaBox/Erasure/Entry.lean}{264}
+  \srcloc{LeanToLambdaBox/Erasure/Entry.lean}{266}
   \lead{In short} \code{collectDeps view cfg e}: \hl{the closure of \code{e} as the pure
   traversal reads it}, or the first exclusion of Section~\ref{sec:scope-fragment}.
   \begin{itemize}
@@ -158,22 +159,28 @@
   \lean{Erasure.Pure.isErasable, Erasure.Pure.Ctx, Erasure.Pure.alwaysZero, Erasure.Pure.findLocal,
     Erasure.Pure.whnf, Erasure.Pure.inferType, Erasure.Pure.isArity,
     Erasure.Pure.instForalls, Erasure.Pure.instProjs, Erasure.Pure.isPropFormerType,
-    Erasure.Pure.typeLevel, Erasure.oracleFuel}
+    Erasure.Pure.typeLevel, Erasure.oracleFuel, Erasure.Pure.iotaMinors?, Erasure.Pure.iotaRhs?,
+    Erasure.Pure.iotaApp?}
   \leanok
   \uses{def:Erasure-EraseError, def:Erasure-Pure-instLevels, def:Erasure-TravCtx,
     def:Erasure-findConst}
-  \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{342}
+  \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{401}
   \lead{In short} \code{Pure.isErasable cx fuel ls e}: \code{e} is erasable if its head is a
   theorem, its type is an arity, or its type's sort is evidently zero; every reduction uses
   \hl{the kernel's $\delta$}.
   \begin{itemize}
   \item a spine headed by a theorem of the closure is erasable without inference (S-34): the
-        kernel types a theorem's statement in \code{Prop}, which the oracle without recursor
-        $\iota$ may not see;
+        kernel types a theorem's statement in \code{Prop}, which the oracle may not see through
+        a recursor;
   \item \code{Ctx}: the program's declarations; \code{findLocal}: a traversal local by variable;
   \item \code{whnf}: head $\beta$, $\zeta$ (also of let-bound locals), $\delta$ of every
-        definition at its number of levels, \code{mdata}, and $\iota$ of a projection of a
-        constructor;
+        definition at its number of levels, \code{mdata}, $\iota$ of a projection of a
+        constructor, and $\iota$ of a recursor (S-43, S-48): \code{iotaMinors?} accepts the
+        \code{T.rec} of one inductive without indices whose minors have induction hypotheses
+        without binders on the last fields, \code{iotaApp?} a saturated application of it, and
+        \code{iotaRhs?} builds the $\beta$-reduced right-hand side when the major's normal form is
+        a constructor application of \code{T}: the minor applied to the fields and to
+        \code{T.rec} on each recursive field; a \code{Nat} literal major is not reduced;
   \item \code{inferType}: infer-only retyping; binders the oracle enters are de Bruijn, free
         variables are the traversal's locals; a \code{Nat} literal has type \code{Nat}; a
         projection has its field's type, through \code{instForalls} and \code{instProjs}, as
@@ -202,7 +209,7 @@
   \leanok
   \uses{def:Erasure-EraseT, def:Erasure-findConst, def:Erasure-Pure-isErasable,
     def:Erasure-EnvView, def:Erasure-casesInfo}
-  \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{376}
+  \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{435}
   \lead{In short} $\mathrm{PureM} = $ \code{ReaderT PureCtx (StateT PureState
   (Except EraseError))}: the traversal's backend \hl{without \code{Meta}}.
   \begin{itemize}
@@ -229,7 +236,7 @@
   \lean{Erasure.isRecursiveDecl, Erasure.nameOccurs, Erasure.axiomatized}
   \leanok
   \uses{def:Erasure-EnvView, def:Erasure-ErasureConfig}
-  \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{504}
+  \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{563}
   \lead{In short} The tests of \code{visitMutual} as the pure backend runs them,
   with exact names; the traversal does not call these functions.
   \begin{itemize}
@@ -245,7 +252,7 @@
   \lean{Erasure.erasePure}
   \leanok
   \uses{def:Erasure-erase, def:Erasure-PureM, def:ASTType}
-  \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{485}
+  \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{544}
   \lead{In short} \code{erasePure view cfg decls e}: \hl{the shipping traversal
   \code{visitExpr} run with the pure backend} on the closure \code{decls}, assembling the program
   as \code{erase} does.
@@ -258,7 +265,7 @@
   \lean{Erasure.eraseEntry, Erasure.route, Erasure.Route}
   \leanok
   \uses{def:Erasure-collectDeps, def:Erasure-erasePure, def:Erasure-erase}
-  \srcloc{LeanToLambdaBox/Erasure/Entry.lean}{326}
+  \srcloc{LeanToLambdaBox/Erasure/Entry.lean}{329}
   \lead{In short} What \code{\#erase} runs: \code{route} calls \code{collectDeps},
   then
   \begin{itemize}

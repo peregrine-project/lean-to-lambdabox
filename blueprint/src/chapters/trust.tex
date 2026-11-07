@@ -27,9 +27,9 @@
   (\leanfile{proof/EraseProof/Statements.lean}), with every definition they use: the bridge, the
   source semantics, erasability, $\lambda_\Box$ evaluation and the erasure relation
   (\leanfile{proof/EraseProof/Spec.lean}, \leanfile{proof/EraseProof/Target.lean}).
-\item \lead{Tested} all eight hypotheses of the final theorem on six programs, the runs by
+\item \lead{Tested} all eight hypotheses of the final theorem on seven programs, the runs by
   kernel evaluation of the shipping code, the final theorem applied to each, and the corollary to
-  NV-1, NV-2 and NV-R (Chapter~\ref{chap:tests}).
+  NV-1, NV-2, NV-R and NV-S (Chapter~\ref{chap:tests}).
 \item \lead{Axioms} a proved node depends on \code{propext}, \code{Classical.choice} and
   \code{Quot.sound} only; \hl{no \code{sorryAx} and no axiom of Metalean} is allowed.
 \item \lead{Pinned footprints} \code{proof/axioms.expected} lists the footprints of the roots and
@@ -175,21 +175,21 @@ C9 & \code{doc/DIVERGENCES.md} well formed; its citations of declarations and of
   and repository lines exist; every cited \code{DV-n} has an entry \\
 C10 & the shipping regression tests, \code{scripts/regress.sh} \\
 C11 & \code{nv1-emit}: \leanfile{proof/tools/NVEmit.lean} runs the entry point of \code{\#erase}
-  on NV-1's, NV-2's, NV-Q's and NV-R's programs and checks the emitted programs byte for byte;
-  \code{proof/scripts/c11.sh}: \code{peregrine validate} and \code{eval} on 44 programs, NV-1's,
-  NV-2's, NV-Q's and NV-R's, the regression outputs for NV-1, NV-P and NV-K, and every regression output under
+  on NV-1's, NV-2's, NV-Q's, NV-R's and NV-S's programs and checks the emitted programs byte for byte;
+  \code{proof/scripts/c11.sh}: \code{peregrine validate} and \code{eval} on 47 programs, NV-1's,
+  NV-2's, NV-Q's, NV-R's and NV-S's, the regression outputs for NV-1, NV-P and NV-K, and every regression output under
   \code{nat := .peano}; \hl{each value must be the Lean program's} \\
 C12 & the four statement definitions of \leanfile{proof/EraseProof/Statements.lean} exist; each
   of \code{erase\_correct}, \code{erases\_correct}, \code{erasePure\_erases} and
   \code{collectDeps\_ok\_of} that is proved has a type kernel-defeq to its statement, the others
   are listed as unproved. The final form: every statement proved, \code{erase\_correct} the only
-  root with consumer \code{FINAL}, and the footprints of \code{erase\_correct} and of its four
-  test instances \code{Test.\{NV1,NVP,NVK,NV2,NVQ,NVR\}.final} exactly the three axioms, with their
+  root with consumer \code{FINAL}, and the footprints of \code{erase\_correct} and of its
+  test instances \code{Test.\{NV1,NVP,NVK,NV2,NVQ,NVR,NVS\}.final} exactly the three axioms, with their
   hypothesis terms within them; the same footprint for \code{erase\_correct\_firstorder} and its
-  instances \code{Test.\{NV1,NV2,NVR\}.firstorder}, which mention it \\
+  instances \code{Test.\{NV1,NV2,NVR,NVS\}.firstorder}, which mention it \\
 C12b & on every run, the statement definitions and the library and shipping definitions they
   reach, but the three functions under verification, have the SHA-256 digests of
-  \code{proof/spec.pin} (1055 lines), every pinned constant exists, and the toolchain and
+  \code{proof/spec.pin} (1075 lines), every pinned constant exists, and the toolchain and
   dependency revisions are the pinned ones \\
 \bottomrule
 \end{tabular}
@@ -395,11 +395,11 @@ on the others. The pure path uses structural copies of \code{Expr.instantiate1},
   \lean{Erasure.erase, Erasure.visitExpr, Erasure.visitCases, Erasure.register_inductive,
     Erasure.travFuel, Erasure.forallMonocular, Erasure.getOrFail, Erasure.visitRec, Erasure.recFix,
     Erasure.recShape, Erasure.recStaysConstant, Erasure.declInfoCore,
-    Erasure.isStructuralRecursive}
+    Erasure.isStructuralRecursive, Erasure.usesConst}
   \leanok
   \uses{def:LBTerm, def:abstract, def:toKername, def:ASTType, def:Erasure-EraseT,
     def:Erasure-isErasable, def:Erasure-prepareErasure}
-  \srcloc{LeanToLambdaBox/Erasure.lean}{1381}
+  \srcloc{LeanToLambdaBox/Erasure.lean}{1396}
   \lead{In short} Erases a term and its dependencies to a program by a
   \hl{fuel-bounded, generic traversal}; \code{erase} runs it with the \code{CoreM} backend.
   \begin{itemize}
@@ -423,7 +423,8 @@ on the others. The pure path uses structural copies of \code{Expr.instantiate1},
         others reach it on the \code{Meta} path only;
   \item \code{declInfoCore}: the \code{CoreM} backend's \code{declInfo?}; under
         \code{structural := .kernel} it returns the kernel definition of a structurally recursive
-        definition (\code{isStructuralRecursive}) whose recursors \code{visitRec} erases (S-42);
+        definition (\code{isStructuralRecursive}, a structural walk over the expression, S-49) whose
+        recursors \code{visitRec} erases (S-42), and the fragment test admits it (S-44);
   \item \code{register\_inductive}: emits a block named by \code{mutualBlockKername},
         \code{propositional} iff the backend's \code{isPropFormerType} holds of the type (S-25);
   \item \code{visitCases}: a $\lambda_\Box$ \code{case}; on a one-constructor inductive whose

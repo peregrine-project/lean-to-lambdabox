@@ -123,7 +123,7 @@
     EraseProof.FieldsErasable, EraseProof.CasesReduced}
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-IsErasable, def:EraseProof-SrcEval}
-  \srcloc{proof/EraseProof/Spec.lean}{1167}
+  \srcloc{proof/EraseProof/Spec.lean}{1169}
   \lead{In short} MetaRocq's conditions on eliminations, \hl{stated on Metalean's constructor
   nodes}.
   \begin{itemize}
@@ -148,7 +148,7 @@
     def:EraseProof-LBEval, def:EraseProof-Subsingleton, def:EraseProof-IsErasable,
     def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-isAtom, def:EraseProof-EvalEnv-etaSpine,
     def:EraseProof-ConstsIn, def:LBTerm, def:toKername, def:Erasure-TravCtx}
-  \srcloc{proof/EraseProof/Spec.lean}{1243}
+  \srcloc{proof/EraseProof/Spec.lean}{1245}
   \lead{In short} \code{Erases E B lps $\sigma$ $\Gamma$ $\Delta$ e t}: the $\lambda_\Box$ term
   \code{t} \hl{is an erasure of the Lean term \code{e}}.
   \begin{tabular}{p{0.2\linewidth}p{0.66\linewidth}}
@@ -204,7 +204,7 @@
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-EvalEnv, def:EraseProof-Subsingleton,
     def:EraseProof-lbLift, def:LBTerm}
-  \srcloc{proof/EraseProof/Spec.lean}{1214}
+  \srcloc{proof/EraseProof/Spec.lean}{1216}
   \lead{In short} \code{RecFixOf E B $\sigma$ rv us minors F}: \hl{\code{F} is the $\lambda_\Box$
   fixpoint that \code{visitRec} builds} for the recursor \code{rv} at the levels \code{us}.
   \begin{itemize}
@@ -229,7 +229,7 @@
   \uses{def:EraseProof-MBinding, def:EraseProof-TrM, def:EraseProof-LBEval,
     def:EraseProof-Subsingleton, def:EraseProof-Erases, def:EraseProof-EvalEnv,
     def:EraseProof-ConstsIn, def:LBTerm, def:toKername, def:GlobalDecl}
-  \srcloc{proof/EraseProof/Spec.lean}{1429}
+  \srcloc{proof/EraseProof/Spec.lean}{1431}
   \lead{In short} The erased environment \code{lenv} \hl{erases the declarations the program
   uses}: each constant's body erases its value, and each inductive block erases to an
   \code{inductiveDecl}.

@@ -443,8 +443,9 @@ justifies each rule by a Metalean definitional equality.
   \lean{EraseProof.ClosedDecls}
   \leanok
   \uses{def:EraseProof-PhaseIDecl, def:EraseProof-DepClosed}
-  \srcloc{proof/EraseProof/Oracle/Agree.lean}{23}
-  \lead{In short} \code{ClosedDecls decls}: \hl{the read expressions have no free variable}.
+  \srcloc{proof/EraseProof/Oracle/Agree.lean}{19}
+  \lead{In short} \code{ClosedDecls decls}: \hl{the read expressions and the value of every
+  definition have no free variable}; \code{collectDeps\_spec} derives it from \code{ProgEnv}.
 \end{definition}
 
 \begin{lemma}[Evaluation in the closure]

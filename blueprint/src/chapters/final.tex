@@ -12,9 +12,9 @@
   (M1), with one case lemma per rule of \code{SrcEval}; the soundness of the pure traversal
   \code{erasePure\_erases} (M2), by induction on fuel over the step lemmas of
   Section~\ref{sec:core-steps}. The statements are definitions of type \code{Prop}, pinned by
-  \code{proof/spec.pin} (C12b); C12 checks each theorem's type against its statement. Six test
+  \code{proof/spec.pin} (C12b); C12 checks each theorem's type against its statement. Seven test
   programs discharge every hypothesis (Chapter~\ref{chap:tests}). \stProved{} the first-order
-  corollary, with instances on NV-1, NV-2 and NV-R.
+  corollary, with instances on NV-1, NV-2, NV-R and NV-S.
 \item \lead{Nodes} \bpnodes{chap:final}
 \item \lead{Lean files} \leanfile{proof/EraseProof/Statements.lean},
   \leanfile{proof/EraseProof/Final.lean}, \leanfile{proof/EraseProof/FirstOrder.lean},
@@ -133,8 +133,13 @@
 \item \lead{Well-founded recursion} excluded: the fragment test rejects such definitions (they
   have an \code{\_unsafe\_rec} companion), and their recursion reduces only through an accessibility
   proof, which is opaque (DV-24), so \code{hev} never holds for them.
-\item \lead{Recursion} the test rejects structural recursion (an \code{\_unsafe\_rec}
-  companion, \code{Nat.add} and \code{Nat.beq} included), so \hl{no \code{Nat} arithmetic}. It
+\item \lead{Recursion} by default the test rejects structural recursion (an \code{\_unsafe\_rec}
+  companion, \code{Nat.add} and \code{Nat.beq} included), so \hl{no \code{Nat} arithmetic}. Under
+  \code{structural := .kernel} it admits a definition by structural recursion
+  (\code{isStructuralRecursive}); its kernel definition recurses through \code{T.brecOn}, built
+  from recursors, projections and \code{casesOn}, and is covered like any definition: NV-S is an
+  instance. A mutual structural block (not the Lean form of Metalean definitions) and a
+  recursion on a \code{Nat} literal (no recursor $\iota$ on literals) are covered vacuously. It
   admits the recursors \code{T.rec} of a single inductive without indices whose induction
   hypotheses take no arguments and come last (\code{RecInFragment}); \code{Nat} literals are in
   only under \code{nat := .peano}.

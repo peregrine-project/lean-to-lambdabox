@@ -633,11 +633,11 @@ universe instantiation in place of lean4lean's.
 
 \begin{lemma}[Recursors in a program]
   \label{lem:EraseProof-ProgEnv-lookup_recr}
-  \lean{EraseProof.RecWhred.TrM.wf_app_recr, EraseProof.RecWhred.iotaIH_eq, EraseProof.RecWhred.major_ctor, EraseProof.RecWhred.mapM_get, EraseProof.RecWhred.mapM_ofFn, EraseProof.RecWhred.ofFn_single, EraseProof.RecWhred.orders_identity, EraseProof.RecWhred.recBlock?_single, EraseProof.RecWhred.recIota_whred, EraseProof.RecWhred.rec_block, EraseProof.RecWhred.rec_minors, EraseProof.RecWhred.satTr_recr_typed, EraseProof.RecWhred.wrapCase_id, EraseProof.ProgEnv.recr_arity, EraseProof.ProgEnv.lookup_recr}
+  \lean{EraseProof.RecWhred.TrM.wf_app_recr, EraseProof.RecWhred.iotaIH_eq, EraseProof.RecWhred.major_ctor, EraseProof.RecWhred.mapM_get, EraseProof.RecWhred.mapM_ofFn, EraseProof.RecWhred.ofFn_single, EraseProof.RecWhred.orders_identity, EraseProof.RecWhred.recBlock?_single, EraseProof.RecWhred.recIota_whred, EraseProof.RecWhred.rec_block, EraseProof.RecWhred.rec_minors, EraseProof.RecWhred.satTr_recr_typed, EraseProof.RecWhred.trM_recr_major, EraseProof.RecWhred.wrapCase_id, EraseProof.ProgEnv.recr_arity, EraseProof.ProgEnv.lookup_recr}
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-SatTr, def:EraseProof-TrM, def:EraseProof-ProgEnv,
     def:EraseProof-EvalEnv, def:EraseProof-ConstsIn}
-  \srcloc{proof/EraseProof/Bridge/RecWhred.lean}{668}
+  \srcloc{proof/EraseProof/Bridge/RecWhred.lean}{698}
   \lead{In short} A saturated recursor \code{T.rec} of a single inductive without indices, whose
   recursive fields take no arguments, \hl{reduces on a constructor value} to the translation of
   the constructor's minor applied to the fields and to the induction hypotheses.
@@ -650,7 +650,8 @@ universe instantiation in place of lean4lean's.
         value is a constructor node; the recursor's shape is that of \code{IndBlock.recIHs};
         Metalean's induction hypotheses (\code{iotaIHs}) are the translations of the Lean ones;
   \item \code{recIota\_whred}: the spine reduces by $\iota$ (\code{WHRed.iota}) and $\beta$
-        through \code{wrapCase};
+        through \code{wrapCase}, in any context (\code{major\_ctor} too); \code{trM\_recr\_major}:
+        the translation of the spine with its major premise replaced;
   \item \code{wrapCase\_id}, \code{orders\_identity}: when the recursive fields come last,
         Metalean's field orders are the identity, so \code{wrapCase} is the identity;
   \item \code{satTr\_recr\_typed}, \code{TrM.wf\_app\_recr}: the saturated recursor and its

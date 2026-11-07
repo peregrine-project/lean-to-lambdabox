@@ -8,7 +8,7 @@
   everything about inductive types that the eraser handles, \hl{with no recursion of any kind},
   so no \code{Nat} arithmetic, and \code{Nat} literals only under \code{nat := .peano}; quotients and the recursors of one
   inductive without indices (the shape of \code{RecInFragment}) are in Phase I, and Phase II adds
-  the other recursors and structural recursion.
+  the other recursors; structural recursion is in Phase I under \code{structural := .kernel}.
   The divergence entries DV-23 to DV-26 and the choices of Section~\ref{sec:scope-decisions} fix
   its edges.
 \item \lead{Status} \stShipping{} the fragment test of Phase I
@@ -79,9 +79,15 @@ recursors \code{T.rec} of a single inductive without indices, whose induction hy
 other recursors (mutual or indexed blocks, induction hypotheses on functions, \code{Prop}-only
   elimination, \code{Eq.rec}) & II & erased on both paths (S-40); the fragment test excludes them
   (S-47), and no rule covers them \\
-structural recursion (\code{brecOn}) & II & through the kernel definitions under
-  \code{structural := .kernel} (S-42), on the \code{Meta} path; the default \code{.unsafeRec} is
-  unchanged; the fragment test excludes it \\
+structural recursion (\code{brecOn}) under \code{structural := .kernel} & I & the kernel
+  definition (\code{T.brecOn}, \code{T.below}, \code{\_f} and the matchers, all ordinary
+  definitions over recursors, projections and \code{casesOn}) is erased as any definition (S-42);
+  the fragment test admits a definition with an \code{\_unsafe\_rec} companion that
+  \code{isStructuralRecursive} recognizes (S-44, S-49), the oracle reduces the recursors it meets
+  (S-43, S-48); a mutual block (its \code{all} has two names) and a recursion on a \code{Nat}
+  literal are covered vacuously \\
+structural recursion under the default \code{structural := .unsafeRec} & -- & the fragment test
+  excludes it (an \code{\_unsafe\_rec} companion) \\
 quotients & I & \code{Quot.mk} and \code{Quot.lift} erased as \code{LCNF} does (S-38), a
   \code{Quot} spine as a type and a \code{Quot.ind} spine as a proof; the source semantics, the
   relation and the simulation have their rules (DV-29); the fragment test admits them (S-39) \\
@@ -213,7 +219,9 @@ unsafe & 4 & out \\
 
 The 294 \code{\#erase} commands of the shipping corpus, through the shipping fragment test
 (\code{tests/harness/expected/pure-harness.txt}): \hl{225 in the fragment, 66 out}, and 3 rejected
-for a name collision. Of the 225 pure-path outputs, 58 hold an inductive block, 3 a $\lambda_\Box$
+for a name collision. With \code{structural := .kernel} the same commands give 233 in, 57 out and 4
+errors; the 8 programs that move in are the structurally recursive ones, and the oracle's recursor
+$\iota$ answers 10462 calls with no failure. Of the 225 pure-path outputs, 58 hold an inductive block, 3 a $\lambda_\Box$
 \code{case} and 9 a projection.
 
 \begin{tabular}{p{0.7\linewidth}r}
@@ -235,7 +243,8 @@ string literal & 1 \\
 \end{tabular}
 
 \begin{itemize}
-\item \lead{Recursors in Phase I} \code{Nat.rec} through structural recursion, \code{Bool.rec}
+\item \lead{Recursors in Phase I} \code{Nat.rec} through structural recursion (the default
+  \code{.unsafeRec} meets the \code{\_unsafe\_rec} companion first), \code{Bool.rec}
   through \code{Bool.and} and \code{Bool.not}, \code{Eq.rec} through \code{Eq.ndrec},
   \code{False.rec} through \code{False.elim}, \code{T.rec} through sparse matchers: the test meets
   the recursive definition or the recursor first.

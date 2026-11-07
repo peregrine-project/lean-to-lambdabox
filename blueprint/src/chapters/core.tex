@@ -27,7 +27,7 @@
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-TrM, def:Erasure-Pure-isErasable,
     def:EraseProof-DepClosed, def:Erasure-TravCtx}
-  \srcloc{proof/EraseProof/Oracle/Whnf.lean}{27}
+  \srcloc{proof/EraseProof/Oracle/Whnf.lean}{28}
   \lead{In short} \code{LocalsOK E B lps $\Gamma$ $\Delta$ ls}: the traversal's locals \code{ls}
   \hl{are the Lean form of the context $\Gamma$} under $\Delta$.
   \begin{itemize}
@@ -51,16 +51,23 @@
     EraseProof.OracleWhnf.whnf_const, EraseProof.OracleWhnf.whnf_special,
     EraseProof.OracleWhnf.whnf_app, EraseProof.OracleWhnf.whnf_letE,
     EraseProof.OracleWhnf.whnf_proj_inv, EraseProof.OracleWhnf.whnf_projStruct,
-    EraseProof.OracleWhnf.whnf_projProof}
+    EraseProof.OracleWhnf.whnf_projProof, EraseProof.OracleWhnf.spine_app,
+    EraseProof.OracleWhnf.spine_head, EraseProof.OracleWhnf.spine_foldl,
+    EraseProof.OracleWhnf.spine_const, EraseProof.OracleWhnf.iotaMinors?_spec,
+    EraseProof.OracleWhnf.list_mapM_map, EraseProof.OracleWhnf.iotaRhs?_spec,
+    EraseProof.OracleWhnf.iotaApp?_spec, EraseProof.OracleWhnf.whnf_app_cases,
+    EraseProof.OracleWhnf.whnf_iota, EraseProof.OracleWhnf.whnf_spineSpecial}
   \leanok
   \uses{def:EraseProof-LocalsOK, def:EraseProof-MBinding, def:EraseProof-TrLevel,
     def:EraseProof-SatTr, def:EraseProof-natLitM, def:EraseProof-TypedExt, def:EraseProof-TrM,
     def:EraseProof-ProgEnv, def:Erasure-EraseError, def:Erasure-findConst,
-    def:Erasure-Pure-isErasable, def:EraseProof-ConstsIn, def:Erasure-TravCtx}
-  \srcloc{proof/EraseProof/Oracle/Whnf.lean}{487}
+    def:Erasure-Pure-isErasable, def:EraseProof-ConstsIn, def:Erasure-TravCtx,
+    lem:EraseProof-ProgEnv-lookup_recr}
+  \srcloc{proof/EraseProof/Oracle/Whnf.lean}{784}
   \lead{In short} Under \code{ProgEnv}, \code{EnvWF E}, \code{SubEnv cx.decls P}, \code{E[$\Gamma$]
   $\vdash$ ok}, \code{LocalsOK} and a typed translation \code{t} of \code{e}, a result \code{w}
-  of \code{Pure.whnf} \hl{translates to a term $\equiv$ \code{t}} at its type.
+  of \code{Pure.whnf} \hl{translates to a term $\equiv$ \code{t}} at its type, the recursor
+  $\iota$-rule included.
   \lead{Reference} \code{hnf\_sound} (\code{PCUICSafeReduce.v}).
 \end{lemma}
 \begin{proof}
@@ -71,7 +78,21 @@
   \leanok
   \lead{Idea} Induction on fuel, one lemma per \code{TrM} rule: $\beta$, $\zeta$ (also of
   let-bound locals), $\delta$ of every definition of the closure, \code{mdata}, $\iota$ of a
-  projection of a constructor; spines of saturating constants stay unchanged.
+  projection of a constructor, $\iota$ of a recursor; spines of the other saturating constants stay
+  unchanged.
+  \begin{itemize}
+  \item \code{iotaMinors?\_spec}, \code{iotaApp?\_spec}, \code{iotaRhs?\_spec}: what the
+        shipping functions \code{Pure.iotaMinors?}, \code{iotaApp?} and \code{iotaRhs?} return: a
+        recursor of one inductive without indices with the minors of its shape, a saturated
+        application, and the minor of the major's constructor applied to the fields and to the
+        recursive calls;
+  \item \code{whnf\_iota}: the spine whose major is replaced by the major's normal form
+        (\code{recr\_congr}) reduces by Lemma~\ref{lem:EraseProof-ProgEnv-lookup_recr}'s
+        \code{recIota\_whred} to the image of the term of \code{iotaRhs?};
+  \item \code{whnf\_app\_cases} separates the $\beta$, the $\iota$ and the plain case of an
+        application; \code{whnf\_spineSpecial} treats the recursor spines at or beyond their
+        arity.
+  \end{itemize}
 \end{proof}
 
 \begin{lemma}[Arities of the oracle]
@@ -269,13 +290,9 @@
   \lean{EraseProof.Pure.isErasable_agree, EraseProof.OracleAgree.fvarsIn_false,
     EraseProof.OracleAgree.fvarsIn_instLevels, EraseProof.OracleAgree.fvarsIn_lift,
     EraseProof.OracleAgree.fvarsIn_inst, EraseProof.OracleAgree.spine_fst,
-    EraseProof.OracleAgree.spine_snd, EraseProof.OracleAgree.RecTele,
-    EraseProof.OracleAgree.getAppFn_inst, EraseProof.OracleAgree.RecTele.inst,
-    EraseProof.OracleAgree.RecTele.instLevels, EraseProof.OracleAgree.RecTele.of_peelLams,
-    EraseProof.OracleAgree.RecTele.ne_forallE, EraseProof.OracleAgree.RecTele.of_casesOn,
-    EraseProof.OracleAgree.bind_congr_ok, EraseProof.OracleAgree.throw_ne_ok,
-    EraseProof.OracleAgree.whnf_recSpine, EraseProof.OracleAgree.whnf_recTele,
-    EraseProof.OracleAgree.good_forallE, EraseProof.OracleAgree.bind_agree,
+    EraseProof.OracleAgree.spine_snd, EraseProof.OracleAgree.bind_congr_ok,
+    EraseProof.OracleAgree.throw_ne_ok, EraseProof.OracleAgree.mem_of_mapM,
+    EraseProof.OracleAgree.iotaRhs_fvarsIn, EraseProof.OracleAgree.bind_agree,
     EraseProof.OracleAgree.whnf_agree, EraseProof.OracleAgree.instForalls_agree,
     EraseProof.OracleAgree.instProjs_agree, EraseProof.OracleAgree.inferType_agree,
     EraseProof.OracleAgree.isArity_agree}
@@ -284,7 +301,7 @@
     def:Erasure-casesInfo, def:Erasure-Pure-instLevels, def:Erasure-Pure-isErasable,
     def:EraseProof-EvalEnv, def:EraseProof-DepClosed, def:EraseProof-ClosedDecls,
     def:Erasure-TravCtx}
-  \srcloc{proof/EraseProof/Oracle/Agree.lean}{558}
+  \srcloc{proof/EraseProof/Oracle/Agree.lean}{460}
   \lead{In short} Over declarations whose read expressions are closed (\code{ClosedDecls}), the
   oracle \hl{reads the locals only on the term's free variables}.
   \begin{itemize}
@@ -298,9 +315,10 @@
   \uses{lem:EraseProof-Pure-whnf_sound, lem:EraseProof-TrM-weakBV, lem:EraseProof-TrM-instLevels,
     lem:EraseProof-ProgEnv-lookup, lem:EraseProof-casesOn_shape, def:EraseProof-ConstsIn}
   \leanok
-  \lead{Idea} One frame lemma per oracle function, by induction on fuel; a recognized
-  \code{casesOn} unfolds to a recursor telescope (\code{RecTele}), which the oracle reads only at
-  the head.
+  \lead{Idea} One frame lemma per oracle function, by induction on fuel. The value of every
+  definition is closed (\code{ClosedDecls}), so $\delta$ introduces no free variable, and neither
+  does the $\iota$-rule of a recursor (\code{iotaRhs\_fvarsIn}: the term of \code{iotaRhs?} has its
+  free variables in the application and in the major's normal form).
 \end{proof}
 
 \begin{lemma}[The oracle on atoms]
@@ -332,7 +350,7 @@
     def:Erasure-casesInfo, def:Erasure-Pure-instLevels, def:Erasure-Pure-isErasable,
     def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-isAtom, def:EraseProof-ConstsIn,
     def:Erasure-TravCtx}
-  \srcloc{proof/EraseProof/Oracle/Atom.lean}{472}
+  \srcloc{proof/EraseProof/Oracle/Atom.lean}{477}
   \lead{In short} On an atom spine, and on a spine of a constructor whose declared type is an
   evident proposition, the oracle \hl{answers \code{true} or fails, never \code{false}}, for
   every list of locals.
@@ -374,7 +392,9 @@
         holding their constants and the \code{T.rec} of every recognized \code{T.casesOn} and of
         every inductive \code{T} with one constructor;
   \item \code{PhaseIDecl}: a declaration outside the exclusion classes of
-        Section~\ref{sec:scope-fragment}; a recursor only as such a \code{T.rec}, or in the shape
+        Section~\ref{sec:scope-fragment}, a definition with an \code{\_unsafe\_rec} companion
+        only when \code{cfg.structural = .kernel} and \code{isStructuralRecursive} holds of it
+        (the shipping test of S-44); a recursor only as such a \code{T.rec}, or in the shape
         of \code{RecInFragment}; an inductive
         whose sort may be both zero and not (the shipping \code{mayBeNonZero}) only when not
         \code{Eliminated};
@@ -388,6 +408,9 @@
         lower bound;
   \item \code{BlockNamesInj}: block names distinct from each other and from emitted constants.
   \end{itemize}
+  \lead{Why the companion} a definition by structural recursion has a compiled \code{\_unsafe\_rec}
+  companion, but its kernel definition is not recursive; under \code{structural := .kernel} the
+  eraser reads the kernel definition, so the companion is no obstacle.
   \lead{Why the recursor shape} the source semantics evaluates a recursor only in this shape; a
   mutual, indexed or higher-order recursor would make the theorem vacuous, and one that eliminates
   only into \code{Prop} is not an erasure when the oracle does not box it.
@@ -473,14 +496,17 @@
     def:Erasure-declExclusion, def:Erasure-collectDeps, def:Erasure-casesInfo,
     def:EraseProof-EvalEnv, def:EraseProof-ConstsIn, def:EraseProof-DepClosed,
     def:EraseProof-ClosedDecls, def:toKername, def:Erasure-ErasureConfig}
-  \srcloc{proof/EraseProof/Core/CollectSpec.lean}{1367}
+  \srcloc{proof/EraseProof/Core/CollectSpec.lean}{1373}
   \lead{In short} The closure \code{decls} of an accepted program \hl{satisfies what the fragment
   test checks}.
   \begin{itemize}
   \item \lead{Given} the premises of Lemma~\ref{lem:EraseProof-collectDeps_sub};
   \item \lead{Then} \code{KernameInj}, the view's declarations, distinct names,
-        \code{DepClosed}, \code{ClosedDecls}, the constants of \code{e};
-  \item \code{PhaseIDecl} of every declaration; \code{RecShaped} of \code{e} and of every read
+        \code{DepClosed}, \code{ClosedDecls} (also the value of every definition, by
+        \code{ProgEnv.lookup\_def}), the constants of \code{e};
+  \item \code{PhaseIDecl} of every declaration (\code{declExclusion\_ok}: a definition passes the
+        exclusion test with an \code{\_unsafe\_rec} companion only when it is a structural
+        recursion under \code{.kernel}); \code{RecShaped} of \code{e} and of every read
         expression (every recursor it names has the shape of \code{RecInFragment}, by
         \code{Run.rec\_frag}: the view's check over the closure); \code{BlockNamesInj} and
         \code{ArityTypes}.
@@ -508,7 +534,7 @@
     def:EraseProof-MBinding, def:EraseProof-TrM, def:EraseProof-ProgEnv, def:Erasure-EraseError,
     def:Erasure-EnvView, def:Erasure-declExclusion, def:Erasure-collectDeps,
     def:Erasure-ErasureConfig}
-  \srcloc{proof/EraseProof/Core/CollectSpec.lean}{1431}
+  \srcloc{proof/EraseProof/Core/CollectSpec.lean}{1445}
   \lead{In short} With the premises of Lemma~\ref{lem:EraseProof-collectDeps_sub}, \code{e} and
   every read expression of the closure \hl{are \code{MachineFree}}: \code{exprConsts} excludes
   \code{Nat.succ} and \code{Int.casesOn} under \code{nat := .machine} and scans each of them.
@@ -558,7 +584,7 @@
     def:Erasure-EraseError, def:Erasure-EnvView, def:Erasure-findConst, def:Erasure-declExclusion,
     def:Erasure-collectDeps, def:Erasure-casesInfo, def:EraseProof-EvalEnv,
     def:EraseProof-ConstsIn, def:toKername, def:Erasure-ErasureConfig}
-  \srcloc{proof/EraseProof/Core/CollectOk.lean}{848}
+  \srcloc{proof/EraseProof/Core/CollectOk.lean}{850}
   \lead{In short} A typed program whose read closure is inside Phase I \hl{is accepted}:
   \code{hfrag} cannot silently empty the final theorem.
   \begin{itemize}
@@ -569,6 +595,8 @@
         \code{BlockNamesInj decls}; \code{decls.length $\le$ collectFuel};
   \item \lead{Then} $\exists$ \code{decls'}, \code{collectDeps view cfg e = .ok decls'}.
   \end{itemize}
+  \lead{Structural recursion} \code{CollectOk.dex} carries the same disjunct, so the lower bound
+  covers a structural recursion under \code{structural := .kernel}.
   \lead{Why \code{RecFree}} the lower bound covers the programs that read no recursor in an
   expression; the recursors of \code{PhaseIDecl}'s third disjunct are those the closure reads
   through \code{casesOn} and projections, and the fragment test accepts them by \code{RecInFragment}.
