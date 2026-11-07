@@ -11,15 +11,16 @@ arguments, erases the spine by `Erases.recLet`: the minor premises erased and le
 fixpoint of the block (`RecFixOf`), applied to the erased major premise and to the erased arguments
 beyond the arity. The fixpoint's members are those `recMembers` computes, its alternatives those of
 `SimRec.recCs`, it is closed under the minors and has no free variable (`recFix_closed`), and its
-only `case` reads the registered block of `T` (`deps_recFix`). The subsingleton property of `T`
-and the side conditions on the oracle's level of the major premise's type (`casesSortLevel` when it
-is never zero, `FieldsErasable` when it may be zero) are premises.
+only `case` reads the registered block of `T` (`deps_recFix`). The recursor eliminates into every
+sort (it has a universe parameter more than its inductive); then `T` is a subsingleton when its
+values are proofs, and the oracle's level of the major premise's type decides whether the fixpoint
+reduces its `case` (`rec_side`).
 
 Reference: none in MetaRocq (PCUIC has no recursors); DV-30.
 -/
 
 open Lean Erasure
-open Metalean (Defeq)
+open Metalean (Defeq TypeEq EnvWF)
 
 namespace EraseProof
 
@@ -278,14 +279,177 @@ theorem withAppEta_sat {pc : PureCtx} {ar f : Nat} {c : Name} {us : List Level} 
   simp only [show (spineArgs e).toArray.size ≥ ar by simp; omega, ↓reduceIte] at h
   exact h
 
+/-- The side conditions of `visitRec_sat` from the typing of the spine, for a recursor with a
+universe parameter more than its inductive (`hlp`), whose block eliminates into every sort: the
+inductive is a subsingleton when its constructor nodes are proofs (`SortLargeElim.singleton_of_eval_zero`,
+`Ctor.Eligible`; without indices, no field is an index variable); the oracle's level `u` of the
+major premise's type is the block's level at the spine's levels (`Pure.typeLevel_sound`,
+`SimRec.rec_level`), so the inductive's sort at the spine's levels is never zero with `u`, and
+when `u` may be zero the block eliminates as a subsingleton, whose fields are erasable. Reference:
+`Subsingleton` (`MR P/PCUICElimination.v:45`); `elim_only_at_universe_zero` (Lean's kernel,
+`src/kernel/inductive.cpp`). -/
+theorem rec_side {lps : List Name} (henv : ProgEnv P ζ E B) (hE : EnvWF E)
+    (hsub : SubEnv decls P) {c : Name} {rv : RecursorVal} {T : Name} {iv : InductiveVal}
+    {cvs : List ConstructorVal}
+    (hcr : findDecl decls c = some (.recInfo rv)) (hall : rv.all = [T]) (hcT : c = mkRecName T)
+    (hblk : (evalEnvOf view cfg decls).recBlock? rv = some ([iv], cvs)) (hni : rv.numIndices = 0)
+    (hlp : rv.levelParams.length ≠ iv.levelParams.length) (har : (arityShape iv.type).isSome)
+    {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n} {locs : List Local}
+    (hΓ : E[Γ] ⊢ ok) (hloc : LocalsOK E B lps Γ Δ locs) (hnb : ∀ i, Δ.findB i = none)
+    {us : List Level} {as : List Expr} {t U : Metalean.Expr ζ lps.length n}
+    (hsat : rv.numParams + rv.numMotives + rv.numMinors + rv.numIndices + 1 ≤ as.length)
+    (he : TrM E B lps Γ Δ (mkAppN (.const c us) as.toArray) t) (ht : E[Γ] ⊢ t : U) :
+    Subsingleton E B T ∧
+    ∀ m u, as[rv.numParams + rv.numMotives + rv.numMinors + rv.numIndices]? = some m →
+      Pure.typeLevel ⟨decls⟩ oracleFuel locs m = .ok u →
+      (u.isNeverZero = true → ∃ l, casesSortLevel iv us = some l ∧ l.isNeverZero = true) ∧
+      (u.isNeverZero = false → iv.ctors.length = 1 → FieldsErasable E B iv.name) := by
+  have hivσ := (RecWhred.recBlock?_single hall hblk).1
+  obtain ⟨ι, η, s, lps₀, Is, Cs, Rs, orders, hb, rfl, rfl, rfl, hBT, hBc, hns, rfl⟩ :=
+    RecWhred.rec_block (σ := evalEnvOf view cfg decls) henv hsub hcr hall hcT hblk
+  obtain ⟨⟨_, _, _, _, hIB⟩, -⟩ := hb
+  obtain ⟨-, -, -, -, -, -, hRnp, hRnm, hRmin, hRni⟩ := hIB.recr s
+  obtain ⟨-, hlpI, -⟩ := hIB.ind s
+  have hnis : ι.nindices s = 0 := by rw [← hRni, hni]
+  -- the recursor's own translation at its level parameters fixes the block's large elimination
+  have hLE : (E.get η).block.LargeElim := by
+    obtain ⟨b, -, -, t₀, -, ht₀, -⟩ := ProgEnv.lookup henv hE
+      (SrcDefeq.findDecl_sub (σ := evalEnvOf view cfg decls) hsub hcr)
+    rw [(findDecl_eq_some hcr).2] at ht₀
+    have ht₀' : TrM E B (Rs s).levelParams .nil [] (mkAppN (.const c ((Rs s).levelParams.map .param))
+        ([] : List Expr).toArray) t₀ := ht₀
+    obtain ⟨as0, hlen0, -, hsat0⟩ := TrM.special_inv hBc rfl ht₀'
+    cases hsat0 with
+    | recrSat mo A rest mins hRL hls hmo hw =>
+      exfalso
+      simp only [List.length_nil, List.length_append, List.length_ofFn] at hlen0
+      have h1 : 0 < ι.recrEnd s := by simp [Metalean.IndSig.recrEnd]
+      omega
+    | recrEta mo hRL hls hmo hlt hrt =>
+      rcases hRL with ⟨hL, -⟩ | ⟨-, hus', -⟩
+      · exact hL
+      · exfalso
+        obtain ⟨hk, -⟩ := TrLevels_get hls
+        rw [hus', List.length_map] at hk
+        exact hlp (by rw [hk, hlpI, hIB.levels])
+  -- the fields of a typed constructor node whose block's level is zero somewhere are erasable
+  have hfields : ∀ (ls' : Fin ι.nlevels → Metalean.Level lps.length) ν,
+      ((E.get η).block.level{ls'}).eval ν = 0 → FieldsErasable E B (Is s).name := by
+    intro ls' ν hν ι' η' s' hB' ℓ' n' Γ' c' lc ps' fds recFds _ hΓ' ⟨U', hU⟩
+    rw [hBT] at hB'
+    cases hB'
+    have helig : ((E.get η).block.ctors s c').Eligible (E.get η).block.level := by
+      cases hLE s with
+      | large h1 =>
+        exfalso
+        have := h1 (Metalean.Level.eval ν ∘ ls')
+        rw [Metalean.Level.eval_inst] at hν
+        simp [Function.comp_def] at this hν
+        omega
+      | subsingleton _ _ helig => exact helig c'
+    have hct := Metalean.Defeq.ctor_typed hE hU
+    have hctor := (hE.entryWF η).block.ctors s c'
+    refine ⟨fun f => ?_, fun f => ?_⟩
+    · rcases helig.ordinary f with hz | ⟨i, -⟩
+      · have hs := hctor.ordinaryFieldExpr f hct.1 hct.2.1
+        rw [hz, Metalean.Level.inst_zero] at hs
+        exact ⟨_, hct.2.1 f, .inr hs⟩
+      · exact absurd i.isLt (by omega)
+    · have hz := helig.recursive f
+      obtain ⟨v, hv⟩ := hctor.recursiveFieldExpr rfl f hΓ' hct.1 hct.2.1
+      rw [Metalean.Ctor.recursiveFieldExpr_eq] at hv
+      obtain ⟨hΓt, w, hindw⟩ := Metalean.Ctx.pi_isType_inv _ hΓ' hv
+      obtain ⟨-, -, -, -, hsort⟩ := Metalean.Defeq.ind_inv hindw
+      have hindp := hsort.conv hindw
+      rw [hz, Metalean.Level.inst_zero] at hindp
+      have hpi := Metalean.Ctx.pi_prop _ hΓt hindp
+      rw [← Metalean.Ctor.recursiveFieldExpr_eq] at hpi
+      exact ⟨_, hct.2.2 f, .inr hpi⟩
+  refine ⟨?_, ?_⟩
+  · -- a constructor node that is a proof
+    intro ι' η' s' hB' ℓ' n' Γ' c' lc ps' fds recFds _ hΓ' ⟨U', hU, hUp⟩
+    rw [hBT] at hB'
+    cases hB'
+    obtain ⟨ps₁, fds₁, recFds₁, -, -, -, hind, hUI⟩ := hU.ctor_inv
+    have hzero : (E.get η).block.level{lc} = .zero := by
+      obtain ⟨l₂, hMI⟩ := TypeEq.sort_uniq hE hΓ' hUI
+      have h1 := TypeEq.sort_inj hE hΓ' (Metalean.Defeq.uniqTy hE hΓ' hMI.left hUp)
+      have h2 := TypeEq.sort_inj hE hΓ' (Metalean.Defeq.uniqTy hE hΓ' hMI.right hind.left)
+      rw [← h2, h1]
+    obtain ⟨h1, helig⟩ := (hLE s).singleton_of_eval_zero lc (ν := fun _ => 0)
+      (by rw [hzero]; rfl) c'
+    have hct := Metalean.Defeq.ctor_typed hE hU
+    have hctor := (hE.entryWF η).block.ctors s c'
+    refine ⟨by omega, fun f => ?_, fun f => ?_⟩
+    · rcases helig.ordinary f with hz | ⟨i, -⟩
+      · have hs := hctor.ordinaryFieldExpr f hct.1 hct.2.1
+        rw [hz, Metalean.Level.inst_zero] at hs
+        exact ⟨_, hct.2.1 f, hs⟩
+      · exact absurd i.isLt (by omega)
+    · have hz := helig.recursive f
+      obtain ⟨v, hv⟩ := hctor.recursiveFieldExpr rfl f hΓ' hct.1 hct.2.1
+      rw [Metalean.Ctor.recursiveFieldExpr_eq] at hv
+      obtain ⟨hΓt, w, hindw⟩ := Metalean.Ctx.pi_isType_inv _ hΓ' hv
+      obtain ⟨-, -, -, -, hsort⟩ := Metalean.Defeq.ind_inv hindw
+      have hindp := hsort.conv hindw
+      rw [hz, Metalean.Level.inst_zero] at hindp
+      have hpi := Metalean.Ctx.pi_prop _ hΓt hindp
+      rw [← Metalean.Ctor.recursiveFieldExpr_eq] at hpi
+      exact ⟨_, hct.2.2 f, hpi⟩
+  -- the major premise of the translated spine
+  intro m u hm hTL
+  obtain ⟨as', hlen, hargs, hsatTr⟩ := TrM.special_inv hBc rfl he
+  have hend : ι.recrEnd s = (Rs s).numParams + (Rs s).numMotives + (Rs s).numMinors +
+      (Rs s).numIndices + 1 := by
+    rw [hRnp, hRnm, hRmin, hRni, (OracleInfer.recrEnd_eq ι s).1, (OracleInfer.recrEnd_eq ι s).2,
+      CasesWhred.fin_sum_eq]
+  cases hsatTr with
+  | recrEta mo hRL hls hmo hlt hrt => exfalso; rw [← hlen] at hlt; omega
+  | recrSat mo Af rest mins hRL hls hmo hw =>
+    rename_i us' l ls
+    obtain ⟨⟨F, hF⟩, -⟩ := InstPre.appList_inv ht
+    obtain ⟨-, hps, -, -, his, hmaj⟩ := Defeq.recr_typed hE hΓ hF
+    have hres : (Metalean.IndSig.RecrBinder.major (ι := ι) (s := s)).resolve =
+        ⟨ι.recrEnd s - 1, by simp [Metalean.IndSig.recrEnd]⟩ := by
+      ext; simp only [Metalean.IndSig.RecrBinder.resolve, Fin.val_last]
+      simp [Metalean.IndSig.recrEnd]
+    have hma : (List.ofFn Af ++ rest)[ι.recrEnd s - 1]? =
+        some (Af (Metalean.IndSig.RecrBinder.major (ι := ι) (s := s)).resolve) := by
+      rw [List.getElem?_append_left (by simp [Metalean.IndSig.recrEnd]), List.getElem?_ofFn, hres]
+      simp [Metalean.IndSig.recrEnd]
+    have hmTr : TrM E B lps Γ Δ m (Af (Metalean.IndSig.RecrBinder.major (ι := ι) (s := s)).resolve) :=
+      hargs _ m _ (by rw [show ι.recrEnd s - 1 = (Rs s).numParams + (Rs s).numMotives +
+        (Rs s).numMinors + (Rs s).numIndices by omega]; exact hm) hma
+    obtain ⟨l₁, M, hTr, hmM, hMl⟩ := Pure.typeLevel_sound henv hE hsub hΓ hloc hnb hmTr ⟨_, hmaj⟩ hTL
+    have hl₁ : l₁ = (E.get η).block.level{ls} := by
+      obtain ⟨l₂, hMI⟩ := TypeEq.sort_uniq hE hΓ (Defeq.uniqTy hE hΓ hmM hmaj)
+      have h1 := TypeEq.sort_inj hE hΓ (Defeq.uniqTy hE hΓ hMI.left hMl)
+      have h2 := TypeEq.sort_inj hE hΓ (Defeq.uniqTy hE hΓ hMI.right (Defeq.indDF hps his).left)
+      rw [← h1, h2]
+    have hrl := SimRec.rec_level henv hE
+      (SrcDefeq.findDecl_sub (σ := evalEnvOf view cfg decls) hsub hivσ) hBT hRL hls
+    obtain ⟨l₀, hl₀⟩ : ∃ l₀, casesSortLevel (Is s) us = some l₀ :=
+      Option.isSome_iff_exists.1 (by simpa [casesSortLevel] using har)
+    have hTr₀ := hrl l₀ hl₀
+    refine ⟨fun hu => ⟨l₀, hl₀, ?_⟩, fun hu _ => ?_⟩
+    · refine (TrLevel.isNeverZero_iff hTr₀).2 fun ν => ?_
+      rw [← hl₁]
+      exact (TrLevel.isNeverZero_iff hTr).1 hu ν
+    · obtain ⟨ν, hν⟩ : ∃ ν, l₁.eval ν = 0 := by
+        by_contra hne
+        have h := (TrLevel.isNeverZero_iff hTr).2 fun ν hν => hne ⟨ν, hν⟩
+        rw [hu] at h
+        cases h
+      rw [hl₁] at hν
+      exact hfields ls ν hν
+
 /-- `visitRec` at the pure backend on a spine `c.{us} as` of the recursor `rv = T.rec` of a single
 inductive `iv` without indices whose induction hypotheses take no arguments and are about the last
 fields (`hihs`), which the traversal does not keep as a constant (`hnsc`), with at least its arity
 of arguments, from `visitExpr` at the fuels up to `fuel` (`ih`): a successful run erases the spine
-by `Erases.recLet`, with erased dependencies, grows, and returns a closed term, given that `T` is a
-subsingleton (`hss`) and, for the oracle's level `u` of the major premise's type, that the
-inductive's sort at the spine's levels is never zero when `u` is, and that the fields of a
-one-constructor `iv` are erasable when `u` may be zero (`hdir`). Reference: `visitRec`
+by `Erases.recLet`, with erased dependencies, grows, and returns a closed term, when the recursor
+has a universe parameter more than its inductive (`hlp`, elimination into every sort): its side
+conditions are `rec_side`. Reference: `visitRec`
 (`LeanToLambdaBox/Erasure.lean:971`); DV-30. -/
 theorem visitRec_sat (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
     (ih : StepIH E B view cfg decls fuel) {c : Name} {us : List Level} {rv : RecursorVal}
@@ -295,15 +459,12 @@ theorem visitRec_sat (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
     (hihs : ∀ motives minors, recShape rv.numParams rv.numMotives rv.type (cvs.map (·.numFields)) =
       some (motives, minors) → ∀ mi ∈ minors, mi.ihs.map (fun h => (h.field, h.binders)) =
         (List.range' (mi.fields.length - mi.ihs.length) mi.ihs.length).map fun f => (f, []))
-    (hnsc : recStaysConstant cfg.nat rv [iv] cvs = false) (hss : Subsingleton E B T)
+    (hnsc : recStaysConstant cfg.nat rv [iv] cvs = false)
+    (hlp : rv.levelParams.length ≠ iv.levelParams.length)
     {lps : List Name} {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n}
     {S : Name → Prop} {st st' : ErasureState} {tc : TravCtx} {ps ps' : PureState} {r : LBTerm}
-    {e : Expr} (hfn : e.getAppFn = .const c us)
-    (hdir : ∀ m u, (spineArgs e)[rv.numParams + rv.numMotives + rv.numMinors + rv.numIndices]? =
-      some m →
-      Pure.typeLevel ⟨decls⟩ oracleFuel tc.locals m = .ok u →
-      (u.isNeverZero = true → ∃ l, casesSortLevel iv us = some l ∧ l.isNeverZero = true) ∧
-      (u.isNeverZero = false → iv.ctors.length = 1 → FieldsErasable E B iv.name))
+    {e : Expr} {t : Metalean.Expr ζ lps.length n} (hfn : e.getAppFn = .const c us)
+    (he : TrM E B lps Γ Δ e t) (ht : ∃ U, E[Γ] ⊢ t : U)
     (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK decls S)
     (hargs : ∀ a ∈ spineArgs e, (∀ d, nameOccurs d a = true → S d) ∧ MachineFree cfg a ∧
       NatPlain cfg a ∧ RecFree decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A)
@@ -314,6 +475,13 @@ theorem visitRec_sat (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
     Erases E B lps (evalEnvOf view cfg decls) Γ Δ e r ∧
       ErasesDeps E B (evalEnvOf view cfg decls) st'.gdecls r ∧
       Grows E B (evalEnvOf view cfg decls) S st st' ps ps' ∧ closedn 0 r = true := by
+  have hsp₀ : mkAppN (.const c us) (spineArgs e).toArray = e := by
+    rw [← hfn]; exact mkAppN_spine e
+  have har : (arityShape iv.type).isSome :=
+    hG.arity iv ⟨_, (findDecl_eq_some (RecWhred.recBlock?_single hall hblk).1).1, rfl⟩
+  obtain ⟨U, hU⟩ := ht
+  obtain ⟨hss, hdir⟩ := rec_side (view := view) (cfg := cfg) hG.prog hG.wf hG.sub hcr hall hcT hblk
+    hni hlp har hctx.wf hctx.locals hctx.nobv hsat (by rw [hsp₀]; exact he) hU
   cases fuel with
   | zero => rw [visitRec] at hrun; cases hrun
   | succ fuel =>
