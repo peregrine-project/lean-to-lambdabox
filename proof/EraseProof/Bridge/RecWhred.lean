@@ -228,8 +228,11 @@ theorem recIota_whred {σ : EvalEnv} (henv : ProgEnv P ζ E B) (hsub : SubEnv σ
     (hcv : CtorValue σ T mj k fs) (hmi : minors[k]? = some mi) (hmk : mvs[k]? = some mk)
     (hrfs : (mi.ihs.mapM fun h => fs[h.field]?) = some rfs)
     (he : TrM E B lps .nil [] (mkAppN (.const c us) (ps ++ ms ++ mvs ++ [mj]).toArray) t) :
-    ∃ t₃, TrM E B lps .nil [] (mkAppN mk (fs ++ rfs.map fun f =>
-        mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray).toArray) t₃ ∧ E ⊢ t ⤳* t₃ := by
+    ∃ (a₁ : Metalean.Expr ζ lps.length 0) (fs₀ ihs₀ : List (Metalean.Expr ζ lps.length 0)),
+      TrM E B lps .nil [] mk a₁ ∧ List.Forall₂ (TrM E B lps .nil []) fs fs₀ ∧
+      List.Forall₂ (TrM E B lps .nil [])
+        (rfs.map fun f => mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray) ihs₀ ∧
+      E ⊢ t ⤳* a₁.appList (fs₀ ++ ihs₀) := by
   obtain ⟨ι, η, s, lps₀, Is, Cs, Rs, orders, hb, rfl, rfl, hTs, hBT, hBc, hns, rfl⟩ :=
     rec_block henv hsub hcr hall hcT hblk
   obtain ⟨⟨_, _, _, _, hIB⟩, -, -, -, -, hctorB⟩ := hb
@@ -414,10 +417,8 @@ theorem recIota_whred {σ : EvalEnv} (henv : ProgEnv P ζ E B) (hsub : SubEnv σ
       subst h1
       exact hIH rf _ htr
     · cases h2
-  obtain ⟨t₃, ht₃, hred₃⟩ := TrM.apps htr₁ (List.rel_append hfsT hIHs)
-  refine ⟨t₃, ht₃, hiota.trans ?_⟩
+  refine ⟨_, _, _, htr₁, hfsT, hIHs, hiota.trans ?_⟩
   rw [hN, ← appList_ofFn, ← TrApps.appList_append]
-  exact hred₃
 
 /-- `wrapCase` with the identity field order is the identity. -/
 theorem wrapCase_id {ι : Metalean.IndSig} (I : Metalean.Inductive ζ ι) (η : Head ζ (.inductive ι))

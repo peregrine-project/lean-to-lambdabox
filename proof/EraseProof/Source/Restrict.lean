@@ -297,8 +297,8 @@ theorem SrcEval.restrict {decls P : List ConstantInfo} {e v : Expr} {view : EnvV
     obtain ⟨eb, hv⟩ := ihb (ConstsIn_instantiate1' (has' _ (by simp)) hfC.2)
     exact ⟨.quotLift ((findDecl_agree hsub hcD).trans hcq) hk ef eq
       ((findDecl_agree hsub hcD').trans hcq') hk' eb, hv⟩
-  | @recIota c rv T iv cvs motives minors maj mj k mi mk us v ps ms mins mvs fs rfs hcr hall hcT
-      hblk hni hshape hihs hps hms hmins hlm _ _ hcv hmi hmk hrfs _ ihmin ihmaj ihb =>
+  | @recIota c rv T iv cvs motives minors maj mj k mi mk us v ps ms mins mvs fs rfs ihvs hcr hall
+      hcT hblk hni hshape hihs hps hms hmins hlm _ _ hcv hmi hmk hrfs hrl _ _ ihmin ihmaj ihih ihb =>
     intro hc
     have ⟨hcD, has⟩ := ConstsIn_mkAppN.1 hc
     have hcr' := (findDecl_agree hsub hcD).trans hcr
@@ -311,23 +311,32 @@ theorem SrcEval.restrict {decls P : List ConstantInfo} {e v : Expr} {view : EnvV
       obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hx
       obtain ⟨m, hm⟩ : ∃ m, mins[i]? = some m := ⟨_, List.getElem?_eq_getElem (by omega)⟩
       exact (hmv i m _ hm (List.getElem?_eq_getElem hi)).2
-    have hK : ConstsIn (fun c => (findDecl decls c).isSome) (mkAppN mk (fs ++ rfs.map fun f =>
-        mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray).toArray) := by
+    have hIC : ∀ f ∈ rfs, ConstsIn (fun c => (findDecl decls c).isSome)
+        (mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray) := by
+      intro f hf
+      refine ConstsIn_mkAppN.2 ⟨hcD, fun y hy => ?_⟩
+      rcases List.mem_append.1 hy with hy | hy
+      · rcases List.mem_append.1 hy with hy | hy
+        · exact has y (List.mem_append_left _ (List.mem_append_left _ hy))
+        · exact hmvC y hy
+      · rw [List.mem_singleton.1 hy]
+        obtain ⟨h, -, hh⟩ := mem_mapM hrfs f hf
+        exact hfs f (List.mem_of_getElem? hh)
+    have hih : ∀ i f w, rfs[i]? = some f → ihvs[i]? = some w →
+        SrcEval (evalEnvOf view cfg decls) (mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray) w ∧
+          ConstsIn (fun c => (findDecl decls c).isSome) w :=
+      fun i f w h1 h2 => ihih i f w h1 h2 (hIC f (List.mem_of_getElem? h1))
+    have hK : ConstsIn (fun c => (findDecl decls c).isSome) (mkAppN mk (fs ++ ihvs).toArray) := by
       refine ConstsIn_mkAppN.2 ⟨hmvC _ (List.mem_of_getElem? hmk), fun x hx => ?_⟩
       rcases List.mem_append.1 hx with hx | hx
       · exact hfs x hx
-      · obtain ⟨f, hf, rfl⟩ := List.mem_map.1 hx
-        refine ConstsIn_mkAppN.2 ⟨hcD, fun y hy => ?_⟩
-        rcases List.mem_append.1 hy with hy | hy
-        · rcases List.mem_append.1 hy with hy | hy
-          · exact has y (List.mem_append_left _ (List.mem_append_left _ hy))
-          · exact hmvC y hy
-        · rw [List.mem_singleton.1 hy]
-          obtain ⟨h, -, hh⟩ := mem_mapM hrfs f hf
-          exact hfs f (List.mem_of_getElem? hh)
+      · obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hx
+        obtain ⟨f, hf⟩ : ∃ f, rfs[i]? = some f := ⟨_, List.getElem?_eq_getElem (by omega)⟩
+        exact (hih i f _ hf (List.getElem?_eq_getElem hi)).2
     obtain ⟨eb, hv⟩ := ihb hK
     exact ⟨.recIota hcr' hall hcT (recBlock?_restrict hsub hcl hcr' hblk) hni hshape hihs hps
-      hms hmins hlm (fun i m mv h1 h2 => (hmv i m mv h1 h2).1) em hcv' hmi hmk hrfs eb, hv⟩
+      hms hmins hlm (fun i m mv h1 h2 => (hmv i m mv h1 h2).1) em hcv' hmi hmk hrfs hrl
+      (fun i f w h1 h2 => (hih i f w h1 h2).1) eb, hv⟩
   | proj _ hcv hfs ihm =>
     intro hc
     obtain ⟨em, hmv⟩ := ihm hc.2

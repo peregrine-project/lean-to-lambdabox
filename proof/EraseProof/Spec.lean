@@ -884,9 +884,12 @@ inductive SrcEval (σ : EvalEnv) : Expr → Expr → Prop
   indices, whose recursive fields take no arguments and come after the other fields of their
   constructor (`recShape` of the recursor's type), evaluates its minor premises and its major
   premise; the major is a constructor value of `T`, and the value of its constructor's minor is
-  applied to the fields and to one induction hypothesis `T.rec ps ms mvs f` per recursive field `f`
-  (`rfs`, in the order of the minor's induction hypotheses), at the values `mvs` of the minors. The parameters and the motive are not evaluated (DV-30). -/
-  | recIota {ps ms mins mvs fs rfs : List Expr} : findDecl σ.decls c = some (.recInfo rv) →
+  applied to the fields and to the values `ihvs` of one induction hypothesis `T.rec ps ms mvs f` per
+  recursive field `f` (`rfs`, in the order of the minor's induction hypotheses), at the values `mvs`
+  of the minors. The induction hypotheses are evaluated before the minor is applied, as λ□
+  evaluates the arguments of an application; the parameters and the motive are not evaluated
+  (DV-30). -/
+  | recIota {ps ms mins mvs fs rfs ihvs : List Expr} : findDecl σ.decls c = some (.recInfo rv) →
       rv.all = [T] → c = mkRecName T → σ.recBlock? rv = some ([iv], cvs) → rv.numIndices = 0 →
       recShape rv.numParams rv.numMotives rv.type (cvs.map (·.numFields)) = some (motives, minors) →
       (∀ mi ∈ minors, mi.ihs.map (fun h => (h.field, h.binders)) =
@@ -895,9 +898,10 @@ inductive SrcEval (σ : EvalEnv) : Expr → Expr → Prop
       mins.length = mvs.length →
       (∀ (i : Nat) m mv, mins[i]? = some m → mvs[i]? = some mv → SrcEval σ m mv) →
       SrcEval σ maj mj → CtorValue σ T mj k fs → minors[k]? = some mi → mvs[k]? = some mk →
-      (mi.ihs.mapM fun h => fs[h.field]?) = some rfs →
-      SrcEval σ (mkAppN mk (fs ++ rfs.map fun f =>
-        mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray).toArray) v →
+      (mi.ihs.mapM fun h => fs[h.field]?) = some rfs → rfs.length = ihvs.length →
+      (∀ (i : Nat) f w, rfs[i]? = some f → ihvs[i]? = some w →
+        SrcEval σ (mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray) w) →
+      SrcEval σ (mkAppN mk (fs ++ ihvs).toArray) v →
       SrcEval σ (mkAppN (.const c us) (ps ++ ms ++ mins ++ [maj]).toArray) v
   /-- `eval_proj` (`:264`). -/
   | proj : SrcEval σ e m → CtorValue σ S m 0 fs → fs[i]? = some a → SrcEval σ (.proj S i e) a

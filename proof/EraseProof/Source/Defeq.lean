@@ -1635,8 +1635,10 @@ theorem case_recIota (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.
     (ihmin : ∀ (i : Nat) m mv, mins[i]? = some m → mvs[i]? = some mv → Sound E B lps m mv)
     (ihmaj : Sound E B lps maj mj) (hcv : CtorValue σ T mj k fs) (hmi : minors[k]? = some mi)
     (hmk : mvs[k]? = some mk) (hrfs : (mi.ihs.mapM fun h => fs[h.field]?) = some rfs)
-    (ihb : Sound E B lps (mkAppN mk (fs ++ rfs.map fun f =>
-      mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray).toArray) v) :
+    {ihvs : List Expr} (hrl : rfs.length = ihvs.length)
+    (ihih : ∀ (i : Nat) f w, rfs[i]? = some f → ihvs[i]? = some w →
+      Sound E B lps (mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray) w)
+    (ihb : Sound E B lps (mkAppN mk (fs ++ ihvs).toArray) v) :
     Sound E B lps (mkAppN (.const c us) (ps ++ ms ++ mins ++ [maj]).toArray) v ∧
       SpineOK σ E B lps (mkAppN (.const c us) (ps ++ ms ++ mins ++ [maj]).toArray) v := by
   obtain ⟨ι, η, s, lps₀, Is, Cs, Rs, orders, hb, rfl, rfl, -, -, hBc, hns, rfl⟩ :=
@@ -1661,11 +1663,29 @@ theorem case_recIota (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.
       exact RecWhred.orders_identity hIB s hns hshape hihs c
     obtain ⟨t₂, ht₂, hd₂⟩ := special_congr hE hBc rfl he ht
       (fun hsat => RecWhred.satTr_recr_typed hE nil_ok hsat ht hid) hall'
-    obtain ⟨t₃, ht₃, hred⟩ := RecWhred.recIota_whred henv hsub hcr hall hcT hblk hni hshape hihs
-      hps hms (hlm ▸ hmins) hcv hmi hmk hrfs ht₂
+    obtain ⟨a₁, fs₀, ihs₀, ha₁, hfs₀, hihs₀, hred⟩ := RecWhred.recIota_whred henv hsub hcr hall
+      hcT hblk hni hshape hihs hps hms (hlm ▸ hmins) hcv hmi hmk hrfs ht₂
     have hd₃ := WHRedS.defeq hE nil_ok hred hd₂.right
-    obtain ⟨t', ht', hd'⟩ := ihb ht₃ hd₃.right
-    exact ⟨t', ht', dtrans hE (dtrans hE hd₂ hd₃) hd'⟩
+    -- the induction hypotheses replaced by their values
+    obtain ⟨-, htyped⟩ := InstPre.appList_inv hd₃.right
+    have hS : List.Forall₂ (Sound E B lps)
+        (rfs.map fun f => mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray) ihvs :=
+      CasesWhred.forall₂_of_getElem? (by simp [hrl]) fun i x y h1 h2 => by
+        rw [List.getElem?_map] at h1
+        obtain ⟨f, hf, rfl⟩ := Option.map_eq_some_iff.1 h1
+        exact ihih i f y hf h2
+    obtain ⟨ihv₀, hihv₀, hds⟩ :=
+      args_congr hS hihs₀ fun a ha => htyped a (List.mem_append_right _ ha)
+    have hcong : List.Forall₂ (DCong E False .nil .nil) (fs₀ ++ ihs₀) (fs₀ ++ ihv₀) :=
+      List.rel_append (List.forall₂_same.mpr fun x _ => DCong.refl)
+        (List.Forall₂.imp (fun _ _ ⟨_, hA⟩ => DCong.leaf hA) hds)
+    have h1 := DCong.defeq hE not_false
+      (TrDet.appList .refl hcong.length_eq (forall₂_getElem? hcong)) nil_ok
+      (DCong.CtxConv.refl nil_ok) hd₃.right
+    obtain ⟨t₄, ht₄, hred₄⟩ := TrM.apps ha₁ (List.rel_append hfs₀ hihv₀)
+    have hd₄ := WHRedS.defeq hE nil_ok hred₄ h1.right
+    obtain ⟨t', ht', hd'⟩ := ihb ht₄ hd₄.right
+    exact ⟨t', ht', dtrans hE (dtrans hE (dtrans hE (dtrans hE hd₂ hd₃) h1) hd₄) hd'⟩
   · intro c' us' bs b h hb hs _ hr _
     rw [mkAppN_eq_foldl, mkAppN_eq_foldl] at h
     obtain ⟨rfl, -, -⟩ := foldl_app_const_inj h
@@ -1718,10 +1738,11 @@ theorem sound_of (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decl
   | quotMk hc hk _ ih => exact case_quotMk henv hE hsub hc hk ih.1
   | quotLift hc hk _ _ hc' hk' _ ihf ihq ihb =>
     exact case_quotLift henv hE hsub hc hk hc' hk' ihf.1 ihq.1 ihb.1
-  | recIota hcr hall hcT hblk hni hshape hihs hps hms hmins hlm _ _ hcv hmi hmk hrfs _ ihmin ihmaj
-      ihb =>
+  | recIota hcr hall hcT hblk hni hshape hihs hps hms hmins hlm _ _ hcv hmi hmk hrfs hrl _ _ ihmin
+      ihmaj ihih ihb =>
     exact case_recIota henv hE hsub hcr hall hcT hblk hni hshape hihs hps hms hmins hlm
-      (fun i m mv h1 h2 => (ihmin i m mv h1 h2).1) ihmaj.1 hcv hmi hmk hrfs ihb.1
+      (fun i m mv h1 h2 => (ihmin i m mv h1 h2).1) ihmaj.1 hcv hmi hmk hrfs hrl
+      (fun i f w h1 h2 => (ihih i f w h1 h2).1) ihb.1
   | proj _ hcv ha ih => exact case_proj henv hE hsub hcv ha ih.1
   | projProp _ _ _ ih => exact case_projProp henv hE ih.1
   | lit => exact case_refl fun _ _ h => by cases h

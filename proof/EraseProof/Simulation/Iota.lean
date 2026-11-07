@@ -904,28 +904,29 @@ theorem forall_snoc_intro {α β : Type} {R : α → β → Prop} {l : List α} 
     rw [show i - l'.length = 0 by omega] at hb
     cases ha; cases hb; exact hxy
 
-/-- One erasable field applied to an erased head: an erasure of the application whose λ□
-evaluations are those of the erased head applied to `□`. -/
-theorem appBox_step (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
+/-- A value applied to an erased head: an erasure of the application whose λ□ evaluations are
+those of the erased head applied to the value's erasure, a closed λ□ value. -/
+theorem appArg_step (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
     {F f : Lean.Expr} {F' : LBTerm} {F₀ f₀ G : Metalean.Expr ζ lps.length 0}
     (hF : Erases E B lps σ .nil [] F F') (hdF : ErasesDeps E B σ lenv F')
     (hF₀ : TrM E B lps .nil [] F F₀) (hf₀ : TrM E B lps .nil [] f f₀)
-    (happ : E[.nil] ⊢ .app F₀ f₀ : G) (hval : SrcValue σ f)
-    (herf : ErasableS E B lps .nil [] f) :
+    (happ : E[.nil] ⊢ .app F₀ f₀ : G) (hval : SrcValue σ f) {f' : LBTerm}
+    (herf : Erases E B lps σ .nil [] f f') (hcl : closedn 0 f' = true)
+    (hdf : ErasesDeps E B σ lenv f') (hself : LBEval defaultFlags lenv f' f') :
     ∃ G', Erases E B lps σ .nil [] (.app F f) G' ∧ ErasesDeps E B σ lenv G' ∧
-      ∀ r, LBEval defaultFlags lenv G' r → LBEval defaultFlags lenv (.app F' .box) r := by
+      ∀ r, LBEval defaultFlags lenv G' r → LBEval defaultFlags lenv (.app F' f') r := by
   have hok := SrcDefeq.nil_ok (E := E) (lps := lps)
   have hord := henv.metaOrderOK
   have hbox : F' = .box → ErasableS E B lps .nil [] F → ∃ G', Erases E B lps σ .nil [] (.app F f) G' ∧
       ErasesDeps E B σ lenv G' ∧
-      ∀ r, LBEval defaultFlags lenv G' r → LBEval defaultFlags lenv (.app F' .box) r := by
+      ∀ r, LBEval defaultFlags lenv G' r → LBEval defaultFlags lenv (.app F' f') r := by
     rintro rfl hb
     refine ⟨.box, .box (erasable_app hE hb hF₀ hf₀ happ), .box, fun r hr => ?_⟩
     rw [lbeval_box hr]
-    exact .box (.atom rfl) (.atom rfl)
+    exact .box (.atom rfl) hself
   by_cases hsp : SpecialSpine σ (.app F f)
   swap
-  · exact ⟨.app F' .box, .app hsp hF (.box herf), .app hdF .box, fun _ h => h⟩
+  · exact ⟨.app F' f', .app hsp hF herf, .app hdF hdf, fun _ h => h⟩
   obtain ⟨c, us, hfn, hspc⟩ := hsp
   have hfnF : F.getAppFn = .const c us := by simpa [Expr.getAppFn] using hfn
   obtain ⟨as, rfl⟩ := eq_mkAppN_of_getAppFn hfnF
@@ -941,19 +942,19 @@ theorem appBox_step (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.d
         his, hlw, hmin, hws, hli, his', hmaj, hle, hext, rfl⟩
     · exact hbox hF' hb
     · refine ⟨mkApps (recLets 0 (mins'.zip minors)
-        (mkApps Fx ((is' ++ [maj']).map (lbLift rv.numMinors 0)))) (extra' ++ [.box]), ?_, ?_, ?_⟩
+        (mkApps Fx ((is' ++ [maj']).map (lbLift rv.numMinors 0)))) (extra' ++ [f']), ?_, ?_, ?_⟩
       · rw [hjoin, show ps ++ ms ++ mins ++ is ++ [maj] ++ extra ++ [f] =
           ps ++ ms ++ mins ++ is ++ [maj] ++ (extra ++ [f]) by simp]
         exact .recLet hrv hRF hps hms hmins his hlm hmin hli his' hmaj (by simp [hle])
-          (forall_snoc_intro hle hext (.box herf))
-      · rw [SimCases.mkApps_snoc]; exact .app hdF .box
+          (forall_snoc_intro hle hext herf)
+      · rw [SimCases.mkApps_snoc]; exact .app hdF hdf
       · intro r h; rwa [SimCases.mkApps_snoc] at h
-    · refine ⟨mkApps (substl ws.reverse Fx) (is' ++ [maj'] ++ (extra' ++ [.box])), ?_, ?_, ?_⟩
+    · refine ⟨mkApps (substl ws.reverse Fx) (is' ++ [maj'] ++ (extra' ++ [f'])), ?_, ?_, ?_⟩
       · rw [hjoin, show ps ++ ms ++ mins ++ is ++ [maj] ++ extra ++ [f] =
           ps ++ ms ++ mins ++ is ++ [maj] ++ (extra ++ [f]) by simp]
         exact .recFix hrv hRF hps hms hmins his hlw hmin hws hli his' hmaj (by simp [hle])
-          (forall_snoc_intro hle hext (.box herf))
-      · rw [← List.append_assoc, SimCases.mkApps_snoc]; exact .app hdF .box
+          (forall_snoc_intro hle hext herf)
+      · rw [← List.append_assoc, SimCases.mkApps_snoc]; exact .app hdF hdf
       · intro r h; rwa [← List.append_assoc, SimCases.mkApps_snoc] at h
   obtain ⟨ar, har⟩ : ∃ ar, specialArity σ c = some ar := by
     rcases hspc with ⟨cv, hcv⟩ | hco | ⟨qv, hqv, hq⟩ | ⟨rv, hrv⟩
@@ -987,15 +988,15 @@ theorem appBox_step (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.d
     have hokA : E[Metalean.Ctx.nil.snoc A'] ⊢ ok := .snoc hok ⟨l, hl⟩
     have htb' := InstPre.PreTr.recover hord (InstPre.PreTr.ofTrM hb₀) (InstPre.Thin.id _) hokA
       ⟨T₀, by rw [Metalean.Expr.rename_id]; exact hb₀T'⟩
-    have hinst := Erases.inst henv hE hok hsub hval hb' htb' hb₀T' (.box herf) hf₀
-      (Defeq.defeqDF hAA hf₀A₀) rfl
+    have hinst := Erases.inst henv hE hok hsub hval hb' htb' hb₀T' herf hf₀
+      (Defeq.defeqDF hAA hf₀A₀) hcl
     obtain ⟨ar', har', -, hs1, hs2⟩ := etaSpine?_snoc f heta
     rw [har] at har'
     cases har'
     cases hdF with
     | lambda hdb =>
-    refine ⟨csubst .box 0 b', ?_, ErasesDeps.csubst .box hdb,
-      fun r h => .beta (.atom rfl) (.atom rfl) h⟩
+    refine ⟨csubst f' 0 b', ?_, ErasesDeps.csubst hdf hdb,
+      fun r h => .beta (.atom rfl) hself h⟩
     rw [hjoin]
     rcases Nat.lt_or_eq_of_le (show as.length + 1 ≤ ar by omega) with h1 | h1
     · exact .eta (hs1 h1) hinst
@@ -1004,27 +1005,27 @@ theorem appBox_step (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.d
     rotate_left 2
     · rcases Erases.quot_inv hqv hq (by omega) hF with ⟨hF', hb⟩ |
         ⟨α, r, a, extra, a', extra', hk, rfl, ha, hlex, hext, rfl⟩ |
-        ⟨α, r, β, f₁, h₁, q, extra, f', q', extra', hk, rfl, hf₁, hq₁, hlex, hext, rfl⟩
+        ⟨α, r, β, f₁, h₁, q, extra, f₁', q', extra', hk, rfl, hf₁, hq₁, hlex, hext, rfl⟩
       · exact hbox hF' hb
-      · refine ⟨mkApps a' (extra' ++ [.box]), ?_, ?_, ?_⟩
+      · refine ⟨mkApps a' (extra' ++ [f']), ?_, ?_, ?_⟩
         · rw [hjoin, List.append_assoc]
-          exact .quotMk hqv hk ha (by simp [hlex]) (forall_snoc_intro hlex hext (.box herf))
-        · rw [SimCases.mkApps_snoc]; exact .app hdF .box
+          exact .quotMk hqv hk ha (by simp [hlex]) (forall_snoc_intro hlex hext herf)
+        · rw [SimCases.mkApps_snoc]; exact .app hdF hdf
         · intro r h; rwa [SimCases.mkApps_snoc] at h
-      · refine ⟨mkApps f' (q' :: (extra' ++ [.box])), ?_, ?_, ?_⟩
+      · refine ⟨mkApps f₁' (q' :: (extra' ++ [f'])), ?_, ?_, ?_⟩
         · rw [hjoin, List.append_assoc]
-          exact .quotLift hqv hk hf₁ hq₁ (by simp [hlex]) (forall_snoc_intro hlex hext (.box herf))
-        · rw [← List.cons_append, SimCases.mkApps_snoc]; exact .app hdF .box
+          exact .quotLift hqv hk hf₁ hq₁ (by simp [hlex]) (forall_snoc_intro hlex hext herf)
+        · rw [← List.cons_append, SimCases.mkApps_snoc]; exact .app hdF hdf
         · intro r h; rwa [← List.cons_append, SimCases.mkApps_snoc] at h
     · rcases Erases.ctor_inv hcv (by omega) hF with ⟨hF', hb⟩ | ⟨iid, as', hid, rfl, hlen, hall⟩
       · exact hbox hF' hb
       have hnp : ¬ PropInductive E B cv.induct := fun hp =>
         SimInd.mkApps_construct_ne_box (Erases.ctorProp_box hcv hp (by omega) hF)
-      refine ⟨mkApps (.construct iid cv.cidx []) (as' ++ [.box]), ?_, ?_, ?_⟩
+      refine ⟨mkApps (.construct iid cv.cidx []) (as' ++ [f']), ?_, ?_, ?_⟩
       · rw [hjoin]
         exact .ctor hcv hnp hid (by simp; omega) (by simp [hlen])
-          (forall_snoc_intro hlen hall (.box herf))
-      · rw [SimCases.mkApps_snoc]; exact .app hdF .box
+          (forall_snoc_intro hlen hall herf)
+      · rw [SimCases.mkApps_snoc]; exact .app hdF hdf
       · intro r h; rwa [SimCases.mkApps_snoc] at h
     · rw [SimCases.specialArity_casesOn hiv] at har
       cases har
@@ -1034,20 +1035,32 @@ theorem appBox_step (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.d
         ⟨pre, maj, alt, extra, cn, cv, alt', extra', rfl, hfe, hcn, hcv, hidx, hpre, halt, hlex,
           hext, rfl⟩
       · exact hbox hF' hb
-      · refine ⟨mkApps (.case (iid, iv.numParams) maj' brs) (extra' ++ [.box]), ?_, ?_, ?_⟩
+      · refine ⟨mkApps (.case (iid, iv.numParams) maj' brs) (extra' ++ [f']), ?_, ?_, ?_⟩
         · rw [hjoin, show pre ++ [maj] ++ alts ++ extra ++ [f] =
             pre ++ [maj] ++ alts ++ (extra ++ [f]) by simp]
           exact .cases hiv hnr hss hid hpre halts hmaj hbrs hcf halt (by simp [hlex])
-            (forall_snoc_intro hlex hext (.box herf))
-        · rw [SimCases.mkApps_snoc]; exact .app hdF .box
+            (forall_snoc_intro hlex hext herf)
+        · rw [SimCases.mkApps_snoc]; exact .app hdF hdf
         · intro r h; rwa [SimCases.mkApps_snoc] at h
-      · refine ⟨mkApps alt' (List.replicate cv.numFields .box ++ (extra' ++ [.box])), ?_, ?_, ?_⟩
+      · refine ⟨mkApps alt' (List.replicate cv.numFields .box ++ (extra' ++ [f'])), ?_, ?_, ?_⟩
         · rw [hjoin, show pre ++ [maj] ++ [alt] ++ extra ++ [f] =
             pre ++ [maj] ++ [alt] ++ (extra ++ [f]) by simp]
           exact .casesReduced hiv hfe hcn hcv hidx hpre halt (by simp [hlex])
-            (forall_snoc_intro hlex hext (.box herf))
-        · rw [← List.append_assoc, SimCases.mkApps_snoc]; exact .app hdF .box
+            (forall_snoc_intro hlex hext herf)
+        · rw [← List.append_assoc, SimCases.mkApps_snoc]; exact .app hdF hdf
         · intro r h; rwa [← List.append_assoc, SimCases.mkApps_snoc] at h
+
+/-- One erasable field applied to an erased head: an erasure of the application whose λ□
+evaluations are those of the erased head applied to `□`. -/
+theorem appBox_step (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
+    {F f : Lean.Expr} {F' : LBTerm} {F₀ f₀ G : Metalean.Expr ζ lps.length 0}
+    (hF : Erases E B lps σ .nil [] F F') (hdF : ErasesDeps E B σ lenv F')
+    (hF₀ : TrM E B lps .nil [] F F₀) (hf₀ : TrM E B lps .nil [] f f₀)
+    (happ : E[.nil] ⊢ .app F₀ f₀ : G) (hval : SrcValue σ f)
+    (herf : ErasableS E B lps .nil [] f) :
+    ∃ G', Erases E B lps σ .nil [] (.app F f) G' ∧ ErasesDeps E B σ lenv G' ∧
+      ∀ r, LBEval defaultFlags lenv G' r → LBEval defaultFlags lenv (.app F' .box) r :=
+  appArg_step henv hE hsub hF hdF hF₀ hf₀ happ hval (.box herf) rfl .box (.atom rfl)
 
 /-- Erasable fields applied to an erased head: an erasure of the application whose λ□
 evaluations are those of the erased head applied to `□` for each field. -/
