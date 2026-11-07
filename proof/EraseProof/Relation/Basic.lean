@@ -1,6 +1,7 @@
 import EraseProof.Spec
 import EraseProof.Bridge.Basic
 import EraseProof.TargetFacts
+import EraseProof.Relation.Rec
 
 /-!
 # Basic properties of the erasure relation
@@ -66,24 +67,26 @@ private theorem casesOn?_defn {σ : EvalEnv} {c : Name} {iv : InductiveVal}
     · cases hci
   · cases h
 
-/-- The heads of special spines: constructors, recognized `casesOn` constants and erased quotient
-constants. -/
+/-- The heads of special spines: constructors, recognized `casesOn` constants, erased quotient
+constants and recursors. -/
 private def SpecialC (σ : EvalEnv) (c : Name) : Prop :=
   (∃ cv, findDecl σ.decls c = some (.ctorInfo cv)) ∨ (∃ iv, σ.casesOn? c = some iv) ∨
-    ∃ qv, findDecl σ.decls c = some (.quotInfo qv) ∧ (quotEvalArity qv.kind).isSome
+    (∃ qv, findDecl σ.decls c = some (.quotInfo qv) ∧ (quotEvalArity qv.kind).isSome) ∨
+    ∃ rv, findDecl σ.decls c = some (.recInfo rv)
 
-/-- A constant with an arity of a constructor, recognized `casesOn` or erased quotient constant is
-one. -/
+/-- A constant with an arity is a constructor, a recognized `casesOn`, an erased quotient constant
+or a recursor. -/
 private theorem specialArity_some {σ : EvalEnv} {c : Name} {ar : Nat} (h : specialArity σ c = some ar) :
     SpecialC σ c := by
   unfold specialArity at h
   split at h
   · exact .inl ⟨_, by assumption⟩
-  · exact .inr (.inr ⟨_, by assumption, by rw [h]; rfl⟩)
+  · exact .inr (.inr (.inl ⟨_, by assumption, by rw [h]; rfl⟩))
+  · exact .inr (.inr (.inr ⟨_, by assumption⟩))
   · obtain ⟨iv, hiv, -⟩ := Option.map_eq_some_iff.1 h
     exact .inr (.inl ⟨iv, hiv⟩)
 
-/-- Only constructor and recognized `casesOn` spines are η-expanded. -/
+/-- Only spines with an arity are η-expanded, with fewer arguments than the arity. -/
 private theorem etaSpine?_some {σ : EvalEnv} {c : Name} {us : List Level} {as : List Expr} {e' : Expr}
     (h : σ.etaSpine? c us as = some e') :
     ∃ ar, specialArity σ c = some ar ∧ as.length < ar := by
@@ -100,10 +103,11 @@ special. -/
 private theorem specialSpine_of {σ : EvalEnv} {c : Name} {us : List Level} {e : Expr}
     (he : e.getAppFn = .const c us) (h : SpecialC σ c) : SpecialSpine σ e := by
   refine ⟨c, us, he, ?_⟩
-  rcases h with h | ⟨iv, hiv⟩ | h
+  rcases h with h | ⟨iv, hiv⟩ | h | h
   · exact .inl h
   · exact .inr (.inl (by rw [hiv]; rfl))
-  · exact .inr (.inr h)
+  · exact .inr (.inr (.inl h))
+  · exact .inr (.inr (.inr h))
 
 /-- A constructor's arity is its number of parameters and fields. -/
 private theorem specialArity_ctor {σ : EvalEnv} {c : Name} {cv : ConstructorVal}
@@ -115,13 +119,15 @@ private theorem specialArity_ctor {σ : EvalEnv} {c : Name} {cv : ConstructorVal
 private theorem isAtom_not_special {σ : EvalEnv} {c : Name} (h : σ.isAtom c = true) :
     ¬ SpecialC σ c := by
   unfold EvalEnv.isAtom at h
-  rintro (⟨cv, hc⟩ | ⟨iv, hiv⟩ | ⟨qv, hc, -⟩)
+  rintro (⟨cv, hc⟩ | ⟨iv, hiv⟩ | ⟨qv, hc, -⟩ | ⟨rv, hc⟩)
   · rw [hc] at h
     simp [OwnRules] at h
   · split at h
     · rw [hiv] at h
       simp at h
     · cases h
+  · rw [hc] at h
+    simp [OwnRules] at h
   · rw [hc] at h
     simp [OwnRules] at h
 
@@ -284,7 +290,7 @@ private theorem Erases.closedn_of_bbound {e : Expr} {tb : LBTerm}
   refine Erases.rec (motive_1 := fun _ _ e tb _ => ∀ k, BBound k e → closedn k tb = true)
     (motive_2 := fun _ _ _ e br _ => ∀ k, BBound k e → closedn (k + br.1.length) br.2 = true)
     ?bvar ?fvar ?lam ?letE ?app ?const ?ctor ?cases ?casesReduced ?eta ?proj ?litZero ?litSucc
-    ?quotMk ?quotLift ?mdata ?box ?done ?alam ?intro h
+    ?quotMk ?quotLift ?recLet ?recFix ?mdata ?box ?done ?alam ?intro h
   case bvar => intro _ _ _ _ k hk; simpa [closedn, BBound] using hk
   case fvar | const | box | litZero => intros; rfl
   case lam => intro _ _ _ _ _ _ _ _ _ _ _ _ ih k hk; exact ih (k + 1) hk
@@ -350,6 +356,44 @@ private theorem Erases.closedn_of_bbound {e : Expr} {tb : LBTerm}
     · exact forall_mem_of_getElem hlex
         (R := fun a a' => ∀ k, BBound k a → closedn k a' = true) ihe
         (fun a a' ha h => h k (hb a (by simp [ha]))) x hx
+  case recLet =>
+    intro _ rv _ minors F _ _ _ maj maj' _ _ _ _ _ mins' is' _ _ hF _ _ hmins _ hlm _ hli _ _ hle _
+      ihmin ihis ihmaj ihext k hk
+    have hb := (BBound_mkAppN.1 hk).2
+    obtain ⟨hml, hFc, -⟩ := RecLam.RecFixOf.closed hF
+    have hz : (mins'.zip minors).length = rv.numMinors := by
+      simp only [List.length_zip]; omega
+    refine closedn_mkApps.2 ⟨?_, forall_mem_of_getElem hle
+      (R := fun a a' => ∀ k, BBound k a → closedn k a' = true) ihext
+      fun a a' ha h => h k (hb a (by simp [ha]))⟩
+    have key := RecLam.closedn_recLets (mins'.zip minors) 0 k
+      (mkApps F (List.map (lbLift rv.numMinors 0) (is' ++ [maj']))) (fun p hp => ?_) ?_
+    · simpa using key
+    · exact forall_mem_of_getElem hlm (R := fun a a' => ∀ k, BBound k a → closedn k a' = true)
+        ihmin (fun a a' ha h => h k (hb a (by simp [ha]))) p.1 (List.of_mem_zip hp).1
+    · rw [Nat.add_zero, hz]
+      refine closedn_mkApps.2 ⟨TargetLift.closedn_mono F _ _ hFc (by omega), fun a ha => ?_⟩
+      obtain ⟨a₀, ha₀, rfl⟩ := List.mem_map.1 ha
+      refine TargetLift.closedn_lbLift _ a₀ k 0 ?_ (Nat.zero_le _)
+      rcases List.mem_append.1 ha₀ with h | h
+      · exact forall_mem_of_getElem hli (R := fun a a' => ∀ k, BBound k a → closedn k a' = true)
+          ihis (fun a a' ha hh => hh k (hb a (by simp [ha]))) a₀ h
+      · rw [List.mem_singleton.1 h]; exact ihmaj k (hb maj (by simp))
+  case recFix =>
+    intro _ rv _ minors F _ _ _ maj _ _ _ _ _ _ ws _ _ _ hF _ _ hmins _ hlw _ hws hli _ _ hle _
+      ihmin ihis ihmaj ihext k hk
+    have hb := (BBound_mkAppN.1 hk).2
+    obtain ⟨hml, hFc, hFx⟩ := RecLam.RecFixOf.closed hF
+    have hws' := RecLam.substl_fix (ws := ws) (by rw [← hlw, hmins]; exact hFc) hFx
+      fun w hw => ⟨(hws w hw).1, (hws w hw).2.1⟩
+    refine closedn_mkApps.2 ⟨TargetLift.closedn_mono _ 0 k hws'.1 (Nat.zero_le _), fun a ha => ?_⟩
+    rcases List.mem_append.1 ha with ha | ha
+    · rcases List.mem_append.1 ha with ha | ha
+      · exact forall_mem_of_getElem hli (R := fun a a' => ∀ k, BBound k a → closedn k a' = true)
+          ihis (fun a a' ha hh => hh k (hb a (by simp [ha]))) a ha
+      · rw [List.mem_singleton.1 ha]; exact ihmaj k (hb maj (by simp))
+    · exact forall_mem_of_getElem hle (R := fun a a' => ∀ k, BBound k a → closedn k a' = true)
+        ihext (fun a a' ha hh => hh k (hb a (by simp [ha]))) a ha
   case proj => intro _ _ _ _ _ _ _ _ _ _ _ _ _ _ ih k hk; exact ih k hk
   case litSucc => intro _ _ _ _ _ _ _ _ ih k _; simp only [closedn, Bool.and_eq_true]; exact ⟨rfl, ih k trivial⟩
   case mdata => intros; rename_i ih k hk; exact ih k hk
@@ -388,7 +432,7 @@ theorem Erases.ctor_inv {c : Name} {cv : ConstructorVal} {us : List Level} {as :
   have hsp : SpecialC σ c := .inl ⟨cv, hc⟩
   cases h with
   | box hb => subst hx; exact .inl ⟨rfl, hb⟩
-  | quotMk hq | quotLift hq =>
+  | quotMk hq | quotLift hq | recLet hq | recFix hq =>
     obtain ⟨rfl, -, -⟩ := mkAppN_const_inj hx
     rw [hc] at hq; cases hq
   | ctor hc' _ hid _ hlen hall =>
@@ -454,7 +498,7 @@ theorem Erases.cases_inv {c : Name} {iv : InductiveVal} {us : List Level} {as : 
   have hsp : SpecialC σ c := .inr (.inl ⟨iv, hc⟩)
   cases h with
   | box hb => subst hx; exact .inl ⟨rfl, hb⟩
-  | quotMk hq | quotLift hq =>
+  | quotMk hq | quotLift hq | recLet hq | recFix hq =>
     obtain ⟨rfl, -, -⟩ := mkAppN_const_inj hx
     obtain ⟨d, hd⟩ := casesOn?_defn hc
     rw [hq] at hd; cases hd
@@ -506,7 +550,7 @@ theorem Erases.quot_inv {c : Name} {qv : QuotVal} {us : List Level} {as : List E
       tb = mkApps f' (q' :: extra')) := by
   generalize hx : mkAppN (.const c us) as.toArray = x at h
   have hfn : x.getAppFn = .const c us := hx ▸ getAppFn_mkAppN_const c us as
-  have hsp : SpecialC σ c := .inr (.inr ⟨qv, hc, by rw [har]; rfl⟩)
+  have hsp : SpecialC σ c := .inr (.inr (.inl ⟨qv, hc, by rw [har]; rfl⟩))
   have hsa : specialArity σ c = some ar := by
     unfold specialArity; rw [hc]; exact har
   cases h with
@@ -519,7 +563,7 @@ theorem Erases.quot_inv {c : Name} {qv : QuotVal} {us : List Level} {as : List E
     obtain ⟨rfl, rfl, rfl⟩ := mkAppN_const_inj hx
     rw [hc] at hc'; cases hc'
     exact .inr (.inr ⟨_, _, _, _, _, _, _, _, _, _, hk, rfl, hf, hq, hlex, hext, rfl⟩)
-  | ctor hc' =>
+  | ctor hc' | recLet hc' | recFix hc' =>
     obtain ⟨rfl, -, -⟩ := mkAppN_const_inj hx
     rw [hc] at hc'; cases hc'
   | cases hco | casesReduced hco =>
@@ -536,6 +580,76 @@ theorem Erases.quot_inv {c : Name} {qv : QuotVal} {us : List Level} {as : List E
     obtain ⟨ar', har', hlt⟩ := etaSpine?_some heta
     rw [hsa] at har'
     cases har'
+    omega
+  | bvar | fvar | lam | letE | proj | litZero | litSucc | mdata =>
+    exact absurd hfn (getAppFn_ne_const (fun _ _ h => by cases h) (fun _ _ h => by cases h))
+
+/-- An erasure of a recursor spine with at least its arity is `□`, the let-bound form of
+`Erases.recLet` or the closed form of `Erases.recFix`: a recursor is no atom, has no constant
+erasure, is η-expanded only below its arity, and its spines are special. -/
+theorem Erases.rec_inv {c : Name} {rv : RecursorVal} {us : List Level} {as : List Expr}
+    {tb : LBTerm} (hc : findDecl σ.decls c = some (.recInfo rv))
+    (hge : rv.numParams + rv.numMotives + rv.numMinors + rv.numIndices + 1 ≤ as.length)
+    (h : Erases E B lps σ Γ Δ (mkAppN (.const c us) as.toArray) tb) :
+    (tb = .box ∧ ErasableS E B lps Γ Δ (mkAppN (.const c us) as.toArray)) ∨
+    (∃ (minors : List RecMinor) (F : LBTerm) (ps ms mins is : List Expr) (maj : Expr)
+      (extra : List Expr) (mins' is' : List LBTerm) (maj' : LBTerm) (extra' : List LBTerm),
+      RecFixOf E B σ rv us minors F ∧
+      as = ps ++ ms ++ mins ++ is ++ [maj] ++ extra ∧
+      ps.length = rv.numParams ∧ ms.length = rv.numMotives ∧ mins.length = rv.numMinors ∧
+      is.length = rv.numIndices ∧ mins.length = mins'.length ∧
+      (∀ (i : Nat) x x', mins[i]? = some x → mins'[i]? = some x' → Erases E B lps σ Γ Δ x x') ∧
+      is.length = is'.length ∧
+      (∀ (i : Nat) x x', is[i]? = some x → is'[i]? = some x' → Erases E B lps σ Γ Δ x x') ∧
+      Erases E B lps σ Γ Δ maj maj' ∧ extra.length = extra'.length ∧
+      (∀ (i : Nat) x x', extra[i]? = some x → extra'[i]? = some x' → Erases E B lps σ Γ Δ x x') ∧
+      tb = mkApps (recLets 0 (mins'.zip minors)
+        (mkApps F ((is' ++ [maj']).map (lbLift rv.numMinors 0)))) extra') ∨
+    (∃ (minors : List RecMinor) (F : LBTerm) (ps ms mins is : List Expr) (maj : Expr)
+      (extra : List Expr) (ws is' : List LBTerm) (maj' : LBTerm) (extra' : List LBTerm),
+      RecFixOf E B σ rv us minors F ∧
+      as = ps ++ ms ++ mins ++ is ++ [maj] ++ extra ∧
+      ps.length = rv.numParams ∧ ms.length = rv.numMotives ∧ mins.length = rv.numMinors ∧
+      is.length = rv.numIndices ∧ mins.length = ws.length ∧
+      (∀ (i : Nat) x x', mins[i]? = some x → ws[i]? = some x' → Erases E B lps σ Γ Δ x x') ∧
+      (∀ w ∈ ws, closedn 0 w = true ∧ (∀ x, hasFVar x w = false) ∧ LBFixed w) ∧
+      is.length = is'.length ∧
+      (∀ (i : Nat) x x', is[i]? = some x → is'[i]? = some x' → Erases E B lps σ Γ Δ x x') ∧
+      Erases E B lps σ Γ Δ maj maj' ∧ extra.length = extra'.length ∧
+      (∀ (i : Nat) x x', extra[i]? = some x → extra'[i]? = some x' → Erases E B lps σ Γ Δ x x') ∧
+      tb = mkApps (substl ws.reverse F) (is' ++ [maj'] ++ extra')) := by
+  generalize hx : mkAppN (.const c us) as.toArray = x at h
+  have hfn : x.getAppFn = .const c us := hx ▸ getAppFn_mkAppN_const c us as
+  have hsp : SpecialC σ c := .inr (.inr (.inr ⟨rv, hc⟩))
+  cases h with
+  | box hb => subst hx; exact .inl ⟨rfl, hb⟩
+  | recLet hc' hF hps hms hmins his hlm hmin hli his' hmaj hle hext =>
+    obtain ⟨rfl, rfl, rfl⟩ := mkAppN_const_inj hx
+    rw [hc] at hc'; cases hc'
+    exact .inr (.inl ⟨_, _, _, _, _, _, _, _, _, _, _, _, hF, rfl, hps, hms, hmins, his, hlm, hmin,
+      hli, his', hmaj, hle, hext, rfl⟩)
+  | recFix hc' hF hps hms hmins his hlw hmin hws hli his' hmaj hle hext =>
+    obtain ⟨rfl, rfl, rfl⟩ := mkAppN_const_inj hx
+    rw [hc] at hc'; cases hc'
+    exact .inr (.inr ⟨_, _, _, _, _, _, _, _, _, _, _, _, hF, rfl, hps, hms, hmins, his, hlw, hmin,
+      hws, hli, his', hmaj, hle, hext, rfl⟩)
+  | ctor hc' | quotMk hc' | quotLift hc' =>
+    obtain ⟨rfl, -, -⟩ := mkAppN_const_inj hx
+    rw [hc] at hc'; cases hc'
+  | cases hco | casesReduced hco =>
+    obtain ⟨rfl, -, -⟩ := mkAppN_const_inj hx
+    obtain ⟨d, hd⟩ := casesOn?_defn hco
+    rw [hc] at hd; cases hd
+  | app hns => exact absurd (specialSpine_of hfn hsp) hns
+  | const _ _ hnr =>
+    cases hfn
+    exact absurd hc (hnr rv)
+  | eta heta =>
+    obtain ⟨rfl, -, rfl⟩ := mkAppN_const_inj hx
+    obtain ⟨ar, har, hlt⟩ := etaSpine?_some heta
+    unfold specialArity at har
+    rw [hc] at har
+    cases har
     omega
   | bvar | fvar | lam | letE | proj | litZero | litSucc | mdata =>
     exact absurd hfn (getAppFn_ne_const (fun _ _ h => by cases h) (fun _ _ h => by cases h))
@@ -568,7 +682,12 @@ private theorem Erases.headOf_atomSpine {e : Expr} {tb : LBTerm} (hsp : AtomSpin
       have := congrArg Expr.getAppFn hx
       rw [getAppFn_mkAppN_const] at this
       cases this
-      exact absurd (.inr (.inr ⟨_, hc, by rw [hk]; rfl⟩)) hns
+      exact absurd (.inr (.inr (.inl ⟨_, hc, by rw [hk]; rfl⟩))) hns
+    | recLet hc | recFix hc =>
+      have := congrArg Expr.getAppFn hx
+      rw [getAppFn_mkAppN_const] at this
+      cases this
+      exact absurd (.inr (.inr (.inr ⟨_, hc⟩))) hns
     | eta heta =>
       have := congrArg Expr.getAppFn hx
       rw [getAppFn_mkAppN_const] at this
@@ -589,7 +708,8 @@ private theorem Erases.headOf_atomSpine {e : Expr} {tb : LBTerm} (hsp : AtomSpin
     | ctor hc => cases hfn rfl; exact absurd (.inl ⟨_, hc⟩) hns
     | cases hc | casesReduced hc => cases hfn rfl; exact absurd (.inr (.inl ⟨_, hc⟩)) hns
     | quotMk hc hk | quotLift hc hk =>
-      cases hfn rfl; exact absurd (.inr (.inr ⟨_, hc, by rw [hk]; rfl⟩)) hns
+      cases hfn rfl; exact absurd (.inr (.inr (.inl ⟨_, hc, by rw [hk]; rfl⟩))) hns
+    | recLet hc | recFix hc => cases hfn rfl; exact absurd (.inr (.inr (.inr ⟨_, hc⟩))) hns
     | eta heta =>
       cases hfn rfl
       obtain ⟨_, har, _⟩ := etaSpine?_some heta
@@ -616,7 +736,7 @@ theorem Erases.ctorProp_box {c : Name} {cv : ConstructorVal} {us : List Level} {
   have hsp : SpecialC σ c := .inl ⟨cv, hc⟩
   cases h with
   | box => rfl
-  | quotMk hq | quotLift hq =>
+  | quotMk hq | quotLift hq | recLet hq | recFix hq =>
     obtain ⟨rfl, -, -⟩ := mkAppN_const_inj hx
     rw [hc] at hq; cases hq
   | ctor hc' hnp =>
@@ -666,7 +786,8 @@ private theorem Erases.headOf_propProj {e : Expr} {tb : LBTerm} (hp : PropProj �
     cases h with
     | box => exact .inl rfl
     | proj => exact .inr ⟨_, _, rfl⟩
-    | ctor | cases | casesReduced | eta | quotMk | quotLift => exact (spine he₀ rfl).elim
+    | ctor | cases | casesReduced | eta | quotMk | quotLift | recLet | recFix =>
+      exact (spine he₀ rfl).elim
     | bvar | fvar | lam | letE | app | const | litZero | litSucc | mdata => cases hx
   | @app f a _ ih =>
     generalize hx : Expr.app f a = x at h he₀
@@ -676,7 +797,8 @@ private theorem Erases.headOf_propProj {e : Expr} {tb : LBTerm} (hp : PropProj �
       cases hx
       have := @ih _ hf he₀
       exact this
-    | ctor | cases | casesReduced | eta | quotMk | quotLift => exact (spine he₀ rfl).elim
+    | ctor | cases | casesReduced | eta | quotMk | quotLift | recLet | recFix =>
+      exact (spine he₀ rfl).elim
     | bvar | fvar | lam | letE | const | proj | litZero | litSucc | mdata => cases hx
 
 /-- A λ□ evaluation result is not headed by a projection. Reference: `eval_to_value`

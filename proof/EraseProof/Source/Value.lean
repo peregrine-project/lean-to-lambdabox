@@ -154,6 +154,7 @@ private theorem deep {σ : EvalEnv} {e v : Expr} (hev : SrcEval σ e v) : Deep �
   | casesProof _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ ih => exact ih
   | quotMk hc hk _ ih => exact .quotMk hc hk ih
   | quotLift _ _ _ _ _ _ _ _ _ ih => exact ih
+  | recIota => rename_i ih; exact ih
   | proj _ hcv hfs ihm =>
     obtain ⟨C, us, cv, ps, hC, -, -, -, -, rfl⟩ := hcv
     exact Deep.ctor_args hC ihm _ (List.mem_append_right _ (List.mem_of_getElem? hfs))

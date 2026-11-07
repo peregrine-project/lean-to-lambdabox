@@ -104,6 +104,35 @@ def hasFVarD (x : FVarId) : List (@FixDef LBTerm) → Bool
   | ⟨_, b, _⟩ :: ds => hasFVar x b || hasFVarD x ds
 end
 
+mutual
+/-- Lift the loose indices from `k` on by `n`. Reference: `MR E/ELiftSubst.v:15 lift`. -/
+def lbLift (n k : Nat) : LBTerm → LBTerm
+  | .box => .box
+  | .bvar i => if k ≤ i then .bvar (i + n) else .bvar i
+  | .fvar x => .fvar x
+  | .lambda na b => .lambda na (lbLift n (k + 1) b)
+  | .letIn na b b' => .letIn na (lbLift n k b) (lbLift n (k + 1) b')
+  | .app u v => .app (lbLift n k u) (lbLift n k v)
+  | .const kn => .const kn
+  | .construct i c args => .construct i c (lbLiftL n k args)
+  | .case ip c brs => .case ip (lbLift n k c) (lbLiftB n k brs)
+  | .proj p c => .proj p (lbLift n k c)
+  | .fix defs i => .fix (lbLiftD n (k + defs.length) defs) i
+  | .prim p => .prim p
+/-- `lbLift` on argument lists (part of `MR E/ELiftSubst.v:15 lift`). -/
+def lbLiftL (n k : Nat) : List LBTerm → List LBTerm
+  | [] => []
+  | a :: as => lbLift n k a :: lbLiftL n k as
+/-- `lbLift` on case branches (part of `MR E/ELiftSubst.v:15 lift`). -/
+def lbLiftB (n k : Nat) : List (List BinderName × LBTerm) → List (List BinderName × LBTerm)
+  | [] => []
+  | (ns, b) :: bs => (ns, lbLift n (k + ns.length) b) :: lbLiftB n k bs
+/-- `lbLift` on fixpoint bodies (part of `MR E/ELiftSubst.v:15 lift`). -/
+def lbLiftD (n k : Nat) : List (@FixDef LBTerm) → List (@FixDef LBTerm)
+  | [] => []
+  | ⟨nm, b, r⟩ :: ds => ⟨nm, lbLift n k b, r⟩ :: lbLiftD n k ds
+end
+
 /-- Reference: `MR E/EAst.v:51 mkApps`. -/
 def mkApps (t : LBTerm) : List LBTerm → LBTerm
   | [] => t
@@ -265,5 +294,10 @@ inductive LBEval (fl : WcbvFlags) (lenv : GlobalDeclarations) : LBTerm → LBTer
   | prim : LBEval fl lenv (.prim p) (.prim p)
   /-- `eval_atom` (`:285`). -/
   | atom : lbAtom fl lenv t = true → LBEval fl lenv t t
+
+/-- `t` evaluates in λ□, in every environment, to itself only: a λ□ value. Reference:
+`value_final` and `eval_deterministic` (`MR E/EWcbvEval.v`). -/
+def LBFixed (t : LBTerm) : Prop :=
+  ∀ lenv t', LBEval defaultFlags lenv t t' → t' = t
 
 end EraseProof

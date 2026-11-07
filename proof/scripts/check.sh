@@ -43,9 +43,9 @@
 #                  with consumer FINAL (any other root waits for a consumer that has not landed),
 #                  every statement is proved, and erase_correct's footprint is exactly propext,
 #                  Classical.choice, Quot.sound, as is that of its instances on NV-1, NV-P, NV-K,
-#                  NV-2 and NV-Q, EraseProof.Test.{NV1,NVP,NVK,NV2,NVQ}.final, whose hypothesis terms lie
-#                  within them, and so is that of the corollary erase_correct_firstorder, whose
-#                  instances EraseProof.Test.{NV1,NV2}.firstorder lie within them and mention it
+#                  NV-2, NV-Q and NV-R, EraseProof.Test.{NV1,NVP,NVK,NV2,NVQ,NVR}.final, whose hypothesis
+#                  terms lie within them, and so is that of the corollary erase_correct_firstorder, whose
+#                  instances EraseProof.Test.{NV1,NV2,NVR}.firstorder lie within them and mention it
 #                  (skipped with --no-final); C12b, always: the statement definitions
 #                  and the library and shipping definitions they reach (kind and flags included;
 #                  the shipping functions under verification, collectDeps, erasePure and eraseEntry, and the
@@ -53,13 +53,13 @@
 #                  pinned constant exists, and the toolchain and git dependency revisions of both
 #                  packages are the pinned ones. See the header of tools/Report.lean.
 #   nv1-emit  C11  the part of C11 that needs no peregrine: proof/tools/NVEmit.lean runs #erase's
-#                  entry point on NV-1's, NV-2's and NV-Q's programs and fails unless it emits exactly the
+#                  entry point on NV-1's, NV-2's, NV-Q's and NV-R's programs and fails unless it emits exactly the
 #                  programs the final instances are about. Runs once tools/NVEmit.lean exists; required by
 #                  the final form.
 #   regress   C10  the shipping regression tests, scripts/regress.sh (skipped with --no-regress);
 #                  with PEREGRINE set, also their `-- peregrine:` lines.
 #   peregrine C11  proof/scripts/c11.sh: `peregrine validate` and `peregrine eval` on NV-1's,
-#                  NV-2's and NV-Q's programs (from nv1-emit), on every output the regression tests write under
+#                  NV-2's, NV-Q's and NV-R's programs (from nv1-emit), on every output the regression tests write under
 #                  `nat := .peano`, and on their outputs for NV-1, NV-P and NV-K; each value must
 #                  be the Lean program's. Runs only with PEREGRINE=<peregrine binary> in the
 #                  environment, so GitHub CI skips it; skipped with --no-peregrine.
@@ -110,7 +110,10 @@ run() {
 
 build_root() ( cd "$ROOT" && lake build LeanToLambdaBox LeanToLambdaBox.Metalean )
 build_proof() ( cd "$PROOF" && lake build )
-replay() ( cd "$PROOF" && lake env leanchecker LeanToLambdaBox EraseProof )
+# leanchecker replays every module in a task of its own, each over a fresh import of the module's
+# dependencies (Mathlib included); the thread count bounds how many such environments are live at
+# once, and so the replay's memory.
+replay() ( cd "$PROOF" && LEAN_NUM_THREADS="${REPLAY_THREADS:-3}" lake env leanchecker LeanToLambdaBox EraseProof )
 report() (
   cd "$PROOF" &&
     lake env lean --run tools/Report.lean ${final[@]+"${final[@]}"} ${metarocq[@]+"${metarocq[@]}"}
@@ -118,7 +121,7 @@ report() (
 nv1_emit() {
   rm -rf "$LOG/nv1" && mkdir -p "$LOG/nv1" &&
     ( cd "$PROOF" && lake env lean --run tools/NVEmit.lean "$LOG/nv1/NV1.ast" "$LOG/nv1/NV2.ast" \
-      "$LOG/nv1/NVQ.ast" )
+      "$LOG/nv1/NVQ.ast" "$LOG/nv1/NVR.ast" )
 }
 c11() { rm -rf "$LOG/c11" && "$PROOF/scripts/c11.sh" --out "$LOG/c11"; }
 

@@ -763,7 +763,7 @@ theorem Erases.rename
       closedn (c + br.1.length) br.2 = true →
       ErasesAlt E B lps σ Γ₂ Δ₂ k (e.liftLooseBVars' c j) br)
     ?bvar ?fvar ?lam ?letE ?app ?const ?ctor ?cases ?casesReduced ?eta ?proj ?litZero ?litSucc
-    ?quotMk ?quotLift ?mdata ?box ?done ?alam ?intro h
+    ?quotMk ?quotLift ?recLet ?recFix ?mdata ?box ?done ?alam ?intro h
   case bvar =>
     intro _ _ _ i m Γ₂ Δ₂ c j ρ _ _ _ hcl
     simp only [closedn, decide_eq_true_eq] at hcl
@@ -798,8 +798,8 @@ theorem Erases.rename
     rw [liftLooseBVars'_getAppFn] at hc
     exact liftLooseBVars'_eq_const hc
   case const =>
-    intro _ _ _ _ _ hat hsa m Γ₂ Δ₂ c j ρ _ _ _ _
-    exact .const hat hsa
+    intro _ _ _ _ _ hat hsa hnr m Γ₂ Δ₂ c j ρ _ _ _ _
+    exact .const hat hsa hnr
   case ctor =>
     intro _ _ _ _ _ _ _ as _ hcv hnp hid hle hlen _ ih m Γ₂ Δ₂ c j ρ hΓ₂ hth W hcl
     rw [AbsFV.closedn_mkApps] at hcl
@@ -867,6 +867,49 @@ theorem Erases.rename
     obtain ⟨a₀, ha₀, rfl⟩ := gmap ha
     exact ihe i a₀ a' ha₀ ha' _ _ _ c j ρ hΓ₂ hth W
       (hext _ (List.mem_cons_of_mem _ (List.mem_of_getElem? ha')))
+  case recLet =>
+    intro _ rv _ minors F _ _ _ maj maj' ps ms mins is extra mins' is' extra' hcr hF hps hms hmins
+      his hlm _ hli _ _ hle _ ihmin ihis ihmaj ihext m Γ₂ Δ₂ c j ρ hΓ₂ hth W hcl
+    obtain ⟨hml, -, -⟩ := RecLam.RecFixOf.closed hF
+    have hz : (mins'.zip minors).length = rv.numMinors := by
+      simp only [List.length_zip]; omega
+    obtain ⟨cm, ci, cj, ce⟩ := RecLam.closedn_recLetTerm_inv (by omega) hz hcl
+    rw [lift_spine, show (ps ++ ms ++ mins ++ is ++ [maj] ++ extra).map (·.liftLooseBVars' c j) =
+      ps.map (·.liftLooseBVars' c j) ++ ms.map (·.liftLooseBVars' c j) ++
+        mins.map (·.liftLooseBVars' c j) ++ is.map (·.liftLooseBVars' c j) ++
+          [maj.liftLooseBVars' c j] ++ extra.map (·.liftLooseBVars' c j) by simp]
+    refine .recLet hcr hF (by simpa using hps) (by simpa using hms) (by simpa using hmins)
+      (by simpa using his) (by simpa using hlm) (fun i x x' hx hx' => ?_) (by simpa using hli)
+      (fun i x x' hx hx' => ?_) (ihmaj _ _ _ c j ρ hΓ₂ hth W cj) (by simpa using hle)
+      (fun i x x' hx hx' => ?_)
+    · obtain ⟨x₀, hx₀, rfl⟩ := gmap hx
+      exact ihmin i x₀ x' hx₀ hx' _ _ _ c j ρ hΓ₂ hth W (cm _ (List.mem_of_getElem? hx'))
+    · obtain ⟨x₀, hx₀, rfl⟩ := gmap hx
+      exact ihis i x₀ x' hx₀ hx' _ _ _ c j ρ hΓ₂ hth W (ci _ (List.mem_of_getElem? hx'))
+    · obtain ⟨x₀, hx₀, rfl⟩ := gmap hx
+      exact ihext i x₀ x' hx₀ hx' _ _ _ c j ρ hΓ₂ hth W (ce _ (List.mem_of_getElem? hx'))
+  case recFix =>
+    intro _ rv _ minors F _ _ _ maj maj' ps ms mins is extra ws is' extra' hcr hF hps hms hmins
+      his hlw _ hws hli _ _ hle _ ihmin ihis ihmaj ihext m Γ₂ Δ₂ c j ρ hΓ₂ hth W hcl
+    rw [AbsFV.closedn_mkApps] at hcl
+    obtain ⟨-, hargs⟩ := hcl
+    rw [lift_spine, show (ps ++ ms ++ mins ++ is ++ [maj] ++ extra).map (·.liftLooseBVars' c j) =
+      ps.map (·.liftLooseBVars' c j) ++ ms.map (·.liftLooseBVars' c j) ++
+        mins.map (·.liftLooseBVars' c j) ++ is.map (·.liftLooseBVars' c j) ++
+          [maj.liftLooseBVars' c j] ++ extra.map (·.liftLooseBVars' c j) by simp]
+    refine .recFix hcr hF (by simpa using hps) (by simpa using hms) (by simpa using hmins)
+      (by simpa using his) (by simpa using hlw) (fun i x x' hx hx' => ?_) hws (by simpa using hli)
+      (fun i x x' hx hx' => ?_) (ihmaj _ _ _ c j ρ hΓ₂ hth W (hargs _ (by simp)))
+      (by simpa using hle) (fun i x x' hx hx' => ?_)
+    · obtain ⟨x₀, hx₀, rfl⟩ := gmap hx
+      exact ihmin i x₀ x' hx₀ hx' _ _ _ c j ρ hΓ₂ hth W (TargetLift.closedn_mono _ 0 c
+        (hws x' (List.mem_of_getElem? hx')).1 (Nat.zero_le _))
+    · obtain ⟨x₀, hx₀, rfl⟩ := gmap hx
+      exact ihis i x₀ x' hx₀ hx' _ _ _ c j ρ hΓ₂ hth W
+        (hargs _ (by simp [List.mem_of_getElem? hx']))
+    · obtain ⟨x₀, hx₀, rfl⟩ := gmap hx
+      exact ihext i x₀ x' hx₀ hx' _ _ _ c j ρ hΓ₂ hth W
+        (hargs _ (by simp [List.mem_of_getElem? hx']))
   case mdata =>
     intro _ _ _ _ _ _ _ ih m Γ₂ Δ₂ c j ρ hΓ₂ hth W hcl
     exact .mdata (ih _ _ _ c j ρ hΓ₂ hth W hcl)
@@ -1033,7 +1076,7 @@ theorem Erases.instG (hE : EnvWF E)
       Erases E B lps σ Γ₂ Δ₂ (a.liftLooseBVars' 0 d) a' → HeadInv σ E a Γ₁ Δ₁ d b →
       ErasesAlt E B lps σ Γ₂ Δ₂ k (b.instantiate1' a d) (br.1, csubst a' (d + br.1.length) br.2))
     ?bvar ?fvar ?lam ?letE ?app ?const ?ctor ?cases ?casesReduced ?eta ?proj ?litZero ?litSucc
-    ?quotMk ?quotLift ?mdata ?box ?done ?alam ?intro,
+    ?quotMk ?quotLift ?recLet ?recFix ?mdata ?box ?done ?alam ?intro,
     @ErasesAlt.rec ζ E B lps σ (fun {n₁} Γ₁ Δ₁ b tb _ => ∀ (n₂ : Nat) (Γ₂ : Ctx ζ lps.length 0 n₂)
       (Δ₂ : MLCtx ζ lps.length n₂) (d : Nat) (ς : Subst ζ lps.length n₁ n₂),
       E[Γ₂] ⊢ ok → E[Γ₂] ⊢ ς ⊣ Γ₁ → MLCtx.InstA E B lps a d ς Δ₁ Δ₂ →
@@ -1045,7 +1088,7 @@ theorem Erases.instG (hE : EnvWF E)
       Erases E B lps σ Γ₂ Δ₂ (a.liftLooseBVars' 0 d) a' → HeadInv σ E a Γ₁ Δ₁ d b →
       ErasesAlt E B lps σ Γ₂ Δ₂ k (b.instantiate1' a d) (br.1, csubst a' (d + br.1.length) br.2))
     ?bvar ?fvar ?lam ?letE ?app ?const ?ctor ?cases ?casesReduced ?eta ?proj ?litZero ?litSucc
-    ?quotMk ?quotLift ?mdata ?box ?done ?alam ?intro⟩
+    ?quotMk ?quotLift ?recLet ?recFix ?mdata ?box ?done ?alam ?intro⟩
   case bvar =>
     intro _ _ _ i n₂ Γ₂ Δ₂ d ς _ _ _ Ea _
     simp only [Lean.Expr.instantiate1', csubst]
@@ -1089,8 +1132,8 @@ theorem Erases.instG (hE : EnvWF E)
       exact (hi hsa).2.1.1 hfd
     · exact hns ⟨c, us, inst_getAppFn_const hfd hc, hs⟩
   case const =>
-    intro _ _ _ _ _ hat hsa _ _ _ _ _ _ _ _ _ _
-    exact .const hat hsa
+    intro _ _ _ _ _ hat hsa hnr _ _ _ _ _ _ _ _ _ _
+    exact .const hat hsa hnr
   case ctor =>
     intro _ _ _ _ _ _ _ as _ hcv hnp hid hle hlen _ ih n₂ Γ₂ Δ₂ d ς hΓ₂ hς W Ea hi
     rw [inst_spine, csubst_mkApps]
@@ -1173,6 +1216,64 @@ theorem Erases.instG (hE : EnvWF E)
     obtain ⟨x₀', hx₀', rfl⟩ := gmapB hx'
     exact ihe i x₀ x₀' hx₀ hx₀' _ _ _ d ς hΓ₂ hς W Ea
       (hi' x₀ (by simp [List.mem_of_getElem? hx₀]))
+  case recLet =>
+    intro _ rv _ minors F _ _ _ maj maj' ps ms mins is extra mins' is' extra' hcr hF hps hms hmins
+      his hlm _ hli _ _ hle _ ihmin ihis ihmaj ihext n₂ Γ₂ Δ₂ d ς hΓ₂ hς W Ea hi
+    have hi' := spineHI hi
+    obtain ⟨hml, hFc, -⟩ := RecLam.RecFixOf.closed hF
+    have hz : (mins'.zip minors).length = rv.numMinors := by
+      simp only [List.length_zip]; omega
+    rw [RecLam.csubst_recLetTerm hcl d rv.numMinors hz hFc, inst_spine,
+      show (ps ++ ms ++ mins ++ is ++ [maj] ++ extra).map (·.instantiate1' a d) =
+        ps.map (·.instantiate1' a d) ++ ms.map (·.instantiate1' a d) ++
+          mins.map (·.instantiate1' a d) ++ is.map (·.instantiate1' a d) ++
+            [maj.instantiate1' a d] ++ extra.map (·.instantiate1' a d) by simp]
+    refine .recLet hcr hF (by simpa using hps) (by simpa using hms) (by simpa using hmins)
+      (by simpa using his) (by simpa using hlm) (fun i x x' hx hx' => ?_) (by simpa using hli)
+      (fun i x x' hx hx' => ?_) (ihmaj _ _ _ d ς hΓ₂ hς W Ea (hi' maj (by simp)))
+      (by simpa using hle) (fun i x x' hx hx' => ?_)
+    · obtain ⟨x₀, hx₀, rfl⟩ := gmap hx
+      obtain ⟨x₀', hx₀', rfl⟩ := gmapB hx'
+      exact ihmin i x₀ x₀' hx₀ hx₀' _ _ _ d ς hΓ₂ hς W Ea
+        (hi' x₀ (by simp [List.mem_of_getElem? hx₀]))
+    · obtain ⟨x₀, hx₀, rfl⟩ := gmap hx
+      obtain ⟨x₀', hx₀', rfl⟩ := gmapB hx'
+      exact ihis i x₀ x₀' hx₀ hx₀' _ _ _ d ς hΓ₂ hς W Ea
+        (hi' x₀ (by simp [List.mem_of_getElem? hx₀]))
+    · obtain ⟨x₀, hx₀, rfl⟩ := gmap hx
+      obtain ⟨x₀', hx₀', rfl⟩ := gmapB hx'
+      exact ihext i x₀ x₀' hx₀ hx₀' _ _ _ d ς hΓ₂ hς W Ea
+        (hi' x₀ (by simp [List.mem_of_getElem? hx₀]))
+  case recFix =>
+    intro _ rv _ minors F _ _ _ maj maj' ps ms mins is extra ws is' extra' hcr hF hps hms hmins
+      his hlw _ hws hli _ _ hle _ ihmin ihis ihmaj ihext n₂ Γ₂ Δ₂ d ς hΓ₂ hς W Ea hi
+    have hi' := spineHI hi
+    obtain ⟨hml, hFc, hFx⟩ := RecLam.RecFixOf.closed hF
+    have hG := RecLam.substl_fix (ws := ws) (by rw [← hlw, hmins]; exact hFc) hFx
+      fun w hw => ⟨(hws w hw).1, (hws w hw).2.1⟩
+    rw [csubst_mkApps, TargetSubst.csubst_closedn a' _ 0 d hG.1 (Nat.zero_le _), inst_spine,
+      show (ps ++ ms ++ mins ++ is ++ [maj] ++ extra).map (·.instantiate1' a d) =
+        ps.map (·.instantiate1' a d) ++ ms.map (·.instantiate1' a d) ++
+          mins.map (·.instantiate1' a d) ++ is.map (·.instantiate1' a d) ++
+            [maj.instantiate1' a d] ++ extra.map (·.instantiate1' a d) by simp,
+      List.map_append, List.map_append, List.map_singleton]
+    refine .recFix hcr hF (by simpa using hps) (by simpa using hms) (by simpa using hmins)
+      (by simpa using his) (by simpa using hlw) (fun i x x' hx hx' => ?_) hws (by simpa using hli)
+      (fun i x x' hx hx' => ?_) (ihmaj _ _ _ d ς hΓ₂ hς W Ea (hi' maj (by simp)))
+      (by simpa using hle) (fun i x x' hx hx' => ?_)
+    · obtain ⟨x₀, hx₀, rfl⟩ := gmap hx
+      have h1 := ihmin i x₀ x' hx₀ hx' _ _ _ d ς hΓ₂ hς W Ea
+        (hi' x₀ (by simp [List.mem_of_getElem? hx₀]))
+      rwa [TargetSubst.csubst_closedn a' x' 0 d (hws x' (List.mem_of_getElem? hx')).1
+        (Nat.zero_le _)] at h1
+    · obtain ⟨x₀, hx₀, rfl⟩ := gmap hx
+      obtain ⟨x₀', hx₀', rfl⟩ := gmapB hx'
+      exact ihis i x₀ x₀' hx₀ hx₀' _ _ _ d ς hΓ₂ hς W Ea
+        (hi' x₀ (by simp [List.mem_of_getElem? hx₀]))
+    · obtain ⟨x₀, hx₀, rfl⟩ := gmap hx
+      obtain ⟨x₀', hx₀', rfl⟩ := gmapB hx'
+      exact ihext i x₀ x₀' hx₀ hx₀' _ _ _ d ς hΓ₂ hς W Ea
+        (hi' x₀ (by simp [List.mem_of_getElem? hx₀]))
   case mdata =>
     intro _ _ _ _ _ _ _ ih n₂ Γ₂ Δ₂ d ς hΓ₂ hς W Ea hi
     exact .mdata (ih _ _ _ d ς hΓ₂ hς W Ea hi)
@@ -1274,7 +1375,7 @@ theorem srcValue_special {σ : EvalEnv} {a : Lean.Expr} (hval : SrcValue σ a)
     cases hc'
     exfalso
     unfold EvalEnv.isAtom at hat
-    rcases hsp with ⟨cv, hcv⟩ | hco | ⟨qv, hqv, -⟩
+    rcases hsp with ⟨cv, hcv⟩ | hco | ⟨qv, hqv, -⟩ | ⟨rv, hrv⟩
     · simp [hcv, OwnRules] at hat
     · split at hat
       · simp only [Bool.and_eq_true, Option.isNone_iff_eq_none] at hat
@@ -1282,6 +1383,7 @@ theorem srcValue_special {σ : EvalEnv} {a : Lean.Expr} (hval : SrcValue σ a)
         cases hco
       · cases hat
     · simp [hqv, OwnRules] at hat
+    · simp [hrv, OwnRules] at hat
   | propProj hp =>
     obtain ⟨S, i, e₀, he⟩ := propProj_head hp
     rw [he] at hc

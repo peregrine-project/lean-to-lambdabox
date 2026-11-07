@@ -696,7 +696,11 @@ theorem indBlockT : IndBlock ET BT ηTT [] IsT CsT RsT ordersT where
     exact ⟨rfl, rfl, fun _ => ⟨`u, rfl⟩, fun h => absurd (by rw [htT]; exact largeElimT) h, rfl, rfl,
       rfl, rfl, rfl, rfl⟩
   recrType s := by fin_cases s; rfl
+  recMajor s := by fin_cases s; exact ⟨_, _, _, _, _, rfl, rfl⟩
   minors s t c := by fin_cases s; fin_cases t; fin_cases c; rfl
+  recIHs s := by
+    fin_cases s
+    exact ⟨_, _, rfl, rfl, fun t c => by fin_cases t; fin_cases c <;> rfl⟩
   indexVars s _ h := by fin_cases s; exact h.elim fun i _ => i.elim0
 
 theorem constTypedT : ∀ ci ∈ IndBlock.decls IsT CsT RsT, ConstTyped ET BT ci := by
@@ -772,7 +776,11 @@ theorem indBlockW : IndBlock EW BW ηWW [] IsW CsW RsW ordersW where
     exact ⟨rfl, rfl, fun _ => ⟨`u, rfl⟩, fun h => absurd (by rw [hwW]; exact largeElimW) h, rfl, rfl,
       rfl, rfl, rfl, rfl⟩
   recrType s := by fin_cases s; rfl
+  recMajor s := by fin_cases s; exact ⟨_, _, _, _, _, rfl, rfl⟩
   minors s t c := by fin_cases s; fin_cases t; fin_cases c <;> rfl
+  recIHs s := by
+    fin_cases s
+    exact ⟨_, _, rfl, rfl, fun t c => by fin_cases t; fin_cases c <;> rfl⟩
   indexVars s _ h := by fin_cases s; exact h.elim fun i _ => i.elim0
 
 theorem constTypedW : ∀ ci ∈ IndBlock.decls IsW CsW RsW, ConstTyped EW BW ci := by

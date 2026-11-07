@@ -22,9 +22,23 @@ Reference: `erases_erase` (`MR E/ErasureFunction.v:1228`), by induction over `er
 -/
 
 open Lean Erasure
-open Metalean (EnvWF)
+open Metalean (EnvWF Defeq)
 
 namespace EraseProof
+
+/-- A term of a `Π` type, weakened and applied to the new variable, is typed at the codomain. -/
+theorem app_var_typed {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {ℓ n : Nat}
+    {Γ : Metalean.Ctx ζ ℓ 0 n} {t A : Metalean.Expr ζ ℓ n} {Bc : Metalean.Expr ζ ℓ (n + 1)}
+    (ht : E[Γ] ⊢ t : .forallE A Bc) (hok : E[Γ.snoc A] ⊢ ok) :
+    E[Γ.snoc A] ⊢ .app t.wk (.var (Fin.last n)) : Bc := by
+  have hw := Metalean.Defeq.wk A ht
+  rw [show (Metalean.Expr.forallE A Bc).wk = .forallE A.wk (Bc.wkFrom n) by
+    simp [Metalean.Expr.wk]] at hw
+  obtain ⟨_, hr⟩ := hw.regular
+  obtain ⟨l₁, l₂, hA, hB, -⟩ := hr.forallE_ty_inv
+  have hv := hok.varLast
+  have := Metalean.Defeq.appDF hA hB hw hv (hB.inst_congr hv)
+  rwa [Metalean.Expr.inst_wkFrom_last] at this
 
 namespace Steps
 
@@ -65,6 +79,13 @@ structure StepsB : Prop where
     e.getAppFn = .const c us → casesInfo? decls c = none → ctorArity? decls c = none →
     findDecl decls c = some (.quotInfo qv) → (quotEvalArity qv.kind).isSome →
     ExprSpec E B view cfg decls (fuel + 1) e
+  recr : ∀ {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {P decls : List ConstantInfo}
+    {view : EnvView} {cfg : ErasureConfig} {fuel : Nat} {e : Expr} {c : Name} {us : List Level}
+    {rv : RecursorVal},
+    CoreEnv E B P decls view cfg → StepIH E B view cfg decls fuel →
+    e.getAppFn = .const c us → casesInfo? decls c = none → ctorArity? decls c = none →
+    findDecl decls c = some (.recInfo rv) →
+    ExprSpec E B view cfg decls (fuel + 1) e
   proj : ∀ {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {P decls : List ConstantInfo}
     {view : EnvView} {cfg : ErasureConfig} {fuel : Nat} {s : Name} {i : Nat} {b : Expr},
     CoreEnv E B P decls view cfg → StepIH E B view cfg decls fuel →
@@ -79,13 +100,14 @@ variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {P decls : Li
   {view : EnvView} {cfg : ErasureConfig}
 
 /-- An application or a constant, by its head: a recognized `casesOn` constant (`StepsB.cases`), a
-constructor (`StepsB.ctor`), `Quot.mk` or `Quot.lift` (`StepsB.quot`), or another head
-(`visitExpr_app_step`, `visitExpr_const_step`). -/
+constructor (`StepsB.ctor`), `Quot.mk` or `Quot.lift` (`StepsB.quot`), a recursor (`StepsB.recr`),
+or another head (`visitExpr_app_step`, `visitExpr_const_step`). -/
 theorem exprSpec_appLike (h : StepsB) (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
     (ih : StepIH E B view cfg decls fuel) {e : Expr}
     (hplain : (∀ c us, e.getAppFn = .const c us →
       casesInfo? decls c = none ∧ ctorArity? decls c = none ∧
-        ∀ qv, findDecl decls c = some (.quotInfo qv) → quotEvalArity qv.kind = none) →
+        (∀ qv, findDecl decls c = some (.quotInfo qv) → quotEvalArity qv.kind = none) ∧
+        ∀ rv, findDecl decls c ≠ some (.recInfo rv)) →
       ExprSpec E B view cfg decls (fuel + 1) e) :
     ExprSpec E B view cfg decls (fuel + 1) e := by
   by_cases hc : ∃ c us, e.getAppFn = .const c us
@@ -99,10 +121,13 @@ theorem exprSpec_appLike (h : StepsB) (hG : CoreEnv E B P decls view cfg) {fuel 
         by_cases hq : ∃ qv, findDecl decls c = some (.quotInfo qv) ∧ (quotEvalArity qv.kind).isSome
         · obtain ⟨qv, hqv, hs⟩ := hq
           exact h.quot hG ih hc hci hca hqv hs
+        by_cases hr : ∃ rv, findDecl decls c = some (.recInfo rv)
+        · obtain ⟨rv, hrv⟩ := hr
+          exact h.recr hG ih hc hci hca hrv
         refine hplain fun c' us' h' => ?_
         rw [hc] at h'
         cases h'
-        refine ⟨hci, hca, fun qv hqv => ?_⟩
+        refine ⟨hci, hca, fun qv hqv => ?_, fun rv hrv => hr ⟨rv, hrv⟩⟩
         cases hk : quotEvalArity qv.kind with
         | none => rfl
         | some _ => exact absurd ⟨qv, hqv, by rw [hk]; rfl⟩ hq

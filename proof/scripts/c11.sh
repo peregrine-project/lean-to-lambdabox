@@ -7,9 +7,9 @@
 # that `peregrine eval` (with the table's options) prints must be the table's value, the value of
 # the Lean program (eval's output without its "Compiling:" and "Compiled successfully:" lines,
 # whitespace collapsed; `--anf=false` prints □ as `(FIX 0)`). The programs:
-# - NV-1's, NV-2's and NV-Q's programs as the entry point of #erase emits them
+# - NV-1's, NV-2's, NV-Q's and NV-R's programs as the entry point of #erase emits them
 #   (proof/tools/NVEmit.lean; check.sh's step nv1-emit writes them to proof/.check/nv1/NV1.ast,
-#   NV2.ast and NVQ.ast, which must exist);
+#   NV2.ast, NVQ.ast and NVR.ast, which must exist);
 # - every output of the regression tests (tests/regress) written under `nat := .peano`, read from
 #   tests/regress/expected/, which scripts/regress.sh requires to equal what the tests write;
 # - the regression tests' outputs for the programs of NV-1, NV-P and NV-K (tests/regress/
@@ -38,6 +38,7 @@ table=$(cat <<'EOF'
 proof/.check/nv1/NV1.ast                              default -           constr B.t
 proof/.check/nv1/NV2.ast                              default -           constr B.t
 proof/.check/nv1/NVQ.ast                              default -           constr B.t
+proof/.check/nv1/NVR.ast                              default -           constr B.t
 tests/regress/expected/entry_route/nv1.ast            default -           constr ER.B.t
 tests/regress/expected/entry_route/nvp.ast            default -           constr ER.B.t
 tests/regress/expected/entry_route/nvk.ast            default -           constr ER.B.t
@@ -60,6 +61,9 @@ tests/regress/expected/quotient/useQuotient.ast       peano   -           constr
 tests/regress/expected/quotient/indPf.ast             peano   --anf=false (FIX 0)
 tests/regress/expected/recursor/useNat.ast            peano   -           constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.zero
 tests/regress/expected/recursor/useList.ast           peano   -           constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.zero
+tests/regress/expected/recursor/useTree.ast           peano   -           constr Nat.succ constr Nat.succ constr Nat.zero
+tests/regress/expected/recursor/useList.meta.ast      peano   -           constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.zero
+tests/regress/expected/recursor/useAcc.ast            peano   -           constr Nat.zero
 tests/regress/expected/recursor/useVec.ast            peano   -           constr RT.B.t
 tests/regress/expected/recursor/useMutual.ast         peano   -           constr RT.B.t
 tests/regress/expected/recursor/useCast.ast           peano   -           constr RT.B.t

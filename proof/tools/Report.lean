@@ -61,12 +61,12 @@ and the shipping code (by default the modules `EraseProof` and `LeanToLambdaBox`
   (C7), so C7 checks reachability from the final theorem `erase_correct`, the statements and those
   roots (tests are roots by themselves); `unproved` is empty. `erase_correct` is a theorem whose
   footprint is exactly `propext`, `Classical.choice`, `Quot.sound`, as is that of each of its
-  instances on the non-vacuity programs NV-1, NV-P, NV-K, NV-2 and NV-Q (`finalInstances`:
-  `EraseProof.Test.NV1.final`, `NVP.final`, `NVK.final`, `NV2.final`, `NVQ.final`), each of which applies `erase_correct` to
-  its program's eight hypothesis terms, theorems within the same three axioms; each corollary of
-  `corollaries` (`erase_correct_firstorder`) has the same footprint, and its instances
-  (`NV1.firstorder`, `NV2.firstorder`) are theorems within those axioms that mention it. Skipped
-  with `--no-final`.
+  instances on the non-vacuity programs NV-1, NV-P, NV-K, NV-2, NV-Q and NV-R (`finalInstances`:
+  `EraseProof.Test.NV1.final`, `NVP.final`, `NVK.final`, `NV2.final`, `NVQ.final`, `NVR.final`),
+  each of which applies `erase_correct` to its program's eight hypothesis terms, theorems within
+  the same three axioms; each corollary of `corollaries` (`erase_correct_firstorder`) has the same
+  footprint, and its instances (`NV1.firstorder`, `NV2.firstorder`, `NVR.firstorder`) are
+  theorems within those axioms that mention it. Skipped with `--no-final`.
 * C12b `pin`, always: the statement definitions and the definitions they are about are those of
   `spec.pin`. The pin of the statement definitions `pinRoots` is computed (`specPin`): for each
   root and every constant reached from it through types, values and constructors, a SHA-256 digest
@@ -156,7 +156,7 @@ def finalTheorem : Name := `EraseProof.erase_correct
 hypotheses that it passes to the final theorem (C12). -/
 def finalInstances : Array (Name × Array Name) :=
   #[`EraseProof.Test.NV1, `EraseProof.Test.NVP, `EraseProof.Test.NVK, `EraseProof.Test.NV2,
-    `EraseProof.Test.NVQ].map fun ns =>
+    `EraseProof.Test.NVQ, `EraseProof.Test.NVR].map fun ns =>
     (ns ++ `final, #[`henv, `hwf, `hview, `he, `hty, `hfrag, `hrun, `hev].map (ns ++ ·))
 
 /-- The corollaries of the final theorem, each with its instances on the non-vacuity programs:
@@ -166,7 +166,8 @@ that each is a theorem whose footprint is exactly `propext`, `Classical.choice`,
 that each instance is a theorem within them that mentions its corollary (C12). -/
 def corollaries : Array (Name × Array Name) := #[
   (`EraseProof.erase_correct_firstorder,
-    #[`EraseProof.Test.NV1.firstorder, `EraseProof.Test.NV2.firstorder])]
+    #[`EraseProof.Test.NV1.firstorder, `EraseProof.Test.NV2.firstorder,
+      `EraseProof.Test.NVR.firstorder])]
 
 structure Config where
   imports : Array Name := #[]

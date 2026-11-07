@@ -450,6 +450,13 @@ structure IndBlock {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) {ι
   recrType : ∀ s, peelForalls (ι.recrEnd s) (Rs s).type = some (mkAppN
     (.bvar (ι.recrEnd s - 1 - (ι.nparams + s.val)))
     ((List.range (ι.nindices s + 1)).reverse.map .bvar).toArray)
+  /-- The major premise of a recursor's Lean type is of the recursor's inductive: the binder after
+  the parameters, motives, minor premises and indices has a type headed by the inductive of the
+  recursor's sort (`I.{lps} params indices`), as Lean's kernel generates it (`mk_rec_infos`,
+  `src/kernel/inductive.cpp`). `ConstTyped` relates the type to Metalean's only up to definitional
+  equality. -/
+  recMajor : ∀ s, ∃ x dom body bi us, peelForalls (ι.recrEnd s - 1) (Rs s).type =
+      some (.forallE x dom body bi) ∧ dom.getAppFn = .const (Is s).name us
   /-- The minor premise of constructor `c` of sort `t` in a recursor's Lean type has
   `nfields + 2 * nrecFields` leading `Π`s, one per field and one per induction hypothesis, as
   Metalean's ι-rule applies the minor (`iotaRhs`, `ML Syntax/Inductive/Iota.lean:161`). It is the
@@ -458,6 +465,24 @@ structure IndBlock {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) {ι
   minors : ∀ s t c, minorArity (Rs s).type
       (ι.nparams + ι.nsorts + ((List.ofFn fun t => ι.nctors t).take t.val).sum + c.val) =
     (ι.ctors t c).nfields + 2 * (ι.ctors t c).nrecFields
+  /-- The shape that `recShape` reads from a recursor's Lean type agrees with Metalean's block: the
+  motive of sort `t` binds the indices and the major premise; the minor premise of constructor `c`
+  of sort `t` binds the constructor's fields, then one induction hypothesis per recursive field, in
+  Metalean's order of the recursive fields, about the field at its Lean position in `orders t c`,
+  recursing into the sort `recursiveTarget`, under `recursiveArity` binders. Lean's kernel builds
+  the minor premises so (`mk_rec_infos`, `src/kernel/inductive.cpp`), and Metalean's ι applies the
+  minor to the induction hypotheses of the recursive fields in that order (`iotaIHs`,
+  `ML Syntax/Inductive/Iota.lean:94`); `ConstTyped` relates the types only up to definitional
+  equality. -/
+  recIHs : ∀ s, ∃ motives mins, recShape ι.nparams ι.nsorts (Rs s).type
+      (List.ofFn fun t => List.ofFn fun c =>
+        (ι.ctors t c).nfields + (ι.ctors t c).nrecFields).flatten = some (motives, mins) ∧
+    motives.map List.length = List.ofFn (fun t => ι.nindices t + 1) ∧
+    ∀ t c, (mins[((List.ofFn fun t => ι.nctors t).take t.val).sum + c.val]?).map
+      (fun mi => (mi.fields.length, mi.ihs.map fun h => (h.member, h.field, h.binders.length))) =
+      some ((ι.ctors t c).nfields + (ι.ctors t c).nrecFields, List.ofFn fun k =>
+        (((ι.ctors t c).recursiveTarget k).val,
+          (orders t c).getD ((ι.ctors t c).nfields + k.val) 0, (ι.ctors t c).recursiveArity k))
   /-- A constructor field that Metalean's block uses as an index variable of the constructor's
   result is, in the Lean constructor type, an index field (`indexFields`): Lean's kernel decides
   large elimination by the syntactic occurrence of the field among the result's arguments
@@ -599,12 +624,15 @@ def quotEvalArity : Lean.QuotKind → Option Nat
   | .lift => some 6
   | _ => none
 
-/-- The arity of a constructor, recognized `casesOn` or erased quotient head (`quotEvalArity`), if
-it is one (the `arity` that `visitConstApp` η-expands to, `LeanToLambdaBox/Erasure.lean:773`). -/
+/-- The arity of a constructor, recognized `casesOn`, erased quotient head (`quotEvalArity`) or
+recursor (its parameters, motives, minor premises, indices and major premise), if it is one (the
+`arity` that `visitConstApp` and `visitRec` η-expand to, `LeanToLambdaBox/Erasure.lean:940`,
+`:996`). -/
 def specialArity (σ : EvalEnv) (c : Name) : Option Nat :=
   match findDecl σ.decls c with
   | some (.ctorInfo cv) => some (cv.numParams + cv.numFields)
   | some (.quotInfo qv) => quotEvalArity qv.kind
+  | some (.recInfo rv) => some (rv.numParams + rv.numMotives + rv.numMinors + rv.numIndices + 1)
   | _ => (σ.casesOn? c).map casesArity
 
 /-- Instantiate the leading Π-binders of a type with the arguments, in order (the type of the
@@ -621,12 +649,12 @@ def lamsOf : Nat → Expr → Expr → Option Expr
   | k + 1, .forallE n d b bi, body => (lamsOf k b body).map fun e => .lam n d e bi
   | _ + 1, _, _ => none
 
-/-- The η-expansion of a constructor or recognized `casesOn` spine `c.{us} as` with fewer arguments
-than its arity `ar`: `fun xs => c.{us} as xs` over the remaining `ar - |as|` binders of its type, the
-arguments `as` unevaluated under the new binders. This is the term `withAppEtaToMinArity`
-(`LeanToLambdaBox/Erasure.lean:626`) erases: binders from the Π-binders of the spine's type,
-`visitConstructor`/`visitCases` on the saturated spine. Reference: none (MetaRocq η-expands in λ□,
-`MR E/EEtaExpanded.v`; DV-23). -/
+/-- The η-expansion of a constructor, recognized `casesOn`, erased quotient or recursor spine
+`c.{us} as` with fewer arguments than its arity `ar` (`specialArity`): `fun xs => c.{us} as xs`
+over the remaining `ar - |as|` binders of its type, the arguments `as` unevaluated under the new
+binders. This is the term `withAppEtaToMinArity` (`LeanToLambdaBox/Erasure.lean:646`) erases:
+binders from the Π-binders of the spine's type, `visitConstructor`/`visitCases`/`visitRec` on the
+saturated spine. Reference: none (MetaRocq η-expands in λ□, `MR E/EEtaExpanded.v`; DV-23). -/
 def EvalEnv.etaSpine? (σ : EvalEnv) (c : Name) (us : List Level) (as : List Expr) : Option Expr :=
   match findDecl σ.decls c, specialArity σ c with
   | some ci, some ar =>
@@ -638,8 +666,9 @@ def EvalEnv.etaSpine? (σ : EvalEnv) (c : Name) (us : List Level) (as : List Exp
     else none
   | _, _ => none
 
-/-- A constructor or recognized `casesOn` spine with at most its arity of arguments: such spines are
-evaluated as a whole (`SrcEval.eta`, `ctor`, `casesIota`, `casesLit*`), never by `beta`/`appCong`. -/
+/-- A spine with an arity (`specialArity`) and at most that many arguments: such spines are
+evaluated as a whole (`SrcEval.eta`, `ctor`, `casesIota`, `casesLit*`, `quotMk`, `quotLift`,
+`recIota`), never by `beta`/`appCong`. -/
 def ShortSpine (σ : EvalEnv) (e : Expr) : Prop :=
   ∃ c us ar, e.getAppFn = .const c us ∧ specialArity σ c = some ar ∧ e.getAppNumArgs ≤ ar
 
@@ -764,16 +793,40 @@ inductive PropProj (σ : EvalEnv) : Expr → Prop
   | projProj : σ.propInd S = true → PropProj σ e → PropProj σ (.proj S i e)
   | app : PropProj σ f → PropProj σ (.app f a)
 
-/-- Weak call-by-value evaluation of closed source terms. Constructor and recognized `casesOn`
-spines are evaluated as a whole: with fewer arguments than their arity they are η-expanded, the
-arguments unevaluated under the new binders (`eta`; the eraser's `withAppEtaToMinArity`, DV-23), so
-that later arguments arrive by `beta`, evaluated, as in λ□; a saturated constructor evaluates its
-arguments (`eval_construct`); a saturated `casesOn` evaluates only its major premise and continues
-with the alternative of the major's constructor (`eval_iota`; DV-25). Theorems have no δ, so a proof
-may evaluate to an atom spine instead of a constructor: a `casesOn` of a field-less `Prop`
-constructor and a `Prop` projection then proceed as λ□'s `eval_iota_sing` and `eval_proj_prop` do
-(`casesProof`, `projProp`; DV-24). `Quot.mk` and `Quot.lift` spines are evaluated as a whole too
-(`quotMk`, `quotLift`, the quotient ι; DV-29). Reference: `MR P/PCUICWcbvEval.v:231 eval`; MC §5.6. -/
+/-- The inductive type declared under a name. -/
+def EvalEnv.indOf? (σ : EvalEnv) (t : Name) : Option InductiveVal :=
+  match findDecl σ.decls t with
+  | some (.inductInfo iv) => some iv
+  | _ => none
+
+/-- The constructor declared under a name. -/
+def EvalEnv.ctorOf? (σ : EvalEnv) (c : Name) : Option ConstructorVal :=
+  match findDecl σ.decls c with
+  | some (.ctorInfo cv) => some cv
+  | _ => none
+
+/-- The inductive types of a recursor's block and their constructors, in order, as `visitRec` reads
+them (`LeanToLambdaBox/Erasure.lean:974-980`). -/
+def EvalEnv.recBlock? (σ : EvalEnv) (rv : RecursorVal) :
+    Option (List InductiveVal × List ConstructorVal) := do
+  let ivs ← rv.all.mapM σ.indOf?
+  let cvs ← (ivs.flatMap (·.ctors)).mapM σ.ctorOf?
+  pure (ivs, cvs)
+
+/-- Weak call-by-value evaluation of closed source terms. Constructor, recognized `casesOn`,
+erased quotient and recursor spines are evaluated as a whole: with fewer arguments than their
+arity they are η-expanded, the arguments unevaluated under the new binders (`eta`; the eraser's
+`withAppEtaToMinArity`, DV-23), so that later arguments arrive by `beta`, evaluated, as in λ□; a
+saturated constructor evaluates its arguments (`eval_construct`); a saturated `casesOn` evaluates
+only its major premise and continues with the alternative of the major's constructor (`eval_iota`;
+DV-25). Theorems have no δ, so a proof may evaluate to an atom spine instead of a constructor: a
+`casesOn` of a field-less `Prop` constructor and a `Prop` projection then proceed as λ□'s
+`eval_iota_sing` and `eval_proj_prop` do (`casesProof`, `projProp`; DV-24). `Quot.mk` and `Quot.lift` spines are evaluated as a whole too
+(`quotMk`, `quotLift`, the quotient ι; DV-29). A saturated recursor of a single inductive without
+indices whose recursive fields take no arguments and come last evaluates its minor premises and its
+major premise, then continues with the minor of the major's constructor applied to the fields and to
+the induction hypotheses (`recIota`, the recursor ι; DV-30). Reference:
+`MR P/PCUICWcbvEval.v:231 eval`; MC §5.6. -/
 inductive SrcEval (σ : EvalEnv) : Expr → Expr → Prop
   /-- `eval_beta` (`MR P/PCUICWcbvEval.v:234`). -/
   | beta : ¬ ShortSpine σ (.app f a) → SrcEval σ f (.lam n A b bi) → SrcEval σ a a' →
@@ -786,7 +839,7 @@ inductive SrcEval (σ : EvalEnv) : Expr → Expr → Prop
       SrcEval σ (Pure.instLevels ci.levelParams us body) v → SrcEval σ (.const c us) v
   /-- `eval_atom` on `tInd`/propositional constants (`:331`, DV-11). -/
   | constAtom : σ.isAtom c = true → SrcEval σ (.const c us) (.const c us)
-  /-- A constructor or recognized `casesOn` spine with missing arguments is its η-expansion, a λ
+  /-- A spine with an arity (`specialArity`) and missing arguments is its η-expansion, a λ
   (DV-23). -/
   | eta {as : List Expr} : σ.etaSpine? c us as = some e' →
       SrcEval σ (mkAppN (.const c us) as.toArray) e'
@@ -837,6 +890,30 @@ inductive SrcEval (σ : EvalEnv) : Expr → Expr → Prop
       findDecl σ.decls c' = some (.quotInfo qv') → qv'.kind = .ctor →
       SrcEval σ (b.instantiate1' a) v →
       SrcEval σ (mkAppN (.const c us) [α, r, β, f, h, q].toArray) v
+  /-- The recursor ι (`WHRed.iota`, `ML Syntax/Reduction.lean:60`) under call by value, as the
+  eraser's fixpoint computes it: a saturated recursor `T.rec` of a single inductive `T` without
+  indices, whose recursive fields take no arguments and come after the other fields of their
+  constructor (`recShape` of the recursor's type), evaluates its minor premises and its major
+  premise; the major is a constructor value of `T`, and the value of its constructor's minor is
+  applied to the fields and to the values `ihvs` of one induction hypothesis `T.rec ps ms mvs f` per
+  recursive field `f` (`rfs`, in the order of the minor's induction hypotheses), at the values `mvs`
+  of the minors. The induction hypotheses are evaluated before the minor is applied, as λ□
+  evaluates the arguments of an application; the parameters and the motive are not evaluated
+  (DV-30). -/
+  | recIota {ps ms mins mvs fs rfs ihvs : List Expr} : findDecl σ.decls c = some (.recInfo rv) →
+      rv.all = [T] → c = mkRecName T → σ.recBlock? rv = some ([iv], cvs) → rv.numIndices = 0 →
+      recShape rv.numParams rv.numMotives rv.type (cvs.map (·.numFields)) = some (motives, minors) →
+      (∀ mi ∈ minors, mi.ihs.map (fun h => (h.field, h.binders)) =
+        (List.range' (mi.fields.length - mi.ihs.length) mi.ihs.length).map fun f => (f, [])) →
+      ps.length = rv.numParams → ms.length = rv.numMotives → mins.length = rv.numMinors →
+      mins.length = mvs.length →
+      (∀ (i : Nat) m mv, mins[i]? = some m → mvs[i]? = some mv → SrcEval σ m mv) →
+      SrcEval σ maj mj → CtorValue σ T mj k fs → minors[k]? = some mi → mvs[k]? = some mk →
+      (mi.ihs.mapM fun h => fs[h.field]?) = some rfs → rfs.length = ihvs.length →
+      (∀ (i : Nat) f w, rfs[i]? = some f → ihvs[i]? = some w →
+        SrcEval σ (mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray) w) →
+      SrcEval σ (mkAppN mk (fs ++ ihvs).toArray) v →
+      SrcEval σ (mkAppN (.const c us) (ps ++ ms ++ mins ++ [maj]).toArray) v
   /-- `eval_proj` (`:264`). -/
   | proj : SrcEval σ e m → CtorValue σ S m 0 fs → fs[i]? = some a → SrcEval σ (.proj S i e) a
   /-- `eval_proj` on a proof that is not a constructor (λ□ `eval_proj_prop`, `MR E/EWcbvEval.v:238`):
@@ -969,9 +1046,8 @@ def IsRecursorIn (decls : List ConstantInfo) (c : Name) : Bool :=
   | some (.recInfo _) => true
   | _ => false
 
-/-- `x` mentions no recursor of `decls`: the pure traversal reaches a recursor only as the `T.rec`
-of a recognized `T.casesOn` or of an inductive `T` with one constructor, whose value it does not
-read. -/
+/-- `x` mentions no recursor of `decls`: then the fragment test checks no recursor that `x` reads
+(`collectDeps_ok_of`). -/
 def RecFree (decls : List ConstantInfo) (x : Expr) : Prop :=
   ConstsIn (fun c => IsRecursorIn decls c = false) x
 
@@ -981,9 +1057,19 @@ def Eliminated (decls : List ConstantInfo) (iv : InductiveVal) : Prop :=
   (EvalEnv.casesOn? ⟨decls, fun _ => false⟩ (.str iv.name "casesOn")).isSome ∨
     ∃ cn cv, iv.ctors = [cn] ∧ findDecl decls cn = some (.ctorInfo cv) ∧ 0 < cv.numFields
 
+/-- A recursor in the shape of the recursors the source semantics evaluates (`SrcEval.recIota`),
+which the eraser does not keep as a constant: `T.rec` of a single inductive `T` of `decls` without
+indices, which eliminates into every sort, whose induction hypotheses take no arguments and are
+about the last fields of their constructor (`Erasure.recShapeInFragment`), and outside the cases of
+`Erasure.recStaysConstant`, over the block that `visitRec` reads from `decls`. -/
+def RecInFragment (cfg : ErasureConfig) (decls : List ConstantInfo) (r : RecursorVal) : Prop :=
+  ∃ T iv cvs, r.name = mkRecName T ∧ r.all = [T] ∧
+    EvalEnv.recBlock? ⟨decls, fun _ => false⟩ r = some ([iv], cvs) ∧
+    recShapeInFragment r [iv] cvs = true ∧ recStaysConstant cfg.nat r [iv] cvs = false
+
 /-- A declaration of the closure is inside the first-phase fragment (Phase I): every quotient
-constant; a recursor only as `T.rec` of a recognized `T.casesOn` of the closure or of an inductive `T` of the
-closure with one constructor (and never in a read expression, `RecFree`); safe, with no `_unsafe_rec` companion (definitions and opaques: a `partial def` is an opaque with
+constant; a recursor as `T.rec` of a recognized `T.casesOn` of the closure or of an inductive `T` of
+the closure with one constructor, or in the shape that `RecInFragment` admits; safe, with no `_unsafe_rec` companion (definitions and opaques: a `partial def` is an opaque with
 one) and no `implemented_by` target;
 inductives not nested, of a sort that is syntactically `Prop`, never zero, or, when the traversal
 cannot eliminate them (`Eliminated`), not zero under every assignment (`PUnit`); when their
@@ -995,7 +1081,9 @@ def PhaseIDecl (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo
   | .recInfo r => (∃ T iv, r.name = mkRecName T ∧
       EvalEnv.casesOn? ⟨decls, fun _ => false⟩ (.str T "casesOn") = some iv ∧
       (findDecl decls (.str T "casesOn")).isSome) ∨
-    ∃ T iv, r.name = mkRecName T ∧ findDecl decls T = some (.inductInfo iv) ∧ iv.ctors.length = 1
+    (∃ T iv, r.name = mkRecName T ∧ findDecl decls T = some (.inductInfo iv) ∧
+      iv.ctors.length = 1) ∨
+    RecInFragment cfg decls r
   | .defnInfo d => d.safety = .safe ∧ view.find? (Compiler.mkUnsafeRecName d.name) = none ∧
       view.implementedBy? d.name = none
   | .opaqueInfo o => o.isUnsafe = false ∧ view.find? (Compiler.mkUnsafeRecName o.name) = none ∧
@@ -1051,12 +1139,13 @@ def IndIdOf (σ : EvalEnv) (T : Name) : Option InductiveId :=
   | some (.inductInfo iv) => (iv.all.idxOf? T).map fun j => ⟨blockKername iv, j⟩
   | _ => none
 
-/-- A spine whose head is a constructor, a recognized `casesOn` constant or an erased quotient
-constant (`quotEvalArity`). -/
+/-- A spine whose head is a constructor, a recognized `casesOn` constant, an erased quotient
+constant (`quotEvalArity`) or a recursor. -/
 def SpecialSpine (σ : EvalEnv) (e : Expr) : Prop :=
   ∃ c us, e.getAppFn = .const c us ∧
     ((∃ cv, findDecl σ.decls c = some (.ctorInfo cv)) ∨ (σ.casesOn? c).isSome ∨
-      ∃ qv, findDecl σ.decls c = some (.quotInfo qv) ∧ (quotEvalArity qv.kind).isSome)
+      (∃ qv, findDecl σ.decls c = some (.quotInfo qv) ∧ (quotEvalArity qv.kind).isSome) ∨
+      ∃ rv, findDecl σ.decls c = some (.recInfo rv))
 
 /-- The number of fields of a constructor of `σ`. -/
 def ctorFields (σ : EvalEnv) (c : Name) : Option Nat :=
@@ -1105,6 +1194,51 @@ def FieldsErasable {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (T 
       Metalean.EnvWF E → E[Γ] ⊢ ok → (∃ U, E[Γ] ⊢ .ctor η s c ls ps fds recFds : U) →
       (∀ f, IsErasable E Γ (fds f)) ∧ ∀ f, IsErasable E Γ (recFds f)
 
+/-- The members of a recursor's block as `visitRec` builds them for `recFix`
+(`LeanToLambdaBox/Erasure.lean:986-992`), from the `gi`-th minor premise on: each inductive type
+with the binder names of its motive's type, its λ□ inductive, and, for each of its constructors, the
+position of its minor premise among all minors, the minor's shape and the constructor's argument
+mask, every field kept (`register_inductive` without `remove_irrel_constr_args`). -/
+def recMembers (σ : EvalEnv) (minors : List RecMinor) :
+    Nat → List InductiveVal → List (List Name) → Option (List RecMember)
+  | gi, iv :: ivs, xs :: xss => do
+    let indid ← IndIdOf σ iv.name
+    let masks ← iv.ctors.mapM fun c => (ctorFields σ c).map fun k =>
+      (Array.replicate k .keep : ConstructorArgMask)
+    let ms := (minors.drop gi).take iv.ctors.length
+    let rest ← recMembers σ minors (gi + iv.ctors.length) ivs xss
+    pure (⟨iv.name, xs, indid, (List.range ms.length).map fun c =>
+      (gi + c, ms.getD c default, masks.getD c #[])⟩ :: rest)
+  | _, _, _ => pure []
+
+/-- The λ□ fixpoint that `visitRec` builds for the recursor `rv` applied at the levels `us`
+(`recFix`, `LeanToLambdaBox/Erasure.lean:787`), with the shapes `minors` of its minor premises
+(`recShape`): the function of the major premise's inductive `rv.getMajorInduct` in the fixpoint of
+the block's members (`recMembers`). The `case` on the major premise is replaced by its alternative
+applied to `□` (`direct`) only if the major's declared sort may be zero at the levels, and then the
+fields of the block's one-constructor inductives are erasable (`FieldsErasable`); the block's
+inductives are subsingletons when their values are proofs (`Subsingleton`, as for `Erases.cases`);
+the fixpoint is closed under the bindings of the minors and has no free variable. Reference: none
+(MetaRocq has no recursors; DV-30). -/
+def RecFixOf {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (σ : EvalEnv)
+    (rv : RecursorVal) (us : List Level) (minors : List RecMinor) (F : LBTerm) : Prop :=
+  ∃ ivs cvs motives members T ivT j direct, σ.recBlock? rv = some (ivs, cvs) ∧
+    recShape rv.numParams rv.numMotives rv.type (cvs.map (·.numFields)) = some (motives, minors) ∧
+    minors.length = rv.numMinors ∧ recMembers σ minors 0 ivs motives = some members ∧
+    rv.getMajorInduct = T ∧ findDecl σ.decls T = some (.inductInfo ivT) ∧
+    rv.all.idxOf? T = some j ∧
+    (direct = false → ∃ l, casesSortLevel ivT us = some l ∧ l.isNeverZero = true) ∧
+    (direct = true → ∀ iv ∈ ivs, iv.ctors.length = 1 → FieldsErasable E B iv.name) ∧
+    (∀ t ∈ rv.all, Subsingleton E B t) ∧
+    F = recFix rv.numMinors rv.numParams direct members j ∧
+    closedn rv.numMinors F = true ∧ ∀ x, hasFVar x F = false
+
+/-- The let-bindings of `visitRec`'s output (`LeanToLambdaBox/Erasure.lean:1003`): the erased minor
+premises bound in order around `b`, the one at position `d` under the `d` bindings before it. -/
+def recLets : Nat → List (LBTerm × RecMinor) → LBTerm → LBTerm
+  | _, [], b => b
+  | d, (m, mi) :: ms, b => .letIn (binderNameOf mi.name) (lbLift d 0 m) (recLets (d + 1) ms b)
+
 mutual
 /-- The erasure relation. `σ` gives the atoms (erased only to `□`), the constructors and the
 recognized `casesOn` constants. Constructor and `casesOn` spines are erased as a whole (λ□
@@ -1113,8 +1247,9 @@ alternative per constructor, applied to the extra arguments); spines with fewer 
 the arity erase as their η-expansion (DV-23); a `casesOn` on a one-constructor inductive with
 erasable fields may erase as its reduced form (`casesReduced`, as the eraser emits it when the
 discriminant's sort may be zero). `Quot.mk α r a` erases as its element and `Quot.lift α r β f h q`
-as `f` applied to `q` (DV-29).
-Constructors of `Prop` inductives and eliminations of
+as `f` applied to `q` (DV-29). A recursor spine erases as the fixpoint of its block over its
+let-bound minors, as the eraser emits it, or with closed minors substituted (`recLet`, `recFix`;
+DV-30). Constructors of `Prop` inductives and eliminations of
 inductives that are not subsingletons have no rule but `box`, as in MetaRocq. Reference: `MR E/Extract.v:88 erases`; MC §7.3, Fig. 18. -/
 inductive Erases {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (lps : List Name)
     (σ : EvalEnv) : {n : Nat} → Metalean.Ctx ζ lps.length 0 n → MLCtx ζ lps.length n → Expr →
@@ -1135,8 +1270,9 @@ inductive Erases {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (lps 
   /-- `erases_tApp` (`:101`), heads other than constructors and `casesOn`. -/
   | app : ¬ SpecialSpine σ f → Erases E B lps σ Γ Δ f f' → Erases E B lps σ Γ Δ a a' →
       Erases E B lps σ Γ Δ (.app f a) (.app f' a')
-  /-- `erases_tConst` (`:104`), for constants that are neither atoms nor special. -/
+  /-- `erases_tConst` (`:104`), for constants that are neither atoms nor special nor recursors. -/
   | const : σ.isAtom c = false → specialArity σ c = none →
+      (∀ rv, findDecl σ.decls c ≠ some (.recInfo rv)) →
       Erases E B lps σ Γ Δ (.const c us) (.const (toKername c))
   /-- `erases_tConstruct` (`:106`, `~~ isPropositional`) under applications, parameters kept
   (DV-23). -/
@@ -1177,7 +1313,7 @@ inductive Erases {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (lps 
       (∀ (i : Nat) a a', extra[i]? = some a → extra'[i]? = some a' → Erases E B lps σ Γ Δ a a') →
       Erases E B lps σ Γ Δ (mkAppN (.const c us) (pre ++ [maj] ++ [alt] ++ extra).toArray)
         (mkApps alt' (List.replicate cv.numFields .box ++ extra'))
-  /-- A constructor or `casesOn` spine with missing arguments erases as its η-expansion
+  /-- A spine with an arity (`specialArity`) and missing arguments erases as its η-expansion
   (`EvalEnv.etaSpine?`; `withAppEtaToMinArity`, DV-23). -/
   | eta {as : List Expr} : σ.etaSpine? c us as = some e' → Erases E B lps σ Γ Δ e' t →
       Erases E B lps σ Γ Δ (mkAppN (.const c us) as.toArray) t
@@ -1209,6 +1345,39 @@ inductive Erases {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (lps 
       (∀ (i : Nat) x x', extra[i]? = some x → extra'[i]? = some x' → Erases E B lps σ Γ Δ x x') →
       Erases E B lps σ Γ Δ (mkAppN (.const c us) ([α, r, β, f, h, q] ++ extra).toArray)
         (mkApps f' (q' :: extra'))
+  /-- A recursor applied to its parameters, motives, minor premises, indices and major premise and
+  to extra arguments, as `visitRec` erases it (`LeanToLambdaBox/Erasure.lean:971`): the erased
+  minors let-bound in order (`recLets`) around the block's fixpoint (`RecFixOf`) applied to the erased
+  indices and major premise, the whole applied to the erased extra arguments; the parameters and
+  motives are dropped (DV-30). -/
+  | recLet {ps ms mins is extra : List Expr} {mins' is' extra' : List LBTerm} :
+      findDecl σ.decls c = some (.recInfo rv) → RecFixOf E B σ rv us minors F →
+      ps.length = rv.numParams → ms.length = rv.numMotives → mins.length = rv.numMinors →
+      is.length = rv.numIndices → mins.length = mins'.length →
+      (∀ (i : Nat) x x', mins[i]? = some x → mins'[i]? = some x' → Erases E B lps σ Γ Δ x x') →
+      is.length = is'.length →
+      (∀ (i : Nat) x x', is[i]? = some x → is'[i]? = some x' → Erases E B lps σ Γ Δ x x') →
+      Erases E B lps σ Γ Δ maj maj' → extra.length = extra'.length →
+      (∀ (i : Nat) x x', extra[i]? = some x → extra'[i]? = some x' → Erases E B lps σ Γ Δ x x') →
+      Erases E B lps σ Γ Δ (mkAppN (.const c us) (ps ++ ms ++ mins ++ is ++ [maj] ++ extra).toArray)
+        (mkApps (recLets 0 (mins'.zip minors)
+          (mkApps F ((is' ++ [maj']).map (lbLift rv.numMinors 0)))) extra')
+  /-- A recursor application whose minor premises are erased to closed λ□ values, which the λ□
+  evaluation of `recLet`'s bindings substitutes into the fixpoint: the fixpoint with the erased
+  minors substituted, applied to the erased indices, major premise and extra arguments. It is the
+  form of the induction hypotheses in the λ□ unfolding of the fixpoint (DV-30). -/
+  | recFix {ps ms mins is extra : List Expr} {ws is' extra' : List LBTerm} :
+      findDecl σ.decls c = some (.recInfo rv) → RecFixOf E B σ rv us minors F →
+      ps.length = rv.numParams → ms.length = rv.numMotives → mins.length = rv.numMinors →
+      is.length = rv.numIndices → mins.length = ws.length →
+      (∀ (i : Nat) x x', mins[i]? = some x → ws[i]? = some x' → Erases E B lps σ Γ Δ x x') →
+      (∀ w ∈ ws, closedn 0 w = true ∧ (∀ x, hasFVar x w = false) ∧ LBFixed w) →
+      is.length = is'.length →
+      (∀ (i : Nat) x x', is[i]? = some x → is'[i]? = some x' → Erases E B lps σ Γ Δ x x') →
+      Erases E B lps σ Γ Δ maj maj' → extra.length = extra'.length →
+      (∀ (i : Nat) x x', extra[i]? = some x → extra'[i]? = some x' → Erases E B lps σ Γ Δ x x') →
+      Erases E B lps σ Γ Δ (mkAppN (.const c us) (ps ++ ms ++ mins ++ is ++ [maj] ++ extra).toArray)
+        (mkApps (substl ws.reverse F) (is' ++ [maj'] ++ extra'))
   /-- Metadata is transparent. -/
   | mdata : Erases E B lps σ Γ Δ e e' → Erases E B lps σ Γ Δ (.mdata d e) e'
   /-- `erases_box` (`:140`). -/
@@ -1282,5 +1451,7 @@ inductive ErasesDeps {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (
   /-- `erases_deps_tProj` (`:343`). -/
   | proj : IndIdOf σ T = some p.indType → ErasesInd E B σ lenv T → ErasesDeps E B σ lenv d →
       ErasesDeps E B σ lenv (.proj p d)
+  /-- `erases_deps_tFix` (`:352`). -/
+  | fix : (∀ d ∈ defs, ErasesDeps E B σ lenv d.body) → ErasesDeps E B σ lenv (.fix defs i)
 
 end EraseProof

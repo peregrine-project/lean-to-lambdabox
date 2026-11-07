@@ -15,8 +15,9 @@ The test checks:
   inductive `CT.D`;
 - `getCasesInfo?`, the recognizer of the `Meta` path, rejects all three hand-built `casesOn`
   (Lean did not mark them as `casesOn`), so on `CT.A` and `CT.B` both paths agree;
-- `#erase` routes `CT.A.casesOn.{1}` and `CT.B.casesOn.{1}` (no argument) to the `Meta` path: the
-  closure reads the value, which reads the recursor, so `collectDeps` excludes it;
+- `#erase` routes `CT.A.casesOn.{1}` and `CT.B.casesOn.{1}` (no argument) to the pure path: the
+  closure reads the value, which applies the recursor, which the fragment admits (S-41), so the pure
+  path erases the value as a definition;
 - `useD`, which applies `CT.D.casesOn` to its motive only (in `pick`), takes the pure path, and its
   `#erase` output is pinned (`useD.ast`), which peregrine evaluates to `CT.D.f`.
 -/
@@ -95,9 +96,9 @@ def routeOf (n : Name) : CoreM Unit := do
   | .viaPure (.error err) => logInfo s!"viaPure error ({err.describe})"
   | .viaMeta => logInfo "viaMeta"
 
-/-- info: viaMeta -/
+/-- info: viaPure ok -/
 #guard_msgs in #eval routeOf `CT.A.casesOn
-/-- info: viaMeta -/
+/-- info: viaPure ok -/
 #guard_msgs in #eval routeOf `CT.B.casesOn
 /-- info: viaPure ok -/
 #guard_msgs in #eval show CoreM Unit from do

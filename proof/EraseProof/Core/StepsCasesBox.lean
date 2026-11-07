@@ -382,7 +382,7 @@ theorem visitAppArgs_run {j : Nat} (ih : ∀ e, ExprSpec E B view cfg decls j e)
     {r tf : LBTerm} {args : List Expr}
     (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK decls S)
     (hargs : ∀ a ∈ args, (∀ d, nameOccurs d a = true → S d) ∧ MachineFree cfg a ∧
-      NatPlain cfg a ∧ RecFree decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A)
+      NatPlain cfg a ∧ RecShaped cfg decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A)
     (hok : StateOK E B (evalEnvOf view cfg decls) st)
     (hdf : ErasesDeps E B (evalEnvOf view cfg decls) st.gdecls tf)
     (hrun : (visitAppArgs (m := PureM) (j + 1) tf args.toArray).runPure st tc ⟨decls, view⟩ ps =
@@ -450,7 +450,7 @@ theorem casesSat_reduced (hG : CoreEnv E B P decls view cfg) {j : Nat}
     (hocc : ∀ d, nameOccurs d (mkAppN (.const c us) as.toArray) = true → S d)
     (hmf : MachineFree cfg (mkAppN (.const c us) as.toArray))
     (hnp : NatPlain cfg (mkAppN (.const c us) as.toArray))
-    (hrf : RecFree decls (mkAppN (.const c us) as.toArray))
+    (hrf : RecShaped cfg decls (mkAppN (.const c us) as.toArray))
     (hok : StateOK E B (evalEnvOf view cfg decls) st)
     (he : TrM E B lps Γ Δ (mkAppN (.const c us) as.toArray) t) (ht : ∃ T, E[Γ] ⊢ t : T)
     (hsat : ci.arity ≤ as.length)
@@ -542,11 +542,11 @@ theorem casesSat_reduced (hG : CoreEnv E B P decls view cfg) {j : Nat}
       fun d hd => h d (by simp [nameOccurs, hd])⟩) hocc
   have hmfA := hQ (Q := MachineFree cfg) (fun _ _ h => h) hmf
   have hnpA := hQ (Q := NatPlain cfg) (fun _ _ h => h) hnp
-  have hrfA := hQ (Q := RecFree decls) (fun _ _ h => h) hrf
+  have hrfA := hQ (Q := RecShaped cfg decls) (fun _ _ h => h) hrf
   have htyA := (spine_typed (casesOn_notSpecial (σ := evalEnvOf view cfg decls) hG.prog hG.sub hd)
     he ⟨T, hT⟩).2
   have hargs : ∀ a ∈ as, (∀ d, nameOccurs d a = true → S d) ∧ MachineFree cfg a ∧
-      NatPlain cfg a ∧ RecFree decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A :=
+      NatPlain cfg a ∧ RecShaped cfg decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A :=
     fun a ha => ⟨hoccA a ha, hmfA a ha, hnpA a ha, hrfA a ha, htyA a ha⟩
   -- the alternative
   have haltm : as[casesMajor iv + 1]'hmlt ∈ as := List.getElem_mem _
