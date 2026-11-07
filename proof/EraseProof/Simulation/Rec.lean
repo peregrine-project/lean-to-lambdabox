@@ -330,6 +330,285 @@ theorem appArgs (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls
     show LBEval defaultFlags lenv (mkApps (.app F' f') fs') r
     exact SimIota.lbeval_mkApps_congr _ hevG₁ (hevG' r h)
 
+/-- A list with an entry for each index below `n`. -/
+theorem choose_list {δ : Type} {Q : Nat → δ → Prop} (n : Nat) (h : ∀ i < n, ∃ d, Q i d) :
+    ∃ ds : List δ, ds.length = n ∧ ∀ i d, ds[i]? = some d → Q i d := by
+  refine ⟨List.ofFn fun i : Fin n => Classical.choose (h i i.isLt), by simp, fun i d hd => ?_⟩
+  rw [List.getElem?_ofFn] at hd
+  split at hd
+  · rename_i hi
+    cases hd
+    exact Classical.choose_spec (h i hi)
+  · cases hd
+
+/-! ## The ι step -/
+
+/-- The recursor ι with the minors' erasures substituted into the fixpoint: λ□ unfolds the fixpoint
+on the major's value, selects the constructor's alternative and applies the minor's value to the
+fields and the recursive calls; these are erasures of the source induction hypotheses, whose
+values the continuation is applied to. -/
+theorem rec_core (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
+    (hbinj : BlockNamesInj σ.decls)
+    {c : Name} {rv : RecursorVal} {T : Name} {iv : InductiveVal} {cvs : List ConstructorVal}
+    {motives : List (List Name)} {minors : List RecMinor} {maj mj : Expr} {k : Nat}
+    {mi : RecMinor} {mk : Expr} {us : List Level} {v : Expr}
+    {ps ms mins mvs fs rfs ihvs : List Expr}
+    (hcr : findDecl σ.decls c = some (.recInfo rv)) (hall : rv.all = [T]) (hcT : c = mkRecName T)
+    (hblk : σ.recBlock? rv = some ([iv], cvs)) (hni : rv.numIndices = 0)
+    (hshape : recShape rv.numParams rv.numMotives rv.type (cvs.map (·.numFields)) =
+      some (motives, minors))
+    (hihs : ∀ mi ∈ minors, mi.ihs.map (fun h => (h.field, h.binders)) =
+      (List.range' (mi.fields.length - mi.ihs.length) mi.ihs.length).map fun f => (f, []))
+    (hps : ps.length = rv.numParams) (hms : ms.length = rv.numMotives)
+    (hmins : mins.length = rv.numMinors) (hlm : mins.length = mvs.length)
+    (hmv : ∀ (i : Nat) m mv, mins[i]? = some m → mvs[i]? = some mv → SrcEval σ m mv)
+    (hmaj : SrcEval σ maj mj) (hcv : CtorValue σ T mj k fs) (hmi : minors[k]? = some mi)
+    (hmk : mvs[k]? = some mk) (hrfs : (mi.ihs.mapM fun h => fs[h.field]?) = some rfs)
+    (hrl : rfs.length = ihvs.length)
+    (hih : ∀ (i : Nat) f w, rfs[i]? = some f → ihvs[i]? = some w →
+      SrcEval σ (mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray) w)
+    (ihmaj : ErasesSim E B lps σ lenv maj mj)
+    (ihih : ∀ (i : Nat) f w, rfs[i]? = some f → ihvs[i]? = some w →
+      ErasesSim E B lps σ lenv (mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray) w)
+    (ihv : ErasesSim E B lps σ lenv (mkAppN mk (fs ++ ihvs).toArray) v)
+    {t T₀ : Metalean.Expr ζ lps.length 0}
+    (he : TrM E B lps .nil [] (mkAppN (.const c us) (ps ++ ms ++ mins ++ [maj]).toArray) t)
+    (ht : E[.nil] ⊢ t : T₀)
+    {minors' : List RecMinor} {F : LBTerm} (hRF : RecFixOf E B σ rv us minors' F)
+    {ws : List LBTerm} (hwl : mvs.length = ws.length)
+    (hwe : ∀ (i : Nat) x x', mvs[i]? = some x → ws[i]? = some x' → Erases E B lps σ .nil [] x x')
+    (hwc : ∀ w ∈ ws, closedn 0 w = true ∧ (∀ x, hasFVar x w = false) ∧ LBFixed w)
+    (hdF : ErasesDeps E B σ lenv (substl ws.reverse F))
+    {maj' : LBTerm} (hmaj' : Erases E B lps σ .nil [] maj maj')
+    (hdmaj : ErasesDeps E B σ lenv maj') :
+    ∃ vb, Erases E B lps σ .nil [] v vb ∧
+      LBEval defaultFlags lenv (.app (substl ws.reverse F) maj') vb := by
+  have hok := SrcDefeq.nil_ok (E := E) (lps := lps)
+  have hRF₀ := hRF
+  obtain ⟨hmm, hmlN, hmlC, hfl, hsimple, indid, direct, nm, x, hid, rfl, hd1, hd2, hss⟩ :=
+    recFix_shape henv hsub hcr hall hcT hblk hni hshape hihs hRF₀
+  subst minors'
+  have hwscl : ∀ w ∈ ws, closedn 0 w = true := fun w hw => (hwc w hw).1
+  have hFIX := substl_recFix (N := rv.numMinors) (nm := nm) (x := x) (direct := direct)
+    (indid := indid) (npars := rv.numParams) hsimple hmlN (by omega) hwscl
+  have hFcl : closedn 0 (recFIX nm x direct indid rv.numParams minors ws) = true := by
+    rw [← hFIX]
+    refine TargetLift.closedn_substl _ _ 0 (fun u hu => hwscl u (List.mem_reverse.1 hu)) ?_
+    rw [List.length_reverse, Nat.zero_add, ← hwl, ← hlm, hmins]
+    exact (RecLam.RecFixOf.closed hRF).2.1
+  have hcvs := (RecWhred.recBlock?_single hall hblk).2
+  obtain ⟨-, hcvl, -, -⟩ := RecWhred.rec_minors henv hsub hcr hall hcT hblk hni hshape
+  have hRFr := hRF
+  rw [hFIX] at hdF ⊢
+  generalize hFX : recFIX nm x direct indid rv.numParams minors ws = FIX at hdF hFcl ⊢
+  -- the block
+  obtain ⟨ι, η, s, lps₀, Is, Cs, Rs, orders, hb, rfl, rfl, rfl, hBT, hBc, hns, rfl⟩ :=
+    RecWhred.rec_block henv hsub hcr hall hcT hblk
+  obtain ⟨⟨_, _, _, _, hIB⟩, -⟩ := hb
+  obtain ⟨-, -, -, -, -, -, hRnp, hRnm, hRmin, hRni⟩ := hIB.recr s
+  obtain ⟨-, -, -, hInp, -, -, -, -⟩ := hIB.ind s
+  have hs0 : s.val = 0 := by have := s.isLt; omega
+  have hnis : ι.nindices s = 0 := by rw [← hRni, hni]
+  have hidO : ∀ (t : Fin ι.nsorts) (c : Fin (ι.nctors t)) mo,
+      ((List.ofFn fun t => List.ofFn fun c => orders t c)[t.val]?.bind (·[c.val]?)) = some mo →
+      mo = List.range ((ι.ctors t c).nfields + (ι.ctors t c).nrecFields) := by
+    intro t c mo h
+    simp only [List.getElem?_ofFn, t.isLt, c.isLt, ↓reduceDIte, Option.bind_some,
+      Option.some.injEq] at h
+    subst h
+    obtain rfl : s = t := Fin.ext (by have := t.isLt; have := s.isLt; omega)
+    exact RecWhred.orders_identity hIB s hns hshape hihs c
+  -- the major's erasure evaluates to an erasure of its value
+  obtain ⟨bs', hlenb, hargs, hsat⟩ := TrM.special_inv hBc rfl he
+  have htyb := RecWhred.satTr_recr_typed hE hok hsat ht hidO
+  obtain ⟨m₀, hm₀⟩ : ∃ m₀, bs'[(ps ++ ms ++ mins).length]? = some m₀ :=
+    ⟨_, List.getElem?_eq_getElem (by rw [← hlenb]; simp)⟩
+  have hmT := hargs _ maj m₀ (by simp) hm₀
+  obtain ⟨M, hM⟩ := htyb m₀ (List.mem_of_getElem? hm₀)
+  obtain ⟨mb, hmb, hevmb⟩ := ihmaj hmT ⟨M, hM⟩ hmaj' hdmaj
+  -- the spine at the values of the minors and of the major
+  have srefl : ∀ x, SrcDefeq.Sound E B lps x x := fun _ _ _ he ht => ⟨_, he, ht⟩
+  have hself : ∀ l : List Expr, List.Forall₂ (SrcDefeq.Sound E B lps) l l := fun l =>
+    List.forall₂_same.2 fun x _ => srefl x
+  have hall' : List.Forall₂ (SrcDefeq.Sound E B lps) (ps ++ ms ++ mins ++ [maj])
+      (ps ++ ms ++ mvs ++ [mj]) :=
+    List.rel_append (List.rel_append (List.rel_append (hself ps) (hself ms))
+      (CasesWhred.forall₂_of_getElem? hlm fun i m mv h1 h2 => by
+        intro _ _ he ht; exact SrcEval.defeq henv hE hsub he ht (hmv i m mv h1 h2)))
+      (.cons (by intro _ _ he ht; exact SrcEval.defeq henv hE hsub he ht hmaj) .nil)
+  obtain ⟨t₂, ht₂, hd₂⟩ := SrcDefeq.special_congr hE hBc rfl he ht
+    (fun hsat => RecWhred.satTr_recr_typed hE hok hsat ht hidO) hall'
+  have ht₂T := hd₂.right
+  -- ι in Metalean
+  obtain ⟨a₁, fs₀, ihs₀, ha₁, hfs₀, hihs₀, hred⟩ := RecWhred.recIota_whred henv hsub hcr hall hcT
+    hblk hni hshape hihs hps hms (hlm ▸ hmins) hcv hmi hmk hrfs ht₂
+  have hd₃ := WHRedS.defeq hE hok hred ht₂T
+  obtain ⟨-, htyped⟩ := InstPre.appList_inv hd₃.right
+  -- the major's value in the recursor node
+  have hlen₂ : (ps ++ ms ++ mvs ++ [mj]).length = ι.recrEnd s := by
+    show _ = ι.nparams + ι.nsorts + Fin.sum ι.nctors + ι.nindices s + 1
+    simp only [List.length_append, List.length_singleton, hps, hms, ← hlm, hmins, hRnp, hRnm,
+      hRmin, CasesWhred.fin_sum_eq, hnis]
+  obtain ⟨ls, l, mo, A, minsM, hA, -, -, rfl, us₂, hRL, hTL⟩ := CasesWhred.trM_recr_inv hBc hlen₂ ht₂
+  obtain ⟨-, hps₀, -, -, his₀, hmajT⟩ := Defeq.recr_typed hE hok ht₂T
+  have hpre : (ps ++ ms ++ mvs).length = ι.recrEnd s - 1 := by
+    simp only [List.length_append, List.length_singleton] at hlen₂ ⊢; omega
+  obtain ⟨a₀, ha₀, htr₀⟩ := hA (Metalean.IndSig.RecrBinder.major (ι := ι) (s := s)).resolve
+  have hlast : ((Metalean.IndSig.RecrBinder.major (ι := ι) (s := s)).resolve).val =
+      ι.recrEnd s - 1 := rfl
+  rw [hlast, ← hpre, List.getElem?_append_right (Nat.le_refl _), Nat.sub_self] at ha₀
+  cases ha₀
+  have hfields := SimIota.fields_of_eval hmaj hcv
+  have hcv₀ := hcv
+  obtain ⟨C, usC, cv, psC, hC, hind, hcidx, hpsC, hfsC, rfl⟩ := hcv
+  have hlenC : (psC ++ fs).length = cv.numParams + cv.numFields := by simp [hpsC, hfsC]
+  obtain ⟨ι', η', s', c', lsC, psN, fds, rfsN, hBC, hnode⟩ :=
+    SimInd.ctorNode_tr henv hsub hC hlenC htr₀
+  rw [hind, hBT] at hBC
+  cases hBC
+  rw [hnode] at hmajT htr₀
+  -- the dependencies of the minors' erasures
+  have hdF' := hdF
+  rw [← hFX] at hdF'
+  have hdbody : ErasesDeps E B σ lenv (recBody direct indid (Rs s).numParams minors ws
+      fun B => .bvar (B + 1)) := by
+    cases hdF' with
+    | fix hd =>
+      have := hd _ (.head _)
+      cases this with
+      | lambda hb => exact hb
+  have hdws := deps_recBody hdbody
+  have hkm : k < minors.length := (List.getElem?_eq_some_iff.mp hmi).1
+  have hkc : (k, mi, Array.replicate mi.fields.length ConstructorArgRelevance.keep) ∈
+      recCs minors := by
+    unfold recCs
+    refine List.mem_map.2 ⟨k, List.mem_range.2 hkm, ?_⟩
+    rw [List.getD_eq_getElem?_getD, hmi, Option.getD_some]
+  have hwk : ws.getD k .box = ws[k]'(by omega) := by
+    rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by omega), Option.getD_some]
+  have hmkw : Erases E B lps σ .nil [] mk (ws.getD k .box) := by
+    rw [hwk]; exact hwe k mk _ hmk (List.getElem?_eq_getElem _)
+  have hdwk : ErasesDeps E B σ lenv (ws.getD k .box) := hdws _ hkc
+  -- the constructor's minor binds its fields
+  obtain ⟨hCi, hnpI⟩ := SimInd.ctor_block henv hsub hC (by rw [hind]; exact (RecWhred.recBlock?_single hall hblk).1)
+  rw [hcidx] at hCi
+  have hmif : mi.fields.length = fs.length := by
+    obtain ⟨-, hcget⟩ := RecWhred.mapM_get hcvs
+    obtain ⟨cv', hcv', hcvd⟩ := hcget k C hCi
+    unfold EvalEnv.ctorOf? at hcvd
+    rw [hC] at hcvd
+    cases hcvd
+    obtain ⟨mi', hmi', hmf⟩ := hfl k cv hcv'
+    rw [hmi] at hmi'
+    cases hmi'
+    rw [hmf, hfsC]
+  -- the continuation, given erasures of the fields
+  have htail : ∀ fs' : List LBTerm, List.Forall₂ (ArgOK E B lps σ lenv) fs fs' →
+      ∃ vb, Erases E B lps σ .nil [] v vb ∧ LBEval defaultFlags lenv
+        (mkApps (ws.getD k .box) (fs' ++ mi.ihs.map fun h => .app FIX (fs'.getD h.field .box))) vb := by
+    intro fs' hfa
+    obtain ⟨hrlen, hrget⟩ := RecWhred.mapM_get hrfs
+    have hdg : ∀ j, ErasesDeps E B σ lenv (fs'.getD j .box) := by
+      intro j
+      rw [List.getD_eq_getElem?_getD]
+      cases hj : fs'[j]? with
+      | none => exact .box
+      | some f' =>
+        exact SimIota.forall₂_right (fun _ _ h => h.2.2.2.1) hfa f' (List.mem_of_getElem? hj)
+    -- the induction hypotheses' erasures
+    have hIHer : ∀ (i : Nat) h rf, mi.ihs[i]? = some h → rfs[i]? = some rf →
+        Erases E B lps σ .nil [] (mkAppN (.const c us) (ps ++ ms ++ mvs ++ [rf]).toArray)
+          (.app FIX (fs'.getD h.field .box)) := by
+      intro i h rf hh hrf
+      obtain ⟨y, hy, hfy⟩ := hrget i h hh
+      rw [hrf] at hy
+      cases hy
+      obtain ⟨f', hf', hok'⟩ := CasesWhred.forall₂_getElem? hfa hfy
+      have hfd : fs'.getD h.field .box = f' := by
+        rw [List.getD_eq_getElem?_getD, hf', Option.getD_some]
+      have h1 := Erases.recFix (ps := ps) (ms := ms) (mins := mvs) (is := []) (extra := [])
+        (is' := []) (extra' := []) (maj := rf) (maj' := f') hcr hRFr hps hms (hlm ▸ hmins)
+        hni.symm hwl hwe hwc rfl (fun _ _ _ h => by simp at h) hok'.2.1 rfl
+        (fun _ _ _ h => by simp at h)
+      simp only [List.append_nil, List.nil_append] at h1
+      rw [hFIX, hFX] at h1
+      rw [hfd]
+      exact h1
+    have hIH : ∀ i < ihvs.length, ∃ d : LBTerm × Metalean.Expr ζ lps.length 0,
+        ∃ h rf w ih0, mi.ihs[i]? = some h ∧ rfs[i]? = some rf ∧ ihvs[i]? = some w ∧
+          ihs₀[i]? = some ih0 ∧ Erases E B lps σ .nil [] w d.1 ∧
+          LBEval defaultFlags lenv (.app FIX (fs'.getD h.field .box)) d.1 ∧
+          TrM E B lps .nil [] w d.2 ∧ (∃ A, E[.nil] ⊢ ih0 ≡ d.2 : A) := by
+      intro i hi
+      obtain ⟨h, hh⟩ : ∃ h, mi.ihs[i]? = some h :=
+        ⟨_, List.getElem?_eq_getElem (by omega)⟩
+      obtain ⟨rf, hrf⟩ : ∃ rf, rfs[i]? = some rf := ⟨_, List.getElem?_eq_getElem (by omega)⟩
+      obtain ⟨w, hw⟩ : ∃ w, ihvs[i]? = some w := ⟨_, List.getElem?_eq_getElem hi⟩
+      obtain ⟨ih0, hih0, hTr⟩ := CasesWhred.forall₂_getElem? hihs₀
+        (i := i) (a := mkAppN (.const c us) (ps ++ ms ++ mvs ++ [rf]).toArray)
+        (by rw [List.getElem?_map, hrf]; rfl)
+      obtain ⟨A, hA⟩ := htyped ih0 (List.mem_append_right _ (List.mem_of_getElem? hih0))
+      obtain ⟨vb, hvb, hev⟩ := ihih i rf w hrf hw hTr ⟨A, hA⟩ (hIHer i h rf hh hrf)
+        (.app hdF (hdg _))
+      obtain ⟨ihv0, hTrw, hdd⟩ := SrcEval.defeq henv hE hsub hTr hA (hih i rf w hrf hw)
+      exact ⟨(vb, ihv0), h, rf, w, ih0, hh, hrf, hw, hih0, hvb, hev, hTrw, ⟨A, hdd⟩⟩
+    obtain ⟨ds, hdsl, hds⟩ := choose_list _ hIH
+    have hlv : ihvs.length = (ds.map Prod.fst).length := by simp [hdsl]
+    have hlv₂ : ihvs.length = (ds.map Prod.snd).length := by simp [hdsl]
+    have hget : ∀ i (d : LBTerm × Metalean.Expr ζ lps.length 0), ds[i]? = some d →
+        ∃ (h : RecIH) (rf w : Lean.Expr) (ih0 : Metalean.Expr ζ lps.length 0),
+        mi.ihs[i]? = some h ∧ rfs[i]? = some rf ∧
+        ihvs[i]? = some w ∧ ihs₀[i]? = some ih0 ∧ Erases E B lps σ .nil [] w d.1 ∧
+        LBEval defaultFlags lenv (.app FIX (fs'.getD h.field .box)) d.1 ∧
+        TrM E B lps .nil [] w d.2 ∧ (∃ A, E[.nil] ⊢ ih0 ≡ d.2 : A) := hds
+    have hmap : ∀ {γ : Type} (g : LBTerm × Metalean.Expr ζ lps.length 0 → γ) (i : Nat) (y : γ),
+        (ds.map g)[i]? = some y → ∃ d, ds[i]? = some d ∧ g d = y := by
+      intro γ g i y hy
+      rw [List.getElem?_map] at hy
+      obtain ⟨d, hd, rfl⟩ := Option.map_eq_some_iff.1 hy
+      exact ⟨d, hd, rfl⟩
+    have hTrs : List.Forall₂ (TrM E B lps .nil []) ihvs (ds.map Prod.snd) :=
+      CasesWhred.forall₂_of_getElem? hlv₂ fun i w y hw hy => by
+        obtain ⟨d, hd, rfl⟩ := hmap _ i y hy
+        obtain ⟨_, _, w', _, _, _, hw', _, _, _, hT, _⟩ := hget i d hd
+        rw [hw] at hw'; cases hw'; exact hT
+    have hlen₀ : ihs₀.length = ihvs.length := by
+      rw [← hihs₀.length_eq, List.length_map, hrl]
+    have hDC : List.Forall₂ (DCong E False .nil .nil) ihs₀ (ds.map Prod.snd) :=
+      CasesWhred.forall₂_of_getElem? (by rw [hlen₀, hlv₂]) fun i a y ha hy => by
+        obtain ⟨d, hd, rfl⟩ := hmap _ i y hy
+        obtain ⟨_, _, _, ih0, _, _, _, hih0, _, _, _, ⟨A, hdd⟩⟩ := hget i d hd
+        rw [ha] at hih0; cases hih0; exact .leaf hdd
+    have hOK : List.Forall₂ (ArgOK E B lps σ lenv) ihvs (ds.map Prod.fst) :=
+      CasesWhred.forall₂_of_getElem? hlv fun i w y hw hy => by
+        obtain ⟨d, hd, rfl⟩ := hmap _ i y hy
+        obtain ⟨h, rf, w', _, _, hrf, hw', _, hvb, hev, hT, _⟩ := hget i d hd
+        rw [hw] at hw'; cases hw'
+        exact ⟨SrcEval.value (hih i rf w hrf hw), hvb, SimCases.closed0 hT hvb,
+          ErasesDeps.eval (.app hdF (hdg _)) hev, LBEval.self hev⟩
+    have hrep : List.Forall₂ (fun b c => LBEval defaultFlags lenv b c ∧ LBFixed c)
+        (mi.ihs.map fun h => .app FIX (fs'.getD h.field .box)) (ds.map Prod.fst) :=
+      CasesWhred.forall₂_of_getElem? (by rw [List.length_map, ← hlv, ← hrl, hrlen])
+        fun i b y hb hy => by
+        obtain ⟨d, hd, rfl⟩ := hmap _ i y hy
+        obtain ⟨h, _, _, _, hh, _, _, _, _, hev, _, _⟩ := hget i d hd
+        rw [List.getElem?_map, hh] at hb
+        cases hb
+        exact ⟨hev, LBEval.fixed hev⟩
+    -- the continuation's translation
+    have hcong : List.Forall₂ (DCong E False .nil .nil) (fs₀ ++ ihs₀) (fs₀ ++ ds.map Prod.snd) :=
+      List.rel_append (List.forall₂_same.mpr fun x _ => DCong.refl) hDC
+    have h1 := DCong.defeq hE not_false
+      (TrDet.appList .refl hcong.length_eq (forall₂_getElem? hcong)) hok
+      (DCong.CtxConv.refl hok) hd₃.right
+    obtain ⟨G', hG', hdG', hevG'⟩ := appArgs henv hE hsub (List.rel_append hfs₀ hTrs)
+      (List.rel_append hfa hOK) hmkw hdwk ha₁ ⟨_, h1.right⟩
+    obtain ⟨t₄, ht₄, hred₄⟩ := TrM.apps ha₁ (List.rel_append hfs₀ hTrs)
+    have hd₄ := WHRedS.defeq hE hok hred₄ h1.right
+    obtain ⟨vb, hvb, hevb⟩ := ihv ht₄ ⟨_, hd₄.right⟩ hG' hdG'
+    exact ⟨vb, hvb, eval_args_replace hrep fs' vb (hevG' vb hevb)⟩
+  sorry
+
 end SimRec
 
 end EraseProof
