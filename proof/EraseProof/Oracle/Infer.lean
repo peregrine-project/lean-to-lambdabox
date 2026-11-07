@@ -144,7 +144,7 @@ theorem const_type {P : List ConstantInfo} {cx : Pure.Ctx} (henv : ProgEnv P ζ 
     simp only [TrLevels, hL, Option.bind_eq_bind, Option.bind_some, hLl, ↓reduceDIte]
   have hT' := TrM.instLevels hus hT
   have ht₀' := TrM.instLevels hus ht₀
-  rw [Pure.instLevels, SrcProof.params_instLevel hnd hl, hn] at ht₀'
+  rw [Pure.instLevels, params_instLevel hnd hl, hn] at ht₀'
   have hty' := Defeq.instLevel (fun i => L[i.val]'(by omega)) hty
   have hw := Defeq.wkClosed (Γ := Γ) hty'
   obtain ⟨_, hTw⟩ := hw.regular
@@ -276,7 +276,7 @@ theorem eta_typed {P : List ConstantInfo} {cx : Pure.Ctx} (henv : ProgEnv P ζ E
   have hus : TrLevels lps us ci.levelParams.length = some (fun i => L[i.val]'(by omega)) := by
     simp only [TrLevels, hL, Option.bind_eq_bind, Option.bind_some, hLl, ↓reduceDIte]
   have ht₀' := TrM.instLevels hus ht₀
-  rw [Pure.instLevels, SrcProof.params_instLevel hnd hl, hn] at ht₀'
+  rw [Pure.instLevels, params_instLevel hnd hl, hn] at ht₀'
   obtain ⟨bs', hlen, -, hsat⟩ := TrM.special_inv (bs := []) hB hs ht₀'
   obtain rfl := List.eq_nil_of_length_eq_zero hlen.symm
   exact ⟨_, _, hsat, Defeq.instLevel (fun i => L[i.val]'(by omega)) hty⟩

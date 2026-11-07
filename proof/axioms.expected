@@ -4,7 +4,6 @@
 #             Quot.sound; `-` for none. sorryAx and Cardinal.exists_inaccessibles never occur.
 # proof/scripts/check.sh compares this file with the computed .check/axioms.actual.
 EraseProof.erase_correct propext,Classical.choice,Quot.sound
-EraseProof.Steps.visitRec_sat propext,Classical.choice,Quot.sound
 EraseProof.Test.bind_ok propext,Classical.choice,Quot.sound
 EraseProof.Test.constsIn_of_all propext
 EraseProof.Test.forIn_toSubarray_size propext,Classical.choice,Quot.sound

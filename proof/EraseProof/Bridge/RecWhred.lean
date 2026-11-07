@@ -19,9 +19,141 @@ open Metalean (WHRed WHRedS Head Defeq)
 
 namespace EraseProof
 
-namespace RecWhred
-
 variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {P : List ConstantInfo}
+
+/-- A weakened binding is a recursor binding only if the binding is one. -/
+private theorem wk_recr {sig : Metalean.Sig} {ι : Metalean.IndSig} {b : MBinding ζ}
+    {η : Metalean.Head (ζ.snoc sig) (.inductive ι)} {s : Fin ι.nsorts} {os : List (List (List Nat))}
+    (h : b.wk = .recr η s os) : ∃ η₀ : Metalean.Head ζ (.inductive ι), b = .recr η₀ s os := by
+  cases b with
+  | recr η₀ s₀ os₀ => simp only [MBinding.wk] at h; cases h; exact ⟨_, rfl⟩
+  | _ => cases h
+
+/-- A declaration whose name the table binds to a recursor of sort `s` is a recursor declaration
+whose arity (`specialArity`: parameters, motives, minors, indices and major) is Metalean's
+`recrEnd s` (`IndBlock.recr`). -/
+theorem ProgEnv.recr_arity {c : Name} {ci : ConstantInfo} (h : ProgEnv P ζ E B)
+    (hc : findDecl P c = some ci) :
+    ∀ {ι : Metalean.IndSig} {η : Metalean.Head ζ (.inductive ι)} {s : Fin ι.nsorts}
+      {os : List (List (List Nat))}, B c = some (.recr η s os) →
+      ∃ rv, ci = .recInfo rv ∧
+        rv.numParams + rv.numMotives + rv.numMinors + rv.numIndices + 1 = ι.recrEnd s := by
+  induction h with
+  | nil => simp [findDecl] at hc
+  | @«axiom» _ _ _ _ v _ _ _ _ _ _ ih | @defn _ _ _ _ v _ _ _ _ _ _ _ _ _ ih
+  | @thm _ _ _ _ v _ _ _ _ _ _ _ _ ih | @«opaque» _ _ _ _ v _ _ _ _ _ _ _ _ _ _ ih =>
+    intro ι η s os hB
+    rw [findDecl_cons] at hc
+    split at hc
+    · rename_i hn
+      rw [← hn] at hB
+      simp only [Binds.set] at hB
+      split at hB
+      · cases hB
+      · exact absurd rfl ‹_›
+    · rw [set_wk_ne (Ne.symm ‹_›)] at hB
+      obtain ⟨b, hb, hbw⟩ := Option.map_eq_some_iff.mp hB
+      obtain ⟨η₀, rfl⟩ := wk_recr hbw
+      exact ih hc hb
+  | @induct _ _ _ _ ι' _ _ _ Is Cs Rs _ hP _ hfr _ hext hblk _ ih =>
+    intro ι η s os hB
+    rw [findDecl_append] at hc
+    cases hd : findDecl (IndBlock.decls Is Cs Rs) c with
+    | some ci' =>
+      rw [hd] at hc
+      cases hc
+      obtain ⟨hm, hn⟩ := findDecl_eq_some hd
+      rcases IndBlock.mem_decls hm with ⟨t, hs⟩ | ⟨t, k, hs⟩ | ⟨t, hs⟩ <;> subst hs
+      · rw [← hn, CasesWhred.name_recInfo, (hblk.recr t).2.1] at hB
+        cases hB
+        obtain ⟨-, -, -, -, -, -, hnp, hnm, hnmin, hni⟩ := hblk.recr t
+        refine ⟨_, rfl, ?_⟩
+        rw [hnp, hnm, hnmin, hni, show (List.ofFn fun t => ι'.nctors t).sum = Fin.sum ι'.nctors
+          from (CasesWhred.fin_sum_eq _).symm]
+      · rw [← hn, CasesWhred.name_ctorInfo, (hblk.ctor t k).1] at hB
+        cases hB
+      · rw [← hn, CasesWhred.name_inductInfo, (hblk.ind t).1] at hB
+        cases hB
+    | none =>
+      rw [hd] at hc
+      simp only [Option.none_or] at hc
+      have hnot : c ∉ (IndBlock.decls Is Cs Rs).map (·.name) := not_mem_of_findDecl_none hd
+      rw [hext c hnot, Binds.wk] at hB
+      obtain ⟨b, hb, hbw⟩ := Option.map_eq_some_iff.mp hB
+      obtain ⟨η₀, rfl⟩ := wk_recr hbw
+      exact ih hc hb
+  | @quot _ _ _ _ _ qs _ hP _ _ hfr _ hext hq ih =>
+    intro ι η s os hB
+    rw [findDecl_append] at hc
+    cases hd : findDecl (qs.reverse.map ConstantInfo.quotInfo) c with
+    | some ci' =>
+      obtain ⟨hm, hn⟩ := findDecl_eq_some hd
+      simp only [List.mem_map, List.mem_reverse] at hm
+      obtain ⟨q, hqm, rfl⟩ := hm
+      rw [← hn, show (ConstantInfo.quotInfo q).name = q.name from rfl, (hq q hqm).1] at hB
+      cases hB
+    | none =>
+      rw [hd] at hc
+      simp only [Option.none_or] at hc
+      have hnot := not_mem_of_findDecl_none hd
+      rw [quot_names_reverse, List.mem_reverse] at hnot
+      rw [hext c hnot, Binds.wk] at hB
+      obtain ⟨b, hb, hbw⟩ := Option.map_eq_some_iff.mp hB
+      obtain ⟨η₀, rfl⟩ := wk_recr hbw
+      exact ih hc hb
+
+/-- A recursor is bound to a Metalean recursor of some sort `s`, and its arity is `recrEnd s`
+(`IndBlock.recr`). -/
+theorem ProgEnv.lookup_recr {c : Name} {rv : RecursorVal} (h : ProgEnv P ζ E B)
+    (hc : findDecl P c = some (.recInfo rv)) :
+    ∃ (ι : Metalean.IndSig) (η : Metalean.Head ζ (.inductive ι)) (s : Fin ι.nsorts)
+      (os : List (List (List Nat))),
+      B c = some (.recr η s os) ∧
+        rv.numParams + rv.numMotives + rv.numMinors + rv.numIndices + 1 = ι.recrEnd s := by
+  induction h with
+  | nil => simp [findDecl] at hc
+  | @«axiom» _ _ _ _ v _ _ _ _ _ _ ih | @defn _ _ _ _ v _ _ _ _ _ _ _ _ _ ih
+  | @thm _ _ _ _ v _ _ _ _ _ _ _ _ ih | @«opaque» _ _ _ _ v _ _ _ _ _ _ _ _ _ _ ih =>
+    rw [findDecl_cons] at hc
+    split at hc
+    · cases hc
+    · obtain ⟨ι, η, s, os, hB, h1⟩ := ih hc
+      exact ⟨ι, η.there, s, os, by rw [set_wk_ne (Ne.symm ‹_›), hB]; rfl, h1⟩
+  | @induct _ _ _ _ ι _ _ _ Is Cs Rs _ hP _ hfr _ hext hblk _ ih =>
+    rw [findDecl_append] at hc
+    cases hd : findDecl (IndBlock.decls Is Cs Rs) c with
+    | some ci =>
+      rw [hd] at hc
+      cases hc
+      obtain ⟨hm, hn⟩ := findDecl_eq_some hd
+      rcases IndBlock.mem_decls hm with ⟨s, hs⟩ | ⟨s, k, hs⟩ | ⟨s, hs⟩ <;> cases hs
+      obtain ⟨-, hB, -, -, -, -, hnp, hnm, hnmin, hni⟩ := hblk.recr s
+      refine ⟨ι, .here, s, _, by rw [← hn]; exact hB, ?_⟩
+      rw [hnp, hnm, hnmin, hni, show (List.ofFn fun t => ι.nctors t).sum = Fin.sum ι.nctors
+        from (CasesWhred.fin_sum_eq _).symm]
+    | none =>
+      rw [hd] at hc
+      simp only [Option.none_or] at hc
+      obtain ⟨ι', η, s, os, hB, h1⟩ := ih hc
+      have hnot : c ∉ (IndBlock.decls Is Cs Rs).map (·.name) := not_mem_of_findDecl_none hd
+      exact ⟨ι', η.there, s, os, by rw [hext c hnot, Binds.wk, hB]; rfl, h1⟩
+  | @quot _ _ _ _ _ qs _ hP _ _ hfr _ hext _ ih =>
+    rw [findDecl_append] at hc
+    cases hd : findDecl (qs.reverse.map ConstantInfo.quotInfo) c with
+    | some ci =>
+      obtain ⟨hm, -⟩ := findDecl_eq_some hd
+      rw [hd] at hc
+      cases hc
+      simp at hm
+    | none =>
+      rw [hd] at hc
+      simp only [Option.none_or] at hc
+      obtain ⟨ι', η, s, os, hB, h1⟩ := ih hc
+      have hnot := not_mem_of_findDecl_none hd
+      rw [quot_names_reverse, List.mem_reverse] at hnot
+      exact ⟨ι', η.there, s, os, by rw [hext c hnot, Binds.wk, hB]; rfl, h1⟩
+
+namespace RecWhred
 
 /-- The block of a recursor of a single inductive: the inductive, found in the environment, and its
 constructors, in order. -/

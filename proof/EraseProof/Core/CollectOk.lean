@@ -28,12 +28,27 @@ variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {P : List Con
 
 /-! ## Kinds of the names a declaration reads -/
 
+/-- `n` names a declaration of `l` that is not a recursor. -/
+def NCovered (l : List ConstantInfo) (n : Name) : Prop :=
+  ∃ y ∈ l, y.name = n ∧ ∀ R, y ≠ .recInfo R
+
+/-- `NCovered` is monotone in the list. -/
+theorem NCovered.mono {l l' : List ConstantInfo} (hl : ∀ x ∈ l, x ∈ l') {n : Name}
+    (h : NCovered l n) : NCovered l' n :=
+  let ⟨y, hy, hn, hr⟩ := h
+  ⟨y, hl y hy, hn, hr⟩
+
+/-- A name `NCovered` by a list is a name of the list. -/
+theorem NCovered.mem {l : List ConstantInfo} {n : Name} (h : NCovered l n) : n ∈ l.map (·.name) :=
+  let ⟨_, hy, hn, _⟩ := h
+  hn ▸ List.mem_map_of_mem hy
+
 /-- The block members of a declaration that is not a recursor, the constructors of an inductive and
 the inductive of a constructor are declarations of `P` that are not recursors. -/
 structure KindsClosed (P : List ConstantInfo) (ci : ConstantInfo) : Prop where
-  all : (∀ R, ci ≠ .recInfo R) → ∀ n ∈ ci.all, Covered P n
-  ctors : ∀ iv, ci = .inductInfo iv → ∀ n ∈ iv.ctors, Covered P n
-  induct : ∀ cv, ci = .ctorInfo cv → Covered P cv.induct
+  all : (∀ R, ci ≠ .recInfo R) → ∀ n ∈ ci.all, NCovered P n
+  ctors : ∀ iv, ci = .inductInfo iv → ∀ n ∈ iv.ctors, NCovered P n
+  induct : ∀ cv, ci = .ctorInfo cv → NCovered P cv.induct
 
 /-- `KindsClosed` is monotone in the program. -/
 theorem KindsClosed.mono {P P' : List ConstantInfo} (hs : ∀ x ∈ P, x ∈ P') {ci : ConstantInfo}
@@ -309,7 +324,7 @@ theorem rcd {ci : ConstantInfo} (hci : ci ∈ decls) :
 omit hf in
 /-- A name of `decls` that is no recursor of `decls` is covered. -/
 theorem covered {n : Name} (hin : (findDecl decls n).isSome = true)
-    (hnr : IsRecursorIn decls n = false) : Covered decls n := by
+    (hnr : IsRecursorIn decls n = false) : NCovered decls n := by
   obtain ⟨y, hy⟩ := Option.isSome_iff_exists.1 hin
   obtain ⟨hy1, hy2⟩ := findDecl_eq_some hy
   refine ⟨y, hy1, hy2, fun R hR => ?_⟩
@@ -319,8 +334,8 @@ theorem covered {n : Name} (hin : (findDecl decls n).isSome = true)
   cases hnr
 
 /-- A name of `decls` that the program covers is covered by `decls`. -/
-theorem covered_of_P {n : Name} (hin : (findDecl decls n).isSome = true) (hP : Covered P n) :
-    Covered decls n := by
+theorem covered_of_P {n : Name} (hin : (findDecl decls n).isSome = true) (hP : NCovered P n) :
+    NCovered decls n := by
   obtain ⟨y, hy⟩ := Option.isSome_iff_exists.1 hin
   obtain ⟨hy1, hy2⟩ := findDecl_eq_some hy
   obtain ⟨z, hz, hzn, hzr⟩ := hP
@@ -330,14 +345,14 @@ theorem covered_of_P {n : Name} (hin : (findDecl decls n).isSome = true) (hP : C
 
 /-- `Nat`, when in `decls`, is no recursor of `decls`: the recursors of `decls` are named
 `T.rec`. -/
-theorem nat_covered (hin : (findDecl decls ``Nat).isSome = true) : Covered decls ``Nat := by
+theorem nat_covered (hin : (findDecl decls ``Nat).isSome = true) : NCovered decls ``Nat := by
   obtain ⟨y, hy⟩ := Option.isSome_iff_exists.1 hin
   obtain ⟨hy1, hy2⟩ := findDecl_eq_some hy
   refine ⟨y, hy1, hy2, fun R hR => ?_⟩
   subst hR
   have hph := hf.phase _ hy1
   have hn : ∃ T, R.name = mkRecName T := by
-    rcases hph with ⟨T, -, hT, -⟩ | ⟨T, -, hT, -⟩ <;> exact ⟨T, hT⟩
+    rcases hph with ⟨T, -, hT, -⟩ | ⟨T, -, hT, -⟩ | ⟨T, -, -, hT, -⟩ <;> exact ⟨T, hT⟩
   obtain ⟨T, hT⟩ := hn
   have h2 : (ConstantInfo.recInfo R).name = R.name := rfl
   rw [h2, hT] at hy2
@@ -349,7 +364,7 @@ theorem nat_covered (hin : (findDecl decls ``Nat).isSome = true) : Covered decls
 of it are covered. -/
 theorem names_of {x : Expr} (hc : ConstsIn (fun c => (findDecl decls c).isSome = true) x)
     (hnl : HasNatLit x = true → (findDecl decls ``Nat).isSome = true) (hr : RecFree decls x)
-    (hpl : PlainExpr cfg x) : ∃ cs, exprConsts cfg x = .ok cs ∧ ∀ n ∈ cs, Covered decls n := by
+    (hpl : PlainExpr cfg x) : ∃ cs, exprConsts cfg x = .ok cs ∧ ∀ n ∈ cs, NCovered decls n := by
   obtain ⟨cs, hcs⟩ := exprConsts_of_plain hpl
   exact ⟨cs, hcs, exprConsts_mem hcs
     (ConstsIn_mono (fun c hc => covered hc.1 hc.2) (ConstsIn_and hc hr))
@@ -357,12 +372,12 @@ theorem names_of {x : Expr} (hc : ConstsIn (fun c => (findDecl decls c).isSome =
 
 /-- The names of a read expression are covered. -/
 theorem read_names {ci : ConstantInfo} (hci : ci ∈ decls) {x : Expr} (hx : ReadExpr decls ci x) :
-    ∃ cs, exprConsts cfg x = .ok cs ∧ ∀ n ∈ cs, Covered decls n :=
+    ∃ cs, exprConsts cfg x = .ok cs ∧ ∀ n ∈ cs, NCovered decls n :=
   hf.names_of ((hf.rcd hci).1 x hx).1 ((hf.rcd hci).1 x hx).2 (hf.recFree ci hci x hx)
     (hf.plain ci hci x hx)
 
 /-- The names of the term are covered. -/
-theorem term_names : ∃ cs, exprConsts cfg e = .ok cs ∧ ∀ n ∈ cs, Covered decls n :=
+theorem term_names : ∃ cs, exprConsts cfg e = .ok cs ∧ ∀ n ∈ cs, NCovered decls n :=
   hf.names_of hf.rc.1 hf.rc.2.1 hf.recFreeE hf.plainE
 
 /-- The constructors and block members of an inductive of `decls` are names of `decls`. -/
@@ -473,18 +488,18 @@ theorem dex {ci : ConstantInfo} (hci : ci ∈ decls) (hnr : ∀ R, ci ≠ .recIn
 covered names, and adds a companion recursor of `decls` whose type's names are covered and, for a
 definition, only for a `casesOn` recognized on `decls`. -/
 theorem step {ci : ConstantInfo} (hci : ci ∈ decls) (hnr : ∀ R, ci ≠ .recInfo R) :
-    ∃ ns ro, closureStep view cfg ci = .ok (ns, ro) ∧ (∀ n ∈ ns, Covered decls n) ∧
+    ∃ ns ro, closureStep view cfg ci = .ok (ns, ro) ∧ (∀ n ∈ ns, NCovered decls n) ∧
       (∀ r, ro = some r → r ∈ decls ∧ r.name ≠ ci.name ∧
-        ∃ tys, exprConsts cfg r.type = .ok tys ∧ ∀ n ∈ tys, Covered decls n) ∧
+        ∃ tys, exprConsts cfg r.type = .ok tys ∧ ∀ n ∈ tys, NCovered decls n) ∧
       (∀ r d, ro = some r → ci = .defnInfo d →
         (EvalEnv.casesOn? ⟨decls, fun _ => false⟩ ci.name).isSome) := by
   have hdex := hf.dex hci hnr
   obtain ⟨ty, hty, htyc⟩ := hf.read_names hci (x := ci.type) (.inl rfl)
-  have hall : ∀ n ∈ ci.all, Covered decls n := fun n hn =>
+  have hall : ∀ n ∈ ci.all, NCovered decls n := fun n hn =>
     hf.covered_of_P ((hf.rcd hci).2.1 n hn) ((hf.kinds _ (hf.sub _ hci)).all hnr n hn)
   -- a companion of `decls` that is a recursor
   have comp : ∀ R, .recInfo R ∈ decls → (ConstantInfo.recInfo R).name ≠ ci.name ∧
-      ∃ tys, exprConsts cfg R.type = .ok tys ∧ ∀ n ∈ tys, Covered decls n := by
+      ∃ tys, exprConsts cfg R.type = .ok tys ∧ ∀ n ∈ tys, NCovered decls n := by
     intro R hR
     refine ⟨fun he => hnr R ?_, hf.read_names hR (.inl rfl)⟩
     have := hf.fd hR
@@ -597,8 +612,8 @@ theorem step {ci : ConstantInfo} (hci : ci ∈ decls) (hnr : ∀ R, ci ≠ .recI
 /-- `dropKnown` succeeds on covered names: it drops the names the accumulator has (none of them a
 recursor) and stops at one it does not have. -/
 theorem dropKnown_ok_of {acc : List ConstantInfo} (hacc : ∀ y ∈ acc, y ∈ decls) :
-    ∀ {todo : List Name}, (∀ n ∈ todo, Covered decls n) →
-    ∃ rest, dropKnown acc todo = .ok rest ∧ (∀ n ∈ rest, n ∈ todo) ∧
+    ∀ {todo : List Name}, (∀ n ∈ todo, NCovered decls n) →
+    ∃ rest, dropKnown view cfg acc todo = .ok rest ∧ (∀ n ∈ rest, n ∈ todo) ∧
       ∀ n rest', rest = n :: rest' → findConst acc n = none
   | [], _ => ⟨[], rfl, nofun, nofun⟩
   | n :: todo, h => by
@@ -644,7 +659,7 @@ for the declarations of `decls` the accumulator lacks; its result is a sub-list 
 distinct names, and its recognized `casesOn` are recognized on `decls`. -/
 theorem closure_ok_of : ∀ (f : Nat) {todo : List Name} {acc : List ConstantInfo}
     {cases : List Name}, (∀ y ∈ acc, y ∈ decls) → (acc.map (·.name)).Nodup →
-    (∀ n ∈ todo, Covered decls n) →
+    (∀ n ∈ todo, NCovered decls n) →
     (∀ m ∈ cases, (EvalEnv.casesOn? ⟨decls, fun _ => false⟩ m).isSome) →
     decls.length ≤ f + acc.length →
     ∃ res, closure view cfg f todo acc cases = .ok res ∧ (∀ y ∈ res.1, y ∈ decls) ∧
@@ -672,7 +687,7 @@ theorem closure_ok_of : ∀ (f : Nat) {todo : List Name} {acc : List ConstantInf
       have hnacc := hnone n rest' rfl
       obtain ⟨y, hy, hyn, hyr⟩ := htodo n (hsub n List.mem_cons_self)
       subst hyn
-      have htl : ∀ m ∈ rest', Covered decls m :=
+      have htl : ∀ m ∈ rest', NCovered decls m :=
         fun m hm => htodo m (hsub m (List.mem_cons_of_mem _ hm))
       obtain ⟨ns, ro, hstep, hns, hro, hcas⟩ := hf.step hy hyr
       have hnd1 : ((y :: acc).map (·.name)).Nodup := by
@@ -685,7 +700,7 @@ theorem closure_ok_of : ∀ (f : Nat) {todo : List Name} {acc : List ConstantInf
         · exact hacc z hz
       have hlen1 : decls.length ≤ f + (y :: acc).length := by
         rw [List.length_cons]; omega
-      have htodo1 : ∀ m ∈ ns ++ rest', Covered decls m := by
+      have htodo1 : ∀ m ∈ ns ++ rest', NCovered decls m := by
         intro m hm
         rcases List.mem_append.1 hm with hm | hm
         · exact hns m hm

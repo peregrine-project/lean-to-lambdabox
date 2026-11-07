@@ -157,20 +157,6 @@ theorem forallMonocular_run {α : Type} {x : Name} {A b : Expr} {bi : BinderInfo
                   locals := ⟨pureFVar ps.next, x, A, none⟩ :: tc.locals } pc ⟨ps.next + 1⟩ :=
   rfl
 
-/-- A term of a `Π` type, weakened and applied to the new variable, is typed at the codomain. -/
-theorem app_var_typed {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {ℓ n : Nat}
-    {Γ : Metalean.Ctx ζ ℓ 0 n} {t A : Metalean.Expr ζ ℓ n} {Bc : Metalean.Expr ζ ℓ (n + 1)}
-    (ht : E[Γ] ⊢ t : .forallE A Bc) (hok : E[Γ.snoc A] ⊢ ok) :
-    E[Γ.snoc A] ⊢ .app t.wk (.var (Fin.last n)) : Bc := by
-  have hw := Metalean.Defeq.wk A ht
-  rw [show (Metalean.Expr.forallE A Bc).wk = .forallE A.wk (Bc.wkFrom n) by
-    simp [Metalean.Expr.wk]] at hw
-  obtain ⟨_, hr⟩ := hw.regular
-  obtain ⟨l₁, l₂, hA, hB, -⟩ := hr.forallE_ty_inv
-  have hv := hok.varLast
-  have := Metalean.Defeq.appDF hA hB hw hv (hB.inst_congr hv)
-  rwa [Metalean.Expr.inst_wkFrom_last] at this
-
 /-! ## Free variables of an η-expansion -/
 
 theorem fvarsIn_piInst {p : FVarId → Prop} : ∀ {as : List Expr} {ty T : Expr},
@@ -269,7 +255,7 @@ def CasesSatSpec (E : Metalean.Env ζ) (B : Binds ζ) (view : EnvView) (cfg : Er
     (∀ d, nameOccurs d (mkAppN (.const c us) as.toArray) = true → S d) →
     MachineFree cfg (mkAppN (.const c us) as.toArray) →
     NatPlain cfg (mkAppN (.const c us) as.toArray) →
-    RecFree decls (mkAppN (.const c us) as.toArray) →
+    RecShaped cfg decls (mkAppN (.const c us) as.toArray) →
     StateOK E B (evalEnvOf view cfg decls) st →
     TrM E B lps Γ Δ (mkAppN (.const c us) as.toArray) t → (∃ T, E[Γ] ⊢ t : T) →
     ci.arity ≤ as.length →
@@ -299,7 +285,7 @@ theorem go_spec (hG : CoreEnv E B P decls view cfg) {j : Nat} {c : Name} {ci : C
       (∀ d, nameOccurs d (mkAppN (.const c us) as.toArray) = true → S d) →
       MachineFree cfg (mkAppN (.const c us) as.toArray) →
       NatPlain cfg (mkAppN (.const c us) as.toArray) →
-      RecFree decls (mkAppN (.const c us) as.toArray) →
+      RecShaped cfg decls (mkAppN (.const c us) as.toArray) →
       StateOK E B (evalEnvOf view cfg decls) st →
       TrM E B lps Γ Δ (mkAppN (.const c us) as.toArray) t → (∃ U, E[Γ] ⊢ t : U) →
       (as.length < ci.arity → piInst as (Pure.instLevels ci₀.levelParams us ci₀.type) = some T ∧

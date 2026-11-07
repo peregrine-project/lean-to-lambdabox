@@ -60,6 +60,9 @@ tests/regress/expected/quotient/useQuotient.ast       peano   -           constr
 tests/regress/expected/quotient/indPf.ast             peano   --anf=false (FIX 0)
 tests/regress/expected/recursor/useNat.ast            peano   -           constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.zero
 tests/regress/expected/recursor/useList.ast           peano   -           constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.zero
+tests/regress/expected/recursor/useTree.ast           peano   -           constr Nat.succ constr Nat.succ constr Nat.zero
+tests/regress/expected/recursor/useList.meta.ast      peano   -           constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.zero
+tests/regress/expected/recursor/useAcc.ast            peano   -           constr Nat.zero
 tests/regress/expected/recursor/useVec.ast            peano   -           constr RT.B.t
 tests/regress/expected/recursor/useMutual.ast         peano   -           constr RT.B.t
 tests/regress/expected/recursor/useCast.ast           peano   -           constr RT.B.t

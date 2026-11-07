@@ -32,7 +32,7 @@ theorem closed_of_arg {lps : List Name} {n : Nat} {Γ : Metalean.Ctx ζ lps.leng
     {Δ : MLCtx ζ lps.length n} {S : Name → Prop} {tc : TravCtx} {ps : PureState} {as : List Expr}
     (hctx : CtxOK E B lps Γ Δ cfg tc ps)
     (hargs : ∀ a ∈ as, (∀ d, nameOccurs d a = true → S d) ∧ MachineFree cfg a ∧
-      NatPlain cfg a ∧ RecFree decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A)
+      NatPlain cfg a ∧ RecShaped cfg decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A)
     {x : Expr} {x' : LBTerm} (hx : x ∈ as)
     (h : Erases E B lps (evalEnvOf view cfg decls) Γ Δ x x') : closedn 0 x' = true := by
   obtain ⟨-, -, -, -, y, hy, -⟩ := hargs x hx
@@ -45,7 +45,7 @@ theorem closed_of_args {lps : List Name} {n : Nat} {Γ : Metalean.Ctx ζ lps.len
     {Δ : MLCtx ζ lps.length n} {S : Name → Prop} {tc : TravCtx} {ps : PureState}
     {as rest : List Expr} {rest' : List LBTerm} (hctx : CtxOK E B lps Γ Δ cfg tc ps)
     (hargs : ∀ a ∈ as, (∀ d, nameOccurs d a = true → S d) ∧ MachineFree cfg a ∧
-      NatPlain cfg a ∧ RecFree decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A)
+      NatPlain cfg a ∧ RecShaped cfg decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A)
     (hsub : ∀ x ∈ rest, x ∈ as) (hlen : rest.length = rest'.length)
     (hers : ∀ (i : Nat) a a', rest[i]? = some a → rest'[i]? = some a' →
       Erases E B lps (evalEnvOf view cfg decls) Γ Δ a a') :
@@ -72,7 +72,7 @@ theorem visitApp_quot (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
     {ps ps' : PureState} {r : LBTerm}
     (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK decls S)
     (hocc : ∀ d, nameOccurs d e = true → S d) (hmf : MachineFree cfg e) (hnp : NatPlain cfg e)
-    (hrf : RecFree decls e) (hok : StateOK E B (evalEnvOf view cfg decls) st)
+    (hrf : RecShaped cfg decls e) (hok : StateOK E B (evalEnvOf view cfg decls) st)
     (he : TrM E B lps Γ Δ e t) (ht : ∃ T, E[Γ] ⊢ t : T)
     (hrun : (visitApp (m := PureM) fuel e).runPure st tc ⟨decls, view⟩ ps =
       .ok ((r, st'), ps')) :
@@ -89,12 +89,12 @@ theorem visitApp_quot (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
       fun d hd => h d (by simp [nameOccurs, hd])⟩) hocc
   obtain ⟨-, hmfA⟩ := hQ (Q := MachineFree cfg) (fun _ _ h => h) hmf
   obtain ⟨-, hnpA⟩ := hQ (Q := NatPlain cfg) (fun _ _ h => h) hnp
-  obtain ⟨-, hrfA⟩ := hQ (Q := RecFree decls) (fun _ _ h => h) hrf
+  obtain ⟨-, hrfA⟩ := hQ (Q := RecShaped cfg decls) (fun _ _ h => h) hrf
   have hcP := SrcDefeq.findDecl_sub (σ := evalEnvOf view cfg decls) hG.sub hqv
   obtain ⟨η, hB⟩ := hG.prog.lookup_quot hcP
   have htyped := TrM.quot_args_typed hB (by rw [hsp]; exact he) ht
   have hargs : ∀ a ∈ spineArgs e, (∀ d, nameOccurs d a = true → S d) ∧ MachineFree cfg a ∧
-      NatPlain cfg a ∧ RecFree decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A :=
+      NatPlain cfg a ∧ RecShaped cfg decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A :=
     fun a ha => ⟨hoccA a ha, hmfA a ha, hnpA a ha, hrfA a ha, htyped a ha⟩
   have hshape := ProgEnv.quot_shape hG.prog hcP
   cases fuel with
@@ -141,10 +141,10 @@ theorem visitApp_quot (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
       · exact Option.isSome_iff_exists.1 hp
       · cases hk
       · cases hk
-    refine withAppEta_spec (ci := .quotInfo ⟨cval, .ctor⟩) hG hqv
-      (by simp [specialArity, evalEnvOf, hqv, quotEvalArity]) hpk ?_ hfn hctx hsc hargs hok he ht
-      hrun
-    intro lps' n' Γ' Δ' S' st₁ st₁' tc' ps₁ ps₁' r' as hctx' hsc' hargs' hlen' hok' hrun'
+    refine withAppEta_spec (ci := .quotInfo ⟨cval, .ctor⟩) (I := fun _ => True) hG hqv
+      (by simp [specialArity, evalEnvOf, hqv, quotEvalArity]) hpk ?_ hfn hctx hsc hargs hok trivial
+      he ht hrun
+    intro lps' n' Γ' Δ' S' st₁ st₁' tc' ps₁ ps₁' r' as hctx' hsc' hargs' hlen' hok' _ _ hrun'
     beta_reduce at hrun'
     obtain ⟨x0, x1, x2, rest, rfl⟩ : ∃ x0 x1 x2 rest, as = x0 :: x1 :: x2 :: rest := by
       rcases as with _ | ⟨x0, _ | ⟨x1, _ | ⟨x2, rest⟩⟩⟩
@@ -180,10 +180,11 @@ theorem visitApp_quot (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
       · cases hk
       · exact Option.isSome_iff_exists.1 hp
       · cases hk
-    refine withAppEta_spec (ci := .quotInfo ⟨cval, .lift⟩) hG hqv
-      (by simp [specialArity, evalEnvOf, hqv, quotEvalArity]) hpk ?_ hfn hctx hsc hargs hok he ht
-      hrun
-    intro lps' n' Γ' Δ' S' st₁ st₁' tc' ps₁ ps₁' r' as hctx' hsc' hargs' hlen' hok' hrun'
+    refine withAppEta_spec (ci := .quotInfo ⟨cval, .lift⟩) (I := fun _ => True) hG hqv
+      (by simp [specialArity, evalEnvOf, hqv, quotEvalArity]) hpk ?_ hfn hctx hsc hargs hok trivial
+      he ht hrun
+    intro lps' n' Γ' Δ' S' st₁ st₁' tc' ps₁ ps₁' r' as hctx' hsc' hargs' hlen' hok' _ _ hrun'
+
     beta_reduce at hrun'
     obtain ⟨x0, x1, x2, x3, x4, x5, rest, rfl⟩ : ∃ x0 x1 x2 x3 x4 x5 rest,
         as = x0 :: x1 :: x2 :: x3 :: x4 :: x5 :: rest := by

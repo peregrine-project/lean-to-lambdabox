@@ -346,6 +346,7 @@ theorem quot_head_eval (hsub : SubEnv σ.decls P) {e w : Expr} (hev : SrcEval σ
       split at har
       · rename_i cv hcv; cases agree hq hcv
       · rename_i qv hqv; cases agree hq hqv; exact ⟨hqv, by rw [har]; rfl⟩
+      · rename_i rv hrv; cases agree hq hrv
       · obtain ⟨iv, hiv, -⟩ := Option.map_eq_some_iff.1 har
         obtain ⟨d, hd⟩ := casesOn?_defn hiv
         cases agree hq hd
@@ -401,31 +402,36 @@ theorem quot_app_tr (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P) {c : Na
     cases hqk : q.kind <;> rw [hqk] at har <;> simp [quotEvalArity] at har <;> subst har <;> rfl
   exact TrM.wf_app_quot hb (hk ▸ hle) he ht
 
-/-- A spine headed by a constant with a recursor binding evaluates only if it has at least the
-recursor's arity of arguments: by `SrcEval.recIota`, at the arity, or as the head of an
-application. -/
+/-- A spine headed by a constant with a recursor binding evaluates only if the constant is a
+recursor of the evaluation environment, whose arity is Metalean's `recrEnd`: by `SrcEval.eta`, by
+`SrcEval.recIota`, or as the head of an application. -/
 theorem rec_head_eval (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P) {e w : Expr}
     (hev : SrcEval σ e w) :
     ∀ {c : Name} {us : List Level} {bs : List Expr} {ι : Metalean.IndSig}
       {η : Metalean.Head ζ (.inductive ι)} {s : Fin ι.nsorts} {os : List (List (List Nat))},
       e = mkAppN (.const c us) bs.toArray → B c = some (.recr η s os) →
-      ι.recrEnd s ≤ bs.length := by
+      specialArity σ c = some (ι.recrEnd s) := by
   have head : ∀ {c c' : Name} {us us' : List Level} {as bs : List Expr},
       mkAppN (.const c' us') as.toArray = mkAppN (.const c us) bs.toArray → c' = c := by
     intro c c' us us' as bs hx
     rw [mkAppN_eq_foldl, mkAppN_eq_foldl] at hx
     exact (foldl_app_const_inj hx).1
+  have recr : ∀ {c : Name} {ci : ConstantInfo} {ι : Metalean.IndSig}
+      {η : Metalean.Head ζ (.inductive ι)} {s : Fin ι.nsorts} {os : List (List (List Nat))},
+      findDecl σ.decls c = some ci → B c = some (.recr η s os) →
+      specialArity σ c = some (ι.recrEnd s) := by
+    intro c ci ι η s os hc hb
+    obtain ⟨rv, rfl, har⟩ := henv.recr_arity (findDecl_sub hsub hc) hb
+    simp [specialArity, hc, ← har]
   induction hev with
   | beta _ _ _ _ ihf =>
     intro c us bs ι η s os hx hb
-    obtain ⟨bs', rfl, rfl⟩ := spine_app hx.symm
-    have := ihf rfl hb
-    simp only [List.length_append, List.length_singleton]; omega
+    obtain ⟨bs', -, rfl⟩ := spine_app hx.symm
+    exact ihf rfl hb
   | appCong _ _ _ _ ihf =>
     intro c us bs ι η s os hx hb
-    obtain ⟨bs', rfl, rfl⟩ := spine_app hx.symm
-    have := ihf rfl hb
-    simp only [List.length_append, List.length_singleton]; omega
+    obtain ⟨bs', -, rfl⟩ := spine_app hx.symm
+    exact ihf rfl hb
   | delta hu =>
     intro c us bs ι η s os hx hb
     obtain ⟨-, rfl, -⟩ := spine_const hx.symm
@@ -442,18 +448,7 @@ theorem rec_head_eval (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P) {e w 
     cases head hx
     unfold EvalEnv.etaSpine? at he
     split at he
-    · rename_i ar _ har
-      unfold specialArity at har
-      split at har
-      · rename_i cv hcv
-        obtain ⟨_, _, _, _, _, hB, -⟩ := henv.lookup_ctor (findDecl_sub hsub hcv)
-        rw [hB] at hb; cases hb
-      · rename_i qv hqv
-        obtain ⟨_, hB⟩ := henv.lookup_quot (findDecl_sub hsub hqv)
-        rw [hB] at hb; cases hb
-      · obtain ⟨iv, hiv, -⟩ := Option.map_eq_some_iff.1 har
-        obtain ⟨d, hd⟩ := casesOn?_defn hiv
-        exact (defn_not_special henv hsub hd hb rfl).elim
+    · exact recr ‹_› hb
     · cases he
   | ctor hc =>
     intro c us bs ι η s os hx hb
@@ -470,20 +465,10 @@ theorem rec_head_eval (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P) {e w 
     cases head hx
     obtain ⟨_, hB⟩ := henv.lookup_quot (findDecl_sub hsub hc)
     rw [hB] at hb; cases hb
-  | recIota hcr hall hcT hblk hni _ _ hps hms hmins =>
+  | recIota hcr =>
     intro c us bs ι η s os hx hb
-    rw [mkAppN_eq_foldl, mkAppN_eq_foldl] at hx
-    obtain ⟨rfl, -, rfl⟩ := foldl_app_const_inj hx
-    obtain ⟨ι', η', s', lps₀, Is, Cs, Rs, orders, ⟨⟨_, _, _, _, hIB⟩, -⟩, rfl, -, -, -, hBc, -, -⟩ :=
-      RecWhred.rec_block henv hsub hcr hall hcT hblk
-    obtain ⟨-, -, -, -, -, -, hRnp, hRnm, hRmin, hRni⟩ := hIB.recr s'
-    rw [hBc] at hb; cases hb
-    have hre : ∀ (ι₀ : Metalean.IndSig) (s₀ : Fin ι₀.nsorts), ι₀.recrEnd s₀ =
-        ι₀.nparams + ι₀.nsorts + Fin.sum ι₀.nctors + ι₀.nindices s₀ + 1 := fun _ _ => rfl
-    rw [hre, show (List.ofFn fun t => ι.nctors t).sum = (List.ofFn ι.nctors).sum from rfl] at *
-    simp only [List.length_append, List.length_singleton, hps, hms, hmins, hRnp, hRnm, hRmin,
-      CasesWhred.fin_sum_eq, ← hRni, hni]
-    omega
+    cases head hx
+    exact recr hcr hb
   | zeta | proj | projProp | lit | mdata =>
     intro c us bs ι η s os hx
     exact absurd hx (ne_mkAppN_const fun _ _ h => by cases h)
@@ -493,19 +478,25 @@ theorem rec_head_eval (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P) {e w 
     refine absurd hx (ne_mkAppN_const fun _ _ h => ?_)
     cases e <;> simp [SrcAtom, Expr.getAppFn] at ha h
 
-/-- An application whose head is an evaluated recursor spine: the spine has at least its arity of
-arguments, so the application translates to the application of the translations. -/
+/-- An application with no short spine whose head is an evaluated recursor spine: the spine has at
+least its arity of arguments, so the application translates to the application of the
+translations. -/
 theorem rec_app_tr (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P) {c : Name}
     {us : List Level} {bs : List Expr} {a w : Expr} {ι : Metalean.IndSig}
     {η : Metalean.Head ζ (.inductive ι)} {s : Fin ι.nsorts} {os : List (List (List Nat))}
     {t T : Metalean.Expr ζ lps.length 0}
     (hb : B c = some (.recr η s os)) (hf : SrcEval σ (mkAppN (.const c us) bs.toArray) w)
+    (hns : ¬ ShortSpine σ (.app (mkAppN (.const c us) bs.toArray) a))
     (he : TrM E B lps .nil [] (.app (mkAppN (.const c us) bs.toArray) a) t)
     (ht : E[.nil] ⊢ t : T) :
     ∃ f' a', TrM E B lps .nil [] (mkAppN (.const c us) bs.toArray) f' ∧
       TrM E B lps .nil [] a a' ∧ t = .app f' a' ∧ (∃ F, E[.nil] ⊢ f' : F) ∧
-      ∃ A, E[.nil] ⊢ a' : A :=
-  RecWhred.TrM.wf_app_recr hb (rec_head_eval henv hsub hf rfl hb) he ht
+      ∃ A, E[.nil] ⊢ a' : A := by
+  have hsa := rec_head_eval henv hsub hf rfl hb
+  have hle : ι.recrEnd s ≤ bs.length := Nat.le_of_not_lt fun hlt => hns ⟨c, us, _, by
+      change (mkAppN (.const c us) bs.toArray).getAppFn = _; exact getAppFn_mkAppN_const c us _,
+    hsa, by rw [getAppNumArgs_app, getAppNumArgs_mkAppN_const]; omega⟩
+  exact RecWhred.TrM.wf_app_recr hb hle he ht
 
 /-- A quotient spine blocks application congruence. -/
 theorem blocksCong_quot {e : Expr} {c : Name} {us : List Level} {qv : QuotVal}
@@ -547,7 +538,7 @@ theorem case_beta (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.dec
         · by_cases hr : ∃ (ι : Metalean.IndSig) (η : Metalean.Head ζ (.inductive ι))
               (s : Fin ι.nsorts) (os : List (List (List Nat))), bb = .recr η s os
           · obtain ⟨ι, η, s, os, rfl⟩ := hr
-            exact rec_app_tr henv hsub hb hfev he ht
+            exact rec_app_tr henv hsub hb hfev hns he ht
           · exact (hlam c us bs bb rfl hb hs (fun η k h => hq ⟨η, k, h⟩)
               fun ι η s os h => hr ⟨ι, η, s, os, h⟩).elim
       · exact TrM.wf_app hE nil_ok hsp he ht
@@ -690,7 +681,7 @@ theorem case_appCong (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.
       by_cases hr : ∃ (ι : Metalean.IndSig) (η : Metalean.Head ζ (.inductive ι))
           (s : Fin ι.nsorts) (os : List (List (List Nat))), bb = .recr η s os
       · obtain ⟨ι, η, s, os, rfl⟩ := hr
-        obtain ⟨f'', a'', hf', ha'', h₁, h₂, h₃⟩ := rec_app_tr henv hsub hb hfev he ht
+        obtain ⟨f'', a'', hf', ha'', h₁, h₂, h₃⟩ := rec_app_tr henv hsub hb hfev hns he ht
         exact general f'' a'' hf' ha'' h₁ h₂ h₃
       obtain ⟨hk, vs, rfl, hall⟩ := ihf.2 c us bs bb rfl hb hs (fun η k h => hq ⟨η, k, h⟩)
         (fun ι η s os h => hr ⟨ι, η, s, os, h⟩) (spine_cond hns)
@@ -1057,15 +1048,19 @@ theorem case_zeta (henv : ProgEnv P ζ E B) (hE : EnvWF E) {x : Name} {Ty val va
   | special => exact absurd hx (ne_mkAppN_const fun _ _ h => by cases h)
   | _ => cases hx
 
-/-- A constant with the arity of a constructor or recognized `casesOn` is one. -/
+/-- A constant with an arity is a constructor, a recognized `casesOn`, an erased quotient constant
+or a recursor. -/
 theorem specialArity_some {c : Name} {ar : Nat} (h : specialArity σ c = some ar) :
     (∃ cv, findDecl σ.decls c = some (.ctorInfo cv) ∧ ar = cv.numParams + cv.numFields) ∨
       (∃ iv, σ.casesOn? c = some iv) ∨
-      ∃ qv, findDecl σ.decls c = some (.quotInfo qv) ∧ quotEvalArity qv.kind = some ar := by
+      (∃ qv, findDecl σ.decls c = some (.quotInfo qv) ∧ quotEvalArity qv.kind = some ar) ∨
+      ∃ rv, findDecl σ.decls c = some (.recInfo rv) ∧
+        ar = rv.numParams + rv.numMotives + rv.numMinors + rv.numIndices + 1 := by
   unfold specialArity at h
   split at h
   · cases h; exact .inl ⟨_, ‹_›, rfl⟩
-  · exact .inr (.inr ⟨_, ‹_›, h⟩)
+  · exact .inr (.inr (.inl ⟨_, ‹_›, h⟩))
+  · cases h; exact .inr (.inr (.inr ⟨_, ‹_›, rfl⟩))
   · obtain ⟨iv, hiv, -⟩ := Option.map_eq_some_iff.1 h
     exact .inr (.inl ⟨iv, hiv⟩)
 
@@ -1074,20 +1069,23 @@ constructor with fewer arguments than its arity, none of which `SpineOK` covers.
 theorem spineOK_eta (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P) {c : Name}
     {us : List Level} {as : List Expr} {e' : Expr} (he : σ.etaSpine? c us as = some e') :
     SpineOK σ E B lps (mkAppN (.const c us) as.toArray) e' := by
-  intro c' us' bs b h hb hs hq _ hct
+  intro c' us' bs b h hb hs hq hr hct
   rw [mkAppN_eq_foldl, mkAppN_eq_foldl] at h
   obtain ⟨rfl, rfl, rfl⟩ := foldl_app_const_inj h
   unfold EvalEnv.etaSpine? at he
   split at he
   · rename_i ar _ har
     split at he
-    · rcases specialArity_some har with ⟨cv, hcv, rfl⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, -⟩
+    · rcases specialArity_some har with ⟨cv, hcv, rfl⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, -⟩ | ⟨rv, hrv, -⟩
       · have := hct cv hcv; omega
       · obtain ⟨d, hd⟩ := casesOn?_defn hiv
         exact (defn_not_special henv hsub hd hb hs).elim
       · obtain ⟨η, hB⟩ := henv.lookup_quot (findDecl_sub hsub hqv)
         rw [hB] at hb; cases hb
         exact (hq _ _ rfl).elim
+      · obtain ⟨ι, η, s, os, hB, -⟩ := henv.lookup_recr (findDecl_sub hsub hrv)
+        rw [hB] at hb; cases hb
+        exact (hr _ _ _ _ rfl).elim
     · cases he
   · cases he
 
@@ -1609,6 +1607,65 @@ theorem eta_quot (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decl
     exact eta_lams hE henv.metaOrderOK (.const c us) rfl _ nil_ok htr ht hY hTY hl
   · cases he
 
+/-! ## Recursors -/
+
+/-- The η-rule on a recursor spine with missing arguments, as `eta_quot`: the translation is the
+recursor's η-term applied to the arguments, which is the image of the recursor at its own universe
+parameters, instantiated at the spine's. Reference: DV-23, DV-30. -/
+theorem eta_recr (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
+    {c : Name} {us : List Level} {as : List Expr} {e' : Expr} {rv : RecursorVal}
+    (hc : findDecl σ.decls c = some (.recInfo rv)) (he : σ.etaSpine? c us as = some e') :
+    Sound E B lps (mkAppN (.const c us) as.toArray) e' := by
+  intro t T htr ht
+  have hcP := findDecl_sub hsub hc
+  have hname : rv.name = c := (findDecl_eq_some hcP).2
+  have hnd : rv.levelParams.Nodup := henv.levelParams_nodup (findDecl_eq_some hcP).1
+  obtain ⟨ι, η, s, os, hB, har⟩ := henv.lookup_recr hcP
+  have hsa : specialArity σ c = some (ι.recrEnd s) := by simp [specialArity, hc, har]
+  unfold EvalEnv.etaSpine? at he
+  rw [hc, hsa] at he
+  simp only at he
+  split at he
+  · rename_i hlt
+    obtain ⟨ty, hpi, hl⟩ := Option.bind_eq_some_iff.1 he
+    obtain ⟨as', hlen, hargs, hsat⟩ := TrM.special_inv hB rfl htr
+    obtain ⟨l, us', ls, mo, t₀, hRL, hls, hmo, hrt, rfl⟩ := satTr_recrEta_inv hsat (by omega)
+    obtain ⟨-, -, Tc, tc, hTc, htc, htcT⟩ := henv.lookup hE hcP
+    have htc' : TrM E B rv.levelParams .nil [] (mkAppN (.const c (rv.levelParams.map .param))
+        ([] : List Expr).toArray) tc := by rw [← hname]; exact htc
+    obtain ⟨as₁, hlen₁, -, hsat₁⟩ := TrM.special_inv hB rfl htc'
+    obtain rfl : as₁ = [] := List.eq_nil_of_length_eq_zero (by simpa using hlen₁.symm)
+    obtain ⟨l₁, us₁, ls₁, -, -, hRL₁, hls₁, -, -, -⟩ :=
+      satTr_recrEta_inv hsat₁ (by simp [Metalean.IndSig.recrEnd])
+    obtain ⟨ls', hus⟩ := recr_spine_levels hRL hls hRL₁ hls₁
+    -- the image of the recursor at its own parameters, instantiated at the spine's levels
+    have hinst := TrM.instLevels hus htc'
+    have hconst : Pure.instLevels rv.levelParams us
+        (mkAppN (.const c (rv.levelParams.map .param)) ([] : List Expr).toArray) =
+        mkAppN (.const c us) ([] : List Expr).toArray := by
+      show Expr.const c _ = Expr.const c us
+      rw [params_instLevel hnd (TrLevels_get hus).1]
+    rw [hconst] at hinst
+    obtain ⟨as₂, hlen₂, -, hsat₂⟩ := TrM.special_inv hB rfl hinst
+    obtain rfl : as₂ = [] := List.eq_nil_of_length_eq_zero (by simpa using hlen₂.symm)
+    obtain ⟨l₂, us₂, ls₂, mo₂, t₂, hRL₂, hls₂, hmo₂, hrt₂, htc₂⟩ :=
+      satTr_recrEta_inv hsat₂ (by simp [Metalean.IndSig.recrEnd])
+    obtain ⟨rfl, rfl⟩ := TrDet.RecrLevels.det hRL hRL₂
+    obtain rfl := TrDet.TrLevels.det hls hls₂
+    obtain rfl : mo = mo₂ := funext fun t => funext fun c =>
+      Option.some.inj ((hmo t c).symm.trans (hmo₂ t c))
+    rw [hrt] at hrt₂
+    injection hrt₂ with h0
+    subst h0
+    have hTc' := TrM.instLevels hus hTc
+    have htcT' := Metalean.Defeq.instLevel (ℓ := rv.levelParams.length) ls' htcT
+    rw [htc₂] at htcT'
+    obtain ⟨_, hreg⟩ := htcT'.regular
+    obtain ⟨Y, hY, hTY⟩ := piInst_tr hE henv.metaOrderOK as hTc' htcT'
+      (Metalean.IsType.typeEq ⟨_, hreg⟩) (CasesWhred.forall₂_of_getElem? hlen hargs) ht hpi
+    exact eta_lams hE henv.metaOrderOK (.const c us) rfl _ nil_ok htr ht hY hTY hl
+  · cases he
+
 /-- An η-expanded head has an arity. -/
 theorem etaSpine?_special {c : Name} {us : List Level} {as : List Expr} {e' : Expr}
     (he : σ.etaSpine? c us as = some e') : ∃ ar, specialArity σ c = some ar := by
@@ -1717,11 +1774,12 @@ theorem sound_of (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decl
   | eta he =>
     refine ⟨?_, spineOK_eta henv hsub he⟩
     obtain ⟨ar, har⟩ := etaSpine?_special he
-    rcases specialArity_some har with ⟨cv, hcv, -⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, -⟩
+    rcases specialArity_some har with ⟨cv, hcv, -⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, -⟩ | ⟨rv, hrv, -⟩
     · exact eta_ctor henv hE hsub hcv
         (henv.levelParams_nodup (findDecl_eq_some (findDecl_sub hsub hcv)).1) he
     · exact eta_casesOn henv hE hsub hiv he
     · exact eta_quot henv hE hsub hqv he
+    · exact eta_recr henv hE hsub hrv he
   | ctor hc _ hlen' _ ih =>
     exact case_ctor henv hE hsub hc hlen' fun i a v h₁ h₂ => (ih i a v h₁ h₂).1
   | casesIota hcs hlen hm _ hcv halt _ ihm ihb =>
