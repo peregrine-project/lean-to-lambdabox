@@ -105,7 +105,8 @@ have the shape `recShapeInFragment` admits (a mutual or indexed block, eliminati
 `Prop`, an induction hypothesis with arguments or before a non-recursive field); this is checked
 only for a recursor the closure reads, not for one it adds as a companion; an `unsafe` or
 `partial` definition, or a definition or an opaque with an `_unsafe_rec` companion (a `partial def` is an opaque whose value is a dummy, compiled through its
-companion); an `unsafe` opaque, axiom, inductive or constructor; an `implemented_by` target of a definition, an
+companion), except, under `structural := .kernel`, a definition by structural recursion
+(`isStructuralRecursive`), which both paths erase through its kernel definition; an `unsafe` opaque, axiom, inductive or constructor; an `implemented_by` target of a definition, an
 opaque or an axiom; a nested inductive, or one whose sort is excluded by `sortDecided`; an
 `@[extern]` constructor under `extern := .preferAxiom`. Reference: the declarations Metalean's
 loader declines (`Metalean/Checker/Slow/Loader.lean:129-139`), and the eraser's remapping of
@@ -122,7 +123,8 @@ def declExclusion (view : EnvView) (cfg : ErasureConfig) : ConstantInfo → Exce
       throw (.outOfFragment s!"recursor {r.name}, of a mutual or indexed block, eliminating only into Prop, or with an induction hypothesis that takes arguments or precedes a field")
   | .defnInfo d => do
     unless d.safety matches .safe do throw (.outOfFragment s!"unsafe or partial {d.name}")
-    if (view.find? (Compiler.mkUnsafeRecName d.name)).isSome then
+    if (view.find? (Compiler.mkUnsafeRecName d.name)).isSome &&
+        !(cfg.structural == .kernel && isStructuralRecursive (.defnInfo d)) then
       throw (.outOfFragment s!"recursive definition {d.name}")
     if (view.implementedBy? d.name).isSome then
       throw (.outOfFragment s!"{d.name} has an implemented_by target")
@@ -275,7 +277,8 @@ the traversal keeps as a constant (`recStaysConstant`: a nested block, `Nat` or 
 of the constructor's type) or whose shape `recShapeInFragment` does not admit (a mutual or indexed
 block, elimination only into `Prop`, an induction hypothesis that takes arguments or precedes a
 field); a string literal; an
-`unsafe`/`partial` constant, or one with an `_unsafe_rec` companion or an `implemented_by` target; a
+`unsafe`/`partial` constant, or one with an `_unsafe_rec` companion (except, under
+`structural := .kernel`, a definition by structural recursion) or an `implemented_by` target; a
 nested or unsafe inductive; an `@[extern]` constructor under `extern := .preferAxiom`; under
 `nat := .machine` a Nat literal, `Nat.zero`, `Nat.succ`, `Int.ofNat`, `Int.negSucc`, `Nat.casesOn`
 or `Int.casesOn`; a recognized `casesOn` on an inductive with a constructor field that is an index
