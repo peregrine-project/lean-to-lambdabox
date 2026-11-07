@@ -7,3 +7,4 @@
 # statement definition or from a proved theorem of `statements` (tools/Report.lean); no root may
 # be reachable from another root.
 EraseProof.erase_correct FINAL
+EraseProof.Steps.visitRec_sat EraseProof.Steps.stepsB_rec

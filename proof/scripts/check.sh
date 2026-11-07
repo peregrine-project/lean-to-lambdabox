@@ -110,7 +110,10 @@ run() {
 
 build_root() ( cd "$ROOT" && lake build LeanToLambdaBox LeanToLambdaBox.Metalean )
 build_proof() ( cd "$PROOF" && lake build )
-replay() ( cd "$PROOF" && lake env leanchecker LeanToLambdaBox EraseProof )
+# leanchecker replays every module in a task of its own, each over a fresh import of the module's
+# dependencies (Mathlib included); the thread count bounds how many such environments are live at
+# once, and so the replay's memory.
+replay() ( cd "$PROOF" && LEAN_NUM_THREADS="${REPLAY_THREADS:-3}" lake env leanchecker LeanToLambdaBox EraseProof )
 report() (
   cd "$PROOF" &&
     lake env lean --run tools/Report.lean ${final[@]+"${final[@]}"} ${metarocq[@]+"${metarocq[@]}"}
