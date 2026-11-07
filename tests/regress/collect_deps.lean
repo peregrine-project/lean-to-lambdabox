@@ -18,8 +18,8 @@ entries S-18, S-29); `#erase` routes on it (S-21):
   `casesOn`: the closure has `B.casesOn` and `B.rec`, not what the value of `B.casesOn` reads),
   `Eq.casesOn` on `Eq.refl` and on the theorem `hEq` (whose value is not read) are in the
   fragment; so are a literal under `nat := .peano`, a projection, a mention of `Unit`, a mutual
-  block and a root-level inductive with the kername of its block; outside it are a literal and
-  `Nat.zero` under `nat := .machine`, a recursor in a definition and alone, a `partial def`, an
+  block, a root-level inductive with the kername of its block, and a recursor in a definition and
+  alone (S-41); outside it are a literal and `Nat.zero` under `nat := .machine`, a `partial def`, an
   `implemented_by` target, a `casesOn` with an index field, a `casesOn` on `PUnit`, and any
   inductive under `remove_irrel_constr_args`; two blocks with one block name, and a block whose
   name is the kername of a definition, are `nameCollision`;
@@ -220,7 +220,7 @@ info: ["B.neg B.f: ok [F.B.rec, F.B.casesOn, F.B.t, F.B.f, F.B, F.B.neg]",
 /--
 info: ["isZero 2, peano: ok", "isZero 2, machine: outOfFragment Nat literal under nat := .machine",
   "isZero Nat.zero, machine: outOfFragment Nat.zero under nat := .machine", "P2.mk projection: ok",
-  "recNeg: outOfFragment recursor F.B.rec", "B.rec: outOfFragment recursor F.B.rec",
+  "recNeg: ok [F.B.rec, F.B.t, F.B.f, F.B, F.recNeg]", "B.rec: ok [F.B.t, F.B.f, F.B, F.B.rec]",
   "spin: outOfFragment partial definition F.spin", "slowNeg: outOfFragment F.slowNeg has an implemented_by target",
   "ixVal: outOfFragment F.Ix.casesOn on a constructor with an index field", "unitArg (): ok",
   "unitCase: outOfFragment cases or projection on PUnit, whose sort may be Prop or not", "mz: ok",

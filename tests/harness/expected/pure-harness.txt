@@ -2,7 +2,7 @@ Defects/and_elim.ast: pure ok; Meta ok; outputs differ; #erase = pure; oracle 72
   oracle: casesInfo? And.casesOn | pure none | Meta some And arity 5 discr 3 motive 2 alts [4, 5) [And.intro/2]
 Defects/biglit.ast: out of the fragment: Nat literal under nat := .machine
 Defects/collide.ast: out of the fragment: recursive definition Nat.add
-Defects/eq_cast.ast: out of the fragment: recursor Eq.rec
+Defects/eq_cast.ast: out of the fragment: recursor Eq.rec, of a mutual or indexed block, eliminating only into Prop, or with an induction hypothesis that takes arguments or precedes a field
 Defects/implemented_by.ast: out of the fragment: Defects.fastId has an implemented_by target
 Defects/index_field.ast: out of the fragment: Defects.Foo.casesOn on a constructor with an index field
 Defects/irreducible_alias.ast: pure ok; Meta ok; outputs differ; #erase = pure; oracle 27 calls, 1 differ
@@ -254,7 +254,7 @@ PortProbe/predOr0.default.ast: out of the fragment: Nat literal under nat := .ma
 PortProbe/predOr0.peano.ast: out of the fragment: recursive definition Nat.bitwise
 PortProbe/predOr0.prune.ast: out of the fragment: Nat literal under nat := .machine
 PortProbe/ptEqN.default.ast: out of the fragment: Nat literal under nat := .machine
-PortProbe/ptEqN.peano.ast: out of the fragment: recursor Bool.rec
+PortProbe/ptEqN.peano.ast: out of the fragment: recursive definition Nat.beq
 PortProbe/ptEqN.prune.ast: out of the fragment: Nat literal under nat := .machine
 PortProbe/secondN.default.ast: out of the fragment: Nat literal under nat := .machine
 PortProbe/secondN.peano.ast: out of the fragment: recursive definition Nat.bitwise
