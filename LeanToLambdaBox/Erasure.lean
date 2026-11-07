@@ -443,13 +443,28 @@ def brecOnInduct? : Name → Option Name
   | _ => none
 
 /--
+Whether some constant `c` occurring in an expression satisfies `p c`. A structural walk over `Expr`,
+which the kernel evaluates (unlike `Expr.getUsedConstants`, which goes through the opaque
+`foldConsts`); it visits the same subterms.
+-/
+def usesConst (p : Name → Bool) : Expr → Bool
+  | .const c _ => p c
+  | .app f a => usesConst p f || usesConst p a
+  | .lam _ t b _ => usesConst p t || usesConst p b
+  | .forallE _ t b _ => usesConst p t || usesConst p b
+  | .letE _ t v b _ => usesConst p t || usesConst p v || usesConst p b
+  | .mdata _ e => usesConst p e
+  | .proj _ _ e => usesConst p e
+  | _ => false
+
+/--
 Whether a declaration is a definition by structural recursion: a definition whose value refers to
 a `brecOn` (`brecOnInduct?`), which is how Lean's structural recursion (`Lean.Elab.Structural`)
 writes it. A definition by well-founded recursion refers to `WellFounded.fix` instead, and a
 `partial` definition is an opaque.
 -/
 def isStructuralRecursive : ConstantInfo → Bool
-  | .defnInfo d => d.value.getUsedConstants.any (brecOnInduct? · |>.isSome)
+  | .defnInfo d => usesConst (brecOnInduct? · |>.isSome) d.value
   | _ => false
 
 section Traversal
@@ -1346,7 +1361,7 @@ def declInfoCore (cfg : ErasureConfig) (n : Name) : CoreM (Option ConstantInfo) 
           !recStaysConstant cfg.nat r ivs cvs
         | _ => false
       if isStructuralRecursive ci && !(cfg.csimp && csimpTarget) &&
-          ci.value!.getUsedConstants.all (fun c => (brecOnInduct? c).all recErased) then
+          !usesConst (fun c => !(brecOnInduct? c).all recErased) ci.value! then
         return some ci
   Compiler.LCNF.getDeclInfo? n
 
