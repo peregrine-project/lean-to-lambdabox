@@ -1,0 +1,1 @@
+(attributes_config (((MPdot (MPfile ()) "List") "mapTR") ((MPdot (MPfile ()) "Unit") "unit") ((MPdot (MPdot (MPfile ()) "Bool") "Internal") "not") ((MPdot (MPfile ()) "Bool") "beq") ((MPdot (MPfile ()) "Bool") "decEq")) () () () ())

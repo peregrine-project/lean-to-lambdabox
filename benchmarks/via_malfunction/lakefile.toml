@@ -1,4 +1,5 @@
 name = "from_lean_via_malfunction"
+packagesDir = "../../.lake/packages"
 
 [[require]]
 name = "from_lean_common"
