@@ -215,10 +215,12 @@ What the statements and the checks rely on without proof:
 - **Reference artifact:** PCUIC's fixpoints `tFix`, `eval_fix`
   (`pcuic/theories/PCUICWcbvEval.v:273`) and `erases_tFix` (`erasure/theories/Extract.v:122`).
 - **What differs:** Not applicable here: no source program of the fragment is recursive.
-  Metalean's environment has no recursive definitions (recursion goes through recursors), and the
-  fragment test excludes every definition with a compiled recursive companion, so the recursive
-  branch of the eraser's `visitMutual` (`Erasure.isRecursiveDecl`) is not reached on the pure
-  path for an input of the fragment.
+  Metalean's environment has no recursive definitions (recursion goes through recursors). The
+  fragment test excludes every definition with a compiled recursive companion except, under
+  `structural := .kernel`, a definition by structural recursion, whose kernel definition recurses
+  through `T.brecOn` and the recursor and does not mention itself. So the recursive branch of the
+  eraser's `visitMutual` (`Erasure.isRecursiveDecl`) is not reached on the pure path for an input
+  of the fragment.
 - **Why it is forced:** not applicable: in the lean4lean experiment recursive constants were in
   the fragment, modelled as fixpoints; Metalean has none to model.
 - **What was considered instead:** dropping the id, which would leave the shipping citations
@@ -445,14 +447,18 @@ What the statements and the checks rely on without proof:
   classes: recursors that a read expression names other than those of a single inductive without
   indices that eliminates into every sort and whose induction hypotheses take no arguments and are
   about the last fields (`EraseProof.RecInFragment`; `Erasure.recShapeInFragment`), and those the
-  eraser keeps as constants (`Erasure.recStaysConstant`), recursive definitions (structural or
-  well-founded: every definition
-  with a compiled `_unsafe_rec` companion), `partial`, `unsafe` and `implemented_by` constants, nested inductives, string
+  eraser keeps as constants (`Erasure.recStaysConstant`), recursive definitions (every definition
+  with a compiled `_unsafe_rec` companion, except, under `structural := .kernel`, a definition by
+  structural recursion, `Erasure.isStructuralRecursive`; a mutual structural block, whose kernel
+  definitions share `all`, is admitted by the test but not by `EraseProof.ProgEnv.defn`, so the
+  theorem says nothing about it), `partial`, `unsafe` and `implemented_by` constants, nested inductives, string
   literals, Nat literals and Nat or Int constructors under `nat := .machine`, `casesOn` on a
   constructor with an index field, eliminations of an inductive whose sort may be both `Prop` and
   not `Prop`, `remove_irrel_constr_args`, metavariables. On the corpus (294 `#erase` calls), 225
   are in the fragment, 66 out (20 of them recursive definitions, one of which, `Defects.log2`, is
-  defined by well-founded recursion) and 3 are rejected for a name collision.
+  defined by well-founded recursion) and 3 are rejected for a name collision; with
+  `structural := .kernel` as the default, 233 are in, 57 out and 4 rejected for a name
+  collision.
 - **Why it is forced:** `#erase` sends an input outside the fragment to the `Meta` path
   (`Erasure.route`, `LeanToLambdaBox/Erasure/Entry.lean:278-282`), `CoreM` code about which
   nothing is proved, and some of the excluded constructs have no Metalean counterpart (nested

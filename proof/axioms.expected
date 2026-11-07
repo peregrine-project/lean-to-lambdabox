@@ -91,7 +91,7 @@ EraseProof.Test.NV1.negVal_run propext,Classical.choice,Quot.sound
 EraseProof.Test.NV1.notSpecial_bvar propext
 EraseProof.Test.NV1.notSpecial_const propext
 EraseProof.Test.NV1.ok_of propext,Classical.choice,Quot.sound
-EraseProof.Test.NV1.phaseD propext
+EraseProof.Test.NV1.phaseD propext,Classical.choice,Quot.sound
 EraseProof.Test.NV1.plainD propext,Quot.sound
 EraseProof.Test.NV1.readD propext
 EraseProof.Test.NV1.readExpr_D propext

@@ -132,13 +132,13 @@ theorem phaseD : ∀ ci ∈ D, PhaseIDecl view cfg D ci := by
   intro ci hci
   rcases mem_D hci with rfl | rfl | rfl | rfl | rfl | rfl
   · exact .inl ⟨`B, B_ind, rfl, casesOnD, rfl⟩
-  · exact ⟨rfl, rfl, rfl⟩
+  · exact ⟨rfl, .inl rfl, rfl⟩
   · exact ⟨rfl, fun _ => rfl⟩
   · exact ⟨rfl, fun _ => rfl⟩
   · refine ⟨rfl, rfl, ⟨0, .succ .zero, rfl, .inr (.inl rfl)⟩, fun _ cn hcn cv hcv => ?_⟩
     simp only [B_ind, List.mem_cons, List.not_mem_nil, or_false] at hcn
     rcases hcn with rfl | rfl <;> cases hcv <;> rfl
-  · exact ⟨rfl, rfl, rfl⟩
+  · exact ⟨rfl, .inl rfl, rfl⟩
 
 /-- The term and the read expressions are plain. -/
 theorem plainD : PlainExpr cfg e ∧ ∀ ci ∈ D, ∀ x, ReadExpr D ci x → PlainExpr cfg x := by

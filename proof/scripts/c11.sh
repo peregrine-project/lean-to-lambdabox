@@ -45,6 +45,7 @@ tests/regress/expected/entry_route/nvk.ast            default -           constr
 tests/regress/expected/entry_route/useMN.ast          peano   -           constr Nat.zero
 tests/regress/expected/alt_type_pure/alias.ast        peano   -           constr ATP.B.t
 tests/regress/expected/alt_type_pure/fam.ast          peano   -           constr ATP.B.t
+tests/regress/expected/alt_type_pure/sel.ast          peano   -           constr ATP.B.t
 tests/regress/expected/arity_type/t.ast               peano   -           constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.zero
 tests/regress/expected/prop_elim_pure/or.ast          peano   --anf=false (FIX 0)
 tests/regress/expected/prop_elim_pure/ex.ast          peano   --anf=false (FIX 0)
@@ -77,6 +78,7 @@ tests/regress/expected/structural/useLength.ast       peano   -           constr
 tests/regress/expected/structural/useMap.ast          peano   -           constr ST.B.t
 tests/regress/expected/structural/useEv.ast           peano   -           constr Bool.false
 tests/regress/expected/structural/usePairs.ast        peano   -           constr Nat.succ constr Nat.succ constr Nat.zero
+tests/regress/expected/structural/usePairs2.ast       peano   -           constr Nat.succ constr Nat.succ constr Nat.zero
 tests/regress/expected/structural/useGet.ast          peano   -           constr ST.B.t
 tests/regress/expected/peano_literal/small.ast        peano   -           constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.zero
 EOF

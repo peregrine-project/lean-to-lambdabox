@@ -234,7 +234,9 @@ theorem declExclusion_ok {view : EnvView} {cfg : ErasureConfig} {ci : ConstantIn
       recStaysConstant cfg.nat R (recViewIvs view R) (recViewCvs view (recViewIvs view R)) = false ∧
       recShapeInFragment R (recViewIvs view R) (recViewCvs view (recViewIvs view R)) = true) ∧
     (∀ d, ci = .defnInfo d → d.safety = .safe ∧
-      view.find? (Compiler.mkUnsafeRecName d.name) = none ∧ view.implementedBy? d.name = none) ∧
+      (view.find? (Compiler.mkUnsafeRecName d.name) = none ∨
+        (cfg.structural == .kernel && isStructuralRecursive (.defnInfo d)) = true) ∧
+      view.implementedBy? d.name = none) ∧
     (∀ o, ci = .opaqueInfo o → o.isUnsafe = false ∧
       view.find? (Compiler.mkUnsafeRecName o.name) = none ∧ view.implementedBy? o.name = none) ∧
     (∀ a, ci = .axiomInfo a → a.isUnsafe = false ∧ view.implementedBy? a.name = none) ∧
@@ -271,8 +273,12 @@ theorem declExclusion_ok {view : EnvView} {cfg : ErasureConfig} {ci : ConstantIn
     dsimp only at h
     obtain ⟨h2, h⟩ := ite_ok_else h thr
     obtain ⟨h3, -⟩ := ite_ok_else h thr'
-    refine ⟨?_, not_isSome h2, not_isSome h3⟩
-    revert h1; cases d.safety <;> simp
+    refine ⟨?_, ?_, not_isSome h3⟩
+    · revert h1; cases d.safety <;> simp
+    · cases hf : (view.find? (Compiler.mkUnsafeRecName d.name)).isSome
+      · exact .inl (Option.not_isSome_iff_eq_none.mp (by simp [hf]))
+      · right
+        simpa [hf] using h2
   | opaqueInfo o =>
     rw [declExclusion] at h
     refine ⟨nofun, nofun, fun o' ho => ?_, nofun, nofun, nofun⟩
@@ -1417,8 +1423,16 @@ theorem collectDeps_spec {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds �
       exact covIn _ (hns _ ((closureStep_spec hcs').2.2.2.2.2.2.1 cv rfl))
     · subst hR
       exact covIn n (hr.recr_all hci n hn)
-  · obtain ⟨xs, hxs, -⟩ := hr.read hci hx
-    exact (exprConsts_ok hxs).2.2
+  · rcases hx with hx | ⟨d, rfl, rfl⟩
+    · obtain ⟨xs, hxs, -⟩ := hr.read hci hx
+      exact (exprConsts_ok hxs).2.2
+    · have hP : findDecl P (ConstantInfo.defnInfo d).name = some (.defnInfo d) := by
+        obtain ⟨z, hz⟩ := Option.isSome_iff_exists.1
+          (findDecl_isSome_iff.2 (List.mem_map_of_mem (hr.sub _ hci)))
+        obtain ⟨hz1, hz2⟩ := findDecl_eq_some hz
+        rw [hz, eq_of_name hr.hview hz1 (hr.sub _ hci) hz2]
+      obtain ⟨_, -, htr⟩ := henv.lookup_def hP
+      exact TravFrame.fvarsIn_mono (fun y h => by simp [MLCtx.findF] at h) (TrM.fvarsIn htr)
   · obtain ⟨xs, hxs, hxc⟩ := hr.read hci hx
     exact ConstsIn_mono (fun c hc => covRec c (hxc c hc)) (exprConsts_ok hxs).1
   · rintro iv ⟨ci, hci, rfl⟩
