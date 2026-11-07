@@ -549,3 +549,44 @@ What the statements and the checks rely on without proof:
 - **What was considered instead:** erasing `Quot.mk` and `Quot.lift` to λ□ axioms, under which
   every program that computes through a quotient is stuck in λ□; no source rule for quotients,
   under which such programs do not evaluate and the final theorem says nothing about them.
+
+### DV-30
+
+- **Our artifact:** `proof/EraseProof/Spec.lean`: the rule `EraseProof.SrcEval.recIota`; the rules
+  `EraseProof.Erases.recLet` and `EraseProof.Erases.recFix` with `EraseProof.RecFixOf`,
+  `EraseProof.recMembers`, `EraseProof.recLets` and `EraseProof.EvalEnv.recBlock?`; the recursor
+  clause of `EraseProof.SpecialSpine`; the recursor exclusion of `EraseProof.Erases.const`; the
+  clause `EraseProof.IndBlock.recIHs`; `proof/EraseProof/Target.lean`: `EraseProof.lbLift` and
+  `EraseProof.LBFixed`.
+- **Reference artifact:** none: PCUIC has no recursors (eliminators are `tCase` and `tFix`). The
+  closest rules are `eval_fix` (`pcuic/theories/PCUICWcbvEval.v:273`), `eval_zeta` and `eval_iota`
+  of `eval`, and `erases_tFix` (`erasure/theories/Extract.v:122`), `erases_tLetIn`
+  (`erasure/theories/Extract.v:96`) and `erases_tCase` (`erasure/theories/Extract.v:109`) of
+  `erases`.
+- **What differs:** the source evaluates a saturated recursor `T.rec ps ms mins maj` of a single
+  inductive `T` without indices, whose recursive fields take no arguments and come after the other
+  fields of their constructor, by evaluating the minors to `mvs` and the major to a constructor
+  value `C qs fs`, then each induction hypothesis `T.rec ps ms mvs f` (one per recursive field `f`,
+  in the order of the minor's hypotheses) to a value, and continuing with the minor's value applied
+  to the fields and these values. The parameters and the motive are not evaluated. There is no
+  source ι for recursors of mutual, nested or indexed inductives, for higher-order recursive
+  fields, for recursive fields before non-recursive ones, nor on a `Nat` literal major (`recK` and
+  structure η are not rules). Recursor spines with missing arguments are not η-expanded by the
+  source semantics (recursors have no `specialArity`). The erasure is the eraser's: the λ□ fixpoint
+  of `recFix` under `let`s of the erased minors, applied to the erased major and the extra
+  arguments (`Erases.recLet`); `Erases.recFix` relates the same fixpoint with closed λ□ values of
+  the minors substituted, the form λ□ reaches after the `let`s and in which the recursive calls
+  appear.
+- **Why it is forced:** the reference has no recursors, and the eraser compiles them to λ□
+  fixpoints (`visitRec`, `LeanToLambdaBox/Erasure.lean:1003`). λ□ evaluates the minors (`let`) and
+  every argument of an application by value, so the source evaluates the minors and the induction
+  hypotheses first; the restrictions make Metalean's ι apply to the minors as they are, unwrapped by
+  `wrapCase` (`RecWhred.orders_identity`), which the subject-reduction theorem
+  `EraseProof.SrcEval.defeq` uses through `Metalean.WHRed.iota`. `IndBlock.recIHs` states which
+  field each induction hypothesis of the recursor's Lean type is about, as Lean's kernel generates
+  it; without it the pinned hypotheses do not fix that field (`ConstTyped` relates types only up to
+  definitional equality).
+- **What was considered instead:** a source ι on the unevaluated induction hypotheses, under which
+  the λ□ evaluation of a hypothesis the minor ignores has no source counterpart; erasing recursors to
+  λ□ axioms (as `recStaysConstant` does for the excluded cases), under which every program that
+  computes through a recursor is stuck in λ□.
