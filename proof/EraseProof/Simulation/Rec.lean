@@ -607,7 +607,143 @@ theorem rec_core (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decl
     have hd₄ := WHRedS.defeq hE hok hred₄ h1.right
     obtain ⟨vb, hvb, hevb⟩ := ihv ht₄ ⟨_, hd₄.right⟩ hG' hdG'
     exact ⟨vb, hvb, eval_args_replace hrep fs' vb (hevG' vb hevb)⟩
-  sorry
+  subst hFX
+  have hcsl : (recCs minors).length = minors.length := by simp [recCs]
+  have hnc : (Is s).ctors.length = ι.nctors s := by
+    rw [(hIB.ind s).2.2.2.2.2.1, List.length_ofFn]
+  by_cases hdir : direct = true ∧ (Is s).ctors.length = 1
+  · -- the reduced form: the alternative applied to `□` for each field
+    obtain ⟨hdt, h1⟩ := hdir
+    subst hdt
+    have hfe := SimIota.fields_erasable henv hE hsub hC hpsC hfsC htr₀ hmajT
+      (by rw [hind]; exact hd2 rfl h1)
+    have hfa : List.Forall₂ (ArgOK E B lps σ lenv) fs (List.replicate fs.length .box) :=
+      CasesWhred.forall₂_of_getElem? (by simp) fun i f f' hf hf' => by
+        rw [List.getElem?_replicate] at hf'
+        split at hf' <;> cases hf'
+        exact ⟨(hfields f (List.mem_of_getElem? hf)).1, .box (hfe f (List.mem_of_getElem? hf)), rfl,
+          .box, .atom rfl⟩
+    obtain ⟨vb, hvb, hev⟩ := htail _ hfa
+    refine ⟨vb, hvb, eval_recFIX hsimple hwscl hFcl hevmb ?_⟩
+    have hk0 : k = 0 := by omega
+    subst hk0
+    obtain ⟨c0, hc0⟩ : ∃ c0, recCs minors = [c0] :=
+      List.length_eq_one_iff.1 (by rw [hcsl]; omega)
+    have hc0' : c0 = (0, mi, Array.replicate mi.fields.length ConstructorArgRelevance.keep) := by
+      rw [hc0] at hkc; exact (List.mem_singleton.1 hkc).symm
+    subst hc0'
+    rw [hc0]
+    simp only [innerSD, altG, length_altNames]
+    rw [foldl_app_eq_mkApps, ← length_altNames]
+    refine eval_lams_boxes _ _ _ ?_
+    have hus : ∀ u ∈ List.replicate fs.length LBTerm.box, closedn 0 u = true := fun u hu => by
+      rw [List.eq_of_mem_replicate hu]; rfl
+    have := substl_recAltS (closedn_getD hwscl 0) hFcl hus mi.ihs (by
+      intro h hh; rw [List.length_replicate, ← hmif]
+      exact ((hsimple _ (hc0 ▸ List.mem_singleton_self _)).2 h hh).2.2)
+    rw [List.reverse_replicate, List.length_replicate] at this
+    rw [length_altNames, hmif, this]
+    exact hev
+  · -- a λ□ `case` on the major's value
+    have hnz : (E.get η).block.level{ls} ≠ .zero := by
+      intro hz
+      by_cases hdt : direct = true
+      · have h1 : (Is s).ctors.length ≠ 1 := fun h => hdir ⟨hdt, h⟩
+        have hind' := Defeq.indDF hps₀ his₀
+        rw [hz] at hind'
+        have hprf : IsProof E .nil (.ctor η s c' lsC psN fds rfsN) := ⟨_, hmajT, hind'⟩
+        have := (hss ι η s hBT .nil c' lsC psN fds rfsN hE hok hprf).1
+        have : k < (Is s).ctors.length := by omega
+        omega
+      · obtain ⟨l₀, hl₀, hnz₀⟩ := hd1 (by simpa using hdt)
+        have hlev := rec_level henv hE (SrcDefeq.findDecl_sub hsub
+          (RecWhred.recBlock?_single hall hblk).1) hBT hRL hTL l₀ hl₀
+        have := SimInd.isNeverZero_tr hnz₀ hlev (fun _ => 0)
+        rw [hz, Metalean.Level.eval_zero] at this
+        omega
+    rcases Erases.ctor_inv hC (by omega) hmb with ⟨rfl, hbx⟩ | ⟨iid, as', hid', rfl, hlen', hallE⟩
+    · exfalso
+      obtain ⟨w, hw, Tw, hwT, hwA⟩ := hbx
+      exact SimIota.ind_not_erasable hE hmajT hnz
+        (RelInst.IsErasable.of_defeq (SimCases.trM_defeq hE hw htr₀ hwT hmajT) hwA)
+    rw [hind, hid] at hid'
+    cases hid'
+    -- the λ□ inductive
+    obtain ⟨T₁, hidT, hindT⟩ : ∃ T₁, IndIdOf σ T₁ = some indid ∧ ErasesInd E B σ lenv T₁ := by
+      have hb := hdbody
+      unfold recBody innerS at hb
+      split at hb
+      · rename_i c₁ hcs₁
+        exact absurd ⟨rfl, by rw [← hmlC, ← hcsl, hcs₁]; rfl⟩ hdir
+      · cases hb with
+        | case hidT hindT _ _ => exact ⟨_, hidT, hindT⟩
+    rw [SimInd.indIdOf_inj hbinj hidT hid] at hindT
+    have hnp : ¬ PropInductive E B cv.induct := fun hp =>
+      SimInd.mkApps_construct_ne_box (Erases.ctorProp_box hC hp (by omega) hmb)
+    obtain ⟨mib, ob, cb, hlk, hnpars, hnargs, hprop⟩ :=
+      SimInd.lookupCtor_of henv hsub hC (by rw [hind]; exact hid) (by rw [hind]; exact hindT)
+    have hpf : ob.propositional = false := by
+      cases h : ob.propositional
+      · rfl
+      · exact absurd (hprop.mp h) hnp
+    have hnpR : (Rs s).numParams = cv.numParams := by rw [hRnp, ← hInp, hnpI]
+    -- the fields
+    have hdmb := ErasesDeps.eval hdmaj hevmb
+    obtain ⟨-, hdargs⟩ := SimInd.deps_mkApps hdmb
+    have hfs' : (as'.drop cv.numParams).length = fs.length := by simp; omega
+    have hfa : List.Forall₂ (ArgOK E B lps σ lenv) fs (as'.drop cv.numParams) := by
+      refine CasesWhred.forall₂_of_getElem? hfs'.symm fun j f f' hf hf' => ?_
+      have hf'' : as'[cv.numParams + j]? = some f' := by
+        rw [List.getElem?_drop] at hf'; exact hf'
+      have hpf' : (psC ++ fs)[cv.numParams + j]? = some f := by
+        rw [List.getElem?_append_right (by omega), hpsC, Nat.add_sub_cancel_left]; exact hf
+      have herf := hallE _ _ _ hpf' hf''
+      obtain ⟨f₀, hf₀, hff₀⟩ := CasesWhred.forall₂_getElem? hfs₀ hf
+      have hmem : f' ∈ as' := List.mem_of_getElem? hf''
+      exact ⟨(hfields f (List.mem_of_getElem? hf)).1, herf, SimCases.closed0 hff₀ herf,
+        hdargs f' hmem, construct_args_self hevmb rfl f' hmem⟩
+    obtain ⟨vb, hvb, hev⟩ := htail _ hfa
+    refine ⟨vb, hvb, eval_recFIX hsimple hwscl hFcl hevmb ?_⟩
+    have hcase : innerSD direct indid (Rs s).numParams (recCs minors)
+        (altG (fun gi _ => ws.getD gi .box) fun _ =>
+          recFIX nm x direct indid (Rs s).numParams minors ws)
+        (mkApps (.construct indid cv.cidx []) as') =
+        .case (indid, (Rs s).numParams) (mkApps (.construct indid cv.cidx []) as')
+          ((recCs minors).map (altG (fun gi _ => ws.getD gi .box) fun _ =>
+            recFIX nm x direct indid (Rs s).numParams minors ws)) := by
+      unfold innerSD
+      split
+      · rename_i c₁ hcs₁
+        exact absurd ⟨rfl, by rw [← hmlC, ← hcsl, hcs₁]; rfl⟩ hdir
+      · rfl
+    rw [hcase]
+    have hbr : ((recCs minors).map (altG (fun gi _ => ws.getD gi .box) fun _ =>
+        recFIX nm x direct indid (Rs s).numParams minors ws))[cv.cidx]? =
+        some (altNames mi, recAltS (ws.getD k .box) mi.fields.length
+          (recFIX nm x direct indid (Rs s).numParams minors ws) mi.ihs) := by
+      rw [List.getElem?_map, hcidx]
+      unfold recCs
+      rw [List.getElem?_map, List.getElem?_range hkm, Option.map_some, Option.map_some,
+        List.getD_eq_getElem?_getD, hmi, Option.getD_some]
+      rfl
+    refine .iota (args := as') (cdecl := cb) rfl (LBEval.self hevmb) ?_ hbr ?_ ?_ ?_
+    · show (lookupCtor lenv indid cv.cidx).map _ = _
+      rw [hlk]
+      simp [hpf, hnpars, hnpR]
+    · rw [← hlen', hlenC, hnpR, hnargs]
+    · rw [hnpR, hfs', length_altNames, hmif]
+    · show LBEval defaultFlags lenv (substl (as'.drop (Rs s).numParams).reverse
+        (recAltS (ws.getD k .box) mi.fields.length
+          (recFIX nm x direct indid (Rs s).numParams minors ws) mi.ihs)) vb
+      have hdrop : as'.drop (Rs s).numParams = as'.drop cv.numParams := by rw [hnpR]
+      rw [hdrop]
+      have hus : ∀ u ∈ as'.drop cv.numParams, closedn 0 u = true :=
+        SimIota.forall₂_right (fun _ _ h => h.2.2.1) hfa
+      have := substl_recAltS (closedn_getD hwscl k) hFcl hus mi.ihs (by
+        intro h hh; rw [hfs', ← hmif]
+        exact ((hsimple _ hkc).2 h hh).2.2)
+      rw [← hfs'.trans hmif.symm, this]
+      exact hev
 
 end SimRec
 
