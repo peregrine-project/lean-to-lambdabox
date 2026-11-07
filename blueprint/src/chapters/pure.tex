@@ -57,11 +57,11 @@
 
 \begin{definition}[Exclusions of the fragment]
   \label{def:Erasure-declExclusion}
-  \lean{Erasure.declExclusion, Erasure.exprConsts, Erasure.arityShape, Erasure.mayBeNonZero,
+  \lean{Erasure.declExclusion, Erasure.recShapeInFragment, Erasure.exprConsts, Erasure.arityShape, Erasure.mayBeNonZero,
     Erasure.sortDecided}
   \leanok
   \uses{def:Erasure-EraseError, def:Erasure-EnvView, def:Erasure-ErasureConfig}
-  \srcloc{LeanToLambdaBox/Erasure/Entry.lean}{78}
+  \srcloc{LeanToLambdaBox/Erasure/Entry.lean}{100}
   \lead{In short} The exclusions that \hl{a term or a single declaration carries by itself}; each
   is \code{outOfFragment}.
   \begin{itemize}
@@ -70,8 +70,10 @@
         variable, metavariable, level metavariable, string literal, and under
         \code{nat := .machine} a \code{Nat} literal or \code{Nat}/\code{Int} constructors and
         \code{casesOn};
-  \item \code{declExclusion}: a recursor, an \code{unsafe} or \code{partial}
-        constant, one with an \code{\_unsafe\_rec} companion or an \code{implemented\_by}
+  \item \code{declExclusion}: a recursor unless \code{recShapeInFragment} holds of it (a single
+        inductive without indices, a universe parameter more than the inductive's, induction
+        hypotheses without arguments and about the last fields; S-47), an \code{unsafe} or
+        \code{partial} constant, one with an \code{\_unsafe\_rec} companion or an \code{implemented\_by}
         target, a nested inductive, an \code{@[extern]} constructor under \code{preferAxiom};
   \item \code{sortDecided}: an inductive's sort is written \code{Prop} or never zero
         (\code{true}), may be both (\code{false}, by \code{mayBeNonZero}), or is zero without
@@ -89,7 +91,7 @@
   \leanok
   \uses{def:Erasure-declExclusion, def:Erasure-casesInfo, def:Erasure-findConst,
     def:toKername}
-  \srcloc{LeanToLambdaBox/Erasure/Entry.lean}{232}
+  \srcloc{LeanToLambdaBox/Erasure/Entry.lean}{264}
   \lead{In short} \code{collectDeps view cfg e}: \hl{the closure of \code{e} as the pure
   traversal reads it}, or the first exclusion of Section~\ref{sec:scope-fragment}.
   \begin{itemize}
@@ -99,7 +101,7 @@
         \code{T.rec}, not the value; for an inductive \code{T} with one constructor, \code{T.rec}
         (S-36), which the oracle reads to type a projection;
   \item \code{closure}: depth-first, at most \code{collectFuel} $= 2^{32}$ declarations; a
-        recursor met in a read expression is excluded (\code{dropKnown}); an unknown constant is
+        recursor met in a read expression is checked by \code{declExclusion} (\code{dropKnown}); an unknown constant is
         \code{outOfFragment}; a view that answers with a declaration of another name is rejected;
         a recognized \code{casesOn} is recorded only when it is a definition;
   \item \code{eliminatedUndecided}: an inductive whose sort may be both \code{Prop} and not,
@@ -256,7 +258,7 @@
   \lean{Erasure.eraseEntry, Erasure.route, Erasure.Route}
   \leanok
   \uses{def:Erasure-collectDeps, def:Erasure-erasePure, def:Erasure-erase}
-  \srcloc{LeanToLambdaBox/Erasure/Entry.lean}{290}
+  \srcloc{LeanToLambdaBox/Erasure/Entry.lean}{326}
   \lead{In short} What \code{\#erase} runs: \code{route} calls \code{collectDeps},
   then
   \begin{itemize}

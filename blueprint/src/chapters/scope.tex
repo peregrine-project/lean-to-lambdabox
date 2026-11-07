@@ -6,8 +6,9 @@
   typed program that Metalean can express and that the eraser handles without a known defect.
 \item \lead{Main results} The fragment in two phases: Phase I adds to the $\lambda\Pi$ fragment
   everything about inductive types that the eraser handles, \hl{with no recursion of any kind},
-  so no \code{Nat} arithmetic, and \code{Nat} literals only under \code{nat := .peano}; quotients are in Phase I, and Phase II
-  adds recursors and structural recursion.
+  so no \code{Nat} arithmetic, and \code{Nat} literals only under \code{nat := .peano}; quotients and the recursors of one
+  inductive without indices (the shape of \code{RecInFragment}) are in Phase I, and Phase II adds
+  the other recursors and structural recursion.
   The divergence entries DV-23 to DV-26 and the choices of Section~\ref{sec:scope-decisions} fix
   its edges.
 \item \lead{Status} \stShipping{} the fragment test of Phase I
@@ -71,8 +72,13 @@ projections of data structures & I & a $\lambda_\Box$ \code{proj}; Metalean's pr
   relation does not model the substitution of index fields \\
 \code{Nat} literals under \code{nat := .peano} & I & constructor chains, as Metalean's fast
   checker denotes them; a literal above 65536 is an error of \code{\#erase} (S-45) \\
-recursors \code{T.rec} & II & erased to a $\lambda_\Box$ fixpoint over a \code{case} on both
-  paths (S-40); the fragment test excludes them, and no rule of the relation covers them \\
+recursors \code{T.rec} of a single inductive without indices, whose induction hypotheses take no
+  arguments and come last, eliminating into every sort & I & erased to a $\lambda_\Box$ fixpoint
+  over a \code{case} under \code{let}s of the erased minors (S-40); the fragment test admits them
+  (S-41, S-47), the source semantics, the relation and the simulation have their rules (DV-30) \\
+other recursors (mutual or indexed blocks, induction hypotheses on functions, \code{Prop}-only
+  elimination, \code{Eq.rec}) & II & erased on both paths (S-40); the fragment test excludes them
+  (S-47), and no rule covers them \\
 structural recursion (\code{brecOn}) & II & through the kernel definitions under
   \code{structural := .kernel} (S-42), on the \code{Meta} path; the default \code{.unsafeRec} is
   unchanged; the fragment test excludes it \\
@@ -112,8 +118,10 @@ constructors of the blocks it registers, and the recursors of one-constructor in
 it skips the values of theorems and of recognized \code{casesOn} constants.
 
 \begin{itemize}
-\item \lead{Phase I only} a recursor other than the \code{T.rec} of a recognized \code{T.casesOn}
-  or of an inductive \code{T} with one constructor, and any recursor in a read expression; a constant with an
+\item \lead{Phase I only} a recursor other than the \code{T.rec} of a recognized \code{T.casesOn},
+  of an inductive \code{T} with one constructor, or in the shape of \code{RecInFragment}
+  (\code{recShapeInFragment}: one inductive, no indices, a universe parameter more than the
+  inductive's, induction hypotheses without arguments and about the last fields); a constant with an
   \code{\_unsafe\_rec} companion (structural or well-founded recursion).
 \item \lead{Both phases} a string literal; an \code{unsafe}, \code{partial} or
   \code{@[implemented\_by]} constant; a nested or unsafe inductive; an \code{@[extern]}
@@ -144,7 +152,8 @@ Index fields & the fragment excludes a \code{casesOn} whose constructor has an i
   (\code{Acc}, \code{Acc.below}); \code{Eq}, \code{HEq}, \code{And} and \code{True} stay in \\
 Recursors & the closure keeps the declarations \code{T.casesOn} and \code{T.rec}, not their
   values, so that the recognizer works, and \code{T.rec} of a one-constructor \code{T}, whose
-  universe parameters the oracle reads; a recursor anywhere else is an exclusion \\
+  universe parameters the oracle reads; a recursor read anywhere else is checked against
+  \code{recShapeInFragment} \\
 Inherited ids & the divergence register keeps the ids 1 to 22 of the lean4lean verification; an
   id that does not apply has a ``not applicable'' entry, so that no citation dangles \\
 DV-23 & under-applied constructor and \code{casesOn} spines evaluate to their
@@ -155,8 +164,9 @@ DV-24 & theorems have no $\delta$, since Metalean loads them as opaque: a proof 
   \code{casesOn} on a lemma of an inductive with proof fields does not evaluate \\
 DV-10, DV-12 & opaques and \code{@[extern]} definitions under \code{preferAxiom} have no
   $\delta$ in the source; the fragment admits them \\
-DV-25 & a recognized \code{casesOn} is primitive in the source, without $\delta$; recursors have
-  no rule \\
+DV-25 & a recognized \code{casesOn} is primitive in the source, without $\delta$ \\
+DV-30 & a saturated recursor of the shape of \code{RecInFragment} evaluates its minors, its major
+  and the induction hypotheses before applying the minor; other recursors have no rule \\
 DV-26 & the fragment is an explicit hypothesis, \code{hfrag}, with the exclusion classes above \\
 \bottomrule
 \end{tabular}
@@ -165,8 +175,8 @@ DV-26 & the fragment is an explicit hypothesis, \code{hfrag}, with the exclusion
 \item \lead{The premise \code{hfrag}} explicit, unlike the lean4lean verification's in-scope
   condition: out-of-fragment inputs go to the \code{Meta} path, about which nothing is proved.
 \item \lead{Its lower bound} \code{collectDeps\_ok\_of} (Lemma~\ref{lem:EraseProof-collectDeps_ok_of}):
-  every typed program whose read closure is inside Phase I, with no recursor read and no name
-  collision, is accepted.
+  every typed program whose read closure is inside Phase I, with no recursor in a read expression
+  and no name collision, is accepted.
 \end{itemize}
 
 \section{Evidence}\label{sec:scope-evidence}

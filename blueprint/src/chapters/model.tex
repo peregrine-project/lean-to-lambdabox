@@ -6,7 +6,7 @@
   terms and environments, so that Metalean's typing applies to the eraser's input.
 \item \lead{Main results} The translation \code{TrM}, the program environments \code{ProgEnv},
   their weakening, substitution, universe instantiation and lookup lemmas, the uniqueness of
-  translations up to $\equiv$, the \code{casesOn} reduction chain; the no-confusion lemmas of
+  translations up to $\equiv$, the \code{casesOn} reduction chain, the recursor $\iota$; the no-confusion lemmas of
   Metalean's type formers.
 \item \lead{Status} \stProved{} every lemma of the chapter; the definitions of the bridge are
   formalized.
@@ -254,12 +254,13 @@ universe instantiation in place of lean4lean's.
     EraseProof.natLitM_instL, EraseProof.wrapCase_instL, EraseProof.indTerm_instL,
     EraseProof.quotTerm_instL, EraseProof.ctorTerm_instL, EraseProof.leanCaseType_instL,
     EraseProof.toOption_eq_some, EraseProof.except_bind_eq_ok, EraseProof.leanCaseBinders_succ,
-    EraseProof.leanCaseBinders_instL, EraseProof.recrTerm_instL, EraseProof.projProofTerm_instL}
+    EraseProof.leanCaseBinders_instL, EraseProof.recrTerm_instL, EraseProof.projProofTerm_instL,
+    EraseProof.params_instLevel, EraseProof.satTr_recrEta_inv, EraseProof.recr_spine_levels}
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-TrLevel, def:EraseProof-SatTr,
     def:EraseProof-natLitM, def:EraseProof-TypedExt, def:EraseProof-TrM,
     def:Erasure-Pure-instLevels}
-  \srcloc{proof/EraseProof/Bridge/Levels.lean}{310}
+  \srcloc{proof/EraseProof/Bridge/Levels.lean}{323}
   \lead{In short} \code{Pure.instLevels lps' us e} translates to \hl{the translation of \code{e}
   with its universe parameters instantiated}, when \code{TrLevels lps us = some ls}.
   \begin{itemize}
@@ -464,7 +465,7 @@ universe instantiation in place of lean4lean's.
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-SatTr, def:EraseProof-TrM, def:Erasure-casesInfo,
     def:EraseProof-ConstsIn}
-  \srcloc{proof/EraseProof/Spec.lean}{511}
+  \srcloc{proof/EraseProof/Spec.lean}{536}
   \lead{In short} \code{ProgEnv P $\zeta$ E B}: the Lean declarations \code{P} (newest first) are
   \hl{those of the Metalean environment \code{E}}, named by \code{B}, as Metalean's loader builds
   it.
@@ -485,6 +486,11 @@ universe instantiation in place of lean4lean's.
         (\code{peelForalls}) a constructor's Lean type is \code{I.\{lps\} params indices};
   \item \code{IndBlock.recrType}: under its \code{recrEnd s} leading $\Pi$s a recursor's Lean type
         is \code{motive\_s indices major};
+  \item \code{IndBlock.recMajor}: the binder before them, the major premise, has a type headed
+        by the sort's inductive;
+  \item \code{IndBlock.recIHs}: \code{recShape} of a recursor's Lean type lists, for each minor
+        premise, the induction hypotheses of Metalean's block, each about the field at its Lean
+        position, in Metalean's order;
   \item \code{IndBlock.indexVars}: \hl{a field that Metalean's block uses as an index variable is
         a Lean index field} (\code{indexFields});
   \item \code{quot}: the four constants, with \code{Eq} bound as Metalean requires, each with its
@@ -511,6 +517,10 @@ universe instantiation in place of lean4lean's.
   occurrence among the result's arguments (\code{elim\_only\_at\_universe\_zero}), Metalean by
   \code{targetIndices}. Without it, \code{I : Nat $\to$ Prop} with \code{mk (n : Nat) : I (id n)}
   eliminates into every sort, and \code{visitCases} erases a match returning \code{n} to $\Box$.
+  \lead{Why \code{recMajor} and \code{recIHs}} the closure holds the block of a recursor it reads
+  only if the recursor's type mentions the inductive; and the types of a block's constants fix,
+  up to $\equiv$, neither which field an induction hypothesis is about nor the position of the
+  major premise. Lean's kernel generates both (\code{mk\_rec\_infos}).
   \lead{Why the recursor type shape} the oracle's type of a saturated recursor spine is then
   syntactically the motive's application, so its minors need no typing; the kernel generates
   exactly this type (\code{declare\_recursors}).
@@ -619,6 +629,43 @@ universe instantiation in place of lean4lean's.
   \leanok
   \lead{Idea} Induction on \code{ProgEnv}; its quotient step binds the fixed list of four names to
   one entry.
+\end{proof}
+
+\begin{lemma}[Recursors in a program]
+  \label{lem:EraseProof-ProgEnv-lookup_recr}
+  \lean{EraseProof.RecWhred.TrM.wf_app_recr, EraseProof.RecWhred.iotaIH_eq, EraseProof.RecWhred.major_ctor, EraseProof.RecWhred.mapM_get, EraseProof.RecWhred.mapM_ofFn, EraseProof.RecWhred.ofFn_single, EraseProof.RecWhred.orders_identity, EraseProof.RecWhred.recBlock?_single, EraseProof.RecWhred.recIota_whred, EraseProof.RecWhred.rec_block, EraseProof.RecWhred.rec_minors, EraseProof.RecWhred.satTr_recr_typed, EraseProof.RecWhred.wrapCase_id, EraseProof.ProgEnv.recr_arity, EraseProof.ProgEnv.lookup_recr}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-SatTr, def:EraseProof-TrM, def:EraseProof-ProgEnv,
+    def:EraseProof-EvalEnv, def:EraseProof-ConstsIn}
+  \srcloc{proof/EraseProof/Bridge/RecWhred.lean}{668}
+  \lead{In short} A saturated recursor \code{T.rec} of a single inductive without indices, whose
+  recursive fields take no arguments, \hl{reduces on a constructor value} to the translation of
+  the constructor's minor applied to the fields and to the induction hypotheses.
+  \begin{itemize}
+  \item \code{ProgEnv.lookup\_recr}, \code{recr\_arity}: a recursor declaration is bound to a
+        Metalean recursor of one sort, whose arity (\code{specialArity}) is \code{recrEnd};
+  \item \code{rec\_block}, \code{recBlock?\_single}: the block \code{recBlock?} reads is
+        Metalean's single block, with its table entries;
+  \item \code{major\_ctor}, \code{iotaIH\_eq}, \code{rec\_minors}: the image of a constructor
+        value is a constructor node; the recursor's shape is that of \code{IndBlock.recIHs};
+        Metalean's induction hypotheses (\code{iotaIHs}) are the translations of the Lean ones;
+  \item \code{recIota\_whred}: the spine reduces by $\iota$ (\code{WHRed.iota}) and $\beta$
+        through \code{wrapCase};
+  \item \code{wrapCase\_id}, \code{orders\_identity}: when the recursive fields come last,
+        Metalean's field orders are the identity, so \code{wrapCase} is the identity;
+  \item \code{satTr\_recr\_typed}, \code{TrM.wf\_app\_recr}: the saturated recursor and its
+        over-applications are typed.
+  \end{itemize}
+  \lead{Reference} \code{WHRed.iota} of \leanfile{Metalean/Syntax/Reduction.lean}, \code{iotaRhs}
+  of \leanfile{Metalean/Syntax/Inductive/Iota.lean}; none in MetaRocq (DV-30).
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-TrLevel, lem:EraseProof-TrM-weakBV, lem:EraseProof-TrM-instLevels,
+    lem:EraseProof-TrM-apps, lem:EraseProof-ProgEnv-lookup, lem:EraseProof-ctorSat_iota,
+    lem:EraseProof-ProgEnv-lookup_quot}
+  \leanok
+  \lead{Idea} Induction on \code{ProgEnv} for the lookup; the reduct from \code{WHRed.iota}, with
+  \code{ctorSat\_iota} for the case telescope of the minor.
 \end{proof}
 
 \begin{lemma}[The \texorpdfstring{$\delta$}{delta} equation]

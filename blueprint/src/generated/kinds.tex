@@ -14,12 +14,12 @@
 % \bpdefinenodes{chapter}{badges}: the nodes of a chapter by kind, which \bpnodes{chapter} prints.
 \bpdefinenodes{chap:trust}{\bpkind{shipping}~13 \bpkind{metalean}~71}
 \bpdefinenodes{chap:pure}{\bpkind{shipping}~12}
-\bpdefinenodes{chap:model}{\bpkind{step}~3 \bpkind{lemma}~16 \bpkind{definition}~7}
+\bpdefinenodes{chap:model}{\bpkind{step}~3 \bpkind{lemma}~17 \bpkind{definition}~7}
 \bpdefinenodes{chap:source}{\bpkind{step}~3 \bpkind{lemma}~6 \bpkind{definition}~9}
-\bpdefinenodes{chap:relation}{\bpkind{step}~1 \bpkind{lemma}~7 \bpkind{definition}~4}
-\bpdefinenodes{chap:core}{\bpkind{step}~15 \bpkind{lemma}~20 \bpkind{definition}~9}
-\bpdefinenodes{chap:final}{\bpkind{final}~1 \bpkind{milestone}~2 \bpkind{step}~4 \bpkind{lemma}~3 \bpkind{definition}~7}
-\bpdefinenodes{chap:tests}{\bpkind{test}~25}
+\bpdefinenodes{chap:relation}{\bpkind{step}~1 \bpkind{lemma}~9 \bpkind{definition}~6}
+\bpdefinenodes{chap:core}{\bpkind{step}~16 \bpkind{lemma}~21 \bpkind{definition}~9}
+\bpdefinenodes{chap:final}{\bpkind{final}~1 \bpkind{milestone}~2 \bpkind{step}~5 \bpkind{lemma}~5 \bpkind{definition}~7}
+\bpdefinenodes{chap:tests}{\bpkind{test}~30}
 % \bpsetkind{label}{kind}{status}{inherited sorries}: every node (the print version puts the badges after its heading).
 \bpsetkind{def:EraseProof-LocalsOK}{definition}{standard}{}
 \bpsetkind{lem:EraseProof-Pure-whnf_sound}{step}{standard}{}
@@ -55,6 +55,8 @@
 \bpsetkind{lem:EraseProof-Steps-visitMutual_step}{step}{standard}{}
 \bpsetkind{lem:EraseProof-Steps-stepsB_ctor}{step}{standard}{}
 \bpsetkind{lem:EraseProof-Steps-stepsB_quot}{step}{standard}{}
+\bpsetkind{lem:EraseProof-Steps-visitRec_spec}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-Steps-stepsB_rec}{step}{standard}{}
 \bpsetkind{lem:EraseProof-Steps-stepsB_proj}{step}{standard}{}
 \bpsetkind{lem:EraseProof-Steps-stepsB_lit}{step}{standard}{}
 \bpsetkind{lem:EraseProof-Steps-stepsB_cases_of_sat}{step}{standard}{}
@@ -79,6 +81,9 @@
 \bpsetkind{def:EraseProof-SimIota-HeadBeta}{definition}{standard}{}
 \bpsetkind{lem:EraseProof-erases_correct_casesIota}{step}{standard}{}
 \bpsetkind{lem:EraseProof-erases_correct_quotMk}{step}{standard}{}
+\bpsetkind{lem:EraseProof-RecFix-recFix_eq}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-RecEval-LBEval_fixed}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-erases_correct_recIota}{step}{standard}{}
 \bpsetkind{thm:EraseProof-erases_correct}{milestone}{standard}{}
 \bpsetkind{def:EraseProof-erasePure_erases_statement}{definition}{standard}{}
 \bpsetkind{thm:EraseProof-erasePure_erases}{milestone}{standard}{}
@@ -101,6 +106,7 @@
 \bpsetkind{lem:EraseProof-TrM-wkEnv}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-ProgEnv-lookup}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-ProgEnv-lookup_quot}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-ProgEnv-lookup_recr}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-ProgEnv-unfold}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-ctorSat_iota}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-casesOn_shape}{lemma}{standard}{}
@@ -122,10 +128,14 @@
 \bpsetkind{def:Erasure-eraseEntry}{shipping}{standard}{}
 \bpsetkind{def:EraseProof-LBEval}{definition}{standard}{}
 \bpsetkind{lem:EraseProof-LBEval-idem}{lemma}{standard}{}
+\bpsetkind{def:EraseProof-lbLift}{definition}{standard}{}
+\bpsetkind{lem:EraseProof-TargetLift-closedn_lbLift}{lemma}{standard}{}
 \bpsetkind{def:EraseProof-Subsingleton}{definition}{standard}{}
 \bpsetkind{def:EraseProof-Erases}{definition}{standard}{}
+\bpsetkind{def:EraseProof-RecFixOf}{definition}{standard}{}
 \bpsetkind{def:EraseProof-ErasesDeps}{definition}{standard}{}
 \bpsetkind{lem:EraseProof-Erases-closed}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-RecLam-recLets_closed}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-Erases-extend}{step}{standard}{}
 \bpsetkind{lem:EraseProof-Erases-instLevels}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-Erases-abstract}{lemma}{standard}{}
@@ -174,6 +184,11 @@
 \bpsetkind{def:EraseProof-Test-NVQ-E}{test}{standard}{}
 \bpsetkind{lem:EraseProof-Test-NVQ-henv}{test}{standard}{}
 \bpsetkind{lem:EraseProof-Test-NVQ-final}{test}{standard}{}
+\bpsetkind{def:EraseProof-Test-NVR-P}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NVR-hrun}{test}{standard}{}
+\bpsetkind{def:EraseProof-Test-NVR-E}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NVR-henv}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NVR-final}{test}{standard}{}
 \bpsetkind{lem:EraseProof-Test-LBEval-deterministic}{test}{standard}{}
 \bpsetkind{def:LBTerm}{shipping}{standard}{}
 \bpsetkind{def:abstract}{shipping}{standard}{}

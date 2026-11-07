@@ -775,8 +775,10 @@ def declares(name, lines, start, end, path):
       namespace of C itself, any inst...), or `deriving instance C for T` (inst<C><T>);
     * a constructor, field or `where` definition n (a line `| n`, `n :`, `(n m : ...)`): the
       enclosing declaration declares the name minus its last component n; the range of a
-      constructor and of a field starts at its doc comment, that of a `where` definition at its
-      name, as Lean records them;
+      constructor and of a field starts at its doc comment or at its own line (a field's range may end
+      there, before its type), that of a `where`
+      definition at its name, as Lean records them;
+    * a rule n of a `judgement` J (a line `──── n`): the range is that of J, whole;
     * a deriving clause of a type T: the name is inst<C><T> of a class C of the clause, or one of
       its auxiliary definitions (DERIVED_AUX);
     * the axiom <theorem>._native.bv_decide.ax_<i>_<j> that bv_decide adds: the lines of the
@@ -844,7 +846,7 @@ def declares(name, lines, start, end, path):
     if member and member[1][1] not in TYPE_KEYWORDS:
         if start != h:
             return f'line {start}: the range of a where definition starts at its name'
-    elif start > 1:
+    elif start > 1 and not (member and start == h):
         pc = code[start - 2][0].strip()
         if pc.startswith('@[') and ATTRS.fullmatch(pc) or _ends_doc(lines, start - 1):
             return f'line {start - 1} (doc comment or attributes) belongs to the declaration'
@@ -855,7 +857,7 @@ def declares(name, lines, start, end, path):
         if not inside and c.strip() and _indent(c) <= hi and (member or not CONTINUES.match(c.strip())):
             return f'line {k} is another command: {lines[k - 1].strip()[:50]!r}'
     j = _next_code(code, lines, end)
-    if j is not None:
+    if j is not None and not (member and member[1][1] in TYPE_KEYWORDS and start == h):
         c = code[j - 1][0]
         sibling = member and _indent(c) == hi and (c.strip().startswith('|') or not hc.strip().startswith('|'))
         if _indent(c) > hi or not sibling and _indent(c) == hi and CONTINUES.match(c.strip()):
@@ -869,6 +871,9 @@ def declares(name, lines, start, end, path):
         if n:
             full = _qualify(ns, n)
             if plain == full or plain.startswith(full + '.') and DERIVED.fullmatch(plain[len(full) + 1:]):
+                return None
+            if kw == 'judgement' and plain.startswith(full + '.') and any(
+                    re.match(r'\s*─+\s+' + re.escape(last) + r'\b', lines[k - 1]) for k in range(h, end + 1)):
                 return None
             return f'line {h} declares {full}'
         if kw == 'instance':

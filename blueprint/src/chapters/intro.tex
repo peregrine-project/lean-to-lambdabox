@@ -8,7 +8,7 @@
 \item \lead{Status} \stProved{} \hl{the final theorem \code{erase\_correct}}, its milestones
   \code{erases\_correct} and \code{erasePure\_erases}, the lower bound \code{collectDeps\_ok\_of}
   of the fragment hypothesis, the first-order corollary \code{erase\_correct\_firstorder}, and
-  every lemma they use; five test programs discharge all eight hypotheses of the final theorem
+  every lemma they use; six test programs discharge all eight hypotheses of the final theorem
   (Chapter~\ref{chap:tests}). Formalized: the four statements,
   as definitions pinned by \code{proof/spec.pin}, with every definition they use. \stShipping{} the eraser: the pure path on the fragment of
   Phase I and the \code{Meta} path on the rest.
@@ -102,8 +102,8 @@ Part & Against lean4lean & Against Metalean \\
 Kernel theory & \code{VExpr} and \code{IsDefEq}; the final theorem inherits six lean4lean
   sorries & \code{Expr} and \code{Defeq}, with no sorry \\
 Scope & the $\lambda\Pi$ fragment with \code{let}; no inductive type & inductive types,
-  \code{casesOn}, projections, \code{Nat} literals (Phase I); quotients (Phase I); recursors
-  (Phase II) \\
+  \code{casesOn}, projections, \code{Nat} literals (Phase I); quotients and the recursors of one
+  inductive without indices (Phase I); other recursors and structural recursion (Phase II) \\
 Bridge & \code{TrS}, after lean4lean's \code{TrExprS} & \code{TrM}, after Metalean's translator
   \leanfile{Metalean/Frontend/Translate.lean} \\
 Reused & -- & the total, fuelled, backend-generic traversal and its pure path (shipping entries
@@ -172,7 +172,7 @@ Round & Findings and their consequence in the statement \\
 3 & a missing sort guard on \code{Erases.proj} (M1 false on a raw kernel structure
   \code{W : Sort u}); a reduced-case rule unstable under universe instantiation; a contradiction
   between the lower bound and direct recursor uses. Hence the guard of \code{proj}, a level-free
-  \code{casesReduced}, and \code{RecFree} \\
+  \code{casesReduced}, and \code{RecFree}, which the shape of \code{RecInFragment} extends \\
 4 & untranslated opaque values made M2 false; so did a \code{casesOn} whose type is not a
   syntactic telescope; the closure's lemma exported too little. Hence the opaque clause of
   \code{ProgEnv} (value translated and typed), entry S-37, and the fragment facts of
@@ -229,7 +229,7 @@ Chapter & Content \\
 \ref{chap:relation} & $\lambda_\Box$ evaluation and the erasure relation \\
 \ref{chap:core} & Soundness of the pure path: oracle, closure, traversal \\
 \ref{chap:final} & The final theorem and its two milestones \\
-\ref{chap:tests} & The tests: the final theorem applied to five programs \\
+\ref{chap:tests} & The tests: the final theorem applied to six programs \\
 \ref{chap:shipping-changes}, \ref{chap:divergences} & The two registers, rendered \\
 \ref{chap:open} & What is open \\
 \bottomrule

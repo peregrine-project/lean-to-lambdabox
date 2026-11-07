@@ -4,18 +4,19 @@
 \begin{itemize}
 \item \lead{Goal} Show on concrete programs that \hl{every hypothesis of the final theorem holds},
   so that it is not vacuous, and apply it to them.
-\item \lead{Main results} \code{erase\_correct} applied with all eight hypotheses to five
+\item \lead{Main results} \code{erase\_correct} applied with all eight hypotheses to six
   programs: NV-1 (a \code{casesOn} on \code{inductive B | f | t}), NV-P and NV-K (an
   \code{Eq.casesOn} on a constructor and on a lemma), NV-2 (a \code{casesOn} that binds a data
   field and a proof field), NV-Q (a \code{Quot.lift} over a \code{Quot.mk}, applied beyond
-  its arity); the first-order corollary on NV-1 and NV-2; the lower bound
+  its arity), NV-R (an \code{N.rec} on a recursive inductive); the first-order corollary on NV-1,
+  NV-2 and NV-R; the lower bound
   \code{collectDeps\_ok\_of} on NV-1; determinism of $\lambda_\Box$ evaluation.
 \item \lead{Status} \stProved{} every node; the runs by kernel evaluation of the shipping code.
   C12 checks the footprint of each \code{final} and \code{firstorder} instance.
 \item \lead{Nodes} \bpnodes{chap:tests}
 \item \lead{Lean files} \leanfiles{proof/EraseProof/Test/}{NV1Data, NV1Model, NV1Run, NV1Final,
   NV1Collect, NVPData, NVPModel, NVKModel, NVPRun, NVPFinal, NV2Data, NV2Model, NV2Run, NV2Final,
-  NVQData, NVQModel, NVQRun, NVQFinal, Run, LBEval}; \leanfile{proof/tools/NVEmit.lean}.
+  NVQData, NVQModel, NVQRun, NVQFinal, NVRData, NVRModel, NVRRun, NVRFinal, Run, LBEval}; \leanfile{proof/tools/NVEmit.lean}.
 \item \lead{Reference} the hypotheses of MetaRocq's \code{erase\_correct}
   (\code{erasure/theories/ErasureFunctionProperties.v}).
 \end{itemize}
@@ -135,7 +136,7 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
     EraseProof.Test.NV1.ordersB, EraseProof.Test.NV1.P1}
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-ProgEnv, def:EraseProof-Test-NV1-P}
-  \srcloc{proof/EraseProof/Test/NV1Model.lean}{595}
+  \srcloc{proof/EraseProof/Test/NV1Model.lean}{599}
   \lead{In short} The Metalean environment \code{E} of NV-1, built entry by entry
   (\code{E1}, \code{E2}, \code{E3}), and \hl{the name table \code{B}} that maps each Lean name of
   \code{P} to its Metalean head.
@@ -178,7 +179,7 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-TrLevel, def:EraseProof-SatTr, def:EraseProof-TrM,
     def:EraseProof-ProgEnv, def:EraseProof-Test-NV1-P, def:EraseProof-Test-NV1-E}
-  \srcloc{proof/EraseProof/Test/NV1Model.lean}{600}
+  \srcloc{proof/EraseProof/Test/NV1Model.lean}{604}
   \lead{In short} The hypotheses \hl{\code{henv}, \code{hwf}, \code{he} and \code{hty} of the
   final theorem hold on NV-1}.
   \begin{itemize}
@@ -412,7 +413,7 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
   \uses{def:EraseProof-MBinding, def:EraseProof-TrLevel, def:EraseProof-TrM,
     def:EraseProof-ProgEnv, def:EraseProof-Test-NV1-P, def:EraseProof-Test-NV1-E,
     def:EraseProof-Test-NVP-P, def:EraseProof-Test-NVP-EB}
-  \srcloc{proof/EraseProof/Test/NVPModel.lean}{736}
+  \srcloc{proof/EraseProof/Test/NVPModel.lean}{740}
   \lead{In short} The hypotheses \hl{\code{henv}, \code{hwf}, \code{he} and \code{hty}} on NV-P
   and NV-K.
   \begin{itemize}
@@ -552,7 +553,7 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
     EraseProof.Test.NV2.tE, EraseProof.Test.NV2.B}
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-Test-NV1-E, def:EraseProof-Test-NV2-P}
-  \srcloc{proof/EraseProof/Test/NV2Model.lean}{936}
+  \srcloc{proof/EraseProof/Test/NV2Model.lean}{944}
   \lead{In short} The Metalean environment \code{E} of NV-2, built entry by entry (\code{ET},
   \code{EW}, \code{EC}), and \hl{the name table \code{B}}.
   \begin{itemize}
@@ -601,7 +602,7 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-TrM, def:EraseProof-ProgEnv,
     def:EraseProof-Test-NV1-E, def:EraseProof-Test-NV2-P, def:EraseProof-Test-NV2-E}
-  \srcloc{proof/EraseProof/Test/NV2Model.lean}{941}
+  \srcloc{proof/EraseProof/Test/NV2Model.lean}{949}
   \lead{In short} The hypotheses \hl{\code{henv}, \code{hwf}, \code{he} and \code{hty}} on NV-2:
   an inductive with a data field and a proof field, and a \code{Prop} inductive.
 \end{lemma}
@@ -794,6 +795,164 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
   \lead{Idea} The rules of \code{SrcEval}; the other hypotheses from the nodes above.
 \end{proof}
 
+\section{NV-R}\label{sec:tests-nvr}
+
+\begin{definition}[NV-R: the program]
+  \label{def:EraseProof-Test-NVR-P}
+  \lean{EraseProof.Test.NVR.tN, EraseProof.Test.NVR.cZ, EraseProof.Test.NVR.cS,
+   EraseProof.Test.NVR.N_ind, EraseProof.Test.NVR.Nz_ctor, EraseProof.Test.NVR.sTy,
+   EraseProof.Test.NVR.Ns_ctor, EraseProof.Test.NVR.motTy, EraseProof.Test.NVR.minSTy,
+   EraseProof.Test.NVR.recTy, EraseProof.Test.NVR.recRhs, EraseProof.Test.NVR.N_rec,
+   EraseProof.Test.NVR.P, EraseProof.Test.NVR.motB, EraseProof.Test.NVR.minS,
+   EraseProof.Test.NVR.mj, EraseProof.Test.NVR.e, EraseProof.Test.NVR.view,
+   EraseProof.Test.NVR.cfg}
+  \leanok
+  \uses{def:Erasure-EnvView, def:Erasure-findConst, def:EraseProof-Test-NV1-P,
+    def:Erasure-ErasureConfig}
+  \srcloc{proof/EraseProof/Test/NVRData.lean}{27}
+  \lead{In short} NV-1's \code{B}, \code{inductive N | z | s (n : N)} with its recursor, and
+  \code{@N.rec.\{1\} (fun \_ => B) B.t (fun n (ih : B) => ih) (N.s N.z)}, which \hl{evaluates to
+  \code{B.t}} by the recursor $\iota$ twice, once on \code{N.s N.z} and once, for the induction
+  hypothesis, on \code{N.z}, and by $\beta$.
+  \begin{itemize}
+  \item \code{recTy}, \code{recRhs}: the recursor's Lean type and rules, as the kernel generates
+        them;
+  \item \leanfile{proof/tools/NVEmit.lean} checks the declarations against the elaborator's.
+  \end{itemize}
+\end{definition}
+
+\begin{lemma}[NV-R: the fragment test and the run]
+  \label{lem:EraseProof-Test-NVR-hrun}
+  \lean{EraseProof.Test.NVR.D, EraseProof.Test.NVR.hcollect, EraseProof.Test.NVR.pc,
+   EraseProof.Test.NVR.iidN, EraseProof.Test.NVR.masksN, EraseProof.Test.NVR.bodyN,
+   EraseProof.Test.NVR.stN, EraseProof.Test.NVR.register_N_new,
+   EraseProof.Test.NVR.register_N_found, EraseProof.Test.NVR.register_B_new,
+   EraseProof.Test.NVR.stN_N, EraseProof.Test.NVR.stM, EraseProof.Test.NVR.stM_N,
+   EraseProof.Test.NVR.cT_run, EraseProof.Test.NVR.x0, EraseProof.Test.NVR.x1,
+   EraseProof.Test.NVR.minSL, EraseProof.Test.NVR.minS_run, EraseProof.Test.NVR.cZ_run,
+   EraseProof.Test.NVR.withApp_mj, EraseProof.Test.NVR.args_s, EraseProof.Test.NVR.mjL,
+   EraseProof.Test.NVR.mj_run, EraseProof.Test.NVR.minorsN, EraseProof.Test.NVR.recShape_N,
+   EraseProof.Test.NVR.memberN, EraseProof.Test.NVR.fixL, EraseProof.Test.NVR.eL,
+   EraseProof.Test.NVR.e_app, EraseProof.Test.NVR.withApp_e, EraseProof.Test.NVR.e_run,
+   EraseProof.Test.NVR.p0, EraseProof.Test.NVR.hpure, EraseProof.Test.NVR.hrun}
+  \leanok
+  \uses{def:Erasure-EraseError, def:Erasure-collectDeps, def:Erasure-PureM,
+    def:Erasure-erasePure, def:Erasure-eraseEntry, def:Erasure-erase, def:EraseProof-Test-NVR-P,
+    lem:EraseProof-Test-NV1-hrun, def:LBTerm, def:ASTType, def:Erasure-ErasureConfig,
+    def:Erasure-EraseT}
+  \srcloc{proof/EraseProof/Test/NVRRun.lean}{22}
+  \lead{In short} \code{\#erase} takes the pure path on NV-R and returns \code{p0}: the block of
+  \code{B}, the block of \code{N}, and the main term, the two erased minors bound by \code{let}
+  around the fixpoint of \code{N}'s block applied to the erased major \code{N.s N.z}, through the
+  recursor branch of \code{visitConstApp} and \code{visitRec}.
+  \begin{itemize}
+  \item \code{hcollect}: the closure is \code{D}, by evaluation;
+  \item \code{register\_N\_new}, \code{register\_N\_found}, \code{register\_B\_new}: the
+        registrations of the blocks, by the loop of \code{visitRec};
+  \item \code{minS\_run}, \code{mj\_run}, \code{e\_run}: the erased minors, the major and the whole
+        spine.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{def:Erasure-EnvView, lem:EraseProof-Test-bind_ok}
+  \leanok
+  \lead{Idea} As for NV-1, one traversal call at a time; the arity arithmetic is rewritten to
+  literals before \code{withAppEtaToMinArity} unfolds.
+\end{proof}
+
+\begin{definition}[NV-R: the Metalean model]
+  \label{def:EraseProof-Test-NVR-E}
+  \lean{EraseProof.Test.NVR.nCtorSig, EraseProof.Test.NVR.nSig, EraseProof.Test.NVR.nBlock,
+   EraseProof.Test.NVR.mN, EraseProof.Test.NVR.mZ, EraseProof.Test.NVR.mS,
+   EraseProof.Test.NVR.sTyM, EraseProof.Test.NVR.sTermM, EraseProof.Test.NVR.motN,
+   EraseProof.Test.NVR.minSTyM, EraseProof.Test.NVR.recTyM, EraseProof.Test.NVR.minsR,
+   EraseProof.Test.NVR.recTermM, EraseProof.Test.NVR.ordersN, EraseProof.Test.NVR.ΓR,
+   EraseProof.Test.NVR.ζN, EraseProof.Test.NVR.ηNN, EraseProof.Test.NVR.ηBN,
+   EraseProof.Test.NVR.EN, EraseProof.Test.NVR.BN, EraseProof.Test.NVR.IsN,
+   EraseProof.Test.NVR.CsN, EraseProof.Test.NVR.RsN, EraseProof.Test.NVR.mvN,
+   EraseProof.Test.NVR.minSM, EraseProof.Test.NVR.mjM, EraseProof.Test.NVR.minsE,
+   EraseProof.Test.NVR.tE, EraseProof.Test.NVR.E, EraseProof.Test.NVR.B}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-Test-NV1-E, def:EraseProof-Test-NVR-P}
+  \srcloc{proof/EraseProof/Test/NVRModel.lean}{29}
+  \lead{In short} The Metalean environment \code{EN = E1 + N} of NV-R: a block for \code{N} with
+  \hl{one recursive field}, the $\eta$-terms of \code{N}, \code{N.z}, \code{N.s} and \code{N.rec}
+  (\code{recTermM}), the name table \code{BN}, and the main term's translation \code{tE}.
+\end{definition}
+
+\begin{lemma}[NV-R: the typing hypotheses]
+  \label{lem:EraseProof-Test-NVR-henv}
+  \lean{EraseProof.Test.NVR.nBlock_map, EraseProof.Test.NVR.nBlock_wf,
+   EraseProof.Test.NVR.indN_typed, EraseProof.Test.NVR.mN_typed, EraseProof.Test.NVR.mZ_typed,
+   EraseProof.Test.NVR.mS_typed, EraseProof.Test.NVR.ctorTerm_eqN,
+   EraseProof.Test.NVR.recrTerm_eqN, EraseProof.Test.NVR.sTermM_typed,
+   EraseProof.Test.NVR.recAllowedN, EraseProof.Test.NVR.largeElimN,
+   EraseProof.Test.NVR.motN_typed, EraseProof.Test.NVR.appMotN_typed, EraseProof.Test.NVR.ΓR2_wf,
+   EraseProof.Test.NVR.minSTyM_typed, EraseProof.Test.NVR.ΓR_wf,
+   EraseProof.Test.NVR.recTermM_typed, EraseProof.Test.NVR.hnN, EraseProof.Test.NVR.hbN,
+   EraseProof.Test.NVR.wfN, EraseProof.Test.NVR.BN_N, EraseProof.Test.NVR.BN_z,
+   EraseProof.Test.NVR.BN_s, EraseProof.Test.NVR.BN_rec, EraseProof.Test.NVR.BN_B,
+   EraseProof.Test.NVR.BN_t, EraseProof.Test.NVR.tr_N, EraseProof.Test.NVR.tr_Z,
+   EraseProof.Test.NVR.tr_S, EraseProof.Test.NVR.tr_recTy, EraseProof.Test.NVR.tr_rec,
+   EraseProof.Test.NVR.tr_sTy, EraseProof.Test.NVR.tr_sConst, EraseProof.Test.NVR.PN_eq,
+   EraseProof.Test.NVR.indBlockN, EraseProof.Test.NVR.constTypedN, EraseProof.Test.NVR.henvN,
+   EraseProof.Test.NVR.tr_e, EraseProof.Test.NVR.mvN_beta, EraseProof.Test.NVR.mvN_typed,
+   EraseProof.Test.NVR.mjM_typed, EraseProof.Test.NVR.minTy_defeq,
+   EraseProof.Test.NVR.minSM_typed, EraseProof.Test.NVR.tE_typed, EraseProof.Test.NVR.henv,
+   EraseProof.Test.NVR.hwf, EraseProof.Test.NVR.he, EraseProof.Test.NVR.hty}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-TrM, def:EraseProof-ProgEnv,
+    def:EraseProof-Test-NV1-E, def:EraseProof-Test-NVR-P, def:EraseProof-Test-NVR-E,
+    lem:EraseProof-ProgEnv-lookup_recr}
+  \srcloc{proof/EraseProof/Test/NVRModel.lean}{49}
+  \lead{In short} The hypotheses \hl{\code{henv}, \code{hwf}, \code{he} and \code{hty}} on NV-R,
+  with \code{IndBlock.recIHs} and \code{IndBlock.recMajor} for the recursor of \code{N}.
+  \begin{itemize}
+  \item \code{recTermM\_typed}: the recursor's $\eta$-term is typed at Lean's recursor type, the
+        minor premise of \code{N.s} receiving the induction hypothesis; its type is converted to
+        the case type by $\beta$ (\code{minTy\_defeq});
+  \item \code{tr\_e}: the saturated recursor spine translates (\code{SatTr.recrSat}).
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-TrLevel, def:EraseProof-SatTr, def:EraseProof-ConstsIn,
+    lem:EraseProof-Test-NV1-henv}
+  \leanok
+  \lead{Idea} Metalean's typing rules entry by entry; the recursive field's case type
+  (\code{Ctor.ihType}, \code{Expr.applyBound}) computes to the form \code{recTyM} writes.
+\end{proof}
+
+\begin{lemma}[NV-R: the final theorem]
+  \label{lem:EraseProof-Test-NVR-final}
+  \lean{EraseProof.Test.NVR.mem_P, EraseProof.Test.NVR.hview, EraseProof.Test.NVR.hfrag,
+   EraseProof.Test.NVR.ev_ctor0, EraseProof.Test.NVR.ev_mj, EraseProof.Test.NVR.ev_mins,
+   EraseProof.Test.NVR.minors_shape, EraseProof.Test.NVR.ev_ih, EraseProof.Test.NVR.ev_minS,
+   EraseProof.Test.NVR.hev, EraseProof.Test.NVR.final, EraseProof.Test.NVR.fo_cT,
+   EraseProof.Test.NVR.firstorder}
+  \leanok
+  \uses{def:EraseProof-ViewAgrees, def:EraseProof-TrM, def:Erasure-EraseError,
+    def:Erasure-collectDeps, def:EraseProof-LBEval, def:EraseProof-Erases, def:EraseProof-EvalEnv,
+    def:EraseProof-SrcEval, def:EraseProof-ConstsIn, def:EraseProof-Test-NVR-P,
+    lem:EraseProof-Test-NVR-hrun, def:EraseProof-Test-NVR-E, def:LBTerm, def:ASTType,
+    cor:EraseProof-erase_correct_firstorder}
+  \srcloc{proof/EraseProof/Test/NVRFinal.lean}{27}
+  \lead{In short} \code{erase\_correct} applied to NV-R with \hl{all eight hypotheses}: the
+  emitted program evaluates to an erasure of \code{B.t}.
+  \begin{itemize}
+  \item \code{hfrag}: the closure contains \code{N.rec}, which \code{RecInFragment} admits;
+  \item \code{hev}: \code{SrcEval.recIota} on \code{N.s N.z}, with the induction hypothesis
+        evaluated by \code{recIota} on \code{N.z} (\code{ev\_ih}), then two $\beta$-steps
+        (\code{ev\_minS});
+  \item \code{firstorder}: the instance of \code{erase\_correct\_firstorder}.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{thm:EraseProof-erase_correct, def:Erasure-EnvView, def:EraseProof-EvalEnv-etaSpine,
+    lem:EraseProof-Test-NVR-henv, def:toKername}
+  \leanok
+  \lead{Idea} The rules of \code{SrcEval}; the other hypotheses from the nodes above.
+\end{proof}
+
 \section{\texorpdfstring{$\lambda_\Box$}{lambda-box} evaluation}\label{sec:tests-lbeval}
 
 \begin{lemma}[\texorpdfstring{$\lambda_\Box$}{lambda-box} evaluation is deterministic]
@@ -817,10 +976,10 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
 
 \section*{Caveats}
 \begin{itemize}
-\item \lead{Caveat} No instance has a projection, a Peano literal, a recursive type
-  or an opaque; that their premises are satisfiable is argued, not shown.
-\item \lead{Caveat} \leanfile{proof/tools/NVEmit.lean} checks the declarations of NV-1, NV-2, NV-P and
-  NV-Q against the kernel's; NV-K's lemma \code{hEq} is written by hand.
+\item \lead{Caveat} No instance has a projection, a Peano literal, an indexed or mutual
+  recursor or an opaque; that their premises are satisfiable is argued, not shown.
+\item \lead{Caveat} \leanfile{proof/tools/NVEmit.lean} checks the declarations of NV-1, NV-2, NV-P,
+  NV-Q and NV-R against the kernel's; NV-K's lemma \code{hEq} is written by hand.
 \item \lead{Caveat} The views of the tests are the closures as lists; \code{\#erase} reads the
   whole environment, which agrees with them on their names. The kernel checks the instances on
   the logical definitions; NVEmit runs the compiled code.

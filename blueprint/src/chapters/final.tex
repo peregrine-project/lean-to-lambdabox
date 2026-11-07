@@ -12,9 +12,9 @@
   (M1), with one case lemma per rule of \code{SrcEval}; the soundness of the pure traversal
   \code{erasePure\_erases} (M2), by induction on fuel over the step lemmas of
   Section~\ref{sec:core-steps}. The statements are definitions of type \code{Prop}, pinned by
-  \code{proof/spec.pin} (C12b); C12 checks each theorem's type against its statement. Four test
+  \code{proof/spec.pin} (C12b); C12 checks each theorem's type against its statement. Six test
   programs discharge every hypothesis (Chapter~\ref{chap:tests}). \stProved{} the first-order
-  corollary, with instances on NV-1 and NV-2.
+  corollary, with instances on NV-1, NV-2 and NV-R.
 \item \lead{Nodes} \bpnodes{chap:final}
 \item \lead{Lean files} \leanfile{proof/EraseProof/Statements.lean},
   \leanfile{proof/EraseProof/Final.lean}, \leanfile{proof/EraseProof/FirstOrder.lean},
@@ -31,7 +31,7 @@
   \lean{EraseProof.ViewAgrees}
   \leanok
   \uses{def:Erasure-EnvView}
-  \srcloc{proof/EraseProof/Spec.lean}{912}
+  \srcloc{proof/EraseProof/Spec.lean}{989}
   \lead{In short} \code{ViewAgrees view P}: \hl{the environment view of \code{\#erase} returns
   each declaration of \code{P} under its name}.
   \lead{Reference} \code{Sigma} $\sim$\code{\_ext X} (\code{abstract\_env\_ext\_rel}), a
@@ -133,10 +133,14 @@
 \item \lead{Well-founded recursion} excluded: the fragment test rejects such definitions (they
   have an \code{\_unsafe\_rec} companion), and their recursion reduces only through an accessibility
   proof, which is opaque (DV-24), so \code{hev} never holds for them.
-\item \lead{No recursion} the fragment is non-recursive: the test rejects structural recursion
-  too (an \code{\_unsafe\_rec} companion, \code{Nat.add} and \code{Nat.beq} included) and
-  recursors other than the companions of \code{casesOn}, so \hl{no \code{Nat} arithmetic}. Nat
-  literals are in only under \code{nat := .peano}.
+\item \lead{Recursion} the test rejects structural recursion (an \code{\_unsafe\_rec}
+  companion, \code{Nat.add} and \code{Nat.beq} included), so \hl{no \code{Nat} arithmetic}. It
+  admits the recursors \code{T.rec} of a single inductive without indices whose induction
+  hypotheses take no arguments and come last (\code{RecInFragment}); \code{Nat} literals are in
+  only under \code{nat := .peano}.
+\item \lead{Recursors} \code{SrcEval}, \code{Erases} and M1 cover these recursors (DV-30), so
+  \hl{the final theorem covers programs that compute with them}; NV-R is an instance. A recursor
+  applied to a \code{Nat} literal has no source rule, so such programs are covered vacuously.
 \item \lead{Quotients} \code{SrcEval}, \code{Erases} and M1 cover \code{Quot.mk} and
   \code{Quot.lift} (DV-29), and the fragment test admits quotient constants, so \hl{the final theorem covers
   programs with quotients}; NV-Q is an instance.
@@ -300,7 +304,7 @@ structural erasure.
     def:EraseProof-EvalEnv-isAtom, def:EraseProof-EvalEnv-etaSpine, def:EraseProof-SrcEval,
     def:EraseProof-SrcValue, def:EraseProof-ConstsIn, def:LBTerm, def:toKername,
     def:Erasure-TravCtx}
-  \srcloc{proof/EraseProof/Simulation/Cases.lean}{420}
+  \srcloc{proof/EraseProof/Simulation/Cases.lean}{474}
   \lead{In short} One lemma per rule (\code{beta}, \code{zeta}, \code{delta}, \code{constAtom},
   \code{appCong}, \code{mdata}, \code{atom}): from the rule's premises and an \code{ErasesSim} per
   evaluation premise, \hl{\code{ErasesSim} of the rule's conclusion}.
@@ -385,7 +389,7 @@ structural erasure.
     def:EraseProof-Erases, def:EraseProof-ErasesDeps, def:EraseProof-IsErasable,
     def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-isAtom, def:EraseProof-EvalEnv-etaSpine,
     def:EraseProof-SrcEval, def:EraseProof-ConstsIn, def:LBTerm, def:GlobalDecl}
-  \srcloc{proof/EraseProof/Simulation/Ind.lean}{762}
+  \srcloc{proof/EraseProof/Simulation/Ind.lean}{770}
   \lead{In short} The case lemmas of \code{eta}, \code{lit}, \code{ctor}, \code{proj},
   \code{projProp}, \code{casesProof} and \code{casesLitZero}, \hl{in the pattern of
   Lemma~\ref{lem:EraseProof-erases_correct_beta}}.
@@ -420,7 +424,7 @@ structural erasure.
   \uses{def:EraseProof-MBinding, def:EraseProof-TrM, def:EraseProof-LBEval, def:EraseProof-Erases,
     def:EraseProof-EvalEnv, def:EraseProof-SrcEval, def:EraseProof-SrcValue,
     def:EraseProof-ConstsIn, def:LBTerm}
-  \srcloc{proof/EraseProof/Simulation/Iota.lean}{472}
+  \srcloc{proof/EraseProof/Simulation/Iota.lean}{523}
   \lead{In short} \code{HeadBeta $\sigma$ e X}: \hl{\code{X} arises from \code{e} by head
   $\beta$-steps} of a $\lambda$-headed spine whose arguments evaluate to themselves only.
   \begin{itemize}
@@ -453,7 +457,8 @@ structural erasure.
     EraseProof.SimIota.short_erases_inv, EraseProof.SimIota.lam_erases_inv,
     EraseProof.SimIota.forall_snoc_intro, EraseProof.SimIota.appBox_step,
     EraseProof.SimIota.appBox, EraseProof.SimIota.fields_erasable,
-    EraseProof.SimIota.fixed_quotMk}
+    EraseProof.SimIota.fixed_quotMk,
+    EraseProof.SimIota.appArg_step, EraseProof.SimIota.srcValue_not_rec}
   \leanok
   \uses{def:EraseProof-PhaseIDecl, def:EraseProof-erases_correct_statement,
     def:EraseProof-ErasesSim, def:EraseProof-SimIota-HeadBeta, def:EraseProof-MBinding,
@@ -462,7 +467,7 @@ structural erasure.
     def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-isAtom, def:EraseProof-EvalEnv-etaSpine,
     def:EraseProof-SrcEval, def:EraseProof-SrcValue, def:EraseProof-ConstsIn, def:LBTerm,
     def:Erasure-TravCtx}
-  \srcloc{proof/EraseProof/Simulation/Iota.lean}{1069}
+  \srcloc{proof/EraseProof/Simulation/Iota.lean}{1169}
   \lead{In short} The \code{casesIota} and \code{casesLitSucc} case lemmas, with \hl{the
   induction hypothesis on every head-$\beta$-reduct} of the alternative applied to the fields.
   \begin{itemize}
@@ -529,6 +534,101 @@ structural erasure.
   \code{a} comes from \leandecl{Metalean.WHRed.quotIota_defeq} and $\beta$.
 \end{proof}
 
+\begin{lemma}[The fixpoint of a recursor, unfolded]
+  \label{lem:EraseProof-RecFix-recFix_eq}
+  \lean{EraseProof.RecFix.SimpleAlt, EraseProof.RecFix.altF, EraseProof.RecFix.altF_simple, EraseProof.RecFix.altG, EraseProof.RecFix.altNames, EraseProof.RecFix.csubst0_innerS, EraseProof.RecFix.csubstB_eq, EraseProof.RecFix.csubst_bvar_lt, EraseProof.RecFix.csubst_foldl_app, EraseProof.RecFix.csubst_foldr_lambda, EraseProof.RecFix.csubst_innerS, EraseProof.RecFix.csubst_recAltS, EraseProof.RecFix.filter_keep, EraseProof.RecFix.foldl_csubst_bvar, EraseProof.RecFix.foldl_csubst_bvar_lt, EraseProof.RecFix.foldl_csubst_closed, EraseProof.RecFix.foldl_csubst_innerS, EraseProof.RecFix.idxOf?_range, EraseProof.RecFix.innerS, EraseProof.RecFix.innerSD, EraseProof.RecFix.innerS_congr, EraseProof.RecFix.length_altNames, EraseProof.RecFix.recAltS, EraseProof.RecFix.recFix_eq, EraseProof.RecFix.substl_fix1, EraseProof.RecFix.substl_recAltS}
+  \leanok
+  \uses{def:EraseProof-RecFixOf, def:EraseProof-lbLift, lem:EraseProof-TargetLift-closedn_lbLift,
+    def:EraseProof-LBEval, def:LBTerm}
+  \srcloc{proof/EraseProof/Simulation/RecFix.lean}{79}
+  \lead{In short} For a block of one member whose motive binds only the major premise, whose fields
+  are all kept and whose induction hypotheses take no arguments, \code{recFix} \hl{has the shape
+  \code{fix} of \code{case}} with one alternative per constructor (\code{recAltS}): the minor
+  premise applied to the fields and to the recursive calls on the recursive fields.
+  \begin{itemize}
+  \item \code{recFix\_eq}: \code{recFix} of this block is \code{innerS} under the minors'
+        $\lambda$s;
+  \item \code{substl\_recAltS}, \code{csubst\_innerS}, \code{substl\_fix1}: closed substitutions
+        for the minors, for the fixpoint's unfolding, for the major premise and for the fields
+        move through the shape;
+  \item \code{SimpleAlt}, \code{altF\_simple}: the alternatives have the shape that these lemmas
+        read.
+  \end{itemize}
+  \lead{Reference} \code{recFix} of \leanfile{LeanToLambdaBox/Erasure.lean}; none in MetaRocq (DV-30).
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Unfolding of \code{recFix}; substitution lemmas for the bound variables of the
+  minors, the fixpoint and the arguments.
+\end{proof}
+
+\begin{lemma}[\texorpdfstring{$\lambda_\Box$}{lambda-box} evaluation of a recursor's erasure]
+  \label{lem:EraseProof-RecEval-LBEval_fixed}
+  \lean{EraseProof.RecEval.LBEval.fixed, EraseProof.RecEval.LBEval.self, EraseProof.RecEval.app_fixed, EraseProof.RecEval.box_only, EraseProof.RecEval.construct_args_self, EraseProof.RecEval.csubst_letChain, EraseProof.RecEval.eval_app_arg, EraseProof.RecEval.eval_args_replace, EraseProof.RecEval.eval_lams_boxes, EraseProof.RecEval.eval_letChain, EraseProof.RecEval.eval_mkApps_head, EraseProof.RecEval.foldl_app_eq_mkApps, EraseProof.RecEval.lbArgs, EraseProof.RecEval.lbArgs_mkApps, EraseProof.RecEval.letChain, EraseProof.RecEval.mkApps_append, EraseProof.RecEval.mkApps_inj, EraseProof.RecEval.mkApps_snoc}
+  \leanok
+  \uses{def:EraseProof-LBEval, lem:EraseProof-LBEval-idem, lem:EraseProof-RecLam-recLets_closed,
+    lem:EraseProof-TargetLift-closedn_lbLift, def:EraseProof-lbLift, def:LBTerm}
+  \srcloc{proof/EraseProof/Simulation/RecEval.lean}{76}
+  \lead{In short} The $\lambda_\Box$ evaluation facts that the recursor case needs: a result is a
+  value that \hl{evaluates to itself only}, a chain of \code{let}s of closed terms evaluates as its
+  body with the values substituted, and $\lambda$s applied to $\Box$ reduce to their body.
+  \begin{itemize}
+  \item \code{LBEval.fixed}, \code{LBEval.self}: an evaluation result is \code{LBFixed};
+  \item \code{eval\_letChain}, \code{csubst\_letChain}: the let-bound minors;
+  \item \code{eval\_mkApps\_head}, \code{eval\_app\_arg}, \code{eval\_args\_replace}: an application
+        spine evaluates like a spine with an equivalent head or argument;
+  \item \code{eval\_lams\_boxes}: $\lambda$s applied to $\Box$s;
+  \item \code{construct\_args\_self}, \code{app\_fixed}, \code{box\_only}: values built from values.
+  \end{itemize}
+  \lead{Reference} MetaRocq \code{value\_final}, \code{eval\_deterministic}, \code{eval\_zeta},
+  \code{eval\_beta} (\code{EWcbvEval.v}).
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Induction on evaluation (\code{LBEval.ind}); \code{letChain} by induction on its
+  length.
+\end{proof}
+
+\begin{lemma}[The recursor \texorpdfstring{$\iota$}{iota} case of the simulation]
+  \label{lem:EraseProof-erases_correct_recIota}
+  \lean{EraseProof.SimRec.ArgOK, EraseProof.SimRec.appArgs, EraseProof.SimRec.choose_list, EraseProof.SimRec.closedn_getD, EraseProof.SimRec.deps_letChain, EraseProof.SimRec.deps_recBody, EraseProof.SimRec.erases_correct_recIota, EraseProof.SimRec.eval_recFIX, EraseProof.SimRec.kfv_of_fvarsIn, EraseProof.SimRec.noFVar_of_tr, EraseProof.SimRec.recBody, EraseProof.SimRec.recCs, EraseProof.SimRec.recCs_fst, EraseProof.SimRec.recFIX, EraseProof.SimRec.recFix_shape, EraseProof.SimRec.rec_args, EraseProof.SimRec.rec_core, EraseProof.SimRec.rec_level, EraseProof.SimRec.simple_fields, EraseProof.SimRec.spine_split, EraseProof.SimRec.substl_app_closed, EraseProof.SimRec.substl_recFix}
+  \leanok
+  \uses{def:EraseProof-PhaseIDecl, def:EraseProof-erases_correct_statement,
+    def:EraseProof-ErasesSim, def:EraseProof-MBinding, def:EraseProof-TrM, def:EraseProof-ProgEnv,
+    def:EraseProof-LBEval, def:EraseProof-Subsingleton, def:EraseProof-Erases,
+    def:EraseProof-ErasesDeps, def:EraseProof-EvalEnv, def:EraseProof-SrcEval,
+    def:EraseProof-SrcValue, def:EraseProof-RecFixOf, def:EraseProof-lbLift,
+    lem:EraseProof-RecFix-recFix_eq, lem:EraseProof-RecEval-LBEval_fixed,
+    lem:EraseProof-RecLam-recLets_closed, lem:EraseProof-ProgEnv-lookup_recr, def:LBTerm}
+  \srcloc{proof/EraseProof/Simulation/Rec.lean}{291}
+  \lead{In short} \code{SrcEval.recIota} is simulated: the erasure of a saturated recursor
+  \hl{evaluates in $\lambda_\Box$ to an erasure of the minor applied to the fields and to the
+  recursive calls}.
+  \begin{itemize}
+  \item \lead{Given} the rule's premises and the simulation's induction hypotheses for the minors,
+        the major and the recursive calls;
+  \item \lead{Then} the erasure is $\Box$, the fixpoint under the let-bound minors (\code{recLet}),
+        or the fixpoint with the minors' values substituted (\code{recFix}); in each case it
+        evaluates to an erasure of the value;
+  \item \code{rec\_core}: the step on the fixpoint with the minors substituted;
+        \code{rec\_level}: the universe level of the \code{case} (\code{direct} or not);
+  \item \code{appArgs}, \code{rec\_args}, \code{spine\_split}: the extra arguments and the split of
+        the spine at the arity.
+  \end{itemize}
+  \lead{Why \code{recFix}} the recursive calls are erasures of source terms \code{T.rec \ldots\ f}
+  whose minors are already values; the form with the minors substituted is closed under the
+  unfolding of the fixpoint.
+  \lead{Reference} none in MetaRocq (DV-30); the $\lambda_\Box$ steps are \code{eval\_zeta},
+  \code{eval\_fix}, \code{eval\_beta} and \code{eval\_iota} (\code{EWcbvEval.v}).
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-erases_correct_casesIota}
+  \leanok
+  \lead{Idea} $\lambda_\Box$ binds the minors' values, unfolds the fixpoint on the major's value,
+  selects the constructor's alternative and applies the minor's value to the fields and the
+  recursive calls; the recursive calls are the induction hypotheses of the simulation.
+\end{proof}
+
 \begin{theorem}[M1: simulation]
   \label{thm:EraseProof-erases_correct}
   \lean{EraseProof.erases_correct, EraseProof.SimMain.app_mkAppN, EraseProof.SimMain.short_head,
@@ -538,7 +638,7 @@ structural erasure.
     def:EraseProof-ErasesSim, def:EraseProof-SimIota-HeadBeta, def:EraseProof-MBinding,
     def:EraseProof-ProgEnv, def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-etaSpine,
     def:EraseProof-SrcEval, def:EraseProof-ConstsIn}
-  \srcloc{proof/EraseProof/Simulation/Main.lean}{189}
+  \srcloc{proof/EraseProof/Simulation/Main.lean}{199}
   \lead{In short} An erasure with erased dependencies of a typed, evaluating term \hl{evaluates
   in $\lambda_\Box$ to an erasure of the value}.
   \begin{itemize}
@@ -555,7 +655,7 @@ structural erasure.
 \begin{proof}
   \uses{lem:EraseProof-erases_correct_beta, lem:EraseProof-erases_correct_ctor,
     lem:EraseProof-erases_correct_casesIota, lem:EraseProof-erases_correct_quotMk,
-    def:EraseProof-SatTr, def:EraseProof-TrM, lem:EraseProof-TrM-weakBV, lem:EraseProof-TrM-apps,
+    lem:EraseProof-erases_correct_recIota, def:EraseProof-SatTr, def:EraseProof-TrM, lem:EraseProof-TrM-weakBV, lem:EraseProof-TrM-apps,
     lem:EraseProof-SatTr-typed, def:Erasure-Pure-instLevels, def:EraseProof-LBEval,
     def:EraseProof-Erases, def:EraseProof-ErasesDeps, def:EraseProof-EvalEnv-isAtom,
     lem:EraseProof-SrcDefeq-sound_of, def:LBTerm}
@@ -603,7 +703,7 @@ structural erasure.
   \lead{Reference} the erasure half of MetaRocq's \code{erase\_correct}; \code{erases\_erase}.
 \end{theorem}
 \begin{proof}
-  \uses{lem:EraseProof-Steps-stepsB_quot, lem:EraseProof-Pure-whnf_sound, def:EraseProof-PhaseIDecl, lem:EraseProof-collectDeps_spec,
+  \uses{lem:EraseProof-Steps-stepsB_quot, lem:EraseProof-Steps-stepsB_rec, lem:EraseProof-Pure-whnf_sound, def:EraseProof-PhaseIDecl, lem:EraseProof-collectDeps_spec,
     lem:EraseProof-collectDeps_machineFree, def:EraseProof-StateOK,
     lem:EraseProof-StateOK-register, def:EraseProof-MachineFree, def:EraseProof-Steps-ExprSpec,
     def:EraseProof-Steps-CoreEnv, def:EraseProof-Steps-NatPlain,
@@ -623,8 +723,8 @@ structural erasure.
   \lead{Idea} Induction on fuel (\code{stepIH\_of\_stepsB}) over the closure facts
   (\code{coreEnv\_of\_collectDeps}), applied in the empty context, from the empty state, with the
   closure's names as the scope.
-  \lead{Steps} \code{StepsB} from the constructor, \code{casesOn}, projection and literal steps;
-  the \code{casesOn} step from its three branches.
+  \lead{Steps} \code{StepsB} from the constructor, quotient, recursor, \code{casesOn},
+  projection and literal steps; the \code{casesOn} step from its three branches.
 \end{proof}
 
 \section{Hypotheses}\label{sec:final-hypotheses}
