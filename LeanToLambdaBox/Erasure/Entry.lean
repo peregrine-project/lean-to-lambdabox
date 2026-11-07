@@ -79,11 +79,31 @@ def sortDecided (iv : InductiveVal) : Except EraseError Bool :=
 def viewFind (view : EnvView) (n : Name) : List ConstantInfo :=
   ((view.find? n).filter (·.name == n)).toList
 
+/-- Whether the recursor `r`, given the inductive types of its block and their constructors, has
+the shape of the recursors in the fragment: its block is one inductive type without indices, which
+eliminates into every sort (`r` has a universe parameter more than the inductive), and in each minor
+premise (`recShape` of `r`'s type) the induction hypotheses take no arguments and are about the
+last fields of the constructor, in order (the recursive fields come last and are not functions).
+Reference: none. -/
+def recShapeInFragment (r : RecursorVal) (ivs : List InductiveVal) (cvs : List ConstructorVal) :
+    Bool :=
+  match r.all, ivs with
+  | [_], [iv] =>
+    r.numIndices == 0 && r.levelParams.length != iv.levelParams.length &&
+      match recShape r.numParams r.numMotives r.type (cvs.map (·.numFields)) with
+      | some (_, minors) => minors.all fun mi =>
+        mi.ihs.map (fun h => (h.field, h.binders)) ==
+          (List.range' (mi.fields.length - mi.ihs.length) mi.ihs.length).map fun f => (f, [])
+      | none => false
+  | _, _ => false
+
 /-- The exclusions a declaration of the closure carries by itself: a recursor that the
 traversal keeps as a constant (`recStaysConstant`, over the inductive types of its block and their
 constructors, looked up through the view: a nested block, `Nat` or `Int` under `nat := .machine`,
-an inductive whose sort may be `Prop` with a constructor field that is an index; this is checked
-only for a recursor the closure reads, not for one it adds as a companion); an `unsafe` or
+an inductive whose sort may be `Prop` with a constructor field that is an index), or that does not
+have the shape `recShapeInFragment` admits (a mutual or indexed block, elimination only into
+`Prop`, an induction hypothesis with arguments or before a non-recursive field); this is checked
+only for a recursor the closure reads, not for one it adds as a companion; an `unsafe` or
 `partial` definition, or a definition or an opaque with an `_unsafe_rec` companion (a `partial def` is an opaque whose value is a dummy, compiled through its
 companion); an `unsafe` opaque, axiom, inductive or constructor; an `implemented_by` target of a definition, an
 opaque or an axiom; a nested inductive, or one whose sort is excluded by `sortDecided`; an
@@ -98,6 +118,8 @@ def declExclusion (view : EnvView) (cfg : ErasureConfig) : ConstantInfo → Exce
       | _ => none
     if recStaysConstant cfg.nat r ivs cvs then
       throw (.outOfFragment s!"recursor {r.name}, which the eraser keeps as a constant")
+    unless recShapeInFragment r ivs cvs do
+      throw (.outOfFragment s!"recursor {r.name}, of a mutual or indexed block, eliminating only into Prop, or with an induction hypothesis that takes arguments or precedes a field")
   | .defnInfo d => do
     unless d.safety matches .safe do throw (.outOfFragment s!"unsafe or partial {d.name}")
     if (view.find? (Compiler.mkUnsafeRecName d.name)).isSome then
@@ -250,7 +272,9 @@ recognizer reads them; the value is not read, the recursor is not an exclusion);
 `closureStep`, `eliminatedUndecided`): a recursor that a read expression or block names and that
 the traversal keeps as a constant (`recStaysConstant`: a nested block, `Nat` or `Int` under
 `nat := .machine`, an inductive whose sort may be `Prop` with a constructor field that is an index
-of the constructor's type); a string literal; an
+of the constructor's type) or whose shape `recShapeInFragment` does not admit (a mutual or indexed
+block, elimination only into `Prop`, an induction hypothesis that takes arguments or precedes a
+field); a string literal; an
 `unsafe`/`partial` constant, or one with an `_unsafe_rec` companion or an `implemented_by` target; a
 nested or unsafe inductive; an `@[extern]` constructor under `extern := .preferAxiom`; under
 `nat := .machine` a Nat literal, `Nat.zero`, `Nat.succ`, `Int.ofNat`, `Int.negSucc`, `Nat.casesOn`

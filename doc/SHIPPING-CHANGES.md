@@ -3218,6 +3218,61 @@ the calls at which the two oracles answer differently. It must equal
   at the base and the mono phase, and checks the outputs with peregrine. `scripts/regress.sh`
   passes (27 tests), with and without `PEREGRINE`.
 
+---
+
+## S-47: The fragment test admits only recursors of one inductive without indices whose recursive fields come last
+
+- **Commit:** the commit whose subject starts with `S-47:` (`git log --grep='^S-47:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure/Entry.lean`: new `recShapeInFragment`; `declExclusion` excludes a
+    recursor that the closure reads unless `recShapeInFragment` holds of it, over the inductive
+    types of its block and their constructors looked up through the view; the docstrings of
+    `declExclusion` and `collectDeps`.
+  - `tests/regress/recursor.lean`: the verdicts and routes of `useVec`, `useMutual` and `useCast`;
+    a new program in the fragment (`useTree`, `Tr.rec` on a binary tree) and three new excluded
+    ones (`snocLast`, `fnLeaf`, `orTriv`); the goldens of `useVec` and `useMutual`, and the new
+    `useTree.ast` with its peregrine outputs.
+  - `tests/harness/expected/pure-harness.txt`: `eq_cast` leaves the fragment.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** the fragment is the set of programs that the correctness theorem of the pure
+  path is about. Its source semantics evaluates a recursor by the recursor ι only for a recursor
+  of one inductive type without indices whose induction hypotheses take no arguments and are
+  about the last fields of their constructor, in order. A program using another recursor (a
+  mutual or indexed block such as `Eq.rec`, an induction hypothesis on a function field, a
+  recursive field before a non-recursive one) is erased by the same traversal (S-40), but its
+  source evaluation is stuck at the recursor, so the theorem would hold of it only vacuously.
+  A recursor that eliminates only into `Prop` (it has no universe parameter beyond the inductive's,
+  as `Or.rec`) is applied only to build proofs; the oracle normally erases those to □, and when it
+  does not, the fixpoint over a `case` on an inductive with several constructors is not an erasure
+  (MetaRocq's `erases` allows a `case` only on a subsingleton), so such recursors are excluded as
+  well. `recStaysConstant` is unchanged, so the traversal and the `Meta` path are unchanged.
+- **Behaviour before:** the fragment test admits every recursor that the closure reads, except
+  those that the traversal keeps as constants (S-41).
+- **Behaviour after:** it also excludes, with `outside the fragment: recursor <T>.rec, of a mutual
+  or indexed block, eliminating only into Prop, or with an induction hypothesis that takes
+  arguments or precedes a field`, a read recursor whose block is not a single inductive type
+  without indices, which has no universe parameter more than its inductive, or one of whose minor
+  premises (`recShape` of its type) has an induction hypothesis with binders or the induction
+  hypotheses not about the last fields in order. `Nat.rec`, `List.rec`, `Bool.rec`, `And.rec` into
+  data and the recursor of a binary tree stay in the fragment. Companion recursors are added
+  without the check, as before.
+- **Effect on emitted .ast (corpus):** byte-identical for all 710 files against the corpus of the
+  merge of S-41 into this branch; `PANIC` counts unchanged. `scripts/pure-harness.sh` passes with
+  its expected summary updated: `Defects/eq_cast.ast` changes from `pure ok; Meta ok; outputs
+  identical; #erase = pure and Meta; oracle 36 calls, 0 differ` to `out of the fragment: recursor
+  Eq.rec, …`; the totals become 294 `#erase`, 225 in the fragment (226), 66 outside (65), 3
+  `collectDeps` errors; 206 identical (207), 15 differ, 4 without `Meta` output; 8326 oracle calls
+  (8362), 14 differ, none fails.
+- **Regression test:** `recursor` checks that the fragment test excludes `useVec` (`Vec.rec`,
+  indexed), `useMutual` (`Od.rec`, mutual), `useCast` (`Eq.rec`, indexed), `snocLast` (`Sn.rec`,
+  whose recursive field precedes a field), `fnLeaf` (`Fn.rec`, whose induction hypothesis takes an
+  argument) and `orTriv` (`Or.rec`, eliminating only into `Prop`), and that `useVec`, `useMutual`
+  and `useCast` take the `Meta` path, whose outputs are those of S-40; it checks that `useTree`
+  (`Tr.rec` on a binary tree, both fields recursive) is in the fragment and takes the pure path,
+  and pins its output, which peregrine validates and evaluates to 2. Before this commit the six
+  exclusions and the three routes differ. `scripts/regress.sh` passes (27 tests), with and without
+  `PEREGRINE`.
+
 ## Reported, not fixed
 
 Each entry below was reproduced on this branch. Unless stated otherwise, the reproduction is an

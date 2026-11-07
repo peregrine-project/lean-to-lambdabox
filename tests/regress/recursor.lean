@@ -8,12 +8,15 @@ each alternative applies its minor premise to the constructor's fields and to an
 hypothesis `λ ys. rec □… (f ys)` for each recursive field `f`. A recursor whose application is a
 proof is erased to □.
 
-The fragment test admits recursors (register entry S-41), except those that the eraser keeps
-as constants, so, under `nat := .peano`, the programs below take the pure path, and `#erase`
-writes them:
+The fragment test admits recursors (register entries S-41 and S-47), except those that the eraser
+keeps as constants and those of a mutual or indexed block, of an inductive that eliminates only
+into `Prop`, or whose induction hypotheses take arguments or precede a field. Under
+`nat := .peano`, `#erase` writes the programs below, `useNat`, `useList`, `useTree`, `useAnd`,
+`useOver` and `propRec` on the pure path, the others on the `Meta` path:
 - `useNat`: `double 3`, where `double` is `Nat.rec` without its major premise (η-expanded), with
   `csimp := false` (with `csimp`, the code generator's `Nat.rec = Nat.recCompiled` replaces it);
 - `useList`: the length of a list by `List.rec`, whose induction hypothesis is used;
+- `useTree`: the length of the right spine of a binary tree by `Tr.rec`, two recursive fields;
 - `useVec`: the last element of a vector by `Vec.rec`, on an indexed family;
 - `useMutual`: `Od.rec` on the mutual block `Ev`/`Od`, whose fixpoint has two functions;
 - `useCast`: a cast `h ▸ b` (`Eq.rec`, a `Prop` inductive with a data motive), and `useAnd`:
@@ -23,18 +26,23 @@ writes them:
 - `propRec`: a proof by `Nat.rec` with a `Prop` motive, erased to □ (printed `(FIX 0)`);
 - `useNatMachine`: `useNat` under `nat := .machine`, where `Nat.rec` stays an axiom, since the
   values of `Nat` are primitive integers (peregrine reads no output with them, R-1).
-peregrine evaluates them to 6, 3, `RT.B.t`, `RT.B.t`, `RT.B.t`, `RT.B.t`, `RT.B.f` and □.
+peregrine evaluates them to 6, 3, 2, `RT.B.t`, `RT.B.t`, `RT.B.t`, `RT.B.t`, `RT.B.f` and □.
 The test also pins `useList` on the `Meta` path (`useList.meta.ast`, under
 `remove_irrel_constr_args`, which the fragment excludes), which equals the pure path's output, and
 checks that the fragment test excludes `useAcc`, which applies `Acc.rec` (a `Prop` inductive with
 a field that is an index), which the eraser keeps as a constant, so that `#erase` writes it
-(`useAcc.ast`) with the axiom `Acc.rec` on the `Meta` path.
+(`useAcc.ast`) with the axiom `Acc.rec` on the `Meta` path. It also checks that the fragment
+test excludes `snocLast` (`Sn.rec`, whose recursive field precedes a field), `fnLeaf` (`Fn.rec`,
+whose induction hypothesis takes an argument) and `orTriv` (`Or.rec`, which eliminates only into
+`Prop`).
 -/
 
 -- peregrine: validate useNat.ast
 -- peregrine: eval useNat.ast
 -- peregrine: validate useList.ast
 -- peregrine: eval useList.ast
+-- peregrine: validate useTree.ast
+-- peregrine: eval useTree.ast
 -- peregrine: validate useVec.ast
 -- peregrine: eval useVec.ast
 -- peregrine: validate useMutual.ast
@@ -67,6 +75,21 @@ noncomputable def useNat : Nat := double 3
 noncomputable def len {α : Type} (l : List α) : Nat :=
   List.rec (motive := fun _ => Nat) 0 (fun _ _ ih => ih.succ) l
 noncomputable def useList : Nat := len [B.t, B.f, B.t]
+
+inductive Tr | leaf | node : Tr → Tr → Tr
+
+noncomputable def spine (t : Tr) : Nat := Tr.rec (motive := fun _ => Nat) 0 (fun _ _ _ ih => ih.succ) t
+noncomputable def useTree : Nat := spine (.node .leaf (.node .leaf .leaf))
+
+inductive Sn | nil | snoc : Sn → B → Sn
+
+noncomputable def snocLast (s : Sn) : B := Sn.rec (motive := fun _ => B) B.f (fun _ b _ => b) s
+
+inductive Fn | leaf | node : (B → Fn) → Fn
+
+noncomputable def fnLeaf (x : Fn) : B := Fn.rec (motive := fun _ => B) B.t (fun _ ih => ih B.f) x
+
+def orTriv (h : True ∨ True) : True := Or.rec (fun _ => trivial) (fun _ => trivial) h
 
 inductive Vec (α : Type) : Nat → Type
   | nil : Vec α 0
@@ -115,11 +138,14 @@ def check (n : Name) : CoreM Unit := do
 #eval check ``RT.useList
 /-- info: in the fragment -/
 #guard_msgs in
+#eval check ``RT.useTree
+/-- info: outside the fragment: recursor RT.Vec.rec, of a mutual or indexed block, eliminating only into Prop, or with an induction hypothesis that takes arguments or precedes a field -/
+#guard_msgs in
 #eval check ``RT.useVec
-/-- info: in the fragment -/
+/-- info: outside the fragment: recursor RT.Od.rec, of a mutual or indexed block, eliminating only into Prop, or with an induction hypothesis that takes arguments or precedes a field -/
 #guard_msgs in
 #eval check ``RT.useMutual
-/-- info: in the fragment -/
+/-- info: outside the fragment: recursor Eq.rec, of a mutual or indexed block, eliminating only into Prop, or with an induction hypothesis that takes arguments or precedes a field -/
 #guard_msgs in
 #eval check ``RT.useCast
 /-- info: in the fragment -/
@@ -134,6 +160,15 @@ def check (n : Name) : CoreM Unit := do
 /-- info: outside the fragment: recursor Acc.rec, which the eraser keeps as a constant -/
 #guard_msgs in
 #eval check ``RT.useAcc
+/-- info: outside the fragment: recursor RT.Sn.rec, of a mutual or indexed block, eliminating only into Prop, or with an induction hypothesis that takes arguments or precedes a field -/
+#guard_msgs in
+#eval check ``RT.snocLast
+/-- info: outside the fragment: recursor RT.Fn.rec, of a mutual or indexed block, eliminating only into Prop, or with an induction hypothesis that takes arguments or precedes a field -/
+#guard_msgs in
+#eval check ``RT.fnLeaf
+/-- info: outside the fragment: recursor Or.rec, of a mutual or indexed block, eliminating only into Prop, or with an induction hypothesis that takes arguments or precedes a field -/
+#guard_msgs in
+#eval check ``RT.orTriv
 
 /-- The route of the constant `n` under `nat := .peano`. -/
 def route? (n : Name) : CoreM Unit := do
@@ -150,11 +185,14 @@ def route? (n : Name) : CoreM Unit := do
 #eval route? ``RT.useList
 /-- info: pure path -/
 #guard_msgs in
+#eval route? ``RT.useTree
+/-- info: Meta path -/
+#guard_msgs in
 #eval route? ``RT.useVec
-/-- info: pure path -/
+/-- info: Meta path -/
 #guard_msgs in
 #eval route? ``RT.useMutual
-/-- info: pure path -/
+/-- info: Meta path -/
 #guard_msgs in
 #eval route? ``RT.useCast
 /-- info: pure path -/
@@ -174,6 +212,8 @@ def route? (n : Name) : CoreM Unit := do
 #erase RT.useNat config {nat := .peano, csimp := false} to "useNat.ast"
 #guard_msgs (drop warning, drop info) in
 #erase RT.useList config {nat := .peano} to "useList.ast"
+#guard_msgs (drop warning, drop info) in
+#erase RT.useTree config {nat := .peano} to "useTree.ast"
 #guard_msgs (drop warning, drop info) in
 #erase RT.useVec config {nat := .peano} to "useVec.ast"
 #guard_msgs (drop warning, drop info) in
