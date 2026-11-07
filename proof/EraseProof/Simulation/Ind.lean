@@ -335,13 +335,20 @@ theorem eta_inv {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ l
     subst har
     simp at hlt
     omega
+  | recLet hcr | recFix hcr =>
+    obtain ⟨rfl, -, -⟩ := inj hx
+    rcases SrcDefeq.specialArity_some har with ⟨cv, hcv, -⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, -⟩
+    · rw [hcr] at hcv; cases hcv
+    · obtain ⟨d, hd⟩ := SrcDefeq.casesOn?_defn hiv
+      rw [hcr] at hd; cases hd
+    · rw [hcr] at hqv; cases hqv
   | app hns =>
     obtain ⟨bs, -, rfl⟩ := SrcDefeq.spine_app hx
     refine absurd ⟨c, us, SrcDefeq.getAppFn_mkAppN_const _ _ _, ?_⟩ hns
     rcases SrcDefeq.specialArity_some har with ⟨cv, hcv, -⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, hq⟩
     · exact .inl ⟨cv, hcv⟩
     · exact .inr (.inl (by rw [hiv]; rfl))
-    · exact .inr (.inr ⟨qv, hqv, by rw [hq]; rfl⟩)
+    · exact .inr (.inr (.inl ⟨qv, hqv, by rw [hq]; rfl⟩))
   | const _ hsa =>
     obtain ⟨-, rfl, -⟩ := SrcDefeq.spine_const hx
     rw [har] at hsa
@@ -381,7 +388,7 @@ theorem lam_erases_atom {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : ML
   generalize hx : Expr.lam x A b bi = y at h
   cases h with
   | lam | box => rfl
-  | ctor | cases | casesReduced | eta | quotMk | quotLift =>
+  | ctor | cases | casesReduced | eta | quotMk | quotLift | recLet | recFix =>
     exact absurd hx (CasesWhred.ne_mkAppN_const fun _ _ h => by cases h)
   | bvar | fvar | letE | app | const | proj | litZero | litSucc | mdata => cases hx
 
@@ -464,7 +471,7 @@ theorem proj_inv {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ 
   cases h with
   | proj hss hid hfd hdisj he' => cases hx; exact .inr ⟨_, _, _, hss, hid, hfd, hdisj, he', rfl⟩
   | box hb => subst hx; exact .inl ⟨rfl, hb⟩
-  | ctor | cases | casesReduced | eta | quotMk | quotLift =>
+  | ctor | cases | casesReduced | eta | quotMk | quotLift | recLet | recFix =>
     exact absurd hx (CasesWhred.ne_mkAppN_const fun _ _ h => by cases h)
   | bvar | fvar | lam | letE | app | const | litZero | litSucc | mdata => cases hx
 
@@ -726,7 +733,7 @@ theorem erases_correct_lit (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P)
       exact .atom (by simp [lbAtom, defaultFlags, hlk])
     | box => exact .atom rfl
     | litSucc => cases hx
-    | ctor | cases | casesReduced | eta | quotMk | quotLift =>
+    | ctor | cases | casesReduced | eta | quotMk | quotLift | recLet | recFix =>
       exact absurd hx (CasesWhred.ne_mkAppN_const fun _ _ h => by cases h)
     | bvar | fvar | lam | letE | app | const | proj | mdata => cases hx
   | succ k ih =>
@@ -742,7 +749,7 @@ theorem erases_correct_lit (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P)
         (by simp [hnp, hna]) (ih h' hd1)
     | box => exact .atom rfl
     | litZero => cases hx
-    | ctor | cases | casesReduced | eta | quotMk | quotLift =>
+    | ctor | cases | casesReduced | eta | quotMk | quotLift | recLet | recFix =>
       exact absurd hx (CasesWhred.ne_mkAppN_const fun _ _ h => by cases h)
     | bvar | fvar | lam | letE | app | const | proj | mdata => cases hx
 
@@ -1039,7 +1046,7 @@ theorem erases_correct_casesLitZero (henv : ProgEnv P ζ E B) (hE : EnvWF E)
       have := (hss natSig ηNat 0 hB .nil 0 _ _ _ _ hE hok hpr).1
       exact absurd this (by decide)
     | litSucc => cases hx
-    | ctor | cases | casesReduced | eta | quotMk | quotLift =>
+    | ctor | cases | casesReduced | eta | quotMk | quotLift | recLet | recFix =>
       exact absurd hx (CasesWhred.ne_mkAppN_const fun _ _ h => by cases h)
     | bvar | fvar | lam | letE | app | const | proj | mdata => cases hx
   subst hmbz

@@ -16,6 +16,7 @@ import EraseProof.Bridge.Inst
 import EraseProof.Bridge.Apps
 import EraseProof.Bridge.CasesWhred
 import EraseProof.Bridge.Quot
+import EraseProof.Bridge.RecWhred
 import EraseProof.Metatheory.NoConf
 import EraseProof.Statements
 import EraseProof.Test.NoConf
@@ -23,6 +24,11 @@ import EraseProof.Test.NV1Model
 import EraseProof.Test.NV1Run
 import EraseProof.Test.NVPRun
 import EraseProof.TargetFacts
+import EraseProof.TargetLift
+import EraseProof.Relation.Rec
+import EraseProof.Simulation.RecEval
+import EraseProof.Simulation.RecFix
+import EraseProof.Simulation.Rec
 import EraseProof.Relation.Basic
 import EraseProof.Relation.Deps
 import EraseProof.Test.LBEval

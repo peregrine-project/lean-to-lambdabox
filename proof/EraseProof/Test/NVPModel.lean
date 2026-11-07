@@ -669,6 +669,9 @@ theorem indBlockE : IndBlock EA BA ηEA [`u_1] IsE CsE RsE ordersE where
       rfl, rfl, rfl, rfl⟩
   recrType s := by fin_cases s; rfl
   minors s t c := by fin_cases s; fin_cases t; fin_cases c; rfl
+  recIHs s := by
+    fin_cases s
+    exact ⟨_, _, rfl, rfl, fun t c => by fin_cases t; fin_cases c <;> rfl⟩
   indexVars s c h := by obtain ⟨_, f, _⟩ := h; exact f.elim0
 
 theorem constTypedE : ∀ ci ∈ IndBlock.decls IsE CsE RsE, ConstTyped EA BA ci := by

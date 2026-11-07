@@ -203,7 +203,7 @@ theorem erases_correct_quotLift (henv : ProgEnv P ζ E B) (hE : EnvWF E)
       RelInst.IsErasable.of_defeq (Defeq.retype hE hok hdb'.symm hW) hWe
     exact ⟨.box, .box (ErasableS.eval henv hE hsub htb' hdb'.left hb ⟨tb', htb', hEb⟩),
       .box hevf hevq⟩
-  | ctor | cases | casesReduced | eta | quotMk | quotLift =>
+  | ctor | cases | casesReduced | eta | quotMk | quotLift | recLet | recFix =>
     exact absurd hlv (CasesWhred.ne_mkAppN_const fun _ _ h => by cases h)
   | bvar | fvar | letE | app | const | proj | litZero | litSucc | mdata => cases hlv
 

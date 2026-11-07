@@ -90,6 +90,7 @@ theorem ErasesDeps.ext (hx : ∃ new, lenv' = new ++ lenv ∧
   | construct hi hind _ ih => exact .construct hi (ErasesInd.ext hx hind) ih
   | case hi hind _ _ ihd ihb => exact .case hi (ErasesInd.ext hx hind) ihd ihb
   | proj hi hind _ ihd => exact .proj hi (ErasesInd.ext hx hind) ihd
+  | fix _ ih => exact .fix ih
 
 /-! ## Substitution -/
 
@@ -115,6 +116,18 @@ private theorem mem_csubstB {t : LBTerm} {k : Nat} :
     · exact ⟨_, List.mem_cons_self, _, rfl⟩
     · obtain ⟨b', hb', k', he⟩ := mem_csubstB h
       exact ⟨b', List.mem_cons_of_mem _ hb', k', he⟩
+
+/-- A body of `csubstD t k ds` is the substitution of a body of `ds`. -/
+private theorem mem_csubstD {t : LBTerm} {k : Nat} :
+    ∀ {ds : List (@FixDef LBTerm)} {d : @FixDef LBTerm},
+    d ∈ csubstD t k ds → ∃ d' ∈ ds, d.body = csubst t k d'.body
+  | [], _, h => nomatch h
+  | ⟨_, _, _⟩ :: _, _, h => by
+    simp only [csubstD, List.mem_cons] at h
+    rcases h with rfl | h
+    · exact ⟨_, List.mem_cons_self, rfl⟩
+    · obtain ⟨d', hd', he⟩ := mem_csubstD h
+      exact ⟨d', List.mem_cons_of_mem _ hd', he⟩
 
 /-- Dependencies are preserved by substitution. Reference: `erases_deps_subst`
 (`MR E/EDeps.v:94`). -/
@@ -142,10 +155,15 @@ theorem ErasesDeps.csubst (ha : ErasesDeps E B σ lenv a) (hb : ErasesDeps E B �
     rw [he]
     exact ihb br' hbr'
   | proj hi hind _ ihd => exact .proj hi hind ihd
+  | fix _ ih =>
+    refine .fix fun d hd => ?_
+    obtain ⟨d', hd', he⟩ := mem_csubstD hd
+    rw [he]
+    exact ih d' hd'
 
 /-- Substituting terms with erased dependencies. Reference: `erases_deps_substl`
 (`MR E/EDeps.v:208`). -/
-private theorem ErasesDeps.substl : ∀ {ts : List LBTerm} {b : LBTerm},
+theorem ErasesDeps.substl : ∀ {ts : List LBTerm} {b : LBTerm},
     (∀ t ∈ ts, ErasesDeps E B σ lenv t) → ErasesDeps E B σ lenv b →
       ErasesDeps E B σ lenv (EraseProof.substl ts b)
   | [], _, _, hb => hb
@@ -156,7 +174,7 @@ private theorem ErasesDeps.substl : ∀ {ts : List LBTerm} {b : LBTerm},
 
 /-- An application spine has erased dependencies iff its head and arguments have. Reference:
 `erases_deps_mkApps` (`MR E/EDeps.v:17`) and `erases_deps_mkApps_inv` (`:31`). -/
-private theorem ErasesDeps.mkApps_iff : ∀ {f : LBTerm} {args : List LBTerm},
+theorem ErasesDeps.mkApps_iff : ∀ {f : LBTerm} {args : List LBTerm},
     ErasesDeps E B σ lenv (mkApps f args) ↔
       ErasesDeps E B σ lenv f ∧ ∀ a ∈ args, ErasesDeps E B σ lenv a
   | _, [] => by simp [mkApps]
@@ -200,19 +218,24 @@ theorem ErasesDeps.eval (h : ErasesDeps E B σ lenv tb) (hev : LBEval defaultFla
       refine ihr (ErasesDeps.substl (fun t ht => ?_) (hb _ List.mem_cons_self))
       rw [List.eq_of_mem_replicate ht]
       exact .box
-  | fix _ _ _ _ _ ih1 =>
+  | fix _ _ _ hunf _ ih1 ih2 ih3 =>
     cases h with
-    | app hf _ =>
-      obtain ⟨hfix, -⟩ := ErasesDeps.mkApps_iff.1 (ih1 hf)
-      cases hfix
-  | fixValue _ _ _ _ _ ih1 =>
+    | app hf ha =>
+      obtain ⟨hfix, hargs⟩ := ErasesDeps.mkApps_iff.1 (ih1 hf)
+      refine ih3 (.app (ErasesDeps.mkApps_iff.2 ⟨?_, hargs⟩) (ih2 ha))
+      cases hfix with
+      | fix hbodies =>
+        unfold cunfoldFix at hunf
+        obtain ⟨d, hd, he⟩ := Option.map_eq_some_iff.1 hunf
+        have hfn := (Prod.mk.inj he).2
+        subst hfn
+        refine ErasesDeps.substl (fun t ht => ?_) (hbodies d (List.mem_of_getElem? hd))
+        obtain ⟨i, -, rfl⟩ := List.mem_map.1 ht
+        exact .fix hbodies
+  | fixValue _ _ _ _ _ ih1 ih2 =>
     cases h with
-    | app hf _ =>
-      obtain ⟨hfix, -⟩ := ErasesDeps.mkApps_iff.1 (ih1 hf)
-      cases hfix
-  | fix' _ _ _ _ _ ih1 =>
-    cases h with
-    | app hf _ => cases ih1 hf
+    | app hf ha => exact .app (ih1 hf) (ih2 ha)
+  | fix' hb => exact absurd hb (by decide)
   | delta hc hbody _ ih =>
     cases h with
     | const _ hl _ hdeps =>

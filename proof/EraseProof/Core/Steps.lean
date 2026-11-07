@@ -216,7 +216,7 @@ theorem Erases.hasFVar_of {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n}
     (motive_2 := fun _ _ _ e br _ => ∀ (p : FVarId → Prop), KFV p e → ∀ x,
       hasFVar x br.2 = true → p x)
     ?bvar ?fvar ?lam ?letE ?app ?const ?ctor ?cases ?casesReduced ?eta ?proj ?litZero ?litSucc
-    ?quotMk ?quotLift ?mdata ?box ?done ?alam ?intro h
+    ?quotMk ?quotLift ?recLet ?recFix ?mdata ?box ?done ?alam ?intro h
   case bvar | const | box | litZero => intros; simp_all [hasFVar, hasFVarL]
   case fvar =>
     intro _ _ _ y p hk x hx
@@ -292,6 +292,36 @@ theorem Erases.hasFVar_of {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n}
     · rcases List.mem_cons.1 ha' with rfl | ha'
       · exact ihq p (hk.2 _ (by simp)) x h
       · obtain ⟨a, ha, hr⟩ := mem_rel hlex ihe a' ha'
+        exact hr p (hk.2 a (by simp [ha])) x h
+  case recLet =>
+    intro _ rv _ minors F _ _ _ maj maj' ps ms mins is extra mins' is' extra' _ hF _ _ _ _ hlm _
+      hli _ _ hle _ ihmin ihis ihmaj ihext p hk x hx
+    rw [mkAppN_toArray, KFV_foldl] at hk
+    obtain ⟨-, -, hFx⟩ := RecLam.RecFixOf.closed hF
+    rcases RecLam.hasFVar_recLetTerm hFx hx with ⟨a', ha', h⟩ | ⟨a', ha', h⟩ | h | ⟨a', ha', h⟩
+    · obtain ⟨a, ha, hr⟩ := mem_rel hlm ihmin a' ha'
+      exact hr p (hk.2 a (by simp [ha])) x h
+    · obtain ⟨a, ha, hr⟩ := mem_rel hli ihis a' ha'
+      exact hr p (hk.2 a (by simp [ha])) x h
+    · exact ihmaj p (hk.2 maj (by simp)) x h
+    · obtain ⟨a, ha, hr⟩ := mem_rel hle ihext a' ha'
+      exact hr p (hk.2 a (by simp [ha])) x h
+  case recFix =>
+    intro _ rv _ minors F _ _ _ maj maj' ps ms mins is extra ws is' extra' _ hF _ _ hmins _ hlw _
+      hws hli _ _ hle _ ihmin ihis ihmaj ihext p hk x hx
+    rw [mkAppN_toArray, KFV_foldl] at hk
+    obtain ⟨-, hFc, hFx⟩ := RecLam.RecFixOf.closed hF
+    have hG := RecLam.substl_fix (ws := ws) (by rw [← hlw, hmins]; exact hFc) hFx
+      fun w hw => ⟨(hws w hw).1, (hws w hw).2.1⟩
+    rcases hasFVar_mkApps hx with h | ⟨a', ha', h⟩
+    · rw [hG.2 x] at h; cases h
+    · rcases List.mem_append.1 ha' with ha' | ha'
+      · rcases List.mem_append.1 ha' with ha' | ha'
+        · obtain ⟨a, ha, hr⟩ := mem_rel hli ihis a' ha'
+          exact hr p (hk.2 a (by simp [ha])) x h
+        · rw [List.mem_singleton.1 ha'] at h
+          exact ihmaj p (hk.2 maj (by simp)) x h
+      · obtain ⟨a, ha, hr⟩ := mem_rel hle ihext a' ha'
         exact hr p (hk.2 a (by simp [ha])) x h
   case proj => intro _ _ _ _ _ _ _ _ _ _ _ _ _ _ ih p hk x hx; exact ih p hk x hx
   case litSucc =>
@@ -423,6 +453,16 @@ theorem mem_toBvarAlts {x : FVarId} {k : Nat} : ∀ {bs : List (List BinderName 
     · obtain ⟨b, hb, he⟩ := mem_toBvarAlts h
       exact ⟨b, .tail _ hb, he⟩
 
+theorem mem_toBvarDefs {x : FVarId} {k : Nat} : ∀ {ds : List (@FixDef LBTerm)}
+    {d' : @FixDef LBTerm}, d' ∈ toBvarDefs x k ds → ∃ d ∈ ds, d'.body = toBvar x k d.body
+  | [], _, h => nomatch h
+  | d :: ds, d', h => by
+    simp only [toBvarDefs, List.mem_cons] at h
+    rcases h with rfl | h
+    · exact ⟨_, .head _, rfl⟩
+    · obtain ⟨b, hb, he⟩ := mem_toBvarDefs h
+      exact ⟨b, .tail _ hb, he⟩
+
 /-- Replacing a free variable by a bound one keeps the erased dependencies, which do not see
 variables. Reference: `erases_deps_lift` (`MR E/EDeps.v:44`), for the traversal's abstraction
 (DV-13). -/
@@ -453,6 +493,13 @@ theorem ErasesDeps.toBvar {t : LBTerm} {x : FVarId} (h : ErasesDeps E B σ lenv 
     rw [he]
     exact ihb b hb _
   | proj hi hind _ ih => intro k; exact .proj hi hind (ih k)
+  | fix _ ih =>
+    intro k
+    simp only [_root_.toBvar]
+    refine .fix fun d' hd' => ?_
+    obtain ⟨d, hd, he⟩ := mem_toBvarDefs hd'
+    rw [he]
+    exact ih d hd _
 
 end
 
@@ -1078,7 +1125,8 @@ theorem visitAppArgs_spec {j : Nat} (ih : ∀ e, ExprSpec E B view cfg decls j e
       NatPlain cfg a ∧ RecFree decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A)
     (hns : ∀ c us, f₀.getAppFn = .const c us → (∀ cv, findDecl decls c ≠ some (.ctorInfo cv)) ∧
       (evalEnvOf view cfg decls).casesOn? c = none ∧
-      ∀ qv, findDecl decls c = some (.quotInfo qv) → quotEvalArity qv.kind = none)
+      (∀ qv, findDecl decls c = some (.quotInfo qv) → quotEvalArity qv.kind = none) ∧
+      ∀ rv, findDecl decls c ≠ some (.recInfo rv))
     (hok : StateOK E B (evalEnvOf view cfg decls) st)
     (hf : Erases E B lps (evalEnvOf view cfg decls) Γ Δ f₀ tf)
     (hdf : ErasesDeps E B (evalEnvOf view cfg decls) st.gdecls tf)
@@ -1102,11 +1150,12 @@ theorem visitAppArgs_spec {j : Nat} (ih : ∀ e, ExprSpec E B view cfg decls j e
     have ⟨hera, hdepsa, hgra⟩ := ih a hctx hsc hoa hma hna hra hok hta ⟨A, hA⟩ ha
     have hnsp : ¬ SpecialSpine (evalEnvOf view cfg decls) f₀ := by
       rintro ⟨c, us, hc, hsp⟩
-      obtain ⟨hct, hcs, hq⟩ := hns c us hc
-      rcases hsp with ⟨cv, hcv⟩ | hcs' | ⟨qv, hqv, hsq⟩
+      obtain ⟨hct, hcs, hq, hrc⟩ := hns c us hc
+      rcases hsp with ⟨cv, hcv⟩ | hcs' | ⟨qv, hqv, hsq⟩ | ⟨rv, hrv⟩
       · exact hct cv hcv
       · rw [hcs] at hcs'; cases hcs'
       · rw [hq qv hqv] at hsq; cases hsq
+      · exact hrc rv hrv
     have ⟨her, hdeps, hgr⟩ := ihl (f₀ := .app f₀ a) (tf := .app tf ta) (hctx.mono hgra.next)
       (fun b hb => hargs b (.tail _ hb)) (fun c us h => hns c us h) hgra.inv
       (.app hnsp hf hera) (.app (ErasesDeps.ext hgra.ext hdf) hdepsa) hrun
@@ -1299,8 +1348,13 @@ theorem visitApp_spec (hG : CoreEnv E B P decls view cfg) {k : Nat}
         (hctx.mono hgf.next) hsc (fun a ha => ⟨hoccA a ha, hmfA a ha, hnpA a ha, hrfA a ha, htrA a ha⟩)
         (fun c'' us'' h => by
           cases h
-          exact ⟨hnctor, hncs, hcq⟩) hgf.inv
-        (.const (us := us) hat hspec) hdf hrun
+          exact ⟨hnctor, hncs, hcq, fun rv hrv => by
+            rw [hc] at hrfF
+            simp [RecFree, ConstsIn, IsRecursorIn, hrv] at hrfF⟩) hgf.inv
+        (.const (us := us) hat hspec fun rv hrv => by
+          have hrv' : findDecl decls c = some (.recInfo rv) := hrv
+          rw [hc] at hrfF
+          simp [RecFree, ConstsIn, IsRecursorIn, hrv'] at hrfF) hdf hrun
       rw [hc] at hsp
       rw [hsp] at her
       exact ⟨her, hdeps, hgf.trans hgr⟩

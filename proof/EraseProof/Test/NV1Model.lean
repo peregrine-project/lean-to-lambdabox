@@ -558,6 +558,9 @@ theorem indBlock1 : IndBlock E1 B1 ηB1 [] IsB CsB RsB ordersB where
       rfl, rfl, rfl, rfl⟩
   recrType s := by fin_cases s; rfl
   minors s t c := by fin_cases s; fin_cases t; fin_cases c <;> rfl
+  recIHs s := by
+    fin_cases s
+    exact ⟨_, _, rfl, rfl, fun t c => by fin_cases t; fin_cases c <;> rfl⟩
   indexVars s _ h := by fin_cases s; exact h.elim fun i _ => i.elim0
 
 theorem constTyped1 : ∀ ci ∈ P1, ConstTyped E1 B1 ci := by
