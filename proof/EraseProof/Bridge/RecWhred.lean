@@ -580,6 +580,65 @@ theorem TrM.wf_app_recr {lps : List Name} {n : Nat} {Γ : Metalean.Ctx ζ lps.le
   obtain ⟨_, _, hf', ha', -⟩ := ht.app_inv
   exact ⟨f', a', .special hb rfl hlen hargs' hsat', ha, rfl, ⟨_, hf'⟩, _, ha'⟩
 
+/-- The shape of the recursor of a single inductive without indices (`IndBlock.recIHs`): one motive
+binding the major premise only, the minor of each constructor binding its fields, each induction
+hypothesis into the only member of the block. -/
+theorem rec_minors {σ : EvalEnv} (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P)
+    {c : Name} {rv : RecursorVal} {T : Name} {iv : InductiveVal}
+    {cvs : List ConstructorVal} {motives : List (List Name)} {minors : List RecMinor}
+    (hcr : findDecl σ.decls c = some (.recInfo rv)) (hall : rv.all = [T]) (hcT : c = mkRecName T)
+    (hblk : σ.recBlock? rv = some ([iv], cvs)) (hni : rv.numIndices = 0)
+    (hshape : recShape rv.numParams rv.numMotives rv.type (cvs.map (·.numFields)) =
+      some (motives, minors)) :
+    (∃ x, motives = [[x]]) ∧ cvs.length = iv.ctors.length ∧ rv.numMinors = cvs.length ∧
+      ∀ (i : Nat) cv, cvs[i]? = some cv → ∃ mi, minors[i]? = some mi ∧
+        mi.fields.length = cv.numFields ∧ mi.ihs.length ≤ mi.fields.length ∧
+          ∀ h ∈ mi.ihs, h.member = 0 := by
+  have hcvs := (recBlock?_single hall hblk).2
+  obtain ⟨ι, η, s, lps₀, Is, Cs, Rs, orders, hb, rfl, rfl, -, -, -, hns, rfl⟩ :=
+    rec_block henv hsub hcr hall hcT hblk
+  obtain ⟨⟨_, _, _, _, hIB⟩, -⟩ := hb
+  obtain ⟨-, -, -, -, -, -, hRnp, hRnm, hRmin, hRni⟩ := hIB.recr s
+  have hs0 : s.val = 0 := by have := s.isLt; omega
+  have hnis : ι.nindices s = 0 := by rw [← hRni, hni]
+  obtain ⟨motives', mins', hsh', hmo, hcl⟩ := hIB.recIHs s
+  have hinput : (List.ofFn (Cs s)).map (·.numFields) = (List.ofFn fun t => List.ofFn fun c =>
+      (ι.ctors t c).nfields + (ι.ctors t c).nrecFields).flatten := by
+    rw [ofFn_single hns s, List.flatten_singleton, List.map_ofFn]
+    congr 1
+    funext c
+    exact (hIB.ctor s c).2.2.2.2.2.1
+  rw [hinput, hRnp, hRnm, hsh'] at hshape
+  obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj hshape)
+  refine ⟨?_, by rw [(mapM_get hcvs).1], ?_, ?_⟩
+  · rw [ofFn_single hns s, hnis] at hmo
+    revert hmo
+    rcases motives' with _ | ⟨a, _ | ⟨_, _⟩⟩ <;> intro hmo <;> simp at hmo
+    obtain ⟨x, rfl⟩ := List.length_eq_one_iff.1 hmo
+    exact ⟨x, rfl⟩
+  · rw [hRmin, List.length_ofFn, ofFn_single hns s]; simp
+  · intro i cv hcv
+    have hi : i < ι.nctors s := by
+      have := (List.getElem?_eq_some_iff.mp hcv).1; simpa using this
+    rw [List.getElem?_ofFn] at hcv
+    simp only [hi, ↓reduceDIte, Option.some.injEq] at hcv
+    subst hcv
+    have hcl' := hcl s ⟨i, hi⟩
+    simp only [hs0, List.take_zero, List.sum_nil, Nat.zero_add] at hcl'
+    obtain ⟨mi, hmi, he⟩ := Option.map_eq_some_iff.1 hcl'
+    simp only [Prod.mk.injEq] at he
+    refine ⟨mi, hmi, by rw [he.1, (hIB.ctor s ⟨i, hi⟩).2.2.2.2.2.1], ?_, fun h hh => ?_⟩
+    · have := congrArg List.length he.2
+      simp only [List.length_map, List.length_ofFn] at this
+      omega
+    have := congrArg (fun l => (h.member, h.field, h.binders.length) ∈ l) he.2
+    simp only [List.mem_map, eq_iff_iff] at this
+    obtain ⟨k, hk⟩ := List.mem_ofFn.1 (this.1 ⟨h, hh, rfl⟩)
+    have := congrArg Prod.fst hk
+    simp only at this
+    have := ((ι.ctors s ⟨i, hi⟩).recursiveTarget k).isLt
+    omega
+
 end RecWhred
 
 end EraseProof

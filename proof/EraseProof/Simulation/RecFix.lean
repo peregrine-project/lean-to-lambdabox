@@ -247,6 +247,120 @@ theorem substl_fix1 (nm : BinderName) (xn : BinderName) (r : Nat) :
       .fix [⟨nm, .lambda xn (csubst u 2 I), r⟩] 0 from rfl, substl_fix1 nm xn r us]
     rfl
 
+/-- Closed substitutions in turn move through `innerS` at a positive index. -/
+theorem foldl_csubst_innerS (direct : Bool) (indid : InductiveId) (npars : Nat)
+    (cs : List (Nat × RecMinor × ConstructorArgMask)) (d : Nat) (hd : 0 < d)
+    (hcs : ∀ c ∈ cs, ∀ h ∈ c.2.1.ihs, h.field < c.2.1.fields.length) :
+    ∀ (us : List LBTerm) (H : Nat → Nat → LBTerm) (fixv : Nat → LBTerm),
+      us.foldl (fun b u => csubst u d b) (innerS direct indid npars cs (altG H fixv)) =
+        innerS direct indid npars cs (altG (fun c B => us.foldl (fun b u => csubst u (d + B) b) (H c B))
+          (fun B => us.foldl (fun b u => csubst u (d + B) b) (fixv B)))
+  | [], H, fixv => rfl
+  | u :: us, H, fixv => by
+    simp only [List.foldl_cons]
+    rw [csubst_innerS direct indid npars cs H fixv d hd hcs, foldl_csubst_innerS direct indid npars
+      cs d hd hcs us]
+
+/-- A closed substitution leaves a bound variable below its index. -/
+theorem csubst_bvar_lt {u : LBTerm} {i d : Nat} (h : i < d) : csubst u d (.bvar i) = .bvar i := by
+  simp only [csubst]
+  rw [ite_eq_right (by omega), ite_eq_right (by omega)]
+
+theorem foldl_csubst_bvar_lt {i d : Nat} (h : i < d) :
+    ∀ us : List LBTerm, us.foldl (fun b u => csubst u d b) (.bvar i) = .bvar i
+  | [] => rfl
+  | u :: us => by simp only [List.foldl_cons]; rw [csubst_bvar_lt h, foldl_csubst_bvar_lt h us]
+
+theorem foldl_csubst_closed {t : LBTerm} (ht : closedn 0 t = true) (d : Nat) :
+    ∀ us : List LBTerm, us.foldl (fun b u => csubst u d b) t = t
+  | [] => rfl
+  | u :: us => by
+    simp only [List.foldl_cons]
+    rw [csubst_closedn u t 0 d ht (Nat.zero_le _), foldl_csubst_closed ht d us]
+
+/-- `innerS` with the major premise replaced by `discr`. -/
+def innerSD (direct : Bool) (indid : InductiveId) (npars : Nat)
+    (cs : List (Nat × RecMinor × ConstructorArgMask))
+    (alt : Nat × RecMinor × ConstructorArgMask → List BinderName × LBTerm) (discr : LBTerm) : LBTerm :=
+  match direct, cs with
+  | true, [c] => (List.replicate (alt c).1.length LBTerm.box).foldl .app
+      ((alt c).1.foldr .lambda (alt c).2)
+  | _, _ => .case (indid, npars) discr (cs.map alt)
+
+/-- The closed substitution of the major premise into `innerS` with closed heads and recursive
+calls. -/
+theorem csubst0_innerS {t : LBTerm} (direct : Bool) (indid : InductiveId) (npars : Nat)
+    (cs : List (Nat × RecMinor × ConstructorArgMask)) (H : Nat → Nat → LBTerm)
+    (fixv : Nat → LBTerm) (hH : ∀ c B, closedn 0 (H c B) = true) (hf : ∀ B, closedn 0 (fixv B) = true)
+    (hcs : ∀ c ∈ cs, ∀ h ∈ c.2.1.ihs, h.field < c.2.1.fields.length) :
+    csubst t 0 (innerS direct indid npars cs (altG H fixv)) =
+      innerSD direct indid npars cs (altG H fixv) t := by
+  have halt : ∀ c ∈ cs, csubst t (0 + (altG H fixv c).1.length) (altG H fixv c).2 =
+      (altG H fixv c).2 := by
+    intro c hc
+    obtain ⟨gi, mi, mask⟩ := c
+    simp only [altG, length_altNames]
+    rw [csubst_recAltS _ _ _ 0 _ (hcs _ hc), csubst_closedn t _ 0 _ (hH _ _) (Nat.zero_le _),
+      csubst_closedn t _ 0 _ (hf _) (Nat.zero_le _)]
+  unfold innerS innerSD
+  split
+  · rename_i c
+    rw [csubst_foldl_app, csubst_foldr_lambda, halt c (.head _)]
+    simp only [List.map_replicate, csubst]
+  · simp only [csubst, ↓reduceIte]
+    congr 1
+    rw [csubstB_eq, List.map_map]
+    refine List.map_congr_left fun c hc => ?_
+    simp only [Function.comp_apply]
+    rw [halt c hc]
+
+/-- A closed substitution in turn of every field into an alternative's body. -/
+theorem substl_recAltS {H fixv : LBTerm} (hH : closedn 0 H = true) (hf : closedn 0 fixv = true)
+    {us : List LBTerm} (hus : ∀ u ∈ us, closedn 0 u = true) (ihs : List RecIH)
+    (hih : ∀ h ∈ ihs, h.field < us.length) :
+    substl us.reverse (recAltS H us.length fixv ihs) =
+      mkApps H (us ++ ihs.map fun h => .app fixv (us.getD h.field .box)) := by
+  have hus' : ∀ u ∈ us.reverse, closedn 0 u = true := fun u hu => hus u (List.mem_reverse.1 hu)
+  have hbv : ∀ f, f < us.length → substl us.reverse (.bvar (us.length - 1 - f)) = us.getD f .box := by
+    intro f hf
+    unfold substl
+    have := foldl_csubst_bvar us.reverse 0 (us.length - 1 - f) hus'
+    rw [Nat.zero_add] at this
+    have hlt : us.length - 1 - f < us.reverse.length := by simp; omega
+    rw [this, dif_pos hlt, List.getElem_reverse, List.getD_eq_getElem?_getD,
+      List.getElem?_eq_getElem hf, Option.getD_some]
+    congr 1
+    try simp only [List.length_reverse]
+    omega
+  have hcl : ∀ t, closedn 0 t = true → substl us.reverse t = t := fun t ht => by
+    unfold substl; exact foldl_csubst_closed ht 0 _
+  have happ : ∀ (f : LBTerm) (as : List LBTerm),
+      substl us.reverse (mkApps f as) = mkApps (substl us.reverse f) (as.map (substl us.reverse)) := by
+    intro f as
+    unfold substl
+    induction us.reverse generalizing f as with
+    | nil => simp
+    | cons u l ih =>
+      simp only [List.foldl_cons]
+      rw [RecLam.csubst_mkApps, ih, List.map_map]
+      rfl
+  unfold recAltS
+  rw [happ, hcl H hH, List.map_append, List.map_map, List.map_map]
+  congr 1
+  congr 1
+  · refine List.ext_getElem (by simp) fun i h1 h2 => ?_
+    simp only [List.getElem_map, List.getElem_range, Function.comp_apply]
+    simp only [List.length_map, List.length_range] at h1
+    rw [hbv i h1, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem h1, Option.getD_some]
+  · refine List.map_congr_left fun h hh => ?_
+    simp only [Function.comp_apply]
+    show substl us.reverse (.app fixv _) = _
+    have : ∀ (a b : LBTerm), substl us.reverse (.app a b) = .app (substl us.reverse a) (substl us.reverse b) := by
+      intro a b
+      have := happ a [b]
+      simpa [mkApps] using this
+    rw [this, hcl fixv hf, hbv _ (hih h hh)]
+
 end RecFix
 
 end EraseProof
