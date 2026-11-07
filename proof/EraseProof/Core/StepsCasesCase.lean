@@ -100,7 +100,7 @@ theorem ErasesAlt.absN {σ : EvalEnv} (x : FVarId)
       closedn (d + br.1.length) br.2 = true →
       ErasesAlt E B lps σ Γ Δ₁ k (AbsFV.absFV x d e) (br.1, _root_.toBvar x (d + br.1.length) br.2))
     ?bvar ?fvar ?lam ?letE ?app ?const ?ctor ?cases ?casesReduced ?eta ?proj ?litZero ?litSucc
-    ?quotMk ?quotLift ?mdata ?box ?done ?alam ?intro h
+    ?quotMk ?quotLift ?recLet ?recFix ?mdata ?box ?done ?alam ?intro h
   case done =>
     intro _ _ _ _ _ he _ d Δ₁ W hcl
     simp only [List.length_nil, Nat.add_zero] at hcl ⊢

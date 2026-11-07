@@ -1244,8 +1244,9 @@ inductive Erases {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (lps 
   /-- `erases_tApp` (`:101`), heads other than constructors and `casesOn`. -/
   | app : ¬ SpecialSpine σ f → Erases E B lps σ Γ Δ f f' → Erases E B lps σ Γ Δ a a' →
       Erases E B lps σ Γ Δ (.app f a) (.app f' a')
-  /-- `erases_tConst` (`:104`), for constants that are neither atoms nor special. -/
+  /-- `erases_tConst` (`:104`), for constants that are neither atoms nor special nor recursors. -/
   | const : σ.isAtom c = false → specialArity σ c = none →
+      (∀ rv, findDecl σ.decls c ≠ some (.recInfo rv)) →
       Erases E B lps σ Γ Δ (.const c us) (.const (toKername c))
   /-- `erases_tConstruct` (`:106`, `~~ isPropositional`) under applications, parameters kept
   (DV-23). -/

@@ -604,7 +604,7 @@ theorem Erases.instL_gen (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P)
     rw [instLevels_getAppFn] at hc
     obtain ⟨vs', hvs'⟩ := instLevels_eq_const hc
     exact ⟨c, vs', hvs', hs⟩
-  case const => intro _ _ _ _ _ hat hsa _; exact .const hat hsa
+  case const => intro _ _ _ _ _ hat hsa hnr _; exact .const hat hsa hnr
   case ctor =>
     intro _ _ _ _ _ _ _ as _ hcv hnp hid hle hlen _ ih hok
     have has := (LvlOK_mkAppN.1 hok).2

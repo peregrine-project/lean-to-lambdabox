@@ -423,9 +423,9 @@ theorem Erases.absN {σ : EvalEnv} (x : FVarId)
     rw [absFV_getAppFn] at hc
     exact absFV_eq_const hc
   case const =>
-    intro _ _ _ _ _ hat hsa d Δ₁ _ _
+    intro _ _ _ _ _ hat hsa hnr d Δ₁ _ _
     simp only [absFV, _root_.toBvar]
-    exact .const hat hsa
+    exact .const hat hsa hnr
   case ctor =>
     intro _ _ _ _ _ _ _ as _ hcv hnp hid hle hlen _ ih d Δ₁ W hcl
     rw [closedn_mkApps] at hcl

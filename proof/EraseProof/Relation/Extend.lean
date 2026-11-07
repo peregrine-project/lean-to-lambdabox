@@ -473,10 +473,11 @@ theorem Erases.extend {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} 
     intro _ _ _ _ _ _ _ hns _ _ ihf iha hC
     exact .app (fun hs => hns (specialSpine_of_agree hsub hcl hC.1 hs)) (ihf hC.1) (iha hC.2)
   case const =>
-    intro c _ _ _ _ hat hsa hC
-    refine .const ?_ ?_
+    intro c _ _ _ _ hat hsa hnr hC
+    refine .const ?_ ?_ fun rv hrv => hnr rv ?_
     · exact (isAtom_agree (a := axiomatized view cfg) hsub hcl hC).symm.trans hat
     · exact (specialArity_agree (a := axiomatized view cfg) hsub hcl hC).symm.trans hsa
+    · exact (findDecl_agree hsub hC).trans hrv
   case ctor =>
     intro _ _ _ _ _ _ _ as _ hcv hnp hid hle hlen _ ih hC
     have has := (ConstsIn_mkAppN.1 hC).2

@@ -798,8 +798,8 @@ theorem Erases.rename
     rw [liftLooseBVars'_getAppFn] at hc
     exact liftLooseBVars'_eq_const hc
   case const =>
-    intro _ _ _ _ _ hat hsa m Γ₂ Δ₂ c j ρ _ _ _ _
-    exact .const hat hsa
+    intro _ _ _ _ _ hat hsa hnr m Γ₂ Δ₂ c j ρ _ _ _ _
+    exact .const hat hsa hnr
   case ctor =>
     intro _ _ _ _ _ _ _ as _ hcv hnp hid hle hlen _ ih m Γ₂ Δ₂ c j ρ hΓ₂ hth W hcl
     rw [AbsFV.closedn_mkApps] at hcl
@@ -1132,8 +1132,8 @@ theorem Erases.instG (hE : EnvWF E)
       exact (hi hsa).2.1.1 hfd
     · exact hns ⟨c, us, inst_getAppFn_const hfd hc, hs⟩
   case const =>
-    intro _ _ _ _ _ hat hsa _ _ _ _ _ _ _ _ _ _
-    exact .const hat hsa
+    intro _ _ _ _ _ hat hsa hnr _ _ _ _ _ _ _ _ _ _
+    exact .const hat hsa hnr
   case ctor =>
     intro _ _ _ _ _ _ _ as _ hcv hnp hid hle hlen _ ih n₂ Γ₂ Δ₂ d ς hΓ₂ hς W Ea hi
     rw [inst_spine, csubst_mkApps]

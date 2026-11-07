@@ -583,6 +583,82 @@ theorem Erases.quot_inv {c : Name} {qv : QuotVal} {us : List Level} {as : List E
   | bvar | fvar | lam | letE | proj | litZero | litSucc | mdata =>
     exact absurd hfn (getAppFn_ne_const (fun _ _ h => by cases h) (fun _ _ h => by cases h))
 
+/-- An erasure of a recursor spine is `□`, the let-bound form of `Erases.recLet` or the closed form
+of `Erases.recFix`: a recursor is no atom, has no η-expansion and no constant erasure, and its
+spines are special. -/
+theorem Erases.rec_inv {c : Name} {rv : RecursorVal} {us : List Level} {as : List Expr}
+    {tb : LBTerm} (hc : findDecl σ.decls c = some (.recInfo rv))
+    (h : Erases E B lps σ Γ Δ (mkAppN (.const c us) as.toArray) tb) :
+    (tb = .box ∧ ErasableS E B lps Γ Δ (mkAppN (.const c us) as.toArray)) ∨
+    (∃ (minors : List RecMinor) (F : LBTerm) (ps ms mins is : List Expr) (maj : Expr)
+      (extra : List Expr) (mins' is' : List LBTerm) (maj' : LBTerm) (extra' : List LBTerm),
+      RecFixOf E B σ rv us minors F ∧
+      as = ps ++ ms ++ mins ++ is ++ [maj] ++ extra ∧
+      ps.length = rv.numParams ∧ ms.length = rv.numMotives ∧ mins.length = rv.numMinors ∧
+      is.length = rv.numIndices ∧ mins.length = mins'.length ∧
+      (∀ (i : Nat) x x', mins[i]? = some x → mins'[i]? = some x' → Erases E B lps σ Γ Δ x x') ∧
+      is.length = is'.length ∧
+      (∀ (i : Nat) x x', is[i]? = some x → is'[i]? = some x' → Erases E B lps σ Γ Δ x x') ∧
+      Erases E B lps σ Γ Δ maj maj' ∧ extra.length = extra'.length ∧
+      (∀ (i : Nat) x x', extra[i]? = some x → extra'[i]? = some x' → Erases E B lps σ Γ Δ x x') ∧
+      tb = mkApps (recLets 0 (mins'.zip minors)
+        (mkApps F ((is' ++ [maj']).map (lbLift rv.numMinors 0)))) extra') ∨
+    (∃ (minors : List RecMinor) (F : LBTerm) (ps ms mins is : List Expr) (maj : Expr)
+      (extra : List Expr) (ws is' : List LBTerm) (maj' : LBTerm) (extra' : List LBTerm),
+      RecFixOf E B σ rv us minors F ∧
+      as = ps ++ ms ++ mins ++ is ++ [maj] ++ extra ∧
+      ps.length = rv.numParams ∧ ms.length = rv.numMotives ∧ mins.length = rv.numMinors ∧
+      is.length = rv.numIndices ∧ mins.length = ws.length ∧
+      (∀ (i : Nat) x x', mins[i]? = some x → ws[i]? = some x' → Erases E B lps σ Γ Δ x x') ∧
+      (∀ w ∈ ws, closedn 0 w = true ∧ (∀ x, hasFVar x w = false) ∧ LBFixed w) ∧
+      is.length = is'.length ∧
+      (∀ (i : Nat) x x', is[i]? = some x → is'[i]? = some x' → Erases E B lps σ Γ Δ x x') ∧
+      Erases E B lps σ Γ Δ maj maj' ∧ extra.length = extra'.length ∧
+      (∀ (i : Nat) x x', extra[i]? = some x → extra'[i]? = some x' → Erases E B lps σ Γ Δ x x') ∧
+      tb = mkApps (substl ws.reverse F) (is' ++ [maj'] ++ extra')) := by
+  generalize hx : mkAppN (.const c us) as.toArray = x at h
+  have hfn : x.getAppFn = .const c us := hx ▸ getAppFn_mkAppN_const c us as
+  have hsp : SpecialC σ c := .inr (.inr (.inr ⟨rv, hc⟩))
+  cases h with
+  | box hb => subst hx; exact .inl ⟨rfl, hb⟩
+  | recLet hc' hF hps hms hmins his hlm hmin hli his' hmaj hle hext =>
+    obtain ⟨rfl, rfl, rfl⟩ := mkAppN_const_inj hx
+    rw [hc] at hc'; cases hc'
+    exact .inr (.inl ⟨_, _, _, _, _, _, _, _, _, _, _, _, hF, rfl, hps, hms, hmins, his, hlm, hmin,
+      hli, his', hmaj, hle, hext, rfl⟩)
+  | recFix hc' hF hps hms hmins his hlw hmin hws hli his' hmaj hle hext =>
+    obtain ⟨rfl, rfl, rfl⟩ := mkAppN_const_inj hx
+    rw [hc] at hc'; cases hc'
+    exact .inr (.inr ⟨_, _, _, _, _, _, _, _, _, _, _, _, hF, rfl, hps, hms, hmins, his, hlw, hmin,
+      hws, hli, his', hmaj, hle, hext, rfl⟩)
+  | ctor hc' | quotMk hc' | quotLift hc' =>
+    obtain ⟨rfl, -, -⟩ := mkAppN_const_inj hx
+    rw [hc] at hc'; cases hc'
+  | cases hco | casesReduced hco =>
+    obtain ⟨rfl, -, -⟩ := mkAppN_const_inj hx
+    obtain ⟨d, hd⟩ := casesOn?_defn hco
+    rw [hc] at hd; cases hd
+  | app hns => exact absurd (specialSpine_of hfn hsp) hns
+  | const _ _ hnr =>
+    cases hfn
+    exact absurd hc (hnr rv)
+  | eta heta =>
+    obtain ⟨rfl, -, rfl⟩ := mkAppN_const_inj hx
+    obtain ⟨ar, har, -⟩ := etaSpine?_some heta
+    rcases specialArity_some har with ⟨cv, hcv⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, -⟩ | ⟨rv', hrv⟩
+    · rw [hc] at hcv; cases hcv
+    · obtain ⟨d, hd⟩ := casesOn?_defn hiv
+      rw [hc] at hd; cases hd
+    · rw [hc] at hqv; cases hqv
+    · unfold specialArity at har
+      rw [hc] at har
+      simp only at har
+      obtain ⟨iv, hiv, -⟩ := Option.map_eq_some_iff.1 har
+      obtain ⟨d, hd⟩ := casesOn?_defn hiv
+      rw [hc] at hd; cases hd
+  | bvar | fvar | lam | letE | proj | litZero | litSucc | mdata =>
+    exact absurd hfn (getAppFn_ne_const (fun _ _ h => by cases h) (fun _ _ h => by cases h))
+
 /-- An erasure of an atom spine is headed by `□`: an atom constant is neither a constructor nor a
 recognized `casesOn`, and `Erases.const` needs a non-atom, so `Erases.box` is its only rule.
 Reference: `erases_mkApps_inv` (`MR E/ErasureProperties.v:105`) for `tInd`-headed terms, which

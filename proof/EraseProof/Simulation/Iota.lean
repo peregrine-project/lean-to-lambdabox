@@ -128,6 +128,13 @@ theorem eval_spine_inv {c : Name} {us : List Level} {as : List Expr} {w : Expr} 
   | quotMk hc hk | quotLift hc hk =>
     obtain ⟨rfl, rfl, rfl⟩ := mkAppN_inj hx
     exact .inr (.inr (.inr ⟨_, hc, by rw [hk]; rfl⟩))
+  | recIota hcr =>
+    obtain ⟨rfl, -, -⟩ := mkAppN_inj hx
+    rcases SrcDefeq.specialArity_some har with ⟨cv, hcv, -⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, -⟩
+    · rw [hcr] at hcv; cases hcv
+    · obtain ⟨d, hd⟩ := SrcDefeq.casesOn?_defn hiv
+      rw [hcr] at hd; cases hd
+    · rw [hcr] at hqv; cases hqv
   | zeta | proj | projProp | lit | mdata => cases hfn
   | atom ha =>
     cases w <;> simp [SrcAtom, Expr.getAppFn] at ha hfn
@@ -158,7 +165,7 @@ theorem fixed_atom {e : Expr} (ha : SrcAtom e) : Fixed σ e := by
   generalize hx : e = x at h
   cases h with
   | atom => rfl
-  | eta | ctor | casesIota | casesLitZero | casesLitSucc | casesProof | quotMk | quotLift =>
+  | eta | ctor | casesIota | casesLitZero | casesLitSucc | casesProof | quotMk | quotLift | recIota =>
     exact absurd hx (CasesWhred.ne_mkAppN_const hfn)
   | beta | zeta | delta | constAtom | proj | projProp | lit | appCong | mdata =>
     subst hx; simp [SrcAtom] at ha
@@ -169,7 +176,7 @@ theorem fixed_lit {k : Nat} : Fixed σ (.lit (.natVal k)) := by
   generalize hx : Expr.lit (.natVal k) = x at h
   cases h with
   | lit => cases hx; rfl
-  | eta | ctor | casesIota | casesLitZero | casesLitSucc | casesProof | quotMk | quotLift =>
+  | eta | ctor | casesIota | casesLitZero | casesLitSucc | casesProof | quotMk | quotLift | recIota =>
     exact absurd hx (CasesWhred.ne_mkAppN_const fun _ _ h => by cases h)
   | atom ha => subst hx; simp [SrcAtom] at ha
   | beta | zeta | delta | constAtom | proj | projProp | appCong | mdata => cases hx
@@ -193,7 +200,7 @@ theorem fixed_const {c : Name} {us : List Level} (ha : σ.isAtom c = true) :
   | casesIota hcs | casesLitZero hcs | casesLitSucc hcs | casesProof hcs =>
     obtain ⟨-, rfl, -⟩ := SrcDefeq.spine_const hx.symm
     rw [SimCases.specialArity_casesOn hcs] at hsa; cases hsa
-  | quotMk | quotLift => exact absurd (SrcDefeq.spine_const hx.symm).1 (by simp)
+  | quotMk | quotLift | recIota => exact absurd (SrcDefeq.spine_const hx.symm).1 (by simp)
   | atom ha' => subst hx; simp [SrcAtom] at ha'
   | beta | zeta | proj | projProp | lit | appCong | mdata => cases hx
 
@@ -221,9 +228,33 @@ theorem fixed_ctor {c : Name} {us : List Level} {cv : ConstructorVal} {vs : List
     rw [hc] at hd; cases hd
   · rw [hc] at hqv; cases hqv
 
+/-- A source value is not headed by a recursor. -/
+theorem srcValue_not_rec {e : Expr} (hv : SrcValue σ e) {c : Name} {us : List Level}
+    {rv : RecursorVal} (hfn : e.getAppFn = .const c us) :
+    findDecl σ.decls c ≠ some (.recInfo rv) := by
+  intro hr
+  cases hv with
+  | lam | sort | forallE | lit => simp [Expr.getAppFn] at hfn
+  | spine hsp =>
+    obtain ⟨c', us', hc', hat⟩ := RelInst.atomSpine_head hsp
+    rw [hfn] at hc'; cases hc'
+    unfold EvalEnv.isAtom at hat
+    rw [hr] at hat
+    simp [OwnRules] at hat
+  | propProj hp =>
+    obtain ⟨S, i, e₀, he⟩ := RelInst.propProj_head hp
+    rw [he] at hfn; cases hfn
+  | ctor hc _ =>
+    rw [SrcDefeq.getAppFn_mkAppN_const] at hfn; cases hfn
+    rw [hc] at hr; cases hr
+  | quotMk hc _ _ =>
+    rw [SrcDefeq.getAppFn_mkAppN_const] at hfn; cases hfn
+    rw [hc] at hr; cases hr
+
 /-- An application whose head is fixed and blocks no congruence, of a fixed argument, evaluates to
 itself only. -/
-theorem fixed_app {f a : Expr} (hf : Fixed σ f) (ha : Fixed σ a) (hnb : ¬ BlocksCong σ f) :
+theorem fixed_app {f a : Expr} (hf : Fixed σ f) (ha : Fixed σ a) (hnb : ¬ BlocksCong σ f)
+    (hnr : ∀ c us rv, f.getAppFn = .const c us → findDecl σ.decls c ≠ some (.recInfo rv)) :
     Fixed σ (.app f a) := by
   intro w h
   have hsp : ∀ {c us} {as : List Expr} {ar : Nat}, Expr.app f a = mkAppN (.const c us) as.toArray →
@@ -249,6 +280,9 @@ theorem fixed_app {f a : Expr} (hf : Fixed σ f) (ha : Fixed σ a) (hnb : ¬ Blo
     exact (hsp hx (SimCases.specialArity_casesOn hcs)).elim
   | quotMk hc hk => exact (hsp (ar := 3) hx (by simp [specialArity, hc, hk, quotEvalArity])).elim
   | quotLift hc hk => exact (hsp (ar := 6) hx (by simp [specialArity, hc, hk, quotEvalArity])).elim
+  | recIota hcr =>
+    obtain ⟨bs, -, rfl⟩ := SrcDefeq.spine_app hx.symm
+    exact (hnr _ _ _ (SrcDefeq.getAppFn_mkAppN_const _ _ _) hcr).elim
   | atom ha' => subst hx; simp [SrcAtom] at ha'
   | zeta | delta | constAtom | proj | projProp | lit | mdata => cases hx
 
@@ -276,7 +310,7 @@ theorem fixed_projProp {S : Name} {i : Nat} {m : Expr} (hm : Fixed σ m)
   | projProp _ hm' =>
     cases hx
     rw [hm _ hm']
-  | eta | ctor | casesIota | casesLitZero | casesLitSucc | casesProof | quotMk | quotLift =>
+  | eta | ctor | casesIota | casesLitZero | casesLitSucc | casesProof | quotMk | quotLift | recIota =>
     exact absurd hx (CasesWhred.ne_mkAppN_const fun _ _ h => by cases h)
   | atom ha' => subst hx; simp [SrcAtom] at ha'
   | beta | zeta | delta | constAtom | lit | appCong | mdata => cases hx
@@ -311,6 +345,9 @@ theorem fixed_quotMk {c : Name} {us : List Level} {qv : QuotVal} {α r a : Expr}
   | quotLift =>
     obtain ⟨-, -, h3⟩ := mkAppN_inj hx
     simp at h3
+  | recIota hcr =>
+    obtain ⟨rfl, -, -⟩ := mkAppN_inj hx
+    rw [hc] at hcr; cases hcr
   | atom ha' => subst hx; cases ha'
   | zeta | proj | projProp | lit | mdata =>
     exact absurd hx.symm (CasesWhred.ne_mkAppN_const fun _ _ h => by cases h)
@@ -356,6 +393,7 @@ theorem res_of_eval {e v : Expr} (hev : SrcEval σ e v) : Res σ v := by
     obtain ⟨rfl, -, -⟩ := mkAppN_inj hx
     rw [hc] at hc'; cases hc'
   | quotLift _ _ _ _ _ _ _ _ _ ih => exact ih
+  | recIota => rename_i ih; exact ih
   | proj _ hcv hfs ihm =>
     obtain ⟨C, us, cv, ps, hC, -, -, -, -, rfl⟩ := hcv
     obtain ⟨-, -, hargs⟩ := ihm
@@ -370,7 +408,8 @@ theorem res_of_eval {e v : Expr} (hev : SrcEval σ e v) : Res σ v := by
   | appCong hns hf hb ha ihf iha =>
     obtain ⟨-, hff, -⟩ := ihf
     obtain ⟨-, hfa, -⟩ := iha
-    refine .mk (SrcEval.appCong hns hf hb ha).value (fixed_app hff hfa hb) ?_
+    refine .mk (SrcEval.appCong hns hf hb ha).value
+      (fixed_app hff hfa hb fun _ _ _ h => srcValue_not_rec (SrcEval.value hf) h) ?_
     intro c us cv as hc hx
     obtain ⟨bs, -, rfl⟩ := SrcDefeq.spine_app hx.symm
     exact absurd (SrcDefeq.blocksCong_ctor (SrcDefeq.getAppFn_mkAppN_const c us bs) hc) hb
@@ -816,11 +855,18 @@ theorem short_erases_inv {c : Name} {us : List Level} {as : List Lean.Expr} {ar 
     subst har
     simp at hlt
     omega
+  | recLet hcr | recFix hcr =>
+    obtain ⟨rfl, -, -⟩ := mkAppN_inj hx
+    rcases SrcDefeq.specialArity_some har with ⟨cv, hcv, -⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, -⟩
+    · rw [hcr] at hcv; cases hcv
+    · obtain ⟨d, hd⟩ := SrcDefeq.casesOn?_defn hiv
+      rw [hcr] at hd; cases hd
+    · rw [hcr] at hqv; cases hqv
   | app hns =>
     rcases SrcDefeq.specialArity_some har with ⟨cv, hcv, -⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, hq⟩
     · exact absurd ⟨c, us, hfn, .inl ⟨cv, hcv⟩⟩ hns
     · exact absurd ⟨c, us, hfn, .inr (.inl (by rw [hiv]; rfl))⟩ hns
-    · exact absurd ⟨c, us, hfn, .inr (.inr ⟨qv, hqv, by rw [hq]; rfl⟩)⟩ hns
+    · exact absurd ⟨c, us, hfn, .inr (.inr (.inl ⟨qv, hqv, by rw [hq]; rfl⟩))⟩ hns
   | const _ hsa =>
     obtain ⟨-, rfl, -⟩ := SrcDefeq.spine_const hx
     rw [hsa] at har; cases har
@@ -836,7 +882,7 @@ theorem lam_erases_inv {x : Name} {A b : Lean.Expr} {bi : BinderInfo} {F' : LBTe
   cases h with
   | box hb => subst hx; exact .inl ⟨rfl, hb⟩
   | lam hA hAt hb => cases hx; exact .inr ⟨_, _, rfl, hA, hAt, hb⟩
-  | ctor | cases | casesReduced | eta | quotMk | quotLift =>
+  | ctor | cases | casesReduced | eta | quotMk | quotLift | recLet | recFix =>
     exact absurd hx (CasesWhred.ne_mkAppN_const fun _ _ h => by cases h)
   | bvar | fvar | letE | app | const | proj | litZero | litSucc | mdata => cases hx
 
@@ -886,13 +932,37 @@ theorem appBox_step (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.d
   have hjoin : Expr.app (mkAppN (.const c us) as.toArray) f =
       mkAppN (.const c us) (as ++ [f]).toArray := by
     rw [mkAppN_eq_foldl, mkAppN_eq_foldl, List.foldl_append]; rfl
+  by_cases hrc : ∃ rv, findDecl σ.decls c = some (.recInfo rv)
+  · obtain ⟨rv, hrv⟩ := hrc
+    rcases Erases.rec_inv hrv hF with ⟨hF', hb⟩ |
+      ⟨minors, Fx, ps, ms, mins, is, maj, extra, mins', is', maj', extra', hRF, rfl, hps, hms,
+        hmins, his, hlm, hmin, hli, his', hmaj, hle, hext, rfl⟩ |
+      ⟨minors, Fx, ps, ms, mins, is, maj, extra, ws, is', maj', extra', hRF, rfl, hps, hms, hmins,
+        his, hlw, hmin, hws, hli, his', hmaj, hle, hext, rfl⟩
+    · exact hbox hF' hb
+    · refine ⟨mkApps (recLets 0 (mins'.zip minors)
+        (mkApps Fx ((is' ++ [maj']).map (lbLift rv.numMinors 0)))) (extra' ++ [.box]), ?_, ?_, ?_⟩
+      · rw [hjoin, show ps ++ ms ++ mins ++ is ++ [maj] ++ extra ++ [f] =
+          ps ++ ms ++ mins ++ is ++ [maj] ++ (extra ++ [f]) by simp]
+        exact .recLet hrv hRF hps hms hmins his hlm hmin hli his' hmaj (by simp [hle])
+          (forall_snoc_intro hle hext (.box herf))
+      · rw [SimCases.mkApps_snoc]; exact .app hdF .box
+      · intro r h; rwa [SimCases.mkApps_snoc] at h
+    · refine ⟨mkApps (substl ws.reverse Fx) (is' ++ [maj'] ++ (extra' ++ [.box])), ?_, ?_, ?_⟩
+      · rw [hjoin, show ps ++ ms ++ mins ++ is ++ [maj] ++ extra ++ [f] =
+          ps ++ ms ++ mins ++ is ++ [maj] ++ (extra ++ [f]) by simp]
+        exact .recFix hrv hRF hps hms hmins his hlw hmin hws hli his' hmaj (by simp [hle])
+          (forall_snoc_intro hle hext (.box herf))
+      · rw [← List.append_assoc, SimCases.mkApps_snoc]; exact .app hdF .box
+      · intro r h; rwa [← List.append_assoc, SimCases.mkApps_snoc] at h
   obtain ⟨ar, har⟩ : ∃ ar, specialArity σ c = some ar := by
-    rcases hspc with ⟨cv, hcv⟩ | hco | ⟨qv, hqv, hq⟩
+    rcases hspc with ⟨cv, hcv⟩ | hco | ⟨qv, hqv, hq⟩ | ⟨rv, hrv⟩
     · exact ⟨_, by unfold specialArity; rw [hcv]⟩
     · obtain ⟨iv, hiv⟩ := Option.isSome_iff_exists.mp hco
       exact ⟨_, SimCases.specialArity_casesOn hiv⟩
     · obtain ⟨ar, har⟩ := Option.isSome_iff_exists.mp hq
       exact ⟨ar, by unfold specialArity; rw [hqv]; exact har⟩
+    · exact absurd ⟨rv, hrv⟩ hrc
   by_cases hlt : as.length < ar
   · rcases short_erases_inv har hlt hF with ⟨hF', hb⟩ | ⟨e', heta, he'⟩
     · exact hbox hF' hb
@@ -1347,7 +1417,7 @@ theorem erases_correct_casesLitSucc (henv : ProgEnv P ζ E B) (hE : EnvWF E)
       cases hBN
       exact (hnotProof hss (SimInd.ctor_isProof hE hok hwE).1).elim
     | litZero => cases hx
-    | ctor | cases | casesReduced | eta | quotMk | quotLift =>
+    | ctor | cases | casesReduced | eta | quotMk | quotLift | recLet | recFix =>
       exact absurd hx (CasesWhred.ne_mkAppN_const fun _ _ h => by cases h)
     | bvar | fvar | lam | letE | app | const | proj | mdata => cases hx
   -- the second alternative, under one field binder
