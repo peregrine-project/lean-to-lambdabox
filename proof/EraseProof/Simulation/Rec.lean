@@ -8,7 +8,7 @@ import EraseProof.Core.Steps
 A saturated recursor of a single inductive without indices (`SrcEval.recIota`) is erased to the λ□
 fixpoint of `recFix` under `let`s of its erased minors (`Erases.recLet`), or with the minors' values
 substituted (`Erases.recFix`). The λ□ evaluation binds the minors' values, unfolds the fixpoint on
-the major's value, selects the constructor's alternative (a λ□ `case`, or the alternative applied
+the major's value (a Nat literal's being λ□'s constructor chain), selects the constructor's alternative (a λ□ `case`, or the alternative applied
 to `□` when the major is erased in the reduced form) and applies the minor's value to the fields
 and to the recursive calls on the recursive fields, which are erasures of the source induction
 hypotheses (`Erases.recFix`). Reference: none (MetaRocq has no recursors; DV-30); the λ□ steps are
@@ -347,11 +347,13 @@ theorem choose_list {δ : Type} {Q : Nat → δ → Prop} (n : Nat) (h : ∀ i <
 /-- The recursor ι with the minors' erasures substituted into the fixpoint: λ□ unfolds the fixpoint
 on the major's value, selects the constructor's alternative and applies the minor's value to the
 fields and the recursive calls; these are erasures of the source induction hypotheses, whose
-values the continuation is applied to. -/
+values the continuation is applied to. The major evaluates to `mj₀`, whose constructor form `mj`
+(`natLitCtor`) is the constructor value; an erasure of `mj₀` is one of `mj` when `T` is not in
+`Prop` (`hconv`). -/
 theorem rec_core (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
     (hbinj : BlockNamesInj σ.decls)
     {c : Name} {rv : RecursorVal} {T : Name} {iv : InductiveVal} {cvs : List ConstructorVal}
-    {motives : List (List Name)} {minors : List RecMinor} {maj mj : Expr} {k : Nat}
+    {motives : List (List Name)} {minors : List RecMinor} {maj mj₀ mj : Expr} {k : Nat}
     {mi : RecMinor} {mk : Expr} {us : List Level} {v : Expr}
     {ps ms mins mvs fs rfs ihvs : List Expr}
     (hcr : findDecl σ.decls c = some (.recInfo rv)) (hall : rv.all = [T]) (hcT : c = mkRecName T)
@@ -363,12 +365,15 @@ theorem rec_core (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decl
     (hps : ps.length = rv.numParams) (hms : ms.length = rv.numMotives)
     (hmins : mins.length = rv.numMinors) (hlm : mins.length = mvs.length)
     (hmv : ∀ (i : Nat) m mv, mins[i]? = some m → mvs[i]? = some mv → SrcEval σ m mv)
-    (hmaj : SrcEval σ maj mj) (hcv : CtorValue σ T mj k fs) (hmi : minors[k]? = some mi)
+    (hmajS : SrcDefeq.Sound E B lps maj mj) (hfields : ∀ f ∈ fs, SrcValue σ f ∧ SimIota.Fixed σ f)
+    (hcv : CtorValue σ T mj k fs) (hmi : minors[k]? = some mi)
     (hmk : mvs[k]? = some mk) (hrfs : (mi.ihs.mapM fun h => fs[h.field]?) = some rfs)
     (hrl : rfs.length = ihvs.length)
     (hih : ∀ (i : Nat) f w, rfs[i]? = some f → ihvs[i]? = some w →
       SrcEval σ (mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray) w)
-    (ihmaj : ErasesSim E B lps σ lenv maj mj)
+    (ihmaj : ErasesSim E B lps σ lenv maj mj₀)
+    (hconv : ∀ mb, Erases E B lps σ .nil [] mj₀ mb → ¬ PropInductive E B T →
+      Erases E B lps σ .nil [] mj mb)
     (ihih : ∀ (i : Nat) f w, rfs[i]? = some f → ihvs[i]? = some w →
       ErasesSim E B lps σ lenv (mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray) w)
     (ihv : ErasesSim E B lps σ lenv (mkAppN mk (fs ++ ihvs).toArray) v)
@@ -436,7 +441,7 @@ theorem rec_core (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decl
     List.rel_append (List.rel_append (List.rel_append (hself ps) (hself ms))
       (CasesWhred.forall₂_of_getElem? hlm fun i m mv h1 h2 => by
         intro _ _ he ht; exact SrcEval.defeq henv hE hsub he ht (hmv i m mv h1 h2)))
-      (.cons (by intro _ _ he ht; exact SrcEval.defeq henv hE hsub he ht hmaj) .nil)
+      (.cons hmajS .nil)
   obtain ⟨t₂, ht₂, hd₂⟩ := SrcDefeq.special_congr hE hBc rfl he ht
     (fun hsat => RecWhred.satTr_recr_typed hE hok hsat ht hidO) hall'
   have ht₂T := hd₂.right
@@ -459,7 +464,6 @@ theorem rec_core (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decl
       ι.recrEnd s - 1 := rfl
   rw [hlast, ← hpre, List.getElem?_append_right (Nat.le_refl _), Nat.sub_self] at ha₀
   cases ha₀
-  have hfields := SimIota.fields_of_eval hmaj hcv
   have hcv₀ := hcv
   obtain ⟨C, usC, cv, psC, hC, hind, hcidx, hpsC, hfsC, rfl⟩ := hcv
   have hlenC : (psC ++ fs).length = cv.numParams + cv.numFields := by simp [hpsC, hfsC]
@@ -662,6 +666,11 @@ theorem rec_core (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decl
         have := SimInd.isNeverZero_tr hnz₀ hlev (fun _ => 0)
         rw [hz, Metalean.Level.eval_zero] at this
         omega
+    have hnpT : ¬ PropInductive E B (Is s).name := fun ⟨ι', η', s', hB', hl⟩ => by
+      rw [hBT] at hB'
+      cases hB'
+      exact hnz (by rw [hl, Metalean.Level.inst_zero])
+    have hmb := hconv mb hmb hnpT
     rcases Erases.ctor_inv hC (by omega) hmb with ⟨rfl, hbx⟩ | ⟨iid, as', hid', rfl, hlen', hallE⟩
     · exfalso
       obtain ⟨w, hw, Tw, hwT, hwA⟩ := hbx
@@ -747,6 +756,101 @@ theorem rec_core (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decl
       exact hev
 
 /-! ## The `recIota` case -/
+
+/-- The fields of the constructor form (`natLitCtor`) of a value are values that evaluate only to
+themselves: those of a constructor value, or the literal below a successor literal. -/
+theorem fields_natLitCtor {m mv : Expr} {T : Name} {i : Nat} {fs : List Expr}
+    (hm : SrcEval σ m mv) (hcv : CtorValue σ T (natLitCtor mv) i fs) :
+    ∀ f ∈ fs, SrcValue σ f ∧ SimIota.Fixed σ f := by
+  rcases natLitCtor_cases mv with ⟨k, rfl⟩ | h
+  · cases k with
+    | zero =>
+      obtain ⟨cv, ps, -, -, -, -, -, hpf⟩ := ctorValue_spine (as := []) hcv rfl
+      intro f hf
+      have : f ∈ ps ++ fs := List.mem_append_right _ hf
+      rw [← hpf] at this
+      cases this
+    | succ k =>
+      obtain ⟨cv, ps, -, -, -, -, -, hpf⟩ := ctorValue_spine (as := [.lit (.natVal k)]) hcv rfl
+      intro f hf
+      have : f ∈ ps ++ fs := List.mem_append_right _ hf
+      rw [← hpf, List.mem_singleton] at this
+      subst this
+      exact ⟨.lit, SimIota.fixed_lit⟩
+  · rw [h] at hcv
+    exact SimIota.fields_of_eval hm hcv
+
+/-- An erasure of a value is one of its constructor form (`natLitCtor`) when its inductive is not
+in `Prop`: λ□'s constructor chain of a Nat literal (`Erases.litZero`, `Erases.litSucc`) is the
+erasure of ``Nat.zero`` or of ``Nat.succ`` at the literal below (`Erases.ctor`), the recursor's
+inductive being ``Nat`` (`ProgEnv.ind_inj`); `□` erases both, their translations being equal
+(`SrcDefeq.trM_natLitCtor`). -/
+theorem erases_natLitCtor (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P) {mj : Expr}
+    {T : Name} {i : Nat} {fs : List Expr} (hcv : CtorValue σ T (natLitCtor mj) i fs)
+    (hnp : ¬ PropInductive E B T) {t₀ : Metalean.Expr ζ lps.length 0}
+    (hTr : TrM E B lps .nil [] mj t₀) {mb : LBTerm} (hmb : Erases E B lps σ .nil [] mj mb) :
+    Erases E B lps σ .nil [] (natLitCtor mj) mb := by
+  rcases natLitCtor_cases mj with ⟨k, rfl⟩ | h
+  swap
+  · rw [h]; exact hmb
+  obtain ⟨ηNat, o₀, o₁, hBN, h₀, h₁⟩ := CasesWhred.trM_lit_ctors hTr
+  have hbox : ErasableS E B lps .nil [] (.lit (.natVal k)) →
+      Erases E B lps σ .nil [] (natLitCtor (.lit (.natVal k))) .box := fun ⟨w, hw, hwE⟩ =>
+    .box ⟨w, SrcDefeq.trM_natLitCtor henv hsub hcv hw, hwE⟩
+  cases k with
+  | zero =>
+    obtain ⟨cv, ps, hC, hind, -, hps, hfs, hpf⟩ := ctorValue_spine (as := []) hcv rfl
+    obtain ⟨ι, η, s, c, order, hBc, hcidx, -, -, -, hI⟩ :=
+      henv.lookup_ctor (SrcDefeq.findDecl_sub hsub hC)
+    rw [h₀] at hBc
+    cases hBc
+    have hTN : cv.induct = ``Nat := henv.ind_inj hI hBN
+    have hlen : cv.numParams + cv.numFields ≤ ([] : List Expr).length := by
+      have := congrArg List.length hpf
+      simp only [List.length_nil, List.length_append] at this
+      simp only [List.length_nil]; omega
+    have hnp' : ¬ PropInductive E B cv.induct := by rw [hind]; exact hnp
+    generalize hx : Expr.lit (.natVal 0) = x at hmb
+    cases hmb with
+    | litZero hid =>
+      have h1 := Erases.ctor (as := []) (as' := []) (us := []) (Γ := .nil) (Δ := []) (E := E)
+        (lps := lps) hC hnp' (by rw [hTN]; exact hid) hlen rfl (fun _ _ _ h => nomatch h)
+      rw [hcidx] at h1
+      exact h1
+    | box hb => subst hx; exact hbox hb
+    | litSucc => cases hx
+    | ctor | cases | casesReduced | eta | quotMk | quotLift | recLet | recFix =>
+      exact absurd hx (CasesWhred.ne_mkAppN_const fun _ _ h => by cases h)
+    | bvar | fvar | lam | letE | app | const | proj | mdata => cases hx
+  | succ k =>
+    obtain ⟨cv, ps, hC, hind, -, hps, hfs, hpf⟩ :=
+      ctorValue_spine (as := [.lit (.natVal k)]) hcv rfl
+    obtain ⟨ι, η, s, c, order, hBc, hcidx, -, -, -, hI⟩ :=
+      henv.lookup_ctor (SrcDefeq.findDecl_sub hsub hC)
+    rw [h₁] at hBc
+    cases hBc
+    have hTN : cv.induct = ``Nat := henv.ind_inj hI hBN
+    have hlen : cv.numParams + cv.numFields ≤ ([.lit (.natVal k)] : List Expr).length := by
+      have := congrArg List.length hpf
+      simp only [List.length_cons, List.length_nil, List.length_append] at this
+      simp only [List.length_cons, List.length_nil]; omega
+    have hnp' : ¬ PropInductive E B cv.induct := by rw [hind]; exact hnp
+    generalize hx : Expr.lit (.natVal (k + 1)) = x at hmb
+    cases hmb with
+    | litSucc hid h' =>
+      cases hx
+      have h1 := Erases.ctor (as := [.lit (.natVal k)]) (as' := [_]) (us := []) hC hnp'
+        (by rw [hTN]; exact hid) hlen rfl fun j a a' h1 h2 => by
+          rcases j with _ | j <;> simp at h1 h2
+          subst h1 h2
+          exact h'
+      rw [hcidx] at h1
+      exact h1
+    | box hb => subst hx; exact hbox hb
+    | litZero => cases hx
+    | ctor | cases | casesReduced | eta | quotMk | quotLift | recLet | recFix =>
+      exact absurd hx (CasesWhred.ne_mkAppN_const fun _ _ h => by cases h)
+    | bvar | fvar | lam | letE | app | const | proj | mdata => cases hx
 
 theorem kfv_of_fvarsIn {p : FVarId → Prop} : ∀ {e : Lean.Expr}, FVarsIn p e → Steps.KFV p e
   | .fvar _, h => h
@@ -845,7 +949,8 @@ theorem substl_app_closed {a : LBTerm} (ha : closedn 0 a = true) :
 /-- The `recIota` case of `erases_correct`. The erasure is `□`, or the fixpoint under `let`s of
 the erased minors, which λ□ evaluates to the minors' values, or the fixpoint with erasures of the
 minors substituted, which are λ□ values, hence erasures of the minors' values; then
-`SimRec.rec_core`. Reference: none (MetaRocq has no recursors; DV-30). -/
+`SimRec.rec_core` at the major's constructor form (`natLitCtor`: a Nat literal's erasure is one of
+its constructor form, `erases_natLitCtor`). Reference: none (MetaRocq has no recursors; DV-30). -/
 theorem erases_correct_recIota (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
     (hbinj : BlockNamesInj σ.decls)
     {c : Name} {rv : RecursorVal} {T : Name} {iv : InductiveVal} {cvs : List ConstructorVal}
@@ -861,7 +966,7 @@ theorem erases_correct_recIota (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : 
     (hps : ps.length = rv.numParams) (hms : ms.length = rv.numMotives)
     (hmins : mins.length = rv.numMinors) (hlm : mins.length = mvs.length)
     (hmv : ∀ (i : Nat) m mv, mins[i]? = some m → mvs[i]? = some mv → SrcEval σ m mv)
-    (hmaj : SrcEval σ maj mj) (hcv : CtorValue σ T mj k fs) (hmi : minors[k]? = some mi)
+    (hmaj : SrcEval σ maj mj) (hcv : CtorValue σ T (natLitCtor mj) k fs) (hmi : minors[k]? = some mi)
     (hmk : mvs[k]? = some mk) (hrfs : (mi.ihs.mapM fun h => fs[h.field]?) = some rfs)
     (hrl : rfs.length = ihvs.length)
     (hih : ∀ (i : Nat) f w, rfs[i]? = some f → ihvs[i]? = some w →
@@ -886,6 +991,16 @@ theorem erases_correct_recIota (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : 
       exact h)
   have hmajT : ∃ (a₀ A : Metalean.Expr ζ lps.length 0), TrM E B lps .nil [] maj a₀ ∧
       E[.nil] ⊢ a₀ : A := hargs (ps ++ ms ++ mins).length maj (by simp)
+  -- the major's value in constructor form
+  have hmajS : SrcDefeq.Sound E B lps maj (natLitCtor mj) :=
+    SrcDefeq.sound_trans hE (fun he ht => SrcEval.defeq henv hE hsub he ht hmaj)
+      (SrcDefeq.sound_natLitCtor henv hsub hcv)
+  have hfields := fields_natLitCtor hmaj hcv
+  have hconv : ∀ mb, Erases E B lps σ .nil [] mj mb → ¬ PropInductive E B T →
+      Erases E B lps σ .nil [] (natLitCtor mj) mb := fun mb hmb hnp => by
+    obtain ⟨a₀, A, hTm, hAm⟩ := hmajT
+    obtain ⟨t₀, ht₀, -⟩ := SrcEval.defeq henv hE hsub hTm hAm hmaj
+    exact erases_natLitCtor henv hsub hcv hnp ht₀ hmb
   -- the minors' values with closed erasures that are λ□ values
   have hvalue : ∀ (i : Nat) m mv w, mins[i]? = some m → mvs[i]? = some mv →
       Erases E B lps σ .nil [] mv w → closedn 0 w = true ∧ (∀ x, hasFVar x w = false) := by
@@ -964,8 +1079,8 @@ theorem erases_correct_recIota (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : 
     have hdFs : ErasesDeps E B σ lenv (substl ws.reverse F) :=
       ErasesDeps.substl (fun w hw => hdws w (List.mem_reverse.1 hw)) hdF
     obtain ⟨vb, hvb, hevb⟩ := rec_core henv hE hsub hbinj hcr hall hcT hblk hni hshape hihs hps hms
-      hmins hlm hmv hmaj hcv hmi hmk hrfs hrl hih ihmaj ihih ihv he ht hRF (by omega) hwe hwc hdFs
-      hmajE hdmaj
+      hmins hlm hmv hmajS hfields hcv hmi hmk hrfs hrl hih ihmaj hconv ihih ihv he ht hRF (by omega)
+      hwe hwc hdFs hmajE hdmaj
     have hmn := (RecLam.RecFixOf.closed hRF).1
     refine ⟨vb, hvb, eval_letChain _ ws _ vb (by simp; omega) ?_ hclZ (fun w hw => (hwc w hw).1) ?_⟩
     · intro i p w hp hw
@@ -1021,8 +1136,9 @@ theorem erases_correct_recIota (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : 
       obtain ⟨w', hw', hev⟩ := ihm i m mv hm h1 hTr ⟨A, hA⟩ (hwE i m w hm h2) (hdws i w h2)
       obtain rfl := (hws w (List.mem_of_getElem? h2)).2.2 _ _ hev
       exact hw'
-    exact rec_core henv hE hsub hbinj hcr hall hcT hblk hni hshape hihs hps hms hmins hlm hmv hmaj
-      hcv hmi hmk hrfs hrl hih ihmaj ihih ihv he ht hRF (by omega) hwe hws hdF hmajE hdmaj
+    exact rec_core henv hE hsub hbinj hcr hall hcT hblk hni hshape hihs hps hms hmins hlm hmv
+      hmajS hfields hcv hmi hmk hrfs hrl hih ihmaj hconv ihih ihv he ht hRF (by omega) hwe hws hdF
+      hmajE hdmaj
 
 end SimRec
 

@@ -1722,6 +1722,80 @@ theorem etaSpine?_special {c : Name} {us : List Level} {as : List Expr} {e' : Ex
   · exact ⟨_, ‹_›⟩
   · cases he
 
+/-- The constructor form of a Nat literal translates as the literal does: `natLitM` is the
+constructor node of ``Nat.zero``, or of ``Nat.succ`` at the literal below (whose Metalean field
+order is the identity, `MetaOrderOK`). -/
+theorem trM_natLitCtor (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P) {k : Nat} {T : Name}
+    {i : Nat} {fs : List Expr} (hcv : CtorValue σ T (natLitCtor (.lit (.natVal k))) i fs)
+    {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n}
+    {t : Metalean.Expr ζ lps.length n} (h : TrM E B lps Γ Δ (.lit (.natVal k)) t) :
+    TrM E B lps Γ Δ (natLitCtor (.lit (.natVal k))) t := by
+  obtain ⟨ηNat, o₀, o₁, hB, h₀, h₁⟩ := CasesWhred.trM_lit_ctors h
+  obtain ⟨η', hB', rfl⟩ := CasesWhred.trM_lit_inv h
+  rw [hB] at hB'
+  cases hB'
+  have hls : TrLevels lps [] 0 = some Fin.elim0 := by
+    simp only [TrLevels, List.mapM_nil, Option.pure_def, Option.bind_eq_bind, Option.bind_some,
+      List.length_nil, ↓reduceDIte, Option.some.injEq]
+    funext x; exact x.elim0
+  have e0 : ∀ {α : Type} (f g : Fin 0 → α), f = g := fun f g => funext fun x => x.elim0
+  cases k with
+  | zero =>
+    obtain ⟨cv, ps, hC, -, -, -, -, hps⟩ :=
+      ctorValue_spine (as := []) hcv (c := ``Nat.zero) (us := []) rfl
+    obtain ⟨ι, η, s, c, order, hBc, -, -, -, hmo, -⟩ := henv.lookup_ctor (findDecl_sub hsub hC)
+    rw [h₀] at hBc
+    cases hBc
+    obtain ⟨ords, recs, rfl, h1, h2, -, -, -⟩ := hmo
+    have hz : natLitM ηNat 0 = ((Metalean.Expr.ctor ηNat 0 0 Fin.elim0 Fin.elim0 Fin.elim0
+        Fin.elim0).appList [] : Metalean.Expr ζ lps.length n) := by
+      simp only [natLitM, Metalean.Expr.appList]
+      congr 1 <;> exact e0 _ _
+    rw [hz]
+    exact TrM.special (as := []) (as' := []) h₀ rfl rfl (fun _ _ _ h => nomatch h)
+      (SatTr.ctorSat (ι := natSig) (η := ηNat) (s := 0) (c := 0) Fin.elim0 [] [] Fin.elim0
+        Fin.elim0 hls rfl
+        (by simp [List.length_append, h1, h2]) fun o => o.elim0)
+  | succ k =>
+    obtain ⟨cv, ps, hC, -, -, -, -, hps⟩ :=
+      ctorValue_spine (as := [.lit (.natVal k)]) hcv (c := ``Nat.succ) (us := []) rfl
+    obtain ⟨ι, η, s, c, order, hBc, -, -, -, hmo, -⟩ := henv.lookup_ctor (findDecl_sub hsub hC)
+    rw [h₁] at hBc
+    cases hBc
+    obtain ⟨ords, recs, rfl, h1, h2, -, -, hperm⟩ := hmo
+    have ho : ords ++ recs = [0] := List.perm_singleton.mp hperm
+    have hs : natLitM ηNat (k + 1) = ((Metalean.Expr.ctor ηNat 0 1 Fin.elim0 Fin.elim0 Fin.elim0
+        ![natLitM ηNat k]).appList [] : Metalean.Expr ζ lps.length n) := by
+      simp only [natLitM, Metalean.Expr.appList]
+      congr 1 <;> exact e0 _ _
+    rw [hs]
+    refine TrM.special (as := [.lit (.natVal k)]) (as' := [natLitM ηNat k]) h₁ rfl rfl ?_
+      (SatTr.ctorSat (ι := natSig) (η := ηNat) (s := 0) (c := 1) Fin.elim0 [natLitM ηNat k] []
+        Fin.elim0 ![natLitM ηNat k] hls rfl (by rw [ho]; rfl) fun o => ⟨0, natLitM ηNat k, ?_⟩)
+    · intro j a a' h1 h2
+      rcases j with _ | j <;> simp at h1 h2
+      subst h1 h2
+      exact .lit hB h₀ h₁
+    · rw [ho]
+      obtain ⟨o, ho'⟩ := o
+      obtain rfl : o = 0 := by change o < 0 + 1 at ho'; omega
+      exact ⟨rfl, rfl, CasesWhred.append_elim0 _ _⟩
+
+/-- A value is definitionally equal to its constructor form (`natLitCtor`). -/
+theorem sound_natLitCtor (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P) {mj : Expr}
+    {T : Name} {i : Nat} {fs : List Expr} (hcv : CtorValue σ T (natLitCtor mj) i fs) :
+    Sound E B lps mj (natLitCtor mj) := by
+  rcases natLitCtor_cases mj with ⟨k, rfl⟩ | h
+  · exact fun he ht => ⟨_, trM_natLitCtor henv hsub hcv he, ht⟩
+  · rw [h]; exact fun he ht => ⟨_, he, ht⟩
+
+/-- `Sound` composes. -/
+theorem sound_trans (hE : EnvWF E) {a b c : Expr} (h₁ : Sound E B lps a b)
+    (h₂ : Sound E B lps b c) : Sound E B lps a c := fun he ht => by
+  obtain ⟨t₁, he₁, hd₁⟩ := h₁ he ht
+  obtain ⟨t₂, he₂, hd₂⟩ := h₂ he₁ hd₁.right
+  exact ⟨t₂, he₂, dtrans hE hd₁ hd₂⟩
+
 /-- The case of `SrcEval.recIota`: with the minors and the major replaced by the translations of
 their values (`special_congr`; the minors are not wrapped, since the recursive fields come last,
 `RecWhred.orders_identity`), ι and β (`RecWhred.recIota_whred`). -/
@@ -1847,7 +1921,8 @@ theorem sound_of (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decl
   | recIota hcr hall hcT hblk hni hshape hihs hps hms hmins hlm _ _ hcv hmi hmk hrfs hrl _ _ ihmin
       ihmaj ihih ihb =>
     exact case_recIota henv hE hsub hcr hall hcT hblk hni hshape hihs hps hms hmins hlm
-      (fun i m mv h1 h2 => (ihmin i m mv h1 h2).1) ihmaj.1 hcv hmi hmk hrfs hrl
+      (fun i m mv h1 h2 => (ihmin i m mv h1 h2).1)
+      (sound_trans hE ihmaj.1 (sound_natLitCtor henv hsub hcv)) hcv hmi hmk hrfs hrl
       (fun i f w h1 h2 => (ihih i f w h1 h2).1) ihb.1
   | proj _ hcv ha ih => exact case_proj henv hE hsub hcv ha ih.1
   | projProp _ _ _ ih => exact case_projProp henv hE ih.1

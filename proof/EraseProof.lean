@@ -96,6 +96,10 @@ import EraseProof.Test.NVRData
 import EraseProof.Test.NVRRun
 import EraseProof.Test.NVRModel
 import EraseProof.Test.NVRFinal
+import EraseProof.Test.NVLData
+import EraseProof.Test.NVLRun
+import EraseProof.Test.NVLModel
+import EraseProof.Test.NVLFinal
 import EraseProof.Test.NVSData
 import EraseProof.Test.NVSRun
 import EraseProof.Test.NVSBlocks

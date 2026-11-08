@@ -44,6 +44,25 @@ theorem foldl_app_const_inj {c c' : Name} {us us' : List Level} {as as' : List E
       obtain ⟨rfl, rfl, rfl⟩ := ih h1
       exact ⟨rfl, rfl, rfl⟩
 
+/-- `natLitCtor` changes only Nat literals. -/
+theorem natLitCtor_cases (e : Expr) : (∃ k, e = .lit (.natVal k)) ∨ natLitCtor e = e := by
+  match e with
+  | .lit (.natVal k) => exact .inl ⟨k, rfl⟩
+  | .lit (.strVal _) | .bvar _ | .fvar _ | .mvar _ | .sort _ | .const .. | .app .. | .lam ..
+  | .forallE .. | .letE .. | .mdata .. | .proj .. => exact .inr rfl
+
+/-- A constructor value is a constant spine of the constructor applied to its parameters and
+fields. -/
+theorem ctorValue_spine {T : Name} {m : Expr} {i : Nat} {fs : List Expr}
+    {σ : EvalEnv} (h : CtorValue σ T m i fs) {c : Name} {us : List Level} {as : List Expr}
+    (hm : m = mkAppN (.const c us) as.toArray) :
+    ∃ cv ps, findDecl σ.decls c = some (.ctorInfo cv) ∧ cv.induct = T ∧ cv.cidx = i ∧
+      ps.length = cv.numParams ∧ fs.length = cv.numFields ∧ as = ps ++ fs := by
+  obtain ⟨C, us', cv, ps, hC, h1, h2, h3, h4, rfl⟩ := h
+  rw [mkAppN_eq_foldl, mkAppN_eq_foldl] at hm
+  obtain ⟨rfl, -, rfl⟩ := foldl_app_const_inj hm
+  exact ⟨cv, ps, hC, h1, h2, h3, h4, rfl⟩
+
 /-- β-reduction of a λ-telescope applied to one argument per binder. -/
 theorem Ctx.lam_apps_whredS {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {ℓ a k : Nat}
     (Δ : Metalean.Ctx ζ ℓ a (a + k)) (e : Metalean.Expr ζ ℓ (a + k))
