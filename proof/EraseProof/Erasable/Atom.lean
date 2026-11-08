@@ -265,8 +265,8 @@ variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {P : List Con
   {σ : EvalEnv} {lps : List Name}
 
 /-- Atom spines are erasable: the typed translation of a spine whose head is an atom (an inductive
-type former, an arity-typed constant, a proof of an evident proposition or a theorem) is a type
-former or a proof. Reference: `Is_type_app` (`MR E/EArities.v:480`) on `tInd`-headed spines;
+type former, `Quot`, an arity-typed constant, a proof of an evident proposition or a theorem) is a
+type former or a proof. Reference: `Is_type_app` (`MR E/EArities.v:480`) on `tInd`-headed spines;
 DV-11, DV-24. -/
 theorem ErasableS.atom {e : Expr} (henv : ProgEnv P ζ E B) (hE : EnvWF E)
     (hsub : SubEnv σ.decls P) {t T : Metalean.Expr ζ lps.length 0} (hsp : AtomSpine σ e)
@@ -287,10 +287,37 @@ theorem ErasableS.atom {e : Expr} (henv : ProgEnv P ζ E B) (hE : EnvWF E)
   obtain ⟨b, hb, Tc, tc, hTc, htc, htcT⟩ := henv.lookup hE hcP
   rw [hname] at htc
   by_cases hs : b.isSpecial
-  · obtain ⟨v, rfl⟩ : ∃ v, ci = .inductInfo v := by
-      rcases SrcDefeq.special_kind henv hb hs hcP with h | ⟨_, rfl⟩ | ⟨_, rfl⟩ | ⟨_, rfl⟩
+  · by_cases hq : ∃ qv, ci = .quotInfo qv
+    · -- `Quot`: the node is typed by a sort, the η-term by the translation of `Quot`'s arity
+      obtain ⟨qv, rfl⟩ := hq
+      have hk : qv.kind = .type := by cases hk : qv.kind <;> simp [OwnRules, hk] at hown ⊢
+      obtain ⟨η, hBq⟩ := henv.lookup_quot hcP
+      rw [hk] at hBq
+      obtain ⟨as', -, -, hsat⟩ := TrM.special_inv hBq rfl he
+      cases hsat with
+      | quotType hu =>
+        obtain ⟨⟨F, hF⟩, -⟩ := InstPre.appList_inv ht
+        exact IsErasable.appList hE hok _
+          ⟨F, hF, .inl (OracleArity.Shape.isArity .sort hF.quot_inv)⟩ ht
+      | quotEta hu hlt h₀ =>
+        obtain ⟨ls', Tq, t₁, -, hTq, htqT, rfl⟩ := SrcDefeq.quotTerm_typed henv hE hcP hBq hu h₀
+        have har : ∃ k u, arityShape qv.type = some (k, u) := by
+          rcases ProgEnv.quot_shape henv hcP with ⟨-, -, u, hu⟩ | ⟨-, hk', -⟩ | ⟨-, hk', -⟩ |
+            ⟨-, hk'⟩
+          · exact ⟨2, u, hu⟩
+          all_goals rw [hk] at hk'; cases hk'
+        obtain ⟨k, u, har⟩ := har
+        obtain ⟨a, -, hPa⟩ := SrcProof.trM_arity har hTq
+        obtain ⟨_, hreg⟩ := htqT.regular
+        have hEq : IsErasable E .nil t₁ := ⟨Tq, htqT,
+          .inl (OracleArity.Shape.isArity (PiSort.shape hPa) (Metalean.IsType.typeEq ⟨_, hreg⟩))⟩
+        exact IsErasable.appList hE hok _ (IsErasable.instL (ls := ls') hE hEq) ht
+    obtain ⟨v, rfl⟩ : ∃ v, ci = .inductInfo v := by
+      rcases SrcDefeq.special_kind henv hb hs hcP with h | ⟨_, rfl⟩ | ⟨_, rfl⟩ | ⟨v, rfl⟩
       · exact h
-      all_goals simp [OwnRules] at hown
+      · simp [OwnRules] at hown
+      · simp [OwnRules] at hown
+      · exact absurd ⟨v, rfl⟩ hq
     have hname' : v.name = c := hname
     obtain ⟨ι, η, s, hB, -⟩ := ProgEnv.lookup_ind (c := v.name) (iv := v) henv
       (by rw [hname']; exact hcP)

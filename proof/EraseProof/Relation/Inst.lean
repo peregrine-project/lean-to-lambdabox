@@ -1375,14 +1375,14 @@ theorem srcValue_special {σ : EvalEnv} {a : Lean.Expr} (hval : SrcValue σ a)
     cases hc'
     exfalso
     unfold EvalEnv.isAtom at hat
-    rcases hsp with ⟨cv, hcv⟩ | hco | ⟨qv, hqv, -⟩ | ⟨rv, hrv⟩
+    rcases hsp with ⟨cv, hcv⟩ | hco | ⟨qv, hqv, hqa⟩ | ⟨rv, hrv⟩
     · simp [hcv, OwnRules] at hat
     · split at hat
       · simp only [Bool.and_eq_true, Option.isNone_iff_eq_none] at hat
         rw [hat.1.1.2] at hco
         cases hco
       · cases hat
-    · simp [hqv, OwnRules] at hat
+    · cases hk : qv.kind <;> simp [hqv, OwnRules, hk, quotEvalArity] at hat hqa
     · simp [hrv, OwnRules] at hat
   | propProj hp =>
     obtain ⟨S, i, e₀, he⟩ := propProj_head hp

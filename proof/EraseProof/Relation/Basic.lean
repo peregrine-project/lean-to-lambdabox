@@ -119,7 +119,7 @@ private theorem specialArity_ctor {σ : EvalEnv} {c : Name} {cv : ConstructorVal
 private theorem isAtom_not_special {σ : EvalEnv} {c : Name} (h : σ.isAtom c = true) :
     ¬ SpecialC σ c := by
   unfold EvalEnv.isAtom at h
-  rintro (⟨cv, hc⟩ | ⟨iv, hiv⟩ | ⟨qv, hc, -⟩ | ⟨rv, hc⟩)
+  rintro (⟨cv, hc⟩ | ⟨iv, hiv⟩ | ⟨qv, hc, hq⟩ | ⟨rv, hc⟩)
   · rw [hc] at h
     simp [OwnRules] at h
   · split at h
@@ -127,7 +127,7 @@ private theorem isAtom_not_special {σ : EvalEnv} {c : Name} (h : σ.isAtom c = 
       simp at h
     · cases h
   · rw [hc] at h
-    simp [OwnRules] at h
+    cases hk : qv.kind <;> simp [OwnRules, quotEvalArity, hk] at h hq
   · rw [hc] at h
     simp [OwnRules] at h
 

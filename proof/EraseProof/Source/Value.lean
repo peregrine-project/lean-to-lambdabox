@@ -127,10 +127,10 @@ private theorem BlocksCong_ctor {σ : EvalEnv} {e : Expr} {c : Name} {us : List 
 
 private theorem BlocksCong_quot {σ : EvalEnv} {e : Expr} {c : Name} {us : List Level}
     {qv : QuotVal} (he : e.getAppFn = .const c us)
-    (hc : findDecl σ.decls c = some (.quotInfo qv)) : BlocksCong σ e := by
+    (hc : findDecl σ.decls c = some (.quotInfo qv)) (hk : qv.kind = .ctor) : BlocksCong σ e := by
   cases e with
-  | app f a => exact .inr (.inr ⟨c, us, qv, he, hc⟩)
-  | const => exact .inr (.inr ⟨c, us, qv, he, hc⟩)
+  | app f a => exact .inr (.inr ⟨c, us, qv, he, hc, hk⟩)
+  | const => exact .inr (.inr ⟨c, us, qv, he, hc, hk⟩)
   | _ => cases he
 
 /-- Every evaluation result is a value whose constructor arguments are values. -/
@@ -169,7 +169,7 @@ private theorem deep {σ : EvalEnv} {e v : Expr} (hev : SrcEval σ e v) : Deep �
     | spine hs => exact .spine (.app hs)
     | propProj hp => exact .propProj (.app hp)
     | ctor hc _ _ => exact absurd (BlocksCong_ctor (getAppFn_mkAppN_const _ _ _) hc) hb
-    | quotMk hc _ _ => exact absurd (BlocksCong_quot (getAppFn_mkAppN_const _ _ _) hc) hb
+    | quotMk hc hk _ => exact absurd (BlocksCong_quot (getAppFn_mkAppN_const _ _ _) hc hk) hb
   | mdata _ ih => exact ih
   | atom h =>
     rename_i e
