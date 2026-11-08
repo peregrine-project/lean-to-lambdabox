@@ -73,6 +73,31 @@ theorem CtorValue.restrict (hsub : SubEnv D P) {T : Name} {m : Expr} {i : Nat} {
   exact ⟨⟨C, us, cv, ps, (findDecl_agree hsub hCD).trans hC, h1, h2, h3, h4, rfl⟩,
     fun x hx => has x (List.mem_append_right _ hx)⟩
 
+/-- The constructor form (`natLitCtor`) of a value whose constants lie in the sub-environment has
+its constants there, given that the program lists every constructor among its inductive's: the
+constructor of a Nat literal's form is one of `T`, which the sub-environment contains with its
+constructors. -/
+theorem natLitCtor_restrict (hsub : SubEnv D P) (hcl : DepClosed D)
+    (hctors : ∀ C cv, findDecl P C = some (.ctorInfo cv) →
+      ∃ iv, findDecl P cv.induct = some (.inductInfo iv) ∧ C ∈ iv.ctors)
+    {T : Name} {mj : Expr} {i : Nat} {fs : List Expr} (hT : (findDecl D T).isSome)
+    (hcv : CtorValue ⟨P, a⟩ T (natLitCtor mj) i fs)
+    (hmj : ConstsIn (fun c => (findDecl D c).isSome) mj) :
+    ConstsIn (fun c => (findDecl D c).isSome) (natLitCtor mj) := by
+  have hD : ∀ (C : Name) (us : List Level) (as : List Expr),
+      natLitCtor mj = mkAppN (.const C us) as.toArray → (findDecl D C).isSome := by
+    intro C us as hm
+    obtain ⟨cv, -, hC, hind, -⟩ := ctorValue_spine hcv hm
+    obtain ⟨iv, hiv, hmem⟩ := hctors C cv hC
+    rw [hind] at hiv
+    have hivD := (findDecl_agree hsub hT).trans hiv
+    exact (hcl _ (findDecl_eq_some hivD).1).2.2.1 iv rfl C hmem
+  rcases natLitCtor_cases mj with ⟨k, rfl⟩ | h
+  · cases k with
+    | zero => exact hD ``Nat.zero [] [] rfl
+    | succ k => exact ⟨hD ``Nat.succ [] [.lit (.natVal k)] rfl, trivial⟩
+  · rw [h]; exact hmj
+
 /-- The statement of a spine whose constants lie in the sub-environment is the same. -/
 theorem spineType?_agree (hsub : SubEnv D P) {x : Expr}
     (hx : ConstsIn (fun c => (findDecl D c).isSome) x) :
@@ -203,12 +228,16 @@ end Restrict
 
 open Restrict Extend in
 /-- Evaluation in the program restricts to a dependency-closed sub-environment that contains the
-constants of the term, and the result's constants lie in it. Reference: weakening of the global
+constants of the term, and the result's constants lie in it, in a program that lists every
+constructor among its inductive's constructors. Reference: weakening of the global
 environment for evaluation (`MR E/EWcbvEval.v`, `eval_weakening`), read in the restricting
 direction. -/
 theorem SrcEval.restrict {decls P : List ConstantInfo} {e v : Expr} {view : EnvView}
     {cfg : ErasureConfig} (hsub : SubEnv decls P)
-    (hcl : DepClosed decls) (hc : ConstsIn (fun c => (findDecl decls c).isSome) e)
+    (hcl : DepClosed decls)
+    (hctors : ∀ C cv, findDecl P C = some (.ctorInfo cv) →
+      ∃ iv, findDecl P cv.induct = some (.inductInfo iv) ∧ C ∈ iv.ctors)
+    (hc : ConstsIn (fun c => (findDecl decls c).isSome) e)
     (hev : SrcEval (evalEnvOf view cfg P) e v) :
     SrcEval (evalEnvOf view cfg decls) e v ∧ ConstsIn (fun c => (findDecl decls c).isSome) v := by
   have mem : ∀ {l : List Expr} {i : Nat} {x : Expr}, l[i]? = some x → x ∈ l :=
@@ -308,7 +337,9 @@ theorem SrcEval.restrict {decls P : List ConstantInfo} {e v : Expr} {view : EnvV
         SrcEval (evalEnvOf view cfg decls) m mv ∧ ConstsIn (fun c => (findDecl decls c).isSome) mv :=
       fun i m mv h1 h2 => ihmin i m mv h1 h2 (has m (by simp [mem h1]))
     obtain ⟨em, hmjC⟩ := ihmaj (has _ (by simp))
-    obtain ⟨hcv', hfs⟩ := CtorValue.restrict hsub hcv hmjC
+    have hTD : (findDecl decls T).isSome :=
+      (hcl _ (findDecl_eq_some hcr').1).2.2.2.2 rv rfl T (by rw [hall]; exact List.mem_singleton_self _)
+    obtain ⟨hcv', hfs⟩ := CtorValue.restrict hsub hcv (natLitCtor_restrict hsub hcl hctors hTD hcv hmjC)
     have hmvC : ∀ x ∈ mvs, ConstsIn (fun c => (findDecl decls c).isSome) x := fun x hx => by
       obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hx
       obtain ⟨m, hm⟩ : ∃ m, mins[i]? = some m := ⟨_, List.getElem?_eq_getElem (by omega)⟩

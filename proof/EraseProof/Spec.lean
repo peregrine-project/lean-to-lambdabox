@@ -744,6 +744,17 @@ def CtorValue (σ : EvalEnv) (T : Name) (m : Expr) (i : Nat) (fs : List Expr) : 
     ps.length = cv.numParams ∧ fs.length = cv.numFields ∧
     m = mkAppN (.const C us) (ps ++ fs).toArray
 
+/-- The constructor form of a recursor's major value: a Nat literal is read as ``Nat.zero`` (for `0`)
+or as ``Nat.succ`` applied to the literal `k` (for `k + 1`); any other term is unchanged. Lean's
+kernel reads a literal major so before the recursor's ι (`nat_lit_to_constructor` in
+`inductive_reduce_rec`), and Metalean's fast checker likewise (`litToCtor`,
+`ML Checker/Fast/Whnf.lean:237`); Metalean's terms have no literal (`natLitM`). -/
+def natLitCtor (e : Expr) : Expr :=
+  match e.rawNatLit? with
+  | some 0 => .const ``Nat.zero []
+  | some (k + 1) => .app (.const ``Nat.succ []) (.lit (.natVal k))
+  | none => e
+
 /-- Heads excluded by `appCong`: λ, sort, Π, literals, constructor, `casesOn` and `Quot.mk` spines.
 Reference: the side condition of `eval_app_cong` (`MR P/PCUICWcbvEval.v:311`: `~~ (isLambda f' ||
 isFixApp f' || isArityHead f' || isConstructApp f' || isPrimApp f')`; literals are values,
@@ -829,8 +840,9 @@ DV-25). Theorems have no δ, so a proof may evaluate to an atom spine instead of
 `eval_iota_sing` and `eval_proj_prop` do (`casesProof`, `projProp`; DV-24). `Quot.mk` and `Quot.lift` spines are evaluated as a whole too
 (`quotMk`, `quotLift`, the quotient ι; DV-29). A saturated recursor of a single inductive without
 indices whose recursive fields take no arguments and come last evaluates its minor premises and its
-major premise, then continues with the minor of the major's constructor applied to the fields and to
-the induction hypotheses (`recIota`, the recursor ι; DV-30). Reference:
+major premise, then continues with the minor of the major's constructor (a Nat literal's being
+``Nat.zero`` or ``Nat.succ``, `natLitCtor`) applied to the fields and to the induction hypotheses
+(`recIota`, the recursor ι; DV-30). Reference:
 `MR P/PCUICWcbvEval.v:231 eval`; MC §5.6. -/
 inductive SrcEval (σ : EvalEnv) : Expr → Expr → Prop
   /-- `eval_beta` (`MR P/PCUICWcbvEval.v:234`). -/
@@ -899,7 +911,8 @@ inductive SrcEval (σ : EvalEnv) : Expr → Expr → Prop
   eraser's fixpoint computes it: a saturated recursor `T.rec` of a single inductive `T` without
   indices, whose recursive fields take no arguments and come after the other fields of their
   constructor (`recShape` of the recursor's type), evaluates its minor premises and its major
-  premise; the major is a constructor value of `T`, and the value of its constructor's minor is
+  premise; the major is a constructor value of `T`, a Nat literal read as its constructor form
+(`natLitCtor`), and the value of its constructor's minor is
   applied to the fields and to the values `ihvs` of one induction hypothesis `T.rec ps ms mvs f` per
   recursive field `f` (`rfs`, in the order of the minor's induction hypotheses), at the values `mvs`
   of the minors. The induction hypotheses are evaluated before the minor is applied, as λ□
@@ -913,7 +926,8 @@ inductive SrcEval (σ : EvalEnv) : Expr → Expr → Prop
       ps.length = rv.numParams → ms.length = rv.numMotives → mins.length = rv.numMinors →
       mins.length = mvs.length →
       (∀ (i : Nat) m mv, mins[i]? = some m → mvs[i]? = some mv → SrcEval σ m mv) →
-      SrcEval σ maj mj → CtorValue σ T mj k fs → minors[k]? = some mi → mvs[k]? = some mk →
+      SrcEval σ maj mj → CtorValue σ T (natLitCtor mj) k fs → minors[k]? = some mi →
+      mvs[k]? = some mk →
       (mi.ihs.mapM fun h => fs[h.field]?) = some rfs → rfs.length = ihvs.length →
       (∀ (i : Nat) f w, rfs[i]? = some f → ihvs[i]? = some w →
         SrcEval σ (mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray) w) →

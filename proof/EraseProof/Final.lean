@@ -38,7 +38,7 @@ theorem erase_correct_of_pure (h : erasePure_erases_statement) : erase_correct_s
     h henv hwf hview he hty hfrag (eraseEntry_pure hfrag hrun)
   have hsub := collectDeps_sub henv hview he hfrag
   obtain ⟨hinj, -, -, hcl, -, hc, -, -, hblk, harity⟩ := collectDeps_spec henv hview he hfrag
-  obtain ⟨hev', hcv⟩ := SrcEval.restrict hsub hcl hc hev
+  obtain ⟨hev', hcv⟩ := SrcEval.restrict hsub hcl (fun _ _ h => SimInd.ctor_listed henv h) hc hev
   obtain ⟨vb, hv, hlb⟩ := erases_correct henv hwf hsub hinj hblk harity hlc he hty her hdeps hev'
   exact ⟨lenv, tb, vb, rfl, Erases.extend hsub hcl hcv hv, hlb,
     fun _ hT => SrcEval.defeq henv hwf (fun _ => CollectSub.findDecl_of_view hview) he hT hev⟩

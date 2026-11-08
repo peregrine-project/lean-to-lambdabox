@@ -583,7 +583,8 @@ What the statements and the checks rely on without proof:
 
 ### DV-30
 
-- **Our artifact:** `proof/EraseProof/Spec.lean`: the rule `EraseProof.SrcEval.recIota`; the rules
+- **Our artifact:** `proof/EraseProof/Spec.lean`: the rule `EraseProof.SrcEval.recIota` with
+  `EraseProof.natLitCtor`; the rules
   `EraseProof.Erases.recLet` and `EraseProof.Erases.recFix` with `EraseProof.RecFixOf`,
   `EraseProof.recMembers`, `EraseProof.recLets` and `EraseProof.EvalEnv.recBlock?`; the recursor
   clause of `EraseProof.SpecialSpine`; the recursor exclusion of `EraseProof.Erases.const`; the
@@ -598,12 +599,16 @@ What the statements and the checks rely on without proof:
 - **What differs:** the source evaluates a saturated recursor `T.rec ps ms mins maj` of a single
   inductive `T` without indices, whose recursive fields take no arguments and come after the other
   fields of their constructor, by evaluating the minors to `mvs` and the major to a constructor
-  value `C qs fs`, then each induction hypothesis `T.rec ps ms mvs f` (one per recursive field `f`,
+  value `C qs fs` (a Nat literal major is read as its constructor form `natLitCtor`: `0` as
+  `Nat.zero`, `k + 1` as `Nat.succ` applied to the literal `k`, as Lean's kernel reads it with
+  `nat_lit_to_constructor` before the ι; Metalean has no literal, `TrM.lit` translates one to the
+  unary chain `natLitM`, the translation of its constructor form), then each induction hypothesis
+  `T.rec ps ms mvs f` (one per recursive field `f`,
   in the order of the minor's hypotheses) to a value, and continuing with the minor's value applied
   to the fields and these values. The parameters and the motive are not evaluated. There is no
   source ι for recursors of mutual, nested or indexed inductives, for higher-order recursive
-  fields, for recursive fields before non-recursive ones, nor on a `Nat` literal major or a major
-  that evaluates to a proof other than a constructor value, such as a theorem (DV-24; `recK` and
+  fields, for recursive fields before non-recursive ones, nor on a major that evaluates to a proof
+  other than a constructor value, such as a theorem (DV-24; `recK` and
   structure η are not rules). Recursor spines with missing arguments are η-expanded, as constructor
   spines are (DV-23). The fragment test admits exactly the recursors of this shape that the eraser
   does not keep as constants (`RecInFragment`). The erasure is the eraser's: the λ□ fixpoint
@@ -622,7 +627,13 @@ What the statements and the checks rely on without proof:
   definitional equality). `IndBlock.recMajor` states that the major premise of the recursor's Lean
   type is of its inductive, as the kernel generates it; without it the fragment test's closure
   need not hold the block of a recursor it reads, which the evaluation over the closure needs.
+  Under `nat := .peano` the eraser emits a Nat literal as λ□'s constructor chain (`visitLiteral`;
+  `Erases.litZero`, `Erases.litSucc`), on which the erased fixpoint computes, and Lean's kernel
+  reduces a recursor on a literal; without the reading of a literal major as its constructor form
+  the source would be stuck on these programs (structural recursion on `2` included).
 - **What was considered instead:** a source ι on the unevaluated induction hypotheses, under which
   the λ□ evaluation of a hypothesis the minor ignores has no source counterpart; erasing recursors to
   λ□ axioms (as `recStaysConstant` does for the excluded cases), under which every program that
-  computes through a recursor is stuck in λ□.
+  computes through a recursor is stuck in λ□; for a literal major, a source step `k + 1 ⤳
+  Nat.succ k` on literals, which would make a literal a non-value, or a separate rule repeating the
+  premises of `recIota` (as `casesLitZero` and `casesLitSucc` do for `casesOn`).
