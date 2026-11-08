@@ -31,11 +31,7 @@ root names the declaration that will use it, or \code{FINAL} for the final theor
 \item \lead{Well-formed output} \stOpen{} fresh kernames, declaration order and well-formed terms
   of the emitted program, which composing with Peregrine's verified pipeline needs, as a conjunct
   or a separate theorem; \code{peregrine validate} checks them at run time (C11).
-\item \lead{Non-vacuity} \stOpen{} an instance with a Peano literal; a check of NV-K's lemma against the kernel's.
-\item \lead{Recursors on literals} \stOpen{} \code{SrcEval} has no recursor $\iota$ on a \code{Nat}
-  literal major, as it has \code{casesLitZero} and \code{casesLitSucc} for \code{casesOn}: a
-  program that applies a recursor to a literal under \code{nat := .peano} is in the fragment and
-  covered vacuously.
+\item \lead{Non-vacuity} \stOpen{} a check of NV-K's lemma against the kernel's.
 \item \lead{Recursors on proofs, \code{Quot.ind}} \stOpen{} \code{SrcEval} has no rule for a
   recursor whose major is a proof other than a constructor value (\code{True.rec}, \code{And.rec}
   on a theorem), nor for \code{Quot.ind}: programs that evaluate them are covered vacuously
@@ -52,7 +48,7 @@ Recursors of one inductive without indices & \stShipping{} \code{T.rec} erased t
   $\lambda_\Box$ fixpoint over a \code{case} (S-40); admitted (S-41, S-47) & \stProved{} the
   recursor $\iota$ of the source semantics, the rules \code{recLet} and \code{recFix}, the
   simulation and the traversal step (Chapters~\ref{chap:source} to~\ref{chap:final}), the
-  oracle's $\iota$-rule; the \code{Nat} literal major \stOpen{} \\
+  oracle's $\iota$-rule, the \code{Nat} literal major read as its constructor form (\code{natLitCtor}) \\
 Other recursors (mutual, indexed, higher-order induction hypotheses, \code{Prop}-only) &
   \stShipping{} erased on both paths (S-40); excluded from the fragment (S-47) & \stOpen{} a
   source rule needs the wrapped minors typed under the case telescope, a strengthening lemma of
@@ -61,9 +57,9 @@ Structural recursion & \stShipping{} through the kernel's \code{brecOn} under
   \code{structural := .kernel} (S-42, S-43, S-44, S-48, S-49); the default is unchanged &
   \stProved{} the oracle's recursor $\iota$ (\code{Pure.whnf\_sound}), the frame lemma through the
   closed definition values, the admission under the option (\code{PhaseIDecl}), the traversal
-  with no new step, and the instance NV-S; a mutual structural block and a recursion on a
-  \code{Nat} literal are covered vacuously; the instance NV-S, whose view holds the
-  \code{\_unsafe\_rec} companion, and the lower bound \code{collectDeps\_ok\_of} on NV-R and NV-S \\
+  with no new step; a mutual structural block is covered vacuously; the instance NV-S, whose view
+  holds the \code{\_unsafe\_rec} companion, and the lower bound \code{collectDeps\_ok\_of} on NV-Q,
+  NV-R, NV-S and NV-QP \\
 \bottomrule
 \end{tabular}
 

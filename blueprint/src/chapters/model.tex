@@ -567,7 +567,8 @@ universe instantiation in place of lean4lean's.
     EraseProof.ProgEnv.bound, EraseProof.IndBlock.mem_decls, EraseProof.findDecl_cons,
     EraseProof.findDecl_append, EraseProof.findDecl_eq_some, EraseProof.not_mem_of_findDecl_none,
     EraseProof.set_wk_ne, EraseProof.quot_names_reverse, EraseProof.ProgEnv.set_ext,
-    EraseProof.ProgEnv.ext_ext, EraseProof.ProgEnv.levelParams_nodup, EraseProof.instLevel_self}
+    EraseProof.ProgEnv.ext_ext, EraseProof.ProgEnv.levelParams_nodup, EraseProof.instLevel_self,
+    EraseProof.ProgEnv.ind_inj, EraseProof.wk_ind}
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-SatTr, def:EraseProof-TrM, def:EraseProof-ProgEnv,
     def:Erasure-Pure-instLevels, def:EraseProof-ConstsIn}
@@ -582,6 +583,8 @@ universe instantiation in place of lean4lean's.
         and field orders;
   \item \code{metaOrderOK}: every constructor binding has Metalean's field order;
   \item \code{levelParams\_nodup}: the universe parameters of every declaration are distinct;
+  \item \code{ind\_inj}: the table binds an inductive sort of a block to one name
+        (\code{wk\_ind}: weakening keeps the binding);
   \item \code{set\_ext}, \code{ext\_ext}: each step of \code{ProgEnv} keeps the old bindings,
         weakened.
   \end{itemize}
@@ -795,7 +798,7 @@ universe instantiation in place of lean4lean's.
   \uses{def:EraseProof-MBinding, def:EraseProof-SatTr, def:EraseProof-natLitM, def:EraseProof-TrM,
     def:EraseProof-ProgEnv, def:EraseProof-EvalEnv, def:EraseProof-SrcEval,
     def:EraseProof-ConstsIn}
-  \srcloc{proof/EraseProof/Bridge/Proj.lean}{170}
+  \srcloc{proof/EraseProof/Bridge/Proj.lean}{189}
   \lead{In short} A typed translation of \code{.proj S i m}, with \code{m} a constructor value,
   is \hl{definitionally equal to a translation of the field} \code{fs[i]}.
   \lead{Reference} \code{IsStructure.projTerm\_ctor\_defeq}

@@ -12,9 +12,9 @@
   (M1), with one case lemma per rule of \code{SrcEval}; the soundness of the pure traversal
   \code{erasePure\_erases} (M2), by induction on fuel over the step lemmas of
   Section~\ref{sec:core-steps}. The statements are definitions of type \code{Prop}, pinned by
-  \code{proof/spec.pin} (C12b); C12 checks each theorem's type against its statement. Seven test
+  \code{proof/spec.pin} (C12b); C12 checks each theorem's type against its statement. Nine test
   programs discharge every hypothesis (Chapter~\ref{chap:tests}). \stProved{} the first-order
-  corollary, with instances on NV-1, NV-2, NV-R and NV-S.
+  corollary, with instances on NV-1, NV-2, NV-R, NV-S, NV-L and NV-QP.
 \item \lead{Nodes} \bpnodes{chap:final}
 \item \lead{Lean files} \leanfile{proof/EraseProof/Statements.lean},
   \leanfile{proof/EraseProof/Final.lean}, \leanfile{proof/EraseProof/FirstOrder.lean},
@@ -31,7 +31,7 @@
   \lean{EraseProof.ViewAgrees}
   \leanok
   \uses{def:Erasure-EnvView}
-  \srcloc{proof/EraseProof/Spec.lean}{994}
+  \srcloc{proof/EraseProof/Spec.lean}{1008}
   \lead{In short} \code{ViewAgrees view P}: \hl{the environment view of \code{\#erase} returns
   each declaration of \code{P} under its name}.
   \lead{Reference} \code{Sigma} $\sim$\code{\_ext X} (\code{abstract\_env\_ext\_rel}), a
@@ -89,6 +89,7 @@
     def:EraseProof-ErasesDeps, lem:EraseProof-Erases-extend, def:EraseProof-EvalEnv,
     def:EraseProof-SrcEval, lem:EraseProof-SrcEval-defeq, def:EraseProof-ConstsIn,
     def:EraseProof-DepClosed, def:EraseProof-ClosedDecls, lem:EraseProof-SrcEval-restrict,
+    lem:EraseProof-erases_correct_ctor,
     def:LBTerm, def:toKername, def:ASTType, def:Erasure-ErasureConfig}
   \leanok
   \lead{Idea} Composition, with no further bridge lemma.
@@ -97,7 +98,8 @@
   \item \code{hfrag} puts the run on the pure path (\code{eraseEntry\_pure}); M2 makes its output
         an erasure at the closure \code{decls}, in a closed $\lambda_\Box$ environment;
   \item \code{decls} is a dependency-closed sub-environment of \code{P}, with injective names and
-        arities (\code{collectDeps\_sub}, \code{collectDeps\_spec}); \code{hev} restricts to it;
+        arities (\code{collectDeps\_sub}, \code{collectDeps\_spec}); \code{hev} restricts to it, the constructors of \code{P} being listed
+        (\code{SimInd.ctor\_listed});
   \item M1 simulates the evaluation at \code{decls}; \code{Erases.extend} moves the value's
         erasure to \code{P};
   \item \code{SrcEval.defeq} gives the last conjunct.
@@ -138,17 +140,20 @@
   \code{structural := .kernel} it admits a definition by structural recursion
   (\code{isStructuralRecursive}); its kernel definition recurses through \code{T.brecOn}, built
   from recursors, projections and \code{casesOn}, and is covered like any definition: NV-S is an
-  instance. A mutual structural block (not the Lean form of Metalean definitions) and a
-  recursion on a \code{Nat} literal (no recursor $\iota$ on literals) are covered vacuously. It
+  instance. A mutual structural block (not the Lean form of Metalean definitions) is covered
+  vacuously; a recursion on a \code{Nat} literal evaluates, the recursor $\iota$ reading the literal
+  as its constructor form (\code{natLitCtor}); NV-L is an instance. It
   admits the recursors \code{T.rec} of a single inductive without indices whose induction
   hypotheses take no arguments and come last (\code{RecInFragment}); \code{Nat} literals are in
   only under \code{nat := .peano}.
 \item \lead{Recursors} \code{SrcEval}, \code{Erases} and M1 cover these recursors (DV-30), so
   \hl{the final theorem covers programs that compute with them}; NV-R is an instance. A recursor
-  applied to a \code{Nat} literal has no source rule, so such programs are covered vacuously.
+  applied to a \code{Nat} literal reads it as \code{Nat.zero} or \code{Nat.succ} applied to the
+  literal below, as Lean's kernel does; NV-L is an instance.
 \item \lead{Quotients} \code{SrcEval}, \code{Erases} and M1 cover \code{Quot.mk} and
   \code{Quot.lift} (DV-29), and the fragment test admits quotient constants, so \hl{the final theorem covers
-  programs with quotients}; NV-Q is an instance.
+  programs with quotients}; NV-Q is an instance, and so is NV-QP, whose relation identifies
+  distinct values: both representatives of a class evaluate to one value.
 \item \lead{Scope note} \hl{\code{erase\_correct} says nothing} about programs that evaluate
   through a constant without $\delta$ in the source, although the fragment admits them and the
   emitted program may compute:
@@ -393,7 +398,7 @@ structural erasure.
     EraseProof.SimInd.construct_args, EraseProof.SimInd.isNeverZero_tr,
     EraseProof.SimInd.ctorNode_tr, EraseProof.SimInd.ctor_not_erasable,
     EraseProof.SimInd.casesOn?_ind, EraseProof.SimInd.casesOn_arg, EraseProof.SimInd.get_major,
-    EraseProof.SimInd.get_alt, EraseProof.SimInd.ctor_isProof}
+    EraseProof.SimInd.get_alt, EraseProof.SimInd.ctor_isProof, EraseProof.SimInd.ctor_listed}
   \leanok
   \uses{def:EraseProof-PhaseIDecl, def:EraseProof-ErasesSim, def:EraseProof-MBinding,
     def:EraseProof-TrLevel, def:EraseProof-TrM, def:EraseProof-ProgEnv, def:Erasure-declExclusion,
@@ -401,7 +406,7 @@ structural erasure.
     def:EraseProof-Erases, def:EraseProof-ErasesDeps, def:EraseProof-IsErasable,
     def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-isAtom, def:EraseProof-EvalEnv-etaSpine,
     def:EraseProof-SrcEval, def:EraseProof-ConstsIn, def:LBTerm, def:GlobalDecl}
-  \srcloc{proof/EraseProof/Simulation/Ind.lean}{770}
+  \srcloc{proof/EraseProof/Simulation/Ind.lean}{785}
   \lead{In short} The case lemmas of \code{eta}, \code{lit}, \code{ctor}, \code{proj},
   \code{projProp}, \code{casesProof} and \code{casesLitZero}, \hl{in the pattern of
   Lemma~\ref{lem:EraseProof-erases_correct_beta}}.
@@ -410,6 +415,7 @@ structural erasure.
         \code{casesProof}): \code{IndIdOf $\sigma$} is injective on the inductives of $\sigma$;
   \item a constructor of data is never erased; a proof is erased to $\Box$ on both sides.
   \end{itemize}
+  \code{ctor\_listed}: a constructor of the program is among the constructors of its inductive.
   \lead{Reference} the \code{eval\_construct}, \code{eval\_proj}, \code{eval\_iota\_sing},
   \code{eval\_proj\_prop} cases of \code{erases\_correct}.
 \end{lemma}
@@ -603,7 +609,7 @@ structural erasure.
 
 \begin{lemma}[The recursor \texorpdfstring{$\iota$}{iota} case of the simulation]
   \label{lem:EraseProof-erases_correct_recIota}
-  \lean{EraseProof.SimRec.ArgOK, EraseProof.SimRec.appArgs, EraseProof.SimRec.choose_list, EraseProof.SimRec.closedn_getD, EraseProof.SimRec.deps_letChain, EraseProof.SimRec.deps_recBody, EraseProof.SimRec.erases_correct_recIota, EraseProof.SimRec.eval_recFIX, EraseProof.SimRec.kfv_of_fvarsIn, EraseProof.SimRec.noFVar_of_tr, EraseProof.SimRec.recBody, EraseProof.SimRec.recCs, EraseProof.SimRec.recCs_fst, EraseProof.SimRec.recFIX, EraseProof.SimRec.recFix_shape, EraseProof.SimRec.rec_args, EraseProof.SimRec.rec_core, EraseProof.SimRec.rec_level, EraseProof.SimRec.simple_fields, EraseProof.SimRec.spine_split, EraseProof.SimRec.substl_app_closed, EraseProof.SimRec.substl_recFix}
+  \lean{EraseProof.SimRec.ArgOK, EraseProof.SimRec.appArgs, EraseProof.SimRec.choose_list, EraseProof.SimRec.closedn_getD, EraseProof.SimRec.deps_letChain, EraseProof.SimRec.deps_recBody, EraseProof.SimRec.erases_correct_recIota, EraseProof.SimRec.erases_natLitCtor, EraseProof.SimRec.fields_natLitCtor, EraseProof.SimRec.eval_recFIX, EraseProof.SimRec.kfv_of_fvarsIn, EraseProof.SimRec.noFVar_of_tr, EraseProof.SimRec.recBody, EraseProof.SimRec.recCs, EraseProof.SimRec.recCs_fst, EraseProof.SimRec.recFIX, EraseProof.SimRec.recFix_shape, EraseProof.SimRec.rec_args, EraseProof.SimRec.rec_core, EraseProof.SimRec.rec_level, EraseProof.SimRec.simple_fields, EraseProof.SimRec.spine_split, EraseProof.SimRec.substl_app_closed, EraseProof.SimRec.substl_recFix}
   \leanok
   \uses{def:EraseProof-PhaseIDecl, def:EraseProof-erases_correct_statement,
     def:EraseProof-ErasesSim, def:EraseProof-MBinding, def:EraseProof-TrM, def:EraseProof-ProgEnv,
@@ -625,7 +631,12 @@ structural erasure.
   \item \code{rec\_core}: the step on the fixpoint with the minors substituted;
         \code{rec\_level}: the universe level of the \code{case} (\code{direct} or not);
   \item \code{appArgs}, \code{rec\_args}, \code{spine\_split}: the extra arguments and the split of
-        the spine at the arity.
+        the spine at the arity;
+  \item \code{erases\_natLitCtor}, \code{fields\_natLitCtor}: the erasure of a major whose
+        constructor form is a constructor value is an erasure of that form; for a \code{Nat}
+        literal, the eraser's constructor chain of \code{Nat} (\code{Erases.litZero},
+        \code{Erases.litSucc}), which needs the recursor's inductive to be \code{Nat}
+        (\code{ProgEnv.ind\_inj}).
   \end{itemize}
   \lead{Why \code{recFix}} the recursive calls are erasures of source terms \code{T.rec \ldots\ f}
   whose minors are already values; the form with the minors substituted is closed under the

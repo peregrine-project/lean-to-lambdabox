@@ -4,7 +4,7 @@
 \section*{At a glance}
 \begin{itemize}
 \item \lead{Source} \code{doc/SHIPPING-CHANGES.md}, rendered by \code{blueprint/scripts/render\_registers.py}; every section below is the register's own text.
-\item \lead{Changes} 49 entries, one commit each, subject \code{shipping(S-<n>): ...}.
+\item \lead{Changes} 50 entries, one commit each, subject \code{shipping(S-<n>): ...}.
 \item \lead{Reported, not fixed} 28 entries.
 \end{itemize}
 
@@ -68,6 +68,7 @@ Entry & Title \\
 \ref{reg:S-47} & The fragment test admits only recursors of one inductive without indices whose recursive fields come last \\
 \ref{reg:S-48} & The pure oracle's recursor \ensuremath{\iota} applies the minor premise, for recursors of one inductive without indices \\
 \ref{reg:S-49} & The fragment test's structural-recursion check walks the expression itself \\
+\ref{reg:S-50} & A regression test with a quotient whose relation identifies distinct values \\
 \bottomrule
 \end{tabular}
 
@@ -1541,6 +1542,23 @@ Before this commit the test does not elaborate (\leandecl{Erasure.casesInfo?} do
 \item \textbf{Behaviour after:} the same answers: \texttt{usesConst p e} is true exactly when a constant \texttt{c} occurs in \texttt{e} (under binders, types, \texttt{let} values, \texttt{mdata} and projections) with \texttt{p c}; the second test is \texttt{!usesConst (fun c =\textgreater{} !\ldots{})}.
 \item \textbf{Effect on emitted .ast (corpus):} none: all 710 corpus files are byte-identical to those at the previous commit, and the PANIC counts are equal. With \texttt{structural := .kernel} as the default (not committed), the pure-harness outputs and summary are identical to those before the change: 294 \texttt{\#erase}; 233 in the fragment, 57 out, 4 \texttt{collectDeps} errors; 10462 oracle calls, 14 differ, 0 failures.
 \item \textbf{Regression test:} \texttt{structural} has \texttt{example}s showing that \texttt{usesConst (\ensuremath{\cdot} == }B.t)\texttt{ is true and }usesConst (\ensuremath{\cdot} == \texttt{B.f)} is false on \texttt{f B.t}, both by \texttt{decide}; the tests of \texttt{structural} pass unchanged. \texttt{scripts/\allowbreak{}regress.sh} passes (27 tests) with \texttt{PEREGRINE}.
+\end{itemize}
+
+\section{\texorpdfstring{S-50: A regression test with a quotient whose relation identifies distinct values}{S-50: A regression test with a quotient whose relation identifies distinct values}}\label{reg:S-50}
+
+\begin{itemize}
+\item \textbf{Commit:} the commit whose subject starts with \texttt{S-50:} (\texttt{git log -{}-grep='\textasciicircum{}S-50:'}).
+\item \textbf{Files and functions:}
+
+\begin{itemize}
+\item new \leanfile{tests/\allowbreak{}regress/\allowbreak{}quotient\_\allowbreak{}pair.lean} with its goldens. No code changes.
+\item \texttt{doc/\allowbreak{}SHIPPING-CHANGES.md}: this entry.
+\end{itemize}
+\item \textbf{Why necessary:} the quotient tests so far take \texttt{Eq} as the relation, so no class has two representatives. \texttt{quotient\_\allowbreak{}pair} takes unordered pairs, \texttt{Quot swapR} with \texttt{swapR p q := q = (p.2, p.1)} on \texttt{B \ensuremath{\times} B}, and \texttt{orU}, the lift of \texttt{orB} along the theorem \texttt{orB\_\allowbreak{}comm}. The pairs \texttt{(B.t, B.f)} and \texttt{(B.f, B.t)} are distinct and have one class (\texttt{Quot.sound}). The lifted function reads both projections of a \texttt{Prod} and matches on \texttt{B}.
+\item \textbf{Behaviour before:} not tested.
+\item \textbf{Behaviour after:} the same; the test pins it. \texttt{useTF}, \texttt{useFT} and \texttt{useFF} take the pure path, and \texttt{\#erase} writes them.
+\item \textbf{Effect on emitted .ast (corpus):} none: only a test is added.
+\item \textbf{Regression test:} \texttt{quotient\_\allowbreak{}pair} checks, under \texttt{nat := .peano}, the oracle's answers on the quotient type, on a class and on \texttt{orU}, that the three programs take the pure path, and pins the \texttt{\#erase} output (\texttt{useTF.ast}, \texttt{useFT.ast}, \texttt{useFF.ast}). peregrine validates them and evaluates \texttt{useTF} and \texttt{useFT} to \texttt{QP.B.t}, so one class gives one value on both representatives, and \texttt{useFF} to \texttt{QP.B.f}. \texttt{scripts/\allowbreak{}regress.sh} passes (28 tests) with \texttt{PEREGRINE}.
 \end{itemize}
 
 \section{\texorpdfstring{Reported, not fixed}{Reported, not fixed}}\label{reg:reported-not-fixed}

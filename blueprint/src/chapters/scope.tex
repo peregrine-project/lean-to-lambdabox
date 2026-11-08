@@ -84,14 +84,15 @@ structural recursion (\code{brecOn}) under \code{structural := .kernel} & I & th
   definitions over recursors, projections and \code{casesOn}) is erased as any definition (S-42);
   the fragment test admits a definition with an \code{\_unsafe\_rec} companion that
   \code{isStructuralRecursive} recognizes (S-44, S-49), the oracle reduces the recursors it meets
-  (S-43, S-48); a mutual block (its \code{all} has two names) and a recursion on a \code{Nat}
-  literal are covered vacuously \\
+  (S-43, S-48); a mutual block (its \code{all} has two names) is covered vacuously; a recursion on a
+  \code{Nat} literal evaluates (DV-30) \\
 structural recursion under the default \code{structural := .unsafeRec} & -- & the fragment test
   excludes it (an \code{\_unsafe\_rec} companion) \\
 quotients & I & \code{Quot.mk} and \code{Quot.lift} erased as \code{LCNF} does (S-38), a
   \code{Quot} spine as a type and a \code{Quot.ind} spine as a proof; the source semantics, the
   relation and the simulation have their rules (DV-29), except for \code{Quot.ind}, which a program
-  evaluating it makes vacuous; the fragment test admits them (S-39) \\
+  evaluating it makes vacuous; the fragment test admits them (S-39); a regression test pins a
+  quotient whose relation identifies distinct values, unordered pairs of \code{B} (S-50) \\
 well-founded recursion & -- & the fragment test rejects it (an \code{\_unsafe\_rec} companion);
   its recursion reduces only through an opaque accessibility proof, so the source never evaluates
   it (DV-24) \\
@@ -174,7 +175,8 @@ DV-10, DV-12 & opaques and \code{@[extern]} definitions under \code{preferAxiom}
   $\delta$ in the source; the fragment admits them \\
 DV-25 & a recognized \code{casesOn} is primitive in the source, without $\delta$ \\
 DV-30 & a saturated recursor of the shape of \code{RecInFragment} evaluates its minors, its major
-  and the induction hypotheses before applying the minor; other recursors have no rule \\
+  (a \code{Nat} literal read as \code{Nat.zero} or \code{Nat.succ}, as Lean's kernel reads it) and the
+  induction hypotheses before applying the minor; other recursors have no rule \\
 DV-26 & the fragment is an explicit hypothesis, \code{hfrag}, with the exclusion classes above \\
 \bottomrule
 \end{tabular}
