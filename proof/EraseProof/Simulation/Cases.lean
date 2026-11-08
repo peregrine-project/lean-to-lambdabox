@@ -324,6 +324,26 @@ theorem satTr_ind_init {n : Nat} {ι : Metalean.IndSig} {η : Metalean.Head ζ (
     subst hl
     exact ⟨_, .indEta hls (by simp at hlt; omega)⟩
 
+/-- An image of the quotient type former with an argument dropped. -/
+theorem satTr_quotType_init {n : Nat} {η : Metalean.Head ζ .quot} {us : List Level}
+    {bs : List (Metalean.Expr ζ lps.length n)} {x t : Metalean.Expr ζ lps.length n}
+    (h : SatTr E lps (.quot η .type) us (bs ++ [x]) t) :
+    ∃ t₁, SatTr E lps (.quot η .type) us bs t₁ := by
+  generalize hl : bs ++ [x] = l at h
+  cases h with
+  | @quotType _ α r rest _ u hu =>
+    rcases eq_nil_or_snoc rest with rfl | ⟨r', y, rfl⟩
+    · have := congrArg List.length hl
+      simp only [List.length_append, List.length_singleton, List.length_cons, List.length_nil]
+        at this
+      exact ⟨_, .quotEta hu (by simp [quotArity]; omega) rfl⟩
+    · rw [← List.append_assoc] at hl
+      obtain ⟨rfl, -⟩ := List.append_inj' hl rfl
+      exact ⟨_, .quotType hu⟩
+  | quotEta hu hlt h₀ =>
+    subst hl
+    exact ⟨_, .quotEta hu (by simp at hlt; omega) h₀⟩
+
 end SimCases
 
 open SimCases
@@ -429,9 +449,10 @@ theorem erases_correct_constAtom {c : Name} {us : List Level} (ha : σ.isAtom c 
   refine ⟨tb, her, ?_⟩
   obtain ⟨c', us', hfn, hat⟩ := RelInst.atomSpine_head (AtomSpine.const (us := us) ha)
   have hns : ¬ ((∃ cv, findDecl σ.decls c = some (.ctorInfo cv)) ∨
-      (∃ iv, σ.casesOn? c = some iv) ∨ ∃ qv, findDecl σ.decls c = some (.quotInfo qv)) := by
+      (∃ iv, σ.casesOn? c = some iv) ∨
+      ∃ qv, findDecl σ.decls c = some (.quotInfo qv) ∧ (quotEvalArity qv.kind).isSome) := by
     unfold EvalEnv.isAtom at ha
-    rintro (⟨cv, hc⟩ | ⟨iv, hiv⟩ | ⟨qv, hc⟩)
+    rintro (⟨cv, hc⟩ | ⟨iv, hiv⟩ | ⟨qv, hc, hqa⟩)
     · rw [hc] at ha
       simp [OwnRules] at ha
     · split at ha
@@ -439,7 +460,7 @@ theorem erases_correct_constAtom {c : Name} {us : List Level} (ha : σ.isAtom c 
         simp at ha
       · cases ha
     · rw [hc] at ha
-      simp [OwnRules] at ha
+      cases hk : qv.kind <;> simp [OwnRules, quotEvalArity, hk] at ha hqa
   generalize hx : Expr.const c us = x at her
   cases her with
   | box => exact .atom rfl
@@ -450,9 +471,9 @@ theorem erases_correct_constAtom {c : Name} {us : List Level} (ha : σ.isAtom c 
   | cases hc | casesReduced hc =>
     obtain ⟨-, rfl, -⟩ := SrcDefeq.spine_const hx.symm
     exact absurd (.inr (.inl ⟨_, hc⟩)) hns
-  | quotMk hc | quotLift hc =>
+  | quotMk hc hk | quotLift hc hk =>
     obtain ⟨-, rfl, -⟩ := SrcDefeq.spine_const hx.symm
-    exact absurd (.inr (.inr ⟨_, hc⟩)) hns
+    exact absurd (.inr (.inr ⟨_, hc, by rw [hk]; rfl⟩)) hns
   | recLet hc | recFix hc =>
     obtain ⟨-, rfl, -⟩ := SrcDefeq.spine_const hx.symm
     unfold EvalEnv.isAtom at ha
@@ -461,11 +482,11 @@ theorem erases_correct_constAtom {c : Name} {us : List Level} (ha : σ.isAtom c 
   | eta heta =>
     obtain ⟨-, rfl, -⟩ := SrcDefeq.spine_const hx.symm
     obtain ⟨ar, har, -⟩ := etaSpine?_lt heta
-    rcases SrcDefeq.specialArity_some har with ⟨cv, hcv, -⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, -⟩ |
+    rcases SrcDefeq.specialArity_some har with ⟨cv, hcv, -⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, hqa⟩ |
       ⟨rv, hrv, -⟩
     · exact absurd (.inl ⟨_, hcv⟩) hns
     · exact absurd (.inr (.inl ⟨_, hiv⟩)) hns
-    · exact absurd (.inr (.inr ⟨_, hqv⟩)) hns
+    · exact absurd (.inr (.inr ⟨_, hqv, by rw [hqa]; rfl⟩)) hns
     · unfold EvalEnv.isAtom at ha
       rw [hrv] at ha
       simp [OwnRules] at ha
@@ -492,7 +513,7 @@ theorem erases_correct_beta (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : Sub
   have hspine := (SrcDefeq.sound_of (lps := lps) henv hE hsub
     (SrcProof.proofSound henv hE hsub) hf).2
   have hnq : ∀ c us (bs : List Expr) (bb : MBinding ζ), f = mkAppN (.const c us) bs.toArray →
-      B c = some bb → bb.isSpecial = true → (∀ η k, bb ≠ .quot η k) →
+      B c = some bb → bb.isSpecial = true → (∀ η k, bb = .quot η k → k = .type) →
       (∀ (ι : Metalean.IndSig) (η : Metalean.Head ζ (.inductive ι)) (s : Fin ι.nsorts) os,
         bb ≠ .recr η s os) → False := by
     intro c us bs bb hfe hbb hs hq hr
@@ -515,14 +536,15 @@ theorem erases_correct_beta (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : Sub
     by_cases hsp : SpecialHead B f
     · obtain ⟨c, us, bb, hfn, hb, hs⟩ := hsp
       obtain ⟨bs, rfl⟩ := eq_mkAppN_of_getAppFn hfn
-      by_cases hq : ∃ η k, bb = .quot η k
-      · obtain ⟨η, k, rfl⟩ := hq
-        exact SrcDefeq.quot_app_tr henv hsub hb hf hns he ht
+      by_cases hq : ∃ η k, bb = .quot η k ∧ k ≠ .type
+      · obtain ⟨η, k, rfl, hk⟩ := hq
+        exact SrcDefeq.quot_app_tr henv hsub hb hk hf hns he ht
       · by_cases hr : ∃ (ι : Metalean.IndSig) (η : Metalean.Head ζ (.inductive ι))
             (s : Fin ι.nsorts) (os : List (List (List Nat))), bb = .recr η s os
         · obtain ⟨ι, η, s, os, rfl⟩ := hr
           exact SrcDefeq.rec_app_tr henv hsub hb hf hns he ht
-        · exact (hnq c us bs bb rfl hb hs (fun η k h => hq ⟨η, k, h⟩)
+        · exact (hnq c us bs bb rfl hb hs
+            (fun η k h => Classical.byContradiction fun hk => hq ⟨η, k, h, hk⟩)
             fun ι η s os h => hr ⟨ι, η, s, os, h⟩).elim
     · exact TrM.wf_app hE hok hsp he ht
   cases hdeps with
@@ -720,6 +742,10 @@ theorem erases_correct_appCong (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : 
       {t₁ t T : Metalean.Expr ζ lps.length 0},
       SatTr E lps (.ind η s) us as₁ t₁ → SatTr E lps (.ind η s) us (as₁ ++ as₂) t →
       E[.nil] ⊢ t : T → ∃ T₁, E[.nil] ⊢ t₁ : T₁)
+    (hsatq : ∀ (η : Metalean.Head ζ .quot) {us : List Level}
+      {as₁ as₂ : List (Metalean.Expr ζ lps.length 0)} {t₁ t T : Metalean.Expr ζ lps.length 0},
+      SatTr E lps (.quot η .type) us as₁ t₁ → SatTr E lps (.quot η .type) us (as₁ ++ as₂) t →
+      E[.nil] ⊢ t : T → ∃ T₁, E[.nil] ⊢ t₁ : T₁)
     {f a f' a' : Expr} (hns : ¬ ShortSpine σ (.app f a)) (hf : SrcEval σ f f')
     (hnb : ¬ BlocksCong σ f') (ha : SrcEval σ a a')
     (ihf : ErasesSim E B lps σ lenv f f') (iha : ErasesSim E B lps σ lenv a a') :
@@ -735,8 +761,8 @@ theorem erases_correct_appCong (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : 
     | propProj h => exact .inr h
     | ctor hc _ =>
       exact absurd (SrcDefeq.blocksCong_ctor (SrcDefeq.getAppFn_mkAppN_const _ _ _) hc) hnb
-    | quotMk hc _ _ =>
-      exact absurd (SrcDefeq.blocksCong_quot (SrcDefeq.getAppFn_mkAppN_const _ _ _) hc) hnb
+    | quotMk hc hk _ =>
+      exact absurd (SrcDefeq.blocksCong_quot (SrcDefeq.getAppFn_mkAppN_const _ _ _) hc hk) hnb
     | lam | sort | forallE | lit => exact absurd trivial hnb
   have hnc : ∀ c us cv, f.getAppFn = .const c us → findDecl σ.decls c ≠ some (.ctorInfo cv) := by
     intro c us cv hfn hc
@@ -750,18 +776,20 @@ theorem erases_correct_appCong (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : 
     by_cases hsp : SpecialHead B f
     · obtain ⟨c, us, bb, hfn, hbb, hs⟩ := hsp
       obtain ⟨bs, rfl⟩ := eq_mkAppN_of_getAppFn hfn
-      by_cases hq : ∃ η k, bb = .quot η k
-      · obtain ⟨η, k, rfl⟩ := hq
-        obtain ⟨f₀, a₀, hf₀, ha₀, -, hF, hA⟩ := SrcDefeq.quot_app_tr henv hsub hbb hf hns he ht
+      by_cases hq : ∃ η k, bb = .quot η k ∧ k ≠ .type
+      · obtain ⟨η, k, rfl, hk⟩ := hq
+        obtain ⟨f₀, a₀, hf₀, ha₀, -, hF, hA⟩ :=
+          SrcDefeq.quot_app_tr henv hsub hbb hk hf hns he ht
         exact ⟨f₀, a₀, hf₀, ha₀, hF, hA⟩
       by_cases hr : ∃ (ι : Metalean.IndSig) (η : Metalean.Head ζ (.inductive ι))
           (s : Fin ι.nsorts) (os : List (List (List Nat))), bb = .recr η s os
       · obtain ⟨ι, η, s, os, rfl⟩ := hr
         obtain ⟨f₀, a₀, hf₀, ha₀, -, hF, hA⟩ := SrcDefeq.rec_app_tr henv hsub hbb hf hns he ht
         exact ⟨f₀, a₀, hf₀, ha₀, hF, hA⟩
-      obtain ⟨hk, vs, rfl, -⟩ := hspine c us bs bb rfl hbb hs (fun η k h => hq ⟨η, k, h⟩)
+      obtain ⟨hk, vs, rfl, -⟩ := hspine c us bs bb rfl hbb hs
+        (fun η k h => Classical.byContradiction fun hk => hq ⟨η, k, h, hk⟩)
         (fun ι η s os h => hr ⟨ι, η, s, os, h⟩) (SrcDefeq.spine_cond hns)
-      rcases hk with ⟨iv, hiv⟩ | ⟨cv, hcv⟩
+      rcases hk with ⟨iv, hiv⟩ | ⟨cv, hcv⟩ | ⟨qd, hqd, hqk⟩
       · obtain ⟨ι, η, s, hB, -⟩ := henv.lookup_ind (SrcDefeq.findDecl_sub hsub hiv)
         rw [← SrcDefeq.mkAppN_snoc] at he
         obtain ⟨as', hlen, hargs, hsat'⟩ := TrM.special_inv hB rfl he
@@ -776,6 +804,20 @@ theorem erases_correct_appCong (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : 
         exact ⟨t₁, a₀, .special hB rfl hlen hargs' hsat₁, ha₀, ⟨T₁, ht₁⟩,
           SrcDefeq.satTr_ind_typed hsat' ht a₀ (by simp)⟩
       · exact absurd (SrcDefeq.blocksCong_ctor (SrcDefeq.getAppFn_mkAppN_const c us vs) hcv) hnb
+      · obtain ⟨η, hB⟩ := henv.lookup_quot (SrcDefeq.findDecl_sub hsub hqd)
+        rw [hqk] at hB
+        rw [← SrcDefeq.mkAppN_snoc] at he
+        obtain ⟨as', hlen, hargs, hsat'⟩ := TrM.special_inv hB rfl he
+        obtain ⟨bs', a₀, rfl⟩ : ∃ bs' a₀, as' = bs' ++ [a₀] := by
+          rcases eq_nil_or_snoc as' with rfl | h
+          · simp at hlen
+          · exact h
+        simp only [List.length_append, List.length_singleton, Nat.add_right_cancel_iff] at hlen
+        obtain ⟨hargs', ha₀⟩ := forall_snoc hlen hargs
+        obtain ⟨t₁, hsat₁⟩ := satTr_quotType_init hsat'
+        obtain ⟨T₁, ht₁⟩ := hsatq η hsat₁ hsat' ht
+        exact ⟨t₁, a₀, .special hB rfl hlen hargs' hsat₁, ha₀, ⟨T₁, ht₁⟩,
+          SrcDefeq.satTr_quotType_typed hsat' ht a₀ (by simp)⟩
     · obtain ⟨f₀, a₀, hf₀, ha₀, -, hF, hA⟩ := TrM.wf_app hE hok hsp he ht
       exact ⟨f₀, a₀, hf₀, ha₀, hF, hA⟩
   rcases app_inv hns hnc her with

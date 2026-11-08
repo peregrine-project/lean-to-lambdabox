@@ -787,14 +787,36 @@ theorem spine_type_tr {σ : EvalEnv} (henv : ProgEnv P ζ E B) (hE : EnvWF E)
   obtain ⟨b, hb, Tc, tc, hTc, htc, htcT⟩ := henv.lookup hE hcP
   rw [hname] at htc
   by_cases hs : b.isSpecial
-  · -- an inductive type former (the other saturating heads have their own rules)
+  · -- an inductive type former or `Quot` (the other saturating heads have their own rules)
     have hown : OwnRules ci = false := by
       simp only [EvalEnv.isAtom, hci, Bool.and_eq_true, Bool.not_eq_true'] at hat
       exact hat.1.2
+    by_cases hq : ∃ qv, ci = .quotInfo qv
+    · obtain ⟨qv, rfl⟩ := hq
+      have hk : qv.kind = .type := by cases hk : qv.kind <;> simp [OwnRules, hk] at hown ⊢
+      obtain ⟨η', hBq⟩ := henv.lookup_quot hcP
+      rw [hk] at hBq
+      obtain ⟨as', hlen, hargs, hsat⟩ := TrM.special_inv hBq rfl htr
+      cases hsat with
+      | @quotType _ α r rest _ u hu =>
+        exfalso
+        rcases rest with _ | ⟨x, rest⟩
+        · exact EraseProof.TypeEq.sort_ne_ind hE SrcDefeq.nil_ok (hA.quot_inv.symm.trans hAind)
+        · obtain ⟨⟨F, hF⟩, -⟩ := InstPre.appList_inv (as := rest) hA
+          obtain ⟨A₁, B₁, hf, -, -⟩ := hF.app_inv
+          exact EraseProof.TypeEq.sort_ne_forallE hE SrcDefeq.nil_ok hf.quot_inv.symm
+      | quotEta hu hlt h₀ =>
+        obtain ⟨ls', Tq, t₁, hus, hTq, htqT, rfl⟩ := SrcDefeq.quotTerm_typed henv hE hcP hBq hu h₀
+        have htqT' := Metalean.Defeq.instLevel (ℓ := qv.levelParams.length) ls' htqT
+        obtain ⟨_, hreg⟩ := htqT'.regular
+        exact SrcDefeq.piInst_tr hE henv.metaOrderOK args (TrM.instLevels hus hTq) htqT'
+          (Metalean.IsType.typeEq ⟨_, hreg⟩) (CasesWhred.forall₂_of_getElem? hlen hargs) hA hst
     obtain ⟨v, rfl⟩ : ∃ v, ci = .inductInfo v := by
-      rcases SrcDefeq.special_kind henv hb hs hcP with h | ⟨_, rfl⟩ | ⟨_, rfl⟩ | ⟨_, rfl⟩
+      rcases SrcDefeq.special_kind henv hb hs hcP with h | ⟨_, rfl⟩ | ⟨_, rfl⟩ | ⟨v, rfl⟩
       · exact h
-      all_goals simp [OwnRules] at hown
+      · simp [OwnRules] at hown
+      · simp [OwnRules] at hown
+      · exact absurd ⟨v, rfl⟩ hq
     obtain ⟨ι', η', s', hBi, -⟩ := ProgEnv.lookup_ind henv (hname ▸ hcP)
     rw [← hname, hBi] at hb
     cases hb

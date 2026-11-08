@@ -58,6 +58,12 @@ theorem sim (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
       intro ι η s us as₁ as₂ t₁ t T h₁ h ht
       exact SatTr.typed (b := .ind η s) hE SrcDefeq.nil_ok (fun _ _ _ _ h => nomatch h)
         (fun _ _ _ h => nomatch h) h₁ h ht
+  have hsatq : ∀ (η : Metalean.Head ζ .quot) {us : List Level}
+      {as₁ as₂ : List (Metalean.Expr ζ lps.length 0)} {t₁ t T : Metalean.Expr ζ lps.length 0},
+      SatTr E lps (.quot η .type) us as₁ t₁ → SatTr E lps (.quot η .type) us (as₁ ++ as₂) t →
+      E[.nil] ⊢ t : T → ∃ T₁, E[.nil] ⊢ t₁ : T₁ :=
+    fun η _ _ _ _ _ _ h₁ h ht => SatTr.typed (b := .quot η .type) hE SrcDefeq.nil_ok
+      (fun _ _ _ _ h => nomatch h) (fun _ _ _ h => nomatch h) h₁ h ht
   have spine : ∀ {c us} {as : List Expr} {X}, HeadBeta σ (mkAppN (.const c us) as.toArray) X →
       X = mkAppN (.const c us) as.toArray := fun hX => hX.eq_of_head fun _ _ _ n A b bi h => by
     rw [SrcDefeq.getAppFn_mkAppN_const] at h; cases h
@@ -168,7 +174,7 @@ theorem sim (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
   | @appCong f a f' a' hns hf hnb ha ihf iha =>
     intro X hX
     rcases hX.app_inv with rfl | ⟨hfix, ⟨XF, hXF, rfl⟩ | ⟨n', A', b', bi', hFl, -⟩⟩
-    · exact ⟨.appCong hns hf hnb ha, erases_correct_appCong henv hE hsub hsat hns hf hnb ha
+    · exact ⟨.appCong hns hf hnb ha, erases_correct_appCong henv hE hsub hsat hsatq hns hf hnb ha
         (ihf _ .refl).2 (iha _ .refl).2⟩
     · have haa := hfix _ ha
       subst haa
@@ -178,7 +184,8 @@ theorem sim (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
         obtain ⟨c, us, ar, as, rfl, har, hle⟩ := short_head h
         obtain ⟨_, _, _, _, rfl⟩ := SimInd.etaSpine?_lam (eval_short hXFe har (by omega))
         exact hnb trivial
-      exact ⟨.appCong hsh hXFe hnb ha, erases_correct_appCong henv hE hsub hsat hsh hXFe hnb ha hXFs
+      exact ⟨.appCong hsh hXFe hnb ha, erases_correct_appCong henv hE hsub hsat hsatq hsh hXFe hnb ha
+        hXFs
         (iha _ .refl).2⟩
     · obtain ⟨hl, -⟩ := ihf _ hFl
       have hll := fixed_atom (show SrcAtom (.lam n' A' b' bi') from trivial) _ hl

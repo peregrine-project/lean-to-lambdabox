@@ -88,15 +88,17 @@ theorem BlocksCong_sub (hsub : SubEnv D P) (hcl : DepClosed D) {x : Expr}
     BlocksCong ⟨P, a⟩ x := by
   have key : ((∃ c us cv, x.getAppFn = .const c us ∧ findDecl D c = some (.ctorInfo cv)) ∨
       (∃ c us iv, x.getAppFn = .const c us ∧ EvalEnv.casesOn? ⟨D, a⟩ c = some iv) ∨
-      (∃ c us qv, x.getAppFn = .const c us ∧ findDecl D c = some (.quotInfo qv))) →
+      (∃ c us qv, x.getAppFn = .const c us ∧ findDecl D c = some (.quotInfo qv) ∧
+        qv.kind = .ctor)) →
       (∃ c us cv, x.getAppFn = .const c us ∧ findDecl P c = some (.ctorInfo cv)) ∨
       (∃ c us iv, x.getAppFn = .const c us ∧ EvalEnv.casesOn? ⟨P, a⟩ c = some iv) ∨
-      (∃ c us qv, x.getAppFn = .const c us ∧ findDecl P c = some (.quotInfo qv)) := by
-    rintro (⟨c, us, cv, hfn, hcv⟩ | ⟨c, us, iv, hfn, hco⟩ | ⟨c, us, qv, hfn, hqv⟩)
+      (∃ c us qv, x.getAppFn = .const c us ∧ findDecl P c = some (.quotInfo qv) ∧
+        qv.kind = .ctor) := by
+    rintro (⟨c, us, cv, hfn, hcv⟩ | ⟨c, us, iv, hfn, hco⟩ | ⟨c, us, qv, hfn, hqv, hk⟩)
     · exact .inl ⟨c, us, cv, hfn, findDecl_sub hsub hcv⟩
     · exact .inr (.inl ⟨c, us, iv, hfn,
         (casesOn?_agree hsub hcl (head_mem hx hfn) a a).symm.trans hco⟩)
-    · exact .inr (.inr ⟨c, us, qv, hfn, findDecl_sub hsub hqv⟩)
+    · exact .inr (.inr ⟨c, us, qv, hfn, findDecl_sub hsub hqv, hk⟩)
   cases x with
   | lam | sort | forallE | lit => trivial
   | bvar | fvar | mvar | const | app | letE | mdata | proj => exact key h

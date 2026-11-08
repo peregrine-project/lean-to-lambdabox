@@ -409,8 +409,12 @@ EraseProof.Test.NVQ.constTypedQ propext,Classical.choice,Quot.sound
 EraseProof.Test.NVQ.e_app -
 EraseProof.Test.NVQ.e_run propext,Classical.choice,Quot.sound
 EraseProof.Test.NVQ.ev_cT propext
+EraseProof.Test.NVQ.ev_eT propext
 EraseProof.Test.NVQ.ev_lam propext
 EraseProof.Test.NVQ.ev_lift propext
+EraseProof.Test.NVQ.ev_qT propext
+EraseProof.Test.NVQ.ev_qa propext
+EraseProof.Test.NVQ.ev_qm propext
 EraseProof.Test.NVQ.final propext,Classical.choice,Quot.sound
 EraseProof.Test.NVQ.hRTyM_eq propext,Quot.sound
 EraseProof.Test.NVQ.hRTy_isType propext,Classical.choice,Quot.sound
@@ -449,6 +453,8 @@ EraseProof.Test.NVQ.quotI_typed propext,Classical.choice,Quot.sound
 EraseProof.Test.NVQ.quotL_typed propext,Classical.choice,Quot.sound
 EraseProof.Test.NVQ.quotM_typed propext,Classical.choice,Quot.sound
 EraseProof.Test.NVQ.quotT_typed propext,Classical.choice,Quot.sound
+EraseProof.Test.NVQ.quot_not_blocksCong propext
+EraseProof.Test.NVQ.quot_not_short propext
 EraseProof.Test.NVQ.register_B_new propext,Classical.choice,Quot.sound
 EraseProof.Test.NVQ.trLevel_u propext,Quot.sound
 EraseProof.Test.NVQ.trLevel_uv propext,Quot.sound
