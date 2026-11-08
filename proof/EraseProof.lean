@@ -113,7 +113,9 @@ import EraseProof.Test.NVQPBlocks
 import EraseProof.Test.NVQPDefs
 import EraseProof.Test.NVQPResp
 import EraseProof.Test.NVQPModel
+import EraseProof.Test.NVQPFinal
 import EraseProof.Test.NV1Collect
 import EraseProof.Test.NVQCollect
 import EraseProof.Test.NVRCollect
 import EraseProof.Test.NVSCollect
+import EraseProof.Test.NVQPCollect

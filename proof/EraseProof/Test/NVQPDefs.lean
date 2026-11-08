@@ -134,11 +134,6 @@ macro_rules
       sndBB, fstM, sndM, orBM, pairM, swapM, quotTM, motMM, motBM, Quot.compatType, Quot.relType,
       Quot.eqApp, eqA, prFstTyM, prSndTyM, ΓPr, Ctx.pi, Tele.foldr, casesOnTyM] $[$loc]?)
 
-/-- `x : Prod B B` -/
-abbrev IsPair {ζ : Sigs} (E : Env ζ) (ηB : Head ζ (.inductive bSig)) (ηP : Head ζ (.inductive ppSig))
-    {n : Nat} (Γ : Ctx ζ 0 0 n) (x : Expr ζ 0 n) : Prop :=
-  E[Γ] ⊢ x : tPM ηB ηP
-
 section Typed
 variable {ζ : Sigs} {E : Env ζ} {ηB : Head ζ (.inductive bSig)} {ηP : Head ζ (.inductive ppSig)}
   {ηE : Head ζ (.inductive Eq.sig)} {ηQ : Head ζ .quot} {ηF ηS : Head ζ (.const .def 2)}

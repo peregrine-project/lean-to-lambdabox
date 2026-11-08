@@ -92,12 +92,12 @@ abbrev f8 : Head ζ8 (.const .def 2) := .there f7
 abbrev f9 : Head ζ9 (.const .def 2) := .there f8
 abbrev f10 : Head ζ10 (.const .def 2) := .there f9
 abbrev f11 : Head ζ11 (.const .def 2) := .there f10
-abbrev s6 : Head ζ6 (.const .def 2) := .here
-abbrev s7 : Head ζ7 (.const .def 2) := .there s6
-abbrev s8 : Head ζ8 (.const .def 2) := .there s7
-abbrev s9 : Head ζ9 (.const .def 2) := .there s8
-abbrev s10 : Head ζ10 (.const .def 2) := .there s9
-abbrev s11 : Head ζ11 (.const .def 2) := .there s10
+abbrev sn6 : Head ζ6 (.const .def 2) := .here
+abbrev sn7 : Head ζ7 (.const .def 2) := .there sn6
+abbrev sn8 : Head ζ8 (.const .def 2) := .there sn7
+abbrev sn9 : Head ζ9 (.const .def 2) := .there sn8
+abbrev sn10 : Head ζ10 (.const .def 2) := .there sn9
+abbrev sn11 : Head ζ11 (.const .def 2) := .there sn10
 abbrev c7 : Head ζ7 (.const .def 1) := .here
 abbrev c8 : Head ζ8 (.const .def 1) := .there c7
 abbrev c9 : Head ζ9 (.const .def 1) := .there c8
@@ -124,9 +124,9 @@ def E6 : Env ζ6 := E5.snoc (.def (prSndTyM p5) (prSndValM p5))
 def E7 : Env ζ7 := E6.snoc (.def (casesOnTyM b6) (casesOnValM b6))
 def E8 : Env ζ8 := E7.snoc (.def (omTyM b7) (omValM b7 c7))
 def E9 : Env ζ9 := E8.snoc (.def (orBTyM b8) (orBValM b8 m8))
-def E10 : Env ζ10 := E9.snoc (.def (swapTyM b9 p9) (swapValM b9 p9 e9 f9 s9))
-def E11 : Env ζ11 := E10.snoc (.«opaque» (respTyM b10 p10 e10 f10 s10 o10 w10))
-def E12 : Env ζ12 := E11.snoc (.def (orUTyM b11 p11 q11 w11) (orUValM b11 p11 e11 q11 f11 s11 o11 w11 h11))
+def E10 : Env ζ10 := E9.snoc (.def (swapTyM b9 p9) (swapValM b9 p9 e9 f9 sn9))
+def E11 : Env ζ11 := E10.snoc (.«opaque» (respTyM b10 p10 e10 f10 sn10 o10 w10))
+def E12 : Env ζ12 := E11.snoc (.def (orUTyM b11 p11 q11 w11) (orUValM b11 p11 e11 q11 f11 sn11 o11 w11 h11))
 def E13 : Env ζ13 := E12.snoc (.def (mB b12) (useValM b12 p12 q12 w12 u12 (mT b12) (mF b12)))
 def E14 : Env ζ14 := E13.snoc (.def (mB b13) (useValM b13 p13 q13 w13 u13 (mF b13) (mT b13)))
 
@@ -152,29 +152,29 @@ theorem t_b9 : (E9.get b9).block = bBlock := by qenvs
 theorem t_p9 : (E9.get p9).block = prBlock := by qenvs
 theorem t_e9 : (E9.get e9).block = Eq.block := by qenvs
 theorem t_f9t : (E9.get f9).constType = prFstTyM p9 := by qenvs
-theorem t_s9t : (E9.get s9).constType = prSndTyM p9 := by qenvs
+theorem t_s9t : (E9.get sn9).constType = prSndTyM p9 := by qenvs
 theorem t_b10 : (E10.get b10).block = bBlock := by qenvs
 theorem t_p10 : (E10.get p10).block = prBlock := by qenvs
 theorem t_e10 : (E10.get e10).block = Eq.block := by qenvs
 theorem t_f10t : (E10.get f10).constType = prFstTyM p10 := by qenvs
-theorem t_s10t : (E10.get s10).constType = prSndTyM p10 := by qenvs
+theorem t_s10t : (E10.get sn10).constType = prSndTyM p10 := by qenvs
 theorem t_o10t : (E10.get o10).constType = orBTyM b10 := by qenvs
 theorem t_w10t : (E10.get w10).constType = swapTyM b10 p10 := by qenvs
 theorem t_c10v : (E10.get c10).defValue = casesOnValM b10 := by qenvs
 theorem t_m10v : (E10.get m10).defValue = omValM b10 c10 := by qenvs
 theorem t_o10v : (E10.get o10).defValue = orBValM b10 m10 := by qenvs
 theorem t_f10v : (E10.get f10).defValue = prFstValM p10 := by qenvs
-theorem t_s10v : (E10.get s10).defValue = prSndValM p10 := by qenvs
-theorem t_w10v : (E10.get w10).defValue = swapValM b10 p10 e10 f10 s10 := by qenvs
+theorem t_s10v : (E10.get sn10).defValue = prSndValM p10 := by qenvs
+theorem t_w10v : (E10.get w10).defValue = swapValM b10 p10 e10 f10 sn10 := by qenvs
 theorem t_b11 : (E11.get b11).block = bBlock := by qenvs
 theorem t_p11 : (E11.get p11).block = prBlock := by qenvs
 theorem t_e11 : (E11.get e11).block = Eq.block := by qenvs
 theorem t_f11t : (E11.get f11).constType = prFstTyM p11 := by qenvs
-theorem t_s11t : (E11.get s11).constType = prSndTyM p11 := by qenvs
+theorem t_s11t : (E11.get sn11).constType = prSndTyM p11 := by qenvs
 theorem t_o11t : (E11.get o11).constType = orBTyM b11 := by qenvs
 theorem t_w11t : (E11.get w11).constType = swapTyM b11 p11 := by qenvs
 theorem t_q11 : (E11.get q11).eqHead = e11 := by qenvs
-theorem t_h11t : (E11.get h11).constType = respTyM b11 p11 e11 f11 s11 o11 w11 := by qenvs
+theorem t_h11t : (E11.get h11).constType = respTyM b11 p11 e11 f11 sn11 o11 w11 := by qenvs
 theorem t_b12 : (E12.get b12).block = bBlock := by qenvs
 theorem t_p12 : (E12.get p12).block = prBlock := by qenvs
 theorem t_w12t : (E12.get w12).constType = swapTyM b12 p12 := by qenvs
@@ -538,7 +538,7 @@ theorem henv9 : ProgEnv (.defnInfo orB_def :: .defnInfo orB_match_1 :: .defnInfo
   ProgEnv.defn henv8 (by decide) (by decide) rfl rfl
     (TrM.forallE (tr_B rfl) (TrM.forallE (tr_B rfl) (tr_B rfl))) tr_orBVal
 
-theorem tr_swapVal : TrM E9 B9 [] .nil [] swapRVal (swapValM b9 p9 e9 f9 s9) :=
+theorem tr_swapVal : TrM E9 B9 [] .nil [] swapRVal (swapValM b9 p9 e9 f9 sn9) :=
   TrM.lam (tr_tP rfl rfl) (TrM.lam (tr_tP rfl rfl)
     (tr_eqC rfl trLevel_l1 (tr_tP rfl rfl) (TrM.bvar rfl)
       (tr_Prmk rfl rfl rfl (tr_B rfl) (tr_B rfl) (tr_snd rfl rfl (TrM.bvar rfl))
@@ -552,7 +552,7 @@ theorem henv10 : ProgEnv (.defnInfo swapR_def :: .defnInfo orB_def :: .defnInfo 
 
 /-! ## `orU._proof_1` -/
 
-theorem tr_respTy : TrM E10 B10 [] .nil [] respTy (respTyM b10 p10 e10 f10 s10 o10 w10) :=
+theorem tr_respTy : TrM E10 B10 [] .nil [] respTy (respTyM b10 p10 e10 f10 sn10 o10 w10) :=
   TrM.forallE (tr_tP rfl rfl) (TrM.forallE (tr_tP rfl rfl)
     (TrM.forallE (TrM.app (notSpecial_const (B := B10) rfl ⟨_, rfl⟩)
         (TrM.app (notSpecial_const (B := B10) rfl ⟨_, rfl⟩) (tr_const0 rfl) (TrM.bvar rfl))
@@ -574,13 +574,13 @@ theorem henv11 : ProgEnv (.thmInfo resp_thm :: .defnInfo swapR_def :: .defnInfo 
 
 /-! ## `orU`, `useTF`, `useFT` -/
 
-theorem tr_liftF : TrM E11 B11 [] .nil [] liftF (liftFM b11 p11 f11 s11 o11) :=
+theorem tr_liftF : TrM E11 B11 [] .nil [] liftF (liftFM b11 p11 f11 sn11 o11) :=
   TrM.lam (tr_tP rfl rfl) (tr_orB rfl (tr_fst rfl rfl (TrM.bvar rfl)) (tr_snd rfl rfl (TrM.bvar rfl)))
 
-theorem tr_orUVal : TrM E11 B11 [] .nil [] orUVal (orUValM b11 p11 e11 q11 f11 s11 o11 w11 h11) := by
+theorem tr_orUVal : TrM E11 B11 [] .nil [] orUVal (orUValM b11 p11 e11 q11 f11 sn11 o11 w11 h11) := by
   have h := TrM.special (E := E11) (B := B11) (lps := []) (Γ := .nil) (Δ := []) (c := `Quot.lift)
     (us := [l1, l1]) (as := [tP, .const `swapR [], tB, liftF, .const `orU._proof_1 []])
-    (as' := [tPM b11 p11, swapM w11, mB b11, liftFM b11 p11 f11 s11 o11, .const h11 Fin.elim0])
+    (as' := [tPM b11 p11, swapM w11, mB b11, liftFM b11 p11 f11 sn11 o11, .const h11 Fin.elim0])
     (b := .quot q11 .lift) rfl rfl rfl
     (by
       intro i x x' h1 h2
