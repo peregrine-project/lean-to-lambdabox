@@ -16,8 +16,9 @@ NV-Q (`B`, the axioms `R` and `hR`, and `Init`'s quotients, `EraseProof.Test.NVQ
 `inductive N | z | s (n : N)`, `EraseProof.Test.NVR`) and NV-S (`N` and `add`, defined by
 structural recursion, `EraseProof.Test.NVS`), it declares the program as the `inductive` command
 does (the kernel's inductive declaration, then `mkCasesOn`; NV-S's source is elaborated as a file
-is), checks that the environment's declarations are the written-out `P` (every field; a
-definition's value up to binder names), runs `#erase`'s entry point `Erasure.eraseEntry` on the
+is), checks that the environment's declarations are the written-out `P` (for NV-S, `P` and the
+compiled companion `add._unsafe_rec` of its view; every field; a definition's value up to binder
+names), runs `#erase`'s entry point `Erasure.eraseEntry` on the
 term `e` over that environment, with the instance's configuration, and writes the program to
 `FILE1` (resp. `FILE2`, `FILE3`, `FILE4`, `FILE5`) and its attributes to `FILE1.inlinings`, printed
 as `#erase` prints them (`LeanToLambdaBox/Erasure/Command.lean`). It fails unless the printed
@@ -184,9 +185,10 @@ def main (args : List String) : IO UInt32 := do
       addDecl (.inductDecl [] 0 [⟨`N, NVR.N_ind.type, [⟨`N.z, NVR.tN⟩, ⟨`N.s, NVR.sTy⟩]⟩] false)
       Meta.MetaM.run' (mkCasesOn `N))
     NVR.P NVR.e NVR.p0
-  -- NV-S: the source of `N` and `add`, elaborated (the environment also holds `add`'s compiled
-  -- companion `add._unsafe_rec`, which `structural := .kernel` lets the fragment test admit).
-  let r6 ← emit "NV-S" file5 (elabSource "NV-S" srcNVS) NVS.P NVS.e NVS.p0 NVS.cfg
+  -- NV-S: the source of `N` and `add`, elaborated; the declarations of its view, `P` and `add`'s
+  -- compiled companion `add._unsafe_rec`, which `structural := .kernel` lets the fragment test
+  -- admit.
+  let r6 ← emit "NV-S" file5 (elabSource "NV-S" srcNVS) NVS.PV NVS.e NVS.p0 NVS.cfg
     NVS.inl0
   return max (max (max r1 r2) (max r3 r4)) (max r5 r6)
 

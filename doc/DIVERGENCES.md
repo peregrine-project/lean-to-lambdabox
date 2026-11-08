@@ -84,9 +84,9 @@ What the statements and the checks rely on without proof:
   loops), and 19 `opaque` constants, among them the `partial` shipping functions `LBTerm.isValue`,
   `LBTerm.inlinedSize` and `LBTerm.stripLambdas`, which compute only the inlining hints, not the
   program. `Lean.Expr.eqv` and `Lean.Expr.replaceImpl` are reached only in the index-field branches
-  of `Erasure.visitCases`, which no input that the fragment test accepts reaches (DV-26). The non-vacuity instance
-  NV-1 is kernel-checked on the logical definitions; the compiled code is exercised on it by
-  `proof/tools/NVEmit.lean` and on the regression corpus.
+  of `Erasure.visitCases`, which no input that the fragment test accepts reaches (DV-26). The non-vacuity instances
+  are kernel-checked on the logical definitions; the compiled code is exercised on five of them
+  (NV-1, NV-2, NV-Q, NV-R and NV-S) by `proof/tools/NVEmit.lean` and on the regression corpus.
 - What `#erase` does around `Erasure.eraseEntry`, which the theorems do not cover: the
   elaboration of the input and of the `config` term (`Erasure.eraseElab`,
   `LeanToLambdaBox/Erasure/Command.lean`, which evaluates the configuration with `unsafe`
@@ -211,7 +211,8 @@ What the statements and the checks rely on without proof:
 
 - **Our artifact:** `proof/EraseProof/Spec.lean`: the rule `EraseProof.ProgEnv.defn` (a
   definition's `all` is its own name), `EraseProof.ErasesDecl` (no recursive branch) and
-  `EraseProof.ErasesDeps` (no rule for λ□ `tFix`).
+  `EraseProof.ErasesDeps` (its rule for λ□ `tFix`, `EraseProof.ErasesDeps.fix`, is for the
+  fixpoints of erased recursors, DV-30, not for recursive definitions).
 - **Reference artifact:** PCUIC's fixpoints `tFix`, `eval_fix`
   (`pcuic/theories/PCUICWcbvEval.v:273`) and `erases_tFix` (`erasure/theories/Extract.v:122`).
 - **What differs:** Not applicable here: no source program of the fragment is recursive.
@@ -401,16 +402,21 @@ What the statements and the checks rely on without proof:
 - **What differs:** theorems are not unfolded, so a proof may evaluate to an atom spine instead of
   a constructor. A `casesOn` of a field-less `Prop` constructor on such a proof continues with the
   alternative (`casesProof`), and a projection of a `Prop` structure out of it is a neutral value
-  (`projProp`). A `casesOn` on a lemma of an inductive with proof fields does not evaluate, and
-  programs defined by well-founded recursion, whose recursion reduces only through a proof of
-  accessibility, do not evaluate either: the final theorem holds vacuously for them, and the
-  fragment test excludes the latter (DV-26).
+  (`projProp`). A `casesOn` on a lemma of an inductive with proof fields does not evaluate, nor
+  does a recursor on a lemma (`True.rec`, `And.rec` or `PUnit.rec.{_, 0}` applied to a theorem):
+  `SrcEval.recIota` needs a constructor value as its major premise (DV-30), while λ□ reduces the
+  erased fixpoint's `case` on `□`. Programs defined by well-founded recursion, whose recursion
+  reduces only through a proof of accessibility, do not evaluate either: the final theorem holds
+  vacuously for all of these, and the fragment test excludes the last (DV-26).
 - **Why it is forced:** Metalean's loader adds a theorem as an opaque constant, its statement only
   (`Metalean/Checker/Slow/Loader.lean:122-127`), and `EraseProof.ProgEnv` follows it: the value of
   a theorem is not translated, and typically uses recursors and tactics outside the fragment, so
   unfolding it has no Metalean counterpart for the last conjunct of the final theorem.
 - **What was considered instead:** δ for theorems with a translated value, which excludes every
-  program that mentions a lemma whose proof leaves the fragment.
+  program that mentions a lemma whose proof leaves the fragment; a recursor analogue of
+  `casesProof`, which covers only recursors of a field-less `Prop` constructor (`True.rec`;
+  `And.rec` on a lemma stays stuck as `And.casesOn` does) and needs its own subject-reduction
+  case through proof irrelevance and the recursor ι.
 
 ### DV-25
 
@@ -424,7 +430,8 @@ What the statements and the checks rely on without proof:
   `eval_iota_sing` (`erasure/theories/EWcbvEval.v:162`).
 - **What differs:** Lean has no case term: `T.casesOn` is a definition through the recursor
   `T.rec`. The source treats a recognized `casesOn` as primitive, without δ, reducing on the
-  constructor its major evaluates to; the recursor itself has no rule. A `casesOn` on a
+  constructor its major evaluates to; it does not unfold it to the recursor, which has a rule of
+  its own (`EraseProof.SrcEval.recIota`, DV-30). A `casesOn` on a
   one-constructor inductive whose sort may be `Prop` erases to its alternative applied to `□`s,
   without a λ□ `case` (`casesReduced`), the reduction `eval_iota_sing` makes at run time.
 - **Why it is forced:** the eraser translates recognized `casesOn` spines to λ□ `case` and never
@@ -440,7 +447,8 @@ What the statements and the checks rely on without proof:
   `EraseProof.erase_correct_statement`, that the shipping fragment test `Erasure.collectDeps`
   accepts the input; and `EraseProof.collectDeps_ok_of_statement`, a sufficient condition for it
   (`EraseProof.ReadClosed`, `EraseProof.PhaseIDecl`, `EraseProof.PlainExpr`,
-  `EraseProof.RecFree`, `EraseProof.KernameInj`, `EraseProof.BlockNamesInj`).
+  `EraseProof.RecShaped`, `EraseProof.KernameInj`, `EraseProof.BlockNamesInj`), which covers the
+  recursors and the structural recursion that the test admits.
 - **Reference artifact:** MetaRocq's `erase_correct`
   (`erasure/theories/ErasureFunctionProperties.v:657`), which holds for every well-typed term.
 - **What differs:** the final theorem covers the inputs the fragment test accepts. Its exclusion
@@ -537,8 +545,10 @@ What the statements and the checks rely on without proof:
 - **Our artifact:** `proof/EraseProof/Spec.lean`: the rules `EraseProof.SrcEval.quotMk` and
   `EraseProof.SrcEval.quotLift`; `EraseProof.quotEvalArity` in `EraseProof.specialArity`, so that
   `EraseProof.SrcEval.eta` and `EraseProof.Erases.eta` η-expand `Quot.mk` and `Quot.lift` spines
-  with missing arguments; the quotient clauses of `EraseProof.BlocksCong` and
-  `EraseProof.SpecialSpine`; the rules `EraseProof.Erases.quotMk` and `EraseProof.Erases.quotLift`.
+  with missing arguments; the quotient clauses of `EraseProof.OwnRules`, under which
+  `EraseProof.EvalEnv.isAtom` makes the type former `Quot` an atom, of `EraseProof.BlocksCong`
+  (`Quot.mk` spines) and of `EraseProof.SpecialSpine`; the rules `EraseProof.Erases.quotMk` and
+  `EraseProof.Erases.quotLift`.
 - **Reference artifact:** none: PCUIC has no primitive quotients. The closest rules are `eval_beta`
   (`pcuic/theories/PCUICWcbvEval.v:234`) and `eval_construct`
   (`pcuic/theories/PCUICWcbvEval.v:303`) of `eval`, and `erases_tApp`
@@ -550,14 +560,23 @@ What the statements and the checks rely on without proof:
   unevaluated, and `Quot.lift α r β f h q` by evaluating `f` to a λ and `q` to `Quot.mk α' r' a`
   and continuing with the λ's body at `a`; spines with fewer arguments are η-expanded as
   constructor spines are (DV-23), and a `Quot.mk` value blocks application congruence as a
-  constructor value does. The erasure represents a quotient by its elements: `Quot.mk α r a`
-  erases as `a` and `Quot.lift α r β f h q` as `f q`, applied to the erasures of the arguments
-  beyond the arity.
+  constructor value does. The type former `Quot` is an atom, as an inductive type former is
+  (DV-11): a quotient type `Quot α r` evaluates its arguments by application congruence and is a
+  value, so it may be a constructor parameter or a β-argument, and it erases only to `□`.
+  `Quot.ind` has no rule: a program that evaluates it, for instance as an argument, is stuck, and
+  the final theorem holds vacuously for it. The erasure represents a quotient by its elements:
+  `Quot.mk α r a` erases as `a` and `Quot.lift α r β f h q` as `f q`, applied to the erasures of
+  the arguments beyond the arity.
 - **Why it is forced:** the reference has no rule for quotients, and the eraser erases the quotient
   constants in this way, as Lean's code generator does (`visitConstApp`,
   `LeanToLambdaBox/Erasure.lean:949`). The source rule is Metalean's quotient ι, which the
   subject-reduction theorem `EraseProof.SrcEval.defeq` justifies through
-  `Metalean.WHRed.quotIota_defeq`.
+  `Metalean.WHRed.quotIota_defeq`. A quotient type is in weak-head normal form in Metalean (no
+  rule of `Metalean.WHRed` reduces a `Metalean.Expr.quot` node), so it is a value there too.
+  `Quot.ind` is a proof (Metalean reduces it on `Quot.mk` by `quotIndIota`,
+  `Metalean/Syntax/Reduction.lean:78`), but its statement ends in an application of its motive and
+  is not an evident proposition, so the oracle is not known to erase its spines and the eraser may
+  keep it as a λ□ axiom, while an atom erases only to `□`.
 - **What was considered instead:** erasing `Quot.mk` and `Quot.lift` to λ□ axioms, under which
   every program that computes through a quotient is stuck in λ□; no source rule for quotients,
   under which such programs do not evaluate and the final theorem says nothing about them.
@@ -583,7 +602,8 @@ What the statements and the checks rely on without proof:
   in the order of the minor's hypotheses) to a value, and continuing with the minor's value applied
   to the fields and these values. The parameters and the motive are not evaluated. There is no
   source ι for recursors of mutual, nested or indexed inductives, for higher-order recursive
-  fields, for recursive fields before non-recursive ones, nor on a `Nat` literal major (`recK` and
+  fields, for recursive fields before non-recursive ones, nor on a `Nat` literal major or a major
+  that evaluates to a proof other than a constructor value, such as a theorem (DV-24; `recK` and
   structure η are not rules). Recursor spines with missing arguments are η-expanded, as constructor
   spines are (DV-23). The fragment test admits exactly the recursors of this shape that the eraser
   does not keep as constants (`RecInFragment`). The erasure is the eraser's: the λ□ fixpoint

@@ -8,7 +8,12 @@ EraseProof.Test.bind_ok propext,Classical.choice,Quot.sound
 EraseProof.Test.constsIn_of_all propext
 EraseProof.Test.forIn_toSubarray_size propext,Classical.choice,Quot.sound
 EraseProof.Test.forall_eq_some propext
+EraseProof.Test.kernameInj_of propext,Classical.choice,Quot.sound
+EraseProof.Test.mem_of_findDecl propext,Quot.sound
+EraseProof.Test.ne_of_mpNe propext
 EraseProof.Test.plain_of propext,Quot.sound
+EraseProof.Test.readAll_of propext,Quot.sound
+EraseProof.Test.recShaped_of propext,Quot.sound
 EraseProof.Test.runPure_bind propext,Classical.choice,Quot.sound
 EraseProof.Test.runPure_withReader propext,Classical.choice,Quot.sound
 EraseProof.Test.toArray_toSubarray propext,Classical.choice,Quot.sound
@@ -96,8 +101,8 @@ EraseProof.Test.NV1.plainD propext,Quot.sound
 EraseProof.Test.NV1.readD propext
 EraseProof.Test.NV1.readExpr_D propext
 EraseProof.Test.NV1.recAllowedB propext,Quot.sound
-EraseProof.Test.NV1.recFreeD propext
-EraseProof.Test.NV1.recFreeOf propext
+EraseProof.Test.NV1.recShapedD propext
+EraseProof.Test.NV1.recShapedOf propext
 EraseProof.Test.NV1.recTermM_typed propext,Classical.choice,Quot.sound
 EraseProof.Test.NV1.recrTerm_eq propext,Classical.choice,Quot.sound
 EraseProof.Test.NV1.register_B_found propext,Classical.choice,Quot.sound
@@ -409,8 +414,12 @@ EraseProof.Test.NVQ.constTypedQ propext,Classical.choice,Quot.sound
 EraseProof.Test.NVQ.e_app -
 EraseProof.Test.NVQ.e_run propext,Classical.choice,Quot.sound
 EraseProof.Test.NVQ.ev_cT propext
+EraseProof.Test.NVQ.ev_eT propext
 EraseProof.Test.NVQ.ev_lam propext
 EraseProof.Test.NVQ.ev_lift propext
+EraseProof.Test.NVQ.ev_qT propext
+EraseProof.Test.NVQ.ev_qa propext
+EraseProof.Test.NVQ.ev_qm propext
 EraseProof.Test.NVQ.final propext,Classical.choice,Quot.sound
 EraseProof.Test.NVQ.hRTyM_eq propext,Quot.sound
 EraseProof.Test.NVQ.hRTy_isType propext,Classical.choice,Quot.sound
@@ -449,6 +458,8 @@ EraseProof.Test.NVQ.quotI_typed propext,Classical.choice,Quot.sound
 EraseProof.Test.NVQ.quotL_typed propext,Classical.choice,Quot.sound
 EraseProof.Test.NVQ.quotM_typed propext,Classical.choice,Quot.sound
 EraseProof.Test.NVQ.quotT_typed propext,Classical.choice,Quot.sound
+EraseProof.Test.NVQ.quot_not_blocksCong propext
+EraseProof.Test.NVQ.quot_not_short propext
 EraseProof.Test.NVQ.register_B_new propext,Classical.choice,Quot.sound
 EraseProof.Test.NVQ.trLevel_u propext,Quot.sound
 EraseProof.Test.NVQ.trLevel_uv propext,Quot.sound
@@ -481,6 +492,7 @@ EraseProof.Test.NVR.BN_z propext,Quot.sound
 EraseProof.Test.NVR.PN_eq propext
 EraseProof.Test.NVR.appMotN_typed propext,Quot.sound
 EraseProof.Test.NVR.args_s propext,Classical.choice,Quot.sound
+EraseProof.Test.NVR.blockD propext,Classical.choice,Quot.sound
 EraseProof.Test.NVR.cT_run propext,Classical.choice,Quot.sound
 EraseProof.Test.NVR.cZ_run propext,Classical.choice,Quot.sound
 EraseProof.Test.NVR.constTypedN propext,Classical.choice,Quot.sound
@@ -510,10 +522,12 @@ EraseProof.Test.NVR.hview propext
 EraseProof.Test.NVR.hwf propext,Classical.choice,Quot.sound
 EraseProof.Test.NVR.indBlockN propext,Classical.choice,Quot.sound
 EraseProof.Test.NVR.indN_typed propext,Quot.sound
+EraseProof.Test.NVR.kernD propext,Classical.choice,Quot.sound
 EraseProof.Test.NVR.largeElimN propext,Quot.sound
 EraseProof.Test.NVR.mN_typed propext,Quot.sound
 EraseProof.Test.NVR.mS_typed propext,Classical.choice,Quot.sound
 EraseProof.Test.NVR.mZ_typed propext,Quot.sound
+EraseProof.Test.NVR.mem_D propext
 EraseProof.Test.NVR.mem_P propext
 EraseProof.Test.NVR.minSM_typed propext,Classical.choice,Quot.sound
 EraseProof.Test.NVR.minSTyM_typed propext,Classical.choice,Quot.sound
@@ -527,8 +541,14 @@ EraseProof.Test.NVR.mvN_beta propext,Classical.choice,Quot.sound
 EraseProof.Test.NVR.mvN_typed propext,Classical.choice,Quot.sound
 EraseProof.Test.NVR.nBlock_map propext,Classical.choice,Quot.sound
 EraseProof.Test.NVR.nBlock_wf propext,Classical.choice,Quot.sound
+EraseProof.Test.NVR.ok_of propext,Classical.choice,Quot.sound
+EraseProof.Test.NVR.phaseD propext,Classical.choice,Quot.sound
+EraseProof.Test.NVR.plainD propext,Quot.sound
+EraseProof.Test.NVR.readD propext,Quot.sound
 EraseProof.Test.NVR.recAllowedN propext,Quot.sound
+EraseProof.Test.NVR.recInFragD propext
 EraseProof.Test.NVR.recShape_N propext
+EraseProof.Test.NVR.recShapedD propext,Quot.sound
 EraseProof.Test.NVR.recTermM_typed propext,Classical.choice,Quot.sound
 EraseProof.Test.NVR.recrTerm_eqN propext,Classical.choice,Quot.sound
 EraseProof.Test.NVR.register_B_new propext,Classical.choice,Quot.sound
@@ -537,6 +557,7 @@ EraseProof.Test.NVR.register_N_new propext,Classical.choice,Quot.sound
 EraseProof.Test.NVR.sTermM_typed propext,Classical.choice,Quot.sound
 EraseProof.Test.NVR.stM_N propext,Classical.choice,Quot.sound
 EraseProof.Test.NVR.stN_N propext,Classical.choice,Quot.sound
+EraseProof.Test.NVR.subD propext
 EraseProof.Test.NVR.tE_typed propext,Classical.choice,Quot.sound
 EraseProof.Test.NVR.tr_N propext,Classical.choice,Quot.sound
 EraseProof.Test.NVR.tr_S propext,Classical.choice,Quot.sound
@@ -628,6 +649,7 @@ EraseProof.Test.NVS.belowTy_wk propext,Quot.sound
 EraseProof.Test.NVS.belowValM_typed propext,Classical.choice,Quot.sound
 EraseProof.Test.NVS.belowZ_var propext,Classical.choice,Quot.sound
 EraseProof.Test.NVS.beta_defeq propext,Classical.choice,Quot.sound
+EraseProof.Test.NVS.blockD propext,Classical.choice,Quot.sound
 EraseProof.Test.NVS.brecOnTyM_isType propext,Classical.choice,Quot.sound
 EraseProof.Test.NVS.brecOnV_run propext,Classical.choice,Quot.sound
 EraseProof.Test.NVS.brecOnValM_typed propext,Classical.choice,Quot.sound
@@ -691,6 +713,7 @@ EraseProof.Test.NVS.goTyM_isType propext,Classical.choice,Quot.sound
 EraseProof.Test.NVS.goV_run propext,Classical.choice,Quot.sound
 EraseProof.Test.NVS.goValM_typed propext,Classical.choice,Quot.sound
 EraseProof.Test.NVS.hcollect propext,Classical.choice,Quot.sound
+EraseProof.Test.NVS.hcollect_default propext,Classical.choice,Quot.sound
 EraseProof.Test.NVS.he propext,Classical.choice,Quot.sound
 EraseProof.Test.NVS.henv propext,Classical.choice,Quot.sound
 EraseProof.Test.NVS.henv1 propext,Classical.choice,Quot.sound
@@ -720,6 +743,7 @@ EraseProof.Test.NVS.indPU_typed propext,Quot.sound
 EraseProof.Test.NVS.indTerm_eqPP propext,Quot.sound
 EraseProof.Test.NVS.infer_step propext,Classical.choice,Quot.sound
 EraseProof.Test.NVS.inst_elim0 Quot.sound
+EraseProof.Test.NVS.kernD propext,Classical.choice,Quot.sound
 EraseProof.Test.NVS.kername_add propext,Classical.choice,Quot.sound
 EraseProof.Test.NVS.kername_brecOn propext,Classical.choice,Quot.sound
 EraseProof.Test.NVS.kername_f propext,Classical.choice,Quot.sound
@@ -738,6 +762,7 @@ EraseProof.Test.NVS.mPU_typed propext,Quot.sound
 EraseProof.Test.NVS.mPUu_typed propext,Quot.sound
 EraseProof.Test.NVS.matchV_run propext,Classical.choice,Quot.sound
 EraseProof.Test.NVS.matchValM_typed propext,Classical.choice,Quot.sound
+EraseProof.Test.NVS.mem_D propext
 EraseProof.Test.NVS.mem_P propext
 EraseProof.Test.NVS.mj_run propext,Classical.choice,Quot.sound
 EraseProof.Test.NVS.motBl_beta propext,Classical.choice,Quot.sound
@@ -749,9 +774,13 @@ EraseProof.Test.NVS.ms_run propext,Classical.choice,Quot.sound
 EraseProof.Test.NVS.mz_run propext,Classical.choice,Quot.sound
 EraseProof.Test.NVS.nb_PP propext
 EraseProof.Test.NVS.nb_PP1 propext
+EraseProof.Test.NVS.notElimPU propext
 EraseProof.Test.NVS.ns_const propext
 EraseProof.Test.NVS.ns_lam propext
+EraseProof.Test.NVS.ok_of propext,Classical.choice,Quot.sound
 EraseProof.Test.NVS.pairM_typed propext,Classical.choice,Quot.sound
+EraseProof.Test.NVS.phaseD propext,Classical.choice,Quot.sound
+EraseProof.Test.NVS.plainD propext,Quot.sound
 EraseProof.Test.NVS.ppBlock_map propext,Quot.sound
 EraseProof.Test.NVS.ppBlock_wf propext,Quot.sound
 EraseProof.Test.NVS.ppLevel_ge propext,Quot.sound
@@ -770,8 +799,11 @@ EraseProof.Test.NVS.puBlock_map propext,Quot.sound
 EraseProof.Test.NVS.puBlock_subsingleton propext
 EraseProof.Test.NVS.puBlock_wf propext,Quot.sound
 EraseProof.Test.NVS.puRecTermM_typed propext,Classical.choice,Quot.sound
+EraseProof.Test.NVS.readD propext,Quot.sound
 EraseProof.Test.NVS.recAllowedPP propext,Classical.choice,Quot.sound
 EraseProof.Test.NVS.recAllowedPU propext,Quot.sound
+EraseProof.Test.NVS.recInFragD propext
+EraseProof.Test.NVS.recShapedD propext,Quot.sound
 EraseProof.Test.NVS.recrTerm_eqPP propext,Classical.choice,Quot.sound
 EraseProof.Test.NVS.recrTerm_eqPU propext,Classical.choice,Quot.sound
 EraseProof.Test.NVS.reg_stI propext,Classical.choice,Quot.sound
@@ -786,6 +818,7 @@ EraseProof.Test.NVS.rinst_succ propext,Quot.sound
 EraseProof.Test.NVS.rinst_zero propext,Quot.sound
 EraseProof.Test.NVS.sArg_run propext,Classical.choice,Quot.sound
 EraseProof.Test.NVS.stPU_PU propext,Classical.choice,Quot.sound
+EraseProof.Test.NVS.subD propext
 EraseProof.Test.NVS.sx_run propext,Classical.choice,Quot.sound
 EraseProof.Test.NVS.tE_typed propext,Classical.choice,Quot.sound
 EraseProof.Test.NVS.t_at12 propext,Quot.sound

@@ -61,7 +61,7 @@ theorem isAtom_spec {c : Name} (h : σ.isAtom c = true) :
       cases hown
     · rename_i qv hqv
       cases hqv
-      cases hown
+      cases hk : qv.kind <;> simp [OwnRules, hk, quotEvalArity] at hown ⊢
     · rename_i rv hrv
       cases hrv
       cases hown
@@ -83,21 +83,6 @@ theorem unfold_not_special {c : Name} {ci : ConstantInfo} {b : Expr}
   unfold specialArity
   rw [hd, hco]
   rfl
-
-/-- A spine headed by a constant with an arity blocks application congruence, unless the constant
-is a recursor. -/
-theorem blocksCong_special {e : Expr} {c : Name} {us : List Level} {ar : Nat}
-    (he : e.getAppFn = .const c us) (har : specialArity σ c = some ar) :
-    BlocksCong σ e ∨ ∃ rv, findDecl σ.decls c = some (.recInfo rv) := by
-  rcases SrcDefeq.specialArity_some har with ⟨cv, hcv, -⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, -⟩ |
-    ⟨rv, hrv, -⟩
-  · exact .inl (SrcDefeq.blocksCong_ctor he hcv)
-  · cases e with
-    | app f a => exact .inl (.inr (.inl ⟨c, us, iv, he, hiv⟩))
-    | const => exact .inl (.inr (.inl ⟨c, us, iv, he, hiv⟩))
-    | _ => cases he
-  · exact .inl (SrcDefeq.blocksCong_quot he hqv)
-  · exact .inr ⟨rv, hrv⟩
 
 /-- The evaluations of a spine headed by a constant with an arity, with at most its arity of
 arguments: the η-expansion, a saturated constructor, a saturated `casesOn`, a saturated quotient
@@ -238,42 +223,34 @@ theorem fixed_ctor {c : Name} {us : List Level} {cv : ConstructorVal} {vs : List
   · rw [hc] at hqv; cases hqv
   · rw [hc] at hrv; cases hrv
 
-/-- A source value is not headed by a recursor. -/
-theorem srcValue_not_rec {e : Expr} (hv : SrcValue σ e) {c : Name} {us : List Level}
-    {rv : RecursorVal} (hfn : e.getAppFn = .const c us) :
-    findDecl σ.decls c ≠ some (.recInfo rv) := by
-  intro hr
+/-- A source value that blocks no congruence is headed by no constant with an arity. -/
+theorem srcValue_noArity {e : Expr} (hv : SrcValue σ e) (hnb : ¬ BlocksCong σ e) {c : Name}
+    {us : List Level} {ar : Nat} (hfn : e.getAppFn = .const c us) : specialArity σ c ≠ some ar := by
+  intro har
   cases hv with
   | lam | sort | forallE | lit => simp [Expr.getAppFn] at hfn
   | spine hsp =>
     obtain ⟨c', us', hc', hat⟩ := RelInst.atomSpine_head hsp
     rw [hfn] at hc'; cases hc'
-    unfold EvalEnv.isAtom at hat
-    rw [hr] at hat
-    simp [OwnRules] at hat
+    rw [(isAtom_spec hat).2] at har; cases har
   | propProj hp =>
     obtain ⟨S, i, e₀, he⟩ := RelInst.propProj_head hp
     rw [he] at hfn; cases hfn
-  | ctor hc _ =>
-    rw [SrcDefeq.getAppFn_mkAppN_const] at hfn; cases hfn
-    rw [hc] at hr; cases hr
-  | quotMk hc _ _ =>
-    rw [SrcDefeq.getAppFn_mkAppN_const] at hfn; cases hfn
-    rw [hc] at hr; cases hr
+  | ctor hc _ => exact hnb (SrcDefeq.blocksCong_ctor (SrcDefeq.getAppFn_mkAppN_const _ _ _) hc)
+  | quotMk hc hk _ =>
+    exact hnb (SrcDefeq.blocksCong_quot (SrcDefeq.getAppFn_mkAppN_const _ _ _) hc hk)
 
 /-- An application whose head is fixed and blocks no congruence, of a fixed argument, evaluates to
 itself only. -/
 theorem fixed_app {f a : Expr} (hf : Fixed σ f) (ha : Fixed σ a) (hnb : ¬ BlocksCong σ f)
-    (hnr : ∀ c us rv, f.getAppFn = .const c us → findDecl σ.decls c ≠ some (.recInfo rv)) :
+    (hna : ∀ c us ar, f.getAppFn = .const c us → specialArity σ c ≠ some ar) :
     Fixed σ (.app f a) := by
   intro w h
   have hsp : ∀ {c us} {as : List Expr} {ar : Nat}, Expr.app f a = mkAppN (.const c us) as.toArray →
       specialArity σ c = some ar → False := by
     intro c us as ar hx har
     obtain ⟨bs, -, rfl⟩ := SrcDefeq.spine_app hx.symm
-    rcases blocksCong_special (SrcDefeq.getAppFn_mkAppN_const c us bs) har with hb | ⟨rv, hrv⟩
-    · exact hnb hb
-    · exact hnr _ _ _ (SrcDefeq.getAppFn_mkAppN_const c us bs) hrv
+    exact hna _ _ _ (SrcDefeq.getAppFn_mkAppN_const c us bs) har
   generalize hx : Expr.app f a = x at h
   cases h with
   | beta _ hf' =>
@@ -292,9 +269,7 @@ theorem fixed_app {f a : Expr} (hf : Fixed σ f) (ha : Fixed σ a) (hnb : ¬ Blo
     exact (hsp hx (SimCases.specialArity_casesOn hcs)).elim
   | quotMk hc hk => exact (hsp (ar := 3) hx (by simp [specialArity, hc, hk, quotEvalArity])).elim
   | quotLift hc hk => exact (hsp (ar := 6) hx (by simp [specialArity, hc, hk, quotEvalArity])).elim
-  | recIota hcr =>
-    obtain ⟨bs, -, rfl⟩ := SrcDefeq.spine_app hx.symm
-    exact (hnr _ _ _ (SrcDefeq.getAppFn_mkAppN_const _ _ _) hcr).elim
+  | recIota hcr => exact (hsp hx (by unfold specialArity; rw [hcr])).elim
   | atom ha' => subst hx; simp [SrcAtom] at ha'
   | zeta | delta | constAtom | proj | projProp | lit | mdata => cases hx
 
@@ -421,7 +396,7 @@ theorem res_of_eval {e v : Expr} (hev : SrcEval σ e v) : Res σ v := by
     obtain ⟨-, hff, -⟩ := ihf
     obtain ⟨-, hfa, -⟩ := iha
     refine .mk (SrcEval.appCong hns hf hb ha).value
-      (fixed_app hff hfa hb fun _ _ _ h => srcValue_not_rec (SrcEval.value hf) h) ?_
+      (fixed_app hff hfa hb fun _ _ _ h => srcValue_noArity (SrcEval.value hf) hb h) ?_
     intro c us cv as hc hx
     obtain ⟨bs, -, rfl⟩ := SrcDefeq.spine_app hx.symm
     exact absurd (SrcDefeq.blocksCong_ctor (SrcDefeq.getAppFn_mkAppN_const c us bs) hc) hb

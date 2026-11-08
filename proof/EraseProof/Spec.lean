@@ -13,7 +13,7 @@ terms and declarations and Metalean terms and environments (`MBinding`, `Binds`,
 `MLCtx`, `SatTr`, `TrM`, `ProgEnv`), the source semantics (`EvalEnv`, atoms, `SrcEval`),
 erasability (`IsArity`, `IsErasable`, `ErasableS`), the closure predicates (`ConstsIn`,
 `KernameInj`, `SubEnv`, `evalEnvOf`, `ViewAgrees`), the sufficient condition for the fragment
-(`ReadClosed`, `PhaseIDecl`, `PlainExpr`, `RecFree`, `BlockNamesInj`, `ArityTypes`), and the erasure relation
+(`ReadClosed`, `PhaseIDecl`, `PlainExpr`, `RecShaped`, `BlockNamesInj`, `ArityTypes`), and the erasure relation
 (`Erases`, `ErasesAlt`, `ErasesInd`, `ErasesDecl`, `ErasesDeps`). λ□ evaluation is
 `EraseProof/Target.lean`.
 
@@ -708,10 +708,14 @@ def EvidentProp (decls : List ConstantInfo) : Expr → Bool
       | none => false
     | _ => false
 
-/-- Declarations that are evaluated by their own rules: constructors, recursors (outside Phase I),
-quotient constants. -/
+/-- Declarations that are evaluated by their own rules: constructors, recursors (`recIota`), and the
+quotient constants other than the type former `Quot`, which is an atom (`Quot.ind`, a proof, has no
+rule; DV-29). -/
 def OwnRules : ConstantInfo → Bool
-  | .ctorInfo _ | .recInfo _ | .quotInfo _ => true
+  | .ctorInfo _ | .recInfo _ => true
+  | .quotInfo q => match q.kind with
+    | .type => false
+    | _ => true
   | _ => false
 
 /-- Theorems: δ-less (DV-24), their statements are propositions (`ProgEnv.thm`). -/
@@ -719,9 +723,9 @@ def IsThm : ConstantInfo → Bool
   | .thmInfo _ => true
   | _ => false
 
-/-- δ-less constants that are values: evident type formers (incl. inductive types), proofs of
-evident propositions, and theorems. Reference: `tInd` in `MR P/PCUICWcbvEval.v:51 atom`, DV-11,
-DV-24. -/
+/-- δ-less constants that are values: evident type formers (incl. inductive types and `Quot`),
+proofs of evident propositions, and theorems. Reference: `tInd` in `MR P/PCUICWcbvEval.v:51 atom`,
+DV-11, DV-24, DV-29. -/
 def EvalEnv.isAtom (σ : EvalEnv) (c : Name) : Bool :=
   match findDecl σ.decls c with
   | some ci => (σ.unfold? c).isNone && (σ.casesOn? c).isNone && !OwnRules ci &&
@@ -740,7 +744,7 @@ def CtorValue (σ : EvalEnv) (T : Name) (m : Expr) (i : Nat) (fs : List Expr) : 
     ps.length = cv.numParams ∧ fs.length = cv.numFields ∧
     m = mkAppN (.const C us) (ps ++ fs).toArray
 
-/-- Heads excluded by `appCong`: λ, sort, Π, literals, constructor, `casesOn` and quotient spines.
+/-- Heads excluded by `appCong`: λ, sort, Π, literals, constructor, `casesOn` and `Quot.mk` spines.
 Reference: the side condition of `eval_app_cong` (`MR P/PCUICWcbvEval.v:311`: `~~ (isLambda f' ||
 isFixApp f' || isArityHead f' || isConstructApp f' || isPrimApp f')`; literals are values,
 `isPrimApp`; a `Quot.mk` value is a constructor value of the quotient, DV-29). -/
@@ -748,7 +752,8 @@ def BlocksCong (σ : EvalEnv) : Expr → Prop
   | .lam .. | .sort _ | .forallE .. | .lit _ => True
   | e => (∃ c us cv, e.getAppFn = .const c us ∧ findDecl σ.decls c = some (.ctorInfo cv)) ∨
     (∃ c us iv, e.getAppFn = .const c us ∧ σ.casesOn? c = some iv) ∨
-    (∃ c us qv, e.getAppFn = .const c us ∧ findDecl σ.decls c = some (.quotInfo qv))
+    (∃ c us qv, e.getAppFn = .const c us ∧ findDecl σ.decls c = some (.quotInfo qv) ∧
+      qv.kind = .ctor)
 
 /-- Spines headed by an atom constant (port of `L4 Source/Eval.lean`). -/
 inductive AtomSpine (σ : EvalEnv) : Expr → Prop
@@ -1040,17 +1045,6 @@ def ReadClosed (decls : List ConstantInfo) (e : Expr) : Prop :=
       inD iv.name ∧ inD (mkRecName iv.name)) ∧
     (∀ iv, ci = .inductInfo iv → iv.ctors.length = 1 → inD (mkRecName iv.name))
 
-/-- A recursor of `decls`. -/
-def IsRecursorIn (decls : List ConstantInfo) (c : Name) : Bool :=
-  match findDecl decls c with
-  | some (.recInfo _) => true
-  | _ => false
-
-/-- `x` mentions no recursor of `decls`: then the fragment test checks no recursor that `x` reads
-(`collectDeps_ok_of`). -/
-def RecFree (decls : List ConstantInfo) (x : Expr) : Prop :=
-  ConstsIn (fun c => IsRecursorIn decls c = false) x
-
 /-- An inductive of `decls` that the traversal may eliminate: its `casesOn` is recognized, or it has
 one constructor with a field (so it may be projected). -/
 def Eliminated (decls : List ConstantInfo) (iv : InductiveVal) : Prop :=
@@ -1066,6 +1060,12 @@ def RecInFragment (cfg : ErasureConfig) (decls : List ConstantInfo) (r : Recurso
   ∃ T iv cvs, r.name = mkRecName T ∧ r.all = [T] ∧
     EvalEnv.recBlock? ⟨decls, fun _ => false⟩ r = some ([iv], cvs) ∧
     recShapeInFragment r [iv] cvs = true ∧ recStaysConstant cfg.nat r [iv] cvs = false
+
+/-- `x` mentions recursors of `decls` only in the shape that the fragment admits
+(`RecInFragment`): what the fragment test checks of every recursor a read expression names
+(`Erasure.declExclusion`). -/
+def RecShaped (cfg : ErasureConfig) (decls : List ConstantInfo) (x : Expr) : Prop :=
+  ConstsIn (fun c => ∀ rv, findDecl decls c = some (.recInfo rv) → RecInFragment cfg decls rv) x
 
 /-- A declaration of the closure is inside the first-phase fragment (Phase I): every quotient
 constant; a recursor as `T.rec` of a recognized `T.casesOn` of the closure or of an inductive `T` of
