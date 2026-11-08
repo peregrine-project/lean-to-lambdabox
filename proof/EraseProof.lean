@@ -109,6 +109,10 @@ import EraseProof.Test.NVSModel
 import EraseProof.Test.NVSFinal
 import EraseProof.Test.NVQPData
 import EraseProof.Test.NVQPRun
+import EraseProof.Test.NVQPBlocks
+import EraseProof.Test.NVQPDefs
+import EraseProof.Test.NVQPResp
+import EraseProof.Test.NVQPModel
 import EraseProof.Test.NV1Collect
 import EraseProof.Test.NVQCollect
 import EraseProof.Test.NVRCollect
