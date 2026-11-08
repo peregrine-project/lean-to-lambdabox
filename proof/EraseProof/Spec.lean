@@ -708,10 +708,14 @@ def EvidentProp (decls : List ConstantInfo) : Expr → Bool
       | none => false
     | _ => false
 
-/-- Declarations that are evaluated by their own rules: constructors, recursors (`recIota`),
-quotient constants. -/
+/-- Declarations that are evaluated by their own rules: constructors, recursors (`recIota`), and the
+quotient constants other than the type former `Quot`, which is an atom (`Quot.ind`, a proof, has no
+rule; DV-29). -/
 def OwnRules : ConstantInfo → Bool
-  | .ctorInfo _ | .recInfo _ | .quotInfo _ => true
+  | .ctorInfo _ | .recInfo _ => true
+  | .quotInfo q => match q.kind with
+    | .type => false
+    | _ => true
   | _ => false
 
 /-- Theorems: δ-less (DV-24), their statements are propositions (`ProgEnv.thm`). -/
@@ -719,9 +723,9 @@ def IsThm : ConstantInfo → Bool
   | .thmInfo _ => true
   | _ => false
 
-/-- δ-less constants that are values: evident type formers (incl. inductive types), proofs of
-evident propositions, and theorems. Reference: `tInd` in `MR P/PCUICWcbvEval.v:51 atom`, DV-11,
-DV-24. -/
+/-- δ-less constants that are values: evident type formers (incl. inductive types and `Quot`),
+proofs of evident propositions, and theorems. Reference: `tInd` in `MR P/PCUICWcbvEval.v:51 atom`,
+DV-11, DV-24, DV-29. -/
 def EvalEnv.isAtom (σ : EvalEnv) (c : Name) : Bool :=
   match findDecl σ.decls c with
   | some ci => (σ.unfold? c).isNone && (σ.casesOn? c).isNone && !OwnRules ci &&
@@ -740,7 +744,7 @@ def CtorValue (σ : EvalEnv) (T : Name) (m : Expr) (i : Nat) (fs : List Expr) : 
     ps.length = cv.numParams ∧ fs.length = cv.numFields ∧
     m = mkAppN (.const C us) (ps ++ fs).toArray
 
-/-- Heads excluded by `appCong`: λ, sort, Π, literals, constructor, `casesOn` and quotient spines.
+/-- Heads excluded by `appCong`: λ, sort, Π, literals, constructor, `casesOn` and `Quot.mk` spines.
 Reference: the side condition of `eval_app_cong` (`MR P/PCUICWcbvEval.v:311`: `~~ (isLambda f' ||
 isFixApp f' || isArityHead f' || isConstructApp f' || isPrimApp f')`; literals are values,
 `isPrimApp`; a `Quot.mk` value is a constructor value of the quotient, DV-29). -/
@@ -748,7 +752,8 @@ def BlocksCong (σ : EvalEnv) : Expr → Prop
   | .lam .. | .sort _ | .forallE .. | .lit _ => True
   | e => (∃ c us cv, e.getAppFn = .const c us ∧ findDecl σ.decls c = some (.ctorInfo cv)) ∨
     (∃ c us iv, e.getAppFn = .const c us ∧ σ.casesOn? c = some iv) ∨
-    (∃ c us qv, e.getAppFn = .const c us ∧ findDecl σ.decls c = some (.quotInfo qv))
+    (∃ c us qv, e.getAppFn = .const c us ∧ findDecl σ.decls c = some (.quotInfo qv) ∧
+      qv.kind = .ctor)
 
 /-- Spines headed by an atom constant (port of `L4 Source/Eval.lean`). -/
 inductive AtomSpine (σ : EvalEnv) : Expr → Prop

@@ -118,9 +118,11 @@ Scope.
   `nat := .machine` the test rejects them, with `Nat.zero`, `Nat.succ` and `Nat.casesOn`.
 * The fragment admits programs on which the source evaluation is stuck where λ□ evaluation is not
   necessarily: they use opaques with a value (no δ, DV-10; the eraser emits the value), axioms of
-  data type, `@[extern]` definitions under the default `extern := .preferAxiom` (no δ, DV-12), or
-  `casesOn` on a lemma of an inductive with proof fields (DV-24). A source evaluation that needs
-  to unfold such a constant or to match on such a lemma is stuck, so `hev` does not
+  data type, `@[extern]` definitions under the default `extern := .preferAxiom` (no δ, DV-12),
+  `casesOn` on a lemma of an inductive with proof fields, a recursor on a lemma (`True.rec` or
+  `And.rec` applied to a theorem; DV-24, DV-30), or `Quot.ind` in an evaluated position, such as
+  an argument (DV-29). A source evaluation that needs to unfold such a constant, to match on such
+  a lemma or to evaluate `Quot.ind` is stuck, so `hev` does not
   hold and the theorem says nothing about the program, although the emitted λ□ program may
   compute a value: `Ex.opaqueEx` of `tests/corpus/Examples.lean`, the successor of
   `opaque opaqueTwo : CNat := two`, is in the fragment, and its source evaluation is stuck at

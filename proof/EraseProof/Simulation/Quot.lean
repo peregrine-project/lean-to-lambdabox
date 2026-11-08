@@ -25,7 +25,7 @@ variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {P : List Con
 
 /-- The element of a `Quot.mk` value is a value. -/
 theorem srcValue_quotMk_arg {c : Name} {us : List Level} {qv : QuotVal} {α r a : Expr}
-    (hc : findDecl σ.decls c = some (.quotInfo qv))
+    (hc : findDecl σ.decls c = some (.quotInfo qv)) (hk : qv.kind = .ctor)
     (h : SrcValue σ (mkAppN (.const c us) [α, r, a].toArray)) : SrcValue σ a := by
   have hfn := SrcDefeq.getAppFn_mkAppN_const c us [α, r, a]
   generalize hx : mkAppN (.const c us) [α, r, a].toArray = x at h hfn
@@ -41,7 +41,7 @@ theorem srcValue_quotMk_arg {c : Name} {us : List Level} {qv : QuotVal} {α r a 
   | spine hs =>
     obtain ⟨c', us', hfn', hat⟩ := RelInst.atomSpine_head hs
     rw [hfn] at hfn'; cases hfn'
-    simp [EvalEnv.isAtom, hc, OwnRules] at hat
+    simp [EvalEnv.isAtom, hc, OwnRules, hk] at hat
   | propProj hp =>
     obtain ⟨S, i, e₀, hfn'⟩ := RelInst.propProj_head hp
     rw [hfn] at hfn'; cases hfn'
@@ -157,7 +157,7 @@ theorem erases_correct_quotLift (henv : ProgEnv P ζ E B) (hE : EnvWF E)
   obtain ⟨u₀, hA₀u⟩ := htaA.regular
   obtain ⟨tb', htb', hdb'⟩ := TrM.inst hE hok hord hb₀ ha₀ htaA hb₀T
   -- the element's erasure, which `q'` evaluates to
-  have hval : SrcValue σ a := srcValue_quotMk_arg hc' (SrcEval.value hq)
+  have hval : SrcValue σ a := srcValue_quotMk_arg hc' hk' (SrcEval.value hq)
   obtain ⟨va, hva, rfl⟩ : ∃ va, Erases E B lps σ .nil [] a va ∧ vq = va := by
     rcases Erases.quot_inv hc' (by rw [hk']; rfl) (by simp) hvq with ⟨rfl, hbx⟩ |
       ⟨_, _, a₁, extra₁, a', extra₁', -, hl₂, ha', hlex₂, -, rfl⟩ |
