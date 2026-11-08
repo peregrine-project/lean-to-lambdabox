@@ -147,16 +147,24 @@ theorem plainD : PlainExpr cfg e ∧ ∀ ci ∈ D, ∀ x, ReadExpr D ci x → Pl
   · rcases mem_D hci with rfl | rfl | rfl | rfl | rfl | rfl <;> exact plain_of (by krfl)
   · exact plain_of (by krfl)
 
-theorem recFreeOf {x : Expr} (h : constsAll (fun c => !IsRecursorIn D c) x = true) :
-    RecFree D x :=
-  constsIn_of_all (fun _ h => by simpa using h) h
+/-- `c` is not a recursor of `D`. -/
+def notRecD (c : Name) : Bool :=
+  match findDecl D c with
+  | some (.recInfo _) => false
+  | _ => true
 
-/-- The term and the read expressions read no recursor. -/
-theorem recFreeD : RecFree D e ∧ ∀ ci ∈ D, ∀ x, ReadExpr D ci x → RecFree D x := by
-  refine ⟨recFreeOf (by krfl), fun ci hci x hx => ?_⟩
+/-- An expression that names no recursor of `D` names recursors only in the fragment's shape. -/
+theorem recShapedOf {x : Expr} (h : constsAll notRecD x = true) : RecShaped cfg D x :=
+  constsIn_of_all (fun c h rv hrv => by simp [notRecD, hrv] at h) h
+
+/-- The term and the read expressions read no recursor, so recursors only in the fragment's
+shape. -/
+theorem recShapedD :
+    RecShaped cfg D e ∧ ∀ ci ∈ D, ∀ x, ReadExpr D ci x → RecShaped cfg D x := by
+  refine ⟨recShapedOf (by krfl), fun ci hci x hx => ?_⟩
   refine readExpr_D hci ?_ ?_ hx
-  · rcases mem_D hci with rfl | rfl | rfl | rfl | rfl | rfl <;> exact recFreeOf (by krfl)
-  · exact recFreeOf (by krfl)
+  · rcases mem_D hci with rfl | rfl | rfl | rfl | rfl | rfl <;> exact recShapedOf (by krfl)
+  · exact recShapedOf (by krfl)
 
 theorem findDecl_isSome {c : Name} (h : (findDecl D c).isSome) :
     c = `B.rec ∨ c = `B.casesOn ∨ c = `B.t ∨ c = `B.f ∨ c = `B ∨ c = `B.neg := by
@@ -185,7 +193,7 @@ theorem blockD : BlockNamesInj D := by
 
 /-- The fragment test accepts NV-1's term, by `collectDeps_ok_of` from the premises above. -/
 theorem ok_of : ∃ decls', collectDeps view cfg e = .ok decls' :=
-  collectDeps_ok_of henv hview he hty rfl subD readD phaseD plainD recFreeD kernD blockD
+  collectDeps_ok_of henv hview he hty rfl subD readD phaseD plainD recShapedD kernD blockD
     (by decide)
 
 end EraseProof.Test.NV1

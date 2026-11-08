@@ -21,9 +21,9 @@ against the environment's), newest first:
 `P = [add, add._f, add.match_1, N.brecOn, N.brecOn.go, N.below, N.casesOn, N.rec, N.z, N.s, N,
 PProd.rec, PProd.mk, PProd, Unit.unit, Unit, PUnit.rec, PUnit.unit, PUnit]` (the dependency closure
 of the term, `Init`'s `PUnit`, `Unit` and `PProd` included); the term `e`; the view `#erase` reads
-(`P` as a list; `@[inline]` on `add.match_1`, as on every matcher, and on the abbreviations
-`Unit` and `Unit.unit`; the compiled companion `add._unsafe_rec` is not in it); the configuration
-`structural := .kernel`. Toward a non-vacuity instance of the final theorem
+(`P` and the compiled companion `add._unsafe_rec`, which the fragment test admits only under
+`structural := .kernel`; `@[inline]` on `add.match_1`, as on every matcher, and on the
+abbreviations `Unit` and `Unit.unit`); the configuration `structural := .kernel`. Toward a non-vacuity instance of the final theorem
 (`MR E/ErasureFunctionProperties.v:657 erase_correct`) through the kernel definitions of
 structural recursion: `Test/NVSRun.lean` discharges its hypotheses `hfrag` and `hrun`.
 -/
@@ -281,6 +281,21 @@ def add_def : DefinitionVal :=
   { name := `add, levelParams := [], type := addTy, value := addVal, hints := .regular 1,
     safety := .safe, all := [`add] }
 
+/-- `fun n m => add.match_1 (fun m => N) m (fun _ => n) (fun k => N.s (add._unsafe_rec n k))` -/
+def addUnsafeRecVal : Expr :=
+  .lam `n tN (.lam `m tN
+    (.app (.app (.app (.app (.const `add.match_1 [l1]) (.lam (hyg "m" 8) tN tN .default))
+      (.bvar 0)) (.lam `_ tUnit (.bvar 2) .default))
+      (.lam `k tN (.app cS (.app (.app (.const `add._unsafe_rec []) (.bvar 2)) (.bvar 0))) .default))
+    .default) .default
+
+/-- `add._unsafe_rec`, the compiled companion of `add`: the recursive definition before its
+compilation to `N.brecOn`, `partial`, outside `P` (the program's dependency closure does not reach
+it). -/
+def add_unsafe_rec : DefinitionVal :=
+  { name := `add._unsafe_rec, levelParams := [], type := addTy, value := addUnsafeRecVal,
+    hints := .«opaque», safety := .partial, all := [`add._unsafe_rec] }
+
 /-- The program, newest first. -/
 def P : List ConstantInfo :=
   [.defnInfo add_def, .defnInfo add_f, .defnInfo add_match_1, .defnInfo N_brecOn,
@@ -293,11 +308,14 @@ def P : List ConstantInfo :=
 /-- The erased term `add (N.s N.z) (N.s N.z)`. -/
 def e : Expr := .app (.app (.const `add []) mj) mj
 
-/-- The view `#erase` reads: `P` as a list, no `@[extern]` or `implemented_by` attributes,
+/-- The declarations the view holds: `P` and `add._unsafe_rec`. -/
+def PV : List ConstantInfo := P ++ [.defnInfo add_unsafe_rec]
+
+/-- The view `#erase` reads: the list `PV`, no `@[extern]` or `implemented_by` attributes,
 `@[inline]` on `add.match_1`, `Unit` and `Unit.unit`, as in the environment that elaborates the
 program. -/
 def view : EnvView where
-  find? := findConst P
+  find? := findConst PV
   isExtern _ := false
   inlineAttr? n := if n == `add.match_1 || n == `Unit || n == `Unit.unit then some .inline else none
   implementedBy? _ := none

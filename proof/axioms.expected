@@ -96,8 +96,8 @@ EraseProof.Test.NV1.plainD propext,Quot.sound
 EraseProof.Test.NV1.readD propext
 EraseProof.Test.NV1.readExpr_D propext
 EraseProof.Test.NV1.recAllowedB propext,Quot.sound
-EraseProof.Test.NV1.recFreeD propext
-EraseProof.Test.NV1.recFreeOf propext
+EraseProof.Test.NV1.recShapedD propext
+EraseProof.Test.NV1.recShapedOf propext
 EraseProof.Test.NV1.recTermM_typed propext,Classical.choice,Quot.sound
 EraseProof.Test.NV1.recrTerm_eq propext,Classical.choice,Quot.sound
 EraseProof.Test.NV1.register_B_found propext,Classical.choice,Quot.sound
@@ -697,6 +697,7 @@ EraseProof.Test.NVS.goTyM_isType propext,Classical.choice,Quot.sound
 EraseProof.Test.NVS.goV_run propext,Classical.choice,Quot.sound
 EraseProof.Test.NVS.goValM_typed propext,Classical.choice,Quot.sound
 EraseProof.Test.NVS.hcollect propext,Classical.choice,Quot.sound
+EraseProof.Test.NVS.hcollect_default propext,Classical.choice,Quot.sound
 EraseProof.Test.NVS.he propext,Classical.choice,Quot.sound
 EraseProof.Test.NVS.henv propext,Classical.choice,Quot.sound
 EraseProof.Test.NVS.henv1 propext,Classical.choice,Quot.sound

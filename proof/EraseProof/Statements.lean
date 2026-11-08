@@ -37,10 +37,11 @@ def erases_correct_statement : Prop :=
       ∃ vb, Erases E B lps σ .nil [] v vb ∧ LBEval defaultFlags lenv tb vb
 
 /-- The statement of `collectDeps_ok_of`, a lower bound of the fragment test: a typed program whose
-read closure is inside the fragment (`ReadClosed`, `PhaseIDecl`, `PlainExpr`, no recursor read
-(`RecFree`), no name collision, within the fuel) is accepted by `Erasure.collectDeps`. It shows
-that the hypothesis `hfrag` of `erase_correct_statement` does not make the theorem empty.
-Reference: none (DV-26). -/
+read closure is inside the fragment (`ReadClosed`, `PhaseIDecl`, `PlainExpr`, recursors read only in
+the shape `RecInFragment` admits (`RecShaped`), no name collision, within the fuel) is accepted by
+`Erasure.collectDeps`. It covers the recursors and, under `structural := .kernel`, the structural
+recursion that the fragment admits. It shows that the hypothesis `hfrag` of
+`erase_correct_statement` does not make the theorem empty. Reference: none (DV-26). -/
 def collectDeps_ok_of_statement : Prop :=
   ∀ {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {P decls : List ConstantInfo}
     {lps : List Name} {e : Expr} {t : Metalean.Expr ζ lps.length 0} {view : EnvView}
@@ -49,7 +50,7 @@ def collectDeps_ok_of_statement : Prop :=
     cfg.remove_irrel_constr_args = false → SubEnv decls P → ReadClosed decls e →
     (∀ ci ∈ decls, PhaseIDecl view cfg decls ci) →
     (PlainExpr cfg e ∧ ∀ ci ∈ decls, ∀ x, ReadExpr decls ci x → PlainExpr cfg x) →
-    (RecFree decls e ∧ ∀ ci ∈ decls, ∀ x, ReadExpr decls ci x → RecFree decls x) →
+    (RecShaped cfg decls e ∧ ∀ ci ∈ decls, ∀ x, ReadExpr decls ci x → RecShaped cfg decls x) →
     KernameInj decls → BlockNamesInj decls → decls.length ≤ collectFuel →
     ∃ decls', collectDeps view cfg e = .ok decls'
 
@@ -114,7 +115,6 @@ Scope.
   induction hypotheses take no arguments and are about the last fields of their constructor
   (`RecInFragment`), and other recursors only as the companions of `casesOn` that the traversal does
   not read. Nat literals are in the fragment only under `nat := .peano`; under the default
-
   `nat := .machine` the test rejects them, with `Nat.zero`, `Nat.succ` and `Nat.casesOn`.
 * The fragment admits programs on which the source evaluation is stuck where λ□ evaluation is not
   necessarily: they use opaques with a value (no δ, DV-10; the eraser emits the value), axioms of
