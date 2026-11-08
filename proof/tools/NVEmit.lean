@@ -6,28 +6,31 @@ import EraseProof.Test.NVQRun
 import EraseProof.Test.NVRRun
 import EraseProof.Test.NVSRun
 import EraseProof.Test.NVQPRun
+import EraseProof.Test.NVLRun
 
 /-!
-# NV-1's, NV-2's, NV-Q's, NV-R's, NV-S's and NV-QP's emitted programs, for check C11
+# NV-1's, NV-2's, NV-Q's, NV-R's, NV-S's, NV-QP's and NV-L's emitted programs, for check C11
 
 Run from `proof/` as `lake env lean --run tools/NVEmit.lean FILE1 FILE2 FILE3 FILE4 FILE5 FILE6
-FILE7`. For each of the non-vacuity instances NV-1 (`inductive B | f | t` and `B.neg`,
+FILE7 FILE8`. For each of the non-vacuity instances NV-1 (`inductive B | f | t` and `B.neg`,
 `EraseProof.Test.NV1`), NV-2 (`B`, `inductive T : Prop | i`, `inductive W | n | s (b : B) (h : T)`,
 `EraseProof.Test.NV2`), NV-Q (`B`, the axioms `R` and `hR`, and `Init`'s quotients,
 `EraseProof.Test.NVQ`), NV-R (`B` and `inductive N | z | s (n : N)`, `EraseProof.Test.NVR`), NV-S
-(`N` and `add`, defined by structural recursion, `EraseProof.Test.NVS`) and NV-QP (`orU` on the
-unordered pairs of `B`, `Quot swapR`, `EraseProof.Test.NVQP`, on its two terms `useTF` and `useFT`),
+(`N` and `add`, defined by structural recursion, `EraseProof.Test.NVS`), NV-QP (`orU` on the
+unordered pairs of `B`, `Quot swapR`, `EraseProof.Test.NVQP`, on its two terms `useTF` and `useFT`)
+and NV-L (`B` and `Init`'s `Nat`, `Nat.rec` on the literal `2` under `nat := .peano`,
+`EraseProof.Test.NVL`),
 it declares the program as the `inductive` command does (the kernel's inductive declaration, then
 `mkCasesOn`; NV-S's and NV-QP's sources are elaborated as a file is), checks that the environment's
 declarations are the written-out `P` (for NV-S, `P` and the compiled companion `add._unsafe_rec` of
 its view; every field; a definition's or theorem's value up to binder names), runs `#erase`'s entry
 point `Erasure.eraseEntry` on the term `e` over that environment, with the instance's
-configuration, and writes the program to `FILE1` (resp. `FILE2`, …, `FILE7`) and its attributes to
+configuration, and writes the program to `FILE1` (resp. `FILE2`, …, `FILE8`) and its attributes to
 `FILE1.inlinings`, printed as `#erase` prints them (`LeanToLambdaBox/Erasure/Command.lean`). It
 fails unless the printed program is byte-identical to the printing of the instance's `p0`, the
 program that its `hrun` computes (for `useFT`, `pFT`: NV-QP's `p0` with `useFT` for `useTF`), and
 the list of constants to inline is the one `hrun` states (empty, NV-S's and NV-QP's `inl0`). `proof/scripts/c11.sh` then runs
-`peregrine validate` and `peregrine eval` on the seven files. It also checks NV-P's declarations
+`peregrine validate` and `peregrine eval` on the eight files. It also checks NV-P's declarations
 (`EraseProof.Test.NVP.P`, shared by NV-K up to its lemma `hEq`) against the kernel's: `Eq` and its
 `Eq.rec`, `Eq.casesOn` from `Init`, and `B` as declared above.
 -/
@@ -190,9 +193,9 @@ def checkNVP : IO UInt32 := do
   | .error err => IO.eprintln s!"NV-P: {← err.toMessageData.toString}"; return 1
 
 def main (args : List String) : IO UInt32 := do
-  let [file1, file2, file3, file4, file5, file6, file7] := args
+  let [file1, file2, file3, file4, file5, file6, file7, file8] := args
     | IO.eprintln
-        "usage: lake env lean --run tools/NVEmit.lean FILE1 FILE2 FILE3 FILE4 FILE5 FILE6 FILE7"
+        "usage: lake env lean --run tools/NVEmit.lean FILE1 FILE2 FILE3 FILE4 FILE5 FILE6 FILE7 FILE8"
       return 2
   initSearchPath (← findSysroot)
   -- NV-1: `B` (the kernel adds `B`, `B.f`, `B.t`, `B.rec`; `B.casesOn` as the `inductive`
@@ -230,7 +233,9 @@ def main (args : List String) : IO UInt32 := do
     NVQP.inl0
   let r8 ← emit "NV-QP (useFT)" file7 (elabSource "NV-QP" srcNVQP) NVQP.P NVQP.eFT pFT NVQP.cfg
     NVQP.inl0
-  return max (max (max (max r1 r2) (max r3 r4)) (max r5 r6)) (max r7 r8)
+  -- NV-L: `B`; `Nat` and `Nat.rec` are `Init`'s.
+  let r9 ← emit "NV-L" file8 declB NVL.P NVL.e NVL.p0 NVL.cfg
+  return max (max (max (max r1 r2) (max r3 r4)) (max r5 r6)) (max (max r7 r8) r9)
 
 end EraseProofNVEmit
 
