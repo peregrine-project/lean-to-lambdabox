@@ -6,7 +6,8 @@ import EraseProof.Test.NVRRun
 
 The hypotheses `hfrag` and `hrun` of the final theorem (`MR E/ErasureFunctionProperties.v:657
 erase_correct`) on NV-S (`Test/NVSData.lean`). `hcollect` computes the fragment test's closure `D`
-by kernel evaluation. `hrun` is the run of the entry point, evaluated one traversal call at a time
+by kernel evaluation (and `hcollect_default` shows that under the default configuration it rejects
+`e`, whose `add` has a compiled companion in the view). `hrun` is the run of the entry point, evaluated one traversal call at a time
 (`Test/Run.lean`), cut at every read of the traversal's maps, with the steps on any closure of
 `Tools` (`lam_run`: a λ and its body, `appArgs_cons`: the arguments of an application,
 `register_found`, `kername_found`). `e` erases `add` (`kername_add`), whose body erases
@@ -39,6 +40,12 @@ def D : List ConstantInfo :=
 /-- The fragment test accepts `e` and returns the closure `D`, by kernel evaluation. Reference: the
 environment `Σ'` of `erase_global_deps` (`MR E/ErasureFunction.v:1602`). -/
 theorem hcollect : collectDeps view cfg e = .ok D := rfl
+
+/-- Under the default configuration (`structural := .unsafeRec`) the fragment test rejects `e` as
+outside the fragment (`#erase` reports "recursive definition add"): the view has `add`'s compiled companion `add._unsafe_rec`. -/
+theorem hcollect_default :
+    (match collectDeps view {} e with | .error (.outOfFragment _) => true | _ => false) = true := by
+  krfl
 
 /-- The pure backend's context over the closure. -/
 def pc : PureCtx := ⟨D, view⟩
