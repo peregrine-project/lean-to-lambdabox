@@ -45,7 +45,8 @@ theorem constsIn_of_all {p : Name → Bool} {q : Name → Prop} (hp : ∀ c, p c
     exact ⟨hp _ h.1, constsIn_of_all hp h.2⟩
   | .bvar _, _ | .fvar _, _ | .mvar _, _ | .sort _, _ | .lit _, _ => trivial
 
-/-- `PlainExpr` under the default configuration (`nat := .machine`), as a Boolean test. -/
+/-- A sufficient condition for `PlainExpr` under every configuration, as a Boolean test: no Nat
+literal and none of the constants that `nat := .machine` excludes. -/
 def plainB : Expr → Bool
   | .fvar _ | .mvar _ | .lit _ => false
   | .sort u => LevelPlain u
@@ -57,7 +58,7 @@ def plainB : Expr → Bool
   | .mdata _ e | .proj _ _ e => plainB e
   | .bvar _ => true
 
-theorem plain_of : ∀ {x : Expr}, plainB x = true → PlainExpr {} x
+theorem plain_of {cfg : ErasureConfig} : ∀ {x : Expr}, plainB x = true → PlainExpr cfg x
   | .sort _, h => h
   | .const c us, h => by
     simp only [plainB, Bool.and_eq_true, List.all_eq_true, Bool.not_eq_true'] at h
@@ -77,6 +78,77 @@ theorem forall_eq_some {α : Type} {f : Option α} {Q : α → Prop} [DecidableP
     (h : f.all (fun a => decide (Q a)) = true) : ∀ a, f = some a → Q a := by
   rintro a rfl
   simpa using h
+
+/-- Every expression that the traversal reads from a declaration of `decls` (`ReadExpr`) passes the
+test `p`. -/
+def readAll (decls : List ConstantInfo) (p : Expr → Bool) : Bool :=
+  decls.all fun ci => p ci.type && match ci with
+    | .defnInfo d => (EvalEnv.casesOn? ⟨decls, fun _ => false⟩ d.name).isSome || p d.value
+    | .opaqueInfo o => p o.value
+    | _ => true
+
+theorem readAll_of {decls : List ConstantInfo} {p : Expr → Bool} (h : readAll decls p = true) :
+    ∀ ci ∈ decls, ∀ x, ReadExpr decls ci x → p x = true := by
+  intro ci hci x hx
+  have h := List.all_eq_true.mp h ci hci
+  rcases hx with rfl | ⟨d, rfl, rfl, hn⟩ | ⟨o, rfl, rfl⟩
+  · exact (Bool.and_eq_true _ _ ▸ h).1
+  · simp only [Bool.and_eq_true, Bool.or_eq_true] at h
+    exact h.2.resolve_left (by simpa using hn)
+  · exact (Bool.and_eq_true _ _ ▸ h).2
+
+/-- `c` is not a recursor of `decls`. -/
+def notRec (decls : List ConstantInfo) (c : Name) : Bool :=
+  match findDecl decls c with
+  | some (.recInfo _) => false
+  | _ => true
+
+/-- An expression that names no recursor of `decls` other than `r`, which is in the fragment's
+shape, names recursors only in the fragment's shape. -/
+theorem recShaped_of {cfg : ErasureConfig} {decls : List ConstantInfo} {r : RecursorVal}
+    (hr : RecInFragment cfg decls r) (hf : findDecl decls r.name = some (.recInfo r)) {x : Expr}
+    (h : constsAll (fun c => c == r.name || notRec decls c) x = true) : RecShaped cfg decls x :=
+  constsIn_of_all (fun c h rv hrv => by
+    by_cases hc : c = r.name
+    · subst hc; rw [hf] at hrv; cases hrv; exact hr
+    · simp [notRec, hc, hrv] at h) h
+
+/-- Two module paths differ, as a Boolean test. -/
+def mpNe : ModPath → ModPath → Bool
+  | .MPfile a, .MPfile b => !decide (a = b)
+  | .MPdot m a, .MPdot n b => !decide (a = b) || mpNe m n
+  | _, _ => true
+
+theorem ne_of_mpNe : ∀ {a b : ModPath}, mpNe a b = true → a ≠ b
+  | .MPfile _, .MPfile _, h, rfl => by simp [mpNe] at h
+  | .MPdot m _, .MPdot n _, h, he => by
+    cases he
+    simp only [mpNe, decide_true, Bool.not_true, Bool.false_or] at h
+    exact ne_of_mpNe h rfl
+  | .MPfile _, .MPdot .., _, h | .MPdot .., .MPfile _, _, h => nomatch h
+
+/-- The kernames of distinct declarations of `decls` differ, as a Boolean test. -/
+def kernB (decls : List ConstantInfo) : Bool :=
+  decls.all fun a => decls.all fun b => a.name == b.name ||
+    !decide ((toKername a.name).id = (toKername b.name).id) ||
+    mpNe (toKername a.name).mp (toKername b.name).mp
+
+theorem mem_of_findDecl {decls : List ConstantInfo} {c : Name} (h : (findDecl decls c).isSome) :
+    ∃ ci ∈ decls, ci.name = c := by
+  rw [findDecl, List.find?_isSome] at h
+  obtain ⟨ci, hci, hc⟩ := h
+  exact ⟨ci, hci, beq_iff_eq.mp hc⟩
+
+theorem kernameInj_of {decls : List ConstantInfo} (h : kernB decls = true) : KernameInj decls := by
+  intro c₁ c₂ h₁ h₂ hk
+  obtain ⟨a, ha, rfl⟩ := mem_of_findDecl h₁
+  obtain ⟨b, hb, rfl⟩ := mem_of_findDecl h₂
+  have h := List.all_eq_true.mp (List.all_eq_true.mp h a ha) b hb
+  simp only [Bool.or_eq_true, beq_iff_eq, Bool.not_eq_true', decide_eq_false_iff_not] at h
+  rcases h with (h | h) | h
+  · exact h
+  · exact absurd (congrArg Kername.id hk) h
+  · exact absurd (congrArg Kername.mp hk) (ne_of_mpNe h)
 
 end EraseProof.Test
 
