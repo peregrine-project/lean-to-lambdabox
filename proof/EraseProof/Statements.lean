@@ -108,13 +108,14 @@ Scope.
   `T.brecOn`, whose value is the first projection of a `T.rec` into the pairs of a value and its
   table of recursive calls `T.below`, and the eraser erases it as any definition. A mutual
   structural block (definitions that share `all`) is not the Lean form of Metalean definitions
-  (`ProgEnv.defn`), and the source semantics has no recursor ι on a Nat literal, so the theorem
-  says nothing about either.
+  (`ProgEnv.defn`), so the theorem says nothing about it.
   Programs recurse through recursors: the
   test admits `T.rec` of a single inductive without indices that eliminates into every sort, whose
   induction hypotheses take no arguments and are about the last fields of their constructor
   (`RecInFragment`), and other recursors only as the companions of `casesOn` that the traversal does
-  not read. Nat literals are in the fragment only under `nat := .peano`; under the default
+  not read. A recursor reads a Nat literal major as ``Nat.zero`` or as ``Nat.succ`` applied to the
+  literal below (`natLitCtor`), as Lean's kernel does, so structural recursion and recursors run on
+  literals. Nat literals are in the fragment only under `nat := .peano`; under the default
   `nat := .machine` the test rejects them, with `Nat.zero`, `Nat.succ` and `Nat.casesOn`.
 * The fragment admits programs on which the source evaluation is stuck where λ□ evaluation is not
   necessarily: they use opaques with a value (no δ, DV-10; the eraser emits the value), axioms of

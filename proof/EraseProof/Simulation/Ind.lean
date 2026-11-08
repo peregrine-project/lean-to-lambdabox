@@ -200,6 +200,21 @@ theorem ctor_block (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P) {C : Nam
   simp only [List.getElem?_ofFn]
   simp [← hn, CasesWhred.name_ctorInfo]
 
+/-- A constructor of the program is among its inductive's constructors. -/
+theorem ctor_listed (henv : ProgEnv P ζ E B) {C : Name} {cv : ConstructorVal}
+    (hc : findDecl P C = some (.ctorInfo cv)) :
+    ∃ iv, findDecl P cv.induct = some (.inductInfo iv) ∧ C ∈ iv.ctors := by
+  obtain ⟨hm, hn⟩ := findDecl_eq_some hc
+  obtain ⟨ι, ζ₀, E₀, B₀, η₀, lps₀, Is, Cs, Rs, orders, s, k, hblk, rfl, hI⟩ :=
+    SrcProof.ctor_mem_block henv hm
+  obtain ⟨-, -, -, -, -, hcs, -⟩ := hblk.ind s
+  obtain ⟨-, -, hind, -⟩ := hblk.ctor s k
+  have hfI := CasesWhred.findDecl_of_nodup henv.fresh hI
+  rw [CasesWhred.name_inductInfo, ← hind] at hfI
+  refine ⟨_, hfI, ?_⟩
+  rw [hcs, List.mem_ofFn]
+  exact ⟨k, by simpa [CasesWhred.name_ctorInfo] using hn⟩
+
 /-- What λ□ needs of an erased constructor: its block's entry has the constructor's parameter
 count and field count, and is propositional exactly when the inductive is in `Prop`. -/
 theorem lookupCtor_of {lenv : GlobalDeclarations} (henv : ProgEnv P ζ E B)
