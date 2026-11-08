@@ -3449,6 +3449,27 @@ the calls at which the two oracles answer differently. It must equal
   `usesConst (· == `B.f)` is false on `f B.t`, both by `decide`; the tests of `structural` pass
   unchanged. `scripts/regress.sh` passes (27 tests) with `PEREGRINE`.
 
+## S-50: A regression test with a quotient whose relation identifies distinct values
+
+- **Commit:** the commit whose subject starts with `S-50:` (`git log --grep='^S-50:'`).
+- **Files and functions:**
+  - new `tests/regress/quotient_pair.lean` with its goldens. No code changes.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** the quotient tests so far take `Eq` as the relation, so no class has two
+  representatives. `quotient_pair` takes unordered pairs, `Quot swapR` with `swapR p q := q =
+  (p.2, p.1)` on `B × B`, and `orU`, the lift of `orB` along the theorem `orB_comm`. The pairs
+  `(B.t, B.f)` and `(B.f, B.t)` are distinct and have one class (`Quot.sound`). The lifted function
+  reads both projections of a `Prod` and matches on `B`.
+- **Behaviour before:** not tested.
+- **Behaviour after:** the same; the test pins it. `useTF`, `useFT` and `useFF` take the pure path,
+  and `#erase` writes them.
+- **Effect on emitted .ast (corpus):** none: only a test is added.
+- **Regression test:** `quotient_pair` checks, under `nat := .peano`, the oracle's answers on
+  the quotient type, on a class and on `orU`, that the three programs take the pure path, and pins
+  the `#erase` output (`useTF.ast`, `useFT.ast`, `useFF.ast`). peregrine validates them and
+  evaluates `useTF` and `useFT` to `QP.B.t`, so one class gives one value on both representatives,
+  and `useFF` to `QP.B.f`. `scripts/regress.sh` passes (28 tests) with `PEREGRINE`.
+
 ## Reported, not fixed
 
 Each entry below was reproduced on this branch. Unless stated otherwise, the reproduction is an
