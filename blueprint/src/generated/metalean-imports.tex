@@ -355,17 +355,17 @@
     \ref{lem:EraseProof-SatTr-typed}, \ref{lem:EraseProof-ProgEnv-unfold},
     \ref{lem:EraseProof-casesOn_whred}, \ref{lem:EraseProof-IsErasable-inst},
     \ref{lem:EraseProof-IsErasable-ctor_not}, \ref{lem:EraseProof-ErasableS-atom},
-    \ref{lem:EraseProof-SrcEval-defeq}, \ref{lem:EraseProof-Erases-instLevels},
-    \ref{lem:EraseProof-Pure-isPropFormerType_iff}, \ref{lem:EraseProof-StepsCases-casesSat_box},
-    \ref{lem:EraseProof-erases_correct_ctor}, \ref{lem:EraseProof-erases_correct_casesIota},
-    \ref{lem:EraseProof-erases_correct_recIota}}
+    \ref{lem:EraseProof-SrcDefeq-sound_of}, \ref{lem:EraseProof-SrcEval-defeq},
+    \ref{lem:EraseProof-Erases-instLevels}, \ref{lem:EraseProof-Pure-isPropFormerType_iff},
+    \ref{lem:EraseProof-StepsCases-casesSat_box}, \ref{lem:EraseProof-erases_correct_ctor},
+    \ref{lem:EraseProof-erases_correct_casesIota}, \ref{lem:EraseProof-erases_correct_recIota}}
   \usedbyproofs{\ref{lem:EraseProof-TrM-dcong}, \ref{lem:EraseProof-TrM-apps},
     \ref{lem:EraseProof-TrM-inst}, \ref{lem:EraseProof-TrM-wkEnv},
-    \ref{lem:EraseProof-TypeEq-sort_ne_forallE}, \ref{lem:EraseProof-SrcDefeq-sound_of},
-    \ref{lem:EraseProof-Erases-inst}, \ref{lem:EraseProof-Pure-whnf_sound},
-    \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-OracleInfer-infer_projStruct},
-    \ref{lem:EraseProof-Steps-stepsB_ctor}, \ref{lem:EraseProof-Steps-visitRec_spec},
-    \ref{lem:EraseProof-Steps-stepsB_proj}, \ref{lem:EraseProof-StepsCases-casesSat_reduced},
+    \ref{lem:EraseProof-TypeEq-sort_ne_forallE}, \ref{lem:EraseProof-Erases-inst},
+    \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-OracleInfer-inferOK},
+    \ref{lem:EraseProof-OracleInfer-infer_projStruct}, \ref{lem:EraseProof-Steps-stepsB_ctor},
+    \ref{lem:EraseProof-Steps-visitRec_spec}, \ref{lem:EraseProof-Steps-stepsB_proj},
+    \ref{lem:EraseProof-StepsCases-casesSat_reduced},
     \ref{lem:EraseProof-StepsCasesCase-casesSat_case}, \ref{lem:EraseProof-erases_correct_beta},
     \ref{lem:EraseProof-PropInductive-of_propInd}}
 \end{imported}
@@ -966,7 +966,8 @@
   \usedbystatements{\ref{def:EraseProof-MBinding}, \ref{def:EraseProof-SatTr},
     \ref{lem:EraseProof-TrM-instLevels}, \ref{lem:EraseProof-TrM-apps},
     \ref{lem:EraseProof-SatTr-typed}, \ref{def:EraseProof-ProgEnv}, \ref{lem:EraseProof-TrM-wkEnv},
-    \ref{lem:EraseProof-ProgEnv-lookup_quot}, \ref{lem:EraseProof-SrcDefeq-sound_of}}
+    \ref{lem:EraseProof-ProgEnv-lookup_quot}, \ref{lem:EraseProof-SrcDefeq-sound_of},
+    \ref{lem:EraseProof-erases_correct_beta}}
   \usedbyproofs{\ref{lem:EraseProof-SatTr-subst}, \ref{lem:EraseProof-TrM-dcong},
     \ref{lem:EraseProof-TrM-inst}, \ref{lem:EraseProof-ProgEnv-lookup_recr},
     \ref{lem:EraseProof-casesOn_whred}, \ref{lem:EraseProof-proj_defeq},
@@ -975,9 +976,9 @@
     \ref{lem:EraseProof-Pure-whnf_sound}, \ref{lem:EraseProof-OracleInfer-inferOK},
     \ref{lem:EraseProof-OracleInfer-infer_projStruct},
     \ref{lem:EraseProof-Pure-isPropFormerType_iff}, \ref{lem:EraseProof-Steps-stepsB_ctor},
-    \ref{lem:EraseProof-Steps-visitRec_spec}, \ref{lem:EraseProof-erases_correct_beta},
-    \ref{lem:EraseProof-erases_correct_ctor}, \ref{lem:EraseProof-erases_correct_casesIota},
-    \ref{lem:EraseProof-erases_correct_quotMk}}
+    \ref{lem:EraseProof-Steps-visitRec_spec}, \ref{lem:EraseProof-erases_correct_ctor},
+    \ref{lem:EraseProof-erases_correct_casesIota}, \ref{lem:EraseProof-erases_correct_quotMk},
+    \ref{thm:EraseProof-erases_correct}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Frontend.Failure}]
@@ -1226,7 +1227,8 @@
     \ref{lem:EraseProof-TrM-dcong}, \ref{lem:EraseProof-TrM-apps}, \ref{lem:EraseProof-TrM-inst},
     \ref{lem:EraseProof-TrM-wkEnv}, \ref{lem:EraseProof-ProgEnv-lookup_quot},
     \ref{lem:EraseProof-IsErasable-quotMk_inv}, \ref{lem:EraseProof-SrcDefeq-sound_of},
-    \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-erases_correct_quotMk}}
+    \ref{lem:EraseProof-OracleInfer-inferOK}, \ref{lem:EraseProof-erases_correct_beta},
+    \ref{lem:EraseProof-erases_correct_quotMk}}
 \end{imported}
 
 \begin{imported}[\code{Metalean.Syntax.Reduction}]

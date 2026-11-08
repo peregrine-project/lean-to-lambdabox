@@ -24,7 +24,7 @@
   \lean{EraseProof.IsErasable, EraseProof.IsArity, EraseProof.ErasableS}
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-TrM}
-  \srcloc{proof/EraseProof/Spec.lean}{941}
+  \srcloc{proof/EraseProof/Spec.lean}{946}
   \lead{In short} A Metalean term is erasable when \hl{its type is an arity or a proposition}.
   \begin{itemize}
   \item \code{IsArity E $\Gamma$ T}: \code{T} equals, as a type, a $\Pi$-telescope ending in a
@@ -136,12 +136,13 @@ justifies each rule by a Metalean definitional equality.
   \leanok
   \uses{def:Erasure-declExclusion, def:Erasure-Pure-instLevels, def:EraseProof-EvalEnv,
     def:EraseProof-ConstsIn}
-  \srcloc{proof/EraseProof/Spec.lean}{722}
+  \srcloc{proof/EraseProof/Spec.lean}{726}
   \lead{In short} Constants that evaluate to themselves: \hl{without $\delta$, arity- or
   proof-typed, or a theorem}.
   \begin{itemize}
   \item \code{isAtom c}: no \code{unfold?}, not a recognized \code{casesOn}, no rules of its own
-        (\code{OwnRules}), and its type an arity (the shipping \code{arityShape}), evidently a proposition
+        (\code{OwnRules}; the quotient type former \code{Quot} has none, so it is an atom), and its
+        type an arity (the shipping \code{arityShape}), evidently a proposition
         (\code{EvidentProp}, \code{EvidentZero}), or a theorem (\code{IsThm});
   \item \code{SrcAtom}: $\lambda$, sorts, $\Pi$; \code{AtomSpine}: an atom constant applied.
   \end{itemize}
@@ -173,7 +174,7 @@ justifies each rule by a Metalean definitional equality.
   \leanok
   \uses{def:Erasure-declExclusion, def:Erasure-Pure-instLevels, def:EraseProof-EvalEnv,
     def:EraseProof-EvalEnv-isAtom, def:EraseProof-EvalEnv-etaSpine, def:EraseProof-ConstsIn}
-  \srcloc{proof/EraseProof/Spec.lean}{816}
+  \srcloc{proof/EraseProof/Spec.lean}{821}
   \lead{In short} \code{SrcEval $\sigma$ e v}: the closed Lean term \code{e} \hl{evaluates to the
   value \code{v}}; constructor and \code{casesOn} spines evaluate as a whole.
   \begin{tabular}{p{0.2\linewidth}p{0.66\linewidth}}
@@ -200,7 +201,7 @@ justifies each rule by a Metalean definitional equality.
   \code{quotLift} & \code{f} evaluates to \code{fun x => b}, \code{q} to \code{Quot.mk $\alpha$'
     r' a}: \hl{the quotient $\iota$}, \code{b} at \code{a} (DV-29) \\
   \code{appCong}, \code{mdata} & a stuck head (not \code{BlocksCong}: no constructor,
-    \code{casesOn} or quotient head) applied; metadata dropped \\
+    \code{casesOn} or \code{Quot.mk} head) applied (the atom \code{Quot} is one); metadata dropped \\
   \bottomrule
   \end{tabular}
   \lead{Reference} PCUIC \code{eval}; $\lambda_\Box$'s \code{eval\_iota\_sing} and
@@ -301,7 +302,8 @@ justifies each rule by a Metalean definitional equality.
     EraseProof.SrcDefeq.quot_app_tr, EraseProof.SrcDefeq.blocksCong_quot,
      EraseProof.SrcDefeq.case_quotMk,
     EraseProof.SrcDefeq.case_quotLift, EraseProof.SrcDefeq.satTr_quotEta_inv,
-    EraseProof.SrcDefeq.quotTerm_length, EraseProof.SrcDefeq.eta_quot,
+    EraseProof.SrcDefeq.quotTerm_length, EraseProof.SrcDefeq.quotTerm_typed,
+    EraseProof.SrcDefeq.satTr_quotType_typed, EraseProof.SrcDefeq.eta_quot,
     EraseProof.SrcDefeq.rec_head_eval, EraseProof.SrcDefeq.rec_app_tr, EraseProof.SrcDefeq.eta_recr, EraseProof.SrcDefeq.case_recIota}
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-TrLevel, def:EraseProof-SatTr, def:EraseProof-TrM,
@@ -309,10 +311,13 @@ justifies each rule by a Metalean definitional equality.
     lem:EraseProof-TrM-wkEnv, def:Erasure-Pure-instLevels, def:EraseProof-EvalEnv,
     def:EraseProof-EvalEnv-isAtom, def:EraseProof-EvalEnv-etaSpine, def:EraseProof-SrcEval,
     def:EraseProof-ConstsIn}
-  \srcloc{proof/EraseProof/Source/Defeq.lean}{1764}
+  \srcloc{proof/EraseProof/Source/Defeq.lean}{1812}
   \lead{In short} Given \code{ProofSound}, the obligation of \code{casesProof}, \hl{every
   evaluation preserves typed translations up to $\equiv$}, and saturating spines evaluate
   argument by argument (\code{SpineOK}).
+  \lead{Quotient type} a \code{Quot} spine is an atom, so \code{SpineOK} covers the \code{Quot}
+  binding and \code{satTr\_quotType\_typed} types the translation of the type former; the lemmas
+  \code{quot\_head\_eval} and \code{quot\_app\_tr} are for the kinds other than the type former.
   \lead{Reference} subject reduction, MetaRocq \code{subject\_reduction\_eval}.
 \end{lemma}
 \begin{proof}
@@ -353,7 +358,7 @@ justifies each rule by a Metalean definitional equality.
     def:EraseProof-ProgEnv, def:Erasure-declExclusion, def:Erasure-Pure-instLevels,
     def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-isAtom, def:EraseProof-EvalEnv-etaSpine,
     def:EraseProof-SrcEval, lem:EraseProof-SrcDefeq-sound_of, def:EraseProof-ConstsIn}
-  \srcloc{proof/EraseProof/Source/ProofSound.lean}{1195}
+  \srcloc{proof/EraseProof/Source/ProofSound.lean}{1217}
   \lead{In short} If \code{e} translates to a typed \code{t} and evaluates to \code{v}, then
   \code{v} translates to some \code{t'} \hl{definitionally equal to \code{t}} at the same type.
   \begin{itemize}
@@ -386,7 +391,7 @@ justifies each rule by a Metalean definitional equality.
   \uses{def:EraseProof-MBinding, def:EraseProof-TrM, def:EraseProof-ProgEnv,
     def:EraseProof-IsErasable, def:EraseProof-EvalEnv, def:EraseProof-SrcEval,
     def:EraseProof-ConstsIn}
-  \srcloc{proof/EraseProof/Source/ProofSound.lean}{1204}
+  \srcloc{proof/EraseProof/Source/ProofSound.lean}{1226}
   \lead{In short} \hl{Erasability is preserved by evaluation}, under \code{ProgEnv},
   \code{EnvWF E}, \code{SubEnv $\sigma$.decls P} and a typed translation of \code{e}.
   \lead{Reference} MetaRocq \code{Is\_type\_eval}.
@@ -427,7 +432,7 @@ justifies each rule by a Metalean definitional equality.
   \lean{EraseProof.DepClosed, EraseProof.FVarsIn}
   \leanok
   \uses{def:EraseProof-PhaseIDecl, def:EraseProof-ConstsIn}
-  \srcloc{proof/EraseProof/Spec.lean}{972}
+  \srcloc{proof/EraseProof/Spec.lean}{977}
   \lead{In short} \code{DepClosed decls}: \hl{the closure holds what the traversal and the
   recognizer read} of it.
   \begin{itemize}
@@ -462,7 +467,7 @@ justifies each rule by a Metalean definitional equality.
   \uses{def:Erasure-EnvView, def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-isAtom,
     def:EraseProof-EvalEnv-etaSpine, def:EraseProof-SrcEval, def:EraseProof-ConstsIn,
     def:EraseProof-DepClosed, def:Erasure-ErasureConfig}
-  \srcloc{proof/EraseProof/Source/Restrict.lean}{203}
+  \srcloc{proof/EraseProof/Source/Restrict.lean}{205}
   \lead{In short} Given \code{SubEnv decls P}, \code{DepClosed decls} and the constants of
   \code{e} in \code{decls}, an evaluation under \code{evalEnvOf view cfg P} is \hl{one under
   \code{evalEnvOf view cfg decls}}, with the value's constants in \code{decls}.
@@ -482,8 +487,10 @@ justifies each rule by a Metalean definitional equality.
 \item \lead{Caveat} Recursors evaluate only in the shape of \code{recIota}: a single inductive
   without indices, induction hypotheses without arguments and after the other fields, and a
   constructor major. A \code{Nat} literal major has no rule, so a program that applies a recursor
-  to a literal is covered only vacuously. The fragment test admits exactly the recursors with a
-  rule. Quotients evaluate, and the fragment test admits them.
+  to a literal, or to a proof that is no constructor value, is covered only vacuously (DV-24,
+  DV-30). The fragment test admits exactly the recursors with a rule. Quotients evaluate, and the
+  fragment test admits them; \code{Quot.ind} has no rule, so a program that evaluates it is
+  vacuous (DV-29).
 \item \lead{Caveat} A computational axiom or an opaque is stuck: no value, no claim.
 \item \lead{Caveat} A \code{casesOn} on a lemma of an inductive with proof fields has no rule:
   such programs are vacuous (DV-24).

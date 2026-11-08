@@ -90,7 +90,8 @@ structural recursion under the default \code{structural := .unsafeRec} & -- & th
   excludes it (an \code{\_unsafe\_rec} companion) \\
 quotients & I & \code{Quot.mk} and \code{Quot.lift} erased as \code{LCNF} does (S-38), a
   \code{Quot} spine as a type and a \code{Quot.ind} spine as a proof; the source semantics, the
-  relation and the simulation have their rules (DV-29); the fragment test admits them (S-39) \\
+  relation and the simulation have their rules (DV-29), except for \code{Quot.ind}, which a program
+  evaluating it makes vacuous; the fragment test admits them (S-39) \\
 well-founded recursion & -- & the fragment test rejects it (an \code{\_unsafe\_rec} companion);
   its recursion reduces only through an opaque accessibility proof, so the source never evaluates
   it (DV-24) \\
@@ -167,7 +168,8 @@ DV-23 & under-applied constructor and \code{casesOn} spines evaluate to their
   \code{withAppEtaToMinArity} emits them; PCUIC's \code{eval} evaluates arguments eagerly \\
 DV-24 & theorems have no $\delta$, since Metalean loads them as opaque: a proof may evaluate to an
   atom; \code{casesProof} and \code{projProp} cover \code{match h with | rfl} and \code{h.1}; a
-  \code{casesOn} on a lemma of an inductive with proof fields does not evaluate \\
+  \code{casesOn} on a lemma of an inductive with proof fields does not evaluate, nor does a
+  recursor on a lemma (DV-30) \\
 DV-10, DV-12 & opaques and \code{@[extern]} definitions under \code{preferAxiom} have no
   $\delta$ in the source; the fragment admits them \\
 DV-25 & a recognized \code{casesOn} is primitive in the source, without $\delta$ \\

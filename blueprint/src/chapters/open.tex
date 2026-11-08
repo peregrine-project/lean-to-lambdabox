@@ -36,6 +36,10 @@ root names the declaration that will use it, or \code{FINAL} for the final theor
   literal major, as it has \code{casesLitZero} and \code{casesLitSucc} for \code{casesOn}: a
   program that applies a recursor to a literal under \code{nat := .peano} is in the fragment and
   covered vacuously.
+\item \lead{Recursors on proofs, \code{Quot.ind}} \stOpen{} \code{SrcEval} has no rule for a
+  recursor whose major is a proof other than a constructor value (\code{True.rec}, \code{And.rec}
+  on a theorem), nor for \code{Quot.ind}: programs that evaluate them are covered vacuously
+  (DV-24, DV-29, DV-30).
 \end{itemize}
 
 \section{Phase II}\label{sec:open-phase2}
@@ -58,8 +62,8 @@ Structural recursion & \stShipping{} through the kernel's \code{brecOn} under
   \stProved{} the oracle's recursor $\iota$ (\code{Pure.whnf\_sound}), the frame lemma through the
   closed definition values, the admission under the option (\code{PhaseIDecl}), the traversal
   with no new step, and the instance NV-S; a mutual structural block and a recursion on a
-  \code{Nat} literal are covered vacuously; \stOpen{} an instance whose view holds the
-  \code{\_unsafe\_rec} companion \\
+  \code{Nat} literal are covered vacuously; the instance NV-S, whose view holds the
+  \code{\_unsafe\_rec} companion, and the lower bound \code{collectDeps\_ok\_of} on NV-R and NV-S \\
 \bottomrule
 \end{tabular}
 
@@ -85,8 +89,8 @@ Not covered & Where it is stated \\
 Runs that fail, sources that do not evaluate & partial correctness (Chapter~\ref{chap:final}) \\
 Inputs outside the fragment & the \code{Meta} path, trusted (Section~\ref{sec:trust-trusted});
   the scope (Chapter~\ref{chap:scope}) \\
-Opaques with values, data axioms, \code{@[extern]} definitions, matches on lemmas with proof
-  fields & the scope note of Section~\ref{sec:final-reading} \\
+Opaques with values, data axioms, \code{@[extern]} definitions, matches and recursors on
+  lemmas with proof fields, \code{Quot.ind} in an evaluated position & the scope note of Section~\ref{sec:final-reading} \\
 Well-founded recursion, structural recursion by default and in mutual blocks, \code{Nat}
   arithmetic, recursors of mutual or indexed blocks & Phase II
   (Section~\ref{sec:open-phase2}); the scope (Chapter~\ref{chap:scope}) \\

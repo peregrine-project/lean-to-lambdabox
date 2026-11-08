@@ -172,7 +172,8 @@ Round & Findings and their consequence in the statement \\
 3 & a missing sort guard on \code{Erases.proj} (M1 false on a raw kernel structure
   \code{W : Sort u}); a reduced-case rule unstable under universe instantiation; a contradiction
   between the lower bound and direct recursor uses. Hence the guard of \code{proj}, a level-free
-  \code{casesReduced}, and \code{RecFree}, which the shape of \code{RecInFragment} extends \\
+  \code{casesReduced}, and \code{RecShaped}, the recursor premise of the lower bound, built on the
+  shape of \code{RecInFragment} \\
 4 & untranslated opaque values made M2 false; so did a \code{casesOn} whose type is not a
   syntactic telescope; the closure's lemma exported too little. Hence the opaque clause of
   \code{ProgEnv} (value translated and typed), entry S-37, and the fragment facts of

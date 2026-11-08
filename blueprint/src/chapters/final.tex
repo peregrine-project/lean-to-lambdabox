@@ -31,7 +31,7 @@
   \lean{EraseProof.ViewAgrees}
   \leanok
   \uses{def:Erasure-EnvView}
-  \srcloc{proof/EraseProof/Spec.lean}{989}
+  \srcloc{proof/EraseProof/Spec.lean}{994}
   \lead{In short} \code{ViewAgrees view P}: \hl{the environment view of \code{\#erase} returns
   each declaration of \code{P} under its name}.
   \lead{Reference} \code{Sigma} $\sim$\code{\_ext X} (\code{abstract\_env\_ext\_rel}), a
@@ -46,7 +46,7 @@
     def:EraseProof-ProgEnv, def:Erasure-EraseError, def:Erasure-EnvView, def:Erasure-collectDeps,
     def:Erasure-eraseEntry, def:EraseProof-LBEval, def:EraseProof-Erases, def:EraseProof-EvalEnv,
     def:EraseProof-SrcEval, def:LBTerm, def:toKername, def:ASTType, def:Erasure-ErasureConfig}
-  \srcloc{proof/EraseProof/Statements.lean}{72}
+  \srcloc{proof/EraseProof/Statements.lean}{73}
   \lead{In short} The proposition of Theorem~\ref{thm:EraseProof-erase_correct}, \hl{pinned by
   \code{proof/spec.pin}}; its docstring states the scope of Section~\ref{sec:final-reading}.
   Check C12 compares the theorem's type with it (kernel definitional equality).
@@ -157,7 +157,13 @@
   \item axioms of data type, and \code{@[extern]} definitions under the default
         \code{extern := .preferAxiom}, which the source treats as axioms (DV-12);
   \item a \code{casesOn} on a lemma of an inductive with proof fields: \code{casesProof} covers
-        only field-less constructors (DV-24).
+        only field-less constructors (DV-24);
+  \item a recursor on a lemma (\code{True.rec} or \code{And.rec} applied to a theorem), which
+        \code{recIota} does not evaluate because its major is no constructor value (DV-24,
+        DV-30);
+  \item \code{Quot.ind} in an evaluated position, such as an argument, which has no rule: it is a
+        proof whose statement is not an evident proposition, and an atom erases only to $\Box$
+        (DV-29).
   \end{itemize}
   Example: \code{Ex.opaqueEx} of \leanfile{tests/corpus/Examples.lean}, the successor of
   \code{opaque opaqueTwo : CNat := two}, is in the fragment; the source is stuck at
@@ -301,7 +307,7 @@ structural erasure.
     EraseProof.SimCases.unfold?_spec, EraseProof.SimCases.const_inv,
     EraseProof.SimCases.trM_lam_inv, EraseProof.SimCases.trM_defeq, EraseProof.SimCases.closed0,
     EraseProof.SimCases.box_of_projHead, EraseProof.SimCases.satTr_ind_init,
-    EraseProof.SimCases.inst_let}
+    EraseProof.SimCases.inst_let, EraseProof.SimCases.satTr_quotType_init}
   \leanok
   \uses{def:EraseProof-ErasesSim, def:EraseProof-MBinding, def:EraseProof-SatTr,
     def:EraseProof-TrM, def:EraseProof-ProgEnv, def:Erasure-Pure-instLevels, def:EraseProof-LBEval,
@@ -309,7 +315,7 @@ structural erasure.
     def:EraseProof-EvalEnv-isAtom, def:EraseProof-EvalEnv-etaSpine, def:EraseProof-SrcEval,
     def:EraseProof-SrcValue, def:EraseProof-ConstsIn, def:LBTerm, def:toKername,
     def:Erasure-TravCtx}
-  \srcloc{proof/EraseProof/Simulation/Cases.lean}{474}
+  \srcloc{proof/EraseProof/Simulation/Cases.lean}{495}
   \lead{In short} One lemma per rule (\code{beta}, \code{zeta}, \code{delta}, \code{constAtom},
   \code{appCong}, \code{mdata}, \code{atom}): from the rule's premises and an \code{ErasesSim} per
   evaluation premise, \hl{\code{ErasesSim} of the rule's conclusion}.
@@ -336,7 +342,8 @@ structural erasure.
   \leanok
   \lead{Idea} Invert the erasure of the conclusion (\code{SimCases.app\_inv}); $\beta$ by
   \code{Erases.inst}, $\zeta$ by \code{Erases.inst\_let}, $\delta$ by \code{Erases.instLevels};
-  \code{appCong} needs the head's image typed (\code{SatTr.typed}).
+  \code{appCong} needs the head's image typed (\code{SatTr.typed}), and the type former \code{Quot}
+  is typed by \code{satTr\_quotType\_init}.
 \end{proof}
 
 \begin{lemma}[The proof cases of the simulation]
@@ -429,7 +436,7 @@ structural erasure.
   \uses{def:EraseProof-MBinding, def:EraseProof-TrM, def:EraseProof-LBEval, def:EraseProof-Erases,
     def:EraseProof-EvalEnv, def:EraseProof-SrcEval, def:EraseProof-SrcValue,
     def:EraseProof-ConstsIn, def:LBTerm}
-  \srcloc{proof/EraseProof/Simulation/Iota.lean}{523}
+  \srcloc{proof/EraseProof/Simulation/Iota.lean}{498}
   \lead{In short} \code{HeadBeta $\sigma$ e X}: \hl{\code{X} arises from \code{e} by head
   $\beta$-steps} of a $\lambda$-headed spine whose arguments evaluate to themselves only.
   \begin{itemize}
@@ -445,7 +452,7 @@ structural erasure.
   \lean{EraseProof.erases_correct_casesIota, EraseProof.erases_correct_casesLitSucc,
     EraseProof.SimIota.mkAppN_inj, EraseProof.SimIota.isAtom_spec,
     EraseProof.SimIota.special_not_atom, EraseProof.SimIota.unfold_not_special,
-    EraseProof.SimIota.blocksCong_special, EraseProof.SimIota.eval_spine_inv,
+    EraseProof.SimIota.eval_spine_inv,
     EraseProof.SimIota.eval_short, EraseProof.SimIota.fixed_atom, EraseProof.SimIota.fixed_lit,
     EraseProof.SimIota.fixed_const, EraseProof.SimIota.fixed_ctor, EraseProof.SimIota.fixed_app,
     EraseProof.SimIota.fixed_projProp, EraseProof.SimIota.res_of_eval,
@@ -463,7 +470,7 @@ structural erasure.
     EraseProof.SimIota.forall_snoc_intro, EraseProof.SimIota.appBox_step,
     EraseProof.SimIota.appBox, EraseProof.SimIota.fields_erasable,
     EraseProof.SimIota.fixed_quotMk,
-    EraseProof.SimIota.appArg_step, EraseProof.SimIota.srcValue_not_rec}
+    EraseProof.SimIota.appArg_step, EraseProof.SimIota.srcValue_noArity}
   \leanok
   \uses{def:EraseProof-PhaseIDecl, def:EraseProof-erases_correct_statement,
     def:EraseProof-ErasesSim, def:EraseProof-SimIota-HeadBeta, def:EraseProof-MBinding,
@@ -472,7 +479,7 @@ structural erasure.
     def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-isAtom, def:EraseProof-EvalEnv-etaSpine,
     def:EraseProof-SrcEval, def:EraseProof-SrcValue, def:EraseProof-ConstsIn, def:LBTerm,
     def:Erasure-TravCtx}
-  \srcloc{proof/EraseProof/Simulation/Iota.lean}{1169}
+  \srcloc{proof/EraseProof/Simulation/Iota.lean}{1144}
   \lead{In short} The \code{casesIota} and \code{casesLitSucc} case lemmas, with \hl{the
   induction hypothesis on every head-$\beta$-reduct} of the alternative applied to the fields.
   \begin{itemize}
@@ -643,7 +650,7 @@ structural erasure.
     def:EraseProof-ErasesSim, def:EraseProof-SimIota-HeadBeta, def:EraseProof-MBinding,
     def:EraseProof-ProgEnv, def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-etaSpine,
     def:EraseProof-SrcEval, def:EraseProof-ConstsIn}
-  \srcloc{proof/EraseProof/Simulation/Main.lean}{199}
+  \srcloc{proof/EraseProof/Simulation/Main.lean}{206}
   \lead{In short} An erasure with erased dependencies of a typed, evaluating term \hl{evaluates
   in $\lambda_\Box$ to an erasure of the value}.
   \begin{itemize}
@@ -680,7 +687,7 @@ structural erasure.
     def:EraseProof-ProgEnv, def:Erasure-EraseError, def:Erasure-EnvView, def:Erasure-collectDeps,
     def:Erasure-erasePure, def:EraseProof-LBEval, def:EraseProof-Erases, def:EraseProof-ErasesDeps,
     def:EraseProof-EvalEnv, def:LBTerm, def:toKername, def:ASTType, def:Erasure-ErasureConfig}
-  \srcloc{proof/EraseProof/Statements.lean}{56}
+  \srcloc{proof/EraseProof/Statements.lean}{57}
   \lead{In short} The proposition of Theorem~\ref{thm:EraseProof-erasePure_erases}, \hl{pinned by
   \code{proof/spec.pin}}.
 \end{definition}

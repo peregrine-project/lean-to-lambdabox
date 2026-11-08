@@ -11,12 +11,12 @@
   its arity), NV-R (an \code{N.rec} on a recursive inductive), NV-S (an \code{add} by structural
   recursion under \code{structural := .kernel}); the first-order corollary on NV-1,
   NV-2, NV-R and NV-S; the lower bound
-  \code{collectDeps\_ok\_of} on NV-1; determinism of $\lambda_\Box$ evaluation.
+  \code{collectDeps\_ok\_of} on NV-1, NV-R and NV-S; determinism of $\lambda_\Box$ evaluation.
 \item \lead{Status} \stProved{} every node; the runs by kernel evaluation of the shipping code.
   C12 checks the footprint of each \code{final} and \code{firstorder} instance.
 \item \lead{Nodes} \bpnodes{chap:tests}
 \item \lead{Lean files} \leanfiles{proof/EraseProof/Test/}{NV1Data, NV1Model, NV1Run, NV1Final,
-  NV1Collect, NVPData, NVPModel, NVKModel, NVPRun, NVPFinal, NV2Data, NV2Model, NV2Run, NV2Final,
+  NV1Collect, NVRCollect, NVSCollect, NVPData, NVPModel, NVKModel, NVPRun, NVPFinal, NV2Data, NV2Model, NV2Run, NV2Final,
   NVQData, NVQModel, NVQRun, NVQFinal, NVRData, NVRModel, NVRRun, NVRFinal, NVSData, NVSRun, NVSBlocks, NVSDefs, NVSFuns, NVSModel, NVSFinal, Run, LBEval}; \leanfile{proof/tools/NVEmit.lean}.
 \item \lead{Reference} the hypotheses of MetaRocq's \code{erase\_correct}
   (\code{erasure/theories/ErasureFunctionProperties.v}).
@@ -255,21 +255,30 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
     EraseProof.Test.NV1.mem_D, EraseProof.Test.NV1.subD, EraseProof.Test.NV1.casesOnD,
     EraseProof.Test.NV1.readExpr_D, EraseProof.Test.NV1.inD, EraseProof.Test.NV1.constsD,
     EraseProof.Test.NV1.readD, EraseProof.Test.NV1.phaseD, EraseProof.Test.NV1.plainD,
-    EraseProof.Test.NV1.recFreeOf, EraseProof.Test.NV1.recFreeD,
-    EraseProof.Test.NV1.findDecl_isSome, EraseProof.Test.NV1.kernD, EraseProof.Test.NV1.blockD}
+    EraseProof.Test.NV1.notRecD, EraseProof.Test.NV1.recShapedOf, EraseProof.Test.NV1.recShapedD,
+    EraseProof.Test.NV1.findDecl_isSome, EraseProof.Test.NV1.kernD, EraseProof.Test.NV1.blockD,
+    EraseProof.Test.readAll, EraseProof.Test.readAll_of, EraseProof.Test.notRec,
+    EraseProof.Test.recShaped_of, EraseProof.Test.mpNe, EraseProof.Test.ne_of_mpNe,
+    EraseProof.Test.kernB, EraseProof.Test.mem_of_findDecl, EraseProof.Test.kernameInj_of}
   \leanok
   \uses{def:EraseProof-PhaseIDecl, def:Erasure-EraseError, def:Erasure-collectDeps,
     def:EraseProof-EvalEnv, def:EraseProof-ConstsIn, def:EraseProof-Test-NV1-P,
     lem:EraseProof-Test-NV1-hrun, def:Erasure-ErasureConfig}
-  \srcloc{proof/EraseProof/Test/NV1Collect.lean}{186}
+  \srcloc{proof/EraseProof/Test/NV1Collect.lean}{266}
   \lead{In short} \code{collectDeps\_ok\_of} applied to NV-1 with \hl{every premise proved from
   the declarations}, not from a run of \code{collectDeps}.
   \begin{itemize}
-  \item \code{subD}, \code{readD}, \code{phaseD}, \code{plainD}, \code{recFreeD}, \code{kernD},
-        \code{blockD}: the closure is a sub-environment, read-closed, in Phase I, plain,
-        recursor-free, with injective kernames and block names;
+  \item \code{subD}, \code{readD}, \code{phaseD}, \code{plainD}, \code{recShapedD}, \code{kernD},
+        \code{blockD}: the closure is a sub-environment, read-closed, in Phase I, plain, with
+        \code{RecShaped} (it names no recursor), with injective kernames and block names;
   \item \code{constsAll}, \code{plainB}: Boolean tests decided by kernel evaluation, with their
-        soundness lemmas \code{constsIn\_of\_all}, \code{plain\_of}.
+        soundness lemmas \code{constsIn\_of\_all}, \code{plain\_of} (for every configuration);
+  \item shared with the instances NV-R and NV-S: \code{readAll\_of} (a test on every
+        \code{ReadExpr} of a closure), \code{recShaped\_of} (\code{RecShaped} when the only
+        recursor named is one given \code{RecInFragment}), \code{kernameInj\_of}
+        (\code{KernameInj} by kernel evaluation, through \code{kernB}, \code{mpNe} and
+        \code{mem\_of\_findDecl}; identifiers alone collide, as for \code{PProd.rec},
+        \code{PUnit.rec} and \code{N.rec}).
   \end{itemize}
 \end{lemma}
 \begin{proof}
@@ -774,7 +783,11 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
   \label{lem:EraseProof-Test-NVQ-final}
   \lean{EraseProof.Test.NVQ.mem_P, EraseProof.Test.NVQ.hview, EraseProof.Test.NVQ.hfrag,
    EraseProof.Test.NVQ.ev_lam, EraseProof.Test.NVQ.ev_lift, EraseProof.Test.NVQ.ev_cT,
-   EraseProof.Test.NVQ.hev, EraseProof.Test.NVQ.final}
+   EraseProof.Test.NVQ.hev, EraseProof.Test.NVQ.final, EraseProof.Test.NVQ.qT,
+   EraseProof.Test.NVQ.quot_not_blocksCong, EraseProof.Test.NVQ.quot_not_short,
+   EraseProof.Test.NVQ.ev_qT, EraseProof.Test.NVQ.idT, EraseProof.Test.NVQ.qa,
+   EraseProof.Test.NVQ.ev_qm, EraseProof.Test.NVQ.ev_qa, EraseProof.Test.NVQ.eT,
+   EraseProof.Test.NVQ.ev_eT}
   \leanok
   \uses{def:EraseProof-ViewAgrees, def:EraseProof-TrM, def:Erasure-EraseError,
     def:Erasure-collectDeps, def:EraseProof-LBEval, def:EraseProof-Erases, def:EraseProof-EvalEnv,
@@ -786,7 +799,13 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
   \begin{itemize}
   \item \code{hfrag}: the closure contains \code{Quot}, \code{Quot.mk} and \code{Quot.lift};
   \item \code{hev}: \code{SrcEval.quotLift} on \code{SrcEval.quotMk}, then $\beta$ on the
-        extra argument.
+        extra argument;
+  \item \code{ev\_qT}: the quotient type \code{@Quot (B $\to$ B) R} evaluates to itself, since
+        \code{Quot} is an atom (\code{quot\_not\_blocksCong}, \code{quot\_not\_short}: no spine of
+        \code{Quot} blocks application congruence or is short);
+  \item \code{ev\_eT}: NV-Q's term with its quotient passed through \code{fun (T : Type) (q : T)
+        => q} at the type argument \code{@Quot (B $\to$ B) R} evaluates to \code{B.t}
+        (\code{ev\_qa}, \code{ev\_qm}): the quotient type is evaluated as a $\beta$-argument.
   \end{itemize}
 \end{lemma}
 \begin{proof}
@@ -954,6 +973,37 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
   \lead{Idea} The rules of \code{SrcEval}; the other hypotheses from the nodes above.
 \end{proof}
 
+\begin{lemma}[NV-R: the lower bound of the fragment test]
+  \label{lem:EraseProof-Test-NVR-ok_of}
+  \lean{EraseProof.Test.NVR.ok_of, EraseProof.Test.NVR.mem_D, EraseProof.Test.NVR.subD,
+    EraseProof.Test.NVR.inD, EraseProof.Test.NVR.readD, EraseProof.Test.NVR.recInFragD,
+    EraseProof.Test.NVR.phaseD, EraseProof.Test.NVR.plainD, EraseProof.Test.NVR.recShapedD,
+    EraseProof.Test.NVR.kernD, EraseProof.Test.NVR.blockD}
+  \leanok
+  \uses{def:EraseProof-PhaseIDecl, def:Erasure-EraseError, def:Erasure-collectDeps,
+    def:EraseProof-EvalEnv, def:EraseProof-ConstsIn, def:EraseProof-Test-NVR-P,
+    lem:EraseProof-Test-NVR-hrun, lem:EraseProof-Test-NV1-ok_of, def:Erasure-ErasureConfig}
+  \srcloc{proof/EraseProof/Test/NVRCollect.lean}{91}
+  \lead{In short} \code{collectDeps\_ok\_of} applied to NV-R, whose term reads the recursor
+  \code{N.rec}: \hl{every premise proved from the declarations}, not from a run of the fragment
+  test.
+  \begin{itemize}
+  \item \code{recInFragD}: \code{N.rec} is in the shape of \code{RecInFragment}, with the block
+        \code{[N]}, \code{[N.z, N.s]} that \code{recBlock?} reads from \code{D};
+  \item \code{phaseD}: \code{N.rec} is in Phase I through that shape; \code{recShapedD}: it is the
+        only recursor the term and the read expressions name;
+  \item \code{subD}, \code{readD}, \code{plainD}, \code{kernD}, \code{blockD}: as for NV-1.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-collectDeps_ok_of, def:Erasure-EnvView, def:Erasure-declExclusion,
+    def:EraseProof-Test-NVR-E, lem:EraseProof-Test-NVR-henv, lem:EraseProof-Test-NVR-final,
+    def:toKername}
+  \leanok
+  \lead{Idea} Each syntactic premise by evaluation of a Boolean test (\code{readAll\_of},
+  \code{recShaped\_of}, \code{kernameInj\_of}); the fuel bound by \code{decide}.
+\end{proof}
+
 \section{NV-S}\label{sec:tests-nvs}
 
 A function by structural recursion, erased through the kernel definitions under
@@ -978,7 +1028,8 @@ A function by structural recursion, erased through the kernel definitions under
    EraseProof.Test.NVS.motN, EraseProof.Test.NVS.belowN, EraseProof.Test.NVS.fTy,
    EraseProof.Test.NVS.fVal, EraseProof.Test.NVS.add_f, EraseProof.Test.NVS.addTy,
    EraseProof.Test.NVS.addVal, EraseProof.Test.NVS.add_def, EraseProof.Test.NVS.P,
-   EraseProof.Test.NVS.e, EraseProof.Test.NVS.view, EraseProof.Test.NVS.cfg}
+   EraseProof.Test.NVS.addUnsafeRecVal, EraseProof.Test.NVS.add_unsafe_rec, EraseProof.Test.NVS.e,
+   EraseProof.Test.NVS.PV, EraseProof.Test.NVS.view, EraseProof.Test.NVS.cfg}
   \leanok
   \uses{def:Erasure-EnvView, def:Erasure-findConst, def:EraseProof-Test-NVR-P, def:Erasure-ErasureConfig}
   \srcloc{proof/EraseProof/Test/NVSData.lean}{37}
@@ -991,8 +1042,10 @@ A function by structural recursion, erased through the kernel definitions under
         \code{N.below}, \code{N.casesOn}, \code{N.rec}, the block of \code{N}, \code{PProd} with
         its constructor and recursor, \code{Unit}, \code{Unit.unit}, and \code{PUnit} with its
         constructor and recursor;
-  \item \code{view}: \code{P} as a list, with \code{@[inline]} on \code{add.match\_1}, \code{Unit}
-        and \code{Unit.unit}, as in the elaborated environment;
+  \item \code{add\_unsafe\_rec}: the compiled companion \code{add.\_unsafe\_rec} of \code{add}
+        (\code{partial}, \code{opaque} hints), outside \code{P}, which the closure does not reach;
+  \item \code{view}: \code{PV}, \code{P} followed by the companion, with \code{@[inline]} on
+        \code{add.match\_1}, \code{Unit} and \code{Unit.unit}, as in the elaborated environment;
   \item \leanfile{proof/tools/NVEmit.lean} elaborates the source and checks the declarations
         against the elaborator's.
   \end{itemize}
@@ -1000,7 +1053,8 @@ A function by structural recursion, erased through the kernel definitions under
 
 \begin{lemma}[NV-S: the fragment test and the run]
   \label{lem:EraseProof-Test-NVS-hrun}
-  \lean{EraseProof.Test.NVS.D, EraseProof.Test.NVS.hcollect, EraseProof.Test.NVS.pc,
+  \lean{EraseProof.Test.NVS.D, EraseProof.Test.NVS.hcollect, EraseProof.Test.NVS.hcollect_default,
+   EraseProof.Test.NVS.pc,
    EraseProof.Test.NVS.iidPP, EraseProof.Test.NVS.iidPU, EraseProof.Test.NVS.masksPP,
    EraseProof.Test.NVS.masksPU, EraseProof.Test.NVS.bodyPP, EraseProof.Test.NVS.bodyPU,
    EraseProof.Test.NVS.projPP, EraseProof.Test.NVS.zL, EraseProof.Test.NVS.sL,
@@ -1055,12 +1109,14 @@ A function by structural recursion, erased through the kernel definitions under
    EraseProof.Test.NVS.hrun}
   \leanok
   \uses{def:Erasure-EraseError, def:Erasure-collectDeps, def:Erasure-PureM, def:Erasure-erasePure, def:Erasure-eraseEntry, def:Erasure-erase, def:EraseProof-Test-NVS-P, lem:EraseProof-Test-NVR-hrun, def:LBTerm, def:ASTType, def:Erasure-ErasureConfig, def:Erasure-EraseT}
-  \srcloc{proof/EraseProof/Test/NVSRun.lean}{31}
+  \srcloc{proof/EraseProof/Test/NVSRun.lean}{32}
   \lead{In short} \code{\#erase} takes the pure path on NV-S and returns \code{p0}, with the
   inlinings \code{[Unit.unit, add.match\_1]}: the fragment test accepts the closure and the
   traversal erases every declaration it reads.
   \begin{itemize}
-  \item \code{hcollect}: the closure is \code{D}, by evaluation;
+  \item \code{hcollect}: the closure is \code{D}, by evaluation; \code{hcollect\_default}: under
+        the default configuration the test rejects the program as outside the fragment, since the
+        view holds the companion;
   \item the runs, bottom-up: the blocks of \code{N}, \code{PProd} and \code{PUnit}
         (\code{register\_\ldots}); \code{N.brecOn.go} through \code{visitRec}; \code{N.brecOn},
         \code{add.match\_1} (a \code{casesOn}), \code{add.\_f} (a projection of \code{PProd}) and
@@ -1361,6 +1417,39 @@ A function by structural recursion, erased through the kernel definitions under
   nodes above.
 \end{proof}
 
+\begin{lemma}[NV-S: the lower bound of the fragment test]
+  \label{lem:EraseProof-Test-NVS-ok_of}
+  \lean{EraseProof.Test.NVS.ok_of, EraseProof.Test.NVS.mem_D, EraseProof.Test.NVS.subD,
+    EraseProof.Test.NVS.inD, EraseProof.Test.NVS.readD, EraseProof.Test.NVS.recInFragD,
+    EraseProof.Test.NVS.phaseD, EraseProof.Test.NVS.notElimPU, EraseProof.Test.NVS.plainD,
+    EraseProof.Test.NVS.recShapedD, EraseProof.Test.NVS.kernD, EraseProof.Test.NVS.blockD}
+  \leanok
+  \uses{def:EraseProof-PhaseIDecl, def:Erasure-EraseError, def:Erasure-collectDeps,
+    def:EraseProof-EvalEnv, def:EraseProof-ConstsIn, def:EraseProof-Test-NVS-P,
+    lem:EraseProof-Test-NVS-hrun, lem:EraseProof-Test-NV1-ok_of, def:Erasure-ErasureConfig}
+  \srcloc{proof/EraseProof/Test/NVSCollect.lean}{133}
+  \lead{In short} \code{collectDeps\_ok\_of} applied to NV-S under \code{structural := .kernel}, on
+  the view that holds \code{add.\_unsafe\_rec}: \hl{every premise proved from the declarations}.
+  \begin{itemize}
+  \item \code{phaseD}: \code{add} is in Phase I through \code{isStructuralRecursive}, and no other
+        definition has a companion; \code{N.rec} through the recognized \code{N.casesOn};
+        \code{PProd.rec} and \code{PUnit.rec} through their single constructor; \code{PUnit}, whose
+        sort is \code{u}, through \code{mayBeNonZero} and \code{notElimPU};
+  \item \code{recInFragD}, \code{recShapedD}: \code{N.rec}, read by \code{N.brecOn.go} and
+        \code{N.below}, is in the shape of \code{RecInFragment} and is the only recursor the term
+        and the read expressions name;
+  \item \code{subD}, \code{readD}, \code{plainD}, \code{kernD}, \code{blockD}: as for NV-1.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-collectDeps_ok_of, def:Erasure-EnvView, def:Erasure-declExclusion,
+    def:EraseProof-Test-NVS-E, lem:EraseProof-Test-NVS-henv, lem:EraseProof-Test-NVS-final,
+    def:toKername}
+  \leanok
+  \lead{Idea} Each syntactic premise by evaluation of a Boolean test; the fuel bound by
+  \code{decide}.
+\end{proof}
+
 \section{\texorpdfstring{$\lambda_\Box$}{lambda-box} evaluation}\label{sec:tests-lbeval}
 
 \begin{lemma}[\texorpdfstring{$\lambda_\Box$}{lambda-box} evaluation is deterministic]
@@ -1388,10 +1477,10 @@ A function by structural recursion, erased through the kernel definitions under
   mutual structural block; that their premises are satisfiable is argued, not shown.
 \item \lead{Caveat} \leanfile{proof/tools/NVEmit.lean} checks the declarations of NV-1, NV-2, NV-P,
   NV-Q, NV-R and NV-S against the kernel's; NV-K's lemma \code{hEq} is written by hand.
-\item \lead{Caveat} NV-S's view is the closure of \code{add}, without the compiled companion
-  \code{add.\_unsafe\_rec}: the fragment test is evaluated on it, so its structural disjunct is not
-  consulted; \code{NVEmit} runs the entry point on the elaborated environment, which holds the
-  companion, with \code{structural := .kernel}.
+\item \lead{Caveat} NV-S's view holds the compiled companion \code{add.\_unsafe\_rec} beside the
+  closure, written out and compared by \code{NVEmit} with the elaborated environment's; the
+  fragment test accepts the program through \code{isStructuralRecursive} under
+  \code{structural := .kernel}, and rejects it under the default configuration.
 \item \lead{Caveat} The views of the tests are the closures as lists; \code{\#erase} reads the
   whole environment, which agrees with them on their names. The kernel checks the instances on
   the logical definitions; NVEmit runs the compiled code.

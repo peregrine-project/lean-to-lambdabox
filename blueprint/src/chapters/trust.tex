@@ -81,7 +81,9 @@ Lean's compiler and runtime & the theorem is about the logical definitions, \cod
   their compiled code: 186 constants on the verified path have compiled code that is not their
   logical definition (\code{@[extern]}, \code{@[implemented\_by]}, \code{opaque}), among them
   the \code{partial} functions that compute only the inlining hints; MetaRocq trusts its
-  extraction alike \\
+  extraction alike; the kernel checks the non-vacuity instances on the logical definitions, and
+  the compiled code is exercised on NV-1, NV-2, NV-Q, NV-R and NV-S by
+  \leanfile{proof/tools/NVEmit.lean} \\
 \bottomrule
 \end{tabular}
 
@@ -189,7 +191,7 @@ C12 & the four statement definitions of \leanfile{proof/EraseProof/Statements.le
   instances \code{Test.\{NV1,NV2,NVR,NVS\}.firstorder}, which mention it \\
 C12b & on every run, the statement definitions and the library and shipping definitions they
   reach, but the three functions under verification, have the SHA-256 digests of
-  \code{proof/spec.pin} (1075 lines), every pinned constant exists, and the toolchain and
+  \code{proof/spec.pin} (1074 lines), every pinned constant exists, and the toolchain and
   dependency revisions are the pinned ones \\
 \bottomrule
 \end{tabular}

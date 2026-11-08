@@ -377,7 +377,7 @@
 \begin{definition}[The Phase I fragment, as a sufficient condition]
   \label{def:EraseProof-PhaseIDecl}
   \lean{EraseProof.PhaseIDecl, EraseProof.ReadExpr, EraseProof.ReadClosed, EraseProof.PlainExpr,
-    EraseProof.LevelPlain, EraseProof.HasNatLit, EraseProof.IsRecursorIn, EraseProof.RecFree,
+    EraseProof.LevelPlain, EraseProof.HasNatLit,
     EraseProof.Eliminated, EraseProof.EmitsConst, EraseProof.BlockNamesInj,
     EraseProof.RecInFragment,
     EraseProof.RecShaped}
@@ -403,9 +403,11 @@
         take no arguments and are about the last fields of their constructor, and which the eraser
         does not keep as a constant (\code{recStaysConstant}); the shape of the recursors that
         \code{SrcEval.recIota} evaluates;
-  \item \code{PlainExpr}, \code{RecFree}: no free variable, metavariable or string literal (no
-        literal under \code{nat := .machine}); \code{RecFree}: no recursor, the premise of the
-        lower bound;
+  \item \code{PlainExpr}: no free variable, metavariable or string literal (no literal under
+        \code{nat := .machine});
+  \item \code{RecShaped cfg decls x}: every recursor of \code{decls} that \code{x} names is in the
+        shape of \code{RecInFragment}, which is what the fragment test checks of the recursors a
+        read expression names; the premise of the lower bound;
   \item \code{BlockNamesInj}: block names distinct from each other and from emitted constants.
   \end{itemize}
   \lead{Why the companion} a definition by structural recursion has a compiled \code{\_unsafe\_rec}
@@ -577,29 +579,35 @@
     EraseProof.CollectOk.Frag.dropKnown_ok_of, EraseProof.CollectOk.Frag.full,
     EraseProof.CollectOk.Frag.closure_ok_of, EraseProof.CollectOk.findCollision_none,
     EraseProof.CollectOk.findBlockCollision_none, EraseProof.CollectOk.eliminatedUndecided_none_of,
-    EraseProof.CollectOk.NCovered, EraseProof.CollectOk.NCovered.mono, EraseProof.CollectOk.NCovered.mem}
+    EraseProof.CollectOk.NCovered, EraseProof.CollectOk.NCovered.mono, EraseProof.CollectOk.Cov,
+    EraseProof.CollectOk.Cov.mem, EraseProof.CollectOk.dex_rec,
+    EraseProof.CollectOk.declExclusion_rec_of, EraseProof.CollectOk.viewCtors_of_mapM}
   \leanok
   \uses{def:EraseProof-PhaseIDecl, lem:EraseProof-collectDeps_spec,
     def:EraseProof-collectDeps_ok_of_statement, def:EraseProof-MBinding, def:EraseProof-ProgEnv,
     def:Erasure-EraseError, def:Erasure-EnvView, def:Erasure-findConst, def:Erasure-declExclusion,
     def:Erasure-collectDeps, def:Erasure-casesInfo, def:EraseProof-EvalEnv,
     def:EraseProof-ConstsIn, def:toKername, def:Erasure-ErasureConfig}
-  \srcloc{proof/EraseProof/Core/CollectOk.lean}{850}
+  \srcloc{proof/EraseProof/Core/CollectOk.lean}{959}
   \lead{In short} A typed program whose read closure is inside Phase I \hl{is accepted}:
   \code{hfrag} cannot silently empty the final theorem.
   \begin{itemize}
   \item \lead{Given} \code{henv}, \code{hview}, \code{he}, \code{hty} as in the final theorem;
         \code{cfg.remove\_irrel\_constr\_args = false}; \code{SubEnv decls P};
         \code{ReadClosed decls e}; \code{PhaseIDecl} of each declaration; \code{PlainExpr} and
-        \code{RecFree} of \code{e} and of every read expression; \code{KernameInj decls};
+        \code{RecShaped} of \code{e} and of every read expression; \code{KernameInj decls};
         \code{BlockNamesInj decls}; \code{decls.length $\le$ collectFuel};
   \item \lead{Then} $\exists$ \code{decls'}, \code{collectDeps view cfg e = .ok decls'}.
   \end{itemize}
   \lead{Structural recursion} \code{CollectOk.dex} carries the same disjunct, so the lower bound
   covers a structural recursion under \code{structural := .kernel}.
-  \lead{Why \code{RecFree}} the lower bound covers the programs that read no recursor in an
-  expression; the recursors of \code{PhaseIDecl}'s third disjunct are those the closure reads
-  through \code{casesOn} and projections, and the fragment test accepts them by \code{RecInFragment}.
+  \lead{Why \code{RecShaped}} the lower bound covers the programs whose expressions name
+  recursors only in the shape of \code{RecInFragment}, which is what the fragment test checks. A
+  structural definition reads \code{T.brecOn}, whose value applies \code{T.rec}, so the premise
+  must admit recursors for the structural disjunct of \code{PhaseIDecl} to arise. The work list
+  holds names that are covered (\code{Cov}): a non-recursor, or a recursor in the shape of
+  \code{RecInFragment}; \code{dex\_rec} shows that such a recursor passes \code{declExclusion}
+  through the view.
   \lead{Why it bounds \code{hfrag}} the conclusion of Lemma~\ref{lem:EraseProof-collectDeps_spec}
   holds these premises but \code{PlainExpr} and the fuel bound: the two lemmas bracket the test.
   \lead{Reference} none (DV-26).
@@ -613,7 +621,8 @@
   \lead{Idea} Induction on the closure's fuel; each class the test rejects contradicts a premise.
   \lead{Steps} invariant: accumulator inside \code{decls}, distinct names, work list covered,
   \code{decls.length $\le$ fuel + acc.length}; a \code{casesOn} the view recognizes is recognized
-  on \code{decls} (\code{recog\_dec}); \code{KernameInj} and \code{BlockNamesInj} exclude
+  on \code{decls} (\code{recog\_dec}: the value's head recursor and its inductive are in
+  \code{decls}, so \code{casesInfo?} agrees on \code{decls}); \code{KernameInj} and \code{BlockNamesInj} exclude
   collisions.
 \end{proof}
 
