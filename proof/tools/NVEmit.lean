@@ -24,9 +24,9 @@ its view; every field; a definition's or theorem's value up to binder names), ru
 point `Erasure.eraseEntry` on the term `e` over that environment, with the instance's
 configuration, and writes the program to `FILE1` (resp. `FILE2`, …, `FILE7`) and its attributes to
 `FILE1.inlinings`, printed as `#erase` prints them (`LeanToLambdaBox/Erasure/Command.lean`). It
-fails unless the printed program is byte-identical to the printing of the instance's `p0` (for
-`useFT`, NV-QP's `pFT`), the program that its `hrun` computes, and the list of constants to inline
-is the one `hrun` states (empty, NV-S's and NV-QP's `inl0`). `proof/scripts/c11.sh` then runs
+fails unless the printed program is byte-identical to the printing of the instance's `p0`, the
+program that its `hrun` computes (for `useFT`, `pFT`: NV-QP's `p0` with `useFT` for `useTF`), and
+the list of constants to inline is the one `hrun` states (empty, NV-S's and NV-QP's `inl0`). `proof/scripts/c11.sh` then runs
 `peregrine validate` and `peregrine eval` on the seven files. It also checks NV-P's declarations
 (`EraseProof.Test.NVP.P`, shared by NV-K up to its lemma `hEq`) against the kernel's: `Eq` and its
 `Eq.rec`, `Eq.casesOn` from `Init`, and `B` as declared above.
@@ -162,6 +162,12 @@ def useTF : B := orU (Quot.mk swapR (B.t, B.f))
 def useFT : B := orU (Quot.mk swapR (B.f, B.t))
 "
 
+/-- The program `#erase` emits for NV-QP's second term `useFT`: NV-QP's `p0` with the constant
+`useFT`, `orU` on the class of `(B.f, B.t)`, in place of `useTF`. -/
+def pFT : Program :=
+  .untyped ((toKername `useFT, .constantDecl ⟨some (NVQP.useL NVQP.fL NVQP.tL)⟩) :: NVQP.lenv0)
+    (some (.const (toKername `useFT)))
+
 /-- Elaborate `src` in the current environment; fail on an error message. -/
 def elabSource (name src : String) : CoreM Unit := do
   let (env, msgs) ← Lean.Elab.process src (← getEnv) {} (some s!"<{name}>")
@@ -222,8 +228,8 @@ def main (args : List String) : IO UInt32 := do
   -- NV-QP: the source of the unordered pairs, elaborated; its two terms `useTF` and `useFT`.
   let r7 ← emit "NV-QP" file6 (elabSource "NV-QP" srcNVQP) NVQP.P NVQP.e NVQP.p0 NVQP.cfg
     NVQP.inl0
-  let r8 ← emit "NV-QP (useFT)" file7 (elabSource "NV-QP" srcNVQP) NVQP.P NVQP.eFT NVQP.pFT
-    NVQP.cfg NVQP.inl0
+  let r8 ← emit "NV-QP (useFT)" file7 (elabSource "NV-QP" srcNVQP) NVQP.P NVQP.eFT pFT NVQP.cfg
+    NVQP.inl0
   return max (max (max (max r1 r2) (max r3 r4)) (max r5 r6)) (max r7 r8)
 
 end EraseProofNVEmit

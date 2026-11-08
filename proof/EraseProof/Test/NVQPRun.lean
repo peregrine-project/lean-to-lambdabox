@@ -21,8 +21,8 @@ lifted function erases `orB` (`kername_orB`), whose body erases the `@[inline]` 
 λ□ projections of `Prod` (registered by the first, `kername_fst`, `kername_snd`). The fresh locals
 are numbered in the order the traversal opens them (`lsA`, …, `lsF`); the states of the run are
 `s0`, …, `s9`. `p0` and `inl0` are the program `#erase` emits and the constants it marks for
-inlining; `pFT` is the program it emits for the second term `useFT` (checked by
-`tools/NVEmit.lean`).
+inlining. `hcollectFT` is the fragment test on the second term `useFT`, whose emitted program
+`tools/NVEmit.lean` checks.
 -/
 
 open Lean Erasure EraseProof.Test
@@ -44,6 +44,13 @@ def D : List ConstantInfo :=
 /-- The fragment test accepts `e` and returns the closure `D`, by kernel evaluation. Reference: the
 environment `Σ'` of `erase_global_deps` (`MR E/ErasureFunction.v:1602`). -/
 theorem hcollect : collectDeps view cfg e = .ok D := rfl
+
+/-- The closure of the second term `eFT`: `D` with `useFT` in place of `useTF`. -/
+def DFT : List ConstantInfo := D.dropLast ++ [.defnInfo useFT_def]
+
+/-- The fragment test accepts `eFT`, the same function on the other representative of the class,
+and returns the closure `DFT`, by kernel evaluation. -/
+theorem hcollectFT : collectDeps view cfg eFT = .ok DFT := rfl
 
 /-- The pure backend's context over the closure. -/
 def pc : PureCtx := ⟨D, view⟩
@@ -116,11 +123,6 @@ def lenv0 : List (Kername × GlobalDecl) :=
 def p0 : Program :=
   .untyped ((toKername `useTF, .constantDecl ⟨some (useL tL fL)⟩) :: lenv0)
     (some (.const (toKername `useTF)))
-
-/-- The program `#erase` emits for the second term `useFT`. -/
-def pFT : Program :=
-  .untyped ((toKername `useFT, .constantDecl ⟨some (useL fL tL)⟩) :: lenv0)
-    (some (.const (toKername `useFT)))
 
 /-! ## The run: tools, states, locals -/
 
