@@ -84,9 +84,9 @@ What the statements and the checks rely on without proof:
   loops), and 19 `opaque` constants, among them the `partial` shipping functions `LBTerm.isValue`,
   `LBTerm.inlinedSize` and `LBTerm.stripLambdas`, which compute only the inlining hints, not the
   program. `Lean.Expr.eqv` and `Lean.Expr.replaceImpl` are reached only in the index-field branches
-  of `Erasure.visitCases`, which no input that the fragment test accepts reaches (DV-26). The non-vacuity instance
-  NV-1 is kernel-checked on the logical definitions; the compiled code is exercised on it by
-  `proof/tools/NVEmit.lean` and on the regression corpus.
+  of `Erasure.visitCases`, which no input that the fragment test accepts reaches (DV-26). The non-vacuity instances
+  are kernel-checked on the logical definitions; the compiled code is exercised on five of them
+  (NV-1, NV-2, NV-Q, NV-R and NV-S) by `proof/tools/NVEmit.lean` and on the regression corpus.
 - What `#erase` does around `Erasure.eraseEntry`, which the theorems do not cover: the
   elaboration of the input and of the `config` term (`Erasure.eraseElab`,
   `LeanToLambdaBox/Erasure/Command.lean`, which evaluates the configuration with `unsafe`
@@ -211,7 +211,8 @@ What the statements and the checks rely on without proof:
 
 - **Our artifact:** `proof/EraseProof/Spec.lean`: the rule `EraseProof.ProgEnv.defn` (a
   definition's `all` is its own name), `EraseProof.ErasesDecl` (no recursive branch) and
-  `EraseProof.ErasesDeps` (no rule for λ□ `tFix`).
+  `EraseProof.ErasesDeps` (its rule for λ□ `tFix`, `EraseProof.ErasesDeps.fix`, is for the
+  fixpoints of erased recursors, DV-30, not for recursive definitions).
 - **Reference artifact:** PCUIC's fixpoints `tFix`, `eval_fix`
   (`pcuic/theories/PCUICWcbvEval.v:273`) and `erases_tFix` (`erasure/theories/Extract.v:122`).
 - **What differs:** Not applicable here: no source program of the fragment is recursive.
@@ -424,7 +425,8 @@ What the statements and the checks rely on without proof:
   `eval_iota_sing` (`erasure/theories/EWcbvEval.v:162`).
 - **What differs:** Lean has no case term: `T.casesOn` is a definition through the recursor
   `T.rec`. The source treats a recognized `casesOn` as primitive, without δ, reducing on the
-  constructor its major evaluates to; the recursor itself has no rule. A `casesOn` on a
+  constructor its major evaluates to; it does not unfold it to the recursor, which has a rule of
+  its own (`EraseProof.SrcEval.recIota`, DV-30). A `casesOn` on a
   one-constructor inductive whose sort may be `Prop` erases to its alternative applied to `□`s,
   without a λ□ `case` (`casesReduced`), the reduction `eval_iota_sing` makes at run time.
 - **Why it is forced:** the eraser translates recognized `casesOn` spines to λ□ `case` and never
@@ -440,7 +442,8 @@ What the statements and the checks rely on without proof:
   `EraseProof.erase_correct_statement`, that the shipping fragment test `Erasure.collectDeps`
   accepts the input; and `EraseProof.collectDeps_ok_of_statement`, a sufficient condition for it
   (`EraseProof.ReadClosed`, `EraseProof.PhaseIDecl`, `EraseProof.PlainExpr`,
-  `EraseProof.RecFree`, `EraseProof.KernameInj`, `EraseProof.BlockNamesInj`).
+  `EraseProof.RecShaped`, `EraseProof.KernameInj`, `EraseProof.BlockNamesInj`), which covers the
+  recursors and the structural recursion that the test admits.
 - **Reference artifact:** MetaRocq's `erase_correct`
   (`erasure/theories/ErasureFunctionProperties.v:657`), which holds for every well-typed term.
 - **What differs:** the final theorem covers the inputs the fragment test accepts. Its exclusion

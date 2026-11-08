@@ -43,9 +43,10 @@
 #                  with consumer FINAL (any other root waits for a consumer that has not landed),
 #                  every statement is proved, and erase_correct's footprint is exactly propext,
 #                  Classical.choice, Quot.sound, as is that of its instances on NV-1, NV-P, NV-K,
-#                  NV-2, NV-Q and NV-R, EraseProof.Test.{NV1,NVP,NVK,NV2,NVQ,NVR}.final, whose hypothesis
-#                  terms lie within them, and so is that of the corollary erase_correct_firstorder, whose
-#                  instances EraseProof.Test.{NV1,NV2,NVR}.firstorder lie within them and mention it
+#                  NV-2, NV-Q, NV-R and NV-S, EraseProof.Test.{NV1,NVP,NVK,NV2,NVQ,NVR,NVS}.final, whose
+#                  hypothesis terms lie within them, and so is that of the corollary
+#                  erase_correct_firstorder, whose instances
+#                  EraseProof.Test.{NV1,NV2,NVR,NVS}.firstorder lie within them and mention it
 #                  (skipped with --no-final); C12b, always: the statement definitions
 #                  and the library and shipping definitions they reach (kind and flags included;
 #                  the shipping functions under verification, collectDeps, erasePure and eraseEntry, and the
