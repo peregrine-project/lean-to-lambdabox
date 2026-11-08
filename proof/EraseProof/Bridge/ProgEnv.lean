@@ -5,9 +5,9 @@ import EraseProof.Spec
 
 What `ProgEnv P ζ E B` says about a declaration found in the program `P`: its names are distinct
 (`ProgEnv.fresh`), and the table `B` binds an inductive type to its Metalean sort
-(`ProgEnv.lookup_ind`) and a constructor to its Metalean constructor with its counts and field
-order (`ProgEnv.lookup_ctor`). Reference: `declared_inductive`, `declared_constructor`
-(`MR P/PCUICTyping.v`), MC §3.6.
+(`ProgEnv.lookup_ind`), to no other name (`ProgEnv.ind_inj`), and a constructor to its Metalean
+constructor with its counts and field order (`ProgEnv.lookup_ctor`). Reference:
+`declared_inductive`, `declared_constructor` (`MR P/PCUICTyping.v`), MC §3.6.
 -/
 
 open Lean
@@ -236,5 +236,100 @@ theorem ProgEnv.lookup_ctor {c : Name} {cv : ConstructorVal} (h : ProgEnv P ζ E
         exact not_mem_of_findDecl_none (hfr q hq) (hn ▸ hP.bound (by simp [hI]))
       exact ⟨ι', η.there, s, k, o, by rw [hext c hnot, Binds.wk, hB]; rfl, h1, h2, h3, h4,
         by rw [hext _ hnotI, Binds.wk, hI]; rfl⟩
+
+/-- A weakened binding of an inductive sort weakens one. -/
+theorem wk_ind {ζ : Metalean.Sigs} {sig : Metalean.Sig} {b : Option (MBinding ζ)}
+    {ι : Metalean.IndSig} {η : Metalean.Head (ζ.snoc sig) (.inductive ι)} {s : Fin ι.nsorts}
+    (h : b.map MBinding.wk = some (.ind η s)) :
+    ∃ η₀ : Metalean.Head ζ (.inductive ι), η = η₀.there ∧ b = some (.ind η₀ s) := by
+  obtain ⟨b, rfl, hb⟩ := Option.map_eq_some_iff.mp h
+  cases b with
+  | ind η₀ s₀ =>
+    simp only [MBinding.wk, MBinding.ind.injEq] at hb
+    obtain ⟨rfl, h1, h2⟩ := hb
+    cases h1; cases h2
+    exact ⟨η₀, rfl, rfl⟩
+  | const | ctor | recr | quot => simp [MBinding.wk] at hb
+
+/-- The table binds a Metalean inductive sort to at most one name. -/
+theorem ProgEnv.ind_inj (h : ProgEnv P ζ E B) {ι : Metalean.IndSig} {s : Fin ι.nsorts} :
+    ∀ {η : Metalean.Head ζ (.inductive ι)} {x y : Name}, B x = some (.ind η s) →
+      B y = some (.ind η s) → x = y := by
+  induction h with
+  | nil => intro _ _ _ hx; simp at hx
+  | @«axiom» _ _ _ _ v _ _ _ _ _ _ ih | @defn _ _ _ _ v _ _ _ _ _ _ _ _ _ ih
+  | @thm _ _ _ _ v _ _ _ _ _ _ _ _ ih | @«opaque» _ _ _ _ v _ _ _ _ _ _ _ _ _ _ ih =>
+    intro η x y hx hy
+    have hxn : x ≠ v.name := by rintro rfl; simp [Binds.set] at hx
+    have hyn : y ≠ v.name := by rintro rfl; simp [Binds.set] at hy
+    rw [set_wk_ne hxn] at hx
+    rw [set_wk_ne hyn] at hy
+    obtain ⟨η₀, rfl, hx'⟩ := wk_ind hx
+    obtain ⟨η₁, hη, hy'⟩ := wk_ind hy
+    cases hη
+    exact ih hx' hy'
+  | @induct _ _ _ _ ι' _ B' _ Is Cs Rs _ _ _ _ _ hext hblk _ ih =>
+    intro η x y hx hy
+    have inBlock : ∀ {z : Name} {η' : Metalean.Head _ (.inductive ι)},
+        z ∈ (IndBlock.decls Is Cs Rs).map (·.name) → B' z = some (.ind η' s) →
+        ∃ t, z = (Is t).name ∧ B' z = some (.ind .here t) := by
+      intro z η' hz hb
+      obtain ⟨ci, hci, rfl⟩ := List.mem_map.mp hz
+      rcases IndBlock.mem_decls hci with ⟨t, rfl⟩ | ⟨t, c, rfl⟩ | ⟨t, rfl⟩
+      · rw [show (ConstantInfo.recInfo (Rs t)).name = (Rs t).name from rfl,
+          (hblk.recr t).2.1] at hb
+        cases hb
+      · rw [show (ConstantInfo.ctorInfo (Cs t c)).name = (Cs t c).name from rfl,
+          (hblk.ctor t c).1] at hb
+        cases hb
+      · exact ⟨t, rfl, (hblk.ind t).1⟩
+    by_cases hxm : x ∈ (IndBlock.decls Is Cs Rs).map (·.name) <;>
+      by_cases hym : y ∈ (IndBlock.decls Is Cs Rs).map (·.name)
+    · obtain ⟨t, rfl, hxt⟩ := inBlock hxm hx
+      obtain ⟨t', rfl, hyt⟩ := inBlock hym hy
+      rw [hxt] at hx
+      rw [hyt] at hy
+      simp only [Option.some.injEq, MBinding.ind.injEq] at hx hy
+      obtain ⟨rfl, h1, h2⟩ := hx
+      cases h1; cases h2
+      obtain ⟨-, -, h3⟩ := hy
+      cases h3
+      rfl
+    · obtain ⟨t, rfl, hxt⟩ := inBlock hxm hx
+      rw [hxt] at hx
+      simp only [Option.some.injEq, MBinding.ind.injEq] at hx
+      obtain ⟨rfl, h1, h2⟩ := hx
+      cases h1; cases h2
+      rw [hext y hym] at hy; simp only [Binds.wk] at hy
+      obtain ⟨η₀, hη, -⟩ := wk_ind hy
+      cases hη
+    · obtain ⟨t, rfl, hyt⟩ := inBlock hym hy
+      rw [hyt] at hy
+      simp only [Option.some.injEq, MBinding.ind.injEq] at hy
+      obtain ⟨rfl, h1, h2⟩ := hy
+      cases h1; cases h2
+      rw [hext x hxm] at hx; simp only [Binds.wk] at hx
+      obtain ⟨η₀, hη, -⟩ := wk_ind hx
+      cases hη
+    · rw [hext x hxm] at hx; simp only [Binds.wk] at hx
+      rw [hext y hym] at hy; simp only [Binds.wk] at hy
+      obtain ⟨η₀, rfl, hx'⟩ := wk_ind hx
+      obtain ⟨η₁, hη, hy'⟩ := wk_ind hy
+      cases hη
+      exact ih hx' hy'
+  | @quot _ _ _ _ _ qs B' _ _ _ _ _ hext hq ih =>
+    intro η x y hx hy
+    have hout : ∀ {z : Name} {η' : Metalean.Head _ (.inductive ι)}, B' z = some (.ind η' s) →
+        z ∉ qs.map (·.name) := by
+      intro z η' hz hm
+      obtain ⟨q, hq', rfl⟩ := List.mem_map.mp hm
+      rw [(hq q hq').1] at hz
+      cases hz
+    rw [hext x (hout hx)] at hx; simp only [Binds.wk] at hx
+    rw [hext y (hout hy)] at hy; simp only [Binds.wk] at hy
+    obtain ⟨η₀, rfl, hx'⟩ := wk_ind hx
+    obtain ⟨η₁, hη, hy'⟩ := wk_ind hy
+    cases hη
+    exact ih hx' hy'
 
 end EraseProof
