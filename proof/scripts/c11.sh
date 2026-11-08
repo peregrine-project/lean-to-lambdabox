@@ -7,9 +7,10 @@
 # that `peregrine eval` (with the table's options) prints must be the table's value, the value of
 # the Lean program (eval's output without its "Compiling:" and "Compiled successfully:" lines,
 # whitespace collapsed; `--anf=false` prints □ as `(FIX 0)`). The programs:
-# - NV-1's, NV-2's, NV-Q's, NV-R's and NV-S's programs as the entry point of #erase emits them
-#   (proof/tools/NVEmit.lean; check.sh's step nv1-emit writes them to proof/.check/nv1/NV1.ast,
-#   NV2.ast, NVQ.ast, NVR.ast and NVS.ast, which must exist);
+# - NV-1's, NV-2's, NV-Q's, NV-R's, NV-S's and NV-QP's programs as the entry point of #erase emits
+#   them (proof/tools/NVEmit.lean; check.sh's step nv1-emit writes them to proof/.check/nv1/NV1.ast,
+#   NV2.ast, NVQ.ast, NVR.ast, NVS.ast, and NVQP.ast and NVQPFT.ast for NV-QP's two terms, `orU` on
+#   the two representatives of one class, which must exist);
 # - every output of the regression tests (tests/regress) written under `nat := .peano`, read from
 #   tests/regress/expected/, which scripts/regress.sh requires to equal what the tests write;
 # - the regression tests' outputs for the programs of NV-1, NV-P and NV-K (tests/regress/
@@ -40,6 +41,8 @@ proof/.check/nv1/NV2.ast                              default -           constr
 proof/.check/nv1/NVQ.ast                              default -           constr B.t
 proof/.check/nv1/NVR.ast                              default -           constr B.t
 proof/.check/nv1/NVS.ast                              default -           constr N.s constr N.s constr N.z
+proof/.check/nv1/NVQP.ast                             default -           constr B.t
+proof/.check/nv1/NVQPFT.ast                           default -           constr B.t
 tests/regress/expected/entry_route/nv1.ast            default -           constr ER.B.t
 tests/regress/expected/entry_route/nvp.ast            default -           constr ER.B.t
 tests/regress/expected/entry_route/nvk.ast            default -           constr ER.B.t
@@ -61,6 +64,9 @@ tests/regress/expected/quotient/usePart.ast           peano   -           constr
 tests/regress/expected/quotient/useOver.ast           peano   -           constr QT.B.t
 tests/regress/expected/quotient/useQuotient.ast       peano   -           constr QT.B.f
 tests/regress/expected/quotient/indPf.ast             peano   --anf=false (FIX 0)
+tests/regress/expected/quotient_pair/useTF.ast        peano   -           constr QP.B.t
+tests/regress/expected/quotient_pair/useFT.ast        peano   -           constr QP.B.t
+tests/regress/expected/quotient_pair/useFF.ast        peano   -           constr QP.B.f
 tests/regress/expected/recursor/useNat.ast            peano   -           constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.zero
 tests/regress/expected/recursor/useList.ast           peano   -           constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.zero
 tests/regress/expected/recursor/useTree.ast           peano   -           constr Nat.succ constr Nat.succ constr Nat.zero
