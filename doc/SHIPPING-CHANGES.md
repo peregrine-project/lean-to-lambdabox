@@ -1919,7 +1919,16 @@ the calls at which the two oracles answer differently. It must equal
   against the corpus of S-21 reports 712 identical. The corpus logs are identical except for the
   addresses in the backtraces of the 4 `PANIC` messages of `Defects.lean`.
 - **Regression test:** the change does not alter behaviour, so no test fails before it, and no new
-  test is added. The 20 tests of `tests/regress/` and `scripts/pure-harness.sh` pass unchanged.
+  test is added. The 10 tests of `tests/regress/` and `scripts/pure-harness.sh` pass unchanged.
+
+  Later note (2026-11-09): the title and the "Why necessary" field overstate the result. On this
+  branch, `LeanToLambdaBox/Erasure/Collect.lean` and `LeanToLambdaBox/Erasure/Pure.lean` still cite
+  divergence entries `DV-n`, the passage "MC p. 8:5" of the MetaRocq paper and declarations
+  `EraseProof.*`; these exist only on the branch `l4l/verification`
+  (`doc/DIVERGENCES.md`, `proof/`), so on this branch a reader cannot resolve them. S-22 removed
+  the citations of unresolvable design documents and plans, not these. The count of 10 tests in the
+  "Regression test" field above is the number of files in `tests/regress/` on this branch; the
+  field first said 20.
 
 ## S-23: The register says when CI builds and tests
 
@@ -1943,7 +1952,7 @@ the calls at which the two oracles answer differently. It must equal
   in the log of the pruned benchmarks (`[18/55]` becomes `[17/24]`: the build of S-22's corpus had
   recompiled the modules that S-22 edits).
 - **Regression test:** the change concerns the register only, so no test under `tests/regress/`
-  can fail before it. The 20 regression tests and `scripts/pure-harness.sh` pass unchanged.
+  can fail before it. The 10 regression tests and `scripts/pure-harness.sh` pass unchanged.
 
 ## S-24: The docstring of `binderNameOf` gives the reason that holds
 
