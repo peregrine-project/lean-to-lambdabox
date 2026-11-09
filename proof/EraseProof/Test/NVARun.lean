@@ -927,7 +927,7 @@ theorem kername_match {n : Nat} {L : LocalContext} {F : Option (Std.HashMap Name
 /-! ## `Nat.add._f` -/
 
 /-- Facts about the traversal's maps in the states of the run. -/
-macro (name := _stfactA) "stfact" : tactic =>
+macro (name := _stfactA) "astfact" : tactic =>
   `(tactic| (simp only [stMt, stBr, stGo, stDef, stPU, stN, stPP, stOf,
     Std.HashMap.getElem?_insert, Std.HashMap.getElem?_empty]; try rfl))
 
@@ -1022,7 +1022,7 @@ theorem fB_run {n : Nat} {L : LocalContext}
     (hm : st.constants[`Nat.add.match_1]? = none) (hR : Reg st) :
     (visitExpr (m := PureM) (n + 42) fB).runPure st ⟨L, lsF, none, cfg, dc⟩ pc ⟨13⟩ =
       .ok ((fBL, stMt st), ⟨24⟩) := by
-  have hR' : Reg (stMt st) := ⟨by stfact; exact hR.pp, by stfact; exact hR.n⟩
+  have hR' : Reg (stMt st) := ⟨by astfact; exact hR.pp, by astfact; exact hR.n⟩
   rw [fB, visitExpr, ← fB]
   apply bind_ok rfl
   apply bind_ok rfl
@@ -1148,7 +1148,7 @@ cases of `erase` (`MR E/ErasureFunction.v:999`, `:1006`). -/
 theorem aB_run {n : Nat} {L : LocalContext} :
     (visitExpr (m := PureM) (n + 60) aB).runPure {} ⟨L, lsA, none, cfg, dc⟩ pc ⟨2⟩ =
       .ok ((aBL, stAB), ⟨24⟩) := by
-  have hR : Reg (stBr {}) := ⟨by stfact, by stfact⟩
+  have hR : Reg (stBr {}) := ⟨by astfact, by astfact⟩
   rw [aB, visitExpr, ← aB]
   apply bind_ok rfl
   apply bind_ok rfl
@@ -1169,7 +1169,7 @@ theorem aB_run {n : Nat} {L : LocalContext} :
     (ps' := ⟨10⟩) (by krfl) ?_
   refine appArgs_cons (as := [.const `Nat.add._f [], xv 0]) (r := .fvar (xf 1)) (st' := stBr {})
     (ps' := ⟨10⟩) (by krfl) ?_
-  refine appArgs_cons (as := [xv 0]) (fC_run (n := n + 2) (by stfact) (by stfact) hR) ?_
+  refine appArgs_cons (as := [xv 0]) (fC_run (n := n + 2) (by astfact) (by astfact) hR) ?_
   refine appArgs_cons (as := []) (r := .fvar (xf 0)) (st' := stAB) (ps' := ⟨24⟩) (by krfl) ?_
   exact appArgs_nil
 
@@ -1541,7 +1541,7 @@ abbrev stE : ErasureState := stIn (stON stAdd)
 
 /-- Facts about the traversal's maps in the states of the run's end. -/
 macro (name := _stfactE) "stfactE" : tactic =>
-  `(tactic| (simp only [stE, stIn, stON, stAdd, stAB, stF]; stfact))
+  `(tactic| (simp only [stE, stIn, stON, stAdd, stAB, stF]; astfact))
 
 theorem withApp_e {γ : Sort _} (k : Expr → Array Expr → γ) :
     e.withApp k = k (.const `Nat.add []) #[numK 2, numK 3] := by krfl
