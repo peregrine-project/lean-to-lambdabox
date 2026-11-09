@@ -8,4 +8,4 @@ name = "LeanToLambdaBox"
 [[require]]
 name = "metalean"
 git = "https://github.com/intgrah/metalean"
-rev = "9407ba4407374a05e90777a068c2dc520e4ac0e7"
+rev = "0146928517ff839f52d8de71c8da7beb108c78a9"
