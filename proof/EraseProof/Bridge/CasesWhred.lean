@@ -863,7 +863,7 @@ theorem casesOn_whred_core {σ : EvalEnv} {c : Name} {iv : InductiveVal} {args :
     fun j => fsT[j.val]'(by omega)
   rw [appList_eq_apps _ gT hlT (fun j => by simp [gT]), ← Metalean.Expr.apps_append]
   refine (lams_beta (E := E) Θ₂ _ lsc (Fin.append σ₀ g) (Fin.append gT ihs)).trans ?_
-  rw [Metalean.Expr.instL_appList, subst_appList]
+  rw [ML.Expr.instL_appList, subst_appList]
   have hh : (h₂{lsc}).subst (Fin.append (Fin.append σ₀ g) (Fin.append gT ihs)) = alt' := by
     simp only [Option.map_some, Option.some.injEq] at hfb₂
     rw [← hfb₂, Metalean.Expr.wkN_instL, Metalean.Expr.wkN_subst_append]

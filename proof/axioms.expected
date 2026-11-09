@@ -16,6 +16,7 @@ EraseProof.Test.readAll_of propext,Quot.sound
 EraseProof.Test.recShaped_of propext,Quot.sound
 EraseProof.Test.runPure_bind propext,Classical.choice,Quot.sound
 EraseProof.Test.runPure_withReader propext,Classical.choice,Quot.sound
+EraseProof.Test.subst_extend_apply -
 EraseProof.Test.toArray_toSubarray propext,Classical.choice,Quot.sound
 EraseProof.Test.withApp_app1 propext
 EraseProof.Test.withApp_const propext
@@ -26,6 +27,9 @@ EraseProof.Test.LBEval.mkApps_construct_inj propext
 EraseProof.Test.LBEval.mkApps_fix_inj propext
 EraseProof.Test.LBEval.mkApps_inj propext
 EraseProof.Test.LBEval.spineArgs_mkApps propext
+EraseProof.Test.LargeElim.abBlock_largeElim propext,Quot.sound
+EraseProof.Test.LargeElim.abBlock_not_leanLargeElim propext,Quot.sound
+EraseProof.Test.LargeElim.leanLargeElim_iff_largeElim propext,Quot.sound
 EraseProof.Test.NV1.B1_B propext,Quot.sound
 EraseProof.Test.NV1.B1_f propext,Quot.sound
 EraseProof.Test.NV1.B1_rec propext,Quot.sound
@@ -1149,7 +1153,7 @@ EraseProof.Test.NVS.puBlock_subsingleton propext
 EraseProof.Test.NVS.puBlock_wf propext,Quot.sound
 EraseProof.Test.NVS.puRecTermM_typed propext,Classical.choice,Quot.sound
 EraseProof.Test.NVS.readD propext,Quot.sound
-EraseProof.Test.NVS.recAllowedPP propext,Classical.choice,Quot.sound
+EraseProof.Test.NVS.recAllowedPP propext,Quot.sound
 EraseProof.Test.NVS.recAllowedPU propext,Quot.sound
 EraseProof.Test.NVS.recInFragD propext
 EraseProof.Test.NVS.recShapedD propext,Quot.sound

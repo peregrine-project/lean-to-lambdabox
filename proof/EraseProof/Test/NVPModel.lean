@@ -85,7 +85,7 @@ macro_rules
       Inductive.paramType, Inductive.indexType, Ctx.proj, Ctor.targetIndex, Fin.fun_vecCons,
       Fin.fun_vecEmpty, reflA, Quot.eqApp, Expr.wkN, funext_iff, Fin.forall_fin_two,
       Fin.forall_fin_one, Fin.sum_succ, Fin.sum_zero, Level.inst_param, Subst.liftN, eqA,
-      Ren.wkFrom, Fin.castLE, Expr.apps_succ, CtorSig.fieldParams] <;> finCongr))
+      Ren.wkFrom, Fin.castLE, ML.Expr.apps_succ, CtorSig.fieldParams] <;> finCongr))
 
 /-! ## `Eq`'s and `Eq.refl`'s η-terms (level `u_1` = parameter 0) -/
 
@@ -592,9 +592,9 @@ theorem tr_recTy : TrM EA BA [`u, `u_1] .nil [] eqRecTy (eqRecTyM ηEA) :=
         (TrM.app notSpecial_bvar (TrM.app notSpecial_bvar (TrM.bvar rfl) (TrM.bvar rfl))
           (TrM.bvar rfl)))))))
 
-theorem largeElimEq {ζ : Sigs} : (Eq.block (ζ := ζ)).LargeElim :=
-  fun _ => .subsingleton rfl (fun _ _ => Subsingleton.elim _ _)
-    (fun _ => ⟨fun f => Fin.elim0 f, fun f => Fin.elim0 f⟩)
+theorem largeElimEq {ζ : Sigs} : LeanLargeElim (Eq.block (ζ := ζ)) :=
+  Or.inr ⟨rfl, fun _ _ _ => Subsingleton.elim _ _,
+    fun _ _ => ⟨fun f => Fin.elim0 f, fun f => Fin.elim0 f⟩⟩
 
 theorem tr_recConst :
     TrM EA BA [`u, `u_1] .nil [] (.const `Eq.rec [.param `u, .param `u_1]) (eqRecTermM ηEA) :=

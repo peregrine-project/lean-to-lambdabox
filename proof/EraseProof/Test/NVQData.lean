@@ -12,7 +12,7 @@ import EraseProof.Test.NVPData
 `B` is NV-1's `inductive B | f | t`; `Eq` and the four quotient constants are `Init`'s. The quotient
 ι reduces the spine to `(fun x => x) (fun y => y)`, whose value `fun y => y` applied to `B.t` gives
 `B.t`; `Quot.lift` is applied beyond its arity. The declarations as
-Lean v4.35.0-rc2 has them (`tools/NVEmit.lean` checks them against the kernel's), newest first:
+Lean v4.35.0 has them (`tools/NVEmit.lean` checks them against the kernel's), newest first:
 `P = [hR, R, Quot.ind, Quot.lift, Quot.mk, Quot] ++ NVP.P`; the view reads them as a list, with no
 attributes; the default configuration. A non-vacuity instance of the final theorem
 (`MR E/ErasureFunctionProperties.v:657 erase_correct`) through the quotient rules (DV-29):

@@ -1528,7 +1528,7 @@ theorem RelInst.inst_setup {P : List ConstantInfo} {σ : EvalEnv} {n : Nat}
       rw [Expr.wk_subst_extend, Expr.subst_id]
       exact fun {_ _} => .refl
   have hς : E[Γ] ⊢ Subst.id.extend a₀ ⊣ Γ.snoc A :=
-    SubstWF.extend (by simpa using hA) (SubstWF.id hΓ)
+    SubstEq.extend (by simpa using hA) (SubstWF.id hΓ)
   have Ea : Erases E B lps σ Γ Δ (a.liftLooseBVars' 0 0) a' := by
     rw [liftLooseBVars'_zero]; exact ha
   have hfd : (Δ.pushLam none).findB 0 = some (.var (Fin.last n)) := by

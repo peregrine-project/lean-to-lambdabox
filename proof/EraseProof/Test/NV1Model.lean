@@ -1,5 +1,6 @@
 import EraseProof.Test.NV1Data
 import EraseProof.Spec
+import EraseProof.Bridge.LargeElim
 import Metalean.Typing.Env
 import Metalean.Metatheory.Unique
 import Metalean.Metatheory.Injectivity
@@ -20,6 +21,15 @@ constructors, in `Type`). Typing facts are proved for any environment whose head
 -/
 
 open Lean Metalean
+
+/-- The components of an extended substitution, for the tests' `simp` sets. Stated and proved as
+here in Metalean `9407ba4407374a05e90777a068c2dc520e4ac0e7` (`https://github.com/intgrah/metalean`,
+Apache License 2.0), `Metalean/Syntax/Expr.lean:343` (`Subst.extend_apply`). -/
+theorem EraseProof.Test.subst_extend_apply {ζ : Sigs} {ℓ m n : Nat} (σ : Subst ζ ℓ m n)
+    (value : Metalean.Expr ζ ℓ n) (v : Var (m + 1)) :
+    σ.extend value v = if h : v.val < m then σ ⟨v.val, h⟩ else value := by
+  simp only [Subst.extend, Fin.snoc]
+  split <;> rfl
 
 namespace EraseProof.Test.NV1
 
@@ -78,7 +88,7 @@ macro_rules
     Inductive.caseTele, Inductive.caseType, Inductive.motiveResult, Ctor.fieldTele,
     Ctor.ordinaryFieldTele, Ctor.ordinaryFieldTeleAux, Ctor.recursiveFieldTeleAux, Ctor.ihTele,
     Ctx.substN, CtorSig.caseParams, CtorSig.caseOrdinary, CtorSig.caseRecursive, Expr.inst,
-    Subst.lift, Subst.extend_apply, Subst.id])
+    Subst.lift, subst_extend_apply, Subst.id])
 
 /-- Application at a Π-type. -/
 theorem app_typed {ζ : Sigs} {E : Env ζ} {ℓ n : Nat} {Γ : Ctx ζ ℓ 0 n} {f a t : Expr ζ ℓ n}
@@ -450,8 +460,8 @@ theorem tr_recTy : TrM E1 B1 [`u] .nil [] recTy (recTyM ηB1) :=
       (TrM.forallE (TrM.app notSpecial_bvar (TrM.bvar rfl) (tr_T B1_t))
         (TrM.forallE (tr_B B1_B) (TrM.app notSpecial_bvar (TrM.bvar rfl) (TrM.bvar rfl)))))
 
-theorem largeElimB {ζ : Sigs} : (bBlock (ζ := ζ)).LargeElim :=
-  fun _ => .large (le_refl _)
+theorem largeElimB {ζ : Sigs} : LeanLargeElim (bBlock (ζ := ζ)) :=
+  Or.inl (le_refl _)
 
 theorem tr_rec : TrM E1 B1 [`u] .nil [] (.const `B.rec [.param `u]) (recTermM ηB1) := by
   refine TrM.special (as := []) (as' := []) B1_rec rfl rfl (fun _ _ _ h => nomatch h) ?_

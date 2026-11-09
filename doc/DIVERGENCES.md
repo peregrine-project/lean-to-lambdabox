@@ -5,7 +5,7 @@ This register lists every place where the verification code on the `ml/verificat
 Letouzey, "A New Extraction for Coq" (TYPES 2002), and Sozeau et al., "Correct and Complete Type
 Checking and Certified Erasure for Coq, in Coq" (J. ACM 2025), including its MetaRocq sources at
 commit `4b201296` (branch 9.1). The verification follows these references as closely as the
-differences between Lean's kernel, as Metalean (`github.com/intgrah/metalean`, commit `9407ba4`)
+differences between Lean's kernel, as Metalean (`github.com/intgrah/metalean`, commit `0146928`)
 models it, and Rocq/PCUIC/MetaRocq allow; every place it does not, for any reason, is recorded
 here. Entries land with the artifact that diverges.
 
@@ -42,7 +42,7 @@ What the statements and the checks rely on without proof:
   C3 to C5), and its modules are replayed through the kernel (check `replay`, `leanchecker`).
   The replay covers the library's modules `EraseProof.*` and the shipping code's `LeanToLambdaBox.*`;
   the compiled `.olean` files of Metalean and Mathlib that they import are trusted as built.
-- Metalean at the pinned revision (`9407ba4`, `lake-manifest.json`, pinned in `proof/spec.pin`):
+- Metalean at the pinned revision (`0146928`, `lake-manifest.json`, pinned in `proof/spec.pin`):
   its typing (`Metalean.Typing`), conversion and well-formedness `Metalean.EnvWF`, which the
   statements use as their notion of typing, the way MetaRocq's statements use PCUIC's. Metalean's
   axiom `Cardinal.exists_inaccessibles` (its set-theoretic model) is never reached (C3).
@@ -60,7 +60,11 @@ What the statements and the checks rely on without proof:
 - The statement definitions themselves (`proof/EraseProof/Statements.lean`, with
   `proof/EraseProof/Spec.lean` and `proof/EraseProof/Target.lean`), which a reader checks against
   the references with the entries below; `proof/spec.pin` holds a SHA-256 digest of each of them
-  and of every definition of the library or of the shipping code they reach (check C12b). The
+  and of every definition of the library, of the shipping code or of Metalean they reach (check
+  C12b). A digest covers a declaration's kind, type and value, not its name alone, so a change of a
+  Metalean definition the statements reach changes the pin at that definition even when the
+  revision line is the only other change; the remaining dependencies (Lean's library, Mathlib,
+  Batteries) are pinned by name and by revision. The
   shipping definitions among them are part of what the statements say: the λ□ syntax (`LBTerm`,
   `Program`), the configuration `Erasure.ErasureConfig`, the view `Erasure.EnvView`, the fuel
   bound `Erasure.collectFuel`, and the helpers through which the source semantics, the relation
@@ -112,7 +116,7 @@ What the statements and the checks rely on without proof:
   quotients as constants applied in spines; `Metalean.Expr` is intrinsically scoped, inlines
   `let`, and has saturated nodes for inductive types, constructors (fields in Metalean's order,
   `EraseProof.MetaOrderOK`), recursors and quotients. `EraseProof.TrM` relates the two rule by rule
-  after Metalean's translator (`Metalean/Frontend/Translate.lean:316-345`); a spine with fewer
+  after Metalean's translator (`Metalean/Frontend/Translate.lean:318-347`); a spine with fewer
   arguments than the node takes is related to the η-term of Metalean's total builders (trust
   base) applied to its arguments. `EraseProof.SrcEval` evaluates a `let` as `eval_zeta`
   (`pcuic/theories/PCUICWcbvEval.v:241`) does, and `EraseProof.Erases` relates a `let` to a λ□
@@ -166,7 +170,7 @@ What the statements and the checks rely on without proof:
   (`erasure/theories/ErasureFunctionProperties.v:657`) evaluates the erased term over the erasure
   of the dependency closure `erase_global_deps` (`erasure/theories/ErasureFunction.v:1602`).
 - **What differs:** the environment is a list of Lean declarations related, entry by entry, to a
-  Metalean environment as Metalean's loader builds it (`Metalean/Checker/Slow/Loader.lean:55-139`):
+  Metalean environment as Metalean's loader builds it (`Metalean/Checker/Slow/Loader.lean:55-130`):
   axioms, non-recursive definitions, theorems as opaque constants (DV-24), opaques, inductive blocks
   with their constructors and recursors, quotients; names are fresh, and a table maps each Lean name
   to its Metalean head. Each recursor's Lean type is related to Metalean's by translation and,
@@ -409,7 +413,7 @@ What the statements and the checks rely on without proof:
   reduces only through a proof of accessibility, do not evaluate either: the final theorem holds
   vacuously for all of these, and the fragment test excludes the last (DV-26).
 - **Why it is forced:** Metalean's loader adds a theorem as an opaque constant, its statement only
-  (`Metalean/Checker/Slow/Loader.lean:122-127`), and `EraseProof.ProgEnv` follows it: the value of
+  (`Metalean/Checker/Slow/Loader.lean:65-72`, `:126`), and `EraseProof.ProgEnv` follows it: the value of
   a theorem is not translated, and typically uses recursors and tactics outside the fragment, so
   unfolding it has no Metalean counterpart for the last conjunct of the final theorem.
 - **What was considered instead:** δ for theorems with a translated value, which excludes every

@@ -9,7 +9,7 @@ import EraseProof.Test.NV1Data
 
 `B` is NV-1's `inductive B | f | t`. `N` is a recursive inductive: the field of `N.s` is of type
 `N`, so the minor premise of `N.s` receives an induction hypothesis, and the recursor's ι on
-`N.s N.z` evaluates the recursor once more on `N.z`. The declarations as Lean v4.35.0-rc2
+`N.s N.z` evaluates the recursor once more on `N.z`. The declarations as Lean v4.35.0
 generates them (`tools/NVEmit.lean` checks them against the kernel's), newest first:
 `P = [N.rec, N.z, N.s, N, B.rec, B.f, B.t, B]`; the term `e`; the view `#erase` reads (`P` as a
 list, no attributes); the default configuration. A non-vacuity instance of the final theorem

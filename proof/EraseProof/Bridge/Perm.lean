@@ -1,4 +1,5 @@
 import EraseProof.Spec
+import EraseProof.Metatheory.Syntax
 import Metalean.Syntax.Substitution
 import Metalean.Syntax.Reduction
 
@@ -24,7 +25,7 @@ variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {ℓ n : Nat}
 
 /-- A λ over a telescope of `k` binders, applied to `k` arguments, reduces by β to its body with
 the arguments substituted for the telescope's variables. The untyped counterpart of
-`Ctx.lam_applyFamily` (`ML Typing/Telescope.lean:353`). -/
+`Ctx.lam_applyFamily` (`ML Typing/Telescope.lean:352`). -/
 theorem Ctx.lam_apps_whred {m k : Nat} (Δ : Metalean.Ctx ζ ℓ n m) (hk : m = n + k)
     (e : Metalean.Expr ζ ℓ m) (xs : Fin k → Metalean.Expr ζ ℓ n) (σ : Metalean.Subst ζ ℓ m n)
     (hσ : ∀ v : Fin m, σ v = if h : v.val < n then .var ⟨v.val, h⟩ else xs ⟨v.val - n, by omega⟩) :
@@ -85,7 +86,7 @@ theorem appList_ofFn {ℓ k : Nat} (e : Metalean.Expr ζ ℓ n) (g : Fin k → M
     e.appList (List.ofFn g) = e.apps g := by
   induction k generalizing e with
   | zero => simp
-  | succ k ih => rw [List.ofFn_succ, Metalean.Expr.appList_cons, ih, Metalean.Expr.apps_succ]
+  | succ k ih => rw [List.ofFn_succ, Metalean.Expr.appList_cons, ih, ML.Expr.apps_succ]
 
 /-- Applying to a list of arguments is applying to a tuple with the same components. -/
 theorem appList_eq_apps {ℓ k : Nat} (e : Metalean.Expr ζ ℓ n) {fs : List (Metalean.Expr ζ ℓ n)}
@@ -97,7 +98,7 @@ theorem appList_eq_apps {ℓ k : Nat} (e : Metalean.Expr ζ ℓ n) {fs : List (M
     · simp [List.getElem?_eq_none_iff.mpr (show fs.length ≤ i by omega), hi]
   rw [this, appList_ofFn]
 
-/-- The substitution of a case telescope's variables (`CtorSig.caseSubst`, `ML Syntax/Expr.lean:464`)
+/-- The substitution of a case telescope's variables (`CtorSig.caseSubst`, `ML Syntax/Expr.lean:459`)
 is the identity below `n` and the fields and hypotheses, in this order, above. -/
 theorem caseSubst_eq {ℓ k : Nat} (csig : Metalean.CtorSig k)
     (fds : Fin csig.nfields → Metalean.Expr ζ ℓ n) (recFds ihs : Fin csig.nrecFields → Metalean.Expr ζ ℓ n)

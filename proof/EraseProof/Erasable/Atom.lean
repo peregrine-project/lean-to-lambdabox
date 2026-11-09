@@ -96,7 +96,7 @@ open Metalean (Sigs Sig Env Entry Head)
 variable {B : Binds ζ} {P : List ConstantInfo}
 
 /-- The statement of a theorem translates to a proposition. Reference: `declared_constant` with
-`on_global_env` (MC §3.6) for `opaque` entries of Prop type (`ML Checker/Slow/Loader.lean:122`). -/
+`on_global_env` (MC §3.6) for `opaque` entries of Prop type (`ML Checker/Slow/Loader.lean:70`). -/
 theorem lookup_thm {c : Name} {v : TheoremVal} (h : ProgEnv P ζ E B)
     (hc : findDecl P c = some (.thmInfo v)) :
     ∃ T, TrM E B v.levelParams .nil [] v.type T ∧ E[.nil] ⊢ T : .prop := by

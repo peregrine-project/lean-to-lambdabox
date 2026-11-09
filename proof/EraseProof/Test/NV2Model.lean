@@ -88,9 +88,9 @@ theorem tBlock_subsingleton {ζ : Sigs} {ℓ : Nat} {ls : Fin 0 → Level ℓ} {
     (tBlock (ζ := ζ)).RecAllowed ls l :=
   .inl ⟨fun _ _ _ => Subsingleton.elim _ _, fun _ _ => ⟨fun f => Fin.elim0 f, fun f => Fin.elim0 f⟩⟩
 
-theorem largeElimT {ζ : Sigs} : (tBlock (ζ := ζ)).LargeElim :=
-  fun _ => .subsingleton rfl (fun _ _ => Subsingleton.elim _ _)
-    (fun _ => ⟨fun f => Fin.elim0 f, fun f => Fin.elim0 f⟩)
+theorem largeElimT {ζ : Sigs} : LeanLargeElim (tBlock (ζ := ζ)) :=
+  Or.inr ⟨rfl, fun _ _ _ => Subsingleton.elim _ _,
+    fun _ _ => ⟨fun f => Fin.elim0 f, fun f => Fin.elim0 f⟩⟩
 
 end TGeneric
 
@@ -288,7 +288,7 @@ macro_rules
       Inductive.paramType, Inductive.indexType, Ctx.proj, Ctor.targetIndex, Fin.fun_vecCons,
       Fin.fun_vecEmpty, Expr.wkN, funext_iff, Fin.forall_fin_two, Fin.forall_fin_one,
       Fin.sum_succ, Fin.sum_zero, Level.inst_param, Subst.liftN, Ren.wkFrom, Fin.castLE,
-      Expr.apps_succ, CtorSig.fieldParams, Ctor.ordinaryFieldExpr, InstLevel.inst, Expr.instL,
+      ML.Expr.apps_succ, CtorSig.fieldParams, Ctor.ordinaryFieldExpr, InstLevel.inst, Expr.instL,
       Ctor.ordinaryTeleAux, Ctx.instL, Tele.map, CtorSig.fieldOrdinary, Expr.boundVars] <;>
       finCongr))
 
@@ -389,7 +389,7 @@ theorem recAllowedW (hw : (E.get ηW).block = wBlock ηB ηT) {l : Level 1} :
   rw [hw]
   exact Or.inr (Level.le_imax_iff.mpr fun ν h => by simp at h)
 
-theorem largeElimW : (wBlock ηB ηT).LargeElim := fun _ => .large (le_refl _)
+theorem largeElimW : LeanLargeElim (wBlock ηB ηT) := Or.inl (le_refl _)
 
 theorem motW_typed (hw : (E.get ηW).block = wBlock ηB ηT) {ℓ n : Nat} {Γ : Ctx ζ ℓ 0 n}
     {l : Level ℓ} : E[Γ] ⊢ motW ηW l : .sort (.imax (.succ .zero) (.succ l)) :=
