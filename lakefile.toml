@@ -8,4 +8,4 @@ name = "LeanToLambdaBox"
 [[require]]
 name = "lean4lean"
 git = "https://github.com/digama0/lean4lean"
-rev = "8223d223ed98661882e95d9d6a7126df7097cd76"
+rev = "67f63b0c818920dfaed2ad07ccff187a6a8fe1e3"
