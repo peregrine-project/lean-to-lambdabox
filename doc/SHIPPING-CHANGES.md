@@ -4135,3 +4135,36 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
   unchanged.
 - **Why not fixed:** not required by the verification goal unless it later becomes required.
 
+### R-30: The fragment test is quadratic in the size of the closure
+
+- **What:** `collectDeps` runs on every `#erase`, before the route is known, and its lookups are
+  linear scans of the closure, a list: `dropKnown` calls `findConst` (a `List.find?` on the
+  closure) for every name of the work list, so the closure costs O(R·N) for N declarations and R
+  names read (with repetitions); `findCollision` compares the kernames of all pairs of
+  declarations, O(N²) comparisons, each computing `toKername` of both names (strings built by
+  `cleanIdent`); `findBlockCollision` is O(B·(B + N)) for B inductive types. `erasePure` looks
+  every constant up with `findConst` as well (`findConst?`, `declInfo?`), so the pure path's
+  erasure is quadratic too. `#erase` runs this code in Lean's interpreter.
+- **Where:** `LeanToLambdaBox/Erasure/Collect.lean`: `findConst`, `findCollision`;
+  `LeanToLambdaBox/Erasure/Entry.lean`: `dropKnown`, `closure`, `findBlockCollision`,
+  `collectDeps`; `LeanToLambdaBox/Erasure/Pure.lean`: `findConst?` and the lookups of the oracle.
+- **Reproduction:** not in the corpus; wall times of `lake env lean` on a file importing
+  `LeanToLambdaBox`, median of five runs:
+  - `7 / 2` under `{extern := .preferLogical, structural := .kernel, nat := .peano}`, a closure of
+    120 declarations: `collectDeps` 45 ms (of which `findCollision` 32 ms, `findBlockCollision`
+    4 ms), `erasePure` 41 ms, `eraseEntry` 89 ms; the `Meta` path takes 15 ms;
+  - a chain of definitions `c₀ := B.t`, `cᵢ₊₁ := neg cᵢ` over a two-constructor `B` (`neg` by
+    `B.casesOn`), default configuration, in the fragment: closures of 507, 1007, 2007 and 4007
+    declarations take 0.60 s, 2.4 s, 10.4 s and 44.5 s in `collectDeps`, so four times as long
+    for twice the size; `findCollision` is 2.1 s of the 2.4 s and 9.3 s of the 10.4 s, and
+    `erasePure` takes 1.5 s on 1003 and 5.9 s on 2003 declarations; `eraseEntry` takes 3.9 s on
+    `c₁₀₀₀`, where the `Meta` path takes 49 ms (92 ms on `c₂₀₀₀`);
+  - the same chain under `remove_irrel_constr_args`, which the fragment test excludes only after
+    the closure: `eraseEntry` on `c₄₀₀₀` takes 4.9 s, of which the `Meta` path 188 ms and the
+    check of S-52 21 ms.
+- **Impact:** none noticeable for closures of a few hundred declarations; seconds above about a
+  thousand and minutes above about five thousand, paid by every `#erase` whose closure is
+  collected that far, also one that then takes the `Meta` path.
+- **Why not fixed:** not required by the verification goal unless it later becomes required. The
+  correctness proof reasons about these list functions; a closure in a hash map, with the kernames
+  computed once, would need lemmas of its own.
