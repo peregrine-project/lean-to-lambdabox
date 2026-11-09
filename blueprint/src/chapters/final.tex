@@ -81,8 +81,10 @@ Hypothesis & MetaRocq & Why it is there \\
 \item \lead{Absent} \code{normalization\_in} (partial correctness instead); \code{axiom\_free}
   (atoms are values, other axioms stuck, as in \code{erases\_correct}); \code{firstorder\_ind} (no
   inductives, DV-19); any property of the oracle (proved, Chapter~\ref{chap:oracle}).
-\item \lead{Not assumed} unique typing, injectivity and subject reduction come from lean4lean's
-  theorems and sorries L1--L6 (Section~\ref{sec:trust-inherited}).
+\item \lead{Assumed through lean4lean} sort injectivity (L4), Pi injectivity (L5) and the
+  distinction of a sort from a Pi (L6) are lean4lean \code{sorry}s, as are L1--L3 on inductives;
+  unique typing and subject reduction are lean4lean theorems that rest on them. The final theorem
+  is only as sound as L3--L6 (Section~\ref{sec:trust-inherited}).
 \item \lead{Consequences of \code{hrun}} name injectivity and closedness of the $\lambda_\Box$
   environment (\code{collectDeps\_spec}, \code{erasePure\_erases}).
 \item \lead{Non-vacuity} \code{Test.NV1.final} discharges every hypothesis by a checked term
