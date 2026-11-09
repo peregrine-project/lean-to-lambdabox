@@ -214,12 +214,12 @@ first component, else to this repository:
 | Repository | URL | Revision |
 |---|---|---|
 | this repository (`proof/`, `LeanToLambdaBox/`, ...) | `[links] repository` of `audit.toml` (`$BP_REPOSITORY_URL` overrides it; CI sets it to the repository the workflow runs in) | the commit the site is built from: `$BP_COMMIT`, else `$GITHUB_SHA` (CI), else `git rev-parse HEAD` |
-| lean4lean (`Lean4Lean/`), batteries (`Batteries/`) | `url` of `lake-manifest.json` | `rev` of `lake-manifest.json` (`8223d223...`, `76e1c118...`; the second is the commit of the tag `v4.33.0-rc2` of batteries) |
+| lean4lean (`Lean4Lean/`), batteries (`Batteries/`) | `url` of `lake-manifest.json` | `rev` of `lake-manifest.json` (`67f63b0...`, `76e1c118...`; the second is the commit of the tag `v4.33.0-rc2` of batteries) |
 | Lean (`Init/`, `Std/`, `Lean/`) | `[links] lean4` of `audit.toml`, under `src/` | the tag of `lean-toolchain` (`v4.33.0-rc2`) |
 
 So a declaration of the proof library links to
 `https://github.com/peregrine-project/lean-to-lambdabox/blob/<commit>/proof/EraseProof/Main.lean#L26-L54`,
-one of lean4lean to `https://github.com/digama0/lean4lean/blob/8223d223.../Lean4Lean/Theory/VExpr.lean#L7-L13`,
+one of lean4lean to `https://github.com/digama0/lean4lean/blob/67f63b0.../Lean4Lean/Theory/VExpr.lean#L7-L13`,
 and one of Lean to `https://github.com/leanprover/lean4/blob/v4.33.0-rc2/src/Init/Prelude.lean#L1231-L1253`.
 A pinned commit, unlike a branch, keeps every line number right; a link of a site built from a
 commit that GitHub does not have resolves once that commit is pushed.
