@@ -5,8 +5,11 @@
 \item \lead{Goal} State which \code{\#erase} inputs the verification covers, and why: every closed,
   typed program that Metalean can express and that the eraser handles without a known defect.
 \item \lead{Main results} The fragment in two phases: Phase I adds to the $\lambda\Pi$ fragment
-  everything about inductive types that the eraser handles, \hl{with no recursion of any kind},
-  so no \code{Nat} arithmetic, and \code{Nat} literals only under \code{nat := .peano}; quotients and the recursors of one
+  everything about inductive types that the eraser handles, \hl{with no recursive definitions by default}
+  (programs recurse through the admitted recursors, and under \code{structural := .kernel} through
+  single definitions by structural recursion; well-founded recursion and mutual structural blocks
+  are out), so no \code{Nat} arithmetic of \code{Init} by default, and \code{Nat} literals only
+  under \code{nat := .peano}; quotients and the recursors of one
   inductive without indices (the shape of \code{RecInFragment}) are in Phase I, and Phase II adds
   the other recursors; structural recursion is in Phase I under \code{structural := .kernel}.
   The divergence entries DV-23 to DV-26 and the choices of Section~\ref{sec:scope-decisions} fix

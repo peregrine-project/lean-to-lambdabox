@@ -284,9 +284,11 @@
   so which constants the source semantics treats as stuck.
 \item \lead{Caveat} The fragment test is syntactic: it does not check types, which the
   hypotheses of the final theorem state separately.
-\item \lead{Caveat} \code{Pure.whnf} has no recursor $\iota$: an alternative whose type needs
-  $\iota$ to become a $\Pi$ is an error of the pure path (S-31), where the \code{Meta} path
-  reduces it.
+\item \lead{Caveat} \code{Pure.whnf} has $\iota$ only for the recursors of one inductive without
+  indices whose induction hypotheses take no arguments and are about the last fields
+  (\code{iotaApp?}), not for others such as \code{Eq.rec}, for quotients, or for a \code{Nat}
+  literal major: an alternative whose type needs another $\iota$ to become a $\Pi$ is an error of
+  the pure path (S-31), where the \code{Meta} path reduces it.
 \item \lead{Caveat} The pure path fails on a kernel-valid projection of a proof of an inductive
   that is not large-eliminating (S-36); Lean's elaborator never produces one.
 \end{itemize}

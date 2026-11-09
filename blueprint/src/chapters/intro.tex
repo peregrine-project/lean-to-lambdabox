@@ -43,9 +43,10 @@
   equality and well-formed environments of Lean's kernel, with inductive types, recursors and
   quotients.
 \item \lead{The scope} closed, typed Lean programs that Metalean can express and that the
-  eraser's fragment test admits, inductive types and \code{casesOn} included; \hl{no recursion
-  of any kind}, so no \code{Nat} arithmetic, and \code{Nat} literals only under
-  \code{nat := .peano} (Chapter~\ref{chap:scope}).
+  eraser's fragment test admits, inductive types and \code{casesOn} included; \hl{no recursive
+  definitions by default}, recursion only through the admitted recursors and, under
+  \code{structural := .kernel}, single definitions by structural recursion, and \code{Nat} literals
+  only under \code{nat := .peano} (Chapter~\ref{chap:scope}).
 \item \lead{The references} the verification follows these as closely as the differences between
   Lean and Rocq allow; every divergence from the first two is an entry of
   \code{doc/DIVERGENCES.md}.
