@@ -135,7 +135,8 @@ it skips the values of theorems and of recognized \code{casesOn} constants.
   inductive's, induction hypotheses without arguments and about the last fields); a constant with an
   \code{\_unsafe\_rec} companion (structural or well-founded recursion).
 \item \lead{Both phases} a string literal; an \code{unsafe}, \code{partial} or
-  \code{@[implemented\_by]} constant; a nested or unsafe inductive; an \code{@[extern]}
+  \code{@[implemented\_by]} constant; a definition, theorem or opaque of a mutual block, whose
+  \code{all} is not its own name alone (S-51); a nested or unsafe inductive; an \code{@[extern]}
   constructor under \code{preferAxiom}; under \code{nat := .machine} a \code{Nat} literal,
   \code{Nat.zero}, \code{Nat.succ}, \code{Int.ofNat}, \code{Int.negSucc}, \code{Nat.casesOn} or
   \code{Int.casesOn}; under \code{remove\_irrel\_constr\_args} any inductive type; a
@@ -234,7 +235,9 @@ The 294 \code{\#erase} commands of the shipping corpus, through the shipping fra
 for a name collision. With \code{structural := .kernel} the same commands give 233 in, 57 out and 4
 errors; the 8 programs that move in are the structurally recursive ones, and the oracle's recursor
 $\iota$ answers 10462 calls with no failure. Of the 225 pure-path outputs, 58 hold an inductive block, 3 a $\lambda_\Box$
-\code{case} and 9 a projection.
+\code{case} and 9 a projection. The corpus writes 708 files, recorded by their SHA-256 in
+\code{tests/corpus/SHA256SUMS}; \code{scripts/corpus.sh -{}-check} compares a fresh run with that
+list (S-54).
 
 \begin{tabular}{p{0.7\linewidth}r}
 \toprule

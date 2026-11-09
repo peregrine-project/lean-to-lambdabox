@@ -601,6 +601,9 @@
   \end{itemize}
   \lead{Structural recursion} \code{CollectOk.dex} carries the same disjunct, so the lower bound
   covers a structural recursion under \code{structural := .kernel}.
+  \lead{Mutual blocks} the test's exclusion of a definition, theorem or opaque of a mutual block
+  (S-51) does not arise: \code{ProgEnv} asks each to be alone in its block, which the field
+  \code{own} of \code{Frag} records from \code{ProgEnv.scoped}.
   \lead{Why \code{RecShaped}} the lower bound covers the programs whose expressions name
   recursors only in the shape of \code{RecInFragment}, which is what the fragment test checks. A
   structural definition reads \code{T.brecOn}, whose value applies \code{T.rec}, so the premise

@@ -149,7 +149,11 @@ Projections of inductives that are not large-eliminating & the pure oracle typed
 Block names & the defect names inductive blocks through Lean's escaping printer, a
   \code{partial} function the kernel cannot evaluate, which prints two names differing by escapes
   alike. Entry
-  S-26 (\code{mutualBlockKername}); the residual collisions are R-3 \\
+  S-26 (\code{mutualBlockKername}); the residual collisions are R-3, an error of \code{\#erase} on
+  both paths (S-21, S-52) \\
+Mutual blocks in the fragment & the defect admits a definition, theorem or opaque of a mutual
+  block, which the program relation excludes: the pure path erases programs that the final theorem
+  does not cover. Entry S-51 excludes them from the fragment \\
 \bottomrule
 \end{tabular}
 

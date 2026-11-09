@@ -76,6 +76,8 @@
         \code{partial} constant, one with an \code{\_unsafe\_rec} companion (except, under
         \code{structural := .kernel}, a definition for which \code{isStructuralRecursive} holds;
         S-44) or an \code{implemented\_by} target, a nested inductive, an \code{@[extern]} constructor under \code{preferAxiom};
+        a definition, theorem or opaque of a mutual block, whose \code{all} is not its own name
+        alone (S-51);
   \item \code{sortDecided}: an inductive's sort is written \code{Prop} or never zero
         (\code{true}), may be both (\code{false}, by \code{mayBeNonZero}), or is zero without
         being written \code{Prop} (excluded); an inductive whose type is not syntactically
@@ -262,7 +264,7 @@
 
 \begin{definition}[The entry point]
   \label{def:Erasure-eraseEntry}
-  \lean{Erasure.eraseEntry, Erasure.route, Erasure.Route}
+  \lean{Erasure.eraseEntry, Erasure.route, Erasure.Route, Erasure.dupKername}
   \leanok
   \uses{def:Erasure-collectDeps, def:Erasure-erasePure, def:Erasure-erase}
   \srcloc{LeanToLambdaBox/Erasure/Entry.lean}{341}
@@ -271,7 +273,8 @@
   \begin{itemize}
   \item \code{ok decls}: \code{erasePure}; its errors are errors of \code{\#erase}, with
         \hl{no fallback to \code{Meta}};
-  \item \code{outOfFragment}: the \code{CoreM} path \code{erase}, unchanged;
+  \item \code{outOfFragment}: the \code{CoreM} path \code{erase}, unchanged; a program with two
+        declarations of one kername (\code{dupKername}) is an error (S-52);
   \item any other error: an error of \code{\#erase}.
   \end{itemize}
 \end{definition}
