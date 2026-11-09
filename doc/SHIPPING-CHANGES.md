@@ -115,6 +115,18 @@ files after replacing hygienic name suffixes (`x._@.M._hyg.N`, `x._@.M.<hash>._h
 fixed token, to separate toolchain-induced renamings from real changes. The exit status is 0 when
 the corpora agree.
 
+The corpus of the current checkout is recorded in `tests/corpus/SHA256SUMS` (S-54): one line per
+corpus file, its SHA-256 and its path under `OUTDIR`, as `sha256sum` prints them, sorted by path.
+`scripts/corpus.sh` writes the same list for the corpus it generates to `OUTDIR/_meta/SHA256SUMS`,
+and
+
+    scripts/corpus.sh --check OUTDIR
+
+then compares it with `tests/corpus/SHA256SUMS`, prints the difference, and fails if the lists
+differ. A commit that changes the corpus updates the committed list (a copy of
+`OUTDIR/_meta/SHA256SUMS`). The list holds for the toolchain the checkout names; a corpus of
+another commit is compared file by file with `scripts/corpus-diff.sh`.
+
 ## Regression tests
 
 A regression test is a file `tests/regress/<name>.lean` that writes its outputs into its working
@@ -3618,6 +3630,34 @@ the calls at which the two oracles answer differently. It must equal
   `#erase` outputs under the default configuration, which peregrine validates and evaluates to
   `7` (a primitive integer) for the four quotient programs and `MQR.B.t` for `useRec`.
   `scripts/regress.sh` passes (30 tests) with `PEREGRINE`.
+
+## S-54: The corpus is recorded by a committed list of checksums
+
+- **Commit:** the commit whose subject starts with `S-54:` (`git log --grep='^S-54:'`).
+- **Files and functions:**
+  - `scripts/corpus.sh`: writes `OUTDIR/_meta/SHA256SUMS`, the SHA-256 of every corpus file; new
+    option `--check`, which compares that list with `tests/corpus/SHA256SUMS` and fails if they
+    differ; its header comment.
+  - new `tests/corpus/SHA256SUMS`: the list for the corpus of this commit (708 files).
+  - `doc/SHIPPING-CHANGES.md`: this entry and the description of the corpus.
+- **Why necessary:** found by the review of this branch. The entries state the corpus effect of
+  each change against a corpus generated at the base commit, but the corpus outputs are not
+  committed, so a reader could not check a claim such as "byte-identical for all 710 files"
+  without regenerating the corpus at both commits. The committed list fixes the corpus of the
+  current commit; `--check` reproduces it from the repository.
+- **Behaviour before:** `scripts/corpus.sh OUTDIR` writes the corpus; nothing in the repository
+  records its content.
+- **Behaviour after:** the same, and `scripts/corpus.sh --check OUTDIR` ends with `the corpus
+  matches tests/corpus/SHA256SUMS` on this commit; on a corpus that differs it prints a unified
+  diff of the two lists (the files whose checksum differs, and those present in one list only)
+  and exits with status 1.
+- **Effect on emitted .ast (corpus):** none: byte-identical for all 708 files against the corpus
+  of S-52; the committed list was computed from that corpus and `scripts/corpus.sh --check`
+  passes on a fresh run at this commit.
+- **Regression test:** `scripts/corpus.sh --check` itself, which fails as soon as an output of
+  the corpus changes without the list. `scripts/regress.sh` and `scripts/pure-harness.sh` are
+  unaffected. CI does not run the corpus; run `scripts/corpus.sh --check` before committing a
+  change to the eraser.
 
 ## Reported, not fixed
 
