@@ -72,7 +72,7 @@ def lib : Name := `EraseProof
 /-- The axioms a declaration of the library may depend on, in the order footprints print them. -/
 def allowedAxioms : Array Name := #[``propext, ``Classical.choice, ``Quot.sound, ``sorryAx]
 
-/-- lean4lean's `sorry` declarations (`master` 8223d223) under the library's imports, with labels.
+/-- lean4lean's `sorry` declarations (`master` 67f63b0) under the library's imports, with labels.
 The library may reach those of `allowedLabels` only. -/
 def sorryLabels : Array (String × Name) := #[
   ("L1", `Lean4Lean.VInductDecl.WF),
