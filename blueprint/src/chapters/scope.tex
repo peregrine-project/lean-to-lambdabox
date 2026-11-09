@@ -7,8 +7,8 @@
 \item \lead{Main results} The fragment in two phases: Phase I adds to the $\lambda\Pi$ fragment
   everything about inductive types that the eraser handles, \hl{with no recursive definitions by default}
   (programs recurse through the admitted recursors, and under \code{structural := .kernel} through
-  single definitions by structural recursion; well-founded recursion and mutual structural blocks
-  are out), so no \code{Nat} arithmetic of \code{Init} by default, and \code{Nat} literals only
+  single definitions by structural recursion; well-founded recursion is out, and mutual structural blocks
+  are covered only vacuously), so no \code{Nat} arithmetic of \code{Init} by default, and \code{Nat} literals only
   under \code{nat := .peano}; quotients and the recursors of one
   inductive without indices (the shape of \code{RecInFragment}) are in Phase I, and Phase II adds
   the other recursors; structural recursion is in Phase I under \code{structural := .kernel}.
@@ -188,8 +188,9 @@ DV-26 & the fragment is an explicit hypothesis, \code{hfrag}, with the exclusion
 \item \lead{The premise \code{hfrag}} explicit, unlike the lean4lean verification's in-scope
   condition: out-of-fragment inputs go to the \code{Meta} path, about which nothing is proved.
 \item \lead{Its lower bound} \code{collectDeps\_ok\_of} (Lemma~\ref{lem:EraseProof-collectDeps_ok_of}):
-  every typed program whose read closure is inside Phase I, with no recursor in a read expression
-  and no name collision, is accepted.
+  every typed program whose read closure is inside Phase I, whose recursors, in every read expression,
+  are of the shape \code{RecInFragment} admits (\code{RecShaped}), with no name collision, is
+  accepted.
 \end{itemize}
 
 \section{Evidence}\label{sec:scope-evidence}
