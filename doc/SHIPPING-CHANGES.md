@@ -3549,6 +3549,49 @@ the calls at which the two oracles answer differently. It must equal
   passes (29 tests) with `PEREGRINE`. `scripts/pure-harness.sh` passes with its expected summary
   unchanged (294 `#erase`, 225 in the fragment, 66 outside, 3 `collectDeps` errors).
 
+## S-52: On the `Meta` path, a program with two declarations of one kername is an error
+
+- **Commit:** the commit whose subject starts with `S-52:` (`git log --grep='^S-52:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure/Entry.lean`: new `dupKername`, a kername that two global
+    declarations of a list have (one pass, with a hash set of the kernames seen: 5 ms on the
+    1003 declarations of a synthetic program, 21 ms on 4003, where the `Meta` path takes 51 ms
+    and 188 ms); `eraseEntry`, on the `Meta` branch only, fails with `erasure
+    failed: two declarations of the program have the kername <kername>` when the program's
+    declarations have one; its docstring. The pure branch, `route` and `collectDeps` are
+    unchanged.
+  - `tests/regress/block_names.lean`: two inductives whose names differ only by `«»` quoting,
+    and a program over both on each path.
+  - `tests/corpus/Defects.lean`: the reproduction of R-3 pins the error of `#erase`.
+  - `doc/SHIPPING-CHANGES.md`: this entry and R-3.
+- **Why necessary:** found by the review of this branch. Since S-26 a block's name drops the `«»`
+  escapes on both paths, so two inductive types whose names differ only by quoting (a component
+  `«c.d»` and the two components `c.d`) get one block name (R-3). The pure path reports such a
+  collision (`findBlockCollision`, and `findCollision` for constants), but the `Meta` path wrote a
+  program with two declarations of one kername, which peregrine rejects (`Duplicate
+  definition`) or, for a reader that keeps one of them, means another program. Checking the
+  emitted declarations covers every collision on that path, blocks and constants alike; the check
+  runs after `erase`, so the `Meta` path's traversal and the pure path are unchanged.
+- **Behaviour before:** `#erase BlockNames.useBoth` (over `BlockNames.«c.d»` and `BlockNames.c.d`,
+  with a Nat literal, so on the `Meta` path) writes a program that declares the block
+  `BlockNames_u46c_u46d` twice; `#erase (colA.«a b» + colA.a_u32b)` in `tests/corpus/Defects.lean`
+  writes `collide.ast`, which declares `Defects.colA.a_u32b` twice.
+- **Behaviour after:** both are errors of `#erase`: `erasure failed: two declarations of the
+  program have the kername ((MPfile ()) "BlockNames_u46c_u46d")`, resp. `… ((MPdot (MPdot (MPfile
+  ()) "Defects") "colA") "a_u32b")`, and no file is written. Under `nat := .peano` `useBoth` is in
+  the fragment and fails on the pure path as before, with `the constants BlockNames.c.d and
+  BlockNames.«c.d» have the same kername`.
+- **Effect on emitted .ast (corpus):** against the corpus of S-51 (710 files): 708 byte-identical,
+  and `examples/Defects/collide.ast` with its `.inlinings` are no longer written (708 files);
+  `PANIC` counts unchanged. No other program of the corpus has two declarations of one kername.
+  `scripts/pure-harness.sh` passes with its expected summary unchanged (the harness runs
+  `Erasure.erase` itself, and `collide` is outside the fragment).
+- **Regression test:** `block_names` checks by `decide` that the two inductives have one block
+  name, that `useBoth` takes the `Meta` path by default and fails on the pure path under
+  `nat := .peano`, and pins the error of `#erase` on each path. Before this commit the `Meta`
+  path's `#erase` writes `both.ast` and the `#guard_msgs` fails. `scripts/regress.sh` passes (29
+  tests) with `PEREGRINE`.
+
 ## Reported, not fixed
 
 Each entry below was reproduced on this branch. Unless stated otherwise, the reproduction is an
@@ -3593,13 +3636,16 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
 - **Where:** `LeanToLambdaBox/Basic.lean`: `cleanIdent`, `toKername`, `toModPath`, `rootKername`,
   `mutualBlockKername`;
   `LeanToLambdaBox/Erasure.lean`: `register_inductive` (`mutualBlockName`).
-- **Reproduction:** `collide.ast` (`colA.«a b» + colA.a_u32b`): `peregrine validate` fails with
-  `Duplicate definition .Defects.colA.a_u32b`. A program in the fragment of the pure path is not
-  affected: `collectDeps` finds the collision and `#erase` fails (S-21), e.g. on `Nm.both` in
-  `tests/corpus/Names.lean` with `erasure failed: the constants Nm.two_u39 and Nm.two' have the
-  same kername`.
-- **Impact:** distinct Lean constants can be emitted under one λ□ name, for programs outside the
-  fragment.
+- **Reproduction:** `colA.«a b» + colA.a_u32b` in `tests/corpus/Defects.lean`: before S-52 the
+  `Meta` path wrote `collide.ast`, on which `peregrine validate` fails with `Duplicate definition
+  .Defects.colA.a_u32b`; since S-52 `#erase` fails with `erasure failed: two declarations of the
+  program have the kername ((MPdot (MPdot (MPfile ()) "Defects") "colA") "a_u32b")`, which the
+  file pins. A program in the fragment of the pure path fails as well: `collectDeps` finds the
+  collision (S-21), e.g. on `Nm.both` in `tests/corpus/Names.lean` with `erasure failed: the
+  constants Nm.two_u39 and Nm.two' have the same kername`.
+- **Impact:** a program whose constants or inductive blocks have one kername cannot be erased:
+  `#erase` fails on both paths (S-21, S-52), and writes no file with two declarations of one
+  kername.
 - **Why not fixed:** not required by the verification goal unless it later becomes required.
 
 ### R-4: Unsupported literals are erased to □ after a panic

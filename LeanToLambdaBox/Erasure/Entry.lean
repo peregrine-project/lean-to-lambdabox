@@ -331,7 +331,15 @@ def EraseError.describe : EraseError → String
   | .fuel site => s!"out of fuel in {site}"
   | .failed msg => msg
 
-/-- The `#erase` entry point. Reference: the erasure run of
+/-- A kername that two global declarations of the list have, if any (`seen`: the kernames before
+the list). Reference: none (`toKername` and `mutualBlockKername` are not injective, DV-14). -/
+def dupKername (ds : GlobalDeclarations) (seen : Std.HashSet Kername := {}) : Option Kername :=
+  match ds with
+  | [] => none
+  | (k, _) :: ds => if seen.contains k then some k else dupKername ds (seen.insert k)
+
+/-- The `#erase` entry point. On the `Meta` path, a program with two global declarations of one
+kername is an error (on the pure path, `collectDeps` reports it). Reference: the erasure run of
 `MR E/ErasureFunctionProperties.v:657 erase_correct`
 (`erase … = t'`, `erase_global_deps … = Σ'`). -/
 def eraseEntry (view : EnvView) (cfg : ErasureConfig) (e : Expr) :
@@ -339,6 +347,10 @@ def eraseEntry (view : EnvView) (cfg : ErasureConfig) (e : Expr) :
   match route view cfg e with
   | .viaPure (.ok r) => pure r
   | .viaPure (.error err) => throwError "erasure failed: {err.describe}"
-  | .viaMeta => erase e cfg
+  | .viaMeta => do
+    let r@(.untyped ds _, _) ← erase e cfg
+    if let some k := dupKername ds then
+      throwError "erasure failed: two declarations of the program have the kername {Serialize.to_sexpr k}"
+    pure r
 
 end Erasure
