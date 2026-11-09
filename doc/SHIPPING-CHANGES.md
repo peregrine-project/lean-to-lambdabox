@@ -3665,6 +3665,25 @@ the calls at which the two oracles answer differently. It must equal
   unaffected. CI does not run the corpus; run `scripts/corpus.sh --check` before committing a
   change to the eraser.
 
+## T-3: The README says what requiring the package fetches
+
+- **Commit:** the commit whose subject starts with `T-3:` (`git log --grep='^T-3:'`).
+- **Files and functions:**
+  - `README.md`: the sentences after the toolchain line.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** found by the review of this branch. The README said that
+  `import LeanToLambdaBox` does not load Metalean or Mathlib, which a reader could take to mean
+  that the package does not depend on them. `lakefile.toml` requires Metalean, so Lake clones
+  Metalean, Mathlib and Mathlib's dependencies for every package that requires this one.
+- **Behaviour before:** "`import LeanToLambdaBox` does not load either; `LeanToLambdaBox.Metalean`
+  does, …".
+- **Behaviour after:** the README says that `import LeanToLambdaBox` loads neither Metalean nor
+  Mathlib, that `LeanToLambdaBox.Metalean` loads both, and that Lake still clones Metalean,
+  Mathlib and Mathlib's dependencies for every package that requires lean-to-lambdabox, whether
+  or not it imports `LeanToLambdaBox.Metalean`. The toolchain sentence is unchanged.
+- **Effect on emitted .ast (corpus):** none: only the README changes.
+- **Regression test:** none; the change is documentation.
+
 ## Reported, not fixed
 
 Each entry below was reproduced on this branch. Unless stated otherwise, the reproduction is an
