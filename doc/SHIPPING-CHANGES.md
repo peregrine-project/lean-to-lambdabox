@@ -2607,7 +2607,8 @@ the calls at which the two oracles answer differently. It must equal
   `casesOn` only with the recursor's universe parameters. On the `Meta` path, the sparse
   `casesOn` and the `T.c.elim` that Lean generates for data types (checked on an enumeration,
   `Option` and a universe-polymorphic type) have the extra parameter too. A census of every sparse
-  `casesOn` and `T.c.elim` in `Init`, `Std`, `Lean` and `LeanToLambdaBox` (3967 and 2201), in the
+  `casesOn` and `T.c.elim` in `Init`, `Std`, `Lean` and `LeanToLambdaBox` (3967 and 2201 on
+  `v4.35.0-rc2`, 3969 and 2205 on `v4.35.0`), in the
   `tests/corpus` files (6 and 19) and in `benchmarks/FromLeanCommon` (20 and 36) finds each with
   the universe parameters of its inductive's `casesOn` and recursor, so with the extra parameter,
   and no exception; Lean builds them so (`mkSparseCasesOn` takes the `casesOn`'s universe
@@ -3588,7 +3589,10 @@ the calls at which the two oracles answer differently. It must equal
   639 opaques of `partial` blocks and 17 definitions by well-founded recursion, all with an
   `_unsafe_rec` companion, and 6 `unsafe` definitions, which the fragment test already excluded;
   20 definitions by mutual structural recursion, which it admitted under `structural := .kernel`;
-  and 8 theorems, which it admitted under every configuration. In the corpus files the mutual
+  and 8 theorems, which it admitted under every configuration. These counts are those of
+  `v4.35.0-rc2`; on `v4.35.0` (T-2) the imports have a few more declarations of the same kinds
+  (15 `match_<n>`, 2 sparse `casesOn`, 4 `T.c.elim`, one opaque of a `partial` block), and the
+  conclusions are the same. In the corpus files the mutual
   blocks are `Defects.fooI`/`barI` (structural, with an `_unsafe_rec` companion) and
   `URec.ua`/`ub` (`unsafe`), and in the benchmarks `even`/`odd` (structural); none is in the
   fragment of its configuration.
