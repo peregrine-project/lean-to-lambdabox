@@ -91,7 +91,7 @@ theorem rinst_param {ℓ ℓ' : Nat} (σ : Param ℓ → Level ℓ') (p : Param 
 theorem rinst_succ {ℓ ℓ' : Nat} (σ : Param ℓ → Level ℓ') (u : Level ℓ) :
     Level.inst σ u.succ = (Level.inst σ u).succ := Level.inst_succ σ u
 theorem rinst_max {ℓ ℓ' : Nat} (σ : Param ℓ → Level ℓ') (u v : Level ℓ) :
-    Level.inst σ (u.max v) = (Level.inst σ u).max (Level.inst σ v) := Level.inst_max σ u v
+    Level.inst σ (u.max v) = (Level.inst σ u).max (Level.inst σ v) := ML.Level.inst_max σ u v
 theorem rinst_imax {ℓ ℓ' : Nat} (σ : Param ℓ → Level ℓ') (u v : Level ℓ) :
     Level.inst σ (u.imax v) = (Level.inst σ u).imax (Level.inst σ v) := Level.inst_imax σ u v
 
@@ -110,10 +110,10 @@ syntax (name := _rsx) "rsx" ("[" ident,* "]")? (Lean.Parser.Tactic.location)? : 
 macro_rules
   | `(tactic| rsx $[$loc]?) => `(tactic| rsx [Ctx.get] $[$loc]?)
   | `(tactic| rsx [$ts,*] $[$loc]?) => `(tactic| simp [$[$ts:ident],*, Frame.plug,
-      Expr.rename, Expr.inst, Expr.subst, Subst.lift, Subst.extend_apply, Ren.lift, Ren.wkFrom,
+      Expr.rename, Expr.inst, Expr.subst, Subst.lift, subst_extend_apply, Ren.lift, Ren.wkFrom,
       Subst.precomp, Ren.comp, minsBl, mPU, mPP, mPPmk, mPUu, mN, mZ, mS, motNM,
       EraseProof.Test.NVR.motN, belowValM, belowTyM, fin0_eq, Inductive.iotaRhs,
-      Inductive.iotaIHs, Ctor.iotaIH, RecField.iotaIH, Expr.apps_succ, Ctx.lam,
+      Inductive.iotaIHs, Ctor.iotaIH, RecField.iotaIH, ML.Expr.apps_succ, Ctx.lam,
       RecField.instantiatedTelescope, RecField.instantiatedIndices, Expr.applyBound,
       Expr.wkClosed, Expr.wk, Expr.wkFrom, Expr.wkN, Expr.instL, rinst_zero, rinst_param,
       rinst_succ, rinst_max, rinst_imax, m1, funext_iff, Fin.forall_fin_one, Fin.forall_fin_two,

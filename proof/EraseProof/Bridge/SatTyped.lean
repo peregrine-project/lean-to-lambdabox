@@ -185,7 +185,7 @@ theorem compatType_subst {m n : Nat} (σ : Subst ζ ℓ m n) (ηeq : Head ζ (.i
     (l : Level ℓ) (α r β f : Expr ζ ℓ m) :
     (Quot.compatType ηeq l α r β f).subst σ =
       Quot.compatType ηeq l (α.subst σ) (r.subst σ) (β.subst σ) (f.subst σ) := by
-  simp only [Quot.compatType, Quot.eqApp, Expr.subst, Expr.subst_appList, List.map_cons,
+  simp only [Quot.compatType, Quot.eqApp, Expr.subst, ML.Expr.subst_appList, List.map_cons,
     List.map_nil, wk_subst_lift, Subst.lift_castSucc, Subst.lift_last, var_wk]
   simp [funext_iff, Fin.forall_fin_two, Expr.subst]
 

@@ -86,14 +86,12 @@ theorem isErasable_recr_zero {ℓ n : Nat} {Γ : Metalean.Ctx ζ ℓ 0 n} {ι : 
 theorem field_level_zero {ι : Metalean.IndSig} {I : Metalean.Inductive ζ ι} {s : Fin ι.nsorts}
     {c : Fin (ι.nctors s)} (hst : I.IsStructure s c) (hl : I.level = .zero)
     (f : Fin (ι.ctors s c).nfields) : ((I.ctors s c).ordinary f).level = .zero := by
-  cases hst.sortLargeElim with
-  | large h =>
-    rw [hl] at h
-    simpa using h (fun _ => 0)
-  | subsingleton _ _ helig =>
-    rcases (helig c).ordinary f with h | ⟨i, -⟩
+  rcases hst.largeElim with hsub | h
+  · rcases (hsub.eligible s c).ordinary f with h | ⟨i, -⟩
     · exact h
     · exact hst.no_indices.elim i
+  · rw [hl] at h
+    simpa using h (fun _ => 0)
 
 /-- Every typed translation of a projection out of an inductive in `Prop` is a proof. -/
 theorem projOfProp_isErasable {S : Name} {i : Nat} {e₀ : Expr}

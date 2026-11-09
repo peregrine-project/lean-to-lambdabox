@@ -21,7 +21,7 @@ The η-terms of the saturating rules are the translator's own total term builder
 `Metalean.Frontend.{indTerm, ctorTerm, recrTerm, wrapCase, quotTerm}`, which are trusted
 (`doc/DIVERGENCES.md`, trust base); check C6 exempts exactly what they reach.
 
-Citations: `ML <file>:<line>` is a file of Metalean (`Metalean/`, commit `9407ba4`); `MR <file>`
+Citations: `ML <file>:<line>` is a file of Metalean (`Metalean/`, commit `0146928`); `MR <file>`
 is a file of MetaRocq (commit `4b201296`), `E/`, `P/`, `S/` standing for `erasure/theories/`,
 `pcuic/theories/`, `safechecker/theories/`; `L4 <file>` is a file of `proof/` in the lean4lean
 experiment of this repository (commit `ca56b85`), which this development ports; MC is Sozeau et al.,
@@ -93,7 +93,7 @@ def TrLevels (lps : List Name) (us : List Lean.Level) (k : Nat) :
 /-! ## 3. Local contexts -/
 
 /-- What a Lean local denotes: a Metalean variable (λ/Π binder) or, for a `let`, its translated
-value (the translator inlines lets, `ML Frontend/Translate.lean:337-340`; `Ctx` has no let
+value (the translator inlines lets, `ML Frontend/Translate.lean:339-342`; `Ctx` has no let
 entries, `ML Syntax/Ctx.lean:20`). Reference: lean4lean `VLocalDecl` (`L4 Typing/Basic.lean:19`). -/
 inductive MLDecl (ζ : Metalean.Sigs) (ℓ n : Nat) where
   | vlam (v : Fin n)
@@ -153,7 +153,7 @@ abbrev natSig : Metalean.IndSig where
     | 1 => natSuccSig
 
 /-- The unary literal: copy of `Expr.natLit` (`ML Checker/Acceleration/Literal.lean:116`), what
-the fast checker's `Denotes` relates `natLit k` to (`ML Checker/Fast/FExpr.lean:984`). -/
+the fast checker's `Denotes` relates `natLit k` to (`ML Checker/Fast/FExpr.lean:980`). -/
 def natLitM {ζ : Metalean.Sigs} {ℓ n : Nat} (ηNat : Metalean.Head ζ (.inductive natSig)) :
     Nat → Metalean.Expr ζ ℓ n
   | 0 => .ctor ηNat 0 0 ![] ![] ![] ![]
@@ -201,13 +201,24 @@ def MetaOrderOK (order : List Nat) (nf nr : Nat) : Prop :=
   ∃ ords recs, order = ords ++ recs ∧ ords.length = nf ∧ recs.length = nr ∧
     ords.Pairwise (· < ·) ∧ recs.Pairwise (· < ·) ∧ order.Perm (List.range (nf + nr))
 
+/-- Lean's recursor of the block eliminates into every sort: the block's sort is never `Prop`, or
+the block declares one inductive type that is a syntactic subsingleton (at most one constructor,
+whose fields are proofs or indices). This is the rule of Lean's kernel
+(`elim_only_at_universe_zero`, `src/kernel/inductive.cpp`), which Metalean's translator applies to
+Lean's recursors (`translateSpecial`, leanElim mode, `ML Frontend/Translate.lean:289-291`).
+Metalean's own `Inductive.LargeElim` (`ML Syntax/Inductive/LargeElimination.lean:53`) also admits
+mutual blocks of subsingletons. -/
+def LeanLargeElim {ζ : Metalean.Sigs} {ι : Metalean.IndSig} (I : Metalean.Inductive ζ ι) : Prop :=
+  Metalean.Level.one ≤ I.level ∨ ι.nsorts = 1 ∧ I.Subsingleton
+
 /-- The level arguments of a recursor: the motive's universe comes first iff the block eliminates
-into every sort (`translateSpecial`, leanElim mode, `ML Frontend/Translate.lean:289-296`). -/
+into every sort (`LeanLargeElim`; `translateSpecial`, leanElim mode,
+`ML Frontend/Translate.lean:289-297`). -/
 def RecrLevels {ζ : Metalean.Sigs} {ι : Metalean.IndSig} (I : Metalean.Inductive ζ ι)
     (lps : List Name) (us : List Lean.Level) (l : Metalean.Level lps.length)
     (us' : List Lean.Level) : Prop :=
-  (I.LargeElim ∧ ∃ u, us = u :: us' ∧ TrLevel lps u = some l) ∨
-  (¬ I.LargeElim ∧ us' = us ∧ l = .zero)
+  (LeanLargeElim I ∧ ∃ u, us = u :: us' ∧ TrLevel lps u = some l) ∨
+  (¬ LeanLargeElim I ∧ us' = us ∧ l = .zero)
 
 /-- Arity of a quotient constant (`translateSpecial`, `ML Frontend/Translate.lean:240-249`). -/
 def quotArity : Metalean.Export.QuotKind → Nat
@@ -312,13 +323,13 @@ def TypedExt {ζ : Metalean.Sigs} (E : Metalean.Env ζ) {ℓ n : Nat} (Γ : Meta
 
 /-- `TrM E B lps Γ Δ e t`: the Lean term `e` (locally nameless; loose bound variables and the
 traversal's free variables denote the locals `Δ`) is the Lean form of the Metalean term `t` in
-the context `Γ`. Rule by rule after `translateWith` (`ML Frontend/Translate.lean:316-345`), as a
+the context `Γ`. Rule by rule after `translateWith` (`ML Frontend/Translate.lean:318-347`), as a
 relation: the translator is `partial` and decides projections with an unverified `inferType`.
 Reference: lean4lean `TrExprS` (`L4 Typing/Basic.lean:19`), DV-1. -/
 inductive TrM {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (lps : List Name) :
     {n : Nat} → Metalean.Ctx ζ lps.length 0 n → MLCtx ζ lps.length n → Lean.Expr →
     Metalean.Expr ζ lps.length n → Prop
-  /-- `ML Frontend/Translate.lean:318`. -/
+  /-- `ML Frontend/Translate.lean:320`. -/
   | bvar : Δ.findB i = some t → TrM E B lps Γ Δ (.bvar i) t
   /-- The traversal's locals (no Metalean counterpart, DV-13). -/
   | fvar : Δ.findF x = some t → TrM E B lps Γ Δ (.fvar x) t
@@ -351,7 +362,7 @@ inductive TrM {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (lps : L
       TrM E B lps Γ Δ (.letE x T v b nd) (.letE T' v' b'.wk)
   /-- Metadata is dropped by the export. -/
   | mdata : TrM E B lps Γ Δ e t → TrM E B lps Γ Δ (.mdata d e) t
-  /-- Nat literals as unary constructor chains (`ML Checker/Fast/FExpr.lean:984`), of the
+  /-- Nat literals as unary constructor chains (`ML Checker/Fast/FExpr.lean:980`), of the
   constructors that Lean's kernel names ``Nat.zero`` and ``Nat.succ`` when it reads a literal (the
   `Nat` literal extension of the kernel). -/
   | lit {ηNat : Metalean.Head ζ (.inductive natSig)} {o₀ o₁ : List Nat} :
@@ -437,8 +448,8 @@ structure IndBlock {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) {ι
       ((List.range ι.nparams).reverse.map (fun i => .bvar (i + (Cs s c).numFields)) ++ idx).toArray
   recr : ∀ s, (Rs s).name = mkRecName (Is s).name ∧
     B (Rs s).name = some (.recr η s (List.ofFn fun t => List.ofFn fun c => orders t c)) ∧
-    ((E.get η).block.LargeElim → ∃ u, (Rs s).levelParams = u :: lps) ∧
-    (¬ (E.get η).block.LargeElim → (Rs s).levelParams = lps) ∧ (Rs s).isUnsafe = false ∧
+    (LeanLargeElim (E.get η).block → ∃ u, (Rs s).levelParams = u :: lps) ∧
+    (¬ LeanLargeElim (E.get η).block → (Rs s).levelParams = lps) ∧ (Rs s).isUnsafe = false ∧
     (Rs s).all = (Is s).all ∧ (Rs s).numParams = ι.nparams ∧ (Rs s).numMotives = ι.nsorts ∧
     (Rs s).numMinors = (List.ofFn fun t => ι.nctors t).sum ∧ (Rs s).numIndices = ι.nindices s
   /-- The Lean type of a recursor is `Π (params) (motives) (minors) (indices) (major),
@@ -486,7 +497,7 @@ structure IndBlock {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) {ι
   /-- A constructor field that Metalean's block uses as an index variable of the constructor's
   result is, in the Lean constructor type, an index field (`indexFields`): Lean's kernel decides
   large elimination by the syntactic occurrence of the field among the result's arguments
-  (`elim_only_at_universe_zero`, `src/kernel/inductive.cpp`), and Metalean's `SortLargeElim` by
+  (`elim_only_at_universe_zero`, `src/kernel/inductive.cpp`), and Metalean's `Subsingleton` by
   `targetIndices` (`Ctor.Eligible`, `ML Syntax/Inductive/LargeElimination.lean:27`). -/
   indexVars : ∀ s c, (∃ (i : Fin (ι.nindices s)) (f : Fin (ι.ctors s c).nfields),
       (((E.get η).block.ctors s c).targetIndices i).isVar = some (ι.nparams + f.val)) →
@@ -508,7 +519,7 @@ def quotKindOf : Lean.QuotKind → Metalean.Export.QuotKind
   | .ind => .ind
 
 /-- A quotient constant as Lean's kernel declares it (`Declaration.quotDecl`; Metalean's loader
-binds the names without reading the types, `ML Checker/Slow/Loader.lean:81`): each of the
+binds the names without reading the types, `ML Checker/Slow/Loader.lean:74`): each of the
 four names has its kind, the declared type of `Quot` is the arity
 `{α : Sort u} → (α → α → Prop) → Sort u`, and those of `Quot.mk` and `Quot.lift` are `Π`-telescopes
 of their arities (`quotArity`), `{α : Sort u} → (r : α → α → Prop) → α → Quot r` and
@@ -535,8 +546,8 @@ def ConstsIn (p : Name → Prop) : Expr → Prop
 
 /-- `ProgEnv P ζ E B`: the newest-first list of Lean declarations `P` is the Lean form of the
 Metalean environment `E` with name table `B`, one entry per declaration (block), after Metalean's
-loader (`ML Checker/Slow/Loader.lean:55-139`): safe axioms, definitions (`all = [name]`: no
-recursion), theorems as `opaque` (`:122-127`), opaques, inductive blocks, quotients (with `Eq`,
+loader (`ML Checker/Slow/Loader.lean:55-130`): safe axioms, definitions (`all = [name]`: no
+recursion), theorems as `opaque` (`:65-72`, `:126`), opaques, inductive blocks, quotients (with `Eq`,
 as Lean declares them, `QuotShape`).
 Names are fresh, and the universe parameters of each declaration are distinct, as Lean's kernel
 checks (`check_duplicated_univ_params`). The value of a theorem, which Metalean does not load, does

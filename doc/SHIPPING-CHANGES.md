@@ -30,7 +30,8 @@ After S-42, it merges `fixes-port` a fourth time, for `Reject Peano Nat literals
 instead of crashing` (`cfc6fea`), which fixes R-6; S-45 records that merge.
 After S-45, it merges `fixes-port` a fifth time, for `Print primInt literals as bare integers`
 (`6680337`), which fixes R-1, and the eraser `#erase_lcnf` (`bcff7ff`, `53bc471`, `5f5b950`);
-S-46 records that merge.
+S-46 records that merge. After S-50, T-2 switches the toolchain back to `v4.35.0`, with Metalean
+at its revision for that release.
 
 This register lists every change to the shipping code: the eraser
 (`LeanToLambdaBox.lean`, `LeanToLambdaBox/`), the package files (`lakefile.toml`, `lean-toolchain`,
@@ -114,6 +115,18 @@ per differing file (with a line break before every constructor). `--normalize` a
 files after replacing hygienic name suffixes (`x._@.M._hyg.N`, `x._@.M.<hash>._hygCtx._hyg.N`) by a
 fixed token, to separate toolchain-induced renamings from real changes. The exit status is 0 when
 the corpora agree.
+
+The corpus of the current checkout is recorded in `tests/corpus/SHA256SUMS` (S-54): one line per
+corpus file, its SHA-256 and its path under `OUTDIR`, as `sha256sum` prints them, sorted by path.
+`scripts/corpus.sh` writes the same list for the corpus it generates to `OUTDIR/_meta/SHA256SUMS`,
+and
+
+    scripts/corpus.sh --check OUTDIR
+
+then compares it with `tests/corpus/SHA256SUMS`, prints the difference, and fails if the lists
+differ. A commit that changes the corpus updates the committed list (a copy of
+`OUTDIR/_meta/SHA256SUMS`). The list holds for the toolchain the checkout names; a corpus of
+another commit is compared file by file with `scripts/corpus-diff.sh`.
 
 ## Regression tests
 
@@ -2593,7 +2606,14 @@ the calls at which the two oracles answer differently. It must equal
   fields, `Nat`, `List`, `Prod` and `Decidable` (one more). On the pure path `casesInfo?` admits a
   `casesOn` only with the recursor's universe parameters. On the `Meta` path, the sparse
   `casesOn` and the `T.c.elim` that Lean generates for data types (checked on an enumeration,
-  `Option` and a universe-polymorphic type) have the extra parameter too.
+  `Option` and a universe-polymorphic type) have the extra parameter too. A census of every sparse
+  `casesOn` and `T.c.elim` in `Init`, `Std`, `Lean` and `LeanToLambdaBox` (3967 and 2201 on
+  `v4.35.0-rc2`, 3969 and 2205 on `v4.35.0`), in the
+  `tests/corpus` files (6 and 19) and in `benchmarks/FromLeanCommon` (20 and 36) finds each with
+  the universe parameters of its inductive's `casesOn` and recursor, so with the extra parameter,
+  and no exception; Lean builds them so (`mkSparseCasesOn` takes the `casesOn`'s universe
+  parameters and refuses an inductive without the extra one, and `mkCtorElim` runs only for an
+  inductive that eliminates into every sort).
 - **Behaviour before:** on the test's programs, under `nat := .peano`, both in the fragment: `test2
   := tCase (Or, 2) □ [([x], □), ([x], □)]`, on which `peregrine eval --anf=false` fails with
   `wcbvEval:Case,discriminee`; `test := □ □ □`.
@@ -2626,12 +2646,15 @@ the calls at which the two oracles answer differently. It must equal
     `visitMutual`, which the pure path does not reach (the first two are guarded by their caller,
     the last two need a recursive declaration).
 
-  - **Later note (S-44):** the claim that `mkDef` and the fixpoint branch of `visitMutual` are not
-    reached on the pure path no longer holds under `structural := .kernel`. A mutual structural
-    block (`isEv`/`isOd`, program `useEv` in `tests/regress/structural.lean`) is in the fragment
-    and is erased in that branch. The two remaining panic sites there, `fixvars.get![n]!` in
-    `mkDef` and `ci.value!` in `visitMutual`, do not fire on the tests. The final theorem does not
-    cover mutual blocks, which are not the Lean form of Metalean definitions.
+  - **Later note (S-44, S-51):** under `structural := .kernel`, S-44 put mutual structural blocks
+    (`isEv`/`isOd`, program `useEv` in `tests/regress/structural.lean`) in the fragment, and the
+    pure path erased them in the fixpoint branch of `visitMutual`. S-51 excludes every definition,
+    theorem and opaque of a mutual block from the fragment, so the claim holds again: each
+    declaration of a closure is alone in its block, and the kernel checks a safe declaration's
+    value before adding the declaration, so the value does not name it; the pure path therefore
+    takes the non-recursive branch of `visitMutual` and does not reach `mkDef`. The two panic
+    sites of that branch, `fixvars.get![n]!` in `mkDef` and `ci.value!` in `visitMutual`, are
+    reached only on the `Meta` path.
   - `LeanToLambdaBox/Erasure/Pure.lean`: the field `fail` of `instance : Backend PureM` (the error
     `failed`) and the instance's docstring.
   - `tests/harness/PureHarness.lean`: the field of `instance : Backend CmpM`.
@@ -3481,6 +3504,240 @@ the calls at which the two oracles answer differently. It must equal
   evaluates `useTF` and `useFT` to `QP.B.t`, so one class gives one value on both representatives,
   and `useFF` to `QP.B.f`. `scripts/regress.sh` passes (28 tests) with `PEREGRINE`.
 
+## T-2: Toolchain `v4.35.0` and Metalean `0146928`
+
+- **Commit:** the commit whose subject starts with `T-2:` (`git log --grep='^T-2:'`).
+- **Files and functions:**
+  - `lean-toolchain`, `benchmarks/lean-toolchain`, `benchmarks/via_malfunction/lean-toolchain`:
+    `leanprover/lean4:v4.35.0-rc2` becomes `leanprover/lean4:v4.35.0`, the toolchain of Metalean
+    at `0146928` and of `fixes-port`.
+  - `lakefile.toml`: the `metalean` rev `9407ba4407374a05e90777a068c2dc520e4ac0e7` becomes
+    `0146928517ff839f52d8de71c8da7beb108c78a9` (`bump to v4.35.0`).
+  - `lake-manifest.json`: regenerated by `lake update`. The format goes from 1.2.0 to 1.3.0; it
+    lists `metalean` at `01469285…` and, inherited from it, Mathlib at `56a00585…` (input rev
+    `v4.35.0`, which Metalean's lakefile now names), plausible at `dfa4f381…`, LeanSearchClient at
+    `d6b4c7be…`, importGraph at `a41f0e9a…`, proofwidgets at `df72b022…`, aesop at `4a174c49…`, Qq
+    at `dce0ad79…`, batteries at `66e46918…` and Cli at `c24fe607…` (input rev `v4.35.0`), the
+    revisions of Metalean's own manifest. Mathlib's post-update hook fetches its cache.
+  - `benchmarks/via_malfunction/lake-manifest.json`: format 1.3.0, and the root's ten packages at
+    the revisions of the root's `lake-manifest.json`, each marked inherited, written by hand in
+    Lake's format as in T-1.
+  - `tests/regress/pure_inductive.lean`: the census of the environment expects 2719 recognized
+    `casesOn` (was 2718) and 4856 constructors (was 4852).
+  - `README.md`: the toolchain.
+  - `doc/SHIPPING-CHANGES.md`: this entry and the note at its top.
+
+  No source file of the eraser changes. `LeanToLambdaBox/Metalean.lean` is unchanged, and its
+  `#guard_msgs` pins of the axioms of `Metalean.WHRed.defeq` and `Metalean.Defeq.uniqTy`
+  (`propext`, `Classical.choice`, `Quot.sound`) hold. `.github/workflows/build.yml` is unchanged:
+  lean-action installs the toolchain that `lean-toolchain` names and keys its cache on
+  `lean-toolchain` and `lake-manifest.json`.
+- **Why necessary:** the branch moves to the Lean release of `fixes-port`, `v4.35.0`. Metalean at
+  `9407ba4` builds with `v4.35.0-rc2`; its revision for `v4.35.0` is `0146928`. The benchmark
+  workspaces require the root by path and share its packages directory (T-1), so they follow its
+  toolchain and revisions. The census of `pure_inductive` runs over the whole environment, which
+  in `v4.35.0` has one more inductive type with a `casesOn`, the private
+  `Lean.Expr.FoldRelevantConstantsImpl.ArgKind` of `Lean.LibrarySuggestions.Basic`, with four
+  constructors; the recognizer agrees with `Meta` on it.
+- **Behaviour before:** the eraser on `v4.35.0-rc2`, with Metalean `9407ba4`.
+- **Behaviour after:** the eraser is unchanged and builds on `v4.35.0` without a source change.
+  `lake build LeanToLambdaBox LeanToLambdaBox.Metalean` succeeds without warnings, in 1 min 48 s
+  with Mathlib from the cache (1240 jobs). `lake env true` in `benchmarks/via_malfunction`
+  succeeds and changes no file.
+- **Effect on emitted .ast (corpus):** none: all 710 corpus files are byte-identical to those of the
+  previous commit on `v4.35.0-rc2`, and the PANIC counts are equal. The pure-harness summary is
+  unchanged: 294 `#erase`; 225 in the fragment, 66 out, 3 `collectDeps` errors; 8326 oracle
+  calls, 14 differ, 0 failures.
+- **Regression test:** no test fails because of a change in behaviour. On `v4.35.0`,
+  `pure_inductive` fails with the counts of `v4.35.0-rc2` and passes with the new ones.
+  `scripts/regress.sh` passes (28 tests) with and without `PEREGRINE`, with unchanged goldens,
+  and `scripts/pure-harness.sh` passes.
+
+## S-51: The fragment test excludes definitions, theorems and opaques of mutual blocks
+
+- **Commit:** the commit whose subject starts with `S-51:` (`git log --grep='^S-51:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure/Entry.lean`: `declExclusion` excludes a definition, a theorem or an
+    opaque whose `all` is not the list of its own name alone, with `outside the fragment: mutual
+    block <all>`, after its other checks; the docstrings of `declExclusion` and `collectDeps`.
+  - new `tests/regress/mutual_block.lean` with its goldens.
+  - `tests/regress/structural.lean`: the verdicts on `ST.useEv` and `ST.useTree`, its
+    docstring, and the goldens of `useEv` (which takes the `Meta` path).
+  - `doc/SHIPPING-CHANGES.md`: this entry and the later note of S-33.
+- **Why necessary:** found by the review of this branch. The correctness theorem of the pure
+  path is about programs whose closure is the Lean form of a Metalean environment, in which every
+  definition, theorem and opaque is alone in its block (`all = [name]`): Metalean's loader
+  declines the others, and its definitions are not recursive. `declExclusion` did not check
+  `all`, and `closureStep` adds the members of `all` to the closure, so a mutual block was in the
+  fragment whenever its members passed the other checks: under `structural := .kernel`, a mutual
+  block by structural recursion, whose members share one `T.brecOn` and have no `_unsafe_rec`
+  exclusion (S-44), and under every configuration a mutual block of theorems whose member the
+  program reads. The pure path erased such a block in the fixpoint branch of `visitMutual`, which
+  the proof has no case for. The output was probably right; the fragment was wider than what the
+  theorem covers. The theorem's statement does not change: its environment relation already
+  requires `all = [name]` of every definition, theorem and opaque; the proof of the fragment
+  test has the new check to discharge.
+
+  The probe of the declarations in `Init`, `Std`, `Lean` and `LeanToLambdaBox`, of the
+  `tests/corpus` files and of `benchmarks/FromLeanCommon` finds no declaration whose `all` has one
+  member other than itself, so the check is the same as `all.length == 1`. Every auxiliary
+  definition is alone in its block: `match_<n>` (13433 in the imports), `below` (237), `brecOn`
+  (238, and 29 theorems), `casesOn`, `recOn`, `noConfusion`, sparse `casesOn` (3967), `T.c.elim`
+  (2211), and the `eq_<n>`/`eq_def` theorems (7303); so is every definition by structural
+  recursion that is not in a mutual block (1174 of 1194 in the imports). The members of mutual
+  blocks in the imports, `_unsafe_rec` companions aside (which are looked up, not collected), are
+  639 opaques of `partial` blocks and 17 definitions by well-founded recursion, all with an
+  `_unsafe_rec` companion, and 6 `unsafe` definitions, which the fragment test already excluded;
+  20 definitions by mutual structural recursion, which it admitted under `structural := .kernel`;
+  and 8 theorems, which it admitted under every configuration. These counts are those of
+  `v4.35.0-rc2`; on `v4.35.0` (T-2) the imports have a few more declarations of the same kinds
+  (15 `match_<n>`, 2 sparse `casesOn`, 4 `T.c.elim`, one opaque of a `partial` block), and the
+  conclusions are the same. In the corpus files the mutual
+  blocks are `Defects.fooI`/`barI` (structural, with an `_unsafe_rec` companion) and
+  `URec.ua`/`ub` (`unsafe`), and in the benchmarks `even`/`odd` (structural); none is in the
+  fragment of its configuration.
+- **Behaviour before:** under `{nat := .peano, structural := .kernel}`, `MB.useEven` (the block
+  `even`/`odd` on a Peano type) and `ST.useEv` (`isEv`/`isOd` on `Nat`) are in the fragment and
+  take the pure path; under the default configuration `MB.usePf`, a function applied to the
+  theorem `evT` of the mutual block `evT`/`odT`, is in the fragment too.
+- **Behaviour after:** the three are outside the fragment, with `outside the fragment: mutual
+  block [MB.even, MB.odd]` (resp. `[ST.isEv, ST.isOd]`, `[MB.evT, MB.odT]`), and take the `Meta`
+  path; `ST.useTree` is excluded as `mutual block [ST.Tree.size.sizes, ST.Tree.size]` instead of
+  `nested inductive ST.Tree`. A definition by structural recursion alone in its block (`MB.isZ`)
+  stays in the fragment. The `Meta` path's output for `ST.useEv` differs from the pure path's
+  (it inlines the matcher `ST.isEv.match_1`) and evaluates to `false` as before.
+- **Effect on emitted .ast (corpus):** byte-identical for all 710 files against the corpus of the base
+  commit (`f4af04e`); `PANIC` counts unchanged. No program of the corpus is in the fragment with a
+  mutual block in its closure. With `structural := .kernel` as the default (not committed), the
+  harness summary has the totals of S-48 (233 in the fragment, 57 outside, 4 `collectDeps`
+  errors; 10462 oracle calls, 14 differ), and one line changes: `Defects/mutual_inline.ast`
+  (`fooI`/`barI` under `nat := .machine`) is excluded as `mutual block [Defects.fooI,
+  Defects.barI]` instead of by `recursor Nat.rec, which the eraser keeps as a constant`.
+- **Regression test:** `mutual_block` checks the blocks (`all`) of `even`, `evT` and `isZ`, the
+  verdicts and routes above, and pins the `#erase` outputs of `useEven`, `usePf` and
+  `useSingle`, which peregrine validates and evaluates to `MB.LB.f`, `MB.LB.t` and `MB.LB.t`;
+  `structural` checks the verdicts on `useEv` and `useTree`. Before this commit the verdicts on
+  `useEven`, `usePf` and `useEv` are `in the fragment`, with the pure path. `scripts/regress.sh`
+  passes (29 tests) with `PEREGRINE`. `scripts/pure-harness.sh` passes with its expected summary
+  unchanged (294 `#erase`, 225 in the fragment, 66 outside, 3 `collectDeps` errors).
+
+## S-52: On the `Meta` path, a program with two declarations of one kername is an error
+
+- **Commit:** the commit whose subject starts with `S-52:` (`git log --grep='^S-52:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure/Entry.lean`: new `dupKername`, a kername that two global
+    declarations of a list have (one pass, with a hash set of the kernames seen: 5 ms on the
+    1003 declarations of a synthetic program, 21 ms on 4003, where the `Meta` path takes 51 ms
+    and 188 ms); `eraseEntry`, on the `Meta` branch only, fails with `erasure
+    failed: two declarations of the program have the kername <kername>` when the program's
+    declarations have one; its docstring. The pure branch, `route` and `collectDeps` are
+    unchanged.
+  - `tests/regress/block_names.lean`: two inductives whose names differ only by `«»` quoting,
+    and a program over both on each path.
+  - `tests/corpus/Defects.lean`: the reproduction of R-3 pins the error of `#erase`.
+  - `doc/SHIPPING-CHANGES.md`: this entry and R-3.
+- **Why necessary:** found by the review of this branch. Since S-26 a block's name drops the `«»`
+  escapes on both paths, so two inductive types whose names differ only by quoting (a component
+  `«c.d»` and the two components `c.d`) get one block name (R-3). The pure path reports such a
+  collision (`findBlockCollision`, and `findCollision` for constants), but the `Meta` path wrote a
+  program with two declarations of one kername, which peregrine rejects (`Duplicate
+  definition`) or, for a reader that keeps one of them, means another program. Checking the
+  emitted declarations covers every collision on that path, blocks and constants alike; the check
+  runs after `erase`, so the `Meta` path's traversal and the pure path are unchanged.
+- **Behaviour before:** `#erase BlockNames.useBoth` (over `BlockNames.«c.d»` and `BlockNames.c.d`,
+  with a Nat literal, so on the `Meta` path) writes a program that declares the block
+  `BlockNames_u46c_u46d` twice; `#erase (colA.«a b» + colA.a_u32b)` in `tests/corpus/Defects.lean`
+  writes `collide.ast`, which declares `Defects.colA.a_u32b` twice.
+- **Behaviour after:** both are errors of `#erase`: `erasure failed: two declarations of the
+  program have the kername ((MPfile ()) "BlockNames_u46c_u46d")`, resp. `… ((MPdot (MPdot (MPfile
+  ()) "Defects") "colA") "a_u32b")`, and no file is written. Under `nat := .peano` `useBoth` is in
+  the fragment and fails on the pure path as before, with `the constants BlockNames.c.d and
+  BlockNames.«c.d» have the same kername`.
+- **Effect on emitted .ast (corpus):** against the corpus of S-51 (710 files): 708 byte-identical,
+  and `examples/Defects/collide.ast` with its `.inlinings` are no longer written (708 files);
+  `PANIC` counts unchanged. No other program of the corpus has two declarations of one kername.
+  `scripts/pure-harness.sh` passes with its expected summary unchanged (the harness runs
+  `Erasure.erase` itself, and `collide` is outside the fragment).
+- **Regression test:** `block_names` checks by `decide` that the two inductives have one block
+  name, that `useBoth` takes the `Meta` path by default and fails on the pure path under
+  `nat := .peano`, and pins the error of `#erase` on each path. Before this commit the `Meta`
+  path's `#erase` writes `both.ast` and the `#guard_msgs` fails. `scripts/regress.sh` passes (29
+  tests) with `PEREGRINE`.
+
+## S-53: Regression tests of quotients and recursors on the `Meta` path
+
+- **Commit:** the commit whose subject starts with `S-53:` (`git log --grep='^S-53:'`).
+- **Files and functions:**
+  - new `tests/regress/meta_quot_rec.lean` with its goldens. No code changes.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** found by the review of this branch. S-38 and S-40 change both paths, but
+  since S-39 and S-41 the quotient and recursor programs of the regression tests are in the
+  fragment and take the pure path; only `useLift.meta.ast` (`quotient`), `useList.meta.ast`
+  (`recursor`, both under `remove_irrel_constr_args`) and the recursors of indexed and mutual
+  blocks (`useVec`, `useMutual`, `useCast`) are pinned on the `Meta` path. The new test pins the
+  `Meta` path's erasure of `Quot.mk` and `Quot.lift` applied to six, four (η-expanded) and seven
+  arguments, of `Quotient.lift`/`Quotient.mk`, and of a recursor of the fragment's shape, on
+  programs that leave the fragment only by a Nat literal under the default configuration.
+- **Behaviour before:** not tested.
+- **Behaviour after:** the same; the test pins it. `useLift`, `usePart`, `useOver`, `useQuotient`
+  and `useRec` take the `Meta` path by default (`outside the fragment: Nat literal under nat :=
+  .machine`) and the pure path under `nat := .peano`. On the `Meta` path `Quot.lift f h q` is
+  erased to `f q` (`useLift`, `useOver` with the seventh argument applied), `liftId` to
+  `λ a. (λ n. n) a`, `Quotient.lift` to `λ _ _ s f _ a. f a`, `Quotient.mk` to `λ _ s a. a`, and
+  `parity` to its minor premises let-bound around a fixpoint over a `case` on `MQR.Tr`.
+- **Effect on emitted .ast (corpus):** none: only a test is added.
+- **Regression test:** `meta_quot_rec` checks both routes of the five programs and pins their
+  `#erase` outputs under the default configuration, which peregrine validates and evaluates to
+  `7` (a primitive integer) for the four quotient programs and `MQR.B.t` for `useRec`.
+  `scripts/regress.sh` passes (30 tests) with `PEREGRINE`.
+
+## S-54: The corpus is recorded by a committed list of checksums
+
+- **Commit:** the commit whose subject starts with `S-54:` (`git log --grep='^S-54:'`).
+- **Files and functions:**
+  - `scripts/corpus.sh`: writes `OUTDIR/_meta/SHA256SUMS`, the SHA-256 of every corpus file; new
+    option `--check`, which compares that list with `tests/corpus/SHA256SUMS` and fails if they
+    differ; its header comment.
+  - new `tests/corpus/SHA256SUMS`: the list for the corpus of this commit (708 files).
+  - `doc/SHIPPING-CHANGES.md`: this entry and the description of the corpus.
+- **Why necessary:** found by the review of this branch. The entries state the corpus effect of
+  each change against a corpus generated at the base commit, but the corpus outputs are not
+  committed, so a reader could not check a claim such as "byte-identical for all 710 files"
+  without regenerating the corpus at both commits. The committed list fixes the corpus of the
+  current commit; `--check` reproduces it from the repository.
+- **Behaviour before:** `scripts/corpus.sh OUTDIR` writes the corpus; nothing in the repository
+  records its content.
+- **Behaviour after:** the same, and `scripts/corpus.sh --check OUTDIR` ends with `the corpus
+  matches tests/corpus/SHA256SUMS` on this commit; on a corpus that differs it prints a unified
+  diff of the two lists (the files whose checksum differs, and those present in one list only)
+  and exits with status 1.
+- **Effect on emitted .ast (corpus):** none: byte-identical for all 708 files against the corpus
+  of S-52; the committed list was computed from that corpus and `scripts/corpus.sh --check`
+  passes on a fresh run at this commit.
+- **Regression test:** `scripts/corpus.sh --check` itself, which fails as soon as an output of
+  the corpus changes without the list. `scripts/regress.sh` and `scripts/pure-harness.sh` are
+  unaffected. CI does not run the corpus; run `scripts/corpus.sh --check` before committing a
+  change to the eraser.
+
+## T-3: The README says what requiring the package fetches
+
+- **Commit:** the commit whose subject starts with `T-3:` (`git log --grep='^T-3:'`).
+- **Files and functions:**
+  - `README.md`: the sentences after the toolchain line.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** found by the review of this branch. The README said that
+  `import LeanToLambdaBox` does not load Metalean or Mathlib, which a reader could take to mean
+  that the package does not depend on them. `lakefile.toml` requires Metalean, so Lake clones
+  Metalean, Mathlib and Mathlib's dependencies for every package that requires this one.
+- **Behaviour before:** "`import LeanToLambdaBox` does not load either; `LeanToLambdaBox.Metalean`
+  does, …".
+- **Behaviour after:** the README says that `import LeanToLambdaBox` loads neither Metalean nor
+  Mathlib, that `LeanToLambdaBox.Metalean` loads both, and that Lake still clones Metalean,
+  Mathlib and Mathlib's dependencies for every package that requires lean-to-lambdabox, whether
+  or not it imports `LeanToLambdaBox.Metalean`. The toolchain sentence is unchanged.
+- **Effect on emitted .ast (corpus):** none: only the README changes.
+- **Regression test:** none; the change is documentation.
+
 ## Reported, not fixed
 
 Each entry below was reproduced on this branch. Unless stated otherwise, the reproduction is an
@@ -3525,13 +3782,16 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
 - **Where:** `LeanToLambdaBox/Basic.lean`: `cleanIdent`, `toKername`, `toModPath`, `rootKername`,
   `mutualBlockKername`;
   `LeanToLambdaBox/Erasure.lean`: `register_inductive` (`mutualBlockName`).
-- **Reproduction:** `collide.ast` (`colA.«a b» + colA.a_u32b`): `peregrine validate` fails with
-  `Duplicate definition .Defects.colA.a_u32b`. A program in the fragment of the pure path is not
-  affected: `collectDeps` finds the collision and `#erase` fails (S-21), e.g. on `Nm.both` in
-  `tests/corpus/Names.lean` with `erasure failed: the constants Nm.two_u39 and Nm.two' have the
-  same kername`.
-- **Impact:** distinct Lean constants can be emitted under one λ□ name, for programs outside the
-  fragment.
+- **Reproduction:** `colA.«a b» + colA.a_u32b` in `tests/corpus/Defects.lean`: before S-52 the
+  `Meta` path wrote `collide.ast`, on which `peregrine validate` fails with `Duplicate definition
+  .Defects.colA.a_u32b`; since S-52 `#erase` fails with `erasure failed: two declarations of the
+  program have the kername ((MPdot (MPdot (MPfile ()) "Defects") "colA") "a_u32b")`, which the
+  file pins. A program in the fragment of the pure path fails as well: `collectDeps` finds the
+  collision (S-21), e.g. on `Nm.both` in `tests/corpus/Names.lean` with `erasure failed: the
+  constants Nm.two_u39 and Nm.two' have the same kername`.
+- **Impact:** a program whose constants or inductive blocks have one kername cannot be erased:
+  `#erase` fails on both paths (S-21, S-52), and writes no file with two declarations of one
+  kername.
 - **Why not fixed:** not required by the verification goal unless it later becomes required.
 
 ### R-4: Unsupported literals are erased to □ after a panic
@@ -3914,3 +4174,70 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
   message does not name the cause. The dry-run tests `makefile_cmi` and `makefile_inlinings` pass
   with make 4.3, the version on CI's `ubuntu-latest`.
 - **Why not fixed:** not required by the verification goal unless it later becomes required.
+
+### R-29: The minor premises of a recursor are evaluated before its case
+
+- **What:** `visitRec` (S-40) let-binds the erased minor premises of a recursor application
+  around the fixpoint, `let m₁ := … in … let mₖ := … in (fix …) ixs major`, so a call-by-value
+  evaluation of λ□ evaluates every minor premise before the `case`, also those of the
+  constructors that the major premise is not built with. A minor premise that erases to a λ
+  (a constructor with fields or induction hypotheses, written as a `fun`) is a closure at once,
+  but one of a constructor without fields (`Bool.true`, `Nat.zero`, `List.nil`, a leaf), or any
+  minor premise that is not a λ after erasure (a partial application, a variable), is computed
+  whether or not its branch is taken. The values are unchanged on total programs; the cost is
+  not, and a program can do work that Lean's evaluation of the recursor does not. The
+  alternatives of a `casesOn` (`visitCases`) are erased inside their branches and are not
+  affected. This is a second laziness loss next to the one of the pure path, where
+  `@[macro_inline]` calls stay calls (S-21), so that arguments the inlined body uses in one
+  branch only are evaluated before the call; that one is the pure path's alone, this one is on
+  both paths, since they share `visitRec`.
+- **Where:** `LeanToLambdaBox/Erasure.lean`: `visitRec` (the `letIn` of the erased minors `ms`
+  around `applied`).
+- **Reproduction:** not in the corpus. With `inductive LN | z | s (n : LN)`, `add` and `mul` by
+  structural recursion, `ten` the Peano 10, and `viaRec n b := Bool.rec (motive := fun _ => LN)
+  (mul (mul n n) (mul n n)) LN.z b` against `viaCases n b := Bool.casesOn (motive := fun _ => LN)
+  b (mul (mul n n) (mul n n)) LN.z`, `#erase (viaRec ten true)` and `#erase (viaCases ten true)`
+  under `{nat := .peano}` give `viaRec := λ n b. let false := mul (mul n n) (mul n n) in let true :=
+  z in (fix …) b`. `peregrine eval --anf=false` (the λ□ evaluator, with its default fuel) runs
+  out of fuel after 4 s on `viaRec ten true`, inside the `let` of the minor premise of `false`,
+  and evaluates `viaCases ten true` to `LN.z` in 0.01 s; `viaCases ten false`, which needs the
+  product, runs out of fuel too. peregrine's default (ANF) evaluator gives `LN.z` for both in
+  0.02 s, after its own transformations of the program.
+- **Impact:** extra work, and possibly no result within a fuel or time bound, for programs that
+  apply a recursor to an expensive minor premise of a constructor without fields; values are
+  unchanged.
+- **Why not fixed:** not required by the verification goal unless it later becomes required.
+
+### R-30: The fragment test is quadratic in the size of the closure
+
+- **What:** `collectDeps` runs on every `#erase`, before the route is known, and its lookups are
+  linear scans of the closure, a list: `dropKnown` calls `findConst` (a `List.find?` on the
+  closure) for every name of the work list, so the closure costs O(R·N) for N declarations and R
+  names read (with repetitions); `findCollision` compares the kernames of all pairs of
+  declarations, O(N²) comparisons, each computing `toKername` of both names (strings built by
+  `cleanIdent`); `findBlockCollision` is O(B·(B + N)) for B inductive types. `erasePure` looks
+  every constant up with `findConst` as well (`findConst?`, `declInfo?`), so the pure path's
+  erasure is quadratic too. `#erase` runs this code in Lean's interpreter.
+- **Where:** `LeanToLambdaBox/Erasure/Collect.lean`: `findConst`, `findCollision`;
+  `LeanToLambdaBox/Erasure/Entry.lean`: `dropKnown`, `closure`, `findBlockCollision`,
+  `collectDeps`; `LeanToLambdaBox/Erasure/Pure.lean`: `findConst?` and the lookups of the oracle.
+- **Reproduction:** not in the corpus; wall times of `lake env lean` on a file importing
+  `LeanToLambdaBox`, median of five runs:
+  - `7 / 2` under `{extern := .preferLogical, structural := .kernel, nat := .peano}`, a closure of
+    120 declarations: `collectDeps` 45 ms (of which `findCollision` 32 ms, `findBlockCollision`
+    4 ms), `erasePure` 41 ms, `eraseEntry` 89 ms; the `Meta` path takes 15 ms;
+  - a chain of definitions `c₀ := B.t`, `cᵢ₊₁ := neg cᵢ` over a two-constructor `B` (`neg` by
+    `B.casesOn`), default configuration, in the fragment: closures of 507, 1007, 2007 and 4007
+    declarations take 0.60 s, 2.4 s, 10.4 s and 44.5 s in `collectDeps`, so four times as long
+    for twice the size; `findCollision` is 2.1 s of the 2.4 s and 9.3 s of the 10.4 s, and
+    `erasePure` takes 1.5 s on 1003 and 5.9 s on 2003 declarations; `eraseEntry` takes 3.9 s on
+    `c₁₀₀₀`, where the `Meta` path takes 49 ms (92 ms on `c₂₀₀₀`);
+  - the same chain under `remove_irrel_constr_args`, which the fragment test excludes only after
+    the closure: `eraseEntry` on `c₄₀₀₀` takes 4.9 s, of which the `Meta` path 188 ms and the
+    check of S-52 21 ms.
+- **Impact:** none noticeable for closures of a few hundred declarations; seconds above about a
+  thousand and minutes above about five thousand, paid by every `#erase` whose closure is
+  collected that far, also one that then takes the `Meta` path.
+- **Why not fixed:** not required by the verification goal unless it later becomes required. The
+  correctness proof reasons about these list functions; a closure in a hash map, with the kernames
+  computed once, would need lemmas of its own.

@@ -3,7 +3,7 @@ import EraseProof.Bridge.Perm
 /-!
 # Substitution into the images of the translation
 
-Metalean substitutions (`Expr.subst`, `ML Syntax/Expr.lean:492`) commute with the term builders
+Metalean substitutions (`Expr.subst`, `ML Syntax/Expr.lean:469`) commute with the term builders
 that the saturating rules of `TrM` use: the unary literals (`natLitM`), the proof projections
 (`projProofTerm`), the minor wrapper (`wrapCase_subst`), and so with every rule of `SatTr`
 (`SatTr.subst`). Renamings, weakenings and instantiations are substitutions, so these lemmas serve
@@ -222,7 +222,7 @@ theorem SatTr.subst {n m : Nat} {b : MBinding ζ} {us : List Level}
     simpa [Metalean.Expr.wkClosed_subst] using
       SatTr.recrEta (E := E) (args := args.map (·.subst σ)) mo hRL hls hmo (by simpa using hlen) ht
   | quotType hu | quotMk hu | quotLift hu | quotInd hu =>
-    simp only [List.map_cons, Metalean.Expr.subst_appList,
+    simp only [List.map_cons, ML.Expr.subst_appList,
       Metalean.Expr.subst, List.cons_append, List.nil_append]
     first | exact .quotType hu | exact .quotMk hu | exact .quotLift hu | exact .quotInd hu
   | quotEta hu hlen ht =>

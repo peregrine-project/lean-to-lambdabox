@@ -257,7 +257,7 @@ theorem deps_recFix {σ : EvalEnv} {lenv : GlobalDeclarations} {N npars : Nat} {
 
 /-- The side conditions of `visitRec_spec` from the typing of the spine, for a recursor with a
 universe parameter more than its inductive (`hlp`), whose block eliminates into every sort: the
-inductive is a subsingleton when its constructor nodes are proofs (`SortLargeElim.singleton_of_eval_zero`,
+inductive is a subsingleton when its constructor nodes are proofs (`ML.Inductive.LargeElim.singleton_of_eval_zero`,
 `Ctor.Eligible`; without indices, no field is an index variable); the oracle's level `u` of the
 major premise's type is the block's level at the spine's levels (`Pure.typeLevel_sound`,
 `SimRec.rec_level`), so the inductive's sort at the spine's levels is never zero with `u`, and
@@ -303,7 +303,7 @@ theorem rec_side {lps : List Name} (henv : ProgEnv P ζ E B) (hE : EnvWF E)
       omega
     | recrEta mo hRL hls hmo hlt hrt =>
       rcases hRL with ⟨hL, -⟩ | ⟨-, hus', -⟩
-      · exact hL
+      · exact hL.toLargeElim
       · exfalso
         obtain ⟨hk, -⟩ := TrLevels_get hls
         rw [hus', List.length_map] at hk
@@ -315,14 +315,7 @@ theorem rec_side {lps : List Name} (henv : ProgEnv P ζ E B) (hE : EnvWF E)
     rw [hBT] at hB'
     cases hB'
     have helig : ((E.get η).block.ctors s c').Eligible (E.get η).block.level := by
-      cases hLE s with
-      | large h1 =>
-        exfalso
-        have := h1 (Metalean.Level.eval ν ∘ ls')
-        rw [Metalean.Level.eval_inst] at hν
-        simp [Function.comp_def] at this hν
-        omega
-      | subsingleton _ _ helig => exact helig c'
+      exact (ML.Inductive.LargeElim.singleton_of_eval_zero hLE ls' hν c').2
     have hct := Metalean.Defeq.ctor_typed hE hU
     have hctor := (hE.entryWF η).block.ctors s c'
     refine ⟨fun f => ?_, fun f => ?_⟩
@@ -352,7 +345,7 @@ theorem rec_side {lps : List Name} (henv : ProgEnv P ζ E B) (hE : EnvWF E)
       have h1 := TypeEq.sort_inj hE hΓ' (Metalean.Defeq.uniqTy hE hΓ' hMI.left hUp)
       have h2 := TypeEq.sort_inj hE hΓ' (Metalean.Defeq.uniqTy hE hΓ' hMI.right hind.left)
       rw [← h2, h1]
-    obtain ⟨h1, helig⟩ := (hLE s).singleton_of_eval_zero lc (ν := fun _ => 0)
+    obtain ⟨h1, helig⟩ := ML.Inductive.LargeElim.singleton_of_eval_zero hLE lc (ν := fun _ => 0)
       (by rw [hzero]; rfl) c'
     have hct := Metalean.Defeq.ctor_typed hE hU
     have hctor := (hE.entryWF η).block.ctors s c'

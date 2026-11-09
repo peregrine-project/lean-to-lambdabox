@@ -555,7 +555,7 @@ theorem subsingleton_of_structure (hE : EnvWF E) {S : Name} {ι : Metalean.IndSi
   obtain ⟨-, hl⟩ := SimInd.ctor_isProof hE hΓ herase
   have hzero : ((E.get η).block.level{ls}).eval (fun _ => 0) = 0 := by
     rw [hl]; rfl
-  obtain ⟨h1, -⟩ := hst.sortLargeElim.singleton_of_eval_zero ls hzero c'
+  obtain ⟨h1, -⟩ := ML.Inductive.LargeElim.singleton_of_eval_zero hst.largeElim ls hzero c'
   obtain rfl := hst.ctor_unique c'
   obtain ⟨T, hT, -⟩ := hpf
   obtain ⟨ps₁, fds₁, recFds₁, hps, hfds, -, -, -⟩ := Metalean.Defeq.ctor_inv hT

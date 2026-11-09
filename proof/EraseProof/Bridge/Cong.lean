@@ -345,9 +345,9 @@ theorem wkFrom {cut : Nat} {Γ₀₁ Γ₀₂ : Ctx ζ ℓ 0 cut} (A₁ A₂ : E
     exact .forallE (ih₁ hΓ₁ hΓ₂) (ih₂ (Δ₁ := Δ₁.snoc A₁') (Δ₂ := Δ₂.snoc A₂') (by rw [← hΓ₁]; rfl)
       (by rw [← hΓ₂]; rfl))
   | letE _ _ _ ih₁ ih₂ ih₃ =>
-    rw [Expr.wkFrom_letE Δ₁.le, Expr.wkFrom_letE Δ₁.le]
+    rw [ML.Expr.wkFrom_letE Δ₁.le, ML.Expr.wkFrom_letE Δ₁.le]
     have h₃ := ih₃ hΓ₁ hΓ₂
-    rw [Expr.inst_wkFrom Δ₁.le, Expr.inst_wkFrom Δ₁.le] at h₃
+    rw [ML.Expr.inst_wkFrom Δ₁.le, ML.Expr.inst_wkFrom Δ₁.le] at h₃
     exact .letE (ih₁ hΓ₁ hΓ₂) (ih₂ hΓ₁ hΓ₂) h₃
   | ind _ _ ih₁ ih₂ => exact .ind (ih₁ · hΓ₁ hΓ₂) (ih₂ · hΓ₁ hΓ₂)
   | ctor _ _ _ ih₁ ih₂ ih₃ => exact .ctor (ih₁ · hΓ₁ hΓ₂) (ih₂ · hΓ₁ hΓ₂) (ih₃ · hΓ₁ hΓ₂)
@@ -362,7 +362,7 @@ theorem wkFrom {cut : Nat} {Γ₀₁ Γ₀₂ : Ctx ζ ℓ 0 cut} (A₁ A₂ : E
     exact .quotInd (ih₁ hΓ₁ hΓ₂) (ih₂ hΓ₁ hΓ₂) (ih₃ hΓ₁ hΓ₂) (ih₄ hΓ₁ hΓ₂) (ih₅ hΓ₁ hΓ₂)
   | projStruct hP h₁ h₂ f₁ f₂ hf _ ih =>
     subst hΓ₁ hΓ₂
-    rw [Inductive.IsStructure.projTerm_wkFrom, Inductive.IsStructure.projTerm_wkFrom]
+    rw [ML.Inductive.IsStructure.projTerm_wkFrom, ML.Inductive.IsStructure.projTerm_wkFrom]
     exact .projStruct hP h₁ h₂ f₁ f₂ hf (ih rfl rfl)
   | projProof hP _ ih =>
     subst hΓ₁ hΓ₂

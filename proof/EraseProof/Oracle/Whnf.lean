@@ -42,7 +42,7 @@ variable {ζ : Sigs} {E : Env ζ} {ℓ n : Nat} {Δ : Ctx ζ ℓ 0 n}
 
 /-- Two inductive types equal as types have the same head (inductive block and sort): their
 interpretations in Metalean's domain model carry the same inductive code
-(`ML Semantics/Domain/Constructors.lean:207` `code_eq_of_ind_eq`). Reference:
+(`ML Semantics/Domain/Constructors.lean:158` `code_eq_of_ind_eq`). Reference:
 `invert_cumul_ind_ind` (`MR pcuic/theories/PCUICConversion.v:1714`). -/
 theorem ind_head {ι₁ ι₂ : IndSig} {η₁ : Head ζ (.inductive ι₁)} {η₂ : Head ζ (.inductive ι₂)}
     {s₁ : Fin ι₁.nsorts} {s₂ : Fin ι₂.nsorts} {ls₁ : Fin ι₁.nlevels → Level ℓ}

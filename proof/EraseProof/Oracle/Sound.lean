@@ -95,7 +95,7 @@ private theorem recr_levels_of_not_structure (henv : ProgEnv P ζ E B) (hE : Env
   obtain ⟨hk, -⟩ := TrLevels_get hls
   rw [hlpI, hIB.levels]
   rcases hRL with ⟨hL, -⟩ | ⟨-, rfl, -⟩
-  · exact (hnst ⟨hs, hc, by rw [hi]; infer_instance, by rw [hnr]; infer_instance, hL s⟩).elim
+  · exact (hnst ⟨hs, hc, by rw [hi]; infer_instance, by rw [hnr]; infer_instance, hL.toLargeElim⟩).elim
   · have hlp : (ConstantInfo.recInfo R).levelParams = R.levelParams := rfl
     simpa [hlp] using hk
 
@@ -392,7 +392,7 @@ open OracleSound in
 /-- `Level.isNeverZero` is complete for translated levels: a level is never zero exactly when its
 translation is non-zero under every assignment of the universe parameters (a level that is not
 syntactically never zero is zero when every parameter is). Reference: none (`Level.isNeverZero`,
-Lean's kernel; `Metalean.Level.eval`, `ML Level/Quot/Basic.lean:48`). -/
+Lean's kernel; `Metalean.Level.eval`, `ML Level/Quot/Basic.lean:44`). -/
 theorem TrLevel.isNeverZero_iff {lps : List Name} {u : Level} {l : Metalean.Level lps.length}
     (h : TrLevel lps u = some l) : u.isNeverZero = true ↔ ∀ ν, l.eval ν ≠ 0 := by
   refine ⟨eval_ne_zero h, fun hne => ?_⟩

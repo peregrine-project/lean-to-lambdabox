@@ -11,7 +11,7 @@ a type equality equates the interpretations of both sides in Metalean's domain m
 (`ML Semantics/Inversion.lean:42` `TypeEq.rawInterpret_eq`); the interpretation of one side
 contains its head's atom (`sortAtom`, `piAtom`, `indAtom`, `quotAtom`), and the interpretation of
 the other side contains only shapes below its own head's atom, which no other head's atom is
-(`ML Semantics/Basis/Order.lean:41` `Basis.Le`).
+(`ML Semantics/Basis/Order.lean:42` `Basis.Le`).
 -/
 
 namespace EraseProof

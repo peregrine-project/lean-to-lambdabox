@@ -52,9 +52,9 @@ theorem puBlock_subsingleton {ζ : Sigs} : (puBlock (ζ := ζ)).Subsingleton :=
   ⟨fun _ _ _ => Subsingleton.elim _ _, fun _ _ =>
     ⟨fun f => Fin.elim0 f, fun f => Fin.elim0 f⟩⟩
 
-theorem largeElimPU {ζ : Sigs} : (puBlock (ζ := ζ)).LargeElim :=
-  fun _ => .subsingleton rfl (fun _ _ => Subsingleton.elim _ _)
-    (fun _ => ⟨fun f => Fin.elim0 f, fun f => Fin.elim0 f⟩)
+theorem largeElimPU {ζ : Sigs} : LeanLargeElim (puBlock (ζ := ζ)) :=
+  Or.inr ⟨rfl, fun _ _ _ => Subsingleton.elim _ _,
+    fun _ _ => ⟨fun f => Fin.elim0 f, fun f => Fin.elim0 f⟩⟩
 
 section PUnit
 variable {ζ : Sigs} {E : Env ζ} {η : Head ζ (.inductive puSig)} {ℓ n : Nat} {Γ : Ctx ζ ℓ 0 n}
@@ -149,7 +149,7 @@ theorem ppBlock_wf {ζ : Sigs} (E : Env ζ) : InductiveWF E ppBlock :=
       targetIndices i := Fin.elim0 i
     }⟩
 
-theorem largeElimPP {ζ : Sigs} : (ppBlock (ζ := ζ)).LargeElim := fun _ => .large (ppLevel_ge (u := .param 0) (v := .param 1))
+theorem largeElimPP {ζ : Sigs} : LeanLargeElim (ppBlock (ζ := ζ)) := Or.inl (ppLevel_ge (u := .param 0) (v := .param 1))
 
 /-- `PProd` is a structure: its constructor `PProd.mk` is the only one, without indices or recursive
 fields, and it eliminates into every sort. -/
@@ -158,7 +158,7 @@ theorem ppStruct {ζ : Sigs} : (ppBlock (ζ := ζ)).IsStructure 0 0 where
   ctor_unique _ := Subsingleton.elim _ _
   no_indices := ⟨fun i => Fin.elim0 i⟩
   no_recursive := ⟨fun i => Fin.elim0 i⟩
-  sortLargeElim := .large (ppLevel_ge (u := .param 0) (v := .param 1))
+  largeElim := Or.inr (ppLevel_ge (u := .param 0) (v := .param 1))
 
 section PProd
 variable {ζ : Sigs} {E : Env ζ} {η : Head ζ (.inductive ppSig)} {ℓ n : Nat} {Γ : Ctx ζ ℓ 0 n}
@@ -172,7 +172,7 @@ def mPPmk (η : Head ζ (.inductive ppSig)) (u v : Level ℓ) (α β a b : Expr 
 
 theorem recAllowedPP (hp : (E.get η).block = ppBlock) {ls : Fin 2 → Level ℓ} {l : Level ℓ} :
     (E.get η).block.RecAllowed ls l := by
-  rw [hp]; exact largeElimPP.recAllowed ls l
+  rw [hp]; exact largeElimPP.toLargeElim.recAllowed ls l
 
 theorem ppParams (hp : (E.get η).block = ppBlock) {u v : Level ℓ} {α₁ α₂ β₁ β₂ : Expr ζ ℓ n}
     (hα : E[Γ] ⊢ α₁ ≡ α₂ : .sort u) (hβ : E[Γ] ⊢ β₁ ≡ β₂ : .sort v) :
@@ -236,7 +236,7 @@ macro_rules
       Inductive.paramType, Inductive.indexType, Ctx.proj, Ctx.entry, Ctor.targetIndex,
       Fin.fun_vecCons, Fin.fun_vecEmpty, Expr.wkN, funext_iff, Fin.forall_fin_two,
       Fin.forall_fin_one, Fin.sum_succ, Fin.sum_zero, Level.inst_param, Subst.liftN, Ren.wkFrom,
-      Fin.castLE, Expr.apps_succ, CtorSig.fieldParams, Ctor.ordinaryFieldExpr,
+      Fin.castLE, ML.Expr.apps_succ, CtorSig.fieldParams, Ctor.ordinaryFieldExpr,
       Expr.boundVars, Ctor.fieldTele, Ctor.ordinaryFieldTele, Expr.subst, Expr.instL, Ctx.instL,
       CtorSig.fieldOrdinary, Ctor.ordinaryTeleAux, Ren.comp] <;> finCongr))
 

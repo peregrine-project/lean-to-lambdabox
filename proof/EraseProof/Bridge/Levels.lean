@@ -177,15 +177,15 @@ theorem SatTr.instL {n : Nat} {b : MBinding ζ} {vs : List Level}
     SatTr E lps b (vs.map (Pure.instLevel lps' us)) (args.map (·{ls})) t{ls} := by
   cases h with
   | indSat ps is rest hls =>
-    simp only [List.map_append, List.map_ofFn, Metalean.Expr.instL_appList]
+    simp only [List.map_append, List.map_ofFn, ML.Expr.instL_appList]
     exact SatTr.indSat (E := E) (fun p => (ps p){ls}) (fun i => (is i){ls}) (rest.map (·{ls}))
       (TrLevels_instLevel hus hls)
   | indEta hls hlen =>
-    rw [Metalean.Expr.instL_appList, Metalean.Expr.instL_wkClosed, indTerm_instL]
+    rw [ML.Expr.instL_appList, Metalean.Expr.instL_wkClosed, indTerm_instL]
     exact SatTr.indEta (E := E) (args := args.map (·{ls})) (TrLevels_instLevel hus hls)
       (by simpa using hlen)
   | ctorSat ps fs rest fds recFds hls hfs hord hperm =>
-    simp only [List.map_append, List.map_ofFn, Metalean.Expr.instL_appList]
+    simp only [List.map_append, List.map_ofFn, ML.Expr.instL_appList]
     exact SatTr.ctorSat (E := E) (fun p => (ps p){ls}) (fs.map (·{ls})) (rest.map (·{ls}))
       (fun i => (fds i){ls}) (fun i => (recFds i){ls}) (TrLevels_instLevel hus hls)
       (by simpa using hfs) hord
@@ -195,25 +195,25 @@ theorem SatTr.instL {n : Nat} {b : MBinding ζ} {vs : List Level}
         rw [← h₃]
         exact (congrFun (Fin.append_comp fds recFds (·{ls})) o).symm
   | ctorEta hls hlen ht =>
-    rw [Metalean.Expr.instL_appList, Metalean.Expr.instL_wkClosed]
+    rw [ML.Expr.instL_appList, Metalean.Expr.instL_wkClosed]
     exact SatTr.ctorEta (E := E) (args := args.map (·{ls})) (TrLevels_instLevel hus hls)
       (by simpa using hlen) (ctorTerm_instL _ _ _ _ _ _ ls ht)
   | recrSat mo A rest mins hRL hls hmo hwrap =>
-    simp only [List.map_append, List.map_ofFn, Metalean.Expr.instL_appList]
+    simp only [List.map_append, List.map_ofFn, ML.Expr.instL_appList]
     exact SatTr.recrSat (E := E) mo (fun i => (A i){ls}) (rest.map (·{ls}))
       (fun t c => (mins t c){ls}) (RecrLevels.instL hus hRL) (TrLevels_instLevel hus hls) hmo
       fun t c => wrapCase_instL _ _ _ _ _ _ _ _ ls (hwrap t c)
   | recrEta mo hRL hls hmo hlen ht =>
-    rw [Metalean.Expr.instL_appList, Metalean.Expr.instL_wkClosed]
+    rw [ML.Expr.instL_appList, Metalean.Expr.instL_wkClosed]
     exact SatTr.recrEta (E := E) (args := args.map (·{ls})) mo (RecrLevels.instL hus hRL)
       (TrLevels_instLevel hus hls) hmo (by simpa using hlen) (recrTerm_instL _ _ _ _ _ _ ls ht)
   | quotType hu | quotMk hu | quotLift hu | quotInd hu =>
     have hu' := mapM_TrLevel_instLevel hus hu
     simp only [List.map_cons, List.map_nil] at hu'
-    simp only [List.map_cons, Metalean.Expr.instL_appList, List.cons_append, List.nil_append]
+    simp only [List.map_cons, ML.Expr.instL_appList, List.cons_append, List.nil_append]
     first | exact .quotType hu' | exact .quotMk hu' | exact .quotLift hu' | exact .quotInd hu'
   | quotEta hu hlen ht =>
-    rw [Metalean.Expr.instL_appList, Metalean.Expr.instL_wkClosed]
+    rw [ML.Expr.instL_appList, Metalean.Expr.instL_wkClosed]
     exact SatTr.quotEta (E := E) (args := args.map (·{ls})) (mapM_TrLevel_instLevel hus hu)
       (by simpa using hlen) (quotTerm_instL _ _ _ _ ls ht)
 

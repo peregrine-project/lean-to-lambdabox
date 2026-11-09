@@ -355,6 +355,7 @@ structure Frag (P : List ConstantInfo) (view : EnvView) (cfg : ErasureConfig)
     (decls : List ConstantInfo) (e : Expr) : Prop where
   closed : ∀ ci ∈ P, NamesClosed P ci
   kinds : ∀ ci ∈ P, KindsClosed P ci
+  own : ∀ ci ∈ P, ∀ v, ci.value? (allowOpaque := true) = some v → ci.all = [ci.name]
   hview : ViewAgrees view P
   sub : ∀ ci ∈ decls, ci ∈ P
   rc : ReadClosed decls e
@@ -558,17 +559,23 @@ theorem dex {ci : ConstantInfo} (hci : ci ∈ decls)
     (hnr : ∀ R, ci = .recInfo R → RecInFragment cfg decls R) :
     declExclusion view cfg ci = .ok () := by
   have hph := hf.phase ci hci
+  have hown := hf.own ci (hf.sub ci hci)
   cases ci with
   | recInfo r => exact dex_rec (fun y hy => hf.vw hy) (hnr r rfl)
-  | thmInfo _ | quotInfo _ => rfl
+  | quotInfo _ => rfl
+  | thmInfo t =>
+    have h4 : t.all = [t.name] := hown t.value rfl
+    simp [declExclusion, h4]; rfl
   | defnInfo d =>
+    have h4 : d.all = [d.name] := hown d.value rfl
     obtain ⟨h1, h2 | h2, h3⟩ := hph
-    · simp [declExclusion, h1, h2, h3]; rfl
+    · simp [declExclusion, h1, h2, h3, h4]; rfl
     · simp only [Bool.and_eq_true] at h2
-      simp [declExclusion, h1, h2.1, h2.2, h3]; rfl
+      simp [declExclusion, h1, h2.1, h2.2, h3, h4]; rfl
   | opaqueInfo o =>
     obtain ⟨h1, h2, h3⟩ := hph
-    simp [declExclusion, h1, h2, h3]; rfl
+    have h4 : o.all = [o.name] := hown o.value rfl
+    simp [declExclusion, h1, h2, h3, h4]; rfl
   | axiomInfo a =>
     obtain ⟨h1, h3⟩ := hph
     simp [declExclusion, h1, h3]; rfl
@@ -963,11 +970,14 @@ it, a translated term with a sub-environment `decls` that holds what the travers
 expressions (`PlainExpr`) that name recursors only in the fragment's shape (`RecShaped`), has
 distinct kernames and λ□ block names
 and fewer declarations than the fuel, `Erasure.collectDeps` succeeds. Its closure is a sub-list of
-`decls`. Reference: none (DV-26). -/
+`decls`. The test's exclusion of definitions, theorems and opaques of mutual blocks does not
+arise: the program relation asks each of them to be alone in its block (`ProgEnv`). Reference:
+none (DV-26). -/
 theorem collectDeps_ok_of : collectDeps_ok_of_statement := by
   intro ζ E B P decls lps e t view cfg henv hview he _ hrm hsub hrc hph hpl hrf hki hbi hlen
   have hf : Frag P view cfg decls e :=
-    ⟨ProgEnv.names_closed henv, ProgEnv.kinds_closed henv, hview,
+    ⟨ProgEnv.names_closed henv, ProgEnv.kinds_closed henv,
+      fun _ hci _ hv => (NonRec.ProgEnv.scoped henv hci hv).1, hview,
       fun ci hci => (findDecl_eq_some (hsub ci hci)).1, hrc, hph, hpl.1, hpl.2, hrf.1, hrf.2⟩
   obtain ⟨cs, hcs, hcsc⟩ := hf.term_names
   obtain ⟨⟨decls', cases⟩, hcl, hs, hnd, hcases⟩ :=
