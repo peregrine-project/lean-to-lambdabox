@@ -94,10 +94,15 @@ UNICODE = {
     '\u25b8': r'\ensuremath{\blacktriangleright}',
     '\u25c0': r'\ensuremath{\blacktriangleleft}',   # Letouzey's invariant
     '\u00b7': r'\ensuremath{\cdot}',
+    '\u2080': r'\ensuremath{_0}',
     '\u2081': r'\ensuremath{_1}',
     '\u2082': r'\ensuremath{_2}',
+    '\u2084': r'\ensuremath{_4}',
+    '\u208a': r'\ensuremath{_+}',
     '\u2099': r'\ensuremath{_n}',
+    '\u2096': r'\ensuremath{_k}',
     '\u1d62': r'\ensuremath{_i}',
+    '\u00b2': r'\ensuremath{^2}',
     '\u207b': r'\ensuremath{^{-}}',          # CIC with superscript minus
     '\u00a7': r'\S{}',
     '\u00ab': r'\ensuremath{\langle\!\langle}',   # Lean name quotes
