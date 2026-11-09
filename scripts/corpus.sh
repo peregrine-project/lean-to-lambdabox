@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # Regenerate the fixed corpus of emitted λ□ programs from this checkout.
 #
-# Usage: scripts/corpus.sh OUTDIR
+# Usage: scripts/corpus.sh [--check] OUTDIR
 #
 # OUTDIR must not exist or be empty. Layout of the result:
 #   OUTDIR/benchmarks/prune/<test>.{ast,ast.inlinings,mli}    PRUNE_CONSTRUCTORS=1 (Makefile default)
 #   OUTDIR/benchmarks/noprune/<test>.{ast,ast.inlinings,mli}  PRUNE_CONSTRUCTORS=0
 #   OUTDIR/examples/<Stem>/<files>                            tests/corpus/<Stem>.lean
 #   OUTDIR/_meta/                                             logs and run information (not corpus)
+#   OUTDIR/_meta/SHA256SUMS                                   SHA-256 of every corpus file
 #
 # Benchmarks are the `natio` entries of benchmarks/TESTS, erased through
 # benchmarks/via_malfunction/Makefile exactly as the benchmark pipeline does it; the build
@@ -16,12 +17,18 @@
 # Examples are elaborated with the root package on the load path, with their output directory as
 # working directory, so their relative `#erase ... to "<file>"` paths land there.
 #
+# With --check, the script then compares OUTDIR/_meta/SHA256SUMS with the committed list
+# tests/corpus/SHA256SUMS and fails if they differ. After a change that alters the corpus, copy
+# OUTDIR/_meta/SHA256SUMS to tests/corpus/SHA256SUMS.
+#
 # Compare two corpora with scripts/corpus-diff.sh.
 set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
-[ $# -eq 1 ] || die "usage: scripts/corpus.sh OUTDIR"
+check=0
+if [ "${1:-}" = --check ]; then check=1; shift; fi
+[ $# -eq 1 ] || die "usage: scripts/corpus.sh [--check] OUTDIR"
 mkdir -p "$1"
 OUT=$(cd "$1" && pwd)
 [ -z "$(ls -A "$OUT")" ] || die "$OUT is not empty"
@@ -95,5 +102,17 @@ for log in "$LOGS"/*.log; do
   printf '%s %s\n' "$(grep -c 'PANIC' "$log" || true)" "$(basename "$log")"
 done >"$META/panics"
 
+(cd "$OUT" && find . -path ./_meta -prune -o -type f -print | sed 's|^\./||' | sort |
+  xargs -d '\n' sha256sum --) >"$META/SHA256SUMS"
+
 nfiles=$(find "$OUT" -path "$META" -prune -o -type f -print | wc -l | tr -d ' ')
 echo "corpus written to $OUT ($nfiles files; logs in _meta/logs, PANIC counts in _meta/panics)"
+
+if [ $check -eq 1 ]; then
+  if diff -u --label tests/corpus/SHA256SUMS --label "$META/SHA256SUMS" \
+       "$ROOT/tests/corpus/SHA256SUMS" "$META/SHA256SUMS"; then
+    echo "the corpus matches tests/corpus/SHA256SUMS"
+  else
+    die "the corpus differs from tests/corpus/SHA256SUMS"
+  fi
+fi

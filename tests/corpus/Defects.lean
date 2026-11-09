@@ -20,9 +20,13 @@ inductive «Q"T» where | «m"k»
 def useQ : «Q"T» → Nat | .«m"k» => 0
 #erase (useQ .«m"k») config {nat := .peano, extern := .preferLogical} to "quote_inductive.ast"
 
-/-! R-3: two distinct names map to the same kername. -/
+/-! R-3: two distinct names map to the same kername. Outside the fragment (`Nat.add` is
+recursive), the `Meta` path finds two declarations of that kername and `#erase` fails (S-52);
+`#guard_msgs` pins the error, and no file is written. -/
 def colA.«a b» : Nat := 1
 def colA.a_u32b : Nat := 2
+/-- error: erasure failed: two declarations of the program have the kername ((MPdot (MPdot (MPfile ()) "Defects") "colA") "a_u32b") -/
+#guard_msgs (error) in
 #erase (colA.«a b» + colA.a_u32b) config {nat := .peano, extern := .preferLogical} to "collide.ast"
 
 /-! R-4: unsupported literals panic and are erased to `□`. -/
