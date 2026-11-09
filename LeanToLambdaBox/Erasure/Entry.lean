@@ -106,7 +106,9 @@ have the shape `recShapeInFragment` admits (a mutual or indexed block, eliminati
 only for a recursor the closure reads, not for one it adds as a companion; an `unsafe` or
 `partial` definition, or a definition or an opaque with an `_unsafe_rec` companion (a `partial def` is an opaque whose value is a dummy, compiled through its
 companion), except, under `structural := .kernel`, a definition by structural recursion
-(`isStructuralRecursive`), which both paths erase through its kernel definition; an `unsafe` opaque, axiom, inductive or constructor; an `implemented_by` target of a definition, an
+(`isStructuralRecursive`), which both paths erase through its kernel definition; a definition,
+theorem or opaque of a mutual block (whose `all` is not the list of its own name alone); an
+`unsafe` opaque, axiom, inductive or constructor; an `implemented_by` target of a definition, an
 opaque or an axiom; a nested inductive, or one whose sort is excluded by `sortDecided`; an
 `@[extern]` constructor under `extern := .preferAxiom`. Reference: the declarations Metalean's
 loader declines (`Metalean/Checker/Slow/Loader.lean:129-139`), and the eraser's remapping of
@@ -128,17 +130,20 @@ def declExclusion (view : EnvView) (cfg : ErasureConfig) : ConstantInfo → Exce
       throw (.outOfFragment s!"recursive definition {d.name}")
     if (view.implementedBy? d.name).isSome then
       throw (.outOfFragment s!"{d.name} has an implemented_by target")
+    unless d.all == [d.name] do throw (.outOfFragment s!"mutual block {d.all}")
   | .opaqueInfo o => do
     if o.isUnsafe then throw (.outOfFragment s!"unsafe {o.name}")
     if (view.find? (Compiler.mkUnsafeRecName o.name)).isSome then
       throw (.outOfFragment s!"partial definition {o.name}")
     if (view.implementedBy? o.name).isSome then
       throw (.outOfFragment s!"{o.name} has an implemented_by target")
+    unless o.all == [o.name] do throw (.outOfFragment s!"mutual block {o.all}")
   | .axiomInfo a => do
     if a.isUnsafe then throw (.outOfFragment s!"unsafe {a.name}")
     if (view.implementedBy? a.name).isSome then
       throw (.outOfFragment s!"{a.name} has an implemented_by target")
-  | .thmInfo _ | .quotInfo _ => pure ()
+  | .thmInfo t => unless t.all == [t.name] do throw (.outOfFragment s!"mutual block {t.all}")
+  | .quotInfo _ => pure ()
   | .inductInfo iv => do
     if iv.isUnsafe then throw (.outOfFragment s!"unsafe {iv.name}")
     if iv.numNested != 0 then throw (.outOfFragment s!"nested inductive {iv.name}")
@@ -279,7 +284,7 @@ block, elimination only into `Prop`, an induction hypothesis that takes argument
 field); a string literal; an
 `unsafe`/`partial` constant, or one with an `_unsafe_rec` companion (except, under
 `structural := .kernel`, a definition by structural recursion) or an `implemented_by` target; a
-nested or unsafe inductive; an `@[extern]` constructor under `extern := .preferAxiom`; under
+definition, theorem or opaque of a mutual block; a nested or unsafe inductive; an `@[extern]` constructor under `extern := .preferAxiom`; under
 `nat := .machine` a Nat literal, `Nat.zero`, `Nat.succ`, `Int.ofNat`, `Int.negSucc`, `Nat.casesOn`
 or `Int.casesOn`; a recognized `casesOn` on an inductive with a constructor field that is an index
 of the constructor's type (`indexFields`: `Acc`); an inductive whose type is not syntactically an

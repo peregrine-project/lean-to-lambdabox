@@ -2626,12 +2626,15 @@ the calls at which the two oracles answer differently. It must equal
     `visitMutual`, which the pure path does not reach (the first two are guarded by their caller,
     the last two need a recursive declaration).
 
-  - **Later note (S-44):** the claim that `mkDef` and the fixpoint branch of `visitMutual` are not
-    reached on the pure path no longer holds under `structural := .kernel`. A mutual structural
-    block (`isEv`/`isOd`, program `useEv` in `tests/regress/structural.lean`) is in the fragment
-    and is erased in that branch. The two remaining panic sites there, `fixvars.get![n]!` in
-    `mkDef` and `ci.value!` in `visitMutual`, do not fire on the tests. The final theorem does not
-    cover mutual blocks, which are not the Lean form of Metalean definitions.
+  - **Later note (S-44, S-51):** under `structural := .kernel`, S-44 put mutual structural blocks
+    (`isEv`/`isOd`, program `useEv` in `tests/regress/structural.lean`) in the fragment, and the
+    pure path erased them in the fixpoint branch of `visitMutual`. S-51 excludes every definition,
+    theorem and opaque of a mutual block from the fragment, so the claim holds again: each
+    declaration of a closure is alone in its block, and the kernel checks a safe declaration's
+    value before adding the declaration, so the value does not name it; the pure path therefore
+    takes the non-recursive branch of `visitMutual` and does not reach `mkDef`. The two panic
+    sites of that branch, `fixvars.get![n]!` in `mkDef` and `ci.value!` in `visitMutual`, are
+    reached only on the `Meta` path.
   - `LeanToLambdaBox/Erasure/Pure.lean`: the field `fail` of `instance : Backend PureM` (the error
     `failed`) and the instance's docstring.
   - `tests/harness/PureHarness.lean`: the field of `instance : Backend CmpM`.
@@ -3480,6 +3483,71 @@ the calls at which the two oracles answer differently. It must equal
   the `#erase` output (`useTF.ast`, `useFT.ast`, `useFF.ast`). peregrine validates them and
   evaluates `useTF` and `useFT` to `QP.B.t`, so one class gives one value on both representatives,
   and `useFF` to `QP.B.f`. `scripts/regress.sh` passes (28 tests) with `PEREGRINE`.
+
+## S-51: The fragment test excludes definitions, theorems and opaques of mutual blocks
+
+- **Commit:** the commit whose subject starts with `S-51:` (`git log --grep='^S-51:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure/Entry.lean`: `declExclusion` excludes a definition, a theorem or an
+    opaque whose `all` is not the list of its own name alone, with `outside the fragment: mutual
+    block <all>`, after its other checks; the docstrings of `declExclusion` and `collectDeps`.
+  - new `tests/regress/mutual_block.lean` with its goldens.
+  - `tests/regress/structural.lean`: the verdicts on `ST.useEv` and `ST.useTree`, its
+    docstring, and the goldens of `useEv` (which takes the `Meta` path).
+  - `doc/SHIPPING-CHANGES.md`: this entry and the later note of S-33.
+- **Why necessary:** found by the review of this branch. The correctness theorem of the pure
+  path is about programs whose closure is the Lean form of a Metalean environment, in which every
+  definition, theorem and opaque is alone in its block (`all = [name]`): Metalean's loader
+  declines the others, and its definitions are not recursive. `declExclusion` did not check
+  `all`, and `closureStep` adds the members of `all` to the closure, so a mutual block was in the
+  fragment whenever its members passed the other checks: under `structural := .kernel`, a mutual
+  block by structural recursion, whose members share one `T.brecOn` and have no `_unsafe_rec`
+  exclusion (S-44), and under every configuration a mutual block of theorems whose member the
+  program reads. The pure path erased such a block in the fixpoint branch of `visitMutual`, which
+  the proof has no case for. The output was probably right; the fragment was wider than what the
+  theorem covers. The theorem's statement does not change: its environment relation already
+  requires `all = [name]` of every definition, theorem and opaque; the proof of the fragment
+  test has the new check to discharge.
+
+  The probe of the declarations in `Init`, `Std`, `Lean` and `LeanToLambdaBox`, of the
+  `tests/corpus` files and of `benchmarks/FromLeanCommon` finds no declaration whose `all` has one
+  member other than itself, so the check is the same as `all.length == 1`. Every auxiliary
+  definition is alone in its block: `match_<n>` (13433 in the imports), `below` (237), `brecOn`
+  (238, and 29 theorems), `casesOn`, `recOn`, `noConfusion`, sparse `casesOn` (3967), `T.c.elim`
+  (2211), and the `eq_<n>`/`eq_def` theorems (7303); so is every definition by structural
+  recursion that is not in a mutual block (1174 of 1194 in the imports). The members of mutual
+  blocks in the imports, `_unsafe_rec` companions aside (which are looked up, not collected), are
+  639 opaques of `partial` blocks and 17 definitions by well-founded recursion, all with an
+  `_unsafe_rec` companion, and 6 `unsafe` definitions, which the fragment test already excluded;
+  20 definitions by mutual structural recursion, which it admitted under `structural := .kernel`;
+  and 8 theorems, which it admitted under every configuration. In the corpus files the mutual
+  blocks are `Defects.fooI`/`barI` (structural, with an `_unsafe_rec` companion) and
+  `URec.ua`/`ub` (`unsafe`), and in the benchmarks `even`/`odd` (structural); none is in the
+  fragment of its configuration.
+- **Behaviour before:** under `{nat := .peano, structural := .kernel}`, `MB.useEven` (the block
+  `even`/`odd` on a Peano type) and `ST.useEv` (`isEv`/`isOd` on `Nat`) are in the fragment and
+  take the pure path; under the default configuration `MB.usePf`, a function applied to the
+  theorem `evT` of the mutual block `evT`/`odT`, is in the fragment too.
+- **Behaviour after:** the three are outside the fragment, with `outside the fragment: mutual
+  block [MB.even, MB.odd]` (resp. `[ST.isEv, ST.isOd]`, `[MB.evT, MB.odT]`), and take the `Meta`
+  path; `ST.useTree` is excluded as `mutual block [ST.Tree.size.sizes, ST.Tree.size]` instead of
+  `nested inductive ST.Tree`. A definition by structural recursion alone in its block (`MB.isZ`)
+  stays in the fragment. The `Meta` path's output for `ST.useEv` differs from the pure path's
+  (it inlines the matcher `ST.isEv.match_1`) and evaluates to `false` as before.
+- **Effect on emitted .ast (corpus):** byte-identical for all 710 files against the corpus of the base
+  commit (`f4af04e`); `PANIC` counts unchanged. No program of the corpus is in the fragment with a
+  mutual block in its closure. With `structural := .kernel` as the default (not committed), the
+  harness summary has the totals of S-48 (233 in the fragment, 57 outside, 4 `collectDeps`
+  errors; 10462 oracle calls, 14 differ), and one line changes: `Defects/mutual_inline.ast`
+  (`fooI`/`barI` under `nat := .machine`) is excluded as `mutual block [Defects.fooI,
+  Defects.barI]` instead of by `recursor Nat.rec, which the eraser keeps as a constant`.
+- **Regression test:** `mutual_block` checks the blocks (`all`) of `even`, `evT` and `isZ`, the
+  verdicts and routes above, and pins the `#erase` outputs of `useEven`, `usePf` and
+  `useSingle`, which peregrine validates and evaluates to `MB.LB.f`, `MB.LB.t` and `MB.LB.t`;
+  `structural` checks the verdicts on `useEv` and `useTree`. Before this commit the verdicts on
+  `useEven`, `usePf` and `useEv` are `in the fragment`, with the pure path. `scripts/regress.sh`
+  passes (29 tests) with `PEREGRINE`. `scripts/pure-harness.sh` passes with its expected summary
+  unchanged (294 `#erase`, 225 in the fragment, 66 outside, 3 `collectDeps` errors).
 
 ## Reported, not fixed
 
