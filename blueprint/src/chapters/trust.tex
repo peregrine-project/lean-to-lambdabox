@@ -27,7 +27,7 @@
   (\leanfile{proof/EraseProof/Statements.lean}), with every definition they use: the bridge, the
   source semantics, erasability, $\lambda_\Box$ evaluation and the erasure relation
   (\leanfile{proof/EraseProof/Spec.lean}, \leanfile{proof/EraseProof/Target.lean}).
-\item \lead{Tested} all eight hypotheses of the final theorem on nine programs, the runs by
+\item \lead{Tested} all eight hypotheses of the final theorem on ten programs, the runs by
   kernel evaluation of the shipping code, the final theorem applied to each, and the corollary to
   NV-1, NV-2, NV-R, NV-S, NV-L and NV-QP (Chapter~\ref{chap:tests}).
 \item \lead{Axioms} a proved node depends on \code{propext}, \code{Classical.choice} and
@@ -49,25 +49,27 @@ The statements and the checks rely on the following without proof (the trust bas
 \toprule
 Trusted part & Why it is trusted, and what checks it \\
 \midrule
-Lean's kernel at \code{v4.35.0-rc2}, and \code{propext}, \code{Classical.choice},
+Lean's kernel at \code{v4.35.0}, and \code{propext}, \code{Classical.choice},
   \code{Quot.sound} & every declaration of the library stays within the three axioms (C3 to C5);
   every module of the library and of the shipping code is \hl{replayed through the kernel} by
   the toolchain's \code{leanchecker} (step \code{replay}); the \code{.olean} files of Metalean,
   Mathlib and Lean's library are trusted as built \\
-Metalean at \code{9407ba4} & its typing, conversion and well-formed environments
-  \leandecl{Metalean.EnvWF} are the statements' notion of typing, as PCUIC's are MetaRocq's; its
-  axiom \code{Cardinal.exists\_inaccessibles} is never reached \\
+Metalean at \code{0146928} & its typing, conversion and well-formed environments
+  \leandecl{Metalean.EnvWF} are the statements' notion of typing, as PCUIC's are MetaRocq's;
+  \code{proof/spec.pin} hashes every Metalean definition the statements reach; its axiom
+  \code{Cardinal.exists\_inaccessibles} is never reached \\
 Metalean's term builders & \leandecl{Metalean.Frontend.indTerm},
   \leandecl{Metalean.Frontend.ctorTerm}, \leandecl{Metalean.Frontend.recrTerm},
   \leandecl{Metalean.Frontend.wrapCase} and \leandecl{Metalean.Frontend.quotTerm}, with the 156
   constants they reach, none \code{partial}, \code{opaque}, \code{unsafe} or
   \code{implemented\_by}: \code{TrM} uses them for $\eta$-terms (DV-1). They shape the premises
-  and, through \code{Erases.box}, the conclusion; C6 exempts exactly these, and the pin covers them
-  by Metalean's revision \\
+  and, through \code{Erases.box}, the conclusion; C6 exempts exactly these, and
+  \code{proof/spec.pin} hashes their definitions \\
 The statement definitions & \leanfile{proof/EraseProof/Statements.lean} with
   \leanfile{proof/EraseProof/Spec.lean} and \leanfile{proof/EraseProof/Target.lean}: a reader
   checks them against the references with the divergence register; \code{proof/spec.pin} holds a
-  SHA-256 digest of each and of every library definition they reach (C12b) \\
+  SHA-256 digest of each and of every definition of the library, of the shipping code or of
+  Metalean they reach (C12b) \\
 Shipping definitions the statements reach & the $\lambda_\Box$ syntax, \code{ErasureConfig},
   \code{EnvView}, \code{collectFuel}, the recognizer \code{casesInfo?} and its helpers,
   \code{Pure.instLevels}, \code{axiomatized}, \code{indexFields}, \code{minorArity},
@@ -82,7 +84,7 @@ Lean's compiler and runtime & the theorem is about the logical definitions, \cod
   logical definition (\code{@[extern]}, \code{@[implemented\_by]}, \code{opaque}), among them
   the \code{partial} functions that compute only the inlining hints; MetaRocq trusts its
   extraction alike; the kernel checks the non-vacuity instances on the logical definitions, and
-  the compiled code is exercised on NV-1, NV-2, NV-Q, NV-R, NV-S, NV-QP and NV-L by
+  the compiled code is exercised on NV-1, NV-2, NV-Q, NV-R, NV-S, NV-QP, NV-L and NV-A by
   \leanfile{proof/tools/NVEmit.lean} \\
 \bottomrule
 \end{tabular}
@@ -124,7 +126,14 @@ Metalean's checkers and translator & \code{Metalean.Checker}, \code{Metalean.Fro
 \section{Metalean's trust base}\label{sec:trust-metalean}
 
 \begin{itemize}
-\item \lead{Pin} the \code{metalean} package of Section~\ref{sec:intro-pins}, never edited.
+\item \lead{Pin} the \code{metalean} package of Section~\ref{sec:intro-pins}, never edited;
+  \code{proof/spec.pin} also holds the digest of every Metalean definition the statements reach
+  (C12b).
+\item \lead{Large elimination} Metalean's \leandecl{Metalean.Inductive.LargeElim} holds of a
+  mutual \code{Prop} block of subsingletons, whose recursors Lean's kernel lets eliminate only
+  into \code{Prop}. The statements give a recursor its motive universe by Lean's rule,
+  \code{LeanLargeElim} (Definition~\ref{def:EraseProof-SatTr}), which implies Metalean's
+  (Lemma~\ref{lem:EraseProof-LeanLargeElim-toLargeElim}) and equals it on a block of one type.
 \item \lead{No sorry} Metalean contains no \code{sorry}; the proof inherits none.
 \item \lead{One axiom} \code{Cardinal.exists\_inaccessibles}
   (\leanfile{Metalean/SetTheory/Cardinal/Inaccessible.lean}), the existence of inaccessible
@@ -175,25 +184,26 @@ C7 & no leaves: every declaration reachable from a root of \code{proof/ROOTS.txt
 C8 & the tests build \\
 C9 & \code{doc/DIVERGENCES.md} well formed; its citations of declarations and of MetaRocq, Metalean
   and repository lines exist; every cited \code{DV-n} has an entry \\
-C10 & the shipping regression tests, \code{scripts/regress.sh} (28 tests) \\
+C10 & the shipping regression tests, \code{scripts/regress.sh} (30 tests) \\
 C11 & \code{nv1-emit}: \leanfile{proof/tools/NVEmit.lean} runs the entry point of \code{\#erase}
-  on NV-1's, NV-2's, NV-Q's, NV-R's, NV-S's, NV-QP's (both representatives) and NV-L's programs and
-  checks the emitted programs byte for byte;
-  \code{proof/scripts/c11.sh}: \code{peregrine validate} and \code{eval} on 53 programs, NV-1's,
-  NV-2's, NV-Q's, NV-R's, NV-S's, NV-QP's and NV-L's, the regression outputs for NV-1, NV-P and NV-K, and every regression output under
+  on NV-1's, NV-2's, NV-Q's, NV-R's, NV-S's, NV-QP's (both representatives), NV-L's and NV-A's
+  programs and checks the emitted programs byte for byte;
+  \code{proof/scripts/c11.sh}: \code{peregrine validate} and \code{eval} on 56 programs, NV-1's,
+  NV-2's, NV-Q's, NV-R's, NV-S's, NV-QP's, NV-L's and NV-A's, the regression outputs for NV-1,
+  NV-P and NV-K, and every regression output under
   \code{nat := .peano}; \hl{each value must be the Lean program's} \\
 C12 & the four statement definitions of \leanfile{proof/EraseProof/Statements.lean} exist; each
   of \code{erase\_correct}, \code{erases\_correct}, \code{erasePure\_erases} and
   \code{collectDeps\_ok\_of} that is proved has a type kernel-defeq to its statement, the others
   are listed as unproved. The final form: every statement proved, \code{erase\_correct} the only
   root with consumer \code{FINAL}, and the footprints of \code{erase\_correct} and of its
-  test instances \code{Test.\{NV1,NVP,NVK,NV2,NVQ,NVR,NVS,NVL,NVQP\}.final} exactly the three axioms, with their
+  test instances \code{Test.\{NV1,NVP,NVK,NV2,NVQ,NVR,NVS,NVL,NVQP,NVA\}.final} exactly the three axioms, with their
   hypothesis terms within them; the same footprint for \code{erase\_correct\_firstorder} and its
   instances \code{Test.\{NV1,NV2,NVR,NVS,NVL,NVQP\}.firstorder}, which mention it \\
-C12b & on every run, the statement definitions and the library and shipping definitions they
-  reach, but the three functions under verification, have the SHA-256 digests of
-  \code{proof/spec.pin} (1077 lines), every pinned constant exists, and the toolchain and
-  dependency revisions are the pinned ones \\
+C12b & on every run, the statement definitions and the library, shipping and Metalean
+  definitions they reach, but the three functions under verification, have the SHA-256 digests of
+  \code{proof/spec.pin} (1565 entries, 507 of them Metalean definitions), every pinned constant
+  exists, and the toolchain and dependency revisions are the pinned ones \\
 \bottomrule
 \end{tabular}
 
@@ -205,11 +215,15 @@ C12b & on every run, the statement definitions and the library and shipping defi
   \leandecl{Metalean.Export.QuotKind}, with what they reach: 156 constants, none \code{partial},
   \code{opaque}, \code{unsafe} or \code{@[implemented\_by]} (Section~\ref{sec:trust-trusted}).
 \item \lead{Statement pin} \code{proof/spec.pin} holds the SHA-256 digest of a deterministic
-  serialization of each statement definition and of every library and shipping definition it
-  reaches (kind, flags, levels, types and values up to binder names). The three functions under
-  verification and the dependencies are pinned by name only, and what only those functions reach
-  is not pinned: \hl{a fix to the code under verification leaves the pin unchanged}, while a
-  change to a pinned definition, or a pinned constant that does not exist, fails C12b.
+  serialization of each statement definition and of every library, shipping and Metalean
+  definition it reaches (kind, flags, levels, types and values up to binder names; a
+  \code{metalean} line for a constant of Metalean). The three functions under verification and the
+  other dependencies (Lean's library, Mathlib, Batteries) are pinned by name only, and what only
+  those functions reach is not pinned: \hl{a fix to the code under verification leaves the pin
+  unchanged}, while a change to a pinned definition, or a pinned constant that does not exist,
+  fails C12b.
+\item \lead{Metalean in the pin} a new Metalean revision changes the pin exactly at the Metalean
+  definitions the statements reach and that change, even when their names stay.
 \end{itemize}
 
 \section{What the proof uses from Metalean}\label{sec:trust-imported}

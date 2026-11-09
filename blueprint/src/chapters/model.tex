@@ -6,13 +6,14 @@
   terms and environments, so that Metalean's typing applies to the eraser's input.
 \item \lead{Main results} The translation \code{TrM}, the program environments \code{ProgEnv},
   their weakening, substitution, universe instantiation and lookup lemmas, the uniqueness of
-  translations up to $\equiv$, the \code{casesOn} reduction chain, the recursor $\iota$; the no-confusion lemmas of
+  translations up to $\equiv$, the \code{casesOn} reduction chain, the recursor $\iota$; Lean's
+  large elimination against Metalean's; syntax lemmas about Metalean; the no-confusion lemmas of
   Metalean's type formers.
 \item \lead{Status} \stProved{} every lemma of the chapter; the definitions of the bridge are
   formalized.
 \item \lead{Nodes} \bpnodes{chap:model}
 \item \lead{Lean files} \leanfile{proof/EraseProof/Spec.lean} (Sections 1 to 6),
-  \leanfile{proof/EraseProof/Bridge/}, \leanfile{proof/EraseProof/Metatheory/NoConf.lean}.
+  \leanfile{proof/EraseProof/Bridge/}, \leanfiles{proof/EraseProof/Metatheory/}{Syntax, NoConf}.
 \item \lead{Reference} Metalean's translator \leanfile{Metalean/Frontend/Translate.lean} and
   loader \leanfile{Metalean/Checker/Slow/Loader.lean}, which the bridge models as relations.
 \end{itemize}
@@ -54,10 +55,10 @@ the bridge restates it rule by rule as a relation.
 \begin{definition}[Saturated heads]
   \label{def:EraseProof-SatTr}
   \lean{EraseProof.SatTr, EraseProof.SpecialHead, EraseProof.MetaOrderOK,
-    EraseProof.RecrLevels, EraseProof.quotArity}
+    EraseProof.RecrLevels, EraseProof.quotArity, EraseProof.LeanLargeElim}
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-TrLevel}
-  \srcloc{proof/EraseProof/Spec.lean}{219}
+  \srcloc{proof/EraseProof/Spec.lean}{230}
   \lead{In short} \code{SatTr E lps b us args t}: the head \code{b} at levels \code{us}, applied to
   the translated arguments \code{args}, is \hl{the saturated Metalean node or the $\eta$-term}
   \code{t}.
@@ -65,6 +66,9 @@ the bridge restates it rule by rule as a relation.
   \item saturated: \code{ind}, \code{ctor} (fields permuted to Metalean's order,
         \code{MetaOrderOK}: ordinary fields, then recursive ones), \code{recr}
         (\code{RecrLevels}: the motive's level split off), quotient constants (\code{quotArity});
+  \item \code{LeanLargeElim}: \hl{Lean's rule for a recursor's motive universe}, the block's sort
+        never \code{Prop}, or one type that is a syntactic subsingleton; Metalean's
+        \code{Inductive.LargeElim} also admits mutual blocks of subsingletons;
   \item under-applied: the term of Metalean's builders \code{indTerm}, \code{ctorTerm},
         \code{recrTerm}, \code{quotTerm}, applied (DV-1; trusted,
         Section~\ref{sec:trust-trusted});
@@ -95,7 +99,7 @@ the bridge restates it rule by rule as a relation.
   \label{def:EraseProof-TypedExt}
   \lean{EraseProof.TypedExt}
   \leanok
-  \srcloc{proof/EraseProof/Spec.lean}{303}
+  \srcloc{proof/EraseProof/Spec.lean}{314}
   \lead{In short} \code{TypedExt E $\Gamma$ e T}: \code{e} has type \code{T} in \hl{a context
   \code{$\Gamma$'} into which $\Gamma$ embeds} by an injective renaming that preserves the types
   of the variables.
@@ -117,7 +121,7 @@ the bridge restates it rule by rule as a relation.
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-TrLevel, def:EraseProof-SatTr,
     def:EraseProof-natLitM, def:EraseProof-TypedExt}
-  \srcloc{proof/EraseProof/Spec.lean}{313}
+  \srcloc{proof/EraseProof/Spec.lean}{324}
   \lead{In short} \code{TrM E B lps $\Gamma$ $\Delta$ e t}: the Lean term \code{e} is \hl{the Lean
   form of the Metalean term \code{t}} in the context $\Gamma$; $\Delta$ (\code{MLCtx}) maps the
   Lean locals to Metalean variables or let values.
@@ -465,7 +469,7 @@ universe instantiation in place of lean4lean's.
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-SatTr, def:EraseProof-TrM, def:Erasure-casesInfo,
     def:EraseProof-ConstsIn}
-  \srcloc{proof/EraseProof/Spec.lean}{536}
+  \srcloc{proof/EraseProof/Spec.lean}{547}
   \lead{In short} \code{ProgEnv P $\zeta$ E B}: the Lean declarations \code{P} (newest first) are
   \hl{those of the Metalean environment \code{E}}, named by \code{B}, as Metalean's loader builds
   it.
@@ -545,7 +549,7 @@ universe instantiation in place of lean4lean's.
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-SatTr, def:EraseProof-natLitM,
     def:EraseProof-TypedExt, def:EraseProof-TrM}
-  \srcloc{proof/EraseProof/Bridge/WkEnv.lean}{539}
+  \srcloc{proof/EraseProof/Bridge/WkEnv.lean}{540}
   \lead{In short} A translation in \code{E} and \code{B} stays one \hl{after a new environment
   entry}, of the weakened term, when the new table agrees with the old one, weakened, on the old
   names.
@@ -699,7 +703,7 @@ universe instantiation in place of lean4lean's.
     EraseProof.appList_ofFn, EraseProof.appList_eq_apps, EraseProof.caseSubst_eq}
   \leanok
   \uses{def:EraseProof-SatTr}
-  \srcloc{proof/EraseProof/Bridge/Perm.lean}{141}
+  \srcloc{proof/EraseProof/Bridge/Perm.lean}{142}
   \lead{In short} A minor wrapped by \code{wrapCase}, applied to the Metalean fields and the
   induction hypotheses, \hl{reduces to the minor applied to the fields in Lean order}.
   \lead{Why} Metalean stores recursive fields last; the permutation is confined to the bridge.
@@ -810,6 +814,64 @@ universe instantiation in place of lean4lean's.
   \leanok
   \lead{Idea} \code{IsStructure.projTerm\_ctor\_defeq} for structures; for proof projections,
   $\iota$ then $\beta$ (\code{projProofTerm\_ctor\_whredS}).
+\end{proof}
+
+\section{Large elimination and syntax lemmas}\label{sec:model-syntax}
+
+The statements give a recursor its motive universe by Lean's rule; Metalean's own condition is
+weaker on mutual blocks. The syntax lemmas are facts that the pinned Metalean does not state.
+
+\begin{lemma}[Lean's large elimination implies Metalean's]
+  \label{lem:EraseProof-LeanLargeElim-toLargeElim}
+  \lean{EraseProof.LeanLargeElim.toLargeElim, EraseProof.leanLargeElim_map}
+  \leanok
+  \uses{def:EraseProof-SatTr}
+  \srcloc{proof/EraseProof/Bridge/LargeElim.lean}{15}
+  \lead{In short} A block that eliminates into every sort by Lean's rule \hl{does so by
+  Metalean's} \code{Inductive.LargeElim}; both are invariant under signature morphisms.
+  \begin{itemize}
+  \item \code{toLargeElim}: \code{LeanLargeElim I} implies \code{I.LargeElim};
+  \item \code{leanLargeElim\_map}: \code{LeanLargeElim (I.map pre)} iff \code{LeanLargeElim I}.
+  \end{itemize}
+  \lead{Reference} \code{elim\_only\_at\_universe\_zero} of Lean's kernel; the leanElim mode of
+  \code{translateSpecial} (\leanfile{Metalean/Frontend/Translate.lean}).
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Lean's rule drops a conjunct of Metalean's disjunction; Metalean's
+  \code{subsingleton\_map} for the morphism.
+\end{proof}
+
+\begin{lemma}[Syntax lemmas about Metalean]
+  \label{lem:EraseProof-ML-Expr-apps_succ}
+  \lean{EraseProof.ML.Expr.apps_succ, EraseProof.ML.Expr.map_appList,
+    EraseProof.ML.Expr.instL_appList, EraseProof.ML.Expr.subst_appList,
+    EraseProof.ML.Expr.last_wkFrom, EraseProof.ML.Expr.wkFrom_letE, EraseProof.ML.Expr.inst_wkFrom,
+    EraseProof.ML.Ctx.insert_snoc, EraseProof.ML.Ctx.insert_nil, EraseProof.ML.Level.inst_max,
+    EraseProof.ML.Inductive.motiveBinders_instL, EraseProof.ML.Inductive.motiveBinders_map,
+    EraseProof.ML.Inductive.IsStructure.projTerm_wkFrom,
+    EraseProof.ML.Inductive.LargeElim.subsingleton_of_eval_zero,
+    EraseProof.ML.Inductive.LargeElim.singleton_of_eval_zero}
+  \leanok
+  \srcloc{proof/EraseProof/Metatheory/Syntax.lean}{21}
+  \lead{In short} Facts about Metalean's syntax that \hl{the pinned Metalean does not state} and
+  the proofs use; each docstring names the Metalean file it follows.
+  \begin{itemize}
+  \item \code{Expr.apps\_succ}, \code{map\_appList}, \code{instL\_appList}, \code{subst\_appList}:
+        application spines under signature morphisms, level instantiation and substitution;
+  \item \code{last\_wkFrom}, \code{wkFrom\_letE}, \code{inst\_wkFrom}, \code{Ctx.insert\_snoc},
+        \code{Ctx.insert\_nil}: weakening and insertion into contexts;
+  \item \code{Level.inst\_max}, \code{motiveBinders\_instL}, \code{motiveBinders\_map},
+        \code{projTerm\_wkFrom}: levels, recursor motives and structure projections;
+  \item \code{subsingleton\_of\_eval\_zero}, \code{singleton\_of\_eval\_zero}: a
+        large-eliminating block whose level is zero at some assignment is a subsingleton: one
+        constructor per sort, with eligible fields.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Unfolding and induction on the syntax; the last two by the definition of
+  \code{Inductive.LargeElim}.
 \end{proof}
 
 \section{No-confusion of type formers}\label{sec:model-noconf}

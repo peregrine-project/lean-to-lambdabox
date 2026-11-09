@@ -384,7 +384,7 @@
   \leanok
   \uses{def:Erasure-EnvView, def:Erasure-declExclusion, def:EraseProof-EvalEnv,
     def:EraseProof-ConstsIn, def:toKername, def:Erasure-ErasureConfig}
-  \srcloc{proof/EraseProof/Spec.lean}{1084}
+  \srcloc{proof/EraseProof/Spec.lean}{1095}
   \lead{In short} The hypotheses of \code{collectDeps\_ok\_of}: \hl{what the traversal reads of a
   closure is inside Phase I}.
   \begin{itemize}
@@ -588,7 +588,7 @@
     def:Erasure-EraseError, def:Erasure-EnvView, def:Erasure-findConst, def:Erasure-declExclusion,
     def:Erasure-collectDeps, def:Erasure-casesInfo, def:EraseProof-EvalEnv,
     def:EraseProof-ConstsIn, def:toKername, def:Erasure-ErasureConfig}
-  \srcloc{proof/EraseProof/Core/CollectOk.lean}{959}
+  \srcloc{proof/EraseProof/Core/CollectOk.lean}{966}
   \lead{In short} A typed program whose read closure is inside Phase I \hl{is accepted}:
   \code{hfrag} cannot silently empty the final theorem.
   \begin{itemize}
@@ -601,6 +601,9 @@
   \end{itemize}
   \lead{Structural recursion} \code{CollectOk.dex} carries the same disjunct, so the lower bound
   covers a structural recursion under \code{structural := .kernel}.
+  \lead{Mutual blocks} the test's exclusion of a definition, theorem or opaque of a mutual block
+  (S-51) does not arise: \code{ProgEnv} asks each to be alone in its block, which the field
+  \code{own} of \code{Frag} records from \code{ProgEnv.scoped}.
   \lead{Why \code{RecShaped}} the lower bound covers the programs whose expressions name
   recursors only in the shape of \code{RecInFragment}, which is what the fragment test checks. A
   structural definition reads \code{T.brecOn}, whose value applies \code{T.rec}, so the premise
@@ -960,7 +963,7 @@ into \code{erasePure\_erases}.
     def:EraseProof-ErasesDeps, def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-isAtom,
     def:EraseProof-ConstsIn, def:LBTerm, def:toKername, def:Erasure-ErasureConfig,
     def:Erasure-TravCtx, def:Erasure-EraseT, def:Erasure-erase}
-  \srcloc{proof/EraseProof/Core/Steps.lean}{619}
+  \srcloc{proof/EraseProof/Core/Steps.lean}{620}
   \lead{In short} \code{ExprSpec \ldots\ fuel e}: a successful run of \code{visitExpr fuel e} at
   the pure backend \hl{returns an erasure of \code{e}} and keeps the state invariant.
   \begin{itemize}
@@ -994,7 +997,7 @@ into \code{erasePure\_erases}.
     def:EraseProof-erases_correct_statement, def:EraseProof-MBinding, def:EraseProof-ProgEnv,
     def:Erasure-EnvView, def:EraseProof-ConstsIn, def:EraseProof-DepClosed,
     def:EraseProof-ClosedDecls, def:Erasure-ErasureConfig}
-  \srcloc{proof/EraseProof/Core/Steps.lean}{554}
+  \srcloc{proof/EraseProof/Core/Steps.lean}{555}
   \lead{In short} \code{CoreEnv E B P decls view cfg}: \hl{the facts about the program and its
   closure} that every step uses.
   \begin{itemize}
@@ -1018,7 +1021,7 @@ into \code{erasePure\_erases}.
   \lean{EraseProof.Steps.NatPlain}
   \leanok
   \uses{def:Erasure-ErasureConfig}
-  \srcloc{proof/EraseProof/Core/Steps.lean}{521}
+  \srcloc{proof/EraseProof/Core/Steps.lean}{522}
   \lead{In short} \code{NatPlain cfg e}: under \code{nat := .machine}, \code{e} \hl{has no
   \code{Nat} literal and mentions neither \code{Nat.zero} nor \code{Nat.casesOn}}.
   \lead{Why} under \code{.machine}, \code{visitLiteral} erases the literal \code{0} to a primitive
@@ -1140,7 +1143,7 @@ into \code{erasePure\_erases}.
     def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-isAtom, def:EraseProof-EvalEnv-etaSpine,
     def:EraseProof-ConstsIn, def:EraseProof-DepClosed, def:LBTerm, def:abstract, def:toKername,
     def:Erasure-ErasureConfig, def:Erasure-TravCtx, def:Erasure-EraseT}
-  \srcloc{proof/EraseProof/Core/Steps.lean}{930}
+  \srcloc{proof/EraseProof/Core/Steps.lean}{931}
   \lead{In short} Given \code{CoreEnv} and \code{StepIH} at \code{fuel}, \hl{\code{ExprSpec} at
   \code{fuel + 1}} for every term that \code{visitExpr} erases without special code.
   \begin{itemize}
@@ -1190,7 +1193,7 @@ into \code{erasePure\_erases}.
     def:Erasure-PureM, def:Erasure-isRecursiveDecl, def:EraseProof-EvalEnv,
     def:EraseProof-EvalEnv-isAtom, def:EraseProof-ConstsIn, def:toKername,
     def:Erasure-ErasureConfig, def:Erasure-TravCtx, def:Erasure-EraseT}
-  \srcloc{proof/EraseProof/Core/Steps.lean}{1720}
+  \srcloc{proof/EraseProof/Core/Steps.lean}{1721}
   \lead{In short} Given \code{CoreEnv} and \code{StepIH} at \code{fuel}, \hl{\code{MutualSpec} at
   \code{fuel + 1}}: \code{visitMutual} registers an axiom, a remapped declaration, or a
   definition or opaque with its value erased.
@@ -1313,7 +1316,7 @@ into \code{erasePure\_erases}.
     def:EraseProof-RecFixOf, def:EraseProof-Erases, def:EraseProof-ErasesDeps,
     def:EraseProof-Subsingleton, def:EraseProof-EvalEnv, def:Erasure-EnvView,
     def:Erasure-ErasureConfig, def:Erasure-erase}
-  \srcloc{proof/EraseProof/Core/StepsRec.lean}{422}
+  \srcloc{proof/EraseProof/Core/StepsRec.lean}{415}
   \lead{In short} \code{visitRec} on a spine of \code{T.rec} with at least its arity of arguments
   \hl{builds the output of \code{Erases.recLet}}: the erased minor premises let-bound around the
   fixpoint of the block, applied to the erased major premise and to the extra arguments.
@@ -1353,7 +1356,7 @@ into \code{erasePure\_erases}.
   \uses{def:EraseProof-Steps-ExprSpec, def:EraseProof-Steps-CoreEnv, def:EraseProof-StateOK,
     def:EraseProof-MBinding, def:EraseProof-ProgEnv, def:EraseProof-PhaseIDecl,
     def:Erasure-EnvView, def:Erasure-ErasureConfig, def:EraseProof-Erases}
-  \srcloc{proof/EraseProof/Core/StepsRec.lean}{921}
+  \srcloc{proof/EraseProof/Core/StepsRec.lean}{914}
   \lead{In short} \code{StepsB.recr}: a spine headed by a recursor that the closure reads in the
   fragment's shape \hl{erases to the fixpoint under the let-bound minors}, and is
   $\eta$-expanded when under-applied.
@@ -1544,7 +1547,7 @@ into \code{erasePure\_erases}.
     def:EraseProof-Erases, def:EraseProof-ErasesDeps, def:EraseProof-IsErasable,
     def:EraseProof-EvalEnv, def:EraseProof-SrcEval, def:EraseProof-ConstsIn, def:LBTerm,
     def:Erasure-ErasureConfig, def:Erasure-TravCtx, def:Erasure-EraseT, def:Erasure-erase}
-  \srcloc{proof/EraseProof/Core/StepsCasesBox.lean}{302}
+  \srcloc{proof/EraseProof/Core/StepsCasesBox.lean}{296}
   \lead{In short} On a saturated spine of a recognized \code{casesOn} with as many universe
   parameters as its inductive, \code{visitCases} returns $\Box$, and \hl{$\Box$ erases the
   spine}.
@@ -1576,7 +1579,7 @@ into \code{erasePure\_erases}.
     def:EraseProof-Subsingleton, def:EraseProof-Erases, def:EraseProof-ErasesDeps,
     def:EraseProof-EvalEnv, def:EraseProof-ConstsIn, def:EraseProof-DepClosed, def:LBTerm,
     def:Erasure-ErasureConfig, def:Erasure-TravCtx, def:Erasure-EraseT, def:Erasure-erase}
-  \srcloc{proof/EraseProof/Core/StepsCasesBox.lean}{431}
+  \srcloc{proof/EraseProof/Core/StepsCasesBox.lean}{425}
   \lead{In short} On a large-eliminating recognized \code{casesOn} of a one-constructor
   inductive whose discriminant's sort may be zero, \code{visitCases} \hl{applies the erased
   alternative to one $\Box$ per field}: \code{Erases.casesReduced}.
@@ -1664,7 +1667,7 @@ into \code{erasePure\_erases}.
     def:EraseProof-Subsingleton, def:EraseProof-Erases, def:EraseProof-ErasesDeps,
     def:EraseProof-EvalEnv, def:EraseProof-ConstsIn, def:EraseProof-DepClosed, def:LBTerm,
     def:Erasure-ErasureConfig, def:Erasure-TravCtx, def:Erasure-EraseT, def:Erasure-erase}
-  \srcloc{proof/EraseProof/Core/StepsCasesCase.lean}{916}
+  \srcloc{proof/EraseProof/Core/StepsCasesCase.lean}{917}
   \lead{In short} In the remaining case, \code{visitCases} erases the spine to \hl{a
   $\lambda_\Box$ \code{case} on the erased major}, one branch per constructor, applied to the
   erased extra arguments: \code{Erases.cases}.

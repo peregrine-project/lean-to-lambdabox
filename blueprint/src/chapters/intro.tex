@@ -8,7 +8,7 @@
 \item \lead{Status} \stProved{} \hl{the final theorem \code{erase\_correct}}, its milestones
   \code{erases\_correct} and \code{erasePure\_erases}, the lower bound \code{collectDeps\_ok\_of}
   of the fragment hypothesis, the first-order corollary \code{erase\_correct\_firstorder}, and
-  every lemma they use; nine test programs discharge all eight hypotheses of the final theorem
+  every lemma they use; ten test programs discharge all eight hypotheses of the final theorem
   (Chapter~\ref{chap:tests}). Formalized: the four statements,
   as definitions pinned by \code{proof/spec.pin}, with every definition they use. \stShipping{} the eraser: the pure path on the fragment of
   Phase I and the \code{Meta} path on the rest.
@@ -46,7 +46,9 @@
   eraser's fragment test admits, inductive types and \code{casesOn} included; \hl{no recursive
   definitions by default}, recursion only through the admitted recursors and, under
   \code{structural := .kernel}, single definitions by structural recursion, and \code{Nat} literals
-  only under \code{nat := .peano} (Chapter~\ref{chap:scope}).
+  only under \code{nat := .peano} (Chapter~\ref{chap:scope}). \code{Init}'s own \code{Nat.add} on
+  the literals \code{2} and \code{3} is verified end to end under \code{\{extern := .preferLogical, structural := .kernel,
+  nat := .peano\}} (NV-A); no other operation of \code{Init} has an instance.
 \item \lead{The references} the verification follows these as closely as the differences between
   Lean and Rocq allow; every divergence from the first two is an entry of
   \code{doc/DIVERGENCES.md}.
@@ -70,7 +72,7 @@ Dima, \emph{Compiling Lean programs with Rocq's extraction pipeline}, MPRI repor
 
 \begin{itemize}
 \item \lead{What it is} a formalization of Lean's type theory in Lean
-  (\code{github.com/intgrah/metalean}), pinned at commit \code{9407ba44}
+  (\code{github.com/intgrah/metalean}), pinned at commit \code{01469285}
   (Section~\ref{sec:intro-pins}).
 \item \lead{What the proof uses} its syntax (\leandecl{Metalean.Expr}, \leandecl{Metalean.Env}),
   its typing judgment \leandecl{Metalean.Defeq} with type equality \leandecl{Metalean.TypeEq}, its
@@ -149,7 +151,11 @@ Projections of inductives that are not large-eliminating & the pure oracle typed
 Block names & the defect names inductive blocks through Lean's escaping printer, a
   \code{partial} function the kernel cannot evaluate, which prints two names differing by escapes
   alike. Entry
-  S-26 (\code{mutualBlockKername}); the residual collisions are R-3 \\
+  S-26 (\code{mutualBlockKername}); the residual collisions are R-3, an error of \code{\#erase} on
+  both paths (S-21, S-52) \\
+Mutual blocks in the fragment & the defect admits a definition, theorem or opaque of a mutual
+  block, which the program relation excludes: the pure path erases programs that the final theorem
+  does not cover. Entry S-51 excludes them from the fragment \\
 \bottomrule
 \end{tabular}
 
@@ -189,7 +195,7 @@ M2 & a literal read through another inductive's constructor named \code{Nat.zero
 
 The table is read from \code{lean-toolchain} and \code{lake-manifest.json} of the documented
 commit. The \code{metalean} package is \code{github.com/intgrah/metalean} at commit
-\code{9407ba44}; it brings Mathlib and its dependencies.
+\code{01469285}; it brings Mathlib and its dependencies.
 
 \input{generated/pins}
 
@@ -199,7 +205,7 @@ commit. The \code{metalean} package is \code{github.com/intgrah/metalean} at com
 \toprule
 Branch & Merges from & Content \\
 \midrule
-\code{ml/translate} & \code{fixes-port} & the shipping code on the toolchain \code{v4.35.0-rc2}
+\code{ml/translate} & \code{fixes-port} & the shipping code on the toolchain \code{v4.35.0}
   with Metalean required, and the strictly necessary changes; the register
   \code{doc/SHIPPING-CHANGES.md} \\
 \code{ml/verification} & \code{ml/translate} & the proof package \code{proof/} and the register
@@ -231,7 +237,7 @@ Chapter & Content \\
 \ref{chap:relation} & $\lambda_\Box$ evaluation and the erasure relation \\
 \ref{chap:core} & Soundness of the pure path: oracle, closure, traversal \\
 \ref{chap:final} & The final theorem and its two milestones \\
-\ref{chap:tests} & The tests: the final theorem applied to nine programs \\
+\ref{chap:tests} & The tests: the final theorem applied to ten programs \\
 \ref{chap:shipping-changes}, \ref{chap:divergences} & The two registers, rendered \\
 \ref{chap:open} & What is open \\
 \bottomrule

@@ -12,7 +12,7 @@
   (M1), with one case lemma per rule of \code{SrcEval}; the soundness of the pure traversal
   \code{erasePure\_erases} (M2), by induction on fuel over the step lemmas of
   Section~\ref{sec:core-steps}. The statements are definitions of type \code{Prop}, pinned by
-  \code{proof/spec.pin} (C12b); C12 checks each theorem's type against its statement. Nine test
+  \code{proof/spec.pin} (C12b); C12 checks each theorem's type against its statement. Ten test
   programs discharge every hypothesis (Chapter~\ref{chap:tests}). \stProved{} the first-order
   corollary, with instances on NV-1, NV-2, NV-R, NV-S, NV-L and NV-QP.
 \item \lead{Nodes} \bpnodes{chap:final}
@@ -31,7 +31,7 @@
   \lean{EraseProof.ViewAgrees}
   \leanok
   \uses{def:Erasure-EnvView}
-  \srcloc{proof/EraseProof/Spec.lean}{1008}
+  \srcloc{proof/EraseProof/Spec.lean}{1019}
   \lead{In short} \code{ViewAgrees view P}: \hl{the environment view of \code{\#erase} returns
   each declaration of \code{P} under its name}.
   \lead{Reference} \code{Sigma} $\sim$\code{\_ext X} (\code{abstract\_env\_ext\_rel}), a
@@ -136,12 +136,14 @@
   have an \code{\_unsafe\_rec} companion), and their recursion reduces only through an accessibility
   proof, which is opaque (DV-24), so \code{hev} never holds for them.
 \item \lead{Recursion} by default the test rejects structural recursion (an \code{\_unsafe\_rec}
-  companion, \code{Nat.add} and \code{Nat.beq} included), so \hl{no \code{Nat} arithmetic}. Under
-  \code{structural := .kernel} it admits a definition by structural recursion
+  companion, \code{Nat.add} and \code{Nat.beq} included), so \hl{no \code{Nat} arithmetic} by
+  default. Under \code{structural := .kernel} it admits a definition by structural recursion
   (\code{isStructuralRecursive}); its kernel definition recurses through \code{T.brecOn}, built
   from recursors, projections and \code{casesOn}, and is covered like any definition: NV-S is an
-  instance. A mutual structural block (not the Lean form of Metalean definitions) is covered
-  vacuously; a recursion on a \code{Nat} literal evaluates, the recursor $\iota$ reading the literal
+  instance, and so is NV-A, \code{Init}'s \code{Nat.add 2 3} under \code{\{extern :=
+  .preferLogical, structural := .kernel, nat := .peano\}}. The test excludes a definition, theorem
+  or opaque of a mutual block, such as a mutual structural block (S-51); in a Metalean environment
+  each is alone in its block. A recursion on a \code{Nat} literal evaluates, the recursor $\iota$ reading the literal
   as its constructor form (\code{natLitCtor}); NV-L is an instance. It
   admits the recursors \code{T.rec} of a single inductive without indices whose induction
   hypotheses take no arguments and come last (\code{RecInFragment}); \code{Nat} literals are in
@@ -406,7 +408,7 @@ structural erasure.
     def:EraseProof-Erases, def:EraseProof-ErasesDeps, def:EraseProof-IsErasable,
     def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-isAtom, def:EraseProof-EvalEnv-etaSpine,
     def:EraseProof-SrcEval, def:EraseProof-ConstsIn, def:LBTerm, def:GlobalDecl}
-  \srcloc{proof/EraseProof/Simulation/Ind.lean}{785}
+  \srcloc{proof/EraseProof/Simulation/Ind.lean}{783}
   \lead{In short} The case lemmas of \code{eta}, \code{lit}, \code{ctor}, \code{proj},
   \code{projProp}, \code{casesProof} and \code{casesLitZero}, \hl{in the pattern of
   Lemma~\ref{lem:EraseProof-erases_correct_beta}}.
@@ -710,7 +712,7 @@ structural erasure.
   \leanok
   \uses{def:EraseProof-Steps-StepsB, lem:EraseProof-StepsCasesCase-casesSat_case,
     def:EraseProof-erasePure_erases_statement}
-  \srcloc{proof/EraseProof/Core/StepsCasesCase.lean}{1216}
+  \srcloc{proof/EraseProof/Core/StepsCasesCase.lean}{1217}
   \lead{In short} When the pure traversal returns a program for a closure in the fragment,
   \hl{its main term erases the input} and its declarations erase the input's dependencies.
   \begin{itemize}
