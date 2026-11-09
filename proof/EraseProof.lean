@@ -115,8 +115,17 @@ import EraseProof.Test.NVQPDefs
 import EraseProof.Test.NVQPResp
 import EraseProof.Test.NVQPModel
 import EraseProof.Test.NVQPFinal
+import EraseProof.Test.NVAData
+import EraseProof.Test.NVARun
+import EraseProof.Test.NVAEval
+import EraseProof.Test.NVADefs
+import EraseProof.Test.NVAFuns
+import EraseProof.Test.NVAOfNat
+import EraseProof.Test.NVAModel
+import EraseProof.Test.NVAFinal
 import EraseProof.Test.NV1Collect
 import EraseProof.Test.NVQCollect
 import EraseProof.Test.NVRCollect
 import EraseProof.Test.NVSCollect
 import EraseProof.Test.NVQPCollect
+import EraseProof.Test.NVACollect
