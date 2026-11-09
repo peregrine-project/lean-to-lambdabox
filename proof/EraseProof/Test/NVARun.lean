@@ -1197,7 +1197,7 @@ theorem visitMutual_add {n : Nat} {L : LocalContext} {F : Option (Std.HashMap Na
   iterate 7 apply bind_ok rfl
   simp only [show pc.view.isExtern `Nat.add = true from rfl,
     show (ConstantInfo.defnInfo add_def).value? true = some addVal from rfl,
-    show cfg.extern = .preferLogical from rfl]
+    show cfg.1 = .preferLogical from rfl]
   apply bind_ok rfl
   have hnr : ((ConstantInfo.defnInfo add_def).all.length == 1 &&
       !name_occurs (m := PureM) `Nat.add ((some addVal).getD default)) = true := rfl

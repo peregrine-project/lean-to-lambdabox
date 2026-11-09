@@ -369,6 +369,7 @@ EraseProof.Test.NVA.casesOnTyM_isType propext,Classical.choice,Quot.sound
 EraseProof.Test.NVA.casesOnValM_typed propext,Classical.choice,Quot.sound
 EraseProof.Test.NVA.casesOn_N propext
 EraseProof.Test.NVA.casesOn_PProd propext
+EraseProof.Test.NVA.cfg_eq -
 EraseProof.Test.NVA.constTypedN3 propext,Classical.choice,Quot.sound
 EraseProof.Test.NVA.constTypedOf propext,Classical.choice,Quot.sound
 EraseProof.Test.NVA.constTypedPP propext,Classical.choice,Quot.sound

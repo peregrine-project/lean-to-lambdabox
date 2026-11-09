@@ -352,8 +352,15 @@ def view : EnvView where
   inlineAttr? _ := none
   implementedBy? _ := none
 
-/-- The configuration `extern := .preferLogical, structural := .kernel, nat := .peano`. -/
-def cfg : ErasureConfig := { extern := .preferLogical, structural := .kernel, nat := .peano }
+/-- The configuration `{extern := .preferLogical, structural := .kernel, nat := .peano}`, by its
+fields in order (`extern`, `nat`, `csimp`, `remove_irrel_constr_args`,
+`auto_inline_typeclass_dispatch`, `structural`), the others at their defaults (`cfg_eq`). -/
+def cfg : ErasureConfig := ⟨.preferLogical, .peano, true, false, false, .kernel⟩
+
+/-- `cfg` is the configuration `{structural := .kernel, nat := .peano}` with the `@[extern]` policy
+`.preferLogical`. -/
+theorem cfg_eq : let d : ErasureConfig := { structural := .kernel, nat := .peano }
+    cfg = ⟨.preferLogical, d.2, d.3, d.4, d.5, d.6⟩ := rfl
 
 /- `e` is the term `#erase` elaborates from `Nat.add 2 3`: `elabTerm` without an expected type,
 then the synthetic metavariables and their instantiation, as `LeanToLambdaBox/Erasure/Command.lean`
