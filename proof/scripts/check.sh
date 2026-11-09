@@ -57,13 +57,13 @@
 #                  packages are the pinned ones. See the header of tools/Report.lean.
 #   nv1-emit  C11  the part of C11 that needs no peregrine: proof/tools/NVEmit.lean runs #erase's
 #                  entry point on NV-1's, NV-2's, NV-Q's, NV-R's, NV-S's, NV-QP's (on both of its
-#                  terms) and NV-L's programs and fails unless it emits
+#                  terms), NV-L's and NV-A's programs and fails unless it emits
 #                  exactly the programs the instances' runs compute. Runs once tools/NVEmit.lean exists; required by
 #                  the final form.
 #   regress   C10  the shipping regression tests, scripts/regress.sh (skipped with --no-regress);
 #                  with PEREGRINE set, also their `-- peregrine:` lines.
 #   peregrine C11  proof/scripts/c11.sh: `peregrine validate` and `peregrine eval` on NV-1's,
-#                  NV-2's, NV-Q's, NV-R's, NV-S's, NV-QP's and NV-L's programs (from nv1-emit), on every output the regression tests write under
+#                  NV-2's, NV-Q's, NV-R's, NV-S's, NV-QP's, NV-L's and NV-A's programs (from nv1-emit), on every output the regression tests write under
 #                  `nat := .peano`, and on their outputs for NV-1, NV-P and NV-K; each value must
 #                  be the Lean program's. Runs only with PEREGRINE=<peregrine binary> in the
 #                  environment, so GitHub CI skips it; skipped with --no-peregrine.
@@ -126,7 +126,7 @@ nv1_emit() {
   rm -rf "$LOG/nv1" && mkdir -p "$LOG/nv1" &&
     ( cd "$PROOF" && lake env lean --run tools/NVEmit.lean "$LOG/nv1/NV1.ast" "$LOG/nv1/NV2.ast" \
       "$LOG/nv1/NVQ.ast" "$LOG/nv1/NVR.ast" "$LOG/nv1/NVS.ast" "$LOG/nv1/NVQP.ast" \
-      "$LOG/nv1/NVQPFT.ast" "$LOG/nv1/NVL.ast" )
+      "$LOG/nv1/NVQPFT.ast" "$LOG/nv1/NVL.ast" "$LOG/nv1/NVA.ast" )
 }
 c11() { rm -rf "$LOG/c11" && "$PROOF/scripts/c11.sh" --out "$LOG/c11"; }
 
