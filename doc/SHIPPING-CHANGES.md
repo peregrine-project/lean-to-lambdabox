@@ -2540,6 +2540,10 @@ the calls at which the two oracles answer differently. It must equal
   the type; no corpus program has such an alternative. Conversely an `@[irreducible]` alias of a
   function type, which `Meta.whnf` does not unfold at default transparency, stops the `Meta` path
   with that error and not the pure path (R-14's class); no corpus program has one either.
+  The text of that error differs from `fixes-port`'s: `forallMonocular` raises
+  `Backend.error s!"expected a function type, got {t}"`, which prints the term with `ToString Expr`
+  (raw form), where `fixes-port` has `throwError "expected a function type, got{indentExpr t}"`
+  (pretty-printed). Only the message differs; no test pins it.
 - **Effect on emitted .ast (corpus):** against the corpus of S-30 (`1cd90d1`, 710 files), after
   the `S-31:` commit: 709 byte-identical (benchmarks all identical), 1 differs:
   `examples/Defects/nonsyn_pi.ast`, whose branch of `Nat.succ` gains its binder and the call
@@ -2621,6 +2625,13 @@ the calls at which the two oracles answer differently. It must equal
     path, and those of `visitConst`, `visitConstApp`, `mkDef` and the fixpoint branch of
     `visitMutual`, which the pure path does not reach (the first two are guarded by their caller,
     the last two need a recursive declaration).
+
+  - *Later note (S-44):* the claim that `mkDef` and the fixpoint branch of `visitMutual` are not
+    reached on the pure path no longer holds under `structural := .kernel`. A mutual structural
+    block (`isEv`/`isOd`, program `useEv` in `tests/regress/structural.lean`) is in the fragment
+    and is erased in that branch. The two remaining panic sites there, `fixvars.get![n]!` in
+    `mkDef` and `ci.value!` in `visitMutual`, do not fire on the tests. The final theorem does not
+    cover mutual blocks, which are not the Lean form of Metalean definitions.
   - `LeanToLambdaBox/Erasure/Pure.lean`: the field `fail` of `instance : Backend PureM` (the error
     `failed`) and the instance's docstring.
   - `tests/harness/PureHarness.lean`: the field of `instance : Backend CmpM`.
