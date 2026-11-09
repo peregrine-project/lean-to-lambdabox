@@ -372,7 +372,7 @@ theorem recrTerm_instL {ι : Metalean.IndSig} (I : Metalean.Inductive ζ ι)
   show Except.ok _ = Except.ok _
   congr 1
   simp only [Metalean.Ctx.lam_instL, Metalean.Ctx.inst_snoc, Metalean.Ctx.instL_append,
-    Metalean.Ctx.instL_instL, Metalean.Inductive.motiveBinders_instL,
+    Metalean.Ctx.instL_instL, ML.Inductive.motiveBinders_instL,
     Metalean.Inductive.indexTele_instL, Metalean.Expr.inst_recr, Metalean.Expr.inst_ind,
     Metalean.Expr.wkN_instL, Metalean.InstLevel.inst_tuple, Metalean.Expr.inst_var]
 

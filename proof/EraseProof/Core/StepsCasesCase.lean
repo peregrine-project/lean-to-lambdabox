@@ -820,7 +820,7 @@ theorem not_casesReduced {σ : EvalEnv} (henv : ProgEnv P ζ E B) (hE : EnvWF E)
 /-- The inductive of a large-eliminating recognized `casesOn` (more universe parameters than its
 inductive) is a subsingleton: a constructor node whose type is a proposition has the block's level
 zero at its levels, so the block eliminates into every sort as a subsingleton
-(`SortLargeElim.singleton_of_eval_zero`: one constructor, `Ctor.Eligible` fields); index variables
+(`ML.Inductive.LargeElim.singleton_of_eval_zero`: one constructor, `Ctor.Eligible` fields); index variables
 are Lean index fields (`IndBlock.indexVars`), of which the constructors of a recognized `casesOn`
 have none (`NoIndexFields`); so ordinary fields are typed at level `0`, and recursive fields are
 `Π`s into the block's sort, a proposition. Reference: `Subsingleton`
@@ -838,7 +838,8 @@ theorem subsingleton_large {σ : EvalEnv} (henv : ProgEnv P ζ E B) (hE : EnvWF 
     Subsingleton E B iv.name := by
   obtain ⟨t₁, F, xs, -, -, ι, η, s, L, l, ps, ms, mins, is, m, m'', hm, hBT, hm'', hR, -, hlv,
     -⟩ := StepsCases.cases_sat_split henv hE hsub hΓ hcs hd hsat he ht
-  have hLE : (E.get η).block.LargeElim := Classical.byContradiction fun h => hlp (hlv.2 h)
+  have hLE : (E.get η).block.LargeElim :=
+    LeanLargeElim.toLargeElim (Classical.byContradiction fun h => hlp (hlv.2 h))
   -- the block's ctors have no index variable among their fields
   obtain ⟨lps₀, Is, Cs, Rs, orders, ⟨⟨_, _, _, _, hblk⟩, -, hfd, -, hind, -⟩, hix⟩ :=
     CasesWhred.ProgEnv.blockIdx henv η
@@ -884,7 +885,7 @@ theorem subsingleton_large {σ : EvalEnv} (henv : ProgEnv P ζ E B) (hE : EnvWF 
     have h1 := TypeEq.sort_inj hE hΓ' (Metalean.Defeq.uniqTy hE hΓ' hMI.left hUp)
     have h2 := TypeEq.sort_inj hE hΓ' (Metalean.Defeq.uniqTy hE hΓ' hMI.right hind.left)
     rw [← h2, h1]
-  obtain ⟨h1, helig⟩ := (hLE s).singleton_of_eval_zero ls (ν := fun _ => 0)
+  obtain ⟨h1, helig⟩ := ML.Inductive.LargeElim.singleton_of_eval_zero hLE ls (ν := fun _ => 0)
     (by rw [hzero]; rfl) c'
   have hct := Metalean.Defeq.ctor_typed hE hU
   have hctor := (hE.entryWF η).block.ctors s c'

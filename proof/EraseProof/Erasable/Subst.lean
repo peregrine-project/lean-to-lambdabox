@@ -8,7 +8,7 @@ A type former or a proof stays one when a typed term is substituted for its inne
 (`IsErasable.inst`): typing and type equality are stable under instantiation (`Defeq.inst_congr`,
 `TypeEq.inst_congr₂`, `ML Typing/Substitution.lean:188`, `ML Typing/TypeEq.lean:106`), and the
 shapes `Π Δ, Sort u` and `Prop` commute with substitution (`Ctx.pi_subst`,
-`ML Syntax/Substitution.lean:283`).
+`ML Syntax/Substitution.lean:271`).
 -/
 
 open Metalean (Defeq TypeEq EnvWF)

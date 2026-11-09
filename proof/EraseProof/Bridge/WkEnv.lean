@@ -1,4 +1,5 @@
 import EraseProof.Bridge.Proj
+import EraseProof.Bridge.LargeElim
 import Mathlib.Tactic.FinCases
 
 /-!
@@ -436,7 +437,7 @@ theorem recrLevels_wk {ι : Metalean.IndSig} (η : Head ζ (.inductive ι)) {lps
     RecrLevels ((E.snoc ent).get (η.map wkS)).block lps us l us' := by
   rw [get_there_block]
   unfold RecrLevels at *
-  simpa only [Metalean.Inductive.largeElim_map] using h
+  simpa only [leanLargeElim_map] using h
 
 /-- The saturation of a binding stays a saturation after one new entry. -/
 theorem SatTr.wkEnv {lps : List Name} {n : Nat} {b : MBinding ζ} {us : List Level}
@@ -585,7 +586,7 @@ theorem TrM.wkEnv {B : Binds ζ} {B' : Binds (ζ.snoc sig)}
     refine .projProof hi (hB _ _ hb) hs hc hnr hf (fun h' => hnst ?_) ih (by simp at hty'; exact hty')
     rw [get_there_block] at h'
     exact ⟨h'.sort_unique, h'.ctor_unique, h'.no_indices, h'.no_recursive,
-      (Metalean.Inductive.sortLargeElim_map _ _ _).mp h'.sortLargeElim⟩
+      (Metalean.Inductive.largeElim_map _ _).mp h'.largeElim⟩
 
 /-- A definition's value after one new entry. -/
 theorem get_there_defValue {nl : Nat} (η : Head ζ (.const .def nl)) :

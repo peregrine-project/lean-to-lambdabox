@@ -10,7 +10,7 @@ import EraseProof.Test.NV1Data
 
 `B` is NV-1's `inductive B | f | t`. `W` has a constructor with fields, one of them a proof of the
 `Prop` inductive `T`; the `casesOn` has two alternatives, the second binding both fields. The
-declarations as Lean v4.35.0-rc2 generates them (`tools/NVEmit.lean` checks them against the
+declarations as Lean v4.35.0 generates them (`tools/NVEmit.lean` checks them against the
 elaborator's), newest first: `P = [W.casesOn, W.rec, W.n, W.s, W, T.rec, T.i, T, B.rec, B.f, B.t,
 B]`; the term `e`; the view `#erase` reads (`P` as a list, no attributes); the default
 configuration. A non-vacuity instance of the final theorem (`MR E/ErasureFunctionProperties.v:657

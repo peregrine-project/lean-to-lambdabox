@@ -16,7 +16,7 @@ second argument: Lean's elaborator (`Lean.Elab.Structural`) writes its kernel de
 (`PProd`) of a value and its table of recursive calls `N.below` (a `N.rec` into `Sort`, of
 `PUnit` and `PProd`); the body is `add._f`, which matches with `add.match_1` (a `N.casesOn`) and
 reads the recursive call as the first projection of the table. The declarations as Lean
-v4.35.0-rc2 generates them (`tools/NVEmit.lean` elaborates the source above and checks them
+v4.35.0 generates them (`tools/NVEmit.lean` elaborates the source above and checks them
 against the environment's), newest first:
 `P = [add, add._f, add.match_1, N.brecOn, N.brecOn.go, N.below, N.casesOn, N.rec, N.z, N.s, N,
 PProd.rec, PProd.mk, PProd, Unit.unit, Unit, PUnit.rec, PUnit.unit, PUnit]` (the dependency closure

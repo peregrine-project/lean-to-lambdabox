@@ -4,6 +4,7 @@ import EraseProof.Core.NonRec
 import EraseProof.Relation.Abstract
 import EraseProof.Relation.Basic
 import EraseProof.Oracle.Atom
+import Batteries.Tactic.OpenPrivate
 
 /-!
 # Steps of the shipping core's correctness

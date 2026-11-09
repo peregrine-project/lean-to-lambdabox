@@ -291,8 +291,8 @@ theorem casesOn_recr {σ : EvalEnv} (henv : ProgEnv P ζ E B) (hE : EnvWF E)
       E ⊢ t ⤳* .recr η s L l ps ms mins is m' ∧
       (∀ l₀, casesSortLevel iv us = some l₀ → TrLevel lps l₀ = some ((E.get η).block.level{L})) ∧
       (∀ d, findDecl σ.decls c = some (.defnInfo d) →
-        (d.levelParams.length = iv.levelParams.length ↔ ¬ (E.get η).block.LargeElim)) ∧
-      (¬ (E.get η).block.LargeElim → l = .zero) := by
+        (d.levelParams.length = iv.levelParams.length ↔ ¬ LeanLargeElim (E.get η).block)) ∧
+      (¬ LeanLargeElim (E.get η).block → l = .zero) := by
   have hP : ∀ {x ci}, findDecl σ.decls x = some ci → findDecl P x = some ci := fun h => by
     obtain ⟨hm, rfl⟩ := findDecl_eq_some h; exact hsub _ hm
   obtain ⟨d, R, j, before, alts, body, rargs, -, hd, hiv, hR, -, -, hlp, -, -, hbe, -, hbody,
@@ -370,7 +370,7 @@ theorem casesOn_recr {σ : EvalEnv} (henv : ProgEnv P ζ E B) (hE : EnvWF E)
     rw [hlp]
     have hRlps : (∃ x, (Rs s).levelParams = x :: (Is s).levelParams) ∨
         (Rs s).levelParams = (Is s).levelParams := by
-      by_cases hL : (E₀.get η₀).block.LargeElim
+      by_cases hL : LeanLargeElim (E₀.get η₀).block
       · exact .inl (hLE1 hL)
       · exact .inr (hLE2 hL)
     rcases hRL with ⟨-, u', hcons, -⟩ | ⟨-, hus', -⟩
@@ -394,8 +394,8 @@ theorem casesOn_recr {σ : EvalEnv} (henv : ProgEnv P ζ E B) (hE : EnvWF E)
     obtain ⟨⟨k₀, u⟩, har, rfl⟩ := hl₀
     obtain ⟨a, hk, ha, -, hlv⟩ := ind_level henv hE (hfdI s) hBT har
     rw [hlv, TrLevel_instLevel hdrop ha]
-  have hLE : (d.levelParams.length = (Is s).levelParams.length ↔ ¬ (E.get η).block.LargeElim) ∧
-      (¬ (E.get η).block.LargeElim → lR = .zero) := by
+  have hLE : (d.levelParams.length = (Is s).levelParams.length ↔ ¬ LeanLargeElim (E.get η).block) ∧
+      (¬ LeanLargeElim (E.get η).block → lR = .zero) := by
     rcases hRL with ⟨hL, u', hcons, -⟩ | ⟨hL, hus', hl0⟩
     · have := congrArg List.length hcons
       simp only [List.length_map, List.length_cons] at this

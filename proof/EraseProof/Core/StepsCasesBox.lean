@@ -82,8 +82,8 @@ theorem cases_sat_split {σ : EvalEnv} (henv : ProgEnv P ζ E B) (hE : EnvWF E)
         E[Γ] ⊢ .recr η s L l ps ms mins is m'' : F ∧
         (∀ l₀, casesSortLevel iv us = some l₀ →
           TrLevel lps l₀ = some ((E.get η).block.level{L})) ∧
-        (d.levelParams.length = iv.levelParams.length ↔ ¬ (E.get η).block.LargeElim) ∧
-        (¬ (E.get η).block.LargeElim → l = .zero) := by
+        (d.levelParams.length = iv.levelParams.length ↔ ¬ LeanLargeElim (E.get η).block) ∧
+        (¬ LeanLargeElim (E.get η).block → l = .zero) := by
   have hns := casesOn_notSpecial (us := us) henv hsub hd
   obtain ⟨h', xs, hh, hxs, rfl⟩ := CasesWhred.trM_spine_inv hns as he
   have hlen := hxs.length_eq
@@ -127,7 +127,7 @@ theorem isErasable_cases_box {σ : EvalEnv} (henv : ProgEnv P ζ E B) (hE : EnvW
 universe parameters than its inductive is erasable, when the sort of the discriminant's type may
 be zero (`u`, a level of the type of every typed translation of the major, is not never-zero): the
 block eliminates into every sort (`IndBlock.recr`), not by being proof-relevant (its level is zero
-under some assignment), so as a subsingleton (`SortLargeElim.subsingleton`), whose ordinary fields
+under some assignment), so as a subsingleton (`ML.Inductive.LargeElim.singleton_of_eval_zero`), whose ordinary fields
 are at level `0` or index variables (`Ctor.Eligible`); index variables are Lean index fields
 (`IndBlock.indexVars`), which the constructors of a recognized `casesOn` have none of
 (`NoIndexFields`); a recursive field forces the block's level to `0`, and its type is then a `Π`
@@ -149,7 +149,8 @@ theorem fieldsErasable_reduced {σ : EvalEnv} (henv : ProgEnv P ζ E B) (hE : En
     FieldsErasable E B iv.name := by
   obtain ⟨t₁, F, xs, -, -, ι, η, s, L, l, ps, ms, mins, is, m, m'', hm, hBT, hm'', hR, -, hlv,
     -⟩ := cases_sat_split henv hE hsub hΓ hcs hd hsat he ht
-  have hLE : (E.get η).block.LargeElim := Classical.byContradiction fun h => hlp (hlv.2 h)
+  have hLE : (E.get η).block.LargeElim :=
+    LeanLargeElim.toLargeElim (Classical.byContradiction fun h => hlp (hlv.2 h))
   obtain ⟨-, hps, -, -, his, hmaj⟩ := Defeq.recr_typed hE hΓ hR
   obtain ⟨l₁, M, hTr, hmM, hMl⟩ := hlev m m'' hm hm'' ⟨_, hmaj⟩
   -- the sort of the discriminant's type is the block's level at `L`, zero somewhere
@@ -204,14 +205,7 @@ theorem fieldsErasable_reduced {σ : EvalEnv} (henv : ProgEnv P ζ E B) (hE : En
   rw [hBT] at hB'
   cases hB'
   have helig : ((E.get η).block.ctors s c').Eligible (E.get η).block.level := by
-    cases hLE s with
-    | large h1 =>
-      exfalso
-      have := h1 (Metalean.Level.eval ν ∘ L)
-      rw [Metalean.Level.eval_inst] at hν
-      simp [Function.comp_def] at this hν
-      omega
-    | subsingleton _ _ helig => exact helig c'
+    exact (ML.Inductive.LargeElim.singleton_of_eval_zero hLE L hν c').2
   have hct := Metalean.Defeq.ctor_typed hE hU
   have hctor := (hE.entryWF η).block.ctors s c'
   refine ⟨fun f => ?_, fun f => ?_⟩

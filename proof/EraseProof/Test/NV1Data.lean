@@ -7,7 +7,7 @@ import LeanToLambdaBox
     def B.neg (b : B) : B := B.casesOn (motive := fun _ => B) b B.t B.f
     #erase B.neg B.f            -- evaluates to B.t
 
-The declarations as Lean v4.35.0-rc2 generates them (`tools/NVEmit.lean` checks them against the
+The declarations as Lean v4.35.0 generates them (`tools/NVEmit.lean` checks them against the
 elaborator's), newest first: `P = [B.neg, B.casesOn, B.rec, B.f, B.t, B]`; the term `e`; the view
 `#erase` reads (`P` as a list, no `@[extern]`, inline or `implemented_by` attributes); the default
 configuration. The first non-vacuity instance of the final theorem, whose hypotheses `hfrag` and

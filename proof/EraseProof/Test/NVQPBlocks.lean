@@ -67,8 +67,8 @@ theorem prBlock_wf {ζ : Sigs} (E : Env ζ) : InductiveWF E prBlock :=
       targetIndices i := Fin.elim0 i
     }⟩
 
-theorem largeElimPr {ζ : Sigs} : (prBlock (ζ := ζ)).LargeElim :=
-  fun _ => .large (prLevel_ge (u := .param 0) (v := .param 1))
+theorem largeElimPr {ζ : Sigs} : LeanLargeElim (prBlock (ζ := ζ)) :=
+  Or.inl (prLevel_ge (u := .param 0) (v := .param 1))
 
 /-- `Prod` is a structure: its constructor `Prod.mk` is the only one, without indices or recursive
 fields, and it eliminates into every sort. -/
@@ -77,14 +77,14 @@ theorem prStruct {ζ : Sigs} : (prBlock (ζ := ζ)).IsStructure 0 0 where
   ctor_unique _ := Subsingleton.elim _ _
   no_indices := ⟨fun i => Fin.elim0 i⟩
   no_recursive := ⟨fun i => Fin.elim0 i⟩
-  sortLargeElim := .large (prLevel_ge (u := .param 0) (v := .param 1))
+  largeElim := Or.inr (prLevel_ge (u := .param 0) (v := .param 1))
 
 section Prod
 variable {ζ : Sigs} {E : Env ζ} {η : Head ζ (.inductive ppSig)} {ℓ n : Nat} {Γ : Ctx ζ ℓ 0 n}
 
 theorem recAllowedPr (hp : (E.get η).block = prBlock) {ls : Fin 2 → Level ℓ} {l : Level ℓ} :
     (E.get η).block.RecAllowed ls l := by
-  rw [hp]; exact largeElimPr.recAllowed ls l
+  rw [hp]; exact largeElimPr.toLargeElim.recAllowed ls l
 
 theorem prParams (hp : (E.get η).block = prBlock) {u v : Level ℓ} {α₁ α₂ β₁ β₂ : Expr ζ ℓ n}
     (hα : E[Γ] ⊢ α₁ ≡ α₂ : .sort (.succ u)) (hβ : E[Γ] ⊢ β₁ ≡ β₂ : .sort (.succ v)) :

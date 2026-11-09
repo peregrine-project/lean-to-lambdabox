@@ -9,7 +9,7 @@ import EraseProof.Test.NV1Data
 
 `B` is NV-1's `inductive B | f | t`. A recognized `casesOn` on the `Prop` inductive `Eq`, on a
 constructor (NV-P) and on a lemma (NV-K); both evaluate to `fun y => y`. The declarations as Lean
-v4.35.0-rc2 generates them, newest first: `NVP.P = [Eq.casesOn, Eq.rec, Eq.refl, Eq, B.rec, B.f,
+v4.35.0 generates them, newest first: `NVP.P = [Eq.casesOn, Eq.rec, Eq.refl, Eq, B.rec, B.f,
 B.t, B]`, `NVK.P = [hEq] ++ NVP.P`; the views read them as lists, with no attributes; the default
 configuration. Non-vacuity instances of the final theorem (`MR E/ErasureFunctionProperties.v:657
 erase_correct`): `Test/NVPRun.lean` discharges the hypotheses `hfrag` and `hrun`,

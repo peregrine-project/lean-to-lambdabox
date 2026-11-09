@@ -23,7 +23,7 @@ which the elaborator abstracts as the theorem `orU._proof_1` (by `Eq.ndrec` alon
 `orB_comm`). `B` is NV-1's, `Eq` and its recursor NV-P's, the quotient constants NV-Q's; `Prod`, its
 projections `Prod.fst` and `Prod.snd` (whose values are primitive projections) are `Init`'s.
 
-The declarations as Lean v4.35.0-rc2 generates them (`tools/NVEmit.lean` elaborates the program, with
+The declarations as Lean v4.35.0 generates them (`tools/NVEmit.lean` elaborates the program, with
 `Prod B B` for `B × B`, `Eq a b` for `a = b` and term proofs, and checks them against the
 environment's), newest first:
 `P = [useFT, useTF, orU, orU._proof_1, swapR, orB, orB.match_1, B.casesOn, Prod.snd, Prod.fst,

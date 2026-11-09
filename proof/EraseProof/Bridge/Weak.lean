@@ -66,7 +66,7 @@ theorem MLCtx.Lift.pushLam {dk d cut : Nat} {Δ : MLCtx ζ ℓ n} {Δ' : MLCtx �
     | zero =>
       simp only [MLCtx.pushLam, MLCtx.findB, MLDecl.denote] at ht ⊢
       cases ht
-      simp [MLCtx.findB, MLDecl.denote, Metalean.Expr.last_wkFrom hcut]
+      simp [MLCtx.findB, MLDecl.denote, ML.Expr.last_wkFrom hcut]
     | succ i =>
       simp only [MLCtx.pushLam, MLCtx.findB, MLCtx.findB_map_wk, Option.map_eq_some_iff] at ht
       obtain ⟨u, hu, rfl⟩ := ht
@@ -188,7 +188,7 @@ theorem get_insert_cut {cut : Nat} (Γ₀ : Ctx ζ ℓ 0 cut) (A : Expr ζ ℓ c
     Ctx.get ⟨cut, h⟩ (Γ₀.insert A Γ₁) = A.rename (fun v => ⟨v.val, by omega⟩) := by
   induction Γ₁ with
   | nil =>
-    rw [Ctx.insert_nil]
+    rw [ML.Ctx.insert_nil]
     change (Γ₀.snoc A).get (Fin.last cut) = _
     rw [Ctx.get_last, Expr.wk, Expr.wkFrom]
     congr 1
@@ -197,7 +197,7 @@ theorem get_insert_cut {cut : Nat} (Γ₀ : Ctx ζ ℓ 0 cut) (A : Expr ζ ℓ c
     rfl
   | @snoc m Δ t₁ ih =>
     have hcm : cut ≤ m := Tele.le Δ
-    rw [Ctx.insert_snoc, Ctx.get_snoc _ _ _ (by simp; omega)]
+    rw [ML.Ctx.insert_snoc, Ctx.get_snoc _ _ _ (by simp; omega)]
     change (Ctx.get ⟨cut, by omega⟩ (Γ₀.insert A Δ)).wk = _
     rw [ih (by omega), Expr.wk, Expr.wkFrom, Expr.rename_rename]
     congr 1
@@ -277,7 +277,7 @@ theorem TrM.wkFrom {cut : Nat} {Γ₀ : Metalean.Ctx ζ lps.length 0 cut}
     rw [Metalean.Expr.wkFrom_forallE Γ₁.le]
     exact .forallE (ih₁ W hΓ) (ih₂ (Γ₁ := Γ₁.snoc A') (W.pushLam Γ₁.le) (by rw [← hΓ]; rfl))
   | letE _ _ _ ih₁ ih₂ ih₃ =>
-    rw [Metalean.Expr.wkFrom_letE Γ₁.le, Metalean.Expr.wk_wkFrom Γ₁.le]
+    rw [ML.Expr.wkFrom_letE Γ₁.le, Metalean.Expr.wk_wkFrom Γ₁.le]
     exact .letE (ih₁ W hΓ) (ih₂ W hΓ) (ih₃ (W.cons _) hΓ)
   | mdata _ ih => exact .mdata (ih W hΓ)
   | lit hB h₀ h₁ =>
@@ -285,7 +285,7 @@ theorem TrM.wkFrom {cut : Nat} {Γ₀ : Metalean.Ctx ζ lps.length 0 cut}
     exact .lit hB h₀ h₁
   | projStruct hst hi hS _ hty ih =>
     subst hΓ
-    rw [Metalean.Inductive.IsStructure.projTerm_wkFrom]
+    rw [ML.Inductive.IsStructure.projTerm_wkFrom]
     exact .projStruct hst hi hS (ih W rfl) (by simpa using WeakExt.TypedExt.wkFrom A hty)
   | projProof hi hS hs hc hr hf hns _ hty ih =>
     subst hΓ

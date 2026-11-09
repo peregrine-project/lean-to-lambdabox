@@ -134,7 +134,7 @@ macro_rules
       Inductive.paramType, Inductive.indexType, Ctx.proj, Ctor.targetIndex, Fin.fun_vecCons,
       Fin.fun_vecEmpty, Expr.wkN, funext_iff, Fin.forall_fin_two, Fin.forall_fin_one,
       Fin.sum_succ, Fin.sum_zero, Level.inst_param, Subst.liftN, Ren.wkFrom, Fin.castLE,
-      Expr.apps_succ, CtorSig.fieldParams, InstLevel.inst, Expr.instL, Ctx.instL, Tele.map,
+      ML.Expr.apps_succ, CtorSig.fieldParams, InstLevel.inst, Expr.instL, Ctx.instL, Tele.map,
       Expr.boundVars, Ctor.fieldTele, RecField.instantiatedType, RecField.instantiatedIndices,
       RecField.instantiatedTelescope, RecField.ihType, Ctor.ihType, Ctor.ihTypeWith,
       CtorSig.fieldRecursive, CtorSig.caseRecursive, Expr.applyBound] <;> finCongr))
@@ -218,7 +218,7 @@ theorem recAllowedN (hn : (E.get η).block = nBlock) {ℓ : Nat} {l : Level ℓ}
   rw [hn]
   exact Or.inr (Level.le_imax_iff.mpr fun ν h => by simp at h)
 
-theorem largeElimN : (nBlock (ζ := ζ)).LargeElim := fun _ => .large (le_refl _)
+theorem largeElimN : LeanLargeElim (nBlock (ζ := ζ)) := Or.inl (le_refl _)
 
 theorem motN_typed (hn : (E.get η).block = nBlock) {ℓ n : Nat} {Γ : Ctx ζ ℓ 0 n}
     {l : Level ℓ} : E[Γ] ⊢ motN η l : .sort (.imax (.succ .zero) (.succ l)) :=

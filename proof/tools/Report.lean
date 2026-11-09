@@ -74,11 +74,13 @@ and the shipping code (by default the modules `EraseProof` and `LeanToLambdaBox`
   root and every constant reached from it through types, values and constructors, a SHA-256 digest
   of a serialization (`pinText`) of its kind and flags and of its type and value (definitions,
   opaques), its type (theorems, axioms, recursors) or its type and its constructors' names and
-  types (inductives), followed further, if it is declared in the library or in the shipping code;
-  its name only if it is one of the three shipping functions under verification
-  (`underVerification`: `Erasure.collectDeps`, `Erasure.erasePure`, `Erasure.eraseEntry`, whose
-  changes the pin does not follow, so the constants reached only through them are not pinned) or
-  if it is declared in a dependency (`depPrefixes`, pinned by version). The pin also holds the
+  types (inductives), followed further, if it is declared in the library, in the shipping code or
+  in Metalean (`isMetalean`; a line `metalean`, so that a new Metalean revision changes the pin
+  exactly at the definitions that changed); its name only if it is one of the three shipping
+  functions under verification (`underVerification`: `Erasure.collectDeps`, `Erasure.erasePure`,
+  `Erasure.eraseEntry`, whose changes the pin does not follow, so the constants reached only
+  through them are not pinned) or if it is declared in another dependency (`depPrefixes`, pinned
+  by version). The pin also holds the
   toolchain and the revision of every git dependency (`depPin`: `lean-toolchain` and
   `lake-manifest.json`). `spec.pin` (written by `--write-pin`) must equal the computed pin; every
   constant it names must exist; the toolchain and dependency lines must be those of the root
@@ -108,7 +110,7 @@ def lib : Name := `EraseProof
 /-- The axioms a declaration of the library may depend on, in the order footprints print them. -/
 def allowedAxioms : Array Name := #[``propext, ``Classical.choice, ``Quot.sound]
 
-/-- Metalean's own axiom (`Metalean/SetTheory/Cardinal/Inaccessible.lean:16`), which only its
+/-- Metalean's own axiom (`Metalean/SetTheory/Cardinal/Inaccessible.lean:40`), which only its
 set-theoretic model uses; named in failure messages. -/
 def metaleanAxiom : Name := `Cardinal.exists_inaccessibles
 
@@ -146,7 +148,8 @@ def unproved : Array Name := #[]
 /-- The statement definitions, whose definitions C12b pins. -/
 def pinRoots : Array Name := statements.map (·.2)
 
-/-- Module prefixes of the toolchain and the dependencies, whose constants C12b pins by name. -/
+/-- Module prefixes of the toolchain and the dependencies, whose constants C12b pins by name, except
+those of Metalean (`isMetalean`), whose definitions it hashes. -/
 def depPrefixes : Array Name := #[`Init, `Std, `Lean, `Mathlib, `Batteries, `Metalean, `Aesop,
   `Qq, `Plausible, `ProofWidgets, `ImportGraph, `LeanSearchClient, `Cli]
 
@@ -619,6 +622,14 @@ def isDep (env : Environment) (c : Name) : Bool :=
   | some m => depPrefixes.any (·.isPrefixOf m)
   | none => true
 
+/-- A constant declared in a module of Metalean. C12b hashes and follows it like a constant of the
+library, so that a change of a Metalean definition the statements reach changes the pin even when
+its name stays. -/
+def isMetalean (env : Environment) (c : Name) : Bool :=
+  match moduleOf? env c with
+  | some m => `Metalean |>.isPrefixOf m
+  | none => false
+
 /-- The shipping functions under verification: the fragment test, the pure traversal and the entry
 point behind `#erase`, which the statements are about. C12b pins their names, not their definitions,
 and does not follow them, so a change to the code they run leaves the pin unchanged. Every other
@@ -728,8 +739,9 @@ def depPin (dir : System.FilePath) : IO (Array String) := do
 
 /-- The pin of the statement definitions `roots`: `root <name> <digest>` for each root, then, for
 every other constant reached from them, `body <name> <digest>` (`pinText`, followed) if it is
-declared in the library or in the shipping code, `name <name>` if it is one of
-`underVerification` or a constant of a dependency; sorted. -/
+declared in the library or in the shipping code, `metalean <name> <digest>` (likewise) if it is
+declared in Metalean, `name <name>` if it is one of `underVerification` or a constant of another
+dependency; sorted. -/
 def specPin (env : Environment) (roots : Array Name) (tmp : System.FilePath) :
     IO (Array String) := do
   let mut names : Array String := #[]
@@ -742,11 +754,12 @@ def specPin (env : Environment) (roots : Array Name) (tmp : System.FilePath) :
     if seen.contains c then continue
     seen := seen.insert c
     let isRoot := roots.contains c
-    if !isRoot && (underVerification.contains c || isDep env c) then
+    if !isRoot && (underVerification.contains c || (isDep env c && !isMetalean env c)) then
       names := names.push s!"name {c}"
     else match pinText env c with
       | some (t, deps) =>
-        hashed := hashed.push (s!"{if isRoot then "root" else "body"} {c}", t)
+        let kind := if isRoot then "root" else if isMetalean env c then "metalean" else "body"
+        hashed := hashed.push (s!"{kind} {c}", t)
         for d in deps do
           if !seen.contains d then stack := stack.push d
       | none => names := names.push s!"name {c}"
@@ -756,8 +769,9 @@ def specPin (env : Environment) (roots : Array Name) (tmp : System.FilePath) :
 
 def pinHeader : String :=
 "# The pin of the statements (tools/Report.lean, C12b): `root <statement definition> <digest>`,
-# `body <constant> <digest>` (SHA-256 of the serialized declaration), `name <constant>` (a shipping
-# function under verification or a constant of a dependency, pinned by name), `toolchain <name>` and
+# `body <constant> <digest>` (SHA-256 of the serialized declaration), `metalean <constant> <digest>`
+# (the same, for a constant of Metalean), `name <constant>` (a shipping function under verification
+# or a constant of another dependency, pinned by name), `toolchain <name>` and
 # `dep <package> <rev>` (the root package's lean-toolchain and lake-manifest.json). Written by
 # `tools/Report.lean --write-pin`; proof/scripts/check.sh compares it.
 "
@@ -1118,7 +1132,7 @@ def main (args : List String) : IO UInt32 := do
     -- Every pinned constant exists.
     for l in pinned do
       match fields l with
-      | ["root", c, _] | ["body", c, _] | ["name", c] =>
+      | ["root", c, _] | ["body", c, _] | ["metalean", c, _] | ["name", c] =>
         if !env.contains c.toName then
           fail "pin" s!"{cfg.pin} pins {c}, which is not a declaration"
       | ["toolchain", _] | ["dep", _, _] => pure ()

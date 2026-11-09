@@ -11,7 +11,7 @@ import EraseProof.Test.NV1Data
 the recursor's ι reads it as ``Nat.succ`` applied to the literal `1` (`natLitCtor`), as Lean's
 kernel does, so the induction hypothesis is the recursor on `1`, read as ``Nat.succ`` applied to
 `0`, whose hypothesis is the recursor on `0`, read as ``Nat.zero``. Under `nat := .peano` the
-eraser emits the literal as λ□'s constructor chain of `Nat`. The declarations as Lean v4.35.0-rc2
+eraser emits the literal as λ□'s constructor chain of `Nat`. The declarations as Lean v4.35.0
 has them (`tools/NVEmit.lean` checks them against the environment's), newest first:
 `P = [Nat.rec, Nat.zero, Nat.succ, Nat, B.rec, B.f, B.t, B]`; the term `e`; the view `#erase`
 reads (`P` as a list, no attributes); the configuration `nat := .peano`. A non-vacuity instance of

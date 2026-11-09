@@ -212,7 +212,7 @@ def census : MetaM String := do
     unsafe), disagreeing {bad.toList}; constructors: {ctors}, disagreeing {badCtors.toList}"
 
 /--
-info: "casesOn: 2718 recognized as Meta does, 244 rejected (projections, nested, unsafe), disagreeing []; constructors: 4852, disagreeing []"
+info: "casesOn: 2719 recognized as Meta does, 244 rejected (projections, nested, unsafe), disagreeing []; constructors: 4856, disagreeing []"
 -/
 #guard_msgs in
 #eval census
