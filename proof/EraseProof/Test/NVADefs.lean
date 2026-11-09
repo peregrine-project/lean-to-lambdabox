@@ -4,11 +4,12 @@ import EraseProof.Test.NVLModel
 /-!
 # NV-A: the Metalean definitions on `Nat`
 
-The Metalean forms of `Nat.casesOn`, `Nat.below`, `Nat.brecOn.go` and `Nat.brecOn` (`Test/NVSData.lean`)
-and the typing of their values at their types, in any well-formed environment whose heads hold
-`PUnit`'s, `PProd`'s and `Nat`'s blocks and the earlier definitions. `Nat.below motive t` unfolds
+The Metalean forms of `Nat.casesOn`, `Nat.below`, `Nat.brecOn.go` and `Nat.brecOn`
+(`Test/NVAData.lean`) and the typing of their values at their types, in any well-formed environment
+whose heads hold `PUnit`'s, `PProd`'s and `Nat`'s blocks (`Nat` at the literals' signature
+`natSig`) and the earlier definitions, as NV-S's on its `N` (`Test/NVSDefs.lean`). `Nat.below motive t` unfolds
 (δ, two β, the recursor's ι) to `PUnit` on `Nat.zero` and to `PProd (motive n) (Nat.below motive n)` on
-`Nat.succ n` (`belowZ_defeq`, `belowS_defeq`, by `Metalean.WHRedS.defeq`). For `Test/NVSModel.lean`.
+`Nat.succ n` (`belowZ_var`, `belowS_defeq_var`, by `Metalean.WHRedS.defeq`). For `Test/NVAModel.lean`.
 -/
 
 open Lean Metalean
@@ -175,7 +176,8 @@ theorem belowRed_var {Γ : Ctx ζ ℓ 0 5} (hΓ : E[Γ] ⊢ ok) {l : Level ℓ}
   exact defeq_rw (WHRedS.defeq hE hΓ h3 (belowM_typed hE ht hmo ha)) (by arsx)
     (by simp only [belowRec]; arsx) (by arsx)
 
-/-- `Nat.below (fun m => N) k` unfolds to its recursor, under `n m f k _` (`add._f`). -/
+/-- `Nat.below (fun y => Nat → Nat) b` unfolds to its recursor, under `y f x a b _`
+(`Nat.add._f`'s second alternative). -/
 theorem belowRed_motNL {Γ : Ctx ζ ℓ 0 6} (hΓ : E[Γ] ⊢ ok) {l : Level ℓ}
     (hmo : E[Γ] ⊢ motNL ηN : motNM ηN l) (ha : E[Γ] ⊢ #4 : mN ηN) :
     E[Γ] ⊢ belowM ηBl l (motNL ηN) #4 ≡ belowRec ηPU ηPP ηN l (motNL ηN) #4 : .sort (m1 l) := by
@@ -250,7 +252,8 @@ theorem belowS_defeq_var {Γ : Ctx ζ ℓ 0 5} (hΓ : E[Γ] ⊢ ok) {l : Level �
   exact (belowS_var hE hn ht hv hΓ hmo ha).trans h
 
 include hn hpp in
-/-- `Nat.below (fun m => N) (Nat.succ k) ≡ PProd ((fun m => N) k) (Nat.below (fun m => N) k)`. -/
+/-- `Nat.below (fun y => Nat → Nat) (Nat.succ b) ≡
+PProd ((fun y => Nat → Nat) b) (Nat.below (fun y => Nat → Nat) b)`. -/
 theorem belowS_defeq_motNL {Γ : Ctx ζ ℓ 0 6} (hΓ : E[Γ] ⊢ ok) {l : Level ℓ}
     (hmo : E[Γ] ⊢ motNL ηN : motNM ηN l) (ha : E[Γ] ⊢ #4 : mN ηN) :
     E[Γ] ⊢ belowM ηBl l (motNL ηN) (mS ηN #4) ≡

@@ -128,3 +128,4 @@ import EraseProof.Test.NVQCollect
 import EraseProof.Test.NVRCollect
 import EraseProof.Test.NVSCollect
 import EraseProof.Test.NVQPCollect
+import EraseProof.Test.NVACollect

@@ -147,7 +147,7 @@ theorem below_mono : ∀ {e : Expr} {s s' : Nat}, Below s e → s ≤ s' → Bel
   | .lit _, _, _, _, _ => trivial
 
 /-- Unfold `Below` on the concrete parts of the values. -/
-macro "belowsimp" : tactic => `(tactic| simp [Below, motF, belowA, below, motA, nn, tN, cZ, cS,
+macro (name := _belowsimp) "belowsimp" : tactic => `(tactic| simp [Below, motF, belowA, below, motA, nn, tN, cZ, cS,
   h1F, h2F, lit, tPU, cPU, tPP, cPP, PPl, PPmkl, mkAppN, Array.foldl, List.foldl])
 
 theorem below_BL : ∀ k, Below 0 (BL k)
@@ -320,7 +320,7 @@ theorem inst_fVal (a : Expr) (d : Nat) : fVal.instantiate1' a d = fVal :=
     (Nat.zero_le d)
 
 /-- Push an instantiation through the values' constructors. -/
-macro "instsimp" : tactic => `(tactic| simp +decide only [Expr.instantiate1', inst_motA,
+macro (name := _instsimp) "instsimp" : tactic => `(tactic| simp +decide only [Expr.instantiate1', inst_motA,
       inst_motF, inst_h1F, inst_h2F, inst_fVal, inst_T, liftLooseBVars'_zero, lift_T, tN, cZ, cS,
       lit, tPU, cPU, tPP, cPP, PPl, PPmkl, belowA, below, m6, Nat.zero_add, Nat.reduceAdd,
       Nat.lt_irrefl, Nat.zero_lt_one, ↓reduceIte, Nat.not_lt_zero, Nat.lt_succ_self])

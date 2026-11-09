@@ -43,8 +43,8 @@
 #                  with consumer FINAL (any other root waits for a consumer that has not landed),
 #                  every statement is proved, and erase_correct's footprint is exactly propext,
 #                  Classical.choice, Quot.sound, as is that of its instances on NV-1, NV-P, NV-K,
-#                  NV-2, NV-Q, NV-R, NV-S and NV-L,
-#                  EraseProof.Test.{NV1,NVP,NVK,NV2,NVQ,NVR,NVS,NVL}.final, whose
+#                  NV-2, NV-Q, NV-R, NV-S, NV-L, NV-QP and NV-A,
+#                  EraseProof.Test.{NV1,NVP,NVK,NV2,NVQ,NVR,NVS,NVL,NVQP,NVA}.final, whose
 #                  hypothesis terms lie within them, and so is that of the corollary
 #                  erase_correct_firstorder, whose instances
 #                  EraseProof.Test.{NV1,NV2,NVR,NVS,NVL}.firstorder lie within them and mention it

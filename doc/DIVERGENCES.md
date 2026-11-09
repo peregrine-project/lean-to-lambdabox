@@ -89,8 +89,8 @@ What the statements and the checks rely on without proof:
   `LBTerm.inlinedSize` and `LBTerm.stripLambdas`, which compute only the inlining hints, not the
   program. `Lean.Expr.eqv` and `Lean.Expr.replaceImpl` are reached only in the index-field branches
   of `Erasure.visitCases`, which no input that the fragment test accepts reaches (DV-26). The non-vacuity instances
-  are kernel-checked on the logical definitions; the compiled code is exercised on seven of them
-  (NV-1, NV-2, NV-Q, NV-R, NV-S, NV-QP and NV-L) by `proof/tools/NVEmit.lean` and on the regression corpus.
+  are kernel-checked on the logical definitions; the compiled code is exercised on eight of them
+  (NV-1, NV-2, NV-Q, NV-R, NV-S, NV-QP, NV-L and NV-A) by `proof/tools/NVEmit.lean` and on the regression corpus.
 - What `#erase` does around `Erasure.eraseEntry`, which the theorems do not cover: the
   elaboration of the input and of the `config` term (`Erasure.eraseElab`,
   `LeanToLambdaBox/Erasure/Command.lean`, which evaluates the configuration with `unsafe`
