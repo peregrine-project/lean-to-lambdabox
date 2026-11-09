@@ -3592,6 +3592,33 @@ the calls at which the two oracles answer differently. It must equal
   path's `#erase` writes `both.ast` and the `#guard_msgs` fails. `scripts/regress.sh` passes (29
   tests) with `PEREGRINE`.
 
+## S-53: Regression tests of quotients and recursors on the `Meta` path
+
+- **Commit:** the commit whose subject starts with `S-53:` (`git log --grep='^S-53:'`).
+- **Files and functions:**
+  - new `tests/regress/meta_quot_rec.lean` with its goldens. No code changes.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** found by the review of this branch. S-38 and S-40 change both paths, but
+  since S-39 and S-41 the quotient and recursor programs of the regression tests are in the
+  fragment and take the pure path; only `useLift.meta.ast` (`quotient`), `useList.meta.ast`
+  (`recursor`, both under `remove_irrel_constr_args`) and the recursors of indexed and mutual
+  blocks (`useVec`, `useMutual`, `useCast`) are pinned on the `Meta` path. The new test pins the
+  `Meta` path's erasure of `Quot.mk` and `Quot.lift` applied to six, four (η-expanded) and seven
+  arguments, of `Quotient.lift`/`Quotient.mk`, and of a recursor of the fragment's shape, on
+  programs that leave the fragment only by a Nat literal under the default configuration.
+- **Behaviour before:** not tested.
+- **Behaviour after:** the same; the test pins it. `useLift`, `usePart`, `useOver`, `useQuotient`
+  and `useRec` take the `Meta` path by default (`outside the fragment: Nat literal under nat :=
+  .machine`) and the pure path under `nat := .peano`. On the `Meta` path `Quot.lift f h q` is
+  erased to `f q` (`useLift`, `useOver` with the seventh argument applied), `liftId` to
+  `λ a. (λ n. n) a`, `Quotient.lift` to `λ _ _ s f _ a. f a`, `Quotient.mk` to `λ _ s a. a`, and
+  `parity` to its minor premises let-bound around a fixpoint over a `case` on `MQR.Tr`.
+- **Effect on emitted .ast (corpus):** none: only a test is added.
+- **Regression test:** `meta_quot_rec` checks both routes of the five programs and pins their
+  `#erase` outputs under the default configuration, which peregrine validates and evaluates to
+  `7` (a primitive integer) for the four quotient programs and `MQR.B.t` for `useRec`.
+  `scripts/regress.sh` passes (30 tests) with `PEREGRINE`.
+
 ## Reported, not fixed
 
 Each entry below was reproduced on this branch. Unless stated otherwise, the reproduction is an
