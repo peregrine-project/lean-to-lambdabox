@@ -57,9 +57,9 @@ Structural recursion & \stShipping{} through the kernel's \code{brecOn} under
   \code{structural := .kernel} (S-42, S-43, S-44, S-48, S-49); the default is unchanged &
   \stProved{} the oracle's recursor $\iota$ (\code{Pure.whnf\_sound}), the frame lemma through the
   closed definition values, the admission under the option (\code{PhaseIDecl}), the traversal
-  with no new step; a mutual structural block is covered vacuously; the instance NV-S, whose view
-  holds the \code{\_unsafe\_rec} companion, and the lower bound \code{collectDeps\_ok\_of} on NV-Q,
-  NV-R, NV-S and NV-QP \\
+  with no new step; a mutual structural block is outside the fragment (S-51); the instances NV-S
+  and NV-A (\code{Init}'s \code{Nat.add}), whose views hold the \code{\_unsafe\_rec} companion,
+  and the lower bound \code{collectDeps\_ok\_of} on NV-Q, NV-R, NV-S, NV-QP and NV-A \\
 \bottomrule
 \end{tabular}
 
@@ -88,7 +88,9 @@ Inputs outside the fragment & the \code{Meta} path, trusted (Section~\ref{sec:tr
 Opaques with values, data axioms, \code{@[extern]} definitions, matches and recursors on
   lemmas with proof fields, \code{Quot.ind} in an evaluated position & the scope note of Section~\ref{sec:final-reading} \\
 Well-founded recursion, structural recursion by default and in mutual blocks, \code{Nat}
-  arithmetic, recursors of mutual or indexed blocks & Phase II
+  arithmetic by default (\code{Init}'s \code{Nat.add} has an instance under
+  \code{\{extern := .preferLogical, structural := .kernel, nat := .peano\}}, NV-A), recursors of
+  mutual or indexed blocks & Phase II
   (Section~\ref{sec:open-phase2}); the scope (Chapter~\ref{chap:scope}) \\
 \code{remove\_irrel\_constr\_args}, \code{nat := .machine} & out of scope
   (Section~\ref{sec:scope-features}) \\

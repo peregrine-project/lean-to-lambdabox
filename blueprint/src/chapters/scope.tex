@@ -7,9 +7,11 @@
 \item \lead{Main results} The fragment in two phases: Phase I adds to the $\lambda\Pi$ fragment
   everything about inductive types that the eraser handles, \hl{with no recursive definitions by default}
   (programs recurse through the admitted recursors, and under \code{structural := .kernel} through
-  single definitions by structural recursion; well-founded recursion is out, and mutual structural blocks
-  are covered only vacuously), so no \code{Nat} arithmetic of \code{Init} by default, and \code{Nat} literals only
-  under \code{nat := .peano}; quotients and the recursors of one
+  single definitions by structural recursion; well-founded recursion and mutual blocks are out), so no
+  \code{Nat} arithmetic of \code{Init} by default, and \code{Nat} literals only under
+  \code{nat := .peano}; \hl{\code{Init}'s \code{Nat.add 2 3} is verified end to end} under
+  \code{\{extern := .preferLogical, structural := .kernel, nat := .peano\}}
+  (Section~\ref{sec:scope-nat-add}); quotients and the recursors of one
   inductive without indices (the shape of \code{RecInFragment}) are in Phase I, and Phase II adds
   the other recursors; structural recursion is in Phase I under \code{structural := .kernel}.
   The divergence entries DV-23 to DV-26 and the choices of Section~\ref{sec:scope-decisions} fix
@@ -87,8 +89,12 @@ structural recursion (\code{brecOn}) under \code{structural := .kernel} & I & th
   definitions over recursors, projections and \code{casesOn}) is erased as any definition (S-42);
   the fragment test admits a definition with an \code{\_unsafe\_rec} companion that
   \code{isStructuralRecursive} recognizes (S-44, S-49), the oracle reduces the recursors it meets
-  (S-43, S-48); a mutual block (its \code{all} has two names) is covered vacuously; a recursion on a
-  \code{Nat} literal evaluates (DV-30) \\
+  (S-43, S-48); a mutual block (its \code{all} is not its own name alone) is excluded (S-51); a
+  recursion on a \code{Nat} literal evaluates (DV-30) \\
+\code{Init}'s \code{Nat.add} on \code{Nat} literals under \code{\{extern := .preferLogical,
+  structural := .kernel, nat := .peano\}} & I & its logical definition, by structural recursion
+  through \code{Nat.brecOn}, is erased as any definition; NV-A is an instance
+  (Section~\ref{sec:scope-nat-add}) \\
 structural recursion under the default \code{structural := .unsafeRec} & -- & the fragment test
   excludes it (an \code{\_unsafe\_rec} companion) \\
 quotients & I & \code{Quot.mk} and \code{Quot.lift} erased as \code{LCNF} does (S-38), a
@@ -192,6 +198,27 @@ DV-26 & the fragment is an explicit hypothesis, \code{hfrag}, with the exclusion
   every typed program whose read closure is inside Phase I, whose recursors, in every read expression,
   are of the shape \code{RecInFragment} admits (\code{RecShaped}), with no name collision, is
   accepted.
+\end{itemize}
+
+\section{Arithmetic of Init}\label{sec:scope-nat-add}
+
+\begin{itemize}
+\item \lead{Verified end to end} \code{Init}'s \code{Nat.add} on the literals \code{2} and
+  \code{3}, under \code{\{extern := .preferLogical, structural := .kernel, nat := .peano\}}: the
+  instance NV-A discharges all eight hypotheses of the final theorem on \code{Nat.add 2 3}, with
+  \code{Init}'s own declarations (Section~\ref{sec:tests-nva}). Other literals have no
+  instance.
+\item \lead{Why this configuration} \code{Nat.add} is \code{@[extern]}: under the default
+  \code{preferAxiom} the eraser emits it as an axiom, which the source does not unfold (DV-12);
+  under \code{.preferLogical} it erases the kernel definition. That definition is by structural
+  recursion, which the fragment test admits only under \code{structural := .kernel}; the literals
+  need \code{nat := .peano}.
+\item \lead{The value} the emitted program evaluates to an erasure of
+  \code{Nat.succ (Nat.succ (Nat.succ 2))}; the literal \code{2} stays a literal, so the
+  first-order corollary does not apply.
+\item \lead{The limit} \hl{\code{Nat.add} is the only operation of \code{Init} with an instance}:
+  the theorem applies to every program that meets its hypotheses, but on no other program of
+  \code{Init}'s arithmetic are they discharged.
 \end{itemize}
 
 \section{Evidence}\label{sec:scope-evidence}

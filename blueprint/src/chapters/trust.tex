@@ -27,7 +27,7 @@
   (\leanfile{proof/EraseProof/Statements.lean}), with every definition they use: the bridge, the
   source semantics, erasability, $\lambda_\Box$ evaluation and the erasure relation
   (\leanfile{proof/EraseProof/Spec.lean}, \leanfile{proof/EraseProof/Target.lean}).
-\item \lead{Tested} all eight hypotheses of the final theorem on nine programs, the runs by
+\item \lead{Tested} all eight hypotheses of the final theorem on ten programs, the runs by
   kernel evaluation of the shipping code, the final theorem applied to each, and the corollary to
   NV-1, NV-2, NV-R, NV-S, NV-L and NV-QP (Chapter~\ref{chap:tests}).
 \item \lead{Axioms} a proved node depends on \code{propext}, \code{Classical.choice} and
@@ -84,7 +84,7 @@ Lean's compiler and runtime & the theorem is about the logical definitions, \cod
   logical definition (\code{@[extern]}, \code{@[implemented\_by]}, \code{opaque}), among them
   the \code{partial} functions that compute only the inlining hints; MetaRocq trusts its
   extraction alike; the kernel checks the non-vacuity instances on the logical definitions, and
-  the compiled code is exercised on NV-1, NV-2, NV-Q, NV-R, NV-S, NV-QP and NV-L by
+  the compiled code is exercised on NV-1, NV-2, NV-Q, NV-R, NV-S, NV-QP, NV-L and NV-A by
   \leanfile{proof/tools/NVEmit.lean} \\
 \bottomrule
 \end{tabular}
@@ -186,17 +186,18 @@ C9 & \code{doc/DIVERGENCES.md} well formed; its citations of declarations and of
   and repository lines exist; every cited \code{DV-n} has an entry \\
 C10 & the shipping regression tests, \code{scripts/regress.sh} (30 tests) \\
 C11 & \code{nv1-emit}: \leanfile{proof/tools/NVEmit.lean} runs the entry point of \code{\#erase}
-  on NV-1's, NV-2's, NV-Q's, NV-R's, NV-S's, NV-QP's (both representatives) and NV-L's programs and
-  checks the emitted programs byte for byte;
-  \code{proof/scripts/c11.sh}: \code{peregrine validate} and \code{eval} on 53 programs, NV-1's,
-  NV-2's, NV-Q's, NV-R's, NV-S's, NV-QP's and NV-L's, the regression outputs for NV-1, NV-P and NV-K, and every regression output under
+  on NV-1's, NV-2's, NV-Q's, NV-R's, NV-S's, NV-QP's (both representatives), NV-L's and NV-A's
+  programs and checks the emitted programs byte for byte;
+  \code{proof/scripts/c11.sh}: \code{peregrine validate} and \code{eval} on 56 programs, NV-1's,
+  NV-2's, NV-Q's, NV-R's, NV-S's, NV-QP's, NV-L's and NV-A's, the regression outputs for NV-1,
+  NV-P and NV-K, and every regression output under
   \code{nat := .peano}; \hl{each value must be the Lean program's} \\
 C12 & the four statement definitions of \leanfile{proof/EraseProof/Statements.lean} exist; each
   of \code{erase\_correct}, \code{erases\_correct}, \code{erasePure\_erases} and
   \code{collectDeps\_ok\_of} that is proved has a type kernel-defeq to its statement, the others
   are listed as unproved. The final form: every statement proved, \code{erase\_correct} the only
   root with consumer \code{FINAL}, and the footprints of \code{erase\_correct} and of its
-  test instances \code{Test.\{NV1,NVP,NVK,NV2,NVQ,NVR,NVS,NVL,NVQP\}.final} exactly the three axioms, with their
+  test instances \code{Test.\{NV1,NVP,NVK,NV2,NVQ,NVR,NVS,NVL,NVQP,NVA\}.final} exactly the three axioms, with their
   hypothesis terms within them; the same footprint for \code{erase\_correct\_firstorder} and its
   instances \code{Test.\{NV1,NV2,NVR,NVS,NVL,NVQP\}.firstorder}, which mention it \\
 C12b & on every run, the statement definitions and the library, shipping and Metalean

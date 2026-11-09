@@ -4,16 +4,18 @@
 \begin{itemize}
 \item \lead{Goal} Show on concrete programs that \hl{every hypothesis of the final theorem holds},
   so that it is not vacuous, and apply it to them.
-\item \lead{Main results} \code{erase\_correct} applied with all eight hypotheses to nine
+\item \lead{Main results} \code{erase\_correct} applied with all eight hypotheses to ten
   programs: NV-1 (a \code{casesOn} on \code{inductive B | f | t}), NV-P and NV-K (an
   \code{Eq.casesOn} on a constructor and on a lemma), NV-2 (a \code{casesOn} that binds a data
   field and a proof field), NV-Q (a \code{Quot.lift} over a \code{Quot.mk}, applied beyond
   its arity), NV-R (an \code{N.rec} on a recursive inductive), NV-S (an \code{add} by structural
   recursion under \code{structural := .kernel}), NV-L (an \code{Nat.rec} on the literal
   \code{2} under \code{nat := .peano}), NV-QP (a \code{Quot.lift} over unordered pairs, a quotient
-  whose relation identifies distinct values, on both representatives of a class); the first-order
-  corollary on NV-1, NV-2, NV-R, NV-S, NV-L and NV-QP; the lower bound
-  \code{collectDeps\_ok\_of} on NV-1, NV-Q, NV-R, NV-S and NV-QP; determinism of $\lambda_\Box$ evaluation.
+  whose relation identifies distinct values, on both representatives of a class), NV-A
+  (\code{Init}'s \code{Nat.add 2 3} under \code{\{extern := .preferLogical, structural := .kernel,
+  nat := .peano\}}); the first-order corollary on NV-1, NV-2, NV-R, NV-S, NV-L and NV-QP; the lower
+  bound \code{collectDeps\_ok\_of} on NV-1, NV-Q, NV-R, NV-S, NV-QP and NV-A; Lean's large
+  elimination against Metalean's; determinism of $\lambda_\Box$ evaluation.
 \item \lead{Status} \stProved{} every node; the runs by kernel evaluation of the shipping code.
   C12 checks the footprint of each \code{final} and \code{firstorder} instance.
 \item \lead{Nodes} \bpnodes{chap:tests}
@@ -21,7 +23,8 @@
   NV1Collect, NVRCollect, NVSCollect, NVPData, NVPModel, NVKModel, NVPRun, NVPFinal, NV2Data, NV2Model, NV2Run, NV2Final,
   NVQData, NVQModel, NVQRun, NVQFinal, NVRData, NVRModel, NVRRun, NVRFinal, NVSData, NVSRun, NVSBlocks, NVSDefs, NVSFuns, NVSModel, NVSFinal, NVLData, NVLRun, NVLModel,
   NVLFinal, NVQCollect, NVQPData, NVQPRun, NVQPBlocks, NVQPDefs, NVQPResp, NVQPModel, NVQPFinal,
-  NVQPCollect, Run, LBEval}; \leanfile{proof/tools/NVEmit.lean}.
+  NVQPCollect, NVAData, NVARun, NVADefs, NVAFuns, NVAOfNat, NVAModel, NVAEval, NVAFinal,
+  NVACollect, LargeElim, Run, LBEval}; \leanfile{proof/tools/NVEmit.lean}.
 \item \lead{Reference} the hypotheses of MetaRocq's \code{erase\_correct}
   (\code{erasure/theories/ErasureFunctionProperties.v}).
 \end{itemize}
@@ -2056,6 +2059,506 @@ A function by structural recursion, erased through the kernel definitions under
   \lead{Idea} Each syntactic premise by evaluation of a Boolean test; the fuel bound by \code{decide}.
 \end{proof}
 
+\section{NV-A}\label{sec:tests-nva}
+
+\code{Init}'s own \code{Nat.add} on two numerals, erased through its kernel definition under
+\code{\{extern := .preferLogical, structural := .kernel, nat := .peano\}}.
+
+\begin{definition}[NV-A: the program]
+  \label{def:EraseProof-Test-NVA-P}
+  \lean{EraseProof.Test.NVA.hygP, EraseProof.Test.NVA.hygM, EraseProof.Test.NVA.x13,
+    EraseProof.Test.NVA.x14, EraseProof.Test.NVA.x61, EraseProof.Test.NVA.n58,
+    EraseProof.Test.NVA.x32, EraseProof.Test.NVA.x35, EraseProof.Test.NVA.xo,
+    EraseProof.Test.NVA.aI, EraseProof.Test.NVA.casesOnTy, EraseProof.Test.NVA.casesOnVal,
+    EraseProof.Test.NVA.Nat_casesOn, EraseProof.Test.NVA.below, EraseProof.Test.NVA.belowTy,
+    EraseProof.Test.NVA.belowVal, EraseProof.Test.NVA.Nat_below, EraseProof.Test.NVA.F1Ty,
+    EraseProof.Test.NVA.pairTy, EraseProof.Test.NVA.goTy, EraseProof.Test.NVA.goVal,
+    EraseProof.Test.NVA.Nat_brecOn_go, EraseProof.Test.NVA.brecOnTy,
+    EraseProof.Test.NVA.brecOnVal, EraseProof.Test.NVA.Nat_brecOn, EraseProof.Test.NVA.mMotTy,
+    EraseProof.Test.NVA.h1Ty, EraseProof.Test.NVA.h2Ty, EraseProof.Test.NVA.matchTy,
+    EraseProof.Test.NVA.matchVal, EraseProof.Test.NVA.match_def, EraseProof.Test.NVA.nn,
+    EraseProof.Test.NVA.motA, EraseProof.Test.NVA.belowA, EraseProof.Test.NVA.fTy,
+    EraseProof.Test.NVA.motF, EraseProof.Test.NVA.h1F, EraseProof.Test.NVA.h2F,
+    EraseProof.Test.NVA.fVal, EraseProof.Test.NVA.add_f, EraseProof.Test.NVA.borrowed,
+    EraseProof.Test.NVA.tNb, EraseProof.Test.NVA.addTy, EraseProof.Test.NVA.addVal,
+    EraseProof.Test.NVA.add_def, EraseProof.Test.NVA.addUnsafeRecVal, EraseProof.Test.NVA.lv,
+    EraseProof.Test.NVA.tyU, EraseProof.Test.NVA.tOf, EraseProof.Test.NVA.cOf,
+    EraseProof.Test.NVA.OfNat_ind, EraseProof.Test.NVA.OfNat_mk, EraseProof.Test.NVA.ofMotTy,
+    EraseProof.Test.NVA.ofMinTy, EraseProof.Test.NVA.ofRhs, EraseProof.Test.NVA.OfNat_rec,
+    EraseProof.Test.NVA.ofNatTy, EraseProof.Test.NVA.ofNatVal, EraseProof.Test.NVA.ofNat_def,
+    EraseProof.Test.NVA.instTy, EraseProof.Test.NVA.instVal, EraseProof.Test.NVA.inst_def,
+    EraseProof.Test.NVA.P, EraseProof.Test.NVA.lit, EraseProof.Test.NVA.instK,
+    EraseProof.Test.NVA.numK, EraseProof.Test.NVA.e, EraseProof.Test.NVA.PV,
+    EraseProof.Test.NVA.view, EraseProof.Test.NVA.cfg, EraseProof.Test.NVA.cfg_eq}
+  \leanok
+  \uses{def:Erasure-EnvView, def:Erasure-findConst, def:EraseProof-Test-NVS-P,
+    def:EraseProof-Test-NVL-P, def:Erasure-ErasureConfig}
+  \srcloc{proof/EraseProof/Test/NVAData.lean}{42}
+  \lead{In short} \code{e = Nat.add 2 3} over \code{Init}'s \code{Nat}, \code{Nat.add} and
+  \code{OfNat}, erased with \code{\{extern := .preferLogical, structural := .kernel, nat :=
+  .peano\}}, which \hl{evaluates to \code{Nat.succ (Nat.succ (Nat.succ 2))}}.
+  \begin{itemize}
+  \item \code{P}: the 22 declarations of the closure as Lean \code{v4.35.0} stores them, newest
+        first: \code{instOfNatNat}, \code{OfNat.ofNat}, the block of \code{OfNat}, \code{Nat.add},
+        \code{Nat.add.\_f}, \code{Nat.add.match\_1}, \code{Nat.brecOn}, \code{Nat.brecOn.go},
+        \code{Nat.below}, \code{Nat.casesOn}, and the blocks of \code{Nat}, \code{PProd} and
+        \code{PUnit}; no inductive has indices, and every \code{all} is a singleton;
+  \item \code{Nat.add}: \code{@[extern]}; its kernel definition recurses on the second argument
+        through \code{Nat.brecOn}, with the body \code{Nat.add.\_f};
+  \item \code{e}: each numeral is \code{@OfNat.ofNat Nat k (instOfNatNat k)}, its \code{Nat} under
+        the borrow annotation of \code{Nat.add}'s binders (\code{mdata});
+  \item \code{view}: \code{PV}, \code{P} followed by the companion \code{Nat.add.\_unsafe\_rec},
+        with \code{@[extern]} on \code{Nat.add}; \code{cfg\_eq} ties \code{cfg} to the configuration
+        written with its defaults;
+  \item \leanfile{proof/tools/NVEmit.lean} checks every declaration against \code{Init}'s, and the
+        term against what \code{\#erase} elaborates.
+  \end{itemize}
+\end{definition}
+
+\begin{lemma}[NV-A: the fragment test and the run]
+  \label{lem:EraseProof-Test-NVA-hrun}
+  \lean{EraseProof.Test.NVA.D, EraseProof.Test.NVA.hcollect, EraseProof.Test.NVA.hcollect_default,
+    EraseProof.Test.NVA.pc, EraseProof.Test.NVA.iidOf, EraseProof.Test.NVA.masksOf,
+    EraseProof.Test.NVA.bodyOf, EraseProof.Test.NVA.stOf, EraseProof.Test.NVA.register_PP_new,
+    EraseProof.Test.NVA.register_PU_new, EraseProof.Test.NVA.register_Nat_new,
+    EraseProof.Test.NVA.register_Of_new, EraseProof.Test.NVA.stPU_PU, EraseProof.Test.NVA.stN_N,
+    EraseProof.Test.NVA.cZ_run, EraseProof.Test.NVA.cPU_run_of, EraseProof.Test.NVA.F1T,
+    EraseProof.Test.NVA.lsGo, EraseProof.Test.NVA.pairF, EraseProof.Test.NVA.mk4,
+    EraseProof.Test.NVA.goMot, EraseProof.Test.NVA.fZ, EraseProof.Test.NVA.goMz,
+    EraseProof.Test.NVA.goMsBody, EraseProof.Test.NVA.goMs, EraseProof.Test.NVA.goB,
+    EraseProof.Test.NVA.withApp_fZ, EraseProof.Test.NVA.fZ_run,
+    EraseProof.Test.NVA.withApp_goMz, EraseProof.Test.NVA.mzL, EraseProof.Test.NVA.mz_run,
+    EraseProof.Test.NVA.lsS, EraseProof.Test.NVA.withApp_sx, EraseProof.Test.NVA.args_s,
+    EraseProof.Test.NVA.sArg_run, EraseProof.Test.NVA.fvar_run, EraseProof.Test.NVA.fS,
+    EraseProof.Test.NVA.withApp_fS, EraseProof.Test.NVA.fS_run, EraseProof.Test.NVA.msB,
+    EraseProof.Test.NVA.withApp_msB, EraseProof.Test.NVA.msBL, EraseProof.Test.NVA.msB_run,
+    EraseProof.Test.NVA.msL, EraseProof.Test.NVA.ms_run, EraseProof.Test.NVA.goBL,
+    EraseProof.Test.NVA.withApp_goB, EraseProof.Test.NVA.goB_app, EraseProof.Test.NVA.goB_run,
+    EraseProof.Test.NVA.goVL, EraseProof.Test.NVA.goV_run, EraseProof.Test.NVA.visitMutual_go,
+    EraseProof.Test.NVA.kername_go, EraseProof.Test.NVA.lsB, EraseProof.Test.NVA.goApp,
+    EraseProof.Test.NVA.withApp_goApp, EraseProof.Test.NVA.stGo, EraseProof.Test.NVA.goApp_run,
+    EraseProof.Test.NVA.brecOnVL, EraseProof.Test.NVA.brecOnV_run, EraseProof.Test.NVA.stBr,
+    EraseProof.Test.NVA.visitMutual_brecOn, EraseProof.Test.NVA.kername_brecOn,
+    EraseProof.Test.NVA.lsA, EraseProof.Test.NVA.lsF, EraseProof.Test.NVA.lsM,
+    EraseProof.Test.NVA.motM, EraseProof.Test.NVA.alt1, EraseProof.Test.NVA.alt2,
+    EraseProof.Test.NVA.mB, EraseProof.Test.NVA.withApp_mB, EraseProof.Test.NVA.alt1L,
+    EraseProof.Test.NVA.alt2L, EraseProof.Test.NVA.alt1_run, EraseProof.Test.NVA.alt2_run,
+    EraseProof.Test.NVA.altsM, EraseProof.Test.NVA.altsM_z, EraseProof.Test.NVA.altsM_s,
+    EraseProof.Test.NVA.altsM_all, EraseProof.Test.NVA.caseM,
+    EraseProof.Test.NVA.visitCasesOn_run, EraseProof.Test.NVA.ciN,
+    EraseProof.Test.NVA.visitCases_run, EraseProof.Test.NVA.mB_run, EraseProof.Test.NVA.matchVL,
+    EraseProof.Test.NVA.matchV_run, EraseProof.Test.NVA.stMt,
+    EraseProof.Test.NVA.visitMutual_match, EraseProof.Test.NVA.kername_match,
+    EraseProof.Test.NVA.projX_run, EraseProof.Test.NVA.recCall,
+    EraseProof.Test.NVA.withApp_recCall, EraseProof.Test.NVA.recCall_run,
+    EraseProof.Test.NVA.fB, EraseProof.Test.NVA.withApp_fB, EraseProof.Test.NVA.h1L,
+    EraseProof.Test.NVA.h2L, EraseProof.Test.NVA.fBL, EraseProof.Test.NVA.Reg,
+    EraseProof.Test.NVA.fB_run, EraseProof.Test.NVA.fVL, EraseProof.Test.NVA.fV_run,
+    EraseProof.Test.NVA.stF, EraseProof.Test.NVA.visitMutual_f, EraseProof.Test.NVA.kername_f,
+    EraseProof.Test.NVA.aB, EraseProof.Test.NVA.withApp_aB, EraseProof.Test.NVA.fC_run,
+    EraseProof.Test.NVA.stAB, EraseProof.Test.NVA.aBL, EraseProof.Test.NVA.aB_run,
+    EraseProof.Test.NVA.addVL, EraseProof.Test.NVA.addV_run, EraseProof.Test.NVA.stAdd,
+    EraseProof.Test.NVA.visitMutual_add, EraseProof.Test.NVA.kername_add,
+    EraseProof.Test.NVA.lit0_run, EraseProof.Test.NVA.litS_run, EraseProof.Test.NVA.lit2_run,
+    EraseProof.Test.NVA.lit3_run, EraseProof.Test.NVA.projOf, EraseProof.Test.NVA.lsO,
+    EraseProof.Test.NVA.projOf_run, EraseProof.Test.NVA.ofNatVL, EraseProof.Test.NVA.stON,
+    EraseProof.Test.NVA.visitMutual_ofNat, EraseProof.Test.NVA.kername_ofNat,
+    EraseProof.Test.NVA.mkB, EraseProof.Test.NVA.withApp_mkB, EraseProof.Test.NVA.args_Of,
+    EraseProof.Test.NVA.mkBL, EraseProof.Test.NVA.mkB_run, EraseProof.Test.NVA.instVL,
+    EraseProof.Test.NVA.stIn, EraseProof.Test.NVA.visitMutual_inst,
+    EraseProof.Test.NVA.kername_inst, EraseProof.Test.NVA.withApp_instK,
+    EraseProof.Test.NVA.withApp_numK, EraseProof.Test.NVA.instK_run,
+    EraseProof.Test.NVA.numK_run, EraseProof.Test.NVA.numL, EraseProof.Test.NVA.eL,
+    EraseProof.Test.NVA.stE, EraseProof.Test.NVA.withApp_e, EraseProof.Test.NVA.e_run,
+    EraseProof.Test.NVA.p0, EraseProof.Test.NVA.hpure, EraseProof.Test.NVA.hrun}
+  \leanok
+  \uses{def:Erasure-EraseError, def:Erasure-collectDeps, def:Erasure-PureM,
+    def:Erasure-erasePure, def:Erasure-eraseEntry, def:Erasure-erase, def:LBTerm, def:ASTType,
+    def:Erasure-ErasureConfig, def:Erasure-EraseT, def:EraseProof-Test-NVA-P,
+    lem:EraseProof-Test-NVS-hrun, lem:EraseProof-Test-NVL-hrun}
+  \srcloc{proof/EraseProof/Test/NVARun.lean}{42}
+  \lead{In short} \code{\#erase} takes the pure path on NV-A and returns \code{p0}: \hl{the
+  kernel definition of the \code{@[extern]} \code{Nat.add}}, erased through \code{Nat.brecOn},
+  and the numerals as constructor chains.
+  \begin{itemize}
+  \item \code{hcollect}: the closure is \code{D}, by evaluation; \code{hcollect\_default}: under
+        the default configuration the test rejects the program, since the view holds the companion;
+  \item \code{kername\_add}: the eraser reads \code{Nat.add}'s \code{@[extern]} attribute and,
+        under \code{.preferLogical}, erases its kernel definition;
+  \item \code{kername\_brecOn}, \code{kername\_f}: \code{Nat.brecOn.go} through \code{visitRec};
+        the \code{Nat.casesOn} of \code{Nat.add.match\_1} as a $\lambda_\Box$ \code{case}; the
+        recursive call as a projection of \code{PProd};
+  \item \code{kername\_ofNat}, \code{kername\_inst}, \code{lit2\_run}, \code{lit3\_run}: the
+        projection of \code{OfNat}, and the literals as constructor chains.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{def:Erasure-EnvView, lem:EraseProof-Test-bind_ok}
+  \leanok
+  \lead{Idea} One traversal call at a time, with NV-S's steps on any closure; the literals' steps
+  by induction on their value, as for NV-L.
+\end{proof}
+
+\begin{lemma}[NV-A: casesOn, below and brecOn on Nat]
+  \label{lem:EraseProof-Test-NVA-defs}
+  \lean{EraseProof.Test.NVA.m1, EraseProof.Test.NVA.motNM, EraseProof.Test.NVA.casesOnTyM,
+    EraseProof.Test.NVA.minsCO, EraseProof.Test.NVA.casesOnValM, EraseProof.Test.NVA.m1M,
+    EraseProof.Test.NVA.belowTyM, EraseProof.Test.NVA.minsBl, EraseProof.Test.NVA.belowValM,
+    EraseProof.Test.NVA.motNL, EraseProof.Test.NVA.whredS_step, EraseProof.Test.NVA.defeq_rw,
+    EraseProof.Test.NVA.rinst_zero, EraseProof.Test.NVA.rinst_param,
+    EraseProof.Test.NVA.rinst_succ, EraseProof.Test.NVA.rinst_max,
+    EraseProof.Test.NVA.rinst_imax, EraseProof.Test.NVA.belowM, EraseProof.Test.NVA.inst_elim0,
+    EraseProof.Test.NVA.belowTyL, EraseProof.Test.NVA.belowTy_wk,
+    EraseProof.Test.NVA.belowM_typed, EraseProof.Test.NVA.belowRec,
+    EraseProof.Test.NVA.ppLevel_m1, EraseProof.Test.NVA.belowRed_var,
+    EraseProof.Test.NVA.belowRed_motNL, EraseProof.Test.NVA.belowS_var,
+    EraseProof.Test.NVA.belowS_motNL, EraseProof.Test.NVA.belowZ_var,
+    EraseProof.Test.NVA.belowS_defeq_var, EraseProof.Test.NVA.belowS_defeq_motNL,
+    EraseProof.Test.NVA.beta_defeq, EraseProof.Test.NVA.ΓCO, EraseProof.Test.NVA.ΓCO_wf,
+    EraseProof.Test.NVA.casesOnValM_typed, EraseProof.Test.NVA.casesOnTyM_isType,
+    EraseProof.Test.NVA.motBl_beta, EraseProof.Test.NVA.belowValM_typed,
+    EraseProof.Test.NVA.belowTyM_isType, EraseProof.Test.NVA.F1TyM, EraseProof.Test.NVA.pairM,
+    EraseProof.Test.NVA.motGo, EraseProof.Test.NVA.goTyM, EraseProof.Test.NVA.minsGo,
+    EraseProof.Test.NVA.goValM, EraseProof.Test.NVA.pairM_typed, EraseProof.Test.NVA.motGo_beta,
+    EraseProof.Test.NVA.ΓG, EraseProof.Test.NVA.ΓG_wf, EraseProof.Test.NVA.goValM_typed,
+    EraseProof.Test.NVA.goTyM_isType, EraseProof.Test.NVA.brecOnTyM, EraseProof.Test.NVA.goAppM,
+    EraseProof.Test.NVA.projFstM, EraseProof.Test.NVA.brecOnValM,
+    EraseProof.Test.NVA.projTerm_eqFst, EraseProof.Test.NVA.projType_eqFst,
+    EraseProof.Test.NVA.goAppM_typed, EraseProof.Test.NVA.brecOnValM_typed,
+    EraseProof.Test.NVA.brecOnTyM_isType}
+  \leanok
+  \uses{def:EraseProof-Test-NVA-P, def:EraseProof-Test-NVL-E, lem:EraseProof-Test-NVS-defs}
+  \srcloc{proof/EraseProof/Test/NVADefs.lean}{25}
+  \lead{In short} \code{Nat.casesOn}, \code{Nat.below}, \code{Nat.brecOn.go} and \code{Nat.brecOn}
+  as Metalean terms, \hl{typed at their Lean types} in any well-formed environment whose heads
+  hold the blocks of \code{PUnit}, \code{PProd} and \code{Nat}.
+  \begin{itemize}
+  \item \code{Nat} at the signature \code{natSig} of the literals' translation;
+  \item \code{belowZ\_var}, \code{belowS\_defeq\_var}: \code{Nat.below motive t} unfolds to
+        \code{PUnit} on \code{Nat.zero} and to \code{PProd (motive n) (Nat.below motive n)} on
+        \code{Nat.succ n}, by \code{WHRedS.defeq}.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-Test-NVS-defs}
+  \leanok
+  \lead{Idea} NV-S's proofs on its \code{N}, carried over to \code{Init}'s \code{Nat}: the
+  \code{WHRed} chain one step at a time.
+\end{proof}
+
+\begin{lemma}[NV-A: the matcher, Nat.add.\_f and Nat.add]
+  \label{lem:EraseProof-Test-NVA-funs}
+  \lean{EraseProof.Test.NVA.motMM, EraseProof.Test.NVA.H1M, EraseProof.Test.NVA.H2M,
+    EraseProof.Test.NVA.matchTyM, EraseProof.Test.NVA.matchValM, EraseProof.Test.NVA.nnM,
+    EraseProof.Test.NVA.fTyM, EraseProof.Test.NVA.motFM, EraseProof.Test.NVA.projFstA,
+    EraseProof.Test.NVA.h1FM, EraseProof.Test.NVA.h2FM, EraseProof.Test.NVA.fValM,
+    EraseProof.Test.NVA.addTyM, EraseProof.Test.NVA.addValM, EraseProof.Test.NVA.motMM_typed,
+    EraseProof.Test.NVA.appMot2_typed, EraseProof.Test.NVA.ΓM,
+    EraseProof.Test.NVA.matchValM_typed, EraseProof.Test.NVA.imax_one_one,
+    EraseProof.Test.NVA.nnM_typed, EraseProof.Test.NVA.motNL_typed,
+    EraseProof.Test.NVA.motNL_beta, EraseProof.Test.NVA.projTerm_eqFstA,
+    EraseProof.Test.NVA.projType_eqFstA, EraseProof.Test.NVA.ΓF, EraseProof.Test.NVA.motFd,
+    EraseProof.Test.NVA.fValM_typed, EraseProof.Test.NVA.addValM_typed}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-Test-NVA-P, lem:EraseProof-Test-NVA-defs}
+  \srcloc{proof/EraseProof/Test/NVAFuns.lean}{31}
+  \lead{In short} \code{Nat.add.match\_1}, \code{Nat.add.\_f} and \code{Nat.add} as Metalean
+  terms, typed at their Lean types.
+  \begin{itemize}
+  \item \code{Nat.add.match\_1}: a \code{Nat.casesOn} on the second of its two discriminants;
+  \item \code{Nat.add.\_f}: the recursive call is the first projection of the table
+        \code{x : Nat.below (fun y => Nat $\to$ Nat) (Nat.succ b)}, typed through its unfolding to
+        \code{PProd} (\code{belowS\_defeq\_motNL}), and applied to the first argument.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-Test-NVS-funs}
+  \leanok
+  \lead{Idea} As for NV-S's \code{add}; the matcher is a \code{casesOn} into a $\Pi$-motive.
+\end{proof}
+
+\begin{lemma}[NV-A: the block of OfNat, OfNat.ofNat and instOfNatNat]
+  \label{lem:EraseProof-Test-NVA-ofnat}
+  \lean{EraseProof.Test.NVA.ofCtorSig, EraseProof.Test.NVA.ofSig, EraseProof.Test.NVA.ofBlock,
+    EraseProof.Test.NVA.ofBlock_map, EraseProof.Test.NVA.ofLevel_ge,
+    EraseProof.Test.NVA.ofBlock_wf, EraseProof.Test.NVA.largeElimOf,
+    EraseProof.Test.NVA.ofStruct, EraseProof.Test.NVA.mOf, EraseProof.Test.NVA.mOfMk,
+    EraseProof.Test.NVA.recAllowedOf, EraseProof.Test.NVA.ofParams,
+    EraseProof.Test.NVA.mOf_defeq, EraseProof.Test.NVA.mOf_typed,
+    EraseProof.Test.NVA.mOfMk_typed, EraseProof.Test.NVA.ofTyM, EraseProof.Test.NVA.ofTermM,
+    EraseProof.Test.NVA.ofMkTyM, EraseProof.Test.NVA.ofMkTermM,
+    EraseProof.Test.NVA.indTerm_eqOf, EraseProof.Test.NVA.ctorTerm_eqOf,
+    EraseProof.Test.NVA.ofTermM_typed, EraseProof.Test.NVA.ofMkTermM_typed,
+    EraseProof.Test.NVA.ofMotM, EraseProof.Test.NVA.ofMinM, EraseProof.Test.NVA.ofRecTyM,
+    EraseProof.Test.NVA.ofRecBody, EraseProof.Test.NVA.ofRecTermM,
+    EraseProof.Test.NVA.recrTerm_eqOf, EraseProof.Test.NVA.ofRecTermM_typed,
+    EraseProof.Test.NVA.ofNatTyM, EraseProof.Test.NVA.projOfM, EraseProof.Test.NVA.ofNatValM,
+    EraseProof.Test.NVA.instTyM, EraseProof.Test.NVA.instValM,
+    EraseProof.Test.NVA.projTerm_eqOf, EraseProof.Test.NVA.projType_eqOf,
+    EraseProof.Test.NVA.ΓO, EraseProof.Test.NVA.ofNatValM_typed,
+    EraseProof.Test.NVA.instValM_typed}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-Test-NVA-P, lem:EraseProof-Test-NVA-funs}
+  \srcloc{proof/EraseProof/Test/NVAOfNat.lean}{26}
+  \lead{In short} \code{Init}'s class \code{OfNat ($\alpha$ : Type u) (\_ : Nat)} as \hl{a
+  Metalean structure over \code{Nat}'s head}, with its $\eta$-terms, and \code{OfNat.ofNat} and
+  \code{instOfNatNat} as Metalean terms.
+  \begin{itemize}
+  \item \code{ofBlock}: two parameters, the second of type \code{Nat}, and one constructor with the
+        field \code{ofNat}, in \code{Type u};
+  \item \code{indTerm\_eqOf}, \code{ctorTerm\_eqOf}, \code{recrTerm\_eqOf}: Metalean's builders on
+        the block's constants, typed at the translations of their Lean types;
+  \item \code{OfNat.ofNat}: the structure projection of the field (\code{projTerm\_eqOf}).
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-Test-NVS-blocks}
+  \leanok
+  \lead{Idea} Metalean's typing rules of a structure block, as for NV-S's \code{PProd}.
+\end{proof}
+
+\begin{definition}[NV-A: the Metalean model]
+  \label{def:EraseProof-Test-NVA-E}
+  \lean{EraseProof.Test.NVA.ζ2, EraseProof.Test.NVA.ζ3, EraseProof.Test.NVA.ζ4, EraseProof.Test.NVA.ζ5,
+    EraseProof.Test.NVA.ζ6, EraseProof.Test.NVA.ζ7, EraseProof.Test.NVA.ζ8,
+    EraseProof.Test.NVA.ζ9, EraseProof.Test.NVA.ζ10, EraseProof.Test.NVA.ζ11,
+    EraseProof.Test.NVA.ζ12, EraseProof.Test.NVA.ζ13, EraseProof.Test.NVA.pp2,
+    EraseProof.Test.NVA.n3, EraseProof.Test.NVA.pu4, EraseProof.Test.NVA.pp4,
+    EraseProof.Test.NVA.n4, EraseProof.Test.NVA.pu5, EraseProof.Test.NVA.pp5,
+    EraseProof.Test.NVA.n5, EraseProof.Test.NVA.bl5, EraseProof.Test.NVA.pp6,
+    EraseProof.Test.NVA.n6, EraseProof.Test.NVA.bl6, EraseProof.Test.NVA.go6,
+    EraseProof.Test.NVA.n7, EraseProof.Test.NVA.c7, EraseProof.Test.NVA.pu8,
+    EraseProof.Test.NVA.pp8, EraseProof.Test.NVA.n8, EraseProof.Test.NVA.bl8,
+    EraseProof.Test.NVA.m8, EraseProof.Test.NVA.n9, EraseProof.Test.NVA.bl9,
+    EraseProof.Test.NVA.br9, EraseProof.Test.NVA.f9, EraseProof.Test.NVA.n10,
+    EraseProof.Test.NVA.n11, EraseProof.Test.NVA.o11, EraseProof.Test.NVA.n12,
+    EraseProof.Test.NVA.o12, EraseProof.Test.NVA.n13, EraseProof.Test.NVA.a13,
+    EraseProof.Test.NVA.on13, EraseProof.Test.NVA.i13, EraseProof.Test.NVA.E2,
+    EraseProof.Test.NVA.E3, EraseProof.Test.NVA.E4, EraseProof.Test.NVA.E5,
+    EraseProof.Test.NVA.E6, EraseProof.Test.NVA.E7, EraseProof.Test.NVA.E8,
+    EraseProof.Test.NVA.E9, EraseProof.Test.NVA.E10, EraseProof.Test.NVA.E11,
+    EraseProof.Test.NVA.E12, EraseProof.Test.NVA.E13, EraseProof.Test.NVA.B2,
+    EraseProof.Test.NVA.B3, EraseProof.Test.NVA.B4, EraseProof.Test.NVA.B5,
+    EraseProof.Test.NVA.B6, EraseProof.Test.NVA.B7, EraseProof.Test.NVA.B8,
+    EraseProof.Test.NVA.B9, EraseProof.Test.NVA.B10, EraseProof.Test.NVA.B11,
+    EraseProof.Test.NVA.B12, EraseProof.Test.NVA.B13, EraseProof.Test.NVA.P1,
+    EraseProof.Test.NVA.P2, EraseProof.Test.NVA.P3, EraseProof.Test.NVA.blMinS,
+    EraseProof.Test.NVA.goMinZ, EraseProof.Test.NVA.goMinS, EraseProof.Test.NVA.Γ6F,
+    EraseProof.Test.NVA.IsOf, EraseProof.Test.NVA.CsOf, EraseProof.Test.NVA.RsOf,
+    EraseProof.Test.NVA.ordersOf, EraseProof.Test.NVA.P10, EraseProof.Test.NVA.numM,
+    EraseProof.Test.NVA.tE, EraseProof.Test.NVA.E, EraseProof.Test.NVA.B}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-Test-NVS-E, def:EraseProof-Test-NVL-E,
+    def:EraseProof-Test-NVA-P}
+  \srcloc{proof/EraseProof/Test/NVAModel.lean}{40}
+  \lead{In short} The Metalean environment \code{E13} of thirteen entries, oldest first: the
+  blocks of \code{PUnit}, \code{PProd} and \code{Nat} (at \code{natSig}), \code{Nat.casesOn},
+  \code{Nat.below}, \code{Nat.brecOn.go}, \code{Nat.brecOn}, \code{Nat.add.match\_1},
+  \code{Nat.add.\_f}, \code{Nat.add}, the block of \code{OfNat}, \code{OfNat.ofNat} and
+  \code{instOfNatNat}; the name tables, and the main term's translation \code{tE}.
+\end{definition}
+
+\begin{lemma}[NV-A: the typing hypotheses]
+  \label{lem:EraseProof-Test-NVA-henv}
+  \lean{EraseProof.Test.NVA.t_pp2, EraseProof.Test.NVA.t_n3, EraseProof.Test.NVA.t_n4,
+    EraseProof.Test.NVA.t_pu4, EraseProof.Test.NVA.t_pp4, EraseProof.Test.NVA.t_n5,
+    EraseProof.Test.NVA.t_pu5, EraseProof.Test.NVA.t_pp5, EraseProof.Test.NVA.t_bt5,
+    EraseProof.Test.NVA.t_bv5, EraseProof.Test.NVA.t_n6, EraseProof.Test.NVA.t_pp6,
+    EraseProof.Test.NVA.t_bt6, EraseProof.Test.NVA.t_gt6, EraseProof.Test.NVA.t_n7,
+    EraseProof.Test.NVA.t_ct7, EraseProof.Test.NVA.t_n8, EraseProof.Test.NVA.t_pp8,
+    EraseProof.Test.NVA.t_bt8, EraseProof.Test.NVA.t_bv8, EraseProof.Test.NVA.t_mt8,
+    EraseProof.Test.NVA.t_n9, EraseProof.Test.NVA.t_brt9, EraseProof.Test.NVA.t_ft9,
+    EraseProof.Test.NVA.t_bt9, EraseProof.Test.NVA.t_n10, EraseProof.Test.NVA.t_n11,
+    EraseProof.Test.NVA.t_o11, EraseProof.Test.NVA.t_n12, EraseProof.Test.NVA.t_o12,
+    EraseProof.Test.NVA.t_n13, EraseProof.Test.NVA.t_at13, EraseProof.Test.NVA.t_ont13,
+    EraseProof.Test.NVA.t_it13, EraseProof.Test.NVA.t_o13, EraseProof.Test.NVA.wf2,
+    EraseProof.Test.NVA.wf3, EraseProof.Test.NVA.wf4, EraseProof.Test.NVA.wf5,
+    EraseProof.Test.NVA.wf6, EraseProof.Test.NVA.wf7, EraseProof.Test.NVA.wf8,
+    EraseProof.Test.NVA.wf9, EraseProof.Test.NVA.wf10, EraseProof.Test.NVA.wf11,
+    EraseProof.Test.NVA.wf12, EraseProof.Test.NVA.wf13, EraseProof.Test.NVA.B2_PP,
+    EraseProof.Test.NVA.B2_PPmk, EraseProof.Test.NVA.B2_PPrec, EraseProof.Test.NVA.tr_ppTy,
+    EraseProof.Test.NVA.tr_ppConst, EraseProof.Test.NVA.tr_ppMkTy, EraseProof.Test.NVA.tr_ppMk,
+    EraseProof.Test.NVA.tr_ppRecTy, EraseProof.Test.NVA.tr_ppRec,
+    EraseProof.Test.NVA.indBlockPP, EraseProof.Test.NVA.constTypedPP, EraseProof.Test.NVA.henv2,
+    EraseProof.Test.NVA.B3_N, EraseProof.Test.NVA.B3_z, EraseProof.Test.NVA.B3_s,
+    EraseProof.Test.NVA.B3_rec, EraseProof.Test.NVA.tr_recTy3, EraseProof.Test.NVA.tr_rec3,
+    EraseProof.Test.NVA.tr_sConst3, EraseProof.Test.NVA.indBlockN3,
+    EraseProof.Test.NVA.constTypedN3, EraseProof.Test.NVA.henv3, EraseProof.Test.NVA.tr_below,
+    EraseProof.Test.NVA.tr_casesOnTy, EraseProof.Test.NVA.tr_casesOnVal,
+    EraseProof.Test.NVA.henv4, EraseProof.Test.NVA.B4_N, EraseProof.Test.NVA.B4_rec,
+    EraseProof.Test.NVA.B4_PU, EraseProof.Test.NVA.B4_PP, EraseProof.Test.NVA.tr_belowTy,
+    EraseProof.Test.NVA.tr_belowVal, EraseProof.Test.NVA.henv5, EraseProof.Test.NVA.B5_N,
+    EraseProof.Test.NVA.B5_z, EraseProof.Test.NVA.B5_s, EraseProof.Test.NVA.B5_rec,
+    EraseProof.Test.NVA.B5_PU, EraseProof.Test.NVA.B5_PUu, EraseProof.Test.NVA.B5_PP,
+    EraseProof.Test.NVA.B5_PPmk, EraseProof.Test.NVA.B5_below, EraseProof.Test.NVA.tr_F1Ty,
+    EraseProof.Test.NVA.tr_pair, EraseProof.Test.NVA.tr_goTy, EraseProof.Test.NVA.tr_goVal,
+    EraseProof.Test.NVA.henv6, EraseProof.Test.NVA.B6_N, EraseProof.Test.NVA.B6_PP,
+    EraseProof.Test.NVA.B6_below, EraseProof.Test.NVA.B6_go, EraseProof.Test.NVA.tr_F1Ty6,
+    EraseProof.Test.NVA.tr_brecOnTy, EraseProof.Test.NVA.tr_brecOnVal,
+    EraseProof.Test.NVA.henv7, EraseProof.Test.NVA.B7_N, EraseProof.Test.NVA.B7_z,
+    EraseProof.Test.NVA.B7_s, EraseProof.Test.NVA.B7_casesOn, EraseProof.Test.NVA.tr_matchTy,
+    EraseProof.Test.NVA.tr_matchVal, EraseProof.Test.NVA.henv8, EraseProof.Test.NVA.B8_N,
+    EraseProof.Test.NVA.B8_z, EraseProof.Test.NVA.B8_s, EraseProof.Test.NVA.B8_PP,
+    EraseProof.Test.NVA.B8_below, EraseProof.Test.NVA.B8_match, EraseProof.Test.NVA.tr_motA,
+    EraseProof.Test.NVA.tr_belowA, EraseProof.Test.NVA.tr_fTy, EraseProof.Test.NVA.Γ6F_wf,
+    EraseProof.Test.NVA.x_typed, EraseProof.Test.NVA.tr_fVal, EraseProof.Test.NVA.henv9,
+    EraseProof.Test.NVA.B9_N, EraseProof.Test.NVA.B9_brecOn, EraseProof.Test.NVA.B9_f,
+    EraseProof.Test.NVA.tr_addTy, EraseProof.Test.NVA.tr_addVal, EraseProof.Test.NVA.henv10,
+    EraseProof.Test.NVA.B11_N, EraseProof.Test.NVA.B11_O, EraseProof.Test.NVA.B11_Omk,
+    EraseProof.Test.NVA.B11_Orec, EraseProof.Test.NVA.tr_Of, EraseProof.Test.NVA.tr_OfMk,
+    EraseProof.Test.NVA.tr_ofTy, EraseProof.Test.NVA.tr_ofConst, EraseProof.Test.NVA.tr_ofMkTy,
+    EraseProof.Test.NVA.tr_ofMk, EraseProof.Test.NVA.tr_ofRecTy, EraseProof.Test.NVA.tr_ofRec,
+    EraseProof.Test.NVA.POf_eq, EraseProof.Test.NVA.indBlockOf,
+    EraseProof.Test.NVA.constTypedOf, EraseProof.Test.NVA.henv11,
+    EraseProof.Test.NVA.tr_ofNatTy, EraseProof.Test.NVA.self_typed,
+    EraseProof.Test.NVA.tr_ofNatVal, EraseProof.Test.NVA.henv12, EraseProof.Test.NVA.B12_N,
+    EraseProof.Test.NVA.B12_O, EraseProof.Test.NVA.B12_Omk, EraseProof.Test.NVA.tr_instTy,
+    EraseProof.Test.NVA.tr_instVal, EraseProof.Test.NVA.henv13, EraseProof.Test.NVA.B13_N,
+    EraseProof.Test.NVA.B13_z, EraseProof.Test.NVA.B13_s, EraseProof.Test.NVA.B13_add,
+    EraseProof.Test.NVA.B13_ofNat, EraseProof.Test.NVA.B13_inst, EraseProof.Test.NVA.tr_num,
+    EraseProof.Test.NVA.tr_e, EraseProof.Test.NVA.natLitM_typed, EraseProof.Test.NVA.numM_typed,
+    EraseProof.Test.NVA.tE_typed, EraseProof.Test.NVA.henv, EraseProof.Test.NVA.hwf,
+    EraseProof.Test.NVA.he, EraseProof.Test.NVA.hty}
+  \leanok
+  \uses{def:EraseProof-TrLevel, def:EraseProof-SatTr, def:EraseProof-ConstsIn,
+    def:EraseProof-TrM, def:EraseProof-ProgEnv, def:EraseProof-Test-NVA-E,
+    def:EraseProof-Test-NVA-P, lem:EraseProof-Test-NVA-ofnat, lem:EraseProof-ProgEnv-lookup_recr}
+  \srcloc{proof/EraseProof/Test/NVAModel.lean}{114}
+  \lead{In short} The hypotheses \hl{\code{henv}, \code{hwf}, \code{he} and \code{hty}} on NV-A:
+  every entry of \code{E13} is well formed and typed, and \code{ProgEnv} binds the four blocks and
+  the nine definitions of \code{Init}.
+  \begin{itemize}
+  \item \code{wf2} to \code{wf13}: the environments are well formed;
+  \item \code{indBlockPP}, \code{indBlockN3}, \code{indBlockOf}, with NV-S's block of
+        \code{PUnit}: the \code{IndBlock}s, with their \code{ConstTyped};
+  \item \code{tr\_num}, \code{tr\_e}: a numeral translates to the projection of \code{OfNat}
+        applied to \code{instOfNatNat} and to the literal's \code{natLitM}.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-Test-NVS-henv, lem:EraseProof-Test-NVL-henv}
+  \leanok
+  \lead{Idea} Metalean's typing rules entry by entry; one translation per definition, the
+  projections through \code{TrM.projStruct}.
+\end{proof}
+
+\begin{lemma}[NV-A: the source evaluation]
+  \label{lem:EraseProof-Test-NVA-hev}
+  \lean{EraseProof.Test.NVA.σ, EraseProof.Test.NVA.Below, EraseProof.Test.NVA.inst_below,
+    EraseProof.Test.NVA.lift_below, EraseProof.Test.NVA.BL, EraseProof.Test.NVA.m6,
+    EraseProof.Test.NVA.Gb, EraseProof.Test.NVA.T, EraseProof.Test.NVA.G, EraseProof.Test.NVA.V,
+    EraseProof.Test.NVA.below_mono, EraseProof.Test.NVA.below_BL, EraseProof.Test.NVA.below_Gb,
+    EraseProof.Test.NVA.below_T, EraseProof.Test.NVA.inst_T, EraseProof.Test.NVA.lift_T,
+    EraseProof.Test.NVA.ns_lam, EraseProof.Test.NVA.ns_proj, EraseProof.Test.NVA.ns_const,
+    EraseProof.Test.NVA.ns_over, EraseProof.Test.NVA.ev_atom, EraseProof.Test.NVA.ev_delta,
+    EraseProof.Test.NVA.ev_tN, EraseProof.Test.NVA.ev_lit, EraseProof.Test.NVA.ev_tPU,
+    EraseProof.Test.NVA.ev_cZ, EraseProof.Test.NVA.ev_cPU, EraseProof.Test.NVA.ev_succ,
+    EraseProof.Test.NVA.ev_mk, EraseProof.Test.NVA.findDecl_PProd,
+    EraseProof.Test.NVA.casesOn_PProd, EraseProof.Test.NVA.arity_PProd,
+    EraseProof.Test.NVA.nb_PP, EraseProof.Test.NVA.nb_PP1, EraseProof.Test.NVA.ev_PP,
+    EraseProof.Test.NVA.ev_motA, EraseProof.Test.NVA.mkOf, EraseProof.Test.NVA.ev_mkOf,
+    EraseProof.Test.NVA.ev_instK, EraseProof.Test.NVA.ev_numK, EraseProof.Test.NVA.inst_motA,
+    EraseProof.Test.NVA.inst_motF, EraseProof.Test.NVA.inst_h1F, EraseProof.Test.NVA.inst_h2F,
+    EraseProof.Test.NVA.inst_fVal, EraseProof.Test.NVA.blMin, EraseProof.Test.NVA.blRec,
+    EraseProof.Test.NVA.ev_BL, EraseProof.Test.NVA.ev_recBlock, EraseProof.Test.NVA.ev_blMins,
+    EraseProof.Test.NVA.ev_blRec, EraseProof.Test.NVA.ev_below, EraseProof.Test.NVA.ev_Gb,
+    EraseProof.Test.NVA.ev_T, EraseProof.Test.NVA.ev_fApp, EraseProof.Test.NVA.Mg,
+    EraseProof.Test.NVA.zMin, EraseProof.Test.NVA.sMinB, EraseProof.Test.NVA.sMin,
+    EraseProof.Test.NVA.recG, EraseProof.Test.NVA.ev_zMin, EraseProof.Test.NVA.ev_sMin,
+    EraseProof.Test.NVA.ev_minsG, EraseProof.Test.NVA.ev_recG0, EraseProof.Test.NVA.ev_recGS,
+    EraseProof.Test.NVA.ev_recG, EraseProof.Test.NVA.ev_go, EraseProof.Test.NVA.ev_brecOn,
+    EraseProof.Test.NVA.yv, EraseProof.Test.NVA.tv, EraseProof.Test.NVA.G_eq,
+    EraseProof.Test.NVA.below_yv, EraseProof.Test.NVA.below_tv, EraseProof.Test.NVA.m5,
+    EraseProof.Test.NVA.casesArgs, EraseProof.Test.NVA.casesOn_N, EraseProof.Test.NVA.ev_m5Z,
+    EraseProof.Test.NVA.ev_m5S, EraseProof.Test.NVA.ctorT, EraseProof.Test.NVA.ev_callB,
+    EraseProof.Test.NVA.v5, EraseProof.Test.NVA.hev}
+  \leanok
+  \uses{def:EraseProof-SrcEval, def:EraseProof-EvalEnv, def:EraseProof-Test-NVA-P}
+  \srcloc{proof/EraseProof/Test/NVAEval.lean}{33}
+  \lead{In short} \code{hev}: \code{e = Nat.add 2 3} \hl{evaluates to \code{Nat.succ (Nat.succ
+  (Nat.succ 2))}}, the literal \code{2} under three constructors.
+  \begin{itemize}
+  \item \code{ev\_numK}: a numeral evaluates to its literal, the field of the constructor value
+        of \code{instOfNatNat k};
+  \item \code{ev\_recG}: the \code{Nat.rec} of \code{Nat.brecOn.go} reads the literal
+        \code{k + 1} as \code{Nat.succ k} (\code{natLitCtor}), down to \code{Nat.zero}, for every
+        \code{k}; \code{ev\_brecOn}: \code{Nat.brecOn} on \code{3} evaluates to the table's
+        function on \code{3};
+  \item \code{ev\_callB}: the table's function on \code{k}, applied to \code{2}, matches through
+        \code{Nat.add.match\_1} (\code{casesIota}) and returns \code{V k}.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{def:EraseProof-EvalEnv-etaSpine, lem:EraseProof-Test-NVS-final, lem:EraseProof-Test-NVL-final}
+  \leanok
+  \lead{Idea} Induction on the literal: the table on \code{k} holds the function on \code{k} and
+  the table on its predecessor; each step by a rule of \code{SrcEval}.
+\end{proof}
+
+\begin{lemma}[NV-A: the final theorem]
+  \label{lem:EraseProof-Test-NVA-final}
+  \lean{EraseProof.Test.NVA.mem_P, EraseProof.Test.NVA.hview, EraseProof.Test.NVA.hfrag,
+    EraseProof.Test.NVA.final}
+  \leanok
+  \uses{def:EraseProof-ViewAgrees, def:EraseProof-TrM, def:Erasure-EraseError,
+    def:Erasure-collectDeps, def:EraseProof-LBEval, def:EraseProof-Erases,
+    def:EraseProof-EvalEnv, def:EraseProof-SrcEval, def:EraseProof-Test-NVA-P,
+    lem:EraseProof-Test-NVA-hrun, def:EraseProof-Test-NVA-E, def:LBTerm, def:ASTType}
+  \srcloc{proof/EraseProof/Test/NVAFinal.lean}{25}
+  \lead{In short} \code{erase\_correct} applied to NV-A with \hl{all eight hypotheses}: the program
+  \code{\#erase} emits for \code{Init}'s \code{Nat.add 2 3} evaluates to an erasure of
+  \code{Nat.succ (Nat.succ (Nat.succ 2))}.
+  \begin{itemize}
+  \item \code{hview}: every declaration of \code{P} is the view's (\code{mem\_P});
+  \item \code{hfrag}: the closure \code{D} of \code{hcollect}, under \code{structural := .kernel};
+  \item no first-order instance: the value keeps the literal \code{2}, and
+        \code{FirstOrderValue} has no literal leaf; \code{final} states the value's erasure
+        through \code{Erases}.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{thm:EraseProof-erase_correct, def:Erasure-EnvView, lem:EraseProof-Test-NVA-henv,
+    lem:EraseProof-Test-NVA-hev}
+  \leanok
+  \lead{Idea} The hypotheses from the nodes above.
+\end{proof}
+
+\begin{lemma}[NV-A: the lower bound of the fragment test]
+  \label{lem:EraseProof-Test-NVA-ok_of}
+  \lean{EraseProof.Test.NVA.plainP, EraseProof.Test.NVA.plainP_of, EraseProof.Test.NVA.mem_D,
+    EraseProof.Test.NVA.subD, EraseProof.Test.NVA.inD, EraseProof.Test.NVA.readD,
+    EraseProof.Test.NVA.recInFragD, EraseProof.Test.NVA.notElimPU, EraseProof.Test.NVA.phaseD,
+    EraseProof.Test.NVA.plainD, EraseProof.Test.NVA.recShapedD, EraseProof.Test.NVA.kernD,
+    EraseProof.Test.NVA.blockD, EraseProof.Test.NVA.ok_of}
+  \leanok
+  \uses{def:EraseProof-PhaseIDecl, def:Erasure-EraseError, def:Erasure-collectDeps,
+    def:EraseProof-EvalEnv, def:EraseProof-ConstsIn, def:Erasure-ErasureConfig,
+    def:EraseProof-Test-NVA-P, lem:EraseProof-Test-NVA-hrun, lem:EraseProof-Test-NV1-ok_of}
+  \srcloc{proof/EraseProof/Test/NVACollect.lean}{27}
+  \lead{In short} \code{collectDeps\_ok\_of} applied to NV-A, on the view that holds
+  \code{Nat.add.\_unsafe\_rec}: \hl{every premise proved from the declarations}.
+  \begin{itemize}
+  \item \code{phaseD}: \code{Nat.add} is in Phase I through \code{isStructuralRecursive}, and no
+        other definition has a companion; \code{Nat.rec} through the recognized
+        \code{Nat.casesOn}; \code{PProd.rec}, \code{PUnit.rec} and \code{OfNat.rec} through their
+        single constructor; \code{PUnit} through \code{notElimPU};
+  \item \code{recInFragD}, \code{recShapedD}: \code{Nat.rec}, read by \code{Nat.casesOn},
+        \code{Nat.brecOn.go} and \code{Nat.below}, is in the shape of \code{RecInFragment} and is
+        the only recursor named;
+  \item \code{plainD}: the term holds \code{Nat} literals, which \code{nat := .peano} admits
+        (\code{plainP});
+  \item \code{subD}, \code{readD}, \code{kernD}, \code{blockD}: as for NV-1.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-collectDeps_ok_of, def:Erasure-EnvView, def:Erasure-declExclusion,
+    def:EraseProof-Test-NVA-E, lem:EraseProof-Test-NVA-henv, lem:EraseProof-Test-NVA-final,
+    def:toKername}
+  \leanok
+  \lead{Idea} Each syntactic premise by evaluation of a Boolean test; the fuel bound by
+  \code{decide}.
+\end{proof}
+
 \section{Large elimination}\label{sec:tests-largeelim}
 
 \begin{lemma}[Lean's large elimination against Metalean's]
@@ -2106,14 +2609,16 @@ A function by structural recursion, erased through the kernel definitions under
 
 \section*{Caveats}
 \begin{itemize}
-\item \lead{Caveat} No instance has an indexed or mutual recursor, an opaque or a mutual
-  structural block; that their premises are satisfiable is argued, not shown.
+\item \lead{Caveat} No instance has an indexed or mutual recursor or an opaque; that their
+  premises are satisfiable is argued, not shown.
 \item \lead{Caveat} \leanfile{proof/tools/NVEmit.lean} checks the declarations of NV-1, NV-2, NV-P,
-  NV-Q, NV-R, NV-S, NV-L and NV-QP against the kernel's; NV-K's lemma \code{hEq} is written by hand.
-\item \lead{Caveat} NV-S's view holds the compiled companion \code{add.\_unsafe\_rec} beside the
-  closure, written out and compared by \code{NVEmit} with the elaborated environment's; the
-  fragment test accepts the program through \code{isStructuralRecursive} under
-  \code{structural := .kernel}, and rejects it under the default configuration.
+  NV-Q, NV-R, NV-S, NV-L, NV-QP and NV-A against the kernel's; NV-K's lemma \code{hEq} is written by
+  hand.
+\item \lead{Caveat} The views of NV-S and NV-A hold the compiled companions
+  \code{add.\_unsafe\_rec} and \code{Nat.add.\_unsafe\_rec} beside the closures, written out and
+  compared by \code{NVEmit} with the elaborated environment's; the fragment test accepts the
+  programs through \code{isStructuralRecursive} under \code{structural := .kernel}, and rejects
+  them under the default configuration.
 \item \lead{Caveat} The views of the tests are the closures as lists; \code{\#erase} reads the
   whole environment, which agrees with them on their names. The kernel checks the instances on
   the logical definitions; NVEmit runs the compiled code.

@@ -14,12 +14,12 @@
 % \bpdefinenodes{chapter}{badges}: the nodes of a chapter by kind, which \bpnodes{chapter} prints.
 \bpdefinenodes{chap:trust}{\bpkind{shipping}~13 \bpkind{metalean}~71}
 \bpdefinenodes{chap:pure}{\bpkind{shipping}~12}
-\bpdefinenodes{chap:model}{\bpkind{step}~3 \bpkind{lemma}~17 \bpkind{definition}~7}
+\bpdefinenodes{chap:model}{\bpkind{step}~3 \bpkind{lemma}~19 \bpkind{definition}~7}
 \bpdefinenodes{chap:source}{\bpkind{step}~3 \bpkind{lemma}~6 \bpkind{definition}~9}
 \bpdefinenodes{chap:relation}{\bpkind{step}~1 \bpkind{lemma}~9 \bpkind{definition}~6}
 \bpdefinenodes{chap:core}{\bpkind{step}~16 \bpkind{lemma}~21 \bpkind{definition}~9}
 \bpdefinenodes{chap:final}{\bpkind{final}~1 \bpkind{milestone}~2 \bpkind{step}~5 \bpkind{lemma}~5 \bpkind{definition}~7}
-\bpdefinenodes{chap:tests}{\bpkind{test}~55}
+\bpdefinenodes{chap:tests}{\bpkind{test}~66}
 % \bpsetkind{label}{kind}{status}{inherited sorries}: every node (the print version puts the badges after its heading).
 \bpsetkind{def:EraseProof-LocalsOK}{definition}{standard}{}
 \bpsetkind{lem:EraseProof-Pure-whnf_sound}{step}{standard}{}
@@ -112,6 +112,8 @@
 \bpsetkind{lem:EraseProof-casesOn_shape}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-casesOn_whred}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-proj_defeq}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-LeanLargeElim-toLargeElim}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-ML-Expr-apps_succ}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-TypeEq-sort_ne_forallE}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-TypeEq-sort_ne_quot}{lemma}{standard}{}
 \bpsetkind{def:Erasure-EraseError}{shipping}{standard}{}
@@ -214,6 +216,17 @@
 \bpsetkind{lem:EraseProof-Test-NVQP-henv}{test}{standard}{}
 \bpsetkind{lem:EraseProof-Test-NVQP-final}{test}{standard}{}
 \bpsetkind{lem:EraseProof-Test-NVQP-ok_of}{test}{standard}{}
+\bpsetkind{def:EraseProof-Test-NVA-P}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NVA-hrun}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NVA-defs}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NVA-funs}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NVA-ofnat}{test}{standard}{}
+\bpsetkind{def:EraseProof-Test-NVA-E}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NVA-henv}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NVA-hev}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NVA-final}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NVA-ok_of}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-LargeElim-leanLargeElim_iff_largeElim}{test}{standard}{}
 \bpsetkind{lem:EraseProof-Test-LBEval-deterministic}{test}{standard}{}
 \bpsetkind{def:LBTerm}{shipping}{standard}{}
 \bpsetkind{def:abstract}{shipping}{standard}{}
@@ -263,6 +276,7 @@
 \bpsetkind{imp:Metalean-Order-CondLattice}{metalean}{standard}{}
 \bpsetkind{imp:Metalean-Order-Category-CondSemilatSup-Basic}{metalean}{standard}{}
 \bpsetkind{imp:Metalean-Level-Raw-Basic}{metalean}{standard}{}
+\bpsetkind{imp:Metalean-Level-Raw-Equiv}{metalean}{standard}{}
 \bpsetkind{imp:Metalean-Syntax-Inductive-Ctor}{metalean}{standard}{}
 \bpsetkind{imp:Metalean-Syntax-Inductive-Recursor}{metalean}{standard}{}
 \bpsetkind{imp:Metalean-Syntax-Inductive-LargeElimination}{metalean}{standard}{}
@@ -292,7 +306,6 @@
 \bpsetkind{imp:Metalean-Typing-Map}{metalean}{standard}{}
 \bpsetkind{imp:Metalean-Typing-Structure}{metalean}{standard}{}
 \bpsetkind{imp:Metalean-Typing-Substitution}{metalean}{standard}{}
-\bpsetkind{imp:Metalean-Decide}{metalean}{standard}{}
 \bpsetkind{imp:Metalean-Level-Quot-Nat}{metalean}{standard}{}
 \bpsetkind{imp:Metalean-Level-Quot-Order}{metalean}{standard}{}
 \bpsetkind{imp:Metalean-Syntax-Eq}{metalean}{standard}{}
