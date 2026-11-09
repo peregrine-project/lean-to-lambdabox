@@ -2605,7 +2605,13 @@ the calls at which the two oracles answer differently. It must equal
   fields, `Nat`, `List`, `Prod` and `Decidable` (one more). On the pure path `casesInfo?` admits a
   `casesOn` only with the recursor's universe parameters. On the `Meta` path, the sparse
   `casesOn` and the `T.c.elim` that Lean generates for data types (checked on an enumeration,
-  `Option` and a universe-polymorphic type) have the extra parameter too.
+  `Option` and a universe-polymorphic type) have the extra parameter too. A census of every sparse
+  `casesOn` and `T.c.elim` in `Init`, `Std`, `Lean` and `LeanToLambdaBox` (3967 and 2201), in the
+  `tests/corpus` files (6 and 19) and in `benchmarks/FromLeanCommon` (20 and 36) finds each with
+  the universe parameters of its inductive's `casesOn` and recursor, so with the extra parameter,
+  and no exception; Lean builds them so (`mkSparseCasesOn` takes the `casesOn`'s universe
+  parameters and refuses an inductive without the extra one, and `mkCtorElim` runs only for an
+  inductive that eliminates into every sort).
 - **Behaviour before:** on the test's programs, under `nat := .peano`, both in the fragment: `test2
   := tCase (Or, 2) □ [([x], □), ([x], □)]`, on which `peregrine eval --anf=false` fails with
   `wcbvEval:Case,discriminee`; `test := □ □ □`.
