@@ -4101,3 +4101,37 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
   message does not name the cause. The dry-run tests `makefile_cmi` and `makefile_inlinings` pass
   with make 4.3, the version on CI's `ubuntu-latest`.
 - **Why not fixed:** not required by the verification goal unless it later becomes required.
+
+### R-29: The minor premises of a recursor are evaluated before its case
+
+- **What:** `visitRec` (S-40) let-binds the erased minor premises of a recursor application
+  around the fixpoint, `let m₁ := … in … let mₖ := … in (fix …) ixs major`, so a call-by-value
+  evaluation of λ□ evaluates every minor premise before the `case`, also those of the
+  constructors that the major premise is not built with. A minor premise that erases to a λ
+  (a constructor with fields or induction hypotheses, written as a `fun`) is a closure at once,
+  but one of a constructor without fields (`Bool.true`, `Nat.zero`, `List.nil`, a leaf), or any
+  minor premise that is not a λ after erasure (a partial application, a variable), is computed
+  whether or not its branch is taken. The values are unchanged on total programs; the cost is
+  not, and a program can do work that Lean's evaluation of the recursor does not. The
+  alternatives of a `casesOn` (`visitCases`) are erased inside their branches and are not
+  affected. This is a second laziness loss next to the one of the pure path, where
+  `@[macro_inline]` calls stay calls (S-21), so that arguments the inlined body uses in one
+  branch only are evaluated before the call; that one is the pure path's alone, this one is on
+  both paths, since they share `visitRec`.
+- **Where:** `LeanToLambdaBox/Erasure.lean`: `visitRec` (the `letIn` of the erased minors `ms`
+  around `applied`).
+- **Reproduction:** not in the corpus. With `inductive LN | z | s (n : LN)`, `add` and `mul` by
+  structural recursion, `ten` the Peano 10, and `viaRec n b := Bool.rec (motive := fun _ => LN)
+  (mul (mul n n) (mul n n)) LN.z b` against `viaCases n b := Bool.casesOn (motive := fun _ => LN)
+  b (mul (mul n n) (mul n n)) LN.z`, `#erase (viaRec ten true)` and `#erase (viaCases ten true)`
+  under `{nat := .peano}` give `viaRec := λ n b. let false := mul (mul n n) (mul n n) in let true :=
+  z in (fix …) b`. `peregrine eval --anf=false` (the λ□ evaluator, with its default fuel) runs
+  out of fuel after 4 s on `viaRec ten true`, inside the `let` of the minor premise of `false`,
+  and evaluates `viaCases ten true` to `LN.z` in 0.01 s; `viaCases ten false`, which needs the
+  product, runs out of fuel too. peregrine's default (ANF) evaluator gives `LN.z` for both in
+  0.02 s, after its own transformations of the program.
+- **Impact:** extra work, and possibly no result within a fuel or time bound, for programs that
+  apply a recursor to an expensive minor premise of a constructor without fields; values are
+  unchanged.
+- **Why not fixed:** not required by the verification goal unless it later becomes required.
+
