@@ -49,7 +49,7 @@ The statements and the checks rely on the following without proof (the trust bas
 \toprule
 Trusted part & Why it is trusted, and what checks it \\
 \midrule
-Lean's kernel at \code{v4.35.0-rc2}, and \code{propext}, \code{Classical.choice},
+Lean's kernel at \code{v4.35.0}, and \code{propext}, \code{Classical.choice},
   \code{Quot.sound} & every declaration of the library stays within the three axioms (C3 to C5);
   every module of the library and of the shipping code is \hl{replayed through the kernel} by
   the toolchain's \code{leanchecker} (step \code{replay}); the \code{.olean} files of Metalean,

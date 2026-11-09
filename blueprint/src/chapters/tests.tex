@@ -141,7 +141,7 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
     EraseProof.Test.NV1.ordersB, EraseProof.Test.NV1.P1}
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-ProgEnv, def:EraseProof-Test-NV1-P}
-  \srcloc{proof/EraseProof/Test/NV1Model.lean}{599}
+  \srcloc{proof/EraseProof/Test/NV1Model.lean}{609}
   \lead{In short} The Metalean environment \code{E} of NV-1, built entry by entry
   (\code{E1}, \code{E2}, \code{E3}), and \hl{the name table \code{B}} that maps each Lean name of
   \code{P} to its Metalean head.
@@ -180,11 +180,11 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
     EraseProof.Test.NV1.notSpecial_const, EraseProof.Test.NV1.tr_negTy,
     EraseProof.Test.NV1.tr_negVal, EraseProof.Test.NV1.tr_e, EraseProof.Test.NV1.P1_eq,
     EraseProof.Test.NV1.indBlock1, EraseProof.Test.NV1.constTyped1, EraseProof.Test.NV1.henv1,
-    EraseProof.Test.NV1.henv2, EraseProof.Test.NV1.henv3}
+    EraseProof.Test.NV1.henv2, EraseProof.Test.NV1.henv3, EraseProof.Test.subst_extend_apply}
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-TrLevel, def:EraseProof-SatTr, def:EraseProof-TrM,
     def:EraseProof-ProgEnv, def:EraseProof-Test-NV1-P, def:EraseProof-Test-NV1-E}
-  \srcloc{proof/EraseProof/Test/NV1Model.lean}{604}
+  \srcloc{proof/EraseProof/Test/NV1Model.lean}{614}
   \lead{In short} The hypotheses \hl{\code{henv}, \code{hwf}, \code{he} and \code{hty} of the
   final theorem hold on NV-1}.
   \begin{itemize}
@@ -193,7 +193,8 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
         \code{indexVars} vacuous without indices, and distinct universe parameters by
         \code{decide};
   \item \code{hwf}: \code{EnvWF E}; \code{he}: \code{TrM E B [] .nil [] e tE}; \code{hty}:
-        \code{tE} is typed.
+        \code{tE} is typed;
+  \item \code{subst\_extend\_apply}: a substitution lemma of the tests' simplification sets.
   \end{itemize}
 \end{lemma}
 \begin{proof}
@@ -2053,6 +2054,33 @@ A function by structural recursion, erased through the kernel definitions under
     lem:EraseProof-Test-NVQP-final}
   \leanok
   \lead{Idea} Each syntactic premise by evaluation of a Boolean test; the fuel bound by \code{decide}.
+\end{proof}
+
+\section{Large elimination}\label{sec:tests-largeelim}
+
+\begin{lemma}[Lean's large elimination against Metalean's]
+  \label{lem:EraseProof-Test-LargeElim-leanLargeElim_iff_largeElim}
+  \lean{EraseProof.Test.LargeElim.leanLargeElim_iff_largeElim,
+    EraseProof.Test.LargeElim.abCtorSig, EraseProof.Test.LargeElim.abSig,
+    EraseProof.Test.LargeElim.abBlock, EraseProof.Test.LargeElim.abBlock_largeElim,
+    EraseProof.Test.LargeElim.abBlock_not_leanLargeElim}
+  \leanok
+  \uses{def:EraseProof-SatTr, lem:EraseProof-LeanLargeElim-toLargeElim}
+  \srcloc{proof/EraseProof/Test/LargeElim.lean}{48}
+  \lead{In short} \code{LeanLargeElim} \hl{agrees with Metalean's \code{Inductive.LargeElim} on a
+  block of one type}, and differs on a mutual block of subsingletons.
+  \begin{itemize}
+  \item \code{leanLargeElim\_iff\_largeElim}: on a block that declares one type, the two
+        conditions are equivalent;
+  \item \code{abBlock}: \code{mutual inductive A : Prop | a : A; inductive B : Prop | b : B end};
+        Metalean's condition holds of it (\code{abBlock\_largeElim}), Lean's does not
+        (\code{abBlock\_not\_leanLargeElim}), as Lean's kernel lets \code{A.rec} eliminate only
+        into \code{Prop}.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Unfolding of both conditions; on \code{abBlock}, by evaluation of the level.
 \end{proof}
 
 \section{\texorpdfstring{$\lambda_\Box$}{lambda-box} evaluation}\label{sec:tests-lbeval}

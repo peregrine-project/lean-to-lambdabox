@@ -197,30 +197,34 @@ DV-26 & the fragment is an explicit hypothesis, \code{hfrag}, with the exclusion
 
 \subsection{Generated eliminators}\label{sec:scope-eliminators}
 
-On Lean \code{v4.35.0-rc2}, measured on the 2961 \code{casesOn} definitions of \code{Init},
-\code{Std} and \code{Lean}:
+On Lean \code{v4.35.0}, measured on the 2914 inductive types with a \code{casesOn} that
+\code{Init}, \code{Std} and \code{Lean} declare:
 
 \begin{tabular}{p{0.4\linewidth}rp{0.42\linewidth}}
 \toprule
 Class & Count & Treatment \\
 \midrule
-canonical: a saturated \code{T.rec} & 2715 & recognized; a $\lambda_\Box$ \code{case} \\
+canonical: a saturated \code{T.rec} & 2672 & recognized; a $\lambda_\Box$ \code{case} \\
 projection-based: one-constructor, large-eliminating \code{Prop} types (\code{And}, \code{Iff},
-  \code{True}, \ldots) & 186 & not recognized; unfolded, and their projections, proofs, erase
+  \code{True}, \ldots) & 185 & not recognized; unfolded, and their projections, proofs, erase
   to $\Box$ \\
-nested & 56 & out \\
+nested & 53 & out \\
 unsafe & 4 & out \\
 \bottomrule
 \end{tabular}
 
 \begin{itemize}
-\item \lead{Recognizer} a syntactic check of the canonical shape; on these 2961 definitions it
-  agrees with Lean's own classification on every one.
-\item \lead{Matchers} 2383 of the 13378 matchers of \code{Init}, \code{Std} and \code{Lean} are
-  in Phase I (\code{nat := .peano}); the others reach a recursor, an \code{@[extern]} constructor
-  or structural recursion.
+\item \lead{Recognizer} a syntactic check of the canonical shape; it agrees with Lean's own
+  classification on every inductive type with a \code{casesOn} of the environment of the
+  regression test \code{pure\_inductive} (\code{Init}, \code{Std}, \code{Lean} and the eraser:
+  2719 recognized, 244 rejected, none disagreeing), and so do its constructor arities (4856).
+\item \lead{Matchers} 2201 of the 13244 matchers of \code{Init}, \code{Std} and \code{Lean} pass
+  the fragment test under \code{\{nat := .peano\}}; of the others, the test meets first an
+  \code{@[extern]} constructor in 7617, a recursive definition in 1373, a nested inductive in
+  1319, a string literal in 637 and a recursor in 70.
 \item \lead{Prelude} \code{Bool.and} and \code{Bool.not} are defined by \code{Bool.rec} directly,
-  so a program using them is in Phase II.
+  a recursor of the shape of \code{RecInFragment}, so the fragment test admits them;
+  \code{Eq.ndrec} reaches \code{Eq.rec}, of an indexed block, which it excludes.
 \end{itemize}
 
 \subsection{The corpus}\label{sec:scope-corpus}
@@ -238,12 +242,12 @@ Exclusion class (the first one met) & Programs \\
 \midrule
 \code{nat := .machine}: \code{Nat} literal / \code{Nat.succ} & 21 / 2 \\
 \code{\_unsafe\_rec} companion (recursive definition; one, \code{Defects.log2}, by well-founded
-  recursion) & 20 \\
+  recursion) & 21 \\
 unsafe constant & 6 \\
 level metavariable / metavariable & 4 / 2 \\
 \code{@[implemented\_by]} & 4 \\
 \code{partial def} & 2 \\
-recursor & 2 \\
+recursor & 1 \\
 \code{casesOn} on a constructor with an index field & 1 \\
 nested inductive & 1 \\
 string literal & 1 \\
@@ -251,13 +255,13 @@ string literal & 1 \\
 \end{tabular}
 
 \begin{itemize}
-\item \lead{Recursors in Phase I} \code{Nat.rec} through structural recursion (the default
-  \code{.unsafeRec} meets the \code{\_unsafe\_rec} companion first), \code{Bool.rec}
-  through \code{Bool.and} and \code{Bool.not}, \code{Eq.rec} through \code{Eq.ndrec},
-  \code{False.rec} through \code{False.elim}, \code{T.rec} through sparse matchers: the test meets
-  the recursive definition or the recursor first.
-\item \lead{Consequence} \hl{Phase I exercises inductive types on few programs}; pattern matching
-  in practice reaches recursors, so Phase II is where the fragment grows.
+\item \lead{Recursors} the test admits \code{Bool.rec} and \code{False.rec}, of the shape of
+  \code{RecInFragment}; the one program it excludes for a recursor reaches \code{Eq.rec}
+  (\code{Defects/eq\_cast}); \code{Nat.rec} through structural recursion comes after the
+  \code{\_unsafe\_rec} companion, which the default \code{.unsafeRec} meets first.
+\item \lead{Consequence} \hl{Phase I exercises inductive types on few corpus programs}; in
+  \code{Init}, \code{Std} and \code{Lean} most matchers leave the fragment through an
+  \code{@[extern]} constructor, a recursive definition or a nested inductive.
 \end{itemize}
 
 \section*{Caveats}

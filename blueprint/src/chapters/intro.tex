@@ -70,7 +70,7 @@ Dima, \emph{Compiling Lean programs with Rocq's extraction pipeline}, MPRI repor
 
 \begin{itemize}
 \item \lead{What it is} a formalization of Lean's type theory in Lean
-  (\code{github.com/intgrah/metalean}), pinned at commit \code{9407ba44}
+  (\code{github.com/intgrah/metalean}), pinned at commit \code{01469285}
   (Section~\ref{sec:intro-pins}).
 \item \lead{What the proof uses} its syntax (\leandecl{Metalean.Expr}, \leandecl{Metalean.Env}),
   its typing judgment \leandecl{Metalean.Defeq} with type equality \leandecl{Metalean.TypeEq}, its
@@ -189,7 +189,7 @@ M2 & a literal read through another inductive's constructor named \code{Nat.zero
 
 The table is read from \code{lean-toolchain} and \code{lake-manifest.json} of the documented
 commit. The \code{metalean} package is \code{github.com/intgrah/metalean} at commit
-\code{9407ba44}; it brings Mathlib and its dependencies.
+\code{01469285}; it brings Mathlib and its dependencies.
 
 \input{generated/pins}
 
@@ -199,7 +199,7 @@ commit. The \code{metalean} package is \code{github.com/intgrah/metalean} at com
 \toprule
 Branch & Merges from & Content \\
 \midrule
-\code{ml/translate} & \code{fixes-port} & the shipping code on the toolchain \code{v4.35.0-rc2}
+\code{ml/translate} & \code{fixes-port} & the shipping code on the toolchain \code{v4.35.0}
   with Metalean required, and the strictly necessary changes; the register
   \code{doc/SHIPPING-CHANGES.md} \\
 \code{ml/verification} & \code{ml/translate} & the proof package \code{proof/} and the register

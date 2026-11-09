@@ -211,13 +211,13 @@ first component, else to this repository:
 | Repository | URL | Revision |
 |---|---|---|
 | this repository (`proof/`, `LeanToLambdaBox/`, ...) | `[links] repository` of `audit.toml` (`$BP_REPOSITORY_URL` overrides it; CI sets it to the repository the workflow runs in) | the commit the site is built from: `$BP_COMMIT`, else `$GITHUB_SHA` (CI), else `git rev-parse HEAD` |
-| Metalean (`Metalean/`), Mathlib (`Mathlib/`), batteries (`Batteries/`) | `url` of `lake-manifest.json` | `rev` of `lake-manifest.json` (`9407ba44...`, `6ebcdee7...`, `ed9b316a...`) |
-| Lean (`Init/`, `Std/`, `Lean/`) | `[links] lean4` of `audit.toml`, under `src/` | the tag of `lean-toolchain` (`v4.35.0-rc2`) |
+| Metalean (`Metalean/`), Mathlib (`Mathlib/`), batteries (`Batteries/`) | `url` of `lake-manifest.json` | `rev` of `lake-manifest.json` (`01469285...`, `56a00585...`, `66e46918...`) |
+| Lean (`Init/`, `Std/`, `Lean/`) | `[links] lean4` of `audit.toml`, under `src/` | the tag of `lean-toolchain` (`v4.35.0`) |
 
 So a declaration of the proof library links to
 `https://github.com/peregrine-project/lean-to-lambdabox/blob/<commit>/proof/EraseProof/Metatheory/NoConf.lean#L25-L38`,
-one of Metalean to `https://github.com/intgrah/metalean/blob/9407ba44.../Metalean/Typing/Env/Defs.lean#L<start>-L<end>`,
-and one of Lean to `https://github.com/leanprover/lean4/blob/v4.35.0-rc2/src/Init/Prelude.lean#L<start>-L<end>`.
+one of Metalean to `https://github.com/intgrah/metalean/blob/01469285.../Metalean/Typing/Env/Defs.lean#L<start>-L<end>`,
+and one of Lean to `https://github.com/leanprover/lean4/blob/v4.35.0/src/Init/Prelude.lean#L<start>-L<end>`.
 A pinned commit, unlike a branch, keeps every line number right; a link of a site built from a
 commit that GitHub does not have resolves once that commit is pushed.
 
@@ -287,7 +287,7 @@ leanblueprint links each `\lean` name to a doc-gen4 site (`\dochome`, by default
 documentation, which does not document this repository). `scripts/bpkinds.py` replaces those
 templates of leanblueprint 0.0.20, so no such link is written. A doc-gen4 site of its own is not
 built: it would document every module the libraries import (Lean core, Mathlib, Metalean), take
-tens of minutes on every push, and need a doc-gen4 pinned to the release-candidate toolchain in a
+tens of minutes on every push, and need a doc-gen4 pinned to the toolchain in a
 separate Lake workspace. The source links point at the code the blueprint describes, at no cost.
 
 ## Audit

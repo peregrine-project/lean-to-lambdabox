@@ -31,7 +31,7 @@
   \lean{EraseProof.ViewAgrees}
   \leanok
   \uses{def:Erasure-EnvView}
-  \srcloc{proof/EraseProof/Spec.lean}{1008}
+  \srcloc{proof/EraseProof/Spec.lean}{1019}
   \lead{In short} \code{ViewAgrees view P}: \hl{the environment view of \code{\#erase} returns
   each declaration of \code{P} under its name}.
   \lead{Reference} \code{Sigma} $\sim$\code{\_ext X} (\code{abstract\_env\_ext\_rel}), a
@@ -406,7 +406,7 @@ structural erasure.
     def:EraseProof-Erases, def:EraseProof-ErasesDeps, def:EraseProof-IsErasable,
     def:EraseProof-EvalEnv, def:EraseProof-EvalEnv-isAtom, def:EraseProof-EvalEnv-etaSpine,
     def:EraseProof-SrcEval, def:EraseProof-ConstsIn, def:LBTerm, def:GlobalDecl}
-  \srcloc{proof/EraseProof/Simulation/Ind.lean}{785}
+  \srcloc{proof/EraseProof/Simulation/Ind.lean}{783}
   \lead{In short} The case lemmas of \code{eta}, \code{lit}, \code{ctor}, \code{proj},
   \code{projProp}, \code{casesProof} and \code{casesLitZero}, \hl{in the pattern of
   Lemma~\ref{lem:EraseProof-erases_correct_beta}}.
@@ -710,7 +710,7 @@ structural erasure.
   \leanok
   \uses{def:EraseProof-Steps-StepsB, lem:EraseProof-StepsCasesCase-casesSat_case,
     def:EraseProof-erasePure_erases_statement}
-  \srcloc{proof/EraseProof/Core/StepsCasesCase.lean}{1216}
+  \srcloc{proof/EraseProof/Core/StepsCasesCase.lean}{1217}
   \lead{In short} When the pure traversal returns a program for a closure in the fragment,
   \hl{its main term erases the input} and its declarations erase the input's dependencies.
   \begin{itemize}
