@@ -2626,7 +2626,7 @@ the calls at which the two oracles answer differently. It must equal
     `visitMutual`, which the pure path does not reach (the first two are guarded by their caller,
     the last two need a recursive declaration).
 
-  - *Later note (S-44):* the claim that `mkDef` and the fixpoint branch of `visitMutual` are not
+  - **Later note (S-44):** the claim that `mkDef` and the fixpoint branch of `visitMutual` are not
     reached on the pure path no longer holds under `structural := .kernel`. A mutual structural
     block (`isEv`/`isOd`, program `useEv` in `tests/regress/structural.lean`) is in the fragment
     and is erased in that branch. The two remaining panic sites there, `fixvars.get![n]!` in
