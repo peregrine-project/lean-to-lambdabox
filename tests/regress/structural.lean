@@ -31,12 +31,13 @@ stated otherwise, and `#erase` writes them under `nat := .peano`:
   (`Nat.bitwise`), so they stay outside the fragment and take the `Meta` path, which erases
   `List.mapTR` and `pairs` through their kernel definitions;
 - `usePairs2`: the recursion of `usePairs` with exhaustive patterns, read from the `below` table;
-- `useEv`: `isEv 3`, for the mutual structural recursion `isEv`/`isOd` on `Nat`;
+- `useEv`: `isEv 3`, for the mutual structural recursion `isEv`/`isOd` on `Nat`, which the
+  fragment test excludes as a mutual block (register entry S-51), so it takes the `Meta` path;
 - `useGet`: a recursion with a `Prop` argument `i < l.length`, erased to □.
 peregrine evaluates them to 5, 5, 5, 3, `t`, 2, 2, `false` and `t` (peregrine prints a list without
 its elements, so `useMap` takes one). The fragment test excludes `ST.wfHalf` (well-founded
-recursion), `ST.loop` (`partial`) and `ST.Tree.size` (a nested inductive), and, without the flag,
-`ST.add`.
+recursion), `ST.loop` (`partial`) and `ST.Tree.size` (a mutual block with its local function
+`sizes`, over a nested inductive), and, without the flag, `ST.add`.
 -/
 
 -- peregrine: validate useAdd.ast
@@ -161,7 +162,7 @@ def ST.useTree : Nat := ST.Tree.size (.node [])
 /-- info: outside the fragment: recursive definition Nat.bitwise -/
 #guard_msgs in
 #eval check ``ST.useMap
-/-- info: in the fragment -/
+/-- info: outside the fragment: mutual block [ST.isEv, ST.isOd] -/
 #guard_msgs in
 #eval check ``ST.useEv
 /-- info: outside the fragment: recursive definition Nat.bitwise -/
@@ -179,7 +180,7 @@ def ST.useTree : Nat := ST.Tree.size (.node [])
 /-- info: outside the fragment: partial definition ST.loop -/
 #guard_msgs in
 #eval check ``ST.useLoop
-/-- info: outside the fragment: nested inductive ST.Tree -/
+/-- info: outside the fragment: mutual block [ST.Tree.size.sizes, ST.Tree.size] -/
 #guard_msgs in
 #eval check ``ST.useTree
 /-- info: outside the fragment: recursive definition ST.add -/

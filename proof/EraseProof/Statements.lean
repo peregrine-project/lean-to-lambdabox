@@ -106,9 +106,10 @@ Scope.
   `structural := .kernel` it admits a definition by structural recursion
   (`Erasure.isStructuralRecursive`): its kernel definition is not recursive, it recurses through
   `T.brecOn`, whose value is the first projection of a `T.rec` into the pairs of a value and its
-  table of recursive calls `T.below`, and the eraser erases it as any definition. A mutual
-  structural block (definitions that share `all`) is not the Lean form of Metalean definitions
-  (`ProgEnv.defn`), so the theorem says nothing about it.
+  table of recursive calls `T.below`, and the eraser erases it as any definition. The test
+  rejects a definition, theorem or opaque of a mutual block (whose `all` is not its own name
+  alone), such as a mutual structural block: in a Metalean environment each of them is alone in
+  its block (`ProgEnv`).
   Programs recurse through recursors: the
   test admits `T.rec` of a single inductive without indices that eliminates into every sort, whose
   induction hypotheses take no arguments and are about the last fields of their constructor

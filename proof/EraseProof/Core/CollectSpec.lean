@@ -272,7 +272,7 @@ theorem declExclusion_ok {view : EnvView} {cfg : ErasureConfig} {ci : ConstantIn
     obtain ⟨h1, h⟩ := ite_ok_then h thr
     dsimp only at h
     obtain ⟨h2, h⟩ := ite_ok_else h thr
-    obtain ⟨h3, -⟩ := ite_ok_else h thr'
+    obtain ⟨h3, -⟩ := ite_ok_else h thr
     refine ⟨?_, ?_, not_isSome h3⟩
     · revert h1; cases d.safety <;> simp
     · cases hf : (view.find? (Compiler.mkUnsafeRecName d.name)).isSome
@@ -286,7 +286,7 @@ theorem declExclusion_ok {view : EnvView} {cfg : ErasureConfig} {ci : ConstantIn
     obtain ⟨h1, h⟩ := ite_ok_else h thr
     dsimp only at h
     obtain ⟨h2, h⟩ := ite_ok_else h thr
-    obtain ⟨h3, -⟩ := ite_ok_else h thr'
+    obtain ⟨h3, -⟩ := ite_ok_else h thr
     exact ⟨by simpa using h1, not_isSome h2, not_isSome h3⟩
   | axiomInfo a =>
     rw [declExclusion] at h
