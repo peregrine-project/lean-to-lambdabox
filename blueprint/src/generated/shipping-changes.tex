@@ -4,7 +4,7 @@
 \section*{At a glance}
 \begin{itemize}
 \item \lead{Source} \code{doc/SHIPPING-CHANGES.md}, rendered by \code{blueprint/scripts/render\_registers.py}; every section below is the register's own text.
-\item \lead{Changes} 54 entries, one commit each, subject \code{shipping(S-<n>): ...}.
+\item \lead{Changes} 55 entries, one commit each, subject \code{shipping(S-<n>): ...}.
 \item \lead{Reported, not fixed} 30 entries.
 \end{itemize}
 
@@ -73,6 +73,7 @@ Entry & Title \\
 \ref{reg:S-52} & On the \texttt{Meta} path, a program with two declarations of one kername is an error \\
 \ref{reg:S-53} & Regression tests of quotients and recursors on the \texttt{Meta} path \\
 \ref{reg:S-54} & The corpus is recorded by a committed list of checksums \\
+\ref{reg:S-55} & Types and proofs behind \texttt{@[irreducible]} definitions are erased on the \texttt{Meta} path \\
 \bottomrule
 \end{tabular}
 
@@ -93,7 +94,7 @@ Entry & Title \\
 \ref{reg:R-11} & Fixpoints have recursive-argument index 0 and bodies that are not \ensuremath{\eta}-expanded \\
 \ref{reg:R-12} & Mutual blocks skip the \texttt{@[extern]} and \texttt{@[inline]} handling \\
 \ref{reg:R-13} & \texttt{@[implemented\_\allowbreak{}by]} is ignored \\
-\ref{reg:R-14} & Erasability is decided by the elaborator at default transparency \\
+\ref{reg:R-14} & Erasability is decided by the elaborator at default transparency (fixed in S-55) \\
 \ref{reg:R-15} & \texttt{\#erase} without \texttt{to} logs the program in place of the attributes \\
 \ref{reg:R-16} & A log message lacks string interpolation \\
 \ref{reg:R-17} & The \texttt{.mli} signature falls back to \texttt{unit} \\
@@ -115,7 +116,7 @@ Entry & Title \\
 
 \textbf{Note.} The fixes of S-2 to S-14 were merged into \texttt{main} in PR \#7 as six regrouped commits: \texttt{Translate Int, Option, Array and products in .mli signatures}, \texttt{Fix generated-interface and inlinings rules of the benchmark Makefile}, \texttt{Add opt-in auto-inlining of typeclass dispatch}, \texttt{Port to Lean v4.33.0-rc2}, \texttt{Fix two log messages and the comment of fvar\_\allowbreak{}to\_\allowbreak{}name} (which also fixes R-15 and R-16) and \texttt{Update the README}. PR \#7 also replaced the regression tests of S-1 to S-15 by a smaller permanent suite (\texttt{tests/\allowbreak{}regress/\allowbreak{}\{mli,auto\_\allowbreak{}inline,cases,compiler\_\allowbreak{}api\}.lean}), and did not include this register, the corpus or its scripts; the commit \texttt{Add the change register and the corpus used to check the translation} brings them back. The original commits, one per entry S-1 to S-24, are archived under the branch \texttt{archive/\allowbreak{}shipping}, where the lookups below still work as \texttt{git log -{}-grep='\textasciicircum{}shipping(S-\textless{}n\textgreater{}):' origin/\allowbreak{}archive/\allowbreak{}shipping}, and so are the regression tests that those entries cite. The entries from S-16 on are ported to this branch, one commit each, with the subject \texttt{S-\textless{}n\textgreater{}: \ldots{}} (\texttt{git log -{}-grep='\textasciicircum{}S-\textless{}n\textgreater{}:'}). The entries from T-0 on were written before PR \#7 and count the tests of that time; the edits that S-16 and S-22 made to the docstrings of replaced tests are not part of their commits on this branch.
 
-On this branch, the commit \texttt{Bump Lean to v4.35.0} (\texttt{fcdef9f}) follows \texttt{Update the README}; it has no entry here, and its message lists its changes and their effect on the corpus. T-0 then switches the toolchain to \texttt{v4.35.0-rc2} and adds the dependency on Metalean. The S-entries from S-16 on were first made on \texttt{v4.33.0-rc2}; their counts of tests and corpus files are those of that toolchain, and the effect of each port on this branch's corpus is the one its entry states. After S-24, this branch merges \texttt{fixes-port}, whose commit \texttt{Declare Prop inductives propositional} (\texttt{ceec073}) fixes R-7 and R-8; S-25 records the merge together with the commit that completes it. After S-26, it merges \texttt{fixes-port} again, for \texttt{Reduce cases on inductives whose sort may be Prop} (\texttt{9aad6b0}); S-27 records that merge together with the commit that completes it. After S-30, it merges \texttt{fixes-port} a third time, for \texttt{Reduce a function type to whnf before reading its binder} (\texttt{a36d37e}), which fixes R-5; S-31 records that merge together with the commit that completes it. After S-42, it merges \texttt{fixes-port} a fourth time, for \texttt{Reject Peano Nat literals above 65536 instead of crashing} (\texttt{cfc6fea}), which fixes R-6; S-45 records that merge. After S-45, it merges \texttt{fixes-port} a fifth time, for \texttt{Print primInt literals as bare integers} (\texttt{6680337}), which fixes R-1, and the eraser \texttt{\#erase\_\allowbreak{}lcnf} (\texttt{bcff7ff}, \texttt{53bc471}, \texttt{5f5b950}); S-46 records that merge. After S-50, T-2 switches the toolchain back to \texttt{v4.35.0}, with Metalean at its revision for that release.
+On this branch, the commit \texttt{Bump Lean to v4.35.0} (\texttt{fcdef9f}) follows \texttt{Update the README}; it has no entry here, and its message lists its changes and their effect on the corpus. T-0 then switches the toolchain to \texttt{v4.35.0-rc2} and adds the dependency on Metalean. The S-entries from S-16 on were first made on \texttt{v4.33.0-rc2}; their counts of tests and corpus files are those of that toolchain, and the effect of each port on this branch's corpus is the one its entry states. After S-24, this branch merges \texttt{fixes-port}, whose commit \texttt{Declare Prop inductives propositional} (\texttt{ceec073}) fixes R-7 and R-8; S-25 records the merge together with the commit that completes it. After S-26, it merges \texttt{fixes-port} again, for \texttt{Reduce cases on inductives whose sort may be Prop} (\texttt{9aad6b0}); S-27 records that merge together with the commit that completes it. After S-30, it merges \texttt{fixes-port} a third time, for \texttt{Reduce a function type to whnf before reading its binder} (\texttt{a36d37e}), which fixes R-5; S-31 records that merge together with the commit that completes it. After S-42, it merges \texttt{fixes-port} a fourth time, for \texttt{Reject Peano Nat literals above 65536 instead of crashing} (\texttt{cfc6fea}), which fixes R-6; S-45 records that merge. After S-45, it merges \texttt{fixes-port} a fifth time, for \texttt{Print primInt literals as bare integers} (\texttt{6680337}), which fixes R-1, and the eraser \texttt{\#erase\_\allowbreak{}lcnf} (\texttt{bcff7ff}, \texttt{53bc471}, \texttt{5f5b950}); S-46 records that merge. After S-50, T-2 switches the toolchain back to \texttt{v4.35.0}, with Metalean at its revision for that release. After T-3, it merges \texttt{main}, which then holds PR \#7 and PR \#24, for \texttt{Erase types and proofs behind @[irreducible] definitions} (\texttt{02a5a51}), which fixes R-14; S-55 records that merge. After S-55, it merges \texttt{main} again, for \texttt{Rework the README} (\texttt{909f52d}); T-4 records that merge.
 
 This register lists every change to the shipping code: the eraser (\leanfile{LeanToLambdaBox.lean}, \texttt{LeanToLambdaBox/}), the package files (\texttt{lakefile.toml}, \texttt{lean-toolchain}, \texttt{lake-manifest.json}), the benchmarks (\texttt{benchmarks/}) and the tooling that checks them (\texttt{scripts/}, \texttt{tests/}, \texttt{.github/\allowbreak{}workflows/}). The changes start from \texttt{main} at \texttt{58701f8}.
 
@@ -1692,6 +1693,43 @@ The probe of the declarations in \texttt{Init}, \texttt{Std}, \texttt{Lean} and 
 \item \textbf{Regression test:} none; the change is documentation.
 \end{itemize}
 
+\section{\texorpdfstring{S-55: Types and proofs behind \texttt{@[irreducible]} definitions are erased on the \texttt{Meta} path}{S-55: Types and proofs behind @[irreducible] definitions are erased on the Meta path}}\label{reg:S-55}
+
+\begin{itemize}
+\item \textbf{Commit:} the merge \texttt{Merge remote-tracking branch 'origin/\allowbreak{}main' into ml/\allowbreak{}translate}, which brings the commit \texttt{Erase types and proofs behind @[irreducible] definitions} of \texttt{main} (\texttt{02a5a51}, PR \#24), ported in the conflict resolution to the \texttt{CoreM} backend of S-16. No other commit is needed: the change is in the \texttt{Meta} path's oracle and its \texttt{MetaM} runner, which the pure path does not use.
+\item \textbf{Files and functions:}
+
+\begin{itemize}
+\item \leanfile{LeanToLambdaBox/\allowbreak{}Erasure.lean}: \texttt{runMetaM}, which runs every \texttt{MetaM} action of the \texttt{CoreM} backend (\texttt{isErasable}, \texttt{inferType}, \texttt{whnf}, \texttt{isPropFormerType}, \texttt{typeLevel}, \texttt{argMask}), runs it at transparency \texttt{.all} (\texttt{02a5a51} changes \texttt{liftMetaM}, which \texttt{runMetaM} replaces on this branch); \texttt{isErasable} reduces at the ambient transparency instead of calling \texttt{Meta.isProp} and \texttt{Meta.isTypeFormerType}, which reduce at default transparency, and erases sorts and \ensuremath{\Pi}-types without inferring their type (from \texttt{02a5a51}; its comment names \texttt{runMetaM}).
+\item \leanfile{tests/\allowbreak{}regress/\allowbreak{}irreducible.lean} with its goldens (from \texttt{02a5a51}, unchanged).
+\item \leanfile{tests/\allowbreak{}regress/\allowbreak{}entry\_\allowbreak{}route.lean}: \texttt{\#route ER.pidHR} now reports that \texttt{eraseEntry} also equals the \texttt{Meta} path's output, and the header says that both paths erase \texttt{pidHR} to \texttt{\ensuremath{\Box}}.
+\item \texttt{tests/\allowbreak{}harness/\allowbreak{}expected/\allowbreak{}pure-harness.txt}: the 13 lines of the \texttt{@[irreducible]} programs and the totals.
+\item \texttt{doc/\allowbreak{}SHIPPING-CHANGES.md}: this entry, the preamble and R-14.
+\end{itemize}
+\item \textbf{Why necessary:} R-14, reproduced on this branch on the \texttt{Meta} path by the pure harness: on the 13 corpus programs with an \texttt{@[irreducible]} alias, the \texttt{Meta} path kept a proof or a type as code (9 programs) or failed with \texttt{function expected} or \texttt{type expected} (4 programs), where the pure path, whose oracle reduces like the kernel (S-19, S-21), erases them. \texttt{02a5a51} fixes it on \texttt{main}; on this branch \texttt{MetaM} is run by \texttt{runMetaM}, so the merge changes \texttt{runMetaM}.
+\item \textbf{Behaviour before:} as described in R-14, on the \texttt{Meta} path; programs in the fragment are not affected, since \texttt{\#erase} erases them with the pure path.
+\item \textbf{Behaviour after:} the \texttt{Meta} path erases a type or a proof behind an \texttt{@[irreducible]} definition and does not fail on the four programs; on the 13 corpus programs its output is byte for byte the pure path's.
+\item \textbf{Effect on emitted .ast (corpus):} none: \texttt{scripts/\allowbreak{}corpus.sh -{}-check} passes (708 files), since the 13 programs are in the fragment and \texttt{\#erase} already wrote the pure path's output. \texttt{scripts/\allowbreak{}pure-harness.sh} passes with its expected summary updated: 294 \texttt{\#erase}, 225 in the fragment, 66 outside, 3 \texttt{collectDeps} errors; 219 identical (206), 6 differ (15), 0 without \texttt{Meta} output (4); 8326 oracle calls, 1 differs (14), none fails. The 6 programs that differ are those of the skipped \texttt{prepare} step (S-20): \texttt{attrEx} (both configurations) and \texttt{R\_\allowbreak{}attrEx.peano} (a \texttt{@[macro\_\allowbreak{}inline]} call kept), \texttt{quote\_\allowbreak{}inductive} and \texttt{NM\_\allowbreak{}matchEx.peano} (a matcher kept), and \texttt{and\_\allowbreak{}elim} (a matcher kept, and \texttt{And.casesOn}, built from projections, unfolded; its oracle call is the one that differs).
+\item \textbf{Regression test:} \texttt{irreducible} (from \texttt{02a5a51}) passes with \texttt{main}'s goldens byte for byte: peregrine validates \texttt{check.ast} and evaluates it to \texttt{Irr.B.t}; before the merge \texttt{\#erase} fails with \texttt{function expected}. \texttt{scripts/\allowbreak{}regress.sh} passes (31 tests), with \texttt{PEREGRINE}.
+\end{itemize}
+
+\section{\texorpdfstring{T-4: The README follows the layout of \texttt{main}'s}{T-4: The README follows the layout of main's}}\label{reg:T-4}
+
+\begin{itemize}
+\item \textbf{Commit:} the merge \texttt{Merge remote-tracking branch 'origin/\allowbreak{}main' into ml/\allowbreak{}translate} (the second one), which brings the commit \texttt{Rework the README} of \texttt{main} (\texttt{909f52d}).
+\item \textbf{Files and functions:}
+
+\begin{itemize}
+\item \texttt{README.md}: \texttt{main}'s README (tables of the clauses, options and tests; a Verification section; \texttt{\#erase\_\allowbreak{}lcnf} last, as experimental), with what differs on this branch: a note that the branch is the first layer of the Metalean stack; the dependency on Metalean and Mathlib (the text of T-3, as bullets); a "Routing" subsection on the pure path; the option \texttt{structural} and its note; the corpus and pure-harness scripts and this register under Tests. The conflict with T-3's README is resolved in this text.
+\item \texttt{doc/\allowbreak{}SHIPPING-CHANGES.md}: this entry and the preamble.
+\end{itemize}
+\item \textbf{Why necessary:} \texttt{main} reworked its README; this branch keeps it, with its own differences.
+\item \textbf{Behaviour before:} the README of T-3.
+\item \textbf{Behaviour after:} the README described above.
+\item \textbf{Effect on emitted .ast (corpus):} none: only the README changes.
+\item \textbf{Regression test:} none; the change is documentation.
+\end{itemize}
+
 \section{\texorpdfstring{Reported, not fixed}{Reported, not fixed}}\label{reg:reported-not-fixed}
 
 Each entry below was reproduced on this branch. Unless stated otherwise, the reproduction is an example in \leanfile{tests/\allowbreak{}corpus/\allowbreak{}Defects.lean} whose output lies in \texttt{examples/\allowbreak{}Defects/} of a corpus, and \texttt{peregrine} is \texttt{../\allowbreak{}peregrine-tool/\allowbreak{}\_\allowbreak{}build/\allowbreak{}default/\allowbreak{}bin/\allowbreak{}main.exe}.
@@ -1826,14 +1864,14 @@ Each entry below was reproduced on this branch. Unless stated otherwise, the rep
 \item \textbf{Why not fixed:} not required by the verification goal unless it later becomes required.
 \end{itemize}
 
-\subsection{\texorpdfstring{R-14: Erasability is decided by the elaborator at default transparency}{R-14: Erasability is decided by the elaborator at default transparency}}\label{reg:R-14}
+\subsection{\texorpdfstring{R-14: Erasability is decided by the elaborator at default transparency (fixed in S-55)}{R-14: Erasability is decided by the elaborator at default transparency (fixed in S-55)}}\label{reg:R-14}
 
 \begin{itemize}
 \item \textbf{What:} \texttt{isErasable} uses \texttt{Meta.inferType}, \texttt{Meta.isProp} and \texttt{Meta.isTypeFormerType}; the last one weak-head normalizes at default transparency, which does not unfold \texttt{@[irreducible]} definitions. A type behind an irreducible alias is therefore kept as a relevant term, and so is a proof whose proposition's sort is behind such an alias. Where \texttt{Meta.inferType} needs to unfold the alias to a \ensuremath{\Pi}-type or a sort, \texttt{\#erase} fails.
 \item \textbf{Where:} \leanfile{LeanToLambdaBox/\allowbreak{}Erasure.lean}: \texttt{isErasable}.
 \item \textbf{Reproduction:} \texttt{irreducible\_\allowbreak{}alias.ast}: \texttt{mkT : MyType}, with \texttt{@[irreducible] def MyType := Type}, is emitted as the declaration \texttt{mkT := id \ensuremath{\Box} \ensuremath{\Box}} instead of being erased. Programs in the fragment of the pure path are not affected: \texttt{\#erase} erases them with the pure oracle, which unfolds \texttt{@[irreducible]} definitions (S-19, S-21). In the corpus files \leanfile{tests/\allowbreak{}corpus/\allowbreak{}IrrAlias.lean} and \leanfile{tests/\allowbreak{}corpus/\allowbreak{}Examples.lean}, with \texttt{@[irreducible] def IProp : Type := Prop}, \texttt{axiom R : IProp} and \texttt{axiom hR : R}, \texttt{examples/\allowbreak{}IrrAlias/\allowbreak{}pidHR.default.ast} (\texttt{pid hR}) is \texttt{\ensuremath{\Box}}, \texttt{examples/\allowbreak{}Examples/\allowbreak{}irrAxiomArg.default.ast} (\texttt{guardR hR six}) passes \texttt{\ensuremath{\Box}} for \texttt{hR}, and \texttt{Irr.useFI := fI two} (with \texttt{@[irreducible] def EndoC : Type 1 := CNat \ensuremath{\to} CNat}) and \texttt{Irr.useLamHR := guardR (lamHR two) six} are erased; with the \texttt{Meta} oracle, the first two keep \texttt{hR} and the last two fail (\texttt{function expected}, \texttt{type expected}).
 \item \textbf{Impact:} under-erasure, for programs outside the fragment. In \texttt{irreducible\_\allowbreak{}alias.ast} the value computed is unaffected; a kept proof axiom stops \texttt{peregrine eval}; and \texttt{\#erase} refuses some programs.
-\item \textbf{Why not fixed:} not required by the verification goal unless it later becomes required.
+\item \textbf{Fixed:} in S-55, which describes the fix and its corpus effect: the \texttt{Meta} path erases these programs as the pure path does.
 \end{itemize}
 
 \subsection{\texorpdfstring{R-15: \texttt{\#erase} without \texttt{to} logs the program in place of the attributes}{R-15: \#erase without to logs the program in place of the attributes}}\label{reg:R-15}

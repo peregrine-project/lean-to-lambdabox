@@ -380,12 +380,15 @@ on the others. The pure path uses structural copies of \code{Expr.instantiate1},
   \label{def:Erasure-isErasable}
   \lean{Erasure.isErasable}
   \leanok
-  \srcloc{LeanToLambdaBox/Erasure.lean}{294}
+  \srcloc{LeanToLambdaBox/Erasure.lean}{297}
   \lead{In short} A term is erased to $\Box$ iff its type is a proposition or a
   type former, as \hl{decided by the elaborator}.
   \begin{itemize}
-  \item \lead{Lean} a \code{MetaM} function calling \code{Meta.inferType}, \code{Meta.isProp} and
-        \code{Meta.isTypeFormerType}; the \code{CoreM} backend's \code{isErasable};
+  \item \lead{Lean} a \code{MetaM} function calling \code{Meta.inferType}, \code{Meta.whnf} and
+        \code{Meta.forallTelescopeReducing}: the type is erased iff its telescope ends in a sort,
+        or in a proposition; the \code{CoreM} backend's \code{isErasable};
+  \item \lead{Transparency} \code{runMetaM} runs it at \code{.all}, so it unfolds
+        \code{@[irreducible]} definitions, as the kernel does;
   \item \lead{Caveat} these belong to Lean's elaborator (\code{Lean.Meta}), a different program
         from the kernel that Metalean models.
   \end{itemize}
@@ -396,7 +399,7 @@ on the others. The pure path uses structural copies of \code{Expr.instantiate1},
   \lean{Erasure.prepareErasure}
   \leanok
   \uses{def:Erasure-ErasureConfig}
-  \srcloc{LeanToLambdaBox/Erasure.lean}{405}
+  \srcloc{LeanToLambdaBox/Erasure.lean}{417}
   \lead{In short} The \code{CoreM} backend's \code{prepare}: rewrites the input term
   with passes of Lean's compiler before erasure.
   \begin{itemize}
@@ -416,7 +419,7 @@ on the others. The pure path uses structural copies of \code{Expr.instantiate1},
   \leanok
   \uses{def:LBTerm, def:abstract, def:toKername, def:ASTType, def:Erasure-EraseT,
     def:Erasure-isErasable, def:Erasure-prepareErasure}
-  \srcloc{LeanToLambdaBox/Erasure.lean}{1396}
+  \srcloc{LeanToLambdaBox/Erasure.lean}{1408}
   \lead{In short} Erases a term and its dependencies to a program by a
   \hl{fuel-bounded, generic traversal}; \code{erase} runs it with the \code{CoreM} backend.
   \begin{itemize}
