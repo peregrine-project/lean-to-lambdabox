@@ -4,8 +4,8 @@ The Lean 4 frontend of [Peregrine](https://github.com/peregrine-project/peregrin
 Lean's kernel terms (`Expr`) to the untyped λ□ (LambdaBox) and writes them in Peregrine's
 S-expression format.
 
-> **This branch** is `l4l/verification`, the second layer of the Lean4Lean verification stack
-> ([Verification](#verification)): `l4l/translate` and the [proof](#checking-the-proof). It is not meant for `main`; use `main` for the production
+> **This branch** is `l4l/blueprint`, the third layer of the Lean4Lean verification stack
+> ([Verification](#verification)): `l4l/verification` and the [blueprint](#the-blueprint). It is not meant for `main`; use `main` for the production
 > frontend. Here `#erase` erases the programs of the verified fragment with the [pure path](#routing).
 > The branch stays on lean4lean's Lean version, so it does not have the fixes of `main` made after
 > the bump to `v4.35.0`.
@@ -104,6 +104,13 @@ theorem is `EraseProof.erase_correct` ([`proof/EraseProof/Main.lean`](proof/Eras
 | `--no-regress`, `--no-peregrine`, `--no-final` | Skip the regression tests, the peregrine checks, or the check of the final statement. |
 
 Logs go to `proof/.check/`.
+
+## The blueprint
+
+`blueprint/` is a [leanblueprint](https://github.com/PatrickMassot/leanblueprint) of the proof. Its
+audit checks that every node links to an existing Lean declaration and that a node is marked proved
+only if its declaration is. [`blueprint/README.md`](blueprint/README.md) describes the build
+(`blueprint/build.sh`) and the audit.
 
 ## Verification
 
