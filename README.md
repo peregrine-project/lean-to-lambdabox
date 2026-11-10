@@ -4,19 +4,14 @@ The Lean 4 frontend of [Peregrine](https://github.com/peregrine-project/peregrin
 Lean's kernel terms (`Expr`) to the untyped λ□ (LambdaBox) and writes them in Peregrine's
 S-expression format.
 
+> **This branch** is `ml/translate`, the first layer of the Metalean verification stack
+> ([Verification](#verification)). It is not meant for `main`; use `main` for the production
+> frontend. Here `#erase` erases the programs of the verified fragment with the [pure path](#routing).
+
 - Builds with Lean `v4.35.0` ([`lean-toolchain`](lean-toolchain)).
-- Has no dependencies.
-
-## Installation
-
-Add the package to your `lakefile.toml`:
-
-```toml
-[[require]]
-name = "lean_to_lambdabox"
-git = "https://github.com/peregrine-project/lean-to-lambdabox"
-rev = "main"
-```
+- Depends on [Metalean](https://github.com/intgrah/metalean), and through it on Mathlib (run `lake exe cache get` for its build).
+- `import LeanToLambdaBox` loads neither Metalean nor Mathlib. `LeanToLambdaBox.Metalean` loads both, and `lake build LeanToLambdaBox.Metalean` checks the dependency.
+- Lake still clones Metalean, Mathlib and Mathlib's dependencies for every package that requires this one.
 
 ## Usage
 
@@ -40,6 +35,16 @@ The full syntax is:
 | `to "f.ast"` | the λ□ program to `f.ast`, and the constants Peregrine should inline to `f.ast.inlinings` | both are logged |
 | `mli "f.mli"` | the program's OCaml signature, `val main: …` | it is logged |
 
+### Routing
+
+`#erase` checks whether the program's dependency closure lies in the verified fragment
+(`Erasure.collectDeps`, [`Erasure/Entry.lean`](LeanToLambdaBox/Erasure/Entry.lean)):
+
+| Program | Path |
+|---|---|
+| In the fragment | The **pure path**: the same traversal, with an oracle on kernel terms instead of `MetaM`. It skips the compiler's preprocessing (`macro_inline`, matcher inlining, `csimp`), so an `if` evaluates both branches. |
+| Outside it | The path of `main`. |
+
 ## Options
 
 The fields of `Erasure.ErasureConfig` ([`Erasure.lean`](LeanToLambdaBox/Erasure.lean)). The first value is the default.
@@ -51,6 +56,7 @@ The fields of `Erasure.ErasureConfig` ([`Erasure.lean`](LeanToLambdaBox/Erasure.
 | `csimp` | `true`, `false` | Whether to apply the `@[csimp]` replacements (e.g. tail-recursive variants). |
 | `remove_irrel_constr_args` | `false`, `true` | Whether to drop computationally irrelevant constructor arguments. |
 | `auto_inline_typeclass_dispatch` | `false`, `true` | Whether to also list in `.ast.inlinings` the instances and trivial aliases that typeclass dispatch goes through (e.g. `HAdd.hAdd → instHAdd → instAddNat → Nat.add`). |
+| `structural` | `.unsafeRec`, `.kernel` | Whether a definition by structural recursion is erased through the `_unsafe_rec` definition that the compiler compiles (a fixpoint calling itself), or through its kernel definition (`T.brecOn` and the recursor `T.rec`). |
 
 Notes:
 - **`nat := .machine`** needs `extern := .preferAxiom`. The arithmetic functions on `Nat` are then axioms, implemented in the target language (e.g. with Zarith for OCaml).
@@ -61,6 +67,11 @@ Notes:
   - its body has at most 40 nodes after inlining.
 
   Each decision is logged.
+- **`structural := .kernel`** computes the function on every structural subterm of its argument (the table `T.below`) before its body runs, so it is slow. A definition keeps its `_unsafe_rec` definition if any of these holds:
+  - it uses well-founded recursion, or is `partial`;
+  - it recurses on a nested inductive;
+  - it recurses on `Nat` under `nat := .machine`;
+  - it replaces another by a `@[csimp]` theorem while `csimp` is on.
 - **A program with no axioms**, such as one erased with `config {nat := .peano, extern := .preferLogical}`, runs with `peregrine eval`.
 
 ## With Peregrine
@@ -80,6 +91,11 @@ in as OCaml code. [`benchmarks/`](benchmarks/README.md) shows the whole pipeline
 | `scripts/regress.sh [<test>…]` | Each `tests/regress/<test>.lean` writes exactly the files in `tests/regress/expected/<test>/`, with no error and no `PANIC`. |
 | `PEREGRINE=<binary> scripts/regress.sh` | Also each test's `-- peregrine: validate\|eval <file>` lines, against `tests/regress/expected-peregrine/<test>/`. |
 | `scripts/regress.sh --update [<test>…]` | Rewrites the expected files; review the diff. |
+| `scripts/corpus.sh --check <dir>` | Erases the corpus (the benchmarks and `tests/corpus/*.lean`) into `<dir>` and compares it with `tests/corpus/SHA256SUMS`. |
+| `scripts/pure-harness.sh [--update]` | Erases each corpus program in the fragment with both paths, and compares the summary with `tests/harness/expected/pure-harness.txt`. |
+
+[`doc/SHIPPING-CHANGES.md`](doc/SHIPPING-CHANGES.md) records every change to the code of `main` on
+this branch, with its effect on the corpus, and the defects found but not fixed.
 
 ## Verification
 
@@ -88,18 +104,18 @@ the style of MetaRocq's `erase_correct`. Both theorems state partial correctness
 Lean: if a term in the fragment evaluates to a value, the program `#erase` emits evaluates, under
 MetaRocq's λ□ semantics, to an erasure of that value.
 
-The proofs are about a variant of this frontend, kept on separate branches. `main` is the
-production frontend: it erases every program with the path described above, which is not verified.
+The proofs are about this variant of the frontend, kept on separate branches. `main` is the
+production frontend: it erases every program with its own path, which is not verified.
 
 Each stack is three branches, each a PR on the one before:
 
 | Branch | Content |
 |---|---|
-| `*/translate` | The frontend, with its traversal generic over its backend. It adds a **pure path**: no `MetaM`, no compiler preprocessing (`macro_inline`, matcher inlining, `csimp`), and an oracle proved sound against the model. A fragment test sends `#erase` programs in the fragment to the pure path and the others to the path of `main`. |
+| `*/translate` | The frontend, with its traversal generic over its backend. It adds the [pure path](#routing), whose oracle is proved sound against the model, and the fragment test that routes `#erase` programs to it. |
 | `*/verification` | `proof/`: the theorem, the non-vacuity instances (concrete programs on which every hypothesis is proved), and `proof/scripts/check.sh`. `doc/DIVERGENCES.md` lists the departures from MetaRocq's erasure. |
 | `*/blueprint` | `blueprint/`: a [leanblueprint](https://github.com/PatrickMassot/leanblueprint) of the proof, with an audit of its links to the Lean code. |
 
-| | Lean4Lean stack | Metalean stack |
+| | Lean4Lean stack | Metalean stack (this one) |
 |---|---|---|
 | Model of the kernel | [lean4lean](https://github.com/digama0/lean4lean) | [Metalean](https://github.com/intgrah/metalean) |
 | Lean | `v4.33.0-rc2` (lean4lean's) | `v4.35.0` |

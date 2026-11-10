@@ -4,3 +4,8 @@ defaultTargets = ["LeanToLambdaBox"]
 
 [[lean_lib]]
 name = "LeanToLambdaBox"
+
+[[require]]
+name = "metalean"
+git = "https://github.com/intgrah/metalean"
+rev = "0146928517ff839f52d8de71c8da7beb108c78a9"

@@ -1,0 +1,1 @@
+(Untyped ((((MPfile ()) "PI_u46B") (InductiveDecl (mutual_inductive_body Finite 0 ((one_inductive_body "PI.B" false IntoAny ((constructor_body "PI.B.f" 0) (constructor_body "PI.B.t" 0)) ())))))) (Some (tConstruct (inductive ((MPfile ()) "PI_u46B") 0) 0 ())))

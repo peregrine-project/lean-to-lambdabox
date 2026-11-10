@@ -1,0 +1,1 @@
+(Untyped ((((MPdot (MPfile ()) "PB") "useExt") (ConstantDecl (constant_body (Some (tLambda (nNamed "x") (tApp (tConst ((MPdot (MPfile ()) "PB") "ext")) (tRel 0))))))) (((MPdot (MPfile ()) "PB") "ext") (ConstantDecl (constant_body None)))) (Some (tConst ((MPdot (MPfile ()) "PB") "useExt"))))
