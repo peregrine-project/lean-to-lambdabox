@@ -113,6 +113,11 @@ literal, such as the bound 1114112 in `Char.ofNat`, would exhaust Lean's stack o
 file (200000 still works, 400000 crashes Lean). -/
 def peanoMaxLiteral : Nat := 65536
 
+/-- The largest `Nat` literal that `nat := .machine` erases to a 63-bit signed integer: 2^62 - 1.
+A `Nat`, so that a range check compares natural numbers and does not reduce the literal modulo
+2^63, as a comparison in `BitVec 63` does. -/
+def machineMaxLiteral : Nat := (BitVec.intMax 63).toNat
+
 /--
 Number of nodes of the term after Peregrine's inlining pass, which replaces every constant listed
 in `.ast.inlinings` by its body, in which the listed constants are already replaced: a constant `kn`
@@ -575,10 +580,12 @@ where
       else
         visitConstructor ``Nat.succ #[.lit (.natVal (n - 1))]
     | .machine, .natVal n =>
-      if n <= BitVec.intMax 63 then
-        pure <| .prim ⟨.primInt, n⟩
+      if n > machineMaxLiteral then
+        let decl := (← read).decl
+        let site := if decl.isAnonymous then m!"the erased term" else m!"{.ofConstName decl}"
+        throwError "#erase: the Nat literal {n} in {site} exceeds {machineMaxLiteral}, the largest literal that `nat := .machine` erases to a 63-bit signed integer"
       else
-        panic! "Nat literal not representable as a 63-bit signed integer."
+        pure <| .prim ⟨.primInt, n⟩
     | _, .strVal _ => panic! "String literals not supported."
 
   /-
