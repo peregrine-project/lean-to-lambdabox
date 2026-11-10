@@ -1,0 +1,161 @@
+#!/usr/bin/env bash
+# Run the checks of the proof package.
+#
+# Usage: proof/scripts/check.sh [--no-regress] [--no-peregrine] [--no-final]
+#
+#   build     C1   `lake build` of the root package (the eraser and the Metalean modules it
+#                  imports) and of proof/ (library EraseProof).
+#             C8   the tests (namespace EraseProof.Test: the non-vacuity instances and the register
+#                  tests) are modules of the library, so this builds them; `report` pins their
+#                  footprints.
+#   tokens    C2   no sorry, admit, axiom, opaque, native_decide, native, bv_decide, unsafe,
+#                  implemented_by, extern (and the other tokens of scripts/scan_tokens.py) in
+#                  proof/**/*.lean outside comments and strings, also quoted as «sorry».
+#   replay         the kernel replay of the library: `leanchecker LeanToLambdaBox EraseProof` (the toolchain's
+#                  lean4checker) adds every declaration of every module LeanToLambdaBox.* and EraseProof.* again
+#                  through the kernel, over the environment of the module's imports, and compares
+#                  constructors and recursors with those the kernel generates; it skips partial
+#                  and unsafe declarations, which the report rejects in the library. It covers the
+#                  modules of the library and of the shipping code, not their other imports
+#                  (Metalean, Mathlib).
+#   report    C3-C7, C9, C12, C12b, run by `lake env lean --run tools/Report.lean` in proof/:
+#                  axiom footprints within propext, Classical.choice, Quot.sound (no sorryAx, no
+#                  Cardinal.exists_inaccessibles, no native axiom); no constant reached whose body
+#                  mentions sorryAx; Metalean's Frontend, Checker, Export, SetSemantics and
+#                  SetTheory modules and the tests unreachable from non-test declarations (by the
+#                  constants reached, by module and by name), except what the translator's total
+#                  term builders reach, none of it partial, opaque, unsafe or implemented_by;
+#                  no leaves with respect to ROOTS.txt, the statement definitions and the proved
+#                  theorems with a statement (collectDeps_ok_of, which characterizes the programs
+#                  that pass the fragment test, is a result of its own: erase_correct takes that
+#                  test as its hypothesis hfrag and does not use it) and the corollary erase_correct_firstorder, and every test that is not a theorem used by a test theorem; footprints of roots
+#                  and test theorems equal axioms.expected; every source file imported; the entries
+#                  of doc/DIVERGENCES.md well-formed, citing existing declarations (EraseProof.*,
+#                  Metalean.*, Erasure.*), files and lines (proof/, Metalean/ in the Metalean
+#                  checkout, LeanToLambdaBox/, and, with METAROCQ=<MetaRocq checkout> in the
+#                  environment, MetaRocq's <dir>/theories/*.v, where a line cited right after an
+#                  identifier shows it), and every DV-<n> that the register, proof/ or
+#                  LeanToLambdaBox/ cites an entry; C12, always: the statement definitions of
+#                  EraseProof/Statements.lean exist, and each of erase_correct, collectDeps_ok_of,
+#                  erases_correct and erasePure_erases that is proved has a type definitionally
+#                  equal to its statement definition, the others being listed as not yet proved;
+#                  C12, the final form: EraseProof.erase_correct is the only root of ROOTS.txt
+#                  with consumer FINAL (any other root waits for a consumer that has not landed),
+#                  every statement is proved, and erase_correct's footprint is exactly propext,
+#                  Classical.choice, Quot.sound, as is that of its instances on NV-1, NV-P, NV-K,
+#                  NV-2, NV-Q, NV-R, NV-S, NV-L, NV-QP and NV-A,
+#                  EraseProof.Test.{NV1,NVP,NVK,NV2,NVQ,NVR,NVS,NVL,NVQP,NVA}.final, whose
+#                  hypothesis terms lie within them, and so is that of the corollary
+#                  erase_correct_firstorder, whose instances
+#                  EraseProof.Test.{NV1,NV2,NVR,NVS,NVL}.firstorder lie within them and mention it
+#                  (skipped with --no-final); C12b, always: the statement definitions
+#                  and the library, shipping and Metalean definitions they reach (kind and flags
+#                  included; the shipping functions under verification, collectDeps, erasePure and
+#                  eraseEntry, and the other dependencies by name only) have the SHA-256 digests of
+#                  proof/spec.pin, every
+#                  pinned constant exists, and the toolchain and git dependency revisions of both
+#                  packages are the pinned ones. See the header of tools/Report.lean.
+#   nv1-emit  C11  the part of C11 that needs no peregrine: proof/tools/NVEmit.lean runs #erase's
+#                  entry point on NV-1's, NV-2's, NV-Q's, NV-R's, NV-S's, NV-QP's (on both of its
+#                  terms), NV-L's and NV-A's programs and fails unless it emits
+#                  exactly the programs the instances' runs compute. Runs once tools/NVEmit.lean exists; required by
+#                  the final form.
+#   regress   C10  the shipping regression tests, scripts/regress.sh (skipped with --no-regress);
+#                  with PEREGRINE set, also their `-- peregrine:` lines.
+#   peregrine C11  proof/scripts/c11.sh: `peregrine validate` and `peregrine eval` on NV-1's,
+#                  NV-2's, NV-Q's, NV-R's, NV-S's, NV-QP's, NV-L's and NV-A's programs (from nv1-emit), on every output the regression tests write under
+#                  `nat := .peano`, and on their outputs for NV-1, NV-P and NV-K; each value must
+#                  be the Lean program's. Runs only with PEREGRINE=<peregrine binary> in the
+#                  environment, so GitHub CI skips it; skipped with --no-peregrine.
+#
+# Logs go to proof/.check/<step>.log; the report also writes proof/.check/footprints.txt and
+# proof/.check/axioms.actual (what axioms.expected should contain).
+#
+# Exit status: 0 if every step passes, 1 otherwise. A failed build stops the script; the other
+# steps all run.
+set -euo pipefail
+
+PROOF=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+ROOT=$(cd "$PROOF/.." && pwd)
+LOG=$PROOF/.check
+
+regress=1
+peregrine=1
+final=()
+metarocq=()
+if [ -n "${METAROCQ:-}" ]; then metarocq=(--metarocq "$(cd "$METAROCQ" && pwd)"); fi
+for a in "$@"; do
+  case $a in
+    --no-regress) regress=0 ;;
+    --no-peregrine) peregrine=0 ;;
+    --no-final) final=(--no-final) ;;
+    -h|--help) sed -n '2,68p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) echo "error: unknown argument $a" >&2; exit 2 ;;
+  esac
+done
+
+mkdir -p "$LOG"
+failed=()
+
+# run NAME COMMAND...: run COMMAND with output to $LOG/NAME.log; on failure print the log's tail
+# and record NAME.
+run() {
+  local name=$1
+  shift
+  echo "== $name"
+  if "$@" >"$LOG/$name.log" 2>&1; then
+    return 0
+  fi
+  tail -n 60 "$LOG/$name.log"
+  echo "FAIL $name (log: $LOG/$name.log)"
+  failed+=("$name")
+  return 1
+}
+
+build_root() ( cd "$ROOT" && lake build LeanToLambdaBox LeanToLambdaBox.Metalean )
+build_proof() ( cd "$PROOF" && lake build )
+# leanchecker replays every module in a task of its own, each over a fresh import of the module's
+# dependencies (Mathlib included); the thread count bounds how many such environments are live at
+# once, and so the replay's memory.
+replay() ( cd "$PROOF" && LEAN_NUM_THREADS="${REPLAY_THREADS:-3}" lake env leanchecker LeanToLambdaBox EraseProof )
+report() (
+  cd "$PROOF" &&
+    lake env lean --run tools/Report.lean ${final[@]+"${final[@]}"} ${metarocq[@]+"${metarocq[@]}"}
+)
+nv1_emit() {
+  rm -rf "$LOG/nv1" && mkdir -p "$LOG/nv1" &&
+    ( cd "$PROOF" && lake env lean --run tools/NVEmit.lean "$LOG/nv1/NV1.ast" "$LOG/nv1/NV2.ast" \
+      "$LOG/nv1/NVQ.ast" "$LOG/nv1/NVR.ast" "$LOG/nv1/NVS.ast" "$LOG/nv1/NVQP.ast" \
+      "$LOG/nv1/NVQPFT.ast" "$LOG/nv1/NVL.ast" "$LOG/nv1/NVA.ast" )
+}
+c11() { rm -rf "$LOG/c11" && "$PROOF/scripts/c11.sh" --out "$LOG/c11"; }
+
+run build-root build_root || exit 1
+run build-proof build_proof || exit 1
+run tokens python3 "$PROOF/scripts/scan_tokens.py" "$PROOF" || true
+run replay replay || true
+if run report report; then cat "$LOG/report.log"; fi
+if [ -f "$PROOF/tools/NVEmit.lean" ]; then
+  if run nv1-emit nv1_emit; then cat "$LOG/nv1-emit.log"; fi
+elif [ ${#final[@]} -eq 0 ]; then
+  echo "== nv1-emit"; echo "FAIL nv1-emit: tools/NVEmit.lean is missing (required by the final form)"
+  failed+=(nv1-emit)
+else
+  echo "== nv1-emit: skipped (tools/NVEmit.lean has not landed)"
+fi
+if [ $regress = 1 ]; then
+  run regress "$ROOT/scripts/regress.sh" || true
+fi
+if [ $peregrine = 0 ]; then
+  echo "== peregrine: skipped (--no-peregrine)"
+elif [ -z "${PEREGRINE:-}" ]; then
+  echo "== peregrine: skipped (PEREGRINE is not set)"
+elif run peregrine c11; then
+  tail -n 1 "$LOG/peregrine.log"
+fi
+
+if [ ${#failed[@]} -gt 0 ]; then
+  echo "check.sh: failed: ${failed[*]}"
+  exit 1
+fi
+echo "check.sh: all checks passed"

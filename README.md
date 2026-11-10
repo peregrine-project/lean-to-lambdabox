@@ -4,8 +4,8 @@ The Lean 4 frontend of [Peregrine](https://github.com/peregrine-project/peregrin
 Lean's kernel terms (`Expr`) to the untyped λ□ (LambdaBox) and writes them in Peregrine's
 S-expression format.
 
-> **This branch** is `ml/translate`, the first layer of the Metalean verification stack
-> ([Verification](#verification)). It is not meant for `main`; use `main` for the production
+> **This branch** is `ml/verification`, the second layer of the Metalean verification stack
+> ([Verification](#verification)): `ml/translate` and the [proof](#checking-the-proof). It is not meant for `main`; use `main` for the production
 > frontend. Here `#erase` erases the programs of the verified fragment with the [pure path](#routing).
 
 - Builds with Lean `v4.35.0` ([`lean-toolchain`](lean-toolchain)).
@@ -96,6 +96,24 @@ in as OCaml code. [`benchmarks/`](benchmarks/README.md) shows the whole pipeline
 
 [`doc/SHIPPING-CHANGES.md`](doc/SHIPPING-CHANGES.md) records every change to the code of `main` on
 this branch, with its effect on the corpus, and the defects found but not fixed.
+
+## Checking the proof
+
+`proof/` is a Lake package of its own (library `EraseProof`) that shares the root's packages (run
+`lake exe cache get` there too). The theorem is `EraseProof.erase_correct`
+([`proof/EraseProof/Final.lean`](proof/EraseProof/Final.lean)), whose statement is in
+[`proof/EraseProof/Statements.lean`](proof/EraseProof/Statements.lean);
+[`doc/DIVERGENCES.md`](doc/DIVERGENCES.md) lists where it departs from MetaRocq's erasure.
+
+| Command | Checks |
+|---|---|
+| `proof/scripts/check.sh` | Builds the eraser and `proof/`. Checks that `proof/` has no `sorry`, `axiom` or similar token, and that Lean's kernel replays every declaration. Checks every axiom footprint against `proof/axioms.expected` (only `propext`, `Classical.choice`, `Quot.sound`), and that the definitions the statements reach have the digests of `proof/spec.pin`. Checks that `#erase` emits exactly the programs of the non-vacuity instances, and that the regression tests pass. |
+| `PEREGRINE=<binary> proof/scripts/check.sh` | Also runs `peregrine validate` and `eval` on the instances' programs and on the regression outputs under `nat := .peano`, and compares the values with Lean's. |
+| `--no-regress`, `--no-peregrine`, `--no-final` | Skip the regression tests, the peregrine checks, or the check of the final form. |
+
+Logs go to `proof/.check/`. After an intended change of a definition the statements reach,
+`lake env lean --run tools/Report.lean --write-pin spec.pin` (in `proof/`) rewrites the pin; review
+the diff.
 
 ## Verification
 
