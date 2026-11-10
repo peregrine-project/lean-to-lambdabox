@@ -1,0 +1,1 @@
+(Untyped ((((MPdot (MPfile ()) "Api") "useSlow") (ConstantDecl (constant_body (Some (tLambda (nNamed "n") (tApp (tConst ((MPdot (MPfile ()) "Api") "fast")) (tRel 0))))))) (((MPdot (MPfile ()) "Api") "fast") (ConstantDecl (constant_body (Some (tLambda (nNamed "n") (tRel 0))))))) (Some (tConst ((MPdot (MPfile ()) "Api") "useSlow"))))

@@ -9,12 +9,12 @@ inductive ModPath where
 | MPfile  (dp : DirPath)
 | MPdot   (mp : ModPath) (id : Ident)
 -- MPBound is about functors (in the sense of ML module systems).
-deriving Inhabited, Repr
+deriving Inhabited, Repr, BEq, Hashable
 
 structure Kername where
   mp: ModPath
   id: Ident
-deriving Inhabited, Repr
+deriving Inhabited, Repr, BEq, Hashable
 
 def toModPath (n: Name): ModPath :=
   match n with
@@ -144,8 +144,8 @@ deriving Inhabited, Repr
 
 structure OneInductiveBody where
   name : Ident
-  /-- True iff the inductive lives in Prop. -/
-  propositional : Bool := false -- I think, since erasure should remove anything which ends up in Prop
+  /-- True iff the inductive lives in Prop. λ□ reduces a `case` on □ only for such an inductive. -/
+  propositional : Bool
   kelim : AllowedEliminations := .IntoAny
   ctors : List ConstructorBody
   projs : List ProjectionBody -- This is only about giving user-visible names to projections, but `peregrine` complains about wellformedness if it is empty.
