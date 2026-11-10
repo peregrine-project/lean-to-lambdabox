@@ -31,7 +31,10 @@ instead of crashing` (`cfc6fea`), which fixes R-6; S-45 records that merge.
 After S-45, it merges `fixes-port` a fifth time, for `Print primInt literals as bare integers`
 (`6680337`), which fixes R-1, and the eraser `#erase_lcnf` (`bcff7ff`, `53bc471`, `5f5b950`);
 S-46 records that merge. After S-50, T-2 switches the toolchain back to `v4.35.0`, with Metalean
-at its revision for that release.
+at its revision for that release. After T-3, it merges `main`, which then holds PR #7 and PR #24,
+for `Erase types and proofs behind @[irreducible] definitions` (`02a5a51`), which fixes R-14;
+S-55 records that merge. After S-55, it merges `main` again, for `Rework the README` (`909f52d`);
+T-4 records that merge.
 
 This register lists every change to the shipping code: the eraser
 (`LeanToLambdaBox.lean`, `LeanToLambdaBox/`), the package files (`lakefile.toml`, `lean-toolchain`,
@@ -3738,6 +3741,67 @@ the calls at which the two oracles answer differently. It must equal
 - **Effect on emitted .ast (corpus):** none: only the README changes.
 - **Regression test:** none; the change is documentation.
 
+## S-55: Types and proofs behind `@[irreducible]` definitions are erased on the `Meta` path
+
+- **Commit:** the merge `Merge remote-tracking branch 'origin/main' into ml/translate`, which brings
+  the commit `Erase types and proofs behind @[irreducible] definitions` of `main` (`02a5a51`, PR
+  #24), ported in the conflict resolution to the `CoreM` backend of S-16. No other commit is
+  needed: the change is in the `Meta` path's oracle and its `MetaM` runner, which the pure path
+  does not use.
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure.lean`: `runMetaM`, which runs every `MetaM` action of the `CoreM`
+    backend (`isErasable`, `inferType`, `whnf`, `isPropFormerType`, `typeLevel`, `argMask`), runs it
+    at transparency `.all` (`02a5a51` changes `liftMetaM`, which `runMetaM` replaces on this
+    branch); `isErasable` reduces at the ambient transparency instead of calling
+    `Meta.isProp` and `Meta.isTypeFormerType`, which reduce at default transparency, and erases
+    sorts and Π-types without inferring their type (from `02a5a51`; its comment names `runMetaM`).
+  - `tests/regress/irreducible.lean` with its goldens (from `02a5a51`, unchanged).
+  - `tests/regress/entry_route.lean`: `#route ER.pidHR` now reports that `eraseEntry` also equals
+    the `Meta` path's output, and the header says that both paths erase `pidHR` to `□`.
+  - `tests/harness/expected/pure-harness.txt`: the 13 lines of the `@[irreducible]` programs and
+    the totals.
+  - `doc/SHIPPING-CHANGES.md`: this entry, the preamble and R-14.
+- **Why necessary:** R-14, reproduced on this branch on the `Meta` path by the pure harness: on
+  the 13 corpus programs with an `@[irreducible]` alias, the `Meta` path kept a proof or a type as
+  code (9 programs) or failed with `function expected` or `type expected` (4 programs), where the
+  pure path, whose oracle reduces like the kernel (S-19, S-21), erases them. `02a5a51` fixes it on
+  `main`; on this branch `MetaM` is run by `runMetaM`, so the merge changes `runMetaM`.
+- **Behaviour before:** as described in R-14, on the `Meta` path; programs in the fragment are not
+  affected, since `#erase` erases them with the pure path.
+- **Behaviour after:** the `Meta` path erases a type or a proof behind an `@[irreducible]`
+  definition and does not fail on the four programs; on the 13 corpus programs its output is byte
+  for byte the pure path's.
+- **Effect on emitted .ast (corpus):** none: `scripts/corpus.sh --check` passes (708 files), since
+  the 13 programs are in the fragment and `#erase` already wrote the pure path's output.
+  `scripts/pure-harness.sh` passes with its expected summary updated: 294 `#erase`, 225 in the
+  fragment, 66 outside, 3 `collectDeps` errors; 219 identical (206), 6 differ (15), 0 without
+  `Meta` output (4); 8326 oracle calls, 1 differs (14), none fails. The 6 programs that differ are
+  those of the skipped `prepare` step (S-20): `attrEx` (both configurations) and `R_attrEx.peano`
+  (a `@[macro_inline]` call kept), `quote_inductive` and `NM_matchEx.peano` (a matcher kept), and
+  `and_elim` (a matcher kept, and `And.casesOn`, built from projections, unfolded; its oracle call
+  is the one that differs).
+- **Regression test:** `irreducible` (from `02a5a51`) passes with `main`'s goldens byte for byte:
+  peregrine validates `check.ast` and evaluates it to `Irr.B.t`; before the merge `#erase` fails
+  with `function expected`. `scripts/regress.sh` passes (31 tests), with `PEREGRINE`.
+
+## T-4: The README follows the layout of `main`'s
+
+- **Commit:** the merge `Merge remote-tracking branch 'origin/main' into ml/translate` (the second
+  one), which brings the commit `Rework the README` of `main` (`909f52d`).
+- **Files and functions:**
+  - `README.md`: `main`'s README (tables of the clauses, options and tests; a Verification
+    section; `#erase_lcnf` last, as experimental), with what differs on this branch: a note that
+    the branch is the first layer of the Metalean stack; the dependency on Metalean and Mathlib
+    (the text of T-3, as bullets); a "Routing" subsection on the pure path; the option
+    `structural` and its note; the corpus and pure-harness scripts and this register under Tests.
+    The conflict with T-3's README is resolved in this text.
+  - `doc/SHIPPING-CHANGES.md`: this entry and the preamble.
+- **Why necessary:** `main` reworked its README; this branch keeps it, with its own differences.
+- **Behaviour before:** the README of T-3.
+- **Behaviour after:** the README described above.
+- **Effect on emitted .ast (corpus):** none: only the README changes.
+- **Regression test:** none; the change is documentation.
+
 ## Reported, not fixed
 
 Each entry below was reproduced on this branch. Unless stated otherwise, the reproduction is an
@@ -3939,7 +4003,7 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
   a proof about the kernel term refers to.
 - **Why not fixed:** not required by the verification goal unless it later becomes required.
 
-### R-14: Erasability is decided by the elaborator at default transparency
+### R-14: Erasability is decided by the elaborator at default transparency (fixed in S-55)
 
 - **What:** `isErasable` uses `Meta.inferType`, `Meta.isProp` and `Meta.isTypeFormerType`; the last
   one weak-head normalizes at default transparency, which does not unfold `@[irreducible]`
@@ -3960,7 +4024,8 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
 - **Impact:** under-erasure, for programs outside the fragment. In `irreducible_alias.ast` the value
   computed is unaffected; a kept proof axiom stops `peregrine eval`; and `#erase` refuses some
   programs.
-- **Why not fixed:** not required by the verification goal unless it later becomes required.
+- **Fixed:** in S-55, which describes the fix and its corpus effect: the `Meta` path erases these
+  programs as the pure path does.
 
 ### R-15: `#erase` without `to` logs the program in place of the attributes
 
