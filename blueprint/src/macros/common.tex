@@ -1,0 +1,69 @@
+% Macros shared by the web and the print version. Chapters define no macro of their own.
+
+% Theorem-like environments: the nodes of the dependency graph.
+\newtheorem{theorem}{Theorem}[chapter]
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+% The declarations of a lean4lean module that the proof library or the shipping code uses directly
+% (generated/lean4lean-imports.tex, written by blueprint/scripts/audit.py --update).
+\newtheorem{imported}[theorem]{Imported}
+
+% Inline code (escape underscores: \code{prepare\_erasure}).
+\newcommand{\code}[1]{\texttt{#1}}
+
+% Schematic style: a bold run-in label, and at most one highlight per node.
+\newcommand{\lead}[1]{\textbf{#1.}\ }
+\definecolor{hlcolor}{HTML}{8B1A1A}
+\newcommand{\hl}[1]{\textbf{\textcolor{hlcolor}{#1}}}
+
+% Node kinds (blueprint/scripts/kinds.py; README, section "Node kinds and dependency graphs").
+% generated/kinds.tex, which both drivers read after this file, calls
+% \bpdefinekind{K}{fill}{line}{badge} for every kind K, \bpdefinestatus{S}{line} for every status
+% S, \bpdefinenodes{chapter}{badges} for every chapter with nodes and
+% \bpsetkind{label}{K}{S}{inherited sorries} for every node. \bpkind{K} prints the badge of kind K
+% in the colours of the graphs, and \bpnodes{chapter} the nodes of a chapter by kind: print.tex
+% defines both, and the plasTeX package scripts/bpkinds.py for the web version.
+\newcommand{\bpdefinekind}[4]{\definecolor{bpfill#1}{HTML}{#2}\definecolor{bpline#1}{HTML}{#3}%
+  \expandafter\def\csname bpname#1\endcsname{#4}}
+\newcommand{\bpdefinestatus}[2]{\definecolor{bpstatus#1}{HTML}{#2}}
+
+% Status badges, in the colours of the kinds and statuses.
+\definecolor{badgecolor}{HTML}{555555}
+\newcommand{\stProved}{\textbf{\textcolor{bplinelemma}{[PROVED]}}}
+\newcommand{\stInherited}{\textbf{\textcolor{bpstatusinherits}{[INHERITED]}}}
+\newcommand{\stShipping}{\textbf{\textcolor{bplineshipping}{[SHIPPING CODE]}}}
+\newcommand{\stOpen}{\textbf{\textcolor{badgecolor}{[OPEN]}}}
+\newcommand{\stPlanned}{\textbf{\textcolor{badgecolor}{[PLANNED]}}}
+
+% Node furniture. \srcloc{path}{line}: where the node's first \lean declaration is (checked by the
+% audit). \inherited{labels}: the labels (L1, ..., TrProj; Section sec:trust-inherited) of the
+% lean4lean sorry sources that the node's declarations depend on, exactly (checked by the audit).
+% \planned: the node states a declaration that does not exist yet; its \lean names are the names
+% the declarations will have (checked by the audit: none of them exists).
+%
+% Citations of the Lean sources, which the web version and the pdf link to them
+% (scripts/leanlinks.py; README, "Links to the Lean sources"); macros/print.tex and the plasTeX
+% package scripts/bpkinds.py define them. A name is written as it is (like \lean); a path escapes its underscores (like \code).
+%   \srcloc{path}{line}        the node furniture above
+%   \leandecl{name}            a declaration, by its full name
+%   \leanfile{path}            a .lean file, or a directory (ending with a slash)
+%   \leanfiles{dir/}{A, B}     the files dir/A.lean and dir/B.lean, printed dir/{A, B}.lean
+%   \leanloc{path}{lines}      lines of a file: 26, 7-13 or 642,723
+%   \leanlinesof{path}{lines}  the same, printed :lines (after a citation of the file)
+% A path starts at the root of this repository, of a package (Lean4Lean/...) or of Lean's sources
+% (Init/...); the audit checks every citation.
+\definecolor{furniture}{HTML}{6A6A6A}
+\newcommand{\inherited}[1]{\par{\small\textcolor{bpstatusinherits}{Inherited from lean4lean
+  (Section~\ref{sec:trust-inherited}): #1}}\par}
+\newcommand{\planned}{\par{\small\textcolor{furniture}{\stPlanned{} Not formalized: the declaration
+  does not exist.}}\par}
+% \usedbystatements{\ref{...}, ...} and \usedbyproofs{\ref{...}, ...}: in an imported node, the nodes
+% whose declarations use its declarations directly, in their statements (or definitions) and in
+% their proofs only; the dependency graphs draw them as arrows (generated; checked by the audit).
+\newcommand{\usedbystatements}[1]{\par{\small\textcolor{furniture}{Used directly by the
+  statements and definitions of #1.}}\par}
+\newcommand{\usedbyproofs}[1]{\par{\small\textcolor{furniture}{Used directly by the proofs of
+  #1.}}\par}
