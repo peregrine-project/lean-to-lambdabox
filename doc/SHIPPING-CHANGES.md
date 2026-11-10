@@ -33,7 +33,8 @@ After S-45, it merges `fixes-port` a fifth time, for `Print primInt literals as 
 S-46 records that merge. After S-50, T-2 switches the toolchain back to `v4.35.0`, with Metalean
 at its revision for that release. After T-3, it merges `main`, which then holds PR #7 and PR #24,
 for `Erase types and proofs behind @[irreducible] definitions` (`02a5a51`), which fixes R-14;
-S-55 records that merge.
+S-55 records that merge. After S-55, it merges `main` again, for `Rework the README` (`909f52d`);
+T-4 records that merge.
 
 This register lists every change to the shipping code: the eraser
 (`LeanToLambdaBox.lean`, `LeanToLambdaBox/`), the package files (`lakefile.toml`, `lean-toolchain`,
@@ -3782,6 +3783,24 @@ the calls at which the two oracles answer differently. It must equal
 - **Regression test:** `irreducible` (from `02a5a51`) passes with `main`'s goldens byte for byte:
   peregrine validates `check.ast` and evaluates it to `Irr.B.t`; before the merge `#erase` fails
   with `function expected`. `scripts/regress.sh` passes (31 tests), with `PEREGRINE`.
+
+## T-4: The README follows the layout of `main`'s
+
+- **Commit:** the merge `Merge remote-tracking branch 'origin/main' into ml/translate` (the second
+  one), which brings the commit `Rework the README` of `main` (`909f52d`).
+- **Files and functions:**
+  - `README.md`: `main`'s README (tables of the clauses, options and tests; a Verification
+    section; `#erase_lcnf` last, as experimental), with what differs on this branch: a note that
+    the branch is the first layer of the Metalean stack; the dependency on Metalean and Mathlib
+    (the text of T-3, as bullets); a "Routing" subsection on the pure path; the option
+    `structural` and its note; the corpus and pure-harness scripts and this register under Tests.
+    The conflict with T-3's README is resolved in this text.
+  - `doc/SHIPPING-CHANGES.md`: this entry and the preamble.
+- **Why necessary:** `main` reworked its README; this branch keeps it, with its own differences.
+- **Behaviour before:** the README of T-3.
+- **Behaviour after:** the README described above.
+- **Effect on emitted .ast (corpus):** none: only the README changes.
+- **Regression test:** none; the change is documentation.
 
 ## Reported, not fixed
 
