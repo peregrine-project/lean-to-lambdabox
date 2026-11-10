@@ -10,8 +10,8 @@ output of `#erase` on:
 - programs in the fragment, which take the pure path: `useM := mfirst one one` with a
   `@[macro_inline]` `mfirst`, whose call the pure path keeps and the `Meta` path inlines;
   `pidHR := pid hR`, a proof whose type is a proposition only through an `@[irreducible]` alias,
-  which the pure path erases to `□` and the `Meta` path keeps, and for which `#erase` logs no
-  message about the axioms `R` and `hR`; `@pid.{1}`, with its universe given;
+  which both paths erase to `□` (the `Meta` path kept it before #24), and for which `#erase` logs
+  no message about the axioms `R` and `hR`; `@pid.{1}`, with its universe given;
 - programs with inductive types in the fragment (register entry S-29), which take the pure path:
   `useMN := mfirstN Nat.zero Nat.zero` under `nat := .peano` (the pure path keeps the call of the
   `@[macro_inline]` `mfirstN`); `B.neg B.f`, a canonical `casesOn`; `Eq.casesOn` on
@@ -116,7 +116,7 @@ end ER
 /-- info: viaPure ok; eraseEntry = pure: true; eraseEntry = Meta: false -/
 #guard_msgs in
 #route ER.useM
-/-- info: viaPure ok; eraseEntry = pure: true; eraseEntry = Meta: false -/
+/-- info: viaPure ok; eraseEntry = pure: true; eraseEntry = Meta: true -/
 #guard_msgs in
 #route ER.pidHR
 /-- info: viaPure ok; eraseEntry = pure: true; eraseEntry = Meta: true -/
