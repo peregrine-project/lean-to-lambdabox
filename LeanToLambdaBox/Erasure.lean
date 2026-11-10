@@ -187,9 +187,12 @@ abbrev EraseM := StateT ErasureState <| ReaderT ErasureContext CoreM
 def run (x : EraseM α) (config: ErasureConfig): CoreM (α × ErasureState) :=
   x |>.run {} |>.run { config }
 
-/-- Run an action of MetaM in EraseM using EraseM's local context of Lean types. -/
+/-- Run an action of MetaM in EraseM using EraseM's local context of Lean types.
+    It runs at transparency `.all`: like the kernel, the eraser must see through `@[irreducible]`
+    definitions, or `Meta.inferType` fails on an application of a function whose type is an
+    irreducible alias of a function type. -/
 @[inline] def liftMetaM (x : MetaM α) : EraseM α := do
-  x.run' { lctx := (← read).lctx }
+  (Meta.withTransparency .all x).run' { lctx := (← read).lctx }
 
 /--
 TODO: The function ToLCNF.isTypeFormerType has an auxiliary function "quick"
@@ -197,15 +200,24 @@ which I removed here because I didn't understand why it was correct.
 Maybe putting it back makes things faster.
 -/
 def isErasable (e : Expr) : MetaM Bool := do
+    -- `Meta.isProp`, `Meta.isTypeFormerType` and `Meta.getLevel` (which `Meta.inferType` uses on a
+    -- Π-type) reduce at default transparency whatever the ambient one, so they miss a sort behind
+    -- an `@[irreducible]` definition (`def IProp := Prop`). The checks below reduce at the ambient
+    -- transparency, `.all` under `liftMetaM`, and never infer the type of a Π-type.
+    -- Sorts and Π-types are types.
+    if e.isSort || e.isForall then
+      return true
     let type ← Meta.inferType e
-    -- Erase evidence of propositions
-    -- ToLCNF includes an explicit check for isLcProof, but I think the type information should be enough to erase those here.
-    if (← Meta.isProp type) then
-      return true
-    -- Erase types and type formers
-    if (← Meta.isTypeFormerType type) then
-      return true
-    return false
+    Meta.forallTelescopeReducing type fun _ body => do
+      let body ← Meta.whnf body
+      -- Erase types and type formers: `type` is `As → Sort u`.
+      if body.isSort then
+        return true
+      -- Erase evidence of propositions: `type` is `As → P` with `P : Prop`, a proposition by
+      -- impredicativity.
+      -- ToLCNF includes an explicit check for isLcProof, but I think the type information should be enough to erase those here.
+      let .sort u ← Meta.whnf (← Meta.inferType body) | return false
+      return (← instantiateLevelMVars u).isAlwaysZero
 
 def addAxiom (name: Name): EraseM Unit := do
   if (← get).constants.contains name then panic! s!"Constant {name} is already defined, cannot add axiom."
