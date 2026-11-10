@@ -152,7 +152,7 @@ def knOf (fix : Std.HashMap Name FVarId) (n : Name) : EraseM LBTerm := do
   | none => throwError "#erase_lcnf: {n} has no translation yet"
 
 def primInt (n : Nat) : EraseM LBTerm := do
-  if n <= BitVec.intMax 63 then
+  if n <= machineMaxLiteral then
     return .prim ⟨.primInt, n⟩
   throwError "Nat literal {n} not representable as a 63-bit signed integer."
 
@@ -160,6 +160,8 @@ def natLit (n : Nat) : EraseM LBTerm := do
   match (← read).config.nat with
   | .machine => primInt n
   | .peano =>
+    if n > peanoMaxLiteral then
+      throwError "#erase_lcnf: the Nat literal {n} exceeds {peanoMaxLiteral}, the largest literal that `nat := .peano` erases to `Nat.succ` applications"
     let (indid, _) ← register_inductive (← getConstInfoInduct ``Nat)
     return n.fold (init := .construct indid 0 []) fun _ _ t => .app (.construct indid 1 []) t
 
