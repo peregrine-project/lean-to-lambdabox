@@ -1,0 +1,22 @@
+# Python packages of the blueprint build (plasTeX through leanblueprint), pinned to the versions
+# the build is tested with (Python 3.14). Install with: pip install -r blueprint/requirements.txt
+click==8.5.0
+gitdb==4.0.12
+GitPython==3.1.62
+Jinja2==3.1.6
+leanblueprint==0.0.20
+markdown-it-py==4.2.0
+MarkupSafe==3.0.3
+mdurl==0.1.2
+pillow==12.3.0
+plasTeX==3.1
+plastexdepgraph==0.0.5
+plastexshowmore==0.0.2
+Pygments==2.21.0
+pygraphviz==2.0.2
+rich==15.0.0
+rich-click==1.9.9
+smmap==5.0.3
+tomlkit==0.15.1
+typing_extensions==4.16.0
+Unidecode==1.4.0

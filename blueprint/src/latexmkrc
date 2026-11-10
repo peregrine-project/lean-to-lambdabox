@@ -1,0 +1,4 @@
+# Configures latexmk for the pdf version of the blueprint (run from blueprint/src).
+$pdf_mode = 1;
+$pdflatex = 'xelatex -synctex=1 -interaction=nonstopmode -halt-on-error';
+@default_files = ('print.tex');
