@@ -4,8 +4,8 @@ The Lean 4 frontend of [Peregrine](https://github.com/peregrine-project/peregrin
 Lean's kernel terms (`Expr`) to the untyped λ□ (LambdaBox) and writes them in Peregrine's
 S-expression format.
 
-> **This branch** is `l4l/translate`, the first layer of the Lean4Lean verification stack
-> ([Verification](#verification)). It is not meant for `main`; use `main` for the production
+> **This branch** is `l4l/verification`, the second layer of the Lean4Lean verification stack
+> ([Verification](#verification)): `l4l/translate` and the [proof](#checking-the-proof). It is not meant for `main`; use `main` for the production
 > frontend. Here `#erase` erases the programs of the verified fragment with the [pure path](#routing).
 > The branch stays on lean4lean's Lean version, so it does not have the fixes of `main` made after
 > the bump to `v4.35.0`.
@@ -90,6 +90,20 @@ in as OCaml code. [`benchmarks/`](benchmarks/README.md) shows the whole pipeline
 
 [`doc/SHIPPING-CHANGES.md`](doc/SHIPPING-CHANGES.md) records every change to the code of `main` on
 this branch, with its effect on the corpus, and the defects found but not fixed.
+
+## Checking the proof
+
+`proof/` is a Lake package of its own (library `EraseProof`) that shares the root's packages. The
+theorem is `EraseProof.erase_correct` ([`proof/EraseProof/Main.lean`](proof/EraseProof/Main.lean));
+[`doc/DIVERGENCES.md`](doc/DIVERGENCES.md) lists where it departs from MetaRocq's erasure.
+
+| Command | Checks |
+|---|---|
+| `proof/scripts/check.sh` | Builds the eraser and `proof/`. Checks that `proof/` has no `sorry`, `axiom` or similar token, that every footprint matches `proof/axioms.expected` (`sorryAx` only from the six lean4lean declarations), that the theorem has its fixed statement, that `#erase` emits exactly the program of the non-vacuity instance, and that the regression tests pass. |
+| `PEREGRINE=<binary> proof/scripts/check.sh` | Also runs `peregrine validate` and `eval` on the pure path's output of the corpus programs in the fragment, and on the instance's program. |
+| `--no-regress`, `--no-peregrine`, `--no-final` | Skip the regression tests, the peregrine checks, or the check of the final statement. |
+
+Logs go to `proof/.check/`.
 
 ## Verification
 
