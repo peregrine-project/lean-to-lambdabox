@@ -4,8 +4,8 @@ The Lean 4 frontend of [Peregrine](https://github.com/peregrine-project/peregrin
 Lean's kernel terms (`Expr`) to the untyped λ□ (LambdaBox) and writes them in Peregrine's
 S-expression format.
 
-> **This branch** is `ml/verification`, the second layer of the Metalean verification stack
-> ([Verification](#verification)): `ml/translate` and the [proof](#checking-the-proof). It is not meant for `main`; use `main` for the production
+> **This branch** is `ml/blueprint`, the third layer of the Metalean verification stack
+> ([Verification](#verification)): `ml/verification` and the [blueprint](#the-blueprint). It is not meant for `main`; use `main` for the production
 > frontend. Here `#erase` erases the programs of the verified fragment with the [pure path](#routing).
 
 - Builds with Lean `v4.35.0` ([`lean-toolchain`](lean-toolchain)).
@@ -114,6 +114,14 @@ this branch, with its effect on the corpus, and the defects found but not fixed.
 Logs go to `proof/.check/`. After an intended change of a definition the statements reach,
 `lake env lean --run tools/Report.lean --write-pin spec.pin` (in `proof/`) rewrites the pin; review
 the diff.
+
+## The blueprint
+
+`blueprint/` is a [leanblueprint](https://github.com/PatrickMassot/leanblueprint) of the proof. Its
+audit checks that every node links to an existing Lean declaration, and that a node is marked
+proved only if its declaration is free of `sorry` and uses only `propext`, `Classical.choice` and
+`Quot.sound`. [`blueprint/README.md`](blueprint/README.md) describes the build
+(`blueprint/build.sh`) and the audit (`blueprint/scripts/audit.py`).
 
 ## Verification
 
