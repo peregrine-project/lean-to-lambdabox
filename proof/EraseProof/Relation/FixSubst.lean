@@ -132,25 +132,26 @@ open FixSubst
 variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {lps : List Name}
 
 /-- Substituting a closed λ□ term `F` for the fix variable `x` (abstracted at `k`, the λ□ term
-having no loose index from `k` on), when every constant bound to `x`'s Metalean constant erases to
-`F` anywhere, keeps an erasure of a term that does not mention `x`, under the locals without `x`.
+having no loose index from `k` on), which stands for the constant translation `.const ηx lsx`, when
+every constant with that translation erases to `F` anywhere, keeps an erasure of a term that does
+not mention `x`, under the locals without `x`.
 Reference: `erases_subst0` (`MR E/ESubstitution.v:612`), for the unfolding of `tFix`; DV-7. -/
 theorem Erases.fixSubst {σ : EvalEnv} {F : LBTerm} {x : FVarId} {kind : Metalean.ConstKind}
     {nl : Nat} {ηx : Metalean.Head ζ (.const kind nl)} {lsx : Fin nl → Metalean.Level lps.length}
     (hF : closedn 0 F = true)
     (hty : ∀ c ci, findDecl σ.decls c = some ci → FVarsIn (fun _ => False) ci.type)
     (hc : ∀ {n : Nat} (Γ : Metalean.Ctx ζ lps.length 0 n) (Δ : MLCtx ζ lps.length n) (c : Name)
-      (us : List Level), σ.isAtom c = false → B c = some (.const ηx) →
+      (us : List Level), σ.isAtom c = false → TrM E B lps Γ Δ (.const c us) (.const ηx lsx) →
       Erases E B lps σ Γ Δ (.const c us) F)
     {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n} {e : Expr}
     {r : LBTerm} (h : Erases E B lps σ Γ Δ e r) :
-    ∀ (k : Nat) (Δ₀ : MLCtx ζ lps.length n), Δ.findF x = some (.const ηx lsx) →
+    ∀ (k : Nat) (Δ₀ : MLCtx ζ lps.length n), Δ.findFix x = some (.const ηx lsx) →
       MLCtx.Drop x Δ Δ₀ → FVarsIn (· ≠ x) e → closedn k r = true →
       Erases E B lps σ Γ Δ₀ e (csubst F k (_root_.toBvar x k r)) := by
-  have pushX : ∀ {n : Nat} {Δ : MLCtx ζ lps.length n}, Δ.findF x = some (.const ηx lsx) →
-      (Δ.pushLam none).findF x = some (.const ηx lsx) := by
+  have pushX : ∀ {n : Nat} {Δ : MLCtx ζ lps.length n}, Δ.findFix x = some (.const ηx lsx) →
+      (Δ.pushLam none).findFix x = some (.const ηx lsx) := by
     intro _ _ h
-    simp [MLCtx.pushLam, MLCtx.findF, MLCtx.findF_map_wk, h, Metalean.Expr.wk,
+    simp [MLCtx.pushLam, MLCtx.findFix, MLCtx.findFix_map_wk, h, Metalean.Expr.wk,
       Metalean.Expr.wkFrom, Metalean.Expr.rename]
   have spineF : ∀ {c : Name} {us : List Level} {as : List Expr},
       FVarsIn (· ≠ x) (mkAppN (.const c us) as.toArray) → ∀ a ∈ as, FVarsIn (· ≠ x) a := by
@@ -164,10 +165,10 @@ theorem Erases.fixSubst {σ : EvalEnv} {F : LBTerm} {x : FVarId} {kind : Metalea
   have mem : ∀ {l : List Expr} {i : Nat} {y : Expr}, l[i]? = some y → y ∈ l :=
     fun h => List.mem_of_getElem? h
   refine Erases.rec
-    (motive_1 := fun Γ Δ e r _ => ∀ (k : Nat) Δ₀, Δ.findF x = some (.const ηx lsx) →
+    (motive_1 := fun Γ Δ e r _ => ∀ (k : Nat) Δ₀, Δ.findFix x = some (.const ηx lsx) →
       MLCtx.Drop x Δ Δ₀ → FVarsIn (· ≠ x) e → closedn k r = true →
       Erases E B lps σ Γ Δ₀ e (csubst F k (_root_.toBvar x k r)))
-    (motive_2 := fun Γ Δ m e br _ => ∀ (k : Nat) Δ₀, Δ.findF x = some (.const ηx lsx) →
+    (motive_2 := fun Γ Δ m e br _ => ∀ (k : Nat) Δ₀, Δ.findFix x = some (.const ηx lsx) →
       MLCtx.Drop x Δ Δ₀ → FVarsIn (· ≠ x) e → closedn (k + br.1.length) br.2 = true →
       ErasesAlt E B lps σ Γ Δ₀ m e
         (br.1, csubst F (k + br.1.length) (_root_.toBvar x (k + br.1.length) br.2)))
@@ -205,27 +206,26 @@ theorem Erases.fixSubst {σ : EvalEnv} {F : LBTerm} {x : FVarId} {kind : Metalea
     intro _ _ _ _ _ hat hsa hnr _ _ _ _ _ _
     exact .const hat hsa hnr
   case fixVar =>
-    intro c _ _ _ us y _ _ η ls hat hB hF k _ hx W _ _
+    intro _ c _ _ us y _ hat hT hF k _ hx W _ _
+    have hT' := TrM.dropF hT W trivial
     by_cases hy : y = x
     · subst hy
       rw [hx] at hF
-      simp only [Option.some.injEq, Metalean.Expr.const.injEq] at hF
-      obtain ⟨rfl, rfl, h1, -⟩ := hF
-      cases h1
+      cases hF
       have hyy : (y == y) = true := (fvarId_beq_iff y y).mpr rfl
       simp only [_root_.toBvar, hyy, ↓reduceIte, csubst]
-      exact hc _ _ c us hat hB
+      exact hc _ _ c us hat hT'
     · have hyx : (y == x) = false := by
         rcases Bool.eq_false_or_eq_true (y == x) with h' | h'
         · exact absurd ((fvarId_beq_iff y x).mp h') hy
         · exact h'
       simp only [_root_.toBvar, hyx, Bool.false_eq_true, ↓reduceIte, csubst]
-      exact .fixVar hat hB (W.2 y _ hy hF)
+      exact .fixVar hat hT' (W.2.2 y _ hy hF)
   case constFix =>
-    intro _ _ _ _ _ _ _ _ _ hci hdef hat hax hpre hb hcl' hfv _ k _ _ _ _ _
+    intro _ _ _ _ _ _ _ _ _ _ hci hdef hcas hat hax hpre hp ht hb hcl' hfv _ k _ _ _ _ _
     rw [sub_closed k (by simpa [closedn, closednD] using hcl')
       (by simp [hasFVar, hasFVarD, hfv x])]
-    exact .constFix hci hdef hat hax hpre hb hcl' hfv
+    exact .constFix hci hdef hcas hat hax hpre hp ht hb hcl' hfv
   case ctor =>
     intro _ _ _ _ _ _ _ as _ hcv hnp hid hle hlen _ ih k _ hx W he hcl
     rw [AbsFV.closedn_mkApps] at hcl

@@ -366,33 +366,41 @@ theorem closed_types {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ}
 section
 variable {ζ : Metalean.Sigs} {ℓ n : Nat}
 
-/-- The free variable `x` of the locals does not denote a constant, so that no constant erases to
-it (`Erases.fixVar`). -/
-def NoConstAt (x : FVarId) (Δ : MLCtx ζ ℓ n) : Prop :=
-  ∀ t, Δ.findF x = some t → ∀ {kind : Metalean.ConstKind} {nl : Nat}
-    (η : Metalean.Head ζ (.const kind nl)) (ls : Fin nl → Metalean.Level ℓ), t ≠ .const η ls
+/-- `x` is no fix variable of the locals `Δ` (`MLDecl.vfix`), and the fix variables of `Δ` are
+fix variables of `Δ₁`. -/
+def FixRel (x : FVarId) (Δ Δ₁ : MLCtx ζ ℓ n) : Prop :=
+  Δ.findFix x = none ∧ ∀ y t, Δ.findFix y = some t → Δ₁.findFix y = some t
 
-/-- `NoConstAt` under a new bound λ-local. -/
-theorem NoConstAt.pushLam {x : FVarId} {Δ : MLCtx ζ ℓ n} (h : NoConstAt x Δ) :
-    NoConstAt x (Δ.pushLam none) := by
-  intro t ht _ _ η ls heq
-  simp only [MLCtx.pushLam, MLCtx.findF, MLCtx.findF_map_wk, Option.map_eq_some_iff] at ht
-  obtain ⟨u, hu, rfl⟩ := ht
-  cases u <;> cases heq
-  exact h _ hu η ls rfl
+/-- `FixRel` under a new bound λ-local on both sides. -/
+theorem FixRel.pushLam {x : FVarId} {Δ Δ₁ : MLCtx ζ ℓ n} (h : FixRel x Δ Δ₁) :
+    FixRel x (Δ.pushLam none) (Δ₁.pushLam none) := by
+  refine ⟨?_, fun y t ht => ?_⟩
+  · simp [MLCtx.pushLam, MLCtx.findFix, MLCtx.findFix_map_wk, h.1]
+  · simp only [MLCtx.pushLam, MLCtx.findFix, MLCtx.findFix_map_wk, Option.map_eq_some_iff] at ht ⊢
+    obtain ⟨u, hu, rfl⟩ := ht
+    exact ⟨u, h.2 y u hu, rfl⟩
 
-/-- `NoConstAt` under a new bound local. -/
-theorem NoConstAt.cons {x : FVarId} {Δ : MLCtx ζ ℓ n} (h : NoConstAt x Δ) (v : MLDecl ζ ℓ n) :
-    NoConstAt x ((none, v) :: Δ) :=
-  fun t ht => h t (by simpa [MLCtx.findF] using ht)
+/-- `FixRel` under a new bound local on both sides. -/
+theorem FixRel.cons {x : FVarId} {Δ Δ₁ : MLCtx ζ ℓ n} (h : FixRel x Δ Δ₁) (v : MLDecl ζ ℓ n) :
+    FixRel x ((none, v) :: Δ) ((none, v) :: Δ₁) :=
+  ⟨by simpa [MLCtx.findFix] using h.1,
+    fun y t ht => by simpa [MLCtx.findFix] using h.2 y t (by simpa [MLCtx.findFix] using ht)⟩
 
-/-- A λ-local denotes a variable, not a constant. -/
-theorem NoConstAt.zero (x : FVarId) (Δ : MLCtx ζ ℓ n) : NoConstAt x (Δ.pushLam (some x)) := by
-  intro t ht _ _ η ls heq
+/-- Closing a local that is no fix variable: `x`, free in `(some x, d) :: Δ`, bound in
+`(none, d) :: Δ`. -/
+theorem FixRel.close (x : FVarId) {d : MLDecl ζ ℓ n} (hd : d.fixVal? = none) (Δ : MLCtx ζ ℓ n) :
+    FixRel x ((some x, d) :: Δ) ((none, d) :: Δ) := by
   have hxx : (x == x) = true := (fvarId_beq_iff x x).mpr rfl
-  simp only [MLCtx.pushLam, MLCtx.findF, hxx, ↓reduceIte, Option.some.injEq, MLDecl.denote] at ht
-  subst ht
-  cases heq
+  refine ⟨by simp only [MLCtx.findFix, hxx, ↓reduceIte, hd], fun y t ht => ?_⟩
+  simp only [MLCtx.findFix] at ht ⊢
+  split at ht
+  · rw [hd] at ht; cases ht
+  · exact ht
+
+/-- Closing a λ-local. -/
+theorem FixRel.zero (x : FVarId) (Δ : MLCtx ζ ℓ n) :
+    FixRel x (Δ.pushLam (some x)) (Δ.pushLam none) :=
+  FixRel.close x rfl _
 
 end
 
@@ -401,12 +409,12 @@ variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {lps : List N
 
 /-- Abstracting `x` into the bound variable `d`, on both sides, keeps the erasure, when the λ□
 term has no loose index from `d` on (its indices are then those of the source's binders) and `x`
-does not denote a constant (a fix variable, `Erases.fixVar`, has no bound counterpart). -/
+is no fix variable (`Erases.fixVar`, which has no bound counterpart). -/
 theorem Erases.absN {σ : EvalEnv} (x : FVarId)
     (hty : ∀ c ci, findDecl σ.decls c = some ci → LBV 0 ci.type ∧ FVarsIn (fun _ => False) ci.type)
     {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n} {e : Expr}
     {tb : LBTerm} (h : Erases E B lps σ Γ Δ e tb) :
-    ∀ (d : Nat) (Δ₁ : MLCtx ζ lps.length n), Rel x d Δ Δ₁ → NoConstAt x Δ →
+    ∀ (d : Nat) (Δ₁ : MLCtx ζ lps.length n), Rel x d Δ Δ₁ → FixRel x Δ Δ₁ →
       closedn d tb = true → Erases E B lps σ Γ Δ₁ (absFV x d e) (_root_.toBvar x d tb) := by
   have mem : ∀ {l : List Expr} {i : Nat} {y : Expr}, l[i]? = some y → y ∈ l :=
     fun h => List.mem_of_getElem? h
@@ -422,9 +430,9 @@ theorem Erases.absN {σ : EvalEnv} (x : FVarId)
     intro d c us as
     rw [mkAppN_toArray, absFV_foldl, ← mkAppN_toArray]; rfl
   refine Erases.rec
-    (motive_1 := fun Γ Δ e tb _ => ∀ (d : Nat) Δ₁, Rel x d Δ Δ₁ → NoConstAt x Δ →
+    (motive_1 := fun Γ Δ e tb _ => ∀ (d : Nat) Δ₁, Rel x d Δ Δ₁ → FixRel x Δ Δ₁ →
       closedn d tb = true → Erases E B lps σ Γ Δ₁ (absFV x d e) (_root_.toBvar x d tb))
-    (motive_2 := fun Γ Δ k e br _ => ∀ (d : Nat) Δ₁, Rel x d Δ Δ₁ → NoConstAt x Δ →
+    (motive_2 := fun Γ Δ k e br _ => ∀ (d : Nat) Δ₁, Rel x d Δ Δ₁ → FixRel x Δ Δ₁ →
       closedn (d + br.1.length) br.2 = true →
       ErasesAlt E B lps σ Γ Δ₁ k (absFV x d e) (br.1, _root_.toBvar x (d + br.1.length) br.2))
     ?bvar ?fvar ?lam ?letE ?app ?const ?fixVar ?constFix ?ctor ?cases ?casesReduced ?eta ?proj
@@ -461,21 +469,18 @@ theorem Erases.absN {σ : EvalEnv} (x : FVarId)
     simp only [absFV, _root_.toBvar]
     exact .const hat hsa hnr
   case fixVar =>
-    intro _ _ _ _ _ y _ _ η ls hat hB hF d Δ₁ W hN _
+    intro _ _ _ _ _ y _ hat hT hF d Δ₁ W hN _
     simp only [absFV, _root_.toBvar]
-    have hW := W.2 y _ hF
     split
     · rename_i hy
-      rw [(fvarId_beq_iff y x).mp hy] at hF
-      exact absurd rfl (hN _ hF η ls)
-    · rename_i hy
-      simp only [hy, Bool.false_eq_true, ↓reduceIte] at hW
-      exact .fixVar hat hB hW
+      rw [(fvarId_beq_iff y x).mp hy, hN.1] at hF
+      cases hF
+    · exact .fixVar hat (TrM.absN hT W) (hN.2 y _ hF)
   case constFix =>
-    intro _ _ _ _ _ _ _ _ _ hci hdef hat hax hpre hb hcl' hfv _ d Δ₁ _ _ _
+    intro _ _ _ _ _ _ _ _ _ _ hci hdef hcas hat hax hpre hp ht hb hcl' hfv _ d Δ₁ _ _ _
     simp only [absFV]
     rw [TargetLift.toBvar_noFVar x _ d (by simp [hasFVar, hasFVarD, hfv x])]
-    exact .constFix hci hdef hat hax hpre hb hcl' hfv
+    exact .constFix hci hdef hcas hat hax hpre hp ht hb hcl' hfv
   case ctor =>
     intro _ _ _ _ _ _ _ as _ hcv hnp hid hle hlen _ ih d Δ₁ W hN hcl
     rw [closedn_mkApps] at hcl
@@ -657,7 +662,7 @@ theorem Erases.abstract {P : List ConstantInfo} {σ : EvalEnv} {n : Nat}
     (h : Erases E B lps σ (Γ.snoc A) (Δ.pushLam (some x)) (b.instantiate1' (.fvar x)) tb) :
     Erases E B lps σ (Γ.snoc A) (Δ.pushLam none) b (_root_.abstract x tb) := by
   have := AbsFV.Erases.absN x (AbsFV.closed_types henv hsub) h 0 _ (AbsFV.Rel.zero x Δ)
-    (AbsFV.NoConstAt.zero x Δ) hcl
+    (AbsFV.FixRel.zero x Δ) hcl
   rwa [AbsFV.absFV_inst hfv] at this
 
 end
