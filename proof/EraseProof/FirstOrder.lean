@@ -99,7 +99,8 @@ theorem Erases.firstOrder {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds 
   induction hv with
   | @ctor c us as cv iv n u hc hiv har hnz hlen _ ih =>
     intro s vb h hev
-    rcases Erases.ctor_inv hc (Nat.le_of_eq hlen.symm) h with ⟨-, hb⟩ | ⟨iid, as', hid, rfl, hlen', hall⟩
+    rcases Erases.ctor_inv hc (Nat.le_of_eq hlen.symm) (fun _ => rfl) h with
+      ⟨-, hb⟩ | ⟨iid, as', hid, rfl, hlen', hall⟩
     · exact absurd hb (SimInd.ctor_not_erasable henv hE hsub hiv har hnz hc hlen)
     have hprop : σ.propInd cv.induct = false := by
       cases hz : EvidentZero u
@@ -119,7 +120,7 @@ theorem Erases.firstOrder {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds 
   | @proof c us as cv hc hp hlen =>
     intro s vb h _
     rw [Erases.ctorProp_box hc (PropInductive.of_propInd henv hE hsub hp)
-      (Nat.le_of_eq hlen.symm) h, mkAppN_toArray, foErase_foldl, foErase, hc]
+      (Nat.le_of_eq hlen.symm) (fun _ => rfl) h, mkAppN_toArray, foErase_foldl, foErase, hc]
     simp only [hp, ite_true]
   | atom hsp =>
     intro s vb h hev
