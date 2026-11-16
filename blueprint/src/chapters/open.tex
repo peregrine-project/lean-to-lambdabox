@@ -53,20 +53,22 @@ Other recursors (mutual, indexed, higher-order induction hypotheses, \code{Prop}
   \stShipping{} erased on both paths (S-40); excluded from the fragment (S-47) & \stOpen{} a
   source rule needs the wrapped minors typed under the case telescope, a strengthening lemma of
   Metalean \\
-Structural recursion & \stShipping{} through the kernel's \code{brecOn} under
-  \code{structural := .kernel} (S-42, S-43, S-44, S-48, S-49); the default is unchanged &
-  \stProved{} the oracle's recursor $\iota$ (\code{Pure.whnf\_sound}), the frame lemma through the
-  closed definition values, the admission under the option (\code{PhaseIDecl}), the traversal
-  with no new step; a mutual structural block is outside the fragment (S-51); the instances NV-S
-  and NV-A (\code{Init}'s \code{Nat.add}), whose views hold the \code{\_unsafe\_rec} companion,
-  and the lower bound \code{collectDeps\_ok\_of} on NV-Q, NV-R, NV-S, NV-QP and NV-A \\
+Structural recursion & \stShipping{} through the compiled pre-definition as a $\lambda_\Box$
+  fixpoint under the default \code{structural := .unsafeRec} (S-56); through the kernel's
+  \code{brecOn} under \code{structural := .kernel} (S-42, S-43, S-44, S-48, S-49) &
+  \stProved{} by default: \code{deltaRec}, the rules \code{fixVar} and \code{constFix}, the
+  substitution \code{Erases.fixSubst}, the simulation case \code{erases\_correct\_deltaRec}, the
+  fixpoint branch of \code{visitMutual}, with the hypothesis \code{hpre}; the instance NV-U.
+  Under \code{.kernel}: the oracle's recursor $\iota$ (\code{Pure.whnf\_sound}), the traversal
+  with no new step; the instances NV-S and NV-A. A mutual structural block is outside the fragment
+  (S-51); the lower bound \code{collectDeps\_ok\_of} holds on NV-Q, NV-R, NV-S, NV-QP and NV-A \\
 \bottomrule
 \end{tabular}
 
 \begin{itemize}
 \item \lead{Shipped, not verified} the entries change the traversal that both paths share; the
-  fragment test keeps the branches of the other recursors off the pure path, and those of
-  structural recursion off it by default. The proofs hold for both values of \code{structural}.
+  fragment test keeps the branches of the other recursors off the pure path. The proofs hold for
+  both values of \code{structural}.
 \end{itemize}
 
 \section{Registers and checks}\label{sec:open-registers}
@@ -86,11 +88,11 @@ Runs that fail, sources that do not evaluate & partial correctness (Chapter~\ref
 Inputs outside the fragment & the \code{Meta} path, trusted (Section~\ref{sec:trust-trusted});
   the scope (Chapter~\ref{chap:scope}) \\
 Opaques with values, data axioms, \code{@[extern]} definitions, matches and recursors on
-  lemmas with proof fields, \code{Quot.ind} in an evaluated position & the scope note of Section~\ref{sec:final-reading} \\
-Well-founded recursion, structural recursion by default and in mutual blocks, \code{Nat}
-  arithmetic by default (\code{Init}'s \code{Nat.add} has an instance under
-  \code{\{extern := .preferLogical, structural := .kernel, nat := .peano\}}, NV-A), recursors of
-  mutual or indexed blocks & Phase II
+  lemmas with proof fields, \code{Quot.ind} or a partial application of a definition erased
+  through its pre-definition in an evaluated position & the scope note of
+  Section~\ref{sec:final-reading} \\
+Well-founded recursion, \code{partial} definitions, structural recursion in mutual blocks,
+  recursors of mutual or indexed blocks & Phase II
   (Section~\ref{sec:open-phase2}); the scope (Chapter~\ref{chap:scope}) \\
 \code{remove\_irrel\_constr\_args}, \code{nat := .machine} & out of scope
   (Section~\ref{sec:scope-features}) \\

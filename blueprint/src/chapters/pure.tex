@@ -60,7 +60,7 @@
   \lean{Erasure.declExclusion, Erasure.recShapeInFragment, Erasure.exprConsts, Erasure.arityShape, Erasure.mayBeNonZero,
     Erasure.sortDecided}
   \leanok
-  \uses{def:Erasure-EraseError, def:Erasure-EnvView, def:Erasure-ErasureConfig}
+  \uses{def:Erasure-EraseError, def:Erasure-EnvView, def:Erasure-preDef, def:Erasure-ErasureConfig}
   \srcloc{LeanToLambdaBox/Erasure/Entry.lean}{100}
   \lead{In short} The exclusions that \hl{a term or a single declaration carries by itself}; each
   is \code{outOfFragment}.
@@ -73,9 +73,10 @@
   \item \code{declExclusion}: a recursor unless \code{recShapeInFragment} holds of it (a single
         inductive without indices, a universe parameter more than the inductive's, induction
         hypotheses without arguments and about the last fields; S-47), an \code{unsafe} or
-        \code{partial} constant, one with an \code{\_unsafe\_rec} companion (except, under
-        \code{structural := .kernel}, a definition for which \code{isStructuralRecursive} holds;
-        S-44) or an \code{implemented\_by} target, a nested inductive, an \code{@[extern]} constructor under \code{preferAxiom};
+        \code{partial} constant, one with an \code{\_unsafe\_rec} companion (except a
+        definition for which \code{isStructuralRecursive} holds, under
+        \code{structural := .kernel} (S-44) or with a compiled pre-definition \code{preDef?}
+        (S-56)) or an \code{implemented\_by} target, a nested inductive, an \code{@[extern]} constructor under \code{preferAxiom};
         a definition, theorem or opaque of a mutual block, whose \code{all} is not its own name
         alone (S-51);
   \item \code{sortDecided}: an inductive's sort is written \code{Prop} or never zero
@@ -93,13 +94,13 @@
     instDecidableEqModPath, instDecidableEqKername}
   \leanok
   \uses{def:Erasure-declExclusion, def:Erasure-casesInfo, def:Erasure-findConst,
-    def:toKername}
-  \srcloc{LeanToLambdaBox/Erasure/Entry.lean}{271}
+    def:Erasure-preDef, def:toKername}
+  \srcloc{LeanToLambdaBox/Erasure/Entry.lean}{279}
   \lead{In short} \code{collectDeps view cfg e}: \hl{the closure of \code{e} as the pure
   traversal reads it}, or the first exclusion of Section~\ref{sec:scope-fragment}.
   \begin{itemize}
   \item \lead{Reads} the term; the type of every constant; the structure of every projection; the values of definitions and opaques,
-        not of theorems; block members, the constructors of an inductive, the inductive of a
+        not of theorems; the compiled pre-definition of a definition (\code{preDef?}); block members, the constructors of an inductive, the inductive of a
         constructor; for a recognized \code{T.casesOn} (\code{recognizeCasesOn}), \code{T} and
         \code{T.rec}, not the value; for an inductive \code{T} with one constructor, \code{T.rec}
         (S-36), which the oracle reads to type a projection;
@@ -125,7 +126,7 @@
     Erasure.isMinorBody, Erasure.ctorAlts, Erasure.altFields, Erasure.blockCtorCount}
   \leanok
   \uses{def:Erasure-findConst}
-  \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{91}
+  \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{94}
   \lead{In short} \code{casesInfo? decls n}: the \code{CasesInfo} of \code{n} exactly when
   \code{n} is \hl{a canonical \code{T.casesOn}} of \code{decls}, as \code{getCasesInfo?} gives it
   on the \code{Meta} path.
@@ -149,7 +150,7 @@
   \label{def:Erasure-Pure-instLevels}
   \lean{Erasure.Pure.instLevels, Erasure.Pure.instLevel}
   \leanok
-  \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{163}
+  \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{166}
   \lead{In short} Substitutes levels for level parameters in a term, \hl{without
   normalizing} levels, so that kernel reduction decides it; the oracle and the source
   semantics' $\delta$ rule use it.
@@ -166,7 +167,7 @@
   \leanok
   \uses{def:Erasure-EraseError, def:Erasure-Pure-instLevels, def:Erasure-TravCtx,
     def:Erasure-findConst}
-  \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{401}
+  \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{404}
   \lead{In short} \code{Pure.isErasable cx fuel ls e}: \code{e} is erasable if its head is a
   theorem, its type is an arity, or its type's sort is evidently zero; every reduction uses
   \hl{the kernel's $\delta$}.
@@ -200,6 +201,28 @@
 
 \section{The pure backend and the entry point}\label{sec:pure-backend}
 
+\begin{definition}[Compiled pre-definitions]
+  \label{def:Erasure-preDef}
+  \lean{Erasure.preDef?, Erasure.renameUnsafeRec}
+  \leanok
+  \uses{def:Erasure-EnvView, def:Erasure-isRecursiveDecl, def:Erasure-erase,
+    def:Erasure-ErasureConfig}
+  \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{448}
+  \lead{In short} \code{preDef? view cfg ci}: under \code{structural := .unsafeRec}, the value of
+  the \code{\_unsafe\_rec} companion of a definition by structural recursion, \hl{with the
+  companion's name renamed to the definition's} (\code{renameUnsafeRec}), when it mentions the
+  definition (\code{nameOccurs}); \code{none} otherwise (S-56).
+  \begin{itemize}
+  \item the companion is the pre-definition that Lean's code generator compiles
+        (\code{addAndCompilePartialRec}); \code{visitMutual} erases it as a $\lambda_\Box$
+        fixpoint;
+  \item \code{renameUnsafeRec}: a structural walk, as \code{replaceUnsafeRecNames} on the
+        \code{Meta} path.
+  \end{itemize}
+  \lead{Reference} the pre-definition \code{Compiler.LCNF.getDeclInfo?} gives the code generator;
+  DV-7.
+\end{definition}
+
 \begin{definition}[The pure backend]
   \label{def:Erasure-PureM}
   \lean{Erasure.PureM, Erasure.PureCtx, Erasure.PureState, Erasure.EraseT.runPure,
@@ -210,16 +233,17 @@
     Erasure.instBackendPureM}
   \leanok
   \uses{def:Erasure-EraseT, def:Erasure-findConst, def:Erasure-Pure-isErasable,
-    def:Erasure-EnvView, def:Erasure-casesInfo}
-  \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{435}
+    def:Erasure-EnvView, def:Erasure-casesInfo, def:Erasure-preDef}
+  \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{480}
   \lead{In short} $\mathrm{PureM} = $ \code{ReaderT PureCtx (StateT PureState
   (Except EraseError))}: the traversal's backend \hl{without \code{Meta}}.
   \begin{itemize}
   \item \code{PureCtx}: the closure and the view; \code{PureState}: a counter for fresh
         variables;
-  \item \code{findConst?} $=$ \code{declInfo?}: lookup in the closure, no \code{\_unsafe\_rec}
-        redirect; \code{declInfo?} ignores the configuration, so \code{structural} has no effect
-        on the pure path; \code{instantiate1}: the structural \code{Expr.instantiate1'};
+  \item \code{findConst?}: lookup in the closure, no \code{\_unsafe\_rec} redirect;
+        \code{declInfo? cfg}: the same declaration, \hl{with the compiled pre-definition as the
+        value} of a definition that has one under \code{cfg} (\code{preDef?}, S-56);
+        \code{instantiate1}: the structural \code{Expr.instantiate1'};
   \item \code{isErasable}, \code{inferType}, \code{isPropFormerType}, \code{typeLevel},
         \code{whnf}: the pure oracle at \code{oracleFuel}; \code{whnf} reduces an alternative's
         type to a $\Pi$ (S-31); \code{casesInfo?}, \code{ctorArity?}: the recognizer
@@ -238,7 +262,7 @@
   \lean{Erasure.isRecursiveDecl, Erasure.nameOccurs, Erasure.axiomatized}
   \leanok
   \uses{def:Erasure-EnvView, def:Erasure-ErasureConfig}
-  \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{563}
+  \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{610}
   \lead{In short} The tests of \code{visitMutual} as the pure backend runs them,
   with exact names; the traversal does not call these functions.
   \begin{itemize}
@@ -254,7 +278,7 @@
   \lean{Erasure.erasePure}
   \leanok
   \uses{def:Erasure-erase, def:Erasure-PureM, def:ASTType}
-  \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{544}
+  \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{599}
   \lead{In short} \code{erasePure view cfg decls e}: \hl{the shipping traversal
   \code{visitExpr} run with the pure backend} on the closure \code{decls}, assembling the program
   as \code{erase} does.
@@ -267,7 +291,7 @@
   \lean{Erasure.eraseEntry, Erasure.route, Erasure.Route, Erasure.dupKername}
   \leanok
   \uses{def:Erasure-collectDeps, def:Erasure-erasePure, def:Erasure-erase}
-  \srcloc{LeanToLambdaBox/Erasure/Entry.lean}{341}
+  \srcloc{LeanToLambdaBox/Erasure/Entry.lean}{351}
   \lead{In short} What \code{\#erase} runs: \code{route} calls \code{collectDeps},
   then
   \begin{itemize}
