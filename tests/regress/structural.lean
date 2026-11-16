@@ -20,9 +20,9 @@ Under `structural := .kernel` the fragment test admits a definition by structura
 (register entry S-44), and the pure oracle reduces recursor applications (S-43), which the types
 of the `below` tables need. The programs below are in the fragment and take the pure path, unless
 stated otherwise, and `#erase` writes them under `nat := .peano`:
-- `useAdd`: `add 2 3`; `useAddDefault` is the same without the flag (outside the fragment, the
-  `Meta` path, through `add._unsafe_rec`), and `useAddNoCsimp` without `csimp` (which the pure
-  path does not apply);
+- `useAdd`: `add 2 3`; `useAddDefault` is the same without the flag (in the fragment as well: the
+  pure path erases `add` through its compiled pre-definition, the value of `add._unsafe_rec`,
+  register entry S-56), and `useAddNoCsimp` without `csimp` (which the pure path does not apply);
 - `useLength`: `List.length` (with `extern := .preferLogical`, since `List.length` adds with
   `Nat.add`, which is `@[extern]`);
 - `useMap`: the second element of a `List.map`, and `usePairs`: a recursion two constructors deep
@@ -37,7 +37,7 @@ stated otherwise, and `#erase` writes them under `nat := .peano`:
 peregrine evaluates them to 5, 5, 5, 3, `t`, 2, 2, `false` and `t` (peregrine prints a list without
 its elements, so `useMap` takes one). The fragment test excludes `ST.wfHalf` (well-founded
 recursion), `ST.loop` (`partial`) and `ST.Tree.size` (a mutual block with its local function
-`sizes`, over a nested inductive), and, without the flag, `ST.add`.
+`sizes`, over a nested inductive).
 -/
 
 -- peregrine: validate useAdd.ast
@@ -183,7 +183,7 @@ def ST.useTree : Nat := ST.Tree.size (.node [])
 /-- info: outside the fragment: mutual block [ST.Tree.size.sizes, ST.Tree.size] -/
 #guard_msgs in
 #eval check ``ST.useTree
-/-- info: outside the fragment: recursive definition ST.add -/
+/-- info: in the fragment -/
 #guard_msgs in
 #eval show CoreM Unit from do
   match collectDeps (EnvView.ofEnvironment (← getEnv)) { nat := .peano } (.const ``ST.useAdd []) with
