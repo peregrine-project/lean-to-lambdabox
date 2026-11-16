@@ -141,6 +141,7 @@ private theorem deep {σ : EvalEnv} {e v : Expr} (hev : SrcEval σ C e v) : Deep
   | beta _ _ _ _ _ _ ih => exact ih
   | zeta _ _ _ ih => exact ih
   | delta _ _ ih => exact ih
+  | deltaRec => rename_i ih; exact ih
   | constAtom h => exact .spine (.const h)
   | eta h =>
     obtain ⟨_, _, _, _, rfl⟩ := etaSpine?_lam h
