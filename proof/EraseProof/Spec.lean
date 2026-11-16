@@ -924,8 +924,9 @@ inductive SrcEval (σ : EvalEnv) (C : Expr → Expr → Prop) : Expr → Expr �
   `Lean/Elab/PreDefinition/Basic.lean:280`), and λ□ unfolds the emitted fixpoint at the first
   argument (`eval_fix`, `MR P/PCUICWcbvEval.v:273`; DV-7). -/
   | deltaRec {as vs : List Expr} : findDecl σ.decls c = some ci → ci.isDefinition = true →
-      σ.casesOn? c = none → σ.axiomatized ci = false → σ.recPre? ci = some pre → 0 < lamArity pre →
-      as.length = lamArity pre → as.length = vs.length →
+      σ.casesOn? c = none → σ.isAtom c = false → σ.axiomatized ci = false →
+      σ.recPre? ci = some pre → 0 < lamArity pre → as.length = lamArity pre →
+      as.length = vs.length →
       (∀ (i : Nat) a v, as[i]? = some a → vs[i]? = some v → SrcEval σ C a v) →
       C (mkAppN (.const c us) vs.toArray)
         (mkAppN (Pure.instLevels ci.levelParams us pre) vs.toArray) →
@@ -1407,16 +1408,17 @@ inductive Erases {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (lps 
   /-- A definition, not a recognized `casesOn`, erased through its compiled pre-definition `pre`,
   as its λ□ fixpoint (the form the unfolding of `tFix` substitutes for the recursive calls): one
   definition named after `c`, recursive-argument index 0, whose body abstracts the fix variable
-  `x` from an erasure of `pre` at levels `us₀` at which the constant has the same translation `t`
-  as at its levels `us` (Metalean levels are up to equivalence), in which `x` stands for `t`;
-  `pre` translates at the definition's level parameters; the body is closed, without free
-  variables. Reference: `erases_tFix` (`MR E/Extract.v:122`); DV-7. -/
-  | constFix {x : FVarId} {b : LBTerm} {t : Metalean.Expr ζ lps.length 0} {us₀ : List Level} :
+  `x` from an erasure of `pre` at the constant's levels `us`, in which `x` stands for the
+  constant's translation `t`; `pre` mentions the constant only at the definition's own level
+  parameters and translates at them; the body is closed, without free variables. Reference:
+  `erases_tFix` (`MR E/Extract.v:122`); DV-7. -/
+  | constFix {x : FVarId} {b : LBTerm} {t : Metalean.Expr ζ lps.length 0} :
       findDecl σ.decls c = some ci → ci.isDefinition = true → σ.casesOn? c = none →
       σ.isAtom c = false → σ.axiomatized ci = false → σ.recPre? ci = some pre →
+      ConstAt c (ci.levelParams.map .param) pre →
       (∃ p : Metalean.Expr ζ ci.levelParams.length 0, TrM E B ci.levelParams .nil [] pre p) →
-      TrM E B lps .nil [] (.const c us₀) t → TrM E B lps .nil [] (.const c us) t →
-      Erases E B lps σ .nil [(some x, .vfix t)] (Pure.instLevels ci.levelParams us₀ pre) b →
+      TrM E B lps .nil [] (.const c us) t →
+      Erases E B lps σ .nil [(some x, .vfix t)] (Pure.instLevels ci.levelParams us pre) b →
       closedn 1 (toBvar x 0 b) = true → (∀ y, hasFVar y (toBvar x 0 b) = false) →
       Erases E B lps σ Γ Δ (.const c us) (.fix [⟨fixDefName c, toBvar x 0 b, 0⟩] 0)
   /-- `erases_tConstruct` (`:106`, `~~ isPropositional`) under applications, parameters kept
@@ -1578,6 +1580,7 @@ def ErasesDecl {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (σ : E
     (σ.axiomatized ci = false ∧ ∃ (pre : Expr) (x : FVarId) (b : LBTerm)
       (t : Metalean.Expr ζ ci.levelParams.length 0), σ.recPre? ci = some pre ∧
       cb.cst_body = some (.fix [⟨fixDefName ci.name, toBvar x 0 b, 0⟩] 0) ∧
+      ConstAt ci.name (ci.levelParams.map .param) pre ∧
       (∃ p : Metalean.Expr ζ ci.levelParams.length 0, TrM E B ci.levelParams .nil [] pre p) ∧
       TrM E B ci.levelParams .nil [] (.const ci.name (ci.levelParams.map .param)) t ∧
       Erases E B ci.levelParams σ .nil [(some x, .vfix t)] pre b ∧
