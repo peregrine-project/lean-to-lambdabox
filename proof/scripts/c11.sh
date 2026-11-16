@@ -93,6 +93,10 @@ tests/regress/expected/structural/useGet.ast          peano   -           constr
 tests/regress/expected/mutual_block/useEven.ast       peano   -           constr MB.LB.f
 tests/regress/expected/mutual_block/useSingle.ast     peano   -           constr MB.LB.t
 tests/regress/expected/peano_literal/small.ast        peano   -           constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.zero
+tests/regress/expected/pure_unsafe_rec/add.ast        peano   -           constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.zero
+tests/regress/expected/pure_unsafe_rec/beq.ast        peano   -           constr Bool.false
+tests/regress/expected/pure_unsafe_rec/length.ast     peano   -           constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.zero
+tests/regress/expected/pure_unsafe_rec/metaAdd.ast    peano   -           constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.zero
 EOF
 )
 
