@@ -46,6 +46,7 @@ import EraseProof.Bridge.Wf
 import EraseProof.Bridge.Abstract
 import EraseProof.Relation.Abstract
 import EraseProof.Relation.Inst
+import EraseProof.Relation.FixSubst
 import EraseProof.Oracle.Whnf
 import EraseProof.Oracle.Arity
 import EraseProof.Source.Defeq
