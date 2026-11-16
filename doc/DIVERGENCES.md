@@ -213,24 +213,40 @@ What the statements and the checks rely on without proof:
 
 ### DV-7
 
-- **Our artifact:** `proof/EraseProof/Spec.lean`: the rule `EraseProof.ProgEnv.defn` (a
-  definition's `all` is its own name), `EraseProof.ErasesDecl` (no recursive branch) and
-  `EraseProof.ErasesDeps` (its rule for λ□ `tFix`, `EraseProof.ErasesDeps.fix`, is for the
-  fixpoints of erased recursors, DV-30, not for recursive definitions).
+- **Our artifact:** `proof/EraseProof/Spec.lean`: the rule `EraseProof.SrcEval.deltaRec`, the rules
+  `EraseProof.Erases.fixVar` and `EraseProof.Erases.constFix`, the fix-variable local
+  `EraseProof.MLDecl.vfix`, and the fixpoint disjunct of `EraseProof.ErasesDecl`, whose emitted
+  term is a λ□ `tFix` of one definition with recursive-argument index 0; also the rule
+  `EraseProof.ProgEnv.defn` (a definition's `all` is its own name) and `EraseProof.ErasesDeps`
+  (`EraseProof.ErasesDeps.fix`).
 - **Reference artifact:** PCUIC's fixpoints `tFix`, `eval_fix`
   (`pcuic/theories/PCUICWcbvEval.v:273`) and `erases_tFix` (`erasure/theories/Extract.v:122`).
-- **What differs:** Not applicable here: no source program of the fragment is recursive.
-  Metalean's environment has no recursive definitions (recursion goes through recursors). The
-  fragment test excludes every definition with a compiled recursive companion except, under
-  `structural := .kernel`, a definition by structural recursion, whose kernel definition recurses
-  through `T.brecOn` and the recursor and does not mention itself. It also excludes every
-  definition, theorem and opaque of a mutual block. So the recursive branch of the eraser's
-  `visitMutual` (`Erasure.isRecursiveDecl`) is not reached on the pure path for an input of the
-  fragment.
-- **Why it is forced:** not applicable: in the lean4lean experiment recursive constants were in
-  the fragment, modelled as fixpoints; Metalean has none to model.
-- **What was considered instead:** dropping the id, which would leave the shipping citations
-  without an entry.
+- **What differs:** the source has no fixpoint. A definition by structural recursion that the
+  configuration erases through its compiled pre-definition (`Erasure.preDef?`, the value of its
+  `_unsafe_rec` companion, which calls the definition itself) has no δ. `deltaRec` applies to it
+  applied to exactly as many arguments as the pre-definition has leading λs, at least one: the
+  arguments are evaluated, the application of the constant to their values must be convertible
+  (`EraseProof.SrcConv`) to the application of the pre-definition, and the latter evaluates to the
+  result. λ□ instead unfolds the emitted fixpoint at its first argument (`eval_fix`, recursive
+  argument index 0), and a recursive call erases to the fix variable (`fixVar`). A partial
+  application of such a definition in an evaluated position has no rule, so the source evaluation
+  is stuck there. The rule needs a definition that is not a recognized `casesOn` and not an atom,
+  and the recursive calls of the pre-definition are at the definition's own level parameters
+  (`EraseProof.ConstAt`). Elsewhere the source has no fixpoint either: a recursor is evaluated by
+  `EraseProof.SrcEval.recIota` and erased to a fixpoint of its own (DV-30), a structural
+  definition under `structural := .kernel` recurses through `T.brecOn` and does not mention
+  itself, and a definition of a mutual block is outside the fragment (DV-26).
+- **Why it is forced:** Metalean's environment has no recursive constants, so no source rule can
+  unfold a recursive definition to a term that calls it. Lean's code generator compiles the
+  `_unsafe_rec` companion of a structurally recursive definition (`addAndCompilePartialRec`,
+  `Lean/Elab/PreDefinition/Basic.lean:280`) and the eraser emits that pre-definition as the
+  fixpoint, so the λ□ program computes by it. The conversion between the constant and its
+  pre-definition holds only once the structural argument is a closed value, hence the full arity
+  with all arguments evaluated.
+- **What was considered instead:** erasing the kernel value, which recurses through `T.brecOn` and
+  is not what the code generator runs or the eraser emits; an unfolding rule at the first argument
+  only, whose conversion premise fails at an argument that is not a value; recursive constants in
+  the source, which Metalean's environment cannot state.
 
 ### DV-10
 
@@ -282,7 +298,10 @@ What the statements and the checks rely on without proof:
   (`erasure/theories/Extract.v:264`).
 - **What differs:** a definition that the configuration remaps to foreign code (`@[extern]` under
   `extern := .preferAxiom`) has a Lean value but no δ rule, and `EraseProof.ErasesDecl` relates it
-  to a λ□ declaration without a body, a pair `erases_constant_body` excludes.
+  to a λ□ declaration without a body, a pair `erases_constant_body` excludes. The rule
+  `EraseProof.SrcEval.deltaRec` (DV-7) does not apply to it either (it needs `σ.axiomatized ci` to
+  be false), so a recursive `@[extern]` definition is stuck in the source whatever its compiled
+  pre-definition.
 - **Why it is forced:** the eraser emits such a declaration as a λ□ axiom so that it is linked
   with its foreign implementation; neither Metalean nor λ□ models that implementation, so the
   source can only leave the constant stuck, as λ□ leaves the axiom.
@@ -342,7 +361,7 @@ What the statements and the checks rely on without proof:
 - **What differs:** `LBTerm` has no `tVar`, `tEvar`, `tCoFix`, `tLazy` or `tForce`, and its only
   primitive values are 63-bit integers, so `EraseProof.LBEval` has no cofixpoint or `force` rule;
   it has a constructor `fvar` (DV-13), with no evaluation rule. `EraseProof.ErasesDeps` has no rule
-  for fixpoints and primitive values, which the fragment does not produce (DV-7, DV-26).
+  for primitive values, which the fragment does not produce (DV-26).
 - **Why it is forced:** the theorem is about the eraser's output, an `LBTerm`, the λ□ that
   peregrine reads; the missing terms cannot occur in it.
 - **What was considered instead:** extending `LBTerm`, a shipping change no output needs; a
@@ -452,8 +471,9 @@ What the statements and the checks rely on without proof:
   `EraseProof.erase_correct_statement`, that the shipping fragment test `Erasure.collectDeps`
   accepts the input; and `EraseProof.collectDeps_ok_of_statement`, a sufficient condition for it
   (`EraseProof.ReadClosed`, `EraseProof.PhaseIDecl`, `EraseProof.PlainExpr`,
-  `EraseProof.RecShaped`, `EraseProof.KernameInj`, `EraseProof.BlockNamesInj`), which covers the
-  recursors and the structural recursion that the test admits.
+  `EraseProof.RecShaped`, `EraseProof.PreRead`, `EraseProof.KernameInj`,
+  `EraseProof.BlockNamesInj`), which covers the recursors and the structural recursion that the
+  test admits.
 - **Reference artifact:** MetaRocq's `erase_correct`
   (`erasure/theories/ErasureFunctionProperties.v:657`), which holds for every well-typed term.
 - **What differs:** the final theorem covers the inputs the fragment test accepts. Its exclusion
@@ -461,17 +481,18 @@ What the statements and the checks rely on without proof:
   indices that eliminates into every sort and whose induction hypotheses take no arguments and are
   about the last fields (`EraseProof.RecInFragment`; `Erasure.recShapeInFragment`), and those the
   eraser keeps as constants (`Erasure.recStaysConstant`), recursive definitions (every definition
-  with a compiled `_unsafe_rec` companion, except, under `structural := .kernel`, a definition by
-  structural recursion, `Erasure.isStructuralRecursive`), definitions, theorems and opaques of
+  with a compiled `_unsafe_rec` companion except a definition by structural recursion,
+  `Erasure.isStructuralRecursive`, which the test admits under `structural := .kernel` and, under
+  the default `structural := .unsafeRec`, when it has a compiled pre-definition, DV-7; definitions
+  by well-founded recursion and `partial` definitions are out), definitions, theorems and opaques of
   mutual blocks (whose `all` is not their own name alone, as in a mutual structural block),
   `partial`, `unsafe` and `implemented_by` constants, nested inductives, string
   literals, Nat literals and Nat or Int constructors under `nat := .machine`, `casesOn` on a
   constructor with an index field, eliminations of an inductive whose sort may be both `Prop` and
-  not `Prop`, `remove_irrel_constr_args`, metavariables. On the corpus (294 `#erase` calls), 225
-  are in the fragment, 66 out (20 of them recursive definitions, one of which, `Defects.log2`, is
-  defined by well-founded recursion) and 3 are rejected for a name collision; with
-  `structural := .kernel` as the default, 233 are in, 57 out and 4 rejected for a name
-  collision.
+  not `Prop`, `remove_irrel_constr_args`, metavariables. On the corpus (294 `#erase` calls) under
+  the default configuration, 233 are in the fragment, 58 out (among them the recursive definitions
+  that are not structural, such as `Defects.log2`, defined by well-founded recursion) and 3 are
+  rejected for a name collision.
 - **Why it is forced:** `#erase` sends an input outside the fragment to the `Meta` path
   (`Erasure.route`, `LeanToLambdaBox/Erasure/Entry.lean:321-325`), `CoreM` code about which
   nothing is proved, and some of the excluded constructs have no Metalean counterpart (nested
@@ -642,3 +663,24 @@ What the statements and the checks rely on without proof:
   computes through a recursor is stuck in λ□; for a literal major, a source step `k + 1 ⤳
   Nat.succ k` on literals, which would make a literal a non-value, or a separate rule repeating the
   premises of `recIota` (as `casesLitZero` and `casesLitSucc` do for `casesOn`).
+
+### DV-31
+
+- **Our artifact:** `proof/EraseProof/Spec.lean`: `EraseProof.PreDefsOK`, the hypothesis `hpre` of
+  `EraseProof.erase_correct_statement` (`proof/EraseProof/Statements.lean`).
+- **Reference artifact:** none: MetaRocq's `erase_correct`
+  (`erasure/theories/ErasureFunctionProperties.v:657`) has no counterpart, since a PCUIC
+  environment holds the recursive definition itself.
+- **What differs:** the theorem assumes that the compiled pre-definition of every declaration of
+  the program (`Erasure.preDef?`) is the Lean form of a closed Metalean term typed at the
+  declaration's type, translates by `EraseProof.TrM`, mentions only the declaration itself and
+  older declarations, and mentions the declaration only at its own level parameters.
+- **Why it is forced:** the `_unsafe_rec` companion is not a declaration of `P`, so
+  `EraseProof.ProgEnv` and the hypotheses `henv` and `hwf` say nothing about it, while
+  `EraseProof.SrcEval.deltaRec` and the erasure of the fixpoint (DV-7) evaluate and erase it. Lean's kernel type-checks the companion, a `partial`
+  definition, at the definition's type in the environment of its elaboration, which is what the
+  premise states; Lean's recursion is universe-monomorphic, which is the level condition.
+- **What was considered instead:** stating the premise on the program's declarations alone, which
+  cannot mention the companion; adding the companion to `P`, which changes what the final theorem
+  takes as the program and what `hview` compares; deriving the premise from `henv`, which does not
+  constrain the companion.
