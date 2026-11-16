@@ -221,67 +221,6 @@ theorem count_keep_slice {N i : Nat} (h : i ≤ N) :
   rw [count_keep_replicate]
   omega
 
-/-! ## Closed λ□ terms under the traversal's abstraction -/
-
-theorem length_toBvarDefs (x : FVarId) (k : Nat) :
-    ∀ ds : List (@FixDef LBTerm), (toBvarDefs x k ds).length = ds.length
-  | [] => rfl
-  | _ :: ds => by simp only [toBvarDefs, List.length_cons, length_toBvarDefs x k ds]
-
-mutual
-/-- Turning a free variable into the bound variable `k` keeps a term closed one level up. -/
-theorem closedn_toBvar (x : FVarId) : ∀ (t : LBTerm) (k : Nat), closedn k t = true →
-    closedn (k + 1) (toBvar x k t) = true
-  | .box, _, _ => rfl
-  | .bvar i, k, h => by simp only [toBvar, closedn, decide_eq_true_eq] at h ⊢; omega
-  | .fvar y, k, _ => by
-    simp only [toBvar]
-    split
-    · simp [closedn]
-    · rfl
-  | .lambda _ b, k, h => closedn_toBvar x b (k + 1) h
-  | .letIn _ v b, k, h => by
-    simp only [toBvar, closedn, Bool.and_eq_true] at h ⊢
-    exact ⟨closedn_toBvar x v k h.1, closedn_toBvar x b (k + 1) h.2⟩
-  | .app a b, k, h => by
-    simp only [toBvar, closedn, Bool.and_eq_true] at h ⊢
-    exact ⟨closedn_toBvar x a k h.1, closedn_toBvar x b k h.2⟩
-  | .const _, _, _ => rfl
-  | .construct _ _ args, k, h => closednL_toBvarList x args k h
-  | .case (_, _) d alts, k, h => by
-    simp only [toBvar, closedn, Bool.and_eq_true] at h ⊢
-    exact ⟨closedn_toBvar x d k h.1, closednB_toBvarAlts x alts k h.2⟩
-  | .proj _ e, k, h => closedn_toBvar x e k h
-  | .fix defs _, k, h => by
-    simp only [toBvar, closedn] at h ⊢
-    rw [length_toBvarDefs, show k + 1 + defs.length = k + defs.length + 1 by omega]
-    exact closednD_toBvarDefs x defs (k + defs.length) h
-  | .prim _, _, _ => rfl
-
-theorem closednL_toBvarList (x : FVarId) : ∀ (as : List LBTerm) (k : Nat),
-    closednL k as = true → closednL (k + 1) (toBvarList x k as) = true
-  | [], _, _ => rfl
-  | a :: as, k, h => by
-    simp only [toBvarList, closednL, Bool.and_eq_true] at h ⊢
-    exact ⟨closedn_toBvar x a k h.1, closednL_toBvarList x as k h.2⟩
-
-theorem closednB_toBvarAlts (x : FVarId) : ∀ (bs : List (List BinderName × LBTerm)) (k : Nat),
-    closednB k bs = true → closednB (k + 1) (toBvarAlts x k bs) = true
-  | [], _, _ => rfl
-  | (ns, b) :: bs, k, h => by
-    simp only [toBvarAlts, closednB, Bool.and_eq_true] at h ⊢
-    refine ⟨?_, closednB_toBvarAlts x bs k h.2⟩
-    rw [show k + 1 + ns.length = k + ns.length + 1 by omega]
-    exact closedn_toBvar x b (k + ns.length) h.1
-
-theorem closednD_toBvarDefs (x : FVarId) : ∀ (ds : List (@FixDef LBTerm)) (k : Nat),
-    closednD k ds = true → closednD (k + 1) (toBvarDefs x k ds) = true
-  | [], _, _ => rfl
-  | ⟨_, b, _⟩ :: ds, k, h => by
-    simp only [toBvarDefs, closednD, Bool.and_eq_true] at h ⊢
-    exact ⟨closedn_toBvar x b k h.1, closednD_toBvarDefs x ds k h.2⟩
-end
-
 /-! ## Constructor arguments -/
 
 theorem filterMap_keep {α : Type} : ∀ (l : List α) (n : Nat), l.length ≤ n →
