@@ -237,7 +237,7 @@ theorem Erases.hasFVar_of {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n}
     simp only [hasFVar] at hx
     rw [(fvarId_beq_iff x y).mp hx]; exact hΔ y _ hF
   case constFix =>
-    intro _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hfv _ p _ _ x hx
+    intro _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hfv _ p _ _ x hx
     simp only [hasFVar, hasFVarD, Bool.or_false, hfv x] at hx
     cases hx
   case lam => intro _ _ _ _ _ _ _ _ _ _ _ _ ih p hΔ hk x hx; exact ih p (push hΔ) hk x hx
@@ -418,8 +418,8 @@ theorem InstFV.zeroLet {ℓ n : Nat} {x : FVarId} {Δ : MLCtx ζ ℓ n} (hx : Δ
     exact ht
 
 /-- Closing a `let` that the traversal opened with a fresh free variable (`mkLetIn`), whose local
-is no fix variable: the `let`-body counterpart of `Erases.abstract`. Reference: `Erases.uninstantiateN`
-(`L4 Relation/Abstract.lean:170`); none in MetaRocq (DV-13). -/
+is no fix variable: the `let`-body counterpart of `Erases.abstract`. Reference:
+`Erases.uninstantiateN` (`L4 Relation/Abstract.lean:170`); none in MetaRocq (DV-13). -/
 theorem Erases.abstract_let {P : List ConstantInfo} {σ : EvalEnv} {n : Nat}
     {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n} {x : FVarId} {b : Expr}
     {tb : LBTerm} {d : MLDecl ζ lps.length n} (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P)

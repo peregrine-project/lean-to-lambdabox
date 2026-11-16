@@ -874,9 +874,9 @@ theorem Erases.rename
     intro _ _ _ _ _ _ _ hat hT hF m Γ₂ Δ₂ c j ρ _ _ _ WF _
     exact .fixVar hat (TrM.const_subst hT _) (WF _ _ hF)
   case constFix =>
-    intro _ _ _ _ _ _ _ _ _ _ hci hdef hcas hat hax hpre hp ht hb hcl' hfv _ m Γ₂ Δ₂ c j ρ
+    intro _ _ _ _ _ _ _ _ _ _ _ hci hdef hcas hat hax hpre hp ht₀ ht hb hcl' hfv _ m Γ₂ Δ₂ c j ρ
       _ _ _ _ _
-    exact .constFix hci hdef hcas hat hax hpre hp ht hb hcl' hfv
+    exact .constFix hci hdef hcas hat hax hpre hp ht₀ ht hb hcl' hfv
   case ctor =>
     intro _ _ _ _ _ _ _ as _ hcv hnp hid hle hlen _ ih m Γ₂ Δ₂ c j ρ hΓ₂ hth W WF hcl
     rw [AbsFV.closedn_mkApps] at hcl
@@ -909,7 +909,8 @@ theorem Erases.rename
     refine .casesReduced hco hfe hcs hcv hidx (by simpa using hpre)
       (iha _ _ _ c' j ρ hΓ₂ hth W WF halt) (by simpa using hlex) fun i a a' ha ha' => ?_
     obtain ⟨a₀, ha₀, rfl⟩ := gmap ha
-    exact ihe i a₀ a' ha₀ ha' _ _ _ c' j ρ hΓ₂ hth W WF (hext _ (by simp [List.mem_of_getElem? ha']))
+    exact ihe i a₀ a' ha₀ ha' _ _ _ c' j ρ hΓ₂ hth W WF
+      (hext _ (by simp [List.mem_of_getElem? ha']))
   case eta =>
     intro c _ _ _ _ _ _ _ heta _ ih m Γ₂ Δ₂ c' j ρ hΓ₂ hth W WF hcl
     rw [lift_spine]
@@ -1235,11 +1236,11 @@ theorem Erases.instG (hE : EnvWF E)
     rw [hN] at hF
     cases hF
   case constFix =>
-    intro _ _ _ _ _ _ _ _ _ _ hci hdef hcas hat hax hpre hp ht hb hcl' hfv _ _ _ _ d
+    intro _ _ _ _ _ _ _ _ _ _ _ hci hdef hcas hat hax hpre hp ht₀ ht hb hcl' hfv _ _ _ _ d
       _ _ _ _ _ _ _
     rw [TargetSubst.csubst_closedn a' _ 0 d
       (by simpa [closedn, closednD] using hcl') (Nat.zero_le _)]
-    exact .constFix hci hdef hcas hat hax hpre hp ht hb hcl' hfv
+    exact .constFix hci hdef hcas hat hax hpre hp ht₀ ht hb hcl' hfv
   case ctor =>
     intro _ _ _ _ _ _ _ as _ hcv hnp hid hle hlen _ ih n₂ Γ₂ Δ₂ d ς hN hΓ₂ hς W Ea hi
     rw [inst_spine, csubst_mkApps]
@@ -1668,9 +1669,10 @@ theorem Erases.inst {P : List ConstantInfo} {σ : EvalEnv} {n : Nat}
     W Ea hi
 
 /-- Substitution of a typed source value into a `casesOn` alternative erased under its field
-binders, under locals without fix variables: the branch's body is substituted below the field binders (the step of `iotaRed`,
-`MR E/EGlobalEnv.v:281 iota_red`, `substl`). Reference: `erases_subst0` (`MR E/ESubstitution.v:612`)
-on the branches of `MR E/Extract.v:111 erases_tCase`. -/
+binders, under locals without fix variables: the branch's body is substituted below the field
+binders (the step of `iotaRed`, `MR E/EGlobalEnv.v:281 iota_red`, `substl`). Reference:
+`erases_subst0` (`MR E/ESubstitution.v:612`) on the branches of `MR E/Extract.v:111 erases_tCase`.
+-/
 theorem ErasesAlt.inst {P : List ConstantInfo} {σ : EvalEnv} {n k : Nat}
     {Γ : Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n} {a b : Lean.Expr} {a' t : LBTerm}
     {ns : List BinderName} {b₀ : Expr ζ lps.length (n + 1)} {a₀ : Expr ζ lps.length n}

@@ -222,10 +222,10 @@ theorem Erases.fixSubst {σ : EvalEnv} {F : LBTerm} {x : FVarId} {kind : Metalea
       simp only [_root_.toBvar, hyx, Bool.false_eq_true, ↓reduceIte, csubst]
       exact .fixVar hat hT' (W.2.2 y _ hy hF)
   case constFix =>
-    intro _ _ _ _ _ _ _ _ _ _ hci hdef hcas hat hax hpre hp ht hb hcl' hfv _ k _ _ _ _ _
+    intro _ _ _ _ _ _ _ _ _ _ _ hci hdef hcas hat hax hpre hp ht₀ ht hb hcl' hfv _ k _ _ _ _ _
     rw [sub_closed k (by simpa [closedn, closednD] using hcl')
       (by simp [hasFVar, hasFVarD, hfv x])]
-    exact .constFix hci hdef hcas hat hax hpre hp ht hb hcl' hfv
+    exact .constFix hci hdef hcas hat hax hpre hp ht₀ ht hb hcl' hfv
   case ctor =>
     intro _ _ _ _ _ _ _ as _ hcv hnp hid hle hlen _ ih k _ hx W he hcl
     rw [AbsFV.closedn_mkApps] at hcl

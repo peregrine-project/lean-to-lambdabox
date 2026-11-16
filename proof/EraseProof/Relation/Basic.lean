@@ -299,7 +299,7 @@ private theorem Erases.closedn_of_bbound {e : Expr} {tb : LBTerm}
   case bvar => intro _ _ _ _ k hk; simpa [closedn, BBound] using hk
   case fvar | const | fixVar | box | litZero => intros; rfl
   case constFix =>
-    intro _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hcl _ _ k _
+    intro _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hcl _ _ k _
     simp only [closedn, closednD, List.length_singleton, Bool.and_true]
     exact TargetLift.closedn_mono _ 1 _ hcl (by omega)
   case lam => intro _ _ _ _ _ _ _ _ _ _ _ _ ih k hk; exact ih (k + 1) hk
@@ -753,9 +753,9 @@ theorem Erases.atomSpine_box {e : Expr} {tb s : LBTerm} {lenv : GlobalDeclaratio
   LBEval.eq_box_of_headOf hv (Erases.headOf_atomSpine hsp h)
 
 /-- An erasure of a constructor spine with at least the constructor's arity, of an inductive in
-`Prop`, under locals without a fix variable, is `□`: `Erases.ctor` needs `¬ PropInductive`. Reference: `erases_tConstruct`
-(`MR E/Extract.v:106`, `~~ isPropositional`), whose only alternative is `erases_box`
-(`MR E/Extract.v:140`). -/
+`Prop`, under locals without a fix variable, is `□`: `Erases.ctor` needs `¬ PropInductive`.
+Reference: `erases_tConstruct` (`MR E/Extract.v:106`, `~~ isPropositional`), whose only
+alternative is `erases_box` (`MR E/Extract.v:140`). -/
 theorem Erases.ctorProp_box {c : Name} {cv : ConstructorVal} {us : List Level} {as : List Expr}
     {tb : LBTerm} (hc : findDecl σ.decls c = some (.ctorInfo cv))
     (hP : PropInductive E B cv.induct) (hle : cv.numParams + cv.numFields ≤ as.length)

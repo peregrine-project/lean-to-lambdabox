@@ -1087,9 +1087,10 @@ def evalEnvOf (view : EnvView) (cfg : ErasureConfig) (P : List ConstantInfo) : E
 /-- The compiled pre-definitions of `P` are well formed: the pre-definition `pre` of a declaration
 `ci` of `P` mentions only `ci` and declarations older than `ci` (after it in the newest-first `P`),
 mentions `ci` only at `ci`'s own level parameters (Lean's structural recursion is
-universe-monomorphic), and it is the Lean form of a closed Metalean term of `ci`'s type. Lean's kernel checks the
-`_unsafe_rec` companion against that type (`add_mutual`), in the environment of its elaboration
-(`addAndCompilePartialRec`, `Lean/Elab/PreDefinition/Basic.lean:280`). Reference: none (DV-31). -/
+universe-monomorphic), and it is the Lean form of a closed Metalean term of `ci`'s type. Lean's
+kernel checks the `_unsafe_rec` companion against that type (`add_mutual`), in the environment of
+its elaboration (`addAndCompilePartialRec`, `Lean/Elab/PreDefinition/Basic.lean:280`). Reference:
+none (DV-31). -/
 def PreDefsOK {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (view : EnvView)
     (cfg : ErasureConfig) (P : List ConstantInfo) : Prop :=
   ∀ P₁ ci P₀ pre, P = P₁ ++ ci :: P₀ → preDef? view cfg ci = some pre →
@@ -1406,15 +1407,16 @@ inductive Erases {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (lps 
   /-- A definition, not a recognized `casesOn`, erased through its compiled pre-definition `pre`,
   as its λ□ fixpoint (the form the unfolding of `tFix` substitutes for the recursive calls): one
   definition named after `c`, recursive-argument index 0, whose body abstracts the fix variable
-  `x` from an erasure of `pre` at the constant's levels `us`, in which `x` stands for the
-  constant's translation `t`; `pre` translates at the definition's level parameters; the body is
-  closed, without free variables. Reference: `erases_tFix` (`MR E/Extract.v:122`); DV-7. -/
-  | constFix {x : FVarId} {b : LBTerm} {t : Metalean.Expr ζ lps.length 0} :
+  `x` from an erasure of `pre` at levels `us₀` at which the constant has the same translation `t`
+  as at its levels `us` (Metalean levels are up to equivalence), in which `x` stands for `t`;
+  `pre` translates at the definition's level parameters; the body is closed, without free
+  variables. Reference: `erases_tFix` (`MR E/Extract.v:122`); DV-7. -/
+  | constFix {x : FVarId} {b : LBTerm} {t : Metalean.Expr ζ lps.length 0} {us₀ : List Level} :
       findDecl σ.decls c = some ci → ci.isDefinition = true → σ.casesOn? c = none →
       σ.isAtom c = false → σ.axiomatized ci = false → σ.recPre? ci = some pre →
       (∃ p : Metalean.Expr ζ ci.levelParams.length 0, TrM E B ci.levelParams .nil [] pre p) →
-      TrM E B lps .nil [] (.const c us) t →
-      Erases E B lps σ .nil [(some x, .vfix t)] (Pure.instLevels ci.levelParams us pre) b →
+      TrM E B lps .nil [] (.const c us₀) t → TrM E B lps .nil [] (.const c us) t →
+      Erases E B lps σ .nil [(some x, .vfix t)] (Pure.instLevels ci.levelParams us₀ pre) b →
       closedn 1 (toBvar x 0 b) = true → (∀ y, hasFVar y (toBvar x 0 b) = false) →
       Erases E B lps σ Γ Δ (.const c us) (.fix [⟨fixDefName c, toBvar x 0 b, 0⟩] 0)
   /-- `erases_tConstruct` (`:106`, `~~ isPropositional`) under applications, parameters kept
@@ -1564,7 +1566,8 @@ remapped externs (DV-12); for a definition erased through its compiled pre-defin
 whose body abstracts the fix variable `x` from an erasure of `pre` in which `x` is a fix-variable
 local (`MLDecl.vfix`) standing for the constant's translation at its own level parameters, `pre`
 translating at them, closed and without free variables (`visitMutual`,
-`LeanToLambdaBox/Erasure.lean:1269`; DV-7); an erasure of the value otherwise. Reference: `MR E/Extract.v:264 erases_constant_body`. -/
+`LeanToLambdaBox/Erasure.lean:1269`; DV-7); an erasure of the value otherwise. Reference:
+`MR E/Extract.v:264 erases_constant_body`. -/
 def ErasesDecl {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (σ : EvalEnv)
     (ci : ConstantInfo) (cb : ConstantBody) : Prop :=
   match ci.value? (allowOpaque := true) with
