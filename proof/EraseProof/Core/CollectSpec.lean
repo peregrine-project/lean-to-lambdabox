@@ -10,8 +10,9 @@ agrees with it, the closure that a successful `Erasure.collectDeps` returns has 
 kernames, holds the view's declarations, is closed under what the pure traversal reads, reads only
 closed expressions, holds every constant of the term, keeps every declaration inside the
 first-phase fragment (`PhaseIDecl`), reads recursors only in the fragment's shape (`RecShaped`),
-and its inductive blocks have distinct λ□ names (`BlockNamesInj`) and syntactic arities as types
-(`ArityTypes`). The proof reads
+its inductive blocks have distinct λ□ names (`BlockNamesInj`) and syntactic arities as types
+(`ArityTypes`), and it reads the compiled pre-definitions (`Erasure.preDef?`) of its declarations
+that are not recognized `casesOn` constants as values. The proof reads
 the checks of the shipping code: `exprConsts`, `declExclusion` and `closureStep` on every scanned
 declaration, `dropKnown` on every read name, and `eliminatedUndecided`, `findCollision` and
 `findBlockCollision` on the result. Reference: `L4 Core/Collect.lean:214`.
@@ -235,7 +236,8 @@ theorem declExclusion_ok {view : EnvView} {cfg : ErasureConfig} {ci : ConstantIn
       recShapeInFragment R (recViewIvs view R) (recViewCvs view (recViewIvs view R)) = true) ∧
     (∀ d, ci = .defnInfo d → d.safety = .safe ∧
       (view.find? (Compiler.mkUnsafeRecName d.name) = none ∨
-        (cfg.structural == .kernel && isStructuralRecursive (.defnInfo d)) = true) ∧
+        (isStructuralRecursive (.defnInfo d) &&
+          (cfg.structural == .kernel || (preDef? view cfg (.defnInfo d)).isSome)) = true) ∧
       view.implementedBy? d.name = none) ∧
     (∀ o, ci = .opaqueInfo o → o.isUnsafe = false ∧
       view.find? (Compiler.mkUnsafeRecName o.name) = none ∧ view.implementedBy? o.name = none) ∧
@@ -278,7 +280,13 @@ theorem declExclusion_ok {view : EnvView} {cfg : ErasureConfig} {ci : ConstantIn
     · cases hf : (view.find? (Compiler.mkUnsafeRecName d.name)).isSome
       · exact .inl (Option.not_isSome_iff_eq_none.mp (by simp [hf]))
       · right
-        simpa [hf] using h2
+        have h2' : ¬((view.find? (Compiler.mkUnsafeRecName d.name)).isSome &&
+            !(isStructuralRecursive (.defnInfo d) &&
+              (cfg.structural == .kernel || (preDef? view cfg (.defnInfo d)).isSome))) = true := h2
+        rw [hf] at h2'
+        revert h2'
+        cases isStructuralRecursive (.defnInfo d) <;> cases cfg.structural == .kernel <;>
+          cases (preDef? view cfg (.defnInfo d)).isSome <;> simp
   | opaqueInfo o =>
     rw [declExclusion] at h
     refine ⟨nofun, nofun, fun o' ho => ?_, nofun, nofun, nofun⟩
@@ -338,7 +346,8 @@ theorem closureStep_spec {view : EnvView} {cfg : ErasureConfig} {ci : ConstantIn
     (∀ n ∈ ci.all, n ∈ ns ∨ n = ci.name) ∧
     (∀ d, ci = .defnInfo d →
       (recognizeCasesOn view ci = none ∧ ro = none ∧
-        ∃ vs, exprConsts cfg d.value = .ok vs ∧ ∀ n ∈ vs, n ∈ ns) ∨
+        (∃ vs, exprConsts cfg d.value = .ok vs ∧ ∀ n ∈ vs, n ∈ ns) ∧
+        ∀ p, preDef? view cfg ci = some p → ∃ ps, exprConsts cfg p = .ok ps ∧ ∀ n ∈ ps, n ∈ ns) ∨
       (∃ I R ctors, recognizeCasesOn view ci = some (I, R, ctors) ∧ I.name ∈ ns ∧
         ro = some (.recInfo R) ∧ ∀ c ∈ ctors, ∀ cv, c = .ctorInfo cv →
           (indexFields cv.numParams cv.type).all (·.isNone) = true)) ∧
@@ -374,11 +383,21 @@ theorem closureStep_spec {view : EnvView} {cfg : ErasureConfig} {ci : ConstantIn
         · cases hs; rfl) hfor _ hc
       dsimp only at hs
       exact (ite_ok_then hs fun _ h => nomatch h).1
-    · obtain ⟨vs, hvs, h⟩ := OracleWhnf.ok_of_bind h
+    · rename_i hrec
+      obtain ⟨ps, hps, h⟩ : ∃ ps, (∀ p, preDef? view cfg (.defnInfo d) = some p →
+          exprConsts cfg p = .ok ps) ∧
+          (do let __do_lift ← exprConsts cfg d.value
+              pure (ty ++ __do_lift ++ ps ++ d.all, none) : Except EraseError _) = .ok (ns, ro) := by
+        rcases hp : preDef? view cfg (.defnInfo d) with _ | p <;> rw [hp] at h
+        · exact ⟨[], nofun, h⟩
+        · obtain ⟨ps, hps, h⟩ := OracleWhnf.ok_of_bind h
+          exact ⟨ps, fun p' hp' => by cases hp'; exact hps, h⟩
+      obtain ⟨vs, hvs, h⟩ := OracleWhnf.ok_of_bind h
       cases h
       exact ⟨⟨ty, hty, fun n hn => by simp_all [ConstantInfo.all]⟩, fun n hn => .inl (by simp_all [ConstantInfo.all]),
-        fun d' hd => .inl ⟨by cases hd; assumption, rfl, vs, by cases hd; exact hvs,
-          fun n hn => by simp_all [ConstantInfo.all]⟩, nofun, nofun, nofun, nofun⟩
+        fun d' hd => .inl ⟨by cases hd; exact hrec, rfl, ⟨vs, by cases hd; exact hvs,
+          fun n hn => by simp_all [ConstantInfo.all]⟩, fun p hp => ⟨ps, by cases hd; exact hps p hp,
+          fun n hn => by simp_all [ConstantInfo.all]⟩⟩, nofun, nofun, nofun, nofun⟩
   | thmInfo t =>
     cases h
     exact ⟨⟨ty, hty, fun n hn => by simp_all [ConstantInfo.all]⟩, fun n hn => .inl (by simp_all [ConstantInfo.all]), nofun, nofun,
@@ -489,7 +508,8 @@ theorem eq_of_name {view : EnvView} (hview : ViewAgrees view P) {x y : ConstantI
 /-- What a run of the closure returns, from an accumulator of the program whose declarations are
 scanned up to the work list. -/
 theorem closure_ok (hP : ProgEnv P ζ E B) {view : EnvView} (hview : ViewAgrees view P)
-    {cfg : ErasureConfig} : ∀ {f : Nat} {todo : List Name} {acc : List ConstantInfo}
+    {cfg : ErasureConfig} (hpn : ∀ ci ∈ P, ∀ p, preDef? view cfg ci = some p → NamesIn P p) :
+    ∀ {f : Nat} {todo : List Name} {acc : List ConstantInfo}
     {cases : List Name} {res : List ConstantInfo × List Name},
     closure view cfg f todo acc cases = .ok res → (∀ ci ∈ acc, ci ∈ P) →
     (∀ n ∈ todo, n ∈ P.map (·.name)) → (acc.map (·.name)).Nodup →
@@ -537,7 +557,7 @@ theorem closure_ok (hP : ProgEnv P ζ E B) {view : EnvView} (hview : ViewAgrees 
         rw [ite_eq_right hname] at h
         have hcn : ci.name = n := by simpa using hname
         obtain ⟨⟨ns, ro⟩, hcs, h⟩ := OracleWhnf.ok_of_bind h
-        obtain ⟨hns, hro⟩ := closureStep_sub hP hview hciP hcs
+        obtain ⟨hns, hro⟩ := closureStep_sub hP hview hciP (hpn ci hciP) hcs
         have hspec := closureStep_spec hcs
         have hcovn : Covered view cfg (ci :: acc) n := ⟨ci, List.mem_cons_self, hcn, fun _ _ => hspec.1⟩
         have hnd1 : ((ci :: acc).map (·.name)).Nodup := by
@@ -581,7 +601,7 @@ theorem closure_ok (hP : ProgEnv P ζ E B) {view : EnvView} (hview : ViewAgrees 
           · exact ht m hm
         cases ro with
         | none =>
-          obtain ⟨r1, r2, r3, r4, r5, r6⟩ := closure_ok hP hview h hacc1
+          obtain ⟨r1, r2, r3, r4, r5, r6⟩ := closure_ok hP hview hpn h hacc1
             (fun m hm => by
               rcases List.mem_append.1 hm with hm | hm
               · exact hns m hm
@@ -610,7 +630,7 @@ theorem closure_ok (hP : ProgEnv P ζ E B) {view : EnvView} (hview : ViewAgrees 
             obtain ⟨hy1, hy2⟩ := findDecl_eq_some (l := acc) hy
             have hyr : y = .recInfo R := eq_of_name hview (hacc y hy1) hrP hy2
             subst hyr
-            obtain ⟨r1, r2, r3, r4, r5, r6⟩ := closure_ok hP hview h hacc1
+            obtain ⟨r1, r2, r3, r4, r5, r6⟩ := closure_ok hP hview hpn h hacc1
               (fun m hm => by
                 rcases List.mem_append.1 hm with hm | hm
                 · exact hns m hm
@@ -630,7 +650,7 @@ theorem closure_ok (hP : ProgEnv P ζ E B) {view : EnvView} (hview : ViewAgrees 
             have htyP := (ProgEnv.names_closed hP _ hrP).type.exprConsts htys
             have hl2 : ∀ x ∈ ci :: acc, x ∈ ConstantInfo.recInfo R :: ci :: acc :=
               fun x hx => List.mem_cons_of_mem _ hx
-            obtain ⟨r1, r2, r3, r4, r5, r6⟩ := closure_ok hP hview h
+            obtain ⟨r1, r2, r3, r4, r5, r6⟩ := closure_ok hP hview hpn h
               (fun cj hcj => by
                 rcases List.mem_cons.1 hcj with rfl | hcj
                 · exact hrP
@@ -997,7 +1017,8 @@ theorem recog_of_ds_of {view : EnvView} {decls : List ConstantInfo}
     (hblk : ∀ iv, .inductInfo iv ∈ decls →
       (∀ n ∈ iv.ctors, n ∈ decls.map (·.name)) ∧ ∀ n ∈ iv.all, n ∈ decls.map (·.name))
     {d : DefinitionVal} {iv : InductiveVal} (hd : .defnInfo d ∈ decls)
-    {ax : ConstantInfo → Bool} (hcs : EvalEnv.casesOn? ⟨decls, ax, fun _ => none⟩ d.name = some iv) :
+    {ax : ConstantInfo → Bool} {rp : ConstantInfo → Option Expr}
+    (hcs : EvalEnv.casesOn? ⟨decls, ax, rp⟩ d.name = some iv) :
     .inductInfo iv ∈ decls ∧ ∃ R ctors, recognizeCasesOn view (.defnInfo d) = some (iv, R, ctors) := by
   have vw : ∀ y ∈ decls, view.find? y.name = some y := fun y hy => hview y (hsub y hy)
   unfold EvalEnv.casesOn? at hcs
@@ -1103,8 +1124,9 @@ theorem reads_agree {d : DefinitionVal} {iv : InductiveVal} {R : RecursorVal} {T
 /-- A `casesOn` that the view recognizes is recognized on the closure. -/
 theorem recog_ds {d : DefinitionVal} {I : InductiveVal} {R : RecursorVal}
     {ctors : List ConstantInfo} (hd : .defnInfo d ∈ decls)
-    (hrec : recognizeCasesOn view (.defnInfo d) = some (I, R, ctors)) (ax : ConstantInfo → Bool) :
-    EvalEnv.casesOn? ⟨decls, ax, fun _ => none⟩ d.name = some I ∧ .inductInfo I ∈ decls ∧
+    (hrec : recognizeCasesOn view (.defnInfo d) = some (I, R, ctors)) (ax : ConstantInfo → Bool)
+    (rp : ConstantInfo → Option Expr := fun _ => none) :
+    EvalEnv.casesOn? ⟨decls, ax, rp⟩ d.name = some I ∧ .inductInfo I ∈ decls ∧
       .recInfo R ∈ decls ∧ ∃ T, d.name = .str T "casesOn" ∧ R.name = mkRecName T ∧
       ctors = I.ctors.flatMap (viewFind view) := by
   obtain ⟨T, hT, hI, hR, hct, hc⟩ := recognize_iff.1 hrec
@@ -1140,7 +1162,8 @@ theorem recog_ds {d : DefinitionVal} {I : InductiveVal} {R : RecursorVal}
 
 /-- A `casesOn` recognized on the closure is recognized by the view. -/
 theorem recog_of_ds {d : DefinitionVal} {iv : InductiveVal} (hd : .defnInfo d ∈ decls)
-    {ax : ConstantInfo → Bool} (hcs : EvalEnv.casesOn? ⟨decls, ax, fun _ => none⟩ d.name = some iv) :
+    {ax : ConstantInfo → Bool} {rp : ConstantInfo → Option Expr}
+    (hcs : EvalEnv.casesOn? ⟨decls, ax, rp⟩ d.name = some iv) :
     .inductInfo iv ∈ decls ∧ ∃ R ctors, recognizeCasesOn view (.defnInfo d) = some (iv, R, ctors) :=
   recog_of_ds_of hr.closed hr.hview hr.sub hr.inds hd hcs
 
@@ -1152,7 +1175,7 @@ theorem read {ci : ConstantInfo} (hci : ci ∈ decls) {x : Expr} (hx : ReadExpr 
     rcases hx with rfl | ⟨d, rfl, rfl, hnone⟩ | ⟨o, rfl, rfl⟩
     · obtain ⟨ty, hty, hsub⟩ := spec.2.1
       exact ⟨ty, hty, fun n hn => hns n (hsub n hn)⟩
-    · rcases spec.2.2.2.1 d rfl with ⟨-, -, vs, hvs, hsub⟩ | ⟨I, R, ctors, hrec, -⟩
+    · rcases spec.2.2.2.1 d rfl with ⟨-, -, ⟨vs, hvs, hsub⟩, -⟩ | ⟨I, R, ctors, hrec, -⟩
       · exact ⟨vs, hvs, fun n hn => hns n (hsub n hn)⟩
       · rw [(hr.recog_ds hci hrec _).1] at hnone; cases hnone
     · obtain ⟨vs, hvs, hsub⟩ := spec.2.2.2.2.1 o rfl
@@ -1161,6 +1184,23 @@ theorem read {ci : ConstantInfo} (hci : ci ∈ decls) {x : Expr} (hx : ReadExpr 
     · exact ⟨tys, htys, htc⟩
     · cases h
     · cases h
+
+/-- The compiled pre-definition of a declaration of the closure that is not a recognized `casesOn`
+was scanned, with its names covered. -/
+theorem readPre {ci : ConstantInfo} (hci : ci ∈ decls) {p : Expr}
+    (hp : preDef? view cfg ci = some p)
+    (hcs : (EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩ ci.name).isNone) :
+    ∃ ps, exprConsts cfg p = .ok ps ∧ ∀ n ∈ ps, Covered view cfg decls n := by
+  obtain ⟨d, rfl⟩ : ∃ d, ci = .defnInfo d := by
+    cases ci with
+    | defnInfo d => exact ⟨d, rfl⟩
+    | _ => simp [preDef?] at hp
+  obtain ⟨ns, ro, hcs', hns, -, -⟩ := hr.scanned hci nofun
+  rcases (closureStep_spec hcs').2.2.2.1 d rfl with ⟨-, -, -, hpre⟩ | ⟨I, R, ctors, hrec, -⟩
+  · obtain ⟨ps, hps, hsub⟩ := hpre p hp
+    exact ⟨ps, hps, fun n hn => hns n (hsub n hn)⟩
+  · have hcs2 : (EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩ d.name).isNone = true := hcs
+    rw [(hr.recog_ds hci hrec _).1] at hcs2; cases hcs2
 
 /-- The inductive block of a recursor of the closure is in the closure. -/
 theorem recr_all {R : RecursorVal} (hR : .recInfo R ∈ decls) :
@@ -1274,7 +1314,7 @@ theorem rec_frag {R : RecursorVal} (hR : .recInfo R ∈ decls)
 
 /-- The definition behind a `casesOn` recognized on the closure. -/
 theorem defn_of_casesOn {n : Name} {iv : InductiveVal} {ax : ConstantInfo → Bool}
-    (h : EvalEnv.casesOn? ⟨decls, ax, fun _ => none⟩ n = some iv) :
+    {rp : ConstantInfo → Option Expr} (h : EvalEnv.casesOn? ⟨decls, ax, rp⟩ n = some iv) :
     ∃ d, .defnInfo d ∈ decls ∧ d.name = n := by
   unfold EvalEnv.casesOn? at h
   split at h
@@ -1371,24 +1411,33 @@ end CollectSpec
 
 open CollectSub CollectSpec NonRec in
 /-- What the fragment test's closure satisfies on a program read through a view that agrees with
-it: distinct names and kernames, the view's declarations, closed under what the traversal reads,
-closed expressions, the constants of `e`, every declaration in the first-phase fragment
-(`PhaseIDecl`), recursors read only in the fragment's shape (`RecShaped`), distinct λ□ block
-names (`BlockNamesInj`) and
-syntactic arities as inductive types (`ArityTypes`) (port of `L4 Core/Collect.lean:214`). -/
+it, when the compiled pre-definitions are well formed: distinct names and kernames, the view's
+declarations, closed under what the traversal reads, closed expressions, the constants of `e`,
+every declaration in the first-phase fragment (`PhaseIDecl`), recursors read only in the
+fragment's shape (`RecShaped`), distinct λ□ block names (`BlockNamesInj`), syntactic arities as
+inductive types (`ArityTypes`), and the compiled pre-definitions (`Erasure.preDef?`) of the
+declarations that are not recognized `casesOn` constants read as values: their constants in the
+closure (`Nat` for a Nat literal), closed, recursors only in the fragment's shape (port of
+`L4 Core/Collect.lean:214`). -/
 theorem collectDeps_spec {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ}
     {P decls : List ConstantInfo} {lps : List Name} {e : Expr} {t : Metalean.Expr ζ lps.length 0}
     {view : EnvView} {cfg : ErasureConfig} (henv : ProgEnv P ζ E B)
-    (hview : ViewAgrees view P) (he : TrM E B lps .nil [] e t)
+    (hview : ViewAgrees view P) (hpre : PreDefsOK E B view cfg P) (he : TrM E B lps .nil [] e t)
     (h : collectDeps view cfg e = .ok decls) :
     KernameInj decls ∧ (∀ ci ∈ decls, view.find? ci.name = some ci) ∧
       (decls.map (·.name)).Nodup ∧ DepClosed decls ∧ ClosedDecls decls ∧
       ConstsIn (fun c => (findDecl decls c).isSome) e ∧
       (∀ ci ∈ decls, PhaseIDecl view cfg decls ci) ∧
       (RecShaped cfg decls e ∧ ∀ ci ∈ decls, ∀ x, ReadExpr decls ci x → RecShaped cfg decls x) ∧
-      BlockNamesInj decls ∧ ArityTypes decls := by
+      BlockNamesInj decls ∧ ArityTypes decls ∧
+      ∀ ci ∈ decls, ∀ p, preDef? view cfg ci = some p →
+        (EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩ ci.name).isNone →
+        ConstsIn (fun c => (findDecl decls c).isSome) p ∧
+        (HasNatLit p → (findDecl decls ``Nat).isSome) ∧ FVarsIn (fun _ => False) p ∧
+        RecShaped cfg decls p := by
   obtain ⟨cs, cases, hcs, hcl, hel, hcol, hbc⟩ := CollectSpec.collectDeps_ok h
-  obtain ⟨hsub, hnd, -, -, hcov, hscan⟩ := closure_ok henv hview hcl nofun
+  obtain ⟨hsub, hnd, -, -, hcov, hscan⟩ := closure_ok henv hview
+    (fun _ hci _ hp => PreDefsOK.namesIn henv hpre hci hp) hcl nofun
     ((TrM.namesIn henv he).exprConsts hcs) List.nodup_nil nofun
   have hr : Run P view cfg decls cases := ⟨ProgEnv.names_closed henv, hview, hsub, hscan⟩
   have covIn : ∀ n, Covered view cfg decls n → (findDecl decls n).isSome = true :=
@@ -1405,7 +1454,7 @@ theorem collectDeps_spec {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds �
     fun ci hci x hx => ?_, ConstsIn_mono (fun c hc => covIn c (hcov c hc)) hcsC.1,
     fun ci hci => hr.phase hel hci,
     ⟨ConstsIn_mono (fun c hc => covRec c (hcov c hc)) hcsC.1, fun ci hci x hx => ?_⟩,
-    BlockNamesInj.of_findBlockCollision hbc, ?_⟩
+    BlockNamesInj.of_findBlockCollision hbc, ?_, fun ci hci p hp hcas => ?_⟩
   · refine ⟨fun x hx => ?_, fun n hn => ?_, fun iv hiv n hn => ?_, fun cv hcv => ?_,
       fun R hR n hn => ?_⟩
     · obtain ⟨xs, hxs, hxc⟩ := hr.read hci hx
@@ -1440,23 +1489,34 @@ theorem collectDeps_spec {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds �
     obtain ⟨-, -, b, hb⟩ := (declExclusion_ok (closureStep_spec hcs').1).2.2.2.2.1 iv rfl
     obtain ⟨n, u, hsh, -⟩ := sortDecided_ok hb
     rw [hsh]; rfl
+  · obtain ⟨ps, hps, hpc⟩ := hr.readPre hci hp hcas
+    obtain ⟨h1, h2, h3⟩ := exprConsts_ok hps
+    exact ⟨ConstsIn_mono (fun c hc => covIn c (hpc c hc)) h1,
+      fun hn => covIn _ (hpc _ (h2 hn)), h3, ConstsIn_mono (fun c hc => covRec c (hpc c hc)) h1⟩
 
 open CollectSub CollectSpec in
-/-- The term and every expression the traversal reads from the fragment test's closure mention
+/-- The term, every expression the traversal reads from the fragment test's closure and the
+compiled pre-definitions of its declarations that are not recognized `casesOn` constants mention
 neither `Nat.succ` nor `Int.casesOn` under `nat := .machine` (`MachineFree`, the premise of
 `visit_agree`): `Erasure.exprConsts` excludes both and scans each of them. Reference: none. -/
 theorem collectDeps_machineFree {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ}
     {P decls : List ConstantInfo} {lps : List Name} {e : Expr} {t : Metalean.Expr ζ lps.length 0}
     {view : EnvView} {cfg : ErasureConfig} (henv : ProgEnv P ζ E B)
-    (hview : ViewAgrees view P) (he : TrM E B lps .nil [] e t)
+    (hview : ViewAgrees view P) (hpre : PreDefsOK E B view cfg P) (he : TrM E B lps .nil [] e t)
     (h : collectDeps view cfg e = .ok decls) :
-    MachineFree cfg e ∧ ∀ ci ∈ decls, ∀ x, ReadExpr decls ci x → MachineFree cfg x := by
+    MachineFree cfg e ∧ (∀ ci ∈ decls, ∀ x, ReadExpr decls ci x → MachineFree cfg x) ∧
+      ∀ ci ∈ decls, ∀ p, preDef? view cfg ci = some p →
+        (EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩ ci.name).isNone →
+        MachineFree cfg p := by
   obtain ⟨cs, cases, hcs, hcl, -, -, -⟩ := CollectSpec.collectDeps_ok h
-  obtain ⟨hsub, -, -, -, -, hscan⟩ := closure_ok henv hview hcl nofun
+  obtain ⟨hsub, -, -, -, -, hscan⟩ := closure_ok henv hview
+    (fun _ hci _ hp => PreDefsOK.namesIn henv hpre hci hp) hcl nofun
     ((TrM.namesIn henv he).exprConsts hcs) List.nodup_nil nofun
   have hr : Run P view cfg decls cases := ⟨ProgEnv.names_closed henv, hview, hsub, hscan⟩
-  refine ⟨exprConsts_machineFree hcs, fun ci hci x hx => ?_⟩
-  obtain ⟨xs, hxs, -⟩ := hr.read hci hx
-  exact exprConsts_machineFree hxs
+  refine ⟨exprConsts_machineFree hcs, fun ci hci x hx => ?_, fun ci hci p hp hcas => ?_⟩
+  · obtain ⟨xs, hxs, -⟩ := hr.read hci hx
+    exact exprConsts_machineFree hxs
+  · obtain ⟨ps, hps, -⟩ := hr.readPre hci hp hcas
+    exact exprConsts_machineFree hps
 
 end EraseProof
