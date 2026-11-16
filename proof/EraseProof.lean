@@ -134,3 +134,5 @@ import EraseProof.Test.NVUData
 import EraseProof.Test.NVUCollect
 import EraseProof.Test.NVURun
 import EraseProof.Test.NVUModel
+import EraseProof.Test.NVUEval
+import EraseProof.Test.NVUFinal
