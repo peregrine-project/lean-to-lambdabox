@@ -6,13 +6,14 @@ import EraseProof.Test.NV1Run
 # NV-1 end to end
 
 The remaining hypotheses of the final theorem on NV-1 (`Test/NV1Data.lean`): the view agrees with
-the program (`hview`), the fragment test accepts `e` (`hfrag`, the closure `D` of `hcollect`), and
-`e = B.neg B.f` evaluates to `B.t` (`hev`: δ on `B.neg`, β, then ι on the saturated `B.casesOn`).
-`final` applies the final theorem `erase_correct` to all eight hypotheses (`henv`, `hwf`, `he`,
-`hty` from `Test/NV1Model.lean`, `hrun` from `Test/NV1Run.lean`): the program `p0` that `#erase`
-emits is an untyped λ□ program whose main term evaluates to an erasure of `B.t`. `firstorder` applies
-`erase_correct_firstorder` to the same hypotheses: that erasure is `B.t`'s structural erasure,
-the λ□ constructor `1` of `B`'s block.
+the program (`hview`), no declaration of the program has a compiled pre-definition (`hpre`), the
+fragment test accepts `e` (`hfrag`, the closure `D` of `hcollect`), and `e = B.neg B.f` evaluates to
+`B.t` (`hev`: δ on `B.neg`, β, then ι on the saturated `B.casesOn`). `final` applies the final
+theorem `erase_correct` to all nine hypotheses (`henv`, `hwf`, `he`, `hty` from
+`Test/NV1Model.lean`, `hrun` from `Test/NV1Run.lean`): the program `p0` that `#erase` emits is an
+untyped λ□ program whose main term evaluates to an erasure of `B.t`. `firstorder` applies
+`erase_correct_firstorder` to the same hypotheses: that erasure is `B.t`'s structural erasure, the
+λ□ constructor `1` of `B`'s block.
 -/
 
 open Lean Erasure Metalean
@@ -53,6 +54,14 @@ theorem hev : SrcEval (evalEnvOf view cfg P) C e cT := by
   cases h
   cases h'
 
+/-- `hpre`: no declaration of `P` has a compiled pre-definition (`preDef?` is `none`:
+the view holds no `_unsafe_rec` companion), so `PreDefsOK` holds vacuously. -/
+theorem hpre : PreDefsOK E B view cfg P := by
+  intro _ ci _ _ hP h
+  have hn : P.all (fun ci => (preDef? view cfg ci).isNone) = true := by krfl
+  rw [Option.isNone_iff_eq_none.mp (List.all_eq_true.mp hn ci (by rw [hP]; simp))] at h
+  cases h
+
 /-- The final theorem on NV-1: the program `#erase` emits for `B.neg B.f` is an untyped λ□ program
 whose main term evaluates to an erasure of `B.t`, and `B.t` translates to a term definitionally
 equal to `B.neg B.f`'s at each of its types. -/
@@ -60,7 +69,7 @@ theorem final :
     ∃ lenv tb vb, p0 = .untyped lenv (some tb) ∧
       Erases E B [] (evalEnvOf view cfg P) .nil [] cT vb ∧ LBEval defaultFlags lenv tb vb ∧
       ∀ T, E[.nil] ⊢ tE : T → ∃ t', TrM E B [] .nil [] cT t' ∧ E[.nil] ⊢ tE ≡ t' : T :=
-  erase_correct henv hwf hview he hty hfrag hrun hev
+  erase_correct henv hwf hview hpre he hty hfrag hrun hev
 
 /-- `B.t` is a first-order value: a constructor of `B : Type` with no parameter and no field. -/
 theorem fo_cT : FirstOrderValue (evalEnvOf view cfg P) cT :=
@@ -71,6 +80,6 @@ theorem fo_cT : FirstOrderValue (evalEnvOf view cfg P) cT :=
 evaluates in λ□ to `B.t`'s structural erasure, the constructor `1` of `B`'s block. -/
 theorem firstorder :
     ∃ lenv tb, p0 = .untyped lenv (some tb) ∧ LBEval defaultFlags lenv tb (.construct iidB 1 []) :=
-  erase_correct_firstorder henv hwf hview he hty hfrag hrun hev fo_cT
+  erase_correct_firstorder henv hwf hview hpre he hty hfrag hrun hev fo_cT
 
 end EraseProof.Test.NV1

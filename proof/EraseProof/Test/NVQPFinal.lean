@@ -6,19 +6,20 @@ import EraseProof.Test.NVQPRun
 # NV-QP end to end
 
 The remaining hypotheses of the final theorem on NV-QP (`Test/NVQPData.lean`): the view agrees with
-the program (`hview`), the fragment test accepts `e` (`hfrag`, the closure `D` of `hcollect`), and
-`e` evaluates to `B.t` (`hev`). The evaluation unfolds `useTF` (δ) to `orU` applied to the class
+the program (`hview`), no declaration of the program has a compiled pre-definition (`hpre`), the
+fragment test accepts `e` (`hfrag`, the closure `D` of `hcollect`), and `e` evaluates to `B.t`
+(`hev`). The evaluation unfolds `useTF` (δ) to `orU` applied to the class
 `Quot.mk swapR (B.t, B.f)`; `orU` unfolds to `Quot.lift (fun p => orB p.1 p.2) orU._proof_1`, a
 spine with five of `Quot.lift`'s six arguments, which is its η-expansion (`SrcEval.eta`); the β-step
 on the class gives the saturated spine, whose quotient ι (`SrcEval.quotLift`) continues with
 `orB p.1 p.2` at the element `(B.t, B.f)`. The projections unfold (δ, β) to primitive projections of
-the pair (`SrcEval.proj`); `orB` unfolds (δ, β) to its matcher, the matcher (δ, β) to `B.casesOn`
-on `B.t`, whose ι (`SrcEval.casesIota`) takes the second alternative `fun _ => B.t`. `hevFT` is the
+the pair (`SrcEval.proj`); `orB` unfolds (δ, β) to its matcher, the matcher (δ, β) to `B.casesOn` on
+`B.t`, whose ι (`SrcEval.casesIota`) takes the second alternative `fun _ => B.t`. `hevFT` is the
 evaluation of the second term `useFT`, on the other representative `(B.f, B.t)` of the class: the
 same steps, with the ι of `B.casesOn` on `B.f` taking the first alternative `fun b => b` at `B.t`.
-Both representatives give `B.t`. `final` applies the final theorem `erase_correct` to all eight
-hypotheses (`henv`, `hwf`, `he`, `hty` from `Test/NVQPModel.lean`, `hrun` from
-`Test/NVQPRun.lean`); `firstorder` applies `erase_correct_firstorder`.
+Both representatives give `B.t`. `final` applies the final theorem `erase_correct` to all nine
+hypotheses (`henv`, `hwf`, `he`, `hty` from `Test/NVQPModel.lean`, `hrun` from `Test/NVQPRun.lean`);
+`firstorder` applies `erase_correct_firstorder`.
 -/
 
 open Lean Erasure Metalean
@@ -222,6 +223,14 @@ theorem hevFT : SrcEval σ C eFT cT :=
 
 /-! ## The final theorem on NV-QP -/
 
+/-- `hpre`: no declaration of `P` has a compiled pre-definition (`preDef?` is `none`:
+the view holds no `_unsafe_rec` companion), so `PreDefsOK` holds vacuously. -/
+theorem hpre : PreDefsOK E B view cfg P := by
+  intro _ ci _ _ hP h
+  have hn : P.all (fun ci => (preDef? view cfg ci).isNone) = true := by krfl
+  rw [Option.isNone_iff_eq_none.mp (List.all_eq_true.mp hn ci (by rw [hP]; simp))] at h
+  cases h
+
 /-- The final theorem on NV-QP: the program `#erase` emits for `useTF`, a function on unordered
 pairs of `B` (a quotient of `Prod B B` whose relation identifies distinct pairs) at the class of
 `(B.t, B.f)`, is an untyped λ□ program whose main term evaluates to an erasure of `B.t`, and `B.t`
@@ -230,7 +239,7 @@ theorem final :
     ∃ lenv tb vb, p0 = .untyped lenv (some tb) ∧
       Erases E B [] σ .nil [] cT vb ∧ LBEval defaultFlags lenv tb vb ∧
       ∀ T, E[.nil] ⊢ tE : T → ∃ t', TrM E B [] .nil [] cT t' ∧ E[.nil] ⊢ tE ≡ t' : T :=
-  erase_correct henv hwf hview he hty hfrag hrun hev
+  erase_correct henv hwf hview hpre he hty hfrag hrun hev
 
 /-- `B.t` is a first-order value: a constructor of `B : Type` with no parameter and no field. -/
 theorem fo_cT : FirstOrderValue σ cT :=
@@ -241,6 +250,6 @@ theorem fo_cT : FirstOrderValue σ cT :=
 evaluates in λ□ to `B.t`'s structural erasure, the constructor `1` of `B`'s block. -/
 theorem firstorder :
     ∃ lenv tb, p0 = .untyped lenv (some tb) ∧ LBEval defaultFlags lenv tb (.construct iidB 1 []) :=
-  erase_correct_firstorder henv hwf hview he hty hfrag hrun hev fo_cT
+  erase_correct_firstorder henv hwf hview hpre he hty hfrag hrun hev fo_cT
 
 end EraseProof.Test.NVQP

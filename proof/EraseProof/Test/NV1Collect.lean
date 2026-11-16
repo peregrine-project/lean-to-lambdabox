@@ -4,13 +4,14 @@ import EraseProof.Test.NV1Final
 /-!
 # NV-1: the lower bound of the fragment test
 
-The premises of `collectDeps_ok_of` (the fragment test accepts every typed program of the
-fragment) on NV-1 (`Test/NV1Data.lean`) with the closure `D` (`Test/NV1Run.lean`), each proved from
-the declarations, not from a run of the fragment test: `D` is a sub-environment of the program,
+The premises of `collectDeps_ok_of` (the fragment test accepts every typed program of the fragment)
+on NV-1 (`Test/NV1Data.lean`) with the closure `D` (`Test/NV1Run.lean`), each proved from the
+declarations, not from a run of the fragment test: `D` is a sub-environment of the program,
 read-closed, every declaration of it is in Phase I, the term and the read expressions are plain and
-read no recursor, kernames and block names are distinct, and `D` is within the fuel. `ok_of`
-applies `collectDeps_ok_of` to them. The syntactic conditions on expressions are decided by kernel
-evaluation of Boolean versions (`constsAll`, `plainB`).
+read no recursor, no declaration of it has a compiled pre-definition, kernames and block names are
+distinct, and `D` is within the fuel. `ok_of` applies `collectDeps_ok_of` to them. The syntactic
+conditions on expressions are decided by kernel evaluation of Boolean versions (`constsAll`,
+`plainB`).
 -/
 
 open Lean Erasure
@@ -245,6 +246,14 @@ theorem findDecl_isSome {c : Name} (h : (findDecl D c).isSome) :
   have hc := beq_iff_eq.mp hc
   rcases mem_D hci with rfl | rfl | rfl | rfl | rfl | rfl <;> subst hc <;> decide
 
+/-- No declaration of `D` has a compiled pre-definition (`preDef?` is `none`:
+the view holds no `_unsafe_rec` companion), so `D` reads them vacuously. -/
+theorem preD : PreRead view cfg D := by
+  intro ci hci _ h
+  have hn : D.all (fun ci => (preDef? view cfg ci).isNone) = true := by krfl
+  rw [Option.isNone_iff_eq_none.mp (List.all_eq_true.mp hn ci hci)] at h
+  cases h
+
 /-- The kernames of `D` are distinct. -/
 theorem kernD : KernameInj D := by
   intro c₁ c₂ h₁ h₂ h
@@ -265,7 +274,7 @@ theorem blockD : BlockNamesInj D := by
 
 /-- The fragment test accepts NV-1's term, by `collectDeps_ok_of` from the premises above. -/
 theorem ok_of : ∃ decls', collectDeps view cfg e = .ok decls' :=
-  collectDeps_ok_of henv hview he hty rfl subD readD phaseD plainD recShapedD kernD blockD
+  collectDeps_ok_of henv hview he hty rfl subD readD phaseD plainD recShapedD preD kernD blockD
     (by decide)
 
 end EraseProof.Test.NV1

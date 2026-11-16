@@ -7,17 +7,17 @@ import EraseProof.Test.NVRFinal
 # NV-S end to end
 
 The remaining hypotheses of the final theorem on NV-S (`Test/NVSData.lean`): the view agrees with
-the program (`hview`), the fragment test accepts `e` (`hfrag`, the closure `D` of `hcollect`), and
-`e` evaluates to `N.s (N.s N.z)` (`hev`). The evaluation unfolds `add`, then `N.brecOn` and
-`N.brecOn.go` (δ, β): the recursor `N.rec` into the pairs `PProd (motive t) (N.below motive t)` takes
-its ι on `N.s N.z` (`SrcEval.recIota`), with the induction hypothesis its ι on `N.z`; each step
-applies `add._f n` to the table built so far, which matches with `add.match_1`, a `N.casesOn` (δ,
-then `SrcEval.casesIota`); the recursive call is the first projection of the table
-(`SrcEval.proj`), and the result is the first projection of the pair. `final` applies the final
-theorem `erase_correct` to all eight hypotheses (`henv`, `hwf`, `he`, `hty` from
-`Test/NVSModel.lean`, `hrun` from `Test/NVSRun.lean`); `firstorder` applies
-`erase_correct_firstorder`: the main term of the program `#erase` emits evaluates in λ□ to
-`N.s (N.s N.z)`'s structural erasure.
+the program (`hview`), no declaration of the program has a compiled pre-definition (`hpre`), the
+fragment test accepts `e` (`hfrag`, the closure `D` of `hcollect`), and `e` evaluates to
+`N.s (N.s N.z)` (`hev`). The evaluation unfolds `add`, then `N.brecOn` and `N.brecOn.go` (δ, β): the
+recursor `N.rec` into the pairs `PProd (motive t) (N.below motive t)` takes its ι on `N.s N.z`
+(`SrcEval.recIota`), with the induction hypothesis its ι on `N.z`; each step applies `add._f n` to
+the table built so far, which matches with `add.match_1`, a `N.casesOn` (δ, then
+`SrcEval.casesIota`); the recursive call is the first projection of the table (`SrcEval.proj`), and
+the result is the first projection of the pair. `final` applies the final theorem `erase_correct` to
+all nine hypotheses (`henv`, `hwf`, `he`, `hty` from `Test/NVSModel.lean`, `hrun` from
+`Test/NVSRun.lean`); `firstorder` applies `erase_correct_firstorder`: the main term of the program
+`#erase` emits evaluates in λ□ to `N.s (N.s N.z)`'s structural erasure.
 -/
 
 open Lean Erasure Metalean
@@ -371,6 +371,14 @@ theorem hev : SrcEval σ C e ssz := by
 
 /-! ## The final theorem on NV-S -/
 
+/-- `hpre`: no declaration of `P` has a compiled pre-definition (`preDef?` is `none`:
+the configuration is `structural := .kernel`), so `PreDefsOK` holds vacuously. -/
+theorem hpre : PreDefsOK E B view cfg P := by
+  intro _ ci _ _ hP h
+  have hn : P.all (fun ci => (preDef? view cfg ci).isNone) = true := by krfl
+  rw [Option.isNone_iff_eq_none.mp (List.all_eq_true.mp hn ci (by rw [hP]; simp))] at h
+  cases h
+
 /-- The final theorem on NV-S: the program `#erase` emits for `add (N.s N.z) (N.s N.z)`, `add`
 defined by structural recursion and erased under `structural := .kernel`, is an untyped λ□ program
 whose main term evaluates to an erasure of `N.s (N.s N.z)`, and `N.s (N.s N.z)` translates to a
@@ -379,7 +387,7 @@ theorem final :
     ∃ lenv tb vb, p0 = .untyped lenv (some tb) ∧
       Erases E B [] (evalEnvOf view cfg P) .nil [] ssz vb ∧ LBEval defaultFlags lenv tb vb ∧
       ∀ T, E[.nil] ⊢ tE : T → ∃ t', TrM E B [] .nil [] ssz t' ∧ E[.nil] ⊢ tE ≡ t' : T :=
-  erase_correct henv hwf hview he hty hfrag hrun hev
+  erase_correct henv hwf hview hpre he hty hfrag hrun hev
 
 /-- `N.s (N.s N.z)` is a first-order value: constructors of `N : Type` applied to first-order
 values. -/
@@ -399,6 +407,6 @@ to the constructor `1` applied to the constructor `0`. -/
 theorem firstorder :
     ∃ lenv tb, p0 = .untyped lenv (some tb) ∧ LBEval defaultFlags lenv tb
       (.app (.construct iidN 1 []) (.app (.construct iidN 1 []) (.construct iidN 0 []))) :=
-  erase_correct_firstorder henv hwf hview he hty hfrag hrun hev fo_ssz
+  erase_correct_firstorder henv hwf hview hpre he hty hfrag hrun hev fo_ssz
 
 end EraseProof.Test.NVS

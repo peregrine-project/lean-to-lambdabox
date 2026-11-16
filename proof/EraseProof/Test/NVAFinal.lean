@@ -6,13 +6,14 @@ import EraseProof.Test.NVAEval
 # NV-A end to end
 
 The remaining hypotheses of the final theorem on NV-A (`Test/NVAData.lean`): the view agrees with
-the program (`hview`), the fragment test accepts `e` (`hfrag`, the closure `D` of `hcollect`), and
-`e` evaluates to `Nat.succ (Nat.succ (Nat.succ 2))` (`hev`, `Test/NVAEval.lean`). `final` applies the
-final theorem `erase_correct` to all eight hypotheses (`henv`, `hwf`, `he`, `hty` from
-`Test/NVAModel.lean`, `hrun` from `Test/NVARun.lean`). The corollary on first-order values
-(`erase_correct_firstorder`) does not apply: the value keeps the literal `2` of the first argument
-under its constructors, and a literal is not a first-order value (`FirstOrderValue` has
-constructor, proof and atom leaves only); `final` states the value's erasure through `Erases`.
+the program (`hview`), no declaration of the program has a compiled pre-definition (`hpre`), the
+fragment test accepts `e` (`hfrag`, the closure `D` of `hcollect`), and `e` evaluates to
+`Nat.succ (Nat.succ (Nat.succ 2))` (`hev`, `Test/NVAEval.lean`). `final` applies the final theorem
+`erase_correct` to all nine hypotheses (`henv`, `hwf`, `he`, `hty` from `Test/NVAModel.lean`, `hrun`
+from `Test/NVARun.lean`). The corollary on first-order values (`erase_correct_firstorder`) does not
+apply: the value keeps the literal `2` of the first argument under its constructors, and a literal
+is not a first-order value (`FirstOrderValue` has constructor, proof and atom leaves only); `final`
+states the value's erasure through `Erases`.
 -/
 
 open Lean Erasure Metalean
@@ -55,6 +56,14 @@ theorem hview : ViewAgrees view P := by
 /-- `hfrag`: the fragment test accepts `e`, with the closure `D`. -/
 theorem hfrag : collectDeps view cfg e = .ok D := hcollect
 
+/-- `hpre`: no declaration of `P` has a compiled pre-definition (`preDef?` is `none`:
+the configuration is `structural := .kernel`), so `PreDefsOK` holds vacuously. -/
+theorem hpre : PreDefsOK E B view cfg P := by
+  intro _ ci _ _ hP h
+  have hn : P.all (fun ci => (preDef? view cfg ci).isNone) = true := by krfl
+  rw [Option.isNone_iff_eq_none.mp (List.all_eq_true.mp hn ci (by rw [hP]; simp))] at h
+  cases h
+
 /-- The final theorem on NV-A: the program `#erase` emits for `Nat.add 2 3` under
 `extern := .preferLogical, structural := .kernel, nat := .peano` is an untyped λ□ program whose
 main term evaluates to an erasure of `Nat.succ (Nat.succ (Nat.succ 2))`, and that value translates to
@@ -63,6 +72,6 @@ theorem final :
     ∃ lenv tb vb, p0 = .untyped lenv (some tb) ∧
       Erases E B [] (evalEnvOf view cfg P) .nil [] v5 vb ∧ LBEval defaultFlags lenv tb vb ∧
       ∀ T, E[.nil] ⊢ tE : T → ∃ t', TrM E B [] .nil [] v5 t' ∧ E[.nil] ⊢ tE ≡ t' : T :=
-  erase_correct henv hwf hview he hty hfrag hrun hev
+  erase_correct henv hwf hview hpre he hty hfrag hrun hev
 
 end EraseProof.Test.NVA
